@@ -45,3 +45,4 @@ jobs:
           git add index.html
           git commit -m 'Deploy HLGB v91.10 manual login product recovery'
           git push origin main
+# retrigger after disabling legacy v91.08 installer
