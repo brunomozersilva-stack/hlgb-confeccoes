@@ -1,0 +1,48 @@
+name: HLGB apply v91.13
+on:
+  push:
+    paths:
+      - 'scripts/hlgb_v9113_live_receive.py'
+      - '.github/workflows/hlgb-apply-v9113.yml'
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Apply v91.13 live receive fix
+        run: python3 scripts/hlgb_v9113_live_receive.py
+      - name: Validate embedded JavaScript
+        run: |
+          python3 - <<'PY'
+          import re, pathlib, subprocess
+          s=pathlib.Path('index.html').read_text(encoding='utf-8')
+          scripts=re.findall(r'<script(?:\s[^>]*)?>(.*?)</script>',s,re.S|re.I)
+          for i,body in enumerate(scripts):
+              f=pathlib.Path(f'/tmp/hlgb-{i}.js')
+              f.write_text(body,encoding='utf-8')
+              subprocess.run(['node','--check',str(f)],check=True)
+          assert 'Versão v91.13' in s
+          assert 'function hlgbRenderIncomingRecord(module)' in s
+          assert 'if(module==="products" && activePage==="produtos")' in s
+          assert 'if(!force&&hlgbRealtimeState==="SUBSCRIBED")return false;' not in s
+          print('validated',len(scripts),'script blocks')
+          PY
+      - name: Commit validated index
+        run: |
+          if git diff --quiet -- index.html; then
+            echo 'No index changes required'
+            exit 0
+          fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add index.html
+          git commit -m 'Deploy HLGB v91.13 live multiuser receive fix'
+          git push origin main
