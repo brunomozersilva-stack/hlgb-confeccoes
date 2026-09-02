@@ -6,7 +6,7 @@
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
-<title>HLGB Confecções — Sistema de Gestão v91.11 Multiusuário</title>
+<title>HLGB Confecções — Sistema de Gestão v91.12 Multiusuário</title>
 <style>
 :root{--navy:#6f3f59;--orange:#c96b8f;--bg:#fbf6f8;--line:#eadde4;--text:#30262c;--muted:#786b73;--ok:#e9f7ef;--warn:#fff5df;--bad:#fdeaea;--rose:#f3dbe5;--rose2:#fff8fb}
 *{box-sizing:border-box}body{margin:0;font-family:Arial,Helvetica,sans-serif;background:var(--bg);color:var(--text)}
@@ -246,11 +246,11 @@ main{min-width:0;}
     <div class="field" style="text-align:left;margin-bottom:10px"><label>E-mail</label><input id="loginUser" type="email" autocomplete="username" placeholder="seuemail@exemplo.com"></div>
     <div class="field" style="text-align:left;margin-bottom:14px"><label>Senha</label><input id="loginPass" type="password" autocomplete="current-password" onkeydown="if(event.key==='Enter')return doLogin()"></div>
     <button class="primary" style="width:100%" onclick="return doLogin()">Entrar</button>
-    <div id="loginError" style="color:#a51d2d;font-size:13px;margin-top:10px"></div><div style="margin-top:12px;font-size:12px;color:#786b73">Acesso protegido pelo Supabase • HLGB Online<br><b style="color:#6f3f59">Versão v91.11</b></div>
+    <div id="loginError" style="color:#a51d2d;font-size:13px;margin-top:10px"></div><div style="margin-top:12px;font-size:12px;color:#786b73">Acesso protegido pelo Supabase • HLGB Online<br><b style="color:#6f3f59">Versão v91.12</b></div>
   </div>
 </div>
 
-<div id="appShell" style="display:none"><header><div class="logo">HLGB <b>CONFECÇÕES</b> <small style="font-size:10px;opacity:.8">v91.11</small></div><div><span id="cloudStatus" style="margin-right:10px;font-size:12px;padding:6px 9px;border:1px solid #ffffff44;border-radius:8px">☁️ Nuvem</span><span id="currentUserLabel" style="margin-right:10px;font-size:13px"></span><button id="cloudSaveBtn" onclick="cloudUploadCurrentDb(true)" style="display:none" title="Sincronização automática">🔄 Sincronizar agora</button> <button id="backupBtn" onclick="backup()" style="display:none">Exportar backup</button> <button id="importBackupBtn" onclick="document.getElementById('backupImportInput').click()" style="display:none">Importar backup</button><input id="backupImportInput" type="file" accept=".json,application/json" style="display:none" onchange="importBackupFile(this)"> <button onclick="logout()">Sair</button></div></header>
+<div id="appShell" style="display:none"><header><div class="logo">HLGB <b>CONFECÇÕES</b> <small style="font-size:10px;opacity:.8">v91.12</small></div><div><span id="cloudStatus" style="margin-right:10px;font-size:12px;padding:6px 9px;border:1px solid #ffffff44;border-radius:8px">☁️ Nuvem</span><span id="currentUserLabel" style="margin-right:10px;font-size:13px"></span><button id="cloudSaveBtn" onclick="cloudUploadCurrentDb(true)" style="display:none" title="Sincronização automática">🔄 Sincronizar agora</button> <button id="backupBtn" onclick="backup()" style="display:none">Exportar backup</button> <button id="importBackupBtn" onclick="document.getElementById('backupImportInput').click()" style="display:none">Importar backup</button><input id="backupImportInput" type="file" accept=".json,application/json" style="display:none" onchange="importBackupFile(this)"> <button onclick="logout()">Sair</button></div></header>
 <div class="app">
 <aside><nav id="nav" class="clean-nav">
 <button class="nav-home active" onclick="page('dashboard',this)">🏠 <span>Início</span></button>
@@ -2553,17 +2553,37 @@ function doLogin(){
    localSaveOnly();
    errorEl.textContent="";errorEl.style.display="none";
    loginEl.style.display="none";appEl.style.display="block";
-   applyAccess();restoreNavGroups();
-   // Renderizar depois de carregar a nuvem NÃO é uma alteração do usuário.
-   // Antes, renderAll() marcava a cópia local como "suja" e a máquina secundária
-   // acabava bloqueando a busca de novidades ou tentando reenviar uma cópia antiga.
-   {const prevApplying=cloudApplying;cloudApplying=true;try{renderAll()}finally{cloudApplying=prevApplying}}
+   // v91.12: erro de interface depois do login nunca pode apagar a sessão online.
+   try{
+     applyAccess();restoreNavGroups();
+     // Renderizar depois de carregar a nuvem NÃO é uma alteração do usuário.
+     {const prevApplying=cloudApplying;cloudApplying=true;try{renderAll()}finally{cloudApplying=prevApplying}}
+   }catch(uiErr){
+     console.error("HLGB v91.12 erro de interface após login; sessão preservada",uiErr);
+     try{setCloudStatus("⚠️ Online · interface com aviso","warn")}catch(e){}
+   }
    if(state==="empty"){
      if(confirm("Seu login online funcionou. A nuvem ainda está vazia. Deseja enviar agora os dados que já estão neste navegador para a nuvem?\n\nClique em OK para enviar os dados atuais. Clique em Cancelar se preferir importar primeiro o backup que você exportou.")){
        await cloudInitializeFromCurrentDb(true);
      }
    }
-  }catch(e){console.error(e);cloudAccessToken="";cloudRefreshToken="";cloudTokenExpiresAt=0;cloudUser=null;cloudReady=false;cloudRowId=null;cloudStoreAuth();let msg=e.message||"verifique e-mail e senha.";if(/invalid login credentials/i.test(msg))msg="E-mail ou senha incorretos. Se este usuário foi criado antes do sistema online, o Administrador precisa ativar o acesso online dele.";errorEl.textContent="Não foi possível entrar: "+msg;errorEl.style.display="block";passEl.value="";passEl.focus()}
+  }catch(e){
+   console.error(e);
+   const appAlreadyOpen=!!appEl && appEl.style.display==="block";
+   const authenticated=!!cloudUser && (!!cloudAccessToken || !!cloudRefreshToken);
+   // v91.12: se a autenticação já foi concluída e o painel já abriu, um erro posterior
+   // é problema de interface/bootstrap, não de login. Preserva access + refresh token.
+   if(appAlreadyOpen && authenticated){
+     try{cloudStoreAuth()}catch(_e){}
+     try{setCloudStatus("⚠️ Online · sessão preservada","warn")}catch(_e){}
+     errorEl.textContent="";errorEl.style.display="none";
+     return;
+   }
+   cloudAccessToken="";cloudRefreshToken="";cloudTokenExpiresAt=0;cloudUser=null;cloudReady=false;cloudRowId=null;cloudStoreAuth();
+   let msg=e.message||"verifique e-mail e senha.";
+   if(/invalid login credentials/i.test(msg))msg="E-mail ou senha incorretos. Se este usuário foi criado antes do sistema online, o Administrador precisa ativar o acesso online dele.";
+   errorEl.textContent="Não foi possível entrar: "+msg;errorEl.style.display="block";passEl.value="";passEl.focus();
+  }
  })();
  return false;
 }
@@ -8844,7 +8864,7 @@ async function hlgbEnsureActiveWriteSession(){
       return true;
     }
   }catch(e){
-    console.warn("HLGB v91.11 recuperação de sessão para gravação",e);
+    console.warn("HLGB v91.12 recuperação de sessão para gravação",e);
   }
   return false;
 }
@@ -8906,7 +8926,7 @@ async function hlgbRecoverLocalOnlyProducts(){
       body:JSON.stringify({p_products:local})
     });
     if(Array.isArray(result))result=result[0]||null;
-    console.info("HLGB v91.11 reconciliação produtos",result);
+    console.info("HLGB v91.12 reconciliação produtos",result);
     if(result?.recovered===true){
       setCloudStatus(`☁️ Recuperando ${result.name||"produto"}…`);
       // Recarrega os registros oficiais depois que o servidor confirmou o 45º produto.
@@ -8922,7 +8942,7 @@ async function hlgbRecoverLocalOnlyProducts(){
     }
     return 0;
   }catch(e){
-    console.error("HLGB v91.11 reconciliação local",e);
+    console.error("HLGB v91.12 reconciliação local",e);
     setCloudStatus("☁️ Falha ao conferir produtos locais","bad");
     return 0;
   }
@@ -10547,7 +10567,7 @@ appShell.style.display="none";
 loginScreen.style.display="flex";
 // Restaura a credencial de refresh persistida neste navegador. O painel só será aberto
 // depois de renovar no Supabase, carregar a nuvem e validar as permissões.
-/* ===== v91.11 — MULTIUSUÁRIO POR REGISTRO (TODOS OS MÓDULOS) ===== */
+/* ===== v91.12 — MULTIUSUÁRIO POR REGISTRO (TODOS OS MÓDULOS) ===== */
 const HLGB_RECORD_MODULES=[
   "products","materials","clients","orders","orderTrash",
   "production","productionLocations","capacityAssignments","goals","defectReturns","missingPieces",
@@ -10757,7 +10777,7 @@ async function hlgbNormalizedSyncNow(showMessage=false){
     if(showMessage)alert("Dados sincronizados com sucesso.");
     return true;
   }catch(e){
-    console.error("HLGB v91.11 sync",e);hlgbRecordPendingStore();setCloudStatus("☁️ Alterações pendentes","bad");try{const el=document.getElementById("cloudStatus");if(el)el.title=String(e?.message||e||"");}catch(_){}return false;
+    console.error("HLGB v91.12 sync",e);hlgbRecordPendingStore();setCloudStatus("☁️ Alterações pendentes","bad");try{const el=document.getElementById("cloudStatus");if(el)el.title=String(e?.message||e||"");}catch(_){}return false;
   }finally{
     hlgbRecordSyncing=false;
     if(hlgbRecordSyncAgain){
@@ -10905,10 +10925,10 @@ async function hlgbEnsureRecordsOnlineAfterLogin(){
       setCloudStatus(hlgbRecordPendingRead()?"☁️ Salvando automático…":"⚡ Online · multiusuário",hlgbRecordPendingRead()?"":"ok");
       return true;
     }
-  }catch(e){console.error("HLGB v91.11 bootstrap",e);}
+  }catch(e){console.error("HLGB v91.12 bootstrap",e);}
   return false;
 }
-/* ===== fim v91.11 ===== */
+/* ===== fim v91.12 ===== */
 
 if(cloudRestoreStoredAuth()){
  (async()=>{
