@@ -6,7 +6,7 @@
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
-<title>HLGB Confecções — Sistema de Gestão v91.13 Multiusuário</title>
+<title>HLGB Confecções — Sistema de Gestão v91.14 Multiusuário</title>
 <style>
 :root{--navy:#6f3f59;--orange:#c96b8f;--bg:#fbf6f8;--line:#eadde4;--text:#30262c;--muted:#786b73;--ok:#e9f7ef;--warn:#fff5df;--bad:#fdeaea;--rose:#f3dbe5;--rose2:#fff8fb}
 *{box-sizing:border-box}body{margin:0;font-family:Arial,Helvetica,sans-serif;background:var(--bg);color:var(--text)}
@@ -246,11 +246,11 @@ main{min-width:0;}
     <div class="field" style="text-align:left;margin-bottom:10px"><label>E-mail</label><input id="loginUser" type="email" autocomplete="username" placeholder="seuemail@exemplo.com"></div>
     <div class="field" style="text-align:left;margin-bottom:14px"><label>Senha</label><input id="loginPass" type="password" autocomplete="current-password" onkeydown="if(event.key==='Enter')return doLogin()"></div>
     <button class="primary" style="width:100%" onclick="return doLogin()">Entrar</button>
-    <div id="loginError" style="color:#a51d2d;font-size:13px;margin-top:10px"></div><div style="margin-top:12px;font-size:12px;color:#786b73">Acesso protegido pelo Supabase • HLGB Online<br><b style="color:#6f3f59">Versão v91.13</b></div>
+    <div id="loginError" style="color:#a51d2d;font-size:13px;margin-top:10px"></div><div style="margin-top:12px;font-size:12px;color:#786b73">Acesso protegido pelo Supabase • HLGB Online<br><b style="color:#6f3f59">Versão v91.14</b></div>
   </div>
 </div>
 
-<div id="appShell" style="display:none"><header><div class="logo">HLGB <b>CONFECÇÕES</b> <small style="font-size:10px;opacity:.8">v91.13</small></div><div><span id="cloudStatus" style="margin-right:10px;font-size:12px;padding:6px 9px;border:1px solid #ffffff44;border-radius:8px">☁️ Nuvem</span><span id="currentUserLabel" style="margin-right:10px;font-size:13px"></span><button id="cloudSaveBtn" onclick="cloudUploadCurrentDb(true)" style="display:none" title="Sincronização automática">🔄 Sincronizar agora</button> <button id="backupBtn" onclick="backup()" style="display:none">Exportar backup</button> <button id="importBackupBtn" onclick="document.getElementById('backupImportInput').click()" style="display:none">Importar backup</button><input id="backupImportInput" type="file" accept=".json,application/json" style="display:none" onchange="importBackupFile(this)"> <button onclick="logout()">Sair</button></div></header>
+<div id="appShell" style="display:none"><header><div class="logo">HLGB <b>CONFECÇÕES</b> <small style="font-size:10px;opacity:.8">v91.14</small></div><div><span id="cloudStatus" style="margin-right:10px;font-size:12px;padding:6px 9px;border:1px solid #ffffff44;border-radius:8px">☁️ Nuvem</span><span id="currentUserLabel" style="margin-right:10px;font-size:13px"></span><button id="cloudSaveBtn" onclick="cloudUploadCurrentDb(true)" style="display:none" title="Sincronização automática">🔄 Sincronizar agora</button> <button id="backupBtn" onclick="backup()" style="display:none">Exportar backup</button> <button id="importBackupBtn" onclick="document.getElementById('backupImportInput').click()" style="display:none">Importar backup</button><input id="backupImportInput" type="file" accept=".json,application/json" style="display:none" onchange="importBackupFile(this)"> <button onclick="logout()">Sair</button></div></header>
 <div class="app">
 <aside><nav id="nav" class="clean-nav">
 <button class="nav-home active" onclick="page('dashboard',this)">🏠 <span>Início</span></button>
@@ -5504,7 +5504,7 @@ function orderMatrixProductBlock(data={}){
  let selectedProduct=(db.products||[]).find(x=>+x.id===+productId);
  let colors=selectedProduct?productAllowedColors(selectedProduct,existing.map(x=>x.color)):((db.colors||[]).length?db.colors:["Preto"]);
  if(!colors.length)colors=(db.colors||[]).length?db.colors:["Preto"];
- let sizes=(db.sizes||[]).length?db.sizes:["P","M","G","GG"];
+ let sizes=hlgbSortedSizes(db.sizes);
  let blockId="omb_"+Date.now()+"_"+Math.floor(Math.random()*100000);
  let heads=sizes.map(s=>`<th>${esc(s)}</th>`).join("");
  let rows=orderMatrixRowsHTML(colors,sizes,existing);
@@ -6886,7 +6886,7 @@ function markSeparation(orderId){
 function separationGradeMatrixHTML(o){
  let grade=Array.isArray(o?.grade)?o.grade:[];
  if(!grade.length)return '<div style="padding:10px;border:1px solid #ddd">Pedido sem grade cadastrada.</div>';
- let sizes=(db.sizes||[]).length?db.sizes:["P","M","G","GG"];
+ let sizes=hlgbSortedSizes(db.sizes);
  let groups={};
  grade.forEach(it=>{
    let prod=(db.products||[]).find(p=>+p.id===+it.productId);
@@ -8495,6 +8495,27 @@ function setAllProductColors(mark){
  document.querySelectorAll('.fcolorOpt').forEach(x=>x.checked=!!mark);
  updateProductColorSummary();
 }
+function hlgbSortedSizes(values){
+  const fallback=["P","M","G","GG"];
+  const source=(Array.isArray(values)&&values.length?values:fallback)
+    .map(v=>String(v??"").trim()).filter(Boolean);
+  const unique=[...new Set(source)];
+  const letterOrder={PP:0,P:1,M:2,G:3,GG:4,XG:5,XGG:6,EG:7,EGG:8};
+  const numeric=v=>/^\d+(?:[.,]\d+)?$/.test(v);
+  return unique.sort((a,b)=>{
+    const aa=String(a).toUpperCase(),bb=String(b).toUpperCase();
+    const ai=Object.prototype.hasOwnProperty.call(letterOrder,aa)?letterOrder[aa]:null;
+    const bi=Object.prototype.hasOwnProperty.call(letterOrder,bb)?letterOrder[bb]:null;
+    if(ai!==null&&bi!==null)return ai-bi;
+    if(ai!==null)return -1;
+    if(bi!==null)return 1;
+    const an=numeric(aa),bn=numeric(bb);
+    if(an&&bn)return parseFloat(aa.replace(',','.'))-parseFloat(bb.replace(',','.'));
+    if(an)return 1;
+    if(bn)return -1;
+    return aa.localeCompare(bb,'pt-BR',{numeric:true,sensitivity:'base'});
+  });
+}
 function orderMatrixRowsHTML(colors,sizes,existing=[]){
  return colors.map(c=>{
    let cells=sizes.map(sz=>{
@@ -8508,7 +8529,7 @@ function orderMatrixRowsHTML(colors,sizes,existing=[]){
 function refreshOrderMatrixColors(block,productId,preserve=false){
  if(!block)return;
  let p=(db.products||[]).find(x=>+x.id===+productId);
- let sizes=(db.sizes||[]).length?db.sizes:["P","M","G","GG"];
+ let sizes=hlgbSortedSizes(db.sizes);
  let existing=[];
  if(preserve){
    block.querySelectorAll('.matrixQty').forEach(inp=>existing.push({color:inp.dataset.color||'',size:inp.dataset.size||'',qty:+inp.value||0}));
@@ -8579,21 +8600,21 @@ function refreshProductCompositionMode(){
   let editor=document.getElementById("productCompositionsEditor");if(!editor)return;
   let comps=currentProductCompositionsFromScreen();
   let sizes=[...document.querySelectorAll('.fsizeOpt:checked')].map(x=>x.value);
-  if(!sizes.length)sizes=(db.sizes||[]).length?db.sizes:["P","M","G","GG"];
+  if(!sizes.length)sizes=hlgbSortedSizes(db.sizes);
   let cat=document.getElementById("fcat")?.value||"";
   editor.innerHTML=productCompositionEditorHTML(comps,sizes,cat);
 }
 function addProductComposition(part="general"){
   let box=document.getElementById(`productCompositions_${part}`);if(!box)return;
   let sizes=[...document.querySelectorAll('.fsizeOpt:checked')].map(x=>x.value);
-  if(!sizes.length)sizes=(db.sizes||[]).length?db.sizes:["P","M","G","GG"];
+  if(!sizes.length)sizes=hlgbSortedSizes(db.sizes);
   box.insertAdjacentHTML("beforeend",productCompositionRow({part},sizes,part));
 }
 function refreshProductCompositionSizes(){
   let editor=document.getElementById("productCompositionsEditor");if(!editor)return;
   let comps=currentProductCompositionsFromScreen();
   let sizes=[...document.querySelectorAll('.fsizeOpt:checked')].map(x=>x.value);
-  if(!sizes.length)sizes=(db.sizes||[]).length?db.sizes:["P","M","G","GG"];
+  if(!sizes.length)sizes=hlgbSortedSizes(db.sizes);
   let cat=document.getElementById("fcat")?.value||"";
   editor.innerHTML=productCompositionEditorHTML(comps,sizes,cat);
 }
@@ -8628,7 +8649,7 @@ function compositionTableRows(comps,sizes){
 }
 function compositionTableForProduct(order,productId,printMode=false){
   let g=orderCompositionBreakdownByProduct(order).find(x=>+x.productId===+productId);if(!g)return "";
-  let sizes=(db.sizes||[]).length?db.sizes:["P","M","G","GG"];
+  let sizes=hlgbSortedSizes(db.sizes);
   let comps=Object.values(g.components).filter(c=>c.total>0);if(!comps.length)return "";
   let heads=sizes.map(sz=>`<th>${esc(sz)}</th>`).join("");
   let tableFor=(title,items)=>items.length?`<div style="margin-top:10px"><strong>${esc(title)}</strong><table style="margin-top:6px"><tr><th>Tipo / componente</th>${heads}<th>Total</th></tr>${compositionTableRows(items,sizes)}</table></div>`:"";
@@ -8651,7 +8672,7 @@ let categoryNames=[...new Set([
 ].filter(Boolean))].sort((a,b)=>a.localeCompare(b,"pt-BR"));
 let currentCategory=String(p.category||"").trim();
 if(currentCategory&&!categoryNames.includes(currentCategory))categoryNames.unshift(currentCategory);
-let registeredSizes=(db.sizes||[]).length?db.sizes:["P","M","G","GG"];
+let registeredSizes=hlgbSortedSizes(db.sizes);
 let selectedSizes=Array.isArray(p.sizes)&&p.sizes.length?p.sizes:registeredSizes.slice();
 let sizeHtml=registeredSizes.map(sz=>`<label style="display:flex;align-items:center;justify-content:center;gap:8px;border:1px solid #eadde4;border-radius:10px;padding:10px 12px;background:#fff;cursor:pointer;width:112px;min-width:112px;height:44px;white-space:nowrap;overflow:visible"><input type="checkbox" class="fsizeOpt" value="${esc(sz)}" ${selectedSizes.includes(sz)?"checked":""} onchange="refreshProductCompositionSizes()" style="flex:0 0 auto;margin:0"><span style="display:inline-block;white-space:nowrap;font-weight:700;line-height:1">${esc(sz)}</span></label>`).join("");
 let registeredColors=(db.colors||[]).map(x=>String(x||"").trim()).filter(Boolean);
@@ -10567,7 +10588,7 @@ appShell.style.display="none";
 loginScreen.style.display="flex";
 // Restaura a credencial de refresh persistida neste navegador. O painel só será aberto
 // depois de renovar no Supabase, carregar a nuvem e validar as permissões.
-/* ===== v91.13 — MULTIUSUÁRIO POR REGISTRO (TODOS OS MÓDULOS) ===== */
+/* ===== v91.14 — MULTIUSUÁRIO POR REGISTRO (TODOS OS MÓDULOS) ===== */
 const HLGB_RECORD_MODULES=[
   "products","materials","clients","orders","orderTrash",
   "production","productionLocations","capacityAssignments","goals","defectReturns","missingPieces",
@@ -10777,7 +10798,7 @@ async function hlgbNormalizedSyncNow(showMessage=false){
     if(showMessage)alert("Dados sincronizados com sucesso.");
     return true;
   }catch(e){
-    console.error("HLGB v91.13 sync",e);hlgbRecordPendingStore();setCloudStatus("☁️ Alterações pendentes","bad");try{const el=document.getElementById("cloudStatus");if(el)el.title=String(e?.message||e||"");}catch(_){}return false;
+    console.error("HLGB v91.14 sync",e);hlgbRecordPendingStore();setCloudStatus("☁️ Alterações pendentes","bad");try{const el=document.getElementById("cloudStatus");if(el)el.title=String(e?.message||e||"");}catch(_){}return false;
   }finally{
     hlgbRecordSyncing=false;
     if(hlgbRecordSyncAgain){
@@ -10844,7 +10865,7 @@ async function hlgbHandleRecordRealtime(payload){
     hlgbRenderIncomingRecord(module);
     setCloudStatus("⚡ Online · atualização recebida","ok");
     setTimeout(()=>setCloudStatus("⚡ Online · multiusuário","ok"),650);
-  }catch(e){console.warn("HLGB v91.13 realtime",e)}
+  }catch(e){console.warn("HLGB v91.14 realtime",e)}
 }
 async function hlgbPullNormalizedCoreChanges(force=false){
   if(!hlgbRecordReady||hlgbRecordPulling||!cloudAccessToken||document.hidden)return false;
@@ -10956,10 +10977,10 @@ async function hlgbEnsureRecordsOnlineAfterLogin(){
       setCloudStatus(hlgbRecordPendingRead()?"☁️ Salvando automático…":"⚡ Online · multiusuário",hlgbRecordPendingRead()?"":"ok");
       return true;
     }
-  }catch(e){console.error("HLGB v91.13 bootstrap",e);}
+  }catch(e){console.error("HLGB v91.14 bootstrap",e);}
   return false;
 }
-/* ===== fim v91.13 ===== */
+/* ===== fim v91.14 ===== */
 
 if(cloudRestoreStoredAuth()){
  (async()=>{
@@ -11593,14 +11614,14 @@ saveProductSheet=function(productId){let p=(db.products||[]).find(x=>+x.id===+pr
 function orderSelectedColors(block){return [...(block?.querySelectorAll?.(".orderColorOpt:checked")||[])].map(x=>x.value)}
 function orderColorSelectorHTML(productId,selected=[]){let p=(db.products||[]).find(x=>+x.id===+productId),allowed=p?productAllowedColors(p):[];return allowed.map(c=>`<label style="display:flex;align-items:center;gap:7px;border:1px solid #eadde4;border-radius:9px;padding:7px 9px;background:#fff"><input type="checkbox" class="orderColorOpt" value="${esc(c)}" ${selected.includes(c)?"checked":""} onchange="refreshOrderSelectedColorRows(this)"><span>${esc(c)}</span></label>`).join("")||'<span class="sub">Este produto ainda não possui cores cadastradas na ficha técnica.</span>'}
 function updateOrderColorSelectorSummary(block){let s=orderSelectedColors(block),el=block?.querySelector(".orderColorSummary");if(el)el.innerHTML=s.length?s.map(c=>`<span class="badge" style="margin-right:4px">${esc(c)}</span>`).join(""):'<span class="sub">Selecione as cores que entram neste pedido.</span>'}
-function refreshOrderSelectedColorRows(input){let block=input?.closest?.(".order-matrix-block");if(!block)return;let sizes=(db.sizes||[]).length?db.sizes:["P","M","G","GG"],existing=[];block.querySelectorAll(".matrixQty").forEach(i=>existing.push({color:i.dataset.color||"",size:i.dataset.size||"",qty:+i.value||0}));let colors=orderSelectedColors(block);let tbody=block.querySelector(".order-matrix tbody");if(tbody)tbody.innerHTML=colors.length?orderMatrixRowsHTML(colors,sizes,existing):`<tr><td colspan="${sizes.length+2}" class="empty">Selecione pelo menos uma cor deste pedido para abrir a grade.</td></tr>`;updateOrderColorSelectorSummary(block);updateOrderMatrixTotal()}
+function refreshOrderSelectedColorRows(input){let block=input?.closest?.(".order-matrix-block");if(!block)return;let sizes=hlgbSortedSizes(db.sizes),existing=[];block.querySelectorAll(".matrixQty").forEach(i=>existing.push({color:i.dataset.color||"",size:i.dataset.size||"",qty:+i.value||0}));let colors=orderSelectedColors(block);let tbody=block.querySelector(".order-matrix tbody");if(tbody)tbody.innerHTML=colors.length?orderMatrixRowsHTML(colors,sizes,existing):`<tr><td colspan="${sizes.length+2}" class="empty">Selecione pelo menos uma cor deste pedido para abrir a grade.</td></tr>`;updateOrderColorSelectorSummary(block);updateOrderMatrixTotal()}
 function toggleOrderColors(btn){let b=btn.closest(".order-matrix-block")?.querySelector(".orderColorsBox");if(b)b.style.display=b.style.display==="none"?"flex":"none"}
 orderMatrixProductBlock=function(data={}){
  let productId=data.productId!=null&&data.productId!==""?+data.productId:"",existing=Array.isArray(data.grade)?data.grade:[],selectedProduct=(db.products||[]).find(x=>+x.id===+productId),selectedColors=[...new Set(existing.filter(x=>(+x.qty||0)>0).map(x=>String(x.color||"")).filter(Boolean))];
- let sizes=(db.sizes||[]).length?db.sizes:["P","M","G","GG"],blockId="omb_"+Date.now()+"_"+Math.floor(Math.random()*100000),heads=sizes.map(s=>`<th>${esc(s)}</th>`).join(""),rows=selectedColors.length?orderMatrixRowsHTML(selectedColors,sizes,existing):`<tr><td colspan="${sizes.length+2}" class="empty">${selectedProduct?"Selecione as cores que entram neste pedido.":"Selecione um produto primeiro."}</td></tr>`;
+ let sizes=hlgbSortedSizes(db.sizes),blockId="omb_"+Date.now()+"_"+Math.floor(Math.random()*100000),heads=sizes.map(s=>`<th>${esc(s)}</th>`).join(""),rows=selectedColors.length?orderMatrixRowsHTML(selectedColors,sizes,existing):`<tr><td colspan="${sizes.length+2}" class="empty">${selectedProduct?"Selecione as cores que entram neste pedido.":"Selecione um produto primeiro."}</td></tr>`;
  return `<div class="order-matrix-block" id="${blockId}"><div class="order-matrix-head" style="align-items:flex-start"><div style="flex:1;min-width:0"><div class="selectedOrderProduct" style="padding:10px 12px;border:1px solid #eadde4;border-radius:10px;background:#fff8fb;margin-bottom:10px">${selectedProduct?`<strong>${esc(selectedProduct.name)}</strong> <span class="sub">· ${esc(selectedProduct.category||"Sem categoria")} · ${money(selectedProduct.price||0)}</span>`:"<strong>Selecione um produto</strong>"}</div><select class="matrixProduct" style="display:none">${productOptions(productId)}</select><div class="grid" style="grid-template-columns:1.6fr 1fr .7fr .7fr;gap:8px"><div class="field"><label>Buscar produto</label><input class="orderProdSearch" placeholder="Digite nome ou referência..." oninput="renderOrderProductPicker(this)"></div><div class="field"><label>Categoria</label><select class="orderProdCat" onchange="renderOrderProductPicker(this)"><option value="">Todas</option>${orderProductCategories().map(c=>`<option>${esc(c)}</option>`).join("")}</select></div><div class="field"><label>Preço mín.</label><input class="orderProdMin" type="number" step=".01" min="0" placeholder="0,00" oninput="renderOrderProductPicker(this)"></div><div class="field"><label>Preço máx.</label><input class="orderProdMax" type="number" step=".01" min="0" placeholder="Sem limite" oninput="renderOrderProductPicker(this)"></div></div><div style="display:flex;justify-content:space-between;gap:8px;align-items:center;margin:5px 0 7px;flex-wrap:wrap"><span class="sub orderProdCount">Digite o nome ou referência para buscar</span><button type="button" class="secondary" style="padding:6px 9px" onclick="clearOrderProductPicker(this)">Limpar filtros</button></div><div class="orderProdResults" style="display:none;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:6px;max-height:220px;overflow:auto;border:1px solid #eee;border-radius:10px;padding:6px;background:#fafafa"></div></div><button type="button" class="danger" onclick="this.closest('.order-matrix-block').remove();updateOrderMatrixTotal()">Remover produto</button></div><div style="margin:10px 0;padding:10px;border:1px solid #eadde4;border-radius:10px;background:#fff8fb"><button type="button" class="secondary" onclick="toggleOrderColors(this)">🎨 Selecionar cores deste pedido</button><div class="orderColorSummary" style="margin:8px 0">${selectedColors.length?selectedColors.map(c=>`<span class="badge" style="margin-right:4px">${esc(c)}</span>`).join(""):'<span class="sub">Selecione as cores que entram neste pedido.</span>'}</div><div class="orderColorsBox" style="display:none;gap:7px;flex-wrap:wrap">${orderColorSelectorHTML(productId,selectedColors)}</div></div><div class="order-matrix-wrap"><table class="order-matrix"><thead><tr><th>Cor</th>${heads}<th>Total</th></tr></thead><tbody>${rows}</tbody></table></div><div class="order-product-total">Total deste produto: <span class="matrixProductTotal">0</span> peças</div></div>`;
 };
-refreshOrderMatrixColors=function(block,productId,preserve=false){if(!block)return;let existing=[];if(preserve)block.querySelectorAll(".matrixQty").forEach(i=>existing.push({color:i.dataset.color||"",size:i.dataset.size||"",qty:+i.value||0}));let selected=preserve?[...new Set(existing.filter(x=>x.qty>0).map(x=>x.color))]:[];let box=block.querySelector(".orderColorsBox");if(box){box.innerHTML=orderColorSelectorHTML(productId,selected);box.style.display="flex"}let sizes=(db.sizes||[]).length?db.sizes:["P","M","G","GG"],tbody=block.querySelector(".order-matrix tbody");if(tbody)tbody.innerHTML=selected.length?orderMatrixRowsHTML(selected,sizes,existing):`<tr><td colspan="${sizes.length+2}" class="empty">Selecione as cores que entram neste pedido.</td></tr>`;updateOrderColorSelectorSummary(block);updateOrderMatrixTotal()};
+refreshOrderMatrixColors=function(block,productId,preserve=false){if(!block)return;let existing=[];if(preserve)block.querySelectorAll(".matrixQty").forEach(i=>existing.push({color:i.dataset.color||"",size:i.dataset.size||"",qty:+i.value||0}));let selected=preserve?[...new Set(existing.filter(x=>x.qty>0).map(x=>x.color))]:[];let box=block.querySelector(".orderColorsBox");if(box){box.innerHTML=orderColorSelectorHTML(productId,selected);box.style.display="flex"}let sizes=hlgbSortedSizes(db.sizes),tbody=block.querySelector(".order-matrix tbody");if(tbody)tbody.innerHTML=selected.length?orderMatrixRowsHTML(selected,sizes,existing):`<tr><td colspan="${sizes.length+2}" class="empty">Selecione as cores que entram neste pedido.</td></tr>`;updateOrderColorSelectorSummary(block);updateOrderMatrixTotal()};
 
 // ----- Devoluções / defeitos e qualidade por local -----
 function ensureDefectReturnData(){db.defectReturns=Array.isArray(db.defectReturns)?db.defectReturns:[]}
