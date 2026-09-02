@@ -6,7 +6,7 @@
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
-<title>HLGB Confecções — Sistema de Gestão v91.12 Multiusuário</title>
+<title>HLGB Confecções — Sistema de Gestão v91.13 Multiusuário</title>
 <style>
 :root{--navy:#6f3f59;--orange:#c96b8f;--bg:#fbf6f8;--line:#eadde4;--text:#30262c;--muted:#786b73;--ok:#e9f7ef;--warn:#fff5df;--bad:#fdeaea;--rose:#f3dbe5;--rose2:#fff8fb}
 *{box-sizing:border-box}body{margin:0;font-family:Arial,Helvetica,sans-serif;background:var(--bg);color:var(--text)}
@@ -246,11 +246,11 @@ main{min-width:0;}
     <div class="field" style="text-align:left;margin-bottom:10px"><label>E-mail</label><input id="loginUser" type="email" autocomplete="username" placeholder="seuemail@exemplo.com"></div>
     <div class="field" style="text-align:left;margin-bottom:14px"><label>Senha</label><input id="loginPass" type="password" autocomplete="current-password" onkeydown="if(event.key==='Enter')return doLogin()"></div>
     <button class="primary" style="width:100%" onclick="return doLogin()">Entrar</button>
-    <div id="loginError" style="color:#a51d2d;font-size:13px;margin-top:10px"></div><div style="margin-top:12px;font-size:12px;color:#786b73">Acesso protegido pelo Supabase • HLGB Online<br><b style="color:#6f3f59">Versão v91.12</b></div>
+    <div id="loginError" style="color:#a51d2d;font-size:13px;margin-top:10px"></div><div style="margin-top:12px;font-size:12px;color:#786b73">Acesso protegido pelo Supabase • HLGB Online<br><b style="color:#6f3f59">Versão v91.13</b></div>
   </div>
 </div>
 
-<div id="appShell" style="display:none"><header><div class="logo">HLGB <b>CONFECÇÕES</b> <small style="font-size:10px;opacity:.8">v91.12</small></div><div><span id="cloudStatus" style="margin-right:10px;font-size:12px;padding:6px 9px;border:1px solid #ffffff44;border-radius:8px">☁️ Nuvem</span><span id="currentUserLabel" style="margin-right:10px;font-size:13px"></span><button id="cloudSaveBtn" onclick="cloudUploadCurrentDb(true)" style="display:none" title="Sincronização automática">🔄 Sincronizar agora</button> <button id="backupBtn" onclick="backup()" style="display:none">Exportar backup</button> <button id="importBackupBtn" onclick="document.getElementById('backupImportInput').click()" style="display:none">Importar backup</button><input id="backupImportInput" type="file" accept=".json,application/json" style="display:none" onchange="importBackupFile(this)"> <button onclick="logout()">Sair</button></div></header>
+<div id="appShell" style="display:none"><header><div class="logo">HLGB <b>CONFECÇÕES</b> <small style="font-size:10px;opacity:.8">v91.13</small></div><div><span id="cloudStatus" style="margin-right:10px;font-size:12px;padding:6px 9px;border:1px solid #ffffff44;border-radius:8px">☁️ Nuvem</span><span id="currentUserLabel" style="margin-right:10px;font-size:13px"></span><button id="cloudSaveBtn" onclick="cloudUploadCurrentDb(true)" style="display:none" title="Sincronização automática">🔄 Sincronizar agora</button> <button id="backupBtn" onclick="backup()" style="display:none">Exportar backup</button> <button id="importBackupBtn" onclick="document.getElementById('backupImportInput').click()" style="display:none">Importar backup</button><input id="backupImportInput" type="file" accept=".json,application/json" style="display:none" onchange="importBackupFile(this)"> <button onclick="logout()">Sair</button></div></header>
 <div class="app">
 <aside><nav id="nav" class="clean-nav">
 <button class="nav-home active" onclick="page('dashboard',this)">🏠 <span>Início</span></button>
@@ -10567,7 +10567,7 @@ appShell.style.display="none";
 loginScreen.style.display="flex";
 // Restaura a credencial de refresh persistida neste navegador. O painel só será aberto
 // depois de renovar no Supabase, carregar a nuvem e validar as permissões.
-/* ===== v91.12 — MULTIUSUÁRIO POR REGISTRO (TODOS OS MÓDULOS) ===== */
+/* ===== v91.13 — MULTIUSUÁRIO POR REGISTRO (TODOS OS MÓDULOS) ===== */
 const HLGB_RECORD_MODULES=[
   "products","materials","clients","orders","orderTrash",
   "production","productionLocations","capacityAssignments","goals","defectReturns","missingPieces",
@@ -10777,7 +10777,7 @@ async function hlgbNormalizedSyncNow(showMessage=false){
     if(showMessage)alert("Dados sincronizados com sucesso.");
     return true;
   }catch(e){
-    console.error("HLGB v91.12 sync",e);hlgbRecordPendingStore();setCloudStatus("☁️ Alterações pendentes","bad");try{const el=document.getElementById("cloudStatus");if(el)el.title=String(e?.message||e||"");}catch(_){}return false;
+    console.error("HLGB v91.13 sync",e);hlgbRecordPendingStore();setCloudStatus("☁️ Alterações pendentes","bad");try{const el=document.getElementById("cloudStatus");if(el)el.title=String(e?.message||e||"");}catch(_){}return false;
   }finally{
     hlgbRecordSyncing=false;
     if(hlgbRecordSyncAgain){
@@ -10804,25 +10804,53 @@ function hlgbApplyRecordRow(row){
   if(String(row.updated_at||"")>String(hlgbRecordGlobalLastSeen||""))hlgbRecordGlobalLastSeen=String(row.updated_at||"");
   return true;
 }
+function hlgbRenderIncomingRecord(module){
+  module=String(module||"");
+  const modalOpen=!!document.querySelector("#modal.show");
+  const activePage=document.querySelector(".page.active")?.id||"";
+
+  // A ficha aberta em modal continua protegida contra redesenho enquanto a pessoa digita.
+  if(modalOpen){cloudRemoteUpdatePending=true;return false;}
+
+  const prev=cloudApplying;cloudApplying=true;
+  try{
+    // Produtos precisa atualizar a tabela mesmo que o cursor esteja em Busca/Preço mínimo/Preço máximo.
+    // Antes qualquer INPUT focado bloqueava a atualização visual e a edição só aparecia após sair da tela.
+    if(module==="products" && activePage==="produtos"){
+      if(typeof renderProducts==="function")renderProducts();
+      cloudRemoteUpdatePending=false;
+      return true;
+    }
+
+    // Para as demais telas mantemos a proteção antiga enquanto há um formulário/campo sendo editado.
+    if(!cloudUserIsEditing()){
+      renderAll();
+      cloudRemoteUpdatePending=false;
+      return true;
+    }
+    cloudRemoteUpdatePending=true;
+    return false;
+  }finally{cloudApplying=prev}
+}
+
 async function hlgbHandleRecordRealtime(payload){
   try{
     let row=payload?.new&&Object.keys(payload.new).length?payload.new:payload?.old;
     if(!row)return;
     if(payload.eventType==="DELETE")row={...row,deleted_at:row.deleted_at||new Date().toISOString()};
-    if(!HLGB_RECORD_MODULES.includes(String(row.module||"")))return;
+    const module=String(row.module||"");
+    if(!HLGB_RECORD_MODULES.includes(module))return;
     hlgbApplyRecordRow(row);localSaveOnly();
-    if(!cloudUserIsEditing()){
-      const prev=cloudApplying;cloudApplying=true;try{renderAll()}finally{cloudApplying=prev}
-    }else cloudRemoteUpdatePending=true;
+    hlgbRenderIncomingRecord(module);
     setCloudStatus("⚡ Online · atualização recebida","ok");
     setTimeout(()=>setCloudStatus("⚡ Online · multiusuário","ok"),650);
-  }catch(e){console.warn("HLGB v91 realtime",e)}
+  }catch(e){console.warn("HLGB v91.13 realtime",e)}
 }
 async function hlgbPullNormalizedCoreChanges(force=false){
   if(!hlgbRecordReady||hlgbRecordPulling||!cloudAccessToken||document.hidden)return false;
-  // Com Realtime conectado não fazemos polling paralelo. As rotinas legadas que
-  // chamam esta função a cada poucos segundos passam a sair daqui sem gerar requests.
-  if(!force&&hlgbRealtimeState==="SUBSCRIBED")return false;
+  // Realtime continua sendo o caminho principal, mas mantemos UMA leitura em lote como segurança.
+  // A chamada legada ocorre com frequência, porém este limitador permite no máximo 1 pacote/8 s,
+  // em vez das dezenas de consultas por módulo que existiam nas versões antigas.
   const now=Date.now();
   if(!force&&now-hlgbRecordLastPullAt<8000)return false;
   hlgbRecordLastPullAt=now;hlgbRecordPulling=true;
@@ -10837,8 +10865,11 @@ async function hlgbPullNormalizedCoreChanges(force=false){
     const changed=rows.length>0;
     if(changed){
       localSaveOnly();
-      if(!cloudUserIsEditing()){
-        const prev=cloudApplying;cloudApplying=true;try{renderAll()}finally{cloudApplying=prev}
+      const modules=[...new Set(rows.map(r=>String(r?.module||"")).filter(Boolean))];
+      // Se Produtos mudou, atualiza sua tabela mesmo com um filtro selecionado.
+      if(modules.includes("products"))hlgbRenderIncomingRecord("products");
+      else if(!cloudUserIsEditing()){
+        const prev=cloudApplying;cloudApplying=true;try{renderAll();cloudRemoteUpdatePending=false}finally{cloudApplying=prev}
       }else cloudRemoteUpdatePending=true;
     }
     return changed;
@@ -10925,10 +10956,10 @@ async function hlgbEnsureRecordsOnlineAfterLogin(){
       setCloudStatus(hlgbRecordPendingRead()?"☁️ Salvando automático…":"⚡ Online · multiusuário",hlgbRecordPendingRead()?"":"ok");
       return true;
     }
-  }catch(e){console.error("HLGB v91.12 bootstrap",e);}
+  }catch(e){console.error("HLGB v91.13 bootstrap",e);}
   return false;
 }
-/* ===== fim v91.12 ===== */
+/* ===== fim v91.13 ===== */
 
 if(cloudRestoreStoredAuth()){
  (async()=>{
