@@ -10382,8 +10382,43 @@ function renderReports(){
 
 const accessOptions=[["pedidos","Pedidos / notas"],["clientes","Clientes"],["producao","Produção / capacidade / faltas"],["corte","Corte"],["faccoes","Facções e pagamentos"],["cortadores","Cortadores"],["projecao","Projeção semanal"],["produtos","Produtos / ficha técnica"],["estoque","Estoque / inventário"],["materiais","Materiais"],["cadastros","Cores / grades"],["fornecedores","Fornecedores"],["financeiro","Financeiro"],["hubFinanceiro","Hub Financeiro"],["folhaPagamento","Folha de pagamento"],["funcionarios","Funcionários"],["exFuncionarios","Ex-funcionários"],["relatorios","Relatórios"]];
 function userOnlineReady(u){return !!(u?.onlineReady||String(u?.authId||"").trim()||String(u?.user||u?.email||"").includes("@"));}
+let hlgbOnlineUserDirectoryRefreshing=false;
+let hlgbOnlineUserDirectoryLast=0;
+async function refreshOnlineUserDirectory(){
+ if(!isOwnerUser()||!cloudAccessToken||hlgbOnlineUserDirectoryRefreshing)return false;
+ if(Date.now()-hlgbOnlineUserDirectoryLast<10000)return false;
+ hlgbOnlineUserDirectoryRefreshing=true;
+ try{
+  let rows=await cloudRequest("hlgb_user_access?select=auth_id,email,name,active,access&order=updated_at.desc",{method:"GET"});
+  rows=Array.isArray(rows)?rows:[];
+  let changed=false;
+  for(const u of (db.users||[])){
+   if(u.role==="admin")continue;
+   let currentEmail=normEmail(u.user||u.email);
+   let match=currentEmail?rows.find(r=>normEmail(r.email)===currentEmail):null;
+   if(!match){
+    let key=normalizePersonKey(u.name||u.loginAlias||u.user||"");
+    let matches=rows.filter(r=>r.active!==false&&normalizePersonKey(r.name||"")===key);
+    matches.sort((a,b)=>(b.auth_id?1:0)-(a.auth_id?1:0));
+    match=matches[0]||null;
+   }
+   if(!match)continue;
+   let em=normEmail(match.email);
+   if(em && normEmail(u.user||u.email)!==em){u.user=em;u.email=em;changed=true}
+   if(match.auth_id && String(u.authId||"")!==String(match.auth_id)){u.authId=String(match.auth_id);changed=true}
+   if(!u.onlineReady){u.onlineReady=true;changed=true}
+   let nextActive=match.active!==false;if(u.active!==nextActive){u.active=nextActive;changed=true}
+   if(Array.isArray(match.access)&&match.access.length && (!Array.isArray(u.access)||!u.access.length)){u.access=match.access.slice();changed=true}
+  }
+  hlgbOnlineUserDirectoryLast=Date.now();
+  if(changed){try{localSaveOnly()}catch(e){} renderUsers()}
+  return changed;
+ }catch(e){console.warn("HLGB online user directory",e);return false}
+ finally{hlgbOnlineUserDirectoryRefreshing=false}
+}
 function renderUsers(){
  if(currentUser()?.role!=="admin"){userTable.innerHTML='<div class="empty">Somente o administrador pode gerenciar usuários.</div>';return}
+ if(isOwnerUser()&&cloudAccessToken&&!hlgbOnlineUserDirectoryRefreshing&&Date.now()-hlgbOnlineUserDirectoryLast>=10000)setTimeout(()=>refreshOnlineUserDirectory(),0);
  userTable.innerHTML=table(["Nome","Acesso online","Perfil","Status","Acessos","Ações"],(db.users||[]).map(u=>{
   const online=userOnlineReady(u);
   const oldLogin=esc(u.loginAlias||(!online?(u.user||u.email||""):""));
