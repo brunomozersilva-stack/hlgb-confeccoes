@@ -1,66 +1,13 @@
-name: HLGB apply v91.06
+name: HLGB legacy v91.06 installer
 
 on:
-  push:
-    branches: [main]
+  workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
-  apply-and-check:
-    if: github.actor != 'github-actions[bot]'
+  legacy:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - name: Apply v91.06 patch
-        shell: bash
-        run: |
-          set -euo pipefail
-          if grep -q 'Versão v91.06' index.html; then
-            echo 'v91.06 already applied'
-          else
-            git apply --check scripts/hlgb_v9106.patch
-            git apply scripts/hlgb_v9106.patch
-          fi
-
-      - name: Validate inline JavaScript
-        shell: bash
-        run: |
-          set -euo pipefail
-          python3 - <<'PY'
-          import re, pathlib, subprocess
-          html = pathlib.Path('index.html').read_text(encoding='utf-8')
-          blocks = re.findall(r'<script(?P<attrs>[^>]*)>(?P<body>.*?)</script>', html, flags=re.I|re.S)
-          checked = 0
-          for i, (attrs, body) in enumerate(blocks):
-              if re.search(r'\bsrc\s*=', attrs, flags=re.I):
-                  continue
-              p = pathlib.Path(f'/tmp/hlgb-script-{i}.js')
-              p.write_text(body, encoding='utf-8')
-              subprocess.run(['node', '--check', str(p)], check=True)
-              checked += 1
-          print(f'Validated {checked} inline script block(s).')
-          assert 'Versão v91.06' in html
-          assert 'hlgbCreateProductDirectClick(event)' in html
-          assert 'Enviando produto para o Supabase' in html
-          assert 'rpc/hlgb_admin_upsert_user_access' in html
-          PY
-
-      - name: Commit v91.06
-        shell: bash
-        run: |
-          set -euo pipefail
-          if git diff --quiet -- index.html; then
-            echo 'No index change needed.'
-            exit 0
-          fi
-          git config user.name 'github-actions[bot]'
-          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add index.html
-          git commit -m 'Deploy HLGB v91.06 multiuser save fix'
-          git push origin main
+      - run: echo 'Instalador legado v91.06 desativado para pushes. A versão ativa é superior.'
