@@ -1,44 +1,13 @@
-name: HLGB apply v91.07
+name: HLGB legacy v91.07 installer
+
 on:
-  push:
-    paths:
-      - 'scripts/hlgb_v9107_recover.py'
-      - '.github/workflows/hlgb-apply-v9107.yml'
   workflow_dispatch:
+
 permissions:
-  contents: write
+  contents: read
+
 jobs:
-  apply:
+  legacy:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-      - name: Apply safe local product recovery
-        run: python3 scripts/hlgb_v9107_recover.py
-      - name: Validate embedded JavaScript
-        run: |
-          python3 - <<'PY'
-          import re, pathlib
-          s=pathlib.Path('index.html').read_text(encoding='utf-8')
-          scripts=re.findall(r'<script(?:\s[^>]*)?>(.*?)</script>',s,re.S|re.I)
-          pathlib.Path('/tmp/hlgb.js').write_text('\n'.join(scripts),encoding='utf-8')
-          print('scripts',len(scripts))
-          PY
-          node --check /tmp/hlgb.js
-      - name: Verify v91.07 markers
-        run: |
-          grep -q 'Versão v91.07' index.html
-          grep -q 'hlgbRecoverLocalOnlyProducts' index.html
-      - name: Commit validated index
-        run: |
-          if git diff --quiet -- index.html; then
-            echo 'No index changes required'
-            exit 0
-          fi
-          git config user.name 'brunomozersilva-stack'
-          git config user.email 'bruno.mozer.silva@gmail.com'
-          git add index.html
-          git commit -m 'HLGB v91.07 recover local-only product safely'
-          git push
+      - run: echo 'Instalador legado v91.07 desativado para pushes. A versão ativa é superior.'
