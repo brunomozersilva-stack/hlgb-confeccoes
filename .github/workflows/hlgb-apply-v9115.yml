@@ -1,0 +1,55 @@
+name: HLGB apply v91.15
+on:
+  push:
+    paths:
+      - 'scripts/hlgb_v9115_batch_updates.py'
+      - '.github/workflows/hlgb-apply-v9115.yml'
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Apply v91.15 accumulated updates
+        run: python3 scripts/hlgb_v9115_batch_updates.py
+      - name: Validate embedded JavaScript and requested features
+        run: |
+          python3 - <<'PY'
+          import re, pathlib, subprocess
+          s=pathlib.Path('index.html').read_text(encoding='utf-8')
+          scripts=re.findall(r'<script(?:\s[^>]*)?>(.*?)</script>',s,re.S|re.I)
+          for i,body in enumerate(scripts):
+              f=pathlib.Path(f'/tmp/hlgb-v9115-{i}.js')
+              f.write_text(body,encoding='utf-8')
+              subprocess.run(['node','--check',str(f)],check=True)
+          checks=[
+              'v91.15 Multiusuário',
+              'Hub Financeiro criado',
+              'function renderProductSalesReport()',
+              'function factionAvailableModels()',
+              'id="assetLocationSummary"',
+              'function updateAdvanceEmployeeLimitPreview()',
+              'function userOnlineReady(u){return !!(u?.onlineReady'
+          ]
+          for c in checks:
+              assert c in s, c
+          print('validated',len(scripts),'script blocks and v91.15 features')
+          PY
+      - name: Commit validated index
+        run: |
+          if git diff --quiet -- index.html; then
+            echo 'No index changes required'
+            exit 0
+          fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add index.html
+          git commit -m 'Deploy HLGB v91.15 accumulated operational updates'
+          git push origin main
