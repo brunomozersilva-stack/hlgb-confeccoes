@@ -1,65 +1,13 @@
-name: HLGB apply v91.08
+name: HLGB legacy v91.08 installer
 
 on:
-  push:
-    branches: [main]
+  workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
-  apply-and-check:
-    if: github.actor != 'github-actions[bot]'
+  legacy:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - name: Apply v91.08 fix
-        shell: bash
-        run: |
-          set -euo pipefail
-          if grep -q 'Versão v91.08' index.html; then
-            echo 'v91.08 already applied'
-          else
-            python3 scripts/hlgb_v9108_fix.py
-          fi
-
-      - name: Validate inline JavaScript
-        shell: bash
-        run: |
-          set -euo pipefail
-          python3 - <<'PY'
-          import re, pathlib, subprocess
-          html=pathlib.Path('index.html').read_text(encoding='utf-8')
-          blocks=re.findall(r'<script(?P<attrs>[^>]*)>(?P<body>.*?)</script>',html,flags=re.I|re.S)
-          checked=0
-          for i,(attrs,body) in enumerate(blocks):
-              if re.search(r'\bsrc\s*=',attrs,flags=re.I):
-                  continue
-              f=pathlib.Path(f'/tmp/hlgb-script-{i}.js')
-              f.write_text(body,encoding='utf-8')
-              subprocess.run(['node','--check',str(f)],check=True)
-              checked+=1
-          assert 'Versão v91.08' in html
-          assert 'hlgbCloudProductsFromRecordSnapshot' in html
-          assert 'HLGB_PRE_CLOUD_LOCAL_PRODUCTS' in html
-          assert 'Enviando produto para o Supabase' in html
-          print(f'Validated {checked} inline script block(s).')
-          PY
-
-      - name: Commit v91.08
-        shell: bash
-        run: |
-          set -euo pipefail
-          if git diff --quiet -- index.html; then
-            echo 'No index change needed.'
-            exit 0
-          fi
-          git config user.name 'github-actions[bot]'
-          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add index.html
-          git commit -m 'Deploy HLGB v91.08 cloud snapshot recovery fix'
-          git push origin main
+      - run: echo 'Instalador legado v91.08 desativado para pushes. A versão ativa é superior.'
