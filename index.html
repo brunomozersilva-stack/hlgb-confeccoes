@@ -6,7 +6,7 @@
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
-<title>HLGB Confecções — Sistema de Gestão v91.07 Multiusuário</title>
+<title>HLGB Confecções — Sistema de Gestão v91.08 Multiusuário</title>
 <style>
 :root{--navy:#6f3f59;--orange:#c96b8f;--bg:#fbf6f8;--line:#eadde4;--text:#30262c;--muted:#786b73;--ok:#e9f7ef;--warn:#fff5df;--bad:#fdeaea;--rose:#f3dbe5;--rose2:#fff8fb}
 *{box-sizing:border-box}body{margin:0;font-family:Arial,Helvetica,sans-serif;background:var(--bg);color:var(--text)}
@@ -246,11 +246,11 @@ main{min-width:0;}
     <div class="field" style="text-align:left;margin-bottom:10px"><label>E-mail</label><input id="loginUser" type="email" autocomplete="username" placeholder="seuemail@exemplo.com"></div>
     <div class="field" style="text-align:left;margin-bottom:14px"><label>Senha</label><input id="loginPass" type="password" autocomplete="current-password" onkeydown="if(event.key==='Enter')return doLogin()"></div>
     <button class="primary" style="width:100%" onclick="return doLogin()">Entrar</button>
-    <div id="loginError" style="color:#a51d2d;font-size:13px;margin-top:10px"></div><div style="margin-top:12px;font-size:12px;color:#786b73">Acesso protegido pelo Supabase • HLGB Online<br><b style="color:#6f3f59">Versão v91.07</b></div>
+    <div id="loginError" style="color:#a51d2d;font-size:13px;margin-top:10px"></div><div style="margin-top:12px;font-size:12px;color:#786b73">Acesso protegido pelo Supabase • HLGB Online<br><b style="color:#6f3f59">Versão v91.08</b></div>
   </div>
 </div>
 
-<div id="appShell" style="display:none"><header><div class="logo">HLGB <b>CONFECÇÕES</b> <small style="font-size:10px;opacity:.8">v91.07</small></div><div><span id="cloudStatus" style="margin-right:10px;font-size:12px;padding:6px 9px;border:1px solid #ffffff44;border-radius:8px">☁️ Nuvem</span><span id="currentUserLabel" style="margin-right:10px;font-size:13px"></span><button id="cloudSaveBtn" onclick="cloudUploadCurrentDb(true)" style="display:none" title="Sincronização automática">🔄 Sincronizar agora</button> <button id="backupBtn" onclick="backup()" style="display:none">Exportar backup</button> <button id="importBackupBtn" onclick="document.getElementById('backupImportInput').click()" style="display:none">Importar backup</button><input id="backupImportInput" type="file" accept=".json,application/json" style="display:none" onchange="importBackupFile(this)"> <button onclick="logout()">Sair</button></div></header>
+<div id="appShell" style="display:none"><header><div class="logo">HLGB <b>CONFECÇÕES</b> <small style="font-size:10px;opacity:.8">v91.08</small></div><div><span id="cloudStatus" style="margin-right:10px;font-size:12px;padding:6px 9px;border:1px solid #ffffff44;border-radius:8px">☁️ Nuvem</span><span id="currentUserLabel" style="margin-right:10px;font-size:13px"></span><button id="cloudSaveBtn" onclick="cloudUploadCurrentDb(true)" style="display:none" title="Sincronização automática">🔄 Sincronizar agora</button> <button id="backupBtn" onclick="backup()" style="display:none">Exportar backup</button> <button id="importBackupBtn" onclick="document.getElementById('backupImportInput').click()" style="display:none">Importar backup</button><input id="backupImportInput" type="file" accept=".json,application/json" style="display:none" onchange="importBackupFile(this)"> <button onclick="logout()">Sair</button></div></header>
 <div class="app">
 <aside><nav id="nav" class="clean-nav">
 <button class="nav-home active" onclick="page('dashboard',this)">🏠 <span>Início</span></button>
@@ -1276,7 +1276,7 @@ const HLGB_CLOUD_DIRTY_KEY="hlgb_cloud_dirty_v1";
 const HLGB_CLOUD_CONFLICT_KEY="hlgb_cloud_conflict_backup_v1";
 
 
-// v91.07 — multiusuário por registro: sessão estabilizada, RPC corrigido e sincronização sem tempestade de requests.
+// v91.08 — multiusuário por registro: sessão estabilizada, RPC corrigido e sincronização sem tempestade de requests.
 // v90.00 — Fase 1 da arquitetura multiusuário real.
 // Produtos, materiais, clientes e pedidos passam a ter um registro por item no Supabase.
 // O JSON legado continua existindo temporariamente apenas para os módulos ainda não migrados.
@@ -8852,34 +8852,58 @@ function hlgbProductIdentityMatches(a,b){
   const an=norm(a.name),bn=norm(b.name);
   return !!an&&!!bn&&an===bn;
 }
+function hlgbCloudProductsFromRecordSnapshot(){
+  try{
+    const snap=hlgbRecordSnapshots?.products;
+    if(!(snap instanceof Map))return [];
+    const out=[];
+    for(const v of snap.values()){
+      if(!v)continue;
+      if(v.deleted_at||v.deletedAt||v.deleted===true)continue;
+      let item=v;
+      if(v.data&&typeof v.data==='object')item=v.data;
+      else if(v.item&&typeof v.item==='object')item=v.item;
+      else if(v.value&&typeof v.value==='object')item=v.value;
+      if(item&&typeof item==='object')out.push(hlgbRecordClone(item));
+    }
+    return out;
+  }catch(e){console.warn('HLGB v91.08 snapshot produtos',e);return []}
+}
 async function hlgbRecoverLocalOnlyProducts(){
   try{
     const local=Array.isArray(HLGB_PRE_CLOUD_LOCAL_PRODUCTS)?HLGB_PRE_CLOUD_LOCAL_PRODUCTS:[];
-    const cloud=Array.isArray(db.products)?db.products:[];
+    // IMPORTANTE: não usa db.products aqui, porque cloudLoad pode preservar/mesclar um item local.
+    // A fonte oficial para saber quantos produtos existem na nuvem é o snapshot de hlgb_records.
+    let cloud=hlgbCloudProductsFromRecordSnapshot();
+    if(!cloud.length&&Array.isArray(db.products))cloud=db.products.slice();
     if(!cloudAccessToken||!hlgbRecordReady||local.length<=cloud.length)return 0;
     const diff=local.length-cloud.length;
     const missing=local.filter(lp=>!cloud.some(cp=>hlgbProductIdentityMatches(lp,cp)));
-    // Recuperação automática só acontece quando a diferença é inequívoca.
     if(diff<=0||missing.length!==diff){
-      console.warn('HLGB v91.07: diferença local/nuvem não inequívoca; recuperação automática cancelada.',{local:local.length,cloud:cloud.length,diff,missing:missing.length});
+      console.warn('HLGB v91.08: diferença local/nuvem não inequívoca; recuperação automática cancelada.',{local:local.length,cloud:cloud.length,diff,missing:missing.length});
       return 0;
     }
     const maxCloudCode=Math.max(0,...cloud.map(x=>/^\d+$/.test(String(x?.code||'').trim())?+x.code:0));
-    for(const p of missing){
-      const code=String(p?.code||'').trim();
-      // Se houver referência numérica antiga menor/igual às existentes, não ressuscita automaticamente.
+    for(const prod of missing){
+      const code=String(prod?.code||'').trim();
+      // Só bloqueia referências antigas se o nome também bater com algum produto da nuvem.
+      // Um produto novo pode ter ficado com código duplicado por falha antiga; nesse caso ganha nova referência.
       if(/^\d+$/.test(code)&&+code<=maxCloudCode){
-        console.warn('HLGB v91.07: produto local parece antigo; não recuperado automaticamente.',p);
-        return 0;
+        if(cloud.some(cp=>hlgbProductIdentityMatches(prod,cp)))return 0;
+        prod.code=String(maxCloudCode+1);
       }
     }
     setCloudStatus(`☁️ Recuperando ${missing.length} produto local…`);
     let recovered=0;
     for(const p0 of missing){
-      const p=hlgbRecordClone(p0);
-      const result=await hlgbSaveProductDirect(p,false);
-      if(!result||result.applied!==true)throw new Error('O Supabase não confirmou a recuperação do produto '+String(p.name||p.code||p.id||''));
-      if(!db.products.some(x=>hlgbProductIdentityMatches(x,p)))db.products.push(p);
+      const prod=hlgbRecordClone(p0);
+      if(!String(prod.code||'').trim()||cloud.some(cp=>String(cp.code||'').trim()===String(prod.code||'').trim())){
+        prod.code=String(Math.max(maxCloudCode,...cloud.map(x=>+x.code||0))+1);
+      }
+      const result=await hlgbSaveProductDirect(prod,false);
+      if(!result||result.applied!==true)throw new Error('O Supabase não confirmou a recuperação do produto '+String(prod.name||prod.code||prod.id||''));
+      if(!db.products.some(x=>hlgbProductIdentityMatches(x,prod)))db.products.push(prod);
+      cloud.push(prod);
       recovered++;
     }
     if(recovered){
@@ -8887,11 +8911,11 @@ async function hlgbRecoverLocalOnlyProducts(){
       localSaveOnly();
       try{renderProducts()}catch(e){}
       setCloudStatus('⚡ Online · produto local recuperado','ok');
-      console.info(`HLGB v91.07: ${recovered} produto(s) local(is) recuperado(s) para a nuvem.`);
+      console.info(`HLGB v91.08: ${recovered} produto(s) local(is) recuperado(s) para a nuvem.`);
     }
     return recovered;
   }catch(e){
-    console.error('HLGB v91.07 recuperação local',e);
+    console.error('HLGB v91.08 recuperação local',e);
     setCloudStatus('☁️ Produto local ainda não sincronizado','bad');
     return 0;
   }
@@ -10516,7 +10540,7 @@ appShell.style.display="none";
 loginScreen.style.display="flex";
 // Restaura a credencial de refresh persistida neste navegador. O painel só será aberto
 // depois de renovar no Supabase, carregar a nuvem e validar as permissões.
-/* ===== v91.07 — MULTIUSUÁRIO POR REGISTRO (TODOS OS MÓDULOS) ===== */
+/* ===== v91.08 — MULTIUSUÁRIO POR REGISTRO (TODOS OS MÓDULOS) ===== */
 const HLGB_RECORD_MODULES=[
   "products","materials","clients","orders","orderTrash",
   "production","productionLocations","capacityAssignments","goals","defectReturns","missingPieces",
@@ -10726,7 +10750,7 @@ async function hlgbNormalizedSyncNow(showMessage=false){
     if(showMessage)alert("Dados sincronizados com sucesso.");
     return true;
   }catch(e){
-    console.error("HLGB v91.07 sync",e);hlgbRecordPendingStore();setCloudStatus("☁️ Alterações pendentes","bad");try{const el=document.getElementById("cloudStatus");if(el)el.title=String(e?.message||e||"");}catch(_){}return false;
+    console.error("HLGB v91.08 sync",e);hlgbRecordPendingStore();setCloudStatus("☁️ Alterações pendentes","bad");try{const el=document.getElementById("cloudStatus");if(el)el.title=String(e?.message||e||"");}catch(_){}return false;
   }finally{
     hlgbRecordSyncing=false;
     if(hlgbRecordSyncAgain){
@@ -10874,10 +10898,10 @@ async function hlgbEnsureRecordsOnlineAfterLogin(){
       setCloudStatus(hlgbRecordPendingRead()?"☁️ Salvando automático…":"⚡ Online · multiusuário",hlgbRecordPendingRead()?"":"ok");
       return true;
     }
-  }catch(e){console.error("HLGB v91.07 bootstrap",e);}
+  }catch(e){console.error("HLGB v91.08 bootstrap",e);}
   return false;
 }
-/* ===== fim v91.07 ===== */
+/* ===== fim v91.08 ===== */
 
 if(cloudRestoreStoredAuth()){
  (async()=>{
