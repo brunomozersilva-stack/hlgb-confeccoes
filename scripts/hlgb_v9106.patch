@@ -1,0 +1,290 @@
+--- a/index.html
++++ b/index.html
+@@ -6,7 +6,7 @@
+ <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+ <meta http-equiv="Pragma" content="no-cache">
+ <meta http-equiv="Expires" content="0">
+-<title>HLGB Confecções — Sistema de Gestão v91.05 Multiusuário</title>
++<title>HLGB Confecções — Sistema de Gestão v91.06 Multiusuário</title>
+ <style>
+ :root{--navy:#6f3f59;--orange:#c96b8f;--bg:#fbf6f8;--line:#eadde4;--text:#30262c;--muted:#786b73;--ok:#e9f7ef;--warn:#fff5df;--bad:#fdeaea;--rose:#f3dbe5;--rose2:#fff8fb}
+ *{box-sizing:border-box}body{margin:0;font-family:Arial,Helvetica,sans-serif;background:var(--bg);color:var(--text)}
+@@ -246,11 +246,11 @@
+     <div class="field" style="text-align:left;margin-bottom:10px"><label>E-mail</label><input id="loginUser" type="email" autocomplete="username" placeholder="seuemail@exemplo.com"></div>
+     <div class="field" style="text-align:left;margin-bottom:14px"><label>Senha</label><input id="loginPass" type="password" autocomplete="current-password" onkeydown="if(event.key==='Enter')return doLogin()"></div>
+     <button class="primary" style="width:100%" onclick="return doLogin()">Entrar</button>
+-    <div id="loginError" style="color:#a51d2d;font-size:13px;margin-top:10px"></div><div style="margin-top:12px;font-size:12px;color:#786b73">Acesso protegido pelo Supabase • HLGB Online<br><b style="color:#6f3f59">Versão v91.05</b></div>
++    <div id="loginError" style="color:#a51d2d;font-size:13px;margin-top:10px"></div><div style="margin-top:12px;font-size:12px;color:#786b73">Acesso protegido pelo Supabase • HLGB Online<br><b style="color:#6f3f59">Versão v91.06</b></div>
+   </div>
+ </div>
+ 
+-<div id="appShell" style="display:none"><header><div class="logo">HLGB <b>CONFECÇÕES</b> <small style="font-size:10px;opacity:.8">v91.05</small></div><div><span id="cloudStatus" style="margin-right:10px;font-size:12px;padding:6px 9px;border:1px solid #ffffff44;border-radius:8px">☁️ Nuvem</span><span id="currentUserLabel" style="margin-right:10px;font-size:13px"></span><button id="cloudSaveBtn" onclick="cloudUploadCurrentDb(true)" style="display:none" title="Sincronização automática">🔄 Sincronizar agora</button> <button id="backupBtn" onclick="backup()" style="display:none">Exportar backup</button> <button id="importBackupBtn" onclick="document.getElementById('backupImportInput').click()" style="display:none">Importar backup</button><input id="backupImportInput" type="file" accept=".json,application/json" style="display:none" onchange="importBackupFile(this)"> <button onclick="logout()">Sair</button></div></header>
++<div id="appShell" style="display:none"><header><div class="logo">HLGB <b>CONFECÇÕES</b> <small style="font-size:10px;opacity:.8">v91.06</small></div><div><span id="cloudStatus" style="margin-right:10px;font-size:12px;padding:6px 9px;border:1px solid #ffffff44;border-radius:8px">☁️ Nuvem</span><span id="currentUserLabel" style="margin-right:10px;font-size:13px"></span><button id="cloudSaveBtn" onclick="cloudUploadCurrentDb(true)" style="display:none" title="Sincronização automática">🔄 Sincronizar agora</button> <button id="backupBtn" onclick="backup()" style="display:none">Exportar backup</button> <button id="importBackupBtn" onclick="document.getElementById('backupImportInput').click()" style="display:none">Importar backup</button><input id="backupImportInput" type="file" accept=".json,application/json" style="display:none" onchange="importBackupFile(this)"> <button onclick="logout()">Sair</button></div></header>
+ <div class="app">
+ <aside><nav id="nav" class="clean-nav">
+ <button class="nav-home active" onclick="page('dashboard',this)">🏠 <span>Início</span></button>
+@@ -1276,7 +1276,7 @@
+ const HLGB_CLOUD_CONFLICT_KEY="hlgb_cloud_conflict_backup_v1";
+ 
+ 
+-// v91.05 — multiusuário por registro: sessão estabilizada, RPC corrigido e sincronização sem tempestade de requests.
++// v91.06 — multiusuário por registro: sessão estabilizada, RPC corrigido e sincronização sem tempestade de requests.
+ // v90.00 — Fase 1 da arquitetura multiusuário real.
+ // Produtos, materiais, clientes e pedidos passam a ter um registro por item no Supabase.
+ // O JSON legado continua existindo temporariamente apenas para os módulos ainda não migrados.
+@@ -1823,7 +1823,7 @@
+  let out=await send();
+  // Se o Data API responder 401, renovamos a sessão UMA vez e repetimos a chamada.
+  // Isso cobre Safari/abas retomadas em que uma requisição pode sair durante a troca do JWT.
+- // Com a leitura em lote da v91.05, isso não gera mais tempestade de refresh.
++ // Com a leitura em lote da v91.06, isso não gera mais tempestade de refresh.
+  if(!out.res.ok&&(out.res.status===401||expiredRx.test(out.txt||""))&&cloudRefreshToken){
+    try{
+      setCloudStatus("☁️ Renovando sessão…");
+@@ -1956,23 +1956,32 @@
+  if(!email||!email.includes("@"))throw new Error("Informe um e-mail válido para o usuário.");
+  await cloudRequireOwnerSession();
+  const payload=secondaryAccessPayload(u);
+- const rows=await cloudRequest("hlgb_user_access?on_conflict=email",{
++ const row=await cloudRequest("rpc/hlgb_admin_upsert_user_access",{
+    method:"POST",
+-   headers:{Prefer:"resolution=merge-duplicates,return=representation"},
+-   body:JSON.stringify(payload)
++   body:JSON.stringify({
++     p_auth_id:payload.auth_id||null,
++     p_email:payload.email,
++     p_name:payload.name,
++     p_active:payload.active!==false,
++     p_access:Array.isArray(payload.access)?payload.access:[]
++   })
+  });
+- return Array.isArray(rows)?rows[0]:rows;
++ return Array.isArray(row)?row[0]:row;
+ }
+ async function cloudDeleteSecondaryAccessByAuthId(authId){
+  if(!authId||!isOwnerUser())return false;
+- try{await cloudRequest(`hlgb_user_access?auth_id=eq.${encodeURIComponent(authId)}`,{method:"DELETE",headers:{Prefer:"return=minimal"}});return true}catch(e){console.warn(e);return false}
++ try{
++   await cloudRequireOwnerSession();
++   await cloudRequest("rpc/hlgb_admin_delete_user_access",{method:"POST",body:JSON.stringify({p_email:null,p_auth_id:String(authId)})});
++   return true;
++ }catch(e){console.warn(e);return false}
+ }
+ async function cloudDeleteSecondaryAccessByEmail(email){
+  const em=normEmail(email);
+  if(!em)return false;
+  try{
+    await cloudRequireOwnerSession();
+-   await cloudRequest(`hlgb_user_access?email=eq.${encodeURIComponent(em)}`,{method:"DELETE",headers:{Prefer:"return=minimal"}});
++   await cloudRequest("rpc/hlgb_admin_delete_user_access",{method:"POST",body:JSON.stringify({p_email:em,p_auth_id:null})});
+    return true;
+  }catch(e){console.warn(e);return false}
+ }
+@@ -2523,7 +2532,7 @@
+      const recordsOk=await hlgbEnsureRecordsOnlineAfterLogin();
+      if(!recordsOk)throw new Error("Não foi possível iniciar o modo multiusuário. Atualize a página e tente entrar novamente.");
+    }
+-   if(normEmail(cloudUser?.email)===normEmail(HLGB_OWNER_EMAIL)){normalizeUserDirectoryForOwner();cloudSyncAllSecondaryAccess().catch(()=>{});}
++   if(normEmail(cloudUser?.email)===normEmail(HLGB_OWNER_EMAIL)){normalizeUserDirectoryForOwner();}
+    let profile=null;
+    try{profile=await ensureCloudUserAccessOnline()}catch(accessErr){
+      // Um usuário pode tentar entrar imediatamente após o administrador cadastrá-lo.
+@@ -8833,60 +8842,112 @@
+   return result;
+ }
+ 
+-function newProduct(){
+- openModal("Novo produto / ficha técnica",productForm()+`<button type="button" class="primary modalSave">💾 Salvar produto</button>`,async()=>{
+-   let p={id:Date.now(),clientPrices:{}};
+-   if(!saveProductFromForm(p))return;
+-   db.products=Array.isArray(db.products)?db.products:[];
+-   db.products.push(p);
+-   try{
+-     // Produto é gravado DIRETAMENTE no Supabase. Não depende mais da fila genérica.
+-     localSaveOnly();
+-     await hlgbSaveProductDirect(p,false);
+-   }catch(err){
+-     db.products=db.products.filter(x=>String(x.id)!==String(p.id));
+-     try{localSaveOnly()}catch(e){}
+-     console.error("Falha ao salvar produto online",err);
+-     setCloudStatus("☁️ Produto não salvo","bad");
+-     alert("O produto NÃO foi salvo no sistema online. A janela continuará aberta para você tentar novamente.\n\n"+(err?.message||err));
+-     return;
+-   }
++let hlgbProductDirectBusy=false;
++function hlgbProductCloudMessage(text,state="info"){
++ const el=document.getElementById("productCloudSaveMessage");
++ if(!el)return;
++ el.textContent=String(text||"");
++ el.style.display=text?"block":"none";
++ el.style.marginTop="10px";
++ el.style.fontWeight="700";
++ el.style.fontSize="13px";
++ el.style.color=state==="ok"?"#137a3a":state==="bad"?"#a51d2d":"#6f3f59";
++}
++function hlgbProductSetButtonBusy(btn,busy,label){
++ if(!btn)return;
++ btn.disabled=!!busy;
++ btn.style.opacity=busy?".65":"";
++ btn.style.cursor=busy?"wait":"";
++ if(label)btn.textContent=label;
++}
++async function hlgbCreateProductDirectClick(ev){
++ try{ev?.preventDefault?.();ev?.stopPropagation?.()}catch(e){}
++ if(hlgbProductDirectBusy)return false;
++ const btn=ev?.currentTarget||document.getElementById("productDirectSaveBtn");
++ let p={id:Date.now(),clientPrices:{}};
++ if(!saveProductFromForm(p))return false;
++ hlgbProductDirectBusy=true;
++ hlgbProductSetButtonBusy(btn,true,"☁️ Salvando na nuvem…");
++ hlgbProductCloudMessage("Enviando produto para o Supabase…","info");
++ db.products=Array.isArray(db.products)?db.products:[];
++ db.products.push(p);
++ // A referência precisa existir antes da gravação online, para todas as máquinas receberem o mesmo produto completo.
++ try{ensureProductReferences()}catch(e){}
++ try{
++   localSaveOnly();
++   const confirmed=await hlgbSaveProductDirect(p,false);
++   if(!confirmed||confirmed.applied!==true)throw new Error("O Supabase não confirmou a inclusão do produto.");
++   hlgbProductCloudMessage("✓ Produto confirmado na nuvem.","ok");
+    let q=document.getElementById("productSearchName"),mn=document.getElementById("productPriceMin"),mx=document.getElementById("productPriceMax");
+    if(q)q.value="";if(mn)mn.value="";if(mx)mx.value="";
++   try{auditAction("Cadastrou produto",p.name||String(p.id))}catch(e){}
++   // Dá tempo de a confirmação ficar visível antes de fechar o modal.
++   await new Promise(r=>setTimeout(r,220));
+    closeModal();
+-   ensureProductReferences();
+    renderProducts();
+-   try{
+-     if(typeof renderOrderProductPicker==="function")document.querySelectorAll(".orderProdSearch").forEach(el=>renderOrderProductPicker(el));
+-   }catch(e){console.error(e)}
+-   try{auditAction("Cadastrou produto",p.name||String(p.id))}catch(e){}
+-   alert(`Produto cadastrado e confirmado na nuvem. Referência ${p.code}.`);
+- });
+- setTimeout(()=>{updateProductCostPreview()},0);
++   try{if(typeof renderOrderProductPicker==="function")document.querySelectorAll(".orderProdSearch").forEach(el=>renderOrderProductPicker(el));}catch(e){console.error(e)}
++   alert(`Produto cadastrado e confirmado na nuvem. Referência ${p.code||"-"}.`);
++   return true;
++ }catch(err){
++   db.products=db.products.filter(x=>String(x.id)!==String(p.id));
++   try{localSaveOnly()}catch(e){}
++   console.error("Falha ao salvar produto online",err);
++   setCloudStatus("☁️ Produto não salvo","bad");
++   hlgbProductCloudMessage("✕ Não foi possível confirmar na nuvem: "+String(err?.message||err),"bad");
++   hlgbProductSetButtonBusy(btn,false,"💾 Salvar produto");
++   hlgbProductDirectBusy=false;
++   return false;
++ }finally{
++   if(!document.getElementById("modal")?.classList.contains("show"))hlgbProductDirectBusy=false;
++ }
+ }
+-
+-function editProduct(id){
+- let p=db.products.find(x=>+x.id===+id);if(!p)return;
+- openModal("Editar produto / ficha técnica",productForm(p)+`<button type="button" class="primary modalSave">💾 Salvar alterações</button>`,async()=>{
+-   const before=hlgbRecordClone(p);
+-   if(!saveProductFromForm(p))return;
+-   try{
+-     localSaveOnly();
+-     await hlgbSaveProductDirect(p,false);
+-   }catch(err){
+-     Object.keys(p).forEach(k=>delete p[k]);Object.assign(p,before);
+-     try{localSaveOnly()}catch(e){}
+-     console.error("Falha ao atualizar produto online",err);
+-     setCloudStatus("☁️ Produto não salvo","bad");
+-     alert("As alterações NÃO foram confirmadas na nuvem. A janela continuará aberta para você tentar novamente.\n\n"+(err?.message||err));
+-     return;
+-   }
++async function hlgbUpdateProductDirectClick(ev,id){
++ try{ev?.preventDefault?.();ev?.stopPropagation?.()}catch(e){}
++ if(hlgbProductDirectBusy)return false;
++ const p=(db.products||[]).find(x=>String(x.id)===String(id));
++ if(!p){alert("Produto não encontrado.");return false}
++ const btn=ev?.currentTarget||document.getElementById("productDirectSaveBtn");
++ const before=hlgbRecordClone(p);
++ if(!saveProductFromForm(p))return false;
++ hlgbProductDirectBusy=true;
++ hlgbProductSetButtonBusy(btn,true,"☁️ Salvando alterações…");
++ hlgbProductCloudMessage("Enviando alterações para o Supabase…","info");
++ try{
++   localSaveOnly();
++   const confirmed=await hlgbSaveProductDirect(p,false);
++   if(!confirmed||confirmed.applied!==true)throw new Error("O Supabase não confirmou a alteração do produto.");
++   hlgbProductCloudMessage("✓ Alterações confirmadas na nuvem.","ok");
++   try{auditAction("Atualizou produto",p.name||String(p.id))}catch(e){}
++   await new Promise(r=>setTimeout(r,220));
+    closeModal();
+-   ensureProductReferences();
+    renderProducts();
+-   try{auditAction("Atualizou produto",p.name||String(p.id))}catch(e){}
+    alert("Produto atualizado e confirmado na nuvem.");
+- });
++   return true;
++ }catch(err){
++   Object.keys(p).forEach(k=>delete p[k]);Object.assign(p,before);
++   try{localSaveOnly()}catch(e){}
++   console.error("Falha ao atualizar produto online",err);
++   setCloudStatus("☁️ Produto não salvo","bad");
++   hlgbProductCloudMessage("✕ Não foi possível confirmar na nuvem: "+String(err?.message||err),"bad");
++   hlgbProductSetButtonBusy(btn,false,"💾 Salvar alterações");
++   hlgbProductDirectBusy=false;
++   return false;
++ }finally{
++   if(!document.getElementById("modal")?.classList.contains("show"))hlgbProductDirectBusy=false;
++ }
++}
++
++function newProduct(){
++ const body=productForm()+`<button id="productDirectSaveBtn" type="button" class="primary" onclick="hlgbCreateProductDirectClick(event)">💾 Salvar produto</button><div id="productCloudSaveMessage" aria-live="polite" style="display:none"></div>`;
++ openModal("Novo produto / ficha técnica",body,null);
++ setTimeout(()=>{updateProductCostPreview()},0);
++}
++
++function editProduct(id){
++ let p=(db.products||[]).find(x=>String(x.id)===String(id));if(!p)return;
++ const safeId=JSON.stringify(String(id));
++ const body=productForm(p)+`<button id="productDirectSaveBtn" type="button" class="primary" onclick='hlgbUpdateProductDirectClick(event,${safeId})'>💾 Salvar alterações</button><div id="productCloudSaveMessage" aria-live="polite" style="display:none"></div>`;
++ openModal("Editar produto / ficha técnica",body,null);
+  setTimeout(()=>{updateProductCostPreview()},0);
+ }
+ 
+@@ -10395,7 +10456,7 @@
+ loginScreen.style.display="flex";
+ // Restaura a credencial de refresh persistida neste navegador. O painel só será aberto
+ // depois de renovar no Supabase, carregar a nuvem e validar as permissões.
+-/* ===== v91.05 — MULTIUSUÁRIO POR REGISTRO (TODOS OS MÓDULOS) ===== */
++/* ===== v91.06 — MULTIUSUÁRIO POR REGISTRO (TODOS OS MÓDULOS) ===== */
+ const HLGB_RECORD_MODULES=[
+   "products","materials","clients","orders","orderTrash",
+   "production","productionLocations","capacityAssignments","goals","defectReturns","missingPieces",
+@@ -10605,7 +10666,7 @@
+     if(showMessage)alert("Dados sincronizados com sucesso.");
+     return true;
+   }catch(e){
+-    console.error("HLGB v91.05 sync",e);hlgbRecordPendingStore();setCloudStatus("☁️ Alterações pendentes","bad");try{const el=document.getElementById("cloudStatus");if(el)el.title=String(e?.message||e||"");}catch(_){}return false;
++    console.error("HLGB v91.06 sync",e);hlgbRecordPendingStore();setCloudStatus("☁️ Alterações pendentes","bad");try{const el=document.getElementById("cloudStatus");if(el)el.title=String(e?.message||e||"");}catch(_){}return false;
+   }finally{
+     hlgbRecordSyncing=false;
+     if(hlgbRecordSyncAgain){
+@@ -10753,10 +10814,10 @@
+       setCloudStatus(hlgbRecordPendingRead()?"☁️ Salvando automático…":"⚡ Online · multiusuário",hlgbRecordPendingRead()?"":"ok");
+       return true;
+     }
+-  }catch(e){console.error("HLGB v91.05 bootstrap",e);}
++  }catch(e){console.error("HLGB v91.06 bootstrap",e);}
+   return false;
+ }
+-/* ===== fim v91.05 ===== */
++/* ===== fim v91.06 ===== */
+ 
+ if(cloudRestoreStoredAuth()){
+  (async()=>{
+@@ -10764,7 +10825,7 @@
+    await cloudRefreshSession(true);
+    await cloudLoad();
+    await hlgbEnsureRecordsOnlineAfterLogin();
+-   if(normEmail(cloudUser?.email)===normEmail(HLGB_OWNER_EMAIL)){normalizeUserDirectoryForOwner();cloudSyncAllSecondaryAccess().catch(()=>{});}
++   if(normEmail(cloudUser?.email)===normEmail(HLGB_OWNER_EMAIL)){normalizeUserDirectoryForOwner();}
+    const profile=await ensureCloudUserAccessOnline();
+    cloudBootstrapping=false;
+    db.userSessions=Array.isArray(db.userSessions)?db.userSessions:[];
