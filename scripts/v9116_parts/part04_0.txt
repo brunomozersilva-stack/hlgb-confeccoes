@@ -1,0 +1,25 @@
+      let o={id,orderNumber:num,client:"Pedido avulso",clientId:null,isAdHoc:true,date:document.getElementById("adHocDate")?.value||today,total,qty,totalQty:qty,status:flow==="waiting"?"Aguardando corte":"Corte finalizado",priority:document.getElementById("adHocPriority")?.value||"Padrão",note:document.getElementById("adHocNote")?.value||"",grade:lines.map(x=>({productId:x.productId,color:"",size:"Avulso",qty:x.qty,unitPrice:x.price})),items:lines.map(x=>`${x.qty} ${x.product?.name||"Produto"}`).join(" | ")};
+      db.orders.push(o);
+      if(flow==="cut"){
+        lines.forEach((x,i)=>db.cuts.push({id:id+i+1,orderId:id,client:"Pedido avulso",op:`AV-${num}-${i+1}`,productId:x.productId,product:x.product?.name||"Produto",fabric:"",color:"",size:"",layers:0,meters:0,pieces:x.qty,productionLocationId:null,cutterId:null,cutType:"",status:"Finalizado",date:today,finishedAt:today,isAdHoc:true}));
+        syncFinalizedCutsToProduction();
+      }else syncOrdersToCuts();
+      closeModal();save();renderOrders();renderCuts();renderCutAssignmentQueue();
+    });
+  setTimeout(()=>{let first=document.querySelector('.adHocProduct');if(first&&first.options.length>1){first.selectedIndex=1;hlgb916AdHocProductChanged(first)}},20);
+}
+
+// --- Checklist de matéria-prima / recebimento --------------------------------
+function hlgb916CreateMaterialChecklist(prod,dest,unitPrice,serviceName){
+  hlgb916EnsureData();let product=hlgb916ProductForProduction(prod),qty=+prod.planned||0;
+  let materials=(product?.materials||[]).map((m,i)=>({id:i+1,name:m.name||"Material",unit:m.unit||"",qty:Math.max(0,(+m.qty||0)*qty*(1+(+m.loss||0)/100)),checked:false}));
+  let rec={id:Date.now()+Math.floor(Math.random()*100000),productionId:prod.id,cutId:prod.cutId||null,orderId:prod.orderId||null,destinationType:dest.type,destinationId:dest.id,destinationName:dest.name,productId:product?.id||prod.productId||null,productName:product?.name||prod.product||"Produto",serviceName:serviceName||"",qty,unitPrice:dest.type==="F"?(+unitPrice||0):0,total:dest.type==="F"?qty*(+unitPrice||0):0,materials,status:"Pendente",createdAt:new Date().toISOString(),receivedBy:"",receivedAt:"",note:""};
+  db.materialChecklists.push(rec);return rec;
+}
+function renderDestinationChecklists(){
+  let el=document.getElementById("destinationChecklistTable");if(!el)return;hlgb916EnsureData();
+  let rows=db.materialChecklists.slice().sort((a,b)=>String(b.createdAt||"").localeCompare(String(a.createdAt||"")));
+  el.innerHTML=rows.length?table(["Data","Destino","Modelo","Peças","Materiais","Valor facção","Status","Ações"],rows.map(c=>[
+    c.createdAt?fmtDate(String(c.createdAt).slice(0,10)):"-",esc(c.destinationName||"-"),esc(c.productName||"-"),(+c.qty||0).toLocaleString("pt-BR"),`${(c.materials||[]).filter(x=>x.checked).length}/${(c.materials||[]).length} conferidos`,c.destinationType==="F"?`${money(c.unitPrice)}/pç · <b>${money(c.total)}</b>`:"-",`<span class="badge ${c.status==="Conferido"?"ok":"warn"}">${esc(c.status||"Pendente")}</span>`,`<button type="button" class="primary" onclick="openMaterialChecklist(${c.id})">Conferir</button> <button type="button" class="secondary" onclick="printMaterialChecklist(${c.id})">🖨️ Imprimir</button>`
+  ])):'<div class="empty">Nenhum checklist gerado ainda. Ele será criado quando um corte for atribuído a um local.</div>';
+}
