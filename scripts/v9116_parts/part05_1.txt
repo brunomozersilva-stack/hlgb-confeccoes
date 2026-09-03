@@ -1,0 +1,18 @@
+  let total=0,qty=0,count=0;document.querySelectorAll('.factionPlanCheck').forEach(ch=>{let i=ch.dataset.i,q=+document.querySelector(`.factionPlanQty[data-i="${i}"]`)?.value||0,r=+document.querySelector(`.factionPlanRate[data-i="${i}"]`)?.value||0,sub=q*r;let td=document.querySelector(`.factionPlanSubtotal[data-i="${i}"]`);if(td)td.textContent=money(sub);if(ch.checked){count++;qty+=q;total+=sub}});
+  let target=+document.getElementById("factionPlannerTarget")?.value||0,diff=target-total,cards=document.getElementById("factionPlannerCards");if(!cards)return;
+  cards.innerHTML=`<div class="card"><small>Modelos selecionados</small><strong>${count}</strong></div><div class="card"><small>Peças selecionadas</small><strong>${qty.toLocaleString("pt-BR")}</strong></div><div class="card"><small>Pagamento previsto</small><strong>${money(total)}</strong></div><div class="card"><small>${target?diff>=0?"Falta para a meta":"Acima da meta":"Meta semanal"}</small><strong>${target?money(Math.abs(diff)):"Defina um valor"}</strong></div>`;
+}
+
+// --- HUB FINANCEIRO ----------------------------------------------------------
+const HLGB916_OUT_CATEGORIES=["Matéria-prima","Mão de obra da confecção","Facção","Funcionários","Aluguel","Gastos da confecção","Gasto pessoal","Impostos","Transporte","Outros"];
+const HLGB916_IN_CATEGORIES=["Vendas","Recebimento de cliente","Aporte / empréstimo","Outras entradas"];
+function hlgb916HubRange(weekValueStr){let v=weekValueStr||weekValue(new Date()),m=mondayFromWeek(v),s=new Date(m);s.setDate(s.getDate()+6);return {week:v,start:isoDate(m),end:isoDate(s)}}
+function changeHubFinanceWeek(delta){let el=document.getElementById("hubFinanceWeek");if(!el)return;if(!el.value)el.value=weekValue(new Date());let m=mondayFromWeek(el.value);m.setDate(m.getDate()+delta*7);el.value=weekValue(m);renderHubFinance()}
+function hlgb916HubEntryMethods(e){return e.flow==="Entrada"?[e.method||"Pix"]:(Array.isArray(e.acceptedMethods)&&e.acceptedMethods.length?e.acceptedMethods:["Pix"])}
+function hlgb916HubWeekEntries(range){return (db.hubFinanceEntries||[]).filter(e=>{let d=String(e.date||"").slice(0,10);return d>=range.start&&d<=range.end})}
+function hlgb916HubSummary(range){
+  let arr=hlgb916HubWeekEntries(range),ins=arr.filter(e=>e.flow==="Entrada"),outs=arr.filter(e=>e.flow==="Saída"),inTotal=ins.reduce((a,e)=>a+(+e.value||0),0),outTotal=outs.reduce((a,e)=>a+(+e.value||0),0);
+  let cashIn=ins.filter(e=>["pix","dinheiro"].includes(hlgb916Norm(e.method))).reduce((a,e)=>a+(+e.value||0),0),checksIn=ins.filter(e=>hlgb916Norm(e.method)==="cheque").reduce((a,e)=>a+(+e.value||0),0);
+  let hardCash=0,strictCheck=0,flexCheck=0;outs.forEach(e=>{let ms=hlgb916HubEntryMethods(e).map(hlgb916Norm),hasCheck=ms.includes("cheque"),hasCash=ms.includes("pix")||ms.includes("dinheiro");if(hasCheck&&!hasCash)strictCheck+=+e.value||0;else if(hasCheck&&hasCash)flexCheck+=+e.value||0;else hardCash+=+e.value||0});
+  let checkGap=Math.max(0,strictCheck-checksIn),remainingChecks=Math.max(0,checksIn-strictCheck),flexCovered=Math.min(flexCheck,remainingChecks),cashNeed=hardCash+Math.max(0,flexCheck-flexCovered),cashBalance=cashIn-cashNeed;
+  let realizedIn=ins.filter(e=>e.status==="Realizado").reduce((a,e)=>a+(+e.value||0),0),realizedOut=outs.filter(e=>e.status==="Realizado").reduce((a,e)=>a+(+e.value||0),0);
