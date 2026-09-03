@@ -6,7 +6,7 @@
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
-<title>HLGB Confecções — Sistema de Gestão v91.28 Multiusuário</title>
+<title>HLGB Confecções — Sistema de Gestão v91.29 Multiusuário</title>
 <style>
 :root{--navy:#6f3f59;--orange:#c96b8f;--bg:#fbf6f8;--line:#eadde4;--text:#30262c;--muted:#786b73;--ok:#e9f7ef;--warn:#fff5df;--bad:#fdeaea;--rose:#f3dbe5;--rose2:#fff8fb}
 *{box-sizing:border-box}body{margin:0;font-family:Arial,Helvetica,sans-serif;background:var(--bg);color:var(--text)}
@@ -246,11 +246,11 @@ main{min-width:0;}
     <div class="field" style="text-align:left;margin-bottom:10px"><label>E-mail</label><input id="loginUser" type="email" autocomplete="username" placeholder="seuemail@exemplo.com"></div>
     <div class="field" style="text-align:left;margin-bottom:14px"><label>Senha</label><input id="loginPass" type="password" autocomplete="current-password" onkeydown="if(event.key==='Enter')return doLogin()"></div>
     <button class="primary" style="width:100%" onclick="return doLogin()">Entrar</button>
-    <div id="loginError" style="color:#a51d2d;font-size:13px;margin-top:10px"></div><div style="margin-top:12px;font-size:12px;color:#786b73">Acesso protegido pelo Supabase • HLGB Online<br><b style="color:#6f3f59">Versão v91.28</b></div>
+    <div id="loginError" style="color:#a51d2d;font-size:13px;margin-top:10px"></div><div style="margin-top:12px;font-size:12px;color:#786b73">Acesso protegido pelo Supabase • HLGB Online<br><b style="color:#6f3f59">Versão v91.29</b></div>
   </div>
 </div>
 
-<div id="appShell" style="display:none"><header><div class="logo">HLGB <b>CONFECÇÕES</b> <small style="font-size:10px;opacity:.8">v91.28</small></div><div><span id="cloudStatus" style="margin-right:10px;font-size:12px;padding:6px 9px;border:1px solid #ffffff44;border-radius:8px">☁️ Nuvem</span><span id="currentUserLabel" style="margin-right:10px;font-size:13px"></span><button id="cloudSaveBtn" onclick="cloudUploadCurrentDb(true)" style="display:none" title="Sincronização automática">🔄 Sincronizar agora</button> <button id="backupBtn" onclick="backup()" style="display:none">Exportar backup</button> <button id="importBackupBtn" onclick="document.getElementById('backupImportInput').click()" style="display:none">Importar backup</button><input id="backupImportInput" type="file" accept=".json,application/json" style="display:none" onchange="importBackupFile(this)"> <button onclick="logout()">Sair</button></div></header>
+<div id="appShell" style="display:none"><header><div class="logo">HLGB <b>CONFECÇÕES</b> <small style="font-size:10px;opacity:.8">v91.29</small></div><div><span id="cloudStatus" style="margin-right:10px;font-size:12px;padding:6px 9px;border:1px solid #ffffff44;border-radius:8px">☁️ Nuvem</span><span id="currentUserLabel" style="margin-right:10px;font-size:13px"></span><button id="cloudSaveBtn" onclick="cloudUploadCurrentDb(true)" style="display:none" title="Sincronização automática">🔄 Sincronizar agora</button> <button id="backupBtn" onclick="backup()" style="display:none">Exportar backup</button> <button id="importBackupBtn" onclick="document.getElementById('backupImportInput').click()" style="display:none">Importar backup</button><input id="backupImportInput" type="file" accept=".json,application/json" style="display:none" onchange="importBackupFile(this)"> <button onclick="logout()">Sair</button></div></header>
 <div class="app">
 <aside><nav id="nav" class="clean-nav">
 <button class="nav-home active" onclick="page('dashboard',this)">🏠 <span>Início</span></button>
@@ -861,7 +861,7 @@ main{min-width:0;}
 
 <div class="panel">
   <h2>Folha do mês</h2>
-  <div class="sub">INSS é calculado automaticamente pela tabela progressiva vigente em 2026. Você pode ajustar os demais créditos e descontos por funcionário.</div>
+  <div class="sub">INSS é calculado pela tabela progressiva vigente em 2026 e pode ser descontado ou não, individualmente, em cada folha.</div>
   <div id="payrollTable"></div>
   <div id="payrollEmployeeShortcut" style="margin-top:14px"></div>
 </div>
@@ -2890,7 +2890,8 @@ function payrollCalc(r,e){
  let benefit=+r.benefit||0, overtime=+r.overtime||0, bonus=+r.bonus||0, otherCredit=+r.otherCredit||0;
  let absence=+r.absence||0, union=+r.unionDiscount||0, advance=+r.advance||0, purchase=+r.purchase||0, otherDiscount=+r.otherDiscount||0;
  let contribBase=Math.max(0,salary+overtime+bonus-absence);
- let inss=calcINSS2026(contribBase);
+ let calculatedInss=calcINSS2026(contribBase);
+ let inss=r.discountInss===false?0:calculatedInss;
  let gross=salary+transport+benefit+overtime+bonus+otherCredit;
  let discounts=absence+inss+union+advance+purchase+otherDiscount;
  let net=Math.max(0,gross-discounts);
@@ -3120,6 +3121,7 @@ function editPayrollRow(id){
  let r=(db.payroll||[]).find(x=>+x.id===+id);if(!r)return;
  let e=(db.employees||[]).find(x=>+x.id===+r.employeeId)||{salary:r.salary||0};
  let c=payrollCalc(r,e);
+ const payrollBase=hlgbRecordClone(r);
  openModal(`Folha — ${esc(r.employeeName||e.name||"Funcionário")}`,`
  <div class="grid">
   <div class="field"><label>Salário</label><input id="prSalary" type="number" step=".01" value="${c.salary}"></div>
@@ -3134,11 +3136,13 @@ function editPayrollRow(id){
   <div class="field"><label>Vale / adiantamento</label><input id="prAdvance" type="number" step=".01" value="${c.advance}"></div>
   <div class="field"><label>Compra</label><input id="prPurchase" type="number" step=".01" value="${c.purchase}"></div>
   <div class="field"><label>Outros descontos (-)</label><input id="prOtherDiscount" type="number" step=".01" value="${c.otherDiscount||0}"></div>
+  <div class="field"><label>Descontar INSS?</label><select id="prDiscountInss"><option value="yes" ${r.discountInss!==false?"selected":""}>Sim</option><option value="no" ${r.discountInss===false?"selected":""}>Não</option></select></div>
   <div class="field"><label>Chave PIX</label><input id="prPix" value="${esc(r.pix||e.pix||"")}"></div>
  </div>
- <div class="sub">INSS será recalculado automaticamente ao salvar.</div>
- <button type="button" class="primary modalSave">Salvar folha</button>`,()=>{
-   Object.assign(r,{
+ <div class="sub">INSS é calculado automaticamente quando “Descontar INSS?” estiver em Sim. Se escolher Não, o valor não entra nos descontos desta folha.</div>
+ <button type="button" class="primary modalSave">Salvar folha</button>`,async()=>{
+   const btn=document.querySelector("#modal .modalSave");
+   const desired={...hlgbRecordClone(payrollBase),
      salary:+document.getElementById("prSalary")?.value||0,
      transportAbsenceDays:+document.getElementById("prTransportAbsenceDays")?.value||0,
      benefit:+document.getElementById("prBenefit")?.value||0,
@@ -3150,9 +3154,35 @@ function editPayrollRow(id){
      advance:+document.getElementById("prAdvance")?.value||0,
      purchase:+document.getElementById("prPurchase")?.value||0,
      otherDiscount:+document.getElementById("prOtherDiscount")?.value||0,
-     pix:document.getElementById("prPix")?.value||""
-   });
-   closeModal();save();renderPayroll();
+     pix:document.getElementById("prPix")?.value||"",
+     discountInss:document.getElementById("prDiscountInss")?.value!=="no"
+    };
+   try{
+     if(btn){btn.disabled=true;btn.textContent="☁️ Salvando na nuvem…"}
+     if(!hlgbRecordReady){
+       const ok=await hlgbEnsureRecordsOnlineAfterLogin();
+       if(!ok||!hlgbRecordReady)throw new Error("A nuvem não está pronta para salvar a folha.");
+     }
+     const latest=hlgbRecordSnapshots?.payroll?.get(String(id))?.data || (db.payroll||[]).find(x=>String(x.id)===String(id)) || payrollBase;
+     const merged=cloudMergeThreeWay(payrollBase,desired,latest);
+     setCloudStatus("☁️ Salvando folha…");
+     const confirmed=await hlgbRecordSaveWithRetry("payroll",String(id),merged,false);
+     if(!confirmed||confirmed.applied!==true)throw new Error("O Supabase não confirmou a alteração da folha.");
+     const finalData=hlgbRecordClone(confirmed.data||merged);
+     let current=(db.payroll||[]).find(x=>String(x.id)===String(id));
+     if(current){Object.keys(current).forEach(k=>delete current[k]);Object.assign(current,finalData)}
+     else {db.payroll=db.payroll||[];db.payroll.push(finalData)}
+     localSaveOnly();
+     closeModal();
+     renderPayroll();
+     try{auditAction("Atualizou folha de pagamento",`${finalData.employeeName||"Funcionário"} — ${finalData.month||""}`)}catch(e){}
+     setCloudStatus("⚡ Online · folha confirmada","ok");
+   }catch(err){
+     console.error("HLGB v91.29 folha não confirmada",err);
+     if(btn){btn.disabled=false;btn.textContent="💾 Salvar folha"}
+     setCloudStatus("☁️ Folha não confirmada","bad");
+     alert("A alteração da folha NÃO foi confirmada na nuvem. Nada foi removido e a janela ficou aberta para você tentar novamente.\n\n"+String(err?.message||err));
+   }
  });
 }
 function deletePayrollRow(id){
@@ -11270,6 +11300,14 @@ function hlgbRenderIncomingRecord(module){
       return true;
     }
 
+    // v91.29: na Folha, uma alteração confirmada por outra máquina precisa aparecer
+    // imediatamente. O modal aberto continua protegido pelo guard acima.
+    if(module==="payroll" && activePage==="folhaPagamento"){
+      if(typeof renderPayroll==="function")renderPayroll();
+      cloudRemoteUpdatePending=false;
+      return true;
+    }
+
     // Para as demais telas mantemos a proteção antiga enquanto há um formulário/campo sendo editado.
     if(!cloudUserIsEditing()){
       renderAll();
@@ -11314,11 +11352,13 @@ async function hlgbPullNormalizedCoreChanges(force=false){
     if(changed){
       localSaveOnly();
       const modules=[...new Set(rows.map(r=>String(r?.module||"")).filter(Boolean))];
-      // Se Produtos mudou, atualiza sua tabela mesmo com um filtro selecionado.
-      if(modules.includes("products"))hlgbRenderIncomingRecord("products");
-      else if(!cloudUserIsEditing()){
+      // Produtos e Folha atualizam a tela mesmo com filtros focados.
+      let handled=false;
+      if(modules.includes("products"))handled=hlgbRenderIncomingRecord("products")||handled;
+      if(modules.includes("payroll"))handled=hlgbRenderIncomingRecord("payroll")||handled;
+      if(!handled&&!cloudUserIsEditing()){
         const prev=cloudApplying;cloudApplying=true;try{renderAll();cloudRemoteUpdatePending=false}finally{cloudApplying=prev}
-      }else cloudRemoteUpdatePending=true;
+      }else if(!handled) cloudRemoteUpdatePending=true;
     }
     return changed;
   }catch(e){
