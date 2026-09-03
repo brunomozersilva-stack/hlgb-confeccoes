@@ -24,6 +24,29 @@ jobs:
           node-version: '22'
       - name: Apply v91.25 ad hoc picker and optional client
         run: python3 scripts/hlgb_v9125_adhoc_picker_no_client.py
+      - name: Place v91.25 addon safely
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('index.html')
+          s=p.read_text(encoding='utf-8')
+          marker='<!-- HLGB v91.25 PEDIDO AVULSO PICKER -->'
+          start=s.find(marker)
+          if start<0:
+              raise SystemExit('v91.25 addon marker not found')
+          end=s.find('</script>',start)
+          if end<0:
+              raise SystemExit('v91.25 addon script close not found')
+          end += len('</script>')
+          addon=s[start:end]
+          s=s[:start]+s[end:]
+          body=s.rfind('</body>')
+          if body<0:
+              raise SystemExit('final body close not found')
+          s=s[:body]+addon+'\n'+s[body:]
+          p.write_text(s,encoding='utf-8')
+          print('v91.25 addon placed before final body close')
+          PY
       - name: Validate JavaScript and ad hoc flow
         run: |
           python3 - <<'PY'
@@ -36,6 +59,7 @@ jobs:
           assert 'Sem cliente' in s
           assert 'hlgb925FilterAdHocProducts' in s
           assert "client:c?.name||'Sem cliente'" in s
+          assert s.rfind('HLGB v91.25 PEDIDO AVULSO PICKER') < s.rfind('</body>')
           scripts=re.findall(r'<script(?:\s[^>]*)?>(.*?)</script>',s,re.S|re.I)
           for i,js in enumerate(scripts):
               if not js.strip(): continue
