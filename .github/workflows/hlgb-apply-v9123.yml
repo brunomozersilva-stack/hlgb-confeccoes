@@ -5,6 +5,7 @@ on:
     branches: [main]
     paths:
       - 'scripts/hlgb_v9123_projection_integrity.py'
+      - 'scripts/hlgb_v9123_relocate_addon.py'
       - '.github/workflows/hlgb-apply-v9123.yml'
   workflow_dispatch:
 
@@ -24,6 +25,8 @@ jobs:
           node-version: '22'
       - name: Apply v91.23 projection integrity
         run: python3 scripts/hlgb_v9123_projection_integrity.py
+      - name: Place v91.23 addon safely
+        run: python3 scripts/hlgb_v9123_relocate_addon.py
       - name: Validate JavaScript and projection integrity
         run: |
           python3 - <<'PY'
@@ -35,6 +38,7 @@ jobs:
           assert 'projectionDate:x.ctx.item.date' in s
           assert 'hlgb923EnsureProjectionIntegrity' in s
           assert 'hlgb_projection_safety_backup' in s
+          assert s.rfind('HLGB v91.23 PROJECTION INTEGRITY') > s.rfind('</script>',0,s.rfind('HLGB v91.23 PROJECTION INTEGRITY'))
           scripts=re.findall(r'<script(?:\s[^>]*)?>(.*?)</script>',s,re.S|re.I)
           for i,js in enumerate(scripts):
               if not js.strip(): continue
