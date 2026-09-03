@@ -1,0 +1,124 @@
+from pathlib import Path
+import re
+
+path=Path('index.html')
+s=path.read_text(encoding='utf-8')
+
+if 'v91.16 Multiusuário' in s:
+    print('v91.16 already applied')
+    raise SystemExit(0)
+
+def rep(old,new,label):
+    global s
+    if old not in s:
+        raise SystemExit(f'{label}: anchor not found')
+    s=s.replace(old,new,1)
+    print(label)
+
+def sub(pattern,repl,label,flags=re.S):
+    global s
+    s2,n=re.subn(pattern,repl,s,count=1,flags=flags)
+    if n!=1:
+        raise SystemExit(f'{label}: expected 1 match, got {n}')
+    s=s2
+    print(label)
+
+# Version bump first; the script itself is idempotent via the marker above.
+s=s.replace('v91.15','v91.16')
+
+# -----------------------------------------------------------------------------
+# PEDIDO AVULSO
+# -----------------------------------------------------------------------------
+rep(
+'    <button class="primary" onclick="newOrder()">+ Novo pedido</button>',
+'    <button class="primary" onclick="newOrder()">+ Novo pedido</button>\n    <button type="button" class="secondary" onclick="newAdHocOrder()">⚡ Pedido avulso</button>',
+'pedido avulso button')
+
+# -----------------------------------------------------------------------------
+# ATRIBUIÇÃO DE CORTE + CHECKLISTS
+# -----------------------------------------------------------------------------
+rep(
+'<div class="panel"><h2>✂️ Cortes prontos para produzir</h2><div class="sub">Tudo que foi finalizado no corte e está aguardando entrada na produção. Use <strong>Distribuir clientes</strong> quando um mesmo corte for vendido para mais de um cliente.</div><div id="readyCutsTable"></div></div>',
+'''<div class="panel"><h2>✂️ Cortes prontos para produzir</h2><div class="sub">Tudo que foi finalizado no corte e está aguardando entrada na produção. Use <strong>Distribuir clientes</strong> quando um mesmo corte for vendido para mais de um cliente.</div><div id="readyCutsTable"></div></div>
+<div class="panel">
+  <h2>🏭 Atribuição de corte para produção</h2>
+  <div class="sub">Assim que o corte é finalizado, o modelo entra aqui. Escolha o local/facção, veja a meta semanal e só então o produto entra na Projeção Semanal.</div>
+  <div id="cutAssignmentCards" class="cards"></div>
+  <div id="cutAssignmentQueue"></div>
+</div>''',
+'cut assignment panel')
+
+rep(
+'<div id="separationList" class="separation-list"></div>\n<div id="separationTable"></div></div>\n<div class="panel" id="orderNotesPanel">',
+'''<div id="separationList" class="separation-list"></div>
+<div id="separationTable"></div></div>
+<div class="panel">
+  <h2>✅ Checklist de envio / recebimento por local</h2>
+  <div class="sub">Cada atribuição de produção gera um checklist de matéria-prima. Em facções, o comprovante também mostra quantidade, valor por peça e total previsto do serviço.</div>
+  <div id="destinationChecklistTable"></div>
+</div>
+<div class="panel" id="orderNotesPanel">''',
+'material checklist panel')
+
+# -----------------------------------------------------------------------------
+# CALCULADORA DE PREVISÃO DE PAGAMENTO DE FACÇÃO
+# -----------------------------------------------------------------------------
+rep(
+'''<section id="faccoes" class="page">
+<h1>Envios para facção</h1>
+<div class="sub">Acompanhe somente a operação enviada para as facções, sem misturar com telas de cadastro.</div>
+<div class="panel"><h2>Modelos disponíveis para envio</h2>''',
+'''<section id="faccoes" class="page">
+<h1>Envios para facção</h1>
+<div class="sub">Acompanhe somente a operação enviada para as facções, sem misturar com telas de cadastro.</div>
+<div class="panel">
+  <h2>🧮 Calculadora de previsão de pagamento da facção</h2>
+  <div class="sub">Selecione uma facção e marque os modelos já cortados que você está pensando em mandar. A calculadora é apenas de planejamento e não altera a produção.</div>
+  <div class="toolbar" style="align-items:flex-end;flex-wrap:wrap;margin-top:12px">
+    <div class="field" style="min-width:260px"><label>Facção</label><select id="factionPlannerMaster" onchange="renderFactionPaymentPlanner()"><option value="">Selecione</option></select></div>
+    <div class="field"><label>Meta de pagamento da semana</label><input id="factionPlannerTarget" type="number" min="0" step="0.01" value="0" oninput="recalcFactionPaymentPlanner()"></div>
+    <button type="button" class="secondary" onclick="renderFactionPaymentPlanner()">🔄 Atualizar modelos</button>
+  </div>
+  <div id="factionPlannerCards" class="cards"></div>
+  <div id="factionPlannerTable"></div>
+</div>
+<div class="panel"><h2>Modelos disponíveis para envio</h2>''',
+'faction planner panel')
+
+# -----------------------------------------------------------------------------
+# HUB FINANCEIRO COMPLETO
+# -----------------------------------------------------------------------------
+hub_old='''<section id="hubFinanceiro" class="page">
+<h1>Hub Financeiro</h1>
+<div class="sub">Área financeira independente, reservada para a próxima etapa de configuração.</div>
+<div class="panel"><div class="empty">Hub Financeiro criado. Nenhuma função foi adicionada ainda.</div></div>
+</section>'''
+hub_new='''<section id="hubFinanceiro" class="page">
+<h1>Hub Financeiro</h1>
+<div class="sub">Planejamento semanal de caixa separado do Financeiro geral. Compare entradas, saídas, categorias e a liquidez real entre Pix/dinheiro e cheques.</div>
+<div class="panel">
+  <div class="toolbar" style="align-items:flex-end;flex-wrap:wrap">
+    <button type="button" class="secondary" onclick="changeHubFinanceWeek(-1)">← Semana anterior</button>
+    <div class="field"><label>Semana do calendário</label><input id="hubFinanceWeek" type="week" onchange="renderHubFinance()"></div>
+    <button type="button" class="secondary" onclick="changeHubFinanceWeek(1)">Próxima semana →</button>
+    <button type="button" class="primary" onclick="newHubFinanceEntry('Entrada')">+ Entrada prevista</button>
+    <button type="button" class="primary" onclick="newHubFinanceEntry('Saída')">+ Saída prevista</button>
+    <button type="button" class="secondary" onclick="hubFinanceManualSync()">🔄 Sincronizar lançamentos</button>
+  </div>
+  <div id="hubFinanceWeekLabel" class="sub"></div>
+</div>
+<div id="hubFinanceCards" class="cards"></div>
+<div id="hubFinanceLiquidityAlert"></div>
+<div class="panel"><h2>📊 Saídas por categoria</h2><div class="sub">Mostra quanto cada categoria representa nas despesas da semana.</div><div id="hubFinanceCategoryTable"></div></div>
+<div class="panel"><h2>💳 Liquidez por forma de pagamento</h2><div class="sub">Compara o que entra em Pix/dinheiro, o que entra em cheque e quais contas aceitam cheque.</div><div id="hubFinanceMethodTable"></div></div>
+<div class="panel"><h2>📅 Próximas semanas</h2><div class="sub">Visão rápida para antecipar semanas com falta de caixa ou falta de liquidez.</div><div id="hubFinanceFutureTable"></div></div>
+<div class="panel"><h2>Lançamentos da semana</h2><div id="hubFinanceEntriesTable"></div></div>
+</section>'''
+rep(hub_old,hub_new,'hub finance page')
+
+# Add explanatory note to goals page without removing its historical reports.
+rep(
+'<div class="sub">Metas, custos operacionais e lucro projetado por local de produção.</div>',
+'<div class="sub">Metas, custos operacionais e lucro projetado por local de produção. A meta/capacidade semanal também aparece como sugestão na nova Atribuição de Corte.</div>',
+'goals assignment note')
+
