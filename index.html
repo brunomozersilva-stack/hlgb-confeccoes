@@ -6,7 +6,7 @@
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
-<title>HLGB Confecções — Sistema de Gestão v91.27 Multiusuário</title>
+<title>HLGB Confecções — Sistema de Gestão v91.28 Multiusuário</title>
 <style>
 :root{--navy:#6f3f59;--orange:#c96b8f;--bg:#fbf6f8;--line:#eadde4;--text:#30262c;--muted:#786b73;--ok:#e9f7ef;--warn:#fff5df;--bad:#fdeaea;--rose:#f3dbe5;--rose2:#fff8fb}
 *{box-sizing:border-box}body{margin:0;font-family:Arial,Helvetica,sans-serif;background:var(--bg);color:var(--text)}
@@ -246,11 +246,11 @@ main{min-width:0;}
     <div class="field" style="text-align:left;margin-bottom:10px"><label>E-mail</label><input id="loginUser" type="email" autocomplete="username" placeholder="seuemail@exemplo.com"></div>
     <div class="field" style="text-align:left;margin-bottom:14px"><label>Senha</label><input id="loginPass" type="password" autocomplete="current-password" onkeydown="if(event.key==='Enter')return doLogin()"></div>
     <button class="primary" style="width:100%" onclick="return doLogin()">Entrar</button>
-    <div id="loginError" style="color:#a51d2d;font-size:13px;margin-top:10px"></div><div style="margin-top:12px;font-size:12px;color:#786b73">Acesso protegido pelo Supabase • HLGB Online<br><b style="color:#6f3f59">Versão v91.27</b></div>
+    <div id="loginError" style="color:#a51d2d;font-size:13px;margin-top:10px"></div><div style="margin-top:12px;font-size:12px;color:#786b73">Acesso protegido pelo Supabase • HLGB Online<br><b style="color:#6f3f59">Versão v91.28</b></div>
   </div>
 </div>
 
-<div id="appShell" style="display:none"><header><div class="logo">HLGB <b>CONFECÇÕES</b> <small style="font-size:10px;opacity:.8">v91.27</small></div><div><span id="cloudStatus" style="margin-right:10px;font-size:12px;padding:6px 9px;border:1px solid #ffffff44;border-radius:8px">☁️ Nuvem</span><span id="currentUserLabel" style="margin-right:10px;font-size:13px"></span><button id="cloudSaveBtn" onclick="cloudUploadCurrentDb(true)" style="display:none" title="Sincronização automática">🔄 Sincronizar agora</button> <button id="backupBtn" onclick="backup()" style="display:none">Exportar backup</button> <button id="importBackupBtn" onclick="document.getElementById('backupImportInput').click()" style="display:none">Importar backup</button><input id="backupImportInput" type="file" accept=".json,application/json" style="display:none" onchange="importBackupFile(this)"> <button onclick="logout()">Sair</button></div></header>
+<div id="appShell" style="display:none"><header><div class="logo">HLGB <b>CONFECÇÕES</b> <small style="font-size:10px;opacity:.8">v91.28</small></div><div><span id="cloudStatus" style="margin-right:10px;font-size:12px;padding:6px 9px;border:1px solid #ffffff44;border-radius:8px">☁️ Nuvem</span><span id="currentUserLabel" style="margin-right:10px;font-size:13px"></span><button id="cloudSaveBtn" onclick="cloudUploadCurrentDb(true)" style="display:none" title="Sincronização automática">🔄 Sincronizar agora</button> <button id="backupBtn" onclick="backup()" style="display:none">Exportar backup</button> <button id="importBackupBtn" onclick="document.getElementById('backupImportInput').click()" style="display:none">Importar backup</button><input id="backupImportInput" type="file" accept=".json,application/json" style="display:none" onchange="importBackupFile(this)"> <button onclick="logout()">Sair</button></div></header>
 <div class="app">
 <aside><nav id="nav" class="clean-nav">
 <button class="nav-home active" onclick="page('dashboard',this)">🏠 <span>Início</span></button>
@@ -2231,9 +2231,9 @@ async function cloudLoad(){
        cloudApplying=true;db=localDb;cloudApplying=false;
        cloudDirty=true;
        setCloudStatus("☁️ Recuperando alterações pendentes…");
-       // Carrega apenas snapshots das tabelas por registro para poder reaplicar
-       // operações locais pendentes sem substituir a cópia deste navegador.
-       try{await hlgbLoadNormalizedCore({preserveLocal:true})}catch(e){}
+       // v91.28: carrega e MESCLA o snapshot oficial. Nenhuma máquina pode ficar
+       // presa numa lista antiga; somente registros com gravação pendente local têm prioridade.
+       try{await hlgbLoadNormalizedCore({preserveLocal:true})}catch(e){console.warn("HLGB v91.28 merge de bootstrap",e)}
        setTimeout(()=>{hlgbNormalizedSyncNow(false);cloudSaveNow(false)},50);
        setTimeout(()=>hlgbStartRealtime(),100);
        return "local_pending";
@@ -11117,7 +11117,31 @@ async function hlgbRecordLoadBundle({preserveLocal=false,since=null}={}){
     for(const module of readable){
       const moduleRows=rows.filter(r=>String(r?.module||"")===String(module));
       hlgbRecordSnapshotRows(module,moduleRows);
-      if(!preserveLocal)db[module]=moduleRows.filter(r=>!r.deleted_at).map(r=>hlgbRecordRowValue(r,module));
+      const remoteActive=moduleRows.filter(r=>!r.deleted_at).map(r=>hlgbRecordRowValue(r,module));
+      if(!preserveLocal){
+        db[module]=remoteActive;
+      }else{
+        // HLGB v91.28 AUTHORITATIVE RECORD MERGE
+        // Old versions could keep the legacy/local list (for example 44 products),
+        // advance the cloud cursor to the newest timestamp and therefore never add
+        // the missing records. Merge the full server snapshot before advancing.
+        const local=hlgbRecordLocalMap(module);
+        const pendingNow=hlgbRecordPendingRead();
+        const pendingOps=Array.isArray(pendingNow?.modules?.[module])?pendingNow.modules[module]:[];
+        const pendingIds=new Set(pendingOps.filter(op=>op&&op.deleted!==true).map(op=>String(op.id)));
+        for(const row of moduleRows){
+          const rid=String(row?.entity_id??"");
+          if(!rid)continue;
+          if(row.deleted_at){
+            if(!pendingIds.has(rid))local.delete(rid);
+            continue;
+          }
+          // Cloud wins unless this exact record has a confirmed local pending write.
+          if(!pendingIds.has(rid))local.set(rid,hlgbRecordRowValue(row,module));
+        }
+        // Local-only new records are preserved; the pending queue will sync them.
+        db[module]=[...local.values()];
+      }
     }
   }else{
     for(const row of rows)hlgbApplyRecordRow(row);
@@ -11364,6 +11388,25 @@ setInterval(()=>{if(hlgbRecordReady&&cloudAccessToken&&hlgbRecordPendingRead())h
 setInterval(()=>{if(hlgbRecordReady&&cloudAccessToken&&!document.hidden)hlgbPullNormalizedCoreChanges(true).catch(()=>{})},6000);
 window.addEventListener("focus",()=>{if(hlgbRecordReady&&cloudAccessToken)hlgbPullNormalizedCoreChanges(true).catch(()=>{})});
 
+
+function hlgb928EnsureCloudCoverage(module){
+  try{
+    if(!HLGB_RECORD_MODULES.includes(module))return 0;
+    const snap=hlgbRecordSnapshots?.[module];
+    if(!(snap instanceof Map))return 0;
+    const local=hlgbRecordLocalMap(module);let added=0;
+    for(const [id,row] of snap.entries()){
+      if(!row||row.deleted_at||local.has(String(id)))continue;
+      const data=hlgbRecordClone(row.data);
+      if(data&&typeof data==="object"){
+        local.set(String(id),data);added++;
+      }
+    }
+    if(added)db[module]=[...local.values()];
+    return added;
+  }catch(e){console.warn("HLGB v91.28 coverage",module,e);return 0}
+}
+
 async function hlgbEnsureRecordsOnlineAfterLogin(){
   if(!cloudAccessToken||!cloudReady)return false;
   if(hlgbRecordReady)return true;
@@ -11371,6 +11414,11 @@ async function hlgbEnsureRecordsOnlineAfterLogin(){
     setCloudStatus("☁️ Carregando dados multiusuário…");
     const ok=await hlgbLoadNormalizedCore({preserveLocal:false});
     if(ok){
+      // Safety net: after the official full load, a browser may never contain fewer
+      // cloud products/orders than the authoritative snapshots.
+      const repairedProducts=hlgb928EnsureCloudCoverage("products");
+      const repairedOrders=hlgb928EnsureCloudCoverage("orders");
+      if(repairedProducts||repairedOrders)console.warn("HLGB v91.28 repaired local cloud gaps",{products:repairedProducts,orders:repairedOrders});
       localSaveOnly();
       // Recalcula a fila pendente com os snapshots recém-carregados. Se a fila era
       // apenas resíduo de uma versão anterior com erro, ela desaparece aqui.
