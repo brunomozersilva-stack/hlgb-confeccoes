@@ -1,0 +1,22 @@
+  return `<div class="adHocLine" style="display:grid;grid-template-columns:minmax(260px,1.5fr) 120px 140px 90px;gap:10px;align-items:end;margin:8px 0;padding:10px;border:1px solid var(--line);border-radius:10px;background:#fff">
+    <div class="field"><label>Modelo</label><select class="adHocProduct" onchange="hlgb916AdHocProductChanged(this)"><option value="">Selecione</option>${hlgb916AdHocProductOptions(line.productId)}</select></div>
+    <div class="field"><label>Quantidade</label><input class="adHocQty" type="number" min="1" step="1" value="${line.qty||0}" oninput="hlgb916RecalcAdHoc()"></div>
+    <div class="field"><label>Valor por peça</label><input class="adHocPrice" type="number" min="0" step="0.01" value="${line.price||0}" oninput="hlgb916RecalcAdHoc()"></div>
+    <button type="button" class="danger" onclick="this.closest('.adHocLine').remove();hlgb916RecalcAdHoc()">Excluir</button>
+  </div>`;
+}
+function addAdHocOrderLine(){let box=document.getElementById("adHocLines");if(box)box.insertAdjacentHTML("beforeend",hlgb916AdHocLine())}
+function hlgb916AdHocProductChanged(sel){let p=hlgb916ProductById(+sel.value),row=sel.closest('.adHocLine'),price=row?.querySelector('.adHocPrice');if(price&&p)price.value=(+p.price||0).toFixed(2);hlgb916RecalcAdHoc()}
+function hlgb916ReadAdHocLines(){return [...document.querySelectorAll('.adHocLine')].map(r=>{let productId=+r.querySelector('.adHocProduct')?.value||0,qty=Math.max(0,+r.querySelector('.adHocQty')?.value||0),price=Math.max(0,+r.querySelector('.adHocPrice')?.value||0);return {productId,qty,price,product:hlgb916ProductById(productId)}}).filter(x=>x.productId&&x.qty>0)}
+function hlgb916RecalcAdHoc(){let lines=hlgb916ReadAdHocLines(),q=lines.reduce((a,x)=>a+x.qty,0),v=lines.reduce((a,x)=>a+x.qty*x.price,0);let el=document.getElementById('adHocPreview');if(el)el.innerHTML=`<b>${q.toLocaleString('pt-BR')} peças</b> · ${money(v)}`}
+function newAdHocOrder(){
+  let orderNo=typeof nextAvailableOrderNumber==="function"?nextAvailableOrderNumber():Date.now(),today=isoDate(new Date());
+  openModal("Pedido avulso",`
+    <div class="sub">Use para pedidos antigos que já estão cortados/em produção ou para uma produção sem cliente cadastrado.</div>
+    <div class="grid" style="margin-top:12px">
+      <div class="field"><label>Nº do pedido</label><input id="adHocOrderNumber" type="number" min="1" value="${orderNo}"></div>
+      <div class="field"><label>Previsão / referência</label><input id="adHocDate" type="date" value="${today}"></div>
+      <div class="field"><label>Prioridade</label><select id="adHocPriority"><option>Padrão</option><option>Urgente</option><option>Urgentíssimo</option></select></div>
+      <div class="field"><label>Ponto de entrada no fluxo</label><select id="adHocFlow"><option value="cut" selected>Já cortado — aguardar atribuição de local</option><option value="waiting">Aguardando corte</option></select></div>
+      <div class="field" style="grid-column:1/-1"><label>Observação</label><input id="adHocNote" placeholder="Ex.: pedido antigo lançado na implantação"></div>
+    </div>
