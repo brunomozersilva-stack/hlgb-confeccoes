@@ -1,0 +1,22 @@
+name: HLGB inspect v91.30
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'scripts/hlgb_v9130_inspect.py'
+      - '.github/workflows/hlgb-inspect-v9130.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+      - name: Inspect current index
+        run: python3 scripts/hlgb_v9130_inspect.py
