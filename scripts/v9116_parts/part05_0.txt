@@ -1,0 +1,17 @@
+  w.document.write(`<html><head><title>Checklist — ${esc(c.destinationName)}</title><style>body{font-family:Arial;padding:28px;color:#222}table{width:100%;border-collapse:collapse;margin:14px 0}th,td{border:1px solid #bbb;padding:8px;text-align:left}h1{font-size:22px}.sign{margin-top:30px}</style></head><body><h1>HLGB Confecções — Checklist de envio / recebimento</h1><p><b>Destino:</b> ${esc(c.destinationName)}<br><b>Modelo:</b> ${esc(c.productName)}<br><b>Quantidade:</b> ${(+c.qty||0).toLocaleString("pt-BR")} peças</p><h2>Matéria-prima enviada</h2><table><tr><th>OK</th><th>Material</th><th>Quantidade</th><th>Unidade</th></tr>${mats||'<tr><td colspan="4">Sem materiais cadastrados.</td></tr>'}</table>${finance}<div class="sign">Recebido por: ____________________________________ &nbsp; Data: ____/____/________</div><p>Observação: ______________________________________________________________________</p><script>window.onload=()=>window.print();<\/script></body></html>`);w.document.close();
+}
+
+// --- Calculadora de previsão de pagamento da facção --------------------------
+function hlgb916FactionPlannerRows(factionId){
+  let fm=(db.factionMasters||[]).find(x=>+x.id===+factionId);if(!fm)return [];
+  return hlgb916UnassignedProduction().map(p=>{let product=hlgb916ProductForProduction(p),service=hlgb916ServiceNameForProduction(p);if(!hlgb916EligibleDestinations(service).some(d=>d.type==="F"&&+d.id===+factionId))return null;return {p,product,service,qty:+p.planned||0,rate:hlgb916SuggestedFactionRate(factionId,p)}}).filter(Boolean);
+}
+function renderFactionPaymentPlanner(){
+  let sel=document.getElementById("factionPlannerMaster"),tableEl=document.getElementById("factionPlannerTable");if(!sel||!tableEl)return;
+  let cur=sel.value;sel.innerHTML='<option value="">Selecione</option>'+(db.factionMasters||[]).filter(x=>x.active!==false).map(f=>`<option value="${f.id}">${esc(f.name)}</option>`).join("");if((db.factionMasters||[]).some(f=>String(f.id)===String(cur)))sel.value=cur;
+  let id=+sel.value||0;if(!id){tableEl.innerHTML='<div class="empty">Selecione uma facção para calcular.</div>';let c=document.getElementById("factionPlannerCards");if(c)c.innerHTML="";return}
+  let rows=hlgb916FactionPlannerRows(id);
+  tableEl.innerHTML=rows.length?`<table><tr><th>Selecionar</th><th>OP</th><th>Modelo</th><th>Tipo</th><th>Qtd. disponível</th><th>Qtd. planejada</th><th>Valor/peça</th><th>Subtotal</th></tr>${rows.map((r,i)=>`<tr><td><input class="factionPlanCheck" data-i="${i}" type="checkbox" onchange="recalcFactionPaymentPlanner()"></td><td>${esc(r.p.op||"-")}</td><td>${esc(r.product?.name||r.p.product||"-")}</td><td>${esc(r.service||"-")}</td><td>${r.qty.toLocaleString("pt-BR")}</td><td><input class="factionPlanQty" data-i="${i}" type="number" min="0" max="${r.qty}" value="${r.qty}" oninput="recalcFactionPaymentPlanner()" style="width:100px"></td><td><input class="factionPlanRate" data-i="${i}" type="number" min="0" step="0.01" value="${(+r.rate||0).toFixed(2)}" oninput="recalcFactionPaymentPlanner()" style="width:110px"></td><td class="factionPlanSubtotal" data-i="${i}">${money(r.qty*(+r.rate||0))}</td></tr>`).join("")}</table>`:'<div class="empty">Nenhum modelo cortado e compatível está aguardando atribuição para esta facção.</div>';
+  recalcFactionPaymentPlanner();
+}
+function recalcFactionPaymentPlanner(){
