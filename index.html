@@ -6,7 +6,7 @@
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
-<title>HLGB Confecções — Sistema de Gestão v91.30 Multiusuário</title>
+<title>HLGB Confecções — Sistema de Gestão v91.31 Multiusuário</title>
 <style>
 :root{--navy:#6f3f59;--orange:#c96b8f;--bg:#fbf6f8;--line:#eadde4;--text:#30262c;--muted:#786b73;--ok:#e9f7ef;--warn:#fff5df;--bad:#fdeaea;--rose:#f3dbe5;--rose2:#fff8fb}
 *{box-sizing:border-box}body{margin:0;font-family:Arial,Helvetica,sans-serif;background:var(--bg);color:var(--text)}
@@ -246,11 +246,11 @@ main{min-width:0;}
     <div class="field" style="text-align:left;margin-bottom:10px"><label>E-mail</label><input id="loginUser" type="email" autocomplete="username" placeholder="seuemail@exemplo.com"></div>
     <div class="field" style="text-align:left;margin-bottom:14px"><label>Senha</label><input id="loginPass" type="password" autocomplete="current-password" onkeydown="if(event.key==='Enter')return doLogin()"></div>
     <button class="primary" style="width:100%" onclick="return doLogin()">Entrar</button>
-    <div id="loginError" style="color:#a51d2d;font-size:13px;margin-top:10px"></div><div style="margin-top:12px;font-size:12px;color:#786b73">Acesso protegido pelo Supabase • HLGB Online<br><b style="color:#6f3f59">Versão v91.30</b></div>
+    <div id="loginError" style="color:#a51d2d;font-size:13px;margin-top:10px"></div><div style="margin-top:12px;font-size:12px;color:#786b73">Acesso protegido pelo Supabase • HLGB Online<br><b style="color:#6f3f59">Versão v91.31</b></div>
   </div>
 </div>
 
-<div id="appShell" style="display:none"><header><div class="logo">HLGB <b>CONFECÇÕES</b> <small style="font-size:10px;opacity:.8">v91.30</small></div><div><span id="cloudStatus" style="margin-right:10px;font-size:12px;padding:6px 9px;border:1px solid #ffffff44;border-radius:8px">☁️ Nuvem</span><span id="currentUserLabel" style="margin-right:10px;font-size:13px"></span><button id="cloudSaveBtn" onclick="cloudUploadCurrentDb(true)" style="display:none" title="Sincronização automática">🔄 Sincronizar agora</button> <button id="backupBtn" onclick="backup()" style="display:none">Exportar backup</button> <button id="importBackupBtn" onclick="document.getElementById('backupImportInput').click()" style="display:none">Importar backup</button><input id="backupImportInput" type="file" accept=".json,application/json" style="display:none" onchange="importBackupFile(this)"> <button onclick="logout()">Sair</button></div></header>
+<div id="appShell" style="display:none"><header><div class="logo">HLGB <b>CONFECÇÕES</b> <small style="font-size:10px;opacity:.8">v91.31</small></div><div><span id="cloudStatus" style="margin-right:10px;font-size:12px;padding:6px 9px;border:1px solid #ffffff44;border-radius:8px">☁️ Nuvem</span><span id="currentUserLabel" style="margin-right:10px;font-size:13px"></span><button id="cloudSaveBtn" onclick="cloudUploadCurrentDb(true)" style="display:none" title="Sincronização automática">🔄 Sincronizar agora</button> <button id="backupBtn" onclick="backup()" style="display:none">Exportar backup</button> <button id="importBackupBtn" onclick="document.getElementById('backupImportInput').click()" style="display:none">Importar backup</button><input id="backupImportInput" type="file" accept=".json,application/json" style="display:none" onchange="importBackupFile(this)"> <button onclick="logout()">Sair</button></div></header>
 <div class="app">
 <aside><nav id="nav" class="clean-nav">
 <button class="nav-home active" onclick="page('dashboard',this)">🏠 <span>Início</span></button>
@@ -13340,6 +13340,182 @@ function hubFinanceManualSync(){alert("O botão de sincronização está prepara
     vacationThirdField930();try{renderEmployeeAdvances()}catch(e){}try{renderOrderNotes()}catch(e){}try{syncFinalizedCutsToProduction();renderCutAssignmentQueue()}catch(e){}
   }
   setTimeout(boot930,900);window.addEventListener('focus',()=>setTimeout(()=>{try{syncFinalizedCutsToProduction();if(document.querySelector('.page.active')?.id==='pecasProntas')renderFinishedPieces()}catch(e){}},100));
+})();
+</script>
+
+
+<!-- HLGB v91.31 RECONCILIACAO OPERACIONAL -->
+<script>
+(function(){
+  const n931=v=>String(v??'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').trim().toLowerCase();
+  const c931=v=>{try{return JSON.parse(JSON.stringify(v))}catch(e){return v}};
+  const id931=()=>Date.now()+Math.floor(Math.random()*900000);
+  function ensure931(){
+    db.capacityAssignments=Array.isArray(db.capacityAssignments)?db.capacityAssignments:[];
+    db.production=Array.isArray(db.production)?db.production:[];
+    db.factions=Array.isArray(db.factions)?db.factions:[];
+    db.hubFinanceEntries=Array.isArray(db.hubFinanceEntries)?db.hubFinanceEntries:[];
+    db.orders=Array.isArray(db.orders)?db.orders:[];
+  }
+  function replaceLocal931(module,id,data,deleted=false){
+    db[module]=Array.isArray(db[module])?db[module]:[];
+    let i=db[module].findIndex(x=>String(x?.id)===String(id));
+    if(deleted){if(i>=0)db[module].splice(i,1);return}
+    let v=c931(data);if(v&&v.id==null)v.id=isNaN(+id)?id:+id;
+    if(i>=0)db[module][i]=v;else db[module].push(v);
+  }
+  async function saveRecord931(module,row,deleted=false){
+    if(!row||row.id==null)throw new Error('Registro sem id');
+    if(typeof hlgbRecordSaveWithRetry!=='function'){persistDb();return {applied:true,data:row}}
+    if(!hlgbRecordReady){let ok=await hlgbEnsureRecordsOnlineAfterLogin();if(!ok)throw new Error('Nuvem indisponível')}
+    let payload=c931(row);if(deleted)payload={...payload,__hlgb_explicit_delete:true};
+    let out=await hlgbRecordSaveWithRetry(module,String(row.id),payload,deleted);
+    if(!out||out.applied!==true)throw new Error('Nuvem não confirmou '+module);
+    replaceLocal931(module,row.id,out.data||row,deleted);
+    localSaveOnly();
+    return out;
+  }
+  function item931(orderId,key){
+    let o=(db.orders||[]).find(x=>+x.id===+orderId);
+    return o?projectionItemsForOrder(o).find(x=>String(x.key)===String(key)):null;
+  }
+  function actualRows931(orderId,key){
+    let it=item931(orderId,key),pid=+it?.productId||(+key||0);
+    return (db.production||[]).filter(p=>{
+      if(+p.orderId!==+orderId)return false;
+      if(pid&&+p.productId!==pid&&String(p.cutProductKey||'').split(':').pop()!==String(pid))return false;
+      let assigned=!!(p.factionId||p.productionLocationId||p.finishedAt)||['em producao','acabamento','pronto','finalizado','producao finalizada'].includes(n931(p.stage||p.status));
+      return assigned&&(+p.planned||0)>0;
+    });
+  }
+  function actualQty931(orderId,key){return actualRows931(orderId,key).reduce((a,p)=>a+(+p.planned||0),0)}
+  function planRemain931(a){return a?.active===false?0:Math.max(0,(+a?.qty||0)-(+a?.consumedQty||0))}
+  function plannedRows931(orderId,key,includeClosed=false){
+    return (db.capacityAssignments||[]).filter(a=>+a.orderId===+orderId&&String(a.itemKey)===String(key)&&String(a.source||'')!=='cut_assignment'&&(+a.locationId||0)&&(includeClosed||planRemain931(a)>0));
+  }
+  function actualSynthetic931(orderId,key){
+    return actualRows931(orderId,key).map(p=>({id:'actual:'+p.id,orderId:+orderId,itemKey:String(key),locationId:+p.productionLocationId||0,qty:+p.planned||0,source:'actual_production',locked:true,productionId:p.id})).filter(x=>x.locationId&&x.qty>0);
+  }
+  window.assignmentsFor=function(orderId,key){
+    let plans=plannedRows931(orderId,key).map(a=>({...a,qty:planRemain931(a)}));
+    return [...actualSynthetic931(orderId,key),...plans];
+  };
+  window.assignmentFor=function(orderId,key){return assignmentsFor(orderId,key)[0]||null};
+  window.projectionProductionSplit=function(orderId,itemKey){
+    let parts=[],actual={};
+    actualRows931(orderId,itemKey).forEach(p=>{let name=productionDestinationName(p)||'Local';actual[name]=(actual[name]||0)+(+p.planned||0)});
+    Object.entries(actual).forEach(([name,qty])=>parts.push(`${name}: ${qty.toLocaleString('pt-BR')} pç`));
+    let planned={};plannedRows931(orderId,itemKey).forEach(a=>{let l=(db.productionLocations||[]).find(x=>+x.id===+a.locationId),name=l?.name||'Local previsto',q=planRemain931(a);if(q>0)planned[name]=(planned[name]||0)+q});
+    Object.entries(planned).forEach(([name,qty])=>parts.push(`Previsto ${name}: ${qty.toLocaleString('pt-BR')} pç`));
+    return parts.join(' · ')||'Sem local';
+  };
+
+  async function consumePlans931(orderId,key,qty,locationId){
+    let left=Math.max(0,+qty||0);if(!left)return;
+    let rows=plannedRows931(orderId,key).slice().sort((a,b)=>(+b.locationId===+locationId)-(+a.locationId===+locationId));
+    for(const a of rows){
+      if(left<=0)break;let live=planRemain931(a);if(live<=0)continue;let take=Math.min(live,left),next={...a,consumedQty:(+a.consumedQty||0)+take,consumedAt:new Date().toISOString(),consumedByProduction:true};
+      if(planRemain931(next)<=0)next.active=false;
+      try{await saveRecord931('capacityAssignments',next,false)}catch(e){console.error('HLGB v91.31 baixa da previsão',e);break}
+      left-=take;
+    }
+  }
+  async function saveCapacityPlans931(orderId,key,desired){
+    let existing=plannedRows931(orderId,key,true),locs=(db.productionLocations||[]).filter(x=>x.active!==false);
+    for(const l of locs){
+      let want=Math.max(0,+desired[l.id]||0),active=existing.filter(a=>+a.locationId===+l.id&&a.active!==false&&planRemain931(a)>=0);
+      let first=active[0];
+      if(want>0){
+        if(first){let next={...first,source:first.source||'projection_plan',active:true,qty:(+first.consumedQty||0)+want,updatedAt:new Date().toISOString()};await saveRecord931('capacityAssignments',next,false)}
+        else{let row={id:id931(),orderId:+orderId,itemKey:String(key),locationId:+l.id,qty:want,consumedQty:0,source:'projection_plan',active:true,updatedAt:new Date().toISOString()};await saveRecord931('capacityAssignments',row,false)}
+        for(const extra of active.slice(1)){await saveRecord931('capacityAssignments',{...extra,active:false,closedReason:'consolidated_duplicate',closedAt:new Date().toISOString()},false)}
+      }else{
+        for(const a of active){if(planRemain931(a)>0)await saveRecord931('capacityAssignments',{...a,active:false,closedReason:'removed_from_projection',closedAt:new Date().toISOString()},false)}
+      }
+    }
+  }
+  window.openCapacityAllocation=function(orderId,key){
+    ensure931();let o=(db.orders||[]).find(x=>+x.id===+orderId),it=o&&projectionItemsForOrder(o).find(x=>String(x.key)===String(key));if(!o||!it)return;
+    let locs=(db.productionLocations||[]).filter(x=>x.active!==false),actual=actualRows931(orderId,key),actualQty=actualQty931(orderId,key),limit=Math.max(0,(+it.qty||0)-actualQty),plans=plannedRows931(orderId,key);
+    let fixed=actual.length?table(['Já atribuído de verdade','Peças'],actual.map(p=>[esc(productionDestinationName(p)||'-'),(+p.planned||0).toLocaleString('pt-BR')])):'<div class="empty">Ainda não há produção efetivamente atribuída.</div>';
+    let rows=locs.map(l=>{let q=plans.filter(a=>+a.locationId===+l.id).reduce((s,a)=>s+planRemain931(a),0);return `<tr><td><b>${esc(l.name)}</b>${l.capacityResponsible?`<div class="sub">${esc(l.capacityResponsible)}</div>`:''}</td><td>${capacityModelAllowed(l,it.name)?'<span class="badge ok">Modelo permitido</span>':'<span class="badge warn">Não cadastrado para este modelo</span>'}</td><td style="width:180px"><input class="capAllocQty931" data-loc="${l.id}" type="number" min="0" max="${limit}" value="${q}" oninput="updateCapacityAllocationTotal931(${limit})"></td></tr>`}).join('');
+    openModal(`Editar locais previstos — ${esc(it.name)}`,`<div class="cards"><div class="card"><small>Total do modelo</small><strong>${(+it.qty||0).toLocaleString('pt-BR')}</strong></div><div class="card"><small>Já atribuído na produção</small><strong>${actualQty.toLocaleString('pt-BR')}</strong></div><div class="card"><small>Ainda pode ser previsto</small><strong>${limit.toLocaleString('pt-BR')}</strong></div><div class="card"><small>Previsto agora</small><strong id="capAllocTotal931">0</strong></div></div><div class="panel"><h3>Produção já atribuída — não é alterada aqui</h3>${fixed}</div><div class="panel"><h3>Locais previstos para o saldo</h3><div class="sub">Aqui você pode corrigir um local previsto errado. O que já foi efetivamente enviado para produção fica protegido.</div><div style="overflow:auto"><table><thead><tr><th>Local / responsável</th><th>Compatibilidade</th><th>Quantidade prevista</th></tr></thead><tbody>${rows}</tbody></table></div></div><button class="primary modalSave">Salvar locais previstos</button>`,async()=>{
+      let inputs=[...document.querySelectorAll('.capAllocQty931')],sum=inputs.reduce((s,x)=>s+(+x.value||0),0);if(sum>limit+0.0001){alert('A previsão não pode ultrapassar o saldo ainda não atribuído.');return}
+      let btn=document.querySelector('#modal .modalSave');if(btn){btn.disabled=true;btn.textContent='☁️ Salvando na nuvem…'}
+      let desired={};inputs.forEach(x=>desired[+x.dataset.loc]=Math.max(0,+x.value||0));
+      try{await saveCapacityPlans931(orderId,key,desired);closeModal();try{renderProjection();renderCapacityPlanning();renderProductionHub()}catch(e){};setCloudStatus('⚡ Online · previsão confirmada','ok')}
+      catch(e){console.error(e);if(btn){btn.disabled=false;btn.textContent='Salvar locais previstos'}alert('Não consegui confirmar todos os locais previstos na nuvem. O que não foi confirmado não foi apagado.')}
+    });setTimeout(()=>updateCapacityAllocationTotal931(limit),30);
+  };
+  window.updateCapacityAllocationTotal931=function(total){let sum=[...document.querySelectorAll('.capAllocQty931')].reduce((s,x)=>s+(+x.value||0),0),a=document.getElementById('capAllocTotal931');if(a){a.textContent=sum.toLocaleString('pt-BR');a.style.color=sum>total?'#b91c1c':''}};
+  window.openProjectionProductionSplit=function(orderId,key){openCapacityAllocation(orderId,key)};
+
+  // Atribuição real consome a previsão, em vez de duplicá-la.
+  const oldOpenCut931=window.openCutAssignment;
+  window.openCutAssignment=function(id){
+    let out=oldOpenCut931(id);setTimeout(()=>{let btn=document.querySelector('#modal .modalSave');if(!btn||btn.dataset.v931)return;btn.dataset.v931='1';btn.addEventListener('click',function(){
+      let p=(db.production||[]).find(x=>+x.id===+id);if(!p)return;let orderId=+p.orderId,key=p.productId?String(p.productId):'legacy',pre=actualQty931(orderId,key),qty=Math.max(0,+document.getElementById('assignQty')?.value||0),raw=document.getElementById('assignDestination')?.value||'',service=document.getElementById('assignService')?.value||'',dest=(typeof hlgb916EligibleDestinations==='function'?hlgb916EligibleDestinations(service):[]).find(d=>`${d.type}:${d.id}`===raw);
+      if(!qty||!dest)return;setTimeout(async()=>{try{await reconcileFactionLinks931(true);let now=actualQty931(orderId,key),delta=Math.max(0,now-pre);if(delta>0)await consumePlans931(orderId,key,Math.min(qty,delta),dest.locationId||null);try{renderProjection();renderCapacityPlanning();renderCutAssignmentQueue()}catch(e){}}catch(e){console.error('HLGB v91.31 pós-atribuição',e)}},350);
+    },true)},0);return out;
+  };
+
+  // Repara o elo quando um envio antigo para facção existia, mas a produção continuou como pendente.
+  async function reconcileFactionLinks931(confirmCloud=false){
+    ensure931();let changed=[];
+    for(const f of (db.factions||[])){
+      if(!f||!f.productionId||(+f.sent||0)<=0)continue;let p=(db.production||[]).find(x=>+x.id===+f.productionId);if(!p||p.factionId)continue;
+      let fm=(db.factionMasters||[]).find(x=>n931(x.name)===n931(f.name)&&x.active!==false);if(!fm)continue;
+      let next={...p,factionId:fm.id,productionLocationId:+f.productionLocationId||+fm.productionLocationId||p.productionLocationId||null,stage:'Em produção',assignedAt:p.assignedAt||f.sentAt||f.date||isoDate(new Date()),sentToFactionAt:p.sentToFactionAt||f.sentAt||f.date||isoDate(new Date()),factionDueDate:p.factionDueDate||f.dueDate||f.deliveryDate||''};
+      changed.push(next);if(confirmCloud)await saveRecord931('production',next,false);else replaceLocal931('production',next.id,next,false);
+    }
+    if(changed.length&&!confirmCloud){localSaveOnly();try{hlgbRecordPendingStore();hlgbQueueNormalizedSync(20)}catch(e){}}
+    return changed.length;
+  }
+  window.hlgb931ReconcileFactionLinks=reconcileFactionLinks931;
+
+  // ---------- Clientes diferentes por produto no MESMO pedido ----------
+  window.assignOrderProductsToClient=function(id){
+    let o=(db.orders||[]).find(x=>+x.id===+id);if(!o)return;let base=c931(o),map={};(o.grade||[]).forEach(g=>{let pid=+g.productId||0;if(pid)map[pid]=(map[pid]||0)+(+g.qty||0)});let pids=Object.keys(map);if(!pids.length){alert('Este pedido não possui produtos identificados.');return}
+    let clients=(db.clients||[]).slice().sort((a,b)=>String(a.name||'').localeCompare(String(b.name||''),'pt-BR'));
+    let rows=pids.map(pid=>{let p=(db.products||[]).find(x=>+x.id===+pid),a=o.productClientAssignments?.[String(pid)]||null;return `<tr><td><b>${esc(p?.name||'Produto')}</b></td><td>${map[pid].toLocaleString('pt-BR')}</td><td><select class="opcClient931" data-pid="${pid}"><option value="">Sem cliente</option>${clients.map(c=>`<option value="${c.id}" ${String(a?.clientId||'')===String(c.id)?'selected':''}>${esc(c.name)}</option>`).join('')}</select></td></tr>`}).join('');
+    openModal(`Clientes por produto — pedido #${esc(displayOrderNumber(o))}`,`<div class="sub">Cada produto pode ter um cliente diferente. Você pode configurar todos de uma vez e salvar uma única vez.</div><div style="overflow:auto;margin-top:12px"><table><tr><th>Produto</th><th>Quantidade</th><th>Cliente deste produto</th></tr>${rows}</table></div><button type="button" class="primary modalSave">Salvar clientes dos produtos</button>`,async()=>{
+      let desired=c931(o);desired.productClientAssignments={...(desired.productClientAssignments||{})};
+      document.querySelectorAll('.opcClient931').forEach(sel=>{let pid=String(sel.dataset.pid),cl=clients.find(x=>String(x.id)===String(sel.value));if(cl)desired.productClientAssignments[pid]={clientId:cl.id,clientName:cl.name,assignedAt:new Date().toISOString()};else delete desired.productClientAssignments[pid]});
+      let vals=pids.map(pid=>desired.productClientAssignments[String(pid)]).filter(x=>x?.clientId),names=[...new Set(vals.map(x=>String(x.clientId)))];
+      if(vals.length===pids.length&&names.length===1){let cl=clients.find(x=>String(x.id)===names[0]);desired.clientId=cl?.id||null;desired.client=cl?.name||'Sem cliente'}else{desired.clientId=null;desired.client='Sem cliente'}
+      let btn=document.querySelector('#modal .modalSave');if(btn){btn.disabled=true;btn.textContent='☁️ Salvando na nuvem…'}
+      try{
+        let latest=hlgbRecordSnapshots?.orders?.get(String(id))?.data||o,merged=typeof cloudMergeThreeWay==='function'?cloudMergeThreeWay(base,desired,latest):desired,out=await hlgbRecordSaveWithRetry('orders',String(id),merged,false);if(!out||out.applied!==true)throw new Error('Pedido não confirmado');replaceLocal931('orders',id,out.data||merged,false);
+        let saved=(db.orders||[]).find(x=>+x.id===+id),assign=saved?.productClientAssignments||{};
+        (db.production||[]).filter(p=>+p.orderId===+id).forEach(p=>{let a=assign[String(p.productId)];if(a?.clientName)p.client=a.clientName});
+        localSaveOnly();try{hlgbRecordPendingStore();hlgbQueueNormalizedSync(20)}catch(e){}closeModal();renderOrders();try{renderProjection();renderProduction();renderFactions()}catch(e){}setCloudStatus('⚡ Online · clientes confirmados','ok');
+      }catch(e){console.error(e);if(btn){btn.disabled=false;btn.textContent='Salvar clientes dos produtos'}alert('A nuvem não confirmou a alteração dos clientes. O pedido foi mantido sem apagar informações.')}
+    });
+  };
+
+  // ---------- Provisões: não contar cadastro duplicado da mesma pessoa ----------
+  function dedupeEmployees931(arr){
+    let payrollIds=new Set((db.payroll||[]).map(r=>String(r.employeeId||''))),groups=new Map();
+    (arr||[]).forEach(e=>{if(!e)return;let k=[n931(e.name),String(e.hireDate||''),n931(e.companyName||employeeCompanyName(e)||'')].join('|'),cur=groups.get(k);if(!cur){groups.set(k,e);return}let ep=payrollIds.has(String(e.id)),cp=payrollIds.has(String(cur.id));if((ep&&!cp)||(ep===cp&&(+e.id||0)>(+cur.id||0)))groups.set(k,e)});
+    return [...groups.values()];
+  }
+  const oldProv931=window.renderPayrollProvisions;
+  window.renderPayrollProvisions=function(){let orig=db.employees;db.employees=dedupeEmployees931(orig);try{return oldProv931()}finally{db.employees=orig}};
+
+  // ---------- Hub Financeiro: salvar confirmado + abrir automaticamente a semana do lançamento ----------
+  function setHubWeek931(date){let el=document.getElementById('hubFinanceWeek');if(el&&date){let d=new Date(String(date).slice(0,10)+'T12:00:00');if(!isNaN(d))el.value=weekValue(d)}}
+  window.newHubFinanceEntry=function(flow){hlgb916EnsureData();openModal(`Nova ${flow.toLowerCase()} prevista`,hlgb916HubForm({flow})+`<button type="button" class="primary modalSave">Salvar lançamento</button>`,async()=>{let d=hlgb916ReadHubForm(flow);if(!d)return;let row={id:id931(),...d,createdAt:new Date().toISOString()},btn=document.querySelector('#modal .modalSave');if(btn){btn.disabled=true;btn.textContent='☁️ Salvando na nuvem…'}try{await saveRecord931('hubFinanceEntries',row,false);closeModal();setHubWeek931(row.date);renderHubFinance();setCloudStatus('⚡ Online · entrada confirmada','ok')}catch(e){console.error(e);if(btn){btn.disabled=false;btn.textContent='Salvar lançamento'}alert('O lançamento não foi confirmado na nuvem. A janela ficou aberta para você não perder o que digitou.')}});setTimeout(hlgb916ToggleHubChequeDate,20)};
+  window.editHubFinanceEntry=function(id){let e=(db.hubFinanceEntries||[]).find(x=>+x.id===+id);if(!e)return;openModal('Editar lançamento do Hub',hlgb916HubForm(e)+`<button type="button" class="primary modalSave">Salvar alterações</button>`,async()=>{let d=hlgb916ReadHubForm(e.flow);if(!d)return;let next={...e,...d,updatedAt:new Date().toISOString()},btn=document.querySelector('#modal .modalSave');if(btn){btn.disabled=true;btn.textContent='☁️ Salvando na nuvem…'}try{await saveRecord931('hubFinanceEntries',next,false);closeModal();setHubWeek931(next.date);renderHubFinance()}catch(err){console.error(err);if(btn){btn.disabled=false;btn.textContent='Salvar alterações'}alert('A alteração não foi confirmada na nuvem.')}});setTimeout(hlgb916ToggleHubChequeDate,20)};
+  window.toggleHubFinanceEntry=async function(id){let e=(db.hubFinanceEntries||[]).find(x=>+x.id===+id);if(!e)return;let next={...e,status:e.status==='Realizado'?'Previsto':'Realizado'};next.realizedAt=next.status==='Realizado'?isoDate(new Date()):'';try{await saveRecord931('hubFinanceEntries',next,false);renderHubFinance()}catch(err){console.error(err);alert('A mudança de status não foi confirmada na nuvem.')}};
+  window.deleteHubFinanceEntry=async function(id){let e=(db.hubFinanceEntries||[]).find(x=>+x.id===+id);if(!e||!confirm('Excluir este lançamento do Hub Financeiro?'))return;try{await saveRecord931('hubFinanceEntries',e,true);renderHubFinance()}catch(err){console.error(err);alert('A exclusão não foi confirmada. O lançamento foi mantido.')}};
+  window.hubFinanceManualSync=async function(){try{setCloudStatus('☁️ Atualizando Hub…');await hlgbLoadNormalizedCore({preserveLocal:true});renderHubFinance();setCloudStatus('⚡ Online · Hub atualizado','ok')}catch(e){console.error(e);alert('Não consegui atualizar o Hub agora. Nenhum lançamento foi apagado.')}};
+
+  // Realtime específico para telas que estavam aparentando atraso.
+  const oldIncoming931=window.hlgbRenderIncomingRecord;
+  window.hlgbRenderIncomingRecord=function(module){let r=oldIncoming931(module);try{let pg=document.querySelector('.page.active')?.id||'';if(module==='hubFinanceEntries'&&pg==='hubFinanceiro')renderHubFinance();if(['orders','production','capacityAssignments'].includes(module)&&pg==='projecao')renderProjection();if(module==='orders'&&pg==='pedidos')renderOrders();if(module==='production'&&pg==='corte')renderCutAssignmentQueue()}catch(e){}return r};
+
+  async function boot931(){ensure931();try{await reconcileFactionLinks931(false)}catch(e){}try{if(document.querySelector('.page.active')?.id==='projecao')renderProjection()}catch(e){}try{if(document.querySelector('.page.active')?.id==='hubFinanceiro')renderHubFinance()}catch(e){}}
+  setTimeout(boot931,1200);window.addEventListener('focus',()=>setTimeout(boot931,120));
 })();
 </script>
 </body></html>
