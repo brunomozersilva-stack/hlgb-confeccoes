@@ -1,0 +1,20 @@
+function hlgb916ToggleHubChequeDate(){let w=document.getElementById("hubChequeDateWrap"),m=document.getElementById("hubEntryMethod")?.value;if(w)w.style.display=m==="Cheque"?"block":"none"}
+function hlgb916ReadHubForm(flow){let accepted=flow==="Saída"?[...document.querySelectorAll('.hubAcceptedMethod:checked')].map(x=>x.value):[];if(flow==="Saída"&&!accepted.length){alert("Marque pelo menos uma forma de pagamento aceita.");return null}let value=+document.getElementById("hubEntryValue")?.value||0;if(value<=0){alert("Informe um valor maior que zero.");return null}let desc=(document.getElementById("hubEntryDesc")?.value||"").trim();if(!desc){alert("Informe a descrição.");return null}return {flow,description:desc,value,date:document.getElementById("hubEntryDate")?.value||isoDate(new Date()),category:document.getElementById("hubEntryCategory")?.value||"Outros",subcategory:document.getElementById("hubEntrySubcategory")?.value||"",origin:document.getElementById("hubEntryOrigin")?.value||"",person:document.getElementById("hubEntryPerson")?.value||"",status:document.getElementById("hubEntryStatus")?.value||"Previsto",method:flow==="Entrada"?(document.getElementById("hubEntryMethod")?.value||"Pix"):"",checkDate:flow==="Entrada"?(document.getElementById("hubEntryCheckDate")?.value||""):"",acceptedMethods:accepted,note:document.getElementById("hubEntryNote")?.value||""}}
+function newHubFinanceEntry(flow){hlgb916EnsureData();openModal(`Nova ${flow.toLowerCase()} prevista`,hlgb916HubForm({flow})+`<button type="button" class="primary modalSave">Salvar lançamento</button>`,()=>{let d=hlgb916ReadHubForm(flow);if(!d)return;db.hubFinanceEntries.push({id:Date.now()+Math.floor(Math.random()*9999),...d,createdAt:new Date().toISOString()});closeModal();save();renderHubFinance()});setTimeout(hlgb916ToggleHubChequeDate,20)}
+function editHubFinanceEntry(id){let e=(db.hubFinanceEntries||[]).find(x=>+x.id===+id);if(!e)return;openModal("Editar lançamento do Hub",hlgb916HubForm(e)+`<button type="button" class="primary modalSave">Salvar alterações</button>`,()=>{let d=hlgb916ReadHubForm(e.flow);if(!d)return;Object.assign(e,d,{updatedAt:new Date().toISOString()});closeModal();save();renderHubFinance()});setTimeout(hlgb916ToggleHubChequeDate,20)}
+function toggleHubFinanceEntry(id){let e=(db.hubFinanceEntries||[]).find(x=>+x.id===+id);if(!e)return;e.status=e.status==="Realizado"?"Previsto":"Realizado";e.realizedAt=e.status==="Realizado"?isoDate(new Date()):"";save();renderHubFinance()}
+function deleteHubFinanceEntry(id){if(!confirm("Excluir este lançamento do Hub Financeiro?"))return;db.hubFinanceEntries=(db.hubFinanceEntries||[]).filter(x=>+x.id!==+id);save();renderHubFinance()}
+function hubFinanceManualSync(){alert("O botão de sincronização está preparado, mas nesta etapa não importa notas automaticamente para evitar lançamentos duplicados. Quando você pedir, ligamos este botão às notas, compras, folha e facções.")}
+
+'''
+
+idx=s.rfind('</script>')
+if idx<0:
+    raise SystemExit('closing script not found')
+s=s[:idx]+feature_js+s[idx:]
+print('v91.16 feature JS injected')
+
+# Validate anchors/markers in generated file.
+required=[
+  'v91.16 Multiusuário','newAdHocOrder()','cutAssignmentQueue','destinationChecklistTable',
+  'factionPlannerTable','hubFinanceEntries','function renderHubFinance()','materialChecklists',
