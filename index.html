@@ -6,7 +6,7 @@
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
-<title>HLGB Confecções — Sistema de Gestão v91.24 Multiusuário</title>
+<title>HLGB Confecções — Sistema de Gestão v91.25 Multiusuário</title>
 <style>
 :root{--navy:#6f3f59;--orange:#c96b8f;--bg:#fbf6f8;--line:#eadde4;--text:#30262c;--muted:#786b73;--ok:#e9f7ef;--warn:#fff5df;--bad:#fdeaea;--rose:#f3dbe5;--rose2:#fff8fb}
 *{box-sizing:border-box}body{margin:0;font-family:Arial,Helvetica,sans-serif;background:var(--bg);color:var(--text)}
@@ -246,11 +246,11 @@ main{min-width:0;}
     <div class="field" style="text-align:left;margin-bottom:10px"><label>E-mail</label><input id="loginUser" type="email" autocomplete="username" placeholder="seuemail@exemplo.com"></div>
     <div class="field" style="text-align:left;margin-bottom:14px"><label>Senha</label><input id="loginPass" type="password" autocomplete="current-password" onkeydown="if(event.key==='Enter')return doLogin()"></div>
     <button class="primary" style="width:100%" onclick="return doLogin()">Entrar</button>
-    <div id="loginError" style="color:#a51d2d;font-size:13px;margin-top:10px"></div><div style="margin-top:12px;font-size:12px;color:#786b73">Acesso protegido pelo Supabase • HLGB Online<br><b style="color:#6f3f59">Versão v91.24</b></div>
+    <div id="loginError" style="color:#a51d2d;font-size:13px;margin-top:10px"></div><div style="margin-top:12px;font-size:12px;color:#786b73">Acesso protegido pelo Supabase • HLGB Online<br><b style="color:#6f3f59">Versão v91.25</b></div>
   </div>
 </div>
 
-<div id="appShell" style="display:none"><header><div class="logo">HLGB <b>CONFECÇÕES</b> <small style="font-size:10px;opacity:.8">v91.24</small></div><div><span id="cloudStatus" style="margin-right:10px;font-size:12px;padding:6px 9px;border:1px solid #ffffff44;border-radius:8px">☁️ Nuvem</span><span id="currentUserLabel" style="margin-right:10px;font-size:13px"></span><button id="cloudSaveBtn" onclick="cloudUploadCurrentDb(true)" style="display:none" title="Sincronização automática">🔄 Sincronizar agora</button> <button id="backupBtn" onclick="backup()" style="display:none">Exportar backup</button> <button id="importBackupBtn" onclick="document.getElementById('backupImportInput').click()" style="display:none">Importar backup</button><input id="backupImportInput" type="file" accept=".json,application/json" style="display:none" onchange="importBackupFile(this)"> <button onclick="logout()">Sair</button></div></header>
+<div id="appShell" style="display:none"><header><div class="logo">HLGB <b>CONFECÇÕES</b> <small style="font-size:10px;opacity:.8">v91.25</small></div><div><span id="cloudStatus" style="margin-right:10px;font-size:12px;padding:6px 9px;border:1px solid #ffffff44;border-radius:8px">☁️ Nuvem</span><span id="currentUserLabel" style="margin-right:10px;font-size:13px"></span><button id="cloudSaveBtn" onclick="cloudUploadCurrentDb(true)" style="display:none" title="Sincronização automática">🔄 Sincronizar agora</button> <button id="backupBtn" onclick="backup()" style="display:none">Exportar backup</button> <button id="importBackupBtn" onclick="document.getElementById('backupImportInput').click()" style="display:none">Importar backup</button><input id="backupImportInput" type="file" accept=".json,application/json" style="display:none" onchange="importBackupFile(this)"> <button onclick="logout()">Sair</button></div></header>
 <div class="app">
 <aside><nav id="nav" class="clean-nav">
 <button class="nav-home active" onclick="page('dashboard',this)">🏠 <span>Início</span></button>
@@ -5991,6 +5991,9 @@ function printCustomerNote(o,c,info){
  <div class="sign">Obrigada pela preferência!<br><br><b>HLGB Confecções</b></div>
  <button class="noPrint" onclick="window.print()">🖨️ Imprimir</button>
  </div>
+
+
+
 
 
 
@@ -12489,7 +12492,6 @@ function hubFinanceManualSync(){alert("O botão de sincronização está prepara
 
   function saveNewAdHoc(){
     let c=(db.clients||[]).find(x=>+x.id===+(document.getElementById('mclient')?.value||0));
-    if(!c){alert('Selecione o cliente.');return}
     let useGrade=(document.getElementById('adHocGradeMode')?.value||'no')==='yes';
     let grade=[],lines=[];
     if(useGrade){
@@ -12509,7 +12511,7 @@ function hubFinanceManualSync(){alert("O botão de sincronização está prepara
     let summary=useGrade
       ? grade.map(it=>`${it.qty} ${productById(it.productId)?.name||''} ${it.color||''}${it.size?` Tam ${it.size}`:''}`.trim()).join(' | ')
       : lines.map(x=>`${x.qty} ${x.product?.name||'Produto'}`).join(' | ');
-    let o={id:orderId,orderNumber,client:c.name,clientId:c.id,date:document.getElementById('mdate')?.value||isoDate(new Date()),projectionDeliveryDate:'',projectionPlannedAt:'',total,status:document.getElementById('mstatus')?.value||'Aguardando corte',priority:document.getElementById('mpriority')?.value||'Padrão',items:summary,qty,totalQty:qty,grade,isAdHoc:true,noGrade:!useGrade};
+    let o={id:orderId,orderNumber,client:c?.name||'Sem cliente',clientId:c?.id||null,date:document.getElementById('mdate')?.value||isoDate(new Date()),projectionDeliveryDate:'',projectionPlannedAt:'',total,status:document.getElementById('mstatus')?.value||'Aguardando corte',priority:document.getElementById('mpriority')?.value||'Padrão',items:summary,qty,totalQty:qty,grade,isAdHoc:true,noGrade:!useGrade};
     db.orders=Array.isArray(db.orders)?db.orders:[];db.orders.push(o);
     if(!db.config)db.config={};db.config.nextOrderNumber=Math.max(+db.config.nextOrderNumber||1,orderNumber+1);
     db.cuts=Array.isArray(db.cuts)?db.cuts:[];
@@ -12529,7 +12531,7 @@ function hubFinanceManualSync(){alert("O botão de sincronização está prepara
       <div class="sub">Funciona como um pedido normal: cliente, entrega, status, prioridade, corte, produção, projeção e nota. A única diferença é que a grade pode ser opcional.</div>
       <div class="grid" style="margin-top:12px">
         <div class="field"><label>Nº do pedido</label><input id="mordernumber" type="number" min="1" value="${nextAvailableOrderNumber()}"><div class="sub">Pode alterar manualmente.</div></div>
-        <div class="field"><label>Cliente</label><select id="mclient" onchange="hlgb922ClientChanged()"><option value="">Selecione</option>${clientOptions()}</select></div>
+        <div class="field"><label>Cliente (opcional)</label><select id="mclient" onchange="hlgb922ClientChanged()"><option value="">Sem cliente</option>${clientOptions()}</select><div class="sub">Pode deixar sem cliente e definir depois, se precisar.</div></div>
         <div class="field"><label>Data de entrega</label><input id="mdate" type="date" value="${today}"></div>
         <div class="field"><label>Status</label><select id="mstatus"><option value="Aguardando corte">Aguardando corte</option><option value="Pedido para corte">Pedido para corte</option><option value="Pedido em produção">Pedido em produção</option><option value="Pedido finalizado">Pedido finalizado</option></select></div>
         <div class="field"><label>Prioridade</label><select id="mpriority"><option>Padrão</option><option>Urgente</option><option>Urgentíssimo</option></select></div>
@@ -12556,19 +12558,19 @@ function hubFinanceManualSync(){alert("O botão de sincronização está prepara
       <div class="sub">Mesmo cadastro do pedido normal, sem obrigar grade de cor/tamanho.</div>
       <div class="grid">
         <div class="field"><label>Nº do pedido</label><input id="mordernumber" type="number" min="1" value="${escAttr(displayOrderNumber(o))}"></div>
-        <div class="field"><label>Cliente</label><select id="mclient" onchange="hlgb922ClientChanged()"><option value="">Selecione</option>${(db.clients||[]).map(c=>`<option value="${c.id}" ${+c.id===+o.clientId||c.name===o.client?'selected':''}>${esc(c.name)}</option>`).join('')}</select></div>
+        <div class="field"><label>Cliente (opcional)</label><select id="mclient" onchange="hlgb922ClientChanged()"><option value="">Sem cliente</option>${(db.clients||[]).slice().sort((a,b)=>String(a.name||'').localeCompare(String(b.name||''),'pt-BR')).map(c=>`<option value="${c.id}" ${+c.id===+o.clientId||c.name===o.client?'selected':''}>${esc(c.name)}</option>`).join('')}</select><div class="sub">Pode manter sem cliente e definir depois.</div></div>
         <div class="field"><label>Data de entrega</label><input id="mdate" type="date" value="${o.date||''}"></div>
         <div class="field"><label>Status</label><select id="mstatus">${['Aguardando corte','Pedido para corte','Corte finalizado','Pedido em produção','Pedido finalizado'].map(x=>`<option ${x===o.status?'selected':''}>${x}</option>`).join('')}</select></div>
         <div class="field"><label>Prioridade</label><select id="mpriority">${['Padrão','Urgente','Urgentíssimo'].map(x=>`<option ${x===(o.priority||'Padrão')?'selected':''}>${x}</option>`).join('')}</select></div>
       </div>
       <div class="panel"><div class="toolbar" style="justify-content:space-between;align-items:center"><h3 style="margin:0">Produtos sem grade</h3><button type="button" class="secondary" onclick="addAdHocOrderLine()">+ Adicionar produto</button></div><div id="adHocLines">${(lines.length?lines:[{}]).map(hlgb922AdHocLine).join('')}</div><div id="adHocPreview" class="order-grand-total"></div></div>
       <button type="button" class="primary modalSave">💾 Salvar alterações</button>`,()=>{
-        let c=(db.clients||[]).find(x=>+x.id===+(document.getElementById('mclient')?.value||0));if(!c){alert('Selecione o cliente.');return}
+        let c=(db.clients||[]).find(x=>+x.id===+(document.getElementById('mclient')?.value||0));
         let nl=hlgb922ReadAdHocLines();if(!nl.length){alert('Adicione pelo menos um produto com quantidade.');return}
         let orderNumber=+document.getElementById('mordernumber')?.value||+o.orderNumber||nextAvailableOrderNumber();
         if((db.orders||[]).some(x=>+x.id!==+o.id&&String(x.orderNumber)===String(orderNumber))){alert('Esse número de pedido já existe. Escolha outro número.');return}
         let grade=nl.map(x=>({productId:x.productId,color:'',size:'',qty:x.qty,unitPrice:x.price,noGrade:true})),qty=nl.reduce((a,x)=>a+x.qty,0),total=nl.reduce((a,x)=>a+x.qty*x.price,0);
-        Object.assign(o,{orderNumber,client:c.name,clientId:c.id,date:document.getElementById('mdate')?.value||o.date,total,status:document.getElementById('mstatus')?.value||o.status,priority:document.getElementById('mpriority')?.value||'Padrão',grade,qty,totalQty:qty,items:nl.map(x=>`${x.qty} ${x.product?.name||'Produto'}`).join(' | '),isAdHoc:true,noGrade:true});
+        Object.assign(o,{orderNumber,client:c?.name||'Sem cliente',clientId:c?.id||null,date:document.getElementById('mdate')?.value||o.date,total,status:document.getElementById('mstatus')?.value||o.status,priority:document.getElementById('mpriority')?.value||'Padrão',grade,qty,totalQty:qty,items:nl.map(x=>`${x.qty} ${x.product?.name||'Produto'}`).join(' | '),isAdHoc:true,noGrade:true});
         // Atualiza somente cortes ainda não finalizados, preservando histórico do que já foi cortado.
         let linked=(db.cuts||[]).filter(cut=>+cut.orderId===+o.id),hasFinished=linked.some(cut=>String(cut.status||'').toLowerCase()==='finalizado');
         if(!hasFinished){
@@ -12749,6 +12751,81 @@ function hubFinanceManualSync(){alert("O botão de sincronização está prepara
   renderProjection=function(){ensureIntegrity();return _v9123RenderProjection.apply(this,arguments)};
   window.renderProjection=renderProjection;
   setTimeout(()=>{try{ensureIntegrity()}catch(e){}},700);
+})();
+</script>
+<!-- HLGB v91.25 PEDIDO AVULSO PICKER -->
+<script>
+(function(){
+  function esc925(v){return String(v??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;')}
+  function products925(){return (db.products||[]).slice().sort((a,b)=>String(a.name||'').localeCompare(String(b.name||''),'pt-BR',{sensitivity:'base'}))}
+  function cats925(){return [...new Set(products925().map(p=>String(p.category||'').trim()).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'pt-BR'))}
+  function selectedProduct925(line){return (db.products||[]).find(p=>+p.id===+(line?.productId||0))||null}
+  function unit925(line){
+    if(line?.price!=null)return +line.price||0;
+    let pid=+line?.productId||0,clientId=+document.getElementById('mclient')?.value||0,u=0;
+    if(pid&&clientId){try{u=+suggestedPrice(clientId,pid)||0}catch(e){}}
+    if(!u)u=+(db.products||[]).find(p=>+p.id===pid)?.price||0;
+    return u;
+  }
+  window.hlgb925FilterAdHocProducts=function(source){
+    let row=source?.closest?.('.adHocLine');if(!row)return;
+    let q=(row.querySelector('.adHocProductSearch')?.value||'').trim().toLowerCase();
+    let cat=row.querySelector('.adHocProductCat')?.value||'';
+    let minRaw=row.querySelector('.adHocProductMin')?.value||'',maxRaw=row.querySelector('.adHocProductMax')?.value||'';
+    let min=minRaw!==''?+minRaw:null,max=maxRaw!==''?+maxRaw:null;
+    let matches=products925().filter(p=>{
+      let hay=`${p.name||''} ${p.code||''} ${p.category||''}`.toLowerCase();
+      if(q&&!hay.includes(q))return false;
+      if(cat&&String(p.category||'')!==cat)return false;
+      let price=+p.price||0;
+      if(min!=null&&price<min)return false;
+      if(max!=null&&price>max)return false;
+      return true;
+    }).slice(0,80);
+    let box=row.querySelector('.adHocProductResults'),count=row.querySelector('.adHocProductCount');
+    if(count)count.textContent=`${matches.length} produto(s) encontrado(s)${matches.length===80?' — refine a busca para ver mais':''}`;
+    if(!box)return;
+    box.innerHTML=matches.length?matches.map(p=>`<button type="button" class="secondary" style="display:flex;justify-content:space-between;gap:8px;text-align:left;padding:8px 10px" onclick="hlgb925SelectAdHocProduct(this,${+p.id})"><span><strong>${esc925(p.name||'Produto')}</strong><small style="display:block;color:var(--muted)">${esc925(p.code||'Sem referência')} · ${esc925(p.category||'Sem categoria')}</small></span><strong style="white-space:nowrap">${typeof money==='function'?money(+p.price||0):(+p.price||0).toFixed(2)}</strong></button>`).join(''):'<div class="empty" style="padding:12px">Nenhum produto encontrado.</div>';
+    box.style.display='grid';
+  };
+  window.hlgb925SelectAdHocProduct=function(btn,id){
+    let row=btn?.closest?.('.adHocLine');if(!row)return;
+    let sel=row.querySelector('.adHocProduct');if(sel)sel.value=String(id);
+    let p=(db.products||[]).find(x=>+x.id===+id),label=row.querySelector('.adHocSelectedProduct');
+    if(label)label.innerHTML=p?`<strong>${esc925(p.name)}</strong> <span class="sub">· ${esc925(p.code||'Sem referência')} · ${esc925(p.category||'Sem categoria')}</span>`:'<strong>Selecione um produto</strong>';
+    let box=row.querySelector('.adHocProductResults');if(box){box.innerHTML='';box.style.display='none'}
+    let search=row.querySelector('.adHocProductSearch');if(search)search.value='';
+    let count=row.querySelector('.adHocProductCount');if(count)count.textContent='Produto selecionado. Digite para trocar.';
+    if(typeof hlgb922AdHocProductChanged==='function'&&sel)hlgb922AdHocProductChanged(sel);
+  };
+  window.hlgb925ClearAdHocProductFilter=function(btn){
+    let row=btn?.closest?.('.adHocLine');if(!row)return;
+    ['.adHocProductSearch','.adHocProductMin','.adHocProductMax'].forEach(s=>{let el=row.querySelector(s);if(el)el.value='' });
+    let cat=row.querySelector('.adHocProductCat');if(cat)cat.value='';
+    hlgb925FilterAdHocProducts(row.querySelector('.adHocProductSearch')||row);
+  };
+
+  window.hlgb922AdHocLine=function(line={}){
+    let selected=selectedProduct925(line),unit=unit925(line);
+    let options=products925().map(p=>`<option value="${+p.id}" ${+p.id===+line.productId?'selected':''}>${esc925(p.code?`${p.code} — ${p.name}`:p.name)}</option>`).join('');
+    return `<div class="adHocLine" style="display:grid;grid-template-columns:minmax(360px,1.8fr) 120px 145px 95px;gap:10px;align-items:end;margin:8px 0;padding:12px;border:1px solid var(--line);border-radius:12px;background:#fff">
+      <div>
+        <div class="selectedOrderProduct adHocSelectedProduct" style="padding:9px 11px;border:1px solid #eadde4;border-radius:10px;background:#fff8fb;margin-bottom:8px">${selected?`<strong>${esc925(selected.name)}</strong> <span class="sub">· ${esc925(selected.code||'Sem referência')} · ${esc925(selected.category||'Sem categoria')}</span>`:'<strong>Selecione um produto</strong>'}</div>
+        <select class="adHocProduct" style="display:none" onchange="hlgb922AdHocProductChanged(this)"><option value="">Selecione</option>${options}</select>
+        <div class="grid" style="grid-template-columns:1.7fr 1fr .7fr .7fr;gap:7px">
+          <div class="field"><label>Buscar produto</label><input class="adHocProductSearch" placeholder="Digite nome ou referência..." onfocus="hlgb925FilterAdHocProducts(this)" oninput="hlgb925FilterAdHocProducts(this)"></div>
+          <div class="field"><label>Categoria</label><select class="adHocProductCat" onchange="hlgb925FilterAdHocProducts(this)"><option value="">Todas</option>${cats925().map(c=>`<option>${esc925(c)}</option>`).join('')}</select></div>
+          <div class="field"><label>Preço mín.</label><input class="adHocProductMin" type="number" step=".01" min="0" placeholder="0,00" oninput="hlgb925FilterAdHocProducts(this)"></div>
+          <div class="field"><label>Preço máx.</label><input class="adHocProductMax" type="number" step=".01" min="0" placeholder="Sem limite" oninput="hlgb925FilterAdHocProducts(this)"></div>
+        </div>
+        <div style="display:flex;justify-content:space-between;gap:8px;align-items:center;margin:5px 0 7px;flex-wrap:wrap"><span class="sub adHocProductCount">Clique na busca para ver os produtos em ordem alfabética.</span><button type="button" class="secondary" style="padding:6px 9px" onclick="hlgb925ClearAdHocProductFilter(this)">Limpar filtros</button></div>
+        <div class="adHocProductResults" style="display:none;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:6px;max-height:220px;overflow:auto;border:1px solid #eee;border-radius:10px;padding:6px;background:#fafafa"></div>
+      </div>
+      <div class="field"><label>Quantidade</label><input class="adHocQty" type="number" min="1" step="1" value="${+line.qty||0}" oninput="hlgb922RecalcAdHoc()"></div>
+      <div class="field"><label>Valor por peça</label><input class="adHocPrice" type="number" min="0" step=".01" value="${unit.toFixed(2)}" readonly></div>
+      <button type="button" class="danger" onclick="this.closest('.adHocLine').remove();hlgb922RecalcAdHoc()">Excluir</button>
+    </div>`;
+  };
 })();
 </script>
 </body></html>
