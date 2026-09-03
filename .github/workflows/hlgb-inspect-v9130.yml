@@ -19,4 +19,9 @@ jobs:
         with:
           ref: main
       - name: Inspect current index
-        run: python3 scripts/hlgb_v9130_inspect.py
+        run: python3 scripts/hlgb_v9130_inspect.py > inspect-v9130.txt
+      - name: Upload inspection
+        uses: actions/upload-artifact@v4
+        with:
+          name: inspect-v9130
+          path: inspect-v9130.txt
