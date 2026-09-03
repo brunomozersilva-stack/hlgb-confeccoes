@@ -1,0 +1,5 @@
+    <div class="panel"><div class="toolbar" style="justify-content:space-between;align-items:center"><h3 style="margin:0">Modelos</h3><button type="button" class="secondary" onclick="addAdHocOrderLine()">+ Adicionar modelo</button></div><div id="adHocLines">${hlgb916AdHocLine()}</div><div id="adHocPreview" class="total"></div></div>
+    <button type="button" class="primary modalSave">Salvar pedido avulso</button>`,()=>{
+      let lines=hlgb916ReadAdHocLines();if(!lines.length){alert("Adicione pelo menos um modelo com quantidade.");return}
+      let num=+document.getElementById("adHocOrderNumber")?.value||orderNo;if((db.orders||[]).some(o=>+o.orderNumber===num)){alert("Este número de pedido já existe.");return}
+      let id=Date.now(),flow=document.getElementById("adHocFlow")?.value||"cut",total=lines.reduce((a,x)=>a+x.qty*x.price,0),qty=lines.reduce((a,x)=>a+x.qty,0);
