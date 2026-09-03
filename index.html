@@ -6,7 +6,7 @@
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
-<title>HLGB Confecções — Sistema de Gestão v91.17 Multiusuário</title>
+<title>HLGB Confecções — Sistema de Gestão v91.18 Multiusuário</title>
 <style>
 :root{--navy:#6f3f59;--orange:#c96b8f;--bg:#fbf6f8;--line:#eadde4;--text:#30262c;--muted:#786b73;--ok:#e9f7ef;--warn:#fff5df;--bad:#fdeaea;--rose:#f3dbe5;--rose2:#fff8fb}
 *{box-sizing:border-box}body{margin:0;font-family:Arial,Helvetica,sans-serif;background:var(--bg);color:var(--text)}
@@ -246,11 +246,11 @@ main{min-width:0;}
     <div class="field" style="text-align:left;margin-bottom:10px"><label>E-mail</label><input id="loginUser" type="email" autocomplete="username" placeholder="seuemail@exemplo.com"></div>
     <div class="field" style="text-align:left;margin-bottom:14px"><label>Senha</label><input id="loginPass" type="password" autocomplete="current-password" onkeydown="if(event.key==='Enter')return doLogin()"></div>
     <button class="primary" style="width:100%" onclick="return doLogin()">Entrar</button>
-    <div id="loginError" style="color:#a51d2d;font-size:13px;margin-top:10px"></div><div style="margin-top:12px;font-size:12px;color:#786b73">Acesso protegido pelo Supabase • HLGB Online<br><b style="color:#6f3f59">Versão v91.17</b></div>
+    <div id="loginError" style="color:#a51d2d;font-size:13px;margin-top:10px"></div><div style="margin-top:12px;font-size:12px;color:#786b73">Acesso protegido pelo Supabase • HLGB Online<br><b style="color:#6f3f59">Versão v91.18</b></div>
   </div>
 </div>
 
-<div id="appShell" style="display:none"><header><div class="logo">HLGB <b>CONFECÇÕES</b> <small style="font-size:10px;opacity:.8">v91.17</small></div><div><span id="cloudStatus" style="margin-right:10px;font-size:12px;padding:6px 9px;border:1px solid #ffffff44;border-radius:8px">☁️ Nuvem</span><span id="currentUserLabel" style="margin-right:10px;font-size:13px"></span><button id="cloudSaveBtn" onclick="cloudUploadCurrentDb(true)" style="display:none" title="Sincronização automática">🔄 Sincronizar agora</button> <button id="backupBtn" onclick="backup()" style="display:none">Exportar backup</button> <button id="importBackupBtn" onclick="document.getElementById('backupImportInput').click()" style="display:none">Importar backup</button><input id="backupImportInput" type="file" accept=".json,application/json" style="display:none" onchange="importBackupFile(this)"> <button onclick="logout()">Sair</button></div></header>
+<div id="appShell" style="display:none"><header><div class="logo">HLGB <b>CONFECÇÕES</b> <small style="font-size:10px;opacity:.8">v91.18</small></div><div><span id="cloudStatus" style="margin-right:10px;font-size:12px;padding:6px 9px;border:1px solid #ffffff44;border-radius:8px">☁️ Nuvem</span><span id="currentUserLabel" style="margin-right:10px;font-size:13px"></span><button id="cloudSaveBtn" onclick="cloudUploadCurrentDb(true)" style="display:none" title="Sincronização automática">🔄 Sincronizar agora</button> <button id="backupBtn" onclick="backup()" style="display:none">Exportar backup</button> <button id="importBackupBtn" onclick="document.getElementById('backupImportInput').click()" style="display:none">Importar backup</button><input id="backupImportInput" type="file" accept=".json,application/json" style="display:none" onchange="importBackupFile(this)"> <button onclick="logout()">Sair</button></div></header>
 <div class="app">
 <aside><nav id="nav" class="clean-nav">
 <button class="nav-home active" onclick="page('dashboard',this)">🏠 <span>Início</span></button>
@@ -274,7 +274,7 @@ main{min-width:0;}
     <button onclick="page('cortadores',this)">Cortadores</button>
     <button onclick="page('projecao',this)">Projeção semanal</button>
     <button onclick="page('capacidadeProducao',this)">Planejamento de capacidade</button>
-    <button onclick="page('metas',this)">Metas</button>
+    <button onclick="page('metas',this)">🎯 Atribuição de metas</button>
     <button onclick="page('faltas',this)">Peças faltantes</button>
     <button onclick="page('devolucoesDefeitos',this)">Devoluções / Defeitos</button>
   </div>
@@ -1073,12 +1073,16 @@ main{min-width:0;}
 </section>
 
 <section id="metas" class="page">
-<h1>Metas de produção</h1>
-<div class="sub">Metas, custos operacionais e lucro projetado por local de produção. A meta/capacidade semanal também aparece como sugestão na nova Atribuição de Corte.</div>
+<h1>🎯 Atribuição de metas de produção</h1>
+<div class="sub">Defina a meta por confecção, facção ou pessoa. Informe quantas pessoas trabalham no local, a meta por pessoa e a periodicidade; o sistema calcula a meta total e acompanha o percentual realizado. Essa meta também aparece como referência na Atribuição de Corte.</div>
 
+<div class="panel" style="border:2px solid rgba(111,63,89,.18);background:#fff8fb">
+  <h2 style="margin-bottom:8px">Como atribuir uma meta</h2>
+  <div class="sub">Clique em <strong>Atribuir nova meta</strong> e escolha se a meta é para uma <strong>Confecção</strong>, <strong>Facção</strong> ou <strong>Pessoa</strong>. Depois informe a quantidade de pessoas, a meta por pessoa e se ela é semanal, mensal ou anual.</div>
+</div>
 <div class="panel">
   <div class="toolbar" style="align-items:flex-end;flex-wrap:wrap">
-    <button type="button" class="primary" onclick="newGoal()">+ Nova meta</button>
+    <button type="button" class="primary" onclick="newGoal()">🎯 Atribuir nova meta</button>
     <button type="button" class="primary" onclick="newOperationalCost()">+ Custo operacional</button>
     <div class="field"><label>De</label><input id="goalStart" type="date" onchange="renderGoals()"></div>
     <div class="field"><label>Até</label><input id="goalEnd" type="date" onchange="renderGoals()"></div>
