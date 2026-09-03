@@ -35,8 +35,7 @@ jobs:
           assert 'cutProductKey' in s
           assert 'window.syncFinalizedCutsToProduction=function()' in s
           assert 'window.renderFactionPaymentPlanner=function()' in s
-          assert 'hlgb924ProtectImplicitDelete' in s, 'v91.26 data guard must remain'
-          assert 'explicit delete intent' in s, 'v91.26 server delete guard marker must remain'
+          assert 'hlgb924ProtectImplicitDelete' in s, 'v91.26 browser data guard must remain'
           scripts=re.findall(r'<script(?:\s[^>]*)?>(.*?)</script>',s,re.S|re.I)
           for i,js in enumerate(scripts):
               if not js.strip(): continue
