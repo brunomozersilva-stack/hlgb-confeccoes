@@ -1,0 +1,33 @@
+        assigned={...p,id:Date.now()+Math.floor(Math.random()*1000000),planned:qty,done:0,assignmentSource:false,parentProductionId:p.id};
+        db.production.push(assigned);
+      }
+      assigned.stage="Em produção";assigned.assignedAt=isoDate(new Date());assigned.assignedWeekStart=document.getElementById("assignWeekStart")?.value||monday;assigned.factionDueDate=document.getElementById("assignForecast")?.value||forecast;
+      if(dest.type==="F"){assigned.factionId=dest.id;assigned.productionLocationId=dest.locationId||null;syncProductionToFaction(assigned);let fr=(db.factions||[]).find(x=>+x.productionId===+assigned.id);if(fr){fr.price=rate;fr.sent=qty;fr.description=hlgb916ProductForProduction(assigned)?.name||assigned.product;fr.productId=assigned.productId||null;}}
+      else{assigned.factionId=null;assigned.productionLocationId=dest.id;removeProductionFactionLink(assigned)}
+      let o=(db.orders||[]).find(x=>+x.id===+assigned.orderId),key=assigned.productId?String(assigned.productId):null,projDate=assigned.factionDueDate;
+      if(o&&projDate){let its=projectionItemsForOrder(o);if(key&&its.some(i=>String(i.key)===key))saveProjectionItemDate(o,key,projDate);else its.forEach(i=>saveProjectionItemDate(o,i.key,projDate));o.status="Pedido em produção";}
+      if(o&&dest.locationId){db.capacityAssignments.push({id:Date.now()+Math.floor(Math.random()*99999),orderId:o.id,itemKey:key||projectionItemsForOrder(o)[0]?.key||"legacy",locationId:dest.locationId,qty,date:assigned.assignedWeekStart,source:"cut_assignment"});}
+      hlgb916CreateMaterialChecklist(assigned,dest,rate,serviceNow);
+      closeModal();save();renderCuts();renderProduction();renderCutAssignmentQueue();renderDestinationChecklists();renderProjection();renderFactions();renderFactionPaymentPlanner();
+    });
+  setTimeout(updateCutAssignmentPreview,30);
+}
+
+// A Projeção Semanal passa a considerar o fluxo pós-corte. Itens antigos já programados são preservados.
+function hlgb916OrderHasAssignedProduction(o){return (db.production||[]).some(p=>+p.orderId===+o.id&&(p.productionLocationId||p.factionId))}
+function hlgb916OrderHasExistingProjection(o){return !!o?.projectionPlannedAt||Object.values(o?.projectionItems||{}).some(x=>x&&x.date)}
+function allProjectionRows(){
+  let rows=[];(db.orders||[]).forEach(o=>{
+    if(["Cancelado"].includes(o.status))return;
+    if(!hlgb916OrderHasAssignedProduction(o)&&!hlgb916OrderHasExistingProjection(o)&&!o.invoiceReady&&!o.noteReady)return;
+    projectionItemsForOrder(o).forEach(item=>rows.push({order:o,item}));
+  });return rows;
+}
+function projectionLocationForOrder(o){
+  let names=[...new Set((db.production||[]).filter(p=>+p.orderId===+o.id&&(p.productionLocationId||p.factionId)).map(p=>productionDestinationName(p)).filter(x=>x&&x!=="-"))];
+  return names.length?names.join(" / "):"-";
+}
+
+// --- Pedido avulso -----------------------------------------------------------
+function hlgb916AdHocProductOptions(selected=""){return (db.products||[]).slice().sort((a,b)=>String(a.name||"").localeCompare(String(b.name||""),"pt-BR")).map(p=>`<option value="${p.id}" ${+p.id===+selected?"selected":""}>${esc(p.code?`${p.code} — ${p.name}`:p.name)}</option>`).join("")}
+function hlgb916AdHocLine(line={}){
