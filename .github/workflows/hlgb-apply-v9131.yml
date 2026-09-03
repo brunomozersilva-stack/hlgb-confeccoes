@@ -1,0 +1,82 @@
+name: HLGB v91.31 reconciliacao operacional segura
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'scripts/v9131_parts/**'
+      - '.github/workflows/hlgb-apply-v9131.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Rebuild v91.31 patch
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import base64,gzip
+          parts=sorted(Path('scripts/v9131_parts').glob('part*.b64'))
+          raw=''.join(p.read_text().strip() for p in parts)
+          code=gzip.decompress(base64.b64decode(raw))
+          Path('/tmp/hlgb_v9131_reconcile.py').write_bytes(code)
+          print('rebuilt patch',len(code),'bytes from',len(parts),'parts')
+          PY
+      - name: Apply v91.31 package
+        run: python3 /tmp/hlgb_v9131_reconcile.py index.html
+      - name: Validate JavaScript and integrity guards
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import re,subprocess,tempfile,os
+          s=Path('index.html').read_text(encoding='utf-8')
+          markers=[
+            'v91.31 Multiusuário',
+            'HLGB v91.31 RECONCILIACAO OPERACIONAL',
+            'window.assignmentsFor=function',
+            'window.projectionProductionSplit=function',
+            'reconcileFactionLinks931',
+            'opcClient931',
+            'dedupeEmployees931',
+            'window.newHubFinanceEntry=function',
+            'v91.26: ausência local nunca gera exclusão automática na nuvem.',
+            'HLGB v91.26 DATA INTEGRITY GUARD',
+            'HLGB v91.28 AUTHORITATIVE RECORD MERGE',
+            'HLGB v91.29 folha não confirmada',
+            'HLGB v91.30 PACOTE NOTURNO SEGURO'
+          ]
+          for m in markers:
+            assert m in s,m
+          scripts=re.findall(r'<script(?:\s[^>]*)?>(.*?)</script>',s,re.S|re.I)
+          for i,js in enumerate(scripts):
+            if not js.strip(): continue
+            fd,path=tempfile.mkstemp(suffix='.js');os.close(fd)
+            Path(path).write_text(js,encoding='utf-8')
+            r=subprocess.run(['node','--check',path],capture_output=True,text=True)
+            os.unlink(path)
+            if r.returncode:
+              raise SystemExit(f'Inline script {i} failed:\n{r.stderr}')
+          print('validation ok -',len(scripts),'script blocks')
+          PY
+      - name: Commit validated v91.31 index
+        run: |
+          if git diff --quiet -- index.html; then
+            echo 'No index changes to commit'
+            exit 0
+          fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add index.html
+          git commit -m 'Reconcile projection, production, payroll and hub v91.31'
+          git push origin main
