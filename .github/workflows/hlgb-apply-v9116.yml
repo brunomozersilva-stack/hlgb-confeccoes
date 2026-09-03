@@ -1,0 +1,78 @@
+name: HLGB apply v91.16
+on:
+  push:
+    paths:
+      - 'scripts/v9116_parts/**'
+      - '.github/workflows/hlgb-apply-v9116.yml'
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Assemble and apply v91.16
+        run: |
+          cat \
+            scripts/v9116_parts/part00.txt \
+            scripts/v9116_parts/part01.txt \
+            scripts/v9116_parts/part02_0.txt \
+            scripts/v9116_parts/part02_1.txt \
+            scripts/v9116_parts/part02_2.txt \
+            scripts/v9116_parts/part03_0.txt \
+            scripts/v9116_parts/part03_1.txt \
+            scripts/v9116_parts/part03_2.txt \
+            scripts/v9116_parts/part04_0.txt \
+            scripts/v9116_parts/part04_1.txt \
+            scripts/v9116_parts/part05_0.txt \
+            scripts/v9116_parts/part05_1.txt \
+            scripts/v9116_parts/part05_2.txt \
+            scripts/v9116_parts/part06_0.txt \
+            scripts/v9116_parts/part06_1.txt \
+            scripts/v9116_parts/part06_2.txt \
+            scripts/v9116_parts/part07_0.txt \
+            scripts/v9116_parts/part07_1.txt \
+            > /tmp/hlgb_v9116_operations_hub.py
+          python3 -m py_compile /tmp/hlgb_v9116_operations_hub.py
+          python3 /tmp/hlgb_v9116_operations_hub.py
+      - name: Validate embedded JavaScript and v91.16 markers
+        run: |
+          python3 - <<'PY'
+          import re, pathlib, subprocess
+          s=pathlib.Path('index.html').read_text(encoding='utf-8')
+          scripts=re.findall(r'<script(?:\s[^>]*)?>(.*?)</script>',s,re.S|re.I)
+          for i,body in enumerate(scripts):
+              f=pathlib.Path(f'/tmp/hlgb-{i}.js')
+              f.write_text(body,encoding='utf-8')
+              subprocess.run(['node','--check',str(f)],check=True)
+          for marker in [
+            'v91.16',
+            'cutAssignmentQueue',
+            'destinationChecklistTable',
+            'factionPlannerTable',
+            'hubFinanceEntries',
+            'newAdHocOrder()',
+            'function renderHubFinance()',
+            'materialChecklists',
+            'function openCutAssignment(productionId)'
+          ]:
+              assert marker in s, marker
+          print('validated',len(scripts),'script blocks; v91.16 package enabled')
+          PY
+      - name: Commit validated index
+        run: |
+          if git diff --quiet -- index.html; then
+            echo 'No index changes required'
+            exit 0
+          fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add index.html
+          git commit -m 'Deploy HLGB v91.16 production assignment and finance hub'
+          git push origin main
