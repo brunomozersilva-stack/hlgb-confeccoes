@@ -6,7 +6,7 @@
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
-<title>HLGB Confecções — Sistema de Gestão v91.25 Multiusuário</title>
+<title>HLGB Confecções — Sistema de Gestão v91.26 Multiusuário</title>
 <style>
 :root{--navy:#6f3f59;--orange:#c96b8f;--bg:#fbf6f8;--line:#eadde4;--text:#30262c;--muted:#786b73;--ok:#e9f7ef;--warn:#fff5df;--bad:#fdeaea;--rose:#f3dbe5;--rose2:#fff8fb}
 *{box-sizing:border-box}body{margin:0;font-family:Arial,Helvetica,sans-serif;background:var(--bg);color:var(--text)}
@@ -246,11 +246,11 @@ main{min-width:0;}
     <div class="field" style="text-align:left;margin-bottom:10px"><label>E-mail</label><input id="loginUser" type="email" autocomplete="username" placeholder="seuemail@exemplo.com"></div>
     <div class="field" style="text-align:left;margin-bottom:14px"><label>Senha</label><input id="loginPass" type="password" autocomplete="current-password" onkeydown="if(event.key==='Enter')return doLogin()"></div>
     <button class="primary" style="width:100%" onclick="return doLogin()">Entrar</button>
-    <div id="loginError" style="color:#a51d2d;font-size:13px;margin-top:10px"></div><div style="margin-top:12px;font-size:12px;color:#786b73">Acesso protegido pelo Supabase • HLGB Online<br><b style="color:#6f3f59">Versão v91.25</b></div>
+    <div id="loginError" style="color:#a51d2d;font-size:13px;margin-top:10px"></div><div style="margin-top:12px;font-size:12px;color:#786b73">Acesso protegido pelo Supabase • HLGB Online<br><b style="color:#6f3f59">Versão v91.26</b></div>
   </div>
 </div>
 
-<div id="appShell" style="display:none"><header><div class="logo">HLGB <b>CONFECÇÕES</b> <small style="font-size:10px;opacity:.8">v91.25</small></div><div><span id="cloudStatus" style="margin-right:10px;font-size:12px;padding:6px 9px;border:1px solid #ffffff44;border-radius:8px">☁️ Nuvem</span><span id="currentUserLabel" style="margin-right:10px;font-size:13px"></span><button id="cloudSaveBtn" onclick="cloudUploadCurrentDb(true)" style="display:none" title="Sincronização automática">🔄 Sincronizar agora</button> <button id="backupBtn" onclick="backup()" style="display:none">Exportar backup</button> <button id="importBackupBtn" onclick="document.getElementById('backupImportInput').click()" style="display:none">Importar backup</button><input id="backupImportInput" type="file" accept=".json,application/json" style="display:none" onchange="importBackupFile(this)"> <button onclick="logout()">Sair</button></div></header>
+<div id="appShell" style="display:none"><header><div class="logo">HLGB <b>CONFECÇÕES</b> <small style="font-size:10px;opacity:.8">v91.26</small></div><div><span id="cloudStatus" style="margin-right:10px;font-size:12px;padding:6px 9px;border:1px solid #ffffff44;border-radius:8px">☁️ Nuvem</span><span id="currentUserLabel" style="margin-right:10px;font-size:13px"></span><button id="cloudSaveBtn" onclick="cloudUploadCurrentDb(true)" style="display:none" title="Sincronização automática">🔄 Sincronizar agora</button> <button id="backupBtn" onclick="backup()" style="display:none">Exportar backup</button> <button id="importBackupBtn" onclick="document.getElementById('backupImportInput').click()" style="display:none">Importar backup</button><input id="backupImportInput" type="file" accept=".json,application/json" style="display:none" onchange="importBackupFile(this)"> <button onclick="logout()">Sair</button></div></header>
 <div class="app">
 <aside><nav id="nav" class="clean-nav">
 <button class="nav-home active" onclick="page('dashboard',this)">🏠 <span>Início</span></button>
@@ -9188,7 +9188,7 @@ async function hlgbSaveProductDirect(product,deleted=false){
   const id=hlgbRecordId("products",product);
   if(!id)throw new Error("Não foi possível identificar o produto.");
   setCloudStatus(deleted?"☁️ Excluindo produto…":"☁️ Salvando produto…");
-  const result=await hlgbRecordSaveWithRetry("products",id,product,deleted);
+  const result=await hlgbRecordSaveWithRetry("products",id,deleted?{...hlgbRecordClone(product),__hlgb_explicit_delete:true}:product,deleted);
   try{hlgbRecordPendingStore()}catch(e){}
   localSaveOnly();
   setCloudStatus("⚡ Online · multiusuário","ok");
@@ -11099,7 +11099,7 @@ function hlgbRecordPendingStore(){
         const old=snap.get(id);
         if(!old||old.deleted_at||!cloudEq(old.data,item)){ops.push({id,data:hlgbRecordClone(item),deleted:false});any=true}
       }
-      for(const [id,old] of snap){if(!hlgb924ProtectImplicitDelete(module,old)&&!old.deleted_at&&!local.has(id)){ops.push({id,data:hlgbRecordClone(old.data),deleted:true});any=true}}
+      // v91.26: ausência local nunca gera exclusão automática na nuvem.
       if(ops.length)pending.modules[module]=ops;
     }
     if(any)localStorage.setItem(HLGB_RECORD_PENDING_KEY,JSON.stringify(pending));else hlgbRecordPendingClear();
@@ -11140,7 +11140,7 @@ async function hlgbLoadNormalizedCore(opts={}){
       for(const [module,ops] of Object.entries(pending.modules)){
         if(!HLGB_RECORD_MODULES.includes(module)||!Array.isArray(ops)||!hlgbRecordCanWrite(module))continue;
         const local=hlgbRecordLocalMap(module);
-        for(const op of ops){if(op.deleted){if(!hlgb924ProtectImplicitDelete(module,{data:op.data}))local.delete(String(op.id))}else local.set(String(op.id),hlgbRecordClone(op.data))}
+        for(const op of ops){if(!op.deleted)local.set(String(op.id),hlgbRecordClone(op.data))}
         db[module]=[...local.values()];
       }
       localSaveOnly();try{if(typeof hlgb923EnsureProjectionIntegrity==="function")hlgb923EnsureProjectionIntegrity()}catch(e){console.warn("HLGB v91.24 projection repair after load",e)}setTimeout(()=>hlgbNormalizedSyncNow(false),40);
@@ -11183,7 +11183,7 @@ async function hlgbNormalizedSyncModule(module){
   if(!hlgbRecordCanWrite(module))return true;
   const snap=hlgbRecordSnapshots[module]||new Map(),local=hlgbRecordLocalMap(module),jobs=[];
   for(const [id,item] of local){const old=snap.get(id);if(!old||old.deleted_at||!cloudEq(old.data,item))jobs.push({id,data:item,deleted:false})}
-  for(const [id,old] of snap){if(!hlgb924ProtectImplicitDelete(module,old)&&!old.deleted_at&&!local.has(id))jobs.push({id,data:old.data,deleted:true})}
+  // v91.26: nenhuma exclusão é inferida por diferença entre navegador e nuvem.
   for(const job of jobs)await hlgbRecordSaveWithRetry(module,job.id,job.data,job.deleted);
   return true;
 }
@@ -12828,4 +12828,46 @@ function hubFinanceManualSync(){alert("O botão de sincronização está prepara
   };
 })();
 </script>
+
+<!-- HLGB v91.26 DATA INTEGRITY GUARD -->
+<script>
+(function(){
+  const previousDel=window.del;
+  window.del=async function(type,id){
+    const isRecordMode=Array.isArray(window.HLGB_RECORD_MODULES||HLGB_RECORD_MODULES) && (window.HLGB_RECORD_MODULES||HLGB_RECORD_MODULES).includes(type);
+    if(!isRecordMode)return previousDel(type,id);
+    if(!confirm("Excluir este registro?"))return;
+    if(!Array.isArray(db[type]))return;
+    const removed=db[type].find(x=>String(x.id)===String(id));
+    if(!removed){alert("Não consegui localizar esse registro para excluir. Atualize a tela e tente novamente.");return}
+    try{
+      if(!hlgbRecordReady){const ok=await hlgbEnsureRecordsOnlineAfterLogin();if(!ok)throw new Error("A nuvem não está pronta para confirmar a exclusão.")}
+      const rid=typeof hlgbRecordId==='function'?hlgbRecordId(type,removed):String(id);
+      const payload={...hlgbRecordClone(removed),__hlgb_explicit_delete:true};
+      const confirmed=await hlgbRecordSaveWithRetry(type,rid,payload,true);
+      if(!confirmed||confirmed.applied!==true)throw new Error("A nuvem não confirmou a exclusão.");
+      db[type]=db[type].filter(x=>String(x.id)!==String(id));
+      localSaveOnly();
+      try{auditAction("Excluiu registro",`${type} — ${id}`)}catch(e){}
+      if(type==='products'){
+        if(typeof renderProducts==='function')renderProducts();
+        if(typeof renderDash==='function')renderDash();
+      }else if(type==='finance'){
+        if(typeof renderFinance==='function')renderFinance();
+        if(typeof renderDash==='function')renderDash();
+      }else if(type==='purchases'){
+        if(typeof renderPurchases==='function')renderPurchases();
+        if(typeof renderFinance==='function')renderFinance();
+      }else if(typeof renderAll==='function')renderAll();
+    }catch(err){
+      console.error('HLGB v91.26 explicit delete failed',err);
+      if(!db[type].some(x=>String(x.id)===String(id)))db[type].push(removed);
+      try{localSaveOnly()}catch(e){}
+      try{if(typeof renderAll==='function')renderAll()}catch(e){}
+      alert("A exclusão NÃO foi confirmada na nuvem. O registro foi mantido para evitar perda de dados.");
+    }
+  };
+})();
+</script>
+
 </body></html>
