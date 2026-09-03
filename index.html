@@ -6,7 +6,7 @@
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
-<title>HLGB Confecções — Sistema de Gestão v91.19 Multiusuário</title>
+<title>HLGB Confecções — Sistema de Gestão v91.20 Multiusuário</title>
 <style>
 :root{--navy:#6f3f59;--orange:#c96b8f;--bg:#fbf6f8;--line:#eadde4;--text:#30262c;--muted:#786b73;--ok:#e9f7ef;--warn:#fff5df;--bad:#fdeaea;--rose:#f3dbe5;--rose2:#fff8fb}
 *{box-sizing:border-box}body{margin:0;font-family:Arial,Helvetica,sans-serif;background:var(--bg);color:var(--text)}
@@ -246,11 +246,11 @@ main{min-width:0;}
     <div class="field" style="text-align:left;margin-bottom:10px"><label>E-mail</label><input id="loginUser" type="email" autocomplete="username" placeholder="seuemail@exemplo.com"></div>
     <div class="field" style="text-align:left;margin-bottom:14px"><label>Senha</label><input id="loginPass" type="password" autocomplete="current-password" onkeydown="if(event.key==='Enter')return doLogin()"></div>
     <button class="primary" style="width:100%" onclick="return doLogin()">Entrar</button>
-    <div id="loginError" style="color:#a51d2d;font-size:13px;margin-top:10px"></div><div style="margin-top:12px;font-size:12px;color:#786b73">Acesso protegido pelo Supabase • HLGB Online<br><b style="color:#6f3f59">Versão v91.19</b></div>
+    <div id="loginError" style="color:#a51d2d;font-size:13px;margin-top:10px"></div><div style="margin-top:12px;font-size:12px;color:#786b73">Acesso protegido pelo Supabase • HLGB Online<br><b style="color:#6f3f59">Versão v91.20</b></div>
   </div>
 </div>
 
-<div id="appShell" style="display:none"><header><div class="logo">HLGB <b>CONFECÇÕES</b> <small style="font-size:10px;opacity:.8">v91.19</small></div><div><span id="cloudStatus" style="margin-right:10px;font-size:12px;padding:6px 9px;border:1px solid #ffffff44;border-radius:8px">☁️ Nuvem</span><span id="currentUserLabel" style="margin-right:10px;font-size:13px"></span><button id="cloudSaveBtn" onclick="cloudUploadCurrentDb(true)" style="display:none" title="Sincronização automática">🔄 Sincronizar agora</button> <button id="backupBtn" onclick="backup()" style="display:none">Exportar backup</button> <button id="importBackupBtn" onclick="document.getElementById('backupImportInput').click()" style="display:none">Importar backup</button><input id="backupImportInput" type="file" accept=".json,application/json" style="display:none" onchange="importBackupFile(this)"> <button onclick="logout()">Sair</button></div></header>
+<div id="appShell" style="display:none"><header><div class="logo">HLGB <b>CONFECÇÕES</b> <small style="font-size:10px;opacity:.8">v91.20</small></div><div><span id="cloudStatus" style="margin-right:10px;font-size:12px;padding:6px 9px;border:1px solid #ffffff44;border-radius:8px">☁️ Nuvem</span><span id="currentUserLabel" style="margin-right:10px;font-size:13px"></span><button id="cloudSaveBtn" onclick="cloudUploadCurrentDb(true)" style="display:none" title="Sincronização automática">🔄 Sincronizar agora</button> <button id="backupBtn" onclick="backup()" style="display:none">Exportar backup</button> <button id="importBackupBtn" onclick="document.getElementById('backupImportInput').click()" style="display:none">Importar backup</button><input id="backupImportInput" type="file" accept=".json,application/json" style="display:none" onchange="importBackupFile(this)"> <button onclick="logout()">Sair</button></div></header>
 <div class="app">
 <aside><nav id="nav" class="clean-nav">
 <button class="nav-home active" onclick="page('dashboard',this)">🏠 <span>Início</span></button>
@@ -4789,7 +4789,8 @@ function finalizeSelectedProjection(){
       <div class="field"><label>Cliente que vai receber esta nota</label><select id="projectionInvoiceClient" onchange="updateProjectionInvoiceClientPrices()">${clientOptions}</select><div class="sub">Pode escolher outro cliente sem alterar o pedido original.</div></div>
       <div class="field"><label>Data de emissão da nota</label><input id="projectionInvoiceIssueDate" type="date" value="${isoDate(new Date())}"></div>
       <div class="field"><label>Vencimento</label><input id="projectionInvoiceDue" type="date" value="${selected[0]?.item.date||isoDate(new Date())}"></div>
-      <div class="field"><label>Condição de pagamento</label><select id="projectionInvoiceTerms"><option>À vista</option><option>7 dias</option><option>14 dias</option><option>21 dias</option><option>28 dias</option><option>30 dias</option><option>Personalizado</option></select></div>
+      <div class="field"><label>Condição de pagamento</label><select id="projectionInvoiceTerms" onchange="toggleProjectionInvoiceTermsDetail()"><option>À vista</option><option>7 dias</option><option>14 dias</option><option>21 dias</option><option>28 dias</option><option>30 dias</option><option>Cheque</option><option>Personalizado</option></select></div>
+      <div class="field" id="projectionInvoiceTermsDetailField" style="display:none"><label id="projectionInvoiceTermsDetailLabel">Detalhes da condição</label><input id="projectionInvoiceTermsDetail" placeholder="Informe os detalhes da condição de pagamento"></div>
     </div>
    </div>
    <div class="sub" style="margin:10px 0">Em <b>Qtd. nesta nota</b>, informe somente o que está saindo agora. O restante continua disponível na Projeção para outra nota ou outro cliente.</div>
@@ -4816,7 +4817,10 @@ function finalizeSelectedProjection(){
      db.finance=db.finance||[];db.projectionInvoices=db.projectionInvoices||[];
      let issueDate=document.getElementById("projectionInvoiceIssueDate")?.value||isoDate(new Date());
      let due=document.getElementById("projectionInvoiceDue")?.value||issueDate;
-     let terms=document.getElementById("projectionInvoiceTerms")?.value||"À vista",invoiceId=Date.now();
+     let terms=document.getElementById("projectionInvoiceTerms")?.value||"À vista";
+     let termsDetail=document.getElementById("projectionInvoiceTermsDetail")?.value?.trim()||"";
+     if(terms==="Personalizado"&&!termsDetail){alert("Informe os detalhes da condição de pagamento personalizada.");return}
+     let invoiceId=Date.now();
 
      db.projectionInvoices.push({
        id:invoiceId,
@@ -4824,12 +4828,12 @@ function finalizeSelectedProjection(){
        clientId:targetClient.id,
        sourceClient:originalClient,
        items:invoiceItems.map(x=>({orderId:x.ctx.o.id,itemKey:x.ctx.item.key,productName:x.ctx.item.name,productId:x.ctx.item.productId||null,qty:x.qty,unitPrice:x.unit,value:x.value})),
-       date:issueDate,issueDate:issueDate,dueDate:due,value:totalValue,terms,status:"Pendente"
+       date:issueDate,issueDate:issueDate,dueDate:due,value:totalValue,terms,termsDetail,status:"Pendente"
      });
      db.finance.push({
        id:invoiceId+1,type:"Receber",
        desc:`Nota projeção — ${targetClient.name} — ${invoiceItems.map(x=>x.ctx.item.name).join(", ")}`,
-       value:totalValue,status:"Pendente",paid:0,remaining:totalValue,date:due,dueDate:due,issueDate:issueDate,paymentTerms:terms,
+       value:totalValue,status:"Pendente",paid:0,remaining:totalValue,date:due,dueDate:due,issueDate:issueDate,paymentTerms:terms,paymentTermsDetail:termsDetail,
        clientId:targetClient.id,clientName:targetClient.name,projectionInvoiceId:invoiceId
      });
 
@@ -4867,6 +4871,18 @@ function updateProjectionInvoiceClientPrices(){
    inp.value=unit.toFixed(2);
  });
  recalcProjectionInvoiceModal();
+}
+function toggleProjectionInvoiceTermsDetail(){
+ let sel=document.getElementById("projectionInvoiceTerms"),field=document.getElementById("projectionInvoiceTermsDetailField"),label=document.getElementById("projectionInvoiceTermsDetailLabel"),inp=document.getElementById("projectionInvoiceTermsDetail");
+ if(!sel||!field)return;
+ let value=sel.value||"";
+ let show=value==="Personalizado"||value==="Cheque";
+ field.style.display=show?"block":"none";
+ if(label)label.textContent=value==="Cheque"?"Detalhes dos cheques":"Detalhes da condição personalizada";
+ if(inp){
+   inp.placeholder=value==="Cheque"?"Ex.: 2 cheques — 15/09 e 30/09":"Ex.: entrada + 2 parcelas, 10/20/30 dias";
+   if(!show)inp.value="";
+ }
 }
 function recalcProjectionInvoiceModal(){
  let qty=0,value=0;
@@ -10134,7 +10150,7 @@ function renderFinance(){
    db.finance.map(f=>{
      let displayValue=f.type==="Receber"&&f.remaining!=null?f.remaining:f.value;
      return [
-       f.type,esc(f.desc||"-"),money(displayValue),fmtDate(f.date),esc(f.paymentTerms||"-"),
+       f.type,esc(f.desc||"-"),money(displayValue),fmtDate(f.date),esc([f.paymentTerms,f.paymentTermsDetail].filter(Boolean).join(" — ")||"-"),
        `<span class="badge">${esc(f.status||"-")}</span>`,
        `<button class="secondary" onclick="payFinance(${f.id})">Marcar pago</button>
         <button class="danger" onclick="deleteFinanceEntry(${f.id})">Excluir</button>`
