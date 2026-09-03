@@ -1,0 +1,100 @@
+name: HLGB v91.30 pacote noturno seguro
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'scripts/v9130_parts/**'
+      - '.github/workflows/hlgb-apply-v9130.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: hlgb-v9130-apply
+  cancel-in-progress: false
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Rebuild and verify v91.30 patch
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import base64,gzip,hashlib
+          parts=[]
+          for i in range(1,6):
+              p=Path(f'scripts/v9130_parts/part{i}.b64')
+              if not p.exists(): raise SystemExit(f'missing {p}')
+              parts.append(p.read_text(encoding='utf-8').strip())
+          raw=gzip.decompress(base64.b64decode(''.join(parts)))
+          sha=hashlib.sha256(raw).hexdigest()
+          expected='a14a36a809ce7889e104b2344fdb43b3b53e1713cc2938a85e04f898d1228375'
+          if sha!=expected: raise SystemExit(f'patch checksum mismatch: {sha}')
+          Path('/tmp/hlgb_v9130_batch_night.py').write_bytes(raw)
+          print('patch checksum ok',sha,'bytes',len(raw))
+          PY
+
+      - name: Apply v91.30 package
+        run: python3 /tmp/hlgb_v9130_batch_night.py
+
+      - name: Validate JavaScript, features and data guards
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import re,subprocess,tempfile,os
+          s=Path('index.html').read_text(encoding='utf-8')
+          required=[
+            'v91.30 Multiusuário',
+            'HLGB v91.30 PACOTE NOTURNO SEGURO',
+            'finishedPieces','factionSettings',
+            'Peças prontas por confecção','Total de vales pagos no mês',
+            'Baixa por grade','Travetadas por peça','Etapa atual','Programar corte',
+            'status:"Separação / compra de material",workflowV9130:true',
+            '__hlgb_explicit_delete','HLGB v91.26 DATA INTEGRITY GUARD',
+            'HLGB v91.27 CORTE POR MODELO + FACCAO',
+            'HLGB v91.28 AUTHORITATIVE RECORD MERGE',
+            'hlgbRecordSaveWithRetry("payroll"'
+          ]
+          for marker in required:
+              if marker not in s: raise SystemExit(f'missing safety/feature marker: {marker}')
+          forbidden=['Modelos disponíveis para envio','Envios para facções']
+          for marker in forbidden:
+              if marker in s: raise SystemExit(f'obsolete faction panel still present: {marker}')
+          scripts=re.findall(r'<script(?:\s[^>]*)?>(.*?)</script>',s,re.S|re.I)
+          checked=0
+          for i,js in enumerate(scripts):
+              if not js.strip(): continue
+              fd,path=tempfile.mkstemp(suffix='.js');os.close(fd)
+              try:
+                  Path(path).write_text(js,encoding='utf-8')
+                  r=subprocess.run(['node','--check',path],capture_output=True,text=True)
+                  if r.returncode: raise SystemExit(f'Inline script {i} failed:\n{r.stderr}')
+                  checked+=1
+              finally:
+                  try: os.unlink(path)
+                  except OSError: pass
+          print('validation ok:',checked,'inline scripts; index bytes',len(s.encode('utf-8')))
+          PY
+
+      - name: Commit validated v91.30 index
+        run: |
+          if git diff --quiet -- index.html; then
+            echo 'No index changes to commit'
+            exit 0
+          fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add index.html
+          git commit -m 'Apply safe nightly operations package v91.30'
+          git push origin main
