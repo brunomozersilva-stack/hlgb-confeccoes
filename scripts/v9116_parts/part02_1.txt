@@ -1,0 +1,24 @@
+  if(!dest){box.innerHTML='<div class="sub">Selecione um local compatível para ver a meta/capacidade.</div>';return}
+  let st=hlgb916TargetStatus(dest,qty,week);
+  box.innerHTML=`<div class="cards" style="margin:8px 0"><div class="card"><small>Meta/capacidade semanal</small><strong>${st.target?st.target.toLocaleString("pt-BR"):"Não definida"}</strong></div><div class="card"><small>Já atribuídas na semana</small><strong>${st.used.toLocaleString("pt-BR")}</strong></div><div class="card"><small>Com esta atribuição</small><strong>${st.after.toLocaleString("pt-BR")}</strong></div><div class="card"><small>Situação</small><strong style="font-size:15px"><span class="badge ${st.cls}">${esc(st.label)}</span></strong></div></div>`;
+}
+function openCutAssignment(productionId){
+  hlgb916EnsureData();let p=(db.production||[]).find(x=>+x.id===+productionId);if(!p)return;
+  let service=hlgb916ServiceNameForProduction(p),services=(db.serviceTypes||[]).map(x=>x.name).filter(Boolean),eligible=hlgb916EligibleDestinations(service);
+  let monday=isoDate(mondayOf(new Date())),fri=new Date(monday+"T12:00:00");fri.setDate(fri.getDate()+4);
+  let order=(db.orders||[]).find(x=>+x.id===+p.orderId),forecast=order?.date||isoDate(fri);
+  openModal("Atribuir corte para produção",`
+    <input id="assignProductionId" type="hidden" value="${p.id}">
+    <div class="grid">
+      <div class="field"><label>Modelo</label><input value="${esc(hlgb916ProductForProduction(p)?.name||p.product||"-")}" disabled></div>
+      <div class="field"><label>Peças ainda sem local</label><input value="${+p.planned||0}" disabled></div>
+      <div class="field"><label>Quantidade a atribuir</label><input id="assignQty" type="number" min="1" max="${+p.planned||0}" value="${+p.planned||0}" oninput="updateCutAssignmentPreview()"></div>
+      <div class="field"><label>Tipo de serviço</label><select id="assignService" onchange="hlgb916RefreshAssignmentDestinations()"><option value="">Selecione</option>${services.map(x=>`<option value="${esc(x)}" ${hlgb916Norm(x)===hlgb916Norm(service)?"selected":""}>${esc(x)}</option>`).join("")}</select><div class="sub">Usado para mostrar somente locais aptos a fazer este tipo de peça.</div></div>
+      <div class="field"><label>Local / facção compatível</label><select id="assignDestination" onchange="updateCutAssignmentPreview()"><option value="">Selecione</option>${hlgb916DestinationOptions(service)}</select></div>
+      <div class="field"><label>Semana da produção</label><input id="assignWeekStart" type="date" value="${monday}" onchange="updateCutAssignmentPreview()"></div>
+      <div class="field"><label>Previsão de saída / entrega</label><input id="assignForecast" type="date" value="${forecast}"></div>
+      <div class="field" id="assignFactionPriceWrap" style="display:none"><label>Valor da facção por peça</label><input id="assignFactionPrice" type="number" min="0" step="0.01" value="0"><div class="sub">Vai aparecer no checklist e no total previsto do envio.</div></div>
+    </div>
+    ${eligible.length?'':'<div class="panel"><span class="badge bad">Nenhum local está cadastrado para o tipo identificado. Ajuste o tipo de serviço ou o cadastro do local.</span></div>'}
+    <div id="assignTargetPreview"></div>
+    <button type="button" class="primary modalSave">Confirmar atribuição</button>`,()=>{
