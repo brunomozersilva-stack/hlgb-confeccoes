@@ -6,7 +6,7 @@
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
-<title>HLGB Confecções — Sistema de Gestão v91.31 Multiusuário</title>
+<title>HLGB Confecções — Sistema de Gestão v91.32 Multiusuário</title>
 <style>
 :root{--navy:#6f3f59;--orange:#c96b8f;--bg:#fbf6f8;--line:#eadde4;--text:#30262c;--muted:#786b73;--ok:#e9f7ef;--warn:#fff5df;--bad:#fdeaea;--rose:#f3dbe5;--rose2:#fff8fb}
 *{box-sizing:border-box}body{margin:0;font-family:Arial,Helvetica,sans-serif;background:var(--bg);color:var(--text)}
@@ -246,11 +246,11 @@ main{min-width:0;}
     <div class="field" style="text-align:left;margin-bottom:10px"><label>E-mail</label><input id="loginUser" type="email" autocomplete="username" placeholder="seuemail@exemplo.com"></div>
     <div class="field" style="text-align:left;margin-bottom:14px"><label>Senha</label><input id="loginPass" type="password" autocomplete="current-password" onkeydown="if(event.key==='Enter')return doLogin()"></div>
     <button class="primary" style="width:100%" onclick="return doLogin()">Entrar</button>
-    <div id="loginError" style="color:#a51d2d;font-size:13px;margin-top:10px"></div><div style="margin-top:12px;font-size:12px;color:#786b73">Acesso protegido pelo Supabase • HLGB Online<br><b style="color:#6f3f59">Versão v91.31</b></div>
+    <div id="loginError" style="color:#a51d2d;font-size:13px;margin-top:10px"></div><div style="margin-top:12px;font-size:12px;color:#786b73">Acesso protegido pelo Supabase • HLGB Online<br><b style="color:#6f3f59">Versão v91.32</b></div>
   </div>
 </div>
 
-<div id="appShell" style="display:none"><header><div class="logo">HLGB <b>CONFECÇÕES</b> <small style="font-size:10px;opacity:.8">v91.31</small></div><div><span id="cloudStatus" style="margin-right:10px;font-size:12px;padding:6px 9px;border:1px solid #ffffff44;border-radius:8px">☁️ Nuvem</span><span id="currentUserLabel" style="margin-right:10px;font-size:13px"></span><button id="cloudSaveBtn" onclick="cloudUploadCurrentDb(true)" style="display:none" title="Sincronização automática">🔄 Sincronizar agora</button> <button id="backupBtn" onclick="backup()" style="display:none">Exportar backup</button> <button id="importBackupBtn" onclick="document.getElementById('backupImportInput').click()" style="display:none">Importar backup</button><input id="backupImportInput" type="file" accept=".json,application/json" style="display:none" onchange="importBackupFile(this)"> <button onclick="logout()">Sair</button></div></header>
+<div id="appShell" style="display:none"><header><div class="logo">HLGB <b>CONFECÇÕES</b> <small style="font-size:10px;opacity:.8">v91.32</small></div><div><span id="cloudStatus" style="margin-right:10px;font-size:12px;padding:6px 9px;border:1px solid #ffffff44;border-radius:8px">☁️ Nuvem</span><span id="currentUserLabel" style="margin-right:10px;font-size:13px"></span><button id="cloudSaveBtn" onclick="cloudUploadCurrentDb(true)" style="display:none" title="Sincronização automática">🔄 Sincronizar agora</button> <button id="backupBtn" onclick="backup()" style="display:none">Exportar backup</button> <button id="importBackupBtn" onclick="document.getElementById('backupImportInput').click()" style="display:none">Importar backup</button><input id="backupImportInput" type="file" accept=".json,application/json" style="display:none" onchange="importBackupFile(this)"> <button onclick="logout()">Sair</button></div></header>
 <div class="app">
 <aside><nav id="nav" class="clean-nav">
 <button class="nav-home active" onclick="page('dashboard',this)">🏠 <span>Início</span></button>
@@ -13516,6 +13516,85 @@ function hubFinanceManualSync(){alert("O botão de sincronização está prepara
 
   async function boot931(){ensure931();try{await reconcileFactionLinks931(false)}catch(e){}try{if(document.querySelector('.page.active')?.id==='projecao')renderProjection()}catch(e){}try{if(document.querySelector('.page.active')?.id==='hubFinanceiro')renderHubFinance()}catch(e){}}
   setTimeout(boot931,1200);window.addEventListener('focus',()=>setTimeout(boot931,120));
+})();
+</script>
+
+
+<!-- HLGB v91.32 EMPLOYEE MASTER SAFETY -->
+<script>
+(function(){
+ const n932=v=>String(v??'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').trim().toLowerCase();
+ const c932=v=>{try{return JSON.parse(JSON.stringify(v))}catch(e){return v}};
+ const id932=()=>Date.now()+Math.floor(Math.random()*900000);
+ async function save932(module,row){
+   if(!row||row.id==null)throw new Error('Registro sem id');
+   if(typeof hlgbRecordSaveWithRetry!=='function'){throw new Error('Sincronização por registro indisponível')}
+   if(!hlgbRecordReady){let ok=await hlgbEnsureRecordsOnlineAfterLogin();if(!ok)throw new Error('Nuvem indisponível')}
+   let out=await hlgbRecordSaveWithRetry(module,String(row.id),c932(row),false);
+   if(!out||out.applied!==true)throw new Error('Nuvem não confirmou '+module);
+   db[module]=Array.isArray(db[module])?db[module]:[];
+   let i=db[module].findIndex(x=>String(x?.id)===String(row.id)),v=c932(out.data||row);
+   if(i>=0)db[module][i]=v;else db[module].push(v);
+   localSaveOnly();
+   return v;
+ }
+ function payrollBase932(employee,month){
+   return {id:id932(),month,employeeId:employee.id,employeeName:employee.name,companyName:employeeCompanyName(employee),salary:+employee.salary||0,benefit:+employee.benefitDefault||0,overtime:0,bonus:0,absence:0,transportAbsenceDays:0,unionDiscount:0,advance:0,purchase:0,pix:employee.pix||'',paid:false,paidAt:'',paidValue:0,discountInss:true,otherCredit:0,otherDiscount:0};
+ }
+ function duplicateEmployee932(name,locId,ignoreId){
+   return (db.employees||[]).find(e=>String(e.id)!==String(ignoreId||'')&&e.active!==false&&n932(e.name)===n932(name)&&String(e.productionLocationId||'')===String(locId||''));
+ }
+ function employeeForm932(e={}){
+   let locations=(db.productionLocations||[]).filter(x=>x.active!==false);
+   return {locations,html:`<div class="grid">
+    <div class="field"><label>Nome</label><input id="empName" value="${esc(e.name||'')}"></div>
+    <div class="field"><label>Confecção</label><select id="empLocation"><option value="">Selecione</option>${locations.map(l=>`<option value="${l.id}" ${+l.id===+e.productionLocationId?'selected':''}>${esc(l.name)}</option>`).join('')}</select></div>
+    <div class="field"><label>Salário base</label><input id="empSalary" type="number" step=".01" value="${e.salary??''}"></div>
+    <div class="field"><label>Tem direito a vale-transporte?</label><select id="empHasTransport"><option value="true" ${e.hasTransport!==false?'selected':''}>Sim</option><option value="false" ${e.hasTransport===false?'selected':''}>Não</option></select></div>
+    <div class="field"><label>Benefício / salário-família padrão</label><input id="empBenefit" type="number" step=".01" value="${+e.benefitDefault||0}"></div>
+    <div class="field"><label>Data de admissão</label><input id="empHire" type="date" value="${e.hireDate||''}"></div>
+    <div class="field"><label>Chave PIX</label><input id="empPix" value="${esc(e.pix||'')}"></div>
+    <div class="field"><label>Ativo</label><select id="empActive"><option value="true" ${e.active!==false?'selected':''}>Sim</option><option value="false" ${e.active===false?'selected':''}>Não</option></select></div>
+   </div>`};
+ }
+ window.newEmployee=function(){
+   ensurePayrollData();let f=employeeForm932({active:true,hasTransport:true});
+   openModal('Novo funcionário',f.html+`<button type="button" class="primary modalSave">Salvar funcionário</button>`,async()=>{
+     let name=document.getElementById('empName')?.value.trim();if(!name){alert('Informe o nome.');return}
+     let locId=+document.getElementById('empLocation')?.value||null,loc=f.locations.find(l=>+l.id===+locId);
+     let dup=duplicateEmployee932(name,locId);if(dup){alert(`Já existe um funcionário ativo com esse nome${loc?.name?' em '+loc.name:''}. Abra o cadastro existente para evitar duplicidade.`);return}
+     let employee={id:id932(),name,productionLocationId:locId,companyName:loc?.name||'',salary:+document.getElementById('empSalary')?.value||0,hasTransport:document.getElementById('empHasTransport')?.value!=='false',benefitDefault:+document.getElementById('empBenefit')?.value||0,hireDate:document.getElementById('empHire')?.value||'',pix:document.getElementById('empPix')?.value||'',active:document.getElementById('empActive')?.value!=='false',salaryHistory:[]};
+     let btn=document.querySelector('#modal .modalSave');if(btn){btn.disabled=true;btn.textContent='☁️ Salvando na nuvem…'}
+     try{
+       employee=await save932('employees',employee);
+       let month=document.getElementById('payrollMonth')?.value||payrollCurrentMonth(),r=(db.payroll||[]).find(x=>x.month===month&&+x.employeeId===+employee.id);
+       if(!r){r=payrollBase932(employee,month);await save932('payroll',r)}
+       closeModal();renderEmployees();renderPayroll();setCloudStatus('⚡ Online · funcionário confirmado','ok');alert('Funcionário cadastrado e confirmado na nuvem.');
+     }catch(err){console.error('HLGB v91.32 novo funcionário',err);if(btn){btn.disabled=false;btn.textContent='Salvar funcionário'}alert('Não consegui confirmar todo o cadastro na nuvem. Nada confirmado foi apagado; confira a lista antes de tentar novamente.')}
+   });
+ };
+ window.editEmployee=function(id){
+   ensurePayrollData();let original=(db.employees||[]).find(x=>+x.id===+id);if(!original)return;let base=c932(original),f=employeeForm932(original);
+   openModal('Editar funcionário',f.html+`<div class="sub">Tempo de empresa: <strong>${esc(tenureInfo(original.hireDate).label)}</strong></div><div class="panel" style="margin-top:14px"><h3 style="margin-top:0">Histórico salarial</h3><div class="sub">Os reajustes continuam preservados no histórico.</div><div id="employeeSalaryHistoryBox">${employeeSalaryHistoryHTML(original)}</div><button type="button" class="secondary" onclick="openSalaryIncrease(${original.id})">+ Registrar aumento salarial</button></div><button type="button" class="primary modalSave">Salvar alterações</button>`,async()=>{
+     let name=document.getElementById('empName')?.value.trim()||original.name,locId=+document.getElementById('empLocation')?.value||null,loc=f.locations.find(l=>+l.id===+locId),dup=duplicateEmployee932(name,locId,id);if(dup){alert('Já existe outro funcionário ativo com esse mesmo nome nesta confecção.');return}
+     let desired=c932(original),editedSalary=+document.getElementById('empSalary')?.value||0,previousSalary=+base.salary||0;
+     desired.salaryHistory=Array.isArray(desired.salaryHistory)?desired.salaryHistory:[];
+     if(editedSalary!==previousSalary){let pct=previousSalary>0?((editedSalary-previousSalary)/previousSalary*100):0;desired.salaryHistory.push({id:'sal-'+Date.now()+'-'+Math.floor(Math.random()*10000),date:isoDate(new Date()),oldSalary:previousSalary,newSalary:editedSalary,percent:pct,note:'Alteração feita pelo cadastro do funcionário'})}
+     Object.assign(desired,{name,productionLocationId:locId,companyName:loc?.name||'',salary:editedSalary,hasTransport:document.getElementById('empHasTransport')?.value!=='false',benefitDefault:+document.getElementById('empBenefit')?.value||0,hireDate:document.getElementById('empHire')?.value||'',pix:document.getElementById('empPix')?.value||'',active:document.getElementById('empActive')?.value!=='false'});
+     let latest=hlgbRecordSnapshots?.employees?.get(String(id))?.data||original,merged=typeof cloudMergeThreeWay==='function'?cloudMergeThreeWay(base,desired,latest):desired,btn=document.querySelector('#modal .modalSave');if(btn){btn.disabled=true;btn.textContent='☁️ Salvando na nuvem…'}
+     try{
+       let saved=await save932('employees',merged),month=document.getElementById('payrollMonth')?.value||payrollCurrentMonth(),r=(db.payroll||[]).find(x=>x.month===month&&+x.employeeId===+saved.id);
+       if(r){let next={...r,employeeName:saved.name,companyName:employeeCompanyName(saved),pix:saved.pix||r.pix||''};await save932('payroll',next)}
+       else if(saved.active!==false){await save932('payroll',payrollBase932(saved,month))}
+       closeModal();renderEmployees();renderPayroll();setCloudStatus('⚡ Online · funcionário atualizado','ok');
+     }catch(err){console.error('HLGB v91.32 editar funcionário',err);if(btn){btn.disabled=false;btn.textContent='Salvar alterações'}alert('A nuvem não confirmou toda a alteração. O cadastro confirmado foi preservado e nenhum registro foi apagado.')}
+   });
+ };
+ // Impede que uma edição transforme catálogos em duas opções idênticas.
+ const oldEditMachine932=window.editMachine;
+ window.editMachine=function(id){let x=(db.machines||[]).find(m=>+m.id===+id);if(!x)return oldEditMachine932(id);openModal('Editar máquina',`<div class="field"><label>Nome da máquina</label><input id="catalogName" value="${esc(x.name)}"></div><button type="button" class="primary modalSave">Salvar alterações</button>`,()=>{let n=(document.getElementById('catalogName')?.value||'').trim();if(!n)return;if((db.machines||[]).some(m=>+m.id!==+id&&n932(m.name)===n932(n))){alert('Essa máquina já existe.');return}x.name=n;closeModal();save()})};
+ const oldEditService932=window.editServiceType;
+ window.editServiceType=function(id){let x=(db.serviceTypes||[]).find(m=>+m.id===+id);if(!x)return oldEditService932(id);openModal('Editar tipo de serviço',`<div class="field"><label>Nome</label><input id="catalogName" value="${esc(x.name)}"></div><button type="button" class="primary modalSave">Salvar alterações</button>`,()=>{let n=(document.getElementById('catalogName')?.value||'').trim();if(!n)return;if((db.serviceTypes||[]).some(m=>+m.id!==+id&&n932(m.name)===n932(n))){alert('Esse tipo de serviço já existe.');return}x.name=n;closeModal();save()})};
 })();
 </script>
 </body></html>
