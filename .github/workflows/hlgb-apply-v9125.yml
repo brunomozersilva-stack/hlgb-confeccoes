@@ -1,0 +1,60 @@
+name: HLGB v91.25 ad hoc picker and optional client
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'scripts/hlgb_v9125_adhoc_picker_no_client.py'
+      - '.github/workflows/hlgb-apply-v9125.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Apply v91.25 ad hoc picker and optional client
+        run: python3 scripts/hlgb_v9125_adhoc_picker_no_client.py
+      - name: Validate JavaScript and ad hoc flow
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import re, subprocess, tempfile, os
+          s=Path('index.html').read_text(encoding='utf-8')
+          assert 'v91.25 Multiusuário' in s
+          assert 'HLGB v91.25 PEDIDO AVULSO PICKER' in s
+          assert 'Cliente (opcional)' in s
+          assert 'Sem cliente' in s
+          assert 'hlgb925FilterAdHocProducts' in s
+          assert "client:c?.name||'Sem cliente'" in s
+          scripts=re.findall(r'<script(?:\s[^>]*)?>(.*?)</script>',s,re.S|re.I)
+          for i,js in enumerate(scripts):
+              if not js.strip(): continue
+              fd,path=tempfile.mkstemp(suffix='.js');os.close(fd)
+              Path(path).write_text(js,encoding='utf-8')
+              r=subprocess.run(['node','--check',path],capture_output=True,text=True)
+              os.unlink(path)
+              if r.returncode:
+                  raise SystemExit(f'Inline script {i} failed:\n{r.stderr}')
+          print('validation ok')
+          PY
+      - name: Commit validated index
+        run: |
+          if git diff --quiet -- index.html; then
+            echo 'No index changes to commit'
+            exit 0
+          fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add index.html
+          git commit -m 'Improve ad hoc product search and allow no client v91.25'
+          git push origin main
