@@ -1,0 +1,21 @@
+function hlgb916CheckAllMaterials(){document.querySelectorAll('.destinationMaterialCheck').forEach(x=>x.checked=true)}
+function openMaterialChecklist(id){
+  let c=(db.materialChecklists||[]).find(x=>+x.id===+id);if(!c)return;
+  let rows=(c.materials||[]).map((m,i)=>`<tr><td><input type="checkbox" class="destinationMaterialCheck" data-i="${i}" ${m.checked?"checked":""}></td><td>${esc(m.name)}</td><td>${(+m.qty||0).toLocaleString("pt-BR",{maximumFractionDigits:3})}</td><td>${esc(m.unit||"")}</td></tr>`).join("");
+  openModal("Checklist de recebimento",`
+    <div class="grid"><div class="field"><label>Destino</label><input value="${esc(c.destinationName||"")}" disabled></div><div class="field"><label>Modelo</label><input value="${esc(c.productName||"")}" disabled></div><div class="field"><label>Peças</label><input value="${+c.qty||0}" disabled></div></div>
+    ${c.destinationType==="F"?`<div class="cards"><div class="card"><small>Valor por peça</small><strong>${money(c.unitPrice)}</strong></div><div class="card"><small>Total previsto do serviço</small><strong>${money(c.total)}</strong></div></div>`:""}
+    <div class="toolbar"><button type="button" class="secondary" onclick="hlgb916CheckAllMaterials()">Marcar todos</button><button type="button" class="secondary" onclick="printMaterialChecklist(${c.id})">🖨️ Imprimir comprovante</button></div>
+    <div style="overflow:auto"><table><tr><th>OK</th><th>Matéria-prima</th><th>Quantidade</th><th>Unidade</th></tr>${rows||'<tr><td colspan="4">Sem materiais cadastrados na ficha técnica.</td></tr>'}</table></div>
+    <div class="grid"><div class="field"><label>Recebido / conferido por</label><input id="checkReceivedBy" value="${esc(c.receivedBy||"")}"></div><div class="field"><label>Data da conferência</label><input id="checkReceivedAt" type="date" value="${c.receivedAt||isoDate(new Date())}"></div><div class="field"><label>Observação</label><input id="checkNote" value="${esc(c.note||"")}" placeholder="Ex.: faltou elástico"></div></div>
+    <button type="button" class="primary modalSave">Salvar conferência</button>`,()=>{
+      (c.materials||[]).forEach((m,i)=>m.checked=!!document.querySelector(`.destinationMaterialCheck[data-i="${i}"]`)?.checked);
+      c.receivedBy=document.getElementById("checkReceivedBy")?.value||"";c.receivedAt=document.getElementById("checkReceivedAt")?.value||"";c.note=document.getElementById("checkNote")?.value||"";
+      c.status=(c.materials||[]).length?(c.materials.every(m=>m.checked)?"Conferido":"Pendente"):"Conferido";closeModal();save();renderDestinationChecklists();
+    });
+}
+function printMaterialChecklist(id){
+  let c=(db.materialChecklists||[]).find(x=>+x.id===+id);if(!c)return;
+  let mats=(c.materials||[]).map(m=>`<tr><td>☐</td><td>${esc(m.name)}</td><td>${(+m.qty||0).toLocaleString("pt-BR",{maximumFractionDigits:3})}</td><td>${esc(m.unit||"")}</td></tr>`).join("");
+  let finance=c.destinationType==="F"?`<h2>Valor do serviço</h2><table><tr><th>Modelo</th><th>Peças</th><th>Valor unitário</th><th>Total previsto</th></tr><tr><td>${esc(c.productName)}</td><td>${(+c.qty||0).toLocaleString("pt-BR")}</td><td>${money(c.unitPrice)}</td><td><b>${money(c.total)}</b></td></tr></table>`:"";
+  let w=window.open("","_blank");if(!w){alert("Permita pop-ups para imprimir o checklist.");return}
