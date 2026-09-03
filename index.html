@@ -6,7 +6,7 @@
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
-<title>HLGB Confecções — Sistema de Gestão v91.20 Multiusuário</title>
+<title>HLGB Confecções — Sistema de Gestão v91.21 Multiusuário</title>
 <style>
 :root{--navy:#6f3f59;--orange:#c96b8f;--bg:#fbf6f8;--line:#eadde4;--text:#30262c;--muted:#786b73;--ok:#e9f7ef;--warn:#fff5df;--bad:#fdeaea;--rose:#f3dbe5;--rose2:#fff8fb}
 *{box-sizing:border-box}body{margin:0;font-family:Arial,Helvetica,sans-serif;background:var(--bg);color:var(--text)}
@@ -246,11 +246,11 @@ main{min-width:0;}
     <div class="field" style="text-align:left;margin-bottom:10px"><label>E-mail</label><input id="loginUser" type="email" autocomplete="username" placeholder="seuemail@exemplo.com"></div>
     <div class="field" style="text-align:left;margin-bottom:14px"><label>Senha</label><input id="loginPass" type="password" autocomplete="current-password" onkeydown="if(event.key==='Enter')return doLogin()"></div>
     <button class="primary" style="width:100%" onclick="return doLogin()">Entrar</button>
-    <div id="loginError" style="color:#a51d2d;font-size:13px;margin-top:10px"></div><div style="margin-top:12px;font-size:12px;color:#786b73">Acesso protegido pelo Supabase • HLGB Online<br><b style="color:#6f3f59">Versão v91.20</b></div>
+    <div id="loginError" style="color:#a51d2d;font-size:13px;margin-top:10px"></div><div style="margin-top:12px;font-size:12px;color:#786b73">Acesso protegido pelo Supabase • HLGB Online<br><b style="color:#6f3f59">Versão v91.21</b></div>
   </div>
 </div>
 
-<div id="appShell" style="display:none"><header><div class="logo">HLGB <b>CONFECÇÕES</b> <small style="font-size:10px;opacity:.8">v91.20</small></div><div><span id="cloudStatus" style="margin-right:10px;font-size:12px;padding:6px 9px;border:1px solid #ffffff44;border-radius:8px">☁️ Nuvem</span><span id="currentUserLabel" style="margin-right:10px;font-size:13px"></span><button id="cloudSaveBtn" onclick="cloudUploadCurrentDb(true)" style="display:none" title="Sincronização automática">🔄 Sincronizar agora</button> <button id="backupBtn" onclick="backup()" style="display:none">Exportar backup</button> <button id="importBackupBtn" onclick="document.getElementById('backupImportInput').click()" style="display:none">Importar backup</button><input id="backupImportInput" type="file" accept=".json,application/json" style="display:none" onchange="importBackupFile(this)"> <button onclick="logout()">Sair</button></div></header>
+<div id="appShell" style="display:none"><header><div class="logo">HLGB <b>CONFECÇÕES</b> <small style="font-size:10px;opacity:.8">v91.21</small></div><div><span id="cloudStatus" style="margin-right:10px;font-size:12px;padding:6px 9px;border:1px solid #ffffff44;border-radius:8px">☁️ Nuvem</span><span id="currentUserLabel" style="margin-right:10px;font-size:13px"></span><button id="cloudSaveBtn" onclick="cloudUploadCurrentDb(true)" style="display:none" title="Sincronização automática">🔄 Sincronizar agora</button> <button id="backupBtn" onclick="backup()" style="display:none">Exportar backup</button> <button id="importBackupBtn" onclick="document.getElementById('backupImportInput').click()" style="display:none">Importar backup</button><input id="backupImportInput" type="file" accept=".json,application/json" style="display:none" onchange="importBackupFile(this)"> <button onclick="logout()">Sair</button></div></header>
 <div class="app">
 <aside><nav id="nav" class="clean-nav">
 <button class="nav-home active" onclick="page('dashboard',this)">🏠 <span>Início</span></button>
@@ -1183,6 +1183,18 @@ main{min-width:0;}
   <button type="button" class="secondary" onclick="clearProjectionSelection()">Limpar seleção</button>
 </div>
 <div id="projectionProductsTable"></div>
+</div>
+
+<div class="panel" id="projectionDeliveryTrackingPanel">
+<h2>📦 Entregas da projeção</h2>
+<div class="sub">Acompanhe separadamente o que ainda falta entregar e o que já foi entregue. Entregas parciais vão sendo somadas automaticamente; o saldo restante pode ser reagendado sem alterar o histórico do que já saiu.</div>
+<div id="projectionDeliverySummaryCards" class="cards"></div>
+<div class="toolbar" style="margin-top:8px">
+  <button type="button" id="projectionTabRemaining" class="primary" onclick="setProjectionDeliveryTab('remaining')">📋 Falta entregar</button>
+  <button type="button" id="projectionTabDelivered" class="secondary" onclick="setProjectionDeliveryTab('delivered')">✅ Entregue</button>
+</div>
+<div id="projectionRemainingPane"><div id="projectionRemainingTable"></div></div>
+<div id="projectionDeliveredPane" style="display:none"><div id="projectionDeliveredTable"></div></div>
 </div>
 
 <div class="panel">
@@ -4845,7 +4857,8 @@ function finalizeSelectedProjection(){
        let newQty=Math.min(item.qty,prev+qty);
        o.projectionItems[item.key]={
          ...saved,date:item.date,invoicedQty:newQty,invoiced:newQty>=item.qty,
-         invoiceIds:[...((saved.invoiceIds)||[]),invoiceId]
+         invoiceIds:[...((saved.invoiceIds)||[]),invoiceId],
+         deliveryHistory:[...((saved.deliveryHistory)||[]),{invoiceId,date:issueDate,qty}]
        };
        let all=projectionItemsForOrder(o);
        o.projectionInvoiced=all.every(i=>i.invoiced);
@@ -4895,6 +4908,117 @@ function recalcProjectionInvoiceModal(){
  if(vel)vel.textContent=money(value);
 }
 
+function projectionRemainingQty(item){
+ return Math.max(0,item?.remainingQty!=null?(+item.remainingQty||0):((+item?.qty||0)-(+item?.invoicedQty||0)));
+}
+function projectionUnitForItem(item){
+ return (+item?.qty||0)>0?(+item?.value||0)/(+item?.qty||0):0;
+}
+function projectionRemainingValue(item){
+ return projectionRemainingQty(item)*projectionUnitForItem(item);
+}
+function projectionDeliveredRows(startS="0000-01-01",endS="9999-12-31"){
+ let out=[];
+ (db.projectionInvoices||[]).forEach(inv=>{
+   let date=String(inv.issueDate||inv.date||"").slice(0,10);
+   if(!date||date<startS||date>endS)return;
+   (inv.items||[]).forEach(it=>{
+     let o=(db.orders||[]).find(x=>+x.id===+it.orderId)||null;
+     out.push({invoice:inv,order:o,item:it,date,qty:+it.qty||0,value:+it.value||((+it.qty||0)*(+it.unitPrice||0))});
+   });
+ });
+ return out;
+}
+function projectionTrackingMatches(order,productName){
+ let clientF=(document.getElementById("projectionClientFilter")?.value||"").trim().toLowerCase();
+ let productF=(document.getElementById("projectionProductFilter")?.value||"").trim().toLowerCase();
+ let orderF=(document.getElementById("projectionOrderFilter")?.value||"").trim().toLowerCase();
+ let displayNo=String(order?(typeof displayOrderNumber==="function"?displayOrderNumber(order):order.id):"").toLowerCase();
+ if(clientF&&!String(order?.client||"").toLowerCase().includes(clientF))return false;
+ if(productF&&!String(productName||"").toLowerCase().includes(productF))return false;
+ if(orderF&&!displayNo.includes(orderF))return false;
+ return true;
+}
+let projectionDeliveryTab="remaining";
+function setProjectionDeliveryTab(tab){
+ projectionDeliveryTab=tab==="delivered"?"delivered":"remaining";
+ let rem=document.getElementById("projectionRemainingPane"),del=document.getElementById("projectionDeliveredPane");
+ let br=document.getElementById("projectionTabRemaining"),bd=document.getElementById("projectionTabDelivered");
+ if(rem)rem.style.display=projectionDeliveryTab==="remaining"?"block":"none";
+ if(del)del.style.display=projectionDeliveryTab==="delivered"?"block":"none";
+ if(br)br.className=projectionDeliveryTab==="remaining"?"primary":"secondary";
+ if(bd)bd.className=projectionDeliveryTab==="delivered"?"primary":"secondary";
+ renderProjectionDeliveryTracking();
+}
+function changeProjectionRemainingDate(orderId,itemKey){
+ let o=(db.orders||[]).find(x=>+x.id===+orderId);if(!o)return;
+ let item=projectionItemsForOrder(o).find(i=>String(i.key)===String(itemKey));if(!item)return;
+ let remaining=projectionRemainingQty(item),delivered=Math.max(0,(+item.qty||0)-remaining);
+ if(remaining<=0){alert("Este produto já foi entregue por completo.");return}
+ openModal("Mudar data do restante",`
+   <div class="grid">
+    <div class="field"><label>Pedido</label><input value="#${typeof displayOrderNumber==="function"?displayOrderNumber(o):o.id}" disabled></div>
+    <div class="field"><label>Cliente</label><input value="${esc(o.client||"")}" disabled></div>
+    <div class="field"><label>Produto</label><input value="${esc(item.name||"")}" disabled></div>
+    <div class="field"><label>Quantidade original</label><input value="${(+item.qty||0).toLocaleString("pt-BR")}" disabled></div>
+    <div class="field"><label>Já entregue</label><input value="${delivered.toLocaleString("pt-BR")}" disabled></div>
+    <div class="field"><label>Falta entregar</label><input value="${remaining.toLocaleString("pt-BR")}" disabled></div>
+    <div class="field"><label>Data atual do restante</label><input value="${item.date?fmtDate(item.date):"-"}" disabled></div>
+    <div class="field"><label>Nova data para o restante</label><input id="projectionRemainingNewDate" type="date" value="${item.date||isoDate(new Date())}"></div>
+   </div>
+   <div class="sub" style="margin:10px 0">Somente as ${remaining.toLocaleString("pt-BR")} peça(s) que ainda faltam serão movidas. O que já foi entregue permanece no histórico.</div>
+   <button type="button" class="primary modalSave">💾 Salvar nova data do restante</button>`,()=>{
+     let d=document.getElementById("projectionRemainingNewDate")?.value||"";
+     if(!d){alert("Informe a nova data.");return}
+     saveProjectionItemDate(o,item.key,d);
+     o.projectionItems[item.key]={...(o.projectionItems[item.key]||{}),remainingRescheduledAt:isoDate(new Date())};
+     closeModal();save();renderProjection();
+   });
+}
+function renderProjectionDeliveryTracking(){
+ let sEl=document.getElementById("projectionStart"),eEl=document.getElementById("projectionEnd");
+ if(!sEl||!eEl)return;
+ let startS=sEl.value||"0000-01-01",endS=eEl.value||"9999-12-31";
+ let remainingRows=allProjectionRows().filter(({order:o,item})=>item.date&&item.date>=startS&&item.date<=endS&&projectionRemainingQty(item)>0&&projectionTrackingMatches(o,item.name));
+ let deliveredRows=projectionDeliveredRows(startS,endS).filter(r=>projectionTrackingMatches(r.order,r.item.productName));
+ let plannedQty=remainingRows.reduce((a,x)=>a+projectionRemainingQty(x.item),0);
+ let plannedValue=remainingRows.reduce((a,x)=>a+projectionRemainingValue(x.item),0);
+ let deliveredQty=deliveredRows.reduce((a,x)=>a+(+x.qty||0),0);
+ let deliveredValue=deliveredRows.reduce((a,x)=>a+(+x.value||0),0);
+ let cards=document.getElementById("projectionDeliverySummaryCards");
+ if(cards)cards.innerHTML=`
+   <div class="card"><small>Peças previstas / falta entregar</small><strong>${plannedQty.toLocaleString("pt-BR")}</strong></div>
+   <div class="card"><small>Peças entregues no período</small><strong>${deliveredQty.toLocaleString("pt-BR")}</strong></div>
+   <div class="card"><small>Valor previsto / falta entregar</small><strong>${money(plannedValue)}</strong></div>
+   <div class="card"><small>Valor entregue no período</small><strong>${money(deliveredValue)}</strong></div>`;
+ let remEl=document.getElementById("projectionRemainingTable");
+ if(remEl)remEl.innerHTML=remainingRows.length?table(
+   ["Data prevista","Pedido","Cliente","Produto","Original","Já entregue","Falta entregar","Valor restante","Ação"],
+   remainingRows.slice().sort((a,b)=>String(a.item.date).localeCompare(String(b.item.date))).map(({order:o,item})=>{
+     let rem=projectionRemainingQty(item),done=Math.max(0,(+item.qty||0)-rem);
+     let safeKey=String(item.key).replace(/'/g,"\\'");
+     return [fmtDate(item.date),"#"+(typeof displayOrderNumber==="function"?displayOrderNumber(o):o.id),esc(o.client||"-"),esc(item.name||"-"),(+item.qty||0).toLocaleString("pt-BR"),done.toLocaleString("pt-BR"),`<strong>${rem.toLocaleString("pt-BR")}</strong>`,money(projectionRemainingValue(item)),`<button type="button" class="secondary" onclick="changeProjectionRemainingDate(${o.id},'${safeKey}')">📅 Mudar data do restante</button>`];
+   })
+ ):'<div class="empty">Nada pendente para entregar neste período.</div>';
+ let delEl=document.getElementById("projectionDeliveredTable");
+ if(delEl)delEl.innerHTML=deliveredRows.length?table(
+   ["Entregue / emissão","Nota","Pedido","Cliente","Produto","Qtd. entregue","Valor","Condição"],
+   deliveredRows.slice().sort((a,b)=>String(b.date).localeCompare(String(a.date))).map(r=>{
+     let inv=r.invoice||{},cond=String(inv.terms||"-")+(inv.termsDetail?` — ${inv.termsDetail}`:"");
+     return [fmtDate(r.date),"#"+String(inv.id||"-"),r.order?"#"+(typeof displayOrderNumber==="function"?displayOrderNumber(r.order):r.order.id):"-",esc(inv.client||r.order?.client||"-"),esc(r.item.productName||"-"),(+r.qty||0).toLocaleString("pt-BR"),money(+r.value||0),esc(cond)];
+   })
+ ):'<div class="empty">Nenhuma entrega registrada neste período.</div>';
+ setProjectionDeliveryTabVisualOnly();
+}
+function setProjectionDeliveryTabVisualOnly(){
+ let rem=document.getElementById("projectionRemainingPane"),del=document.getElementById("projectionDeliveredPane");
+ let br=document.getElementById("projectionTabRemaining"),bd=document.getElementById("projectionTabDelivered");
+ if(rem)rem.style.display=projectionDeliveryTab==="remaining"?"block":"none";
+ if(del)del.style.display=projectionDeliveryTab==="delivered"?"block":"none";
+ if(br)br.className=projectionDeliveryTab==="remaining"?"primary":"secondary";
+ if(bd)bd.className=projectionDeliveryTab==="delivered"?"primary":"secondary";
+}
+
 function projectionProductionSplit(orderId,itemKey){
  let aa=(typeof assignmentsFor==="function"?assignmentsFor(orderId,itemKey):[]);
  if(!aa.length)return "";
@@ -4910,7 +5034,7 @@ function renderProjection(){
  let startS=sEl.value||"0000-01-01",endS=eEl.value||"9999-12-31";
  let rows=allProjectionRows();
  let pending=rows.filter(x=>!x.item.date&&!x.item.invoiced);
- let scheduledBase=rows.filter(x=>x.item.date&&x.item.date>=startS&&x.item.date<=endS);
+ let scheduledBase=rows.filter(x=>x.item.date&&x.item.date>=startS&&x.item.date<=endS&&projectionRemainingQty(x.item)>0);
 
  // Filtros detalhados da projeção
  let clientF=(document.getElementById("projectionClientFilter")?.value||"").trim().toLowerCase();
@@ -4965,8 +5089,10 @@ function renderProjection(){
    ])
  ):'<div class="empty">Todos os produtos já estão programados na projeção.</div>';
 
- let totalValue=scheduled.reduce((a,x)=>a+(+x.item.value||0),0),totalQty=scheduled.reduce((a,x)=>a+(+x.item.qty||0),0);
- let invoicedValue=scheduled.filter(x=>x.item.invoiced).reduce((a,x)=>a+(+x.item.value||0),0),openQty=scheduled.filter(x=>!x.item.invoiced).reduce((a,x)=>a+(+x.item.qty||0),0);
+ let totalQty=scheduled.reduce((a,x)=>a+projectionRemainingQty(x.item),0);
+ let totalValue=scheduled.reduce((a,x)=>a+projectionRemainingValue(x.item),0);
+ let deliveredPeriodRows=projectionDeliveredRows(startS,endS).filter(r=>projectionTrackingMatches(r.order,r.item.productName));
+ let invoicedValue=deliveredPeriodRows.reduce((a,x)=>a+(+x.value||0),0),openQty=totalQty;
  let label=document.getElementById("projectionPeriodLabel");if(label)label.textContent=`Exibindo de ${fmtDate(startS)} até ${fmtDate(endS)}.`;
 
  let exitTable=document.getElementById("projectionExitTable");
@@ -4977,8 +5103,8 @@ function renderProjection(){
      "#"+(typeof displayOrderNumber==="function"?displayOrderNumber(o):o.id),
      esc(o.client||"-"),
      esc(item.name||"-"),
-     (+item.qty||0).toLocaleString("pt-BR"),
-     money(+item.value||0),
+     projectionRemainingQty(item).toLocaleString("pt-BR"),
+     money(projectionRemainingValue(item)),
      esc(projectionLocationForOrder(o)||"Sem local"),
      `<span class="badge">${esc(o.priority||"Padrão")}</span>`,
      item.invoiced?'<span class="badge ok">Nota finalizada</span>':`<span class="badge">${esc(o.status||"Disponível")}</span>`
@@ -4998,7 +5124,7 @@ function renderProjection(){
     return [
     `<input class="projectionSelect" type="checkbox" value="${o.id}::${esc(item.key)}" ${item.invoiced?"disabled":""}>`,
     "#"+(typeof displayOrderNumber==="function"?displayOrderNumber(o):o.id),esc(o.client||"-"),esc(item.name),available.toLocaleString("pt-BR"),money(available*unit),fmtDate(item.date),split?`<b>${esc(split)}</b>`:esc(projectionLocationForOrder(o)||"Sem local"),
-    noteStatus,`<button type="button" class="primary" onclick="openProjectionProductionSplit(${o.id},'${String(item.key).replace(/'/g,"\\'")}')">Dividir produção</button> <button type="button" class="secondary" onclick="changeProjectionDate(${o.id})">Mudar datas</button>`
+    noteStatus,`<button type="button" class="primary" onclick="openProjectionProductionSplit(${o.id},'${String(item.key).replace(/'/g,"\\'")}')">Dividir produção</button> <button type="button" class="secondary" onclick="changeProjectionRemainingDate(${o.id},'${String(item.key).replace(/'/g,"\\'")}')">Mudar data do restante</button> <button type="button" class="secondary" onclick="changeProjectionDate(${o.id})">Todas as datas</button>`
    ]})
  ):'<div class="empty">Nenhum produto previsto para este período.</div>';
 
@@ -5038,6 +5164,7 @@ function renderProjection(){
  let ws=document.getElementById("weeklySummary");
  if(ws)ws.innerHTML=`<div class="cards"><div class="card"><small>Produtos</small><strong>${scheduled.length}</strong></div><div class="card"><small>Peças</small><strong>${totalQty.toLocaleString("pt-BR")}</strong></div><div class="card"><small>Valor projetado</small><strong>${money(totalValue)}</strong></div><div class="card"><small>Valor ainda não faturado</small><strong>${money(Math.max(0,totalValue-invoicedValue))}</strong></div></div>`;
  drawClientChart(clientRows.map(([n,d])=>[n,{...d,orders:d.products}]));
+ renderProjectionDeliveryTracking();
 }
 function clearProjectionDetailFilters(){
  ["projectionClientFilter","projectionProductFilter","projectionOrderFilter","projectionMinValue","projectionMaxValue"].forEach(id=>{let e=document.getElementById(id);if(e)e.value=""});
