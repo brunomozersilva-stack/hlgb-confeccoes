@@ -1,0 +1,28 @@
+  let rows=hlgb916UnassignedProduction(),qty=rows.reduce((a,p)=>a+(+p.planned||0),0);
+  if(cards)cards.innerHTML=`<div class="card"><small>Cortes aguardando local</small><strong>${rows.length}</strong></div><div class="card"><small>Peças aguardando atribuição</small><strong>${qty.toLocaleString("pt-BR")}</strong></div><div class="card"><small>Locais ativos</small><strong>${(db.productionLocations||[]).filter(x=>x.active!==false).length}</strong></div><div class="card"><small>Facções ativas</small><strong>${(db.factionMasters||[]).filter(x=>x.active!==false).length}</strong></div>`;
+  if(!el)return;
+  el.innerHTML=rows.length?table(["OP","Cliente","Modelo","Tipo de serviço","Peças sem local","Situação","Ação"],rows.map(p=>{
+    let service=hlgb916ServiceNameForProduction(p),eligible=hlgb916EligibleDestinations(service);
+    return [esc(p.op||"-"),esc(p.client||"Pedido avulso"),esc(hlgb916ProductForProduction(p)?.name||p.product||"-"),esc(service||"Não identificado"),(+p.planned||0).toLocaleString("pt-BR"),eligible.length?`<span class="badge ok">${eligible.length} local(is) compatível(is)</span>`:'<span class="badge bad">Nenhum local compatível</span>',`<button type="button" class="primary" onclick="openCutAssignment(${p.id})">Atribuir local</button>`];
+  })):'<div class="empty">Nenhum corte aguardando atribuição.</div>';
+}
+function hlgb916DestinationOptions(service,selected=""){
+  return hlgb916EligibleDestinations(service).map(d=>`<option value="${d.type}:${d.id}" ${selected===`${d.type}:${d.id}`?"selected":""}>${d.type==="F"?"Facção":"Local"} — ${esc(d.name)}</option>`).join("");
+}
+function hlgb916RefreshAssignmentDestinations(){
+  let service=document.getElementById("assignService")?.value||"",sel=document.getElementById("assignDestination");if(!sel)return;
+  let old=sel.value;sel.innerHTML='<option value="">Selecione</option>'+hlgb916DestinationOptions(service,old);updateCutAssignmentPreview();
+}
+function hlgb916SuggestedFactionRate(factionId,production){
+  let f=(db.factionMasters||[]).find(x=>+x.id===+factionId),product=hlgb916ProductForProduction(production);
+  let prev=(db.factions||[]).filter(x=>hlgb916Norm(x.name)===hlgb916Norm(f?.name)&&(+x.price||0)>0).find(x=>+x.productId===+product?.id||hlgb916Norm(x.description)===hlgb916Norm(product?.name||production?.product));
+  return +prev?.price||+product?.factionCost||0;
+}
+function updateCutAssignmentPreview(){
+  let pid=+document.getElementById("assignProductionId")?.value||0,p=(db.production||[]).find(x=>+x.id===pid);if(!p)return;
+  let raw=document.getElementById("assignDestination")?.value||"",qty=Math.max(0,+document.getElementById("assignQty")?.value||0),week=document.getElementById("assignWeekStart")?.value||isoDate(mondayOf(new Date()));
+  let [type,id]=raw.split(":"),dest=hlgb916EligibleDestinations(document.getElementById("assignService")?.value||"").find(d=>d.type===type&&+d.id===+id);
+  let box=document.getElementById("assignTargetPreview"),price=document.getElementById("assignFactionPrice"),priceWrap=document.getElementById("assignFactionPriceWrap");
+  if(priceWrap)priceWrap.style.display=type==="F"?"block":"none";
+  if(type==="F"&&price&&(!price.value||+price.value===0))price.value=hlgb916SuggestedFactionRate(+id,p).toFixed(2);
+  if(!box)return;
