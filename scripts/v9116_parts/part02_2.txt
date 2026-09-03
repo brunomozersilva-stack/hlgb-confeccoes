@@ -1,0 +1,10 @@
+      let qty=Math.max(0,+document.getElementById("assignQty")?.value||0),serviceNow=document.getElementById("assignService")?.value||"",raw=document.getElementById("assignDestination")?.value||"";
+      if(qty<=0||qty>(+p.planned||0)){alert("Informe uma quantidade válida.");return}
+      let [type,id]=raw.split(":"),dest=hlgb916EligibleDestinations(serviceNow).find(d=>d.type===type&&+d.id===+id);
+      if(!dest){alert("Selecione um local que esteja habilitado para este tipo de serviço.");return}
+      let rate=type==="F"?(+document.getElementById("assignFactionPrice")?.value||0):0;
+      if(type==="F"&&rate<=0){alert("Informe o valor por peça da facção para gerar o comprovante corretamente.");return}
+      let assigned;
+      if(qty===+p.planned){assigned=p;}
+      else{
+        p.planned=(+p.planned||0)-qty;
