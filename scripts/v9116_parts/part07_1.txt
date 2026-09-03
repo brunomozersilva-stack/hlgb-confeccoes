@@ -1,0 +1,7 @@
+  'function openCutAssignment(productionId)','function allProjectionRows()'
+]
+for marker in required:
+    if marker not in s: raise SystemExit(f'missing marker: {marker}')
+
+path.write_text(s,encoding='utf-8')
+print('HLGB v91.16 applied')
