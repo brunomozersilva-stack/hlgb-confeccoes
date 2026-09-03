@@ -1,0 +1,47 @@
+name: HLGB v91.18 goal assignment visibility
+on:
+  push:
+    paths:
+      - 'scripts/hlgb_v9118_goal_assignment_visibility.py'
+      - '.github/workflows/hlgb-apply-v9118.yml'
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Apply v91.18 goal assignment visibility
+        run: python3 scripts/hlgb_v9118_goal_assignment_visibility.py
+      - name: Validate JavaScript and goal UI
+        run: |
+          python3 - <<'PY'
+          import re,pathlib,subprocess
+          s=pathlib.Path('index.html').read_text(encoding='utf-8')
+          scripts=re.findall(r'<script(?:\s[^>]*)?>(.*?)</script>',s,re.S|re.I)
+          for i,body in enumerate(scripts):
+              f=pathlib.Path(f'/tmp/hlgb-v9118-{i}.js');f.write_text(body,encoding='utf-8')
+              subprocess.run(['node','--check',str(f)],check=True)
+          assert 'v91.18 Multiusuário' in s
+          assert '🎯 Atribuição de metas' in s
+          assert '🎯 Atribuir nova meta' in s
+          assert 'goalPeople' in s and 'goalPerPerson' in s and 'goalCadence' in s
+          print('validated',len(scripts),'script blocks')
+          PY
+      - name: Commit validated index
+        run: |
+          if git diff --quiet -- index.html; then
+            echo 'No index changes required'
+            exit 0
+          fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add index.html
+          git commit -m 'Expose HLGB v91.18 goal assignment controls'
+          git push origin main
