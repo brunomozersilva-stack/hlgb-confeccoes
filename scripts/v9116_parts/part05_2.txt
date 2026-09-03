@@ -1,0 +1,5 @@
+  return {arr,ins,outs,inTotal,outTotal,balance:inTotal-outTotal,cashIn,checksIn,hardCash,strictCheck,flexCheck,checkEligible:strictCheck+flexCheck,checkGap,cashNeed,cashBalance,realizedIn,realizedOut};
+}
+function renderHubFinance(){
+  let weekEl=document.getElementById("hubFinanceWeek");if(!weekEl)return;hlgb916EnsureData();if(!weekEl.value)weekEl.value=weekValue(new Date());let range=hlgb916HubRange(weekEl.value),s=hlgb916HubSummary(range);
+  let label=document.getElementById("hubFinanceWeekLabel");if(label)label.textContent=`Semana de ${fmtDate(range.start)} a ${fmtDate(range.end)}.`;
