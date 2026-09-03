@@ -1,0 +1,125 @@
+# -----------------------------------------------------------------------------
+# NOVOS MÓDULOS NO SYNC POR REGISTRO
+# -----------------------------------------------------------------------------
+m=re.search(r'const HLGB_RECORD_MODULES=\[(.*?)\];',s,re.S)
+if not m:
+    raise SystemExit('HLGB_RECORD_MODULES not found')
+inside=m.group(1)
+mods=['materialChecklists','hubFinanceEntries']
+for mod in mods:
+    if f'"{mod}"' not in inside and f"'{mod}'" not in inside:
+        inside=inside.rstrip()+(',' if inside.strip() else '')+f'"{mod}"'
+s=s[:m.start(1)]+inside+s[m.end(1):]
+print('record modules extended')
+
+# -----------------------------------------------------------------------------
+# RENDER ALL: novos painéis participam do realtime/render geral
+# -----------------------------------------------------------------------------
+rep(
+'renderSuppliers();renderPurchases();renderProducts();renderFinance();renderEmployees();renderFormerEmployees();renderPayroll();renderReports();renderGoals();if(document.getElementById("missingOpenTable"))renderMissingPieces();if(document.getElementById("auditLogTable"))renderAuditLog();',
+'renderSuppliers();renderPurchases();renderProducts();renderFinance();renderEmployees();renderFormerEmployees();renderPayroll();renderReports();renderGoals();hlgb916EnsureData();renderCutAssignmentQueue();renderDestinationChecklists();renderFactionPaymentPlanner();renderHubFinance();if(document.getElementById("missingOpenTable"))renderMissingPieces();if(document.getElementById("auditLogTable"))renderAuditLog();',
+'renderAll v91.16')
+
+# -----------------------------------------------------------------------------
+# FUNCIONALIDADES v91.16 — inseridas antes do último </script>
+# -----------------------------------------------------------------------------
+feature_js=r'''
+
+// =============================================================================
+// v91.16 — atribuição pós-corte, pedido avulso, checklist, planner de facção e Hub
+// =============================================================================
+function hlgb916EnsureData(){
+  db.materialChecklists=Array.isArray(db.materialChecklists)?db.materialChecklists:[];
+  db.hubFinanceEntries=Array.isArray(db.hubFinanceEntries)?db.hubFinanceEntries:[];
+  db.capacityAssignments=Array.isArray(db.capacityAssignments)?db.capacityAssignments:[];
+}
+function hlgb916Norm(v){return String(v||"").normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLowerCase().trim()}
+function hlgb916ProductById(id){return (db.products||[]).find(p=>+p.id===+id)||null}
+function hlgb916ProductForProduction(p){
+  let o=(db.orders||[]).find(x=>+x.id===+p?.orderId);
+  return hlgb916ProductById(p?.productId||o?.productId)||
+    (db.products||[]).find(x=>hlgb916Norm(x.name)===hlgb916Norm(p?.product))||null;
+}
+function hlgb916ServiceNameForProduction(p){
+  let product=hlgb916ProductForProduction(p),o=(db.orders||[]).find(x=>+x.id===+p?.orderId);
+  let known=(db.serviceTypes||[]).map(x=>String(x.name||"").trim()).filter(Boolean);
+  let cat=String(product?.category||"").trim();
+  let exact=known.find(x=>hlgb916Norm(x)===hlgb916Norm(cat));if(exact)return exact;
+  let text=hlgb916Norm(`${product?.name||""} ${p?.product||""} ${o?.items||""} ${cat}`);
+  return known.find(x=>text.includes(hlgb916Norm(x)))||cat||"";
+}
+function hlgb916FactionServices(f){
+  let ids=Array.isArray(f?.serviceTypeIds)?f.serviceTypeIds:[];
+  let names=ids.map(id=>(db.serviceTypes||[]).find(s=>+s.id===+id)?.name).filter(Boolean);
+  if(!names.length && f?.serviceType)names=String(f.serviceType).split(",").map(x=>x.trim()).filter(Boolean);
+  return names;
+}
+function hlgb916EligibleDestinations(serviceName){
+  let service=hlgb916Norm(serviceName),out=[];
+  (db.productionLocations||[]).filter(x=>x.active!==false).forEach(l=>{
+    let allowed=Array.isArray(l.allowedServices)?l.allowedServices.filter(Boolean):[];
+    let ok=!allowed.length || (!!service&&allowed.some(x=>hlgb916Norm(x)===service));
+    if(ok)out.push({type:"L",id:+l.id,name:l.name||"Local",locationId:+l.id,factionId:null,services:allowed});
+  });
+  (db.factionMasters||[]).filter(x=>x.active!==false).forEach(f=>{
+    let allowed=hlgb916FactionServices(f);
+    let ok=allowed.length && !!service && allowed.some(x=>hlgb916Norm(x)===service);
+    if(ok)out.push({type:"F",id:+f.id,name:f.name||"Facção",locationId:+f.productionLocationId||null,factionId:+f.id,services:allowed});
+  });
+  return out;
+}
+function hlgb916WeekRangeFromDate(value){
+  let d=value?new Date(String(value).slice(0,10)+"T12:00:00"):new Date();
+  let m=mondayOf(d),sun=new Date(m);sun.setDate(sun.getDate()+6);
+  return {start:isoDate(m),end:isoDate(sun)};
+}
+function hlgb916WeeklyTarget(dest){
+  if(!dest)return 0;
+  let loc=dest.type==="L"?(db.productionLocations||[]).find(x=>+x.id===+dest.id):
+    (db.productionLocations||[]).find(x=>+x.id===+dest.locationId);
+  return +loc?.weeklyCapacity||0;
+}
+function hlgb916AssignedQtyForWeek(dest,weekStart){
+  if(!dest)return 0;let r=hlgb916WeekRangeFromDate(weekStart);
+  return (db.production||[]).filter(p=>{
+    let match=dest.type==="F"?+p.factionId===+dest.id:(!p.factionId&&+p.productionLocationId===+dest.id);
+    if(!match)return false;
+    let d=p.assignedAt||p.sentToFactionAt||p.date||"";d=String(d).slice(0,10);
+    return d&&d>=r.start&&d<=r.end;
+  }).reduce((a,p)=>a+(+p.planned||0),0);
+}
+function hlgb916TargetStatus(dest,qty,weekStart){
+  let target=hlgb916WeeklyTarget(dest),used=hlgb916AssignedQtyForWeek(dest,weekStart),after=used+(+qty||0);
+  if(!target)return {target,used,after,label:"Meta/capacidade não definida",cls:"warn"};
+  if(after>target)return {target,used,after,label:`Ultrapassa em ${(after-target).toLocaleString("pt-BR")} peças`,cls:"bad"};
+  return {target,used,after,label:`Ainda faltam ${(target-after).toLocaleString("pt-BR")} peças para a meta`,cls:after===target?"ok":"warn"};
+}
+
+// --- Corte finalizado vira uma fonte aguardando atribuição. Não entra automaticamente em local/facção.
+function syncFinalizedCutsToProduction(){
+  hlgb916EnsureData();
+  db.cuts=Array.isArray(db.cuts)?db.cuts:[];db.production=Array.isArray(db.production)?db.production:[];
+  let changed=false;
+  db.cuts.filter(c=>hlgb916Norm(c.status)==="finalizado").forEach(c=>{
+    let existing=db.production.find(p=>+p.cutId===+c.id);
+    if(existing){
+      if(!existing.productId&&c.productId){existing.productId=+c.productId;changed=true}
+      return;
+    }
+    let order=(db.orders||[]).find(o=>+o.id===+c.orderId);
+    db.production.push({
+      id:Date.now()+Math.floor(Math.random()*1000000),cutId:c.id,orderId:c.orderId||null,
+      productId:c.productId||order?.productId||null,op:c.op||("CORTE-"+c.id),product:c.product||order?.items||"Pedido",
+      client:c.client||order?.client||"",color:c.color||"",size:c.size||"",planned:+c.pieces||0,done:0,
+      stage:"Aguardando atribuição",productionLocationId:null,factionId:null,date:c.finishedAt||isoDate(new Date()),assignmentSource:true
+    });changed=true;
+  });
+  if(changed)try{persistDb()}catch(e){}
+  return changed;
+}
+function hlgb916UnassignedProduction(){
+  syncFinalizedCutsToProduction();
+  return (db.production||[]).filter(p=>p.cutId&&!p.productionLocationId&&!p.factionId&&!p.finishedAt&&(+p.planned||0)>0&&!["pronto","finalizado"].includes(hlgb916Norm(p.stage)));
+}
+function renderCutAssignmentQueue(){
+  let el=document.getElementById("cutAssignmentQueue"),cards=document.getElementById("cutAssignmentCards");if(!el&&!cards)return;
