@@ -5,6 +5,7 @@ on:
     branches: [main]
     paths:
       - 'scripts/hlgb_v9122_adhoc_same_as_order.py'
+      - 'scripts/hlgb_v9122_relocate_addon.py'
       - '.github/workflows/hlgb-apply-v9122.yml'
   workflow_dispatch:
 
@@ -23,7 +24,9 @@ jobs:
         with:
           node-version: '22'
       - name: Apply v91.22 pedido avulso
-        run: python3 scripts/hlgb_v9122_adhoc_same_as_order.py
+        run: |
+          python3 scripts/hlgb_v9122_adhoc_same_as_order.py
+          python3 scripts/hlgb_v9122_relocate_addon.py
       - name: Validate JavaScript and pedido avulso
         run: |
           python3 - <<'PY'
@@ -35,6 +38,7 @@ jobs:
           assert 'Sem grade — quantidade total por produto' in s
           assert 'Com grade completa — igual pedido normal' in s
           assert 'isAdHoc:true,noGrade:!useGrade' in s
+          assert s.rfind('HLGB v91.22 PEDIDO AVULSO') > s.find('</script>')
           scripts=re.findall(r'<script(?:\s[^>]*)?>(.*?)</script>',s,re.S|re.I)
           for i,js in enumerate(scripts):
               if not js.strip(): continue
