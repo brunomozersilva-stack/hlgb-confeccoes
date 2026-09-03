@@ -1,0 +1,59 @@
+name: HLGB v91.23 projection integrity
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'scripts/hlgb_v9123_projection_integrity.py'
+      - '.github/workflows/hlgb-apply-v9123.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Apply v91.23 projection integrity
+        run: python3 scripts/hlgb_v9123_projection_integrity.py
+      - name: Validate JavaScript and projection integrity
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import re, subprocess, tempfile, os
+          s=Path('index.html').read_text(encoding='utf-8')
+          assert 'v91.23 Multiusuário' in s
+          assert 'HLGB v91.23 PROJECTION INTEGRITY' in s
+          assert 'projectionDate:x.ctx.item.date' in s
+          assert 'hlgb923EnsureProjectionIntegrity' in s
+          assert 'hlgb_projection_safety_backup' in s
+          scripts=re.findall(r'<script(?:\s[^>]*)?>(.*?)</script>',s,re.S|re.I)
+          for i,js in enumerate(scripts):
+              if not js.strip(): continue
+              fd,path=tempfile.mkstemp(suffix='.js');os.close(fd)
+              Path(path).write_text(js,encoding='utf-8')
+              r=subprocess.run(['node','--check',path],capture_output=True,text=True)
+              os.unlink(path)
+              if r.returncode:
+                  raise SystemExit(f'Inline script {i} failed:\n{r.stderr}')
+          print('validation ok')
+          PY
+      - name: Commit validated index
+        run: |
+          if git diff --quiet -- index.html; then
+            echo 'No index changes to commit'
+            exit 0
+          fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add index.html
+          git commit -m 'Fix projection delivered balance and protect saved notes v91.23'
+          git push origin main
