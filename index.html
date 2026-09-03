@@ -6,7 +6,7 @@
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
-<title>HLGB Confecções — Sistema de Gestão v91.29 Multiusuário</title>
+<title>HLGB Confecções — Sistema de Gestão v91.30 Multiusuário</title>
 <style>
 :root{--navy:#6f3f59;--orange:#c96b8f;--bg:#fbf6f8;--line:#eadde4;--text:#30262c;--muted:#786b73;--ok:#e9f7ef;--warn:#fff5df;--bad:#fdeaea;--rose:#f3dbe5;--rose2:#fff8fb}
 *{box-sizing:border-box}body{margin:0;font-family:Arial,Helvetica,sans-serif;background:var(--bg);color:var(--text)}
@@ -246,11 +246,11 @@ main{min-width:0;}
     <div class="field" style="text-align:left;margin-bottom:10px"><label>E-mail</label><input id="loginUser" type="email" autocomplete="username" placeholder="seuemail@exemplo.com"></div>
     <div class="field" style="text-align:left;margin-bottom:14px"><label>Senha</label><input id="loginPass" type="password" autocomplete="current-password" onkeydown="if(event.key==='Enter')return doLogin()"></div>
     <button class="primary" style="width:100%" onclick="return doLogin()">Entrar</button>
-    <div id="loginError" style="color:#a51d2d;font-size:13px;margin-top:10px"></div><div style="margin-top:12px;font-size:12px;color:#786b73">Acesso protegido pelo Supabase • HLGB Online<br><b style="color:#6f3f59">Versão v91.29</b></div>
+    <div id="loginError" style="color:#a51d2d;font-size:13px;margin-top:10px"></div><div style="margin-top:12px;font-size:12px;color:#786b73">Acesso protegido pelo Supabase • HLGB Online<br><b style="color:#6f3f59">Versão v91.30</b></div>
   </div>
 </div>
 
-<div id="appShell" style="display:none"><header><div class="logo">HLGB <b>CONFECÇÕES</b> <small style="font-size:10px;opacity:.8">v91.29</small></div><div><span id="cloudStatus" style="margin-right:10px;font-size:12px;padding:6px 9px;border:1px solid #ffffff44;border-radius:8px">☁️ Nuvem</span><span id="currentUserLabel" style="margin-right:10px;font-size:13px"></span><button id="cloudSaveBtn" onclick="cloudUploadCurrentDb(true)" style="display:none" title="Sincronização automática">🔄 Sincronizar agora</button> <button id="backupBtn" onclick="backup()" style="display:none">Exportar backup</button> <button id="importBackupBtn" onclick="document.getElementById('backupImportInput').click()" style="display:none">Importar backup</button><input id="backupImportInput" type="file" accept=".json,application/json" style="display:none" onchange="importBackupFile(this)"> <button onclick="logout()">Sair</button></div></header>
+<div id="appShell" style="display:none"><header><div class="logo">HLGB <b>CONFECÇÕES</b> <small style="font-size:10px;opacity:.8">v91.30</small></div><div><span id="cloudStatus" style="margin-right:10px;font-size:12px;padding:6px 9px;border:1px solid #ffffff44;border-radius:8px">☁️ Nuvem</span><span id="currentUserLabel" style="margin-right:10px;font-size:13px"></span><button id="cloudSaveBtn" onclick="cloudUploadCurrentDb(true)" style="display:none" title="Sincronização automática">🔄 Sincronizar agora</button> <button id="backupBtn" onclick="backup()" style="display:none">Exportar backup</button> <button id="importBackupBtn" onclick="document.getElementById('backupImportInput').click()" style="display:none">Importar backup</button><input id="backupImportInput" type="file" accept=".json,application/json" style="display:none" onchange="importBackupFile(this)"> <button onclick="logout()">Sair</button></div></header>
 <div class="app">
 <aside><nav id="nav" class="clean-nav">
 <button class="nav-home active" onclick="page('dashboard',this)">🏠 <span>Início</span></button>
@@ -339,7 +339,7 @@ main{min-width:0;}
   <div class="toolbar" style="align-items:flex-end;flex-wrap:wrap">
     <div class="field" style="min-width:190px"><label>Nº do pedido</label><input id="orderNumberFilter" placeholder="Ex.: 125" oninput="renderOrders()"></div>
     <div class="field" style="min-width:210px"><label>Cliente / produto</label><input class="search" id="orderSearch" placeholder="Pesquisar cliente ou produto" oninput="renderOrders()"></div>
-    <div class="field"><label>Status</label><select id="orderStatusFilter" onchange="renderOrders()"><option value="">Todos</option><option>Aguardando corte</option><option>Corte finalizado</option><option>Pedido em produção</option><option>Pedido finalizado</option></select></div>
+    <div class="field"><label>Etapa</label><select id="orderStatusFilter" onchange="renderOrders()"><option value="">Todas</option><option>Separação / compra de material</option><option>Corte</option><option>Atribuição para produção</option><option>Em produção</option><option>Produção finalizada</option><option>Nota emitida</option><option>Mercadoria pronta</option><option>Pausado</option><option>Cancelado</option></select></div>
     <div class="field"><label>Prioridade</label><select id="orderPriorityFilter" onchange="renderOrders()"><option value="">Todas</option><option>Padrão</option><option>Urgente</option><option>Urgentíssimo</option></select></div>
     <div class="field"><label>De</label><input id="orderStartFilter" type="date"></div>
     <div class="field"><label>Até</label><input id="orderEndFilter" type="date"></div>
@@ -536,13 +536,7 @@ main{min-width:0;}
   <div id="factionPlannerCards" class="cards"></div>
   <div id="factionPlannerTable"></div>
 </div>
-<div class="panel"><h2>Modelos disponíveis para envio</h2>
-<div class="sub">Modelos liberados pelo corte/produção que ainda possuem quantidade disponível para enviar a uma facção.</div>
-<div id="factionAvailableModels" style="margin-top:12px"></div></div>
-<div class="panel"><h2>Envios para facção</h2>
-<div class="toolbar"><button class="primary" onclick="newFaction()">+ Lançar envio manual</button></div>
-<div class="cards" id="factionProductionCards"></div>
-<div id="factionTable"></div></div>
+
 <div class="panel"><h2>Relatório de produção e pagamentos</h2><div id="factionReport"></div></div>
 </section>
 
@@ -5099,7 +5093,7 @@ function renderProjection(){
    let displayNo=String(typeof displayOrderNumber==="function"?displayOrderNumber(o):o.id).toLowerCase();
    let loc=projectionLocationForOrder(o)||"Sem local";
    let st=item.invoiced?"Nota finalizada":(o.status||"Sem status");
-   if(clientF&&!String(o.client||"").toLowerCase().includes(clientF))return false;
+   if(clientF&&!String(item.clientName||o.client||"").toLowerCase().includes(clientF))return false;
    if(productF&&!String(item.name||"").toLowerCase().includes(productF))return false;
    if(orderF&&!displayNo.includes(orderF))return false;
    if(locationF&&loc!==locationF)return false;
@@ -5114,7 +5108,7 @@ function renderProjection(){
  if(pendingEl)pendingEl.innerHTML=pending.length?table(
    ["Pedido","Cliente","Produto","Entrega do cliente","Peças","Valor","Status","Onde está sendo feito","Ação"],
    pending.map(({order:o,item})=>[
-    "#"+(typeof displayOrderNumber==="function"?displayOrderNumber(o):o.id),esc(o.client||"-"),esc(item.name),o.date?fmtDate(o.date):"-",item.qty.toLocaleString("pt-BR"),money(item.value||0),
+    "#"+(typeof displayOrderNumber==="function"?displayOrderNumber(o):o.id),esc(item.clientName||o.client||"-"),esc(item.name),o.date?fmtDate(o.date):"-",item.qty.toLocaleString("pt-BR"),money(item.value||0),
     `<span class="badge">${esc(o.status||"-")}</span>`,esc(projectionLocationForOrder(o)),`<button type="button" class="primary" onclick="changeProjectionDate(${o.id})">📅 Definir datas</button>`
    ])
  ):'<div class="empty">Todos os produtos já estão programados na projeção.</div>';
@@ -5153,14 +5147,14 @@ function renderProjection(){
     let noteStatus=item.invoiced?'<span class="badge ok">Nota finalizada</span>':((+item.invoicedQty||0)>0?`<span class="badge warn">Parcial · ${available.toLocaleString("pt-BR")} disponível</span>`:'<span class="badge">Disponível</span>');
     return [
     `<input class="projectionSelect" type="checkbox" value="${o.id}::${esc(item.key)}" ${item.invoiced?"disabled":""}>`,
-    "#"+(typeof displayOrderNumber==="function"?displayOrderNumber(o):o.id),esc(o.client||"-"),esc(item.name),available.toLocaleString("pt-BR"),money(available*unit),fmtDate(item.date),split?`<b>${esc(split)}</b>`:esc(projectionLocationForOrder(o)||"Sem local"),
+    "#"+(typeof displayOrderNumber==="function"?displayOrderNumber(o):o.id),esc(item.clientName||o.client||"-"),esc(item.name),available.toLocaleString("pt-BR"),money(available*unit),fmtDate(item.date),split?`<b>${esc(split)}</b>`:esc(projectionLocationForOrder(o)||"Sem local"),
     noteStatus,`<button type="button" class="primary" onclick="openProjectionProductionSplit(${o.id},'${String(item.key).replace(/'/g,"\\'")}')">Dividir produção</button> <button type="button" class="secondary" onclick="changeProjectionRemainingDate(${o.id},'${String(item.key).replace(/'/g,"\\'")}')">Mudar data do restante</button> <button type="button" class="secondary" onclick="changeProjectionDate(${o.id})">Todas as datas</button>`
    ]})
  ):'<div class="empty">Nenhum produto previsto para este período.</div>';
 
  let clients={};
  scheduled.forEach(({order:o,item})=>{
-   let k=o.client||"Sem cliente";if(!clients[k])clients[k]={qty:0,value:0,products:0,invoiced:0};
+   let k=item.clientName||o.client||"Sem cliente";if(!clients[k])clients[k]={qty:0,value:0,products:0,invoiced:0};
    clients[k].qty+=item.qty;clients[k].value+=item.value||0;clients[k].products++;if(item.invoiced)clients[k].invoiced+=item.value||0;
  });
  let clientRows=Object.entries(clients).sort((a,b)=>b[1].value-a[1].value),max=Math.max(...clientRows.map(x=>x[1].qty),1);
@@ -5863,7 +5857,7 @@ function newOrder(){
    <div class="field"><label>Nº do pedido</label><input id="mordernumber" type="number" min="1" value="${nextAvailableOrderNumber()}"><div class="sub">Pode alterar manualmente.</div></div>
    <div class="field"><label>Cliente</label><select id="mclient" onchange="updateOrderMatrixTotal()"><option value="">Selecione</option>${clientOptions()}</select></div>
    <div class="field"><label>Data de entrega</label><input id="mdate" type="date" value="${isoDate(new Date())}"></div>
-   <div class="field"><label>Status</label><select id="mstatus"><option value="Aguardando corte">Aguardando corte</option><option value="Pedido para corte">Pedido para corte</option><option value="Pedido em produção">Pedido em produção</option><option value="Pedido finalizado">Pedido finalizado</option></select></div><div class="field"><label>Prioridade</label><select id="mpriority"><option>Padrão</option><option>Urgente</option><option>Urgentíssimo</option></select></div>
+   <input id="mstatus" type="hidden" value="Separação / compra de material"><div class="field"><label>Etapa inicial</label><input value="Separação / compra de material" disabled><div class="sub">O fluxo avança automaticamente conforme as confirmações.</div></div><div class="field"><label>Prioridade</label><select id="mpriority"><option>Padrão</option><option>Urgente</option><option>Urgentíssimo</option></select></div>
  </div>
  <div class="panel">
    <h3>Grade rápida do pedido</h3>
@@ -5873,7 +5867,7 @@ function newOrder(){
    <div id="gradeTotal" class="order-grand-total"></div>
  </div>
  <div class="total">Valor estimado: <span id="orderTotal">R$ 0,00</span></div>
- <button type="button" class="primary modalSave" onclick="modalSave()">💾 Salvar pedido e enviar para corte</button>`,()=>{
+ <button type="button" class="primary modalSave" onclick="modalSave()">💾 Salvar pedido</button>`,()=>{
    let c=db.clients.find(x=>x.id===+mclient.value),items=collectGradeItems();
    if(!c){alert("Selecione o cliente.");return}
    if(!items.length){alert("Digite pelo menos uma quantidade na grade.");return}
@@ -5882,14 +5876,9 @@ function newOrder(){
    let orderId=Date.now();
    let orderNumber=+document.getElementById("mordernumber")?.value||nextAvailableOrderNumber();
    if((db.orders||[]).some(x=>String(x.orderNumber)===String(orderNumber))){alert("Esse número de pedido já existe. Escolha outro número.");return}
-   db.orders.push({id:orderId,orderNumber,client:c.name,clientId:c.id,date:mdate.value,projectionDeliveryDate:"",projectionPlannedAt:"",total,status:mstatus.value||"Aguardando corte",priority:document.getElementById("mpriority")?.value||"Padrão",items:summary,qty:items.reduce((a,x)=>a+x.qty,0),grade:items});
+   db.orders.push({id:orderId,orderNumber,client:c.name,clientId:c.id,date:mdate.value,projectionDeliveryDate:"",projectionPlannedAt:"",total,status:"Separação / compra de material",workflowV9130:true,materialPurchaseConfirmed:false,priority:document.getElementById("mpriority")?.value||"Padrão",items:summary,qty:items.reduce((a,x)=>a+x.qty,0),grade:items});
    if(!db.config)db.config={};db.config.nextOrderNumber=Math.max(+db.config.nextOrderNumber||1,orderNumber+1);
-   db.cuts=Array.isArray(db.cuts)?db.cuts:[];
-   items.forEach((it,i)=>{
-     let prod=db.products.find(p=>+p.id===+it.productId);
-     db.cuts.push({id:orderId+i+1,orderId,op:"PED-"+orderId+(items.length>1?"-"+(i+1):""),productId:+it.productId||null,product:prod?.name||"",fabric:prod?.material||"",color:it.color||"",size:it.size||"",layers:0,meters:0,pieces:+it.qty||0,productionLocationId:null,cutterId:null,cutType:"",status:"Planejado",date:isoDate(new Date())});
-   });
-   closeModal();save();alert("Pedido salvo e sincronizado com a Planilha de Cortes.");
+   closeModal();save();alert("Pedido salvo. Agora confirme a compra necessária e a separação do material; depois ele será liberado automaticamente para o Corte.");
  });
  setTimeout(()=>updateOrderMatrixTotal(),0);
 }
@@ -11025,7 +11014,7 @@ const HLGB_RECORD_MODULES=[
   "factions","factionMasters","factionPayments","cutters",
   "finance","purchases","invoices","receipts","operationalCosts",
   "suppliers","employees","formerEmployees","payroll","terminations","employeeAdvances",
-  "materialLots","separations","projectionInvoices","machines","serviceTypes","colors","sizes","materialChecklists","hubFinanceEntries"];
+  "materialLots","separations","projectionInvoices","machines","serviceTypes","colors","sizes","materialChecklists","hubFinanceEntries","finishedPieces","factionSettings"];
 const HLGB_RECORD_PENDING_KEY="hlgb_records_pending_v91";
 let hlgbRecordSnapshots={};
 let hlgbRecordLastSeen={};
@@ -11046,7 +11035,7 @@ const HLGB_RECORD_WRITE_AREA={
  factions:"faccoes",factionMasters:"faccoes",factionPayments:"faccoes",cutters:"cortadores",
  finance:"financeiro",purchases:"financeiro",invoices:"financeiro",receipts:"financeiro",operationalCosts:"financeiro",
  suppliers:"fornecedores",employees:"funcionarios",formerEmployees:"exFuncionarios",payroll:"folhaPagamento",terminations:"folhaPagamento",employeeAdvances:"folhaPagamento",
- materialLots:"materiais",separations:"materiais",projectionInvoices:"projecao",colors:"cadastros",sizes:"cadastros"
+ materialLots:"materiais",separations:"materiais",projectionInvoices:"projecao",colors:"cadastros",sizes:"cadastros",finishedPieces:"producao",factionSettings:"faccoes"
 };
 function hlgbRecordCanWrite(module){
   if(isOwnerUser())return true;
@@ -12599,15 +12588,9 @@ function hubFinanceManualSync(){alert("O botão de sincronização está prepara
     let summary=useGrade
       ? grade.map(it=>`${it.qty} ${productById(it.productId)?.name||''} ${it.color||''}${it.size?` Tam ${it.size}`:''}`.trim()).join(' | ')
       : lines.map(x=>`${x.qty} ${x.product?.name||'Produto'}`).join(' | ');
-    let o={id:orderId,orderNumber,client:c?.name||'Sem cliente',clientId:c?.id||null,date:document.getElementById('mdate')?.value||isoDate(new Date()),projectionDeliveryDate:'',projectionPlannedAt:'',total,status:document.getElementById('mstatus')?.value||'Aguardando corte',priority:document.getElementById('mpriority')?.value||'Padrão',items:summary,qty,totalQty:qty,grade,isAdHoc:true,noGrade:!useGrade};
+    let o={id:orderId,orderNumber,client:c?.name||'Sem cliente',clientId:c?.id||null,date:document.getElementById('mdate')?.value||isoDate(new Date()),projectionDeliveryDate:'',projectionPlannedAt:'',total,status:'Separação / compra de material',workflowV9130:true,materialPurchaseConfirmed:false,priority:document.getElementById('mpriority')?.value||'Padrão',items:summary,qty,totalQty:qty,grade,isAdHoc:true,noGrade:!useGrade};
     db.orders=Array.isArray(db.orders)?db.orders:[];db.orders.push(o);
     if(!db.config)db.config={};db.config.nextOrderNumber=Math.max(+db.config.nextOrderNumber||1,orderNumber+1);
-    db.cuts=Array.isArray(db.cuts)?db.cuts:[];
-    let cutRows=useGrade?grade:lines.map(x=>({productId:x.productId,qty:x.qty,color:'',size:''}));
-    cutRows.forEach((it,i)=>{
-      let prod=productById(it.productId);
-      db.cuts.push({id:orderId+i+1,orderId,op:'PED-'+orderId+(cutRows.length>1?'-'+(i+1):''),productId:+it.productId||null,product:prod?.name||'',fabric:prod?.material||'',color:it.color||'',size:it.size||'',layers:0,meters:0,pieces:+(it.qty??it.qty)||0,productionLocationId:null,cutterId:null,cutType:'',status:'Planejado',date:isoDate(new Date()),isAdHoc:true,noGrade:!useGrade});
-    });
     closeModal();save();
     try{renderOrders();renderCuts();renderProjection()}catch(e){}
     alert('Pedido avulso salvo. Ele seguirá o mesmo fluxo de um pedido normal.');
@@ -12621,7 +12604,7 @@ function hubFinanceManualSync(){alert("O botão de sincronização está prepara
         <div class="field"><label>Nº do pedido</label><input id="mordernumber" type="number" min="1" value="${nextAvailableOrderNumber()}"><div class="sub">Pode alterar manualmente.</div></div>
         <div class="field"><label>Cliente (opcional)</label><select id="mclient" onchange="hlgb922ClientChanged()"><option value="">Sem cliente</option>${clientOptions()}</select><div class="sub">Pode deixar sem cliente e definir depois, se precisar.</div></div>
         <div class="field"><label>Data de entrega</label><input id="mdate" type="date" value="${today}"></div>
-        <div class="field"><label>Status</label><select id="mstatus"><option value="Aguardando corte">Aguardando corte</option><option value="Pedido para corte">Pedido para corte</option><option value="Pedido em produção">Pedido em produção</option><option value="Pedido finalizado">Pedido finalizado</option></select></div>
+        <input id="mstatus" type="hidden" value="Separação / compra de material"><div class="field"><label>Etapa inicial</label><input value="Separação / compra de material" disabled><div class="sub">A etapa muda sozinha conforme o fluxo.</div></div>
         <div class="field"><label>Prioridade</label><select id="mpriority"><option>Padrão</option><option>Urgente</option><option>Urgentíssimo</option></select></div>
         <div class="field"><label>Como lançar as quantidades?</label><select id="adHocGradeMode" onchange="hlgb922ToggleAdHocGrade()"><option value="no" selected>Sem grade — quantidade total por produto</option><option value="yes">Com grade completa — igual pedido normal</option></select></div>
       </div>
@@ -13094,4 +13077,269 @@ function hubFinanceManualSync(){alert("O botão de sincronização está prepara
 })();
 </script>
 
+
+<!-- HLGB v91.30 PACOTE NOTURNO SEGURO -->
+<script>
+(function(){
+  const n930=v=>String(v??'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').trim().toLowerCase();
+  const c930=v=>{try{return JSON.parse(JSON.stringify(v))}catch(e){return v}};
+  const id930=()=>Date.now()+Math.floor(Math.random()*900000);
+  function ensure930(){
+    db.finishedPieces=Array.isArray(db.finishedPieces)?db.finishedPieces:[];
+    db.factionSettings=Array.isArray(db.factionSettings)?db.factionSettings:[];
+    db.employeeAdvances=Array.isArray(db.employeeAdvances)?db.employeeAdvances:[];
+    db.projectionInvoices=Array.isArray(db.projectionInvoices)?db.projectionInvoices:[];
+  }
+
+  // ---------- Exclusão explícita global: só apaga o que o clique do usuário removeu ----------
+  // A comparação é entre o estado imediatamente antes e depois do clique de EXCLUIR.
+  // Não volta a inferir exclusões por ausência em navegadores antigos.
+  async function explicitDelete930(module,row){
+    if(!row||row.id==null||typeof hlgbRecordSaveWithRetry!=='function')return;
+    try{
+      if(!hlgbRecordReady){let ok=await hlgbEnsureRecordsOnlineAfterLogin();if(!ok)throw new Error('Nuvem indisponível')}
+      let data={...c930(row),__hlgb_explicit_delete:true};
+      let out=await hlgbRecordSaveWithRetry(module,String(row.id),data,true);
+      if(!out||out.applied!==true)throw new Error('Exclusão não confirmada');
+      try{localSaveOnly()}catch(e){}
+    }catch(err){
+      db[module]=Array.isArray(db[module])?db[module]:[];
+      if(!db[module].some(x=>String(x.id)===String(row.id)))db[module].push(row);
+      try{localSaveOnly();renderAll()}catch(e){}
+      alert('A exclusão NÃO foi confirmada na nuvem. O registro foi restaurado para não perder informação.');
+    }
+  }
+  document.addEventListener('click',function(ev){
+    let b=ev.target?.closest?.('button');if(!b)return;
+    let txt=n930((b.textContent||'')+' '+(b.getAttribute('onclick')||''));
+    if(!txt.includes('excluir')&&!txt.includes('delete'))return;
+    let before={};
+    (HLGB_RECORD_MODULES||[]).forEach(m=>{before[m]=new Map((Array.isArray(db[m])?db[m]:[]).filter(x=>x&&x.id!=null).map(x=>[String(x.id),c930(x)]))});
+    setTimeout(()=>{
+      (HLGB_RECORD_MODULES||[]).forEach(m=>{
+        let after=new Set((Array.isArray(db[m])?db[m]:[]).filter(x=>x&&x.id!=null).map(x=>String(x.id)));
+        for(const [id,row] of before[m])if(!after.has(id))explicitDelete930(m,row);
+      });
+    },0);
+  },true);
+
+  // ---------- Fluxo automático do pedido ----------
+  function shortage930(o){try{return (consolidatedPurchaseNeed(o)||[]).some(x=>(+x.shortage||0)>0.0001)}catch(e){return false}}
+  function sep930(o){return (db.separations||[]).find(x=>+x.orderId===+o.id)}
+  function materialReady930(o){return !!sep930(o)?.done && (!shortage930(o)||o.materialPurchaseConfirmed===true)}
+  function prods930(o){return (db.production||[]).filter(p=>+p.orderId===+o.id)}
+  function cuts930(o){return (db.cuts||[]).filter(c=>+c.orderId===+o.id)}
+  window.hlgb930OrderStatus=function(o){
+    if(!o)return '-';
+    if(o.cancelled||n930(o.status)==='cancelado')return 'Cancelado';
+    if(o.paused)return 'Pausado';
+    if(o.readyForStock)return 'Mercadoria pronta';
+    if(o.invoiceReady||o.noteReady||projectionItemsForOrder(o).every(x=>x.invoiced))return 'Nota emitida';
+    let ps=prods930(o),assigned=ps.filter(p=>p.productionLocationId||p.factionId),allReady=assigned.length>0&&assigned.every(p=>n930(p.stage)==='pronto'||n930(p.stage)==='finalizado'||(+p.done||0)>=(+p.planned||0));
+    if(allReady)return 'Produção finalizada';
+    if(assigned.length)return 'Em produção';
+    if(cuts930(o).some(c=>n930(c.status)==='finalizado'))return 'Atribuição para produção';
+    if(o.workflowV9130&&!materialReady930(o))return 'Separação / compra de material';
+    if(cuts930(o).length||materialReady930(o))return 'Corte';
+    return o.status||'Pedido criado';
+  };
+  function timeline930(o){
+    let st=hlgb930OrderStatus(o),seq=['Separação / compra de material','Corte','Atribuição para produção','Em produção','Produção finalizada'];
+    let idx=seq.indexOf(st);if(st==='Nota emitida'||st==='Mercadoria pronta')idx=seq.length;
+    return `<div class="sub" style="margin-top:5px">${seq.map((x,i)=>`<span class="badge ${i<idx?'ok':i===idx?'warn':''}" style="margin:1px">${i<idx?'✓ ':i===idx?'● ':'○ '}${esc(x.replace('Separação / compra de material','Material'))}</span>`).join('')}</div>`;
+  }
+  window.confirmOrderMaterialPurchase=function(id){
+    let o=(db.orders||[]).find(x=>+x.id===+id);if(!o)return;
+    o.materialPurchaseConfirmed=!o.materialPurchaseConfirmed;o.materialPurchaseConfirmedAt=o.materialPurchaseConfirmed?new Date().toISOString():null;
+    release930(o);save();renderSeparation();renderOrders();renderCuts();
+  };
+  function release930(o){
+    if(!o?.workflowV9130||!materialReady930(o))return false;
+    if(['Separação / compra de material','Pedido criado','Aguardando material'].includes(o.status))o.status='Aguardando corte';
+    try{syncOrdersToCuts()}catch(e){}
+    return true;
+  }
+  const oldMarkSeparation930=window.markSeparation;
+  window.markSeparation=function(orderId){
+    oldMarkSeparation930(orderId);
+    let o=(db.orders||[]).find(x=>+x.id===+orderId);if(o){release930(o);try{save()}catch(e){}}
+    try{renderSeparation();renderOrders();renderCuts()}catch(e){}
+  };
+  const oldRenderSep930=window.renderSeparation;
+  window.renderSeparation=function(){
+    oldRenderSep930();let id=+document.getElementById('separationOrder')?.value,o=(db.orders||[]).find(x=>+x.id===id);if(!o)return;
+    let box=document.getElementById('separationTable');if(!box)return;
+    let action=box.querySelector('.separation-action-box');if(!action)return;
+    let need=shortage930(o),purchaseOk=!need||o.materialPurchaseConfirmed===true;
+    let wrap=document.createElement('div');wrap.style.cssText='margin-top:12px;padding-top:12px;border-top:1px solid #eadde4';
+    wrap.innerHTML=need?`<div style="font-weight:800;margin-bottom:7px">🛒 Confirmação da compra de material</div><button type="button" class="${purchaseOk?'secondary':'primary'} separation-main-action" onclick="confirmOrderMaterialPurchase(${o.id})">${purchaseOk?'✅ COMPRA CONFIRMADA — reabrir':'✅ CONFIRMAR COMPRA DO MATERIAL'}</button> <span class="badge ${purchaseOk?'ok':'warn'}">${purchaseOk?'COMPRA OK':'AGUARDANDO COMPRA'}</span>`:`<div><span class="badge ok">✅ Não há material faltando: compra liberada automaticamente</span></div>`;
+    action.appendChild(wrap);
+    if(o.workflowV9130&&materialReady930(o))release930(o);
+  };
+  const oldNeedCut930=window.pedidosQuePrecisamDeCorte;
+  window.pedidosQuePrecisamDeCorte=function(){
+    return (oldNeedCut930?oldNeedCut930():[]).filter(o=>!o.workflowV9130||materialReady930(o));
+  };
+
+  // Editar pedido mostra a etapa, mas não permite alterar status manualmente.
+  const oldEdit930=window.editOrder;
+  window.editOrder=function(id){
+    let out=oldEdit930(id);setTimeout(()=>{let st=document.getElementById('mstatus');if(st){st.disabled=true;let f=st.closest('.field');if(f){let o=(db.orders||[]).find(x=>+x.id===+id);f.querySelector('label').textContent='Etapa automática';let note=document.createElement('div');note.className='sub';note.textContent='O status muda automaticamente conforme o andamento real.';f.appendChild(note);if(o)st.value=o.status||st.value}}},20);return out;
+  };
+  window.renderOrders=function(){
+    ensureOrderNumbers();fillSeparationOrders();
+    let q=(document.getElementById('orderSearch')?.value||'').toLowerCase().trim(),num=(document.getElementById('orderNumberFilter')?.value||'').trim(),status=document.getElementById('orderStatusFilter')?.value||'',priority=document.getElementById('orderPriorityFilter')?.value||'',start=document.getElementById('orderStartFilter')?.value||'',end=document.getElementById('orderEndFilter')?.value||'';
+    let arr=(db.orders||[]).filter(o=>{let st=hlgb930OrderStatus(o);if(num&&!displayOrderNumber(o).includes(num)&&!String(o.id||'').includes(num))return false;let hay=(String(o.client||'')+' '+String(o.items||'')+' '+orderProductSummary(o)).toLowerCase();if(q&&!hay.includes(q))return false;if(status&&st!==status&&String(o.status||'')!==status)return false;if(priority&&String(o.priority||'Padrão')!==priority)return false;let d=String(o.date||'').slice(0,10);if(start&&d<start)return false;if(end&&d>end)return false;return true});
+    let qty=arr.reduce((a,o)=>a+qtyOfOrder(o),0),value=arr.reduce((a,o)=>a+(+o.total||0),0),done=arr.filter(o=>['Nota emitida','Mercadoria pronta'].includes(hlgb930OrderStatus(o))).length,cards=document.getElementById('orderSummaryCards');
+    if(cards)cards.innerHTML=`<div class="card"><small>Pedidos encontrados</small><strong>${arr.length}</strong></div><div class="card"><small>Total de peças</small><strong>${qty.toLocaleString('pt-BR')}</strong></div><div class="card"><small>Valor total dos pedidos</small><strong>${money(value)}</strong></div><div class="card"><small>Finalizados</small><strong>${done}</strong></div>`;
+    let fs=document.getElementById('orderFilterSummary');if(fs)fs.textContent=(num||q||status||priority||start||end)?'Exibindo pedidos conforme os filtros selecionados.':'Exibindo todos os pedidos cadastrados.';
+    let nextEl=document.getElementById('nextOrderNumber');if(nextEl&&document.activeElement!==nextEl)nextEl.value=nextAvailableOrderNumber();
+    let tbl=document.getElementById('ordersTable')||window.ordersTable;if(!tbl)return;
+    tbl.innerHTML=table(['Nº pedido','Cliente','Entrega','Qtd.','Valor','Prioridade','Etapa atual','Ações'],arr.slice().sort((a,b)=>(+displayOrderNumber(b)||0)-(+displayOrderNumber(a)||0)).map(o=>{
+      let st=hlgb930OrderStatus(o),assign=(o.clientId==null||Object.keys(o.productClientAssignments||{}).length)?` <button class="secondary" onclick="assignOrderProductsToClient(${o.id})">👤 Clientes por produto</button>`:'';
+      let prodDone=st==='Produção finalizada',finalActions=o.workflowV9130&&prodDone?` <button class="primary" onclick="notaPronta(${o.id})">Nota</button> <button class="secondary" onclick="markOrderReadyForStock(${o.id})">📦 Pronta entrega</button>`:(!o.workflowV9130?` <button class="secondary" onclick="notaPronta(${o.id})">Nota pronta</button>`:'');
+      return [esc(displayOrderNumber(o)),esc(hlgb930OrderClientLabel(o)),o.date?new Date(o.date+'T12:00').toLocaleDateString('pt-BR'):'-',qtyOfOrder(o).toLocaleString('pt-BR'),money(o.total),priorityBadge(o.priority||'Padrão'),`<span class="badge">${esc(st)}</span>${timeline930(o)}`,`<button class="secondary" onclick="editOrder(${o.id})">Editar</button>${assign} <button class="secondary" onclick="registerMissingPieces(${o.id})">⚠️ Faltas</button>${finalActions} <button class="danger" onclick="moveOrderToTrash(${o.id})">Excluir</button>`];
+    }));
+  };
+  window.markOrderReadyForStock=function(id){
+    let o=(db.orders||[]).find(x=>+x.id===+id);if(!o||o.readyForStock)return;if(!confirm('Enviar os produtos finalizados deste pedido para Mercadoria pronta / pronta entrega?'))return;
+    let g={};(o.grade||[]).forEach(x=>{let k=String(x.productId||'');if(k)g[k]=(g[k]||0)+(+x.qty||0)});db.stock=Array.isArray(db.stock)?db.stock:[];
+    Object.entries(g).forEach(([pid,qty])=>{let pr=(db.products||[]).find(x=>+x.id===+pid),name=pr?.name||'Produto',st=db.stock.find(x=>x.cat==='Peças prontas — Pronto para venda'&&String(x.item||'')===name);if(st)st.qty=(+st.qty||0)+qty;else db.stock.push({id:id930(),item:name,cat:'Peças prontas — Pronto para venda',qty,unit:'un.',min:0,sourceOrderId:o.id})});
+    o.readyForStock=true;o.readyForStockAt=isoDate(new Date());o.status='Mercadoria pronta';save();renderOrders();try{renderStock()}catch(e){}
+  };
+
+  // ---------- Atribuir somente modelos selecionados de pedido sem cliente ----------
+  window.hlgb930OrderClientLabel=function(o){
+    let a=o?.productClientAssignments||{},vals=[...new Set(Object.values(a).map(x=>x?.clientName).filter(Boolean))];
+    if(o?.clientId)return o.client||'-';if(vals.length)return `Sem cliente · ${vals.join(' / ')}`;return o?.client||'Sem cliente';
+  };
+  function assignment930(o,pid){return o?.productClientAssignments?.[String(pid)]||null}
+  window.hlgb930ProjectionClientName=(o,item)=>assignment930(o,item?.productId)?.clientName||o?.client||'Sem cliente';
+  window.assignOrderProductsToClient=function(id){
+    let o=(db.orders||[]).find(x=>+x.id===+id);if(!o)return;let map={};(o.grade||[]).forEach(g=>{let pid=+g.productId||0;if(pid)map[pid]=(map[pid]||0)+(+g.qty||0)});let pids=Object.keys(map);if(!pids.length){alert('Este pedido não possui produtos identificados.');return}
+    let clients=(db.clients||[]).slice().sort((a,b)=>String(a.name||'').localeCompare(String(b.name||''),'pt-BR'));
+    let rows=pids.map(pid=>{let p=(db.products||[]).find(x=>+x.id===+pid),a=assignment930(o,pid);return `<tr><td><input class="opc930" type="checkbox" value="${pid}"></td><td><b>${esc(p?.name||'Produto')}</b></td><td>${map[pid].toLocaleString('pt-BR')}</td><td>${esc(a?.clientName||'Sem cliente')}</td></tr>`}).join('');
+    openModal('Atribuir produtos do pedido a um cliente',`<div class="sub">Marque somente os modelos que pertencem ao cliente escolhido. Os demais continuam sem cliente e podem ser atribuídos depois.</div><div class="field" style="margin:12px 0"><label>Cliente</label><select id="opcClient"><option value="">Selecione</option>${clients.map(c=>`<option value="${c.id}">${esc(c.name)}</option>`).join('')}</select></div><div style="overflow:auto"><table><tr><th>Selecionar</th><th>Produto</th><th>Qtd.</th><th>Cliente atual</th></tr>${rows}</table></div><button type="button" class="primary modalSave">Salvar atribuição dos selecionados</button>`,()=>{
+      let c=clients.find(x=>+x.id===+document.getElementById('opcClient')?.value),chosen=[...document.querySelectorAll('.opc930:checked')].map(x=>x.value);if(!c){alert('Selecione o cliente.');return}if(!chosen.length){alert('Marque pelo menos um produto.');return}
+      o.productClientAssignments=o.productClientAssignments||{};chosen.forEach(pid=>o.productClientAssignments[String(pid)]={clientId:c.id,clientName:c.name,assignedAt:new Date().toISOString()});
+      let all=pids.map(pid=>o.productClientAssignments[String(pid)]).filter(Boolean),names=[...new Set(all.map(x=>x.clientName))];if(all.length===pids.length&&names.length===1){o.clientId=c.id;o.client=c.name}
+      closeModal();save();renderOrders();try{renderProjection()}catch(e){}
+    });
+  };
+  const oldProjItems930=window.projectionItemsForOrder;
+  window.projectionItemsForOrder=function(o){
+    return oldProjItems930(o).map(it=>{let a=assignment930(o,it.productId);if(!a)return it;let unit=0;try{unit=+suggestedPrice(a.clientId,it.productId)||0}catch(e){};return {...it,clientId:a.clientId,clientName:a.clientName,value:unit>0?unit*it.qty:it.value}});
+  };
+
+  // ---------- Corte por modelo: saldo realmente baixa após cada atribuição ----------
+  const oldSyncCut930=window.syncFinalizedCutsToProduction;
+  window.syncFinalizedCutsToProduction=function(){
+    if(typeof hlgb916EnsureData==='function')hlgb916EnsureData();db.cuts=Array.isArray(db.cuts)?db.cuts:[];db.production=Array.isArray(db.production)?db.production:[];
+    let changed=[];
+    db.cuts.filter(c=>n930(c.status)==='finalizado').forEach(c=>{
+      let o=(db.orders||[]).find(x=>+x.id===+c.orderId);if(!o)return;let gm=new Map();(o.grade||[]).forEach(g=>{let pid=+g.productId||0,q=Math.max(0,+g.qty||0);if(pid&&q)gm.set(pid,(gm.get(pid)||0)+q)});if(!gm.size&&c.productId)gm.set(+c.productId,+c.pieces||0);
+      let all=db.production.filter(p=>+p.cutId===+c.id);
+      if(all.length===1&&gm.size>1&&all[0]&&(all[0].productionLocationId||all[0].factionId||(+all[0].done||0)>0)&&!all[0].cutProductKey)return;
+      for(const [pid,total] of gm){
+        let rows=all.filter(p=>+p.productId===+pid||String(p.cutProductKey||'')===`${c.id}:${pid}`),assigned=rows.filter(p=>p.productionLocationId||p.factionId||(+p.done||0)>0||p.finishedAt),used=assigned.reduce((a,p)=>a+(+p.planned||0),0),remaining=Math.max(0,total-used),free=rows.filter(p=>!p.productionLocationId&&!p.factionId&&!(+p.done||0)&&!p.finishedAt);
+        let row=free[0];if(!row&&remaining>0){let pr=(db.products||[]).find(x=>+x.id===+pid);row={id:id930(),cutId:c.id,orderId:o.id,productId:pid,op:c.op||('CORTE-'+c.id),product:pr?.name||c.product||'Produto',client:o.client||c.client||'',color:'',size:'',planned:remaining,done:0,stage:'Aguardando atribuição',productionLocationId:null,factionId:null,date:c.finishedAt||isoDate(new Date()),assignmentSource:true,cutProductKey:`${c.id}:${pid}`};db.production.push(row);changed.push(row)}
+        if(row){let pr=(db.products||[]).find(x=>+x.id===+pid),dirty=false;let set=(k,v)=>{if(String(row[k]??'')!==String(v??'')){row[k]=v;dirty=true}};set('planned',remaining);set('productId',pid);set('product',pr?.name||row.product);set('cutProductKey',`${c.id}:${pid}`);set('stage',remaining>0?'Aguardando atribuição':'Totalmente atribuído');if(dirty)changed.push(row)}
+        free.slice(1).forEach(x=>{if((+x.planned||0)!==0||x.stage!=='Consolidado'){x.planned=0;x.stage='Consolidado';changed.push(x)}});
+      }
+    });
+    if(changed.length){try{localSaveOnly();hlgbRecordPendingStore()}catch(e){}}
+    return changed.length>0;
+  };
+  const oldOpenAssign930=window.openCutAssignment;
+  window.openCutAssignment=function(id){
+    let before=(db.production||[]).find(x=>+x.id===+id),oldPlan=+before?.planned||0;let out=oldOpenAssign930(id);
+    let modal=document.getElementById('modal');let btn=modal?.querySelector('.modalSave');if(btn&&!btn.dataset.v930){btn.dataset.v930='1';btn.addEventListener('click',()=>setTimeout(()=>{try{syncFinalizedCutsToProduction();renderCutAssignmentQueue();renderCuts();let p=(db.production||[]).find(x=>+x.id===+id);if(p&&+p.planned>oldPlan)p.planned=oldPlan}catch(e){}},80))}return out;
+  };
+
+  // ---------- Cortes do dia: programação manual por data/cortador ----------
+  window.prepareCutSchedule=function(){
+    db.cuts=Array.isArray(db.cuts)?db.cuts:[];let today=isoDate(new Date()),changed=false;
+    pedidosQuePrecisamDeCorte().forEach(o=>{let c=obterCorteDoPedido(o),w=cutPriorityWeight(o);if(!c.plannedCutDate&&w<=1){c.plannedCutDate=today;c.autoScheduledPriority=true;changed=true}});
+    if(changed)try{persistDb()}catch(e){}
+  };
+  window.openDailyCutPlanner=function(){
+    let opts=pedidosQuePrecisamDeCorte().map(o=>{let c=obterCorteDoPedido(o);return `<option value="${c.id}">#${esc(displayOrderNumber(o))} — ${esc(orderProductSummary(o))} — ${(+c.pieces||0).toLocaleString('pt-BR')} pç</option>`}).join(''),cuts=(db.cutters||[]).filter(x=>x.active!==false);
+    openModal('Programar corte',`<div class="grid"><div class="field"><label>Pedido / corte</label><select id="dcpCut"><option value="">Selecione</option>${opts}</select></div><div class="field"><label>Data programada</label><input id="dcpDate" type="date" value="${document.getElementById('dailyCutDate')?.value||isoDate(new Date())}"></div><div class="field"><label>Cortador</label><select id="dcpCutter"><option value="">Selecione</option>${cuts.map(c=>`<option value="${c.id}">${esc(c.name)}</option>`).join('')}</select></div></div><button type="button" class="primary modalSave">Salvar programação</button>`,()=>{let c=(db.cuts||[]).find(x=>+x.id===+document.getElementById('dcpCut')?.value);if(!c){alert('Selecione o corte.');return}c.plannedCutDate=document.getElementById('dcpDate')?.value||'';c.cutterId=+document.getElementById('dcpCutter')?.value||null;c.scheduleUpdatedAt=new Date().toISOString();closeModal();save();renderCuts()});
+  };
+  window.renderDailyCuts=function(){
+    let el=document.getElementById('dailyCutTable'),sum=document.getElementById('dailyCutSummary'),dateEl=document.getElementById('dailyCutDate');if(!el)return;if(dateEl&&!dateEl.value)dateEl.value=isoDate(new Date());let day=dateEl?.value||isoDate(new Date()),all=(db.cuts||[]).filter(c=>c.plannedCutDate===day||(n930(c.status)==='finalizado'&&c.finishedAt===day));
+    all.sort((a,b)=>{let wa=cutPriorityWeight(cutOrderFor(a)),wb=cutPriorityWeight(cutOrderFor(b));if(wa!==wb)return wa-wb;return String(a.op||'').localeCompare(String(b.op||''))});let pending=all.filter(c=>n930(c.status)!=='finalizado'),done=all.filter(c=>n930(c.status)==='finalizado'),pqty=pending.reduce((a,c)=>a+(+c.pieces||0),0),dqty=done.reduce((a,c)=>a+(+c.pieces||0),0);
+    if(sum)sum.innerHTML=`<div class="card"><small>Programados</small><strong>${all.length}</strong></div><div class="card"><small>A cortar</small><strong>${pending.length}</strong><div>${pqty.toLocaleString('pt-BR')} peças</div></div><div class="card"><small>Finalizados</small><strong>${done.length}</strong><div>${dqty.toLocaleString('pt-BR')} peças</div></div><div class="card"><small>Cortadores no dia</small><strong>${new Set(all.map(x=>x.cutterId).filter(Boolean)).size}</strong></div>`;
+    let cutters=(db.cutters||[]).filter(x=>x.active!==false);if(!all.length){el.innerHTML='<div class="empty">Nenhum corte programado para este dia. Use “+ Programar corte”.</div>';return}
+    el.innerHTML=table(['Pedido/OP','Cliente','Produto','Peças','Prioridade','Programação','Status','Ações'],all.map(c=>{let o=cutOrderFor(c),finished=n930(c.status)==='finalizado';return [esc(displayOrderNumber(o||{id:c.orderId})||c.op||c.orderId),esc(o?.client||c.client||'-'),esc(o?orderProductSummary(o):(c.product||'-')),(+c.pieces||0).toLocaleString('pt-BR'),priorityBadge(o?.priority||'Padrão'),finished?`${fmtDate(c.plannedCutDate||c.finishedAt)} · ${esc((db.cutters||[]).find(x=>+x.id===+c.cutterId)?.name||'-')}`:`<div class="cut-schedule-inline"><input id="cutDate_${c.id}" type="date" value="${c.plannedCutDate||day}"><select id="cutCutter_${c.id}"><option value="">Cortador</option>${cutters.map(x=>`<option value="${x.id}" ${+x.id===+c.cutterId?'selected':''}>${esc(x.name)}</option>`).join('')}</select><select id="cutType_${c.id}"><option value="">Tipo</option><option value="Interno" ${c.cutType==='Interno'?'selected':''}>Interno</option><option value="Externo" ${c.cutType==='Externo'?'selected':''}>Externo</option></select><button class="secondary" onclick="saveCutSchedule(${c.id})">Salvar</button></div>`,finished?'<span class="badge ok">Finalizado</span>':'<span class="badge warn">A cortar</span>',finished?`<button class="secondary" onclick="viewCutGradeComparison(${c.id})">Pedido original × corte</button>`:`<button class="primary" onclick="finishCut(${c.id})">✅ Finalizar</button> <button class="secondary" onclick="editCut(${c.id})">Detalhes</button>`] }));
+  };
+
+  // ---------- Peças prontas por confecção: ledger independente ----------
+  function internalLocations930(){let factionLoc=new Set((db.factionMasters||[]).map(f=>String(f.productionLocationId||'')).filter(Boolean));return (db.productionLocations||[]).filter(x=>x.active!==false&&!factionLoc.has(String(x.id)))}
+  function finishedRange930(){let d=document.getElementById('finishedPiecesDate')?.value||isoDate(new Date()),m=d.slice(0,7);return {d,m}}
+  function finishedQty930(rows){return rows.reduce((a,x)=>a+(+x.qty||0),0)}
+  window.renderFinishedPieces=function(){ensure930();let date=document.getElementById('finishedPiecesDate'),loc=document.getElementById('finishedPiecesLocation'),tbl=document.getElementById('finishedPiecesTable'),cards=document.getElementById('finishedPiecesCards');if(!tbl)return;if(date&&!date.value)date.value=isoDate(new Date());let cur=loc?.value||'',locations=internalLocations930();if(loc){loc.innerHTML='<option value="">Todas as confecções</option>'+locations.map(x=>`<option value="${x.id}">${esc(x.name)}</option>`).join('');if(locations.some(x=>String(x.id)===cur))loc.value=cur}let {d,m}=finishedRange930(),arr=db.finishedPieces.filter(x=>(!loc?.value||String(x.locationId)===String(loc.value))),day=arr.filter(x=>x.date===d),month=arr.filter(x=>String(x.date||'').slice(0,7)===m),all=arr;
+    let cutTotal=(db.production||[]).filter(p=>!loc?.value||String(p.productionLocationId)===String(loc.value)).reduce((a,p)=>a+(+p.planned||0),0);if(cards)cards.innerHTML=`<div class="card"><small>Produzido no dia</small><strong>${finishedQty930(day).toLocaleString('pt-BR')}</strong></div><div class="card"><small>Produzido no mês</small><strong>${finishedQty930(month).toLocaleString('pt-BR')}</strong></div><div class="card"><small>Total lançado</small><strong>${finishedQty930(all).toLocaleString('pt-BR')}</strong></div><div class="card"><small>Total atribuído/cortado ao local</small><strong>${cutTotal.toLocaleString('pt-BR')}</strong></div>`;
+    let q=(document.getElementById('finishedPiecesSearch')?.value||'').toLowerCase();let rows=all.filter(x=>(!d||x.date===d)&&(!q||String(x.productName||'').toLowerCase().includes(q))).sort((a,b)=>String(b.createdAt||'').localeCompare(String(a.createdAt||'')));
+    tbl.innerHTML=rows.length?table(['Data','Confecção','Modelo','Pedido/OP','Grade lançada','Peças','Responsável','Ação'],rows.map(x=>[fmtDate(x.date),esc(x.locationName||'-'),esc(x.productName||'-'),esc(x.orderNumber||x.op||'-'),esc((x.grade||[]).map(g=>`${g.color||'-'} ${g.size||'-'}: ${g.qty}`).join(' · ')||'Quantidade total'),(+x.qty||0).toLocaleString('pt-BR'),esc(x.manager||x.createdBy||'-'),`<button class="danger" onclick="deleteFinishedPieces(${x.id})">Excluir</button>`])):'<div class="empty">Nenhuma produção lançada para esta data/filtro.</div>';
+  };
+  window.newFinishedPieces=function(){ensure930();let locs=internalLocations930();if(!locs.length){alert('Cadastre uma confecção em Locais de produção.');return}let prods=(db.production||[]).filter(p=>p.productionLocationId&&!p.factionId);openModal('Lançar peças prontas do dia',`<div class="grid"><div class="field"><label>Data</label><input id="fp930Date" type="date" value="${document.getElementById('finishedPiecesDate')?.value||isoDate(new Date())}"></div><div class="field"><label>Confecção</label><select id="fp930Loc" onchange="refreshFinishedProductionOptions()"><option value="">Selecione</option>${locs.map(l=>`<option value="${l.id}">${esc(l.name)}</option>`).join('')}</select></div><div class="field"><label>Modelo atribuído ao local</label><select id="fp930Prod" onchange="renderFinishedGrade930()"><option value="">Selecione a confecção primeiro</option></select></div><div class="field"><label>Responsável / gerente</label><input id="fp930Manager" value="${esc(cloudUser?.user_metadata?.name||cloudUser?.email||'')}"></div></div><div id="fp930CutInfo" class="sub" style="margin:10px 0"></div><div id="fp930Grade"></div><button type="button" class="primary modalSave">Salvar produção do dia</button>`,()=>{let p=prods.find(x=>+x.id===+document.getElementById('fp930Prod')?.value),l=locs.find(x=>+x.id===+document.getElementById('fp930Loc')?.value);if(!p||!l){alert('Selecione a confecção e o modelo.');return}let inputs=[...document.querySelectorAll('.fp930Qty')],grade=inputs.map(i=>({color:i.dataset.color||'',size:i.dataset.size||'',qty:Math.max(0,+i.value||0)})).filter(x=>x.qty>0),qty=grade.reduce((a,x)=>a+x.qty,0);if(!inputs.length)qty=Math.max(0,+document.getElementById('fp930Total')?.value||0);if(qty<=0){alert('Informe a quantidade produzida.');return}let o=(db.orders||[]).find(x=>+x.id===+p.orderId),pr=(db.products||[]).find(x=>+x.id===+p.productId);db.finishedPieces.push({id:id930(),date:document.getElementById('fp930Date')?.value||isoDate(new Date()),locationId:l.id,locationName:l.name,productionId:p.id,cutId:p.cutId||null,orderId:p.orderId||null,orderNumber:o?displayOrderNumber(o):(p.op||''),op:p.op||'',productId:p.productId||null,productName:pr?.name||p.product||'Produto',grade,qty,manager:document.getElementById('fp930Manager')?.value||'',createdBy:cloudUser?.email||'',createdAt:new Date().toISOString()});closeModal();save();renderFinishedPieces();try{renderGoals()}catch(e){} });
+  };
+  window.refreshFinishedProductionOptions=function(){let lid=+document.getElementById('fp930Loc')?.value||0,sel=document.getElementById('fp930Prod');if(!sel)return;let rows=(db.production||[]).filter(p=>+p.productionLocationId===lid&&!p.factionId);sel.innerHTML='<option value="">Selecione</option>'+rows.map(p=>`<option value="${p.id}">${esc((db.products||[]).find(x=>+x.id===+p.productId)?.name||p.product||'Produto')} — ${(+p.planned||0).toLocaleString('pt-BR')} pç — ${esc(p.op||'')}</option>`).join('');renderFinishedGrade930()};
+  window.renderFinishedGrade930=function(){let p=(db.production||[]).find(x=>+x.id===+document.getElementById('fp930Prod')?.value),box=document.getElementById('fp930Grade'),info=document.getElementById('fp930CutInfo');if(!box)return;if(!p){box.innerHTML='';if(info)info.textContent='';return}let o=(db.orders||[]).find(x=>+x.id===+p.orderId),g=(o?.grade||[]).filter(x=>+x.productId===+p.productId);if(info)info.textContent=`Cortado/atribuído para este modelo: ${(+p.planned||0).toLocaleString('pt-BR')} peças · local: ${productionDestinationName(p)}`;if(g.length)box.innerHTML='<div class="panel"><h3>Grade produzida agora</h3>'+table(['Cor','Tamanho','Pedido','Produzido agora'],g.map((x,i)=>[esc(x.color||'-'),esc(x.size||'-'),(+x.qty||0).toLocaleString('pt-BR'),`<input class="fp930Qty" data-color="${esc(x.color||'')}" data-size="${esc(x.size||'')}" type="number" min="0" step="1" value="0" style="width:100px">`]))+'</div>';else box.innerHTML='<div class="field"><label>Quantidade produzida agora</label><input id="fp930Total" type="number" min="0" step="1" value="0"></div>'};
+  window.deleteFinishedPieces=function(id){if(!confirm('Excluir este lançamento diário de peças prontas?'))return;db.finishedPieces=db.finishedPieces.filter(x=>+x.id!==+id);save();renderFinishedPieces()};
+  const oldGoalValue930=window.productionValueForGoal;
+  window.productionValueForGoal=function(g,start,end){if(g?.scopeType!=='Confecção')return oldGoalValue930(g,start,end);let loc=(db.productionLocations||[]).find(x=>String(x.name||'')===String(g.scopeName||''));if(!loc)return 0;let fp=(db.finishedPieces||[]).filter(x=>+x.locationId===+loc.id&&dateInGoalPeriod(x.date,start,end)),withLedger=new Set(fp.map(x=>String(x.productionId)).filter(Boolean)),value=fp.reduce((a,x)=>{let o=(db.orders||[]).find(q=>+q.id===+x.orderId),unit=o&&qtyOfOrder(o)>0?(+o.total||0)/qtyOfOrder(o):(+((db.products||[]).find(q=>+q.id===+x.productId)?.price)||0);return a+(+x.qty||0)*unit},0);value+=(db.production||[]).filter(p=>+p.productionLocationId===+loc.id&&!withLedger.has(String(p.id))&&dateInGoalPeriod(p.finishedAt||p.date,start,end)).reduce((a,p)=>{let o=(db.orders||[]).find(q=>+q.id===+p.orderId),unit=o&&qtyOfOrder(o)>0?(+o.total||0)/qtyOfOrder(o):0;return a+(+p.done||0)*unit},0);return value};
+
+  // ---------- Vales pagos por mês ----------
+  window.renderAdvancePaidMonthly930=function(){ensure930();let month=document.getElementById('advancePaidMonth930')?.value||payrollCurrentMonth(),box=document.getElementById('advancePaidMonthly930');if(!box)return;let rows=db.employeeAdvances.filter(a=>a.status==='Pago'&&String(a.paidAt||a.date||'').slice(0,7)===month),total=rows.reduce((a,x)=>a+(+x.value||0),0),by={};rows.forEach(x=>{let k=x.employeeName||'Funcionário';by[k]=(by[k]||0)+(+x.value||0)});box.innerHTML=`<div class="cards"><div class="card"><small>Total de vales pagos no mês</small><strong>${money(total)}</strong></div><div class="card"><small>Vales pagos</small><strong>${rows.length}</strong></div><div class="card"><small>Funcionários</small><strong>${Object.keys(by).length}</strong></div></div>${Object.keys(by).length?table(['Funcionário','Total de vales pagos'],Object.entries(by).sort((a,b)=>b[1]-a[1]).map(([n,v])=>[esc(n),money(v)])):'<div class="empty">Nenhum vale pago nesta competência.</div>'}`};
+  const oldAdv930=window.renderEmployeeAdvances;
+  window.renderEmployeeAdvances=function(){oldAdv930();let hist=document.getElementById('advanceHistory');if(hist&&!document.getElementById('advancePaidMonthlyPanel930')){let p=document.createElement('div');p.id='advancePaidMonthlyPanel930';p.className='panel';p.innerHTML=`<h3>💰 Total de vales pagos no mês</h3><div class="toolbar"><div class="field"><label>Mês do pagamento</label><input id="advancePaidMonth930" type="month" value="${payrollCurrentMonth()}" onchange="renderAdvancePaidMonthly930()"></div></div><div id="advancePaidMonthly930"></div>`;hist.parentNode.insertBefore(p,hist)}renderAdvancePaidMonthly930()};
+
+  // ---------- 1/3 de férias nos valores já pagos ----------
+  function vacationThirdField930(){if(document.getElementById('terminationPaidVacationThird'))return;let v=document.getElementById('terminationPaidVacation');if(!v)return;let f=document.createElement('div');f.className='field';f.innerHTML='<label>1/3 de férias já pago</label><input id="terminationPaidVacationThird" type="number" min="0" step="0.01" value="0" oninput="calculateTerminationEstimate()">';v.closest('.field')?.after(f)}
+  window.renderTerminationPaidHistory=function(e){vacationThirdField930();let box=document.getElementById('terminationPaidHistory');if(!box)return;if(!e){box.innerHTML='';return}let arr=(e.terminationPaidHistory||[]).slice().sort((a,b)=>String(b.date||'').localeCompare(String(a.date||'')));box.innerHTML=arr.length?'<div class="sub"><strong>Histórico salvo</strong></div>'+table(['Data','Férias','1/3 férias','13º','Adiant. salarial','Outros','Total','Observação','Ação'],arr.map(r=>[fmtDate(r.date),money(r.vacation||0),money(r.vacationThird||0),money(r.thirteenth||0),money(r.salaryAdvance||0),money(r.other||0),money(r.total||0),esc(r.note||'-'),`<button class="danger" onclick="deleteTerminationPaidHistory('${e.id}','${r.id}')">Excluir</button>`])):'<div class="sub">Nenhum valor já pago salvo para esta funcionária.</div>'};
+  window.saveTerminationPaidHistory=function(){let id=document.getElementById('terminationPaidEmployee')?.value||document.getElementById('terminationCalcEmployee')?.value,e=(db.employees||[]).find(x=>String(x.id)===String(id));if(!e){alert('Selecione o funcionário desses valores já pagos.');return}let vacation=Math.max(0,+document.getElementById('terminationPaidVacation')?.value||0),vacationThird=Math.max(0,+document.getElementById('terminationPaidVacationThird')?.value||0),thirteenth=Math.max(0,+document.getElementById('terminationPaid13')?.value||0),salaryAdvance=Math.max(0,+document.getElementById('terminationPaidSalary')?.value||0),other=Math.max(0,+document.getElementById('terminationPaidOther')?.value||0),total=vacation+vacationThird+thirteenth+salaryAdvance+other;if(total<=0){alert('Informe pelo menos um valor já pago.');return}e.terminationPaidHistory=e.terminationPaidHistory||[];e.terminationPaidHistory.push({id:uid(),date:isoDate(new Date()),vacation,vacationThird,thirteenth,salaryAdvance,other,total,note:document.getElementById('terminationPaidNote')?.value||''});save();['terminationPaidVacation','terminationPaidVacationThird','terminationPaid13','terminationPaidSalary','terminationPaidOther'].forEach(x=>{let el=document.getElementById(x);if(el)el.value=0});let note=document.getElementById('terminationPaidNote');if(note)note.value='';renderTerminationPaidHistory(e);calculateTerminationEstimate()};
+  const oldCalcTerm930=window.calculateTerminationEstimate;
+  window.calculateTerminationEstimate=function(){vacationThirdField930();let third=+document.getElementById('terminationPaidVacationThird')?.value||0;if(!third)return oldCalcTerm930();let other=document.getElementById('terminationPaidOther'),old=other?.value||'0';if(other)other.value=String((+old||0)+third);try{return oldCalcTerm930()}finally{if(other)other.value=old}};
+
+  // ---------- Travetadas ----------
+  const oldProductForm930=window.productForm;
+  window.productForm=function(p={}){let html=oldProductForm930(p);let needle='<div class="field"><label>Embalagem (dentro da mão de obra)</label>';let field=`<div class="field"><label>Travetadas por peça</label><input id="ftravetadas" type="number" min="0" step="1" value="${Math.max(0,+p.travetadas||0)}"><div class="sub">Quantidade de pontos de travete necessários em cada peça.</div></div>`;return html.includes(needle)?html.replace(needle,field+needle):html};
+  const oldReadProduct930=window.readProductForm;window.readProductForm=function(existing={}){let r=oldReadProduct930(existing);r.travetadas=Math.max(0,+document.getElementById('ftravetadas')?.value||0);return r};
+  const oldSaveProduct930=window.saveProductFromForm;window.saveProductFromForm=function(p){let ok=oldSaveProduct930(p);if(ok)p.travetadas=Math.max(0,+document.getElementById('ftravetadas')?.value||0);return ok};
+  function travetaSetting930(){ensure930();let r=db.factionSettings.find(x=>String(x.id)==='traveta');if(!r){r={id:'traveta',travetaUnitValue:0};db.factionSettings.push(r)}return r}
+  window.saveTravetaSetting930=function(){let r=travetaSetting930();r.travetaUnitValue=Math.max(0,+document.getElementById('travetaUnitValue930')?.value||0);save();alert('Valor por travetada salvo.')};
+  function snapshotTraveta930(p){if(p.travetaSnapshot===true)return;let f=(db.factions||[]).find(x=>+x.id===+p.factionServiceId),pr=(db.products||[]).find(x=>+x.id===+(f?.productId||p.productId));p.travetadasPorPeca=Math.max(0,+pr?.travetadas||0);p.travetaUnitValue=Math.max(0,+travetaSetting930().travetaUnitValue||0);p.travetaNaFaccao=true;p.travetaDiscount=0;p.travetaSnapshot=true}
+  function recalcTraveta930(p){snapshotTraveta930(p);p.travetaDiscount=p.travetaNaFaccao===false?(+p.quantity||0)*(+p.travetadasPorPeca||0)*(+p.travetaUnitValue||0):0;return +p.travetaDiscount||0}
+  const oldSyncPay930=window.syncFactionPayments;window.syncFactionPayments=function(){let r=oldSyncPay930();(db.factionPayments||[]).forEach(p=>{snapshotTraveta930(p);recalcTraveta930(p)});return r};
+  window.factionPaymentRemaining=function(p){return Math.max(0,(+p.value||0)-recalcTraveta930(p)-(+p.discountAmount||0)-(+p.paidAmount||0))};
+  const oldRenderPay930=window.renderFactionPayments;window.renderFactionPayments=function(){oldRenderPay930();syncFactionPayments();let settings=document.getElementById('factionPaymentPeriodLabel')?.parentElement;if(settings&&!document.getElementById('travetaConfig930')){let d=document.createElement('div');d.id='travetaConfig930';d.className='toolbar';d.style.marginTop='10px';d.innerHTML=`<div class="field"><label>Valor por travetada</label><input id="travetaUnitValue930" type="number" min="0" step="0.01" value="${(+travetaSetting930().travetaUnitValue||0).toFixed(2)}"></div><button class="secondary" onclick="saveTravetaSetting930()">Salvar valor</button>`;settings.appendChild(d)}let tbl=document.getElementById('factionPaymentTable');if(tbl){let filter=document.getElementById('factionPaymentFilter')?.value||'',start=document.getElementById('fpPeriodStart')?.value||'',end=document.getElementById('fpPeriodEnd')?.value||'',arr=(db.factionPayments||[]).filter(p=>factionPaymentInPeriod(p,start,end)&&(!filter||p.status===filter));tbl.innerHTML=arr.length?table(['Finalizado','Facção','Descrição','Qtd.','Preço','Bruto','Traveta','Outros abat.','Líquido','Saldo','Status','Ações'],arr.map(p=>{let td=recalcTraveta930(p),net=Math.max(0,(+p.value||0)-td-(+p.discountAmount||0));return [fmtDate(p.serviceFinishedAt),esc(p.factionName||'-'),esc(p.description||'-'),(+p.quantity||0).toLocaleString('pt-BR'),money(p.unitPrice),money(p.value),td?`- ${money(td)}`:'-',(+p.discountAmount||0)?`- ${money(p.discountAmount)}`:'-',money(net),money(factionPaymentRemaining(p)),`<span class="badge ${p.status==='Pago'?'ok':''}">${esc(p.status||'Pendente')}</span>`,`<button class="secondary" onclick="editFactionPayment(${p.id})">Editar</button> ${p.status==='Pago'?`<button class="secondary" onclick="reopenFactionPayment(${p.id})">Reabrir</button>`:`<button class="primary" onclick="payFactionPayment(${p.id})">Dar baixa</button>`} <button class="danger" onclick="deleteFactionPayment(${p.id})">Excluir</button>`]})):'<div class="empty">Nenhum serviço encontrado.</div>'}let cards=document.getElementById('factionPaymentCards');if(cards){let start=document.getElementById('fpPeriodStart')?.value||'',end=document.getElementById('fpPeriodEnd')?.value||'',arr=(db.factionPayments||[]).filter(p=>factionPaymentInPeriod(p,start,end)),gross=arr.reduce((a,p)=>a+(+p.value||0),0),trav=arr.reduce((a,p)=>a+recalcTraveta930(p),0),net=arr.reduce((a,p)=>a+Math.max(0,(+p.value||0)-recalcTraveta930(p)-(+p.discountAmount||0)),0),rem=arr.reduce((a,p)=>a+factionPaymentRemaining(p),0);cards.innerHTML=`<div class="card"><small>Valor bruto</small><strong>${money(gross)}</strong></div><div class="card"><small>Desconto de traveta</small><strong>${money(trav)}</strong></div><div class="card"><small>Valor líquido</small><strong>${money(net)}</strong></div><div class="card"><small>A pagar</small><strong>${money(rem)}</strong></div>`}};
+  window.editFactionPayment=function(id){let p=(db.factionPayments||[]).find(x=>+x.id===+id);if(!p)return;snapshotTraveta930(p);openModal('Editar serviço para pagamento',`<div class="grid"><div class="field"><label>Facção</label><input id="fpeName" value="${esc(p.factionName||'')}"></div><div class="field"><label>Descrição</label><input id="fpeDesc" value="${esc(p.description||'')}"></div><div class="field"><label>Quantidade</label><input id="fpeQty" type="number" value="${p.quantity||0}"></div><div class="field"><label>Preço por peça</label><input id="fpePrice" type="number" step="0.01" value="${p.unitPrice||0}"></div><div class="field"><label>Travetadas por peça</label><input value="${p.travetadasPorPeca||0}" disabled></div><div class="field"><label>Traveta na facção?</label><select id="fpeTraveta"><option value="yes" ${p.travetaNaFaccao!==false?'selected':''}>Sim</option><option value="no" ${p.travetaNaFaccao===false?'selected':''}>Não</option></select></div><div class="field"><label>Valor por travetada (snapshot)</label><input id="fpeTravetaUnit" type="number" step="0.01" value="${(+p.travetaUnitValue||0).toFixed(2)}"></div><div class="field"><label>Chave PIX</label><input id="fpePix" value="${esc(p.pix||'')}"></div><div class="field"><label>Data prevista pagamento</label><input id="fpeScheduled" type="date" value="${p.scheduledPaymentDate||''}"></div></div><div class="cards"><div class="card"><small>Bruto</small><strong>${money(p.value)}</strong></div><div class="card"><small>Desconto traveta atual</small><strong>${money(recalcTraveta930(p))}</strong></div><div class="card"><small>Saldo</small><strong>${money(factionPaymentRemaining(p))}</strong></div></div><button class="primary modalSave">Salvar alterações</button>`,()=>{p.factionName=document.getElementById('fpeName')?.value||p.factionName;p.description=document.getElementById('fpeDesc')?.value||p.description;p.quantity=+document.getElementById('fpeQty')?.value||0;p.unitPrice=+document.getElementById('fpePrice')?.value||0;p.value=p.quantity*p.unitPrice;p.pix=document.getElementById('fpePix')?.value||'';p.scheduledPaymentDate=document.getElementById('fpeScheduled')?.value||'';p.travetaNaFaccao=document.getElementById('fpeTraveta')?.value!=='no';p.travetaUnitValue=Math.max(0,+document.getElementById('fpeTravetaUnit')?.value||0);recalcTraveta930(p);closeModal();save();renderFactionPayments()})};
+
+  // ---------- Nota parcial por grade ----------
+  function gradeOriginal930(o,pid){return (o?.grade||[]).filter(x=>+x.productId===+pid).map(x=>({...x,qty:+x.qty||0}))}
+  function gradedUsed930(orderId,pid,color,size){let n=0;(db.projectionInvoices||[]).forEach(inv=>(inv.items||[]).forEach(it=>{if(+it.orderId!==+orderId||+it.productId!==+pid)return;(it.grade||[]).forEach(g=>{if(String(g.color||'')===String(color||'')&&String(g.size||'')===String(size||''))n+=+g.qty||0})}));return n}
+  function ungradedHistory930(orderId,pid){let n=0;(db.projectionInvoices||[]).forEach(inv=>(inv.items||[]).forEach(it=>{if(+it.orderId===+orderId&&+it.productId===+pid&&!(it.grade||[]).length)n+=+it.qty||0}));return n}
+  window.toggleProjectionGrade930=function(i){let mode=document.querySelector(`.projectionInvoiceMode[data-index="${i}"]`)?.value||'quantity',q=document.querySelector(`.projectionInvoiceQty[data-index="${i}"]`),g=document.getElementById(`projGrade930_${i}`);if(q)q.disabled=mode==='grade';if(g)g.style.display=mode==='grade'?'block':'none';recalcProjectionInvoiceModal()};
+  window.recalcProjectionInvoiceModal=function(){let qty=0,value=0;document.querySelectorAll('.projectionInvoiceMode').forEach(mode=>{let i=mode.dataset.index,u=+document.querySelector(`.projectionInvoiceUnit[data-index="${i}"]`)?.value||0,q=mode.value==='grade'?[...document.querySelectorAll(`.projGradeQty930[data-index="${i}"]`)].reduce((a,x)=>a+(+x.value||0),0):(+document.querySelector(`.projectionInvoiceQty[data-index="${i}"]`)?.value||0);qty+=q;value+=q*u});let qel=document.getElementById('projectionInvoiceQtyTotal'),vel=document.getElementById('projectionInvoiceValueTotal');if(qel)qel.textContent=qty.toLocaleString('pt-BR');if(vel)vel.textContent=money(value)};
+  window.finalizeSelectedProjection=function(){let keys=[...document.querySelectorAll('.projectionSelect:checked')].map(x=>x.value);if(!keys.length){alert('Selecione pelo menos um produto.');return}let selected=keys.map(v=>{let [oid,key]=String(v).split('::'),o=(db.orders||[]).find(x=>+x.id===+oid);if(!o)return null;let item=projectionItemsForOrder(o).find(i=>String(i.key)===key);return item?{o,item}:null}).filter(Boolean),sourceClients=[...new Set(selected.map(x=>x.item.clientName||x.o.client||'Sem cliente'))];if(sourceClients.length!==1){alert('Selecione produtos de um mesmo cliente de origem por vez.');return}let originalClient=sourceClients[0],originalClientId=selected[0]?.item?.clientId||selected[0]?.o?.clientId||((db.clients||[]).find(c=>c.name===originalClient)?.id)||'',clientOptions=(db.clients||[]).map(c=>`<option value="${c.id}" ${+c.id===+originalClientId?'selected':''}>${esc(c.name)}</option>`).join('');
+    let rows=selected.map((x,i)=>{let rem=x.item.remainingQty!=null?x.item.remainingQty:Math.max(0,x.item.qty-(x.item.invoicedQty||0)),unit=x.item.qty>0?(+x.item.value||0)/x.item.qty:0,g=gradeOriginal930(x.o,x.item.productId),legacy=ungradedHistory930(x.o.id,x.item.productId),gr=g.map((z,j)=>{let av=Math.max(0,(+z.qty||0)-gradedUsed930(x.o.id,x.item.productId,z.color,z.size));return `<tr><td>${esc(z.color||'-')}</td><td>${esc(z.size||'-')}</td><td>${(+z.qty||0)}</td><td>${av}</td><td><input class="projGradeQty930" data-index="${i}" data-j="${j}" type="number" min="0" max="${av}" step="1" value="0" style="width:90px"></td></tr>`}).join('');return `<tr><td>${esc(x.item.name)}</td><td>${x.item.qty.toLocaleString('pt-BR')}</td><td>${(+x.item.invoicedQty||0).toLocaleString('pt-BR')}</td><td><b>${rem.toLocaleString('pt-BR')}</b></td><td><select class="projectionInvoiceMode" data-index="${i}" onchange="toggleProjectionGrade930(${i})"><option value="quantity">Somente quantidade</option><option value="grade" ${g.length?'':'disabled'}>Baixa por grade</option></select></td><td><input class="projectionInvoiceQty" data-index="${i}" type="number" min="0" max="${rem}" step="1" value="${rem}" oninput="recalcProjectionInvoiceModal()"></td><td><input class="projectionInvoiceUnit" data-index="${i}" type="number" min="0" step=".01" value="${unit.toFixed(2)}" oninput="recalcProjectionInvoiceModal()"></td></tr><tr id="projGrade930_${i}" style="display:none"><td colspan="7"><div class="panel" style="margin:6px"><b>Baixa por grade — ${esc(x.item.name)}</b>${legacy?`<div class="sub" style="color:#8a5700">Atenção: ${legacy} peça(s) antigas deste produto foram baixadas apenas por quantidade. A partir desta nota, a grade selecionada ficará registrada.</div>`:''}${g.length?`<table><tr><th>Cor</th><th>Tamanho</th><th>Original</th><th>Saldo conhecido</th><th>Nesta nota</th></tr>${gr}</table>`:'<div class="sub">Este item não possui grade cadastrada.</div>'}</div></td></tr>`}).join('');
+    openModal('Finalizar nota — quantidade ou grade',`<div class="panel" style="margin-top:0;background:#fff8fb"><div class="grid"><div class="field"><label>Cliente original</label><input value="${esc(originalClient)}" disabled></div><div class="field"><label>Cliente da nota</label><select id="projectionInvoiceClient" onchange="updateProjectionInvoiceClientPrices()">${clientOptions}</select></div><div class="field"><label>Data de emissão</label><input id="projectionInvoiceIssueDate" type="date" value="${isoDate(new Date())}"></div><div class="field"><label>Vencimento</label><input id="projectionInvoiceDue" type="date" value="${selected[0]?.item.date||isoDate(new Date())}"></div><div class="field"><label>Condição</label><select id="projectionInvoiceTerms" onchange="toggleProjectionInvoiceTermsDetail()"><option>À vista</option><option>7 dias</option><option>14 dias</option><option>21 dias</option><option>28 dias</option><option>30 dias</option><option>Cheque</option><option>Personalizado</option></select></div><div class="field" id="projectionInvoiceTermsDetailField" style="display:none"><label id="projectionInvoiceTermsDetailLabel">Detalhes</label><input id="projectionInvoiceTermsDetail"></div></div></div><div class="sub" style="margin:10px 0">Escolha, para cada produto, se a baixa será só pela quantidade ou detalhada por cor/tamanho.</div><div style="overflow:auto"><table><thead><tr><th>Produto</th><th>Original</th><th>Já faturado</th><th>Disponível</th><th>Forma da baixa</th><th>Qtd.</th><th>Valor/peça</th></tr></thead><tbody>${rows}</tbody></table></div><div class="cards"><div class="card"><small>Peças nesta nota</small><strong id="projectionInvoiceQtyTotal">0</strong></div><div class="card"><small>Valor desta nota</small><strong id="projectionInvoiceValueTotal">R$ 0,00</strong></div></div><button class="primary modalSave">Finalizar esta nota</button>`,()=>{let targetClientId=+document.getElementById('projectionInvoiceClient')?.value||null,targetClient=(db.clients||[]).find(c=>+c.id===+targetClientId);if(!targetClient){alert('Selecione o cliente.');return}let invoiceItems=[],totalValue=0,totalQty=0,invalidGrade='';selected.forEach((ctx,i)=>{let mode=document.querySelector(`.projectionInvoiceMode[data-index="${i}"]`)?.value||'quantity',available=ctx.item.remainingQty!=null?ctx.item.remainingQty:Math.max(0,ctx.item.qty-(ctx.item.invoicedQty||0)),unit=+document.querySelector(`.projectionInvoiceUnit[data-index="${i}"]`)?.value||0,grade=[];let q=0;if(mode==='grade'){let originals=gradeOriginal930(ctx.o,ctx.item.productId);grade=[...document.querySelectorAll(`.projGradeQty930[data-index="${i}"]`)].map(inp=>{let j=+inp.dataset.j,g=originals[j];if(!g)return null;let av=Math.max(0,(+g.qty||0)-gradedUsed930(ctx.o.id,ctx.item.productId,g.color,g.size)),qty=Math.max(0,+inp.value||0);if(qty>av+0.0001)invalidGrade=`${ctx.item.name}: ${g.color||'-'} ${g.size||'-'} excede o saldo conhecido (${av}).`;return {color:g.color||'',size:g.size||'',qty}}).filter(x=>x&&x.qty>0);q=grade.reduce((a,x)=>a+x.qty,0);if(q>available+0.0001)invalidGrade=`${ctx.item.name}: a grade selecionada soma ${q} peça(s), mas o saldo total disponível é ${available}.`;}else{q=Math.max(0,+document.querySelector(`.projectionInvoiceQty[data-index="${i}"]`)?.value||0);if(q>available)q=available}if(q>0){invoiceItems.push({ctx,qty:q,unit,value:q*unit,grade,deductionMode:mode});totalQty+=q;totalValue+=q*unit}});if(invalidGrade){alert(invalidGrade);return}if(!invoiceItems.length){alert('Informe pelo menos uma quantidade.');return}let issueDate=document.getElementById('projectionInvoiceIssueDate')?.value||isoDate(new Date()),due=document.getElementById('projectionInvoiceDue')?.value||issueDate,terms=document.getElementById('projectionInvoiceTerms')?.value||'À vista',termsDetail=document.getElementById('projectionInvoiceTermsDetail')?.value?.trim()||'';if(terms==='Personalizado'&&!termsDetail){alert('Informe os detalhes da condição personalizada.');return}let invoiceId=Date.now();db.projectionInvoices.push({id:invoiceId,client:targetClient.name,clientId:targetClient.id,sourceClient:originalClient,items:invoiceItems.map(x=>({orderId:x.ctx.o.id,itemKey:x.ctx.item.key,productName:x.ctx.item.name,productId:x.ctx.item.productId||null,projectionDate:x.ctx.item.date||x.ctx.o.date||'',deliveredAt:issueDate,qty:x.qty,unitPrice:x.unit,value:x.value,grade:x.grade,deductionMode:x.deductionMode})),date:issueDate,issueDate,dueDate:due,value:totalValue,terms,termsDetail,status:'Pendente'});db.finance=db.finance||[];db.finance.push({id:invoiceId+1,type:'Receber',desc:`Nota projeção — ${targetClient.name} — ${invoiceItems.map(x=>x.ctx.item.name).join(', ')}`,value:totalValue,status:'Pendente',paid:0,remaining:totalValue,date:due,dueDate:due,issueDate,paymentTerms:terms,paymentTermsDetail:termsDetail,clientId:targetClient.id,clientName:targetClient.name,projectionInvoiceId:invoiceId});invoiceItems.forEach(({ctx,qty})=>{let o=ctx.o,item=ctx.item;o.projectionItems=o.projectionItems||{};let saved=o.projectionItems[item.key]||{},prev=saved.invoicedQty!=null?(+saved.invoicedQty||0):(saved.invoiced?item.qty:0),newQty=Math.min(item.qty,prev+qty);o.projectionItems[item.key]={...saved,date:item.date,invoicedQty:newQty,invoiced:newQty>=item.qty,invoiceIds:[...(saved.invoiceIds||[]),invoiceId],deliveryHistory:[...(saved.deliveryHistory||[]),{invoiceId,date:issueDate,qty}]};o.projectionInvoiced=projectionItemsForOrder(o).every(i=>i.invoiced)});closeModal();save();renderProjection();renderFinance();renderOrderNotes();alert(`Nota finalizada: ${totalQty.toLocaleString('pt-BR')} peça(s) — ${money(totalValue)}. O saldo restante continua disponível.`)});setTimeout(()=>{updateProjectionInvoiceClientPrices();recalcProjectionInvoiceModal()},30)};
+
+  // ---------- Notas prontas: somar também projectionInvoices ----------
+  const oldNotes930=window.renderOrderNotes;window.renderOrderNotes=function(){oldNotes930();let pis=(db.projectionInvoices||[]),classic=(db.orders||[]).filter(o=>o.invoiceReady===true||o.noteReady===true||(db.invoices||[]).some(n=>+n.orderId===+o.id)),classicTotal=classic.reduce((a,o)=>a+(+o.total||0),0),pTotal=pis.reduce((a,n)=>a+(+n.value||0),0),pOpen=pis.reduce((a,n)=>{let f=(db.finance||[]).find(x=>+x.projectionInvoiceId===+n.id);return a+(f?Math.max(0,f.remaining!=null?(+f.remaining||0):((+f.value||0)-(+f.paid||0))):(n.status==='Pago'?0:+n.value||0))},0),classicOpen=classic.reduce((a,o)=>a+orderRemaining(o),0),sum=`<div class="card"><small>Notas clássicas</small><strong>${classic.length}</strong></div><div class="card"><small>Notas da projeção</small><strong>${pis.length}</strong></div><div class="card"><small>Valor em aberto</small><strong>${money(classicOpen+pOpen)}</strong></div><div class="card"><small>Total de todas as notas</small><strong>${money(classicTotal+pTotal)}</strong></div>`;['orderNotesSummary','allOrderNotesSummary'].forEach(id=>{let e=document.getElementById(id);if(e)e.innerHTML=sum});let extra=pis.length?`<div class="panel" style="margin-top:14px"><h3>Notas feitas pela Projeção</h3>${table(['Emissão','Cliente','Produtos','Peças','Valor','Vencimento','Condição'],pis.slice().sort((a,b)=>String(b.issueDate||b.date||'').localeCompare(String(a.issueDate||a.date||''))).map(n=>[fmtDate(n.issueDate||n.date),esc(n.client||'-'),esc((n.items||[]).map(x=>x.productName).join(', ')),(n.items||[]).reduce((a,x)=>a+(+x.qty||0),0).toLocaleString('pt-BR'),money(n.value),fmtDate(n.dueDate||n.date),esc(n.terms+(n.termsDetail?` — ${n.termsDetail}`:''))]))}</div>`:'';let all=document.getElementById('allOrderNotesTable');if(all&&!all.querySelector?.('.v930ProjectionNotes')){let d=document.createElement('div');d.className='v930ProjectionNotes';d.innerHTML=extra;all.appendChild(d)}let mini=document.getElementById('orderNotesTable');if(mini&&!mini.querySelector?.('.v930ProjectionNotes')){let d=document.createElement('div');d.className='v930ProjectionNotes';d.innerHTML=extra;mini.appendChild(d)}};
+
+  // ---------- Realtime rendering for new ledgers / advances ----------
+  const oldIncoming930=window.hlgbRenderIncomingRecord;window.hlgbRenderIncomingRecord=function(module){let r=oldIncoming930(module);try{let pg=document.querySelector('.page.active')?.id||'';if(module==='finishedPieces'&&pg==='pecasProntas')renderFinishedPieces();if(module==='employeeAdvances'&&pg==='folhaPagamento')renderEmployeeAdvances();if(module==='factionPayments'&&pg==='pagamentosFaccoes')renderFactionPayments()}catch(e){}return r};
+
+  // ---------- Boot UI ----------
+  function boot930(){ensure930();
+    if(!document.getElementById('pecasProntas')){let prod=document.getElementById('producao'),sec=document.createElement('section');sec.id='pecasProntas';sec.className='page';sec.innerHTML=`<h1>✅ Peças prontas por confecção</h1><div class="sub">Livro diário independente da produção. Cada lançamento soma a produção da confecção sem criar nota, pedido ou movimentação de estoque.</div><div class="panel"><div class="toolbar" style="align-items:flex-end"><button class="primary" onclick="newFinishedPieces()">+ Lançar peças prontas</button><div class="field"><label>Data</label><input id="finishedPiecesDate" type="date" onchange="renderFinishedPieces()"></div><div class="field"><label>Confecção</label><select id="finishedPiecesLocation" onchange="renderFinishedPieces()"><option value="">Todas</option></select></div><div class="field"><label>Produto</label><input id="finishedPiecesSearch" placeholder="Buscar modelo" oninput="renderFinishedPieces()"></div></div></div><div id="finishedPiecesCards" class="cards"></div><div class="panel"><h2>Produção lançada no dia</h2><div id="finishedPiecesTable"></div></div>`;prod?.after(sec);let navBtn=[...document.querySelectorAll('.nav-group-title')].find(b=>n930(b.textContent).includes('producao'))?.parentElement?.querySelector('.nav-submenu');if(navBtn){let b=document.createElement('button');b.setAttribute('onclick',"page('pecasProntas',this)");b.textContent='Peças prontas';navBtn.insertBefore(b,navBtn.children[1]||null)}}
+    let dc=document.getElementById('dailyCutDate')?.closest('.toolbar');if(dc&&!document.getElementById('dailyCutPlanner930')){let b=document.createElement('button');b.id='dailyCutPlanner930';b.type='button';b.className='primary';b.textContent='+ Programar corte';b.onclick=openDailyCutPlanner;dc.appendChild(b);let sub=dc.querySelector('.sub');if(sub)sub.textContent='Programação manual por data e cortador. Um corte só muda de dia quando você alterar a data.'}
+    vacationThirdField930();try{renderEmployeeAdvances()}catch(e){}try{renderOrderNotes()}catch(e){}try{syncFinalizedCutsToProduction();renderCutAssignmentQueue()}catch(e){}
+  }
+  setTimeout(boot930,900);window.addEventListener('focus',()=>setTimeout(()=>{try{syncFinalizedCutsToProduction();if(document.querySelector('.page.active')?.id==='pecasProntas')renderFinishedPieces()}catch(e){}},100));
+})();
+</script>
 </body></html>
