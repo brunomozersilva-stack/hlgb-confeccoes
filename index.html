@@ -6,7 +6,7 @@
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
-<title>HLGB Confecções — Sistema de Gestão v91.15 Multiusuário</title>
+<title>HLGB Confecções — Sistema de Gestão v91.16 Multiusuário</title>
 <style>
 :root{--navy:#6f3f59;--orange:#c96b8f;--bg:#fbf6f8;--line:#eadde4;--text:#30262c;--muted:#786b73;--ok:#e9f7ef;--warn:#fff5df;--bad:#fdeaea;--rose:#f3dbe5;--rose2:#fff8fb}
 *{box-sizing:border-box}body{margin:0;font-family:Arial,Helvetica,sans-serif;background:var(--bg);color:var(--text)}
@@ -246,11 +246,11 @@ main{min-width:0;}
     <div class="field" style="text-align:left;margin-bottom:10px"><label>E-mail</label><input id="loginUser" type="email" autocomplete="username" placeholder="seuemail@exemplo.com"></div>
     <div class="field" style="text-align:left;margin-bottom:14px"><label>Senha</label><input id="loginPass" type="password" autocomplete="current-password" onkeydown="if(event.key==='Enter')return doLogin()"></div>
     <button class="primary" style="width:100%" onclick="return doLogin()">Entrar</button>
-    <div id="loginError" style="color:#a51d2d;font-size:13px;margin-top:10px"></div><div style="margin-top:12px;font-size:12px;color:#786b73">Acesso protegido pelo Supabase • HLGB Online<br><b style="color:#6f3f59">Versão v91.15</b></div>
+    <div id="loginError" style="color:#a51d2d;font-size:13px;margin-top:10px"></div><div style="margin-top:12px;font-size:12px;color:#786b73">Acesso protegido pelo Supabase • HLGB Online<br><b style="color:#6f3f59">Versão v91.16</b></div>
   </div>
 </div>
 
-<div id="appShell" style="display:none"><header><div class="logo">HLGB <b>CONFECÇÕES</b> <small style="font-size:10px;opacity:.8">v91.15</small></div><div><span id="cloudStatus" style="margin-right:10px;font-size:12px;padding:6px 9px;border:1px solid #ffffff44;border-radius:8px">☁️ Nuvem</span><span id="currentUserLabel" style="margin-right:10px;font-size:13px"></span><button id="cloudSaveBtn" onclick="cloudUploadCurrentDb(true)" style="display:none" title="Sincronização automática">🔄 Sincronizar agora</button> <button id="backupBtn" onclick="backup()" style="display:none">Exportar backup</button> <button id="importBackupBtn" onclick="document.getElementById('backupImportInput').click()" style="display:none">Importar backup</button><input id="backupImportInput" type="file" accept=".json,application/json" style="display:none" onchange="importBackupFile(this)"> <button onclick="logout()">Sair</button></div></header>
+<div id="appShell" style="display:none"><header><div class="logo">HLGB <b>CONFECÇÕES</b> <small style="font-size:10px;opacity:.8">v91.16</small></div><div><span id="cloudStatus" style="margin-right:10px;font-size:12px;padding:6px 9px;border:1px solid #ffffff44;border-radius:8px">☁️ Nuvem</span><span id="currentUserLabel" style="margin-right:10px;font-size:13px"></span><button id="cloudSaveBtn" onclick="cloudUploadCurrentDb(true)" style="display:none" title="Sincronização automática">🔄 Sincronizar agora</button> <button id="backupBtn" onclick="backup()" style="display:none">Exportar backup</button> <button id="importBackupBtn" onclick="document.getElementById('backupImportInput').click()" style="display:none">Importar backup</button><input id="backupImportInput" type="file" accept=".json,application/json" style="display:none" onchange="importBackupFile(this)"> <button onclick="logout()">Sair</button></div></header>
 <div class="app">
 <aside><nav id="nav" class="clean-nav">
 <button class="nav-home active" onclick="page('dashboard',this)">🏠 <span>Início</span></button>
@@ -346,6 +346,7 @@ main{min-width:0;}
     <button type="button" class="primary" onclick="renderOrders()">🔎 Aplicar filtro</button>
     <button type="button" class="secondary" onclick="clearOrderFilters()">Limpar</button>
     <button class="primary" onclick="newOrder()">+ Novo pedido</button>
+    <button type="button" class="secondary" onclick="newAdHocOrder()">⚡ Pedido avulso</button>
   </div>
   <div class="cards" id="orderSummaryCards"></div>
   <div class="sub" id="orderFilterSummary"></div>
@@ -379,6 +380,11 @@ main{min-width:0;}
 <select id="separationOrder" class="hidden" onchange="renderSeparation()"><option value="">Selecione o pedido</option></select>
 <div id="separationList" class="separation-list"></div>
 <div id="separationTable"></div></div>
+<div class="panel">
+  <h2>✅ Checklist de envio / recebimento por local</h2>
+  <div class="sub">Cada atribuição de produção gera um checklist de matéria-prima. Em facções, o comprovante também mostra quantidade, valor por peça e total previsto do serviço.</div>
+  <div id="destinationChecklistTable"></div>
+</div>
 <div class="panel" id="orderNotesPanel">
   <div class="toolbar" style="justify-content:space-between">
     <div>
@@ -466,6 +472,12 @@ main{min-width:0;}
   <div id="dailyCutTable"></div>
 </div>
 <div class="panel"><h2>✂️ Cortes prontos para produzir</h2><div class="sub">Tudo que foi finalizado no corte e está aguardando entrada na produção. Use <strong>Distribuir clientes</strong> quando um mesmo corte for vendido para mais de um cliente.</div><div id="readyCutsTable"></div></div>
+<div class="panel">
+  <h2>🏭 Atribuição de corte para produção</h2>
+  <div class="sub">Assim que o corte é finalizado, o modelo entra aqui. Escolha o local/facção, veja a meta semanal e só então o produto entra na Projeção Semanal.</div>
+  <div id="cutAssignmentCards" class="cards"></div>
+  <div id="cutAssignmentQueue"></div>
+</div>
 <div class="panel"><h2>👥 Distribuição dos cortes entre clientes</h2><div class="sub">Um único corte pode ser dividido entre vários clientes sem alterar o corte original. Acompanhe o total distribuído e o que ainda falta destinar.</div><div id="cutClientDistributionTable"></div></div>
 <div class="panel"><h2>📦 Mercadoria sem nota pronta</h2><div class="sub">Pedidos que ainda não foram finalizados e não possuem nota pronta.</div><div id="openCutOrdersTable"></div></div>
 <div class="panel"><h2>Relatório de necessidade de material</h2>
@@ -513,6 +525,17 @@ main{min-width:0;}
 <section id="faccoes" class="page">
 <h1>Envios para facção</h1>
 <div class="sub">Acompanhe somente a operação enviada para as facções, sem misturar com telas de cadastro.</div>
+<div class="panel">
+  <h2>🧮 Calculadora de previsão de pagamento da facção</h2>
+  <div class="sub">Selecione uma facção e marque os modelos já cortados que você está pensando em mandar. A calculadora é apenas de planejamento e não altera a produção.</div>
+  <div class="toolbar" style="align-items:flex-end;flex-wrap:wrap;margin-top:12px">
+    <div class="field" style="min-width:260px"><label>Facção</label><select id="factionPlannerMaster" onchange="renderFactionPaymentPlanner()"><option value="">Selecione</option></select></div>
+    <div class="field"><label>Meta de pagamento da semana</label><input id="factionPlannerTarget" type="number" min="0" step="0.01" value="0" oninput="recalcFactionPaymentPlanner()"></div>
+    <button type="button" class="secondary" onclick="renderFactionPaymentPlanner()">🔄 Atualizar modelos</button>
+  </div>
+  <div id="factionPlannerCards" class="cards"></div>
+  <div id="factionPlannerTable"></div>
+</div>
 <div class="panel"><h2>Modelos disponíveis para envio</h2>
 <div class="sub">Modelos liberados pelo corte/produção que ainda possuem quantidade disponível para enviar a uma facção.</div>
 <div id="factionAvailableModels" style="margin-top:12px"></div></div>
@@ -1051,7 +1074,7 @@ main{min-width:0;}
 
 <section id="metas" class="page">
 <h1>Metas de produção</h1>
-<div class="sub">Metas, custos operacionais e lucro projetado por local de produção.</div>
+<div class="sub">Metas, custos operacionais e lucro projetado por local de produção. A meta/capacidade semanal também aparece como sugestão na nova Atribuição de Corte.</div>
 
 <div class="panel">
   <div class="toolbar" style="align-items:flex-end;flex-wrap:wrap">
@@ -1257,8 +1280,24 @@ main{min-width:0;}
 
 <section id="hubFinanceiro" class="page">
 <h1>Hub Financeiro</h1>
-<div class="sub">Área financeira independente, reservada para a próxima etapa de configuração.</div>
-<div class="panel"><div class="empty">Hub Financeiro criado. Nenhuma função foi adicionada ainda.</div></div>
+<div class="sub">Planejamento semanal de caixa separado do Financeiro geral. Compare entradas, saídas, categorias e a liquidez real entre Pix/dinheiro e cheques.</div>
+<div class="panel">
+  <div class="toolbar" style="align-items:flex-end;flex-wrap:wrap">
+    <button type="button" class="secondary" onclick="changeHubFinanceWeek(-1)">← Semana anterior</button>
+    <div class="field"><label>Semana do calendário</label><input id="hubFinanceWeek" type="week" onchange="renderHubFinance()"></div>
+    <button type="button" class="secondary" onclick="changeHubFinanceWeek(1)">Próxima semana →</button>
+    <button type="button" class="primary" onclick="newHubFinanceEntry('Entrada')">+ Entrada prevista</button>
+    <button type="button" class="primary" onclick="newHubFinanceEntry('Saída')">+ Saída prevista</button>
+    <button type="button" class="secondary" onclick="hubFinanceManualSync()">🔄 Sincronizar lançamentos</button>
+  </div>
+  <div id="hubFinanceWeekLabel" class="sub"></div>
+</div>
+<div id="hubFinanceCards" class="cards"></div>
+<div id="hubFinanceLiquidityAlert"></div>
+<div class="panel"><h2>📊 Saídas por categoria</h2><div class="sub">Mostra quanto cada categoria representa nas despesas da semana.</div><div id="hubFinanceCategoryTable"></div></div>
+<div class="panel"><h2>💳 Liquidez por forma de pagamento</h2><div class="sub">Compara o que entra em Pix/dinheiro, o que entra em cheque e quais contas aceitam cheque.</div><div id="hubFinanceMethodTable"></div></div>
+<div class="panel"><h2>📅 Próximas semanas</h2><div class="sub">Visão rápida para antecipar semanas com falta de caixa ou falta de liquidez.</div><div id="hubFinanceFutureTable"></div></div>
+<div class="panel"><h2>Lançamentos da semana</h2><div id="hubFinanceEntriesTable"></div></div>
 </section>
 
 <section id="config" class="page"><h1>Configurações</h1>
@@ -4229,7 +4268,7 @@ function renderAll(){
    document.getElementById("separationOrder").value=selectedSeparation;
    renderSeparation();
  }
- renderSuppliers();renderPurchases();renderProducts();renderFinance();renderEmployees();renderFormerEmployees();renderPayroll();renderReports();renderGoals();if(document.getElementById("missingOpenTable"))renderMissingPieces();if(document.getElementById("auditLogTable"))renderAuditLog();
+ renderSuppliers();renderPurchases();renderProducts();renderFinance();renderEmployees();renderFormerEmployees();renderPayroll();renderReports();renderGoals();hlgb916EnsureData();renderCutAssignmentQueue();renderDestinationChecklists();renderFactionPaymentPlanner();renderHubFinance();if(document.getElementById("missingOpenTable"))renderMissingPieces();if(document.getElementById("auditLogTable"))renderAuditLog();
  document.getElementById("companyName").value=db.config.name;
  document.getElementById("companyNote").value=db.config.note;
  renderOrderNotes();
@@ -10784,7 +10823,7 @@ appShell.style.display="none";
 loginScreen.style.display="flex";
 // Restaura a credencial de refresh persistida neste navegador. O painel só será aberto
 // depois de renovar no Supabase, carregar a nuvem e validar as permissões.
-/* ===== v91.15 — MULTIUSUÁRIO POR REGISTRO (TODOS OS MÓDULOS) ===== */
+/* ===== v91.16 — MULTIUSUÁRIO POR REGISTRO (TODOS OS MÓDULOS) ===== */
 const HLGB_RECORD_MODULES=[
   "products","materials","clients","orders","orderTrash",
   "production","productionLocations","capacityAssignments","goals","defectReturns","missingPieces",
@@ -10792,8 +10831,7 @@ const HLGB_RECORD_MODULES=[
   "factions","factionMasters","factionPayments","cutters",
   "finance","purchases","invoices","receipts","operationalCosts",
   "suppliers","employees","formerEmployees","payroll","terminations","employeeAdvances",
-  "materialLots","separations","projectionInvoices","machines","serviceTypes","colors","sizes"
-];
+  "materialLots","separations","projectionInvoices","machines","serviceTypes","colors","sizes","materialChecklists","hubFinanceEntries"];
 const HLGB_RECORD_PENDING_KEY="hlgb_records_pending_v91";
 let hlgbRecordSnapshots={};
 let hlgbRecordLastSeen={};
@@ -10994,7 +11032,7 @@ async function hlgbNormalizedSyncNow(showMessage=false){
     if(showMessage)alert("Dados sincronizados com sucesso.");
     return true;
   }catch(e){
-    console.error("HLGB v91.15 sync",e);hlgbRecordPendingStore();setCloudStatus("☁️ Alterações pendentes","bad");try{const el=document.getElementById("cloudStatus");if(el)el.title=String(e?.message||e||"");}catch(_){}return false;
+    console.error("HLGB v91.16 sync",e);hlgbRecordPendingStore();setCloudStatus("☁️ Alterações pendentes","bad");try{const el=document.getElementById("cloudStatus");if(el)el.title=String(e?.message||e||"");}catch(_){}return false;
   }finally{
     hlgbRecordSyncing=false;
     if(hlgbRecordSyncAgain){
@@ -11061,7 +11099,7 @@ async function hlgbHandleRecordRealtime(payload){
     hlgbRenderIncomingRecord(module);
     setCloudStatus("⚡ Online · atualização recebida","ok");
     setTimeout(()=>setCloudStatus("⚡ Online · multiusuário","ok"),650);
-  }catch(e){console.warn("HLGB v91.15 realtime",e)}
+  }catch(e){console.warn("HLGB v91.16 realtime",e)}
 }
 async function hlgbPullNormalizedCoreChanges(force=false){
   if(!hlgbRecordReady||hlgbRecordPulling||!cloudAccessToken||document.hidden)return false;
@@ -11173,10 +11211,10 @@ async function hlgbEnsureRecordsOnlineAfterLogin(){
       setCloudStatus(hlgbRecordPendingRead()?"☁️ Salvando automático…":"⚡ Online · multiusuário",hlgbRecordPendingRead()?"":"ok");
       return true;
     }
-  }catch(e){console.error("HLGB v91.15 bootstrap",e);}
+  }catch(e){console.error("HLGB v91.16 bootstrap",e);}
   return false;
 }
-/* ===== fim v91.15 ===== */
+/* ===== fim v91.16 ===== */
 
 if(cloudRestoreStoredAuth()){
  (async()=>{
@@ -11894,6 +11932,334 @@ function renderDefectReturns(){ensureDefectReturnData();let locSel=document.getE
 // Integra novos módulos ao carregamento geral sem quebrar versões anteriores.
 const _v8946RenderAll=renderAll;
 renderAll=function(){_v8946RenderAll();ensureV8946Data();renderEmployeeAdvances();renderAssets();renderStock();renderTerminations();renderDefectReturns();updateOwnerSecurityVisibility();};
+
+
+
+// =============================================================================
+// v91.16 — atribuição pós-corte, pedido avulso, checklist, planner de facção e Hub
+// =============================================================================
+function hlgb916EnsureData(){
+  db.materialChecklists=Array.isArray(db.materialChecklists)?db.materialChecklists:[];
+  db.hubFinanceEntries=Array.isArray(db.hubFinanceEntries)?db.hubFinanceEntries:[];
+  db.capacityAssignments=Array.isArray(db.capacityAssignments)?db.capacityAssignments:[];
+}
+function hlgb916Norm(v){return String(v||"").normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLowerCase().trim()}
+function hlgb916ProductById(id){return (db.products||[]).find(p=>+p.id===+id)||null}
+function hlgb916ProductForProduction(p){
+  let o=(db.orders||[]).find(x=>+x.id===+p?.orderId);
+  return hlgb916ProductById(p?.productId||o?.productId)||
+    (db.products||[]).find(x=>hlgb916Norm(x.name)===hlgb916Norm(p?.product))||null;
+}
+function hlgb916ServiceNameForProduction(p){
+  let product=hlgb916ProductForProduction(p),o=(db.orders||[]).find(x=>+x.id===+p?.orderId);
+  let known=(db.serviceTypes||[]).map(x=>String(x.name||"").trim()).filter(Boolean);
+  let cat=String(product?.category||"").trim();
+  let exact=known.find(x=>hlgb916Norm(x)===hlgb916Norm(cat));if(exact)return exact;
+  let text=hlgb916Norm(`${product?.name||""} ${p?.product||""} ${o?.items||""} ${cat}`);
+  return known.find(x=>text.includes(hlgb916Norm(x)))||cat||"";
+}
+function hlgb916FactionServices(f){
+  let ids=Array.isArray(f?.serviceTypeIds)?f.serviceTypeIds:[];
+  let names=ids.map(id=>(db.serviceTypes||[]).find(s=>+s.id===+id)?.name).filter(Boolean);
+  if(!names.length && f?.serviceType)names=String(f.serviceType).split(",").map(x=>x.trim()).filter(Boolean);
+  return names;
+}
+function hlgb916EligibleDestinations(serviceName){
+  let service=hlgb916Norm(serviceName),out=[];
+  (db.productionLocations||[]).filter(x=>x.active!==false).forEach(l=>{
+    let allowed=Array.isArray(l.allowedServices)?l.allowedServices.filter(Boolean):[];
+    let ok=!allowed.length || (!!service&&allowed.some(x=>hlgb916Norm(x)===service));
+    if(ok)out.push({type:"L",id:+l.id,name:l.name||"Local",locationId:+l.id,factionId:null,services:allowed});
+  });
+  (db.factionMasters||[]).filter(x=>x.active!==false).forEach(f=>{
+    let allowed=hlgb916FactionServices(f);
+    let ok=allowed.length && !!service && allowed.some(x=>hlgb916Norm(x)===service);
+    if(ok)out.push({type:"F",id:+f.id,name:f.name||"Facção",locationId:+f.productionLocationId||null,factionId:+f.id,services:allowed});
+  });
+  return out;
+}
+function hlgb916WeekRangeFromDate(value){
+  let d=value?new Date(String(value).slice(0,10)+"T12:00:00"):new Date();
+  let m=mondayOf(d),sun=new Date(m);sun.setDate(sun.getDate()+6);
+  return {start:isoDate(m),end:isoDate(sun)};
+}
+function hlgb916WeeklyTarget(dest){
+  if(!dest)return 0;
+  let loc=dest.type==="L"?(db.productionLocations||[]).find(x=>+x.id===+dest.id):
+    (db.productionLocations||[]).find(x=>+x.id===+dest.locationId);
+  return +loc?.weeklyCapacity||0;
+}
+function hlgb916AssignedQtyForWeek(dest,weekStart){
+  if(!dest)return 0;let r=hlgb916WeekRangeFromDate(weekStart);
+  return (db.production||[]).filter(p=>{
+    let match=dest.type==="F"?+p.factionId===+dest.id:(!p.factionId&&+p.productionLocationId===+dest.id);
+    if(!match)return false;
+    let d=p.assignedAt||p.sentToFactionAt||p.date||"";d=String(d).slice(0,10);
+    return d&&d>=r.start&&d<=r.end;
+  }).reduce((a,p)=>a+(+p.planned||0),0);
+}
+function hlgb916TargetStatus(dest,qty,weekStart){
+  let target=hlgb916WeeklyTarget(dest),used=hlgb916AssignedQtyForWeek(dest,weekStart),after=used+(+qty||0);
+  if(!target)return {target,used,after,label:"Meta/capacidade não definida",cls:"warn"};
+  if(after>target)return {target,used,after,label:`Ultrapassa em ${(after-target).toLocaleString("pt-BR")} peças`,cls:"bad"};
+  return {target,used,after,label:`Ainda faltam ${(target-after).toLocaleString("pt-BR")} peças para a meta`,cls:after===target?"ok":"warn"};
+}
+
+// --- Corte finalizado vira uma fonte aguardando atribuição. Não entra automaticamente em local/facção.
+function syncFinalizedCutsToProduction(){
+  hlgb916EnsureData();
+  db.cuts=Array.isArray(db.cuts)?db.cuts:[];db.production=Array.isArray(db.production)?db.production:[];
+  let changed=false;
+  db.cuts.filter(c=>hlgb916Norm(c.status)==="finalizado").forEach(c=>{
+    let existing=db.production.find(p=>+p.cutId===+c.id);
+    if(existing){
+      if(!existing.productId&&c.productId){existing.productId=+c.productId;changed=true}
+      return;
+    }
+    let order=(db.orders||[]).find(o=>+o.id===+c.orderId);
+    db.production.push({
+      id:Date.now()+Math.floor(Math.random()*1000000),cutId:c.id,orderId:c.orderId||null,
+      productId:c.productId||order?.productId||null,op:c.op||("CORTE-"+c.id),product:c.product||order?.items||"Pedido",
+      client:c.client||order?.client||"",color:c.color||"",size:c.size||"",planned:+c.pieces||0,done:0,
+      stage:"Aguardando atribuição",productionLocationId:null,factionId:null,date:c.finishedAt||isoDate(new Date()),assignmentSource:true
+    });changed=true;
+  });
+  if(changed)try{persistDb()}catch(e){}
+  return changed;
+}
+function hlgb916UnassignedProduction(){
+  syncFinalizedCutsToProduction();
+  return (db.production||[]).filter(p=>p.cutId&&!p.productionLocationId&&!p.factionId&&!p.finishedAt&&(+p.planned||0)>0&&!["pronto","finalizado"].includes(hlgb916Norm(p.stage)));
+}
+function renderCutAssignmentQueue(){
+  let el=document.getElementById("cutAssignmentQueue"),cards=document.getElementById("cutAssignmentCards");if(!el&&!cards)return;
+  let rows=hlgb916UnassignedProduction(),qty=rows.reduce((a,p)=>a+(+p.planned||0),0);
+  if(cards)cards.innerHTML=`<div class="card"><small>Cortes aguardando local</small><strong>${rows.length}</strong></div><div class="card"><small>Peças aguardando atribuição</small><strong>${qty.toLocaleString("pt-BR")}</strong></div><div class="card"><small>Locais ativos</small><strong>${(db.productionLocations||[]).filter(x=>x.active!==false).length}</strong></div><div class="card"><small>Facções ativas</small><strong>${(db.factionMasters||[]).filter(x=>x.active!==false).length}</strong></div>`;
+  if(!el)return;
+  el.innerHTML=rows.length?table(["OP","Cliente","Modelo","Tipo de serviço","Peças sem local","Situação","Ação"],rows.map(p=>{
+    let service=hlgb916ServiceNameForProduction(p),eligible=hlgb916EligibleDestinations(service);
+    return [esc(p.op||"-"),esc(p.client||"Pedido avulso"),esc(hlgb916ProductForProduction(p)?.name||p.product||"-"),esc(service||"Não identificado"),(+p.planned||0).toLocaleString("pt-BR"),eligible.length?`<span class="badge ok">${eligible.length} local(is) compatível(is)</span>`:'<span class="badge bad">Nenhum local compatível</span>',`<button type="button" class="primary" onclick="openCutAssignment(${p.id})">Atribuir local</button>`];
+  })):'<div class="empty">Nenhum corte aguardando atribuição.</div>';
+}
+function hlgb916DestinationOptions(service,selected=""){
+  return hlgb916EligibleDestinations(service).map(d=>`<option value="${d.type}:${d.id}" ${selected===`${d.type}:${d.id}`?"selected":""}>${d.type==="F"?"Facção":"Local"} — ${esc(d.name)}</option>`).join("");
+}
+function hlgb916RefreshAssignmentDestinations(){
+  let service=document.getElementById("assignService")?.value||"",sel=document.getElementById("assignDestination");if(!sel)return;
+  let old=sel.value;sel.innerHTML='<option value="">Selecione</option>'+hlgb916DestinationOptions(service,old);updateCutAssignmentPreview();
+}
+function hlgb916SuggestedFactionRate(factionId,production){
+  let f=(db.factionMasters||[]).find(x=>+x.id===+factionId),product=hlgb916ProductForProduction(production);
+  let prev=(db.factions||[]).filter(x=>hlgb916Norm(x.name)===hlgb916Norm(f?.name)&&(+x.price||0)>0).find(x=>+x.productId===+product?.id||hlgb916Norm(x.description)===hlgb916Norm(product?.name||production?.product));
+  return +prev?.price||+product?.factionCost||0;
+}
+function updateCutAssignmentPreview(){
+  let pid=+document.getElementById("assignProductionId")?.value||0,p=(db.production||[]).find(x=>+x.id===pid);if(!p)return;
+  let raw=document.getElementById("assignDestination")?.value||"",qty=Math.max(0,+document.getElementById("assignQty")?.value||0),week=document.getElementById("assignWeekStart")?.value||isoDate(mondayOf(new Date()));
+  let [type,id]=raw.split(":"),dest=hlgb916EligibleDestinations(document.getElementById("assignService")?.value||"").find(d=>d.type===type&&+d.id===+id);
+  let box=document.getElementById("assignTargetPreview"),price=document.getElementById("assignFactionPrice"),priceWrap=document.getElementById("assignFactionPriceWrap");
+  if(priceWrap)priceWrap.style.display=type==="F"?"block":"none";
+  if(type==="F"&&price&&(!price.value||+price.value===0))price.value=hlgb916SuggestedFactionRate(+id,p).toFixed(2);
+  if(!box)return;
+  if(!dest){box.innerHTML='<div class="sub">Selecione um local compatível para ver a meta/capacidade.</div>';return}
+  let st=hlgb916TargetStatus(dest,qty,week);
+  box.innerHTML=`<div class="cards" style="margin:8px 0"><div class="card"><small>Meta/capacidade semanal</small><strong>${st.target?st.target.toLocaleString("pt-BR"):"Não definida"}</strong></div><div class="card"><small>Já atribuídas na semana</small><strong>${st.used.toLocaleString("pt-BR")}</strong></div><div class="card"><small>Com esta atribuição</small><strong>${st.after.toLocaleString("pt-BR")}</strong></div><div class="card"><small>Situação</small><strong style="font-size:15px"><span class="badge ${st.cls}">${esc(st.label)}</span></strong></div></div>`;
+}
+function openCutAssignment(productionId){
+  hlgb916EnsureData();let p=(db.production||[]).find(x=>+x.id===+productionId);if(!p)return;
+  let service=hlgb916ServiceNameForProduction(p),services=(db.serviceTypes||[]).map(x=>x.name).filter(Boolean),eligible=hlgb916EligibleDestinations(service);
+  let monday=isoDate(mondayOf(new Date())),fri=new Date(monday+"T12:00:00");fri.setDate(fri.getDate()+4);
+  let order=(db.orders||[]).find(x=>+x.id===+p.orderId),forecast=order?.date||isoDate(fri);
+  openModal("Atribuir corte para produção",`
+    <input id="assignProductionId" type="hidden" value="${p.id}">
+    <div class="grid">
+      <div class="field"><label>Modelo</label><input value="${esc(hlgb916ProductForProduction(p)?.name||p.product||"-")}" disabled></div>
+      <div class="field"><label>Peças ainda sem local</label><input value="${+p.planned||0}" disabled></div>
+      <div class="field"><label>Quantidade a atribuir</label><input id="assignQty" type="number" min="1" max="${+p.planned||0}" value="${+p.planned||0}" oninput="updateCutAssignmentPreview()"></div>
+      <div class="field"><label>Tipo de serviço</label><select id="assignService" onchange="hlgb916RefreshAssignmentDestinations()"><option value="">Selecione</option>${services.map(x=>`<option value="${esc(x)}" ${hlgb916Norm(x)===hlgb916Norm(service)?"selected":""}>${esc(x)}</option>`).join("")}</select><div class="sub">Usado para mostrar somente locais aptos a fazer este tipo de peça.</div></div>
+      <div class="field"><label>Local / facção compatível</label><select id="assignDestination" onchange="updateCutAssignmentPreview()"><option value="">Selecione</option>${hlgb916DestinationOptions(service)}</select></div>
+      <div class="field"><label>Semana da produção</label><input id="assignWeekStart" type="date" value="${monday}" onchange="updateCutAssignmentPreview()"></div>
+      <div class="field"><label>Previsão de saída / entrega</label><input id="assignForecast" type="date" value="${forecast}"></div>
+      <div class="field" id="assignFactionPriceWrap" style="display:none"><label>Valor da facção por peça</label><input id="assignFactionPrice" type="number" min="0" step="0.01" value="0"><div class="sub">Vai aparecer no checklist e no total previsto do envio.</div></div>
+    </div>
+    ${eligible.length?'':'<div class="panel"><span class="badge bad">Nenhum local está cadastrado para o tipo identificado. Ajuste o tipo de serviço ou o cadastro do local.</span></div>'}
+    <div id="assignTargetPreview"></div>
+    <button type="button" class="primary modalSave">Confirmar atribuição</button>`,()=>{
+      let qty=Math.max(0,+document.getElementById("assignQty")?.value||0),serviceNow=document.getElementById("assignService")?.value||"",raw=document.getElementById("assignDestination")?.value||"";
+      if(qty<=0||qty>(+p.planned||0)){alert("Informe uma quantidade válida.");return}
+      let [type,id]=raw.split(":"),dest=hlgb916EligibleDestinations(serviceNow).find(d=>d.type===type&&+d.id===+id);
+      if(!dest){alert("Selecione um local que esteja habilitado para este tipo de serviço.");return}
+      let rate=type==="F"?(+document.getElementById("assignFactionPrice")?.value||0):0;
+      if(type==="F"&&rate<=0){alert("Informe o valor por peça da facção para gerar o comprovante corretamente.");return}
+      let assigned;
+      if(qty===+p.planned){assigned=p;}
+      else{
+        p.planned=(+p.planned||0)-qty;
+        assigned={...p,id:Date.now()+Math.floor(Math.random()*1000000),planned:qty,done:0,assignmentSource:false,parentProductionId:p.id};
+        db.production.push(assigned);
+      }
+      assigned.stage="Em produção";assigned.assignedAt=isoDate(new Date());assigned.assignedWeekStart=document.getElementById("assignWeekStart")?.value||monday;assigned.factionDueDate=document.getElementById("assignForecast")?.value||forecast;
+      if(dest.type==="F"){assigned.factionId=dest.id;assigned.productionLocationId=dest.locationId||null;syncProductionToFaction(assigned);let fr=(db.factions||[]).find(x=>+x.productionId===+assigned.id);if(fr){fr.price=rate;fr.sent=qty;fr.description=hlgb916ProductForProduction(assigned)?.name||assigned.product;fr.productId=assigned.productId||null;}}
+      else{assigned.factionId=null;assigned.productionLocationId=dest.id;removeProductionFactionLink(assigned)}
+      let o=(db.orders||[]).find(x=>+x.id===+assigned.orderId),key=assigned.productId?String(assigned.productId):null,projDate=assigned.factionDueDate;
+      if(o&&projDate){let its=projectionItemsForOrder(o);if(key&&its.some(i=>String(i.key)===key))saveProjectionItemDate(o,key,projDate);else its.forEach(i=>saveProjectionItemDate(o,i.key,projDate));o.status="Pedido em produção";}
+      if(o&&dest.locationId){db.capacityAssignments.push({id:Date.now()+Math.floor(Math.random()*99999),orderId:o.id,itemKey:key||projectionItemsForOrder(o)[0]?.key||"legacy",locationId:dest.locationId,qty,date:assigned.assignedWeekStart,source:"cut_assignment"});}
+      hlgb916CreateMaterialChecklist(assigned,dest,rate,serviceNow);
+      closeModal();save();renderCuts();renderProduction();renderCutAssignmentQueue();renderDestinationChecklists();renderProjection();renderFactions();renderFactionPaymentPlanner();
+    });
+  setTimeout(updateCutAssignmentPreview,30);
+}
+
+// A Projeção Semanal passa a considerar o fluxo pós-corte. Itens antigos já programados são preservados.
+function hlgb916OrderHasAssignedProduction(o){return (db.production||[]).some(p=>+p.orderId===+o.id&&(p.productionLocationId||p.factionId))}
+function hlgb916OrderHasExistingProjection(o){return !!o?.projectionPlannedAt||Object.values(o?.projectionItems||{}).some(x=>x&&x.date)}
+function allProjectionRows(){
+  let rows=[];(db.orders||[]).forEach(o=>{
+    if(["Cancelado"].includes(o.status))return;
+    if(!hlgb916OrderHasAssignedProduction(o)&&!hlgb916OrderHasExistingProjection(o)&&!o.invoiceReady&&!o.noteReady)return;
+    projectionItemsForOrder(o).forEach(item=>rows.push({order:o,item}));
+  });return rows;
+}
+function projectionLocationForOrder(o){
+  let names=[...new Set((db.production||[]).filter(p=>+p.orderId===+o.id&&(p.productionLocationId||p.factionId)).map(p=>productionDestinationName(p)).filter(x=>x&&x!=="-"))];
+  return names.length?names.join(" / "):"-";
+}
+
+// --- Pedido avulso -----------------------------------------------------------
+function hlgb916AdHocProductOptions(selected=""){return (db.products||[]).slice().sort((a,b)=>String(a.name||"").localeCompare(String(b.name||""),"pt-BR")).map(p=>`<option value="${p.id}" ${+p.id===+selected?"selected":""}>${esc(p.code?`${p.code} — ${p.name}`:p.name)}</option>`).join("")}
+function hlgb916AdHocLine(line={}){
+  return `<div class="adHocLine" style="display:grid;grid-template-columns:minmax(260px,1.5fr) 120px 140px 90px;gap:10px;align-items:end;margin:8px 0;padding:10px;border:1px solid var(--line);border-radius:10px;background:#fff">
+    <div class="field"><label>Modelo</label><select class="adHocProduct" onchange="hlgb916AdHocProductChanged(this)"><option value="">Selecione</option>${hlgb916AdHocProductOptions(line.productId)}</select></div>
+    <div class="field"><label>Quantidade</label><input class="adHocQty" type="number" min="1" step="1" value="${line.qty||0}" oninput="hlgb916RecalcAdHoc()"></div>
+    <div class="field"><label>Valor por peça</label><input class="adHocPrice" type="number" min="0" step="0.01" value="${line.price||0}" oninput="hlgb916RecalcAdHoc()"></div>
+    <button type="button" class="danger" onclick="this.closest('.adHocLine').remove();hlgb916RecalcAdHoc()">Excluir</button>
+  </div>`;
+}
+function addAdHocOrderLine(){let box=document.getElementById("adHocLines");if(box)box.insertAdjacentHTML("beforeend",hlgb916AdHocLine())}
+function hlgb916AdHocProductChanged(sel){let p=hlgb916ProductById(+sel.value),row=sel.closest('.adHocLine'),price=row?.querySelector('.adHocPrice');if(price&&p)price.value=(+p.price||0).toFixed(2);hlgb916RecalcAdHoc()}
+function hlgb916ReadAdHocLines(){return [...document.querySelectorAll('.adHocLine')].map(r=>{let productId=+r.querySelector('.adHocProduct')?.value||0,qty=Math.max(0,+r.querySelector('.adHocQty')?.value||0),price=Math.max(0,+r.querySelector('.adHocPrice')?.value||0);return {productId,qty,price,product:hlgb916ProductById(productId)}}).filter(x=>x.productId&&x.qty>0)}
+function hlgb916RecalcAdHoc(){let lines=hlgb916ReadAdHocLines(),q=lines.reduce((a,x)=>a+x.qty,0),v=lines.reduce((a,x)=>a+x.qty*x.price,0);let el=document.getElementById('adHocPreview');if(el)el.innerHTML=`<b>${q.toLocaleString('pt-BR')} peças</b> · ${money(v)}`}
+function newAdHocOrder(){
+  let orderNo=typeof nextAvailableOrderNumber==="function"?nextAvailableOrderNumber():Date.now(),today=isoDate(new Date());
+  openModal("Pedido avulso",`
+    <div class="sub">Use para pedidos antigos que já estão cortados/em produção ou para uma produção sem cliente cadastrado.</div>
+    <div class="grid" style="margin-top:12px">
+      <div class="field"><label>Nº do pedido</label><input id="adHocOrderNumber" type="number" min="1" value="${orderNo}"></div>
+      <div class="field"><label>Previsão / referência</label><input id="adHocDate" type="date" value="${today}"></div>
+      <div class="field"><label>Prioridade</label><select id="adHocPriority"><option>Padrão</option><option>Urgente</option><option>Urgentíssimo</option></select></div>
+      <div class="field"><label>Ponto de entrada no fluxo</label><select id="adHocFlow"><option value="cut" selected>Já cortado — aguardar atribuição de local</option><option value="waiting">Aguardando corte</option></select></div>
+      <div class="field" style="grid-column:1/-1"><label>Observação</label><input id="adHocNote" placeholder="Ex.: pedido antigo lançado na implantação"></div>
+    </div>
+    <div class="panel"><div class="toolbar" style="justify-content:space-between;align-items:center"><h3 style="margin:0">Modelos</h3><button type="button" class="secondary" onclick="addAdHocOrderLine()">+ Adicionar modelo</button></div><div id="adHocLines">${hlgb916AdHocLine()}</div><div id="adHocPreview" class="total"></div></div>
+    <button type="button" class="primary modalSave">Salvar pedido avulso</button>`,()=>{
+      let lines=hlgb916ReadAdHocLines();if(!lines.length){alert("Adicione pelo menos um modelo com quantidade.");return}
+      let num=+document.getElementById("adHocOrderNumber")?.value||orderNo;if((db.orders||[]).some(o=>+o.orderNumber===num)){alert("Este número de pedido já existe.");return}
+      let id=Date.now(),flow=document.getElementById("adHocFlow")?.value||"cut",total=lines.reduce((a,x)=>a+x.qty*x.price,0),qty=lines.reduce((a,x)=>a+x.qty,0);
+      let o={id,orderNumber:num,client:"Pedido avulso",clientId:null,isAdHoc:true,date:document.getElementById("adHocDate")?.value||today,total,qty,totalQty:qty,status:flow==="waiting"?"Aguardando corte":"Corte finalizado",priority:document.getElementById("adHocPriority")?.value||"Padrão",note:document.getElementById("adHocNote")?.value||"",grade:lines.map(x=>({productId:x.productId,color:"",size:"Avulso",qty:x.qty,unitPrice:x.price})),items:lines.map(x=>`${x.qty} ${x.product?.name||"Produto"}`).join(" | ")};
+      db.orders.push(o);
+      if(flow==="cut"){
+        lines.forEach((x,i)=>db.cuts.push({id:id+i+1,orderId:id,client:"Pedido avulso",op:`AV-${num}-${i+1}`,productId:x.productId,product:x.product?.name||"Produto",fabric:"",color:"",size:"",layers:0,meters:0,pieces:x.qty,productionLocationId:null,cutterId:null,cutType:"",status:"Finalizado",date:today,finishedAt:today,isAdHoc:true}));
+        syncFinalizedCutsToProduction();
+      }else syncOrdersToCuts();
+      closeModal();save();renderOrders();renderCuts();renderCutAssignmentQueue();
+    });
+  setTimeout(()=>{let first=document.querySelector('.adHocProduct');if(first&&first.options.length>1){first.selectedIndex=1;hlgb916AdHocProductChanged(first)}},20);
+}
+
+// --- Checklist de matéria-prima / recebimento --------------------------------
+function hlgb916CreateMaterialChecklist(prod,dest,unitPrice,serviceName){
+  hlgb916EnsureData();let product=hlgb916ProductForProduction(prod),qty=+prod.planned||0;
+  let materials=(product?.materials||[]).map((m,i)=>({id:i+1,name:m.name||"Material",unit:m.unit||"",qty:Math.max(0,(+m.qty||0)*qty*(1+(+m.loss||0)/100)),checked:false}));
+  let rec={id:Date.now()+Math.floor(Math.random()*100000),productionId:prod.id,cutId:prod.cutId||null,orderId:prod.orderId||null,destinationType:dest.type,destinationId:dest.id,destinationName:dest.name,productId:product?.id||prod.productId||null,productName:product?.name||prod.product||"Produto",serviceName:serviceName||"",qty,unitPrice:dest.type==="F"?(+unitPrice||0):0,total:dest.type==="F"?qty*(+unitPrice||0):0,materials,status:"Pendente",createdAt:new Date().toISOString(),receivedBy:"",receivedAt:"",note:""};
+  db.materialChecklists.push(rec);return rec;
+}
+function renderDestinationChecklists(){
+  let el=document.getElementById("destinationChecklistTable");if(!el)return;hlgb916EnsureData();
+  let rows=db.materialChecklists.slice().sort((a,b)=>String(b.createdAt||"").localeCompare(String(a.createdAt||"")));
+  el.innerHTML=rows.length?table(["Data","Destino","Modelo","Peças","Materiais","Valor facção","Status","Ações"],rows.map(c=>[
+    c.createdAt?fmtDate(String(c.createdAt).slice(0,10)):"-",esc(c.destinationName||"-"),esc(c.productName||"-"),(+c.qty||0).toLocaleString("pt-BR"),`${(c.materials||[]).filter(x=>x.checked).length}/${(c.materials||[]).length} conferidos`,c.destinationType==="F"?`${money(c.unitPrice)}/pç · <b>${money(c.total)}</b>`:"-",`<span class="badge ${c.status==="Conferido"?"ok":"warn"}">${esc(c.status||"Pendente")}</span>`,`<button type="button" class="primary" onclick="openMaterialChecklist(${c.id})">Conferir</button> <button type="button" class="secondary" onclick="printMaterialChecklist(${c.id})">🖨️ Imprimir</button>`
+  ])):'<div class="empty">Nenhum checklist gerado ainda. Ele será criado quando um corte for atribuído a um local.</div>';
+}
+function hlgb916CheckAllMaterials(){document.querySelectorAll('.destinationMaterialCheck').forEach(x=>x.checked=true)}
+function openMaterialChecklist(id){
+  let c=(db.materialChecklists||[]).find(x=>+x.id===+id);if(!c)return;
+  let rows=(c.materials||[]).map((m,i)=>`<tr><td><input type="checkbox" class="destinationMaterialCheck" data-i="${i}" ${m.checked?"checked":""}></td><td>${esc(m.name)}</td><td>${(+m.qty||0).toLocaleString("pt-BR",{maximumFractionDigits:3})}</td><td>${esc(m.unit||"")}</td></tr>`).join("");
+  openModal("Checklist de recebimento",`
+    <div class="grid"><div class="field"><label>Destino</label><input value="${esc(c.destinationName||"")}" disabled></div><div class="field"><label>Modelo</label><input value="${esc(c.productName||"")}" disabled></div><div class="field"><label>Peças</label><input value="${+c.qty||0}" disabled></div></div>
+    ${c.destinationType==="F"?`<div class="cards"><div class="card"><small>Valor por peça</small><strong>${money(c.unitPrice)}</strong></div><div class="card"><small>Total previsto do serviço</small><strong>${money(c.total)}</strong></div></div>`:""}
+    <div class="toolbar"><button type="button" class="secondary" onclick="hlgb916CheckAllMaterials()">Marcar todos</button><button type="button" class="secondary" onclick="printMaterialChecklist(${c.id})">🖨️ Imprimir comprovante</button></div>
+    <div style="overflow:auto"><table><tr><th>OK</th><th>Matéria-prima</th><th>Quantidade</th><th>Unidade</th></tr>${rows||'<tr><td colspan="4">Sem materiais cadastrados na ficha técnica.</td></tr>'}</table></div>
+    <div class="grid"><div class="field"><label>Recebido / conferido por</label><input id="checkReceivedBy" value="${esc(c.receivedBy||"")}"></div><div class="field"><label>Data da conferência</label><input id="checkReceivedAt" type="date" value="${c.receivedAt||isoDate(new Date())}"></div><div class="field"><label>Observação</label><input id="checkNote" value="${esc(c.note||"")}" placeholder="Ex.: faltou elástico"></div></div>
+    <button type="button" class="primary modalSave">Salvar conferência</button>`,()=>{
+      (c.materials||[]).forEach((m,i)=>m.checked=!!document.querySelector(`.destinationMaterialCheck[data-i="${i}"]`)?.checked);
+      c.receivedBy=document.getElementById("checkReceivedBy")?.value||"";c.receivedAt=document.getElementById("checkReceivedAt")?.value||"";c.note=document.getElementById("checkNote")?.value||"";
+      c.status=(c.materials||[]).length?(c.materials.every(m=>m.checked)?"Conferido":"Pendente"):"Conferido";closeModal();save();renderDestinationChecklists();
+    });
+}
+function printMaterialChecklist(id){
+  let c=(db.materialChecklists||[]).find(x=>+x.id===+id);if(!c)return;
+  let mats=(c.materials||[]).map(m=>`<tr><td>☐</td><td>${esc(m.name)}</td><td>${(+m.qty||0).toLocaleString("pt-BR",{maximumFractionDigits:3})}</td><td>${esc(m.unit||"")}</td></tr>`).join("");
+  let finance=c.destinationType==="F"?`<h2>Valor do serviço</h2><table><tr><th>Modelo</th><th>Peças</th><th>Valor unitário</th><th>Total previsto</th></tr><tr><td>${esc(c.productName)}</td><td>${(+c.qty||0).toLocaleString("pt-BR")}</td><td>${money(c.unitPrice)}</td><td><b>${money(c.total)}</b></td></tr></table>`:"";
+  let w=window.open("","_blank");if(!w){alert("Permita pop-ups para imprimir o checklist.");return}
+  w.document.write(`<html><head><title>Checklist — ${esc(c.destinationName)}</title><style>body{font-family:Arial;padding:28px;color:#222}table{width:100%;border-collapse:collapse;margin:14px 0}th,td{border:1px solid #bbb;padding:8px;text-align:left}h1{font-size:22px}.sign{margin-top:30px}</style></head><body><h1>HLGB Confecções — Checklist de envio / recebimento</h1><p><b>Destino:</b> ${esc(c.destinationName)}<br><b>Modelo:</b> ${esc(c.productName)}<br><b>Quantidade:</b> ${(+c.qty||0).toLocaleString("pt-BR")} peças</p><h2>Matéria-prima enviada</h2><table><tr><th>OK</th><th>Material</th><th>Quantidade</th><th>Unidade</th></tr>${mats||'<tr><td colspan="4">Sem materiais cadastrados.</td></tr>'}</table>${finance}<div class="sign">Recebido por: ____________________________________ &nbsp; Data: ____/____/________</div><p>Observação: ______________________________________________________________________</p><script>window.onload=()=>window.print();<\/script></body></html>`);w.document.close();
+}
+
+// --- Calculadora de previsão de pagamento da facção --------------------------
+function hlgb916FactionPlannerRows(factionId){
+  let fm=(db.factionMasters||[]).find(x=>+x.id===+factionId);if(!fm)return [];
+  return hlgb916UnassignedProduction().map(p=>{let product=hlgb916ProductForProduction(p),service=hlgb916ServiceNameForProduction(p);if(!hlgb916EligibleDestinations(service).some(d=>d.type==="F"&&+d.id===+factionId))return null;return {p,product,service,qty:+p.planned||0,rate:hlgb916SuggestedFactionRate(factionId,p)}}).filter(Boolean);
+}
+function renderFactionPaymentPlanner(){
+  let sel=document.getElementById("factionPlannerMaster"),tableEl=document.getElementById("factionPlannerTable");if(!sel||!tableEl)return;
+  let cur=sel.value;sel.innerHTML='<option value="">Selecione</option>'+(db.factionMasters||[]).filter(x=>x.active!==false).map(f=>`<option value="${f.id}">${esc(f.name)}</option>`).join("");if((db.factionMasters||[]).some(f=>String(f.id)===String(cur)))sel.value=cur;
+  let id=+sel.value||0;if(!id){tableEl.innerHTML='<div class="empty">Selecione uma facção para calcular.</div>';let c=document.getElementById("factionPlannerCards");if(c)c.innerHTML="";return}
+  let rows=hlgb916FactionPlannerRows(id);
+  tableEl.innerHTML=rows.length?`<table><tr><th>Selecionar</th><th>OP</th><th>Modelo</th><th>Tipo</th><th>Qtd. disponível</th><th>Qtd. planejada</th><th>Valor/peça</th><th>Subtotal</th></tr>${rows.map((r,i)=>`<tr><td><input class="factionPlanCheck" data-i="${i}" type="checkbox" onchange="recalcFactionPaymentPlanner()"></td><td>${esc(r.p.op||"-")}</td><td>${esc(r.product?.name||r.p.product||"-")}</td><td>${esc(r.service||"-")}</td><td>${r.qty.toLocaleString("pt-BR")}</td><td><input class="factionPlanQty" data-i="${i}" type="number" min="0" max="${r.qty}" value="${r.qty}" oninput="recalcFactionPaymentPlanner()" style="width:100px"></td><td><input class="factionPlanRate" data-i="${i}" type="number" min="0" step="0.01" value="${(+r.rate||0).toFixed(2)}" oninput="recalcFactionPaymentPlanner()" style="width:110px"></td><td class="factionPlanSubtotal" data-i="${i}">${money(r.qty*(+r.rate||0))}</td></tr>`).join("")}</table>`:'<div class="empty">Nenhum modelo cortado e compatível está aguardando atribuição para esta facção.</div>';
+  recalcFactionPaymentPlanner();
+}
+function recalcFactionPaymentPlanner(){
+  let total=0,qty=0,count=0;document.querySelectorAll('.factionPlanCheck').forEach(ch=>{let i=ch.dataset.i,q=+document.querySelector(`.factionPlanQty[data-i="${i}"]`)?.value||0,r=+document.querySelector(`.factionPlanRate[data-i="${i}"]`)?.value||0,sub=q*r;let td=document.querySelector(`.factionPlanSubtotal[data-i="${i}"]`);if(td)td.textContent=money(sub);if(ch.checked){count++;qty+=q;total+=sub}});
+  let target=+document.getElementById("factionPlannerTarget")?.value||0,diff=target-total,cards=document.getElementById("factionPlannerCards");if(!cards)return;
+  cards.innerHTML=`<div class="card"><small>Modelos selecionados</small><strong>${count}</strong></div><div class="card"><small>Peças selecionadas</small><strong>${qty.toLocaleString("pt-BR")}</strong></div><div class="card"><small>Pagamento previsto</small><strong>${money(total)}</strong></div><div class="card"><small>${target?diff>=0?"Falta para a meta":"Acima da meta":"Meta semanal"}</small><strong>${target?money(Math.abs(diff)):"Defina um valor"}</strong></div>`;
+}
+
+// --- HUB FINANCEIRO ----------------------------------------------------------
+const HLGB916_OUT_CATEGORIES=["Matéria-prima","Mão de obra da confecção","Facção","Funcionários","Aluguel","Gastos da confecção","Gasto pessoal","Impostos","Transporte","Outros"];
+const HLGB916_IN_CATEGORIES=["Vendas","Recebimento de cliente","Aporte / empréstimo","Outras entradas"];
+function hlgb916HubRange(weekValueStr){let v=weekValueStr||weekValue(new Date()),m=mondayFromWeek(v),s=new Date(m);s.setDate(s.getDate()+6);return {week:v,start:isoDate(m),end:isoDate(s)}}
+function changeHubFinanceWeek(delta){let el=document.getElementById("hubFinanceWeek");if(!el)return;if(!el.value)el.value=weekValue(new Date());let m=mondayFromWeek(el.value);m.setDate(m.getDate()+delta*7);el.value=weekValue(m);renderHubFinance()}
+function hlgb916HubEntryMethods(e){return e.flow==="Entrada"?[e.method||"Pix"]:(Array.isArray(e.acceptedMethods)&&e.acceptedMethods.length?e.acceptedMethods:["Pix"])}
+function hlgb916HubWeekEntries(range){return (db.hubFinanceEntries||[]).filter(e=>{let d=String(e.date||"").slice(0,10);return d>=range.start&&d<=range.end})}
+function hlgb916HubSummary(range){
+  let arr=hlgb916HubWeekEntries(range),ins=arr.filter(e=>e.flow==="Entrada"),outs=arr.filter(e=>e.flow==="Saída"),inTotal=ins.reduce((a,e)=>a+(+e.value||0),0),outTotal=outs.reduce((a,e)=>a+(+e.value||0),0);
+  let cashIn=ins.filter(e=>["pix","dinheiro"].includes(hlgb916Norm(e.method))).reduce((a,e)=>a+(+e.value||0),0),checksIn=ins.filter(e=>hlgb916Norm(e.method)==="cheque").reduce((a,e)=>a+(+e.value||0),0);
+  let hardCash=0,strictCheck=0,flexCheck=0;outs.forEach(e=>{let ms=hlgb916HubEntryMethods(e).map(hlgb916Norm),hasCheck=ms.includes("cheque"),hasCash=ms.includes("pix")||ms.includes("dinheiro");if(hasCheck&&!hasCash)strictCheck+=+e.value||0;else if(hasCheck&&hasCash)flexCheck+=+e.value||0;else hardCash+=+e.value||0});
+  let checkGap=Math.max(0,strictCheck-checksIn),remainingChecks=Math.max(0,checksIn-strictCheck),flexCovered=Math.min(flexCheck,remainingChecks),cashNeed=hardCash+Math.max(0,flexCheck-flexCovered),cashBalance=cashIn-cashNeed;
+  let realizedIn=ins.filter(e=>e.status==="Realizado").reduce((a,e)=>a+(+e.value||0),0),realizedOut=outs.filter(e=>e.status==="Realizado").reduce((a,e)=>a+(+e.value||0),0);
+  return {arr,ins,outs,inTotal,outTotal,balance:inTotal-outTotal,cashIn,checksIn,hardCash,strictCheck,flexCheck,checkEligible:strictCheck+flexCheck,checkGap,cashNeed,cashBalance,realizedIn,realizedOut};
+}
+function renderHubFinance(){
+  let weekEl=document.getElementById("hubFinanceWeek");if(!weekEl)return;hlgb916EnsureData();if(!weekEl.value)weekEl.value=weekValue(new Date());let range=hlgb916HubRange(weekEl.value),s=hlgb916HubSummary(range);
+  let label=document.getElementById("hubFinanceWeekLabel");if(label)label.textContent=`Semana de ${fmtDate(range.start)} a ${fmtDate(range.end)}.`;
+  let cards=document.getElementById("hubFinanceCards");if(cards)cards.innerHTML=`<div class="card"><small>Entradas previstas</small><strong>${money(s.inTotal)}</strong></div><div class="card"><small>Saídas previstas</small><strong>${money(s.outTotal)}</strong></div><div class="card"><small>Saldo previsto</small><strong>${money(s.balance)}</strong></div><div class="card"><small>Pix + dinheiro previsto</small><strong>${money(s.cashIn)}</strong></div><div class="card"><small>Cheques previstos</small><strong>${money(s.checksIn)}</strong></div><div class="card"><small>Contas que aceitam cheque</small><strong>${money(s.checkEligible)}</strong></div><div class="card"><small>Entradas realizadas</small><strong>${money(s.realizedIn)}</strong></div><div class="card"><small>Saídas realizadas</small><strong>${money(s.realizedOut)}</strong></div>`;
+  let alertEl=document.getElementById("hubFinanceLiquidityAlert");if(alertEl){let parts=[],cls="ok";if(s.balance<0){parts.push(`A semana fecha negativa em ${money(Math.abs(s.balance))}.`);cls="bad"}else parts.push(`A semana fecha positiva em ${money(s.balance)}.`);if(s.checkGap>0){parts.push(`Faltam ${money(s.checkGap)} em cheque para contas que aceitam somente cheque.`);cls="bad"}if(s.cashBalance<0){parts.push(`Mesmo com saldo total, faltam ${money(Math.abs(s.cashBalance))} de liquidez em Pix/dinheiro para cobrir o que não puder ser pago com cheque.`);if(cls!=="bad")cls="warn"}else parts.push(`Após usar os cheques possíveis, sobram ${money(s.cashBalance)} em Pix/dinheiro dentro dos lançamentos da semana.`);alertEl.innerHTML=`<div class="panel"><span class="badge ${cls}" style="font-size:13px;padding:8px 12px">${parts.map(esc).join(" ")}</span></div>`}
+  let cat={};s.outs.forEach(e=>cat[e.category||"Outros"]=(cat[e.category||"Outros"]||0)+(+e.value||0));let catRows=Object.entries(cat).sort((a,b)=>b[1]-a[1]);let catEl=document.getElementById("hubFinanceCategoryTable");if(catEl)catEl.innerHTML=catRows.length?table(["Categoria","Valor","% das saídas"],catRows.map(([k,v])=>[esc(k),money(v),s.outTotal?`${(v/s.outTotal*100).toFixed(1).replace('.',',')}%`:"0%"])):'<div class="empty">Nenhuma saída lançada nesta semana.</div>';
+  let methodEl=document.getElementById("hubFinanceMethodTable");if(methodEl)methodEl.innerHTML=table(["Indicador","Valor"],[["Entradas em Pix/dinheiro",money(s.cashIn)],["Entradas em cheque",money(s.checksIn)],["Saídas que exigem Pix/dinheiro",money(s.hardCash)],["Saídas somente em cheque",money(s.strictCheck)],["Saídas flexíveis que aceitam cheque",money(s.flexCheck)],["Necessidade final de Pix/dinheiro após usar cheques",money(s.cashNeed)]]);
+  let future=document.getElementById("hubFinanceFutureTable");if(future){let base=mondayFromWeek(range.week),rows=[];for(let i=0;i<6;i++){let d=new Date(base);d.setDate(d.getDate()+i*7);let r=hlgb916HubRange(weekValue(d)),x=hlgb916HubSummary(r);rows.push([`${fmtDate(r.start)} a ${fmtDate(r.end)}`,money(x.inTotal),money(x.outTotal),money(x.balance),x.cashBalance>=0?`<span class="badge ok">${money(x.cashBalance)}</span>`:`<span class="badge bad">-${money(Math.abs(x.cashBalance))}</span>`])}future.innerHTML=table(["Semana","Entradas","Saídas","Saldo","Liquidez Pix/dinheiro"],rows)}
+  let tbl=document.getElementById("hubFinanceEntriesTable");if(tbl){let arr=s.arr.slice().sort((a,b)=>String(a.date).localeCompare(String(b.date)));tbl.innerHTML=arr.length?table(["Data","Tipo","Descrição","Categoria","Pessoa/Origem","Valor","Pagamento","Status","Ações"],arr.map(e=>[fmtDate(e.date),`<span class="badge ${e.flow==="Entrada"?"ok":"warn"}">${esc(e.flow)}</span>`,esc(e.description||"-"),esc(e.category||"-"),esc(e.person||e.origin||"-"),money(e.value),esc(hlgb916HubEntryMethods(e).join(" / ")),`<span class="badge ${e.status==="Realizado"?"ok":""}">${esc(e.status||"Previsto")}</span>`,`<button type="button" class="secondary" onclick="editHubFinanceEntry(${e.id})">Editar</button> <button type="button" class="primary" onclick="toggleHubFinanceEntry(${e.id})">${e.status==="Realizado"?"Reabrir":"✓ Realizado"}</button> <button type="button" class="danger" onclick="deleteHubFinanceEntry(${e.id})">Excluir</button>`])):'<div class="empty">Nenhum lançamento nesta semana.</div>'}
+}
+function hlgb916HubForm(e={flow:"Saída"}){
+  let flow=e.flow||"Saída",cats=flow==="Entrada"?HLGB916_IN_CATEGORIES:HLGB916_OUT_CATEGORIES,employeeNames=(db.employees||[]).map(x=>x.name).filter(Boolean);
+  let methods=Array.isArray(e.acceptedMethods)?e.acceptedMethods:[];
+  return `<div class="grid"><div class="field"><label>Tipo</label><input value="${esc(flow)}" disabled></div><div class="field"><label>Descrição</label><input id="hubEntryDesc" value="${esc(e.description||"")}" placeholder="Ex.: pagamento renda / recebimento cliente"></div><div class="field"><label>Valor</label><input id="hubEntryValue" type="number" min="0" step="0.01" value="${e.value??0}"></div><div class="field"><label>Data prevista</label><input id="hubEntryDate" type="date" value="${e.date||isoDate(new Date())}"></div><div class="field"><label>Categoria</label><select id="hubEntryCategory">${cats.map(x=>`<option ${x===(e.category||cats[0])?"selected":""}>${esc(x)}</option>`).join("")}</select></div><div class="field"><label>Subcategoria / tipo de gasto</label><input id="hubEntrySubcategory" value="${esc(e.subcategory||"")}" placeholder="Ex.: aluguel Confecção 1 / gasto pessoal mercado"></div><div class="field"><label>${flow==="Entrada"?"Origem / cliente":"Fornecedor / favorecido"}</label><input id="hubEntryOrigin" value="${esc(e.origin||"")}"></div><div class="field"><label>Pessoa (para gasto pessoal)</label><input id="hubEntryPerson" list="hubPeopleList" value="${esc(e.person||"")}" placeholder="Opcional"><datalist id="hubPeopleList">${employeeNames.map(x=>`<option value="${esc(x)}">`).join("")}</datalist></div><div class="field"><label>Status</label><select id="hubEntryStatus"><option ${e.status!=="Realizado"?"selected":""}>Previsto</option><option ${e.status==="Realizado"?"selected":""}>Realizado</option></select></div></div>${flow==="Entrada"?`<div class="panel"><h3>Forma de recebimento</h3><div class="grid"><div class="field"><label>Receber em</label><select id="hubEntryMethod" onchange="hlgb916ToggleHubChequeDate()"><option ${e.method==="Pix"?"selected":""}>Pix</option><option ${e.method==="Dinheiro"?"selected":""}>Dinheiro</option><option ${e.method==="Cheque"?"selected":""}>Cheque</option></select></div><div class="field" id="hubChequeDateWrap"><label>Data do cheque / compensação</label><input id="hubEntryCheckDate" type="date" value="${e.checkDate||e.date||isoDate(new Date())}"></div></div></div>`:`<div class="panel"><h3>Esta conta pode ser paga com</h3><div class="toolbar"><label><input class="hubAcceptedMethod" type="checkbox" value="Pix" ${methods.includes("Pix")||!methods.length?"checked":""}> Pix</label><label><input class="hubAcceptedMethod" type="checkbox" value="Dinheiro" ${methods.includes("Dinheiro")?"checked":""}> Dinheiro</label><label><input class="hubAcceptedMethod" type="checkbox" value="Cheque" ${methods.includes("Cheque")?"checked":""}> Cheque</label></div><div class="sub">Marque todas as formas que o fornecedor aceita. Isso é usado para calcular a liquidez da semana.</div></div>`}<div class="field"><label>Observação</label><textarea id="hubEntryNote">${esc(e.note||"")}</textarea></div>`;
+}
+function hlgb916ToggleHubChequeDate(){let w=document.getElementById("hubChequeDateWrap"),m=document.getElementById("hubEntryMethod")?.value;if(w)w.style.display=m==="Cheque"?"block":"none"}
+function hlgb916ReadHubForm(flow){let accepted=flow==="Saída"?[...document.querySelectorAll('.hubAcceptedMethod:checked')].map(x=>x.value):[];if(flow==="Saída"&&!accepted.length){alert("Marque pelo menos uma forma de pagamento aceita.");return null}let value=+document.getElementById("hubEntryValue")?.value||0;if(value<=0){alert("Informe um valor maior que zero.");return null}let desc=(document.getElementById("hubEntryDesc")?.value||"").trim();if(!desc){alert("Informe a descrição.");return null}return {flow,description:desc,value,date:document.getElementById("hubEntryDate")?.value||isoDate(new Date()),category:document.getElementById("hubEntryCategory")?.value||"Outros",subcategory:document.getElementById("hubEntrySubcategory")?.value||"",origin:document.getElementById("hubEntryOrigin")?.value||"",person:document.getElementById("hubEntryPerson")?.value||"",status:document.getElementById("hubEntryStatus")?.value||"Previsto",method:flow==="Entrada"?(document.getElementById("hubEntryMethod")?.value||"Pix"):"",checkDate:flow==="Entrada"?(document.getElementById("hubEntryCheckDate")?.value||""):"",acceptedMethods:accepted,note:document.getElementById("hubEntryNote")?.value||""}}
+function newHubFinanceEntry(flow){hlgb916EnsureData();openModal(`Nova ${flow.toLowerCase()} prevista`,hlgb916HubForm({flow})+`<button type="button" class="primary modalSave">Salvar lançamento</button>`,()=>{let d=hlgb916ReadHubForm(flow);if(!d)return;db.hubFinanceEntries.push({id:Date.now()+Math.floor(Math.random()*9999),...d,createdAt:new Date().toISOString()});closeModal();save();renderHubFinance()});setTimeout(hlgb916ToggleHubChequeDate,20)}
+function editHubFinanceEntry(id){let e=(db.hubFinanceEntries||[]).find(x=>+x.id===+id);if(!e)return;openModal("Editar lançamento do Hub",hlgb916HubForm(e)+`<button type="button" class="primary modalSave">Salvar alterações</button>`,()=>{let d=hlgb916ReadHubForm(e.flow);if(!d)return;Object.assign(e,d,{updatedAt:new Date().toISOString()});closeModal();save();renderHubFinance()});setTimeout(hlgb916ToggleHubChequeDate,20)}
+function toggleHubFinanceEntry(id){let e=(db.hubFinanceEntries||[]).find(x=>+x.id===+id);if(!e)return;e.status=e.status==="Realizado"?"Previsto":"Realizado";e.realizedAt=e.status==="Realizado"?isoDate(new Date()):"";save();renderHubFinance()}
+function deleteHubFinanceEntry(id){if(!confirm("Excluir este lançamento do Hub Financeiro?"))return;db.hubFinanceEntries=(db.hubFinanceEntries||[]).filter(x=>+x.id!==+id);save();renderHubFinance()}
+function hubFinanceManualSync(){alert("O botão de sincronização está preparado, mas nesta etapa não importa notas automaticamente para evitar lançamentos duplicados. Quando você pedir, ligamos este botão às notas, compras, folha e facções.")}
 
 </script>
 </body></html>
