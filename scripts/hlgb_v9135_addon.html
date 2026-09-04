@@ -1,0 +1,158 @@
+<!-- HLGB v91.35 PROJECTION + CAPACITY + FACTION DELIVERY + PIX COPY -->
+<style>
+.pix-copy-935{display:inline-flex;align-items:center;gap:6px;flex-wrap:wrap}
+.pix-copy-935 button{padding:5px 8px;font-size:11px}
+.faction-delivery-935 .badge{white-space:nowrap}
+</style>
+<script>
+(function(){
+  const n935=v=>String(v??'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/\s+/g,' ').trim();
+  const c935=v=>{try{return JSON.parse(JSON.stringify(v))}catch(e){return v}};
+  const safe935=fn=>{try{return fn()}catch(e){console.error('HLGB v91.35',e)}};
+
+  function item935(orderId,key){
+    let o=(db.orders||[]).find(x=>+x.id===+orderId);
+    return o&&typeof projectionItemsForOrder==='function'?projectionItemsForOrder(o).find(x=>String(x.key)===String(key)):null;
+  }
+  function assignedProd935(p){
+    let st=n935(p?.stage||p?.status||'');
+    return !!(p?.factionId||p?.productionLocationId||p?.finishedAt)||['em producao','acabamento','pronto','finalizado','producao finalizada'].includes(st);
+  }
+  function exactActual935(orderId,key){
+    let it=item935(orderId,key),pid=+it?.productId||(+key||0);
+    return (db.production||[]).filter(p=>{
+      if(+p.orderId!==+orderId||!assignedProd935(p)||(+p.planned||0)<=0)return false;
+      if(!pid)return false;
+      return +p.productId===pid||String(p.cutProductKey||'').split(':').pop()===String(pid);
+    });
+  }
+  function legacyActual935(orderId,key){
+    let exact=exactActual935(orderId,key);if(exact.length)return [];
+    let it=item935(orderId,key),name=n935(it?.name||''),o=(db.orders||[]).find(x=>+x.id===+orderId),total=o&&typeof qtyOfOrder==='function'?+qtyOfOrder(o)||0:0;
+    let candidates=(db.production||[]).filter(p=>{
+      if(+p.orderId!==+orderId||!assignedProd935(p)||(+p.planned||0)<=0)return false;
+      if(p.productId||p.cutProductKey)return false;
+      let text=n935(p.product||'');
+      return (!!name&&text.includes(name))||(total>0&&(+p.planned||0)>=total);
+    });
+    let seen=new Set();return candidates.filter(p=>{let dest=`${p.factionId||''}|${p.productionLocationId||''}`;if(seen.has(dest))return false;seen.add(dest);return true});
+  }
+  function actualDisplay935(orderId,key){
+    let it=item935(orderId,key),exact=exactActual935(orderId,key),legacy=legacyActual935(orderId,key),rows=[];
+    exact.forEach(p=>rows.push({p,qty:+p.planned||0,legacy:false}));
+    if(!exact.length&&legacy.length){let remaining=Math.max(0,+it?.qty||0);legacy.forEach((p,i)=>{let q=i===legacy.length-1?remaining:Math.min(remaining,+p.planned||remaining);remaining=Math.max(0,remaining-q);if(q>0)rows.push({p,qty:q,legacy:true})})}
+    return rows;
+  }
+  function planRows935(orderId,key){
+    return (db.capacityAssignments||[]).filter(a=>+a.orderId===+orderId&&String(a.itemKey)===String(key)&&String(a.source||'')!=='cut_assignment'&&(+a.locationId||0)&&a.active!==false)
+      .map(a=>({...a,qty:Math.max(0,(+a.qty||0)-(+a.consumedQty||0))})).filter(a=>(+a.qty||0)>0);
+  }
+
+  window.assignmentsFor=function(orderId,key){
+    let it=item935(orderId,key),actual=actualDisplay935(orderId,key),out=[];
+    actual.forEach(x=>{let p=x.p,loc=+p.productionLocationId||0;if(loc&&x.qty>0)out.push({id:'actual935:'+p.id,orderId:+orderId,itemKey:String(key),locationId:loc,qty:x.qty,source:'actual_production_v9135',locked:true,productionId:p.id})});
+    let limit=Math.max(0,(+it?.qty||0)-actual.reduce((s,x)=>s+(+x.qty||0),0));
+    for(const a of planRows935(orderId,key)){if(limit<=0)break;let q=Math.min(limit,+a.qty||0);if(q>0){out.push({...a,qty:q});limit-=q}}
+    return out;
+  };
+  window.assignmentFor=function(orderId,key){return assignmentsFor(orderId,key)[0]||null};
+  window.projectionProductionSplit=function(orderId,key){
+    let parts=[];
+    actualDisplay935(orderId,key).forEach(x=>{let name='Local';try{name=productionDestinationName(x.p)||name}catch(e){}parts.push(`${name}: ${(+x.qty||0).toLocaleString('pt-BR')} pç`)});
+    let actualQty=actualDisplay935(orderId,key).reduce((s,x)=>s+(+x.qty||0),0),it=item935(orderId,key),remaining=Math.max(0,(+it?.qty||0)-actualQty);
+    if(remaining>0){let used=0;planRows935(orderId,key).forEach(a=>{if(used>=remaining)return;let q=Math.min(remaining-used,+a.qty||0),l=(db.productionLocations||[]).find(x=>+x.id===+a.locationId);if(q>0&&l){parts.push(`Previsto ${l.name}: ${q.toLocaleString('pt-BR')} pç`);used+=q}})}
+    return parts.join(' · ')||'';
+  };
+
+  const oldOpenCapacity935=window.openCapacityAllocation;
+  window.openCapacityAllocation=function(orderId,key){
+    let legacy=legacyActual935(orderId,key),exact=exactActual935(orderId,key),it=item935(orderId,key);
+    if(!exact.length&&legacy.length&&it){
+      let fixed=actualDisplay935(orderId,key),sum=fixed.reduce((s,x)=>s+(+x.qty||0),0),remain=Math.max(0,(+it.qty||0)-sum);
+      openModal(`Alocação protegida — ${esc(it.name||'Produto')}`,`<div class="cards"><div class="card"><small>Total do modelo</small><strong>${(+it.qty||0).toLocaleString('pt-BR')}</strong></div><div class="card"><small>Já atribuído de verdade</small><strong>${sum.toLocaleString('pt-BR')}</strong></div><div class="card"><small>Restante</small><strong>${remain.toLocaleString('pt-BR')}</strong></div></div><div class="panel"><h3>Produção já atribuída</h3>${table(['Local / facção','Peças'],fixed.map(x=>[esc(productionDestinationName(x.p)||'-'),(+x.qty||0).toLocaleString('pt-BR')]))}<div class="sub" style="margin-top:10px">Este é um registro antigo em que o corte inteiro foi vinculado ao local. A v91.35 reconhece o modelo dentro desse vínculo e protege a produção já em andamento para não duplicar a alocação.</div></div><button type="button" class="secondary modalSave" onclick="closeModal()">Fechar</button>`,()=>closeModal());
+      return;
+    }
+    return oldOpenCapacity935?oldOpenCapacity935.apply(this,arguments):undefined;
+  };
+
+  function copyText935(v){
+    let text=String(v||'').trim();if(!text||text==='-')return;
+    let done=()=>{try{setCloudStatus('📋 PIX copiado','ok')}catch(e){}};
+    if(navigator.clipboard?.writeText){navigator.clipboard.writeText(text).then(done).catch(()=>fallback())}else fallback();
+    function fallback(){let t=document.createElement('textarea');t.value=text;t.style.position='fixed';t.style.opacity='0';document.body.appendChild(t);t.select();try{document.execCommand('copy');done()}catch(e){}t.remove()}
+  }
+  window.copyPix935=copyText935;
+  function makePix935(v){
+    let pix=String(v||'').trim(),wrap=document.createElement('span');wrap.className='pix-copy-935';
+    if(!pix){wrap.textContent='-';return wrap}
+    let s=document.createElement('span');s.textContent=pix;let b=document.createElement('button');b.type='button';b.className='secondary';b.textContent='📋 Copiar';b.addEventListener('click',()=>copyText935(pix));wrap.append(s,b);return wrap;
+  }
+  function enhancePayrollPix935(){document.querySelectorAll('#payrollTable .payroll-pix').forEach(cell=>{if(cell.dataset.pix935)return;let v=cell.textContent.trim();cell.textContent='';cell.appendChild(makePix935(v==='-'?'':v));cell.dataset.pix935='1'})}
+  function enhanceFactionPix935(){
+    let tableEl=document.querySelector('#factionPaymentTable table');if(tableEl&&!tableEl.dataset.pix935){
+      let filter=document.getElementById('factionPaymentFilter')?.value||'',start=document.getElementById('fpPeriodStart')?.value||'',end=document.getElementById('fpPeriodEnd')?.value||'';
+      let arr=(db.factionPayments||[]).filter(p=>(typeof factionPaymentInPeriod!=='function'||factionPaymentInPeriod(p,start,end))&&(!filter||p.status===filter));
+      let trs=[...tableEl.querySelectorAll('tr')],head=trs.shift();if(head){let thPix=document.createElement('th');thPix.textContent='PIX';let thWeek=document.createElement('th');thWeek.textContent='Semana pagamento';head.insertBefore(thWeek,head.children[2]||null);head.insertBefore(thPix,head.children[2]||null)}
+      trs.forEach((tr,i)=>{let p=arr[i];if(!p)return;let tdPix=document.createElement('td');tdPix.appendChild(makePix935(p.pix));let tdWeek=document.createElement('td');let w=p.scheduledPaymentWeek||'';if(!w&&p.scheduledPaymentDate){try{w=weekValue(new Date(String(p.scheduledPaymentDate).slice(0,10)+'T12:00:00'))}catch(e){}}tdWeek.innerHTML=w?`<b>${esc(w)}</b><div class="sub">${p.scheduledPaymentDate?fmtDate(p.scheduledPaymentDate):''}</div>`:'-';tr.insertBefore(tdWeek,tr.children[2]||null);tr.insertBefore(tdPix,tr.children[2]||null)});
+      tableEl.dataset.pix935='1';
+    }
+    let sum=document.getElementById('factionPaymentSummary');if(sum){let known=new Set((db.factionPayments||[]).map(p=>String(p.pix||'').trim()).filter(Boolean));sum.querySelectorAll('td').forEach(td=>{if(td.dataset.pix935)return;let v=td.textContent.trim();if(known.has(v)){td.textContent='';td.appendChild(makePix935(v));td.dataset.pix935='1'}})}
+  }
+
+  const oldPayroll935=window.renderPayroll;
+  window.renderPayroll=function(){let out=oldPayroll935?oldPayroll935.apply(this,arguments):undefined;setTimeout(enhancePayrollPix935,0);return out};
+  const oldPay935=window.renderFactionPayments;
+  window.renderFactionPayments=function(){let out=oldPay935?oldPay935.apply(this,arguments):undefined;setTimeout(enhanceFactionPix935,0);return out};
+  const oldInPeriod935=window.factionPaymentInPeriod;
+  window.factionPaymentInPeriod=function(p,start,end){
+    let d=String((p?.status==='Pago'?(p.paymentDate||p.scheduledPaymentDate||p.serviceFinishedAt):(p?.scheduledPaymentDate||p?.serviceFinishedAt||p?.paymentDate))||'').slice(0,10);
+    if(!d)return !start&&!end;if(start&&d<start)return false;if(end&&d>end)return false;return true;
+  };
+
+  function productName935(f){
+    let p=(db.products||[]).find(x=>+x.id===+f.productId);if(p)return p.name||'Produto';
+    let pr=(db.production||[]).find(x=>+x.id===+f.productionId),q=(db.products||[]).find(x=>+x.id===+pr?.productId);if(q)return q.name||'Produto';
+    return f.description||f.product||f.op||'Serviço';
+  }
+  function ensureFactionPanel935(){
+    let page=document.getElementById('faccoes');if(!page||document.getElementById('factionDeliveryPanel935'))return;
+    let panel=document.createElement('div');panel.id='factionDeliveryPanel935';panel.className='panel faction-delivery-935';panel.innerHTML='<h2>📦 Entregas das facções</h2><div class="sub">Registre aqui cada entrega, inclusive parcial, e escolha diretamente a semana em que ela deve entrar para pagamento.</div><div id="factionDeliveryTable935" style="margin-top:12px"></div>';
+    let report=page.querySelector('#factionReport')?.closest('.panel');if(report)page.insertBefore(panel,report);else page.appendChild(panel);
+  }
+  function renderFactionDelivery935(){
+    ensureFactionPanel935();let el=document.getElementById('factionDeliveryTable935');if(!el)return;
+    let arr=(db.factions||[]).filter(f=>(+f.sent||0)>0).slice().sort((a,b)=>{let ao=(+a.done||0)<(+a.sent||0)?0:1,bo=(+b.done||0)<(+b.sent||0)?0:1;return ao-bo||String(b.sentAt||b.date||'').localeCompare(String(a.sentAt||a.date||''))});
+    el.innerHTML=arr.length?table(['Facção','Pedido','Modelo','Enviado','Já entregue','Saldo','Última entrega','Pagamento','Situação','Ação'],arr.map(f=>{let o=(db.orders||[]).find(x=>+x.id===+f.orderId),sent=+f.sent||0,done=+f.done||0,bal=Math.max(0,sent-done),hist=Array.isArray(f.deliveryHistory)?f.deliveryHistory:[],last=hist[hist.length-1],status=bal>0?'<span class="badge warn">Em produção</span>':'<span class="badge ok">Finalizado</span>';return [esc(f.name||'-'),o?`#${esc(displayOrderNumber(o))}`:esc(f.op||'-'),`<b>${esc(productName935(f))}</b>`,sent.toLocaleString('pt-BR'),done.toLocaleString('pt-BR'),bal.toLocaleString('pt-BR'),last?.date?fmtDate(last.date):(f.lastDeliveryAt?fmtDate(f.lastDeliveryAt):'-'),last?.paymentWeek?esc(last.paymentWeek):'-',status,bal>0?`<button type="button" class="primary" onclick="registerFactionDelivery935(${f.id})">📦 Registrar entrega</button>`:'<span class="sub">Entrega concluída</span>'] })): '<div class="empty">Nenhum envio de facção encontrado.</div>';
+  }
+  window.renderFactionDelivery935=renderFactionDelivery935;
+
+  function upsert935(module,row){if(!row||row.id==null)return;db[module]=Array.isArray(db[module])?db[module]:[];let i=db[module].findIndex(x=>String(x.id)===String(row.id));if(i>=0)db[module][i]=c935(row);else db[module].push(c935(row))}
+  window.registerFactionDelivery935=function(id){
+    let f=(db.factions||[]).find(x=>+x.id===+id);if(!f)return;let sent=+f.sent||0,done=+f.done||0,bal=Math.max(0,sent-done),model=productName935(f);if(bal<=0){alert('Este envio já está totalmente entregue.');return}
+    let wk=weekValue(new Date()),today=isoDate(new Date());
+    openModal(`Registrar entrega — ${esc(f.name||'Facção')}`,`<div class="cards"><div class="card"><small>Modelo</small><strong style="font-size:17px">${esc(model)}</strong></div><div class="card"><small>Enviado</small><strong>${sent.toLocaleString('pt-BR')}</strong></div><div class="card"><small>Já entregue</small><strong>${done.toLocaleString('pt-BR')}</strong></div><div class="card"><small>Saldo</small><strong>${bal.toLocaleString('pt-BR')}</strong></div></div><div class="grid"><div class="field"><label>Quantidade entregue agora</label><input id="fdQty935" type="number" min="1" max="${bal}" step="1" value="${bal}"></div><div class="field"><label>Data da entrega</label><input id="fdDate935" type="date" value="${today}"></div><div class="field"><label>Semana do pagamento</label><input id="fdWeek935" type="week" value="${wk}"><div class="sub">A entrega aparecerá em Pagamentos de facções dentro desta semana.</div></div></div><button type="button" class="primary modalSave">☁️ Confirmar entrega e programar pagamento</button>`,async()=>{
+      let qty=Math.floor(+document.getElementById('fdQty935')?.value||0),date=document.getElementById('fdDate935')?.value||'',week=document.getElementById('fdWeek935')?.value||'';if(qty<=0||qty>bal){alert(`Informe uma quantidade entre 1 e ${bal}.`);return}if(!date||!week){alert('Informe a data da entrega e a semana do pagamento.');return}
+      let btn=document.querySelector('#modal .modalSave');if(btn){btn.disabled=true;btn.textContent='☁️ Gravando com segurança…'}
+      try{
+        if(typeof cloudEnsureFreshSession==='function')await cloudEnsureFreshSession();
+        let res=await fetch(`${HLGB_SUPABASE_REST}rpc/hlgb_register_faction_delivery_v9135`,{method:'POST',headers:{apikey:HLGB_SUPABASE_KEY,Authorization:`Bearer ${cloudAccessToken}`,'Content-Type':'application/json'},body:JSON.stringify({p_faction_id:String(id),p_qty:qty,p_delivery_date:date,p_payment_week:week})});
+        let data=await res.json().catch(()=>null);if(!res.ok)throw new Error(data?.message||data?.error||'Não foi possível confirmar a entrega na nuvem.');
+        if(data?.faction)upsert935('factions',data.faction);if(data?.payment)upsert935('factionPayments',data.payment);if(data?.production)upsert935('production',data.production);
+        closeModal();try{persistDb()}catch(e){};safe935(renderFactionDelivery935);safe935(()=>renderFactionPayments());safe935(()=>renderProduction());safe935(()=>renderCapacityPlanning());safe935(()=>renderProjection());alert(`Entrega registrada. ${qty.toLocaleString('pt-BR')} peças de ${model} foram programadas para pagamento em ${week}.`);
+      }catch(e){console.error(e);if(btn){btn.disabled=false;btn.textContent='☁️ Confirmar entrega e programar pagamento'}alert(e.message||'A entrega não foi confirmada. Nada foi apagado.')}
+    });
+  };
+
+  const oldFactions935=window.renderFactions;
+  window.renderFactions=function(){let out=oldFactions935?oldFactions935.apply(this,arguments):undefined;safe935(renderFactionDelivery935);return out};
+
+  const oldProjection935=window.renderProjection;
+  window.renderProjection=function(){let out=oldProjection935?oldProjection935.apply(this,arguments):undefined;return out};
+
+  const oldIncoming935=window.hlgbRenderIncomingRecord;
+  window.hlgbRenderIncomingRecord=function(module){let out=oldIncoming935?oldIncoming935.apply(this,arguments):undefined;let pg=document.querySelector('.page.active')?.id||'';if(['production','capacityAssignments','factions','orders'].includes(module)&&pg==='projecao')safe935(()=>renderProjection());if(['production','capacityAssignments','orders'].includes(module)&&pg==='capacidadeProducao')safe935(()=>renderCapacityPlanning());if(['factions','factionPayments','production'].includes(module)&&pg==='faccoes')safe935(renderFactionDelivery935);if(['factionPayments','factionMasters'].includes(module)&&pg==='pagamentosFaccoes')setTimeout(enhanceFactionPix935,0);if(['payroll','employees'].includes(module)&&pg==='folhaPagamento')setTimeout(enhancePayrollPix935,0);return out};
+
+  function boot935(){safe935(renderFactionDelivery935);safe935(enhancePayrollPix935);safe935(enhanceFactionPix935);if(document.querySelector('.page.active')?.id==='capacidadeProducao')safe935(()=>renderCapacityPlanning());if(document.querySelector('.page.active')?.id==='projecao')safe935(()=>renderProjection())}
+  setTimeout(boot935,1100);window.addEventListener('focus',()=>setTimeout(boot935,150));
+})();
+</script>
