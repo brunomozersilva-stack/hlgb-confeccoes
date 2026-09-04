@@ -6,7 +6,7 @@
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
-<title>HLGB Confecções — Sistema de Gestão v91.32 Multiusuário</title>
+<title>HLGB Confecções — Sistema de Gestão v91.33 Multiusuário</title>
 <style>
 :root{--navy:#6f3f59;--orange:#c96b8f;--bg:#fbf6f8;--line:#eadde4;--text:#30262c;--muted:#786b73;--ok:#e9f7ef;--warn:#fff5df;--bad:#fdeaea;--rose:#f3dbe5;--rose2:#fff8fb}
 *{box-sizing:border-box}body{margin:0;font-family:Arial,Helvetica,sans-serif;background:var(--bg);color:var(--text)}
@@ -246,11 +246,11 @@ main{min-width:0;}
     <div class="field" style="text-align:left;margin-bottom:10px"><label>E-mail</label><input id="loginUser" type="email" autocomplete="username" placeholder="seuemail@exemplo.com"></div>
     <div class="field" style="text-align:left;margin-bottom:14px"><label>Senha</label><input id="loginPass" type="password" autocomplete="current-password" onkeydown="if(event.key==='Enter')return doLogin()"></div>
     <button class="primary" style="width:100%" onclick="return doLogin()">Entrar</button>
-    <div id="loginError" style="color:#a51d2d;font-size:13px;margin-top:10px"></div><div style="margin-top:12px;font-size:12px;color:#786b73">Acesso protegido pelo Supabase • HLGB Online<br><b style="color:#6f3f59">Versão v91.32</b></div>
+    <div id="loginError" style="color:#a51d2d;font-size:13px;margin-top:10px"></div><div style="margin-top:12px;font-size:12px;color:#786b73">Acesso protegido pelo Supabase • HLGB Online<br><b style="color:#6f3f59">Versão v91.33</b></div>
   </div>
 </div>
 
-<div id="appShell" style="display:none"><header><div class="logo">HLGB <b>CONFECÇÕES</b> <small style="font-size:10px;opacity:.8">v91.32</small></div><div><span id="cloudStatus" style="margin-right:10px;font-size:12px;padding:6px 9px;border:1px solid #ffffff44;border-radius:8px">☁️ Nuvem</span><span id="currentUserLabel" style="margin-right:10px;font-size:13px"></span><button id="cloudSaveBtn" onclick="cloudUploadCurrentDb(true)" style="display:none" title="Sincronização automática">🔄 Sincronizar agora</button> <button id="backupBtn" onclick="backup()" style="display:none">Exportar backup</button> <button id="importBackupBtn" onclick="document.getElementById('backupImportInput').click()" style="display:none">Importar backup</button><input id="backupImportInput" type="file" accept=".json,application/json" style="display:none" onchange="importBackupFile(this)"> <button onclick="logout()">Sair</button></div></header>
+<div id="appShell" style="display:none"><header><div class="logo">HLGB <b>CONFECÇÕES</b> <small style="font-size:10px;opacity:.8">v91.33</small></div><div><span id="cloudStatus" style="margin-right:10px;font-size:12px;padding:6px 9px;border:1px solid #ffffff44;border-radius:8px">☁️ Nuvem</span><span id="currentUserLabel" style="margin-right:10px;font-size:13px"></span><button id="cloudSaveBtn" onclick="cloudUploadCurrentDb(true)" style="display:none" title="Sincronização automática">🔄 Sincronizar agora</button> <button id="backupBtn" onclick="backup()" style="display:none">Exportar backup</button> <button id="importBackupBtn" onclick="document.getElementById('backupImportInput').click()" style="display:none">Importar backup</button><input id="backupImportInput" type="file" accept=".json,application/json" style="display:none" onchange="importBackupFile(this)"> <button onclick="logout()">Sair</button></div></header>
 <div class="app">
 <aside><nav id="nav" class="clean-nav">
 <button class="nav-home active" onclick="page('dashboard',this)">🏠 <span>Início</span></button>
@@ -11035,7 +11035,7 @@ const HLGB_RECORD_WRITE_AREA={
  factions:"faccoes",factionMasters:"faccoes",factionPayments:"faccoes",cutters:"cortadores",
  finance:"financeiro",purchases:"financeiro",invoices:"financeiro",receipts:"financeiro",operationalCosts:"financeiro",
  suppliers:"fornecedores",employees:"funcionarios",formerEmployees:"exFuncionarios",payroll:"folhaPagamento",terminations:"folhaPagamento",employeeAdvances:"folhaPagamento",
- materialLots:"materiais",separations:"materiais",projectionInvoices:"projecao",colors:"cadastros",sizes:"cadastros",finishedPieces:"producao",factionSettings:"faccoes"
+ materialLots:"materiais",separations:"materiais",projectionInvoices:"projecao",colors:"cadastros",sizes:"cadastros",hubFinanceEntries:"hubFinanceiro",finishedPieces:"producao",factionSettings:"faccoes"
 };
 function hlgbRecordCanWrite(module){
   if(isOwnerUser())return true;
@@ -13597,4 +13597,45 @@ function hubFinanceManualSync(){alert("O botão de sincronização está prepara
  window.editServiceType=function(id){let x=(db.serviceTypes||[]).find(m=>+m.id===+id);if(!x)return oldEditService932(id);openModal('Editar tipo de serviço',`<div class="field"><label>Nome</label><input id="catalogName" value="${esc(x.name)}"></div><button type="button" class="primary modalSave">Salvar alterações</button>`,()=>{let n=(document.getElementById('catalogName')?.value||'').trim();if(!n)return;if((db.serviceTypes||[]).some(m=>+m.id!==+id&&n932(m.name)===n932(n))){alert('Esse tipo de serviço já existe.');return}x.name=n;closeModal();save()})};
 })();
 </script>
+
+<!-- HLGB v91.33 EXPLICIT DELETE HARDENING -->
+<script>
+(function(){
+ const C=v=>{try{return JSON.parse(JSON.stringify(v))}catch(e){return v}}, RID=(m,r,i=0)=>typeof hlgbRecordId==='function'?String(hlgbRecordId(m,r,i)):String(r?.id??('value:'+encodeURIComponent(String(r??''))));
+ async function online(){if(!cloudAccessToken)throw Error('Sessão online necessária.');if(!hlgbRecordReady&&!await hlgbEnsureRecordsOnlineAfterLogin())throw Error('Nuvem indisponível.');}
+ async function cloudDel(m,r,id){await online();id=String(id??RID(m,r));let p=(r&&typeof r==='object'&&!Array.isArray(r))?C(r):{value:C(r)};p.__hlgb_explicit_delete=true;let o=await hlgbRecordSaveWithRetry(m,id,p,true);if(!o?.applied)throw Error('Exclusão não confirmada: '+m);return id}
+ async function cloudSave(m,r,id){await online();id=String(id??RID(m,r));let o=await hlgbRecordSaveWithRetry(m,id,C(r),false);if(!o?.applied)throw Error('Alteração não confirmada: '+m);return C(o.data??r)}
+ function remove(m,id){id=String(id);let a=Array.isArray(db[m])?db[m]:[];db[m]=a.filter((x,i)=>RID(m,x,i)!==id)}
+ function replace(m,id,r){id=String(id);db[m]=Array.isArray(db[m])?db[m]:[];let i=db[m].findIndex((x,n)=>RID(m,x,n)===id);if(i>=0)db[m][i]=C(r);else db[m].push(C(r))}
+ function redraw(){try{localSaveOnly()}catch(e){}try{renderAll()}catch(e){}try{renderDash()}catch(e){}}
+ async function one(m,r,msg,id){if(r==null)return false;if(msg&&!confirm(msg))return false;try{id=await cloudDel(m,r,id);remove(m,id);redraw();setCloudStatus('⚡ Online · exclusão confirmada','ok');return true}catch(e){console.error('v91.33 delete',m,e);setCloudStatus('☁️ Exclusão não confirmada','bad');alert('Nada foi excluído porque a nuvem não confirmou.\n\n'+(e?.message||e));return false}}
+ async function batch(dels,updates=[]){let dd=[],uu=[];try{for(const d of dels){let id=await cloudDel(d.m,d.r,d.id);dd.push({...d,id})}for(const u of updates){let data=await cloudSave(u.m,u.next,u.id);uu.push({...u,data})}}catch(e){for(const u of uu.reverse())try{await cloudSave(u.m,u.old,u.id)}catch(_){}for(const d of dd.reverse())try{await cloudSave(d.m,d.r,d.id)}catch(_){}throw e}dd.forEach(d=>remove(d.m,d.id));uu.forEach(u=>replace(u.m,u.id,u.data));redraw()}
+ const byId=(m,id)=>(db[m]||[]).find(x=>String(x?.id)===String(id));
+ window.del=async function(m,id){let a=db[m]||[],i=a.findIndex((x,n)=>RID(m,x,n)===String(id)||String(x?.id??'')===String(id));if(i<0)return alert('Registro não encontrado.');let r=a[i],eid=RID(m,r,i);if(await one(m,r,'Excluir este registro?',eid))try{auditAction('Excluiu registro',m+' — '+eid)}catch(e){}};
+ window.delMaterial=id=>one('materials',byId('materials',id),'Excluir este material?');
+ window.deleteEmployee=id=>{let r=byId('employees',id);return one('employees',r,r?`Excluir o cadastro de ${r.name}? O histórico da folha será preservado.`:null)};
+ window.deleteTermination=id=>one('terminations',byId('terminations',id),'Excluir esta rescisão?');
+ window.deleteGoal=id=>one('goals',byId('goals',id),'Excluir esta meta?');
+ window.deleteOperationalCost=id=>one('operationalCosts',byId('operationalCosts',id),'Excluir este custo operacional?');
+ window.deleteMissingPiece=id=>one('missingPieces',byId('missingPieces',id),'Excluir este registro de peça faltante?');
+ window.deleteFactionPayment=id=>one('factionPayments',byId('factionPayments',id),'Excluir este lançamento de pagamento?');
+ window.deleteSupplier=id=>{let r=byId('suppliers',id);return one('suppliers',r,r?`Excluir o fornecedor ${r.name}?`:null)};
+ window.deleteFinanceEntry=id=>{let r=byId('finance',id);return one('finance',r,r?`Excluir "${r.desc||'lançamento'}" no valor de ${money(r.value||0)}?`:null)};
+ window.deleteAsset=id=>one('assets',byId('assets',id),'Excluir este bem do inventário?');
+ window.deleteDefectReturn=id=>one('defectReturns',byId('defectReturns',id),'Excluir este registro de devolução/defeito?');
+ window.deleteEmployeeAdvance=id=>{let r=byId('employeeAdvances',id);if(r?.status==='Pago')return alert('Este vale já foi pago. Corrija pela folha do mês.');return one('employeeAdvances',r,'Excluir este vale solicitado?')};
+ window.deleteColor=i=>{let r=(db.colors||[])[i];return one('colors',r,'Excluir esta cor do cadastro?','value:'+encodeURIComponent(String(r)))};
+ window.deleteSize=i=>{let r=(db.sizes||[])[i];return one('sizes',r,'Excluir este tamanho do cadastro?','value:'+encodeURIComponent(String(r)))};
+ window.deleteServiceType=id=>{let r=byId('serviceTypes',id);if(!r)return;let used=(db.factionMasters||[]).some(f=>(f.serviceTypeIds||[]).some(x=>+x===+id));if(used)return alert('Este tipo está vinculado a uma facção. Retire o vínculo antes de excluir.');return one('serviceTypes',r,'Excluir este tipo de serviço?')};
+ window.deleteMachine=id=>{let r=byId('machines',id);if(!r)return;let used=(db.factionMasters||[]).some(f=>(f.machineIds||[]).some(x=>+x===+id));if(used)return alert('Esta máquina está vinculada a uma facção. Retire o vínculo antes de excluir.');return one('machines',r,'Excluir esta máquina?')};
+ window.delFactionMaster=id=>{let r=byId('factionMasters',id);if(!r)return;let used=(db.factions||[]).some(x=>+x.factionMasterId===+id||+x.masterId===+id)||(db.production||[]).some(x=>+x.factionId===+id);if(used)return alert('Esta facção possui histórico vinculado e não será apagada.');return one('factionMasters',r,'Excluir esta facção?')};
+ window.delProductionLocation=id=>{let r=byId('productionLocations',id);if(!r)return;let used=(db.production||[]).some(x=>+x.productionLocationId===+id)||(db.capacityAssignments||[]).some(x=>+x.locationId===+id)||(db.factionMasters||[]).some(x=>+x.productionLocationId===+id);if(used)return alert('Este local possui vínculos. Edite e marque como Inativo para preservar o histórico.');return one('productionLocations',r,'Excluir este local?')};
+ window.deletePurchase=function(id){let p=byId('purchases',id);if(!p)return;openModal('Confirmar exclusão da nota',`<div class="panel"><h3>${esc(p.supplierName||'Nota de compra')}</h3><div>${money(p.total||0)}</div><div class="sub">Só será excluída após confirmação do banco.</div></div><button class="danger modalSave">Excluir definitivamente</button>`,async()=>{let f=(db.finance||[]).filter(x=>String(x.purchaseId||'')===String(id)||String(x.sourcePurchaseId||'')===String(id)),b=document.querySelector('#modal .modalSave');if(b)b.disabled=true;try{await batch([...f.map(r=>({m:'finance',r,id:String(r.id)})),{m:'purchases',r:p,id:String(p.id)}]);closeModal()}catch(e){if(b)b.disabled=false;alert('A nota foi preservada porque o pacote não foi confirmado.')}})};
+ window.deleteReadyCut=async function(id){let c=byId('cuts',id);if(!c||!confirm('Excluir este corte pronto e a produção vinculada?'))return;let ps=(db.production||[]).filter(p=>+p.cutId===+id),o=byId('orders',c.orderId),ups=[];if(o&&String(o.status||'').toLowerCase()==='corte finalizado')ups.push({m:'orders',id:String(o.id),old:C(o),next:{...C(o),status:'Aguardando corte'}});try{await batch([{m:'cuts',r:c,id:String(c.id)},...ps.map(r=>({m:'production',r,id:String(r.id)}))],ups)}catch(e){alert('O corte foi preservado porque o pacote não foi confirmado.')}};
+ window.deleteOpenMerchandise=async function(id){let o=byId('orders',id);if(!o||!confirm('Excluir este pedido e os vínculos de corte/produção/financeiro?'))return;let cs=(db.cuts||[]).filter(x=>+x.orderId===+id),ps=(db.production||[]).filter(x=>+x.orderId===+id||cs.some(c=>+c.id===+x.cutId)),fs=(db.finance||[]).filter(x=>+x.orderId===+id);try{await batch([...fs.map(r=>({m:'finance',r,id:String(r.id)})),...ps.map(r=>({m:'production',r,id:String(r.id)})),...cs.map(r=>({m:'cuts',r,id:String(r.id)})),{m:'orders',r:o,id:String(o.id)}])}catch(e){alert('O pedido foi preservado porque o pacote não foi confirmado.')}};
+ window.deleteNote=async function(id){let o=byId('orders',id);if(!o)return;let paid=typeof orderPaid==='function'?orderPaid(o):0;if(!confirm(paid>0?`A nota tem ${money(paid)} recebido. Os recebimentos serão preservados. Excluir nota e cobrança?`:'Excluir nota e cobrança?'))return;let is=(db.invoices||[]).filter(x=>+x.orderId===+id),fs=(db.finance||[]).filter(x=>+x.orderId===+id&&x.type==='Receber'),n=C(o);n.invoiceReady=false;n.noteReady=false;['invoiceDate','dueDate','paymentTerms','invoiceNote','contactName','contactPhone'].forEach(k=>delete n[k]);try{await batch([...is.map(r=>({m:'invoices',r,id:String(r.id)})),...fs.map(r=>({m:'finance',r,id:String(r.id)}))],[{m:'orders',id:String(o.id),old:C(o),next:n}])}catch(e){alert('A nota foi preservada porque o pacote não foi confirmado.')}};
+ const incoming=window.hlgbRenderIncomingRecord;window.hlgbRenderIncomingRecord=function(m){let r=incoming?incoming(m):false;try{let modal=document.getElementById('modal')?.classList.contains('show');if(!modal&&['employees','terminations','goals','operationalCosts','missingPieces','finance','purchases','assets','defectReturns','colors','sizes','materials','clients','cutters','factions'].includes(m))renderAll()}catch(e){}return r};
+})();
+</script>
+
 </body></html>
