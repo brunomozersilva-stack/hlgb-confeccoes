@@ -1,0 +1,194 @@
+<!-- HLGB v91.36 CUTTER PRINT + LIVE PERMISSIONS -->
+<script>
+(function(){
+  'use strict';
+  const V='91.36';
+
+  function safe936(fn){try{return fn()}catch(e){console.error('HLGB v91.36',e);return null}}
+  function norm936(v){return String(v==null?'':v).trim().toLowerCase()}
+  function sameArr936(a,b){
+    a=Array.isArray(a)?a:[]; b=Array.isArray(b)?b:[];
+    if(a.length!==b.length)return false;
+    let aa=[...a].map(String).sort(),bb=[...b].map(String).sort();
+    return aa.every((x,i)=>x===bb[i]);
+  }
+  function productName936(pid,fallback){
+    let p=(db.products||[]).find(x=>String(x.id)===String(pid));
+    return p?.name||fallback||'Modelo';
+  }
+  function productPhoto936(pid){
+    let p=(db.products||[]).find(x=>String(x.id)===String(pid));
+    let ph=p?.photos?.[0];
+    return ph?.data||ph?.url||'';
+  }
+  function sizeOrder936(){
+    let raw=[];
+    try{raw=typeof hlgbSortedSizes==='function'?hlgbSortedSizes(db.sizes||[]):[]}catch(e){}
+    let vals=(raw||[]).map(x=>typeof x==='string'?x:(x?.name||x?.size||x?.label||'')).filter(Boolean);
+    return vals;
+  }
+  function sortSizes936(vals){
+    let ord=sizeOrder936(),idx=new Map(ord.map((x,i)=>[String(x),i]));
+    return [...new Set(vals.filter(Boolean).map(String))].sort((a,b)=>{
+      let ia=idx.has(a)?idx.get(a):9999,ib=idx.has(b)?idx.get(b):9999;
+      return ia-ib||a.localeCompare(b,'pt-BR');
+    });
+  }
+  function modelGroups936(o){
+    let grade=Array.isArray(o?.grade)?o.grade:[];
+    if(!grade.length)return [];
+    let groups=new Map();
+    grade.forEach((g,i)=>{
+      let pid=g?.productId!=null?String(g.productId):(o?.productId!=null?String(o.productId):'legacy');
+      let fallback=g?.productName||g?.product||g?.name||o?.product||'Modelo';
+      let key=pid!=='legacy'?'id:'+pid:'name:'+fallback;
+      if(!groups.has(key))groups.set(key,{pid,productName:productName936(pid,fallback),items:[],first:i});
+      groups.get(key).items.push(g);
+    });
+    return [...groups.values()].sort((a,b)=>a.first-b.first);
+  }
+  function gradeBlock936(group,index,totalModels){
+    let items=group.items||[];
+    let sizes=sortSizes936(items.map(x=>x.size||x.tamanho||'').filter(Boolean));
+    let colors=[...new Set(items.map(x=>String(x.color||x.cor||'Sem cor')).filter(Boolean))];
+    if(!sizes.length)sizes=['Qtd.'];
+    let qty=(it)=>Math.max(0,+it?.qty||+it?.quantity||0);
+    let cell=(color,size)=>{
+      if(size==='Qtd.')return items.filter(x=>String(x.color||x.cor||'Sem cor')===color).reduce((s,x)=>s+qty(x),0);
+      return items.filter(x=>String(x.color||x.cor||'Sem cor')===color&&String(x.size||x.tamanho||'')===size).reduce((s,x)=>s+qty(x),0);
+    };
+    let rowTotals={};
+    colors.forEach(c=>rowTotals[c]=items.filter(x=>String(x.color||x.cor||'Sem cor')===c).reduce((s,x)=>s+qty(x),0));
+    let colTotals={};
+    sizes.forEach(sz=>colTotals[sz]=sz==='Qtd.'?items.reduce((s,x)=>s+qty(x),0):items.filter(x=>String(x.size||x.tamanho||'')===sz).reduce((s,x)=>s+qty(x),0));
+    let total=items.reduce((s,x)=>s+qty(x),0);
+    let photo=productPhoto936(group.pid);
+    let rows=colors.map(c=>`<tr><th class="color">${esc(c)}</th>${sizes.map(sz=>`<td>${cell(c,sz)||''}</td>`).join('')}<td class="totalcell">${rowTotals[c]||0}</td></tr>`).join('');
+    let foot=`<tr class="totalrow"><th>Total</th>${sizes.map(sz=>`<td>${colTotals[sz]||0}</td>`).join('')}<td>${total}</td></tr>`;
+    return `<section class="model936">
+      <div class="modelhead936">
+        <div>
+          <div class="modelidx936">MODELO ${index+1}${totalModels>1?` DE ${totalModels}`:''}</div>
+          <h2>${esc(group.productName)}</h2>
+          <div class="modelqty936">${total.toLocaleString('pt-BR')} peças</div>
+        </div>
+        ${photo?`<img src="${photo}" alt="${esc(group.productName)}">`:''}
+      </div>
+      <table class="grade936">
+        <thead><tr><th>Cor</th>${sizes.map(sz=>`<th>${esc(sz)}</th>`).join('')}<th>Total</th></tr></thead>
+        <tbody>${rows}${foot}</tbody>
+      </table>
+      <div class="modelcheck936">Conferência do modelo: ☐ &nbsp;&nbsp; Observação: ________________________________________________</div>
+    </section>`;
+  }
+
+  window.printCuttingSheet=function(orderId){
+    let o=(db.orders||[]).find(x=>+x.id===+orderId);
+    if(!o)return;
+    let groups=modelGroups936(o);
+    let blocks=groups.map((g,i)=>gradeBlock936(g,i,groups.length)).join('');
+    if(!blocks)blocks='<div style="padding:16px;border:1px solid #bbb">Pedido sem grade cadastrada.</div>';
+    let w=window.open('','_blank');
+    if(!w){alert('Permita pop-ups para imprimir.');return}
+    let no=typeof displayOrderNumber==='function'?displayOrderNumber(o):o.id;
+    w.document.write(`<html><head><title>Folha dos Cortadores — Pedido #${esc(no)}</title>
+    <style>
+      *{box-sizing:border-box} body{font-family:Arial,sans-serif;padding:22px;color:#222;margin:0}
+      h1{font-size:22px;margin:0 0 6px}.meta936{font-size:13px;margin-bottom:18px;padding:10px 12px;background:#f7f3f5;border:1px solid #ddd;border-radius:8px}
+      .model936{border:2px solid #555;border-radius:10px;padding:15px;margin:0 0 24px;page-break-inside:avoid;break-inside:avoid}
+      .modelhead936{display:flex;align-items:flex-start;justify-content:space-between;gap:18px;margin-bottom:12px;border-bottom:2px solid #555;padding-bottom:10px}
+      .modelhead936 h2{font-size:20px;margin:3px 0}.modelidx936{font-size:10px;font-weight:700;letter-spacing:.08em;color:#666}.modelqty936{font-size:14px;font-weight:700}
+      .modelhead936 img{width:110px;height:110px;object-fit:contain;border:1px solid #ddd;border-radius:8px}
+      table{width:100%;border-collapse:collapse}.grade936 th,.grade936 td{border:1px solid #777;padding:8px;text-align:center;font-size:12px}.grade936 th{background:#eee}.grade936 th.color{text-align:left;min-width:120px}
+      .totalrow th,.totalrow td,.totalcell{font-weight:700;background:#f5f5f5}.modelcheck936{margin-top:12px;font-size:12px}
+      .footer936{margin-top:18px;border-top:1px solid #777;padding-top:12px;font-size:13px}
+      @media print{
+        body{padding:10mm}
+        .model936{page-break-inside:avoid;break-inside:avoid}
+        .model936 + .model936{margin-top:8mm}
+      }
+    </style></head><body>
+      <h1>HLGB Confecções — Folha dos Cortadores</h1>
+      <div class="meta936"><b>Pedido:</b> #${esc(no)} &nbsp;&nbsp; <b>Cliente:</b> ${esc(o.client||'-')} &nbsp;&nbsp; <b>Entrega:</b> ${o.date?fmtDate(o.date):'-'}<br><b>Modelos nesta folha:</b> ${groups.length}</div>
+      ${blocks}
+      <div class="footer936"><b>Cortador responsável:</b> ____________________________________ &nbsp;&nbsp; <b>Data:</b> ____/____/________ &nbsp;&nbsp; <b>Corte conferido:</b> ☐</div>
+      <script>window.onload=()=>window.print();<\/script>
+    </body></html>`);
+    w.document.close();
+  };
+
+  let permBusy936=false,permLast936=0,permSig936='';
+  async function refreshOwnPermissions936(force){
+    if(permBusy936)return false;
+    if(!cloudAccessToken||!cloudUser?.email)return false;
+    let email=normEmail(cloudUser.email),owner=normEmail(HLGB_OWNER_EMAIL);
+    if(!email||email===owner)return false;
+    if(!force&&Date.now()-permLast936<10000)return false;
+    permBusy936=true;
+    try{
+      let row=null;
+      if(typeof cloudGetDedicatedAccessProfile==='function')row=await cloudGetDedicatedAccessProfile();
+      if(!row){
+        let q=`hlgb_user_access?select=auth_id,email,name,active,access,updated_at&email=eq.${encodeURIComponent(email)}&limit=1`;
+        let rows=await cloudRequest(q,{method:'GET'});
+        row=Array.isArray(rows)?rows[0]:null;
+      }
+      if(!row)return false;
+      db.users=Array.isArray(db.users)?db.users:[];
+      let uid=String(row.auth_id||cloudUser.id||'');
+      let profile=db.users.find(u=>String(u.authId||'')===uid||normEmail(u.user||u.email)===email);
+      if(!profile){
+        profile={id:Date.now()+Math.random(),name:row.name||email,user:email,email,authId:uid,role:'user',active:row.active!==false,access:Array.isArray(row.access)?row.access:[],onlineReady:true};
+        db.users.push(profile);
+      }
+      let before=JSON.stringify({active:profile.active!==false,access:Array.isArray(profile.access)?profile.access:[]});
+      profile.name=row.name||profile.name||email;
+      profile.user=email; profile.email=email; profile.authId=uid; profile.onlineReady=true;
+      profile.role='user'; profile.active=row.active!==false;
+      profile.access=Array.isArray(row.access)?row.access:[];
+      delete profile.password;
+      db.session=profile.id;
+      let after=JSON.stringify({active:profile.active!==false,access:profile.access});
+      permLast936=Date.now();
+      let sig=String(row.updated_at||'')+'|'+after;
+      if(before!==after||sig!==permSig936){
+        permSig936=sig;
+        try{localSaveOnly()}catch(e){}
+        try{applyAccess()}catch(e){}
+        let active=document.querySelector('.page.active')?.id||'';
+        if(active&&active!=='dashboard'&&typeof canOpenPage==='function'&&!canOpenPage(active)){
+          try{page('dashboard',document.querySelector("nav button[onclick*=\"page('dashboard'\"]"))}catch(e){
+            document.querySelectorAll('.page').forEach(x=>x.classList.remove('active'));
+            document.getElementById('dashboard')?.classList.add('active');
+          }
+        }
+        return true;
+      }
+      return false;
+    }catch(e){
+      console.warn('HLGB v91.36 atualização de permissões',e);
+      return false;
+    }finally{
+      permBusy936=false;
+    }
+  }
+  window.hlgbRefreshOwnPermissions9136=refreshOwnPermissions936;
+
+  const oldApply936=window.applyAccess;
+  window.applyAccess=function(){
+    let out=oldApply936?oldApply936.apply(this,arguments):undefined;
+    if(cloudAccessToken&&cloudUser?.email&&normEmail(cloudUser.email)!==normEmail(HLGB_OWNER_EMAIL)){
+      setTimeout(()=>refreshOwnPermissions936(false),50);
+    }
+    return out;
+  };
+
+  function boot936(){
+    safe936(()=>refreshOwnPermissions936(true));
+  }
+  setTimeout(boot936,1400);
+  window.addEventListener('focus',()=>setTimeout(()=>refreshOwnPermissions936(true),80));
+  document.addEventListener('visibilitychange',()=>{if(!document.hidden)setTimeout(()=>refreshOwnPermissions936(true),80)});
+  setInterval(()=>refreshOwnPermissions936(false),15000);
+})();
+</script>
