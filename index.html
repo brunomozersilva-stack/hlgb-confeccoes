@@ -6,7 +6,7 @@
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
-<title>HLGB Confecções — Sistema de Gestão v91.33 Multiusuário</title>
+<title>HLGB Confecções — Sistema de Gestão v91.34 Multiusuário</title>
 <style>
 :root{--navy:#6f3f59;--orange:#c96b8f;--bg:#fbf6f8;--line:#eadde4;--text:#30262c;--muted:#786b73;--ok:#e9f7ef;--warn:#fff5df;--bad:#fdeaea;--rose:#f3dbe5;--rose2:#fff8fb}
 *{box-sizing:border-box}body{margin:0;font-family:Arial,Helvetica,sans-serif;background:var(--bg);color:var(--text)}
@@ -246,11 +246,11 @@ main{min-width:0;}
     <div class="field" style="text-align:left;margin-bottom:10px"><label>E-mail</label><input id="loginUser" type="email" autocomplete="username" placeholder="seuemail@exemplo.com"></div>
     <div class="field" style="text-align:left;margin-bottom:14px"><label>Senha</label><input id="loginPass" type="password" autocomplete="current-password" onkeydown="if(event.key==='Enter')return doLogin()"></div>
     <button class="primary" style="width:100%" onclick="return doLogin()">Entrar</button>
-    <div id="loginError" style="color:#a51d2d;font-size:13px;margin-top:10px"></div><div style="margin-top:12px;font-size:12px;color:#786b73">Acesso protegido pelo Supabase • HLGB Online<br><b style="color:#6f3f59">Versão v91.33</b></div>
+    <div id="loginError" style="color:#a51d2d;font-size:13px;margin-top:10px"></div><div style="margin-top:12px;font-size:12px;color:#786b73">Acesso protegido pelo Supabase • HLGB Online<br><b style="color:#6f3f59">Versão v91.34</b></div>
   </div>
 </div>
 
-<div id="appShell" style="display:none"><header><div class="logo">HLGB <b>CONFECÇÕES</b> <small style="font-size:10px;opacity:.8">v91.33</small></div><div><span id="cloudStatus" style="margin-right:10px;font-size:12px;padding:6px 9px;border:1px solid #ffffff44;border-radius:8px">☁️ Nuvem</span><span id="currentUserLabel" style="margin-right:10px;font-size:13px"></span><button id="cloudSaveBtn" onclick="cloudUploadCurrentDb(true)" style="display:none" title="Sincronização automática">🔄 Sincronizar agora</button> <button id="backupBtn" onclick="backup()" style="display:none">Exportar backup</button> <button id="importBackupBtn" onclick="document.getElementById('backupImportInput').click()" style="display:none">Importar backup</button><input id="backupImportInput" type="file" accept=".json,application/json" style="display:none" onchange="importBackupFile(this)"> <button onclick="logout()">Sair</button></div></header>
+<div id="appShell" style="display:none"><header><div class="logo">HLGB <b>CONFECÇÕES</b> <small style="font-size:10px;opacity:.8">v91.34</small></div><div><span id="cloudStatus" style="margin-right:10px;font-size:12px;padding:6px 9px;border:1px solid #ffffff44;border-radius:8px">☁️ Nuvem</span><span id="currentUserLabel" style="margin-right:10px;font-size:13px"></span><button id="cloudSaveBtn" onclick="cloudUploadCurrentDb(true)" style="display:none" title="Sincronização automática">🔄 Sincronizar agora</button> <button id="backupBtn" onclick="backup()" style="display:none">Exportar backup</button> <button id="importBackupBtn" onclick="document.getElementById('backupImportInput').click()" style="display:none">Importar backup</button><input id="backupImportInput" type="file" accept=".json,application/json" style="display:none" onchange="importBackupFile(this)"> <button onclick="logout()">Sair</button></div></header>
 <div class="app">
 <aside><nav id="nav" class="clean-nav">
 <button class="nav-home active" onclick="page('dashboard',this)">🏠 <span>Início</span></button>
@@ -13635,6 +13635,69 @@ function hubFinanceManualSync(){alert("O botão de sincronização está prepara
  window.deleteOpenMerchandise=async function(id){let o=byId('orders',id);if(!o||!confirm('Excluir este pedido e os vínculos de corte/produção/financeiro?'))return;let cs=(db.cuts||[]).filter(x=>+x.orderId===+id),ps=(db.production||[]).filter(x=>+x.orderId===+id||cs.some(c=>+c.id===+x.cutId)),fs=(db.finance||[]).filter(x=>+x.orderId===+id);try{await batch([...fs.map(r=>({m:'finance',r,id:String(r.id)})),...ps.map(r=>({m:'production',r,id:String(r.id)})),...cs.map(r=>({m:'cuts',r,id:String(r.id)})),{m:'orders',r:o,id:String(o.id)}])}catch(e){alert('O pedido foi preservado porque o pacote não foi confirmado.')}};
  window.deleteNote=async function(id){let o=byId('orders',id);if(!o)return;let paid=typeof orderPaid==='function'?orderPaid(o):0;if(!confirm(paid>0?`A nota tem ${money(paid)} recebido. Os recebimentos serão preservados. Excluir nota e cobrança?`:'Excluir nota e cobrança?'))return;let is=(db.invoices||[]).filter(x=>+x.orderId===+id),fs=(db.finance||[]).filter(x=>+x.orderId===+id&&x.type==='Receber'),n=C(o);n.invoiceReady=false;n.noteReady=false;['invoiceDate','dueDate','paymentTerms','invoiceNote','contactName','contactPhone'].forEach(k=>delete n[k]);try{await batch([...is.map(r=>({m:'invoices',r,id:String(r.id)})),...fs.map(r=>({m:'finance',r,id:String(r.id)}))],[{m:'orders',id:String(o.id),old:C(o),next:n}])}catch(e){alert('A nota foi preservada porque o pacote não foi confirmado.')}};
  const incoming=window.hlgbRenderIncomingRecord;window.hlgbRenderIncomingRecord=function(m){let r=incoming?incoming(m):false;try{let modal=document.getElementById('modal')?.classList.contains('show');if(!modal&&['employees','terminations','goals','operationalCosts','missingPieces','finance','purchases','assets','defectReturns','colors','sizes','materials','clients','cutters','factions'].includes(m))renderAll()}catch(e){}return r};
+})();
+</script>
+
+
+<!-- HLGB v91.34 HUB CALENDAR + CUT READY QUEUE -->
+<script>
+(function(){
+  function safe934(fn){try{return fn()}catch(e){console.error('HLGB v91.34',e)}}
+
+  function hubDate934(v){
+    let el=document.getElementById('hubFinanceWeek');if(!el||!v)return;
+    let d=new Date(String(v).slice(0,10)+'T12:00:00');if(isNaN(d))return;
+    el.value=weekValue(d);renderHubFinance();
+  }
+  window.selectHubFinanceCalendarDate=hubDate934;
+
+  function ensureHubCalendar934(){
+    let week=document.getElementById('hubFinanceWeek');if(!week)return;
+    let toolbar=week.closest('.toolbar');if(!toolbar)return;
+    let picker=document.getElementById('hubFinanceCalendarDate');
+    if(!picker){
+      let box=document.createElement('div');box.className='field';box.innerHTML='<label>Escolher qualquer semana pelo calendário</label><input id="hubFinanceCalendarDate" type="date" onchange="selectHubFinanceCalendarDate(this.value)"><div class="sub" style="margin-top:4px">Escolha qualquer dia; o Hub abre automaticamente a semana desse dia.</div>';
+      let field=week.closest('.field');field?.insertAdjacentElement('afterend',box);picker=box.querySelector('#hubFinanceCalendarDate');
+    }
+    if(picker&&week.value){
+      try{let m=mondayFromWeek(week.value);picker.value=isoDate(m)}catch(e){}
+    }
+  }
+
+  const oldHub934=window.renderHubFinance;
+  window.renderHubFinance=function(){let out=oldHub934?oldHub934.apply(this,arguments):undefined;safe934(ensureHubCalendar934);return out};
+
+  function unassigned934(){
+    try{syncFinalizedCutsToProduction()}catch(e){}
+    let arr=[];
+    try{arr=typeof hlgb916UnassignedProduction==='function'?hlgb916UnassignedProduction():(db.production||[]).filter(p=>p.cutId&&!p.productionLocationId&&!p.factionId&&!p.finishedAt&&(+p.planned||0)>0&&!['pronto','finalizado'].includes(String(p.stage||'').toLowerCase()))}catch(e){arr=[]}
+    let seen=new Set();return arr.filter(p=>{let k=String(p.id);if(seen.has(k))return false;seen.add(k);return true});
+  }
+
+  function renderReady934(){
+    let el=document.getElementById('readyCutsTable');if(!el)return;
+    let rows=unassigned934(),qty=rows.reduce((a,p)=>a+(+p.planned||0),0),value=rows.reduce((a,p)=>{let pr=(db.products||[]).find(x=>+x.id===+p.productId);return a+(+p.planned||0)*(+pr?.price||0)},0);
+    let cards=document.getElementById('cutSummaryCards');if(cards){
+      let card=[...cards.querySelectorAll('.card')].find(c=>String(c.querySelector('small')?.textContent||'').trim()==='Cortes prontos para produzir');
+      if(card){let s=card.querySelector('strong');if(s)s.textContent=qty.toLocaleString('pt-BR')+' peças';let div=[...card.querySelectorAll('div')].find(x=>x!==s);if(div)div.textContent=money(value)}
+    }
+    if(!rows.length){el.innerHTML='<div class="empty">Nenhum corte finalizado aguardando atribuição. O que já entrou em produção não aparece mais aqui.</div>';return}
+    el.innerHTML=table(['Pedido','Cliente','Modelo','Peças aguardando','Valor','Corte','Cortador','Finalizado','Situação','Prioridade','Ações'],rows.map(p=>{
+      let c=(db.cuts||[]).find(x=>+x.id===+p.cutId),o=(db.orders||[]).find(x=>+x.id===+p.orderId),pr=(db.products||[]).find(x=>+x.id===+p.productId),ct=(db.cutters||[]).find(x=>+x.id===+c?.cutterId),model=pr?.name||p.product||c?.product||'Produto',pieces=+p.planned||0;
+      return [`#${esc(o?displayOrderNumber(o):(p.orderId||'-'))}`,esc(p.client||o?.client||'-'),`<b>${esc(model)}</b>`,pieces.toLocaleString('pt-BR'),money(pieces*(+pr?.price||0)),esc(c?.cutType||'-'),esc(ct?.name||'-'),c?.finishedAt?fmtDate(c.finishedAt):'-','<span class="badge warn">Aguardando atribuição</span>',priorityBadge(o?.priority||'Padrão'),`${o?`<button type="button" class="secondary" onclick="viewOrderDetails(${o.id})">Ver pedido</button> `:''}<button type="button" class="primary" onclick="openCutAssignment(${p.id})">Atribuir produção</button>`];
+    }));
+  }
+  window.renderReadyCuts934=renderReady934;
+
+  const oldCuts934=window.renderCuts;
+  window.renderCuts=function(){let out=oldCuts934?oldCuts934.apply(this,arguments):undefined;safe934(renderReady934);return out};
+  const oldQueue934=window.renderCutAssignmentQueue;
+  window.renderCutAssignmentQueue=function(){let out=oldQueue934?oldQueue934.apply(this,arguments):undefined;safe934(renderReady934);return out};
+  const oldIncoming934=window.hlgbRenderIncomingRecord;
+  window.hlgbRenderIncomingRecord=function(module){let out=oldIncoming934?oldIncoming934.apply(this,arguments):undefined;if(['production','cuts','orders'].includes(module))safe934(renderReady934);return out};
+
+  function boot934(){safe934(ensureHubCalendar934);safe934(renderReady934)}
+  setTimeout(boot934,900);window.addEventListener('focus',()=>setTimeout(boot934,120));
 })();
 </script>
 
