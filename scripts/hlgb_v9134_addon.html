@@ -1,0 +1,61 @@
+<!-- HLGB v91.34 HUB CALENDAR + CUT READY QUEUE -->
+<script>
+(function(){
+  function safe934(fn){try{return fn()}catch(e){console.error('HLGB v91.34',e)}}
+
+  function hubDate934(v){
+    let el=document.getElementById('hubFinanceWeek');if(!el||!v)return;
+    let d=new Date(String(v).slice(0,10)+'T12:00:00');if(isNaN(d))return;
+    el.value=weekValue(d);renderHubFinance();
+  }
+  window.selectHubFinanceCalendarDate=hubDate934;
+
+  function ensureHubCalendar934(){
+    let week=document.getElementById('hubFinanceWeek');if(!week)return;
+    let toolbar=week.closest('.toolbar');if(!toolbar)return;
+    let picker=document.getElementById('hubFinanceCalendarDate');
+    if(!picker){
+      let box=document.createElement('div');box.className='field';box.innerHTML='<label>Escolher qualquer semana pelo calendário</label><input id="hubFinanceCalendarDate" type="date" onchange="selectHubFinanceCalendarDate(this.value)"><div class="sub" style="margin-top:4px">Escolha qualquer dia; o Hub abre automaticamente a semana desse dia.</div>';
+      let field=week.closest('.field');field?.insertAdjacentElement('afterend',box);picker=box.querySelector('#hubFinanceCalendarDate');
+    }
+    if(picker&&week.value){
+      try{let m=mondayFromWeek(week.value);picker.value=isoDate(m)}catch(e){}
+    }
+  }
+
+  const oldHub934=window.renderHubFinance;
+  window.renderHubFinance=function(){let out=oldHub934?oldHub934.apply(this,arguments):undefined;safe934(ensureHubCalendar934);return out};
+
+  function unassigned934(){
+    try{syncFinalizedCutsToProduction()}catch(e){}
+    let arr=[];
+    try{arr=typeof hlgb916UnassignedProduction==='function'?hlgb916UnassignedProduction():(db.production||[]).filter(p=>p.cutId&&!p.productionLocationId&&!p.factionId&&!p.finishedAt&&(+p.planned||0)>0&&!['pronto','finalizado'].includes(String(p.stage||'').toLowerCase()))}catch(e){arr=[]}
+    let seen=new Set();return arr.filter(p=>{let k=String(p.id);if(seen.has(k))return false;seen.add(k);return true});
+  }
+
+  function renderReady934(){
+    let el=document.getElementById('readyCutsTable');if(!el)return;
+    let rows=unassigned934(),qty=rows.reduce((a,p)=>a+(+p.planned||0),0),value=rows.reduce((a,p)=>{let pr=(db.products||[]).find(x=>+x.id===+p.productId);return a+(+p.planned||0)*(+pr?.price||0)},0);
+    let cards=document.getElementById('cutSummaryCards');if(cards){
+      let card=[...cards.querySelectorAll('.card')].find(c=>String(c.querySelector('small')?.textContent||'').trim()==='Cortes prontos para produzir');
+      if(card){let s=card.querySelector('strong');if(s)s.textContent=qty.toLocaleString('pt-BR')+' peças';let div=[...card.querySelectorAll('div')].find(x=>x!==s);if(div)div.textContent=money(value)}
+    }
+    if(!rows.length){el.innerHTML='<div class="empty">Nenhum corte finalizado aguardando atribuição. O que já entrou em produção não aparece mais aqui.</div>';return}
+    el.innerHTML=table(['Pedido','Cliente','Modelo','Peças aguardando','Valor','Corte','Cortador','Finalizado','Situação','Prioridade','Ações'],rows.map(p=>{
+      let c=(db.cuts||[]).find(x=>+x.id===+p.cutId),o=(db.orders||[]).find(x=>+x.id===+p.orderId),pr=(db.products||[]).find(x=>+x.id===+p.productId),ct=(db.cutters||[]).find(x=>+x.id===+c?.cutterId),model=pr?.name||p.product||c?.product||'Produto',pieces=+p.planned||0;
+      return [`#${esc(o?displayOrderNumber(o):(p.orderId||'-'))}`,esc(p.client||o?.client||'-'),`<b>${esc(model)}</b>`,pieces.toLocaleString('pt-BR'),money(pieces*(+pr?.price||0)),esc(c?.cutType||'-'),esc(ct?.name||'-'),c?.finishedAt?fmtDate(c.finishedAt):'-','<span class="badge warn">Aguardando atribuição</span>',priorityBadge(o?.priority||'Padrão'),`${o?`<button type="button" class="secondary" onclick="viewOrderDetails(${o.id})">Ver pedido</button> `:''}<button type="button" class="primary" onclick="openCutAssignment(${p.id})">Atribuir produção</button>`];
+    }));
+  }
+  window.renderReadyCuts934=renderReady934;
+
+  const oldCuts934=window.renderCuts;
+  window.renderCuts=function(){let out=oldCuts934?oldCuts934.apply(this,arguments):undefined;safe934(renderReady934);return out};
+  const oldQueue934=window.renderCutAssignmentQueue;
+  window.renderCutAssignmentQueue=function(){let out=oldQueue934?oldQueue934.apply(this,arguments):undefined;safe934(renderReady934);return out};
+  const oldIncoming934=window.hlgbRenderIncomingRecord;
+  window.hlgbRenderIncomingRecord=function(module){let out=oldIncoming934?oldIncoming934.apply(this,arguments):undefined;if(['production','cuts','orders'].includes(module))safe934(renderReady934);return out};
+
+  function boot934(){safe934(ensureHubCalendar934);safe934(renderReady934)}
+  setTimeout(boot934,900);window.addEventListener('focus',()=>setTimeout(boot934,120));
+})();
+</script>
