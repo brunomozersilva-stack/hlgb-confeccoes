@@ -1,0 +1,62 @@
+name: HLGB v91.41 precificacao producao faltas e materiais
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'scripts/hlgb_v9141_patch.py'
+      - 'scripts/hlgb_v9141_addon.html'
+      - '.github/workflows/hlgb-apply-v9141.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Apply v91.41 patch
+        run: python3 scripts/hlgb_v9141_patch.py
+      - name: Validate v91.41 addon
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import re, subprocess, tempfile, os
+          s=Path('index.html').read_text(encoding='utf-8')
+          required=[
+            'v91.41 Multiusuário',
+            'HLGB v91.41 PRICING + DAILY PLAN + SOURCE DELIVERY + MATERIAL BALANCE',
+            'Precificação por clientes — busca rápida',
+            'Qual confecção entregou cada parte?',
+            'Baixa de material ativa',
+            'Falta registrada sem contabilizar como entrega'
+          ]
+          for x in required: assert x in s, f'missing {x}'
+          addon=Path('scripts/hlgb_v9141_addon.html').read_text(encoding='utf-8')
+          scripts=re.findall(r'<script(?:\s[^>]*)?>(.*?)</script>',addon,re.S|re.I)
+          assert scripts, 'no addon script found'
+          for i,js in enumerate(scripts):
+            fd,p=tempfile.mkstemp(suffix='.js');os.close(fd);Path(p).write_text(js,encoding='utf-8')
+            r=subprocess.run(['node','--check',p],capture_output=True,text=True);os.unlink(p)
+            if r.returncode: raise SystemExit(f'v91.41 script {i} failed:\n{r.stderr}')
+          print('v91.41 validation ok')
+          PY
+      - name: Commit validated v91.41 index
+        run: |
+          if git diff --quiet -- index.html; then
+            echo 'No index changes to commit'
+            exit 0
+          fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add index.html
+          git commit -m 'Fix pricing daily planning shortages and materials v91.41'
+          git push origin main
