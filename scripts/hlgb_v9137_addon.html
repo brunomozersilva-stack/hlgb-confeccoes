@@ -1,0 +1,202 @@
+<!-- HLGB v91.37 HUB CADASTROS + PRICING PICKER + DAILY PRODUCTION LABEL -->
+<script>
+(function(){
+  'use strict';
+  const V='91.37';
+  const DEFAULT_OUT_937=[
+    {name:'Matéria-prima',personal:false},{name:'Mão de obra da confecção',personal:false},
+    {name:'Facção',personal:false},{name:'Funcionários',personal:false},{name:'Aluguel',personal:false},
+    {name:'Gastos da confecção',personal:false},{name:'Gasto pessoal',personal:true},{name:'Impostos',personal:false},
+    {name:'Transporte',personal:false},{name:'Outros',personal:false}
+  ];
+
+  function safe937(fn){try{return fn()}catch(e){console.error('HLGB v91.37',e);return null}}
+  function norm937(v){return String(v==null?'':v).normalize('NFD').replace(/[\u0300-\u036f]/g,'').trim().toLowerCase()}
+  function uid937(){return Date.now()+Math.floor(Math.random()*900000)}
+  function clone937(v){try{return JSON.parse(JSON.stringify(v))}catch(e){return v}}
+  function hubArray937(){db.hubFinanceEntries=Array.isArray(db.hubFinanceEntries)?db.hubFinanceEntries:[];return db.hubFinanceEntries}
+  function settingsRow937(){return hubArray937().find(x=>x&&x.kind==='hub_settings_v9137')||null}
+  function defaultCategories937(){return DEFAULT_OUT_937.map((x,i)=>({id:'def_'+i,name:x.name,personal:!!x.personal,active:true}))}
+  function normalizeCategories937(arr){
+    let out=[],seen=new Set();
+    (Array.isArray(arr)?arr:[]).forEach((x,i)=>{
+      let name=String(typeof x==='string'?x:(x?.name||'')).trim();if(!name)return;
+      let k=norm937(name);if(seen.has(k))return;seen.add(k);
+      out.push({id:String(x?.id||('cat_'+i+'_'+uid937())),name,personal:!!x?.personal,active:x?.active!==false});
+    });
+    return out;
+  }
+  function currentSettings937(){
+    let row=settingsRow937();
+    let cats=normalizeCategories937(row?.categoriesOut);
+    if(!cats.length)cats=defaultCategories937();
+    let people=(Array.isArray(row?.people)?row.people:[]).map((x,i)=>({id:String(x?.id||('person_'+i+'_'+uid937())),name:String(x?.name||x||'').trim(),active:x?.active!==false})).filter(x=>x.name);
+    return {row,categoriesOut:cats,people};
+  }
+  function currentOutCategories937(selected=''){
+    let s=currentSettings937(),arr=s.categoriesOut.filter(x=>x.active!==false);
+    let names=[...arr.map(x=>x.name),...(hubArray937().filter(e=>e?.flow==='Saída'&&e.category).map(e=>String(e.category))),selected].filter(Boolean);
+    let seen=new Set(),out=[];
+    names.forEach(name=>{let k=norm937(name);if(seen.has(k))return;seen.add(k);let c=s.categoriesOut.find(x=>norm937(x.name)===k);out.push({name,personal:!!c?.personal,active:c?c.active!==false:true})});
+    return out;
+  }
+  function isPersonalCategory937(name){
+    let c=currentSettings937().categoriesOut.find(x=>norm937(x.name)===norm937(name));
+    return !!c?.personal || norm937(name)==='gasto pessoal' || norm937(name)==='despesa pessoal' || norm937(name)==='despesas pessoais';
+  }
+  function currentPeople937(selected=''){
+    let s=currentSettings937(),names=s.people.filter(x=>x.active!==false).map(x=>x.name);
+    hubArray937().filter(e=>e?.person).forEach(e=>names.push(String(e.person)));
+    if(selected)names.push(String(selected));
+    let seen=new Set();return names.filter(n=>{let k=norm937(n);if(!k||seen.has(k))return false;seen.add(k);return true}).sort((a,b)=>a.localeCompare(b,'pt-BR'));
+  }
+
+  async function saveHubSettings937(next){
+    let cur=settingsRow937(),row={
+      ...(cur||{}),
+      id:cur?.id!=null?cur.id:uid937(),kind:'hub_settings_v9137',flow:'Config',date:'1900-01-01',
+      description:'Configurações do Hub Financeiro',value:0,status:'Configuração',
+      categoriesOut:normalizeCategories937(next.categoriesOut),
+      people:(Array.isArray(next.people)?next.people:[]).map((x,i)=>({id:String(x.id||('person_'+i+'_'+uid937())),name:String(x.name||'').trim(),active:x.active!==false})).filter(x=>x.name),
+      updatedAt:new Date().toISOString()
+    };
+    if(!cur)row.createdAt=new Date().toISOString();
+    if(typeof hlgbRecordSaveWithRetry==='function'){
+      if(typeof hlgbEnsureRecordsOnlineAfterLogin==='function'&&!hlgbRecordReady){let ok=await hlgbEnsureRecordsOnlineAfterLogin();if(!ok)throw new Error('Nuvem indisponível')}
+      let out=await hlgbRecordSaveWithRetry('hubFinanceEntries',String(row.id),clone937(row),false);
+      if(!out||out.applied!==true)throw new Error('O Supabase não confirmou o cadastro do Hub.');
+      row=out.data||row;
+    }else if(typeof save==='function'){
+      let a=hubArray937(),i=a.findIndex(x=>String(x?.id)===String(row.id));if(i>=0)a[i]=row;else a.push(row);save();return row;
+    }
+    let a=hubArray937(),i=a.findIndex(x=>String(x?.id)===String(row.id));if(i>=0)a[i]=row;else a.push(row);
+    try{if(typeof localSaveOnly==='function')localSaveOnly()}catch(e){}
+    return row;
+  }
+
+  window.addHubPersonRow937=function(name='',active=true){
+    let body=document.getElementById('hubPeopleRows937');if(!body)return;
+    let tr=document.createElement('tr');tr.innerHTML=`<td><input class="hubPersonName937" value="${esc(name)}" placeholder="Nome da pessoa" style="width:100%"></td><td style="text-align:center"><input class="hubPersonActive937" type="checkbox" ${active?'checked':''}></td>`;body.appendChild(tr);
+  };
+  window.openHubPeopleSettings937=function(){
+    let s=currentSettings937(),rows=s.people.map(p=>`<tr><td><input class="hubPersonName937" value="${esc(p.name)}" style="width:100%"></td><td style="text-align:center"><input class="hubPersonActive937" type="checkbox" ${p.active!==false?'checked':''}></td></tr>`).join('');
+    openModal('Pessoas para despesas pessoais',`<div class="sub">Cadastre aqui as pessoas que poderão receber despesas pessoais no Hub. Desativar uma pessoa não apaga lançamentos antigos.</div><div style="overflow:auto;margin-top:12px"><table><thead><tr><th>Pessoa</th><th>Ativa</th></tr></thead><tbody id="hubPeopleRows937">${rows}</tbody></table></div><div class="toolbar" style="margin-top:12px"><button type="button" class="secondary" onclick="addHubPersonRow937()">+ Nova pessoa</button><button type="button" class="primary modalSave">Salvar cadastro</button></div>`,async()=>{
+      let people=[...document.querySelectorAll('#hubPeopleRows937 tr')].map((tr,i)=>({id:s.people[i]?.id||('p_'+uid937()+'_'+i),name:(tr.querySelector('.hubPersonName937')?.value||'').trim(),active:!!tr.querySelector('.hubPersonActive937')?.checked})).filter(x=>x.name);
+      let seen=new Set();for(const p of people){let k=norm937(p.name);if(seen.has(k)){alert('Há pessoas repetidas no cadastro.');return}seen.add(k)}
+      let btn=document.querySelector('#modal .modalSave');if(btn){btn.disabled=true;btn.textContent='☁️ Salvando…'}
+      try{await saveHubSettings937({...s,people});closeModal();renderHubFinance()}catch(e){console.error(e);if(btn){btn.disabled=false;btn.textContent='Salvar cadastro'}alert(e.message||'Não foi possível salvar o cadastro de pessoas.')}
+    });
+  };
+
+  window.addHubCategoryRow937=function(name='',personal=false,active=true){
+    let body=document.getElementById('hubCategoryRows937');if(!body)return;
+    let tr=document.createElement('tr');tr.innerHTML=`<td><input class="hubCatName937" value="${esc(name)}" placeholder="Nome da categoria" style="width:100%"></td><td style="text-align:center"><input class="hubCatPersonal937" type="checkbox" ${personal?'checked':''}></td><td style="text-align:center"><input class="hubCatActive937" type="checkbox" ${active?'checked':''}></td>`;body.appendChild(tr);
+  };
+  window.openHubCategorySettings937=function(){
+    let s=currentSettings937(),rows=s.categoriesOut.map(c=>`<tr><td><input class="hubCatName937" value="${esc(c.name)}" style="width:100%"></td><td style="text-align:center"><input class="hubCatPersonal937" type="checkbox" ${c.personal?'checked':''}></td><td style="text-align:center"><input class="hubCatActive937" type="checkbox" ${c.active!==false?'checked':''}></td></tr>`).join('');
+    openModal('Categorias de saída do Hub',`<div class="sub">Você pode adicionar, renomear e desativar categorias. Marque “Despesa pessoal” nas categorias que devem obrigar a escolha de uma pessoa. Lançamentos antigos mantêm a categoria histórica.</div><div style="overflow:auto;margin-top:12px"><table><thead><tr><th>Categoria</th><th>Despesa pessoal</th><th>Ativa</th></tr></thead><tbody id="hubCategoryRows937">${rows}</tbody></table></div><div class="toolbar" style="margin-top:12px"><button type="button" class="secondary" onclick="addHubCategoryRow937()">+ Nova categoria</button><button type="button" class="primary modalSave">Salvar categorias</button></div>`,async()=>{
+      let trs=[...document.querySelectorAll('#hubCategoryRows937 tr')],cats=trs.map((tr,i)=>({id:s.categoriesOut[i]?.id||('c_'+uid937()+'_'+i),name:(tr.querySelector('.hubCatName937')?.value||'').trim(),personal:!!tr.querySelector('.hubCatPersonal937')?.checked,active:!!tr.querySelector('.hubCatActive937')?.checked})).filter(x=>x.name);
+      let seen=new Set();for(const c of cats){let k=norm937(c.name);if(seen.has(k)){alert('Há categorias repetidas.');return}seen.add(k)}
+      if(!cats.some(c=>c.active!==false)){alert('Mantenha pelo menos uma categoria de saída ativa.');return}
+      let btn=document.querySelector('#modal .modalSave');if(btn){btn.disabled=true;btn.textContent='☁️ Salvando…'}
+      try{await saveHubSettings937({...s,categoriesOut:cats});closeModal();renderHubFinance()}catch(e){console.error(e);if(btn){btn.disabled=false;btn.textContent='Salvar categorias'}alert(e.message||'Não foi possível salvar as categorias.')}
+    });
+  };
+
+  function ensureHubSettingsPanel937(){
+    let page=document.getElementById('hubFinanceiro');if(!page)return;
+    let firstPanel=page.querySelector('.panel');if(!firstPanel)return;
+    if(!document.getElementById('hubSettingsPanel937')){
+      let p=document.createElement('div');p.id='hubSettingsPanel937';p.className='panel';p.innerHTML=`<div class="toolbar" style="justify-content:space-between;align-items:center"><div><h2 style="margin:0 0 4px">⚙️ Cadastros do Hub</h2><div class="sub">Mantenha as categorias de saída e as pessoas usadas nas despesas pessoais.</div></div><div class="toolbar" style="margin:0"><button type="button" class="secondary" onclick="openHubPeopleSettings937()">👤 Pessoas de despesas</button><button type="button" class="secondary" onclick="openHubCategorySettings937()">🏷️ Categorias de saída</button></div></div>`;
+      firstPanel.insertAdjacentElement('afterend',p);
+    }
+    let catTable=document.getElementById('hubFinanceCategoryTable');let catPanel=catTable?.closest('.panel');
+    if(catPanel&&!document.getElementById('hubPersonalSummary937')){
+      let p=document.createElement('div');p.id='hubPersonalSummary937';p.className='panel';p.innerHTML='<h2>👤 Despesas pessoais por pessoa</h2><div class="sub">Total das despesas pessoais da semana separado por pessoa cadastrada.</div><div id="hubPersonalTable937"></div>';catPanel.insertAdjacentElement('afterend',p);
+    }
+  }
+
+  const oldHubForm937=window.hlgb916HubForm;
+  if(typeof oldHubForm937==='function')window.hlgb916HubForm=function(e={flow:'Saída'}){
+    let html=oldHubForm937(e),flow=e.flow||'Saída';
+    if(flow==='Saída'){
+      let cats=currentOutCategories937(e.category||'');
+      let selected=e.category||cats[0]?.name||'Outros';
+      let options=cats.map(c=>`<option value="${esc(c.name)}" ${norm937(c.name)===norm937(selected)?'selected':''}>${esc(c.name)}${c.active===false?' (inativa — histórico)':''}</option>`).join('');
+      html=html.replace(/<select id="hubEntryCategory">[\s\S]*?<\/select>/,`<select id="hubEntryCategory" onchange="toggleHubPerson937()">${options}</select>`);
+      let people=currentPeople937(e.person||''),show=isPersonalCategory937(selected)||!!e.person;
+      let pOpts='<option value="">Selecione a pessoa</option>'+people.map(p=>`<option value="${esc(p)}" ${norm937(p)===norm937(e.person||'')?'selected':''}>${esc(p)}</option>`).join('');
+      let replacement=`<div class="field" id="hubPersonWrap937" style="${show?'':'display:none'}"><label>Pessoa da despesa pessoal</label><select id="hubEntryPerson">${pOpts}</select><div class="sub" style="margin-top:4px">Cadastre pessoas em “Cadastros do Hub”.</div></div>`;
+      html=html.replace(/<div class="field"><label>Pessoa \(para gasto pessoal\)<\/label><input id="hubEntryPerson"[\s\S]*?<\/datalist><\/div>/,replacement);
+    }
+    return html;
+  };
+
+  const oldReadHub937=window.hlgb916ReadHubForm;
+  if(typeof oldReadHub937==='function')window.hlgb916ReadHubForm=function(flow){
+    let d=oldReadHub937(flow);if(!d)return null;
+    if(flow==='Saída'&&isPersonalCategory937(d.category)&&!String(d.person||'').trim()){
+      alert('Escolha a pessoa responsável por esta despesa pessoal.');return null;
+    }
+    return d;
+  };
+  window.toggleHubPerson937=function(){
+    let wrap=document.getElementById('hubPersonWrap937'),cat=document.getElementById('hubEntryCategory')?.value||'';if(!wrap)return;
+    wrap.style.display=isPersonalCategory937(cat)?'block':'none';
+    if(!isPersonalCategory937(cat)){let p=document.getElementById('hubEntryPerson');if(p)p.value=''}
+  };
+
+  function renderPersonalSummary937(){
+    let el=document.getElementById('hubPersonalTable937'),w=document.getElementById('hubFinanceWeek');if(!el||!w?.value)return;
+    let range=typeof hlgb916HubRange==='function'?hlgb916HubRange(w.value):null;if(!range)return;
+    let rows=hubArray937().filter(e=>e?.flow==='Saída'&&String(e.date||'').slice(0,10)>=range.start&&String(e.date||'').slice(0,10)<=range.end&&(isPersonalCategory937(e.category)||e.person));
+    let g={};rows.forEach(e=>{let n=String(e.person||'Sem pessoa').trim()||'Sem pessoa';g[n]=(g[n]||0)+(+e.value||0)});
+    let arr=Object.entries(g).sort((a,b)=>b[1]-a[1]);el.innerHTML=arr.length?table(['Pessoa','Despesas na semana'],arr.map(([n,v])=>[esc(n),money(v)])):'<div class="empty">Nenhuma despesa pessoal nesta semana.</div>';
+  }
+
+  const oldRenderHub937=window.renderHubFinance;
+  window.renderHubFinance=function(){let out=oldRenderHub937?oldRenderHub937.apply(this,arguments):undefined;safe937(ensureHubSettingsPanel937);safe937(renderPersonalSummary937);return out};
+
+  const oldProductPricing937=window.productPricing;
+  function pricingCategories937(){
+    try{if(typeof orderProductCategories==='function')return orderProductCategories()}catch(e){}
+    return [...new Set((db.products||[]).map(p=>p.category).filter(Boolean))].sort((a,b)=>String(a).localeCompare(String(b),'pt-BR'));
+  }
+  window.renderPricingPicker937=function(){
+    let box=document.getElementById('pricingResults937');if(!box)return;
+    let q=norm937(document.getElementById('pricingSearch937')?.value||''),cat=document.getElementById('pricingCat937')?.value||'',minRaw=document.getElementById('pricingMin937')?.value,maxRaw=document.getElementById('pricingMax937')?.value,min=minRaw!==''?+minRaw:null,max=maxRaw!==''?+maxRaw:null;
+    let arr=(db.products||[]).filter(p=>{
+      let hay=norm937(`${p.name||''} ${p.code||''} ${p.category||''}`),price=+p.price||0;
+      return(!q||hay.includes(q))&&(!cat||String(p.category||'')===cat)&&(min==null||price>=min)&&(max==null||price<=max);
+    }).sort((a,b)=>String(a.name||'').localeCompare(String(b.name||''),'pt-BR'));
+    let count=document.getElementById('pricingCount937');if(count)count.textContent=`${arr.length} produto(s) encontrado(s)`;
+    box.innerHTML=arr.length?arr.map(p=>`<button type="button" class="secondary" style="text-align:left;padding:10px 12px" onclick="choosePricingProduct937('${String(p.id).replace(/'/g,"\\'")}')"><b>${esc(p.name||'Produto')}</b><div class="sub">${esc(p.code||'Sem referência')} · ${esc(p.category||'Sem categoria')} · ${money(+p.price||0)}</div></button>`).join(''):'<div class="empty">Nenhum produto encontrado.</div>';
+  };
+  window.clearPricingPicker937=function(){['pricingSearch937','pricingMin937','pricingMax937'].forEach(id=>{let e=document.getElementById(id);if(e)e.value=''});let c=document.getElementById('pricingCat937');if(c)c.value='';renderPricingPicker937()};
+  window.choosePricingProduct937=function(id){if(typeof oldProductPricing937==='function')oldProductPricing937(isNaN(+id)?id:+id)};
+  window.openPricingPicker937=function(){
+    let cats=pricingCategories937();
+    openModal('Precificação por clientes — localizar peça',`<div class="sub">Use os mesmos filtros do cadastro de pedido para localizar rapidamente a peça que deseja precificar.</div><div class="grid" style="grid-template-columns:1.7fr 1fr .7fr .7fr;gap:8px;margin-top:12px"><div class="field"><label>Buscar produto</label><input id="pricingSearch937" placeholder="Digite nome ou referência..." oninput="renderPricingPicker937()"></div><div class="field"><label>Categoria</label><select id="pricingCat937" onchange="renderPricingPicker937()"><option value="">Todas</option>${cats.map(c=>`<option>${esc(c)}</option>`).join('')}</select></div><div class="field"><label>Preço mín.</label><input id="pricingMin937" type="number" step=".01" min="0" placeholder="0,00" oninput="renderPricingPicker937()"></div><div class="field"><label>Preço máx.</label><input id="pricingMax937" type="number" step=".01" min="0" placeholder="Sem limite" oninput="renderPricingPicker937()"></div></div><div style="display:flex;justify-content:space-between;gap:8px;align-items:center;margin:8px 0"><span id="pricingCount937" class="sub"></span><button type="button" class="secondary" onclick="clearPricingPicker937()">Limpar filtros</button></div><div id="pricingResults937" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:7px;max-height:420px;overflow:auto"></div>`,()=>{});
+    setTimeout(renderPricingPicker937,20);
+  };
+  function ensurePricingButton937(){
+    let page=document.getElementById('produtos');if(!page)return;let toolbar=page.querySelector('.toolbar');if(!toolbar||document.getElementById('pricingPickerBtn937'))return;
+    let b=document.createElement('button');b.id='pricingPickerBtn937';b.type='button';b.className='primary';b.textContent='💲 Precificação por clientes';b.onclick=openPricingPicker937;toolbar.insertBefore(b,toolbar.firstChild);
+  }
+
+  function relabelDailyProduction937(){
+    let page=document.getElementById('pecasProntas');if(page){
+      let h=page.querySelector('h1');if(h)h.textContent='🧮 Produção diária por local / peças prontas';
+      let sub=page.querySelector(':scope > .sub');if(sub)sub.textContent='Aqui o gerente seleciona a confecção, escolhe o modelo e preenche a grade realmente produzida no dia. O lançamento soma a produção do local sem criar nota, pedido ou movimentação de estoque.';
+      let btn=[...page.querySelectorAll('button')].find(b=>String(b.getAttribute('onclick')||'').includes('newFinishedPieces'));if(btn)btn.textContent='🧮 Preencher produção do dia';
+    }
+    let nav=[...document.querySelectorAll('nav button')].find(b=>String(b.getAttribute('onclick')||'').includes("page('pecasProntas'"));if(nav)nav.textContent='Produção diária por local';
+  }
+
+  const oldIncoming937=window.hlgbRenderIncomingRecord;
+  window.hlgbRenderIncomingRecord=function(module){let out=oldIncoming937?oldIncoming937.apply(this,arguments):undefined;if(module==='hubFinanceEntries'&&document.querySelector('.page.active')?.id==='hubFinanceiro')setTimeout(()=>{safe937(ensureHubSettingsPanel937);safe937(renderPersonalSummary937)},20);return out};
+
+  function boot937(){safe937(ensureHubSettingsPanel937);safe937(ensurePricingButton937);safe937(relabelDailyProduction937);safe937(renderPersonalSummary937)}
+  setTimeout(boot937,1200);window.addEventListener('focus',()=>setTimeout(boot937,100));
+})();
+</script>
