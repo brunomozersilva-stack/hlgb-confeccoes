@@ -1,0 +1,71 @@
+name: HLGB v91.43 precificacao baixa material capacidade em valor
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'scripts/hlgb_v9143_patch.py'
+      - 'scripts/hlgb_v9143_addon.html'
+      - '.github/workflows/hlgb-apply-v9143.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Apply v91.43 patch
+        run: python3 scripts/hlgb_v9143_patch.py
+      - name: Validate v91.43 fixes
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import re, subprocess, tempfile, os
+          s=Path('index.html').read_text(encoding='utf-8')
+          required=[
+            'v91.43 Multiusuário',
+            'HLGB v91.43 PRICING FILTERS + MATERIAL IMMEDIATE BALANCE + CAPACITY VALUE',
+            'Precificação por cliente — filtros completos',
+            "window.productPricing=function(productId){window.openPricing943(productId||'')}",
+            'Baixa imediata ativa',
+            'Capacidade agora é calculada em valor (R$)',
+            'Filtrar por local',
+            'HLGB v91.42 CROSS-VERSION CLOUD RECOVERY + HUB FINANCE SAFETY',
+            'HLGB v91.41 PRICING + DAILY PLAN + SOURCE DELIVERY + MATERIAL BALANCE'
+          ]
+          for x in required:
+              assert x in s, f'missing {x}'
+          addon=Path('scripts/hlgb_v9143_addon.html').read_text(encoding='utf-8')
+          scripts=re.findall(r'<script(?:\s[^>]*)?>(.*?)</script>',addon,re.S|re.I)
+          assert scripts, 'no addon script found'
+          for i,js in enumerate(scripts):
+              fd,p=tempfile.mkstemp(suffix='.js');os.close(fd);Path(p).write_text(js,encoding='utf-8')
+              r=subprocess.run(['node','--check',p],capture_output=True,text=True);os.unlink(p)
+              if r.returncode:
+                  raise SystemExit(f'v91.43 script {i} failed:\n{r.stderr}')
+          assert 'pr943Search' in addon and 'pr943Cat' in addon and 'pr943Min' in addon and 'pr943Max' in addon
+          assert 'pr943SetLetter' in addon and "pr943Status='all'" in addon
+          assert 'oldApply943' in addon and 'oldBreak943' in addon
+          assert 'capacityLocation943' in addon and 'goalFor943' in addon and 'unitPrice943' in addon
+          print('v91.43 validation ok')
+          PY
+      - name: Commit validated v91.43 index
+        run: |
+          if git diff --quiet -- index.html; then
+            echo 'No index changes to commit'
+            exit 0
+          fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add index.html
+          git commit -m 'Fix pricing filters material deduction and capacity value v91.43'
+          git push origin main
