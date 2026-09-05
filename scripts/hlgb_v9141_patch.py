@@ -13,3 +13,4 @@ s=s.replace('Versão v91.40','Versão v91.41')
 s=s.replace('>v91.40</small>','>v91.41</small>')
 idx.write_text(s,encoding='utf-8')
 print('Applied HLGB v91.41 workflow fixes')
+# deployment trigger: v91.41
