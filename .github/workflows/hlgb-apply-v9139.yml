@@ -29,7 +29,8 @@ jobs:
         run: |
           python3 - <<'PY'
           from pathlib import Path
-          import re, subprocess, tempfile, os
+          from html.parser import HTMLParser
+          import subprocess, tempfile, os
           s=Path('index.html').read_text(encoding='utf-8')
           required=[
             'v91.39 Multiusuário',
@@ -53,7 +54,28 @@ jobs:
           for x in required:
             assert x in s, f'missing {x}'
           assert 'tmain.style' not in s, 'runtime typo tmain.style found'
-          scripts=re.findall(r'<script(?:\s[^>]*)?>(.*?)</script>',s,re.S|re.I)
+
+          class ScriptParser(HTMLParser):
+            def __init__(self):
+              super().__init__(convert_charrefs=False)
+              self.in_script=False
+              self.buf=[]
+              self.scripts=[]
+            def handle_starttag(self,tag,attrs):
+              if tag.lower()=='script' and not self.in_script:
+                self.in_script=True; self.buf=[]
+            def handle_data(self,data):
+              if self.in_script: self.buf.append(data)
+            def handle_entityref(self,name):
+              if self.in_script: self.buf.append('&'+name+';')
+            def handle_charref(self,name):
+              if self.in_script: self.buf.append('&#'+name+';')
+            def handle_endtag(self,tag):
+              if tag.lower()=='script' and self.in_script:
+                self.scripts.append(''.join(self.buf)); self.in_script=False; self.buf=[]
+
+          parser=ScriptParser(); parser.feed(s); scripts=parser.scripts
+          assert scripts, 'no inline scripts parsed'
           for i,js in enumerate(scripts):
             if not js.strip(): continue
             fd,path=tempfile.mkstemp(suffix='.js'); os.close(fd)
