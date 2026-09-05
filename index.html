@@ -6,7 +6,7 @@
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
-<title>HLGB Confecções — Sistema de Gestão v91.44 Multiusuário</title>
+<title>HLGB Confecções — Sistema de Gestão v91.45 Multiusuário</title>
 <style>
 :root{--navy:#6f3f59;--orange:#c96b8f;--bg:#fbf6f8;--line:#eadde4;--text:#30262c;--muted:#786b73;--ok:#e9f7ef;--warn:#fff5df;--bad:#fdeaea;--rose:#f3dbe5;--rose2:#fff8fb}
 *{box-sizing:border-box}body{margin:0;font-family:Arial,Helvetica,sans-serif;background:var(--bg);color:var(--text)}
@@ -246,11 +246,11 @@ main{min-width:0;}
     <div class="field" style="text-align:left;margin-bottom:10px"><label>E-mail</label><input id="loginUser" type="email" autocomplete="username" placeholder="seuemail@exemplo.com"></div>
     <div class="field" style="text-align:left;margin-bottom:14px"><label>Senha</label><input id="loginPass" type="password" autocomplete="current-password" onkeydown="if(event.key==='Enter')return doLogin()"></div>
     <button class="primary" style="width:100%" onclick="return doLogin()">Entrar</button>
-    <div id="loginError" style="color:#a51d2d;font-size:13px;margin-top:10px"></div><div style="margin-top:12px;font-size:12px;color:#786b73">Acesso protegido pelo Supabase • HLGB Online<br><b style="color:#6f3f59">Versão v91.44</b></div>
+    <div id="loginError" style="color:#a51d2d;font-size:13px;margin-top:10px"></div><div style="margin-top:12px;font-size:12px;color:#786b73">Acesso protegido pelo Supabase • HLGB Online<br><b style="color:#6f3f59">Versão v91.45</b></div>
   </div>
 </div>
 
-<div id="appShell" style="display:none"><header><div class="logo">HLGB <b>CONFECÇÕES</b> <small style="font-size:10px;opacity:.8">v91.44</small></div><div><span id="cloudStatus" style="margin-right:10px;font-size:12px;padding:6px 9px;border:1px solid #ffffff44;border-radius:8px">☁️ Nuvem</span><span id="currentUserLabel" style="margin-right:10px;font-size:13px"></span><button id="cloudSaveBtn" onclick="cloudUploadCurrentDb(true)" style="display:none" title="Sincronização automática">🔄 Sincronizar agora</button> <button id="backupBtn" onclick="backup()" style="display:none">Exportar backup</button> <button id="importBackupBtn" onclick="document.getElementById('backupImportInput').click()" style="display:none">Importar backup</button><input id="backupImportInput" type="file" accept=".json,application/json" style="display:none" onchange="importBackupFile(this)"> <button onclick="logout()">Sair</button></div></header>
+<div id="appShell" style="display:none"><header><div class="logo">HLGB <b>CONFECÇÕES</b> <small style="font-size:10px;opacity:.8">v91.45</small></div><div><span id="cloudStatus" style="margin-right:10px;font-size:12px;padding:6px 9px;border:1px solid #ffffff44;border-radius:8px">☁️ Nuvem</span><span id="currentUserLabel" style="margin-right:10px;font-size:13px"></span><button id="cloudSaveBtn" onclick="cloudUploadCurrentDb(true)" style="display:none" title="Sincronização automática">🔄 Sincronizar agora</button> <button id="backupBtn" onclick="backup()" style="display:none">Exportar backup</button> <button id="importBackupBtn" onclick="document.getElementById('backupImportInput').click()" style="display:none">Importar backup</button><input id="backupImportInput" type="file" accept=".json,application/json" style="display:none" onchange="importBackupFile(this)"> <button onclick="logout()">Sair</button></div></header>
 <div class="app">
 <aside><nav id="nav" class="clean-nav">
 <button class="nav-home active" onclick="page('dashboard',this)">🏠 <span>Início</span></button>
@@ -14480,11 +14480,12 @@ function hubFinanceManualSync(){alert("O botão de sincronização está prepara
   }
   const oldSepRender938=window.renderSeparation;
   window.renderSeparation=function(){let r=oldSepRender938?oldSepRender938.apply(this,arguments):undefined;setTimeout(enhanceSeparation938,0);return r};
-  window.renderSeparationList=function(){
-    let el=document.getElementById('separationList');if(!el)return;let q=n938(document.getElementById('separationProductSearch')?.value||''),min=q938(document.getElementById('separationQtyMin')?.value),maxRaw=document.getElementById('separationQtyMax')?.value,max=maxRaw?+maxRaw:Infinity;
-    let arr=(db.orders||[]).filter(o=>{let sep=sepRow938(o.id);if(sep?.done)return false;let name=n938(orderProductSummary(o)),qty=qtyOfOrder(o),number=String(displayOrderNumber(o)||'').toLowerCase(),ok=!q||name.includes(q)||number.includes(q.replace(/^#\s*/,''));return ok&&qty>=min&&qty<=max});
-    el.innerHTML=arr.length?arr.map(o=>{let s=sepRow938(o.id),t=sepTotals938(o,s),pct=t.total?Math.round(t.done/t.total*100):0;return `<div class="separation-row"><div class="sep-order-id"><small>Pedido</small><b>#${esc(displayOrderNumber(o))}</b></div><div class="sep-main-text"><b>${esc(o.client||'-')}</b><div class="sub">Entrega ${fmtDate(o.date)}</div></div><div class="sep-main-text"><b>${esc(orderProductSummary(o))}</b><div class="sub">${priorityBadge(o.priority||'Padrão')}</div></div><div><b>${qtyOfOrder(o).toLocaleString('pt-BR')}</b><div class="sub">peças</div></div><div class="sep-status"><span class="badge ${t.done?'warn':''}">${t.done?`${pct}% separado`:'Pendente'}</span></div><div class="sep-action">
+  // v91.45: the v91.38 renderSeparationList override was truncated in the published HTML.
+  // Keep the previous working renderSeparationList implementation instead of executing malformed code.
+})();
+</script>
 
+<!-- HLGB v91.45 EMERGENCY FULL-PAGE JS REPAIR -->
 <!-- HLGB v91.39 UI BINDINGS + LOCAL PRODUCTION + SEPARATION CLEANUP -->
 <style>
 #locAssignPanel939 .loc-assign-row939{display:grid;grid-template-columns:minmax(190px,1.4fr) minmax(150px,1fr) 110px minmax(180px,1fr);gap:10px;align-items:center;padding:10px 0;border-bottom:1px solid var(--line)}
