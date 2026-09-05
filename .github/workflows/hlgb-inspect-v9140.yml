@@ -22,75 +22,31 @@ jobs:
         run: |
           python3 - <<'PY'
           from pathlib import Path
-          import re
           text=Path('index.html').read_text(encoding='utf-8')
           lines=text.splitlines()
           out=Path('scripts/v9140_inspect'); out.mkdir(parents=True,exist_ok=True)
-
-          def extract_function(name, extra=25):
-            needle=f'function {name}'
-            pos=text.find(needle)
-            if pos<0:
-              needle=f'window.{name}=function'
-              pos=text.find(needle)
-            if pos<0:
-              return f'NOT FOUND: {name}\n'
-            start=text.rfind('\n',0,pos)+1
-            brace=text.find('{',pos)
-            if brace<0: return f'NO BRACE: {name}\n'
-            depth=0; quote=None; esc=False; template_depth=0
-            i=brace
-            while i<len(text):
-              c=text[i]
-              if quote:
-                if esc: esc=False
-                elif c=='\\': esc=True
-                elif c==quote:
-                  quote=None
-                elif quote=='`' and c=='$' and i+1<len(text) and text[i+1]=='{':
-                  # keep template as quoted; braces inside template don't delimit function
-                  pass
-              else:
-                if c in "'\"`": quote=c
-                elif c=='{': depth+=1
-                elif c=='}':
-                  depth-=1
-                  if depth==0:
-                    end=i+1
-                    endline=text.find('\n',end)
-                    if endline<0:endline=len(text)
-                    return text[start:min(len(text),endline+extra*120)]+'\n'
-              i+=1
-            return text[start:start+12000]+'\n'
-
-          funcs=['renderCapacityPlanning','renderGoals','newGoal','saveGoal','editGoal','deleteGoal','renderProjection','changeProjectionDate','closeProjectionInvoice','finalizeProjectionInvoice','openProjectionInvoice','renderFactions','registerFactionDelivery9135','openFactionDelivery9135','renderMissingPieces','newMissingPiece']
-          for f in funcs:
-            Path(out/f'{f}.txt').write_text(extract_function(f),encoding='utf-8')
-
-          def around(term,before=45,after=120):
+          def around(term,before=80,after=220):
             hits=[i for i,l in enumerate(lines) if term.lower() in l.lower()]
             buf=[]
-            for i in hits[:8]:
+            for i in hits[:5]:
               a=max(0,i-before); b=min(len(lines),i+after)
-              buf.append(f'=== {term} @ line {i+1} ===\n'+ '\n'.join(f'{n+1:05d}: {lines[n]}' for n in range(a,b)))
+              buf.append(f'=== {term} @ line {i+1} ===\n'+'\n'.join(f'{n+1:05d}: {lines[n]}' for n in range(a,b)))
             return '\n\n'.join(buf) if buf else f'NOT FOUND: {term}\n'
           terms={
-            'capacity_html':'id="capacidadeProducao"',
-            'goals_html':'id="metas"',
-            'projection_invoice':'projectionInvoices',
-            'projection_delivery':'produtos previstos para',
-            'faction_delivery':'HLGB v91.35 PROJECTION + CAPACITY + FACTION DELIVERY + PIX COPY',
-            'missing':'missingPieces',
-            'goal_scope':'scopeName',
-            'capacity_assign':'capacityAssignments'
+            'finalize_selected':'function finalizeSelectedProjection',
+            'faction_rpc_call':'hlgb_register_faction_delivery_v9135',
+            'faction_table_logic':'factionDeliveryTable935',
+            'goal_week':'weekStart',
+            'projection_remaining':'function renderProjectionDeliveryTracking',
+            'projection_delivered':'projectionDeliveredRows',
+            'save_row_cloud':'hlgbRecordSaveWithRetry'
           }
-          for fn,term in terms.items():
-            Path(out/f'{fn}.txt').write_text(around(term),encoding='utf-8')
+          for fn,term in terms.items(): Path(out/f'{fn}.txt').write_text(around(term),encoding='utf-8')
           PY
       - name: Commit inspection snippets
         run: |
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add scripts/v9140_inspect
-          git commit -m 'Add temporary v91.40 source snippets'
+          git commit -m 'Refresh temporary v91.40 source snippets'
           git push origin main
