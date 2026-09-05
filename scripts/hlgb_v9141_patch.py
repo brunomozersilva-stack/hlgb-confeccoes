@@ -2,6 +2,8 @@ from pathlib import Path
 idx=Path('index.html')
 s=idx.read_text(encoding='utf-8')
 addon=Path('scripts/hlgb_v9141_addon.html').read_text(encoding='utf-8')
+# Repair the async callback in the generated addon before injection.
+addon=addon.replace("(inv.items||[]).forEach(it=>{","(inv.items||[]).forEach(async it=>{")
 marker='HLGB v91.41 PRICING + DAILY PLAN + SOURCE DELIVERY + MATERIAL BALANCE'
 if marker not in addon: raise SystemExit('v91.41 marker missing')
 if marker not in s:
@@ -13,4 +15,3 @@ s=s.replace('Versão v91.40','Versão v91.41')
 s=s.replace('>v91.40</small>','>v91.41</small>')
 idx.write_text(s,encoding='utf-8')
 print('Applied HLGB v91.41 workflow fixes')
-# deployment trigger: v91.41
