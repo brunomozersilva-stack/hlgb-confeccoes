@@ -6,7 +6,7 @@
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
-<title>HLGB Confecções — Sistema de Gestão v91.41 Multiusuário</title>
+<title>HLGB Confecções — Sistema de Gestão v91.42 Multiusuário</title>
 <style>
 :root{--navy:#6f3f59;--orange:#c96b8f;--bg:#fbf6f8;--line:#eadde4;--text:#30262c;--muted:#786b73;--ok:#e9f7ef;--warn:#fff5df;--bad:#fdeaea;--rose:#f3dbe5;--rose2:#fff8fb}
 *{box-sizing:border-box}body{margin:0;font-family:Arial,Helvetica,sans-serif;background:var(--bg);color:var(--text)}
@@ -246,11 +246,11 @@ main{min-width:0;}
     <div class="field" style="text-align:left;margin-bottom:10px"><label>E-mail</label><input id="loginUser" type="email" autocomplete="username" placeholder="seuemail@exemplo.com"></div>
     <div class="field" style="text-align:left;margin-bottom:14px"><label>Senha</label><input id="loginPass" type="password" autocomplete="current-password" onkeydown="if(event.key==='Enter')return doLogin()"></div>
     <button class="primary" style="width:100%" onclick="return doLogin()">Entrar</button>
-    <div id="loginError" style="color:#a51d2d;font-size:13px;margin-top:10px"></div><div style="margin-top:12px;font-size:12px;color:#786b73">Acesso protegido pelo Supabase • HLGB Online<br><b style="color:#6f3f59">Versão v91.41</b></div>
+    <div id="loginError" style="color:#a51d2d;font-size:13px;margin-top:10px"></div><div style="margin-top:12px;font-size:12px;color:#786b73">Acesso protegido pelo Supabase • HLGB Online<br><b style="color:#6f3f59">Versão v91.42</b></div>
   </div>
 </div>
 
-<div id="appShell" style="display:none"><header><div class="logo">HLGB <b>CONFECÇÕES</b> <small style="font-size:10px;opacity:.8">v91.41</small></div><div><span id="cloudStatus" style="margin-right:10px;font-size:12px;padding:6px 9px;border:1px solid #ffffff44;border-radius:8px">☁️ Nuvem</span><span id="currentUserLabel" style="margin-right:10px;font-size:13px"></span><button id="cloudSaveBtn" onclick="cloudUploadCurrentDb(true)" style="display:none" title="Sincronização automática">🔄 Sincronizar agora</button> <button id="backupBtn" onclick="backup()" style="display:none">Exportar backup</button> <button id="importBackupBtn" onclick="document.getElementById('backupImportInput').click()" style="display:none">Importar backup</button><input id="backupImportInput" type="file" accept=".json,application/json" style="display:none" onchange="importBackupFile(this)"> <button onclick="logout()">Sair</button></div></header>
+<div id="appShell" style="display:none"><header><div class="logo">HLGB <b>CONFECÇÕES</b> <small style="font-size:10px;opacity:.8">v91.42</small></div><div><span id="cloudStatus" style="margin-right:10px;font-size:12px;padding:6px 9px;border:1px solid #ffffff44;border-radius:8px">☁️ Nuvem</span><span id="currentUserLabel" style="margin-right:10px;font-size:13px"></span><button id="cloudSaveBtn" onclick="cloudUploadCurrentDb(true)" style="display:none" title="Sincronização automática">🔄 Sincronizar agora</button> <button id="backupBtn" onclick="backup()" style="display:none">Exportar backup</button> <button id="importBackupBtn" onclick="document.getElementById('backupImportInput').click()" style="display:none">Importar backup</button><input id="backupImportInput" type="file" accept=".json,application/json" style="display:none" onchange="importBackupFile(this)"> <button onclick="logout()">Sair</button></div></header>
 <div class="app">
 <aside><nav id="nav" class="clean-nav">
 <button class="nav-home active" onclick="page('dashboard',this)">🏠 <span>Início</span></button>
@@ -14827,6 +14827,104 @@ window.finalizeSelectedProjection=function(){let contexts=selectedContexts941(),
 
 function init941(){bindPricing941();try{renderFinishedPieces()}catch(e){}}
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>setTimeout(init941,120));else setTimeout(init941,120);
+})();
+</script>
+
+
+<!-- HLGB v91.42 CROSS-VERSION CLOUD RECOVERY + HUB FINANCE SAFETY -->
+<style>
+#hlgb942HubCloudState{margin:10px 0}
+#hlgb942HubCloudState .panel{background:#f5fff8;border-color:#b9e2c4}
+</style>
+<script>
+(function(){
+'use strict';
+const HLGB942_MARK='HLGB v91.42 CROSS-VERSION CLOUD RECOVERY + HUB FINANCE SAFETY';
+const HLGB942_EXTRA_MODULES=['hubFinanceEntries','materialChecklists','factionSettings','finishedPieces'];
+let hlgb942Refreshing=false,hlgb942LastFullRefresh=0,hlgb942BootDone=false;
+
+function hlgb942EnsureModules(){
+  try{
+    if(typeof HLGB_RECORD_MODULES==='undefined'||!Array.isArray(HLGB_RECORD_MODULES))return;
+    HLGB942_EXTRA_MODULES.forEach(m=>{if(!HLGB_RECORD_MODULES.includes(m))HLGB_RECORD_MODULES.push(m)});
+  }catch(e){console.warn('v91.42 module coverage',e)}
+}
+
+function hlgb942CloudCount(module){
+  try{
+    const snap=hlgbRecordSnapshots?.[module];
+    if(snap instanceof Map){let n=0;for(const row of snap.values())if(row&&!row.deleted_at)n++;return n}
+  }catch(e){}
+  try{return Array.isArray(db?.[module])?db[module].length:0}catch(e){return 0}
+}
+
+function hlgb942HubState(text,kind='ok'){
+  try{
+    const page=document.getElementById('hubFinanceiro');if(!page)return;
+    let host=document.getElementById('hlgb942HubCloudState');
+    if(!host){host=document.createElement('div');host.id='hlgb942HubCloudState';let h=page.querySelector('h1');if(h&&h.parentNode)h.insertAdjacentElement('afterend',host);else page.prepend(host)}
+    host.innerHTML=`<div class="panel"><b>${kind==='bad'?'⚠️':'☁️'} ${esc(text)}</b><div class="sub">Os lançamentos são recuperados da nuvem ao entrar nesta tela. Atualizar a versão não apaga os dados.</div></div>`;
+  }catch(e){}
+}
+
+async function hlgb942FullCloudRefresh(reason='manual',force=false){
+  hlgb942EnsureModules();
+  const now=Date.now();
+  if(hlgb942Refreshing)return false;
+  if(!force&&now-hlgb942LastFullRefresh<12000)return true;
+  if(typeof hlgbLoadNormalizedCore!=='function'||typeof cloudAccessToken==='undefined'||!cloudAccessToken)return false;
+  hlgb942Refreshing=true;
+  try{
+    if(reason==='hub')hlgb942HubState('Carregando todos os lançamentos salvos na nuvem…');
+    try{setCloudStatus('☁️ Conferindo dados salvos na nuvem…')}catch(e){}
+    const ok=await hlgbLoadNormalizedCore({preserveLocal:true});
+    if(!ok)throw new Error('A leitura completa da nuvem não foi confirmada.');
+    if(typeof hlgb928EnsureCloudCoverage==='function'&&typeof HLGB_RECORD_MODULES!=='undefined'){
+      for(const module of HLGB_RECORD_MODULES){try{hlgb928EnsureCloudCoverage(module)}catch(e){}}
+    }
+    try{localSaveOnly()}catch(e){}
+    hlgb942LastFullRefresh=Date.now();
+    const hubCount=hlgb942CloudCount('hubFinanceEntries');
+    if(reason==='hub'){
+      try{renderHubFinance()}catch(e){}
+      hlgb942HubState(`${hubCount} lançamento(s) do Hub Financeiro confirmado(s) na nuvem`,'ok');
+    }
+    try{setCloudStatus('⚡ Online · dados conferidos','ok');setTimeout(()=>setCloudStatus('⚡ Online · multiusuário','ok'),900)}catch(e){}
+    return true;
+  }catch(e){
+    console.error('HLGB v91.42 full cloud refresh',e);
+    if(reason==='hub')hlgb942HubState('Não foi possível concluir a conferência da nuvem. Os dados locais não foram apagados.','bad');
+    try{setCloudStatus('☁️ Conferência pendente','bad')}catch(_){}
+    return false;
+  }finally{hlgb942Refreshing=false}
+}
+window.hlgb942FullCloudRefresh=hlgb942FullCloudRefresh;
+
+function hlgb942Boot(){
+  hlgb942EnsureModules();
+  if(hlgb942BootDone)return;
+  if(typeof cloudAccessToken==='undefined'||!cloudAccessToken||typeof hlgbLoadNormalizedCore!=='function'){
+    setTimeout(hlgb942Boot,700);return;
+  }
+  hlgb942BootDone=true;
+  hlgb942FullCloudRefresh('boot',true).catch(()=>{});
+}
+
+const oldPage942=window.page;
+if(typeof oldPage942==='function'){
+  window.page=function(id,btn){
+    const r=oldPage942.apply(this,arguments);
+    if(id==='hubFinanceiro'){
+      hlgb942HubState('Conferindo lançamentos salvos na nuvem…');
+      setTimeout(()=>hlgb942FullCloudRefresh('hub',true).catch(()=>{}),30);
+    }
+    return r;
+  };
+}
+
+window.addEventListener('focus',()=>{if(Date.now()-hlgb942LastFullRefresh>30000)hlgb942FullCloudRefresh('focus',false).catch(()=>{})});
+document.addEventListener('visibilitychange',()=>{if(!document.hidden&&Date.now()-hlgb942LastFullRefresh>30000)hlgb942FullCloudRefresh('visible',false).catch(()=>{})});
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>setTimeout(hlgb942Boot,350));else setTimeout(hlgb942Boot,350);
 })();
 </script>
 
