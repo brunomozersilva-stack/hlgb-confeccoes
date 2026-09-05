@@ -41,6 +41,7 @@ jobs:
           ]
           for x in required: assert x in s, f'missing {x}'
           addon=Path('scripts/hlgb_v9141_addon.html').read_text(encoding='utf-8')
+          addon=addon.replace("(inv.items||[]).forEach(it=>{","(inv.items||[]).forEach(async it=>{")
           scripts=re.findall(r'<script(?:\s[^>]*)?>(.*?)</script>',addon,re.S|re.I)
           assert scripts, 'no addon script found'
           for i,js in enumerate(scripts):
