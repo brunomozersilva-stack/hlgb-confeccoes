@@ -6,7 +6,7 @@
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
-<title>HLGB Confecções — Sistema de Gestão v91.38 Multiusuário</title>
+<title>HLGB Confecções — Sistema de Gestão v91.39 Multiusuário</title>
 <style>
 :root{--navy:#6f3f59;--orange:#c96b8f;--bg:#fbf6f8;--line:#eadde4;--text:#30262c;--muted:#786b73;--ok:#e9f7ef;--warn:#fff5df;--bad:#fdeaea;--rose:#f3dbe5;--rose2:#fff8fb}
 *{box-sizing:border-box}body{margin:0;font-family:Arial,Helvetica,sans-serif;background:var(--bg);color:var(--text)}
@@ -246,11 +246,11 @@ main{min-width:0;}
     <div class="field" style="text-align:left;margin-bottom:10px"><label>E-mail</label><input id="loginUser" type="email" autocomplete="username" placeholder="seuemail@exemplo.com"></div>
     <div class="field" style="text-align:left;margin-bottom:14px"><label>Senha</label><input id="loginPass" type="password" autocomplete="current-password" onkeydown="if(event.key==='Enter')return doLogin()"></div>
     <button class="primary" style="width:100%" onclick="return doLogin()">Entrar</button>
-    <div id="loginError" style="color:#a51d2d;font-size:13px;margin-top:10px"></div><div style="margin-top:12px;font-size:12px;color:#786b73">Acesso protegido pelo Supabase • HLGB Online<br><b style="color:#6f3f59">Versão v91.38</b></div>
+    <div id="loginError" style="color:#a51d2d;font-size:13px;margin-top:10px"></div><div style="margin-top:12px;font-size:12px;color:#786b73">Acesso protegido pelo Supabase • HLGB Online<br><b style="color:#6f3f59">Versão v91.39</b></div>
   </div>
 </div>
 
-<div id="appShell" style="display:none"><header><div class="logo">HLGB <b>CONFECÇÕES</b> <small style="font-size:10px;opacity:.8">v91.38</small></div><div><span id="cloudStatus" style="margin-right:10px;font-size:12px;padding:6px 9px;border:1px solid #ffffff44;border-radius:8px">☁️ Nuvem</span><span id="currentUserLabel" style="margin-right:10px;font-size:13px"></span><button id="cloudSaveBtn" onclick="cloudUploadCurrentDb(true)" style="display:none" title="Sincronização automática">🔄 Sincronizar agora</button> <button id="backupBtn" onclick="backup()" style="display:none">Exportar backup</button> <button id="importBackupBtn" onclick="document.getElementById('backupImportInput').click()" style="display:none">Importar backup</button><input id="backupImportInput" type="file" accept=".json,application/json" style="display:none" onchange="importBackupFile(this)"> <button onclick="logout()">Sair</button></div></header>
+<div id="appShell" style="display:none"><header><div class="logo">HLGB <b>CONFECÇÕES</b> <small style="font-size:10px;opacity:.8">v91.39</small></div><div><span id="cloudStatus" style="margin-right:10px;font-size:12px;padding:6px 9px;border:1px solid #ffffff44;border-radius:8px">☁️ Nuvem</span><span id="currentUserLabel" style="margin-right:10px;font-size:13px"></span><button id="cloudSaveBtn" onclick="cloudUploadCurrentDb(true)" style="display:none" title="Sincronização automática">🔄 Sincronizar agora</button> <button id="backupBtn" onclick="backup()" style="display:none">Exportar backup</button> <button id="importBackupBtn" onclick="document.getElementById('backupImportInput').click()" style="display:none">Importar backup</button><input id="backupImportInput" type="file" accept=".json,application/json" style="display:none" onchange="importBackupFile(this)"> <button onclick="logout()">Sair</button></div></header>
 <div class="app">
 <aside><nav id="nav" class="clean-nav">
 <button class="nav-home active" onclick="page('dashboard',this)">🏠 <span>Início</span></button>
@@ -14484,4 +14484,140 @@ function hubFinanceManualSync(){alert("O botão de sincronização está prepara
     let el=document.getElementById('separationList');if(!el)return;let q=n938(document.getElementById('separationProductSearch')?.value||''),min=q938(document.getElementById('separationQtyMin')?.value),maxRaw=document.getElementById('separationQtyMax')?.value,max=maxRaw?+maxRaw:Infinity;
     let arr=(db.orders||[]).filter(o=>{let sep=sepRow938(o.id);if(sep?.done)return false;let name=n938(orderProductSummary(o)),qty=qtyOfOrder(o),number=String(displayOrderNumber(o)||'').toLowerCase(),ok=!q||name.includes(q)||number.includes(q.replace(/^#\s*/,''));return ok&&qty>=min&&qty<=max});
     el.innerHTML=arr.length?arr.map(o=>{let s=sepRow938(o.id),t=sepTotals938(o,s),pct=t.total?Math.round(t.done/t.total*100):0;return `<div class="separation-row"><div class="sep-order-id"><small>Pedido</small><b>#${esc(displayOrderNumber(o))}</b></div><div class="sep-main-text"><b>${esc(o.client||'-')}</b><div class="sub">Entrega ${fmtDate(o.date)}</div></div><div class="sep-main-text"><b>${esc(orderProductSummary(o))}</b><div class="sub">${priorityBadge(o.priority||'Padrão')}</div></div><div><b>${qtyOfOrder(o).toLocaleString('pt-BR')}</b><div class="sub">peças</div></div><div class="sep-status"><span class="badge ${t.done?'warn':''}">${t.done?`${pct}% separado`:'Pendente'}</span></div><div class="sep-action">
+
+<!-- HLGB v91.39 UI BINDINGS + LOCAL PRODUCTION + SEPARATION CLEANUP -->
+<style>
+#locAssignPanel939 .loc-assign-row939{display:grid;grid-template-columns:minmax(190px,1.4fr) minmax(150px,1fr) 110px minmax(180px,1fr);gap:10px;align-items:center;padding:10px 0;border-bottom:1px solid var(--line)}
+#locAssignPanel939 .loc-assign-row939:last-child{border-bottom:0}
+@media(max-width:800px){#locAssignPanel939 .loc-assign-row939{grid-template-columns:1fr}}
+</style>
+<script>
+(function(){
+'use strict';
+const V='91.39';
+const q939=v=>Math.max(0,+v||0);
+const n939=v=>String(v??'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').trim().toLowerCase();
+const clone939=v=>{try{return JSON.parse(JSON.stringify(v))}catch(e){return v}};
+const id939=()=>Date.now()+Math.floor(Math.random()*900000);
+function prod939(id){return (db.products||[]).find(x=>String(x.id)===String(id))||null}
+function ord939(id){return (db.orders||[]).find(x=>String(x.id)===String(id))||null}
+function intLocs939(){
+  let factionLoc=new Set((db.factionMasters||[]).map(f=>String(f.productionLocationId||'')).filter(Boolean));
+  return (db.productionLocations||[]).filter(x=>x.active!==false&&!factionLoc.has(String(x.id)));
+}
+function items939(o){
+  try{if(typeof projectionItemsForOrder==='function')return projectionItemsForOrder(o)||[]}catch(e){}
+  let m=new Map();(o?.grade||[]).forEach(g=>{let pid=String(g.productId||'');if(!pid)return;let x=m.get(pid)||{key:pid,productId:+pid,name:prod939(pid)?.name||'Produto',qty:0};x.qty+=q939(g.qty);m.set(pid,x)});return [...m.values()];
+}
+function grade939(o,pid){return (o?.grade||[]).filter(g=>String(g.productId||'')===String(pid)&&q939(g.qty)>0).map(g=>({color:String(g.color||''),size:String(g.size||''),qty:q939(g.qty)}))}
+function mergeGrade939(rows){let m=new Map();(rows||[]).forEach(g=>{let k=`${g.color||''}|${g.size||''}`,x=m.get(k)||{color:g.color||'',size:g.size||'',qty:0};x.qty+=q939(g.qty);m.set(k,x)});return [...m.values()].filter(x=>x.qty>0)}
+function subGrade939(base,used){let u=new Map();(used||[]).forEach(g=>{let k=`${g.color||''}|${g.size||''}`;u.set(k,(u.get(k)||0)+q939(g.qty))});return (base||[]).map(g=>{let k=`${g.color||''}|${g.size||''}`;return {...g,qty:Math.max(0,q939(g.qty)-(u.get(k)||0))}}).filter(g=>g.qty>0)}
+function gradeTotal939(g){return (g||[]).reduce((s,x)=>s+q939(x.qty),0)}
+
+// 1) Rebind do botão de precificação: a v91.37 havia guardado a referência da função antiga.
+function bindPricing939(){
+  let b=document.getElementById('pricingPickerBtn937');if(!b)return;
+  b.textContent='💲 Precificação por clientes — busca rápida';
+  b.onclick=null;b.setAttribute('onclick','window.openPricingPicker937()');
+  b.title='Escolha o cliente e localize a peça por nome, referência, categoria ou letra';
+}
+function watchPricing939(){bindPricing939();let root=document.getElementById('produtos')||document.body;if(!root||root.__pricingWatch939)return;root.__pricingWatch939=true;new MutationObserver(bindPricing939).observe(root,{childList:true,subtree:true})}
+
+// 2) Consolidação correta do que pertence a cada local/modelo.
+let dailyMap939=new Map();
+function buildDaily939(){
+  let locs=intLocs939(),locSet=new Set(locs.map(x=>String(x.id))),out=[];
+  (db.orders||[]).forEach(o=>items939(o).forEach(item=>{
+    let pid=String(item.productId||item.key||''),total=q939(item.qty);if(!pid||!total)return;
+    let dest=new Map(),remaining=total;
+    let add=(lid,qty,meta={})=>{lid=String(lid||'');qty=Math.min(remaining,q939(qty));if(!lid||!qty||!locSet.has(lid))return;let d=dest.get(lid)||{qty:0,productionIds:[],capacityIds:[],grade:[],gradeExact:true,op:''};d.qty+=qty;if(meta.productionId)d.productionIds.push(meta.productionId);if(meta.capacityId)d.capacityIds.push(meta.capacityId);if(meta.op&&!d.op)d.op=meta.op;if(Array.isArray(meta.grade)&&meta.grade.length)d.grade.push(...meta.grade);else d.gradeExact=false;dest.set(lid,d);remaining-=qty};
+
+    // Produção real e específica do modelo sempre vence qualquer previsão.
+    let exact=(db.production||[]).filter(p=>+p.orderId===+o.id&&q939(p.planned)>0&&p.productionLocationId&&!p.factionId&&locSet.has(String(p.productionLocationId))&&(String(p.productId||'')===pid||String(p.cutProductKey||'').split(':').pop()===pid));
+    exact.forEach(p=>{if(remaining>0)add(p.productionLocationId,p.planned,{productionId:p.id,op:p.op||'',grade:Array.isArray(p.assignedGrade)?p.assignedGrade:[]})});
+
+    // Se não existe produção específica, usa as atribuições de capacidade, inclusive as criadas pela atribuição do corte.
+    if(!exact.length&&remaining>0){
+      let seen=new Set();
+      let plans=(db.capacityAssignments||[]).filter(a=>+a.orderId===+o.id&&String(a.itemKey||'')===String(item.key||pid)&&a.active!==false&&locSet.has(String(a.locationId))&&q939(a.qty)>q939(a.consumedQty));
+      plans.forEach(a=>{if(remaining<=0)return;let avail=Math.max(0,q939(a.qty)-q939(a.consumedQty)),fp=`${a.locationId}|${avail}|${a.date||a.updatedAt||''}|${a.source||''}`;if(seen.has(fp))return;seen.add(fp);add(a.locationId,avail,{capacityId:a.id,grade:Array.isArray(a.grade)?a.grade:[]})});
+    }
+
+    // Compatibilidade com registros antigos que guardavam o corte inteiro em uma única produção.
+    if(!exact.length&&dest.size===0&&remaining>0){
+      let name=n939(item.name||prod939(pid)?.name||''),orderTotal=items939(o).reduce((s,x)=>s+q939(x.qty),0);
+      let legacy=(db.production||[]).find(p=>+p.orderId===+o.id&&q939(p.planned)>0&&p.productionLocationId&&!p.factionId&&locSet.has(String(p.productionLocationId))&&!p.productId&&!p.cutProductKey&&(name&&n939(p.product).includes(name)||q939(p.planned)>=orderTotal));
+      if(legacy)add(legacy.productionLocationId,remaining,{productionId:legacy.id,op:legacy.op||'',grade:[]});
+    }
+
+    for(const [lid,d] of dest){let l=locs.find(x=>String(x.id)===lid);if(!l||d.qty<=0)continue;out.push({key:`${o.id}|${pid}|${lid}`,orderId:o.id,orderNumber:typeof displayOrderNumber==='function'?displayOrderNumber(o):o.id,productId:+pid,productName:prod939(pid)?.name||item.name||'Produto',locationId:+lid,locationName:l.name,qty:d.qty,productionIds:[...new Set(d.productionIds.map(String))],capacityIds:[...new Set(d.capacityIds.map(String))],gradeExact:d.gradeExact&&gradeTotal939(d.grade)>0,grade:mergeGrade939(d.grade),op:d.op||`PED-${typeof displayOrderNumber==='function'?displayOrderNumber(o):o.id}`})}
+  }));
+  return out;
+}
+function usedDaily939(a){return (db.finishedPieces||[]).filter(x=>String(x.assignmentKey||`${x.orderId}|${x.productId}|${x.locationId}`)===String(a.key)).reduce((s,x)=>s+q939(x.qty),0)}
+function usedGrade939(a){return mergeGrade939((db.finishedPieces||[]).filter(x=>String(x.assignmentKey||`${x.orderId}|${x.productId}|${x.locationId}`)===String(a.key)).flatMap(x=>x.grade||[]))}
+window.refreshFinishedProductionOptions=function(){
+  let lid=+document.getElementById('fp930Loc')?.value||0,sel=document.getElementById('fp930Prod');if(!sel)return;dailyMap939=new Map();let rows=buildDaily939().filter(a=>+a.locationId===lid&&a.qty-usedDaily939(a)>0);rows.forEach((a,i)=>dailyMap939.set(String(i),a));
+  sel.innerHTML='<option value="">Selecione</option>'+rows.map((a,i)=>`<option value="${i}">${esc(a.productName)} — saldo ${(a.qty-usedDaily939(a)).toLocaleString('pt-BR')} de ${a.qty.toLocaleString('pt-BR')} pç — Pedido #${esc(a.orderNumber)}</option>`).join('');
+  if(!rows.length)sel.innerHTML='<option value="">Nenhum modelo com saldo atribuído a este local</option>';window.renderFinishedGrade930();
+};
+window.renderFinishedGrade930=function(){
+  let a=dailyMap939.get(String(document.getElementById('fp930Prod')?.value||'')),box=document.getElementById('fp930Grade'),info=document.getElementById('fp930CutInfo');if(!box)return;if(!a){box.innerHTML='';if(info)info.textContent='';return}
+  let balance=Math.max(0,a.qty-usedDaily939(a)),o=ord939(a.orderId),base=a.gradeExact?a.grade:grade939(o,a.productId),used=usedGrade939(a),avail=subGrade939(base,used);if(info)info.innerHTML=`<b>${esc(a.productName)}</b> · ${esc(a.locationName)} · atribuído ${a.qty.toLocaleString('pt-BR')} pç · já lançado ${(a.qty-balance).toLocaleString('pt-BR')} · <b>saldo ${balance.toLocaleString('pt-BR')}</b>${a.gradeExact?' · grade exata deste local':' · limite pelo total atribuído ao local'}`;
+  if(avail.length)box.innerHTML='<div class="panel"><h3>Grade produzida agora</h3>'+table(['Cor','Tamanho',a.gradeExact?'Grade deste local':'Grade do pedido','Produzido agora'],avail.map(g=>[esc(g.color||'-'),esc(g.size||'-'),q939(g.qty).toLocaleString('pt-BR'),`<input class="fp930Qty" data-color="${esc(g.color||'')}" data-size="${esc(g.size||'')}" type="number" min="0" max="${q939(g.qty)}" step="1" value="0" style="width:100px">`]))+'</div><div class="sub">O total deste lançamento não pode ultrapassar '+balance.toLocaleString('pt-BR')+' peças.</div>';else box.innerHTML=`<div class="field"><label>Quantidade produzida agora (saldo máximo ${balance})</label><input id="fp930Total" type="number" min="0" max="${balance}" step="1" value="0"></div>`;
+};
+window.newFinishedPieces=function(){
+  db.finishedPieces=Array.isArray(db.finishedPieces)?db.finishedPieces:[];let locs=intLocs939();if(!locs.length){alert('Cadastre uma confecção em Locais de produção.');return}
+  openModal('Preencher produção do dia por local',`<div class="grid"><div class="field"><label>Data</label><input id="fp930Date" type="date" value="${document.getElementById('finishedPiecesDate')?.value||isoDate(new Date())}"></div><div class="field"><label>Confecção / local</label><select id="fp930Loc" onchange="refreshFinishedProductionOptions()"><option value="">Selecione</option>${locs.map(l=>`<option value="${l.id}">${esc(l.name)}</option>`).join('')}</select></div><div class="field"><label>Modelo deste local</label><select id="fp930Prod" onchange="renderFinishedGrade930()"><option value="">Selecione a confecção primeiro</option></select></div><div class="field"><label>Responsável / gerente</label><input id="fp930Manager" value="${esc(cloudUser?.user_metadata?.name||cloudUser?.email||'')}"></div></div><div id="fp930CutInfo" class="sub" style="margin:10px 0"></div><div id="fp930Grade"></div><button type="button" class="primary modalSave">☁️ Salvar produção do dia</button>`,async()=>{
+    let a=dailyMap939.get(String(document.getElementById('fp930Prod')?.value||'')),l=locs.find(x=>+x.id===+document.getElementById('fp930Loc')?.value);if(!a||!l){alert('Selecione a confecção e o modelo.');return}let balance=Math.max(0,a.qty-usedDaily939(a));
+    let inputs=[...document.querySelectorAll('.fp930Qty')],g=inputs.map(i=>({color:i.dataset.color||'',size:i.dataset.size||'',qty:q939(i.value)})).filter(x=>x.qty>0),qty=g.reduce((s,x)=>s+x.qty,0);if(!inputs.length)qty=q939(document.getElementById('fp930Total')?.value);if(qty<=0){alert('Informe a quantidade produzida.');return}if(qty>balance){alert(`O saldo deste modelo neste local é ${balance} peças.`);return}
+    let row={id:id939(),date:document.getElementById('fp930Date')?.value||isoDate(new Date()),locationId:l.id,locationName:l.name,assignmentKey:a.key,productionId:a.productionIds[0]||null,productionIds:a.productionIds,capacityAssignmentId:a.capacityIds[0]||null,capacityAssignmentIds:a.capacityIds,orderId:a.orderId,orderNumber:a.orderNumber,op:a.op,productId:a.productId,productName:a.productName,grade:g,qty,assignmentQty:a.qty,manager:document.getElementById('fp930Manager')?.value||'',createdBy:cloudUser?.email||'',createdAt:new Date().toISOString()},btn=document.querySelector('#modal .modalSave');if(btn){btn.disabled=true;btn.textContent='☁️ Salvando…'}
+    try{if(typeof hlgbRecordSaveWithRetry==='function'&&cloudAccessToken){let out=await hlgbRecordSaveWithRetry('finishedPieces',String(row.id),clone939(row),false);if(!out||out.applied!==true)throw new Error('não confirmado');row=out.data||row}db.finishedPieces.push(row);try{localSaveOnly()}catch(e){};closeModal();window.renderFinishedPieces();try{renderGoals()}catch(e){};try{setCloudStatus('⚡ Online · produção diária confirmada','ok')}catch(e){}
+    }catch(e){console.error(e);if(btn){btn.disabled=false;btn.textContent='☁️ Salvar produção do dia'}alert('A produção do dia não foi confirmada na nuvem. A janela ficou aberta.')}
+  });
+};
+window.renderFinishedPieces=function(){
+  db.finishedPieces=Array.isArray(db.finishedPieces)?db.finishedPieces:[];let date=document.getElementById('finishedPiecesDate'),loc=document.getElementById('finishedPiecesLocation'),tbl=document.getElementById('finishedPiecesTable'),cards=document.getElementById('finishedPiecesCards');if(!tbl)return;if(date&&!date.value)date.value=isoDate(new Date());let cur=loc?.value||'',locations=intLocs939();if(loc){loc.innerHTML='<option value="">Todas as confecções</option>'+locations.map(x=>`<option value="${x.id}">${esc(x.name)}</option>`).join('');if(locations.some(x=>String(x.id)===cur))loc.value=cur}
+  let d=date?.value||isoDate(new Date()),m=d.slice(0,7),arr=db.finishedPieces.filter(x=>!loc?.value||String(x.locationId)===String(loc.value)),day=arr.filter(x=>x.date===d),month=arr.filter(x=>String(x.date||'').slice(0,7)===m),assign=buildDaily939().filter(a=>!loc?.value||String(a.locationId)===String(loc.value)),assigned=assign.reduce((s,a)=>s+a.qty,0),used=assign.reduce((s,a)=>s+Math.min(a.qty,usedDaily939(a)),0),balance=Math.max(0,assigned-used);if(cards)cards.innerHTML=`<div class="card"><small>Produzido no dia</small><strong>${day.reduce((s,x)=>s+q939(x.qty),0).toLocaleString('pt-BR')}</strong></div><div class="card"><small>Produzido no mês</small><strong>${month.reduce((s,x)=>s+q939(x.qty),0).toLocaleString('pt-BR')}</strong></div><div class="card"><small>Atribuído ao local</small><strong>${assigned.toLocaleString('pt-BR')}</strong></div><div class="card"><small>Saldo a produzir</small><strong>${balance.toLocaleString('pt-BR')}</strong></div>`;
+  let q=n939(document.getElementById('finishedPiecesSearch')?.value||''),rows=arr.filter(x=>x.date===d&&(!q||n939(x.productName).includes(q))).sort((a,b)=>String(b.createdAt||'').localeCompare(String(a.createdAt||'')));tbl.innerHTML=rows.length?table(['Data','Confecção','Modelo','Pedido/OP','Grade lançada','Peças','Responsável','Ação'],rows.map(x=>[fmtDate(x.date),esc(x.locationName||'-'),esc(x.productName||'-'),esc(x.orderNumber||x.op||'-'),esc((x.grade||[]).map(g=>`${g.color||'-'} ${g.size||'-'}: ${g.qty}`).join(' · ')||'Quantidade total'),q939(x.qty).toLocaleString('pt-BR'),esc(x.manager||x.createdBy||'-'),`<button class="danger" onclick="deleteFinishedPieces(${x.id})">Excluir</button>`])):'<div class="empty">Nenhuma produção lançada para esta data/filtro.</div>';
+};
+
+// 3) Locais de produção também mostra claramente o que está aguardando atribuição.
+function unassigned939(){
+  let arr=[];try{arr=typeof hlgb916UnassignedProduction==='function'?hlgb916UnassignedProduction():(db.production||[]).filter(p=>p.cutId&&!p.productionLocationId&&!p.factionId&&q939(p.planned)>0&&!['pronto','finalizado'].includes(n939(p.stage)))}catch(e){arr=[]}
+  let seen=new Set();return arr.filter(p=>{let k=String(p.id);if(seen.has(k))return false;seen.add(k);return true});
+}
+function renderLocationAssignments939(){
+  let page=document.getElementById('cadLocaisProducao');if(!page)return;let panel=document.getElementById('locAssignPanel939');if(!panel){panel=document.createElement('div');panel.id='locAssignPanel939';panel.className='panel';page.appendChild(panel)}
+  let rows=unassigned939();panel.innerHTML=`<h2>🏭 Peças aguardando atribuição</h2><div class="sub">Escolha uma peça abaixo para definir o local/facção. Na janela de atribuição você pode mandar tudo para um local ou dividir uma parte; quando houver grade exata, também pode escolher cor e tamanho.</div>${rows.length?`<div class="field" style="margin-top:12px"><label>Peça para atribuir</label><div style="display:flex;gap:8px;flex-wrap:wrap"><select id="locAssignSelect939" style="min-width:320px;flex:1"><option value="">Selecione</option>${rows.map(p=>{let o=ord939(p.orderId),name=prod939(p.productId)?.name||p.product||'Produto';return `<option value="${p.id}">${esc(name)} — ${q939(p.planned)} pç — Pedido #${esc(typeof displayOrderNumber==='function'?displayOrderNumber(o):o?.id||'')}</option>`}).join('')}</select><button type="button" class="primary" onclick="let v=+document.getElementById('locAssignSelect939').value;if(v)openCutAssignment(v);else alert('Selecione uma peça.')">Atribuir peça selecionada</button></div></div><div style="margin-top:12px">${rows.map(p=>{let o=ord939(p.orderId),name=prod939(p.productId)?.name||p.product||'Produto';return `<div class="loc-assign-row939"><div><b>${esc(name)}</b><div class="sub">Pedido #${esc(typeof displayOrderNumber==='function'?displayOrderNumber(o):o?.id||'')} · ${esc(o?.client||p.client||'-')}</div></div><div><span class="badge">${esc(p.stage||'Aguardando atribuição')}</span></div><div><b>${q939(p.planned).toLocaleString('pt-BR')}</b> pç</div><div><button type="button" class="primary" onclick="openCutAssignment(${p.id})">Definir local</button></div></div>`}).join('')}</div>`:'<div class="empty">Nenhuma peça aguardando atribuição neste momento.</div>'}`;
+}
+const oldFactions939=window.renderFactions;window.renderFactions=function(){let r=oldFactions939?oldFactions939.apply(this,arguments):undefined;setTimeout(renderLocationAssignments939,0);return r};
+
+// 4) Remove visualmente a duplicação "Cortes prontos para produzir"; a fila oficial fica em Atribuição de corte para produção.
+function cleanupCutDuplicate939(){
+  let rt=document.getElementById('readyCutsTable');if(rt){let p=rt.closest('.panel');if(p)p.style.display='none'}
+  let cards=document.getElementById('cutSummaryCards');if(cards)[...cards.querySelectorAll('.card')].forEach(c=>{let t=n939(c.querySelector('small')?.textContent||'');if(t.includes('cortes prontos'))c.style.display='none'});
+}
+const oldCuts939=window.renderCuts;window.renderCuts=function(){let r=oldCuts939?oldCuts939.apply(this,arguments):undefined;setTimeout(cleanupCutDuplicate939,0);return r};
+
+// 5) Separações antigas marcadas como concluídas somem também do seletor principal.
+function sep939(orderId){let rows=(db.separations||[]).filter(x=>+x.orderId===+orderId);return rows.find(x=>x.done===true)||rows.slice().sort((a,b)=>String(b.at||b.updatedAt||b.createdAt||'').localeCompare(String(a.at||a.updatedAt||a.createdAt||'')))[0]||null}
+function sepState939(o){let s=sep939(o.id),its=items939(o),progress=s?.modelProgress||{},total=its.reduce((a,x)=>a+q939(x.qty),0);if(s?.done===true)return {done:true,total,doneQty:total,remaining:0};let doneQty=its.reduce((a,x)=>a+Math.min(q939(x.qty),q939(progress[String(x.productId||x.key)]?.qty)),0);return {done:total>0&&doneQty>=total,total,doneQty,remaining:Math.max(0,total-doneQty)}}
+window.fillSeparationOrders=function(){
+  let sel=document.getElementById('separationOrder');if(!sel)return;let old=sel.value,rows=(db.orders||[]).filter(o=>!sepState939(o).done);sel.innerHTML='<option value="">Selecione o pedido</option>'+rows.map(o=>`<option value="${o.id}">#${esc(typeof displayOrderNumber==='function'?displayOrderNumber(o):o.id)} — ${esc(o.client||'')}</option>`).join('');if(rows.some(o=>String(o.id)===String(old)))sel.value=old;else sel.value='';window.renderSeparationList();
+};
+window.renderSeparationList=function(){
+  let el=document.getElementById('separationList');if(!el)return;let q=n939(document.getElementById('separationProductSearch')?.value||''),min=q939(document.getElementById('separationQtyMin')?.value),maxRaw=document.getElementById('separationQtyMax')?.value,max=maxRaw?+maxRaw:Infinity;
+  let arr=(db.orders||[]).filter(o=>{let st=sepState939(o);if(st.done)return false;let name=n939(typeof orderProductSummary==='function'?orderProductSummary(o):o.items||''),qty=typeof qtyOfOrder==='function'?qtyOfOrder(o):q939(o.qty),num=String(typeof displayOrderNumber==='function'?displayOrderNumber(o):o.id).toLowerCase(),ok=!q||name.includes(q)||num.includes(q.replace(/^#\s*/,''));return ok&&qty>=min&&qty<=max});
+  el.innerHTML=arr.length?arr.map(o=>{let st=sepState939(o),pct=st.total?Math.round(st.doneQty/st.total*100):0;return `<div class="separation-row"><div class="sep-order-id"><small>Pedido</small><b>#${esc(typeof displayOrderNumber==='function'?displayOrderNumber(o):o.id)}</b></div><div class="sep-main-text"><b>${esc(o.client||'-')}</b><div class="sub">Entrega ${fmtDate(o.date)}</div></div><div class="sep-main-text"><b>${esc(typeof orderProductSummary==='function'?orderProductSummary(o):o.items||'')}</b></div><div><b>${(typeof qtyOfOrder==='function'?qtyOfOrder(o):q939(o.qty)).toLocaleString('pt-BR')}</b><div class="sub">peças</div></div><div class="sep-status"><span class="badge ${st.doneQty?'warn':''}">${st.doneQty?`${pct}% separado`:'Pendente'}</span></div><div class="sep-action"><button type="button" class="primary" onclick="document.getElementById('separationOrder').value='${o.id}';renderSeparation()">Abrir separação</button></div></div>`}).join(''):'<div class="empty">Nenhum pedido aguardando separação.</div>';
+};
+const oldSep939=window.renderSeparation;window.renderSeparation=function(){let id=+document.getElementById('separationOrder')?.value,o=ord939(id);if(o&&sepState939(o).done){let box=document.getElementById('separationTable');if(box)box.innerHTML='<div class="panel"><span class="badge ok" style="font-size:14px;padding:10px 14px">✅ Este pedido já teve a separação concluída e já foi liberado para a próxima etapa.</span></div>';let s=document.getElementById('separationOrder');if(s)s.value='';window.fillSeparationOrders();return}return oldSep939?oldSep939.apply(this,arguments):undefined};
+
+function init939(){bindPricing939();watchPricing939();cleanupCutDuplicate939();renderLocationAssignments939();try{window.fillSeparationOrders()}catch(e){};try{window.renderFinishedPieces()}catch(e){}}
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>setTimeout(init939,50));else setTimeout(init939,50);
+setTimeout(init939,700);
+console.log('HLGB v91.39 active');
+})();
+</script>
+
 </body></html>
