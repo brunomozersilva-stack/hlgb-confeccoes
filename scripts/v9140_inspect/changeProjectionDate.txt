@@ -1,0 +1,71 @@
+function changeProjectionDate(orderId){
+ let o=(db.orders||[]).find(x=>+x.id===+orderId);if(!o)return;
+ let items=projectionItemsForOrder(o);
+ let rows=items.map((it,i)=>`<tr>
+   <td>${esc(it.name)}</td>
+   <td>${it.qty.toLocaleString("pt-BR")}</td>
+   <td>${money(it.value||0)}</td>
+   <td><input id="projItemDate_${i}" type="date" value="${it.date||o.projectionDeliveryDate||o.date||isoDate(new Date())}"></td>
+ </tr>`).join("");
+ openModal("Programar projeção de entrega por produto",`
+   <div class="grid">
+    <div class="field"><label>Pedido</label><input value="#${typeof displayOrderNumber==="function"?displayOrderNumber(o):o.id}" disabled></div>
+    <div class="field"><label>Cliente</label><input value="${esc(o.client||"")}" disabled></div>
+    <div class="field"><label>Data prometida ao cliente</label><input value="${o.date?fmtDate(o.date):"-"}" disabled></div>
+   </div>
+   <div class="sub" style="margin:10px 0">Defina uma data diferente para cada modelo, se precisar. O pedido continua sendo um só.</div>
+   <div style="overflow:auto"><table><thead><tr><th>Produto</th><th>Peças</th><th>Valor projetado</th><th>Data projetada de saída</th></tr></thead><tbody>${rows}</tbody></table></div>
+   <button type="button" class="primary modalSave">💾 Salvar projeção por produto</button>`,()=>{
+     items.forEach((it,i)=>{
+       let d=document.getElementById(`projItemDate_${i}`)?.value||"";
+       if(d)saveProjectionItemDate(o,it.key,d);
+     });
+     closeModal();save();
+     let allDates=projectionItemsForOrder(o).map(x=>x.date).filter(Boolean).sort();
+     if(allDates.length){
+       let base=new Date(allDates[0]+"T12:00:00"),mon=mondayOf(base),sun=new Date(mon);sun.setDate(sun.getDate()+6);
+       let s=document.getElementById("projectionStart"),e=document.getElementById("projectionEnd");
+       if(s)s.value=isoDate(mon);if(e)e.value=isoDate(sun);
+     }
+     renderProjection();
+   });
+}
+function clearProjectionSelection(){
+ document.querySelectorAll(".projectionSelect").forEach(x=>x.checked=false);
+}
+function finalizeSelectedProjection(){
+ let keys=[...document.querySelectorAll(".projectionSelect:checked")].map(x=>x.value);
+ if(!keys.length){alert("Selecione pelo menos um produto.");return}
+ let selected=keys.map(v=>{
+   let [oid,key]=String(v).split("::");
+   let o=(db.orders||[]).find(x=>+x.id===+oid);if(!o)return null;
+   let item=projectionItemsForOrder(o).find(i=>String(i.key)===key);if(!item)return null;
+   return {o,item};
+ }).filter(Boolean);
+ let sourceClients=[...new Set(selected.map(x=>x.o.client||"Sem cliente"))];
+ if(sourceClients.length!==1){alert("Selecione produtos de um mesmo pedido/cliente de origem por vez.");return}
+
+ let originalClient=sourceClients[0];
+ let originalClientId=selected[0]?.o?.clientId||((db.clients||[]).find(c=>c.name===originalClient)?.id)||"";
+ let clientOptions=(db.clients||[]).map(c=>`<option value="${c.id}" ${+c.id===+originalClientId?"selected":""}>${esc(c.name)}</option>`).join("");
+ let rows=selected.map((x,i)=>{
+   let rem=x.item.remainingQty!=null?x.item.remainingQty:Math.max(0,x.item.qty-(x.item.invoicedQty||0));
+   let unit=x.item.qty>0?(+x.item.value||0)/x.item.qty:0;
+   return `<tr>
+     <td>${esc(x.item.name)}</td>
+     <td>${x.item.qty.toLocaleString("pt-BR")}</td>
+     <td>${(+x.item.invoicedQty||0).toLocaleString("pt-BR")}</td>
+     <td><b>${rem.toLocaleString("pt-BR")}</b></td>
+     <td><input class="projectionInvoiceQty" data-index="${i}" type="number" min="0" max="${rem}" step="1" value="${rem}" oninput="recalcProjectionInvoiceModal()"></td>
+     <td><input class="projectionInvoiceUnit" data-index="${i}" type="number" min="0" step=".01" value="${unit.toFixed(2)}" oninput="recalcProjectionInvoiceModal()"></td>
+   </tr>`;
+ }).join("");
+
+ openModal("Finalizar nota — venda total ou parcial",`
+   <div class="panel" style="margin-top:0;background:#fff8fb">
+    <div class="grid">
+      <div class="field"><label>Cliente original do pedido</label><input value="${esc(originalClient)}" disabled></div>
+      <div class="field"><label>Cliente que vai receber esta nota</label><select id="projectionInvoiceClient" onchange="updateProjectionInvoiceClientPrices()">${clientOptions}</select><div class="sub">Pode escolher outro cliente sem alterar o pedido original.</div></div>
+      <div class="field"><label>Data de emissão da nota</label><input id="projectionInvoiceIssueDate" type="date" value="${isoDate(new Date())}"></div>
+      <div class="field"><label>Vencimento</label><input id="projectionInvoiceDue" type="date" value="${selected[0]?.item.date||isoDate(new Date())}"></div>
+      <div class="field"><label>Condição de pagamento</label><select id="projectionInvoiceTerms" onchange="toggleProjectionInvoiceTermsDetail()"><option>À vista</option><option>7 dias</option><option>14 dias</option><option>21 dias</option><option>28 dias</option><option>30 dias</option><option>Cheque</option><optio

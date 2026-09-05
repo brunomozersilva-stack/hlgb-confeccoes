@@ -1,0 +1,32 @@
+function deleteGoal(id){
+ if(!confirm("Excluir esta meta?"))return;
+ db.goals=(db.goals||[]).filter(x=>+x.id!==+id);
+ save();renderGoals();
+}
+function operationalCostForm(c={}){
+ let locNames=[...(db.productionLocations||[]).map(x=>x.name),...(db.factionMasters||[]).map(x=>x.name)];
+ locNames=[...new Set(locNames.filter(Boolean))];
+ return `<div class="grid">
+  <div class="field"><label>Local de produção</label><select id="opCostLocation"><option value="">Selecione</option>${locNames.map(n=>`<option ${n===(c.locationName||"")?"selected":""}>${esc(n)}</option>`).join("")}</select></div>
+  <div class="field"><label>Tipo de custo</label><select id="opCostCategory">${["Aluguel","Energia elétrica","Água","Internet","Telefone","Folha administrativa","Manutenção","Transporte","Outros"].map(x=>`<option ${x===(c.category||"")?"selected":""}>${x}</option>`).join("")}</select></div>
+  <div class="field"><label>Descrição</label><input id="opCostDesc" value="${esc(c.description||"")}"></div>
+  <div class="field"><label>Valor</label><input id="opCostValue" type="number" step=".01" value="${c.value??0}"></div>
+  <div class="field"><label>Data de referência</label><input id="opCostDate" type="date" value="${c.date||isoDate(new Date())}"></div>
+  <div class="field"><label>Periodicidade</label><select id="opCostCadence">${["Único","Mensal","Semanal","Anual"].map(x=>`<option ${x===(c.cadence||"Mensal")?"selected":""}>${x}</option>`).join("")}</select></div>
+ </div>`;
+}
+function newOperationalCost(){
+ db.operationalCosts=db.operationalCosts||[];
+ openModal("Novo custo operacional",operationalCostForm()+`<button type="button" class="primary modalSave" onclick="modalSave()">💾 Salvar custo operacional</button>`,()=>{
+   let loc=document.getElementById("opCostLocation")?.value||"",value=+document.getElementById("opCostValue")?.value||0;
+   if(!loc){alert("Selecione o local.");return} if(value<=0){alert("Informe o valor.");return}
+   db.operationalCosts.push({id:Date.now(),locationName:loc,category:document.getElementById("opCostCategory")?.value||"Outros",description:document.getElementById("opCostDesc")?.value||"",value,date:document.getElementById("opCostDate")?.value||isoDate(new Date()),cadence:document.getElementById("opCostCadence")?.value||"Mensal"});
+   try{persistDb()}catch(e){alert("Não foi possível salvar o custo neste navegador.");console.error(e);return}
+   closeModal();renderGoals();
+   alert("Custo operacional salvo com sucesso.");
+ });
+}
+function editOperationalCost(id){
+ let c=(db.operationalCosts||[]).find(x=>String(x.id)===String(id));if(!c)return;
+ openModal("Editar custo operacional",operationalCostForm(c)+`<button type="button" class="primary modalSave" onclick="modalSave()">💾 Salvar alterações</button>`,()=>{
+   Object.assign(c,{locationName:document.getElementById("opCostLocation")?.value||c.locationName,category:document.getElementById("opCostCategory")?.value||c.category,description:document.getElementById("opCostDesc")?.value||"",value:+document.getElementById("opCostValue")?.value||0,date:document.getElementById("opCostDate")?.value||c.date,cadence:document.getElementById("opCostC

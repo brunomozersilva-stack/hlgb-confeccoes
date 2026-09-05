@@ -1,0 +1,133 @@
+function renderGoals(){
+ db.goals=Array.isArray(db.goals)?db.goals:[];
+ db.operationalCosts=Array.isArray(db.operationalCosts)?db.operationalCosts:[];
+ let {start,end}=goalPeriod();
+ if(!start&&!end){
+   let m=mondayOf(new Date()),z=new Date(m);z.setDate(z.getDate()+6);
+   start=isoDate(m);end=isoDate(z);
+   let s=document.getElementById("goalStart"),e=document.getElementById("goalEnd");
+   if(s)s.value=start;if(e)e.value=end;
+ }
+ let label=document.getElementById("goalPeriodLabel");
+ if(label)label.textContent=start&&end?`Exibindo de ${fmtDate(start)} até ${fmtDate(end)}.`:"Exibindo todo o período.";
+
+ let profitRows=productionProfitRows(start,end);
+ let costsByLoc={};
+ db.operationalCosts.forEach(c=>costsByLoc[c.locationName]=(costsByLoc[c.locationName]||0)+operationalCostForPeriod(c,start,end));
+ let profitByLoc={};
+ profitRows.forEach(r=>profitByLoc[r.location]=(profitByLoc[r.location]||0)+r.profit);
+
+ let rows=db.goals.map(g=>{
+   let target=goalTargetForPeriod(g,start,end),actual=productionValueForGoal(g,start,end),pct=target>0?actual/target*100:0;
+   let profit=profitByLoc[g.scopeName]||0,costs=costsByLoc[g.scopeName]||0;
+   return {g,target,actual,pct,profit,costs,net:profit-costs};
+ });
+ let totalTarget=rows.reduce((a,x)=>a+x.target,0),totalActual=rows.reduce((a,x)=>a+x.actual,0);
+ let totalProfit=profitRows.reduce((a,x)=>a+x.profit,0),totalCosts=Object.values(costsByLoc).reduce((a,x)=>a+x,0);
+ let overallPct=totalTarget>0?totalActual/totalTarget*100:0;
+
+ let cards=document.getElementById("goalCards");
+ if(cards)cards.innerHTML=`
+  <div class="card"><small>Meta total</small><strong>${money(totalTarget)}</strong></div>
+  <div class="card"><small>Realizado</small><strong>${money(totalActual)}</strong></div>
+  <div class="card"><small>Atingimento</small><strong>${overallPct.toFixed(1)}%</strong></div>
+  <div class="card"><small>Lucro projetado da produção</small><strong>${money(totalProfit)}</strong></div>
+  <div class="card"><small>Custos operacionais</small><strong>${money(totalCosts)}</strong></div>
+  <div class="card"><small>Resultado líquido estimado</small><strong>${money(totalProfit-totalCosts)}</strong></div>`;
+
+ let summary=document.getElementById("goalSummaryTable");
+ if(summary)summary.innerHTML=rows.length?table(
+   ["Local / Pessoa","Tipo","Pessoas","Meta","Realizado","Atingimento","Lucro projetado","Custos operacionais","Resultado líquido"],
+   rows.map(x=>[esc(x.g.scopeName),esc(x.g.scopeType),x.g.peopleCount||1,money(x.target),money(x.actual),x.pct.toFixed(1)+"%",money(x.profit),money(x.costs),money(x.net)])
+ ):'<div class="empty">Nenhuma meta cadastrada.</div>';
+
+ let profitEl=document.getElementById("goalProfitProductTable");
+ if(profitEl)profitEl.innerHTML=profitRows.length?table(
+   ["Local de produção","Produto","Peças produzidas","Lucro projetado/peça","Lucro projetado total"],
+   profitRows.sort((a,b)=>b.profit-a.profit).map(r=>[esc(r.location),esc(cleanProfitProductName(r.product)),r.qty.toLocaleString("pt-BR"),money(r.profitUnit),money(r.profit)])
+ ):'<div class="empty">Nenhuma produção finalizada/registrada neste período.</div>';
+
+ let costEl=document.getElementById("operationalCostTable");
+ if(costEl)costEl.innerHTML=db.operationalCosts.length?table(
+   ["Local","Tipo","Descrição","Valor base","Periodicidade","Referência","Custo no período","Ações"],
+   db.operationalCosts.map(c=>[esc(c.locationName),esc(c.category),esc(c.description||"-"),money(c.value),esc(c.cadence),fmtDate(c.date),money(operationalCostForPeriod(c,start,end)),`<button type="button" class="secondary" onclick='editOperationalCost(${JSON.stringify(String(c.id))})'>Editar</button> <button type="button" class="danger" onclick='deleteOperationalCost(${JSON.stringify(String(c.id))})'>Excluir</button>`])
+ ):'<div class="empty">Nenhum custo operacional cadastrado.</div>';
+
+ let ranking=document.getElementById("goalRankingTable");
+ if(ranking){
+   let rank=rows.slice().sort((a,b)=>b.pct-a.pct);
+   ranking.innerHTML=rank.length?table(["Posição","Local / Pessoa","Tipo","% da meta","Realizado","Meta","Resultado líquido"],rank.map((x,i)=>[i+1,esc(x.g.scopeName),esc(x.g.scopeType),x.pct.toFixed(1)+"%",money(x.actual),money(x.target),money(x.net)])):'<div class="empty">Nenhuma meta cadastrada.</div>';
+ }
+ let cfg=document.getElementById("goalConfigTable");
+ if(cfg)cfg.innerHTML=db.goals.length?table(
+   ["Tipo","Local / Pessoa","Pessoas","Meta/pessoa","Meta total","Periodicidade","Observação","Ações"],
+   db.goals.map(g=>[esc(g.scopeType),esc(g.scopeName),g.peopleCount||1,money(g.goalPerPerson??g.targetValue),money(g.targetValue),esc(g.cadence),esc(g.note||"-"),`<button type="button" class="secondary" onclick="editGoal(${g.id})">Editar</button> <button type="button" class="danger" onclick="deleteGoal(${g.id})">Excluir</button>`])
+ ):'<div class="empty">Nenhuma meta cadastrada.</div>';
+}
+function setProjectionPeriod(mode){
+ let s=document.getElementById("projectionStart"),e=document.getElementById("projectionEnd");
+ if(!s||!e)return;
+ let now=new Date(),start="",end="";
+ if(mode==="week"){
+   let m=mondayOf(now),z=new Date(m);z.setDate(z.getDate()+6);
+   start=isoDate(m);end=isoDate(z);
+ }else if(mode==="month"){
+   start=isoDate(new Date(now.getFullYear(),now.getMonth(),1,12));
+   end=isoDate(new Date(now.getFullYear(),now.getMonth()+1,0,12));
+ }else if(mode==="next30"){
+   let z=new Date(now);z.setDate(z.getDate()+30);
+   start=isoDate(now);end=isoDate(z);
+ }
+ s.value=start;e.value=end;
+ renderProjection();
+}
+
+function projectionItemsForOrder(o){
+ let grade=Array.isArray(o?.grade)?o.grade:[];
+ let grouped={};
+ grade.forEach(it=>{
+   let pid=+it.productId||0;
+   let p=(db.products||[]).find(x=>+x.id===pid);
+   let key=pid?String(pid):("legacy-"+String(p?.name||o.product||o.items||"Produto"));
+   if(!grouped[key])grouped[key]={key,productId:pid||null,name:p?.name||o.product||"Produto",qty:0};
+   grouped[key].qty+=(+it.qty||0);
+ });
+ if(!Object.keys(grouped).length){
+   let pid=+o.productId||0,p=(db.products||[]).find(x=>+x.id===pid);
+   let name=p?.name||cleanFactionProductName?.(o.items||o.product||"Pedido")||o.items||"Pedido";
+   grouped[pid?String(pid):"legacy"]={key:pid?String(pid):"legacy",productId:pid||null,name,qty:qtyOfOrder(o)};
+ }
+ o.projectionItems=(o.projectionItems&&typeof o.projectionItems==="object")?o.projectionItems:{};
+ let totalQty=Math.max(1,Object.values(grouped).reduce((a,x)=>a+x.qty,0));
+ return Object.values(grouped).map(g=>{
+   let saved=o.projectionItems[g.key]||{};
+   let unit=0;
+   if(g.productId){
+     let cId=+o.clientId||0;
+     try{unit=typeof suggestedPrice==="function"?+suggestedPrice(cId,g.productId)||0:0}catch(e){}
+     if(!unit){let p=(db.products||[]).find(x=>+x.id===g.productId);unit=+p?.price||0}
+   }
+   let value=unit>0?unit*g.qty:(+o.total||0)*(g.qty/totalQty);
+   let legacyInvoiced=!!saved.invoiced;
+   let invoicedQty=saved.invoicedQty!=null?Math.max(0,+saved.invoicedQty||0):(legacyInvoiced?g.qty:0);
+   invoicedQty=Math.min(g.qty,invoicedQty);
+   let remainingQty=Math.max(0,g.qty-invoicedQty);
+   return {...g,date:saved.date||"",invoiced:remainingQty<=0,invoiceIds:Array.isArray(saved.invoiceIds)?saved.invoiceIds:[],invoicedQty,remainingQty,value};
+ });
+}
+function saveProjectionItemDate(o,key,date){
+ o.projectionItems=(o.projectionItems&&typeof o.projectionItems==="object")?o.projectionItems:{};
+ o.projectionItems[key]={...(o.projectionItems[key]||{}),date};
+ o.projectionPlannedAt=isoDate(new Date());
+ let items=projectionItemsForOrder(o);
+ let dates=items.map(x=>x.date).filter(Boolean);
+ o.projectionDeliveryDate=dates.length===items.length && new Set(dates).size===1?dates[0]:"";
+}
+function projectionItemDate(o,item){
+ return item?.date||"";
+}
+function allProjectionRows(){
+ let rows=[];
+ (db.orders||[]).forEach(o=>{
+   if(["Cancelado"].includes(o.status))return;
+   projectionItemsForOrd

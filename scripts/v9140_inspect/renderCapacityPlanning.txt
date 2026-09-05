@@ -1,0 +1,48 @@
+function renderCapacityPlanning(){
+ let [start,end]=capacityDateRange();let rows=allProjectionRows().filter(r=>{let d=r.item.date||r.order.date||'';return(!start||d>=start)&&(!end||d<=end)});let locs=(db.productionLocations||[]).filter(x=>x.active!==false),usage={};locs.forEach(l=>usage[l.id]=0);
+ rows.forEach(r=>assignmentsFor(r.order.id,r.item.key).forEach(a=>{if(usage[a.locationId]!=null)usage[a.locationId]+=+a.qty||0}));
+ let total=rows.reduce((a,r)=>a+(+r.item.qty||0),0),assigned=rows.reduce((a,r)=>a+Math.min(+r.item.qty||0,assignmentsFor(r.order.id,r.item.key).reduce((s,x)=>s+(+x.qty||0),0)),0);
+ let cards=document.getElementById('capacityCards');if(cards)cards.innerHTML=`<div class="card"><small>Peças previstas no período</small><strong>${total.toLocaleString('pt-BR')}</strong></div><div class="card"><small>Já distribuídas</small><strong>${assigned.toLocaleString('pt-BR')}</strong></div><div class="card"><small>Ainda sem local</small><strong>${Math.max(0,total-assigned).toLocaleString('pt-BR')}</strong></div><div class="card"><small>Locais ativos</small><strong>${locs.length}</strong></div>`;
+ let lt=document.getElementById('capacityLocationTable');if(lt){let rr=locs.map(l=>{let used=usage[l.id]||0,cap=+l.weeklyCapacity||0,pct=cap?used/cap*100:0,cls=cap?(pct>=100?'bad':pct>=80?'warn':'ok'):'',status=cap?`${pct.toFixed(0)}%`:'Sem capacidade definida',models=capacityAllowedModels(l);return[esc(l.name),esc(l.capacityResponsible||'-'),used.toLocaleString('pt-BR'),cap?cap.toLocaleString('pt-BR'):'<b>Definir</b>',`<span class="badge ${cls}">${status}</span>`,cap?(cap-used).toLocaleString('pt-BR'):'-',esc(models.join(', ')||'Todos'),`<button class="secondary" onclick="openCapacityLocationEditor()">Editar capacidade</button>`]});lt.innerHTML=rr.length?table(['Local','Responsável','Carga prevista','Capacidade semanal','Ocupação','Saldo','Modelos permitidos','Ação'],rr):'<div class="empty">Cadastre locais de produção para usar o planejamento.</div>'}
+ let ot=document.getElementById('capacityOrderTable');if(ot){let rr=rows.map(r=>{let aa=assignmentsFor(r.order.id,r.item.key),dist=aa.reduce((s,x)=>s+(+x.qty||0),0),places=aa.map(a=>{let l=locs.find(x=>+x.id===+a.locationId);return l?`${l.name}: ${(+a.qty||0).toLocaleString('pt-BR')}`:''}).filter(Boolean).join('<br>');let rem=Math.max(0,(+r.item.qty||0)-dist);return[`#${typeof displayOrderNumber==='function'?displayOrderNumber(r.order):r.order.id}`,esc(r.order.client||'-'),`<b>${esc(r.item.name)}</b>`,(+r.item.qty||0).toLocaleString('pt-BR'),dist.toLocaleString('pt-BR'),rem?`<span class="badge warn">${rem.toLocaleString('pt-BR')}</span>`:'<span class="badge ok">0</span>',places||'<span class="sub">Ainda sem local</span>',`<button class="primary" onclick="openCapacityAllocation(${r.order.id},'${String(r.item.key).replace(/'/g,"\\'")}')">Distribuir / dividir</button>`]});ot.innerHTML=rr.length?table(['Pedido','Cliente','Modelo','Total','Distribuído','Restante','Onde será produzido','Ação'],rr):'<div class="empty">Nenhum produto previsto neste período.</div>'}
+}
+function factionAvailableModels(){
+  let out=[],seenOrders=new Set();
+  let factions=Array.isArray(db.factions)?db.factions:[];
+  let productions=Array.isArray(db.production)?db.production:[];
+  let orders=Array.isArray(db.orders)?db.orders:[];
+  productions.forEach(p=>{
+    let o=orders.find(x=>+x.id===+p.orderId),product=(db.products||[]).find(x=>+x.id===+p.productId);
+    let planned=+p.planned||0;if(planned<=0&&o){try{planned=+qtyOfOrder(o)||0}catch(e){}}
+    let already=factions.filter(f=>+f.productionId===+p.id).reduce((s,f)=>s+(+f.sent||0),0);
+    let remaining=Math.max(0,planned-already);
+    let stage=String(p.stage||"");
+    if(remaining<=0||(/^(Pronto|Finalizado)$/i.test(stage)&&(+p.done||0)>=planned))return;
+    let model=product?.name||p.product||(o?orderProductSummary(o):"")||"Modelo";
+    out.push({key:`p:${p.id}`,productionId:p.id,orderId:o?.id||p.orderId||null,productId:p.productId||o?.productId||null,op:p.op||"",model,remaining,dueDate:o?.date||p.factionDueDate||"",stage:stage||"Aguardando produção",client:o?.client||p.client||"-"});
+    if(o)seenOrders.add(+o.id);
+  });
+  orders.forEach(o=>{
+    if(seenOrders.has(+o.id)||o.deletedAt||o.cancelledAt)return;
+    let cuts=(db.cuts||[]).filter(c=>+c.orderId===+o.id);
+    let released=cuts.some(c=>/final|pronto|conclu/i.test(String(c.status||"")));
+    if(!released)return;
+    let planned=0;try{planned=+qtyOfOrder(o)||0}catch(e){}
+    let already=factions.filter(f=>+f.orderId===+o.id).reduce((s,f)=>s+(+f.sent||0),0),remaining=Math.max(0,planned-already);
+    if(remaining<=0)return;
+    out.push({key:`o:${o.id}`,productionId:null,orderId:o.id,productId:o.productId||null,op:cuts[0]?.op||"",model:orderProductSummary(o)||o.items||"Modelo",remaining,dueDate:o.date||"",stage:"Corte finalizado",client:o.client||"-"});
+  });
+  return out.sort((a,b)=>String(a.dueDate||"9999-12-31").localeCompare(String(b.dueDate||"9999-12-31"))||String(a.model).localeCompare(String(b.model),'pt-BR'));
+}
+function renderFactionAvailableModels(){
+  let el=document.getElementById("factionAvailableModels");if(!el)return;
+  let rows=factionAvailableModels();
+  el.innerHTML=rows.length?table(["Pedido","Cliente","Modelo","Etapa","Disponível","Previsão","Ação"],rows.map(r=>[
+    r.orderId?`#${esc(typeof displayOrderNumber==='function'?displayOrderNumber((db.orders||[]).find(o=>+o.id===+r.orderId)||{id:r.orderId}):r.orderId)}`:"-",
+    esc(r.client||"-"),`<b>${esc(r.model)}</b>`,esc(r.stage||"-"),r.remaining.toLocaleString("pt-BR"),r.dueDate?fmtDate(r.dueDate):"-",
+    `<button type="button" class="primary" onclick='openFactionAvailableModel(${JSON.stringify(r.key)})'>Enviar para facção</button>`
+  ])):'<div class="empty">Nenhum modelo liberado para envio no momento.</div>';
+}
+function openFactionAvailableModel(key){
+  let r=factionAvailableModels().find(x=>String(x.key)===String(key));if(!r){alert("Este modelo já não está disponível para envio.");renderFactionAvailableModels();return}
+  newFaction({productionId:r.pro

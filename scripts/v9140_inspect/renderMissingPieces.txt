@@ -1,0 +1,139 @@
+function renderMissingPieces(){
+ db.missingPieces=Array.isArray(db.missingPieces)?db.missingPieces:[];
+ syncFactionIssuesToMissing();
+ syncAllProductionIssuesToMissing();
+
+ let s=document.getElementById("missingStart"),e=document.getElementById("missingEnd");
+ if(!s||!e)return;
+ if(!s.value&&!e.value){let m=mondayOf(new Date()),z=new Date(m);z.setDate(z.getDate()+6);s.value=isoDate(m);e.value=isoDate(z)}
+ let start=s.value||"0000-01-01",end=e.value||"9999-12-31";
+ let arr=db.missingPieces.filter(m=>(m.date||"")>=start&&(m.date||"")<=end);
+ let open=arr.filter(m=>(+m.remainingQty||0)>0);
+
+ let missingOpen=open.filter(m=>(m.issueType||"Peça faltante")==="Peça faltante");
+ let defectOpen=open.filter(m=>m.issueType==="Defeito");
+ let missingQty=missingOpen.reduce((a,m)=>a+(+m.remainingQty||0),0);
+ let defectQty=defectOpen.reduce((a,m)=>a+(+m.remainingQty||0),0);
+ let defectTotal=arr.filter(m=>m.issueType==="Defeito").reduce((a,m)=>a+(+m.originalQty||0),0);
+ let missingTotal=arr.filter(m=>(m.issueType||"Peça faltante")==="Peça faltante").reduce((a,m)=>a+(+m.originalQty||0),0);
+ let value=missingOpen.reduce((a,m)=>a+(+m.remainingQty||0)*(+m.unitPrice||0),0);
+ let cost=missingOpen.reduce((a,m)=>a+(+m.remainingQty||0)*(+m.unitCost||0),0);
+ let recovered=arr.reduce((a,m)=>a+(+m.recoveredQty||0),0);
+
+ let label=document.getElementById("missingPeriodLabel");
+ if(label)label.textContent=`Exibindo de ${fmtDate(start)} até ${fmtDate(end)}. Defeitos e faltas lançados nas facções são sincronizados automaticamente.`;
+
+ let cards=document.getElementById("missingCards");
+ if(cards)cards.innerHTML=`
+   <div class="card"><small>Defeitos no período</small><strong>${defectTotal.toLocaleString("pt-BR")}</strong></div>
+   <div class="card"><small>Defeitos ainda em aberto</small><strong>${defectQty.toLocaleString("pt-BR")}</strong></div>
+   <div class="card"><small>Peças faltantes no período</small><strong>${missingTotal.toLocaleString("pt-BR")}</strong></div>
+   <div class="card"><small>Peças faltando agora</small><strong>${missingQty.toLocaleString("pt-BR")}</strong></div>
+   <div class="card"><small>Valor de venda faltante</small><strong>${money(value)}</strong></div>
+   <div class="card"><small>Custo das peças faltantes</small><strong>${money(cost)}</strong></div>
+   <div class="card"><small>Peças já recuperadas</small><strong>${recovered.toLocaleString("pt-BR")}</strong></div>
+   <div class="card"><small>Ocorrências em aberto</small><strong>${open.length}</strong></div>`;
+
+ let ot=document.getElementById("missingOpenTable");
+ if(ot)ot.innerHTML=open.length?table(
+   ["Tipo","Origem","Pedido","Cliente","Data","Produto","Falta atual","Valor pendente","Custo pendente","Status","Ações"],
+   open.map(m=>[
+     `<span class="badge ${m.issueType==="Defeito"?"warn":"bad"}">${esc(m.issueType||"Peça faltante")}</span>`,
+     esc(m.sourceType||"Pedido"),
+     m.orderId?("#"+(typeof displayOrderNumber==="function"?displayOrderNumber((db.orders||[]).find(o=>+o.id===+m.orderId)||{id:m.orderId}):m.orderId)):"-",
+     esc(m.client||"-"),
+     fmtDate(m.date),
+     esc(m.product||"-"),
+     (+m.remainingQty||0).toLocaleString("pt-BR"),
+     money((+m.remainingQty||0)*(+m.unitPrice||0)),
+     money((+m.remainingQty||0)*(+m.unitCost||0)),
+     `<span class="badge ${m.status==="Parcial"?"warn":"bad"}">${esc(m.status||"Em aberto")}</span>`,
+     `<button type="button" class="primary" style="font-weight:800" onclick="abateMissingPiece(${m.id})">✅ Abater / recuperar</button> ${m.sourceType==="Facção"?"":`<button type="button" class="danger" onclick="deleteMissingPiece(${m.id})">Excluir</button>`}`
+   ])
+ ):'<div class="empty">Nenhum defeito ou peça faltante em aberto neste período.</div>';
+
+ let hist=[];
+ arr.forEach(m=>(m.history||[]).forEach(h=>hist.push({...h,parent:m})));
+ hist.sort((a,b)=>(b.date||"").localeCompare(a.date||""));
+ let ht=document.getElementById("missingHistoryTable");
+ if(ht)ht.innerHTML=hist.length?table(
+   ["Data","Tipo","Pedido","Cliente","Produto","Quantidade abatida","Valor recuperado","Observação"],
+   hist.map(h=>[
+     fmtDate(h.date),esc(h.parent.issueType||"Peça faltante"),h.parent.orderId?("#"+(typeof displayOrderNumber==="function"?displayOrderNumber((db.orders||[]).find(o=>+o.id===+h.parent.orderId)||{id:h.parent.orderId}):h.parent.orderId)):"-",
+     esc(h.parent.client||"-"),esc(h.parent.product||"-"),h.qty,
+     money((+h.qty||0)*(+h.parent.unitPrice||0)),esc(h.note||"-")
+   ])
+ ):'<div class="empty">Nenhuma baixa registrada neste período.</div>';
+}
+
+function ensureOrderNumbers(){
+ if(!db.config)db.config={};
+ db.orders=Array.isArray(db.orders)?db.orders:[];
+ let used=new Set();
+ let next=1;
+ db.orders.slice().sort((a,b)=>(+a.id||0)-(+b.id||0)).forEach(o=>{
+   if(o.orderNumber!=null && String(o.orderNumber).trim()!==""){
+     used.add(String(o.orderNumber));
+     let n=+o.orderNumber;if(Number.isFinite(n))next=Math.max(next,n+1);
+   }else{
+     while(used.has(String(next)))next++;
+     o.orderNumber=next;
+     used.add(String(next));
+     next++;
+   }
+ });
+ if(!db.config.nextOrderNumber || +db.config.nextOrderNumber<next)db.config.nextOrderNumber=next;
+ try{persistDb()}catch(e){}
+}
+function displayOrderNumber(o){return o?.orderNumber!=null?String(o.orderNumber):String(o?.id||"")}
+function nextAvailableOrderNumber(){
+ ensureOrderNumbers();
+ let n=Math.max(1,+db.config.nextOrderNumber||1);
+ let used=new Set((db.orders||[]).map(o=>String(o.orderNumber)));
+ while(used.has(String(n)))n++;
+ return n;
+}
+function saveNextOrderNumber(){
+ if(!db.config)db.config={};
+ let v=+document.getElementById("nextOrderNumber")?.value||0;
+ if(v<=0){alert("Informe um número maior que zero.");return}
+ db.config.nextOrderNumber=v;
+ try{persistDb()}catch(e){}
+ let el=document.getElementById("nextOrderNumber");if(el)el.value=nextAvailableOrderNumber();
+ alert("Próximo número de pedido salvo.");
+}
+function clearOrderFilters(){
+ ["orderNumberFilter","orderSearch","orderStatusFilter","orderPriorityFilter","orderStartFilter","orderEndFilter"].forEach(id=>{
+   let el=document.getElementById(id);if(el)el.value="";
+ });
+ renderOrders();
+}
+function renderOrders(){
+ ensureOrderNumbers();
+ fillSeparationOrders();
+ let q=(document.getElementById("orderSearch")?.value||"").toLowerCase().trim();
+ let num=(document.getElementById("orderNumberFilter")?.value||"").trim();
+ let status=document.getElementById("orderStatusFilter")?.value||"";
+ let priority=document.getElementById("orderPriorityFilter")?.value||"";
+ let start=document.getElementById("orderStartFilter")?.value||"";
+ let end=document.getElementById("orderEndFilter")?.value||"";
+
+ let arr=(db.orders||[]).filter(o=>{
+   if(num && !displayOrderNumber(o).includes(num) && !String(o.id||"").includes(num))return false;
+   let hay=(String(o.client||"")+" "+String(o.items||"")+" "+orderProductSummary(o)).toLowerCase();
+   if(q && !hay.includes(q))return false;
+   if(status && String(o.status||"")!==status)return false;
+   if(priority && String(o.priority||"Padrão")!==priority)return false;
+   let d=String(o.date||"").slice(0,10);
+   if(start && d<start)return false;
+   if(end && d>end)return false;
+   return true;
+ });
+
+ let qty=arr.reduce((a,o)=>a+qtyOfOrder(o),0);
+ let value=arr.reduce((a,o)=>a+(+o.total||0),0);
+ let done=arr.filter(o=>String(o.status||"")==="Pedido finalizado").length;
+ let cards=document.getElementById("orderSummaryCards");
+ if(cards)cards.innerHTML=`
+   <div class="card"><small>Pedidos encontrados</small><strong>${arr.length}</strong></div>
+   <div class="car

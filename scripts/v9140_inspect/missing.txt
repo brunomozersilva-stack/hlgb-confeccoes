@@ -1,0 +1,1335 @@
+=== missingPieces @ line 1228 ===
+01183: <div class="panel" id="projectionDeliveryTrackingPanel">
+01184: <h2>📦 Entregas da projeção</h2>
+01185: <div class="sub">Acompanhe separadamente o que ainda falta entregar e o que já foi entregue. Entregas parciais vão sendo somadas automaticamente; o saldo restante pode ser reagendado sem alterar o histórico do que já saiu.</div>
+01186: <div id="projectionDeliverySummaryCards" class="cards"></div>
+01187: <div class="toolbar" style="margin-top:8px">
+01188:   <button type="button" id="projectionTabRemaining" class="primary" onclick="setProjectionDeliveryTab('remaining')">📋 Falta entregar</button>
+01189:   <button type="button" id="projectionTabDelivered" class="secondary" onclick="setProjectionDeliveryTab('delivered')">✅ Entregue</button>
+01190: </div>
+01191: <div id="projectionRemainingPane"><div id="projectionRemainingTable"></div></div>
+01192: <div id="projectionDeliveredPane" style="display:none"><div id="projectionDeliveredTable"></div></div>
+01193: </div>
+01194: 
+01195: <div class="panel">
+01196: <h2>Valor projetado por cliente</h2>
+01197: <div class="sub">Mantém o valor previsto de cada cliente, mesmo quando a entrega for dividida em vários produtos ou semanas.</div>
+01198: <div id="clientProjectionTable"></div>
+01199: </div>
+01200: 
+01201: <div class="panel">
+01202: <h2>Onde está sendo produzido</h2>
+01203: <div class="sub">Produção por local, quantidade e valor relacionado aos produtos do período.</div>
+01204: <div id="locationProjectionTable"></div>
+01205: </div>
+01206: 
+01207: <div class="panel">
+01208: <h2>Produção por cortador</h2>
+01209: <div id="cutterProjectionTable"></div>
+01210: </div>
+01211: 
+01212: <div class="panel">
+01213: <h2>Gráfico — peças previstas por cliente</h2>
+01214: <canvas id="clientChart" height="260" style="width:100%;max-width:100%;display:block"></canvas>
+01215: </div>
+01216: 
+01217: <div class="panel">
+01218: <h2>Resumo operacional do período</h2>
+01219: <div id="weeklySummary"></div>
+01220: </div>
+01221: </section>
+01222: <section id="faltas" class="page">
+01223: <h1>⚠️ Faltas e defeitos</h1>
+01224: <div class="sub">Os defeitos e perdas informados nas facções entram automaticamente aqui. Acompanhe quantidades, valores, custos e faça a baixa quando a peça for recuperada, refeita ou entregue.</div>
+01225: 
+01226: <div class="panel">
+01227:   <div class="toolbar" style="align-items:flex-end;flex-wrap:wrap">
+01228:     <div class="field"><label>De</label><input id="missingStart" type="date" onchange="renderMissingPieces()"></div>
+01229:     <div class="field"><label>Até</label><input id="missingEnd" type="date" onchange="renderMissingPieces()"></div>
+01230:     <button type="button" class="secondary" onclick="setMissingPeriod('week')">Esta semana</button>
+01231:     <button type="button" class="secondary" onclick="setMissingPeriod('month')">Este mês</button>
+01232:     <button type="button" class="secondary" onclick="setMissingPeriod('year')">Este ano</button>
+01233:     <button type="button" class="secondary" onclick="setMissingPeriod('all')">Todo o período</button>
+01234:   </div>
+01235:   <div id="missingPeriodLabel" class="sub"></div>
+01236: </div>
+01237: 
+01238: <div class="cards" id="missingCards"></div>
+01239: 
+01240: <div class="panel">
+01241:   <h2>Ocorrências em aberto</h2>
+01242:   <div class="sub">Use “Abater / recuperar” quando encontrar a peça, refizer um defeito ou conseguir entregar parte do que estava faltando.</div>
+01243:   <div id="missingOpenTable"></div>
+01244: </div>
+01245: 
+01246: <div class="panel">
+01247:   <h2>Histórico de baixas</h2>
+01248:   <div id="missingHistoryTable"></div>
+01249: </div>
+01250: </section>
+01251: 
+01252: <section id="devolucoesDefeitos" class="page">
+01253: <h1>🧵 Devoluções / Defeitos</h1>
+01254: <div class="sub">Registre peças devolvidas por defeito, envie para retrabalho no local que produziu e acompanhe o índice de qualidade de cada confecção/facção.</div>
+01255: <div class="panel">
+01256:  <div class="toolbar" style="align-items:flex-end;flex-wrap:wrap">
+01257:   <button type="button" class="primary" onclick="newDefectReturn()">+ Cadastrar devolução / defeito</button>
+01258:   <div class="field"><label>De</label><input id="defectStart" type="date" onchange="renderDefectReturns()"></div>
+01259:   <div class="field"><label>Até</label><input id="defectEnd" type="date" onchange="renderDefectReturns()"></div>
+01260:   <div class="field"><label>Local</label><select id="defectLocationFilter" onchange="renderDefectReturns()"><option value="">Todos os locais</option></select></div>
+01261:   <div class="field"><label>Produto</label><select id="defectProductFilter" onchange="renderDefectReturns()"><option value="">Todos os produtos</option></select></div>
+01262:   <button type="button" class="secondary" onclick="setDefectPeriod('month')">Este mês</button>
+01263:   <button type="button" class="secondary" onclick="setDefectPeriod('year')">Este ano</button>
+01264:   <button type="button" class="secondary" onclick="setDefectPeriod('all')">Todo o período</button>
+01265:  </div>
+01266: </div>
+01267: <div class="cards" id="defectCards"></div>
+01268: <div class="panel"><h2>Retrabalho e devoluções</h2><div id="defectReturnsTable"></div></div>
+01269: <div class="panel"><h2>📊 Qualidade por local de produção</h2><div class="sub">Índice de defeito = peças devolvidas por defeito ÷ peças produzidas no local × 100.</div><div id="defectQualityTable"></div></div>
+01270: </section>
+01271: 
+01272: <section id="relatorios" class="page">
+01273: <h1>Relatórios</h1>
+01274: <div class="sub">Resumo operacional para tomada de decisão.</div>
+01275: <div class="cards" id="reportCards"></div>
+01276: <div class="panel"><h2>Indicadores</h2><div id="reportBody"></div></div>
+01277: <div class="panel">
+01278:   <h2>📦 Venda por produto</h2>
+01279:   <div class="sub">Quantidade e valor vendido por produto no período escolhido.</div>
+01280:   <div class="toolbar" style="align-items:flex-end;flex-wrap:wrap;margin-top:12px">
+01281:     <button type="button" class="secondary" onclick="setProductSalesReportPeriod('week')">Esta semana</button>
+01282:     <button type="button" class="secondary" onclick="setProductSalesReportPeriod('month')">Este mês</button>
+01283:     <button type="button" class="secondary" onclick="setProductSalesReportPeriod('year')">Este ano</button>
+01284:     <div class="field"><label>De</label><input id="productSalesStart" type="date" onchange="renderProductSalesReport()"></div>
+01285:     <div class="field"><label>Até</label><input id="productSalesEnd" type="date" onchange="renderProductSalesReport()"></div>
+01286:   </div>
+01287:   <div class="cards" id="productSalesCards"></div>
+01288:   <div id="productSalesReport"></div>
+01289: </div>
+01290: </section>
+01291: 
+01292: <section id="hubFinanceiro" class="page">
+01293: <h1>Hub Financeiro</h1>
+01294: <div class="sub">Planejamento semanal de caixa separado do Financeiro geral. Compare entradas, saídas, categorias e a liquidez real entre Pix/dinheiro e cheques.</div>
+01295: <div class="panel">
+01296:   <div class="toolbar" style="align-items:flex-end;flex-wrap:wrap">
+01297:     <button type="button" class="secondary" onclick="changeHubFinanceWeek(-1)">← Semana anterior</button>
+01298:     <div class="field"><label>Semana do calendário</label><input id="hubFinanceWeek" type="week" onchange="renderHubFinance()"></div>
+01299:     <button type="button" class="secondary" onclick="changeHubFinanceWeek(1)">Próxima semana →</button>
+01300:     <button type="button" class="primary" onclick="newHubFinanceEntry('Entrada')">+ Entrada prevista</button>
+01301:     <button type="button" class="primary" onclick="newHubFinanceEntry('Saída')">+ Saída prevista</button>
+01302:     <button type="button" class="secondary" onclick="hubFinanceManualSync()">🔄 Sincronizar lançamentos</button>
+01303:   </div>
+01304:   <div id="hubFinanceWeekLabel" class="sub"></div>
+01305: </div>
+01306: <div id="hubFinanceCards" class="cards"></div>
+01307: <div id="hubFinanceLiquidityAlert"></div>
+01308: <div class="panel"><h2>📊 Saídas por categoria</h2><div class="sub">Mostra quanto cada categoria representa nas despesas da semana.</div><div id="hubFinanceCategoryTable"></div></div>
+01309: <div class="panel"><h2>💳 Liquidez por forma de pagamento</h2><div class="sub">Compara o que entra em Pix/dinheiro, o que entra em cheque e quais contas aceitam cheque.</div><div id="hubFinanceMethodTable"></div></div>
+01310: <div class="panel"><h2>📅 Próximas semanas</h2><div class="sub">Visão rápida para antecipar semanas com falta de caixa ou falta de liquidez.</div><div id="hubFinanceFutureTable"></div></div>
+01311: <div class="panel"><h2>Lançamentos da semana</h2><div id="hubFinanceEntriesTable"></div></div>
+01312: </section>
+01313: 
+01314: <section id="config" class="page"><h1>Configurações</h1>
+01315: <div class="panel"><div class="grid"><div class="field"><label>Nome da confecção</label><input id="companyName"></div><div class="field"><label>Moeda</label><input value="R$" disabled></div><div class="field"><label>Observações</label><input id="companyNote"></div></div><button class="primary" onclick="saveConfig()">Salvar configurações</button></div>
+01316: <div class="panel" id="ownerSecurityPanel" style="display:none"><h2>🔑 Segurança do proprietário</h2><div class="sub">Troque a senha do seu próprio acesso sem precisar entrar no Supabase.</div><div class="toolbar"><button type="button" class="primary" onclick="openOwnerPasswordChange()">🔑 Alterar minha senha</button></div></div>
+01317: <div class="panel"><h2>👥 Usuários e permissões</h2><div class="sub">Crie acessos online para funcionários. Cada pessoa entra com o próprio e-mail e senha e vê somente as áreas liberadas pelo administrador.</div>
+01318: <div class="toolbar"><button class="primary" onclick="newUser()">+ Novo usuário</button></div><div id="userTable"></div><div class="sub" style="margin-top:10px">As senhas nunca ficam salvas no HLGB. Você pode alterar o e-mail de acesso e redefinir a senha dos usuários secundários a qualquer momento.</div></div>
+01319: <div class="panel"><h2>🔐 Log de usuários</h2><div class="sub">Histórico de entrada, saída, páginas acessadas, alterações salvas e período de uso dos logins secundários.</div>
+01320: <div class="toolbar"><button type="button" class="secondary" onclick="renderAuditLog()">🔄 Atualizar log</button><button type="button" class="danger" onclick="clearAuditLog()">Limpar log</button></div>
+01321: <div id="auditSummary"></div><div id="auditLogTable" class="audit-log"></div></div>
+01322: </section>
+01323: </main></div>
+01324: 
+01325: <div class="modal" id="modal"><div class="modalbox"><button class="close" onclick="closeModal()">×</button><div id="modalContent"></div></div></div>
+01326: 
+01327: <script>
+01328: const KEY="confeccao_v2";
+01329: let db=JSON.parse(localStorage.getItem(KEY)||"null")||{"clients": [{"id": 1, "name": "Gisele", "phone": "", "city": ""}, {"id": 1787847286673, "name": "Quezia", "phone": "", "city": "", "document": "", "prices": {}}], "products": [{"id": 1, "name": "Camisola Fenda", "price": 12.9, "cost": 7.1, "material": "Romantic", "color": "Preto", "materials": [{"name": "Romantic", "cat": "Tecido", "unit": "m", "qty": 0, "loss": 0, "price": 0}], "labor": 0, "cutCost": 0, "factionCost": 0, "packCost": 0, "otherCost": 0}, {"id": 2, "name": "Conjunto Selena", "price": 17, "cost": 9.4, "material": "Tule", "color": "Rubi", "materials": [{"name": "Tule", "cat": "Tecido", "unit": "m", "qty": 0, "loss": 0, "price": 0}], "labor": 0, "cutCost": 0, "factionCost": 0, "packCost": 0, "otherCost": 0}, {"id": 3, "name": "Conjunto Bordado", "price": 13.9, "cost": 7.8, "material": "Tule bordado", "color": "Branco", "materials": [{"name": "Tule bordado", "cat": "Tecido", "unit": "m", "qty": 0, "loss": 0, "price": 0}], "labor": 0, "cutCost": 0, "factionCost": 0, "packCost": 0, "otherCost": 0}, {"code": "", "name": "Camisola Ana Melia", "category": "Lingerie", "material": "", "color": "", "supplierId": null, "sizes": ["P", "M", "G", "GG"], "note": "", "materials": [{"name": "romantic", "cat": "Tecido", "unit": "kg", "qty": 0.17, "loss": 0, "price": 31.99}, {"name": "renda", "cat": "Renda", "unit": "kg", "qty": 0.02, "loss": 0, "price": 55}, {"name": "sanduiche 16", "cat": "Tecido", "unit": "m", "qty": 0.8, "loss": 0, "price": 0.22}, {"name": "alça papiro", "cat": "Aviamento", "unit": "un.", "qty": 1, "loss": 0, "price": 0.52}], "labor": 2, "cutCost": 0.4, "factionCost": 1.8, "packCost": 0.2, "otherCost": 0, "price": 11.3, "id": 1787848080784}], "orders": [{"id": 1, "client": "Gisele", "date": "2026-08-30", "total": 3870, "status": "Produção", "items": "300 Camisolas Fenda"}, {"id": 2, "client": "Cliente atacado", "date": "2026-09-03", "total": 4981, "totalQty": 293, "status": "Aberto", "items": "293 Conjuntos Selena"}, {"id": 1787847259461, "client": "Gisele", "clientId": 1, "productId": 2, "items": "300 Conjunto Selena", "qty": 300, "unitPrice": 17, "date": "2026-09-03", "total": 5100, "status": "Aberto"}, {"id": 1787847310961, "client": "Quezia", "clientId": 1787847286673, "productId": 1, "items": "200 Camisola Fenda", "qty": 200, "unitPrice": 12.9, "date": "2026-09-01", "total": 2580, "status": "Aberto"}, {"id": 1787848140017, "client": "Gisele", "clientId": 1, "productId": 1787848080784, "items": "150 Camisola Ana Melia", "qty": 150, "unitPrice": 11.3, "date": "2026-09-02", "total": 1695, "status": "Aberto"}], "production": [{"id": 1, "op": "OP-00125", "product": "Camisola Fenda", "color": "Preto", "size": "M", "planned": 300, "done": 180, "stage": "Costura"}, {"id": 2, "op": "OP-00126", "product": "Conjunto Selena", "color": "Rubi", "size": "G", "planned": 293, "done": 0, "stage": "Corte"}], "cuts": [{"id": 1, "op": "OP-00126", "fabric": "Tule", "color": "Rubi", "layers": 20, "meters": 82, "pieces": 293}], "stock": [{"id": 1, "item": "Tule bordado", "cat": "Matéria-prima", "qty": 84, "unit": "m", "min": 50}, {"id": 2, "item": "Elástico", "cat": "Aviamento", "qty": 12, "unit": "rolos", "min": 20}, {"id": 3, "item": "Camisola Fenda", "cat": "Produto acabado", "qty": 450, "unit": "un.", "min": 100}], "factions": [{"id": 1, "name": "Facção 01", "op": "OP-00125", "sent": 500, "done": 380, "returned": 120, "price": 1.8}], "cutters": [{"id": 1, "name": "Cortador 01", "active": true}], "finance": [{"id": 1, "type": "Receber", "desc": "Pedido Gisele", "value": 3870, "status": "Pendente", "date": "2026-08-30"}, {"id": 2, "type": "Pagar", "desc": "Compra de tecido", "value": 1450, "status": "Pendente", "date": "2026-08-28"}], "config": {"name": "HLGB Confecções", "note": ""}, "suppliers": []};
+01330: 
+01331: 
+01332: // v89.85 — pacote do dia: persistência + senha proprietário + filtros + devoluções + duplicidade + cores por pedido
+01333: // v89.84 — gravação transacional: salva antes de sair + recupera pendências locais
+01334: // v89.83 — marcador visível + cache-bust para confirmar publicação correta
+01335: // v89.87 — sincronização automática entre máquinas/usuários + proteção contra sobrescrita concorrente
+01336: // v89.91 — correção estrutural do boot: cópia local antiga nunca sobrescreve a nuvem ao entrar + render não suja o banco
+01337: // v89.91 — correção de sincronização secundária: logs não bloqueiam pull + preserva diretório de usuários remoto
+01338: // v89.89 — sincronização híbrida: Broadcast + Realtime + verificação de versão a cada 1s
+01339: // v89.88 — Supabase Realtime: atualização instantânea entre máquinas + fallback de polling
+01340: // v89.82 — autorização por e-mail; acesso secundário não depende de sincronização manual
+01341: // v89.81 — autorização de usuários em tabela dedicada do Supabase (sem depender da sincronização do banco inteiro)
+01342: // v89.80 — sessão persistente + ativação de usuários sem sincronização manual
+01343: // v89.79 — sessão online consistente + somente proprietário pode ser administrador
+01344: // v89.78 — autorização de usuários sincronizada antes do primeiro login
+01345: // v89.77 — HLGB Online — backup exclusivo do proprietário
+01346: const HLGB_SUPABASE_URL="https://huhrgvijgsshqlsnqeuz.supabase.co";
+01347: const HLGB_SUPABASE_REST="https://huhrgvijgsshqlsnqeuz.supabase.co/rest/v1/";
+
+=== missingPieces @ line 1229 ===
+01184: <h2>📦 Entregas da projeção</h2>
+01185: <div class="sub">Acompanhe separadamente o que ainda falta entregar e o que já foi entregue. Entregas parciais vão sendo somadas automaticamente; o saldo restante pode ser reagendado sem alterar o histórico do que já saiu.</div>
+01186: <div id="projectionDeliverySummaryCards" class="cards"></div>
+01187: <div class="toolbar" style="margin-top:8px">
+01188:   <button type="button" id="projectionTabRemaining" class="primary" onclick="setProjectionDeliveryTab('remaining')">📋 Falta entregar</button>
+01189:   <button type="button" id="projectionTabDelivered" class="secondary" onclick="setProjectionDeliveryTab('delivered')">✅ Entregue</button>
+01190: </div>
+01191: <div id="projectionRemainingPane"><div id="projectionRemainingTable"></div></div>
+01192: <div id="projectionDeliveredPane" style="display:none"><div id="projectionDeliveredTable"></div></div>
+01193: </div>
+01194: 
+01195: <div class="panel">
+01196: <h2>Valor projetado por cliente</h2>
+01197: <div class="sub">Mantém o valor previsto de cada cliente, mesmo quando a entrega for dividida em vários produtos ou semanas.</div>
+01198: <div id="clientProjectionTable"></div>
+01199: </div>
+01200: 
+01201: <div class="panel">
+01202: <h2>Onde está sendo produzido</h2>
+01203: <div class="sub">Produção por local, quantidade e valor relacionado aos produtos do período.</div>
+01204: <div id="locationProjectionTable"></div>
+01205: </div>
+01206: 
+01207: <div class="panel">
+01208: <h2>Produção por cortador</h2>
+01209: <div id="cutterProjectionTable"></div>
+01210: </div>
+01211: 
+01212: <div class="panel">
+01213: <h2>Gráfico — peças previstas por cliente</h2>
+01214: <canvas id="clientChart" height="260" style="width:100%;max-width:100%;display:block"></canvas>
+01215: </div>
+01216: 
+01217: <div class="panel">
+01218: <h2>Resumo operacional do período</h2>
+01219: <div id="weeklySummary"></div>
+01220: </div>
+01221: </section>
+01222: <section id="faltas" class="page">
+01223: <h1>⚠️ Faltas e defeitos</h1>
+01224: <div class="sub">Os defeitos e perdas informados nas facções entram automaticamente aqui. Acompanhe quantidades, valores, custos e faça a baixa quando a peça for recuperada, refeita ou entregue.</div>
+01225: 
+01226: <div class="panel">
+01227:   <div class="toolbar" style="align-items:flex-end;flex-wrap:wrap">
+01228:     <div class="field"><label>De</label><input id="missingStart" type="date" onchange="renderMissingPieces()"></div>
+01229:     <div class="field"><label>Até</label><input id="missingEnd" type="date" onchange="renderMissingPieces()"></div>
+01230:     <button type="button" class="secondary" onclick="setMissingPeriod('week')">Esta semana</button>
+01231:     <button type="button" class="secondary" onclick="setMissingPeriod('month')">Este mês</button>
+01232:     <button type="button" class="secondary" onclick="setMissingPeriod('year')">Este ano</button>
+01233:     <button type="button" class="secondary" onclick="setMissingPeriod('all')">Todo o período</button>
+01234:   </div>
+01235:   <div id="missingPeriodLabel" class="sub"></div>
+01236: </div>
+01237: 
+01238: <div class="cards" id="missingCards"></div>
+01239: 
+01240: <div class="panel">
+01241:   <h2>Ocorrências em aberto</h2>
+01242:   <div class="sub">Use “Abater / recuperar” quando encontrar a peça, refizer um defeito ou conseguir entregar parte do que estava faltando.</div>
+01243:   <div id="missingOpenTable"></div>
+01244: </div>
+01245: 
+01246: <div class="panel">
+01247:   <h2>Histórico de baixas</h2>
+01248:   <div id="missingHistoryTable"></div>
+01249: </div>
+01250: </section>
+01251: 
+01252: <section id="devolucoesDefeitos" class="page">
+01253: <h1>🧵 Devoluções / Defeitos</h1>
+01254: <div class="sub">Registre peças devolvidas por defeito, envie para retrabalho no local que produziu e acompanhe o índice de qualidade de cada confecção/facção.</div>
+01255: <div class="panel">
+01256:  <div class="toolbar" style="align-items:flex-end;flex-wrap:wrap">
+01257:   <button type="button" class="primary" onclick="newDefectReturn()">+ Cadastrar devolução / defeito</button>
+01258:   <div class="field"><label>De</label><input id="defectStart" type="date" onchange="renderDefectReturns()"></div>
+01259:   <div class="field"><label>Até</label><input id="defectEnd" type="date" onchange="renderDefectReturns()"></div>
+01260:   <div class="field"><label>Local</label><select id="defectLocationFilter" onchange="renderDefectReturns()"><option value="">Todos os locais</option></select></div>
+01261:   <div class="field"><label>Produto</label><select id="defectProductFilter" onchange="renderDefectReturns()"><option value="">Todos os produtos</option></select></div>
+01262:   <button type="button" class="secondary" onclick="setDefectPeriod('month')">Este mês</button>
+01263:   <button type="button" class="secondary" onclick="setDefectPeriod('year')">Este ano</button>
+01264:   <button type="button" class="secondary" onclick="setDefectPeriod('all')">Todo o período</button>
+01265:  </div>
+01266: </div>
+01267: <div class="cards" id="defectCards"></div>
+01268: <div class="panel"><h2>Retrabalho e devoluções</h2><div id="defectReturnsTable"></div></div>
+01269: <div class="panel"><h2>📊 Qualidade por local de produção</h2><div class="sub">Índice de defeito = peças devolvidas por defeito ÷ peças produzidas no local × 100.</div><div id="defectQualityTable"></div></div>
+01270: </section>
+01271: 
+01272: <section id="relatorios" class="page">
+01273: <h1>Relatórios</h1>
+01274: <div class="sub">Resumo operacional para tomada de decisão.</div>
+01275: <div class="cards" id="reportCards"></div>
+01276: <div class="panel"><h2>Indicadores</h2><div id="reportBody"></div></div>
+01277: <div class="panel">
+01278:   <h2>📦 Venda por produto</h2>
+01279:   <div class="sub">Quantidade e valor vendido por produto no período escolhido.</div>
+01280:   <div class="toolbar" style="align-items:flex-end;flex-wrap:wrap;margin-top:12px">
+01281:     <button type="button" class="secondary" onclick="setProductSalesReportPeriod('week')">Esta semana</button>
+01282:     <button type="button" class="secondary" onclick="setProductSalesReportPeriod('month')">Este mês</button>
+01283:     <button type="button" class="secondary" onclick="setProductSalesReportPeriod('year')">Este ano</button>
+01284:     <div class="field"><label>De</label><input id="productSalesStart" type="date" onchange="renderProductSalesReport()"></div>
+01285:     <div class="field"><label>Até</label><input id="productSalesEnd" type="date" onchange="renderProductSalesReport()"></div>
+01286:   </div>
+01287:   <div class="cards" id="productSalesCards"></div>
+01288:   <div id="productSalesReport"></div>
+01289: </div>
+01290: </section>
+01291: 
+01292: <section id="hubFinanceiro" class="page">
+01293: <h1>Hub Financeiro</h1>
+01294: <div class="sub">Planejamento semanal de caixa separado do Financeiro geral. Compare entradas, saídas, categorias e a liquidez real entre Pix/dinheiro e cheques.</div>
+01295: <div class="panel">
+01296:   <div class="toolbar" style="align-items:flex-end;flex-wrap:wrap">
+01297:     <button type="button" class="secondary" onclick="changeHubFinanceWeek(-1)">← Semana anterior</button>
+01298:     <div class="field"><label>Semana do calendário</label><input id="hubFinanceWeek" type="week" onchange="renderHubFinance()"></div>
+01299:     <button type="button" class="secondary" onclick="changeHubFinanceWeek(1)">Próxima semana →</button>
+01300:     <button type="button" class="primary" onclick="newHubFinanceEntry('Entrada')">+ Entrada prevista</button>
+01301:     <button type="button" class="primary" onclick="newHubFinanceEntry('Saída')">+ Saída prevista</button>
+01302:     <button type="button" class="secondary" onclick="hubFinanceManualSync()">🔄 Sincronizar lançamentos</button>
+01303:   </div>
+01304:   <div id="hubFinanceWeekLabel" class="sub"></div>
+01305: </div>
+01306: <div id="hubFinanceCards" class="cards"></div>
+01307: <div id="hubFinanceLiquidityAlert"></div>
+01308: <div class="panel"><h2>📊 Saídas por categoria</h2><div class="sub">Mostra quanto cada categoria representa nas despesas da semana.</div><div id="hubFinanceCategoryTable"></div></div>
+01309: <div class="panel"><h2>💳 Liquidez por forma de pagamento</h2><div class="sub">Compara o que entra em Pix/dinheiro, o que entra em cheque e quais contas aceitam cheque.</div><div id="hubFinanceMethodTable"></div></div>
+01310: <div class="panel"><h2>📅 Próximas semanas</h2><div class="sub">Visão rápida para antecipar semanas com falta de caixa ou falta de liquidez.</div><div id="hubFinanceFutureTable"></div></div>
+01311: <div class="panel"><h2>Lançamentos da semana</h2><div id="hubFinanceEntriesTable"></div></div>
+01312: </section>
+01313: 
+01314: <section id="config" class="page"><h1>Configurações</h1>
+01315: <div class="panel"><div class="grid"><div class="field"><label>Nome da confecção</label><input id="companyName"></div><div class="field"><label>Moeda</label><input value="R$" disabled></div><div class="field"><label>Observações</label><input id="companyNote"></div></div><button class="primary" onclick="saveConfig()">Salvar configurações</button></div>
+01316: <div class="panel" id="ownerSecurityPanel" style="display:none"><h2>🔑 Segurança do proprietário</h2><div class="sub">Troque a senha do seu próprio acesso sem precisar entrar no Supabase.</div><div class="toolbar"><button type="button" class="primary" onclick="openOwnerPasswordChange()">🔑 Alterar minha senha</button></div></div>
+01317: <div class="panel"><h2>👥 Usuários e permissões</h2><div class="sub">Crie acessos online para funcionários. Cada pessoa entra com o próprio e-mail e senha e vê somente as áreas liberadas pelo administrador.</div>
+01318: <div class="toolbar"><button class="primary" onclick="newUser()">+ Novo usuário</button></div><div id="userTable"></div><div class="sub" style="margin-top:10px">As senhas nunca ficam salvas no HLGB. Você pode alterar o e-mail de acesso e redefinir a senha dos usuários secundários a qualquer momento.</div></div>
+01319: <div class="panel"><h2>🔐 Log de usuários</h2><div class="sub">Histórico de entrada, saída, páginas acessadas, alterações salvas e período de uso dos logins secundários.</div>
+01320: <div class="toolbar"><button type="button" class="secondary" onclick="renderAuditLog()">🔄 Atualizar log</button><button type="button" class="danger" onclick="clearAuditLog()">Limpar log</button></div>
+01321: <div id="auditSummary"></div><div id="auditLogTable" class="audit-log"></div></div>
+01322: </section>
+01323: </main></div>
+01324: 
+01325: <div class="modal" id="modal"><div class="modalbox"><button class="close" onclick="closeModal()">×</button><div id="modalContent"></div></div></div>
+01326: 
+01327: <script>
+01328: const KEY="confeccao_v2";
+01329: let db=JSON.parse(localStorage.getItem(KEY)||"null")||{"clients": [{"id": 1, "name": "Gisele", "phone": "", "city": ""}, {"id": 1787847286673, "name": "Quezia", "phone": "", "city": "", "document": "", "prices": {}}], "products": [{"id": 1, "name": "Camisola Fenda", "price": 12.9, "cost": 7.1, "material": "Romantic", "color": "Preto", "materials": [{"name": "Romantic", "cat": "Tecido", "unit": "m", "qty": 0, "loss": 0, "price": 0}], "labor": 0, "cutCost": 0, "factionCost": 0, "packCost": 0, "otherCost": 0}, {"id": 2, "name": "Conjunto Selena", "price": 17, "cost": 9.4, "material": "Tule", "color": "Rubi", "materials": [{"name": "Tule", "cat": "Tecido", "unit": "m", "qty": 0, "loss": 0, "price": 0}], "labor": 0, "cutCost": 0, "factionCost": 0, "packCost": 0, "otherCost": 0}, {"id": 3, "name": "Conjunto Bordado", "price": 13.9, "cost": 7.8, "material": "Tule bordado", "color": "Branco", "materials": [{"name": "Tule bordado", "cat": "Tecido", "unit": "m", "qty": 0, "loss": 0, "price": 0}], "labor": 0, "cutCost": 0, "factionCost": 0, "packCost": 0, "otherCost": 0}, {"code": "", "name": "Camisola Ana Melia", "category": "Lingerie", "material": "", "color": "", "supplierId": null, "sizes": ["P", "M", "G", "GG"], "note": "", "materials": [{"name": "romantic", "cat": "Tecido", "unit": "kg", "qty": 0.17, "loss": 0, "price": 31.99}, {"name": "renda", "cat": "Renda", "unit": "kg", "qty": 0.02, "loss": 0, "price": 55}, {"name": "sanduiche 16", "cat": "Tecido", "unit": "m", "qty": 0.8, "loss": 0, "price": 0.22}, {"name": "alça papiro", "cat": "Aviamento", "unit": "un.", "qty": 1, "loss": 0, "price": 0.52}], "labor": 2, "cutCost": 0.4, "factionCost": 1.8, "packCost": 0.2, "otherCost": 0, "price": 11.3, "id": 1787848080784}], "orders": [{"id": 1, "client": "Gisele", "date": "2026-08-30", "total": 3870, "status": "Produção", "items": "300 Camisolas Fenda"}, {"id": 2, "client": "Cliente atacado", "date": "2026-09-03", "total": 4981, "totalQty": 293, "status": "Aberto", "items": "293 Conjuntos Selena"}, {"id": 1787847259461, "client": "Gisele", "clientId": 1, "productId": 2, "items": "300 Conjunto Selena", "qty": 300, "unitPrice": 17, "date": "2026-09-03", "total": 5100, "status": "Aberto"}, {"id": 1787847310961, "client": "Quezia", "clientId": 1787847286673, "productId": 1, "items": "200 Camisola Fenda", "qty": 200, "unitPrice": 12.9, "date": "2026-09-01", "total": 2580, "status": "Aberto"}, {"id": 1787848140017, "client": "Gisele", "clientId": 1, "productId": 1787848080784, "items": "150 Camisola Ana Melia", "qty": 150, "unitPrice": 11.3, "date": "2026-09-02", "total": 1695, "status": "Aberto"}], "production": [{"id": 1, "op": "OP-00125", "product": "Camisola Fenda", "color": "Preto", "size": "M", "planned": 300, "done": 180, "stage": "Costura"}, {"id": 2, "op": "OP-00126", "product": "Conjunto Selena", "color": "Rubi", "size": "G", "planned": 293, "done": 0, "stage": "Corte"}], "cuts": [{"id": 1, "op": "OP-00126", "fabric": "Tule", "color": "Rubi", "layers": 20, "meters": 82, "pieces": 293}], "stock": [{"id": 1, "item": "Tule bordado", "cat": "Matéria-prima", "qty": 84, "unit": "m", "min": 50}, {"id": 2, "item": "Elástico", "cat": "Aviamento", "qty": 12, "unit": "rolos", "min": 20}, {"id": 3, "item": "Camisola Fenda", "cat": "Produto acabado", "qty": 450, "unit": "un.", "min": 100}], "factions": [{"id": 1, "name": "Facção 01", "op": "OP-00125", "sent": 500, "done": 380, "returned": 120, "price": 1.8}], "cutters": [{"id": 1, "name": "Cortador 01", "active": true}], "finance": [{"id": 1, "type": "Receber", "desc": "Pedido Gisele", "value": 3870, "status": "Pendente", "date": "2026-08-30"}, {"id": 2, "type": "Pagar", "desc": "Compra de tecido", "value": 1450, "status": "Pendente", "date": "2026-08-28"}], "config": {"name": "HLGB Confecções", "note": ""}, "suppliers": []};
+01330: 
+01331: 
+01332: // v89.85 — pacote do dia: persistência + senha proprietário + filtros + devoluções + duplicidade + cores por pedido
+01333: // v89.84 — gravação transacional: salva antes de sair + recupera pendências locais
+01334: // v89.83 — marcador visível + cache-bust para confirmar publicação correta
+01335: // v89.87 — sincronização automática entre máquinas/usuários + proteção contra sobrescrita concorrente
+01336: // v89.91 — correção estrutural do boot: cópia local antiga nunca sobrescreve a nuvem ao entrar + render não suja o banco
+01337: // v89.91 — correção de sincronização secundária: logs não bloqueiam pull + preserva diretório de usuários remoto
+01338: // v89.89 — sincronização híbrida: Broadcast + Realtime + verificação de versão a cada 1s
+01339: // v89.88 — Supabase Realtime: atualização instantânea entre máquinas + fallback de polling
+01340: // v89.82 — autorização por e-mail; acesso secundário não depende de sincronização manual
+01341: // v89.81 — autorização de usuários em tabela dedicada do Supabase (sem depender da sincronização do banco inteiro)
+01342: // v89.80 — sessão persistente + ativação de usuários sem sincronização manual
+01343: // v89.79 — sessão online consistente + somente proprietário pode ser administrador
+01344: // v89.78 — autorização de usuários sincronizada antes do primeiro login
+01345: // v89.77 — HLGB Online — backup exclusivo do proprietário
+01346: const HLGB_SUPABASE_URL="https://huhrgvijgsshqlsnqeuz.supabase.co";
+01347: const HLGB_SUPABASE_REST="https://huhrgvijgsshqlsnqeuz.supabase.co/rest/v1/";
+01348: const HLGB_SUPABASE_KEY="sb_publishable_2zL74U_IvJ3ebgNTmjioLg_R13RgBwa";
+
+=== missingPieces @ line 3897 ===
+03852:     <div class="card"><small>Produção em facções</small><strong>${external.reduce((a,r)=>a+(+r.qty||0),0).toLocaleString("pt-BR")} peças</strong><div class="sub">${money(external.reduce((a,r)=>a+(+r.value||0),0))}</div></div>`;
+03853: 
+03854:   let groups={};
+03855:   rows.forEach(r=>{
+03856:     let g=groups[r.location]||(groups[r.location]={orders:0,pieces:0,value:0,forecast:0,noForecast:0});
+03857:     g.orders++;g.pieces+=+r.qty||0;g.value+=+r.value||0;
+03858:     if(r.forecast&&r.forecast!=="-")g.forecast+=+r.qty||0;else g.noForecast+=+r.qty||0;
+03859:   });
+03860:   let locDiv=document.getElementById("productionByLocation");
+03861:   let gr=Object.entries(groups).sort((a,b)=>b[1].pieces-a[1].pieces);
+03862:   if(locDiv)locDiv.innerHTML=gr.length?table(["Local","Pedidos","Peças","Valor em produção","Com previsão","Sem previsão"],gr.map(([name,g])=>[
+03863:     esc(name),g.orders,g.pieces.toLocaleString("pt-BR"),money(g.value),g.forecast.toLocaleString("pt-BR"),g.noForecast?`<strong>${g.noForecast.toLocaleString("pt-BR")}</strong>`:"0"
+03864:   ])):'<div class="empty">Nenhuma mercadoria em produção no momento.</div>';
+03865: 
+03866:   let tbl=document.getElementById("productionHubTable");
+03867:   if(tbl)tbl.innerHTML=filtered.length?table(["Pedido","Cliente","Produto","Peças","Valor","Local atual","Previsão","Prioridade","Etapa","Ações"],filtered.map(r=>[
+03868:     esc(String(r.number)),esc(r.client),esc(r.products),r.qty.toLocaleString("pt-BR"),money(r.value),esc(r.location),
+03869:     r.forecast&&r.forecast!=="-"?fmtDate(r.forecast):'<span class="badge">Sem previsão</span>',
+03870:     esc(r.priority),esc(r.stage),
+03871:     r.order?`${r.productionId?`<button class="secondary" onclick="openProductionDestination(${r.productionId})">Editar produção</button> `:""}<button class="secondary" onclick="viewOrderDetails(${r.id})">Ver pedido</button>`:"-"
+03872:   ])):'<div class="empty">Nenhum pedido encontrado com estes filtros.</div>';
+03873: }
+03874: function page(id,btn){
+03875: if(!canOpenPage(id)){alert("Seu usuário não tem permissão para acessar esta área.");return}
+03876: if(id==="dashboard")setTimeout(renderDash,0);
+03877: document.querySelectorAll(".page").forEach(x=>x.classList.remove("active"));
+03878: const target=document.getElementById(id);
+03879: if(!target){alert("Esta tela ainda não foi carregada.");return}
+03880: target.classList.add("active");
+03881: document.querySelectorAll("nav button").forEach(x=>x.classList.remove("active"));
+03882: if(btn){btn.classList.add("active");openParentNavGroup(btn)}
+03883: if(id==="projecao")renderProjection();
+03884: if(id==="capacidadeProducao")renderCapacityPlanning();
+03885: if(["cadFaccoes","cadLocaisProducao","cadMaquinas","cadTiposServico"].includes(id))renderFactions();
+03886: if(id==="lixeiraPedidos")renderOrderTrash();
+03887: if(id==="metas")renderGoals();
+03888: if(id==="notas")renderOrderNotes();
+03889: if(id==="corte"){try{syncOrdersToCuts()}catch(e){console.error(e)} renderCuts();}
+03890: if(id==="faccoes")renderFactions();
+03891: if(id==="pagamentosFaccoes")renderFactionPayments();
+03892: if(id==="cortadores"){renderCutters();if(typeof drawCutterChart==="function")drawCutterChart();renderCutterProductCosts();}
+03893: if(id==="produtos")renderProducts();
+03894: if(id==="pedidos"){renderOrders();fillSeparationOrders();renderOrderNotes();}
+03895: if(id==="clientes"){ensureClientPotentialFilter();renderClients();renderClientPotentialReport();}
+03896: if(id==="producao"){syncFinalizedCutsToProduction();renderProduction();}
+03897: if(id==="faltas")renderMissingPieces();
+03898: if(id==="devolucoesDefeitos")renderDefectReturns();
+03899: if(id==="financeiro")renderFinance();
+03900: if(id==="estoque")renderStock();
+03901: if(id==="inventarioBens")renderAssets();
+03902: if(id==="funcionarios")renderEmployees();
+03903: if(id==="exFuncionarios")renderFormerEmployees();
+03904: if(id==="folhaPagamento")renderPayroll();if(id==="producao")renderProductionHub();
+03905: auditAction("Acessou tela",id);
+03906: ensurePageSyncButtons();
+03907: }
+03908: function openModal(title,body,fn){document.getElementById("modalContent").innerHTML="<h2>"+title+"</h2>"+body;document.getElementById("modal").classList.add("show");window.modalSave=fn}
+03909: function closeModal(){document.getElementById("modal").classList.remove("show");window.modalSave=null}
+03910: function submitModal(){if(window.modalSave)window.modalSave()}
+03911: document.addEventListener("click",e=>{if(e.target.matches(".modalSave"))submitModal()})
+03912: function openProducts(btn){
+03913: document.querySelectorAll(".page").forEach(x=>x.classList.remove("active"));
+03914: const target=document.getElementById("produtos");
+03915: if(!target){alert("A tela de Produtos não foi encontrada.");return}
+03916: target.classList.add("active");
+03917: document.querySelectorAll("nav button").forEach(x=>x.classList.remove("active"));
+03918: if(btn){btn.classList.add("active");openParentNavGroup(btn)}
+03919: db.products=Array.isArray(db.products)?db.products:[];
+03920: db.clients=Array.isArray(db.clients)?db.clients:[];
+03921: db.suppliers=Array.isArray(db.suppliers)?db.suppliers:[];
+03922: db.purchases=Array.isArray(db.purchases)?db.purchases:[];
+03923: if(!db.config)db.config={};
+03924: if(db.config.weeklyPurchaseLimit==null)db.config.weeklyPurchaseLimit=0;
+03925: ensureProductSuggestionSettings();
+03926: db.goals=Array.isArray(db.goals)?db.goals:[];
+03927: db.missingPieces=Array.isArray(db.missingPieces)?db.missingPieces:[];
+03928: (db.suppliers||[]).forEach(s=>{
+03929:   if(!Array.isArray(s.products))s.products=[];
+03930: });
+03931: 
+03932: if(typeof ensureRobeAlice==="function") ensureRobeAlice();
+03933: (db.products||[]).forEach(p=>{
+03934:   (p.materials||[]).forEach(m=>{
+03935:     if(!m.calcMode){
+03936:       let u=String(m.unit||"").trim().toLowerCase();
+03937:       m.calcMode=(u==="pk")?"yield":"consumption";
+03938:     }
+03939:   });
+03940: });
+03941: 
+03942: renderProducts();
+03943: renderProductSuggestionSettings();
+03944: }
+03945: 
+03946: function fmtDate(v){ if(!v) return "-"; let d=new Date(String(v)+"T12:00:00"); return isNaN(d)?String(v):d.toLocaleDateString("pt-BR"); }
+03947: function noteDueInfo(o){
+03948:   let raw=o.dueDate||o.date;
+03949:   if(!raw) return {label:"-",cls:""};
+03950:   let d=new Date(raw+"T12:00:00");
+03951:   if(isNaN(d)) return {label:fmtDate(raw),cls:""};
+03952:   let today=new Date(); today.setHours(12,0,0,0);
+03953:   let diff=Math.round((d-today)/86400000);
+03954:   if(diff<0) return {label:`Vencida há ${Math.abs(diff)} dia${Math.abs(diff)===1?"":"s"}`,cls:"warn"};
+03955:   if(diff===0) return {label:"Vence hoje",cls:"warn"};
+03956:   return {label:`Vence em ${diff} dia${diff===1?"":"s"}`,cls:""};
+03957: }
+03958: function orderPaid(o){
+03959:   let arr=Array.isArray(o.paymentHistory)?o.paymentHistory:[];
+03960:   if(arr.length) return arr.reduce((s,p)=>s+(+p.value||0),0);
+03961:   // Compatibilidade com versões anteriores que guardavam o recebido
+03962:   // diretamente no pedido, sem registrar o histórico.
+03963:   return Math.max(0,+o.received||0);
+03964: }
+03965: function orderRemaining(o){
+03966:   return Math.max(0,(+o.total||0)-orderPaid(o));
+03967: }
+03968: 
+03969: function ensureRobeAlice(){
+03970:   db.products=db.products||[];
+03971:   if(db.products.some(p=>String(p.name||"").trim().toLowerCase()==="robe alice")) return;
+03972:   db.products.push({
+03973:     id:1787849000001,
+03974:     code:"",
+03975:     name:"Robe Alice",
+03976:     category:"Robe",
+03977:     material:"Tulle",
+03978:     color:"",
+03979:     supplierId:null,
+03980:     sizes:["P","M","G","GG"],
+03981:     note:"Tabela da planilha: Luz/Embalagem R$ 0,30. Matéria Prima R$ 8,84. Mão de Obra R$ 4,42. Lucro R$ 4,42. Total da planilha R$ 17,68.",
+03982:     materials:[
+03983:       {name:"Tulle",cat:"Tecido",unit:"PK",qty:7.8,loss:0,price:5.38/7.8},
+03984:       {name:"Renda",cat:"Renda",unit:"m",qty:1.26,loss:0,price:1.83/1.26},
+03985:       {name:"Anis",cat:"Aviamento",unit:"m",qty:2.25,loss:0,price:1.04/2.25},
+03986:       {name:"Fita 005",cat:"Aviamento",unit:"m",qty:1.55,loss:0,price:0.59/1.55}
+03987:     ],
+03988:     labor:4.42,
+03989:     cutCost:0,
+03990:     factionCost:0,
+03991:     packCost:0,
+03992:     otherCost:0,
+03993:     price:17.68,
+03994:     costTable:[
+03995:       {item:"Tulle",consumo:"7,80 PK",custo:"R$ 5,38"},
+03996:       {item:"Renda",consumo:"1,26 MT",custo:"R$ 1,83"},
+03997:       {item:"Anis",consumo:"2,25 MT",custo:"R$ 1,04"},
+03998:       {item:"Fita 005",consumo:"1,55 MT",custo:"R$ 0,59"},
+03999:       {item:"Luz/Embalagem",consumo:"-",custo:"R$ 0,30"},
+04000:       {item:"Matéria Prima",consumo:"-",custo:"R$ 8,84"},
+04001:       {item:"Mão de Obra",consumo:"-",custo:"R$ 4,42"},
+04002:       {item:"Lucro",consumo:"-",custo:"R$ 4,42"},
+04003:       {item:"Total da planilha",consumo:"-",custo:"R$ 17,68"}
+04004:     ]
+04005:   });
+04006:   persistDb();
+04007: }
+04008: 
+04009: function migratePaymentHistory(){
+04010:   db.orders=db.orders||[];
+04011:   db.finance=db.finance||[];
+04012:   db.invoices=db.invoices||[];
+04013:   db.orders.forEach(o=>{
+04014:     o.paymentHistory=Array.isArray(o.paymentHistory)?o.paymentHistory:[];
+04015:     if(o.paymentHistory.length===0 && (+o.received||0)>0){
+04016:       o.paymentHistory.push({
+
+=== missingPieces @ line 3927 ===
+03882: if(btn){btn.classList.add("active");openParentNavGroup(btn)}
+03883: if(id==="projecao")renderProjection();
+03884: if(id==="capacidadeProducao")renderCapacityPlanning();
+03885: if(["cadFaccoes","cadLocaisProducao","cadMaquinas","cadTiposServico"].includes(id))renderFactions();
+03886: if(id==="lixeiraPedidos")renderOrderTrash();
+03887: if(id==="metas")renderGoals();
+03888: if(id==="notas")renderOrderNotes();
+03889: if(id==="corte"){try{syncOrdersToCuts()}catch(e){console.error(e)} renderCuts();}
+03890: if(id==="faccoes")renderFactions();
+03891: if(id==="pagamentosFaccoes")renderFactionPayments();
+03892: if(id==="cortadores"){renderCutters();if(typeof drawCutterChart==="function")drawCutterChart();renderCutterProductCosts();}
+03893: if(id==="produtos")renderProducts();
+03894: if(id==="pedidos"){renderOrders();fillSeparationOrders();renderOrderNotes();}
+03895: if(id==="clientes"){ensureClientPotentialFilter();renderClients();renderClientPotentialReport();}
+03896: if(id==="producao"){syncFinalizedCutsToProduction();renderProduction();}
+03897: if(id==="faltas")renderMissingPieces();
+03898: if(id==="devolucoesDefeitos")renderDefectReturns();
+03899: if(id==="financeiro")renderFinance();
+03900: if(id==="estoque")renderStock();
+03901: if(id==="inventarioBens")renderAssets();
+03902: if(id==="funcionarios")renderEmployees();
+03903: if(id==="exFuncionarios")renderFormerEmployees();
+03904: if(id==="folhaPagamento")renderPayroll();if(id==="producao")renderProductionHub();
+03905: auditAction("Acessou tela",id);
+03906: ensurePageSyncButtons();
+03907: }
+03908: function openModal(title,body,fn){document.getElementById("modalContent").innerHTML="<h2>"+title+"</h2>"+body;document.getElementById("modal").classList.add("show");window.modalSave=fn}
+03909: function closeModal(){document.getElementById("modal").classList.remove("show");window.modalSave=null}
+03910: function submitModal(){if(window.modalSave)window.modalSave()}
+03911: document.addEventListener("click",e=>{if(e.target.matches(".modalSave"))submitModal()})
+03912: function openProducts(btn){
+03913: document.querySelectorAll(".page").forEach(x=>x.classList.remove("active"));
+03914: const target=document.getElementById("produtos");
+03915: if(!target){alert("A tela de Produtos não foi encontrada.");return}
+03916: target.classList.add("active");
+03917: document.querySelectorAll("nav button").forEach(x=>x.classList.remove("active"));
+03918: if(btn){btn.classList.add("active");openParentNavGroup(btn)}
+03919: db.products=Array.isArray(db.products)?db.products:[];
+03920: db.clients=Array.isArray(db.clients)?db.clients:[];
+03921: db.suppliers=Array.isArray(db.suppliers)?db.suppliers:[];
+03922: db.purchases=Array.isArray(db.purchases)?db.purchases:[];
+03923: if(!db.config)db.config={};
+03924: if(db.config.weeklyPurchaseLimit==null)db.config.weeklyPurchaseLimit=0;
+03925: ensureProductSuggestionSettings();
+03926: db.goals=Array.isArray(db.goals)?db.goals:[];
+03927: db.missingPieces=Array.isArray(db.missingPieces)?db.missingPieces:[];
+03928: (db.suppliers||[]).forEach(s=>{
+03929:   if(!Array.isArray(s.products))s.products=[];
+03930: });
+03931: 
+03932: if(typeof ensureRobeAlice==="function") ensureRobeAlice();
+03933: (db.products||[]).forEach(p=>{
+03934:   (p.materials||[]).forEach(m=>{
+03935:     if(!m.calcMode){
+03936:       let u=String(m.unit||"").trim().toLowerCase();
+03937:       m.calcMode=(u==="pk")?"yield":"consumption";
+03938:     }
+03939:   });
+03940: });
+03941: 
+03942: renderProducts();
+03943: renderProductSuggestionSettings();
+03944: }
+03945: 
+03946: function fmtDate(v){ if(!v) return "-"; let d=new Date(String(v)+"T12:00:00"); return isNaN(d)?String(v):d.toLocaleDateString("pt-BR"); }
+03947: function noteDueInfo(o){
+03948:   let raw=o.dueDate||o.date;
+03949:   if(!raw) return {label:"-",cls:""};
+03950:   let d=new Date(raw+"T12:00:00");
+03951:   if(isNaN(d)) return {label:fmtDate(raw),cls:""};
+03952:   let today=new Date(); today.setHours(12,0,0,0);
+03953:   let diff=Math.round((d-today)/86400000);
+03954:   if(diff<0) return {label:`Vencida há ${Math.abs(diff)} dia${Math.abs(diff)===1?"":"s"}`,cls:"warn"};
+03955:   if(diff===0) return {label:"Vence hoje",cls:"warn"};
+03956:   return {label:`Vence em ${diff} dia${diff===1?"":"s"}`,cls:""};
+03957: }
+03958: function orderPaid(o){
+03959:   let arr=Array.isArray(o.paymentHistory)?o.paymentHistory:[];
+03960:   if(arr.length) return arr.reduce((s,p)=>s+(+p.value||0),0);
+03961:   // Compatibilidade com versões anteriores que guardavam o recebido
+03962:   // diretamente no pedido, sem registrar o histórico.
+03963:   return Math.max(0,+o.received||0);
+03964: }
+03965: function orderRemaining(o){
+03966:   return Math.max(0,(+o.total||0)-orderPaid(o));
+03967: }
+03968: 
+03969: function ensureRobeAlice(){
+03970:   db.products=db.products||[];
+03971:   if(db.products.some(p=>String(p.name||"").trim().toLowerCase()==="robe alice")) return;
+03972:   db.products.push({
+03973:     id:1787849000001,
+03974:     code:"",
+03975:     name:"Robe Alice",
+03976:     category:"Robe",
+03977:     material:"Tulle",
+03978:     color:"",
+03979:     supplierId:null,
+03980:     sizes:["P","M","G","GG"],
+03981:     note:"Tabela da planilha: Luz/Embalagem R$ 0,30. Matéria Prima R$ 8,84. Mão de Obra R$ 4,42. Lucro R$ 4,42. Total da planilha R$ 17,68.",
+03982:     materials:[
+03983:       {name:"Tulle",cat:"Tecido",unit:"PK",qty:7.8,loss:0,price:5.38/7.8},
+03984:       {name:"Renda",cat:"Renda",unit:"m",qty:1.26,loss:0,price:1.83/1.26},
+03985:       {name:"Anis",cat:"Aviamento",unit:"m",qty:2.25,loss:0,price:1.04/2.25},
+03986:       {name:"Fita 005",cat:"Aviamento",unit:"m",qty:1.55,loss:0,price:0.59/1.55}
+03987:     ],
+03988:     labor:4.42,
+03989:     cutCost:0,
+03990:     factionCost:0,
+03991:     packCost:0,
+03992:     otherCost:0,
+03993:     price:17.68,
+03994:     costTable:[
+03995:       {item:"Tulle",consumo:"7,80 PK",custo:"R$ 5,38"},
+03996:       {item:"Renda",consumo:"1,26 MT",custo:"R$ 1,83"},
+03997:       {item:"Anis",consumo:"2,25 MT",custo:"R$ 1,04"},
+03998:       {item:"Fita 005",consumo:"1,55 MT",custo:"R$ 0,59"},
+03999:       {item:"Luz/Embalagem",consumo:"-",custo:"R$ 0,30"},
+04000:       {item:"Matéria Prima",consumo:"-",custo:"R$ 8,84"},
+04001:       {item:"Mão de Obra",consumo:"-",custo:"R$ 4,42"},
+04002:       {item:"Lucro",consumo:"-",custo:"R$ 4,42"},
+04003:       {item:"Total da planilha",consumo:"-",custo:"R$ 17,68"}
+04004:     ]
+04005:   });
+04006:   persistDb();
+04007: }
+04008: 
+04009: function migratePaymentHistory(){
+04010:   db.orders=db.orders||[];
+04011:   db.finance=db.finance||[];
+04012:   db.invoices=db.invoices||[];
+04013:   db.orders.forEach(o=>{
+04014:     o.paymentHistory=Array.isArray(o.paymentHistory)?o.paymentHistory:[];
+04015:     if(o.paymentHistory.length===0 && (+o.received||0)>0){
+04016:       o.paymentHistory.push({
+04017:         id:Date.now()+Math.floor(Math.random()*100000),
+04018:         date:o.invoiceDate||o.date||isoDate(new Date()),
+04019:         method:o.lastPaymentMethod||"PIX",
+04020:         value:+(+o.received).toFixed(2),
+04021:         note:"Recebimento registrado anteriormente"
+04022:       });
+04023:     }
+04024:     let paid=orderPaid(o), rem=orderRemaining(o);
+04025:     o.received=paid;
+04026:     o.remaining=rem;
+04027:     o.paymentStatus=rem<=0.009?"Pago":(paid>0?"Parcial":"Pendente");
+04028: 
+04029:     db.finance.filter(f=>+f.orderId===+o.id&&f.type==="Receber").forEach(f=>{
+04030:       f.paid=paid;
+04031:       f.remaining=rem;
+04032:       f.status=rem<=0.009?"Pago":"Pendente";
+04033:     });
+04034:     db.invoices.filter(n=>+n.orderId===+o.id).forEach(n=>{
+04035:       n.status=rem<=0.009?"Paga":"Pendente";
+04036:       n.paidAt=rem<=0.009?(n.paidAt||isoDate(new Date())):null;
+04037:     });
+04038:   });
+04039:   persistDb();
+04040: }
+04041: 
+04042: function paymentBadge(o){let rem=orderRemaining(o);if(rem<=0.009)return '<span class="badge ok">PAGO</span>';if(orderPaid(o)>0)return '<span class="badge">PARCIAL</span>';return '<span class="badge warn">EM ABERTO</span>'}
+04043: function renderOrderNotes(){
+04044:  let ready=(db.orders||[]).filter(o=>o.invoiceReady===true || o.noteReady===true || (db.invoices||[]).some(n=>+n.orderId===+o.id));
+04045:  ready.forEach(o=>{o.paymentHistory=o.paymentHistory||[]});
+04046:  let openList=ready.filter(o=>orderRemaining(o)>0.009);
+
+=== missingPieces @ line 4232 ===
+04187:   if(saveFeedback){
+04188:     saveFeedback.textContent='✓ Recebimento salvo com sucesso.';
+04189:     saveFeedback.style.display='block';
+04190:   }
+04191: 
+04192:   // Se houver foto do cheque, ela é salva em segundo plano.
+04193:   if(method==='Cheque'){
+04194:     const cp=document.getElementById('acChequePhoto');
+04195:     if(cp?.files?.[0]){
+04196:       const file=cp.files[0];
+04197:       const paymentId=payment.id;
+04198:       const reader=new FileReader();
+04199:       reader.onload=()=>{
+04200:         const current=(db.orders||[]).find(x=>+x.id===+orderId);
+04201:         const currentPayment=current?.paymentHistory?.find(x=>+x.id===+paymentId);
+04202:         if(currentPayment?.cheque){
+04203:           currentPayment.cheque.photo=reader.result;
+04204:           persistDb();
+04205:           const hb=document.getElementById('paymentHistoryBox');
+04206:           if(hb) hb.innerHTML=paymentMethodRows(current);
+04207:         }
+04208:       };
+04209:       reader.onerror=()=>console.warn('Não foi possível salvar a foto do cheque.');
+04210:       reader.readAsDataURL(file);
+04211:     }
+04212:   }
+04213:  }catch(e){
+04214:   console.error(e);
+04215:   alert('Não foi possível dar baixa neste recebimento. O lançamento não foi concluído.');
+04216:  }
+04217: }
+04218: function viewChequePhoto(orderId,index){const o=(db.orders||[]).find(x=>+x.id===+orderId),p=o?.paymentHistory?.[index];if(!p?.cheque?.photo){alert('Este cheque não possui foto cadastrada.');return}openModal('Foto do cheque',`<div style="text-align:center"><img src="${p.cheque.photo}" alt="Foto do cheque" style="max-width:100%;max-height:70vh;border-radius:10px"><div style="margin-top:10px"><b>Dono:</b> ${esc(p.cheque.owner||'-')} &nbsp; <b>Data:</b> ${fmtDate(p.cheque.date)} ${p.cheque.number?`&nbsp; <b>Nº:</b> ${esc(p.cheque.number)}`:''}</div></div>`,()=>{});}
+04219: function removePayment(orderId,index){
+04220:  let o=(db.orders||[]).find(x=>+x.id===+orderId);if(!o||!o.paymentHistory)return;
+04221:  if(!confirm('Excluir este recebimento e recalcular o saldo?'))return;
+04222:  o.paymentHistory.splice(index,1);let rem=orderRemaining(o);o.paymentStatus=rem<=0.009?'Pago':(orderPaid(o)>0?'Parcial':'Pendente');
+04223:  let f=(db.finance||[]).find(x=>+x.orderId===+o.id&&x.type==='Receber');if(f){f.paid=orderPaid(o);f.remaining=rem;f.status=rem<=0.009?'Pago':'Pendente';}
+04224:  save();openAcerto(orderId);
+04225: }
+04226: function togglePaid(orderId){let o=(db.orders||[]).find(x=>+x.id===+orderId);if(!o)return;o.paymentHistory=o.paymentHistory||[];let rem=orderRemaining(o);if(rem<=0.009){o.paymentStatus='Pendente';o.paymentHistory=[];}else{o.paymentHistory.push({id:Date.now(),date:isoDate(new Date()),method:'Pagamento total',value:rem,note:'Baixa manual'});o.paymentStatus='Pago';}save()}
+04227: 
+04228: function cleanupOrphanOrderRecords(){
+04229:  db.orders=Array.isArray(db.orders)?db.orders:[];
+04230:  const validOrderIds=new Set(db.orders.map(o=>+o.id));
+04231: 
+04232:  let removed={cuts:0,production:0,separations:0,factions:0,factionPayments:0,missingPieces:0,finance:0};
+04233: 
+04234:  function cleanByOrderId(name){
+04235:    db[name]=Array.isArray(db[name])?db[name]:[];
+04236:    const before=db[name].length;
+04237:    db[name]=db[name].filter(x=>{
+04238:      if(x.orderId==null || x.orderId==="")return true;
+04239:      return validOrderIds.has(+x.orderId);
+04240:    });
+04241:    removed[name]=before-db[name].length;
+04242:  }
+04243: 
+04244:  cleanByOrderId("cuts");
+04245:  cleanByOrderId("production");
+04246:  cleanByOrderId("separations");
+04247:  cleanByOrderId("missingPieces");
+04248: 
+04249:  // Facções podem estar vinculadas diretamente ao pedido OU à produção.
+04250:  db.production=Array.isArray(db.production)?db.production:[];
+04251:  const validProductionIds=new Set(db.production.map(p=>+p.id));
+04252:  db.factions=Array.isArray(db.factions)?db.factions:[];
+04253:  const factionBefore=db.factions.length;
+04254:  db.factions=db.factions.filter(f=>{
+04255:    if(f.orderId!=null && f.orderId!=="" && !validOrderIds.has(+f.orderId))return false;
+04256:    if(f.productionId!=null && f.productionId!=="" && !validProductionIds.has(+f.productionId))return false;
+04257:    return true;
+04258:  });
+04259:  removed.factions=factionBefore-db.factions.length;
+04260: 
+04261:  // Pagamentos de facção órfãos
+04262:  db.factionPayments=Array.isArray(db.factionPayments)?db.factionPayments:[];
+04263:  const validFactionIds=new Set(db.factions.map(f=>+f.id));
+04264:  const fpBefore=db.factionPayments.length;
+04265:  db.factionPayments=db.factionPayments.filter(p=>{
+04266:    if(p.factionServiceId!=null && p.factionServiceId!=="" && !validFactionIds.has(+p.factionServiceId))return false;
+04267:    if(p.orderId!=null && p.orderId!=="" && !validOrderIds.has(+p.orderId))return false;
+04268:    return true;
+04269:  });
+04270:  removed.factionPayments=fpBefore-db.factionPayments.length;
+04271: 
+04272:  // Financeiro: só remove automaticamente registros explicitamente ligados a um pedido inexistente.
+04273:  db.finance=Array.isArray(db.finance)?db.finance:[];
+04274:  const finBefore=db.finance.length;
+04275:  db.finance=db.finance.filter(f=>{
+04276:    if(f.orderId==null || f.orderId==="")return true;
+04277:    return validOrderIds.has(+f.orderId);
+04278:  });
+04279:  removed.finance=finBefore-db.finance.length;
+04280: 
+04281:  const total=Object.values(removed).reduce((a,b)=>a+b,0);
+04282:  if(total>0){
+04283:    try{persistDb()}catch(e){console.error(e)}
+04284:    console.info("HLGB: registros órfãos removidos",removed);
+04285:  }
+04286:  return {total,removed};
+04287: }
+04288: function renderAll(){
+04289:  // Renderizar a interface nunca deve, por si só, criar uma alteração pendente.
+04290:  // Algumas rotinas legadas abaixo também fazem sincronizações derivadas; só
+04291:  // persistimos se elas realmente mudarem dados operacionais.
+04292:  let beforeSystemSync=null;
+04293:  try{beforeSystemSync=cloudOperationalPayload(cloudClone(db))}catch(e){}
+04294:  cleanupOrphanOrderRecords();
+04295:  syncLegacyMaterialCostsFromCostTable();
+04296:  let selectedSeparation=document.getElementById("separationOrder")?.value||"";
+04297:  syncOrdersToCuts();
+04298:  try{
+04299:    const afterSystemSync=cloudOperationalPayload(cloudClone(db));
+04300:    if(beforeSystemSync&&!cloudEq(beforeSystemSync,afterSystemSync)){
+04301:      if(cloudApplying||cloudBootstrapping)localSaveOnly();
+04302:      else persistDb();
+04303:    }
+04304:  }catch(e){}
+04305:  renderDash();renderOrders();renderProduction();renderCuts();renderStock();renderFactions();renderFactionPayments();if(document.getElementById("lixeiraPedidos")?.classList.contains("active"))renderOrderTrash();
+04306:  renderCutters();drawCutterChart();renderClients();if(document.getElementById("clientProfitReport"))renderClientPotentialReport();renderMaterials();renderCatalogs();renderUsers();
+04307:  fillSeparationOrders();
+04308:  if(selectedSeparation && document.getElementById("separationOrder")){
+04309:    document.getElementById("separationOrder").value=selectedSeparation;
+04310:    renderSeparation();
+04311:  }
+04312:  renderSuppliers();renderPurchases();renderProducts();renderFinance();renderEmployees();renderFormerEmployees();renderPayroll();renderReports();renderGoals();
+04313:  try{hlgb916EnsureData()}catch(e){console.error("HLGB v91.17 ensureData",e)}
+04314:  try{renderCutAssignmentQueue()}catch(e){console.error("HLGB v91.17 cutAssignment",e)}
+04315:  try{renderDestinationChecklists()}catch(e){console.error("HLGB v91.17 destinationChecklists",e)}
+04316:  try{renderFactionPaymentPlanner()}catch(e){console.error("HLGB v91.17 factionPlanner",e)}
+04317:  try{renderHubFinance()}catch(e){console.error("HLGB v91.17 hubFinance",e)}
+04318:  if(document.getElementById("missingOpenTable"))renderMissingPieces();if(document.getElementById("auditLogTable"))renderAuditLog();
+04319:  document.getElementById("companyName").value=db.config.name;
+04320:  document.getElementById("companyNote").value=db.config.note;
+04321:  renderOrderNotes();
+04322:  ensurePageSyncButtons();
+04323: }
+04324: function isoDate(d){
+04325: let y=d.getFullYear(),m=String(d.getMonth()+1).padStart(2,"0"),day=String(d.getDate()).padStart(2,"0");
+04326: return `${y}-${m}-${day}`;
+04327: }
+04328: function mondayOf(d){
+04329: let x=new Date(d); x.setHours(12,0,0,0);
+04330: let day=x.getDay(); let diff=day===0?-6:1-day; x.setDate(x.getDate()+diff); return x;
+04331: }
+04332: function weekValue(d){
+04333: let x=mondayOf(d), jan4=new Date(x.getFullYear(),0,4,12), first=mondayOf(jan4);
+04334: let week=Math.round((x-first)/604800000)+1;
+04335: return `${x.getFullYear()}-W${String(week).padStart(2,"0")}`;
+04336: }
+04337: function mondayFromWeek(v){
+04338: let [y,w]=v.split("-W").map(Number); if(!y||!w)return mondayOf(new Date());
+04339: let jan4=new Date(y,0,4,12), first=mondayOf(jan4), d=new Date(first);d.setDate(d.getDate()+(w-1)*7);return d;
+04340: }
+04341: function setWeekFromInput(){renderProjection()}
+04342: function setCurrentWeek(){weekStart.value=weekValue(new Date());renderProjection()}
+04343: function qtyOfOrder(o){
+04344: if(Array.isArray(o.grade)&&o.grade.length)return o.grade.reduce((a,x)=>a+(+x.qty||0),0);
+04345: if(Number.isFinite(+o.qty) && +o.qty>0)return +o.qty;
+04346: let m=String(o.items||"").match(/^\\s*(\\d+)/); return m?+m[1]:0;
+04347: }
+04348: 
+04349: function goalPeriod(){
+04350:  return {
+04351:    start:document.getElementById("goalStart")?.value||"",
+
+=== missingPieces @ line 4247 ===
+04202:         if(currentPayment?.cheque){
+04203:           currentPayment.cheque.photo=reader.result;
+04204:           persistDb();
+04205:           const hb=document.getElementById('paymentHistoryBox');
+04206:           if(hb) hb.innerHTML=paymentMethodRows(current);
+04207:         }
+04208:       };
+04209:       reader.onerror=()=>console.warn('Não foi possível salvar a foto do cheque.');
+04210:       reader.readAsDataURL(file);
+04211:     }
+04212:   }
+04213:  }catch(e){
+04214:   console.error(e);
+04215:   alert('Não foi possível dar baixa neste recebimento. O lançamento não foi concluído.');
+04216:  }
+04217: }
+04218: function viewChequePhoto(orderId,index){const o=(db.orders||[]).find(x=>+x.id===+orderId),p=o?.paymentHistory?.[index];if(!p?.cheque?.photo){alert('Este cheque não possui foto cadastrada.');return}openModal('Foto do cheque',`<div style="text-align:center"><img src="${p.cheque.photo}" alt="Foto do cheque" style="max-width:100%;max-height:70vh;border-radius:10px"><div style="margin-top:10px"><b>Dono:</b> ${esc(p.cheque.owner||'-')} &nbsp; <b>Data:</b> ${fmtDate(p.cheque.date)} ${p.cheque.number?`&nbsp; <b>Nº:</b> ${esc(p.cheque.number)}`:''}</div></div>`,()=>{});}
+04219: function removePayment(orderId,index){
+04220:  let o=(db.orders||[]).find(x=>+x.id===+orderId);if(!o||!o.paymentHistory)return;
+04221:  if(!confirm('Excluir este recebimento e recalcular o saldo?'))return;
+04222:  o.paymentHistory.splice(index,1);let rem=orderRemaining(o);o.paymentStatus=rem<=0.009?'Pago':(orderPaid(o)>0?'Parcial':'Pendente');
+04223:  let f=(db.finance||[]).find(x=>+x.orderId===+o.id&&x.type==='Receber');if(f){f.paid=orderPaid(o);f.remaining=rem;f.status=rem<=0.009?'Pago':'Pendente';}
+04224:  save();openAcerto(orderId);
+04225: }
+04226: function togglePaid(orderId){let o=(db.orders||[]).find(x=>+x.id===+orderId);if(!o)return;o.paymentHistory=o.paymentHistory||[];let rem=orderRemaining(o);if(rem<=0.009){o.paymentStatus='Pendente';o.paymentHistory=[];}else{o.paymentHistory.push({id:Date.now(),date:isoDate(new Date()),method:'Pagamento total',value:rem,note:'Baixa manual'});o.paymentStatus='Pago';}save()}
+04227: 
+04228: function cleanupOrphanOrderRecords(){
+04229:  db.orders=Array.isArray(db.orders)?db.orders:[];
+04230:  const validOrderIds=new Set(db.orders.map(o=>+o.id));
+04231: 
+04232:  let removed={cuts:0,production:0,separations:0,factions:0,factionPayments:0,missingPieces:0,finance:0};
+04233: 
+04234:  function cleanByOrderId(name){
+04235:    db[name]=Array.isArray(db[name])?db[name]:[];
+04236:    const before=db[name].length;
+04237:    db[name]=db[name].filter(x=>{
+04238:      if(x.orderId==null || x.orderId==="")return true;
+04239:      return validOrderIds.has(+x.orderId);
+04240:    });
+04241:    removed[name]=before-db[name].length;
+04242:  }
+04243: 
+04244:  cleanByOrderId("cuts");
+04245:  cleanByOrderId("production");
+04246:  cleanByOrderId("separations");
+04247:  cleanByOrderId("missingPieces");
+04248: 
+04249:  // Facções podem estar vinculadas diretamente ao pedido OU à produção.
+04250:  db.production=Array.isArray(db.production)?db.production:[];
+04251:  const validProductionIds=new Set(db.production.map(p=>+p.id));
+04252:  db.factions=Array.isArray(db.factions)?db.factions:[];
+04253:  const factionBefore=db.factions.length;
+04254:  db.factions=db.factions.filter(f=>{
+04255:    if(f.orderId!=null && f.orderId!=="" && !validOrderIds.has(+f.orderId))return false;
+04256:    if(f.productionId!=null && f.productionId!=="" && !validProductionIds.has(+f.productionId))return false;
+04257:    return true;
+04258:  });
+04259:  removed.factions=factionBefore-db.factions.length;
+04260: 
+04261:  // Pagamentos de facção órfãos
+04262:  db.factionPayments=Array.isArray(db.factionPayments)?db.factionPayments:[];
+04263:  const validFactionIds=new Set(db.factions.map(f=>+f.id));
+04264:  const fpBefore=db.factionPayments.length;
+04265:  db.factionPayments=db.factionPayments.filter(p=>{
+04266:    if(p.factionServiceId!=null && p.factionServiceId!=="" && !validFactionIds.has(+p.factionServiceId))return false;
+04267:    if(p.orderId!=null && p.orderId!=="" && !validOrderIds.has(+p.orderId))return false;
+04268:    return true;
+04269:  });
+04270:  removed.factionPayments=fpBefore-db.factionPayments.length;
+04271: 
+04272:  // Financeiro: só remove automaticamente registros explicitamente ligados a um pedido inexistente.
+04273:  db.finance=Array.isArray(db.finance)?db.finance:[];
+04274:  const finBefore=db.finance.length;
+04275:  db.finance=db.finance.filter(f=>{
+04276:    if(f.orderId==null || f.orderId==="")return true;
+04277:    return validOrderIds.has(+f.orderId);
+04278:  });
+04279:  removed.finance=finBefore-db.finance.length;
+04280: 
+04281:  const total=Object.values(removed).reduce((a,b)=>a+b,0);
+04282:  if(total>0){
+04283:    try{persistDb()}catch(e){console.error(e)}
+04284:    console.info("HLGB: registros órfãos removidos",removed);
+04285:  }
+04286:  return {total,removed};
+04287: }
+04288: function renderAll(){
+04289:  // Renderizar a interface nunca deve, por si só, criar uma alteração pendente.
+04290:  // Algumas rotinas legadas abaixo também fazem sincronizações derivadas; só
+04291:  // persistimos se elas realmente mudarem dados operacionais.
+04292:  let beforeSystemSync=null;
+04293:  try{beforeSystemSync=cloudOperationalPayload(cloudClone(db))}catch(e){}
+04294:  cleanupOrphanOrderRecords();
+04295:  syncLegacyMaterialCostsFromCostTable();
+04296:  let selectedSeparation=document.getElementById("separationOrder")?.value||"";
+04297:  syncOrdersToCuts();
+04298:  try{
+04299:    const afterSystemSync=cloudOperationalPayload(cloudClone(db));
+04300:    if(beforeSystemSync&&!cloudEq(beforeSystemSync,afterSystemSync)){
+04301:      if(cloudApplying||cloudBootstrapping)localSaveOnly();
+04302:      else persistDb();
+04303:    }
+04304:  }catch(e){}
+04305:  renderDash();renderOrders();renderProduction();renderCuts();renderStock();renderFactions();renderFactionPayments();if(document.getElementById("lixeiraPedidos")?.classList.contains("active"))renderOrderTrash();
+04306:  renderCutters();drawCutterChart();renderClients();if(document.getElementById("clientProfitReport"))renderClientPotentialReport();renderMaterials();renderCatalogs();renderUsers();
+04307:  fillSeparationOrders();
+04308:  if(selectedSeparation && document.getElementById("separationOrder")){
+04309:    document.getElementById("separationOrder").value=selectedSeparation;
+04310:    renderSeparation();
+04311:  }
+04312:  renderSuppliers();renderPurchases();renderProducts();renderFinance();renderEmployees();renderFormerEmployees();renderPayroll();renderReports();renderGoals();
+04313:  try{hlgb916EnsureData()}catch(e){console.error("HLGB v91.17 ensureData",e)}
+04314:  try{renderCutAssignmentQueue()}catch(e){console.error("HLGB v91.17 cutAssignment",e)}
+04315:  try{renderDestinationChecklists()}catch(e){console.error("HLGB v91.17 destinationChecklists",e)}
+04316:  try{renderFactionPaymentPlanner()}catch(e){console.error("HLGB v91.17 factionPlanner",e)}
+04317:  try{renderHubFinance()}catch(e){console.error("HLGB v91.17 hubFinance",e)}
+04318:  if(document.getElementById("missingOpenTable"))renderMissingPieces();if(document.getElementById("auditLogTable"))renderAuditLog();
+04319:  document.getElementById("companyName").value=db.config.name;
+04320:  document.getElementById("companyNote").value=db.config.note;
+04321:  renderOrderNotes();
+04322:  ensurePageSyncButtons();
+04323: }
+04324: function isoDate(d){
+04325: let y=d.getFullYear(),m=String(d.getMonth()+1).padStart(2,"0"),day=String(d.getDate()).padStart(2,"0");
+04326: return `${y}-${m}-${day}`;
+04327: }
+04328: function mondayOf(d){
+04329: let x=new Date(d); x.setHours(12,0,0,0);
+04330: let day=x.getDay(); let diff=day===0?-6:1-day; x.setDate(x.getDate()+diff); return x;
+04331: }
+04332: function weekValue(d){
+04333: let x=mondayOf(d), jan4=new Date(x.getFullYear(),0,4,12), first=mondayOf(jan4);
+04334: let week=Math.round((x-first)/604800000)+1;
+04335: return `${x.getFullYear()}-W${String(week).padStart(2,"0")}`;
+04336: }
+04337: function mondayFromWeek(v){
+04338: let [y,w]=v.split("-W").map(Number); if(!y||!w)return mondayOf(new Date());
+04339: let jan4=new Date(y,0,4,12), first=mondayOf(jan4), d=new Date(first);d.setDate(d.getDate()+(w-1)*7);return d;
+04340: }
+04341: function setWeekFromInput(){renderProjection()}
+04342: function setCurrentWeek(){weekStart.value=weekValue(new Date());renderProjection()}
+04343: function qtyOfOrder(o){
+04344: if(Array.isArray(o.grade)&&o.grade.length)return o.grade.reduce((a,x)=>a+(+x.qty||0),0);
+04345: if(Number.isFinite(+o.qty) && +o.qty>0)return +o.qty;
+04346: let m=String(o.items||"").match(/^\\s*(\\d+)/); return m?+m[1]:0;
+04347: }
+04348: 
+04349: function goalPeriod(){
+04350:  return {
+04351:    start:document.getElementById("goalStart")?.value||"",
+04352:    end:document.getElementById("goalEnd")?.value||""
+04353:  };
+04354: }
+04355: function setGoalPeriod(mode){
+04356:  let s=document.getElementById("goalStart"),e=document.getElementById("goalEnd");
+04357:  if(!s||!e)return;
+04358:  let now=new Date(),start="",end="";
+04359:  if(mode==="day"){
+04360:    let d=isoDate(now);s.value=d;e.value=d;renderGoals();return;
+04361:  }
+04362:  if(mode==="week"){
+04363:    let m=mondayOf(now),z=new Date(m);z.setDate(z.getDate()+6);
+04364:    start=isoDate(m);end=isoDate(z);
+04365:  }else if(mode==="month"){
+04366:    start=isoDate(new Date(now.getFullYear(),now.getMonth(),1,12));
+
+=== missingPieces @ line 4318 ===
+04273:  db.finance=Array.isArray(db.finance)?db.finance:[];
+04274:  const finBefore=db.finance.length;
+04275:  db.finance=db.finance.filter(f=>{
+04276:    if(f.orderId==null || f.orderId==="")return true;
+04277:    return validOrderIds.has(+f.orderId);
+04278:  });
+04279:  removed.finance=finBefore-db.finance.length;
+04280: 
+04281:  const total=Object.values(removed).reduce((a,b)=>a+b,0);
+04282:  if(total>0){
+04283:    try{persistDb()}catch(e){console.error(e)}
+04284:    console.info("HLGB: registros órfãos removidos",removed);
+04285:  }
+04286:  return {total,removed};
+04287: }
+04288: function renderAll(){
+04289:  // Renderizar a interface nunca deve, por si só, criar uma alteração pendente.
+04290:  // Algumas rotinas legadas abaixo também fazem sincronizações derivadas; só
+04291:  // persistimos se elas realmente mudarem dados operacionais.
+04292:  let beforeSystemSync=null;
+04293:  try{beforeSystemSync=cloudOperationalPayload(cloudClone(db))}catch(e){}
+04294:  cleanupOrphanOrderRecords();
+04295:  syncLegacyMaterialCostsFromCostTable();
+04296:  let selectedSeparation=document.getElementById("separationOrder")?.value||"";
+04297:  syncOrdersToCuts();
+04298:  try{
+04299:    const afterSystemSync=cloudOperationalPayload(cloudClone(db));
+04300:    if(beforeSystemSync&&!cloudEq(beforeSystemSync,afterSystemSync)){
+04301:      if(cloudApplying||cloudBootstrapping)localSaveOnly();
+04302:      else persistDb();
+04303:    }
+04304:  }catch(e){}
+04305:  renderDash();renderOrders();renderProduction();renderCuts();renderStock();renderFactions();renderFactionPayments();if(document.getElementById("lixeiraPedidos")?.classList.contains("active"))renderOrderTrash();
+04306:  renderCutters();drawCutterChart();renderClients();if(document.getElementById("clientProfitReport"))renderClientPotentialReport();renderMaterials();renderCatalogs();renderUsers();
+04307:  fillSeparationOrders();
+04308:  if(selectedSeparation && document.getElementById("separationOrder")){
+04309:    document.getElementById("separationOrder").value=selectedSeparation;
+04310:    renderSeparation();
+04311:  }
+04312:  renderSuppliers();renderPurchases();renderProducts();renderFinance();renderEmployees();renderFormerEmployees();renderPayroll();renderReports();renderGoals();
+04313:  try{hlgb916EnsureData()}catch(e){console.error("HLGB v91.17 ensureData",e)}
+04314:  try{renderCutAssignmentQueue()}catch(e){console.error("HLGB v91.17 cutAssignment",e)}
+04315:  try{renderDestinationChecklists()}catch(e){console.error("HLGB v91.17 destinationChecklists",e)}
+04316:  try{renderFactionPaymentPlanner()}catch(e){console.error("HLGB v91.17 factionPlanner",e)}
+04317:  try{renderHubFinance()}catch(e){console.error("HLGB v91.17 hubFinance",e)}
+04318:  if(document.getElementById("missingOpenTable"))renderMissingPieces();if(document.getElementById("auditLogTable"))renderAuditLog();
+04319:  document.getElementById("companyName").value=db.config.name;
+04320:  document.getElementById("companyNote").value=db.config.note;
+04321:  renderOrderNotes();
+04322:  ensurePageSyncButtons();
+04323: }
+04324: function isoDate(d){
+04325: let y=d.getFullYear(),m=String(d.getMonth()+1).padStart(2,"0"),day=String(d.getDate()).padStart(2,"0");
+04326: return `${y}-${m}-${day}`;
+04327: }
+04328: function mondayOf(d){
+04329: let x=new Date(d); x.setHours(12,0,0,0);
+04330: let day=x.getDay(); let diff=day===0?-6:1-day; x.setDate(x.getDate()+diff); return x;
+04331: }
+04332: function weekValue(d){
+04333: let x=mondayOf(d), jan4=new Date(x.getFullYear(),0,4,12), first=mondayOf(jan4);
+04334: let week=Math.round((x-first)/604800000)+1;
+04335: return `${x.getFullYear()}-W${String(week).padStart(2,"0")}`;
+04336: }
+04337: function mondayFromWeek(v){
+04338: let [y,w]=v.split("-W").map(Number); if(!y||!w)return mondayOf(new Date());
+04339: let jan4=new Date(y,0,4,12), first=mondayOf(jan4), d=new Date(first);d.setDate(d.getDate()+(w-1)*7);return d;
+04340: }
+04341: function setWeekFromInput(){renderProjection()}
+04342: function setCurrentWeek(){weekStart.value=weekValue(new Date());renderProjection()}
+04343: function qtyOfOrder(o){
+04344: if(Array.isArray(o.grade)&&o.grade.length)return o.grade.reduce((a,x)=>a+(+x.qty||0),0);
+04345: if(Number.isFinite(+o.qty) && +o.qty>0)return +o.qty;
+04346: let m=String(o.items||"").match(/^\\s*(\\d+)/); return m?+m[1]:0;
+04347: }
+04348: 
+04349: function goalPeriod(){
+04350:  return {
+04351:    start:document.getElementById("goalStart")?.value||"",
+04352:    end:document.getElementById("goalEnd")?.value||""
+04353:  };
+04354: }
+04355: function setGoalPeriod(mode){
+04356:  let s=document.getElementById("goalStart"),e=document.getElementById("goalEnd");
+04357:  if(!s||!e)return;
+04358:  let now=new Date(),start="",end="";
+04359:  if(mode==="day"){
+04360:    let d=isoDate(now);s.value=d;e.value=d;renderGoals();return;
+04361:  }
+04362:  if(mode==="week"){
+04363:    let m=mondayOf(now),z=new Date(m);z.setDate(z.getDate()+6);
+04364:    start=isoDate(m);end=isoDate(z);
+04365:  }else if(mode==="month"){
+04366:    start=isoDate(new Date(now.getFullYear(),now.getMonth(),1,12));
+04367:    end=isoDate(new Date(now.getFullYear(),now.getMonth()+1,0,12));
+04368:  }else if(mode==="year"){
+04369:    start=isoDate(new Date(now.getFullYear(),0,1,12));
+04370:    end=isoDate(new Date(now.getFullYear(),11,31,12));
+04371:  }
+04372:  s.value=start;e.value=end;renderGoals();
+04373: }
+04374: function dateInGoalPeriod(dateValue,start,end){
+04375:  let d=String(dateValue||"").slice(0,10);
+04376:  if(!d)return false;
+04377:  if(start&&d<start)return false;
+04378:  if(end&&d>end)return false;
+04379:  return true;
+04380: }
+04381: function goalTargetForPeriod(g,start,end){
+04382:  let base=+g.targetValue||0;
+04383:  let cadence=g.cadence||"Semanal";
+04384:  if(!start&&!end)return base;
+04385:  let s=start?new Date(start+"T12:00:00"):new Date();
+04386:  let e=end?new Date(end+"T12:00:00"):new Date();
+04387:  let days=Math.max(1,Math.floor((e-s)/86400000)+1);
+04388:  if(cadence==="Semanal")return base*(days/7);
+04389:  if(cadence==="Mensal")return base*(days/30.4375);
+04390:  if(cadence==="Anual")return base*(days/365.25);
+04391:  return base;
+04392: }
+04393: function productionValueForGoal(g,start,end){
+04394:  // Valor produzido estimado pelos pedidos/produções vinculados ao local/facção.
+04395:  // Para facções usa quantidade produzida * preço da facção.
+04396:  if(g.scopeType==="Facção"){
+04397:    return (db.factions||[])
+04398:      .filter(f=>String(f.name||"")===String(g.scopeName||"") && dateInGoalPeriod(f.finishedAt||f.sentAt||f.date,start,end))
+04399:      .reduce((a,f)=>a+(+f.done||0)*(+f.price||0),0);
+04400:  }
+04401:  if(g.scopeType==="Confecção"){
+04402:    let loc=(db.productionLocations||[]).find(x=>String(x.name||"")===String(g.scopeName||""));
+04403:    if(!loc)return 0;
+04404:    return (db.production||[])
+04405:      .filter(p=>+p.productionLocationId===+loc.id && dateInGoalPeriod(p.finishedAt||p.date,start,end))
+04406:      .reduce((a,p)=>{
+04407:        let order=(db.orders||[]).find(o=>+o.id===+p.orderId);
+04408:        let unit=order&&qtyOfOrder(order)>0?(+order.total||0)/qtyOfOrder(order):0;
+04409:        return a+(+p.done||0)*unit;
+04410:      },0);
+04411:  }
+04412:  if(g.scopeType==="Pessoa"){
+04413:    // Pessoa pode ser cortador ou funcionário nominal; usamos cortadores cadastrados.
+04414:    let c=(db.cutters||[]).find(x=>String(x.name||"")===String(g.scopeName||""));
+04415:    if(!c)return 0;
+04416:    return (db.cuts||[])
+04417:      .filter(x=>+x.cutterId===+c.id && String(x.status||"").toLowerCase()==="finalizado" && dateInGoalPeriod(x.finishedAt||x.date,start,end))
+04418:      .reduce((a,x)=>{
+04419:        let order=(db.orders||[]).find(o=>+o.id===+x.orderId);
+04420:        let unit=order&&qtyOfOrder(order)>0?(+order.total||0)/qtyOfOrder(order):0;
+04421:        return a+(+x.pieces||0)*unit;
+04422:      },0);
+04423:  }
+04424:  return 0;
+04425: }
+04426: function goalForm(g={}){
+04427:  let names=[];
+04428:  let type=g.scopeType||"Confecção";
+04429:  if(type==="Confecção")names=(db.productionLocations||[]).map(x=>x.name);
+04430:  else if(type==="Facção")names=(db.factionMasters||[]).map(x=>x.name);
+04431:  else names=(db.cutters||[]).map(x=>x.name);
+04432: 
+04433:  return `<div class="grid">
+04434:   <div class="field"><label>Tipo da meta</label><select id="goalType" onchange="refreshGoalScopeOptions()">
+04435:     ${["Confecção","Facção","Pessoa"].map(x=>`<option ${x===type?"selected":""}>${x}</option>`).join("")}
+04436:   </select></div>
+04437:   <div class="field"><label>Local / pessoa</label><select id="goalScope">
+
+=== missingPieces @ line 5298 ===
+05253:  let noForecastPieces=noForecast.reduce((a,r)=>a+(+r.qty||0),0);
+05254:  let noForecastValue=noForecast.reduce((a,r)=>a+(+r.value||0),0);
+05255:  let validOrderIds=new Set(db.orders.filter(o=>!o.deletedAt&&!o.cancelledAt).map(o=>+o.id));
+05256:  let rec=0;
+05257:  try{rec=db.finance.filter(f=>f.type==="Receber"&&f.status!=="Pago"&&(f.orderId==null||validOrderIds.has(+f.orderId))).reduce((a,f)=>a+(f.remaining!=null?+f.remaining:(+f.value||0)),0)}catch(e){console.error("HLGB: contas a receber no painel",e)}
+05258:  let budget={carryOut:0,limit:0};
+05259:  try{if(typeof budgetCarryForWeek==="function")budget=budgetCarryForWeek(isoDate(new Date()))||budget}catch(e){console.error("HLGB: orçamento semanal no painel",e)}
+05260: 
+05261:  let cards=document.getElementById("dashCards");
+05262:  if(cards)cards.innerHTML=`
+05263:    <div class="card"><small>Pedidos em produção</small><strong>${rows.length}</strong></div>
+05264:    <div class="card"><small>Peças em produção</small><strong>${pieces.toLocaleString("pt-BR")}</strong></div>
+05265:    <div class="card"><small>Valor em produção</small><strong>${money(value)}</strong></div>
+05266:    <div class="card"><small>Sem previsão</small><strong>${noForecastPieces.toLocaleString("pt-BR")} peças</strong><div class="sub">${money(noForecastValue)}</div></div>
+05267:    <div class="card"><small>A receber</small><strong>${money(rec)}</strong></div>
+05268:    <div class="card"><small>Disponível para compras</small>${(+budget.limit||0)>0?(typeof budgetValueHTML==="function"?budgetValueHTML(+budget.carryOut||0,"saldo positivo","saldo negativo"):`<strong>${money(+budget.carryOut||0)}</strong>`):'<strong>Não definido</strong>'}</div>`;
+05269: 
+05270:  let prod=document.getElementById("dashProd");
+05271:  if(prod){
+05272:    let groups={};
+05273:    rows.forEach(r=>{let n=r.location||"Sem local definido",g=groups[n]||(groups[n]={orders:0,pieces:0,value:0});g.orders++;g.pieces+=+r.qty||0;g.value+=+r.value||0});
+05274:    let arr=Object.entries(groups).sort((a,b)=>b[1].pieces-a[1].pieces);
+05275:    prod.innerHTML=arr.length?table(["Local","Pedidos","Peças","Valor"],arr.map(([n,g])=>[esc(n),g.orders,g.pieces.toLocaleString("pt-BR"),money(g.value)])):'<div class="empty">Nenhuma produção em andamento.</div>';
+05276:  }
+05277: 
+05278:  let orders=document.getElementById("dashOrders");
+05279:  if(orders){
+05280:    let upcoming=rows.filter(r=>r.forecast&&r.forecast!=="-").slice().sort((a,b)=>String(a.forecast).localeCompare(String(b.forecast))).slice(0,8);
+05281:    orders.innerHTML=upcoming.length?table(["Pedido / OP","Cliente","Produto","Peças","Valor","Local","Previsão"],upcoming.map(r=>[
+05282:      esc(String(r.number)),esc(r.client),esc(r.products),Number(r.qty||0).toLocaleString("pt-BR"),money(r.value),esc(r.location||"Sem local definido"),fmtDate(r.forecast)
+05283:    ])):'<div class="empty">Nenhum pedido com previsão de entrega cadastrada.</div>';
+05284:  }
+05285: }
+05286: function table(head,rows){if(!rows.length)return '<div class="empty">Nenhum registro.</div>';return `<table><tr>${head.map(h=>"<th>"+h+"</th>").join("")}</tr>${rows.map(r=>"<tr>"+r.map(c=>"<td>"+c+"</td>").join("")+"</tr>").join("")}</table>`}
+05287: 
+05288: function missingProductUnitCost(productId){
+05289:  let p=(db.products||[]).find(x=>+x.id===+productId);
+05290:  if(!p)return 0;
+05291:  let mat=(p.materials||[]).reduce((s,m)=>s+materialCostPerPiece(m),0);
+05292:  return mat+(+p.labor||0);
+05293: }
+05294: function missingProductUnitPrice(order,productId){
+05295:  let c=(db.clients||[]).find(x=>+x.id===+order.clientId || x.name===order.client);
+05296:  return suggestedPrice(c?.id||order.clientId,productId)||0;
+05297: }
+05298: function registerMissingPieces(orderId){
+05299:  let o=(db.orders||[]).find(x=>+x.id===+orderId);if(!o)return;
+05300:  let grade=Array.isArray(o.grade)?o.grade:[];
+05301:  if(!grade.length){alert("Este pedido não possui grade salva.");return}
+05302:  let rows=grade.map((it,i)=>{
+05303:    let p=(db.products||[]).find(x=>+x.id===+it.productId);
+05304:    return `<tr>
+05305:      <td>${esc(p?.name||"-")}</td>
+05306:      <td>${esc(it.color||"-")}</td>
+05307:      <td>${esc(it.size||"-")}</td>
+05308:      <td>${(+it.qty||0).toLocaleString("pt-BR")}</td>
+05309:      <td><input class="missingQtyInput" data-i="${i}" type="number" min="0" max="${+it.qty||0}" step="1" value="0" style="width:90px"></td>
+05310:    </tr>`;
+05311:  }).join("");
+05312:  openModal("Registrar peças faltantes",`
+05313:    <div class="grid">
+05314:      <div class="field"><label>Pedido</label><input value="#${o.id}" disabled></div>
+05315:      <div class="field"><label>Cliente</label><input value="${esc(o.client||"")}" disabled></div>
+05316:      <div class="field"><label>Previsão de entrega</label><input value="${o.date?fmtDate(o.date):"-"}" disabled></div>
+05317:      <div class="field"><label>Data da ocorrência</label><input id="missingDate" type="date" value="${isoDate(new Date())}"></div>
+05318:    </div>
+05319:    <div class="sub">Digite somente a quantidade que realmente ficou faltando em cada item.</div>
+05320:    <div style="overflow:auto"><table><thead><tr><th>Produto</th><th>Cor</th><th>Tamanho</th><th>Qtd. pedido</th><th>Qtd. faltante</th></tr></thead><tbody>${rows}</tbody></table></div>
+05321:    <div class="field"><label>Observação</label><textarea id="missingNote" placeholder="Ex.: faltou renda, peça com defeito, produção atrasou..."></textarea></div>
+05322:    <button type="button" class="primary modalSave" onclick="modalSave()">💾 Salvar peças faltantes</button>
+05323:  `,()=>{
+05324:    db.missingPieces=Array.isArray(db.missingPieces)?db.missingPieces:[];
+05325:    let date=document.getElementById("missingDate")?.value||isoDate(new Date());
+05326:    let note=document.getElementById("missingNote")?.value||"";
+05327:    let created=0;
+05328:    document.querySelectorAll(".missingQtyInput").forEach(inp=>{
+05329:      let q=+inp.value||0;if(q<=0)return;
+05330:      let it=grade[+inp.dataset.i],p=(db.products||[]).find(x=>+x.id===+it.productId);
+05331:      let unitPrice=missingProductUnitPrice(o,it.productId);
+05332:      let unitCost=missingProductUnitCost(it.productId);
+05333:      db.missingPieces.push({
+05334:        id:Date.now()+created,orderId:o.id,client:o.client,clientId:o.clientId||null,
+05335:        productId:+it.productId,product:p?.name||"",color:it.color||"",size:it.size||"",
+05336:        issueType:"Peça faltante",sourceType:"Pedido",
+05337:        originalQty:q,remainingQty:q,recoveredQty:0,date,deliveryDate:o.date||"",
+05338:        unitPrice,unitCost,note,status:"Em aberto",history:[]
+05339:      });created++;
+05340:    });
+05341:    if(!created){alert("Informe pelo menos uma quantidade faltante.");return}
+05342:    try{persistDb()}catch(e){}
+05343:    closeModal();save();renderMissingPieces();
+05344:    alert("Peças faltantes registradas.");
+05345:  });
+05346: }
+05347: function setMissingPeriod(mode){
+05348:  let s=document.getElementById("missingStart"),e=document.getElementById("missingEnd");if(!s||!e)return;
+05349:  let now=new Date(),start="",end="";
+05350:  if(mode==="week"){let m=mondayOf(now),z=new Date(m);z.setDate(z.getDate()+6);start=isoDate(m);end=isoDate(z)}
+05351:  else if(mode==="month"){start=isoDate(new Date(now.getFullYear(),now.getMonth(),1,12));end=isoDate(new Date(now.getFullYear(),now.getMonth()+1,0,12))}
+05352:  else if(mode==="year"){start=isoDate(new Date(now.getFullYear(),0,1,12));end=isoDate(new Date(now.getFullYear(),11,31,12))}
+05353:  s.value=start;e.value=end;renderMissingPieces();
+05354: }
+05355: function abateMissingPiece(id){
+05356:  let m=(db.missingPieces||[]).find(x=>+x.id===+id);if(!m)return;
+05357:  openModal("Abater / recuperar ocorrência",`
+05358:    <div class="grid">
+05359:      <div class="field"><label>Cliente</label><input value="${esc(m.client||"")}" disabled></div>
+05360:      <div class="field"><label>Produto</label><input value="${esc(m.product||"")}" disabled></div>
+05361:      <div class="field"><label>Tipo</label><input value="${esc(m.issueType||"Peça faltante")}" disabled></div>
+05362:      <div class="field"><label>Quantidade em aberto</label><input value="${(+m.remainingQty||0)} peças" disabled></div>
+05363:      <div class="field"><label>Quantidade recuperada/refeita/entregue</label><input id="missingAbateQty" type="number" min="1" max="${+m.remainingQty||0}" value="${+m.remainingQty||0}"></div>
+05364:      <div class="field"><label>Data da baixa</label><input id="missingAbateDate" type="date" value="${isoDate(new Date())}"></div>
+05365:      <div class="field"><label>Observação</label><input id="missingAbateNote" placeholder="Ex.: entregue ao cliente"></div>
+05366:    </div>
+05367:    <button type="button" class="primary modalSave" onclick="modalSave()">✅ Confirmar baixa</button>
+05368:  `,()=>{
+05369:    let q=+document.getElementById("missingAbateQty")?.value||0;
+05370:    if(q<=0||q>(+m.remainingQty||0)){alert("Informe uma quantidade válida.");return}
+05371:    let date=document.getElementById("missingAbateDate")?.value||isoDate(new Date());
+05372:    let note=document.getElementById("missingAbateNote")?.value||"";
+05373:    m.history=Array.isArray(m.history)?m.history:[];
+05374:    m.history.push({id:Date.now(),qty:q,date,note});
+05375:    m.recoveredQty=(+m.recoveredQty||0)+q;
+05376:    m.remainingQty=Math.max(0,(+m.remainingQty||0)-q);
+05377:    m.status=m.remainingQty<=0?"Resolvido":"Parcial";
+05378:    closeModal();save();renderMissingPieces();
+05379:  });
+05380: }
+05381: function deleteMissingPiece(id){
+05382:  if(!confirm("Excluir este registro de peça faltante?"))return;
+05383:  db.missingPieces=(db.missingPieces||[]).filter(x=>+x.id!==+id);save();renderMissingPieces();
+05384: }
+05385: 
+05386: function factionIssueContext(f){
+05387:  let prod=(db.production||[]).find(p=>+p.id===+f.productionId);
+05388:  let order=(db.orders||[]).find(o=>+o.id===+(f.orderId||prod?.orderId));
+05389:  let productId=+(f.productId||prod?.productId||order?.productId)||null;
+05390:  let product=(db.products||[]).find(p=>+p.id===+productId);
+05391:  return {prod,order,product,productId};
+05392: }
+05393: 
+05394: function syncProductionIssuesToMissing(p){
+05395:  if(!p)return;
+05396:  db.missingPieces=Array.isArray(db.missingPieces)?db.missingPieces:[];
+05397:  let o=(db.orders||[]).find(x=>+x.id===+p.orderId);
+05398:  let product=(db.products||[]).find(x=>+x.id===+p.productId);
+05399:  let productName=product?.name||p.product||"";
+05400:  let unitPrice=0,unitCost=0;
+05401:  if(o&&p.productId){try{unitPrice=+suggestedPrice(o.clientId||0,p.productId)||0}catch(e){}}
+05402:  if(!unitPrice)unitPrice=+product?.price||0;
+05403:  if(product){try{unitCost=productComputedCost(product)}catch(e){unitCost=+product.cost||0}}
+05404:  [
+05405:    {type:"Defeito",qty:+p.defects||0},
+05406:    {type:"Peça faltante",qty:+p.missingQty||0}
+05407:  ].forEach(issue=>{
+05408:    let key=`production:${p.id}:${issue.type}`;
+05409:    let rec=db.missingPieces.find(m=>m.sourceKey===key);
+05410:    if(issue.qty<=0){
+05411:      if(rec&&(+rec.recoveredQty||0)<=0)db.missingPieces=db.missingPieces.filter(m=>m!==rec);
+05412:      return;
+05413:    }
+05414:    if(!rec){
+05415:      rec={id:Date.now()+Math.floor(Math.random()*1000000),sourceKey:key,sourceType:"Produção",productionId:p.id,
+05416:        issueType:issue.type,orderId:o?.id||p.orderId||"",client:o?.client||p.client||"",clientId:o?.clientId||null,
+05417:        productId:p.productId||null,product:productName,color:p.color||"",size:p.size||"",

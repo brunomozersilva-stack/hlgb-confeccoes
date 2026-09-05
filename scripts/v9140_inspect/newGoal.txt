@@ -1,0 +1,56 @@
+function newGoal(){
+ openModal("Nova meta",goalForm()+`<button type="button" class="primary modalSave">💾 Salvar meta</button>`,()=>{
+   let type=document.getElementById("goalType")?.value||"Confecção";
+   let scope=document.getElementById("goalScope")?.value||"";
+   if(!scope){alert("Selecione o local, facção ou pessoa.");return}
+   db.goals.push({
+     id:Date.now(),scopeType:type,scopeName:scope,
+     peopleCount:Math.max(1,+document.getElementById("goalPeople")?.value||1),
+     goalPerPerson:+document.getElementById("goalPerPerson")?.value||0,
+     targetValue:(Math.max(1,+document.getElementById("goalPeople")?.value||1))*(+document.getElementById("goalPerPerson")?.value||0),
+     cadence:document.getElementById("goalCadence")?.value||"Semanal",
+     note:document.getElementById("goalNote")?.value||""
+   });
+   closeModal();save();renderGoals();
+ });
+}
+function editGoal(id){
+ let g=(db.goals||[]).find(x=>+x.id===+id);if(!g)return;
+ openModal("Editar meta",goalForm(g)+`<button type="button" class="primary modalSave" onclick="modalSave()">💾 Salvar alterações</button>`,()=>{
+   Object.assign(g,{
+     scopeType:document.getElementById("goalType")?.value||g.scopeType,
+     scopeName:document.getElementById("goalScope")?.value||g.scopeName,
+     peopleCount:Math.max(1,+document.getElementById("goalPeople")?.value||1),
+     goalPerPerson:+document.getElementById("goalPerPerson")?.value||0,
+     targetValue:(Math.max(1,+document.getElementById("goalPeople")?.value||1))*(+document.getElementById("goalPerPerson")?.value||0),
+     cadence:document.getElementById("goalCadence")?.value||"Semanal",
+     note:document.getElementById("goalNote")?.value||""
+   });
+   closeModal();save();renderGoals();
+ });
+
+ setTimeout(updateGoalTotalPreview,0);
+}
+function deleteGoal(id){
+ if(!confirm("Excluir esta meta?"))return;
+ db.goals=(db.goals||[]).filter(x=>+x.id!==+id);
+ save();renderGoals();
+}
+function operationalCostForm(c={}){
+ let locNames=[...(db.productionLocations||[]).map(x=>x.name),...(db.factionMasters||[]).map(x=>x.name)];
+ locNames=[...new Set(locNames.filter(Boolean))];
+ return `<div class="grid">
+  <div class="field"><label>Local de produção</label><select id="opCostLocation"><option value="">Selecione</option>${locNames.map(n=>`<option ${n===(c.locationName||"")?"selected":""}>${esc(n)}</option>`).join("")}</select></div>
+  <div class="field"><label>Tipo de custo</label><select id="opCostCategory">${["Aluguel","Energia elétrica","Água","Internet","Telefone","Folha administrativa","Manutenção","Transporte","Outros"].map(x=>`<option ${x===(c.category||"")?"selected":""}>${x}</option>`).join("")}</select></div>
+  <div class="field"><label>Descrição</label><input id="opCostDesc" value="${esc(c.description||"")}"></div>
+  <div class="field"><label>Valor</label><input id="opCostValue" type="number" step=".01" value="${c.value??0}"></div>
+  <div class="field"><label>Data de referência</label><input id="opCostDate" type="date" value="${c.date||isoDate(new Date())}"></div>
+  <div class="field"><label>Periodicidade</label><select id="opCostCadence">${["Único","Mensal","Semanal","Anual"].map(x=>`<option ${x===(c.cadence||"Mensal")?"selected":""}>${x}</option>`).join("")}</select></div>
+ </div>`;
+}
+function newOperationalCost(){
+ db.operationalCosts=db.operationalCosts||[];
+ openModal("Novo custo operacional",operationalCostForm()+`<button type="button" class="primary modalSave" onclick="modalSave()">💾 Salvar custo operacional</button>`,()=>{
+   let loc=document.getElementById("opCostLocation")?.value||"",value=+document.getElementById("opCostValue")?.value||0;
+   if(!loc){alert("Selecione o local.");return} if(value<=0){alert("Informe o valor.");return}
+   db.operationalCosts.push({id:Date.now(),locationName:loc,category:document.getElementById("opCostCategory")?.value||"Outros",description:document.getElementById

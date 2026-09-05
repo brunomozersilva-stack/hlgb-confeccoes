@@ -1,0 +1,149 @@
+function renderFactions(){ 
+ (db.factions||[]).forEach(f=>{let o=(db.orders||[]).find(x=>+x.id===+f.orderId);f.description=o?orderProductSummary(o):cleanFactionProductName(f.description||f.product||"");});
+
+ db.factionMasters=Array.isArray(db.factionMasters)?db.factionMasters:[];
+ db.productionLocations=Array.isArray(db.productionLocations)?db.productionLocations:[];
+ db.factions=Array.isArray(db.factions)?db.factions:[];
+ db.serviceTypes=Array.isArray(db.serviceTypes)?db.serviceTypes:[];
+ db.machines=Array.isArray(db.machines)?db.machines:[];
+
+ let fm=document.getElementById("factionMasterTable");
+ let st=document.getElementById("serviceTypeTable");
+ let mt=document.getElementById("machineTable");
+ let pl=document.getElementById("productionLocationTable");
+ let ft=document.getElementById("factionTable");
+ let fr=document.getElementById("factionReport");
+ let fc=document.getElementById("factionProductionCards");
+ renderFactionAvailableModels();
+
+ if(fc){
+   let active=db.factions.filter(f=>String(f.status||"")!=="Finalizado");
+   let totalSent=active.reduce((a,f)=>a+(+f.sent||0),0);
+   let totalDone=active.reduce((a,f)=>a+(+f.done||0),0);
+   let totalRemaining=active.reduce((a,f)=>a+Math.max(0,(+f.sent||0)-(+f.done||0)-(+f.defects||0)-(+f.waste||0)),0);
+   let valueInProduction=active.reduce((a,f)=>{
+     let base=(+f.done||0)>0?(+f.done||0):(+f.sent||0);
+     return a+base*(+f.price||0);
+   },0);
+   fc.innerHTML=`
+     <div class="card"><small>Peças enviadas para facção</small><strong>${totalSent.toLocaleString("pt-BR")}</strong></div>
+     <div class="card"><small>Peças produzidas em facção</small><strong>${totalDone.toLocaleString("pt-BR")}</strong></div>
+     <div class="card"><small>Peças ainda em produção</small><strong>${totalRemaining.toLocaleString("pt-BR")}</strong></div>
+     <div class="card"><small>Valor sendo produzido em facção</small><strong>${money(valueInProduction)}</strong></div>`;
+ }
+
+ if(fm){
+   let rows=db.factionMasters.map(f=>{
+     let l=db.productionLocations.find(x=>+x.id===+f.productionLocationId);
+     let services=selectedCatalogNames(f.serviceTypeIds,db.serviceTypes)||f.serviceType||"-";
+     let machines=selectedCatalogNames(f.machineIds,db.machines)||f.machines||"-";
+     return [
+       esc(f.name||"-"),esc(f.address||"-"),esc(f.phone||"-"),esc(f.pix||"-"),
+       esc(services),esc(machines),esc(l?.name||"-"),
+       `<button type="button" class="secondary" onclick="editFactionMaster(${f.id})">Editar</button>
+        <button type="button" class="danger" onclick="delFactionMaster(${f.id})">Excluir</button>`
+     ];
+   });
+   fm.innerHTML=rows.length
+     ? table(["Facção","Endereço","Telefone","Chave PIX","Tipo de serviço","Máquinas disponíveis","Local de produção","Ações"],rows)
+     : '<div class="empty">Nenhuma facção cadastrada.</div>';
+ }
+
+ if(st){
+   let rows=db.serviceTypes.map(s=>[
+     esc(s.name),
+     `<button type="button" class="secondary" onclick="editServiceType(${s.id})">Editar</button>
+      <button type="button" class="danger" onclick="deleteServiceType(${s.id})">Excluir</button>`
+   ]);
+   st.innerHTML=rows.length?table(["Tipo de serviço","Ações"],rows):'<div class="empty">Nenhum tipo de serviço cadastrado.</div>';
+ }
+
+ if(mt){
+   let rows=db.machines.map(m=>[
+     esc(m.name),
+     `<button type="button" class="secondary" onclick="editMachine(${m.id})">Editar</button>
+      <button type="button" class="danger" onclick="deleteMachine(${m.id})">Excluir</button>`
+   ]);
+   mt.innerHTML=rows.length?table(["Máquina","Ações"],rows):'<div class="empty">Nenhuma máquina cadastrada.</div>';
+ }
+
+ if(pl){
+   let rows=db.productionLocations.map(l=>[
+     esc(l.name||"-"), (+l.weeklyCapacity||0)?(+l.weeklyCapacity).toLocaleString("pt-BR")+" peças":"Não definida", esc((l.allowedServices||[]).join(", ")||"Todos"),
+     l.active!==false?'<span class="badge ok">Ativo</span>':'<span class="badge">Inativo</span>',
+     `<button type="button" class="secondary" onclick="editProductionLocation(${l.id})">Editar</button>
+      <button type="button" class="danger" onclick="delProductionLocation(${l.id})">Excluir</button>`
+   ]);
+   pl.innerHTML=rows.length?table(["Local de produção","Capacidade semanal","Serviços/modelos permitidos","Status","Ações"],rows):'<div class="empty">Nenhum local cadastrado.</div>';
+ }
+
+ if(ft){
+   let rows=db.factions.map(f=>{
+     let l=db.productionLocations.find(x=>+x.id===+f.productionLocationId);
+     let ord=(db.orders||[]).find(o=>+o.id===+f.orderId);
+     return [
+       esc(f.name||"-"),esc(f.op||"-"),esc(ord?orderProductSummary(ord):cleanFactionProductName(f.description||f.product||"-")),esc(l?.name||"-"),
+       fmtDate(f.sentAt||f.date),fmtDate(f.dueDate),f.sent||0,f.done||0,+f.defects||0,+f.waste||0,
+       `<span class="badge ${f.status==="Finalizado"?"ok":""}">${esc(f.status||"Enviado")}</span>`,
+       money(f.price||0),money((f.done||0)*(f.price||0)),priorityBadge(ord?.priority||"Padrão"),
+       `${ord?`<button type="button" class="secondary" onclick="viewOrderDetails(${ord.id})">Ver pedido</button> `:""}<button type="button" class="secondary" onclick="editFaction(${f.id})">Editar</button>
+        ${f.status==="Finalizado"?`<button type="button" class="primary" onclick="separateFactionForPayment(${f.id})">${f.paymentSeparated?"📅 Pagamento separado":"💰 Separação para pagamento"}</button>`:""}
+        <button type="button" class="danger" onclick="del('factions',${f.id})">Excluir</button>`
+     ];
+   });
+   ft.innerHTML=rows.length
+     ? table(["Facção","OP","Produto","Local de produção","Data envio","Previsão entrega","Enviado","Produzido","Defeitos","Faltantes/Perdas","Status","Valor/peça","A pagar","Prioridade","Ações"],rows)
+     : '<div class="empty">Nenhum envio cadastrado.</div>';
+ }
+
+ let sums={};
+ db.factions.forEach(f=>{
+   let k=f.name||"Sem nome";
+   if(!sums[k])sums[k]={sent:0,done:0,paid:0,def:0,waste:0};
+   sums[k].sent+=+f.sent||0;sums[k].done+=+f.done||0;
+   sums[k].paid+=(+f.done||0)*(+f.price||0);sums[k].def+=+f.defects||0;sums[k].waste+=+f.waste||0;
+ });
+ if(fr){
+   let rows=Object.entries(sums).map(([k,d])=>[
+     esc(k),d.sent,d.done,d.def,d.waste,money(d.paid),d.sent?(d.done/d.sent*100).toFixed(1)+"%":"-"
+   ]);
+   fr.innerHTML=rows.length?table(["Facção","Enviado","Produzido","Defeitos","Perdas","A pagar","Aproveitamento"],rows):'<div class="empty">Sem produção de facção.</div>';
+ }
+}
+function factionMasterForm(f={}){
+ let selectedServices=Array.isArray(f.serviceTypeIds)?f.serviceTypeIds:[];
+ let selectedMachines=Array.isArray(f.machineIds)?f.machineIds:[];
+ let serviceChecks=(db.serviceTypes||[]).map(s=>`
+   <label style="display:flex;gap:7px;align-items:center;margin:6px 0">
+     <input type="checkbox" class="mfServiceCheck" value="${s.id}" ${selectedServices.some(id=>+id===+s.id)?"checked":""}> ${esc(s.name)}
+   </label>`).join("");
+ let machineChecks=(db.machines||[]).map(m=>`
+   <label style="display:flex;gap:7px;align-items:center;margin:6px 0">
+     <input type="checkbox" class="mfMachineCheck" value="${m.id}" ${selectedMachines.some(id=>+id===+m.id)?"checked":""}> ${esc(m.name)}
+   </label>`).join("");
+ return `<div class="grid">
+   <div class="field"><label>Nome completo</label><input id="mfname" value="${esc(f.name||'')}"></div>
+   <div class="field"><label>Endereço</label><input id="mfaddress" value="${esc(f.address||'')}"></div>
+   <div class="field"><label>Telefone</label><input id="mfphone" value="${esc(f.phone||'')}"></div>
+   <div class="field"><label>Chave PIX</label><input id="mfpix" value="${esc(f.pix||'')}"></div>
+   <div class="field"><label>Local de produção</label><select id="mflocation"><option value="">Selecione</option>${(db.productionLocations||[]).filter(x=>x.active!==false).map(x=>`<option value="${x.id}" ${+x.id===+f.productionLocationId?'selected':''}>${esc(x.name)}</option>`).join('')}</select></div>
+ </div>
+ <div class="panel"><h3>Tipos de serviço</h3><div class="sub">Marque todos os tipos de peças/serviços que esta facção faz.</div>${serviceChecks||'<div class="empty">Cadastre tipos de serviço primeiro.</div>'}</div>
+ <div class="panel"><h3>Máquinas disponíveis</h3><div class="sub">Marque todas as máquinas que esta facção possui.</div>${machineChecks||'<div class="empty">Cadastre máquinas primeiro.</div>'}</div>`;
+}
+function collectFactionServices(){return [...document.querySelectorAll(".mfServiceCheck:checked")].map(x=>+x.value)}
+function collectFactionMachines(){return [...document.querySelectorAll(".mfMachineCheck:checked")].map(x=>+x.value)}
+function newFactionMaster(){
+ openModal("Nova facção",factionMasterForm()+`<button type="button" class="primary modalSave">💾 Salvar facção</button>`,()=>{
+   let name=(document.getElementById("mfname")?.value||"").trim();
+   if(!name){alert("Informe o nome da facção.");return}
+   let serviceTypeIds=collectFactionServices(),machineIds=collectFactionMachines();
+   db.factionMasters.push({
+     id:Date.now()+Math.floor(Math.random()*1000),name,
+     address:(document.getElementById("mfaddress")?.value||"").trim(),
+     phone:(document.getElementById("mfphone")?.value||"").trim(),
+     pix:(document.getElementById("mfpix")?.value||"").trim(),
+     serviceTypeIds,machineIds,
+     serviceType:selectedCatalogNames(serviceTypeIds,db.serviceTypes),
+     machines:selectedCatalogNames(machineIds,db.machines),
+     productionLocationId:document.getElementById("mf

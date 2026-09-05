@@ -1,0 +1,166 @@
+=== HLGB v91.35 PROJECTION + CAPACITY + FACTION DELIVERY + PIX COPY @ line 13706 ===
+13661:       let field=week.closest('.field');field?.insertAdjacentElement('afterend',box);picker=box.querySelector('#hubFinanceCalendarDate');
+13662:     }
+13663:     if(picker&&week.value){
+13664:       try{let m=mondayFromWeek(week.value);picker.value=isoDate(m)}catch(e){}
+13665:     }
+13666:   }
+13667: 
+13668:   const oldHub934=window.renderHubFinance;
+13669:   window.renderHubFinance=function(){let out=oldHub934?oldHub934.apply(this,arguments):undefined;safe934(ensureHubCalendar934);return out};
+13670: 
+13671:   function unassigned934(){
+13672:     try{syncFinalizedCutsToProduction()}catch(e){}
+13673:     let arr=[];
+13674:     try{arr=typeof hlgb916UnassignedProduction==='function'?hlgb916UnassignedProduction():(db.production||[]).filter(p=>p.cutId&&!p.productionLocationId&&!p.factionId&&!p.finishedAt&&(+p.planned||0)>0&&!['pronto','finalizado'].includes(String(p.stage||'').toLowerCase()))}catch(e){arr=[]}
+13675:     let seen=new Set();return arr.filter(p=>{let k=String(p.id);if(seen.has(k))return false;seen.add(k);return true});
+13676:   }
+13677: 
+13678:   function renderReady934(){
+13679:     let el=document.getElementById('readyCutsTable');if(!el)return;
+13680:     let rows=unassigned934(),qty=rows.reduce((a,p)=>a+(+p.planned||0),0),value=rows.reduce((a,p)=>{let pr=(db.products||[]).find(x=>+x.id===+p.productId);return a+(+p.planned||0)*(+pr?.price||0)},0);
+13681:     let cards=document.getElementById('cutSummaryCards');if(cards){
+13682:       let card=[...cards.querySelectorAll('.card')].find(c=>String(c.querySelector('small')?.textContent||'').trim()==='Cortes prontos para produzir');
+13683:       if(card){let s=card.querySelector('strong');if(s)s.textContent=qty.toLocaleString('pt-BR')+' peças';let div=[...card.querySelectorAll('div')].find(x=>x!==s);if(div)div.textContent=money(value)}
+13684:     }
+13685:     if(!rows.length){el.innerHTML='<div class="empty">Nenhum corte finalizado aguardando atribuição. O que já entrou em produção não aparece mais aqui.</div>';return}
+13686:     el.innerHTML=table(['Pedido','Cliente','Modelo','Peças aguardando','Valor','Corte','Cortador','Finalizado','Situação','Prioridade','Ações'],rows.map(p=>{
+13687:       let c=(db.cuts||[]).find(x=>+x.id===+p.cutId),o=(db.orders||[]).find(x=>+x.id===+p.orderId),pr=(db.products||[]).find(x=>+x.id===+p.productId),ct=(db.cutters||[]).find(x=>+x.id===+c?.cutterId),model=pr?.name||p.product||c?.product||'Produto',pieces=+p.planned||0;
+13688:       return [`#${esc(o?displayOrderNumber(o):(p.orderId||'-'))}`,esc(p.client||o?.client||'-'),`<b>${esc(model)}</b>`,pieces.toLocaleString('pt-BR'),money(pieces*(+pr?.price||0)),esc(c?.cutType||'-'),esc(ct?.name||'-'),c?.finishedAt?fmtDate(c.finishedAt):'-','<span class="badge warn">Aguardando atribuição</span>',priorityBadge(o?.priority||'Padrão'),`${o?`<button type="button" class="secondary" onclick="viewOrderDetails(${o.id})">Ver pedido</button> `:''}<button type="button" class="primary" onclick="openCutAssignment(${p.id})">Atribuir produção</button>`];
+13689:     }));
+13690:   }
+13691:   window.renderReadyCuts934=renderReady934;
+13692: 
+13693:   const oldCuts934=window.renderCuts;
+13694:   window.renderCuts=function(){let out=oldCuts934?oldCuts934.apply(this,arguments):undefined;safe934(renderReady934);return out};
+13695:   const oldQueue934=window.renderCutAssignmentQueue;
+13696:   window.renderCutAssignmentQueue=function(){let out=oldQueue934?oldQueue934.apply(this,arguments):undefined;safe934(renderReady934);return out};
+13697:   const oldIncoming934=window.hlgbRenderIncomingRecord;
+13698:   window.hlgbRenderIncomingRecord=function(module){let out=oldIncoming934?oldIncoming934.apply(this,arguments):undefined;if(['production','cuts','orders'].includes(module))safe934(renderReady934);return out};
+13699: 
+13700:   function boot934(){safe934(ensureHubCalendar934);safe934(renderReady934)}
+13701:   setTimeout(boot934,900);window.addEventListener('focus',()=>setTimeout(boot934,120));
+13702: })();
+13703: </script>
+13704: 
+13705: 
+13706: <!-- HLGB v91.35 PROJECTION + CAPACITY + FACTION DELIVERY + PIX COPY -->
+13707: <style>
+13708: .pix-copy-935{display:inline-flex;align-items:center;gap:6px;flex-wrap:wrap}
+13709: .pix-copy-935 button{padding:5px 8px;font-size:11px}
+13710: .faction-delivery-935 .badge{white-space:nowrap}
+13711: </style>
+13712: <script>
+13713: (function(){
+13714:   const n935=v=>String(v??'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/\s+/g,' ').trim();
+13715:   const c935=v=>{try{return JSON.parse(JSON.stringify(v))}catch(e){return v}};
+13716:   const safe935=fn=>{try{return fn()}catch(e){console.error('HLGB v91.35',e)}};
+13717: 
+13718:   function item935(orderId,key){
+13719:     let o=(db.orders||[]).find(x=>+x.id===+orderId);
+13720:     return o&&typeof projectionItemsForOrder==='function'?projectionItemsForOrder(o).find(x=>String(x.key)===String(key)):null;
+13721:   }
+13722:   function assignedProd935(p){
+13723:     let st=n935(p?.stage||p?.status||'');
+13724:     return !!(p?.factionId||p?.productionLocationId||p?.finishedAt)||['em producao','acabamento','pronto','finalizado','producao finalizada'].includes(st);
+13725:   }
+13726:   function exactActual935(orderId,key){
+13727:     let it=item935(orderId,key),pid=+it?.productId||(+key||0);
+13728:     return (db.production||[]).filter(p=>{
+13729:       if(+p.orderId!==+orderId||!assignedProd935(p)||(+p.planned||0)<=0)return false;
+13730:       if(!pid)return false;
+13731:       return +p.productId===pid||String(p.cutProductKey||'').split(':').pop()===String(pid);
+13732:     });
+13733:   }
+13734:   function legacyActual935(orderId,key){
+13735:     let exact=exactActual935(orderId,key);if(exact.length)return [];
+13736:     let it=item935(orderId,key),name=n935(it?.name||''),o=(db.orders||[]).find(x=>+x.id===+orderId),total=o&&typeof qtyOfOrder==='function'?+qtyOfOrder(o)||0:0;
+13737:     let candidates=(db.production||[]).filter(p=>{
+13738:       if(+p.orderId!==+orderId||!assignedProd935(p)||(+p.planned||0)<=0)return false;
+13739:       if(p.productId||p.cutProductKey)return false;
+13740:       let text=n935(p.product||'');
+13741:       return (!!name&&text.includes(name))||(total>0&&(+p.planned||0)>=total);
+13742:     });
+13743:     let seen=new Set();return candidates.filter(p=>{let dest=`${p.factionId||''}|${p.productionLocationId||''}`;if(seen.has(dest))return false;seen.add(dest);return true});
+13744:   }
+13745:   function actualDisplay935(orderId,key){
+13746:     let it=item935(orderId,key),exact=exactActual935(orderId,key),legacy=legacyActual935(orderId,key),rows=[];
+13747:     exact.forEach(p=>rows.push({p,qty:+p.planned||0,legacy:false}));
+13748:     if(!exact.length&&legacy.length){let remaining=Math.max(0,+it?.qty||0);legacy.forEach((p,i)=>{let q=i===legacy.length-1?remaining:Math.min(remaining,+p.planned||remaining);remaining=Math.max(0,remaining-q);if(q>0)rows.push({p,qty:q,legacy:true})})}
+13749:     return rows;
+13750:   }
+13751:   function planRows935(orderId,key){
+13752:     return (db.capacityAssignments||[]).filter(a=>+a.orderId===+orderId&&String(a.itemKey)===String(key)&&String(a.source||'')!=='cut_assignment'&&(+a.locationId||0)&&a.active!==false)
+13753:       .map(a=>({...a,qty:Math.max(0,(+a.qty||0)-(+a.consumedQty||0))})).filter(a=>(+a.qty||0)>0);
+13754:   }
+13755: 
+13756:   window.assignmentsFor=function(orderId,key){
+13757:     let it=item935(orderId,key),actual=actualDisplay935(orderId,key),out=[];
+13758:     actual.forEach(x=>{let p=x.p,loc=+p.productionLocationId||0;if(loc&&x.qty>0)out.push({id:'actual935:'+p.id,orderId:+orderId,itemKey:String(key),locationId:loc,qty:x.qty,source:'actual_production_v9135',locked:true,productionId:p.id})});
+13759:     let limit=Math.max(0,(+it?.qty||0)-actual.reduce((s,x)=>s+(+x.qty||0),0));
+13760:     for(const a of planRows935(orderId,key)){if(limit<=0)break;let q=Math.min(limit,+a.qty||0);if(q>0){out.push({...a,qty:q});limit-=q}}
+13761:     return out;
+13762:   };
+13763:   window.assignmentFor=function(orderId,key){return assignmentsFor(orderId,key)[0]||null};
+13764:   window.projectionProductionSplit=function(orderId,key){
+13765:     let parts=[];
+13766:     actualDisplay935(orderId,key).forEach(x=>{let name='Local';try{name=productionDestinationName(x.p)||name}catch(e){}parts.push(`${name}: ${(+x.qty||0).toLocaleString('pt-BR')} pç`)});
+13767:     let actualQty=actualDisplay935(orderId,key).reduce((s,x)=>s+(+x.qty||0),0),it=item935(orderId,key),remaining=Math.max(0,(+it?.qty||0)-actualQty);
+13768:     if(remaining>0){let used=0;planRows935(orderId,key).forEach(a=>{if(used>=remaining)return;let q=Math.min(remaining-used,+a.qty||0),l=(db.productionLocations||[]).find(x=>+x.id===+a.locationId);if(q>0&&l){parts.push(`Previsto ${l.name}: ${q.toLocaleString('pt-BR')} pç`);used+=q}})}
+13769:     return parts.join(' · ')||'';
+13770:   };
+13771: 
+13772:   const oldOpenCapacity935=window.openCapacityAllocation;
+13773:   window.openCapacityAllocation=function(orderId,key){
+13774:     let legacy=legacyActual935(orderId,key),exact=exactActual935(orderId,key),it=item935(orderId,key);
+13775:     if(!exact.length&&legacy.length&&it){
+13776:       let fixed=actualDisplay935(orderId,key),sum=fixed.reduce((s,x)=>s+(+x.qty||0),0),remain=Math.max(0,(+it.qty||0)-sum);
+13777:       openModal(`Alocação protegida — ${esc(it.name||'Produto')}`,`<div class="cards"><div class="card"><small>Total do modelo</small><strong>${(+it.qty||0).toLocaleString('pt-BR')}</strong></div><div class="card"><small>Já atribuído de verdade</small><strong>${sum.toLocaleString('pt-BR')}</strong></div><div class="card"><small>Restante</small><strong>${remain.toLocaleString('pt-BR')}</strong></div></div><div class="panel"><h3>Produção já atribuída</h3>${table(['Local / facção','Peças'],fixed.map(x=>[esc(productionDestinationName(x.p)||'-'),(+x.qty||0).toLocaleString('pt-BR')]))}<div class="sub" style="margin-top:10px">Este é um registro antigo em que o corte inteiro foi vinculado ao local. A v91.35 reconhece o modelo dentro desse vínculo e protege a produção já em andamento para não duplicar a alocação.</div></div><button type="button" class="secondary modalSave" onclick="closeModal()">Fechar</button>`,()=>closeModal());
+13778:       return;
+13779:     }
+13780:     return oldOpenCapacity935?oldOpenCapacity935.apply(this,arguments):undefined;
+13781:   };
+13782: 
+13783:   function copyText935(v){
+13784:     let text=String(v||'').trim();if(!text||text==='-')return;
+13785:     let done=()=>{try{setCloudStatus('📋 PIX copiado','ok')}catch(e){}};
+13786:     if(navigator.clipboard?.writeText){navigator.clipboard.writeText(text).then(done).catch(()=>fallback())}else fallback();
+13787:     function fallback(){let t=document.createElement('textarea');t.value=text;t.style.position='fixed';t.style.opacity='0';document.body.appendChild(t);t.select();try{document.execCommand('copy');done()}catch(e){}t.remove()}
+13788:   }
+13789:   window.copyPix935=copyText935;
+13790:   function makePix935(v){
+13791:     let pix=String(v||'').trim(),wrap=document.createElement('span');wrap.className='pix-copy-935';
+13792:     if(!pix){wrap.textContent='-';return wrap}
+13793:     let s=document.createElement('span');s.textContent=pix;let b=document.createElement('button');b.type='button';b.className='secondary';b.textContent='📋 Copiar';b.addEventListener('click',()=>copyText935(pix));wrap.append(s,b);return wrap;
+13794:   }
+13795:   function enhancePayrollPix935(){document.querySelectorAll('#payrollTable .payroll-pix').forEach(cell=>{if(cell.dataset.pix935)return;let v=cell.textContent.trim();cell.textContent='';cell.appendChild(makePix935(v==='-'?'':v));cell.dataset.pix935='1'})}
+13796:   function enhanceFactionPix935(){
+13797:     let tableEl=document.querySelector('#factionPaymentTable table');if(tableEl&&!tableEl.dataset.pix935){
+13798:       let filter=document.getElementById('factionPaymentFilter')?.value||'',start=document.getElementById('fpPeriodStart')?.value||'',end=document.getElementById('fpPeriodEnd')?.value||'';
+13799:       let arr=(db.factionPayments||[]).filter(p=>(typeof factionPaymentInPeriod!=='function'||factionPaymentInPeriod(p,start,end))&&(!filter||p.status===filter));
+13800:       let trs=[...tableEl.querySelectorAll('tr')],head=trs.shift();if(head){let thPix=document.createElement('th');thPix.textContent='PIX';let thWeek=document.createElement('th');thWeek.textContent='Semana pagamento';head.insertBefore(thWeek,head.children[2]||null);head.insertBefore(thPix,head.children[2]||null)}
+13801:       trs.forEach((tr,i)=>{let p=arr[i];if(!p)return;let tdPix=document.createElement('td');tdPix.appendChild(makePix935(p.pix));let tdWeek=document.createElement('td');let w=p.scheduledPaymentWeek||'';if(!w&&p.scheduledPaymentDate){try{w=weekValue(new Date(String(p.scheduledPaymentDate).slice(0,10)+'T12:00:00'))}catch(e){}}tdWeek.innerHTML=w?`<b>${esc(w)}</b><div class="sub">${p.scheduledPaymentDate?fmtDate(p.scheduledPaymentDate):''}</div>`:'-';tr.insertBefore(tdWeek,tr.children[2]||null);tr.insertBefore(tdPix,tr.children[2]||null)});
+13802:       tableEl.dataset.pix935='1';
+13803:     }
+13804:     let sum=document.getElementById('factionPaymentSummary');if(sum){let known=new Set((db.factionPayments||[]).map(p=>String(p.pix||'').trim()).filter(Boolean));sum.querySelectorAll('td').forEach(td=>{if(td.dataset.pix935)return;let v=td.textContent.trim();if(known.has(v)){td.textContent='';td.appendChild(makePix935(v));td.dataset.pix935='1'}})}
+13805:   }
+13806: 
+13807:   const oldPayroll935=window.renderPayroll;
+13808:   window.renderPayroll=function(){let out=oldPayroll935?oldPayroll935.apply(this,arguments):undefined;setTimeout(enhancePayrollPix935,0);return out};
+13809:   const oldPay935=window.renderFactionPayments;
+13810:   window.renderFactionPayments=function(){let out=oldPay935?oldPay935.apply(this,arguments):undefined;setTimeout(enhanceFactionPix935,0);return out};
+13811:   const oldInPeriod935=window.factionPaymentInPeriod;
+13812:   window.factionPaymentInPeriod=function(p,start,end){
+13813:     let d=String((p?.status==='Pago'?(p.paymentDate||p.scheduledPaymentDate||p.serviceFinishedAt):(p?.scheduledPaymentDate||p?.serviceFinishedAt||p?.paymentDate))||'').slice(0,10);
+13814:     if(!d)return !start&&!end;if(start&&d<start)return false;if(end&&d>end)return false;return true;
+13815:   };
+13816: 
+13817:   function productName935(f){
+13818:     let p=(db.products||[]).find(x=>+x.id===+f.productId);if(p)return p.name||'Produto';
+13819:     let pr=(db.production||[]).find(x=>+x.id===+f.productionId),q=(db.products||[]).find(x=>+x.id===+pr?.productId);if(q)return q.name||'Produto';
+13820:     return f.description||f.product||f.op||'Serviço';
+13821:   }
+13822:   function ensureFactionPanel935(){
+13823:     let page=document.getElementById('faccoes');if(!page||document.getElementById('factionDeliveryPanel935'))return;
+13824:     let panel=document.createElement('div');panel.id='factionDeliveryPanel935';panel.className='panel faction-delivery-935';panel.innerHTML='<h2>📦 Entregas das facções</h2><div class="sub">Registre aqui cada entrega, inclusive parcial, e escolha diretamente a semana em que ela deve entrar para pagamento.</div><div id="factionDeliveryTable935" style="margin-top:12px"></div>';
+13825:     let report=page.querySelector('#factionReport')?.closest('.panel');if(report)page.insertBefore(panel,report);else page.appendChild(panel);

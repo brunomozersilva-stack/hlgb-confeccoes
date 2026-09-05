@@ -1,0 +1,1335 @@
+=== projectionInvoices @ line 4854 ===
+04809:  let rows=selected.map((x,i)=>{
+04810:    let rem=x.item.remainingQty!=null?x.item.remainingQty:Math.max(0,x.item.qty-(x.item.invoicedQty||0));
+04811:    let unit=x.item.qty>0?(+x.item.value||0)/x.item.qty:0;
+04812:    return `<tr>
+04813:      <td>${esc(x.item.name)}</td>
+04814:      <td>${x.item.qty.toLocaleString("pt-BR")}</td>
+04815:      <td>${(+x.item.invoicedQty||0).toLocaleString("pt-BR")}</td>
+04816:      <td><b>${rem.toLocaleString("pt-BR")}</b></td>
+04817:      <td><input class="projectionInvoiceQty" data-index="${i}" type="number" min="0" max="${rem}" step="1" value="${rem}" oninput="recalcProjectionInvoiceModal()"></td>
+04818:      <td><input class="projectionInvoiceUnit" data-index="${i}" type="number" min="0" step=".01" value="${unit.toFixed(2)}" oninput="recalcProjectionInvoiceModal()"></td>
+04819:    </tr>`;
+04820:  }).join("");
+04821: 
+04822:  openModal("Finalizar nota — venda total ou parcial",`
+04823:    <div class="panel" style="margin-top:0;background:#fff8fb">
+04824:     <div class="grid">
+04825:       <div class="field"><label>Cliente original do pedido</label><input value="${esc(originalClient)}" disabled></div>
+04826:       <div class="field"><label>Cliente que vai receber esta nota</label><select id="projectionInvoiceClient" onchange="updateProjectionInvoiceClientPrices()">${clientOptions}</select><div class="sub">Pode escolher outro cliente sem alterar o pedido original.</div></div>
+04827:       <div class="field"><label>Data de emissão da nota</label><input id="projectionInvoiceIssueDate" type="date" value="${isoDate(new Date())}"></div>
+04828:       <div class="field"><label>Vencimento</label><input id="projectionInvoiceDue" type="date" value="${selected[0]?.item.date||isoDate(new Date())}"></div>
+04829:       <div class="field"><label>Condição de pagamento</label><select id="projectionInvoiceTerms" onchange="toggleProjectionInvoiceTermsDetail()"><option>À vista</option><option>7 dias</option><option>14 dias</option><option>21 dias</option><option>28 dias</option><option>30 dias</option><option>Cheque</option><option>Personalizado</option></select></div>
+04830:       <div class="field" id="projectionInvoiceTermsDetailField" style="display:none"><label id="projectionInvoiceTermsDetailLabel">Detalhes da condição</label><input id="projectionInvoiceTermsDetail" placeholder="Informe os detalhes da condição de pagamento"></div>
+04831:     </div>
+04832:    </div>
+04833:    <div class="sub" style="margin:10px 0">Em <b>Qtd. nesta nota</b>, informe somente o que está saindo agora. O restante continua disponível na Projeção para outra nota ou outro cliente.</div>
+04834:    <div style="overflow:auto"><table><thead><tr><th>Produto</th><th>Original</th><th>Já faturado</th><th>Disponível</th><th>Qtd. nesta nota</th><th>Valor/peça</th></tr></thead><tbody>${rows}</tbody></table></div>
+04835:    <div class="cards" style="margin-top:12px">
+04836:      <div class="card"><small>Peças nesta nota</small><strong id="projectionInvoiceQtyTotal">0</strong></div>
+04837:      <div class="card"><small>Valor desta nota</small><strong id="projectionInvoiceValueTotal">R$ 0,00</strong></div>
+04838:    </div>
+04839:    <button type="button" class="primary modalSave">Finalizar esta nota</button>`,()=>{
+04840:      let targetClientId=+document.getElementById("projectionInvoiceClient")?.value||null;
+04841:      let targetClient=(db.clients||[]).find(c=>+c.id===+targetClientId);
+04842:      if(!targetClient){alert("Selecione o cliente que receberá a nota.");return}
+04843:      let lineInputs=[...document.querySelectorAll(".projectionInvoiceQty")];
+04844:      let invoiceItems=[],totalValue=0,totalQty=0;
+04845:      lineInputs.forEach(inp=>{
+04846:        let i=+inp.dataset.index,ctx=selected[i];if(!ctx)return;
+04847:        let available=ctx.item.remainingQty!=null?ctx.item.remainingQty:Math.max(0,ctx.item.qty-(ctx.item.invoicedQty||0));
+04848:        let q=Math.max(0,Math.min(available,+inp.value||0));
+04849:        let unit=+document.querySelector(`.projectionInvoiceUnit[data-index="${i}"]`)?.value||0;
+04850:        if(q>0){invoiceItems.push({ctx,qty:q,unit,value:q*unit});totalQty+=q;totalValue+=q*unit}
+04851:      });
+04852:      if(!invoiceItems.length){alert("Informe pelo menos uma quantidade para esta nota.");return}
+04853: 
+04854:      db.finance=db.finance||[];db.projectionInvoices=db.projectionInvoices||[];
+04855:      let issueDate=document.getElementById("projectionInvoiceIssueDate")?.value||isoDate(new Date());
+04856:      let due=document.getElementById("projectionInvoiceDue")?.value||issueDate;
+04857:      let terms=document.getElementById("projectionInvoiceTerms")?.value||"À vista";
+04858:      let termsDetail=document.getElementById("projectionInvoiceTermsDetail")?.value?.trim()||"";
+04859:      if(terms==="Personalizado"&&!termsDetail){alert("Informe os detalhes da condição de pagamento personalizada.");return}
+04860:      let invoiceId=Date.now();
+04861: 
+04862:      db.projectionInvoices.push({
+04863:        id:invoiceId,
+04864:        client:targetClient.name,
+04865:        clientId:targetClient.id,
+04866:        sourceClient:originalClient,
+04867:        items:invoiceItems.map(x=>({orderId:x.ctx.o.id,itemKey:x.ctx.item.key,productName:x.ctx.item.name,productId:x.ctx.item.productId||null,projectionDate:x.ctx.item.date||x.ctx.o.date||"",deliveredAt:issueDate,qty:x.qty,unitPrice:x.unit,value:x.value})),
+04868:        date:issueDate,issueDate:issueDate,dueDate:due,value:totalValue,terms,termsDetail,status:"Pendente"
+04869:      });
+04870:      db.finance.push({
+04871:        id:invoiceId+1,type:"Receber",
+04872:        desc:`Nota projeção — ${targetClient.name} — ${invoiceItems.map(x=>x.ctx.item.name).join(", ")}`,
+04873:        value:totalValue,status:"Pendente",paid:0,remaining:totalValue,date:due,dueDate:due,issueDate:issueDate,paymentTerms:terms,paymentTermsDetail:termsDetail,
+04874:        clientId:targetClient.id,clientName:targetClient.name,projectionInvoiceId:invoiceId
+04875:      });
+04876: 
+04877:      invoiceItems.forEach(({ctx,qty})=>{
+04878:        let o=ctx.o,item=ctx.item;
+04879:        o.projectionItems=o.projectionItems||{};
+04880:        let saved=o.projectionItems[item.key]||{};
+04881:        let prev=saved.invoicedQty!=null?(+saved.invoicedQty||0):(saved.invoiced?item.qty:0);
+04882:        let newQty=Math.min(item.qty,prev+qty);
+04883:        o.projectionItems[item.key]={
+04884:          ...saved,date:item.date,invoicedQty:newQty,invoiced:newQty>=item.qty,
+04885:          invoiceIds:[...((saved.invoiceIds)||[]),invoiceId],
+04886:          deliveryHistory:[...((saved.deliveryHistory)||[]),{invoiceId,date:issueDate,qty}]
+04887:        };
+04888:        let all=projectionItemsForOrder(o);
+04889:        o.projectionInvoiced=all.every(i=>i.invoiced);
+04890:      });
+04891: 
+04892:      closeModal();
+04893:      save();
+04894:      renderProjection();
+04895:      renderFinance();
+04896:      alert(`Nota finalizada para ${targetClient.name}: ${totalQty.toLocaleString("pt-BR")} peça(s) — ${money(totalValue)}. O saldo não faturado continua disponível.`);
+04897:    });
+04898:  setTimeout(()=>{updateProjectionInvoiceClientPrices();recalcProjectionInvoiceModal()},30);
+04899: }
+04900: function updateProjectionInvoiceClientPrices(){
+04901:  let clientId=+document.getElementById("projectionInvoiceClient")?.value||0;
+04902:  let keys=[...document.querySelectorAll(".projectionSelect:checked")].map(x=>x.value);
+04903:  let selected=keys.map(v=>{let [oid,key]=String(v).split("::"),o=(db.orders||[]).find(x=>+x.id===+oid);if(!o)return null;let item=projectionItemsForOrder(o).find(i=>String(i.key)===key);return item?{o,item}:null}).filter(Boolean);
+04904:  document.querySelectorAll(".projectionInvoiceUnit").forEach(inp=>{
+04905:    let i=+inp.dataset.index,ctx=selected[i];if(!ctx)return;
+04906:    let unit=0;
+04907:    if(ctx.item.productId&&clientId){try{unit=+suggestedPrice(clientId,ctx.item.productId)||0}catch(e){}}
+04908:    if(!unit)unit=ctx.item.qty>0?(+ctx.item.value||0)/ctx.item.qty:0;
+04909:    inp.value=unit.toFixed(2);
+04910:  });
+04911:  recalcProjectionInvoiceModal();
+04912: }
+04913: function toggleProjectionInvoiceTermsDetail(){
+04914:  let sel=document.getElementById("projectionInvoiceTerms"),field=document.getElementById("projectionInvoiceTermsDetailField"),label=document.getElementById("projectionInvoiceTermsDetailLabel"),inp=document.getElementById("projectionInvoiceTermsDetail");
+04915:  if(!sel||!field)return;
+04916:  let value=sel.value||"";
+04917:  let show=value==="Personalizado"||value==="Cheque";
+04918:  field.style.display=show?"block":"none";
+04919:  if(label)label.textContent=value==="Cheque"?"Detalhes dos cheques":"Detalhes da condição personalizada";
+04920:  if(inp){
+04921:    inp.placeholder=value==="Cheque"?"Ex.: 2 cheques — 15/09 e 30/09":"Ex.: entrada + 2 parcelas, 10/20/30 dias";
+04922:    if(!show)inp.value="";
+04923:  }
+04924: }
+04925: function recalcProjectionInvoiceModal(){
+04926:  let qty=0,value=0;
+04927:  document.querySelectorAll(".projectionInvoiceQty").forEach(inp=>{
+04928:    let i=inp.dataset.index,q=Math.max(0,+inp.value||0),u=+document.querySelector(`.projectionInvoiceUnit[data-index="${i}"]`)?.value||0;
+04929:    qty+=q;value+=q*u;
+04930:  });
+04931:  let qel=document.getElementById("projectionInvoiceQtyTotal"),vel=document.getElementById("projectionInvoiceValueTotal");
+04932:  if(qel)qel.textContent=qty.toLocaleString("pt-BR");
+04933:  if(vel)vel.textContent=money(value);
+04934: }
+04935: 
+04936: function projectionRemainingQty(item){
+04937:  return Math.max(0,item?.remainingQty!=null?(+item.remainingQty||0):((+item?.qty||0)-(+item?.invoicedQty||0)));
+04938: }
+04939: function projectionUnitForItem(item){
+04940:  return (+item?.qty||0)>0?(+item?.value||0)/(+item?.qty||0):0;
+04941: }
+04942: function projectionRemainingValue(item){
+04943:  return projectionRemainingQty(item)*projectionUnitForItem(item);
+04944: }
+04945: function projectionDeliveredRows(startS="0000-01-01",endS="9999-12-31"){
+04946:  let out=[];
+04947:  (db.projectionInvoices||[]).forEach(inv=>{
+04948:    let date=String(inv.issueDate||inv.date||"").slice(0,10);
+04949:    if(!date||date<startS||date>endS)return;
+04950:    (inv.items||[]).forEach(it=>{
+04951:      let o=(db.orders||[]).find(x=>+x.id===+it.orderId)||null;
+04952:      out.push({invoice:inv,order:o,item:it,date,qty:+it.qty||0,value:+it.value||((+it.qty||0)*(+it.unitPrice||0))});
+04953:    });
+04954:  });
+04955:  return out;
+04956: }
+04957: function projectionTrackingMatches(order,productName){
+04958:  let clientF=(document.getElementById("projectionClientFilter")?.value||"").trim().toLowerCase();
+04959:  let productF=(document.getElementById("projectionProductFilter")?.value||"").trim().toLowerCase();
+04960:  let orderF=(document.getElementById("projectionOrderFilter")?.value||"").trim().toLowerCase();
+04961:  let displayNo=String(order?(typeof displayOrderNumber==="function"?displayOrderNumber(order):order.id):"").toLowerCase();
+04962:  if(clientF&&!String(order?.client||"").toLowerCase().includes(clientF))return false;
+04963:  if(productF&&!String(productName||"").toLowerCase().includes(productF))return false;
+04964:  if(orderF&&!displayNo.includes(orderF))return false;
+04965:  return true;
+04966: }
+04967: let projectionDeliveryTab="remaining";
+04968: function setProjectionDeliveryTab(tab){
+04969:  projectionDeliveryTab=tab==="delivered"?"delivered":"remaining";
+04970:  let rem=document.getElementById("projectionRemainingPane"),del=document.getElementById("projectionDeliveredPane");
+04971:  let br=document.getElementById("projectionTabRemaining"),bd=document.getElementById("projectionTabDelivered");
+04972:  if(rem)rem.style.display=projectionDeliveryTab==="remaining"?"block":"none";
+04973:  if(del)del.style.display=projectionDeliveryTab==="delivered"?"block":"none";
+
+=== projectionInvoices @ line 4862 ===
+04817:      <td><input class="projectionInvoiceQty" data-index="${i}" type="number" min="0" max="${rem}" step="1" value="${rem}" oninput="recalcProjectionInvoiceModal()"></td>
+04818:      <td><input class="projectionInvoiceUnit" data-index="${i}" type="number" min="0" step=".01" value="${unit.toFixed(2)}" oninput="recalcProjectionInvoiceModal()"></td>
+04819:    </tr>`;
+04820:  }).join("");
+04821: 
+04822:  openModal("Finalizar nota — venda total ou parcial",`
+04823:    <div class="panel" style="margin-top:0;background:#fff8fb">
+04824:     <div class="grid">
+04825:       <div class="field"><label>Cliente original do pedido</label><input value="${esc(originalClient)}" disabled></div>
+04826:       <div class="field"><label>Cliente que vai receber esta nota</label><select id="projectionInvoiceClient" onchange="updateProjectionInvoiceClientPrices()">${clientOptions}</select><div class="sub">Pode escolher outro cliente sem alterar o pedido original.</div></div>
+04827:       <div class="field"><label>Data de emissão da nota</label><input id="projectionInvoiceIssueDate" type="date" value="${isoDate(new Date())}"></div>
+04828:       <div class="field"><label>Vencimento</label><input id="projectionInvoiceDue" type="date" value="${selected[0]?.item.date||isoDate(new Date())}"></div>
+04829:       <div class="field"><label>Condição de pagamento</label><select id="projectionInvoiceTerms" onchange="toggleProjectionInvoiceTermsDetail()"><option>À vista</option><option>7 dias</option><option>14 dias</option><option>21 dias</option><option>28 dias</option><option>30 dias</option><option>Cheque</option><option>Personalizado</option></select></div>
+04830:       <div class="field" id="projectionInvoiceTermsDetailField" style="display:none"><label id="projectionInvoiceTermsDetailLabel">Detalhes da condição</label><input id="projectionInvoiceTermsDetail" placeholder="Informe os detalhes da condição de pagamento"></div>
+04831:     </div>
+04832:    </div>
+04833:    <div class="sub" style="margin:10px 0">Em <b>Qtd. nesta nota</b>, informe somente o que está saindo agora. O restante continua disponível na Projeção para outra nota ou outro cliente.</div>
+04834:    <div style="overflow:auto"><table><thead><tr><th>Produto</th><th>Original</th><th>Já faturado</th><th>Disponível</th><th>Qtd. nesta nota</th><th>Valor/peça</th></tr></thead><tbody>${rows}</tbody></table></div>
+04835:    <div class="cards" style="margin-top:12px">
+04836:      <div class="card"><small>Peças nesta nota</small><strong id="projectionInvoiceQtyTotal">0</strong></div>
+04837:      <div class="card"><small>Valor desta nota</small><strong id="projectionInvoiceValueTotal">R$ 0,00</strong></div>
+04838:    </div>
+04839:    <button type="button" class="primary modalSave">Finalizar esta nota</button>`,()=>{
+04840:      let targetClientId=+document.getElementById("projectionInvoiceClient")?.value||null;
+04841:      let targetClient=(db.clients||[]).find(c=>+c.id===+targetClientId);
+04842:      if(!targetClient){alert("Selecione o cliente que receberá a nota.");return}
+04843:      let lineInputs=[...document.querySelectorAll(".projectionInvoiceQty")];
+04844:      let invoiceItems=[],totalValue=0,totalQty=0;
+04845:      lineInputs.forEach(inp=>{
+04846:        let i=+inp.dataset.index,ctx=selected[i];if(!ctx)return;
+04847:        let available=ctx.item.remainingQty!=null?ctx.item.remainingQty:Math.max(0,ctx.item.qty-(ctx.item.invoicedQty||0));
+04848:        let q=Math.max(0,Math.min(available,+inp.value||0));
+04849:        let unit=+document.querySelector(`.projectionInvoiceUnit[data-index="${i}"]`)?.value||0;
+04850:        if(q>0){invoiceItems.push({ctx,qty:q,unit,value:q*unit});totalQty+=q;totalValue+=q*unit}
+04851:      });
+04852:      if(!invoiceItems.length){alert("Informe pelo menos uma quantidade para esta nota.");return}
+04853: 
+04854:      db.finance=db.finance||[];db.projectionInvoices=db.projectionInvoices||[];
+04855:      let issueDate=document.getElementById("projectionInvoiceIssueDate")?.value||isoDate(new Date());
+04856:      let due=document.getElementById("projectionInvoiceDue")?.value||issueDate;
+04857:      let terms=document.getElementById("projectionInvoiceTerms")?.value||"À vista";
+04858:      let termsDetail=document.getElementById("projectionInvoiceTermsDetail")?.value?.trim()||"";
+04859:      if(terms==="Personalizado"&&!termsDetail){alert("Informe os detalhes da condição de pagamento personalizada.");return}
+04860:      let invoiceId=Date.now();
+04861: 
+04862:      db.projectionInvoices.push({
+04863:        id:invoiceId,
+04864:        client:targetClient.name,
+04865:        clientId:targetClient.id,
+04866:        sourceClient:originalClient,
+04867:        items:invoiceItems.map(x=>({orderId:x.ctx.o.id,itemKey:x.ctx.item.key,productName:x.ctx.item.name,productId:x.ctx.item.productId||null,projectionDate:x.ctx.item.date||x.ctx.o.date||"",deliveredAt:issueDate,qty:x.qty,unitPrice:x.unit,value:x.value})),
+04868:        date:issueDate,issueDate:issueDate,dueDate:due,value:totalValue,terms,termsDetail,status:"Pendente"
+04869:      });
+04870:      db.finance.push({
+04871:        id:invoiceId+1,type:"Receber",
+04872:        desc:`Nota projeção — ${targetClient.name} — ${invoiceItems.map(x=>x.ctx.item.name).join(", ")}`,
+04873:        value:totalValue,status:"Pendente",paid:0,remaining:totalValue,date:due,dueDate:due,issueDate:issueDate,paymentTerms:terms,paymentTermsDetail:termsDetail,
+04874:        clientId:targetClient.id,clientName:targetClient.name,projectionInvoiceId:invoiceId
+04875:      });
+04876: 
+04877:      invoiceItems.forEach(({ctx,qty})=>{
+04878:        let o=ctx.o,item=ctx.item;
+04879:        o.projectionItems=o.projectionItems||{};
+04880:        let saved=o.projectionItems[item.key]||{};
+04881:        let prev=saved.invoicedQty!=null?(+saved.invoicedQty||0):(saved.invoiced?item.qty:0);
+04882:        let newQty=Math.min(item.qty,prev+qty);
+04883:        o.projectionItems[item.key]={
+04884:          ...saved,date:item.date,invoicedQty:newQty,invoiced:newQty>=item.qty,
+04885:          invoiceIds:[...((saved.invoiceIds)||[]),invoiceId],
+04886:          deliveryHistory:[...((saved.deliveryHistory)||[]),{invoiceId,date:issueDate,qty}]
+04887:        };
+04888:        let all=projectionItemsForOrder(o);
+04889:        o.projectionInvoiced=all.every(i=>i.invoiced);
+04890:      });
+04891: 
+04892:      closeModal();
+04893:      save();
+04894:      renderProjection();
+04895:      renderFinance();
+04896:      alert(`Nota finalizada para ${targetClient.name}: ${totalQty.toLocaleString("pt-BR")} peça(s) — ${money(totalValue)}. O saldo não faturado continua disponível.`);
+04897:    });
+04898:  setTimeout(()=>{updateProjectionInvoiceClientPrices();recalcProjectionInvoiceModal()},30);
+04899: }
+04900: function updateProjectionInvoiceClientPrices(){
+04901:  let clientId=+document.getElementById("projectionInvoiceClient")?.value||0;
+04902:  let keys=[...document.querySelectorAll(".projectionSelect:checked")].map(x=>x.value);
+04903:  let selected=keys.map(v=>{let [oid,key]=String(v).split("::"),o=(db.orders||[]).find(x=>+x.id===+oid);if(!o)return null;let item=projectionItemsForOrder(o).find(i=>String(i.key)===key);return item?{o,item}:null}).filter(Boolean);
+04904:  document.querySelectorAll(".projectionInvoiceUnit").forEach(inp=>{
+04905:    let i=+inp.dataset.index,ctx=selected[i];if(!ctx)return;
+04906:    let unit=0;
+04907:    if(ctx.item.productId&&clientId){try{unit=+suggestedPrice(clientId,ctx.item.productId)||0}catch(e){}}
+04908:    if(!unit)unit=ctx.item.qty>0?(+ctx.item.value||0)/ctx.item.qty:0;
+04909:    inp.value=unit.toFixed(2);
+04910:  });
+04911:  recalcProjectionInvoiceModal();
+04912: }
+04913: function toggleProjectionInvoiceTermsDetail(){
+04914:  let sel=document.getElementById("projectionInvoiceTerms"),field=document.getElementById("projectionInvoiceTermsDetailField"),label=document.getElementById("projectionInvoiceTermsDetailLabel"),inp=document.getElementById("projectionInvoiceTermsDetail");
+04915:  if(!sel||!field)return;
+04916:  let value=sel.value||"";
+04917:  let show=value==="Personalizado"||value==="Cheque";
+04918:  field.style.display=show?"block":"none";
+04919:  if(label)label.textContent=value==="Cheque"?"Detalhes dos cheques":"Detalhes da condição personalizada";
+04920:  if(inp){
+04921:    inp.placeholder=value==="Cheque"?"Ex.: 2 cheques — 15/09 e 30/09":"Ex.: entrada + 2 parcelas, 10/20/30 dias";
+04922:    if(!show)inp.value="";
+04923:  }
+04924: }
+04925: function recalcProjectionInvoiceModal(){
+04926:  let qty=0,value=0;
+04927:  document.querySelectorAll(".projectionInvoiceQty").forEach(inp=>{
+04928:    let i=inp.dataset.index,q=Math.max(0,+inp.value||0),u=+document.querySelector(`.projectionInvoiceUnit[data-index="${i}"]`)?.value||0;
+04929:    qty+=q;value+=q*u;
+04930:  });
+04931:  let qel=document.getElementById("projectionInvoiceQtyTotal"),vel=document.getElementById("projectionInvoiceValueTotal");
+04932:  if(qel)qel.textContent=qty.toLocaleString("pt-BR");
+04933:  if(vel)vel.textContent=money(value);
+04934: }
+04935: 
+04936: function projectionRemainingQty(item){
+04937:  return Math.max(0,item?.remainingQty!=null?(+item.remainingQty||0):((+item?.qty||0)-(+item?.invoicedQty||0)));
+04938: }
+04939: function projectionUnitForItem(item){
+04940:  return (+item?.qty||0)>0?(+item?.value||0)/(+item?.qty||0):0;
+04941: }
+04942: function projectionRemainingValue(item){
+04943:  return projectionRemainingQty(item)*projectionUnitForItem(item);
+04944: }
+04945: function projectionDeliveredRows(startS="0000-01-01",endS="9999-12-31"){
+04946:  let out=[];
+04947:  (db.projectionInvoices||[]).forEach(inv=>{
+04948:    let date=String(inv.issueDate||inv.date||"").slice(0,10);
+04949:    if(!date||date<startS||date>endS)return;
+04950:    (inv.items||[]).forEach(it=>{
+04951:      let o=(db.orders||[]).find(x=>+x.id===+it.orderId)||null;
+04952:      out.push({invoice:inv,order:o,item:it,date,qty:+it.qty||0,value:+it.value||((+it.qty||0)*(+it.unitPrice||0))});
+04953:    });
+04954:  });
+04955:  return out;
+04956: }
+04957: function projectionTrackingMatches(order,productName){
+04958:  let clientF=(document.getElementById("projectionClientFilter")?.value||"").trim().toLowerCase();
+04959:  let productF=(document.getElementById("projectionProductFilter")?.value||"").trim().toLowerCase();
+04960:  let orderF=(document.getElementById("projectionOrderFilter")?.value||"").trim().toLowerCase();
+04961:  let displayNo=String(order?(typeof displayOrderNumber==="function"?displayOrderNumber(order):order.id):"").toLowerCase();
+04962:  if(clientF&&!String(order?.client||"").toLowerCase().includes(clientF))return false;
+04963:  if(productF&&!String(productName||"").toLowerCase().includes(productF))return false;
+04964:  if(orderF&&!displayNo.includes(orderF))return false;
+04965:  return true;
+04966: }
+04967: let projectionDeliveryTab="remaining";
+04968: function setProjectionDeliveryTab(tab){
+04969:  projectionDeliveryTab=tab==="delivered"?"delivered":"remaining";
+04970:  let rem=document.getElementById("projectionRemainingPane"),del=document.getElementById("projectionDeliveredPane");
+04971:  let br=document.getElementById("projectionTabRemaining"),bd=document.getElementById("projectionTabDelivered");
+04972:  if(rem)rem.style.display=projectionDeliveryTab==="remaining"?"block":"none";
+04973:  if(del)del.style.display=projectionDeliveryTab==="delivered"?"block":"none";
+04974:  if(br)br.className=projectionDeliveryTab==="remaining"?"primary":"secondary";
+04975:  if(bd)bd.className=projectionDeliveryTab==="delivered"?"primary":"secondary";
+04976:  renderProjectionDeliveryTracking();
+04977: }
+04978: function changeProjectionRemainingDate(orderId,itemKey){
+04979:  let o=(db.orders||[]).find(x=>+x.id===+orderId);if(!o)return;
+04980:  let item=projectionItemsForOrder(o).find(i=>String(i.key)===String(itemKey));if(!item)return;
+04981:  let remaining=projectionRemainingQty(item),delivered=Math.max(0,(+item.qty||0)-remaining);
+
+=== projectionInvoices @ line 4947 ===
+04902:  let keys=[...document.querySelectorAll(".projectionSelect:checked")].map(x=>x.value);
+04903:  let selected=keys.map(v=>{let [oid,key]=String(v).split("::"),o=(db.orders||[]).find(x=>+x.id===+oid);if(!o)return null;let item=projectionItemsForOrder(o).find(i=>String(i.key)===key);return item?{o,item}:null}).filter(Boolean);
+04904:  document.querySelectorAll(".projectionInvoiceUnit").forEach(inp=>{
+04905:    let i=+inp.dataset.index,ctx=selected[i];if(!ctx)return;
+04906:    let unit=0;
+04907:    if(ctx.item.productId&&clientId){try{unit=+suggestedPrice(clientId,ctx.item.productId)||0}catch(e){}}
+04908:    if(!unit)unit=ctx.item.qty>0?(+ctx.item.value||0)/ctx.item.qty:0;
+04909:    inp.value=unit.toFixed(2);
+04910:  });
+04911:  recalcProjectionInvoiceModal();
+04912: }
+04913: function toggleProjectionInvoiceTermsDetail(){
+04914:  let sel=document.getElementById("projectionInvoiceTerms"),field=document.getElementById("projectionInvoiceTermsDetailField"),label=document.getElementById("projectionInvoiceTermsDetailLabel"),inp=document.getElementById("projectionInvoiceTermsDetail");
+04915:  if(!sel||!field)return;
+04916:  let value=sel.value||"";
+04917:  let show=value==="Personalizado"||value==="Cheque";
+04918:  field.style.display=show?"block":"none";
+04919:  if(label)label.textContent=value==="Cheque"?"Detalhes dos cheques":"Detalhes da condição personalizada";
+04920:  if(inp){
+04921:    inp.placeholder=value==="Cheque"?"Ex.: 2 cheques — 15/09 e 30/09":"Ex.: entrada + 2 parcelas, 10/20/30 dias";
+04922:    if(!show)inp.value="";
+04923:  }
+04924: }
+04925: function recalcProjectionInvoiceModal(){
+04926:  let qty=0,value=0;
+04927:  document.querySelectorAll(".projectionInvoiceQty").forEach(inp=>{
+04928:    let i=inp.dataset.index,q=Math.max(0,+inp.value||0),u=+document.querySelector(`.projectionInvoiceUnit[data-index="${i}"]`)?.value||0;
+04929:    qty+=q;value+=q*u;
+04930:  });
+04931:  let qel=document.getElementById("projectionInvoiceQtyTotal"),vel=document.getElementById("projectionInvoiceValueTotal");
+04932:  if(qel)qel.textContent=qty.toLocaleString("pt-BR");
+04933:  if(vel)vel.textContent=money(value);
+04934: }
+04935: 
+04936: function projectionRemainingQty(item){
+04937:  return Math.max(0,item?.remainingQty!=null?(+item.remainingQty||0):((+item?.qty||0)-(+item?.invoicedQty||0)));
+04938: }
+04939: function projectionUnitForItem(item){
+04940:  return (+item?.qty||0)>0?(+item?.value||0)/(+item?.qty||0):0;
+04941: }
+04942: function projectionRemainingValue(item){
+04943:  return projectionRemainingQty(item)*projectionUnitForItem(item);
+04944: }
+04945: function projectionDeliveredRows(startS="0000-01-01",endS="9999-12-31"){
+04946:  let out=[];
+04947:  (db.projectionInvoices||[]).forEach(inv=>{
+04948:    let date=String(inv.issueDate||inv.date||"").slice(0,10);
+04949:    if(!date||date<startS||date>endS)return;
+04950:    (inv.items||[]).forEach(it=>{
+04951:      let o=(db.orders||[]).find(x=>+x.id===+it.orderId)||null;
+04952:      out.push({invoice:inv,order:o,item:it,date,qty:+it.qty||0,value:+it.value||((+it.qty||0)*(+it.unitPrice||0))});
+04953:    });
+04954:  });
+04955:  return out;
+04956: }
+04957: function projectionTrackingMatches(order,productName){
+04958:  let clientF=(document.getElementById("projectionClientFilter")?.value||"").trim().toLowerCase();
+04959:  let productF=(document.getElementById("projectionProductFilter")?.value||"").trim().toLowerCase();
+04960:  let orderF=(document.getElementById("projectionOrderFilter")?.value||"").trim().toLowerCase();
+04961:  let displayNo=String(order?(typeof displayOrderNumber==="function"?displayOrderNumber(order):order.id):"").toLowerCase();
+04962:  if(clientF&&!String(order?.client||"").toLowerCase().includes(clientF))return false;
+04963:  if(productF&&!String(productName||"").toLowerCase().includes(productF))return false;
+04964:  if(orderF&&!displayNo.includes(orderF))return false;
+04965:  return true;
+04966: }
+04967: let projectionDeliveryTab="remaining";
+04968: function setProjectionDeliveryTab(tab){
+04969:  projectionDeliveryTab=tab==="delivered"?"delivered":"remaining";
+04970:  let rem=document.getElementById("projectionRemainingPane"),del=document.getElementById("projectionDeliveredPane");
+04971:  let br=document.getElementById("projectionTabRemaining"),bd=document.getElementById("projectionTabDelivered");
+04972:  if(rem)rem.style.display=projectionDeliveryTab==="remaining"?"block":"none";
+04973:  if(del)del.style.display=projectionDeliveryTab==="delivered"?"block":"none";
+04974:  if(br)br.className=projectionDeliveryTab==="remaining"?"primary":"secondary";
+04975:  if(bd)bd.className=projectionDeliveryTab==="delivered"?"primary":"secondary";
+04976:  renderProjectionDeliveryTracking();
+04977: }
+04978: function changeProjectionRemainingDate(orderId,itemKey){
+04979:  let o=(db.orders||[]).find(x=>+x.id===+orderId);if(!o)return;
+04980:  let item=projectionItemsForOrder(o).find(i=>String(i.key)===String(itemKey));if(!item)return;
+04981:  let remaining=projectionRemainingQty(item),delivered=Math.max(0,(+item.qty||0)-remaining);
+04982:  if(remaining<=0){alert("Este produto já foi entregue por completo.");return}
+04983:  openModal("Mudar data do restante",`
+04984:    <div class="grid">
+04985:     <div class="field"><label>Pedido</label><input value="#${typeof displayOrderNumber==="function"?displayOrderNumber(o):o.id}" disabled></div>
+04986:     <div class="field"><label>Cliente</label><input value="${esc(o.client||"")}" disabled></div>
+04987:     <div class="field"><label>Produto</label><input value="${esc(item.name||"")}" disabled></div>
+04988:     <div class="field"><label>Quantidade original</label><input value="${(+item.qty||0).toLocaleString("pt-BR")}" disabled></div>
+04989:     <div class="field"><label>Já entregue</label><input value="${delivered.toLocaleString("pt-BR")}" disabled></div>
+04990:     <div class="field"><label>Falta entregar</label><input value="${remaining.toLocaleString("pt-BR")}" disabled></div>
+04991:     <div class="field"><label>Data atual do restante</label><input value="${item.date?fmtDate(item.date):"-"}" disabled></div>
+04992:     <div class="field"><label>Nova data para o restante</label><input id="projectionRemainingNewDate" type="date" value="${item.date||isoDate(new Date())}"></div>
+04993:    </div>
+04994:    <div class="sub" style="margin:10px 0">Somente as ${remaining.toLocaleString("pt-BR")} peça(s) que ainda faltam serão movidas. O que já foi entregue permanece no histórico.</div>
+04995:    <button type="button" class="primary modalSave">💾 Salvar nova data do restante</button>`,()=>{
+04996:      let d=document.getElementById("projectionRemainingNewDate")?.value||"";
+04997:      if(!d){alert("Informe a nova data.");return}
+04998:      saveProjectionItemDate(o,item.key,d);
+04999:      o.projectionItems[item.key]={...(o.projectionItems[item.key]||{}),remainingRescheduledAt:isoDate(new Date())};
+05000:      closeModal();save();renderProjection();
+05001:    });
+05002: }
+05003: function renderProjectionDeliveryTracking(){
+05004:  let sEl=document.getElementById("projectionStart"),eEl=document.getElementById("projectionEnd");
+05005:  if(!sEl||!eEl)return;
+05006:  let startS=sEl.value||"0000-01-01",endS=eEl.value||"9999-12-31";
+05007:  let remainingRows=allProjectionRows().filter(({order:o,item})=>item.date&&item.date>=startS&&item.date<=endS&&projectionRemainingQty(item)>0&&projectionTrackingMatches(o,item.name));
+05008:  let deliveredRows=projectionDeliveredRows(startS,endS).filter(r=>projectionTrackingMatches(r.order,r.item.productName));
+05009:  let plannedQty=remainingRows.reduce((a,x)=>a+projectionRemainingQty(x.item),0);
+05010:  let plannedValue=remainingRows.reduce((a,x)=>a+projectionRemainingValue(x.item),0);
+05011:  let deliveredQty=deliveredRows.reduce((a,x)=>a+(+x.qty||0),0);
+05012:  let deliveredValue=deliveredRows.reduce((a,x)=>a+(+x.value||0),0);
+05013:  let cards=document.getElementById("projectionDeliverySummaryCards");
+05014:  if(cards)cards.innerHTML=`
+05015:    <div class="card"><small>Peças previstas / falta entregar</small><strong>${plannedQty.toLocaleString("pt-BR")}</strong></div>
+05016:    <div class="card"><small>Peças entregues no período</small><strong>${deliveredQty.toLocaleString("pt-BR")}</strong></div>
+05017:    <div class="card"><small>Valor previsto / falta entregar</small><strong>${money(plannedValue)}</strong></div>
+05018:    <div class="card"><small>Valor entregue no período</small><strong>${money(deliveredValue)}</strong></div>`;
+05019:  let remEl=document.getElementById("projectionRemainingTable");
+05020:  if(remEl)remEl.innerHTML=remainingRows.length?table(
+05021:    ["Data prevista","Pedido","Cliente","Produto","Original","Já entregue","Falta entregar","Valor restante","Ação"],
+05022:    remainingRows.slice().sort((a,b)=>String(a.item.date).localeCompare(String(b.item.date))).map(({order:o,item})=>{
+05023:      let rem=projectionRemainingQty(item),done=Math.max(0,(+item.qty||0)-rem);
+05024:      let safeKey=String(item.key).replace(/'/g,"\\'");
+05025:      return [fmtDate(item.date),"#"+(typeof displayOrderNumber==="function"?displayOrderNumber(o):o.id),esc(o.client||"-"),esc(item.name||"-"),(+item.qty||0).toLocaleString("pt-BR"),done.toLocaleString("pt-BR"),`<strong>${rem.toLocaleString("pt-BR")}</strong>`,money(projectionRemainingValue(item)),`<button type="button" class="secondary" onclick="changeProjectionRemainingDate(${o.id},'${safeKey}')">📅 Mudar data do restante</button>`];
+05026:    })
+05027:  ):'<div class="empty">Nada pendente para entregar neste período.</div>';
+05028:  let delEl=document.getElementById("projectionDeliveredTable");
+05029:  if(delEl)delEl.innerHTML=deliveredRows.length?table(
+05030:    ["Entregue / emissão","Nota","Pedido","Cliente","Produto","Qtd. entregue","Valor","Condição"],
+05031:    deliveredRows.slice().sort((a,b)=>String(b.date).localeCompare(String(a.date))).map(r=>{
+05032:      let inv=r.invoice||{},cond=String(inv.terms||"-")+(inv.termsDetail?` — ${inv.termsDetail}`:"");
+05033:      return [fmtDate(r.date),"#"+String(inv.id||"-"),r.order?"#"+(typeof displayOrderNumber==="function"?displayOrderNumber(r.order):r.order.id):"-",esc(inv.client||r.order?.client||"-"),esc(r.item.productName||"-"),(+r.qty||0).toLocaleString("pt-BR"),money(+r.value||0),esc(cond)];
+05034:    })
+05035:  ):'<div class="empty">Nenhuma entrega registrada neste período.</div>';
+05036:  setProjectionDeliveryTabVisualOnly();
+05037: }
+05038: function setProjectionDeliveryTabVisualOnly(){
+05039:  let rem=document.getElementById("projectionRemainingPane"),del=document.getElementById("projectionDeliveredPane");
+05040:  let br=document.getElementById("projectionTabRemaining"),bd=document.getElementById("projectionTabDelivered");
+05041:  if(rem)rem.style.display=projectionDeliveryTab==="remaining"?"block":"none";
+05042:  if(del)del.style.display=projectionDeliveryTab==="delivered"?"block":"none";
+05043:  if(br)br.className=projectionDeliveryTab==="remaining"?"primary":"secondary";
+05044:  if(bd)bd.className=projectionDeliveryTab==="delivered"?"primary":"secondary";
+05045: }
+05046: 
+05047: function projectionProductionSplit(orderId,itemKey){
+05048:  let aa=(typeof assignmentsFor==="function"?assignmentsFor(orderId,itemKey):[]);
+05049:  if(!aa.length)return "";
+05050:  return aa.map(a=>{let l=(db.productionLocations||[]).find(x=>+x.id===+a.locationId);return l?`${l.name}: ${(+a.qty||0).toLocaleString("pt-BR")} pç`:""}).filter(Boolean).join(" · ");
+05051: }
+05052: function openProjectionProductionSplit(orderId,itemKey){
+05053:  if(typeof openCapacityAllocation!=="function"){alert("A divisão de produção não está disponível.");return}
+05054:  openCapacityAllocation(orderId,itemKey);
+05055: }
+05056: function renderProjection(){
+05057:  let sEl=document.getElementById("projectionStart"),eEl=document.getElementById("projectionEnd");if(!sEl||!eEl)return;
+05058:  if(!sEl.value&&!eEl.value){let m=mondayOf(new Date()),z=new Date(m);z.setDate(z.getDate()+6);sEl.value=isoDate(m);eEl.value=isoDate(z)}
+05059:  let startS=sEl.value||"0000-01-01",endS=eEl.value||"9999-12-31";
+05060:  let rows=allProjectionRows();
+05061:  let pending=rows.filter(x=>!x.item.date&&!x.item.invoiced);
+05062:  let scheduledBase=rows.filter(x=>x.item.date&&x.item.date>=startS&&x.item.date<=endS&&projectionRemainingQty(x.item)>0);
+05063: 
+05064:  // Filtros detalhados da projeção
+05065:  let clientF=(document.getElementById("projectionClientFilter")?.value||"").trim().toLowerCase();
+05066:  let productF=(document.getElementById("projectionProductFilter")?.value||"").trim().toLowerCase();
+
+=== projectionInvoices @ line 11018 ===
+10973: function importBackupFile(input){
+10974:  if(!isOwnerUser()){if(input)input.value="";alert("Somente o proprietário principal pode importar backup.");return}
+10975:  let file=input?.files?.[0];if(!file)return;
+10976:  let reader=new FileReader();
+10977:  reader.onload=async()=>{
+10978:    try{
+10979:      let data=JSON.parse(String(reader.result||""));
+10980:      if(!data||typeof data!=="object")throw new Error("Backup inválido");
+10981:      if(!confirm("Importar este backup? Os dados atuais desta versão serão substituídos pelos dados do arquivo.")){input.value="";return}
+10982:      db=data;ensurePayrollData();ensureCloudUserAccess();localSaveOnly();input.value="";
+10983:      if(cloudAccessToken){
+10984:        await cloudUploadCurrentDb(false);
+10985:        alert("Backup importado e enviado para a nuvem com sucesso.");
+10986:      }else{alert("Backup importado com sucesso. Entre no sistema para enviá-lo à nuvem.");}
+10987:      location.reload();
+10988:    }catch(err){console.error(err);alert("Não foi possível importar o backup. Verifique se o arquivo JSON é um backup válido do sistema.");input.value=""}
+10989:  };
+10990:  reader.readAsText(file);
+10991: }
+10992: function resetDemo(){if(confirm("Isso apagará os dados deste protótipo e voltará aos dados de exemplo. Continuar?")){localStorage.removeItem(KEY);location.reload()}}
+10993: db.users=Array.isArray(db.users)?db.users:[];
+10994: db.auditLog=Array.isArray(db.auditLog)?db.auditLog:[];
+10995: db.userSessions=Array.isArray(db.userSessions)?db.userSessions:[];
+10996: // v91.07: guarda os produtos que já estavam neste navegador ANTES de a nuvem carregar.
+10997: // Isso permite recuperar, com segurança, um produto que ficou preso apenas em uma máquina.
+10998: const HLGB_PRE_CLOUD_LOCAL_PRODUCTS=(()=>{
+10999:   try{return JSON.parse(JSON.stringify(Array.isArray(db.products)?db.products:[]))}catch(e){return []}
+11000: })();
+11001: // v89.69: o acesso online é sempre validado pelo Supabase.
+11002: // Uma sessão antiga gravada no localStorage nunca pode abrir o sistema sozinha.
+11003: db.session=null;
+11004: db.activeSessionId=null;
+11005: try{localSaveOnly()}catch(e){console.error(e)}
+11006: appShell.style.display="none";
+11007: loginScreen.style.display="flex";
+11008: // Restaura a credencial de refresh persistida neste navegador. O painel só será aberto
+11009: // depois de renovar no Supabase, carregar a nuvem e validar as permissões.
+11010: /* ===== v91.16 — MULTIUSUÁRIO POR REGISTRO (TODOS OS MÓDULOS) ===== */
+11011: const HLGB_RECORD_MODULES=[
+11012:   "products","materials","clients","orders","orderTrash",
+11013:   "production","productionLocations","capacityAssignments","goals","defectReturns","missingPieces",
+11014:   "cuts","cutterPieceTypes","stock","assets",
+11015:   "factions","factionMasters","factionPayments","cutters",
+11016:   "finance","purchases","invoices","receipts","operationalCosts",
+11017:   "suppliers","employees","formerEmployees","payroll","terminations","employeeAdvances",
+11018:   "materialLots","separations","projectionInvoices","machines","serviceTypes","colors","sizes","materialChecklists","hubFinanceEntries","finishedPieces","factionSettings"];
+11019: const HLGB_RECORD_PENDING_KEY="hlgb_records_pending_v91";
+11020: let hlgbRecordSnapshots={};
+11021: let hlgbRecordLastSeen={};
+11022: let hlgbRecordReadable=new Set();
+11023: let hlgbRecordGlobalLastSeen="";
+11024: let hlgbRecordLastPullAt=0;
+11025: let hlgbRecordReady=false;
+11026: let hlgbRecordSyncing=false;
+11027: let hlgbRecordSyncAgain=false;
+11028: let hlgbRecordSyncTimer=null;
+11029: let hlgbRecordPulling=false;
+11030: HLGB_RECORD_MODULES.forEach(m=>{hlgbRecordSnapshots[m]=new Map();hlgbRecordLastSeen[m]=""});
+11031: 
+11032: const HLGB_RECORD_WRITE_AREA={
+11033:  products:"produtos",materials:"materiais",clients:"clientes",orders:"pedidos",orderTrash:"pedidos",
+11034:  production:"producao",productionLocations:"producao",capacityAssignments:"producao",goals:"producao",defectReturns:"producao",missingPieces:"producao",machines:"producao",serviceTypes:"producao",
+11035:  cuts:"corte",cutterPieceTypes:"corte",stock:"estoque",assets:"estoque",
+11036:  factions:"faccoes",factionMasters:"faccoes",factionPayments:"faccoes",cutters:"cortadores",
+11037:  finance:"financeiro",purchases:"financeiro",invoices:"financeiro",receipts:"financeiro",operationalCosts:"financeiro",
+11038:  suppliers:"fornecedores",employees:"funcionarios",formerEmployees:"exFuncionarios",payroll:"folhaPagamento",terminations:"folhaPagamento",employeeAdvances:"folhaPagamento",
+11039:  materialLots:"materiais",separations:"materiais",projectionInvoices:"projecao",colors:"cadastros",sizes:"cadastros",hubFinanceEntries:"hubFinanceiro",finishedPieces:"producao",factionSettings:"faccoes"
+11040: };
+11041: function hlgbRecordCanWrite(module){
+11042:   if(isOwnerUser())return true;
+11043:   const area=HLGB_RECORD_WRITE_AREA[module];
+11044:   return !!area&&hasAccess(area);
+11045: }
+11046: function hlgbRecordCanRead(module){
+11047:   if(isOwnerUser())return true;
+11048:   if(hlgbRecordReadable.has(module))return true;
+11049:   const direct=HLGB_RECORD_WRITE_AREA[module];
+11050:   if(direct&&hasAccess(direct))return true;
+11051:   const any=(...areas)=>areas.some(a=>hasAccess(a));
+11052:   if(module==="products")return any("produtos","pedidos","corte","producao","materiais","estoque","faccoes","projecao");
+11053:   if(module==="clients")return any("clientes","pedidos","producao","corte","faccoes","projecao","financeiro");
+11054:   if(module==="orders")return any("pedidos","producao","corte","faccoes","projecao");
+11055:   if(module==="materials")return any("materiais","produtos","corte","estoque");
+11056:   if(module==="colors"||module==="sizes")return any("cadastros","produtos","pedidos","corte");
+11057:   if(module==="productionLocations")return any("producao","corte","faccoes");
+11058:   if(module==="employees")return any("funcionarios","folhaPagamento","exFuncionarios");
+11059:   if(module==="suppliers")return any("fornecedores","financeiro","materiais");
+11060:   if(module==="cutters")return any("cortadores","corte","producao");
+11061:   if(module==="factionMasters"||module==="factions")return any("faccoes","producao");
+11062:   return false;
+11063: }
+11064: 
+11065: function hlgbRecordClone(v){try{return JSON.parse(JSON.stringify(v))}catch(e){return v}}
+11066: function hlgbRecordPrimitiveId(module,item){return `value:${encodeURIComponent(String(item??""))}`}
+11067: function hlgbRecordId(module,item,index=0){
+11068:   if(item===null||item===undefined)return "";
+11069:   if(typeof item!=="object")return hlgbRecordPrimitiveId(module,item);
+11070:   if(item.id!==undefined&&item.id!==null&&String(item.id)!=="")return String(item.id);
+11071:   if(module==="products"&&item.code!==undefined&&String(item.code).trim())return `code:${String(item.code).trim()}`;
+11072:   // Alguns módulos antigos não tinham ID. Cria um ID persistente sem depender da posição da lista.
+11073:   if(!item.__hlgbId)item.__hlgbId=`auto:${Date.now()}:${Math.floor(Math.random()*1e9)}:${index}`;
+11074:   return String(item.__hlgbId);
+11075: }
+11076: function hlgbRecordLocalMap(module){
+11077:   const m=new Map();
+11078:   (Array.isArray(db[module])?db[module]:[]).forEach((item,i)=>{const id=hlgbRecordId(module,item,i);if(id)m.set(id,item)});
+11079:   return m;
+11080: }
+11081: function hlgbRecordRowValue(row,module=""){
+11082:   if(!row)return null;
+11083:   return hlgbRecordHydrateData(module,row);
+11084: }
+11085: function hlgbRecordHydrateData(module,row){
+11086:   const d=hlgbRecordClone(row?.data);
+11087:   if(d&&typeof d==="object"&&!Array.isArray(d)&&d.id==null&&!d.__hlgbId&&!(module==="products"&&d.code))d.__hlgbId=String(row?.entity_id||"");
+11088:   return d;
+11089: }
+11090: function hlgbRecordSnapshotRows(module,rows){
+11091:   const m=new Map();let max="";
+11092:   (rows||[]).forEach(r=>{
+11093:     if(r?.entity_id==null)return;
+11094:     const data=hlgbRecordHydrateData(module,r);
+11095:     m.set(String(r.entity_id),{
+11096:       data,deleted_at:r.deleted_at||null,revision:+r.revision||1,updated_at:r.updated_at||"",updated_by:r.updated_by||null
+11097:     });
+11098:     if(String(r.updated_at||"")>max)max=String(r.updated_at||"");
+11099:   });
+11100:   hlgbRecordSnapshots[module]=m;if(max)hlgbRecordLastSeen[module]=max;
+11101: }
+11102: function hlgbRecordPendingRead(){try{return JSON.parse(localStorage.getItem(HLGB_RECORD_PENDING_KEY)||"null")}catch(e){return null}}
+11103: function hlgbRecordPendingClear(){try{localStorage.removeItem(HLGB_RECORD_PENDING_KEY)}catch(e){}}
+11104: function hlgb924ProtectImplicitDelete(module,old){
+11105:   if(module==="projectionInvoices")return true;
+11106:   if(module==="finance"&&old?.data?.projectionInvoiceId!=null)return true;
+11107:   return false;
+11108: }
+11109: function hlgbRecordPendingStore(){
+11110:   if(!hlgbRecordReady||cloudApplying||cloudBootstrapping)return;
+11111:   try{
+11112:     const pending={at:Date.now(),email:normEmail(cloudUser?.email||""),modules:{}};let any=false;
+11113:     for(const module of HLGB_RECORD_MODULES){
+11114:       // Não deixa um usuário secundário ficar eternamente “pendente” por mudanças
+11115:       // internas de módulos que ele não tem permissão para gravar.
+11116:       if(!hlgbRecordCanWrite(module))continue;
+11117:       const snap=hlgbRecordSnapshots[module]||new Map(),local=hlgbRecordLocalMap(module),ops=[];
+11118:       for(const [id,item] of local){
+11119:         const old=snap.get(id);
+11120:         if(!old||old.deleted_at||!cloudEq(old.data,item)){ops.push({id,data:hlgbRecordClone(item),deleted:false});any=true}
+11121:       }
+11122:       // v91.26: ausência local nunca gera exclusão automática na nuvem.
+11123:       if(ops.length)pending.modules[module]=ops;
+11124:     }
+11125:     if(any)localStorage.setItem(HLGB_RECORD_PENDING_KEY,JSON.stringify(pending));else hlgbRecordPendingClear();
+11126:   }catch(e){console.warn("HLGB record pending",e)}
+11127: }
+11128: async function hlgbRecordLoadBundle({preserveLocal=false,since=null}={}){
+11129:   const body={p_since:since||null};
+11130:   let bundle=await cloudRequest("rpc/hlgb_load_bundle",{method:"POST",body:JSON.stringify(body)});
+11131:   if(Array.isArray(bundle)&&bundle.length===1&&bundle[0]&&bundle[0].rows)bundle=bundle[0];
+11132:   if(!bundle||typeof bundle!=="object")throw new Error("O Supabase não retornou o pacote de dados do HLGB.");
+11133:   const readable=Array.isArray(bundle.modules)?bundle.modules.filter(m=>HLGB_RECORD_MODULES.includes(String(m))):[];
+11134:   const rows=Array.isArray(bundle.rows)?bundle.rows:[];
+11135:   readable.forEach(m=>hlgbRecordReadable.add(String(m)));
+11136:   if(!since){
+11137:     for(const module of readable){
+
+=== projectionInvoices @ line 11039 ===
+10994: db.auditLog=Array.isArray(db.auditLog)?db.auditLog:[];
+10995: db.userSessions=Array.isArray(db.userSessions)?db.userSessions:[];
+10996: // v91.07: guarda os produtos que já estavam neste navegador ANTES de a nuvem carregar.
+10997: // Isso permite recuperar, com segurança, um produto que ficou preso apenas em uma máquina.
+10998: const HLGB_PRE_CLOUD_LOCAL_PRODUCTS=(()=>{
+10999:   try{return JSON.parse(JSON.stringify(Array.isArray(db.products)?db.products:[]))}catch(e){return []}
+11000: })();
+11001: // v89.69: o acesso online é sempre validado pelo Supabase.
+11002: // Uma sessão antiga gravada no localStorage nunca pode abrir o sistema sozinha.
+11003: db.session=null;
+11004: db.activeSessionId=null;
+11005: try{localSaveOnly()}catch(e){console.error(e)}
+11006: appShell.style.display="none";
+11007: loginScreen.style.display="flex";
+11008: // Restaura a credencial de refresh persistida neste navegador. O painel só será aberto
+11009: // depois de renovar no Supabase, carregar a nuvem e validar as permissões.
+11010: /* ===== v91.16 — MULTIUSUÁRIO POR REGISTRO (TODOS OS MÓDULOS) ===== */
+11011: const HLGB_RECORD_MODULES=[
+11012:   "products","materials","clients","orders","orderTrash",
+11013:   "production","productionLocations","capacityAssignments","goals","defectReturns","missingPieces",
+11014:   "cuts","cutterPieceTypes","stock","assets",
+11015:   "factions","factionMasters","factionPayments","cutters",
+11016:   "finance","purchases","invoices","receipts","operationalCosts",
+11017:   "suppliers","employees","formerEmployees","payroll","terminations","employeeAdvances",
+11018:   "materialLots","separations","projectionInvoices","machines","serviceTypes","colors","sizes","materialChecklists","hubFinanceEntries","finishedPieces","factionSettings"];
+11019: const HLGB_RECORD_PENDING_KEY="hlgb_records_pending_v91";
+11020: let hlgbRecordSnapshots={};
+11021: let hlgbRecordLastSeen={};
+11022: let hlgbRecordReadable=new Set();
+11023: let hlgbRecordGlobalLastSeen="";
+11024: let hlgbRecordLastPullAt=0;
+11025: let hlgbRecordReady=false;
+11026: let hlgbRecordSyncing=false;
+11027: let hlgbRecordSyncAgain=false;
+11028: let hlgbRecordSyncTimer=null;
+11029: let hlgbRecordPulling=false;
+11030: HLGB_RECORD_MODULES.forEach(m=>{hlgbRecordSnapshots[m]=new Map();hlgbRecordLastSeen[m]=""});
+11031: 
+11032: const HLGB_RECORD_WRITE_AREA={
+11033:  products:"produtos",materials:"materiais",clients:"clientes",orders:"pedidos",orderTrash:"pedidos",
+11034:  production:"producao",productionLocations:"producao",capacityAssignments:"producao",goals:"producao",defectReturns:"producao",missingPieces:"producao",machines:"producao",serviceTypes:"producao",
+11035:  cuts:"corte",cutterPieceTypes:"corte",stock:"estoque",assets:"estoque",
+11036:  factions:"faccoes",factionMasters:"faccoes",factionPayments:"faccoes",cutters:"cortadores",
+11037:  finance:"financeiro",purchases:"financeiro",invoices:"financeiro",receipts:"financeiro",operationalCosts:"financeiro",
+11038:  suppliers:"fornecedores",employees:"funcionarios",formerEmployees:"exFuncionarios",payroll:"folhaPagamento",terminations:"folhaPagamento",employeeAdvances:"folhaPagamento",
+11039:  materialLots:"materiais",separations:"materiais",projectionInvoices:"projecao",colors:"cadastros",sizes:"cadastros",hubFinanceEntries:"hubFinanceiro",finishedPieces:"producao",factionSettings:"faccoes"
+11040: };
+11041: function hlgbRecordCanWrite(module){
+11042:   if(isOwnerUser())return true;
+11043:   const area=HLGB_RECORD_WRITE_AREA[module];
+11044:   return !!area&&hasAccess(area);
+11045: }
+11046: function hlgbRecordCanRead(module){
+11047:   if(isOwnerUser())return true;
+11048:   if(hlgbRecordReadable.has(module))return true;
+11049:   const direct=HLGB_RECORD_WRITE_AREA[module];
+11050:   if(direct&&hasAccess(direct))return true;
+11051:   const any=(...areas)=>areas.some(a=>hasAccess(a));
+11052:   if(module==="products")return any("produtos","pedidos","corte","producao","materiais","estoque","faccoes","projecao");
+11053:   if(module==="clients")return any("clientes","pedidos","producao","corte","faccoes","projecao","financeiro");
+11054:   if(module==="orders")return any("pedidos","producao","corte","faccoes","projecao");
+11055:   if(module==="materials")return any("materiais","produtos","corte","estoque");
+11056:   if(module==="colors"||module==="sizes")return any("cadastros","produtos","pedidos","corte");
+11057:   if(module==="productionLocations")return any("producao","corte","faccoes");
+11058:   if(module==="employees")return any("funcionarios","folhaPagamento","exFuncionarios");
+11059:   if(module==="suppliers")return any("fornecedores","financeiro","materiais");
+11060:   if(module==="cutters")return any("cortadores","corte","producao");
+11061:   if(module==="factionMasters"||module==="factions")return any("faccoes","producao");
+11062:   return false;
+11063: }
+11064: 
+11065: function hlgbRecordClone(v){try{return JSON.parse(JSON.stringify(v))}catch(e){return v}}
+11066: function hlgbRecordPrimitiveId(module,item){return `value:${encodeURIComponent(String(item??""))}`}
+11067: function hlgbRecordId(module,item,index=0){
+11068:   if(item===null||item===undefined)return "";
+11069:   if(typeof item!=="object")return hlgbRecordPrimitiveId(module,item);
+11070:   if(item.id!==undefined&&item.id!==null&&String(item.id)!=="")return String(item.id);
+11071:   if(module==="products"&&item.code!==undefined&&String(item.code).trim())return `code:${String(item.code).trim()}`;
+11072:   // Alguns módulos antigos não tinham ID. Cria um ID persistente sem depender da posição da lista.
+11073:   if(!item.__hlgbId)item.__hlgbId=`auto:${Date.now()}:${Math.floor(Math.random()*1e9)}:${index}`;
+11074:   return String(item.__hlgbId);
+11075: }
+11076: function hlgbRecordLocalMap(module){
+11077:   const m=new Map();
+11078:   (Array.isArray(db[module])?db[module]:[]).forEach((item,i)=>{const id=hlgbRecordId(module,item,i);if(id)m.set(id,item)});
+11079:   return m;
+11080: }
+11081: function hlgbRecordRowValue(row,module=""){
+11082:   if(!row)return null;
+11083:   return hlgbRecordHydrateData(module,row);
+11084: }
+11085: function hlgbRecordHydrateData(module,row){
+11086:   const d=hlgbRecordClone(row?.data);
+11087:   if(d&&typeof d==="object"&&!Array.isArray(d)&&d.id==null&&!d.__hlgbId&&!(module==="products"&&d.code))d.__hlgbId=String(row?.entity_id||"");
+11088:   return d;
+11089: }
+11090: function hlgbRecordSnapshotRows(module,rows){
+11091:   const m=new Map();let max="";
+11092:   (rows||[]).forEach(r=>{
+11093:     if(r?.entity_id==null)return;
+11094:     const data=hlgbRecordHydrateData(module,r);
+11095:     m.set(String(r.entity_id),{
+11096:       data,deleted_at:r.deleted_at||null,revision:+r.revision||1,updated_at:r.updated_at||"",updated_by:r.updated_by||null
+11097:     });
+11098:     if(String(r.updated_at||"")>max)max=String(r.updated_at||"");
+11099:   });
+11100:   hlgbRecordSnapshots[module]=m;if(max)hlgbRecordLastSeen[module]=max;
+11101: }
+11102: function hlgbRecordPendingRead(){try{return JSON.parse(localStorage.getItem(HLGB_RECORD_PENDING_KEY)||"null")}catch(e){return null}}
+11103: function hlgbRecordPendingClear(){try{localStorage.removeItem(HLGB_RECORD_PENDING_KEY)}catch(e){}}
+11104: function hlgb924ProtectImplicitDelete(module,old){
+11105:   if(module==="projectionInvoices")return true;
+11106:   if(module==="finance"&&old?.data?.projectionInvoiceId!=null)return true;
+11107:   return false;
+11108: }
+11109: function hlgbRecordPendingStore(){
+11110:   if(!hlgbRecordReady||cloudApplying||cloudBootstrapping)return;
+11111:   try{
+11112:     const pending={at:Date.now(),email:normEmail(cloudUser?.email||""),modules:{}};let any=false;
+11113:     for(const module of HLGB_RECORD_MODULES){
+11114:       // Não deixa um usuário secundário ficar eternamente “pendente” por mudanças
+11115:       // internas de módulos que ele não tem permissão para gravar.
+11116:       if(!hlgbRecordCanWrite(module))continue;
+11117:       const snap=hlgbRecordSnapshots[module]||new Map(),local=hlgbRecordLocalMap(module),ops=[];
+11118:       for(const [id,item] of local){
+11119:         const old=snap.get(id);
+11120:         if(!old||old.deleted_at||!cloudEq(old.data,item)){ops.push({id,data:hlgbRecordClone(item),deleted:false});any=true}
+11121:       }
+11122:       // v91.26: ausência local nunca gera exclusão automática na nuvem.
+11123:       if(ops.length)pending.modules[module]=ops;
+11124:     }
+11125:     if(any)localStorage.setItem(HLGB_RECORD_PENDING_KEY,JSON.stringify(pending));else hlgbRecordPendingClear();
+11126:   }catch(e){console.warn("HLGB record pending",e)}
+11127: }
+11128: async function hlgbRecordLoadBundle({preserveLocal=false,since=null}={}){
+11129:   const body={p_since:since||null};
+11130:   let bundle=await cloudRequest("rpc/hlgb_load_bundle",{method:"POST",body:JSON.stringify(body)});
+11131:   if(Array.isArray(bundle)&&bundle.length===1&&bundle[0]&&bundle[0].rows)bundle=bundle[0];
+11132:   if(!bundle||typeof bundle!=="object")throw new Error("O Supabase não retornou o pacote de dados do HLGB.");
+11133:   const readable=Array.isArray(bundle.modules)?bundle.modules.filter(m=>HLGB_RECORD_MODULES.includes(String(m))):[];
+11134:   const rows=Array.isArray(bundle.rows)?bundle.rows:[];
+11135:   readable.forEach(m=>hlgbRecordReadable.add(String(m)));
+11136:   if(!since){
+11137:     for(const module of readable){
+11138:       const moduleRows=rows.filter(r=>String(r?.module||"")===String(module));
+11139:       hlgbRecordSnapshotRows(module,moduleRows);
+11140:       const remoteActive=moduleRows.filter(r=>!r.deleted_at).map(r=>hlgbRecordRowValue(r,module));
+11141:       if(!preserveLocal){
+11142:         db[module]=remoteActive;
+11143:       }else{
+11144:         // HLGB v91.28 AUTHORITATIVE RECORD MERGE
+11145:         // Old versions could keep the legacy/local list (for example 44 products),
+11146:         // advance the cloud cursor to the newest timestamp and therefore never add
+11147:         // the missing records. Merge the full server snapshot before advancing.
+11148:         const local=hlgbRecordLocalMap(module);
+11149:         const pendingNow=hlgbRecordPendingRead();
+11150:         const pendingOps=Array.isArray(pendingNow?.modules?.[module])?pendingNow.modules[module]:[];
+11151:         const pendingIds=new Set(pendingOps.filter(op=>op&&op.deleted!==true).map(op=>String(op.id)));
+11152:         for(const row of moduleRows){
+11153:           const rid=String(row?.entity_id??"");
+11154:           if(!rid)continue;
+11155:           if(row.deleted_at){
+11156:             if(!pendingIds.has(rid))local.delete(rid);
+11157:             continue;
+11158:           }
+
+=== projectionInvoices @ line 11105 ===
+11060:   if(module==="cutters")return any("cortadores","corte","producao");
+11061:   if(module==="factionMasters"||module==="factions")return any("faccoes","producao");
+11062:   return false;
+11063: }
+11064: 
+11065: function hlgbRecordClone(v){try{return JSON.parse(JSON.stringify(v))}catch(e){return v}}
+11066: function hlgbRecordPrimitiveId(module,item){return `value:${encodeURIComponent(String(item??""))}`}
+11067: function hlgbRecordId(module,item,index=0){
+11068:   if(item===null||item===undefined)return "";
+11069:   if(typeof item!=="object")return hlgbRecordPrimitiveId(module,item);
+11070:   if(item.id!==undefined&&item.id!==null&&String(item.id)!=="")return String(item.id);
+11071:   if(module==="products"&&item.code!==undefined&&String(item.code).trim())return `code:${String(item.code).trim()}`;
+11072:   // Alguns módulos antigos não tinham ID. Cria um ID persistente sem depender da posição da lista.
+11073:   if(!item.__hlgbId)item.__hlgbId=`auto:${Date.now()}:${Math.floor(Math.random()*1e9)}:${index}`;
+11074:   return String(item.__hlgbId);
+11075: }
+11076: function hlgbRecordLocalMap(module){
+11077:   const m=new Map();
+11078:   (Array.isArray(db[module])?db[module]:[]).forEach((item,i)=>{const id=hlgbRecordId(module,item,i);if(id)m.set(id,item)});
+11079:   return m;
+11080: }
+11081: function hlgbRecordRowValue(row,module=""){
+11082:   if(!row)return null;
+11083:   return hlgbRecordHydrateData(module,row);
+11084: }
+11085: function hlgbRecordHydrateData(module,row){
+11086:   const d=hlgbRecordClone(row?.data);
+11087:   if(d&&typeof d==="object"&&!Array.isArray(d)&&d.id==null&&!d.__hlgbId&&!(module==="products"&&d.code))d.__hlgbId=String(row?.entity_id||"");
+11088:   return d;
+11089: }
+11090: function hlgbRecordSnapshotRows(module,rows){
+11091:   const m=new Map();let max="";
+11092:   (rows||[]).forEach(r=>{
+11093:     if(r?.entity_id==null)return;
+11094:     const data=hlgbRecordHydrateData(module,r);
+11095:     m.set(String(r.entity_id),{
+11096:       data,deleted_at:r.deleted_at||null,revision:+r.revision||1,updated_at:r.updated_at||"",updated_by:r.updated_by||null
+11097:     });
+11098:     if(String(r.updated_at||"")>max)max=String(r.updated_at||"");
+11099:   });
+11100:   hlgbRecordSnapshots[module]=m;if(max)hlgbRecordLastSeen[module]=max;
+11101: }
+11102: function hlgbRecordPendingRead(){try{return JSON.parse(localStorage.getItem(HLGB_RECORD_PENDING_KEY)||"null")}catch(e){return null}}
+11103: function hlgbRecordPendingClear(){try{localStorage.removeItem(HLGB_RECORD_PENDING_KEY)}catch(e){}}
+11104: function hlgb924ProtectImplicitDelete(module,old){
+11105:   if(module==="projectionInvoices")return true;
+11106:   if(module==="finance"&&old?.data?.projectionInvoiceId!=null)return true;
+11107:   return false;
+11108: }
+11109: function hlgbRecordPendingStore(){
+11110:   if(!hlgbRecordReady||cloudApplying||cloudBootstrapping)return;
+11111:   try{
+11112:     const pending={at:Date.now(),email:normEmail(cloudUser?.email||""),modules:{}};let any=false;
+11113:     for(const module of HLGB_RECORD_MODULES){
+11114:       // Não deixa um usuário secundário ficar eternamente “pendente” por mudanças
+11115:       // internas de módulos que ele não tem permissão para gravar.
+11116:       if(!hlgbRecordCanWrite(module))continue;
+11117:       const snap=hlgbRecordSnapshots[module]||new Map(),local=hlgbRecordLocalMap(module),ops=[];
+11118:       for(const [id,item] of local){
+11119:         const old=snap.get(id);
+11120:         if(!old||old.deleted_at||!cloudEq(old.data,item)){ops.push({id,data:hlgbRecordClone(item),deleted:false});any=true}
+11121:       }
+11122:       // v91.26: ausência local nunca gera exclusão automática na nuvem.
+11123:       if(ops.length)pending.modules[module]=ops;
+11124:     }
+11125:     if(any)localStorage.setItem(HLGB_RECORD_PENDING_KEY,JSON.stringify(pending));else hlgbRecordPendingClear();
+11126:   }catch(e){console.warn("HLGB record pending",e)}
+11127: }
+11128: async function hlgbRecordLoadBundle({preserveLocal=false,since=null}={}){
+11129:   const body={p_since:since||null};
+11130:   let bundle=await cloudRequest("rpc/hlgb_load_bundle",{method:"POST",body:JSON.stringify(body)});
+11131:   if(Array.isArray(bundle)&&bundle.length===1&&bundle[0]&&bundle[0].rows)bundle=bundle[0];
+11132:   if(!bundle||typeof bundle!=="object")throw new Error("O Supabase não retornou o pacote de dados do HLGB.");
+11133:   const readable=Array.isArray(bundle.modules)?bundle.modules.filter(m=>HLGB_RECORD_MODULES.includes(String(m))):[];
+11134:   const rows=Array.isArray(bundle.rows)?bundle.rows:[];
+11135:   readable.forEach(m=>hlgbRecordReadable.add(String(m)));
+11136:   if(!since){
+11137:     for(const module of readable){
+11138:       const moduleRows=rows.filter(r=>String(r?.module||"")===String(module));
+11139:       hlgbRecordSnapshotRows(module,moduleRows);
+11140:       const remoteActive=moduleRows.filter(r=>!r.deleted_at).map(r=>hlgbRecordRowValue(r,module));
+11141:       if(!preserveLocal){
+11142:         db[module]=remoteActive;
+11143:       }else{
+11144:         // HLGB v91.28 AUTHORITATIVE RECORD MERGE
+11145:         // Old versions could keep the legacy/local list (for example 44 products),
+11146:         // advance the cloud cursor to the newest timestamp and therefore never add
+11147:         // the missing records. Merge the full server snapshot before advancing.
+11148:         const local=hlgbRecordLocalMap(module);
+11149:         const pendingNow=hlgbRecordPendingRead();
+11150:         const pendingOps=Array.isArray(pendingNow?.modules?.[module])?pendingNow.modules[module]:[];
+11151:         const pendingIds=new Set(pendingOps.filter(op=>op&&op.deleted!==true).map(op=>String(op.id)));
+11152:         for(const row of moduleRows){
+11153:           const rid=String(row?.entity_id??"");
+11154:           if(!rid)continue;
+11155:           if(row.deleted_at){
+11156:             if(!pendingIds.has(rid))local.delete(rid);
+11157:             continue;
+11158:           }
+11159:           // Cloud wins unless this exact record has a confirmed local pending write.
+11160:           if(!pendingIds.has(rid))local.set(rid,hlgbRecordRowValue(row,module));
+11161:         }
+11162:         // Local-only new records are preserved; the pending queue will sync them.
+11163:         db[module]=[...local.values()];
+11164:       }
+11165:     }
+11166:   }else{
+11167:     for(const row of rows)hlgbApplyRecordRow(row);
+11168:   }
+11169:   for(const row of rows){
+11170:     const t=String(row?.updated_at||"");
+11171:     if(t>hlgbRecordGlobalLastSeen)hlgbRecordGlobalLastSeen=t;
+11172:   }
+11173:   const serverTime=String(bundle.server_time||"");
+11174:   if(!hlgbRecordGlobalLastSeen&&serverTime)hlgbRecordGlobalLastSeen=serverTime;
+11175:   return {readable,rows,serverTime};
+11176: }
+11177: async function hlgbLoadNormalizedCore(opts={}){
+11178:   if(!cloudAccessToken)return false;
+11179:   try{
+11180:     await hlgbRecordLoadBundle({preserveLocal:!!opts.preserveLocal,since:null});
+11181:     hlgbRecordReady=true;hlgbNormalizedReady=true;
+11182:     const pending=hlgbRecordPendingRead();
+11183:     if(pending?.modules&&(!pending.email||normEmail(pending.email)===normEmail(cloudUser?.email||""))){
+11184:       for(const [module,ops] of Object.entries(pending.modules)){
+11185:         if(!HLGB_RECORD_MODULES.includes(module)||!Array.isArray(ops)||!hlgbRecordCanWrite(module))continue;
+11186:         const local=hlgbRecordLocalMap(module);
+11187:         for(const op of ops){if(!op.deleted)local.set(String(op.id),hlgbRecordClone(op.data))}
+11188:         db[module]=[...local.values()];
+11189:       }
+11190:       localSaveOnly();try{if(typeof hlgb923EnsureProjectionIntegrity==="function")hlgb923EnsureProjectionIntegrity()}catch(e){console.warn("HLGB v91.24 projection repair after load",e)}setTimeout(()=>hlgbNormalizedSyncNow(false),40);
+11191:     }else hlgbRecordPendingClear();
+11192:     return true;
+11193:   }catch(e){
+11194:     hlgbRecordReady=false;hlgbNormalizedReady=false;
+11195:     console.error("HLGB v91: falha ao carregar pacote de registros",e);setCloudStatus("☁️ Erro ao carregar dados","bad");return false;
+11196:   }
+11197: }
+11198: async function hlgbRecordRpcSave(module,id,data,expectedRevision,deleted=false){
+11199:   const body={p_module:module,p_entity_id:String(id),p_data:data,p_expected_revision:+expectedRevision||0,p_deleted:!!deleted};
+11200:   let out=await cloudRequest("rpc/hlgb_save_record",{method:"POST",headers:{Prefer:"return=representation"},body:JSON.stringify(body)});
+11201:   return Array.isArray(out)?out[0]:out;
+11202: }
+11203: async function hlgbRecordSaveWithRetry(module,id,data,deleted=false){
+11204:   let snap=hlgbRecordSnapshots[module]||new Map(),old=snap.get(String(id)),expected=+old?.revision||0;
+11205:   let result=await hlgbRecordRpcSave(module,id,hlgbRecordClone(data),expected,deleted);
+11206:   if(result?.applied===false){
+11207:     // Outra máquina editou exatamente o mesmo registro. Mescla campo a campo e tenta de novo.
+11208:     const remote=result.data;
+11209:     const base=old?.data;
+11210:     const merged=deleted?hlgbRecordClone(data):cloudMergeThreeWay(base,hlgbRecordClone(data),remote);
+11211:     result=await hlgbRecordRpcSave(module,id,merged,+result.revision||0,deleted);
+11212:     if(result?.applied===false)throw new Error(`Conflito ao salvar ${module}. Atualize e tente novamente.`);
+11213:     if(!deleted){
+11214:       const arr=Array.isArray(db[module])?db[module]:[],idx=arr.findIndex((x,i)=>hlgbRecordId(module,x,i)===String(id));
+11215:       if(idx>=0)arr[idx]=hlgbRecordClone(result.data||merged);
+11216:     }
+11217:   }
+11218:   if(!result)throw new Error(`Supabase não confirmou o salvamento de ${module}.`);
+11219:   const map=hlgbRecordSnapshots[module]||new Map();
+11220:   map.set(String(id),{data:hlgbRecordClone(result.data),deleted_at:result.deleted_at||null,revision:+result.revision||1,updated_at:result.updated_at||new Date().toISOString(),updated_by:result.updated_by||null});
+11221:   hlgbRecordSnapshots[module]=map;
+11222:   if(String(result.updated_at||"")>String(hlgbRecordLastSeen[module]||""))hlgbRecordLastSeen[module]=String(result.updated_at||"");
+11223:   return result;
+11224: }
+
+=== projectionInvoices @ line 12687 ===
+12642:         let orderNumber=+document.getElementById('mordernumber')?.value||+o.orderNumber||nextAvailableOrderNumber();
+12643:         if((db.orders||[]).some(x=>+x.id!==+o.id&&String(x.orderNumber)===String(orderNumber))){alert('Esse número de pedido já existe. Escolha outro número.');return}
+12644:         let grade=nl.map(x=>({productId:x.productId,color:'',size:'',qty:x.qty,unitPrice:x.price,noGrade:true})),qty=nl.reduce((a,x)=>a+x.qty,0),total=nl.reduce((a,x)=>a+x.qty*x.price,0);
+12645:         Object.assign(o,{orderNumber,client:c?.name||'Sem cliente',clientId:c?.id||null,date:document.getElementById('mdate')?.value||o.date,total,status:document.getElementById('mstatus')?.value||o.status,priority:document.getElementById('mpriority')?.value||'Padrão',grade,qty,totalQty:qty,items:nl.map(x=>`${x.qty} ${x.product?.name||'Produto'}`).join(' | '),isAdHoc:true,noGrade:true});
+12646:         // Atualiza somente cortes ainda não finalizados, preservando histórico do que já foi cortado.
+12647:         let linked=(db.cuts||[]).filter(cut=>+cut.orderId===+o.id),hasFinished=linked.some(cut=>String(cut.status||'').toLowerCase()==='finalizado');
+12648:         if(!hasFinished){
+12649:           db.cuts=(db.cuts||[]).filter(cut=>+cut.orderId!==+o.id);
+12650:           nl.forEach((x,i)=>{let prod=x.product;db.cuts.push({id:Date.now()+i+1,orderId:o.id,op:'PED-'+o.id+(nl.length>1?'-'+(i+1):''),productId:x.productId,product:prod?.name||'',fabric:prod?.material||'',color:'',size:'',layers:0,meters:0,pieces:x.qty,productionLocationId:null,cutterId:null,cutType:'',status:'Planejado',date:isoDate(new Date()),isAdHoc:true,noGrade:true})});
+12651:         }
+12652:         closeModal();save();try{renderOrders();renderCuts();renderProjection()}catch(e){}
+12653:       });
+12654:     setTimeout(()=>{hlgb922ClientChanged();hlgb922RecalcAdHoc()},20);
+12655:   }
+12656: 
+12657:   const originalEditOrder=window.editOrder;
+12658:   window.editOrder=function(id){
+12659:     let o=(db.orders||[]).find(x=>+x.id===+id);
+12660:     if(o&&o.isAdHoc&&o.noGrade)return editNoGradeAdHoc(o);
+12661:     return originalEditOrder(id);
+12662:   };
+12663: })();
+12664: </script>
+12665: <!-- HLGB v91.23 PROJECTION INTEGRITY -->
+12666: <script>
+12667: // v91.23 — projection invoices are the authoritative source for delivered/remaining.
+12668: // The repair is additive only: it never reduces a saved delivery and never clears notes.
+12669: (function(){
+12670:   if(typeof projectionItemsForOrder!=="function")return;
+12671:   const _v9123BaseProjectionItemsForOrder=projectionItemsForOrder;
+12672:   const V9123_BACKUP_KEY="hlgb_projection_safety_backup";
+12673: 
+12674:   function clone(v){try{return JSON.parse(JSON.stringify(v))}catch(e){return v}}
+12675:   function invoiceId(v){return String(v==null?"":v)}
+12676:   function invoiceDate(inv){return String(inv?.issueDate||inv?.date||"").slice(0,10)}
+12677:   function financeForInvoice(id){return (db.finance||[]).find(f=>invoiceId(f.projectionInvoiceId)===invoiceId(id))||null}
+12678:   function itemMatches(orderId,item,inv,it){
+12679:     let oid=it?.orderId!=null?it.orderId:inv?.orderId;
+12680:     if(String(oid??"")!==String(orderId??""))return false;
+12681:     if(it?.itemKey!=null&&String(it.itemKey)!=="")return String(it.itemKey)===String(item?.key??"");
+12682:     if(item?.productId&&it?.productId)return +it.productId===+item.productId;
+12683:     return String(it?.productName||"").trim().toLowerCase()===String(item?.name||"").trim().toLowerCase();
+12684:   }
+12685:   function invoiceLinks(orderId,item){
+12686:     let out=[];
+12687:     (Array.isArray(db.projectionInvoices)?db.projectionInvoices:[]).forEach(inv=>{
+12688:       (Array.isArray(inv?.items)?inv.items:[]).forEach(it=>{
+12689:         if(itemMatches(orderId,item,inv,it))out.push({inv,it,qty:Math.max(0,+it.qty||0)});
+12690:       });
+12691:     });
+12692:     return out;
+12693:   }
+12694:   function currentProjectionStateScore(){
+12695:     let inv=(Array.isArray(db.projectionInvoices)?db.projectionInvoices:[]).length,h=0,refs=0;
+12696:     (db.orders||[]).forEach(o=>Object.values(o?.projectionItems||{}).forEach(x=>{
+12697:       h+=Array.isArray(x?.deliveryHistory)?x.deliveryHistory.length:0;
+12698:       refs+=Array.isArray(x?.invoiceIds)?x.invoiceIds.length:0;
+12699:     }));
+12700:     return inv*10000+h*10+refs;
+12701:   }
+12702:   function safetyBackup(){
+12703:     try{
+12704:       let payload={savedAt:new Date().toISOString(),score:currentProjectionStateScore(),projectionInvoices:clone(Array.isArray(db.projectionInvoices)?db.projectionInvoices:[]),orders:(db.orders||[]).map(o=>({id:o.id,orderNumber:o.orderNumber,client:o.client,clientId:o.clientId,date:o.date,projectionItems:clone(o.projectionItems||{}),projectionInvoiced:o.projectionInvoiced})),finance:clone((db.finance||[]).filter(f=>f?.projectionInvoiceId!=null))};
+12705:       let old=null;try{old=JSON.parse(localStorage.getItem(V9123_BACKUP_KEY)||"null")}catch(e){}
+12706:       if(!old||(+payload.score||0)>=(+old.score||0))localStorage.setItem(V9123_BACKUP_KEY,JSON.stringify(payload));
+12707:     }catch(e){console.warn("HLGB v91.23 backup da projeção",e)}
+12708:   }
+12709:   function referencedInvoiceIds(){
+12710:     let set=new Set();
+12711:     (db.finance||[]).forEach(f=>{if(f?.projectionInvoiceId!=null)set.add(invoiceId(f.projectionInvoiceId))});
+12712:     (db.orders||[]).forEach(o=>Object.values(o?.projectionItems||{}).forEach(x=>(x?.invoiceIds||[]).forEach(id=>set.add(invoiceId(id)))));
+12713:     return set;
+12714:   }
+12715:   function restoreFromSafetyBackup(){
+12716:     let old=null;try{old=JSON.parse(localStorage.getItem(V9123_BACKUP_KEY)||"null")}catch(e){}
+12717:     if(!old||!Array.isArray(old.projectionInvoices)||!old.projectionInvoices.length)return false;
+12718:     db.projectionInvoices=Array.isArray(db.projectionInvoices)?db.projectionInvoices:[];
+12719:     let existing=new Set(db.projectionInvoices.map(x=>invoiceId(x.id))),refs=referencedInvoiceIds(),changed=false;
+12720:     old.projectionInvoices.forEach(inv=>{
+12721:       let id=invoiceId(inv?.id);if(!id||existing.has(id)||!refs.has(id))return;
+12722:       db.projectionInvoices.push(clone(inv));existing.add(id);changed=true;
+12723:     });
+12724:     return changed;
+12725:   }
+12726:   function recoverMissingInvoicesFromOrders(){
+12727:     db.projectionInvoices=Array.isArray(db.projectionInvoices)?db.projectionInvoices:[];
+12728:     let existing=new Map(db.projectionInvoices.map(x=>[invoiceId(x.id),x])),groups=new Map();
+12729:     (db.orders||[]).forEach(o=>{
+12730:       let baseRows=_v9123BaseProjectionItemsForOrder(o)||[],byKey=new Map(baseRows.map(x=>[String(x.key),x]));
+12731:       Object.entries(o?.projectionItems||{}).forEach(([key,saved])=>{
+12732:         let row=byKey.get(String(key));if(!row)return;
+12733:         let ids=Array.isArray(saved?.invoiceIds)?saved.invoiceIds.map(invoiceId).filter(Boolean):[];
+12734:         let history=Array.isArray(saved?.deliveryHistory)?saved.deliveryHistory:[];
+12735:         let knownQty=0;
+12736:         ids.forEach(id=>{let inv=existing.get(id);if(inv)(inv.items||[]).forEach(it=>{if(itemMatches(o.id,row,inv,it))knownQty+=Math.max(0,+it.qty||0)})});
+12737:         let missing=ids.filter(id=>!existing.has(id));
+12738:         let remainingHistorical=Math.max(0,(+saved?.invoicedQty||0)-knownQty);
+12739:         missing.forEach((id,idx)=>{
+12740:           let hist=history.find(h=>invoiceId(h?.invoiceId)===id);
+12741:           let qty=Math.max(0,+hist?.qty||0);
+12742:           if(!qty&&missing.length===1)qty=remainingHistorical;
+12743:           if(!qty)return;
+12744:           if(!groups.has(id))groups.set(id,[]);
+12745:           let unit=(+row.qty||0)>0?(+row.value||0)/(+row.qty||0):0;
+12746:           groups.get(id).push({order:o,row,qty,unit,date:String(hist?.date||saved?.date||o.date||"").slice(0,10)});
+12747:         });
+12748:       });
+12749:     });
+12750:     let changed=false;
+12751:     groups.forEach((entries,id)=>{
+12752:       if(existing.has(id)||!entries.length)return;
+12753:       let fin=financeForInvoice(id),first=entries[0],issue=String(fin?.issueDate||entries.find(x=>x.date)?.date||isoDate(new Date())).slice(0,10),total=entries.reduce((a,x)=>a+x.qty*x.unit,0);
+12754:       let inv={id:isNaN(+id)?id:+id,client:fin?.clientName||first.order.client||"Cliente",clientId:fin?.clientId||first.order.clientId||null,sourceClient:first.order.client||"",items:entries.map(x=>({orderId:x.order.id,itemKey:x.row.key,productName:x.row.name,productId:x.row.productId||null,projectionDate:x.row.date||x.order.date||"",deliveredAt:issue,qty:x.qty,unitPrice:x.unit,value:x.qty*x.unit})),date:issue,issueDate:issue,dueDate:fin?.dueDate||fin?.date||issue,value:+fin?.value||total,terms:fin?.paymentTerms||"Recuperada",termsDetail:fin?.paymentTermsDetail||"",status:fin?.status||"Pendente",recovered:true};
+12755:       db.projectionInvoices.push(inv);existing.set(id,inv);changed=true;
+12756:     });
+12757:     return changed;
+12758:   }
+12759:   function repairProjectionBalances(){
+12760:     let changed=false;
+12761:     (db.orders||[]).forEach(o=>{
+12762:       let baseRows=_v9123BaseProjectionItemsForOrder(o)||[];
+12763:       o.projectionItems=(o.projectionItems&&typeof o.projectionItems==="object")?o.projectionItems:{};
+12764:       baseRows.forEach(row=>{
+12765:         let links=invoiceLinks(o.id,row);if(!links.length)return;
+12766:         let fromInvoices=Math.min(+row.qty||0,links.reduce((a,x)=>a+x.qty,0));
+12767:         let saved=o.projectionItems[row.key]||{},oldQty=Math.max(0,+saved.invoicedQty||0),newQty=Math.max(oldQty,fromInvoices);
+12768:         let ids=[...new Set([...(Array.isArray(saved.invoiceIds)?saved.invoiceIds:[]),...links.map(x=>x.inv.id)].map(invoiceId))];
+12769:         let hist=Array.isArray(saved.deliveryHistory)?saved.deliveryHistory.slice():[];
+12770:         links.forEach(x=>{let id=invoiceId(x.inv.id);if(!hist.some(h=>invoiceId(h?.invoiceId)===id))hist.push({invoiceId:x.inv.id,date:invoiceDate(x.inv),qty:x.qty})});
+12771:         if(newQty!==oldQty||ids.length!==(Array.isArray(saved.invoiceIds)?saved.invoiceIds.length:0)||hist.length!==(Array.isArray(saved.deliveryHistory)?saved.deliveryHistory.length:0)){
+12772:           o.projectionItems[row.key]={...saved,date:saved.date||row.date||"",invoicedQty:newQty,invoiced:newQty>=(+row.qty||0),invoiceIds:ids,deliveryHistory:hist};changed=true;
+12773:         }
+12774:       });
+12775:       let rows=_v9123BaseProjectionItemsForOrder(o)||[];
+12776:       let allDone=rows.length>0&&rows.every(r=>Math.max(+r.invoicedQty||0,invoiceLinks(o.id,r).reduce((a,x)=>a+x.qty,0))>=(+r.qty||0));
+12777:       if(allDone&&o.projectionInvoiced!==true){o.projectionInvoiced=true;changed=true}
+12778:     });
+12779:     return changed;
+12780:   }
+12781: 
+12782:   // Always derive the visible balance from finalized projection invoices as well as the nested order state.
+12783:   projectionItemsForOrder=function(o){
+12784:     let rows=_v9123BaseProjectionItemsForOrder(o)||[];
+12785:     return rows.map(row=>{
+12786:       let links=invoiceLinks(o?.id,row),fromInvoices=links.reduce((a,x)=>a+x.qty,0),stored=Math.max(0,+row.invoicedQty||0),done=Math.min(+row.qty||0,Math.max(stored,fromInvoices));
+12787:       return {...row,invoicedQty:done,remainingQty:Math.max(0,(+row.qty||0)-done),invoiced:done>=(+row.qty||0),invoiceIds:[...new Set([...(row.invoiceIds||[]),...links.map(x=>x.inv.id)])]};
+12788:     });
+12789:   };
+12790:   window.projectionItemsForOrder=projectionItemsForOrder;
+12791: 
+12792:   // Delivered is compared with the selected projection period. The emission date remains visible in the table.
+12793:   projectionDeliveredRows=function(startS="0000-01-01",endS="9999-12-31"){
+12794:     let out=[];
+12795:     (Array.isArray(db.projectionInvoices)?db.projectionInvoices:[]).forEach(inv=>{
+12796:       let issue=invoiceDate(inv);
+12797:       (Array.isArray(inv?.items)?inv.items:[]).forEach(it=>{
+12798:         let oid=it?.orderId!=null?it.orderId:inv?.orderId,o=(db.orders||[]).find(x=>String(x.id)===String(oid))||null;
+12799:         let row=o?(_v9123BaseProjectionItemsForOrder(o)||[]).find(r=>(it.itemKey!=null&&String(r.key)===String(it.itemKey))||(!it.itemKey&&it.productId&&+r.productId===+it.productId)):null;
+12800:         let periodDate=String(it.projectionDate||row?.date||o?.date||issue||"").slice(0,10);
+12801:         if(!periodDate||periodDate<startS||periodDate>endS)return;
+12802:         out.push({invoice:inv,order:o,item:it,date:issue||periodDate,projectionDate:periodDate,qty:+it.qty||0,value:+it.value||((+it.qty||0)*(+it.unitPrice||0))});
+12803:       });
+12804:     });
+12805:     return out;
+12806:   };
+
+=== projectionInvoices @ line 12695 ===
+12650:           nl.forEach((x,i)=>{let prod=x.product;db.cuts.push({id:Date.now()+i+1,orderId:o.id,op:'PED-'+o.id+(nl.length>1?'-'+(i+1):''),productId:x.productId,product:prod?.name||'',fabric:prod?.material||'',color:'',size:'',layers:0,meters:0,pieces:x.qty,productionLocationId:null,cutterId:null,cutType:'',status:'Planejado',date:isoDate(new Date()),isAdHoc:true,noGrade:true})});
+12651:         }
+12652:         closeModal();save();try{renderOrders();renderCuts();renderProjection()}catch(e){}
+12653:       });
+12654:     setTimeout(()=>{hlgb922ClientChanged();hlgb922RecalcAdHoc()},20);
+12655:   }
+12656: 
+12657:   const originalEditOrder=window.editOrder;
+12658:   window.editOrder=function(id){
+12659:     let o=(db.orders||[]).find(x=>+x.id===+id);
+12660:     if(o&&o.isAdHoc&&o.noGrade)return editNoGradeAdHoc(o);
+12661:     return originalEditOrder(id);
+12662:   };
+12663: })();
+12664: </script>
+12665: <!-- HLGB v91.23 PROJECTION INTEGRITY -->
+12666: <script>
+12667: // v91.23 — projection invoices are the authoritative source for delivered/remaining.
+12668: // The repair is additive only: it never reduces a saved delivery and never clears notes.
+12669: (function(){
+12670:   if(typeof projectionItemsForOrder!=="function")return;
+12671:   const _v9123BaseProjectionItemsForOrder=projectionItemsForOrder;
+12672:   const V9123_BACKUP_KEY="hlgb_projection_safety_backup";
+12673: 
+12674:   function clone(v){try{return JSON.parse(JSON.stringify(v))}catch(e){return v}}
+12675:   function invoiceId(v){return String(v==null?"":v)}
+12676:   function invoiceDate(inv){return String(inv?.issueDate||inv?.date||"").slice(0,10)}
+12677:   function financeForInvoice(id){return (db.finance||[]).find(f=>invoiceId(f.projectionInvoiceId)===invoiceId(id))||null}
+12678:   function itemMatches(orderId,item,inv,it){
+12679:     let oid=it?.orderId!=null?it.orderId:inv?.orderId;
+12680:     if(String(oid??"")!==String(orderId??""))return false;
+12681:     if(it?.itemKey!=null&&String(it.itemKey)!=="")return String(it.itemKey)===String(item?.key??"");
+12682:     if(item?.productId&&it?.productId)return +it.productId===+item.productId;
+12683:     return String(it?.productName||"").trim().toLowerCase()===String(item?.name||"").trim().toLowerCase();
+12684:   }
+12685:   function invoiceLinks(orderId,item){
+12686:     let out=[];
+12687:     (Array.isArray(db.projectionInvoices)?db.projectionInvoices:[]).forEach(inv=>{
+12688:       (Array.isArray(inv?.items)?inv.items:[]).forEach(it=>{
+12689:         if(itemMatches(orderId,item,inv,it))out.push({inv,it,qty:Math.max(0,+it.qty||0)});
+12690:       });
+12691:     });
+12692:     return out;
+12693:   }
+12694:   function currentProjectionStateScore(){
+12695:     let inv=(Array.isArray(db.projectionInvoices)?db.projectionInvoices:[]).length,h=0,refs=0;
+12696:     (db.orders||[]).forEach(o=>Object.values(o?.projectionItems||{}).forEach(x=>{
+12697:       h+=Array.isArray(x?.deliveryHistory)?x.deliveryHistory.length:0;
+12698:       refs+=Array.isArray(x?.invoiceIds)?x.invoiceIds.length:0;
+12699:     }));
+12700:     return inv*10000+h*10+refs;
+12701:   }
+12702:   function safetyBackup(){
+12703:     try{
+12704:       let payload={savedAt:new Date().toISOString(),score:currentProjectionStateScore(),projectionInvoices:clone(Array.isArray(db.projectionInvoices)?db.projectionInvoices:[]),orders:(db.orders||[]).map(o=>({id:o.id,orderNumber:o.orderNumber,client:o.client,clientId:o.clientId,date:o.date,projectionItems:clone(o.projectionItems||{}),projectionInvoiced:o.projectionInvoiced})),finance:clone((db.finance||[]).filter(f=>f?.projectionInvoiceId!=null))};
+12705:       let old=null;try{old=JSON.parse(localStorage.getItem(V9123_BACKUP_KEY)||"null")}catch(e){}
+12706:       if(!old||(+payload.score||0)>=(+old.score||0))localStorage.setItem(V9123_BACKUP_KEY,JSON.stringify(payload));
+12707:     }catch(e){console.warn("HLGB v91.23 backup da projeção",e)}
+12708:   }
+12709:   function referencedInvoiceIds(){
+12710:     let set=new Set();
+12711:     (db.finance||[]).forEach(f=>{if(f?.projectionInvoiceId!=null)set.add(invoiceId(f.projectionInvoiceId))});
+12712:     (db.orders||[]).forEach(o=>Object.values(o?.projectionItems||{}).forEach(x=>(x?.invoiceIds||[]).forEach(id=>set.add(invoiceId(id)))));
+12713:     return set;
+12714:   }
+12715:   function restoreFromSafetyBackup(){
+12716:     let old=null;try{old=JSON.parse(localStorage.getItem(V9123_BACKUP_KEY)||"null")}catch(e){}
+12717:     if(!old||!Array.isArray(old.projectionInvoices)||!old.projectionInvoices.length)return false;
+12718:     db.projectionInvoices=Array.isArray(db.projectionInvoices)?db.projectionInvoices:[];
+12719:     let existing=new Set(db.projectionInvoices.map(x=>invoiceId(x.id))),refs=referencedInvoiceIds(),changed=false;
+12720:     old.projectionInvoices.forEach(inv=>{
+12721:       let id=invoiceId(inv?.id);if(!id||existing.has(id)||!refs.has(id))return;
+12722:       db.projectionInvoices.push(clone(inv));existing.add(id);changed=true;
+12723:     });
+12724:     return changed;
+12725:   }
+12726:   function recoverMissingInvoicesFromOrders(){
+12727:     db.projectionInvoices=Array.isArray(db.projectionInvoices)?db.projectionInvoices:[];
+12728:     let existing=new Map(db.projectionInvoices.map(x=>[invoiceId(x.id),x])),groups=new Map();
+12729:     (db.orders||[]).forEach(o=>{
+12730:       let baseRows=_v9123BaseProjectionItemsForOrder(o)||[],byKey=new Map(baseRows.map(x=>[String(x.key),x]));
+12731:       Object.entries(o?.projectionItems||{}).forEach(([key,saved])=>{
+12732:         let row=byKey.get(String(key));if(!row)return;
+12733:         let ids=Array.isArray(saved?.invoiceIds)?saved.invoiceIds.map(invoiceId).filter(Boolean):[];
+12734:         let history=Array.isArray(saved?.deliveryHistory)?saved.deliveryHistory:[];
+12735:         let knownQty=0;
+12736:         ids.forEach(id=>{let inv=existing.get(id);if(inv)(inv.items||[]).forEach(it=>{if(itemMatches(o.id,row,inv,it))knownQty+=Math.max(0,+it.qty||0)})});
+12737:         let missing=ids.filter(id=>!existing.has(id));
+12738:         let remainingHistorical=Math.max(0,(+saved?.invoicedQty||0)-knownQty);
+12739:         missing.forEach((id,idx)=>{
+12740:           let hist=history.find(h=>invoiceId(h?.invoiceId)===id);
+12741:           let qty=Math.max(0,+hist?.qty||0);
+12742:           if(!qty&&missing.length===1)qty=remainingHistorical;
+12743:           if(!qty)return;
+12744:           if(!groups.has(id))groups.set(id,[]);
+12745:           let unit=(+row.qty||0)>0?(+row.value||0)/(+row.qty||0):0;
+12746:           groups.get(id).push({order:o,row,qty,unit,date:String(hist?.date||saved?.date||o.date||"").slice(0,10)});
+12747:         });
+12748:       });
+12749:     });
+12750:     let changed=false;
+12751:     groups.forEach((entries,id)=>{
+12752:       if(existing.has(id)||!entries.length)return;
+12753:       let fin=financeForInvoice(id),first=entries[0],issue=String(fin?.issueDate||entries.find(x=>x.date)?.date||isoDate(new Date())).slice(0,10),total=entries.reduce((a,x)=>a+x.qty*x.unit,0);
+12754:       let inv={id:isNaN(+id)?id:+id,client:fin?.clientName||first.order.client||"Cliente",clientId:fin?.clientId||first.order.clientId||null,sourceClient:first.order.client||"",items:entries.map(x=>({orderId:x.order.id,itemKey:x.row.key,productName:x.row.name,productId:x.row.productId||null,projectionDate:x.row.date||x.order.date||"",deliveredAt:issue,qty:x.qty,unitPrice:x.unit,value:x.qty*x.unit})),date:issue,issueDate:issue,dueDate:fin?.dueDate||fin?.date||issue,value:+fin?.value||total,terms:fin?.paymentTerms||"Recuperada",termsDetail:fin?.paymentTermsDetail||"",status:fin?.status||"Pendente",recovered:true};
+12755:       db.projectionInvoices.push(inv);existing.set(id,inv);changed=true;
+12756:     });
+12757:     return changed;
+12758:   }
+12759:   function repairProjectionBalances(){
+12760:     let changed=false;
+12761:     (db.orders||[]).forEach(o=>{
+12762:       let baseRows=_v9123BaseProjectionItemsForOrder(o)||[];
+12763:       o.projectionItems=(o.projectionItems&&typeof o.projectionItems==="object")?o.projectionItems:{};
+12764:       baseRows.forEach(row=>{
+12765:         let links=invoiceLinks(o.id,row);if(!links.length)return;
+12766:         let fromInvoices=Math.min(+row.qty||0,links.reduce((a,x)=>a+x.qty,0));
+12767:         let saved=o.projectionItems[row.key]||{},oldQty=Math.max(0,+saved.invoicedQty||0),newQty=Math.max(oldQty,fromInvoices);
+12768:         let ids=[...new Set([...(Array.isArray(saved.invoiceIds)?saved.invoiceIds:[]),...links.map(x=>x.inv.id)].map(invoiceId))];
+12769:         let hist=Array.isArray(saved.deliveryHistory)?saved.deliveryHistory.slice():[];
+12770:         links.forEach(x=>{let id=invoiceId(x.inv.id);if(!hist.some(h=>invoiceId(h?.invoiceId)===id))hist.push({invoiceId:x.inv.id,date:invoiceDate(x.inv),qty:x.qty})});
+12771:         if(newQty!==oldQty||ids.length!==(Array.isArray(saved.invoiceIds)?saved.invoiceIds.length:0)||hist.length!==(Array.isArray(saved.deliveryHistory)?saved.deliveryHistory.length:0)){
+12772:           o.projectionItems[row.key]={...saved,date:saved.date||row.date||"",invoicedQty:newQty,invoiced:newQty>=(+row.qty||0),invoiceIds:ids,deliveryHistory:hist};changed=true;
+12773:         }
+12774:       });
+12775:       let rows=_v9123BaseProjectionItemsForOrder(o)||[];
+12776:       let allDone=rows.length>0&&rows.every(r=>Math.max(+r.invoicedQty||0,invoiceLinks(o.id,r).reduce((a,x)=>a+x.qty,0))>=(+r.qty||0));
+12777:       if(allDone&&o.projectionInvoiced!==true){o.projectionInvoiced=true;changed=true}
+12778:     });
+12779:     return changed;
+12780:   }
+12781: 
+12782:   // Always derive the visible balance from finalized projection invoices as well as the nested order state.
+12783:   projectionItemsForOrder=function(o){
+12784:     let rows=_v9123BaseProjectionItemsForOrder(o)||[];
+12785:     return rows.map(row=>{
+12786:       let links=invoiceLinks(o?.id,row),fromInvoices=links.reduce((a,x)=>a+x.qty,0),stored=Math.max(0,+row.invoicedQty||0),done=Math.min(+row.qty||0,Math.max(stored,fromInvoices));
+12787:       return {...row,invoicedQty:done,remainingQty:Math.max(0,(+row.qty||0)-done),invoiced:done>=(+row.qty||0),invoiceIds:[...new Set([...(row.invoiceIds||[]),...links.map(x=>x.inv.id)])]};
+12788:     });
+12789:   };
+12790:   window.projectionItemsForOrder=projectionItemsForOrder;
+12791: 
+12792:   // Delivered is compared with the selected projection period. The emission date remains visible in the table.
+12793:   projectionDeliveredRows=function(startS="0000-01-01",endS="9999-12-31"){
+12794:     let out=[];
+12795:     (Array.isArray(db.projectionInvoices)?db.projectionInvoices:[]).forEach(inv=>{
+12796:       let issue=invoiceDate(inv);
+12797:       (Array.isArray(inv?.items)?inv.items:[]).forEach(it=>{
+12798:         let oid=it?.orderId!=null?it.orderId:inv?.orderId,o=(db.orders||[]).find(x=>String(x.id)===String(oid))||null;
+12799:         let row=o?(_v9123BaseProjectionItemsForOrder(o)||[]).find(r=>(it.itemKey!=null&&String(r.key)===String(it.itemKey))||(!it.itemKey&&it.productId&&+r.productId===+it.productId)):null;
+12800:         let periodDate=String(it.projectionDate||row?.date||o?.date||issue||"").slice(0,10);
+12801:         if(!periodDate||periodDate<startS||periodDate>endS)return;
+12802:         out.push({invoice:inv,order:o,item:it,date:issue||periodDate,projectionDate:periodDate,qty:+it.qty||0,value:+it.value||((+it.qty||0)*(+it.unitPrice||0))});
+12803:       });
+12804:     });
+12805:     return out;
+12806:   };
+12807:   window.projectionDeliveredRows=projectionDeliveredRows;
+12808: 
+12809:   function ensureIntegrity(){
+12810:     try{
+12811:       safetyBackup();
+12812:       let changed=restoreFromSafetyBackup();
+12813:       if(recoverMissingInvoicesFromOrders())changed=true;
+12814:       if(repairProjectionBalances())changed=true;

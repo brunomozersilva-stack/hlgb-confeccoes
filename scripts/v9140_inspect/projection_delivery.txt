@@ -1,0 +1,333 @@
+=== produtos previstos para @ line 1156 ===
+01111: </div>
+01112: 
+01113: <div class="panel">
+01114:   <h2>Ranking de atingimento</h2>
+01115:   <div id="goalRankingTable"></div>
+01116: </div>
+01117: 
+01118: <div class="panel">
+01119:   <h2>Cadastros de meta</h2>
+01120:   <div id="goalConfigTable"></div>
+01121: </div>
+01122: </section>
+01123: 
+01124: <section id="capacidadeProducao" class="page"><h1>Planejamento de capacidade</h1>
+01125: <div class="sub">Distribua antecipadamente os produtos entre confecções e facções e veja quais locais ainda têm capacidade na semana.</div>
+01126: <div class="panel"><h2>Período</h2><div class="toolbar" style="align-items:flex-end;flex-wrap:wrap"><div class="field"><label>De</label><input id="capacityStart" type="date"></div><div class="field"><label>Até</label><input id="capacityEnd" type="date"></div><button class="secondary" onclick="setCapacityWeek()">Esta semana</button><button class="primary" onclick="renderCapacityPlanning()">Aplicar período</button></div><div class="cards" id="capacityCards"></div></div>
+01127: <div class="panel"><div style="display:flex;justify-content:space-between;gap:12px;align-items:center;flex-wrap:wrap"><div><h2 style="margin-bottom:4px">Capacidade por local / responsável</h2><div class="sub">Defina aqui a capacidade semanal e os modelos que cada confecção, facção ou responsável consegue produzir.</div></div><button class="primary" onclick="openCapacityLocationEditor()">⚙️ Configurar capacidades</button></div><div id="capacityLocationTable"></div></div>
+01128: <div class="panel"><h2>Produtos para alocar</h2><div class="sub">Distribua a quantidade entre um ou vários locais. Você pode dividir o mesmo modelo sem alterar o pedido nem o corte original.</div><div id="capacityOrderTable"></div></div>
+01129: </section>
+01130: 
+01131: <section id="projecao" class="page"><h1>Projeção de entregas</h1>
+01132: <div class="sub">Veja somente os produtos dos pedidos, altere a previsão de entrega por produto e agrupe produtos do mesmo cliente para finalizar uma nota parcial ou completa.</div>
+01133: 
+01134: <div class="panel">
+01135: <h2>Período da projeção</h2>
+01136: <div class="toolbar" style="align-items:flex-end;flex-wrap:wrap">
+01137: <div class="field"><label>De</label><input id="projectionStart" type="date"></div>
+01138: <div class="field"><label>Até</label><input id="projectionEnd" type="date"></div>
+01139: <button type="button" class="secondary" onclick="setProjectionPeriod('week')">Esta semana</button>
+01140: <button type="button" class="secondary" onclick="setProjectionPeriod('month')">Este mês</button>
+01141: <button type="button" class="secondary" onclick="setProjectionPeriod('next30')">Próximos 30 dias</button>
+01142: <button type="button" class="secondary" onclick="setProjectionPeriod('all')">Todo o período</button>
+01143: <button type="button" class="primary" onclick="renderProjection()">🔎 Aplicar filtro</button>
+01144: </div>
+01145: <div id="projectionPeriodLabel" class="sub"></div>
+01146: <div class="cards" id="projectionCards"></div>
+01147: </div>
+01148: 
+01149: <div class="panel">
+01150: <h2>📥 Aguardando programação de entrega</h2>
+01151: <div class="sub">Todo pedido novo entra automaticamente aqui, independentemente da data de entrega do cliente. Defina a semana/data que você acredita que o produto realmente ficará pronto para sair.</div>
+01152: <div id="projectionPendingTable"></div>
+01153: </div>
+01154: 
+01155: <div class="panel">
+01156: <h2>📋 Produtos previstos para saída</h2>
+01157: <div class="sub">Resumo rápido dos produtos do período. Os filtros abaixo também atualizam os cartões, totais e demais resumos da projeção.</div>
+01158: <div class="toolbar" style="align-items:flex-end;flex-wrap:wrap">
+01159:   <div class="field"><label>Cliente</label><input id="projectionClientFilter" placeholder="Buscar cliente" oninput="renderProjection()"></div>
+01160:   <div class="field"><label>Produto</label><input id="projectionProductFilter" placeholder="Buscar produto/modelo" oninput="renderProjection()"></div>
+01161:   <div class="field"><label>Nº do pedido</label><input id="projectionOrderFilter" placeholder="Ex.: 125" oninput="renderProjection()"></div>
+01162:   <div class="field"><label>Local de produção</label><select id="projectionLocationFilter" onchange="renderProjection()"><option value="">Todos</option></select></div>
+01163:   <div class="field"><label>Prioridade</label><select id="projectionPriorityFilter" onchange="renderProjection()"><option value="">Todas</option><option>Padrão</option><option>Urgente</option><option>Urgentíssimo</option></select></div>
+01164:   <div class="field"><label>Status</label><select id="projectionStatusFilter" onchange="renderProjection()"><option value="">Todos</option></select></div>
+01165:   <div class="field"><label>Valor mínimo</label><input id="projectionMinValue" type="number" min="0" step="0.01" placeholder="R$ 0,00" oninput="renderProjection()"></div>
+01166:   <div class="field"><label>Valor máximo</label><input id="projectionMaxValue" type="number" min="0" step="0.01" placeholder="Sem limite" oninput="renderProjection()"></div>
+01167:   <button type="button" class="secondary" onclick="clearProjectionDetailFilters()">Limpar filtros</button>
+01168: </div>
+01169: <div id="projectionExitTable"></div>
+01170: <div id="projectionExitTotals" class="sub" style="margin-top:12px;font-weight:700"></div>
+01171: </div>
+01172: 
+01173: <div class="panel">
+01174: <h2>Produtos previstos para entrega</h2>
+01175: <div class="sub">Marque um produto sozinho ou vários produtos do mesmo cliente para gerar a nota. Você também pode mover somente um produto para outra data/semana sem alterar os demais.</div>
+01176: <div class="toolbar">
+01177:   <button type="button" class="primary" onclick="finalizeSelectedProjection()">Finalizar nota dos selecionados</button>
+01178:   <button type="button" class="secondary" onclick="clearProjectionSelection()">Limpar seleção</button>
+01179: </div>
+01180: <div id="projectionProductsTable"></div>
+01181: </div>
+01182: 
+01183: <div class="panel" id="projectionDeliveryTrackingPanel">
+01184: <h2>📦 Entregas da projeção</h2>
+01185: <div class="sub">Acompanhe separadamente o que ainda falta entregar e o que já foi entregue. Entregas parciais vão sendo somadas automaticamente; o saldo restante pode ser reagendado sem alterar o histórico do que já saiu.</div>
+01186: <div id="projectionDeliverySummaryCards" class="cards"></div>
+01187: <div class="toolbar" style="margin-top:8px">
+01188:   <button type="button" id="projectionTabRemaining" class="primary" onclick="setProjectionDeliveryTab('remaining')">📋 Falta entregar</button>
+01189:   <button type="button" id="projectionTabDelivered" class="secondary" onclick="setProjectionDeliveryTab('delivered')">✅ Entregue</button>
+01190: </div>
+01191: <div id="projectionRemainingPane"><div id="projectionRemainingTable"></div></div>
+01192: <div id="projectionDeliveredPane" style="display:none"><div id="projectionDeliveredTable"></div></div>
+01193: </div>
+01194: 
+01195: <div class="panel">
+01196: <h2>Valor projetado por cliente</h2>
+01197: <div class="sub">Mantém o valor previsto de cada cliente, mesmo quando a entrega for dividida em vários produtos ou semanas.</div>
+01198: <div id="clientProjectionTable"></div>
+01199: </div>
+01200: 
+01201: <div class="panel">
+01202: <h2>Onde está sendo produzido</h2>
+01203: <div class="sub">Produção por local, quantidade e valor relacionado aos produtos do período.</div>
+01204: <div id="locationProjectionTable"></div>
+01205: </div>
+01206: 
+01207: <div class="panel">
+01208: <h2>Produção por cortador</h2>
+01209: <div id="cutterProjectionTable"></div>
+01210: </div>
+01211: 
+01212: <div class="panel">
+01213: <h2>Gráfico — peças previstas por cliente</h2>
+01214: <canvas id="clientChart" height="260" style="width:100%;max-width:100%;display:block"></canvas>
+01215: </div>
+01216: 
+01217: <div class="panel">
+01218: <h2>Resumo operacional do período</h2>
+01219: <div id="weeklySummary"></div>
+01220: </div>
+01221: </section>
+01222: <section id="faltas" class="page">
+01223: <h1>⚠️ Faltas e defeitos</h1>
+01224: <div class="sub">Os defeitos e perdas informados nas facções entram automaticamente aqui. Acompanhe quantidades, valores, custos e faça a baixa quando a peça for recuperada, refeita ou entregue.</div>
+01225: 
+01226: <div class="panel">
+01227:   <div class="toolbar" style="align-items:flex-end;flex-wrap:wrap">
+01228:     <div class="field"><label>De</label><input id="missingStart" type="date" onchange="renderMissingPieces()"></div>
+01229:     <div class="field"><label>Até</label><input id="missingEnd" type="date" onchange="renderMissingPieces()"></div>
+01230:     <button type="button" class="secondary" onclick="setMissingPeriod('week')">Esta semana</button>
+01231:     <button type="button" class="secondary" onclick="setMissingPeriod('month')">Este mês</button>
+01232:     <button type="button" class="secondary" onclick="setMissingPeriod('year')">Este ano</button>
+01233:     <button type="button" class="secondary" onclick="setMissingPeriod('all')">Todo o período</button>
+01234:   </div>
+01235:   <div id="missingPeriodLabel" class="sub"></div>
+01236: </div>
+01237: 
+01238: <div class="cards" id="missingCards"></div>
+01239: 
+01240: <div class="panel">
+01241:   <h2>Ocorrências em aberto</h2>
+01242:   <div class="sub">Use “Abater / recuperar” quando encontrar a peça, refizer um defeito ou conseguir entregar parte do que estava faltando.</div>
+01243:   <div id="missingOpenTable"></div>
+01244: </div>
+01245: 
+01246: <div class="panel">
+01247:   <h2>Histórico de baixas</h2>
+01248:   <div id="missingHistoryTable"></div>
+01249: </div>
+01250: </section>
+01251: 
+01252: <section id="devolucoesDefeitos" class="page">
+01253: <h1>🧵 Devoluções / Defeitos</h1>
+01254: <div class="sub">Registre peças devolvidas por defeito, envie para retrabalho no local que produziu e acompanhe o índice de qualidade de cada confecção/facção.</div>
+01255: <div class="panel">
+01256:  <div class="toolbar" style="align-items:flex-end;flex-wrap:wrap">
+01257:   <button type="button" class="primary" onclick="newDefectReturn()">+ Cadastrar devolução / defeito</button>
+01258:   <div class="field"><label>De</label><input id="defectStart" type="date" onchange="renderDefectReturns()"></div>
+01259:   <div class="field"><label>Até</label><input id="defectEnd" type="date" onchange="renderDefectReturns()"></div>
+01260:   <div class="field"><label>Local</label><select id="defectLocationFilter" onchange="renderDefectReturns()"><option value="">Todos os locais</option></select></div>
+01261:   <div class="field"><label>Produto</label><select id="defectProductFilter" onchange="renderDefectReturns()"><option value="">Todos os produtos</option></select></div>
+01262:   <button type="button" class="secondary" onclick="setDefectPeriod('month')">Este mês</button>
+01263:   <button type="button" class="secondary" onclick="setDefectPeriod('year')">Este ano</button>
+01264:   <button type="button" class="secondary" onclick="setDefectPeriod('all')">Todo o período</button>
+01265:  </div>
+01266: </div>
+01267: <div class="cards" id="defectCards"></div>
+01268: <div class="panel"><h2>Retrabalho e devoluções</h2><div id="defectReturnsTable"></div></div>
+01269: <div class="panel"><h2>📊 Qualidade por local de produção</h2><div class="sub">Índice de defeito = peças devolvidas por defeito ÷ peças produzidas no local × 100.</div><div id="defectQualityTable"></div></div>
+01270: </section>
+01271: 
+01272: <section id="relatorios" class="page">
+01273: <h1>Relatórios</h1>
+01274: <div class="sub">Resumo operacional para tomada de decisão.</div>
+01275: <div class="cards" id="reportCards"></div>
+
+=== produtos previstos para @ line 1174 ===
+01129: </section>
+01130: 
+01131: <section id="projecao" class="page"><h1>Projeção de entregas</h1>
+01132: <div class="sub">Veja somente os produtos dos pedidos, altere a previsão de entrega por produto e agrupe produtos do mesmo cliente para finalizar uma nota parcial ou completa.</div>
+01133: 
+01134: <div class="panel">
+01135: <h2>Período da projeção</h2>
+01136: <div class="toolbar" style="align-items:flex-end;flex-wrap:wrap">
+01137: <div class="field"><label>De</label><input id="projectionStart" type="date"></div>
+01138: <div class="field"><label>Até</label><input id="projectionEnd" type="date"></div>
+01139: <button type="button" class="secondary" onclick="setProjectionPeriod('week')">Esta semana</button>
+01140: <button type="button" class="secondary" onclick="setProjectionPeriod('month')">Este mês</button>
+01141: <button type="button" class="secondary" onclick="setProjectionPeriod('next30')">Próximos 30 dias</button>
+01142: <button type="button" class="secondary" onclick="setProjectionPeriod('all')">Todo o período</button>
+01143: <button type="button" class="primary" onclick="renderProjection()">🔎 Aplicar filtro</button>
+01144: </div>
+01145: <div id="projectionPeriodLabel" class="sub"></div>
+01146: <div class="cards" id="projectionCards"></div>
+01147: </div>
+01148: 
+01149: <div class="panel">
+01150: <h2>📥 Aguardando programação de entrega</h2>
+01151: <div class="sub">Todo pedido novo entra automaticamente aqui, independentemente da data de entrega do cliente. Defina a semana/data que você acredita que o produto realmente ficará pronto para sair.</div>
+01152: <div id="projectionPendingTable"></div>
+01153: </div>
+01154: 
+01155: <div class="panel">
+01156: <h2>📋 Produtos previstos para saída</h2>
+01157: <div class="sub">Resumo rápido dos produtos do período. Os filtros abaixo também atualizam os cartões, totais e demais resumos da projeção.</div>
+01158: <div class="toolbar" style="align-items:flex-end;flex-wrap:wrap">
+01159:   <div class="field"><label>Cliente</label><input id="projectionClientFilter" placeholder="Buscar cliente" oninput="renderProjection()"></div>
+01160:   <div class="field"><label>Produto</label><input id="projectionProductFilter" placeholder="Buscar produto/modelo" oninput="renderProjection()"></div>
+01161:   <div class="field"><label>Nº do pedido</label><input id="projectionOrderFilter" placeholder="Ex.: 125" oninput="renderProjection()"></div>
+01162:   <div class="field"><label>Local de produção</label><select id="projectionLocationFilter" onchange="renderProjection()"><option value="">Todos</option></select></div>
+01163:   <div class="field"><label>Prioridade</label><select id="projectionPriorityFilter" onchange="renderProjection()"><option value="">Todas</option><option>Padrão</option><option>Urgente</option><option>Urgentíssimo</option></select></div>
+01164:   <div class="field"><label>Status</label><select id="projectionStatusFilter" onchange="renderProjection()"><option value="">Todos</option></select></div>
+01165:   <div class="field"><label>Valor mínimo</label><input id="projectionMinValue" type="number" min="0" step="0.01" placeholder="R$ 0,00" oninput="renderProjection()"></div>
+01166:   <div class="field"><label>Valor máximo</label><input id="projectionMaxValue" type="number" min="0" step="0.01" placeholder="Sem limite" oninput="renderProjection()"></div>
+01167:   <button type="button" class="secondary" onclick="clearProjectionDetailFilters()">Limpar filtros</button>
+01168: </div>
+01169: <div id="projectionExitTable"></div>
+01170: <div id="projectionExitTotals" class="sub" style="margin-top:12px;font-weight:700"></div>
+01171: </div>
+01172: 
+01173: <div class="panel">
+01174: <h2>Produtos previstos para entrega</h2>
+01175: <div class="sub">Marque um produto sozinho ou vários produtos do mesmo cliente para gerar a nota. Você também pode mover somente um produto para outra data/semana sem alterar os demais.</div>
+01176: <div class="toolbar">
+01177:   <button type="button" class="primary" onclick="finalizeSelectedProjection()">Finalizar nota dos selecionados</button>
+01178:   <button type="button" class="secondary" onclick="clearProjectionSelection()">Limpar seleção</button>
+01179: </div>
+01180: <div id="projectionProductsTable"></div>
+01181: </div>
+01182: 
+01183: <div class="panel" id="projectionDeliveryTrackingPanel">
+01184: <h2>📦 Entregas da projeção</h2>
+01185: <div class="sub">Acompanhe separadamente o que ainda falta entregar e o que já foi entregue. Entregas parciais vão sendo somadas automaticamente; o saldo restante pode ser reagendado sem alterar o histórico do que já saiu.</div>
+01186: <div id="projectionDeliverySummaryCards" class="cards"></div>
+01187: <div class="toolbar" style="margin-top:8px">
+01188:   <button type="button" id="projectionTabRemaining" class="primary" onclick="setProjectionDeliveryTab('remaining')">📋 Falta entregar</button>
+01189:   <button type="button" id="projectionTabDelivered" class="secondary" onclick="setProjectionDeliveryTab('delivered')">✅ Entregue</button>
+01190: </div>
+01191: <div id="projectionRemainingPane"><div id="projectionRemainingTable"></div></div>
+01192: <div id="projectionDeliveredPane" style="display:none"><div id="projectionDeliveredTable"></div></div>
+01193: </div>
+01194: 
+01195: <div class="panel">
+01196: <h2>Valor projetado por cliente</h2>
+01197: <div class="sub">Mantém o valor previsto de cada cliente, mesmo quando a entrega for dividida em vários produtos ou semanas.</div>
+01198: <div id="clientProjectionTable"></div>
+01199: </div>
+01200: 
+01201: <div class="panel">
+01202: <h2>Onde está sendo produzido</h2>
+01203: <div class="sub">Produção por local, quantidade e valor relacionado aos produtos do período.</div>
+01204: <div id="locationProjectionTable"></div>
+01205: </div>
+01206: 
+01207: <div class="panel">
+01208: <h2>Produção por cortador</h2>
+01209: <div id="cutterProjectionTable"></div>
+01210: </div>
+01211: 
+01212: <div class="panel">
+01213: <h2>Gráfico — peças previstas por cliente</h2>
+01214: <canvas id="clientChart" height="260" style="width:100%;max-width:100%;display:block"></canvas>
+01215: </div>
+01216: 
+01217: <div class="panel">
+01218: <h2>Resumo operacional do período</h2>
+01219: <div id="weeklySummary"></div>
+01220: </div>
+01221: </section>
+01222: <section id="faltas" class="page">
+01223: <h1>⚠️ Faltas e defeitos</h1>
+01224: <div class="sub">Os defeitos e perdas informados nas facções entram automaticamente aqui. Acompanhe quantidades, valores, custos e faça a baixa quando a peça for recuperada, refeita ou entregue.</div>
+01225: 
+01226: <div class="panel">
+01227:   <div class="toolbar" style="align-items:flex-end;flex-wrap:wrap">
+01228:     <div class="field"><label>De</label><input id="missingStart" type="date" onchange="renderMissingPieces()"></div>
+01229:     <div class="field"><label>Até</label><input id="missingEnd" type="date" onchange="renderMissingPieces()"></div>
+01230:     <button type="button" class="secondary" onclick="setMissingPeriod('week')">Esta semana</button>
+01231:     <button type="button" class="secondary" onclick="setMissingPeriod('month')">Este mês</button>
+01232:     <button type="button" class="secondary" onclick="setMissingPeriod('year')">Este ano</button>
+01233:     <button type="button" class="secondary" onclick="setMissingPeriod('all')">Todo o período</button>
+01234:   </div>
+01235:   <div id="missingPeriodLabel" class="sub"></div>
+01236: </div>
+01237: 
+01238: <div class="cards" id="missingCards"></div>
+01239: 
+01240: <div class="panel">
+01241:   <h2>Ocorrências em aberto</h2>
+01242:   <div class="sub">Use “Abater / recuperar” quando encontrar a peça, refizer um defeito ou conseguir entregar parte do que estava faltando.</div>
+01243:   <div id="missingOpenTable"></div>
+01244: </div>
+01245: 
+01246: <div class="panel">
+01247:   <h2>Histórico de baixas</h2>
+01248:   <div id="missingHistoryTable"></div>
+01249: </div>
+01250: </section>
+01251: 
+01252: <section id="devolucoesDefeitos" class="page">
+01253: <h1>🧵 Devoluções / Defeitos</h1>
+01254: <div class="sub">Registre peças devolvidas por defeito, envie para retrabalho no local que produziu e acompanhe o índice de qualidade de cada confecção/facção.</div>
+01255: <div class="panel">
+01256:  <div class="toolbar" style="align-items:flex-end;flex-wrap:wrap">
+01257:   <button type="button" class="primary" onclick="newDefectReturn()">+ Cadastrar devolução / defeito</button>
+01258:   <div class="field"><label>De</label><input id="defectStart" type="date" onchange="renderDefectReturns()"></div>
+01259:   <div class="field"><label>Até</label><input id="defectEnd" type="date" onchange="renderDefectReturns()"></div>
+01260:   <div class="field"><label>Local</label><select id="defectLocationFilter" onchange="renderDefectReturns()"><option value="">Todos os locais</option></select></div>
+01261:   <div class="field"><label>Produto</label><select id="defectProductFilter" onchange="renderDefectReturns()"><option value="">Todos os produtos</option></select></div>
+01262:   <button type="button" class="secondary" onclick="setDefectPeriod('month')">Este mês</button>
+01263:   <button type="button" class="secondary" onclick="setDefectPeriod('year')">Este ano</button>
+01264:   <button type="button" class="secondary" onclick="setDefectPeriod('all')">Todo o período</button>
+01265:  </div>
+01266: </div>
+01267: <div class="cards" id="defectCards"></div>
+01268: <div class="panel"><h2>Retrabalho e devoluções</h2><div id="defectReturnsTable"></div></div>
+01269: <div class="panel"><h2>📊 Qualidade por local de produção</h2><div class="sub">Índice de defeito = peças devolvidas por defeito ÷ peças produzidas no local × 100.</div><div id="defectQualityTable"></div></div>
+01270: </section>
+01271: 
+01272: <section id="relatorios" class="page">
+01273: <h1>Relatórios</h1>
+01274: <div class="sub">Resumo operacional para tomada de decisão.</div>
+01275: <div class="cards" id="reportCards"></div>
+01276: <div class="panel"><h2>Indicadores</h2><div id="reportBody"></div></div>
+01277: <div class="panel">
+01278:   <h2>📦 Venda por produto</h2>
+01279:   <div class="sub">Quantidade e valor vendido por produto no período escolhido.</div>
+01280:   <div class="toolbar" style="align-items:flex-end;flex-wrap:wrap;margin-top:12px">
+01281:     <button type="button" class="secondary" onclick="setProductSalesReportPeriod('week')">Esta semana</button>
+01282:     <button type="button" class="secondary" onclick="setProductSalesReportPeriod('month')">Este mês</button>
+01283:     <button type="button" class="secondary" onclick="setProductSalesReportPeriod('year')">Este ano</button>
+01284:     <div class="field"><label>De</label><input id="productSalesStart" type="date" onchange="renderProductSalesReport()"></div>
+01285:     <div class="field"><label>Até</label><input id="productSalesEnd" type="date" onchange="renderProductSalesReport()"></div>
+01286:   </div>
+01287:   <div class="cards" id="productSalesCards"></div>
+01288:   <div id="productSalesReport"></div>
+01289: </div>
+01290: </section>
+01291: 
+01292: <section id="hubFinanceiro" class="page">
+01293: <h1>Hub Financeiro</h1>

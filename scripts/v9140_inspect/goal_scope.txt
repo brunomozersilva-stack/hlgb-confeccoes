@@ -1,0 +1,1335 @@
+=== scopeName @ line 4398 ===
+04353:  };
+04354: }
+04355: function setGoalPeriod(mode){
+04356:  let s=document.getElementById("goalStart"),e=document.getElementById("goalEnd");
+04357:  if(!s||!e)return;
+04358:  let now=new Date(),start="",end="";
+04359:  if(mode==="day"){
+04360:    let d=isoDate(now);s.value=d;e.value=d;renderGoals();return;
+04361:  }
+04362:  if(mode==="week"){
+04363:    let m=mondayOf(now),z=new Date(m);z.setDate(z.getDate()+6);
+04364:    start=isoDate(m);end=isoDate(z);
+04365:  }else if(mode==="month"){
+04366:    start=isoDate(new Date(now.getFullYear(),now.getMonth(),1,12));
+04367:    end=isoDate(new Date(now.getFullYear(),now.getMonth()+1,0,12));
+04368:  }else if(mode==="year"){
+04369:    start=isoDate(new Date(now.getFullYear(),0,1,12));
+04370:    end=isoDate(new Date(now.getFullYear(),11,31,12));
+04371:  }
+04372:  s.value=start;e.value=end;renderGoals();
+04373: }
+04374: function dateInGoalPeriod(dateValue,start,end){
+04375:  let d=String(dateValue||"").slice(0,10);
+04376:  if(!d)return false;
+04377:  if(start&&d<start)return false;
+04378:  if(end&&d>end)return false;
+04379:  return true;
+04380: }
+04381: function goalTargetForPeriod(g,start,end){
+04382:  let base=+g.targetValue||0;
+04383:  let cadence=g.cadence||"Semanal";
+04384:  if(!start&&!end)return base;
+04385:  let s=start?new Date(start+"T12:00:00"):new Date();
+04386:  let e=end?new Date(end+"T12:00:00"):new Date();
+04387:  let days=Math.max(1,Math.floor((e-s)/86400000)+1);
+04388:  if(cadence==="Semanal")return base*(days/7);
+04389:  if(cadence==="Mensal")return base*(days/30.4375);
+04390:  if(cadence==="Anual")return base*(days/365.25);
+04391:  return base;
+04392: }
+04393: function productionValueForGoal(g,start,end){
+04394:  // Valor produzido estimado pelos pedidos/produções vinculados ao local/facção.
+04395:  // Para facções usa quantidade produzida * preço da facção.
+04396:  if(g.scopeType==="Facção"){
+04397:    return (db.factions||[])
+04398:      .filter(f=>String(f.name||"")===String(g.scopeName||"") && dateInGoalPeriod(f.finishedAt||f.sentAt||f.date,start,end))
+04399:      .reduce((a,f)=>a+(+f.done||0)*(+f.price||0),0);
+04400:  }
+04401:  if(g.scopeType==="Confecção"){
+04402:    let loc=(db.productionLocations||[]).find(x=>String(x.name||"")===String(g.scopeName||""));
+04403:    if(!loc)return 0;
+04404:    return (db.production||[])
+04405:      .filter(p=>+p.productionLocationId===+loc.id && dateInGoalPeriod(p.finishedAt||p.date,start,end))
+04406:      .reduce((a,p)=>{
+04407:        let order=(db.orders||[]).find(o=>+o.id===+p.orderId);
+04408:        let unit=order&&qtyOfOrder(order)>0?(+order.total||0)/qtyOfOrder(order):0;
+04409:        return a+(+p.done||0)*unit;
+04410:      },0);
+04411:  }
+04412:  if(g.scopeType==="Pessoa"){
+04413:    // Pessoa pode ser cortador ou funcionário nominal; usamos cortadores cadastrados.
+04414:    let c=(db.cutters||[]).find(x=>String(x.name||"")===String(g.scopeName||""));
+04415:    if(!c)return 0;
+04416:    return (db.cuts||[])
+04417:      .filter(x=>+x.cutterId===+c.id && String(x.status||"").toLowerCase()==="finalizado" && dateInGoalPeriod(x.finishedAt||x.date,start,end))
+04418:      .reduce((a,x)=>{
+04419:        let order=(db.orders||[]).find(o=>+o.id===+x.orderId);
+04420:        let unit=order&&qtyOfOrder(order)>0?(+order.total||0)/qtyOfOrder(order):0;
+04421:        return a+(+x.pieces||0)*unit;
+04422:      },0);
+04423:  }
+04424:  return 0;
+04425: }
+04426: function goalForm(g={}){
+04427:  let names=[];
+04428:  let type=g.scopeType||"Confecção";
+04429:  if(type==="Confecção")names=(db.productionLocations||[]).map(x=>x.name);
+04430:  else if(type==="Facção")names=(db.factionMasters||[]).map(x=>x.name);
+04431:  else names=(db.cutters||[]).map(x=>x.name);
+04432: 
+04433:  return `<div class="grid">
+04434:   <div class="field"><label>Tipo da meta</label><select id="goalType" onchange="refreshGoalScopeOptions()">
+04435:     ${["Confecção","Facção","Pessoa"].map(x=>`<option ${x===type?"selected":""}>${x}</option>`).join("")}
+04436:   </select></div>
+04437:   <div class="field"><label>Local / pessoa</label><select id="goalScope">
+04438:     ${names.map(n=>`<option ${String(n)===String(g.scopeName||"")?"selected":""}>${esc(n)}</option>`).join("")}
+04439:   </select></div>
+04440:   <div class="field"><label>Quantidade de pessoas trabalhando</label><input id="goalPeople" type="number" min="1" value="${g.peopleCount??1}" oninput="updateGoalTotalPreview()"></div>
+04441:   <div class="field"><label>Meta por pessoa</label><input id="goalPerPerson" type="number" step="0.01" value="${g.goalPerPerson??g.targetValue??0}" oninput="updateGoalTotalPreview()"></div>
+04442:   <div class="field"><label>Meta total calculada</label><input id="goalValue" type="number" step="0.01" value="${g.targetValue??0}" readonly></div>
+04443:   <div class="field"><label>Periodicidade da meta</label><select id="goalCadence">
+04444:     ${["Semanal","Mensal","Anual"].map(x=>`<option ${x===(g.cadence||"Semanal")?"selected":""}>${x}</option>`).join("")}
+04445:   </select></div>
+04446:   <div class="field"><label>Observação</label><input id="goalNote" value="${esc(g.note||"")}"></div>
+04447:  </div>`;
+04448: }
+04449: function refreshGoalScopeOptions(){
+04450:  let t=document.getElementById("goalType")?.value||"Confecção";
+04451:  let names=t==="Confecção"?(db.productionLocations||[]).map(x=>x.name):
+04452:            t==="Facção"?(db.factionMasters||[]).map(x=>x.name):
+04453:            (db.cutters||[]).map(x=>x.name);
+04454:  let s=document.getElementById("goalScope");
+04455:  if(s)s.innerHTML=names.map(n=>`<option>${esc(n)}</option>`).join("");
+04456: }
+04457: function updateGoalTotalPreview(){
+04458:  let people=Math.max(0,+document.getElementById("goalPeople")?.value||0);
+04459:  let per=+document.getElementById("goalPerPerson")?.value||0;
+04460:  let total=people*per;
+04461:  let el=document.getElementById("goalValue");
+04462:  if(el)el.value=total.toFixed(2);
+04463: }
+04464: function newGoal(){
+04465:  openModal("Nova meta",goalForm()+`<button type="button" class="primary modalSave">💾 Salvar meta</button>`,()=>{
+04466:    let type=document.getElementById("goalType")?.value||"Confecção";
+04467:    let scope=document.getElementById("goalScope")?.value||"";
+04468:    if(!scope){alert("Selecione o local, facção ou pessoa.");return}
+04469:    db.goals.push({
+04470:      id:Date.now(),scopeType:type,scopeName:scope,
+04471:      peopleCount:Math.max(1,+document.getElementById("goalPeople")?.value||1),
+04472:      goalPerPerson:+document.getElementById("goalPerPerson")?.value||0,
+04473:      targetValue:(Math.max(1,+document.getElementById("goalPeople")?.value||1))*(+document.getElementById("goalPerPerson")?.value||0),
+04474:      cadence:document.getElementById("goalCadence")?.value||"Semanal",
+04475:      note:document.getElementById("goalNote")?.value||""
+04476:    });
+04477:    closeModal();save();renderGoals();
+04478:  });
+04479: }
+04480: function editGoal(id){
+04481:  let g=(db.goals||[]).find(x=>+x.id===+id);if(!g)return;
+04482:  openModal("Editar meta",goalForm(g)+`<button type="button" class="primary modalSave" onclick="modalSave()">💾 Salvar alterações</button>`,()=>{
+04483:    Object.assign(g,{
+04484:      scopeType:document.getElementById("goalType")?.value||g.scopeType,
+04485:      scopeName:document.getElementById("goalScope")?.value||g.scopeName,
+04486:      peopleCount:Math.max(1,+document.getElementById("goalPeople")?.value||1),
+04487:      goalPerPerson:+document.getElementById("goalPerPerson")?.value||0,
+04488:      targetValue:(Math.max(1,+document.getElementById("goalPeople")?.value||1))*(+document.getElementById("goalPerPerson")?.value||0),
+04489:      cadence:document.getElementById("goalCadence")?.value||"Semanal",
+04490:      note:document.getElementById("goalNote")?.value||""
+04491:    });
+04492:    closeModal();save();renderGoals();
+04493:  });
+04494: 
+04495:  setTimeout(updateGoalTotalPreview,0);
+04496: }
+04497: function deleteGoal(id){
+04498:  if(!confirm("Excluir esta meta?"))return;
+04499:  db.goals=(db.goals||[]).filter(x=>+x.id!==+id);
+04500:  save();renderGoals();
+04501: }
+04502: function operationalCostForm(c={}){
+04503:  let locNames=[...(db.productionLocations||[]).map(x=>x.name),...(db.factionMasters||[]).map(x=>x.name)];
+04504:  locNames=[...new Set(locNames.filter(Boolean))];
+04505:  return `<div class="grid">
+04506:   <div class="field"><label>Local de produção</label><select id="opCostLocation"><option value="">Selecione</option>${locNames.map(n=>`<option ${n===(c.locationName||"")?"selected":""}>${esc(n)}</option>`).join("")}</select></div>
+04507:   <div class="field"><label>Tipo de custo</label><select id="opCostCategory">${["Aluguel","Energia elétrica","Água","Internet","Telefone","Folha administrativa","Manutenção","Transporte","Outros"].map(x=>`<option ${x===(c.category||"")?"selected":""}>${x}</option>`).join("")}</select></div>
+04508:   <div class="field"><label>Descrição</label><input id="opCostDesc" value="${esc(c.description||"")}"></div>
+04509:   <div class="field"><label>Valor</label><input id="opCostValue" type="number" step=".01" value="${c.value??0}"></div>
+04510:   <div class="field"><label>Data de referência</label><input id="opCostDate" type="date" value="${c.date||isoDate(new Date())}"></div>
+04511:   <div class="field"><label>Periodicidade</label><select id="opCostCadence">${["Único","Mensal","Semanal","Anual"].map(x=>`<option ${x===(c.cadence||"Mensal")?"selected":""}>${x}</option>`).join("")}</select></div>
+04512:  </div>`;
+04513: }
+04514: function newOperationalCost(){
+04515:  db.operationalCosts=db.operationalCosts||[];
+04516:  openModal("Novo custo operacional",operationalCostForm()+`<button type="button" class="primary modalSave" onclick="modalSave()">💾 Salvar custo operacional</button>`,()=>{
+04517:    let loc=document.getElementById("opCostLocation")?.value||"",value=+document.getElementById("opCostValue")?.value||0;
+
+=== scopeName @ line 4402 ===
+04357:  if(!s||!e)return;
+04358:  let now=new Date(),start="",end="";
+04359:  if(mode==="day"){
+04360:    let d=isoDate(now);s.value=d;e.value=d;renderGoals();return;
+04361:  }
+04362:  if(mode==="week"){
+04363:    let m=mondayOf(now),z=new Date(m);z.setDate(z.getDate()+6);
+04364:    start=isoDate(m);end=isoDate(z);
+04365:  }else if(mode==="month"){
+04366:    start=isoDate(new Date(now.getFullYear(),now.getMonth(),1,12));
+04367:    end=isoDate(new Date(now.getFullYear(),now.getMonth()+1,0,12));
+04368:  }else if(mode==="year"){
+04369:    start=isoDate(new Date(now.getFullYear(),0,1,12));
+04370:    end=isoDate(new Date(now.getFullYear(),11,31,12));
+04371:  }
+04372:  s.value=start;e.value=end;renderGoals();
+04373: }
+04374: function dateInGoalPeriod(dateValue,start,end){
+04375:  let d=String(dateValue||"").slice(0,10);
+04376:  if(!d)return false;
+04377:  if(start&&d<start)return false;
+04378:  if(end&&d>end)return false;
+04379:  return true;
+04380: }
+04381: function goalTargetForPeriod(g,start,end){
+04382:  let base=+g.targetValue||0;
+04383:  let cadence=g.cadence||"Semanal";
+04384:  if(!start&&!end)return base;
+04385:  let s=start?new Date(start+"T12:00:00"):new Date();
+04386:  let e=end?new Date(end+"T12:00:00"):new Date();
+04387:  let days=Math.max(1,Math.floor((e-s)/86400000)+1);
+04388:  if(cadence==="Semanal")return base*(days/7);
+04389:  if(cadence==="Mensal")return base*(days/30.4375);
+04390:  if(cadence==="Anual")return base*(days/365.25);
+04391:  return base;
+04392: }
+04393: function productionValueForGoal(g,start,end){
+04394:  // Valor produzido estimado pelos pedidos/produções vinculados ao local/facção.
+04395:  // Para facções usa quantidade produzida * preço da facção.
+04396:  if(g.scopeType==="Facção"){
+04397:    return (db.factions||[])
+04398:      .filter(f=>String(f.name||"")===String(g.scopeName||"") && dateInGoalPeriod(f.finishedAt||f.sentAt||f.date,start,end))
+04399:      .reduce((a,f)=>a+(+f.done||0)*(+f.price||0),0);
+04400:  }
+04401:  if(g.scopeType==="Confecção"){
+04402:    let loc=(db.productionLocations||[]).find(x=>String(x.name||"")===String(g.scopeName||""));
+04403:    if(!loc)return 0;
+04404:    return (db.production||[])
+04405:      .filter(p=>+p.productionLocationId===+loc.id && dateInGoalPeriod(p.finishedAt||p.date,start,end))
+04406:      .reduce((a,p)=>{
+04407:        let order=(db.orders||[]).find(o=>+o.id===+p.orderId);
+04408:        let unit=order&&qtyOfOrder(order)>0?(+order.total||0)/qtyOfOrder(order):0;
+04409:        return a+(+p.done||0)*unit;
+04410:      },0);
+04411:  }
+04412:  if(g.scopeType==="Pessoa"){
+04413:    // Pessoa pode ser cortador ou funcionário nominal; usamos cortadores cadastrados.
+04414:    let c=(db.cutters||[]).find(x=>String(x.name||"")===String(g.scopeName||""));
+04415:    if(!c)return 0;
+04416:    return (db.cuts||[])
+04417:      .filter(x=>+x.cutterId===+c.id && String(x.status||"").toLowerCase()==="finalizado" && dateInGoalPeriod(x.finishedAt||x.date,start,end))
+04418:      .reduce((a,x)=>{
+04419:        let order=(db.orders||[]).find(o=>+o.id===+x.orderId);
+04420:        let unit=order&&qtyOfOrder(order)>0?(+order.total||0)/qtyOfOrder(order):0;
+04421:        return a+(+x.pieces||0)*unit;
+04422:      },0);
+04423:  }
+04424:  return 0;
+04425: }
+04426: function goalForm(g={}){
+04427:  let names=[];
+04428:  let type=g.scopeType||"Confecção";
+04429:  if(type==="Confecção")names=(db.productionLocations||[]).map(x=>x.name);
+04430:  else if(type==="Facção")names=(db.factionMasters||[]).map(x=>x.name);
+04431:  else names=(db.cutters||[]).map(x=>x.name);
+04432: 
+04433:  return `<div class="grid">
+04434:   <div class="field"><label>Tipo da meta</label><select id="goalType" onchange="refreshGoalScopeOptions()">
+04435:     ${["Confecção","Facção","Pessoa"].map(x=>`<option ${x===type?"selected":""}>${x}</option>`).join("")}
+04436:   </select></div>
+04437:   <div class="field"><label>Local / pessoa</label><select id="goalScope">
+04438:     ${names.map(n=>`<option ${String(n)===String(g.scopeName||"")?"selected":""}>${esc(n)}</option>`).join("")}
+04439:   </select></div>
+04440:   <div class="field"><label>Quantidade de pessoas trabalhando</label><input id="goalPeople" type="number" min="1" value="${g.peopleCount??1}" oninput="updateGoalTotalPreview()"></div>
+04441:   <div class="field"><label>Meta por pessoa</label><input id="goalPerPerson" type="number" step="0.01" value="${g.goalPerPerson??g.targetValue??0}" oninput="updateGoalTotalPreview()"></div>
+04442:   <div class="field"><label>Meta total calculada</label><input id="goalValue" type="number" step="0.01" value="${g.targetValue??0}" readonly></div>
+04443:   <div class="field"><label>Periodicidade da meta</label><select id="goalCadence">
+04444:     ${["Semanal","Mensal","Anual"].map(x=>`<option ${x===(g.cadence||"Semanal")?"selected":""}>${x}</option>`).join("")}
+04445:   </select></div>
+04446:   <div class="field"><label>Observação</label><input id="goalNote" value="${esc(g.note||"")}"></div>
+04447:  </div>`;
+04448: }
+04449: function refreshGoalScopeOptions(){
+04450:  let t=document.getElementById("goalType")?.value||"Confecção";
+04451:  let names=t==="Confecção"?(db.productionLocations||[]).map(x=>x.name):
+04452:            t==="Facção"?(db.factionMasters||[]).map(x=>x.name):
+04453:            (db.cutters||[]).map(x=>x.name);
+04454:  let s=document.getElementById("goalScope");
+04455:  if(s)s.innerHTML=names.map(n=>`<option>${esc(n)}</option>`).join("");
+04456: }
+04457: function updateGoalTotalPreview(){
+04458:  let people=Math.max(0,+document.getElementById("goalPeople")?.value||0);
+04459:  let per=+document.getElementById("goalPerPerson")?.value||0;
+04460:  let total=people*per;
+04461:  let el=document.getElementById("goalValue");
+04462:  if(el)el.value=total.toFixed(2);
+04463: }
+04464: function newGoal(){
+04465:  openModal("Nova meta",goalForm()+`<button type="button" class="primary modalSave">💾 Salvar meta</button>`,()=>{
+04466:    let type=document.getElementById("goalType")?.value||"Confecção";
+04467:    let scope=document.getElementById("goalScope")?.value||"";
+04468:    if(!scope){alert("Selecione o local, facção ou pessoa.");return}
+04469:    db.goals.push({
+04470:      id:Date.now(),scopeType:type,scopeName:scope,
+04471:      peopleCount:Math.max(1,+document.getElementById("goalPeople")?.value||1),
+04472:      goalPerPerson:+document.getElementById("goalPerPerson")?.value||0,
+04473:      targetValue:(Math.max(1,+document.getElementById("goalPeople")?.value||1))*(+document.getElementById("goalPerPerson")?.value||0),
+04474:      cadence:document.getElementById("goalCadence")?.value||"Semanal",
+04475:      note:document.getElementById("goalNote")?.value||""
+04476:    });
+04477:    closeModal();save();renderGoals();
+04478:  });
+04479: }
+04480: function editGoal(id){
+04481:  let g=(db.goals||[]).find(x=>+x.id===+id);if(!g)return;
+04482:  openModal("Editar meta",goalForm(g)+`<button type="button" class="primary modalSave" onclick="modalSave()">💾 Salvar alterações</button>`,()=>{
+04483:    Object.assign(g,{
+04484:      scopeType:document.getElementById("goalType")?.value||g.scopeType,
+04485:      scopeName:document.getElementById("goalScope")?.value||g.scopeName,
+04486:      peopleCount:Math.max(1,+document.getElementById("goalPeople")?.value||1),
+04487:      goalPerPerson:+document.getElementById("goalPerPerson")?.value||0,
+04488:      targetValue:(Math.max(1,+document.getElementById("goalPeople")?.value||1))*(+document.getElementById("goalPerPerson")?.value||0),
+04489:      cadence:document.getElementById("goalCadence")?.value||"Semanal",
+04490:      note:document.getElementById("goalNote")?.value||""
+04491:    });
+04492:    closeModal();save();renderGoals();
+04493:  });
+04494: 
+04495:  setTimeout(updateGoalTotalPreview,0);
+04496: }
+04497: function deleteGoal(id){
+04498:  if(!confirm("Excluir esta meta?"))return;
+04499:  db.goals=(db.goals||[]).filter(x=>+x.id!==+id);
+04500:  save();renderGoals();
+04501: }
+04502: function operationalCostForm(c={}){
+04503:  let locNames=[...(db.productionLocations||[]).map(x=>x.name),...(db.factionMasters||[]).map(x=>x.name)];
+04504:  locNames=[...new Set(locNames.filter(Boolean))];
+04505:  return `<div class="grid">
+04506:   <div class="field"><label>Local de produção</label><select id="opCostLocation"><option value="">Selecione</option>${locNames.map(n=>`<option ${n===(c.locationName||"")?"selected":""}>${esc(n)}</option>`).join("")}</select></div>
+04507:   <div class="field"><label>Tipo de custo</label><select id="opCostCategory">${["Aluguel","Energia elétrica","Água","Internet","Telefone","Folha administrativa","Manutenção","Transporte","Outros"].map(x=>`<option ${x===(c.category||"")?"selected":""}>${x}</option>`).join("")}</select></div>
+04508:   <div class="field"><label>Descrição</label><input id="opCostDesc" value="${esc(c.description||"")}"></div>
+04509:   <div class="field"><label>Valor</label><input id="opCostValue" type="number" step=".01" value="${c.value??0}"></div>
+04510:   <div class="field"><label>Data de referência</label><input id="opCostDate" type="date" value="${c.date||isoDate(new Date())}"></div>
+04511:   <div class="field"><label>Periodicidade</label><select id="opCostCadence">${["Único","Mensal","Semanal","Anual"].map(x=>`<option ${x===(c.cadence||"Mensal")?"selected":""}>${x}</option>`).join("")}</select></div>
+04512:  </div>`;
+04513: }
+04514: function newOperationalCost(){
+04515:  db.operationalCosts=db.operationalCosts||[];
+04516:  openModal("Novo custo operacional",operationalCostForm()+`<button type="button" class="primary modalSave" onclick="modalSave()">💾 Salvar custo operacional</button>`,()=>{
+04517:    let loc=document.getElementById("opCostLocation")?.value||"",value=+document.getElementById("opCostValue")?.value||0;
+04518:    if(!loc){alert("Selecione o local.");return} if(value<=0){alert("Informe o valor.");return}
+04519:    db.operationalCosts.push({id:Date.now(),locationName:loc,category:document.getElementById("opCostCategory")?.value||"Outros",description:document.getElementById("opCostDesc")?.value||"",value,date:document.getElementById("opCostDate")?.value||isoDate(new Date()),cadence:document.getElementById("opCostCadence")?.value||"Mensal"});
+04520:    try{persistDb()}catch(e){alert("Não foi possível salvar o custo neste navegador.");console.error(e);return}
+04521:    closeModal();renderGoals();
+
+=== scopeName @ line 4414 ===
+04369:    start=isoDate(new Date(now.getFullYear(),0,1,12));
+04370:    end=isoDate(new Date(now.getFullYear(),11,31,12));
+04371:  }
+04372:  s.value=start;e.value=end;renderGoals();
+04373: }
+04374: function dateInGoalPeriod(dateValue,start,end){
+04375:  let d=String(dateValue||"").slice(0,10);
+04376:  if(!d)return false;
+04377:  if(start&&d<start)return false;
+04378:  if(end&&d>end)return false;
+04379:  return true;
+04380: }
+04381: function goalTargetForPeriod(g,start,end){
+04382:  let base=+g.targetValue||0;
+04383:  let cadence=g.cadence||"Semanal";
+04384:  if(!start&&!end)return base;
+04385:  let s=start?new Date(start+"T12:00:00"):new Date();
+04386:  let e=end?new Date(end+"T12:00:00"):new Date();
+04387:  let days=Math.max(1,Math.floor((e-s)/86400000)+1);
+04388:  if(cadence==="Semanal")return base*(days/7);
+04389:  if(cadence==="Mensal")return base*(days/30.4375);
+04390:  if(cadence==="Anual")return base*(days/365.25);
+04391:  return base;
+04392: }
+04393: function productionValueForGoal(g,start,end){
+04394:  // Valor produzido estimado pelos pedidos/produções vinculados ao local/facção.
+04395:  // Para facções usa quantidade produzida * preço da facção.
+04396:  if(g.scopeType==="Facção"){
+04397:    return (db.factions||[])
+04398:      .filter(f=>String(f.name||"")===String(g.scopeName||"") && dateInGoalPeriod(f.finishedAt||f.sentAt||f.date,start,end))
+04399:      .reduce((a,f)=>a+(+f.done||0)*(+f.price||0),0);
+04400:  }
+04401:  if(g.scopeType==="Confecção"){
+04402:    let loc=(db.productionLocations||[]).find(x=>String(x.name||"")===String(g.scopeName||""));
+04403:    if(!loc)return 0;
+04404:    return (db.production||[])
+04405:      .filter(p=>+p.productionLocationId===+loc.id && dateInGoalPeriod(p.finishedAt||p.date,start,end))
+04406:      .reduce((a,p)=>{
+04407:        let order=(db.orders||[]).find(o=>+o.id===+p.orderId);
+04408:        let unit=order&&qtyOfOrder(order)>0?(+order.total||0)/qtyOfOrder(order):0;
+04409:        return a+(+p.done||0)*unit;
+04410:      },0);
+04411:  }
+04412:  if(g.scopeType==="Pessoa"){
+04413:    // Pessoa pode ser cortador ou funcionário nominal; usamos cortadores cadastrados.
+04414:    let c=(db.cutters||[]).find(x=>String(x.name||"")===String(g.scopeName||""));
+04415:    if(!c)return 0;
+04416:    return (db.cuts||[])
+04417:      .filter(x=>+x.cutterId===+c.id && String(x.status||"").toLowerCase()==="finalizado" && dateInGoalPeriod(x.finishedAt||x.date,start,end))
+04418:      .reduce((a,x)=>{
+04419:        let order=(db.orders||[]).find(o=>+o.id===+x.orderId);
+04420:        let unit=order&&qtyOfOrder(order)>0?(+order.total||0)/qtyOfOrder(order):0;
+04421:        return a+(+x.pieces||0)*unit;
+04422:      },0);
+04423:  }
+04424:  return 0;
+04425: }
+04426: function goalForm(g={}){
+04427:  let names=[];
+04428:  let type=g.scopeType||"Confecção";
+04429:  if(type==="Confecção")names=(db.productionLocations||[]).map(x=>x.name);
+04430:  else if(type==="Facção")names=(db.factionMasters||[]).map(x=>x.name);
+04431:  else names=(db.cutters||[]).map(x=>x.name);
+04432: 
+04433:  return `<div class="grid">
+04434:   <div class="field"><label>Tipo da meta</label><select id="goalType" onchange="refreshGoalScopeOptions()">
+04435:     ${["Confecção","Facção","Pessoa"].map(x=>`<option ${x===type?"selected":""}>${x}</option>`).join("")}
+04436:   </select></div>
+04437:   <div class="field"><label>Local / pessoa</label><select id="goalScope">
+04438:     ${names.map(n=>`<option ${String(n)===String(g.scopeName||"")?"selected":""}>${esc(n)}</option>`).join("")}
+04439:   </select></div>
+04440:   <div class="field"><label>Quantidade de pessoas trabalhando</label><input id="goalPeople" type="number" min="1" value="${g.peopleCount??1}" oninput="updateGoalTotalPreview()"></div>
+04441:   <div class="field"><label>Meta por pessoa</label><input id="goalPerPerson" type="number" step="0.01" value="${g.goalPerPerson??g.targetValue??0}" oninput="updateGoalTotalPreview()"></div>
+04442:   <div class="field"><label>Meta total calculada</label><input id="goalValue" type="number" step="0.01" value="${g.targetValue??0}" readonly></div>
+04443:   <div class="field"><label>Periodicidade da meta</label><select id="goalCadence">
+04444:     ${["Semanal","Mensal","Anual"].map(x=>`<option ${x===(g.cadence||"Semanal")?"selected":""}>${x}</option>`).join("")}
+04445:   </select></div>
+04446:   <div class="field"><label>Observação</label><input id="goalNote" value="${esc(g.note||"")}"></div>
+04447:  </div>`;
+04448: }
+04449: function refreshGoalScopeOptions(){
+04450:  let t=document.getElementById("goalType")?.value||"Confecção";
+04451:  let names=t==="Confecção"?(db.productionLocations||[]).map(x=>x.name):
+04452:            t==="Facção"?(db.factionMasters||[]).map(x=>x.name):
+04453:            (db.cutters||[]).map(x=>x.name);
+04454:  let s=document.getElementById("goalScope");
+04455:  if(s)s.innerHTML=names.map(n=>`<option>${esc(n)}</option>`).join("");
+04456: }
+04457: function updateGoalTotalPreview(){
+04458:  let people=Math.max(0,+document.getElementById("goalPeople")?.value||0);
+04459:  let per=+document.getElementById("goalPerPerson")?.value||0;
+04460:  let total=people*per;
+04461:  let el=document.getElementById("goalValue");
+04462:  if(el)el.value=total.toFixed(2);
+04463: }
+04464: function newGoal(){
+04465:  openModal("Nova meta",goalForm()+`<button type="button" class="primary modalSave">💾 Salvar meta</button>`,()=>{
+04466:    let type=document.getElementById("goalType")?.value||"Confecção";
+04467:    let scope=document.getElementById("goalScope")?.value||"";
+04468:    if(!scope){alert("Selecione o local, facção ou pessoa.");return}
+04469:    db.goals.push({
+04470:      id:Date.now(),scopeType:type,scopeName:scope,
+04471:      peopleCount:Math.max(1,+document.getElementById("goalPeople")?.value||1),
+04472:      goalPerPerson:+document.getElementById("goalPerPerson")?.value||0,
+04473:      targetValue:(Math.max(1,+document.getElementById("goalPeople")?.value||1))*(+document.getElementById("goalPerPerson")?.value||0),
+04474:      cadence:document.getElementById("goalCadence")?.value||"Semanal",
+04475:      note:document.getElementById("goalNote")?.value||""
+04476:    });
+04477:    closeModal();save();renderGoals();
+04478:  });
+04479: }
+04480: function editGoal(id){
+04481:  let g=(db.goals||[]).find(x=>+x.id===+id);if(!g)return;
+04482:  openModal("Editar meta",goalForm(g)+`<button type="button" class="primary modalSave" onclick="modalSave()">💾 Salvar alterações</button>`,()=>{
+04483:    Object.assign(g,{
+04484:      scopeType:document.getElementById("goalType")?.value||g.scopeType,
+04485:      scopeName:document.getElementById("goalScope")?.value||g.scopeName,
+04486:      peopleCount:Math.max(1,+document.getElementById("goalPeople")?.value||1),
+04487:      goalPerPerson:+document.getElementById("goalPerPerson")?.value||0,
+04488:      targetValue:(Math.max(1,+document.getElementById("goalPeople")?.value||1))*(+document.getElementById("goalPerPerson")?.value||0),
+04489:      cadence:document.getElementById("goalCadence")?.value||"Semanal",
+04490:      note:document.getElementById("goalNote")?.value||""
+04491:    });
+04492:    closeModal();save();renderGoals();
+04493:  });
+04494: 
+04495:  setTimeout(updateGoalTotalPreview,0);
+04496: }
+04497: function deleteGoal(id){
+04498:  if(!confirm("Excluir esta meta?"))return;
+04499:  db.goals=(db.goals||[]).filter(x=>+x.id!==+id);
+04500:  save();renderGoals();
+04501: }
+04502: function operationalCostForm(c={}){
+04503:  let locNames=[...(db.productionLocations||[]).map(x=>x.name),...(db.factionMasters||[]).map(x=>x.name)];
+04504:  locNames=[...new Set(locNames.filter(Boolean))];
+04505:  return `<div class="grid">
+04506:   <div class="field"><label>Local de produção</label><select id="opCostLocation"><option value="">Selecione</option>${locNames.map(n=>`<option ${n===(c.locationName||"")?"selected":""}>${esc(n)}</option>`).join("")}</select></div>
+04507:   <div class="field"><label>Tipo de custo</label><select id="opCostCategory">${["Aluguel","Energia elétrica","Água","Internet","Telefone","Folha administrativa","Manutenção","Transporte","Outros"].map(x=>`<option ${x===(c.category||"")?"selected":""}>${x}</option>`).join("")}</select></div>
+04508:   <div class="field"><label>Descrição</label><input id="opCostDesc" value="${esc(c.description||"")}"></div>
+04509:   <div class="field"><label>Valor</label><input id="opCostValue" type="number" step=".01" value="${c.value??0}"></div>
+04510:   <div class="field"><label>Data de referência</label><input id="opCostDate" type="date" value="${c.date||isoDate(new Date())}"></div>
+04511:   <div class="field"><label>Periodicidade</label><select id="opCostCadence">${["Único","Mensal","Semanal","Anual"].map(x=>`<option ${x===(c.cadence||"Mensal")?"selected":""}>${x}</option>`).join("")}</select></div>
+04512:  </div>`;
+04513: }
+04514: function newOperationalCost(){
+04515:  db.operationalCosts=db.operationalCosts||[];
+04516:  openModal("Novo custo operacional",operationalCostForm()+`<button type="button" class="primary modalSave" onclick="modalSave()">💾 Salvar custo operacional</button>`,()=>{
+04517:    let loc=document.getElementById("opCostLocation")?.value||"",value=+document.getElementById("opCostValue")?.value||0;
+04518:    if(!loc){alert("Selecione o local.");return} if(value<=0){alert("Informe o valor.");return}
+04519:    db.operationalCosts.push({id:Date.now(),locationName:loc,category:document.getElementById("opCostCategory")?.value||"Outros",description:document.getElementById("opCostDesc")?.value||"",value,date:document.getElementById("opCostDate")?.value||isoDate(new Date()),cadence:document.getElementById("opCostCadence")?.value||"Mensal"});
+04520:    try{persistDb()}catch(e){alert("Não foi possível salvar o custo neste navegador.");console.error(e);return}
+04521:    closeModal();renderGoals();
+04522:    alert("Custo operacional salvo com sucesso.");
+04523:  });
+04524: }
+04525: function editOperationalCost(id){
+04526:  let c=(db.operationalCosts||[]).find(x=>String(x.id)===String(id));if(!c)return;
+04527:  openModal("Editar custo operacional",operationalCostForm(c)+`<button type="button" class="primary modalSave" onclick="modalSave()">💾 Salvar alterações</button>`,()=>{
+04528:    Object.assign(c,{locationName:document.getElementById("opCostLocation")?.value||c.locationName,category:document.getElementById("opCostCategory")?.value||c.category,description:document.getElementById("opCostDesc")?.value||"",value:+document.getElementById("opCostValue")?.value||0,date:document.getElementById("opCostDate")?.value||c.date,cadence:document.getElementById("opCostCadence")?.value||c.cadence});
+04529:    closeModal();save();renderGoals();
+04530:  });
+04531: }
+04532: function deleteOperationalCost(id){
+04533:  if(!confirm("Excluir este custo operacional?"))return;
+
+=== scopeName @ line 4438 ===
+04393: function productionValueForGoal(g,start,end){
+04394:  // Valor produzido estimado pelos pedidos/produções vinculados ao local/facção.
+04395:  // Para facções usa quantidade produzida * preço da facção.
+04396:  if(g.scopeType==="Facção"){
+04397:    return (db.factions||[])
+04398:      .filter(f=>String(f.name||"")===String(g.scopeName||"") && dateInGoalPeriod(f.finishedAt||f.sentAt||f.date,start,end))
+04399:      .reduce((a,f)=>a+(+f.done||0)*(+f.price||0),0);
+04400:  }
+04401:  if(g.scopeType==="Confecção"){
+04402:    let loc=(db.productionLocations||[]).find(x=>String(x.name||"")===String(g.scopeName||""));
+04403:    if(!loc)return 0;
+04404:    return (db.production||[])
+04405:      .filter(p=>+p.productionLocationId===+loc.id && dateInGoalPeriod(p.finishedAt||p.date,start,end))
+04406:      .reduce((a,p)=>{
+04407:        let order=(db.orders||[]).find(o=>+o.id===+p.orderId);
+04408:        let unit=order&&qtyOfOrder(order)>0?(+order.total||0)/qtyOfOrder(order):0;
+04409:        return a+(+p.done||0)*unit;
+04410:      },0);
+04411:  }
+04412:  if(g.scopeType==="Pessoa"){
+04413:    // Pessoa pode ser cortador ou funcionário nominal; usamos cortadores cadastrados.
+04414:    let c=(db.cutters||[]).find(x=>String(x.name||"")===String(g.scopeName||""));
+04415:    if(!c)return 0;
+04416:    return (db.cuts||[])
+04417:      .filter(x=>+x.cutterId===+c.id && String(x.status||"").toLowerCase()==="finalizado" && dateInGoalPeriod(x.finishedAt||x.date,start,end))
+04418:      .reduce((a,x)=>{
+04419:        let order=(db.orders||[]).find(o=>+o.id===+x.orderId);
+04420:        let unit=order&&qtyOfOrder(order)>0?(+order.total||0)/qtyOfOrder(order):0;
+04421:        return a+(+x.pieces||0)*unit;
+04422:      },0);
+04423:  }
+04424:  return 0;
+04425: }
+04426: function goalForm(g={}){
+04427:  let names=[];
+04428:  let type=g.scopeType||"Confecção";
+04429:  if(type==="Confecção")names=(db.productionLocations||[]).map(x=>x.name);
+04430:  else if(type==="Facção")names=(db.factionMasters||[]).map(x=>x.name);
+04431:  else names=(db.cutters||[]).map(x=>x.name);
+04432: 
+04433:  return `<div class="grid">
+04434:   <div class="field"><label>Tipo da meta</label><select id="goalType" onchange="refreshGoalScopeOptions()">
+04435:     ${["Confecção","Facção","Pessoa"].map(x=>`<option ${x===type?"selected":""}>${x}</option>`).join("")}
+04436:   </select></div>
+04437:   <div class="field"><label>Local / pessoa</label><select id="goalScope">
+04438:     ${names.map(n=>`<option ${String(n)===String(g.scopeName||"")?"selected":""}>${esc(n)}</option>`).join("")}
+04439:   </select></div>
+04440:   <div class="field"><label>Quantidade de pessoas trabalhando</label><input id="goalPeople" type="number" min="1" value="${g.peopleCount??1}" oninput="updateGoalTotalPreview()"></div>
+04441:   <div class="field"><label>Meta por pessoa</label><input id="goalPerPerson" type="number" step="0.01" value="${g.goalPerPerson??g.targetValue??0}" oninput="updateGoalTotalPreview()"></div>
+04442:   <div class="field"><label>Meta total calculada</label><input id="goalValue" type="number" step="0.01" value="${g.targetValue??0}" readonly></div>
+04443:   <div class="field"><label>Periodicidade da meta</label><select id="goalCadence">
+04444:     ${["Semanal","Mensal","Anual"].map(x=>`<option ${x===(g.cadence||"Semanal")?"selected":""}>${x}</option>`).join("")}
+04445:   </select></div>
+04446:   <div class="field"><label>Observação</label><input id="goalNote" value="${esc(g.note||"")}"></div>
+04447:  </div>`;
+04448: }
+04449: function refreshGoalScopeOptions(){
+04450:  let t=document.getElementById("goalType")?.value||"Confecção";
+04451:  let names=t==="Confecção"?(db.productionLocations||[]).map(x=>x.name):
+04452:            t==="Facção"?(db.factionMasters||[]).map(x=>x.name):
+04453:            (db.cutters||[]).map(x=>x.name);
+04454:  let s=document.getElementById("goalScope");
+04455:  if(s)s.innerHTML=names.map(n=>`<option>${esc(n)}</option>`).join("");
+04456: }
+04457: function updateGoalTotalPreview(){
+04458:  let people=Math.max(0,+document.getElementById("goalPeople")?.value||0);
+04459:  let per=+document.getElementById("goalPerPerson")?.value||0;
+04460:  let total=people*per;
+04461:  let el=document.getElementById("goalValue");
+04462:  if(el)el.value=total.toFixed(2);
+04463: }
+04464: function newGoal(){
+04465:  openModal("Nova meta",goalForm()+`<button type="button" class="primary modalSave">💾 Salvar meta</button>`,()=>{
+04466:    let type=document.getElementById("goalType")?.value||"Confecção";
+04467:    let scope=document.getElementById("goalScope")?.value||"";
+04468:    if(!scope){alert("Selecione o local, facção ou pessoa.");return}
+04469:    db.goals.push({
+04470:      id:Date.now(),scopeType:type,scopeName:scope,
+04471:      peopleCount:Math.max(1,+document.getElementById("goalPeople")?.value||1),
+04472:      goalPerPerson:+document.getElementById("goalPerPerson")?.value||0,
+04473:      targetValue:(Math.max(1,+document.getElementById("goalPeople")?.value||1))*(+document.getElementById("goalPerPerson")?.value||0),
+04474:      cadence:document.getElementById("goalCadence")?.value||"Semanal",
+04475:      note:document.getElementById("goalNote")?.value||""
+04476:    });
+04477:    closeModal();save();renderGoals();
+04478:  });
+04479: }
+04480: function editGoal(id){
+04481:  let g=(db.goals||[]).find(x=>+x.id===+id);if(!g)return;
+04482:  openModal("Editar meta",goalForm(g)+`<button type="button" class="primary modalSave" onclick="modalSave()">💾 Salvar alterações</button>`,()=>{
+04483:    Object.assign(g,{
+04484:      scopeType:document.getElementById("goalType")?.value||g.scopeType,
+04485:      scopeName:document.getElementById("goalScope")?.value||g.scopeName,
+04486:      peopleCount:Math.max(1,+document.getElementById("goalPeople")?.value||1),
+04487:      goalPerPerson:+document.getElementById("goalPerPerson")?.value||0,
+04488:      targetValue:(Math.max(1,+document.getElementById("goalPeople")?.value||1))*(+document.getElementById("goalPerPerson")?.value||0),
+04489:      cadence:document.getElementById("goalCadence")?.value||"Semanal",
+04490:      note:document.getElementById("goalNote")?.value||""
+04491:    });
+04492:    closeModal();save();renderGoals();
+04493:  });
+04494: 
+04495:  setTimeout(updateGoalTotalPreview,0);
+04496: }
+04497: function deleteGoal(id){
+04498:  if(!confirm("Excluir esta meta?"))return;
+04499:  db.goals=(db.goals||[]).filter(x=>+x.id!==+id);
+04500:  save();renderGoals();
+04501: }
+04502: function operationalCostForm(c={}){
+04503:  let locNames=[...(db.productionLocations||[]).map(x=>x.name),...(db.factionMasters||[]).map(x=>x.name)];
+04504:  locNames=[...new Set(locNames.filter(Boolean))];
+04505:  return `<div class="grid">
+04506:   <div class="field"><label>Local de produção</label><select id="opCostLocation"><option value="">Selecione</option>${locNames.map(n=>`<option ${n===(c.locationName||"")?"selected":""}>${esc(n)}</option>`).join("")}</select></div>
+04507:   <div class="field"><label>Tipo de custo</label><select id="opCostCategory">${["Aluguel","Energia elétrica","Água","Internet","Telefone","Folha administrativa","Manutenção","Transporte","Outros"].map(x=>`<option ${x===(c.category||"")?"selected":""}>${x}</option>`).join("")}</select></div>
+04508:   <div class="field"><label>Descrição</label><input id="opCostDesc" value="${esc(c.description||"")}"></div>
+04509:   <div class="field"><label>Valor</label><input id="opCostValue" type="number" step=".01" value="${c.value??0}"></div>
+04510:   <div class="field"><label>Data de referência</label><input id="opCostDate" type="date" value="${c.date||isoDate(new Date())}"></div>
+04511:   <div class="field"><label>Periodicidade</label><select id="opCostCadence">${["Único","Mensal","Semanal","Anual"].map(x=>`<option ${x===(c.cadence||"Mensal")?"selected":""}>${x}</option>`).join("")}</select></div>
+04512:  </div>`;
+04513: }
+04514: function newOperationalCost(){
+04515:  db.operationalCosts=db.operationalCosts||[];
+04516:  openModal("Novo custo operacional",operationalCostForm()+`<button type="button" class="primary modalSave" onclick="modalSave()">💾 Salvar custo operacional</button>`,()=>{
+04517:    let loc=document.getElementById("opCostLocation")?.value||"",value=+document.getElementById("opCostValue")?.value||0;
+04518:    if(!loc){alert("Selecione o local.");return} if(value<=0){alert("Informe o valor.");return}
+04519:    db.operationalCosts.push({id:Date.now(),locationName:loc,category:document.getElementById("opCostCategory")?.value||"Outros",description:document.getElementById("opCostDesc")?.value||"",value,date:document.getElementById("opCostDate")?.value||isoDate(new Date()),cadence:document.getElementById("opCostCadence")?.value||"Mensal"});
+04520:    try{persistDb()}catch(e){alert("Não foi possível salvar o custo neste navegador.");console.error(e);return}
+04521:    closeModal();renderGoals();
+04522:    alert("Custo operacional salvo com sucesso.");
+04523:  });
+04524: }
+04525: function editOperationalCost(id){
+04526:  let c=(db.operationalCosts||[]).find(x=>String(x.id)===String(id));if(!c)return;
+04527:  openModal("Editar custo operacional",operationalCostForm(c)+`<button type="button" class="primary modalSave" onclick="modalSave()">💾 Salvar alterações</button>`,()=>{
+04528:    Object.assign(c,{locationName:document.getElementById("opCostLocation")?.value||c.locationName,category:document.getElementById("opCostCategory")?.value||c.category,description:document.getElementById("opCostDesc")?.value||"",value:+document.getElementById("opCostValue")?.value||0,date:document.getElementById("opCostDate")?.value||c.date,cadence:document.getElementById("opCostCadence")?.value||c.cadence});
+04529:    closeModal();save();renderGoals();
+04530:  });
+04531: }
+04532: function deleteOperationalCost(id){
+04533:  if(!confirm("Excluir este custo operacional?"))return;
+04534:  db.operationalCosts=Array.isArray(db.operationalCosts)?db.operationalCosts:[];
+04535:  const before=db.operationalCosts.length;
+04536:  const target=String(id);
+04537:  db.operationalCosts=db.operationalCosts.filter(x=>String(x.id)!==target);
+04538:  if(db.operationalCosts.length===before){
+04539:    alert("Não consegui localizar esse custo para excluir. Atualize a página e tente novamente.");
+04540:    return;
+04541:  }
+04542:  save();
+04543:  renderGoals();
+04544:  if(typeof renderDashboard==="function")renderDashboard();
+04545:  if(typeof renderFinance==="function")renderFinance();
+04546:  alert("Custo operacional excluído e totais recalculados.");
+04547: }
+04548: function daysBetweenInclusive(start,end){
+04549:  if(!start||!end)return 1;
+04550:  return Math.max(1,Math.floor((new Date(end+"T12:00:00")-new Date(start+"T12:00:00"))/86400000)+1);
+04551: }
+04552: function operationalCostForPeriod(c,start,end){
+04553:  let base=+c.value||0,cad=c.cadence||"Mensal",days=daysBetweenInclusive(start,end);
+04554:  if(cad==="Único"){
+04555:    return (!start||c.date>=start)&&(!end||c.date<=end)?base:0;
+04556:  }
+04557:  if(cad==="Semanal")return base*(days/7);
+
+=== scopeName @ line 4470 ===
+04425: }
+04426: function goalForm(g={}){
+04427:  let names=[];
+04428:  let type=g.scopeType||"Confecção";
+04429:  if(type==="Confecção")names=(db.productionLocations||[]).map(x=>x.name);
+04430:  else if(type==="Facção")names=(db.factionMasters||[]).map(x=>x.name);
+04431:  else names=(db.cutters||[]).map(x=>x.name);
+04432: 
+04433:  return `<div class="grid">
+04434:   <div class="field"><label>Tipo da meta</label><select id="goalType" onchange="refreshGoalScopeOptions()">
+04435:     ${["Confecção","Facção","Pessoa"].map(x=>`<option ${x===type?"selected":""}>${x}</option>`).join("")}
+04436:   </select></div>
+04437:   <div class="field"><label>Local / pessoa</label><select id="goalScope">
+04438:     ${names.map(n=>`<option ${String(n)===String(g.scopeName||"")?"selected":""}>${esc(n)}</option>`).join("")}
+04439:   </select></div>
+04440:   <div class="field"><label>Quantidade de pessoas trabalhando</label><input id="goalPeople" type="number" min="1" value="${g.peopleCount??1}" oninput="updateGoalTotalPreview()"></div>
+04441:   <div class="field"><label>Meta por pessoa</label><input id="goalPerPerson" type="number" step="0.01" value="${g.goalPerPerson??g.targetValue??0}" oninput="updateGoalTotalPreview()"></div>
+04442:   <div class="field"><label>Meta total calculada</label><input id="goalValue" type="number" step="0.01" value="${g.targetValue??0}" readonly></div>
+04443:   <div class="field"><label>Periodicidade da meta</label><select id="goalCadence">
+04444:     ${["Semanal","Mensal","Anual"].map(x=>`<option ${x===(g.cadence||"Semanal")?"selected":""}>${x}</option>`).join("")}
+04445:   </select></div>
+04446:   <div class="field"><label>Observação</label><input id="goalNote" value="${esc(g.note||"")}"></div>
+04447:  </div>`;
+04448: }
+04449: function refreshGoalScopeOptions(){
+04450:  let t=document.getElementById("goalType")?.value||"Confecção";
+04451:  let names=t==="Confecção"?(db.productionLocations||[]).map(x=>x.name):
+04452:            t==="Facção"?(db.factionMasters||[]).map(x=>x.name):
+04453:            (db.cutters||[]).map(x=>x.name);
+04454:  let s=document.getElementById("goalScope");
+04455:  if(s)s.innerHTML=names.map(n=>`<option>${esc(n)}</option>`).join("");
+04456: }
+04457: function updateGoalTotalPreview(){
+04458:  let people=Math.max(0,+document.getElementById("goalPeople")?.value||0);
+04459:  let per=+document.getElementById("goalPerPerson")?.value||0;
+04460:  let total=people*per;
+04461:  let el=document.getElementById("goalValue");
+04462:  if(el)el.value=total.toFixed(2);
+04463: }
+04464: function newGoal(){
+04465:  openModal("Nova meta",goalForm()+`<button type="button" class="primary modalSave">💾 Salvar meta</button>`,()=>{
+04466:    let type=document.getElementById("goalType")?.value||"Confecção";
+04467:    let scope=document.getElementById("goalScope")?.value||"";
+04468:    if(!scope){alert("Selecione o local, facção ou pessoa.");return}
+04469:    db.goals.push({
+04470:      id:Date.now(),scopeType:type,scopeName:scope,
+04471:      peopleCount:Math.max(1,+document.getElementById("goalPeople")?.value||1),
+04472:      goalPerPerson:+document.getElementById("goalPerPerson")?.value||0,
+04473:      targetValue:(Math.max(1,+document.getElementById("goalPeople")?.value||1))*(+document.getElementById("goalPerPerson")?.value||0),
+04474:      cadence:document.getElementById("goalCadence")?.value||"Semanal",
+04475:      note:document.getElementById("goalNote")?.value||""
+04476:    });
+04477:    closeModal();save();renderGoals();
+04478:  });
+04479: }
+04480: function editGoal(id){
+04481:  let g=(db.goals||[]).find(x=>+x.id===+id);if(!g)return;
+04482:  openModal("Editar meta",goalForm(g)+`<button type="button" class="primary modalSave" onclick="modalSave()">💾 Salvar alterações</button>`,()=>{
+04483:    Object.assign(g,{
+04484:      scopeType:document.getElementById("goalType")?.value||g.scopeType,
+04485:      scopeName:document.getElementById("goalScope")?.value||g.scopeName,
+04486:      peopleCount:Math.max(1,+document.getElementById("goalPeople")?.value||1),
+04487:      goalPerPerson:+document.getElementById("goalPerPerson")?.value||0,
+04488:      targetValue:(Math.max(1,+document.getElementById("goalPeople")?.value||1))*(+document.getElementById("goalPerPerson")?.value||0),
+04489:      cadence:document.getElementById("goalCadence")?.value||"Semanal",
+04490:      note:document.getElementById("goalNote")?.value||""
+04491:    });
+04492:    closeModal();save();renderGoals();
+04493:  });
+04494: 
+04495:  setTimeout(updateGoalTotalPreview,0);
+04496: }
+04497: function deleteGoal(id){
+04498:  if(!confirm("Excluir esta meta?"))return;
+04499:  db.goals=(db.goals||[]).filter(x=>+x.id!==+id);
+04500:  save();renderGoals();
+04501: }
+04502: function operationalCostForm(c={}){
+04503:  let locNames=[...(db.productionLocations||[]).map(x=>x.name),...(db.factionMasters||[]).map(x=>x.name)];
+04504:  locNames=[...new Set(locNames.filter(Boolean))];
+04505:  return `<div class="grid">
+04506:   <div class="field"><label>Local de produção</label><select id="opCostLocation"><option value="">Selecione</option>${locNames.map(n=>`<option ${n===(c.locationName||"")?"selected":""}>${esc(n)}</option>`).join("")}</select></div>
+04507:   <div class="field"><label>Tipo de custo</label><select id="opCostCategory">${["Aluguel","Energia elétrica","Água","Internet","Telefone","Folha administrativa","Manutenção","Transporte","Outros"].map(x=>`<option ${x===(c.category||"")?"selected":""}>${x}</option>`).join("")}</select></div>
+04508:   <div class="field"><label>Descrição</label><input id="opCostDesc" value="${esc(c.description||"")}"></div>
+04509:   <div class="field"><label>Valor</label><input id="opCostValue" type="number" step=".01" value="${c.value??0}"></div>
+04510:   <div class="field"><label>Data de referência</label><input id="opCostDate" type="date" value="${c.date||isoDate(new Date())}"></div>
+04511:   <div class="field"><label>Periodicidade</label><select id="opCostCadence">${["Único","Mensal","Semanal","Anual"].map(x=>`<option ${x===(c.cadence||"Mensal")?"selected":""}>${x}</option>`).join("")}</select></div>
+04512:  </div>`;
+04513: }
+04514: function newOperationalCost(){
+04515:  db.operationalCosts=db.operationalCosts||[];
+04516:  openModal("Novo custo operacional",operationalCostForm()+`<button type="button" class="primary modalSave" onclick="modalSave()">💾 Salvar custo operacional</button>`,()=>{
+04517:    let loc=document.getElementById("opCostLocation")?.value||"",value=+document.getElementById("opCostValue")?.value||0;
+04518:    if(!loc){alert("Selecione o local.");return} if(value<=0){alert("Informe o valor.");return}
+04519:    db.operationalCosts.push({id:Date.now(),locationName:loc,category:document.getElementById("opCostCategory")?.value||"Outros",description:document.getElementById("opCostDesc")?.value||"",value,date:document.getElementById("opCostDate")?.value||isoDate(new Date()),cadence:document.getElementById("opCostCadence")?.value||"Mensal"});
+04520:    try{persistDb()}catch(e){alert("Não foi possível salvar o custo neste navegador.");console.error(e);return}
+04521:    closeModal();renderGoals();
+04522:    alert("Custo operacional salvo com sucesso.");
+04523:  });
+04524: }
+04525: function editOperationalCost(id){
+04526:  let c=(db.operationalCosts||[]).find(x=>String(x.id)===String(id));if(!c)return;
+04527:  openModal("Editar custo operacional",operationalCostForm(c)+`<button type="button" class="primary modalSave" onclick="modalSave()">💾 Salvar alterações</button>`,()=>{
+04528:    Object.assign(c,{locationName:document.getElementById("opCostLocation")?.value||c.locationName,category:document.getElementById("opCostCategory")?.value||c.category,description:document.getElementById("opCostDesc")?.value||"",value:+document.getElementById("opCostValue")?.value||0,date:document.getElementById("opCostDate")?.value||c.date,cadence:document.getElementById("opCostCadence")?.value||c.cadence});
+04529:    closeModal();save();renderGoals();
+04530:  });
+04531: }
+04532: function deleteOperationalCost(id){
+04533:  if(!confirm("Excluir este custo operacional?"))return;
+04534:  db.operationalCosts=Array.isArray(db.operationalCosts)?db.operationalCosts:[];
+04535:  const before=db.operationalCosts.length;
+04536:  const target=String(id);
+04537:  db.operationalCosts=db.operationalCosts.filter(x=>String(x.id)!==target);
+04538:  if(db.operationalCosts.length===before){
+04539:    alert("Não consegui localizar esse custo para excluir. Atualize a página e tente novamente.");
+04540:    return;
+04541:  }
+04542:  save();
+04543:  renderGoals();
+04544:  if(typeof renderDashboard==="function")renderDashboard();
+04545:  if(typeof renderFinance==="function")renderFinance();
+04546:  alert("Custo operacional excluído e totais recalculados.");
+04547: }
+04548: function daysBetweenInclusive(start,end){
+04549:  if(!start||!end)return 1;
+04550:  return Math.max(1,Math.floor((new Date(end+"T12:00:00")-new Date(start+"T12:00:00"))/86400000)+1);
+04551: }
+04552: function operationalCostForPeriod(c,start,end){
+04553:  let base=+c.value||0,cad=c.cadence||"Mensal",days=daysBetweenInclusive(start,end);
+04554:  if(cad==="Único"){
+04555:    return (!start||c.date>=start)&&(!end||c.date<=end)?base:0;
+04556:  }
+04557:  if(cad==="Semanal")return base*(days/7);
+04558:  if(cad==="Mensal")return base*(days/30.4375);
+04559:  if(cad==="Anual")return base*(days/365.25);
+04560:  return base;
+04561: }
+04562: function productCostPerPieceForGoal(p){
+04563:  if(!p)return 0;
+04564:  let mat=(p.materials||[]).reduce((s,m)=>s+materialCostPerPiece(m),0);
+04565:  return mat+(+p.labor||0);
+04566: }
+04567: function productProfitPerPieceForGoal(p,order){
+04568:  let selling=order&&qtyOfOrder(order)>0?(+order.total||0)/qtyOfOrder(order):(+p?.price||0);
+04569:  return selling-productCostPerPieceForGoal(p);
+04570: }
+04571: function productionProfitRows(start,end){
+04572:  let rows={};
+04573:  (db.production||[]).forEach(prod=>{
+04574:    let d=prod.finishedAt||prod.date||"";
+04575:    if((start&&d<start)||(end&&d>end))return;
+04576:    let order=(db.orders||[]).find(o=>+o.id===+prod.orderId);
+04577:    let product=(db.products||[]).find(p=>+p.id===+(prod.productId||order?.productId)) ||
+04578:                (db.products||[]).find(p=>String(p.name||"").toLowerCase()===String(prod.product||"").toLowerCase());
+04579:    let location=productionDestinationName(prod)||"Sem local";
+04580:    let productName=product?.name||prod.product||projectionProductName(order||{id:prod.orderId})||"Produto";
+04581:    let qty=+prod.done||0;
+04582:    let profitUnit=productProfitPerPieceForGoal(product,order);
+04583:    let key=location+"|||"+productName;
+04584:    if(!rows[key])rows[key]={location,product:productName,qty:0,profitUnit:0,profit:0};
+04585:    rows[key].qty+=qty;rows[key].profitUnit=profitUnit;rows[key].profit+=qty*profitUnit;
+04586:  });
+04587:  return Object.values(rows);
+04588: }
+04589: function cleanProfitProductName(value){
+
+=== scopeName @ line 4485 ===
+04440:   <div class="field"><label>Quantidade de pessoas trabalhando</label><input id="goalPeople" type="number" min="1" value="${g.peopleCount??1}" oninput="updateGoalTotalPreview()"></div>
+04441:   <div class="field"><label>Meta por pessoa</label><input id="goalPerPerson" type="number" step="0.01" value="${g.goalPerPerson??g.targetValue??0}" oninput="updateGoalTotalPreview()"></div>
+04442:   <div class="field"><label>Meta total calculada</label><input id="goalValue" type="number" step="0.01" value="${g.targetValue??0}" readonly></div>
+04443:   <div class="field"><label>Periodicidade da meta</label><select id="goalCadence">
+04444:     ${["Semanal","Mensal","Anual"].map(x=>`<option ${x===(g.cadence||"Semanal")?"selected":""}>${x}</option>`).join("")}
+04445:   </select></div>
+04446:   <div class="field"><label>Observação</label><input id="goalNote" value="${esc(g.note||"")}"></div>
+04447:  </div>`;
+04448: }
+04449: function refreshGoalScopeOptions(){
+04450:  let t=document.getElementById("goalType")?.value||"Confecção";
+04451:  let names=t==="Confecção"?(db.productionLocations||[]).map(x=>x.name):
+04452:            t==="Facção"?(db.factionMasters||[]).map(x=>x.name):
+04453:            (db.cutters||[]).map(x=>x.name);
+04454:  let s=document.getElementById("goalScope");
+04455:  if(s)s.innerHTML=names.map(n=>`<option>${esc(n)}</option>`).join("");
+04456: }
+04457: function updateGoalTotalPreview(){
+04458:  let people=Math.max(0,+document.getElementById("goalPeople")?.value||0);
+04459:  let per=+document.getElementById("goalPerPerson")?.value||0;
+04460:  let total=people*per;
+04461:  let el=document.getElementById("goalValue");
+04462:  if(el)el.value=total.toFixed(2);
+04463: }
+04464: function newGoal(){
+04465:  openModal("Nova meta",goalForm()+`<button type="button" class="primary modalSave">💾 Salvar meta</button>`,()=>{
+04466:    let type=document.getElementById("goalType")?.value||"Confecção";
+04467:    let scope=document.getElementById("goalScope")?.value||"";
+04468:    if(!scope){alert("Selecione o local, facção ou pessoa.");return}
+04469:    db.goals.push({
+04470:      id:Date.now(),scopeType:type,scopeName:scope,
+04471:      peopleCount:Math.max(1,+document.getElementById("goalPeople")?.value||1),
+04472:      goalPerPerson:+document.getElementById("goalPerPerson")?.value||0,
+04473:      targetValue:(Math.max(1,+document.getElementById("goalPeople")?.value||1))*(+document.getElementById("goalPerPerson")?.value||0),
+04474:      cadence:document.getElementById("goalCadence")?.value||"Semanal",
+04475:      note:document.getElementById("goalNote")?.value||""
+04476:    });
+04477:    closeModal();save();renderGoals();
+04478:  });
+04479: }
+04480: function editGoal(id){
+04481:  let g=(db.goals||[]).find(x=>+x.id===+id);if(!g)return;
+04482:  openModal("Editar meta",goalForm(g)+`<button type="button" class="primary modalSave" onclick="modalSave()">💾 Salvar alterações</button>`,()=>{
+04483:    Object.assign(g,{
+04484:      scopeType:document.getElementById("goalType")?.value||g.scopeType,
+04485:      scopeName:document.getElementById("goalScope")?.value||g.scopeName,
+04486:      peopleCount:Math.max(1,+document.getElementById("goalPeople")?.value||1),
+04487:      goalPerPerson:+document.getElementById("goalPerPerson")?.value||0,
+04488:      targetValue:(Math.max(1,+document.getElementById("goalPeople")?.value||1))*(+document.getElementById("goalPerPerson")?.value||0),
+04489:      cadence:document.getElementById("goalCadence")?.value||"Semanal",
+04490:      note:document.getElementById("goalNote")?.value||""
+04491:    });
+04492:    closeModal();save();renderGoals();
+04493:  });
+04494: 
+04495:  setTimeout(updateGoalTotalPreview,0);
+04496: }
+04497: function deleteGoal(id){
+04498:  if(!confirm("Excluir esta meta?"))return;
+04499:  db.goals=(db.goals||[]).filter(x=>+x.id!==+id);
+04500:  save();renderGoals();
+04501: }
+04502: function operationalCostForm(c={}){
+04503:  let locNames=[...(db.productionLocations||[]).map(x=>x.name),...(db.factionMasters||[]).map(x=>x.name)];
+04504:  locNames=[...new Set(locNames.filter(Boolean))];
+04505:  return `<div class="grid">
+04506:   <div class="field"><label>Local de produção</label><select id="opCostLocation"><option value="">Selecione</option>${locNames.map(n=>`<option ${n===(c.locationName||"")?"selected":""}>${esc(n)}</option>`).join("")}</select></div>
+04507:   <div class="field"><label>Tipo de custo</label><select id="opCostCategory">${["Aluguel","Energia elétrica","Água","Internet","Telefone","Folha administrativa","Manutenção","Transporte","Outros"].map(x=>`<option ${x===(c.category||"")?"selected":""}>${x}</option>`).join("")}</select></div>
+04508:   <div class="field"><label>Descrição</label><input id="opCostDesc" value="${esc(c.description||"")}"></div>
+04509:   <div class="field"><label>Valor</label><input id="opCostValue" type="number" step=".01" value="${c.value??0}"></div>
+04510:   <div class="field"><label>Data de referência</label><input id="opCostDate" type="date" value="${c.date||isoDate(new Date())}"></div>
+04511:   <div class="field"><label>Periodicidade</label><select id="opCostCadence">${["Único","Mensal","Semanal","Anual"].map(x=>`<option ${x===(c.cadence||"Mensal")?"selected":""}>${x}</option>`).join("")}</select></div>
+04512:  </div>`;
+04513: }
+04514: function newOperationalCost(){
+04515:  db.operationalCosts=db.operationalCosts||[];
+04516:  openModal("Novo custo operacional",operationalCostForm()+`<button type="button" class="primary modalSave" onclick="modalSave()">💾 Salvar custo operacional</button>`,()=>{
+04517:    let loc=document.getElementById("opCostLocation")?.value||"",value=+document.getElementById("opCostValue")?.value||0;
+04518:    if(!loc){alert("Selecione o local.");return} if(value<=0){alert("Informe o valor.");return}
+04519:    db.operationalCosts.push({id:Date.now(),locationName:loc,category:document.getElementById("opCostCategory")?.value||"Outros",description:document.getElementById("opCostDesc")?.value||"",value,date:document.getElementById("opCostDate")?.value||isoDate(new Date()),cadence:document.getElementById("opCostCadence")?.value||"Mensal"});
+04520:    try{persistDb()}catch(e){alert("Não foi possível salvar o custo neste navegador.");console.error(e);return}
+04521:    closeModal();renderGoals();
+04522:    alert("Custo operacional salvo com sucesso.");
+04523:  });
+04524: }
+04525: function editOperationalCost(id){
+04526:  let c=(db.operationalCosts||[]).find(x=>String(x.id)===String(id));if(!c)return;
+04527:  openModal("Editar custo operacional",operationalCostForm(c)+`<button type="button" class="primary modalSave" onclick="modalSave()">💾 Salvar alterações</button>`,()=>{
+04528:    Object.assign(c,{locationName:document.getElementById("opCostLocation")?.value||c.locationName,category:document.getElementById("opCostCategory")?.value||c.category,description:document.getElementById("opCostDesc")?.value||"",value:+document.getElementById("opCostValue")?.value||0,date:document.getElementById("opCostDate")?.value||c.date,cadence:document.getElementById("opCostCadence")?.value||c.cadence});
+04529:    closeModal();save();renderGoals();
+04530:  });
+04531: }
+04532: function deleteOperationalCost(id){
+04533:  if(!confirm("Excluir este custo operacional?"))return;
+04534:  db.operationalCosts=Array.isArray(db.operationalCosts)?db.operationalCosts:[];
+04535:  const before=db.operationalCosts.length;
+04536:  const target=String(id);
+04537:  db.operationalCosts=db.operationalCosts.filter(x=>String(x.id)!==target);
+04538:  if(db.operationalCosts.length===before){
+04539:    alert("Não consegui localizar esse custo para excluir. Atualize a página e tente novamente.");
+04540:    return;
+04541:  }
+04542:  save();
+04543:  renderGoals();
+04544:  if(typeof renderDashboard==="function")renderDashboard();
+04545:  if(typeof renderFinance==="function")renderFinance();
+04546:  alert("Custo operacional excluído e totais recalculados.");
+04547: }
+04548: function daysBetweenInclusive(start,end){
+04549:  if(!start||!end)return 1;
+04550:  return Math.max(1,Math.floor((new Date(end+"T12:00:00")-new Date(start+"T12:00:00"))/86400000)+1);
+04551: }
+04552: function operationalCostForPeriod(c,start,end){
+04553:  let base=+c.value||0,cad=c.cadence||"Mensal",days=daysBetweenInclusive(start,end);
+04554:  if(cad==="Único"){
+04555:    return (!start||c.date>=start)&&(!end||c.date<=end)?base:0;
+04556:  }
+04557:  if(cad==="Semanal")return base*(days/7);
+04558:  if(cad==="Mensal")return base*(days/30.4375);
+04559:  if(cad==="Anual")return base*(days/365.25);
+04560:  return base;
+04561: }
+04562: function productCostPerPieceForGoal(p){
+04563:  if(!p)return 0;
+04564:  let mat=(p.materials||[]).reduce((s,m)=>s+materialCostPerPiece(m),0);
+04565:  return mat+(+p.labor||0);
+04566: }
+04567: function productProfitPerPieceForGoal(p,order){
+04568:  let selling=order&&qtyOfOrder(order)>0?(+order.total||0)/qtyOfOrder(order):(+p?.price||0);
+04569:  return selling-productCostPerPieceForGoal(p);
+04570: }
+04571: function productionProfitRows(start,end){
+04572:  let rows={};
+04573:  (db.production||[]).forEach(prod=>{
+04574:    let d=prod.finishedAt||prod.date||"";
+04575:    if((start&&d<start)||(end&&d>end))return;
+04576:    let order=(db.orders||[]).find(o=>+o.id===+prod.orderId);
+04577:    let product=(db.products||[]).find(p=>+p.id===+(prod.productId||order?.productId)) ||
+04578:                (db.products||[]).find(p=>String(p.name||"").toLowerCase()===String(prod.product||"").toLowerCase());
+04579:    let location=productionDestinationName(prod)||"Sem local";
+04580:    let productName=product?.name||prod.product||projectionProductName(order||{id:prod.orderId})||"Produto";
+04581:    let qty=+prod.done||0;
+04582:    let profitUnit=productProfitPerPieceForGoal(product,order);
+04583:    let key=location+"|||"+productName;
+04584:    if(!rows[key])rows[key]={location,product:productName,qty:0,profitUnit:0,profit:0};
+04585:    rows[key].qty+=qty;rows[key].profitUnit=profitUnit;rows[key].profit+=qty*profitUnit;
+04586:  });
+04587:  return Object.values(rows);
+04588: }
+04589: function cleanProfitProductName(value){
+04590:  let s=String(value||"").trim();
+04591:  if(!s)return "-";
+04592:  // Linhas antigas podem ter a grade inteira concatenada:
+04593:  // "100 Produto Preto Tam P | 200 Produto Preto Tam M | ..."
+04594:  let parts=s.split(/\s*\|\s*/).filter(Boolean);
+04595:  let names=parts.map(part=>{
+04596:    let x=String(part).trim()
+04597:      .replace(/^\d+(?:[.,]\d+)?\s+/,"")
+04598:      .replace(/\s+Tam(?:anho)?\s+[A-Za-z0-9+\-./]+.*$/i,"")
+04599:      .trim();
+04600:    // Se ainda houver cor/tamanho vindo da grade, prioriza o nome de um produto cadastrado.
+04601:    let products=(db.products||[]).map(p=>String(p.name||"").trim()).filter(Boolean).sort((a,b)=>b.length-a.length);
+04602:    let found=products.find(n=>x.toLowerCase().startsWith(n.toLowerCase())||part.toLowerCase().includes(n.toLowerCase()));
+04603:    return found||x;
+04604:  }).filter(Boolean);
+
+=== scopeName @ line 4628 ===
+04583:    let key=location+"|||"+productName;
+04584:    if(!rows[key])rows[key]={location,product:productName,qty:0,profitUnit:0,profit:0};
+04585:    rows[key].qty+=qty;rows[key].profitUnit=profitUnit;rows[key].profit+=qty*profitUnit;
+04586:  });
+04587:  return Object.values(rows);
+04588: }
+04589: function cleanProfitProductName(value){
+04590:  let s=String(value||"").trim();
+04591:  if(!s)return "-";
+04592:  // Linhas antigas podem ter a grade inteira concatenada:
+04593:  // "100 Produto Preto Tam P | 200 Produto Preto Tam M | ..."
+04594:  let parts=s.split(/\s*\|\s*/).filter(Boolean);
+04595:  let names=parts.map(part=>{
+04596:    let x=String(part).trim()
+04597:      .replace(/^\d+(?:[.,]\d+)?\s+/,"")
+04598:      .replace(/\s+Tam(?:anho)?\s+[A-Za-z0-9+\-./]+.*$/i,"")
+04599:      .trim();
+04600:    // Se ainda houver cor/tamanho vindo da grade, prioriza o nome de um produto cadastrado.
+04601:    let products=(db.products||[]).map(p=>String(p.name||"").trim()).filter(Boolean).sort((a,b)=>b.length-a.length);
+04602:    let found=products.find(n=>x.toLowerCase().startsWith(n.toLowerCase())||part.toLowerCase().includes(n.toLowerCase()));
+04603:    return found||x;
+04604:  }).filter(Boolean);
+04605:  return [...new Set(names)].join(", ")||s;
+04606: }
+04607: function renderGoals(){
+04608:  db.goals=Array.isArray(db.goals)?db.goals:[];
+04609:  db.operationalCosts=Array.isArray(db.operationalCosts)?db.operationalCosts:[];
+04610:  let {start,end}=goalPeriod();
+04611:  if(!start&&!end){
+04612:    let m=mondayOf(new Date()),z=new Date(m);z.setDate(z.getDate()+6);
+04613:    start=isoDate(m);end=isoDate(z);
+04614:    let s=document.getElementById("goalStart"),e=document.getElementById("goalEnd");
+04615:    if(s)s.value=start;if(e)e.value=end;
+04616:  }
+04617:  let label=document.getElementById("goalPeriodLabel");
+04618:  if(label)label.textContent=start&&end?`Exibindo de ${fmtDate(start)} até ${fmtDate(end)}.`:"Exibindo todo o período.";
+04619: 
+04620:  let profitRows=productionProfitRows(start,end);
+04621:  let costsByLoc={};
+04622:  db.operationalCosts.forEach(c=>costsByLoc[c.locationName]=(costsByLoc[c.locationName]||0)+operationalCostForPeriod(c,start,end));
+04623:  let profitByLoc={};
+04624:  profitRows.forEach(r=>profitByLoc[r.location]=(profitByLoc[r.location]||0)+r.profit);
+04625: 
+04626:  let rows=db.goals.map(g=>{
+04627:    let target=goalTargetForPeriod(g,start,end),actual=productionValueForGoal(g,start,end),pct=target>0?actual/target*100:0;
+04628:    let profit=profitByLoc[g.scopeName]||0,costs=costsByLoc[g.scopeName]||0;
+04629:    return {g,target,actual,pct,profit,costs,net:profit-costs};
+04630:  });
+04631:  let totalTarget=rows.reduce((a,x)=>a+x.target,0),totalActual=rows.reduce((a,x)=>a+x.actual,0);
+04632:  let totalProfit=profitRows.reduce((a,x)=>a+x.profit,0),totalCosts=Object.values(costsByLoc).reduce((a,x)=>a+x,0);
+04633:  let overallPct=totalTarget>0?totalActual/totalTarget*100:0;
+04634: 
+04635:  let cards=document.getElementById("goalCards");
+04636:  if(cards)cards.innerHTML=`
+04637:   <div class="card"><small>Meta total</small><strong>${money(totalTarget)}</strong></div>
+04638:   <div class="card"><small>Realizado</small><strong>${money(totalActual)}</strong></div>
+04639:   <div class="card"><small>Atingimento</small><strong>${overallPct.toFixed(1)}%</strong></div>
+04640:   <div class="card"><small>Lucro projetado da produção</small><strong>${money(totalProfit)}</strong></div>
+04641:   <div class="card"><small>Custos operacionais</small><strong>${money(totalCosts)}</strong></div>
+04642:   <div class="card"><small>Resultado líquido estimado</small><strong>${money(totalProfit-totalCosts)}</strong></div>`;
+04643: 
+04644:  let summary=document.getElementById("goalSummaryTable");
+04645:  if(summary)summary.innerHTML=rows.length?table(
+04646:    ["Local / Pessoa","Tipo","Pessoas","Meta","Realizado","Atingimento","Lucro projetado","Custos operacionais","Resultado líquido"],
+04647:    rows.map(x=>[esc(x.g.scopeName),esc(x.g.scopeType),x.g.peopleCount||1,money(x.target),money(x.actual),x.pct.toFixed(1)+"%",money(x.profit),money(x.costs),money(x.net)])
+04648:  ):'<div class="empty">Nenhuma meta cadastrada.</div>';
+04649: 
+04650:  let profitEl=document.getElementById("goalProfitProductTable");
+04651:  if(profitEl)profitEl.innerHTML=profitRows.length?table(
+04652:    ["Local de produção","Produto","Peças produzidas","Lucro projetado/peça","Lucro projetado total"],
+04653:    profitRows.sort((a,b)=>b.profit-a.profit).map(r=>[esc(r.location),esc(cleanProfitProductName(r.product)),r.qty.toLocaleString("pt-BR"),money(r.profitUnit),money(r.profit)])
+04654:  ):'<div class="empty">Nenhuma produção finalizada/registrada neste período.</div>';
+04655: 
+04656:  let costEl=document.getElementById("operationalCostTable");
+04657:  if(costEl)costEl.innerHTML=db.operationalCosts.length?table(
+04658:    ["Local","Tipo","Descrição","Valor base","Periodicidade","Referência","Custo no período","Ações"],
+04659:    db.operationalCosts.map(c=>[esc(c.locationName),esc(c.category),esc(c.description||"-"),money(c.value),esc(c.cadence),fmtDate(c.date),money(operationalCostForPeriod(c,start,end)),`<button type="button" class="secondary" onclick='editOperationalCost(${JSON.stringify(String(c.id))})'>Editar</button> <button type="button" class="danger" onclick='deleteOperationalCost(${JSON.stringify(String(c.id))})'>Excluir</button>`])
+04660:  ):'<div class="empty">Nenhum custo operacional cadastrado.</div>';
+04661: 
+04662:  let ranking=document.getElementById("goalRankingTable");
+04663:  if(ranking){
+04664:    let rank=rows.slice().sort((a,b)=>b.pct-a.pct);
+04665:    ranking.innerHTML=rank.length?table(["Posição","Local / Pessoa","Tipo","% da meta","Realizado","Meta","Resultado líquido"],rank.map((x,i)=>[i+1,esc(x.g.scopeName),esc(x.g.scopeType),x.pct.toFixed(1)+"%",money(x.actual),money(x.target),money(x.net)])):'<div class="empty">Nenhuma meta cadastrada.</div>';
+04666:  }
+04667:  let cfg=document.getElementById("goalConfigTable");
+04668:  if(cfg)cfg.innerHTML=db.goals.length?table(
+04669:    ["Tipo","Local / Pessoa","Pessoas","Meta/pessoa","Meta total","Periodicidade","Observação","Ações"],
+04670:    db.goals.map(g=>[esc(g.scopeType),esc(g.scopeName),g.peopleCount||1,money(g.goalPerPerson??g.targetValue),money(g.targetValue),esc(g.cadence),esc(g.note||"-"),`<button type="button" class="secondary" onclick="editGoal(${g.id})">Editar</button> <button type="button" class="danger" onclick="deleteGoal(${g.id})">Excluir</button>`])
+04671:  ):'<div class="empty">Nenhuma meta cadastrada.</div>';
+04672: }
+04673: function setProjectionPeriod(mode){
+04674:  let s=document.getElementById("projectionStart"),e=document.getElementById("projectionEnd");
+04675:  if(!s||!e)return;
+04676:  let now=new Date(),start="",end="";
+04677:  if(mode==="week"){
+04678:    let m=mondayOf(now),z=new Date(m);z.setDate(z.getDate()+6);
+04679:    start=isoDate(m);end=isoDate(z);
+04680:  }else if(mode==="month"){
+04681:    start=isoDate(new Date(now.getFullYear(),now.getMonth(),1,12));
+04682:    end=isoDate(new Date(now.getFullYear(),now.getMonth()+1,0,12));
+04683:  }else if(mode==="next30"){
+04684:    let z=new Date(now);z.setDate(z.getDate()+30);
+04685:    start=isoDate(now);end=isoDate(z);
+04686:  }
+04687:  s.value=start;e.value=end;
+04688:  renderProjection();
+04689: }
+04690: 
+04691: function projectionItemsForOrder(o){
+04692:  let grade=Array.isArray(o?.grade)?o.grade:[];
+04693:  let grouped={};
+04694:  grade.forEach(it=>{
+04695:    let pid=+it.productId||0;
+04696:    let p=(db.products||[]).find(x=>+x.id===pid);
+04697:    let key=pid?String(pid):("legacy-"+String(p?.name||o.product||o.items||"Produto"));
+04698:    if(!grouped[key])grouped[key]={key,productId:pid||null,name:p?.name||o.product||"Produto",qty:0};
+04699:    grouped[key].qty+=(+it.qty||0);
+04700:  });
+04701:  if(!Object.keys(grouped).length){
+04702:    let pid=+o.productId||0,p=(db.products||[]).find(x=>+x.id===pid);
+04703:    let name=p?.name||cleanFactionProductName?.(o.items||o.product||"Pedido")||o.items||"Pedido";
+04704:    grouped[pid?String(pid):"legacy"]={key:pid?String(pid):"legacy",productId:pid||null,name,qty:qtyOfOrder(o)};
+04705:  }
+04706:  o.projectionItems=(o.projectionItems&&typeof o.projectionItems==="object")?o.projectionItems:{};
+04707:  let totalQty=Math.max(1,Object.values(grouped).reduce((a,x)=>a+x.qty,0));
+04708:  return Object.values(grouped).map(g=>{
+04709:    let saved=o.projectionItems[g.key]||{};
+04710:    let unit=0;
+04711:    if(g.productId){
+04712:      let cId=+o.clientId||0;
+04713:      try{unit=typeof suggestedPrice==="function"?+suggestedPrice(cId,g.productId)||0:0}catch(e){}
+04714:      if(!unit){let p=(db.products||[]).find(x=>+x.id===g.productId);unit=+p?.price||0}
+04715:    }
+04716:    let value=unit>0?unit*g.qty:(+o.total||0)*(g.qty/totalQty);
+04717:    let legacyInvoiced=!!saved.invoiced;
+04718:    let invoicedQty=saved.invoicedQty!=null?Math.max(0,+saved.invoicedQty||0):(legacyInvoiced?g.qty:0);
+04719:    invoicedQty=Math.min(g.qty,invoicedQty);
+04720:    let remainingQty=Math.max(0,g.qty-invoicedQty);
+04721:    return {...g,date:saved.date||"",invoiced:remainingQty<=0,invoiceIds:Array.isArray(saved.invoiceIds)?saved.invoiceIds:[],invoicedQty,remainingQty,value};
+04722:  });
+04723: }
+04724: function saveProjectionItemDate(o,key,date){
+04725:  o.projectionItems=(o.projectionItems&&typeof o.projectionItems==="object")?o.projectionItems:{};
+04726:  o.projectionItems[key]={...(o.projectionItems[key]||{}),date};
+04727:  o.projectionPlannedAt=isoDate(new Date());
+04728:  let items=projectionItemsForOrder(o);
+04729:  let dates=items.map(x=>x.date).filter(Boolean);
+04730:  o.projectionDeliveryDate=dates.length===items.length && new Set(dates).size===1?dates[0]:"";
+04731: }
+04732: function projectionItemDate(o,item){
+04733:  return item?.date||"";
+04734: }
+04735: function allProjectionRows(){
+04736:  let rows=[];
+04737:  (db.orders||[]).forEach(o=>{
+04738:    if(["Cancelado"].includes(o.status))return;
+04739:    projectionItemsForOrder(o).forEach(item=>rows.push({order:o,item}));
+04740:  });
+04741:  return rows;
+04742: }
+04743: function projectionDateOfOrder(o){
+04744:  let items=projectionItemsForOrder(o);
+04745:  let dates=items.map(x=>x.date).filter(Boolean).sort();
+04746:  return o.projectionDeliveryDate||dates[0]||"";
+04747: }
+
+=== scopeName @ line 4647 ===
+04602:    let found=products.find(n=>x.toLowerCase().startsWith(n.toLowerCase())||part.toLowerCase().includes(n.toLowerCase()));
+04603:    return found||x;
+04604:  }).filter(Boolean);
+04605:  return [...new Set(names)].join(", ")||s;
+04606: }
+04607: function renderGoals(){
+04608:  db.goals=Array.isArray(db.goals)?db.goals:[];
+04609:  db.operationalCosts=Array.isArray(db.operationalCosts)?db.operationalCosts:[];
+04610:  let {start,end}=goalPeriod();
+04611:  if(!start&&!end){
+04612:    let m=mondayOf(new Date()),z=new Date(m);z.setDate(z.getDate()+6);
+04613:    start=isoDate(m);end=isoDate(z);
+04614:    let s=document.getElementById("goalStart"),e=document.getElementById("goalEnd");
+04615:    if(s)s.value=start;if(e)e.value=end;
+04616:  }
+04617:  let label=document.getElementById("goalPeriodLabel");
+04618:  if(label)label.textContent=start&&end?`Exibindo de ${fmtDate(start)} até ${fmtDate(end)}.`:"Exibindo todo o período.";
+04619: 
+04620:  let profitRows=productionProfitRows(start,end);
+04621:  let costsByLoc={};
+04622:  db.operationalCosts.forEach(c=>costsByLoc[c.locationName]=(costsByLoc[c.locationName]||0)+operationalCostForPeriod(c,start,end));
+04623:  let profitByLoc={};
+04624:  profitRows.forEach(r=>profitByLoc[r.location]=(profitByLoc[r.location]||0)+r.profit);
+04625: 
+04626:  let rows=db.goals.map(g=>{
+04627:    let target=goalTargetForPeriod(g,start,end),actual=productionValueForGoal(g,start,end),pct=target>0?actual/target*100:0;
+04628:    let profit=profitByLoc[g.scopeName]||0,costs=costsByLoc[g.scopeName]||0;
+04629:    return {g,target,actual,pct,profit,costs,net:profit-costs};
+04630:  });
+04631:  let totalTarget=rows.reduce((a,x)=>a+x.target,0),totalActual=rows.reduce((a,x)=>a+x.actual,0);
+04632:  let totalProfit=profitRows.reduce((a,x)=>a+x.profit,0),totalCosts=Object.values(costsByLoc).reduce((a,x)=>a+x,0);
+04633:  let overallPct=totalTarget>0?totalActual/totalTarget*100:0;
+04634: 
+04635:  let cards=document.getElementById("goalCards");
+04636:  if(cards)cards.innerHTML=`
+04637:   <div class="card"><small>Meta total</small><strong>${money(totalTarget)}</strong></div>
+04638:   <div class="card"><small>Realizado</small><strong>${money(totalActual)}</strong></div>
+04639:   <div class="card"><small>Atingimento</small><strong>${overallPct.toFixed(1)}%</strong></div>
+04640:   <div class="card"><small>Lucro projetado da produção</small><strong>${money(totalProfit)}</strong></div>
+04641:   <div class="card"><small>Custos operacionais</small><strong>${money(totalCosts)}</strong></div>
+04642:   <div class="card"><small>Resultado líquido estimado</small><strong>${money(totalProfit-totalCosts)}</strong></div>`;
+04643: 
+04644:  let summary=document.getElementById("goalSummaryTable");
+04645:  if(summary)summary.innerHTML=rows.length?table(
+04646:    ["Local / Pessoa","Tipo","Pessoas","Meta","Realizado","Atingimento","Lucro projetado","Custos operacionais","Resultado líquido"],
+04647:    rows.map(x=>[esc(x.g.scopeName),esc(x.g.scopeType),x.g.peopleCount||1,money(x.target),money(x.actual),x.pct.toFixed(1)+"%",money(x.profit),money(x.costs),money(x.net)])
+04648:  ):'<div class="empty">Nenhuma meta cadastrada.</div>';
+04649: 
+04650:  let profitEl=document.getElementById("goalProfitProductTable");
+04651:  if(profitEl)profitEl.innerHTML=profitRows.length?table(
+04652:    ["Local de produção","Produto","Peças produzidas","Lucro projetado/peça","Lucro projetado total"],
+04653:    profitRows.sort((a,b)=>b.profit-a.profit).map(r=>[esc(r.location),esc(cleanProfitProductName(r.product)),r.qty.toLocaleString("pt-BR"),money(r.profitUnit),money(r.profit)])
+04654:  ):'<div class="empty">Nenhuma produção finalizada/registrada neste período.</div>';
+04655: 
+04656:  let costEl=document.getElementById("operationalCostTable");
+04657:  if(costEl)costEl.innerHTML=db.operationalCosts.length?table(
+04658:    ["Local","Tipo","Descrição","Valor base","Periodicidade","Referência","Custo no período","Ações"],
+04659:    db.operationalCosts.map(c=>[esc(c.locationName),esc(c.category),esc(c.description||"-"),money(c.value),esc(c.cadence),fmtDate(c.date),money(operationalCostForPeriod(c,start,end)),`<button type="button" class="secondary" onclick='editOperationalCost(${JSON.stringify(String(c.id))})'>Editar</button> <button type="button" class="danger" onclick='deleteOperationalCost(${JSON.stringify(String(c.id))})'>Excluir</button>`])
+04660:  ):'<div class="empty">Nenhum custo operacional cadastrado.</div>';
+04661: 
+04662:  let ranking=document.getElementById("goalRankingTable");
+04663:  if(ranking){
+04664:    let rank=rows.slice().sort((a,b)=>b.pct-a.pct);
+04665:    ranking.innerHTML=rank.length?table(["Posição","Local / Pessoa","Tipo","% da meta","Realizado","Meta","Resultado líquido"],rank.map((x,i)=>[i+1,esc(x.g.scopeName),esc(x.g.scopeType),x.pct.toFixed(1)+"%",money(x.actual),money(x.target),money(x.net)])):'<div class="empty">Nenhuma meta cadastrada.</div>';
+04666:  }
+04667:  let cfg=document.getElementById("goalConfigTable");
+04668:  if(cfg)cfg.innerHTML=db.goals.length?table(
+04669:    ["Tipo","Local / Pessoa","Pessoas","Meta/pessoa","Meta total","Periodicidade","Observação","Ações"],
+04670:    db.goals.map(g=>[esc(g.scopeType),esc(g.scopeName),g.peopleCount||1,money(g.goalPerPerson??g.targetValue),money(g.targetValue),esc(g.cadence),esc(g.note||"-"),`<button type="button" class="secondary" onclick="editGoal(${g.id})">Editar</button> <button type="button" class="danger" onclick="deleteGoal(${g.id})">Excluir</button>`])
+04671:  ):'<div class="empty">Nenhuma meta cadastrada.</div>';
+04672: }
+04673: function setProjectionPeriod(mode){
+04674:  let s=document.getElementById("projectionStart"),e=document.getElementById("projectionEnd");
+04675:  if(!s||!e)return;
+04676:  let now=new Date(),start="",end="";
+04677:  if(mode==="week"){
+04678:    let m=mondayOf(now),z=new Date(m);z.setDate(z.getDate()+6);
+04679:    start=isoDate(m);end=isoDate(z);
+04680:  }else if(mode==="month"){
+04681:    start=isoDate(new Date(now.getFullYear(),now.getMonth(),1,12));
+04682:    end=isoDate(new Date(now.getFullYear(),now.getMonth()+1,0,12));
+04683:  }else if(mode==="next30"){
+04684:    let z=new Date(now);z.setDate(z.getDate()+30);
+04685:    start=isoDate(now);end=isoDate(z);
+04686:  }
+04687:  s.value=start;e.value=end;
+04688:  renderProjection();
+04689: }
+04690: 
+04691: function projectionItemsForOrder(o){
+04692:  let grade=Array.isArray(o?.grade)?o.grade:[];
+04693:  let grouped={};
+04694:  grade.forEach(it=>{
+04695:    let pid=+it.productId||0;
+04696:    let p=(db.products||[]).find(x=>+x.id===pid);
+04697:    let key=pid?String(pid):("legacy-"+String(p?.name||o.product||o.items||"Produto"));
+04698:    if(!grouped[key])grouped[key]={key,productId:pid||null,name:p?.name||o.product||"Produto",qty:0};
+04699:    grouped[key].qty+=(+it.qty||0);
+04700:  });
+04701:  if(!Object.keys(grouped).length){
+04702:    let pid=+o.productId||0,p=(db.products||[]).find(x=>+x.id===pid);
+04703:    let name=p?.name||cleanFactionProductName?.(o.items||o.product||"Pedido")||o.items||"Pedido";
+04704:    grouped[pid?String(pid):"legacy"]={key:pid?String(pid):"legacy",productId:pid||null,name,qty:qtyOfOrder(o)};
+04705:  }
+04706:  o.projectionItems=(o.projectionItems&&typeof o.projectionItems==="object")?o.projectionItems:{};
+04707:  let totalQty=Math.max(1,Object.values(grouped).reduce((a,x)=>a+x.qty,0));
+04708:  return Object.values(grouped).map(g=>{
+04709:    let saved=o.projectionItems[g.key]||{};
+04710:    let unit=0;
+04711:    if(g.productId){
+04712:      let cId=+o.clientId||0;
+04713:      try{unit=typeof suggestedPrice==="function"?+suggestedPrice(cId,g.productId)||0:0}catch(e){}
+04714:      if(!unit){let p=(db.products||[]).find(x=>+x.id===g.productId);unit=+p?.price||0}
+04715:    }
+04716:    let value=unit>0?unit*g.qty:(+o.total||0)*(g.qty/totalQty);
+04717:    let legacyInvoiced=!!saved.invoiced;
+04718:    let invoicedQty=saved.invoicedQty!=null?Math.max(0,+saved.invoicedQty||0):(legacyInvoiced?g.qty:0);
+04719:    invoicedQty=Math.min(g.qty,invoicedQty);
+04720:    let remainingQty=Math.max(0,g.qty-invoicedQty);
+04721:    return {...g,date:saved.date||"",invoiced:remainingQty<=0,invoiceIds:Array.isArray(saved.invoiceIds)?saved.invoiceIds:[],invoicedQty,remainingQty,value};
+04722:  });
+04723: }
+04724: function saveProjectionItemDate(o,key,date){
+04725:  o.projectionItems=(o.projectionItems&&typeof o.projectionItems==="object")?o.projectionItems:{};
+04726:  o.projectionItems[key]={...(o.projectionItems[key]||{}),date};
+04727:  o.projectionPlannedAt=isoDate(new Date());
+04728:  let items=projectionItemsForOrder(o);
+04729:  let dates=items.map(x=>x.date).filter(Boolean);
+04730:  o.projectionDeliveryDate=dates.length===items.length && new Set(dates).size===1?dates[0]:"";
+04731: }
+04732: function projectionItemDate(o,item){
+04733:  return item?.date||"";
+04734: }
+04735: function allProjectionRows(){
+04736:  let rows=[];
+04737:  (db.orders||[]).forEach(o=>{
+04738:    if(["Cancelado"].includes(o.status))return;
+04739:    projectionItemsForOrder(o).forEach(item=>rows.push({order:o,item}));
+04740:  });
+04741:  return rows;
+04742: }
+04743: function projectionDateOfOrder(o){
+04744:  let items=projectionItemsForOrder(o);
+04745:  let dates=items.map(x=>x.date).filter(Boolean).sort();
+04746:  return o.projectionDeliveryDate||dates[0]||"";
+04747: }
+04748: function projectionProductName(o){
+04749:  return orderProductSummary(o);
+04750: }
+04751: function projectionUnitValue(o){
+04752:  let q=qtyOfOrder(o);
+04753:  return q>0?(+o.total||0)/q:0;
+04754: }
+04755: function projectionLocationForOrder(o){
+04756:  let prod=(db.production||[]).find(p=>+p.orderId===+o.id);
+04757:  return prod?productionDestinationName(prod):"-";
+04758: }
+04759: function changeProjectionDate(orderId){
+04760:  let o=(db.orders||[]).find(x=>+x.id===+orderId);if(!o)return;
+04761:  let items=projectionItemsForOrder(o);
+04762:  let rows=items.map((it,i)=>`<tr>
+04763:    <td>${esc(it.name)}</td>
+04764:    <td>${it.qty.toLocaleString("pt-BR")}</td>
+04765:    <td>${money(it.value||0)}</td>
+04766:    <td><input id="projItemDate_${i}" type="date" value="${it.date||o.projectionDeliveryDate||o.date||isoDate(new Date())}"></td>
