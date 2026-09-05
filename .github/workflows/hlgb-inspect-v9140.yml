@@ -1,0 +1,61 @@
+name: HLGB inspect v91.40 source
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/hlgb-inspect-v9140.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+      - name: Inspect relevant source blocks
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          s=Path('index.html').read_text(encoding='utf-8').splitlines()
+          terms=[
+            'function renderCapacityPlanning',
+            'function renderGoals',
+            'function saveGoal',
+            'function newGoal',
+            'missingPieces',
+            'finishedPieces',
+            'projectionInvoices',
+            'Finalizar nota',
+            'finalizar nota',
+            'function renderProjection',
+            'function renderFactions',
+            'hlgb_register_faction_delivery_v9135',
+            'registerFactionDelivery',
+            'Entregas das facções',
+            'Produtos previstos para saída',
+            'Produtos previstos para entrega'
+          ]
+          hits=[]
+          for i,line in enumerate(s):
+            for term in terms:
+              if term in line:
+                hits.append((i,term))
+          seen=set()
+          for i,term in hits:
+            a=max(0,i-35); b=min(len(s),i+90)
+            key=(a,b)
+            if any(abs(i-j)<55 for j in seen):
+              continue
+            seen.add(i)
+            print('\n'+'='*100)
+            print(f'MATCH {term!r} at line {i+1}; showing {a+1}-{b}')
+            print('='*100)
+            for n in range(a,b):
+              print(f'{n+1:05d}: {s[n]}')
+          print('\nTOTAL HITS',len(hits))
+          PY
