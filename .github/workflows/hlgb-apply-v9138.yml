@@ -1,0 +1,71 @@
+name: HLGB v91.38 fluxo grade e separacao parcial
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'scripts/hlgb_v9138_patch.py'
+      - 'scripts/v9138_parts/**'
+      - '.github/workflows/hlgb-apply-v9138.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Apply v91.38 patch
+        run: python3 scripts/hlgb_v9138_patch.py
+      - name: Validate JavaScript and safety guards
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import re, subprocess, tempfile, os
+          s=Path('index.html').read_text(encoding='utf-8')
+          required=[
+            'v91.38 Multiusuário',
+            'HLGB v91.38 WORKFLOW CLARITY + GRADE SPLIT + PARTIAL MATERIAL',
+            'HLGB v91.37 HUB CADASTROS + PRICING PICKER + DAILY PRODUCTION LABEL',
+            'HLGB v91.36 CUTTER PRINT + LIVE PERMISSIONS',
+            'HLGB v91.35 PROJECTION + CAPACITY + FACTION DELIVERY + PIX COPY',
+            'HLGB v91.34 HUB CALENDAR + CUT READY QUEUE',
+            'HLGB v91.33 EXPLICIT DELETE HARDENING',
+            'HLGB v91.32 EMPLOYEE MASTER SAFETY',
+            'HLGB v91.31 RECONCILIACAO OPERACIONAL',
+            'HLGB v91.28 AUTHORITATIVE RECORD MERGE',
+            'HLGB v91.26 DATA INTEGRITY GUARD'
+          ]
+          for x in required:
+            assert x in s, f'missing {x}'
+          assert 'tmain.style' not in s, 'runtime typo tmain.style found'
+          scripts=re.findall(r'<script(?:\s[^>]*)?>(.*?)</script>',s,re.S|re.I)
+          for i,js in enumerate(scripts):
+            if not js.strip(): continue
+            fd,path=tempfile.mkstemp(suffix='.js'); os.close(fd)
+            Path(path).write_text(js,encoding='utf-8')
+            r=subprocess.run(['node','--check',path],capture_output=True,text=True)
+            os.unlink(path)
+            if r.returncode:
+              raise SystemExit(f'Inline script {i} failed:\n{r.stderr}')
+          print('validation ok -',len(scripts),'script blocks')
+          PY
+      - name: Commit validated v91.38 index
+        run: |
+          if git diff --quiet -- index.html; then
+            echo 'No index changes to commit'
+            exit 0
+          fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add index.html
+          git commit -m 'Improve workflow, grade split and material separation v91.38'
+          git push origin main
