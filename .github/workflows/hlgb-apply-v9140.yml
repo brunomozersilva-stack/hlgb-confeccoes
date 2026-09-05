@@ -1,0 +1,64 @@
+name: HLGB v91.40 fila capacidade faltas e entregas
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'scripts/hlgb_v9140_patch.py'
+      - 'scripts/hlgb_v9140_addon.gz.b64'
+      - '.github/workflows/hlgb-apply-v9140.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Apply v91.40 patch
+        run: python3 scripts/hlgb_v9140_patch.py
+      - name: Validate v91.40 addon and safety markers
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import base64,gzip,re,subprocess,tempfile,os
+          s=Path('index.html').read_text(encoding='utf-8')
+          required=[
+            'v91.40 Multiusuário',
+            'HLGB v91.40 CAPACITY QUEUE + GOALS LIVE + MISSING AT INVOICE + FACTION SYNC',
+            'capacity940Root','Metas cadastradas na nuvem','Registrar peças em falta nesta saída',
+            'hlgb_register_faction_delivery_v9140',
+            'HLGB v91.39 UI BINDINGS + LOCAL PRODUCTION + SEPARATION CLEANUP',
+            'HLGB v91.38 WORKFLOW CLARITY + GRADE SPLIT + PARTIAL MATERIAL',
+            'HLGB v91.35 PROJECTION + CAPACITY + FACTION DELIVERY + PIX COPY',
+            'HLGB v91.33 EXPLICIT DELETE HARDENING','HLGB v91.26 DATA INTEGRITY GUARD'
+          ]
+          for x in required: assert x in s, f'missing {x}'
+          addon=gzip.decompress(base64.b64decode(Path('scripts/hlgb_v9140_addon.gz.b64').read_text().strip())).decode('utf-8')
+          scripts=re.findall(r'<script(?:\s[^>]*)?>(.*?)</script>',addon,re.S|re.I)
+          assert scripts, 'no v91.40 script found'
+          for i,js in enumerate(scripts):
+            fd,p=tempfile.mkstemp(suffix='.js');os.close(fd);Path(p).write_text(js,encoding='utf-8')
+            r=subprocess.run(['node','--check',p],capture_output=True,text=True);os.unlink(p)
+            if r.returncode: raise SystemExit(f'v91.40 script {i} failed:\n{r.stderr}')
+          print('v91.40 validation ok')
+          PY
+      - name: Commit validated v91.40 index
+        run: |
+          if git diff --quiet -- index.html; then
+            echo 'No index changes to commit'
+            exit 0
+          fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add index.html
+          git commit -m 'Organize capacity queue and sync deliveries v91.40'
+          git push origin main
