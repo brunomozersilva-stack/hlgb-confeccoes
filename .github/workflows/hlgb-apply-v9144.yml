@@ -1,0 +1,82 @@
+name: HLGB v91.44 precificacao material capacidade definitiva
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'scripts/hlgb_v9144_patch.py'
+      - 'scripts/hlgb_v9144_addon.html'
+      - '.github/workflows/hlgb-apply-v9144.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Apply v91.44 patch
+        run: python3 scripts/hlgb_v9144_patch.py
+      - name: Validate v91.44 fixes
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import re, subprocess, tempfile, os
+          s=Path('index.html').read_text(encoding='utf-8')
+          addon=Path('scripts/hlgb_v9144_addon.html').read_text(encoding='utf-8')
+          required=[
+            'v91.44 Multiusuário',
+            'HLGB v91.44 DEFINITIVE PRICING + MATERIAL BALANCE + CAPACITY VALUE',
+            'Precificação por cliente — filtros completos',
+            'pricingSearch944',
+            'pricingCat944',
+            'pricingMin944',
+            'pricingMax944',
+            'pricingLetter944',
+            'product.clientPrices',
+            'client.prices',
+            'Baixa imediata ativa',
+            'oldBreak944',
+            'oldApply944',
+            'Planejamento por capacidade — valor total',
+            'capacityLocation944',
+            'Valor total programado',
+            'HLGB v91.43 PRICING FILTERS + MATERIAL IMMEDIATE BALANCE + CAPACITY VALUE',
+            'HLGB v91.42 CROSS-VERSION CLOUD RECOVERY + HUB FINANCE SAFETY'
+          ]
+          for x in required:
+              assert x in s, f'missing {x}'
+          assert "cp[cid]=want" in addon, 'product client price is not synchronized'
+          assert "prices:{...draft944}" in addon, 'client price mirror is not synchronized'
+          assert ".filter(g=>q944(g.pieces)>0.000001" in addon, 'fully separated materials are not removed'
+          assert "setTimeout(renderCapacity944,0)" in addon, 'capacity final renderer missing'
+          scripts=re.findall(r'<script(?:\s[^>]*)?>(.*?)</script>',addon,re.S|re.I)
+          assert scripts, 'no addon script found'
+          for i,js in enumerate(scripts):
+              fd,p=tempfile.mkstemp(suffix='.js');os.close(fd)
+              Path(p).write_text(js,encoding='utf-8')
+              r=subprocess.run(['node','--check',p],capture_output=True,text=True)
+              os.unlink(p)
+              if r.returncode:
+                  raise SystemExit(f'v91.44 script {i} failed:\n{r.stderr}')
+          print('v91.44 validation ok')
+          PY
+      - name: Commit validated v91.44 index
+        run: |
+          if git diff --quiet -- index.html; then
+            echo 'No index changes to commit'
+            exit 0
+          fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add index.html
+          git commit -m 'Fix client pricing material deduction and capacity value v91.44'
+          git push origin main
