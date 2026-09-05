@@ -6,7 +6,7 @@
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
-<title>HLGB Confecções — Sistema de Gestão v91.39 Multiusuário</title>
+<title>HLGB Confecções — Sistema de Gestão v91.40 Multiusuário</title>
 <style>
 :root{--navy:#6f3f59;--orange:#c96b8f;--bg:#fbf6f8;--line:#eadde4;--text:#30262c;--muted:#786b73;--ok:#e9f7ef;--warn:#fff5df;--bad:#fdeaea;--rose:#f3dbe5;--rose2:#fff8fb}
 *{box-sizing:border-box}body{margin:0;font-family:Arial,Helvetica,sans-serif;background:var(--bg);color:var(--text)}
@@ -246,11 +246,11 @@ main{min-width:0;}
     <div class="field" style="text-align:left;margin-bottom:10px"><label>E-mail</label><input id="loginUser" type="email" autocomplete="username" placeholder="seuemail@exemplo.com"></div>
     <div class="field" style="text-align:left;margin-bottom:14px"><label>Senha</label><input id="loginPass" type="password" autocomplete="current-password" onkeydown="if(event.key==='Enter')return doLogin()"></div>
     <button class="primary" style="width:100%" onclick="return doLogin()">Entrar</button>
-    <div id="loginError" style="color:#a51d2d;font-size:13px;margin-top:10px"></div><div style="margin-top:12px;font-size:12px;color:#786b73">Acesso protegido pelo Supabase • HLGB Online<br><b style="color:#6f3f59">Versão v91.39</b></div>
+    <div id="loginError" style="color:#a51d2d;font-size:13px;margin-top:10px"></div><div style="margin-top:12px;font-size:12px;color:#786b73">Acesso protegido pelo Supabase • HLGB Online<br><b style="color:#6f3f59">Versão v91.40</b></div>
   </div>
 </div>
 
-<div id="appShell" style="display:none"><header><div class="logo">HLGB <b>CONFECÇÕES</b> <small style="font-size:10px;opacity:.8">v91.39</small></div><div><span id="cloudStatus" style="margin-right:10px;font-size:12px;padding:6px 9px;border:1px solid #ffffff44;border-radius:8px">☁️ Nuvem</span><span id="currentUserLabel" style="margin-right:10px;font-size:13px"></span><button id="cloudSaveBtn" onclick="cloudUploadCurrentDb(true)" style="display:none" title="Sincronização automática">🔄 Sincronizar agora</button> <button id="backupBtn" onclick="backup()" style="display:none">Exportar backup</button> <button id="importBackupBtn" onclick="document.getElementById('backupImportInput').click()" style="display:none">Importar backup</button><input id="backupImportInput" type="file" accept=".json,application/json" style="display:none" onchange="importBackupFile(this)"> <button onclick="logout()">Sair</button></div></header>
+<div id="appShell" style="display:none"><header><div class="logo">HLGB <b>CONFECÇÕES</b> <small style="font-size:10px;opacity:.8">v91.40</small></div><div><span id="cloudStatus" style="margin-right:10px;font-size:12px;padding:6px 9px;border:1px solid #ffffff44;border-radius:8px">☁️ Nuvem</span><span id="currentUserLabel" style="margin-right:10px;font-size:13px"></span><button id="cloudSaveBtn" onclick="cloudUploadCurrentDb(true)" style="display:none" title="Sincronização automática">🔄 Sincronizar agora</button> <button id="backupBtn" onclick="backup()" style="display:none">Exportar backup</button> <button id="importBackupBtn" onclick="document.getElementById('backupImportInput').click()" style="display:none">Importar backup</button><input id="backupImportInput" type="file" accept=".json,application/json" style="display:none" onchange="importBackupFile(this)"> <button onclick="logout()">Sair</button></div></header>
 <div class="app">
 <aside><nav id="nav" class="clean-nav">
 <button class="nav-home active" onclick="page('dashboard',this)">🏠 <span>Início</span></button>
@@ -14617,6 +14617,151 @@ function init939(){bindPricing939();watchPricing939();cleanupCutDuplicate939();r
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>setTimeout(init939,50));else setTimeout(init939,50);
 setTimeout(init939,700);
 console.log('HLGB v91.39 active');
+})();
+</script>
+
+<!-- HLGB v91.40 CAPACITY QUEUE + GOALS LIVE + MISSING AT INVOICE + FACTION SYNC -->
+<style>
+#capacity940Root{display:grid;gap:14px}
+.cap940-head{display:flex;justify-content:space-between;gap:12px;align-items:flex-end;flex-wrap:wrap}
+.cap940-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}
+.cap940-lanes{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:14px}
+.cap940-lane{border:1px solid var(--line);border-radius:14px;background:#fff;overflow:hidden}
+.cap940-lane-head{padding:13px 14px;background:#fff8fb;border-bottom:1px solid var(--line)}
+.cap940-row{display:grid;grid-template-columns:minmax(0,1fr) 85px 110px 78px;gap:8px;align-items:center;padding:10px 12px;border-bottom:1px solid #f0e6eb}
+.cap940-row:last-child{border-bottom:0}
+.cap940-row small{display:block;color:var(--muted);margin-top:3px}
+.cap940-empty{padding:16px;color:var(--muted);text-align:center}
+.cap940-unassigned{display:grid;gap:8px}
+.cap940-unassigned-row{display:grid;grid-template-columns:minmax(150px,.8fr) minmax(180px,1.1fr) 100px minmax(190px,1fr);gap:10px;align-items:center;padding:10px 0;border-bottom:1px solid var(--line)}
+#projectionMissing940 .missing940-row{display:grid;grid-template-columns:minmax(180px,1.4fr) 120px minmax(180px,1fr);gap:10px;align-items:end;margin:8px 0}
+@media(max-width:900px){.cap940-grid{grid-template-columns:1fr 1fr}.cap940-unassigned-row,.cap940-row,#projectionMissing940 .missing940-row{grid-template-columns:1fr}}
+@media(max-width:600px){.cap940-grid{grid-template-columns:1fr}}
+</style>
+<script>
+(function(){
+'use strict';
+const V='91.40';
+const q940=v=>Math.max(0,+v||0);
+const n940=v=>String(v??'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').trim().toLowerCase();
+const canon940=v=>n940(v).replace(/[^a-z0-9]/g,'').replace(/confec+ao/g,'confeccao');
+const clone940=v=>{try{return JSON.parse(JSON.stringify(v))}catch(e){return v}};
+const id940=()=>Date.now()+Math.floor(Math.random()*900000);
+function prod940(id){return (db.products||[]).find(x=>String(x.id)===String(id))||null}
+function ord940(id){return (db.orders||[]).find(x=>String(x.id)===String(id))||null}
+function client940(id){return (db.clients||[]).find(x=>String(x.id)===String(id))||null}
+function goal940(type,name){
+  let arr=(db.goals||[]).filter(g=>g&&n940(g.scopeType)===n940(type));
+  let target=canon940(name),exact=arr.filter(g=>canon940(g.scopeName)===target);
+  let candidates=exact.length?exact:arr.filter(g=>{let a=canon940(g.scopeName),b=target;return a&&b&&(a.includes(b)||b.includes(a))});
+  candidates.sort((a,b)=>String(b.updatedAt||b.date||b.id||'').localeCompare(String(a.updatedAt||a.date||a.id||'')));
+  let weekly=candidates.find(g=>n940(g.cadence)==='semanal')||candidates[0]||null;
+  if(!weekly)return null;
+  let targetValue=q940(weekly.targetValue)||q940(weekly.peopleCount)*q940(weekly.goalPerPerson);
+  if(n940(weekly.cadence)==='mensal')targetValue=targetValue/4.33;
+  if(n940(weekly.cadence)==='anual')targetValue=targetValue/52;
+  return {...weekly,weeklyTarget:targetValue};
+}
+function destinations940(){
+  let out=[];
+  (db.productionLocations||[]).filter(x=>x.active!==false&&canon940(x.name)!=='externo').forEach(x=>out.push({key:`L:${x.id}`,type:'Confecção',id:x.id,name:x.name,goal:goal940('Confecção',x.name)}));
+  (db.factionMasters||[]).filter(x=>x.active!==false).forEach(x=>out.push({key:`F:${x.id}`,type:'Facção',id:x.id,name:x.name,goal:goal940('Facção',x.name)}));
+  return out;
+}
+function itemRows940(o){
+  try{if(typeof projectionItemsForOrder==='function')return projectionItemsForOrder(o)||[]}catch(e){}
+  let m=new Map();(o?.grade||[]).forEach(g=>{let pid=String(g.productId||'');if(!pid)return;let x=m.get(pid)||{key:pid,productId:+pid,name:prod940(pid)?.name||'Produto',qty:0};x.qty+=q940(g.qty);m.set(pid,x)});return [...m.values()];
+}
+function activeItems940(){
+  let out=[];(db.orders||[]).forEach(o=>{if(n940(o.status)==='cancelado'||o.deletedAt)return;itemRows940(o).forEach(item=>{let qty=q940(item.remainingQty!=null?item.remainingQty:item.qty);if(qty<=0)return;out.push({o,item,qty})})});return out;
+}
+function exactProduction940(o,item){
+  let pid=String(item.productId||item.key||'');
+  return (db.production||[]).filter(p=>+p.orderId===+o.id&&q940(p.planned)>0&&!['pronto','finalizado'].includes(n940(p.stage))&&(String(p.productId||'')===pid||String(p.cutProductKey||'').split(':').pop()===pid));
+}
+function plannedAssignments940(o,item){
+  let pid=String(item.productId||item.key||'');
+  return (db.capacityAssignments||[]).filter(a=>+a.orderId===+o.id&&String(a.itemKey)===pid&&a.active!==false&&q940(a.qty)>0&&String(a.source||'')!=='cut_assignment');
+}
+function piecesByDestination940(){
+  let dests=destinations940(),map=new Map(dests.map(d=>[d.key,{dest:d,rows:[]}])) ,unassigned=[];
+  activeItems940().forEach(({o,item,qty})=>{
+    let left=qty,prods=exactProduction940(o,item),usedAny=false;
+    if(prods.length){
+      prods.forEach(p=>{let key=p.factionId?`F:${p.factionId}`:(p.productionLocationId?`L:${p.productionLocationId}`:'');let take=Math.min(left,q940(p.planned)-q940(p.done));if(key&&map.has(key)&&take>0){map.get(key).rows.push({kind:'production',row:p,o,item,qty:take,rank:q940(p.queueRank)||999999});left-=take;usedAny=true}});
+    }
+    if(!usedAny||left>0){
+      plannedAssignments940(o,item).forEach(a=>{let key=a.factionId?`F:${a.factionId}`:(a.locationId?`L:${a.locationId}`:'');let take=Math.min(left,q940(a.qty));if(key&&map.has(key)&&take>0){map.get(key).rows.push({kind:'assignment',row:a,o,item,qty:take,rank:q940(a.queueRank)||999999});left-=take}});
+    }
+    if(left>0)unassigned.push({o,item,qty:left});
+  });
+  for(const lane of map.values())lane.rows.sort((a,b)=>a.rank-b.rank||priority940(a.o)-priority940(b.o)||String(a.o.date||'').localeCompare(String(b.o.date||''))||String(a.o.id).localeCompare(String(b.o.id)));
+  return {map,unassigned,dests};
+}
+function priority940(o){let p=n940(o?.priority);return p==='urgentissimo'?0:p==='urgente'?1:2}
+function targetText940(d){let g=d.goal,t=q940(g?.weeklyTarget);return t?`${t.toLocaleString('pt-BR')} pç/semana`:'Sem meta semanal'}
+function estimate940(qty,target){if(!target)return 'Sem estimativa';let days=qty/target*5;return days<1?`≈ ${(days*8).toFixed(1)} h`:`≈ ${days.toFixed(1)} dias úteis`}
+async function saveRow940(module,row){
+  if(typeof hlgbRecordSaveWithRetry!=='function'||!cloudAccessToken){try{save()}catch(e){};return row}
+  let arr=Array.isArray(db[module])?db[module]:[],idx=arr.indexOf(row),eid='';try{if(typeof hlgbRecordId==='function')eid=hlgbRecordId(module,row,idx)}catch(e){};eid=String(eid||row.__hlgbId||row.id||'');if(!eid)throw new Error('registro sem identificador');let out=await hlgbRecordSaveWithRetry(module,eid,clone940(row),false);if(!out||out.applied!==true)throw new Error('nuvem não confirmou');return out.data||row;
+}
+function hideOldCapacity940(){
+  let page=document.getElementById('capacidadeProducao');if(!page)return;[...page.querySelectorAll(':scope > .panel')].forEach(p=>{if(p.querySelector('#capacityCards')||p.querySelector('#capacityLocationTable')||p.querySelector('#capacityOrderTable'))p.style.display='none'});
+}
+function ensureCapacityRoot940(){
+  let page=document.getElementById('capacidadeProducao');if(!page)return null;hideOldCapacity940();let root=document.getElementById('capacity940Root');if(root)return root;root=document.createElement('div');root.id='capacity940Root';let sub=page.querySelector(':scope > .sub');if(sub){sub.textContent='Fila de produção de todos os pedidos, usando as metas cadastradas para calcular carga e prazo por confecção ou facção.';sub.insertAdjacentElement('afterend',root)}else page.prepend(root);return root;
+}
+function renderGoalCards940(dests){
+  let rows=dests.map(d=>`<tr><td><b>${esc(d.name)}</b></td><td>${esc(d.type)}</td><td>${esc(d.goal?.scopeName||'-')}</td><td>${d.goal?targetText940(d):'<span class="badge warn">Meta não encontrada</span>'}</td><td>${d.goal?`${q940(d.goal.peopleCount)} pessoa(s) × ${q940(d.goal.goalPerPerson).toLocaleString('pt-BR')}`:'-'}</td></tr>`).join('');
+  return `<details class="panel"><summary style="cursor:pointer;font-weight:800">🎯 Metas usadas no cálculo da capacidade</summary><div class="sub" style="margin:8px 0">Esses valores vêm automaticamente de Atribuição de metas. Não é mais necessário configurar capacidade em dois lugares.</div><div style="overflow:auto"><table><thead><tr><th>Destino</th><th>Tipo</th><th>Meta encontrada</th><th>Capacidade semanal</th><th>Cálculo</th></tr></thead><tbody>${rows}</tbody></table></div></details>`;
+}
+window.openCapacityAssign940=function(orderId,itemKey){
+  let o=ord940(orderId),item=o&&itemRows940(o).find(x=>String(x.key||x.productId)===String(itemKey));if(!o||!item)return;let current=piecesByDestination940().unassigned.find(x=>+x.o.id===+o.id&&String(x.item.key||x.item.productId)===String(itemKey)),available=q940(current?.qty||item.remainingQty||item.qty);let dests=destinations940(),opts=dests.map(d=>`<option value="${d.key}">${esc(d.type)} — ${esc(d.name)} — ${esc(targetText940(d))}</option>`).join('');
+  openModal('Adicionar à fila de produção',`<div class="grid"><div class="field"><label>Pedido</label><input value="#${esc(displayOrderNumber(o)||o.id)}" disabled></div><div class="field"><label>Modelo</label><input value="${esc(item.name||prod940(item.productId)?.name||'Produto')}" disabled></div><div class="field"><label>Quantidade sem destino</label><input value="${available}" disabled></div><div class="field"><label>Quem vai produzir</label><select id="capDest940"><option value="">Selecione</option>${opts}</select></div><div class="field"><label>Quantidade para este destino</label><input id="capQty940" type="number" min="1" max="${available}" value="${available}"></div></div><div class="sub" style="margin:10px 0">Você pode dividir o mesmo modelo entre mais de um local repetindo a atribuição para o saldo restante.</div><button class="primary modalSave">Salvar na fila</button>`,async()=>{let raw=document.getElementById('capDest940')?.value||'',qty=Math.floor(q940(document.getElementById('capQty940')?.value));if(!raw||qty<=0||qty>available){alert('Escolha o destino e informe uma quantidade válida.');return}let [type,id]=raw.split(':'),row={id:id940(),orderId:o.id,itemKey:String(item.key||item.productId),qty,source:'capacity_queue_v9140',active:true,queueRank:Date.now()};if(type==='F')row.factionId=+id;else row.locationId=+id;db.capacityAssignments=Array.isArray(db.capacityAssignments)?db.capacityAssignments:[];db.capacityAssignments.push(row);try{let saved=await saveRow940('capacityAssignments',row),ix=db.capacityAssignments.indexOf(row);if(ix>=0)db.capacityAssignments[ix]=saved;closeModal();renderCapacityPlanning();}catch(e){console.error(e);db.capacityAssignments=db.capacityAssignments.filter(x=>x!==row);alert('Não foi possível confirmar a fila na nuvem. Nada foi perdido.')}});
+};
+window.moveCapacityQueue940=async function(kind,id,dir){
+  let arr=kind==='production'?(db.production||[]):(db.capacityAssignments||[]),row=arr.find(x=>String(x.id)===String(id));if(!row)return;let grouping=piecesByDestination940(),destKey=row.factionId?`F:${row.factionId}`:`L:${row.productionLocationId||row.locationId}`,lane=grouping.map.get(destKey);if(!lane)return;let idx=lane.rows.findIndex(x=>x.kind===kind&&String(x.row.id)===String(id)),other=lane.rows[idx+dir];if(idx<0||!other)return;let a=q940(row.queueRank)||Date.now(),b=q940(other.row.queueRank)||a+(dir>0?1:-1);row.queueRank=b;other.row.queueRank=a;try{await saveRow940(kind==='production'?'production':'capacityAssignments',row);await saveRow940(other.kind==='production'?'production':'capacityAssignments',other.row);renderCapacityPlanning()}catch(e){console.error(e);alert('Não foi possível reordenar a fila na nuvem. Atualize e tente novamente.')}};
+window.removeCapacityQueue940=async function(id){let row=(db.capacityAssignments||[]).find(x=>String(x.id)===String(id));if(!row)return;if(!confirm('Remover esta previsão da fila e deixar a quantidade sem destino?'))return;row.active=false;try{await saveRow940('capacityAssignments',row);renderCapacityPlanning()}catch(e){console.error(e);row.active=true;alert('Não foi possível remover da fila.')}};
+window.renderCapacityPlanning=function(){
+  let root=ensureCapacityRoot940();if(!root)return;let {map,unassigned,dests}=piecesByDestination940(),total=0,assigned=0;for(const lane of map.values()){lane.rows.forEach(r=>{assigned+=q940(r.qty);total+=q940(r.qty)})}unassigned.forEach(r=>total+=q940(r.qty));let lanes=[...map.values()].filter(x=>x.rows.length||x.dest.goal).sort((a,b)=>a.dest.type.localeCompare(b.dest.type)||a.dest.name.localeCompare(b.dest.name));
+  let longest=0;lanes.forEach(l=>{let tq=l.rows.reduce((s,r)=>s+q940(r.qty),0),t=q940(l.dest.goal?.weeklyTarget);if(t)longest=Math.max(longest,tq/t)});
+  let laneHtml=lanes.map(l=>{let tq=l.rows.reduce((s,r)=>s+q940(r.qty),0),target=q940(l.dest.goal?.weeklyTarget),cum=0,rows=l.rows.map((r,i)=>{cum+=q940(r.qty);let model=r.item.name||prod940(r.item.productId)?.name||r.row.product||'Produto',client=r.item.clientName||r.o.client||'-',rankInfo=estimate940(cum,target),move=`<button class="secondary" style="padding:5px 7px" onclick="moveCapacityQueue940('${r.kind}','${r.row.id}',-1)" ${i===0?'disabled':''}>↑</button><button class="secondary" style="padding:5px 7px" onclick="moveCapacityQueue940('${r.kind}','${r.row.id}',1)" ${i===l.rows.length-1?'disabled':''}>↓</button>`;return `<div class="cap940-row"><div><b>${esc(model)}</b><small>Pedido #${esc(displayOrderNumber(r.o)||r.o.id)} · ${esc(client)}</small></div><b>${q940(r.qty).toLocaleString('pt-BR')}</b><span class="badge ${target?'ok':'warn'}">${esc(rankInfo)}</span><div>${move}${r.kind==='assignment'?` <button class="danger" style="padding:5px 7px" onclick="removeCapacityQueue940('${r.row.id}')">×</button>`:''}</div></div>`}).join('')||'<div class="cap940-empty">Nenhum modelo nesta fila.</div>';let pct=target?tq/target*100:0;return `<div class="cap940-lane"><div class="cap940-lane-head"><div style="display:flex;justify-content:space-between;gap:8px"><div><b>${esc(l.dest.name)}</b><div class="sub">${esc(l.dest.type)} · Meta: ${esc(targetText940(l.dest))}</div></div><span class="badge ${target?(pct>=100?'warn':'ok'):'bad'}">${target?pct.toFixed(0)+'% da semana':'sem meta'}</span></div><div class="sub" style="margin-top:6px"><b>${tq.toLocaleString('pt-BR')} peças na fila</b>${target?` · ${estimate940(tq,target)} para zerar a fila atual`:''}</div></div>${rows}</div>`}).join('');
+  let unHtml=unassigned.length?unassigned.map(r=>`<div class="cap940-unassigned-row"><div><b>#${esc(displayOrderNumber(r.o)||r.o.id)}</b><div class="sub">${esc(r.item.clientName||r.o.client||'-')}</div></div><div><b>${esc(r.item.name||'Produto')}</b></div><b>${q940(r.qty).toLocaleString('pt-BR')} pç</b><button class="primary" onclick="openCapacityAssign940(${r.o.id},'${String(r.item.key||r.item.productId).replace(/'/g,"\\'")}')">Escolher quem vai produzir</button></div>`).join(''):'<div class="empty">Todos os produtos ativos já têm destino na fila.</div>';
+  root.innerHTML=`<div class="panel"><div class="cap940-head"><div><h2 style="margin-bottom:4px">🏭 Planejamento de capacidade e fila de produção</h2><div class="sub">Todos os pedidos ativos, organizados por quem vai produzir. A previsão de tempo usa automaticamente as metas cadastradas.</div></div><button class="secondary" onclick="page('metas',this)">🎯 Ver / alterar metas</button></div><div class="cap940-grid"><div class="card"><small>Peças ativas</small><strong>${total.toLocaleString('pt-BR')}</strong></div><div class="card"><small>Já com destino</small><strong>${assigned.toLocaleString('pt-BR')}</strong></div><div class="card"><small>Sem destino</small><strong>${unassigned.reduce((s,r)=>s+r.qty,0).toLocaleString('pt-BR')}</strong></div><div class="card"><small>Tempo para zerar a maior fila</small><strong>${longest?`${longest.toFixed(1)} sem.`:'-'}</strong></div></div></div>${renderGoalCards940(dests)}<div class="panel"><h2>📌 Fila por confecção / facção</h2><div class="sub">Use ↑ e ↓ para organizar a ordem. O prazo ao lado de cada modelo é acumulado com base na meta semanal daquele destino.</div><div class="cap940-lanes">${laneHtml||'<div class="empty">Nenhuma fila encontrada.</div>'}</div></div><div class="panel"><h2>🟠 Pedidos / modelos ainda sem destino</h2><div class="sub">Tudo que ainda não tem quem produza fica aqui. Atribua para entrar automaticamente na fila correspondente.</div><div class="cap940-unassigned">${unHtml}</div></div>`;
+};
+
+// Metas: mostrar cadastros novos imediatamente e refletir na capacidade.
+function ensureGoalsLive940(){
+  let page=document.getElementById('metas');if(!page)return;let el=document.getElementById('goalLive940');if(!el){el=document.createElement('div');el.id='goalLive940';el.className='panel';let first=page.querySelector('.panel');if(first)first.insertAdjacentElement('afterend',el);else page.appendChild(el)}let rows=(db.goals||[]).slice().sort((a,b)=>String(b.id||'').localeCompare(String(a.id||''))).map(g=>[esc(g.scopeName||'-'),esc(g.scopeType||'-'),esc(g.cadence||'-'),q940(g.peopleCount),q940(g.goalPerPerson).toLocaleString('pt-BR'),q940(g.targetValue).toLocaleString('pt-BR')]);el.innerHTML=`<h2>✅ Metas cadastradas na nuvem</h2><div class="sub">Esta lista não depende do período do relatório. Se a meta foi salva, ela aparece aqui e já alimenta o Planejamento de capacidade.</div>${rows.length?table(['Local / pessoa','Tipo','Periodicidade','Pessoas','Meta por pessoa','Meta total'],rows):'<div class="empty">Nenhuma meta cadastrada.</div>'}`;
+}
+const oldGoals940=window.renderGoals;window.renderGoals=function(){let r=oldGoals940?oldGoals940.apply(this,arguments):undefined;setTimeout(ensureGoalsLive940,0);return r};
+
+// Finalização da nota: permite transformar parte do saldo em falta para localização posterior.
+const oldFinalize940=window.finalizeSelectedProjection;
+window.finalizeSelectedProjection=function(){
+  let selected=[...document.querySelectorAll('.projectionSelect:checked')].map(x=>String(x.value));let before=new Set((db.projectionInvoices||[]).map(x=>String(x.id))),r=oldFinalize940?oldFinalize940.apply(this,arguments):undefined;
+  setTimeout(()=>{let modal=document.querySelector('#modal .modalbox'),btn=modal?.querySelector('.modalSave');if(!modal||!btn||document.getElementById('projectionMissing940')||!selected.length)return;let contexts=selected.map(v=>{let [oid,key]=v.split('::'),o=ord940(oid),item=o&&itemRows940(o).find(i=>String(i.key)===String(key));return o&&item?{o,item}:null}).filter(Boolean);let box=document.createElement('div');box.id='projectionMissing940';box.className='panel';box.innerHTML=`<h3>⚠️ Registrar peças em falta nesta saída</h3><div class="sub">Use quando parte do saldo não foi localizada. A falta entra em “Peças faltantes” para você procurar nas confecções e dar baixa depois.</div>${contexts.map((x,i)=>`<div class="missing940-row"><div><b>${esc(x.item.name)}</b><div class="sub">Saldo antes da nota: ${q940(x.item.remainingQty!=null?x.item.remainingQty:x.item.qty).toLocaleString('pt-BR')} pç</div></div><div class="field"><label>Qtd. em falta</label><input class="missingQty940" data-i="${i}" type="number" min="0" step="1" value="0"></div><div class="field"><label>Observação</label><input class="missingNote940" data-i="${i}" placeholder="Ex.: verificar Confecção Barbara / Elaine"></div></div>`).join('')}`;btn.parentNode.insertBefore(box,btn);btn.addEventListener('click',()=>{let pending=[];contexts.forEach((ctx,i)=>{let q=Math.floor(q940(document.querySelector(`.missingQty940[data-i="${i}"]`)?.value)),note=document.querySelector(`.missingNote940[data-i="${i}"]`)?.value?.trim()||'A localizar nas confecções';if(q>0)pending.push({ctx,qty:q,note})});if(!pending.length)return;setTimeout(async()=>{let inv=(db.projectionInvoices||[]).find(x=>!before.has(String(x.id)));if(!inv)return;db.missingPieces=Array.isArray(db.missingPieces)?db.missingPieces:[];for(const p of pending){let unit=p.ctx.item.qty>0?q940(p.ctx.item.value)/q940(p.ctx.item.qty):q940(prod940(p.ctx.item.productId)?.price),row={id:id940(),sourceKey:`projection:${inv.id}:${p.ctx.o.id}:${p.ctx.item.productId||p.ctx.item.key}`,sourceType:'Projeção / nota',projectionInvoiceId:inv.id,orderId:p.ctx.o.id,client:p.ctx.item.clientName||p.ctx.o.client||'',clientId:p.ctx.item.clientId||p.ctx.o.clientId||null,productId:p.ctx.item.productId||null,product:p.ctx.item.name||prod940(p.ctx.item.productId)?.name||'Produto',color:'',size:'',issueType:'Peça faltante',originalQty:p.qty,remainingQty:p.qty,recoveredQty:0,date:inv.issueDate||inv.date||isoDate(new Date()),deliveryDate:p.ctx.item.date||p.ctx.o.date||'',unitPrice:unit,unitCost:0,note:p.note,status:'Em aberto',history:[{date:inv.issueDate||inv.date||isoDate(new Date()),qty:p.qty,note:'Falta registrada ao finalizar nota'}]};db.missingPieces.push(row);try{await saveRow940('missingPieces',row)}catch(e){console.error(e)}}try{renderMissingPieces();renderProjection()}catch(e){}},50)},true)},30);return r;
+};
+
+// Entrega de facção integrada: baixa produção + pagamento + projeção + nota/financeiro em uma única RPC.
+function predictedClient940(f){
+  let o=ord940(f.orderId),pid=String(f.productId||''),item=o&&itemRows940(o).find(i=>String(i.productId||i.key)===pid);let cid=item?.clientId||o?.clientId||null,name=item?.clientName||o?.client||'';if(n940(name)==='sem cliente')name='';return {id:cid,name};
+}
+function salePrice940(pid,cid){let p=prod940(pid);if(!p)return 0;let cp=p.clientPrices||{};let v=cp[String(cid)]??cp[cid];return q940(v)||q940(p.price)}
+window.registerFactionDelivery935=function(id){
+  let f=(db.factions||[]).find(x=>+x.id===+id);if(!f)return;let sent=q940(f.sent),done=q940(f.done),bal=Math.max(0,sent-done);if(bal<=0){alert('Este envio já está totalmente entregue.');return}let p=prod940(f.productId),model=p?.name||f.description||'Produto',pred=predictedClient940(f),clients=(db.clients||[]).slice().sort((a,b)=>String(a.name).localeCompare(String(b.name))),opts=clients.map(c=>`<option value="${c.id}" ${String(c.id)===String(pred.id)?'selected':''}>${esc(c.name)}</option>`).join(''),today=isoDate(new Date()),wk=typeof weekValue==='function'?weekValue(new Date()):'';
+  openModal(`Registrar entrega — ${esc(f.name||'Facção')}`,`<div class="cards"><div class="card"><small>Modelo</small><strong style="font-size:17px">${esc(model)}</strong></div><div class="card"><small>Enviado</small><strong>${sent.toLocaleString('pt-BR')}</strong></div><div class="card"><small>Já entregue</small><strong>${done.toLocaleString('pt-BR')}</strong></div><div class="card"><small>Saldo</small><strong>${bal.toLocaleString('pt-BR')}</strong></div></div><div class="grid"><div class="field"><label>Quantidade entregue agora</label><input id="fdQty940" type="number" min="1" max="${bal}" value="${bal}"></div><div class="field"><label>Data da entrega</label><input id="fdDate940" type="date" value="${today}"></div><div class="field"><label>Semana do pagamento da facção</label><input id="fdWeek940" type="week" value="${wk}"></div><div class="field"><label>O que fazer com esta entrega?</label><select id="fdMode940" onchange="toggleFactionClient940()"><option value="expected">Entregar ao cliente previsto</option><option value="substitute">Substituir / entregar para outro cliente</option><option value="stock">Somente registrar como pronta, sem nota agora</option></select></div><div class="field fdClient940"><label>Cliente que receberá</label><select id="fdClient940" onchange="updateFactionSale940()"><option value="">Selecione</option>${opts}</select></div><div class="field fdClient940"><label>Valor de venda por peça</label><input id="fdSalePrice940" type="number" min="0" step=".01" value="${salePrice940(f.productId,pred.id).toFixed(2)}"></div><div class="field fdClient940"><label>Vencimento da nota</label><input id="fdSaleDue940" type="date" value="${today}"></div><div class="field fdClient940"><label>Condição do cliente</label><select id="fdSaleTerms940"><option>À vista</option><option>7 dias</option><option>14 dias</option><option>21 dias</option><option>28 dias</option><option>30 dias</option><option>Cheque</option></select></div><div class="field" id="fdSubNoteField940" style="display:none"><label>Motivo / observação da substituição</label><input id="fdSubNote940" placeholder="Ex.: Tammy prevista para cliente X, direcionada ao cliente Y"></div></div><div class="panel" style="background:#fff8fb"><b>Sincronização automática</b><div class="sub">Ao confirmar, a entrega atualiza a facção e a produção, programa o pagamento da facção e, quando houver cliente, entra em Entregas da projeção e gera a nota/recebimento do cliente.</div></div><button class="primary modalSave">☁️ Confirmar entrega integrada</button>`,async()=>{let qty=Math.floor(q940(document.getElementById('fdQty940')?.value)),date=document.getElementById('fdDate940')?.value||'',week=document.getElementById('fdWeek940')?.value||'',mode=document.getElementById('fdMode940')?.value||'expected',cid=document.getElementById('fdClient940')?.value||'',c=client940(cid),generate=mode!=='stock',sub=mode==='substitute',price=q940(document.getElementById('fdSalePrice940')?.value),due=document.getElementById('fdSaleDue940')?.value||date,terms=document.getElementById('fdSaleTerms940')?.value||'À vista',note=document.getElementById('fdSubNote940')?.value?.trim()||'';if(qty<=0||qty>bal||!date||!week){alert('Revise quantidade, data e semana de pagamento.');return}if(generate&&!c){alert('Escolha o cliente que receberá esta entrega.');return}if(sub&&!note){alert('Informe o motivo ou observação da substituição.');return}let btn=document.querySelector('#modal .modalSave');if(btn){btn.disabled=true;btn.textContent='☁️ Gravando tudo com segurança…'}try{if(typeof cloudEnsureFreshSession==='function')await cloudEnsureFreshSession();let res=await fetch(`${HLGB_SUPABASE_REST}rpc/hlgb_register_faction_delivery_v9140`,{method:'POST',headers:{apikey:HLGB_SUPABASE_KEY,Authorization:`Bearer ${cloudAccessToken}`,'Content-Type':'application/json'},body:JSON.stringify({p_faction_id:String(id),p_qty:qty,p_delivery_date:date,p_payment_week:week,p_client_id:generate?String(c.id):null,p_client_name:generate?c.name:null,p_sale_unit_price:price,p_generate_invoice:generate,p_substitution:sub,p_substitution_note:note,p_sale_due_date:generate?due:null,p_sale_terms:terms})});let data=await res.json().catch(()=>null);if(!res.ok)throw new Error(data?.message||data?.error||'Falha ao registrar entrega integrada.');[['factions',data?.faction],['factionPayments',data?.payment],['production',data?.production],['projectionInvoices',data?.projectionInvoice],['finance',data?.finance]].forEach(([m,row])=>{if(!row||row.id==null)return;db[m]=Array.isArray(db[m])?db[m]:[];let ix=db[m].findIndex(x=>String(x.id)===String(row.id));if(ix>=0)db[m][ix]=row;else db[m].push(row)});if(data?.order&&f.orderId){let o=ord940(f.orderId);if(o)Object.assign(o,data.order)}closeModal();try{persistDb()}catch(e){};try{renderFactionDelivery935();renderFactionPayments();renderProduction();renderProjection();renderFinance();renderOrderNotes();renderCapacityPlanning()}catch(e){console.error(e)}alert(generate?`Entrega de ${qty.toLocaleString('pt-BR')} peças registrada, baixada na projeção e nota gerada para ${c.name}.`:`Entrega de ${qty.toLocaleString('pt-BR')} peças registrada como pronta, sem gerar nota.`)}catch(e){console.error(e);if(btn){btn.disabled=false;btn.textContent='☁️ Confirmar entrega integrada'}alert(e.message||'Nada foi alterado.')}});
+  setTimeout(()=>{toggleFactionClient940();updateFactionSale940()},20);
+};
+window.toggleFactionClient940=function(){let mode=document.getElementById('fdMode940')?.value||'expected';document.querySelectorAll('.fdClient940').forEach(x=>x.style.display=mode==='stock'?'none':'');let n=document.getElementById('fdSubNoteField940');if(n)n.style.display=mode==='substitute'?'':'none'};
+window.updateFactionSale940=function(){let fsel=document.getElementById('fdClient940'),price=document.getElementById('fdSalePrice940');if(!fsel||!price)return;let modalTitle=document.querySelector('#modal h2')?.textContent||'';let f=(db.factions||[]).find(x=>modalTitle.includes(x.name||'')&&prod940(x.productId));if(f)price.value=salePrice940(f.productId,fsel.value).toFixed(2)};
+
+// Realtime: páginas afetadas se atualizam sem sair e voltar.
+const oldIncoming940=window.hlgbRenderIncomingRecord;
+window.hlgbRenderIncomingRecord=function(module){let r=oldIncoming940?oldIncoming940.apply(this,arguments):undefined;let active=document.querySelector('.page.active')?.id;if(module==='goals'){if(active==='metas')setTimeout(()=>renderGoals(),20);if(active==='capacidadeProducao')setTimeout(()=>renderCapacityPlanning(),20)}if(['productionLocations','capacityAssignments','production','factionMasters','orders'].includes(module)&&active==='capacidadeProducao')setTimeout(()=>renderCapacityPlanning(),20);if(['projectionInvoices','missingPieces','factions','factionPayments','production'].includes(module)&&active==='projecao')setTimeout(()=>renderProjection(),20);return r};
+
+function init940(){try{hideOldCapacity940();if(document.querySelector('.page.active')?.id==='capacidadeProducao')renderCapacityPlanning();if(document.querySelector('.page.active')?.id==='metas')ensureGoalsLive940()}catch(e){console.error('HLGB v91.40',e)}}
+setTimeout(init940,300);setTimeout(init940,1500);
 })();
 </script>
 
