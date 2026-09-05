@@ -1,0 +1,1509 @@
+=== projectionDeliveredRows @ line 4945 ===
+04865:        clientId:targetClient.id,
+04866:        sourceClient:originalClient,
+04867:        items:invoiceItems.map(x=>({orderId:x.ctx.o.id,itemKey:x.ctx.item.key,productName:x.ctx.item.name,productId:x.ctx.item.productId||null,projectionDate:x.ctx.item.date||x.ctx.o.date||"",deliveredAt:issueDate,qty:x.qty,unitPrice:x.unit,value:x.value})),
+04868:        date:issueDate,issueDate:issueDate,dueDate:due,value:totalValue,terms,termsDetail,status:"Pendente"
+04869:      });
+04870:      db.finance.push({
+04871:        id:invoiceId+1,type:"Receber",
+04872:        desc:`Nota projeção — ${targetClient.name} — ${invoiceItems.map(x=>x.ctx.item.name).join(", ")}`,
+04873:        value:totalValue,status:"Pendente",paid:0,remaining:totalValue,date:due,dueDate:due,issueDate:issueDate,paymentTerms:terms,paymentTermsDetail:termsDetail,
+04874:        clientId:targetClient.id,clientName:targetClient.name,projectionInvoiceId:invoiceId
+04875:      });
+04876: 
+04877:      invoiceItems.forEach(({ctx,qty})=>{
+04878:        let o=ctx.o,item=ctx.item;
+04879:        o.projectionItems=o.projectionItems||{};
+04880:        let saved=o.projectionItems[item.key]||{};
+04881:        let prev=saved.invoicedQty!=null?(+saved.invoicedQty||0):(saved.invoiced?item.qty:0);
+04882:        let newQty=Math.min(item.qty,prev+qty);
+04883:        o.projectionItems[item.key]={
+04884:          ...saved,date:item.date,invoicedQty:newQty,invoiced:newQty>=item.qty,
+04885:          invoiceIds:[...((saved.invoiceIds)||[]),invoiceId],
+04886:          deliveryHistory:[...((saved.deliveryHistory)||[]),{invoiceId,date:issueDate,qty}]
+04887:        };
+04888:        let all=projectionItemsForOrder(o);
+04889:        o.projectionInvoiced=all.every(i=>i.invoiced);
+04890:      });
+04891: 
+04892:      closeModal();
+04893:      save();
+04894:      renderProjection();
+04895:      renderFinance();
+04896:      alert(`Nota finalizada para ${targetClient.name}: ${totalQty.toLocaleString("pt-BR")} peça(s) — ${money(totalValue)}. O saldo não faturado continua disponível.`);
+04897:    });
+04898:  setTimeout(()=>{updateProjectionInvoiceClientPrices();recalcProjectionInvoiceModal()},30);
+04899: }
+04900: function updateProjectionInvoiceClientPrices(){
+04901:  let clientId=+document.getElementById("projectionInvoiceClient")?.value||0;
+04902:  let keys=[...document.querySelectorAll(".projectionSelect:checked")].map(x=>x.value);
+04903:  let selected=keys.map(v=>{let [oid,key]=String(v).split("::"),o=(db.orders||[]).find(x=>+x.id===+oid);if(!o)return null;let item=projectionItemsForOrder(o).find(i=>String(i.key)===key);return item?{o,item}:null}).filter(Boolean);
+04904:  document.querySelectorAll(".projectionInvoiceUnit").forEach(inp=>{
+04905:    let i=+inp.dataset.index,ctx=selected[i];if(!ctx)return;
+04906:    let unit=0;
+04907:    if(ctx.item.productId&&clientId){try{unit=+suggestedPrice(clientId,ctx.item.productId)||0}catch(e){}}
+04908:    if(!unit)unit=ctx.item.qty>0?(+ctx.item.value||0)/ctx.item.qty:0;
+04909:    inp.value=unit.toFixed(2);
+04910:  });
+04911:  recalcProjectionInvoiceModal();
+04912: }
+04913: function toggleProjectionInvoiceTermsDetail(){
+04914:  let sel=document.getElementById("projectionInvoiceTerms"),field=document.getElementById("projectionInvoiceTermsDetailField"),label=document.getElementById("projectionInvoiceTermsDetailLabel"),inp=document.getElementById("projectionInvoiceTermsDetail");
+04915:  if(!sel||!field)return;
+04916:  let value=sel.value||"";
+04917:  let show=value==="Personalizado"||value==="Cheque";
+04918:  field.style.display=show?"block":"none";
+04919:  if(label)label.textContent=value==="Cheque"?"Detalhes dos cheques":"Detalhes da condição personalizada";
+04920:  if(inp){
+04921:    inp.placeholder=value==="Cheque"?"Ex.: 2 cheques — 15/09 e 30/09":"Ex.: entrada + 2 parcelas, 10/20/30 dias";
+04922:    if(!show)inp.value="";
+04923:  }
+04924: }
+04925: function recalcProjectionInvoiceModal(){
+04926:  let qty=0,value=0;
+04927:  document.querySelectorAll(".projectionInvoiceQty").forEach(inp=>{
+04928:    let i=inp.dataset.index,q=Math.max(0,+inp.value||0),u=+document.querySelector(`.projectionInvoiceUnit[data-index="${i}"]`)?.value||0;
+04929:    qty+=q;value+=q*u;
+04930:  });
+04931:  let qel=document.getElementById("projectionInvoiceQtyTotal"),vel=document.getElementById("projectionInvoiceValueTotal");
+04932:  if(qel)qel.textContent=qty.toLocaleString("pt-BR");
+04933:  if(vel)vel.textContent=money(value);
+04934: }
+04935: 
+04936: function projectionRemainingQty(item){
+04937:  return Math.max(0,item?.remainingQty!=null?(+item.remainingQty||0):((+item?.qty||0)-(+item?.invoicedQty||0)));
+04938: }
+04939: function projectionUnitForItem(item){
+04940:  return (+item?.qty||0)>0?(+item?.value||0)/(+item?.qty||0):0;
+04941: }
+04942: function projectionRemainingValue(item){
+04943:  return projectionRemainingQty(item)*projectionUnitForItem(item);
+04944: }
+04945: function projectionDeliveredRows(startS="0000-01-01",endS="9999-12-31"){
+04946:  let out=[];
+04947:  (db.projectionInvoices||[]).forEach(inv=>{
+04948:    let date=String(inv.issueDate||inv.date||"").slice(0,10);
+04949:    if(!date||date<startS||date>endS)return;
+04950:    (inv.items||[]).forEach(it=>{
+04951:      let o=(db.orders||[]).find(x=>+x.id===+it.orderId)||null;
+04952:      out.push({invoice:inv,order:o,item:it,date,qty:+it.qty||0,value:+it.value||((+it.qty||0)*(+it.unitPrice||0))});
+04953:    });
+04954:  });
+04955:  return out;
+04956: }
+04957: function projectionTrackingMatches(order,productName){
+04958:  let clientF=(document.getElementById("projectionClientFilter")?.value||"").trim().toLowerCase();
+04959:  let productF=(document.getElementById("projectionProductFilter")?.value||"").trim().toLowerCase();
+04960:  let orderF=(document.getElementById("projectionOrderFilter")?.value||"").trim().toLowerCase();
+04961:  let displayNo=String(order?(typeof displayOrderNumber==="function"?displayOrderNumber(order):order.id):"").toLowerCase();
+04962:  if(clientF&&!String(order?.client||"").toLowerCase().includes(clientF))return false;
+04963:  if(productF&&!String(productName||"").toLowerCase().includes(productF))return false;
+04964:  if(orderF&&!displayNo.includes(orderF))return false;
+04965:  return true;
+04966: }
+04967: let projectionDeliveryTab="remaining";
+04968: function setProjectionDeliveryTab(tab){
+04969:  projectionDeliveryTab=tab==="delivered"?"delivered":"remaining";
+04970:  let rem=document.getElementById("projectionRemainingPane"),del=document.getElementById("projectionDeliveredPane");
+04971:  let br=document.getElementById("projectionTabRemaining"),bd=document.getElementById("projectionTabDelivered");
+04972:  if(rem)rem.style.display=projectionDeliveryTab==="remaining"?"block":"none";
+04973:  if(del)del.style.display=projectionDeliveryTab==="delivered"?"block":"none";
+04974:  if(br)br.className=projectionDeliveryTab==="remaining"?"primary":"secondary";
+04975:  if(bd)bd.className=projectionDeliveryTab==="delivered"?"primary":"secondary";
+04976:  renderProjectionDeliveryTracking();
+04977: }
+04978: function changeProjectionRemainingDate(orderId,itemKey){
+04979:  let o=(db.orders||[]).find(x=>+x.id===+orderId);if(!o)return;
+04980:  let item=projectionItemsForOrder(o).find(i=>String(i.key)===String(itemKey));if(!item)return;
+04981:  let remaining=projectionRemainingQty(item),delivered=Math.max(0,(+item.qty||0)-remaining);
+04982:  if(remaining<=0){alert("Este produto já foi entregue por completo.");return}
+04983:  openModal("Mudar data do restante",`
+04984:    <div class="grid">
+04985:     <div class="field"><label>Pedido</label><input value="#${typeof displayOrderNumber==="function"?displayOrderNumber(o):o.id}" disabled></div>
+04986:     <div class="field"><label>Cliente</label><input value="${esc(o.client||"")}" disabled></div>
+04987:     <div class="field"><label>Produto</label><input value="${esc(item.name||"")}" disabled></div>
+04988:     <div class="field"><label>Quantidade original</label><input value="${(+item.qty||0).toLocaleString("pt-BR")}" disabled></div>
+04989:     <div class="field"><label>Já entregue</label><input value="${delivered.toLocaleString("pt-BR")}" disabled></div>
+04990:     <div class="field"><label>Falta entregar</label><input value="${remaining.toLocaleString("pt-BR")}" disabled></div>
+04991:     <div class="field"><label>Data atual do restante</label><input value="${item.date?fmtDate(item.date):"-"}" disabled></div>
+04992:     <div class="field"><label>Nova data para o restante</label><input id="projectionRemainingNewDate" type="date" value="${item.date||isoDate(new Date())}"></div>
+04993:    </div>
+04994:    <div class="sub" style="margin:10px 0">Somente as ${remaining.toLocaleString("pt-BR")} peça(s) que ainda faltam serão movidas. O que já foi entregue permanece no histórico.</div>
+04995:    <button type="button" class="primary modalSave">💾 Salvar nova data do restante</button>`,()=>{
+04996:      let d=document.getElementById("projectionRemainingNewDate")?.value||"";
+04997:      if(!d){alert("Informe a nova data.");return}
+04998:      saveProjectionItemDate(o,item.key,d);
+04999:      o.projectionItems[item.key]={...(o.projectionItems[item.key]||{}),remainingRescheduledAt:isoDate(new Date())};
+05000:      closeModal();save();renderProjection();
+05001:    });
+05002: }
+05003: function renderProjectionDeliveryTracking(){
+05004:  let sEl=document.getElementById("projectionStart"),eEl=document.getElementById("projectionEnd");
+05005:  if(!sEl||!eEl)return;
+05006:  let startS=sEl.value||"0000-01-01",endS=eEl.value||"9999-12-31";
+05007:  let remainingRows=allProjectionRows().filter(({order:o,item})=>item.date&&item.date>=startS&&item.date<=endS&&projectionRemainingQty(item)>0&&projectionTrackingMatches(o,item.name));
+05008:  let deliveredRows=projectionDeliveredRows(startS,endS).filter(r=>projectionTrackingMatches(r.order,r.item.productName));
+05009:  let plannedQty=remainingRows.reduce((a,x)=>a+projectionRemainingQty(x.item),0);
+05010:  let plannedValue=remainingRows.reduce((a,x)=>a+projectionRemainingValue(x.item),0);
+05011:  let deliveredQty=deliveredRows.reduce((a,x)=>a+(+x.qty||0),0);
+05012:  let deliveredValue=deliveredRows.reduce((a,x)=>a+(+x.value||0),0);
+05013:  let cards=document.getElementById("projectionDeliverySummaryCards");
+05014:  if(cards)cards.innerHTML=`
+05015:    <div class="card"><small>Peças previstas / falta entregar</small><strong>${plannedQty.toLocaleString("pt-BR")}</strong></div>
+05016:    <div class="card"><small>Peças entregues no período</small><strong>${deliveredQty.toLocaleString("pt-BR")}</strong></div>
+05017:    <div class="card"><small>Valor previsto / falta entregar</small><strong>${money(plannedValue)}</strong></div>
+05018:    <div class="card"><small>Valor entregue no período</small><strong>${money(deliveredValue)}</strong></div>`;
+05019:  let remEl=document.getElementById("projectionRemainingTable");
+05020:  if(remEl)remEl.innerHTML=remainingRows.length?table(
+05021:    ["Data prevista","Pedido","Cliente","Produto","Original","Já entregue","Falta entregar","Valor restante","Ação"],
+05022:    remainingRows.slice().sort((a,b)=>String(a.item.date).localeCompare(String(b.item.date))).map(({order:o,item})=>{
+05023:      let rem=projectionRemainingQty(item),done=Math.max(0,(+item.qty||0)-rem);
+05024:      let safeKey=String(item.key).replace(/'/g,"\\'");
+05025:      return [fmtDate(item.date),"#"+(typeof displayOrderNumber==="function"?displayOrderNumber(o):o.id),esc(o.client||"-"),esc(item.name||"-"),(+item.qty||0).toLocaleString("pt-BR"),done.toLocaleString("pt-BR"),`<strong>${rem.toLocaleString("pt-BR")}</strong>`,money(projectionRemainingValue(item)),`<button type="button" class="secondary" onclick="changeProjectionRemainingDate(${o.id},'${safeKey}')">📅 Mudar data do restante</button>`];
+05026:    })
+05027:  ):'<div class="empty">Nada pendente para entregar neste período.</div>';
+05028:  let delEl=document.getElementById("projectionDeliveredTable");
+05029:  if(delEl)delEl.innerHTML=deliveredRows.length?table(
+05030:    ["Entregue / emissão","Nota","Pedido","Cliente","Produto","Qtd. entregue","Valor","Condição"],
+05031:    deliveredRows.slice().sort((a,b)=>String(b.date).localeCompare(String(a.date))).map(r=>{
+05032:      let inv=r.invoice||{},cond=String(inv.terms||"-")+(inv.termsDetail?` — ${inv.termsDetail}`:"");
+05033:      return [fmtDate(r.date),"#"+String(inv.id||"-"),r.order?"#"+(typeof displayOrderNumber==="function"?displayOrderNumber(r.order):r.order.id):"-",esc(inv.client||r.order?.client||"-"),esc(r.item.productName||"-"),(+r.qty||0).toLocaleString("pt-BR"),money(+r.value||0),esc(cond)];
+05034:    })
+05035:  ):'<div class="empty">Nenhuma entrega registrada neste período.</div>';
+05036:  setProjectionDeliveryTabVisualOnly();
+05037: }
+05038: function setProjectionDeliveryTabVisualOnly(){
+05039:  let rem=document.getElementById("projectionRemainingPane"),del=document.getElementById("projectionDeliveredPane");
+05040:  let br=document.getElementById("projectionTabRemaining"),bd=document.getElementById("projectionTabDelivered");
+05041:  if(rem)rem.style.display=projectionDeliveryTab==="remaining"?"block":"none";
+05042:  if(del)del.style.display=projectionDeliveryTab==="delivered"?"block":"none";
+05043:  if(br)br.className=projectionDeliveryTab==="remaining"?"primary":"secondary";
+05044:  if(bd)bd.className=projectionDeliveryTab==="delivered"?"primary":"secondary";
+05045: }
+05046: 
+05047: function projectionProductionSplit(orderId,itemKey){
+05048:  let aa=(typeof assignmentsFor==="function"?assignmentsFor(orderId,itemKey):[]);
+05049:  if(!aa.length)return "";
+05050:  return aa.map(a=>{let l=(db.productionLocations||[]).find(x=>+x.id===+a.locationId);return l?`${l.name}: ${(+a.qty||0).toLocaleString("pt-BR")} pç`:""}).filter(Boolean).join(" · ");
+05051: }
+05052: function openProjectionProductionSplit(orderId,itemKey){
+05053:  if(typeof openCapacityAllocation!=="function"){alert("A divisão de produção não está disponível.");return}
+05054:  openCapacityAllocation(orderId,itemKey);
+05055: }
+05056: function renderProjection(){
+05057:  let sEl=document.getElementById("projectionStart"),eEl=document.getElementById("projectionEnd");if(!sEl||!eEl)return;
+05058:  if(!sEl.value&&!eEl.value){let m=mondayOf(new Date()),z=new Date(m);z.setDate(z.getDate()+6);sEl.value=isoDate(m);eEl.value=isoDate(z)}
+05059:  let startS=sEl.value||"0000-01-01",endS=eEl.value||"9999-12-31";
+05060:  let rows=allProjectionRows();
+05061:  let pending=rows.filter(x=>!x.item.date&&!x.item.invoiced);
+05062:  let scheduledBase=rows.filter(x=>x.item.date&&x.item.date>=startS&&x.item.date<=endS&&projectionRemainingQty(x.item)>0);
+05063: 
+05064:  // Filtros detalhados da projeção
+05065:  let clientF=(document.getElementById("projectionClientFilter")?.value||"").trim().toLowerCase();
+05066:  let productF=(document.getElementById("projectionProductFilter")?.value||"").trim().toLowerCase();
+05067:  let orderF=(document.getElementById("projectionOrderFilter")?.value||"").trim().toLowerCase();
+05068:  let locationF=document.getElementById("projectionLocationFilter")?.value||"";
+05069:  let priorityF=document.getElementById("projectionPriorityFilter")?.value||"";
+05070:  let statusF=document.getElementById("projectionStatusFilter")?.value||"";
+05071:  let minRaw=document.getElementById("projectionMinValue")?.value||"";
+05072:  let maxRaw=document.getElementById("projectionMaxValue")?.value||"";
+05073:  let minV=minRaw===""?null:+minRaw, maxV=maxRaw===""?null:+maxRaw;
+05074: 
+05075:  // Mantém as opções dos selects sincronizadas com os dados do período.
+05076:  let locSelect=document.getElementById("projectionLocationFilter");
+05077:  if(locSelect){
+05078:    let current=locSelect.value;
+05079:    let opts=[...new Set(scheduledBase.map(({order:o,item})=>projectionProductionSplit(o.id,item.key)||projectionLocationForOrder(o)||"Sem local"))].sort((a,b)=>a.localeCompare(b,"pt-BR"));
+05080:    locSelect.innerHTML='<option value="">Todos</option>'+opts.map(v=>`<option value="${esc(v)}">${esc(v)}</option>`).join("");
+05081:    if(opts.includes(current))locSelect.value=current;
+05082:    locationF=locSelect.value||"";
+05083:  }
+05084:  let statusSelect=document.getElementById("projectionStatusFilter");
+05085:  if(statusSelect){
+05086:    let current=statusSelect.value;
+05087:    let opts=[...new Set(scheduledBase.map(({order:o,item})=>item.invoiced?"Nota finalizada":(o.status||"Sem status")))].sort((a,b)=>a.localeCompare(b,"pt-BR"));
+05088:    statusSelect.innerHTML='<option value="">Todos</option>'+opts.map(v=>`<option value="${esc(v)}">${esc(v)}</option>`).join("");
+05089:    if(opts.includes(current))statusSelect.value=current;
+05090:    statusF=statusSelect.value||"";
+05091:  }
+05092: 
+05093:  let scheduled=scheduledBase.filter(({order:o,item})=>{
+05094:    let displayNo=String(typeof displayOrderNumber==="function"?displayOrderNumber(o):o.id).toLowerCase();
+05095:    let loc=projectionProductionSplit(o.id,item.key)||projectionLocationForOrder(o)||"Sem local";
+05096:    let st=item.invoiced?"Nota finalizada":(o.status||"Sem status");
+05097:    if(clientF&&!String(item.clientName||o.client||"").toLowerCase().includes(clientF))return false;
+05098:    if(productF&&!String(item.name||"").toLowerCase().includes(productF))return false;
+05099:    if(orderF&&!displayNo.includes(orderF))return false;
+05100:    if(locationF&&loc!==locationF)return false;
+05101:    if(priorityF&&String(o.priority||"Padrão")!==priorityF)return false;
+05102:    if(statusF&&st!==statusF)return false;
+05103:    if(minV!=null&&(+item.value||0)<minV)return false;
+05104:    if(maxV!=null&&(+item.value||0)>maxV)return false;
+05105:    return true;
+05106:  });
+05107: 
+05108:  let pendingEl=document.getElementById("projectionPendingTable");
+05109:  if(pendingEl)pendingEl.innerHTML=pending.length?table(
+05110:    ["Pedido","Cliente","Produto","Entrega do cliente","Peças","Valor","Status","Onde está sendo feito","Ação"],
+05111:    pending.map(({order:o,item})=>[
+05112:     "#"+(typeof displayOrderNumber==="function"?displayOrderNumber(o):o.id),esc(item.clientName||o.client||"-"),esc(item.name),o.date?fmtDate(o.date):"-",item.qty.toLocaleString("pt-BR"),money(item.value||0),
+05113:     `<span class="badge">${esc(o.status||"-")}</span>`,esc(projectionLocationForOrder(o)),`<button type="button" class="primary" onclick="changeProjectionDate(${o.id})">📅 Definir datas</button>`
+05114:    ])
+05115:  ):'<div class="empty">Todos os produtos já estão programados na projeção.</div>';
+05116: 
+05117:  let totalQty=scheduled.reduce((a,x)=>a+projectionRemainingQty(x.item),0);
+05118:  let totalValue=scheduled.reduce((a,x)=>a+projectionRemainingValue(x.item),0);
+05119:  let deliveredPeriodRows=projectionDeliveredRows(startS,endS).filter(r=>projectionTrackingMatches(r.order,r.item.productName));
+05120:  let invoicedValue=deliveredPeriodRows.reduce((a,x)=>a+(+x.value||0),0),openQty=totalQty;
+05121:  let label=document.getElementById("projectionPeriodLabel");if(label)label.textContent=`Exibindo de ${fmtDate(startS)} até ${fmtDate(endS)}.`;
+05122: 
+05123:  let exitTable=document.getElementById("projectionExitTable");
+05124:  if(exitTable)exitTable.innerHTML=scheduled.length?table(
+05125:    ["Saída prevista","Pedido","Cliente","Produto / modelo","Peças","Valor","Local previsto","Prioridade","Status"],
+05126:    scheduled.slice().sort((a,b)=>String(a.item.date||"").localeCompare(String(b.item.date||""))).map(({order:o,item})=>[
+05127:      item.date?fmtDate(item.date):"-",
+05128:      "#"+(typeof displayOrderNumber==="function"?displayOrderNumber(o):o.id),
+05129:      esc(o.client||"-"),
+05130:      esc(item.name||"-"),
+05131:      projectionRemainingQty(item).toLocaleString("pt-BR"),
+05132:      money(projectionRemainingValue(item)),
+05133:      esc(projectionProductionSplit(o.id,item.key)||projectionLocationForOrder(o)||"Sem local"),
+05134:      `<span class="badge">${esc(o.priority||"Padrão")}</span>`,
+05135:      item.invoiced?'<span class="badge ok">Nota finalizada</span>':`<span class="badge">${esc(o.status||"Disponível")}</span>`
+05136:    ])
+05137:  ):'<div class="empty">Nenhum produto encontrado com estes filtros.</div>';
+05138:  let exitTotals=document.getElementById("projectionExitTotals");
+05139:  if(exitTotals)exitTotals.innerHTML=`Total filtrado: <strong>${scheduled.length}</strong> produto(s) · <strong>${totalQty.toLocaleString("pt-BR")}</strong> peças · <strong>${money(totalValue)}</strong>`;
+05140: 
+05141:  let ptable=document.getElementById("projectionProductsTable");
+05142:  if(ptable)ptable.innerHTML=scheduled.length?table(
+05143:    ["Selecionar","Pedido","Cliente","Produto","Peças","Valor projetado","Previsão de entrega","Produção dividida / local","Nota","Ações"],
+05144:    scheduled.slice().sort((a,b)=>a.item.date.localeCompare(b.item.date)).map(({order:o,item})=>{
+05145:     let split=projectionProductionSplit(o.id,item.key);
+05146:     let available=item.remainingQty!=null?item.remainingQty:Math.max(0,item.qty-(item.invoicedQty||0));
+05147:     let unit=item.qty>0?(+item.value||0)/item.qty:0;
+05148:     let noteStatus=item.invoiced?'<span class="badge ok">Nota finalizada</span>':((+item.invoicedQty||0)>0?`<span class="badge warn">Parcial · ${available.toLocaleString("pt-BR")} disponível</span>`:'<span class="badge">Disponível</span>');
+05149:     return [
+05150:     `<input class="projectionSelect" type="checkbox" value="${o.id}::${esc(item.key)}" ${item.invoiced?"disabled":""}>`,
+05151:     "#"+(typeof displayOrderNumber==="function"?displayOrderNumber(o):o.id),esc(item.clientName||o.client||"-"),esc(item.name),available.toLocaleString("pt-BR"),money(available*unit),fmtDate(item.date),split?`<b>${esc(split)}</b>`:esc(projectionLocationForOrder(o)||"Sem local"),
+05152:     noteStatus,`<button type="button" class="primary" onclick="openProjectionProductionSplit(${o.id},'${String(item.key).replace(/'/g,"\\'")}')">Dividir produção</button> <button type="button" class="secondary" onclick="changeProjectionRemainingDate(${o.id},'${String(item.key).replace(/'/g,"\\'")}')">Mudar data do restante</button> <button type="button" class="secondary" onclick="changeProjectionDate(${o.id})">Todas as datas</button>`
+05153:    ]})
+05154:  ):'<div class="empty">Nenhum produto previsto para este período.</div>';
+05155: 
+05156:  let clients={};
+05157:  scheduled.forEach(({order:o,item})=>{
+05158:    let k=item.clientName||o.client||"Sem cliente";if(!clients[k])clients[k]={qty:0,value:0,products:0,invoiced:0};
+05159:    clients[k].qty+=item.qty;clients[k].value+=item.value||0;clients[k].products++;if(item.invoiced)clients[k].invoiced+=item.value||0;
+05160:  });
+05161:  let clientRows=Object.entries(clients).sort((a,b)=>b[1].value-a[1].value),max=Math.max(...clientRows.map(x=>x[1].qty),1);
+05162:  let cpt=document.getElementById("clientProjectionTable");
+05163:  if(cpt)cpt.innerHTML=clientRows.length?table(["Cliente","Produtos","Peças","Valor projetado","Já finalizado","Restante","% do período","Visual"],clientRows.map(([name,d])=>[
+05164:    esc(name),d.products,d.qty.toLocaleString("pt-BR"),money(d.value),money(d.invoiced),money(Math.max(0,d.value-d.invoiced)),((d.qty/Math.max(totalQty,1))*100).toFixed(1)+"%",
+
+=== projectionDeliveredRows @ line 5008 ===
+04928:    let i=inp.dataset.index,q=Math.max(0,+inp.value||0),u=+document.querySelector(`.projectionInvoiceUnit[data-index="${i}"]`)?.value||0;
+04929:    qty+=q;value+=q*u;
+04930:  });
+04931:  let qel=document.getElementById("projectionInvoiceQtyTotal"),vel=document.getElementById("projectionInvoiceValueTotal");
+04932:  if(qel)qel.textContent=qty.toLocaleString("pt-BR");
+04933:  if(vel)vel.textContent=money(value);
+04934: }
+04935: 
+04936: function projectionRemainingQty(item){
+04937:  return Math.max(0,item?.remainingQty!=null?(+item.remainingQty||0):((+item?.qty||0)-(+item?.invoicedQty||0)));
+04938: }
+04939: function projectionUnitForItem(item){
+04940:  return (+item?.qty||0)>0?(+item?.value||0)/(+item?.qty||0):0;
+04941: }
+04942: function projectionRemainingValue(item){
+04943:  return projectionRemainingQty(item)*projectionUnitForItem(item);
+04944: }
+04945: function projectionDeliveredRows(startS="0000-01-01",endS="9999-12-31"){
+04946:  let out=[];
+04947:  (db.projectionInvoices||[]).forEach(inv=>{
+04948:    let date=String(inv.issueDate||inv.date||"").slice(0,10);
+04949:    if(!date||date<startS||date>endS)return;
+04950:    (inv.items||[]).forEach(it=>{
+04951:      let o=(db.orders||[]).find(x=>+x.id===+it.orderId)||null;
+04952:      out.push({invoice:inv,order:o,item:it,date,qty:+it.qty||0,value:+it.value||((+it.qty||0)*(+it.unitPrice||0))});
+04953:    });
+04954:  });
+04955:  return out;
+04956: }
+04957: function projectionTrackingMatches(order,productName){
+04958:  let clientF=(document.getElementById("projectionClientFilter")?.value||"").trim().toLowerCase();
+04959:  let productF=(document.getElementById("projectionProductFilter")?.value||"").trim().toLowerCase();
+04960:  let orderF=(document.getElementById("projectionOrderFilter")?.value||"").trim().toLowerCase();
+04961:  let displayNo=String(order?(typeof displayOrderNumber==="function"?displayOrderNumber(order):order.id):"").toLowerCase();
+04962:  if(clientF&&!String(order?.client||"").toLowerCase().includes(clientF))return false;
+04963:  if(productF&&!String(productName||"").toLowerCase().includes(productF))return false;
+04964:  if(orderF&&!displayNo.includes(orderF))return false;
+04965:  return true;
+04966: }
+04967: let projectionDeliveryTab="remaining";
+04968: function setProjectionDeliveryTab(tab){
+04969:  projectionDeliveryTab=tab==="delivered"?"delivered":"remaining";
+04970:  let rem=document.getElementById("projectionRemainingPane"),del=document.getElementById("projectionDeliveredPane");
+04971:  let br=document.getElementById("projectionTabRemaining"),bd=document.getElementById("projectionTabDelivered");
+04972:  if(rem)rem.style.display=projectionDeliveryTab==="remaining"?"block":"none";
+04973:  if(del)del.style.display=projectionDeliveryTab==="delivered"?"block":"none";
+04974:  if(br)br.className=projectionDeliveryTab==="remaining"?"primary":"secondary";
+04975:  if(bd)bd.className=projectionDeliveryTab==="delivered"?"primary":"secondary";
+04976:  renderProjectionDeliveryTracking();
+04977: }
+04978: function changeProjectionRemainingDate(orderId,itemKey){
+04979:  let o=(db.orders||[]).find(x=>+x.id===+orderId);if(!o)return;
+04980:  let item=projectionItemsForOrder(o).find(i=>String(i.key)===String(itemKey));if(!item)return;
+04981:  let remaining=projectionRemainingQty(item),delivered=Math.max(0,(+item.qty||0)-remaining);
+04982:  if(remaining<=0){alert("Este produto já foi entregue por completo.");return}
+04983:  openModal("Mudar data do restante",`
+04984:    <div class="grid">
+04985:     <div class="field"><label>Pedido</label><input value="#${typeof displayOrderNumber==="function"?displayOrderNumber(o):o.id}" disabled></div>
+04986:     <div class="field"><label>Cliente</label><input value="${esc(o.client||"")}" disabled></div>
+04987:     <div class="field"><label>Produto</label><input value="${esc(item.name||"")}" disabled></div>
+04988:     <div class="field"><label>Quantidade original</label><input value="${(+item.qty||0).toLocaleString("pt-BR")}" disabled></div>
+04989:     <div class="field"><label>Já entregue</label><input value="${delivered.toLocaleString("pt-BR")}" disabled></div>
+04990:     <div class="field"><label>Falta entregar</label><input value="${remaining.toLocaleString("pt-BR")}" disabled></div>
+04991:     <div class="field"><label>Data atual do restante</label><input value="${item.date?fmtDate(item.date):"-"}" disabled></div>
+04992:     <div class="field"><label>Nova data para o restante</label><input id="projectionRemainingNewDate" type="date" value="${item.date||isoDate(new Date())}"></div>
+04993:    </div>
+04994:    <div class="sub" style="margin:10px 0">Somente as ${remaining.toLocaleString("pt-BR")} peça(s) que ainda faltam serão movidas. O que já foi entregue permanece no histórico.</div>
+04995:    <button type="button" class="primary modalSave">💾 Salvar nova data do restante</button>`,()=>{
+04996:      let d=document.getElementById("projectionRemainingNewDate")?.value||"";
+04997:      if(!d){alert("Informe a nova data.");return}
+04998:      saveProjectionItemDate(o,item.key,d);
+04999:      o.projectionItems[item.key]={...(o.projectionItems[item.key]||{}),remainingRescheduledAt:isoDate(new Date())};
+05000:      closeModal();save();renderProjection();
+05001:    });
+05002: }
+05003: function renderProjectionDeliveryTracking(){
+05004:  let sEl=document.getElementById("projectionStart"),eEl=document.getElementById("projectionEnd");
+05005:  if(!sEl||!eEl)return;
+05006:  let startS=sEl.value||"0000-01-01",endS=eEl.value||"9999-12-31";
+05007:  let remainingRows=allProjectionRows().filter(({order:o,item})=>item.date&&item.date>=startS&&item.date<=endS&&projectionRemainingQty(item)>0&&projectionTrackingMatches(o,item.name));
+05008:  let deliveredRows=projectionDeliveredRows(startS,endS).filter(r=>projectionTrackingMatches(r.order,r.item.productName));
+05009:  let plannedQty=remainingRows.reduce((a,x)=>a+projectionRemainingQty(x.item),0);
+05010:  let plannedValue=remainingRows.reduce((a,x)=>a+projectionRemainingValue(x.item),0);
+05011:  let deliveredQty=deliveredRows.reduce((a,x)=>a+(+x.qty||0),0);
+05012:  let deliveredValue=deliveredRows.reduce((a,x)=>a+(+x.value||0),0);
+05013:  let cards=document.getElementById("projectionDeliverySummaryCards");
+05014:  if(cards)cards.innerHTML=`
+05015:    <div class="card"><small>Peças previstas / falta entregar</small><strong>${plannedQty.toLocaleString("pt-BR")}</strong></div>
+05016:    <div class="card"><small>Peças entregues no período</small><strong>${deliveredQty.toLocaleString("pt-BR")}</strong></div>
+05017:    <div class="card"><small>Valor previsto / falta entregar</small><strong>${money(plannedValue)}</strong></div>
+05018:    <div class="card"><small>Valor entregue no período</small><strong>${money(deliveredValue)}</strong></div>`;
+05019:  let remEl=document.getElementById("projectionRemainingTable");
+05020:  if(remEl)remEl.innerHTML=remainingRows.length?table(
+05021:    ["Data prevista","Pedido","Cliente","Produto","Original","Já entregue","Falta entregar","Valor restante","Ação"],
+05022:    remainingRows.slice().sort((a,b)=>String(a.item.date).localeCompare(String(b.item.date))).map(({order:o,item})=>{
+05023:      let rem=projectionRemainingQty(item),done=Math.max(0,(+item.qty||0)-rem);
+05024:      let safeKey=String(item.key).replace(/'/g,"\\'");
+05025:      return [fmtDate(item.date),"#"+(typeof displayOrderNumber==="function"?displayOrderNumber(o):o.id),esc(o.client||"-"),esc(item.name||"-"),(+item.qty||0).toLocaleString("pt-BR"),done.toLocaleString("pt-BR"),`<strong>${rem.toLocaleString("pt-BR")}</strong>`,money(projectionRemainingValue(item)),`<button type="button" class="secondary" onclick="changeProjectionRemainingDate(${o.id},'${safeKey}')">📅 Mudar data do restante</button>`];
+05026:    })
+05027:  ):'<div class="empty">Nada pendente para entregar neste período.</div>';
+05028:  let delEl=document.getElementById("projectionDeliveredTable");
+05029:  if(delEl)delEl.innerHTML=deliveredRows.length?table(
+05030:    ["Entregue / emissão","Nota","Pedido","Cliente","Produto","Qtd. entregue","Valor","Condição"],
+05031:    deliveredRows.slice().sort((a,b)=>String(b.date).localeCompare(String(a.date))).map(r=>{
+05032:      let inv=r.invoice||{},cond=String(inv.terms||"-")+(inv.termsDetail?` — ${inv.termsDetail}`:"");
+05033:      return [fmtDate(r.date),"#"+String(inv.id||"-"),r.order?"#"+(typeof displayOrderNumber==="function"?displayOrderNumber(r.order):r.order.id):"-",esc(inv.client||r.order?.client||"-"),esc(r.item.productName||"-"),(+r.qty||0).toLocaleString("pt-BR"),money(+r.value||0),esc(cond)];
+05034:    })
+05035:  ):'<div class="empty">Nenhuma entrega registrada neste período.</div>';
+05036:  setProjectionDeliveryTabVisualOnly();
+05037: }
+05038: function setProjectionDeliveryTabVisualOnly(){
+05039:  let rem=document.getElementById("projectionRemainingPane"),del=document.getElementById("projectionDeliveredPane");
+05040:  let br=document.getElementById("projectionTabRemaining"),bd=document.getElementById("projectionTabDelivered");
+05041:  if(rem)rem.style.display=projectionDeliveryTab==="remaining"?"block":"none";
+05042:  if(del)del.style.display=projectionDeliveryTab==="delivered"?"block":"none";
+05043:  if(br)br.className=projectionDeliveryTab==="remaining"?"primary":"secondary";
+05044:  if(bd)bd.className=projectionDeliveryTab==="delivered"?"primary":"secondary";
+05045: }
+05046: 
+05047: function projectionProductionSplit(orderId,itemKey){
+05048:  let aa=(typeof assignmentsFor==="function"?assignmentsFor(orderId,itemKey):[]);
+05049:  if(!aa.length)return "";
+05050:  return aa.map(a=>{let l=(db.productionLocations||[]).find(x=>+x.id===+a.locationId);return l?`${l.name}: ${(+a.qty||0).toLocaleString("pt-BR")} pç`:""}).filter(Boolean).join(" · ");
+05051: }
+05052: function openProjectionProductionSplit(orderId,itemKey){
+05053:  if(typeof openCapacityAllocation!=="function"){alert("A divisão de produção não está disponível.");return}
+05054:  openCapacityAllocation(orderId,itemKey);
+05055: }
+05056: function renderProjection(){
+05057:  let sEl=document.getElementById("projectionStart"),eEl=document.getElementById("projectionEnd");if(!sEl||!eEl)return;
+05058:  if(!sEl.value&&!eEl.value){let m=mondayOf(new Date()),z=new Date(m);z.setDate(z.getDate()+6);sEl.value=isoDate(m);eEl.value=isoDate(z)}
+05059:  let startS=sEl.value||"0000-01-01",endS=eEl.value||"9999-12-31";
+05060:  let rows=allProjectionRows();
+05061:  let pending=rows.filter(x=>!x.item.date&&!x.item.invoiced);
+05062:  let scheduledBase=rows.filter(x=>x.item.date&&x.item.date>=startS&&x.item.date<=endS&&projectionRemainingQty(x.item)>0);
+05063: 
+05064:  // Filtros detalhados da projeção
+05065:  let clientF=(document.getElementById("projectionClientFilter")?.value||"").trim().toLowerCase();
+05066:  let productF=(document.getElementById("projectionProductFilter")?.value||"").trim().toLowerCase();
+05067:  let orderF=(document.getElementById("projectionOrderFilter")?.value||"").trim().toLowerCase();
+05068:  let locationF=document.getElementById("projectionLocationFilter")?.value||"";
+05069:  let priorityF=document.getElementById("projectionPriorityFilter")?.value||"";
+05070:  let statusF=document.getElementById("projectionStatusFilter")?.value||"";
+05071:  let minRaw=document.getElementById("projectionMinValue")?.value||"";
+05072:  let maxRaw=document.getElementById("projectionMaxValue")?.value||"";
+05073:  let minV=minRaw===""?null:+minRaw, maxV=maxRaw===""?null:+maxRaw;
+05074: 
+05075:  // Mantém as opções dos selects sincronizadas com os dados do período.
+05076:  let locSelect=document.getElementById("projectionLocationFilter");
+05077:  if(locSelect){
+05078:    let current=locSelect.value;
+05079:    let opts=[...new Set(scheduledBase.map(({order:o,item})=>projectionProductionSplit(o.id,item.key)||projectionLocationForOrder(o)||"Sem local"))].sort((a,b)=>a.localeCompare(b,"pt-BR"));
+05080:    locSelect.innerHTML='<option value="">Todos</option>'+opts.map(v=>`<option value="${esc(v)}">${esc(v)}</option>`).join("");
+05081:    if(opts.includes(current))locSelect.value=current;
+05082:    locationF=locSelect.value||"";
+05083:  }
+05084:  let statusSelect=document.getElementById("projectionStatusFilter");
+05085:  if(statusSelect){
+05086:    let current=statusSelect.value;
+05087:    let opts=[...new Set(scheduledBase.map(({order:o,item})=>item.invoiced?"Nota finalizada":(o.status||"Sem status")))].sort((a,b)=>a.localeCompare(b,"pt-BR"));
+05088:    statusSelect.innerHTML='<option value="">Todos</option>'+opts.map(v=>`<option value="${esc(v)}">${esc(v)}</option>`).join("");
+05089:    if(opts.includes(current))statusSelect.value=current;
+05090:    statusF=statusSelect.value||"";
+05091:  }
+05092: 
+05093:  let scheduled=scheduledBase.filter(({order:o,item})=>{
+05094:    let displayNo=String(typeof displayOrderNumber==="function"?displayOrderNumber(o):o.id).toLowerCase();
+05095:    let loc=projectionProductionSplit(o.id,item.key)||projectionLocationForOrder(o)||"Sem local";
+05096:    let st=item.invoiced?"Nota finalizada":(o.status||"Sem status");
+05097:    if(clientF&&!String(item.clientName||o.client||"").toLowerCase().includes(clientF))return false;
+05098:    if(productF&&!String(item.name||"").toLowerCase().includes(productF))return false;
+05099:    if(orderF&&!displayNo.includes(orderF))return false;
+05100:    if(locationF&&loc!==locationF)return false;
+05101:    if(priorityF&&String(o.priority||"Padrão")!==priorityF)return false;
+05102:    if(statusF&&st!==statusF)return false;
+05103:    if(minV!=null&&(+item.value||0)<minV)return false;
+05104:    if(maxV!=null&&(+item.value||0)>maxV)return false;
+05105:    return true;
+05106:  });
+05107: 
+05108:  let pendingEl=document.getElementById("projectionPendingTable");
+05109:  if(pendingEl)pendingEl.innerHTML=pending.length?table(
+05110:    ["Pedido","Cliente","Produto","Entrega do cliente","Peças","Valor","Status","Onde está sendo feito","Ação"],
+05111:    pending.map(({order:o,item})=>[
+05112:     "#"+(typeof displayOrderNumber==="function"?displayOrderNumber(o):o.id),esc(item.clientName||o.client||"-"),esc(item.name),o.date?fmtDate(o.date):"-",item.qty.toLocaleString("pt-BR"),money(item.value||0),
+05113:     `<span class="badge">${esc(o.status||"-")}</span>`,esc(projectionLocationForOrder(o)),`<button type="button" class="primary" onclick="changeProjectionDate(${o.id})">📅 Definir datas</button>`
+05114:    ])
+05115:  ):'<div class="empty">Todos os produtos já estão programados na projeção.</div>';
+05116: 
+05117:  let totalQty=scheduled.reduce((a,x)=>a+projectionRemainingQty(x.item),0);
+05118:  let totalValue=scheduled.reduce((a,x)=>a+projectionRemainingValue(x.item),0);
+05119:  let deliveredPeriodRows=projectionDeliveredRows(startS,endS).filter(r=>projectionTrackingMatches(r.order,r.item.productName));
+05120:  let invoicedValue=deliveredPeriodRows.reduce((a,x)=>a+(+x.value||0),0),openQty=totalQty;
+05121:  let label=document.getElementById("projectionPeriodLabel");if(label)label.textContent=`Exibindo de ${fmtDate(startS)} até ${fmtDate(endS)}.`;
+05122: 
+05123:  let exitTable=document.getElementById("projectionExitTable");
+05124:  if(exitTable)exitTable.innerHTML=scheduled.length?table(
+05125:    ["Saída prevista","Pedido","Cliente","Produto / modelo","Peças","Valor","Local previsto","Prioridade","Status"],
+05126:    scheduled.slice().sort((a,b)=>String(a.item.date||"").localeCompare(String(b.item.date||""))).map(({order:o,item})=>[
+05127:      item.date?fmtDate(item.date):"-",
+05128:      "#"+(typeof displayOrderNumber==="function"?displayOrderNumber(o):o.id),
+05129:      esc(o.client||"-"),
+05130:      esc(item.name||"-"),
+05131:      projectionRemainingQty(item).toLocaleString("pt-BR"),
+05132:      money(projectionRemainingValue(item)),
+05133:      esc(projectionProductionSplit(o.id,item.key)||projectionLocationForOrder(o)||"Sem local"),
+05134:      `<span class="badge">${esc(o.priority||"Padrão")}</span>`,
+05135:      item.invoiced?'<span class="badge ok">Nota finalizada</span>':`<span class="badge">${esc(o.status||"Disponível")}</span>`
+05136:    ])
+05137:  ):'<div class="empty">Nenhum produto encontrado com estes filtros.</div>';
+05138:  let exitTotals=document.getElementById("projectionExitTotals");
+05139:  if(exitTotals)exitTotals.innerHTML=`Total filtrado: <strong>${scheduled.length}</strong> produto(s) · <strong>${totalQty.toLocaleString("pt-BR")}</strong> peças · <strong>${money(totalValue)}</strong>`;
+05140: 
+05141:  let ptable=document.getElementById("projectionProductsTable");
+05142:  if(ptable)ptable.innerHTML=scheduled.length?table(
+05143:    ["Selecionar","Pedido","Cliente","Produto","Peças","Valor projetado","Previsão de entrega","Produção dividida / local","Nota","Ações"],
+05144:    scheduled.slice().sort((a,b)=>a.item.date.localeCompare(b.item.date)).map(({order:o,item})=>{
+05145:     let split=projectionProductionSplit(o.id,item.key);
+05146:     let available=item.remainingQty!=null?item.remainingQty:Math.max(0,item.qty-(item.invoicedQty||0));
+05147:     let unit=item.qty>0?(+item.value||0)/item.qty:0;
+05148:     let noteStatus=item.invoiced?'<span class="badge ok">Nota finalizada</span>':((+item.invoicedQty||0)>0?`<span class="badge warn">Parcial · ${available.toLocaleString("pt-BR")} disponível</span>`:'<span class="badge">Disponível</span>');
+05149:     return [
+05150:     `<input class="projectionSelect" type="checkbox" value="${o.id}::${esc(item.key)}" ${item.invoiced?"disabled":""}>`,
+05151:     "#"+(typeof displayOrderNumber==="function"?displayOrderNumber(o):o.id),esc(item.clientName||o.client||"-"),esc(item.name),available.toLocaleString("pt-BR"),money(available*unit),fmtDate(item.date),split?`<b>${esc(split)}</b>`:esc(projectionLocationForOrder(o)||"Sem local"),
+05152:     noteStatus,`<button type="button" class="primary" onclick="openProjectionProductionSplit(${o.id},'${String(item.key).replace(/'/g,"\\'")}')">Dividir produção</button> <button type="button" class="secondary" onclick="changeProjectionRemainingDate(${o.id},'${String(item.key).replace(/'/g,"\\'")}')">Mudar data do restante</button> <button type="button" class="secondary" onclick="changeProjectionDate(${o.id})">Todas as datas</button>`
+05153:    ]})
+05154:  ):'<div class="empty">Nenhum produto previsto para este período.</div>';
+05155: 
+05156:  let clients={};
+05157:  scheduled.forEach(({order:o,item})=>{
+05158:    let k=item.clientName||o.client||"Sem cliente";if(!clients[k])clients[k]={qty:0,value:0,products:0,invoiced:0};
+05159:    clients[k].qty+=item.qty;clients[k].value+=item.value||0;clients[k].products++;if(item.invoiced)clients[k].invoiced+=item.value||0;
+05160:  });
+05161:  let clientRows=Object.entries(clients).sort((a,b)=>b[1].value-a[1].value),max=Math.max(...clientRows.map(x=>x[1].qty),1);
+05162:  let cpt=document.getElementById("clientProjectionTable");
+05163:  if(cpt)cpt.innerHTML=clientRows.length?table(["Cliente","Produtos","Peças","Valor projetado","Já finalizado","Restante","% do período","Visual"],clientRows.map(([name,d])=>[
+05164:    esc(name),d.products,d.qty.toLocaleString("pt-BR"),money(d.value),money(d.invoiced),money(Math.max(0,d.value-d.invoiced)),((d.qty/Math.max(totalQty,1))*100).toFixed(1)+"%",
+05165:    `<div style="min-width:130px;height:12px;background:#edf0f3;border-radius:10px;overflow:hidden"><div style="height:100%;width:${(d.qty/max)*100}%;background:#17213b;border-radius:10px"></div></div>`
+05166:  ])):'<div class="empty">Nenhuma entrega prevista para este período.</div>';
+05167: 
+05168:  let locationMap={};
+05169:  scheduled.forEach(({order:o,item})=>{
+05170:    let aa=typeof assignmentsFor==="function"?assignmentsFor(o.id,item.key):[];
+05171:    if(aa.length){
+05172:      let unit=(+item.qty||0)>0?(+item.value||0)/(+item.qty||0):0;
+05173:      aa.forEach(a=>{let l=(db.productionLocations||[]).find(x=>+x.id===+a.locationId),name=l?.name||"Sem local";if(!locationMap[name])locationMap[name]={planned:0,done:0,value:0};locationMap[name].planned+=+a.qty||0;locationMap[name].value+=(+a.qty||0)*unit});
+05174:      let used=aa.reduce((s,a)=>s+(+a.qty||0),0),rem=Math.max(0,(+item.qty||0)-used);if(rem){let name="Sem local";if(!locationMap[name])locationMap[name]={planned:0,done:0,value:0};locationMap[name].planned+=rem;locationMap[name].value+=rem*unit}
+05175:    }else{
+05176:      let prods=(db.production||[]).filter(p=>+p.orderId===+o.id),name=prods.length?productionDestinationName(prods[0]):projectionLocationForOrder(o)||"Sem local";
+05177:      if(!locationMap[name])locationMap[name]={planned:0,done:0,value:0};locationMap[name].planned+=item.qty;locationMap[name].value+=item.value||0;
+05178:    }
+05179:  });
+05180:  let locEl=document.getElementById("locationProjectionTable"),locationRows=Object.entries(locationMap);
+05181:  if(locEl)locEl.innerHTML=locationRows.length?table(["Local de produção","Peças previstas","Valor projetado"],locationRows.map(([n,d])=>[esc(n),d.planned.toLocaleString("pt-BR"),money(d.value)])):'<div class="empty">Nenhuma produção vinculada aos produtos deste período.</div>';
+05182: 
+05183:  let cp=document.getElementById("cutterProjectionTable");
+05184:  if(cp)cp.innerHTML='<div class="sub">A projeção por cortador continua baseada nas OPs de produção do pedido.</div>';
+05185: 
+05186:  let cards=document.getElementById("projectionCards");
+05187:  if(cards)cards.innerHTML=`<div class="card"><small>Produtos aguardando programação</small><strong>${pending.length}</strong></div><div class="card"><small>Peças aguardando programação</small><strong>${pending.reduce((a,x)=>a+x.item.qty,0).toLocaleString("pt-BR")}</strong></div><div class="card"><small>Produtos previstos</small><strong>${scheduled.length}</strong></div><div class="card"><small>Peças previstas</small><strong>${totalQty.toLocaleString("pt-BR")}</strong></div><div class="card"><small>Valor projetado</small><strong>${money(totalValue)}</strong></div><div class="card"><small>Valor já finalizado em notas</small><strong>${money(invoicedValue)}</strong></div><div class="card"><small>Peças ainda disponíveis</small><strong>${openQty.toLocaleString("pt-BR")}</strong></div><div class="card"><small>Clientes no período</small><strong>${clientRows.length}</strong></div>`;
+05188: 
+05189:  let ws=document.getElementById("weeklySummary");
+05190:  if(ws)ws.innerHTML=`<div class="cards"><div class="card"><small>Produtos</small><strong>${scheduled.length}</strong></div><div class="card"><small>Peças</small><strong>${totalQty.toLocaleString("pt-BR")}</strong></div><div class="card"><small>Valor projetado</small><strong>${money(totalValue)}</strong></div><div class="card"><small>Valor ainda não faturado</small><strong>${money(Math.max(0,totalValue-invoicedValue))}</strong></div></div>`;
+05191:  drawClientChart(clientRows.map(([n,d])=>[n,{...d,orders:d.products}]));
+05192:  renderProjectionDeliveryTracking();
+05193: }
+05194: function clearProjectionDetailFilters(){
+05195:  ["projectionClientFilter","projectionProductFilter","projectionOrderFilter","projectionMinValue","projectionMaxValue"].forEach(id=>{let e=document.getElementById(id);if(e)e.value=""});
+05196:  ["projectionLocationFilter","projectionPriorityFilter","projectionStatusFilter"].forEach(id=>{let e=document.getElementById(id);if(e)e.value=""});
+05197:  renderProjection();
+05198: }
+05199: function drawClientChart(rows){
+05200: const canvas=document.getElementById("clientChart"); if(!canvas)return;
+05201: const rect=canvas.getBoundingClientRect(); const dpr=window.devicePixelRatio||1;
+05202: const w=Math.max(320,rect.width||700),h=260;
+05203: canvas.width=w*dpr;canvas.height=h*dpr;canvas.style.height=h+"px";
+05204: const ctx=canvas.getContext("2d");ctx.setTransform(dpr,0,0,dpr,0,0);
+05205: ctx.clearRect(0,0,w,h);
+05206: const left=45,right=20,top=20,bottom=58,plotW=w-left-right,plotH=h-top-bottom;
+05207: ctx.strokeStyle="#dfe3e8";ctx.fillStyle="#5d6673";ctx.font="12px Arial";
+05208: const max=Math.max(...rows.map(r=>r[1].qty),1);
+05209: for(let i=0;i<=4;i++){let y=top+plotH-(plotH*i/4);ctx.beginPath();ctx.moveTo(left,y);ctx.lineTo(w-right,y);ctx.stroke();let val=Math.round(max*i/4);ctx.fillText(val.toLocaleString("pt-BR"),5,y+4)}
+05210: if(!rows.length){ctx.fillText("Nenhuma entrega prevista para a semana.",left,top+30);return}
+05211: const gap=Math.max(8,Math.min(22,plotW/(rows.length*5)));
+05212: const barW=Math.max(18,(plotW-gap*(rows.length-1))/rows.length);
+05213: rows.forEach((r,i)=>{
+05214: let x=left+i*(barW+gap), bh=(r[1].qty/max)*plotH,y=top+plotH-bh;
+05215: ctx.fillStyle="#17213b";ctx.fillRect(x,y,barW,bh);
+05216: ctx.fillStyle="#202631";ctx.textAlign="center";
+05217: ctx.fillText(r[1].qty.toLocaleString("pt-BR"),x+barW/2,Math.max(12,y-5));
+05218: let label=r[0].length>14?r[0].slice(0,14)+"…":r[0];
+05219: ctx.save();ctx.translate(x+barW/2,h-12);ctx.rotate(-Math.PI/7);ctx.fillText(label,0,0);ctx.restore();
+05220: });
+05221: ctx.textAlign="left";
+05222: }
+05223: window.addEventListener("resize",()=>{if(document.getElementById("projecao")?.classList.contains("active"))renderProjection()});
+05224: function renderDash(){
+05225:  // v89.40 — painel inicial resistente a falhas de módulos auxiliares.
+05226:  // Um erro em orçamento/sincronização não pode deixar toda a Visão Geral em branco.
+05227:  db.orders=Array.isArray(db.orders)?db.orders:[];
+
+=== projectionDeliveredRows @ line 5119 ===
+05039:  let rem=document.getElementById("projectionRemainingPane"),del=document.getElementById("projectionDeliveredPane");
+05040:  let br=document.getElementById("projectionTabRemaining"),bd=document.getElementById("projectionTabDelivered");
+05041:  if(rem)rem.style.display=projectionDeliveryTab==="remaining"?"block":"none";
+05042:  if(del)del.style.display=projectionDeliveryTab==="delivered"?"block":"none";
+05043:  if(br)br.className=projectionDeliveryTab==="remaining"?"primary":"secondary";
+05044:  if(bd)bd.className=projectionDeliveryTab==="delivered"?"primary":"secondary";
+05045: }
+05046: 
+05047: function projectionProductionSplit(orderId,itemKey){
+05048:  let aa=(typeof assignmentsFor==="function"?assignmentsFor(orderId,itemKey):[]);
+05049:  if(!aa.length)return "";
+05050:  return aa.map(a=>{let l=(db.productionLocations||[]).find(x=>+x.id===+a.locationId);return l?`${l.name}: ${(+a.qty||0).toLocaleString("pt-BR")} pç`:""}).filter(Boolean).join(" · ");
+05051: }
+05052: function openProjectionProductionSplit(orderId,itemKey){
+05053:  if(typeof openCapacityAllocation!=="function"){alert("A divisão de produção não está disponível.");return}
+05054:  openCapacityAllocation(orderId,itemKey);
+05055: }
+05056: function renderProjection(){
+05057:  let sEl=document.getElementById("projectionStart"),eEl=document.getElementById("projectionEnd");if(!sEl||!eEl)return;
+05058:  if(!sEl.value&&!eEl.value){let m=mondayOf(new Date()),z=new Date(m);z.setDate(z.getDate()+6);sEl.value=isoDate(m);eEl.value=isoDate(z)}
+05059:  let startS=sEl.value||"0000-01-01",endS=eEl.value||"9999-12-31";
+05060:  let rows=allProjectionRows();
+05061:  let pending=rows.filter(x=>!x.item.date&&!x.item.invoiced);
+05062:  let scheduledBase=rows.filter(x=>x.item.date&&x.item.date>=startS&&x.item.date<=endS&&projectionRemainingQty(x.item)>0);
+05063: 
+05064:  // Filtros detalhados da projeção
+05065:  let clientF=(document.getElementById("projectionClientFilter")?.value||"").trim().toLowerCase();
+05066:  let productF=(document.getElementById("projectionProductFilter")?.value||"").trim().toLowerCase();
+05067:  let orderF=(document.getElementById("projectionOrderFilter")?.value||"").trim().toLowerCase();
+05068:  let locationF=document.getElementById("projectionLocationFilter")?.value||"";
+05069:  let priorityF=document.getElementById("projectionPriorityFilter")?.value||"";
+05070:  let statusF=document.getElementById("projectionStatusFilter")?.value||"";
+05071:  let minRaw=document.getElementById("projectionMinValue")?.value||"";
+05072:  let maxRaw=document.getElementById("projectionMaxValue")?.value||"";
+05073:  let minV=minRaw===""?null:+minRaw, maxV=maxRaw===""?null:+maxRaw;
+05074: 
+05075:  // Mantém as opções dos selects sincronizadas com os dados do período.
+05076:  let locSelect=document.getElementById("projectionLocationFilter");
+05077:  if(locSelect){
+05078:    let current=locSelect.value;
+05079:    let opts=[...new Set(scheduledBase.map(({order:o,item})=>projectionProductionSplit(o.id,item.key)||projectionLocationForOrder(o)||"Sem local"))].sort((a,b)=>a.localeCompare(b,"pt-BR"));
+05080:    locSelect.innerHTML='<option value="">Todos</option>'+opts.map(v=>`<option value="${esc(v)}">${esc(v)}</option>`).join("");
+05081:    if(opts.includes(current))locSelect.value=current;
+05082:    locationF=locSelect.value||"";
+05083:  }
+05084:  let statusSelect=document.getElementById("projectionStatusFilter");
+05085:  if(statusSelect){
+05086:    let current=statusSelect.value;
+05087:    let opts=[...new Set(scheduledBase.map(({order:o,item})=>item.invoiced?"Nota finalizada":(o.status||"Sem status")))].sort((a,b)=>a.localeCompare(b,"pt-BR"));
+05088:    statusSelect.innerHTML='<option value="">Todos</option>'+opts.map(v=>`<option value="${esc(v)}">${esc(v)}</option>`).join("");
+05089:    if(opts.includes(current))statusSelect.value=current;
+05090:    statusF=statusSelect.value||"";
+05091:  }
+05092: 
+05093:  let scheduled=scheduledBase.filter(({order:o,item})=>{
+05094:    let displayNo=String(typeof displayOrderNumber==="function"?displayOrderNumber(o):o.id).toLowerCase();
+05095:    let loc=projectionProductionSplit(o.id,item.key)||projectionLocationForOrder(o)||"Sem local";
+05096:    let st=item.invoiced?"Nota finalizada":(o.status||"Sem status");
+05097:    if(clientF&&!String(item.clientName||o.client||"").toLowerCase().includes(clientF))return false;
+05098:    if(productF&&!String(item.name||"").toLowerCase().includes(productF))return false;
+05099:    if(orderF&&!displayNo.includes(orderF))return false;
+05100:    if(locationF&&loc!==locationF)return false;
+05101:    if(priorityF&&String(o.priority||"Padrão")!==priorityF)return false;
+05102:    if(statusF&&st!==statusF)return false;
+05103:    if(minV!=null&&(+item.value||0)<minV)return false;
+05104:    if(maxV!=null&&(+item.value||0)>maxV)return false;
+05105:    return true;
+05106:  });
+05107: 
+05108:  let pendingEl=document.getElementById("projectionPendingTable");
+05109:  if(pendingEl)pendingEl.innerHTML=pending.length?table(
+05110:    ["Pedido","Cliente","Produto","Entrega do cliente","Peças","Valor","Status","Onde está sendo feito","Ação"],
+05111:    pending.map(({order:o,item})=>[
+05112:     "#"+(typeof displayOrderNumber==="function"?displayOrderNumber(o):o.id),esc(item.clientName||o.client||"-"),esc(item.name),o.date?fmtDate(o.date):"-",item.qty.toLocaleString("pt-BR"),money(item.value||0),
+05113:     `<span class="badge">${esc(o.status||"-")}</span>`,esc(projectionLocationForOrder(o)),`<button type="button" class="primary" onclick="changeProjectionDate(${o.id})">📅 Definir datas</button>`
+05114:    ])
+05115:  ):'<div class="empty">Todos os produtos já estão programados na projeção.</div>';
+05116: 
+05117:  let totalQty=scheduled.reduce((a,x)=>a+projectionRemainingQty(x.item),0);
+05118:  let totalValue=scheduled.reduce((a,x)=>a+projectionRemainingValue(x.item),0);
+05119:  let deliveredPeriodRows=projectionDeliveredRows(startS,endS).filter(r=>projectionTrackingMatches(r.order,r.item.productName));
+05120:  let invoicedValue=deliveredPeriodRows.reduce((a,x)=>a+(+x.value||0),0),openQty=totalQty;
+05121:  let label=document.getElementById("projectionPeriodLabel");if(label)label.textContent=`Exibindo de ${fmtDate(startS)} até ${fmtDate(endS)}.`;
+05122: 
+05123:  let exitTable=document.getElementById("projectionExitTable");
+05124:  if(exitTable)exitTable.innerHTML=scheduled.length?table(
+05125:    ["Saída prevista","Pedido","Cliente","Produto / modelo","Peças","Valor","Local previsto","Prioridade","Status"],
+05126:    scheduled.slice().sort((a,b)=>String(a.item.date||"").localeCompare(String(b.item.date||""))).map(({order:o,item})=>[
+05127:      item.date?fmtDate(item.date):"-",
+05128:      "#"+(typeof displayOrderNumber==="function"?displayOrderNumber(o):o.id),
+05129:      esc(o.client||"-"),
+05130:      esc(item.name||"-"),
+05131:      projectionRemainingQty(item).toLocaleString("pt-BR"),
+05132:      money(projectionRemainingValue(item)),
+05133:      esc(projectionProductionSplit(o.id,item.key)||projectionLocationForOrder(o)||"Sem local"),
+05134:      `<span class="badge">${esc(o.priority||"Padrão")}</span>`,
+05135:      item.invoiced?'<span class="badge ok">Nota finalizada</span>':`<span class="badge">${esc(o.status||"Disponível")}</span>`
+05136:    ])
+05137:  ):'<div class="empty">Nenhum produto encontrado com estes filtros.</div>';
+05138:  let exitTotals=document.getElementById("projectionExitTotals");
+05139:  if(exitTotals)exitTotals.innerHTML=`Total filtrado: <strong>${scheduled.length}</strong> produto(s) · <strong>${totalQty.toLocaleString("pt-BR")}</strong> peças · <strong>${money(totalValue)}</strong>`;
+05140: 
+05141:  let ptable=document.getElementById("projectionProductsTable");
+05142:  if(ptable)ptable.innerHTML=scheduled.length?table(
+05143:    ["Selecionar","Pedido","Cliente","Produto","Peças","Valor projetado","Previsão de entrega","Produção dividida / local","Nota","Ações"],
+05144:    scheduled.slice().sort((a,b)=>a.item.date.localeCompare(b.item.date)).map(({order:o,item})=>{
+05145:     let split=projectionProductionSplit(o.id,item.key);
+05146:     let available=item.remainingQty!=null?item.remainingQty:Math.max(0,item.qty-(item.invoicedQty||0));
+05147:     let unit=item.qty>0?(+item.value||0)/item.qty:0;
+05148:     let noteStatus=item.invoiced?'<span class="badge ok">Nota finalizada</span>':((+item.invoicedQty||0)>0?`<span class="badge warn">Parcial · ${available.toLocaleString("pt-BR")} disponível</span>`:'<span class="badge">Disponível</span>');
+05149:     return [
+05150:     `<input class="projectionSelect" type="checkbox" value="${o.id}::${esc(item.key)}" ${item.invoiced?"disabled":""}>`,
+05151:     "#"+(typeof displayOrderNumber==="function"?displayOrderNumber(o):o.id),esc(item.clientName||o.client||"-"),esc(item.name),available.toLocaleString("pt-BR"),money(available*unit),fmtDate(item.date),split?`<b>${esc(split)}</b>`:esc(projectionLocationForOrder(o)||"Sem local"),
+05152:     noteStatus,`<button type="button" class="primary" onclick="openProjectionProductionSplit(${o.id},'${String(item.key).replace(/'/g,"\\'")}')">Dividir produção</button> <button type="button" class="secondary" onclick="changeProjectionRemainingDate(${o.id},'${String(item.key).replace(/'/g,"\\'")}')">Mudar data do restante</button> <button type="button" class="secondary" onclick="changeProjectionDate(${o.id})">Todas as datas</button>`
+05153:    ]})
+05154:  ):'<div class="empty">Nenhum produto previsto para este período.</div>';
+05155: 
+05156:  let clients={};
+05157:  scheduled.forEach(({order:o,item})=>{
+05158:    let k=item.clientName||o.client||"Sem cliente";if(!clients[k])clients[k]={qty:0,value:0,products:0,invoiced:0};
+05159:    clients[k].qty+=item.qty;clients[k].value+=item.value||0;clients[k].products++;if(item.invoiced)clients[k].invoiced+=item.value||0;
+05160:  });
+05161:  let clientRows=Object.entries(clients).sort((a,b)=>b[1].value-a[1].value),max=Math.max(...clientRows.map(x=>x[1].qty),1);
+05162:  let cpt=document.getElementById("clientProjectionTable");
+05163:  if(cpt)cpt.innerHTML=clientRows.length?table(["Cliente","Produtos","Peças","Valor projetado","Já finalizado","Restante","% do período","Visual"],clientRows.map(([name,d])=>[
+05164:    esc(name),d.products,d.qty.toLocaleString("pt-BR"),money(d.value),money(d.invoiced),money(Math.max(0,d.value-d.invoiced)),((d.qty/Math.max(totalQty,1))*100).toFixed(1)+"%",
+05165:    `<div style="min-width:130px;height:12px;background:#edf0f3;border-radius:10px;overflow:hidden"><div style="height:100%;width:${(d.qty/max)*100}%;background:#17213b;border-radius:10px"></div></div>`
+05166:  ])):'<div class="empty">Nenhuma entrega prevista para este período.</div>';
+05167: 
+05168:  let locationMap={};
+05169:  scheduled.forEach(({order:o,item})=>{
+05170:    let aa=typeof assignmentsFor==="function"?assignmentsFor(o.id,item.key):[];
+05171:    if(aa.length){
+05172:      let unit=(+item.qty||0)>0?(+item.value||0)/(+item.qty||0):0;
+05173:      aa.forEach(a=>{let l=(db.productionLocations||[]).find(x=>+x.id===+a.locationId),name=l?.name||"Sem local";if(!locationMap[name])locationMap[name]={planned:0,done:0,value:0};locationMap[name].planned+=+a.qty||0;locationMap[name].value+=(+a.qty||0)*unit});
+05174:      let used=aa.reduce((s,a)=>s+(+a.qty||0),0),rem=Math.max(0,(+item.qty||0)-used);if(rem){let name="Sem local";if(!locationMap[name])locationMap[name]={planned:0,done:0,value:0};locationMap[name].planned+=rem;locationMap[name].value+=rem*unit}
+05175:    }else{
+05176:      let prods=(db.production||[]).filter(p=>+p.orderId===+o.id),name=prods.length?productionDestinationName(prods[0]):projectionLocationForOrder(o)||"Sem local";
+05177:      if(!locationMap[name])locationMap[name]={planned:0,done:0,value:0};locationMap[name].planned+=item.qty;locationMap[name].value+=item.value||0;
+05178:    }
+05179:  });
+05180:  let locEl=document.getElementById("locationProjectionTable"),locationRows=Object.entries(locationMap);
+05181:  if(locEl)locEl.innerHTML=locationRows.length?table(["Local de produção","Peças previstas","Valor projetado"],locationRows.map(([n,d])=>[esc(n),d.planned.toLocaleString("pt-BR"),money(d.value)])):'<div class="empty">Nenhuma produção vinculada aos produtos deste período.</div>';
+05182: 
+05183:  let cp=document.getElementById("cutterProjectionTable");
+05184:  if(cp)cp.innerHTML='<div class="sub">A projeção por cortador continua baseada nas OPs de produção do pedido.</div>';
+05185: 
+05186:  let cards=document.getElementById("projectionCards");
+05187:  if(cards)cards.innerHTML=`<div class="card"><small>Produtos aguardando programação</small><strong>${pending.length}</strong></div><div class="card"><small>Peças aguardando programação</small><strong>${pending.reduce((a,x)=>a+x.item.qty,0).toLocaleString("pt-BR")}</strong></div><div class="card"><small>Produtos previstos</small><strong>${scheduled.length}</strong></div><div class="card"><small>Peças previstas</small><strong>${totalQty.toLocaleString("pt-BR")}</strong></div><div class="card"><small>Valor projetado</small><strong>${money(totalValue)}</strong></div><div class="card"><small>Valor já finalizado em notas</small><strong>${money(invoicedValue)}</strong></div><div class="card"><small>Peças ainda disponíveis</small><strong>${openQty.toLocaleString("pt-BR")}</strong></div><div class="card"><small>Clientes no período</small><strong>${clientRows.length}</strong></div>`;
+05188: 
+05189:  let ws=document.getElementById("weeklySummary");
+05190:  if(ws)ws.innerHTML=`<div class="cards"><div class="card"><small>Produtos</small><strong>${scheduled.length}</strong></div><div class="card"><small>Peças</small><strong>${totalQty.toLocaleString("pt-BR")}</strong></div><div class="card"><small>Valor projetado</small><strong>${money(totalValue)}</strong></div><div class="card"><small>Valor ainda não faturado</small><strong>${money(Math.max(0,totalValue-invoicedValue))}</strong></div></div>`;
+05191:  drawClientChart(clientRows.map(([n,d])=>[n,{...d,orders:d.products}]));
+05192:  renderProjectionDeliveryTracking();
+05193: }
+05194: function clearProjectionDetailFilters(){
+05195:  ["projectionClientFilter","projectionProductFilter","projectionOrderFilter","projectionMinValue","projectionMaxValue"].forEach(id=>{let e=document.getElementById(id);if(e)e.value=""});
+05196:  ["projectionLocationFilter","projectionPriorityFilter","projectionStatusFilter"].forEach(id=>{let e=document.getElementById(id);if(e)e.value=""});
+05197:  renderProjection();
+05198: }
+05199: function drawClientChart(rows){
+05200: const canvas=document.getElementById("clientChart"); if(!canvas)return;
+05201: const rect=canvas.getBoundingClientRect(); const dpr=window.devicePixelRatio||1;
+05202: const w=Math.max(320,rect.width||700),h=260;
+05203: canvas.width=w*dpr;canvas.height=h*dpr;canvas.style.height=h+"px";
+05204: const ctx=canvas.getContext("2d");ctx.setTransform(dpr,0,0,dpr,0,0);
+05205: ctx.clearRect(0,0,w,h);
+05206: const left=45,right=20,top=20,bottom=58,plotW=w-left-right,plotH=h-top-bottom;
+05207: ctx.strokeStyle="#dfe3e8";ctx.fillStyle="#5d6673";ctx.font="12px Arial";
+05208: const max=Math.max(...rows.map(r=>r[1].qty),1);
+05209: for(let i=0;i<=4;i++){let y=top+plotH-(plotH*i/4);ctx.beginPath();ctx.moveTo(left,y);ctx.lineTo(w-right,y);ctx.stroke();let val=Math.round(max*i/4);ctx.fillText(val.toLocaleString("pt-BR"),5,y+4)}
+05210: if(!rows.length){ctx.fillText("Nenhuma entrega prevista para a semana.",left,top+30);return}
+05211: const gap=Math.max(8,Math.min(22,plotW/(rows.length*5)));
+05212: const barW=Math.max(18,(plotW-gap*(rows.length-1))/rows.length);
+05213: rows.forEach((r,i)=>{
+05214: let x=left+i*(barW+gap), bh=(r[1].qty/max)*plotH,y=top+plotH-bh;
+05215: ctx.fillStyle="#17213b";ctx.fillRect(x,y,barW,bh);
+05216: ctx.fillStyle="#202631";ctx.textAlign="center";
+05217: ctx.fillText(r[1].qty.toLocaleString("pt-BR"),x+barW/2,Math.max(12,y-5));
+05218: let label=r[0].length>14?r[0].slice(0,14)+"…":r[0];
+05219: ctx.save();ctx.translate(x+barW/2,h-12);ctx.rotate(-Math.PI/7);ctx.fillText(label,0,0);ctx.restore();
+05220: });
+05221: ctx.textAlign="left";
+05222: }
+05223: window.addEventListener("resize",()=>{if(document.getElementById("projecao")?.classList.contains("active"))renderProjection()});
+05224: function renderDash(){
+05225:  // v89.40 — painel inicial resistente a falhas de módulos auxiliares.
+05226:  // Um erro em orçamento/sincronização não pode deixar toda a Visão Geral em branco.
+05227:  db.orders=Array.isArray(db.orders)?db.orders:[];
+05228:  db.production=Array.isArray(db.production)?db.production:[];
+05229:  db.finance=Array.isArray(db.finance)?db.finance:[];
+05230:  let rows=[];
+05231:  try{
+05232:    rows=typeof productionHubRows==="function"?productionHubRows():[];
+05233:    if(!Array.isArray(rows))rows=[];
+05234:  }catch(e){
+05235:    console.error("HLGB: falha ao montar produção do painel",e);
+05236:    // Fallback direto dos registros de produção, para o painel nunca ficar vazio por erro de sincronização.
+05237:    let validOrders=db.orders.filter(o=>!o.deletedAt&&!o.cancelledAt);
+05238:    (db.production||[]).forEach(p=>{
+05239:      let o=validOrders.find(x=>+x.id===+p.orderId);if(!o)return;
+05240:      let st=String(p.stage||p.status||"").toLowerCase();
+05241:      if(p.deletedAt||p.finishedAt||st==="pronto"||st.includes("cancel"))return;
+05242:      let planned=+p.planned||qtyOfOrder(o)||0,done=+p.done||0,qty=Math.max(0,planned-done);
+05243:      let totalQty=qtyOfOrder(o)||planned||1,orderValue=+o.total||+o.value||0;
+05244:      let location="Sem local definido";
+05245:      try{location=productionDestinationName(p)||location}catch(_e){}
+05246:      let forecast=p.factionDueDate||p.forecast||p.deliveryForecast||o.date||o.deliveryDate||o.delivery||"";
+05247:      rows.push({id:o.id,number:p.op||displayOrderNumber(o)||o.id,client:o.client||p.client||"-",products:orderProductSummary(o),qty:qty,value:orderValue*(qty/totalQty),location:location,forecast:forecast,stage:p.stage||p.status||"Em produção",order:o});
+05248:    });
+05249:  }
+05250:  let pieces=rows.reduce((a,r)=>a+(+r.qty||0),0);
+05251:  let value=rows.reduce((a,r)=>a+(+r.value||0),0);
+05252:  let noForecast=rows.filter(r=>!r.forecast||r.forecast==="-");
+05253:  let noForecastPieces=noForecast.reduce((a,r)=>a+(+r.qty||0),0);
+05254:  let noForecastValue=noForecast.reduce((a,r)=>a+(+r.value||0),0);
+05255:  let validOrderIds=new Set(db.orders.filter(o=>!o.deletedAt&&!o.cancelledAt).map(o=>+o.id));
+05256:  let rec=0;
+05257:  try{rec=db.finance.filter(f=>f.type==="Receber"&&f.status!=="Pago"&&(f.orderId==null||validOrderIds.has(+f.orderId))).reduce((a,f)=>a+(f.remaining!=null?+f.remaining:(+f.value||0)),0)}catch(e){console.error("HLGB: contas a receber no painel",e)}
+05258:  let budget={carryOut:0,limit:0};
+05259:  try{if(typeof budgetCarryForWeek==="function")budget=budgetCarryForWeek(isoDate(new Date()))||budget}catch(e){console.error("HLGB: orçamento semanal no painel",e)}
+05260: 
+05261:  let cards=document.getElementById("dashCards");
+05262:  if(cards)cards.innerHTML=`
+05263:    <div class="card"><small>Pedidos em produção</small><strong>${rows.length}</strong></div>
+05264:    <div class="card"><small>Peças em produção</small><strong>${pieces.toLocaleString("pt-BR")}</strong></div>
+05265:    <div class="card"><small>Valor em produção</small><strong>${money(value)}</strong></div>
+05266:    <div class="card"><small>Sem previsão</small><strong>${noForecastPieces.toLocaleString("pt-BR")} peças</strong><div class="sub">${money(noForecastValue)}</div></div>
+05267:    <div class="card"><small>A receber</small><strong>${money(rec)}</strong></div>
+05268:    <div class="card"><small>Disponível para compras</small>${(+budget.limit||0)>0?(typeof budgetValueHTML==="function"?budgetValueHTML(+budget.carryOut||0,"saldo positivo","saldo negativo"):`<strong>${money(+budget.carryOut||0)}</strong>`):'<strong>Não definido</strong>'}</div>`;
+05269: 
+05270:  let prod=document.getElementById("dashProd");
+05271:  if(prod){
+05272:    let groups={};
+05273:    rows.forEach(r=>{let n=r.location||"Sem local definido",g=groups[n]||(groups[n]={orders:0,pieces:0,value:0});g.orders++;g.pieces+=+r.qty||0;g.value+=+r.value||0});
+05274:    let arr=Object.entries(groups).sort((a,b)=>b[1].pieces-a[1].pieces);
+05275:    prod.innerHTML=arr.length?table(["Local","Pedidos","Peças","Valor"],arr.map(([n,g])=>[esc(n),g.orders,g.pieces.toLocaleString("pt-BR"),money(g.value)])):'<div class="empty">Nenhuma produção em andamento.</div>';
+05276:  }
+05277: 
+05278:  let orders=document.getElementById("dashOrders");
+05279:  if(orders){
+05280:    let upcoming=rows.filter(r=>r.forecast&&r.forecast!=="-").slice().sort((a,b)=>String(a.forecast).localeCompare(String(b.forecast))).slice(0,8);
+05281:    orders.innerHTML=upcoming.length?table(["Pedido / OP","Cliente","Produto","Peças","Valor","Local","Previsão"],upcoming.map(r=>[
+05282:      esc(String(r.number)),esc(r.client),esc(r.products),Number(r.qty||0).toLocaleString("pt-BR"),money(r.value),esc(r.location||"Sem local definido"),fmtDate(r.forecast)
+05283:    ])):'<div class="empty">Nenhum pedido com previsão de entrega cadastrada.</div>';
+05284:  }
+05285: }
+05286: function table(head,rows){if(!rows.length)return '<div class="empty">Nenhum registro.</div>';return `<table><tr>${head.map(h=>"<th>"+h+"</th>").join("")}</tr>${rows.map(r=>"<tr>"+r.map(c=>"<td>"+c+"</td>").join("")+"</tr>").join("")}</table>`}
+05287: 
+05288: function missingProductUnitCost(productId){
+05289:  let p=(db.products||[]).find(x=>+x.id===+productId);
+05290:  if(!p)return 0;
+05291:  let mat=(p.materials||[]).reduce((s,m)=>s+materialCostPerPiece(m),0);
+05292:  return mat+(+p.labor||0);
+05293: }
+05294: function missingProductUnitPrice(order,productId){
+05295:  let c=(db.clients||[]).find(x=>+x.id===+order.clientId || x.name===order.client);
+05296:  return suggestedPrice(c?.id||order.clientId,productId)||0;
+05297: }
+05298: function registerMissingPieces(orderId){
+05299:  let o=(db.orders||[]).find(x=>+x.id===+orderId);if(!o)return;
+05300:  let grade=Array.isArray(o.grade)?o.grade:[];
+05301:  if(!grade.length){alert("Este pedido não possui grade salva.");return}
+05302:  let rows=grade.map((it,i)=>{
+05303:    let p=(db.products||[]).find(x=>+x.id===+it.productId);
+05304:    return `<tr>
+05305:      <td>${esc(p?.name||"-")}</td>
+05306:      <td>${esc(it.color||"-")}</td>
+05307:      <td>${esc(it.size||"-")}</td>
+05308:      <td>${(+it.qty||0).toLocaleString("pt-BR")}</td>
+05309:      <td><input class="missingQtyInput" data-i="${i}" type="number" min="0" max="${+it.qty||0}" step="1" value="0" style="width:90px"></td>
+05310:    </tr>`;
+05311:  }).join("");
+05312:  openModal("Registrar peças faltantes",`
+05313:    <div class="grid">
+05314:      <div class="field"><label>Pedido</label><input value="#${o.id}" disabled></div>
+05315:      <div class="field"><label>Cliente</label><input value="${esc(o.client||"")}" disabled></div>
+05316:      <div class="field"><label>Previsão de entrega</label><input value="${o.date?fmtDate(o.date):"-"}" disabled></div>
+05317:      <div class="field"><label>Data da ocorrência</label><input id="missingDate" type="date" value="${isoDate(new Date())}"></div>
+05318:    </div>
+05319:    <div class="sub">Digite somente a quantidade que realmente ficou faltando em cada item.</div>
+05320:    <div style="overflow:auto"><table><thead><tr><th>Produto</th><th>Cor</th><th>Tamanho</th><th>Qtd. pedido</th><th>Qtd. faltante</th></tr></thead><tbody>${rows}</tbody></table></div>
+05321:    <div class="field"><label>Observação</label><textarea id="missingNote" placeholder="Ex.: faltou renda, peça com defeito, produção atrasou..."></textarea></div>
+05322:    <button type="button" class="primary modalSave" onclick="modalSave()">💾 Salvar peças faltantes</button>
+05323:  `,()=>{
+05324:    db.missingPieces=Array.isArray(db.missingPieces)?db.missingPieces:[];
+05325:    let date=document.getElementById("missingDate")?.value||isoDate(new Date());
+05326:    let note=document.getElementById("missingNote")?.value||"";
+05327:    let created=0;
+05328:    document.querySelectorAll(".missingQtyInput").forEach(inp=>{
+05329:      let q=+inp.value||0;if(q<=0)return;
+05330:      let it=grade[+inp.dataset.i],p=(db.products||[]).find(x=>+x.id===+it.productId);
+05331:      let unitPrice=missingProductUnitPrice(o,it.productId);
+05332:      let unitCost=missingProductUnitCost(it.productId);
+05333:      db.missingPieces.push({
+05334:        id:Date.now()+created,orderId:o.id,client:o.client,clientId:o.clientId||null,
+05335:        productId:+it.productId,product:p?.name||"",color:it.color||"",size:it.size||"",
+05336:        issueType:"Peça faltante",sourceType:"Pedido",
+05337:        originalQty:q,remainingQty:q,recoveredQty:0,date,deliveryDate:o.date||"",
+05338:        unitPrice,unitCost,note,status:"Em aberto",history:[]
+
+=== projectionDeliveredRows @ line 12793 ===
+12713:     return set;
+12714:   }
+12715:   function restoreFromSafetyBackup(){
+12716:     let old=null;try{old=JSON.parse(localStorage.getItem(V9123_BACKUP_KEY)||"null")}catch(e){}
+12717:     if(!old||!Array.isArray(old.projectionInvoices)||!old.projectionInvoices.length)return false;
+12718:     db.projectionInvoices=Array.isArray(db.projectionInvoices)?db.projectionInvoices:[];
+12719:     let existing=new Set(db.projectionInvoices.map(x=>invoiceId(x.id))),refs=referencedInvoiceIds(),changed=false;
+12720:     old.projectionInvoices.forEach(inv=>{
+12721:       let id=invoiceId(inv?.id);if(!id||existing.has(id)||!refs.has(id))return;
+12722:       db.projectionInvoices.push(clone(inv));existing.add(id);changed=true;
+12723:     });
+12724:     return changed;
+12725:   }
+12726:   function recoverMissingInvoicesFromOrders(){
+12727:     db.projectionInvoices=Array.isArray(db.projectionInvoices)?db.projectionInvoices:[];
+12728:     let existing=new Map(db.projectionInvoices.map(x=>[invoiceId(x.id),x])),groups=new Map();
+12729:     (db.orders||[]).forEach(o=>{
+12730:       let baseRows=_v9123BaseProjectionItemsForOrder(o)||[],byKey=new Map(baseRows.map(x=>[String(x.key),x]));
+12731:       Object.entries(o?.projectionItems||{}).forEach(([key,saved])=>{
+12732:         let row=byKey.get(String(key));if(!row)return;
+12733:         let ids=Array.isArray(saved?.invoiceIds)?saved.invoiceIds.map(invoiceId).filter(Boolean):[];
+12734:         let history=Array.isArray(saved?.deliveryHistory)?saved.deliveryHistory:[];
+12735:         let knownQty=0;
+12736:         ids.forEach(id=>{let inv=existing.get(id);if(inv)(inv.items||[]).forEach(it=>{if(itemMatches(o.id,row,inv,it))knownQty+=Math.max(0,+it.qty||0)})});
+12737:         let missing=ids.filter(id=>!existing.has(id));
+12738:         let remainingHistorical=Math.max(0,(+saved?.invoicedQty||0)-knownQty);
+12739:         missing.forEach((id,idx)=>{
+12740:           let hist=history.find(h=>invoiceId(h?.invoiceId)===id);
+12741:           let qty=Math.max(0,+hist?.qty||0);
+12742:           if(!qty&&missing.length===1)qty=remainingHistorical;
+12743:           if(!qty)return;
+12744:           if(!groups.has(id))groups.set(id,[]);
+12745:           let unit=(+row.qty||0)>0?(+row.value||0)/(+row.qty||0):0;
+12746:           groups.get(id).push({order:o,row,qty,unit,date:String(hist?.date||saved?.date||o.date||"").slice(0,10)});
+12747:         });
+12748:       });
+12749:     });
+12750:     let changed=false;
+12751:     groups.forEach((entries,id)=>{
+12752:       if(existing.has(id)||!entries.length)return;
+12753:       let fin=financeForInvoice(id),first=entries[0],issue=String(fin?.issueDate||entries.find(x=>x.date)?.date||isoDate(new Date())).slice(0,10),total=entries.reduce((a,x)=>a+x.qty*x.unit,0);
+12754:       let inv={id:isNaN(+id)?id:+id,client:fin?.clientName||first.order.client||"Cliente",clientId:fin?.clientId||first.order.clientId||null,sourceClient:first.order.client||"",items:entries.map(x=>({orderId:x.order.id,itemKey:x.row.key,productName:x.row.name,productId:x.row.productId||null,projectionDate:x.row.date||x.order.date||"",deliveredAt:issue,qty:x.qty,unitPrice:x.unit,value:x.qty*x.unit})),date:issue,issueDate:issue,dueDate:fin?.dueDate||fin?.date||issue,value:+fin?.value||total,terms:fin?.paymentTerms||"Recuperada",termsDetail:fin?.paymentTermsDetail||"",status:fin?.status||"Pendente",recovered:true};
+12755:       db.projectionInvoices.push(inv);existing.set(id,inv);changed=true;
+12756:     });
+12757:     return changed;
+12758:   }
+12759:   function repairProjectionBalances(){
+12760:     let changed=false;
+12761:     (db.orders||[]).forEach(o=>{
+12762:       let baseRows=_v9123BaseProjectionItemsForOrder(o)||[];
+12763:       o.projectionItems=(o.projectionItems&&typeof o.projectionItems==="object")?o.projectionItems:{};
+12764:       baseRows.forEach(row=>{
+12765:         let links=invoiceLinks(o.id,row);if(!links.length)return;
+12766:         let fromInvoices=Math.min(+row.qty||0,links.reduce((a,x)=>a+x.qty,0));
+12767:         let saved=o.projectionItems[row.key]||{},oldQty=Math.max(0,+saved.invoicedQty||0),newQty=Math.max(oldQty,fromInvoices);
+12768:         let ids=[...new Set([...(Array.isArray(saved.invoiceIds)?saved.invoiceIds:[]),...links.map(x=>x.inv.id)].map(invoiceId))];
+12769:         let hist=Array.isArray(saved.deliveryHistory)?saved.deliveryHistory.slice():[];
+12770:         links.forEach(x=>{let id=invoiceId(x.inv.id);if(!hist.some(h=>invoiceId(h?.invoiceId)===id))hist.push({invoiceId:x.inv.id,date:invoiceDate(x.inv),qty:x.qty})});
+12771:         if(newQty!==oldQty||ids.length!==(Array.isArray(saved.invoiceIds)?saved.invoiceIds.length:0)||hist.length!==(Array.isArray(saved.deliveryHistory)?saved.deliveryHistory.length:0)){
+12772:           o.projectionItems[row.key]={...saved,date:saved.date||row.date||"",invoicedQty:newQty,invoiced:newQty>=(+row.qty||0),invoiceIds:ids,deliveryHistory:hist};changed=true;
+12773:         }
+12774:       });
+12775:       let rows=_v9123BaseProjectionItemsForOrder(o)||[];
+12776:       let allDone=rows.length>0&&rows.every(r=>Math.max(+r.invoicedQty||0,invoiceLinks(o.id,r).reduce((a,x)=>a+x.qty,0))>=(+r.qty||0));
+12777:       if(allDone&&o.projectionInvoiced!==true){o.projectionInvoiced=true;changed=true}
+12778:     });
+12779:     return changed;
+12780:   }
+12781: 
+12782:   // Always derive the visible balance from finalized projection invoices as well as the nested order state.
+12783:   projectionItemsForOrder=function(o){
+12784:     let rows=_v9123BaseProjectionItemsForOrder(o)||[];
+12785:     return rows.map(row=>{
+12786:       let links=invoiceLinks(o?.id,row),fromInvoices=links.reduce((a,x)=>a+x.qty,0),stored=Math.max(0,+row.invoicedQty||0),done=Math.min(+row.qty||0,Math.max(stored,fromInvoices));
+12787:       return {...row,invoicedQty:done,remainingQty:Math.max(0,(+row.qty||0)-done),invoiced:done>=(+row.qty||0),invoiceIds:[...new Set([...(row.invoiceIds||[]),...links.map(x=>x.inv.id)])]};
+12788:     });
+12789:   };
+12790:   window.projectionItemsForOrder=projectionItemsForOrder;
+12791: 
+12792:   // Delivered is compared with the selected projection period. The emission date remains visible in the table.
+12793:   projectionDeliveredRows=function(startS="0000-01-01",endS="9999-12-31"){
+12794:     let out=[];
+12795:     (Array.isArray(db.projectionInvoices)?db.projectionInvoices:[]).forEach(inv=>{
+12796:       let issue=invoiceDate(inv);
+12797:       (Array.isArray(inv?.items)?inv.items:[]).forEach(it=>{
+12798:         let oid=it?.orderId!=null?it.orderId:inv?.orderId,o=(db.orders||[]).find(x=>String(x.id)===String(oid))||null;
+12799:         let row=o?(_v9123BaseProjectionItemsForOrder(o)||[]).find(r=>(it.itemKey!=null&&String(r.key)===String(it.itemKey))||(!it.itemKey&&it.productId&&+r.productId===+it.productId)):null;
+12800:         let periodDate=String(it.projectionDate||row?.date||o?.date||issue||"").slice(0,10);
+12801:         if(!periodDate||periodDate<startS||periodDate>endS)return;
+12802:         out.push({invoice:inv,order:o,item:it,date:issue||periodDate,projectionDate:periodDate,qty:+it.qty||0,value:+it.value||((+it.qty||0)*(+it.unitPrice||0))});
+12803:       });
+12804:     });
+12805:     return out;
+12806:   };
+12807:   window.projectionDeliveredRows=projectionDeliveredRows;
+12808: 
+12809:   function ensureIntegrity(){
+12810:     try{
+12811:       safetyBackup();
+12812:       let changed=restoreFromSafetyBackup();
+12813:       if(recoverMissingInvoicesFromOrders())changed=true;
+12814:       if(repairProjectionBalances())changed=true;
+12815:       if(changed){try{persistDb()}catch(e){console.warn("HLGB v91.23 persistência da reparação",e)}}
+12816:       safetyBackup();
+12817:       return changed;
+12818:     }catch(e){console.error("HLGB v91.23 integridade da projeção",e);return false}
+12819:   }
+12820:   window.hlgb923EnsureProjectionIntegrity=ensureIntegrity;
+12821: 
+12822:   const _v9123RenderProjection=renderProjection;
+12823:   renderProjection=function(){ensureIntegrity();return _v9123RenderProjection.apply(this,arguments)};
+12824:   window.renderProjection=renderProjection;
+12825:   setTimeout(()=>{try{ensureIntegrity()}catch(e){}},700);
+12826: })();
+12827: </script>
+12828: <!-- HLGB v91.25 PEDIDO AVULSO PICKER -->
+12829: <script>
+12830: (function(){
+12831:   function esc925(v){return String(v??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;')}
+12832:   function products925(){return (db.products||[]).slice().sort((a,b)=>String(a.name||'').localeCompare(String(b.name||''),'pt-BR',{sensitivity:'base'}))}
+12833:   function cats925(){return [...new Set(products925().map(p=>String(p.category||'').trim()).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'pt-BR'))}
+12834:   function selectedProduct925(line){return (db.products||[]).find(p=>+p.id===+(line?.productId||0))||null}
+12835:   function unit925(line){
+12836:     if(line?.price!=null)return +line.price||0;
+12837:     let pid=+line?.productId||0,clientId=+document.getElementById('mclient')?.value||0,u=0;
+12838:     if(pid&&clientId){try{u=+suggestedPrice(clientId,pid)||0}catch(e){}}
+12839:     if(!u)u=+(db.products||[]).find(p=>+p.id===pid)?.price||0;
+12840:     return u;
+12841:   }
+12842:   window.hlgb925FilterAdHocProducts=function(source){
+12843:     let row=source?.closest?.('.adHocLine');if(!row)return;
+12844:     let q=(row.querySelector('.adHocProductSearch')?.value||'').trim().toLowerCase();
+12845:     let cat=row.querySelector('.adHocProductCat')?.value||'';
+12846:     let minRaw=row.querySelector('.adHocProductMin')?.value||'',maxRaw=row.querySelector('.adHocProductMax')?.value||'';
+12847:     let min=minRaw!==''?+minRaw:null,max=maxRaw!==''?+maxRaw:null;
+12848:     let matches=products925().filter(p=>{
+12849:       let hay=`${p.name||''} ${p.code||''} ${p.category||''}`.toLowerCase();
+12850:       if(q&&!hay.includes(q))return false;
+12851:       if(cat&&String(p.category||'')!==cat)return false;
+12852:       let price=+p.price||0;
+12853:       if(min!=null&&price<min)return false;
+12854:       if(max!=null&&price>max)return false;
+12855:       return true;
+12856:     }).slice(0,80);
+12857:     let box=row.querySelector('.adHocProductResults'),count=row.querySelector('.adHocProductCount');
+12858:     if(count)count.textContent=`${matches.length} produto(s) encontrado(s)${matches.length===80?' — refine a busca para ver mais':''}`;
+12859:     if(!box)return;
+12860:     box.innerHTML=matches.length?matches.map(p=>`<button type="button" class="secondary" style="display:flex;justify-content:space-between;gap:8px;text-align:left;padding:8px 10px" onclick="hlgb925SelectAdHocProduct(this,${+p.id})"><span><strong>${esc925(p.name||'Produto')}</strong><small style="display:block;color:var(--muted)">${esc925(p.code||'Sem referência')} · ${esc925(p.category||'Sem categoria')}</small></span><strong style="white-space:nowrap">${typeof money==='function'?money(+p.price||0):(+p.price||0).toFixed(2)}</strong></button>`).join(''):'<div class="empty" style="padding:12px">Nenhum produto encontrado.</div>';
+12861:     box.style.display='grid';
+12862:   };
+12863:   window.hlgb925SelectAdHocProduct=function(btn,id){
+12864:     let row=btn?.closest?.('.adHocLine');if(!row)return;
+12865:     let sel=row.querySelector('.adHocProduct');if(sel)sel.value=String(id);
+12866:     let p=(db.products||[]).find(x=>+x.id===+id),label=row.querySelector('.adHocSelectedProduct');
+12867:     if(label)label.innerHTML=p?`<strong>${esc925(p.name)}</strong> <span class="sub">· ${esc925(p.code||'Sem referência')} · ${esc925(p.category||'Sem categoria')}</span>`:'<strong>Selecione um produto</strong>';
+12868:     let box=row.querySelector('.adHocProductResults');if(box){box.innerHTML='';box.style.display='none'}
+12869:     let search=row.querySelector('.adHocProductSearch');if(search)search.value='';
+12870:     let count=row.querySelector('.adHocProductCount');if(count)count.textContent='Produto selecionado. Digite para trocar.';
+12871:     if(typeof hlgb922AdHocProductChanged==='function'&&sel)hlgb922AdHocProductChanged(sel);
+12872:   };
+12873:   window.hlgb925ClearAdHocProductFilter=function(btn){
+12874:     let row=btn?.closest?.('.adHocLine');if(!row)return;
+12875:     ['.adHocProductSearch','.adHocProductMin','.adHocProductMax'].forEach(s=>{let el=row.querySelector(s);if(el)el.value='' });
+12876:     let cat=row.querySelector('.adHocProductCat');if(cat)cat.value='';
+12877:     hlgb925FilterAdHocProducts(row.querySelector('.adHocProductSearch')||row);
+12878:   };
+12879: 
+12880:   window.hlgb922AdHocLine=function(line={}){
+12881:     let selected=selectedProduct925(line),unit=unit925(line);
+12882:     let options=products925().map(p=>`<option value="${+p.id}" ${+p.id===+line.productId?'selected':''}>${esc925(p.code?`${p.code} — ${p.name}`:p.name)}</option>`).join('');
+12883:     return `<div class="adHocLine" style="display:grid;grid-template-columns:minmax(360px,1.8fr) 120px 145px 95px;gap:10px;align-items:end;margin:8px 0;padding:12px;border:1px solid var(--line);border-radius:12px;background:#fff">
+12884:       <div>
+12885:         <div class="selectedOrderProduct adHocSelectedProduct" style="padding:9px 11px;border:1px solid #eadde4;border-radius:10px;background:#fff8fb;margin-bottom:8px">${selected?`<strong>${esc925(selected.name)}</strong> <span class="sub">· ${esc925(selected.code||'Sem referência')} · ${esc925(selected.category||'Sem categoria')}</span>`:'<strong>Selecione um produto</strong>'}</div>
+12886:         <select class="adHocProduct" style="display:none" onchange="hlgb922AdHocProductChanged(this)"><option value="">Selecione</option>${options}</select>
+12887:         <div class="grid" style="grid-template-columns:1.7fr 1fr .7fr .7fr;gap:7px">
+12888:           <div class="field"><label>Buscar produto</label><input class="adHocProductSearch" placeholder="Digite nome ou referência..." onfocus="hlgb925FilterAdHocProducts(this)" oninput="hlgb925FilterAdHocProducts(this)"></div>
+12889:           <div class="field"><label>Categoria</label><select class="adHocProductCat" onchange="hlgb925FilterAdHocProducts(this)"><option value="">Todas</option>${cats925().map(c=>`<option>${esc925(c)}</option>`).join('')}</select></div>
+12890:           <div class="field"><label>Preço mín.</label><input class="adHocProductMin" type="number" step=".01" min="0" placeholder="0,00" oninput="hlgb925FilterAdHocProducts(this)"></div>
+12891:           <div class="field"><label>Preço máx.</label><input class="adHocProductMax" type="number" step=".01" min="0" placeholder="Sem limite" oninput="hlgb925FilterAdHocProducts(this)"></div>
+12892:         </div>
+12893:         <div style="display:flex;justify-content:space-between;gap:8px;align-items:center;margin:5px 0 7px;flex-wrap:wrap"><span class="sub adHocProductCount">Clique na busca para ver os produtos em ordem alfabética.</span><button type="button" class="secondary" style="padding:6px 9px" onclick="hlgb925ClearAdHocProductFilter(this)">Limpar filtros</button></div>
+12894:         <div class="adHocProductResults" style="display:none;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:6px;max-height:220px;overflow:auto;border:1px solid #eee;border-radius:10px;padding:6px;background:#fafafa"></div>
+12895:       </div>
+12896:       <div class="field"><label>Quantidade</label><input class="adHocQty" type="number" min="1" step="1" value="${+line.qty||0}" oninput="hlgb922RecalcAdHoc()"></div>
+12897:       <div class="field"><label>Valor por peça</label><input class="adHocPrice" type="number" min="0" step=".01" value="${unit.toFixed(2)}" readonly></div>
+12898:       <button type="button" class="danger" onclick="this.closest('.adHocLine').remove();hlgb922RecalcAdHoc()">Excluir</button>
+12899:     </div>`;
+12900:   };
+12901: })();
+12902: </script>
+12903: 
+12904: <!-- HLGB v91.26 DATA INTEGRITY GUARD -->
+12905: <script>
+12906: (function(){
+12907:   const previousDel=window.del;
+12908:   window.del=async function(type,id){
+12909:     const isRecordMode=Array.isArray(window.HLGB_RECORD_MODULES||HLGB_RECORD_MODULES) && (window.HLGB_RECORD_MODULES||HLGB_RECORD_MODULES).includes(type);
+12910:     if(!isRecordMode)return previousDel(type,id);
+12911:     if(!confirm("Excluir este registro?"))return;
+12912:     if(!Array.isArray(db[type]))return;
+12913:     const removed=db[type].find(x=>String(x.id)===String(id));
+12914:     if(!removed){alert("Não consegui localizar esse registro para excluir. Atualize a tela e tente novamente.");return}
+12915:     try{
+12916:       if(!hlgbRecordReady){const ok=await hlgbEnsureRecordsOnlineAfterLogin();if(!ok)throw new Error("A nuvem não está pronta para confirmar a exclusão.")}
+12917:       const rid=typeof hlgbRecordId==='function'?hlgbRecordId(type,removed):String(id);
+12918:       const payload={...hlgbRecordClone(removed),__hlgb_explicit_delete:true};
+12919:       const confirmed=await hlgbRecordSaveWithRetry(type,rid,payload,true);
+12920:       if(!confirmed||confirmed.applied!==true)throw new Error("A nuvem não confirmou a exclusão.");
+12921:       db[type]=db[type].filter(x=>String(x.id)!==String(id));
+12922:       localSaveOnly();
+12923:       try{auditAction("Excluiu registro",`${type} — ${id}`)}catch(e){}
+12924:       if(type==='products'){
+12925:         if(typeof renderProducts==='function')renderProducts();
+12926:         if(typeof renderDash==='function')renderDash();
+12927:       }else if(type==='finance'){
+12928:         if(typeof renderFinance==='function')renderFinance();
+12929:         if(typeof renderDash==='function')renderDash();
+12930:       }else if(type==='purchases'){
+12931:         if(typeof renderPurchases==='function')renderPurchases();
+12932:         if(typeof renderFinance==='function')renderFinance();
+12933:       }else if(typeof renderAll==='function')renderAll();
+12934:     }catch(err){
+12935:       console.error('HLGB v91.26 explicit delete failed',err);
+12936:       if(!db[type].some(x=>String(x.id)===String(id)))db[type].push(removed);
+12937:       try{localSaveOnly()}catch(e){}
+12938:       try{if(typeof renderAll==='function')renderAll()}catch(e){}
+12939:       alert("A exclusão NÃO foi confirmada na nuvem. O registro foi mantido para evitar perda de dados.");
+12940:     }
+12941:   };
+12942: })();
+12943: </script>
+12944: 
+12945: 
+12946: <!-- HLGB v91.27 CORTE POR MODELO + FACCAO -->
+12947: <script>
+12948: (function(){
+12949:   const n927=v=>String(v??'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').trim().toLowerCase();
+12950:   const clone927=v=>{try{return JSON.parse(JSON.stringify(v))}catch(e){return v}};
+12951:   let saving927=false;
+12952: 
+12953:   function product927(id){return (db.products||[]).find(x=>+x.id===+id)||null}
+12954:   function order927(id){return (db.orders||[]).find(x=>+x.id===+id)||null}
+12955:   function groups927(o){
+12956:     let map=new Map(),seq=0;
+12957:     (Array.isArray(o?.grade)?o.grade:[]).forEach(g=>{
+12958:       let pid=+g?.productId||0,qty=Math.max(0,+g?.qty||0);if(!pid||!qty)return;
+12959:       if(!map.has(pid))map.set(pid,{productId:pid,qty:0,seq:seq++});
+12960:       map.get(pid).qty+=qty;
+12961:     });
+12962:     if(!map.size&&+o?.productId){map.set(+o.productId,{productId:+o.productId,qty:Math.max(0,+o.qty||+o.totalQty||0),seq:0})}
+12963:     return [...map.values()].filter(x=>x.qty>0).sort((a,b)=>a.seq-b.seq).map(g=>({...g,product:product927(g.productId)}));
+12964:   }
+12965: 
+12966:   function knownService927(label){
+12967:     let want=n927(label);return (db.serviceTypes||[]).map(x=>String(x.name||'').trim()).find(x=>n927(x)===want)||'';
+12968:   }
+12969:   // O tipo de serviço passa a ser identificado pelo MODELO atual, nunca pelo texto do pedido inteiro.
+12970:   window.hlgb916ServiceNameForProduction=function(p){
+12971:     let pr=product927(p?.productId),name=n927(pr?.name||p?.product||''),cat=n927(pr?.category||'');
+12972:     let pick=x=>knownService927(x)||x;
+12973:     if(name.includes('body'))return pick('Body Feminino');
+12974:     if(name.includes('baby doll')||name.includes('babydoll')||name.includes('short doll'))return pick('Baby Doll');
+12975:     if(name.includes('camisola'))return pick('Camisola');
+12976:     if(name.includes('robe'))return pick('Robe');
+12977:     if(name.includes('cueca fem')||name.includes('calcinha')||name.startsWith('fio ')||name.includes(' fio ')||name.includes('tanga')||name.includes('calcola')||name.includes('calçola'))return pick('Calcinha');
+12978:     if(name.includes('cueca'))return knownService927('Cueca')||knownService927('Calcinha')||'Cueca';
+12979:     if(name.includes('conjunto')){
+12980:       if(name.includes('sem bojo'))return pick('Conjunto sem Bojo');
+12981:       if(name.includes('com bojo'))return pick('Conjunto com bojo');
+12982:     }
+12983:     let exact=(db.serviceTypes||[]).map(x=>String(x.name||'').trim()).find(x=>n927(x)===cat);if(exact)return exact;
+12984:     let byName=(db.serviceTypes||[]).map(x=>String(x.name||'').trim()).find(x=>name.includes(n927(x)));if(byName)return byName;
+12985:     return String(pr?.category||'').trim();
+12986:   };
+12987: 
+12988:   async function saveChanged927(rows){
+12989:     if(!rows.length||saving927)return;
+12990:     saving927=true;
+12991:     try{
+12992:       try{localSaveOnly()}catch(e){}
+12993:       if(typeof hlgbRecordSaveWithRetry==='function'&&typeof hlgbRecordId==='function'&&hlgbRecordReady&&cloudAccessToken){
+12994:         for(const row of rows){
+12995:           let id=hlgbRecordId('production',row);if(id)await hlgbRecordSaveWithRetry('production',id,row,false);
+12996:         }
+12997:         try{hlgbRecordPendingStore()}catch(e){}
+12998:         try{localSaveOnly()}catch(e){}
+12999:       }else{
+13000:         try{hlgbRecordPendingStore()}catch(e){}
+13001:       }
+13002:     }catch(e){
+13003:       console.warn('HLGB v91.27 salvar divisão por modelo',e);
+13004:       try{hlgbRecordPendingStore()}catch(x){}
+13005:     }finally{saving927=false}
+13006:   }
+13007: 
+13008:   function baseProduction927(c,o,g,id){
+13009:     let pr=g?.product||product927(g?.productId),qty=Math.max(0,+g?.qty||+c?.pieces||+o?.qty||0);
+13010:     return {
+13011:       id,
+13012:       cutId:c.id,orderId:c.orderId||o?.id||null,productId:g?.productId||c.productId||o?.productId||null,
+
+=== projectionDeliveredRows @ line 12807 ===
+12727:     db.projectionInvoices=Array.isArray(db.projectionInvoices)?db.projectionInvoices:[];
+12728:     let existing=new Map(db.projectionInvoices.map(x=>[invoiceId(x.id),x])),groups=new Map();
+12729:     (db.orders||[]).forEach(o=>{
+12730:       let baseRows=_v9123BaseProjectionItemsForOrder(o)||[],byKey=new Map(baseRows.map(x=>[String(x.key),x]));
+12731:       Object.entries(o?.projectionItems||{}).forEach(([key,saved])=>{
+12732:         let row=byKey.get(String(key));if(!row)return;
+12733:         let ids=Array.isArray(saved?.invoiceIds)?saved.invoiceIds.map(invoiceId).filter(Boolean):[];
+12734:         let history=Array.isArray(saved?.deliveryHistory)?saved.deliveryHistory:[];
+12735:         let knownQty=0;
+12736:         ids.forEach(id=>{let inv=existing.get(id);if(inv)(inv.items||[]).forEach(it=>{if(itemMatches(o.id,row,inv,it))knownQty+=Math.max(0,+it.qty||0)})});
+12737:         let missing=ids.filter(id=>!existing.has(id));
+12738:         let remainingHistorical=Math.max(0,(+saved?.invoicedQty||0)-knownQty);
+12739:         missing.forEach((id,idx)=>{
+12740:           let hist=history.find(h=>invoiceId(h?.invoiceId)===id);
+12741:           let qty=Math.max(0,+hist?.qty||0);
+12742:           if(!qty&&missing.length===1)qty=remainingHistorical;
+12743:           if(!qty)return;
+12744:           if(!groups.has(id))groups.set(id,[]);
+12745:           let unit=(+row.qty||0)>0?(+row.value||0)/(+row.qty||0):0;
+12746:           groups.get(id).push({order:o,row,qty,unit,date:String(hist?.date||saved?.date||o.date||"").slice(0,10)});
+12747:         });
+12748:       });
+12749:     });
+12750:     let changed=false;
+12751:     groups.forEach((entries,id)=>{
+12752:       if(existing.has(id)||!entries.length)return;
+12753:       let fin=financeForInvoice(id),first=entries[0],issue=String(fin?.issueDate||entries.find(x=>x.date)?.date||isoDate(new Date())).slice(0,10),total=entries.reduce((a,x)=>a+x.qty*x.unit,0);
+12754:       let inv={id:isNaN(+id)?id:+id,client:fin?.clientName||first.order.client||"Cliente",clientId:fin?.clientId||first.order.clientId||null,sourceClient:first.order.client||"",items:entries.map(x=>({orderId:x.order.id,itemKey:x.row.key,productName:x.row.name,productId:x.row.productId||null,projectionDate:x.row.date||x.order.date||"",deliveredAt:issue,qty:x.qty,unitPrice:x.unit,value:x.qty*x.unit})),date:issue,issueDate:issue,dueDate:fin?.dueDate||fin?.date||issue,value:+fin?.value||total,terms:fin?.paymentTerms||"Recuperada",termsDetail:fin?.paymentTermsDetail||"",status:fin?.status||"Pendente",recovered:true};
+12755:       db.projectionInvoices.push(inv);existing.set(id,inv);changed=true;
+12756:     });
+12757:     return changed;
+12758:   }
+12759:   function repairProjectionBalances(){
+12760:     let changed=false;
+12761:     (db.orders||[]).forEach(o=>{
+12762:       let baseRows=_v9123BaseProjectionItemsForOrder(o)||[];
+12763:       o.projectionItems=(o.projectionItems&&typeof o.projectionItems==="object")?o.projectionItems:{};
+12764:       baseRows.forEach(row=>{
+12765:         let links=invoiceLinks(o.id,row);if(!links.length)return;
+12766:         let fromInvoices=Math.min(+row.qty||0,links.reduce((a,x)=>a+x.qty,0));
+12767:         let saved=o.projectionItems[row.key]||{},oldQty=Math.max(0,+saved.invoicedQty||0),newQty=Math.max(oldQty,fromInvoices);
+12768:         let ids=[...new Set([...(Array.isArray(saved.invoiceIds)?saved.invoiceIds:[]),...links.map(x=>x.inv.id)].map(invoiceId))];
+12769:         let hist=Array.isArray(saved.deliveryHistory)?saved.deliveryHistory.slice():[];
+12770:         links.forEach(x=>{let id=invoiceId(x.inv.id);if(!hist.some(h=>invoiceId(h?.invoiceId)===id))hist.push({invoiceId:x.inv.id,date:invoiceDate(x.inv),qty:x.qty})});
+12771:         if(newQty!==oldQty||ids.length!==(Array.isArray(saved.invoiceIds)?saved.invoiceIds.length:0)||hist.length!==(Array.isArray(saved.deliveryHistory)?saved.deliveryHistory.length:0)){
+12772:           o.projectionItems[row.key]={...saved,date:saved.date||row.date||"",invoicedQty:newQty,invoiced:newQty>=(+row.qty||0),invoiceIds:ids,deliveryHistory:hist};changed=true;
+12773:         }
+12774:       });
+12775:       let rows=_v9123BaseProjectionItemsForOrder(o)||[];
+12776:       let allDone=rows.length>0&&rows.every(r=>Math.max(+r.invoicedQty||0,invoiceLinks(o.id,r).reduce((a,x)=>a+x.qty,0))>=(+r.qty||0));
+12777:       if(allDone&&o.projectionInvoiced!==true){o.projectionInvoiced=true;changed=true}
+12778:     });
+12779:     return changed;
+12780:   }
+12781: 
+12782:   // Always derive the visible balance from finalized projection invoices as well as the nested order state.
+12783:   projectionItemsForOrder=function(o){
+12784:     let rows=_v9123BaseProjectionItemsForOrder(o)||[];
+12785:     return rows.map(row=>{
+12786:       let links=invoiceLinks(o?.id,row),fromInvoices=links.reduce((a,x)=>a+x.qty,0),stored=Math.max(0,+row.invoicedQty||0),done=Math.min(+row.qty||0,Math.max(stored,fromInvoices));
+12787:       return {...row,invoicedQty:done,remainingQty:Math.max(0,(+row.qty||0)-done),invoiced:done>=(+row.qty||0),invoiceIds:[...new Set([...(row.invoiceIds||[]),...links.map(x=>x.inv.id)])]};
+12788:     });
+12789:   };
+12790:   window.projectionItemsForOrder=projectionItemsForOrder;
+12791: 
+12792:   // Delivered is compared with the selected projection period. The emission date remains visible in the table.
+12793:   projectionDeliveredRows=function(startS="0000-01-01",endS="9999-12-31"){
+12794:     let out=[];
+12795:     (Array.isArray(db.projectionInvoices)?db.projectionInvoices:[]).forEach(inv=>{
+12796:       let issue=invoiceDate(inv);
+12797:       (Array.isArray(inv?.items)?inv.items:[]).forEach(it=>{
+12798:         let oid=it?.orderId!=null?it.orderId:inv?.orderId,o=(db.orders||[]).find(x=>String(x.id)===String(oid))||null;
+12799:         let row=o?(_v9123BaseProjectionItemsForOrder(o)||[]).find(r=>(it.itemKey!=null&&String(r.key)===String(it.itemKey))||(!it.itemKey&&it.productId&&+r.productId===+it.productId)):null;
+12800:         let periodDate=String(it.projectionDate||row?.date||o?.date||issue||"").slice(0,10);
+12801:         if(!periodDate||periodDate<startS||periodDate>endS)return;
+12802:         out.push({invoice:inv,order:o,item:it,date:issue||periodDate,projectionDate:periodDate,qty:+it.qty||0,value:+it.value||((+it.qty||0)*(+it.unitPrice||0))});
+12803:       });
+12804:     });
+12805:     return out;
+12806:   };
+12807:   window.projectionDeliveredRows=projectionDeliveredRows;
+12808: 
+12809:   function ensureIntegrity(){
+12810:     try{
+12811:       safetyBackup();
+12812:       let changed=restoreFromSafetyBackup();
+12813:       if(recoverMissingInvoicesFromOrders())changed=true;
+12814:       if(repairProjectionBalances())changed=true;
+12815:       if(changed){try{persistDb()}catch(e){console.warn("HLGB v91.23 persistência da reparação",e)}}
+12816:       safetyBackup();
+12817:       return changed;
+12818:     }catch(e){console.error("HLGB v91.23 integridade da projeção",e);return false}
+12819:   }
+12820:   window.hlgb923EnsureProjectionIntegrity=ensureIntegrity;
+12821: 
+12822:   const _v9123RenderProjection=renderProjection;
+12823:   renderProjection=function(){ensureIntegrity();return _v9123RenderProjection.apply(this,arguments)};
+12824:   window.renderProjection=renderProjection;
+12825:   setTimeout(()=>{try{ensureIntegrity()}catch(e){}},700);
+12826: })();
+12827: </script>
+12828: <!-- HLGB v91.25 PEDIDO AVULSO PICKER -->
+12829: <script>
+12830: (function(){
+12831:   function esc925(v){return String(v??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;')}
+12832:   function products925(){return (db.products||[]).slice().sort((a,b)=>String(a.name||'').localeCompare(String(b.name||''),'pt-BR',{sensitivity:'base'}))}
+12833:   function cats925(){return [...new Set(products925().map(p=>String(p.category||'').trim()).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'pt-BR'))}
+12834:   function selectedProduct925(line){return (db.products||[]).find(p=>+p.id===+(line?.productId||0))||null}
+12835:   function unit925(line){
+12836:     if(line?.price!=null)return +line.price||0;
+12837:     let pid=+line?.productId||0,clientId=+document.getElementById('mclient')?.value||0,u=0;
+12838:     if(pid&&clientId){try{u=+suggestedPrice(clientId,pid)||0}catch(e){}}
+12839:     if(!u)u=+(db.products||[]).find(p=>+p.id===pid)?.price||0;
+12840:     return u;
+12841:   }
+12842:   window.hlgb925FilterAdHocProducts=function(source){
+12843:     let row=source?.closest?.('.adHocLine');if(!row)return;
+12844:     let q=(row.querySelector('.adHocProductSearch')?.value||'').trim().toLowerCase();
+12845:     let cat=row.querySelector('.adHocProductCat')?.value||'';
+12846:     let minRaw=row.querySelector('.adHocProductMin')?.value||'',maxRaw=row.querySelector('.adHocProductMax')?.value||'';
+12847:     let min=minRaw!==''?+minRaw:null,max=maxRaw!==''?+maxRaw:null;
+12848:     let matches=products925().filter(p=>{
+12849:       let hay=`${p.name||''} ${p.code||''} ${p.category||''}`.toLowerCase();
+12850:       if(q&&!hay.includes(q))return false;
+12851:       if(cat&&String(p.category||'')!==cat)return false;
+12852:       let price=+p.price||0;
+12853:       if(min!=null&&price<min)return false;
+12854:       if(max!=null&&price>max)return false;
+12855:       return true;
+12856:     }).slice(0,80);
+12857:     let box=row.querySelector('.adHocProductResults'),count=row.querySelector('.adHocProductCount');
+12858:     if(count)count.textContent=`${matches.length} produto(s) encontrado(s)${matches.length===80?' — refine a busca para ver mais':''}`;
+12859:     if(!box)return;
+12860:     box.innerHTML=matches.length?matches.map(p=>`<button type="button" class="secondary" style="display:flex;justify-content:space-between;gap:8px;text-align:left;padding:8px 10px" onclick="hlgb925SelectAdHocProduct(this,${+p.id})"><span><strong>${esc925(p.name||'Produto')}</strong><small style="display:block;color:var(--muted)">${esc925(p.code||'Sem referência')} · ${esc925(p.category||'Sem categoria')}</small></span><strong style="white-space:nowrap">${typeof money==='function'?money(+p.price||0):(+p.price||0).toFixed(2)}</strong></button>`).join(''):'<div class="empty" style="padding:12px">Nenhum produto encontrado.</div>';
+12861:     box.style.display='grid';
+12862:   };
+12863:   window.hlgb925SelectAdHocProduct=function(btn,id){
+12864:     let row=btn?.closest?.('.adHocLine');if(!row)return;
+12865:     let sel=row.querySelector('.adHocProduct');if(sel)sel.value=String(id);
+12866:     let p=(db.products||[]).find(x=>+x.id===+id),label=row.querySelector('.adHocSelectedProduct');
+12867:     if(label)label.innerHTML=p?`<strong>${esc925(p.name)}</strong> <span class="sub">· ${esc925(p.code||'Sem referência')} · ${esc925(p.category||'Sem categoria')}</span>`:'<strong>Selecione um produto</strong>';
+12868:     let box=row.querySelector('.adHocProductResults');if(box){box.innerHTML='';box.style.display='none'}
+12869:     let search=row.querySelector('.adHocProductSearch');if(search)search.value='';
+12870:     let count=row.querySelector('.adHocProductCount');if(count)count.textContent='Produto selecionado. Digite para trocar.';
+12871:     if(typeof hlgb922AdHocProductChanged==='function'&&sel)hlgb922AdHocProductChanged(sel);
+12872:   };
+12873:   window.hlgb925ClearAdHocProductFilter=function(btn){
+12874:     let row=btn?.closest?.('.adHocLine');if(!row)return;
+12875:     ['.adHocProductSearch','.adHocProductMin','.adHocProductMax'].forEach(s=>{let el=row.querySelector(s);if(el)el.value='' });
+12876:     let cat=row.querySelector('.adHocProductCat');if(cat)cat.value='';
+12877:     hlgb925FilterAdHocProducts(row.querySelector('.adHocProductSearch')||row);
+12878:   };
+12879: 
+12880:   window.hlgb922AdHocLine=function(line={}){
+12881:     let selected=selectedProduct925(line),unit=unit925(line);
+12882:     let options=products925().map(p=>`<option value="${+p.id}" ${+p.id===+line.productId?'selected':''}>${esc925(p.code?`${p.code} — ${p.name}`:p.name)}</option>`).join('');
+12883:     return `<div class="adHocLine" style="display:grid;grid-template-columns:minmax(360px,1.8fr) 120px 145px 95px;gap:10px;align-items:end;margin:8px 0;padding:12px;border:1px solid var(--line);border-radius:12px;background:#fff">
+12884:       <div>
+12885:         <div class="selectedOrderProduct adHocSelectedProduct" style="padding:9px 11px;border:1px solid #eadde4;border-radius:10px;background:#fff8fb;margin-bottom:8px">${selected?`<strong>${esc925(selected.name)}</strong> <span class="sub">· ${esc925(selected.code||'Sem referência')} · ${esc925(selected.category||'Sem categoria')}</span>`:'<strong>Selecione um produto</strong>'}</div>
+12886:         <select class="adHocProduct" style="display:none" onchange="hlgb922AdHocProductChanged(this)"><option value="">Selecione</option>${options}</select>
+12887:         <div class="grid" style="grid-template-columns:1.7fr 1fr .7fr .7fr;gap:7px">
+12888:           <div class="field"><label>Buscar produto</label><input class="adHocProductSearch" placeholder="Digite nome ou referência..." onfocus="hlgb925FilterAdHocProducts(this)" oninput="hlgb925FilterAdHocProducts(this)"></div>
+12889:           <div class="field"><label>Categoria</label><select class="adHocProductCat" onchange="hlgb925FilterAdHocProducts(this)"><option value="">Todas</option>${cats925().map(c=>`<option>${esc925(c)}</option>`).join('')}</select></div>
+12890:           <div class="field"><label>Preço mín.</label><input class="adHocProductMin" type="number" step=".01" min="0" placeholder="0,00" oninput="hlgb925FilterAdHocProducts(this)"></div>
+12891:           <div class="field"><label>Preço máx.</label><input class="adHocProductMax" type="number" step=".01" min="0" placeholder="Sem limite" oninput="hlgb925FilterAdHocProducts(this)"></div>
+12892:         </div>
+12893:         <div style="display:flex;justify-content:space-between;gap:8px;align-items:center;margin:5px 0 7px;flex-wrap:wrap"><span class="sub adHocProductCount">Clique na busca para ver os produtos em ordem alfabética.</span><button type="button" class="secondary" style="padding:6px 9px" onclick="hlgb925ClearAdHocProductFilter(this)">Limpar filtros</button></div>
+12894:         <div class="adHocProductResults" style="display:none;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:6px;max-height:220px;overflow:auto;border:1px solid #eee;border-radius:10px;padding:6px;background:#fafafa"></div>
+12895:       </div>
+12896:       <div class="field"><label>Quantidade</label><input class="adHocQty" type="number" min="1" step="1" value="${+line.qty||0}" oninput="hlgb922RecalcAdHoc()"></div>
+12897:       <div class="field"><label>Valor por peça</label><input class="adHocPrice" type="number" min="0" step=".01" value="${unit.toFixed(2)}" readonly></div>
+12898:       <button type="button" class="danger" onclick="this.closest('.adHocLine').remove();hlgb922RecalcAdHoc()">Excluir</button>
+12899:     </div>`;
+12900:   };
+12901: })();
+12902: </script>
+12903: 
+12904: <!-- HLGB v91.26 DATA INTEGRITY GUARD -->
+12905: <script>
+12906: (function(){
+12907:   const previousDel=window.del;
+12908:   window.del=async function(type,id){
+12909:     const isRecordMode=Array.isArray(window.HLGB_RECORD_MODULES||HLGB_RECORD_MODULES) && (window.HLGB_RECORD_MODULES||HLGB_RECORD_MODULES).includes(type);
+12910:     if(!isRecordMode)return previousDel(type,id);
+12911:     if(!confirm("Excluir este registro?"))return;
+12912:     if(!Array.isArray(db[type]))return;
+12913:     const removed=db[type].find(x=>String(x.id)===String(id));
+12914:     if(!removed){alert("Não consegui localizar esse registro para excluir. Atualize a tela e tente novamente.");return}
+12915:     try{
+12916:       if(!hlgbRecordReady){const ok=await hlgbEnsureRecordsOnlineAfterLogin();if(!ok)throw new Error("A nuvem não está pronta para confirmar a exclusão.")}
+12917:       const rid=typeof hlgbRecordId==='function'?hlgbRecordId(type,removed):String(id);
+12918:       const payload={...hlgbRecordClone(removed),__hlgb_explicit_delete:true};
+12919:       const confirmed=await hlgbRecordSaveWithRetry(type,rid,payload,true);
+12920:       if(!confirmed||confirmed.applied!==true)throw new Error("A nuvem não confirmou a exclusão.");
+12921:       db[type]=db[type].filter(x=>String(x.id)!==String(id));
+12922:       localSaveOnly();
+12923:       try{auditAction("Excluiu registro",`${type} — ${id}`)}catch(e){}
+12924:       if(type==='products'){
+12925:         if(typeof renderProducts==='function')renderProducts();
+12926:         if(typeof renderDash==='function')renderDash();
+12927:       }else if(type==='finance'){
+12928:         if(typeof renderFinance==='function')renderFinance();
+12929:         if(typeof renderDash==='function')renderDash();
+12930:       }else if(type==='purchases'){
+12931:         if(typeof renderPurchases==='function')renderPurchases();
+12932:         if(typeof renderFinance==='function')renderFinance();
+12933:       }else if(typeof renderAll==='function')renderAll();
+12934:     }catch(err){
+12935:       console.error('HLGB v91.26 explicit delete failed',err);
+12936:       if(!db[type].some(x=>String(x.id)===String(id)))db[type].push(removed);
+12937:       try{localSaveOnly()}catch(e){}
+12938:       try{if(typeof renderAll==='function')renderAll()}catch(e){}
+12939:       alert("A exclusão NÃO foi confirmada na nuvem. O registro foi mantido para evitar perda de dados.");
+12940:     }
+12941:   };
+12942: })();
+12943: </script>
+12944: 
+12945: 
+12946: <!-- HLGB v91.27 CORTE POR MODELO + FACCAO -->
+12947: <script>
+12948: (function(){
+12949:   const n927=v=>String(v??'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').trim().toLowerCase();
+12950:   const clone927=v=>{try{return JSON.parse(JSON.stringify(v))}catch(e){return v}};
+12951:   let saving927=false;
+12952: 
+12953:   function product927(id){return (db.products||[]).find(x=>+x.id===+id)||null}
+12954:   function order927(id){return (db.orders||[]).find(x=>+x.id===+id)||null}
+12955:   function groups927(o){
+12956:     let map=new Map(),seq=0;
+12957:     (Array.isArray(o?.grade)?o.grade:[]).forEach(g=>{
+12958:       let pid=+g?.productId||0,qty=Math.max(0,+g?.qty||0);if(!pid||!qty)return;
+12959:       if(!map.has(pid))map.set(pid,{productId:pid,qty:0,seq:seq++});
+12960:       map.get(pid).qty+=qty;
+12961:     });
+12962:     if(!map.size&&+o?.productId){map.set(+o.productId,{productId:+o.productId,qty:Math.max(0,+o.qty||+o.totalQty||0),seq:0})}
+12963:     return [...map.values()].filter(x=>x.qty>0).sort((a,b)=>a.seq-b.seq).map(g=>({...g,product:product927(g.productId)}));
+12964:   }
+12965: 
+12966:   function knownService927(label){
+12967:     let want=n927(label);return (db.serviceTypes||[]).map(x=>String(x.name||'').trim()).find(x=>n927(x)===want)||'';
+12968:   }
+12969:   // O tipo de serviço passa a ser identificado pelo MODELO atual, nunca pelo texto do pedido inteiro.
+12970:   window.hlgb916ServiceNameForProduction=function(p){
+12971:     let pr=product927(p?.productId),name=n927(pr?.name||p?.product||''),cat=n927(pr?.category||'');
+12972:     let pick=x=>knownService927(x)||x;
+12973:     if(name.includes('body'))return pick('Body Feminino');
+12974:     if(name.includes('baby doll')||name.includes('babydoll')||name.includes('short doll'))return pick('Baby Doll');
+12975:     if(name.includes('camisola'))return pick('Camisola');
+12976:     if(name.includes('robe'))return pick('Robe');
+12977:     if(name.includes('cueca fem')||name.includes('calcinha')||name.startsWith('fio ')||name.includes(' fio ')||name.includes('tanga')||name.includes('calcola')||name.includes('calçola'))return pick('Calcinha');
+12978:     if(name.includes('cueca'))return knownService927('Cueca')||knownService927('Calcinha')||'Cueca';
+12979:     if(name.includes('conjunto')){
+12980:       if(name.includes('sem bojo'))return pick('Conjunto sem Bojo');
+12981:       if(name.includes('com bojo'))return pick('Conjunto com bojo');
+12982:     }
+12983:     let exact=(db.serviceTypes||[]).map(x=>String(x.name||'').trim()).find(x=>n927(x)===cat);if(exact)return exact;
+12984:     let byName=(db.serviceTypes||[]).map(x=>String(x.name||'').trim()).find(x=>name.includes(n927(x)));if(byName)return byName;
+12985:     return String(pr?.category||'').trim();
+12986:   };
+12987: 
+12988:   async function saveChanged927(rows){
+12989:     if(!rows.length||saving927)return;
+12990:     saving927=true;
+12991:     try{
+12992:       try{localSaveOnly()}catch(e){}
+12993:       if(typeof hlgbRecordSaveWithRetry==='function'&&typeof hlgbRecordId==='function'&&hlgbRecordReady&&cloudAccessToken){
+12994:         for(const row of rows){
+12995:           let id=hlgbRecordId('production',row);if(id)await hlgbRecordSaveWithRetry('production',id,row,false);
+12996:         }
+12997:         try{hlgbRecordPendingStore()}catch(e){}
+12998:         try{localSaveOnly()}catch(e){}
+12999:       }else{
+13000:         try{hlgbRecordPendingStore()}catch(e){}
+13001:       }
+13002:     }catch(e){
+13003:       console.warn('HLGB v91.27 salvar divisão por modelo',e);
+13004:       try{hlgbRecordPendingStore()}catch(x){}
+13005:     }finally{saving927=false}
+13006:   }
+13007: 
+13008:   function baseProduction927(c,o,g,id){
+13009:     let pr=g?.product||product927(g?.productId),qty=Math.max(0,+g?.qty||+c?.pieces||+o?.qty||0);
+13010:     return {
+13011:       id,
+13012:       cutId:c.id,orderId:c.orderId||o?.id||null,productId:g?.productId||c.productId||o?.productId||null,
+13013:       op:c.op||('CORTE-'+c.id),product:pr?.name||c.product||o?.items||'Pedido',client:c.client||o?.client||'',
+13014:       color:'',size:'',planned:qty,done:0,stage:'Aguardando atribuição',productionLocationId:null,factionId:null,
+13015:       date:c.finishedAt||isoDate(new Date()),assignmentSource:true,cutProductKey:`${c.id}:${g?.productId||c.productId||o?.productId||'legacy'}`
+13016:     };
+13017:   }
+13018: 
+13019:   // Cada produto/modelo de um mesmo corte vira uma linha independente para atribuição.
+13020:   window.syncFinalizedCutsToProduction=function(){
+13021:     if(typeof hlgb916EnsureData==='function')hlgb916EnsureData();
+13022:     db.cuts=Array.isArray(db.cuts)?db.cuts:[];db.production=Array.isArray(db.production)?db.production:[];
+13023:     let changed=[];
+13024:     db.cuts.filter(c=>n927(c.status)==='finalizado').forEach(c=>{
+13025:       let o=order927(c.orderId),groups=groups927(o),existing=db.production.filter(p=>+p.cutId===+c.id);
+13026:       if(!groups.length){

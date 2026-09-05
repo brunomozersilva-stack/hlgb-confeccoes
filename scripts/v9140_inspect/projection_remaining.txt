@@ -1,0 +1,301 @@
+=== function renderProjectionDeliveryTracking @ line 5003 ===
+04923:  }
+04924: }
+04925: function recalcProjectionInvoiceModal(){
+04926:  let qty=0,value=0;
+04927:  document.querySelectorAll(".projectionInvoiceQty").forEach(inp=>{
+04928:    let i=inp.dataset.index,q=Math.max(0,+inp.value||0),u=+document.querySelector(`.projectionInvoiceUnit[data-index="${i}"]`)?.value||0;
+04929:    qty+=q;value+=q*u;
+04930:  });
+04931:  let qel=document.getElementById("projectionInvoiceQtyTotal"),vel=document.getElementById("projectionInvoiceValueTotal");
+04932:  if(qel)qel.textContent=qty.toLocaleString("pt-BR");
+04933:  if(vel)vel.textContent=money(value);
+04934: }
+04935: 
+04936: function projectionRemainingQty(item){
+04937:  return Math.max(0,item?.remainingQty!=null?(+item.remainingQty||0):((+item?.qty||0)-(+item?.invoicedQty||0)));
+04938: }
+04939: function projectionUnitForItem(item){
+04940:  return (+item?.qty||0)>0?(+item?.value||0)/(+item?.qty||0):0;
+04941: }
+04942: function projectionRemainingValue(item){
+04943:  return projectionRemainingQty(item)*projectionUnitForItem(item);
+04944: }
+04945: function projectionDeliveredRows(startS="0000-01-01",endS="9999-12-31"){
+04946:  let out=[];
+04947:  (db.projectionInvoices||[]).forEach(inv=>{
+04948:    let date=String(inv.issueDate||inv.date||"").slice(0,10);
+04949:    if(!date||date<startS||date>endS)return;
+04950:    (inv.items||[]).forEach(it=>{
+04951:      let o=(db.orders||[]).find(x=>+x.id===+it.orderId)||null;
+04952:      out.push({invoice:inv,order:o,item:it,date,qty:+it.qty||0,value:+it.value||((+it.qty||0)*(+it.unitPrice||0))});
+04953:    });
+04954:  });
+04955:  return out;
+04956: }
+04957: function projectionTrackingMatches(order,productName){
+04958:  let clientF=(document.getElementById("projectionClientFilter")?.value||"").trim().toLowerCase();
+04959:  let productF=(document.getElementById("projectionProductFilter")?.value||"").trim().toLowerCase();
+04960:  let orderF=(document.getElementById("projectionOrderFilter")?.value||"").trim().toLowerCase();
+04961:  let displayNo=String(order?(typeof displayOrderNumber==="function"?displayOrderNumber(order):order.id):"").toLowerCase();
+04962:  if(clientF&&!String(order?.client||"").toLowerCase().includes(clientF))return false;
+04963:  if(productF&&!String(productName||"").toLowerCase().includes(productF))return false;
+04964:  if(orderF&&!displayNo.includes(orderF))return false;
+04965:  return true;
+04966: }
+04967: let projectionDeliveryTab="remaining";
+04968: function setProjectionDeliveryTab(tab){
+04969:  projectionDeliveryTab=tab==="delivered"?"delivered":"remaining";
+04970:  let rem=document.getElementById("projectionRemainingPane"),del=document.getElementById("projectionDeliveredPane");
+04971:  let br=document.getElementById("projectionTabRemaining"),bd=document.getElementById("projectionTabDelivered");
+04972:  if(rem)rem.style.display=projectionDeliveryTab==="remaining"?"block":"none";
+04973:  if(del)del.style.display=projectionDeliveryTab==="delivered"?"block":"none";
+04974:  if(br)br.className=projectionDeliveryTab==="remaining"?"primary":"secondary";
+04975:  if(bd)bd.className=projectionDeliveryTab==="delivered"?"primary":"secondary";
+04976:  renderProjectionDeliveryTracking();
+04977: }
+04978: function changeProjectionRemainingDate(orderId,itemKey){
+04979:  let o=(db.orders||[]).find(x=>+x.id===+orderId);if(!o)return;
+04980:  let item=projectionItemsForOrder(o).find(i=>String(i.key)===String(itemKey));if(!item)return;
+04981:  let remaining=projectionRemainingQty(item),delivered=Math.max(0,(+item.qty||0)-remaining);
+04982:  if(remaining<=0){alert("Este produto já foi entregue por completo.");return}
+04983:  openModal("Mudar data do restante",`
+04984:    <div class="grid">
+04985:     <div class="field"><label>Pedido</label><input value="#${typeof displayOrderNumber==="function"?displayOrderNumber(o):o.id}" disabled></div>
+04986:     <div class="field"><label>Cliente</label><input value="${esc(o.client||"")}" disabled></div>
+04987:     <div class="field"><label>Produto</label><input value="${esc(item.name||"")}" disabled></div>
+04988:     <div class="field"><label>Quantidade original</label><input value="${(+item.qty||0).toLocaleString("pt-BR")}" disabled></div>
+04989:     <div class="field"><label>Já entregue</label><input value="${delivered.toLocaleString("pt-BR")}" disabled></div>
+04990:     <div class="field"><label>Falta entregar</label><input value="${remaining.toLocaleString("pt-BR")}" disabled></div>
+04991:     <div class="field"><label>Data atual do restante</label><input value="${item.date?fmtDate(item.date):"-"}" disabled></div>
+04992:     <div class="field"><label>Nova data para o restante</label><input id="projectionRemainingNewDate" type="date" value="${item.date||isoDate(new Date())}"></div>
+04993:    </div>
+04994:    <div class="sub" style="margin:10px 0">Somente as ${remaining.toLocaleString("pt-BR")} peça(s) que ainda faltam serão movidas. O que já foi entregue permanece no histórico.</div>
+04995:    <button type="button" class="primary modalSave">💾 Salvar nova data do restante</button>`,()=>{
+04996:      let d=document.getElementById("projectionRemainingNewDate")?.value||"";
+04997:      if(!d){alert("Informe a nova data.");return}
+04998:      saveProjectionItemDate(o,item.key,d);
+04999:      o.projectionItems[item.key]={...(o.projectionItems[item.key]||{}),remainingRescheduledAt:isoDate(new Date())};
+05000:      closeModal();save();renderProjection();
+05001:    });
+05002: }
+05003: function renderProjectionDeliveryTracking(){
+05004:  let sEl=document.getElementById("projectionStart"),eEl=document.getElementById("projectionEnd");
+05005:  if(!sEl||!eEl)return;
+05006:  let startS=sEl.value||"0000-01-01",endS=eEl.value||"9999-12-31";
+05007:  let remainingRows=allProjectionRows().filter(({order:o,item})=>item.date&&item.date>=startS&&item.date<=endS&&projectionRemainingQty(item)>0&&projectionTrackingMatches(o,item.name));
+05008:  let deliveredRows=projectionDeliveredRows(startS,endS).filter(r=>projectionTrackingMatches(r.order,r.item.productName));
+05009:  let plannedQty=remainingRows.reduce((a,x)=>a+projectionRemainingQty(x.item),0);
+05010:  let plannedValue=remainingRows.reduce((a,x)=>a+projectionRemainingValue(x.item),0);
+05011:  let deliveredQty=deliveredRows.reduce((a,x)=>a+(+x.qty||0),0);
+05012:  let deliveredValue=deliveredRows.reduce((a,x)=>a+(+x.value||0),0);
+05013:  let cards=document.getElementById("projectionDeliverySummaryCards");
+05014:  if(cards)cards.innerHTML=`
+05015:    <div class="card"><small>Peças previstas / falta entregar</small><strong>${plannedQty.toLocaleString("pt-BR")}</strong></div>
+05016:    <div class="card"><small>Peças entregues no período</small><strong>${deliveredQty.toLocaleString("pt-BR")}</strong></div>
+05017:    <div class="card"><small>Valor previsto / falta entregar</small><strong>${money(plannedValue)}</strong></div>
+05018:    <div class="card"><small>Valor entregue no período</small><strong>${money(deliveredValue)}</strong></div>`;
+05019:  let remEl=document.getElementById("projectionRemainingTable");
+05020:  if(remEl)remEl.innerHTML=remainingRows.length?table(
+05021:    ["Data prevista","Pedido","Cliente","Produto","Original","Já entregue","Falta entregar","Valor restante","Ação"],
+05022:    remainingRows.slice().sort((a,b)=>String(a.item.date).localeCompare(String(b.item.date))).map(({order:o,item})=>{
+05023:      let rem=projectionRemainingQty(item),done=Math.max(0,(+item.qty||0)-rem);
+05024:      let safeKey=String(item.key).replace(/'/g,"\\'");
+05025:      return [fmtDate(item.date),"#"+(typeof displayOrderNumber==="function"?displayOrderNumber(o):o.id),esc(o.client||"-"),esc(item.name||"-"),(+item.qty||0).toLocaleString("pt-BR"),done.toLocaleString("pt-BR"),`<strong>${rem.toLocaleString("pt-BR")}</strong>`,money(projectionRemainingValue(item)),`<button type="button" class="secondary" onclick="changeProjectionRemainingDate(${o.id},'${safeKey}')">📅 Mudar data do restante</button>`];
+05026:    })
+05027:  ):'<div class="empty">Nada pendente para entregar neste período.</div>';
+05028:  let delEl=document.getElementById("projectionDeliveredTable");
+05029:  if(delEl)delEl.innerHTML=deliveredRows.length?table(
+05030:    ["Entregue / emissão","Nota","Pedido","Cliente","Produto","Qtd. entregue","Valor","Condição"],
+05031:    deliveredRows.slice().sort((a,b)=>String(b.date).localeCompare(String(a.date))).map(r=>{
+05032:      let inv=r.invoice||{},cond=String(inv.terms||"-")+(inv.termsDetail?` — ${inv.termsDetail}`:"");
+05033:      return [fmtDate(r.date),"#"+String(inv.id||"-"),r.order?"#"+(typeof displayOrderNumber==="function"?displayOrderNumber(r.order):r.order.id):"-",esc(inv.client||r.order?.client||"-"),esc(r.item.productName||"-"),(+r.qty||0).toLocaleString("pt-BR"),money(+r.value||0),esc(cond)];
+05034:    })
+05035:  ):'<div class="empty">Nenhuma entrega registrada neste período.</div>';
+05036:  setProjectionDeliveryTabVisualOnly();
+05037: }
+05038: function setProjectionDeliveryTabVisualOnly(){
+05039:  let rem=document.getElementById("projectionRemainingPane"),del=document.getElementById("projectionDeliveredPane");
+05040:  let br=document.getElementById("projectionTabRemaining"),bd=document.getElementById("projectionTabDelivered");
+05041:  if(rem)rem.style.display=projectionDeliveryTab==="remaining"?"block":"none";
+05042:  if(del)del.style.display=projectionDeliveryTab==="delivered"?"block":"none";
+05043:  if(br)br.className=projectionDeliveryTab==="remaining"?"primary":"secondary";
+05044:  if(bd)bd.className=projectionDeliveryTab==="delivered"?"primary":"secondary";
+05045: }
+05046: 
+05047: function projectionProductionSplit(orderId,itemKey){
+05048:  let aa=(typeof assignmentsFor==="function"?assignmentsFor(orderId,itemKey):[]);
+05049:  if(!aa.length)return "";
+05050:  return aa.map(a=>{let l=(db.productionLocations||[]).find(x=>+x.id===+a.locationId);return l?`${l.name}: ${(+a.qty||0).toLocaleString("pt-BR")} pç`:""}).filter(Boolean).join(" · ");
+05051: }
+05052: function openProjectionProductionSplit(orderId,itemKey){
+05053:  if(typeof openCapacityAllocation!=="function"){alert("A divisão de produção não está disponível.");return}
+05054:  openCapacityAllocation(orderId,itemKey);
+05055: }
+05056: function renderProjection(){
+05057:  let sEl=document.getElementById("projectionStart"),eEl=document.getElementById("projectionEnd");if(!sEl||!eEl)return;
+05058:  if(!sEl.value&&!eEl.value){let m=mondayOf(new Date()),z=new Date(m);z.setDate(z.getDate()+6);sEl.value=isoDate(m);eEl.value=isoDate(z)}
+05059:  let startS=sEl.value||"0000-01-01",endS=eEl.value||"9999-12-31";
+05060:  let rows=allProjectionRows();
+05061:  let pending=rows.filter(x=>!x.item.date&&!x.item.invoiced);
+05062:  let scheduledBase=rows.filter(x=>x.item.date&&x.item.date>=startS&&x.item.date<=endS&&projectionRemainingQty(x.item)>0);
+05063: 
+05064:  // Filtros detalhados da projeção
+05065:  let clientF=(document.getElementById("projectionClientFilter")?.value||"").trim().toLowerCase();
+05066:  let productF=(document.getElementById("projectionProductFilter")?.value||"").trim().toLowerCase();
+05067:  let orderF=(document.getElementById("projectionOrderFilter")?.value||"").trim().toLowerCase();
+05068:  let locationF=document.getElementById("projectionLocationFilter")?.value||"";
+05069:  let priorityF=document.getElementById("projectionPriorityFilter")?.value||"";
+05070:  let statusF=document.getElementById("projectionStatusFilter")?.value||"";
+05071:  let minRaw=document.getElementById("projectionMinValue")?.value||"";
+05072:  let maxRaw=document.getElementById("projectionMaxValue")?.value||"";
+05073:  let minV=minRaw===""?null:+minRaw, maxV=maxRaw===""?null:+maxRaw;
+05074: 
+05075:  // Mantém as opções dos selects sincronizadas com os dados do período.
+05076:  let locSelect=document.getElementById("projectionLocationFilter");
+05077:  if(locSelect){
+05078:    let current=locSelect.value;
+05079:    let opts=[...new Set(scheduledBase.map(({order:o,item})=>projectionProductionSplit(o.id,item.key)||projectionLocationForOrder(o)||"Sem local"))].sort((a,b)=>a.localeCompare(b,"pt-BR"));
+05080:    locSelect.innerHTML='<option value="">Todos</option>'+opts.map(v=>`<option value="${esc(v)}">${esc(v)}</option>`).join("");
+05081:    if(opts.includes(current))locSelect.value=current;
+05082:    locationF=locSelect.value||"";
+05083:  }
+05084:  let statusSelect=document.getElementById("projectionStatusFilter");
+05085:  if(statusSelect){
+05086:    let current=statusSelect.value;
+05087:    let opts=[...new Set(scheduledBase.map(({order:o,item})=>item.invoiced?"Nota finalizada":(o.status||"Sem status")))].sort((a,b)=>a.localeCompare(b,"pt-BR"));
+05088:    statusSelect.innerHTML='<option value="">Todos</option>'+opts.map(v=>`<option value="${esc(v)}">${esc(v)}</option>`).join("");
+05089:    if(opts.includes(current))statusSelect.value=current;
+05090:    statusF=statusSelect.value||"";
+05091:  }
+05092: 
+05093:  let scheduled=scheduledBase.filter(({order:o,item})=>{
+05094:    let displayNo=String(typeof displayOrderNumber==="function"?displayOrderNumber(o):o.id).toLowerCase();
+05095:    let loc=projectionProductionSplit(o.id,item.key)||projectionLocationForOrder(o)||"Sem local";
+05096:    let st=item.invoiced?"Nota finalizada":(o.status||"Sem status");
+05097:    if(clientF&&!String(item.clientName||o.client||"").toLowerCase().includes(clientF))return false;
+05098:    if(productF&&!String(item.name||"").toLowerCase().includes(productF))return false;
+05099:    if(orderF&&!displayNo.includes(orderF))return false;
+05100:    if(locationF&&loc!==locationF)return false;
+05101:    if(priorityF&&String(o.priority||"Padrão")!==priorityF)return false;
+05102:    if(statusF&&st!==statusF)return false;
+05103:    if(minV!=null&&(+item.value||0)<minV)return false;
+05104:    if(maxV!=null&&(+item.value||0)>maxV)return false;
+05105:    return true;
+05106:  });
+05107: 
+05108:  let pendingEl=document.getElementById("projectionPendingTable");
+05109:  if(pendingEl)pendingEl.innerHTML=pending.length?table(
+05110:    ["Pedido","Cliente","Produto","Entrega do cliente","Peças","Valor","Status","Onde está sendo feito","Ação"],
+05111:    pending.map(({order:o,item})=>[
+05112:     "#"+(typeof displayOrderNumber==="function"?displayOrderNumber(o):o.id),esc(item.clientName||o.client||"-"),esc(item.name),o.date?fmtDate(o.date):"-",item.qty.toLocaleString("pt-BR"),money(item.value||0),
+05113:     `<span class="badge">${esc(o.status||"-")}</span>`,esc(projectionLocationForOrder(o)),`<button type="button" class="primary" onclick="changeProjectionDate(${o.id})">📅 Definir datas</button>`
+05114:    ])
+05115:  ):'<div class="empty">Todos os produtos já estão programados na projeção.</div>';
+05116: 
+05117:  let totalQty=scheduled.reduce((a,x)=>a+projectionRemainingQty(x.item),0);
+05118:  let totalValue=scheduled.reduce((a,x)=>a+projectionRemainingValue(x.item),0);
+05119:  let deliveredPeriodRows=projectionDeliveredRows(startS,endS).filter(r=>projectionTrackingMatches(r.order,r.item.productName));
+05120:  let invoicedValue=deliveredPeriodRows.reduce((a,x)=>a+(+x.value||0),0),openQty=totalQty;
+05121:  let label=document.getElementById("projectionPeriodLabel");if(label)label.textContent=`Exibindo de ${fmtDate(startS)} até ${fmtDate(endS)}.`;
+05122: 
+05123:  let exitTable=document.getElementById("projectionExitTable");
+05124:  if(exitTable)exitTable.innerHTML=scheduled.length?table(
+05125:    ["Saída prevista","Pedido","Cliente","Produto / modelo","Peças","Valor","Local previsto","Prioridade","Status"],
+05126:    scheduled.slice().sort((a,b)=>String(a.item.date||"").localeCompare(String(b.item.date||""))).map(({order:o,item})=>[
+05127:      item.date?fmtDate(item.date):"-",
+05128:      "#"+(typeof displayOrderNumber==="function"?displayOrderNumber(o):o.id),
+05129:      esc(o.client||"-"),
+05130:      esc(item.name||"-"),
+05131:      projectionRemainingQty(item).toLocaleString("pt-BR"),
+05132:      money(projectionRemainingValue(item)),
+05133:      esc(projectionProductionSplit(o.id,item.key)||projectionLocationForOrder(o)||"Sem local"),
+05134:      `<span class="badge">${esc(o.priority||"Padrão")}</span>`,
+05135:      item.invoiced?'<span class="badge ok">Nota finalizada</span>':`<span class="badge">${esc(o.status||"Disponível")}</span>`
+05136:    ])
+05137:  ):'<div class="empty">Nenhum produto encontrado com estes filtros.</div>';
+05138:  let exitTotals=document.getElementById("projectionExitTotals");
+05139:  if(exitTotals)exitTotals.innerHTML=`Total filtrado: <strong>${scheduled.length}</strong> produto(s) · <strong>${totalQty.toLocaleString("pt-BR")}</strong> peças · <strong>${money(totalValue)}</strong>`;
+05140: 
+05141:  let ptable=document.getElementById("projectionProductsTable");
+05142:  if(ptable)ptable.innerHTML=scheduled.length?table(
+05143:    ["Selecionar","Pedido","Cliente","Produto","Peças","Valor projetado","Previsão de entrega","Produção dividida / local","Nota","Ações"],
+05144:    scheduled.slice().sort((a,b)=>a.item.date.localeCompare(b.item.date)).map(({order:o,item})=>{
+05145:     let split=projectionProductionSplit(o.id,item.key);
+05146:     let available=item.remainingQty!=null?item.remainingQty:Math.max(0,item.qty-(item.invoicedQty||0));
+05147:     let unit=item.qty>0?(+item.value||0)/item.qty:0;
+05148:     let noteStatus=item.invoiced?'<span class="badge ok">Nota finalizada</span>':((+item.invoicedQty||0)>0?`<span class="badge warn">Parcial · ${available.toLocaleString("pt-BR")} disponível</span>`:'<span class="badge">Disponível</span>');
+05149:     return [
+05150:     `<input class="projectionSelect" type="checkbox" value="${o.id}::${esc(item.key)}" ${item.invoiced?"disabled":""}>`,
+05151:     "#"+(typeof displayOrderNumber==="function"?displayOrderNumber(o):o.id),esc(item.clientName||o.client||"-"),esc(item.name),available.toLocaleString("pt-BR"),money(available*unit),fmtDate(item.date),split?`<b>${esc(split)}</b>`:esc(projectionLocationForOrder(o)||"Sem local"),
+05152:     noteStatus,`<button type="button" class="primary" onclick="openProjectionProductionSplit(${o.id},'${String(item.key).replace(/'/g,"\\'")}')">Dividir produção</button> <button type="button" class="secondary" onclick="changeProjectionRemainingDate(${o.id},'${String(item.key).replace(/'/g,"\\'")}')">Mudar data do restante</button> <button type="button" class="secondary" onclick="changeProjectionDate(${o.id})">Todas as datas</button>`
+05153:    ]})
+05154:  ):'<div class="empty">Nenhum produto previsto para este período.</div>';
+05155: 
+05156:  let clients={};
+05157:  scheduled.forEach(({order:o,item})=>{
+05158:    let k=item.clientName||o.client||"Sem cliente";if(!clients[k])clients[k]={qty:0,value:0,products:0,invoiced:0};
+05159:    clients[k].qty+=item.qty;clients[k].value+=item.value||0;clients[k].products++;if(item.invoiced)clients[k].invoiced+=item.value||0;
+05160:  });
+05161:  let clientRows=Object.entries(clients).sort((a,b)=>b[1].value-a[1].value),max=Math.max(...clientRows.map(x=>x[1].qty),1);
+05162:  let cpt=document.getElementById("clientProjectionTable");
+05163:  if(cpt)cpt.innerHTML=clientRows.length?table(["Cliente","Produtos","Peças","Valor projetado","Já finalizado","Restante","% do período","Visual"],clientRows.map(([name,d])=>[
+05164:    esc(name),d.products,d.qty.toLocaleString("pt-BR"),money(d.value),money(d.invoiced),money(Math.max(0,d.value-d.invoiced)),((d.qty/Math.max(totalQty,1))*100).toFixed(1)+"%",
+05165:    `<div style="min-width:130px;height:12px;background:#edf0f3;border-radius:10px;overflow:hidden"><div style="height:100%;width:${(d.qty/max)*100}%;background:#17213b;border-radius:10px"></div></div>`
+05166:  ])):'<div class="empty">Nenhuma entrega prevista para este período.</div>';
+05167: 
+05168:  let locationMap={};
+05169:  scheduled.forEach(({order:o,item})=>{
+05170:    let aa=typeof assignmentsFor==="function"?assignmentsFor(o.id,item.key):[];
+05171:    if(aa.length){
+05172:      let unit=(+item.qty||0)>0?(+item.value||0)/(+item.qty||0):0;
+05173:      aa.forEach(a=>{let l=(db.productionLocations||[]).find(x=>+x.id===+a.locationId),name=l?.name||"Sem local";if(!locationMap[name])locationMap[name]={planned:0,done:0,value:0};locationMap[name].planned+=+a.qty||0;locationMap[name].value+=(+a.qty||0)*unit});
+05174:      let used=aa.reduce((s,a)=>s+(+a.qty||0),0),rem=Math.max(0,(+item.qty||0)-used);if(rem){let name="Sem local";if(!locationMap[name])locationMap[name]={planned:0,done:0,value:0};locationMap[name].planned+=rem;locationMap[name].value+=rem*unit}
+05175:    }else{
+05176:      let prods=(db.production||[]).filter(p=>+p.orderId===+o.id),name=prods.length?productionDestinationName(prods[0]):projectionLocationForOrder(o)||"Sem local";
+05177:      if(!locationMap[name])locationMap[name]={planned:0,done:0,value:0};locationMap[name].planned+=item.qty;locationMap[name].value+=item.value||0;
+05178:    }
+05179:  });
+05180:  let locEl=document.getElementById("locationProjectionTable"),locationRows=Object.entries(locationMap);
+05181:  if(locEl)locEl.innerHTML=locationRows.length?table(["Local de produção","Peças previstas","Valor projetado"],locationRows.map(([n,d])=>[esc(n),d.planned.toLocaleString("pt-BR"),money(d.value)])):'<div class="empty">Nenhuma produção vinculada aos produtos deste período.</div>';
+05182: 
+05183:  let cp=document.getElementById("cutterProjectionTable");
+05184:  if(cp)cp.innerHTML='<div class="sub">A projeção por cortador continua baseada nas OPs de produção do pedido.</div>';
+05185: 
+05186:  let cards=document.getElementById("projectionCards");
+05187:  if(cards)cards.innerHTML=`<div class="card"><small>Produtos aguardando programação</small><strong>${pending.length}</strong></div><div class="card"><small>Peças aguardando programação</small><strong>${pending.reduce((a,x)=>a+x.item.qty,0).toLocaleString("pt-BR")}</strong></div><div class="card"><small>Produtos previstos</small><strong>${scheduled.length}</strong></div><div class="card"><small>Peças previstas</small><strong>${totalQty.toLocaleString("pt-BR")}</strong></div><div class="card"><small>Valor projetado</small><strong>${money(totalValue)}</strong></div><div class="card"><small>Valor já finalizado em notas</small><strong>${money(invoicedValue)}</strong></div><div class="card"><small>Peças ainda disponíveis</small><strong>${openQty.toLocaleString("pt-BR")}</strong></div><div class="card"><small>Clientes no período</small><strong>${clientRows.length}</strong></div>`;
+05188: 
+05189:  let ws=document.getElementById("weeklySummary");
+05190:  if(ws)ws.innerHTML=`<div class="cards"><div class="card"><small>Produtos</small><strong>${scheduled.length}</strong></div><div class="card"><small>Peças</small><strong>${totalQty.toLocaleString("pt-BR")}</strong></div><div class="card"><small>Valor projetado</small><strong>${money(totalValue)}</strong></div><div class="card"><small>Valor ainda não faturado</small><strong>${money(Math.max(0,totalValue-invoicedValue))}</strong></div></div>`;
+05191:  drawClientChart(clientRows.map(([n,d])=>[n,{...d,orders:d.products}]));
+05192:  renderProjectionDeliveryTracking();
+05193: }
+05194: function clearProjectionDetailFilters(){
+05195:  ["projectionClientFilter","projectionProductFilter","projectionOrderFilter","projectionMinValue","projectionMaxValue"].forEach(id=>{let e=document.getElementById(id);if(e)e.value=""});
+05196:  ["projectionLocationFilter","projectionPriorityFilter","projectionStatusFilter"].forEach(id=>{let e=document.getElementById(id);if(e)e.value=""});
+05197:  renderProjection();
+05198: }
+05199: function drawClientChart(rows){
+05200: const canvas=document.getElementById("clientChart"); if(!canvas)return;
+05201: const rect=canvas.getBoundingClientRect(); const dpr=window.devicePixelRatio||1;
+05202: const w=Math.max(320,rect.width||700),h=260;
+05203: canvas.width=w*dpr;canvas.height=h*dpr;canvas.style.height=h+"px";
+05204: const ctx=canvas.getContext("2d");ctx.setTransform(dpr,0,0,dpr,0,0);
+05205: ctx.clearRect(0,0,w,h);
+05206: const left=45,right=20,top=20,bottom=58,plotW=w-left-right,plotH=h-top-bottom;
+05207: ctx.strokeStyle="#dfe3e8";ctx.fillStyle="#5d6673";ctx.font="12px Arial";
+05208: const max=Math.max(...rows.map(r=>r[1].qty),1);
+05209: for(let i=0;i<=4;i++){let y=top+plotH-(plotH*i/4);ctx.beginPath();ctx.moveTo(left,y);ctx.lineTo(w-right,y);ctx.stroke();let val=Math.round(max*i/4);ctx.fillText(val.toLocaleString("pt-BR"),5,y+4)}
+05210: if(!rows.length){ctx.fillText("Nenhuma entrega prevista para a semana.",left,top+30);return}
+05211: const gap=Math.max(8,Math.min(22,plotW/(rows.length*5)));
+05212: const barW=Math.max(18,(plotW-gap*(rows.length-1))/rows.length);
+05213: rows.forEach((r,i)=>{
+05214: let x=left+i*(barW+gap), bh=(r[1].qty/max)*plotH,y=top+plotH-bh;
+05215: ctx.fillStyle="#17213b";ctx.fillRect(x,y,barW,bh);
+05216: ctx.fillStyle="#202631";ctx.textAlign="center";
+05217: ctx.fillText(r[1].qty.toLocaleString("pt-BR"),x+barW/2,Math.max(12,y-5));
+05218: let label=r[0].length>14?r[0].slice(0,14)+"…":r[0];
+05219: ctx.save();ctx.translate(x+barW/2,h-12);ctx.rotate(-Math.PI/7);ctx.fillText(label,0,0);ctx.restore();
+05220: });
+05221: ctx.textAlign="left";
+05222: }

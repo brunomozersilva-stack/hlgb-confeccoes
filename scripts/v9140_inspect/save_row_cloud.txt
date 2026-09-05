@@ -1,0 +1,1509 @@
+=== hlgbRecordSaveWithRetry @ line 3164 ===
+03084:  if(!employee)return null;
+03085:  month=month||payrollCurrentMonth();
+03086:  let r=db.payroll.find(x=>x.month===month&&+x.employeeId===+employee.id);
+03087:  if(!r){
+03088:    r={
+03089:      id:Date.now()+Math.floor(Math.random()*1000000),
+03090:      month,
+03091:      employeeId:employee.id,
+03092:      employeeName:employee.name,
+03093:      companyName:employeeCompanyName(employee),
+03094:      salary:+employee.salary||0,
+03095:      benefit:+employee.benefitDefault||0,
+03096:      overtime:0,bonus:0,absence:0,transportAbsenceDays:0,
+03097:      unionDiscount:0,advance:0,purchase:0,
+03098:      pix:employee.pix||"",paid:false,paidAt:"",paidValue:0
+03099:    };
+03100:    db.payroll.push(r);
+03101:  }else{
+03102:    r.employeeName=employee.name;
+03103:    r.companyName=employeeCompanyName(employee);
+03104:    r.pix=employee.pix||r.pix||"";
+03105:  }
+03106:  return r;
+03107: }
+03108: function generatePayrollMonth(){
+03109:  ensurePayrollData();
+03110:  let month=document.getElementById("payrollMonth")?.value||payrollCurrentMonth();
+03111:  (db.employees||[]).filter(e=>e.active!==false).forEach(e=>ensureEmployeePayrollForMonth(e,month));
+03112:  try{persistDb()}catch(e){}
+03113:  renderPayroll();
+03114: }
+03115: function editPayrollRow(id){
+03116:  let r=(db.payroll||[]).find(x=>+x.id===+id);if(!r)return;
+03117:  let e=(db.employees||[]).find(x=>+x.id===+r.employeeId)||{salary:r.salary||0};
+03118:  let c=payrollCalc(r,e);
+03119:  const payrollBase=hlgbRecordClone(r);
+03120:  openModal(`Folha — ${esc(r.employeeName||e.name||"Funcionário")}`,`
+03121:  <div class="grid">
+03122:   <div class="field"><label>Salário</label><input id="prSalary" type="number" step=".01" value="${c.salary}"></div>
+03123:   <div class="field"><label>Vale-transporte calculado</label><input value="${money(c.transport)}" disabled></div>
+03124:   <div class="field"><label>Dias de falta para descontar do VT</label><input id="prTransportAbsenceDays" type="number" min="0" step="1" value="${+r.transportAbsenceDays||0}"></div>
+03125:   <div class="field"><label>Benefício / salário-família</label><input id="prBenefit" type="number" step=".01" value="${c.benefit}"></div>
+03126:   <div class="field"><label>Hora extra</label><input id="prOvertime" type="number" step=".01" value="${c.overtime}"></div>
+03127:   <div class="field"><label>Bônus</label><input id="prBonus" type="number" step=".01" value="${c.bonus}"></div>
+03128:   <div class="field"><label>Outros créditos (+)</label><input id="prOtherCredit" type="number" step=".01" value="${c.otherCredit||0}"></div>
+03129:   <div class="field"><label>Faltas / desconto</label><input id="prAbsence" type="number" step=".01" value="${c.absence}"></div>
+03130:   <div class="field"><label>Desconto sindical</label><input id="prUnion" type="number" step=".01" value="${c.union}"></div>
+03131:   <div class="field"><label>Vale / adiantamento</label><input id="prAdvance" type="number" step=".01" value="${c.advance}"></div>
+03132:   <div class="field"><label>Compra</label><input id="prPurchase" type="number" step=".01" value="${c.purchase}"></div>
+03133:   <div class="field"><label>Outros descontos (-)</label><input id="prOtherDiscount" type="number" step=".01" value="${c.otherDiscount||0}"></div>
+03134:   <div class="field"><label>Descontar INSS?</label><select id="prDiscountInss"><option value="yes" ${r.discountInss!==false?"selected":""}>Sim</option><option value="no" ${r.discountInss===false?"selected":""}>Não</option></select></div>
+03135:   <div class="field"><label>Chave PIX</label><input id="prPix" value="${esc(r.pix||e.pix||"")}"></div>
+03136:  </div>
+03137:  <div class="sub">INSS é calculado automaticamente quando “Descontar INSS?” estiver em Sim. Se escolher Não, o valor não entra nos descontos desta folha.</div>
+03138:  <button type="button" class="primary modalSave">Salvar folha</button>`,async()=>{
+03139:    const btn=document.querySelector("#modal .modalSave");
+03140:    const desired={...hlgbRecordClone(payrollBase),
+03141:      salary:+document.getElementById("prSalary")?.value||0,
+03142:      transportAbsenceDays:+document.getElementById("prTransportAbsenceDays")?.value||0,
+03143:      benefit:+document.getElementById("prBenefit")?.value||0,
+03144:      overtime:+document.getElementById("prOvertime")?.value||0,
+03145:      bonus:+document.getElementById("prBonus")?.value||0,
+03146:      otherCredit:+document.getElementById("prOtherCredit")?.value||0,
+03147:      absence:+document.getElementById("prAbsence")?.value||0,
+03148:      unionDiscount:+document.getElementById("prUnion")?.value||0,
+03149:      advance:+document.getElementById("prAdvance")?.value||0,
+03150:      purchase:+document.getElementById("prPurchase")?.value||0,
+03151:      otherDiscount:+document.getElementById("prOtherDiscount")?.value||0,
+03152:      pix:document.getElementById("prPix")?.value||"",
+03153:      discountInss:document.getElementById("prDiscountInss")?.value!=="no"
+03154:     };
+03155:    try{
+03156:      if(btn){btn.disabled=true;btn.textContent="☁️ Salvando na nuvem…"}
+03157:      if(!hlgbRecordReady){
+03158:        const ok=await hlgbEnsureRecordsOnlineAfterLogin();
+03159:        if(!ok||!hlgbRecordReady)throw new Error("A nuvem não está pronta para salvar a folha.");
+03160:      }
+03161:      const latest=hlgbRecordSnapshots?.payroll?.get(String(id))?.data || (db.payroll||[]).find(x=>String(x.id)===String(id)) || payrollBase;
+03162:      const merged=cloudMergeThreeWay(payrollBase,desired,latest);
+03163:      setCloudStatus("☁️ Salvando folha…");
+03164:      const confirmed=await hlgbRecordSaveWithRetry("payroll",String(id),merged,false);
+03165:      if(!confirmed||confirmed.applied!==true)throw new Error("O Supabase não confirmou a alteração da folha.");
+03166:      const finalData=hlgbRecordClone(confirmed.data||merged);
+03167:      let current=(db.payroll||[]).find(x=>String(x.id)===String(id));
+03168:      if(current){Object.keys(current).forEach(k=>delete current[k]);Object.assign(current,finalData)}
+03169:      else {db.payroll=db.payroll||[];db.payroll.push(finalData)}
+03170:      localSaveOnly();
+03171:      closeModal();
+03172:      renderPayroll();
+03173:      try{auditAction("Atualizou folha de pagamento",`${finalData.employeeName||"Funcionário"} — ${finalData.month||""}`)}catch(e){}
+03174:      setCloudStatus("⚡ Online · folha confirmada","ok");
+03175:    }catch(err){
+03176:      console.error("HLGB v91.29 folha não confirmada",err);
+03177:      if(btn){btn.disabled=false;btn.textContent="💾 Salvar folha"}
+03178:      setCloudStatus("☁️ Folha não confirmada","bad");
+03179:      alert("A alteração da folha NÃO foi confirmada na nuvem. Nada foi removido e a janela ficou aberta para você tentar novamente.\n\n"+String(err?.message||err));
+03180:    }
+03181:  });
+03182: }
+03183: function deletePayrollRow(id){
+03184:  let r=(db.payroll||[]).find(x=>+x.id===+id);if(!r)return;
+03185:  let label=`${r.employeeName||"Funcionário"} — ${r.month||""}`;
+03186:  if(!confirm(`Excluir a folha de ${label}? Isso remove somente este lançamento mensal e não apaga o cadastro do funcionário.`))return;
+03187:  db.payroll=(db.payroll||[]).filter(x=>+x.id!==+id);
+03188:  try{persistDb()}catch(e){console.error(e)}
+03189:  if(typeof auditAction==="function")auditAction("Excluiu folha de pagamento",label);
+03190:  renderPayroll();
+03191: }
+03192: function togglePayrollPaid(id){
+03193:  let r=(db.payroll||[]).find(x=>+x.id===+id);if(!r)return;
+03194:  let e=(db.employees||[]).find(x=>+x.id===+r.employeeId)||{};
+03195:  let calc=payrollCalc(r,e);
+03196:  if(r.paid){
+03197:    if(!confirm("Reabrir este pagamento como pendente?"))return;
+03198:    r.paid=false;r.paidAt="";r.paidValue=0;
+03199:  }else{
+03200:    if(!confirm(`Marcar ${r.employeeName} como PAGO em ${money(calc.net)}?`))return;
+03201:    r.paid=true;r.paidAt=isoDate(new Date());r.paidValue=calc.net;
+03202:  }
+03203:  try{persistDb()}catch(e){}
+03204:  renderPayroll();
+03205: }
+03206: function savePayrollExtraCharges(){
+03207:  ensurePayrollData();
+03208:  db.config.payrollExtraChargesPct=+document.getElementById("payrollExtraCharges")?.value||0;
+03209:  try{persistDb()}catch(e){}
+03210:  renderPayroll();renderPayrollProvisions();
+03211: }
+03212: function archiveEmployeeAfterTermination(emp,termination){
+03213:  ensurePayrollData();
+03214:  if(!emp||!termination)return;
+03215:  let tenure=tenureInfo(emp.hireDate,termination.date);
+03216:  let existing=db.formerEmployees.find(x=>+x.employeeId===+emp.id);
+03217:  let snapshot={
+03218:    id:existing?.id||("former-"+Date.now()+"-"+Math.floor(Math.random()*10000)),
+03219:    employeeId:emp.id,
+03220:    name:emp.name,
+03221:    productionLocationId:emp.productionLocationId||null,
+03222:    companyName:employeeCompanyName(emp),
+03223:    salary:+emp.salary||0,
+03224:    pix:emp.pix||"",
+03225:    hireDate:emp.hireDate||"",
+03226:    terminationDate:termination.date||"",
+03227:    terminationType:termination.type||"",
+03228:    terminationValue:+termination.value||0,
+03229:    tenureMonths:tenure.months,
+03230:    tenureLabel:tenure.label,
+03231:    salaryHistory:cloneForTrash?cloneForTrash(emp.salaryHistory||[]):JSON.parse(JSON.stringify(emp.salaryHistory||[])),
+03232:    employeeSnapshot:cloneForTrash?cloneForTrash(emp):JSON.parse(JSON.stringify(emp)),
+03233:    archivedAt:new Date().toISOString()
+03234:  };
+03235:  if(existing)Object.assign(existing,snapshot);
+03236:  else db.formerEmployees.push(snapshot);
+03237: 
+03238:  emp.active=false;
+03239:  emp.terminationDate=termination.date||"";
+03240:  emp.terminationType=termination.type||"";
+03241:  emp.terminationId=termination.id;
+03242: 
+03243:  // Remove futuras folhas ainda não pagas a partir da competência da rescisão.
+03244:  let termMonth=String(termination.date||"").slice(0,7);
+03245:  db.payroll=(db.payroll||[]).filter(r=>{
+03246:    if(+r.employeeId!==+emp.id)return true;
+03247:    if(r.paid)return true;
+03248:    if(!termMonth)return true;
+03249:    return String(r.month||"")<termMonth;
+03250:  });
+03251: }
+03252: function formerEmployeeCompanyOptions(){
+03253:  let s=document.getElementById("exEmployeeCompanyFilter");if(!s)return;
+03254:  let cur=s.value;
+03255:  let names=[...new Set((db.formerEmployees||[]).map(x=>x.companyName).filter(Boolean))].sort();
+03256:  s.innerHTML='<option value="">Todas</option>'+names.map(n=>`<option value="${esc(n)}">${esc(n)}</option>`).join("");
+03257:  if(names.includes(cur))s.value=cur;
+03258: }
+03259: function formerSalaryHistoryText(x){
+03260:  let hist=Array.isArray(x.salaryHistory)?x.salaryHistory:[];
+03261:  if(!hist.length)return "-";
+03262:  return hist.slice().sort((a,b)=>String(a.date||"").localeCompare(String(b.date||""))).map(h=>
+03263:    `${h.date?fmtDate(h.date):"-"}: ${money(h.oldSalary||0)} → ${money(h.newSalary||0)} (${(+h.percent||0).toFixed(2).replace(".",",")}%)`
+03264:  ).join("<br>");
+03265: }
+03266: function renderFormerEmployees(){
+03267:  ensurePayrollData();
+03268:  formerEmployeeCompanyOptions();
+03269:  let q=(document.getElementById("exEmployeeSearch")?.value||"").toLowerCase().trim();
+03270:  let company=document.getElementById("exEmployeeCompanyFilter")?.value||"";
+03271:  let arr=db.formerEmployees.filter(x=>{
+03272:    if(q&&!String(x.name||"").toLowerCase().includes(q))return false;
+03273:    if(company&&x.companyName!==company)return false;
+03274:    return true;
+03275:  });
+03276:  let cards=document.getElementById("formerEmployeeCards");
+03277:  if(cards){
+03278:    let totalPaid=arr.reduce((a,x)=>a+(+x.terminationValue||0),0);
+03279:    cards.innerHTML=`<div class="card"><small>Ex-funcionários</small><strong>${arr.length}</strong></div><div class="card"><small>Total pago em rescisões</small><strong>${money(totalPaid)}</strong></div>`;
+03280:  }
+03281:  let tbl=document.getElementById("formerEmployeeTable");
+03282:  if(tbl)tbl.innerHTML=arr.length?table(
+03283:    ["Funcionário","Confecção","Admissão","Saída","Tempo de empresa","Último salário","PIX","Tipo de rescisão","Valor rescisão","Histórico salarial"],
+03284:    arr.slice().sort((a,b)=>String(b.terminationDate||"").localeCompare(String(a.terminationDate||""))).map(x=>[
+03285:      esc(x.name||"-"),esc(x.companyName||"-"),x.hireDate?fmtDate(x.hireDate):"-",x.terminationDate?fmtDate(x.terminationDate):"-",
+03286:      esc(x.tenureLabel||"-"),money(x.salary||0),esc(x.pix||"-"),esc(x.terminationType||"-"),money(x.terminationValue||0),formerSalaryHistoryText(x)
+03287:    ])
+03288:  ):'<div class="empty">Nenhum ex-funcionário registrado.</div>';
+03289: }
+03290: function newTermination(){
+03291:  ensurePayrollData();
+03292:  let employees=(db.employees||[]).slice().sort((a,b)=>String(a.name||"").localeCompare(String(b.name||"")));
+03293:  openModal("Lançar rescisão",`
+03294:    <div class="grid">
+03295:      <div class="field"><label>Funcionário</label><select id="termEmployee"><option value="">Selecione</option>${employees.map(e=>`<option value="${e.id}">${esc(e.name)} — ${esc(employeeCompanyName(e))}</option>`).join("")}</select></div>
+03296:      <div class="field"><label>Data da rescisão</label><input id="termDate" type="date" value="${isoDate(new Date())}"></div>
+03297:      <div class="field"><label>Tipo / motivo</label><select id="termType"><option>Sem justa causa</option><option>Pedido de demissão</option><option>Justa causa</option><option>Término de contrato</option><option>Acordo</option><option>Outro</option></select></div>
+03298:      <div class="field"><label>Valor pago</label><input id="termValue" type="number" min="0" step="0.01"></div>
+03299:      <div class="field" style="grid-column:1/-1"><label>Observação</label><input id="termNote" placeholder="Ex.: rescisão quitada, parcelas, observações..."></div>
+03300:    </div>
+03301:    <button type="button" class="primary modalSave">Salvar rescisão</button>`,()=>{
+03302:      let emp=(db.employees||[]).find(e=>+e.id===+document.getElementById("termEmployee")?.value);
+03303:      if(!emp){alert("Selecione o funcionário.");return}
+03304:      let value=+document.getElementById("termValue")?.value||0;
+03305:      if(value<0){alert("Informe um valor válido.");return}
+03306:      let termination={
+03307:        id:Date.now(),
+03308:        employeeId:emp.id,
+03309:        employeeName:emp.name,
+03310:        companyName:employeeCompanyName(emp),
+03311:        date:document.getElementById("termDate")?.value||isoDate(new Date()),
+03312:        type:document.getElementById("termType")?.value||"Outro",
+03313:        value,
+03314:        note:document.getElementById("termNote")?.value||""
+03315:      };
+03316:      db.terminations.push(termination);
+03317:      archiveEmployeeAfterTermination(emp,termination);
+03318:      try{persistDb()}catch(e){console.error(e)}
+03319:      closeModal();
+03320:      if(typeof auditAction==="function")auditAction("Lançou rescisão",`${emp.name} — ${money(value)}`);
+03321:      renderEmployees();
+03322:      renderPayroll();
+03323:      renderFormerEmployees();
+03324:      alert("Rescisão registrada. O funcionário foi baixado da folha e enviado ao histórico de ex-funcionários.");
+03325:    });
+03326: }
+03327: function editTermination(id){
+03328:  let r=(db.terminations||[]).find(x=>+x.id===+id);if(!r)return;
+03329:  openModal("Editar rescisão",`
+03330:    <div class="grid">
+03331:      <div class="field"><label>Funcionário</label><input value="${esc(r.employeeName||"")}" disabled></div>
+03332:      <div class="field"><label>Confecção</label><input value="${esc(r.companyName||"")}" disabled></div>
+03333:      <div class="field"><label>Data da rescisão</label><input id="termDate" type="date" value="${r.date||""}"></div>
+03334:      <div class="field"><label>Tipo / motivo</label><select id="termType">${["Sem justa causa","Pedido de demissão","Justa causa","Término de contrato","Acordo","Outro"].map(x=>`<option ${x===r.type?"selected":""}>${x}</option>`).join("")}</select></div>
+03335:      <div class="field"><label>Valor pago</label><input id="termValue" type="number" min="0" step="0.01" value="${+r.value||0}"></div>
+03336:      <div class="field" style="grid-column:1/-1"><label>Observação</label><input id="termNote" value="${esc(r.note||"")}"></div>
+03337:    </div>
+03338:    <button type="button" class="primary modalSave">Salvar alterações</button>`,()=>{
+03339:      r.date=document.getElementById("termDate")?.value||r.date;
+03340:      r.type=document.getElementById("termType")?.value||r.type;
+03341:      r.value=+document.getElementById("termValue")?.value||0;
+03342:      r.note=document.getElementById("termNote")?.value||"";
+03343:      let emp=(db.employees||[]).find(e=>+e.id===+r.employeeId);
+03344:      if(emp)archiveEmployeeAfterTermination(emp,r);
+03345:      try{persistDb()}catch(e){}
+03346:      closeModal();renderPayroll();renderFormerEmployees();
+03347:    });
+03348: }
+03349: function deleteTermination(id){
+03350:  let r=(db.terminations||[]).find(x=>+x.id===+id);if(!r)return;
+03351:  if(!confirm(`Excluir a rescisão de ${r.employeeName}?`))return;
+03352:  db.terminations=db.terminations.filter(x=>+x.id!==+id);
+03353:  try{persistDb()}catch(e){}
+03354:  renderPayroll();
+03355: }
+03356: function renderTerminations(month,company,q){
+03357:  let arr=(db.terminations||[]).filter(r=>{
+03358:    let m=String(r.date||"").slice(0,7);
+03359:    if(month&&m!==month)return false;
+03360:    if(company&&r.companyName!==company)return false;
+03361:    if(q&&!String(r.employeeName||"").toLowerCase().includes(q))return false;
+03362:    return true;
+03363:  });
+03364:  let cards=document.getElementById("terminationCards");
+03365:  let total=arr.reduce((a,r)=>a+(+r.value||0),0);
+03366:  if(cards)cards.innerHTML=`<div class="card"><small>Rescisões no período</small><strong>${arr.length}</strong></div><div class="card"><small>Valor total pago em rescisões</small><strong>${money(total)}</strong></div>`;
+03367:  let tbl=document.getElementById("terminationTable");
+03368:  if(tbl)tbl.innerHTML=arr.length?table(["Data","Funcionário","Confecção","Tipo","Valor pago","Observação","Ações"],arr.slice().sort((a,b)=>String(b.date||"").localeCompare(String(a.date||""))).map(r=>[
+03369:    r.date?fmtDate(r.date):"-",esc(r.employeeName||"-"),esc(r.companyName||"-"),esc(r.type||"-"),money(r.value||0),esc(r.note||"-"),
+03370:    `<button class="secondary" onclick="editTermination(${r.id})">Editar</button> <button class="danger" onclick="deleteTermination(${r.id})">Excluir</button>`
+03371:  ])):'<div class="empty">Nenhuma rescisão registrada para este período.</div>';
+03372: }
+03373: 
+03374: 
+03375: function renderPayroll(){
+03376:  ensurePayrollData();
+03377:  let monthEl=document.getElementById("payrollMonth");
+03378:  if(!monthEl)return;
+03379:  if(!monthEl.value)monthEl.value=payrollCurrentMonth();
+03380:  let month=monthEl.value;
+03381:  let yearEl=document.getElementById("payrollYear");
+03382:  if(yearEl&&!yearEl.value)yearEl.value=month.slice(0,4);
+03383:  renderPayrollMonthButtons();
+
+=== hlgbRecordSaveWithRetry @ line 9211 ===
+09131: }
+09132: function saveProductFromForm(p){
+09133:   const name=(document.getElementById("fname")?.value||"").trim();
+09134:   if(!name){alert("Informe o nome do produto.");return false}
+09135: 
+09136:   const oldCostTable=Array.isArray(p.costTable)?p.costTable:undefined;
+09137:   const selectedColors=[...document.querySelectorAll(".fcolorOpt:checked")].map(x=>x.value);
+09138:   if((db.colors||[]).length && !selectedColors.length){alert("Selecione pelo menos uma cor disponível para este modelo.");return false}
+09139: 
+09140:   Object.assign(p,{
+09141:     code:(document.getElementById("fcode")?.value||"").trim()||nextProductReference(),
+09142:     name,
+09143:     category:(document.getElementById("fcat")?.value||"").trim(),
+09144:     material:(document.getElementById("fmainmat")?.value||"").trim(),
+09145:     colors:selectedColors,
+09146:     color:selectedColors[0]||"", // compatibilidade com telas antigas que ainda usam uma cor principal
+09147:     supplierId:document.getElementById("fsupplier")?.value ? +document.getElementById("fsupplier").value : null,
+09148:     sizes:[...document.querySelectorAll(".fsizeOpt:checked")].map(x=>x.value),
+09149:     note:document.getElementById("fnote")?.value||"",
+09150:     compositions:collectProductCompositions(),
+09151:     materials:collectMaterials(),
+09152:     labor:+document.getElementById("flabor")?.value||0,
+09153:     cutCost:+document.getElementById("fcut")?.value||0,
+09154:     factionCost:+document.getElementById("ffaction")?.value||0,
+09155:     packCost:+document.getElementById("fpack")?.value||0,
+09156:     otherCost:+document.getElementById("fother")?.value||0,
+09157:     price:+document.getElementById("fprice")?.value||0,
+09158:     suggestedLaborPct:Math.max(0,+document.getElementById("fsuggestLaborPct")?.value||0),
+09159:     suggestedProfitPct:Math.max(0,+document.getElementById("fsuggestProfitPct")?.value||0)
+09160:   });
+09161: 
+09162:   // A ficha técnica nova passa a usar o cadastro central de materiais como fonte oficial.
+09163:   p.materialsManagedFromCatalog=true;
+09164:   (p.materials||[]).forEach(m=>{
+09165:     let master=m.materialId?(db.materials||[]).find(x=>+x.id===+m.materialId):null;
+09166:     if(!master&&m.name)master=(db.materials||[]).find(x=>String(x.name||"").trim().toLowerCase()===String(m.name||"").trim().toLowerCase());
+09167:     if(master){m.materialId=master.id;m.name=master.name;m.cat=master.cat||m.cat;m.unit=master.unit||m.unit;m.price=+master.price||0;}
+09168:   });
+09169: 
+09170:   // Mantém a tabela antiga somente como histórico visual; ela não sobrescreve mais a ficha atual.
+09171:   if(oldCostTable)p.costTable=oldCostTable;
+09172:   return true;
+09173: }
+09174: function updateProductCostPreview(){
+09175:   recalcProductCost();
+09176: }
+09177: async function hlgbEnsureActiveWriteSession(){
+09178:   if(cloudAccessToken)return true;
+09179:   try{
+09180:     // O access token vive só em memória. Se alguma rotina o perdeu, o refresh token
+09181:     // persistido neste navegador permite reconstruir a sessão sem apagar o formulário.
+09182:     if(!cloudRefreshToken){
+09183:       try{cloudRestoreStoredAuth()}catch(e){}
+09184:     }
+09185:     if(!cloudRefreshToken)return false;
+09186:     setCloudStatus("☁️ Recuperando sessão…");
+09187:     await cloudRefreshSession(true);
+09188:     if(cloudAccessToken){
+09189:       try{hlgbRealtimeSetAuth()}catch(e){}
+09190:       return true;
+09191:     }
+09192:   }catch(e){
+09193:     console.warn("HLGB v91.12 recuperação de sessão para gravação",e);
+09194:   }
+09195:   return false;
+09196: }
+09197: 
+09198: async function hlgbSaveProductDirect(product,deleted=false){
+09199:   if(!product)throw new Error("Produto inválido.");
+09200:   if(!cloudAccessToken){
+09201:     const sessionOk=await hlgbEnsureActiveWriteSession();
+09202:     if(!sessionOk)throw new Error("Sua sessão expirou e não foi possível renová-la automaticamente. Entre novamente no sistema.");
+09203:   }
+09204:   if(!hlgbRecordReady){
+09205:     const ok=await hlgbEnsureRecordsOnlineAfterLogin();
+09206:     if(!ok||!hlgbRecordReady)throw new Error("O modo multiusuário não conseguiu iniciar.");
+09207:   }
+09208:   const id=hlgbRecordId("products",product);
+09209:   if(!id)throw new Error("Não foi possível identificar o produto.");
+09210:   setCloudStatus(deleted?"☁️ Excluindo produto…":"☁️ Salvando produto…");
+09211:   const result=await hlgbRecordSaveWithRetry("products",id,deleted?{...hlgbRecordClone(product),__hlgb_explicit_delete:true}:product,deleted);
+09212:   try{hlgbRecordPendingStore()}catch(e){}
+09213:   localSaveOnly();
+09214:   setCloudStatus("⚡ Online · multiusuário","ok");
+09215:   return result;
+09216: }
+09217: 
+09218: function hlgbProductIdentityMatches(a,b){
+09219:   if(!a||!b)return false;
+09220:   const aid=String(a.id??'').trim(),bid=String(b.id??'').trim();
+09221:   if(aid&&bid&&aid===bid)return true;
+09222:   const ac=String(a.code??'').trim().toLowerCase(),bc=String(b.code??'').trim().toLowerCase();
+09223:   if(ac&&bc&&ac===bc)return true;
+09224:   const norm=v=>String(v??'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').trim().toLowerCase().replace(/\s+/g,' ');
+09225:   const an=norm(a.name),bn=norm(b.name);
+09226:   return !!an&&!!bn&&an===bn;
+09227: }
+09228: function hlgbCloudProductsFromRecordSnapshot(){
+09229:   try{
+09230:     const snap=hlgbRecordSnapshots?.products;
+09231:     if(!(snap instanceof Map))return [];
+09232:     const out=[];
+09233:     for(const v of snap.values()){
+09234:       if(!v)continue;
+09235:       if(v.deleted_at||v.deletedAt||v.deleted===true)continue;
+09236:       let item=v;
+09237:       if(v.data&&typeof v.data==='object')item=v.data;
+09238:       else if(v.item&&typeof v.item==='object')item=v.item;
+09239:       else if(v.value&&typeof v.value==='object')item=v.value;
+09240:       if(item&&typeof item==='object')out.push(hlgbRecordClone(item));
+09241:     }
+09242:     return out;
+09243:   }catch(e){console.warn('HLGB v91.08 snapshot produtos',e);return []}
+09244: }
+09245: async function hlgbRecoverLocalOnlyProducts(){
+09246:   const local=Array.isArray(HLGB_PRE_CLOUD_LOCAL_PRODUCTS)?HLGB_PRE_CLOUD_LOCAL_PRODUCTS:[];
+09247:   if(!cloudAccessToken||!local.length)return 0;
+09248:   try{
+09249:     setCloudStatus(`☁️ Conferindo ${local.length} produtos deste computador…`);
+09250:     let result=await cloudRequest("rpc/hlgb_reconcile_local_products",{
+09251:       method:"POST",
+09252:       body:JSON.stringify({p_products:local})
+09253:     });
+09254:     if(Array.isArray(result))result=result[0]||null;
+09255:     console.info("HLGB v91.12 reconciliação produtos",result);
+09256:     if(result?.recovered===true){
+09257:       setCloudStatus(`☁️ Recuperando ${result.name||"produto"}…`);
+09258:       // Recarrega os registros oficiais depois que o servidor confirmou o 45º produto.
+09259:       hlgbRecordReady=false;
+09260:       await hlgbLoadNormalizedCore({preserveLocal:false});
+09261:       localSaveOnly();
+09262:       try{renderProducts()}catch(e){}
+09263:       setCloudStatus(`⚡ Online · ${result.cloud_count_after||""} produtos`,"ok");
+09264:       return 1;
+09265:     }
+09266:     if(result?.cloud_count_after!=null){
+09267:       setCloudStatus(`⚡ Online · ${result.cloud_count_after} produtos na nuvem`,"ok");
+09268:     }
+09269:     return 0;
+09270:   }catch(e){
+09271:     console.error("HLGB v91.12 reconciliação local",e);
+09272:     setCloudStatus("☁️ Falha ao conferir produtos locais","bad");
+09273:     return 0;
+09274:   }
+09275: }
+09276: 
+09277: let hlgbProductDirectBusy=false;
+09278: function hlgbProductCloudMessage(text,state="info"){
+09279:  const el=document.getElementById("productCloudSaveMessage");
+09280:  if(!el)return;
+09281:  el.textContent=String(text||"");
+09282:  el.style.display=text?"block":"none";
+09283:  el.style.marginTop="10px";
+09284:  el.style.fontWeight="700";
+09285:  el.style.fontSize="13px";
+09286:  el.style.color=state==="ok"?"#137a3a":state==="bad"?"#a51d2d":"#6f3f59";
+09287: }
+09288: function hlgbProductSetButtonBusy(btn,busy,label){
+09289:  if(!btn)return;
+09290:  btn.disabled=!!busy;
+09291:  btn.style.opacity=busy?".65":"";
+09292:  btn.style.cursor=busy?"wait":"";
+09293:  if(label)btn.textContent=label;
+09294: }
+09295: async function hlgbCreateProductDirectClick(ev){
+09296:  try{ev?.preventDefault?.();ev?.stopPropagation?.()}catch(e){}
+09297:  if(hlgbProductDirectBusy)return false;
+09298:  const btn=ev?.currentTarget||document.getElementById("productDirectSaveBtn");
+09299:  let p={id:Date.now(),clientPrices:{}};
+09300:  if(!saveProductFromForm(p))return false;
+09301:  hlgbProductDirectBusy=true;
+09302:  hlgbProductSetButtonBusy(btn,true,"☁️ Salvando na nuvem…");
+09303:  hlgbProductCloudMessage("Enviando produto para o Supabase…","info");
+09304:  db.products=Array.isArray(db.products)?db.products:[];
+09305:  db.products.push(p);
+09306:  // A referência precisa existir antes da gravação online, para todas as máquinas receberem o mesmo produto completo.
+09307:  try{ensureProductReferences()}catch(e){}
+09308:  try{
+09309:    localSaveOnly();
+09310:    const confirmed=await hlgbSaveProductDirect(p,false);
+09311:    if(!confirmed||confirmed.applied!==true)throw new Error("O Supabase não confirmou a inclusão do produto.");
+09312:    hlgbProductCloudMessage("✓ Produto confirmado na nuvem.","ok");
+09313:    let q=document.getElementById("productSearchName"),mn=document.getElementById("productPriceMin"),mx=document.getElementById("productPriceMax");
+09314:    if(q)q.value="";if(mn)mn.value="";if(mx)mx.value="";
+09315:    try{auditAction("Cadastrou produto",p.name||String(p.id))}catch(e){}
+09316:    // Dá tempo de a confirmação ficar visível antes de fechar o modal.
+09317:    await new Promise(r=>setTimeout(r,220));
+09318:    closeModal();
+09319:    renderProducts();
+09320:    try{if(typeof renderOrderProductPicker==="function")document.querySelectorAll(".orderProdSearch").forEach(el=>renderOrderProductPicker(el));}catch(e){console.error(e)}
+09321:    alert(`Produto cadastrado e confirmado na nuvem. Referência ${p.code||"-"}.`);
+09322:    return true;
+09323:  }catch(err){
+09324:    db.products=db.products.filter(x=>String(x.id)!==String(p.id));
+09325:    try{localSaveOnly()}catch(e){}
+09326:    console.error("Falha ao salvar produto online",err);
+09327:    setCloudStatus("☁️ Produto não salvo","bad");
+09328:    hlgbProductCloudMessage("✕ Não foi possível confirmar na nuvem: "+String(err?.message||err),"bad");
+09329:    hlgbProductSetButtonBusy(btn,false,"💾 Salvar produto");
+09330:    hlgbProductDirectBusy=false;
+09331:    return false;
+09332:  }finally{
+09333:    if(!document.getElementById("modal")?.classList.contains("show"))hlgbProductDirectBusy=false;
+09334:  }
+09335: }
+09336: async function hlgbUpdateProductDirectClick(ev,id){
+09337:  try{ev?.preventDefault?.();ev?.stopPropagation?.()}catch(e){}
+09338:  if(hlgbProductDirectBusy)return false;
+09339:  const p=(db.products||[]).find(x=>String(x.id)===String(id));
+09340:  if(!p){alert("Produto não encontrado.");return false}
+09341:  const btn=ev?.currentTarget||document.getElementById("productDirectSaveBtn");
+09342:  const before=hlgbRecordClone(p);
+09343:  if(!saveProductFromForm(p))return false;
+09344:  hlgbProductDirectBusy=true;
+09345:  hlgbProductSetButtonBusy(btn,true,"☁️ Salvando alterações…");
+09346:  hlgbProductCloudMessage("Enviando alterações para o Supabase…","info");
+09347:  try{
+09348:    localSaveOnly();
+09349:    const confirmed=await hlgbSaveProductDirect(p,false);
+09350:    if(!confirmed||confirmed.applied!==true)throw new Error("O Supabase não confirmou a alteração do produto.");
+09351:    hlgbProductCloudMessage("✓ Alterações confirmadas na nuvem.","ok");
+09352:    try{auditAction("Atualizou produto",p.name||String(p.id))}catch(e){}
+09353:    await new Promise(r=>setTimeout(r,220));
+09354:    closeModal();
+09355:    renderProducts();
+09356:    alert("Produto atualizado e confirmado na nuvem.");
+09357:    return true;
+09358:  }catch(err){
+09359:    Object.keys(p).forEach(k=>delete p[k]);Object.assign(p,before);
+09360:    try{localSaveOnly()}catch(e){}
+09361:    console.error("Falha ao atualizar produto online",err);
+09362:    setCloudStatus("☁️ Produto não salvo","bad");
+09363:    hlgbProductCloudMessage("✕ Não foi possível confirmar na nuvem: "+String(err?.message||err),"bad");
+09364:    hlgbProductSetButtonBusy(btn,false,"💾 Salvar alterações");
+09365:    hlgbProductDirectBusy=false;
+09366:    return false;
+09367:  }finally{
+09368:    if(!document.getElementById("modal")?.classList.contains("show"))hlgbProductDirectBusy=false;
+09369:  }
+09370: }
+09371: 
+09372: function newProduct(){
+09373:  const body=productForm()+`<button id="productDirectSaveBtn" type="button" class="primary" onclick="hlgbCreateProductDirectClick(event)">💾 Salvar produto</button><div id="productCloudSaveMessage" aria-live="polite" style="display:none"></div>`;
+09374:  openModal("Novo produto / ficha técnica",body,null);
+09375:  setTimeout(()=>{updateProductCostPreview()},0);
+09376: }
+09377: 
+09378: function editProduct(id){
+09379:  let p=(db.products||[]).find(x=>String(x.id)===String(id));if(!p)return;
+09380:  const safeId=JSON.stringify(String(id));
+09381:  const body=productForm(p)+`<button id="productDirectSaveBtn" type="button" class="primary" onclick='hlgbUpdateProductDirectClick(event,${safeId})'>💾 Salvar alterações</button><div id="productCloudSaveMessage" aria-live="polite" style="display:none"></div>`;
+09382:  openModal("Editar produto / ficha técnica",body,null);
+09383:  setTimeout(()=>{updateProductCostPreview()},0);
+09384: }
+09385: 
+09386: function productSheet(productId){
+09387:  const p=db.products.find(x=>+x.id===+productId);
+09388:  if(!p){alert("Produto não encontrado.");return}
+09389: 
+09390:  const mats=Array.isArray(p.materials)?p.materials:[];
+09391:  const costRows=Array.isArray(p.costTable)?p.costTable:[];
+09392: 
+09393:  const materialRows=(mats.length?mats:[{}]).map((m,i)=>`
+09394:  <tr class="sheetMat">
+09395:   <td><input data-field="name" value="${esc(m.name||"")}"></td>
+09396:   <td><input data-field="qty" type="number" step="0.01" value="${m.qty??""}"></td>
+09397:   <td><input data-field="unit" value="${esc(m.unit||"")}"></td>
+09398:   <td><input data-field="loss" type="number" step="0.01" value="${m.loss??0}"></td>
+09399:   <td><input data-field="price" type="number" step="0.01" value="${m.price??0}"></td>
+09400:   <td><button type="button" class="danger" onclick="this.closest('tr').remove()">Excluir</button></td>
+09401:  </tr>`).join("");
+09402: 
+09403:  const costTableRows=(costRows.length?costRows:[{}]).map((r,i)=>`
+09404:  <tr class="sheetCost">
+09405:   <td><input data-field="item" value="${esc(r.item||"")}"></td>
+09406:   <td><input data-field="consumo" value="${esc(r.consumo||"")}"></td>
+09407:   <td><input data-field="custo" value="${esc(r.custo||"")}"></td>
+09408:   <td><button type="button" class="danger" onclick="this.closest('tr').remove()">Excluir</button></td>
+09409:  </tr>`).join("");
+09410: 
+09411:  const body=`
+09412:  <div class="panel" style="margin-top:0">
+09413:   <h3>📋 Planilha de cadastro — ${esc(p.name||"Produto")}</h3>
+09414:   <div class="sub">Edite os dados diretamente nesta planilha. O botão Salvar grava tudo no cadastro do produto.</div>
+09415: 
+09416:   <h4>Identificação</h4>
+09417:   <div class="grid">
+09418:    <div class="field"><label>Referência / código</label><input id="ps_code" value="${esc(p.code||"")}"></div>
+09419:    <div class="field"><label>Nome do produto</label><input id="ps_name" value="${esc(p.name||"")}"></div>
+09420:    <div class="field"><label>Categoria</label><input id="ps_category" value="${esc(p.category||"")}"></div>
+09421:    <div class="field"><label>Material principal</label><input id="ps_material" value="${esc(p.material||"")}"></div>
+09422:    <div class="field"><label>Cor</label><input id="ps_color" value="${esc(p.color||"")}"></div>
+09423:    <div class="field"><label>Grade / tamanhos</label><input id="ps_sizes" value="${esc((p.sizes||[]).join(", "))}"></div>
+09424:   </div>
+09425:   <div class="field"><label>Observações</label><textarea id="ps_note">${esc(p.note||"")}</textarea></div>
+09426:  </div>
+09427: 
+09428:  <div class="panel">
+09429:   <h3>Materiais e consumo</h3>
+09430:   <div style="overflow:auto">
+
+=== hlgbRecordSaveWithRetry @ line 11203 ===
+11123:       if(ops.length)pending.modules[module]=ops;
+11124:     }
+11125:     if(any)localStorage.setItem(HLGB_RECORD_PENDING_KEY,JSON.stringify(pending));else hlgbRecordPendingClear();
+11126:   }catch(e){console.warn("HLGB record pending",e)}
+11127: }
+11128: async function hlgbRecordLoadBundle({preserveLocal=false,since=null}={}){
+11129:   const body={p_since:since||null};
+11130:   let bundle=await cloudRequest("rpc/hlgb_load_bundle",{method:"POST",body:JSON.stringify(body)});
+11131:   if(Array.isArray(bundle)&&bundle.length===1&&bundle[0]&&bundle[0].rows)bundle=bundle[0];
+11132:   if(!bundle||typeof bundle!=="object")throw new Error("O Supabase não retornou o pacote de dados do HLGB.");
+11133:   const readable=Array.isArray(bundle.modules)?bundle.modules.filter(m=>HLGB_RECORD_MODULES.includes(String(m))):[];
+11134:   const rows=Array.isArray(bundle.rows)?bundle.rows:[];
+11135:   readable.forEach(m=>hlgbRecordReadable.add(String(m)));
+11136:   if(!since){
+11137:     for(const module of readable){
+11138:       const moduleRows=rows.filter(r=>String(r?.module||"")===String(module));
+11139:       hlgbRecordSnapshotRows(module,moduleRows);
+11140:       const remoteActive=moduleRows.filter(r=>!r.deleted_at).map(r=>hlgbRecordRowValue(r,module));
+11141:       if(!preserveLocal){
+11142:         db[module]=remoteActive;
+11143:       }else{
+11144:         // HLGB v91.28 AUTHORITATIVE RECORD MERGE
+11145:         // Old versions could keep the legacy/local list (for example 44 products),
+11146:         // advance the cloud cursor to the newest timestamp and therefore never add
+11147:         // the missing records. Merge the full server snapshot before advancing.
+11148:         const local=hlgbRecordLocalMap(module);
+11149:         const pendingNow=hlgbRecordPendingRead();
+11150:         const pendingOps=Array.isArray(pendingNow?.modules?.[module])?pendingNow.modules[module]:[];
+11151:         const pendingIds=new Set(pendingOps.filter(op=>op&&op.deleted!==true).map(op=>String(op.id)));
+11152:         for(const row of moduleRows){
+11153:           const rid=String(row?.entity_id??"");
+11154:           if(!rid)continue;
+11155:           if(row.deleted_at){
+11156:             if(!pendingIds.has(rid))local.delete(rid);
+11157:             continue;
+11158:           }
+11159:           // Cloud wins unless this exact record has a confirmed local pending write.
+11160:           if(!pendingIds.has(rid))local.set(rid,hlgbRecordRowValue(row,module));
+11161:         }
+11162:         // Local-only new records are preserved; the pending queue will sync them.
+11163:         db[module]=[...local.values()];
+11164:       }
+11165:     }
+11166:   }else{
+11167:     for(const row of rows)hlgbApplyRecordRow(row);
+11168:   }
+11169:   for(const row of rows){
+11170:     const t=String(row?.updated_at||"");
+11171:     if(t>hlgbRecordGlobalLastSeen)hlgbRecordGlobalLastSeen=t;
+11172:   }
+11173:   const serverTime=String(bundle.server_time||"");
+11174:   if(!hlgbRecordGlobalLastSeen&&serverTime)hlgbRecordGlobalLastSeen=serverTime;
+11175:   return {readable,rows,serverTime};
+11176: }
+11177: async function hlgbLoadNormalizedCore(opts={}){
+11178:   if(!cloudAccessToken)return false;
+11179:   try{
+11180:     await hlgbRecordLoadBundle({preserveLocal:!!opts.preserveLocal,since:null});
+11181:     hlgbRecordReady=true;hlgbNormalizedReady=true;
+11182:     const pending=hlgbRecordPendingRead();
+11183:     if(pending?.modules&&(!pending.email||normEmail(pending.email)===normEmail(cloudUser?.email||""))){
+11184:       for(const [module,ops] of Object.entries(pending.modules)){
+11185:         if(!HLGB_RECORD_MODULES.includes(module)||!Array.isArray(ops)||!hlgbRecordCanWrite(module))continue;
+11186:         const local=hlgbRecordLocalMap(module);
+11187:         for(const op of ops){if(!op.deleted)local.set(String(op.id),hlgbRecordClone(op.data))}
+11188:         db[module]=[...local.values()];
+11189:       }
+11190:       localSaveOnly();try{if(typeof hlgb923EnsureProjectionIntegrity==="function")hlgb923EnsureProjectionIntegrity()}catch(e){console.warn("HLGB v91.24 projection repair after load",e)}setTimeout(()=>hlgbNormalizedSyncNow(false),40);
+11191:     }else hlgbRecordPendingClear();
+11192:     return true;
+11193:   }catch(e){
+11194:     hlgbRecordReady=false;hlgbNormalizedReady=false;
+11195:     console.error("HLGB v91: falha ao carregar pacote de registros",e);setCloudStatus("☁️ Erro ao carregar dados","bad");return false;
+11196:   }
+11197: }
+11198: async function hlgbRecordRpcSave(module,id,data,expectedRevision,deleted=false){
+11199:   const body={p_module:module,p_entity_id:String(id),p_data:data,p_expected_revision:+expectedRevision||0,p_deleted:!!deleted};
+11200:   let out=await cloudRequest("rpc/hlgb_save_record",{method:"POST",headers:{Prefer:"return=representation"},body:JSON.stringify(body)});
+11201:   return Array.isArray(out)?out[0]:out;
+11202: }
+11203: async function hlgbRecordSaveWithRetry(module,id,data,deleted=false){
+11204:   let snap=hlgbRecordSnapshots[module]||new Map(),old=snap.get(String(id)),expected=+old?.revision||0;
+11205:   let result=await hlgbRecordRpcSave(module,id,hlgbRecordClone(data),expected,deleted);
+11206:   if(result?.applied===false){
+11207:     // Outra máquina editou exatamente o mesmo registro. Mescla campo a campo e tenta de novo.
+11208:     const remote=result.data;
+11209:     const base=old?.data;
+11210:     const merged=deleted?hlgbRecordClone(data):cloudMergeThreeWay(base,hlgbRecordClone(data),remote);
+11211:     result=await hlgbRecordRpcSave(module,id,merged,+result.revision||0,deleted);
+11212:     if(result?.applied===false)throw new Error(`Conflito ao salvar ${module}. Atualize e tente novamente.`);
+11213:     if(!deleted){
+11214:       const arr=Array.isArray(db[module])?db[module]:[],idx=arr.findIndex((x,i)=>hlgbRecordId(module,x,i)===String(id));
+11215:       if(idx>=0)arr[idx]=hlgbRecordClone(result.data||merged);
+11216:     }
+11217:   }
+11218:   if(!result)throw new Error(`Supabase não confirmou o salvamento de ${module}.`);
+11219:   const map=hlgbRecordSnapshots[module]||new Map();
+11220:   map.set(String(id),{data:hlgbRecordClone(result.data),deleted_at:result.deleted_at||null,revision:+result.revision||1,updated_at:result.updated_at||new Date().toISOString(),updated_by:result.updated_by||null});
+11221:   hlgbRecordSnapshots[module]=map;
+11222:   if(String(result.updated_at||"")>String(hlgbRecordLastSeen[module]||""))hlgbRecordLastSeen[module]=String(result.updated_at||"");
+11223:   return result;
+11224: }
+11225: async function hlgbNormalizedSyncModule(module){
+11226:   if(!hlgbRecordReady||!cloudAccessToken)return true;
+11227:   if(!hlgbRecordCanWrite(module))return true;
+11228:   const snap=hlgbRecordSnapshots[module]||new Map(),local=hlgbRecordLocalMap(module),jobs=[];
+11229:   for(const [id,item] of local){const old=snap.get(id);if(!old||old.deleted_at||!cloudEq(old.data,item))jobs.push({id,data:item,deleted:false})}
+11230:   // v91.26: nenhuma exclusão é inferida por diferença entre navegador e nuvem.
+11231:   for(const job of jobs)await hlgbRecordSaveWithRetry(module,job.id,job.data,job.deleted);
+11232:   return true;
+11233: }
+11234: async function hlgbNormalizedSyncNow(showMessage=false){
+11235:   if(!hlgbRecordReady||!cloudAccessToken)return false;
+11236:   if(hlgbRecordSyncing){hlgbRecordSyncAgain=true;return true;}
+11237:   hlgbRecordSyncing=true;
+11238:   try{
+11239:     await cloudEnsureFreshSession(false);
+11240:     for(const module of HLGB_RECORD_MODULES)await hlgbNormalizedSyncModule(module);
+11241:     hlgbRecordPendingStore();
+11242:     if(!hlgbRecordPendingRead())hlgbRecordPendingClear();
+11243:     localSaveOnly();
+11244:     setCloudStatus("⚡ Online · multiusuário","ok");
+11245:     if(showMessage)alert("Dados sincronizados com sucesso.");
+11246:     return true;
+11247:   }catch(e){
+11248:     console.error("HLGB v91.16 sync",e);hlgbRecordPendingStore();setCloudStatus("☁️ Alterações pendentes","bad");try{const el=document.getElementById("cloudStatus");if(el)el.title=String(e?.message||e||"");}catch(_){}return false;
+11249:   }finally{
+11250:     hlgbRecordSyncing=false;
+11251:     if(hlgbRecordSyncAgain){
+11252:       hlgbRecordSyncAgain=false;
+11253:       setTimeout(()=>hlgbNormalizedSyncNow(false),10);
+11254:     }
+11255:   }
+11256: }
+11257: function hlgbQueueNormalizedSync(delay=10){
+11258:   if(!hlgbRecordReady)return;
+11259:   hlgbRecordPendingStore();
+11260:   setCloudStatus("☁️ Salvando automático…");
+11261:   clearTimeout(hlgbRecordSyncTimer);
+11262:   hlgbRecordSyncTimer=setTimeout(()=>hlgbNormalizedSyncNow(false),Math.max(0,delay));
+11263: }
+11264: function hlgbApplyRecordRow(row){
+11265:   const module=String(row?.module||"");if(!HLGB_RECORD_MODULES.includes(module)||row?.entity_id==null)return false;
+11266:   const id=String(row.entity_id),arr=Array.isArray(db[module])?db[module]:[],idx=arr.findIndex((x,i)=>hlgbRecordId(module,x,i)===id);
+11267:   if(row.deleted_at){if(idx>=0)arr.splice(idx,1)}
+11268:   else {const data=hlgbRecordHydrateData(module,row);if(idx>=0)arr[idx]=data;else arr.push(data)}
+11269:   db[module]=arr;
+11270:   const snap=hlgbRecordSnapshots[module]||new Map();snap.set(id,{data:hlgbRecordClone(row.data),deleted_at:row.deleted_at||null,revision:+row.revision||1,updated_at:row.updated_at||"",updated_by:row.updated_by||null});hlgbRecordSnapshots[module]=snap;
+11271:   if(String(row.updated_at||"")>String(hlgbRecordLastSeen[module]||""))hlgbRecordLastSeen[module]=String(row.updated_at||"");
+11272:   if(String(row.updated_at||"")>String(hlgbRecordGlobalLastSeen||""))hlgbRecordGlobalLastSeen=String(row.updated_at||"");
+11273:   return true;
+11274: }
+11275: function hlgbRenderIncomingRecord(module){
+11276:   module=String(module||"");
+11277:   const modalOpen=!!document.querySelector("#modal.show");
+11278:   const activePage=document.querySelector(".page.active")?.id||"";
+11279: 
+11280:   // A ficha aberta em modal continua protegida contra redesenho enquanto a pessoa digita.
+11281:   if(modalOpen){cloudRemoteUpdatePending=true;return false;}
+11282: 
+11283:   const prev=cloudApplying;cloudApplying=true;
+11284:   try{
+11285:     // Produtos precisa atualizar a tabela mesmo que o cursor esteja em Busca/Preço mínimo/Preço máximo.
+11286:     // Antes qualquer INPUT focado bloqueava a atualização visual e a edição só aparecia após sair da tela.
+11287:     if(module==="products" && activePage==="produtos"){
+11288:       if(typeof renderProducts==="function")renderProducts();
+11289:       cloudRemoteUpdatePending=false;
+11290:       return true;
+11291:     }
+11292: 
+11293:     // v91.29: na Folha, uma alteração confirmada por outra máquina precisa aparecer
+11294:     // imediatamente. O modal aberto continua protegido pelo guard acima.
+11295:     if(module==="payroll" && activePage==="folhaPagamento"){
+11296:       if(typeof renderPayroll==="function")renderPayroll();
+11297:       cloudRemoteUpdatePending=false;
+11298:       return true;
+11299:     }
+11300: 
+11301:     // Para as demais telas mantemos a proteção antiga enquanto há um formulário/campo sendo editado.
+11302:     if(!cloudUserIsEditing()){
+11303:       renderAll();
+11304:       cloudRemoteUpdatePending=false;
+11305:       return true;
+11306:     }
+11307:     cloudRemoteUpdatePending=true;
+11308:     return false;
+11309:   }finally{cloudApplying=prev}
+11310: }
+11311: 
+11312: async function hlgbHandleRecordRealtime(payload){
+11313:   try{
+11314:     let row=payload?.new&&Object.keys(payload.new).length?payload.new:payload?.old;
+11315:     if(!row)return;
+11316:     if(payload.eventType==="DELETE")row={...row,deleted_at:row.deleted_at||new Date().toISOString()};
+11317:     const module=String(row.module||"");
+11318:     if(!HLGB_RECORD_MODULES.includes(module))return;
+11319:     hlgbApplyRecordRow(row);localSaveOnly();
+11320:     hlgbRenderIncomingRecord(module);
+11321:     setCloudStatus("⚡ Online · atualização recebida","ok");
+11322:     setTimeout(()=>setCloudStatus("⚡ Online · multiusuário","ok"),650);
+11323:   }catch(e){console.warn("HLGB v91.16 realtime",e)}
+11324: }
+11325: async function hlgbPullNormalizedCoreChanges(force=false){
+11326:   if(!hlgbRecordReady||hlgbRecordPulling||!cloudAccessToken||document.hidden)return false;
+11327:   // Realtime continua sendo o caminho principal, mas mantemos UMA leitura em lote como segurança.
+11328:   // A chamada legada ocorre com frequência, porém este limitador permite no máximo 1 pacote/8 s,
+11329:   // em vez das dezenas de consultas por módulo que existiam nas versões antigas.
+11330:   const now=Date.now();
+11331:   if(!force&&now-hlgbRecordLastPullAt<8000)return false;
+11332:   hlgbRecordLastPullAt=now;hlgbRecordPulling=true;
+11333:   try{
+11334:     let since=null;
+11335:     if(hlgbRecordGlobalLastSeen){
+11336:       const t=Date.parse(hlgbRecordGlobalLastSeen);
+11337:       if(Number.isFinite(t))since=new Date(Math.max(0,t-1000)).toISOString();
+11338:     }
+11339:     const bundle=await hlgbRecordLoadBundle({preserveLocal:true,since});
+11340:     const rows=Array.isArray(bundle?.rows)?bundle.rows:[];
+11341:     const changed=rows.length>0;
+11342:     if(changed){
+11343:       localSaveOnly();
+11344:       const modules=[...new Set(rows.map(r=>String(r?.module||"")).filter(Boolean))];
+11345:       // Produtos e Folha atualizam a tela mesmo com filtros focados.
+11346:       let handled=false;
+11347:       if(modules.includes("products"))handled=hlgbRenderIncomingRecord("products")||handled;
+11348:       if(modules.includes("payroll"))handled=hlgbRenderIncomingRecord("payroll")||handled;
+11349:       if(!handled&&!cloudUserIsEditing()){
+11350:         const prev=cloudApplying;cloudApplying=true;try{renderAll();cloudRemoteUpdatePending=false}finally{cloudApplying=prev}
+11351:       }else if(!handled) cloudRemoteUpdatePending=true;
+11352:     }
+11353:     return changed;
+11354:   }catch(e){
+11355:     // Uma falha transitória de leitura jamais desativa o modo por registros.
+11356:     console.warn("HLGB v91 pull bundle",e);return false;
+11357:   }finally{hlgbRecordPulling=false}
+11358: }
+11359: 
+11360: // O JSON legado continua guardando somente configuração, usuários e históricos administrativos.
+11361: const _v9100CloudPayload=cloudPayload;
+11362: cloudPayload=function(remoteSource=null){
+11363:   const copy=_v9100CloudPayload(remoteSource);
+11364:   if(hlgbRecordReady){
+11365:     for(const module of HLGB_RECORD_MODULES){
+11366:       const oldArr=Array.isArray(remoteSource?.[module])?remoteSource[module]:(Array.isArray(cloudBaseSnapshot?.[module])?cloudBaseSnapshot[module]:null);
+11367:       if(oldArr)copy[module]=cloudClone(oldArr);
+11368:     }
+11369:   }
+11370:   return copy;
+11371: };
+11372: hlgbLegacyComparablePayload=function(v){
+11373:   const x=hlgbRecordClone(v||{});for(const module of HLGB_RECORD_MODULES)delete x[module];
+11374:   delete x.auditLog;delete x.userSessions;delete x.session;delete x.activeSessionId;return x;
+11375: };
+11376: 
+11377: hlgbStartRealtime=function(){
+11378:   try{
+11379:     if(!cloudReady||!cloudRowId||!cloudAccessToken||!window.supabase?.createClient)return false;
+11380:     hlgbStopRealtime();
+11381:     hlgbRealtimeClient=window.supabase.createClient(HLGB_SUPABASE_URL,HLGB_SUPABASE_KEY,{auth:{persistSession:false,autoRefreshToken:false,detectSessionInUrl:false},realtime:{params:{eventsPerSecond:80}}});
+11382:     hlgbRealtimeClient.realtime.setAuth(cloudAccessToken);
+11383:     hlgbRealtimeChannel=hlgbRealtimeClient.channel(`hlgb-v91-live-${cloudRowId}`)
+11384:       .on('postgres_changes',{event:'*',schema:'public',table:'hlgb_records'},hlgbHandleRecordRealtime)
+11385:       .on('postgres_changes',{event:'UPDATE',schema:'public',table:'hlgb_data',filter:`id=eq.${cloudRowId}`},hlgbHandleRealtimeDataChange)
+11386:       .subscribe((status,err)=>{
+11387:         hlgbRealtimeState=status;
+11388:         if(status==='SUBSCRIBED')setCloudStatus((cloudDirty||hlgbRecordPendingRead())?'☁️ Salvando automático…':'⚡ Online · multiusuário',(cloudDirty||hlgbRecordPendingRead())?'':'ok');
+11389:         else if(status==='CHANNEL_ERROR'||status==='TIMED_OUT'){console.warn('HLGB Realtime',status,err);setCloudStatus('☁️ Online · reconectando…')}
+11390:       });
+11391:     return true;
+11392:   }catch(e){console.warn("HLGB v91 realtime start",e);return false}
+11393: };
+11394: 
+11395: // Grava local imediatamente e agenda apenas os registros que mudaram.
+11396: const _v9100PersistDb=persistDb;
+11397: persistDb=function(){
+11398:   localSaveOnly();
+11399:   if(cloudBootstrapping||cloudApplying)return true;
+11400:   if(hlgbRecordReady)hlgbQueueNormalizedSync(5);
+11401:   let legacyChanged=true;
+11402:   try{legacyChanged=!cloudEq(hlgbLegacyComparablePayload(cloudPayload(cloudBaseSnapshot||null)),hlgbLegacyComparablePayload(cloudBaseSnapshot||{}))}catch(e){}
+11403:   if(legacyChanged && isOwnerUser()){cloudDirty=true;cloudMarkLocalDirty(true);if(cloudReady&&cloudAccessToken){setCloudStatus("☁️ Salvando automático…");cloudQueueSave(120)}}
+11404:   else {
+11405:     if(!isOwnerUser()){cloudDirty=false;cloudMarkLocalDirty(false);}
+11406:     if(!hlgbRecordPendingRead())setCloudStatus("⚡ Online · multiusuário","ok");
+11407:   }
+11408:   return true;
+11409: };
+11410: 
+11411: // Fallback rápido se o websocket cair: lê somente linhas alteradas.
+11412: setInterval(()=>{
+11413:   if(hlgbRecordReady&&cloudAccessToken&&hlgbRealtimeState!=="SUBSCRIBED")hlgbPullNormalizedCoreChanges(false).catch(()=>{});
+11414: },8000);
+11415: setInterval(()=>{if(hlgbRecordReady&&cloudAccessToken&&hlgbRecordPendingRead())hlgbNormalizedSyncNow(false).catch(()=>{})},3500);
+11416: // Rede de segurança: mesmo com Realtime marcado como conectado, faz uma leitura única e leve
+11417: // periodicamente. Isso cobre navegador que mantém o websocket aberto mas deixa de entregar eventos.
+11418: setInterval(()=>{if(hlgbRecordReady&&cloudAccessToken&&!document.hidden)hlgbPullNormalizedCoreChanges(true).catch(()=>{})},6000);
+11419: window.addEventListener("focus",()=>{if(hlgbRecordReady&&cloudAccessToken)hlgbPullNormalizedCoreChanges(true).catch(()=>{})});
+11420: 
+11421: 
+11422: function hlgb928EnsureCloudCoverage(module){
+
+=== hlgbRecordSaveWithRetry @ line 11231 ===
+11151:         const pendingIds=new Set(pendingOps.filter(op=>op&&op.deleted!==true).map(op=>String(op.id)));
+11152:         for(const row of moduleRows){
+11153:           const rid=String(row?.entity_id??"");
+11154:           if(!rid)continue;
+11155:           if(row.deleted_at){
+11156:             if(!pendingIds.has(rid))local.delete(rid);
+11157:             continue;
+11158:           }
+11159:           // Cloud wins unless this exact record has a confirmed local pending write.
+11160:           if(!pendingIds.has(rid))local.set(rid,hlgbRecordRowValue(row,module));
+11161:         }
+11162:         // Local-only new records are preserved; the pending queue will sync them.
+11163:         db[module]=[...local.values()];
+11164:       }
+11165:     }
+11166:   }else{
+11167:     for(const row of rows)hlgbApplyRecordRow(row);
+11168:   }
+11169:   for(const row of rows){
+11170:     const t=String(row?.updated_at||"");
+11171:     if(t>hlgbRecordGlobalLastSeen)hlgbRecordGlobalLastSeen=t;
+11172:   }
+11173:   const serverTime=String(bundle.server_time||"");
+11174:   if(!hlgbRecordGlobalLastSeen&&serverTime)hlgbRecordGlobalLastSeen=serverTime;
+11175:   return {readable,rows,serverTime};
+11176: }
+11177: async function hlgbLoadNormalizedCore(opts={}){
+11178:   if(!cloudAccessToken)return false;
+11179:   try{
+11180:     await hlgbRecordLoadBundle({preserveLocal:!!opts.preserveLocal,since:null});
+11181:     hlgbRecordReady=true;hlgbNormalizedReady=true;
+11182:     const pending=hlgbRecordPendingRead();
+11183:     if(pending?.modules&&(!pending.email||normEmail(pending.email)===normEmail(cloudUser?.email||""))){
+11184:       for(const [module,ops] of Object.entries(pending.modules)){
+11185:         if(!HLGB_RECORD_MODULES.includes(module)||!Array.isArray(ops)||!hlgbRecordCanWrite(module))continue;
+11186:         const local=hlgbRecordLocalMap(module);
+11187:         for(const op of ops){if(!op.deleted)local.set(String(op.id),hlgbRecordClone(op.data))}
+11188:         db[module]=[...local.values()];
+11189:       }
+11190:       localSaveOnly();try{if(typeof hlgb923EnsureProjectionIntegrity==="function")hlgb923EnsureProjectionIntegrity()}catch(e){console.warn("HLGB v91.24 projection repair after load",e)}setTimeout(()=>hlgbNormalizedSyncNow(false),40);
+11191:     }else hlgbRecordPendingClear();
+11192:     return true;
+11193:   }catch(e){
+11194:     hlgbRecordReady=false;hlgbNormalizedReady=false;
+11195:     console.error("HLGB v91: falha ao carregar pacote de registros",e);setCloudStatus("☁️ Erro ao carregar dados","bad");return false;
+11196:   }
+11197: }
+11198: async function hlgbRecordRpcSave(module,id,data,expectedRevision,deleted=false){
+11199:   const body={p_module:module,p_entity_id:String(id),p_data:data,p_expected_revision:+expectedRevision||0,p_deleted:!!deleted};
+11200:   let out=await cloudRequest("rpc/hlgb_save_record",{method:"POST",headers:{Prefer:"return=representation"},body:JSON.stringify(body)});
+11201:   return Array.isArray(out)?out[0]:out;
+11202: }
+11203: async function hlgbRecordSaveWithRetry(module,id,data,deleted=false){
+11204:   let snap=hlgbRecordSnapshots[module]||new Map(),old=snap.get(String(id)),expected=+old?.revision||0;
+11205:   let result=await hlgbRecordRpcSave(module,id,hlgbRecordClone(data),expected,deleted);
+11206:   if(result?.applied===false){
+11207:     // Outra máquina editou exatamente o mesmo registro. Mescla campo a campo e tenta de novo.
+11208:     const remote=result.data;
+11209:     const base=old?.data;
+11210:     const merged=deleted?hlgbRecordClone(data):cloudMergeThreeWay(base,hlgbRecordClone(data),remote);
+11211:     result=await hlgbRecordRpcSave(module,id,merged,+result.revision||0,deleted);
+11212:     if(result?.applied===false)throw new Error(`Conflito ao salvar ${module}. Atualize e tente novamente.`);
+11213:     if(!deleted){
+11214:       const arr=Array.isArray(db[module])?db[module]:[],idx=arr.findIndex((x,i)=>hlgbRecordId(module,x,i)===String(id));
+11215:       if(idx>=0)arr[idx]=hlgbRecordClone(result.data||merged);
+11216:     }
+11217:   }
+11218:   if(!result)throw new Error(`Supabase não confirmou o salvamento de ${module}.`);
+11219:   const map=hlgbRecordSnapshots[module]||new Map();
+11220:   map.set(String(id),{data:hlgbRecordClone(result.data),deleted_at:result.deleted_at||null,revision:+result.revision||1,updated_at:result.updated_at||new Date().toISOString(),updated_by:result.updated_by||null});
+11221:   hlgbRecordSnapshots[module]=map;
+11222:   if(String(result.updated_at||"")>String(hlgbRecordLastSeen[module]||""))hlgbRecordLastSeen[module]=String(result.updated_at||"");
+11223:   return result;
+11224: }
+11225: async function hlgbNormalizedSyncModule(module){
+11226:   if(!hlgbRecordReady||!cloudAccessToken)return true;
+11227:   if(!hlgbRecordCanWrite(module))return true;
+11228:   const snap=hlgbRecordSnapshots[module]||new Map(),local=hlgbRecordLocalMap(module),jobs=[];
+11229:   for(const [id,item] of local){const old=snap.get(id);if(!old||old.deleted_at||!cloudEq(old.data,item))jobs.push({id,data:item,deleted:false})}
+11230:   // v91.26: nenhuma exclusão é inferida por diferença entre navegador e nuvem.
+11231:   for(const job of jobs)await hlgbRecordSaveWithRetry(module,job.id,job.data,job.deleted);
+11232:   return true;
+11233: }
+11234: async function hlgbNormalizedSyncNow(showMessage=false){
+11235:   if(!hlgbRecordReady||!cloudAccessToken)return false;
+11236:   if(hlgbRecordSyncing){hlgbRecordSyncAgain=true;return true;}
+11237:   hlgbRecordSyncing=true;
+11238:   try{
+11239:     await cloudEnsureFreshSession(false);
+11240:     for(const module of HLGB_RECORD_MODULES)await hlgbNormalizedSyncModule(module);
+11241:     hlgbRecordPendingStore();
+11242:     if(!hlgbRecordPendingRead())hlgbRecordPendingClear();
+11243:     localSaveOnly();
+11244:     setCloudStatus("⚡ Online · multiusuário","ok");
+11245:     if(showMessage)alert("Dados sincronizados com sucesso.");
+11246:     return true;
+11247:   }catch(e){
+11248:     console.error("HLGB v91.16 sync",e);hlgbRecordPendingStore();setCloudStatus("☁️ Alterações pendentes","bad");try{const el=document.getElementById("cloudStatus");if(el)el.title=String(e?.message||e||"");}catch(_){}return false;
+11249:   }finally{
+11250:     hlgbRecordSyncing=false;
+11251:     if(hlgbRecordSyncAgain){
+11252:       hlgbRecordSyncAgain=false;
+11253:       setTimeout(()=>hlgbNormalizedSyncNow(false),10);
+11254:     }
+11255:   }
+11256: }
+11257: function hlgbQueueNormalizedSync(delay=10){
+11258:   if(!hlgbRecordReady)return;
+11259:   hlgbRecordPendingStore();
+11260:   setCloudStatus("☁️ Salvando automático…");
+11261:   clearTimeout(hlgbRecordSyncTimer);
+11262:   hlgbRecordSyncTimer=setTimeout(()=>hlgbNormalizedSyncNow(false),Math.max(0,delay));
+11263: }
+11264: function hlgbApplyRecordRow(row){
+11265:   const module=String(row?.module||"");if(!HLGB_RECORD_MODULES.includes(module)||row?.entity_id==null)return false;
+11266:   const id=String(row.entity_id),arr=Array.isArray(db[module])?db[module]:[],idx=arr.findIndex((x,i)=>hlgbRecordId(module,x,i)===id);
+11267:   if(row.deleted_at){if(idx>=0)arr.splice(idx,1)}
+11268:   else {const data=hlgbRecordHydrateData(module,row);if(idx>=0)arr[idx]=data;else arr.push(data)}
+11269:   db[module]=arr;
+11270:   const snap=hlgbRecordSnapshots[module]||new Map();snap.set(id,{data:hlgbRecordClone(row.data),deleted_at:row.deleted_at||null,revision:+row.revision||1,updated_at:row.updated_at||"",updated_by:row.updated_by||null});hlgbRecordSnapshots[module]=snap;
+11271:   if(String(row.updated_at||"")>String(hlgbRecordLastSeen[module]||""))hlgbRecordLastSeen[module]=String(row.updated_at||"");
+11272:   if(String(row.updated_at||"")>String(hlgbRecordGlobalLastSeen||""))hlgbRecordGlobalLastSeen=String(row.updated_at||"");
+11273:   return true;
+11274: }
+11275: function hlgbRenderIncomingRecord(module){
+11276:   module=String(module||"");
+11277:   const modalOpen=!!document.querySelector("#modal.show");
+11278:   const activePage=document.querySelector(".page.active")?.id||"";
+11279: 
+11280:   // A ficha aberta em modal continua protegida contra redesenho enquanto a pessoa digita.
+11281:   if(modalOpen){cloudRemoteUpdatePending=true;return false;}
+11282: 
+11283:   const prev=cloudApplying;cloudApplying=true;
+11284:   try{
+11285:     // Produtos precisa atualizar a tabela mesmo que o cursor esteja em Busca/Preço mínimo/Preço máximo.
+11286:     // Antes qualquer INPUT focado bloqueava a atualização visual e a edição só aparecia após sair da tela.
+11287:     if(module==="products" && activePage==="produtos"){
+11288:       if(typeof renderProducts==="function")renderProducts();
+11289:       cloudRemoteUpdatePending=false;
+11290:       return true;
+11291:     }
+11292: 
+11293:     // v91.29: na Folha, uma alteração confirmada por outra máquina precisa aparecer
+11294:     // imediatamente. O modal aberto continua protegido pelo guard acima.
+11295:     if(module==="payroll" && activePage==="folhaPagamento"){
+11296:       if(typeof renderPayroll==="function")renderPayroll();
+11297:       cloudRemoteUpdatePending=false;
+11298:       return true;
+11299:     }
+11300: 
+11301:     // Para as demais telas mantemos a proteção antiga enquanto há um formulário/campo sendo editado.
+11302:     if(!cloudUserIsEditing()){
+11303:       renderAll();
+11304:       cloudRemoteUpdatePending=false;
+11305:       return true;
+11306:     }
+11307:     cloudRemoteUpdatePending=true;
+11308:     return false;
+11309:   }finally{cloudApplying=prev}
+11310: }
+11311: 
+11312: async function hlgbHandleRecordRealtime(payload){
+11313:   try{
+11314:     let row=payload?.new&&Object.keys(payload.new).length?payload.new:payload?.old;
+11315:     if(!row)return;
+11316:     if(payload.eventType==="DELETE")row={...row,deleted_at:row.deleted_at||new Date().toISOString()};
+11317:     const module=String(row.module||"");
+11318:     if(!HLGB_RECORD_MODULES.includes(module))return;
+11319:     hlgbApplyRecordRow(row);localSaveOnly();
+11320:     hlgbRenderIncomingRecord(module);
+11321:     setCloudStatus("⚡ Online · atualização recebida","ok");
+11322:     setTimeout(()=>setCloudStatus("⚡ Online · multiusuário","ok"),650);
+11323:   }catch(e){console.warn("HLGB v91.16 realtime",e)}
+11324: }
+11325: async function hlgbPullNormalizedCoreChanges(force=false){
+11326:   if(!hlgbRecordReady||hlgbRecordPulling||!cloudAccessToken||document.hidden)return false;
+11327:   // Realtime continua sendo o caminho principal, mas mantemos UMA leitura em lote como segurança.
+11328:   // A chamada legada ocorre com frequência, porém este limitador permite no máximo 1 pacote/8 s,
+11329:   // em vez das dezenas de consultas por módulo que existiam nas versões antigas.
+11330:   const now=Date.now();
+11331:   if(!force&&now-hlgbRecordLastPullAt<8000)return false;
+11332:   hlgbRecordLastPullAt=now;hlgbRecordPulling=true;
+11333:   try{
+11334:     let since=null;
+11335:     if(hlgbRecordGlobalLastSeen){
+11336:       const t=Date.parse(hlgbRecordGlobalLastSeen);
+11337:       if(Number.isFinite(t))since=new Date(Math.max(0,t-1000)).toISOString();
+11338:     }
+11339:     const bundle=await hlgbRecordLoadBundle({preserveLocal:true,since});
+11340:     const rows=Array.isArray(bundle?.rows)?bundle.rows:[];
+11341:     const changed=rows.length>0;
+11342:     if(changed){
+11343:       localSaveOnly();
+11344:       const modules=[...new Set(rows.map(r=>String(r?.module||"")).filter(Boolean))];
+11345:       // Produtos e Folha atualizam a tela mesmo com filtros focados.
+11346:       let handled=false;
+11347:       if(modules.includes("products"))handled=hlgbRenderIncomingRecord("products")||handled;
+11348:       if(modules.includes("payroll"))handled=hlgbRenderIncomingRecord("payroll")||handled;
+11349:       if(!handled&&!cloudUserIsEditing()){
+11350:         const prev=cloudApplying;cloudApplying=true;try{renderAll();cloudRemoteUpdatePending=false}finally{cloudApplying=prev}
+11351:       }else if(!handled) cloudRemoteUpdatePending=true;
+11352:     }
+11353:     return changed;
+11354:   }catch(e){
+11355:     // Uma falha transitória de leitura jamais desativa o modo por registros.
+11356:     console.warn("HLGB v91 pull bundle",e);return false;
+11357:   }finally{hlgbRecordPulling=false}
+11358: }
+11359: 
+11360: // O JSON legado continua guardando somente configuração, usuários e históricos administrativos.
+11361: const _v9100CloudPayload=cloudPayload;
+11362: cloudPayload=function(remoteSource=null){
+11363:   const copy=_v9100CloudPayload(remoteSource);
+11364:   if(hlgbRecordReady){
+11365:     for(const module of HLGB_RECORD_MODULES){
+11366:       const oldArr=Array.isArray(remoteSource?.[module])?remoteSource[module]:(Array.isArray(cloudBaseSnapshot?.[module])?cloudBaseSnapshot[module]:null);
+11367:       if(oldArr)copy[module]=cloudClone(oldArr);
+11368:     }
+11369:   }
+11370:   return copy;
+11371: };
+11372: hlgbLegacyComparablePayload=function(v){
+11373:   const x=hlgbRecordClone(v||{});for(const module of HLGB_RECORD_MODULES)delete x[module];
+11374:   delete x.auditLog;delete x.userSessions;delete x.session;delete x.activeSessionId;return x;
+11375: };
+11376: 
+11377: hlgbStartRealtime=function(){
+11378:   try{
+11379:     if(!cloudReady||!cloudRowId||!cloudAccessToken||!window.supabase?.createClient)return false;
+11380:     hlgbStopRealtime();
+11381:     hlgbRealtimeClient=window.supabase.createClient(HLGB_SUPABASE_URL,HLGB_SUPABASE_KEY,{auth:{persistSession:false,autoRefreshToken:false,detectSessionInUrl:false},realtime:{params:{eventsPerSecond:80}}});
+11382:     hlgbRealtimeClient.realtime.setAuth(cloudAccessToken);
+11383:     hlgbRealtimeChannel=hlgbRealtimeClient.channel(`hlgb-v91-live-${cloudRowId}`)
+11384:       .on('postgres_changes',{event:'*',schema:'public',table:'hlgb_records'},hlgbHandleRecordRealtime)
+11385:       .on('postgres_changes',{event:'UPDATE',schema:'public',table:'hlgb_data',filter:`id=eq.${cloudRowId}`},hlgbHandleRealtimeDataChange)
+11386:       .subscribe((status,err)=>{
+11387:         hlgbRealtimeState=status;
+11388:         if(status==='SUBSCRIBED')setCloudStatus((cloudDirty||hlgbRecordPendingRead())?'☁️ Salvando automático…':'⚡ Online · multiusuário',(cloudDirty||hlgbRecordPendingRead())?'':'ok');
+11389:         else if(status==='CHANNEL_ERROR'||status==='TIMED_OUT'){console.warn('HLGB Realtime',status,err);setCloudStatus('☁️ Online · reconectando…')}
+11390:       });
+11391:     return true;
+11392:   }catch(e){console.warn("HLGB v91 realtime start",e);return false}
+11393: };
+11394: 
+11395: // Grava local imediatamente e agenda apenas os registros que mudaram.
+11396: const _v9100PersistDb=persistDb;
+11397: persistDb=function(){
+11398:   localSaveOnly();
+11399:   if(cloudBootstrapping||cloudApplying)return true;
+11400:   if(hlgbRecordReady)hlgbQueueNormalizedSync(5);
+11401:   let legacyChanged=true;
+11402:   try{legacyChanged=!cloudEq(hlgbLegacyComparablePayload(cloudPayload(cloudBaseSnapshot||null)),hlgbLegacyComparablePayload(cloudBaseSnapshot||{}))}catch(e){}
+11403:   if(legacyChanged && isOwnerUser()){cloudDirty=true;cloudMarkLocalDirty(true);if(cloudReady&&cloudAccessToken){setCloudStatus("☁️ Salvando automático…");cloudQueueSave(120)}}
+11404:   else {
+11405:     if(!isOwnerUser()){cloudDirty=false;cloudMarkLocalDirty(false);}
+11406:     if(!hlgbRecordPendingRead())setCloudStatus("⚡ Online · multiusuário","ok");
+11407:   }
+11408:   return true;
+11409: };
+11410: 
+11411: // Fallback rápido se o websocket cair: lê somente linhas alteradas.
+11412: setInterval(()=>{
+11413:   if(hlgbRecordReady&&cloudAccessToken&&hlgbRealtimeState!=="SUBSCRIBED")hlgbPullNormalizedCoreChanges(false).catch(()=>{});
+11414: },8000);
+11415: setInterval(()=>{if(hlgbRecordReady&&cloudAccessToken&&hlgbRecordPendingRead())hlgbNormalizedSyncNow(false).catch(()=>{})},3500);
+11416: // Rede de segurança: mesmo com Realtime marcado como conectado, faz uma leitura única e leve
+11417: // periodicamente. Isso cobre navegador que mantém o websocket aberto mas deixa de entregar eventos.
+11418: setInterval(()=>{if(hlgbRecordReady&&cloudAccessToken&&!document.hidden)hlgbPullNormalizedCoreChanges(true).catch(()=>{})},6000);
+11419: window.addEventListener("focus",()=>{if(hlgbRecordReady&&cloudAccessToken)hlgbPullNormalizedCoreChanges(true).catch(()=>{})});
+11420: 
+11421: 
+11422: function hlgb928EnsureCloudCoverage(module){
+11423:   try{
+11424:     if(!HLGB_RECORD_MODULES.includes(module))return 0;
+11425:     const snap=hlgbRecordSnapshots?.[module];
+11426:     if(!(snap instanceof Map))return 0;
+11427:     const local=hlgbRecordLocalMap(module);let added=0;
+11428:     for(const [id,row] of snap.entries()){
+11429:       if(!row||row.deleted_at||local.has(String(id)))continue;
+11430:       const data=hlgbRecordClone(row.data);
+11431:       if(data&&typeof data==="object"){
+11432:         local.set(String(id),data);added++;
+11433:       }
+11434:     }
+11435:     if(added)db[module]=[...local.values()];
+11436:     return added;
+11437:   }catch(e){console.warn("HLGB v91.28 coverage",module,e);return 0}
+11438: }
+11439: 
+11440: async function hlgbEnsureRecordsOnlineAfterLogin(){
+11441:   if(!cloudAccessToken||!cloudReady)return false;
+11442:   if(hlgbRecordReady)return true;
+11443:   try{
+11444:     setCloudStatus("☁️ Carregando dados multiusuário…");
+11445:     const ok=await hlgbLoadNormalizedCore({preserveLocal:false});
+11446:     if(ok){
+11447:       // Safety net: after the official full load, a browser may never contain fewer
+11448:       // cloud products/orders than the authoritative snapshots.
+11449:       const repairedProducts=hlgb928EnsureCloudCoverage("products");
+11450:       const repairedOrders=hlgb928EnsureCloudCoverage("orders");
+
+=== hlgbRecordSaveWithRetry @ line 12919 ===
+12839:     if(!u)u=+(db.products||[]).find(p=>+p.id===pid)?.price||0;
+12840:     return u;
+12841:   }
+12842:   window.hlgb925FilterAdHocProducts=function(source){
+12843:     let row=source?.closest?.('.adHocLine');if(!row)return;
+12844:     let q=(row.querySelector('.adHocProductSearch')?.value||'').trim().toLowerCase();
+12845:     let cat=row.querySelector('.adHocProductCat')?.value||'';
+12846:     let minRaw=row.querySelector('.adHocProductMin')?.value||'',maxRaw=row.querySelector('.adHocProductMax')?.value||'';
+12847:     let min=minRaw!==''?+minRaw:null,max=maxRaw!==''?+maxRaw:null;
+12848:     let matches=products925().filter(p=>{
+12849:       let hay=`${p.name||''} ${p.code||''} ${p.category||''}`.toLowerCase();
+12850:       if(q&&!hay.includes(q))return false;
+12851:       if(cat&&String(p.category||'')!==cat)return false;
+12852:       let price=+p.price||0;
+12853:       if(min!=null&&price<min)return false;
+12854:       if(max!=null&&price>max)return false;
+12855:       return true;
+12856:     }).slice(0,80);
+12857:     let box=row.querySelector('.adHocProductResults'),count=row.querySelector('.adHocProductCount');
+12858:     if(count)count.textContent=`${matches.length} produto(s) encontrado(s)${matches.length===80?' — refine a busca para ver mais':''}`;
+12859:     if(!box)return;
+12860:     box.innerHTML=matches.length?matches.map(p=>`<button type="button" class="secondary" style="display:flex;justify-content:space-between;gap:8px;text-align:left;padding:8px 10px" onclick="hlgb925SelectAdHocProduct(this,${+p.id})"><span><strong>${esc925(p.name||'Produto')}</strong><small style="display:block;color:var(--muted)">${esc925(p.code||'Sem referência')} · ${esc925(p.category||'Sem categoria')}</small></span><strong style="white-space:nowrap">${typeof money==='function'?money(+p.price||0):(+p.price||0).toFixed(2)}</strong></button>`).join(''):'<div class="empty" style="padding:12px">Nenhum produto encontrado.</div>';
+12861:     box.style.display='grid';
+12862:   };
+12863:   window.hlgb925SelectAdHocProduct=function(btn,id){
+12864:     let row=btn?.closest?.('.adHocLine');if(!row)return;
+12865:     let sel=row.querySelector('.adHocProduct');if(sel)sel.value=String(id);
+12866:     let p=(db.products||[]).find(x=>+x.id===+id),label=row.querySelector('.adHocSelectedProduct');
+12867:     if(label)label.innerHTML=p?`<strong>${esc925(p.name)}</strong> <span class="sub">· ${esc925(p.code||'Sem referência')} · ${esc925(p.category||'Sem categoria')}</span>`:'<strong>Selecione um produto</strong>';
+12868:     let box=row.querySelector('.adHocProductResults');if(box){box.innerHTML='';box.style.display='none'}
+12869:     let search=row.querySelector('.adHocProductSearch');if(search)search.value='';
+12870:     let count=row.querySelector('.adHocProductCount');if(count)count.textContent='Produto selecionado. Digite para trocar.';
+12871:     if(typeof hlgb922AdHocProductChanged==='function'&&sel)hlgb922AdHocProductChanged(sel);
+12872:   };
+12873:   window.hlgb925ClearAdHocProductFilter=function(btn){
+12874:     let row=btn?.closest?.('.adHocLine');if(!row)return;
+12875:     ['.adHocProductSearch','.adHocProductMin','.adHocProductMax'].forEach(s=>{let el=row.querySelector(s);if(el)el.value='' });
+12876:     let cat=row.querySelector('.adHocProductCat');if(cat)cat.value='';
+12877:     hlgb925FilterAdHocProducts(row.querySelector('.adHocProductSearch')||row);
+12878:   };
+12879: 
+12880:   window.hlgb922AdHocLine=function(line={}){
+12881:     let selected=selectedProduct925(line),unit=unit925(line);
+12882:     let options=products925().map(p=>`<option value="${+p.id}" ${+p.id===+line.productId?'selected':''}>${esc925(p.code?`${p.code} — ${p.name}`:p.name)}</option>`).join('');
+12883:     return `<div class="adHocLine" style="display:grid;grid-template-columns:minmax(360px,1.8fr) 120px 145px 95px;gap:10px;align-items:end;margin:8px 0;padding:12px;border:1px solid var(--line);border-radius:12px;background:#fff">
+12884:       <div>
+12885:         <div class="selectedOrderProduct adHocSelectedProduct" style="padding:9px 11px;border:1px solid #eadde4;border-radius:10px;background:#fff8fb;margin-bottom:8px">${selected?`<strong>${esc925(selected.name)}</strong> <span class="sub">· ${esc925(selected.code||'Sem referência')} · ${esc925(selected.category||'Sem categoria')}</span>`:'<strong>Selecione um produto</strong>'}</div>
+12886:         <select class="adHocProduct" style="display:none" onchange="hlgb922AdHocProductChanged(this)"><option value="">Selecione</option>${options}</select>
+12887:         <div class="grid" style="grid-template-columns:1.7fr 1fr .7fr .7fr;gap:7px">
+12888:           <div class="field"><label>Buscar produto</label><input class="adHocProductSearch" placeholder="Digite nome ou referência..." onfocus="hlgb925FilterAdHocProducts(this)" oninput="hlgb925FilterAdHocProducts(this)"></div>
+12889:           <div class="field"><label>Categoria</label><select class="adHocProductCat" onchange="hlgb925FilterAdHocProducts(this)"><option value="">Todas</option>${cats925().map(c=>`<option>${esc925(c)}</option>`).join('')}</select></div>
+12890:           <div class="field"><label>Preço mín.</label><input class="adHocProductMin" type="number" step=".01" min="0" placeholder="0,00" oninput="hlgb925FilterAdHocProducts(this)"></div>
+12891:           <div class="field"><label>Preço máx.</label><input class="adHocProductMax" type="number" step=".01" min="0" placeholder="Sem limite" oninput="hlgb925FilterAdHocProducts(this)"></div>
+12892:         </div>
+12893:         <div style="display:flex;justify-content:space-between;gap:8px;align-items:center;margin:5px 0 7px;flex-wrap:wrap"><span class="sub adHocProductCount">Clique na busca para ver os produtos em ordem alfabética.</span><button type="button" class="secondary" style="padding:6px 9px" onclick="hlgb925ClearAdHocProductFilter(this)">Limpar filtros</button></div>
+12894:         <div class="adHocProductResults" style="display:none;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:6px;max-height:220px;overflow:auto;border:1px solid #eee;border-radius:10px;padding:6px;background:#fafafa"></div>
+12895:       </div>
+12896:       <div class="field"><label>Quantidade</label><input class="adHocQty" type="number" min="1" step="1" value="${+line.qty||0}" oninput="hlgb922RecalcAdHoc()"></div>
+12897:       <div class="field"><label>Valor por peça</label><input class="adHocPrice" type="number" min="0" step=".01" value="${unit.toFixed(2)}" readonly></div>
+12898:       <button type="button" class="danger" onclick="this.closest('.adHocLine').remove();hlgb922RecalcAdHoc()">Excluir</button>
+12899:     </div>`;
+12900:   };
+12901: })();
+12902: </script>
+12903: 
+12904: <!-- HLGB v91.26 DATA INTEGRITY GUARD -->
+12905: <script>
+12906: (function(){
+12907:   const previousDel=window.del;
+12908:   window.del=async function(type,id){
+12909:     const isRecordMode=Array.isArray(window.HLGB_RECORD_MODULES||HLGB_RECORD_MODULES) && (window.HLGB_RECORD_MODULES||HLGB_RECORD_MODULES).includes(type);
+12910:     if(!isRecordMode)return previousDel(type,id);
+12911:     if(!confirm("Excluir este registro?"))return;
+12912:     if(!Array.isArray(db[type]))return;
+12913:     const removed=db[type].find(x=>String(x.id)===String(id));
+12914:     if(!removed){alert("Não consegui localizar esse registro para excluir. Atualize a tela e tente novamente.");return}
+12915:     try{
+12916:       if(!hlgbRecordReady){const ok=await hlgbEnsureRecordsOnlineAfterLogin();if(!ok)throw new Error("A nuvem não está pronta para confirmar a exclusão.")}
+12917:       const rid=typeof hlgbRecordId==='function'?hlgbRecordId(type,removed):String(id);
+12918:       const payload={...hlgbRecordClone(removed),__hlgb_explicit_delete:true};
+12919:       const confirmed=await hlgbRecordSaveWithRetry(type,rid,payload,true);
+12920:       if(!confirmed||confirmed.applied!==true)throw new Error("A nuvem não confirmou a exclusão.");
+12921:       db[type]=db[type].filter(x=>String(x.id)!==String(id));
+12922:       localSaveOnly();
+12923:       try{auditAction("Excluiu registro",`${type} — ${id}`)}catch(e){}
+12924:       if(type==='products'){
+12925:         if(typeof renderProducts==='function')renderProducts();
+12926:         if(typeof renderDash==='function')renderDash();
+12927:       }else if(type==='finance'){
+12928:         if(typeof renderFinance==='function')renderFinance();
+12929:         if(typeof renderDash==='function')renderDash();
+12930:       }else if(type==='purchases'){
+12931:         if(typeof renderPurchases==='function')renderPurchases();
+12932:         if(typeof renderFinance==='function')renderFinance();
+12933:       }else if(typeof renderAll==='function')renderAll();
+12934:     }catch(err){
+12935:       console.error('HLGB v91.26 explicit delete failed',err);
+12936:       if(!db[type].some(x=>String(x.id)===String(id)))db[type].push(removed);
+12937:       try{localSaveOnly()}catch(e){}
+12938:       try{if(typeof renderAll==='function')renderAll()}catch(e){}
+12939:       alert("A exclusão NÃO foi confirmada na nuvem. O registro foi mantido para evitar perda de dados.");
+12940:     }
+12941:   };
+12942: })();
+12943: </script>
+12944: 
+12945: 
+12946: <!-- HLGB v91.27 CORTE POR MODELO + FACCAO -->
+12947: <script>
+12948: (function(){
+12949:   const n927=v=>String(v??'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').trim().toLowerCase();
+12950:   const clone927=v=>{try{return JSON.parse(JSON.stringify(v))}catch(e){return v}};
+12951:   let saving927=false;
+12952: 
+12953:   function product927(id){return (db.products||[]).find(x=>+x.id===+id)||null}
+12954:   function order927(id){return (db.orders||[]).find(x=>+x.id===+id)||null}
+12955:   function groups927(o){
+12956:     let map=new Map(),seq=0;
+12957:     (Array.isArray(o?.grade)?o.grade:[]).forEach(g=>{
+12958:       let pid=+g?.productId||0,qty=Math.max(0,+g?.qty||0);if(!pid||!qty)return;
+12959:       if(!map.has(pid))map.set(pid,{productId:pid,qty:0,seq:seq++});
+12960:       map.get(pid).qty+=qty;
+12961:     });
+12962:     if(!map.size&&+o?.productId){map.set(+o.productId,{productId:+o.productId,qty:Math.max(0,+o.qty||+o.totalQty||0),seq:0})}
+12963:     return [...map.values()].filter(x=>x.qty>0).sort((a,b)=>a.seq-b.seq).map(g=>({...g,product:product927(g.productId)}));
+12964:   }
+12965: 
+12966:   function knownService927(label){
+12967:     let want=n927(label);return (db.serviceTypes||[]).map(x=>String(x.name||'').trim()).find(x=>n927(x)===want)||'';
+12968:   }
+12969:   // O tipo de serviço passa a ser identificado pelo MODELO atual, nunca pelo texto do pedido inteiro.
+12970:   window.hlgb916ServiceNameForProduction=function(p){
+12971:     let pr=product927(p?.productId),name=n927(pr?.name||p?.product||''),cat=n927(pr?.category||'');
+12972:     let pick=x=>knownService927(x)||x;
+12973:     if(name.includes('body'))return pick('Body Feminino');
+12974:     if(name.includes('baby doll')||name.includes('babydoll')||name.includes('short doll'))return pick('Baby Doll');
+12975:     if(name.includes('camisola'))return pick('Camisola');
+12976:     if(name.includes('robe'))return pick('Robe');
+12977:     if(name.includes('cueca fem')||name.includes('calcinha')||name.startsWith('fio ')||name.includes(' fio ')||name.includes('tanga')||name.includes('calcola')||name.includes('calçola'))return pick('Calcinha');
+12978:     if(name.includes('cueca'))return knownService927('Cueca')||knownService927('Calcinha')||'Cueca';
+12979:     if(name.includes('conjunto')){
+12980:       if(name.includes('sem bojo'))return pick('Conjunto sem Bojo');
+12981:       if(name.includes('com bojo'))return pick('Conjunto com bojo');
+12982:     }
+12983:     let exact=(db.serviceTypes||[]).map(x=>String(x.name||'').trim()).find(x=>n927(x)===cat);if(exact)return exact;
+12984:     let byName=(db.serviceTypes||[]).map(x=>String(x.name||'').trim()).find(x=>name.includes(n927(x)));if(byName)return byName;
+12985:     return String(pr?.category||'').trim();
+12986:   };
+12987: 
+12988:   async function saveChanged927(rows){
+12989:     if(!rows.length||saving927)return;
+12990:     saving927=true;
+12991:     try{
+12992:       try{localSaveOnly()}catch(e){}
+12993:       if(typeof hlgbRecordSaveWithRetry==='function'&&typeof hlgbRecordId==='function'&&hlgbRecordReady&&cloudAccessToken){
+12994:         for(const row of rows){
+12995:           let id=hlgbRecordId('production',row);if(id)await hlgbRecordSaveWithRetry('production',id,row,false);
+12996:         }
+12997:         try{hlgbRecordPendingStore()}catch(e){}
+12998:         try{localSaveOnly()}catch(e){}
+12999:       }else{
+13000:         try{hlgbRecordPendingStore()}catch(e){}
+13001:       }
+13002:     }catch(e){
+13003:       console.warn('HLGB v91.27 salvar divisão por modelo',e);
+13004:       try{hlgbRecordPendingStore()}catch(x){}
+13005:     }finally{saving927=false}
+13006:   }
+13007: 
+13008:   function baseProduction927(c,o,g,id){
+13009:     let pr=g?.product||product927(g?.productId),qty=Math.max(0,+g?.qty||+c?.pieces||+o?.qty||0);
+13010:     return {
+13011:       id,
+13012:       cutId:c.id,orderId:c.orderId||o?.id||null,productId:g?.productId||c.productId||o?.productId||null,
+13013:       op:c.op||('CORTE-'+c.id),product:pr?.name||c.product||o?.items||'Pedido',client:c.client||o?.client||'',
+13014:       color:'',size:'',planned:qty,done:0,stage:'Aguardando atribuição',productionLocationId:null,factionId:null,
+13015:       date:c.finishedAt||isoDate(new Date()),assignmentSource:true,cutProductKey:`${c.id}:${g?.productId||c.productId||o?.productId||'legacy'}`
+13016:     };
+13017:   }
+13018: 
+13019:   // Cada produto/modelo de um mesmo corte vira uma linha independente para atribuição.
+13020:   window.syncFinalizedCutsToProduction=function(){
+13021:     if(typeof hlgb916EnsureData==='function')hlgb916EnsureData();
+13022:     db.cuts=Array.isArray(db.cuts)?db.cuts:[];db.production=Array.isArray(db.production)?db.production:[];
+13023:     let changed=[];
+13024:     db.cuts.filter(c=>n927(c.status)==='finalizado').forEach(c=>{
+13025:       let o=order927(c.orderId),groups=groups927(o),existing=db.production.filter(p=>+p.cutId===+c.id);
+13026:       if(!groups.length){
+13027:         if(!existing.length){let row=baseProduction927(c,o,null,Date.now()+Math.floor(Math.random()*900000));db.production.push(row);changed.push(row)}
+13028:         return;
+13029:       }
+13030:       // Não redivide cortes históricos que já foram efetivamente atribuídos/produzidos.
+13031:       let historicalAssigned=existing.length===1&&groups.length>1&&existing.some(p=>p.productionLocationId||p.factionId||(+p.done||0)>0||p.finishedAt);
+13032:       if(historicalAssigned)return;
+13033:       let reusable=existing.find(p=>!p.cutProductKey&&!p.productionLocationId&&!p.factionId&&!(+p.done||0)&&!p.finishedAt)||null;
+13034:       groups.forEach((g,i)=>{
+13035:         let key=`${c.id}:${g.productId}`;
+13036:         let row=db.production.find(p=>String(p.cutProductKey||'')===key)||db.production.find(p=>+p.cutId===+c.id&&+p.productId===+g.productId&&(!p.cutProductKey||p.cutProductKey===key));
+13037:         if(!row&&reusable){row=reusable;reusable=null}
+13038:         if(!row){
+13039:           row=baseProduction927(c,o,g,Date.now()+Math.floor(Math.random()*900000)+i);db.production.push(row);changed.push(row);return;
+13040:         }
+13041:         // Só corrige quantidade/modelo enquanto esta linha ainda não foi atribuída.
+13042:         if(!row.productionLocationId&&!row.factionId&&!(+row.done||0)&&!row.finishedAt){
+13043:           let pr=g.product||product927(g.productId),dirty=false;
+13044:           let assign=(k,v)=>{if(String(row[k]??'')!==String(v??'')){row[k]=v;dirty=true}};
+13045:           assign('productId',g.productId);assign('product',pr?.name||row.product||'Modelo');assign('planned',g.qty);assign('cutProductKey',key);assign('assignmentSource',true);assign('color','');assign('size','');
+13046:           if(dirty&&!changed.includes(row))changed.push(row);
+13047:         }
+13048:       });
+13049:     });
+13050:     if(changed.length){try{localSaveOnly()}catch(e){};setTimeout(()=>saveChanged927(changed.map(clone927)),20)}
+13051:     return changed.length>0;
+13052:   };
+13053: 
+13054:   // Evita recriar o <select> no próprio onchange (Safari/Chrome) e mantém as facções clicáveis.
+13055:   window.renderFactionPaymentPlanner=function(){
+13056:     let sel=document.getElementById('factionPlannerMaster'),tableEl=document.getElementById('factionPlannerTable');if(!sel||!tableEl)return;
+13057:     try{syncFinalizedCutsToProduction()}catch(e){console.warn('HLGB v91.27 planner split',e)}
+13058:     let cur=sel.value||'',facs=(db.factionMasters||[]).filter(x=>x.active!==false).slice().sort((a,b)=>String(a.name||'').localeCompare(String(b.name||''),'pt-BR'));
+13059:     let desired=facs.map(f=>String(f.id)),current=[...sel.options].slice(1).map(o=>String(o.value));
+13060:     if(desired.join('|')!==current.join('|')){
+13061:       sel.innerHTML='<option value="">Selecione</option>'+facs.map(f=>`<option value="${f.id}">${esc(f.name)}</option>`).join('');
+13062:       if(desired.includes(String(cur)))sel.value=cur;
+13063:     }
+13064:     let id=+sel.value||0;
+13065:     if(!id){
+13066:       tableEl.innerHTML=facs.length?'<div class="empty">Selecione uma facção para calcular.</div>':'<div class="empty">Nenhuma facção ativa foi encontrada. Confira o cadastro de facções.</div>';
+13067:       let cards=document.getElementById('factionPlannerCards');if(cards)cards.innerHTML='';return;
+13068:     }
+13069:     let rows=typeof hlgb916FactionPlannerRows==='function'?hlgb916FactionPlannerRows(id):[];
+13070:     tableEl.innerHTML=rows.length?`<table><tr><th>Selecionar</th><th>OP</th><th>Modelo</th><th>Tipo</th><th>Qtd. disponível</th><th>Qtd. planejada</th><th>Valor/peça</th><th>Subtotal</th></tr>${rows.map((r,i)=>`<tr><td><input class="factionPlanCheck" data-i="${i}" type="checkbox" onchange="recalcFactionPaymentPlanner()"></td><td>${esc(r.p.op||'-')}</td><td><b>${esc(r.product?.name||r.p.product||'-')}</b></td><td>${esc(r.service||'-')}</td><td>${r.qty.toLocaleString('pt-BR')}</td><td><input class="factionPlanQty" data-i="${i}" type="number" min="0" max="${r.qty}" value="${r.qty}" oninput="recalcFactionPaymentPlanner()" style="width:100px"></td><td><input class="factionPlanRate" data-i="${i}" type="number" min="0" step="0.01" value="${(+r.rate||0).toFixed(2)}" oninput="recalcFactionPaymentPlanner()" style="width:110px"></td><td class="factionPlanSubtotal" data-i="${i}">${money(r.qty*(+r.rate||0))}</td></tr>`).join('')}</table>`:'<div class="empty">Esta facção não possui modelos compatíveis aguardando atribuição. Os modelos aparecem separadamente conforme o tipo de serviço cadastrado.</div>';
+13071:     try{recalcFactionPaymentPlanner()}catch(e){}
+13072:   };
+13073: 
+13074:   // Reconcilia uma vez depois que os dados multiusuário terminarem de carregar.
+13075:   function boot927(){try{syncFinalizedCutsToProduction();renderCutAssignmentQueue();renderFactionAvailableModels();renderFactionPaymentPlanner()}catch(e){console.warn('HLGB v91.27 boot',e)}}
+13076:   setTimeout(boot927,700);
+13077:   window.addEventListener('focus',()=>setTimeout(boot927,80));
+13078: })();
+13079: </script>
+13080: 
+13081: 
+13082: <!-- HLGB v91.30 PACOTE NOTURNO SEGURO -->
+13083: <script>
+13084: (function(){
+13085:   const n930=v=>String(v??'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').trim().toLowerCase();
+13086:   const c930=v=>{try{return JSON.parse(JSON.stringify(v))}catch(e){return v}};
+13087:   const id930=()=>Date.now()+Math.floor(Math.random()*900000);
+13088:   function ensure930(){
+13089:     db.finishedPieces=Array.isArray(db.finishedPieces)?db.finishedPieces:[];
+13090:     db.factionSettings=Array.isArray(db.factionSettings)?db.factionSettings:[];
+13091:     db.employeeAdvances=Array.isArray(db.employeeAdvances)?db.employeeAdvances:[];
+13092:     db.projectionInvoices=Array.isArray(db.projectionInvoices)?db.projectionInvoices:[];
+13093:   }
+13094: 
+13095:   // ---------- Exclusão explícita global: só apaga o que o clique do usuário removeu ----------
+13096:   // A comparação é entre o estado imediatamente antes e depois do clique de EXCLUIR.
+13097:   // Não volta a inferir exclusões por ausência em navegadores antigos.
+13098:   async function explicitDelete930(module,row){
+13099:     if(!row||row.id==null||typeof hlgbRecordSaveWithRetry!=='function')return;
+13100:     try{
+13101:       if(!hlgbRecordReady){let ok=await hlgbEnsureRecordsOnlineAfterLogin();if(!ok)throw new Error('Nuvem indisponível')}
+13102:       let data={...c930(row),__hlgb_explicit_delete:true};
+13103:       let out=await hlgbRecordSaveWithRetry(module,String(row.id),data,true);
+13104:       if(!out||out.applied!==true)throw new Error('Exclusão não confirmada');
+13105:       try{localSaveOnly()}catch(e){}
+13106:     }catch(err){
+13107:       db[module]=Array.isArray(db[module])?db[module]:[];
+13108:       if(!db[module].some(x=>String(x.id)===String(row.id)))db[module].push(row);
+13109:       try{localSaveOnly();renderAll()}catch(e){}
+13110:       alert('A exclusão NÃO foi confirmada na nuvem. O registro foi restaurado para não perder informação.');
+13111:     }
+13112:   }
+13113:   document.addEventListener('click',function(ev){
+13114:     let b=ev.target?.closest?.('button');if(!b)return;
+13115:     let txt=n930((b.textContent||'')+' '+(b.getAttribute('onclick')||''));
+13116:     if(!txt.includes('excluir')&&!txt.includes('delete'))return;
+13117:     let before={};
+13118:     (HLGB_RECORD_MODULES||[]).forEach(m=>{before[m]=new Map((Array.isArray(db[m])?db[m]:[]).filter(x=>x&&x.id!=null).map(x=>[String(x.id),c930(x)]))});
+13119:     setTimeout(()=>{
+13120:       (HLGB_RECORD_MODULES||[]).forEach(m=>{
+13121:         let after=new Set((Array.isArray(db[m])?db[m]:[]).filter(x=>x&&x.id!=null).map(x=>String(x.id)));
+13122:         for(const [id,row] of before[m])if(!after.has(id))explicitDelete930(m,row);
+13123:       });
+13124:     },0);
+13125:   },true);
+13126: 
+13127:   // ---------- Fluxo automático do pedido ----------
+13128:   function shortage930(o){try{return (consolidatedPurchaseNeed(o)||[]).some(x=>(+x.shortage||0)>0.0001)}catch(e){return false}}
+13129:   function sep930(o){return (db.separations||[]).find(x=>+x.orderId===+o.id)}
+13130:   function materialReady930(o){return !!sep930(o)?.done && (!shortage930(o)||o.materialPurchaseConfirmed===true)}
+13131:   function prods930(o){return (db.production||[]).filter(p=>+p.orderId===+o.id)}
+13132:   function cuts930(o){return (db.cuts||[]).filter(c=>+c.orderId===+o.id)}
+13133:   window.hlgb930OrderStatus=function(o){
+13134:     if(!o)return '-';
+13135:     if(o.cancelled||n930(o.status)==='cancelado')return 'Cancelado';
+13136:     if(o.paused)return 'Pausado';
+13137:     if(o.readyForStock)return 'Mercadoria pronta';
+13138:     if(o.invoiceReady||o.noteReady||projectionItemsForOrder(o).every(x=>x.invoiced))return 'Nota emitida';

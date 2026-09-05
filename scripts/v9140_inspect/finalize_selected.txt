@@ -1,0 +1,301 @@
+=== function finalizeSelectedProjection @ line 4794 ===
+04714:      if(!unit){let p=(db.products||[]).find(x=>+x.id===g.productId);unit=+p?.price||0}
+04715:    }
+04716:    let value=unit>0?unit*g.qty:(+o.total||0)*(g.qty/totalQty);
+04717:    let legacyInvoiced=!!saved.invoiced;
+04718:    let invoicedQty=saved.invoicedQty!=null?Math.max(0,+saved.invoicedQty||0):(legacyInvoiced?g.qty:0);
+04719:    invoicedQty=Math.min(g.qty,invoicedQty);
+04720:    let remainingQty=Math.max(0,g.qty-invoicedQty);
+04721:    return {...g,date:saved.date||"",invoiced:remainingQty<=0,invoiceIds:Array.isArray(saved.invoiceIds)?saved.invoiceIds:[],invoicedQty,remainingQty,value};
+04722:  });
+04723: }
+04724: function saveProjectionItemDate(o,key,date){
+04725:  o.projectionItems=(o.projectionItems&&typeof o.projectionItems==="object")?o.projectionItems:{};
+04726:  o.projectionItems[key]={...(o.projectionItems[key]||{}),date};
+04727:  o.projectionPlannedAt=isoDate(new Date());
+04728:  let items=projectionItemsForOrder(o);
+04729:  let dates=items.map(x=>x.date).filter(Boolean);
+04730:  o.projectionDeliveryDate=dates.length===items.length && new Set(dates).size===1?dates[0]:"";
+04731: }
+04732: function projectionItemDate(o,item){
+04733:  return item?.date||"";
+04734: }
+04735: function allProjectionRows(){
+04736:  let rows=[];
+04737:  (db.orders||[]).forEach(o=>{
+04738:    if(["Cancelado"].includes(o.status))return;
+04739:    projectionItemsForOrder(o).forEach(item=>rows.push({order:o,item}));
+04740:  });
+04741:  return rows;
+04742: }
+04743: function projectionDateOfOrder(o){
+04744:  let items=projectionItemsForOrder(o);
+04745:  let dates=items.map(x=>x.date).filter(Boolean).sort();
+04746:  return o.projectionDeliveryDate||dates[0]||"";
+04747: }
+04748: function projectionProductName(o){
+04749:  return orderProductSummary(o);
+04750: }
+04751: function projectionUnitValue(o){
+04752:  let q=qtyOfOrder(o);
+04753:  return q>0?(+o.total||0)/q:0;
+04754: }
+04755: function projectionLocationForOrder(o){
+04756:  let prod=(db.production||[]).find(p=>+p.orderId===+o.id);
+04757:  return prod?productionDestinationName(prod):"-";
+04758: }
+04759: function changeProjectionDate(orderId){
+04760:  let o=(db.orders||[]).find(x=>+x.id===+orderId);if(!o)return;
+04761:  let items=projectionItemsForOrder(o);
+04762:  let rows=items.map((it,i)=>`<tr>
+04763:    <td>${esc(it.name)}</td>
+04764:    <td>${it.qty.toLocaleString("pt-BR")}</td>
+04765:    <td>${money(it.value||0)}</td>
+04766:    <td><input id="projItemDate_${i}" type="date" value="${it.date||o.projectionDeliveryDate||o.date||isoDate(new Date())}"></td>
+04767:  </tr>`).join("");
+04768:  openModal("Programar projeção de entrega por produto",`
+04769:    <div class="grid">
+04770:     <div class="field"><label>Pedido</label><input value="#${typeof displayOrderNumber==="function"?displayOrderNumber(o):o.id}" disabled></div>
+04771:     <div class="field"><label>Cliente</label><input value="${esc(o.client||"")}" disabled></div>
+04772:     <div class="field"><label>Data prometida ao cliente</label><input value="${o.date?fmtDate(o.date):"-"}" disabled></div>
+04773:    </div>
+04774:    <div class="sub" style="margin:10px 0">Defina uma data diferente para cada modelo, se precisar. O pedido continua sendo um só.</div>
+04775:    <div style="overflow:auto"><table><thead><tr><th>Produto</th><th>Peças</th><th>Valor projetado</th><th>Data projetada de saída</th></tr></thead><tbody>${rows}</tbody></table></div>
+04776:    <button type="button" class="primary modalSave">💾 Salvar projeção por produto</button>`,()=>{
+04777:      items.forEach((it,i)=>{
+04778:        let d=document.getElementById(`projItemDate_${i}`)?.value||"";
+04779:        if(d)saveProjectionItemDate(o,it.key,d);
+04780:      });
+04781:      closeModal();save();
+04782:      let allDates=projectionItemsForOrder(o).map(x=>x.date).filter(Boolean).sort();
+04783:      if(allDates.length){
+04784:        let base=new Date(allDates[0]+"T12:00:00"),mon=mondayOf(base),sun=new Date(mon);sun.setDate(sun.getDate()+6);
+04785:        let s=document.getElementById("projectionStart"),e=document.getElementById("projectionEnd");
+04786:        if(s)s.value=isoDate(mon);if(e)e.value=isoDate(sun);
+04787:      }
+04788:      renderProjection();
+04789:    });
+04790: }
+04791: function clearProjectionSelection(){
+04792:  document.querySelectorAll(".projectionSelect").forEach(x=>x.checked=false);
+04793: }
+04794: function finalizeSelectedProjection(){
+04795:  let keys=[...document.querySelectorAll(".projectionSelect:checked")].map(x=>x.value);
+04796:  if(!keys.length){alert("Selecione pelo menos um produto.");return}
+04797:  let selected=keys.map(v=>{
+04798:    let [oid,key]=String(v).split("::");
+04799:    let o=(db.orders||[]).find(x=>+x.id===+oid);if(!o)return null;
+04800:    let item=projectionItemsForOrder(o).find(i=>String(i.key)===key);if(!item)return null;
+04801:    return {o,item};
+04802:  }).filter(Boolean);
+04803:  let sourceClients=[...new Set(selected.map(x=>x.o.client||"Sem cliente"))];
+04804:  if(sourceClients.length!==1){alert("Selecione produtos de um mesmo pedido/cliente de origem por vez.");return}
+04805: 
+04806:  let originalClient=sourceClients[0];
+04807:  let originalClientId=selected[0]?.o?.clientId||((db.clients||[]).find(c=>c.name===originalClient)?.id)||"";
+04808:  let clientOptions=(db.clients||[]).map(c=>`<option value="${c.id}" ${+c.id===+originalClientId?"selected":""}>${esc(c.name)}</option>`).join("");
+04809:  let rows=selected.map((x,i)=>{
+04810:    let rem=x.item.remainingQty!=null?x.item.remainingQty:Math.max(0,x.item.qty-(x.item.invoicedQty||0));
+04811:    let unit=x.item.qty>0?(+x.item.value||0)/x.item.qty:0;
+04812:    return `<tr>
+04813:      <td>${esc(x.item.name)}</td>
+04814:      <td>${x.item.qty.toLocaleString("pt-BR")}</td>
+04815:      <td>${(+x.item.invoicedQty||0).toLocaleString("pt-BR")}</td>
+04816:      <td><b>${rem.toLocaleString("pt-BR")}</b></td>
+04817:      <td><input class="projectionInvoiceQty" data-index="${i}" type="number" min="0" max="${rem}" step="1" value="${rem}" oninput="recalcProjectionInvoiceModal()"></td>
+04818:      <td><input class="projectionInvoiceUnit" data-index="${i}" type="number" min="0" step=".01" value="${unit.toFixed(2)}" oninput="recalcProjectionInvoiceModal()"></td>
+04819:    </tr>`;
+04820:  }).join("");
+04821: 
+04822:  openModal("Finalizar nota — venda total ou parcial",`
+04823:    <div class="panel" style="margin-top:0;background:#fff8fb">
+04824:     <div class="grid">
+04825:       <div class="field"><label>Cliente original do pedido</label><input value="${esc(originalClient)}" disabled></div>
+04826:       <div class="field"><label>Cliente que vai receber esta nota</label><select id="projectionInvoiceClient" onchange="updateProjectionInvoiceClientPrices()">${clientOptions}</select><div class="sub">Pode escolher outro cliente sem alterar o pedido original.</div></div>
+04827:       <div class="field"><label>Data de emissão da nota</label><input id="projectionInvoiceIssueDate" type="date" value="${isoDate(new Date())}"></div>
+04828:       <div class="field"><label>Vencimento</label><input id="projectionInvoiceDue" type="date" value="${selected[0]?.item.date||isoDate(new Date())}"></div>
+04829:       <div class="field"><label>Condição de pagamento</label><select id="projectionInvoiceTerms" onchange="toggleProjectionInvoiceTermsDetail()"><option>À vista</option><option>7 dias</option><option>14 dias</option><option>21 dias</option><option>28 dias</option><option>30 dias</option><option>Cheque</option><option>Personalizado</option></select></div>
+04830:       <div class="field" id="projectionInvoiceTermsDetailField" style="display:none"><label id="projectionInvoiceTermsDetailLabel">Detalhes da condição</label><input id="projectionInvoiceTermsDetail" placeholder="Informe os detalhes da condição de pagamento"></div>
+04831:     </div>
+04832:    </div>
+04833:    <div class="sub" style="margin:10px 0">Em <b>Qtd. nesta nota</b>, informe somente o que está saindo agora. O restante continua disponível na Projeção para outra nota ou outro cliente.</div>
+04834:    <div style="overflow:auto"><table><thead><tr><th>Produto</th><th>Original</th><th>Já faturado</th><th>Disponível</th><th>Qtd. nesta nota</th><th>Valor/peça</th></tr></thead><tbody>${rows}</tbody></table></div>
+04835:    <div class="cards" style="margin-top:12px">
+04836:      <div class="card"><small>Peças nesta nota</small><strong id="projectionInvoiceQtyTotal">0</strong></div>
+04837:      <div class="card"><small>Valor desta nota</small><strong id="projectionInvoiceValueTotal">R$ 0,00</strong></div>
+04838:    </div>
+04839:    <button type="button" class="primary modalSave">Finalizar esta nota</button>`,()=>{
+04840:      let targetClientId=+document.getElementById("projectionInvoiceClient")?.value||null;
+04841:      let targetClient=(db.clients||[]).find(c=>+c.id===+targetClientId);
+04842:      if(!targetClient){alert("Selecione o cliente que receberá a nota.");return}
+04843:      let lineInputs=[...document.querySelectorAll(".projectionInvoiceQty")];
+04844:      let invoiceItems=[],totalValue=0,totalQty=0;
+04845:      lineInputs.forEach(inp=>{
+04846:        let i=+inp.dataset.index,ctx=selected[i];if(!ctx)return;
+04847:        let available=ctx.item.remainingQty!=null?ctx.item.remainingQty:Math.max(0,ctx.item.qty-(ctx.item.invoicedQty||0));
+04848:        let q=Math.max(0,Math.min(available,+inp.value||0));
+04849:        let unit=+document.querySelector(`.projectionInvoiceUnit[data-index="${i}"]`)?.value||0;
+04850:        if(q>0){invoiceItems.push({ctx,qty:q,unit,value:q*unit});totalQty+=q;totalValue+=q*unit}
+04851:      });
+04852:      if(!invoiceItems.length){alert("Informe pelo menos uma quantidade para esta nota.");return}
+04853: 
+04854:      db.finance=db.finance||[];db.projectionInvoices=db.projectionInvoices||[];
+04855:      let issueDate=document.getElementById("projectionInvoiceIssueDate")?.value||isoDate(new Date());
+04856:      let due=document.getElementById("projectionInvoiceDue")?.value||issueDate;
+04857:      let terms=document.getElementById("projectionInvoiceTerms")?.value||"À vista";
+04858:      let termsDetail=document.getElementById("projectionInvoiceTermsDetail")?.value?.trim()||"";
+04859:      if(terms==="Personalizado"&&!termsDetail){alert("Informe os detalhes da condição de pagamento personalizada.");return}
+04860:      let invoiceId=Date.now();
+04861: 
+04862:      db.projectionInvoices.push({
+04863:        id:invoiceId,
+04864:        client:targetClient.name,
+04865:        clientId:targetClient.id,
+04866:        sourceClient:originalClient,
+04867:        items:invoiceItems.map(x=>({orderId:x.ctx.o.id,itemKey:x.ctx.item.key,productName:x.ctx.item.name,productId:x.ctx.item.productId||null,projectionDate:x.ctx.item.date||x.ctx.o.date||"",deliveredAt:issueDate,qty:x.qty,unitPrice:x.unit,value:x.value})),
+04868:        date:issueDate,issueDate:issueDate,dueDate:due,value:totalValue,terms,termsDetail,status:"Pendente"
+04869:      });
+04870:      db.finance.push({
+04871:        id:invoiceId+1,type:"Receber",
+04872:        desc:`Nota projeção — ${targetClient.name} — ${invoiceItems.map(x=>x.ctx.item.name).join(", ")}`,
+04873:        value:totalValue,status:"Pendente",paid:0,remaining:totalValue,date:due,dueDate:due,issueDate:issueDate,paymentTerms:terms,paymentTermsDetail:termsDetail,
+04874:        clientId:targetClient.id,clientName:targetClient.name,projectionInvoiceId:invoiceId
+04875:      });
+04876: 
+04877:      invoiceItems.forEach(({ctx,qty})=>{
+04878:        let o=ctx.o,item=ctx.item;
+04879:        o.projectionItems=o.projectionItems||{};
+04880:        let saved=o.projectionItems[item.key]||{};
+04881:        let prev=saved.invoicedQty!=null?(+saved.invoicedQty||0):(saved.invoiced?item.qty:0);
+04882:        let newQty=Math.min(item.qty,prev+qty);
+04883:        o.projectionItems[item.key]={
+04884:          ...saved,date:item.date,invoicedQty:newQty,invoiced:newQty>=item.qty,
+04885:          invoiceIds:[...((saved.invoiceIds)||[]),invoiceId],
+04886:          deliveryHistory:[...((saved.deliveryHistory)||[]),{invoiceId,date:issueDate,qty}]
+04887:        };
+04888:        let all=projectionItemsForOrder(o);
+04889:        o.projectionInvoiced=all.every(i=>i.invoiced);
+04890:      });
+04891: 
+04892:      closeModal();
+04893:      save();
+04894:      renderProjection();
+04895:      renderFinance();
+04896:      alert(`Nota finalizada para ${targetClient.name}: ${totalQty.toLocaleString("pt-BR")} peça(s) — ${money(totalValue)}. O saldo não faturado continua disponível.`);
+04897:    });
+04898:  setTimeout(()=>{updateProjectionInvoiceClientPrices();recalcProjectionInvoiceModal()},30);
+04899: }
+04900: function updateProjectionInvoiceClientPrices(){
+04901:  let clientId=+document.getElementById("projectionInvoiceClient")?.value||0;
+04902:  let keys=[...document.querySelectorAll(".projectionSelect:checked")].map(x=>x.value);
+04903:  let selected=keys.map(v=>{let [oid,key]=String(v).split("::"),o=(db.orders||[]).find(x=>+x.id===+oid);if(!o)return null;let item=projectionItemsForOrder(o).find(i=>String(i.key)===key);return item?{o,item}:null}).filter(Boolean);
+04904:  document.querySelectorAll(".projectionInvoiceUnit").forEach(inp=>{
+04905:    let i=+inp.dataset.index,ctx=selected[i];if(!ctx)return;
+04906:    let unit=0;
+04907:    if(ctx.item.productId&&clientId){try{unit=+suggestedPrice(clientId,ctx.item.productId)||0}catch(e){}}
+04908:    if(!unit)unit=ctx.item.qty>0?(+ctx.item.value||0)/ctx.item.qty:0;
+04909:    inp.value=unit.toFixed(2);
+04910:  });
+04911:  recalcProjectionInvoiceModal();
+04912: }
+04913: function toggleProjectionInvoiceTermsDetail(){
+04914:  let sel=document.getElementById("projectionInvoiceTerms"),field=document.getElementById("projectionInvoiceTermsDetailField"),label=document.getElementById("projectionInvoiceTermsDetailLabel"),inp=document.getElementById("projectionInvoiceTermsDetail");
+04915:  if(!sel||!field)return;
+04916:  let value=sel.value||"";
+04917:  let show=value==="Personalizado"||value==="Cheque";
+04918:  field.style.display=show?"block":"none";
+04919:  if(label)label.textContent=value==="Cheque"?"Detalhes dos cheques":"Detalhes da condição personalizada";
+04920:  if(inp){
+04921:    inp.placeholder=value==="Cheque"?"Ex.: 2 cheques — 15/09 e 30/09":"Ex.: entrada + 2 parcelas, 10/20/30 dias";
+04922:    if(!show)inp.value="";
+04923:  }
+04924: }
+04925: function recalcProjectionInvoiceModal(){
+04926:  let qty=0,value=0;
+04927:  document.querySelectorAll(".projectionInvoiceQty").forEach(inp=>{
+04928:    let i=inp.dataset.index,q=Math.max(0,+inp.value||0),u=+document.querySelector(`.projectionInvoiceUnit[data-index="${i}"]`)?.value||0;
+04929:    qty+=q;value+=q*u;
+04930:  });
+04931:  let qel=document.getElementById("projectionInvoiceQtyTotal"),vel=document.getElementById("projectionInvoiceValueTotal");
+04932:  if(qel)qel.textContent=qty.toLocaleString("pt-BR");
+04933:  if(vel)vel.textContent=money(value);
+04934: }
+04935: 
+04936: function projectionRemainingQty(item){
+04937:  return Math.max(0,item?.remainingQty!=null?(+item.remainingQty||0):((+item?.qty||0)-(+item?.invoicedQty||0)));
+04938: }
+04939: function projectionUnitForItem(item){
+04940:  return (+item?.qty||0)>0?(+item?.value||0)/(+item?.qty||0):0;
+04941: }
+04942: function projectionRemainingValue(item){
+04943:  return projectionRemainingQty(item)*projectionUnitForItem(item);
+04944: }
+04945: function projectionDeliveredRows(startS="0000-01-01",endS="9999-12-31"){
+04946:  let out=[];
+04947:  (db.projectionInvoices||[]).forEach(inv=>{
+04948:    let date=String(inv.issueDate||inv.date||"").slice(0,10);
+04949:    if(!date||date<startS||date>endS)return;
+04950:    (inv.items||[]).forEach(it=>{
+04951:      let o=(db.orders||[]).find(x=>+x.id===+it.orderId)||null;
+04952:      out.push({invoice:inv,order:o,item:it,date,qty:+it.qty||0,value:+it.value||((+it.qty||0)*(+it.unitPrice||0))});
+04953:    });
+04954:  });
+04955:  return out;
+04956: }
+04957: function projectionTrackingMatches(order,productName){
+04958:  let clientF=(document.getElementById("projectionClientFilter")?.value||"").trim().toLowerCase();
+04959:  let productF=(document.getElementById("projectionProductFilter")?.value||"").trim().toLowerCase();
+04960:  let orderF=(document.getElementById("projectionOrderFilter")?.value||"").trim().toLowerCase();
+04961:  let displayNo=String(order?(typeof displayOrderNumber==="function"?displayOrderNumber(order):order.id):"").toLowerCase();
+04962:  if(clientF&&!String(order?.client||"").toLowerCase().includes(clientF))return false;
+04963:  if(productF&&!String(productName||"").toLowerCase().includes(productF))return false;
+04964:  if(orderF&&!displayNo.includes(orderF))return false;
+04965:  return true;
+04966: }
+04967: let projectionDeliveryTab="remaining";
+04968: function setProjectionDeliveryTab(tab){
+04969:  projectionDeliveryTab=tab==="delivered"?"delivered":"remaining";
+04970:  let rem=document.getElementById("projectionRemainingPane"),del=document.getElementById("projectionDeliveredPane");
+04971:  let br=document.getElementById("projectionTabRemaining"),bd=document.getElementById("projectionTabDelivered");
+04972:  if(rem)rem.style.display=projectionDeliveryTab==="remaining"?"block":"none";
+04973:  if(del)del.style.display=projectionDeliveryTab==="delivered"?"block":"none";
+04974:  if(br)br.className=projectionDeliveryTab==="remaining"?"primary":"secondary";
+04975:  if(bd)bd.className=projectionDeliveryTab==="delivered"?"primary":"secondary";
+04976:  renderProjectionDeliveryTracking();
+04977: }
+04978: function changeProjectionRemainingDate(orderId,itemKey){
+04979:  let o=(db.orders||[]).find(x=>+x.id===+orderId);if(!o)return;
+04980:  let item=projectionItemsForOrder(o).find(i=>String(i.key)===String(itemKey));if(!item)return;
+04981:  let remaining=projectionRemainingQty(item),delivered=Math.max(0,(+item.qty||0)-remaining);
+04982:  if(remaining<=0){alert("Este produto já foi entregue por completo.");return}
+04983:  openModal("Mudar data do restante",`
+04984:    <div class="grid">
+04985:     <div class="field"><label>Pedido</label><input value="#${typeof displayOrderNumber==="function"?displayOrderNumber(o):o.id}" disabled></div>
+04986:     <div class="field"><label>Cliente</label><input value="${esc(o.client||"")}" disabled></div>
+04987:     <div class="field"><label>Produto</label><input value="${esc(item.name||"")}" disabled></div>
+04988:     <div class="field"><label>Quantidade original</label><input value="${(+item.qty||0).toLocaleString("pt-BR")}" disabled></div>
+04989:     <div class="field"><label>Já entregue</label><input value="${delivered.toLocaleString("pt-BR")}" disabled></div>
+04990:     <div class="field"><label>Falta entregar</label><input value="${remaining.toLocaleString("pt-BR")}" disabled></div>
+04991:     <div class="field"><label>Data atual do restante</label><input value="${item.date?fmtDate(item.date):"-"}" disabled></div>
+04992:     <div class="field"><label>Nova data para o restante</label><input id="projectionRemainingNewDate" type="date" value="${item.date||isoDate(new Date())}"></div>
+04993:    </div>
+04994:    <div class="sub" style="margin:10px 0">Somente as ${remaining.toLocaleString("pt-BR")} peça(s) que ainda faltam serão movidas. O que já foi entregue permanece no histórico.</div>
+04995:    <button type="button" class="primary modalSave">💾 Salvar nova data do restante</button>`,()=>{
+04996:      let d=document.getElementById("projectionRemainingNewDate")?.value||"";
+04997:      if(!d){alert("Informe a nova data.");return}
+04998:      saveProjectionItemDate(o,item.key,d);
+04999:      o.projectionItems[item.key]={...(o.projectionItems[item.key]||{}),remainingRescheduledAt:isoDate(new Date())};
+05000:      closeModal();save();renderProjection();
+05001:    });
+05002: }
+05003: function renderProjectionDeliveryTracking(){
+05004:  let sEl=document.getElementById("projectionStart"),eEl=document.getElementById("projectionEnd");
+05005:  if(!sEl||!eEl)return;
+05006:  let startS=sEl.value||"0000-01-01",endS=eEl.value||"9999-12-31";
+05007:  let remainingRows=allProjectionRows().filter(({order:o,item})=>item.date&&item.date>=startS&&item.date<=endS&&projectionRemainingQty(item)>0&&projectionTrackingMatches(o,item.name));
+05008:  let deliveredRows=projectionDeliveredRows(startS,endS).filter(r=>projectionTrackingMatches(r.order,r.item.productName));
+05009:  let plannedQty=remainingRows.reduce((a,x)=>a+projectionRemainingQty(x.item),0);
+05010:  let plannedValue=remainingRows.reduce((a,x)=>a+projectionRemainingValue(x.item),0);
+05011:  let deliveredQty=deliveredRows.reduce((a,x)=>a+(+x.qty||0),0);
+05012:  let deliveredValue=deliveredRows.reduce((a,x)=>a+(+x.value||0),0);
+05013:  let cards=document.getElementById("projectionDeliverySummaryCards");

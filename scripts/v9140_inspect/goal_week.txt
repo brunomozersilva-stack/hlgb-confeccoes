@@ -1,0 +1,1509 @@
+=== weekStart @ line 4342 ===
+04262:  db.factionPayments=Array.isArray(db.factionPayments)?db.factionPayments:[];
+04263:  const validFactionIds=new Set(db.factions.map(f=>+f.id));
+04264:  const fpBefore=db.factionPayments.length;
+04265:  db.factionPayments=db.factionPayments.filter(p=>{
+04266:    if(p.factionServiceId!=null && p.factionServiceId!=="" && !validFactionIds.has(+p.factionServiceId))return false;
+04267:    if(p.orderId!=null && p.orderId!=="" && !validOrderIds.has(+p.orderId))return false;
+04268:    return true;
+04269:  });
+04270:  removed.factionPayments=fpBefore-db.factionPayments.length;
+04271: 
+04272:  // Financeiro: só remove automaticamente registros explicitamente ligados a um pedido inexistente.
+04273:  db.finance=Array.isArray(db.finance)?db.finance:[];
+04274:  const finBefore=db.finance.length;
+04275:  db.finance=db.finance.filter(f=>{
+04276:    if(f.orderId==null || f.orderId==="")return true;
+04277:    return validOrderIds.has(+f.orderId);
+04278:  });
+04279:  removed.finance=finBefore-db.finance.length;
+04280: 
+04281:  const total=Object.values(removed).reduce((a,b)=>a+b,0);
+04282:  if(total>0){
+04283:    try{persistDb()}catch(e){console.error(e)}
+04284:    console.info("HLGB: registros órfãos removidos",removed);
+04285:  }
+04286:  return {total,removed};
+04287: }
+04288: function renderAll(){
+04289:  // Renderizar a interface nunca deve, por si só, criar uma alteração pendente.
+04290:  // Algumas rotinas legadas abaixo também fazem sincronizações derivadas; só
+04291:  // persistimos se elas realmente mudarem dados operacionais.
+04292:  let beforeSystemSync=null;
+04293:  try{beforeSystemSync=cloudOperationalPayload(cloudClone(db))}catch(e){}
+04294:  cleanupOrphanOrderRecords();
+04295:  syncLegacyMaterialCostsFromCostTable();
+04296:  let selectedSeparation=document.getElementById("separationOrder")?.value||"";
+04297:  syncOrdersToCuts();
+04298:  try{
+04299:    const afterSystemSync=cloudOperationalPayload(cloudClone(db));
+04300:    if(beforeSystemSync&&!cloudEq(beforeSystemSync,afterSystemSync)){
+04301:      if(cloudApplying||cloudBootstrapping)localSaveOnly();
+04302:      else persistDb();
+04303:    }
+04304:  }catch(e){}
+04305:  renderDash();renderOrders();renderProduction();renderCuts();renderStock();renderFactions();renderFactionPayments();if(document.getElementById("lixeiraPedidos")?.classList.contains("active"))renderOrderTrash();
+04306:  renderCutters();drawCutterChart();renderClients();if(document.getElementById("clientProfitReport"))renderClientPotentialReport();renderMaterials();renderCatalogs();renderUsers();
+04307:  fillSeparationOrders();
+04308:  if(selectedSeparation && document.getElementById("separationOrder")){
+04309:    document.getElementById("separationOrder").value=selectedSeparation;
+04310:    renderSeparation();
+04311:  }
+04312:  renderSuppliers();renderPurchases();renderProducts();renderFinance();renderEmployees();renderFormerEmployees();renderPayroll();renderReports();renderGoals();
+04313:  try{hlgb916EnsureData()}catch(e){console.error("HLGB v91.17 ensureData",e)}
+04314:  try{renderCutAssignmentQueue()}catch(e){console.error("HLGB v91.17 cutAssignment",e)}
+04315:  try{renderDestinationChecklists()}catch(e){console.error("HLGB v91.17 destinationChecklists",e)}
+04316:  try{renderFactionPaymentPlanner()}catch(e){console.error("HLGB v91.17 factionPlanner",e)}
+04317:  try{renderHubFinance()}catch(e){console.error("HLGB v91.17 hubFinance",e)}
+04318:  if(document.getElementById("missingOpenTable"))renderMissingPieces();if(document.getElementById("auditLogTable"))renderAuditLog();
+04319:  document.getElementById("companyName").value=db.config.name;
+04320:  document.getElementById("companyNote").value=db.config.note;
+04321:  renderOrderNotes();
+04322:  ensurePageSyncButtons();
+04323: }
+04324: function isoDate(d){
+04325: let y=d.getFullYear(),m=String(d.getMonth()+1).padStart(2,"0"),day=String(d.getDate()).padStart(2,"0");
+04326: return `${y}-${m}-${day}`;
+04327: }
+04328: function mondayOf(d){
+04329: let x=new Date(d); x.setHours(12,0,0,0);
+04330: let day=x.getDay(); let diff=day===0?-6:1-day; x.setDate(x.getDate()+diff); return x;
+04331: }
+04332: function weekValue(d){
+04333: let x=mondayOf(d), jan4=new Date(x.getFullYear(),0,4,12), first=mondayOf(jan4);
+04334: let week=Math.round((x-first)/604800000)+1;
+04335: return `${x.getFullYear()}-W${String(week).padStart(2,"0")}`;
+04336: }
+04337: function mondayFromWeek(v){
+04338: let [y,w]=v.split("-W").map(Number); if(!y||!w)return mondayOf(new Date());
+04339: let jan4=new Date(y,0,4,12), first=mondayOf(jan4), d=new Date(first);d.setDate(d.getDate()+(w-1)*7);return d;
+04340: }
+04341: function setWeekFromInput(){renderProjection()}
+04342: function setCurrentWeek(){weekStart.value=weekValue(new Date());renderProjection()}
+04343: function qtyOfOrder(o){
+04344: if(Array.isArray(o.grade)&&o.grade.length)return o.grade.reduce((a,x)=>a+(+x.qty||0),0);
+04345: if(Number.isFinite(+o.qty) && +o.qty>0)return +o.qty;
+04346: let m=String(o.items||"").match(/^\\s*(\\d+)/); return m?+m[1]:0;
+04347: }
+04348: 
+04349: function goalPeriod(){
+04350:  return {
+04351:    start:document.getElementById("goalStart")?.value||"",
+04352:    end:document.getElementById("goalEnd")?.value||""
+04353:  };
+04354: }
+04355: function setGoalPeriod(mode){
+04356:  let s=document.getElementById("goalStart"),e=document.getElementById("goalEnd");
+04357:  if(!s||!e)return;
+04358:  let now=new Date(),start="",end="";
+04359:  if(mode==="day"){
+04360:    let d=isoDate(now);s.value=d;e.value=d;renderGoals();return;
+04361:  }
+04362:  if(mode==="week"){
+04363:    let m=mondayOf(now),z=new Date(m);z.setDate(z.getDate()+6);
+04364:    start=isoDate(m);end=isoDate(z);
+04365:  }else if(mode==="month"){
+04366:    start=isoDate(new Date(now.getFullYear(),now.getMonth(),1,12));
+04367:    end=isoDate(new Date(now.getFullYear(),now.getMonth()+1,0,12));
+04368:  }else if(mode==="year"){
+04369:    start=isoDate(new Date(now.getFullYear(),0,1,12));
+04370:    end=isoDate(new Date(now.getFullYear(),11,31,12));
+04371:  }
+04372:  s.value=start;e.value=end;renderGoals();
+04373: }
+04374: function dateInGoalPeriod(dateValue,start,end){
+04375:  let d=String(dateValue||"").slice(0,10);
+04376:  if(!d)return false;
+04377:  if(start&&d<start)return false;
+04378:  if(end&&d>end)return false;
+04379:  return true;
+04380: }
+04381: function goalTargetForPeriod(g,start,end){
+04382:  let base=+g.targetValue||0;
+04383:  let cadence=g.cadence||"Semanal";
+04384:  if(!start&&!end)return base;
+04385:  let s=start?new Date(start+"T12:00:00"):new Date();
+04386:  let e=end?new Date(end+"T12:00:00"):new Date();
+04387:  let days=Math.max(1,Math.floor((e-s)/86400000)+1);
+04388:  if(cadence==="Semanal")return base*(days/7);
+04389:  if(cadence==="Mensal")return base*(days/30.4375);
+04390:  if(cadence==="Anual")return base*(days/365.25);
+04391:  return base;
+04392: }
+04393: function productionValueForGoal(g,start,end){
+04394:  // Valor produzido estimado pelos pedidos/produções vinculados ao local/facção.
+04395:  // Para facções usa quantidade produzida * preço da facção.
+04396:  if(g.scopeType==="Facção"){
+04397:    return (db.factions||[])
+04398:      .filter(f=>String(f.name||"")===String(g.scopeName||"") && dateInGoalPeriod(f.finishedAt||f.sentAt||f.date,start,end))
+04399:      .reduce((a,f)=>a+(+f.done||0)*(+f.price||0),0);
+04400:  }
+04401:  if(g.scopeType==="Confecção"){
+04402:    let loc=(db.productionLocations||[]).find(x=>String(x.name||"")===String(g.scopeName||""));
+04403:    if(!loc)return 0;
+04404:    return (db.production||[])
+04405:      .filter(p=>+p.productionLocationId===+loc.id && dateInGoalPeriod(p.finishedAt||p.date,start,end))
+04406:      .reduce((a,p)=>{
+04407:        let order=(db.orders||[]).find(o=>+o.id===+p.orderId);
+04408:        let unit=order&&qtyOfOrder(order)>0?(+order.total||0)/qtyOfOrder(order):0;
+04409:        return a+(+p.done||0)*unit;
+04410:      },0);
+04411:  }
+04412:  if(g.scopeType==="Pessoa"){
+04413:    // Pessoa pode ser cortador ou funcionário nominal; usamos cortadores cadastrados.
+04414:    let c=(db.cutters||[]).find(x=>String(x.name||"")===String(g.scopeName||""));
+04415:    if(!c)return 0;
+04416:    return (db.cuts||[])
+04417:      .filter(x=>+x.cutterId===+c.id && String(x.status||"").toLowerCase()==="finalizado" && dateInGoalPeriod(x.finishedAt||x.date,start,end))
+04418:      .reduce((a,x)=>{
+04419:        let order=(db.orders||[]).find(o=>+o.id===+x.orderId);
+04420:        let unit=order&&qtyOfOrder(order)>0?(+order.total||0)/qtyOfOrder(order):0;
+04421:        return a+(+x.pieces||0)*unit;
+04422:      },0);
+04423:  }
+04424:  return 0;
+04425: }
+04426: function goalForm(g={}){
+04427:  let names=[];
+04428:  let type=g.scopeType||"Confecção";
+04429:  if(type==="Confecção")names=(db.productionLocations||[]).map(x=>x.name);
+04430:  else if(type==="Facção")names=(db.factionMasters||[]).map(x=>x.name);
+04431:  else names=(db.cutters||[]).map(x=>x.name);
+04432: 
+04433:  return `<div class="grid">
+04434:   <div class="field"><label>Tipo da meta</label><select id="goalType" onchange="refreshGoalScopeOptions()">
+04435:     ${["Confecção","Facção","Pessoa"].map(x=>`<option ${x===type?"selected":""}>${x}</option>`).join("")}
+04436:   </select></div>
+04437:   <div class="field"><label>Local / pessoa</label><select id="goalScope">
+04438:     ${names.map(n=>`<option ${String(n)===String(g.scopeName||"")?"selected":""}>${esc(n)}</option>`).join("")}
+04439:   </select></div>
+04440:   <div class="field"><label>Quantidade de pessoas trabalhando</label><input id="goalPeople" type="number" min="1" value="${g.peopleCount??1}" oninput="updateGoalTotalPreview()"></div>
+04441:   <div class="field"><label>Meta por pessoa</label><input id="goalPerPerson" type="number" step="0.01" value="${g.goalPerPerson??g.targetValue??0}" oninput="updateGoalTotalPreview()"></div>
+04442:   <div class="field"><label>Meta total calculada</label><input id="goalValue" type="number" step="0.01" value="${g.targetValue??0}" readonly></div>
+04443:   <div class="field"><label>Periodicidade da meta</label><select id="goalCadence">
+04444:     ${["Semanal","Mensal","Anual"].map(x=>`<option ${x===(g.cadence||"Semanal")?"selected":""}>${x}</option>`).join("")}
+04445:   </select></div>
+04446:   <div class="field"><label>Observação</label><input id="goalNote" value="${esc(g.note||"")}"></div>
+04447:  </div>`;
+04448: }
+04449: function refreshGoalScopeOptions(){
+04450:  let t=document.getElementById("goalType")?.value||"Confecção";
+04451:  let names=t==="Confecção"?(db.productionLocations||[]).map(x=>x.name):
+04452:            t==="Facção"?(db.factionMasters||[]).map(x=>x.name):
+04453:            (db.cutters||[]).map(x=>x.name);
+04454:  let s=document.getElementById("goalScope");
+04455:  if(s)s.innerHTML=names.map(n=>`<option>${esc(n)}</option>`).join("");
+04456: }
+04457: function updateGoalTotalPreview(){
+04458:  let people=Math.max(0,+document.getElementById("goalPeople")?.value||0);
+04459:  let per=+document.getElementById("goalPerPerson")?.value||0;
+04460:  let total=people*per;
+04461:  let el=document.getElementById("goalValue");
+04462:  if(el)el.value=total.toFixed(2);
+04463: }
+04464: function newGoal(){
+04465:  openModal("Nova meta",goalForm()+`<button type="button" class="primary modalSave">💾 Salvar meta</button>`,()=>{
+04466:    let type=document.getElementById("goalType")?.value||"Confecção";
+04467:    let scope=document.getElementById("goalScope")?.value||"";
+04468:    if(!scope){alert("Selecione o local, facção ou pessoa.");return}
+04469:    db.goals.push({
+04470:      id:Date.now(),scopeType:type,scopeName:scope,
+04471:      peopleCount:Math.max(1,+document.getElementById("goalPeople")?.value||1),
+04472:      goalPerPerson:+document.getElementById("goalPerPerson")?.value||0,
+04473:      targetValue:(Math.max(1,+document.getElementById("goalPeople")?.value||1))*(+document.getElementById("goalPerPerson")?.value||0),
+04474:      cadence:document.getElementById("goalCadence")?.value||"Semanal",
+04475:      note:document.getElementById("goalNote")?.value||""
+04476:    });
+04477:    closeModal();save();renderGoals();
+04478:  });
+04479: }
+04480: function editGoal(id){
+04481:  let g=(db.goals||[]).find(x=>+x.id===+id);if(!g)return;
+04482:  openModal("Editar meta",goalForm(g)+`<button type="button" class="primary modalSave" onclick="modalSave()">💾 Salvar alterações</button>`,()=>{
+04483:    Object.assign(g,{
+04484:      scopeType:document.getElementById("goalType")?.value||g.scopeType,
+04485:      scopeName:document.getElementById("goalScope")?.value||g.scopeName,
+04486:      peopleCount:Math.max(1,+document.getElementById("goalPeople")?.value||1),
+04487:      goalPerPerson:+document.getElementById("goalPerPerson")?.value||0,
+04488:      targetValue:(Math.max(1,+document.getElementById("goalPeople")?.value||1))*(+document.getElementById("goalPerPerson")?.value||0),
+04489:      cadence:document.getElementById("goalCadence")?.value||"Semanal",
+04490:      note:document.getElementById("goalNote")?.value||""
+04491:    });
+04492:    closeModal();save();renderGoals();
+04493:  });
+04494: 
+04495:  setTimeout(updateGoalTotalPreview,0);
+04496: }
+04497: function deleteGoal(id){
+04498:  if(!confirm("Excluir esta meta?"))return;
+04499:  db.goals=(db.goals||[]).filter(x=>+x.id!==+id);
+04500:  save();renderGoals();
+04501: }
+04502: function operationalCostForm(c={}){
+04503:  let locNames=[...(db.productionLocations||[]).map(x=>x.name),...(db.factionMasters||[]).map(x=>x.name)];
+04504:  locNames=[...new Set(locNames.filter(Boolean))];
+04505:  return `<div class="grid">
+04506:   <div class="field"><label>Local de produção</label><select id="opCostLocation"><option value="">Selecione</option>${locNames.map(n=>`<option ${n===(c.locationName||"")?"selected":""}>${esc(n)}</option>`).join("")}</select></div>
+04507:   <div class="field"><label>Tipo de custo</label><select id="opCostCategory">${["Aluguel","Energia elétrica","Água","Internet","Telefone","Folha administrativa","Manutenção","Transporte","Outros"].map(x=>`<option ${x===(c.category||"")?"selected":""}>${x}</option>`).join("")}</select></div>
+04508:   <div class="field"><label>Descrição</label><input id="opCostDesc" value="${esc(c.description||"")}"></div>
+04509:   <div class="field"><label>Valor</label><input id="opCostValue" type="number" step=".01" value="${c.value??0}"></div>
+04510:   <div class="field"><label>Data de referência</label><input id="opCostDate" type="date" value="${c.date||isoDate(new Date())}"></div>
+04511:   <div class="field"><label>Periodicidade</label><select id="opCostCadence">${["Único","Mensal","Semanal","Anual"].map(x=>`<option ${x===(c.cadence||"Mensal")?"selected":""}>${x}</option>`).join("")}</select></div>
+04512:  </div>`;
+04513: }
+04514: function newOperationalCost(){
+04515:  db.operationalCosts=db.operationalCosts||[];
+04516:  openModal("Novo custo operacional",operationalCostForm()+`<button type="button" class="primary modalSave" onclick="modalSave()">💾 Salvar custo operacional</button>`,()=>{
+04517:    let loc=document.getElementById("opCostLocation")?.value||"",value=+document.getElementById("opCostValue")?.value||0;
+04518:    if(!loc){alert("Selecione o local.");return} if(value<=0){alert("Informe o valor.");return}
+04519:    db.operationalCosts.push({id:Date.now(),locationName:loc,category:document.getElementById("opCostCategory")?.value||"Outros",description:document.getElementById("opCostDesc")?.value||"",value,date:document.getElementById("opCostDate")?.value||isoDate(new Date()),cadence:document.getElementById("opCostCadence")?.value||"Mensal"});
+04520:    try{persistDb()}catch(e){alert("Não foi possível salvar o custo neste navegador.");console.error(e);return}
+04521:    closeModal();renderGoals();
+04522:    alert("Custo operacional salvo com sucesso.");
+04523:  });
+04524: }
+04525: function editOperationalCost(id){
+04526:  let c=(db.operationalCosts||[]).find(x=>String(x.id)===String(id));if(!c)return;
+04527:  openModal("Editar custo operacional",operationalCostForm(c)+`<button type="button" class="primary modalSave" onclick="modalSave()">💾 Salvar alterações</button>`,()=>{
+04528:    Object.assign(c,{locationName:document.getElementById("opCostLocation")?.value||c.locationName,category:document.getElementById("opCostCategory")?.value||c.category,description:document.getElementById("opCostDesc")?.value||"",value:+document.getElementById("opCostValue")?.value||0,date:document.getElementById("opCostDate")?.value||c.date,cadence:document.getElementById("opCostCadence")?.value||c.cadence});
+04529:    closeModal();save();renderGoals();
+04530:  });
+04531: }
+04532: function deleteOperationalCost(id){
+04533:  if(!confirm("Excluir este custo operacional?"))return;
+04534:  db.operationalCosts=Array.isArray(db.operationalCosts)?db.operationalCosts:[];
+04535:  const before=db.operationalCosts.length;
+04536:  const target=String(id);
+04537:  db.operationalCosts=db.operationalCosts.filter(x=>String(x.id)!==target);
+04538:  if(db.operationalCosts.length===before){
+04539:    alert("Não consegui localizar esse custo para excluir. Atualize a página e tente novamente.");
+04540:    return;
+04541:  }
+04542:  save();
+04543:  renderGoals();
+04544:  if(typeof renderDashboard==="function")renderDashboard();
+04545:  if(typeof renderFinance==="function")renderFinance();
+04546:  alert("Custo operacional excluído e totais recalculados.");
+04547: }
+04548: function daysBetweenInclusive(start,end){
+04549:  if(!start||!end)return 1;
+04550:  return Math.max(1,Math.floor((new Date(end+"T12:00:00")-new Date(start+"T12:00:00"))/86400000)+1);
+04551: }
+04552: function operationalCostForPeriod(c,start,end){
+04553:  let base=+c.value||0,cad=c.cadence||"Mensal",days=daysBetweenInclusive(start,end);
+04554:  if(cad==="Único"){
+04555:    return (!start||c.date>=start)&&(!end||c.date<=end)?base:0;
+04556:  }
+04557:  if(cad==="Semanal")return base*(days/7);
+04558:  if(cad==="Mensal")return base*(days/30.4375);
+04559:  if(cad==="Anual")return base*(days/365.25);
+04560:  return base;
+04561: }
+
+=== weekStart @ line 7623 ===
+07543: }
+07544: 
+07545: function separateFactionForPayment(id){
+07546:  let f=(db.factions||[]).find(x=>+x.id===+id);if(!f)return;
+07547:  if(String(f.status||"")!=="Finalizado"){alert("Finalize e confira o retorno antes de separar para pagamento.");return}
+07548:  openModal("Separação para pagamento",`<div class="grid"><div class="field"><label>Facção</label><input value="${esc(f.name||"")}" disabled></div><div class="field"><label>Serviço</label><input value="${esc(f.description||f.op||"")}" disabled></div><div class="field"><label>Quantidade conferida</label><input value="${+f.done||0}" disabled></div><div class="field"><label>Valor previsto</label><input value="${money((+f.done||0)*(+f.price||0))}" disabled></div><div class="field"><label>Data prevista para pagamento</label><input id="fspDate" type="date" value="${f.scheduledPaymentDate||isoDate(new Date())}"></div></div><div class="sub">Após confirmar, o serviço aparecerá em Serviços para pagamento.</div><button type="button" class="primary modalSave">✅ Confirmar separação para pagamento</button>`,()=>{let d=document.getElementById("fspDate")?.value;if(!d){alert("Informe a data prevista para pagamento.");return}f.paymentSeparated=true;f.scheduledPaymentDate=d;syncFactionPayments();closeModal();save();renderFactions();renderFactionPayments();auditAction("Separou facção para pagamento",`${f.name} — ${f.description||f.op||""} — ${fmtDate(d)}`)});
+07549: }
+07550: 
+07551: function syncFactionPayments(){
+07552:  db.factions=Array.isArray(db.factions)?db.factions:[];
+07553:  db.factionPayments=Array.isArray(db.factionPayments)?db.factionPayments:[];
+07554:  let changed=false;
+07555: 
+07556:  db.factions.filter(f=>String(f.status||"").toLowerCase()==="finalizado" && f.paymentSeparated===true).forEach(f=>{
+07557:    let p=db.factionPayments.find(x=>+x.factionServiceId===+f.id);
+07558:    let master=(db.factionMasters||[]).find(x=>String(x.name||"").toLowerCase()===String(f.name||"").toLowerCase());
+07559:    let value=(+f.done||0)*(+f.price||0);
+07560:    if(!p){
+07561:      db.factionPayments.push({
+07562:        id:Date.now()+Math.floor(Math.random()*1000000),
+07563:        factionServiceId:f.id,
+07564:        factionName:f.name||"Facção",
+07565:        description:f.description||f.op||"Serviço de facção",
+07566:        quantity:+f.done||0,
+07567:        unitPrice:+f.price||0,
+07568:        value,
+07569:        pix:master?.pix||"",
+07570:        serviceFinishedAt:f.finishedAt||isoDate(new Date()),
+07571:        scheduledPaymentDate:f.scheduledPaymentDate||"",
+07572:        paidAmount:0,discountAmount:0,paymentHistory:[],
+07573:        status:"Pendente",
+07574:        paymentDate:"",
+07575:        paymentMethod:"",
+07576:        observation:""
+07577:      });
+07578:      changed=true;
+07579:    }else if(p.status!=="Pago"){
+07580:      p.factionName=f.name||p.factionName;
+07581:      p.description=f.description||f.op||p.description;
+07582:      p.quantity=+f.done||0;
+07583:      p.unitPrice=+f.price||0;
+07584:      p.value=value;
+07585:      p.pix=master?.pix||p.pix||"";
+07586:      p.serviceFinishedAt=f.finishedAt||p.serviceFinishedAt;
+07587:      p.scheduledPaymentDate=f.scheduledPaymentDate||p.scheduledPaymentDate||"";
+07588:      changed=true;
+07589:    }
+07590:  });
+07591:  if(changed)try{persistDb()}catch(e){}
+07592: }
+07593: 
+07594: function factionPaymentPeriod(){
+07595:  let start=document.getElementById("fpPeriodStart")?.value||"";
+07596:  let end=document.getElementById("fpPeriodEnd")?.value||"";
+07597:  return {start,end};
+07598: }
+07599: function setFactionPaymentPeriod(mode){
+07600:  let s=document.getElementById("fpPeriodStart"),e=document.getElementById("fpPeriodEnd");
+07601:  if(!s||!e)return;
+07602:  let now=new Date(),start="",end="";
+07603:  if(mode==="week"){
+07604:    let m=mondayOf(now),z=new Date(m);z.setDate(z.getDate()+6);
+07605:    start=isoDate(m);end=isoDate(z);
+07606:  }else if(mode==="month"){
+07607:    start=isoDate(new Date(now.getFullYear(),now.getMonth(),1,12));
+07608:    end=isoDate(new Date(now.getFullYear(),now.getMonth()+1,0,12));
+07609:  }else if(mode==="lastMonth"){
+07610:    start=isoDate(new Date(now.getFullYear(),now.getMonth()-1,1,12));
+07611:    end=isoDate(new Date(now.getFullYear(),now.getMonth(),0,12));
+07612:  }
+07613:  s.value=start;e.value=end;
+07614:  renderFactionPayments();
+07615: }
+07616: function factionPaymentInPeriod(p,start,end){
+07617:  let d=String(p.serviceFinishedAt||p.paymentDate||"").slice(0,10);
+07618:  if(!d)return !start&&!end;
+07619:  if(start&&d<start)return false;
+07620:  if(end&&d>end)return false;
+07621:  return true;
+07622: }
+07623: function weekStartISO(dateStr){
+07624:  let d=new Date(dateStr+"T12:00:00");
+07625:  let day=d.getDay();let diff=day===0?-6:1-day;
+07626:  d.setDate(d.getDate()+diff);
+07627:  return isoDate(d);
+07628: }
+07629: function renderFactionPayments(){
+07630:  syncFactionPayments();
+07631:  db.factionPayments=Array.isArray(db.factionPayments)?db.factionPayments:[];
+07632:  let filter=document.getElementById("factionPaymentFilter")?.value||"";
+07633:  let {start,end}=factionPaymentPeriod();
+07634: 
+07635:  let inPeriod=db.factionPayments.filter(p=>factionPaymentInPeriod(p,start,end));
+07636:  let arr=inPeriod.filter(p=>!filter||p.status===filter);
+07637:  let pending=inPeriod.filter(p=>p.status!=="Pago");
+07638:  let paid=inPeriod.filter(p=>p.status==="Pago");
+07639: 
+07640:  let label=document.getElementById("factionPaymentPeriodLabel");
+07641:  if(label)label.textContent=start||end
+07642:    ? `Exibindo de ${start?fmtDate(start):"início"} até ${end?fmtDate(end):"hoje"}.`
+07643:    : "Exibindo todo o período.";
+07644: 
+07645:  let totalPieces=inPeriod.reduce((a,p)=>a+(+p.quantity||0),0);
+07646:  let totalValue=inPeriod.reduce((a,p)=>a+(+p.value||0),0);
+07647:  let pendingPieces=pending.reduce((a,p)=>a+(+p.quantity||0),0);
+07648:  let pendingValue=pending.reduce((a,p)=>a+(+p.value||0),0);
+07649:  let paidValue=paid.reduce((a,p)=>a+(+p.paidAmount||+p.value||0),0);
+07650: 
+07651:  let cards=document.getElementById("factionPaymentCards");
+07652:  if(cards)cards.innerHTML=`
+07653:    <div class="card"><small>Peças no período</small><strong>${totalPieces.toLocaleString("pt-BR")}</strong></div>
+07654:    <div class="card"><small>Total do período</small><strong>${money(totalValue)}</strong></div>
+07655:    <div class="card"><small>A pagar</small><strong>${money(pendingValue)}</strong><div>${pendingPieces.toLocaleString("pt-BR")} peças</div></div>
+07656:    <div class="card"><small>Já pago</small><strong>${money(paidValue)}</strong></div>`;
+07657: 
+07658:  // Resumo semanal
+07659:  let weeks={};
+07660:  inPeriod.forEach(p=>{
+07661:    let base=p.serviceFinishedAt||p.paymentDate;
+07662:    if(!base)return;
+07663:    let ws=weekStartISO(String(base).slice(0,10));
+07664:    if(!weeks[ws])weeks[ws]={pieces:0,value:0,pending:0,paid:0};
+07665:    weeks[ws].pieces+=+p.quantity||0;
+07666:    weeks[ws].value+=+p.value||0;
+07667:    if(p.status==="Pago")weeks[ws].paid+=+p.value||0;
+07668:    else weeks[ws].pending+=+p.value||0;
+07669:  });
+07670:  let weeklyEl=document.getElementById("factionPaymentWeeklySummary");
+07671:  if(weeklyEl){
+07672:    let rows=Object.entries(weeks).sort((a,b)=>a[0].localeCompare(b[0])).map(([ws,d])=>{
+07673:      let endW=new Date(ws+"T12:00:00");endW.setDate(endW.getDate()+6);
+07674:      return [`${fmtDate(ws)} a ${fmtDate(isoDate(endW))}`,d.pieces.toLocaleString("pt-BR"),money(d.value),money(d.pending),money(d.paid)];
+07675:    });
+07676:    weeklyEl.innerHTML=rows.length
+07677:      ? table(["Semana","Peças","Total","Pendente","Pago"],rows)
+07678:      : '<div class="empty">Nenhum serviço no período.</div>';
+07679:  }
+07680: 
+07681:  // Resumo por facção
+07682:  let summary={};
+07683:  inPeriod.forEach(p=>{
+07684:    let k=p.factionName||"Facção";
+07685:    if(!summary[k])summary[k]={qty:0,value:0,pending:0,paid:0,pix:p.pix||""};
+07686:    summary[k].qty+=+p.quantity||0;
+07687:    summary[k].value+=+p.value||0;
+07688:    if(p.status==="Pago")summary[k].paid+=+p.value||0;
+07689:    else summary[k].pending+=+p.value||0;
+07690:    if(!summary[k].pix && p.pix)summary[k].pix=p.pix;
+07691:  });
+07692:  let summaryEl=document.getElementById("factionPaymentSummary");
+07693:  if(summaryEl){
+07694:    let rows=Object.entries(summary).map(([name,d])=>[
+07695:      esc(name),d.qty.toLocaleString("pt-BR"),money(d.value),money(d.pending),money(d.paid),esc(d.pix||"-")
+07696:    ]);
+07697:    summaryEl.innerHTML=rows.length
+07698:      ? table(["Facção","Peças","Total do período","Pendente","Pago","Chave PIX"],rows)
+07699:      : '<div class="empty">Nenhum serviço no período.</div>';
+07700:  }
+07701: 
+07702:  let tableEl=document.getElementById("factionPaymentTable");
+07703:  if(tableEl){
+07704:    let rows=arr.map(p=>[
+07705:      fmtDate(p.serviceFinishedAt),
+07706:      esc(p.factionName||"-"),
+07707:      esc(p.description||"-"),
+07708:      (+p.quantity||0).toLocaleString("pt-BR"),
+07709:      money(p.unitPrice),
+07710:      money(p.value),
+07711:      money(Math.max(0,(+p.value||0)-(+p.discountAmount||0)-(+p.paidAmount||0))),
+07712:      esc(p.pix||"-"),
+07713:      `<span class="badge ${p.status==="Pago"?"ok":""}">${esc(p.status||"Pendente")}</span>`,
+07714:      p.scheduledPaymentDate?fmtDate(p.scheduledPaymentDate):"-",
+07715:      (+p.discountAmount||0)>0?money(p.discountAmount):"-",
+07716:      (+p.paidAmount||0)>0?money(p.paidAmount):"-",
+07717:      p.status==="Pago"?fmtDate(p.paymentDate):"-",
+07718:      `<button type="button" class="secondary" onclick="editFactionPayment(${p.id})">Editar</button>
+07719:       ${p.status==="Pago"
+07720:         ? `<button type="button" class="secondary" onclick="reopenFactionPayment(${p.id})">Reabrir</button>`
+07721:         : `<button type="button" class="primary" onclick="payFactionPayment(${p.id})">Dar baixa</button>`}
+07722:       <button type="button" class="danger" onclick="deleteFactionPayment(${p.id})">Excluir</button>`
+07723:    ]);
+07724:    tableEl.innerHTML=rows.length
+07725:      ? table(["Finalizado","Facção","Descrição","Qtd.","Preço","Valor bruto","Saldo","PIX","Status","Previsto pgto.","Abatimento","Pago","Pago em","Ações"],rows)
+07726:      : '<div class="empty">Nenhum serviço encontrado.</div>';
+07727:  }
+07728: }
+07729: function factionPaymentRemaining(p){return Math.max(0,(+p.value||0)-(+p.discountAmount||0)-(+p.paidAmount||0))}
+07730: function applyFactionPayment(id,paidNow,discountNow,date,method,obs){
+07731:  let p=db.factionPayments.find(x=>+x.id===+id);if(!p)return false;
+07732:  let rem=factionPaymentRemaining(p),pay=Math.max(0,+paidNow||0),disc=Math.max(0,+discountNow||0);
+07733:  if(pay+disc<=0){alert("Informe o valor pago ou um abatimento.");return false}
+07734:  if(pay+disc>rem+0.009){alert("Pagamento + abatimento não pode ultrapassar o saldo de "+money(rem)+".");return false}
+07735:  p.paymentHistory=Array.isArray(p.paymentHistory)?p.paymentHistory:[];
+07736:  p.paymentHistory.push({id:Date.now(),date:date||isoDate(new Date()),paid:pay,discount:disc,method:method||"PIX",observation:obs||""});
+07737:  p.paidAmount=(+p.paidAmount||0)+pay;p.discountAmount=(+p.discountAmount||0)+disc;
+07738:  let newRem=factionPaymentRemaining(p);p.status=newRem<=0.009?"Pago":((+p.paidAmount||0)>0||(+p.discountAmount||0)>0?"Parcial":"Pendente");
+07739:  if(p.status==="Pago")p.paymentDate=date||isoDate(new Date());p.paymentMethod=method||p.paymentMethod||"PIX";p.observation=obs||p.observation||"";
+07740:  auditAction("Pagamento de facção",`${p.factionName}: pago ${money(pay)}; abatimento ${money(disc)}; saldo ${money(newRem)}`);
+07741:  return true;
+07742: }
+07743: function payFactionPayment(id){
+07744:  let p=db.factionPayments.find(x=>+x.id===+id);if(!p)return;let rem=factionPaymentRemaining(p);
+07745:  openModal("Registrar pagamento",`<div class="cards"><div class="card"><small>Valor bruto</small><strong>${money(p.value)}</strong></div><div class="card"><small>Já pago</small><strong>${money(p.paidAmount||0)}</strong></div><div class="card"><small>Abatimentos</small><strong>${money(p.discountAmount||0)}</strong></div><div class="card"><small>Saldo</small><strong>${money(rem)}</strong></div></div><div class="grid"><div class="field"><label>Valor pago agora</label><input id="fpPaidNow" type="number" step="0.01" value="${rem.toFixed(2)}"></div><div class="field"><label>Abatimento por defeito</label><input id="fpDiscountNow" type="number" step="0.01" value="0"></div><div class="field"><label>Data do pagamento</label><input id="fpDate" type="date" value="${isoDate(new Date())}"></div><div class="field"><label>Forma de pagamento</label><select id="fpMethod"><option>PIX</option><option>Transferência</option><option>Dinheiro</option><option>Outro</option></select></div></div><div class="field"><label>Observação</label><input id="fpObs" placeholder="Ex.: abatimento por 8 peças com defeito"></div><button type="button" class="primary modalSave">✅ Pago / registrar baixa</button>`,()=>{if(!applyFactionPayment(id,document.getElementById("fpPaidNow")?.value,document.getElementById("fpDiscountNow")?.value,document.getElementById("fpDate")?.value,document.getElementById("fpMethod")?.value,document.getElementById("fpObs")?.value))return;closeModal();save();renderFactionPayments()});
+07746: }
+07747: function editFactionPayment(id){
+07748:  let p=db.factionPayments.find(x=>+x.id===+id);if(!p)return;
+07749:  openModal("Editar serviço para pagamento",`<div class="grid"><div class="field"><label>Facção</label><input id="fpeName" value="${esc(p.factionName||"")}"></div><div class="field"><label>Descrição</label><input id="fpeDesc" value="${esc(p.description||"")}"></div><div class="field"><label>Quantidade</label><input id="fpeQty" type="number" value="${p.quantity||0}"></div><div class="field"><label>Preço por peça</label><input id="fpePrice" type="number" step="0.01" value="${p.unitPrice||0}"></div><div class="field"><label>Chave PIX</label><input id="fpePix" value="${esc(p.pix||"")}"></div><div class="field"><label>Data prevista para pagamento</label><input id="fpeScheduled" type="date" value="${p.scheduledPaymentDate||""}"></div></div><div class="panel"><h3>Baixa do pagamento</h3><div class="sub">Você pode pagar tudo, pagar parcialmente ou lançar abatimento por defeito.</div><div class="grid"><div class="field"><label>Valor pago agora</label><input id="fpePaidNow" type="number" step="0.01" value="0"></div><div class="field"><label>Abatimento por defeito</label><input id="fpeDiscountNow" type="number" step="0.01" value="0"></div><div class="field"><label>Data</label><input id="fpePayDate" type="date" value="${isoDate(new Date())}"></div><div class="field"><label>Forma</label><select id="fpeMethod"><option>PIX</option><option>Transferência</option><option>Dinheiro</option><option>Outro</option></select></div><div class="field"><label>Motivo / observação</label><input id="fpeObs" placeholder="Ex.: abatimento por defeito"></div></div><div><b>Já pago:</b> ${money(p.paidAmount||0)} &nbsp; <b>Abatido:</b> ${money(p.discountAmount||0)} &nbsp; <b>Saldo:</b> ${money(factionPaymentRemaining(p))}</div><button type="button" class="primary" style="margin-top:10px" onclick="saveFactionPaymentAndPay(${p.id})">✅ Pago / registrar baixa</button></div><button type="button" class="secondary modalSave">💾 Salvar somente alterações</button>`,()=>{p.factionName=document.getElementById("fpeName")?.value||p.factionName;p.description=document.getElementById("fpeDesc")?.value||p.description;p.quantity=+document.getElementById("fpeQty")?.value||0;p.unitPrice=+document.getElementById("fpePrice")?.value||0;p.value=p.quantity*p.unitPrice;p.pix=document.getElementById("fpePix")?.value||"";p.scheduledPaymentDate=document.getElementById("fpeScheduled")?.value||"";closeModal();save();renderFactionPayments()});
+07750: }
+07751: function saveFactionPaymentAndPay(id){let p=db.factionPayments.find(x=>+x.id===+id);if(!p)return;p.factionName=document.getElementById("fpeName")?.value||p.factionName;p.description=document.getElementById("fpeDesc")?.value||p.description;p.quantity=+document.getElementById("fpeQty")?.value||0;p.unitPrice=+document.getElementById("fpePrice")?.value||0;p.value=p.quantity*p.unitPrice;p.pix=document.getElementById("fpePix")?.value||"";p.scheduledPaymentDate=document.getElementById("fpeScheduled")?.value||"";if(!applyFactionPayment(id,document.getElementById("fpePaidNow")?.value,document.getElementById("fpeDiscountNow")?.value,document.getElementById("fpePayDate")?.value,document.getElementById("fpeMethod")?.value,document.getElementById("fpeObs")?.value))return;closeModal();save();renderFactionPayments()}
+07752: function reopenFactionPayment(id){
+07753:  let p=db.factionPayments.find(x=>+x.id===+id);if(!p)return;
+07754:  if(!confirm("Reabrir este pagamento como pendente?"))return;
+07755:  p.status="Pendente";p.paymentDate="";p.paymentMethod="";p.paidAmount=0;p.discountAmount=0;p.paymentHistory=[];save();renderFactionPayments();
+07756: }
+07757: function deleteFactionPayment(id){
+07758:  if(!confirm("Excluir este lançamento da lista de pagamentos?"))return;
+07759:  db.factionPayments=db.factionPayments.filter(x=>+x.id!==+id);
+07760:  save();renderFactionPayments();
+07761: }
+07762: 
+07763: function cutterPeriod(){
+07764:  let start=document.getElementById("cutterPeriodStart")?.value||"";
+07765:  let end=document.getElementById("cutterPeriodEnd")?.value||"";
+07766:  return {start,end};
+07767: }
+07768: function dateInCutterPeriod(dateValue,start,end){
+07769:  if(!dateValue)return !start && !end;
+07770:  let d=String(dateValue).slice(0,10);
+07771:  if(start && d<start)return false;
+07772:  if(end && d>end)return false;
+07773:  return true;
+07774: }
+07775: function setCutterPeriod(mode){
+07776:  let s=document.getElementById("cutterPeriodStart"),e=document.getElementById("cutterPeriodEnd");
+07777:  if(!s||!e)return;
+07778:  let now=new Date(),start="",end="";
+07779:  if(mode==="today"){
+07780:    start=end=isoDate(now);
+07781:  }else if(mode==="week"){
+07782:    let m=mondayOf(now),z=new Date(m);z.setDate(z.getDate()+6);
+07783:    start=isoDate(m);end=isoDate(z);
+07784:  }else if(mode==="month"){
+07785:    let a=new Date(now.getFullYear(),now.getMonth(),1,12),b=new Date(now.getFullYear(),now.getMonth()+1,0,12);
+07786:    start=isoDate(a);end=isoDate(b);
+07787:  }
+07788:  s.value=start;e.value=end;
+07789:  refreshCutterPeriod();
+07790: }
+07791: function refreshCutterPeriod(){
+07792:  renderCutters();
+07793:  drawCutterChart();
+07794:  renderCutterProductCosts();
+07795: }
+07796: function cutterStats(c){
+07797:  let {start,end}=cutterPeriod();
+07798:  db.production=Array.isArray(db.production)?db.production:[];
+07799:  db.cuts=Array.isArray(db.cuts)?db.cuts:[];
+07800: 
+07801:  // Cortes: planejado usa a data de entrada no corte; realizado usa a data de finalização.
+07802:  let cuts=db.cuts.filter(x=>+x.cutterId===+c.id);
+07803:  let plannedCuts=cuts
+07804:    .filter(x=>dateInCutterPeriod(x.date,start,end))
+07805:    .reduce((a,x)=>a+(+x.pieces||0),0);
+07806:  let doneCuts=cuts
+07807:    .filter(x=>String(x.status||"").toLowerCase()==="finalizado" && dateInCutterPeriod(x.finishedAt||x.date,start,end))
+07808:    .reduce((a,x)=>a+(+x.pieces||0),0);
+07809: 
+07810:  // Registros antigos/manuais de produção atribuídos diretamente a cortador.
+07811:  let prod=db.production.filter(p=>+p.cutterId===+c.id && !p.cutId);
+07812:  let plannedProd=prod
+07813:    .filter(p=>dateInCutterPeriod(p.date,start,end))
+07814:    .reduce((a,p)=>a+(+p.planned||0),0);
+07815:  let doneProd=prod
+07816:    .filter(p=>dateInCutterPeriod(p.finishedAt||p.date,start,end))
+07817:    .reduce((a,p)=>a+(+p.done||0),0);
+07818: 
+07819:  return {planned:plannedCuts+plannedProd,done:doneCuts+doneProd};
+07820: }
+07821: function renderCutters(){
+07822:  let el=document.getElementById("cutterTable");
+07823:  if(!el)return;
+07824:  db.cutters=Array.isArray(db.cutters)?db.cutters:[];
+07825: 
+07826:  let {start,end}=cutterPeriod();
+07827:  let label=document.getElementById("cutterPeriodLabel");
+07828:  if(label){
+07829:    label.textContent=start||end
+07830:      ? `Exibindo de ${start?fmtDate(start):"início"} até ${end?fmtDate(end):"hoje"}.`
+07831:      : "Exibindo todo o período.";
+07832:  }
+07833: 
+07834:  let rows=db.cutters.map(c=>{
+07835:    let st=cutterStats(c),cost=cutterCostStats(c);
+07836:    let costBase=c.cutType==="Interno"
+07837:      ? `Salário: ${money(c.monthlySalary||0)}`
+07838:      : `${(c.rates||[]).length} preços cadastrados`;
+07839:    return [
+07840:      esc(c.name||"-"),esc(c.phone||"-"),esc(c.cutType||"-"),
+07841:      c.active?'<span class="badge ok">Ativo</span>':'<span class="badge">Inativo</span>',
+07842:      st.planned.toLocaleString("pt-BR"),
+
+=== weekStart @ line 7663 ===
+07583:      p.unitPrice=+f.price||0;
+07584:      p.value=value;
+07585:      p.pix=master?.pix||p.pix||"";
+07586:      p.serviceFinishedAt=f.finishedAt||p.serviceFinishedAt;
+07587:      p.scheduledPaymentDate=f.scheduledPaymentDate||p.scheduledPaymentDate||"";
+07588:      changed=true;
+07589:    }
+07590:  });
+07591:  if(changed)try{persistDb()}catch(e){}
+07592: }
+07593: 
+07594: function factionPaymentPeriod(){
+07595:  let start=document.getElementById("fpPeriodStart")?.value||"";
+07596:  let end=document.getElementById("fpPeriodEnd")?.value||"";
+07597:  return {start,end};
+07598: }
+07599: function setFactionPaymentPeriod(mode){
+07600:  let s=document.getElementById("fpPeriodStart"),e=document.getElementById("fpPeriodEnd");
+07601:  if(!s||!e)return;
+07602:  let now=new Date(),start="",end="";
+07603:  if(mode==="week"){
+07604:    let m=mondayOf(now),z=new Date(m);z.setDate(z.getDate()+6);
+07605:    start=isoDate(m);end=isoDate(z);
+07606:  }else if(mode==="month"){
+07607:    start=isoDate(new Date(now.getFullYear(),now.getMonth(),1,12));
+07608:    end=isoDate(new Date(now.getFullYear(),now.getMonth()+1,0,12));
+07609:  }else if(mode==="lastMonth"){
+07610:    start=isoDate(new Date(now.getFullYear(),now.getMonth()-1,1,12));
+07611:    end=isoDate(new Date(now.getFullYear(),now.getMonth(),0,12));
+07612:  }
+07613:  s.value=start;e.value=end;
+07614:  renderFactionPayments();
+07615: }
+07616: function factionPaymentInPeriod(p,start,end){
+07617:  let d=String(p.serviceFinishedAt||p.paymentDate||"").slice(0,10);
+07618:  if(!d)return !start&&!end;
+07619:  if(start&&d<start)return false;
+07620:  if(end&&d>end)return false;
+07621:  return true;
+07622: }
+07623: function weekStartISO(dateStr){
+07624:  let d=new Date(dateStr+"T12:00:00");
+07625:  let day=d.getDay();let diff=day===0?-6:1-day;
+07626:  d.setDate(d.getDate()+diff);
+07627:  return isoDate(d);
+07628: }
+07629: function renderFactionPayments(){
+07630:  syncFactionPayments();
+07631:  db.factionPayments=Array.isArray(db.factionPayments)?db.factionPayments:[];
+07632:  let filter=document.getElementById("factionPaymentFilter")?.value||"";
+07633:  let {start,end}=factionPaymentPeriod();
+07634: 
+07635:  let inPeriod=db.factionPayments.filter(p=>factionPaymentInPeriod(p,start,end));
+07636:  let arr=inPeriod.filter(p=>!filter||p.status===filter);
+07637:  let pending=inPeriod.filter(p=>p.status!=="Pago");
+07638:  let paid=inPeriod.filter(p=>p.status==="Pago");
+07639: 
+07640:  let label=document.getElementById("factionPaymentPeriodLabel");
+07641:  if(label)label.textContent=start||end
+07642:    ? `Exibindo de ${start?fmtDate(start):"início"} até ${end?fmtDate(end):"hoje"}.`
+07643:    : "Exibindo todo o período.";
+07644: 
+07645:  let totalPieces=inPeriod.reduce((a,p)=>a+(+p.quantity||0),0);
+07646:  let totalValue=inPeriod.reduce((a,p)=>a+(+p.value||0),0);
+07647:  let pendingPieces=pending.reduce((a,p)=>a+(+p.quantity||0),0);
+07648:  let pendingValue=pending.reduce((a,p)=>a+(+p.value||0),0);
+07649:  let paidValue=paid.reduce((a,p)=>a+(+p.paidAmount||+p.value||0),0);
+07650: 
+07651:  let cards=document.getElementById("factionPaymentCards");
+07652:  if(cards)cards.innerHTML=`
+07653:    <div class="card"><small>Peças no período</small><strong>${totalPieces.toLocaleString("pt-BR")}</strong></div>
+07654:    <div class="card"><small>Total do período</small><strong>${money(totalValue)}</strong></div>
+07655:    <div class="card"><small>A pagar</small><strong>${money(pendingValue)}</strong><div>${pendingPieces.toLocaleString("pt-BR")} peças</div></div>
+07656:    <div class="card"><small>Já pago</small><strong>${money(paidValue)}</strong></div>`;
+07657: 
+07658:  // Resumo semanal
+07659:  let weeks={};
+07660:  inPeriod.forEach(p=>{
+07661:    let base=p.serviceFinishedAt||p.paymentDate;
+07662:    if(!base)return;
+07663:    let ws=weekStartISO(String(base).slice(0,10));
+07664:    if(!weeks[ws])weeks[ws]={pieces:0,value:0,pending:0,paid:0};
+07665:    weeks[ws].pieces+=+p.quantity||0;
+07666:    weeks[ws].value+=+p.value||0;
+07667:    if(p.status==="Pago")weeks[ws].paid+=+p.value||0;
+07668:    else weeks[ws].pending+=+p.value||0;
+07669:  });
+07670:  let weeklyEl=document.getElementById("factionPaymentWeeklySummary");
+07671:  if(weeklyEl){
+07672:    let rows=Object.entries(weeks).sort((a,b)=>a[0].localeCompare(b[0])).map(([ws,d])=>{
+07673:      let endW=new Date(ws+"T12:00:00");endW.setDate(endW.getDate()+6);
+07674:      return [`${fmtDate(ws)} a ${fmtDate(isoDate(endW))}`,d.pieces.toLocaleString("pt-BR"),money(d.value),money(d.pending),money(d.paid)];
+07675:    });
+07676:    weeklyEl.innerHTML=rows.length
+07677:      ? table(["Semana","Peças","Total","Pendente","Pago"],rows)
+07678:      : '<div class="empty">Nenhum serviço no período.</div>';
+07679:  }
+07680: 
+07681:  // Resumo por facção
+07682:  let summary={};
+07683:  inPeriod.forEach(p=>{
+07684:    let k=p.factionName||"Facção";
+07685:    if(!summary[k])summary[k]={qty:0,value:0,pending:0,paid:0,pix:p.pix||""};
+07686:    summary[k].qty+=+p.quantity||0;
+07687:    summary[k].value+=+p.value||0;
+07688:    if(p.status==="Pago")summary[k].paid+=+p.value||0;
+07689:    else summary[k].pending+=+p.value||0;
+07690:    if(!summary[k].pix && p.pix)summary[k].pix=p.pix;
+07691:  });
+07692:  let summaryEl=document.getElementById("factionPaymentSummary");
+07693:  if(summaryEl){
+07694:    let rows=Object.entries(summary).map(([name,d])=>[
+07695:      esc(name),d.qty.toLocaleString("pt-BR"),money(d.value),money(d.pending),money(d.paid),esc(d.pix||"-")
+07696:    ]);
+07697:    summaryEl.innerHTML=rows.length
+07698:      ? table(["Facção","Peças","Total do período","Pendente","Pago","Chave PIX"],rows)
+07699:      : '<div class="empty">Nenhum serviço no período.</div>';
+07700:  }
+07701: 
+07702:  let tableEl=document.getElementById("factionPaymentTable");
+07703:  if(tableEl){
+07704:    let rows=arr.map(p=>[
+07705:      fmtDate(p.serviceFinishedAt),
+07706:      esc(p.factionName||"-"),
+07707:      esc(p.description||"-"),
+07708:      (+p.quantity||0).toLocaleString("pt-BR"),
+07709:      money(p.unitPrice),
+07710:      money(p.value),
+07711:      money(Math.max(0,(+p.value||0)-(+p.discountAmount||0)-(+p.paidAmount||0))),
+07712:      esc(p.pix||"-"),
+07713:      `<span class="badge ${p.status==="Pago"?"ok":""}">${esc(p.status||"Pendente")}</span>`,
+07714:      p.scheduledPaymentDate?fmtDate(p.scheduledPaymentDate):"-",
+07715:      (+p.discountAmount||0)>0?money(p.discountAmount):"-",
+07716:      (+p.paidAmount||0)>0?money(p.paidAmount):"-",
+07717:      p.status==="Pago"?fmtDate(p.paymentDate):"-",
+07718:      `<button type="button" class="secondary" onclick="editFactionPayment(${p.id})">Editar</button>
+07719:       ${p.status==="Pago"
+07720:         ? `<button type="button" class="secondary" onclick="reopenFactionPayment(${p.id})">Reabrir</button>`
+07721:         : `<button type="button" class="primary" onclick="payFactionPayment(${p.id})">Dar baixa</button>`}
+07722:       <button type="button" class="danger" onclick="deleteFactionPayment(${p.id})">Excluir</button>`
+07723:    ]);
+07724:    tableEl.innerHTML=rows.length
+07725:      ? table(["Finalizado","Facção","Descrição","Qtd.","Preço","Valor bruto","Saldo","PIX","Status","Previsto pgto.","Abatimento","Pago","Pago em","Ações"],rows)
+07726:      : '<div class="empty">Nenhum serviço encontrado.</div>';
+07727:  }
+07728: }
+07729: function factionPaymentRemaining(p){return Math.max(0,(+p.value||0)-(+p.discountAmount||0)-(+p.paidAmount||0))}
+07730: function applyFactionPayment(id,paidNow,discountNow,date,method,obs){
+07731:  let p=db.factionPayments.find(x=>+x.id===+id);if(!p)return false;
+07732:  let rem=factionPaymentRemaining(p),pay=Math.max(0,+paidNow||0),disc=Math.max(0,+discountNow||0);
+07733:  if(pay+disc<=0){alert("Informe o valor pago ou um abatimento.");return false}
+07734:  if(pay+disc>rem+0.009){alert("Pagamento + abatimento não pode ultrapassar o saldo de "+money(rem)+".");return false}
+07735:  p.paymentHistory=Array.isArray(p.paymentHistory)?p.paymentHistory:[];
+07736:  p.paymentHistory.push({id:Date.now(),date:date||isoDate(new Date()),paid:pay,discount:disc,method:method||"PIX",observation:obs||""});
+07737:  p.paidAmount=(+p.paidAmount||0)+pay;p.discountAmount=(+p.discountAmount||0)+disc;
+07738:  let newRem=factionPaymentRemaining(p);p.status=newRem<=0.009?"Pago":((+p.paidAmount||0)>0||(+p.discountAmount||0)>0?"Parcial":"Pendente");
+07739:  if(p.status==="Pago")p.paymentDate=date||isoDate(new Date());p.paymentMethod=method||p.paymentMethod||"PIX";p.observation=obs||p.observation||"";
+07740:  auditAction("Pagamento de facção",`${p.factionName}: pago ${money(pay)}; abatimento ${money(disc)}; saldo ${money(newRem)}`);
+07741:  return true;
+07742: }
+07743: function payFactionPayment(id){
+07744:  let p=db.factionPayments.find(x=>+x.id===+id);if(!p)return;let rem=factionPaymentRemaining(p);
+07745:  openModal("Registrar pagamento",`<div class="cards"><div class="card"><small>Valor bruto</small><strong>${money(p.value)}</strong></div><div class="card"><small>Já pago</small><strong>${money(p.paidAmount||0)}</strong></div><div class="card"><small>Abatimentos</small><strong>${money(p.discountAmount||0)}</strong></div><div class="card"><small>Saldo</small><strong>${money(rem)}</strong></div></div><div class="grid"><div class="field"><label>Valor pago agora</label><input id="fpPaidNow" type="number" step="0.01" value="${rem.toFixed(2)}"></div><div class="field"><label>Abatimento por defeito</label><input id="fpDiscountNow" type="number" step="0.01" value="0"></div><div class="field"><label>Data do pagamento</label><input id="fpDate" type="date" value="${isoDate(new Date())}"></div><div class="field"><label>Forma de pagamento</label><select id="fpMethod"><option>PIX</option><option>Transferência</option><option>Dinheiro</option><option>Outro</option></select></div></div><div class="field"><label>Observação</label><input id="fpObs" placeholder="Ex.: abatimento por 8 peças com defeito"></div><button type="button" class="primary modalSave">✅ Pago / registrar baixa</button>`,()=>{if(!applyFactionPayment(id,document.getElementById("fpPaidNow")?.value,document.getElementById("fpDiscountNow")?.value,document.getElementById("fpDate")?.value,document.getElementById("fpMethod")?.value,document.getElementById("fpObs")?.value))return;closeModal();save();renderFactionPayments()});
+07746: }
+07747: function editFactionPayment(id){
+07748:  let p=db.factionPayments.find(x=>+x.id===+id);if(!p)return;
+07749:  openModal("Editar serviço para pagamento",`<div class="grid"><div class="field"><label>Facção</label><input id="fpeName" value="${esc(p.factionName||"")}"></div><div class="field"><label>Descrição</label><input id="fpeDesc" value="${esc(p.description||"")}"></div><div class="field"><label>Quantidade</label><input id="fpeQty" type="number" value="${p.quantity||0}"></div><div class="field"><label>Preço por peça</label><input id="fpePrice" type="number" step="0.01" value="${p.unitPrice||0}"></div><div class="field"><label>Chave PIX</label><input id="fpePix" value="${esc(p.pix||"")}"></div><div class="field"><label>Data prevista para pagamento</label><input id="fpeScheduled" type="date" value="${p.scheduledPaymentDate||""}"></div></div><div class="panel"><h3>Baixa do pagamento</h3><div class="sub">Você pode pagar tudo, pagar parcialmente ou lançar abatimento por defeito.</div><div class="grid"><div class="field"><label>Valor pago agora</label><input id="fpePaidNow" type="number" step="0.01" value="0"></div><div class="field"><label>Abatimento por defeito</label><input id="fpeDiscountNow" type="number" step="0.01" value="0"></div><div class="field"><label>Data</label><input id="fpePayDate" type="date" value="${isoDate(new Date())}"></div><div class="field"><label>Forma</label><select id="fpeMethod"><option>PIX</option><option>Transferência</option><option>Dinheiro</option><option>Outro</option></select></div><div class="field"><label>Motivo / observação</label><input id="fpeObs" placeholder="Ex.: abatimento por defeito"></div></div><div><b>Já pago:</b> ${money(p.paidAmount||0)} &nbsp; <b>Abatido:</b> ${money(p.discountAmount||0)} &nbsp; <b>Saldo:</b> ${money(factionPaymentRemaining(p))}</div><button type="button" class="primary" style="margin-top:10px" onclick="saveFactionPaymentAndPay(${p.id})">✅ Pago / registrar baixa</button></div><button type="button" class="secondary modalSave">💾 Salvar somente alterações</button>`,()=>{p.factionName=document.getElementById("fpeName")?.value||p.factionName;p.description=document.getElementById("fpeDesc")?.value||p.description;p.quantity=+document.getElementById("fpeQty")?.value||0;p.unitPrice=+document.getElementById("fpePrice")?.value||0;p.value=p.quantity*p.unitPrice;p.pix=document.getElementById("fpePix")?.value||"";p.scheduledPaymentDate=document.getElementById("fpeScheduled")?.value||"";closeModal();save();renderFactionPayments()});
+07750: }
+07751: function saveFactionPaymentAndPay(id){let p=db.factionPayments.find(x=>+x.id===+id);if(!p)return;p.factionName=document.getElementById("fpeName")?.value||p.factionName;p.description=document.getElementById("fpeDesc")?.value||p.description;p.quantity=+document.getElementById("fpeQty")?.value||0;p.unitPrice=+document.getElementById("fpePrice")?.value||0;p.value=p.quantity*p.unitPrice;p.pix=document.getElementById("fpePix")?.value||"";p.scheduledPaymentDate=document.getElementById("fpeScheduled")?.value||"";if(!applyFactionPayment(id,document.getElementById("fpePaidNow")?.value,document.getElementById("fpeDiscountNow")?.value,document.getElementById("fpePayDate")?.value,document.getElementById("fpeMethod")?.value,document.getElementById("fpeObs")?.value))return;closeModal();save();renderFactionPayments()}
+07752: function reopenFactionPayment(id){
+07753:  let p=db.factionPayments.find(x=>+x.id===+id);if(!p)return;
+07754:  if(!confirm("Reabrir este pagamento como pendente?"))return;
+07755:  p.status="Pendente";p.paymentDate="";p.paymentMethod="";p.paidAmount=0;p.discountAmount=0;p.paymentHistory=[];save();renderFactionPayments();
+07756: }
+07757: function deleteFactionPayment(id){
+07758:  if(!confirm("Excluir este lançamento da lista de pagamentos?"))return;
+07759:  db.factionPayments=db.factionPayments.filter(x=>+x.id!==+id);
+07760:  save();renderFactionPayments();
+07761: }
+07762: 
+07763: function cutterPeriod(){
+07764:  let start=document.getElementById("cutterPeriodStart")?.value||"";
+07765:  let end=document.getElementById("cutterPeriodEnd")?.value||"";
+07766:  return {start,end};
+07767: }
+07768: function dateInCutterPeriod(dateValue,start,end){
+07769:  if(!dateValue)return !start && !end;
+07770:  let d=String(dateValue).slice(0,10);
+07771:  if(start && d<start)return false;
+07772:  if(end && d>end)return false;
+07773:  return true;
+07774: }
+07775: function setCutterPeriod(mode){
+07776:  let s=document.getElementById("cutterPeriodStart"),e=document.getElementById("cutterPeriodEnd");
+07777:  if(!s||!e)return;
+07778:  let now=new Date(),start="",end="";
+07779:  if(mode==="today"){
+07780:    start=end=isoDate(now);
+07781:  }else if(mode==="week"){
+07782:    let m=mondayOf(now),z=new Date(m);z.setDate(z.getDate()+6);
+07783:    start=isoDate(m);end=isoDate(z);
+07784:  }else if(mode==="month"){
+07785:    let a=new Date(now.getFullYear(),now.getMonth(),1,12),b=new Date(now.getFullYear(),now.getMonth()+1,0,12);
+07786:    start=isoDate(a);end=isoDate(b);
+07787:  }
+07788:  s.value=start;e.value=end;
+07789:  refreshCutterPeriod();
+07790: }
+07791: function refreshCutterPeriod(){
+07792:  renderCutters();
+07793:  drawCutterChart();
+07794:  renderCutterProductCosts();
+07795: }
+07796: function cutterStats(c){
+07797:  let {start,end}=cutterPeriod();
+07798:  db.production=Array.isArray(db.production)?db.production:[];
+07799:  db.cuts=Array.isArray(db.cuts)?db.cuts:[];
+07800: 
+07801:  // Cortes: planejado usa a data de entrada no corte; realizado usa a data de finalização.
+07802:  let cuts=db.cuts.filter(x=>+x.cutterId===+c.id);
+07803:  let plannedCuts=cuts
+07804:    .filter(x=>dateInCutterPeriod(x.date,start,end))
+07805:    .reduce((a,x)=>a+(+x.pieces||0),0);
+07806:  let doneCuts=cuts
+07807:    .filter(x=>String(x.status||"").toLowerCase()==="finalizado" && dateInCutterPeriod(x.finishedAt||x.date,start,end))
+07808:    .reduce((a,x)=>a+(+x.pieces||0),0);
+07809: 
+07810:  // Registros antigos/manuais de produção atribuídos diretamente a cortador.
+07811:  let prod=db.production.filter(p=>+p.cutterId===+c.id && !p.cutId);
+07812:  let plannedProd=prod
+07813:    .filter(p=>dateInCutterPeriod(p.date,start,end))
+07814:    .reduce((a,p)=>a+(+p.planned||0),0);
+07815:  let doneProd=prod
+07816:    .filter(p=>dateInCutterPeriod(p.finishedAt||p.date,start,end))
+07817:    .reduce((a,p)=>a+(+p.done||0),0);
+07818: 
+07819:  return {planned:plannedCuts+plannedProd,done:doneCuts+doneProd};
+07820: }
+07821: function renderCutters(){
+07822:  let el=document.getElementById("cutterTable");
+07823:  if(!el)return;
+07824:  db.cutters=Array.isArray(db.cutters)?db.cutters:[];
+07825: 
+07826:  let {start,end}=cutterPeriod();
+07827:  let label=document.getElementById("cutterPeriodLabel");
+07828:  if(label){
+07829:    label.textContent=start||end
+07830:      ? `Exibindo de ${start?fmtDate(start):"início"} até ${end?fmtDate(end):"hoje"}.`
+07831:      : "Exibindo todo o período.";
+07832:  }
+07833: 
+07834:  let rows=db.cutters.map(c=>{
+07835:    let st=cutterStats(c),cost=cutterCostStats(c);
+07836:    let costBase=c.cutType==="Interno"
+07837:      ? `Salário: ${money(c.monthlySalary||0)}`
+07838:      : `${(c.rates||[]).length} preços cadastrados`;
+07839:    return [
+07840:      esc(c.name||"-"),esc(c.phone||"-"),esc(c.cutType||"-"),
+07841:      c.active?'<span class="badge ok">Ativo</span>':'<span class="badge">Inativo</span>',
+07842:      st.planned.toLocaleString("pt-BR"),
+07843:      st.done.toLocaleString("pt-BR"),
+07844:      costBase,
+07845:      money(cost.perPiece),
+07846:      money(cost.totalCost),
+07847:      `<button type="button" class="secondary" onclick="editCutter(${c.id})">Editar</button>
+07848:       <button type="button" class="danger" onclick="del('cutters',${c.id})">Excluir</button>`
+07849:    ];
+07850:  });
+07851:  el.innerHTML=rows.length
+07852:    ? table(["Cortador","Telefone","Tipo de corte","Status","Peças planejadas","Peças realizadas","Base de custo","Custo médio/peça","Custo no período","Ações"],rows)
+07853:    : '<div class="empty">Nenhum cortador cadastrado.</div>';
+07854: }
+07855: function cutterForm(c={}){
+07856:  let rates=Array.isArray(c.rates)?c.rates:[];
+07857:  let rateRows=rates.map((r,i)=>`
+07858:    <tr class="cutterRateRow">
+07859:      <td><input class="crType" value="${esc(r.type||"")}" list="cutterPieceTypesList"></td>
+07860:      <td><input class="crPrice" type="number" step="0.01" value="${r.price??0}"></td>
+07861:      <td><button type="button" class="danger" onclick="this.closest('tr').remove()">Excluir</button></td>
+07862:    </tr>`).join("");
+07863: 
+07864:  return `<div class="grid">
+07865:    <div class="field"><label>Nome completo</label><input id="cname" value="${esc(c.name||"")}"></div>
+07866:    <div class="field"><label>Telefone</label><input id="cphone" value="${esc(c.phone||"")}"></div>
+07867:    <div class="field"><label>Tipo de corte</label><select id="ccuttype" onchange="toggleCutterCostFields()">
+07868:      <option value="Interno" ${c.cutType==="Interno"?"selected":""}>Corte interno</option>
+07869:      <option value="Externo" ${c.cutType==="Externo"?"selected":""}>Corte externo</option>
+07870:    </select></div>
+07871:    <div class="field"><label>Vínculo</label><select id="ctype"><option ${c.type==="CLT"?"selected":""}>CLT</option><option ${c.type==="Freelance"?"selected":""}>Freelance</option></select></div>
+07872:    <div class="field"><label>Status</label><select id="cactive"><option value="1" ${c.active!==false?"selected":""}>Ativo</option><option value="0" ${c.active===false?"selected":""}>Inativo</option></select></div>
+07873:  </div>
+07874: 
+07875:  <div id="internalCutterCost" class="panel">
+07876:    <h3>Custo do cortador interno</h3>
+07877:    <div class="sub">Informe o salário mensal. O sistema divide pelo total de peças realizadas no período para calcular o custo médio de corte por peça.</div>
+07878:    <div class="field"><label>Salário mensal</label><input id="csalary" type="number" step="0.01" value="${c.monthlySalary??0}"></div>
+07879:  </div>
+07880: 
+07881:  <div id="externalCutterCost" class="panel">
+07882:    <h3>Tabela do cortador externo</h3>
+
+=== weekStart @ line 9805 ===
+09725: }
+09726: function editPurchase(id){
+09727:  let p=(db.purchases||[]).find(x=>+x.id===+id);if(!p)return;
+09728:  openModal("Editar nota de compra",purchaseForm(p)+`<button type="button" class="primary modalSave" onclick="modalSave()">💾 Salvar alterações</button>`,()=>{
+09729:    if(!savePurchaseFromForm(p))return;
+09730:    closeModal();save();
+09731:  });
+09732:  setTimeout(()=>{togglePurchaseEntryMode();updatePurchaseTotal();togglePurchasePaymentDate()},0);
+09733: }
+09734: function deletePurchase(id){
+09735:  let p=(db.purchases||[]).find(x=>String(x.id)===String(id));if(!p)return;
+09736:  openModal("Confirmar exclusão da nota",`
+09737:    <div class="panel">
+09738:      <h3>Confira antes de excluir</h3>
+09739:      <div class="grid">
+09740:        <div class="field"><label>Fornecedor</label><input value="${esc(p.supplierName||"-")}" disabled></div>
+09741:        <div class="field"><label>Número da nota</label><input value="${esc(p.invoiceNumber||"-")}" disabled></div>
+09742:        <div class="field"><label>Valor total</label><input value="${money(p.total||0)}" disabled></div>
+09743:        <div class="field"><label>Data de pagamento</label><input value="${p.paymentDate?fmtDate(p.paymentDate):"Não pago"}" disabled></div>
+09744:      </div>
+09745:      <div class="sub">Ao excluir, a nota sai imediatamente dos resumos de compras, limite semanal e ranking por fornecedor.</div>
+09746:    </div>
+09747:    <button type="button" class="danger modalSave">Excluir definitivamente</button>
+09748:  `,()=>{
+09749:    const purchaseId=String(p.id);
+09750:    db.purchases=(db.purchases||[]).filter(x=>String(x.id)!==purchaseId);
+09751: 
+09752:    // Remove também eventual lançamento financeiro que tenha sido criado/vinculado à nota.
+09753:    db.finance=(db.finance||[]).filter(f=>
+09754:      String(f.purchaseId||"")!==purchaseId &&
+09755:      String(f.sourcePurchaseId||"")!==purchaseId
+09756:    );
+09757: 
+09758:    try{persistDb()}catch(e){console.error(e)}
+09759:    closeModal();
+09760: 
+09761:    // Recalcula imediatamente todas as áreas afetadas.
+09762:    if(typeof renderPurchases==="function")renderPurchases();
+09763:    if(typeof renderFinance==="function")renderFinance();
+09764:    if(typeof renderSupplierSpendSummary==="function")renderSupplierSpendSummary();
+09765:    if(typeof renderWeeklyPurchases==="function")renderWeeklyPurchases();
+09766:    if(typeof renderFinanceWeeklyLimit==="function")renderFinanceWeeklyLimit();
+09767:    if(typeof renderFinanceBudgetCarry==="function")renderFinanceBudgetCarry();
+09768:    if(typeof renderDash==="function")renderDash();
+09769:    if(typeof auditAction==="function")auditAction("Excluiu nota de compra",`${p.supplierName||""} — Nota ${p.invoiceNumber||""} — ${money(p.total||0)}`);
+09770:    alert("Nota de compra excluída e todos os resumos recalculados.");
+09771:  });
+09772: }
+09773: function renderPurchases(){
+09774:  db.purchases=Array.isArray(db.purchases)?db.purchases:[];
+09775:  let {start,end}=purchasePeriod();
+09776:  let arr=db.purchases.filter(p=>purchaseInPeriod(p,start,end));
+09777:  let total=arr.reduce((a,p)=>a+(+p.total||0),0);
+09778:  let paid=arr.filter(p=>p.status==="Pago").reduce((a,p)=>a+(+p.total||0),0);
+09779:  let pending=arr.filter(p=>p.status!=="Pago").reduce((a,p)=>a+(+p.total||0),0);
+09780: 
+09781:  let label=document.getElementById("purchasePeriodLabel");
+09782:  if(label)label.textContent=start||end?`Exibindo de ${start?fmtDate(start):"início"} até ${end?fmtDate(end):"hoje"}.`:"Exibindo todo o período.";
+09783: 
+09784:  let cards=document.getElementById("purchaseCards");
+09785:  if(cards)cards.innerHTML=`
+09786:   <div class="card"><small>Total comprado</small><strong>${money(total)}</strong></div>
+09787:   <div class="card"><small>Pago</small><strong>${money(paid)}</strong></div>
+09788:   <div class="card"><small>Pendente</small><strong>${money(pending)}</strong></div>
+09789:   <div class="card"><small>Notas</small><strong>${arr.length}</strong></div>`;
+09790: 
+09791:  let bySupplier={};
+09792:  arr.forEach(p=>{
+09793:    let k=p.supplierName||"Fornecedor";
+09794:    if(!bySupplier[k])bySupplier[k]={notes:0,total:0};
+09795:    bySupplier[k].notes++;bySupplier[k].total+=+p.total||0;
+09796:  });
+09797:  let sEl=document.getElementById("purchaseSupplierSummary");
+09798:  if(sEl){
+09799:    let rows=Object.entries(bySupplier).map(([name,d])=>[esc(name),d.notes,money(d.total)]);
+09800:    sEl.innerHTML=rows.length?table(["Fornecedor","Notas","Total comprado"],rows):'<div class="empty">Nenhuma compra no período.</div>';
+09801:  }
+09802: 
+09803:  let weeks={};
+09804:  arr.forEach(p=>{
+09805:    let ws=weekStartISO(p.date);
+09806:    if(!weeks[ws])weeks[ws]={notes:0,total:0};
+09807:    weeks[ws].notes++;weeks[ws].total+=+p.total||0;
+09808:  });
+09809:  let wEl=document.getElementById("purchaseWeeklySummary");
+09810:  if(wEl){
+09811:    let rows=Object.entries(weeks).sort((a,b)=>a[0].localeCompare(b[0])).map(([ws,d])=>{
+09812:      let endW=new Date(ws+"T12:00:00");endW.setDate(endW.getDate()+6);
+09813:      return [`${fmtDate(ws)} a ${fmtDate(isoDate(endW))}`,d.notes,money(d.total)];
+09814:    });
+09815:    wEl.innerHTML=rows.length?table(["Semana","Notas","Total comprado"],rows):'<div class="empty">Nenhuma compra no período.</div>';
+09816:  }
+09817: 
+09818:  let tEl=document.getElementById("purchaseTable");
+09819:  if(tEl){
+09820:    let rows=arr.map(p=>[
+09821:      esc(p.invoiceNumber||"-"),fmtDate(p.date),esc(p.supplierName||"-"),
+09822:      esc(p.entryMode||((p.items&&p.items.length)?"Itens":"Simplificada")),
+09823:      esc(p.entryMode==="Simplificada"?(p.simpleDescription||"Valor total"):`${(p.items||[]).length} item(ns)`),
+09824:      money(p.total||0),esc(p.status||"-"),fmtDate(p.dueDate),p.paymentDate?fmtDate(p.paymentDate):"-",
+09825:      `<button type="button" class="secondary" onclick="editPurchase(${p.id})">Editar</button>
+09826:       <button type="button" class="danger" onclick="deletePurchase(${p.id})">Excluir</button>`
+09827:    ]);
+09828:    tEl.innerHTML=rows.length?table(["Nota","Data","Fornecedor","Forma","Resumo","Valor","Status","Vencimento","Pagamento","Ações"],rows):'<div class="empty">Nenhuma nota de compra cadastrada.</div>';
+09829:  }
+09830: 
+09831:  let limEl=document.getElementById("purchaseLimitNotice");
+09832:  if(limEl){
+09833:    let lim=+db.config?.weeklyPurchaseLimit||0;
+09834:    let wr=weekRangeFromISO(isoDate(new Date()));
+09835:    let weekTotal=(db.purchases||[]).filter(p=>p.date>=wr.start&&p.date<=wr.end).reduce((a,p)=>a+(+p.total||0),0);
+09836:    let remain=Math.max(0,lim-weekTotal);
+09837:    limEl.innerHTML=lim>0
+09838:      ? `<div class="cards">
+09839:           <div class="card"><small>Limite semanal</small><strong>${money(lim)}</strong></div>
+09840:           <div class="card"><small>Comprado nesta semana</small><strong>${money(weekTotal)}</strong></div>
+09841:           <div class="card"><small>Saldo disponível na semana</small><strong>${money(remain)}</strong></div>
+09842:           <div class="card"><small>Uso do limite</small><strong>${(weekTotal/lim*100).toFixed(1)}%</strong></div>
+09843:         </div>`
+09844:      : '<div class="empty">Defina um limite semanal de compras no Financeiro.</div>';
+09845:  }
+09846: }
+09847: function financeReportPeriod(){
+09848:  return {
+09849:    start:document.getElementById("finReportStart")?.value||"",
+09850:    end:document.getElementById("finReportEnd")?.value||""
+09851:  };
+09852: }
+09853: function setFinanceReportPeriod(mode){
+09854:  let s=document.getElementById("finReportStart"),e=document.getElementById("finReportEnd");
+09855:  if(!s||!e)return;
+09856:  let now=new Date(),start="",end="";
+09857:  if(mode==="week"){
+09858:    let m=mondayOf(now),z=new Date(m);z.setDate(z.getDate()+6);start=isoDate(m);end=isoDate(z);
+09859:  }else if(mode==="month"){
+09860:    start=isoDate(new Date(now.getFullYear(),now.getMonth(),1,12));
+09861:    end=isoDate(new Date(now.getFullYear(),now.getMonth()+1,0,12));
+09862:  }else if(mode==="year"){
+09863:    start=isoDate(new Date(now.getFullYear(),0,1,12));
+09864:    end=isoDate(new Date(now.getFullYear(),11,31,12));
+09865:  }
+09866:  s.value=start;e.value=end;renderFinance();
+09867: }
+09868: 
+09869: function saveWeeklyPurchaseLimit(){
+09870:  let el=document.getElementById("weeklyPurchaseLimit");
+09871:  let v=+el?.value||0;
+09872:  if(v<=0)return;
+09873:  if(!db.config)db.config={};
+09874:  let rules=ensureWeeklyPurchaseLimitRules();
+09875:  rules.push({id:"limit-"+Date.now()+"-"+Math.floor(Math.random()*10000),value:v,mode:"indefinite",start:"",end:"",createdAt:new Date().toISOString(),label:"Sem prazo / até eu mudar"});
+09876:  db.config.weeklyPurchaseLimit=v;
+09877:  try{persistDb()}catch(e){}
+09878:  renderWeeklyPurchases();
+09879:  if(typeof renderFinanceWeeklyLimit==="function")renderFinanceWeeklyLimit();
+09880: }
+09881: function clearWeeklyPurchaseDate(){
+09882:  let el=document.getElementById("weeklyPurchaseDate");
+09883:  if(el)el.value="";
+09884:  renderFinance();
+09885: }
+09886: function weekRangeFromISO(dateStr){
+09887:  let d=parseISO(dateStr||isoDate(new Date()));
+09888:  let day=d.getDay(); // 0 sunday
+09889:  let diff=(day===0?-6:1-day);
+09890:  let mon=new Date(d); mon.setDate(d.getDate()+diff);
+09891:  let sun=new Date(mon); sun.setDate(mon.getDate()+6);
+09892:  return {start:isoDate(mon),end:isoDate(sun)};
+09893: }
+09894: function weekKey(dateStr){
+09895:  let r=weekRangeFromISO(dateStr);
+09896:  return r.start+"|"+r.end;
+09897: }
+09898: function saveWeeklyPurchaseLimit(){
+09899:  if(!db.config)db.config={};
+09900:  db.config.weeklyPurchaseLimit=+document.getElementById("weeklyPurchaseLimit")?.value||0;
+09901:  try{persistDb()}catch(e){}
+09902:  renderFinance();
+09903:  renderPurchases();
+09904: }
+09905: function clearWeeklyPurchaseDate(){
+09906:  let el=document.getElementById("weeklyPurchaseDate");
+09907:  if(el)el.value="";
+09908:  renderFinance();
+09909: }
+09910: function renderWeeklyPurchases(){
+09911:  ensureWeeklyPurchaseLimitRules();
+09912:  let selected=document.getElementById("weeklyPurchaseDate")?.value||"";
+09913:  let selectedRange=selected?weekRangeFromISO(selected):null;
+09914:  let purchases=(db.purchases||[]).filter(p=>!selectedRange||(p.date>=selectedRange.start&&p.date<=selectedRange.end));
+09915: 
+09916:  let byWeek={};
+09917:  purchases.forEach(p=>{
+09918:    let key=weekKey(p.date||isoDate(new Date()));
+09919:    if(!byWeek[key])byWeek[key]={total:0,notes:0,suppliers:new Set(),rows:[]};
+09920:    byWeek[key].total+=+p.total||0;
+09921:    byWeek[key].notes++;
+09922:    if(p.supplierName)byWeek[key].suppliers.add(p.supplierName);
+09923:    byWeek[key].rows.push(p);
+09924:  });
+09925: 
+09926:  let totalSelected=purchases.reduce((a,p)=>a+(+p.total||0),0);
+09927:  let weeks=Object.keys(byWeek).length;
+09928:  let avg=weeks?totalSelected/weeks:0;
+09929:  let carryRows=budgetCarryRows();
+09930:  let overWeeks=carryRows.filter(r=>r.carryOut<0).length;
+09931:  let currentCarry=budgetCarryForWeek(isoDate(new Date()));
+09932:  let currentLimit=currentCarry.limit;
+09933: 
+09934:  let limitInput=document.getElementById("weeklyPurchaseLimit");
+09935:  if(limitInput && document.activeElement!==limitInput)limitInput.value=currentLimit||"";
+09936: 
+09937:  let cards=document.getElementById("weeklyPurchaseCards");
+09938:  if(cards)cards.innerHTML=`
+09939:    <div class="card"><small>Total comprado</small><strong>${money(totalSelected)}</strong></div>
+09940:    <div class="card"><small>Média por semana</small><strong>${money(avg)}</strong></div>
+09941:    <div class="card"><small>Limite vigente hoje</small><strong>${currentLimit>0?money(currentLimit):"Não definido"}</strong></div>
+09942:    <div class="card"><small>Saldo acumulado atual</small><strong>${currentCarry.carryOut>=0?"+":""}${money(currentCarry.carryOut)}</strong></div>
+09943:    <div class="card"><small>Semanas com débito</small><strong>${overWeeks}</strong></div>`;
+09944: 
+09945:  let tableEl=document.getElementById("weeklyPurchaseTable");
+09946:  if(!tableEl)return;
+09947: 
+09948:  let rows=Object.entries(byWeek).sort((a,b)=>b[0].localeCompare(a[0])).map(([key,w])=>{
+09949:    let [ini,fim]=key.split("|");
+09950:    let budget=budgetCarryForWeek(ini);
+09951:    let limit=budget.limit;
+09952:    let pct=budget.available>0?w.total/budget.available*100:0;
+09953:    let status=budget.carryOut<0?"Acima do orçamento acumulado":budget.carryOut>0?"Crédito disponível":"Orçamento zerado";
+09954:    let detail=w.rows.sort((a,b)=>(b.date||"").localeCompare(a.date||"")).map(p=>
+09955:       `${fmtDate(p.date)} — ${esc(p.supplierName||"-")} — Nota ${esc(p.invoiceNumber||"-")} — ${money(p.total||0)}`
+09956:    ).join("<br>");
+09957:    return [
+09958:      `${fmtDate(ini)} a ${fmtDate(fim)}`,
+09959:      w.notes,
+09960:      w.suppliers.size,
+09961:      detail,
+09962:      money(w.total),
+09963:      limit>0?money(limit):"-",
+09964:      `${budget.carryIn>=0?"+":""}${money(budget.carryIn)}`,
+09965:      money(budget.available),
+09966:      budget.available>0?pct.toFixed(1)+"%":"-",
+09967:      `${budget.carryOut>=0?"+":""}${money(budget.carryOut)}`,
+09968:      `<span class="badge ${budget.carryOut<0?"bad":budget.carryOut>0?"ok":""}">${status}</span>`
+09969:    ];
+09970:  });
+09971:  tableEl.innerHTML=rows.length
+09972:    ? table(["Semana","Notas","Fornecedores","Compras da semana","Total semanal","Limite base","Saldo anterior","Orçamento disponível","% utilizado","Saldo acumulado","Situação"],rows)
+09973:    : '<div class="empty">Nenhuma compra encontrada para a semana selecionada.</div>';
+09974: }
+09975: function ensureWeeklyPurchaseLimitRules(){
+09976:  if(!db.config)db.config={};
+09977:  db.config.weeklyPurchaseLimitRules=Array.isArray(db.config.weeklyPurchaseLimitRules)?db.config.weeklyPurchaseLimitRules:[];
+09978:  // Migra o limite antigo para uma regra sem prazo apenas uma vez.
+09979:  if(!db.config.weeklyPurchaseLimitRulesMigrated){
+09980:    let old=+db.config.weeklyPurchaseLimit||0;
+09981:    if(old>0 && !db.config.weeklyPurchaseLimitRules.length){
+09982:      db.config.weeklyPurchaseLimitRules.push({
+09983:        id:"legacy-"+Date.now(),value:old,mode:"indefinite",start:"",end:"",
+09984:        createdAt:new Date().toISOString(),label:"Limite anterior (sem prazo)"
+09985:      });
+09986:    }
+09987:    db.config.weeklyPurchaseLimitRulesMigrated=true;
+09988:  }
+09989:  return db.config.weeklyPurchaseLimitRules;
+09990: }
+09991: function weeklyLimitRuleForDate(dateValue){
+09992:  let rules=ensureWeeklyPurchaseLimitRules();
+09993:  let d=String(dateValue||isoDate(new Date())).slice(0,10);
+09994:  let candidates=rules.filter(r=>{
+09995:    if(r.mode==="indefinite")return true;
+09996:    if(r.start && d<r.start)return false;
+09997:    if(r.end && d>r.end)return false;
+09998:    return true;
+09999:  });
+10000:  if(!candidates.length)return null;
+10001:  const specificity={indefinite:0,period:1,specificWeek:2,currentWeek:2};
+10002:  candidates.sort((a,b)=>{
+10003:    let s=(specificity[b.mode]||0)-(specificity[a.mode]||0);
+10004:    if(s)return s;
+10005:    return String(b.createdAt||"").localeCompare(String(a.createdAt||""));
+10006:  });
+10007:  return candidates[0];
+10008: }
+10009: function weeklyPurchaseLimitForDate(dateValue){
+10010:  let r=weeklyLimitRuleForDate(dateValue);
+10011:  return r?+r.value||0:0;
+10012: }
+10013: function updateFinanceLimitModeFields(){
+10014:  let mode=document.getElementById("financeLimitMode")?.value||"indefinite";
+10015:  let week=document.getElementById("financeLimitWeekField");
+10016:  let start=document.getElementById("financeLimitStartField");
+10017:  let end=document.getElementById("financeLimitEndField");
+10018:  if(week)week.style.display=mode==="specificWeek"?"":"none";
+10019:  if(start)start.style.display=mode==="period"?"":"none";
+10020:  if(end)end.style.display=mode==="period"?"":"none";
+10021: }
+10022: function saveFinanceWeeklyPurchaseLimit(){
+10023:  if(!db.config)db.config={};
+10024:  let value=+document.getElementById("financeWeeklyPurchaseLimit")?.value||0;
+
+=== weekStart @ line 10334 ===
+10254:    <div class="card"><small>Pago</small><strong>${money(paid)}</strong></div>
+10255:    <div class="card"><small>Pendente</small><strong>${money(pending)}</strong></div>`;
+10256: 
+10257:  let status=document.getElementById("financeWeeklyPurchaseStatus");
+10258:  if(status){
+10259:    let badge=limit<=0
+10260:      ? '<span class="badge warn">Nenhum limite definido para esta semana</span>'
+10261:      : total>limit
+10262:        ? `<span class="badge bad">Acima do limite em ${money(total-limit)}</span>`
+10263:        : `<span class="badge ok">Dentro do limite — ${pct.toFixed(1)}% utilizado</span>`;
+10264:    let rows=purchases.slice().sort((a,b)=>(b.date||"").localeCompare(a.date||"")).map(p=>[
+10265:      fmtDate(p.date),esc(p.supplierName||"-"),esc(p.invoiceNumber||"-"),money(p.total||0),esc(p.status||"-")
+10266:    ]);
+10267:    status.innerHTML=`<div style="margin:10px 0">${badge}</div>`+
+10268:      (rows.length?table(["Data","Fornecedor","Nota","Valor","Status"],rows):'<div class="empty">Nenhuma compra nesta semana.</div>');
+10269:  }
+10270:  renderFinanceWeeklyLimitRules();
+10271:  renderFinanceBudgetCarry();
+10272:  updateFinanceLimitModeFields();
+10273: }
+10274: function renderFinance(){
+10275:  db.finance=Array.isArray(db.finance)?db.finance:[];
+10276:  db.purchases=Array.isArray(db.purchases)?db.purchases:[];
+10277:  if(!db.config)db.config={};
+10278: 
+10279:  let rec=db.finance.filter(f=>f.type==="Receber"&&f.status!=="Pago")
+10280:    .reduce((a,f)=>a+(f.remaining!=null?+f.remaining:+f.value||0),0);
+10281:  let pay=db.finance.filter(f=>f.type==="Pagar"&&f.status!=="Pago")
+10282:    .reduce((a,f)=>a+(+f.value||0),0);
+10283: 
+10284:  let {start,end}=financeReportPeriod();
+10285:  let paidRows=db.finance.filter(f=>{
+10286:    if(f.status!=="Pago")return false;
+10287:    let d=f.paidDate||f.paymentDate||f.date||"";
+10288:    if(start&&d<start)return false;
+10289:    if(end&&d>end)return false;
+10290:    return true;
+10291:  });
+10292:  let paidTotal=paidRows.filter(f=>f.type==="Pagar").reduce((a,f)=>a+(+f.value||0),0);
+10293:  let receivedTotal=paidRows.filter(f=>f.type==="Receber").reduce((a,f)=>a+(+f.value||0),0);
+10294: 
+10295:  let cards=document.getElementById("finCards");
+10296:  if(cards)cards.innerHTML=`
+10297:    <div class="card"><small>A receber</small><strong>${money(rec)}</strong></div>
+10298:    <div class="card"><small>A pagar</small><strong>${money(pay)}</strong></div>
+10299:    <div class="card"><small>Saldo previsto</small><strong>${money(rec-pay)}</strong></div>
+10300:    <div class="card"><small>Pagamentos finalizados no período</small><strong>${money(paidTotal)}</strong></div>
+10301:    <div class="card"><small>Recebimentos finalizados no período</small><strong>${money(receivedTotal)}</strong></div>`;
+10302: 
+10303:  let ft=document.getElementById("financeTable");
+10304:  if(ft)ft.innerHTML=db.finance.length?table(
+10305:    ["Tipo","Descrição","Valor","Vencimento","Condição","Status","Ações"],
+10306:    db.finance.map(f=>{
+10307:      let displayValue=f.type==="Receber"&&f.remaining!=null?f.remaining:f.value;
+10308:      return [
+10309:        f.type,esc(f.desc||"-"),money(displayValue),fmtDate(f.date),esc([f.paymentTerms,f.paymentTermsDetail].filter(Boolean).join(" — ")||"-"),
+10310:        `<span class="badge">${esc(f.status||"-")}</span>`,
+10311:        `<button class="secondary" onclick="payFinance(${f.id})">Marcar pago</button>
+10312:         <button class="danger" onclick="deleteFinanceEntry(${f.id})">Excluir</button>`
+10313:      ];
+10314:    })
+10315:  ):'<div class="empty">Nenhum lançamento financeiro.</div>';
+10316: 
+10317:  let pt=document.getElementById("financePurchaseTable");
+10318:  if(pt)pt.innerHTML=db.purchases.length?table(
+10319:    ["Data compra","Fornecedor","Nº da nota","Forma","Resumo","Valor total","Vencimento","Pagamento","Status","Ações"],
+10320:    db.purchases.map(p=>[
+10321:      fmtDate(p.date),esc(p.supplierName||"-"),esc(p.invoiceNumber||"-"),
+10322:      esc(p.entryMode||((p.items&&p.items.length)?"Itens":"Simplificada")),
+10323:      esc(p.entryMode==="Simplificada"?(p.simpleDescription||"Valor total"):`${(p.items||[]).length} item(ns)`),
+10324:      money(p.total||0),fmtDate(p.dueDate),p.paymentDate?fmtDate(p.paymentDate):"-",
+10325:      `<span class="badge">${esc(p.status||"-")}</span>`,
+10326:      `<button type="button" class="secondary" onclick="editPurchase(${p.id})">Editar</button>
+10327:       <button type="button" class="danger" onclick="deletePurchase(${p.id})">Excluir</button>`
+10328:    ])
+10329:  ):'<div class="empty">Nenhuma nota de compra cadastrada.</div>';
+10330: 
+10331:  let purchaseWeeks={},purchaseMonths={},purchaseYears={};
+10332:  db.purchases.forEach(p=>{
+10333:    let d=String(p.date||"").slice(0,10); if(!d)return;
+10334:    let ws=weekStartISO(d);
+10335:    if(!ws)return;
+10336:    let mo=d.slice(0,7);
+10337:    let yr=d.slice(0,4);
+10338:    if(!purchaseWeeks[ws])purchaseWeeks[ws]={notes:0,total:0,paid:0};
+10339:    if(!purchaseMonths[mo])purchaseMonths[mo]={notes:0,total:0,paid:0};
+10340:    if(!purchaseYears[yr])purchaseYears[yr]={notes:0,total:0,paid:0};
+10341:    for(let bucket of [purchaseWeeks[ws],purchaseMonths[mo],purchaseYears[yr]]){
+10342:      bucket.notes++;
+10343:      bucket.total+=+p.total||0;
+10344:      if(p.status==="Pago")bucket.paid+=+p.total||0;
+10345:    }
+10346:  });
+10347: 
+10348:  let pw=document.getElementById("financePurchaseWeekly");
+10349:  if(pw){
+10350:    let rows=Object.entries(purchaseWeeks).sort((a,b)=>b[0].localeCompare(a[0])).map(([ws,d])=>{
+10351:      let z=new Date(ws+"T12:00:00");z.setDate(z.getDate()+6);
+10352:      return [`${fmtDate(ws)} a ${fmtDate(isoDate(z))}`,d.notes,money(d.total),money(d.paid),money(d.total-d.paid)];
+10353:    });
+10354:    pw.innerHTML=rows.length?table(["Semana","Notas","Total","Pago","Pendente"],rows):'<div class="empty">Sem compras.</div>';
+10355:  }
+10356:  let pm=document.getElementById("financePurchaseMonthly");
+10357:  if(pm){
+10358:    let rows=Object.entries(purchaseMonths).sort((a,b)=>b[0].localeCompare(a[0])).map(([mo,d])=>[
+10359:      mo.split("-").reverse().join("/"),d.notes,money(d.total),money(d.paid),money(d.total-d.paid)
+10360:    ]);
+10361:    pm.innerHTML=rows.length?table(["Mês","Notas","Total","Pago","Pendente"],rows):'<div class="empty">Sem compras.</div>';
+10362:  }
+10363:  let py=document.getElementById("financePurchaseYearly");
+10364:  if(py){
+10365:    let rows=Object.entries(purchaseYears).sort((a,b)=>b[0].localeCompare(a[0])).map(([yr,d])=>[
+10366:      yr,d.notes,money(d.total),money(d.paid),money(d.total-d.paid)
+10367:    ]);
+10368:    py.innerHTML=rows.length?table(["Ano","Notas","Total","Pago","Pendente"],rows):'<div class="empty">Sem compras.</div>';
+10369:  }
+10370: 
+10371:  let rpt=document.getElementById("financePaidReport");
+10372:  if(rpt)rpt.innerHTML=paidRows.length?table(
+10373:    ["Data","Tipo","Descrição","Valor","Status"],
+10374:    paidRows.map(f=>[
+10375:      fmtDate(f.paidDate||f.paymentDate||f.date),esc(f.type||"-"),esc(f.desc||"-"),money(f.value||0),
+10376:      '<span class="badge ok">Pago</span>'
+10377:    ])
+10378:  ):'<div class="empty">Nenhum pagamento finalizado neste período.</div>';
+10379: 
+10380:  renderWeeklyPurchases();
+10381:  renderFinanceWeeklyLimit();
+10382: 
+10383:  if(typeof renderSupplierSpendSummary==='function')renderSupplierSpendSummary();
+10384: }
+10385: 
+10386: 
+10387: function setSupplierSpendPeriod(mode){
+10388:  let s=document.getElementById("supplierSpendStart"),e=document.getElementById("supplierSpendEnd");
+10389:  if(!s||!e)return;
+10390:  let now=new Date(),start="",end="";
+10391:  if(mode==="week"){
+10392:    let r=weekRangeFromISO(isoDate(now));start=r.start;end=r.end;
+10393:  }else if(mode==="month"){
+10394:    start=isoDate(new Date(now.getFullYear(),now.getMonth(),1,12));
+10395:    end=isoDate(new Date(now.getFullYear(),now.getMonth()+1,0,12));
+10396:  }else if(mode==="year"){
+10397:    start=isoDate(new Date(now.getFullYear(),0,1,12));
+10398:    end=isoDate(new Date(now.getFullYear(),11,31,12));
+10399:  }
+10400:  s.value=start;e.value=end;renderSupplierSpendSummary();
+10401: }
+10402: function renderSupplierSpendSummary(){
+10403:  let s=document.getElementById("supplierSpendStart"),e=document.getElementById("supplierSpendEnd");
+10404:  if(!s||!e)return;
+10405:  let start=s.value||"",end=e.value||"";
+10406:  let purchases=(db.purchases||[]).filter(p=>{
+10407:    let d=String(p.date||"").slice(0,10);
+10408:    if(start&&d<start)return false;
+10409:    if(end&&d>end)return false;
+10410:    return true;
+10411:  });
+10412: 
+10413:  let map={};
+10414:  purchases.forEach(p=>{
+10415:    let name=String(p.supplierName||p.supplier||"Sem fornecedor").trim()||"Sem fornecedor";
+10416:    if(!map[name])map[name]={name,total:0,notes:0,paid:0,pending:0};
+10417:    let v=+p.total||0;
+10418:    map[name].total+=v;
+10419:    map[name].notes++;
+10420:    if(String(p.status||"").toLowerCase()==="pago")map[name].paid+=v;
+10421:    else map[name].pending+=v;
+10422:  });
+10423:  let rows=Object.values(map).sort((a,b)=>b.total-a.total);
+10424:  let grand=rows.reduce((s,r)=>s+r.total,0);
+10425:  let top=rows[0]||null;
+10426:  let avg=rows.length?grand/rows.length:0;
+10427: 
+10428:  let label=document.getElementById("supplierSpendPeriodLabel");
+10429:  if(label)label.textContent=start||end
+10430:    ? `Período analisado: ${start?fmtDate(start):"início"} até ${end?fmtDate(end):"hoje"}.`
+10431:    : "Analisando todo o período.";
+10432: 
+10433:  let cards=document.getElementById("supplierSpendCards");
+10434:  if(cards)cards.innerHTML=`
+10435:    <div class="card"><small>Total comprado</small><strong>${money(grand)}</strong></div>
+10436:    <div class="card"><small>Fornecedores no período</small><strong>${rows.length}</strong></div>
+10437:    <div class="card"><small>Fornecedor com maior compra</small><strong>${top?esc(top.name):"-"}</strong><div>${top?money(top.total):"-"}</div></div>
+10438:    <div class="card"><small>Participação do maior fornecedor</small><strong>${top&&grand>0?(top.total/grand*100).toFixed(1)+"%":"-"}</strong></div>
+10439:    <div class="card"><small>Média por fornecedor</small><strong>${money(avg)}</strong></div>`;
+10440: 
+10441:  let el=document.getElementById("supplierSpendTable");
+10442:  if(el)el.innerHTML=rows.length?table(
+10443:    ["Ranking","Fornecedor","Notas","Valor comprado","% das compras","Pago","Pendente"],
+10444:    rows.map((r,i)=>[
+10445:      i+1,
+10446:      esc(r.name),
+10447:      r.notes,
+10448:      money(r.total),
+10449:      grand>0?(r.total/grand*100).toFixed(1)+"%":"0,0%",
+10450:      money(r.paid),
+10451:      money(r.pending)
+10452:    ])
+10453:  ):'<div class="empty">Nenhuma compra encontrada no período selecionado.</div>';
+10454: }
+10455: function deleteFinanceEntry(id){
+10456:  let f=(db.finance||[]).find(x=>String(x.id)===String(id));if(!f)return;
+10457:  let desc=f.desc||"Lançamento financeiro";
+10458:  if(!confirm(`Excluir "${desc}" no valor de ${money(f.value||0)}? Os totais do Financeiro serão recalculados na hora.`))return;
+10459:  db.finance=(db.finance||[]).filter(x=>String(x.id)!==String(id));
+10460:  try{persistDb()}catch(e){console.error(e)}
+10461:  if(typeof renderFinance==="function")renderFinance();
+10462:  if(typeof renderDash==="function")renderDash();
+10463:  if(typeof auditAction==="function")auditAction("Excluiu lançamento financeiro",`${desc} — ${money(f.value||0)}`);
+10464: }
+10465: function newFinance(){
+10466:  openModal("Novo lançamento",`
+10467:  <div class="grid">
+10468:    <div class="field"><label>Tipo</label><select id="mtype"><option>Receber</option><option>Pagar</option></select></div>
+10469:    <div class="field"><label>Cliente (se for recebimento)</label><select id="mfinanceClient"><option value="">Não vincular</option>${(db.clients||[]).map(c=>`<option value="${c.id}">${esc(c.name)}</option>`).join("")}</select></div>
+10470:    <div class="field"><label>Descrição</label><input id="mdesc"></div>
+10471:    <div class="field"><label>Valor</label><input id="mvalue" type="number" step=".01"></div>
+10472:    <div class="field"><label>Vencimento</label><input id="mdate" type="date"></div>
+10473:  </div>
+10474:  <button type="button" class="primary modalSave" onclick="modalSave()">Salvar</button>`,()=>{
+10475:    let client=(db.clients||[]).find(c=>+c.id===+document.getElementById("mfinanceClient")?.value);
+10476:    db.finance.push({id:Date.now(),type:mtype.value,desc:mdesc.value,value:+mvalue.value,date:mdate.value,status:"Pendente",clientId:client?.id||null,clientName:client?.name||""});
+10477:    closeModal();save();
+10478:  });
+10479: }
+10480: function migrateProducts(){
+10481: ensureProductSuggestionSettings();
+10482: db.products.forEach(p=>{
+10483:  if(!p.materials && p.material){p.materials=[{name:p.material,cat:"Tecido",unit:"m",qty:0,loss:0,price:0}]}
+10484:  if(p.labor==null)p.labor=0;if(p.cutCost==null)p.cutCost=0;if(p.factionCost==null)p.factionCost=0;if(p.packCost==null)p.packCost=0;if(p.otherCost==null)p.otherCost=0;
+10485:  if(p.suggestedLaborPct!=null)p.suggestedLaborPct=Math.max(0,+p.suggestedLaborPct||0);
+10486:  if(p.suggestedProfitPct!=null)p.suggestedProfitPct=Math.max(0,+p.suggestedProfitPct||0);
+10487: });
+10488: }
+10489: migrateProducts();
+10490: migratePaymentHistory();
+10491: ensureRobeAlice();
+10492: 
+10493: function migrateMaterialsFromProducts(){
+10494:  db.materials=db.materials||[];db.materialLots=db.materialLots||[];
+10495: db.colors=db.colors||["Preto","Branco","Rubi","Frozen","Pantera"];
+10496: db.sizes=db.sizes||["P","M","G","GG"];
+10497: db.separations=db.separations||[];db.finance=db.finance||[];
+10498: db.users=db.users||[];
+10499: // Compatibilidade com versões antigas: só cria o administrador local se ainda não existir nenhum administrador.
+10500: if(!db.users.some(u=>u.role==="admin")){
+10501:   db.users.unshift({id:1,user:"Bruno",role:"admin",name:"Administrador",active:true});
+10502: }
+10503: // Preserva logins antigos como apelido, mas o acesso online passa a exigir uma conta do Supabase.
+10504: db.users.forEach(u=>{
+10505:   const raw=String(u.user||u.email||"").trim();
+10506:   if(u.role!=="admin" && raw && !raw.includes("@") && !u.loginAlias)u.loginAlias=raw;
+10507:   if(raw.includes("@"))u.onlineReady=true;
+10508: });
+10509: // Se já existe administrador online, remove apenas o duplicado legado "Bruno".
+10510: const onlineAdmin=db.users.find(u=>u.role==="admin" && String(u.user||u.email||"").includes("@"));
+10511: if(onlineAdmin){
+10512:   db.users=db.users.filter(u=>u===onlineAdmin || !(u.role==="admin" && String(u.user||"").trim().toLowerCase()==="bruno"));
+10513: }
+10514: 
+10515: db.session=db.session||null;
+10516: 
+10517:  (db.products||[]).forEach(p=>(p.materials||[]).forEach(m=>{
+10518:    if(!m.name)return;
+10519:    let x=db.materials.find(z=>z.name.toLowerCase()===String(m.name).toLowerCase());
+10520:    if(!x)db.materials.push({id:Date.now()+Math.floor(Math.random()*100000),name:m.name,cat:m.cat||"Outro",unit:m.unit||"m",price:+m.price||0,min:0});
+10521:  }));
+10522: }
+10523: migrateMaterialsFromProducts();
+10524: (db.materials||[]).forEach(m=>{if(m.yieldMeters==null)m.yieldMeters=0;if(!m.yieldUnit)m.yieldUnit="m/rolo"});
+10525: function productSalesOrderDate(o){
+10526:   let d=o?.orderDate||o?.createdDate||(o?.createdAt?String(o.createdAt).slice(0,10):"")||o?.date||"";
+10527:   return String(d||"").slice(0,10);
+10528: }
+10529: function productSalesUnitPrice(o,productId,item={}){
+10530:   let direct=+(item.unitPrice??item.price??0)||0;
+10531:   if(direct>0)return direct;
+10532:   if(+o?.productId===+productId && (+o?.unitPrice||0)>0)return +o.unitPrice||0;
+10533:   try{let p=+suggestedPrice(o?.clientId||0,productId)||0;if(p>0)return p}catch(e){}
+10534:   return +(db.products||[]).find(p=>+p.id===+productId)?.price||0;
+10535: }
+10536: function productSalesLines(o){
+10537:   let raw=[];
+10538:   if(Array.isArray(o?.grade)&&o.grade.length)raw=o.grade;
+10539:   else if(Array.isArray(o?.lines)&&o.lines.length)raw=o.lines;
+10540:   let grouped={};
+10541:   raw.forEach(it=>{
+10542:     let pid=+(it.productId||o.productId)||0,qty=+(it.qty??it.quantity??0)||0;
+10543:     if(!pid||qty<=0)return;
+10544:     let product=(db.products||[]).find(p=>+p.id===pid);
+10545:     let unit=productSalesUnitPrice(o,pid,it);
+10546:     let key=String(pid);
+10547:     if(!grouped[key])grouped[key]={productId:pid,name:product?.name||it.productName||it.name||"Produto",qty:0,value:0};
+10548:     grouped[key].qty+=qty;
+10549:     grouped[key].value+=qty*unit;
+10550:   });
+10551:   let lines=Object.values(grouped);
+10552:   if(!lines.length && o?.productId){
+10553:     let pid=+o.productId,qty=+(o.qty??o.totalQty??0)||0;

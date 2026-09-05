@@ -1,0 +1,301 @@
+=== hlgb_register_faction_delivery_v9135 @ line 13843 ===
+13763:   window.assignmentFor=function(orderId,key){return assignmentsFor(orderId,key)[0]||null};
+13764:   window.projectionProductionSplit=function(orderId,key){
+13765:     let parts=[];
+13766:     actualDisplay935(orderId,key).forEach(x=>{let name='Local';try{name=productionDestinationName(x.p)||name}catch(e){}parts.push(`${name}: ${(+x.qty||0).toLocaleString('pt-BR')} pç`)});
+13767:     let actualQty=actualDisplay935(orderId,key).reduce((s,x)=>s+(+x.qty||0),0),it=item935(orderId,key),remaining=Math.max(0,(+it?.qty||0)-actualQty);
+13768:     if(remaining>0){let used=0;planRows935(orderId,key).forEach(a=>{if(used>=remaining)return;let q=Math.min(remaining-used,+a.qty||0),l=(db.productionLocations||[]).find(x=>+x.id===+a.locationId);if(q>0&&l){parts.push(`Previsto ${l.name}: ${q.toLocaleString('pt-BR')} pç`);used+=q}})}
+13769:     return parts.join(' · ')||'';
+13770:   };
+13771: 
+13772:   const oldOpenCapacity935=window.openCapacityAllocation;
+13773:   window.openCapacityAllocation=function(orderId,key){
+13774:     let legacy=legacyActual935(orderId,key),exact=exactActual935(orderId,key),it=item935(orderId,key);
+13775:     if(!exact.length&&legacy.length&&it){
+13776:       let fixed=actualDisplay935(orderId,key),sum=fixed.reduce((s,x)=>s+(+x.qty||0),0),remain=Math.max(0,(+it.qty||0)-sum);
+13777:       openModal(`Alocação protegida — ${esc(it.name||'Produto')}`,`<div class="cards"><div class="card"><small>Total do modelo</small><strong>${(+it.qty||0).toLocaleString('pt-BR')}</strong></div><div class="card"><small>Já atribuído de verdade</small><strong>${sum.toLocaleString('pt-BR')}</strong></div><div class="card"><small>Restante</small><strong>${remain.toLocaleString('pt-BR')}</strong></div></div><div class="panel"><h3>Produção já atribuída</h3>${table(['Local / facção','Peças'],fixed.map(x=>[esc(productionDestinationName(x.p)||'-'),(+x.qty||0).toLocaleString('pt-BR')]))}<div class="sub" style="margin-top:10px">Este é um registro antigo em que o corte inteiro foi vinculado ao local. A v91.35 reconhece o modelo dentro desse vínculo e protege a produção já em andamento para não duplicar a alocação.</div></div><button type="button" class="secondary modalSave" onclick="closeModal()">Fechar</button>`,()=>closeModal());
+13778:       return;
+13779:     }
+13780:     return oldOpenCapacity935?oldOpenCapacity935.apply(this,arguments):undefined;
+13781:   };
+13782: 
+13783:   function copyText935(v){
+13784:     let text=String(v||'').trim();if(!text||text==='-')return;
+13785:     let done=()=>{try{setCloudStatus('📋 PIX copiado','ok')}catch(e){}};
+13786:     if(navigator.clipboard?.writeText){navigator.clipboard.writeText(text).then(done).catch(()=>fallback())}else fallback();
+13787:     function fallback(){let t=document.createElement('textarea');t.value=text;t.style.position='fixed';t.style.opacity='0';document.body.appendChild(t);t.select();try{document.execCommand('copy');done()}catch(e){}t.remove()}
+13788:   }
+13789:   window.copyPix935=copyText935;
+13790:   function makePix935(v){
+13791:     let pix=String(v||'').trim(),wrap=document.createElement('span');wrap.className='pix-copy-935';
+13792:     if(!pix){wrap.textContent='-';return wrap}
+13793:     let s=document.createElement('span');s.textContent=pix;let b=document.createElement('button');b.type='button';b.className='secondary';b.textContent='📋 Copiar';b.addEventListener('click',()=>copyText935(pix));wrap.append(s,b);return wrap;
+13794:   }
+13795:   function enhancePayrollPix935(){document.querySelectorAll('#payrollTable .payroll-pix').forEach(cell=>{if(cell.dataset.pix935)return;let v=cell.textContent.trim();cell.textContent='';cell.appendChild(makePix935(v==='-'?'':v));cell.dataset.pix935='1'})}
+13796:   function enhanceFactionPix935(){
+13797:     let tableEl=document.querySelector('#factionPaymentTable table');if(tableEl&&!tableEl.dataset.pix935){
+13798:       let filter=document.getElementById('factionPaymentFilter')?.value||'',start=document.getElementById('fpPeriodStart')?.value||'',end=document.getElementById('fpPeriodEnd')?.value||'';
+13799:       let arr=(db.factionPayments||[]).filter(p=>(typeof factionPaymentInPeriod!=='function'||factionPaymentInPeriod(p,start,end))&&(!filter||p.status===filter));
+13800:       let trs=[...tableEl.querySelectorAll('tr')],head=trs.shift();if(head){let thPix=document.createElement('th');thPix.textContent='PIX';let thWeek=document.createElement('th');thWeek.textContent='Semana pagamento';head.insertBefore(thWeek,head.children[2]||null);head.insertBefore(thPix,head.children[2]||null)}
+13801:       trs.forEach((tr,i)=>{let p=arr[i];if(!p)return;let tdPix=document.createElement('td');tdPix.appendChild(makePix935(p.pix));let tdWeek=document.createElement('td');let w=p.scheduledPaymentWeek||'';if(!w&&p.scheduledPaymentDate){try{w=weekValue(new Date(String(p.scheduledPaymentDate).slice(0,10)+'T12:00:00'))}catch(e){}}tdWeek.innerHTML=w?`<b>${esc(w)}</b><div class="sub">${p.scheduledPaymentDate?fmtDate(p.scheduledPaymentDate):''}</div>`:'-';tr.insertBefore(tdWeek,tr.children[2]||null);tr.insertBefore(tdPix,tr.children[2]||null)});
+13802:       tableEl.dataset.pix935='1';
+13803:     }
+13804:     let sum=document.getElementById('factionPaymentSummary');if(sum){let known=new Set((db.factionPayments||[]).map(p=>String(p.pix||'').trim()).filter(Boolean));sum.querySelectorAll('td').forEach(td=>{if(td.dataset.pix935)return;let v=td.textContent.trim();if(known.has(v)){td.textContent='';td.appendChild(makePix935(v));td.dataset.pix935='1'}})}
+13805:   }
+13806: 
+13807:   const oldPayroll935=window.renderPayroll;
+13808:   window.renderPayroll=function(){let out=oldPayroll935?oldPayroll935.apply(this,arguments):undefined;setTimeout(enhancePayrollPix935,0);return out};
+13809:   const oldPay935=window.renderFactionPayments;
+13810:   window.renderFactionPayments=function(){let out=oldPay935?oldPay935.apply(this,arguments):undefined;setTimeout(enhanceFactionPix935,0);return out};
+13811:   const oldInPeriod935=window.factionPaymentInPeriod;
+13812:   window.factionPaymentInPeriod=function(p,start,end){
+13813:     let d=String((p?.status==='Pago'?(p.paymentDate||p.scheduledPaymentDate||p.serviceFinishedAt):(p?.scheduledPaymentDate||p?.serviceFinishedAt||p?.paymentDate))||'').slice(0,10);
+13814:     if(!d)return !start&&!end;if(start&&d<start)return false;if(end&&d>end)return false;return true;
+13815:   };
+13816: 
+13817:   function productName935(f){
+13818:     let p=(db.products||[]).find(x=>+x.id===+f.productId);if(p)return p.name||'Produto';
+13819:     let pr=(db.production||[]).find(x=>+x.id===+f.productionId),q=(db.products||[]).find(x=>+x.id===+pr?.productId);if(q)return q.name||'Produto';
+13820:     return f.description||f.product||f.op||'Serviço';
+13821:   }
+13822:   function ensureFactionPanel935(){
+13823:     let page=document.getElementById('faccoes');if(!page||document.getElementById('factionDeliveryPanel935'))return;
+13824:     let panel=document.createElement('div');panel.id='factionDeliveryPanel935';panel.className='panel faction-delivery-935';panel.innerHTML='<h2>📦 Entregas das facções</h2><div class="sub">Registre aqui cada entrega, inclusive parcial, e escolha diretamente a semana em que ela deve entrar para pagamento.</div><div id="factionDeliveryTable935" style="margin-top:12px"></div>';
+13825:     let report=page.querySelector('#factionReport')?.closest('.panel');if(report)page.insertBefore(panel,report);else page.appendChild(panel);
+13826:   }
+13827:   function renderFactionDelivery935(){
+13828:     ensureFactionPanel935();let el=document.getElementById('factionDeliveryTable935');if(!el)return;
+13829:     let arr=(db.factions||[]).filter(f=>(+f.sent||0)>0).slice().sort((a,b)=>{let ao=(+a.done||0)<(+a.sent||0)?0:1,bo=(+b.done||0)<(+b.sent||0)?0:1;return ao-bo||String(b.sentAt||b.date||'').localeCompare(String(a.sentAt||a.date||''))});
+13830:     el.innerHTML=arr.length?table(['Facção','Pedido','Modelo','Enviado','Já entregue','Saldo','Última entrega','Pagamento','Situação','Ação'],arr.map(f=>{let o=(db.orders||[]).find(x=>+x.id===+f.orderId),sent=+f.sent||0,done=+f.done||0,bal=Math.max(0,sent-done),hist=Array.isArray(f.deliveryHistory)?f.deliveryHistory:[],last=hist[hist.length-1],status=bal>0?'<span class="badge warn">Em produção</span>':'<span class="badge ok">Finalizado</span>';return [esc(f.name||'-'),o?`#${esc(displayOrderNumber(o))}`:esc(f.op||'-'),`<b>${esc(productName935(f))}</b>`,sent.toLocaleString('pt-BR'),done.toLocaleString('pt-BR'),bal.toLocaleString('pt-BR'),last?.date?fmtDate(last.date):(f.lastDeliveryAt?fmtDate(f.lastDeliveryAt):'-'),last?.paymentWeek?esc(last.paymentWeek):'-',status,bal>0?`<button type="button" class="primary" onclick="registerFactionDelivery935(${f.id})">📦 Registrar entrega</button>`:'<span class="sub">Entrega concluída</span>'] })): '<div class="empty">Nenhum envio de facção encontrado.</div>';
+13831:   }
+13832:   window.renderFactionDelivery935=renderFactionDelivery935;
+13833: 
+13834:   function upsert935(module,row){if(!row||row.id==null)return;db[module]=Array.isArray(db[module])?db[module]:[];let i=db[module].findIndex(x=>String(x.id)===String(row.id));if(i>=0)db[module][i]=c935(row);else db[module].push(c935(row))}
+13835:   window.registerFactionDelivery935=function(id){
+13836:     let f=(db.factions||[]).find(x=>+x.id===+id);if(!f)return;let sent=+f.sent||0,done=+f.done||0,bal=Math.max(0,sent-done),model=productName935(f);if(bal<=0){alert('Este envio já está totalmente entregue.');return}
+13837:     let wk=weekValue(new Date()),today=isoDate(new Date());
+13838:     openModal(`Registrar entrega — ${esc(f.name||'Facção')}`,`<div class="cards"><div class="card"><small>Modelo</small><strong style="font-size:17px">${esc(model)}</strong></div><div class="card"><small>Enviado</small><strong>${sent.toLocaleString('pt-BR')}</strong></div><div class="card"><small>Já entregue</small><strong>${done.toLocaleString('pt-BR')}</strong></div><div class="card"><small>Saldo</small><strong>${bal.toLocaleString('pt-BR')}</strong></div></div><div class="grid"><div class="field"><label>Quantidade entregue agora</label><input id="fdQty935" type="number" min="1" max="${bal}" step="1" value="${bal}"></div><div class="field"><label>Data da entrega</label><input id="fdDate935" type="date" value="${today}"></div><div class="field"><label>Semana do pagamento</label><input id="fdWeek935" type="week" value="${wk}"><div class="sub">A entrega aparecerá em Pagamentos de facções dentro desta semana.</div></div></div><button type="button" class="primary modalSave">☁️ Confirmar entrega e programar pagamento</button>`,async()=>{
+13839:       let qty=Math.floor(+document.getElementById('fdQty935')?.value||0),date=document.getElementById('fdDate935')?.value||'',week=document.getElementById('fdWeek935')?.value||'';if(qty<=0||qty>bal){alert(`Informe uma quantidade entre 1 e ${bal}.`);return}if(!date||!week){alert('Informe a data da entrega e a semana do pagamento.');return}
+13840:       let btn=document.querySelector('#modal .modalSave');if(btn){btn.disabled=true;btn.textContent='☁️ Gravando com segurança…'}
+13841:       try{
+13842:         if(typeof cloudEnsureFreshSession==='function')await cloudEnsureFreshSession();
+13843:         let res=await fetch(`${HLGB_SUPABASE_REST}rpc/hlgb_register_faction_delivery_v9135`,{method:'POST',headers:{apikey:HLGB_SUPABASE_KEY,Authorization:`Bearer ${cloudAccessToken}`,'Content-Type':'application/json'},body:JSON.stringify({p_faction_id:String(id),p_qty:qty,p_delivery_date:date,p_payment_week:week})});
+13844:         let data=await res.json().catch(()=>null);if(!res.ok)throw new Error(data?.message||data?.error||'Não foi possível confirmar a entrega na nuvem.');
+13845:         if(data?.faction)upsert935('factions',data.faction);if(data?.payment)upsert935('factionPayments',data.payment);if(data?.production)upsert935('production',data.production);
+13846:         closeModal();try{persistDb()}catch(e){};safe935(renderFactionDelivery935);safe935(()=>renderFactionPayments());safe935(()=>renderProduction());safe935(()=>renderCapacityPlanning());safe935(()=>renderProjection());alert(`Entrega registrada. ${qty.toLocaleString('pt-BR')} peças de ${model} foram programadas para pagamento em ${week}.`);
+13847:       }catch(e){console.error(e);if(btn){btn.disabled=false;btn.textContent='☁️ Confirmar entrega e programar pagamento'}alert(e.message||'A entrega não foi confirmada. Nada foi apagado.')}
+13848:     });
+13849:   };
+13850: 
+13851:   const oldFactions935=window.renderFactions;
+13852:   window.renderFactions=function(){let out=oldFactions935?oldFactions935.apply(this,arguments):undefined;safe935(renderFactionDelivery935);return out};
+13853: 
+13854:   const oldProjection935=window.renderProjection;
+13855:   window.renderProjection=function(){let out=oldProjection935?oldProjection935.apply(this,arguments):undefined;return out};
+13856: 
+13857:   const oldIncoming935=window.hlgbRenderIncomingRecord;
+13858:   window.hlgbRenderIncomingRecord=function(module){let out=oldIncoming935?oldIncoming935.apply(this,arguments):undefined;let pg=document.querySelector('.page.active')?.id||'';if(['production','capacityAssignments','factions','orders'].includes(module)&&pg==='projecao')safe935(()=>renderProjection());if(['production','capacityAssignments','orders'].includes(module)&&pg==='capacidadeProducao')safe935(()=>renderCapacityPlanning());if(['factions','factionPayments','production'].includes(module)&&pg==='faccoes')safe935(renderFactionDelivery935);if(['factionPayments','factionMasters'].includes(module)&&pg==='pagamentosFaccoes')setTimeout(enhanceFactionPix935,0);if(['payroll','employees'].includes(module)&&pg==='folhaPagamento')setTimeout(enhancePayrollPix935,0);return out};
+13859: 
+13860:   function boot935(){safe935(renderFactionDelivery935);safe935(enhancePayrollPix935);safe935(enhanceFactionPix935);if(document.querySelector('.page.active')?.id==='capacidadeProducao')safe935(()=>renderCapacityPlanning());if(document.querySelector('.page.active')?.id==='projecao')safe935(()=>renderProjection())}
+13861:   setTimeout(boot935,1100);window.addEventListener('focus',()=>setTimeout(boot935,150));
+13862: })();
+13863: </script>
+13864: 
+13865: 
+13866: <!-- HLGB v91.36 CUTTER PRINT + LIVE PERMISSIONS -->
+13867: <script>
+13868: (function(){
+13869:   'use strict';
+13870:   const V='91.36';
+13871: 
+13872:   function safe936(fn){try{return fn()}catch(e){console.error('HLGB v91.36',e);return null}}
+13873:   function norm936(v){return String(v==null?'':v).trim().toLowerCase()}
+13874:   function sameArr936(a,b){
+13875:     a=Array.isArray(a)?a:[]; b=Array.isArray(b)?b:[];
+13876:     if(a.length!==b.length)return false;
+13877:     let aa=[...a].map(String).sort(),bb=[...b].map(String).sort();
+13878:     return aa.every((x,i)=>x===bb[i]);
+13879:   }
+13880:   function productName936(pid,fallback){
+13881:     let p=(db.products||[]).find(x=>String(x.id)===String(pid));
+13882:     return p?.name||fallback||'Modelo';
+13883:   }
+13884:   function productPhoto936(pid){
+13885:     let p=(db.products||[]).find(x=>String(x.id)===String(pid));
+13886:     let ph=p?.photos?.[0];
+13887:     return ph?.data||ph?.url||'';
+13888:   }
+13889:   function sizeOrder936(){
+13890:     let raw=[];
+13891:     try{raw=typeof hlgbSortedSizes==='function'?hlgbSortedSizes(db.sizes||[]):[]}catch(e){}
+13892:     let vals=(raw||[]).map(x=>typeof x==='string'?x:(x?.name||x?.size||x?.label||'')).filter(Boolean);
+13893:     return vals;
+13894:   }
+13895:   function sortSizes936(vals){
+13896:     let ord=sizeOrder936(),idx=new Map(ord.map((x,i)=>[String(x),i]));
+13897:     return [...new Set(vals.filter(Boolean).map(String))].sort((a,b)=>{
+13898:       let ia=idx.has(a)?idx.get(a):9999,ib=idx.has(b)?idx.get(b):9999;
+13899:       return ia-ib||a.localeCompare(b,'pt-BR');
+13900:     });
+13901:   }
+13902:   function modelGroups936(o){
+13903:     let grade=Array.isArray(o?.grade)?o.grade:[];
+13904:     if(!grade.length)return [];
+13905:     let groups=new Map();
+13906:     grade.forEach((g,i)=>{
+13907:       let pid=g?.productId!=null?String(g.productId):(o?.productId!=null?String(o.productId):'legacy');
+13908:       let fallback=g?.productName||g?.product||g?.name||o?.product||'Modelo';
+13909:       let key=pid!=='legacy'?'id:'+pid:'name:'+fallback;
+13910:       if(!groups.has(key))groups.set(key,{pid,productName:productName936(pid,fallback),items:[],first:i});
+13911:       groups.get(key).items.push(g);
+13912:     });
+13913:     return [...groups.values()].sort((a,b)=>a.first-b.first);
+13914:   }
+13915:   function gradeBlock936(group,index,totalModels){
+13916:     let items=group.items||[];
+13917:     let sizes=sortSizes936(items.map(x=>x.size||x.tamanho||'').filter(Boolean));
+13918:     let colors=[...new Set(items.map(x=>String(x.color||x.cor||'Sem cor')).filter(Boolean))];
+13919:     if(!sizes.length)sizes=['Qtd.'];
+13920:     let qty=(it)=>Math.max(0,+it?.qty||+it?.quantity||0);
+13921:     let cell=(color,size)=>{
+13922:       if(size==='Qtd.')return items.filter(x=>String(x.color||x.cor||'Sem cor')===color).reduce((s,x)=>s+qty(x),0);
+13923:       return items.filter(x=>String(x.color||x.cor||'Sem cor')===color&&String(x.size||x.tamanho||'')===size).reduce((s,x)=>s+qty(x),0);
+13924:     };
+13925:     let rowTotals={};
+13926:     colors.forEach(c=>rowTotals[c]=items.filter(x=>String(x.color||x.cor||'Sem cor')===c).reduce((s,x)=>s+qty(x),0));
+13927:     let colTotals={};
+13928:     sizes.forEach(sz=>colTotals[sz]=sz==='Qtd.'?items.reduce((s,x)=>s+qty(x),0):items.filter(x=>String(x.size||x.tamanho||'')===sz).reduce((s,x)=>s+qty(x),0));
+13929:     let total=items.reduce((s,x)=>s+qty(x),0);
+13930:     let photo=productPhoto936(group.pid);
+13931:     let rows=colors.map(c=>`<tr><th class="color">${esc(c)}</th>${sizes.map(sz=>`<td>${cell(c,sz)||''}</td>`).join('')}<td class="totalcell">${rowTotals[c]||0}</td></tr>`).join('');
+13932:     let foot=`<tr class="totalrow"><th>Total</th>${sizes.map(sz=>`<td>${colTotals[sz]||0}</td>`).join('')}<td>${total}</td></tr>`;
+13933:     return `<section class="model936">
+13934:       <div class="modelhead936">
+13935:         <div>
+13936:           <div class="modelidx936">MODELO ${index+1}${totalModels>1?` DE ${totalModels}`:''}</div>
+13937:           <h2>${esc(group.productName)}</h2>
+13938:           <div class="modelqty936">${total.toLocaleString('pt-BR')} peças</div>
+13939:         </div>
+13940:         ${photo?`<img src="${photo}" alt="${esc(group.productName)}">`:''}
+13941:       </div>
+13942:       <table class="grade936">
+13943:         <thead><tr><th>Cor</th>${sizes.map(sz=>`<th>${esc(sz)}</th>`).join('')}<th>Total</th></tr></thead>
+13944:         <tbody>${rows}${foot}</tbody>
+13945:       </table>
+13946:       <div class="modelcheck936">Conferência do modelo: ☐ &nbsp;&nbsp; Observação: ________________________________________________</div>
+13947:     </section>`;
+13948:   }
+13949: 
+13950:   window.printCuttingSheet=function(orderId){
+13951:     let o=(db.orders||[]).find(x=>+x.id===+orderId);
+13952:     if(!o)return;
+13953:     let groups=modelGroups936(o);
+13954:     let blocks=groups.map((g,i)=>gradeBlock936(g,i,groups.length)).join('');
+13955:     if(!blocks)blocks='<div style="padding:16px;border:1px solid #bbb">Pedido sem grade cadastrada.</div>';
+13956:     let w=window.open('','_blank');
+13957:     if(!w){alert('Permita pop-ups para imprimir.');return}
+13958:     let no=typeof displayOrderNumber==='function'?displayOrderNumber(o):o.id;
+13959:     w.document.write(`<html><head><title>Folha dos Cortadores — Pedido #${esc(no)}</title>
+13960:     <style>
+13961:       *{box-sizing:border-box} body{font-family:Arial,sans-serif;padding:22px;color:#222;margin:0}
+13962:       h1{font-size:22px;margin:0 0 6px}.meta936{font-size:13px;margin-bottom:18px;padding:10px 12px;background:#f7f3f5;border:1px solid #ddd;border-radius:8px}
+13963:       .model936{border:2px solid #555;border-radius:10px;padding:15px;margin:0 0 24px;page-break-inside:avoid;break-inside:avoid}
+13964:       .modelhead936{display:flex;align-items:flex-start;justify-content:space-between;gap:18px;margin-bottom:12px;border-bottom:2px solid #555;padding-bottom:10px}
+13965:       .modelhead936 h2{font-size:20px;margin:3px 0}.modelidx936{font-size:10px;font-weight:700;letter-spacing:.08em;color:#666}.modelqty936{font-size:14px;font-weight:700}
+13966:       .modelhead936 img{width:110px;height:110px;object-fit:contain;border:1px solid #ddd;border-radius:8px}
+13967:       table{width:100%;border-collapse:collapse}.grade936 th,.grade936 td{border:1px solid #777;padding:8px;text-align:center;font-size:12px}.grade936 th{background:#eee}.grade936 th.color{text-align:left;min-width:120px}
+13968:       .totalrow th,.totalrow td,.totalcell{font-weight:700;background:#f5f5f5}.modelcheck936{margin-top:12px;font-size:12px}
+13969:       .footer936{margin-top:18px;border-top:1px solid #777;padding-top:12px;font-size:13px}
+13970:       @media print{
+13971:         body{padding:10mm}
+13972:         .model936{page-break-inside:avoid;break-inside:avoid}
+13973:         .model936 + .model936{margin-top:8mm}
+13974:       }
+13975:     </style></head><body>
+13976:       <h1>HLGB Confecções — Folha dos Cortadores</h1>
+13977:       <div class="meta936"><b>Pedido:</b> #${esc(no)} &nbsp;&nbsp; <b>Cliente:</b> ${esc(o.client||'-')} &nbsp;&nbsp; <b>Entrega:</b> ${o.date?fmtDate(o.date):'-'}<br><b>Modelos nesta folha:</b> ${groups.length}</div>
+13978:       ${blocks}
+13979:       <div class="footer936"><b>Cortador responsável:</b> ____________________________________ &nbsp;&nbsp; <b>Data:</b> ____/____/________ &nbsp;&nbsp; <b>Corte conferido:</b> ☐</div>
+13980:       <script>window.onload=()=>window.print();<\/script>
+13981:     </body></html>`);
+13982:     w.document.close();
+13983:   };
+13984: 
+13985:   let permBusy936=false,permLast936=0,permSig936='';
+13986:   async function refreshOwnPermissions936(force){
+13987:     if(permBusy936)return false;
+13988:     if(!cloudAccessToken||!cloudUser?.email)return false;
+13989:     let email=normEmail(cloudUser.email),owner=normEmail(HLGB_OWNER_EMAIL);
+13990:     if(!email||email===owner)return false;
+13991:     if(!force&&Date.now()-permLast936<10000)return false;
+13992:     permBusy936=true;
+13993:     try{
+13994:       let row=null;
+13995:       if(typeof cloudGetDedicatedAccessProfile==='function')row=await cloudGetDedicatedAccessProfile();
+13996:       if(!row){
+13997:         let q=`hlgb_user_access?select=auth_id,email,name,active,access,updated_at&email=eq.${encodeURIComponent(email)}&limit=1`;
+13998:         let rows=await cloudRequest(q,{method:'GET'});
+13999:         row=Array.isArray(rows)?rows[0]:null;
+14000:       }
+14001:       if(!row)return false;
+14002:       db.users=Array.isArray(db.users)?db.users:[];
+14003:       let uid=String(row.auth_id||cloudUser.id||'');
+14004:       let profile=db.users.find(u=>String(u.authId||'')===uid||normEmail(u.user||u.email)===email);
+14005:       if(!profile){
+14006:         profile={id:Date.now()+Math.random(),name:row.name||email,user:email,email,authId:uid,role:'user',active:row.active!==false,access:Array.isArray(row.access)?row.access:[],onlineReady:true};
+14007:         db.users.push(profile);
+14008:       }
+14009:       let before=JSON.stringify({active:profile.active!==false,access:Array.isArray(profile.access)?profile.access:[]});
+14010:       profile.name=row.name||profile.name||email;
+14011:       profile.user=email; profile.email=email; profile.authId=uid; profile.onlineReady=true;
+14012:       profile.role='user'; profile.active=row.active!==false;
+14013:       profile.access=Array.isArray(row.access)?row.access:[];
+14014:       delete profile.password;
+14015:       db.session=profile.id;
+14016:       let after=JSON.stringify({active:profile.active!==false,access:profile.access});
+14017:       permLast936=Date.now();
+14018:       let sig=String(row.updated_at||'')+'|'+after;
+14019:       if(before!==after||sig!==permSig936){
+14020:         permSig936=sig;
+14021:         try{localSaveOnly()}catch(e){}
+14022:         try{applyAccess()}catch(e){}
+14023:         let active=document.querySelector('.page.active')?.id||'';
+14024:         if(active&&active!=='dashboard'&&typeof canOpenPage==='function'&&!canOpenPage(active)){
+14025:           try{page('dashboard',document.querySelector("nav button[onclick*=\"page('dashboard'\"]"))}catch(e){
+14026:             document.querySelectorAll('.page').forEach(x=>x.classList.remove('active'));
+14027:             document.getElementById('dashboard')?.classList.add('active');
+14028:           }
+14029:         }
+14030:         return true;
+14031:       }
+14032:       return false;
+14033:     }catch(e){
+14034:       console.warn('HLGB v91.36 atualização de permissões',e);
+14035:       return false;
+14036:     }finally{
+14037:       permBusy936=false;
+14038:     }
+14039:   }
+14040:   window.hlgbRefreshOwnPermissions9136=refreshOwnPermissions936;
+14041: 
+14042:   const oldApply936=window.applyAccess;
+14043:   window.applyAccess=function(){
+14044:     let out=oldApply936?oldApply936.apply(this,arguments):undefined;
+14045:     if(cloudAccessToken&&cloudUser?.email&&normEmail(cloudUser.email)!==normEmail(HLGB_OWNER_EMAIL)){
+14046:       setTimeout(()=>refreshOwnPermissions936(false),50);
+14047:     }
+14048:     return out;
+14049:   };
+14050: 
+14051:   function boot936(){
+14052:     safe936(()=>refreshOwnPermissions936(true));
+14053:   }
+14054:   setTimeout(boot936,1400);
+14055:   window.addEventListener('focus',()=>setTimeout(()=>refreshOwnPermissions936(true),80));
+14056:   document.addEventListener('visibilitychange',()=>{if(!document.hidden)setTimeout(()=>refreshOwnPermissions936(true),80)});
+14057:   setInterval(()=>refreshOwnPermissions936(false),15000);
+14058: })();
+14059: </script>
+14060: 
+14061: 
+14062: <!-- HLGB v91.37 HUB CADASTROS + PRICING PICKER + DAILY PRODUCTION LABEL -->
