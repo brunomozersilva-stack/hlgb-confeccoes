@@ -6,7 +6,7 @@
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
-<title>HLGB Confecções — Sistema de Gestão v91.47 Multiusuário</title>
+<title>HLGB Confecções — Sistema de Gestão v91.48 Multiusuário</title>
 <style>
 :root{--navy:#6f3f59;--orange:#c96b8f;--bg:#fbf6f8;--line:#eadde4;--text:#30262c;--muted:#786b73;--ok:#e9f7ef;--warn:#fff5df;--bad:#fdeaea;--rose:#f3dbe5;--rose2:#fff8fb}
 *{box-sizing:border-box}body{margin:0;font-family:Arial,Helvetica,sans-serif;background:var(--bg);color:var(--text)}
@@ -263,11 +263,11 @@ main{min-width:0;}
     <div class="field" style="text-align:left;margin-bottom:10px"><label>E-mail</label><input id="loginUser" type="email" autocomplete="username" placeholder="seuemail@exemplo.com"></div>
     <div class="field" style="text-align:left;margin-bottom:14px"><label>Senha</label><input id="loginPass" type="password" autocomplete="current-password" onkeydown="if(event.key==='Enter')return doLogin()"></div>
     <button class="primary" style="width:100%" onclick="return doLogin()">Entrar</button>
-    <div id="loginError" style="color:#a51d2d;font-size:13px;margin-top:10px"></div><div style="margin-top:12px;font-size:12px;color:#786b73">Acesso protegido pelo Supabase • HLGB Online<br><b style="color:#6f3f59">Versão v91.47</b></div>
+    <div id="loginError" style="color:#a51d2d;font-size:13px;margin-top:10px"></div><div style="margin-top:12px;font-size:12px;color:#786b73">Acesso protegido pelo Supabase • HLGB Online<br><b style="color:#6f3f59">Versão v91.48</b></div>
   </div>
 </div>
 
-<div id="appShell" style="display:none"><header><div class="logo">HLGB <b>CONFECÇÕES</b> <small style="font-size:10px;opacity:.8">v91.47</small></div><div><span id="cloudStatus" style="margin-right:10px;font-size:12px;padding:6px 9px;border:1px solid #ffffff44;border-radius:8px">☁️ Nuvem</span><span id="currentUserLabel" style="margin-right:10px;font-size:13px"></span><button id="cloudSaveBtn" onclick="cloudUploadCurrentDb(true)" style="display:none" title="Sincronização automática">🔄 Sincronizar agora</button> <button id="backupBtn" onclick="backup()" style="display:none">Exportar backup</button> <button id="importBackupBtn" onclick="document.getElementById('backupImportInput').click()" style="display:none">Importar backup</button><input id="backupImportInput" type="file" accept=".json,application/json" style="display:none" onchange="importBackupFile(this)"> <button onclick="logout()">Sair</button></div></header>
+<div id="appShell" style="display:none"><header><div class="logo">HLGB <b>CONFECÇÕES</b> <small style="font-size:10px;opacity:.8">v91.48</small></div><div><span id="cloudStatus" style="margin-right:10px;font-size:12px;padding:6px 9px;border:1px solid #ffffff44;border-radius:8px">☁️ Nuvem</span><span id="currentUserLabel" style="margin-right:10px;font-size:13px"></span><button id="cloudSaveBtn" onclick="cloudUploadCurrentDb(true)" style="display:none" title="Sincronização automática">🔄 Sincronizar agora</button> <button id="backupBtn" onclick="backup()" style="display:none">Exportar backup</button> <button id="importBackupBtn" onclick="document.getElementById('backupImportInput').click()" style="display:none">Importar backup</button><input id="backupImportInput" type="file" accept=".json,application/json" style="display:none" onchange="importBackupFile(this)"> <button onclick="logout()">Sair</button></div></header>
 <div class="app">
 <aside><nav id="nav" class="clean-nav">
 <button class="nav-home active" onclick="page('dashboard',this)">🏠 <span>Início</span></button>
@@ -15180,6 +15180,231 @@ window.renderCapacityPlanning=function(){try{if(typeof oldCapacity944==='functio
 
 function boot944(){bindPricing944();if(document.querySelector('.page.active')?.id==='capacidadeProducao')renderCapacityPlanning()}
 setTimeout(boot944,350);setTimeout(boot944,1500);let prodPage=document.getElementById('produtos');if(prodPage)prodPage.__pricing944Watch='disabled-v9147'
+})();
+</script>
+
+<!-- HLGB v91.48 DATA INTEGRITY + RECOVERY + CONFIRMED PAYROLL -->
+<script>
+(function(){
+'use strict';
+const V948='91.48';
+const PRE948='hlgb_v9148_precloud_snapshot';
+const DONE948='hlgb_v9148_recovery_done';
+const REPORT948='hlgb_v9148_integrity_report';
+const clone948=v=>{try{return JSON.parse(JSON.stringify(v))}catch(e){return v}};
+const now948=()=>new Date().toISOString();
+const recent948=v=>{let t=Date.parse(v||'');return Number.isFinite(t)&&t>=Date.now()-5*86400000};
+
+try{
+  if(typeof db!=='undefined'&&db&&typeof db==='object'){
+    localStorage.setItem(PRE948,JSON.stringify({savedAt:now948(),local:clone948(db)}));
+  }
+}catch(e){console.warn('HLGB v91.48 pre-cloud snapshot',e)}
+
+function recordModules948(){try{return Array.isArray(HLGB_RECORD_MODULES)?HLGB_RECORD_MODULES.slice():[]}catch(e){return []}}
+function keepRecords948(){
+  const out={};
+  for(const m of recordModules948()) if(Array.isArray(db?.[m])) out[m]=clone948(db[m]);
+  return out;
+}
+function restoreRecords948(keep){
+  if(!keep)return;
+  for(const [m,arr] of Object.entries(keep)) db[m]=clone948(arr);
+}
+let refreshBusy948=false;
+async function authoritative948(render=true){
+  if(refreshBusy948)return true;
+  refreshBusy948=true;
+  try{
+    if(typeof hlgbRecordLoadBundle==='function'&&typeof cloudAccessToken!=='undefined'&&cloudAccessToken){
+      await hlgbRecordLoadBundle({preserveLocal:false,since:null});
+      try{hlgbRecordReady=true;hlgbNormalizedReady=true}catch(e){}
+      try{localSaveOnly()}catch(e){}
+      if(render){try{const p=cloudApplying;cloudApplying=true;try{renderAll()}finally{cloudApplying=p}}catch(e){}}
+      return true;
+    }
+    return false;
+  }finally{refreshBusy948=false}
+}
+window.hlgb948AuthoritativeRefresh=authoritative948;
+
+const oldPull948=window.cloudPullRemoteIfNewer;
+if(typeof oldPull948==='function'){
+  window.cloudPullRemoteIfNewer=async function(){
+    const keep=keepRecords948();
+    let out;
+    try{out=await oldPull948.apply(this,arguments)}finally{
+      restoreRecords948(keep);
+      try{localSaveOnly()}catch(e){}
+    }
+    if(out){
+      try{await authoritative948(true)}catch(e){console.error('HLGB v91.48 authoritative pull',e);restoreRecords948(keep);try{localSaveOnly()}catch(_){}}
+    }
+    return out;
+  };
+}
+const oldSave948=window.cloudSaveNow;
+if(typeof oldSave948==='function'){
+  window.cloudSaveNow=async function(){
+    const keep=keepRecords948();
+    let out;
+    try{out=await oldSave948.apply(this,arguments)}finally{
+      restoreRecords948(keep);
+      try{localSaveOnly()}catch(e){}
+    }
+    if(typeof hlgbRecordReady!=='undefined'&&hlgbRecordReady){
+      try{await authoritative948(false)}catch(e){console.warn('HLGB v91.48 post legacy save refresh',e);restoreRecords948(keep)}
+    }
+    return out;
+  };
+}
+
+async function ensureReady948(){
+  if(typeof cloudEnsureFreshSession==='function')await cloudEnsureFreshSession(false);
+  if(typeof hlgbRecordReady!=='undefined'&&!hlgbRecordReady&&typeof hlgbEnsureRecordsOnlineAfterLogin==='function')await hlgbEnsureRecordsOnlineAfterLogin();
+  if(typeof hlgbRecordSaveWithRetry!=='function'||typeof hlgbRecordReady==='undefined'||!hlgbRecordReady)throw new Error('A nuvem por registro ainda não está pronta.');
+}
+
+window.togglePayrollPaid=async function(id){
+  let i=(db.payroll||[]).findIndex(x=>String(x.id)===String(id));if(i<0)return;
+  const before=clone948(db.payroll[i]);
+  const e=(db.employees||[]).find(x=>String(x.id)===String(before.employeeId))||{};
+  const calc=typeof payrollCalc==='function'?payrollCalc(before,e):{net:+before.paidValue||0};
+  const next={...before,updatedAt:now948()};
+  if(before.paid){
+    if(!confirm('Reabrir este pagamento como pendente?'))return;
+    next.paid=false;next.paidAt='';next.paidValue=0;
+  }else{
+    if(!confirm(`Marcar ${before.employeeName||'funcionário'} como PAGO em ${typeof money==='function'?money(calc.net):calc.net}?`))return;
+    next.paid=true;next.paidAt=typeof isoDate==='function'?isoDate(new Date()):new Date().toISOString().slice(0,10);next.paidValue=+calc.net||0;
+  }
+  db.payroll[i]=next;try{localSaveOnly()}catch(e){};try{renderPayroll()}catch(e){}
+  try{
+    await ensureReady948();
+    setCloudStatus('☁️ Confirmando pagamento na nuvem…');
+    const saved=await hlgbRecordSaveWithRetry('payroll',String(id),next,false);
+    if(!saved||saved.applied!==true)throw new Error('O Supabase não confirmou o pagamento.');
+    db.payroll[i]=clone948(saved.data||next);try{localSaveOnly()}catch(e){};try{renderPayroll()}catch(e){}
+    setCloudStatus('⚡ Online · pagamento confirmado','ok');
+  }catch(err){
+    db.payroll[i]=before;try{localSaveOnly()}catch(e){};try{renderPayroll()}catch(e){}
+    setCloudStatus('☁️ Pagamento não confirmado','bad');
+    alert('A marcação NÃO foi confirmada na nuvem e foi revertida nesta tela.\n\n'+String(err?.message||err));
+  }
+};
+
+window.deletePayrollRow=async function(id){
+  let i=(db.payroll||[]).findIndex(x=>String(x.id)===String(id));if(i<0)return;
+  const row=clone948(db.payroll[i]),label=`${row.employeeName||'Funcionário'} — ${row.month||''}`;
+  if(!confirm(`Excluir a folha de ${label}? Isso remove somente este lançamento mensal.`))return;
+  try{
+    await ensureReady948();
+    const saved=await hlgbRecordSaveWithRetry('payroll',String(id),row,true);
+    if(!saved||saved.applied!==true)throw new Error('O Supabase não confirmou a exclusão.');
+    db.payroll.splice(i,1);try{localSaveOnly()}catch(e){};try{renderPayroll()}catch(e){};
+  }catch(err){alert('A folha foi mantida porque a exclusão não foi confirmada na nuvem.\n\n'+String(err?.message||err))}
+};
+
+window.toggleHubFinanceEntry=async function(id){
+  let i=(db.hubFinanceEntries||[]).findIndex(x=>String(x.id)===String(id));if(i<0)return;
+  const before=clone948(db.hubFinanceEntries[i]);
+  const next={...before,status:before.status==='Realizado'?'Previsto':'Realizado',updatedAt:now948()};
+  next.realizedAt=next.status==='Realizado'?(typeof isoDate==='function'?isoDate(new Date()):new Date().toISOString().slice(0,10)):'';
+  try{
+    await ensureReady948();
+    const saved=await hlgbRecordSaveWithRetry('hubFinanceEntries',String(id),next,false);
+    if(!saved||saved.applied!==true)throw new Error('O Supabase não confirmou a alteração do Hub.');
+    db.hubFinanceEntries[i]=clone948(saved.data||next);try{localSaveOnly()}catch(e){};try{renderHubFinance()}catch(e){}
+  }catch(err){db.hubFinanceEntries[i]=before;try{localSaveOnly()}catch(e){};try{renderHubFinance()}catch(e){};alert('A alteração do Hub NÃO foi confirmada e foi revertida.\n\n'+String(err?.message||err))}
+};
+
+function readJson948(key){try{return JSON.parse(localStorage.getItem(key)||'null')}catch(e){return null}}
+function cloudRow948(module,id){return (db?.[module]||[]).find(x=>String(x.id)===String(id))||null}
+function snap948(module,id){try{return hlgbRecordSnapshots?.[module]?.get(String(id))||null}catch(e){return null}}
+async function saveRecovered948(module,id,data,report,label){
+  const out=await hlgbRecordSaveWithRetry(module,String(id),clone948(data),false);
+  if(!out||out.applied!==true)throw new Error(`Recuperação não confirmada: ${module}/${id}`);
+  const arr=Array.isArray(db[module])?db[module]:[];let i=arr.findIndex(x=>String(x.id)===String(id));
+  if(i>=0)arr[i]=clone948(out.data||data);else arr.push(clone948(out.data||data));db[module]=arr;
+  report.recovered.push({module,id:String(id),label:label||''});
+}
+function audit948(){
+  const modules={};
+  for(const m of recordModules948()){
+    const snap=(()=>{try{return hlgbRecordSnapshots?.[m]}catch(e){return null}})();
+    let active=0,deleted=0,last='';
+    if(snap instanceof Map)for(const r of snap.values()){if(r?.deleted_at)deleted++;else active++;if(String(r?.updated_at||'')>last)last=String(r.updated_at||'')}
+    const local=Array.isArray(db?.[m])?db[m].length:0;
+    modules[m]={cloudActive:active,cloudDeleted:deleted,loaded:local,lastUpdated:last,consistent:active===local};
+  }
+  return modules;
+}
+
+async function recover948(){
+  if(readJson948(DONE948)?.version===V948)return;
+  if(typeof cloudAccessToken==='undefined'||!cloudAccessToken||typeof hlgbRecordReady==='undefined'||!hlgbRecordReady){setTimeout(recover948,900);return}
+  const report={version:V948,startedAt:now948(),pendingBefore:0,recovered:[],errors:[],modules:{}};
+  try{
+    const pending=typeof hlgbRecordPendingRead==='function'?hlgbRecordPendingRead():null;
+    if(pending?.modules){report.pendingBefore=Object.values(pending.modules).reduce((n,a)=>n+(Array.isArray(a)?a.length:0),0)}
+    if(report.pendingBefore){
+      await hlgbLoadNormalizedCore({preserveLocal:true});
+      await hlgbNormalizedSyncNow(false);
+    }
+    await authoritative948(false);
+
+    const sources=[readJson948(PRE948),readJson948(typeof HLGB_CLOUD_CONFLICT_KEY!=='undefined'?HLGB_CLOUD_CONFLICT_KEY:'hlgb_cloud_conflict_backup_v1')].filter(Boolean);
+    for(const src of sources){
+      const local=src?.local;if(!local||!recent948(src.savedAt))continue;
+      for(const b of (local.payroll||[])){
+        const cur=cloudRow948('payroll',b.id),sn=snap948('payroll',b.id);
+        if(!cur||sn?.deleted_at)continue;
+        if(b.paid===true&&b.paidAt&&cur.paid!==true&&recent948(String(b.paidAt).length===10?b.paidAt+'T12:00:00':b.paidAt)){
+          const next={...cur,paid:true,paidAt:b.paidAt,paidValue:+b.paidValue||+cur.paidValue||0,updatedAt:now948()};
+          try{await saveRecovered948('payroll',b.id,next,report,`${b.employeeName||'Funcionário'} pago`)}catch(e){report.errors.push(String(e?.message||e))}
+        }
+      }
+      for(const b of (local.hubFinanceEntries||[])){
+        const cur=cloudRow948('hubFinanceEntries',b.id),sn=snap948('hubFinanceEntries',b.id);
+        if(sn?.deleted_at)continue;
+        const stamp=b.updatedAt||b.createdAt||'';
+        if(!cur&&recent948(stamp)){
+          try{await saveRecovered948('hubFinanceEntries',b.id,{...b,recoveredAt:now948()},report,b.description||'Hub')}catch(e){report.errors.push(String(e?.message||e))}
+          continue;
+        }
+        if(cur&&recent948(b.updatedAt)&&Date.parse(b.updatedAt)>Date.parse(sn?.updated_at||0)){
+          try{await saveRecovered948('hubFinanceEntries',b.id,{...cur,...b,recoveredAt:now948()},report,b.description||'Hub')}catch(e){report.errors.push(String(e?.message||e))}
+          continue;
+        }
+        if(cur&&b.status==='Realizado'&&cur.status!=='Realizado'&&b.realizedAt&&recent948(String(b.realizedAt).length===10?b.realizedAt+'T12:00:00':b.realizedAt)){
+          const next={...cur,status:'Realizado',realizedAt:b.realizedAt,updatedAt:now948()};
+          try{await saveRecovered948('hubFinanceEntries',b.id,next,report,`${b.description||'Hub'} realizado`)}catch(e){report.errors.push(String(e?.message||e))}
+        }
+      }
+    }
+
+    await authoritative948(false);
+    for(const m of recordModules948())try{if(typeof hlgb928EnsureCloudCoverage==='function')hlgb928EnsureCloudCoverage(m)}catch(e){}
+    try{localSaveOnly()}catch(e){}
+    report.modules=audit948();
+    report.inconsistent=Object.entries(report.modules).filter(([,x])=>!x.consistent).map(([m])=>m);
+    report.finishedAt=now948();
+    localStorage.setItem(REPORT948,JSON.stringify(report));
+    localStorage.setItem(DONE948,JSON.stringify({version:V948,at:report.finishedAt,recovered:report.recovered.length,inconsistent:report.inconsistent}));
+    try{const p=cloudApplying;cloudApplying=true;try{renderAll()}finally{cloudApplying=p}}catch(e){}
+    const msg=`Auditoria v91.48 concluída: ${recordModules948().length} módulos conferidos; ${report.recovered.length} alteração(ões) recuperada(s); ${report.inconsistent.length} módulo(s) com divergência de contagem.`;
+    console.info('HLGB v91.48 integrity report',report);
+    try{setCloudStatus(report.inconsistent.length?'☁️ Auditoria com divergência':'✅ Nuvem conferida',report.inconsistent.length?'bad':'ok')}catch(e){}
+    let box=document.getElementById('hlgb948AuditBox');if(!box){box=document.createElement('div');box.id='hlgb948AuditBox';box.style.cssText='position:fixed;right:14px;bottom:14px;z-index:9999;max-width:390px;background:#fff;border:1px solid #dbcbd3;border-radius:12px;padding:10px 12px;box-shadow:0 5px 18px #0002;font-size:12px';document.body.appendChild(box)}
+    box.innerHTML=`<b>🔐 Integridade v91.48</b><br>${msg}<br><button type="button" style="margin-top:7px" onclick="this.parentElement.remove()">Fechar</button>`;
+  }catch(e){
+    report.errors.push(String(e?.message||e));report.finishedAt=now948();try{localStorage.setItem(REPORT948,JSON.stringify(report))}catch(_){};
+    console.error('HLGB v91.48 recovery audit failed',e);try{setCloudStatus('☁️ Auditoria pendente','bad')}catch(_){}
+    setTimeout(recover948,3000);
+  }
+}
+window.hlgb948IntegrityAudit=recover948;
+setTimeout(recover948,1200);
 })();
 </script>
 
