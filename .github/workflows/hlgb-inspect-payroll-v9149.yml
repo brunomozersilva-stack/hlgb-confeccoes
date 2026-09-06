@@ -1,0 +1,22 @@
+name: HLGB inspect payroll v91.49
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'scripts/hlgb_inspect_payroll_v9149.py'
+      - '.github/workflows/hlgb-inspect-payroll-v9149.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+      - name: Inspect payroll persistence
+        run: python3 scripts/hlgb_inspect_payroll_v9149.py
