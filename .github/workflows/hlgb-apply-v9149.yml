@@ -5,6 +5,7 @@ on:
     branches: [main]
     paths:
       - 'scripts/hlgb_v9149_recovery_addon.html'
+      - 'scripts/hlgb_v9149_legacy_recovery_addon.html'
       - 'scripts/hlgb_v9149_patch.py'
       - '.github/workflows/hlgb-apply-v9149.yml'
   workflow_dispatch:
@@ -32,13 +33,16 @@ jobs:
           import re, subprocess, tempfile, os
           s=Path('index.html').read_text(encoding='utf-8')
           assert 'HLGB v91.49 FORENSIC PAYROLL + HUB RECOVERY' in s
+          assert 'HLGB v91.49 LEGACY CLOUD PAYROLL RECOVERY' in s
           assert 'v91.49 Multiusuário' in s
           assert "const MAIN949='confeccao_v2'" in s
           assert "const PENDING949='hlgb_records_pending_v91'" in s
           assert "hlgbRecordSaveWithRetry(module,String(targetId)" in s
+          assert "hlgb_data?select=id,dados,versao,atualizado_em" in s
           assert "b.paid!==true" in s
           assert "payKey949" in s
           assert "recoveredBy:'v91.49'" in s
+          assert "recoveredBy:'v91.49-legacy'" in s
           assert "hlgb_v9149_recovery_journal" in s
           scripts=re.findall(r'<script(?:\s[^>]*)?>(.*?)</script>',s,re.S|re.I)
           errors=[]
