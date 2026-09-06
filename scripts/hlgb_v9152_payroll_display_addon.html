@@ -1,0 +1,84 @@
+<!-- HLGB v91.52 PAYROLL CLOUD STATUS DISPLAY + RECOVERY SHUTDOWN -->
+<style>
+#hlgb950RecoveryBox,#hlgb951Diag,#hlgb948AuditBox{display:none!important}
+</style>
+<script>
+(function(){
+'use strict';
+const V952='91.52';
+const clone952=v=>{try{return JSON.parse(JSON.stringify(v))}catch(e){return v}};
+function rowData952(r){
+  if(!r||typeof r!=='object')return null;
+  let d=r.data??r.payload??r.value??r.record??null;
+  if(typeof d==='string'){try{d=JSON.parse(d)}catch(e){}}
+  return d&&typeof d==='object'?d:null;
+}
+function paid952(x){
+  return x?.paid===true || String(x?.paid||'').toLowerCase()==='true' || String(x?.status||'').trim().toLowerCase()==='pago';
+}
+function snap952(){try{return hlgbRecordSnapshots?.payroll instanceof Map?hlgbRecordSnapshots.payroll:null}catch(e){return null}}
+function hydratePaid952(){
+  if(typeof db==='undefined'||!db||!Array.isArray(db.payroll))return {paid:0,rawPaid:0};
+  const sm=snap952();let rawPaid=0;
+  if(sm){
+    for(const meta of sm.values()){
+      if(meta?.deleted_at)continue;
+      const d=rowData952(meta);if(!d||!paid952(d))continue;rawPaid++;
+      const did=String(d.id??d.__hlgbId??'');
+      const emp=String(d.employeeId??'');
+      const mon=String(d.month??d.competence??'');
+      const targets=db.payroll.filter(x=>{
+        if(did&&String(x?.id??x?.__hlgbId??'')===did)return true;
+        return emp&&mon&&String(x?.employeeId??'')===emp&&String(x?.month??x?.competence??'')===mon;
+      });
+      for(const t of targets){
+        t.paid=true;
+        if(d.paidAt)t.paidAt=d.paidAt;
+        if(d.paidValue!==undefined&&d.paidValue!==null)t.paidValue=+d.paidValue||0;
+        t.__hlgbPaidCloud952=true;
+      }
+    }
+  }
+  for(const t of db.payroll){
+    if(paid952(t)){t.paid=true;t.__hlgbPaidCloud952=true}
+  }
+  return {paid:db.payroll.filter(x=>x.paid===true).length,rawPaid};
+}
+function banner952(){
+  const table=document.getElementById('payrollTable');if(!table)return;
+  const month=document.getElementById('payrollMonth')?.value||'';
+  const count=(db.payroll||[]).filter(x=>x.paid===true&&(!month||String(x.month||'')===String(month))).length;
+  let b=document.getElementById('hlgb952PaidBanner');
+  if(!b){b=document.createElement('div');b.id='hlgb952PaidBanner';b.style.cssText='margin:0 0 10px;padding:9px 11px;border-radius:10px;background:#e9f7ef;border:1px solid #b9dfc8;font-size:12px;font-weight:700;color:#245c38';table.parentNode?.insertBefore(b,table)}
+  b.textContent=`✅ ${count} pagamento(s) marcado(s) como PAGO reconhecido(s) nesta competência pela nuvem.`;
+}
+const oldRender952=window.renderPayroll;
+if(typeof oldRender952==='function'){
+  window.renderPayroll=function(){
+    hydratePaid952();
+    const out=oldRender952.apply(this,arguments);
+    hydratePaid952();
+    try{banner952()}catch(e){}
+    return out;
+  };
+}
+const oldToggle952=window.togglePayrollPaid;
+if(typeof oldToggle952==='function'){
+  window.togglePayrollPaid=async function(id){hydratePaid952();return await oldToggle952.apply(this,arguments)};
+}
+// Os diagnósticos provaram que os pagamentos já estão no snapshot bruto da nuvem.
+// Desativa as rotinas temporárias antigas que tentavam recarregar hlgb_load_bundle e geravam erro de permissão.
+window.hlgb9149RecoverNow=async function(){return {skipped:true,reason:'v91.52: pagamentos já presentes na nuvem'}};
+window.hlgb9150RecoverNow=async function(){return {skipped:true,reason:'v91.52: recuperação temporária desativada'}};
+window.hlgb9151RunDiagnostic=function(){return null};
+function clean952(){
+  ['hlgb950RecoveryBox','hlgb951Diag','hlgb948AuditBox'].forEach(id=>{try{document.getElementById(id)?.remove()}catch(e){}});
+  const r=hydratePaid952();
+  try{if(document.getElementById('payrollTable')&&typeof window.renderPayroll==='function')window.renderPayroll()}catch(e){}
+  console.info('HLGB v91.52 payroll cloud status ready',r);
+}
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>setTimeout(clean952,500),{once:true});else setTimeout(clean952,500);
+setTimeout(clean952,1800);
+setTimeout(clean952,4500);
+})();
+</script>
