@@ -6,7 +6,7 @@
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
-<title>HLGB Confecções — Sistema de Gestão v91.46 Multiusuário</title>
+<title>HLGB Confecções — Sistema de Gestão v91.47 Multiusuário</title>
 <style>
 :root{--navy:#6f3f59;--orange:#c96b8f;--bg:#fbf6f8;--line:#eadde4;--text:#30262c;--muted:#786b73;--ok:#e9f7ef;--warn:#fff5df;--bad:#fdeaea;--rose:#f3dbe5;--rose2:#fff8fb}
 *{box-sizing:border-box}body{margin:0;font-family:Arial,Helvetica,sans-serif;background:var(--bg);color:var(--text)}
@@ -263,11 +263,11 @@ main{min-width:0;}
     <div class="field" style="text-align:left;margin-bottom:10px"><label>E-mail</label><input id="loginUser" type="email" autocomplete="username" placeholder="seuemail@exemplo.com"></div>
     <div class="field" style="text-align:left;margin-bottom:14px"><label>Senha</label><input id="loginPass" type="password" autocomplete="current-password" onkeydown="if(event.key==='Enter')return doLogin()"></div>
     <button class="primary" style="width:100%" onclick="return doLogin()">Entrar</button>
-    <div id="loginError" style="color:#a51d2d;font-size:13px;margin-top:10px"></div><div style="margin-top:12px;font-size:12px;color:#786b73">Acesso protegido pelo Supabase • HLGB Online<br><b style="color:#6f3f59">Versão v91.46</b></div>
+    <div id="loginError" style="color:#a51d2d;font-size:13px;margin-top:10px"></div><div style="margin-top:12px;font-size:12px;color:#786b73">Acesso protegido pelo Supabase • HLGB Online<br><b style="color:#6f3f59">Versão v91.47</b></div>
   </div>
 </div>
 
-<div id="appShell" style="display:none"><header><div class="logo">HLGB <b>CONFECÇÕES</b> <small style="font-size:10px;opacity:.8">v91.46</small></div><div><span id="cloudStatus" style="margin-right:10px;font-size:12px;padding:6px 9px;border:1px solid #ffffff44;border-radius:8px">☁️ Nuvem</span><span id="currentUserLabel" style="margin-right:10px;font-size:13px"></span><button id="cloudSaveBtn" onclick="cloudUploadCurrentDb(true)" style="display:none" title="Sincronização automática">🔄 Sincronizar agora</button> <button id="backupBtn" onclick="backup()" style="display:none">Exportar backup</button> <button id="importBackupBtn" onclick="document.getElementById('backupImportInput').click()" style="display:none">Importar backup</button><input id="backupImportInput" type="file" accept=".json,application/json" style="display:none" onchange="importBackupFile(this)"> <button onclick="logout()">Sair</button></div></header>
+<div id="appShell" style="display:none"><header><div class="logo">HLGB <b>CONFECÇÕES</b> <small style="font-size:10px;opacity:.8">v91.47</small></div><div><span id="cloudStatus" style="margin-right:10px;font-size:12px;padding:6px 9px;border:1px solid #ffffff44;border-radius:8px">☁️ Nuvem</span><span id="currentUserLabel" style="margin-right:10px;font-size:13px"></span><button id="cloudSaveBtn" onclick="cloudUploadCurrentDb(true)" style="display:none" title="Sincronização automática">🔄 Sincronizar agora</button> <button id="backupBtn" onclick="backup()" style="display:none">Exportar backup</button> <button id="importBackupBtn" onclick="document.getElementById('backupImportInput').click()" style="display:none">Importar backup</button><input id="backupImportInput" type="file" accept=".json,application/json" style="display:none" onchange="importBackupFile(this)"> <button onclick="logout()">Sair</button></div></header>
 <div class="app">
 <aside><nav id="nav" class="clean-nav">
 <button class="nav-home active" onclick="page('dashboard',this)">🏠 <span>Início</span></button>
@@ -6039,6 +6039,7 @@ function printCustomerNote(o,c,info){
 
 
 
+<!-- HLGB v91.47 INPUT FREEZE FIX: pricing MutationObservers removed -->
 </body></html>`);
  w.document.close();
 }
@@ -14539,7 +14540,7 @@ function bindPricing939(){
   b.onclick=null;b.setAttribute('onclick','window.openPricingPicker937()');
   b.title='Escolha o cliente e localize a peça por nome, referência, categoria ou letra';
 }
-function watchPricing939(){bindPricing939();let root=document.getElementById('produtos')||document.body;if(!root||root.__pricingWatch939)return;root.__pricingWatch939=true;new MutationObserver(bindPricing939).observe(root,{childList:true,subtree:true})}
+function watchPricing939(){bindPricing939()}
 
 // 2) Consolidação correta do que pertence a cada local/modelo.
 let dailyMap939=new Map();
@@ -15178,7 +15179,7 @@ const oldCapacity944=window.renderCapacityPlanning;
 window.renderCapacityPlanning=function(){try{if(typeof oldCapacity944==='function')oldCapacity944.apply(this,arguments)}catch(e){console.error('v91.44 capacidade base',e)}setTimeout(renderCapacity944,0)};
 
 function boot944(){bindPricing944();if(document.querySelector('.page.active')?.id==='capacidadeProducao')renderCapacityPlanning()}
-setTimeout(boot944,350);setTimeout(boot944,1500);let prodPage=document.getElementById('produtos');if(prodPage&&!prodPage.__pricing944Watch){prodPage.__pricing944Watch=true;new MutationObserver(bindPricing944).observe(prodPage,{childList:true,subtree:true})}
+setTimeout(boot944,350);setTimeout(boot944,1500);let prodPage=document.getElementById('produtos');if(prodPage)prodPage.__pricing944Watch='disabled-v9147'
 })();
 </script>
 
