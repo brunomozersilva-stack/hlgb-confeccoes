@@ -1,0 +1,125 @@
+<!-- HLGB v91.54 READ-ONLY BROWSER LOCAL PAYROLL RECOVERY -->
+<style>
+#hlgb954LocalAudit{position:fixed;z-index:999999;right:18px;bottom:18px;width:min(720px,calc(100vw - 36px));max-height:78vh;overflow:auto;background:#fff;border:1px solid #c8b3be;border-radius:16px;box-shadow:0 18px 60px rgba(70,32,51,.28);padding:16px;font:13px/1.45 Arial,sans-serif;color:#2f2730}
+#hlgb954LocalAudit h3{margin:0 0 4px;font-size:16px}
+#hlgb954LocalAudit .muted{color:#756a72;font-size:12px}
+#hlgb954LocalAudit .good{background:#eaf8ef;border:1px solid #b9dfc8;padding:10px;border-radius:10px;margin:10px 0}
+#hlgb954LocalAudit .warn{background:#fff7e7;border:1px solid #ead39b;padding:10px;border-radius:10px;margin:10px 0}
+#hlgb954LocalAudit .cand{padding:8px 10px;border:1px solid #e1d6dc;border-radius:10px;margin:7px 0;background:#fcfafb}
+#hlgb954LocalAudit button{border:1px solid #b98aa3;background:#fff;border-radius:9px;padding:7px 11px;cursor:pointer;margin-right:7px}
+#hlgb954LocalAudit .primary{background:#7f405f;color:white;border-color:#7f405f}
+</style>
+<script>
+(function(){
+'use strict';
+const MARK='HLGB v91.54 READ-ONLY BROWSER LOCAL PAYROLL RECOVERY';
+const esc=s=>String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+const paid=x=>x&&typeof x==='object'&&(x.paid===true||String(x.paid||'').toLowerCase()==='true'||String(x.status||'').trim().toLowerCase()==='pago');
+function empName(id,obj){
+  const direct=obj?.employeeName||obj?.employee||obj?.name||obj?.funcionario||obj?.employee_name;
+  if(direct&&typeof direct==='string')return direct;
+  try{const e=(db?.employees||[]).find(x=>String(x.id??x.__hlgbId??'')===String(id??''));return e?.name||e?.nome||''}catch(_){return ''}
+}
+function ident(o){
+  return {
+    id:String(o?.id??o?.__hlgbId??o?.record_id??''),
+    employeeId:String(o?.employeeId??o?.employee_id??o?.funcionarioId??''),
+    month:String(o?.month??o?.competence??o?.competencia??''),
+    paidAt:String(o?.paidAt??o?.paid_at??o?.paymentDate??o?.dataPagamento??''),
+    paidValue:o?.paidValue??o?.paid_value??o?.value??o?.valor??'',
+    name:empName(o?.employeeId??o?.employee_id??o?.funcionarioId,o)
+  };
+}
+function currentCloudKeys(){
+  const s=new Set();
+  try{for(const o of (db?.payroll||[])){if(!paid(o))continue;const a=ident(o);if(a.id)s.add('id:'+a.id);if(a.employeeId&&a.month)s.add('em:'+a.employeeId+'|'+a.month)}}catch(_){ }
+  return s;
+}
+function isCurrent(a,set){return (a.id&&set.has('id:'+a.id))||(a.employeeId&&a.month&&set.has('em:'+a.employeeId+'|'+a.month));}
+function collectFromValue(value,source,out,seen,depth){
+  if(depth>9||value==null)return;
+  if(typeof value==='string'){
+    const t=value.trim();
+    if((t.startsWith('{')||t.startsWith('['))&&t.length<8000000){try{return collectFromValue(JSON.parse(t),source,out,seen,depth+1)}catch(_){}}
+    return;
+  }
+  if(typeof value!=='object')return;
+  if(seen.has(value))return; seen.add(value);
+  if(paid(value)){
+    const a=ident(value);
+    if(a.id||a.employeeId||a.month||a.name)out.push({...a,source});
+  }
+  if(Array.isArray(value)){
+    const lim=Math.min(value.length,4000); for(let i=0;i<lim;i++)collectFromValue(value[i],source,out,seen,depth+1); return;
+  }
+  let n=0; for(const [k,v] of Object.entries(value)){if(++n>300)break; if(/token|access_token|refresh_token|password|senha|secret/i.test(k))continue; collectFromValue(v,source+(k?'.'+k:''),out,seen,depth+1)}
+}
+function scanStorage(store,label,out){
+  try{for(let i=0;i<store.length;i++){const k=store.key(i);if(!k||/token|auth|session/i.test(k))continue;const v=store.getItem(k);collectFromValue(v,label+':'+k,out,new WeakSet(),0)}}catch(_){ }
+}
+function scanIndexedDB(out){
+  return new Promise(async resolve=>{
+    try{
+      if(!window.indexedDB||typeof indexedDB.databases!=='function')return resolve();
+      const dbs=await indexedDB.databases();
+      for(const info of dbs){
+        if(!info?.name)continue;
+        await new Promise(resdb=>{
+          let req; try{req=indexedDB.open(info.name)}catch(_){return resdb()}
+          req.onerror=()=>resdb();
+          req.onsuccess=()=>{
+            const idb=req.result; const stores=[...idb.objectStoreNames]; if(!stores.length){idb.close();return resdb()}
+            let pending=stores.length;
+            for(const sn of stores){
+              try{
+                const tx=idb.transaction(sn,'readonly'); const os=tx.objectStore(sn); let count=0; const cr=os.openCursor();
+                cr.onerror=()=>{if(--pending===0){idb.close();resdb()}};
+                cr.onsuccess=e=>{const c=e.target.result;if(!c||count>=1500){if(--pending===0){idb.close();resdb()}}else{count++;collectFromValue(c.value,'IndexedDB:'+info.name+'/'+sn,out,new WeakSet(),0);c.continue()}};
+              }catch(_){if(--pending===0){idb.close();resdb()}}
+            }
+          };
+        });
+      }
+    }catch(_){ }
+    resolve();
+  });
+}
+function dedupe(arr){
+  const m=new Map();
+  for(const a of arr){const k=[a.id,a.employeeId,a.month,a.name,a.paidAt,String(a.paidValue)].join('|');if(!m.has(k))m.set(k,{...a,sources:[a.source]});else{const x=m.get(k);if(!x.sources.includes(a.source))x.sources.push(a.source)}}
+  return [...m.values()];
+}
+async function run954(){
+  const box=document.getElementById('hlgb954LocalAudit'); if(box)box.innerHTML='<h3>🔎 Procurando marcações locais…</h3><div class="muted">Somente leitura. Nada será salvo ou alterado.</div>';
+  const found=[];
+  scanStorage(localStorage,'localStorage',found); scanStorage(sessionStorage,'sessionStorage',found);
+  try{
+    const globals=['hlgbPendingWrites','hlgbRecordPendingWrites','hlgbPendingRecordWrites','hlgbWriteQueue','hlgbPendingQueue'];
+    for(const g of globals)if(window[g])collectFromValue(window[g],'memória:'+g,found,new WeakSet(),0);
+  }catch(_){ }
+  await scanIndexedDB(found);
+  const cloud=currentCloudKeys(); const all=dedupe(found); const candidates=all.filter(a=>!isCurrent(a,cloud));
+  render954(all,candidates);
+  window.hlgb954LocalAuditResult={all,candidates};
+}
+function money(v){const n=Number(v);return Number.isFinite(n)&&v!==''?'R$ '+n.toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2}):''}
+function card(a){
+  const title=esc(a.name||('Funcionário '+(a.employeeId||'não identificado')));
+  return `<div class="cand"><b>${title}</b>${a.month?' — '+esc(a.month):''}<br><span class="muted">ID folha: ${esc(a.id||'—')} · funcionário: ${esc(a.employeeId||'—')}${a.paidAt?' · marcado em '+esc(a.paidAt):''}${a.paidValue!==''?' · '+esc(money(a.paidValue)):''}<br>Origem local: ${esc((a.sources||[]).join(', '))}</span></div>`;
+}
+function render954(all,candidates){
+  let box=document.getElementById('hlgb954LocalAudit'); if(!box){box=document.createElement('div');box.id='hlgb954LocalAudit';document.body.appendChild(box)}
+  const cloudCount=(()=>{try{return (db?.payroll||[]).filter(paid).length}catch(_){return 0}})();
+  let html=`<h3>🔎 Conferência local v91.54 — somente leitura</h3><div class="muted">Esta tela procura no próprio navegador deste Mac por marcações de pagamento que não chegaram à nuvem. Não exibe senhas/tokens e não altera dados.</div>`;
+  html+=`<div class="${candidates.length?'good':'warn'}"><b>${candidates.length?'⭐ Foram encontrados candidatos locais fora da nuvem: '+candidates.length:'Nenhuma marcação extra foi encontrada no navegador.'}</b><br>Nuvem atual: ${cloudCount} PAGO · registros locais reconhecidos: ${all.length}</div>`;
+  if(candidates.length){html+='<b>⭐ Candidatos que NÃO estão entre os 12 pagos atuais</b>'+candidates.slice(0,80).map(card).join('')}
+  const same=all.filter(a=>!candidates.includes(a));
+  if(same.length){html+=`<details style="margin-top:10px"><summary>Pagos locais que já existem na nuvem (${same.length})</summary>${same.slice(0,60).map(card).join('')}</details>`}
+  html+=`<div style="margin-top:12px"><button class="primary" onclick="hlgb954RunLocalAudit()">Atualizar busca local</button><button onclick="document.getElementById('hlgb954LocalAudit')?.remove()">Fechar</button></div>`;
+  box.innerHTML=html;
+}
+window.hlgb954RunLocalAudit=run954;
+function start(){let box=document.getElementById('hlgb954LocalAudit');if(!box){box=document.createElement('div');box.id='hlgb954LocalAudit';box.innerHTML='<h3>🔎 Conferência local v91.54</h3><div class="muted">Preparando busca somente leitura…</div>';document.body.appendChild(box)};setTimeout(run954,700)}
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',start,{once:true});else start();
+})();
+</script>
