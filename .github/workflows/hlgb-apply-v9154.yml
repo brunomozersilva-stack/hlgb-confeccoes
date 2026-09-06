@@ -1,0 +1,61 @@
+name: HLGB v91.54 conferencia local pagamentos folha
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'scripts/hlgb_v9154_browser_local_recovery_addon.html'
+      - 'scripts/hlgb_v9154_patch.py'
+      - '.github/workflows/hlgb-apply-v9154.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  repair:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Apply v91.54 browser-local payroll audit
+        run: python3 scripts/hlgb_v9154_patch.py
+      - name: Validate local audit and all inline JavaScript
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import re, subprocess, tempfile, os
+          s=Path('index.html').read_text(encoding='utf-8')
+          assert 'HLGB v91.54 READ-ONLY BROWSER LOCAL PAYROLL RECOVERY' in s
+          assert 'v91.54 Multiusuário' in s
+          assert 'indexedDB.databases' in s
+          assert 'localStorage' in s
+          assert 'sessionStorage' in s
+          assert 'Candidatos que NÃO estão entre os 12 pagos atuais' in s
+          scripts=re.findall(r'<script(?:\s[^>]*)?>(.*?)</script>',s,re.S|re.I)
+          errors=[]
+          for i,js in enumerate(scripts):
+              fd,p=tempfile.mkstemp(suffix='.js'); os.close(fd)
+              Path(p).write_text(js,encoding='utf-8')
+              r=subprocess.run(['node','--check',p],capture_output=True,text=True)
+              os.unlink(p)
+              if r.returncode: errors.append(f'SCRIPT {i}:\n{r.stderr}')
+          if errors: raise SystemExit('\n\n'.join(errors))
+          print(f'v91.54 validation OK: {len(scripts)} inline scripts checked')
+          PY
+      - name: Commit validated v91.54 index
+        run: |
+          if git diff --quiet -- index.html; then
+            echo 'No index changes to commit'
+            exit 0
+          fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add index.html
+          git commit -m 'Add browser-local payroll recovery audit v91.54'
+          git push origin main
