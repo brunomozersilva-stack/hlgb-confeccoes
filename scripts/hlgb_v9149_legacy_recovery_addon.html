@@ -1,0 +1,45 @@
+<!-- HLGB v91.49 LEGACY CLOUD PAYROLL RECOVERY -->
+<script>
+(function(){
+'use strict';
+const LEGACY_REPORT949='hlgb_v9149_legacy_recovery_report';
+const LEGACY_JOURNAL949='hlgb_v9149_recovery_journal';
+const c949=v=>{try{return JSON.parse(JSON.stringify(v))}catch(e){return v}};
+const n949=()=>new Date().toISOString();
+const rid949=x=>String(x?.id??x?.__hlgbId??'');
+const pk949=x=>{const e=String(x?.employeeId??''),m=String(x?.month??'');return e&&m?e+'|'+m:''};
+function currentPay949(b){const a=db?.payroll||[];const id=rid949(b);return (id&&a.find(x=>rid949(x)===id))||(pk949(b)&&a.find(x=>pk949(x)===pk949(b)))||null}
+function currentHubL949(b){const id=rid949(b);return id?(db?.hubFinanceEntries||[]).find(x=>rid949(x)===id)||null:null}
+function journalL949(e){try{let a=JSON.parse(localStorage.getItem(LEGACY_JOURNAL949)||'[]');a=Array.isArray(a)?a:[];a.push({...e,at:n949()});if(a.length>300)a=a.slice(-300);localStorage.setItem(LEGACY_JOURNAL949,JSON.stringify(a))}catch(_){}}
+async function readyL949(){if(typeof cloudEnsureFreshSession==='function')await cloudEnsureFreshSession(false);if(typeof hlgbRecordReady!=='undefined'&&!hlgbRecordReady&&typeof hlgbEnsureRecordsOnlineAfterLogin==='function')await hlgbEnsureRecordsOnlineAfterLogin();if(typeof cloudRequest!=='function'||typeof hlgbRecordSaveWithRetry!=='function'||typeof hlgbRecordReady==='undefined'||!hlgbRecordReady)throw new Error('Nuvem ainda não pronta')}
+async function saveL949(module,id,data,label){journalL949({module,id,label,source:'JSON legado da nuvem',status:'attempt',after:c949(data)});const out=await hlgbRecordSaveWithRetry(module,String(id),c949(data),false);if(!out||out.applied!==true)throw new Error('Supabase não confirmou '+module+'/'+id);const a=Array.isArray(db[module])?db[module]:[];let i=a.findIndex(x=>rid949(x)===String(id));if(i<0&&module==='payroll')i=a.findIndex(x=>pk949(x)===pk949(data));if(i>=0)a[i]=c949(out.data||data);else a.push(c949(out.data||data));db[module]=a;try{localSaveOnly()}catch(e){}journalL949({module,id,label,source:'JSON legado da nuvem',status:'confirmed',after:c949(out.data||data)});return out}
+async function recoverLegacy949(){
+ const report={version:'91.49',source:'hlgb_data',startedAt:n949(),payroll:[],hub:[],errors:[]};
+ try{
+  await readyL949();
+  let rows=await cloudRequest('hlgb_data?select=id,dados,versao,atualizado_em&order=id.asc&limit=1',{method:'GET'});rows=Array.isArray(rows)?rows:[];const legacy=rows[0]?.dados;
+  if(!legacy||typeof legacy!=='object'){report.finishedAt=n949();localStorage.setItem(LEGACY_REPORT949,JSON.stringify(report));return}
+  for(const b of (Array.isArray(legacy.payroll)?legacy.payroll:[])){
+   if(!b||b.paid!==true||!b.paidAt||!(+b.paidValue>0))continue;
+   const cur=currentPay949(b);if(!cur||cur.paid===true)continue;
+   const target=rid949(cur);if(!target)continue;
+   const next={...c949(cur),paid:true,paidAt:b.paidAt,paidValue:+b.paidValue||0,updatedAt:n949(),recoveredBy:'v91.49-legacy',recoveredAt:n949(),recoverySource:'hlgb_data'};
+   try{await saveL949('payroll',target,next,`${next.employeeName||'Funcionário'} — ${next.month||''}`);report.payroll.push({id:target,employee:next.employeeName||'',month:next.month||'',paidAt:next.paidAt,paidValue:next.paidValue})}catch(e){report.errors.push('Folha '+(b.employeeName||target)+': '+String(e?.message||e))}
+  }
+  for(const b of (Array.isArray(legacy.hubFinanceEntries)?legacy.hubFinanceEntries:[])){
+   const id=rid949(b);if(!id)continue;const cur=currentHubL949(b);if(!cur)continue;
+   const bu=Date.parse(b.updatedAt||b.realizedAt||''),cu=Date.parse(cur.updatedAt||'');const stronger=(Number.isFinite(bu)&&(!Number.isFinite(cu)||bu>cu))||(b.status==='Realizado'&&cur.status!=='Realizado'&&b.realizedAt);
+   if(!stronger)continue;
+   const next={...c949(cur),...c949(b),id:cur.id??b.id,recoveredBy:'v91.49-legacy',recoveredAt:n949()};
+   try{await saveL949('hubFinanceEntries',id,next,next.description||next.name||'Hub Financeiro');report.hub.push({id,label:next.description||next.name||''})}catch(e){report.errors.push('Hub '+id+': '+String(e?.message||e))}
+  }
+  if(report.payroll.length||report.hub.length){try{await hlgbRecordLoadBundle({preserveLocal:false,since:null});localSaveOnly();renderAll()}catch(e){report.errors.push('Recarga: '+String(e?.message||e))}}
+  report.finishedAt=n949();localStorage.setItem(LEGACY_REPORT949,JSON.stringify(report));
+  let box=document.getElementById('hlgb949Box');if(!box){box=document.createElement('div');box.id='hlgb949Box';box.style.cssText='position:fixed;right:14px;bottom:14px;z-index:10000;max-width:480px;background:#fff;border:1px solid #d8c5cf;border-radius:14px;padding:12px 14px;box-shadow:0 6px 24px #0003;font-size:12px;line-height:1.4';document.body.appendChild(box)}
+  const previous=box.innerHTML||'';box.innerHTML=previous+`<div style="margin-top:8px;border-top:1px solid #eee;padding-top:7px"><b>Histórico remoto:</b> ${report.payroll.length} pagamento(s) + ${report.hub.length} alteração(ões) do Hub recuperado(s)${report.errors.length?` · ${report.errors.length} erro(s)`:''}.</div>`;
+  console.info('HLGB v91.49 legacy cloud recovery',report);
+ }catch(e){report.errors.push(String(e?.message||e));report.finishedAt=n949();try{localStorage.setItem(LEGACY_REPORT949,JSON.stringify(report))}catch(_){};console.warn('HLGB v91.49 legacy recovery',e)}
+}
+setTimeout(recoverLegacy949,3200);
+})();
+</script>
