@@ -6,7 +6,7 @@
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
-<title>HLGB Confecções — Sistema de Gestão v91.51 Multiusuário</title>
+<title>HLGB Confecções — Sistema de Gestão v91.52 Multiusuário</title>
 <style>
 :root{--navy:#6f3f59;--orange:#c96b8f;--bg:#fbf6f8;--line:#eadde4;--text:#30262c;--muted:#786b73;--ok:#e9f7ef;--warn:#fff5df;--bad:#fdeaea;--rose:#f3dbe5;--rose2:#fff8fb}
 *{box-sizing:border-box}body{margin:0;font-family:Arial,Helvetica,sans-serif;background:var(--bg);color:var(--text)}
@@ -263,11 +263,11 @@ main{min-width:0;}
     <div class="field" style="text-align:left;margin-bottom:10px"><label>E-mail</label><input id="loginUser" type="email" autocomplete="username" placeholder="seuemail@exemplo.com"></div>
     <div class="field" style="text-align:left;margin-bottom:14px"><label>Senha</label><input id="loginPass" type="password" autocomplete="current-password" onkeydown="if(event.key==='Enter')return doLogin()"></div>
     <button class="primary" style="width:100%" onclick="return doLogin()">Entrar</button>
-    <div id="loginError" style="color:#a51d2d;font-size:13px;margin-top:10px"></div><div style="margin-top:12px;font-size:12px;color:#786b73">Acesso protegido pelo Supabase • HLGB Online<br><b style="color:#6f3f59">Versão v91.51</b></div>
+    <div id="loginError" style="color:#a51d2d;font-size:13px;margin-top:10px"></div><div style="margin-top:12px;font-size:12px;color:#786b73">Acesso protegido pelo Supabase • HLGB Online<br><b style="color:#6f3f59">Versão v91.52</b></div>
   </div>
 </div>
 
-<div id="appShell" style="display:none"><header><div class="logo">HLGB <b>CONFECÇÕES</b> <small style="font-size:10px;opacity:.8">v91.51</small></div><div><span id="cloudStatus" style="margin-right:10px;font-size:12px;padding:6px 9px;border:1px solid #ffffff44;border-radius:8px">☁️ Nuvem</span><span id="currentUserLabel" style="margin-right:10px;font-size:13px"></span><button id="cloudSaveBtn" onclick="cloudUploadCurrentDb(true)" style="display:none" title="Sincronização automática">🔄 Sincronizar agora</button> <button id="backupBtn" onclick="backup()" style="display:none">Exportar backup</button> <button id="importBackupBtn" onclick="document.getElementById('backupImportInput').click()" style="display:none">Importar backup</button><input id="backupImportInput" type="file" accept=".json,application/json" style="display:none" onchange="importBackupFile(this)"> <button onclick="logout()">Sair</button></div></header>
+<div id="appShell" style="display:none"><header><div class="logo">HLGB <b>CONFECÇÕES</b> <small style="font-size:10px;opacity:.8">v91.52</small></div><div><span id="cloudStatus" style="margin-right:10px;font-size:12px;padding:6px 9px;border:1px solid #ffffff44;border-radius:8px">☁️ Nuvem</span><span id="currentUserLabel" style="margin-right:10px;font-size:13px"></span><button id="cloudSaveBtn" onclick="cloudUploadCurrentDb(true)" style="display:none" title="Sincronização automática">🔄 Sincronizar agora</button> <button id="backupBtn" onclick="backup()" style="display:none">Exportar backup</button> <button id="importBackupBtn" onclick="document.getElementById('backupImportInput').click()" style="display:none">Importar backup</button><input id="backupImportInput" type="file" accept=".json,application/json" style="display:none" onchange="importBackupFile(this)"> <button onclick="logout()">Sair</button></div></header>
 <div class="app">
 <aside><nav id="nav" class="clean-nav">
 <button class="nav-home active" onclick="page('dashboard',this)">🏠 <span>Início</span></button>
@@ -15647,6 +15647,91 @@ function launch951(n=0){
  if(n<30)setTimeout(()=>launch951(n+1),1000);
 }
 setTimeout(()=>launch951(0),1200);
+})();
+</script>
+
+<!-- HLGB v91.52 PAYROLL CLOUD STATUS DISPLAY + RECOVERY SHUTDOWN -->
+<style>
+#hlgb950RecoveryBox,#hlgb951Diag,#hlgb948AuditBox{display:none!important}
+</style>
+<script>
+(function(){
+'use strict';
+const V952='91.52';
+const clone952=v=>{try{return JSON.parse(JSON.stringify(v))}catch(e){return v}};
+function rowData952(r){
+  if(!r||typeof r!=='object')return null;
+  let d=r.data??r.payload??r.value??r.record??null;
+  if(typeof d==='string'){try{d=JSON.parse(d)}catch(e){}}
+  return d&&typeof d==='object'?d:null;
+}
+function paid952(x){
+  return x?.paid===true || String(x?.paid||'').toLowerCase()==='true' || String(x?.status||'').trim().toLowerCase()==='pago';
+}
+function snap952(){try{return hlgbRecordSnapshots?.payroll instanceof Map?hlgbRecordSnapshots.payroll:null}catch(e){return null}}
+function hydratePaid952(){
+  if(typeof db==='undefined'||!db||!Array.isArray(db.payroll))return {paid:0,rawPaid:0};
+  const sm=snap952();let rawPaid=0;
+  if(sm){
+    for(const meta of sm.values()){
+      if(meta?.deleted_at)continue;
+      const d=rowData952(meta);if(!d||!paid952(d))continue;rawPaid++;
+      const did=String(d.id??d.__hlgbId??'');
+      const emp=String(d.employeeId??'');
+      const mon=String(d.month??d.competence??'');
+      const targets=db.payroll.filter(x=>{
+        if(did&&String(x?.id??x?.__hlgbId??'')===did)return true;
+        return emp&&mon&&String(x?.employeeId??'')===emp&&String(x?.month??x?.competence??'')===mon;
+      });
+      for(const t of targets){
+        t.paid=true;
+        if(d.paidAt)t.paidAt=d.paidAt;
+        if(d.paidValue!==undefined&&d.paidValue!==null)t.paidValue=+d.paidValue||0;
+        t.__hlgbPaidCloud952=true;
+      }
+    }
+  }
+  for(const t of db.payroll){
+    if(paid952(t)){t.paid=true;t.__hlgbPaidCloud952=true}
+  }
+  return {paid:db.payroll.filter(x=>x.paid===true).length,rawPaid};
+}
+function banner952(){
+  const table=document.getElementById('payrollTable');if(!table)return;
+  const month=document.getElementById('payrollMonth')?.value||'';
+  const count=(db.payroll||[]).filter(x=>x.paid===true&&(!month||String(x.month||'')===String(month))).length;
+  let b=document.getElementById('hlgb952PaidBanner');
+  if(!b){b=document.createElement('div');b.id='hlgb952PaidBanner';b.style.cssText='margin:0 0 10px;padding:9px 11px;border-radius:10px;background:#e9f7ef;border:1px solid #b9dfc8;font-size:12px;font-weight:700;color:#245c38';table.parentNode?.insertBefore(b,table)}
+  b.textContent=`✅ ${count} pagamento(s) marcado(s) como PAGO reconhecido(s) nesta competência pela nuvem.`;
+}
+const oldRender952=window.renderPayroll;
+if(typeof oldRender952==='function'){
+  window.renderPayroll=function(){
+    hydratePaid952();
+    const out=oldRender952.apply(this,arguments);
+    hydratePaid952();
+    try{banner952()}catch(e){}
+    return out;
+  };
+}
+const oldToggle952=window.togglePayrollPaid;
+if(typeof oldToggle952==='function'){
+  window.togglePayrollPaid=async function(id){hydratePaid952();return await oldToggle952.apply(this,arguments)};
+}
+// Os diagnósticos provaram que os pagamentos já estão no snapshot bruto da nuvem.
+// Desativa as rotinas temporárias antigas que tentavam recarregar hlgb_load_bundle e geravam erro de permissão.
+window.hlgb9149RecoverNow=async function(){return {skipped:true,reason:'v91.52: pagamentos já presentes na nuvem'}};
+window.hlgb9150RecoverNow=async function(){return {skipped:true,reason:'v91.52: recuperação temporária desativada'}};
+window.hlgb9151RunDiagnostic=function(){return null};
+function clean952(){
+  ['hlgb950RecoveryBox','hlgb951Diag','hlgb948AuditBox'].forEach(id=>{try{document.getElementById(id)?.remove()}catch(e){}});
+  const r=hydratePaid952();
+  try{if(document.getElementById('payrollTable')&&typeof window.renderPayroll==='function')window.renderPayroll()}catch(e){}
+  console.info('HLGB v91.52 payroll cloud status ready',r);
+}
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>setTimeout(clean952,500),{once:true});else setTimeout(clean952,500);
+setTimeout(clean952,1800);
+setTimeout(clean952,4500);
 })();
 </script>
 
