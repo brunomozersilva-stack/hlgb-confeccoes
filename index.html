@@ -6,7 +6,7 @@
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
-<title>HLGB Confecções — Sistema de Gestão v91.50 Multiusuário</title>
+<title>HLGB Confecções — Sistema de Gestão v91.51 Multiusuário</title>
 <style>
 :root{--navy:#6f3f59;--orange:#c96b8f;--bg:#fbf6f8;--line:#eadde4;--text:#30262c;--muted:#786b73;--ok:#e9f7ef;--warn:#fff5df;--bad:#fdeaea;--rose:#f3dbe5;--rose2:#fff8fb}
 *{box-sizing:border-box}body{margin:0;font-family:Arial,Helvetica,sans-serif;background:var(--bg);color:var(--text)}
@@ -263,11 +263,11 @@ main{min-width:0;}
     <div class="field" style="text-align:left;margin-bottom:10px"><label>E-mail</label><input id="loginUser" type="email" autocomplete="username" placeholder="seuemail@exemplo.com"></div>
     <div class="field" style="text-align:left;margin-bottom:14px"><label>Senha</label><input id="loginPass" type="password" autocomplete="current-password" onkeydown="if(event.key==='Enter')return doLogin()"></div>
     <button class="primary" style="width:100%" onclick="return doLogin()">Entrar</button>
-    <div id="loginError" style="color:#a51d2d;font-size:13px;margin-top:10px"></div><div style="margin-top:12px;font-size:12px;color:#786b73">Acesso protegido pelo Supabase • HLGB Online<br><b style="color:#6f3f59">Versão v91.50</b></div>
+    <div id="loginError" style="color:#a51d2d;font-size:13px;margin-top:10px"></div><div style="margin-top:12px;font-size:12px;color:#786b73">Acesso protegido pelo Supabase • HLGB Online<br><b style="color:#6f3f59">Versão v91.51</b></div>
   </div>
 </div>
 
-<div id="appShell" style="display:none"><header><div class="logo">HLGB <b>CONFECÇÕES</b> <small style="font-size:10px;opacity:.8">v91.50</small></div><div><span id="cloudStatus" style="margin-right:10px;font-size:12px;padding:6px 9px;border:1px solid #ffffff44;border-radius:8px">☁️ Nuvem</span><span id="currentUserLabel" style="margin-right:10px;font-size:13px"></span><button id="cloudSaveBtn" onclick="cloudUploadCurrentDb(true)" style="display:none" title="Sincronização automática">🔄 Sincronizar agora</button> <button id="backupBtn" onclick="backup()" style="display:none">Exportar backup</button> <button id="importBackupBtn" onclick="document.getElementById('backupImportInput').click()" style="display:none">Importar backup</button><input id="backupImportInput" type="file" accept=".json,application/json" style="display:none" onchange="importBackupFile(this)"> <button onclick="logout()">Sair</button></div></header>
+<div id="appShell" style="display:none"><header><div class="logo">HLGB <b>CONFECÇÕES</b> <small style="font-size:10px;opacity:.8">v91.51</small></div><div><span id="cloudStatus" style="margin-right:10px;font-size:12px;padding:6px 9px;border:1px solid #ffffff44;border-radius:8px">☁️ Nuvem</span><span id="currentUserLabel" style="margin-right:10px;font-size:13px"></span><button id="cloudSaveBtn" onclick="cloudUploadCurrentDb(true)" style="display:none" title="Sincronização automática">🔄 Sincronizar agora</button> <button id="backupBtn" onclick="backup()" style="display:none">Exportar backup</button> <button id="importBackupBtn" onclick="document.getElementById('backupImportInput').click()" style="display:none">Importar backup</button><input id="backupImportInput" type="file" accept=".json,application/json" style="display:none" onchange="importBackupFile(this)"> <button onclick="logout()">Sair</button></div></header>
 <div class="app">
 <aside><nav id="nav" class="clean-nav">
 <button class="nav-home active" onclick="page('dashboard',this)">🏠 <span>Início</span></button>
@@ -15584,6 +15584,69 @@ function boot950(){
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',boot950,{once:true});else boot950();
 window.addEventListener('focus',()=>{if(!completed950)schedule950(250)});
 document.addEventListener('visibilitychange',()=>{if(!document.hidden&&!completed950)schedule950(250)});
+})();
+</script>
+
+<!-- HLGB v91.51 READ-ONLY PAYROLL + HUB DIAGNOSTIC -->
+<script>
+(function(){
+'use strict';
+const V951='91.51';
+const clone951=v=>{try{return JSON.parse(JSON.stringify(v))}catch(e){return v}};
+const esc951=s=>String(s??'').replace(/[&<>\"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','\"':'&quot;'}[c]||c));
+function rowData951(r){
+  if(!r||typeof r!=='object')return null;
+  let d=r.data??r.payload??r.value??r.record??null;
+  if(typeof d==='string'){try{d=JSON.parse(d)}catch(e){}}
+  return d&&typeof d==='object'?d:null;
+}
+function snapMap951(module){try{return hlgbRecordSnapshots?.[module] instanceof Map?hlgbRecordSnapshots[module]:null}catch(e){return null}}
+function paid951(x){return x?.paid===true||String(x?.paid||'').toLowerCase()==='true'||String(x?.status||'').toLowerCase()==='pago'}
+function realized951(x){return String(x?.status||'').toLowerCase()==='realizado'||x?.realized===true}
+function nm951(x){return x?.employeeName||x?.name||x?.description||x?.title||x?.id||'-'}
+function moduleAudit951(){
+  const mods=(()=>{try{return Array.isArray(HLGB_RECORD_MODULES)?HLGB_RECORD_MODULES:[]}catch(e){return []}})();
+  const out=[];
+  for(const m of mods){
+    const sm=snapMap951(m);let active=0,deleted=0;
+    if(sm)for(const r of sm.values()){if(r?.deleted_at)deleted++;else active++}
+    const loaded=Array.isArray(db?.[m])?db[m].length:0;
+    out.push({module:m,active,deleted,loaded,diff:active-loaded});
+  }
+  return out;
+}
+function analyze951(){
+  const payLocal=Array.isArray(db?.payroll)?db.payroll:[];
+  const hubLocal=Array.isArray(db?.hubFinanceEntries)?db.hubFinanceEntries:[];
+  const ps=snapMap951('payroll'),hs=snapMap951('hubFinanceEntries');
+  const rawPay=[],rawHub=[];let payDeleted=0,hubDeleted=0;
+  if(ps)for(const r of ps.values()){if(r?.deleted_at){payDeleted++;continue}const d=rowData951(r);if(d)rawPay.push({meta:r,data:d})}
+  if(hs)for(const r of hs.values()){if(r?.deleted_at){hubDeleted++;continue}const d=rowData951(r);if(d)rawHub.push({meta:r,data:d})}
+  const localPaid=payLocal.filter(paid951),rawPaid=rawPay.filter(x=>paid951(x.data));
+  const localReal=hubLocal.filter(realized951),rawReal=rawHub.filter(x=>realized951(x.data));
+  const rawKeys=ps&&ps.size?[...ps.values()].slice(0,1).map(x=>Object.keys(x||{}).join(', '))[0]||'': '';
+  return {
+    version:V951,at:new Date().toISOString(),recordReady:!!(typeof hlgbRecordReady!=='undefined'&&hlgbRecordReady),
+    payroll:{loaded:payLocal.length,loadedPaid:localPaid.length,rawActive:rawPay.length,rawPaid:rawPaid.length,rawDeleted:payDeleted,loadedPaidRows:clone951(localPaid),rawPaidRows:rawPaid.map(x=>clone951(x.data)),rawSnapshotKeys:rawKeys},
+    hub:{loaded:hubLocal.length,loadedRealized:localReal.length,rawActive:rawHub.length,rawRealized:rawReal.length,rawDeleted:hubDeleted,loadedRealRows:clone951(localReal),rawRealRows:rawReal.map(x=>clone951(x.data))},
+    modules:moduleAudit951()
+  };
+}
+function box951(){let b=document.getElementById('hlgb951Diag');if(!b){b=document.createElement('div');b.id='hlgb951Diag';b.style.cssText='position:fixed;right:14px;bottom:14px;z-index:10002;width:min(560px,calc(100vw - 28px));max-height:72vh;overflow:auto;background:#fff;border:1px solid #d8c5cf;border-radius:14px;padding:12px 14px;box-shadow:0 8px 28px #0003;font-size:12px;line-height:1.45';document.body.appendChild(b)}return b}
+function render951(r){
+ const b=box951(),p=r.payroll,h=r.hub,divs=r.modules.filter(x=>x.diff!==0);
+ const pnames=(p.rawPaidRows.length?p.rawPaidRows:p.loadedPaidRows).slice(0,20).map(x=>`${esc951(nm951(x))} — ${esc951(x.month||x.competence||x.paidAt||'-')}`).join('<br>')||'<i>Nenhum registro marcado como pago encontrado.</i>';
+ b.innerHTML=`<b>🔎 Diagnóstico v91.51 — somente leitura</b><br><span style="font-size:11px">Nenhum dado é alterado por esta tela.</span><hr style="border:0;border-top:1px solid #eee;margin:8px 0"><b>Folha</b><br>Carregado: <b>${p.loaded}</b> · PAGO carregado: <b>${p.loadedPaid}</b><br>Snapshot bruto da nuvem: <b>${p.rawActive}</b> ativo(s) · PAGO bruto: <b>${p.rawPaid}</b> · apagado(s): <b>${p.rawDeleted}</b><br><div style="margin-top:6px;padding:7px;background:#faf7f9;border-radius:8px">${pnames}</div><hr style="border:0;border-top:1px solid #eee;margin:8px 0"><b>Hub Financeiro</b><br>Carregado: <b>${h.loaded}</b> · Realizado carregado: <b>${h.loadedRealized}</b><br>Snapshot bruto da nuvem: <b>${h.rawActive}</b> ativo(s) · Realizado bruto: <b>${h.rawRealized}</b> · apagado(s): <b>${h.rawDeleted}</b><hr style="border:0;border-top:1px solid #eee;margin:8px 0"><b>Divergências de contagem</b><br>${divs.length?divs.slice(0,20).map(x=>`${esc951(x.module)}: nuvem ${x.active} / tela ${x.loaded}`).join('<br>'):'Nenhuma divergência de contagem detectada.'}<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:10px"><button type="button" onclick="hlgb9151RunDiagnostic()">Atualizar diagnóstico</button><button type="button" onclick="this.closest('#hlgb951Diag').remove()">Fechar</button></div>`;
+ try{localStorage.setItem('hlgb_v9151_readonly_report',JSON.stringify(r))}catch(e){}
+ console.info('HLGB v91.51 read-only diagnostic',r);
+}
+window.hlgb9151RunDiagnostic=function(){try{const r=analyze951();render951(r);return r}catch(e){const b=box951();b.innerHTML=`<b>🔎 Diagnóstico v91.51</b><br>Não foi possível ler o snapshot ainda.<br><small>${esc951(e?.message||e)}</small><br><button type="button" style="margin-top:8px" onclick="hlgb9151RunDiagnostic()">Tentar novamente</button>`;return null}};
+function launch951(n=0){
+ const ready=typeof db!=='undefined'&&db&&typeof document!=='undefined';
+ if(ready){window.hlgb9151RunDiagnostic();if((typeof hlgbRecordReady==='undefined'||!hlgbRecordReady)&&n<30)setTimeout(()=>launch951(n+1),1000);return}
+ if(n<30)setTimeout(()=>launch951(n+1),1000);
+}
+setTimeout(()=>launch951(0),1200);
 })();
 </script>
 
