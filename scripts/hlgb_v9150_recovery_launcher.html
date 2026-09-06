@@ -1,0 +1,81 @@
+<!-- HLGB v91.50 RECOVERY LAUNCHER + CLOUD READY RETRY -->
+<script>
+(function(){
+'use strict';
+const V950='91.50';
+const REPORT949='hlgb_v9149_recovery_report';
+let running950=false;
+let completed950=false;
+let retry950=null;
+let tries950=0;
+
+function read950(k){try{return JSON.parse(localStorage.getItem(k)||'null')}catch(e){return null}}
+function box950(html,kind='wait'){
+  let box=document.getElementById('hlgb950RecoveryBox');
+  if(!box){
+    box=document.createElement('div');
+    box.id='hlgb950RecoveryBox';
+    box.style.cssText='position:fixed;right:14px;bottom:14px;z-index:20000;max-width:470px;background:#fff;border:2px solid #b8899e;border-radius:14px;padding:13px 14px;box-shadow:0 7px 28px #0003;font-size:13px;line-height:1.45;color:#34252c';
+    document.body.appendChild(box);
+  }
+  const icon=kind==='ok'?'✅':kind==='bad'?'⚠️':'🛟';
+  box.innerHTML=`<b>${icon} Recuperação da folha — v${V950}</b><div style="margin-top:6px">${html}</div><div style="display:flex;gap:7px;flex-wrap:wrap;margin-top:9px"><button type="button" id="hlgb950RunBtn" style="padding:7px 10px;border-radius:8px;border:1px solid #b8899e;background:#f7edf1;cursor:pointer">Executar recuperação agora</button><button type="button" id="hlgb950CloseBtn" style="padding:7px 10px;border-radius:8px;border:1px solid #ccc;background:#fff;cursor:pointer">Fechar</button></div>`;
+  box.querySelector('#hlgb950RunBtn').onclick=()=>run950(true);
+  box.querySelector('#hlgb950CloseBtn').onclick=()=>box.remove();
+}
+function cloudReady950(){
+  try{
+    return typeof window.hlgb9149RecoverNow==='function' &&
+      typeof cloudAccessToken!=='undefined' && !!cloudAccessToken &&
+      typeof hlgbRecordReady!=='undefined' && !!hlgbRecordReady &&
+      typeof hlgbRecordSaveWithRetry==='function';
+  }catch(e){return false}
+}
+function schedule950(delay=1800){
+  if(completed950)return;
+  clearTimeout(retry950);
+  retry950=setTimeout(()=>run950(false),delay);
+}
+function renderReport950(){
+  const r=read950(REPORT949);
+  if(!r){box950('A rotina executou, mas ainda não apareceu um relatório. Vou manter o botão disponível para reexecutar.','bad');return false}
+  const restored=(r.payroll||[]).length;
+  const candidates=+(r.candidates?.payroll||0);
+  const hub=(r.hub||[]).length;
+  const errors=(r.errors||[]).length;
+  const names=(r.payroll||[]).slice(0,10).map(x=>`${x.employee||'Funcionário'} — ${x.month||'-'}`).join('<br>');
+  box950(`<b>${restored}</b> pagamento(s) restaurado(s) na folha.<br><b>${candidates}</b> candidato(s) de pagamento encontrado(s).<br><b>${hub}</b> alteração(ões) restaurada(s) no Hub.${errors?`<br><span style="color:#9a1f32"><b>${errors}</b> erro(s) de confirmação.</span>`:''}${names?`<div style="margin-top:7px;padding-top:7px;border-top:1px solid #eee">${names}</div>`:''}`,(errors&&restored===0)?'bad':'ok');
+  return true;
+}
+async function run950(manual=false){
+  if(running950)return;
+  if(!cloudReady950()){
+    tries950++;
+    box950(`O sistema ainda está terminando o login/sincronização da nuvem. <b>A recuperação ainda não foi executada.</b><br>Tentativa automática: ${tries950}.`,'wait');
+    schedule950(manual?1200:1800);
+    return;
+  }
+  running950=true;
+  box950('Nuvem pronta. Estou cruzando banco local, fila pendente, backups e histórico antigo da nuvem. Não marque os funcionários novamente enquanto esta conferência roda.','wait');
+  try{
+    await window.hlgb9149RecoverNow(true);
+    completed950=true;
+    clearTimeout(retry950);
+    setTimeout(()=>renderReport950(),250);
+  }catch(e){
+    completed950=false;
+    box950('A recuperação encontrou um erro antes de concluir: '+String(e?.message||e),'bad');
+    schedule950(2500);
+  }finally{running950=false}
+}
+
+window.hlgb9150RecoverNow=()=>run950(true);
+function boot950(){
+  box950('Preparando a recuperação dos pagamentos marcados anteriormente. Assim que o login e a nuvem estiverem prontos, ela será executada automaticamente.','wait');
+  schedule950(500);
+}
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',boot950,{once:true});else boot950();
+window.addEventListener('focus',()=>{if(!completed950)schedule950(250)});
+document.addEventListener('visibilitychange',()=>{if(!document.hidden&&!completed950)schedule950(250)});
+})();
+</script>
