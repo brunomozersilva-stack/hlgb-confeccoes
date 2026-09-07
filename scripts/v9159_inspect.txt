@@ -1,0 +1,976 @@
+
+===== function renderSeparation() @ 440775 =====
+function renderSeparation(){
+ let id=+document.getElementById("separationOrder")?.value, o=(db.orders||[]).find(x=>+x.id===id);
+ if(!o){separationTable.innerHTML='<div class="empty">Selecione um pedido.</div>';return}
+ let grade=o.grade||[];
+ if(!grade.length && o.productId) grade=[{productId:+o.productId,color:o.color||"",size:o.size||"",qty:qtyOfOrder(o)}];
+ if(!grade.length){separationTable.innerHTML='<div class="empty">Este pedido não possui grade cadastrada.</div>';return}
+
+ let groups=orderMaterialBreakdownByProduct(o);
+ let purchaseNeed=consolidatedPurchaseNeed(o);
+
+ let purchaseRows=purchaseNeed.filter(m=>m.shortage>0).map(m=>[
+   esc(m.name),esc(m.unit||"-"),m.qty.toFixed(2),m.stock.toFixed(2),
+   `<strong>${m.shortage.toFixed(2)}</strong>`
+ ]);
+ let purchaseHtml=purchaseRows.length
+   ? table(["Material","Unidade","Necessário","Estoque","Comprar"],purchaseRows)
+   : '<div class="empty"><span class="badge ok">Nenhum material precisa ser comprado para este pedido.</span></div>';
+
+ let separationHtml=groups.map(g=>{
+   let rows=Object.values(g.materials).map(m=>[
+     esc(m.name),esc(m.cat||"-"),esc(m.unit||"-"),m.qty.toFixed(2),
+     Object.entries(m.byColor).map(([c,q])=>`${esc(c)}: ${q.toFixed(2)} ${esc(m.unit||"")}`).join("<br>")
+   ]);
+   return `<div class="panel" style="margin:12px 0;background:#fff">
+     <h3 style="margin-top:0">${esc(g.productName)} <span class="badge">${g.pieces} peças</span></h3>
+     ${rows.length?table(["Material","Tipo","Unidade","Total para este modelo","Por cor"],rows):'<div class="empty">Sem materiais cadastrados na ficha técnica deste produto.</div>'}
+     ${compositionTableForProduct(o,g.productId)}
+   </div>`;
+ }).join("");
+
+ let ok=(db.separations||[]).find(s=>+s.orderId===+o.id);
+ separationTable.innerHTML=`<div class="separation-action-box">
+   <div style="font-weight:800;font-size:16px;margin-bottom:10px">${ok?.done?"✅ Material separado":"📦 Confirmação da separação de material"}</div>
+   <div class="toolbar" style="align-items:center;flex-wrap:wrap">
+     <button type="button" class="primary separation-main-action" onclick="markSeparation(${o.id})">${ok?.done?"✅ SEPARAÇÃO CONCLUÍDA":"✅ CONFIRMAR SEPARAÇÃO DO MATERIAL"}</button>
+     <button type="button" class="secondary" style="min-height:48px;font-weight:700" onclick="printCuttingSheet(${o.id})">✂️ Imprimir folha dos cortadores</button>
+     <button type="button" class="secondary" style="min-height:48px;font-weight:700" onclick="printMaterialSeparationSheet(${o.id})">📦 Imprimir separação por modelo</button>
+     <span class="badge ${ok?.done?"ok":"warn"}" style="font-size:14px;padding:9px 13px">${ok?.done?"SEPARAÇÃO OK":"AGUARDANDO CONFIRMAÇÃO"}</span>
+   </div>
+ </div>
+ <div class="panel" style="background:#fff8fb"><h2>🛒 Material para comprar</h2><div class="sub">Somente o que está faltando no estoque, consolidado para o pedido inteiro.</div>${purchaseHtml}</div>
+ <div class="panel"><h2>📦 Material para separar por modelo</h2><div class="sub">Cada produto aparece separado para evitar mistura de materiais entre modelos.</div>${separationHtml||'<div class="empty">Sem materiais para separar.</div>'}</div>`;
+}
+function markSeparation(orderId){
+ let s=db.separations.find(x=>+x.orderId===+orderId);
+ if(!s){s={orderId,done:false,at:null};db.separations.push(s)}
+ s.done=!s.done;s.at=s.done?new Date().toISOString():null;save();
+}
+function separationGradeMatrixHTML(o){
+ let grade=Array.isArray(o?.grade)?o.grade:[];
+ if(!grade.length)return '<div style="padding:10px;border:1px solid #ddd">Pedido sem grade cadastrada.</div>';
+ let sizes=hlgbSortedSizes(db.sizes);
+ let groups={};
+ grade.forEach(it=>{
+   let prod=(db.products||[]).find(p=>+p.id===+it.productId);
+   let pname=prod?.name||"-", color=it.color||"-";
+   let key=String(it.productId||pname)+"|"+color;
+   if(!groups[key])groups[key]={product:pname,color,qty:{}};
+   groups[key].qty[it.size]=(groups[key].qty[it.size]||0)+(+it.qty||0);
+ });
+ let heads=sizes.map(s=>`<th>${esc(s)}</th>`).join("");
+ let body=Object.values(groups).map(g=>{
+   let total=sizes.reduce((a,s)=>a+(+g.qty[s]||0),0);
+   return `<tr><td>${esc(g.product)}</td><td>${esc(g.color)}</td>${sizes.map(s=>`<td>${+g.qty[s]||0}</td>`).join("")}<td><b>${total}</b></td></tr>`;
+ }).join("");
+ let grand=grade.reduce((a,it)=>a+(+it.qty||0),0);
+ return `<table><tr><th>Produto</th><th>Cor</th>${heads}<th>Total</th></tr>${body}<tr><td colspan="${sizes.length+2}" style="text-align:right"><b>Total do pedido</b></td><td><b>${grand}</b></td></tr></table>`;
+}
+function printSeparation(orderId){printMaterialSeparationSheet(orderId);}
+function renderStock(){let q=(stockSearch.value||"").toLowerCase();let arr=db.stock.filter(s=>s.item.toLowerCase().includes(q));stockTable.innerHTML=table(["Item","Categoria","Saldo","Mínimo","Status","Ações"],arr.map(s=>[s.item,s.cat,s.qty+" "+s.unit,s.min,s.qty<s.min?'<span class="badge bad">Comprar</span>':'<span class="badge ok">OK</span>',`<button class="secondary" onclick="moveStock(${s.id})">Movimentar</button>`]))}
+function newStock(){openModal("Movimentar estoque",`<div class="grid"><div class="field"><label>Item</label><input id="mitem" placeholder="Se não existir, será criado"></div><div class="field"><label>Categoria</label><select id="mcat"><option>Matéria-prima</option><option>Aviamento</option><option>Produto acabado</option></select></div><div class="field"><label>Quantidade (+ entrada / - saída)</label><input id="mqty" type="number" step=".01"></div><div class="field"><label>Unidade</label><input id="munit" value="un."></div><div class="field"><label>Estoque mínimo</label><input id="mmin" type="number" value="0"></div></div><button class="primary modalSave">Lançar</button>`,()=>{let s=db.stock.find(x=>x.item.toLowerCase()===mitem.value.toLowerCase());if(!s)db.stock.push({id:Date.now(),item:mitem.value,cat:mcat.value,qty:+mqty.value,unit:munit.value,min:+mmin.value});else s.qty+=+mqty.value;closeModal();save()})}
+function moveStock(id){let s=db.stock.find(x=>x.id===id);let n=prompt(`Quantidade para ${s.item} (use negativo para saída):`,0);if(n!==null){s.qty+=+n;save()}}
+function selectedCatalogNames(ids,list){
+ return (Array.isArray(ids)?ids:[]).map(id=>list.find(x=>+x.id===+id)?.name).filter(Boolean).join(", ");
+}
+function renderFactions(){ 
+ (db.factions||[]).forEach(f=>{let o=(db.orders||[]).find(x=>+x.id===+f.orderId);f.description=o?orderProductSummary(o):cleanFactionProductName(f.description||f.product||"");});
+
+ db.factionMasters=Array.isArray(db.factionMasters)?db.factionMasters:[];
+ db.productionLocations=Array.isArray(db.productionLocations)?db.productionLocations:[];
+ db.factions=Array.isArray(db.factions)?db.factions:[];
+ db.serviceTypes=Array.isArray(db.serviceTypes)?db.serviceTypes:[];
+ db.machines=Array.isArray(db.machines)?db.machines:[];
+
+ let fm=document.getElementById("factionMasterTable");
+ let st=document.getElementById("serviceTypeTable");
+ let mt=document.getElementById("machineTable");
+ let pl=document.getElementById("productionLocationTable");
+ let ft=document.getElementById("factionTable");
+ let fr=document.getElementById("factionReport");
+ let fc=document.getElementById("factionProductionCards");
+ renderFactionAvailableModels();
+
+ if(fc){
+   let active=db.factions.filter(f=>String(f.status||"")!=="Finalizado");
+   let totalSent=active.reduce((a,f)=>a+(+f.sent||0),0);
+   let totalDone=active.reduce((a,f)=>a+(+f.done||0),0);
+   let totalRemaining=active.reduce((a,f)=>a+Math.max(0,(+f.sent||0)-(+f.done||0)-(+f.defects||0)-(+f.waste||0)),0);
+   let valueInProduction=active.reduce((a,f)=>{
+     let base=(+f.done||0)>0?(+f.done||0):(+f.sent||0);
+     return a+base*(+f.price||0);
+   },0);
+   fc.innerHTML=`
+     <div class="card"><small>Peças enviadas para facção</small><strong>${totalSent.toLocaleString("pt-BR")}</strong></div>
+     <div class="card"><small>Peças produzidas em facção</small><strong>${totalDone.toLocaleString("pt-BR")}</strong></div>
+     <div class="card"><small>Peças ainda em produção</small><strong>${totalRemaining.toLocaleString("pt-BR")}</strong></div>
+     <div class="card"><small>Valor sendo produzido em facção</small><strong>${money(valueInProduction)}</strong></div>`;
+ }
+
+ if(fm){
+   let rows=db.factionMasters.map(f=>{
+     let l=db.productionLocations.find(x=>+x.id===+f.productionLocationId);
+     let services=selectedCatalogNames(f.serviceTypeIds,db.serviceTypes)||f.serviceType||"-";
+     let machines=selectedCatalogNames(f.machineIds,db.machines)||f.machines||"-";
+     return [
+       esc(f.name||"-"),esc(f.address||"-"),esc(f.phone||"-"),esc(f.pix||"-"),
+       esc(services),esc(machines),esc(l?.name||"-"),
+       `<button type="button" class="secondary" onclick="editFactionMaster(${f.id})">Editar</button>
+        <button type="button" class="danger" onclick="delFactionMaster(${f.id})">Excluir</button>`
+     ];
+   });
+   fm.innerHTML=rows.length
+     ? table(["Facção","Endereço","Telefone","Chave PIX","Tipo de serviço","Máquinas disponíveis","Local de produção","Ações"],rows)
+     : '<div class="empty">Nenhuma facção cadastrada.</div>';
+ }
+
+ if(st){
+   let rows=db.serviceTypes.map(s=>[
+     esc(s.name),
+     `<button type="button" class="secondary" onclick="editServiceType(${s.id})">Editar</button>
+      <button type="button" class="danger" onclick="deleteServiceType(${s.id})">Excluir</button>`
+   ]);
+   st.innerHTML=rows.length?table(["Tipo de serviço","Ações"],rows):'<div class="empty">Nenhum tipo de serviço cadastrado.</div>';
+ }
+
+ if(mt){
+   let rows=db.machines.map(m=>[
+     esc(m.name),
+     `<button type="button" class="secondary" onclick="editMachine(${m.id})">Editar</button>
+      <button type="button" class="danger" onclick="deleteMachine(${m.id})">Excluir</button>`
+   ]);
+   mt.innerHTML=rows.length?table(["Máquina","Ações"],rows):'<div class="empty">Nenhuma máquina cadastrada.</div>';
+ }
+
+ if(pl){
+   let rows=db.productionLocations.map(l=>[
+     esc(l.name||"-"), (+l.weeklyCapacity||0)?(+l.weeklyCapacity).toLocaleString("pt-BR")+" peças":"Não definida", esc((l.allowedServices||[]).join(", ")||"Todos"),
+     l.active!==false?'<span class="badge ok">Ativo</span>':'<span class="badge">Inativo</span>',
+     `<button type="button" class="secondary" onclick="editProductionLocation(${l.id})">Editar</button>
+      <button type="button" class="danger" onclick="delProductionLocation(${l.id})">Excluir</button>`
+   ]);
+   pl.innerHTML=rows.length?table(["Local de produção","Capacidade semanal","Serviços/modelos permitidos","Status","Ações"],rows):'<div class="empty">Nenhum local cadastrado.</div>';
+ }
+
+ if(ft){
+   let rows=db.factions.map(f=>{
+     let l=db.productionLocations.find(x=>+x.id===+f.productionLocationId);
+     let ord=(db.orders||[]).find(o=>+o.id===+f.orderId);
+     return [
+       esc(f.name||"-"),esc(f.op||"-"),esc(ord?orderProductSummary(ord):cleanFactionProductName(f.description||f.product||"-")),esc(l?.name||"-"),
+       fmtDate(f.sentAt||f.date),fmtDate(f.dueDate),f.sent||0,f.done||0,+f.defects||0,+f.waste||0,
+       `<span class="badge ${f.status==="Finalizado"?"ok":""}">${esc(f.status||"Enviado")}</span>`,
+       money(f.price||0),money((f.done||0)*(f.price||0)),priorityBadge(ord?.priority||"Padrão"),
+       `${ord?`<button type="button" class="secondary" onclick="viewOrderDetails(${ord.id})">Ver pedido</button> `:""}<button type="button" class="secondary" onclick="editFaction(${f.id})">Editar</button>
+        ${f.status==="Finalizado"?`<button type="button" class="primary" onclick="separateFactionForPayment(${f.id})">${f.paymentSeparated?"📅 Pagamento separado":"💰 Separação para pagamento"}</button>`:""}
+        <button type="button" class="danger" onclick="del('factions',${f.id})">Excluir</button>`
+     ];
+   });
+   ft.innerHTML=rows.length
+     ? table(["Facção","OP","Produto","Local de produção","Data envio","Previsão entrega","Enviado","Produzido","Defeitos","Faltantes/Perdas","Status","Valor/peça","A pagar","Prioridade","Ações"],rows)
+     : '<div class="empty">Nenhum envio cadastrado.</div>';
+ }
+
+ let sums={};
+ db.factions.forEach(f=>{
+   let k=f.name||"Sem nome";
+   if(!sums[k])sums[k]={sent:0,done:0,paid:0,def:0,waste:0};
+   sums[k].sent+=+f.sent||0;sums[k].done+=+f.done||0;
+   sums[k].paid+=(+f.done||0)*(+f.price||0);sums[k].def+=+f.defects||0;sums[k].waste+=+f.waste||0;
+ });
+ if(fr){
+   let rows=Object.entries(sums).map(([k,d])=>[
+     esc(k),d.sent,d.done,d.def,d.waste,money(d.paid),d.sent?(d.done/d.sent*100).toFixed(1)+"%":"-"
+   ]);
+   fr.innerHTML=rows.length?table(["Facção","Enviado","Produzido","Defeitos","Perdas","A pagar","Aproveitamento"],rows):'<div class="empty">Sem produção de facção.</div>';
+ }
+}
+function factionMasterForm(f={}){
+ let selectedServices=Array.isArray(f.serviceTypeIds)?f.serviceTypeIds:[];
+ let selectedMachines=Array.isArray(f.machineIds)?f.machineIds:[];
+ let serviceChecks=(db.serviceTypes||[]).map(s=>`
+   <label style="display:flex;gap:7px;align-items:center;margin:6px 0">
+     <input type="checkbox" class="mfServiceCheck" value="${s.id}" ${selectedServices.some(id=>+id===+s.id)?"checked":""}> ${esc(s.name)}
+   </label>`).join("");
+ let machineChecks=(db.machines||[]).map(m=>`
+   <label style="display:flex;gap:7px;align-items:center;margin:6px 0">
+     <input type="checkbox" class="mfMachineCheck" value="${m.id}" ${selectedMachines.some(id=>+id===+m.id)?"checked":""}> ${esc(m.name)}
+   </label>`).join("");
+ return `<div class="grid">
+   <div class="field"><label>Nome completo</label><input id="mfname" value="${esc(f.name||'')}"></div>
+   <div class="field"><label>Endereço</label><input id="mfaddress" value="${esc(f.address||'')}"></div>
+   <div class="field"><label>Telefone</label><input id="mfphone" value="${esc(f.phone||'')}"></div>
+   <div class="field"><label>Chave PIX</label><input id="mfpix" value="${esc(f.pix||'')}"></div>
+   <div class="field"><label>Local de produção</label><select id="mflocation"><option value="">Selecione</option>${(db.productionLocations||[]).filter(x=>x.active!==false).map(x=>`<option value="${x.id}" ${+x.id===+f.productionLocationId?'selected':''}>${esc(x.name)}</option>`).join('')}</select></div>
+ </div>
+ <div class="panel"><h3>Tipos de serviço</h3><div class="sub">Marque todos os tipos de peças/serviços que esta facção faz.</div>${serviceChecks||'<div class="empty">Cadastre tipos de serviço primeiro.</div>'}</div>
+ <div class="panel"><h3>Máquinas disponíveis</h3><div class="sub">Marque todas as máquinas que esta facção possui.</div>${machineChecks||'<div class="empty">Cadastre máquinas primeiro.</div>'}</div>`;
+}
+function collectFactionServices(){return [...document.querySelectorAll(".mfServiceCheck:checked")].map(x=>+x.value)}
+function collectFactionMachines(){return [...document.querySelectorAll(".mfMachineCheck:checked")].map(x=>+x.value)}
+function newFactionMaster(){
+ openModal("Nova facção",factionMasterForm()+`<button type="button" class="primary modalSave">💾 Salvar facção</button>`,()=>{
+   let name=(document.getElementById("mfname")?.value||"").trim();
+   if(!name){alert("Informe o nome da facção.");return}
+   let serviceTypeIds=collectFactionServices(),machineIds=collectFactionMachines();
+   db.factionMasters.push({
+     id:Date.now()+Math.floor(Math.random()*1000),name,
+     address:(document.getElementById("mfaddress")?.value||"").trim(),
+     phone:(document.getElementById("mfphone")?.value||"").trim(),
+     pix:(document.getElementById("mfpix")?.value||"").trim(),
+     serviceTypeIds,machineIds,
+     serviceType:selectedCatalogNames(serviceTypeIds,db.serviceTypes),
+     machines:selectedCatalogNames(machineIds,db.machines),
+     productionLocationId:document.getElementById("mflocation")?.value?+document.getElementById("mflocation").value:null,
+     active:true
+   });
+   closeModal();save();alert("Facção cadastrada com sucesso.");
+ });
+}
+function editFactionMaster(id){
+ let f=db.factionMasters.find(x=>+x.id===+id);if(!f)return;
+ openModal("Editar facção",factionMasterForm(f)+`<button type="button" class="primary modalSave">💾 Salvar alterações</button>`,()=>{
+   let serviceTypeIds=collectFactionServices(),machineIds=collectFactionMachines();
+   Object.assign(f,{
+     name:(document.getElementById("mfname")?.value||"").trim(),
+     address:(document.getElementById("mfaddress")?.value||"").trim(),
+     phone:(document.getElementById("mfphone")?.value||"").trim(),
+     pix:(document.getElementById("mfpix")?.value||"").trim(),
+     serviceTypeIds,machineIds,
+     serviceType:selectedCatalogNames(serviceTypeIds,db.serviceTypes),
+     machines:selectedCatalogNames(machineIds,db.machines),
+     productionLocationId:document.getElementById("mflocation")?.value?+document.getElementById("mflocation").value:null
+   });
+   closeModal();save();alert("Facção atualizada com sucesso.");
+ });
+}
+function delFactionMaster(id){if(confirm('Excluir esta facção do cadastro? Os lançamentos históricos serão preservados.')){db.factionMasters=db.factionMasters.filter(x=>+x.id!==+id);save()}}
+function newServiceType(){
+ openModal("Novo tipo de serviço",`<div class="field"><label>Nome</label><input id="catalogName" placeholder="Ex.: Calcinha"></div><button type="button" class="primary modalSave">Salvar</button>`,()=>{
+   let n=(document.getElementById("catalogName")?.value||"").trim();if(!n)return;
+   if(db.serviceTypes.some(x=>x.name.toLowerCase()===n.toLowerCase())){alert("Esse tipo de serviço já existe.");return}
+   db.serviceTypes.push({id:Date.now(),name:n});closeModal();save();
+ });
+}
+function editServiceType(id){
+ let x=db.serviceTypes.find(s=>+s.id===+id);if(!x)return;
+ openModal("Editar tipo de serviço",`<div class="field"><label>Nome</label><input id="catalogName" value="${esc(x.name)}"></div><button type="button" class="primary modalSave">Salvar alterações</button>`,()=>{
+   let n=(document.getElementById("catalogName")?.value||"").trim();if(!n)return;x.name=n;closeModal();save();
+ });
+}
+function deleteServiceType(id){
+ let used=(db.factionMasters||[]).some(f=>(f.serviceTypeIds||[]).som
+===== function abateMissingPiece(id) @ 326769 =====
+function abateMissingPiece(id){
+ let m=(db.missingPieces||[]).find(x=>+x.id===+id);if(!m)return;
+ openModal("Abater / recuperar ocorrência",`
+   <div class="grid">
+     <div class="field"><label>Cliente</label><input value="${esc(m.client||"")}" disabled></div>
+     <div class="field"><label>Produto</label><input value="${esc(m.product||"")}" disabled></div>
+     <div class="field"><label>Tipo</label><input value="${esc(m.issueType||"Peça faltante")}" disabled></div>
+     <div class="field"><label>Quantidade em aberto</label><input value="${(+m.remainingQty||0)} peças" disabled></div>
+     <div class="field"><label>Quantidade recuperada/refeita/entregue</label><input id="missingAbateQty" type="number" min="1" max="${+m.remainingQty||0}" value="${+m.remainingQty||0}"></div>
+     <div class="field"><label>Data da baixa</label><input id="missingAbateDate" type="date" value="${isoDate(new Date())}"></div>
+     <div class="field"><label>Observação</label><input id="missingAbateNote" placeholder="Ex.: entregue ao cliente"></div>
+   </div>
+   <button type="button" class="primary modalSave" onclick="modalSave()">✅ Confirmar baixa</button>
+ `,()=>{
+   let q=+document.getElementById("missingAbateQty")?.value||0;
+   if(q<=0||q>(+m.remainingQty||0)){alert("Informe uma quantidade válida.");return}
+   let date=document.getElementById("missingAbateDate")?.value||isoDate(new Date());
+   let note=document.getElementById("missingAbateNote")?.value||"";
+   m.history=Array.isArray(m.history)?m.history:[];
+   m.history.push({id:Date.now(),qty:q,date,note});
+   m.recoveredQty=(+m.recoveredQty||0)+q;
+   m.remainingQty=Math.max(0,(+m.remainingQty||0)-q);
+   m.status=m.remainingQty<=0?"Resolvido":"Parcial";
+   closeModal();save();renderMissingPieces();
+ });
+}
+function deleteMissingPiece(id){
+ if(!confirm("Excluir este registro de peça faltante?"))return;
+ db.missingPieces=(db.missingPieces||[]).filter(x=>+x.id!==+id);save();renderMissingPieces();
+}
+
+function factionIssueContext(f){
+ let prod=(db.production||[]).find(p=>+p.id===+f.productionId);
+ let order=(db.orders||[]).find(o=>+o.id===+(f.orderId||prod?.orderId));
+ let productId=+(f.productId||prod?.productId||order?.productId)||null;
+ let product=(db.products||[]).find(p=>+p.id===+productId);
+ return {prod,order,product,productId};
+}
+
+function syncProductionIssuesToMissing(p){
+ if(!p)return;
+ db.missingPieces=Array.isArray(db.missingPieces)?db.missingPieces:[];
+ let o=(db.orders||[]).find(x=>+x.id===+p.orderId);
+ let product=(db.products||[]).find(x=>+x.id===+p.productId);
+ let productName=product?.name||p.product||"";
+ let unitPrice=0,unitCost=0;
+ if(o&&p.productId){try{unitPrice=+suggestedPrice(o.clientId||0,p.productId)||0}catch(e){}}
+ if(!unitPrice)unitPrice=+product?.price||0;
+ if(product){try{unitCost=productComputedCost(product)}catch(e){unitCost=+product.cost||0}}
+ [
+   {type:"Defeito",qty:+p.defects||0},
+   {type:"Peça faltante",qty:+p.missingQty||0}
+ ].forEach(issue=>{
+   let key=`production:${p.id}:${issue.type}`;
+   let rec=db.missingPieces.find(m=>m.sourceKey===key);
+   if(issue.qty<=0){
+     if(rec&&(+rec.recoveredQty||0)<=0)db.missingPieces=db.missingPieces.filter(m=>m!==rec);
+     return;
+   }
+   if(!rec){
+     rec={id:Date.now()+Math.floor(Math.random()*1000000),sourceKey:key,sourceType:"Produção",productionId:p.id,
+       issueType:issue.type,orderId:o?.id||p.orderId||"",client:o?.client||p.client||"",clientId:o?.clientId||null,
+       productId:p.productId||null,product:productName,color:p.color||"",size:p.size||"",
+       originalQty:issue.qty,remainingQty:issue.qty,recoveredQty:0,date:isoDate(new Date()),deliveryDate:o?.date||p.factionDueDate||"",
+       unitPrice,unitCost,note:`Lançado na produção — ${productionDestinationName(p)}`,status:"Em aberto",history:[]};
+     db.missingPieces.push(rec);
+   }else{
+     let recovered=+rec.recoveredQty||0;
+     Object.assign(rec,{issueType:issue.type,orderId:o?.id||rec.orderId||"",client:o?.client||rec.client||"",clientId:o?.clientId||rec.clientId||null,
+       productId:p.productId||rec.productId||null,product:productName||rec.product||"",originalQty:issue.qty,
+       remainingQty:Math.max(0,issue.qty-recovered),deliveryDate:o?.date||rec.deliveryDate||"",unitPrice:unitPrice||rec.unitPrice||0,
+       unitCost:unitCost||rec.unitCost||0,status:Math.max(0,issue.qty-recovered)<=0?"Resolvido":(recovered>0?"Parcial":"Em aberto")});
+   }
+ });
+ try{persistDb()}catch(e){}
+}
+function syncAllProductionIssuesToMissing(){
+ (db.production||[]).forEach(syncProductionIssuesToMissing);
+}
+function syncFactionIssuesToMissing(){
+ db.missingPieces=Array.isArray(db.missingPieces)?db.missingPieces:[];
+ db.factions=Array.isArray(db.factions)?db.factions:[];
+ let changed=false;
+
+ db.factions.forEach(f=>{
+   let ctx=factionIssueContext(f),o=ctx.order,p=ctx.product;
+   let occurrenceDate=f.finishedAt||f.dueDate||f.sentAt||f.date||isoDate(new Date());
+   let client=o?.client||f.client||"";
+   let deliveryDate=o?.date||f.deliveryDate||"";
+   let unitPrice=o&&ctx.productId?missingProductUnitPrice(o,ctx.productId):(+p?.price||0);
+   let unitCost=ctx.productId?missingProductUnitCost(ctx.productId):0;
+
+   [
+     {type:"Defeito",qty:+f.defects||0},
+     {type:"Peça faltante",qty:+f.waste||0}
+   ].forEach(issue=>{
+     let key=`faction:${f.id}:${issue.type}`;
+     let rec=db.missingPieces.find(m=>m.sourceKey===key);
+     if(issue.qty<=0){
+       if(rec && (+rec.recoveredQty||0)<=0){
+         db.missingPieces=db.missingPieces.filter(m=>m!==rec);changed=true;
+       }
+       return;
+     }
+     if(!rec){
+       rec={
+         id:Date.now()+Math.floor(Math.random()*1000000),
+         sourceKey:key,sourceType:"Facção",factionId:f.id,
+         issueType:issue.type,
+         orderId:o?.id||f.orderId||"",
+         client,clientId:o?.clientId||null,
+         productId:ctx.productId,
+         product:p?.name||f.description||"",
+         color:"",size:"",
+         originalQty:issue.qty,remainingQty:issue.qty,recoveredQty:0,
+         date:occurrenceDate,deliveryDate,
+         unitPrice,unitCost,
+         note:`Gerado automaticamente pela facção ${f.name||""}${f.op?" — "+f.op:""}`,
+         status:"Em aberto",history:[]
+       };
+       db.missingPieces.push(rec);changed=true;
+     }else{
+       let recovered=+rec.recoveredQty||0;
+       Object.assign(rec,{
+         issueType:issue.type,
+         orderId:o?.id||rec.orderId||f.orderId||"",
+         client:client||rec.client||"",
+         clientId:o?.clientId||rec.clientId||null,
+         productId:ctx.productId||rec.productId||null,
+         product:p?.name||f.description||rec.product||"",
+         originalQty:issue.qty,
+         remainingQty:Math.max(0,issue.qty-recovered),
+         date:occurrenceDate,
+         deliveryDate:deliveryDate||rec.deliveryDate||"",
+         unitPrice:unitPrice||rec.unitPrice||0,
+         unitCost:unitCost||rec.unitCost||0,
+         status:Math.max(0,issue.qty-recovered)<=0?"Resolvido":(recovered>0?"Parcial":"Em aberto")
+       });
+       changed=true;
+     }
+   });
+ });
+ if(changed)try{persistDb()}catch(e){}
+}
+function renderMissingPieces(){
+ db.missingPieces=Array.isArray(db.missingPieces)?db.missingPieces:[];
+ syncFactionIssuesToMissing();
+ syncAllProductionIssuesToMissing();
+
+ let s=document.getElementById("missingStart"),e=document.getElementById("missingEnd");
+ if(!s||!e)return;
+ if(!s.value&&!e.value){let m=mondayOf(new Date()),z=new Date(m);z.setDate(z.getDate()+6);s.value=isoDate(m);e.value=isoDate(z)}
+ let start=s.value||"0000-01-01",end=e.value||"9999-12-31";
+ let arr=db.missingPieces.filter(m=>(m.date||"")>=start&&(m.date||"")<=end);
+ let open=arr.filter(m=>(+m.remainingQty||0)>0);
+
+ let missingOpen=open.filter(m=>(m.issueType||"Peça faltante")==="Peça faltante");
+ let defectOpen=open.filter(m=>m.issueType==="Defeito");
+ let missingQty=missingOpen.reduce((a,m)=>a+(+m.remainingQty||0),0);
+ let defectQty=defectOpen.reduce((a,m)=>a+(+m.remainingQty||0),0);
+ let defectTotal=arr.filter(m=>m.issueType==="Defeito").reduce((a,m)=>a+(+m.originalQty||0),0);
+ let missingTotal=arr.filter(m=>(m.issueType||"Peça faltante")==="Peça faltante").reduce((a,m)=>a+(+m.originalQty||0),0);
+ let value=missingOpen.reduce((a,m)=>a+(+m.remainingQty||0)*(+m.unitPrice||0),0);
+ let cost=missingOpen.reduce((a,m)=>a+(+m.remainingQty||0)*(+m.unitCost||0),0);
+ let recovered=arr.reduce((a,m)=>a+(+m.recoveredQty||0),0);
+
+ let label=document.getElementById("missingPeriodLabel");
+ if(label)label.textContent=`Exibindo de ${fmtDate(start)} até ${fmtDate(end)}. Defeitos e faltas lançados nas facções são sincronizados automaticamente.`;
+
+ let cards=document.getElementById("missingCards");
+ if(cards)cards.innerHTML=`
+   <div class="card"><small>Defeitos no período</small><strong>${defectTotal.toLocaleString("pt-BR")}</strong></div>
+   <div class="card"><small>Defeitos ainda em aberto</small><strong>${defectQty.toLocaleString("pt-BR")}</strong></div>
+   <div class="card"><small>Peças faltantes no período</small><strong>${missingTotal.toLocaleString("pt-BR")}</strong></div>
+   <div class="card"><small>Peças faltando agora</small><strong>${missingQty.toLocaleString("pt-BR")}</strong></div>
+   <div class="card"><small>Valor de venda faltante</small><strong>${money(value)}</strong></div>
+   <div class="card"><small>Custo das peças faltantes</small><strong>${money(cost)}</strong></div>
+   <div class="card"><small>Peças já recuperadas</small><strong>${recovered.toLocaleString("pt-BR")}</strong></div>
+   <div class="card"><small>Ocorrências em aberto</small><strong>${open.length}</strong></div>`;
+
+ let ot=document.getElementById("missingOpenTable");
+ if(ot)ot.innerHTML=open.length?table(
+   ["Tipo","Origem","Pedido","Cliente","Data","Produto","Falta atual","Valor pendente","Custo pendente","Status","Ações"],
+   open.map(m=>[
+     `<span class="badge ${m.issueType==="Defeito"?"warn":"bad"}">${esc(m.issueType||"Peça faltante")}</span>`,
+     esc(m.sourceType||"Pedido"),
+     m.orderId?("#"+(typeof displayOrderNumber==="function"?displayOrderNumber((db.orders||[]).find(o=>+o.id===+m.orderId)||{id:m.orderId}):m.orderId)):"-",
+     esc(m.client||"-"),
+     fmtDate(m.date),
+     esc(m.product||"-"),
+     (+m.remainingQty||0).toLocaleString("pt-BR"),
+     money((+m.remainingQty||0)*(+m.unitPrice||0)),
+     money((+m.remainingQty||0)*(+m.unitCost||0)),
+     `<span class="badge ${m.status==="Parcial"?"warn":"bad"}">${esc(m.status||"Em aberto")}</span>`,
+     `<button type="button" class="primary" style="font-weight:800" onclick="abateMissingPiece(${m.id})">✅ Abater / recuperar</button> ${m.sourceType==="Facção"?"":`<button type="button" class="danger" onclick="deleteMissingPiece(${m.id})">Excluir</button>`}`
+   ])
+ ):'<div class="empty">Nenhum defeito ou peça faltante em aberto neste período.</div>';
+
+ let hist=[];
+ arr.forEach(m=>(m.history||[]).forEach(h=>hist.push({...h,parent:m})));
+ hist.sort((a,b)=>(b.date||"").localeCompare(a.date||""));
+ let ht=document.getElementById("missingHistoryTable");
+ if(ht)ht.innerHTML=hist.length?table(
+   ["Data","Tipo","Pedido","Cliente","Produto","Quantidade abatida","Valor recuperado","Observação"],
+   hist.map(h=>[
+     fmtDate(h.date),esc(h.parent.issueType||"Peça faltante"),h.parent.orderId?("#"+(typeof displayOrderNumber==="function"?displayOrderNumber((db.orders||[]).find(o=>+o.id===+h.parent.orderId)||{id:h.parent.orderId}):h.parent.orderId)):"-",
+     esc(h.parent.client||"-"),esc(h.parent.product||"-"),h.qty,
+     money((+h.qty||0)*(+h.parent.unitPrice||0)),esc(h.note||"-")
+   ])
+ ):'<div class="empty">Nenhuma baixa registrada neste período.</div>';
+}
+
+function ensureOrderNumbers(){
+ if(!db.config)db.config={};
+ db.orders=Array.isArray(db.orders)?db.orders:[];
+ let used=new Set();
+ let next=1;
+ db.orders.slice().sort((a,b)=>(+a.id||0)-(+b.id||0)).forEach(o=>{
+   if(o.orderNumber!=null && String(o.orderNumber).trim()!==""){
+     used.add(String(o.orderNumber));
+     let n=+o.orderNumber;if(Number.isFinite(n))next=Math.max(next,n+1);
+   }else{
+     while(used.has(String(next)))next++;
+     o.orderNumber=next;
+     used.add(String(next));
+     next++;
+   }
+ });
+ if(!db.config.nextOrderNumber || +db.config.nextOrderNumber<next)db.config.nextOrderNumber=next;
+ try{persistDb()}catch(e){}
+}
+function displayOrderNumber(o){return o?.orderNumber!=null?String(o.orderNumber):String(o?.id||"")}
+function nextAvailableOrderNumber(){
+ ensureOrderNumbers();
+ let n=Math.max(1,+db.config.nextOrderNumber||1);
+ let used=new Set((db.orders||[]).map(o=>String(o.orderNumber)));
+ while(used.has(String(n)))n++;
+ return n;
+}
+function saveNextOrderNumber(){
+ if(!db.config)db.config={};
+ let v=+document.getElementById("nextOrderNumber")?.value||0;
+ if(v<=0){alert("Informe um número maior que zero.");return}
+ db.config.nextOrderNumber=v;
+ try{persistDb()}catch(e){}
+ let el=document.getElementById("nextOrderNumber");if(el)el.value=nextAvailableOrderNumber();
+ alert("Próximo número de pedido salvo.");
+}
+function clearOrderFilters(){
+ ["orderNumberFilter","orderSearch","orderStatusFilter","orderPriorityFilter","orderStartFilter","orderEndFilter"].forEach(id=>{
+   let el=document.getElementById(id);if(el)el.value="";
+ });
+ renderOrders();
+}
+function renderOrders(){
+ ensureOrderNumbers();
+ fillSeparationOrders();
+ let q=(document.getElementById("orderSearch")?.value||"").toLowerCase().trim();
+ let num=(document.getElementById("orderNumberFilter")?.value||"").trim();
+ let status=document.getElementById("orderStatusFilter")?.value||"";
+ let priority=document.getElementById("orderPriorityFilter")?.value||"";
+ let start=document.getElementById("orderStartFilter")?.value||"";
+ let end=document.getElementById("orderEndFilter")?.value||"";
+
+ let arr=(db.orders||[]).filter(o=>{
+   if(num && !displayOrderNumber(o).includes(num) && !String(o.id||"").includes(num))return false;
+   let hay=(String(o.client||"")+" "+String(o.items||"")+" "+orderProductSummary(o)).toLowerCase();
+   if(q && !hay.includes(q))return false;
+   if(status && String(o.status||"")!==status)return false;
+   if(priority && String(o.priority||"Padrão")!==priority)return false;
+   let d=String(o.date||"").slice(0,10);
+   if(start && d<start)return false;
+   if(end && d>end)return false;
+   return true;
+ });
+
+ let qty=arr.reduce((a,o)=>a+qtyOfOrder(o),0);
+ let value=arr.reduce((a,o)=>a+(+o.total||0),0);
+ let done=arr.filter(o=>String(o.status||"")==="Pedido finalizado").length;
+ let cards=document.getElementById("orderSummaryCards");
+ if(cards)cards.innerHTML=`
+   <div class="card"><small>Pedidos encontrados</small><strong>${arr.length}</strong></div>
+   <div class="card"><small>Total de peças</small><strong>${qty.toLocaleString("pt-BR")}</strong></div>
+   <div class="card"><small>Valor total dos pedidos</small><strong>${money(value)}</strong></div>
+   <div class="card"><small>Pedidos finalizados</small><strong>${done}</strong></div>`;
+
+ let fs=document.getElementById("orderFilterSummary");
+ if(fs)fs.textContent=(num||q||status||priority||start||end)
+   ? `Exibindo pedidos conforme os filtros selecionados.`
+   : `Exibindo todos os pedidos cadastrados.`;
+
+ let nextEl=document.getElementById("nextOrderNumber");
+ if(nextEl && document.activeElement!==nextEl)nextEl.value=nextAvailableOrderNumber();
+
+ ordersTable.innerHTML=table(
+   ["Nº pedido","Cliente","Entrega","Qtd.","Valor","Prioridade","Status","Ações"],
+   arr.slice().sort((a,b)=>(+displayOrderNumber(b)||0)-(+displayOrderNumber(a)||0)).map(o=>[
+     esc(displayOrderNumber(o)),
+     esc(o.client),
+     o.date?new Date(o.date+"T12:00").toLocaleDateString("pt-BR"):"-",
+     qtyOfOrder(o).toLocaleString("pt-BR"),
+     money(o.total),
+     priorityBadge(o.priority||"Padrão"),
+     `<span class="badge">${esc(o.status||"-")}</span>`,
+     `<button class="secondary" onclick="editOrder(${o.id})">Editar</button> <button class="secondary" onclick="registerMissingPieces(${o.id})">⚠️ Faltas</button> <button class="secondary" onclick="notaPronta(${o.id})">Nota pronta</button> <button class="danger" onclick="moveOrderToTrash(${o.id})">Excluir</button>`
+   ])
+ );
+}
+function clientOptions(){
+return db.clients.map(c=>`<option value="${c.id}">${esc(c.name)}</option>`).join("");
+}
+function suggestedPrice(clientId,productId){
+let c=db.clients.find(x=>x.id===+clientId), p=db.products.find(x=>x.id===+productId);
+if(!p)return 0;
+return c && c.prices && c.prices[productId]!=null ? +c.prices[productId] : +p.price;
+}
+function updateOrderPrice(){
+let price=suggestedPrice(mclient.value,mproduct.value);
+mprice.value=price.toFixed(2);
+document.getElementById("priceHint").textContent =
+(db.clients.find(c=>c.id===+mclient.value)?.prices?.[mproduct.value]!=null)
+? "Preço especial deste cliente aplicado automaticamente."
+: "Preço padrão do produto aplicado.";
+}
+function productOptions(selectedId=""){
+ return '<option value="">Selecione um produto</option>'+(db.products||[]).map(p=>`<option value="${p.id}" ${+p.id===+selectedId?"selected":""}>${esc(p.name)} — ${money(p.price)}</option>`).join("");
+}
+
+
+function orderProductCategories(){
+ return [...new Set((db.products||[]).map(p=>String(p.category||"").trim()).filter(Boolean))].sort((a,b)=>a.localeCompare(b,"pt-BR"));
+}
+function orderProductPickerResults(block){
+ let q=(block.querySelector(".orderProdSearch")?.value||"").trim().toLowerCase();
+ let cat=block.querySelector(".orderProdCat")?.value||"";
+ let minRaw=block.querySelector(".orderProdMin")?.value||"";
+ let maxRaw=block.querySelector(".orderProdMax")?.value||"";
+ let min=minRaw!==""?+minRaw:null,max=maxRaw!==""?+maxRaw:null;
+ return (db.products||[]).filter(p=>{
+   let hay=`${p.name||""} ${p.code||""} ${p.category||""}`.toLowerCase();
+   if(q&&!hay.includes(q))return false;
+   if(cat&&String(p.category||"")!==cat)return false;
+   let price=+p.price||0;
+   if(min!=null&&Number.isFinite(min)&&price<min)return false;
+   if(max!=null&&Number.isFinite(max)&&price>max)return false;
+   return true;
+ }).sort((a,b)=>String(a.name||"").localeCompare(String(b.name||""),"pt-BR"));
+}
+function order
+===== function sepState939(o) @ 1088670 =====
+function sepState939(o){let s=sep939(o.id),its=items939(o),progress=s?.modelProgress||{},total=its.reduce((a,x)=>a+q939(x.qty),0);if(s?.done===true)return {done:true,total,doneQty:total,remaining:0};let doneQty=its.reduce((a,x)=>a+Math.min(q939(x.qty),q939(progress[String(x.productId||x.key)]?.qty)),0);return {done:total>0&&doneQty>=total,total,doneQty,remaining:Math.max(0,total-doneQty)}}
+window.fillSeparationOrders=function(){
+  let sel=document.getElementById('separationOrder');if(!sel)return;let old=sel.value,rows=(db.orders||[]).filter(o=>!sepState939(o).done);sel.innerHTML='<option value="">Selecione o pedido</option>'+rows.map(o=>`<option value="${o.id}">#${esc(typeof displayOrderNumber==='function'?displayOrderNumber(o):o.id)} — ${esc(o.client||'')}</option>`).join('');if(rows.some(o=>String(o.id)===String(old)))sel.value=old;else sel.value='';window.renderSeparationList();
+};
+window.renderSeparationList=function(){
+  let el=document.getElementById('separationList');if(!el)return;let q=n939(document.getElementById('separationProductSearch')?.value||''),min=q939(document.getElementById('separationQtyMin')?.value),maxRaw=document.getElementById('separationQtyMax')?.value,max=maxRaw?+maxRaw:Infinity;
+  let arr=(db.orders||[]).filter(o=>{let st=sepState939(o);if(st.done)return false;let name=n939(typeof orderProductSummary==='function'?orderProductSummary(o):o.items||''),qty=typeof qtyOfOrder==='function'?qtyOfOrder(o):q939(o.qty),num=String(typeof displayOrderNumber==='function'?displayOrderNumber(o):o.id).toLowerCase(),ok=!q||name.includes(q)||num.includes(q.replace(/^#\s*/,''));return ok&&qty>=min&&qty<=max});
+  el.innerHTML=arr.length?arr.map(o=>{let st=sepState939(o),pct=st.total?Math.round(st.doneQty/st.total*100):0;return `<div class="separation-row"><div class="sep-order-id"><small>Pedido</small><b>#${esc(typeof displayOrderNumber==='function'?displayOrderNumber(o):o.id)}</b></div><div class="sep-main-text"><b>${esc(o.client||'-')}</b><div class="sub">Entrega ${fmtDate(o.date)}</div></div><div class="sep-main-text"><b>${esc(typeof orderProductSummary==='function'?orderProductSummary(o):o.items||'')}</b></div><div><b>${(typeof qtyOfOrder==='function'?qtyOfOrder(o):q939(o.qty)).toLocaleString('pt-BR')}</b><div class="sub">peças</div></div><div class="sep-status"><span class="badge ${st.doneQty?'warn':''}">${st.doneQty?`${pct}% separado`:'Pendente'}</span></div><div class="sep-action"><button type="button" class="primary" onclick="document.getElementById('separationOrder').value='${o.id}';renderSeparation()">Abrir separação</button></div></div>`}).join(''):'<div class="empty">Nenhum pedido aguardando separação.</div>';
+};
+const oldSep939=window.renderSeparation;window.renderSeparation=function(){let id=+document.getElementById('separationOrder')?.value,o=ord939(id);if(o&&sepState939(o).done){let box=document.getElementById('separationTable');if(box)box.innerHTML='<div class="panel"><span class="badge ok" style="font-size:14px;padding:10px 14px">✅ Este pedido já teve a separação concluída e já foi liberado para a próxima etapa.</span></div>';let s=document.getElementById('separationOrder');if(s)s.value='';window.fillSeparationOrders();return}return oldSep939?oldSep939.apply(this,arguments):undefined};
+
+function init939(){bindPricing939();watchPricing939();cleanupCutDuplicate939();renderLocationAssignments939();try{window.fillSeparationOrders()}catch(e){};try{window.renderFinishedPieces()}catch(e){}}
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>setTimeout(init939,50));else setTimeout(init939,50);
+setTimeout(init939,700);
+console.log('HLGB v91.39 active');
+})();
+</script>
+
+<!-- HLGB v91.40 CAPACITY QUEUE + GOALS LIVE + MISSING AT INVOICE + FACTION SYNC -->
+<style>
+#capacity940Root{display:grid;gap:14px}
+.cap940-head{display:flex;justify-content:space-between;gap:12px;align-items:flex-end;flex-wrap:wrap}
+.cap940-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}
+.cap940-lanes{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:14px}
+.cap940-lane{border:1px solid var(--line);border-radius:14px;background:#fff;overflow:hidden}
+.cap940-lane-head{padding:13px 14px;background:#fff8fb;border-bottom:1px solid var(--line)}
+.cap940-row{display:grid;grid-template-columns:minmax(0,1fr) 85px 110px 78px;gap:8px;align-items:center;padding:10px 12px;border-bottom:1px solid #f0e6eb}
+.cap940-row:last-child{border-bottom:0}
+.cap940-row small{display:block;color:var(--muted);margin-top:3px}
+.cap940-empty{padding:16px;color:var(--muted);text-align:center}
+.cap940-unassigned{display:grid;gap:8px}
+.cap940-unassigned-row{display:grid;grid-template-columns:minmax(150px,.8fr) minmax(180px,1.1fr) 100px minmax(190px,1fr);gap:10px;align-items:center;padding:10px 0;border-bottom:1px solid var(--line)}
+#projectionMissing940 .missing940-row{display:grid;grid-template-columns:minmax(180px,1.4fr) 120px minmax(180px,1fr);gap:10px;align-items:end;margin:8px 0}
+@media(max-width:900px){.cap940-grid{grid-template-columns:1fr 1fr}.cap940-unassigned-row,.cap940-row,#projectionMissing940 .missing940-row{grid-template-columns:1fr}}
+@media(max-width:600px){.cap940-grid{grid-template-columns:1fr}}
+</style>
+<script>
+(function(){
+'use strict';
+const V='91.40';
+const q940=v=>Math.max(0,+v||0);
+const n940=v=>String(v??'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').trim().toLowerCase();
+const canon940=v=>n940(v).replace(/[^a-z0-9]/g,'').replace(/confec+ao/g,'confeccao');
+const clone940=v=>{try{return JSON.parse(JSON.stringify(v))}catch(e){return v}};
+const id940=()=>Date.now()+Math.floor(Math.random()*900000);
+function prod940(id){return (db.products||[]).find(x=>String(x.id)===String(id))||null}
+function ord940(id){return (db.orders||[]).find(x=>String(x.id)===String(id))||null}
+function client940(id){return (db.clients||[]).find(x=>String(x.id)===String(id))||null}
+function goal940(type,name){
+  let arr=(db.goals||[]).filter(g=>g&&n940(g.scopeType)===n940(type));
+  let target=canon940(name),exact=arr.filter(g=>canon940(g.scopeName)===target);
+  let candidates=exact.length?exact:arr.filter(g=>{let a=canon940(g.scopeName),b=target;return a&&b&&(a.includes(b)||b.includes(a))});
+  candidates.sort((a,b)=>String(b.updatedAt||b.date||b.id||'').localeCompare(String(a.updatedAt||a.date||a.id||'')));
+  let weekly=candidates.find(g=>n940(g.cadence)==='semanal')||candidates[0]||null;
+  if(!weekly)return null;
+  let targetValue=q940(weekly.targetValue)||q940(weekly.peopleCount)*q940(weekly.goalPerPerson);
+  if(n940(weekly.cadence)==='mensal')targetValue=targetValue/4.33;
+  if(n940(weekly.cadence)==='anual')targetValue=targetValue/52;
+  return {...weekly,weeklyTarget:targetValue};
+}
+function destinations940(){
+  let out=[];
+  (db.productionLocations||[]).filter(x=>x.active!==false&&canon940(x.name)!=='externo').forEach(x=>out.push({key:`L:${x.id}`,type:'Confecção',id:x.id,name:x.name,goal:goal940('Confecção',x.name)}));
+  (db.factionMasters||[]).filter(x=>x.active!==false).forEach(x=>out.push({key:`F:${x.id}`,type:'Facção',id:x.id,name:x.name,goal:goal940('Facção',x.name)}));
+  return out;
+}
+function itemRows940(o){
+  try{if(typeof projectionItemsForOrder==='function')return projectionItemsForOrder(o)||[]}catch(e){}
+  let m=new Map();(o?.grade||[]).forEach(g=>{let pid=String(g.productId||'');if(!pid)return;let x=m.get(pid)||{key:pid,productId:+pid,name:prod940(pid)?.name||'Produto',qty:0};x.qty+=q940(g.qty);m.set(pid,x)});return [...m.values()];
+}
+function activeItems940(){
+  let out=[];(db.orders||[]).forEach(o=>{if(n940(o.status)==='cancelado'||o.deletedAt)return;itemRows940(o).forEach(item=>{let qty=q940(item.remainingQty!=null?item.remainingQty:item.qty);if(qty<=0)return;out.push({o,item,qty})})});return out;
+}
+function exactProduction940(o,item){
+  let pid=String(item.productId||item.key||'');
+  return (db.production||[]).filter(p=>+p.orderId===+o.id&&q940(p.planned)>0&&!['pronto','finalizado'].includes(n940(p.stage))&&(String(p.productId||'')===pid||String(p.cutProductKey||'').split(':').pop()===pid));
+}
+function plannedAssignments940(o,item){
+  let pid=String(item.productId||item.key||'');
+  return (db.capacityAssignments||[]).filter(a=>+a.orderId===+o.id&&String(a.itemKey)===pid&&a.active!==false&&q940(a.qty)>0&&String(a.source||'')!=='cut_assignment');
+}
+function piecesByDestination940(){
+  let dests=destinations940(),map=new Map(dests.map(d=>[d.key,{dest:d,rows:[]}])) ,unassigned=[];
+  activeItems940().forEach(({o,item,qty})=>{
+    let left=qty,prods=exactProduction940(o,item),usedAny=false;
+    if(prods.length){
+      prods.forEach(p=>{let key=p.factionId?`F:${p.factionId}`:(p.productionLocationId?`L:${p.productionLocationId}`:'');let take=Math.min(left,q940(p.planned)-q940(p.done));if(key&&map.has(key)&&take>0){map.get(key).rows.push({kind:'production',row:p,o,item,qty:take,rank:q940(p.queueRank)||999999});left-=take;usedAny=true}});
+    }
+    if(!usedAny||left>0){
+      plannedAssignments940(o,item).forEach(a=>{let key=a.factionId?`F:${a.factionId}`:(a.locationId?`L:${a.locationId}`:'');let take=Math.min(left,q940(a.qty));if(key&&map.has(key)&&take>0){map.get(key).rows.push({kind:'assignment',row:a,o,item,qty:take,rank:q940(a.queueRank)||999999});left-=take}});
+    }
+    if(left>0)unassigned.push({o,item,qty:left});
+  });
+  for(const lane of map.values())lane.rows.sort((a,b)=>a.rank-b.rank||priority940(a.o)-priority940(b.o)||String(a.o.date||'').localeCompare(String(b.o.date||''))||String(a.o.id).localeCompare(String(b.o.id)));
+  return {map,unassigned,dests};
+}
+function priority940(o){let p=n940(o?.priority);return p==='urgentissimo'?0:p==='urgente'?1:2}
+function targetText940(d){let g=d.goal,t=q940(g?.weeklyTarget);return t?`${t.toLocaleString('pt-BR')} pç/semana`:'Sem meta semanal'}
+function estimate940(qty,target){if(!target)return 'Sem estimativa';let days=qty/target*5;return days<1?`≈ ${(days*8).toFixed(1)} h`:`≈ ${days.toFixed(1)} dias úteis`}
+async function saveRow940(module,row){
+  if(typeof hlgbRecordSaveWithRetry!=='function'||!cloudAccessToken){try{save()}catch(e){};return row}
+  let arr=Array.isArray(db[module])?db[module]:[],idx=arr.indexOf(row),eid='';try{if(typeof hlgbRecordId==='function')eid=hlgbRecordId(module,row,idx)}catch(e){};eid=String(eid||row.__hlgbId||row.id||'');if(!eid)throw new Error('registro sem identificador');let out=await hlgbRecordSaveWithRetry(module,eid,clone940(row),false);if(!out||out.applied!==true)throw new Error('nuvem não confirmou');return out.data||row;
+}
+function hideOldCapacity940(){
+  let page=document.getElementById('capacidadeProducao');if(!page)return;[...page.querySelectorAll(':scope > .panel')].forEach(p=>{if(p.querySelector('#capacityCards')||p.querySelector('#capacityLocationTable')||p.querySelector('#capacityOrderTable'))p.style.display='none'});
+}
+function ensureCapacityRoot940(){
+  let page=document.getElementById('capacidadeProducao');if(!page)return null;hideOldCapacity940();let root=document.getElementById('capacity940Root');if(root)return root;root=document.createElement('div');root.id='capacity940Root';let sub=page.querySelector(':scope > .sub');if(sub){sub.textContent='Fila de produção de todos os pedidos, usando as metas cadastradas para calcular carga e prazo por confecção ou facção.';sub.insertAdjacentElement('afterend',root)}else page.prepend(root);return root;
+}
+function renderGoalCards940(dests){
+  let rows=dests.map(d=>`<tr><td><b>${esc(d.name)}</b></td><td>${esc(d.type)}</td><td>${esc(d.goal?.scopeName||'-')}</td><td>${d.goal?targetText940(d):'<span class="badge warn">Meta não encontrada</span>'}</td><td>${d.goal?`${q940(d.goal.peopleCount)} pessoa(s) × ${q940(d.goal.goalPerPerson).toLocaleString('pt-BR')}`:'-'}</td></tr>`).join('');
+  return `<details class="panel"><summary style="cursor:pointer;font-weight:800">🎯 Metas usadas no cálculo da capacidade</summary><div class="sub" style="margin:8px 0">Esses valores vêm automaticamente de Atribuição de metas. Não é mais necessário configurar capacidade em dois lugares.</div><div style="overflow:auto"><table><thead><tr><th>Destino</th><th>Tipo</th><th>Meta encontrada</th><th>Capacidade semanal</th><th>Cálculo</th></tr></thead><tbody>${rows}</tbody></table></div></details>`;
+}
+window.openCapacityAssign940=function(orderId,itemKey){
+  let o=ord940(orderId),item=o&&itemRows940(o).find(x=>String(x.key||x.productId)===String(itemKey));if(!o||!item)return;let current=piecesByDestination940().unassigned.find(x=>+x.o.id===+o.id&&String(x.item.key||x.item.productId)===String(itemKey)),available=q940(current?.qty||item.remainingQty||item.qty);let dests=destinations940(),opts=dests.map(d=>`<option value="${d.key}">${esc(d.type)} — ${esc(d.name)} — ${esc(targetText940(d))}</option>`).join('');
+  openModal('Adicionar à fila de produção',`<div class="grid"><div class="field"><label>Pedido</label><input value="#${esc(displayOrderNumber(o)||o.id)}" disabled></div><div class="field"><label>Modelo</label><input value="${esc(item.name||prod940(item.productId)?.name||'Produto')}" disabled></div><div class="field"><label>Quantidade sem destino</label><input value="${available}" disabled></div><div class="field"><label>Quem vai produzir</label><select id="capDest940"><option value="">Selecione</option>${opts}</select></div><div class="field"><label>Quantidade para este destino</label><input id="capQty940" type="number" min="1" max="${available}" value="${available}"></div></div><div class="sub" style="margin:10px 0">Você pode dividir o mesmo modelo entre mais de um local repetindo a atribuição para o saldo restante.</div><button class="primary modalSave">Salvar na fila</button>`,async()=>{let raw=document.getElementById('capDest940')?.value||'',qty=Math.floor(q940(document.getElementById('capQty940')?.value));if(!raw||qty<=0||qty>available){alert('Escolha o destino e informe uma quantidade válida.');return}let [type,id]=raw.split(':'),row={id:id940(),orderId:o.id,itemKey:String(item.key||item.productId),qty,source:'capacity_queue_v9140',active:true,queueRank:Date.now()};if(type==='F')row.factionId=+id;else row.locationId=+id;db.capacityAssignments=Array.isArray(db.capacityAssignments)?db.capacityAssignments:[];db.capacityAssignments.push(row);try{let saved=await saveRow940('capacityAssignments',row),ix=db.capacityAssignments.indexOf(row);if(ix>=0)db.capacityAssignments[ix]=saved;closeModal();renderCapacityPlanning();}catch(e){console.error(e);db.capacityAssignments=db.capacityAssignments.filter(x=>x!==row);alert('Não foi possível confirmar a fila na nuvem. Nada foi perdido.')}});
+};
+window.moveCapacityQueue940=async function(kind,id,dir){
+  let arr=kind==='production'?(db.production||[]):(db.capacityAssignments||[]),row=arr.find(x=>String(x.id)===String(id));if(!row)return;let grouping=piecesByDestination940(),destKey=row.factionId?`F:${row.factionId}`:`L:${row.productionLocationId||row.locationId}`,lane=grouping.map.get(destKey);if(!lane)return;let idx=lane.rows.findIndex(x=>x.kind===kind&&String(x.row.id)===String(id)),other=lane.rows[idx+dir];if(idx<0||!other)return;let a=q940(row.queueRank)||Date.now(),b=q940(other.row.queueRank)||a+(dir>0?1:-1);row.queueRank=b;other.row.queueRank=a;try{await saveRow940(kind==='production'?'production':'capacityAssignments',row);await saveRow940(other.kind==='production'?'production':'capacityAssignments',other.row);renderCapacityPlanning()}catch(e){console.error(e);alert('Não foi possível reordenar a fila na nuvem. Atualize e tente novamente.')}};
+window.removeCapacityQueue940=async function(id){let row=(db.capacityAssignments||[]).find(x=>String(x.id)===String(id));if(!row)return;if(!confirm('Remover esta previsão da fila e deixar a quantidade sem destino?'))return;row.active=false;try{await saveRow940('capacityAssignments',row);renderCapacityPlanning()}catch(e){console.error(e);row.active=true;alert('Não foi possível remover da fila.')}};
+window.renderCapacityPlanning=function(){
+  let root=ensureCapacityRoot940();if(!root)return;let {map,unassigned,dests}=piecesByDestination940(),total=0,assigned=0;for(const lane of map.values()){lane.rows.forEach(r=>{assigned+=q940(r.qty);total+=q940(r.qty)})}unassigned.forEach(r=>total+=q940(r.qty));let lanes=[...map.values()].filter(x=>x.rows.length||x.dest.goal).sort((a,b)=>a.dest.type.localeCompare(b.dest.type)||a.dest.name.localeCompare(b.dest.name));
+  let longest=0;lanes.forEach(l=>{let tq=l.rows.reduce((s,r)=>s+q940(r.qty),0),t=q940(l.dest.goal?.weeklyTarget);if(t)longest=Math.max(longest,tq/t)});
+  let laneHtml=lanes.map(l=>{let tq=l.rows.reduce((s,r)=>s+q940(r.qty),0),target=q940(l.dest.goal?.weeklyTarget),cum=0,rows=l.rows.map((r,i)=>{cum+=q940(r.qty);let model=r.item.name||prod940(r.item.productId)?.name||r.row.product||'Produto',client=r.item.clientName||r.o.client||'-',rankInfo=estimate940(cum,target),move=`<button class="secondary" style="padding:5px 7px" onclick="moveCapacityQueue940('${r.kind}','${r.row.id}',-1)" ${i===0?'disabled':''}>↑</button><button class="secondary" style="padding:5px 7px" onclick="moveCapacityQueue940('${r.kind}','${r.row.id}',1)" ${i===l.rows.length-1?'disabled':''}>↓</button>`;return `<div class="cap940-row"><div><b>${esc(model)}</b><small>Pedido #${esc(displayOrderNumber(r.o)||r.o.id)} · ${esc(client)}</small></div><b>${q940(r.qty).toLocaleString('pt-BR')}</b><span class="badge ${target?'ok':'warn'}">${esc(rankInfo)}</span><div>${move}${r.kind==='assignment'?` <button class="danger" style="padding:5px 7px" onclick="removeCapacityQueue940('${r.row.id}')">×</button>`:''}</div></div>`}).join('')||'<div class="cap940-empty">Nenhum modelo nesta fila.</div>';let pct=target?tq/target*100:0;return `<div class="cap940-lane"><div class="cap940-lane-head"><div style="display:flex;justify-content:space-between;gap:8px"><div><b>${esc(l.dest.name)}</b><div class="sub">${esc(l.dest.type)} · Meta: ${esc(targetText940(l.dest))}</div></div><span class="badge ${target?(pct>=100?'warn':'ok'):'bad'}">${target?pct.t
+===== window.renderSeparation=function @ 887414 =====
+window.renderSeparation=function(){
+    oldRenderSep930();let id=+document.getElementById('separationOrder')?.value,o=(db.orders||[]).find(x=>+x.id===id);if(!o)return;
+    let box=document.getElementById('separationTable');if(!box)return;
+    let action=box.querySelector('.separation-action-box');if(!action)return;
+    let need=shortage930(o),purchaseOk=!need||o.materialPurchaseConfirmed===true;
+    let wrap=document.createElement('div');wrap.style.cssText='margin-top:12px;padding-top:12px;border-top:1px solid #eadde4';
+    wrap.innerHTML=need?`<div style="font-weight:800;margin-bottom:7px">🛒 Confirmação da compra de material</div><button type="button" class="${purchaseOk?'secondary':'primary'} separation-main-action" onclick="confirmOrderMaterialPurchase(${o.id})">${purchaseOk?'✅ COMPRA CONFIRMADA — reabrir':'✅ CONFIRMAR COMPRA DO MATERIAL'}</button> <span class="badge ${purchaseOk?'ok':'warn'}">${purchaseOk?'COMPRA OK':'AGUARDANDO COMPRA'}</span>`:`<div><span class="badge ok">✅ Não há material faltando: compra liberada automaticamente</span></div>`;
+    action.appendChild(wrap);
+    if(o.workflowV9130&&materialReady930(o))release930(o);
+  };
+  const oldNeedCut930=window.pedidosQuePrecisamDeCorte;
+  window.pedidosQuePrecisamDeCorte=function(){
+    return (oldNeedCut930?oldNeedCut930():[]).filter(o=>!o.workflowV9130||materialReady930(o));
+  };
+
+  // Editar pedido mostra a etapa, mas não permite alterar status manualmente.
+  const oldEdit930=window.editOrder;
+  window.editOrder=function(id){
+    let out=oldEdit930(id);setTimeout(()=>{let st=document.getElementById('mstatus');if(st){st.disabled=true;let f=st.closest('.field');if(f){let o=(db.orders||[]).find(x=>+x.id===+id);f.querySelector('label').textContent='Etapa automática';let note=document.createElement('div');note.className='sub';note.textContent='O status muda automaticamente conforme o andamento real.';f.appendChild(note);if(o)st.value=o.status||st.value}}},20);return out;
+  };
+  window.renderOrders=function(){
+    ensureOrderNumbers();fillSeparationOrders();
+    let q=(document.getElementById('orderSearch')?.value||'').toLowerCase().trim(),num=(document.getElementById('orderNumberFilter')?.value||'').trim(),status=document.getElementById('orderStatusFilter')?.value||'',priority=document.getElementById('orderPriorityFilter')?.value||'',start=document.getElementById('orderStartFilter')?.value||'',end=document.getElementById('orderEndFilter')?.value||'';
+    let arr=(db.orders||[]).filter(o=>{let st=hlgb930OrderStatus(o);if(num&&!displayOrderNumber(o).includes(num)&&!String(o.id||'').includes(num))return false;let hay=(String(o.client||'')+' '+String(o.items||'')+' '+orderProductSummary(o)).toLowerCase();if(q&&!hay.includes(q))return false;if(status&&st!==status&&String(o.status||'')!==status)return false;if(priority&&String(o.priority||'Padrão')!==priority)return false;let d=String(o.date||'').slice(0,10);if(start&&d<start)return false;if(end&&d>end)return false;return true});
+    let qty=arr.reduce((a,o)=>a+qtyOfOrder(o),0),value=arr.reduce((a,o)=>a+(+o.total||0),0),done=arr.filter(o=>['Nota emitida','Mercadoria pronta'].includes(hlgb930OrderStatus(o))).length,cards=document.getElementById('orderSummaryCards');
+    if(cards)cards.innerHTML=`<div class="card"><small>Pedidos encontrados</small><strong>${arr.length}</strong></div><div class="card"><small>Total de peças</small><strong>${qty.toLocaleString('pt-BR')}</strong></div><div class="card"><small>Valor total dos pedidos</small><strong>${money(value)}</strong></div><div class="card"><small>Finalizados</small><strong>${done}</strong></div>`;
+    let fs=document.getElementById('orderFilterSummary');if(fs)fs.textContent=(num||q||status||priority||start||end)?'Exibindo pedidos conforme os filtros selecionados.':'Exibindo todos os pedidos cadastrados.';
+    let nextEl=document.getElementById('nextOrderNumber');if(nextEl&&document.activeElement!==nextEl)nextEl.value=nextAvailableOrderNumber();
+    let tbl=document.getElementById('ordersTable')||window.ordersTable;if(!tbl)return;
+    tbl.innerHTML=table(['Nº pedido','Cliente','Entrega','Qtd.','Valor','Prioridade','Etapa atual','Ações'],arr.slice().sort((a,b)=>(+displayOrderNumber(b)||0)-(+displayOrderNumber(a)||0)).map(o=>{
+      let st=hlgb930OrderStatus(o),assign=(o.clientId==null||Object.keys(o.productClientAssignments||{}).length)?` <button class="secondary" onclick="assignOrderProductsToClient(${o.id})">👤 Clientes por produto</button>`:'';
+      let prodDone=st==='Produção finalizada',finalActions=o.workflowV9130&&prodDone?` <button class="primary" onclick="notaPronta(${o.id})">Nota</button> <button class="secondary" onclick="markOrderReadyForStock(${o.id})">📦 Pronta entrega</button>`:(!o.workflowV9130?` <button class="secondary" onclick="notaPronta(${o.id})">Nota pronta</button>`:'');
+      return [esc(displayOrderNumber(o)),esc(hlgb930OrderClientLabel(o)),o.date?new Date(o.date+'T12:00').toLocaleDateString('pt-BR'):'-',qtyOfOrder(o).toLocaleString('pt-BR'),money(o.total),priorityBadge(o.priority||'Padrão'),`<span class="badge">${esc(st)}</span>${timeline930(o)}`,`<button class="secondary" onclick="editOrder(${o.id})">Editar</button>${assign} <button class="secondary" onclick="registerMissingPieces(${o.id})">⚠️ Faltas</button>${finalActions} <button class="danger" onclick="moveOrderToTrash(${o.id})">Excluir</button>`];
+    }));
+  };
+  window.markOrderReadyForStock=function(id){
+    let o=(db.orders||[]).find(x=>+x.id===+id);if(!o||o.readyForStock)return;if(!confirm('Enviar os produtos finalizados deste pedido para Mercadoria pronta / pronta entrega?'))return;
+    let g={};(o.grade||[]).forEach(x=>{let k=String(x.productId||'');if(k)g[k]=(g[k]||0)+(+x.qty||0)});db.stock=Array.isArray(db.stock)?db.stock:[];
+    Object.entries(g).forEach(([pid,qty])=>{let pr=(db.products||[]).find(x=>+x.id===+pid),name=pr?.name||'Produto',st=db.stock.find(x=>x.cat==='Peças prontas — Pronto para venda'&&String(x.item||'')===name);if(st)st.qty=(+st.qty||0)+qty;else db.stock.push({id:id930(),item:name,cat:'Peças prontas — Pronto para venda',qty,unit:'un.',min:0,sourceOrderId:o.id})});
+    o.readyForStock=true;o.readyForStockAt=isoDate(new Date());o.status='Mercadoria pronta';save();renderOrders();try{renderStock()}catch(e){}
+  };
+
+  // ---------- Atribuir somente modelos selecionados de pedido sem cliente ----------
+  window.hlgb930OrderClientLabel=function(o){
+    let a=o?.productClientAssignments||{},vals=[...new Set(Object.values(a).map(x=>x?.clientName).filter(Boolean))];
+    if(o?.clientId)return o.client||'-';if(vals.length)return `Sem cliente · ${vals.join(' / ')}`;return o?.client||'Sem cliente';
+  };
+  function assignment930(o,pid){return o?.productClientAssignments?.[String(pid)]||null}
+  window.hlgb930ProjectionClientName=(o,item)=>assignment930(o,item?.productId)?.clientName||o?.client||'Sem cliente';
+  window.assignOrderProductsToClient=function(id){
+    let o=(db.orders||[]).find(x=>+x.id===+id);if(!o)return;let map={};(o.grade||[]).forEach(g=>{let pid=+g.productId||0;if(pid)map[pid]=(map[pid]||0)+(+g.qty||0)});let pids=Object.keys(map);if(!pids.length){alert('Este pedido não possui produtos identificados.');return}
+    let clients=(db.clients||[]).slice().sort((a,b)=>String(a.name||'').localeCompare(String(b.name||''),'pt-BR'));
+    let rows=pids.map(pid=>{let p=(db.products||[]).find(x=>+x.id===+pid),a=assignment930(o,pid);return `<tr><td><input class="opc930" type="checkbox" value="${pid}"></td><td><b>${esc(p?.name||'Produto')}</b></td><td>${map[pid].toLocaleString('pt-BR')}</td><td>${esc(a?.clientName||'Sem cliente')}</td></tr>`}).join('');
+    openModal('Atribuir produtos do pedido a um cliente',`<div class="sub">Marque somente os modelos que pertencem ao cliente escolhido. Os demais continuam sem cliente e podem ser atribuídos depois.</div><div class="field" style="margin:12px 0"><label>Cliente</label><select id="opcClient"><option value="">Selecione</option>${clients.map(c=>`<option value="${c.id}">${esc(c.name)}</option>`).join('')}</select></div><div style="overflow:auto"><table><tr><th>Selecionar</th><th>Produto</th><th>Qtd.</th><th>Cliente atual</th></tr>${rows}</table></div><button type="button" class="primary modalSave">Salvar atribuição dos selecionados</button>`,()=>{
+      let c=clients.find(x=>+x.id===+document.getElementById('opcClient')?.value),chosen=[...document.querySelectorAll('.opc930:checked')].map(x=>x.value);if(!c){alert('Selecione o cliente.');return}if(!chosen.length){alert('Marque pelo menos um produto.');return}
+      o.productClientAssignments=o.productClientAssignments||{};chosen.forEach(pid=>o.productClientAssignments[String(pid)]={clientId:c.id,clientName:c.name,assignedAt:new Date().toISOString()});
+      let all=pids.map(pid=>o.productClientAssignments[String(pid)]).filter(Boolean),names=[...new Set(all.map(x=>x.clientName))];if(all.length===pids.length&&names.length===1){o.clientId=c.id;o.client=c.name}
+      closeModal();save();renderOrders();try{renderProjection()}catch(e){}
+    });
+  };
+  const oldProjItems930=window.projectionItemsForOrder;
+  window.projectionItemsForOrder=function(o){
+    return oldProjItems930(o).map(it=>{let a=assignment930(o,it.productId);if(!a)return it;let unit=0;try{unit=+suggestedPrice(a.clientId,it.productId)||0}catch(e){};return {...it,clientId:a.clientId,clientName:a.clientName,value:unit>0?unit*it.qty:it.value}});
+  };
+
+  // ---------- Corte por modelo: saldo realmente baixa após cada atribuição ----------
+  const oldSyncCut930=window.syncFinalizedCutsToProduction;
+  window.syncFinalizedCutsToProduction=function(){
+    if(typeof hlgb916EnsureData==='function')hlgb916EnsureData();db.cuts=Array.isArray(db.cuts)?db.cuts:[];db.production=Array.isArray(db.production)?db.production:[];
+    let changed=[];
+    db.cuts.filter(c=>n930(c.status)==='finalizado').forEach(c=>{
+      let o=(db.orders||[]).find(x=>+x.id===+c.orderId);if(!o)return;let gm=new Map();(o.grade||[]).forEach(g=>{let pid=+g.productId||0,q=Math.max(0,+g.qty||0);if(pid&&q)gm.set(pid,(gm.get(pid)||0)+q)});if(!gm.size&&c.productId)gm.set(+c.productId,+c.pieces||0);
+      let all=db.production.filter(p=>+p.cutId===+c.id);
+      if(all.length===1&&gm.size>1&&all[0]&&(all[0].productionLocationId||all[0].factionId||(+all[0].done||0)>0)&&!all[0].cutProductKey)return;
+      for(const [pid,total] of gm){
+        let rows=all.filter(p=>+p.productId===+pid||String(p.cutProductKey||'')===`${c.id}:${pid}`),assigned=rows.filter(p=>p.productionLocationId||p.factionId||(+p.done||0)>0||p.finishedAt),used=assigned.reduce((a,p)=>a+(+p.planned||0),0),remaining=Math.max(0,total-used),free=rows.filter(p=>!p.productionLocationId&&!p.factionId&&!(+p.done||0)&&!p.finishedAt);
+        let row=free[0];if(!row&&remaining>0){let pr=(db.products||[]).find(x=>+x.id===+pid);row={id:id930(),cutId:c.id,orderId:o.id,productId:pid,op:c.op||('CORTE-'+c.id),product:pr?.name||c.product||'Produto',client:o.client||c.client||'',color:'',size:'',planned:remaining,done:0,stage:'Aguardando atribuição',productionLocationId:null,factionId:null,date:c.finishedAt||isoDate(new Date()),assignmentSource:true,cutProductKey:`${c.id}:${pid}`};db.production.push(row);changed.push(row)}
+        if(row){let pr=(db.products||[]).find(x=>+x.id===+pid),dirty=false;let set=(k,v)=>{if(String(row[k]??'')!==String(v??'')){row[k]=v;dirty=true}};set('planned',remaining);set('productId',pid);set('product',pr?.name||row.product);set('cutProductKey',`${c.id}:${pid}`);set('stage',remaining>0?'Aguardando atribuição':'Totalmente atribuído');if(dirty)changed.push(row)}
+        free.slice(1).forEach(x=>{if((+x.planned||0)!==0||x.stage!=='Consolidado'){x.planned=0;x.stage='Consolidado';changed.push(x)}});
+      }
+    });
+    if(changed.length){try{localSaveOnly();hlgbRecordPendingStore()}catch(e){}}
+    return changed.length>0;
+  };
+  const oldOpenAssign930=window.openCutAssignment;
+  window.openCutAssignment=function(id){
+    let before=(db.production||[]).find(x=>+x.id===+id),oldPlan=+before?.planned||0;let out=oldOpenAssign930(id);
+    let modal=document.getElementById('modal');let btn=modal?.querySelector('.modalSave');if(btn&&!btn.dataset.v930){btn.dataset.v930='1';btn.addEventListener('click',()=>setTimeout(()=>{try{syncFinalizedCutsToProduction();renderCutAssignmentQueue();renderCuts();let p=(db.production||[]).find(x=>+x.id===+id);if(p&&+p.planned>oldPlan)p.planned=oldPlan}catch(e){}},80))}return out;
+  };
+
+  // ---------- Cortes do dia: programação manual por data/cortador ----------
+  window.prepareCutSchedule=function(){
+    db.cuts=Array.isArray(db.cuts)?db.cuts:[];let today=isoDate(new Date()),changed=false;
+    pedidosQuePrecisamDeCorte().forEach(o=>{let c=obterCorteDoPedido(o),w=cutPriorityWeight(o);if(!c.plannedCutDate&&w<=1){c.plannedCutDate=today;c.autoScheduledPriority=true;changed=true}});
+    if(changed)try{persistDb()}catch(e){}
+  };
+  window.openDailyCutPlanner=function(){
+    let opts=pedidosQuePrecisamDeCorte().map(o=>{let c=obterCorteDoPedido(o);return `<option value="${c.id}">#${esc(displayOrderNumber(o))} — ${esc(orderProductSummary(o))} — ${(+c.pieces||0).toLocaleString('pt-BR')} pç</option>`}).join(''),cuts=(db.cutters||[]).filter(x=>x.active!==false);
+    openModal('Programar corte',`<div class="grid"><div class="field"><label>Pedido / corte</label><select id="dcpCut"><option value="">Selecione</option>${opts}</select></div><div class="field"><label>Data programada</label><input id="dcpDate" type="date" value="${document.getElementById('dailyCutDate')?.value||isoDate(new Date())}"></div><div class="field"><label>Cortador</label><select id="dcpCutter"><option value="">Selecione</option>${cuts.map(c=>`<option value="${c.id}">${esc(c.name)}</option>`).join('')}</select></div></div><button type="button" class="primary modalSave">Salvar programação</button>`,()=>{let c=(db.cuts||[]).find(x=>+x.id===+document.getElementById('dcpCut')?.value);if(!c){alert('Selecione o corte.');return}c.plannedCutDate=document.getElementById('dcpDate')?.value||'';c.cutterId=+document.getElementById('dcpCutter')?.value||null;c.scheduleUpdatedAt=new Date().toISOString();closeModal();save();renderCuts()});
+  };
+  window.renderDailyCuts=function(){
+    let el=document.getElementById('dailyCutTable'),sum=document.getElementById('dailyCutSummary'),dateEl=document.getElementById('dailyCutDate');if(!el)return;if(dateEl&&!dateEl.value)dateEl.value=isoDate(new Date());let day=dateEl?.value||isoDate(new Date()),all=(db.cuts||[]).filter(c=>c.plannedCutDate===day||(n930(c.status)==='finalizado'&&c.finishedAt===day));
+    all.sort((a,b)=>{let wa=cutPriorityWeight(cutOrderFor(a)),wb=cutPriorityWeight(cutOrderFor(b));if(wa!==wb)return wa-wb;return String(a.op||'').localeCompare(String(b.op||''))});let pending=all.filter(c=>n930(c.status)!=='finalizado'),done=all.filter(c=>n930(c.status)==='finalizado'),pqty=pending.reduce((a,c)=>a+(+c.pieces||0),0),dqty=done.reduce((a,c)=>a+(+c.pieces||0),0);
+    if(sum)sum.innerHTML=`<div class="card"><small>Programados</small><strong>${all.length}</strong></div><div class="card"><small>A cortar</small><strong>${pending.length}</strong><div>${pqty.toLocaleString('pt-BR')} peças</div></div><div class="card"><small>Finalizados</small><strong>${done.length}</strong><div>${dqty.toLocaleString('pt-BR')} peças</div></div><div class="card"><small>Cortadores no dia</small><strong>${new Set(all.map(x=>x.cutterId).filter(Boolean)).size}</strong></div>`;
+    let cutters=(db.cutters||[]).filter(x=>x.active!==false);if(!all.length){el.innerHTML='<div class="empty">Nenhum corte programado para este dia. Use “+ Programar corte”.</div>';return}
+    el.innerHTML=table(['Pedido/OP','Cliente','Produto','Peças','Prioridade','Programação','Status','Ações'],all.map(c=>{let o=cutOrderFor(c),finished=n930(c.status)==='finalizado';return [esc(displayOrderNumber(o||{id:c.orderId})||c.op||c.orderId),esc(o?.client||c.client||'-'),esc(o?orderProductSummary(o):(c.product||'-')),(+c.pieces||0).toLocaleString('pt-BR'),priorityBadge(o?.priority||'Padrão'),finished?`${fmtDate(c.plannedCutDate||c.finishedAt)} · ${esc((db.cutters||[]).find(x=>+x.id===+c.cutterId)?.name||'-')}`:`<div class="cut-schedule-inline"><input id="cutDate_${c.id}" type="date" value="${c.plannedCutDate||day}"><select id="cutCutter_${c.id}"><option value="">Cortador</option>${cutters.map(x=>`<option value="${x.id}" ${+x.id===+c.cutterId?'selected':''}>${esc(x.name)}</option>`).join('')}</select><select id="cutType_${c.id}"><option value="">Tipo</option><option value="Interno" ${c.cutType==='Interno'?'selected':''}>Interno</option><option value="Externo" ${c.cutType==='Externo'?'selected':''}>Externo</option></select><button class="secondary" onclick="saveCutSchedule(${c.id})">Salvar</button></div>`,finished?'<span class="badge ok">Finalizado</span>':'<span class="badge warn">A cortar</span>',finished?`<button class="secondary" onclick="viewCutGradeComparison(${c.id})">Pedido original × corte</button>`:`<button class="primary" onclick="finishCut(${c.id})">✅ Finalizar</button> <button class="secondary" onclick="editCut(${c.id})">Detalhes</button>`] }));
+  };
+
+  // ---------- Peças prontas por confecção: ledger independente ----------
+  function internalLocations930(){let factionLoc=new Set((db.factionMasters||[]).map(f=>String(f.productionLocationId||'')).filter(Boolean));return (db.productionLocations||[]).filter(x=>x.active!==false&&!factionLoc.has(String(x.id)))}
+  function finishedRange930(){let d=document.getElementById('finishedPiecesDate')?.value||isoDate(new Date()),m=d.slice(0,7);return {d,m}}
+  function finishedQty930(rows){return rows.reduce((a,x)=>a+(+x.qty||0),0)}
+  window.renderFinishedPieces=function(){ensure930();let date=document.getElementById('finishedPiecesDate'),loc=document.getElementById('finishedPiecesLocation'),tbl=document.getElementById('finishedPiecesTable'),cards=document.getElementById('finishedPiecesCards');if(!tbl)return;if(date&&!date.value)date.value=isoD
+===== window.renderSeparationList=function @ 1089568 =====
+window.renderSeparationList=function(){
+  let el=document.getElementById('separationList');if(!el)return;let q=n939(document.getElementById('separationProductSearch')?.value||''),min=q939(document.getElementById('separationQtyMin')?.value),maxRaw=document.getElementById('separationQtyMax')?.value,max=maxRaw?+maxRaw:Infinity;
+  let arr=(db.orders||[]).filter(o=>{let st=sepState939(o);if(st.done)return false;let name=n939(typeof orderProductSummary==='function'?orderProductSummary(o):o.items||''),qty=typeof qtyOfOrder==='function'?qtyOfOrder(o):q939(o.qty),num=String(typeof displayOrderNumber==='function'?displayOrderNumber(o):o.id).toLowerCase(),ok=!q||name.includes(q)||num.includes(q.replace(/^#\s*/,''));return ok&&qty>=min&&qty<=max});
+  el.innerHTML=arr.length?arr.map(o=>{let st=sepState939(o),pct=st.total?Math.round(st.doneQty/st.total*100):0;return `<div class="separation-row"><div class="sep-order-id"><small>Pedido</small><b>#${esc(typeof displayOrderNumber==='function'?displayOrderNumber(o):o.id)}</b></div><div class="sep-main-text"><b>${esc(o.client||'-')}</b><div class="sub">Entrega ${fmtDate(o.date)}</div></div><div class="sep-main-text"><b>${esc(typeof orderProductSummary==='function'?orderProductSummary(o):o.items||'')}</b></div><div><b>${(typeof qtyOfOrder==='function'?qtyOfOrder(o):q939(o.qty)).toLocaleString('pt-BR')}</b><div class="sub">peças</div></div><div class="sep-status"><span class="badge ${st.doneQty?'warn':''}">${st.doneQty?`${pct}% separado`:'Pendente'}</span></div><div class="sep-action"><button type="button" class="primary" onclick="document.getElementById('separationOrder').value='${o.id}';renderSeparation()">Abrir separação</button></div></div>`}).join(''):'<div class="empty">Nenhum pedido aguardando separação.</div>';
+};
+const oldSep939=window.renderSeparation;window.renderSeparation=function(){let id=+document.getElementById('separationOrder')?.value,o=ord939(id);if(o&&sepState939(o).done){let box=document.getElementById('separationTable');if(box)box.innerHTML='<div class="panel"><span class="badge ok" style="font-size:14px;padding:10px 14px">✅ Este pedido já teve a separação concluída e já foi liberado para a próxima etapa.</span></div>';let s=document.getElementById('separationOrder');if(s)s.value='';window.fillSeparationOrders();return}return oldSep939?oldSep939.apply(this,arguments):undefined};
+
+function init939(){bindPricing939();watchPricing939();cleanupCutDuplicate939();renderLocationAssignments939();try{window.fillSeparationOrders()}catch(e){};try{window.renderFinishedPieces()}catch(e){}}
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>setTimeout(init939,50));else setTimeout(init939,50);
+setTimeout(init939,700);
+console.log('HLGB v91.39 active');
+})();
+</script>
+
+<!-- HLGB v91.40 CAPACITY QUEUE + GOALS LIVE + MISSING AT INVOICE + FACTION SYNC -->
+<style>
+#capacity940Root{display:grid;gap:14px}
+.cap940-head{display:flex;justify-content:space-between;gap:12px;align-items:flex-end;flex-wrap:wrap}
+.cap940-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}
+.cap940-lanes{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:14px}
+.cap940-lane{border:1px solid var(--line);border-radius:14px;background:#fff;overflow:hidden}
+.cap940-lane-head{padding:13px 14px;background:#fff8fb;border-bottom:1px solid var(--line)}
+.cap940-row{display:grid;grid-template-columns:minmax(0,1fr) 85px 110px 78px;gap:8px;align-items:center;padding:10px 12px;border-bottom:1px solid #f0e6eb}
+.cap940-row:last-child{border-bottom:0}
+.cap940-row small{display:block;color:var(--muted);margin-top:3px}
+.cap940-empty{padding:16px;color:var(--muted);text-align:center}
+.cap940-unassigned{display:grid;gap:8px}
+.cap940-unassigned-row{display:grid;grid-template-columns:minmax(150px,.8fr) minmax(180px,1.1fr) 100px minmax(190px,1fr);gap:10px;align-items:center;padding:10px 0;border-bottom:1px solid var(--line)}
+#projectionMissing940 .missing940-row{display:grid;grid-template-columns:minmax(180px,1.4fr) 120px minmax(180px,1fr);gap:10px;align-items:end;margin:8px 0}
+@media(max-width:900px){.cap940-grid{grid-template-columns:1fr 1fr}.cap940-unassigned-row,.cap940-row,#projectionMissing940 .missing940-row{grid-template-columns:1fr}}
+@media(max-width:600px){.cap940-grid{grid-template-columns:1fr}}
+</style>
+<script>
+(function(){
+'use strict';
+const V='91.40';
+const q940=v=>Math.max(0,+v||0);
+const n940=v=>String(v??'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').trim().toLowerCase();
+const canon940=v=>n940(v).replace(/[^a-z0-9]/g,'').replace(/confec+ao/g,'confeccao');
+const clone940=v=>{try{return JSON.parse(JSON.stringify(v))}catch(e){return v}};
+const id940=()=>Date.now()+Math.floor(Math.random()*900000);
+function prod940(id){return (db.products||[]).find(x=>String(x.id)===String(id))||null}
+function ord940(id){return (db.orders||[]).find(x=>String(x.id)===String(id))||null}
+function client940(id){return (db.clients||[]).find(x=>String(x.id)===String(id))||null}
+function goal940(type,name){
+  let arr=(db.goals||[]).filter(g=>g&&n940(g.scopeType)===n940(type));
+  let target=canon940(name),exact=arr.filter(g=>canon940(g.scopeName)===target);
+  let candidates=exact.length?exact:arr.filter(g=>{let a=canon940(g.scopeName),b=target;return a&&b&&(a.includes(b)||b.includes(a))});
+  candidates.sort((a,b)=>String(b.updatedAt||b.date||b.id||'').localeCompare(String(a.updatedAt||a.date||a.id||'')));
+  let weekly=candidates.find(g=>n940(g.cadence)==='semanal')||candidates[0]||null;
+  if(!weekly)return null;
+  let targetValue=q940(weekly.targetValue)||q940(weekly.peopleCount)*q940(weekly.goalPerPerson);
+  if(n940(weekly.cadence)==='mensal')targetValue=targetValue/4.33;
+  if(n940(weekly.cadence)==='anual')targetValue=targetValue/52;
+  return {...weekly,weeklyTarget:targetValue};
+}
+function destinations940(){
+  let out=[];
+  (db.productionLocations||[]).filter(x=>x.active!==false&&canon940(x.name)!=='externo').forEach(x=>out.push({key:`L:${x.id}`,type:'Confecção',id:x.id,name:x.name,goal:goal940('Confecção',x.name)}));
+  (db.factionMasters||[]).filter(x=>x.active!==false).forEach(x=>out.push({key:`F:${x.id}`,type:'Facção',id:x.id,name:x.name,goal:goal940('Facção',x.name)}));
+  return out;
+}
+function itemRows940(o){
+  try{if(typeof projectionItemsForOrder==='function')return projectionItemsForOrder(o)||[]}catch(e){}
+  let m=new Map();(o?.grade||[]).forEach(g=>{let pid=String(g.productId||'');if(!pid)return;let x=m.get(pid)||{key:pid,productId:+pid,name:prod940(pid)?.name||'Produto',qty:0};x.qty+=q940(g.qty);m.set(pid,x)});return [...m.values()];
+}
+function activeItems940(){
+  let out=[];(db.orders||[]).forEach(o=>{if(n940(o.status)==='cancelado'||o.deletedAt)return;itemRows940(o).forEach(item=>{let qty=q940(item.remainingQty!=null?item.remainingQty:item.qty);if(qty<=0)return;out.push({o,item,qty})})});return out;
+}
+function exactProduction940(o,item){
+  let pid=String(item.productId||item.key||'');
+  return (db.production||[]).filter(p=>+p.orderId===+o.id&&q940(p.planned)>0&&!['pronto','finalizado'].includes(n940(p.stage))&&(String(p.productId||'')===pid||String(p.cutProductKey||'').split(':').pop()===pid));
+}
+function plannedAssignments940(o,item){
+  let pid=String(item.productId||item.key||'');
+  return (db.capacityAssignments||[]).filter(a=>+a.orderId===+o.id&&String(a.itemKey)===pid&&a.active!==false&&q940(a.qty)>0&&String(a.source||'')!=='cut_assignment');
+}
+function piecesByDestination940(){
+  let dests=destinations940(),map=new Map(dests.map(d=>[d.key,{dest:d,rows:[]}])) ,unassigned=[];
+  activeItems940().forEach(({o,item,qty})=>{
+    let left=qty,prods=exactProduction940(o,item),usedAny=false;
+    if(prods.length){
+      prods.forEach(p=>{let key=p.factionId?`F:${p.factionId}`:(p.productionLocationId?`L:${p.productionLocationId}`:'');let take=Math.min(left,q940(p.planned)-q940(p.done));if(key&&map.has(key)&&take>0){map.get(key).rows.push({kind:'production',row:p,o,item,qty:take,rank:q940(p.queueRank)||999999});left-=take;usedAny=true}});
+    }
+    if(!usedAny||left>0){
+      plannedAssignments940(o,item).forEach(a=>{let key=a.factionId?`F:${a.factionId}`:(a.locationId?`L:${a.locationId}`:'');let take=Math.min(left,q940(a.qty));if(key&&map.has(key)&&take>0){map.get(key).rows.push({kind:'assignment',row:a,o,item,qty:take,rank:q940(a.queueRank)||999999});left-=take}});
+    }
+    if(left>0)unassigned.push({o,item,qty:left});
+  });
+  for(const lane of map.values())lane.rows.sort((a,b)=>a.rank-b.rank||priority940(a.o)-priority940(b.o)||String(a.o.date||'').localeCompare(String(b.o.date||''))||String(a.o.id).localeCompare(String(b.o.id)));
+  return {map,unassigned,dests};
+}
+function priority940(o){let p=n940(o?.priority);return p==='urgentissimo'?0:p==='urgente'?1:2}
+function targetText940(d){let g=d.goal,t=q940(g?.weeklyTarget);return t?`${t.toLocaleString('pt-BR')} pç/semana`:'Sem meta semanal'}
+function estimate940(qty,target){if(!target)return 'Sem estimativa';let days=qty/target*5;return days<1?`≈ ${(days*8).toFixed(1)} h`:`≈ ${days.toFixed(1)} dias úteis`}
+async function saveRow940(module,row){
+  if(typeof hlgbRecordSaveWithRetry!=='function'||!cloudAccessToken){try{save()}catch(e){};return row}
+  let arr=Array.isArray(db[module])?db[module]:[],idx=arr.indexOf(row),eid='';try{if(typeof hlgbRecordId==='function')eid=hlgbRecordId(module,row,idx)}catch(e){};eid=String(eid||row.__hlgbId||row.id||'');if(!eid)throw new Error('registro sem identificador');let out=await hlgbRecordSaveWithRetry(module,eid,clone940(row),false);if(!out||out.applied!==true)throw new Error('nuvem não confirmou');return out.data||row;
+}
+function hideOldCapacity940(){
+  let page=document.getElementById('capacidadeProducao');if(!page)return;[...page.querySelectorAll(':scope > .panel')].forEach(p=>{if(p.querySelector('#capacityCards')||p.querySelector('#capacityLocationTable')||p.querySelector('#capacityOrderTable'))p.style.display='none'});
+}
+function ensureCapacityRoot940(){
+  let page=document.getElementById('capacidadeProducao');if(!page)return null;hideOldCapacity940();let root=document.getElementById('capacity940Root');if(root)return root;root=document.createElement('div');root.id='capacity940Root';let sub=page.querySelector(':scope > .sub');if(sub){sub.textContent='Fila de produção de todos os pedidos, usando as metas cadastradas para calcular carga e prazo por confecção ou facção.';sub.insertAdjacentElement('afterend',root)}else page.prepend(root);return root;
+}
+function renderGoalCards940(dests){
+  let rows=dests.map(d=>`<tr><td><b>${esc(d.name)}</b></td><td>${esc(d.type)}</td><td>${esc(d.goal?.scopeName||'-')}</td><td>${d.goal?targetText940(d):'<span class="badge warn">Meta não encontrada</span>'}</td><td>${d.goal?`${q940(d.goal.peopleCount)} pessoa(s) × ${q940(d.goal.goalPerPerson).toLocaleString('pt-BR')}`:'-'}</td></tr>`).join('');
+  return `<details class="panel"><summary style="cursor:pointer;font-weight:800">🎯 Metas usadas no cálculo da capacidade</summary><div class="sub" style="margin:8px 0">Esses valores vêm automaticamente de Atribuição de metas. Não é mais necessário configurar capacidade em dois lugares.</div><div style="overflow:auto"><table><thead><tr><th>Destino</th><th>Tipo</th><th>Meta encontrada</th><th>Capacidade semanal</th><th>Cálculo</th></tr></thead><tbody>${rows}</tbody></table></div></details>`;
+}
+window.openCapacityAssign940=function(orderId,itemKey){
+  let o=ord940(orderId),item=o&&itemRows940(o).find(x=>String(x.key||x.productId)===String(itemKey));if(!o||!item)return;let current=piecesByDestination940().unassigned.find(x=>+x.o.id===+o.id&&String(x.item.key||x.item.productId)===String(itemKey)),available=q940(current?.qty||item.remainingQty||item.qty);let dests=destinations940(),opts=dests.map(d=>`<option value="${d.key}">${esc(d.type)} — ${esc(d.name)} — ${esc(targetText940(d))}</option>`).join('');
+  openModal('Adicionar à fila de produção',`<div class="grid"><div class="field"><label>Pedido</label><input value="#${esc(displayOrderNumber(o)||o.id)}" disabled></div><div class="field"><label>Modelo</label><input value="${esc(item.name||prod940(item.productId)?.name||'Produto')}" disabled></div><div class="field"><label>Quantidade sem destino</label><input value="${available}" disabled></div><div class="field"><label>Quem vai produzir</label><select id="capDest940"><option value="">Selecione</option>${opts}</select></div><div class="field"><label>Quantidade para este destino</label><input id="capQty940" type="number" min="1" max="${available}" value="${available}"></div></div><div class="sub" style="margin:10px 0">Você pode dividir o mesmo modelo entre mais de um local repetindo a atribuição para o saldo restante.</div><button class="primary modalSave">Salvar na fila</button>`,async()=>{let raw=document.getElementById('capDest940')?.value||'',qty=Math.floor(q940(document.getElementById('capQty940')?.value));if(!raw||qty<=0||qty>available){alert('Escolha o destino e informe uma quantidade válida.');return}let [type,id]=raw.split(':'),row={id:id940(),orderId:o.id,itemKey:String(item.key||item.productId),qty,source:'capacity_queue_v9140',active:true,queueRank:Date.now()};if(type==='F')row.factionId=+id;else row.locationId=+id;db.capacityAssignments=Array.isArray(db.capacityAssignments)?db.capacityAssignments:[];db.capacityAssignments.push(row);try{let saved=await saveRow940('capacityAssignments',row),ix=db.capacityAssignments.indexOf(row);if(ix>=0)db.capacityAssignments[ix]=saved;closeModal();renderCapacityPlanning();}catch(e){console.error(e);db.capacityAssignments=db.capacityAssignments.filter(x=>x!==row);alert('Não foi possível confirmar a fila na nuvem. Nada foi perdido.')}});
+};
+window.moveCapacityQueue940=async function(kind,id,dir){
+  let arr=kind==='production'?(db.production||[]):(db.capacityAssignments||[]),row=arr.find(x=>String(x.id)===String(id));if(!row)return;let grouping=piecesByDestination940(),destKey=row.factionId?`F:${row.factionId}`:`L:${row.productionLocationId||row.locationId}`,lane=grouping.map.get(destKey);if(!lane)return;let idx=lane.rows.findIndex(x=>x.kind===kind&&String(x.row.id)===String(id)),other=lane.rows[idx+dir];if(idx<0||!other)return;let a=q940(row.queueRank)||Date.now(),b=q940(other.row.queueRank)||a+(dir>0?1:-1);row.queueRank=b;other.row.queueRank=a;try{await saveRow940(kind==='production'?'production':'capacityAssignments',row);await saveRow940(other.kind==='production'?'production':'capacityAssignments',other.row);renderCapacityPlanning()}catch(e){console.error(e);alert('Não foi possível reordenar a fila na nuvem. Atualize e tente novamente.')}};
+window.removeCapacityQueue940=async function(id){let row=(db.capacityAssignments||[]).find(x=>String(x.id)===String(id));if(!row)return;if(!confirm('Remover esta previsão da fila e deixar a quantidade sem destino?'))return;row.active=false;try{await saveRow940('capacityAssignments',row);renderCapacityPlanning()}catch(e){console.error(e);row.active=true;alert('Não foi possível remover da fila.')}};
+window.renderCapacityPlanning=function(){
+  let root=ensureCapacityRoot940();if(!root)return;let {map,unassigned,dests}=piecesByDestination940(),total=0,assigned=0;for(const lane of map.values()){lane.rows.forEach(r=>{assigned+=q940(r.qty);total+=q940(r.qty)})}unassigned.forEach(r=>total+=q940(r.qty));let lanes=[...map.values()].filter(x=>x.rows.length||x.dest.goal).sort((a,b)=>a.dest.type.localeCompare(b.dest.type)||a.dest.name.localeCompare(b.dest.name));
+  let longest=0;lanes.forEach(l=>{let tq=l.rows.reduce((s,r)=>s+q940(r.qty),0),t=q940(l.dest.goal?.weeklyTarget);if(t)longest=Math.max(longest,tq/t)});
+  let laneHtml=lanes.map(l=>{let tq=l.rows.reduce((s,r)=>s+q940(r.qty),0),target=q940(l.dest.goal?.weeklyTarget),cum=0,rows=l.rows.map((r,i)=>{cum+=q940(r.qty);let model=r.item.name||prod940(r.item.productId)?.name||r.row.product||'Produto',client=r.item.clientName||r.o.client||'-',rankInfo=estimate940(cum,target),move=`<button class="secondary" style="padding:5px 7px" onclick="moveCapacityQueue940('${r.kind}','${r.row.id}',-1)" ${i===0?'disabled':''}>↑</button><button class="secondary" style="padding:5px 7px" onclick="moveCapacityQueue940('${r.kind}','${r.row.id}',1)" ${i===l.rows.length-1?'disabled':''}>↓</button>`;return `<div class="cap940-row"><div><b>${esc(model)}</b><small>Pedido #${esc(displayOrderNumber(r.o)||r.o.id)} · ${esc(client)}</small></div><b>${q940(r.qty).toLocaleString('pt-BR')}</b><span class="badge ${target?'ok':'warn'}">${esc(rankInfo)}</span><div>${move}${r.kind==='assignment'?` <button class="danger" style="padding:5px 7px" onclick="removeCapacityQueue940('${r.row.id}')">×</button>`:''}</div></div>`}).join('')||'<div class="cap940-empty">Nenhum modelo nesta fila.</div>';let pct=target?tq/target*100:0;return `<div class="cap940-lane"><div class="cap940-lane-head"><div style="display:flex;justify-content:space-between;gap:8px"><div><b>${esc(l.dest.name)}</b><div class="sub">${esc(l.dest.type)} · Meta: ${esc(targetText940(l.dest))}</div></div><span class="badge ${target?(pct>=100?'warn':'ok'):'bad'}">${target?pct.toFixed(0)+'% da semana':'sem meta'}</span></div><div class="sub" style="margin-top:6px"><b>${tq.toLocaleString('pt-BR')} peças na fila</b>${target?` · ${estimate940(tq,target)} para zerar a fila atual`:''}</div></div>${rows}</div>`}).join('');
+  let unHtml=unassigned.length?unassigned.map(r=>`<div class="cap940-unassigned-row"><div><b>#${esc(displayOrderNumber(r.o)||r.o.id)}</b><div class="sub">${esc(r.item.clientName||r.o.client||'-')}</div></div><div><b>${esc(r.item.name||'Produto')}</b></div><b>${q940(r.qty).toLocaleString('pt-BR')} pç</b><button class="primary" onclick="openCapacityAssign940(${r.o.id},'${String(r.item.key||r.item.productId).replace(/'/g,"\\'")}')">Escolher quem vai produzir</button></div>`).join(''):'<div class="empty">Todos os produtos ativos já têm destino na fila.</div>';
+  root.innerHTML=`<div class="panel"><div class="cap940-head"><div><h2 style="margin-bottom
