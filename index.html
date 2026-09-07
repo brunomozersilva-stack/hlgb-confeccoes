@@ -6,7 +6,7 @@
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
-<title>HLGB Confecções — Sistema de Gestão v91.59 Multiusuário</title>
+<title>HLGB Confecções — Sistema de Gestão v91.60 Multiusuário</title>
 <style>
 :root{--navy:#6f3f59;--orange:#c96b8f;--bg:#fbf6f8;--line:#eadde4;--text:#30262c;--muted:#786b73;--ok:#e9f7ef;--warn:#fff5df;--bad:#fdeaea;--rose:#f3dbe5;--rose2:#fff8fb}
 *{box-sizing:border-box}body{margin:0;font-family:Arial,Helvetica,sans-serif;background:var(--bg);color:var(--text)}
@@ -263,11 +263,11 @@ main{min-width:0;}
     <div class="field" style="text-align:left;margin-bottom:10px"><label>E-mail</label><input id="loginUser" type="email" autocomplete="username" placeholder="seuemail@exemplo.com"></div>
     <div class="field" style="text-align:left;margin-bottom:14px"><label>Senha</label><input id="loginPass" type="password" autocomplete="current-password" onkeydown="if(event.key==='Enter')return doLogin()"></div>
     <button class="primary" style="width:100%" onclick="return doLogin()">Entrar</button>
-    <div id="loginError" style="color:#a51d2d;font-size:13px;margin-top:10px"></div><div style="margin-top:12px;font-size:12px;color:#786b73">Acesso protegido pelo Supabase • HLGB Online<br><b style="color:#6f3f59">Versão v91.59</b></div>
+    <div id="loginError" style="color:#a51d2d;font-size:13px;margin-top:10px"></div><div style="margin-top:12px;font-size:12px;color:#786b73">Acesso protegido pelo Supabase • HLGB Online<br><b style="color:#6f3f59">Versão v91.60</b></div>
   </div>
 </div>
 
-<div id="appShell" style="display:none"><header><div class="logo">HLGB <b>CONFECÇÕES</b> <small style="font-size:10px;opacity:.8">v91.59</small></div><div><span id="cloudStatus" style="margin-right:10px;font-size:12px;padding:6px 9px;border:1px solid #ffffff44;border-radius:8px">☁️ Nuvem</span><span id="currentUserLabel" style="margin-right:10px;font-size:13px"></span><button id="cloudSaveBtn" onclick="cloudUploadCurrentDb(true)" style="display:none" title="Sincronização automática">🔄 Sincronizar agora</button> <button id="backupBtn" onclick="backup()" style="display:none">Exportar backup</button> <button id="importBackupBtn" onclick="document.getElementById('backupImportInput').click()" style="display:none">Importar backup</button><input id="backupImportInput" type="file" accept=".json,application/json" style="display:none" onchange="importBackupFile(this)"> <button onclick="logout()">Sair</button></div></header>
+<div id="appShell" style="display:none"><header><div class="logo">HLGB <b>CONFECÇÕES</b> <small style="font-size:10px;opacity:.8">v91.60</small></div><div><span id="cloudStatus" style="margin-right:10px;font-size:12px;padding:6px 9px;border:1px solid #ffffff44;border-radius:8px">☁️ Nuvem</span><span id="currentUserLabel" style="margin-right:10px;font-size:13px"></span><button id="cloudSaveBtn" onclick="cloudUploadCurrentDb(true)" style="display:none" title="Sincronização automática">🔄 Sincronizar agora</button> <button id="backupBtn" onclick="backup()" style="display:none">Exportar backup</button> <button id="importBackupBtn" onclick="document.getElementById('backupImportInput').click()" style="display:none">Importar backup</button><input id="backupImportInput" type="file" accept=".json,application/json" style="display:none" onchange="importBackupFile(this)"> <button onclick="logout()">Sair</button></div></header>
 <div class="app">
 <aside><nav id="nav" class="clean-nav">
 <button class="nav-home active" onclick="page('dashboard',this)">🏠 <span>Início</span></button>
@@ -1333,8 +1333,8 @@ main{min-width:0;}
 <div class="panel" id="ownerSecurityPanel" style="display:none"><h2>🔑 Segurança do proprietário</h2><div class="sub">Troque a senha do seu próprio acesso sem precisar entrar no Supabase.</div><div class="toolbar"><button type="button" class="primary" onclick="openOwnerPasswordChange()">🔑 Alterar minha senha</button></div></div>
 <div class="panel"><h2>👥 Usuários e permissões</h2><div class="sub">Crie acessos online para funcionários. Cada pessoa entra com o próprio e-mail e senha e vê somente as áreas liberadas pelo administrador.</div>
 <div class="toolbar"><button class="primary" onclick="newUser()">+ Novo usuário</button></div><div id="userTable"></div><div class="sub" style="margin-top:10px">As senhas nunca ficam salvas no HLGB. Você pode alterar o e-mail de acesso e redefinir a senha dos usuários secundários a qualquer momento.</div></div>
-<div class="panel"><h2>🔐 Log de usuários</h2><div class="sub">Histórico de entrada, saída, páginas acessadas, alterações salvas e período de uso dos logins secundários.</div>
-<div class="toolbar"><button type="button" class="secondary" onclick="renderAuditLog()">🔄 Atualizar log</button><button type="button" class="danger" onclick="clearAuditLog()">Limpar log</button></div>
+<div class="panel"><h2>🔐 Log de usuários</h2><div class="sub">Histórico centralizado da nuvem com usuário, data, hora e cada alteração realizada no sistema.</div>
+<div class="toolbar"><div class="field"><label>Usuário</label><select id="auditUserFilter" onchange="renderAuditLog()"><option value="">Todos</option></select></div><div class="field"><label>Data inicial</label><input id="auditStartFilter" type="date" onchange="renderAuditLog()"></div><div class="field"><label>Data final</label><input id="auditEndFilter" type="date" onchange="renderAuditLog()"></div><div class="field"><label>Buscar</label><input id="auditSearchFilter" placeholder="Ação, tela ou detalhe" oninput="renderAuditLog()"></div><button type="button" class="secondary" onclick="renderAuditLog(true)">🔄 Atualizar log</button><button type="button" class="secondary" onclick="clearAuditFilters()">Limpar filtros</button></div>
 <div id="auditSummary"></div><div id="auditLogTable" class="audit-log"></div></div>
 </section>
 </main></div>
@@ -2557,10 +2557,18 @@ function viewOrderDetails(orderId){
  let rows=grade.map(it=>[esc((db.products||[]).find(p=>+p.id===+it.productId)?.name||"-"),esc(it.color||"-"),esc(it.size||"-"),(+it.qty||0).toLocaleString("pt-BR")]);
  openModal(`Pedido #${o.id} — ${esc(o.client||"")}`,`<div class="grid"><div class="field"><label>Cliente</label><input value="${esc(o.client||"")}" disabled></div><div class="field"><label>Entrega</label><input value="${fmtDate(o.date)}" disabled></div><div class="field"><label>Prioridade</label><div>${priorityBadge(o.priority||"Padrão")}</div></div><div class="field"><label>Total de peças</label><input value="${qtyOfOrder(o)}" disabled></div></div><div class="panel"><h3>Grade completa do pedido</h3>${rows.length?table(["Produto","Cor","Tamanho","Quantidade"],rows):'<div class="empty">Pedido sem grade detalhada.</div>'}</div>`,()=>{});
 }
+let cloudAuditCache=null;
+function cloudLogActivity(entry){
+ if(!cloudAccessToken||!cloudUser?.id)return;
+ const payload={user_id:cloudUser.id,action:String(entry.action||"Atividade"),detail:String(entry.detail||""),page:String(entry.page||""),module:String(entry.page||""),entity_id:"",source:"app"};
+ cloudRequest("hlgb_activity_log",{method:"POST",headers:{Prefer:"return=minimal"},body:JSON.stringify(payload)}).catch(e=>console.warn("HLGB log central:",e?.message||e));
+}
 function auditAction(action,detail=""){
  let u=currentUser();if(!u)return;
  db.auditLog=Array.isArray(db.auditLog)?db.auditLog:[];
- db.auditLog.push({id:Date.now()+Math.random(),userId:u.id,user:u.name||u.user,login:u.user,action,detail,page:document.querySelector(".page.active")?.id||"",at:new Date().toISOString()});
+ const entry={id:Date.now()+Math.random(),userId:u.id,user:u.name||u.user,login:u.user,action,detail,page:document.querySelector(".page.active")?.id||"",at:new Date().toISOString()};
+ db.auditLog.push(entry);
+ cloudLogActivity(entry);
  if(db.auditLog.length>3000)db.auditLog=db.auditLog.slice(-3000);
  try{
    // Apenas navegar entre telas não é uma alteração operacional do banco. Antes isso
@@ -2570,14 +2578,44 @@ function auditAction(action,detail=""){
    else persistDb();
  }catch(e){}
 }
-function renderAuditLog(){
- let el=document.getElementById("auditLogTable"),sum=document.getElementById("auditSummary");if(!el)return;
- let arr=(db.auditLog||[]).slice().sort((a,b)=>String(b.at).localeCompare(String(a.at)));
- let users={};(db.userSessions||[]).forEach(x=>{let k=x.user||x.login||"Usuário";if(!users[k])users[k]={sessions:0,minutes:0,last:""};users[k].sessions++;let end=x.logoutAt?new Date(x.logoutAt):new Date();let start=new Date(x.loginAt);if(!isNaN(start)&&!isNaN(end))users[k].minutes+=Math.max(0,(end-start)/60000);if(!users[k].last||x.loginAt>users[k].last)users[k].last=x.loginAt});
- if(sum)sum.innerHTML=Object.keys(users).length?table(["Usuário","Sessões","Tempo de uso","Último acesso"],Object.entries(users).map(([n,d])=>[esc(n),d.sessions,`${Math.floor(d.minutes/60)}h ${Math.round(d.minutes%60)}min`,d.last?new Date(d.last).toLocaleString("pt-BR"):"-"])):'<div class="empty">Nenhuma sessão registrada ainda.</div>';
- el.innerHTML=arr.length?table(["Data/hora","Usuário","Ação","Tela","Detalhe"],arr.slice(0,500).map(x=>[new Date(x.at).toLocaleString("pt-BR"),esc(x.user||x.login||"-"),esc(x.action||"-"),esc(x.page||"-"),esc(x.detail||"-")])):'<div class="empty">Nenhuma atividade registrada.</div>';
+function auditModuleLabel(v){
+ const labels={materials:"Materiais",products:"Produtos",orders:"Pedidos",clients:"Clientes",production:"Produção",cuts:"Corte",stock:"Estoque",factions:"Facções",finance:"Financeiro",employees:"Funcionários",payroll:"Folha de pagamento",purchases:"Compras",suppliers:"Fornecedores",config:"Configurações",dashboard:"Início"};
+ return labels[v]||v||"-";
 }
-function clearAuditLog(){if(currentUser()?.role!=="admin")return;if(confirm("Limpar todo o histórico de atividades?")){db.auditLog=[];db.userSessions=[];save();renderAuditLog()}}
+async function renderAuditLog(force=false){
+ let el=document.getElementById("auditLogTable"),sum=document.getElementById("auditSummary");if(!el)return;
+ let arr=[];
+ if(isOwnerUser()&&cloudAccessToken){
+   if(force||!Array.isArray(cloudAuditCache)){
+     el.innerHTML='<div class="empty">Carregando histórico da nuvem…</div>';
+     try{cloudAuditCache=await cloudRequest("hlgb_activity_log?select=occurred_at,user_id,email,user_name,action,module,entity_id,page,detail,source&order=occurred_at.desc&limit=2000")||[]}
+     catch(e){el.innerHTML=`<div class="empty">Não foi possível carregar o log da nuvem: ${esc(e?.message||e)}</div>`;return}
+   }
+   arr=cloudAuditCache.slice();
+ }else{
+   arr=(db.auditLog||[]).map(x=>({occurred_at:x.at,user_id:x.userId,email:x.login,user_name:x.user,action:x.action,module:x.page,page:x.page,detail:x.detail,source:"local"})).sort((a,b)=>String(b.occurred_at).localeCompare(String(a.occurred_at)));
+ }
+ const userFilter=document.getElementById("auditUserFilter"),start=document.getElementById("auditStartFilter")?.value||"",end=document.getElementById("auditEndFilter")?.value||"",search=String(document.getElementById("auditSearchFilter")?.value||"").trim().toLowerCase();
+ if(userFilter){
+   const selected=userFilter.value;
+   const opts=[...new Map(arr.map(x=>[String(x.user_id||x.email||x.user_name||"Sistema"),x.user_name||x.email||"Sistema"])).entries()].sort((a,b)=>a[1].localeCompare(b[1],"pt-BR"));
+   userFilter.innerHTML='<option value="">Todos</option>'+opts.map(([v,n])=>`<option value="${esc(v)}">${esc(n)}</option>`).join("");
+   userFilter.value=selected;
+ }
+ const selectedUser=userFilter?.value||"";
+ const filtered=arr.filter(x=>{
+   const at=String(x.occurred_at||"");
+   if(selectedUser&&String(x.user_id||x.email||x.user_name||"Sistema")!==selectedUser)return false;
+   if(start&&at.slice(0,10)<start)return false;
+   if(end&&at.slice(0,10)>end)return false;
+   if(search&&!`${x.user_name||""} ${x.email||""} ${x.action||""} ${x.module||x.page||""} ${x.detail||""}`.toLowerCase().includes(search))return false;
+   return true;
+ });
+ const users={};arr.forEach(x=>{let k=x.user_name||x.email||"Sistema";if(!users[k])users[k]={actions:0,last:""};users[k].actions++;if(!users[k].last||x.occurred_at>users[k].last)users[k].last=x.occurred_at});
+ if(sum)sum.innerHTML=Object.keys(users).length?table(["Usuário","Ações registradas","Última atividade"],Object.entries(users).map(([n,d])=>[esc(n),d.actions,d.last?new Date(d.last).toLocaleString("pt-BR"):"-"])):'<div class="empty">Nenhuma atividade registrada ainda.</div>';
+ el.innerHTML=filtered.length?table(["Data/hora","Usuário","Ação","Área","Detalhe"],filtered.slice(0,1000).map(x=>[new Date(x.occurred_at).toLocaleString("pt-BR"),esc(x.user_name||x.email||"Sistema"),esc(x.action||"-"),esc(auditModuleLabel(x.module||x.page)),esc(x.detail||"-")])):'<div class="empty">Nenhuma atividade encontrada com estes filtros.</div>';
+}
+function clearAuditFilters(){["auditStartFilter","auditEndFilter","auditSearchFilter"].forEach(id=>{let e=document.getElementById(id);if(e)e.value=""});let u=document.getElementById("auditUserFilter");if(u)u.value="";renderAuditLog()}
 
 function currentUser(){return db.session?db.users.find(u=>String(u.id)===String(db.session)):null}
 function isOwnerUser(){
