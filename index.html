@@ -6,7 +6,7 @@
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
-<title>HLGB Confecções — Sistema de Gestão v91.61 Multiusuário</title>
+<title>HLGB Confecções — Sistema de Gestão v91.62 Multiusuário</title>
 <style>
 :root{--navy:#6f3f59;--orange:#c96b8f;--bg:#fbf6f8;--line:#eadde4;--text:#30262c;--muted:#786b73;--ok:#e9f7ef;--warn:#fff5df;--bad:#fdeaea;--rose:#f3dbe5;--rose2:#fff8fb}
 *{box-sizing:border-box}body{margin:0;font-family:Arial,Helvetica,sans-serif;background:var(--bg);color:var(--text)}
@@ -263,11 +263,11 @@ main{min-width:0;}
     <div class="field" style="text-align:left;margin-bottom:10px"><label>E-mail</label><input id="loginUser" type="email" autocomplete="username" placeholder="seuemail@exemplo.com"></div>
     <div class="field" style="text-align:left;margin-bottom:14px"><label>Senha</label><input id="loginPass" type="password" autocomplete="current-password" onkeydown="if(event.key==='Enter')return doLogin()"></div>
     <button class="primary" style="width:100%" onclick="return doLogin()">Entrar</button>
-    <div id="loginError" style="color:#a51d2d;font-size:13px;margin-top:10px"></div><div style="margin-top:12px;font-size:12px;color:#786b73">Acesso protegido pelo Supabase • HLGB Online<br><b style="color:#6f3f59">Versão v91.61</b></div>
+    <div id="loginError" style="color:#a51d2d;font-size:13px;margin-top:10px"></div><div style="margin-top:12px;font-size:12px;color:#786b73">Acesso protegido pelo Supabase • HLGB Online<br><b style="color:#6f3f59">Versão v91.62</b></div>
   </div>
 </div>
 
-<div id="appShell" style="display:none"><header><div class="logo">HLGB <b>CONFECÇÕES</b> <small style="font-size:10px;opacity:.8">v91.61</small></div><div><span id="cloudStatus" style="margin-right:10px;font-size:12px;padding:6px 9px;border:1px solid #ffffff44;border-radius:8px">☁️ Nuvem</span><span id="currentUserLabel" style="margin-right:10px;font-size:13px"></span><button id="cloudSaveBtn" onclick="cloudUploadCurrentDb(true)" style="display:none" title="Sincronização automática">🔄 Sincronizar agora</button> <button id="backupBtn" onclick="backup()" style="display:none">Exportar backup</button> <button id="importBackupBtn" onclick="document.getElementById('backupImportInput').click()" style="display:none">Importar backup</button><input id="backupImportInput" type="file" accept=".json,application/json" style="display:none" onchange="importBackupFile(this)"> <button onclick="logout()">Sair</button></div></header>
+<div id="appShell" style="display:none"><header><div class="logo">HLGB <b>CONFECÇÕES</b> <small style="font-size:10px;opacity:.8">v91.62</small></div><div><span id="cloudStatus" style="margin-right:10px;font-size:12px;padding:6px 9px;border:1px solid #ffffff44;border-radius:8px">☁️ Nuvem</span><span id="currentUserLabel" style="margin-right:10px;font-size:13px"></span><button id="cloudSaveBtn" onclick="cloudUploadCurrentDb(true)" style="display:none" title="Sincronização automática">🔄 Sincronizar agora</button> <button id="backupBtn" onclick="backup()" style="display:none">Exportar backup</button> <button id="importBackupBtn" onclick="document.getElementById('backupImportInput').click()" style="display:none">Importar backup</button><input id="backupImportInput" type="file" accept=".json,application/json" style="display:none" onchange="importBackupFile(this)"> <button onclick="logout()">Sair</button></div></header>
 <div class="app">
 <aside><nav id="nav" class="clean-nav">
 <button class="nav-home active" onclick="page('dashboard',this)">🏠 <span>Início</span></button>
@@ -9965,6 +9965,12 @@ function clearWeeklyPurchaseDate(){
  if(el)el.value="";
  renderFinance();
 }
+function parseISO(value){
+ let text=String(value||'').slice(0,10),m=text.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+ if(m)return new Date(+m[1],+m[2]-1,+m[3],12,0,0,0);
+ let parsed=new Date(value);
+ return Number.isNaN(parsed.getTime())?new Date():parsed;
+}
 function weekRangeFromISO(dateStr){
  let d=parseISO(dateStr||isoDate(new Date()));
  let day=d.getDay(); // 0 sunday
@@ -15822,8 +15828,8 @@ async function readLegacy953(){if(typeof cloudRequest!=='function')throw new Err
 window.hlgb9153Run=async function(){const b=box953();b.innerHTML='<b>🔎 Conferência v91.53</b><br>Lendo banco atual e JSON antigo…';try{const legacyRow=await readLegacy953();const legacy=legacyRow?.dados&&typeof legacyRow.dados==='object'?legacyRow.dados:{};const pr=snapRows953('payroll');const currentActive=pr.filter(x=>!x.meta?.deleted_at).map(x=>x.data);const deletedPayroll=pr.filter(x=>!!x.meta?.deleted_at);const currentPaid=currentActive.filter(paid953);const legacyPay=Array.isArray(legacy.payroll)?legacy.payroll:[];const legacyPaid=legacyPay.filter(paid953);const curPaidKeys=new Set(currentPaid.map(key953).filter(Boolean));const legPaidKeys=new Set(legacyPaid.map(key953).filter(Boolean));const onlyLegacyPaid=legacyPaid.filter(x=>{const k=key953(x);return k&&!curPaidKeys.has(k)});const onlyCurrentPaid=currentPaid.filter(x=>{const k=key953(x);return k&&!legPaidKeys.has(k)});const duplicates=duplicates953(currentActive);
  const currentHub=snapRows953('hubFinanceEntries').filter(x=>!x.meta?.deleted_at).map(x=>x.data),legacyHub=Array.isArray(legacy.hubFinanceEntries)?legacy.hubFinanceEntries:[];const cm=new Map(currentHub.map(x=>[String(x?.id??''),x]));const hubDiffs=[];for(const l of legacyHub){const id=String(l?.id??'');if(!id)continue;const c=cm.get(id);if(!c)continue;const ls=String(l.status||''),cs=String(c.status||'');const lv=+l.value||+l.amount||0,cv=+c.value||+c.amount||0;if(ls!==cs||Math.abs(lv-cv)>0.001||String(l.realizedAt||'')!==String(c.realizedAt||'')){hubDiffs.push({id,label:l.description||l.name||id,legacyStatus:ls,currentStatus:cs,legacy:l,current:c})}}
  show953({version:V953,at:new Date().toISOString(),legacyVersion:legacyRow?.versao??null,legacyUpdatedAt:legacyRow?.atualizado_em||'',currentPaid,legacyPaid,onlyLegacyPaid,onlyCurrentPaid,deletedPayroll,duplicates,hubDiffs});}catch(e){b.innerHTML=`<b>🔎 Conferência v91.53</b><br>Não consegui ler o JSON antigo ainda.<br><small>${esc953(e?.message||e)}</small><br><button type="button" style="margin-top:8px" onclick="hlgb9153Run()">Tentar novamente</button>`}};
-function boot953(n=0){if(typeof db!=='undefined'&&db&&typeof document!=='undefined'){window.hlgb9153Run();return}if(n<30)setTimeout(()=>boot953(n+1),1000)}
-setTimeout(()=>boot953(0),1600);
+function boot953(){document.getElementById('hlgb953Diff')?.remove()}
+setTimeout(boot953,1600);
 })();
 </script>
 
