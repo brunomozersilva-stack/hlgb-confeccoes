@@ -6,7 +6,7 @@
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
-<title>HLGB Confecções — Sistema de Gestão v91.64 Multiusuário</title>
+<title>HLGB Confecções — Sistema de Gestão v91.65 Multiusuário</title>
 <style>
 :root{--navy:#6f3f59;--orange:#c96b8f;--bg:#fbf6f8;--line:#eadde4;--text:#30262c;--muted:#786b73;--ok:#e9f7ef;--warn:#fff5df;--bad:#fdeaea;--rose:#f3dbe5;--rose2:#fff8fb}
 *{box-sizing:border-box}body{margin:0;font-family:Arial,Helvetica,sans-serif;background:var(--bg);color:var(--text)}
@@ -263,7 +263,7 @@ main{min-width:0;}
     <div class="field" style="text-align:left;margin-bottom:10px"><label>E-mail</label><input id="loginUser" type="email" autocomplete="username" placeholder="seuemail@exemplo.com"></div>
     <div class="field" style="text-align:left;margin-bottom:14px"><label>Senha</label><input id="loginPass" type="password" autocomplete="current-password" onkeydown="if(event.key==='Enter')return doLogin()"></div>
     <button class="primary" style="width:100%" onclick="return doLogin()">Entrar</button>
-    <div id="loginError" style="color:#a51d2d;font-size:13px;margin-top:10px"></div><div style="margin-top:12px;font-size:12px;color:#786b73">Acesso protegido pelo Supabase • HLGB Online<br><b style="color:#6f3f59">Versão v91.64</b></div>
+    <div id="loginError" style="color:#a51d2d;font-size:13px;margin-top:10px"></div><div style="margin-top:12px;font-size:12px;color:#786b73">Acesso protegido pelo Supabase • HLGB Online<br><b style="color:#6f3f59">Versão v91.65</b></div>
   </div>
 </div>
 
@@ -16314,9 +16314,10 @@ function simplify9164(){
  const page=document.getElementById('projecao');if(!page)return;page.classList.add('projection-simple');
  const productTable=document.getElementById('projectionProductsTable');if(productTable){const panel=productTable.closest('.panel');if(panel){const h=panel.querySelector('h2');if(h)h.textContent='✅ 1. O que precisa ser feito / entregue';const sub=panel.querySelector('.sub');if(sub)sub.textContent='Aqui estão somente os modelos com saldo para entregar. Selecione os produtos e finalize a nota quando saírem.'}}
  const tracking=document.getElementById('projectionDeliveryTrackingPanel');if(tracking){const h=tracking.querySelector('h2');if(h)h.textContent='📦 2. O que falta e o que já foi entregue'}
- ['projectionExitTable','clientProjectionTable','locationProjectionTable','cutterProjectionTable'].forEach(id=>{const el=document.getElementById(id),p=el?.closest('.panel');if(p&&p!==tracking&&p!==productTable?.closest('.panel'))p.classList.add('projection-advanced-hidden')});
+ ['projectionExitTable','locationProjectionTable','cutterProjectionTable'].forEach(id=>{const el=document.getElementById(id),p=el?.closest('.panel');if(p&&p!==tracking&&p!==productTable?.closest('.panel'))p.classList.add('projection-advanced-hidden')});
+ const client=document.getElementById('clientProjectionTable');if(client){const p=client.closest('.panel');p?.classList.remove('projection-advanced-hidden');const h=p?.querySelector('h2');if(h)h.textContent='💰 3. Valor por cliente';const sub=p?.querySelector('.sub');if(sub)sub.textContent='Veja quanto cada cliente tem previsto e quanto já foi entregue/finalizado no período.'}
  document.querySelectorAll('#projecao .field label').forEach(l=>{if(['Valor mínimo','Valor máximo','Prioridade','Status'].includes(l.textContent.trim()))l.closest('.field')?.classList.add('projection-advanced-hidden')});
- const logo=document.querySelector('#appShell .logo small');if(logo)logo.textContent='v91.64';
+ const logo=document.querySelector('#appShell .logo small');if(logo)logo.textContent='v91.65';
 }
 const old=window.renderProjection;if(typeof old==='function')window.renderProjection=function(){const r=old.apply(this,arguments);setTimeout(simplify9164,0);return r};
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',simplify9164,{once:true});else simplify9164();
