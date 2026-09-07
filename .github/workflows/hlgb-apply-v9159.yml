@@ -1,0 +1,63 @@
+name: HLGB v91.59 faltas entregues e separação x produção
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'scripts/hlgb_v9159_patch.py'
+      - '.github/workflows/hlgb-apply-v9159.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  repair:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Apply v91.59 business flow fixes
+        run: python3 scripts/hlgb_v9159_patch.py
+      - name: Validate v91.59 and all inline JavaScript
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import re, subprocess, tempfile, os
+          s=Path('index.html').read_text(encoding='utf-8')
+          assert 'v91.59 Multiusuário' in s
+          assert "const VER955='91.59';" in s
+          assert 'HLGB v91.59 RECUPERACAO DE FALTAS + SEPARACAO X PRODUCAO' in s
+          assert "destination:'clientInvoice'" in s
+          assert "destination:'finishedPieces'" in s
+          assert 'projectionAppliedQty' in s
+          assert 'inferredFromProduction9159' in s
+          assert 'peças ainda em separação' in s
+          assert "if(dest==='finishedPieces')return a+q;" in s
+          scripts=re.findall(r'<script(?:\s[^>]*)?>(.*?)</script>',s,re.S|re.I)
+          errors=[]
+          for i,js in enumerate(scripts):
+              fd,p=tempfile.mkstemp(suffix='.js'); os.close(fd)
+              Path(p).write_text(js,encoding='utf-8')
+              r=subprocess.run(['node','--check',p],capture_output=True,text=True)
+              os.unlink(p)
+              if r.returncode: errors.append(f'SCRIPT {i}:\n{r.stderr}')
+          if errors: raise SystemExit('\n\n'.join(errors))
+          print(f'v91.59 validation OK: {len(scripts)} inline scripts checked')
+          PY
+      - name: Commit validated v91.59 index
+        run: |
+          if git diff --quiet -- index.html; then
+            echo 'No index changes to commit'
+            exit 0
+          fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add index.html
+          git commit -m 'Fix missing-piece destination and separation production sync v91.59'
+          git push origin main
