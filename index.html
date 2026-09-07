@@ -6,7 +6,7 @@
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
-<title>HLGB Confecções — Sistema de Gestão v91.58 Multiusuário</title>
+<title>HLGB Confecções — Sistema de Gestão v91.59 Multiusuário</title>
 <style>
 :root{--navy:#6f3f59;--orange:#c96b8f;--bg:#fbf6f8;--line:#eadde4;--text:#30262c;--muted:#786b73;--ok:#e9f7ef;--warn:#fff5df;--bad:#fdeaea;--rose:#f3dbe5;--rose2:#fff8fb}
 *{box-sizing:border-box}body{margin:0;font-family:Arial,Helvetica,sans-serif;background:var(--bg);color:var(--text)}
@@ -263,11 +263,11 @@ main{min-width:0;}
     <div class="field" style="text-align:left;margin-bottom:10px"><label>E-mail</label><input id="loginUser" type="email" autocomplete="username" placeholder="seuemail@exemplo.com"></div>
     <div class="field" style="text-align:left;margin-bottom:14px"><label>Senha</label><input id="loginPass" type="password" autocomplete="current-password" onkeydown="if(event.key==='Enter')return doLogin()"></div>
     <button class="primary" style="width:100%" onclick="return doLogin()">Entrar</button>
-    <div id="loginError" style="color:#a51d2d;font-size:13px;margin-top:10px"></div><div style="margin-top:12px;font-size:12px;color:#786b73">Acesso protegido pelo Supabase • HLGB Online<br><b style="color:#6f3f59">Versão v91.58</b></div>
+    <div id="loginError" style="color:#a51d2d;font-size:13px;margin-top:10px"></div><div style="margin-top:12px;font-size:12px;color:#786b73">Acesso protegido pelo Supabase • HLGB Online<br><b style="color:#6f3f59">Versão v91.59</b></div>
   </div>
 </div>
 
-<div id="appShell" style="display:none"><header><div class="logo">HLGB <b>CONFECÇÕES</b> <small style="font-size:10px;opacity:.8">v91.58</small></div><div><span id="cloudStatus" style="margin-right:10px;font-size:12px;padding:6px 9px;border:1px solid #ffffff44;border-radius:8px">☁️ Nuvem</span><span id="currentUserLabel" style="margin-right:10px;font-size:13px"></span><button id="cloudSaveBtn" onclick="cloudUploadCurrentDb(true)" style="display:none" title="Sincronização automática">🔄 Sincronizar agora</button> <button id="backupBtn" onclick="backup()" style="display:none">Exportar backup</button> <button id="importBackupBtn" onclick="document.getElementById('backupImportInput').click()" style="display:none">Importar backup</button><input id="backupImportInput" type="file" accept=".json,application/json" style="display:none" onchange="importBackupFile(this)"> <button onclick="logout()">Sair</button></div></header>
+<div id="appShell" style="display:none"><header><div class="logo">HLGB <b>CONFECÇÕES</b> <small style="font-size:10px;opacity:.8">v91.59</small></div><div><span id="cloudStatus" style="margin-right:10px;font-size:12px;padding:6px 9px;border:1px solid #ffffff44;border-radius:8px">☁️ Nuvem</span><span id="currentUserLabel" style="margin-right:10px;font-size:13px"></span><button id="cloudSaveBtn" onclick="cloudUploadCurrentDb(true)" style="display:none" title="Sincronização automática">🔄 Sincronizar agora</button> <button id="backupBtn" onclick="backup()" style="display:none">Exportar backup</button> <button id="importBackupBtn" onclick="document.getElementById('backupImportInput').click()" style="display:none">Importar backup</button><input id="backupImportInput" type="file" accept=".json,application/json" style="display:none" onchange="importBackupFile(this)"> <button onclick="logout()">Sair</button></div></header>
 <div class="app">
 <aside><nav id="nav" class="clean-nav">
 <button class="nav-home active" onclick="page('dashboard',this)">🏠 <span>Início</span></button>
@@ -4967,7 +4967,13 @@ function projectionOpenMissingQty(order,item){
    if(String(m?.orderId??'').trim()!==oid)return sum;
    if(String(m?.productId??'').trim()!==pid)return sum;
    if(String(m?.issueType||'Peça faltante')!=='Peça faltante')return sum;
-   return sum+Math.max(0,+m?.remainingQty||0);
+   const allocated=(Array.isArray(m?.history)?m.history:[]).reduce((a,h)=>{
+     const q=Math.max(0,+h?.qty||0),dest=String(h?.destination||'');
+     if(dest==='finishedPieces')return a+q;
+     if(dest==='clientInvoice')return a+Math.max(0,q-Math.max(0,+h?.projectionAppliedQty||0));
+     return a;
+   },0);
+   return sum+Math.max(0,+m?.remainingQty||0)+allocated;
  },0);
 }
 function projectionDeliverableQty(order,item){
@@ -15924,7 +15930,7 @@ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',
 <script>
 (function(){
 'use strict';
-const VER955='91.58';
+const VER955='91.59';
 const WAL955='hlgb_durable_wal_v1';
 const ARC955='hlgb_durable_wal_archive_v1';
 const IDB955='hlgb_durable_wal';
@@ -15954,7 +15960,7 @@ async function ack955(k,out,finalData){const w=read955(),e=w.entries[k];if(!e)re
 async function fail955(k,err,state='pending'){const w=read955(),e=w.entries[k];if(!e)return;e.attempts=(e.attempts||0)+1;e.lastAttemptAt=now955();e.lastError=String(err?.message||err||'Não confirmado');e.state=state;e.updatedAt=now955();w.entries[k]=e;try{write955(w)}catch(_){}await idbPut955(e);lastErr955=e.lastError;update955()}
 function cloudReady955(){try{const tokenReady=((typeof cloudAccessToken!=='undefined'&&!!cloudAccessToken)||!!window.cloudAccessToken);const recordsReady=((typeof hlgbRecordReady!=='undefined'&&!!hlgbRecordReady)||!!window.hlgbRecordReady);return !!(navigator.onLine!==false&&tokenReady&&recordsReady&&typeof rawSave955==='function')}catch(e){return false}}
 function update955(){let b=document.getElementById('hlgb955SaveBadge');if(!b)return;const es=entries955(),n=es.length,conf=es.filter(x=>x.state==='conflict').length,errs=es.filter(x=>x.lastError).length;if(conf||errs){b.className='bad';b.textContent=`⚠️ ${n} alteração(ões) aguardando`;b.title=lastErr955||'Há alterações ainda não confirmadas pela nuvem.'}else if(n){b.className='wait';b.textContent=`⏳ ${n} aguardando nuvem`;b.title='As alterações estão protegidas no diário local e serão reenviadas.'}else if(cloudReady955()){b.className='ok';b.textContent='✅ Salvo na nuvem';b.title=lastOk955?'Última confirmação: '+new Date(lastOk955).toLocaleString('pt-BR'):'Nenhuma alteração pendente.'}else{b.className='off';b.textContent='☁️ Conectando…';b.title='Aguardando conexão com a nuvem.'}}
-function panel955(){let p=document.getElementById('hlgb955Panel');if(p){p.remove();return}p=document.createElement('div');p.id='hlgb955Panel';const es=entries955().sort((a,b)=>String(a.createdAt).localeCompare(String(b.createdAt)));let h='<h3>🔐 Segurança de gravação v91.58</h3><div class="muted">Uma alteração só aparece como “Salvo na nuvem” depois da confirmação do banco. Pendências ficam guardadas neste navegador mesmo durante atualização de versão.</div>';h+=`<div class="row"><b>Pendentes:</b> ${es.length}<br><b>Conexão:</b> ${cloudReady955()?'nuvem pronta':'aguardando nuvem'}<br><b>Armazenamento persistente:</b> ${storagePersistent955===true?'sim':storagePersistent955===false?'não garantido':'verificando'}</div>`;for(const e of es.slice(0,30)){h+=`<div class="row"><b>${String(e.module).replace(/[<>&]/g,'')}</b> · ${String(e.id).replace(/[<>&]/g,'')}<br><span class="muted">${e.deleted?'exclusão':'salvamento'} · ${e.attempts||0} tentativa(s)${e.lastError?'<br>Último erro: '+String(e.lastError).replace(/[<>&]/g,''):''}</span></div>`}h+='<button class="primary" onclick="hlgb955FlushNow()">Reenviar pendências</button><button onclick="document.getElementById(\'hlgb955Panel\')?.remove()">Fechar</button>';p.innerHTML=h;document.body.appendChild(p)}
+function panel955(){let p=document.getElementById('hlgb955Panel');if(p){p.remove();return}p=document.createElement('div');p.id='hlgb955Panel';const es=entries955().sort((a,b)=>String(a.createdAt).localeCompare(String(b.createdAt)));let h='<h3>🔐 Segurança de gravação v91.59</h3><div class="muted">Uma alteração só aparece como “Salvo na nuvem” depois da confirmação do banco. Pendências ficam guardadas neste navegador mesmo durante atualização de versão.</div>';h+=`<div class="row"><b>Pendentes:</b> ${es.length}<br><b>Conexão:</b> ${cloudReady955()?'nuvem pronta':'aguardando nuvem'}<br><b>Armazenamento persistente:</b> ${storagePersistent955===true?'sim':storagePersistent955===false?'não garantido':'verificando'}</div>`;for(const e of es.slice(0,30)){h+=`<div class="row"><b>${String(e.module).replace(/[<>&]/g,'')}</b> · ${String(e.id).replace(/[<>&]/g,'')}<br><span class="muted">${e.deleted?'exclusão':'salvamento'} · ${e.attempts||0} tentativa(s)${e.lastError?'<br>Último erro: '+String(e.lastError).replace(/[<>&]/g,''):''}</span></div>`}h+='<button class="primary" onclick="hlgb955FlushNow()">Reenviar pendências</button><button onclick="document.getElementById(\'hlgb955Panel\')?.remove()">Fechar</button>';p.innerHTML=h;document.body.appendChild(p)}
 function mount955(){if(!document.getElementById('hlgb955SaveBadge')){const b=document.createElement('div');b.id='hlgb955SaveBadge';b.className='off';b.textContent='☁️ Conectando…';b.onclick=panel955;document.body.appendChild(b)}update955();setTimeout(()=>{['hlgb954LocalAudit','hlgb953LegacyDiff','hlgb952PayrollCloudBox','hlgb951Diagnostic','hlgb950RecoveryBox','hlgb948AuditBox'].forEach(id=>document.getElementById(id)?.remove())},1000)}
 function applyData955(m,id,data,deleted){try{if(!Array.isArray(db?.[m]))return;if(deleted){db[m]=db[m].filter((x,i)=>rid955(m,x,i)!==String(id));return}let i=db[m].findIndex((x,n)=>rid955(m,x,n)===String(id));if(i>=0)db[m][i]=C955(data);else db[m].push(C955(data))}catch(e){}}
 async function flush955(manual=false){if(flushBusy955)return false;flushBusy955=true;try{if(!rawSave955)install955();if(!cloudReady955()){try{if(typeof cloudEnsureFreshSession==='function')await cloudEnsureFreshSession(false)}catch(_){}try{if(!window.hlgbRecordReady&&typeof hlgbEnsureRecordsOnlineAfterLogin==='function')await hlgbEnsureRecordsOnlineAfterLogin()}catch(_){}if(!cloudReady955()){update955();if(manual)alert('A nuvem ainda não está pronta. As alterações continuam protegidas localmente e serão reenviadas automaticamente.');return false}}const es=entries955().sort((a,b)=>String(a.createdAt).localeCompare(String(b.createdAt)));let changed=false;for(const e of es){const k=e.key,s=snap955(e.module,e.id);try{if(e.deleted){if(s?.deleted_at||(!s&&e.baseData)){await ack955(k,{applied:true,alreadyApplied:true},e.data);changed=true;continue}if(e.baseUpdatedAt&&s?.updated_at&&String(e.baseUpdatedAt)!==String(s.updated_at)){await fail955(k,new Error('O registro mudou em outra máquina depois desta exclusão. A exclusão foi bloqueada para evitar perda.'),'conflict');continue}const out=await rawSave955(e.module,e.id,C955(e.data),true);if(!out?.applied)throw new Error('Exclusão não confirmada pelo Supabase.');await ack955(k,out,e.data);applyData955(e.module,e.id,null,true);changed=true;continue}const latest=C955(s?.data??null);let payload=C955(e.data);if(latest&&e.baseData&&typeof cloudMergeThreeWay==='function'){try{payload=cloudMergeThreeWay(C955(e.baseData),C955(e.data),latest)}catch(_){payload={...latest,...C955(e.data)}}}else if(latest&&payload&&typeof payload==='object'&&!Array.isArray(payload))payload={...latest,...payload};const out=await rawSave955(e.module,e.id,payload,false);if(!out?.applied)throw new Error('Salvamento não confirmado pelo Supabase.');await ack955(k,out,out.data||payload);applyData955(e.module,e.id,C955(out.data||payload),false);changed=true}catch(err){await fail955(k,err,e.state==='conflict'?'conflict':'pending')}}if(changed){try{localSaveOnly()}catch(_){}try{if(!document.getElementById('modal')?.classList.contains('show'))renderAll()}catch(_){}}update955();return count955()===0}finally{flushBusy955=false}}
@@ -15970,4 +15976,199 @@ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',
 </script>
 
 <!-- HLGB v91.56 SNAPSHOT ACK + REDUNDANT SAVE FIX -->
+
+<!-- HLGB v91.59 RECUPERAÇÃO DE FALTAS + SEPARAÇÃO X PRODUÇÃO -->
+<script>
+(function(){
+'use strict';
+const HLGB9159_MARK='HLGB v91.59 RECUPERACAO DE FALTAS + SEPARACAO X PRODUCAO';
+const q9159=v=>Math.max(0,+v||0);
+const n9159=v=>String(v??'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').trim().toLowerCase();
+const c9159=v=>{try{return JSON.parse(JSON.stringify(v))}catch(e){return v}};
+const id9159=()=>Date.now()+Math.floor(Math.random()*900);
+const product9159=id=>(db.products||[]).find(p=>String(p.id)===String(id))||null;
+const client9159=id=>(db.clients||[]).find(c=>String(c.id)===String(id))||null;
+const order9159=id=>(db.orders||[]).find(o=>String(o.id)===String(id))||null;
+
+function price9159(productId,clientId,fallback=0){
+  let v=0;
+  try{if(typeof suggestedPrice==='function')v=q9159(suggestedPrice(+clientId,+productId))}catch(e){}
+  let p=product9159(productId),c=client9159(clientId),pid=String(productId||''),cid=String(clientId||'');
+  if(!v&&p?.clientPrices&&Object.prototype.hasOwnProperty.call(p.clientPrices,cid))v=q9159(p.clientPrices[cid]);
+  if(!v&&c?.prices&&Object.prototype.hasOwnProperty.call(c.prices,pid))v=q9159(c.prices[pid]);
+  if(!v)v=q9159(fallback)||q9159(p?.price);
+  return v;
+}
+function projectionItem9159(o,pid){
+  if(!o)return null;
+  try{return (projectionItemsForOrder(o)||[]).find(i=>String(i.productId||i.key)===String(pid))||null}catch(e){return null}
+}
+async function saveRow9159(module,row){
+  if(typeof hlgbRecordSaveWithRetry==='function'&&typeof cloudAccessToken!=='undefined'&&cloudAccessToken){
+    const out=await hlgbRecordSaveWithRetry(module,String(row.id),c9159(row),false);
+    if(!out||out.applied!==true)throw new Error(`A gravação de ${module} não foi confirmada na nuvem.`);
+    return out.data||row;
+  }
+  return row;
+}
+function upsert9159(module,row){
+  db[module]=Array.isArray(db[module])?db[module]:[];
+  let ix=db[module].findIndex(x=>String(x.id)===String(row.id));
+  if(ix>=0)db[module][ix]=row;else db[module].push(row);
+}
+function refreshAfterMissing9159(){
+  try{renderMissingPieces()}catch(e){}
+  try{renderProjection()}catch(e){}
+  try{renderFinance()}catch(e){}
+  try{renderOrderNotes()}catch(e){}
+  try{renderFinishedPieces()}catch(e){}
+  try{renderProduction()}catch(e){}
+}
+function predictedLocation9159(m,o){
+  let rows=(db.production||[]).filter(p=>String(p.orderId)===String(o?.id||m.orderId)&&
+    (String(p.productId||'')===String(m.productId||'')||String(p.cutProductKey||'').split(':').pop()===String(m.productId||''))&&p.productionLocationId);
+  return rows.slice().sort((a,b)=>String(b.sentToFactionAt||b.date||'').localeCompare(String(a.sentToFactionAt||a.date||'')))[0]?.productionLocationId||'';
+}
+function destinationUi9159(){
+  let mode=document.getElementById('missingDest9159')?.value||'client';
+  document.querySelectorAll('.missingClient9159').forEach(e=>e.style.display=mode==='client'?'':'none');
+  document.querySelectorAll('.missingReady9159').forEach(e=>e.style.display=mode==='ready'?'':'none');
+}
+window.toggleMissingDestination9159=destinationUi9159;
+window.updateMissingRecoveryPrice9159=function(){
+  let pid=document.getElementById('missingProduct9159')?.value||'',cid=document.getElementById('missingClient9159')?.value||'',fallback=document.getElementById('missingFallback9159')?.value||0,el=document.getElementById('missingPrice9159');
+  if(el)el.value=price9159(pid,cid,fallback).toFixed(2);
+};
+
+const oldAbateMissingPiece9159=window.abateMissingPiece;
+window.abateMissingPiece=function(id){
+  let m=(db.missingPieces||[]).find(x=>String(x.id)===String(id));if(!m)return;
+  if(String(m.issueType||'Peça faltante')!=='Peça faltante')return oldAbateMissingPiece9159?oldAbateMissingPiece9159.apply(this,arguments):undefined;
+  let o=order9159(m.orderId),predClientId=m.clientId||o?.clientId||'',predLoc=predictedLocation9159(m,o),txn=id9159(),fallback=q9159(m.unitPrice),p=product9159(m.productId);
+  let clients=(db.clients||[]).slice().sort((a,b)=>String(a.name||'').localeCompare(String(b.name||''),'pt-BR'));
+  let clientOpts=clients.map(c=>`<option value="${c.id}" ${String(c.id)===String(predClientId)?'selected':''}>${esc(c.name||'')}</option>`).join('');
+  let locs=(db.productionLocations||[]).filter(l=>l.active!==false),locOpts=locs.map(l=>`<option value="${l.id}" ${String(l.id)===String(predLoc)?'selected':''}>${esc(l.name||'')}</option>`).join('');
+  let today=isoDate(new Date());
+  openModal('Baixar peça faltante recuperada',`
+    <input id="missingTxn9159" type="hidden" value="${txn}">
+    <input id="missingProduct9159" type="hidden" value="${esc(m.productId||'')}">
+    <input id="missingFallback9159" type="hidden" value="${fallback}">
+    <div class="cards">
+      <div class="card"><small>Cliente original</small><strong style="font-size:17px">${esc(m.client||o?.client||'-')}</strong></div>
+      <div class="card"><small>Produto</small><strong style="font-size:17px">${esc(m.product||p?.name||'-')}</strong></div>
+      <div class="card"><small>Falta em aberto</small><strong>${q9159(m.remainingQty).toLocaleString('pt-BR')}</strong></div>
+    </div>
+    <div class="grid">
+      <div class="field"><label>Quantidade recuperada / entregue agora</label><input id="missingQty9159" type="number" min="1" max="${q9159(m.remainingQty)}" value="${q9159(m.remainingQty)}"></div>
+      <div class="field"><label>Data</label><input id="missingDate9159" type="date" value="${today}"></div>
+      <div class="field"><label>Destino desta recuperação</label><select id="missingDest9159" onchange="toggleMissingDestination9159()"><option value="client">Entregar ao cliente e gerar nota / cobrança</option><option value="ready">Mandar para Peças prontas, sem nota agora</option></select></div>
+      <div class="field"><label>Observação</label><input id="missingNote9159" placeholder="Ex.: reposição da falta"></div>
+      <div class="field missingClient9159"><label>Cliente que receberá / será cobrado</label><select id="missingClient9159" onchange="updateMissingRecoveryPrice9159()"><option value="">Selecione</option>${clientOpts}</select></div>
+      <div class="field missingClient9159"><label>Valor de venda por peça</label><input id="missingPrice9159" type="number" min="0" step=".01" value="${price9159(m.productId,predClientId,fallback).toFixed(2)}"></div>
+      <div class="field missingClient9159"><label>Vencimento da nota</label><input id="missingDue9159" type="date" value="${today}"></div>
+      <div class="field missingClient9159"><label>Condição</label><select id="missingTerms9159"><option>À vista</option><option>7 dias</option><option>14 dias</option><option>21 dias</option><option>28 dias</option><option>30 dias</option><option>Cheque</option></select></div>
+      <div class="field missingReady9159" style="display:none"><label>Local / confecção de origem (opcional)</label><select id="missingLoc9159"><option value="">Sem local definido</option>${locOpts}</select></div>
+    </div>
+    <div class="panel" style="background:#fff8fb"><b>Regra automática</b><div class="sub">Se for para cliente, a reposição entra em <b>Entregue</b>, gera nota e cobrança e não volta para “Previstos para entrega”. Se for para <b>Peças prontas</b>, ela entra no livro de peças prontas e também não volta para a previsão do pedido original.</div></div>
+    <button type="button" class="primary modalSave">☁️ Confirmar baixa e destino</button>`,async()=>{
+      let qty=Math.floor(q9159(document.getElementById('missingQty9159')?.value)),date=document.getElementById('missingDate9159')?.value||today,mode=document.getElementById('missingDest9159')?.value||'client',note=(document.getElementById('missingNote9159')?.value||'').trim(),tid=+document.getElementById('missingTxn9159')?.value||txn;
+      if(qty<=0||qty>q9159(m.remainingQty)){alert('Informe uma quantidade válida.');return}
+      let nextM=c9159(m),hist={id:tid,qty,date,note,recoveryTxnId:tid};nextM.history=Array.isArray(nextM.history)?nextM.history:[];
+      let btn=document.querySelector('#modal .modalSave');if(btn){btn.disabled=true;btn.textContent='☁️ Gravando com segurança…'}
+      try{
+        if(mode==='client'){
+          let cid=document.getElementById('missingClient9159')?.value||'',cl=client9159(cid);if(!cl)throw new Error('Selecione o cliente que receberá esta reposição.');
+          let unit=q9159(document.getElementById('missingPrice9159')?.value),due=document.getElementById('missingDue9159')?.value||date,terms=document.getElementById('missingTerms9159')?.value||'À vista',value=qty*unit;
+          let sourceOrder=order9159(m.orderId),sourceItem=projectionItem9159(sourceOrder,m.productId),nextOrder=sourceOrder?c9159(sourceOrder):null,applied=0,itemKey=sourceItem?.key||String(m.productId||'');
+          if(nextOrder&&sourceItem){
+            nextOrder.projectionItems=nextOrder.projectionItems||{};let saved=nextOrder.projectionItems[itemKey]||{},prev=saved.invoicedQty!=null?q9159(saved.invoicedQty):(saved.invoiced?q9159(sourceItem.qty):0),newQty=Math.min(q9159(sourceItem.qty),prev+qty);applied=Math.max(0,newQty-prev);
+            nextOrder.projectionItems[itemKey]={...saved,date:sourceItem.date||saved.date||sourceOrder.date||date,invoicedQty:newQty,invoiced:newQty>=q9159(sourceItem.qty),invoiceIds:[...(saved.invoiceIds||[]),tid],deliveryHistory:[...(saved.deliveryHistory||[]),{invoiceId:tid,date,qty,missingRecovery:true}]};
+            try{nextOrder.projectionInvoiced=(projectionItemsForOrder(nextOrder)||[]).every(i=>i.invoiced)}catch(e){}
+          }
+          hist={...hist,destination:'clientInvoice',destinationLabel:'Entregue ao cliente + nota/cobrança',targetClientId:cl.id,targetClientName:cl.name,invoiceId:tid,projectionAppliedQty:applied,note:[note,'Destino: cliente / nota'].filter(Boolean).join(' · ')};
+          nextM.history.push(hist);nextM.recoveredQty=q9159(nextM.recoveredQty)+qty;nextM.remainingQty=Math.max(0,q9159(nextM.remainingQty)-qty);nextM.status=nextM.remainingQty<=0?'Resolvido':'Parcial';nextM.lastRecoveryDestination='clientInvoice';
+          let invoice={id:tid,client:cl.name,clientId:cl.id,sourceClient:m.client||sourceOrder?.client||'',sourceMissingPieceId:m.id,recoveryTxnId:tid,items:[{orderId:sourceOrder?.id||m.orderId||null,itemKey,productName:m.product||p?.name||'Produto',productId:m.productId||null,projectionDate:sourceItem?.date||sourceOrder?.date||date,deliveredAt:date,qty,unitPrice:unit,value,missingPieceId:m.id,missingRecovery:true}],date,issueDate:date,dueDate:due,value,terms,termsDetail:'Reposição de peça faltante',status:'Pendente',missingRecovery:true};
+          let finance={id:tid+1,type:'Receber',desc:`Reposição de falta — ${cl.name} — ${m.product||p?.name||'Produto'}`,value,status:'Pendente',paid:0,remaining:value,date:due,dueDate:due,issueDate:date,paymentTerms:terms,paymentTermsDetail:'Reposição de peça faltante',clientId:cl.id,clientName:cl.name,projectionInvoiceId:tid,missingPieceId:m.id,recoveryTxnId:tid};
+          let savedInv=await saveRow9159('projectionInvoices',invoice),savedFin=await saveRow9159('finance',finance),savedOrder=nextOrder?await saveRow9159('orders',nextOrder):null,savedM=await saveRow9159('missingPieces',nextM);
+          upsert9159('projectionInvoices',savedInv);upsert9159('finance',savedFin);if(savedOrder)upsert9159('orders',savedOrder);upsert9159('missingPieces',savedM);m=savedM;
+        }else{
+          let lid=document.getElementById('missingLoc9159')?.value||'',loc=(db.productionLocations||[]).find(l=>String(l.id)===String(lid))||null;
+          hist={...hist,destination:'finishedPieces',destinationLabel:'Peças prontas',finishedPieceId:tid,note:[note,'Destino: Peças prontas'].filter(Boolean).join(' · ')};
+          nextM.history.push(hist);nextM.recoveredQty=q9159(nextM.recoveredQty)+qty;nextM.remainingQty=Math.max(0,q9159(nextM.remainingQty)-qty);nextM.status=nextM.remainingQty<=0?'Resolvido':'Parcial';nextM.lastRecoveryDestination='finishedPieces';
+          let ready={id:tid,date,locationId:loc?.id||null,locationName:loc?.name||'Recuperação de falta',assignmentKey:`missing:${m.id}:${tid}`,productionId:null,productionIds:[],orderId:o?.id||m.orderId||null,orderNumber:o?(typeof displayOrderNumber==='function'?displayOrderNumber(o):o.id):(m.orderId||''),op:o?`PED-${typeof displayOrderNumber==='function'?displayOrderNumber(o):o.id}`:'',productId:m.productId||null,productName:m.product||p?.name||'Produto',grade:[],qty,assignmentQty:qty,manager:typeof cloudUser!=='undefined'?(cloudUser?.user_metadata?.name||cloudUser?.email||''):'',createdBy:typeof cloudUser!=='undefined'?(cloudUser?.email||''):'',createdAt:new Date().toISOString(),sourceType:'Recuperação de falta',missingPieceId:m.id,recoveryTxnId:tid};
+          let savedReady=await saveRow9159('finishedPieces',ready),savedM=await saveRow9159('missingPieces',nextM);upsert9159('finishedPieces',savedReady);upsert9159('missingPieces',savedM);m=savedM;
+        }
+        try{localSaveOnly()}catch(e){};try{let r=save();if(r&&typeof r.then==='function')await r}catch(e){console.error('v91.59 save final',e)}
+        closeModal();refreshAfterMissing9159();alert(mode==='client'?`Reposição de ${qty.toLocaleString('pt-BR')} peça(s) registrada em Entregue e incluída em nota/cobrança.`:`Reposição de ${qty.toLocaleString('pt-BR')} peça(s) enviada para Peças prontas.`);
+      }catch(e){console.error('v91.59 baixa falta',e);if(btn){btn.disabled=false;btn.textContent='☁️ Confirmar baixa e destino'}alert(e.message||'Não foi possível confirmar a baixa. A janela ficou aberta para tentar novamente.');}
+    });
+  setTimeout(()=>{destinationUi9159();updateMissingRecoveryPrice9159()},20);
+};
+
+// ---------------------------------------------------------------------------
+// Separação x produção: produção atribuída implica material já separado.
+// Só o saldo ainda não colocado em produção continua na fila de separação.
+// ---------------------------------------------------------------------------
+function sepItems9159(o){
+  try{return projectionItemsForOrder(o)||[]}catch(e){}
+  let map=new Map();(o?.grade||[]).forEach(g=>{let k=String(g.productId||'');if(!k)return;let x=map.get(k)||{key:k,productId:g.productId,name:product9159(g.productId)?.name||'Produto',qty:0};x.qty+=q9159(g.qty);map.set(k,x)});return [...map.values()];
+}
+function prodMatches9159(p,o,item){
+  if(String(p.orderId||'')!==String(o.id||''))return false;
+  let key=String(item.productId||item.key||'');if(String(p.productId||'')===key||String(p.cutProductKey||'').split(':').pop()===key)return true;
+  let pn=n9159(p.product),inm=n9159(item.name||product9159(item.productId)?.name);return !!pn&&!!inm&&pn===inm;
+}
+function countsAsProduction9159(p){
+  if(!p||p.deletedAt)return false;let st=n9159(p.stage||p.status||'');if(st.includes('cancel'))return false;
+  if(p.productionLocationId||p.factionId)return q9159(p.planned)>0;
+  return ['em producao','costura','acabamento','pronto','finalizado','aguardando producao','enviado'].includes(st)&&q9159(p.planned)>0;
+}
+function productionQty9159(o,item){
+  let total=(db.production||[]).filter(p=>countsAsProduction9159(p)&&prodMatches9159(p,o,item)).reduce((s,p)=>s+q9159(p.planned),0);return Math.min(q9159(item.qty),total);
+}
+function latestSep9159(orderId){
+  let rows=(db.separations||[]).filter(s=>String(s.orderId)===String(orderId));return rows.find(s=>s.done===true)||rows.slice().sort((a,b)=>String(b.updatedAt||b.at||b.createdAt||b.id||'').localeCompare(String(a.updatedAt||a.at||a.createdAt||a.id||'')))[0]||null;
+}
+function reconcileSep9159(o){
+  if(!o)return {changed:false,total:0,done:0,production:0,remaining:0};db.separations=Array.isArray(db.separations)?db.separations:[];let items=sepItems9159(o),production=items.reduce((s,it)=>s+productionQty9159(o,it),0);if(production<=0){let total=items.reduce((s,it)=>s+q9159(it.qty),0);return {changed:false,total,done:0,production:0,remaining:total}}
+  let s=latestSep9159(o.id),changed=false;if(!s){s={id:id9159(),orderId:o.id,done:false,at:null,modelProgress:{},history:[],autoFromProduction9159:true,createdAt:new Date().toISOString()};db.separations.push(s);changed=true}
+  s.modelProgress=s.modelProgress||{};let total=0,done=0,alreadyDone=s.done===true;items.forEach(it=>{let key=String(it.productId||it.key||''),qty=q9159(it.qty),prod=productionQty9159(o,it),cur=q9159(s.modelProgress[key]?.qty),eff=alreadyDone?qty:Math.min(qty,Math.max(cur,prod));total+=qty;done+=eff;if(!alreadyDone&&eff>cur){s.modelProgress[key]={...(s.modelProgress[key]||{}),qty:eff,total:qty,updatedAt:new Date().toISOString(),inferredFromProduction9159:true};changed=true}});
+  let complete=alreadyDone||(total>0&&done>=total);if(complete&&!s.done){s.done=true;s.partial=false;s.at=s.at||new Date().toISOString();changed=true}else if(!complete&&done>0){if(s.done!==false||s.partial!==true){s.done=false;s.partial=true;changed=true}}
+  if(changed){s.updatedAt=new Date().toISOString();s.inferredFromProduction9159=true;try{localSaveOnly()}catch(e){}}
+  return {changed,total,done,production,remaining:Math.max(0,total-done),sep:s};
+}
+function reconcileAllSep9159(){(db.orders||[]).forEach(o=>{if(n9159(o.status)!=='cancelado'&&!o.deletedAt)reconcileSep9159(o)})}
+function sepEffective9159(o){
+  reconcileSep9159(o);let s=latestSep9159(o.id),progress=s?.modelProgress||{},items=sepItems9159(o).map(it=>{let key=String(it.productId||it.key||''),qty=q9159(it.qty),done=s?.done===true?qty:Math.min(qty,q9159(progress[key]?.qty)),remaining=Math.max(0,qty-done);return {...it,key,qty,done,remaining}}),total=items.reduce((a,x)=>a+x.qty,0),done=items.reduce((a,x)=>a+x.done,0),remaining=items.reduce((a,x)=>a+x.remaining,0);return {items,total,done,remaining,complete:total>0&&remaining<=0}}
+
+const oldFillSep9159=window.fillSeparationOrders;
+window.fillSeparationOrders=function(){reconcileAllSep9159();return oldFillSep9159?oldFillSep9159.apply(this,arguments):undefined};
+const oldListSep9159=window.renderSeparationList;
+window.renderSeparationList=function(){
+  reconcileAllSep9159();let el=document.getElementById('separationList');if(!el)return oldListSep9159?oldListSep9159.apply(this,arguments):undefined;
+  let q=n9159(document.getElementById('separationProductSearch')?.value||''),min=q9159(document.getElementById('separationQtyMin')?.value),maxRaw=document.getElementById('separationQtyMax')?.value,max=maxRaw?+maxRaw:Infinity;
+  let rows=(db.orders||[]).map(o=>({o,st:sepEffective9159(o)})).filter(x=>!x.o.deletedAt&&n9159(x.o.status)!=='cancelado'&&x.st.remaining>0).filter(({o,st})=>{let names=st.items.filter(i=>i.remaining>0).map(i=>i.name||product9159(i.productId)?.name||'Produto').join(' ').toLowerCase(),num=String(typeof displayOrderNumber==='function'?displayOrderNumber(o):o.id).toLowerCase();return (!q||n9159(names).includes(q)||num.includes(q.replace(/^#\s*/,'')))&&st.remaining>=min&&st.remaining<=max});
+  el.innerHTML=rows.length?rows.map(({o,st})=>{let pct=st.total?Math.round(st.done/st.total*100):0,models=st.items.filter(i=>i.remaining>0).map(i=>`${esc(i.name||product9159(i.productId)?.name||'Produto')} <span class=\"sub\">(${i.remaining.toLocaleString('pt-BR')} pç)</span>`).join(' · ');return `<div class=\"separation-row\"><div class=\"sep-order-id\"><small>Pedido</small><b>#${esc(typeof displayOrderNumber==='function'?displayOrderNumber(o):o.id)}</b></div><div class=\"sep-main-text\"><b>${esc(o.client||'-')}</b><div class=\"sub\">Entrega ${fmtDate(o.date)}</div></div><div class=\"sep-main-text\"><b>${models||'-'}</b></div><div><b>${st.remaining.toLocaleString('pt-BR')}</b><div class=\"sub\">peças ainda em separação</div></div><div class=\"sep-status\"><span class=\"badge ${st.done?'warn':''}\">${st.done?`${pct}% já separado/em produção`:'Pendente'}</span></div><div class=\"sep-action\"><button type=\"button\" class=\"primary\" onclick=\"document.getElementById('separationOrder').value='${o.id}';renderSeparation()\">Abrir separação</button></div></div>`}).join(''):'<div class=\"empty\">Nenhum produto aguardando separação de material.</div>';
+};
+const oldBreakSep9159=window.orderMaterialBreakdownByProduct;
+if(typeof oldBreakSep9159==='function')window.orderMaterialBreakdownByProduct=function(o){reconcileSep9159(o);let groups=oldBreakSep9159.apply(this,arguments)||[];return groups.filter(g=>q9159(g.pieces)>0.000001&&Object.values(g.materials||{}).some(m=>q9159(m?.qty)>0.000001))};
+const oldRenderSep9159=window.renderSeparation;
+window.renderSeparation=function(){
+  let oid=document.getElementById('separationOrder')?.value||'',o=order9159(oid),state=o?reconcileSep9159(o):null,r=oldRenderSep9159?oldRenderSep9159.apply(this,arguments):undefined;
+  setTimeout(()=>{let box=document.getElementById('separationTable');if(!box||!o||!state||state.production<=0)return;let eff=sepEffective9159(o),remainingNames=new Set(eff.items.filter(i=>i.remaining>0).map(i=>n9159(i.name||product9159(i.productId)?.name||'')));let partial=document.getElementById('sepPartialPanel938');if(partial){partial.querySelectorAll('tbody tr').forEach(tr=>{let name=n9159(tr.cells?.[0]?.textContent||'');if(name&&!remainingNames.has(name))tr.remove()});let h=partial.querySelector('h2');if(h)h.textContent='📦 Baixa parcial — somente modelos que ainda faltam separar'}let old=document.getElementById('sepProdRule9159');if(old)old.remove();let d=document.createElement('div');d.id='sepProdRule9159';d.className='panel';d.style.background='#f5fff8';d.innerHTML=`<b>🏭 Produção descontada da separação</b><div class="sub"><b>${state.production.toLocaleString('pt-BR')}</b> peça(s) deste pedido já estão alocadas/em produção e foram consideradas automaticamente como material separado. Nesta tela fica somente o saldo que ainda precisa de separação: <b>${eff.remaining.toLocaleString('pt-BR')}</b> peça(s).</div>`;box.prepend(d)},0);return r;
+};
+const oldApplySep9159=window.applySeparationProgress938;
+if(typeof oldApplySep9159==='function')window.applySeparationProgress938=async function(orderId,pid,finish=false){let o=order9159(orderId);if(o)reconcileSep9159(o);let out=await oldApplySep9159.apply(this,arguments);if(o)reconcileSep9159(o);setTimeout(()=>{try{fillSeparationOrders()}catch(e){};try{renderSeparationList()}catch(e){}},40);return out};
+
+function boot9159(){
+  reconcileAllSep9159();
+  try{fillSeparationOrders()}catch(e){}
+  try{if(document.querySelector('.page.active')?.id==='separacao')renderSeparationList()}catch(e){}
+}
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>setTimeout(boot9159,700));else setTimeout(boot9159,700);
+window.addEventListener('focus',()=>setTimeout(()=>{try{reconcileAllSep9159();if(document.querySelector('.page.active')?.id==='separacao'){fillSeparationOrders();renderSeparationList()}}catch(e){}},120));
+})();
+
+</script>
+
 </body></html>
