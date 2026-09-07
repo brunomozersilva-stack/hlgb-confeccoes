@@ -6,7 +6,7 @@
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
-<title>HLGB Confecções — Sistema de Gestão v91.65 Multiusuário</title>
+<title>HLGB Confecções — Sistema de Gestão v91.66 Multiusuário</title>
 <style>
 :root{--navy:#6f3f59;--orange:#c96b8f;--bg:#fbf6f8;--line:#eadde4;--text:#30262c;--muted:#786b73;--ok:#e9f7ef;--warn:#fff5df;--bad:#fdeaea;--rose:#f3dbe5;--rose2:#fff8fb}
 *{box-sizing:border-box}body{margin:0;font-family:Arial,Helvetica,sans-serif;background:var(--bg);color:var(--text)}
@@ -263,7 +263,7 @@ main{min-width:0;}
     <div class="field" style="text-align:left;margin-bottom:10px"><label>E-mail</label><input id="loginUser" type="email" autocomplete="username" placeholder="seuemail@exemplo.com"></div>
     <div class="field" style="text-align:left;margin-bottom:14px"><label>Senha</label><input id="loginPass" type="password" autocomplete="current-password" onkeydown="if(event.key==='Enter')return doLogin()"></div>
     <button class="primary" style="width:100%" onclick="return doLogin()">Entrar</button>
-    <div id="loginError" style="color:#a51d2d;font-size:13px;margin-top:10px"></div><div style="margin-top:12px;font-size:12px;color:#786b73">Acesso protegido pelo Supabase • HLGB Online<br><b style="color:#6f3f59">Versão v91.65</b></div>
+    <div id="loginError" style="color:#a51d2d;font-size:13px;margin-top:10px"></div><div style="margin-top:12px;font-size:12px;color:#786b73">Acesso protegido pelo Supabase • HLGB Online<br><b style="color:#6f3f59">Versão v91.66</b></div>
   </div>
 </div>
 
@@ -16321,6 +16321,33 @@ function simplify9164(){
 }
 const old=window.renderProjection;if(typeof old==='function')window.renderProjection=function(){const r=old.apply(this,arguments);setTimeout(simplify9164,0);return r};
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',simplify9164,{once:true});else simplify9164();
+})();
+</script>
+<style>
+.hub9166-day{border:1px solid #eadde4;border-radius:12px;margin:9px 0;overflow:hidden}.hub9166-head{display:flex;justify-content:space-between;gap:12px;align-items:center;padding:11px 13px;background:#fff8fb}.hub9166-bar{height:7px;background:#f0e5ea}.hub9166-bar>span{display:block;height:100%;background:#8d506f}.hub9166-items{padding:5px 13px 10px}.hub9166-item{display:flex;justify-content:space-between;gap:12px;padding:7px 0;border-bottom:1px solid #f1eaee}.proj-client9166{margin-top:6px;font-size:12px;color:#6f3f59;font-weight:700}.assign9166-row{display:grid;grid-template-columns:minmax(180px,1fr) 130px 42px;gap:8px;align-items:end;margin:8px 0}@media(max-width:650px){.assign9166-row{grid-template-columns:1fr}.hub9166-item{display:block}}
+</style>
+<script>
+(function(){
+'use strict';
+const q9166=v=>Math.max(0,+v||0),c9166=v=>{try{return JSON.parse(JSON.stringify(v))}catch(e){return v}};
+function due9166(e){return String(e.date||e.dueDate||'').slice(0,10)}
+function plannedExpenses9166(){return (db.hubFinanceEntries||[]).filter(e=>e.flow==='Saída'&&e.status!=='Realizado'&&due9166(e))}
+function sum9166(a){return a.reduce((s,x)=>s+q9166(x.value),0)}
+function renderHub9166(){
+ const anchor=document.getElementById('hubFinanceCards');if(!anchor)return;let panel=document.getElementById('hubDue9166');if(!panel){panel=document.createElement('div');panel.id='hubDue9166';panel.className='panel';anchor.insertAdjacentElement('afterend',panel)}
+ const week=document.getElementById('hubFinanceWeek')?.value||weekValue(new Date()),range=hlgb916HubRange(week),all=plannedExpenses9166(),weekRows=all.filter(e=>{let d=due9166(e);return d>=range.start&&d<=range.end}),weekTotal=sum9166(weekRows),base=new Date(range.start+'T12:00:00'),month=range.start.slice(0,7),year=range.start.slice(0,4),monthRows=all.filter(e=>due9166(e).startsWith(month)),yearRows=all.filter(e=>due9166(e).startsWith(year)),groups={};weekRows.forEach(e=>(groups[due9166(e)]||(groups[due9166(e)]=[])).push(e));
+ let days=[];for(let i=0;i<7;i++){let d=new Date(base);d.setDate(base.getDate()+i);days.push(isoDate(d))}
+ panel.innerHTML=`<h2>📆 Gastos previstos por vencimento</h2><div class="sub">Veja o que vence em cada dia e quanto representa do total da semana.</div><div class="cards"><div class="card"><small>Total previsto na semana</small><strong>${money(weekTotal)}</strong></div><div class="card"><small>Total previsto no mês</small><strong>${money(sum9166(monthRows))}</strong></div><div class="card"><small>Total previsto no ano</small><strong>${money(sum9166(yearRows))}</strong></div><div class="card"><small>Contas previstas no ano</small><strong>${yearRows.length}</strong></div></div>${days.map(d=>{let a=groups[d]||[],t=sum9166(a),pct=weekTotal?t/weekTotal*100:0;return `<div class="hub9166-day"><div class="hub9166-head"><div><b>${new Date(d+'T12:00:00').toLocaleDateString('pt-BR',{weekday:'long',day:'2-digit',month:'2-digit'})}</b><div class="sub">${a.length} conta(s) · ${pct.toFixed(1).replace('.',',')}% da semana</div></div><strong>${money(t)}</strong></div><div class="hub9166-bar"><span style="width:${Math.min(100,pct)}%"></span></div>${a.length?`<div class="hub9166-items">${a.sort((x,y)=>q9166(y.value)-q9166(x.value)).map(e=>`<div class="hub9166-item"><span>${esc(e.description||e.category||'Gasto')}</span><b>${money(e.value)}</b></div>`).join('')}</div>`:''}</div>`}).join('')}`;
+}
+function item9166(oid,key){let o=(db.orders||[]).find(x=>String(x.id)===String(oid)),it=o&&projectionItemsForOrder(o).find(x=>String(x.key)===String(key));return {o,it}}
+function rows9166(list=[]){let clients=(db.clients||[]).slice().sort((a,b)=>String(a.name).localeCompare(String(b.name),'pt-BR'));return (list.length?list:[{clientId:'',qty:0}]).map(x=>`<div class="assign9166-row"><div class="field"><label>Cliente</label><select class="assignClient9166"><option value="">Selecione</option>${clients.map(c=>`<option value="${c.id}" ${String(c.id)===String(x.clientId)?'selected':''}>${esc(c.name)}</option>`).join('')}</select></div><div class="field"><label>Quantidade</label><input class="assignQty9166" type="number" min="0" step="1" value="${q9166(x.qty)||''}"></div><button type="button" class="danger" onclick="this.closest('.assign9166-row').remove()">×</button></div>`).join('')}
+window.addProjectionClient9166=function(){document.getElementById('assignList9166')?.insertAdjacentHTML('beforeend',rows9166())};
+window.openProjectionClientAssign9166=function(oid,key){let {o,it}=item9166(oid,key);if(!o||!it)return;let saved=o.projectionItems?.[it.key]||{},list=saved.clientAllocations||[],available=projectionDeliverableQty(o,it);openModal(`Atribuir clientes — ${esc(it.name||'Produto')}`,`<div class="cards"><div class="card"><small>Quantidade disponível</small><strong>${available.toLocaleString('pt-BR')}</strong></div><div class="card"><small>Já atribuída</small><strong>${list.reduce((s,x)=>s+q9166(x.qty),0).toLocaleString('pt-BR')}</strong></div></div><div id="assignList9166">${rows9166(list)}</div><button type="button" class="secondary" onclick="addProjectionClient9166()">+ Outro cliente</button><div class="sub" style="margin:10px 0">A soma não pode ultrapassar a quantidade disponível. Você poderá finalizar as notas depois.</div><button type="button" class="primary modalSave">☁️ Salvar clientes</button>`,async()=>{let out=[...document.querySelectorAll('.assign9166-row')].map(r=>{let cid=r.querySelector('.assignClient9166')?.value||'',cl=(db.clients||[]).find(c=>String(c.id)===String(cid));return cl&&q9166(r.querySelector('.assignQty9166')?.value)>0?{clientId:cl.id,clientName:cl.name,qty:q9166(r.querySelector('.assignQty9166').value)}:null}).filter(Boolean),total=out.reduce((s,x)=>s+x.qty,0);if(total>available){alert('A distribuição ultrapassa a quantidade disponível.');return}o.projectionItems=o.projectionItems||{};o.projectionItems[it.key]={...saved,clientAllocations:out,clientAllocationUpdatedAt:new Date().toISOString()};let btn=document.querySelector('#modal .modalSave');if(btn)btn.disabled=true;try{await Promise.resolve(save());closeModal();renderProjection()}catch(e){if(btn)btn.disabled=false;alert('Não foi possível salvar os clientes.')}})};
+function enhanceProjection9166(){document.querySelectorAll('#projectionProductsTable tbody tr').forEach(tr=>{if(tr.querySelector('.assignClientBtn9166'))return;let b=[...tr.querySelectorAll('button')].find(x=>String(x.getAttribute('onclick')).includes('openProjectionProductionSplit'));if(!b)return;let m=String(b.getAttribute('onclick')).match(/openProjectionProductionSplit\(([^,]+),'([^']*)'/);if(!m)return;let {o,it}=item9166(m[1],m[2]),list=o?.projectionItems?.[it?.key]?.clientAllocations||[],btn=document.createElement('button');btn.type='button';btn.className='secondary assignClientBtn9166';btn.textContent='👥 Atribuir clientes';btn.onclick=()=>openProjectionClientAssign9166(m[1],m[2]);b.parentElement.append(' ',btn);if(list.length){let d=document.createElement('div');d.className='proj-client9166';d.textContent='Clientes: '+list.map(x=>`${x.clientName} (${q9166(x.qty)})`).join(' · ');tr.children[3]?.appendChild(d)}})}
+const oldHub=window.renderHubFinance;if(typeof oldHub==='function')window.renderHubFinance=function(){let r=oldHub.apply(this,arguments);setTimeout(renderHub9166,0);return r};
+const oldProj=window.renderProjection;if(typeof oldProj==='function')window.renderProjection=function(){let r=oldProj.apply(this,arguments);setTimeout(enhanceProjection9166,0);return r};
+function boot(){let logo=document.querySelector('#appShell .logo small');if(logo)logo.textContent='v91.66';try{renderHub9166();enhanceProjection9166()}catch(e){}}
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',boot,{once:true});else boot();
 })();
 </script>
 </body></html>
