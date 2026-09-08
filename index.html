@@ -6,7 +6,7 @@
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
-<title>HLGB Confecções — Sistema de Gestão v91.70 Multiusuário</title>
+<title>HLGB Confecções — Sistema de Gestão v91.71 Multiusuário</title>
 <style>
 :root{--navy:#6f3f59;--orange:#c96b8f;--bg:#fbf6f8;--line:#eadde4;--text:#30262c;--muted:#786b73;--ok:#e9f7ef;--warn:#fff5df;--bad:#fdeaea;--rose:#f3dbe5;--rose2:#fff8fb}
 *{box-sizing:border-box}body{margin:0;font-family:Arial,Helvetica,sans-serif;background:var(--bg);color:var(--text)}
@@ -254,6 +254,12 @@ main{min-width:0;}
 </head>
 <body>
 
+<div id="sessionLoader" style="position:fixed;inset:0;background:linear-gradient(135deg,#6f3f59,#c96b8f);z-index:10000;display:flex;align-items:center;justify-content:center;padding:20px">
+  <div style="background:#fff;border-radius:22px;padding:30px;max-width:390px;width:100%;box-shadow:0 20px 60px #0003;text-align:center">
+    <div style="font-size:42px;color:#c96b8f">♡</div><h1 style="margin:4px 0">HLGB Confecções</h1>
+    <div class="sub" style="margin-top:12px">Carregando sua sessão com segurança…</div>
+  </div>
+</div>
 
 <div id="loginScreen" style="position:fixed;inset:0;background:linear-gradient(135deg,#6f3f59,#c96b8f);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px">
   <div style="background:#fff;border-radius:22px;padding:30px;max-width:390px;width:100%;box-shadow:0 20px 60px #0003;text-align:center">
@@ -263,11 +269,11 @@ main{min-width:0;}
     <div class="field" style="text-align:left;margin-bottom:10px"><label>E-mail</label><input id="loginUser" type="email" autocomplete="username" placeholder="seuemail@exemplo.com"></div>
     <div class="field" style="text-align:left;margin-bottom:14px"><label>Senha</label><input id="loginPass" type="password" autocomplete="current-password" onkeydown="if(event.key==='Enter')return doLogin()"></div>
     <button class="primary" style="width:100%" onclick="return doLogin()">Entrar</button>
-    <div id="loginError" style="color:#a51d2d;font-size:13px;margin-top:10px"></div><div style="margin-top:12px;font-size:12px;color:#786b73">Acesso protegido pelo Supabase • HLGB Online<br><b style="color:#6f3f59">Versão v91.70</b></div>
+    <div id="loginError" style="color:#a51d2d;font-size:13px;margin-top:10px"></div><div style="margin-top:12px;font-size:12px;color:#786b73">Acesso protegido pelo Supabase • HLGB Online<br><b style="color:#6f3f59">Versão v91.71</b></div>
   </div>
 </div>
 
-<div id="appShell" style="display:none"><header><div class="logo">HLGB <b>CONFECÇÕES</b> <small style="font-size:10px;opacity:.8">v91.63</small></div><div><span id="cloudStatus" style="margin-right:10px;font-size:12px;padding:6px 9px;border:1px solid #ffffff44;border-radius:8px">☁️ Nuvem</span><span id="currentUserLabel" style="margin-right:10px;font-size:13px"></span><button id="cloudSaveBtn" onclick="cloudUploadCurrentDb(true)" style="display:none" title="Sincronização automática">🔄 Sincronizar agora</button> <button id="backupBtn" onclick="backup()" style="display:none">Exportar backup</button> <button id="importBackupBtn" onclick="document.getElementById('backupImportInput').click()" style="display:none">Importar backup</button><input id="backupImportInput" type="file" accept=".json,application/json" style="display:none" onchange="importBackupFile(this)"> <button onclick="logout()">Sair</button></div></header>
+<div id="appShell" style="display:none"><header><div class="logo">HLGB <b>CONFECÇÕES</b> <small style="font-size:10px;opacity:.8">v91.71</small></div><div><span id="cloudStatus" style="margin-right:10px;font-size:12px;padding:6px 9px;border:1px solid #ffffff44;border-radius:8px">☁️ Nuvem</span><span id="currentUserLabel" style="margin-right:10px;font-size:13px"></span><button id="cloudSaveBtn" onclick="cloudUploadCurrentDb(true)" style="display:none" title="Sincronização automática">🔄 Sincronizar agora</button> <button id="backupBtn" onclick="backup()" style="display:none">Exportar backup</button> <button id="importBackupBtn" onclick="document.getElementById('backupImportInput').click()" style="display:none">Importar backup</button><input id="backupImportInput" type="file" accept=".json,application/json" style="display:none" onchange="importBackupFile(this)"> <button onclick="logout()">Sair</button></div></header>
 <div class="app">
 <aside><nav id="nav" class="clean-nav">
 <button class="nav-home active" onclick="page('dashboard',this)">🏠 <span>Início</span></button>
@@ -11568,16 +11574,16 @@ if(cloudRestoreStoredAuth()){
    db.userSessions=Array.isArray(db.userSessions)?db.userSessions:[];
    const sess={id:Date.now()+Math.random(),userId:profile.id,user:profile.name||cloudUser.email,login:cloudUser.email,loginAt:new Date().toISOString(),logoutAt:"",restored:true};
    db.userSessions.push(sess);db.activeSessionId=sess.id;localSaveOnly();
-   loginScreen.style.display="none";appShell.style.display="block";applyAccess();restoreNavGroups();
+   loginScreen.style.display="none";sessionLoader.style.display="none";appShell.style.display="block";applyAccess();restoreNavGroups();
    {const prevApplying=cloudApplying;cloudApplying=true;try{renderAll()}finally{cloudApplying=prevApplying}}
   }catch(e){
    console.warn("Não foi possível restaurar a sessão online",e);
    cloudAccessToken="";cloudRefreshToken="";cloudTokenExpiresAt=0;cloudUser=null;cloudReady=false;cloudRowId=null;cloudStoreAuth();
    db.session=null;localSaveOnly();
-   appShell.style.display="none";loginScreen.style.display="flex";
-  }
+   sessionLoader.style.display="none";appShell.style.display="none";loginScreen.style.display="flex";
+ }
  })();
-}
+}else{sessionLoader.style.display="none";loginScreen.style.display="flex"}
 setTimeout(()=>document.getElementById("loginUser")?.focus(),0);
 if(document.getElementById("weekStart")) setCurrentWeek(); if(document.getElementById("clientProfitReport")) renderClientProfitReport("month");
 
@@ -16310,7 +16316,7 @@ function simplify9164(){
  ['projectionExitTable','locationProjectionTable','cutterProjectionTable'].forEach(id=>{const el=document.getElementById(id),p=el?.closest('.panel');if(p&&p!==tracking&&p!==productTable?.closest('.panel'))p.classList.add('projection-advanced-hidden')});
  const client=document.getElementById('clientProjectionTable');if(client){const p=client.closest('.panel');p?.classList.remove('projection-advanced-hidden');const h=p?.querySelector('h2');if(h)h.textContent='💰 3. Valor por cliente';const sub=p?.querySelector('.sub');if(sub)sub.textContent='Veja quanto cada cliente tem previsto e quanto já foi entregue/finalizado no período.'}
  document.querySelectorAll('#projecao .field label').forEach(l=>{if(['Valor mínimo','Valor máximo','Prioridade','Status'].includes(l.textContent.trim()))l.closest('.field')?.classList.add('projection-advanced-hidden')});
- const logo=document.querySelector('#appShell .logo small');if(logo)logo.textContent='v91.65';
+ const logo=document.querySelector('#appShell .logo small');if(logo)logo.textContent='v91.71';
 }
 const old=window.renderProjection;if(typeof old==='function')window.renderProjection=function(){const r=old.apply(this,arguments);setTimeout(simplify9164,0);return r};
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',simplify9164,{once:true});else simplify9164();
@@ -16339,7 +16345,7 @@ window.openProjectionClientAssign9166=function(oid,key){let {o,it}=item9166(oid,
 function enhanceProjection9166(){document.querySelectorAll('#projectionProductsTable tbody tr').forEach(tr=>{if(tr.querySelector('.assignClientBtn9166'))return;let b=[...tr.querySelectorAll('button')].find(x=>String(x.getAttribute('onclick')).includes('openProjectionProductionSplit'));if(!b)return;let m=String(b.getAttribute('onclick')).match(/openProjectionProductionSplit\(([^,]+),'([^']*)'/);if(!m)return;let {o,it}=item9166(m[1],m[2]),list=o?.projectionItems?.[it?.key]?.clientAllocations||[],btn=document.createElement('button');btn.type='button';btn.className='secondary assignClientBtn9166';btn.textContent='👥 Atribuir clientes';btn.onclick=()=>openProjectionClientAssign9166(m[1],m[2]);b.parentElement.append(' ',btn);if(list.length){let d=document.createElement('div');d.className='proj-client9166';d.textContent='Clientes: '+list.map(x=>`${x.clientName} (${q9166(x.qty)})`).join(' · ');tr.children[3]?.appendChild(d)}})}
 const oldHub=window.renderHubFinance;if(typeof oldHub==='function')window.renderHubFinance=function(){let r=oldHub.apply(this,arguments);setTimeout(renderHub9166,0);return r};
 const oldProj=window.renderProjection;if(typeof oldProj==='function')window.renderProjection=function(){let r=oldProj.apply(this,arguments);setTimeout(enhanceProjection9166,0);return r};
-function boot(){let logo=document.querySelector('#appShell .logo small');if(logo)logo.textContent='v91.66';try{renderHub9166();enhanceProjection9166()}catch(e){}}
+function boot(){let logo=document.querySelector('#appShell .logo small');if(logo)logo.textContent='v91.71';try{renderHub9166();enhanceProjection9166()}catch(e){}}
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',boot,{once:true});else boot();
 })();
 </script>
@@ -16352,7 +16358,7 @@ function capacityRows9167(){let out=[];(db.orders||[]).forEach(o=>{let st=String
 function range9168(){if(typeof hlgb916HubRange==='function')return hlgb916HubRange(capacityWeek9168);let d=new Date((capacityWeek9168||isoDate(new Date()))+'T12:00:00'),s=mondayOf(d),e=new Date(s);e.setDate(s.getDate()+6);return {start:isoDate(s),end:isoDate(e)}}
 window.setCapacityWeek9168=function(v){capacityWeek9168=v||capacityWeek9168;enhance9167()};
 window.openCapacityFinalizer9168=function(){document.querySelectorAll('.projectionSelect').forEach(x=>x.checked=false);let rows=capacityRows9167(),rg=range9168(),period=rows.filter(x=>!x.date||(x.date>=rg.start&&x.date<=rg.end)),groups={};period.forEach(x=>{let c=x.it.clientName||x.o.client||'Sem cliente';(groups[c]||(groups[c]=[])).push(x)});let body=Object.entries(groups).sort((a,b)=>a[0].localeCompare(b[0],'pt-BR')).map(([client,list])=>`<div class="panel" style="margin:9px 0"><b>${esc(client)}</b><div class="sub">Escolha um modelo ou marque vários para agrupar na mesma nota.</div>${list.map(x=>`<label style="display:grid;grid-template-columns:28px minmax(160px,1fr) 90px 115px;gap:8px;align-items:center;padding:9px 0;border-bottom:1px solid var(--line)"><input class="projectionSelect" type="checkbox" value="${x.o.id}::${esc(x.it.key)}"><span><b>${esc(x.it.name||'Produto')}</b><small style="display:block">Pedido #${esc(displayOrderNumber(x.o)||x.o.id)}</small></span><span>${x.qty.toLocaleString('pt-BR')} pç</span><b>${money(x.value)}</b></label>`).join('')}</div>`).join('');openModal('Finalizar nota — escolher modelos',`<div class="sub">Semana de ${fmtDate(rg.start)} a ${fmtDate(rg.end)}. Para uma nota, selecione modelos do mesmo cliente.</div>${body||'<div class="empty">Nenhum modelo disponível nessa semana.</div>'}${period.length?'<button type="button" class="primary modalSave">Continuar com os modelos escolhidos</button>':''}`,()=>window.finalizeSelectedProjection())};
-function enhance9167(){let root=document.getElementById('capacity940Root');if(!root)return;let rows=capacityRows9167(),rg=range9168(),w0=rg.start,w1=rg.end,ym=w0.slice(0,7),yy=w0.slice(0,4),sum=a=>a.reduce((s,x)=>s+q9167(x.value),0),top=document.getElementById('capTotals9167');if(!top){top=document.createElement('div');top.id='capTotals9167';top.className='panel';root.prepend(top)}top.innerHTML=`<div class="toolbar" style="align-items:end"><div><h2>💰 Valor planejado</h2><div class="sub">Escolha qualquer dia no calendário para conferir a semana completa daquela data.</div></div><div class="field"><label>Escolher a semana pelo calendário</label><input type="date" value="${esc(capacityWeek9168)}" onchange="setCapacityWeek9168(this.value)"><div class="sub">A semana será calculada automaticamente.</div></div></div><div class="cards"><div class="card"><small>Semana selecionada</small><strong>${money(sum(rows.filter(x=>x.date>=w0&&x.date<=w1)))}</strong></div><div class="card"><small>Mês da semana</small><strong>${money(sum(rows.filter(x=>x.date.startsWith(ym))))}</strong></div><div class="card"><small>Ano da semana</small><strong>${money(sum(rows.filter(x=>x.date.startsWith(yy))))}</strong></div><div class="card"><small>Total ativo</small><strong>${money(sum(rows))}</strong></div></div>`;let fin=document.getElementById('capFinalize9167');if(!fin){fin=document.createElement('div');fin.id='capFinalize9167';fin.className='panel';root.append(fin)}fin.innerHTML=`<div class="toolbar"><div><h2>🧾 Finalizar nota</h2><div class="sub">Abra a caixinha, escolha um modelo ou agrupe vários modelos do mesmo cliente e finalize a nota do jeito que precisar.</div></div><button type="button" class="primary" onclick="openCapacityFinalizer9168()">Abrir finalizador de nota</button></div>`;let logo=document.querySelector('#appShell .logo small');if(logo)logo.textContent='v91.70'}
+function enhance9167(){let root=document.getElementById('capacity940Root');if(!root)return;let rows=capacityRows9167(),rg=range9168(),w0=rg.start,w1=rg.end,ym=w0.slice(0,7),yy=w0.slice(0,4),sum=a=>a.reduce((s,x)=>s+q9167(x.value),0),top=document.getElementById('capTotals9167');if(!top){top=document.createElement('div');top.id='capTotals9167';top.className='panel';root.prepend(top)}top.innerHTML=`<div class="toolbar" style="align-items:end"><div><h2>💰 Valor planejado</h2><div class="sub">Escolha qualquer dia no calendário para conferir a semana completa daquela data.</div></div><div class="field"><label>Escolher a semana pelo calendário</label><input type="date" value="${esc(capacityWeek9168)}" onchange="setCapacityWeek9168(this.value)"><div class="sub">A semana será calculada automaticamente.</div></div></div><div class="cards"><div class="card"><small>Semana selecionada</small><strong>${money(sum(rows.filter(x=>x.date>=w0&&x.date<=w1)))}</strong></div><div class="card"><small>Mês da semana</small><strong>${money(sum(rows.filter(x=>x.date.startsWith(ym))))}</strong></div><div class="card"><small>Ano da semana</small><strong>${money(sum(rows.filter(x=>x.date.startsWith(yy))))}</strong></div><div class="card"><small>Total ativo</small><strong>${money(sum(rows))}</strong></div></div>`;let fin=document.getElementById('capFinalize9167');if(!fin){fin=document.createElement('div');fin.id='capFinalize9167';fin.className='panel';root.append(fin)}fin.innerHTML=`<div class="toolbar"><div><h2>🧾 Finalizar nota</h2><div class="sub">Abra a caixinha, escolha um modelo ou agrupe vários modelos do mesmo cliente e finalize a nota do jeito que precisar.</div></div><button type="button" class="primary" onclick="openCapacityFinalizer9168()">Abrir finalizador de nota</button></div>`;let logo=document.querySelector('#appShell .logo small');if(logo)logo.textContent='v91.71'}
 const old=window.renderCapacityPlanning;if(typeof old==='function')window.renderCapacityPlanning=function(){let r=old.apply(this,arguments);setTimeout(enhance9167,20);return r};if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>setTimeout(enhance9167,500),{once:true});else setTimeout(enhance9167,500);
 })();
 </script>
