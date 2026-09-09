@@ -19,5 +19,5 @@ for pat in patterns:
         a=max(0,i-1800); b=min(len(s),i+5500)
         out.append(f'\n--- {n} @ {i} ---\n{s[a:b]}\n')
 Path('debug').mkdir(exist_ok=True)
-Path('debug/login-9182-targeted.txt').write_text(''.join(out),encoding='utf-8')
+Path('debug/login-9182-snippets.txt').write_text(''.join(out),encoding='utf-8')
 print('diagnostico direcionado escrito')
