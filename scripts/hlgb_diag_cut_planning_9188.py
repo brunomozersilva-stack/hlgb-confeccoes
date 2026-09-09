@@ -16,3 +16,4 @@ for term in terms:
         pos=i+len(term);count+=1
 Path('debug/cut-planning-9188.txt').write_text('\n'.join(out),encoding='utf-8')
 print('diag cut planning written')
+# trigger
