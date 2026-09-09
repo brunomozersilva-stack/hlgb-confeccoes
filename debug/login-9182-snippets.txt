@@ -1,15 +1,83 @@
-needle position=383095
-OLDLINE REPR:
-'const finRows=fin.map(f=>[fmt9179(f.date),esc9179(f.desc),money9179(f.value),money9179(f.paid),money9179(f.remaining),`<span class="badge ${f.status===\'Pago\'?\'ok\':f.status===\'Parcial\'?\'\':\'warn\'}">${esc9179(f.status)}</span>`]);'
-login blocks after hypothetical fix=1
-NODE STATUS=1
-/tmp/hlgb_after_fix.js:4917
-      <div class="hlgb9179-report-grid">
-       ^^^
-
-SyntaxError: missing ) after argument list
-    at wrapSafe (node:internal/modules/cjs/loader:1713:18)
-    at checkSyntax (node:internal/main/check_syntax:78:3)
-
-Node.js v22.23.2
-
+login blocks=1
+lines=5057
+4880:   function clientOrders9179(c,start,end){
+4881:     return (db.orders||[]).filter(o=>clientMatches9179(c,o)&&inPeriod9179(o.date||o.deliveryDate||o.createdAt,start,end))
+4882:       .sort((a,b)=>String(a.date||'').localeCompare(String(b.date||'')));
+4883:   }
+4884:   function isOrderDone9179(o){
+4885:     const s=norm(o.status);
+4886:     return s.includes('finalizado')||s==='pago'||o.projectionInvoiced===true;
+4887:   }
+4888:   function clientFinance9179(c,start,end){
+4889:     const rows=[];
+4890:     (db.finance||[]).filter(f=>String(f.type||'').toLowerCase()==='receber'&&clientMatches9179(c,f)&&inPeriod9179(f.date||f.dueDate||f.paidDate,start,end)).forEach(f=>{
+4891:       const value=+f.value||0,paid=+f.paid||+(f.status==='Pago'?value:0),remaining=f.remaining!=null?+f.remaining:Math.max(0,value-paid);
+4892:       rows.push({id:f.id,date:f.date||f.dueDate||'',desc:f.desc||'Recebimento',value,paid,remaining,status:remaining<=0.009||norm(f.status)==='pago'?'Pago':(paid>0?'Parcial':'Em aberto')});
+4893:     });
+4894:     // Notas prontas antigas que não possuem lançamento financeiro próprio.
+4895:     (db.orders||[]).filter(o=>clientMatches9179(c,o)&&(o.invoiceReady||o.noteReady||o.paymentStatus)&&inPeriod9179(o.dueDate||o.invoiceDate||o.date,start,end)).forEach(o=>{
+4896:       if(rows.some(r=>String(r.id)===String(o.id)||String((db.finance||[]).find(f=>+f.orderId===+o.id)?.id||'')===String(r.id)))return;
+4897:       if((db.finance||[]).some(f=>+f.orderId===+o.id&&String(f.type)==='Receber'))return;
+4898:       let paid=0;try{paid=typeof orderPaid==='function'?orderPaid(o):(+o.received||0)}catch(e){paid=+o.received||0}
+4899:       const value=+o.total||0,remaining=Math.max(0,value-paid);
+4900:       rows.push({id:'o'+o.id,date:o.dueDate||o.invoiceDate||o.date||'',desc:'Pedido #'+orderNo9179(o),value,paid,remaining,status:remaining<=0.009?'Pago':(paid>0?'Parcial':'Em aberto')});
+4901:     });
+4902:     return rows.sort((a,b)=>String(a.date||'').localeCompare(String(b.date||'')));
+4903:   }
+4904: 
+4905:   window.hlgbRefreshClientReport9179=function(clientId){
+4906:     const c=(db.clients||[]).find(x=>String(x.id)===String(clientId));if(!c)return;
+4907:     const start=document.getElementById('hlgbClientReportStart9179')?.value||'';
+4908:     const end=document.getElementById('hlgbClientReportEnd9179')?.value||'';
+4909:     const orders=clientOrders9179(c,start,end),ongoing=orders.filter(o=>!isOrderDone9179(o)),fin=clientFinance9179(c,start,end);
+4910:     const sales=orders.reduce((a,o)=>a+(+o.total||0),0),pieces=orders.reduce((a,o)=>a+orderQty9179(o),0);
+4911:     const paid=fin.reduce((a,f)=>a+(+f.paid||0),0),open=fin.reduce((a,f)=>a+(+f.remaining||0),0);
+4912:     const target=document.getElementById('hlgbClientReportBody9179');if(!target)return;
+4913:     const orderRows=orders.map(o=>[fmt9179(o.date),esc9179('#'+orderNo9179(o)),esc9179(orderModels9179(o)),orderQty9179(o).toLocaleString('pt-BR'),money9179(o.total),esc9179(o.status||'Aberto')]);
+4914:     const ongoingRows=ongoing.map(o=>[fmt9179(o.date),esc9179('#'+orderNo9179(o)),esc9179(orderModels9179(o)),orderQty9179(o).toLocaleString('pt-BR'),esc9179(o.status||'Em andamento')]);
+4915:     const finRows=fin.map(f=>[fmt9179(f.date),esc9179(f.desc),money9179(f.value),money9179(f.paid),money9179(f.remaining),`<span class="badge ${f.status==='Pago'?'ok':f.status==='Parcial'?'':'warn'}">${esc9179(f.status)}</span>`]);
+4916:     target.innerHTML=`
+4917:       <div class="hlgb9179-report-grid">
+4918:        <div class="hlgb9179-report-card"><small>Vendas no período</small><strong>${money9179(sales)}</strong></div>
+4919:        <div class="hlgb9179-report-card"><small>Peças</small><strong>${pieces.toLocaleString('pt-BR')}</strong></div>
+4920:        <div class="hlgb9179-report-card"><small>Recebido</small><strong>${money9179(paid)}</strong></div>
+4921:        <div class="hlgb9179-report-card"><small>Em aberto</small><strong>${money9179(open)}</strong></div>
+4922:       </div>
+4923:       <div class="panel"><div class="toolbar" style="justify-content:space-between"><div><h3 style="margin:0">Pedidos em andamento</h3><div class="sub">Data, modelo, quantidade e situação atual.</div></div><button type="button" class="secondary" onclick="hlgbPrintClientReport9179('${clientId}','ongoing')">🖨️ Imprimir pedidos em andamento</button></div>${ongoingRows.length?table(['Data','Pedido','Modelo','Peças','Status'],ongoingRows):'<div class="empty">Nenhum pedido em andamento no período.</div>'}</div>
+4924:       <div class="panel"><h3>Histórico de vendas</h3>${orderRows.length?table(['Data','Pedido','Modelo','Peças','Valor','Status'],orderRows):'<div class="empty">Nenhuma venda no período.</div>'}</div>
+4925:       <div class="panel"><h3>Financeiro do cliente</h3><div class="sub">Notas/recebimentos em aberto, parciais e pagos no período selecionado.</div>${finRows.length?table(['Data','Descrição','Valor','Pago','Falta','Situação'],finRows):'<div class="empty">Nenhuma nota financeira no período.</div>'}</div>`;
+4926:   };
+4927: 
+4928:   window.hlgbOpenClientReport9179=function(clientId){
+4929:     const c=(db.clients||[]).find(x=>String(x.id)===String(clientId));if(!c)return;
+4930:     const now=new Date(),first=new Date(now.getFullYear(),now.getMonth(),1),iso=d=>d.toISOString().slice(0,10);
+4931:     openModal('Relatório do cliente — '+esc9179(c.name),`
+4932:       <div class="hlgb9179-filter"><div class="toolbar" style="align-items:flex-end;flex-wrap:wrap">
+4933:        <div class="field"><label>De</label><input id="hlgbClientReportStart9179" type="date" value="${iso(first)}" onchange="hlgbRefreshClientReport9179('${clientId}')"></div>
+4934:        <div class="field"><label>Até</label><input id="hlgbClientReportEnd9179" type="date" value="${iso(now)}" onchange="hlgbRefreshClientReport9179('${clientId}')"></div>
+4935:        <button type="button" class="secondary" onclick="document.getElementById('hlgbClientReportStart9179').value='';document.getElementById('hlgbClientReportEnd9179').value='';hlgbRefreshClientReport9179('${clientId}')">Todo período</button>
+4936:        <button type="button" class="primary" onclick="hlgbPrintClientReport9179('${clientId}','full')">🖨️ Imprimir relatório completo</button>
+4937:       </div></div><div id="hlgbClientReportBody9179"></div>`,()=>{});
+4938:     setTimeout(()=>hlgbRefreshClientReport9179(clientId),0);
+4939:   };
+4940: 
+4941:   window.hlgbPrintClientReport9179=function(clientId,mode){
+4942:     const c=(db.clients||[]).find(x=>String(x.id)===String(clientId));if(!c)return;
+4943:     const start=document.getElementById('hlgbClientReportStart9179')?.value||'',end=document.getElementById('hlgbClientReportEnd9179')?.value||'';
+4944:     const orders=clientOrders9179(c,start,end),showOrders=mode==='ongoing'?orders.filter(o=>!isOrderDone9179(o)):orders,fin=clientFinance9179(c,start,end);
+4945:     const rows=showOrders.map(o=>`<tr><td>${fmt9179(o.date)}</td><td>#${esc9179(orderNo9179(o))}</td><td>${esc9179(orderModels9179(o))}</td><td>${orderQty9179(o).toLocaleString('pt-BR')}</td><td>${money9179(o.total)}</td><td>${esc9179(o.status||'Aberto')}</td></tr>`).join('');
+4946:     const frows=fin.map(f=>`<tr><td>${fmt9179(f.date)}</td><td>${esc9179(f.desc)}</td><td>${money9179(f.value)}</td><td>${money9179(f.paid)}</td><td>${money9179(f.remaining)}</td><td>${esc9179(f.status)}</td></tr>`).join('');
+4947:     const w=window.open('','_blank');if(!w){alert('Permita pop-ups no navegador para imprimir.');return}
+4948:     w.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>Relatório - ${esc9179(c.name)}</title><style>body{font-family:Arial;color:#332a30;margin:28px}h1{margin-bottom:4px}.muted{color:#777}table{width:100%;border-collapse:collapse;margin:16px 0 28px}th,td{border:1px solid #ddd;padding:7px;text-align:left;font-size:12px}th{background:#f5eef2}.noPrint{padding:10px 18px}@media print{.noPrint{display:none}}</style></head><body><h1>HLGB Confecções</h1><h2>${mode==='ongoing'?'Pedidos em andamento':'Relatório do cliente'} — ${esc9179(c.name)}</h2><div class="muted">Período: ${start?fmt9179(start):'início'} até ${end?fmt9179(end):'hoje'}</div><h3>${mode==='ongoing'?'Pedidos em andamento':'Vendas / pedidos'}</h3><table><tr><th>Data</th><th>Pedido</th><th>Modelo</th><th>Peças</th><th>Valor</th><th>Status</th></tr>${rows||'<tr><td colspan="6">Nenhum registro.</td></tr>'}</table>${mode==='full'?`<h3>Financeiro</h3><table><tr><th>Data</th><th>Descrição</th><th>Valor</th><th>Pago</th><th>Falta</th><th>Situação</th></tr>${frows||'<tr><td colspan="6">Nenhum registro.</td></tr>'}</table>`:''}<button class="noPrint" onclick="window.print()">Imprimir</button></body></html>`);w.document.close();
+4949:   };
+4950: 
+4951:   function enhanceClients9179(){
+4952:     const box=document.getElementById('clientTable');if(!box)return;
+4953:     const rows=[...box.querySelectorAll('table tr')].slice(1);
+4954:     rows.forEach((tr,i)=>{
+4955:       const c=(db.clients||[])[i],td=tr.lastElementChild;if(!c||!td||td.querySelector('.hlgb9179-client-report'))return;
+4956:       const b=document.createElement('button');b.type='button';b.className='secondary hlgb9179-client-report';b.textContent='Relatório';b.onclick=()=>hlgbOpenClientReport9179(c.id);td.append(' ',b);
+4957:     });
+4958:   }
+4959: 
+4960:   // Filtro de busca dentro da precificação de cliente.
