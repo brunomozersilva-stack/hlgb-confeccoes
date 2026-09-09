@@ -1,0 +1,38 @@
+name: Aplicar HLGB v91.81 login unblock
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'scripts/hlgb_v9181_login_unblock.py'
+      - '.github/workflows/hlgb-apply-v9181.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Aplicar correção
+        run: python scripts/hlgb_v9181_login_unblock.py
+      - name: Publicar
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          if git diff --quiet; then
+            echo "Nenhuma alteração necessária"
+          else
+            git add index.html
+            git commit -m "Publicar HLGB v91.81 - desbloquear login"
+            git push
+          fi
