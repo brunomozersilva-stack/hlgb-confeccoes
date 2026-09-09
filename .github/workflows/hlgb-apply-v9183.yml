@@ -18,8 +18,26 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - name: Aplicar reparo estrutural e validar v91.83
-        run: python scripts/hlgb_v9183_relocate_v9179.py
+      - name: Aplicar reparo estrutural e registrar diagnostico
+        run: |
+          mkdir -p debug
+          if python scripts/hlgb_v9183_relocate_v9179.py > debug/v9183-repair.log 2>&1; then
+            echo PASS > debug/v9183-status.txt
+          else
+            git checkout -- index.html
+            echo FAIL > debug/v9183-status.txt
+          fi
+      - name: Publicar diagnostico se o reparo falhar
+        run: |
+          if grep -q '^FAIL$' debug/v9183-status.txt; then
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add debug/v9183-repair.log debug/v9183-status.txt
+            git commit -m "Diagnostico reparo v91.83 [skip ci]" || true
+            git push || true
+            cat debug/v9183-repair.log
+            exit 1
+          fi
       - name: Confirmar versao e login
         run: |
           grep -q 'Versão v91.83' index.html
