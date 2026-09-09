@@ -13,4 +13,20 @@ for i,line in enumerate(lines):
         out.append('')
 Path('debug').mkdir(exist_ok=True)
 Path('debug/v9184-jitter.txt').write_text('\n'.join(out),encoding='utf-8')
-print('matches',len(out))
+
+# Recortes direcionados para entender se o polling redesenha a tela inteira.
+targets=['function setCloudStatus','function hlgbPullNormalizedCoreChanges','async function hlgbPullNormalizedCoreChanges','function cloudCheckRemoteVersion','async function cloudCheckRemoteVersion','function renderAll','function hlgbRenderIncomingRecord','function hlgbStartRealtime','cloudStatus','topbar']
+detail=[]
+seen=set()
+for target in targets:
+    for i,line in enumerate(lines):
+        if target in line:
+            key=(target,i)
+            if key in seen: continue
+            seen.add(key)
+            a=max(0,i-12); b=min(len(lines),i+55)
+            detail.append(f'===== TARGET {target!r} line {i+1} =====')
+            detail.extend(f'{j+1}: {lines[j]}' for j in range(a,b))
+            detail.append('')
+Path('debug/v9184-jitter-detail.txt').write_text('\n'.join(detail),encoding='utf-8')
+print('generic lines',len(out),'detail lines',len(detail))
