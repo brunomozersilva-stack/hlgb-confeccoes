@@ -11,7 +11,7 @@ s=INDEX.read_text(encoding='utf-8')
 b=BACKUP.read_text(encoding='utf-8')
 print(f'index bytes={len(s.encode("utf-8"))} backup bytes={len(b.encode("utf-8"))}')
 
-# 1) Recupera o grande trecho que foi substituido acidentalmente por um texto de truncamento.
+# 1) Recupera o trecho que foi literalmente substituido pelo aviso de truncamento.
 count=s.count(PLACEHOLDER)
 print('placeholder count=',count)
 if count!=1:
@@ -20,42 +20,61 @@ pos=s.index(PLACEHOLDER)
 left=s[:pos]
 right=s[pos+len(PLACEHOLDER):]
 
-def unique_suffix(text, source):
-    for n in [2000,1500,1200,1000,800,600,500,400,300,250,200,160,120,100,80,60,50,40,30,20]:
-        if len(text)<n: continue
-        c=text[-n:]
-        k=source.count(c)
-        if k==1:
-            return c,n,source.index(c)
-    return None,None,None
+# As bordas imediatas do truncamento podem estar cortadas no meio de uma linha.
+# Por isso procuramos, perto de cada borda, o bloco de linhas completo mais proximo
+# que exista uma unica vez tanto no index atual quanto no backup v91.74.
+def nearest_left_anchor(text, source, max_lines=800):
+    lines=text.splitlines(keepends=True)
+    start=max(0,len(lines)-max_lines)
+    for i in range(len(lines)-1,start-1,-1):
+        for k in (4,3,2,1):
+            a=max(start,i-k+1)
+            cand=''.join(lines[a:i+1])
+            if len(cand.strip())<30: continue
+            if text.count(cand)==1 and source.count(cand)==1:
+                return cand, text.rfind(cand), source.index(cand), i, k
+    return None,None,None,None,None
 
-def unique_prefix(text, source):
-    for n in [2000,1500,1200,1000,800,600,500,400,300,250,200,160,120,100,80,60,50,40,30,20]:
-        if len(text)<n: continue
-        c=text[:n]
-        k=source.count(c)
-        if k==1:
-            return c,n,source.index(c)
-    return None,None,None
+def nearest_right_anchor(text, source, max_lines=800):
+    lines=text.splitlines(keepends=True)
+    stop=min(len(lines),max_lines)
+    for i in range(0,stop):
+        for k in (4,3,2,1):
+            j=min(stop,i+k)
+            cand=''.join(lines[i:j])
+            if len(cand.strip())<30: continue
+            if text.count(cand)==1 and source.count(cand)==1:
+                return cand, text.find(cand), source.index(cand), i, k
+    return None,None,None,None,None
 
-la,ln,lp=unique_suffix(left,b)
-ra,rn,rp=unique_prefix(right,b)
-print(f'left anchor len={ln} pos={lp}; right anchor len={rn} pos={rp}')
+la,lcur,lbak,li,lk=nearest_left_anchor(left,b)
+ra,rcur,rbak,ri,rk=nearest_right_anchor(right,b)
+print(f'left anchor current={lcur} backup={lbak} lineIndex={li} lines={lk}')
+print(f'right anchor current={rcur} backup={rbak} lineIndex={ri} lines={rk}')
 if not la or not ra:
-    raise SystemExit('ERRO: nao foi possivel localizar ancoras unicas no backup v91.74')
-start=lp+len(la)
-end=rp
-if end<=start:
-    raise SystemExit(f'ERRO: ancoras invertidas no backup: {start} >= {end}')
-recovered=b[start:end]
+    raise SystemExit('ERRO: nao foi possivel localizar ancoras de linhas no backup v91.74')
+print('LEFT ANCHOR:',repr(la[-300:]))
+print('RIGHT ANCHOR:',repr(ra[:300]))
+
+backup_start=lbak+len(la)
+backup_end=rbak
+if backup_end<=backup_start:
+    raise SystemExit(f'ERRO: ancoras invertidas no backup: {backup_start} >= {backup_end}')
+recovered=b[backup_start:backup_end]
 print(f'recovered chars={len(recovered)} bytes={len(recovered.encode("utf-8"))}')
 if len(recovered)<100000 or len(recovered)>600000:
     raise SystemExit('ERRO: tamanho recuperado fora da faixa segura de 100k-600k')
-s=left+recovered+right
-if PLACEHOLDER in s:
-    raise SystemExit('ERRO: placeholder ainda presente apos recuperacao')
 
-# 2) Realoca o bloco v91.79, que havia sido inserido dentro da string de impressao da nota.
+# Mantem o que existe no index ate a ancora esquerda e a partir da ancora direita;
+# somente o miolo perdido vem do backup.
+prefix=left[:lcur+len(la)]
+suffix=right[rcur:]
+s=prefix+recovered+suffix
+if PLACEHOLDER in s or 'bytes omitted ...' in s:
+    raise SystemExit('ERRO: placeholder ainda presente apos recuperacao')
+print(f'index reconstruido chars={len(s)} bytes={len(s.encode("utf-8"))}')
+
+# 2) Realoca o bloco v91.79 que havia sido inserido dentro da string de impressao.
 if s.count(START)!=1 or s.count(END)!=1:
     raise SystemExit(f'ERRO: marcadores v91.79 inesperados START={s.count(START)} END={s.count(END)}')
 a=s.index(START)
@@ -67,23 +86,19 @@ if real_body<0:
     raise SystemExit('ERRO: fechamento real </body> nao encontrado')
 s=s[:real_body]+'\n'+block+'\n'+s[real_body:]
 
-# 3) Atualiza apenas a identificacao visual da versao atual.
+# 3) Atualiza a identificacao visual.
 s=s.replace('v91.82','v91.83').replace('V91.82','V91.83')
 
-# 4) Validacoes de integridade antes de tocar no index oficial.
-for needle in ['function doLogin()','hlgbFastBootstrap9182','<!-- HLGB_V9179_START -->','<!-- HLGB_V9179_END -->']:
+# 4) Validacoes obrigatorias antes de salvar.
+for needle in ['function doLogin()','hlgbFastBootstrap9182',START,END]:
     if needle not in s:
         raise SystemExit('ERRO: trecho obrigatorio ausente: '+needle)
 if s.count(START)!=1 or s.count(END)!=1:
     raise SystemExit('ERRO: bloco v91.79 duplicado depois do reparo')
 
-# Extrai o script que contem o login e valida sintaxe com Node.
+# O bloco que contem doLogin deve ser JavaScript valido.
 pat=re.compile(r'<script(?:\s[^>]*)?>(.*?)</script\s*>',re.I|re.S)
-login=[]
-for m in pat.finditer(s):
-    body=m.group(1)
-    if 'function doLogin()' in body:
-        login.append(body)
+login=[m.group(1) for m in pat.finditer(s) if 'function doLogin()' in m.group(1)]
 print('login script blocks=',len(login))
 if len(login)!=1:
     raise SystemExit(f'ERRO: esperado 1 bloco de script contendo doLogin, encontrado {len(login)}')
@@ -95,12 +110,12 @@ if r.returncode!=0:
     raise SystemExit('ERRO: JavaScript principal ainda contem erro de sintaxe')
 print('PASS node --check do script principal')
 
-# Confere que a nota de impressao voltou a fechar antes do restante do codigo.
+# A pagina de impressao deve fechar antes de continuar o codigo principal.
 pos_print=s.find('function printCustomerNote')
 pos_sync=s.find('function syncFinalizedCutsToProduction',pos_print)
-segment=s[pos_print:pos_sync if pos_sync>pos_print else pos_print+200000]
-if '</body></html>`);' not in segment and '</body></html>`);w.document.close' not in segment:
+segment=s[pos_print:pos_sync if pos_sync>pos_print else pos_print+250000]
+if '</body></html>`);' not in segment:
     raise SystemExit('ERRO: fechamento da pagina de impressao nao foi recomposto')
 
 INDEX.write_text(s,encoding='utf-8')
-print('PASS v91.83: truncamento recuperado do backup v91.74, v91.79 realocada e login validado')
+print('PASS v91.83: trecho truncado recuperado, bloco v91.79 realocado e login validado')
