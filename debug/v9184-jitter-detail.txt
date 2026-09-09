@@ -1,0 +1,965 @@
+===== TARGET 'function setCloudStatus' line 1776 =====
+1764:    return false;
+1765:  }
+1766:  if(force||!cloudTokenExpiresAt||cloudTokenExpiresAt<=Date.now()+HLGB_CLOUD_REFRESH_MARGIN_MS){
+1767:    if(cloudRefreshToken)await cloudRefreshSession(true);
+1768:  }
+1769:  return !!cloudAccessToken;
+1770: }
+1771: function cloudSessionExpired(){
+1772:  setCloudStatus("☁️ Sessão expirada","bad");
+1773: }
+1774: 
+1775: 
+1776: function setCloudStatus(text,kind=""){
+1777:  const el=document.getElementById("cloudStatus");if(!el)return;
+1778:  el.textContent=text;
+1779:  el.style.background=kind==="ok"?"#ffffff22":kind==="bad"?"#7a1f2b":"transparent";
+1780: }
+1781: function localSaveOnly(){
+1782:  Storage.prototype.setItem.call(localStorage,KEY,JSON.stringify(db));
+1783: }
+1784: // Archive only historical safety copies. Never remove the working database,
+1785: // authentication, pending writes or WAL. Commit and read back before removal.
+1786: async function hlgbPrepareStorage9178(){
+1787:  const keys=["hlgb_cloud_conflict_backup_v1","hlgb_projection_safety_backup","hlgb_v9148_precloud_snapshot","hlgb_v9149_forensic_snapshot","hlgb_durable_wal_archive_v1"];
+1788:  const copies=keys.map(key=>({key,value:localStorage.getItem(key)})).filter(x=>x.value!==null);
+1789:  if(!copies.length)return;
+1790:  const archive=await new Promise((resolve,reject)=>{
+1791:   const request=indexedDB.open("hlgb_preserved_backups",1);
+1792:   request.onupgradeneeded=()=>request.result.createObjectStore("backups");
+1793:   request.onsuccess=()=>resolve(request.result);
+1794:   request.onerror=()=>reject(request.error);
+1795:   request.onblocked=()=>reject(new Error("Feche outras abas do sistema para preparar o armazenamento."));
+1796:  });
+1797:  try{
+1798:   for(const copy of copies){
+1799:    const archiveKey=copy.key+":"+Date.now()+":"+Math.random();
+1800:    await new Promise((resolve,reject)=>{
+1801:     const tx=archive.transaction("backups","readwrite");
+1802:     tx.objectStore("backups").put({...copy,savedAt:new Date().toISOString()},archiveKey);
+1803:     tx.oncomplete=resolve;tx.onabort=()=>reject(tx.error||new Error("Backup não confirmado"));tx.onerror=()=>{};
+1804:    });
+1805:    const verified=await new Promise((resolve,reject)=>{
+1806:     const request=archive.transaction("backups","readonly").objectStore("backups").get(archiveKey);
+1807:     request.onsuccess=()=>resolve(request.result);request.onerror=()=>reject(request.error);
+1808:    });
+1809:    if(verified?.value!==copy.value)throw new Error("A conferência do backup local falhou; o original foi preservado.");
+1810:    if(localStorage.getItem(copy.key)===copy.value)localStorage.removeItem(copy.key);
+1811:   }
+1812:  }finally{archive.close()}
+1813: }
+1814: function cloudDirtyMeta(){
+1815:  try{return JSON.parse(localStorage.getItem(HLGB_CLOUD_DIRTY_KEY)||"null")}catch(e){return null}
+1816: }
+1817: function cloudMarkLocalDirty(dirty=true){
+1818:  try{
+1819:   if(!dirty){localStorage.removeItem(HLGB_CLOUD_DIRTY_KEY);return}
+1820:   localStorage.setItem(HLGB_CLOUD_DIRTY_KEY,JSON.stringify({dirty:true,updatedAt:Date.now(),baseVersion:+cloudVersion||0,email:normEmail(cloudUser?.email||"")}));
+1821:  }catch(e){}
+1822: }
+1823: function cloudSaveConflictSnapshot(localDb,remoteRow){
+1824:  try{localStorage.setItem(HLGB_CLOUD_CONFLICT_KEY,JSON.stringify({savedAt:new Date().toISOString(),local:localDb,remote:remoteRow||null}))}catch(e){}
+1825: }
+1826: function cloudPayload(remoteSource=null){
+1827:  let copy=JSON.parse(JSON.stringify(db||{}));
+1828:  copy.session=null;copy.activeSessionId=null;
+1829:  if(Array.isArray(copy.users))copy.users=copy.users.map(u=>{let x={...u};delete x.password;return x});
+1830: 
+
+===== TARGET 'function hlgbPullNormalizedCoreChanges' line 1590 =====
+1578:   const row=payload?.new&&Object.keys(payload.new).length?payload.new:payload?.old;
+1579:   if(!row?.entity_id)return;
+1580:   // Nosso modelo usa tombstone; DELETE físico é tratado como remoção também.
+1581:   if(payload.eventType==="DELETE")row.deleted_at=row.deleted_at||new Date().toISOString();
+1582:   hlgbApplyNormalizedRow(module,row);localSaveOnly();
+1583:   if(!cloudUserIsEditing()){
+1584:    const prev=cloudApplying;cloudApplying=true;try{renderAll()}finally{cloudApplying=prev}
+1585:   }else cloudRemoteUpdatePending=true;
+1586:   setCloudStatus("⚡ Online · atualização recebida","ok");
+1587:   setTimeout(()=>setCloudStatus("⚡ Online · multiusuário","ok"),700);
+1588:  }catch(e){console.warn("HLGB Core realtime",e)}
+1589: }
+1590: async function hlgbPullNormalizedCoreChanges(){
+1591:  if(!hlgbNormalizedReady||hlgbNormalizedPulling||!cloudAccessToken||document.hidden)return false;
+1592:  hlgbNormalizedPulling=true;let changed=false;
+1593:  try{
+1594:   for(const [module,cfg] of Object.entries(HLGB_CORE_MODULES)){
+1595:    const last=hlgbNormalizedLastSeen[module]||"";
+1596:    const path=last
+1597:     ?`${cfg.table}?select=entity_id,data,updated_at,deleted_at&updated_at=gt.${encodeURIComponent(last)}&order=updated_at.asc&limit=200`
+1598:     :`${cfg.table}?select=entity_id,data,updated_at,deleted_at&order=updated_at.desc&limit=200`;
+1599:    let rows=await cloudRequest(path,{method:"GET"});rows=Array.isArray(rows)?rows:[];
+1600:    for(const row of rows){hlgbApplyNormalizedRow(module,row);changed=true}
+1601:   }
+1602:   if(changed){localSaveOnly();if(!cloudUserIsEditing()){const prev=cloudApplying;cloudApplying=true;try{renderAll()}finally{cloudApplying=prev}}else cloudRemoteUpdatePending=true}
+1603:   return changed;
+1604:  }catch(e){console.warn("HLGB Core pull",e);return false}
+1605:  finally{hlgbNormalizedPulling=false}
+1606: }
+1607: function hlgbLegacyComparablePayload(v){
+1608:  const x=hlgbCoreClone(v||{});
+1609:  for(const module of Object.keys(HLGB_CORE_MODULES))delete x[module];
+1610:  delete x.auditLog;delete x.userSessions;delete x.session;delete x.activeSessionId;
+1611:  return x;
+1612: }
+1613: 
+1614: function hlgbStopRealtime(){
+1615:  try{
+1616:   clearTimeout(hlgbRealtimeApplyTimer);
+1617:   if(hlgbRealtimeClient&&hlgbRealtimeChannel)hlgbRealtimeClient.removeChannel(hlgbRealtimeChannel);
+1618:  }catch(e){console.warn("HLGB Realtime stop",e)}
+1619:  hlgbRealtimeChannel=null;hlgbRealtimeState="offline";
+1620: }
+1621: function hlgbRealtimeSetAuth(){
+1622:  try{if(hlgbRealtimeClient&&cloudAccessToken)hlgbRealtimeClient.realtime.setAuth(cloudAccessToken)}catch(e){console.warn("HLGB Realtime auth",e)}
+1623: }
+1624: function hlgbBroadcastDbUpdate(version){
+1625:  try{
+1626:   if(!hlgbRealtimeChannel||hlgbRealtimeState!=="SUBSCRIBED")return false;
+1627:   hlgbRealtimeChannel.send({type:"broadcast",event:"hlgb_db_update",payload:{version:+version||+cloudVersion||0,at:Date.now(),sender:String(cloudUser?.id||"")}});
+1628:   return true;
+1629:  }catch(e){console.warn("HLGB Broadcast",e);return false}
+1630: }
+1631: async function hlgbHandleBroadcast(payload){
+1632:  try{
+1633:   const v=+(payload?.payload?.version||0);
+1634:   if(v&&v<=+cloudVersion)return;
+1635:   if(cloudDirty&&!cloudSaving)await cloudSaveNow(false);
+1636:   else await cloudPullRemoteIfNewer(true);
+1637:  }catch(e){console.warn("HLGB Broadcast receive",e)}
+1638: }
+1639: async function hlgbHandleRealtimeDataChange(payload){
+1640:  try{
+1641:   const next=payload?.new||{};
+1642:   if(cloudRowId&&next.id!=null&&String(next.id)!==String(cloudRowId))return;
+1643:   const remoteVersion=Number(next.versao||0)||0;
+1644:   if(remoteVersion&&remoteVersion<=Number(cloudVersion||0))return;
+
+===== TARGET 'function hlgbPullNormalizedCoreChanges' line 11561 =====
+11549:   try{
+11550:     let row=payload?.new&&Object.keys(payload.new).length?payload.new:payload?.old;
+11551:     if(!row)return;
+11552:     if(payload.eventType==="DELETE")row={...row,deleted_at:row.deleted_at||new Date().toISOString()};
+11553:     const module=String(row.module||"");
+11554:     if(!HLGB_RECORD_MODULES.includes(module))return;
+11555:     hlgbApplyRecordRow(row);localSaveOnly();
+11556:     hlgbRenderIncomingRecord(module);
+11557:     setCloudStatus("⚡ Online · atualização recebida","ok");
+11558:     setTimeout(()=>setCloudStatus("⚡ Online · multiusuário","ok"),650);
+11559:   }catch(e){console.warn("HLGB v91.16 realtime",e)}
+11560: }
+11561: async function hlgbPullNormalizedCoreChanges(force=false){
+11562:   if(!hlgbRecordReady||hlgbRecordPulling||!cloudAccessToken||document.hidden)return false;
+11563:   // Realtime continua sendo o caminho principal, mas mantemos UMA leitura em lote como segurança.
+11564:   // A chamada legada ocorre com frequência, porém este limitador permite no máximo 1 pacote/8 s,
+11565:   // em vez das dezenas de consultas por módulo que existiam nas versões antigas.
+11566:   const now=Date.now();
+11567:   if(!force&&now-hlgbRecordLastPullAt<8000)return false;
+11568:   hlgbRecordLastPullAt=now;hlgbRecordPulling=true;
+11569:   try{
+11570:     let since=null;
+11571:     if(hlgbRecordGlobalLastSeen){
+11572:       const t=Date.parse(hlgbRecordGlobalLastSeen);
+11573:       if(Number.isFinite(t))since=new Date(Math.max(0,t-1000)).toISOString();
+11574:     }
+11575:     const bundle=await hlgbRecordLoadBundle({preserveLocal:true,since});
+11576:     const rows=Array.isArray(bundle?.rows)?bundle.rows:[];
+11577:     const changed=rows.length>0;
+11578:     if(changed){
+11579:       localSaveOnly();
+11580:       const modules=[...new Set(rows.map(r=>String(r?.module||"")).filter(Boolean))];
+11581:       // Produtos e Folha atualizam a tela mesmo com filtros focados.
+11582:       let handled=false;
+11583:       if(modules.includes("products"))handled=hlgbRenderIncomingRecord("products")||handled;
+11584:       if(modules.includes("payroll"))handled=hlgbRenderIncomingRecord("payroll")||handled;
+11585:       if(!handled&&!cloudUserIsEditing()){
+11586:         const prev=cloudApplying;cloudApplying=true;try{renderAll();cloudRemoteUpdatePending=false}finally{cloudApplying=prev}
+11587:       }else if(!handled) cloudRemoteUpdatePending=true;
+11588:     }
+11589:     return changed;
+11590:   }catch(e){
+11591:     // Uma falha transitória de leitura jamais desativa o modo por registros.
+11592:     console.warn("HLGB v91 pull bundle",e);return false;
+11593:   }finally{hlgbRecordPulling=false}
+11594: }
+11595: 
+11596: // O JSON legado continua guardando somente configuração, usuários e históricos administrativos.
+11597: const _v9100CloudPayload=cloudPayload;
+11598: cloudPayload=function(remoteSource=null){
+11599:   const copy=_v9100CloudPayload(remoteSource);
+11600:   if(hlgbRecordReady){
+11601:     for(const module of HLGB_RECORD_MODULES){
+11602:       const oldArr=Array.isArray(remoteSource?.[module])?remoteSource[module]:(Array.isArray(cloudBaseSnapshot?.[module])?cloudBaseSnapshot[module]:null);
+11603:       if(oldArr)copy[module]=cloudClone(oldArr);
+11604:     }
+11605:   }
+11606:   return copy;
+11607: };
+11608: hlgbLegacyComparablePayload=function(v){
+11609:   const x=hlgbRecordClone(v||{});for(const module of HLGB_RECORD_MODULES)delete x[module];
+11610:   delete x.auditLog;delete x.userSessions;delete x.session;delete x.activeSessionId;return x;
+11611: };
+11612: 
+11613: hlgbStartRealtime=function(){
+11614:   try{
+11615:     if(!cloudReady||!cloudRowId||!cloudAccessToken||!window.supabase?.createClient)return false;
+
+===== TARGET 'async function hlgbPullNormalizedCoreChanges' line 1590 =====
+1578:   const row=payload?.new&&Object.keys(payload.new).length?payload.new:payload?.old;
+1579:   if(!row?.entity_id)return;
+1580:   // Nosso modelo usa tombstone; DELETE físico é tratado como remoção também.
+1581:   if(payload.eventType==="DELETE")row.deleted_at=row.deleted_at||new Date().toISOString();
+1582:   hlgbApplyNormalizedRow(module,row);localSaveOnly();
+1583:   if(!cloudUserIsEditing()){
+1584:    const prev=cloudApplying;cloudApplying=true;try{renderAll()}finally{cloudApplying=prev}
+1585:   }else cloudRemoteUpdatePending=true;
+1586:   setCloudStatus("⚡ Online · atualização recebida","ok");
+1587:   setTimeout(()=>setCloudStatus("⚡ Online · multiusuário","ok"),700);
+1588:  }catch(e){console.warn("HLGB Core realtime",e)}
+1589: }
+1590: async function hlgbPullNormalizedCoreChanges(){
+1591:  if(!hlgbNormalizedReady||hlgbNormalizedPulling||!cloudAccessToken||document.hidden)return false;
+1592:  hlgbNormalizedPulling=true;let changed=false;
+1593:  try{
+1594:   for(const [module,cfg] of Object.entries(HLGB_CORE_MODULES)){
+1595:    const last=hlgbNormalizedLastSeen[module]||"";
+1596:    const path=last
+1597:     ?`${cfg.table}?select=entity_id,data,updated_at,deleted_at&updated_at=gt.${encodeURIComponent(last)}&order=updated_at.asc&limit=200`
+1598:     :`${cfg.table}?select=entity_id,data,updated_at,deleted_at&order=updated_at.desc&limit=200`;
+1599:    let rows=await cloudRequest(path,{method:"GET"});rows=Array.isArray(rows)?rows:[];
+1600:    for(const row of rows){hlgbApplyNormalizedRow(module,row);changed=true}
+1601:   }
+1602:   if(changed){localSaveOnly();if(!cloudUserIsEditing()){const prev=cloudApplying;cloudApplying=true;try{renderAll()}finally{cloudApplying=prev}}else cloudRemoteUpdatePending=true}
+1603:   return changed;
+1604:  }catch(e){console.warn("HLGB Core pull",e);return false}
+1605:  finally{hlgbNormalizedPulling=false}
+1606: }
+1607: function hlgbLegacyComparablePayload(v){
+1608:  const x=hlgbCoreClone(v||{});
+1609:  for(const module of Object.keys(HLGB_CORE_MODULES))delete x[module];
+1610:  delete x.auditLog;delete x.userSessions;delete x.session;delete x.activeSessionId;
+1611:  return x;
+1612: }
+1613: 
+1614: function hlgbStopRealtime(){
+1615:  try{
+1616:   clearTimeout(hlgbRealtimeApplyTimer);
+1617:   if(hlgbRealtimeClient&&hlgbRealtimeChannel)hlgbRealtimeClient.removeChannel(hlgbRealtimeChannel);
+1618:  }catch(e){console.warn("HLGB Realtime stop",e)}
+1619:  hlgbRealtimeChannel=null;hlgbRealtimeState="offline";
+1620: }
+1621: function hlgbRealtimeSetAuth(){
+1622:  try{if(hlgbRealtimeClient&&cloudAccessToken)hlgbRealtimeClient.realtime.setAuth(cloudAccessToken)}catch(e){console.warn("HLGB Realtime auth",e)}
+1623: }
+1624: function hlgbBroadcastDbUpdate(version){
+1625:  try{
+1626:   if(!hlgbRealtimeChannel||hlgbRealtimeState!=="SUBSCRIBED")return false;
+1627:   hlgbRealtimeChannel.send({type:"broadcast",event:"hlgb_db_update",payload:{version:+version||+cloudVersion||0,at:Date.now(),sender:String(cloudUser?.id||"")}});
+1628:   return true;
+1629:  }catch(e){console.warn("HLGB Broadcast",e);return false}
+1630: }
+1631: async function hlgbHandleBroadcast(payload){
+1632:  try{
+1633:   const v=+(payload?.payload?.version||0);
+1634:   if(v&&v<=+cloudVersion)return;
+1635:   if(cloudDirty&&!cloudSaving)await cloudSaveNow(false);
+1636:   else await cloudPullRemoteIfNewer(true);
+1637:  }catch(e){console.warn("HLGB Broadcast receive",e)}
+1638: }
+1639: async function hlgbHandleRealtimeDataChange(payload){
+1640:  try{
+1641:   const next=payload?.new||{};
+1642:   if(cloudRowId&&next.id!=null&&String(next.id)!==String(cloudRowId))return;
+1643:   const remoteVersion=Number(next.versao||0)||0;
+1644:   if(remoteVersion&&remoteVersion<=Number(cloudVersion||0))return;
+
+===== TARGET 'async function hlgbPullNormalizedCoreChanges' line 11561 =====
+11549:   try{
+11550:     let row=payload?.new&&Object.keys(payload.new).length?payload.new:payload?.old;
+11551:     if(!row)return;
+11552:     if(payload.eventType==="DELETE")row={...row,deleted_at:row.deleted_at||new Date().toISOString()};
+11553:     const module=String(row.module||"");
+11554:     if(!HLGB_RECORD_MODULES.includes(module))return;
+11555:     hlgbApplyRecordRow(row);localSaveOnly();
+11556:     hlgbRenderIncomingRecord(module);
+11557:     setCloudStatus("⚡ Online · atualização recebida","ok");
+11558:     setTimeout(()=>setCloudStatus("⚡ Online · multiusuário","ok"),650);
+11559:   }catch(e){console.warn("HLGB v91.16 realtime",e)}
+11560: }
+11561: async function hlgbPullNormalizedCoreChanges(force=false){
+11562:   if(!hlgbRecordReady||hlgbRecordPulling||!cloudAccessToken||document.hidden)return false;
+11563:   // Realtime continua sendo o caminho principal, mas mantemos UMA leitura em lote como segurança.
+11564:   // A chamada legada ocorre com frequência, porém este limitador permite no máximo 1 pacote/8 s,
+11565:   // em vez das dezenas de consultas por módulo que existiam nas versões antigas.
+11566:   const now=Date.now();
+11567:   if(!force&&now-hlgbRecordLastPullAt<8000)return false;
+11568:   hlgbRecordLastPullAt=now;hlgbRecordPulling=true;
+11569:   try{
+11570:     let since=null;
+11571:     if(hlgbRecordGlobalLastSeen){
+11572:       const t=Date.parse(hlgbRecordGlobalLastSeen);
+11573:       if(Number.isFinite(t))since=new Date(Math.max(0,t-1000)).toISOString();
+11574:     }
+11575:     const bundle=await hlgbRecordLoadBundle({preserveLocal:true,since});
+11576:     const rows=Array.isArray(bundle?.rows)?bundle.rows:[];
+11577:     const changed=rows.length>0;
+11578:     if(changed){
+11579:       localSaveOnly();
+11580:       const modules=[...new Set(rows.map(r=>String(r?.module||"")).filter(Boolean))];
+11581:       // Produtos e Folha atualizam a tela mesmo com filtros focados.
+11582:       let handled=false;
+11583:       if(modules.includes("products"))handled=hlgbRenderIncomingRecord("products")||handled;
+11584:       if(modules.includes("payroll"))handled=hlgbRenderIncomingRecord("payroll")||handled;
+11585:       if(!handled&&!cloudUserIsEditing()){
+11586:         const prev=cloudApplying;cloudApplying=true;try{renderAll();cloudRemoteUpdatePending=false}finally{cloudApplying=prev}
+11587:       }else if(!handled) cloudRemoteUpdatePending=true;
+11588:     }
+11589:     return changed;
+11590:   }catch(e){
+11591:     // Uma falha transitória de leitura jamais desativa o modo por registros.
+11592:     console.warn("HLGB v91 pull bundle",e);return false;
+11593:   }finally{hlgbRecordPulling=false}
+11594: }
+11595: 
+11596: // O JSON legado continua guardando somente configuração, usuários e históricos administrativos.
+11597: const _v9100CloudPayload=cloudPayload;
+11598: cloudPayload=function(remoteSource=null){
+11599:   const copy=_v9100CloudPayload(remoteSource);
+11600:   if(hlgbRecordReady){
+11601:     for(const module of HLGB_RECORD_MODULES){
+11602:       const oldArr=Array.isArray(remoteSource?.[module])?remoteSource[module]:(Array.isArray(cloudBaseSnapshot?.[module])?cloudBaseSnapshot[module]:null);
+11603:       if(oldArr)copy[module]=cloudClone(oldArr);
+11604:     }
+11605:   }
+11606:   return copy;
+11607: };
+11608: hlgbLegacyComparablePayload=function(v){
+11609:   const x=hlgbRecordClone(v||{});for(const module of HLGB_RECORD_MODULES)delete x[module];
+11610:   delete x.auditLog;delete x.userSessions;delete x.session;delete x.activeSessionId;return x;
+11611: };
+11612: 
+11613: hlgbStartRealtime=function(){
+11614:   try{
+11615:     if(!cloudReady||!cloudRowId||!cloudAccessToken||!window.supabase?.createClient)return false;
+
+===== TARGET 'function cloudCheckRemoteVersion' line 1952 =====
+1940:     try{renderAll()}finally{cloudApplying=prevApplying}
+1941:    }catch(e){console.warn("Falha ao atualizar tela após sincronização",e)}
+1942:    cloudRemoteUpdatePending=false;
+1943:   }else{
+1944:    cloudRemoteUpdatePending=true;
+1945:   }
+1946:   setCloudStatus(hlgbRealtimeState==="SUBSCRIBED"?"⚡ Online · atualizado":"☁️ Online · atualizado","ok");
+1947:   setTimeout(()=>setCloudStatus(hlgbRealtimeState==="SUBSCRIBED"?"⚡ Online · tempo real":"☁️ Online · automático","ok"),900);
+1948:   return true;
+1949:  }catch(e){console.warn("Falha ao buscar atualização remota",e);return false}
+1950:  finally{cloudPulling=false}
+1951: }
+1952: async function cloudCheckRemoteVersion(){
+1953:  if(cloudPulling||cloudSaving||!cloudAccessToken||!cloudReady||!cloudRowId||document.hidden)return false;
+1954:  try{
+1955:   if(cloudDirty&&!cloudHasOperationalChanges()){cloudDirty=false;cloudMarkLocalDirty(false);}
+1956:   if(cloudDirty){if(!cloudSaving)await cloudSaveNow(false);return false}
+1957:   const rows=await cloudRequest(`hlgb_data?id=eq.${encodeURIComponent(cloudRowId)}&select=id,versao,atualizado_em&limit=1`,{method:"GET"});
+1958:   const row=Array.isArray(rows)?rows[0]:null;
+1959:   if(row&&(+row.versao||0)>+cloudVersion)return await cloudPullRemoteIfNewer(false);
+1960:  }catch(e){console.warn("HLGB verificação de versão",e)}
+1961:  return false;
+1962: }
+1963: 
+1964: function persistDb(){
+1965:  localSaveOnly();
+1966:  if(cloudBootstrapping||cloudApplying)return true;
+1967:  // Módulos v90 são enviados por registro, sem depender do JSON gigante.
+1968:  if(hlgbNormalizedReady)hlgbQueueNormalizedSync(70);
+1969:  // Só marca o JSON legado como pendente se ALGUM módulo ainda não migrado mudou.
+1970:  // Isso elimina conflitos entre um usuário cadastrando produto e outro lançando pedido.
+1971:  let legacyChanged=true;
+1972:  try{legacyChanged=!cloudEq(hlgbLegacyComparablePayload(cloudPayload(cloudBaseSnapshot||null)),hlgbLegacyComparablePayload(cloudBaseSnapshot||{}))}catch(e){}
+1973:  if(legacyChanged){
+1974:    cloudDirty=true;cloudMarkLocalDirty(true);
+1975:    if(cloudReady&&cloudAccessToken){setCloudStatus("☁️ Salvando automático…");cloudQueueSave()}
+1976:  }else if(!hlgbCorePendingRead()){
+1977:    setCloudStatus(hlgbRealtimeState==="SUBSCRIBED"?"⚡ Online · multiusuário":"☁️ Online · automático","ok");
+1978:  }
+1979:  return true;
+1980: }
+1981: function cloudQueueSave(delay=150){
+1982:  clearTimeout(cloudSaveTimer);
+1983:  cloudSaveTimer=setTimeout(()=>cloudSaveNow(false),delay);
+1984: }
+1985: async function cloudRequest(path,options={}){
+1986:  const method=String(options.method||"GET").toUpperCase();
+1987:  // Para gravações, renova com antecedência maior para não deixar o token vencer no meio do salvamento.
+1988:  await cloudEnsureFreshSession(false);
+1989:  const expiredRx=/PGRST303|jwt\s*expired|token[^\n]*expired|invalid[^\n]*jwt/i;
+1990:  async function send(){
+1991:    let headers={"apikey":HLGB_SUPABASE_KEY,"Content-Type":"application/json",...(options.headers||{})};
+1992:    if(cloudAccessToken)headers.Authorization=`Bearer ${cloudAccessToken}`;
+1993:    const res=await fetch(HLGB_SUPABASE_REST+path,{...options,headers});
+1994:    const txt=res.status===204?"":await res.text();
+1995:    return {res,txt};
+1996:  }
+1997:  let out=await send();
+1998:  // Se o Data API responder 401, renovamos a sessão UMA vez e repetimos a chamada.
+1999:  // Isso cobre Safari/abas retomadas em que uma requisição pode sair durante a troca do JWT.
+2000:  // Com a leitura em lote da v91.06, isso não gera mais tempestade de refresh.
+2001:  if(!out.res.ok&&(out.res.status===401||expiredRx.test(out.txt||""))&&cloudRefreshToken){
+2002:    try{
+2003:      setCloudStatus("☁️ Renovando sessão…");
+2004:      await cloudRefreshSession(true);
+2005:      out=await send();
+2006:    }catch(e){
+
+===== TARGET 'async function cloudCheckRemoteVersion' line 1952 =====
+1940:     try{renderAll()}finally{cloudApplying=prevApplying}
+1941:    }catch(e){console.warn("Falha ao atualizar tela após sincronização",e)}
+1942:    cloudRemoteUpdatePending=false;
+1943:   }else{
+1944:    cloudRemoteUpdatePending=true;
+1945:   }
+1946:   setCloudStatus(hlgbRealtimeState==="SUBSCRIBED"?"⚡ Online · atualizado":"☁️ Online · atualizado","ok");
+1947:   setTimeout(()=>setCloudStatus(hlgbRealtimeState==="SUBSCRIBED"?"⚡ Online · tempo real":"☁️ Online · automático","ok"),900);
+1948:   return true;
+1949:  }catch(e){console.warn("Falha ao buscar atualização remota",e);return false}
+1950:  finally{cloudPulling=false}
+1951: }
+1952: async function cloudCheckRemoteVersion(){
+1953:  if(cloudPulling||cloudSaving||!cloudAccessToken||!cloudReady||!cloudRowId||document.hidden)return false;
+1954:  try{
+1955:   if(cloudDirty&&!cloudHasOperationalChanges()){cloudDirty=false;cloudMarkLocalDirty(false);}
+1956:   if(cloudDirty){if(!cloudSaving)await cloudSaveNow(false);return false}
+1957:   const rows=await cloudRequest(`hlgb_data?id=eq.${encodeURIComponent(cloudRowId)}&select=id,versao,atualizado_em&limit=1`,{method:"GET"});
+1958:   const row=Array.isArray(rows)?rows[0]:null;
+1959:   if(row&&(+row.versao||0)>+cloudVersion)return await cloudPullRemoteIfNewer(false);
+1960:  }catch(e){console.warn("HLGB verificação de versão",e)}
+1961:  return false;
+1962: }
+1963: 
+1964: function persistDb(){
+1965:  localSaveOnly();
+1966:  if(cloudBootstrapping||cloudApplying)return true;
+1967:  // Módulos v90 são enviados por registro, sem depender do JSON gigante.
+1968:  if(hlgbNormalizedReady)hlgbQueueNormalizedSync(70);
+1969:  // Só marca o JSON legado como pendente se ALGUM módulo ainda não migrado mudou.
+1970:  // Isso elimina conflitos entre um usuário cadastrando produto e outro lançando pedido.
+1971:  let legacyChanged=true;
+1972:  try{legacyChanged=!cloudEq(hlgbLegacyComparablePayload(cloudPayload(cloudBaseSnapshot||null)),hlgbLegacyComparablePayload(cloudBaseSnapshot||{}))}catch(e){}
+1973:  if(legacyChanged){
+1974:    cloudDirty=true;cloudMarkLocalDirty(true);
+1975:    if(cloudReady&&cloudAccessToken){setCloudStatus("☁️ Salvando automático…");cloudQueueSave()}
+1976:  }else if(!hlgbCorePendingRead()){
+1977:    setCloudStatus(hlgbRealtimeState==="SUBSCRIBED"?"⚡ Online · multiusuário":"☁️ Online · automático","ok");
+1978:  }
+1979:  return true;
+1980: }
+1981: function cloudQueueSave(delay=150){
+1982:  clearTimeout(cloudSaveTimer);
+1983:  cloudSaveTimer=setTimeout(()=>cloudSaveNow(false),delay);
+1984: }
+1985: async function cloudRequest(path,options={}){
+1986:  const method=String(options.method||"GET").toUpperCase();
+1987:  // Para gravações, renova com antecedência maior para não deixar o token vencer no meio do salvamento.
+1988:  await cloudEnsureFreshSession(false);
+1989:  const expiredRx=/PGRST303|jwt\s*expired|token[^\n]*expired|invalid[^\n]*jwt/i;
+1990:  async function send(){
+1991:    let headers={"apikey":HLGB_SUPABASE_KEY,"Content-Type":"application/json",...(options.headers||{})};
+1992:    if(cloudAccessToken)headers.Authorization=`Bearer ${cloudAccessToken}`;
+1993:    const res=await fetch(HLGB_SUPABASE_REST+path,{...options,headers});
+1994:    const txt=res.status===204?"":await res.text();
+1995:    return {res,txt};
+1996:  }
+1997:  let out=await send();
+1998:  // Se o Data API responder 401, renovamos a sessão UMA vez e repetimos a chamada.
+1999:  // Isso cobre Safari/abas retomadas em que uma requisição pode sair durante a troca do JWT.
+2000:  // Com a leitura em lote da v91.06, isso não gera mais tempestade de refresh.
+2001:  if(!out.res.ok&&(out.res.status===401||expiredRx.test(out.txt||""))&&cloudRefreshToken){
+2002:    try{
+2003:      setCloudStatus("☁️ Renovando sessão…");
+2004:      await cloudRefreshSession(true);
+2005:      out=await send();
+2006:    }catch(e){
+
+===== TARGET 'function renderAll' line 4451 =====
+4439:    if(f.orderId==null || f.orderId==="")return true;
+4440:    return validOrderIds.has(+f.orderId);
+4441:  });
+4442:  removed.finance=finBefore-db.finance.length;
+4443: 
+4444:  const total=Object.values(removed).reduce((a,b)=>a+b,0);
+4445:  if(total>0){
+4446:    try{persistDb()}catch(e){console.error(e)}
+4447:    console.info("HLGB: registros órfãos removidos",removed);
+4448:  }
+4449:  return {total,removed};
+4450: }
+4451: function renderAll(){
+4452:  // Renderizar a interface nunca deve, por si só, criar uma alteração pendente.
+4453:  // Algumas rotinas legadas abaixo também fazem sincronizações derivadas; só
+4454:  // persistimos se elas realmente mudarem dados operacionais.
+4455:  let beforeSystemSync=null;
+4456:  try{beforeSystemSync=cloudOperationalPayload(cloudClone(db))}catch(e){}
+4457:  cleanupOrphanOrderRecords();
+4458:  syncLegacyMaterialCostsFromCostTable();
+4459:  let selectedSeparation=document.getElementById("separationOrder")?.value||"";
+4460:  syncOrdersToCuts();
+4461:  try{
+4462:    const afterSystemSync=cloudOperationalPayload(cloudClone(db));
+4463:    if(beforeSystemSync&&!cloudEq(beforeSystemSync,afterSystemSync)){
+4464:      if(cloudApplying||cloudBootstrapping)localSaveOnly();
+4465:      else persistDb();
+4466:    }
+4467:  }catch(e){}
+4468:  renderDash();renderOrders();renderProduction();renderCuts();renderStock();renderFactions();renderFactionPayments();if(document.getElementById("lixeiraPedidos")?.classList.contains("active"))renderOrderTrash();
+4469:  renderCutters();drawCutterChart();renderClients();if(document.getElementById("clientProfitReport"))renderClientPotentialReport();renderMaterials();renderCatalogs();renderUsers();
+4470:  fillSeparationOrders();
+4471:  if(selectedSeparation && document.getElementById("separationOrder")){
+4472:    document.getElementById("separationOrder").value=selectedSeparation;
+4473:    renderSeparation();
+4474:  }
+4475:  renderSuppliers();renderPurchases();renderProducts();renderFinance();renderEmployees();renderFormerEmployees();renderPayroll();renderReports();renderGoals();
+4476:  try{hlgb916EnsureData()}catch(e){console.error("HLGB v91.17 ensureData",e)}
+4477:  try{renderCutAssignmentQueue()}catch(e){console.error("HLGB v91.17 cutAssignment",e)}
+4478:  try{renderDestinationChecklists()}catch(e){console.error("HLGB v91.17 destinationChecklists",e)}
+4479:  try{renderFactionPaymentPlanner()}catch(e){console.error("HLGB v91.17 factionPlanner",e)}
+4480:  try{renderHubFinance()}catch(e){console.error("HLGB v91.17 hubFinance",e)}
+4481:  if(document.getElementById("missingOpenTable"))renderMissingPieces();if(document.getElementById("auditLogTable"))renderAuditLog();
+4482:  document.getElementById("companyName").value=db.config.name;
+4483:  document.getElementById("companyNote").value=db.config.note;
+4484:  renderOrderNotes();
+4485:  ensurePageSyncButtons();
+4486: }
+4487: function isoDate(d){
+4488: let y=d.getFullYear(),m=String(d.getMonth()+1).padStart(2,"0"),day=String(d.getDate()).padStart(2,"0");
+4489: return `${y}-${m}-${day}`;
+4490: }
+4491: function mondayOf(d){
+4492: let x=new Date(d); x.setHours(12,0,0,0);
+4493: let day=x.getDay(); let diff=day===0?-6:1-day; x.setDate(x.getDate()+diff); return x;
+4494: }
+4495: function weekValue(d){
+4496: let x=mondayOf(d), jan4=new Date(x.getFullYear(),0,4,12), first=mondayOf(jan4);
+4497: let week=Math.round((x-first)/604800000)+1;
+4498: return `${x.getFullYear()}-W${String(week).padStart(2,"0")}`;
+4499: }
+4500: function mondayFromWeek(v){
+4501: let [y,w]=v.split("-W").map(Number); if(!y||!w)return mondayOf(new Date());
+4502: let jan4=new Date(y,0,4,12), first=mondayOf(jan4), d=new Date(first);d.setDate(d.getDate()+(w-1)*7);return d;
+4503: }
+4504: function setWeekFromInput(){renderProjection()}
+4505: function setCurrentWeek(){weekStart.value=weekValue(new Date());renderProjection()}
+
+===== TARGET 'function hlgbRenderIncomingRecord' line 11511 =====
+11499: }
+11500: function hlgbApplyRecordRow(row){
+11501:   const module=String(row?.module||"");if(!HLGB_RECORD_MODULES.includes(module)||row?.entity_id==null)return false;
+11502:   const id=String(row.entity_id),arr=Array.isArray(db[module])?db[module]:[],idx=arr.findIndex((x,i)=>hlgbRecordId(module,x,i)===id);
+11503:   if(row.deleted_at){if(idx>=0)arr.splice(idx,1)}
+11504:   else {const data=hlgbRecordHydrateData(module,row);if(idx>=0)arr[idx]=data;else arr.push(data)}
+11505:   db[module]=arr;
+11506:   const snap=hlgbRecordSnapshots[module]||new Map();snap.set(id,{data:hlgbRecordClone(row.data),deleted_at:row.deleted_at||null,revision:+row.revision||1,updated_at:row.updated_at||"",updated_by:row.updated_by||null});hlgbRecordSnapshots[module]=snap;
+11507:   if(String(row.updated_at||"")>String(hlgbRecordLastSeen[module]||""))hlgbRecordLastSeen[module]=String(row.updated_at||"");
+11508:   if(String(row.updated_at||"")>String(hlgbRecordGlobalLastSeen||""))hlgbRecordGlobalLastSeen=String(row.updated_at||"");
+11509:   return true;
+11510: }
+11511: function hlgbRenderIncomingRecord(module){
+11512:   module=String(module||"");
+11513:   const modalOpen=!!document.querySelector("#modal.show");
+11514:   const activePage=document.querySelector(".page.active")?.id||"";
+11515: 
+11516:   // A ficha aberta em modal continua protegida contra redesenho enquanto a pessoa digita.
+11517:   if(modalOpen){cloudRemoteUpdatePending=true;return false;}
+11518: 
+11519:   const prev=cloudApplying;cloudApplying=true;
+11520:   try{
+11521:     // Produtos precisa atualizar a tabela mesmo que o cursor esteja em Busca/Preço mínimo/Preço máximo.
+11522:     // Antes qualquer INPUT focado bloqueava a atualização visual e a edição só aparecia após sair da tela.
+11523:     if(module==="products" && activePage==="produtos"){
+11524:       if(typeof renderProducts==="function")renderProducts();
+11525:       cloudRemoteUpdatePending=false;
+11526:       return true;
+11527:     }
+11528: 
+11529:     // v91.29: na Folha, uma alteração confirmada por outra máquina precisa aparecer
+11530:     // imediatamente. O modal aberto continua protegido pelo guard acima.
+11531:     if(module==="payroll" && activePage==="folhaPagamento"){
+11532:       if(typeof renderPayroll==="function")renderPayroll();
+11533:       cloudRemoteUpdatePending=false;
+11534:       return true;
+11535:     }
+11536: 
+11537:     // Para as demais telas mantemos a proteção antiga enquanto há um formulário/campo sendo editado.
+11538:     if(!cloudUserIsEditing()){
+11539:       renderAll();
+11540:       cloudRemoteUpdatePending=false;
+11541:       return true;
+11542:     }
+11543:     cloudRemoteUpdatePending=true;
+11544:     return false;
+11545:   }finally{cloudApplying=prev}
+11546: }
+11547: 
+11548: async function hlgbHandleRecordRealtime(payload){
+11549:   try{
+11550:     let row=payload?.new&&Object.keys(payload.new).length?payload.new:payload?.old;
+11551:     if(!row)return;
+11552:     if(payload.eventType==="DELETE")row={...row,deleted_at:row.deleted_at||new Date().toISOString()};
+11553:     const module=String(row.module||"");
+11554:     if(!HLGB_RECORD_MODULES.includes(module))return;
+11555:     hlgbApplyRecordRow(row);localSaveOnly();
+11556:     hlgbRenderIncomingRecord(module);
+11557:     setCloudStatus("⚡ Online · atualização recebida","ok");
+11558:     setTimeout(()=>setCloudStatus("⚡ Online · multiusuário","ok"),650);
+11559:   }catch(e){console.warn("HLGB v91.16 realtime",e)}
+11560: }
+11561: async function hlgbPullNormalizedCoreChanges(force=false){
+11562:   if(!hlgbRecordReady||hlgbRecordPulling||!cloudAccessToken||document.hidden)return false;
+11563:   // Realtime continua sendo o caminho principal, mas mantemos UMA leitura em lote como segurança.
+11564:   // A chamada legada ocorre com frequência, porém este limitador permite no máximo 1 pacote/8 s,
+11565:   // em vez das dezenas de consultas por módulo que existiam nas versões antigas.
+
+===== TARGET 'function hlgbStartRealtime' line 1657 =====
+1645:   clearTimeout(hlgbRealtimeApplyTimer);
+1646:   hlgbRealtimeApplyTimer=setTimeout(async()=>{
+1647:    try{
+1648:     // Se esta máquina também acabou de editar, primeiro grava/mescla usando o
+1649:     // controle otimista de versão; depois busca o resultado consolidado.
+1650:     if(cloudDirty&&!cloudSaving)await cloudSaveNow(false);
+1651:     if(!cloudDirty&&!cloudSaving)await cloudPullRemoteIfNewer(false);
+1652:     else cloudRemoteUpdatePending=true;
+1653:    }catch(e){console.warn("HLGB Realtime apply",e)}
+1654:   },40);
+1655:  }catch(e){console.warn("HLGB Realtime event",e)}
+1656: }
+1657: function hlgbStartRealtime(){
+1658:  try{
+1659:   if(!cloudReady||!cloudRowId||!cloudAccessToken||!window.supabase?.createClient)return false;
+1660:   hlgbStopRealtime();
+1661:   hlgbRealtimeClient=window.supabase.createClient(HLGB_SUPABASE_URL,HLGB_SUPABASE_KEY,{
+1662:    auth:{persistSession:false,autoRefreshToken:false,detectSessionInUrl:false},
+1663:    realtime:{params:{eventsPerSecond:40}}
+1664:   });
+1665:   hlgbRealtimeClient.realtime.setAuth(cloudAccessToken);
+1666:   let ch=hlgbRealtimeClient.channel(`hlgb-live-${cloudRowId}`)
+1667:    .on('postgres_changes',{event:'UPDATE',schema:'public',table:'hlgb_data',filter:`id=eq.${cloudRowId}`},hlgbHandleRealtimeDataChange)
+1668:    .on('broadcast',{event:'hlgb_db_update'},hlgbHandleBroadcast);
+1669:   for(const [module,cfg] of Object.entries(HLGB_CORE_MODULES)){
+1670:    ch=ch.on('postgres_changes',{event:'*',schema:'public',table:cfg.table},payload=>hlgbHandleNormalizedRealtime(module,payload));
+1671:   }
+1672:   hlgbRealtimeChannel=ch.subscribe((status,err)=>{
+1673:     hlgbRealtimeState=status;
+1674:     if(status==='SUBSCRIBED'){
+1675:      setCloudStatus((cloudDirty||hlgbCorePendingRead())?'☁️ Salvando automático…':'⚡ Online · multiusuário',(cloudDirty||hlgbCorePendingRead())?'':'ok');
+1676:     }else if(status==='CHANNEL_ERROR'||status==='TIMED_OUT'){
+1677:      console.warn('HLGB Realtime',status,err);
+1678:      setCloudStatus('☁️ Online · reconectando…');
+1679:     }
+1680:    });
+1681:   return true;
+1682:  }catch(e){console.warn("HLGB Realtime start",e);return false}
+1683: }
+1684: 
+1685: function cloudStoreAuth(){
+1686:  // Mantém somente o REFRESH token persistido no navegador. Isso evita que Safari/Chrome
+1687:  // percam a sessão ao suspender a aba, fechar a janela ou reiniciar o navegador.
+1688:  // O access token continua sendo renovado automaticamente pelo Supabase.
+1689:  try{
+1690:   const payload=JSON.stringify({refresh_token:cloudRefreshToken||"",expires_at:cloudTokenExpiresAt||0,user:cloudUser||null});
+1691:   if(cloudRefreshToken){
+1692:     localStorage.setItem(HLGB_CLOUD_AUTH_KEY,payload);
+1693:     try{sessionStorage.setItem(HLGB_CLOUD_AUTH_KEY,payload)}catch(e){}
+1694:   }else{
+1695:     localStorage.removeItem(HLGB_CLOUD_AUTH_KEY);
+1696:     try{sessionStorage.removeItem(HLGB_CLOUD_AUTH_KEY)}catch(e){}
+1697:   }
+1698:  }catch(e){}
+1699: }
+1700: function cloudRestoreStoredAuth(){
+1701:  try{
+1702:    let raw=localStorage.getItem(HLGB_CLOUD_AUTH_KEY);
+1703:    if(!raw){try{raw=sessionStorage.getItem(HLGB_CLOUD_AUTH_KEY)}catch(e){}}
+1704:    if(!raw)return false;
+1705:    const saved=JSON.parse(raw||"{}");
+1706:    cloudRefreshToken=saved.refresh_token||"";
+1707:    cloudTokenExpiresAt=Number(saved.expires_at||0)||0;
+1708:    cloudUser=saved.user||null;
+1709:    return !!cloudRefreshToken;
+1710:  }catch(e){return false}
+1711: }
+
+===== TARGET 'cloudStatus' line 295 =====
+283:     if(!loader||loader.style.display==='none'||(app&&app.style.display==='block'))return;
+284:     // A nuvem pode levar mais de 10s em contas com muitos registros.
+285:     // Nunca apague tokens nem cancele a sessão só por lentidão.
+286:     loader.style.display='none';
+287:     var login=document.getElementById('loginScreen');if(login)login.style.display='flex';
+288:     var err=document.getElementById('loginError');
+289:     if(err){err.textContent='';err.style.display='none'}
+290:     setTimeout(function(){document.getElementById('loginUser')?.focus()},0);
+291:   },180000);
+292: })();
+293: </script>
+294: 
+295: <div id="appShell" style="display:none"><header><div class="logo">HLGB <b>CONFECÇÕES</b> <small style="font-size:10px;opacity:.8">v91.83</small></div><div><span id="cloudStatus" style="margin-right:10px;font-size:12px;padding:6px 9px;border:1px solid #ffffff44;border-radius:8px">☁️ Nuvem</span><span id="currentUserLabel" style="margin-right:10px;font-size:13px"></span><button id="cloudSaveBtn" onclick="cloudUploadCurrentDb(true)" style="display:none" title="Sincronização automática">🔄 Sincronizar agora</button> <button id="backupBtn" onclick="backup()" style="display:none">Exportar backup</button> <button id="importBackupBtn" onclick="document.getElementById('backupImportInput').click()" style="display:none">Importar backup</button><input id="backupImportInput" type="file" accept=".json,application/json" style="display:none" onchange="importBackupFile(this)"> <button onclick="logout()">Sair</button></div></header>
+296: <div class="app">
+297: <aside><nav id="nav" class="clean-nav">
+298: <button class="nav-home active" onclick="page('dashboard',this)">🏠 <span>Início</span></button>
+299: 
+300: <div class="nav-group">
+301:   <button type="button" class="nav-group-title" onclick="toggleNavGroup(this)">🛍️ <span>Comercial</span><b>⌄</b></button>
+302:   <div class="nav-submenu">
+303:     <button onclick="page('pedidos',this)">Pedidos</button>
+304:     <button onclick="page('clientes',this)">Clientes</button>
+305:     <button onclick="page('notas',this)">Notas prontas</button>
+306:     <button onclick="page('lixeiraPedidos',this)">🗑️ Lixeira de pedidos</button>
+307:   </div>
+308: </div>
+309: 
+310: <div class="nav-group">
+311:   <button type="button" class="nav-group-title" onclick="toggleNavGroup(this)">🏭 <span>Produção</span><b>⌄</b></button>
+312:   <div class="nav-submenu">
+313:     <button onclick="page('producao',this)">Produção</button>
+314:     <button onclick="page('corte',this)">Corte</button>
+315:     <button onclick="page('faccoes',this)">Envios para facção</button>
+316:     <button onclick="page('cortadores',this)">Cortadores</button>
+317:     <button onclick="page('projecao',this)">Projeção semanal</button>
+318:     <button onclick="page('capacidadeProducao',this)">Planejamento de capacidade</button>
+319:     <button onclick="page('metas',this)">🎯 Atribuição de metas</button>
+320:     <button onclick="page('faltas',this)">Peças faltantes</button>
+321:     <button onclick="page('devolucoesDefeitos',this)">Devoluções / Defeitos</button>
+322:   </div>
+323: </div>
+324: 
+325: <div class="nav-group">
+326:   <button type="button" class="nav-group-title" onclick="toggleNavGroup(this)">👗 <span>Produtos</span><b>⌄</b></button>
+327:   <div class="nav-submenu">
+328:     <button type="button" data-page="produtos" onclick="openProducts(this)">Produtos / Ficha técnica</button>
+329:     <button onclick="page('estoque',this)">Estoque</button>
+330:     <button onclick="page('inventarioBens',this)">Inventário de bens</button>
+331:   </div>
+332: </div>
+333: 
+334: <button type="button" class="nav-home" onclick="page('hubFinanceiro',this)">💰 <span>Hub Financeiro</span></button>
+335: 
+336: <div class="nav-group">
+337:   <button type="button" class="nav-group-title" onclick="toggleNavGroup(this)">💰 <span>Financeiro</span><b>⌄</b></button>
+338:   <div class="nav-submenu">
+339:     <button onclick="page('financeiro',this)">Financeiro geral</button>
+340:     <button onclick="page('folhaPagamento',this)">Folha de pagamento</button>
+341:     <button onclick="page('pagamentosFaccoes',this)">Pagamentos facções</button>
+342:   </div>
+343: </div>
+344: 
+345: <div class="nav-group">
+346:   <button type="button" class="nav-group-title" onclick="toggleNavGroup(this)">📋 <span>Cadastros</span><b>⌄</b></button>
+347:   <div class="nav-submenu">
+348:     <button onclick="page('fornecedores',this)">Fornecedores</button>
+349:     <button onclick="page('cadastros',this)">Cores e Grades</button>
+
+===== TARGET 'cloudStatus' line 1777 =====
+1765:  }
+1766:  if(force||!cloudTokenExpiresAt||cloudTokenExpiresAt<=Date.now()+HLGB_CLOUD_REFRESH_MARGIN_MS){
+1767:    if(cloudRefreshToken)await cloudRefreshSession(true);
+1768:  }
+1769:  return !!cloudAccessToken;
+1770: }
+1771: function cloudSessionExpired(){
+1772:  setCloudStatus("☁️ Sessão expirada","bad");
+1773: }
+1774: 
+1775: 
+1776: function setCloudStatus(text,kind=""){
+1777:  const el=document.getElementById("cloudStatus");if(!el)return;
+1778:  el.textContent=text;
+1779:  el.style.background=kind==="ok"?"#ffffff22":kind==="bad"?"#7a1f2b":"transparent";
+1780: }
+1781: function localSaveOnly(){
+1782:  Storage.prototype.setItem.call(localStorage,KEY,JSON.stringify(db));
+1783: }
+1784: // Archive only historical safety copies. Never remove the working database,
+1785: // authentication, pending writes or WAL. Commit and read back before removal.
+1786: async function hlgbPrepareStorage9178(){
+1787:  const keys=["hlgb_cloud_conflict_backup_v1","hlgb_projection_safety_backup","hlgb_v9148_precloud_snapshot","hlgb_v9149_forensic_snapshot","hlgb_durable_wal_archive_v1"];
+1788:  const copies=keys.map(key=>({key,value:localStorage.getItem(key)})).filter(x=>x.value!==null);
+1789:  if(!copies.length)return;
+1790:  const archive=await new Promise((resolve,reject)=>{
+1791:   const request=indexedDB.open("hlgb_preserved_backups",1);
+1792:   request.onupgradeneeded=()=>request.result.createObjectStore("backups");
+1793:   request.onsuccess=()=>resolve(request.result);
+1794:   request.onerror=()=>reject(request.error);
+1795:   request.onblocked=()=>reject(new Error("Feche outras abas do sistema para preparar o armazenamento."));
+1796:  });
+1797:  try{
+1798:   for(const copy of copies){
+1799:    const archiveKey=copy.key+":"+Date.now()+":"+Math.random();
+1800:    await new Promise((resolve,reject)=>{
+1801:     const tx=archive.transaction("backups","readwrite");
+1802:     tx.objectStore("backups").put({...copy,savedAt:new Date().toISOString()},archiveKey);
+1803:     tx.oncomplete=resolve;tx.onabort=()=>reject(tx.error||new Error("Backup não confirmado"));tx.onerror=()=>{};
+1804:    });
+1805:    const verified=await new Promise((resolve,reject)=>{
+1806:     const request=archive.transaction("backups","readonly").objectStore("backups").get(archiveKey);
+1807:     request.onsuccess=()=>resolve(request.result);request.onerror=()=>reject(request.error);
+1808:    });
+1809:    if(verified?.value!==copy.value)throw new Error("A conferência do backup local falhou; o original foi preservado.");
+1810:    if(localStorage.getItem(copy.key)===copy.value)localStorage.removeItem(copy.key);
+1811:   }
+1812:  }finally{archive.close()}
+1813: }
+1814: function cloudDirtyMeta(){
+1815:  try{return JSON.parse(localStorage.getItem(HLGB_CLOUD_DIRTY_KEY)||"null")}catch(e){return null}
+1816: }
+1817: function cloudMarkLocalDirty(dirty=true){
+1818:  try{
+1819:   if(!dirty){localStorage.removeItem(HLGB_CLOUD_DIRTY_KEY);return}
+1820:   localStorage.setItem(HLGB_CLOUD_DIRTY_KEY,JSON.stringify({dirty:true,updatedAt:Date.now(),baseVersion:+cloudVersion||0,email:normEmail(cloudUser?.email||"")}));
+1821:  }catch(e){}
+1822: }
+1823: function cloudSaveConflictSnapshot(localDb,remoteRow){
+1824:  try{localStorage.setItem(HLGB_CLOUD_CONFLICT_KEY,JSON.stringify({savedAt:new Date().toISOString(),local:localDb,remote:remoteRow||null}))}catch(e){}
+1825: }
+1826: function cloudPayload(remoteSource=null){
+1827:  let copy=JSON.parse(JSON.stringify(db||{}));
+1828:  copy.session=null;copy.activeSessionId=null;
+1829:  if(Array.isArray(copy.users))copy.users=copy.users.map(u=>{let x={...u};delete x.password;return x});
+1830: 
+1831:  // Usuários secundários não podem alterar o diretório global de usuários.
+
+===== TARGET 'cloudStatus' line 2421 =====
+2409:      // mescla e tenta outra vez sem pedir intervenção do usuário.
+2410:      currentRows=await cloudRequest(`hlgb_data?id=eq.${encodeURIComponent(cloudRowId)}&select=dados,versao&limit=1`,{method:"GET"});
+2411:      current=Array.isArray(currentRows)?currentRows[0]:null;
+2412:      if(!current)break;
+2413:      const localPayload=cloudPayload(current?.dados||cloudBaseSnapshot||null);
+2414:      const merged=cloudMergeThreeWay(cloudBaseSnapshot||{},localPayload,current.dados||{});
+2415:      cloudApplying=true;db=merged;cloudApplying=false;
+2416:      cloudVersion=+(current.versao||cloudVersion);cloudBaseSnapshot=cloudClone(current.dados||{});
+2417:      try{await ensureCloudUserAccessOnline()}catch(e){}
+2418:      try{localSaveOnly()}catch(e){}
+2419:    }
+2420:    throw new Error("Outra máquina atualizou os dados ao mesmo tempo. O sistema preservou suas alterações e tentará novamente automaticamente.");
+2421:  }catch(e){console.error(e);cloudDirty=true;setCloudStatus("☁️ Pendente de sincronização","bad");try{const el=document.getElementById("cloudStatus");if(el)el.title=String(e?.message||e||"");}catch(_){}if(showMessage)alert("Não foi possível sincronizar com a nuvem agora. Os dados ficaram salvos neste navegador e o sistema tentará novamente automaticamente.\n\n"+(e.message||"Tente novamente."));return false}
+2422:  finally{cloudSaving=false;if(cloudPending||cloudDirty){cloudPending=false;cloudQueueSave(2500)}}
+2423: }
+2424: 
+2425: async function cloudUploadCurrentDb(showMessage=true){
+2426:  try{
+2427:    if(!cloudAccessToken){
+2428:      if(!cloudRefreshToken)cloudRestoreStoredAuth();
+2429:      try{await cloudEnsureFreshSession(true)}catch(e){}
+2430:    }
+2431:    if(!cloudAccessToken){
+2432:      setCloudStatus("☁️ Login necessário","bad");
+2433:      if(showMessage)alert("Sua sessão online não está mais ativa. Clique em Sair e entre novamente para continuar. Seus dados deste navegador não serão apagados.");
+2434:      return false;
+2435:    }
+2436:    return await (cloudReady?cloudSaveNow(showMessage):cloudInitializeFromCurrentDb(showMessage));
+2437:  }catch(e){console.error(e);setCloudStatus("☁️ Erro","bad");if(showMessage)alert("Erro ao enviar para a nuvem: "+e.message);return false}
+2438: }
+2439: 
+2440: // Mantém o login válido enquanto o sistema permanece aberto.
+2441: // Ao trocar de aba/minimizar, tenta descarregar alterações pendentes enquanto
+2442: // a sessão ainda está válida. Não depende do usuário apertar nenhum botão.
+2443: document.addEventListener("visibilitychange",()=>{
+2444:  if(document.visibilityState==="hidden"&&cloudAccessToken&&cloudReady){
+2445:    clearTimeout(cloudSaveTimer);if(hlgbNormalizedReady)hlgbNormalizedSyncNow(false).catch(()=>{});if(cloudDirty)cloudSaveNow(false).catch(()=>{});
+2446:  }
+2447: });
+2448: 
+2449: setInterval(()=>{
+2450:  if(cloudAccessToken&&cloudRefreshToken&&(!cloudTokenExpiresAt||cloudTokenExpiresAt<=Date.now()+HLGB_CLOUD_REFRESH_MARGIN_MS)){
+2451:   cloudRefreshSession(true).catch(e=>{console.warn("Falha ao renovar sessão:",e);cloudSessionExpired()});
+2452:  }
+2453: },60000);
+2454: function cloudRefreshWhenBack(){
+2455:  if(cloudRefreshToken)cloudEnsureFreshSession().then(()=>{
+2456:    setCloudStatus(cloudDirty?"☁️ Salvando automático…":"☁️ Online · automático",cloudDirty?"":"ok");
+2457:    if(hlgbNormalizedReady)hlgbPullNormalizedCoreChanges().catch(()=>{});
+2458:    if(cloudDirty)cloudQueueSave(100);
+2459:    else cloudPullRemoteIfNewer(false).catch(()=>{});
+2460:  }).catch(()=>cloudSessionExpired());
+2461: }
+2462: // Segurança extra: se houver algo pendente, tenta sincronizar ao voltar para a aba,
+2463: // ao recuperar a internet e também periodicamente.
+2464: document.addEventListener("visibilitychange",()=>{
+2465:  if(document.hidden){if(cloudAccessToken){if(hlgbNormalizedReady)hlgbNormalizedSyncNow(false).catch(()=>{});if(cloudDirty)cloudSaveNow(false).catch(()=>{});}}
+2466:  else {cloudRefreshWhenBack();hlgbPullNormalizedCoreChanges().catch(()=>{});}
+2467: });
+2468: window.addEventListener("focus",()=>{cloudRefreshWhenBack();hlgbPullNormalizedCoreChanges().catch(()=>{})});
+2469: window.addEventListener("online",()=>{cloudRefreshWhenBack();hlgbPullNormalizedCoreChanges().catch(()=>{})});
+2470: setInterval(()=>{
+2471:  if(cloudDirty&&cloudAccessToken&&cloudReady&&!cloudSaving)cloudSaveNow(false).catch(()=>{});
+2472: },15000);
+2473: setInterval(()=>{
+2474:  // JSON legado: somente módulos ainda não migrados.
+2475:  cloudCheckRemoteVersion().catch(()=>{});
+
+===== TARGET 'cloudStatus' line 11484 =====
+11472:   if(hlgbRecordSyncing){hlgbRecordSyncAgain=true;return true;}
+11473:   hlgbRecordSyncing=true;
+11474:   try{
+11475:     await cloudEnsureFreshSession(false);
+11476:     for(const module of HLGB_RECORD_MODULES)await hlgbNormalizedSyncModule(module);
+11477:     hlgbRecordPendingStore();
+11478:     if(!hlgbRecordPendingRead())hlgbRecordPendingClear();
+11479:     localSaveOnly();
+11480:     setCloudStatus("⚡ Online · multiusuário","ok");
+11481:     if(showMessage)alert("Dados sincronizados com sucesso.");
+11482:     return true;
+11483:   }catch(e){
+11484:     console.error("HLGB v91.16 sync",e);hlgbRecordPendingStore();setCloudStatus("☁️ Alterações pendentes","bad");try{const el=document.getElementById("cloudStatus");if(el)el.title=String(e?.message||e||"");}catch(_){}return false;
+11485:   }finally{
+11486:     hlgbRecordSyncing=false;
+11487:     if(hlgbRecordSyncAgain){
+11488:       hlgbRecordSyncAgain=false;
+11489:       setTimeout(()=>hlgbNormalizedSyncNow(false),10);
+11490:     }
+11491:   }
+11492: }
+11493: function hlgbQueueNormalizedSync(delay=10){
+11494:   if(!hlgbRecordReady)return;
+11495:   hlgbRecordPendingStore();
+11496:   setCloudStatus("☁️ Salvando automático…");
+11497:   clearTimeout(hlgbRecordSyncTimer);
+11498:   hlgbRecordSyncTimer=setTimeout(()=>hlgbNormalizedSyncNow(false),Math.max(0,delay));
+11499: }
+11500: function hlgbApplyRecordRow(row){
+11501:   const module=String(row?.module||"");if(!HLGB_RECORD_MODULES.includes(module)||row?.entity_id==null)return false;
+11502:   const id=String(row.entity_id),arr=Array.isArray(db[module])?db[module]:[],idx=arr.findIndex((x,i)=>hlgbRecordId(module,x,i)===id);
+11503:   if(row.deleted_at){if(idx>=0)arr.splice(idx,1)}
+11504:   else {const data=hlgbRecordHydrateData(module,row);if(idx>=0)arr[idx]=data;else arr.push(data)}
+11505:   db[module]=arr;
+11506:   const snap=hlgbRecordSnapshots[module]||new Map();snap.set(id,{data:hlgbRecordClone(row.data),deleted_at:row.deleted_at||null,revision:+row.revision||1,updated_at:row.updated_at||"",updated_by:row.updated_by||null});hlgbRecordSnapshots[module]=snap;
+11507:   if(String(row.updated_at||"")>String(hlgbRecordLastSeen[module]||""))hlgbRecordLastSeen[module]=String(row.updated_at||"");
+11508:   if(String(row.updated_at||"")>String(hlgbRecordGlobalLastSeen||""))hlgbRecordGlobalLastSeen=String(row.updated_at||"");
+11509:   return true;
+11510: }
+11511: function hlgbRenderIncomingRecord(module){
+11512:   module=String(module||"");
+11513:   const modalOpen=!!document.querySelector("#modal.show");
+11514:   const activePage=document.querySelector(".page.active")?.id||"";
+11515: 
+11516:   // A ficha aberta em modal continua protegida contra redesenho enquanto a pessoa digita.
+11517:   if(modalOpen){cloudRemoteUpdatePending=true;return false;}
+11518: 
+11519:   const prev=cloudApplying;cloudApplying=true;
+11520:   try{
+11521:     // Produtos precisa atualizar a tabela mesmo que o cursor esteja em Busca/Preço mínimo/Preço máximo.
+11522:     // Antes qualquer INPUT focado bloqueava a atualização visual e a edição só aparecia após sair da tela.
+11523:     if(module==="products" && activePage==="produtos"){
+11524:       if(typeof renderProducts==="function")renderProducts();
+11525:       cloudRemoteUpdatePending=false;
+11526:       return true;
+11527:     }
+11528: 
+11529:     // v91.29: na Folha, uma alteração confirmada por outra máquina precisa aparecer
+11530:     // imediatamente. O modal aberto continua protegido pelo guard acima.
+11531:     if(module==="payroll" && activePage==="folhaPagamento"){
+11532:       if(typeof renderPayroll==="function")renderPayroll();
+11533:       cloudRemoteUpdatePending=false;
+11534:       return true;
+11535:     }
+11536: 
+11537:     // Para as demais telas mantemos a proteção antiga enquanto há um formulário/campo sendo editado.
+11538:     if(!cloudUserIsEditing()){
