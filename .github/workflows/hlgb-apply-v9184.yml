@@ -21,17 +21,40 @@ jobs:
         with:
           node-version: '22'
       - name: Aplicar e validar v91.84
+        id: apply9184
+        continue-on-error: true
         run: |
           python scripts/hlgb_v9184_fix_jitter.py > /tmp/v9184.log 2>&1
+          code=$?
           cat /tmp/v9184.log
+          exit $code
+      - name: Salvar diagnostico v91.84
+        if: always()
+        run: |
+          mkdir -p debug
+          cp /tmp/v9184.log debug/v9184-apply.log || true
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add debug/v9184-apply.log
+          git commit -m "Diagnostico aplicacao v91.84 [skip ci]" || true
+          git push || true
+      - name: Confirmar validacao
+        if: steps.apply9184.outcome == 'success'
+        run: |
           grep -q 'PASS v91.84' /tmp/v9184.log
           grep -q 'v91.84' index.html
           ! grep -q '329474 bytes omitted' index.html
       - name: Publicar v91.84
+        if: steps.apply9184.outcome == 'success'
         run: |
+          git pull --rebase
+          python scripts/hlgb_v9184_fix_jitter.py > /tmp/v9184-second.log 2>&1 || { cat /tmp/v9184-second.log; exit 1; }
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add index.html
           if git diff --cached --quiet; then exit 0; fi
           git commit -m "Publicar HLGB v91.84 - corrigir tremida visual"
           git push
+      - name: Falhar se a validacao falhou
+        if: steps.apply9184.outcome != 'success'
+        run: exit 1
