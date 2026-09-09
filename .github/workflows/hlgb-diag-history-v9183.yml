@@ -1,0 +1,28 @@
+name: Diagnosticar historico HLGB v91.83
+on:
+  push:
+    paths:
+      - 'scripts/hlgb_v9183_history_diag.py'
+      - '.github/workflows/hlgb-diag-history-v9183.yml'
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  diag:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+      - name: Verificar historico do index
+        run: python scripts/hlgb_v9183_history_diag.py
+      - name: Salvar diagnostico
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add debug/v9183-history.txt
+          git commit -m "Diagnostico historico v91.83 [skip ci]" || true
+          git push || true
