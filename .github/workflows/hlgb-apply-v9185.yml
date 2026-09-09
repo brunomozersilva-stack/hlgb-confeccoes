@@ -1,0 +1,37 @@
+name: Aplicar HLGB v91.85 Hub e corte
+on:
+  push:
+    paths:
+      - 'scripts/hlgb_v9185_hub_cut_status.py'
+      - '.github/workflows/hlgb-apply-v9185.yml'
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Aplicar e validar v91.85
+        run: |
+          python scripts/hlgb_v9185_hub_cut_status.py
+          grep -q 'HLGB_V9185_HUB_CUT_START' index.html
+          grep -q 'quickEditHub9185' index.html
+          grep -q 'cutInfo9185' index.html
+          ! grep -q '329474 bytes omitted' index.html
+      - name: Publicar v91.85
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add index.html
+          if git diff --cached --quiet; then exit 0; fi
+          git commit -m "Publicar HLGB v91.85 - Hub e status de corte"
+          git push
