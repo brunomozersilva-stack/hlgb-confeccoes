@@ -1,0 +1,45 @@
+name: Aplicar HLGB v91.82 login normalizado
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'scripts/hlgb_v9182_login_normalizado.py'
+      - '.github/workflows/hlgb-apply-v9182.yml'
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Aplicar patch v91.82
+        run: python scripts/hlgb_v9182_login_normalizado.py
+      - name: Validar login leve
+        run: |
+          grep -q 'v91.82' index.html
+          grep -q 'hlgbFastBootstrap9182' index.html
+          grep -q 'hlgb_data?select=id,versao,atualizado_em' index.html
+          python - <<'PY'
+          from pathlib import Path
+          s=Path('index.html').read_text(encoding='utf-8')
+          start=s.find('function doLogin()')
+          end=s.find('async function logout()',start)
+          block=s[start:end]
+          assert 'hlgbFastBootstrap9182()' in block
+          assert 'let state=await cloudLoad();' not in block
+          print('doLogin validado')
+          PY
+      - name: Publicar
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add index.html
+          git diff --cached --quiet && exit 0
+          git commit -m 'Publicar HLGB v91.82 - login sem carga legada pesada'
+          git push
