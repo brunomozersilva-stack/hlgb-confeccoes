@@ -1,83 +1,290 @@
 login blocks=1
 lines=5057
+
+===== 4700-4885 =====
+4700:  (o.grade||[]).forEach(it=>{
+4701:    let k=+it.productId||0;
+4702:    if(!grouped[k])grouped[k]=[];
+4703:    grouped[k].push(it);
+4704:  });
+4705:  let blocks=Object.entries(grouped).map(([pid,grade])=>orderMatrixProductBlock({productId:+pid,grade})).join("");
+4706:  if(!blocks)blocks=orderMatrixProductBlock({productId:o.productId,grade:o.grade||[]});
+4707:  openModal("Editar pedido / grade",`
+4708:  <div class="grid">
+4709:    <div class="field"><label>Nº do pedido</label><input id="mordernumber" type="number" min="1" value="${esc(displayOrderNumber(o))}"></div>
+4710:    <div class="field"><label>Cliente</label><select id="mclient" onchange="updateOrderMatrixTotal()"><option value="">Selecione</option>${(db.clients||[]).map(c=>`<option value="${c.id}" ${+c.id===+o.clientId||c.name===o.client?"selected":""}>${esc(c.name)}</option>`).join("")}</select></div>
+4711:    <div class="field"><label>Data de entrega</label><input id="mdate" type="date" value="${o.date||""}"></div>
+4712:    <div class="field"><label>Status</label><select id="mstatus">${["Aguardando corte","Pedido para corte","Corte finalizado","Pedido em produção","Pedido finalizado"].map(x=>`<option ${x===o.status?"selected":""}>${x}</option>`).join("")}</select></div><div class="field"><label>Prioridade</label><select id="mpriority">${["Padrão","Urgente","Urgentíssimo"].map(x=>`<option ${x===(o.priority||"Padrão")?"selected":""}>${x}</option>`).join("")}</select></div>
+4713:  </div>
+4714:  <div class="panel">
+4715:    <h3>Grade rápida do pedido</h3>
+4716:    <div id="orderMatrixBox">${blocks}</div>
+4717:    <button type="button" class="secondary" onclick="addOrderMatrixProduct()">+ Adicionar outro produto</button>
+4718:    <div id="gradeTotal" class="order-grand-total"></div>
+4719:  </div>
+4720:  <div class="total">Valor estimado: <span id="orderTotal">R$ 0,00</span></div>
+4721:  <button type="button" class="primary modalSave">💾 Salvar alterações</button>`,()=>{
+4722:    let c=db.clients.find(x=>+x.id===+mclient.value),items=collectGradeItems();
+4723:    if(!c){alert("Selecione o cliente.");return}
+4724:    if(!items.length){alert("Digite pelo menos uma quantidade na grade.");return}
+4725:    let total=0;items.forEach(it=>total+=(suggestedPrice(c.id,it.productId)||0)*it.qty);
+4726:    let orderNumber=+document.getElementById("mordernumber")?.value||+o.orderNumber||nextAvailableOrderNumber();
+4727:    if((db.orders||[]).some(x=>+x.id!==+o.id && String(x.orderNumber)===String(orderNumber))){alert("Esse número de pedido já existe. Escolha outro número.");return}
+4728:    Object.assign(o,{orderNumber,client:c.name,clientId:c.id,date:mdate.value,total,status:mstatus.value,priority:document.getElementById("mpriority")?.value||"Padrão",grade:items,qty:items.reduce((a,x)=>a+x.qty,0),
+4729:      items:items.map(it=>`${it.qty} ${db.products.find(p=>+p.id===+it.productId)?.name||""} ${it.color} Tam ${it.size}`).join(" | ")});
+4730:    closeModal();save();
+4731:  });
+4732:  setTimeout(()=>updateOrderMatrixTotal(),0);
+4733: }
+4734: function deleteNote(id){
+4735:  let o=(db.orders||[]).find(x=>+x.id===+id);
+4736:  if(!o)return;
+4737: 
+4738:  let paid=orderPaid(o);
+4739:  let msg=paid>0
+4740:    ? `Esta nota possui ${money(paid)} em recebimentos registrados. A nota será excluída, mas os recebimentos serão preservados. Deseja continuar?`
+4741:    : "Deseja realmente excluir esta nota pronta? O pedido continuará cadastrado, mas a nota e a cobrança no Financeiro serão removidas.";
+4742: 
+4743:  if(!confirm(msg))return;
+4744: 
+4745:  // Remove somente a nota/cobrança vinculada ao pedido.
+4746:  // O pedido e seu histórico de recebimentos permanecem preservados.
+4747:  db.invoices=(db.invoices||[]).filter(n=>+n.orderId!==+o.id);
+4748:  db.finance=(db.finance||[]).filter(f=>!(+f.orderId===+o.id && f.type==="Receber"));
+4749: 
+4750:  o.invoiceReady=false;
+4751:  o.noteReady=false;
+4752:  delete o.invoiceDate;
+4753:  delete o.dueDate;
+4754:  delete o.paymentTerms;
+4755:  delete o.invoiceNote;
+4756:  delete o.contactName;
+4757:  delete o.contactPhone;
+4758:  delete o.invoiceNumber;
+4759: 
+4760:  persistDb();
+4761:  renderAll();
+4762:  alert("Nota excluída com sucesso. O pedido continua cadastrado.");
+4763: }
+4764: function notaPronta(id){
+4765:  let o=db.orders.find(x=>+x.id===+id);if(!o)return;
+4766:  let c=clientContactForOrder(o);
+4767:  let customerName=c.contact||c.name||o.client||"Cliente";
+4768:  let customerPhone=c.phone||c.whatsapp||c.telefone||"";
+4769:  openModal("Nota pronta — cobrança",`<div class="grid">
+4770:  <div class="field"><label>Cliente</label><input value="${esc(c.name||o.client||"")}" disabled></div>
+4771:  <div class="field"><label>Nome da pessoa / contato</label><input id="ncontact" value="${esc(customerName)}"></div>
+4772:  <div class="field"><label>Telefone / WhatsApp</label><input id="nphone" value="${esc(customerPhone)}"></div>
+4773:  <div class="field"><label>Valor da cobrança</label><input id="nvalue" type="number" step=".01" value="${o.total||0}"></div>
+4774:  <div class="field"><label>Data da cobrança</label><input id="ndate" type="date" value="${isoDate(new Date())}"></div>
+4775:  <div class="field"><label>Vencimento</label><input id="ndue" type="date" value="${o.date||isoDate(new Date())}"></div>
+4776:  <div class="field"><label>Condições de pagamento</label><select id="ncond"><option>À vista</option><option>7 dias</option><option>14 dias</option><option>21 dias</option><option>28 dias</option><option>30 dias</option><option>Personalizado</option></select></div>
+4777:  <div class="field"><label>Mensagem de agradecimento</label><textarea id="nmsg">Agradecemos pela preferência e pela confiança em nosso trabalho. Será um prazer continuar atendendo você!</textarea></div>
+4778:  </div>
+4779:  <div class="sub">Ao confirmar, o pedido entra no Financeiro como "A receber". Você também poderá imprimir uma nota de cobrança/agradecimento pronta para entregar ao cliente.</div>
+4780:  <button type="button" class="primary modalSave">Lançar no financeiro e preparar impressão</button>`,()=>{
+4781:    db.finance=db.finance||[];
+4782:    let value=+nvalue.value||0;
+4783:    let existing=db.finance.find(f=>+f.orderId===+o.id && f.type==="Receber" && f.status!=="Pago");
+4784:    let launch={type:"Receber",desc:`Pedido #${o.id} — ${o.client}`,value,status:"Pendente",paid:0,remaining:value,date:ndue.value,orderId:o.id,clientId:o.clientId||c.id||null,clientName:o.client||c.name||"",paymentTerms:ncond.value,note:nmsg.value,contact:ncontact.value,phone:nphone.value};
+4785:    if(existing)Object.assign(existing,launch); else db.finance.push({id:Date.now(),...launch});
+4786:    o.paymentHistory=o.paymentHistory||[];o.paymentStatus="Pendente";o.invoiceReady=true;o.noteReady=true;o.invoiceDate=ndate.value;o.dueDate=ndue.value;o.paymentTerms=ncond.value;o.invoiceNote=nmsg.value;o.contactName=ncontact.value;o.contactPhone=nphone.value;
+4787:    closeModal();save();renderOrderNotes();printCustomerNote(o,c,{name:ncontact.value,phone:nphone.value,message:nmsg.value,value,due:ndue.value,terms:ncond.value});
+4788:  });
+4789: }
+4790: function printCustomerNote(o,c,info){
+4791:  let grade=o.grade||[];
+4792:  let gradeRows=grade.map(it=>`<tr><td>${esc(db.products.find(p=>+p.id===+it.productId)?.name||"-")}</td><td>${esc(it.color||"")}</td><td>${esc(it.size||"")}</td><td>${(+it.qty||0).toLocaleString("pt-BR")}</td></tr>`).join("");
+4793:  if(!gradeRows)gradeRows=`<tr><td>${esc(o.items||"Pedido")}</td><td colspan="2">-</td><td>${qtyOfOrder(o).toLocaleString("pt-BR")}</td></tr>`;
+4794:  let due=new Date(info.due+"T12:00").toLocaleDateString("pt-BR");
+4795:  let date=new Date().toLocaleDateString("pt-BR");
+4796:  let w=window.open("","_blank");
+4797:  if(!w){alert("Permita pop-ups no navegador para imprimir a nota.");return}
+4798:  w.document.write(`<html><head><title>Nota pronta — Pedido #${o.id}</title>
+4799:  <style>
+4800:  body{font-family:Arial,sans-serif;color:#342832;margin:0;background:#fff}
+4801:  .sheet{max-width:760px;margin:35px auto;padding:42px;border:1px solid #eadde4;border-radius:18px}
+4802:  .top{text-align:center;border-bottom:2px solid #f0d6e1;padding-bottom:18px}
+4803:  .brand{font-size:26px;font-weight:700;color:#6f3f59}.heart{color:#c96b8f;font-size:30px}
+4804:  .thanks{font-size:22px;color:#6f3f59;margin:25px 0 10px}.muted{color:#786b73}
+4805:  .info{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:18px 0}
+4806:  table{width:100%;border-collapse:collapse;margin:20px 0}th,td{border-bottom:1px solid #eadde4;padding:10px;text-align:left}
+4807:  .total{background:#fff8fb;border-radius:12px;padding:16px;font-size:20px;font-weight:700;text-align:right}
+4808:  .msg{margin:25px 0;padding:18px;background:#fbf6f8;border-radius:12px;line-height:1.55}
+4809:  .sign{text-align:center;margin-top:38px;color:#786b73}
+4810:  @media print{.sheet{border:0;margin:0;max-width:none}.noPrint{display:none}}
+4811:  </style></head><body>
+4812:  <div class="sheet">
+4813:  <div class="top"><div class="heart">♡</div><div class="brand">HLGB CONFECÇÕES</div><div class="muted">Nota de cobrança / agradecimento</div></div>
+4814:  <div class="thanks">Olá, ${esc(info.name)}! 💕</div>
+4815:  <p>Agradecemos pela preferência e pela confiança em nosso trabalho.</p>
+4816:  <div class="info"><div><b>Cliente:</b><br>${esc(c.name||o.client||"")}</div><div><b>Contato:</b><br>${esc(info.phone||"Não informado")}</div><div><b>Pedido:</b><br>#${o.id}</div><div><b>Data:</b><br>${date}</div><div><b>Vencimento:</b><br>${due}</div><div><b>Pagamento:</b><br>${esc(info.terms)}</div></div>
+4817:  <h3>Resumo do pedido</h3>
+4818:  <table><tr><th>Produto</th><th>Cor</th><th>Tamanho</th><th>Qtd.</th></tr>${gradeRows}</table>
+4819:  <div class="total">Total a pagar: R$ ${Number(info.value||0).toLocaleString("pt-BR",{minimumFractionDigits:2,maximumFractionDigits:2})}</div>
+4820:  <div class="msg">${esc(info.message)}</div>
+4821:  <p class="muted">Em caso de dúvidas sobre esta cobrança, entre em contato conosco.</p>
+4822:  <div class="sign">Obrigada pela preferência!<br><br><b>HLGB Confecções</b></div>
+4823:  <button class="noPrint" onclick="window.print()">🖨️ Imprimir</button>
+4824:  </div>
+4825: 
+4826: 
+4827: 
+4828: 
+4829: 
+4830: 
+4831: 
+4832: 
+4833: 
+4834: 
+4835: 
+4836: <!-- HLGB v91.47 INPUT FREEZE FIX: pricing MutationObservers removed -->
+4837: <!-- HLGB_V9179_START -->
+4838: <style id="hlgb-v9179-style">
+4839: .hlgb9179-report-actions{display:flex;gap:6px;flex-wrap:wrap}
+4840: .hlgb9179-filter{margin:0 0 12px;padding:12px;border:1px solid #eadde4;border-radius:12px;background:#fff9fb}
+4841: .hlgb9179-price-row[hidden]{display:none!important}
+4842: .hlgb9179-cut-status{display:inline-flex;align-items:center;gap:5px;margin-left:6px;padding:3px 8px;border-radius:999px;font-size:11px;font-weight:700;white-space:nowrap}
+4843: .hlgb9179-cut-status.done{background:#e9f8ef;color:#087443;border:1px solid #b9e4c9}
+4844: .hlgb9179-cut-status.pending{background:#fff4d6;color:#8a5a00;border:1px solid #f1d487}
+4845: .hlgb9179-cut-status.none{background:#f4f1f3;color:#6f626a;border:1px solid #ded6da}
+4846: .hlgb9179-excel-wrap{overflow:auto;border:1px solid #e3d8de;border-radius:12px;background:#fff}
+4847: .hlgb9179-excel{border-collapse:collapse;min-width:1100px;width:100%;font-size:12px}
+4848: .hlgb9179-excel th,.hlgb9179-excel td{border:1px solid #e7dde2;padding:7px;vertical-align:top;text-align:left}
+4849: .hlgb9179-excel th{background:#f8f1f5;position:sticky;top:0;z-index:1}
+4850: .hlgb9179-excel .cutter-name{font-weight:800;min-width:150px;background:#fcf8fa;position:sticky;left:0;z-index:2}
+4851: .hlgb9179-cut-chip{display:block;margin:0 0 5px;padding:6px 7px;border-radius:8px;background:#f7f4f6;border:1px solid #e9e1e5;line-height:1.25}
+4852: .hlgb9179-cut-chip strong{display:block;font-size:12px}
+4853: .hlgb9179-week-total{font-weight:800;white-space:nowrap}
+4854: .hlgb9179-report-grid{display:grid;grid-template-columns:repeat(4,minmax(140px,1fr));gap:10px;margin:12px 0}
+4855: .hlgb9179-report-card{padding:12px;border:1px solid #eadde4;border-radius:12px;background:#fff}
+4856: .hlgb9179-report-card small{display:block;color:#786b73}.hlgb9179-report-card strong{font-size:20px}
+4857: @media(max-width:780px){.hlgb9179-report-grid{grid-template-columns:1fr 1fr}.hlgb9179-report-actions{flex-direction:column}}
+4858: </style>
+4859: <script id="hlgb-v9179-script">
+4860: (function(){
+4861:   'use strict';
+4862:   const V='91.79';
+4863:   const norm=v=>String(v||'').trim().toLowerCase();
+4864:   const asDate=v=>String(v||'').slice(0,10);
+4865:   const money9179=v=>'R$ '+Number(v||0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});
+4866:   const esc9179=v=>typeof esc==='function'?esc(v):String(v??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+4867:   const fmt9179=v=>{if(!v)return '-';try{return new Date(String(v).slice(0,10)+'T12:00:00').toLocaleDateString('pt-BR')}catch(e){return String(v)}};
+4868:   const orderNo9179=o=>{try{return typeof displayOrderNumber==='function'?(displayOrderNumber(o)||o.orderNumber||o.id):(o.orderNumber||o.id)}catch(e){return o.orderNumber||o.id}};
+4869:   const orderQty9179=o=>{try{return typeof qtyOfOrder==='function'?qtyOfOrder(o):(+o.qty||+o.totalQty||0)}catch(e){return +o.qty||+o.totalQty||0}};
+4870:   const orderModels9179=o=>{try{return typeof orderProductSummary==='function'?orderProductSummary(o):(o.items||'-')}catch(e){return o.items||'-'}};
+4871:   const clientMatches9179=(c,x)=>{
+4872:     if(!c||!x)return false;
+4873:     const cid=x.clientId??x.customerId;
+4874:     if(cid!=null && String(cid)===String(c.id))return true;
+4875:     const name=x.clientName||x.client||x.customer||'';
+4876:     return !!name && norm(name)===norm(c.name);
+4877:   };
+4878:   const inPeriod9179=(d,start,end)=>{d=asDate(d);if(!d)return !start&&!end;return (!start||d>=start)&&(!end||d<=end)};
+4879: 
 4880:   function clientOrders9179(c,start,end){
 4881:     return (db.orders||[]).filter(o=>clientMatches9179(c,o)&&inPeriod9179(o.date||o.deliveryDate||o.createdAt,start,end))
 4882:       .sort((a,b)=>String(a.date||'').localeCompare(String(b.date||'')));
 4883:   }
 4884:   function isOrderDone9179(o){
 4885:     const s=norm(o.status);
-4886:     return s.includes('finalizado')||s==='pago'||o.projectionInvoiced===true;
-4887:   }
-4888:   function clientFinance9179(c,start,end){
-4889:     const rows=[];
-4890:     (db.finance||[]).filter(f=>String(f.type||'').toLowerCase()==='receber'&&clientMatches9179(c,f)&&inPeriod9179(f.date||f.dueDate||f.paidDate,start,end)).forEach(f=>{
-4891:       const value=+f.value||0,paid=+f.paid||+(f.status==='Pago'?value:0),remaining=f.remaining!=null?+f.remaining:Math.max(0,value-paid);
-4892:       rows.push({id:f.id,date:f.date||f.dueDate||'',desc:f.desc||'Recebimento',value,paid,remaining,status:remaining<=0.009||norm(f.status)==='pago'?'Pago':(paid>0?'Parcial':'Em aberto')});
-4893:     });
-4894:     // Notas prontas antigas que não possuem lançamento financeiro próprio.
-4895:     (db.orders||[]).filter(o=>clientMatches9179(c,o)&&(o.invoiceReady||o.noteReady||o.paymentStatus)&&inPeriod9179(o.dueDate||o.invoiceDate||o.date,start,end)).forEach(o=>{
-4896:       if(rows.some(r=>String(r.id)===String(o.id)||String((db.finance||[]).find(f=>+f.orderId===+o.id)?.id||'')===String(r.id)))return;
-4897:       if((db.finance||[]).some(f=>+f.orderId===+o.id&&String(f.type)==='Receber'))return;
-4898:       let paid=0;try{paid=typeof orderPaid==='function'?orderPaid(o):(+o.received||0)}catch(e){paid=+o.received||0}
-4899:       const value=+o.total||0,remaining=Math.max(0,value-paid);
-4900:       rows.push({id:'o'+o.id,date:o.dueDate||o.invoiceDate||o.date||'',desc:'Pedido #'+orderNo9179(o),value,paid,remaining,status:remaining<=0.009?'Pago':(paid>0?'Parcial':'Em aberto')});
-4901:     });
-4902:     return rows.sort((a,b)=>String(a.date||'').localeCompare(String(b.date||'')));
-4903:   }
-4904: 
-4905:   window.hlgbRefreshClientReport9179=function(clientId){
-4906:     const c=(db.clients||[]).find(x=>String(x.id)===String(clientId));if(!c)return;
-4907:     const start=document.getElementById('hlgbClientReportStart9179')?.value||'';
-4908:     const end=document.getElementById('hlgbClientReportEnd9179')?.value||'';
-4909:     const orders=clientOrders9179(c,start,end),ongoing=orders.filter(o=>!isOrderDone9179(o)),fin=clientFinance9179(c,start,end);
-4910:     const sales=orders.reduce((a,o)=>a+(+o.total||0),0),pieces=orders.reduce((a,o)=>a+orderQty9179(o),0);
-4911:     const paid=fin.reduce((a,f)=>a+(+f.paid||0),0),open=fin.reduce((a,f)=>a+(+f.remaining||0),0);
-4912:     const target=document.getElementById('hlgbClientReportBody9179');if(!target)return;
-4913:     const orderRows=orders.map(o=>[fmt9179(o.date),esc9179('#'+orderNo9179(o)),esc9179(orderModels9179(o)),orderQty9179(o).toLocaleString('pt-BR'),money9179(o.total),esc9179(o.status||'Aberto')]);
-4914:     const ongoingRows=ongoing.map(o=>[fmt9179(o.date),esc9179('#'+orderNo9179(o)),esc9179(orderModels9179(o)),orderQty9179(o).toLocaleString('pt-BR'),esc9179(o.status||'Em andamento')]);
-4915:     const finRows=fin.map(f=>[fmt9179(f.date),esc9179(f.desc),money9179(f.value),money9179(f.paid),money9179(f.remaining),`<span class="badge ${f.status==='Pago'?'ok':f.status==='Parcial'?'':'warn'}">${esc9179(f.status)}</span>`]);
-4916:     target.innerHTML=`
-4917:       <div class="hlgb9179-report-grid">
-4918:        <div class="hlgb9179-report-card"><small>Vendas no período</small><strong>${money9179(sales)}</strong></div>
-4919:        <div class="hlgb9179-report-card"><small>Peças</small><strong>${pieces.toLocaleString('pt-BR')}</strong></div>
-4920:        <div class="hlgb9179-report-card"><small>Recebido</small><strong>${money9179(paid)}</strong></div>
-4921:        <div class="hlgb9179-report-card"><small>Em aberto</small><strong>${money9179(open)}</strong></div>
-4922:       </div>
-4923:       <div class="panel"><div class="toolbar" style="justify-content:space-between"><div><h3 style="margin:0">Pedidos em andamento</h3><div class="sub">Data, modelo, quantidade e situação atual.</div></div><button type="button" class="secondary" onclick="hlgbPrintClientReport9179('${clientId}','ongoing')">🖨️ Imprimir pedidos em andamento</button></div>${ongoingRows.length?table(['Data','Pedido','Modelo','Peças','Status'],ongoingRows):'<div class="empty">Nenhum pedido em andamento no período.</div>'}</div>
-4924:       <div class="panel"><h3>Histórico de vendas</h3>${orderRows.length?table(['Data','Pedido','Modelo','Peças','Valor','Status'],orderRows):'<div class="empty">Nenhuma venda no período.</div>'}</div>
-4925:       <div class="panel"><h3>Financeiro do cliente</h3><div class="sub">Notas/recebimentos em aberto, parciais e pagos no período selecionado.</div>${finRows.length?table(['Data','Descrição','Valor','Pago','Falta','Situação'],finRows):'<div class="empty">Nenhuma nota financeira no período.</div>'}</div>`;
-4926:   };
-4927: 
-4928:   window.hlgbOpenClientReport9179=function(clientId){
-4929:     const c=(db.clients||[]).find(x=>String(x.id)===String(clientId));if(!c)return;
-4930:     const now=new Date(),first=new Date(now.getFullYear(),now.getMonth(),1),iso=d=>d.toISOString().slice(0,10);
-4931:     openModal('Relatório do cliente — '+esc9179(c.name),`
-4932:       <div class="hlgb9179-filter"><div class="toolbar" style="align-items:flex-end;flex-wrap:wrap">
-4933:        <div class="field"><label>De</label><input id="hlgbClientReportStart9179" type="date" value="${iso(first)}" onchange="hlgbRefreshClientReport9179('${clientId}')"></div>
-4934:        <div class="field"><label>Até</label><input id="hlgbClientReportEnd9179" type="date" value="${iso(now)}" onchange="hlgbRefreshClientReport9179('${clientId}')"></div>
-4935:        <button type="button" class="secondary" onclick="document.getElementById('hlgbClientReportStart9179').value='';document.getElementById('hlgbClientReportEnd9179').value='';hlgbRefreshClientReport9179('${clientId}')">Todo período</button>
-4936:        <button type="button" class="primary" onclick="hlgbPrintClientReport9179('${clientId}','full')">🖨️ Imprimir relatório completo</button>
-4937:       </div></div><div id="hlgbClientReportBody9179"></div>`,()=>{});
-4938:     setTimeout(()=>hlgbRefreshClientReport9179(clientId),0);
-4939:   };
-4940: 
-4941:   window.hlgbPrintClientReport9179=function(clientId,mode){
-4942:     const c=(db.clients||[]).find(x=>String(x.id)===String(clientId));if(!c)return;
-4943:     const start=document.getElementById('hlgbClientReportStart9179')?.value||'',end=document.getElementById('hlgbClientReportEnd9179')?.value||'';
-4944:     const orders=clientOrders9179(c,start,end),showOrders=mode==='ongoing'?orders.filter(o=>!isOrderDone9179(o)):orders,fin=clientFinance9179(c,start,end);
-4945:     const rows=showOrders.map(o=>`<tr><td>${fmt9179(o.date)}</td><td>#${esc9179(orderNo9179(o))}</td><td>${esc9179(orderModels9179(o))}</td><td>${orderQty9179(o).toLocaleString('pt-BR')}</td><td>${money9179(o.total)}</td><td>${esc9179(o.status||'Aberto')}</td></tr>`).join('');
-4946:     const frows=fin.map(f=>`<tr><td>${fmt9179(f.date)}</td><td>${esc9179(f.desc)}</td><td>${money9179(f.value)}</td><td>${money9179(f.paid)}</td><td>${money9179(f.remaining)}</td><td>${esc9179(f.status)}</td></tr>`).join('');
-4947:     const w=window.open('','_blank');if(!w){alert('Permita pop-ups no navegador para imprimir.');return}
-4948:     w.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>Relatório - ${esc9179(c.name)}</title><style>body{font-family:Arial;color:#332a30;margin:28px}h1{margin-bottom:4px}.muted{color:#777}table{width:100%;border-collapse:collapse;margin:16px 0 28px}th,td{border:1px solid #ddd;padding:7px;text-align:left;font-size:12px}th{background:#f5eef2}.noPrint{padding:10px 18px}@media print{.noPrint{display:none}}</style></head><body><h1>HLGB Confecções</h1><h2>${mode==='ongoing'?'Pedidos em andamento':'Relatório do cliente'} — ${esc9179(c.name)}</h2><div class="muted">Período: ${start?fmt9179(start):'início'} até ${end?fmt9179(end):'hoje'}</div><h3>${mode==='ongoing'?'Pedidos em andamento':'Vendas / pedidos'}</h3><table><tr><th>Data</th><th>Pedido</th><th>Modelo</th><th>Peças</th><th>Valor</th><th>Status</th></tr>${rows||'<tr><td colspan="6">Nenhum registro.</td></tr>'}</table>${mode==='full'?`<h3>Financeiro</h3><table><tr><th>Data</th><th>Descrição</th><th>Valor</th><th>Pago</th><th>Falta</th><th>Situação</th></tr>${frows||'<tr><td colspan="6">Nenhum registro.</td></tr>'}</table>`:''}<button class="noPrint" onclick="window.print()">Imprimir</button></body></html>`);w.document.close();
-4949:   };
-4950: 
-4951:   function enhanceClients9179(){
-4952:     const box=document.getElementById('clientTable');if(!box)return;
-4953:     const rows=[...box.querySelectorAll('table tr')].slice(1);
-4954:     rows.forEach((tr,i)=>{
-4955:       const c=(db.clients||[])[i],td=tr.lastElementChild;if(!c||!td||td.querySelector('.hlgb9179-client-report'))return;
-4956:       const b=document.createElement('button');b.type='button';b.className='secondary hlgb9179-client-report';b.textContent='Relatório';b.onclick=()=>hlgbOpenClientReport9179(c.id);td.append(' ',b);
-4957:     });
-4958:   }
-4959: 
+
+===== 4960-5057 =====
 4960:   // Filtro de busca dentro da precificação de cliente.
+4961:   window.hlgbFilterClientPricing9179=function(){
+4962:     const q=norm(document.getElementById('hlgbClientPriceFilter9179')?.value);
+4963:     document.querySelectorAll('.hlgb9179-price-row').forEach(r=>r.hidden=!!q&&!norm(r.dataset.search).includes(q));
+4964:     const count=[...document.querySelectorAll('.hlgb9179-price-row')].filter(r=>!r.hidden).length;
+4965:     const el=document.getElementById('hlgbClientPriceCount9179');if(el)el.textContent=count+' produto(s) exibido(s)';
+4966:   };
+4967:   window.clientPricing=function(id){
+4968:     const c=(db.clients||[]).find(x=>String(x.id)===String(id));if(!c)return;c.prices=c.prices||{};
+4969:     const products=(db.products||[]).slice().sort((a,b)=>String(a.name||'').localeCompare(String(b.name||''),'pt-BR'));
+4970:     const rows=products.map(p=>`<div class="grid hlgb9179-price-row" data-search="${esc9179(norm((p.name||'')+' '+(p.code||'')+' '+(p.category||'')))}" style="margin-bottom:8px"><div class="field"><label>Produto</label><input value="${esc9179(p.name)}" disabled></div><div class="field"><label>Preço padrão</label><input value="${(+p.price||0).toFixed(2)}" disabled></div><div class="field"><label>Preço deste cliente</label><input id="cp_${p.id}" type="number" step=".01" value="${c.prices[p.id]!=null?c.prices[p.id]:''}" placeholder="Usar padrão"></div></div>`).join('');
+4971:     openModal(`Precificação — ${esc9179(c.name)}`,`<div class="hlgb9179-filter"><div class="field"><label>🔎 Filtrar produto</label><input id="hlgbClientPriceFilter9179" placeholder="Digite nome, código ou categoria" oninput="hlgbFilterClientPricing9179()"></div><div id="hlgbClientPriceCount9179" class="sub">${products.length} produto(s) exibido(s)</div></div>${rows||'<div class="empty">Cadastre produtos primeiro.</div>'}<div class="sub">Se deixar o preço especial vazio, o sistema usará o preço padrão do produto.</div><button class="primary modalSave">Salvar preços</button>`,()=>{products.forEach(p=>{const v=document.getElementById('cp_'+p.id)?.value;if(v!==''&&v!=null)c.prices[p.id]=+v;else delete c.prices[p.id]});closeModal();save();});
+4972:     setTimeout(()=>document.getElementById('hlgbClientPriceFilter9179')?.focus(),0);
+4973:   };
+4974: 
+4975:   function cutStatus9179(productId,orderId){
+4976:     const cuts=(db.cuts||[]).filter(c=>{
+4977:       const direct=productId&&String(c.productId)===String(productId);
+4978:       const byOrder=orderId&&String(c.orderId)===String(orderId);
+4979:       return direct||byOrder;
+4980:     });
+4981:     if(cuts.some(c=>norm(c.status)==='finalizado'))return {text:'✓ Já cortado',cls:'done'};
+4982:     if(cuts.some(c=>c.plannedCutDate||c.cutterId||norm(c.status)==='planejado'))return {text:'Programado / a cortar',cls:'pending'};
+4983:     return {text:'Ainda não cortado',cls:'none'};
+4984:   }
+4985:   window.hlgbProgramAnyModel9179=function(){
+4986:     const products=(db.products||[]).slice().sort((a,b)=>String(a.name||'').localeCompare(String(b.name||''),'pt-BR'));
+4987:     const cutters=(db.cutters||[]).filter(x=>x.active!==false);
+4988:     const today=new Date().toISOString().slice(0,10);
+4989:     openModal('Programar corte — qualquer modelo',`<div class="sub" style="margin-bottom:12px">Escolha qualquer modelo cadastrado, mesmo que ele não esteja ligado a um pedido. O corte ficará como programação avulsa e não altera nenhum pedido.</div><div class="grid"><div class="field"><label>Modelo</label><select id="hlgbCutProduct9179"><option value="">Selecione</option>${products.map(p=>`<option value="${p.id}">${esc9179(p.name)}</option>`).join('')}</select></div><div class="field"><label>Peças</label><input id="hlgbCutQty9179" type="number" min="1" step="1"></div><div class="field"><label>Data programada</label><input id="hlgbCutDate9179" type="date" value="${today}"></div><div class="field"><label>Cortador</label><select id="hlgbCutCutter9179"><option value="">Sem cortador definido</option>${cutters.map(c=>`<option value="${c.id}">${esc9179(c.name)}</option>`).join('')}</select></div><div class="field"><label>Tipo de corte</label><select id="hlgbCutType9179"><option value="">Selecione</option><option>Interno</option><option>Externo</option></select></div><div class="field"><label>Observação</label><input id="hlgbCutNote9179" placeholder="Opcional"></div></div><button type="button" class="primary modalSave">💾 Programar modelo</button>`,()=>{
+4990:       const pid=document.getElementById('hlgbCutProduct9179')?.value,p=(db.products||[]).find(x=>String(x.id)===String(pid)),qty=Math.max(0,+document.getElementById('hlgbCutQty9179')?.value||0);if(!p){alert('Escolha o modelo.');return false}if(!qty){alert('Informe a quantidade de peças.');return false}
+4991:       const id=Date.now()+Math.floor(Math.random()*100000);db.cuts=Array.isArray(db.cuts)?db.cuts:[];db.cuts.push({id,orderId:null,manual:true,isAdHoc:true,op:'AVULSO-'+String(id).slice(-6),productId:p.id,product:p.name,client:'',pieces:qty,cutterId:document.getElementById('hlgbCutCutter9179')?.value?+document.getElementById('hlgbCutCutter9179').value:null,cutType:document.getElementById('hlgbCutType9179')?.value||'',plannedCutDate:document.getElementById('hlgbCutDate9179')?.value||today,date:today,status:'Planejado',note:document.getElementById('hlgbCutNote9179')?.value||''});closeModal();try{persistDb()}catch(e){console.error(e)}try{renderCuts()}catch(e){}try{renderCutters()}catch(e){};
+4992:     });
+4993:   };
+4994: 
+4995:   function enhanceCutPage9179(){
+4996:     const sec=document.getElementById('corte');if(!sec)return;
+4997:     const toolbar=sec.querySelector('.panel .toolbar');
+4998:     if(toolbar&&!toolbar.querySelector('.hlgb9179-any-model')){const b=document.createElement('button');b.type='button';b.className='primary hlgb9179-any-model';b.textContent='+ Programar qualquer modelo';b.onclick=hlgbProgramAnyModel9179;toolbar.appendChild(b)}
+4999:     // Marca visualmente situações nas telas que exibem linhas de modelos sem destino.
+5000:     document.querySelectorAll('#corte tr, #producao tr, #capacidadeProducao tr, #projecao tr').forEach(tr=>{
+5001:       if(tr.querySelector('.hlgb9179-cut-status'))return;
+5002:       const text=tr.textContent||'';let order=null;const m=text.match(/#\s*(\d+)/);if(m)order=(db.orders||[]).find(o=>String(orderNo9179(o))===String(m[1]));
+5003:       let product=null;for(const p of (db.products||[])){if(p.name&&norm(text).includes(norm(p.name))&&(!product||String(p.name).length>String(product.name).length))product=p}
+5004:       if(!product&&!order)return;
+5005:       const s=cutStatus9179(product?.id,order?.id);const td=product?[...tr.children].find(x=>norm(x.textContent).includes(norm(product.name))):tr.children[0];if(!td)return;
+5006:       const sp=document.createElement('span');sp.className='hlgb9179-cut-status '+s.cls;sp.textContent=s.text;td.appendChild(sp);
+5007:     });
+5008:   }
+5009: 
+5010:   let cutterWeek9179='';
+5011:   function monday9179(v){const d=v?new Date(v+'T12:00:00'):new Date(),day=d.getDay(),diff=day===0?-6:1-day;d.setDate(d.getDate()+diff);return d}
+5012:   function iso9179(d){return d.toISOString().slice(0,10)}
+5013:   window.hlgbMoveCutterWeek9179=function(delta){const d=monday9179(cutterWeek9179||iso9179(new Date()));d.setDate(d.getDate()+delta*7);cutterWeek9179=iso9179(d);hlgbRenderCutterExcel9179()};
+5014:   window.hlgbSetCutterWeek9179=function(v){cutterWeek9179=iso9179(monday9179(v||iso9179(new Date())));hlgbRenderCutterExcel9179()};
+5015:   window.hlgbCurrentCutterWeek9179=function(){cutterWeek9179=iso9179(monday9179());hlgbRenderCutterExcel9179()};
+5016:   function cutsForDay9179(cutterId,day){return (db.cuts||[]).filter(c=>String(c.cutterId||'')===String(cutterId||'')&&asDate(c.plannedCutDate||c.finishedAt||c.date)===day)}
+5017:   window.hlgbRenderCutterExcel9179=function(){
+5018:     const el=document.getElementById('hlgbCutterExcel9179');if(!el)return;if(!cutterWeek9179)cutterWeek9179=iso9179(monday9179());
+5019:     const mon=monday9179(cutterWeek9179),days=Array.from({length:7},(_,i)=>{const d=new Date(mon);d.setDate(d.getDate()+i);return d}),dayIds=days.map(iso9179);
+5020:     let cutters=(db.cutters||[]).filter(c=>c.active!==false).map(c=>({id:c.id,name:c.name||'Cortador'}));if((db.cuts||[]).some(c=>!c.cutterId&&dayIds.includes(asDate(c.plannedCutDate||c.finishedAt||c.date))))cutters.push({id:'',name:'⚠ Sem cortador'});
+5021:     const heads=days.map(d=>`<th>${d.toLocaleDateString('pt-BR',{weekday:'short',day:'2-digit',month:'2-digit'})}</th>`).join('');
+5022:     const rows=cutters.map(ct=>{let weekTotal=0;const cells=dayIds.map(day=>{const cuts=cutsForDay9179(ct.id,day);const total=cuts.reduce((a,c)=>a+(+c.pieces||0),0);weekTotal+=total;const chips=cuts.map(c=>`<span class="hlgb9179-cut-chip"><strong>${esc9179(c.product||'Modelo')}</strong>${(+c.pieces||0).toLocaleString('pt-BR')} pç · ${norm(c.status)==='finalizado'?'✓ cortado':'a cortar'}</span>`).join('');return `<td>${chips||'<span class="sub">—</span>'}${total?`<div class="hlgb9179-week-total">${total.toLocaleString('pt-BR')} pç</div>`:''}</td>`}).join('');return `<tr><td class="cutter-name">${esc9179(ct.name)}</td>${cells}<td class="hlgb9179-week-total">${weekTotal.toLocaleString('pt-BR')} pç</td></tr>`}).join('');
+5023:     el.innerHTML=`<div class="toolbar" style="justify-content:space-between;align-items:flex-end;flex-wrap:wrap;margin-bottom:10px"><div><button class="secondary" onclick="hlgbMoveCutterWeek9179(-1)">← Semana anterior</button> <button class="secondary" onclick="hlgbCurrentCutterWeek9179()">Esta semana</button> <button class="secondary" onclick="hlgbMoveCutterWeek9179(1)">Próxima semana →</button></div><div class="field"><label>Semana</label><input type="date" value="${cutterWeek9179}" onchange="hlgbSetCutterWeek9179(this.value)"></div><button class="secondary" onclick="hlgbPrintCutterExcel9179()">🖨️ Imprimir</button></div><div class="hlgb9179-excel-wrap"><table class="hlgb9179-excel"><thead><tr><th>Cortador</th>${heads}<th>Total semana</th></tr></thead><tbody>${rows||'<tr><td colspan="9">Nenhum cortador cadastrado.</td></tr>'}</tbody></table></div>`;
+5024:   };
+5025:   window.hlgbPrintCutterExcel9179=function(){const el=document.getElementById('hlgbCutterExcel9179');if(!el)return;const w=window.open('','_blank');if(!w){alert('Permita pop-ups para imprimir.');return}w.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>Projeção de cortadores</title><style>body{font-family:Arial;margin:18px}table{border-collapse:collapse;width:100%;font-size:10px}th,td{border:1px solid #aaa;padding:5px;vertical-align:top}.hlgb9179-cut-chip{display:block;margin-bottom:4px}.toolbar,.field label,.field input,button{display:none}</style></head><body><h2>HLGB Confecções — Projeção semanal dos cortadores</h2>${el.innerHTML}</body></html>`);w.document.close();setTimeout(()=>w.print(),150)};
+5026:   function ensureCutterExcel9179(){
+5027:     const anchor=document.getElementById('cutterTable')?.closest('.panel');if(!anchor)return;
+5028:     let panel=document.getElementById('hlgbCutterExcelPanel9179');if(!panel){panel=document.createElement('div');panel.id='hlgbCutterExcelPanel9179';panel.className='panel';panel.innerHTML='<h2>📊 Projeção semanal dos cortadores — visão tipo Excel</h2><div class="sub">Cada linha é um cortador e cada coluna é um dia. Assim fica fácil enxergar quem está com cada modelo e quantas peças estão programadas.</div><div id="hlgbCutterExcel9179" style="margin-top:12px"></div>';anchor.insertAdjacentElement('afterend',panel)}hlgbRenderCutterExcel9179();
+5029:   }
+5030: 
+5031:   // Login Safari/rede: impede uma requisição de senha de ficar pendurada indefinidamente e tenta uma vez novamente.
+5032:   try{
+5033:     if(typeof cloudSignIn==='function' && typeof HLGB_SUPABASE_URL!=='undefined' && typeof HLGB_SUPABASE_KEY!=='undefined'){
+5034:       window.hlgbCloudSignInBase9179=cloudSignIn;
+5035:       cloudSignIn=async function(email,password){
+5036:         let lastErr=null;
+5037:         for(let attempt=0;attempt<2;attempt++){
+5038:           const controller=typeof AbortController!=='undefined'?new AbortController():null;const timer=controller?setTimeout(()=>controller.abort(),30000):null;
+5039:           try{
+5040:             const res=await fetch(`${HLGB_SUPABASE_URL}/auth/v1/token?grant_type=password`,{method:'POST',headers:{apikey:HLGB_SUPABASE_KEY,'Content-Type':'application/json'},body:JSON.stringify({email,password}),signal:controller?.signal});
+5041:             const data=await res.json().catch(()=>({}));if(!res.ok||!data.access_token)throw new Error(data.error_description||data.msg||data.message||'Não foi possível entrar.');if(timer)clearTimeout(timer);cloudApplyAuth(data);return data;
+5042:           }catch(e){if(timer)clearTimeout(timer);lastErr=e;if(attempt===0&&(e?.name==='AbortError'||/network|fetch|tempo|timeout/i.test(String(e?.message||'')))){await new Promise(r=>setTimeout(r,700));continue}throw e}
+5043:         }
+5044:         throw lastErr||new Error('A sessão demorou para responder. Tente entrar novamente.');
+5045:       };
+5046:     }
+5047:   }catch(e){console.warn('HLGB v91.82: proteção de login não aplicada',e)}
+5048: 
+5049:   // Encadeia os renderizadores existentes sem trocar a lógica principal.
+5050:   try{const base=renderClients;renderClients=function(){const r=base.apply(this,arguments);setTimeout(enhanceClients9179,0);return r}}catch(e){}
+5051:   try{const base=renderCuts;renderCuts=function(){const r=base.apply(this,arguments);setTimeout(enhanceCutPage9179,0);return r}}catch(e){}
+5052:   try{const base=renderCutters;renderCutters=function(){const r=base.apply(this,arguments);setTimeout(ensureCutterExcel9179,0);return r}}catch(e){}
+5053:   ['renderProduction','renderProjection','renderCapacityPlanning'].forEach(name=>{try{const base=window[name];if(typeof base==='function')window[name]=function(){const r=base.apply(this,arguments);setTimeout(enhanceCutPage9179,0);return r}}catch(e){}});
+5054: 
+5055:   document.addEventListener('DOMContentLoaded',()=>{setTimeout(()=>{try{enhanceClients9179()}catch(e){}try{enhanceCutPage9179()}catch(e){}try{ensureCutterExcel9179()}catch(e){}},300)});
+5056:   console.log('HLGB v'+V+' carregada: relatórios de cliente, filtro de preços, corte avulso e projeção tipo Excel.');
+5057: })();
