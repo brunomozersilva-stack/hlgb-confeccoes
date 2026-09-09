@@ -6,7 +6,7 @@
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
-<title>HLGB Confecções — Sistema de Gestão v91.87 Multiusuário</title>
+<title>HLGB Confecções — Sistema de Gestão v91.88 Multiusuário</title>
 <style>
 :root{--navy:#6f3f59;--orange:#c96b8f;--bg:#fbf6f8;--line:#eadde4;--text:#30262c;--muted:#786b73;--ok:#e9f7ef;--warn:#fff5df;--bad:#fdeaea;--rose:#f3dbe5;--rose2:#fff8fb}
 *{box-sizing:border-box}body{margin:0;font-family:Arial,Helvetica,sans-serif;background:var(--bg);color:var(--text)}
@@ -260,6 +260,27 @@ main{min-width:0;}
 </style>
 </head>
 <body>
+<script id="hlgb-auth-gate-v9188">
+/* HLGB_AUTH_GATE_V9188 */
+(function(){
+  if(window.hlgbAfterLogin)return;
+  window.__HLGB_AUTH_READY=false;
+  window.__HLGB_AUTH_QUEUE=[];
+  window.hlgbAfterLogin=function(fn,delay){
+    if(typeof fn!=="function")return;
+    const task=function(){setTimeout(function(){try{fn()}catch(e){console.warn("HLGB pós-login",e)}},Math.max(0,Number(delay)||0))};
+    if(window.__HLGB_AUTH_READY){task();return;}
+    window.__HLGB_AUTH_QUEUE.push(task);
+  };
+  window.hlgbMarkAuthenticated=function(){
+    if(window.__HLGB_AUTH_READY)return;
+    window.__HLGB_AUTH_READY=true;
+    const q=window.__HLGB_AUTH_QUEUE.splice(0);
+    setTimeout(function(){q.forEach(function(f){try{f()}catch(e){console.warn("HLGB fila pós-login",e)}})},0);
+  };
+})();
+</script>
+
 
 <div id="sessionLoader" style="position:fixed;inset:0;background:linear-gradient(135deg,#6f3f59,#c96b8f);z-index:10000;display:none;align-items:center;justify-content:center;padding:20px">
   <div style="background:#fff;border-radius:22px;padding:30px;max-width:390px;width:100%;box-shadow:0 20px 60px #0003;text-align:center">
@@ -276,7 +297,7 @@ main{min-width:0;}
     <div class="field" style="text-align:left;margin-bottom:10px"><label>E-mail</label><input id="loginUser" type="email" autocomplete="username" placeholder="seuemail@exemplo.com"></div>
     <div class="field" style="text-align:left;margin-bottom:14px"><label>Senha</label><input id="loginPass" type="password" autocomplete="current-password" onkeydown="if(event.key==='Enter')return doLogin()"></div>
     <button class="primary" style="width:100%" onclick="return doLogin()">Entrar</button>
-    <div id="loginError" style="color:#a51d2d;font-size:13px;margin-top:10px"></div><div style="margin-top:12px;font-size:12px;color:#786b73">Acesso protegido pelo Supabase • HLGB Online<br><b style="color:#6f3f59">Versão v91.87</b></div>
+    <div id="loginError" style="color:#a51d2d;font-size:13px;margin-top:10px"></div><div style="margin-top:12px;font-size:12px;color:#786b73">Acesso protegido pelo Supabase • HLGB Online<br><b style="color:#6f3f59">Versão v91.88</b></div>
   </div>
 </div>
 
@@ -2796,7 +2817,7 @@ function doLogin(){
    db.userSessions.push(sess);db.activeSessionId=sess.id;
    localSaveOnly();
    errorEl.textContent="";errorEl.style.display="none";
-   loginEl.style.display="none";appEl.style.display="block";
+   loginEl.style.display="none";appEl.style.display="block";setTimeout(()=>window.hlgbMarkAuthenticated?.(),0);
    // v91.83: manutenção de backups fora do caminho crítico do login.
    setTimeout(()=>{
      try{
@@ -11729,7 +11750,7 @@ if(cloudRestoreStoredAuth()){
    const sess={id:Date.now()+Math.random(),userId:profile.id,user:profile.name||cloudUser.email,login:cloudUser.email,loginAt:new Date().toISOString(),logoutAt:"",restored:true};
    db.userSessions.push(sess);db.activeSessionId=sess.id;localSaveOnly();
    if(window.HLGB_SESSION_BOOT_CANCELLED)throw new Error("Restauração da sessão cancelada por demora.");
-   loginScreen.style.display="none";sessionLoader.style.display="none";appShell.style.display="block";applyAccess();restoreNavGroups();
+   loginScreen.style.display="none";sessionLoader.style.display="none";appShell.style.display="block";setTimeout(()=>window.hlgbMarkAuthenticated?.(),0);applyAccess();restoreNavGroups();
    {const prevApplying=cloudApplying;cloudApplying=true;try{renderAll()}finally{cloudApplying=prevApplying}}
   }catch(e){
    console.warn("Não foi possível restaurar a sessão online",e);
@@ -14859,8 +14880,8 @@ window.renderSeparationList=function(){
 const oldSep939=window.renderSeparation;window.renderSeparation=function(){let id=+document.getElementById('separationOrder')?.value,o=ord939(id);if(o&&sepState939(o).done){let box=document.getElementById('separationTable');if(box)box.innerHTML='<div class="panel"><span class="badge ok" style="font-size:14px;padding:10px 14px">✅ Este pedido já teve a separação concluída e já foi liberado para a próxima etapa.</span></div>';let s=document.getElementById('separationOrder');if(s)s.value='';window.fillSeparationOrders();return}return oldSep939?oldSep939.apply(this,arguments):undefined};
 
 function init939(){bindPricing939();watchPricing939();cleanupCutDuplicate939();renderLocationAssignments939();try{window.fillSeparationOrders()}catch(e){};try{window.renderFinishedPieces()}catch(e){}}
-if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>setTimeout(init939,50));else setTimeout(init939,50);
-setTimeout(init939,700);
+hlgbAfterLogin(()=>{if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>setTimeout(init939,50));else setTimeout(init939,50);},0);
+hlgbAfterLogin(()=>{setTimeout(init939,700);},0);
 console.log('HLGB v91.39 active');
 })();
 </script>
@@ -15006,7 +15027,7 @@ const oldIncoming940=window.hlgbRenderIncomingRecord;
 window.hlgbRenderIncomingRecord=function(module){let r=oldIncoming940?oldIncoming940.apply(this,arguments):undefined;let active=document.querySelector('.page.active')?.id;if(module==='goals'){if(active==='metas')setTimeout(()=>renderGoals(),20);if(active==='capacidadeProducao')setTimeout(()=>renderCapacityPlanning(),20)}if(['productionLocations','capacityAssignments','production','factionMasters','orders'].includes(module)&&active==='capacidadeProducao')setTimeout(()=>renderCapacityPlanning(),20);if(['projectionInvoices','missingPieces','factions','factionPayments','production'].includes(module)&&active==='projecao')setTimeout(()=>renderProjection(),20);return r};
 
 function init940(){try{hideOldCapacity940();if(document.querySelector('.page.active')?.id==='capacidadeProducao')renderCapacityPlanning();if(document.querySelector('.page.active')?.id==='metas')ensureGoalsLive940()}catch(e){console.error('HLGB v91.40',e)}}
-setTimeout(init940,300);setTimeout(init940,1500);
+hlgbAfterLogin(()=>{setTimeout(init940,300);setTimeout(init940,1500);},0);
 })();
 </script>
 
@@ -15071,7 +15092,7 @@ const oldFinalize941=window.finalizeSelectedProjection;
 window.finalizeSelectedProjection=function(){let contexts=selectedContexts941(),before=new Set((db.projectionInvoices||[]).map(x=>String(x.id))),r=oldFinalize941?oldFinalize941.apply(this,arguments):undefined;setTimeout(()=>{let modal=document.querySelector('#modal .modalbox'),btn=modal?.querySelector('.modalSave');if(!modal||!btn||document.getElementById('projectionSources941')||!contexts.length)return;let box=document.createElement('div');box.id='projectionSources941';box.className='panel';box.innerHTML=`<h3>🏭 Qual confecção entregou cada parte?</h3><div class="sub">Quando o produto foi dividido no Planejamento de capacidade, informe aqui quanto saiu de cada confecção. A soma deve ser igual à quantidade realmente entregue na nota, sem contar as faltas.</div>${contexts.map((ctx,i)=>{let cs=sourceCandidates941(ctx.o,ctx.item);if(!cs.length)return `<div class="source941-row"><b>${esc(ctx.item.name)}</b><span class="sub">Sem divisão de produção cadastrada</span><span>-</span><span>-</span></div>`;return cs.map((s,j)=>`<div class="source941-row"><div><b>${esc(ctx.item.name)}</b><div class="sub">Pedido #${esc(typeof displayOrderNumber==='function'?displayOrderNumber(ctx.o):ctx.o.id)}</div></div><div><b>${esc(s.name)}</b><div class="sub">Planejado: ${s.planned.toLocaleString('pt-BR')} pç</div></div><div><label class="sub">Entregou agora</label><input class="sourceQty941" data-i="${i}" data-loc="${s.locationId}" data-name="${esc(s.name)}" type="number" min="0" step="1" value="0"></div><span class="badge">Origem</span></div>`).join('')}).join('')}`;btn.parentNode.insertBefore(box,btn);btn.addEventListener('click',function(ev){let onlyMissing=true,invalid='';contexts.forEach((ctx,i)=>{let mode=document.querySelector(`.projectionInvoiceMode[data-index="${i}"]`)?.value||'quantity',qty=mode==='grade'?[...document.querySelectorAll(`.projGradeQty930[data-index="${i}"]`)].reduce((s,x)=>s+q941(x.value),0):q941(document.querySelector(`.projectionInvoiceQty[data-index="${i}"]`)?.value),miss=q941(document.querySelector(`.missingQty940[data-i="${i}"]`)?.value);if(miss>qty){invalid=`${ctx.item.name}: a falta não pode ser maior que a quantidade selecionada.`;return}if(mode==='grade'&&miss>0){invalid=`${ctx.item.name}: para registrar falta, use a baixa por quantidade nesta nota.`;return}let delivered=Math.max(0,qty-miss);if(delivered>0)onlyMissing=false;if(mode==='quantity'){let inp=document.querySelector(`.projectionInvoiceQty[data-index="${i}"]`);if(inp)inp.value=delivered}let cs=sourceCandidates941(ctx.o,ctx.item),src=[...document.querySelectorAll(`.sourceQty941[data-i="${i}"]`)],sum=src.reduce((s,x)=>s+q941(x.value),0);if(delivered>0&&cs.length>1&&Math.abs(sum-delivered)>.0001)invalid=`${ctx.item.name}: informe quanto cada confecção entregou. A soma deve dar ${delivered} peça(s).`;if(delivered>0&&cs.length===1&&src[0]&&sum===0)src[0].value=delivered});if(invalid){ev.preventDefault();ev.stopImmediatePropagation();alert(invalid);return}if(onlyMissing){ev.preventDefault();ev.stopImmediatePropagation();createOnlyMissing941(contexts).catch(e=>alert(e.message||'Não foi possível registrar a falta.'));return}setTimeout(async()=>{let inv=(db.projectionInvoices||[]).find(x=>!before.has(String(x.id)));if(!inv)return;let changed=false;(inv.items||[]).forEach(async it=>{let i=contexts.findIndex(c=>+c.o.id===+it.orderId&&String(c.item.key)===String(it.itemKey));if(i<0)return;let src=[...document.querySelectorAll(`.sourceQty941[data-i="${i}"]`)].map(x=>({locationId:+x.dataset.loc,locationName:x.dataset.name,qty:q941(x.value)})).filter(x=>x.qty>0);if(src.length){it.productionSources=src;it.sourceLocationsText=src.map(s=>`${s.locationName}: ${s.qty}`).join(' · ');changed=true;let o=contexts[i].o,saved=o.projectionItems?.[contexts[i].item.key],hist=saved?.deliveryHistory;if(Array.isArray(hist)){let h=hist.slice().reverse().find(x=>String(x.invoiceId)===String(inv.id));if(h)h.productionSources=src}try{await save941('orders',o)}catch(e){console.error(e)}}});if(changed)try{await save941('projectionInvoices',inv)}catch(e){console.error(e)}},180)},true)},70);return r};
 
 function init941(){bindPricing941();try{renderFinishedPieces()}catch(e){}}
-if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>setTimeout(init941,120));else setTimeout(init941,120);
+hlgbAfterLogin(()=>{if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>setTimeout(init941,120));else setTimeout(init941,120);},0);
 })();
 </script>
 
@@ -15167,9 +15188,9 @@ if(typeof oldPage942==='function'){
   };
 }
 
-window.addEventListener('focus',()=>{if(Date.now()-hlgb942LastFullRefresh>30000)hlgb942FullCloudRefresh('focus',false).catch(()=>{})});
-document.addEventListener('visibilitychange',()=>{if(!document.hidden&&Date.now()-hlgb942LastFullRefresh>30000)hlgb942FullCloudRefresh('visible',false).catch(()=>{})});
-if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>setTimeout(hlgb942Boot,350));else setTimeout(hlgb942Boot,350);
+hlgbAfterLogin(()=>{window.addEventListener('focus',()=>{if(Date.now()-hlgb942LastFullRefresh>30000)hlgb942FullCloudRefresh('focus',false).catch(()=>{})});},0);
+hlgbAfterLogin(()=>{document.addEventListener('visibilitychange',()=>{if(!document.hidden&&Date.now()-hlgb942LastFullRefresh>30000)hlgb942FullCloudRefresh('visible',false).catch(()=>{})});},0);
+hlgbAfterLogin(()=>{if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>setTimeout(hlgb942Boot,350));else setTimeout(hlgb942Boot,350);},0);
 })();
 </script>
 
@@ -15286,7 +15307,7 @@ if(typeof oldCapacity943==='function')window.renderCapacityPlanning=function(){l
 const oldIncoming943=window.hlgbRenderIncomingRecord;
 window.hlgbRenderIncomingRecord=function(module){let r=oldIncoming943?oldIncoming943.apply(this,arguments):undefined,active=document.querySelector('.page.active')?.id;if(active==='separacao'&&['separations','orders'].includes(module))setTimeout(()=>{try{renderSeparation()}catch(e){}},30);if(active==='capacidadeProducao'&&['goals','orders','clients','products','capacityAssignments','production','productionLocations','factionMasters'].includes(module))setTimeout(()=>{try{renderCapacityPlanning()}catch(e){}},30);return r};
 function init943(){try{bindPricing943();if(document.querySelector('.page.active')?.id==='capacidadeProducao')renderCapacityPlanning()}catch(e){console.error('HLGB v91.43',e)}}
-setTimeout(init943,250);setTimeout(init943,1200);
+hlgbAfterLogin(()=>{setTimeout(init943,250);setTimeout(init943,1200);},0);
 })();
 </script>
 
@@ -15405,7 +15426,7 @@ const oldCapacity944=window.renderCapacityPlanning;
 window.renderCapacityPlanning=function(){try{if(typeof oldCapacity944==='function')oldCapacity944.apply(this,arguments)}catch(e){console.error('v91.44 capacidade base',e)}setTimeout(renderCapacity944,0)};
 
 function boot944(){bindPricing944();if(document.querySelector('.page.active')?.id==='capacidadeProducao')renderCapacityPlanning()}
-setTimeout(boot944,350);setTimeout(boot944,1500);let prodPage=document.getElementById('produtos');if(prodPage)prodPage.__pricing944Watch='disabled-v9147'
+hlgbAfterLogin(()=>{setTimeout(boot944,350);setTimeout(boot944,1500);let prodPage=document.getElementById('produtos');if(prodPage)prodPage.__pricing944Watch='disabled-v9147'},0);
 })();
 </script>
 
@@ -15630,7 +15651,7 @@ async function recover948(){
   }
 }
 window.hlgb948IntegrityAudit=recover948;
-setTimeout(recover948,1200);
+hlgbAfterLogin(()=>{setTimeout(recover948,1200);},0);
 })();
 </script>
 
@@ -15681,7 +15702,7 @@ async function reload949(){if(typeof hlgbRecordLoadBundle==='function')await hlg
 function show949(report){let box=document.getElementById('hlgb949Box');if(!box){box=document.createElement('div');box.id='hlgb949Box';box.style.cssText='position:fixed;right:14px;bottom:14px;z-index:10000;max-width:480px;background:#fff;border:1px solid #d8c5cf;border-radius:14px;padding:12px 14px;box-shadow:0 6px 24px #0003;font-size:12px;line-height:1.4';document.body.appendChild(box)}const pay=report.payroll||[],hub=report.hub||[],err=report.errors||[];const names=pay.slice(0,8).map(x=>`${x.employee||'Funcionário'} (${x.month||'-'})`).join('<br>');box.innerHTML=`<b>🛟 Recuperação v91.49</b><br><b>${pay.length}</b> pagamento(s) restaurado(s) na folha · <b>${hub.length}</b> alteração(ões) restaurada(s) no Hub${err.length?`<br><span style="color:#9a1f32">${err.length} erro(s) de confirmação — nada foi considerado recuperado sem confirmação.</span>`:''}${names?`<div style="margin-top:6px;max-height:120px;overflow:auto">${names}</div>`:''}<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px"><button type="button" onclick="hlgb9149RecoverNow(true)">Reexecutar recuperação</button><button type="button" onclick="this.closest('#hlgb949Box').remove()">Fechar</button></div>`}
 let busy949=false;
 window.hlgb9149RecoverNow=async function(manual=false){if(busy949)return;busy949=true;const report={version:V949,startedAt:now949(),sources:[],candidates:{payroll:0,hub:0},payroll:[],hub:[],errors:[]};try{await ready949();try{if(typeof hlgbRecordLoadBundle==='function')await hlgbRecordLoadBundle({preserveLocal:false,since:null})}catch(e){report.errors.push('Leitura inicial: '+String(e?.message||e))}const sources=[...EARLY949];for(const s of capture949())sources.push(s);report.sources=[...new Set(sources.map(s=>s.name))];const pc=payrollCandidates949(sources),hc=hubCandidates949(sources);report.candidates.payroll=pc.length;report.candidates.hub=hc.length;for(const c of pc){try{const next=makePayNext949(c);await save949('payroll',c.targetId,next,`${next.employeeName||'Funcionário'} — ${next.month||''}`,c.source);report.payroll.push({id:c.targetId,employee:next.employeeName||'',month:next.month||'',paidAt:next.paidAt||'',paidValue:+next.paidValue||0,source:c.source})}catch(e){report.errors.push(`Folha ${c.backup?.employeeName||c.targetId}: ${String(e?.message||e)}`)}}for(const c of hc.filter(x=>x.score>=5)){try{const next=c.current?{...c.current,...c.backup,recoveredBy:'v91.49',recoveredAt:now949()}:{...c.backup,recoveredBy:'v91.49',recoveredAt:now949()};await save949('hubFinanceEntries',c.targetId,next,next.description||next.name||'Hub Financeiro',c.source);report.hub.push({id:c.targetId,label:next.description||next.name||'',source:c.source})}catch(e){report.errors.push(`Hub ${c.targetId}: ${String(e?.message||e)}`)}}await reload949();report.finishedAt=now949();try{localStorage.setItem(REPORT949,JSON.stringify(report))}catch(e){}try{setCloudStatus(report.errors.length?'☁️ Recuperação parcial':'✅ Dados recuperados e confirmados',report.errors.length?'bad':'ok')}catch(e){}show949(report);console.info('HLGB v91.49 recovery report',report)}catch(e){report.errors.push(String(e?.message||e));report.finishedAt=now949();try{localStorage.setItem(REPORT949,JSON.stringify(report))}catch(_){};console.error('HLGB v91.49 recovery',e);if(manual)alert('Não foi possível executar a recuperação agora.\n\n'+String(e?.message||e))}finally{busy949=false}};
-setTimeout(()=>window.hlgb9149RecoverNow(false),1500);
+hlgbAfterLogin(()=>{setTimeout(()=>window.hlgb9149RecoverNow(false),1500);},0);
 })();
 </script>
 
@@ -15727,7 +15748,7 @@ async function recoverLegacy949(){
   console.info('HLGB v91.49 legacy cloud recovery',report);
  }catch(e){report.errors.push(String(e?.message||e));report.finishedAt=n949();try{localStorage.setItem(LEGACY_REPORT949,JSON.stringify(report))}catch(_){};console.warn('HLGB v91.49 legacy recovery',e)}
 }
-setTimeout(recoverLegacy949,3200);
+hlgbAfterLogin(()=>{setTimeout(recoverLegacy949,3200);},0);
 })();
 </script>
 
@@ -15807,9 +15828,9 @@ function boot950(){
   box950('Preparando a recuperação dos pagamentos marcados anteriormente. Assim que o login e a nuvem estiverem prontos, ela será executada automaticamente.','wait');
   schedule950(500);
 }
-if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',boot950,{once:true});else boot950();
-window.addEventListener('focus',()=>{if(!completed950)schedule950(250)});
-document.addEventListener('visibilitychange',()=>{if(!document.hidden&&!completed950)schedule950(250)});
+hlgbAfterLogin(()=>{if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',boot950,{once:true});else boot950();},0);
+hlgbAfterLogin(()=>{window.addEventListener('focus',()=>{if(!completed950)schedule950(250)});},0);
+hlgbAfterLogin(()=>{document.addEventListener('visibilitychange',()=>{if(!document.hidden&&!completed950)schedule950(250)});},0);
 })();
 </script>
 
@@ -15872,7 +15893,7 @@ function launch951(n=0){
  if(ready){window.hlgb9151RunDiagnostic();if((typeof hlgbRecordReady==='undefined'||!hlgbRecordReady)&&n<30)setTimeout(()=>launch951(n+1),1000);return}
  if(n<30)setTimeout(()=>launch951(n+1),1000);
 }
-setTimeout(()=>launch951(0),1200);
+hlgbAfterLogin(()=>{setTimeout(()=>launch951(0),1200);},0);
 })();
 </script>
 
@@ -15955,9 +15976,9 @@ function clean952(){
   try{if(document.getElementById('payrollTable')&&typeof window.renderPayroll==='function')window.renderPayroll()}catch(e){}
   console.info('HLGB v91.52 payroll cloud status ready',r);
 }
-if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>setTimeout(clean952,500),{once:true});else setTimeout(clean952,500);
-setTimeout(clean952,1800);
-setTimeout(clean952,4500);
+hlgbAfterLogin(()=>{if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>setTimeout(clean952,500),{once:true});else setTimeout(clean952,500);},0);
+hlgbAfterLogin(()=>{setTimeout(clean952,1800);},0);
+hlgbAfterLogin(()=>{setTimeout(clean952,4500);},0);
 })();
 </script>
 
@@ -15985,7 +16006,7 @@ window.hlgb9153Run=async function(){const b=box953();b.innerHTML='<b>🔎 Confer
  const currentHub=snapRows953('hubFinanceEntries').filter(x=>!x.meta?.deleted_at).map(x=>x.data),legacyHub=Array.isArray(legacy.hubFinanceEntries)?legacy.hubFinanceEntries:[];const cm=new Map(currentHub.map(x=>[String(x?.id??''),x]));const hubDiffs=[];for(const l of legacyHub){const id=String(l?.id??'');if(!id)continue;const c=cm.get(id);if(!c)continue;const ls=String(l.status||''),cs=String(c.status||'');const lv=+l.value||+l.amount||0,cv=+c.value||+c.amount||0;if(ls!==cs||Math.abs(lv-cv)>0.001||String(l.realizedAt||'')!==String(c.realizedAt||'')){hubDiffs.push({id,label:l.description||l.name||id,legacyStatus:ls,currentStatus:cs,legacy:l,current:c})}}
  show953({version:V953,at:new Date().toISOString(),legacyVersion:legacyRow?.versao??null,legacyUpdatedAt:legacyRow?.atualizado_em||'',currentPaid,legacyPaid,onlyLegacyPaid,onlyCurrentPaid,deletedPayroll,duplicates,hubDiffs});}catch(e){b.innerHTML=`<b>🔎 Conferência v91.53</b><br>Não consegui ler o JSON antigo ainda.<br><small>${esc953(e?.message||e)}</small><br><button type="button" style="margin-top:8px" onclick="hlgb9153Run()">Tentar novamente</button>`}};
 function boot953(){document.getElementById('hlgb953Diff')?.remove()}
-setTimeout(boot953,1600);
+hlgbAfterLogin(()=>{setTimeout(boot953,1600);},0);
 })();
 </script>
 
@@ -16193,7 +16214,7 @@ function boot955(){
  },1000);
 }
 
-if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',boot955,{once:true});else boot955();
+hlgbAfterLogin(()=>{if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',boot955,{once:true});else boot955();},0);
 })();
 </script>
 
@@ -16387,8 +16408,8 @@ function boot9159(){
   try{fillSeparationOrders()}catch(e){}
   try{if(document.querySelector('.page.active')?.id==='separacao')renderSeparationList()}catch(e){}
 }
-if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>setTimeout(boot9159,700));else setTimeout(boot9159,700);
-window.addEventListener('focus',()=>setTimeout(()=>{try{reconcileAllSep9159();if(document.querySelector('.page.active')?.id==='separacao'){fillSeparationOrders();renderSeparationList()}}catch(e){}},120));
+hlgbAfterLogin(()=>{if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>setTimeout(boot9159,700));else setTimeout(boot9159,700);},0);
+hlgbAfterLogin(()=>{window.addEventListener('focus',()=>setTimeout(()=>{try{reconcileAllSep9159();if(document.querySelector('.page.active')?.id==='separacao'){fillSeparationOrders();renderSeparationList()}}catch(e){}},120));},0);
 })();
 
 </script>
@@ -16436,7 +16457,7 @@ window.deleteTermination=async function(id){let r=(db.terminations||[]).find(x=>
 
 let syncing9161=false;async function syncExisting9161(){if(syncing9161||!cloudAccessToken)return;syncing9161=true;try{db.hubFinanceEntries=Array.isArray(db.hubFinanceEntries)?db.hubFinanceEntries:[];if(typeof window.hlgb9163SyncAllPayrollMonths==='function')await window.hlgb9163SyncAllPayrollMonths();for(const t of (db.terminations||[])){if(!linkedHub9161('termination',t.id))await save9161('hubFinanceEntries',termHub9161(t))}try{renderHubFinance()}catch(e){}}catch(e){console.warn('HLGB v91.63 integração histórica Hub',e)}finally{syncing9161=false}}
 function boot9161(){try{renderPayrollProvisions()}catch(e){}setTimeout(syncExisting9161,1800)}
-if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>setTimeout(boot9161,900),{once:true});else setTimeout(boot9161,900);
+hlgbAfterLogin(()=>{if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>setTimeout(boot9161,900),{once:true});else setTimeout(boot9161,900);},0);
 })();
 </script>
 
@@ -16491,10 +16512,10 @@ function simplify9164(){
  ['projectionExitTable','locationProjectionTable','cutterProjectionTable'].forEach(id=>{const el=document.getElementById(id),p=el?.closest('.panel');if(p&&p!==tracking&&p!==productTable?.closest('.panel'))p.classList.add('projection-advanced-hidden')});
  const client=document.getElementById('clientProjectionTable');if(client){const p=client.closest('.panel');p?.classList.remove('projection-advanced-hidden');const h=p?.querySelector('h2');if(h)h.textContent='💰 3. Valor por cliente';const sub=p?.querySelector('.sub');if(sub)sub.textContent='Veja quanto cada cliente tem previsto e quanto já foi entregue/finalizado no período.'}
  document.querySelectorAll('#projecao .field label').forEach(l=>{if(['Valor mínimo','Valor máximo','Prioridade','Status'].includes(l.textContent.trim()))l.closest('.field')?.classList.add('projection-advanced-hidden')});
- const logo=document.querySelector('#appShell .logo small');if(logo)logo.textContent='v91.83';
+ const logo=document.querySelector('#appShell .logo small');if(logo)logo.textContent='v91.88';
 }
 const old=window.renderProjection;if(typeof old==='function')window.renderProjection=function(){const r=old.apply(this,arguments);setTimeout(simplify9164,0);return r};
-if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',simplify9164,{once:true});else simplify9164();
+hlgbAfterLogin(()=>{if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',simplify9164,{once:true});else simplify9164();},0);
 })();
 </script>
 <style>
@@ -16520,8 +16541,8 @@ window.openProjectionClientAssign9166=function(oid,key){let {o,it}=item9166(oid,
 function enhanceProjection9166(){document.querySelectorAll('#projectionProductsTable tbody tr').forEach(tr=>{if(tr.querySelector('.assignClientBtn9166'))return;let b=[...tr.querySelectorAll('button')].find(x=>String(x.getAttribute('onclick')).includes('openProjectionProductionSplit'));if(!b)return;let m=String(b.getAttribute('onclick')).match(/openProjectionProductionSplit\(([^,]+),'([^']*)'/);if(!m)return;let {o,it}=item9166(m[1],m[2]),list=o?.projectionItems?.[it?.key]?.clientAllocations||[],btn=document.createElement('button');btn.type='button';btn.className='secondary assignClientBtn9166';btn.textContent='👥 Atribuir clientes';btn.onclick=()=>openProjectionClientAssign9166(m[1],m[2]);b.parentElement.append(' ',btn);if(list.length){let d=document.createElement('div');d.className='proj-client9166';d.textContent='Clientes: '+list.map(x=>`${x.clientName} (${q9166(x.qty)})`).join(' · ');tr.children[3]?.appendChild(d)}})}
 const oldHub=window.renderHubFinance;if(typeof oldHub==='function')window.renderHubFinance=function(){let r=oldHub.apply(this,arguments);setTimeout(renderHub9166,0);return r};
 const oldProj=window.renderProjection;if(typeof oldProj==='function')window.renderProjection=function(){let r=oldProj.apply(this,arguments);setTimeout(enhanceProjection9166,0);return r};
-function boot(){let logo=document.querySelector('#appShell .logo small');if(logo)logo.textContent='v91.83';try{renderHub9166();enhanceProjection9166()}catch(e){}}
-if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',boot,{once:true});else boot();
+function boot(){let logo=document.querySelector('#appShell .logo small');if(logo)logo.textContent='v91.88';try{renderHub9166();enhanceProjection9166()}catch(e){}}
+hlgbAfterLogin(()=>{if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',boot,{once:true});else boot();},0);
 })();
 </script>
 <script>
@@ -16533,7 +16554,7 @@ function capacityRows9167(){let out=[];(db.orders||[]).forEach(o=>{let st=String
 function range9168(){if(typeof hlgb916HubRange==='function')return hlgb916HubRange(capacityWeek9168);let d=new Date((capacityWeek9168||isoDate(new Date()))+'T12:00:00'),s=mondayOf(d),e=new Date(s);e.setDate(s.getDate()+6);return {start:isoDate(s),end:isoDate(e)}}
 window.setCapacityWeek9168=function(v){capacityWeek9168=v||capacityWeek9168;enhance9167()};
 window.openCapacityFinalizer9168=function(){document.querySelectorAll('.projectionSelect').forEach(x=>x.checked=false);let rows=capacityRows9167(),rg=range9168(),period=rows.filter(x=>!x.date||(x.date>=rg.start&&x.date<=rg.end)),groups={};period.forEach(x=>{let c=x.it.clientName||x.o.client||'Sem cliente';(groups[c]||(groups[c]=[])).push(x)});let body=Object.entries(groups).sort((a,b)=>a[0].localeCompare(b[0],'pt-BR')).map(([client,list])=>`<div class="panel" style="margin:9px 0"><b>${esc(client)}</b><div class="sub">Escolha um modelo ou marque vários para agrupar na mesma nota.</div>${list.map(x=>`<label style="display:grid;grid-template-columns:28px minmax(160px,1fr) 90px 115px;gap:8px;align-items:center;padding:9px 0;border-bottom:1px solid var(--line)"><input class="projectionSelect" type="checkbox" value="${x.o.id}::${esc(x.it.key)}"><span><b>${esc(x.it.name||'Produto')}</b><small style="display:block">Pedido #${esc(displayOrderNumber(x.o)||x.o.id)}</small></span><span>${x.qty.toLocaleString('pt-BR')} pç</span><b>${money(x.value)}</b></label>`).join('')}</div>`).join('');openModal('Finalizar nota — escolher modelos',`<div class="sub">Semana de ${fmtDate(rg.start)} a ${fmtDate(rg.end)}. Para uma nota, selecione modelos do mesmo cliente.</div>${body||'<div class="empty">Nenhum modelo disponível nessa semana.</div>'}${period.length?'<button type="button" class="primary modalSave">Continuar com os modelos escolhidos</button>':''}`,()=>window.finalizeSelectedProjection())};
-function enhance9167(){let root=document.getElementById('capacity940Root');if(!root)return;let rows=capacityRows9167(),rg=range9168(),w0=rg.start,w1=rg.end,ym=w0.slice(0,7),yy=w0.slice(0,4),sum=a=>a.reduce((s,x)=>s+q9167(x.value),0),top=document.getElementById('capTotals9167');if(!top){top=document.createElement('div');top.id='capTotals9167';top.className='panel';root.prepend(top)}top.innerHTML=`<div class="toolbar" style="align-items:end"><div><h2>💰 Valor planejado</h2><div class="sub">Escolha qualquer dia no calendário para conferir a semana completa daquela data.</div></div><div class="field"><label>Escolher a semana pelo calendário</label><input type="date" value="${esc(capacityWeek9168)}" onchange="setCapacityWeek9168(this.value)"><div class="sub">A semana será calculada automaticamente.</div></div></div><div class="cards"><div class="card"><small>Semana selecionada</small><strong>${money(sum(rows.filter(x=>x.date>=w0&&x.date<=w1)))}</strong></div><div class="card"><small>Mês da semana</small><strong>${money(sum(rows.filter(x=>x.date.startsWith(ym))))}</strong></div><div class="card"><small>Ano da semana</small><strong>${money(sum(rows.filter(x=>x.date.startsWith(yy))))}</strong></div><div class="card"><small>Total ativo</small><strong>${money(sum(rows))}</strong></div></div>`;let fin=document.getElementById('capFinalize9167');if(!fin){fin=document.createElement('div');fin.id='capFinalize9167';fin.className='panel';root.append(fin)}fin.innerHTML=`<div class="toolbar"><div><h2>🧾 Finalizar nota</h2><div class="sub">Abra a caixinha, escolha um modelo ou agrupe vários modelos do mesmo cliente e finalize a nota do jeito que precisar.</div></div><button type="button" class="primary" onclick="openCapacityFinalizer9168()">Abrir finalizador de nota</button></div>`;let logo=document.querySelector('#appShell .logo small');if(logo)logo.textContent='v91.72'}
+function enhance9167(){let root=document.getElementById('capacity940Root');if(!root)return;let rows=capacityRows9167(),rg=range9168(),w0=rg.start,w1=rg.end,ym=w0.slice(0,7),yy=w0.slice(0,4),sum=a=>a.reduce((s,x)=>s+q9167(x.value),0),top=document.getElementById('capTotals9167');if(!top){top=document.createElement('div');top.id='capTotals9167';top.className='panel';root.prepend(top)}top.innerHTML=`<div class="toolbar" style="align-items:end"><div><h2>💰 Valor planejado</h2><div class="sub">Escolha qualquer dia no calendário para conferir a semana completa daquela data.</div></div><div class="field"><label>Escolher a semana pelo calendário</label><input type="date" value="${esc(capacityWeek9168)}" onchange="setCapacityWeek9168(this.value)"><div class="sub">A semana será calculada automaticamente.</div></div></div><div class="cards"><div class="card"><small>Semana selecionada</small><strong>${money(sum(rows.filter(x=>x.date>=w0&&x.date<=w1)))}</strong></div><div class="card"><small>Mês da semana</small><strong>${money(sum(rows.filter(x=>x.date.startsWith(ym))))}</strong></div><div class="card"><small>Ano da semana</small><strong>${money(sum(rows.filter(x=>x.date.startsWith(yy))))}</strong></div><div class="card"><small>Total ativo</small><strong>${money(sum(rows))}</strong></div></div>`;let fin=document.getElementById('capFinalize9167');if(!fin){fin=document.createElement('div');fin.id='capFinalize9167';fin.className='panel';root.append(fin)}fin.innerHTML=`<div class="toolbar"><div><h2>🧾 Finalizar nota</h2><div class="sub">Abra a caixinha, escolha um modelo ou agrupe vários modelos do mesmo cliente e finalize a nota do jeito que precisar.</div></div><button type="button" class="primary" onclick="openCapacityFinalizer9168()">Abrir finalizador de nota</button></div>`;let logo=document.querySelector('#appShell .logo small');if(logo)logo.textContent='v91.88'}
 const old=window.renderCapacityPlanning;if(typeof old==='function')window.renderCapacityPlanning=function(){let r=old.apply(this,arguments);setTimeout(enhance9167,20);return r};if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>setTimeout(enhance9167,500),{once:true});else setTimeout(enhance9167,500);
 })();
 </script>
@@ -16557,8 +16578,8 @@ async function save9173(module,row){if(typeof cloudEnsureFreshSession==='functio
 function cutParts9173(c,o){let grade=Array.isArray(c.actualCutGrade)&&c.actualCutGrade.length?c.actualCutGrade:(Array.isArray(c.originalGrade)&&c.originalGrade.length?c.originalGrade:(o?.grade||[])),map={};grade.forEach(g=>{let id=String(g.productId||c.productId||''),key=id||'single';if(!map[key])map[key]={productId:id||null,qty:0};map[key].qty+=qty9173(g.qty)});let parts=Object.values(map);if(!parts.length)parts=[{productId:c.productId||null,qty:qty9173(c.pieces)}];return parts}
 window.finishCut=function(id){let c=(db.cuts||[]).find(x=>String(x.id)===String(id));if(!c)return;let o=(db.orders||[]).find(x=>String(x.id)===String(c.orderId));if(!c.originalPieces)c.originalPieces=qty9173(c.pieces)||qtyOfOrder(o||{});if(!Array.isArray(c.originalGrade)||!c.originalGrade.length)c.originalGrade=cloneCutGrade(o?.grade||[]);let orig=cutOriginalGrade(c,o),actual=cutActualGrade(c,o),gradeHtml=orig.length?`<div class="panel" style="margin-top:12px"><h3>Grade realmente cortada</h3><div class="sub">O pedido original fica preservado. Ajuste somente o que realmente saiu.</div>${table(['Produto','Cor','Tamanho','Pedido original','Cortado'],orig.map((it,i)=>{let p=(db.products||[]).find(x=>String(x.id)===String(it.productId)),a=actual.find(x=>String(x.productId)===String(it.productId)&&String(x.color||'')===String(it.color||'')&&String(x.size||'')===String(it.size||''));return [esc(p?.name||'Produto'),esc(it.color||'-'),esc(it.size||'-'),qty9173(it.qty),`<input id="cutActual_${i}" type="number" min="0" step="1" value="${a?.qty??it.qty??0}" style="width:90px;padding:7px;border:1px solid #ccd2dc;border-radius:7px">`]}))}</div>`:`<div class="field"><label>Quantidade realmente cortada</label><input id="cutActualPieces" type="number" min="0" step="1" value="${qty9173(c.pieces)}"></div>`;openModal('Finalizar corte',`<div class="cards"><div class="card"><small>Pedido</small><strong>#${esc(displayOrderNumber(o||{id:c.orderId})||c.orderId||'-')}</strong></div><div class="card"><small>Cliente</small><strong style="font-size:18px">${esc(o?.client||c.client||'-')}</strong></div><div class="card"><small>Peças do pedido</small><strong>${qty9173(c.originalPieces).toLocaleString('pt-BR')}</strong></div></div>${gradeHtml}<div class="field" style="margin-top:12px"><label>Observação / motivo da alteração</label><textarea id="cutAdjustmentNote">${esc(c.cutAdjustmentNote||'')}</textarea></div><div class="sub" style="margin:10px 0">O item só sairá da fila depois que corte, pedido e entrada em Produção forem confirmados na nuvem.</div><button type="button" class="primary modalSave">☁️ Confirmar corte finalizado</button>`,async()=>{let btn=document.querySelector('#modal .modalSave');if(btn){btn.disabled=true;btn.textContent='☁️ Confirmando tudo na nuvem…'}try{let next=clone9173(c);if(orig.length){next.actualCutGrade=orig.map((it,i)=>({...it,qty:qty9173(document.getElementById(`cutActual_${i}`)?.value)}));next.pieces=next.actualCutGrade.reduce((s,x)=>s+qty9173(x.qty),0)}else next.pieces=qty9173(document.getElementById('cutActualPieces')?.value);next.cutAdjustmentNote=document.getElementById('cutAdjustmentNote')?.value||'';next.status='Finalizado';next.finishedAt=isoDate(new Date());next.finishedAtTime=new Date().toISOString();next=await save9173('cuts',next);if(o)await save9173('orders',{...clone9173(o),status:'Corte finalizado',updatedAt:new Date().toISOString()});let parts=cutParts9173(next,o);for(let i=0;i<parts.length;i++){let part=parts[i],existing=(db.production||[]).find(p=>String(p.cutId)===String(next.id)&&(String(p.productId||'')===String(part.productId||'')||parts.length===1));if(existing)continue;let pr=(db.products||[]).find(x=>String(x.id)===String(part.productId));await save9173('production',{id:Date.now()+i+Math.floor(Math.random()*900000),cutId:next.id,orderId:next.orderId||null,productId:part.productId?+part.productId:null,op:next.op||('CORTE-'+next.id),product:pr?.name||next.product||o?.items||'Produto',client:next.client||o?.client||'',color:'',size:'',planned:part.qty,done:0,stage:'Aguardando atribuição',productionLocationId:null,factionId:null,date:next.finishedAt,assignmentSource:true,cutProductKey:`${next.id}:${part.productId||'geral'}`})}closeModal();try{renderCuts();renderOrders();renderProduction();renderCutAssignmentQueue();renderTracking9173();setCloudStatus('⚡ Online · corte confirmado na Produção','ok')}catch(e){}}catch(err){console.error(err);if(btn){btn.disabled=false;btn.textContent='☁️ Tentar confirmar novamente'}alert('O corte não saiu da tela porque a gravação completa não foi confirmada.\n\n'+(err?.message||err))}})};
 const oldCuts9173=window.renderCuts;window.renderCuts=function(){let r=oldCuts9173?oldCuts9173.apply(this,arguments):undefined;setTimeout(renderTracking9173,0);return r};const oldIncoming9173=window.hlgbRenderIncomingRecord;window.hlgbRenderIncomingRecord=function(module){let r=oldIncoming9173?oldIncoming9173.apply(this,arguments):undefined;if(['cuts','orders','production','productionLocations','factionMasters'].includes(module))setTimeout(renderTracking9173,0);return r};
-function boot9173(){document.title='HLGB Confecções — Sistema de Gestão v91.87 Multiusuário';let logo=document.querySelector('#appShell .logo small');if(logo){logo.textContent='v91.83';new MutationObserver(()=>{if(logo.textContent!=='v91.83')logo.textContent='v91.83'}).observe(logo,{childList:true,characterData:true,subtree:true})}renderTracking9173()}
-if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>setTimeout(boot9173,600),{once:true});else setTimeout(boot9173,600);
+function boot9173(){document.title='HLGB Confecções — Sistema de Gestão v91.88 Multiusuário';let logo=document.querySelector('#appShell .logo small');if(logo){logo.textContent='v91.88';new MutationObserver(()=>{if(logo.textContent!=='v91.88')logo.textContent='v91.88'}).observe(logo,{childList:true,characterData:true,subtree:true})}renderTracking9173()}
+hlgbAfterLogin(()=>{if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>setTimeout(boot9173,600),{once:true});else setTimeout(boot9173,600);},0);
 })();
 </script>
 <style>
@@ -16619,8 +16640,8 @@ function renderFactionChecklists9176(){
 const oldCapacity9176=window.renderCapacityPlanning;if(typeof oldCapacity9176==='function')window.renderCapacityPlanning=function(){let r=oldCapacity9176.apply(this,arguments);setTimeout(ensurePlanningSearch9176,60);return r};
 const oldFactions9176=window.renderFactions;if(typeof oldFactions9176==='function')window.renderFactions=function(){let r=oldFactions9176.apply(this,arguments);setTimeout(renderFactionChecklists9176,0);return r};
 const oldIncoming9176=window.hlgbRenderIncomingRecord;window.hlgbRenderIncomingRecord=function(module){let r=oldIncoming9176?oldIncoming9176.apply(this,arguments):undefined;if(['orders','products','cuts','separations','production','factions','productionLocations','factionMasters'].includes(module))setTimeout(()=>{ensurePlanningSearch9176();renderFactionChecklists9176()},40);return r};
-function boot9176(){let logo=document.querySelector('#appShell .logo small');if(logo)logo.textContent='v91.83';if(document.querySelector('.page.active')?.id==='capacidadeProducao')ensurePlanningSearch9176();renderFactionChecklists9176()}
-if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>setTimeout(boot9176,700),{once:true});else setTimeout(boot9176,700);
+function boot9176(){let logo=document.querySelector('#appShell .logo small');if(logo)logo.textContent='v91.88';if(document.querySelector('.page.active')?.id==='capacidadeProducao')ensurePlanningSearch9176();renderFactionChecklists9176()}
+hlgbAfterLogin(()=>{if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>setTimeout(boot9176,700),{once:true});else setTimeout(boot9176,700);},0);
 })();
 </script>
 
@@ -16934,10 +16955,10 @@ function enhanceUnassignedCut9185(){
 }
 const oldHub9185=window.renderHubFinance;if(typeof oldHub9185==='function')window.renderHubFinance=function(){let r=oldHub9185.apply(this,arguments);setTimeout(renderHubDue9185,35);return r};
 const oldCap9185=window.renderCapacityPlanning;if(typeof oldCap9185==='function')window.renderCapacityPlanning=function(){let r=oldCap9185.apply(this,arguments);setTimeout(enhanceUnassignedCut9185,90);setTimeout(enhanceUnassignedCut9185,220);return r};
-function setVersion9185(){let el=document.querySelector('#appShell .logo small');if(el&&el.textContent!=='v91.85')el.textContent='v91.85'}
+function setVersion9185(){let el=document.querySelector('#appShell .logo small');if(el&&el.textContent!=='v91.88')el.textContent='v91.88'}
 function boot9185(){try{renderHubDue9185()}catch(e){console.warn('v91.85 hub',e)}try{enhanceUnassignedCut9185()}catch(e){console.warn('v91.85 cut',e)}setVersion9185()}
-setTimeout(boot9185,250);setTimeout(boot9185,1800);document.addEventListener('visibilitychange',()=>{if(!document.hidden)setTimeout(boot9185,120)});window.addEventListener('focus',()=>setTimeout(boot9185,120));
-let ver=document.querySelector('#appShell .logo small');if(ver&&window.MutationObserver)new MutationObserver(setVersion9185).observe(ver,{childList:true,characterData:true,subtree:true});
+hlgbAfterLogin(()=>{setTimeout(boot9185,250);setTimeout(boot9185,1800);document.addEventListener('visibilitychange',()=>{if(!document.hidden)setTimeout(boot9185,120)});window.addEventListener('focus',()=>setTimeout(boot9185,120));},0);
+hlgbAfterLogin(()=>{let ver=document.querySelector('#appShell .logo small');if(ver&&window.MutationObserver)new MutationObserver(setVersion9185).observe(ver,{childList:true,characterData:true,subtree:true});},0);
 })();
 </script>
 <!-- HLGB_V9185_HUB_CUT_END -->
