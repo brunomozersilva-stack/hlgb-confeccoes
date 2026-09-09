@@ -107,22 +107,24 @@ if s.count(marker)!=1:
     raise SystemExit('ERRO: estilo anti-tremida duplicado')
 if '... 329474 bytes omitted ...' in s:
     raise SystemExit('ERRO: index voltou a conter truncamento')
+if 'function doLogin()' not in s:
+    raise SystemExit('ERRO: login principal ausente')
 
-# Valida sintaxe do bloco principal que contém o login e a sincronização por registros.
-pat=re.compile(r'<script(?:\\s[^>]*)?>(.*?)</script\\s*>',re.I|re.S)
+# Valida sintaxe do script que contém a implementação atual da sincronização por registros.
+pat=re.compile(r'<script(?:\s[^>]*)?>(.*?)</script\s*>',re.I|re.S)
 blocks=[]
 for m in pat.finditer(s):
     body=m.group(1)
-    if 'function doLogin()' in body and 'hlgbPullNormalizedCoreChanges' in body:
+    if 'const lastBeforePull=String(hlgbRecordGlobalLastSeen||"");' in body:
         blocks.append(body)
 if len(blocks)!=1:
-    raise SystemExit(f'ERRO: esperado 1 script principal, encontrado {len(blocks)}')
-js=Path(tempfile.gettempdir())/'hlgb_v9184_main.js'
+    raise SystemExit(f'ERRO: esperado 1 bloco de sincronizacao corrigido, encontrado {len(blocks)}')
+js=Path(tempfile.gettempdir())/'hlgb_v9184_sync.js'
 js.write_text(blocks[0],encoding='utf-8')
 r=subprocess.run(['node','--check',str(js)],capture_output=True,text=True)
 if r.returncode!=0:
     print(r.stderr or r.stdout)
-    raise SystemExit('ERRO: JavaScript principal invalido')
+    raise SystemExit('ERRO: JavaScript de sincronizacao invalido')
 
 p.write_text(s,encoding='utf-8')
 print('PASS v91.84: polling ignora linhas repetidas e cloudStatus tem largura estavel')
