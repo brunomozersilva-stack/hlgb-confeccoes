@@ -1,0 +1,36 @@
+name: Aplicar HLGB v91.87 estabilidade login
+on:
+  push:
+    paths:
+      - 'scripts/hlgb_v9187_defer_wal_boot.py'
+      - '.github/workflows/hlgb-apply-v9187.yml'
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+      - name: Aplicar e validar v91.87
+        run: |
+          python scripts/hlgb_v9187_defer_wal_boot.py
+          grep -q 'HLGB_STABILITY_V9187_DEFER_WAL_UNTIL_AUTH' index.html
+          grep -q 'let bootStarted955=false,bootWaitTimer955=null;' index.html
+          grep -q "if(typeof cloudAccessToken==='undefined'||!cloudAccessToken)return false;" index.html
+          ! grep -Fq "function boot955(){mount955();install955();wrapGeneric955();mergeIdb955()" index.html
+          ! grep -q '329474 bytes omitted' index.html
+          test $(wc -c < index.html) -gt 1000000
+      - name: Publicar v91.87
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add index.html
+          if git diff --cached --quiet; then exit 0; fi
+          git commit -m "Publicar HLGB v91.87 - adiar sincronização local até login"
+          git push
