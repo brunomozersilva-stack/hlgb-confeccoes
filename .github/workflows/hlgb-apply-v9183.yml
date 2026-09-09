@@ -2,7 +2,7 @@ name: Aplicar HLGB v91.83 corrigir JavaScript do login
 on:
   push:
     paths:
-      - 'scripts/hlgb_v9183_relocate_v9179.py'
+      - 'scripts/hlgb_v9183_recover_truncated_index.py'
       - '.github/workflows/hlgb-apply-v9183.yml'
   workflow_dispatch:
 permissions:
@@ -18,10 +18,10 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - name: Aplicar reparo estrutural e registrar diagnostico
+      - name: Recuperar index e validar v91.83
         run: |
           mkdir -p debug
-          if python scripts/hlgb_v9183_relocate_v9179.py > debug/v9183-repair.log 2>&1; then
+          if python scripts/hlgb_v9183_recover_truncated_index.py > debug/v9183-recover.log 2>&1; then
             echo PASS > debug/v9183-status.txt
           else
             git checkout -- index.html
@@ -32,16 +32,17 @@ jobs:
           if grep -q '^FAIL$' debug/v9183-status.txt; then
             git config user.name "github-actions[bot]"
             git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-            git add debug/v9183-repair.log debug/v9183-status.txt
-            git commit -m "Diagnostico reparo v91.83 [skip ci]" || true
+            git add debug/v9183-recover.log debug/v9183-status.txt
+            git commit -m "Diagnostico recuperacao v91.83 [skip ci]" || true
             git push || true
-            cat debug/v9183-repair.log
+            cat debug/v9183-recover.log
             exit 1
           fi
-      - name: Confirmar versao e login
+      - name: Confirmar versao e integridade
         run: |
           grep -q 'Versão v91.83' index.html
           grep -q 'function doLogin()' index.html || grep -q 'function doLogin(){' index.html
+          ! grep -q '329474 bytes omitted' index.html
           test "$(grep -c '<!-- HLGB_V9179_START -->' index.html)" -eq 1
           test "$(grep -c '<!-- HLGB_V9179_END -->' index.html)" -eq 1
       - name: Publicar alteracao
@@ -50,5 +51,5 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add index.html
           if git diff --cached --quiet; then exit 0; fi
-          git commit -m "Publicar HLGB v91.83 - reparar JavaScript do login"
+          git commit -m "Publicar HLGB v91.83 - recuperar index e corrigir login"
           git push
