@@ -38,10 +38,10 @@ function period9185(arr,prefix){return arr.filter(e=>due9185(e).startsWith(prefi
 async function saveHub9185(next){
   if(!next||next.id==null)throw new Error('Lançamento sem id.');
   if(typeof cloudEnsureFreshSession==='function')await cloudEnsureFreshSession(false);
-  if(!window.hlgbRecordReady&&typeof hlgbEnsureRecordsOnlineAfterLogin==='function'){
+  if(!hlgbRecordReady&&typeof hlgbEnsureRecordsOnlineAfterLogin==='function'){
     let ok=await hlgbEnsureRecordsOnlineAfterLogin();if(!ok)throw new Error('A nuvem não ficou disponível.');
   }
-  if(typeof hlgbRecordSaveWithRetry!=='function'||!window.cloudAccessToken)throw new Error('Sincronização por registro indisponível.');
+  if(typeof hlgbRecordSaveWithRetry!=='function'||!cloudAccessToken)throw new Error('Sincronização por registro indisponível.');
   let out=await hlgbRecordSaveWithRetry('hubFinanceEntries',String(next.id),c9185(next),false);
   if(!out?.applied)throw new Error('A nuvem não confirmou a alteração.');
   let confirmed=out.data||next,arr=db.hubFinanceEntries=Array.isArray(db.hubFinanceEntries)?db.hubFinanceEntries:[],i=arr.findIndex(x=>String(x?.id)===String(next.id));
@@ -61,7 +61,9 @@ window.quickEditHub9185=function(id){
   });
 };
 window.toggleHubQuick9185=async function(id){
-  let e=(db.hubFinanceEntries||[]).find(x=>String(x.id)===String(id));if(!e)return,done=isDone9185(e),next={...e,status:done?'Previsto':'Realizado',updatedAt:new Date().toISOString()};
+  let e=(db.hubFinanceEntries||[]).find(x=>String(x.id)===String(id));
+  if(!e)return;
+  let done=isDone9185(e),next={...e,status:done?'Previsto':'Realizado',updatedAt:new Date().toISOString()};
   next.realizedAt=next.status==='Realizado'?(e.realizedAt||isoDate(new Date())):'';
   try{await saveHub9185(next);renderHubFinance()}catch(err){console.error(err);alert('A mudança não foi confirmada na nuvem. Nada foi alterado.');}
 };
