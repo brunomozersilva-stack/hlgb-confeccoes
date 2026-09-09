@@ -1,0 +1,42 @@
+name: Aplicar HLGB v91.79
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - 'scripts/hlgb_v9179_patch.py'
+      - '.github/workflows/hlgb-apply-v9179.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Aplicar patch v91.79
+        run: python scripts/hlgb_v9179_patch.py
+
+      - name: Validar HTML
+        run: |
+          grep -q 'HLGB_V9179_START' index.html
+          grep -q 'Programar corte — qualquer modelo' index.html
+          grep -q 'Relatório do cliente' index.html
+          grep -q 'Projeção semanal dos cortadores' index.html
+
+      - name: Commitar publicação
+        run: |
+          if git diff --quiet -- index.html; then
+            echo 'Nenhuma alteração necessária.'
+            exit 0
+          fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add index.html
+          git commit -m 'Publicar HLGB v91.79'
+          git push
