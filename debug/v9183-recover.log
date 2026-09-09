@@ -1,4 +1,20 @@
 index bytes=1075888 backup bytes=1364272
 placeholder count= 1
-left anchor len=None pos=None; right anchor len=None pos=None
-ERRO: nao foi possivel localizar ancoras unicas no backup v91.74
+left anchor current=547796 backup=518237 lineIndex=8535 lines=4
+right anchor current=1 backup=843645 lineIndex=1 lines=4
+LEFT ANCHOR: '     }else total+=(f.status==="Parcial"?(+f.paid||0):(+f.value||0));\n   }\n });\n\n'
+RIGHT ANCHOR: 'ccepted.length){alert("Marque pelo menos uma forma de pagamento aceita.");return null}let value=+document.getElementById("hubEntryValue")?.value||0;if(value<=0){alert("Informe um valor maior que zero.");return null}let desc=(document.getElementById("hubEntryDesc")?.value||"").trim();if(!desc){alert('
+recovered chars=325328 bytes=327062
+index reconstruido chars=1394544 bytes=1402913
+login script blocks= 1
+/tmp/hlgb_v9183_recovered_main.js:9844
+let hlgbRecordReady=false;
+    ^
+
+SyntaxError: Identifier 'hlgbRecordReady' has already been declared
+    at wrapSafe (node:internal/modules/cjs/loader:1713:18)
+    at checkSyntax (node:internal/main/check_syntax:78:3)
+
+Node.js v22.23.2
+
+ERRO: JavaScript principal ainda contem erro de sintaxe
