@@ -6,7 +6,7 @@
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
-<title>HLGB Confecções — Sistema de Gestão v91.94 Multiusuário</title>
+<title>HLGB Confecções — Sistema de Gestão v91.95 Multiusuário</title>
 <style>
 :root{--navy:#6f3f59;--orange:#c96b8f;--bg:#fbf6f8;--line:#eadde4;--text:#30262c;--muted:#786b73;--ok:#e9f7ef;--warn:#fff5df;--bad:#fdeaea;--rose:#f3dbe5;--rose2:#fff8fb}
 *{box-sizing:border-box}body{margin:0;font-family:Arial,Helvetica,sans-serif;background:var(--bg);color:var(--text)}
@@ -320,7 +320,7 @@ main{min-width:0;}
 })();
 </script>
 
-<div id="appShell" style="display:none"><header><div class="logo">HLGB <b>CONFECÇÕES</b> <small style="font-size:10px;opacity:.8">v91.94</small></div><div><span id="cloudStatus" style="margin-right:10px;font-size:12px;padding:6px 9px;border:1px solid #ffffff44;border-radius:8px">☁️ Nuvem</span><span id="currentUserLabel" style="margin-right:10px;font-size:13px"></span><button id="cloudSaveBtn" onclick="cloudUploadCurrentDb(true)" style="display:none" title="Sincronização automática">🔄 Sincronizar agora</button> <button id="backupBtn" onclick="backup()" style="display:none">Exportar backup</button> <button id="importBackupBtn" onclick="document.getElementById('backupImportInput').click()" style="display:none">Importar backup</button><input id="backupImportInput" type="file" accept=".json,application/json" style="display:none" onchange="importBackupFile(this)"> <button onclick="logout()">Sair</button></div></header>
+<div id="appShell" style="display:none"><header><div class="logo">HLGB <b>CONFECÇÕES</b> <small style="font-size:10px;opacity:.8">v91.95</small></div><div><span id="cloudStatus" style="margin-right:10px;font-size:12px;padding:6px 9px;border:1px solid #ffffff44;border-radius:8px">☁️ Nuvem</span><span id="currentUserLabel" style="margin-right:10px;font-size:13px"></span><button id="cloudSaveBtn" onclick="cloudUploadCurrentDb(true)" style="display:none" title="Sincronização automática">🔄 Sincronizar agora</button> <button id="backupBtn" onclick="backup()" style="display:none">Exportar backup</button> <button id="importBackupBtn" onclick="document.getElementById('backupImportInput').click()" style="display:none">Importar backup</button><input id="backupImportInput" type="file" accept=".json,application/json" style="display:none" onchange="importBackupFile(this)"> <button onclick="logout()">Sair</button></div></header>
 <div class="app">
 <aside><nav id="nav" class="clean-nav">
 <button class="nav-home active" onclick="page('dashboard',this)">🏠 <span>Início</span></button>
@@ -10833,30 +10833,58 @@ let hlgbOnlineUserDirectoryRefreshing=false;
 let hlgbOnlineUserDirectoryLast=0;
 async function refreshOnlineUserDirectory(){
  if(!isOwnerUser()||!cloudAccessToken||hlgbOnlineUserDirectoryRefreshing)return false;
- if(Date.now()-hlgbOnlineUserDirectoryLast<10000)return false;
+ if(Date.now()-hlgbOnlineUserDirectoryLast<3000)return false;
  hlgbOnlineUserDirectoryRefreshing=true;
  try{
-  let rows=await cloudRequest("hlgb_user_access?select=auth_id,email,name,active,access&order=updated_at.desc",{method:"GET"});
+  let rows=await cloudRequest("hlgb_user_access?select=auth_id,email,name,role,active,access&order=updated_at.desc",{method:"GET"});
   rows=Array.isArray(rows)?rows:[];
+  db.users=Array.isArray(db.users)?db.users:[];
   let changed=false;
-  for(const u of (db.users||[])){
-   if(u.role==="admin")continue;
+
+  // 1) Atualiza perfis locais que já existem.
+  for(const u of db.users){
+   if(u.role==="admin"&&normEmail(u.user||u.email)===normEmail(HLGB_OWNER_EMAIL))continue;
    let currentEmail=normEmail(u.user||u.email);
    let match=currentEmail?rows.find(r=>normEmail(r.email)===currentEmail):null;
+   if(!match&&u.authId)match=rows.find(r=>String(r.auth_id||'')===String(u.authId));
    if(!match){
     let key=normalizePersonKey(u.name||u.loginAlias||u.user||"");
-    let matches=rows.filter(r=>r.active!==false&&normalizePersonKey(r.name||"")===key);
+    let matches=rows.filter(r=>normalizePersonKey(r.name||"")===key);
     matches.sort((a,b)=>(b.auth_id?1:0)-(a.auth_id?1:0));
     match=matches[0]||null;
    }
    if(!match)continue;
-   let em=normEmail(match.email);
-   if(em && normEmail(u.user||u.email)!==em){u.user=em;u.email=em;changed=true}
-   if(match.auth_id && String(u.authId||"")!==String(match.auth_id)){u.authId=String(match.auth_id);changed=true}
+   let em=normEmail(match.email),uid=String(match.auth_id||'');
+   if(em&&normEmail(u.user||u.email)!==em){u.user=em;u.email=em;changed=true}
+   if(uid&&String(u.authId||'')!==uid){u.authId=uid;changed=true}
+   let nextName=String(match.name||u.name||em);if(nextName&&u.name!==nextName){u.name=nextName;changed=true}
    if(!u.onlineReady){u.onlineReady=true;changed=true}
    let nextActive=match.active!==false;if(u.active!==nextActive){u.active=nextActive;changed=true}
-   if(Array.isArray(match.access)&&match.access.length && (!Array.isArray(u.access)||!u.access.length)){u.access=match.access.slice();changed=true}
+   let nextRole=em===normEmail(HLGB_OWNER_EMAIL)?'admin':String(match.role||u.role||'user');if(u.role!==nextRole){u.role=nextRole;changed=true}
+   if(Array.isArray(match.access)&&JSON.stringify(u.access||[])!==JSON.stringify(match.access)){u.access=match.access.slice();changed=true}
   }
+
+  // 2) Se existe na nuvem e sumiu do db.users local, recria apenas a entrada visual/local.
+  // A fonte continua sendo hlgb_user_access; nenhum usuário é recriado no Supabase Auth.
+  for(const r of rows){
+   let em=normEmail(r.email),uid=String(r.auth_id||'');
+   if(!em)continue;
+   let existing=db.users.find(u=>(uid&&String(u.authId||'')===uid)||normEmail(u.user||u.email)===em);
+   if(existing)continue;
+   let profile={
+    id:Date.now()+Math.random(),
+    name:r.name||em,
+    user:em,
+    email:em,
+    authId:uid,
+    role:em===normEmail(HLGB_OWNER_EMAIL)?'admin':String(r.role||'user'),
+    active:r.active!==false,
+    access:Array.isArray(r.access)?r.access.slice():[],
+    onlineReady:true
+   };
+   db.users.push(profile);changed=true;
+  }
+
   hlgbOnlineUserDirectoryLast=Date.now();
   if(changed){try{localSaveOnly()}catch(e){} renderUsers()}
   return changed;
@@ -17268,7 +17296,7 @@ try{const base=window.renderCuts;window.renderCuts=function(){let r=base?.apply(
 try{const base=window.renderDailyCuts;window.renderDailyCuts=function(){let r=base?.apply(this,arguments);setTimeout(enhanceGradeButtons9191,0);return r}}catch(e){}
 try{const base=window.renderCutters;window.renderCutters=function(){let r=base?.apply(this,arguments);setTimeout(()=>{try{window.hlgbRenderCutterExcel9179?.()}catch(e){}},0);return r}}catch(e){}
 
-setTimeout(()=>{try{let x=document.querySelector('#appShell .logo small');if(x)x.textContent='v91.93';document.title='HLGB Confecções — Sistema de Gestão v91.94 Multiusuário'}catch(e){}},0);
+setTimeout(()=>{try{let x=document.querySelector('#appShell .logo small');if(x)x.textContent='v91.93';document.title='HLGB Confecções — Sistema de Gestão v91.95 Multiusuário'}catch(e){}},0);
 console.log('HLGB v91.93: cortadores clean, ajuste de grade, status de corte na fila e capacidade por atribuição.');
 })();
 </script>
@@ -17456,7 +17484,7 @@ function enhance(){
 const prev=window.renderCapacityPlanning;
 if(typeof prev==='function')window.renderCapacityPlanning=function(){let r=prev.apply(this,arguments);setTimeout(enhance,35);return r};
 try{if(typeof hlgbAfterLogin==='function')hlgbAfterLogin(()=>setTimeout(()=>{try{window.renderCapacityPlanning?.()}catch(_){}},550),0)}catch(_){}
-console.log('HLGB v91.94: identidade exata por produto e troca segura de destino.');
+console.log('HLGB v91.95: identidade exata por produto e troca segura de destino.');
 })();
 </script>
 <!-- HLGB_V9194_END -->
