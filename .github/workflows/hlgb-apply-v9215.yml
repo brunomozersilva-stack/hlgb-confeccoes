@@ -1,0 +1,47 @@
+name: Aplicar HLGB v92.15 corrigir Central de Notas
+on:
+  push:
+    paths:
+      - 'scripts/hlgb_v9215_notes_page_fix.py'
+      - '.github/workflows/hlgb-apply-v9215.yml'
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Montar página v92.15
+        run: python scripts/hlgb_v9215_notes_page_fix.py
+      - name: Validar Central de Notas e JavaScript novo
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          s=Path('app9215.html').read_text(encoding='utf-8')
+          req=['id="loginUser"','id="loginPass"','onclick="return doLogin()"','id="hlgbNotesCentral9215"','id="hlgbNoteAssemblyHost9215"','id="hlgbNotesHistoryHost9215"','HLGB_V9215_NOTES_PAGE_FIX_START','hlgbRefreshNotes9215','loadExact9215(\'projectionInvoices\')','loadExact9215(\'noteQueue\')','groupNote9202']
+          miss=[x for x in req if x not in s]
+          if miss: raise SystemExit('Itens obrigatórios ausentes: '+repr(miss))
+          a=s.index('<!-- HLGB_V9215_NOTES_PAGE_FIX_START -->');b=s.index('<!-- HLGB_V9215_NOTES_PAGE_FIX_END -->',a)
+          block=s[a:b]
+          if 'MutationObserver' in block: raise SystemExit('Observer não permitido no bloco v92.15')
+          js=block.split('<script>',1)[1].rsplit('</script>',1)[0]
+          Path('/tmp/v9215.js').write_text(js,encoding='utf-8')
+          if s.index('id="hlgbNotesCentral9215"')>s.index('id="hlgbReadyNote9196Panel"'): raise SystemExit('Central de Notas não ficou no topo da página Notas')
+          print('Estrutura v92.15 OK')
+          PY
+          node --check /tmp/v9215.js
+      - name: Publicar v92.15
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add app9215.html abrir.html
+          if git diff --cached --quiet; then exit 0; fi
+          git commit -m "Publicar HLGB v92.15 - Central de Notas e histórico na página correta"
+          git push
