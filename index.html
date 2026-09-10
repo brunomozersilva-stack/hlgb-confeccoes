@@ -18659,7 +18659,7 @@ function decorate(){
  rows.forEach(btn=>{const m=String(btn.getAttribute('onclick')||'').match(/registerFactionDelivery935\(([^)]+)\)/);if(!m)return;const id=String(m[1]).replace(/[\"']/g,'').trim();const f=(db.factions||[]).find(x=>String(x.id)===id);if(!f||pendingQty(f)<=0)return;const td=btn.parentElement;if(!td||td.querySelector('.toNotes9201'))return;const b=document.createElement('button');b.className='secondary toNotes9201';b.type='button';b.textContent='🧾 Enviar para Notas';b.onclick=()=>window.sendFactionDeliveryToNotes9201(id);td.appendChild(document.createTextNode(' '));td.appendChild(b)});
 }
 const mo=new MutationObserver(decorate);mo.observe(document.documentElement,{childList:true,subtree:true});setTimeout(decorate,600);setTimeout(decorate,1800);
-console.log('[HLGB] v92.02 facção -> fila de notas carregado');
+console.log('[HLGB] v92.05 facção -> fila de notas carregado');
 })();
 </script>
 <!-- HLGB_V9201_END -->
@@ -18684,7 +18684,7 @@ async function saveRow(module,row){
 }
 async function loadQueue(){
  if(typeof cloudRequest!=='function')return false;
- try{let rows=await cloudRequest('hlgb_records?select=entity_id,data,deleted_at&module=eq.noteQueue&order=updated_at.asc&limit=2000',{method:'GET'});if(!Array.isArray(rows))return false;let remote=rows.filter(r=>!r.deleted_at&&r.data).map(r=>clone(r.data)),map=new Map(remote.map(x=>[String(x.id),x]));arr('noteQueue').forEach(x=>{if(x?.id!=null&&!map.has(String(x.id)))remote.push(x)});db.noteQueue=remote;local();return true}catch(e){console.warn('v92.02 fila notas',e);return false}
+ try{let rows=await cloudRequest('hlgb_records?select=entity_id,data,deleted_at&module=eq.noteQueue&order=updated_at.asc&limit=2000',{method:'GET'});if(!Array.isArray(rows))return false;let remote=rows.filter(r=>!r.deleted_at&&r.data).map(r=>clone(r.data)),map=new Map(remote.map(x=>[String(x.id),x]));arr('noteQueue').forEach(x=>{if(x?.id!=null&&!map.has(String(x.id)))remote.push(x)});db.noteQueue=remote;local();return true}catch(e){console.warn('v92.05 fila notas',e);return false}
 }
 function clientForOrder(o){let c=arr('clients').find(x=>String(x.id)===String(o?.clientId));return {id:c?.id||o?.clientId||null,name:c?.name||o?.client||'Sem cliente'}}
 function priceFor(cid,pid,fallback){try{if(typeof suggestedPrice==='function'){let v=+suggestedPrice(cid,pid)||0;if(v)return v}}catch(e){}let p=arr('products').find(x=>String(x.id)===String(pid));return +((p?.clientPrices||{})[String(cid)]??p?.price??fallback??0)||0}
@@ -18725,7 +18725,7 @@ window.groupNote9202=function(){
 window.renderNoteQueue9202=renderQueue;
 const mo=new MutationObserver(()=>{decorateProjection();if(document.getElementById('projectionNotes9200')||document.getElementById('orderNotesTable'))renderQueue()});mo.observe(document.documentElement,{childList:true,subtree:true});
 setTimeout(async()=>{await loadQueue();decorateProjection();renderQueue()},700);setTimeout(()=>{decorateProjection();renderQueue()},1900);
-console.log('[HLGB] v92.02 planejamento/fila/notas agrupadas carregado');
+console.log('[HLGB] v92.05 planejamento/fila/notas agrupadas carregado');
 })();
 </script>
 <!-- HLGB_V9202_END -->
