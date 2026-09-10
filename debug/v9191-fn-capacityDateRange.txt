@@ -1,0 +1,1 @@
+function capacityDateRange(){let s=document.getElementById('capacityStart'),e=document.getElementById('capacityEnd'),now=new Date();if(!s||!e)return['',''];if(!s.value||!e.value){let d=new Date(now);let day=(d.getDay()+6)%7;d.setDate(d.getDate()-day);s.value=isoDate(d);let z=new Date(d);z.setDate(z.getDate()+4);e.value=isoDate(z)}return[s.value,e.value]}

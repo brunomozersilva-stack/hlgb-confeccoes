@@ -1,0 +1,279 @@
+salePrice])if(q944(v)>0)return q944(v);let pid=String(item?.productId||item?.key||''),g=(o?.grade||[]).find(x=>String(x.productId)===pid&&(q944(x.unitPrice)>0||q944(x.price)>0));if(g)return q944(g.unitPrice||g.price);let p=prod944(pid),cid=String(item?.clientId||o?.clientId||''),cp=p?.clientPrices||{};if(cid&&own944(cp,cid))return q944(cp[cid]);let c=cli944(cid);if(own944(c?.prices||{},pid))return q944(c.prices[pid]);if(q944(p?.price)>0)return q944(p.price);let oq=orderQty944(o);return oq?q944(o?.total)/oq:0}
+function rem944(item){return item?.remainingQty!=null?q944(item.remainingQty):Math.max(0,q944(item?.qty)-q944(item?.invoicedQty))}
+function match944(row,item){let k=String(item?.productId||item?.key||'');return String(row?.productId||'')===k||String(row?.cutProductKey||'').split(':').pop()===k}
+function active944(){let out=[];(db.orders||[]).forEach(o=>{let st=n944(o.status);if(o.deletedAt||st==='cancelado'||st==='cancelada'||st==='entregue'||st==='finalizado')return;orderItems944(o).forEach(item=>{let pid=String(item.productId||item.key||''),missing=(db.missingPieces||[]).filter(m=>String(m.orderId)===String(o.id)&&String(m.productId||'')===pid&&n944(m.status)!=='resolvido').reduce((s,m)=>s+q944(m.remainingQty),0),qty=Math.max(0,rem944(item)-missing);if(qty>0)out.push({o,item,qty})})});return out}
+function dests944(){let out=[];(db.productionLocations||[]).filter(x=>x.active!==false&&n944(x.name)!=='externo').forEach(x=>out.push({key:`L:${x.id}`,id:x.id,type:'Confecção',name:x.name||'Confecção'}));(db.factionMasters||[]).filter(x=>x.active!==false).forEach(x=>out.push({key:`F:${x.id}`,id:x.id,type:'Facção',name:x.name||'Facção'}));return out}
+function group944(){let dests=dests944(),map=new Map(dests.map(d=>[d.key,{dest:d,rows:[]}])) ,unassigned=[];active944().forEach(({o,item,qty})=>{let left=qty,key=String(item.productId||item.key||''),prods=(db.production||[]).filter(p=>+p.orderId===+o.id&&q944(p.planned)>q944(p.done)&&match944(p,item)).sort((a,b)=>q944(a.queueRank)-q944(b.queueRank));for(const p of prods){let dk=p.factionId?`F:${p.factionId}`:(p.productionLocationId?`L:${p.productionLocationId}`:''),take=Math.min(left,Math.max(0,q944(p.planned)-q944(p.done)));if(take>0&&map.has(dk)){map.get(dk).rows.push({kind:'production',row:p,o,item,qty:take,value:take*price944(o,item),rank:q944(p.queueRank)||999999});left-=take}if(left<=0)break}if(left>0){let represented=new Set(prods.map(p=>String(p.id))),factions=(db.factions||[]).filter(f=>String(f.orderId)===String(o.id)&&match944(f,item)&&!represented.has(String(f.productionId)));for(const f of factions){let master=(db.factionMasters||[]).find(m=>String(m.id)===String(f.factionId)||n944(m.name)===n944(f.name||f.factionName)),dk=master?`F:${master.id}`:(f.productionLocationId?`L:${f.productionLocationId}`:''),take=Math.min(left,Math.max(0,q944(f.remainingQty!=null?f.remainingQty:q944(f.sent)-q944(f.done))));if(take>0&&map.has(dk)){map.get(dk).rows.push({kind:'faction',row:f,o,item,qty:take,value:take*price944(o,item),rank:q944(f.queueRank)||999999});left-=take}if(left<=0)break}}if(left>0){let plans=(db.capacityAssignments||[]).filter(a=>+a.orderId===+o.id&&String(a.itemKey)===key&&a.active!==false&&String(a.source||'')!=='cut_assignment'&&q944(a.qty)>q944(a.consumedQty)).sort((a,b)=>q944(a.queueRank)-q944(b.queueRank));for(const a of plans){let dk=a.factionId?`F:${a.factionId}`:(a.locationId?`L:${a.locationId}`:''),take=Math.min(left,Math.max(0,q944(a.qty)-q944(a.consumedQty)));if(take>0&&map.has(dk)){map.get(dk).rows.push({kind:'assignment',row:a,o,item,qty:take,value:take*price944(o,item),rank:q944(a.queueRank)||999999});left-=take}if(left<=0)break}}if(left>0)unassigned.push({o,item,qty:left,value:left*price944(o,item)})});for(const lane of map.values())lane.rows.sort((a,b)=>a.rank-b.rank||String(a.o.date||'').localeCompare(String(b.o.date||''))||String(a.o.id).localeCompare(String(b.o.id)));return {dests,map,unassigned}}
+window.capacitySetFilter944=function(v){capFilter944=String(v||'');renderCapacity944()};
+function renderCapacity944(){let root=document.getElementById('capacity940Root');if(!root)return;let {dests,map,unassigned}=group944(),all=[...map.values()],assignedValue=all.reduce((s,l)=>s+l.rows.reduce((a,r)=>a+q944(r.value),0),0),unValue=unassigned.reduce((s,r)=>s+q944(r.value),0),totalValue=assignedValue+unValue;if(capFilter944&&!dests.some(d=>d.key===capFilter944))capFilter944='';let lanes=all.filter(l=>!capFilter944||l.dest.key===capFilter944),opts=dests.slice().sort((a,b)=>a.type.localeCompare(b.type)||a.name.localeCompare(b.name,'pt-BR')).map(d=>`<option value="${d.key}" ${d.key===capFilter944?'selected':''}>${esc(d.type)} — ${esc(d.name)}</option>`).join('');let laneHtml=lanes.map(l=>{let val=l.rows.reduce((s,r)=>s+q944(r.value),0),qty=l.rows.reduce((s,r)=>s+q944(r.qty),0),rows=l.rows.map((r,i)=>{let model=r.item.name||prod944(r.item.productId)?.name||r.row.product||'Produto',clientName=r.item.clientName||r.o.client||'-',move=r.kind==='faction'?'<span class="badge ok">Na facção</span>':`<button class="secondary" style="padding:5px 7px" onclick="moveCapacityQueue940('${r.kind}','${r.row.id}',-1)" ${i===0?'disabled':''}>↑</button><button class="secondary" style="padding:5px 7px" onclick="moveCapacityQueue940('${r.kind}','${r.row.id}',1)" ${i===l.rows.length-1?'disabled':''}>↓</button>`;return `<div class="cap944-row"><div><b>${esc(model)}</b><small>Pedido #${esc(typeof displayOrderNumber==='function'?displayOrderNumber(r.o):r.o.id)} · ${esc(clientName)}</small></div><div><b>${q944(r.qty).toLocaleString('pt-BR')}</b><small>peças</small></div><div class="cap944-money">${fmt944(r.value)}</div><div class="cap944-actions">${move}${r.kind==='assignment'?`<button class="danger" style="padding:5px 7px" onclick="removeCapacityQueue940('${r.row.id}')">×</button>`:''}</div></div>`}).join('');return `<div class="cap944-lane"><div class="cap944-lane-head"><div class="cap944-lane-title"><div><b style="font-size:16px">${esc(l.dest.name)}</b><div class="sub">${esc(l.dest.type)} · ${l.rows.length} modelo(s)</div></div><span class="badge ${l.rows.length?'ok':''}">${fmt944(val)}</span></div><div class="sub" style="margin-top:7px"><b>Valor total programado: ${fmt944(val)}</b> · ${qty.toLocaleString('pt-BR')} peças apenas como detalhe dos modelos</div></div>${rows||'<div class="empty" style="padding:16px">Nenhum modelo programado neste local.</div>'}</div>`}).join('');let unRows=unassigned.map(r=>`<div class="cap944-unassigned-row"><div><b>#${esc(typeof displayOrderNumber==='function'?displayOrderNumber(r.o):r.o.id)}</b><div class="sub">${esc(r.item.clientName||r.o.client||'-')}</div></div><div><b>${esc(r.item.name||'Produto')}</b></div><b>${q944(r.qty).toLocaleString('pt-BR')} pç</b><div class="cap944-money">${fmt944(r.value)}</div><button class="primary" onclick="openCapacityAssign940(${r.o.id},'${String(r.item.key||r.item.productId).replace(/'/g,"\\'")}')">Escolher quem vai produzir</button></div>`).join('');root.innerHTML=`<div class="panel"><div class="cap944-toolbar"><div><h2 style="margin-bottom:4px">🏭 Planejamento por capacidade — valor total</h2><div class="sub">O resumo da capacidade agora usa <b>valor total em R$</b>. Peças aparecem somente dentro de cada modelo, porque modelos diferentes exigem capacidades diferentes.</div></div><div class="field cap944-filter"><label>Filtrar por local</label><select id="capacityLocation944" onchange="capacitySetFilter944(this.value)"><option value="">Todos os locais e facções</option>${opts}</select></div></div><div class="cap944-grid"><div class="card"><small>Valor ativo planejado</small><strong>${fmt944(totalValue)}</strong></div><div class="card"><small>Valor já com destino</small><strong>${fmt944(assignedValue)}</strong></div><div class="card"><small>Valor ainda sem destino</small><strong>${fmt944(unValue)}</strong></div><div class="card"><small>Locais / facções cadastrados</small><strong>${all.length}</strong></div></div></div><div class="panel"><h2>📌 Fila por local / facção</h2><div class="sub">Todos os locais e facções cadastrados aparecem abaixo, inclusive quando ainda não possuem modelos programados.</div><div class="cap944-lanes" style="margin-top:12px">${laneHtml||'<div class="empty">Nenhum local cadastrado para este filtro.</div>'}</div></div>${capFilter944?'':`<div class="panel"><h2>🟠 Modelos ainda sem destino</h2><div class="sub">Cada linha é um pedido diferente; confira o número antes de escolher o destino.</div><div class="cap944-unassigned">${unRows||'<div class="empty">Todos os modelos ativos já têm destino.</div>'}</div></div>`}`}
+const oldCapacity944=window.renderCapacityPlanning;
+window.renderCapacityPlanning=function(){try{if(typeof oldCapacity944==='function')oldCapacity944.apply(this,arguments)}catch(e){console.error('v91.44 capacidade base',e)}setTimeout(renderCapacity944,0)};
+
+function boot944(){bindPricing944();if(document.querySelector('.page.active')?.id==='capacidadeProducao')renderCapacityPlanning()}
+hlgbAfterLogin(()=>{setTimeout(boot944,350);setTimeout(boot944,1500);let prodPage=document.getElementById('produtos');if(prodPage)prodPage.__pricing944Watch='disabled-v9147'},0);
+})();
+</script>
+
+<!-- HLGB v91.48 DATA INTEGRITY + RECOVERY + CONFIRMED PAYROLL -->
+<script>
+(function(){
+'use strict';
+const V948='91.48';
+const PRE948='hlgb_v9148_precloud_snapshot';
+const DONE948='hlgb_v9148_recovery_done';
+const REPORT948='hlgb_v9148_integrity_report';
+const clone948=v=>{try{return JSON.parse(JSON.stringify(v))}catch(e){return v}};
+const now948=()=>new Date().toISOString();
+const recent948=v=>{let t=Date.parse(v||'');return Number.isFinite(t)&&t>=Date.now()-5*86400000};
+
+try{
+  if(typeof db!=='undefined'&&db&&typeof db==='object'){
+    localStorage.setItem(PRE948,JSON.stringify({savedAt:now948(),local:clone948(db)}));
+  }
+}catch(e){console.warn('HLGB v91.48 pre-cloud snapshot',e)}
+
+function recordModules948(){try{return Array.isArray(HLGB_RECORD_MODULES)?HLGB_RECORD_MODULES.slice():[]}catch(e){return []}}
+function keepRecords948(){
+  const out={};
+  for(const m of recordModules948()) if(Array.isArray(db?.[m])) out[m]=clone948(db[m]);
+  return out;
+}
+function restoreRecords948(keep){
+  if(!keep)return;
+  for(const [m,arr] of Object.entries(keep)) db[m]=clone948(arr);
+}
+let refreshBusy948=false;
+async function authoritative948(render=true){
+  if(refreshBusy948)return true;
+  refreshBusy948=true;
+  try{
+    if(typeof hlgbRecordLoadBundle==='function'&&typeof cloudAccessToken!=='undefined'&&cloudAccessToken){
+      await hlgbRecordLoadBundle({preserveLocal:false,since:null});
+      try{hlgbRecordReady=true;hlgbNormalizedReady=true}catch(e){}
+      try{localSaveOnly()}catch(e){}
+      if(render){try{const p=cloudApplying;cloudApplying=true;try{renderAll()}finally{cloudApplying=p}}catch(e){}}
+      return true;
+    }
+    return false;
+  }finally{refreshBusy948=false}
+}
+window.hlgb948AuthoritativeRefresh=authoritative948;
+
+const oldPull948=window.cloudPullRemoteIfNewer;
+if(typeof oldPull948==='function'){
+  window.cloudPullRemoteIfNewer=async function(){
+    const keep=keepRecords948();
+    let out;
+    try{out=await oldPull948.apply(this,arguments)}finally{
+      restoreRecords948(keep);
+      try{localSaveOnly()}catch(e){}
+    }
+    if(out){
+      try{await authoritative948(true)}catch(e){console.error('HLGB v91.48 authoritative pull',e);restoreRecords948(keep);try{localSaveOnly()}catch(_){}}
+    }
+    return out;
+  };
+}
+const oldSave948=window.cloudSaveNow;
+if(typeof oldSave948==='function'){
+  window.cloudSaveNow=async function(){
+    const keep=keepRecords948();
+    let out;
+    try{out=await oldSave948.apply(this,arguments)}finally{
+      restoreRecords948(keep);
+      try{localSaveOnly()}catch(e){}
+    }
+    if(typeof hlgbRecordReady!=='undefined'&&hlgbRecordReady){
+      try{await authoritative948(false)}catch(e){console.warn('HLGB v91.48 post legacy save refresh',e);restoreRecords948(keep)}
+    }
+    return out;
+  };
+}
+
+async function ensureReady948(){
+  if(typeof cloudEnsureFreshSession==='function')await cloudEnsureFreshSession(false);
+  if(typeof hlgbRecordReady!=='undefined'&&!hlgbRecordReady&&typeof hlgbEnsureRecordsOnlineAfterLogin==='function')await hlgbEnsureRecordsOnlineAfterLogin();
+  if(typeof hlgbRecordSaveWithRetry!=='function'||typeof hlgbRecordReady==='undefined'||!hlgbRecordReady)throw new Error('A nuvem por registro ainda não está pronta.');
+}
+
+window.togglePayrollPaid=async function(id){
+  let i=(db.payroll||[]).findIndex(x=>String(x.id)===String(id));if(i<0)return;
+  const before=clone948(db.payroll[i]);
+  const e=(db.employees||[]).find(x=>String(x.id)===String(before.employeeId))||{};
+  const calc=typeof payrollCalc==='function'?payrollCalc(before,e):{net:+before.paidValue||0};
+  const next={...before,updatedAt:now948()};
+  if(before.paid){
+    if(!confirm('Reabrir este pagamento como pendente?'))return;
+    next.paid=false;next.paidAt='';next.paidValue=0;
+  }else{
+    if(!confirm(`Marcar ${before.employeeName||'funcionário'} como PAGO em ${typeof money==='function'?money(calc.net):calc.net}?`))return;
+    next.paid=true;next.paidAt=typeof isoDate==='function'?isoDate(new Date()):new Date().toISOString().slice(0,10);next.paidValue=+calc.net||0;
+  }
+  db.payroll[i]=next;try{localSaveOnly()}catch(e){};try{renderPayroll()}catch(e){}
+  try{
+    await ensureReady948();
+    setCloudStatus('☁️ Confirmando pagamento na nuvem…');
+    const saved=await hlgbRecordSaveWithRetry('payroll',String(id),next,false);
+    if(!saved||saved.applied!==true)throw new Error('O Supabase não confirmou o pagamento.');
+    db.payroll[i]=clone948(saved.data||next);try{localSaveOnly()}catch(e){};try{renderPayroll()}catch(e){}
+    setCloudStatus('⚡ Online · pagamento confirmado','ok');
+  }catch(err){
+    db.payroll[i]=before;try{localSaveOnly()}catch(e){};try{renderPayroll()}catch(e){}
+    setCloudStatus('☁️ Pagamento não confirmado','bad');
+    alert('A marcação NÃO foi confirmada na nuvem e foi revertida nesta tela.\n\n'+String(err?.message||err));
+  }
+};
+
+window.deletePayrollRow=async function(id){
+  let i=(db.payroll||[]).findIndex(x=>String(x.id)===String(id));if(i<0)return;
+  const row=clone948(db.payroll[i]),label=`${row.employeeName||'Funcionário'} — ${row.month||''}`;
+  if(!confirm(`Excluir a folha de ${label}? Isso remove somente este lançamento mensal.`))return;
+  try{
+    await ensureReady948();
+    const saved=await hlgbRecordSaveWithRetry('payroll',String(id),row,true);
+    if(!saved||saved.applied!==true)throw new Error('O Supabase não confirmou a exclusão.');
+    db.payroll.splice(i,1);try{localSaveOnly()}catch(e){};try{renderPayroll()}catch(e){};
+  }catch(err){alert('A folha foi mantida porque a exclusão não foi confirmada na nuvem.\n\n'+String(err?.message||err))}
+};
+
+window.toggleHubFinanceEntry=async function(id){
+  let i=(db.hubFinanceEntries||[]).findIndex(x=>String(x.id)===String(id));if(i<0)return;
+  const before=clone948(db.hubFinanceEntries[i]);
+  const next={...before,status:before.status==='Realizado'?'Previsto':'Realizado',updatedAt:now948()};
+  next.realizedAt=next.status==='Realizado'?(typeof isoDate==='function'?isoDate(new Date()):new Date().toISOString().slice(0,10)):'';
+  try{
+    await ensureReady948();
+    const saved=await hlgbRecordSaveWithRetry('hubFinanceEntries',String(id),next,false);
+    if(!saved||saved.applied!==true)throw new Error('O Supabase não confirmou a alteração do Hub.');
+    db.hubFinanceEntries[i]=clone948(saved.data||next);try{localSaveOnly()}catch(e){};try{renderHubFinance()}catch(e){}
+  }catch(err){db.hubFinanceEntries[i]=before;try{localSaveOnly()}catch(e){};try{renderHubFinance()}catch(e){};alert('A alteração do Hub NÃO foi confirmada e foi revertida.\n\n'+String(err?.message||err))}
+};
+
+function readJson948(key){try{return JSON.parse(localStorage.getItem(key)||'null')}catch(e){return null}}
+function cloudRow948(module,id){return (db?.[module]||[]).find(x=>String(x.id)===String(id))||null}
+function snap948(module,id){try{return hlgbRecordSnapshots?.[module]?.get(String(id))||null}catch(e){return null}}
+async function saveRecovered948(module,id,data,report,label){
+  const out=await hlgbRecordSaveWithRetry(module,String(id),clone948(data),false);
+  if(!out||out.applied!==true)throw new Error(`Recuperação não confirmada: ${module}/${id}`);
+  const arr=Array.isArray(db[module])?db[module]:[];let i=arr.findIndex(x=>String(x.id)===String(id));
+  if(i>=0)arr[i]=clone948(out.data||data);else arr.push(clone948(out.data||data));db[module]=arr;
+  report.recovered.push({module,id:String(id),label:label||''});
+}
+function audit948(){
+  const modules={};
+  for(const m of recordModules948()){
+    const snap=(()=>{try{return hlgbRecordSnapshots?.[m]}catch(e){return null}})();
+    let active=0,deleted=0,last='';
+    if(snap instanceof Map)for(const r of snap.values()){if(r?.deleted_at)deleted++;else active++;if(String(r?.updated_at||'')>last)last=String(r.updated_at||'')}
+    const local=Array.isArray(db?.[m])?db[m].length:0;
+    modules[m]={cloudActive:active,cloudDeleted:deleted,loaded:local,lastUpdated:last,consistent:active===local};
+  }
+  return modules;
+}
+
+async function recover948(){
+  if(readJson948(DONE948)?.version===V948)return;
+  if(typeof cloudAccessToken==='undefined'||!cloudAccessToken||typeof hlgbRecordReady==='undefined'||!hlgbRecordReady){setTimeout(recover948,900);return}
+  const report={version:V948,startedAt:now948(),pendingBefore:0,recovered:[],errors:[],modules:{}};
+  try{
+    const pending=typeof hlgbRecordPendingRead==='function'?hlgbRecordPendingRead():null;
+    if(pending?.modules){report.pendingBefore=Object.values(pending.modules).reduce((n,a)=>n+(Array.isArray(a)?a.length:0),0)}
+    if(report.pendingBefore){
+      await hlgbLoadNormalizedCore({preserveLocal:true});
+      await hlgbNormalizedSyncNow(false);
+    }
+    await authoritative948(false);
+
+    const sources=[readJson948(PRE948),readJson948(typeof HLGB_CLOUD_CONFLICT_KEY!=='undefined'?HLGB_CLOUD_CONFLICT_KEY:'hlgb_cloud_conflict_backup_v1')].filter(Boolean);
+    for(const src of sources){
+      const local=src?.local;if(!local||!recent948(src.savedAt))continue;
+      for(const b of (local.payroll||[])){
+        const cur=cloudRow948('payroll',b.id),sn=snap948('payroll',b.id);
+        if(!cur||sn?.deleted_at)continue;
+        if(b.paid===true&&b.paidAt&&cur.paid!==true&&recent948(String(b.paidAt).length===10?b.paidAt+'T12:00:00':b.paidAt)){
+          const next={...cur,paid:true,paidAt:b.paidAt,paidValue:+b.paidValue||+cur.paidValue||0,updatedAt:now948()};
+          try{await saveRecovered948('payroll',b.id,next,report,`${b.employeeName||'Funcionário'} pago`)}catch(e){report.errors.push(String(e?.message||e))}
+        }
+      }
+      for(const b of (local.hubFinanceEntries||[])){
+        const cur=cloudRow948('hubFinanceEntries',b.id),sn=snap948('hubFinanceEntries',b.id);
+        if(sn?.deleted_at)continue;
+        const stamp=b.updatedAt||b.createdAt||'';
+        if(!cur&&recent948(stamp)){
+          try{await saveRecovered948('hubFinanceEntries',b.id,{...b,recoveredAt:now948()},report,b.description||'Hub')}catch(e){report.errors.push(String(e?.message||e))}
+          continue;
+        }
+        if(cur&&recent948(b.updatedAt)&&Date.parse(b.updatedAt)>Date.parse(sn?.updated_at||0)){
+          try{await saveRecovered948('hubFinanceEntries',b.id,{...cur,...b,recoveredAt:now948()},report,b.description||'Hub')}catch(e){report.errors.push(String(e?.message||e))}
+          continue;
+        }
+        if(cur&&b.status==='Realizado'&&cur.status!=='Realizado'&&b.realizedAt&&recent948(String(b.realizedAt).length===10?b.realizedAt+'T12:00:00':b.realizedAt)){
+          const next={...cur,status:'Realizado',realizedAt:b.realizedAt,updatedAt:now948()};
+          try{await saveRecovered948('hubFinanceEntries',b.id,next,report,`${b.description||'Hub'} realizado`)}catch(e){report.errors.push(String(e?.message||e))}
+        }
+      }
+    }
+
+    await authoritative948(false);
+    for(const m of recordModules948())try{if(typeof hlgb928EnsureCloudCoverage==='function')hlgb928EnsureCloudCoverage(m)}catch(e){}
+    try{localSaveOnly()}catch(e){}
+    report.modules=audit948();
+    report.inconsistent=Object.entries(report.modules).filter(([,x])=>!x.consistent).map(([m])=>m);
+    report.finishedAt=now948();
+    localStorage.setItem(REPORT948,JSON.stringify(report));
+    localStorage.setItem(DONE948,JSON.stringify({version:V948,at:report.finishedAt,recovered:report.recovered.length,inconsistent:report.inconsistent}));
+    try{const p=cloudApplying;cloudApplying=true;try{renderAll()}finally{cloudApplying=p}}catch(e){}
+    const msg=`Auditoria v91.48 concluída: ${recordModules948().length} módulos conferidos; ${report.recovered.length} alteração(ões) recuperada(s); ${report.inconsistent.length} módulo(s) com divergência de contagem.`;
+    console.info('HLGB v91.48 integrity report',report);
+    try{setCloudStatus(report.inconsistent.length?'☁️ Auditoria com divergência':'✅ Nuvem conferida',report.inconsistent.length?'bad':'ok')}catch(e){}
+    let box=document.getElementById('hlgb948AuditBox');if(!box){box=document.createElement('div');box.id='hlgb948AuditBox';box.style.cssText='position:fixed;right:14px;bottom:14px;z-index:9999;max-width:390px;background:#fff;border:1px solid #dbcbd3;border-radius:12px;padding:10px 12px;box-shadow:0 5px 18px #0002;font-size:12px';document.body.appendChild(box)}
+    box.innerHTML=`<b>🔐 Integridade v91.48</b><br>${msg}<br><button type="button" style="margin-top:7px" onclick="this.parentElement.remove()">Fechar</button>`;
+  }catch(e){
+    report.errors.push(String(e?.message||e));report.finishedAt=now948();try{localStorage.setItem(REPORT948,JSON.stringify(report))}catch(_){};
+    console.error('HLGB v91.48 recovery audit failed',e);try{setCloudStatus('☁️ Auditoria pendente','bad')}catch(_){}
+    setTimeout(recover948,3000);
+  }
+}
+window.hlgb948IntegrityAudit=recover948;
+hlgbAfterLogin(()=>{setTimeout(recover948,1200);},0);
+})();
+</script>
+
+<!-- HLGB v91.49 FORENSIC PAYROLL + HUB RECOVERY -->
+<script>
+(function(){
+'use strict';
+const V949='91.49';
+const MAIN949='confeccao_v2';
+const PENDING949='hlgb_records_pending_v91';
+const CONFLICT949='hlgb_cloud_conflict_backup_v1';
+const PRE948='hlgb_v9148_precloud_snapshot';
+const FORENSIC949='hlgb_v9149_forensic_snapshot';
+const REPORT949='hlgb_v9149_recovery_report';
+const JOURNAL949='hlgb_v9149_recovery_journal';
+const clone949=v=>{try{return JSON.parse(JSON.stringify(v))}catch(e){return v}};
+const now949=()=>new Date().toISOString();
+const parse949=v=>{try{return JSON.parse(v||'null')}catch(e){return null}};
+const money949=v=>{try{return typeof money==='function'?money(+v||0):(+v||0).toLocaleString('pt-BR',{style:'currency',currency:'BRL'})}catch(e){return String(+v||0)}};
+function read949(k){try{return parse949(localStorage.getItem(k))}catch(e){return null}}
+function safeKey949(k){return k===MAIN949||(/^hlgb_/i.test(k)&&!/(auth|token|session|password|senha)/i.test(k))}
+function pushSource949(out,name,obj,stamp='',strength=1){if(!obj||typeof obj!=='object')return;let base=obj;if(base.local&&typeof base.local==='object')base=base.local;const payroll=Array.isArray(base.payroll)?base.payroll:[];const hub=Array.isArray(base.hubFinanceEntries)?base.hubFinanceEntries:[];if(payroll.length||hub.length)out.push({name,stamp:stamp||obj.savedAt||obj.at||obj.updatedAt||'',strength,payroll:clone949(payroll),hub:clone949(hub)})}
+function capture949(){
+ const out=[];pushSource949(out,'Banco local principal',read949(MAIN949),'',5);
+ const c=read949(CONFLICT949);pushSource949(out,'Backup de conflito',c,c?.savedAt||'',4);
+ const p=read949(PRE948);pushSource949(out,'Snapshot pré-nuvem v91.48',p,p?.savedAt||'',4);
+ const old=read949(FORENSIC949);if(old?.sources)for(const s of old.sources||[])pushSource949(out,'Forense anterior: '+(s.name||'origem'),s,s.stamp||'',3);
+ const pending=read949(PENDING949);
+ if(pending?.modules){const payOps=Array.isArray(pending.modules.payroll)?pending.modules.payroll.filter(x=>x&&x.deleted!==true&&x.data).map(x=>x.data):[];const hubOps=Array.isArray(pending.modules.hubFinanceEntries)?pending.modules.hubFinanceEntries.filter(x=>x&&x.deleted!==true&&x.data).map(x=>x.data):[];if(payOps.length||hubOps.length)out.push({name:'Fila pendente por registro',stamp:pending.at||'',strength:10,payroll:clone949(payOps),hub:clone949(hubOps)})}
+ try{for(let i=0;i<localStorage.length;i++){const k=localStorage.key(i);if(!k||!safeKey949(k)||[MAIN949,PENDING949,CONFLICT949,PRE948,FORENSIC949,REPORT949,JOURNAL949].includes(k))continue;const v=read949(k);if(!v||typeof v!=='object')continue;pushSource949(out,'Backup '+k,v,v.savedAt||v.at||v.updatedAt||'',2)}}catch(e){}
+ const compact={capturedAt:now949(),sources:out.map(s=>({name:s.name,stamp:s.stamp,strength:s.strength,payroll:s.payroll,hub:s.hub}))};try{localStorage.setItem(FORENSIC949,JSON.stringify(compact))}catch(e){console.warn('HLGB v91.49 snapshot forense',e)}return out
+}
+const EARLY949=capture949();
+function id949(x){return String(x?.id??x?.__hlgbId??'')}
+function payKey949(x){const e=String(x?.employeeId??'');const m=String(x?.month??'');return e&&m?e+'|'+m:''}
+function date949(v){const t=Date.parse(String(v||''));return Number.isFinite(t)?t:0}
+function currentPayroll949(b){const arr=Array.isArray(db?.payroll)?db.payroll:[];const bid=id949(b);if(bid){const exact=arr.find(x=>id949(x)===bid);if(exact)return exact}const k=payKey949(b);return k?arr.find(x=>payKey949(x)===k)||null:null}
+function currentHub949(b){const bid=id949(b);return bid?(db?.hubFinanceEntries||[]).find(x=>id949(x)===bid)||null:null}
+function snap949(module,row){try{const rid=id949(row);return rid?hlgbRecordSnapshots?.[module]?.get(rid)||null:null}catch(e){return null}}
+function evidence949(s,b){let score=+s.strength||0;if(b?.paid===true)score+=3;if(b?.paidAt)score+=2;if((+b?.paidValue||0)>0)score+=1;if(id949(b))score+=1;if(payKey949(b))score+=1;return score}
+function payrollCandidates949(sources){const 

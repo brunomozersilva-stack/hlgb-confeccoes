@@ -1,0 +1,1 @@
+function assignmentsFor(orderId,key){return capacityAssignments().filter(a=>+a.orderId===+orderId&&String(a.itemKey)===String(key)&&+a.locationId)}

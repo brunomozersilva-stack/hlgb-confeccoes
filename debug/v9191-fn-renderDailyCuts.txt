@@ -1,0 +1,20 @@
+function renderDailyCuts(){
+  let el=document.getElementById("dailyCutTable"),sum=document.getElementById("dailyCutSummary"),dateEl=document.getElementById("dailyCutDate");if(!el)return;
+  if(dateEl&&!dateEl.value)dateEl.value=isoDate(new Date());
+  let day=dateEl?.value||isoDate(new Date());
+  let all=(db.cuts||[]).filter(c=>c.plannedCutDate===day || (String(c.status||"").toLowerCase()==="finalizado"&&c.finishedAt===day));
+  all.sort((a,b)=>{
+    let wa=cutPriorityWeight(cutOrderFor(a)),wb=cutPriorityWeight(cutOrderFor(b));if(wa!==wb)return wa-wb;
+    return String(a.op||"").localeCompare(String(b.op||""));
+  });
+  let pending=all.filter(c=>String(c.status||"").toLowerCase()!=="finalizado"),done=all.filter(c=>String(c.status||"").toLowerCase()==="finalizado");
+  let pqty=pending.reduce((a,c)=>a+(+c.pieces||0),0),dqty=done.reduce((a,c)=>a+(+c.pieces||0),0);
+  if(sum)sum.innerHTML=`<div class="card"><small>Programados no dia</small><strong>${all.length}</strong></div><div class="card"><small>Aguardando corte</small><strong>${pending.length}</strong><div>${pqty.toLocaleString('pt-BR')} peças</div></div><div class="card"><small>Finalizados</small><strong>${done.length}</strong><div>${dqty.toLocaleString('pt-BR')} peças</div></div><div class="card"><small>Levados de dias anteriores</small><strong>${pending.filter(c=>c.rolloverCount>0).length}</strong></div>`;
+  if(!all.length){el.innerHTML='<div class="empty">Nenhum corte programado para este dia.</div>';return}
+  let rows=all.map(c=>{
+    let o=cutOrderFor(c),ct=(db.cutters||[]).find(x=>+x.id===+c.cutterId),finished=String(c.status||"").toLowerCase()==="finalizado";
+    let carried=c.rolloverCount>0?`<span class="badge warn">Veio de ${fmtDate(c.lastCarriedFrom||c.carriedFromDate)}</span>`:"-";
+    return [esc(displayOrderNumber(o||{id:c.orderId})||c.op||c.orderId),esc(o?.client||c.client||'-'),esc(o?orderProductSummary(o):(c.product||'-')),(+c.pieces||0).toLocaleString('pt-BR'),priorityBadge(o?.priority||'Padrão'),esc(ct?.name||'-'),carried,finished?'<span class="badge ok">Finalizado</span>':'<span class="badge warn">A cortar</span>',finished?`<button class="secondary" onclick="viewCutGradeComparison(${c.id})">Pedido original × corte</button>`:`<button class="primary" onclick="finishCut(${c.id})">✅ Finalizar corte</button> <button class="secondary" onclick="editCut(${c.id})">Editar</button>`];
+  });
+  el.innerHTML=table(["Pedido/OP","Cliente","Produto","Peças","Prioridade","Cortador","Reprogramação","Status","Ações"],rows);
+}

@@ -1,0 +1,8 @@
+function allProjectionRows(){
+ let rows=[];
+ (db.orders||[]).forEach(o=>{
+   if(["Cancelado"].includes(o.status))return;
+   projectionItemsForOrder(o).forEach(item=>rows.push({order:o,item}));
+ });
+ return rows;
+}

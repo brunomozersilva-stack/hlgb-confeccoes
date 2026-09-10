@@ -1,0 +1,22 @@
+function finishCut(id){
+ let c=(db.cuts||[]).find(x=>+x.id===+id);
+ if(!c)return;
+ c.status="Finalizado";
+ c.finishedAt=isoDate(new Date());
+
+ let o=(db.orders||[]).find(x=>+x.id===+c.orderId);
+ if(o)o.status="Corte finalizado";
+
+ try{persistDb()}catch(e){
+   console.error(e);
+   alert("Não foi possível salvar a finalização do corte.");
+   return;
+ }
+
+ syncFinalizedCutsToProduction();
+ renderCuts();
+ renderOrders();
+ renderCutters();
+ renderProduction();
+ alert("Corte finalizado e enviado automaticamente para a Produção.");
+}

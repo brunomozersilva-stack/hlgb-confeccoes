@@ -1,0 +1,252 @@
+stre máquinas primeiro.</div>'}</div>`;
+}
+function collectFactionServices(){return [...document.querySelectorAll(".mfServiceCheck:checked")].map(x=>+x.value)}
+function collectFactionMachines(){return [...document.querySelectorAll(".mfMachineCheck:checked")].map(x=>+x.value)}
+function newFactionMaster(){
+ openModal("Nova facção",factionMasterForm()+`<button type="button" class="primary modalSave">💾 Salvar facção</button>`,()=>{
+   let name=(document.getElementById("mfname")?.value||"").trim();
+   if(!name){alert("Informe o nome da facção.");return}
+   let serviceTypeIds=collectFactionServices(),machineIds=collectFactionMachines();
+   db.factionMasters.push({
+     id:Date.now()+Math.floor(Math.random()*1000),name,
+     address:(document.getElementById("mfaddress")?.value||"").trim(),
+     phone:(document.getElementById("mfphone")?.value||"").trim(),
+     pix:(document.getElementById("mfpix")?.value||"").trim(),
+     serviceTypeIds,machineIds,
+     serviceType:selectedCatalogNames(serviceTypeIds,db.serviceTypes),
+     machines:selectedCatalogNames(machineIds,db.machines),
+     productionLocationId:document.getElementById("mflocation")?.value?+document.getElementById("mflocation").value:null,
+     active:true
+   });
+   closeModal();save();alert("Facção cadastrada com sucesso.");
+ });
+}
+function editFactionMaster(id){
+ let f=db.factionMasters.find(x=>+x.id===+id);if(!f)return;
+ openModal("Editar facção",factionMasterForm(f)+`<button type="button" class="primary modalSave">💾 Salvar alterações</button>`,()=>{
+   let serviceTypeIds=collectFactionServices(),machineIds=collectFactionMachines();
+   Object.assign(f,{
+     name:(document.getElementById("mfname")?.value||"").trim(),
+     address:(document.getElementById("mfaddress")?.value||"").trim(),
+     phone:(document.getElementById("mfphone")?.value||"").trim(),
+     pix:(document.getElementById("mfpix")?.value||"").trim(),
+     serviceTypeIds,machineIds,
+     serviceType:selectedCatalogNames(serviceTypeIds,db.serviceTypes),
+     machines:selectedCatalogNames(machineIds,db.machines),
+     productionLocationId:document.getElementById("mflocation")?.value?+document.getElementById("mflocation").value:null
+   });
+   closeModal();save();alert("Facção atualizada com sucesso.");
+ });
+}
+function delFactionMaster(id){if(confirm('Excluir esta facção do cadastro? Os lançamentos históricos serão preservados.')){db.factionMasters=db.factionMasters.filter(x=>+x.id!==+id);save()}}
+function newServiceType(){
+ openModal("Novo tipo de serviço",`<div class="field"><label>Nome</label><input id="catalogName" placeholder="Ex.: Calcinha"></div><button type="button" class="primary modalSave">Salvar</button>`,()=>{
+   let n=(document.getElementById("catalogName")?.value||"").trim();if(!n)return;
+   if(db.serviceTypes.some(x=>x.name.toLowerCase()===n.toLowerCase())){alert("Esse tipo de serviço já existe.");return}
+   db.serviceTypes.push({id:Date.now(),name:n});closeModal();save();
+ });
+}
+function editServiceType(id){
+ let x=db.serviceTypes.find(s=>+s.id===+id);if(!x)return;
+ openModal("Editar tipo de serviço",`<div class="field"><label>Nome</label><input id="catalogName" value="${esc(x.name)}"></div><button type="button" class="primary modalSave">Salvar alterações</button>`,()=>{
+   let n=(document.getElementById("catalogName")?.value||"").trim();if(!n)return;x.name=n;closeModal();save();
+ });
+}
+function deleteServiceType(id){
+ let used=(db.factionMasters||[]).some(f=>(f.serviceTypeIds||[]).some(x=>+x===+id));
+ if(used&&!confirm("Este tipo de serviço está vinculado a uma facção. Excluir mesmo assim?"))return;
+ db.serviceTypes=db.serviceTypes.filter(x=>+x.id!==+id);
+ (db.factionMasters||[]).forEach(f=>f.serviceTypeIds=(f.serviceTypeIds||[]).filter(x=>+x!==+id));
+ save();
+}
+function newMachine(){
+ openModal("Nova máquina",`<div class="field"><label>Nome da máquina</label><input id="catalogName" placeholder="Ex.: Overloque"></div><button type="button" class="primary modalSave">Salvar</button>`,()=>{
+   let n=(document.getElementById("catalogName")?.value||"").trim();if(!n)return;
+   if(db.machines.some(x=>x.name.toLowerCase()===n.toLowerCase())){alert("Essa máquina já existe.");return}
+   db.machines.push({id:Date.now(),name:n});closeModal();save();
+ });
+}
+function editMachine(id){
+ let x=db.machines.find(m=>+m.id===+id);if(!x)return;
+ openModal("Editar máquina",`<div class="field"><label>Nome da máquina</label><input id="catalogName" value="${esc(x.name)}"></div><button type="button" class="primary modalSave">Salvar alterações</button>`,()=>{
+   let n=(document.getElementById("catalogName")?.value||"").trim();if(!n)return;x.name=n;closeModal();save();
+ });
+}
+function deleteMachine(id){
+ let used=(db.factionMasters||[]).some(f=>(f.machineIds||[]).some(x=>+x===+id));
+ if(used&&!confirm("Esta máquina está vinculada a uma facção. Excluir mesmo assim?"))return;
+ db.machines=db.machines.filter(x=>+x.id!==+id);
+ (db.factionMasters||[]).forEach(f=>f.machineIds=(f.machineIds||[]).filter(x=>+x!==+id));
+ save();
+}
+function productionLocationForm(l={}){
+ let allowed=Array.isArray(l.allowedServices)?l.allowedServices:[];
+ let checks=(db.serviceTypes||[]).map(x=>`<label style="display:flex;gap:7px;align-items:center;margin:5px 0"><input type="checkbox" class="locationServiceCheck" value="${esc(x.name)}" ${allowed.includes(x.name)?"checked":""}> ${esc(x.name)}</label>`).join("");
+ return `<div class="grid"><div class="field"><label>Nome do local de produção</label><input id="mlocationname" placeholder="Ex.: Confecção 1 / Facção 01" value="${esc(l.name||'')}"></div><div class="field"><label>Capacidade semanal (peças)</label><input id="mlocationcapacity" type="number" min="0" value="${+l.weeklyCapacity||0}"></div><div class="field"><label>Status</label><select id="mlocationactive"><option value="true" ${l.active!==false?'selected':''}>Ativo</option><option value="false" ${l.active===false?'selected':''}>Inativo</option></select></div></div><div class="field"><label>Serviços/modelos que este local consegue fazer</label><div class="sub">Se não marcar nenhum, o sistema considera que aceita todos.</div>${checks||'<div class="sub">Cadastre primeiro os Tipos de serviço em Cadastros.</div>'}</div>`
+}
+function locationFormData(){return {name:mlocationname.value.trim(),active:mlocationactive.value==="true",weeklyCapacity:+mlocationcapacity.value||0,allowedServices:[...document.querySelectorAll('.locationServiceCheck:checked')].map(x=>x.value)}}
+function newProductionLocation(){openModal("Novo local de produção",productionLocationForm()+`<button type="button" class="primary modalSave">💾 Salvar local</button>`,()=>{let d=locationFormData();if(!d.name){alert("Informe o nome do local.");return}db.productionLocations.push({id:Date.now()+Math.floor(Math.random()*1000),...d});closeModal();save();alert("Local de produção cadastrado com sucesso.")})}
+function editProductionLocation(id){let l=db.productionLocations.find(x=>+x.id===+id);if(!l)return;openModal('Editar local de produção',productionLocationForm(l)+`<button type="button" class="primary modalSave">Salvar alterações</button>`,()=>{let d=locationFormData();if(!d.name)return;Object.assign(l,d);closeModal();save()})}
+function delProductionLocation(id){if(confirm('Excluir este local de produção?')){db.productionLocations=db.productionLocations.filter(x=>+x.id!==+id);save()}}
+function capacityDateRange(){let s=document.getElementById('capacityStart'),e=document.getElementById('capacityEnd'),now=new Date();if(!s||!e)return['',''];if(!s.value||!e.value){let d=new Date(now);let day=(d.getDay()+6)%7;d.setDate(d.getDate()-day);s.value=isoDate(d);let z=new Date(d);z.setDate(z.getDate()+4);e.value=isoDate(z)}return[s.value,e.value]}
+function setCapacityWeek(){let s=document.getElementById('capacityStart'),e=document.getElementById('capacityEnd'),d=new Date(),day=(d.getDay()+6)%7;d.setDate(d.getDate()-day);s.value=isoDate(d);let z=new Date(d);z.setDate(z.getDate()+4);e.value=isoDate(z);renderCapacityPlanning()}
+function capacityAssignments(){db.capacityAssignments=Array.isArray(db.capacityAssignments)?db.capacityAssignments:[];return db.capacityAssignments}
+function assignmentsFor(orderId,key){return capacityAssignments().filter(a=>+a.orderId===+orderId&&String(a.itemKey)===String(key)&&+a.locationId)}
+function assignmentFor(orderId,key){return assignmentsFor(orderId,key)[0]}
+function capacityAllowedModels(l){return Array.isArray(l.allowedModels)?l.allowedModels:(Array.isArray(l.allowedServices)?l.allowedServices:[])}
+function capacityModelAllowed(l,name){let a=capacityAllowedModels(l);return !a.length||a.some(x=>String(name).toLowerCase().includes(String(x).toLowerCase())||String(x).toLowerCase().includes(String(name).toLowerCase()))}
+function openCapacityLocationEditor(){
+ let locs=(db.productionLocations||[]).filter(x=>x.active!==false);
+ let products=[...new Set((db.products||[]).map(p=>p.name).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'pt-BR'));
+ let body=locs.map(l=>{let allowed=capacityAllowedModels(l);let checks=products.map((p,i)=>`<label style="display:inline-flex;gap:5px;align-items:center;margin:3px 10px 3px 0"><input type="checkbox" class="capModel_${l.id}" value="${esc(p)}" ${allowed.includes(p)?'checked':''}>${esc(p)}</label>`).join('');return `<div class="panel" style="margin:10px 0;padding:14px"><h3>${esc(l.name)}</h3><div class="grid"><div class="field"><label>Responsável</label><input id="capResp_${l.id}" value="${esc(l.capacityResponsible||'')}" placeholder="Nome da pessoa responsável"></div><div class="field"><label>Capacidade semanal (peças)</label><input id="capQty_${l.id}" type="number" min="0" value="${+l.weeklyCapacity||0}"></div></div><div class="field"><label>Modelos que consegue produzir</label><div class="sub">Não marque nenhum se este local puder fazer todos os modelos.</div><div style="max-height:145px;overflow:auto;border:1px solid #eee;padding:8px;border-radius:8px">${checks||'<span class="sub">Cadastre produtos primeiro.</span>'}</div></div></div>`}).join('');
+ openModal('Configurar capacidade de produção',body||'<div class="empty">Nenhum local de produção ativo cadastrado.</div>'+`<button class="primary modalSave">Salvar capacidades</button>`,()=>{
+   locs.forEach(l=>{let q=document.getElementById('capQty_'+l.id),r=document.getElementById('capResp_'+l.id);l.weeklyCapacity=+(q?.value||0);l.capacityResponsible=(r?.value||'').trim();l.allowedModels=[...document.querySelectorAll('.capModel_'+l.id+':checked')].map(x=>x.value)});
+   save();closeModal();renderCapacityPlanning();
+ });
+}
+function openCapacityAllocation(orderId,key){
+ let o=(db.orders||[]).find(x=>+x.id===+orderId),it=o&&projectionItemsForOrder(o).find(x=>String(x.key)===String(key));if(!o||!it)return;
+ let locs=(db.productionLocations||[]).filter(x=>x.active!==false),existing=assignmentsFor(orderId,key);
+ let rows=locs.map(l=>{let a=existing.find(x=>+x.locationId===+l.id);return `<tr><td><b>${esc(l.name)}</b>${l.capacityResponsible?`<div class="sub">${esc(l.capacityResponsible)}</div>`:''}</td><td>${capacityModelAllowed(l,it.name)?'<span class="badge ok">Modelo permitido</span>':'<span class="badge warn">Não cadastrado para este modelo</span>'}</td><td style="width:180px"><input class="capAllocQty" data-loc="${l.id}" type="number" min="0" max="${+it.qty||0}" value="${+a?.qty||0}" oninput="updateCapacityAllocationTotal(${+it.qty||0})"></td></tr>`}).join('');
+ openModal(`Alocar produção — ${esc(it.name)}`,`<div class="cards"><div class="card"><small>Total do modelo</small><strong>${(+it.qty||0).toLocaleString('pt-BR')}</strong></div><div class="card"><small>Distribuído</small><strong id="capAllocTotal">0</strong></div><div class="card"><small>Restante</small><strong id="capAllocRemain">${(+it.qty||0).toLocaleString('pt-BR')}</strong></div></div><div style="overflow:auto"><table><thead><tr><th>Local / responsável</th><th>Compatibilidade</th><th>Quantidade</th></tr></thead><tbody>${rows}</tbody></table></div><div class="sub" style="margin-top:8px">Pode dividir o mesmo modelo entre quantos locais precisar. O sistema não altera o pedido original.</div><button class="primary modalSave">Salvar distribuição</button>`,()=>{
+   let inputs=[...document.querySelectorAll('.capAllocQty')],sum=inputs.reduce((s,x)=>s+(+x.value||0),0);
+   if(sum>(+it.qty||0)){alert('A quantidade distribuída não pode ultrapassar o total do modelo.');return}
+   db.capacityAssignments=capacityAssignments().filter(a=>!(+a.orderId===+orderId&&String(a.itemKey)===String(key)));
+   inputs.forEach(x=>{let qty=+x.value||0;if(qty>0)db.capacityAssignments.push({id:Date.now()+Math.random(),orderId:+orderId,itemKey:String(key),locationId:+x.dataset.loc,qty,updatedAt:new Date().toISOString()})});
+   // Salva de forma direta para não depender do renderAll/sincronização pesada.
+   // Isso evita que um erro em outra tela impeça a distribuição de ser gravada.
+   try{persistDb()}catch(e){console.error(e);alert('Não foi possível salvar a divisão neste navegador.');return}
+   closeModal();
+   try{if(typeof renderProjection==='function')renderProjection()}catch(e){console.error('Atualização da projeção',e)}
+   try{if(typeof renderCapacityPlanning==='function')renderCapacityPlanning()}catch(e){console.error('Atualização da capacidade',e)}
+   try{if(typeof renderProductionHub==='function')renderProductionHub()}catch(e){console.error('Atualização da produção',e)}
+   if(typeof auditAction==='function')auditAction('Dividiu produção',`${it.name}: ${sum} peça(s) em ${inputs.filter(x=>(+x.value||0)>0).length} local(is)`);
+   alert('Distribuição salva com sucesso.');
+ });setTimeout(()=>updateCapacityAllocationTotal(+it.qty||0),30);
+}
+function updateCapacityAllocationTotal(total){let sum=[...document.querySelectorAll('.capAllocQty')].reduce((s,x)=>s+(+x.value||0),0),a=document.getElementById('capAllocTotal'),r=document.getElementById('capAllocRemain');if(a)a.textContent=sum.toLocaleString('pt-BR');if(r){r.textContent=Math.max(0,total-sum).toLocaleString('pt-BR');r.style.color=sum>total?'#b91c1c':''}}
+function saveCapacityAssignment(orderId,key,locationId){let o=(db.orders||[]).find(x=>+x.id===+orderId),it=o&&projectionItemsForOrder(o).find(x=>String(x.key)===String(key));if(!o||!it)return;db.capacityAssignments=capacityAssignments().filter(a=>!(+a.orderId===+orderId&&String(a.itemKey)===String(key)));if(locationId)db.capacityAssignments.push({id:Date.now()+Math.random(),orderId:+orderId,itemKey:String(key),locationId:+locationId,qty:+it.qty||0,updatedAt:isoDate(new Date())});save();renderCapacityPlanning()}
+function renderCapacityPlanning(){
+ let [start,end]=capacityDateRange();let rows=allProjectionRows().filter(r=>{let d=r.item.date||r.order.date||'';return(!start||d>=start)&&(!end||d<=end)});let locs=(db.productionLocations||[]).filter(x=>x.active!==false),usage={};locs.forEach(l=>usage[l.id]=0);
+ rows.forEach(r=>assignmentsFor(r.order.id,r.item.key).forEach(a=>{if(usage[a.locationId]!=null)usage[a.locationId]+=+a.qty||0}));
+ let total=rows.reduce((a,r)=>a+(+r.item.qty||0),0),assigned=rows.reduce((a,r)=>a+Math.min(+r.item.qty||0,assignmentsFor(r.order.id,r.item.key).reduce((s,x)=>s+(+x.qty||0),0)),0);
+ let cards=document.getElementById('capacityCards');if(cards)cards.innerHTML=`<div class="card"><small>Peças previstas no período</small><strong>${total.toLocaleString('pt-BR')}</strong></div><div class="card"><small>Já distribuídas</small><strong>${assigned.toLocaleString('pt-BR')}</strong></div><div class="card"><small>Ainda sem local</small><strong>${Math.max(0,total-assigned).toLocaleString('pt-BR')}</strong></div><div class="card"><small>Locais ativos</small><strong>${locs.length}</strong></div>`;
+ let lt=document.getElementById('capacityLocationTable');if(lt){let rr=locs.map(l=>{let used=usage[l.id]||0,cap=+l.weeklyCapacity||0,pct=cap?used/cap*100:0,cls=cap?(pct>=100?'bad':pct>=80?'warn':'ok'):'',status=cap?`${pct.toFixed(0)}%`:'Sem capacidade definida',models=capacityAllowedModels(l);return[esc(l.name),esc(l.capacityResponsible||'-'),used.toLocaleString('pt-BR'),cap?cap.toLocaleString('pt-BR'):'<b>Definir</b>',`<span class="badge ${cls}">${status}</span>`,cap?(cap-used).toLocaleString('pt-BR'):'-',esc(models.join(', ')||'Todos'),`<button class="secondary" onclick="openCapacityLocationEditor()">Editar capacidade</button>`]});lt.innerHTML=rr.length?table(['Local','Responsável','Carga prevista','Capacidade semanal','Ocupação','Saldo','Modelos permitidos','Ação'],rr):'<div class="empty">Cadastre locais de produção para usar o planejamento.</div>'}
+ let ot=document.getElementById('capacityOrderTable');if(ot){let rr=rows.map(r=>{let aa=assignmentsFor(r.order.id,r.item.key),dist=aa.reduce((s,x)=>s+(+x.qty||0),0),places=aa.map(a=>{let l=locs.find(x=>+x.id===+a.locationId);return l?`${l.name}: ${(+a.qty||0).toLocaleString('pt-BR')}`:''}).filter(Boolean).join('<br>');let rem=Math.max(0,(+r.item.qty||0)-dist);return[`#${typeof displayOrderNumber==='function'?displayOrderNumber(r.order):r.order.id}`,esc(r.order.client||'-'),`<b>${esc(r.item.name)}</b>`,(+r.item.qty||0).toLocaleString('pt-BR'),dist.toLocaleString('pt-BR'),rem?`<span class="badge warn">${rem.toLocaleString('pt-BR')}</span>`:'<span class="badge ok">0</span>',places||'<span class="sub">Ainda sem local</span>',`<button class="primary" onclick="openCapacityAllocation(${r.order.id},'${String(r.item.key).replace(/'/g,"\\'")}')">Distribuir / dividir</button>`]});ot.innerHTML=rr.length?table(['Pedido','Cliente','Modelo','Total','Distribuído','Restante','Onde será produzido','Ação'],rr):'<div class="empty">Nenhum produto previsto neste período.</div>'}
+}
+function factionAvailableModels(){
+  let out=[],seenOrders=new Set();
+  let factions=Array.isArray(db.factions)?db.factions:[];
+  let productions=Array.isArray(db.production)?db.production:[];
+  let orders=Array.isArray(db.orders)?db.orders:[];
+  productions.forEach(p=>{
+    let o=orders.find(x=>+x.id===+p.orderId),product=(db.products||[]).find(x=>+x.id===+p.productId);
+    let planned=+p.planned||0;if(planned<=0&&o){try{planned=+qtyOfOrder(o)||0}catch(e){}}
+    let already=factions.filter(f=>+f.productionId===+p.id).reduce((s,f)=>s+(+f.sent||0),0);
+    let remaining=Math.max(0,planned-already);
+    let stage=String(p.stage||"");
+    if(remaining<=0||(/^(Pronto|Finalizado)$/i.test(stage)&&(+p.done||0)>=planned))return;
+    let model=product?.name||p.product||(o?orderProductSummary(o):"")||"Modelo";
+    out.push({key:`p:${p.id}`,productionId:p.id,orderId:o?.id||p.orderId||null,productId:p.productId||o?.productId||null,op:p.op||"",model,remaining,dueDate:o?.date||p.factionDueDate||"",stage:stage||"Aguardando produção",client:o?.client||p.client||"-"});
+    if(o)seenOrders.add(+o.id);
+  });
+  orders.forEach(o=>{
+    if(seenOrders.has(+o.id)||o.deletedAt||o.cancelledAt)return;
+    let cuts=(db.cuts||[]).filter(c=>+c.orderId===+o.id);
+    let released=cuts.some(c=>/final|pronto|conclu/i.test(String(c.status||"")));
+    if(!released)return;
+    let planned=0;try{planned=+qtyOfOrder(o)||0}catch(e){}
+    let already=factions.filter(f=>+f.orderId===+o.id).reduce((s,f)=>s+(+f.sent||0),0),remaining=Math.max(0,planned-already);
+    if(remaining<=0)return;
+    out.push({key:`o:${o.id}`,productionId:null,orderId:o.id,productId:o.productId||null,op:cuts[0]?.op||"",model:orderProductSummary(o)||o.items||"Modelo",remaining,dueDate:o.date||"",stage:"Corte finalizado",client:o.client||"-"});
+  });
+  return out.sort((a,b)=>String(a.dueDate||"9999-12-31").localeCompare(String(b.dueDate||"9999-12-31"))||String(a.model).localeCompare(String(b.model),'pt-BR'));
+}
+function renderFactionAvailableModels(){
+  let el=document.getElementById("factionAvailableModels");if(!el)return;
+  let rows=factionAvailableModels();
+  el.innerHTML=rows.length?table(["Pedido","Cliente","Modelo","Etapa","Disponível","Previsão","Ação"],rows.map(r=>[
+    r.orderId?`#${esc(typeof displayOrderNumber==='function'?displayOrderNumber((db.orders||[]).find(o=>+o.id===+r.orderId)||{id:r.orderId}):r.orderId)}`:"-",
+    esc(r.client||"-"),`<b>${esc(r.model)}</b>`,esc(r.stage||"-"),r.remaining.toLocaleString("pt-BR"),r.dueDate?fmtDate(r.dueDate):"-",
+    `<button type="button" class="primary" onclick='openFactionAvailableModel(${JSON.stringify(r.key)})'>Enviar para facção</button>`
+  ])):'<div class="empty">Nenhum modelo liberado para envio no momento.</div>';
+}
+function openFactionAvailableModel(key){
+  let r=factionAvailableModels().find(x=>String(x.key)===String(key));if(!r){alert("Este modelo já não está disponível para envio.");renderFactionAvailableModels();return}
+  newFaction({productionId:r.productionId,orderId:r.orderId,productId:r.productId,op:r.op,description:r.model,sent:r.remaining,dueDate:r.dueDate});
+}
+
+function factionForm(f={}){
+ return `<div class="grid">
+   <input id="mfproductionid" type="hidden" value="${f.productionId??""}">
+   <input id="mforderid" type="hidden" value="${f.orderId??""}">
+   <input id="mfproductid" type="hidden" value="${f.productId??""}">
+   <div class="field"><label>Facção</label><select id="mname">${(db.factionMasters||[]).map(x=>`<option value="${esc(x.name)}" ${String(x.name)===String(f.name||'')?'selected':''}>${esc(x.name)}</option>`).join('')}</select></div>
+   <div class="field"><label>OP</label><input id="mop" value="${esc(f.op||'')}"></div>
+   <div class="field"><label>Modelo</label><input id="mfdesc" list="factionAvailableModelList" placeholder="Ex.: Robe Alice" value="${esc((f.orderId&&((db.orders||[]).find(o=>+o.id===+f.orderId)))?orderProductSummary((db.orders||[]).find(o=>+o.id===+f.orderId)):(f.description||''))}"></div>
+   <div class="field"><label>Local de produção</label><select id="mfactionlocation"><option value="">Selecione</option>${(db.productionLocations||[]).filter(x=>x.active!==false).map(x=>`<option value="${x.id}" ${+x.id===+f.productionLocationId?'selected':''}>${esc(x.name)}</option>`).join('')}</select></div>
+   <div class="field"><label>Quantidade enviada</label><input id="msent" type="number" value="${f.sent??0}"></div>
+   <div class="field"><label>Produzido / quantidade a pagar</label><input id="mdone" type="number" value="${f.done??0}"></div>
+   <div class="field"><label>Retorno</label><input id="mret" type="number" value="${f.returned??0}"></div>
+   <div class="field"><label>Defeitos</label><input id="mdef" type="number" value="${f.defects??0}"></div>
+   <div class="field"><label>Perdas / desperdício</label><input id="mwaste" type="number" value="${f.waste??0}"></div>
+   <div class="field"><label>Valor por peça</label><input id="mprice" type="number" step=".01" value="${f.price??0}"></div>
+   <datalist id="factionAvailableModelList">${factionAvailableModels().map(r=>`<option value="${esc(r.model)}">`).join("")}</datalist>
+   <div class="field"><label>Status do serviço</label><select id="mfstatus">
+     ${["Enviado","Em produção","Finalizado"].map(x=>`<option ${x===(f.status||"Enviado")?"selected":""}>${x}</option>`).join("")}
+   </select></div>
+   <div class="field"><label>Data de envio</label><input id="mfsentat" type="date" value="${f.sentAt||f.date||isoDate(new Date())}"></div>
+   <div class="field"><label>Previsão de entrega</label><input id="mfdue" type="date" value="${f.dueDate||""}"></div>
+   <div class="field"><label>Data de finalização</label><input id="mffinished" type="date" value="${f.finishedAt||""}"></div>
+ </div>`;
+}
+function saveFactionServiceFromForm(f){
+ Object.assign(f,{
+   productionId:document.getElementById("mfproductionid")?.value?+document.getElementById("mfproductionid").value:null,
+   orderId:document.getElementById("mforderid")?.value?+document.getElementById("mforderid").value:null,
+   productId:document.getElementById("mfproductid")?.value?+document.getElementById("mfproductid").value:null,
+   name:document.getElementById("mname")?.value||"",
+   op:document.getElementById("mop")?.value||"",
+   description:document.getElementById("mfdesc")?.value||"",
+   productionLocationId:document.getElementById("mfactionlocation")?.value?+document.getElementById("mfactionlocation").value:null,
+   sent:+document.getElementById("msent")?.value||0,
+   done:+document.getElementById("mdone")?.value||0,
+   returned:+document.getElementById("mret")?.value||0,
+   defects:+document.getElementById("mdef")?.value||0,
+   waste:+document.getElementById("mwaste")?.value||0,
+   price:+document.getElementById("mprice")?.value||0,
+   status:document.getElementById("mfstatus")?.value||"Enviado",
+   sentAt:document.getElementById("mfsentat")?.value||isoDate(new Date()),
+   dueDate:document.getElementById("mfdue")?.value||"",
+   finishedAt:document.getElementById("mffinished")?.value||""
+ });
+ if(f.status==="Finalizado" && !f.finishedAt)f.finishedAt=isoDate(new Date());
+ let linkedOrder=(db.orders||[]).find(o=>+o.id===+f.orderId);
+ if(linkedOrder)f.description=orderProductSummary(linkedOrder);
+}
+function newFaction(prefill=null){
+ let seed=prefill&&typeof prefill==="object"?prefill:{};
+ let f={id:Date.now(),date:isoDate(new Date()),sentAt:isoDate(new Date()),status:"Enviado",...seed};
+ openModal("Novo envio para facção",factionForm(f)+`<button type="button" class="primary modalSave">💾 Salvar envio</button>`,()=>{
+   saveFactionServiceFromForm(f);
+   if(!f.name){alert("Selecione a facção.");return}
+   if(!f.description){alert("Informe ou selecione o modelo.");return}
+   db.factions.push(f);
+   syncFactionPayments();
+   closeModal();save();renderFactions();
+ });
+}
+function editFaction(id){
+ let f=db.factions.find(x=>+x.id===+id);if(!f)return;
+ openModal("Editar envio para facção",factionForm(f)+`<button type="button" class="primary modalSave">💾 Salvar alterações</button>`,()=>{
+   saveFactionServiceFromForm(f);
+   syncFactionPayments();
+   syncFactionIssuesToMissing();
+   closeModal();save();
+ });
+}
+
+function separateFactionForPayment(id){
+ let f=(db.factions||[]).find(x=>+x.id===+id);if(!f)return;
+ if(String(f.status||"")!=="Finalizado"){alert("Finalize e confira o retorno antes de separar para pagamento.");return}
+ open

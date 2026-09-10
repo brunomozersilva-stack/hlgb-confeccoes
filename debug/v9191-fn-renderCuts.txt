@@ -1,0 +1,53 @@
+function renderCuts(){
+ let orders=pedidosQuePrecisamDeCorte();
+ let pending=orders.map(obterCorteDoPedido);
+ let ready=(db.cuts||[]).filter(c=>String(c.status||"").toLowerCase()==="finalizado");
+ let el=document.getElementById("cutTable");
+ if(el){
+   let rows=orders.map(o=>{
+     let c=obterCorteDoPedido(o);
+     let ct=(db.cutters||[]).find(x=>+x.id===+c.cutterId);
+     return `<tr>
+       <td>PED-${esc(o.id)}</td><td>${esc(o.client||"-")}</td><td>${esc(orderProductSummary(o))}</td>
+       <td>${typeof qtyOfOrder==="function"?qtyOfOrder(o):(+o.qty||+o.totalQty||0)}</td>
+       <td>${esc(c.cutType||"-")}</td><td>${esc(ct?.name||"-")}</td>
+       <td>${priorityBadge(o.priority||"Padrão")}</td><td><span class="badge">Aguardando corte</span></td>
+       <td><button type="button" class="secondary" onclick="viewOrderDetails(${o.id})">Ver pedido</button> <button type="button" class="secondary" onclick="editCut(${c.id})">Editar corte</button>
+       <button type="button" class="primary" onclick="finishCut(${c.id})">OK — Corte finalizado</button></td>
+     </tr>`;
+   }).join("");
+   el.innerHTML=rows
+    ? `<table><tr><th>Pedido/OP</th><th>Cliente</th><th>Produto</th><th>Peças</th><th>Corte</th><th>Cortador</th><th>Prioridade</th><th>Status</th><th>Ações</th></tr>${rows}</table>`
+    : '<div class="empty">Nenhum pedido aguardando corte.</div>';
+ }
+ let pp=orders.reduce((a,o)=>a+(typeof qtyOfOrder==="function"?qtyOfOrder(o):(+o.qty||+o.totalQty||0)),0);
+ let pv=orders.reduce((a,o)=>a+(+o.total||0),0);
+ let rp=ready.reduce((a,c)=>a+(+c.pieces||0),0),rv=ready.reduce((a,c)=>a+(typeof cutValue==="function"?cutValue(c):0),0);
+ let ri=ready.filter(c=>c.cutType==="Interno"),re=ready.filter(c=>c.cutType==="Externo");
+ let ip=ri.reduce((a,c)=>a+(+c.pieces||0),0),ep=re.reduce((a,c)=>a+(+c.pieces||0),0);
+ let iv=ri.reduce((a,c)=>a+(typeof cutValue==="function"?cutValue(c):0),0),ev=re.reduce((a,c)=>a+(typeof cutValue==="function"?cutValue(c):0),0);
+ let oo=(db.orders||[]).filter(o=>!o.invoiceReady&&!o.noteReady);
+ let oq=oo.reduce((a,o)=>a+(typeof qtyOfOrder==="function"?qtyOfOrder(o):(+o.qty||+o.totalQty||0)),0),ov=oo.reduce((a,o)=>a+(+o.total||0),0);
+ let cards=document.getElementById("cutSummaryCards");
+ if(cards)cards.innerHTML=
+ `<div class="card"><small>Pedidos aguardando corte</small><strong>${pp} peças</strong><div>${money(pv)}</div></div>
+  <div class="card"><small>Cortes prontos para produzir</small><strong>${rp} peças</strong><div>${money(rv)}</div></div>
+  <div class="card"><small>Corte interno finalizado</small><strong>${ip} peças</strong><div>${money(iv)}</div></div>
+  <div class="card"><small>Corte externo finalizado</small><strong>${ep} peças</strong><div>${money(ev)}</div></div>
+  <div class="card"><small>Mercadoria sem nota pronta</small><strong>${oq} peças</strong><div>${money(ov)}</div></div>`;
+ let rt=document.getElementById("readyCutsTable");
+ if(rt)rt.innerHTML=ready.length?table(["OP","Cliente","Produto","Peças","Valor","Corte","Cortador","Finalizado","Local de produção","Prioridade","Ações"],
+  ready.map(c=>{let l=(db.productionLocations||[]).find(x=>+x.id===+c.productionLocationId),ct=(db.cutters||[]).find(x=>+x.id===+c.cutterId),ord=getOrderByCut(c);
+  return[c.op,esc(c.client||ord?.client||"-"),esc(ord?orderProductSummary(ord):(c.product||"Pedido")),c.pieces||0,money(typeof cutValue==="function"?cutValue(c):0),esc(c.cutType||"-"),esc(ct?.name||"-"),fmtDate(c.finishedAt),esc(l?.name||"-"),priorityBadge(ord?.priority||"Padrão"),
+  `${ord?`<button type="button" class="secondary" onclick="viewOrderDetails(${ord.id})">Ver pedido</button> `:""}<button type="button" class="secondary" onclick="editReadyCut(${c.id})">Editar</button>
+   <button type="button" class="danger" onclick="deleteReadyCut(${c.id})">Excluir</button>`]}))
+  :'<div class="empty">Nenhum corte finalizado aguardando produção.</div>';
+ let ot=document.getElementById("openCutOrdersTable");
+ if(ot)ot.innerHTML=oo.length?table(["Pedido","Cliente","Entrega","Peças","Valor","Status","Ações"],
+  oo.map(o=>[o.id,esc(o.client),fmtDate(o.date),typeof qtyOfOrder==="function"?qtyOfOrder(o):(+o.qty||+o.totalQty||0),money(o.total),`<span class="badge">${esc(o.status||"Aberto")}</span>`,
+  `<button type="button" class="secondary" onclick="editOpenMerchandise(${o.id})">Editar</button>
+   <button type="button" class="danger" onclick="deleteOpenMerchandise(${o.id})">Excluir</button>`]))
+  :'<div class="empty">Não há mercadoria sem nota pronta.</div>';
+ renderCutMaterialNeedReport();
+ try{persistDb()}catch(e){}
+}

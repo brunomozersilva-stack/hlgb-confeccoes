@@ -1,0 +1,34 @@
+function renderCutters(){
+ let el=document.getElementById("cutterTable");
+ if(!el)return;
+ db.cutters=Array.isArray(db.cutters)?db.cutters:[];
+
+ let {start,end}=cutterPeriod();
+ let label=document.getElementById("cutterPeriodLabel");
+ if(label){
+   label.textContent=start||end
+     ? `Exibindo de ${start?fmtDate(start):"início"} até ${end?fmtDate(end):"hoje"}.`
+     : "Exibindo todo o período.";
+ }
+
+ let rows=db.cutters.map(c=>{
+   let st=cutterStats(c),cost=cutterCostStats(c);
+   let costBase=c.cutType==="Interno"
+     ? `Salário: ${money(c.monthlySalary||0)}`
+     : `${(c.rates||[]).length} preços cadastrados`;
+   return [
+     esc(c.name||"-"),esc(c.phone||"-"),esc(c.cutType||"-"),
+     c.active?'<span class="badge ok">Ativo</span>':'<span class="badge">Inativo</span>',
+     st.planned.toLocaleString("pt-BR"),
+     st.done.toLocaleString("pt-BR"),
+     costBase,
+     money(cost.perPiece),
+     money(cost.totalCost),
+     `<button type="button" class="secondary" onclick="editCutter(${c.id})">Editar</button>
+      <button type="button" class="danger" onclick="del('cutters',${c.id})">Excluir</button>`
+   ];
+ });
+ el.innerHTML=rows.length
+   ? table(["Cortador","Telefone","Tipo de corte","Status","Peças planejadas","Peças realizadas","Base de custo","Custo médio/peça","Custo no período","Ações"],rows)
+   : '<div class="empty">Nenhum cortador cadastrado.</div>';
+}

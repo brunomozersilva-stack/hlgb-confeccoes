@@ -1,0 +1,29 @@
+function renderProduction(){
+ syncFinalizedCutsToProduction();
+ db.production=Array.isArray(db.production)?db.production:[];
+ let f=document.getElementById("prodFilter")?.value||"";
+ let arr=db.production.filter(p=>!f||p.stage===f);
+
+ let el=document.getElementById("productionTable");
+ if(!el)return;
+
+ let rows=arr.map(p=>{let ord=getOrderByProduction(p);return [
+   esc(p.op||"-"),
+   esc(p.client||ord?.client||"-"),
+   esc(ord?orderProductSummary(ord):(p.product||"-")),
+   (+p.planned||0).toLocaleString("pt-BR"),
+   (+p.done||0).toLocaleString("pt-BR"),
+   Math.max(0,(+p.planned||0)-(+p.done||0)).toLocaleString("pt-BR"),
+   esc(productionDestinationName(p)),
+   p.sentToFactionAt?fmtDate(p.sentToFactionAt):"-",
+   p.factionDueDate?fmtDate(p.factionDueDate):"-",
+   priorityBadge(ord?.priority||"Padrão"),
+   `<span class="badge">${esc(p.stage||"Aguardando produção")}</span>`,
+   `${ord?`<button type="button" class="secondary" onclick="viewOrderDetails(${ord.id})">Ver pedido</button> `:""}<button type="button" class="secondary" onclick="openProductionDestination(${p.id})">Definir local</button>
+    <button type="button" class="secondary" onclick="advanceProd(${p.id})">+ produção</button>`
+ ];});
+
+ el.innerHTML=rows.length
+   ? table(["OP","Cliente","Produto","Planejado","Produzido","Falta","Local de produção","Enviado em","Previsão entrega","Prioridade","Etapa","Ações"],rows)
+   : '<div class="empty">Nenhum corte finalizado aguardando produção.</div>';
+}

@@ -1,0 +1,33 @@
+function projectionItemsForOrder(o){
+ let grade=Array.isArray(o?.grade)?o.grade:[];
+ let grouped={};
+ grade.forEach(it=>{
+   let pid=+it.productId||0;
+   let p=(db.products||[]).find(x=>+x.id===pid);
+   let key=pid?String(pid):("legacy-"+String(p?.name||o.product||o.items||"Produto"));
+   if(!grouped[key])grouped[key]={key,productId:pid||null,name:p?.name||o.product||"Produto",qty:0};
+   grouped[key].qty+=(+it.qty||0);
+ });
+ if(!Object.keys(grouped).length){
+   let pid=+o.productId||0,p=(db.products||[]).find(x=>+x.id===pid);
+   let name=p?.name||cleanFactionProductName?.(o.items||o.product||"Pedido")||o.items||"Pedido";
+   grouped[pid?String(pid):"legacy"]={key:pid?String(pid):"legacy",productId:pid||null,name,qty:qtyOfOrder(o)};
+ }
+ o.projectionItems=(o.projectionItems&&typeof o.projectionItems==="object")?o.projectionItems:{};
+ let totalQty=Math.max(1,Object.values(grouped).reduce((a,x)=>a+x.qty,0));
+ return Object.values(grouped).map(g=>{
+   let saved=o.projectionItems[g.key]||{};
+   let unit=0;
+   if(g.productId){
+     let cId=+o.clientId||0;
+     try{unit=typeof suggestedPrice==="function"?+suggestedPrice(cId,g.productId)||0:0}catch(e){}
+     if(!unit){let p=(db.products||[]).find(x=>+x.id===g.productId);unit=+p?.price||0}
+   }
+   let value=unit>0?unit*g.qty:(+o.total||0)*(g.qty/totalQty);
+   let legacyInvoiced=!!saved.invoiced;
+   let invoicedQty=saved.invoicedQty!=null?Math.max(0,+saved.invoicedQty||0):(legacyInvoiced?g.qty:0);
+   invoicedQty=Math.min(g.qty,invoicedQty);
+   let remainingQty=Math.max(0,g.qty-invoicedQty);
+   return {...g,date:saved.date||"",invoiced:remainingQty<=0,invoiceIds:Array.isArray(saved.invoiceIds)?saved.invoiceIds:[],invoicedQty,remainingQty,value};
+ });
+}
