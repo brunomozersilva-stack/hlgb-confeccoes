@@ -1,0 +1,46 @@
+name: Aplicar HLGB v92.10 falta nas facções
+on:
+  push:
+    paths:
+      - 'scripts/hlgb_v9210_faction_missing_cloud.py'
+      - '.github/workflows/hlgb-apply-v9210.yml'
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+      - name: Aplicar correção v92.10
+        run: python scripts/hlgb_v9210_faction_missing_cloud.py
+      - name: Validar v92.10
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          s=Path('index.html').read_text(encoding='utf-8')
+          req=[
+            'HLGB_V9210_START','hlgbRegisterFactionMissing9210','ensureCloud9210',
+            "saveRow9210('missingPieces',nextM,false)","saveRow9210('factions',nextF,false)",
+            'HLGB_V9200_START','HLGB_V9201_START','HLGB_V9202_START','HLGB_V9209_START',
+            'v92.10'
+          ]
+          miss=[x for x in req if x not in s]
+          if miss: raise SystemExit('Ausente: '+repr(miss))
+          block=s[s.index('<!-- HLGB_V9210_START -->'):s.index('<!-- HLGB_V9210_END -->')]
+          if 'window.cloudAccessToken' in block:
+              raise SystemExit('v92.10 ainda depende incorretamente de window.cloudAccessToken')
+          a=Path('abrir.html').read_text(encoding='utf-8')
+          if '92.10' not in a: raise SystemExit('abrir.html não aponta para v92.10')
+          print('v92.10 OK')
+          PY
+      - name: Publicar v92.10
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add index.html abrir.html
+          git commit -m "Publicar HLGB v92.10 - corrigir registro de falta nas facções" || exit 0
+          git push
