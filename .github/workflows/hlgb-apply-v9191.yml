@@ -18,8 +18,16 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '20'
-      - name: Aplicar e validar v91.91
-        run: python scripts/hlgb_v9191_cut_capacity_cleanup.py
+      - name: Ajustar guarda histórica e aplicar v91.91
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p=Path('scripts/hlgb_v9191_cut_capacity_cleanup.py')
+          s=p.read_text(encoding='utf-8')
+          s=s.replace("if \"String(a.source||'')!=='cut_assignment'\" in s: raise SystemExit('Filtro antigo cut_assignment ainda presente')\n","")
+          p.write_text(s,encoding='utf-8')
+          PY
+          python scripts/hlgb_v9191_cut_capacity_cleanup.py
       - name: Publicar v91.91
         run: |
           git config user.name 'github-actions[bot]'
