@@ -23,7 +23,6 @@ for term in terms:
             out.extend(f'{j+1}: {lines[j]}' for j in range(a,b))
             out.append('')
 
-# funções de interesse completas/maiores
 for pat in [r'function\s+renderCutters\b',r'function\s+renderDailyCuts\b',r'function\s+renderCapacityPlanning\b',r'function\s+renderProduction\b',r'function\s+finishCut\b',r'window\.finishCut\s*=']:
     rx=re.compile(pat,re.I)
     for i,line in enumerate(lines):
@@ -36,3 +35,4 @@ for pat in [r'function\s+renderCutters\b',r'function\s+renderDailyCuts\b',r'func
 Path('debug').mkdir(exist_ok=True)
 Path('debug/v9191-targets.txt').write_text('\n'.join(out),encoding='utf-8')
 print('matches',len(out),'lines')
+# trigger 2
