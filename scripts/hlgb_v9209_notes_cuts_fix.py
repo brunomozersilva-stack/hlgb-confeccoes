@@ -189,7 +189,7 @@ s=s[:pos]+addon+'\n'+s[pos:]
 s=s.replace('v92.08','v92.09').replace('V92.08','V92.09')
 s=re.sub(r'<title>HLGB Confecções — Sistema de Gestão v[0-9.]+ Multiusuário</title>','<title>HLGB Confecções — Sistema de Gestão v92.09 Multiusuário</title>',s,count=1)
 
-req=['HLGB_V9200_START','HLGB_V9201_START','HLGB_V9202_START','HLGB_V9203_START','HLGB_V9207','HLGB_V9208_VERSION_BADGE','HLGB_V9209_START','hlgbRefreshNotes9209','hlgbOpenModelCut9209','hlgbOpenOrderedModelPlan9209','Modelos pedidos a serem cortados','v92.09']
+req=['HLGB_V9200_START','HLGB_V9201_START','HLGB_V9202_START','HLGB_V9203_START','__hlgbLocalCacheQuotaBlocked','HLGB_V9208_VERSION_BADGE','HLGB_V9209_START','hlgbRefreshNotes9209','hlgbOpenModelCut9209','hlgbOpenOrderedModelPlan9209','Modelos pedidos a serem cortados','v92.09']
 miss=[x for x in req if x not in s]
 if miss: raise SystemExit('Fluxos ausentes apos v92.09: '+repr(miss))
 
