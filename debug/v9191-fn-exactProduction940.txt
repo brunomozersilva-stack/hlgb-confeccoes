@@ -1,0 +1,4 @@
+function exactProduction940(o,item){
+  let pid=String(item.productId||item.key||'');
+  return (db.production||[]).filter(p=>+p.orderId===+o.id&&q940(p.planned)>0&&!['pronto','finalizado'].includes(n940(p.stage))&&(String(p.productId||'')===pid||String(p.cutProductKey||'').split(':').pop()===pid));
+}

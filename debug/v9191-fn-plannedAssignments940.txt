@@ -1,0 +1,4 @@
+function plannedAssignments940(o,item){
+  let pid=String(item.productId||item.key||'');
+  return (db.capacityAssignments||[]).filter(a=>+a.orderId===+o.id&&String(a.itemKey)===pid&&a.active!==false&&q940(a.qty)>0&&String(a.source||'')!=='cut_assignment');
+}

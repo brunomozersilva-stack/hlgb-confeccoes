@@ -1,0 +1,3 @@
+function activeItems940(){
+  let out=[];(db.orders||[]).forEach(o=>{if(n940(o.status)==='cancelado'||o.deletedAt)return;itemRows940(o).forEach(item=>{let qty=q940(item.remainingQty!=null?item.remainingQty:item.qty);if(qty<=0)return;out.push({o,item,qty})})});return out;
+}
