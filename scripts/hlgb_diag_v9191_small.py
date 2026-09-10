@@ -4,22 +4,59 @@ s=Path('index.html').read_text(encoding='utf-8')
 lines=s.splitlines()
 Path('debug').mkdir(exist_ok=True)
 
-def grab(name,patterns,before=20,after=140,max_matches=4):
-    out=[]; hits=0
-    regs=[re.compile(p,re.I) for p in patterns]
-    for i,line in enumerate(lines):
-        if any(r.search(line) for r in regs):
-            out.append(f'===== line {i+1} =====')
-            a=max(0,i-before); b=min(len(lines),i+after)
-            out.extend(f'{j+1}: {lines[j]}' for j in range(a,b))
-            out.append('')
-            hits+=1
-            if hits>=max_matches: break
-    Path('debug',name).write_text('\n'.join(out),encoding='utf-8')
-    print(name,hits,len(out))
+def extract_function(name):
+    rx=re.compile(r'(?:async\s+)?function\s+'+re.escape(name)+r'\s*\(')
+    m=rx.search(s)
+    if not m:return ''
+    start=m.start(); brace=s.find('{',m.end())
+    if brace<0:return ''
+    depth=0; quote=None; esc=False; i=brace
+    while i<len(s):
+        ch=s[i]
+        if quote:
+            if esc: esc=False
+            elif ch=='\\': esc=True
+            elif ch==quote: quote=None
+        else:
+            if ch in ('"',"'",'`'): quote=ch
+            elif ch=='{': depth+=1
+            elif ch=='}':
+                depth-=1
+                if depth==0:return s[start:i+1]
+        i+=1
+    return s[start:]
 
-grab('v9191-cutter-excel.txt',[r'hlgbRenderCutterExcel9179',r'Projeção semanal dos cortadores',r'visão tipo Excel'],20,180,3)
-grab('v9191-capacity.txt',[r'renderCapacityPlanning',r'capacityAssignments',r'Planejamento de capacidade'],25,220,5)
-grab('v9191-queue-local.txt',[r'Modelos ainda sem destino',r'Fila por local',r'productionLocationId',r'Escolher quem vai produzir'],25,220,5)
-grab('v9191-grade.txt',[r'actualCutGrade',r'originalGrade',r'cutAdjustmentNote',r'function finishCut',r'window\.finishCut'],25,240,6)
-# trigger
+def extract_assignment(name):
+    for pat in [r'window\.'+re.escape(name)+r'\s*=\s*(?:async\s*)?function\s*\(',r'window\.'+re.escape(name)+r'\s*=\s*(?:async\s*)?\([^)]*\)\s*=>\s*{']:
+        m=re.search(pat,s)
+        if m:
+            brace=s.find('{',m.end()-1); start=m.start(); depth=0; quote=None; esc=False; i=brace
+            while i<len(s):
+                ch=s[i]
+                if quote:
+                    if esc: esc=False
+                    elif ch=='\\': esc=True
+                    elif ch==quote: quote=None
+                else:
+                    if ch in ('"',"'",'`'): quote=ch
+                    elif ch=='{': depth+=1
+                    elif ch=='}':
+                        depth-=1
+                        if depth==0:return s[start:i+1]
+                i+=1
+    return ''
+
+names=['renderCapacityPlanning','assignmentsFor','allProjectionRows','projectionItemsForOrder','capacityDateRange','renderProduction','renderFactions','renderCutters','renderDailyCuts','finishCut','renderCuts']
+for n in names:
+    txt=extract_function(n) or extract_assignment(n)
+    Path('debug',f'v9191-fn-{n}.txt').write_text(txt,encoding='utf-8')
+    print(n,len(txt))
+
+# contexts by phrase, narrow and useful
+for fname,term in [('v9191-context-destino.txt','Modelos ainda sem destino'),('v9191-context-queue.txt','Fila por local'),('v9191-context-grade.txt','actualCutGrade'),('v9191-context-capacity.txt','capacityAssignments')]:
+    pos=s.lower().find(term.lower())
+    if pos<0:txt=''
+    else:
+        a=max(0,pos-8000);b=min(len(s),pos+18000);txt=s[a:b]
+    Path('debug',fname).write_text(txt,encoding='utf-8')
+    print(fname,len(txt))
