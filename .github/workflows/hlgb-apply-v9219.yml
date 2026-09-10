@@ -1,0 +1,51 @@
+name: Aplicar HLGB v92.19 cortes espelho e versão
+on:
+  push:
+    paths:
+      - 'scripts/hlgb_v9219_mirror_cut_version_fix.py'
+      - '.github/workflows/hlgb-apply-v9219.yml'
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Montar página v92.19
+        run: python scripts/hlgb_v9219_mirror_cut_version_fix.py
+      - name: Validar correções e JavaScript
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          s=Path('app9219.html').read_text(encoding='utf-8')
+          abrir=Path('abrir.html').read_text(encoding='utf-8')
+          req=['id="loginUser"','id="loginPass"','onclick="return doLogin()"','HLGB_V9219_MIRROR_CUT_VERSION_FIX_START','workflowSourceOrderId','mirrorPlanInvalid9219','hlgbCleanupMirrorPlans9219','v92.19','app9219.html?v=92.19']
+          both=s+abrir
+          miss=[x for x in req if x not in both]
+          if miss: raise SystemExit('Itens obrigatórios ausentes: '+repr(miss))
+          if "el.textContent!=='v91.90')el.textContent='v91.90'" in s:
+              raise SystemExit('Forçador visual antigo v91.90 ainda ativo')
+          start=s.index('<!-- HLGB_V9219_MIRROR_CUT_VERSION_FIX_START -->')
+          end=s.index('<!-- HLGB_V9219_MIRROR_CUT_VERSION_FIX_END -->',start)
+          block=s[start:end]
+          if 'MutationObserver' in block: raise SystemExit('Novo bloco v92.19 não pode usar MutationObserver')
+          js=block.split('<script>',1)[1].rsplit('</script>',1)[0]
+          Path('/tmp/v9219.js').write_text(js,encoding='utf-8')
+          print('Estrutura v92.19 OK')
+          PY
+          node --check /tmp/v9219.js
+      - name: Publicar v92.19
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add app9219.html abrir.html
+          if git diff --cached --quiet; then exit 0; fi
+          git commit -m "Publicar HLGB v92.19 - corrigir cortes espelho e versão"
+          git push
