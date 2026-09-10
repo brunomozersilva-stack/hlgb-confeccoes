@@ -3,6 +3,7 @@ on:
   push:
     paths:
       - 'scripts/hlgb_diag_v9191_small.py'
+      - '.github/workflows/hlgb-diag-v9191-small.yml'
   workflow_dispatch:
 permissions:
   contents: write
@@ -20,6 +21,6 @@ jobs:
         run: |
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add debug/v9191-*.txt
-          git commit -m 'Gerar recortes diagnosticos v91.91' || exit 0
+          git add debug/v9191-*.txt debug/v9192-*.txt
+          git commit -m 'Gerar recortes diagnosticos de sessao v91.92' || exit 0
           git push
