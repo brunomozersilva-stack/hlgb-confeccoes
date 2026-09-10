@@ -1,0 +1,1342 @@
+TITLE/VERSION
+<title>HLGB Confecções — Sistema de Gestão v91.95 Multiusuário</title>
+
+### abateMissingPiece @ 337436
+function abateMissingPiece(id){
+ let m=(db.missingPieces||[]).find(x=>+x.id===+id);if(!m)return;
+ openModal("Abater / recuperar ocorrência",`
+   <div class="grid">
+     <div class="field"><label>Cliente</label><input value="${esc(m.client||"")}" disabled></div>
+     <div class="field"><label>Produto</label><input value="${esc(m.product||"")}" disabled></div>
+     <div class="field"><label>Tipo</label><input value="${esc(m.issueType||"Peça faltante")}" disabled></div>
+     <div class="field"><label>Quantidade em aberto</label><input value="${(+m.remainingQty||0)} peças" disabled></div>
+     <div class="field"><label>Quantidade recuperada/refeita/entregue</label><input id="missingAbateQty" type="number" min="1" max="${+m.remainingQty||0}" value="${+m.remainingQty||0}"></div>
+     <div class="field"><label>Data da baixa</label><input id="missingAbateDate" type="date" value="${isoDate(new Date())}"></div>
+     <div class="field"><label>Observação</label><input id="missingAbateNote" placeholder="Ex.: entregue ao cliente"></div>
+   </div>
+   <button type="button" class="primary modalSave" onclick="modalSave()">✅ Confirmar baixa</button>
+ `,()=>{
+   let q=+document.getElementById("missingAbateQty")?.value||0;
+   if(q<=0||q>(+m.remainingQty||0)){alert("Informe uma quantidade válida.");return}
+   let date=document.getElementById("missingAbateDate")?.value||isoDate(new Date());
+   let note=document.getElementById("missingAbateNote")?.value||"";
+   m.history=Array.isArray(m.history)?m.history:[];
+   m.history.push({id:Date.now(),qty:q,date,note});
+   m.recoveredQty=(+m.recoveredQty||0)+q;
+   m.remainingQty=Math.max(0,(+m.remainingQty||0)-q);
+   m.status=m.remainingQty<=0?"Resolvido":"Parcial";
+   closeModal();save();renderMissingPieces();
+ });
+}
+
+
+### save @ 178589
+function save(){
+ try{persistDb()}
+ catch(e){alert("Não foi possível gravar os dados neste navegador. Verifique o armazenamento/localStorage.");console.error(e);return false}
+ auditAction("Alteração salva","Dados atualizados");
+ if(typeof syncAllData==="function")return syncAllData(false);
+ renderAll();
+ return true;
+}
+
+
+### persistDb @ 127089
+function persistDb(){
+ localSaveOnly();
+ if(cloudBootstrapping||cloudApplying)return true;
+ // Módulos v90 são enviados por registro, sem depender do JSON gigante.
+ if(hlgbNormalizedReady)hlgbQueueNormalizedSync(70);
+ // Só marca o JSON legado como pendente se ALGUM módulo ainda não migrado mudou.
+ // Isso elimina conflitos entre um usuário cadastrando produto e outro lançando pedido.
+ let legacyChanged=true;
+ try{legacyChanged=!cloudEq(hlgbLegacyComparablePayload(cloudPayload(cloudBaseSnapshot||null)),hlgbLegacyComparablePayload(cloudBaseSnapshot||{}))}catch(e){}
+ if(legacyChanged){
+   cloudDirty=true;cloudMarkLocalDirty(true);
+   if(cloudReady&&cloudAccessToken){setCloudStatus("☁️ Salvando automático…");cloudQueueSave()}
+ }else if(!hlgbCorePendingRead()){
+   setCloudStatus(hlgbRealtimeState==="SUBSCRIBED"?"⚡ Online · multiusuário":"☁️ Online · automático","ok");
+ }
+ return true;
+}
+
+
+### renderProduction @ 384785
+function renderProduction(){
+ syncFinalizedCutsToProduction();
+ db.production=Array.isArray(db.production)?db.production:[];
+ let f=document.getElementById("prodFilter")?.value||"";
+ let arr=db.production.filter(p=>!f||p.stage===f);
+
+ let el=document.getElementById("productionTable");
+ if(!el)return;
+
+ let rows=arr.map(p=>{let ord=getOrderByProduction(p);return [
+   esc(p.op||"-"),
+   esc(p.client||ord?.client||"-"),
+   esc(ord?orderProductSummary(ord):(p.product||"-")),
+   (+p.planned||0).toLocaleString("pt-BR"),
+   (+p.done||0).toLocaleString("pt-BR"),
+   Math.max(0,(+p.planned||0)-(+p.done||0)).toLocaleString("pt-BR"),
+   esc(productionDestinationName(p)),
+   p.sentToFactionAt?fmtDate(p.sentToFactionAt):"-",
+   p.factionDueDate?fmtDate(p.factionDueDate):"-",
+   priorityBadge(ord?.priority||"Padrão"),
+   `<span class="badge">${esc(p.stage||"Aguardando produção")}</span>`,
+   `${ord?`<button type="button" class="secondary" onclick="viewOrderDetails(${ord.id})">Ver pedido</button> `:""}<button type="button" class="secondary" onclick="openProductionDestination(${p.id})">Definir local</button>
+    <button type="button" class="secondary" onclick="advanceProd(${p.id})">+ produção</button>`
+ ];});
+
+ el.innerHTML=rows.length
+   ? table(["OP","Cliente","Produto","Planejado","Produzido","Falta","Local de produção","Enviado em","Previsão entrega","Prioridade","Etapa","Ações"],rows)
+   : '<div class="empty">Nenhum corte finalizado aguardando produção.</div>';
+}
+
+
+### renderAll @ 267932
+function renderAll(){
+ // Renderizar a interface nunca deve, por si só, criar uma alteração pendente.
+ // Algumas rotinas legadas abaixo também fazem sincronizações derivadas; só
+ // persistimos se elas realmente mudarem dados operacionais.
+ let beforeSystemSync=null;
+ try{beforeSystemSync=cloudOperationalPayload(cloudClone(db))}catch(e){}
+ cleanupOrphanOrderRecords();
+ syncLegacyMaterialCostsFromCostTable();
+ let selectedSeparation=document.getElementById("separationOrder")?.value||"";
+ syncOrdersToCuts();
+ try{
+   const afterSystemSync=cloudOperationalPayload(cloudClone(db));
+   if(beforeSystemSync&&!cloudEq(beforeSystemSync,afterSystemSync)){
+     if(cloudApplying||cloudBootstrapping)localSaveOnly();
+     else persistDb();
+   }
+ }catch(e){}
+ renderDash();renderOrders();renderProduction();renderCuts();renderStock();renderFactions();renderFactionPayments();if(document.getElementById("lixeiraPedidos")?.classList.contains("active"))renderOrderTrash();
+ renderCutters();drawCutterChart();renderClients();if(document.getElementById("clientProfitReport"))renderClientPotentialReport();renderMaterials();renderCatalogs();renderUsers();
+ fillSeparationOrders();
+ if(selectedSeparation && document.getElementById("separationOrder")){
+   document.getElementById("separationOrder").value=selectedSeparation;
+   renderSeparation();
+ }
+ renderSuppliers();renderPurchases();renderProducts();renderFinance();renderEmployees();renderFormerEmployees();renderPayroll();renderReports();renderGoals();
+ try{hlgb916EnsureData()}catch(e){console.error("HLGB v91.17 ensureData",e)}
+ try{renderCutAssignmentQueue()}catch(e){console.error("HLGB v91.17 cutAssignment",e)}
+ try{renderDestinationChecklists()}catch(e){console.error("HLGB v91.17 destinationChecklists",e)}
+ try{renderFactionPaymentPlanner()}catch(e){console.error("HLGB v91.17 factionPlanner",e)}
+ try{renderHubFinance()}catch(e){console.error("HLGB v91.17 hubFinance",e)}
+ if(document.getElementById("missingOpenTable"))renderMissingPieces();if(document.getElementById("auditLogTable"))renderAuditLog();
+ document.getElementById("companyName").value=db.config.name;
+ document.getElementById("companyNote").value=db.config.note;
+ renderOrderNotes();
+ ensurePageSyncButtons();
+}
+
+
+### projectionItemsForOrder @ 290405
+function projectionItemsForOrder(o){
+ let grade=Array.isArray(o?.grade)?o.grade:[];
+ let grouped={};
+ grade.forEach(it=>{
+   let pid=+it.productId||0;
+   let p=(db.products||[]).find(x=>+x.id===pid);
+   let key=pid?String(pid):("legacy-"+String(p?.name||o.product||o.items||"Produto"));
+   if(!grouped[key])grouped[key]={key,productId:pid||null,name:p?.name||o.product||"Produto",qty:0};
+   grouped[key].qty+=(+it.qty||0);
+ });
+ if(!Object.keys(grouped).length){
+   let pid=+o.productId||0,p=(db.products||[]).find(x=>+x.id===pid);
+   let name=p?.name||cleanFactionProductName?.(o.items||o.product||"Pedido")||o.items||"Pedido";
+   grouped[pid?String(pid):"legacy"]={key:pid?String(pid):"legacy",productId:pid||null,name,qty:qtyOfOrder(o)};
+ }
+ o.projectionItems=(o.projectionItems&&typeof o.projectionItems==="object")?o.projectionItems:{};
+ let totalQty=Math.max(1,Object.values(grouped).reduce((a,x)=>a+x.qty,0));
+ return Object.values(grouped).map(g=>{
+   let saved=o.projectionItems[g.key]||{};
+   let unit=0;
+   if(g.productId){
+     let cId=+o.clientId||0;
+     try{unit=typeof suggestedPrice==="function"?+suggestedPrice(cId,g.productId)||0:0}catch(e){}
+     if(!unit){let p=(db.products||[]).find(x=>+x.id===g.productId);unit=+p?.price||0}
+   }
+   let value=unit>0?unit*g.qty:(+o.total||0)*(g.qty/totalQty);
+   let legacyInvoiced=!!saved.invoiced;
+   let invoicedQty=saved.invoicedQty!=null?Math.max(0,+saved.invoicedQty||0):(legacyInvoiced?g.qty:0);
+   invoicedQty=Math.min(g.qty,invoicedQty);
+   let remainingQty=Math.max(0,g.qty-invoicedQty);
+   return {...g,date:saved.date||"",invoiced:remainingQty<=0,invoiceIds:Array.isArray(saved.invoiceIds)?saved.invoiceIds:[],invoicedQty,remainingQty,value};
+ });
+}
+
+
+### projectionOpenMissingQty @ 305305
+function projectionOpenMissingQty(order,item){
+ const oid=String(order?.id??'').trim();
+ const pid=String(item?.productId??'').trim();
+ if(!oid||!pid)return 0;
+ return (db.missingPieces||[]).reduce((sum,m)=>{
+   if(String(m?.orderId??'').trim()!==oid)return sum;
+   if(String(m?.productId??'').trim()!==pid)return sum;
+   if(String(m?.issueType||'Peça faltante')!=='Peça faltante')return sum;
+   const allocated=(Array.isArray(m?.history)?m.history:[]).reduce((a,h)=>{
+     const q=Math.max(0,+h?.qty||0),dest=String(h?.destination||'');
+     if(dest==='finishedPieces')return a+q;
+     if(dest==='clientInvoice')return a+Math.max(0,q-Math.max(0,+h?.projectionAppliedQty||0));
+     return a;
+   },0);
+   return sum+Math.max(0,+m?.remainingQty||0)+allocated;
+ },0);
+}
+
+
+### finalizeSelectedProjection @ 295354
+function finalizeSelectedProjection(){
+ let keys=[...document.querySelectorAll(".projectionSelect:checked")].map(x=>x.value);
+ if(!keys.length){alert("Selecione pelo menos um produto.");return}
+ let selected=keys.map(v=>{
+   let [oid,key]=String(v).split("::");
+   let o=(db.orders||[]).find(x=>+x.id===+oid);if(!o)return null;
+   let item=projectionItemsForOrder(o).find(i=>String(i.key)===key);if(!item)return null;
+   return {o,item};
+ }).filter(Boolean);
+ let sourceClients=[...new Set(selected.map(x=>x.o.client||"Sem cliente"))];
+ if(sourceClients.length!==1){alert("Selecione produtos de um mesmo pedido/cliente de origem por vez.");return}
+
+ let originalClient=sourceClients[0];
+ let originalClientId=selected[0]?.o?.clientId||((db.clients||[]).find(c=>c.name===originalClient)?.id)||"";
+ let clientOptions=(db.clients||[]).map(c=>`<option value="${c.id}" ${+c.id===+originalClientId?"selected":""}>${esc(c.name)}</option>`).join("");
+ let rows=selected.map((x,i)=>{
+   let rem=x.item.remainingQty!=null?x.item.remainingQty:Math.max(0,x.item.qty-(x.item.invoicedQty||0));
+   let unit=x.item.qty>0?(+x.item.value||0)/x.item.qty:0;
+   return `<tr>
+     <td>${esc(x.item.name)}</td>
+     <td>${x.item.qty.toLocaleString("pt-BR")}</td>
+     <td>${(+x.item.invoicedQty||0).toLocaleString("pt-BR")}</td>
+     <td><b>${rem.toLocaleString("pt-BR")}</b></td>
+     <td><input class="projectionInvoiceQty" data-index="${i}" type="number" min="0" max="${rem}" step="1" value="${rem}" oninput="recalcProjectionInvoiceModal()"></td>
+     <td><input class="projectionInvoiceUnit" data-index="${i}" type="number" min="0" step=".01" value="${unit.toFixed(2)}" oninput="recalcProjectionInvoiceModal()"></td>
+   </tr>`;
+ }).join("");
+
+ openModal("Finalizar nota — venda total ou parcial",`
+   <div class="panel" style="margin-top:0;background:#fff8fb">
+    <div class="grid">
+      <div class="field"><label>Cliente original do pedido</label><input value="${esc(originalClient)}" disabled></div>
+      <div class="field"><label>Cliente que vai receber esta nota</label><select id="projectionInvoiceClient" onchange="updateProjectionInvoiceClientPrices()">${clientOptions}</select><div class="sub">Pode escolher outro cliente sem alterar o pedido original.</div></div>
+      <div class="field"><label>Data de emissão da nota</label><input id="projectionInvoiceIssueDate" type="date" value="${isoDate(new Date())}"></div>
+      <div class="field"><label>Vencimento</label><input id="projectionInvoiceDue" type="date" value="${selected[0]?.item.date||isoDate(new Date())}"></div>
+      <div class="field"><label>Condição de pagamento</label><select id="projectionInvoiceTerms" onchange="toggleProjectionInvoiceTermsDetail()"><option>À vista</option><option>7 dias</option><option>14 dias</option><option>21 dias</option><option>28 dias</option><option>30 dias</option><option>Cheque</option><option>Personalizado</option></select></div>
+      <div class="field" id="projectionInvoiceTermsDetailField" style="display:none"><label id="projectionInvoiceTermsDetailLabel">Detalhes da condição</label><input id="projectionInvoiceTermsDetail" placeholder="Informe os detalhes da condição de pagamento"></div>
+    </div>
+   </div>
+   <div class="sub" style="margin:10px 0">Em <b>Qtd. nesta nota</b>, informe somente o que está saindo agora. O restante continua disponível na Projeção para outra nota ou outro cliente.</div>
+   <div style="overflow:auto"><table><thead><tr><th>Produto</th><th>Original</th><th>Já faturado</th><th>Disponível</th><th>Qtd. nesta nota</th><th>Valor/peça</th></tr></thead><tbody>${rows}</tbody></table></div>
+   <div class="cards" style="margin-top:12px">
+     <div class="card"><small>Peças nesta nota</small><strong id="projectionInvoiceQtyTotal">0</strong></div>
+     <div class="card"><small>Valor desta nota</small><strong id="projectionInvoiceValueTotal">R$ 0,00</strong></div>
+   </div>
+   <button type="button" class="primary modalSave">Finalizar esta nota</button>`,()=>{
+     let targetClientId=+document.getElementById("projectionInvoiceClient")?.value||null;
+     let targetClient=(db.clients||[]).find(c=>+c.id===+targetClientId);
+     if(!targetClient){alert("Selecione o cliente que receberá a nota.");return}
+     let lineInputs=[...document.querySelectorAll(".projectionInvoiceQty")];
+     let invoiceItems=[],totalValue=0,totalQty=0;
+     lineInputs.forEach(inp=>{
+       let i=+inp.dataset.index,ctx=selected[i];if(!ctx)return;
+       let available=ctx.item.remainingQty!=null?ctx.item.remainingQty:Math.max(0,ctx.item.qty-(ctx.item.invoicedQty||0));
+       let q=Math.max(0,Math.min(available,+inp.value||0));
+       let unit=+document.querySelector(`.projectionInvoiceUnit[data-index="${i}"]`)?.value||0;
+       if(q>0){invoiceItems.push({ctx,qty:q,unit,value:q*unit});totalQty+=q;totalValue+=q*unit}
+     });
+     if(!invoiceItems.length){alert("Informe pelo menos uma quantidade para esta nota.");return}
+
+     db.finance=db.finance||[];db.projectionInvoices=db.projectionInvoices||[];
+     let issueDate=document.getElementById("projectionInvoiceIssueDate")?.value||isoDate(new Date());
+     let due=document.getElementById("projectionInvoiceDue")?.value||issueDate;
+     let terms=document.getElementById("projectionInvoiceTerms")?.value||"À vista";
+     let termsDetail=document.getElementById("projectionInvoiceTermsDetail")?.value?.trim()||"";
+     if(terms==="Personalizado"&&!termsDetail){alert("Informe os detalhes da condição de pagamento personalizada.");return}
+     let invoiceId=Date.now();
+
+     db.projectionInvoices.push({
+       id:invoiceId,
+       client:targetClient.name,
+       clientId:targetClient.id,
+       sourceClient:originalClient,
+       items:invoiceItems.map(x=>({orderId:x.ctx.o.id,itemKey:x.ctx.item.key,productName:x.ctx.item.name,productId:x.ctx.item.productId||null,projectionDate:x.ctx.item.date||x.ctx.o.date||"",deliveredAt:issueDate,qty:x.qty,unitPrice:x.unit,value:x.value})),
+       date:issueDate,issueDate:issueDate,dueDate:due,value:totalValue,terms,termsDetail,status:"Pendente"
+     });
+     db.finance.push({
+       id:invoiceId+1,type:"Receber",
+       desc:`Nota projeção — ${targetClient.name} — ${invoiceItems.map(x=>x.ctx.item.name).join(", ")}`,
+       value:totalValue,status:"Pendente",paid:0,remaining:totalValue,date:due,dueDate:due,issueDate:issueDate,paymentTerms:terms,paymentTermsDetail:termsDetail,
+       clientId:targetClient.id,clientName:targetClient.name,projectionInvoiceId:invoiceId
+     });
+
+     invoiceItems.forEach(({ctx,qty})=>{
+       let o=ctx.o,item=ctx.item;
+       o.projectionItems=o.projectionItems||{};
+       let saved=o.projectionItems[item.key]||{};
+       let prev=saved.invoicedQty!=null?(+saved.invoicedQty||0):(saved.invoiced?item.qty:0);
+       let newQty=Math.min(item.qty,prev+qty);
+       o.projectionItems[item.key]={
+         ...saved,date:item.date,invoicedQty:newQty,invoiced:newQty>=item.qty,
+         invoiceIds:[...((saved.invoiceIds)||[]),invoiceId],
+         deliveryHistory:[...((saved.deliveryHistory)||[]),{invoiceId,date:issueDate,qty}]
+       };
+       let all=projectionItemsForOrder(o);
+       o.projectionInvoiced=all.every(i=>i.invoiced);
+     });
+
+     closeModal();
+     save();
+     renderProjection();
+     renderFinance();
+     alert(`Nota finalizada para ${targetClient.name}: ${totalQty.toLocaleString("pt-BR")} peça(s) — ${money(totalValue)}. O saldo não faturado continua disponível.`);
+   });
+ setTimeout(()=>{updateProjectionInvoiceClientPrices();recalcProjectionInvoiceModal()},30);
+}
+
+
+### finalizeProjectionInvoice
+NOT FOUND
+
+
+### closeProjectionInvoice
+NOT FOUND
+
+
+### syncAllProductionIssuesToMissing @ 341873
+function syncAllProductionIssuesToMissing(){
+ (db.production||[]).forEach(syncProductionIssuesToMissing);
+}
+
+
+### syncProductionIssuesToMissing @ 339740
+function syncProductionIssuesToMissing(p){
+ if(!p)return;
+ db.missingPieces=Array.isArray(db.missingPieces)?db.missingPieces:[];
+ let o=(db.orders||[]).find(x=>+x.id===+p.orderId);
+ let product=(db.products||[]).find(x=>+x.id===+p.productId);
+ let productName=product?.name||p.product||"";
+ let unitPrice=0,unitCost=0;
+ if(o&&p.productId){try{unitPrice=+suggestedPrice(o.clientId||0,p.productId)||0}catch(e){}}
+ if(!unitPrice)unitPrice=+product?.price||0;
+ if(product){try{unitCost=productComputedCost(product)}catch(e){unitCost=+product.cost||0}}
+ [
+   {type:"Defeito",qty:+p.defects||0},
+   {type:"Peça faltante",qty:+p.missingQty||0}
+ ].forEach(issue=>{
+   let key=`production:${p.id}:${issue.type}`;
+   let rec=db.missingPieces.find(m=>m.sourceKey===key);
+   if(issue.qty<=0){
+     if(rec&&(+rec.recoveredQty||0)<=0)db.missingPieces=db.missingPieces.filter(m=>m!==rec);
+     return;
+   }
+   if(!rec){
+     rec={id:Date.now()+Math.floor(Math.random()*1000000),sourceKey:key,sourceType:"Produção",productionId:p.id,
+       issueType:issue.type,orderId:o?.id||p.orderId||"",client:o?.client||p.client||"",clientId:o?.clientId||null,
+       productId:p.productId||null,product:productName,color:p.color||"",size:p.size||"",
+       originalQty:issue.qty,remainingQty:issue.qty,recoveredQty:0,date:isoDate(new Date()),deliveryDate:o?.date||p.factionDueDate||"",
+       unitPrice,unitCost,note:`Lançado na produção — ${productionDestinationName(p)}`,status:"Em aberto",history:[]};
+     db.missingPieces.push(rec);
+   }else{
+     let recovered=+rec.recoveredQty||0;
+     Object.assign(rec,{issueType:issue.type,orderId:o?.id||rec.orderId||"",client:o?.client||rec.client||"",clientId:o?.clientId||rec.clientId||null,
+       productId:p.productId||rec.productId||null,product:productName||rec.product||"",originalQty:issue.qty,
+       remainingQty:Math.max(0,issue.qty-recovered),deliveryDate:o?.date||rec.deliveryDate||"",unitPrice:unitPrice||rec.unitPrice||0,
+       unitCost:unitCost||rec.unitCost||0,status:Math.max(0,issue.qty-recovered)<=0?"Resolvido":(recovered>0?"Parcial":"Em aberto")});
+   }
+ });
+ try{persistDb()}catch(e){}
+}
+
+
+### recordProjectionDelivery
+NOT FOUND
+
+
+### registerFactionDelivery9135
+NOT FOUND
+
+
+
+### CONTEXT data-page="production"
+
+
+
+### CONTEXT showPage('production')
+
+
+
+### CONTEXT Produção diária por local
+
+
+" class="secondary" onclick="clearPricingPicker937()">Limpar filtros</button></div><div id="pricingResults937" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:7px;max-height:420px;overflow:auto"></div>`,()=>{});
+    setTimeout(renderPricingPicker937,20);
+  };
+  function ensurePricingButton937(){
+    let page=document.getElementById('produtos');if(!page)return;let toolbar=page.querySelector('.toolbar');if(!toolbar||document.getElementById('pricingPickerBtn937'))return;
+    let b=document.createElement('button');b.id='pricingPickerBtn937';b.type='button';b.className='primary';b.textContent='💲 Precificação por clientes';b.onclick=openPricingPicker937;toolbar.insertBefore(b,toolbar.firstChild);
+  }
+
+  function relabelDailyProduction937(){
+    let page=document.getElementById('pecasProntas');if(page){
+      let h=page.querySelector('h1');if(h)h.textContent='🧮 Produção diária por local / peças prontas';
+      let sub=page.querySelector(':scope > .sub');if(sub)sub.textContent='Aqui o gerente seleciona a confecção, escolhe o modelo e preenche a grade realmente produzida no dia. O lançamento soma a produção do local sem criar nota, pedido ou movimentação de estoque.';
+      let btn=[...page.querySelectorAll('button')].find(b=>String(b.getAttribute('onclick')||'').includes('newFinishedPieces'));if(btn)btn.textContent='🧮 Preencher produção do dia';
+    }
+    let nav=[...document.querySelectorAll('nav button')].find(b=>String(b.getAttribute('onclick')||'').includes("page('pecasProntas'"));if(nav)nav.textContent='Produção diária por local';
+  }
+
+  const oldIncoming937=window.hlgbRenderIncomingRecord;
+  window.hlgbRenderIncomingRecord=function(module){let out=oldIncoming937?oldIncoming937.apply(this,arguments):undefined;if(module==='hubFinanceEntries'&&document.querySelector('.page.active')?.id==='hubFinanceiro')setTimeout(()=>{safe937(ensureHubSettingsPanel937);safe937(renderPersonalSummary937)},20);return out};
+
+  function boot937(){safe937(ensureHubSettingsPanel937);safe937(ensurePricingButton937);safe937(relabelDailyProduction937);safe937(renderPersonalSummary937)}
+  setTimeout(boot937,1200);window.addEventListener('focus',()=>setTimeout(boot937,100));
+})();
+</script>
+
+
+<!-- HLGB v91.38 WORKFLOW CLARITY + GRADE SPLIT + PARTIAL MATERIAL -->
+<style>
+.pricing938-toolbar{display:grid;grid-template-columns:minmax(220px,.85fr) minmax(280px,1.6fr) minmax(180px,.7fr);gap:10px;align-items:end}
+.pricing938-letters{display:flex;gap:5px;flex-wrap:wrap;margin:10px 0}.pricing938-letters button{min-width:34px;padding:7px 8px}
+.pricing938-table input{width:120px;font-size:15px;font-weight:700}
+.grade-split938{margin-top:12px;border:1px solid var
+
+.onclick=openPricingPicker937;toolbar.insertBefore(b,toolbar.firstChild);
+  }
+
+  function relabelDailyProduction937(){
+    let page=document.getElementById('pecasProntas');if(page){
+      let h=page.querySelector('h1');if(h)h.textContent='🧮 Produção diária por local / peças prontas';
+      let sub=page.querySelector(':scope > .sub');if(sub)sub.textContent='Aqui o gerente seleciona a confecção, escolhe o modelo e preenche a grade realmente produzida no dia. O lançamento soma a produção do local sem criar nota, pedido ou movimentação de estoque.';
+      let btn=[...page.querySelectorAll('button')].find(b=>String(b.getAttribute('onclick')||'').includes('newFinishedPieces'));if(btn)btn.textContent='🧮 Preencher produção do dia';
+    }
+    let nav=[...document.querySelectorAll('nav button')].find(b=>String(b.getAttribute('onclick')||'').includes("page('pecasProntas'"));if(nav)nav.textContent='Produção diária por local';
+  }
+
+  const oldIncoming937=window.hlgbRenderIncomingRecord;
+  window.hlgbRenderIncomingRecord=function(module){let out=oldIncoming937?oldIncoming937.apply(this,arguments):undefined;if(module==='hubFinanceEntries'&&document.querySelector('.page.active')?.id==='hubFinanceiro')setTimeout(()=>{safe937(ensureHubSettingsPanel937);safe937(renderPersonalSummary937)},20);return out};
+
+  function boot937(){safe937(ensureHubSettingsPanel937);safe937(ensurePricingButton937);safe937(relabelDailyProduction937);safe937(renderPersonalSummary937)}
+  setTimeout(boot937,1200);window.addEventListener('focus',()=>setTimeout(boot937,100));
+})();
+</script>
+
+
+<!-- HLGB v91.38 WORKFLOW CLARITY + GRADE SPLIT + PARTIAL MATERIAL -->
+<style>
+.pricing938-toolbar{display:grid;grid-template-columns:minmax(220px,.85fr) minmax(280px,1.6fr) minmax(180px,.7fr);gap:10px;align-items:end}
+.pricing938-letters{display:flex;gap:5px;flex-wrap:wrap;margin:10px 0}.pricing938-letters button{min-width:34px;padding:7px 8px}
+.pricing938-table input{width:120px;font-size:15px;font-weight:700}
+.grade-split938{margin-top:12px;border:1px solid var(--line);border-radius:12px;padding:12px;background:#fff8fb}
+.grade-split938 table input{width:86px;text-align:center}
+.sep-progress938 input{width:95px;text-align:center}
+@media(max-width:800px){.pricing938-toolbar{grid-template-columns:1fr}.pricing938-table{min-width:760px}}
+</style>
+<script>
+(function(){
+  'use strict';
+  const V='91.38';
+  const n938=v=>String(v??'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').trim().toLowerCase();
+  const c938=v=>{try{return JSON.parse(JSON.stringify(v))}catch(e){return v}};
+  const id938=()=>Date.now()+Math.floor(Math.random()*900000);
+  const safe938=fn=>{try{return fn()}catch(e){console.error('HLGB v91.38'
+
+
+### CONTEXT Notas
+
+
+tton id="backupBtn" onclick="backup()" style="display:none">Exportar backup</button> <button id="importBackupBtn" onclick="document.getElementById('backupImportInput').click()" style="display:none">Importar backup</button><input id="backupImportInput" type="file" accept=".json,application/json" style="display:none" onchange="importBackupFile(this)"> <button onclick="logout()">Sair</button></div></header>
+<div class="app">
+<aside><nav id="nav" class="clean-nav">
+<button class="nav-home active" onclick="page('dashboard',this)">🏠 <span>Início</span></button>
+
+<div class="nav-group">
+  <button type="button" class="nav-group-title" onclick="toggleNavGroup(this)">🛍️ <span>Comercial</span><b>⌄</b></button>
+  <div class="nav-submenu">
+    <button onclick="page('pedidos',this)">Pedidos</button>
+    <button onclick="page('clientes',this)">Clientes</button>
+    <button onclick="page('notas',this)">Notas prontas</button>
+    <button onclick="page('lixeiraPedidos',this)">🗑️ Lixeira de pedidos</button>
+  </div>
+</div>
+
+<div class="nav-group">
+  <button type="button" class="nav-group-title" onclick="toggleNavGroup(this)">🏭 <span>Produção</span><b>⌄</b></button>
+  <div class="nav-submenu">
+    <button onclick="page('producao',this)">Produção</button>
+    <button onclick="page('corte',this)">Corte</button>
+    <button onclick="page('faccoes',this)">Envios para facção</button>
+    <button onclick="page('cortadores',this)">Cortadores</button>
+    <button onclick="page('projecao',this)">Projeção semanal</button>
+    <button onclick="page('capacidadeProducao',this)">Planejamento de capacidade</button>
+    <button onclick="page('metas',this)">🎯 Atribuição de metas</button>
+    <button onclick="page('faltas',this)">Peças faltantes</button>
+    <button onclick="page('devolucoesDefeitos',this)">Devoluções / Defeitos</button>
+  </div>
+</div>
+
+<div class="nav-group">
+  <button type="button" class="nav-group-title" onclick="toggleNavGroup(this)">👗 <span>Produtos</span><b>⌄</b></button>
+  <div class="nav-submenu">
+    <button type="button" data-page="produtos" onclick="openProducts(this)">Produtos / Ficha técnica</button>
+    <button onclick="page('estoque',this)">Estoque</button>
+    <button onclick="page('inventarioBens',this)">Inventário de bens</button>
+  </div>
+</div>
+
+<button type="button" class="nav-home" onclick="page('hubFinanceiro',this)">💰 <span>Hub Financeiro</span></button>
+
+<div class="nav-group">
+  <button type="button" class="nav-group-title" onclick="toggleNavGroup(this)">💰 <span>Financeiro</span><b>⌄</b></button>
+  <div class="nav-submenu">
+    <button onclick="page('financeiro',this)">Financeiro geral</button>
+    <button onclick="page('folhaPagamento',this)">Fo
+
+cisa comprar, descontando o estoque e mostrando o valor total previsto.</div>
+    </div>
+    <button type="button" class="primary" onclick="openMultiOrderPurchase()">Selecionar pedidos para compra</button>
+  </div>
+</div>
+<select id="separationOrder" class="hidden" onchange="renderSeparation()"><option value="">Selecione o pedido</option></select>
+<div id="separationList" class="separation-list"></div>
+<div id="separationTable"></div></div>
+<div class="panel">
+  <h2>✅ Checklist de envio / recebimento por local</h2>
+  <div class="sub">Cada atribuição de produção gera um checklist de matéria-prima. Em facções, o comprovante também mostra quantidade, valor por peça e total previsto do serviço.</div>
+  <div id="destinationChecklistTable"></div>
+</div>
+<div class="panel" id="orderNotesPanel">
+  <div class="toolbar" style="justify-content:space-between">
+    <div>
+      <h2 style="margin:0">🧾 Notas</h2>
+      <div class="sub">Pedidos finalizados que tiveram a opção “Nota pronta” gerada ficam aqui para imprimir e acompanhar.</div>
+    </div>
+    <button class="secondary" onclick="page('notas',document.querySelector('nav button[onclick*=\'notas\']'))">Ver todas as notas</button>
+  </div>
+  <div id="orderNotesSummary" class="cards"></div>
+  <h3 style="margin:18px 0 8px">Resumo das notas em aberto</h3>
+  <div class="sub">Veja quem está em aberto, o vencimento e a condição de pagamento.</div>
+  <div id="orderNotesTable"></div>
+</div>
+</section>
+
+<section id="notas" class="page"><h1>🧾 Notas prontas</h1><div class="sub">Aqui ficam os pedidos que já tiveram a nota preparada. Você pode imprimir, acompanhar o pagamento e reabrir uma nota paga.</div>
+<div id="allOrderNotesSummary" class="cards"></div>
+<div class="panel"><h2>Resumo das notas em aberto</h2><div class="sub">Acompanhe cliente, valor, data de cobrança, vencimento, condição de pagamento e situação.</div><div id="allOrderNotesTable"></div></div>
+</section>
+
+<section id="lixeiraPedidos" class="page">
+<h1>🗑️ Lixeira de pedidos</h1>
+<div class="sub">Pedidos excluídos saem de corte, produção, separação, facção, projeção e financeiro, mas ficam guardados aqui até você restaurar ou excluir definitivamente.</div>
+<div class="cards" id="trashOrderCards"></div>
+<div class="panel">
+  <div class="toolbar" style="align-items:flex-end;flex-wrap:wrap">
+    <div class="field"><label>Buscar nº do pedido / cliente</label><input id="trashOrderSearch" placeholder="Pesquisar..." oninput="renderOrderTrash()"></div>
+  </div>
+  <div id="trashOrderTable"></div>
+</div>
+</section>
+
+<section id="producao" class="page">
+  <div class="pagehead">
+    <div>
+      <h1>Produção</h1>
+      <p>Visão resumida de tudo que está sendo produzido, o
+
+rima. Em facções, o comprovante também mostra quantidade, valor por peça e total previsto do serviço.</div>
+  <div id="destinationChecklistTable"></div>
+</div>
+<div class="panel" id="orderNotesPanel">
+  <div class="toolbar" style="justify-content:space-between">
+    <div>
+      <h2 style="margin:0">🧾 Notas</h2>
+      <div class="sub">Pedidos finalizados que tiveram a opção “Nota pronta” gerada ficam aqui para imprimir e acompanhar.</div>
+    </div>
+    <button class="secondary" onclick="page('notas',document.querySelector('nav button[onclick*=\'notas\']'))">Ver todas as notas</button>
+  </div>
+  <div id="orderNotesSummary" class="cards"></div>
+  <h3 style="margin:18px 0 8px">Resumo das notas em aberto</h3>
+  <div class="sub">Veja quem está em aberto, o vencimento e a condição de pagamento.</div>
+  <div id="orderNotesTable"></div>
+</div>
+</section>
+
+<section id="notas" class="page"><h1>🧾 Notas prontas</h1><div class="sub">Aqui ficam os pedidos que já tiveram a nota preparada. Você pode imprimir, acompanhar o pagamento e reabrir uma nota paga.</div>
+<div id="allOrderNotesSummary" class="cards"></div>
+<div class="panel"><h2>Resumo das notas em aberto</h2><div class="sub">Acompanhe cliente, valor, data de cobrança, vencimento, condição de pagamento e situação.</div><div id="allOrderNotesTable"></div></div>
+</section>
+
+<section id="lixeiraPedidos" class="page">
+<h1>🗑️ Lixeira de pedidos</h1>
+<div class="sub">Pedidos excluídos saem de corte, produção, separação, facção, projeção e financeiro, mas ficam guardados aqui até você restaurar ou excluir definitivamente.</div>
+<div class="cards" id="trashOrderCards"></div>
+<div class="panel">
+  <div class="toolbar" style="align-items:flex-end;flex-wrap:wrap">
+    <div class="field"><label>Buscar nº do pedido / cliente</label><input id="trashOrderSearch" placeholder="Pesquisar..." oninput="renderOrderTrash()"></div>
+  </div>
+  <div id="trashOrderTable"></div>
+</div>
+</section>
+
+<section id="producao" class="page">
+  <div class="pagehead">
+    <div>
+      <h1>Produção</h1>
+      <p>Visão resumida de tudo que está sendo produzido, onde está e quanto representa em mercadoria.</p>
+    </div>
+    <button class="secondary" onclick="syncAll();renderProductionHub()">🔄 Atualizar / sincronizar</button>
+  </div>
+
+  <div id="productionHubCards" class="cards"></div>
+
+  <div class="panel">
+    <div class="pagehead" style="margin-bottom:12px">
+      <div>
+        <h2>Produção por local</h2>
+        <div class="sub">Veja rapidamente onde estão concentrados os pedidos, peças e valores em produção.</div>
+      </div>
+    </div>
+    <div id="productionByLocation"></div>
+  </div>
+
+  <div class="panel">
+    <div class="pagehead" style="m
+
+manal</h2>
+  <div id="purchaseWeeklySummary"></div>
+</div>
+
+<div class="panel">
+  <h2>Compras de matéria-prima por semana</h2>
+  <div class="sub">Acompanhe quanto foi comprado em cada semana com base nas notas lançadas e compare com o limite semanal autorizado de compra.</div>
+  <div class="toolbar" style="align-items:flex-end;flex-wrap:wrap">
+    <div class="field"><label>Limite semanal de compras</label><input id="weeklyPurchaseLimit" type="number" step="0.01" oninput="saveWeeklyPurchaseLimit()"></div>
+    <div class="field"><label>Filtrar por uma data da semana</label><input id="weeklyPurchaseDate" type="date" onchange="renderFinance()"></div>
+    <button type="button" class="secondary" onclick="clearWeeklyPurchaseDate()">Ver todas as semanas</button>
+  </div>
+  <div class="cards" id="weeklyPurchaseCards"></div>
+  <div id="weeklyPurchaseTable"></div>
+</div>
+
+<div class="panel">
+  <h2>Notas de compra</h2>
+  <div id="purchaseTable"></div>
+</div>
+</section>
+
+<section id="produtos" class="page">
+<h1>Produtos e ficha técnica</h1>
+<div class="sub">Materiais, custos, preços e ficha técnica por produto. A lista abaixo também mostra categoria e grade cadastradas.</div>
+<div class="panel">
+  <h2>💡 Sugestões padrão de mão de obra e lucro</h2>
+  <div class="sub">Defina os percentuais que o sistema deve <strong>sugerir</strong> nas fichas técnicas. Os dois cálculos usam somente o custo das matérias-primas como base. <strong>Nenhum valor de mão de obra ou preço de venda será alterado automaticamente.</strong></div>
+  <div class="grid" style="margin-top:10px">
+    <div class="field"><label>Mão de obra sugerida (% sobre matéria-prima)</label><input id="productDefaultLaborPct" type="number" min="0" step="0.1" placeholder="Ex.: 25"></div>
+    <div class="field"><label>Lucro sugerido (% sobre matéria-prima)</label><input id="productDefaultProfitPct" type="number" min="0" step="0.1" placeholder="Ex.: 25"></div>
+  </div>
+  <div class="toolbar" style="margin-top:8px"><button type="button" class="secondary" onclick="saveProductSuggestionDefaults()">💾 Salvar percentuais sugeridos</button></div>
+  <div class="sub" style="margin-top:7px">Exemplo: matéria-prima de R$ 8,00 + mão de obra sugerida de 25% = R$ 2,00. Lucro sugerido de 25% = R$ 2,00. Esses valores só entram no produto quando você clicar em <strong>Usar sugestão</strong>.</div>
+</div>
+<div class="panel">
+  <div class="toolbar" style="flex-wrap:wrap">
+    <button class="primary" onclick="newProduct()">+ Novo produto / ficha técnica</button>
+    <div class="product-filter-box">
+      <div class="field">
+        <label>Buscar peça por nome</label>
+        <input class="search" id="productSearchName" placeholder="Ex.: C
+
+input id="finReportStart" type="date" onchange="renderFinance()"></div>
+    <div class="field"><label>Até</label><input id="finReportEnd" type="date" onchange="renderFinance()"></div>
+    <button type="button" class="secondary" onclick="setFinanceReportPeriod('week')">Esta semana</button>
+    <button type="button" class="secondary" onclick="setFinanceReportPeriod('month')">Este mês</button>
+    <button type="button" class="secondary" onclick="setFinanceReportPeriod('year')">Este ano</button>
+    <button type="button" class="secondary" onclick="setFinanceReportPeriod('all')">Todo o período</button>
+  </div>
+</div>
+
+<div class="cards" id="finCards"></div>
+
+<div class="panel">
+  <h2>Pagamentos e recebimentos</h2>
+  <div class="toolbar"><button class="primary" onclick="newFinance()">+ Novo lançamento financeiro</button></div>
+  <div id="financeTable"></div>
+</div>
+
+<div class="panel">
+  <h2>Notas de compra</h2>
+  <div class="sub">Lance aqui cada nota de matéria-prima. Informe fornecedor, número da nota, data, itens e valores; o lançamento entra automaticamente nos resumos e no limite semanal.</div>
+  <div class="toolbar" style="margin:14px 0">
+    <button type="button" class="primary" onclick="newPurchase()">+ Lançar nota de compra</button>
+  </div>
+  <div id="financePurchaseTable"></div>
+</div>
+
+<div class="panel">
+  <h2>💰 Limite semanal de compras</h2>
+  <div class="sub">Crie regras de limite por semana ou período. Uma regra específica tem prioridade sobre a regra sem prazo.</div>
+
+  <div class="toolbar" style="align-items:flex-end;flex-wrap:wrap">
+    <div class="field">
+      <label>Limite semanal autorizado</label>
+      <input id="financeWeeklyPurchaseLimit" type="number" min="0" step="0.01" placeholder="R$ 0,00">
+    </div>
+    <div class="field">
+      <label>Validade do limite</label>
+      <select id="financeLimitMode" onchange="updateFinanceLimitModeFields()">
+        <option value="indefinite">Sem prazo / até eu mudar</option>
+        <option value="currentWeek">Somente esta semana</option>
+        <option value="specificWeek">Uma semana específica</option>
+        <option value="period">Período específico</option>
+      </select>
+    </div>
+    <div class="field" id="financeLimitWeekField" style="display:none">
+      <label>Escolha uma data da semana</label>
+      <input id="financeLimitWeekDate" type="date">
+    </div>
+    <div class="field" id="financeLimitStartField" style="display:none">
+      <label>Início</label>
+      <input id="financeLimitStart" type="date">
+    </div>
+    <div class="field" id="financeLimitEndField" style="display:none">
+      <label>Fim</label>
+      <input id="financeLimitEnd" type="date">
+    </div>
+    <button ty
+
+  });
+  });
+  persistDb();
+}
+
+function paymentBadge(o){let rem=orderRemaining(o);if(rem<=0.009)return '<span class="badge ok">PAGO</span>';if(orderPaid(o)>0)return '<span class="badge">PARCIAL</span>';return '<span class="badge warn">EM ABERTO</span>'}
+function renderOrderNotes(){
+ let ready=(db.orders||[]).filter(o=>o.invoiceReady===true || o.noteReady===true || (db.invoices||[]).some(n=>+n.orderId===+o.id));
+ ready.forEach(o=>{o.paymentHistory=o.paymentHistory||[]});
+ let openList=ready.filter(o=>orderRemaining(o)>0.009);
+ let open=openList.length;
+ let paid=ready.filter(o=>orderRemaining(o)<=0.009).length;
+ let total=ready.reduce((s,o)=>s+(+o.total||0),0);
+ let openValue=openList.reduce((s,o)=>s+orderRemaining(o),0);
+ let overdue=openList.filter(o=>{let x=noteDueInfo(o);return x.cls==="warn" && String(x.label).startsWith("Vencida")}).length;
+ let summaryHtml=`<div class="card"><small>Notas em aberto</small><strong>${open}</strong></div><div class="card"><small>Notas vencidas</small><strong>${overdue}</strong></div><div class="card"><small>Valor em aberto</small><strong>${money(openValue)}</strong></div><div class="card"><small>Total das notas</small><strong>${money(total)}</strong></div>`;
+ ["orderNotesSummary","allOrderNotesSummary"].forEach(id=>{let sum=document.getElementById(id);if(sum)sum.innerHTML=summaryHtml});
+ let openHtml=openList.length?table(["Cliente","Pedido","Total","Recebido","Restante","Data da cobrança","Vencimento","Condição de pagamento","Situação","Ações"],openList.map(o=>{
+   let info=noteDueInfo(o), paidValue=orderPaid(o), rem=orderRemaining(o);
+   return [esc(o.client||""),"#"+o.id,money(o.total),money(paidValue),money(rem),fmtDate(o.invoiceDate||o.date),fmtDate(o.dueDate||o.date),esc(o.paymentTerms||"Não informado"),`<span class="badge ${info.cls}">${esc(info.label)}</span>`,
+   `<button class="primary" onclick="openAcerto(${o.id})">💰 Acerto</button>
+    <button class="secondary" onclick="notaPronta(${o.id})">🖨️ Imprimir</button>
+    <button class="danger" onclick="deleteNote(${o.id})">Excluir nota</button>`]
+ })): '<div class="empty">Nenhuma nota em aberto.</div>';
+ let allHtml=ready.length?table(["Cliente","Pedido","Total","Recebido","Restante","Vencimento","Condição de pagamento","Status","Ações"],ready.map(o=>{
+   let rem=orderRemaining(o), paidValue=orderPaid(o);
+   return [esc(o.client||""),"#"+o.id,money(o.total),money(paidValue),money(rem),fmtDate(o.dueDate||o.date),esc(o.paymentTerms||"Não informado"),paymentBadge(o),
+   `<button class="primary" onclick="openAcerto(${o.id})">💰 Acerto</button>
+   <button class="secondary" onclick="notaPronta(${o.id})">🖨️ Imprimir</button>
+   <button class="danger" onclick="deleteNote
+
+o);if(rem<=0.009)return '<span class="badge ok">PAGO</span>';if(orderPaid(o)>0)return '<span class="badge">PARCIAL</span>';return '<span class="badge warn">EM ABERTO</span>'}
+function renderOrderNotes(){
+ let ready=(db.orders||[]).filter(o=>o.invoiceReady===true || o.noteReady===true || (db.invoices||[]).some(n=>+n.orderId===+o.id));
+ ready.forEach(o=>{o.paymentHistory=o.paymentHistory||[]});
+ let openList=ready.filter(o=>orderRemaining(o)>0.009);
+ let open=openList.length;
+ let paid=ready.filter(o=>orderRemaining(o)<=0.009).length;
+ let total=ready.reduce((s,o)=>s+(+o.total||0),0);
+ let openValue=openList.reduce((s,o)=>s+orderRemaining(o),0);
+ let overdue=openList.filter(o=>{let x=noteDueInfo(o);return x.cls==="warn" && String(x.label).startsWith("Vencida")}).length;
+ let summaryHtml=`<div class="card"><small>Notas em aberto</small><strong>${open}</strong></div><div class="card"><small>Notas vencidas</small><strong>${overdue}</strong></div><div class="card"><small>Valor em aberto</small><strong>${money(openValue)}</strong></div><div class="card"><small>Total das notas</small><strong>${money(total)}</strong></div>`;
+ ["orderNotesSummary","allOrderNotesSummary"].forEach(id=>{let sum=document.getElementById(id);if(sum)sum.innerHTML=summaryHtml});
+ let openHtml=openList.length?table(["Cliente","Pedido","Total","Recebido","Restante","Data da cobrança","Vencimento","Condição de pagamento","Situação","Ações"],openList.map(o=>{
+   let info=noteDueInfo(o), paidValue=orderPaid(o), rem=orderRemaining(o);
+   return [esc(o.client||""),"#"+o.id,money(o.total),money(paidValue),money(rem),fmtDate(o.invoiceDate||o.date),fmtDate(o.dueDate||o.date),esc(o.paymentTerms||"Não informado"),`<span class="badge ${info.cls}">${esc(info.label)}</span>`,
+   `<button class="primary" onclick="openAcerto(${o.id})">💰 Acerto</button>
+    <button class="secondary" onclick="notaPronta(${o.id})">🖨️ Imprimir</button>
+    <button class="danger" onclick="deleteNote(${o.id})">Excluir nota</button>`]
+ })): '<div class="empty">Nenhuma nota em aberto.</div>';
+ let allHtml=ready.length?table(["Cliente","Pedido","Total","Recebido","Restante","Vencimento","Condição de pagamento","Status","Ações"],ready.map(o=>{
+   let rem=orderRemaining(o), paidValue=orderPaid(o);
+   return [esc(o.client||""),"#"+o.id,money(o.total),money(paidValue),money(rem),fmtDate(o.dueDate||o.date),esc(o.paymentTerms||"Não informado"),paymentBadge(o),
+   `<button class="primary" onclick="openAcerto(${o.id})">💰 Acerto</button>
+   <button class="secondary" onclick="notaPronta(${o.id})">🖨️ Imprimir</button>
+   <button class="danger" onclick="deleteNote(${o.id})">Excluir nota</button>`]
+ })): '<div class="empty">Nenhuma nota pron
+
+r.client||r.clientName||"").toLowerCase();
+     if(rn===name && (!start||d>=start)&&(!end||d<=end))total+=+r.value||0;
+   });
+ }
+
+ // Lançamentos financeiros recebidos: usa client/clientName quando houver;
+ // para dados antigos, tenta associação pelo nome na descrição.
+ (db.finance||[]).forEach(f=>{
+   if(f.type!=="Receber"||!["Pago","Parcial"].includes(f.status))return;
+   let d=f.paidDate||f.paymentDate||f.date||"";
+   if((start&&d<start)||(end&&d>end))return;
+   let fn=String(f.client||f.clientName||"").toLowerCase();
+   let desc=String(f.desc||"").toLowerCase();
+   if(fn===name || (!fn&&name&&desc.includes(name))){
+     if(Array.isArray(f.paymentHistory)&&f.paymentHistory.length){
+       total+=f.paymentHistory.filter(h=>(!start||h.date>=start)&&(!end||h.date<=end)).reduce((a,h)=>a+(+h.value||0),0);
+     }else total+=(f.status==="Parcial"?(+f.paid||0):(+f.value||0));
+   }
+ });
+
+ // Notas/pedidos podem armazenar received/paidAmount.
+ (db.orders||[]).forEach(o=>{
+   if(String(o.client||"").toLowerCase()!==name)return;
+   let d=o.date||"";
+   if((start&&d<start)||(end&&d>end))return;
+   if(o.paidAmount!=null)total+=+o.paidAmount||0;
+   else if(o.received!=null)total+=+o.received||0;
+ });
+ return total;
+}
+
+function ensureClientPotentialFilter(){
+ let sel=document.getElementById("clientPotentialFilter");if(!sel)return;
+ let old=sel.value;
+ sel.innerHTML='<option value="">Todos os clientes</option>'+
+   (db.clients||[]).map(c=>`<option value="${esc(c.name)}">${esc(c.name)}</option>`).join("");
+ if([...sel.options].some(o=>o.value===old))sel.value=old;
+}
+function normalizedPaymentMethod(v){
+ let s=String(v||"").trim().toLowerCase();
+ if(!s)return "Não informado";
+ if(s.includes("pix"))return "Pix";
+ if(s.includes("dinhe"))return "Dinheiro";
+ if(s.includes("cheq"))return "Cheque";
+ if(s.includes("cart"))return "Cartão";
+ if(s.includes("boleto"))return "Boleto";
+ return v||"Outros";
+}
+function clientPaymentsDetailed(clientName,start,end){
+ let name=String(clientName||"").toLowerCase();
+ let rows=[];
+
+ (db.finance||[]).forEach(f=>{
+   if(f.type!=="Receber"||f.status!=="Pago")return;
+   let d=f.paidDate||f.paymentDate||f.date||"";
+   if((start&&d<start)||(end&&d>end))return;
+   let fn=String(f.client||f.clientName||"").toLowerCase();
+   let desc=String(f.desc||"").toLowerCase();
+   if(fn===name || (!fn&&name&&desc.includes(name))){
+     if(Array.isArray(f.paymentHistory)&&f.paymentHistory.length){
+       f.paymentHistory.forEach(h=>{
+         let hd=h.date||d;
+         if((start&&hd<start)||(end&&hd>end))return;
+         rows.push({
+           date:hd,value:+h.value||0,
+           method:normalizedPaymentMethod(h.method||f.paymentMethod),
+           descript
+
+
+### CONTEXT projectionInvoices
+
+
+||null;
+     let targetClient=(db.clients||[]).find(c=>+c.id===+targetClientId);
+     if(!targetClient){alert("Selecione o cliente que receberá a nota.");return}
+     let lineInputs=[...document.querySelectorAll(".projectionInvoiceQty")];
+     let invoiceItems=[],totalValue=0,totalQty=0;
+     lineInputs.forEach(inp=>{
+       let i=+inp.dataset.index,ctx=selected[i];if(!ctx)return;
+       let available=ctx.item.remainingQty!=null?ctx.item.remainingQty:Math.max(0,ctx.item.qty-(ctx.item.invoicedQty||0));
+       let q=Math.max(0,Math.min(available,+inp.value||0));
+       let unit=+document.querySelector(`.projectionInvoiceUnit[data-index="${i}"]`)?.value||0;
+       if(q>0){invoiceItems.push({ctx,qty:q,unit,value:q*unit});totalQty+=q;totalValue+=q*unit}
+     });
+     if(!invoiceItems.length){alert("Informe pelo menos uma quantidade para esta nota.");return}
+
+     db.finance=db.finance||[];db.projectionInvoices=db.projectionInvoices||[];
+     let issueDate=document.getElementById("projectionInvoiceIssueDate")?.value||isoDate(new Date());
+     let due=document.getElementById("projectionInvoiceDue")?.value||issueDate;
+     let terms=document.getElementById("projectionInvoiceTerms")?.value||"À vista";
+     let termsDetail=document.getElementById("projectionInvoiceTermsDetail")?.value?.trim()||"";
+     if(terms==="Personalizado"&&!termsDetail){alert("Informe os detalhes da condição de pagamento personalizada.");return}
+     let invoiceId=Date.now();
+
+     db.projectionInvoices.push({
+       id:invoiceId,
+       client:targetClient.name,
+       clientId:targetClient.id,
+       sourceClient:originalClient,
+       items:invoiceItems.map(x=>({orderId:x.ctx.o.id,itemKey:x.ctx.item.key,productName:x.ctx.item.name,productId:x.ctx.item.productId||null,projectionDate:x.ctx.item.date||x.ctx.o.date||"",deliveredAt:issueDate,qty:x.qty,unitPrice:x.unit,value:x.value})),
+       date:issueDate,issueDate:issueDate,dueDate:due,value:totalValue,terms,termsDetail,status:"Pendente"
+     });
+     db.finance.push({
+       id:invoiceId+1,type:"Receber",
+       desc:`Nota projeção — ${targetClient.name} — ${invoiceItems.map(x=>x.ctx.item.name).join(", ")}`,
+       value:totalValue,status:"Pendente",paid:0,remaining:totalValue,date:due,dueDate:due,issueDate:issueDate,paymentTerms:terms,paymentTermsDetail:termsDetail,
+       clientId:targetClient.id,clientName:targetClient.name,projectionInvoiceId:invoiceId
+     });
+
+     invoiceItems.forEach(({ctx,qty})=>{
+       let o=ctx.o,item=ctx.item;
+       o.projectionItems=o.projectionItems||{};
+       let saved=o.projectionItems[item.key]||{};
+       let prev=saved.invoicedQty!=null?(+saved.invoicedQty||0):(saved.invoiced?item.qty:0);
+       le
+
+tClient=(db.clients||[]).find(c=>+c.id===+targetClientId);
+     if(!targetClient){alert("Selecione o cliente que receberá a nota.");return}
+     let lineInputs=[...document.querySelectorAll(".projectionInvoiceQty")];
+     let invoiceItems=[],totalValue=0,totalQty=0;
+     lineInputs.forEach(inp=>{
+       let i=+inp.dataset.index,ctx=selected[i];if(!ctx)return;
+       let available=ctx.item.remainingQty!=null?ctx.item.remainingQty:Math.max(0,ctx.item.qty-(ctx.item.invoicedQty||0));
+       let q=Math.max(0,Math.min(available,+inp.value||0));
+       let unit=+document.querySelector(`.projectionInvoiceUnit[data-index="${i}"]`)?.value||0;
+       if(q>0){invoiceItems.push({ctx,qty:q,unit,value:q*unit});totalQty+=q;totalValue+=q*unit}
+     });
+     if(!invoiceItems.length){alert("Informe pelo menos uma quantidade para esta nota.");return}
+
+     db.finance=db.finance||[];db.projectionInvoices=db.projectionInvoices||[];
+     let issueDate=document.getElementById("projectionInvoiceIssueDate")?.value||isoDate(new Date());
+     let due=document.getElementById("projectionInvoiceDue")?.value||issueDate;
+     let terms=document.getElementById("projectionInvoiceTerms")?.value||"À vista";
+     let termsDetail=document.getElementById("projectionInvoiceTermsDetail")?.value?.trim()||"";
+     if(terms==="Personalizado"&&!termsDetail){alert("Informe os detalhes da condição de pagamento personalizada.");return}
+     let invoiceId=Date.now();
+
+     db.projectionInvoices.push({
+       id:invoiceId,
+       client:targetClient.name,
+       clientId:targetClient.id,
+       sourceClient:originalClient,
+       items:invoiceItems.map(x=>({orderId:x.ctx.o.id,itemKey:x.ctx.item.key,productName:x.ctx.item.name,productId:x.ctx.item.productId||null,projectionDate:x.ctx.item.date||x.ctx.o.date||"",deliveredAt:issueDate,qty:x.qty,unitPrice:x.unit,value:x.value})),
+       date:issueDate,issueDate:issueDate,dueDate:due,value:totalValue,terms,termsDetail,status:"Pendente"
+     });
+     db.finance.push({
+       id:invoiceId+1,type:"Receber",
+       desc:`Nota projeção — ${targetClient.name} — ${invoiceItems.map(x=>x.ctx.item.name).join(", ")}`,
+       value:totalValue,status:"Pendente",paid:0,remaining:totalValue,date:due,dueDate:due,issueDate:issueDate,paymentTerms:terms,paymentTermsDetail:termsDetail,
+       clientId:targetClient.id,clientName:targetClient.name,projectionInvoiceId:invoiceId
+     });
+
+     invoiceItems.forEach(({ctx,qty})=>{
+       let o=ctx.o,item=ctx.item;
+       o.projectionItems=o.projectionItems||{};
+       let saved=o.projectionItems[item.key]||{};
+       let prev=saved.invoicedQty!=null?(+saved.invoicedQty||0):(saved.invoiced?item.qty:0);
+       let newQty=Math.min(item
+
+ let unit=+document.querySelector(`.projectionInvoiceUnit[data-index="${i}"]`)?.value||0;
+       if(q>0){invoiceItems.push({ctx,qty:q,unit,value:q*unit});totalQty+=q;totalValue+=q*unit}
+     });
+     if(!invoiceItems.length){alert("Informe pelo menos uma quantidade para esta nota.");return}
+
+     db.finance=db.finance||[];db.projectionInvoices=db.projectionInvoices||[];
+     let issueDate=document.getElementById("projectionInvoiceIssueDate")?.value||isoDate(new Date());
+     let due=document.getElementById("projectionInvoiceDue")?.value||issueDate;
+     let terms=document.getElementById("projectionInvoiceTerms")?.value||"À vista";
+     let termsDetail=document.getElementById("projectionInvoiceTermsDetail")?.value?.trim()||"";
+     if(terms==="Personalizado"&&!termsDetail){alert("Informe os detalhes da condição de pagamento personalizada.");return}
+     let invoiceId=Date.now();
+
+     db.projectionInvoices.push({
+       id:invoiceId,
+       client:targetClient.name,
+       clientId:targetClient.id,
+       sourceClient:originalClient,
+       items:invoiceItems.map(x=>({orderId:x.ctx.o.id,itemKey:x.ctx.item.key,productName:x.ctx.item.name,productId:x.ctx.item.productId||null,projectionDate:x.ctx.item.date||x.ctx.o.date||"",deliveredAt:issueDate,qty:x.qty,unitPrice:x.unit,value:x.value})),
+       date:issueDate,issueDate:issueDate,dueDate:due,value:totalValue,terms,termsDetail,status:"Pendente"
+     });
+     db.finance.push({
+       id:invoiceId+1,type:"Receber",
+       desc:`Nota projeção — ${targetClient.name} — ${invoiceItems.map(x=>x.ctx.item.name).join(", ")}`,
+       value:totalValue,status:"Pendente",paid:0,remaining:totalValue,date:due,dueDate:due,issueDate:issueDate,paymentTerms:terms,paymentTermsDetail:termsDetail,
+       clientId:targetClient.id,clientName:targetClient.name,projectionInvoiceId:invoiceId
+     });
+
+     invoiceItems.forEach(({ctx,qty})=>{
+       let o=ctx.o,item=ctx.item;
+       o.projectionItems=o.projectionItems||{};
+       let saved=o.projectionItems[item.key]||{};
+       let prev=saved.invoicedQty!=null?(+saved.invoicedQty||0):(saved.invoiced?item.qty:0);
+       let newQty=Math.min(item.qty,prev+qty);
+       o.projectionItems[item.key]={
+         ...saved,date:item.date,invoicedQty:newQty,invoiced:newQty>=item.qty,
+         invoiceIds:[...((saved.invoiceIds)||[]),invoiceId],
+         deliveryHistory:[...((saved.deliveryHistory)||[]),{invoiceId,date:issueDate,qty}]
+       };
+       let all=projectionItemsForOrder(o);
+       o.projectionInvoiced=all.every(i=>i.invoiced);
+     });
+
+     closeModal();
+     save();
+     renderProjection();
+     renderFinance();
+     alert(`Nota finalizada para ${targetClient.name}: ${totalQty.toLoc
+
+ng(m?.orderId??'').trim()!==oid)return sum;
+   if(String(m?.productId??'').trim()!==pid)return sum;
+   if(String(m?.issueType||'Peça faltante')!=='Peça faltante')return sum;
+   const allocated=(Array.isArray(m?.history)?m.history:[]).reduce((a,h)=>{
+     const q=Math.max(0,+h?.qty||0),dest=String(h?.destination||'');
+     if(dest==='finishedPieces')return a+q;
+     if(dest==='clientInvoice')return a+Math.max(0,q-Math.max(0,+h?.projectionAppliedQty||0));
+     return a;
+   },0);
+   return sum+Math.max(0,+m?.remainingQty||0)+allocated;
+ },0);
+}
+function projectionDeliverableQty(order,item){
+ return Math.max(0,projectionRemainingQty(item)-projectionOpenMissingQty(order,item));
+}
+function projectionDeliverableValue(order,item){
+ return projectionDeliverableQty(order,item)*projectionUnitForItem(item);
+}
+function projectionDeliveredRows(startS="0000-01-01",endS="9999-12-31"){
+ let out=[];
+ (db.projectionInvoices||[]).forEach(inv=>{
+   let date=String(inv.issueDate||inv.date||"").slice(0,10);
+   if(!date||date<startS||date>endS)return;
+   (inv.items||[]).forEach(it=>{
+     let o=(db.orders||[]).find(x=>+x.id===+it.orderId)||null;
+     out.push({invoice:inv,order:o,item:it,date,qty:+it.qty||0,value:+it.value||((+it.qty||0)*(+it.unitPrice||0))});
+   });
+ });
+ return out;
+}
+function projectionTrackingMatches(order,productName){
+ let clientF=(document.getElementById("projectionClientFilter")?.value||"").trim().toLowerCase();
+ let productF=(document.getElementById("projectionProductFilter")?.value||"").trim().toLowerCase();
+ let orderF=(document.getElementById("projectionOrderFilter")?.value||"").trim().toLowerCase();
+ let displayNo=String(order?(typeof displayOrderNumber==="function"?displayOrderNumber(order):order.id):"").toLowerCase();
+ if(clientF&&!String(order?.client||"").toLowerCase().includes(clientF))return false;
+ if(productF&&!String(productName||"").toLowerCase().includes(productF))return false;
+ if(orderF&&!displayNo.includes(orderF))return false;
+ return true;
+}
+let projectionDeliveryTab="remaining";
+function setProjectionDeliveryTab(tab){
+ projectionDeliveryTab=tab==="delivered"?"delivered":"remaining";
+ let rem=document.getElementById("projectionRemainingPane"),del=document.getElementById("projectionDeliveredPane");
+ let br=document.getElementById("projectionTabRemaining"),bd=document.getElementById("projectionTabDelivered");
+ if(rem)rem.style.display=projectionDeliveryTab==="remaining"?"block":"none";
+ if(del)del.style.display=projectionDeliveryTab==="delivered"?"block":"none";
+ if(br)br.className=projectionDeliveryTab==="remaining"?"primary":"secondary";
+ if(bd)bd.className=projectionDeliveryTab==="delivered"?"primary":"secondary";
+ renderProjecti
+
+a pode abrir o sistema sozinha.
+db.session=null;
+db.activeSessionId=null;
+try{localSaveOnly()}catch(e){console.error(e)}
+appShell.style.display="none";
+loginScreen.style.display="flex";
+// Restaura a credencial de refresh persistida neste navegador. O painel só será aberto
+// depois de renovar no Supabase, carregar a nuvem e validar as permissões.
+/* ===== v91.16 — MULTIUSUÁRIO POR REGISTRO (TODOS OS MÓDULOS) ===== */
+const HLGB_RECORD_MODULES=[
+  "products","materials","clients","orders","orderTrash",
+  "production","productionLocations","capacityAssignments","goals","defectReturns","missingPieces",
+  "cuts","cutterPieceTypes","stock","assets",
+  "factions","factionMasters","factionPayments","cutters",
+  "finance","purchases","invoices","receipts","operationalCosts",
+  "suppliers","employees","formerEmployees","payroll","terminations","employeeAdvances",
+  "materialLots","separations","projectionInvoices","machines","serviceTypes","colors","sizes","materialChecklists","hubFinanceEntries","finishedPieces","factionSettings"];
+const HLGB_RECORD_PENDING_KEY="hlgb_records_pending_v91";
+let hlgbRecordSnapshots={};
+let hlgbRecordLastSeen={};
+let hlgbRecordReadable=new Set();
+let hlgbRecordGlobalLastSeen="";
+let hlgbRecordLastPullAt=0;
+let hlgbRecordSyncing=false;
+let hlgbRecordSyncAgain=false;
+let hlgbRecordSyncTimer=null;
+let hlgbRecordPulling=false;
+HLGB_RECORD_MODULES.forEach(m=>{hlgbRecordSnapshots[m]=new Map();hlgbRecordLastSeen[m]=""});
+
+const HLGB_RECORD_WRITE_AREA={
+ products:"produtos",materials:"materiais",clients:"clientes",orders:"pedidos",orderTrash:"pedidos",
+ production:"producao",productionLocations:"producao",capacityAssignments:"producao",goals:"producao",defectReturns:"producao",missingPieces:"producao",machines:"producao",serviceTypes:"producao",
+ cuts:"corte",cutterPieceTypes:"corte",stock:"estoque",assets:"estoque",
+ factions:"faccoes",factionMasters:"faccoes",factionPayments:"faccoes",cutters:"cortadores",
+ finance:"financeiro",purchases:"financeiro",invoices:"financeiro",receipts:"financeiro",operationalCosts:"financeiro",
+ suppliers:"fornecedores",employees:"funcionarios",formerEmployees:"exFuncionarios",payroll:"folhaPagamento",terminations:"folhaPagamento",employeeAdvances:"folhaPagamento",
+ materialLots:"materiais",separations:"materiais",projectionInvoices:"projecao",colors:"cadastros",sizes:"cadastros",hubFinanceEntries:"hubFinanceiro",finishedPieces:"producao",factionSettings:"faccoes"
+};
+function hlgbRecordCanWrite(module){
+  if(isOwnerUser())return true;
+  const area=HLGB_RECORD_WRITE_AREA[module];
+  return !!area&&hasAccess(area);
+}
+function hlgbRecordCanRead(module){
+  if(isOwnerUser())return true;
+  if(hlgbRecordReadable.h
+
+lgbRecordSnapshots[m]=new Map();hlgbRecordLastSeen[m]=""});
+
+const HLGB_RECORD_WRITE_AREA={
+ products:"produtos",materials:"materiais",clients:"clientes",orders:"pedidos",orderTrash:"pedidos",
+ production:"producao",productionLocations:"producao",capacityAssignments:"producao",goals:"producao",defectReturns:"producao",missingPieces:"producao",machines:"producao",serviceTypes:"producao",
+ cuts:"corte",cutterPieceTypes:"corte",stock:"estoque",assets:"estoque",
+ factions:"faccoes",factionMasters:"faccoes",factionPayments:"faccoes",cutters:"cortadores",
+ finance:"financeiro",purchases:"financeiro",invoices:"financeiro",receipts:"financeiro",operationalCosts:"financeiro",
+ suppliers:"fornecedores",employees:"funcionarios",formerEmployees:"exFuncionarios",payroll:"folhaPagamento",terminations:"folhaPagamento",employeeAdvances:"folhaPagamento",
+ materialLots:"materiais",separations:"materiais",projectionInvoices:"projecao",colors:"cadastros",sizes:"cadastros",hubFinanceEntries:"hubFinanceiro",finishedPieces:"producao",factionSettings:"faccoes"
+};
+function hlgbRecordCanWrite(module){
+  if(isOwnerUser())return true;
+  const area=HLGB_RECORD_WRITE_AREA[module];
+  return !!area&&hasAccess(area);
+}
+function hlgbRecordCanRead(module){
+  if(isOwnerUser())return true;
+  if(hlgbRecordReadable.has(module))return true;
+  const direct=HLGB_RECORD_WRITE_AREA[module];
+  if(direct&&hasAccess(direct))return true;
+  const any=(...areas)=>areas.some(a=>hasAccess(a));
+  if(module==="products")return any("produtos","pedidos","corte","producao","materiais","estoque","faccoes","projecao");
+  if(module==="clients")return any("clientes","pedidos","producao","corte","faccoes","projecao","financeiro");
+  if(module==="orders")return any("pedidos","producao","corte","faccoes","projecao");
+  if(module==="materials")return any("materiais","produtos","corte","estoque");
+  if(module==="colors"||module==="sizes")return any("cadastros","produtos","pedidos","corte");
+  if(module==="productionLocations")return any("producao","corte","faccoes");
+  if(module==="employees")return any("funcionarios","folhaPagamento","exFuncionarios");
+  if(module==="suppliers")return any("fornecedores","financeiro","materiais");
+  if(module==="cutters")return any("cortadores","corte","producao");
+  if(module==="factionMasters"||module==="factions")return any("faccoes","producao");
+  return false;
+}
+
+function hlgbRecordClone(v){try{return JSON.parse(JSON.stringify(v))}catch(e){return v}}
+function hlgbRecordPrimitiveId(module,item){return `value:${encodeURIComponent(String(item??""))}`}
+function hlgbRecordId(module,item,index=0){
+  if(item===null||item===undefined)return "";
+  if(typeof item!=="object")return hlgbRec
+
+.id==null&&!d.__hlgbId&&!(module==="products"&&d.code))d.__hlgbId=String(row?.entity_id||"");
+  return d;
+}
+function hlgbRecordSnapshotRows(module,rows){
+  const m=new Map();let max="";
+  (rows||[]).forEach(r=>{
+    if(r?.entity_id==null)return;
+    const data=hlgbRecordHydrateData(module,r);
+    m.set(String(r.entity_id),{
+      data,deleted_at:r.deleted_at||null,revision:+r.revision||1,updated_at:r.updated_at||"",updated_by:r.updated_by||null
+    });
+    if(String(r.updated_at||"")>max)max=String(r.updated_at||"");
+  });
+  hlgbRecordSnapshots[module]=m;if(max)hlgbRecordLastSeen[module]=max;
+}
+function hlgbRecordPendingRead(){try{return JSON.parse(localStorage.getItem(HLGB_RECORD_PENDING_KEY)||"null")}catch(e){return null}}
+function hlgbRecordPendingClear(){try{localStorage.removeItem(HLGB_RECORD_PENDING_KEY)}catch(e){}}
+function hlgb924ProtectImplicitDelete(module,old){
+  if(module==="projectionInvoices")return true;
+  if(module==="finance"&&old?.data?.projectionInvoiceId!=null)return true;
+  return false;
+}
+function hlgbRecordPendingStore(){
+  if(!hlgbRecordReady||cloudApplying||cloudBootstrapping)return;
+  try{
+    const pending={at:Date.now(),email:normEmail(cloudUser?.email||""),modules:{}};let any=false;
+    for(const module of HLGB_RECORD_MODULES){
+      // Não deixa um usuário secundário ficar eternamente “pendente” por mudanças
+      // internas de módulos que ele não tem permissão para gravar.
+      if(!hlgbRecordCanWrite(module))continue;
+      const snap=hlgbRecordSnapshots[module]||new Map(),local=hlgbRecordLocalMap(module),ops=[];
+      for(const [id,item] of local){
+        const old=snap.get(id);
+        if(!old||old.deleted_at||!cloudEq(old.data,item)){ops.push({id,data:hlgbRecordClone(item),deleted:false});any=true}
+      }
+      // v91.26: ausência local nunca gera exclusão automática na nuvem.
+      if(ops.length)pending.modules[module]=ops;
+    }
+    if(any)localStorage.setItem(HLGB_RECORD_PENDING_KEY,JSON.stringify(pending));else hlgbRecordPendingClear();
+  }catch(e){console.warn("HLGB record pending",e)}
+}
+async function hlgbRecordLoadDirect(since=null){
+  // Carga em pacotes pequenos: evita que o Safari interrompa uma resposta grande.
+  // O RPC é SECURITY INVOKER, exige sessão autenticada e continua protegido por RLS.
+  const pageSize=250,rows=[];let serverTime="";
+  try{
+    for(let offset=0;offset<12000;offset+=pageSize){
+      let packet=await cloudRequest("rpc/hlgb_load_records_page",{method:"POST",body:JSON.stringify({p_offset:offset,p_limit:pageSize,p_since:since||null})});
+      if(Array.isArray(packet)&&packet.length===1)packet=packet[0];
+      const page=Array.isArray(packet?.rows)?packet.rows:[];
+      if(!packet||ty
+
+lgb_projection_safety_backup";
+
+  function clone(v){try{return JSON.parse(JSON.stringify(v))}catch(e){return v}}
+  function invoiceId(v){return String(v==null?"":v)}
+  function invoiceDate(inv){return String(inv?.issueDate||inv?.date||"").slice(0,10)}
+  function financeForInvoice(id){return (db.finance||[]).find(f=>invoiceId(f.projectionInvoiceId)===invoiceId(id))||null}
+  function itemMatches(orderId,item,inv,it){
+    let oid=it?.orderId!=null?it.orderId:inv?.orderId;
+    if(String(oid??"")!==String(orderId??""))return false;
+    if(it?.itemKey!=null&&String(it.itemKey)!=="")return String(it.itemKey)===String(item?.key??"");
+    if(item?.productId&&it?.productId)return +it.productId===+item.productId;
+    return String(it?.productName||"").trim().toLowerCase()===String(item?.name||"").trim().toLowerCase();
+  }
+  function invoiceLinks(orderId,item){
+    let out=[];
+    (Array.isArray(db.projectionInvoices)?db.projectionInvoices:[]).forEach(inv=>{
+      (Array.isArray(inv?.items)?inv.items:[]).forEach(it=>{
+        if(itemMatches(orderId,item,inv,it))out.push({inv,it,qty:Math.max(0,+it.qty||0)});
+      });
+    });
+    return out;
+  }
+  function currentProjectionStateScore(){
+    let inv=(Array.isArray(db.projectionInvoices)?db.projectionInvoices:[]).length,h=0,refs=0;
+    (db.orders||[]).forEach(o=>Object.values(o?.projectionItems||{}).forEach(x=>{
+      h+=Array.isArray(x?.deliveryHistory)?x.deliveryHistory.length:0;
+      refs+=Array.isArray(x?.invoiceIds)?x.invoiceIds.length:0;
+    }));
+    return inv*10000+h*10+refs;
+  }
+  function safetyBackup(){
+    try{
+      let payload={savedAt:new Date().toISOString(),score:currentProjectionStateScore(),projectionInvoices:clone(Array.isArray(db.projectionInvoices)?db.projectionInvoices:[]),orders:(db.orders||[]).map(o=>({id:o.id,orderNumber:o.orderNumber,client:o.client,clientId:o.clientId,date:o.date,projectionItems:clone(o.projectionItems||{}),projectionInvoiced:o.projectionInvoiced})),finance:clone((db.finance||[]).filter(f=>f?.projectionInvoiceId!=null))};
+      let old=null;try{old=JSON.parse(localStorage.getItem(V9123_BACKUP_KEY)||"null")}catch(e){}
+      if(!old||(+payload.score||0)>=(+old.score||0))localStorage.setItem(V9123_BACKUP_KEY,JSON.stringify(payload));
+    }catch(e){console.warn("HLGB v91.23 backup da projeção",e)}
+  }
+  function referencedInvoiceIds(){
+    let set=new Set();
+    (db.finance||[]).forEach(f=>{if(f?.projectionInvoiceId!=null)set.add(invoiceId(f.projectionInvoiceId))});
+    (db.orders||[]).forEach(o=>Object.values(o?.projectionItems||{}).forEach(x=>(x?.invoiceIds||[]).forEach(id=>set.add(invoiceId(id)))));
+    return set;
+  }
+  function restoreFromSafetyBackup(){
+    let old=null
+
+
+### CONTEXT Pedido em produção
+
+
+uped).map(([pid,grade])=>orderMatrixProductBlock({productId:+pid,grade})).join("");
+ if(!blocks)blocks=orderMatrixProductBlock({productId:o.productId,grade:o.grade||[]});
+ openModal("Editar pedido / grade",`
+ <div class="grid">
+   <div class="field"><label>Nº do pedido</label><input id="mordernumber" type="number" min="1" value="${esc(displayOrderNumber(o))}"></div>
+   <div class="field"><label>Cliente</label><select id="mclient" onchange="updateOrderMatrixTotal()"><option value="">Selecione</option>${(db.clients||[]).map(c=>`<option value="${c.id}" ${+c.id===+o.clientId||c.name===o.client?"selected":""}>${esc(c.name)}</option>`).join("")}</select></div>
+   <div class="field"><label>Data de entrega</label><input id="mdate" type="date" value="${o.date||""}"></div>
+   <div class="field"><label>Status</label><select id="mstatus">${["Aguardando corte","Pedido para corte","Corte finalizado","Pedido em produção","Pedido finalizado"].map(x=>`<option ${x===o.status?"selected":""}>${x}</option>`).join("")}</select></div><div class="field"><label>Prioridade</label><select id="mpriority">${["Padrão","Urgente","Urgentíssimo"].map(x=>`<option ${x===(o.priority||"Padrão")?"selected":""}>${x}</option>`).join("")}</select></div>
+ </div>
+ <div class="panel">
+   <h3>Grade rápida do pedido</h3>
+   <div id="orderMatrixBox">${blocks}</div>
+   <button type="button" class="secondary" onclick="addOrderMatrixProduct()">+ Adicionar outro produto</button>
+   <div id="gradeTotal" class="order-grand-total"></div>
+ </div>
+ <div class="total">Valor estimado: <span id="orderTotal">R$ 0,00</span></div>
+ <button type="button" class="primary modalSave">💾 Salvar alterações</button>`,()=>{
+   let c=db.clients.find(x=>+x.id===+mclient.value),items=collectGradeItems();
+   if(!c){alert("Selecione o cliente.");return}
+   if(!items.length){alert("Digite pelo menos uma quantidade na grade.");return}
+   let total=0;items.forEach(it=>total+=(suggestedPrice(c.id,it.productId)||0)*it.qty);
+   let orderNumber=+document.getElementById("mordernumber")?.value||+o.orderNumber||nextAvailableOrderNumber();
+   if((db.orders||[]).some(x=>+x.id!==+o.id && String(x.orderNumber)===String(orderNumber))){alert("Esse número de pedido já existe. Escolha outro número.");return}
+   Object.assign(o,{orderNumber,client:c.name,clientId:c.id,date:mdate.value,total,status:mstatus.value,priority:document.getElementById("mpriority")?.value||"Padrão",grade:items,qty:items.reduce((a,x)=>a+x.qty,0),
+     items:items.map(it=>`${it.qty} ${db.products.find(p=>+p.id===+it.productId)?.name||""} ${it.color} Tam ${it.size}`).join(" | ")});
+   closeModal();save();
+ });
+ setTimeout(()=>updateOrderMatrixTotal(),0);
+}
+function deleteNot
+
+();renderOrders();
+}
+
+function editOpenMerchandise(orderId){
+ let o=(db.orders||[]).find(x=>+x.id===+orderId);if(!o)return;
+ openModal("Editar mercadoria sem nota pronta",`
+   <div class="grid">
+     <div class="field"><label>Cliente</label><input id="eom_client" value="${esc(o.client||"")}"></div>
+     <div class="field"><label>Itens</label><input id="eom_items" value="${esc(o.items||"")}"></div>
+     <div class="field"><label>Entrega</label><input id="eom_date" type="date" value="${o.date||""}"></div>
+     <div class="field"><label>Quantidade</label><input id="eom_qty" type="number" value="${typeof qtyOfOrder==="function"?qtyOfOrder(o):(+o.qty||0)}"></div>
+     <div class="field"><label>Valor</label><input id="eom_total" type="number" step="0.01" value="${+o.total||0}"></div>
+     <div class="field"><label>Status</label><select id="eom_status">${["Aguardando corte","Corte finalizado","Pedido em produção","Pedido finalizado","Aberto"].map(x=>`<option ${x===o.status?"selected":""}>${x}</option>`).join("")}</select></div>
+   </div>
+   <button type="button" class="primary modalSave">💾 Salvar alterações</button>
+ `,()=>{
+   o.client=document.getElementById("eom_client")?.value||o.client;
+   o.items=document.getElementById("eom_items")?.value||o.items;
+   o.date=document.getElementById("eom_date")?.value||o.date;
+   o.qty=+document.getElementById("eom_qty")?.value||0;
+   o.total=+document.getElementById("eom_total")?.value||0;
+   o.status=document.getElementById("eom_status")?.value||o.status;
+   closeModal();save();renderCuts();renderOrders();
+ });
+}
+function deleteOpenMerchandise(orderId){
+ let o=(db.orders||[]).find(x=>+x.id===+orderId);if(!o)return;
+ if(!confirm("Excluir esta mercadoria/pedido? Isso também removerá cortes e produção vinculados a este pedido."))return;
+ let cutIds=(db.cuts||[]).filter(c=>+c.orderId===+orderId).map(c=>+c.id);
+ db.orders=(db.orders||[]).filter(x=>+x.id!==+orderId);
+ db.cuts=(db.cuts||[]).filter(c=>+c.orderId!==+orderId);
+ db.production=(db.production||[]).filter(p=>!cutIds.includes(+p.cutId) && +p.orderId!==+orderId);
+ db.finance=(db.finance||[]).filter(f=>+f.orderId!==+orderId);
+ save();renderCuts();renderOrders();renderProduction();
+}
+
+function cutNeedWeekRange(offset=0){
+ let d=new Date();d.setHours(12,0,0,0);
+ let day=d.getDay(),diff=day===0?-6:1-day;
+ d.setDate(d.getDate()+diff+(offset*7));
+ let start=isoDate(d);
+ let e=new Date(d);e.setDate(e.getDate()+4);
+ return {start,end:isoDate(e)};
+}
+function setCutNeedWorkWeek(offset=0){
+ let r=cutNeedWeekRange(offset);
+ let s=document.getElementById("cutNeedStart"),e=document.getElementById("cutNeedEnd");
+ if(s)s.value=r.start;if(e)e.value=r.end;
+ renderCutMaterialNeedReport
+
+tionDueDate=document.getElementById("assignForecast")?.value||forecast;
+      if(dest.type==="F"){assigned.factionId=dest.id;assigned.productionLocationId=dest.locationId||null;syncProductionToFaction(assigned);let fr=(db.factions||[]).find(x=>+x.productionId===+assigned.id);if(fr){fr.price=rate;fr.sent=qty;fr.description=hlgb916ProductForProduction(assigned)?.name||assigned.product;fr.productId=assigned.productId||null;}}
+      else{assigned.factionId=null;assigned.productionLocationId=dest.id;removeProductionFactionLink(assigned)}
+      let o=(db.orders||[]).find(x=>+x.id===+assigned.orderId),key=assigned.productId?String(assigned.productId):null,projDate=assigned.factionDueDate;
+      if(o&&projDate){let its=projectionItemsForOrder(o);if(key&&its.some(i=>String(i.key)===key))saveProjectionItemDate(o,key,projDate);else its.forEach(i=>saveProjectionItemDate(o,i.key,projDate));o.status="Pedido em produção";}
+      if(o&&dest.locationId){db.capacityAssignments.push({id:Date.now()+Math.floor(Math.random()*99999),orderId:o.id,itemKey:key||projectionItemsForOrder(o)[0]?.key||"legacy",locationId:dest.locationId,qty,date:assigned.assignedWeekStart,source:"cut_assignment"});}
+      hlgb916CreateMaterialChecklist(assigned,dest,rate,serviceNow);
+      closeModal();save();renderCuts();renderProduction();renderCutAssignmentQueue();renderDestinationChecklists();renderProjection();renderFactions();renderFactionPaymentPlanner();
+    });
+  setTimeout(updateCutAssignmentPreview,30);
+}
+
+// A Projeção Semanal passa a considerar o fluxo pós-corte. Itens antigos já programados são preservados.
+function hlgb916OrderHasAssignedProduction(o){return (db.production||[]).some(p=>+p.orderId===+o.id&&(p.productionLocationId||p.factionId))}
+function hlgb916OrderHasExistingProjection(o){return !!o?.projectionPlannedAt||Object.values(o?.projectionItems||{}).some(x=>x&&x.date)}
+function allProjectionRows(){
+  let rows=[];(db.orders||[]).forEach(o=>{
+    if(["Cancelado"].includes(o.status))return;
+    if(!hlgb916OrderHasAssignedProduction(o)&&!hlgb916OrderHasExistingProjection(o)&&!o.invoiceReady&&!o.noteReady)return;
+    projectionItemsForOrder(o).forEach(item=>rows.push({order:o,item}));
+  });return rows;
+}
+function projectionLocationForOrder(o){
+  let names=[...new Set((db.production||[]).filter(p=>+p.orderId===+o.id&&(p.productionLocationId||p.factionId)).map(p=>productionDestinationName(p)).filter(x=>x&&x!=="-"))];
+  return names.length?names.join(" / "):"-";
+}
+
+// --- Pedido avulso -----------------------------------------------------------
+function hlgb916AdHocProductOptions(selected=""){return (db.products||[]).slice().sort((a,b)=>String(a.name||"").localeCompare(String(b.name
+
+de cor/tamanho.</div>
+      <div class="grid">
+        <div class="field"><label>Nº do pedido</label><input id="mordernumber" type="number" min="1" value="${escAttr(displayOrderNumber(o))}"></div>
+        <div class="field"><label>Cliente (opcional)</label><select id="mclient" onchange="hlgb922ClientChanged()"><option value="">Sem cliente</option>${(db.clients||[]).slice().sort((a,b)=>String(a.name||'').localeCompare(String(b.name||''),'pt-BR')).map(c=>`<option value="${c.id}" ${+c.id===+o.clientId||c.name===o.client?'selected':''}>${esc(c.name)}</option>`).join('')}</select><div class="sub">Pode manter sem cliente e definir depois.</div></div>
+        <div class="field"><label>Data de entrega</label><input id="mdate" type="date" value="${o.date||''}"></div>
+        <div class="field"><label>Status</label><select id="mstatus">${['Aguardando corte','Pedido para corte','Corte finalizado','Pedido em produção','Pedido finalizado'].map(x=>`<option ${x===o.status?'selected':''}>${x}</option>`).join('')}</select></div>
+        <div class="field"><label>Prioridade</label><select id="mpriority">${['Padrão','Urgente','Urgentíssimo'].map(x=>`<option ${x===(o.priority||'Padrão')?'selected':''}>${x}</option>`).join('')}</select></div>
+      </div>
+      <div class="panel"><div class="toolbar" style="justify-content:space-between;align-items:center"><h3 style="margin:0">Produtos sem grade</h3><button type="button" class="secondary" onclick="addAdHocOrderLine()">+ Adicionar produto</button></div><div id="adHocLines">${(lines.length?lines:[{}]).map(hlgb922AdHocLine).join('')}</div><div id="adHocPreview" class="order-grand-total"></div></div>
+      <button type="button" class="primary modalSave">💾 Salvar alterações</button>`,()=>{
+        let c=(db.clients||[]).find(x=>+x.id===+(document.getElementById('mclient')?.value||0));
+        let nl=hlgb922ReadAdHocLines();if(!nl.length){alert('Adicione pelo menos um produto com quantidade.');return}
+        let orderNumber=+document.getElementById('mordernumber')?.value||+o.orderNumber||nextAvailableOrderNumber();
+        if((db.orders||[]).some(x=>+x.id!==+o.id&&String(x.orderNumber)===String(orderNumber))){alert('Esse número de pedido já existe. Escolha outro número.');return}
+        let grade=nl.map(x=>({productId:x.productId,color:'',size:'',qty:x.qty,unitPrice:x.price,noGrade:true})),qty=nl.reduce((a,x)=>a+x.qty,0),total=nl.reduce((a,x)=>a+x.qty*x.price,0);
+        Object.assign(o,{orderNumber,client:c?.name||'Sem cliente',clientId:c?.id||null,date:document.getElementById('mdate')?.value||o.date,total,status:document.getElementById('mstatus')?.value||o.status,priority:document.getElementById('mpriority')?.value||'Padrão'
