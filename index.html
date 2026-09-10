@@ -6,7 +6,7 @@
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
-<title>HLGB Confecções — Sistema de Gestão v91.97 Multiusuário</title>
+<title>HLGB Confecções — Sistema de Gestão v91.98 Multiusuário</title>
 <style>
 :root{--navy:#6f3f59;--orange:#c96b8f;--bg:#fbf6f8;--line:#eadde4;--text:#30262c;--muted:#786b73;--ok:#e9f7ef;--warn:#fff5df;--bad:#fdeaea;--rose:#f3dbe5;--rose2:#fff8fb}
 *{box-sizing:border-box}body{margin:0;font-family:Arial,Helvetica,sans-serif;background:var(--bg);color:var(--text)}
@@ -320,7 +320,7 @@ main{min-width:0;}
 })();
 </script>
 
-<div id="appShell" style="display:none"><header><div class="logo">HLGB <b>CONFECÇÕES</b> <small style="font-size:10px;opacity:.8">v91.97</small></div><div><span id="cloudStatus" style="margin-right:10px;font-size:12px;padding:6px 9px;border:1px solid #ffffff44;border-radius:8px">☁️ Nuvem</span><span id="currentUserLabel" style="margin-right:10px;font-size:13px"></span><button id="cloudSaveBtn" onclick="cloudUploadCurrentDb(true)" style="display:none" title="Sincronização automática">🔄 Sincronizar agora</button> <button id="backupBtn" onclick="backup()" style="display:none">Exportar backup</button> <button id="importBackupBtn" onclick="document.getElementById('backupImportInput').click()" style="display:none">Importar backup</button><input id="backupImportInput" type="file" accept=".json,application/json" style="display:none" onchange="importBackupFile(this)"> <button onclick="logout()">Sair</button></div></header>
+<div id="appShell" style="display:none"><header><div class="logo">HLGB <b>CONFECÇÕES</b> <small style="font-size:10px;opacity:.8">v91.98</small></div><div><span id="cloudStatus" style="margin-right:10px;font-size:12px;padding:6px 9px;border:1px solid #ffffff44;border-radius:8px">☁️ Nuvem</span><span id="currentUserLabel" style="margin-right:10px;font-size:13px"></span><button id="cloudSaveBtn" onclick="cloudUploadCurrentDb(true)" style="display:none" title="Sincronização automática">🔄 Sincronizar agora</button> <button id="backupBtn" onclick="backup()" style="display:none">Exportar backup</button> <button id="importBackupBtn" onclick="document.getElementById('backupImportInput').click()" style="display:none">Importar backup</button><input id="backupImportInput" type="file" accept=".json,application/json" style="display:none" onchange="importBackupFile(this)"> <button onclick="logout()">Sair</button></div></header>
 <div class="app">
 <aside><nav id="nav" class="clean-nav">
 <button class="nav-home active" onclick="page('dashboard',this)">🏠 <span>Início</span></button>
@@ -17305,7 +17305,7 @@ try{const base=window.renderCuts;window.renderCuts=function(){let r=base?.apply(
 try{const base=window.renderDailyCuts;window.renderDailyCuts=function(){let r=base?.apply(this,arguments);setTimeout(enhanceGradeButtons9191,0);return r}}catch(e){}
 try{const base=window.renderCutters;window.renderCutters=function(){let r=base?.apply(this,arguments);setTimeout(()=>{try{window.hlgbRenderCutterExcel9179?.()}catch(e){}},0);return r}}catch(e){}
 
-setTimeout(()=>{try{let x=document.querySelector('#appShell .logo small');if(x)x.textContent='v91.93';document.title='HLGB Confecções — Sistema de Gestão v91.97 Multiusuário'}catch(e){}},0);
+setTimeout(()=>{try{let x=document.querySelector('#appShell .logo small');if(x)x.textContent='v91.93';document.title='HLGB Confecções — Sistema de Gestão v91.98 Multiusuário'}catch(e){}},0);
 console.log('HLGB v91.93: cortadores clean, ajuste de grade, status de corte na fila e capacidade por atribuição.');
 })();
 </script>
@@ -17723,7 +17723,7 @@ const esc9197=v=>typeof esc==='function'?esc(v):String(v??'').replace(/[&<>"']/g
 
 function setVersion9197(){
   try{const x=document.querySelector('#appShell .logo small');if(x)x.textContent='v91.97'}catch(e){}
-  try{document.title='HLGB Confecções — Sistema de Gestão v91.97 Multiusuário'}catch(e){}
+  try{document.title='HLGB Confecções — Sistema de Gestão v91.98 Multiusuário'}catch(e){}
 }
 
 // 1) Edição de pedido: nunca bloquear a inclusão apenas porque a cópia local do produto veio sem cores.
@@ -17850,4 +17850,340 @@ console.log('HLGB v91.97: edição de pedido com fallback de cores + registro di
 })();
 </script>
 <!-- HLGB_V9197_END -->
+<!-- HLGB_V9198_START -->
+
+<style id="hlgb-v9198-style">
+#factionChecklistTable9176 table{min-width:980px}
+#checkGrade9198{background:#fff8fb}
+.hlgb9198-faction-missing,.hlgb9198-delivery-missing{white-space:nowrap;margin:3px!important}
+@media(max-width:760px){#factionChecklistTable9176{overflow:auto}}
+</style>
+
+<script id="hlgb-v9198-script">
+
+(function(){
+'use strict';
+const n9198=v=>String(v??'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().trim();
+const q9198=v=>Math.max(0,+v||0);
+const clone9198=o=>{try{return structuredClone(o)}catch(e){return JSON.parse(JSON.stringify(o))}};
+const esc9198=v=>typeof esc==='function'?esc(v):String(v??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+const fmtQty9198=v=>(+v||0).toLocaleString('pt-BR',{maximumFractionDigits:3});
+let showClosedChecklist9198=false;
+
+function setVersion9198(){
+  try{let x=document.querySelector('#appShell .logo small');if(x)x.textContent='v91.98'}catch(e){}
+  try{document.title='HLGB Confecções — Sistema de Gestão v91.98 Multiusuário'}catch(e){}
+}
+function product9198(id){return (db.products||[]).find(x=>String(x.id)===String(id))||null}
+function order9198(id){return (db.orders||[]).find(x=>String(x.id)===String(id))||null}
+function production9198(id){return (db.production||[]).find(x=>String(x.id)===String(id))||null}
+function materialMaster9198(m){
+  let x=null;
+  if(m?.materialId)x=(db.materials||[]).find(a=>String(a.id)===String(m.materialId));
+  if(!x&&m?.name)x=(db.materials||[]).find(a=>n9198(a.name)===n9198(m.name));
+  return x||null;
+}
+function closedCut9198(c){
+  const s=n9198(c?.status);
+  return !!(c&&(c.done===true||c.fulfilledAt||s==='finalizado'||s.includes('atendido por producao')));
+}
+function orderProductIds9198(o){
+  let ids=[...(new Set((o?.grade||[]).map(x=>String(x.productId||'')).filter(Boolean)))];
+  if(!ids.length&&o?.productId!=null)ids=[String(o.productId)];
+  return ids;
+}
+function orderFullyHandled9198(o){
+  if(!o)return false;
+  const st=n9198(o.status);
+  if(['corte finalizado','pedido finalizado','producao','pedido em producao','aguardando nota','mercadoria pronta','nota emitida'].includes(st))return true;
+  const ids=orderProductIds9198(o);
+  if(!ids.length)return false;
+  return ids.every(pid=>{
+    if(o.fulfillmentByProduct?.[pid]?.completed===true)return true;
+    return (db.cuts||[]).some(c=>String(c.orderId)===String(o.id)&&String(c.productId||'')===String(pid)&&closedCut9198(c));
+  });
+}
+
+// Não deixa pedidos/itens já baixados voltarem para a ordem de corte.
+const oldNeedCut9198=window.pedidosQuePrecisamDeCorte;
+if(typeof oldNeedCut9198==='function')window.pedidosQuePrecisamDeCorte=function(){
+  return (oldNeedCut9198.apply(this,arguments)||[]).filter(o=>!orderFullyHandled9198(o));
+};
+function withOpenCuts9198(fn,ctx,args){
+  if(typeof fn!=='function')return;
+  const original=db.cuts;
+  db.cuts=(original||[]).filter(c=>!(closedCut9198(c)&&n9198(c.status).includes('atendido por producao')));
+  try{return fn.apply(ctx,args)}finally{db.cuts=original}
+}
+const oldRenderCuts9198=window.renderCuts;
+if(typeof oldRenderCuts9198==='function')window.renderCuts=function(){return withOpenCuts9198(oldRenderCuts9198,this,arguments)};
+const oldDailyCuts9198=window.renderDailyCuts;
+if(typeof oldDailyCuts9198==='function')window.renderDailyCuts=function(){return withOpenCuts9198(oldDailyCuts9198,this,arguments)};
+
+// Grade do produto: usa primeiro a grade realmente cortada; se não existir, usa a grade do pedido.
+function sourceGrade9198(c){
+  const pid=String(c?.productId||'');
+  const cut=(db.cuts||[]).find(x=>String(x.id)===String(c?.cutId))||null;
+  let arr=[];
+  if(Array.isArray(c?.grade)&&c.grade.length)arr=c.grade;
+  else if(Array.isArray(cut?.actualCutGrade)&&cut.actualCutGrade.length)arr=cut.actualCutGrade;
+  else if(Array.isArray(cut?.originalGrade)&&cut.originalGrade.length)arr=cut.originalGrade;
+  else arr=order9198(c?.orderId)?.grade||[];
+  if(pid)arr=arr.filter(x=>String(x.productId||pid)===pid);
+  arr=arr.map(x=>({productId:x.productId||c?.productId||null,color:String(x.color||''),size:String(x.size||''),qty:q9198(x.qty),noGrade:!!x.noGrade})).filter(x=>x.qty>0);
+  if(!arr.length&&q9198(c?.qty)>0)arr=[{productId:c?.productId||null,color:'',size:'',qty:q9198(c.qty),noGrade:true}];
+  return arr;
+}
+function scaleGrade9198(c){
+  let g=sourceGrade9198(c),target=Math.floor(q9198(c?.qty)),total=Math.floor(g.reduce((a,x)=>a+q9198(x.qty),0));
+  if(!g.length||!target||!total||target===total)return {rows:g,estimated:false,sourceTotal:total,target};
+  let calc=g.map((x,i)=>{let raw=q9198(x.qty)*target/total,base=Math.floor(raw);return {...x,qty:base,_frac:raw-base,_i:i}});
+  let left=target-calc.reduce((a,x)=>a+x.qty,0);
+  calc.slice().sort((a,b)=>b._frac-a._frac||a._i-b._i).slice(0,left).forEach(x=>{calc[x._i].qty++});
+  return {rows:calc.map(({_frac,_i,...x})=>x).filter(x=>x.qty>0),estimated:true,sourceTotal:total,target};
+}
+function gradeCompact9198(c){
+  const r=scaleGrade9198(c),g=r.rows;
+  if(!g.length)return '<span class="sub">Sem grade</span>';
+  if(g.every(x=>x.noGrade||(!x.color&&!x.size)))return '<span class="badge">Sem grade · '+fmtQty9198(g.reduce((a,x)=>a+x.qty,0))+' pç</span>';
+  const by={};
+  g.forEach(x=>{let k=x.color||'Sem cor';(by[k]=by[k]||[]).push(x)});
+  let txt=Object.entries(by).map(([cor,rows])=>'<b>'+esc9198(cor)+':</b> '+rows.map(x=>esc9198(x.size||'-')+' '+fmtQty9198(x.qty)).join(' · ')).join('<br>');
+  return txt+(r.estimated?'<div class="sub" style="color:#8a5700">Grade proporcional estimada para este envio parcial.</div>':'');
+}
+function gradeTable9198(c){
+  const r=scaleGrade9198(c),g=r.rows;
+  if(!g.length)return '<div class="empty" style="padding:12px">Sem grade cadastrada para este produto.</div>';
+  if(g.every(x=>x.noGrade||(!x.color&&!x.size)))return '<div class="sub">Este item foi lançado sem grade. Total: <b>'+fmtQty9198(g.reduce((a,x)=>a+x.qty,0))+' peças</b>.</div>';
+  return (r.estimated?'<div class="sub" style="color:#8a5700;margin-bottom:8px">⚠️ Este envio é parcial e não possui uma grade própria salva. A distribuição abaixo é proporcional à grade do corte/pedido e está marcada como estimada.</div>':'')+
+    '<div style="overflow:auto"><table><thead><tr><th>Cor</th><th>Tamanho</th><th>Quantidade</th></tr></thead><tbody>'+
+    g.map(x=>'<tr><td>'+esc9198(x.color||'-')+'</td><td>'+esc9198(x.size||'-')+'</td><td><b>'+fmtQty9198(x.qty)+'</b></td></tr>').join('')+
+    '</tbody></table></div>';
+}
+function rollInfo9198(m,need){
+  const master=materialMaster9198(m);
+  if(!master)return {rolls:null,conversion:0,label:''};
+  let conv=0,label='';
+  const punit=n9198(master.purchaseUnit),pmode=n9198(master.purchaseMode),pname=n9198(master.packageName);
+  if((punit.includes('rolo')||pmode.includes('rolo'))&&q9198(master.purchaseConversion)>0){conv=q9198(master.purchaseConversion);label=master.purchaseUnit||master.packageName||'rolo'}
+  else if(pname.includes('rolo')&&q9198(master.packageAvg)>0){conv=q9198(master.packageAvg);label=master.packageName||'rolo'}
+  if(!conv)return {rolls:null,conversion:0,label:''};
+  const exact=need/conv,rolls=Math.ceil(exact-1e-9);
+  return {rolls,conversion:conv,label:label||'rolo',exact};
+}
+function checklistMaterialRows9198(c){
+  const p=product9198(c?.productId),g=scaleGrade9198(c),byColor={};
+  g.rows.forEach(x=>{let cor=x.color||'Sem cor';byColor[cor]=(byColor[cor]||0)+q9198(x.qty)});
+  if(!Object.keys(byColor).length)byColor['Total']=q9198(c?.qty);
+  const old=(c?.materials||[]),oldMap=new Map(old.map(x=>[String(x.key9198||[x.materialId||'',x.name||'',x.color||''].join('|')),!!x.checked]));
+  const out=[];
+  (p?.materials||[]).forEach((m,idx)=>{
+    const per=q9198(m.qty),loss=q9198(m.loss),factor=1+loss/100,cat=String(m.cat||''),avi=n9198(cat).includes('aviamento');
+    const master=materialMaster9198(m),base={materialId:m.materialId||master?.id||null,baseName:m.name||master?.name||'Material',name:m.name||master?.name||'Material',cat,unit:m.unit||master?.unit||'',perPiece:per,loss};
+    const parts=avi?Object.entries(byColor):[['Total',q9198(c?.qty)]];
+    parts.forEach(([color,pieces])=>{
+      const need=per*q9198(pieces)*factor,ri=rollInfo9198(m,need),key=[base.materialId||'',base.baseName,color].join('|');
+      out.push({...base,id:idx+1,color:avi?color:'',pieces:q9198(pieces),qty:need,rolls:ri.rolls,rollConversion:ri.conversion,rollLabel:ri.label,key9198:key,checked:oldMap.get(key)??false,estimatedGrade:g.estimated});
+    });
+  });
+  return out;
+}
+function hydrateChecklist9198(c){
+  if(!c)return c;
+  const rows=checklistMaterialRows9198(c);
+  if(rows.length)c.materials=rows;
+  c.gradeV9198=scaleGrade9198(c).rows;
+  c.gradeEstimatedV9198=scaleGrade9198(c).estimated;
+  return c;
+}
+function checklistClosed9198(c){
+  const p=production9198(c?.productionId);
+  if(p){
+    const st=n9198(p.stage);
+    if(st.includes('conclu')||st.includes('finaliz')||(q9198(p.planned)>0&&q9198(p.done)>=q9198(p.planned)))return true;
+  }
+  const fs=(db.factions||[]).filter(f=>
+    (c?.productionId&&String(f.productionId)===String(c.productionId))||
+    (String(f.orderId||'')===String(c?.orderId||'')&&String(f.productId||'')===String(c?.productId||'')&&n9198(f.name)===n9198(c?.destinationName))
+  );
+  if(fs.some(f=>n9198(f.status)==='finalizado'&&q9198(f.sent)<=q9198(f.done)+q9198(f.defects)+q9198(f.waste)))return true;
+  return false;
+}
+window.toggleClosedFactionChecklists9198=function(){
+  showClosedChecklist9198=!!document.getElementById('showClosedFactionChecklist9198')?.checked;
+  renderFactionChecklists9198();
+};
+function renderFactionChecklists9198(){
+  const box=document.getElementById('factionChecklistTable9176');if(!box)return;
+  const q=n9198(document.getElementById('factionChecklistSearch9198')?.value||'');
+  let rows=(db.materialChecklists||[]).filter(c=>c.destinationType==='F').map(c=>({c,closed:checklistClosed9198(c)}));
+  rows=rows.filter(x=>(showClosedChecklist9198||!x.closed)&&(!q||n9198([x.c.destinationName,x.c.productName,x.c.status].join(' ')).includes(q))).sort((a,b)=>String(b.c.createdAt||'').localeCompare(String(a.c.createdAt||'')));
+  box.innerHTML=
+    '<div class="toolbar" style="align-items:flex-end;justify-content:space-between;gap:12px;flex-wrap:wrap">'+
+      '<div class="field" style="min-width:290px"><label>Buscar facção ou modelo</label><input id="factionChecklistSearch9198" value="'+esc9198(document.getElementById('factionChecklistSearch9198')?.value||'')+'" placeholder="Ex.: Cris ou Camisola" oninput="renderFactionChecklists9198()"></div>'+
+      '<label class="sub" style="display:flex;align-items:center;gap:7px"><input id="showClosedFactionChecklist9198" type="checkbox" '+(showClosedChecklist9198?'checked':'')+' onchange="toggleClosedFactionChecklists9198()"> Mostrar concluídos</label>'+
+    '</div>'+
+    (rows.length?table(['Data','Facção','Modelo','Grade','Peças','Materiais','Status','Ações'],rows.map(x=>{
+      const c=x.c,computed=checklistMaterialRows9198(c),checked=(c.materials||[]).filter(m=>m.checked).length;
+      return [
+        c.createdAt?fmtDate(String(c.createdAt).slice(0,10)):'-',
+        esc9198(c.destinationName||'-'),
+        '<b>'+esc9198(c.productName||'-')+'</b>',
+        gradeCompact9198(c),
+        fmtQty9198(c.qty),
+        computed.length?computed.length+' item(ns)':'Sem ficha técnica',
+        '<span class="badge '+(x.closed?'ok':(c.status==='Conferido'?'ok':'warn'))+'">'+esc9198(x.closed?'Concluído':(c.status||'Pendente'))+'</span>',
+        '<button type="button" class="primary" onclick="openMaterialChecklist('+Number(c.id)+')">Conferir</button> <button type="button" class="secondary" onclick="printMaterialChecklist('+Number(c.id)+')">🖨️ Imprimir folha</button>'
+      ];
+    })):'<div class="empty">Nenhum checklist operacional de facção. Itens concluídos ficam ocultos; marque “Mostrar concluídos” para consultar o histórico.</div>');
+}
+window.renderFactionChecklists9198=renderFactionChecklists9198;
+
+// Enriquecer checklists novos e antigos.
+const oldCreateChecklist9198=window.hlgb916CreateMaterialChecklist;
+if(typeof oldCreateChecklist9198==='function')window.hlgb916CreateMaterialChecklist=function(){
+  const c=oldCreateChecklist9198.apply(this,arguments);return hydrateChecklist9198(c);
+};
+const oldOpenChecklist9198=window.openMaterialChecklist;
+if(typeof oldOpenChecklist9198==='function')window.openMaterialChecklist=function(id){
+  const c=(db.materialChecklists||[]).find(x=>String(x.id)===String(id));if(c)hydrateChecklist9198(c);
+  const r=oldOpenChecklist9198.apply(this,arguments);
+  setTimeout(()=>{
+    const c2=(db.materialChecklists||[]).find(x=>String(x.id)===String(id)),modal=document.querySelector('#modal .modalbox');if(!c2||!modal)return;
+    let toolbar=[...modal.querySelectorAll('.toolbar')].find(x=>x.querySelector('.destinationMaterialCheck')||/Marcar todos/.test(x.textContent||''))||modal.querySelector('.toolbar');
+    if(!document.getElementById('checkGrade9198')){
+      const d=document.createElement('div');d.id='checkGrade9198';d.className='panel';d.innerHTML='<h3>📐 Grade do produto</h3>'+gradeTable9198(c2);
+      if(toolbar)toolbar.parentNode.insertBefore(d,toolbar);else modal.appendChild(d);
+    }
+    const checks=[...modal.querySelectorAll('.destinationMaterialCheck')];let tableEl=checks[0]?.closest('table');
+    if(tableEl){
+      tableEl.innerHTML='<thead><tr><th>OK</th><th>Material</th><th>Categoria</th><th>Cor</th><th>Quantidade</th><th>Unidade</th><th>Rolos</th></tr></thead><tbody>'+
+      (c2.materials||[]).map((m,i)=>'<tr><td><input type="checkbox" class="destinationMaterialCheck" data-i="'+i+'" '+(m.checked?'checked':'')+'></td><td><b>'+esc9198(m.name)+'</b></td><td>'+esc9198(m.cat||'-')+'</td><td>'+esc9198(m.color||'Total')+'</td><td>'+fmtQty9198(m.qty)+'</td><td>'+esc9198(m.unit||'')+'</td><td>'+(m.rolls!=null?'<b>'+fmtQty9198(m.rolls)+' '+esc9198(m.rollLabel||'rolo')+(m.rolls===1?'':'s')+'</b><div class="sub">'+fmtQty9198(m.rollConversion)+' '+esc9198(m.unit||'')+'/rolo</div>':'-')+'</td></tr>').join('')+
+      '</tbody>';
+    }
+  },0);
+  return r;
+};
+
+// Impressão do checklist com grade, aviamento por cor e rolos.
+window.printMaterialChecklist=function(id){
+  const c=(db.materialChecklists||[]).find(x=>String(x.id)===String(id));if(!c)return;
+  hydrateChecklist9198(c);
+  const mats=(c.materials||[]).map(m=>'<tr><td>☐</td><td>'+esc9198(m.name)+'</td><td>'+esc9198(m.cat||'-')+'</td><td>'+esc9198(m.color||'Total')+'</td><td>'+fmtQty9198(m.qty)+'</td><td>'+esc9198(m.unit||'')+'</td><td>'+(m.rolls!=null?fmtQty9198(m.rolls)+' '+esc9198(m.rollLabel||'rolo')+(m.rolls===1?'':'s'):'-')+'</td></tr>').join('');
+  const g=scaleGrade9198(c),grade=g.rows.length?'<h2>Grade do produto</h2>'+(g.estimated?'<p><b>ATENÇÃO:</b> envio parcial sem grade própria salva; distribuição proporcional estimada.</p>':'')+'<table><tr><th>Cor</th><th>Tamanho</th><th>Quantidade</th></tr>'+g.rows.map(x=>'<tr><td>'+esc9198(x.color||'-')+'</td><td>'+esc9198(x.size||'-')+'</td><td>'+fmtQty9198(x.qty)+'</td></tr>').join('')+'</table>':'';
+  const finance=c.destinationType==='F'?'<h2>Valor do serviço</h2><table><tr><th>Modelo</th><th>Peças</th><th>Valor unitário</th><th>Total previsto</th></tr><tr><td>'+esc9198(c.productName||'-')+'</td><td>'+fmtQty9198(c.qty)+'</td><td>'+money(c.unitPrice||0)+'</td><td><b>'+money(c.total||0)+'</b></td></tr></table>':'';
+  const w=window.open('','_blank');if(!w){alert('Permita pop-ups para imprimir o checklist.');return}
+  w.document.write('<html><head><title>Checklist — '+esc9198(c.destinationName||'')+'</title><style>body{font-family:Arial;padding:26px;color:#222}table{width:100%;border-collapse:collapse;margin:12px 0 20px}th,td{border:1px solid #aaa;padding:7px;text-align:left;font-size:12px}h1{font-size:21px}h2{font-size:16px;margin-top:20px}.sign{margin-top:30px}</style></head><body><h1>HLGB Confecções — Checklist da facção</h1><p><b>Facção:</b> '+esc9198(c.destinationName||'-')+'<br><b>Modelo:</b> '+esc9198(c.productName||'-')+'<br><b>Quantidade:</b> '+fmtQty9198(c.qty)+' peças</p>'+grade+'<h2>Matéria-prima / aviamentos</h2><table><tr><th>OK</th><th>Material</th><th>Categoria</th><th>Cor</th><th>Quantidade</th><th>Unidade</th><th>Rolos</th></tr>'+(mats||'<tr><td colspan="7">Sem materiais cadastrados na ficha técnica.</td></tr>')+'</table>'+finance+'<div class="sign">Recebido por: ____________________________________ &nbsp; Data: ____/____/________</div><p>Observação: ______________________________________________________________________</p><script>window.onload=()=>window.print();<\/script></body></html>');
+  w.document.close();
+};
+
+// Grade visível também na Separação de Material.
+function separationGradePanel9198(){
+  const root=document.getElementById('separationTable'),id=+document.getElementById('separationOrder')?.value,o=order9198(id);if(!root||!o)return;
+  document.getElementById('sepGrade9198')?.remove();
+  const groups={};(o.grade||[]).forEach(x=>{let pid=String(x.productId||'');if(!pid)return;(groups[pid]=groups[pid]||[]).push(x)});
+  const d=document.createElement('div');d.id='sepGrade9198';d.className='panel';
+  d.innerHTML='<h3>📐 Grade dos produtos para separação</h3><div class="sub">Use esta grade junto com a separação de matéria-prima.</div>'+
+    (Object.keys(groups).length?Object.entries(groups).map(([pid,rows])=>{let p=product9198(pid);return '<div style="margin-top:14px"><b>'+esc9198(p?.name||'Produto')+'</b><div style="overflow:auto"><table><tr><th>Cor</th><th>Tamanho</th><th>Quantidade</th></tr>'+rows.filter(x=>q9198(x.qty)>0).map(x=>'<tr><td>'+esc9198(x.color||'-')+'</td><td>'+esc9198(x.size||'-')+'</td><td><b>'+fmtQty9198(x.qty)+'</b></td></tr>').join('')+'</table></div></div>'}).join(''):'<div class="empty" style="padding:12px">Pedido sem grade detalhada.</div>');
+  const action=root.querySelector('.separation-action-box');if(action)action.insertAdjacentElement('afterend',d);else root.prepend(d);
+}
+const oldRenderSep9198=window.renderSeparation;
+if(typeof oldRenderSep9198==='function')window.renderSeparation=function(){const r=oldRenderSep9198.apply(this,arguments);setTimeout(separationGradePanel9198,0);return r};
+
+// Impressão da separação agora leva a grade junto.
+window.printMaterialSeparationSheet=function(orderId){
+  const o=order9198(orderId);if(!o)return;
+  let groups=[];try{groups=typeof orderMaterialBreakdownByProduct==='function'?orderMaterialBreakdownByProduct(o):[]}catch(e){}
+  const gradeBy={};(o.grade||[]).forEach(x=>{let pid=String(x.productId||'');if(pid)(gradeBy[pid]=gradeBy[pid]||[]).push(x)});
+  let ids=[...new Set([...Object.keys(gradeBy),...groups.map(g=>String(g.productId||''))].filter(Boolean))];
+  const html=ids.map(pid=>{
+    const p=product9198(pid),gr=gradeBy[pid]||[],g=groups.find(x=>String(x.productId)===pid),mats=g?Object.values(g.materials||{}):[];
+    const gh=gr.length?'<table><tr><th>Cor</th><th>Tamanho</th><th>Quantidade</th></tr>'+gr.filter(x=>q9198(x.qty)>0).map(x=>'<tr><td>'+esc9198(x.color||'-')+'</td><td>'+esc9198(x.size||'-')+'</td><td>'+fmtQty9198(x.qty)+'</td></tr>').join('')+'</table>':'<p>Sem grade detalhada.</p>';
+    const mh=mats.length?'<table><tr><th>Material</th><th>Un.</th><th>Por cor</th><th>Total</th></tr>'+mats.map(m=>'<tr><td>'+esc9198(m.name||'-')+'</td><td>'+esc9198(m.unit||'')+'</td><td>'+Object.entries(m.byColor||{}).map(([c,q])=>esc9198(c)+': '+fmtQty9198(q)).join('<br>')+'</td><td>'+fmtQty9198(m.qty)+'</td></tr>').join('')+'</table>':'<p>Sem materiais cadastrados.</p>';
+    return '<div style="page-break-inside:avoid;margin-bottom:28px"><h2>'+esc9198(p?.name||g?.productName||'Produto')+'</h2><h3>Grade</h3>'+gh+'<h3>Materiais</h3>'+mh+'<p>Separado por: ____________________________ &nbsp; OK: ☐</p></div>';
+  }).join('');
+  const w=window.open('','_blank');if(!w){alert('Permita pop-ups para imprimir a separação.');return}
+  w.document.write('<html><head><title>Separação de material</title><style>body{font-family:Arial;padding:26px;color:#222}table{width:100%;border-collapse:collapse;margin:10px 0 16px}th,td{border:1px solid #aaa;padding:7px;text-align:left;font-size:12px}h1{font-size:21px}h2{font-size:17px}h3{font-size:14px}</style></head><body><h1>HLGB Confecções — Separação de material</h1><p><b>Pedido:</b> #'+esc9198(typeof displayOrderNumber==='function'?displayOrderNumber(o):o.id)+' &nbsp; <b>Cliente:</b> '+esc9198(o.client||'-')+'</p>'+html+'<script>window.onload=()=>window.print();<\/script></body></html>');
+  w.document.close();
+};
+
+// Botão Registrar falta: aparece tanto em Envios para facção quanto em Entrega de facções.
+function missingAction9198(id){
+  if(typeof window.hlgbRegisterFactionMissing9197==='function')return window.hlgbRegisterFactionMissing9197(id);
+  alert('A função de peças faltantes ainda não carregou. Atualize a página e tente novamente.');
+}
+window.hlgbRegisterFactionMissing9198=missingAction9198;
+function addMissingButtonsToMain9198(){
+  const box=document.getElementById('factionTable');if(!box)return;
+  const rows=[...box.querySelectorAll('tr')].filter(tr=>tr.querySelector('td')),factions=(db.factions||[]);
+  rows.forEach((tr,i)=>{
+    if(tr.querySelector('.hlgb9198-faction-missing'))return;
+    let id=null,edit=[...tr.querySelectorAll('button')].find(b=>/editFaction\(\d+\)/.test(String(b.getAttribute('onclick')||'')));
+    if(edit){let m=String(edit.getAttribute('onclick')||'').match(/editFaction\((\d+)\)/);if(m)id=m[1]}
+    if(!id&&factions[i])id=factions[i].id;if(!id)return;
+    const cell=tr.lastElementChild;if(!cell)return;
+    const b=document.createElement('button');b.type='button';b.className='secondary hlgb9198-faction-missing';b.textContent='⚠️ Registrar falta';b.onclick=()=>missingAction9198(id);cell.insertBefore(b,cell.firstChild);cell.insertBefore(document.createTextNode(' '),b.nextSibling);
+  });
+}
+function factionDeliveryOrder9198(){
+  return (db.factions||[]).filter(f=>q9198(f.sent)>0).slice().sort((a,b)=>{
+    let aa=q9198(a.sent)>q9198(a.done)+q9198(a.defects)+q9198(a.waste)?0:1,bb=q9198(b.sent)>q9198(b.done)+q9198(b.defects)+q9198(b.waste)?0:1;
+    return aa-bb||String(b.sentAt||b.date||'').localeCompare(String(a.sentAt||a.date||''));
+  });
+}
+function addMissingButtonsToDelivery9198(){
+  const box=document.getElementById('factionDeliveryTable935');if(!box)return;
+  const rows=[...box.querySelectorAll('tr')].filter(tr=>tr.querySelector('td')),arr=factionDeliveryOrder9198();
+  rows.forEach((tr,i)=>{
+    const f=arr[i];if(!f||tr.querySelector('.hlgb9198-delivery-missing'))return;
+    const available=Math.max(0,q9198(f.sent)-q9198(f.done)-q9198(f.defects)-q9198(f.waste)),cell=tr.lastElementChild;if(!cell)return;
+    const b=document.createElement('button');b.type='button';b.className='secondary hlgb9198-delivery-missing';b.textContent='⚠️ Registrar falta';b.style.marginLeft='5px';b.disabled=available<=0;b.title=available>0?'Registrar peças que não voltaram da facção':'Não há saldo livre para registrar falta';b.onclick=()=>missingAction9198(f.id);cell.appendChild(b);
+  });
+}
+const oldRenderFactions9198=window.renderFactions;
+if(typeof oldRenderFactions9198==='function')window.renderFactions=function(){
+  const r=oldRenderFactions9198.apply(this,arguments);
+  setTimeout(()=>{renderFactionChecklists9198();addMissingButtonsToMain9198();addMissingButtonsToDelivery9198()},80);
+  return r;
+};
+const oldRenderDelivery9198=window.renderFactionDelivery935;
+if(typeof oldRenderDelivery9198==='function')window.renderFactionDelivery935=function(){
+  const r=oldRenderDelivery9198.apply(this,arguments);setTimeout(addMissingButtonsToDelivery9198,30);return r;
+};
+
+// Ao abrir Registrar entrega, desconta defeitos/faltas do saldo disponível.
+const oldRegisterDelivery9198=window.registerFactionDelivery935;
+if(typeof oldRegisterDelivery9198==='function')window.registerFactionDelivery935=function(id){
+  const f=(db.factions||[]).find(x=>String(x.id)===String(id));if(!f)return;
+  const available=Math.max(0,q9198(f.sent)-q9198(f.done)-q9198(f.defects)-q9198(f.waste));
+  if(available<=0){alert('Este envio não possui saldo livre para entrega. Peças entregues, defeitos e faltas já consumiram todo o envio.');return}
+  const r=oldRegisterDelivery9198.apply(this,arguments);
+  setTimeout(()=>{
+    const inp=document.getElementById('fdQty940')||document.getElementById('fdQty935');if(inp){inp.max=String(available);inp.value=String(Math.min(available,Math.max(1,+inp.value||available)))}
+    const modal=document.querySelector('#modal .modalbox');if(modal&&!document.getElementById('factionBalance9198')){let d=document.createElement('div');d.id='factionBalance9198';d.className='sub';d.style.margin='8px 0';d.innerHTML='Saldo realmente disponível: <b>'+fmtQty9198(available)+'</b> peça(s) — já descontando '+fmtQty9198(f.defects)+' defeito(s) e '+fmtQty9198(f.waste)+' faltante(s).';let btn=modal.querySelector('.modalSave');if(btn)btn.parentNode.insertBefore(d,btn)}
+    const btn=modal?.querySelector('.modalSave');if(btn&&!btn.dataset.guard9198){btn.dataset.guard9198='1';btn.addEventListener('click',ev=>{let v=q9198(inp?.value);if(v>available){ev.preventDefault();ev.stopImmediatePropagation();alert('A entrega não pode ultrapassar o saldo real de '+available+' peça(s).') }},true)}
+  },30);
+  return r;
+};
+
+const oldIncoming9198=window.hlgbRenderIncomingRecord;
+if(typeof oldIncoming9198==='function')window.hlgbRenderIncomingRecord=function(module){
+  const r=oldIncoming9198.apply(this,arguments);
+  if(['materialChecklists','factions','production','orders','cuts','products','materials'].includes(module))setTimeout(()=>{try{renderFactionChecklists9198();addMissingButtonsToMain9198();addMissingButtonsToDelivery9198()}catch(e){}},130);
+  return r;
+};
+function boot9198(){
+  setVersion9198();
+  try{renderFactionChecklists9198()}catch(e){}
+  try{addMissingButtonsToMain9198()}catch(e){}
+  try{addMissingButtonsToDelivery9198()}catch(e){}
+  try{separationGradePanel9198()}catch(e){}
+}
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',boot9198,{once:true});else boot9198();
+try{if(typeof hlgbAfterLogin==='function')hlgbAfterLogin(()=>setTimeout(boot9198,600),0)}catch(e){}
+console.log('HLGB v91.98: checklist com grade/aviamento por cor/rolos, grade na separação, baixa correta de corte e faltas na entrega de facções.');
+})();
+
+</script>
+<!-- HLGB_V9198_END -->
 </body></html>
