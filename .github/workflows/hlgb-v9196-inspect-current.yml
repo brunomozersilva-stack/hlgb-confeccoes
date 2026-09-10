@@ -1,0 +1,28 @@
+name: Inspeção atual HLGB v91.96
+on:
+  push:
+    paths:
+      - 'scripts/hlgb_v9196_inspect_current.py'
+      - '.github/workflows/hlgb-v9196-inspect-current.yml'
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+      - name: Extrair fluxo atual
+        run: python scripts/hlgb_v9196_inspect_current.py
+      - name: Salvar diagnóstico
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add debug/v9196-current-flow.txt
+          if ! git diff --cached --quiet; then
+            git commit -m 'Diagnóstico atual fluxo v91.96'
+            git push
+          fi
