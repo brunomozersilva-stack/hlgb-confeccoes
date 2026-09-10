@@ -1,0 +1,66 @@
+name: Aplicar HLGB v92.04
+on:
+  push:
+    paths:
+      - 'scripts/hlgb_v9204_browser_compat.py'
+      - '.github/workflows/hlgb-apply-v9204.yml'
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Aplicar v92.04
+        run: python scripts/hlgb_v9204_browser_compat.py
+      - name: Validar estrutura e versões
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          s=Path('index.html').read_text(encoding='utf-8')
+          req=['HLGB_V9204_START','v92.04','pageshow','visibilitychange','HLGB_V9203_START','HLGB_V9202_START','HLGB_V9201_START']
+          miss=[x for x in req if x not in s]
+          if miss: raise SystemExit('Ausente: '+repr(miss))
+          for v in ['9204','9203','9202','9201']:
+              if s.count(f'<!-- HLGB_V{v}_START -->')!=1: raise SystemExit(f'Bloco v{v} ausente ou duplicado')
+          print('Estrutura v92.04 OK')
+          PY
+      - name: Validar sintaxe JavaScript
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import re, subprocess, tempfile, os
+          s=Path('index.html').read_text(encoding='utf-8')
+          blocks=[]
+          for m in re.finditer(r'<script([^>]*)>(.*?)</script>', s, re.S|re.I):
+              attrs=m.group(1) or ''
+              code=m.group(2) or ''
+              if 'src=' in attrs.lower():
+                  continue
+              if 'application/json' in attrs.lower() or 'application/ld+json' in attrs.lower():
+                  continue
+              if code.strip(): blocks.append(code)
+          for i,code in enumerate(blocks):
+              fn=f'/tmp/hlgb_script_{i}.js'
+              Path(fn).write_text(code,encoding='utf-8')
+              p=subprocess.run(['node','--check',fn],capture_output=True,text=True)
+              if p.returncode:
+                  print('Falha no script',i)
+                  print(p.stderr)
+                  raise SystemExit(1)
+          print('JavaScript OK:',len(blocks),'blocos')
+          PY
+      - name: Publicar v92.04
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add index.html
+          git commit -m "Publicar HLGB v92.04 - acesso Chrome e Safari" || exit 0
+          git push
