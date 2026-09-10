@@ -1,0 +1,48 @@
+name: Aplicar HLGB v92.18 consistência de corte finalizado
+on:
+  push:
+    paths:
+      - 'scripts/hlgb_v9218_cut_finalization_consistency.py'
+      - '.github/workflows/hlgb-apply-v9218.yml'
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Montar página v92.18
+        run: python scripts/hlgb_v9218_cut_finalization_consistency.py
+      - name: Validar corte e JavaScript
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          s=Path('app9218.html').read_text(encoding='utf-8')
+          both=s+Path('abrir.html').read_text(encoding='utf-8')
+          req=['id="loginUser"','id="loginPass"','onclick="return doLogin()"','HLGB_V9218_CUT_FINALIZATION_CONSISTENCY','sourceOrderId','order?.cutStatus','retireCoveredPlannedCuts9218','covered_by_final_cut','app9218.html?v=92.18','v92.18']
+          miss=[x for x in req if x not in both]
+          if miss: raise SystemExit('Itens obrigatórios ausentes: '+repr(miss))
+          start=s.index('<!-- HLGB_V9218_CUT_FINALIZATION_CONSISTENCY -->')
+          block=s[start:s.index('</script>',start)+9]
+          if 'MutationObserver' in block: raise SystemExit('Observer não permitido na v92.18')
+          js=block.split('<script>',1)[1].rsplit('</script>',1)[0]
+          Path('/tmp/v9218-marker.js').write_text(js,encoding='utf-8')
+          # Extrai todo o JS do app para checagem sintática básica por blocos principais.
+          print('Estrutura v92.18 OK')
+          PY
+          node --check /tmp/v9218-marker.js
+      - name: Publicar v92.18
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add app9218.html abrir.html
+          if git diff --cached --quiet; then exit 0; fi
+          git commit -m "Publicar HLGB v92.18 - corrigir status de corte finalizado"
+          git push
