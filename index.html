@@ -6,7 +6,7 @@
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
-<title>HLGB Confecções — Sistema de Gestão v91.92 Multiusuário</title>
+<title>HLGB Confecções — Sistema de Gestão v91.93 Multiusuário</title>
 <style>
 :root{--navy:#6f3f59;--orange:#c96b8f;--bg:#fbf6f8;--line:#eadde4;--text:#30262c;--muted:#786b73;--ok:#e9f7ef;--warn:#fff5df;--bad:#fdeaea;--rose:#f3dbe5;--rose2:#fff8fb}
 *{box-sizing:border-box}body{margin:0;font-family:Arial,Helvetica,sans-serif;background:var(--bg);color:var(--text)}
@@ -320,7 +320,7 @@ main{min-width:0;}
 })();
 </script>
 
-<div id="appShell" style="display:none"><header><div class="logo">HLGB <b>CONFECÇÕES</b> <small style="font-size:10px;opacity:.8">v91.92</small></div><div><span id="cloudStatus" style="margin-right:10px;font-size:12px;padding:6px 9px;border:1px solid #ffffff44;border-radius:8px">☁️ Nuvem</span><span id="currentUserLabel" style="margin-right:10px;font-size:13px"></span><button id="cloudSaveBtn" onclick="cloudUploadCurrentDb(true)" style="display:none" title="Sincronização automática">🔄 Sincronizar agora</button> <button id="backupBtn" onclick="backup()" style="display:none">Exportar backup</button> <button id="importBackupBtn" onclick="document.getElementById('backupImportInput').click()" style="display:none">Importar backup</button><input id="backupImportInput" type="file" accept=".json,application/json" style="display:none" onchange="importBackupFile(this)"> <button onclick="logout()">Sair</button></div></header>
+<div id="appShell" style="display:none"><header><div class="logo">HLGB <b>CONFECÇÕES</b> <small style="font-size:10px;opacity:.8">v91.93</small></div><div><span id="cloudStatus" style="margin-right:10px;font-size:12px;padding:6px 9px;border:1px solid #ffffff44;border-radius:8px">☁️ Nuvem</span><span id="currentUserLabel" style="margin-right:10px;font-size:13px"></span><button id="cloudSaveBtn" onclick="cloudUploadCurrentDb(true)" style="display:none" title="Sincronização automática">🔄 Sincronizar agora</button> <button id="backupBtn" onclick="backup()" style="display:none">Exportar backup</button> <button id="importBackupBtn" onclick="document.getElementById('backupImportInput').click()" style="display:none">Importar backup</button><input id="backupImportInput" type="file" accept=".json,application/json" style="display:none" onchange="importBackupFile(this)"> <button onclick="logout()">Sair</button></div></header>
 <div class="app">
 <aside><nav id="nav" class="clean-nav">
 <button class="nav-home active" onclick="page('dashboard',this)">🏠 <span>Início</span></button>
@@ -15422,10 +15422,28 @@ function orderItems944(o){try{return projectionItemsForOrder(o)||[]}catch(e){}le
 function orderQty944(o){try{return q944(qtyOfOrder(o))}catch(e){}return (o?.grade||[]).reduce((s,g)=>s+q944(g.qty),0)||q944(o?.qty||o?.totalQty)}
 function price944(o,item){for(const v of [item?.unitPrice,item?.price,item?.salePrice])if(q944(v)>0)return q944(v);let pid=String(item?.productId||item?.key||''),g=(o?.grade||[]).find(x=>String(x.productId)===pid&&(q944(x.unitPrice)>0||q944(x.price)>0));if(g)return q944(g.unitPrice||g.price);let p=prod944(pid),cid=String(item?.clientId||o?.clientId||''),cp=p?.clientPrices||{};if(cid&&own944(cp,cid))return q944(cp[cid]);let c=cli944(cid);if(own944(c?.prices||{},pid))return q944(c.prices[pid]);if(q944(p?.price)>0)return q944(p.price);let oq=orderQty944(o);return oq?q944(o?.total)/oq:0}
 function rem944(item){return item?.remainingQty!=null?q944(item.remainingQty):Math.max(0,q944(item?.qty)-q944(item?.invoicedQty))}
-function match944(row,item){let k=String(item?.productId||item?.key||'');return String(row?.productId||'')===k||String(row?.cutProductKey||'').split(':').pop()===k}
+function match944(row,item){
+  let k=String(item?.productId||item?.key||'');
+  if(k&&(String(row?.productId||'')===k||String(row?.cutProductKey||'').split(':').pop()===k))return true;
+  let product=prod944(k),model=n944(item?.name||product?.name||'');
+  if(model){
+    let raw=n944(row?.product||row?.description||row?.model||'');
+    if(raw&&raw.includes(model))return true;
+  }
+  if(row?.cutId!=null){
+    let cut=(db.cuts||[]).find(c=>String(c.id)===String(row.cutId));
+    if(cut){
+      if(k&&String(cut.productId||'')===k)return true;
+      let grades=[...(Array.isArray(cut.actualCutGrade)?cut.actualCutGrade:[]),...(Array.isArray(cut.originalGrade)?cut.originalGrade:[])];
+      if(k&&grades.some(g=>String(g?.productId||'')===k))return true;
+      if(model&&n944(cut.product||'').includes(model))return true;
+    }
+  }
+  return false;
+}
 function active944(){let out=[];(db.orders||[]).forEach(o=>{let st=n944(o.status);if(o.deletedAt||st==='cancelado'||st==='cancelada'||st==='entregue'||st==='finalizado')return;orderItems944(o).forEach(item=>{let pid=String(item.productId||item.key||''),missing=(db.missingPieces||[]).filter(m=>String(m.orderId)===String(o.id)&&String(m.productId||'')===pid&&n944(m.status)!=='resolvido').reduce((s,m)=>s+q944(m.remainingQty),0),qty=Math.max(0,rem944(item)-missing);if(qty>0)out.push({o,item,qty})})});return out}
 function dests944(){let out=[];(db.productionLocations||[]).filter(x=>x.active!==false&&n944(x.name)!=='externo').forEach(x=>out.push({key:`L:${x.id}`,id:x.id,type:'Confecção',name:x.name||'Confecção'}));(db.factionMasters||[]).filter(x=>x.active!==false).forEach(x=>out.push({key:`F:${x.id}`,id:x.id,type:'Facção',name:x.name||'Facção'}));return out}
-function group944(){let dests=dests944(),map=new Map(dests.map(d=>[d.key,{dest:d,rows:[]}])) ,unassigned=[];active944().forEach(({o,item,qty})=>{let left=qty,key=String(item.productId||item.key||''),prods=(db.production||[]).filter(p=>+p.orderId===+o.id&&q944(p.planned)>q944(p.done)&&match944(p,item)).sort((a,b)=>q944(a.queueRank)-q944(b.queueRank));for(const p of prods){let dk=p.factionId?`F:${p.factionId}`:(p.productionLocationId?`L:${p.productionLocationId}`:''),take=Math.min(left,Math.max(0,q944(p.planned)-q944(p.done)));if(take>0&&map.has(dk)){map.get(dk).rows.push({kind:'production',row:p,o,item,qty:take,value:take*price944(o,item),rank:q944(p.queueRank)||999999});left-=take}if(left<=0)break}if(left>0){let represented=new Set(prods.map(p=>String(p.id))),factions=(db.factions||[]).filter(f=>String(f.orderId)===String(o.id)&&match944(f,item)&&!represented.has(String(f.productionId)));for(const f of factions){let master=(db.factionMasters||[]).find(m=>String(m.id)===String(f.factionId)||n944(m.name)===n944(f.name||f.factionName)),dk=master?`F:${master.id}`:(f.productionLocationId?`L:${f.productionLocationId}`:''),take=Math.min(left,Math.max(0,q944(f.remainingQty!=null?f.remainingQty:q944(f.sent)-q944(f.done))));if(take>0&&map.has(dk)){map.get(dk).rows.push({kind:'faction',row:f,o,item,qty:take,value:take*price944(o,item),rank:q944(f.queueRank)||999999});left-=take}if(left<=0)break}}if(left>0){let plans=(db.capacityAssignments||[]).filter(a=>+a.orderId===+o.id&&String(a.itemKey)===key&&a.active!==false&&String(a.source||'')!=='cut_assignment'&&q944(a.qty)>q944(a.consumedQty)).sort((a,b)=>q944(a.queueRank)-q944(b.queueRank));for(const a of plans){let dk=a.factionId?`F:${a.factionId}`:(a.locationId?`L:${a.locationId}`:''),take=Math.min(left,Math.max(0,q944(a.qty)-q944(a.consumedQty)));if(take>0&&map.has(dk)){map.get(dk).rows.push({kind:'assignment',row:a,o,item,qty:take,value:take*price944(o,item),rank:q944(a.queueRank)||999999});left-=take}if(left<=0)break}}if(left>0)unassigned.push({o,item,qty:left,value:left*price944(o,item)})});for(const lane of map.values())lane.rows.sort((a,b)=>a.rank-b.rank||String(a.o.date||'').localeCompare(String(b.o.date||''))||String(a.o.id).localeCompare(String(b.o.id)));return {dests,map,unassigned}}
+function group944(){let dests=dests944(),map=new Map(dests.map(d=>[d.key,{dest:d,rows:[]}])) ,unassigned=[];active944().forEach(({o,item,qty})=>{let left=qty,key=String(item.productId||item.key||''),prods=(db.production||[]).filter(p=>+p.orderId===+o.id&&q944(p.planned)>q944(p.done)&&match944(p,item)).sort((a,b)=>q944(a.queueRank)-q944(b.queueRank));for(const p of prods){let dk=p.factionId?`F:${p.factionId}`:(p.productionLocationId?`L:${p.productionLocationId}`:''),take=Math.min(left,Math.max(0,q944(p.planned)-q944(p.done)));if(take>0&&map.has(dk)){map.get(dk).rows.push({kind:'production',row:p,o,item,qty:take,value:take*price944(o,item),rank:q944(p.queueRank)||999999});left-=take}if(left<=0)break}if(left>0){let represented=new Set(prods.map(p=>String(p.id))),factions=(db.factions||[]).filter(f=>String(f.orderId)===String(o.id)&&match944(f,item)&&!represented.has(String(f.productionId)));for(const f of factions){let master=(db.factionMasters||[]).find(m=>String(m.id)===String(f.factionId)||n944(m.name)===n944(f.name||f.factionName)),dk=master?`F:${master.id}`:(f.productionLocationId?`L:${f.productionLocationId}`:''),take=Math.min(left,Math.max(0,q944(f.remainingQty!=null?f.remainingQty:q944(f.sent)-q944(f.done))));if(take>0&&map.has(dk)){map.get(dk).rows.push({kind:'faction',row:f,o,item,qty:take,value:take*price944(o,item),rank:q944(f.queueRank)||999999});left-=take}if(left<=0)break}}if(left>0){let plans=(db.capacityAssignments||[]).filter(a=>+a.orderId===+o.id&&String(a.itemKey)===key&&a.active!==false&&q944(a.qty)>q944(a.consumedQty)&&(a.locationId||a.factionId)).sort((a,b)=>q944(a.queueRank)-q944(b.queueRank));for(const a of plans){let dk=a.factionId?`F:${a.factionId}`:(a.locationId?`L:${a.locationId}`:''),take=Math.min(left,Math.max(0,q944(a.qty)-q944(a.consumedQty)));if(take>0&&map.has(dk)){map.get(dk).rows.push({kind:'assignment',row:a,o,item,qty:take,value:take*price944(o,item),rank:q944(a.queueRank)||999999});left-=take}if(left<=0)break}}if(left>0)unassigned.push({o,item,qty:left,value:left*price944(o,item)})});for(const lane of map.values())lane.rows.sort((a,b)=>a.rank-b.rank||String(a.o.date||'').localeCompare(String(b.o.date||''))||String(a.o.id).localeCompare(String(b.o.id)));return {dests,map,unassigned}}
 window.capacitySetFilter944=function(v){capFilter944=String(v||'');renderCapacity944()};
 function renderCapacity944(){let root=document.getElementById('capacity940Root');if(!root)return;let {dests,map,unassigned}=group944(),all=[...map.values()],assignedValue=all.reduce((s,l)=>s+l.rows.reduce((a,r)=>a+q944(r.value),0),0),unValue=unassigned.reduce((s,r)=>s+q944(r.value),0),totalValue=assignedValue+unValue;if(capFilter944&&!dests.some(d=>d.key===capFilter944))capFilter944='';let lanes=all.filter(l=>!capFilter944||l.dest.key===capFilter944),opts=dests.slice().sort((a,b)=>a.type.localeCompare(b.type)||a.name.localeCompare(b.name,'pt-BR')).map(d=>`<option value="${d.key}" ${d.key===capFilter944?'selected':''}>${esc(d.type)} — ${esc(d.name)}</option>`).join('');let laneHtml=lanes.map(l=>{let val=l.rows.reduce((s,r)=>s+q944(r.value),0),qty=l.rows.reduce((s,r)=>s+q944(r.qty),0),rows=l.rows.map((r,i)=>{let model=r.item.name||prod944(r.item.productId)?.name||r.row.product||'Produto',clientName=r.item.clientName||r.o.client||'-',move=r.kind==='faction'?'<span class="badge ok">Na facção</span>':`<button class="secondary" style="padding:5px 7px" onclick="moveCapacityQueue940('${r.kind}','${r.row.id}',-1)" ${i===0?'disabled':''}>↑</button><button class="secondary" style="padding:5px 7px" onclick="moveCapacityQueue940('${r.kind}','${r.row.id}',1)" ${i===l.rows.length-1?'disabled':''}>↓</button>`;return `<div class="cap944-row"><div><b>${esc(model)}</b><small>Pedido #${esc(typeof displayOrderNumber==='function'?displayOrderNumber(r.o):r.o.id)} · ${esc(clientName)}</small></div><div><b>${q944(r.qty).toLocaleString('pt-BR')}</b><small>peças</small></div><div class="cap944-money">${fmt944(r.value)}</div><div class="cap944-actions">${move}${r.kind==='assignment'?`<button class="danger" style="padding:5px 7px" onclick="removeCapacityQueue940('${r.row.id}')">×</button>`:''}</div></div>`}).join('');return `<div class="cap944-lane"><div class="cap944-lane-head"><div class="cap944-lane-title"><div><b style="font-size:16px">${esc(l.dest.name)}</b><div class="sub">${esc(l.dest.type)} · ${l.rows.length} modelo(s)</div></div><span class="badge ${l.rows.length?'ok':''}">${fmt944(val)}</span></div><div class="sub" style="margin-top:7px"><b>Valor total programado: ${fmt944(val)}</b> · ${qty.toLocaleString('pt-BR')} peças apenas como detalhe dos modelos</div></div>${rows||'<div class="empty" style="padding:16px">Nenhum modelo programado neste local.</div>'}</div>`}).join('');let unRows=unassigned.map(r=>`<div class="cap944-unassigned-row"><div><b>#${esc(typeof displayOrderNumber==='function'?displayOrderNumber(r.o):r.o.id)}</b><div class="sub">${esc(r.item.clientName||r.o.client||'-')}</div></div><div><b>${esc(r.item.name||'Produto')}</b></div><b>${q944(r.qty).toLocaleString('pt-BR')} pç</b><div class="cap944-money">${fmt944(r.value)}</div><button class="primary" onclick="openCapacityAssign940(${r.o.id},'${String(r.item.key||r.item.productId).replace(/'/g,"\\'")}')">Escolher quem vai produzir</button></div>`).join('');root.innerHTML=`<div class="panel"><div class="cap944-toolbar"><div><h2 style="margin-bottom:4px">🏭 Planejamento por capacidade — valor total</h2><div class="sub">O resumo da capacidade agora usa <b>valor total em R$</b>. Peças aparecem somente dentro de cada modelo, porque modelos diferentes exigem capacidades diferentes.</div></div><div class="field cap944-filter"><label>Filtrar por local</label><select id="capacityLocation944" onchange="capacitySetFilter944(this.value)"><option value="">Todos os locais e facções</option>${opts}</select></div></div><div class="cap944-grid"><div class="card"><small>Valor ativo planejado</small><strong>${fmt944(totalValue)}</strong></div><div class="card"><small>Valor já com destino</small><strong>${fmt944(assignedValue)}</strong></div><div class="card"><small>Valor ainda sem destino</small><strong>${fmt944(unValue)}</strong></div><div class="card"><small>Locais / facções cadastrados</small><strong>${all.length}</strong></div></div></div><div class="panel"><h2>📌 Fila por local / facção</h2><div class="sub">Todos os locais e facções cadastrados aparecem abaixo, inclusive quando ainda não possuem modelos programados.</div><div class="cap944-lanes" style="margin-top:12px">${laneHtml||'<div class="empty">Nenhum local cadastrado para este filtro.</div>'}</div></div>${capFilter944?'':`<div class="panel"><h2>🟠 Modelos ainda sem destino</h2><div class="sub">Cada linha é um pedido diferente; confira o número antes de escolher o destino.</div><div class="cap944-unassigned">${unRows||'<div class="empty">Todos os modelos ativos já têm destino.</div>'}</div></div>`}`}
 const oldCapacity944=window.renderCapacityPlanning;
@@ -16229,7 +16247,7 @@ async function scanDirty955(){
   for(const [m,id,r] of todo)await enqueue955(m,id,r,false);
   if(todo.length)await flush955(false);
   return todo.length;
- }catch(e){console.warn('HLGB v91.92 dirty scan',e);return 0}
+ }catch(e){console.warn('HLGB v91.93 dirty scan',e);return 0}
 }
 function wrapGeneric955(){const f=window.save;if(typeof f!=='function'||f.__hlgb955Generic)return;const w=function(){const out=f.apply(this,arguments);Promise.resolve(out).finally(()=>{try{clearTimeout(window.__hlgb955DirtyTimer)}catch(_){}window.__hlgb955DirtyTimer=setTimeout(()=>scanDirty955(),250)});return out};w.__hlgb955Generic=true;window.save=w}
 let bootStarted955=false,bootWaitTimer955=null;
@@ -17245,8 +17263,8 @@ try{const base=window.renderCuts;window.renderCuts=function(){let r=base?.apply(
 try{const base=window.renderDailyCuts;window.renderDailyCuts=function(){let r=base?.apply(this,arguments);setTimeout(enhanceGradeButtons9191,0);return r}}catch(e){}
 try{const base=window.renderCutters;window.renderCutters=function(){let r=base?.apply(this,arguments);setTimeout(()=>{try{window.hlgbRenderCutterExcel9179?.()}catch(e){}},0);return r}}catch(e){}
 
-setTimeout(()=>{try{let x=document.querySelector('#appShell .logo small');if(x)x.textContent='v91.92';document.title='HLGB Confecções — Sistema de Gestão v91.92 Multiusuário'}catch(e){}},0);
-console.log('HLGB v91.92: cortadores clean, ajuste de grade, status de corte na fila e capacidade por atribuição.');
+setTimeout(()=>{try{let x=document.querySelector('#appShell .logo small');if(x)x.textContent='v91.93';document.title='HLGB Confecções — Sistema de Gestão v91.93 Multiusuário'}catch(e){}},0);
+console.log('HLGB v91.93: cortadores clean, ajuste de grade, status de corte na fila e capacidade por atribuição.');
 })();
 </script>
 <!-- HLGB_V9191_END -->
@@ -17268,13 +17286,69 @@ try{
         if(typeof scanDirty955==='function')await scanDirty955();
         if(typeof flush955==='function')await flush955(false);
         if(typeof update955==='function')update955();
-      }catch(e){console.warn('HLGB v91.92 reconciliação da fila',e)}
+      }catch(e){console.warn('HLGB v91.93 reconciliação da fila',e)}
     },1200);
     return r;
   };
-}catch(e){console.warn('HLGB v91.92 hook de autenticação',e)}
-console.log('HLGB v91.92: login manual obrigatório e reconciliação da fila de nuvem.');
+}catch(e){console.warn('HLGB v91.93 hook de autenticação',e)}
+console.log('HLGB v91.93: login manual obrigatório e reconciliação da fila de nuvem.');
 })();
 </script>
 <!-- HLGB_V9192_END -->
+<!-- HLGB_V9193_START -->
+<style id="hlgb-v9193-style">
+.hlgb9193-cut-status{display:inline-flex;align-items:center;margin:4px 0 0 7px;padding:3px 7px;border-radius:999px;font-size:10px;font-weight:800;white-space:nowrap;vertical-align:middle}
+.hlgb9193-cut-status.ok{background:#e8f7ed;color:#176b35;border:1px solid #bfe5cc}
+.hlgb9193-cut-status.pending{background:#eaf2ff;color:#2458a6;border:1px solid #c9dbf8}
+.hlgb9193-cut-status.no{background:#f2f2f2;color:#666;border:1px solid #ddd}
+</style>
+<script id="hlgb-v9193-script">
+(function(){
+'use strict';
+const n9193=v=>String(v||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').trim().toLowerCase();
+const e9193=v=>typeof esc==='function'?esc(v):String(v??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+function displayNo9193(o){try{return String(typeof displayOrderNumber==='function'?displayOrderNumber(o):o.id)}catch(_){return String(o?.id||'')}}
+function productName9193(item){let p=(db.products||[]).find(x=>String(x.id)===String(item?.productId||item?.key));return item?.name||p?.name||'Produto'}
+function cutMatches9193(c,o,item){
+  if(!c||!item)return false;if(o&&c.orderId!=null&&String(c.orderId)!==String(o.id))return false;
+  let pid=String(item.productId||item.key||''),name=n9193(productName9193(item));
+  if(pid&&String(c.productId||'')===pid)return true;
+  let grades=[...(Array.isArray(c.actualCutGrade)?c.actualCutGrade:[]),...(Array.isArray(c.originalGrade)?c.originalGrade:[])];
+  if(pid&&grades.some(g=>String(g?.productId||'')===pid))return true;
+  if(name&&n9193(c.product||'').includes(name))return true;
+  return false;
+}
+function cutStatus9193(o,item){
+  let cuts=(db.cuts||[]).filter(c=>String(c.orderId||'')===String(o?.id||'')&&cutMatches9193(c,o,item));
+  if(!cuts.length&&item?.productId)cuts=(db.cuts||[]).filter(c=>(c.orderId==null||c.manual||c.isAdHoc)&&cutMatches9193(c,null,item));
+  if(cuts.some(c=>['finalizado','finalizada'].includes(n9193(c.status))||c.done===true))return {text:'✅ Cortado',cls:'ok'};
+  if(cuts.length)return {text:'✂️ A cortar',cls:'pending'};
+  return {text:'⚪ Não cortado',cls:'no'};
+}
+function itemFor9193(o,model){
+  let list=[];try{if(typeof projectionItemsForOrder==='function')list=projectionItemsForOrder(o)||[]}catch(_){}
+  if(!list.length){let map=new Map();(o?.grade||[]).forEach(g=>{let id=String(g.productId||'');if(!id)return;let p=(db.products||[]).find(x=>String(x.id)===id),x=map.get(id)||{key:id,productId:g.productId,name:p?.name||'Produto',qty:0};x.qty+=(+g.qty||0);map.set(id,x)});list=[...map.values()]}
+  let nm=n9193(model);return list.find(i=>n9193(productName9193(i))===nm)||list.find(i=>nm.includes(n9193(productName9193(i)))||n9193(productName9193(i)).includes(nm))||null;
+}
+function enhance9193(){
+  document.querySelectorAll('#capacity940Root .cap944-row').forEach(row=>{
+    if(row.querySelector('.hlgb9193-cut-status'))return;
+    let modelEl=row.querySelector('div b');if(!modelEl)return;let model=modelEl.textContent?.trim()||'';
+    let m=(row.textContent||'').match(/Pedido\s*#\s*([0-9]+)/i);if(!m)return;
+    let o=(db.orders||[]).find(x=>displayNo9193(x)===String(m[1]));if(!o)return;let item=itemFor9193(o,model);if(!item)return;
+    let st=cutStatus9193(o,item);modelEl.insertAdjacentHTML('afterend',`<span class="hlgb9193-cut-status ${st.cls}">${e9193(st.text)}</span>`);
+  });
+  document.querySelectorAll('#capacity940Root .cap944-unassigned-row').forEach(row=>{
+    if(row.querySelector('.hlgb9193-cut-status'))return;let bs=row.querySelectorAll('b');if(bs.length<2)return;
+    let orderNo=String(bs[0].textContent||'').replace(/[^0-9]/g,''),o=(db.orders||[]).find(x=>displayNo9193(x)===orderNo);if(!o)return;
+    let item=itemFor9193(o,bs[1].textContent||'');if(!item)return;let st=cutStatus9193(o,item);bs[1].insertAdjacentHTML('afterend',`<span class="hlgb9193-cut-status ${st.cls}">${e9193(st.text)}</span>`);
+  });
+}
+const prev=window.renderCapacityPlanning;
+if(typeof prev==='function')window.renderCapacityPlanning=function(){let r=prev.apply(this,arguments);setTimeout(enhance9193,20);return r};
+try{if(typeof hlgbAfterLogin==='function')hlgbAfterLogin(()=>setTimeout(()=>{try{window.renderCapacityPlanning?.()}catch(_){}},500),0)}catch(_){}
+console.log('HLGB v91.93: fila por local usa atribuições de corte/produção e mostra status do corte.');
+})();
+</script>
+<!-- HLGB_V9193_END -->
 </body></html>
