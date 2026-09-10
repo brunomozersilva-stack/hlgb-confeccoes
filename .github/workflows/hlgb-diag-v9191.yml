@@ -1,0 +1,25 @@
+name: Diagnosticar alvos HLGB v91.91
+on:
+  push:
+    paths:
+      - 'scripts/hlgb_diag_v9191_targets.py'
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  diag:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+      - name: Gerar diagnóstico
+        run: python scripts/hlgb_diag_v9191_targets.py
+      - name: Publicar diagnóstico
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add debug/v9191-targets.txt
+          git commit -m 'Gerar diagnostico v91.91' || exit 0
+          git push
