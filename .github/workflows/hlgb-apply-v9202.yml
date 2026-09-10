@@ -1,7 +1,8 @@
-name: Aplicar HLGB v92.02
+name: Aplicar HLGB v92.02 notas agrupadas
 on:
   push:
     paths:
+      - 'scripts/hlgb_v9202_grouped_notes.py'
       - '.github/workflows/hlgb-apply-v9202.yml'
   workflow_dispatch:
 permissions:
@@ -14,19 +15,23 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.x'
-      - run: python scripts/hlgb_v9202_group_notes.py
-      - run: |
+      - name: Aplicar v92.02
+        run: python scripts/hlgb_v9202_grouped_notes.py
+      - name: Validar v92.02
+        run: |
           python - <<'PY'
           from pathlib import Path
           s=Path('index.html').read_text(encoding='utf-8')
-          req=['HLGB_V9202_START','v92.02','openMergeNotes9202','mergedFrom']
+          req=['HLGB_V9202_START','Itens aguardando nota','sendProjectionToNotes9202','groupNote9202','noteQueue','v92.02']
           miss=[x for x in req if x not in s]
           if miss: raise SystemExit('Ausente: '+repr(miss))
+          if s.count('<!-- HLGB_V9202_START -->')!=1: raise SystemExit('v92.02 duplicada')
           print('v92.02 OK')
           PY
-      - run: |
+      - name: Publicar v92.02
+        run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add index.html
-          git commit -m "Publicar HLGB v92.02" || exit 0
+          git commit -m "Publicar HLGB v92.02 - fila e notas agrupadas" || exit 0
           git push
