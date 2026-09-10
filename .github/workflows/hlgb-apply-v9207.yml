@@ -1,0 +1,36 @@
+name: Aplicar HLGB v92.07 quota/login
+on:
+  push:
+    paths:
+      - 'scripts/hlgb_v9207_quota_login.py'
+      - '.github/workflows/hlgb-apply-v9207.yml'
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+      - name: Aplicar correção de quota no login
+        run: python scripts/hlgb_v9207_quota_login.py
+      - name: Validar correção e fluxos preservados
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          s=Path('index.html').read_text(encoding='utf-8')
+          req=['__hlgbLocalCacheQuotaBlocked','Cache local cheio; seguindo em modo nuvem','HLGB_V9200_START','HLGB_V9201_START','HLGB_V9202_START','v92.07']
+          miss=[x for x in req if x not in s]
+          if miss: raise SystemExit('Ausente: '+repr(miss))
+          print('v92.07 validada OK')
+          PY
+      - name: Publicar v92.07
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add index.html
+          git commit -m "Publicar HLGB v92.07 - corrigir quota no login" || exit 0
+          git push
