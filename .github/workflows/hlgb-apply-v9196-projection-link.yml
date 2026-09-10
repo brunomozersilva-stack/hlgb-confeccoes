@@ -1,0 +1,34 @@
+name: Aplicar vínculo Projeção v91.96
+on:
+  push:
+    paths:
+      - 'scripts/hlgb_v9196_projection_link_fix.py'
+      - '.github/workflows/hlgb-apply-v9196-projection-link.yml'
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Aplicar vínculo sem duplicar demanda
+        run: python scripts/hlgb_v9196_projection_link_fix.py
+      - name: Guardas finais
+        run: |
+          grep -q 'HLGB_V9196_PROJECTION_LINK_START' index.html
+          grep -q 'sourceProductLinked9196' index.html
+          test $(wc -c < index.html) -gt 1000000
+      - name: Publicar ajuste final v91.96
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add index.html
+          git commit -m 'Finalizar HLGB v91.96 - evitar duplicidade entre lote e pedido' || exit 0
+          git push
