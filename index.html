@@ -6,7 +6,7 @@
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
-<title>HLGB Confecções — Sistema de Gestão v91.91 Multiusuário</title>
+<title>HLGB Confecções — Sistema de Gestão v91.92 Multiusuário</title>
 <style>
 :root{--navy:#6f3f59;--orange:#c96b8f;--bg:#fbf6f8;--line:#eadde4;--text:#30262c;--muted:#786b73;--ok:#e9f7ef;--warn:#fff5df;--bad:#fdeaea;--rose:#f3dbe5;--rose2:#fff8fb}
 *{box-sizing:border-box}body{margin:0;font-family:Arial,Helvetica,sans-serif;background:var(--bg);color:var(--text)}
@@ -320,7 +320,7 @@ main{min-width:0;}
 })();
 </script>
 
-<div id="appShell" style="display:none"><header><div class="logo">HLGB <b>CONFECÇÕES</b> <small style="font-size:10px;opacity:.8">v91.91</small></div><div><span id="cloudStatus" style="margin-right:10px;font-size:12px;padding:6px 9px;border:1px solid #ffffff44;border-radius:8px">☁️ Nuvem</span><span id="currentUserLabel" style="margin-right:10px;font-size:13px"></span><button id="cloudSaveBtn" onclick="cloudUploadCurrentDb(true)" style="display:none" title="Sincronização automática">🔄 Sincronizar agora</button> <button id="backupBtn" onclick="backup()" style="display:none">Exportar backup</button> <button id="importBackupBtn" onclick="document.getElementById('backupImportInput').click()" style="display:none">Importar backup</button><input id="backupImportInput" type="file" accept=".json,application/json" style="display:none" onchange="importBackupFile(this)"> <button onclick="logout()">Sair</button></div></header>
+<div id="appShell" style="display:none"><header><div class="logo">HLGB <b>CONFECÇÕES</b> <small style="font-size:10px;opacity:.8">v91.92</small></div><div><span id="cloudStatus" style="margin-right:10px;font-size:12px;padding:6px 9px;border:1px solid #ffffff44;border-radius:8px">☁️ Nuvem</span><span id="currentUserLabel" style="margin-right:10px;font-size:13px"></span><button id="cloudSaveBtn" onclick="cloudUploadCurrentDb(true)" style="display:none" title="Sincronização automática">🔄 Sincronizar agora</button> <button id="backupBtn" onclick="backup()" style="display:none">Exportar backup</button> <button id="importBackupBtn" onclick="document.getElementById('backupImportInput').click()" style="display:none">Importar backup</button><input id="backupImportInput" type="file" accept=".json,application/json" style="display:none" onchange="importBackupFile(this)"> <button onclick="logout()">Sair</button></div></header>
 <div class="app">
 <aside><nav id="nav" class="clean-nav">
 <button class="nav-home active" onclick="page('dashboard',this)">🏠 <span>Início</span></button>
@@ -1725,17 +1725,18 @@ function cloudStoreAuth(){
   }
  }catch(e){}
 }
-function cloudRestoreStoredAuth(){
- try{
-   let raw=localStorage.getItem(HLGB_CLOUD_AUTH_KEY);
-   if(!raw){try{raw=sessionStorage.getItem(HLGB_CLOUD_AUTH_KEY)}catch(e){}}
-   if(!raw)return false;
-   const saved=JSON.parse(raw||"{}");
-   cloudRefreshToken=saved.refresh_token||"";
-   cloudTokenExpiresAt=Number(saved.expires_at||0)||0;
-   cloudUser=saved.user||null;
-   return !!cloudRefreshToken;
- }catch(e){return false}
+function cloudRestoreStoredAuth(allowExplicitRestore=false){
+  if(allowExplicitRestore!==true)return false;
+  try{
+    let raw=localStorage.getItem(HLGB_CLOUD_AUTH_KEY);
+    if(!raw){try{raw=sessionStorage.getItem(HLGB_CLOUD_AUTH_KEY)}catch(e){}}
+    if(!raw)return false;
+    const saved=JSON.parse(raw||"{}");
+    cloudRefreshToken=saved.refresh_token||"";
+    cloudTokenExpiresAt=Number(saved.expires_at||0)||0;
+    cloudUser=saved.user||null;
+    return !!cloudRefreshToken;
+  }catch(e){return false}
 }
 function cloudApplyAuth(data){
  cloudAccessToken=data?.access_token||cloudAccessToken||"";
@@ -16210,7 +16211,26 @@ window.hlgb955FlushNow=()=>flush955(true);
 window.hlgb955PendingCount=()=>count955();
 window.hlgb955ReliableSave=async function(m,id,data,deleted=false){const e=await enqueue955(m,id,data,deleted);if(!rawSave955)install955();if(!rawSave955){await fail955(e.key,new Error('Rotina de nuvem ainda não carregada.'));return {applied:false,pending:true}}try{const out=await rawSave955(m,String(id),C955(data),deleted===true);if(out?.applied===true){await ack955(e.key,out,out.data||data);return out}await fail955(e.key,new Error('Supabase não confirmou a alteração.'));return {...(out||{}),applied:false,pending:true}}catch(err){await fail955(e.key,err);throw err}};
 function install955(){const f=window.hlgbRecordSaveWithRetry;if(typeof f!=='function'||f.__hlgb955Wrapped){if(!rawSave955&&typeof f==='function'&&f.__hlgb955Original)rawSave955=f.__hlgb955Original;return false}rawSave955=f;const w=async function(m,id,data,deleted=false){const e=await enqueue955(m,id,data,deleted);try{const out=await rawSave955.apply(this,arguments);if(out?.applied===true){await ack955(e.key,out,out.data||data);return out}await fail955(e.key,new Error('Supabase não confirmou a alteração.'));return out}catch(err){await fail955(e.key,err);throw err}};w.__hlgb955Wrapped=true;w.__hlgb955Original=f;window.hlgbRecordSaveWithRetry=w;return true}
-async function scanDirty955(){try{if(!cloudReady955()||typeof HLGB_RECORD_MODULES==='undefined'||!Array.isArray(HLGB_RECORD_MODULES))return 0;let todo=[];const pendingKeys=new Set(entries955().map(x=>x?.key).filter(Boolean));for(const m of HLGB_RECORD_MODULES){const snap=hlgbRecordSnapshots?.[m];if(!(snap instanceof Map)||!Array.isArray(db?.[m]))continue;for(let i=0;i<db[m].length;i++){const r=db[m][i],id=rid955(m,r,i);if(!id||pendingKeys.has(key955(m,id)))continue;const s=snap.get(String(id));if(!s||s.deleted_at||norm955(r)!==norm955(s.data)){todo.push([m,id,C955(r)]);if(todo.length>=40)break}}if(todo.length>=40)break}for(const [m,id,r] of todo)await enqueue955(m,id,r,false);if(todo.length)flush955(false);return todo.length}catch(e){console.warn('HLGB v91.56 dirty scan',e);return 0}}
+async function scanDirty955(){
+ try{
+  if(!cloudReady955()||typeof HLGB_RECORD_MODULES==='undefined'||!Array.isArray(HLGB_RECORD_MODULES))return 0;
+  let todo=[];const pendingKeys=new Set(entries955().map(x=>x?.key).filter(Boolean));
+  for(const m of HLGB_RECORD_MODULES){
+    if(typeof hlgbRecordCanWrite==='function'&&!hlgbRecordCanWrite(m))continue;
+    const snap=hlgbRecordSnapshots?.[m];if(!(snap instanceof Map)||!Array.isArray(db?.[m]))continue;
+    for(let i=0;i<db[m].length;i++){
+      const r=db[m][i],id=rid955(m,r,i);if(!id||pendingKeys.has(key955(m,id)))continue;
+      const sr=snap.get(String(id));
+      const same=!!sr&&!sr.deleted_at&&(typeof eqBusiness990==='function'?eqBusiness990(r,sr.data):norm955(r)===norm955(sr.data));
+      if(!same){todo.push([m,id,C955(r)]);if(todo.length>=40)break}
+    }
+    if(todo.length>=40)break;
+  }
+  for(const [m,id,r] of todo)await enqueue955(m,id,r,false);
+  if(todo.length)await flush955(false);
+  return todo.length;
+ }catch(e){console.warn('HLGB v91.92 dirty scan',e);return 0}
+}
 function wrapGeneric955(){const f=window.save;if(typeof f!=='function'||f.__hlgb955Generic)return;const w=function(){const out=f.apply(this,arguments);Promise.resolve(out).finally(()=>{try{clearTimeout(window.__hlgb955DirtyTimer)}catch(_){}window.__hlgb955DirtyTimer=setTimeout(()=>scanDirty955(),250)});return out};w.__hlgb955Generic=true;window.save=w}
 let bootStarted955=false,bootWaitTimer955=null;
 function startActive955(){
@@ -17225,9 +17245,36 @@ try{const base=window.renderCuts;window.renderCuts=function(){let r=base?.apply(
 try{const base=window.renderDailyCuts;window.renderDailyCuts=function(){let r=base?.apply(this,arguments);setTimeout(enhanceGradeButtons9191,0);return r}}catch(e){}
 try{const base=window.renderCutters;window.renderCutters=function(){let r=base?.apply(this,arguments);setTimeout(()=>{try{window.hlgbRenderCutterExcel9179?.()}catch(e){}},0);return r}}catch(e){}
 
-setTimeout(()=>{try{let x=document.querySelector('#appShell .logo small');if(x)x.textContent='v91.91';document.title='HLGB Confecções — Sistema de Gestão v91.91 Multiusuário'}catch(e){}},0);
-console.log('HLGB v91.91: cortadores clean, ajuste de grade, status de corte na fila e capacidade por atribuição.');
+setTimeout(()=>{try{let x=document.querySelector('#appShell .logo small');if(x)x.textContent='v91.92';document.title='HLGB Confecções — Sistema de Gestão v91.92 Multiusuário'}catch(e){}},0);
+console.log('HLGB v91.92: cortadores clean, ajuste de grade, status de corte na fila e capacidade por atribuição.');
 })();
 </script>
 <!-- HLGB_V9191_END -->
+<!-- HLGB_V9192_START -->
+<script id="hlgb-v9192-script">
+(function(){
+'use strict';
+window.HLGB_REQUIRE_MANUAL_LOGIN=true;
+// Depois do login manual, reconcilia silenciosamente qualquer WAL antiga.
+// Não apaga nada: flush955 só remove uma pendência após confirmação do snapshot/Supabase.
+try{
+  const prev=window.hlgbMarkAuthenticated;
+  window.hlgbMarkAuthenticated=function(){
+    const r=typeof prev==='function'?prev.apply(this,arguments):undefined;
+    setTimeout(async()=>{
+      try{
+        if(typeof mergeIdb955==='function')await mergeIdb955();
+        if(typeof flush955==='function')await flush955(false);
+        if(typeof scanDirty955==='function')await scanDirty955();
+        if(typeof flush955==='function')await flush955(false);
+        if(typeof update955==='function')update955();
+      }catch(e){console.warn('HLGB v91.92 reconciliação da fila',e)}
+    },1200);
+    return r;
+  };
+}catch(e){console.warn('HLGB v91.92 hook de autenticação',e)}
+console.log('HLGB v91.92: login manual obrigatório e reconciliação da fila de nuvem.');
+})();
+</script>
+<!-- HLGB_V9192_END -->
 </body></html>
