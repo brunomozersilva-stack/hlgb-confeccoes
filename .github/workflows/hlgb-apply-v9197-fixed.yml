@@ -1,0 +1,35 @@
+name: Aplicar HLGB v91.97 corrigida
+on:
+  push:
+    paths:
+      - 'scripts/hlgb_v9197_order_edit_faction_missing_fixed.py'
+      - '.github/workflows/hlgb-apply-v9197-fixed.yml'
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Aplicar e validar v91.97
+        run: python scripts/hlgb_v9197_order_edit_faction_missing_fixed.py
+      - name: Guardas finais
+        run: |
+          grep -q 'HLGB_V9197_START' index.html
+          grep -q 'hlgbRegisterFactionMissing9197' index.html
+          grep -q 'v91.97' index.html
+          test $(wc -c < index.html) -gt 1000000
+      - name: Publicar v91.97
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add index.html
+          git commit -m 'Publicar HLGB v91.97 - editar pedido e registrar faltas em facção' || exit 0
+          git push
