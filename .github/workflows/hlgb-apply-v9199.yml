@@ -1,0 +1,52 @@
+name: Aplicar HLGB v91.99 reparos operacionais
+on:
+  push:
+    paths:
+      - 'scripts/hlgb_v9199_operational_repairs.py'
+      - '.github/workflows/hlgb-apply-v9199.yml'
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Aplicar e validar v91.99
+        run: python scripts/hlgb_v9199_operational_repairs.py
+      - name: Guardas funcionais
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          s=Path('index.html').read_text(encoding='utf-8')
+          checks={
+            'versao':'v91.99',
+            'corte imediato':'materialSeparationParallel:true',
+            'sem bloqueio separacao':'Pedido salvo e liberado imediatamente para o Corte',
+            'terminal Tammy':'atendido por producao',
+            'pix confirmado':"saveRow9199('factionMasters'",
+            'hub confirmado':"saveRow9199('hubFinanceEntries'",
+            'recuperacao carga':'hlgbRecoverRecordLoad9199',
+            'checklist grade':'Grade do produto',
+            'rolos':'rollConversion',
+            'falta entrega':'hlgbRegisterFactionMissing9197',
+          }
+          missing=[k for k,v in checks.items() if v not in s]
+          if missing: raise SystemExit('Guardas ausentes: '+', '.join(missing))
+          if s.count('<!-- HLGB_V9199_START -->')!=1 or s.count('<!-- HLGB_V9199_END -->')!=1: raise SystemExit('Bloco v91.99 duplicado')
+          print('Guardas v91.99 OK; tamanho',len(s))
+          PY
+      - name: Publicar v91.99
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add index.html
+          if git diff --cached --quiet; then echo "Sem alteração no index"; exit 0; fi
+          git commit -m "Publicar HLGB v91.99 - fluxo de corte, nuvem e checklists"
+          git push
