@@ -1,0 +1,16 @@
+name: Diagnosticar HLGB v91.99c
+on:
+  push:
+    paths:
+      - 'scripts/hlgb_diag_v9199c.py'
+      - '.github/workflows/hlgb-diag-v9199c.yml'
+  workflow_dispatch:
+jobs:
+  diag:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+      - run: python scripts/hlgb_diag_v9199c.py
