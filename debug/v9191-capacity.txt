@@ -1,0 +1,1234 @@
+===== line 346 =====
+321: </script>
+322: 
+323: <div id="appShell" style="display:none"><header><div class="logo">HLGB <b>CONFECÇÕES</b> <small style="font-size:10px;opacity:.8">v91.85</small></div><div><span id="cloudStatus" style="margin-right:10px;font-size:12px;padding:6px 9px;border:1px solid #ffffff44;border-radius:8px">☁️ Nuvem</span><span id="currentUserLabel" style="margin-right:10px;font-size:13px"></span><button id="cloudSaveBtn" onclick="cloudUploadCurrentDb(true)" style="display:none" title="Sincronização automática">🔄 Sincronizar agora</button> <button id="backupBtn" onclick="backup()" style="display:none">Exportar backup</button> <button id="importBackupBtn" onclick="document.getElementById('backupImportInput').click()" style="display:none">Importar backup</button><input id="backupImportInput" type="file" accept=".json,application/json" style="display:none" onchange="importBackupFile(this)"> <button onclick="logout()">Sair</button></div></header>
+324: <div class="app">
+325: <aside><nav id="nav" class="clean-nav">
+326: <button class="nav-home active" onclick="page('dashboard',this)">🏠 <span>Início</span></button>
+327: 
+328: <div class="nav-group">
+329:   <button type="button" class="nav-group-title" onclick="toggleNavGroup(this)">🛍️ <span>Comercial</span><b>⌄</b></button>
+330:   <div class="nav-submenu">
+331:     <button onclick="page('pedidos',this)">Pedidos</button>
+332:     <button onclick="page('clientes',this)">Clientes</button>
+333:     <button onclick="page('notas',this)">Notas prontas</button>
+334:     <button onclick="page('lixeiraPedidos',this)">🗑️ Lixeira de pedidos</button>
+335:   </div>
+336: </div>
+337: 
+338: <div class="nav-group">
+339:   <button type="button" class="nav-group-title" onclick="toggleNavGroup(this)">🏭 <span>Produção</span><b>⌄</b></button>
+340:   <div class="nav-submenu">
+341:     <button onclick="page('producao',this)">Produção</button>
+342:     <button onclick="page('corte',this)">Corte</button>
+343:     <button onclick="page('faccoes',this)">Envios para facção</button>
+344:     <button onclick="page('cortadores',this)">Cortadores</button>
+345:     <button onclick="page('projecao',this)">Projeção semanal</button>
+346:     <button onclick="page('capacidadeProducao',this)">Planejamento de capacidade</button>
+347:     <button onclick="page('metas',this)">🎯 Atribuição de metas</button>
+348:     <button onclick="page('faltas',this)">Peças faltantes</button>
+349:     <button onclick="page('devolucoesDefeitos',this)">Devoluções / Defeitos</button>
+350:   </div>
+351: </div>
+352: 
+353: <div class="nav-group">
+354:   <button type="button" class="nav-group-title" onclick="toggleNavGroup(this)">👗 <span>Produtos</span><b>⌄</b></button>
+355:   <div class="nav-submenu">
+356:     <button type="button" data-page="produtos" onclick="openProducts(this)">Produtos / Ficha técnica</button>
+357:     <button onclick="page('estoque',this)">Estoque</button>
+358:     <button onclick="page('inventarioBens',this)">Inventário de bens</button>
+359:   </div>
+360: </div>
+361: 
+362: <button type="button" class="nav-home" onclick="page('hubFinanceiro',this)">💰 <span>Hub Financeiro</span></button>
+363: 
+364: <div class="nav-group">
+365:   <button type="button" class="nav-group-title" onclick="toggleNavGroup(this)">💰 <span>Financeiro</span><b>⌄</b></button>
+366:   <div class="nav-submenu">
+367:     <button onclick="page('financeiro',this)">Financeiro geral</button>
+368:     <button onclick="page('folhaPagamento',this)">Folha de pagamento</button>
+369:     <button onclick="page('pagamentosFaccoes',this)">Pagamentos facções</button>
+370:   </div>
+371: </div>
+372: 
+373: <div class="nav-group">
+374:   <button type="button" class="nav-group-title" onclick="toggleNavGroup(this)">📋 <span>Cadastros</span><b>⌄</b></button>
+375:   <div class="nav-submenu">
+376:     <button onclick="page('fornecedores',this)">Fornecedores</button>
+377:     <button onclick="page('cadastros',this)">Cores e Grades</button>
+378:     <button onclick="page('materiais',this)">Materiais</button>
+379:     <button onclick="page('funcionarios',this)">Funcionários</button>
+380:     <button onclick="page('exFuncionarios',this)">Ex-funcionários</button>
+381:     <button onclick="page('cadFaccoes',this)">Facções</button>
+382:     <button onclick="page('cadLocaisProducao',this)">Locais de produção</button>
+383:     <button onclick="page('cadMaquinas',this)">Máquinas</button>
+384:     <button onclick="page('cadTiposServico',this)">Tipos de serviço</button>
+385:   </div>
+386: </div>
+387: 
+388: <div class="nav-group">
+389:   <button type="button" class="nav-group-title" onclick="toggleNavGroup(this)">📊 <span>Análises</span><b>⌄</b></button>
+390:   <div class="nav-submenu">
+391:     <button onclick="page('relatorios',this)">Relatórios</button>
+392:   </div>
+393: </div>
+394: 
+395: <div class="nav-group">
+396:   <button type="button" class="nav-group-title" onclick="toggleNavGroup(this)">⚙️ <span>Sistema</span><b>⌄</b></button>
+397:   <div class="nav-submenu">
+398:     <button onclick="page('config',this)">Configurações</button>
+399:   </div>
+400: </div>
+401: </nav></aside>
+402: <main>
+403: <section id="dashboard" class="page active"><h1>Visão geral</h1><div class="sub">Controle da fábrica em um só lugar. Preços especiais por cliente entram automaticamente nos pedidos/notas.</div>
+404: <div class="cards" id="dashCards"></div>
+405: <div class="panel"><h2>Produção em andamento</h2><div id="dashProd"></div></div>
+406: <div class="panel"><h2>Pedidos próximos da entrega</h2><div id="dashOrders"></div></div></section>
+407: 
+408: <section id="pedidos" class="page"><h1>Pedidos</h1><div class="sub">Cliente → itens → produção → separação de material → expedição.</div>
+409: <div class="panel">
+410:   <div class="toolbar" style="align-items:flex-end;flex-wrap:wrap">
+411:     <div class="field" style="min-width:190px"><label>Nº do pedido</label><input id="orderNumberFilter" placeholder="Ex.: 125" oninput="renderOrders()"></div>
+412:     <div class="field" style="min-width:210px"><label>Cliente / produto</label><input class="search" id="orderSearch" placeholder="Pesquisar cliente ou produto" oninput="renderOrders()"></div>
+413:     <div class="field"><label>Etapa</label><select id="orderStatusFilter" onchange="renderOrders()"><option value="">Todas</option><option>Separação / compra de material</option><option>Corte</option><option>Atribuição para produção</option><option>Em produção</option><option>Produção finalizada</option><option>Nota emitida</option><option>Mercadoria pronta</option><option>Pausado</option><option>Cancelado</option></select></div>
+414:     <div class="field"><label>Prioridade</label><select id="orderPriorityFilter" onchange="renderOrders()"><option value="">Todas</option><option>Padrão</option><option>Urgente</option><option>Urgentíssimo</option></select></div>
+415:     <div class="field"><label>De</label><input id="orderStartFilter" type="date"></div>
+416:     <div class="field"><label>Até</label><input id="orderEndFilter" type="date"></div>
+417:     <button type="button" class="primary" onclick="renderOrders()">🔎 Aplicar filtro</button>
+418:     <button type="button" class="secondary" onclick="clearOrderFilters()">Limpar</button>
+419:     <button class="primary" onclick="newOrder()">+ Novo pedido</button>
+420:     <button type="button" class="secondary" onclick="newAdHocOrder()">⚡ Pedido avulso</button>
+421:   </div>
+422:   <div class="cards" id="orderSummaryCards"></div>
+423:   <div class="sub" id="orderFilterSummary"></div>
+424:   <div id="ordersTable"></div>
+425: </div>
+426: <div class="panel">
+427:   <h2>Controle da numeração dos pedidos</h2>
+428:   <div class="sub">O número exibido do pedido é separado do código interno do sistema. Você pode definir qual será o próximo número automático sem quebrar os pedidos já existentes.</div>
+429:   <div class="toolbar" style="align-items:flex-end">
+430:     <div class="field"><label>Próximo número automático</label><input id="nextOrderNumber" type="number" min="1"></div>
+431:     <button type="button" class="primary" onclick="saveNextOrderNumber()">💾 Salvar próximo número</button>
+432:   </div>
+433: </div>
+434: <div class="panel"><h2>Separação de material</h2>
+435: <div class="sub">Lista aberta de pedidos para separação. Pesquise pelo nome do produto ou pelo número sequencial do pedido.</div>
+436: <div class="toolbar" style="align-items:flex-end;flex-wrap:wrap;margin-top:14px">
+437:   <div class="field" style="min-width:300px"><label>Buscar produto ou nº do pedido</label><input id="separationProductSearch" placeholder="Ex.: Camisola, Conjunto ou pedido 3" oninput="renderSeparationList()"></div>
+438:   <div class="field"><label>Quantidade mínima</label><input id="separationQtyMin" type="number" min="0" placeholder="0" oninput="renderSeparationList()"></div>
+439:   <div class="field"><label>Quantidade máxima</label><input id="separationQtyMax" type="number" min="0" placeholder="Sem limite" oninput="renderSeparationList()"></div>
+440:   <button type="button" class="secondary" onclick="clearSeparationFilters()">Limpar filtros</button>
+441: </div>
+442: <div class="panel" style="margin:14px 0;background:#fff8fb;border-color:#ead6df">
+443:   <div class="toolbar" style="justify-content:space-between;align-items:center;gap:12px">
+444:     <div>
+445:       <h3 style="margin:0 0 4px">🛒 Compra conjunta de materiais</h3>
+446:       <div class="sub">Selecione vários pedidos e gere uma única lista consolidada do que precisa comprar, descontando o estoque e mostrando o valor total previsto.</div>
+447:     </div>
+448:     <button type="button" class="primary" onclick="openMultiOrderPurchase()">Selecionar pedidos para compra</button>
+449:   </div>
+450: </div>
+451: <select id="separationOrder" class="hidden" onchange="renderSeparation()"><option value="">Selecione o pedido</option></select>
+452: <div id="separationList" class="separation-list"></div>
+453: <div id="separationTable"></div></div>
+454: <div class="panel">
+455:   <h2>✅ Checklist de envio / recebimento por local</h2>
+456:   <div class="sub">Cada atribuição de produção gera um checklist de matéria-prima. Em facções, o comprovante também mostra quantidade, valor por peça e total previsto do serviço.</div>
+457:   <div id="destinationChecklistTable"></div>
+458: </div>
+459: <div class="panel" id="orderNotesPanel">
+460:   <div class="toolbar" style="justify-content:space-between">
+461:     <div>
+462:       <h2 style="margin:0">🧾 Notas</h2>
+463:       <div class="sub">Pedidos finalizados que tiveram a opção “Nota pronta” gerada ficam aqui para imprimir e acompanhar.</div>
+464:     </div>
+465:     <button class="secondary" onclick="page('notas',document.querySelector('nav button[onclick*=\'notas\']'))">Ver todas as notas</button>
+466:   </div>
+467:   <div id="orderNotesSummary" class="cards"></div>
+468:   <h3 style="margin:18px 0 8px">Resumo das notas em aberto</h3>
+469:   <div class="sub">Veja quem está em aberto, o vencimento e a condição de pagamento.</div>
+470:   <div id="orderNotesTable"></div>
+471: </div>
+472: </section>
+473: 
+474: <section id="notas" class="page"><h1>🧾 Notas prontas</h1><div class="sub">Aqui ficam os pedidos que já tiveram a nota preparada. Você pode imprimir, acompanhar o pagamento e reabrir uma nota paga.</div>
+475: <div id="allOrderNotesSummary" class="cards"></div>
+476: <div class="panel"><h2>Resumo das notas em aberto</h2><div class="sub">Acompanhe cliente, valor, data de cobrança, vencimento, condição de pagamento e situação.</div><div id="allOrderNotesTable"></div></div>
+477: </section>
+478: 
+479: <section id="lixeiraPedidos" class="page">
+480: <h1>🗑️ Lixeira de pedidos</h1>
+481: <div class="sub">Pedidos excluídos saem de corte, produção, separação, facção, projeção e financeiro, mas ficam guardados aqui até você restaurar ou excluir definitivamente.</div>
+482: <div class="cards" id="trashOrderCards"></div>
+483: <div class="panel">
+484:   <div class="toolbar" style="align-items:flex-end;flex-wrap:wrap">
+485:     <div class="field"><label>Buscar nº do pedido / cliente</label><input id="trashOrderSearch" placeholder="Pesquisar..." oninput="renderOrderTrash()"></div>
+486:   </div>
+487:   <div id="trashOrderTable"></div>
+488: </div>
+489: </section>
+490: 
+491: <section id="producao" class="page">
+492:   <div class="pagehead">
+493:     <div>
+494:       <h1>Produção</h1>
+495:       <p>Visão resumida de tudo que está sendo produzido, onde está e quanto representa em mercadoria.</p>
+496:     </div>
+497:     <button class="secondary" onclick="syncAll();renderProductionHub()">🔄 Atualizar / sincronizar</button>
+498:   </div>
+499: 
+500:   <div id="productionHubCards" class="cards"></div>
+501: 
+502:   <div class="panel">
+503:     <div class="pagehead" style="margin-bottom:12px">
+504:       <div>
+505:         <h2>Produção por local</h2>
+506:         <div class="sub">Veja rapidamente onde estão concentrados os pedidos, peças e valores em produção.</div>
+507:       </div>
+508:     </div>
+509:     <div id="productionByLocation"></div>
+510:   </div>
+511: 
+512:   <div class="panel">
+513:     <div class="pagehead" style="margin-bottom:12px">
+514:       <div>
+515:         <h2>Todos os pedidos em produção</h2>
+516:         <div class="sub">Lista limpa, sem grade de tamanhos. Os detalhes completos continuam disponíveis dentro do pedido.</div>
+517:       </div>
+518:       <div class="toolbar" style="margin:0">
+519:         <div class="field"><label>Local</label><select id="productionHubLocation" onchange="renderProductionHub()"><option value="">Todos os locais</option></select></div>
+520:         <div class="field"><label>Etapa</label><select id="productionHubStage" onchange="renderProductionHub()"><option value="">Todas as etapas</option></select></div>
+521:         <div class="field"><label>Buscar</label><input id="productionHubSearch" placeholder="Cliente, produto ou OP" oninput="renderProductionHub()"></div>
+522:       </div>
+523:     </div>
+524:     <div id="productionHubTable"></div>
+525:   </div>
+526: </section>
+527: 
+528: <section id="corte" class="page"><h1>Plano de corte</h1><div class="sub">Planeje tecido, enfesto, rendimento e peças e acompanhe o que já está pronto para entrar na produção.</div>
+529: <div class="cards" id="cutSummaryCards"></div>
+530: <div class="panel">
+531:   <div class="toolbar" style="justify-content:space-between;align-items:center">
+532:     <div><h2 style="margin:0">📋 Ordem de corte</h2><div class="sub">Urgentíssimo e Urgente sobem automaticamente. Programe aqui a data e o cortador sem alterar a data de entrega do pedido.</div></div>
+533:   </div>
+534:   <div id="cutTable"></div>
+535: </div>
+536: <div class="panel">
+537:   <div class="toolbar" style="justify-content:space-between;align-items:flex-end;flex-wrap:wrap">
+538:     <div><h2 style="margin:0">📅 Cortes do dia</h2><div class="sub">Folha diária do cortador. Corte não finalizado de dia anterior é levado automaticamente para o dia atual.</div></div>
+539:     <div class="field"><label>Dia do corte</label><input id="dailyCutDate" type="date" onchange="renderDailyCuts()"></div>
+540:     <button type="button" class="secondary" onclick="setDailyCutToday()">Hoje</button>
+541:   </div>
+542:   <div id="dailyCutSummary" class="cards"></div>
+543:   <div id="dailyCutTable"></div>
+544: </div>
+545: <div class="panel"><h2>✂️ Cortes prontos para produzir</h2><div class="sub">Tudo que foi finalizado no corte e está aguardando entrada na produção. Use <strong>Distribuir clientes</strong> quando um mesmo corte for vendido para mais de um cliente.</div><div id="readyCutsTable"></div></div>
+546: <div class="panel">
+547:   <h2>🏭 Atribuição de corte para produção</h2>
+548:   <div class="sub">Assim que o corte é finalizado, o modelo entra aqui. Escolha o local/facção, veja a meta semanal e só então o produto entra na Projeção Semanal.</div>
+549:   <div id="cutAssignmentCards" class="cards"></div>
+550:   <div id="cutAssignmentQueue"></div>
+551: </div>
+552: <div class="panel"><h2>👥 Distribuição dos cortes entre clientes</h2><div class="sub">Um único corte pode ser dividido entre vários clientes sem alterar o corte original. Acompanhe o total distribuído e o que ainda falta destinar.</div><div id="cutClientDistributionTable"></div></div>
+553: <div class="panel"><h2>📦 Mercadoria sem nota pronta</h2><div class="sub">Pedidos que ainda não foram finalizados e não possuem nota pronta.</div><div id="openCutOrdersTable"></div></div>
+554: <div class="panel"><h2>Relatório de necessidade de material</h2>
+555: <div class="sub">Escolha o período em que os cortes serão feitos. O sistema soma todos os modelos do período e mostra o total de material, o que falta comprar e o custo previsto.</div>
+556: <div class="toolbar" style="align-items:flex-end;flex-wrap:wrap;margin-top:10px">
+557:   <div class="field"><label>Data inicial do corte</label><input id="cutNeedStart" type="date"></div>
+558:   <div class="field"><label>Data final do corte</label><input id="cutNeedEnd" type="date"></div>
+559:   <button type="button" class="secondary" onclick="setCutNeedWorkWeek(0)">Semana útil atual</button>
+560:   <button type="button" class="secondary" onclick="setCutNeedWorkWeek(1)">Próxima semana útil</button>
+561:   <button type="button" class="primary" onclick="renderCutMaterialNeedReport()">🔎 Aplicar período</button>
+562: </div>
+563: <div id="cutNeedPeriodLabel" class="sub"></div>
+564: <div id="cutNeedSummaryCards" class="cards"></div>
+565: <div id="materialNeedReport"></div></div></section>
+
+===== line 1202 =====
+1177: </div>
+1178: 
+1179: <div class="panel">
+1180:   <h2>Lucro projetado por produto e local</h2>
+1181:   <div class="sub">O sistema soma o lucro projetado por peça de cada produto produzido no local no período selecionado.</div>
+1182:   <div id="goalProfitProductTable"></div>
+1183: </div>
+1184: 
+1185: <div class="panel">
+1186:   <h2>Custos operacionais por local</h2>
+1187:   <div class="sub">Cadastre aluguel, luz, internet, água, folha administrativa e outros custos de cada local.</div>
+1188:   <div id="operationalCostTable"></div>
+1189: </div>
+1190: 
+1191: <div class="panel">
+1192:   <h2>Ranking de atingimento</h2>
+1193:   <div id="goalRankingTable"></div>
+1194: </div>
+1195: 
+1196: <div class="panel">
+1197:   <h2>Cadastros de meta</h2>
+1198:   <div id="goalConfigTable"></div>
+1199: </div>
+1200: </section>
+1201: 
+1202: <section id="capacidadeProducao" class="page"><h1>Planejamento de capacidade</h1>
+1203: <div class="sub">Distribua antecipadamente os produtos entre confecções e facções e veja quais locais ainda têm capacidade na semana.</div>
+1204: <div class="panel"><h2>Período</h2><div class="toolbar" style="align-items:flex-end;flex-wrap:wrap"><div class="field"><label>De</label><input id="capacityStart" type="date"></div><div class="field"><label>Até</label><input id="capacityEnd" type="date"></div><button class="secondary" onclick="setCapacityWeek()">Esta semana</button><button class="primary" onclick="renderCapacityPlanning()">Aplicar período</button></div><div class="cards" id="capacityCards"></div></div>
+1205: <div class="panel"><div style="display:flex;justify-content:space-between;gap:12px;align-items:center;flex-wrap:wrap"><div><h2 style="margin-bottom:4px">Capacidade por local / responsável</h2><div class="sub">Defina aqui a capacidade semanal e os modelos que cada confecção, facção ou responsável consegue produzir.</div></div><button class="primary" onclick="openCapacityLocationEditor()">⚙️ Configurar capacidades</button></div><div id="capacityLocationTable"></div></div>
+1206: <div class="panel"><h2>Produtos para alocar</h2><div class="sub">Distribua a quantidade entre um ou vários locais. Você pode dividir o mesmo modelo sem alterar o pedido nem o corte original.</div><div id="capacityOrderTable"></div></div>
+1207: </section>
+1208: 
+1209: <section id="projecao" class="page"><h1>Projeção de entregas</h1>
+1210: <div class="sub">Veja somente os produtos dos pedidos, altere a previsão de entrega por produto e agrupe produtos do mesmo cliente para finalizar uma nota parcial ou completa.</div>
+1211: 
+1212: <div class="panel">
+1213: <h2>Período da projeção</h2>
+1214: <div class="toolbar" style="align-items:flex-end;flex-wrap:wrap">
+1215: <div class="field"><label>De</label><input id="projectionStart" type="date"></div>
+1216: <div class="field"><label>Até</label><input id="projectionEnd" type="date"></div>
+1217: <button type="button" class="secondary" onclick="setProjectionPeriod('week')">Esta semana</button>
+1218: <button type="button" class="secondary" onclick="setProjectionPeriod('month')">Este mês</button>
+1219: <button type="button" class="secondary" onclick="setProjectionPeriod('next30')">Próximos 30 dias</button>
+1220: <button type="button" class="secondary" onclick="setProjectionPeriod('all')">Todo o período</button>
+1221: <button type="button" class="primary" onclick="renderProjection()">🔎 Aplicar filtro</button>
+1222: </div>
+1223: <div id="projectionPeriodLabel" class="sub"></div>
+1224: <div class="cards" id="projectionCards"></div>
+1225: </div>
+1226: 
+1227: <div class="panel">
+1228: <h2>📥 Aguardando programação de entrega</h2>
+1229: <div class="sub">Todo pedido novo entra automaticamente aqui, independentemente da data de entrega do cliente. Defina a semana/data que você acredita que o produto realmente ficará pronto para sair.</div>
+1230: <div id="projectionPendingTable"></div>
+1231: </div>
+1232: 
+1233: <div class="panel">
+1234: <h2>📋 Produtos previstos para saída</h2>
+1235: <div class="sub">Resumo rápido dos produtos do período. Os filtros abaixo também atualizam os cartões, totais e demais resumos da projeção.</div>
+1236: <div class="toolbar" style="align-items:flex-end;flex-wrap:wrap">
+1237:   <div class="field"><label>Cliente</label><input id="projectionClientFilter" placeholder="Buscar cliente" oninput="renderProjection()"></div>
+1238:   <div class="field"><label>Produto</label><input id="projectionProductFilter" placeholder="Buscar produto/modelo" oninput="renderProjection()"></div>
+1239:   <div class="field"><label>Nº do pedido</label><input id="projectionOrderFilter" placeholder="Ex.: 125" oninput="renderProjection()"></div>
+1240:   <div class="field"><label>Local de produção</label><select id="projectionLocationFilter" onchange="renderProjection()"><option value="">Todos</option></select></div>
+1241:   <div class="field"><label>Prioridade</label><select id="projectionPriorityFilter" onchange="renderProjection()"><option value="">Todas</option><option>Padrão</option><option>Urgente</option><option>Urgentíssimo</option></select></div>
+1242:   <div class="field"><label>Status</label><select id="projectionStatusFilter" onchange="renderProjection()"><option value="">Todos</option></select></div>
+1243:   <div class="field"><label>Valor mínimo</label><input id="projectionMinValue" type="number" min="0" step="0.01" placeholder="R$ 0,00" oninput="renderProjection()"></div>
+1244:   <div class="field"><label>Valor máximo</label><input id="projectionMaxValue" type="number" min="0" step="0.01" placeholder="Sem limite" oninput="renderProjection()"></div>
+1245:   <button type="button" class="secondary" onclick="clearProjectionDetailFilters()">Limpar filtros</button>
+1246: </div>
+1247: <div id="projectionExitTable"></div>
+1248: <div id="projectionExitTotals" class="sub" style="margin-top:12px;font-weight:700"></div>
+1249: </div>
+1250: 
+1251: <div class="panel">
+1252: <h2>Produtos previstos para entrega</h2>
+1253: <div class="sub">Marque um produto sozinho ou vários produtos do mesmo cliente para gerar a nota. Você também pode mover somente um produto para outra data/semana sem alterar os demais.</div>
+1254: <div class="toolbar">
+1255:   <button type="button" class="primary" onclick="finalizeSelectedProjection()">Finalizar nota dos selecionados</button>
+1256:   <button type="button" class="secondary" onclick="clearProjectionSelection()">Limpar seleção</button>
+1257: </div>
+1258: <div id="projectionProductsTable"></div>
+1259: </div>
+1260: 
+1261: <div class="panel" id="projectionDeliveryTrackingPanel">
+1262: <h2>📦 Entregas da projeção</h2>
+1263: <div class="sub">Acompanhe separadamente o que ainda falta entregar e o que já foi entregue. Entregas parciais vão sendo somadas automaticamente; o saldo restante pode ser reagendado sem alterar o histórico do que já saiu.</div>
+1264: <div id="projectionDeliverySummaryCards" class="cards"></div>
+1265: <div class="toolbar" style="margin-top:8px">
+1266:   <button type="button" id="projectionTabRemaining" class="primary" onclick="setProjectionDeliveryTab('remaining')">📋 Falta entregar</button>
+1267:   <button type="button" id="projectionTabDelivered" class="secondary" onclick="setProjectionDeliveryTab('delivered')">✅ Entregue</button>
+1268: </div>
+1269: <div id="projectionRemainingPane"><div id="projectionRemainingTable"></div></div>
+1270: <div id="projectionDeliveredPane" style="display:none"><div id="projectionDeliveredTable"></div></div>
+1271: </div>
+1272: 
+1273: <div class="panel">
+1274: <h2>Valor projetado por cliente</h2>
+1275: <div class="sub">Mantém o valor previsto de cada cliente, mesmo quando a entrega for dividida em vários produtos ou semanas.</div>
+1276: <div id="clientProjectionTable"></div>
+1277: </div>
+1278: 
+1279: <div class="panel">
+1280: <h2>Onde está sendo produzido</h2>
+1281: <div class="sub">Produção por local, quantidade e valor relacionado aos produtos do período.</div>
+1282: <div id="locationProjectionTable"></div>
+1283: </div>
+1284: 
+1285: <div class="panel">
+1286: <h2>Produção por cortador</h2>
+1287: <div id="cutterProjectionTable"></div>
+1288: </div>
+1289: 
+1290: <div class="panel">
+1291: <h2>Gráfico — peças previstas por cliente</h2>
+1292: <canvas id="clientChart" height="260" style="width:100%;max-width:100%;display:block"></canvas>
+1293: </div>
+1294: 
+1295: <div class="panel">
+1296: <h2>Resumo operacional do período</h2>
+1297: <div id="weeklySummary"></div>
+1298: </div>
+1299: </section>
+1300: <section id="faltas" class="page">
+1301: <h1>⚠️ Faltas e defeitos</h1>
+1302: <div class="sub">Os defeitos e perdas informados nas facções entram automaticamente aqui. Acompanhe quantidades, valores, custos e faça a baixa quando a peça for recuperada, refeita ou entregue.</div>
+1303: 
+1304: <div class="panel">
+1305:   <div class="toolbar" style="align-items:flex-end;flex-wrap:wrap">
+1306:     <div class="field"><label>De</label><input id="missingStart" type="date" onchange="renderMissingPieces()"></div>
+1307:     <div class="field"><label>Até</label><input id="missingEnd" type="date" onchange="renderMissingPieces()"></div>
+1308:     <button type="button" class="secondary" onclick="setMissingPeriod('week')">Esta semana</button>
+1309:     <button type="button" class="secondary" onclick="setMissingPeriod('month')">Este mês</button>
+1310:     <button type="button" class="secondary" onclick="setMissingPeriod('year')">Este ano</button>
+1311:     <button type="button" class="secondary" onclick="setMissingPeriod('all')">Todo o período</button>
+1312:   </div>
+1313:   <div id="missingPeriodLabel" class="sub"></div>
+1314: </div>
+1315: 
+1316: <div class="cards" id="missingCards"></div>
+1317: 
+1318: <div class="panel">
+1319:   <h2>Ocorrências em aberto</h2>
+1320:   <div class="sub">Use “Abater / recuperar” quando encontrar a peça, refizer um defeito ou conseguir entregar parte do que estava faltando.</div>
+1321:   <div id="missingOpenTable"></div>
+1322: </div>
+1323: 
+1324: <div class="panel">
+1325:   <h2>Histórico de baixas</h2>
+1326:   <div id="missingHistoryTable"></div>
+1327: </div>
+1328: </section>
+1329: 
+1330: <section id="devolucoesDefeitos" class="page">
+1331: <h1>🧵 Devoluções / Defeitos</h1>
+1332: <div class="sub">Registre peças devolvidas por defeito, envie para retrabalho no local que produziu e acompanhe o índice de qualidade de cada confecção/facção.</div>
+1333: <div class="panel">
+1334:  <div class="toolbar" style="align-items:flex-end;flex-wrap:wrap">
+1335:   <button type="button" class="primary" onclick="newDefectReturn()">+ Cadastrar devolução / defeito</button>
+1336:   <div class="field"><label>De</label><input id="defectStart" type="date" onchange="renderDefectReturns()"></div>
+1337:   <div class="field"><label>Até</label><input id="defectEnd" type="date" onchange="renderDefectReturns()"></div>
+1338:   <div class="field"><label>Local</label><select id="defectLocationFilter" onchange="renderDefectReturns()"><option value="">Todos os locais</option></select></div>
+1339:   <div class="field"><label>Produto</label><select id="defectProductFilter" onchange="renderDefectReturns()"><option value="">Todos os produtos</option></select></div>
+1340:   <button type="button" class="secondary" onclick="setDefectPeriod('month')">Este mês</button>
+1341:   <button type="button" class="secondary" onclick="setDefectPeriod('year')">Este ano</button>
+1342:   <button type="button" class="secondary" onclick="setDefectPeriod('all')">Todo o período</button>
+1343:  </div>
+1344: </div>
+1345: <div class="cards" id="defectCards"></div>
+1346: <div class="panel"><h2>Retrabalho e devoluções</h2><div id="defectReturnsTable"></div></div>
+1347: <div class="panel"><h2>📊 Qualidade por local de produção</h2><div class="sub">Índice de defeito = peças devolvidas por defeito ÷ peças produzidas no local × 100.</div><div id="defectQualityTable"></div></div>
+1348: </section>
+1349: 
+1350: <section id="relatorios" class="page">
+1351: <h1>Relatórios</h1>
+1352: <div class="sub">Resumo operacional para tomada de decisão.</div>
+1353: <div class="cards" id="reportCards"></div>
+1354: <div class="panel"><h2>Indicadores</h2><div id="reportBody"></div></div>
+1355: <div class="panel">
+1356:   <h2>📦 Venda por produto</h2>
+1357:   <div class="sub">Quantidade e valor vendido por produto no período escolhido.</div>
+1358:   <div class="toolbar" style="align-items:flex-end;flex-wrap:wrap;margin-top:12px">
+1359:     <button type="button" class="secondary" onclick="setProductSalesReportPeriod('week')">Esta semana</button>
+1360:     <button type="button" class="secondary" onclick="setProductSalesReportPeriod('month')">Este mês</button>
+1361:     <button type="button" class="secondary" onclick="setProductSalesReportPeriod('year')">Este ano</button>
+1362:     <div class="field"><label>De</label><input id="productSalesStart" type="date" onchange="renderProductSalesReport()"></div>
+1363:     <div class="field"><label>Até</label><input id="productSalesEnd" type="date" onchange="renderProductSalesReport()"></div>
+1364:   </div>
+1365:   <div class="cards" id="productSalesCards"></div>
+1366:   <div id="productSalesReport"></div>
+1367: </div>
+1368: </section>
+1369: 
+1370: <section id="hubFinanceiro" class="page">
+1371: <h1>Hub Financeiro</h1>
+1372: <div class="sub">Planejamento semanal de caixa separado do Financeiro geral. Compare entradas, saídas, categorias e a liquidez real entre Pix/dinheiro e cheques.</div>
+1373: <div class="panel">
+1374:   <div class="toolbar" style="align-items:flex-end;flex-wrap:wrap">
+1375:     <button type="button" class="secondary" onclick="changeHubFinanceWeek(-1)">← Semana anterior</button>
+1376:     <div class="field"><label>Escolher a semana pelo calendário</label><input id="hubFinanceWeek" type="date" onchange="renderHubFinance()"><div class="sub">Escolha qualquer dia; o sistema mostrará a semana completa desse dia.</div></div>
+1377:     <button type="button" class="secondary" onclick="changeHubFinanceWeek(1)">Próxima semana →</button>
+1378:     <button type="button" class="primary" onclick="newHubFinanceEntry('Entrada')">+ Entrada prevista</button>
+1379:     <button type="button" class="primary" onclick="newHubFinanceEntry('Saída')">+ Saída prevista</button>
+1380:     <button type="button" class="secondary" onclick="hubFinanceManualSync()">🔄 Sincronizar lançamentos</button>
+1381:   </div>
+1382:   <div id="hubFinanceWeekLabel" class="sub"></div>
+1383: </div>
+1384: <div id="hubFinanceCards" class="cards"></div>
+1385: <div id="hubFinanceLiquidityAlert"></div>
+1386: <div class="panel"><h2>📊 Saídas por categoria</h2><div class="sub">Mostra quanto cada categoria representa nas despesas da semana.</div><div id="hubFinanceCategoryTable"></div></div>
+1387: <div class="panel"><h2>💳 Liquidez por forma de pagamento</h2><div class="sub">Compara o que entra em Pix/dinheiro, o que entra em cheque e quais contas aceitam cheque.</div><div id="hubFinanceMethodTable"></div></div>
+1388: <div class="panel"><h2>📅 Próximas semanas</h2><div class="sub">Visão rápida para antecipar semanas com falta de caixa ou falta de liquidez.</div><div id="hubFinanceFutureTable"></div></div>
+1389: <div class="panel"><h2>Lançamentos da semana</h2><div id="hubFinanceEntriesTable"></div></div>
+1390: </section>
+1391: 
+1392: <section id="config" class="page"><h1>Configurações</h1>
+1393: <div class="panel"><div class="grid"><div class="field"><label>Nome da confecção</label><input id="companyName"></div><div class="field"><label>Moeda</label><input value="R$" disabled></div><div class="field"><label>Observações</label><input id="companyNote"></div></div><button class="primary" onclick="saveConfig()">Salvar configurações</button></div>
+1394: <div class="panel" id="ownerSecurityPanel" style="display:none"><h2>🔑 Segurança do proprietário</h2><div class="sub">Troque a senha do seu próprio acesso sem precisar entrar no Supabase.</div><div class="toolbar"><button type="button" class="primary" onclick="openOwnerPasswordChange()">🔑 Alterar minha senha</button></div></div>
+1395: <div class="panel"><h2>👥 Usuários e permissões</h2><div class="sub">Crie acessos online para funcionários. Cada pessoa entra com o próprio e-mail e senha e vê somente as áreas liberadas pelo administrador.</div>
+1396: <div class="toolbar"><button class="primary" onclick="newUser()">+ Novo usuário</button></div><div id="userTable"></div><div class="sub" style="margin-top:10px">As senhas nunca ficam salvas no HLGB. Você pode alterar o e-mail de acesso e redefinir a senha dos usuários secundários a qualquer momento.</div></div>
+1397: <div class="panel"><h2>🔐 Log de usuários</h2><div class="sub">Histórico centralizado da nuvem com usuário, data, hora e cada alteração realizada no sistema.</div>
+1398: <div class="toolbar"><div class="field"><label>Usuário</label><select id="auditUserFilter" onchange="renderAuditLog()"><option value="">Todos</option></select></div><div class="field"><label>Data inicial</label><input id="auditStartFilter" type="date" onchange="renderAuditLog()"></div><div class="field"><label>Data final</label><input id="auditEndFilter" type="date" onchange="renderAuditLog()"></div><div class="field"><label>Buscar</label><input id="auditSearchFilter" placeholder="Ação, tela ou detalhe" oninput="renderAuditLog()"></div><button type="button" class="secondary" onclick="renderAuditLog(true)">🔄 Atualizar log</button><button type="button" class="secondary" onclick="clearAuditFilters()">Limpar filtros</button></div>
+1399: <div id="auditSummary"></div><div id="auditLogTable" class="audit-log"></div></div>
+1400: </section>
+1401: </main></div>
+1402: 
+1403: <div class="modal" id="modal"><div class="modalbox"><button class="close" onclick="closeModal()">×</button><div id="modalContent"></div></div></div>
+1404: 
+1405: <script>
+1406: const KEY="confeccao_v2";
+1407: let db=JSON.parse(localStorage.getItem(KEY)||"null")||{"clients": [{"id": 1, "name": "Gisele", "phone": "", "city": ""}, {"id": 1787847286673, "name": "Quezia", "phone": "", "city": "", "document": "", "prices": {}}], "products": [{"id": 1, "name": "Camisola Fenda", "price": 12.9, "cost": 7.1, "material": "Romantic", "color": "Preto", "materials": [{"name": "Romantic", "cat": "Tecido", "unit": "m", "qty": 0, "loss": 0, "price": 0}], "labor": 0, "cutCost": 0, "factionCost": 0, "packCost": 0, "otherCost": 0}, {"id": 2, "name": "Conjunto Selena", "price": 17, "cost": 9.4, "material": "Tule", "color": "Rubi", "materials": [{"name": "Tule", "cat": "Tecido", "unit": "m", "qty": 0, "loss": 0, "price": 0}], "labor": 0, "cutCost": 0, "factionCost": 0, "packCost": 0, "otherCost": 0}, {"id": 3, "name": "Conjunto Bordado", "price": 13.9, "cost": 7.8, "material": "Tule bordado", "color": "Branco", "materials": [{"name": "Tule bordado", "cat": "Tecido", "unit": "m", "qty": 0, "loss": 0, "price": 0}], "labor": 0, "cutCost": 0, "factionCost": 0, "packCost": 0, "otherCost": 0}, {"code": "", "name": "Camisola Ana Melia", "category": "Lingerie", "material": "", "color": "", "supplierId": null, "sizes": ["P", "M", "G", "GG"], "note": "", "materials": [{"name": "romantic", "cat": "Tecido", "unit": "kg", "qty": 0.17, "loss": 0, "price": 31.99}, {"name": "renda", "cat": "Renda", "unit": "kg", "qty": 0.02, "loss": 0, "price": 55}, {"name": "sanduiche 16", "cat": "Tecido", "unit": "m", "qty": 0.8, "loss": 0, "price": 0.22}, {"name": "alça papiro", "cat": "Aviamento", "unit": "un.", "qty": 1, "loss": 0, "price": 0.52}], "labor": 2, "cutCost": 0.4, "factionCost": 1.8, "packCost": 0.2, "otherCost": 0, "price": 11.3, "id": 1787848080784}], "orders": [{"id": 1, "client": "Gisele", "date": "2026-08-30", "total": 3870, "status": "Produção", "items": "300 Camisolas Fenda"}, {"id": 2, "client": "Cliente atacado", "date": "2026-09-03", "total": 4981, "totalQty": 293, "status": "Aberto", "items": "293 Conjuntos Selena"}, {"id": 1787847259461, "client": "Gisele", "clientId": 1, "productId": 2, "items": "300 Conjunto Selena", "qty": 300, "unitPrice": 17, "date": "2026-09-03", "total": 5100, "status": "Aberto"}, {"id": 1787847310961, "client": "Quezia", "clientId": 1787847286673, "productId": 1, "items": "200 Camisola Fenda", "qty": 200, "unitPrice": 12.9, "date": "2026-09-01", "total": 2580, "status": "Aberto"}, {"id": 1787848140017, "client": "Gisele", "clientId": 1, "productId": 1787848080784, "items": "150 Camisola Ana Melia", "qty": 150, "unitPrice": 11.3, "date": "2026-09-02", "total": 1695, "status": "Aberto"}], "production": [{"id": 1, "op": "OP-00125", "product": "Camisola Fenda", "color": "Preto", "size": "M", "planned": 300, "done": 180, "stage": "Costura"}, {"id": 2, "op": "OP-00126", "product": "Conjunto Selena", "color": "Rubi", "size": "G", "planned": 293, "done": 0, "stage": "Corte"}], "cuts": [{"id": 1, "op": "OP-00126", "fabric": "Tule", "color": "Rubi", "layers": 20, "meters": 82, "pieces": 293}], "stock": [{"id": 1, "item": "Tule bordado", "cat": "Matéria-prima", "qty": 84, "unit": "m", "min": 50}, {"id": 2, "item": "Elástico", "cat": "Aviamento", "qty": 12, "unit": "rolos", "min": 20}, {"id": 3, "item": "Camisola Fenda", "cat": "Produto acabado", "qty": 450, "unit": "un.", "min": 100}], "factions": [{"id": 1, "name": "Facção 01", "op": "OP-00125", "sent": 500, "done": 380, "returned": 120, "price": 1.8}], "cutters": [{"id": 1, "name": "Cortador 01", "active": true}], "finance": [{"id": 1, "type": "Receber", "desc": "Pedido Gisele", "value": 3870, "status": "Pendente", "date": "2026-08-30"}, {"id": 2, "type": "Pagar", "desc": "Compra de tecido", "value": 1450, "status": "Pendente", "date": "2026-08-28"}], "config": {"name": "HLGB Confecções", "note": ""}, "suppliers": []};
+1408: 
+1409: 
+1410: // v89.85 — pacote do dia: persistência + senha proprietário + filtros + devoluções + duplicidade + cores por pedido
+1411: // v89.84 — gravação transacional: salva antes de sair + recupera pendências locais
+1412: // v89.83 — marcador visível + cache-bust para confirmar publicação correta
+1413: // v89.87 — sincronização automática entre máquinas/usuários + proteção contra sobrescrita concorrente
+1414: // v89.91 — correção estrutural do boot: cópia local antiga nunca sobrescreve a nuvem ao entrar + render não suja o banco
+1415: // v89.91 — correção de sincronização secundária: logs não bloqueiam pull + preserva diretório de usuários remoto
+1416: // v89.89 — sincronização híbrida: Broadcast + Realtime + verificação de versão a cada 1s
+1417: // v89.88 — Supabase Realtime: atualização instantânea entre máquinas + fallback de polling
+1418: // v89.82 — autorização por e-mail; acesso secundário não depende de sincronização manual
+1419: // v89.81 — autorização de usuários em tabela dedicada do Supabase (sem depender da sincronização do banco inteiro)
+1420: // v89.80 — sessão persistente + ativação de usuários sem sincronização manual
+1421: // v89.79 — sessão online consistente + somente proprietário pode ser administrador
+
+===== line 1204 =====
+1179: <div class="panel">
+1180:   <h2>Lucro projetado por produto e local</h2>
+1181:   <div class="sub">O sistema soma o lucro projetado por peça de cada produto produzido no local no período selecionado.</div>
+1182:   <div id="goalProfitProductTable"></div>
+1183: </div>
+1184: 
+1185: <div class="panel">
+1186:   <h2>Custos operacionais por local</h2>
+1187:   <div class="sub">Cadastre aluguel, luz, internet, água, folha administrativa e outros custos de cada local.</div>
+1188:   <div id="operationalCostTable"></div>
+1189: </div>
+1190: 
+1191: <div class="panel">
+1192:   <h2>Ranking de atingimento</h2>
+1193:   <div id="goalRankingTable"></div>
+1194: </div>
+1195: 
+1196: <div class="panel">
+1197:   <h2>Cadastros de meta</h2>
+1198:   <div id="goalConfigTable"></div>
+1199: </div>
+1200: </section>
+1201: 
+1202: <section id="capacidadeProducao" class="page"><h1>Planejamento de capacidade</h1>
+1203: <div class="sub">Distribua antecipadamente os produtos entre confecções e facções e veja quais locais ainda têm capacidade na semana.</div>
+1204: <div class="panel"><h2>Período</h2><div class="toolbar" style="align-items:flex-end;flex-wrap:wrap"><div class="field"><label>De</label><input id="capacityStart" type="date"></div><div class="field"><label>Até</label><input id="capacityEnd" type="date"></div><button class="secondary" onclick="setCapacityWeek()">Esta semana</button><button class="primary" onclick="renderCapacityPlanning()">Aplicar período</button></div><div class="cards" id="capacityCards"></div></div>
+1205: <div class="panel"><div style="display:flex;justify-content:space-between;gap:12px;align-items:center;flex-wrap:wrap"><div><h2 style="margin-bottom:4px">Capacidade por local / responsável</h2><div class="sub">Defina aqui a capacidade semanal e os modelos que cada confecção, facção ou responsável consegue produzir.</div></div><button class="primary" onclick="openCapacityLocationEditor()">⚙️ Configurar capacidades</button></div><div id="capacityLocationTable"></div></div>
+1206: <div class="panel"><h2>Produtos para alocar</h2><div class="sub">Distribua a quantidade entre um ou vários locais. Você pode dividir o mesmo modelo sem alterar o pedido nem o corte original.</div><div id="capacityOrderTable"></div></div>
+1207: </section>
+1208: 
+1209: <section id="projecao" class="page"><h1>Projeção de entregas</h1>
+1210: <div class="sub">Veja somente os produtos dos pedidos, altere a previsão de entrega por produto e agrupe produtos do mesmo cliente para finalizar uma nota parcial ou completa.</div>
+1211: 
+1212: <div class="panel">
+1213: <h2>Período da projeção</h2>
+1214: <div class="toolbar" style="align-items:flex-end;flex-wrap:wrap">
+1215: <div class="field"><label>De</label><input id="projectionStart" type="date"></div>
+1216: <div class="field"><label>Até</label><input id="projectionEnd" type="date"></div>
+1217: <button type="button" class="secondary" onclick="setProjectionPeriod('week')">Esta semana</button>
+1218: <button type="button" class="secondary" onclick="setProjectionPeriod('month')">Este mês</button>
+1219: <button type="button" class="secondary" onclick="setProjectionPeriod('next30')">Próximos 30 dias</button>
+1220: <button type="button" class="secondary" onclick="setProjectionPeriod('all')">Todo o período</button>
+1221: <button type="button" class="primary" onclick="renderProjection()">🔎 Aplicar filtro</button>
+1222: </div>
+1223: <div id="projectionPeriodLabel" class="sub"></div>
+1224: <div class="cards" id="projectionCards"></div>
+1225: </div>
+1226: 
+1227: <div class="panel">
+1228: <h2>📥 Aguardando programação de entrega</h2>
+1229: <div class="sub">Todo pedido novo entra automaticamente aqui, independentemente da data de entrega do cliente. Defina a semana/data que você acredita que o produto realmente ficará pronto para sair.</div>
+1230: <div id="projectionPendingTable"></div>
+1231: </div>
+1232: 
+1233: <div class="panel">
+1234: <h2>📋 Produtos previstos para saída</h2>
+1235: <div class="sub">Resumo rápido dos produtos do período. Os filtros abaixo também atualizam os cartões, totais e demais resumos da projeção.</div>
+1236: <div class="toolbar" style="align-items:flex-end;flex-wrap:wrap">
+1237:   <div class="field"><label>Cliente</label><input id="projectionClientFilter" placeholder="Buscar cliente" oninput="renderProjection()"></div>
+1238:   <div class="field"><label>Produto</label><input id="projectionProductFilter" placeholder="Buscar produto/modelo" oninput="renderProjection()"></div>
+1239:   <div class="field"><label>Nº do pedido</label><input id="projectionOrderFilter" placeholder="Ex.: 125" oninput="renderProjection()"></div>
+1240:   <div class="field"><label>Local de produção</label><select id="projectionLocationFilter" onchange="renderProjection()"><option value="">Todos</option></select></div>
+1241:   <div class="field"><label>Prioridade</label><select id="projectionPriorityFilter" onchange="renderProjection()"><option value="">Todas</option><option>Padrão</option><option>Urgente</option><option>Urgentíssimo</option></select></div>
+1242:   <div class="field"><label>Status</label><select id="projectionStatusFilter" onchange="renderProjection()"><option value="">Todos</option></select></div>
+1243:   <div class="field"><label>Valor mínimo</label><input id="projectionMinValue" type="number" min="0" step="0.01" placeholder="R$ 0,00" oninput="renderProjection()"></div>
+1244:   <div class="field"><label>Valor máximo</label><input id="projectionMaxValue" type="number" min="0" step="0.01" placeholder="Sem limite" oninput="renderProjection()"></div>
+1245:   <button type="button" class="secondary" onclick="clearProjectionDetailFilters()">Limpar filtros</button>
+1246: </div>
+1247: <div id="projectionExitTable"></div>
+1248: <div id="projectionExitTotals" class="sub" style="margin-top:12px;font-weight:700"></div>
+1249: </div>
+1250: 
+1251: <div class="panel">
+1252: <h2>Produtos previstos para entrega</h2>
+1253: <div class="sub">Marque um produto sozinho ou vários produtos do mesmo cliente para gerar a nota. Você também pode mover somente um produto para outra data/semana sem alterar os demais.</div>
+1254: <div class="toolbar">
+1255:   <button type="button" class="primary" onclick="finalizeSelectedProjection()">Finalizar nota dos selecionados</button>
+1256:   <button type="button" class="secondary" onclick="clearProjectionSelection()">Limpar seleção</button>
+1257: </div>
+1258: <div id="projectionProductsTable"></div>
+1259: </div>
+1260: 
+1261: <div class="panel" id="projectionDeliveryTrackingPanel">
+1262: <h2>📦 Entregas da projeção</h2>
+1263: <div class="sub">Acompanhe separadamente o que ainda falta entregar e o que já foi entregue. Entregas parciais vão sendo somadas automaticamente; o saldo restante pode ser reagendado sem alterar o histórico do que já saiu.</div>
+1264: <div id="projectionDeliverySummaryCards" class="cards"></div>
+1265: <div class="toolbar" style="margin-top:8px">
+1266:   <button type="button" id="projectionTabRemaining" class="primary" onclick="setProjectionDeliveryTab('remaining')">📋 Falta entregar</button>
+1267:   <button type="button" id="projectionTabDelivered" class="secondary" onclick="setProjectionDeliveryTab('delivered')">✅ Entregue</button>
+1268: </div>
+1269: <div id="projectionRemainingPane"><div id="projectionRemainingTable"></div></div>
+1270: <div id="projectionDeliveredPane" style="display:none"><div id="projectionDeliveredTable"></div></div>
+1271: </div>
+1272: 
+1273: <div class="panel">
+1274: <h2>Valor projetado por cliente</h2>
+1275: <div class="sub">Mantém o valor previsto de cada cliente, mesmo quando a entrega for dividida em vários produtos ou semanas.</div>
+1276: <div id="clientProjectionTable"></div>
+1277: </div>
+1278: 
+1279: <div class="panel">
+1280: <h2>Onde está sendo produzido</h2>
+1281: <div class="sub">Produção por local, quantidade e valor relacionado aos produtos do período.</div>
+1282: <div id="locationProjectionTable"></div>
+1283: </div>
+1284: 
+1285: <div class="panel">
+1286: <h2>Produção por cortador</h2>
+1287: <div id="cutterProjectionTable"></div>
+1288: </div>
+1289: 
+1290: <div class="panel">
+1291: <h2>Gráfico — peças previstas por cliente</h2>
+1292: <canvas id="clientChart" height="260" style="width:100%;max-width:100%;display:block"></canvas>
+1293: </div>
+1294: 
+1295: <div class="panel">
+1296: <h2>Resumo operacional do período</h2>
+1297: <div id="weeklySummary"></div>
+1298: </div>
+1299: </section>
+1300: <section id="faltas" class="page">
+1301: <h1>⚠️ Faltas e defeitos</h1>
+1302: <div class="sub">Os defeitos e perdas informados nas facções entram automaticamente aqui. Acompanhe quantidades, valores, custos e faça a baixa quando a peça for recuperada, refeita ou entregue.</div>
+1303: 
+1304: <div class="panel">
+1305:   <div class="toolbar" style="align-items:flex-end;flex-wrap:wrap">
+1306:     <div class="field"><label>De</label><input id="missingStart" type="date" onchange="renderMissingPieces()"></div>
+1307:     <div class="field"><label>Até</label><input id="missingEnd" type="date" onchange="renderMissingPieces()"></div>
+1308:     <button type="button" class="secondary" onclick="setMissingPeriod('week')">Esta semana</button>
+1309:     <button type="button" class="secondary" onclick="setMissingPeriod('month')">Este mês</button>
+1310:     <button type="button" class="secondary" onclick="setMissingPeriod('year')">Este ano</button>
+1311:     <button type="button" class="secondary" onclick="setMissingPeriod('all')">Todo o período</button>
+1312:   </div>
+1313:   <div id="missingPeriodLabel" class="sub"></div>
+1314: </div>
+1315: 
+1316: <div class="cards" id="missingCards"></div>
+1317: 
+1318: <div class="panel">
+1319:   <h2>Ocorrências em aberto</h2>
+1320:   <div class="sub">Use “Abater / recuperar” quando encontrar a peça, refizer um defeito ou conseguir entregar parte do que estava faltando.</div>
+1321:   <div id="missingOpenTable"></div>
+1322: </div>
+1323: 
+1324: <div class="panel">
+1325:   <h2>Histórico de baixas</h2>
+1326:   <div id="missingHistoryTable"></div>
+1327: </div>
+1328: </section>
+1329: 
+1330: <section id="devolucoesDefeitos" class="page">
+1331: <h1>🧵 Devoluções / Defeitos</h1>
+1332: <div class="sub">Registre peças devolvidas por defeito, envie para retrabalho no local que produziu e acompanhe o índice de qualidade de cada confecção/facção.</div>
+1333: <div class="panel">
+1334:  <div class="toolbar" style="align-items:flex-end;flex-wrap:wrap">
+1335:   <button type="button" class="primary" onclick="newDefectReturn()">+ Cadastrar devolução / defeito</button>
+1336:   <div class="field"><label>De</label><input id="defectStart" type="date" onchange="renderDefectReturns()"></div>
+1337:   <div class="field"><label>Até</label><input id="defectEnd" type="date" onchange="renderDefectReturns()"></div>
+1338:   <div class="field"><label>Local</label><select id="defectLocationFilter" onchange="renderDefectReturns()"><option value="">Todos os locais</option></select></div>
+1339:   <div class="field"><label>Produto</label><select id="defectProductFilter" onchange="renderDefectReturns()"><option value="">Todos os produtos</option></select></div>
+1340:   <button type="button" class="secondary" onclick="setDefectPeriod('month')">Este mês</button>
+1341:   <button type="button" class="secondary" onclick="setDefectPeriod('year')">Este ano</button>
+1342:   <button type="button" class="secondary" onclick="setDefectPeriod('all')">Todo o período</button>
+1343:  </div>
+1344: </div>
+1345: <div class="cards" id="defectCards"></div>
+1346: <div class="panel"><h2>Retrabalho e devoluções</h2><div id="defectReturnsTable"></div></div>
+1347: <div class="panel"><h2>📊 Qualidade por local de produção</h2><div class="sub">Índice de defeito = peças devolvidas por defeito ÷ peças produzidas no local × 100.</div><div id="defectQualityTable"></div></div>
+1348: </section>
+1349: 
+1350: <section id="relatorios" class="page">
+1351: <h1>Relatórios</h1>
+1352: <div class="sub">Resumo operacional para tomada de decisão.</div>
+1353: <div class="cards" id="reportCards"></div>
+1354: <div class="panel"><h2>Indicadores</h2><div id="reportBody"></div></div>
+1355: <div class="panel">
+1356:   <h2>📦 Venda por produto</h2>
+1357:   <div class="sub">Quantidade e valor vendido por produto no período escolhido.</div>
+1358:   <div class="toolbar" style="align-items:flex-end;flex-wrap:wrap;margin-top:12px">
+1359:     <button type="button" class="secondary" onclick="setProductSalesReportPeriod('week')">Esta semana</button>
+1360:     <button type="button" class="secondary" onclick="setProductSalesReportPeriod('month')">Este mês</button>
+1361:     <button type="button" class="secondary" onclick="setProductSalesReportPeriod('year')">Este ano</button>
+1362:     <div class="field"><label>De</label><input id="productSalesStart" type="date" onchange="renderProductSalesReport()"></div>
+1363:     <div class="field"><label>Até</label><input id="productSalesEnd" type="date" onchange="renderProductSalesReport()"></div>
+1364:   </div>
+1365:   <div class="cards" id="productSalesCards"></div>
+1366:   <div id="productSalesReport"></div>
+1367: </div>
+1368: </section>
+1369: 
+1370: <section id="hubFinanceiro" class="page">
+1371: <h1>Hub Financeiro</h1>
+1372: <div class="sub">Planejamento semanal de caixa separado do Financeiro geral. Compare entradas, saídas, categorias e a liquidez real entre Pix/dinheiro e cheques.</div>
+1373: <div class="panel">
+1374:   <div class="toolbar" style="align-items:flex-end;flex-wrap:wrap">
+1375:     <button type="button" class="secondary" onclick="changeHubFinanceWeek(-1)">← Semana anterior</button>
+1376:     <div class="field"><label>Escolher a semana pelo calendário</label><input id="hubFinanceWeek" type="date" onchange="renderHubFinance()"><div class="sub">Escolha qualquer dia; o sistema mostrará a semana completa desse dia.</div></div>
+1377:     <button type="button" class="secondary" onclick="changeHubFinanceWeek(1)">Próxima semana →</button>
+1378:     <button type="button" class="primary" onclick="newHubFinanceEntry('Entrada')">+ Entrada prevista</button>
+1379:     <button type="button" class="primary" onclick="newHubFinanceEntry('Saída')">+ Saída prevista</button>
+1380:     <button type="button" class="secondary" onclick="hubFinanceManualSync()">🔄 Sincronizar lançamentos</button>
+1381:   </div>
+1382:   <div id="hubFinanceWeekLabel" class="sub"></div>
+1383: </div>
+1384: <div id="hubFinanceCards" class="cards"></div>
+1385: <div id="hubFinanceLiquidityAlert"></div>
+1386: <div class="panel"><h2>📊 Saídas por categoria</h2><div class="sub">Mostra quanto cada categoria representa nas despesas da semana.</div><div id="hubFinanceCategoryTable"></div></div>
+1387: <div class="panel"><h2>💳 Liquidez por forma de pagamento</h2><div class="sub">Compara o que entra em Pix/dinheiro, o que entra em cheque e quais contas aceitam cheque.</div><div id="hubFinanceMethodTable"></div></div>
+1388: <div class="panel"><h2>📅 Próximas semanas</h2><div class="sub">Visão rápida para antecipar semanas com falta de caixa ou falta de liquidez.</div><div id="hubFinanceFutureTable"></div></div>
+1389: <div class="panel"><h2>Lançamentos da semana</h2><div id="hubFinanceEntriesTable"></div></div>
+1390: </section>
+1391: 
+1392: <section id="config" class="page"><h1>Configurações</h1>
+1393: <div class="panel"><div class="grid"><div class="field"><label>Nome da confecção</label><input id="companyName"></div><div class="field"><label>Moeda</label><input value="R$" disabled></div><div class="field"><label>Observações</label><input id="companyNote"></div></div><button class="primary" onclick="saveConfig()">Salvar configurações</button></div>
+1394: <div class="panel" id="ownerSecurityPanel" style="display:none"><h2>🔑 Segurança do proprietário</h2><div class="sub">Troque a senha do seu próprio acesso sem precisar entrar no Supabase.</div><div class="toolbar"><button type="button" class="primary" onclick="openOwnerPasswordChange()">🔑 Alterar minha senha</button></div></div>
+1395: <div class="panel"><h2>👥 Usuários e permissões</h2><div class="sub">Crie acessos online para funcionários. Cada pessoa entra com o próprio e-mail e senha e vê somente as áreas liberadas pelo administrador.</div>
+1396: <div class="toolbar"><button class="primary" onclick="newUser()">+ Novo usuário</button></div><div id="userTable"></div><div class="sub" style="margin-top:10px">As senhas nunca ficam salvas no HLGB. Você pode alterar o e-mail de acesso e redefinir a senha dos usuários secundários a qualquer momento.</div></div>
+1397: <div class="panel"><h2>🔐 Log de usuários</h2><div class="sub">Histórico centralizado da nuvem com usuário, data, hora e cada alteração realizada no sistema.</div>
+1398: <div class="toolbar"><div class="field"><label>Usuário</label><select id="auditUserFilter" onchange="renderAuditLog()"><option value="">Todos</option></select></div><div class="field"><label>Data inicial</label><input id="auditStartFilter" type="date" onchange="renderAuditLog()"></div><div class="field"><label>Data final</label><input id="auditEndFilter" type="date" onchange="renderAuditLog()"></div><div class="field"><label>Buscar</label><input id="auditSearchFilter" placeholder="Ação, tela ou detalhe" oninput="renderAuditLog()"></div><button type="button" class="secondary" onclick="renderAuditLog(true)">🔄 Atualizar log</button><button type="button" class="secondary" onclick="clearAuditFilters()">Limpar filtros</button></div>
+1399: <div id="auditSummary"></div><div id="auditLogTable" class="audit-log"></div></div>
+1400: </section>
+1401: </main></div>
+1402: 
+1403: <div class="modal" id="modal"><div class="modalbox"><button class="close" onclick="closeModal()">×</button><div id="modalContent"></div></div></div>
+1404: 
+1405: <script>
+1406: const KEY="confeccao_v2";
+1407: let db=JSON.parse(localStorage.getItem(KEY)||"null")||{"clients": [{"id": 1, "name": "Gisele", "phone": "", "city": ""}, {"id": 1787847286673, "name": "Quezia", "phone": "", "city": "", "document": "", "prices": {}}], "products": [{"id": 1, "name": "Camisola Fenda", "price": 12.9, "cost": 7.1, "material": "Romantic", "color": "Preto", "materials": [{"name": "Romantic", "cat": "Tecido", "unit": "m", "qty": 0, "loss": 0, "price": 0}], "labor": 0, "cutCost": 0, "factionCost": 0, "packCost": 0, "otherCost": 0}, {"id": 2, "name": "Conjunto Selena", "price": 17, "cost": 9.4, "material": "Tule", "color": "Rubi", "materials": [{"name": "Tule", "cat": "Tecido", "unit": "m", "qty": 0, "loss": 0, "price": 0}], "labor": 0, "cutCost": 0, "factionCost": 0, "packCost": 0, "otherCost": 0}, {"id": 3, "name": "Conjunto Bordado", "price": 13.9, "cost": 7.8, "material": "Tule bordado", "color": "Branco", "materials": [{"name": "Tule bordado", "cat": "Tecido", "unit": "m", "qty": 0, "loss": 0, "price": 0}], "labor": 0, "cutCost": 0, "factionCost": 0, "packCost": 0, "otherCost": 0}, {"code": "", "name": "Camisola Ana Melia", "category": "Lingerie", "material": "", "color": "", "supplierId": null, "sizes": ["P", "M", "G", "GG"], "note": "", "materials": [{"name": "romantic", "cat": "Tecido", "unit": "kg", "qty": 0.17, "loss": 0, "price": 31.99}, {"name": "renda", "cat": "Renda", "unit": "kg", "qty": 0.02, "loss": 0, "price": 55}, {"name": "sanduiche 16", "cat": "Tecido", "unit": "m", "qty": 0.8, "loss": 0, "price": 0.22}, {"name": "alça papiro", "cat": "Aviamento", "unit": "un.", "qty": 1, "loss": 0, "price": 0.52}], "labor": 2, "cutCost": 0.4, "factionCost": 1.8, "packCost": 0.2, "otherCost": 0, "price": 11.3, "id": 1787848080784}], "orders": [{"id": 1, "client": "Gisele", "date": "2026-08-30", "total": 3870, "status": "Produção", "items": "300 Camisolas Fenda"}, {"id": 2, "client": "Cliente atacado", "date": "2026-09-03", "total": 4981, "totalQty": 293, "status": "Aberto", "items": "293 Conjuntos Selena"}, {"id": 1787847259461, "client": "Gisele", "clientId": 1, "productId": 2, "items": "300 Conjunto Selena", "qty": 300, "unitPrice": 17, "date": "2026-09-03", "total": 5100, "status": "Aberto"}, {"id": 1787847310961, "client": "Quezia", "clientId": 1787847286673, "productId": 1, "items": "200 Camisola Fenda", "qty": 200, "unitPrice": 12.9, "date": "2026-09-01", "total": 2580, "status": "Aberto"}, {"id": 1787848140017, "client": "Gisele", "clientId": 1, "productId": 1787848080784, "items": "150 Camisola Ana Melia", "qty": 150, "unitPrice": 11.3, "date": "2026-09-02", "total": 1695, "status": "Aberto"}], "production": [{"id": 1, "op": "OP-00125", "product": "Camisola Fenda", "color": "Preto", "size": "M", "planned": 300, "done": 180, "stage": "Costura"}, {"id": 2, "op": "OP-00126", "product": "Conjunto Selena", "color": "Rubi", "size": "G", "planned": 293, "done": 0, "stage": "Corte"}], "cuts": [{"id": 1, "op": "OP-00126", "fabric": "Tule", "color": "Rubi", "layers": 20, "meters": 82, "pieces": 293}], "stock": [{"id": 1, "item": "Tule bordado", "cat": "Matéria-prima", "qty": 84, "unit": "m", "min": 50}, {"id": 2, "item": "Elástico", "cat": "Aviamento", "qty": 12, "unit": "rolos", "min": 20}, {"id": 3, "item": "Camisola Fenda", "cat": "Produto acabado", "qty": 450, "unit": "un.", "min": 100}], "factions": [{"id": 1, "name": "Facção 01", "op": "OP-00125", "sent": 500, "done": 380, "returned": 120, "price": 1.8}], "cutters": [{"id": 1, "name": "Cortador 01", "active": true}], "finance": [{"id": 1, "type": "Receber", "desc": "Pedido Gisele", "value": 3870, "status": "Pendente", "date": "2026-08-30"}, {"id": 2, "type": "Pagar", "desc": "Compra de tecido", "value": 1450, "status": "Pendente", "date": "2026-08-28"}], "config": {"name": "HLGB Confecções", "note": ""}, "suppliers": []};
+1408: 
+1409: 
+1410: // v89.85 — pacote do dia: persistência + senha proprietário + filtros + devoluções + duplicidade + cores por pedido
+1411: // v89.84 — gravação transacional: salva antes de sair + recupera pendências locais
+1412: // v89.83 — marcador visível + cache-bust para confirmar publicação correta
+1413: // v89.87 — sincronização automática entre máquinas/usuários + proteção contra sobrescrita concorrente
+1414: // v89.91 — correção estrutural do boot: cópia local antiga nunca sobrescreve a nuvem ao entrar + render não suja o banco
+1415: // v89.91 — correção de sincronização secundária: logs não bloqueiam pull + preserva diretório de usuários remoto
+1416: // v89.89 — sincronização híbrida: Broadcast + Realtime + verificação de versão a cada 1s
+1417: // v89.88 — Supabase Realtime: atualização instantânea entre máquinas + fallback de polling
+1418: // v89.82 — autorização por e-mail; acesso secundário não depende de sincronização manual
+1419: // v89.81 — autorização de usuários em tabela dedicada do Supabase (sem depender da sincronização do banco inteiro)
+1420: // v89.80 — sessão persistente + ativação de usuários sem sincronização manual
+1421: // v89.79 — sessão online consistente + somente proprietário pode ser administrador
+1422: // v89.78 — autorização de usuários sincronizada antes do primeiro login
+1423: // v89.77 — HLGB Online — backup exclusivo do proprietário
+
+===== line 4075 =====
+4050:   });
+4051:   let locDiv=document.getElementById("productionByLocation");
+4052:   let gr=Object.entries(groups).sort((a,b)=>b[1].pieces-a[1].pieces);
+4053:   if(locDiv)locDiv.innerHTML=gr.length?table(["Local","Pedidos","Peças","Valor em produção","Com previsão","Sem previsão"],gr.map(([name,g])=>[
+4054:     esc(name),g.orders,g.pieces.toLocaleString("pt-BR"),money(g.value),g.forecast.toLocaleString("pt-BR"),g.noForecast?`<strong>${g.noForecast.toLocaleString("pt-BR")}</strong>`:"0"
+4055:   ])):'<div class="empty">Nenhuma mercadoria em produção no momento.</div>';
+4056: 
+4057:   let tbl=document.getElementById("productionHubTable");
+4058:   if(tbl)tbl.innerHTML=filtered.length?table(["Pedido","Cliente","Produto","Peças","Valor","Local atual","Previsão","Prioridade","Etapa","Ações"],filtered.map(r=>[
+4059:     esc(String(r.number)),esc(r.client),esc(r.products),r.qty.toLocaleString("pt-BR"),money(r.value),esc(r.location),
+4060:     r.forecast&&r.forecast!=="-"?fmtDate(r.forecast):'<span class="badge">Sem previsão</span>',
+4061:     esc(r.priority),esc(r.stage),
+4062:     r.order?`${r.productionId?`<button class="secondary" onclick="openProductionDestination(${r.productionId})">Editar produção</button> `:""}<button class="secondary" onclick="viewOrderDetails(${r.id})">Ver pedido</button>`:"-"
+4063:   ])):'<div class="empty">Nenhum pedido encontrado com estes filtros.</div>';
+4064: }
+4065: function page(id,btn){
+4066: if(!canOpenPage(id)){alert("Seu usuário não tem permissão para acessar esta área.");return}
+4067: if(id==="dashboard")setTimeout(renderDash,0);
+4068: document.querySelectorAll(".page").forEach(x=>x.classList.remove("active"));
+4069: const target=document.getElementById(id);
+4070: if(!target){alert("Esta tela ainda não foi carregada.");return}
+4071: target.classList.add("active");
+4072: document.querySelectorAll("nav button").forEach(x=>x.classList.remove("active"));
+4073: if(btn){btn.classList.add("active");openParentNavGroup(btn)}
+4074: if(id==="projecao")renderProjection();
+4075: if(id==="capacidadeProducao")renderCapacityPlanning();
+4076: if(["cadFaccoes","cadLocaisProducao","cadMaquinas","cadTiposServico"].includes(id))renderFactions();
+4077: if(id==="lixeiraPedidos")renderOrderTrash();
+4078: if(id==="metas")renderGoals();
+4079: if(id==="notas")renderOrderNotes();
+4080: if(id==="corte"){try{syncOrdersToCuts()}catch(e){console.error(e)} renderCuts();}
+4081: if(id==="faccoes")renderFactions();
+4082: if(id==="pagamentosFaccoes")renderFactionPayments();
+4083: if(id==="cortadores"){renderCutters();if(typeof drawCutterChart==="function")drawCutterChart();renderCutterProductCosts();}
+4084: if(id==="produtos")renderProducts();
+4085: if(id==="pedidos"){renderOrders();fillSeparationOrders();renderOrderNotes();}
+4086: if(id==="clientes"){ensureClientPotentialFilter();renderClients();renderClientPotentialReport();}
+4087: if(id==="producao"){syncFinalizedCutsToProduction();renderProduction();}
+4088: if(id==="faltas")renderMissingPieces();
+4089: if(id==="devolucoesDefeitos")renderDefectReturns();
+4090: if(id==="financeiro")renderFinance();
+4091: if(id==="estoque")renderStock();
+4092: if(id==="inventarioBens")renderAssets();
+4093: if(id==="funcionarios")renderEmployees();
+4094: if(id==="exFuncionarios")renderFormerEmployees();
+4095: if(id==="folhaPagamento")renderPayroll();if(id==="producao")renderProductionHub();
+4096: auditAction("Acessou tela",id);
+4097: ensurePageSyncButtons();
+4098: }
+4099: function openModal(title,body,fn){document.getElementById("modalContent").innerHTML="<h2>"+title+"</h2>"+body;document.getElementById("modal").classList.add("show");window.modalSave=fn}
+4100: function closeModal(){document.getElementById("modal").classList.remove("show");window.modalSave=null}
+4101: function submitModal(){if(window.modalSave)window.modalSave()}
+4102: document.addEventListener("click",e=>{if(e.target.matches(".modalSave"))submitModal()})
+4103: function openProducts(btn){
+4104: document.querySelectorAll(".page").forEach(x=>x.classList.remove("active"));
+4105: const target=document.getElementById("produtos");
+4106: if(!target){alert("A tela de Produtos não foi encontrada.");return}
+4107: target.classList.add("active");
+4108: document.querySelectorAll("nav button").forEach(x=>x.classList.remove("active"));
+4109: if(btn){btn.classList.add("active");openParentNavGroup(btn)}
+4110: db.products=Array.isArray(db.products)?db.products:[];
+4111: db.clients=Array.isArray(db.clients)?db.clients:[];
+4112: db.suppliers=Array.isArray(db.suppliers)?db.suppliers:[];
+4113: db.purchases=Array.isArray(db.purchases)?db.purchases:[];
+4114: if(!db.config)db.config={};
+4115: if(db.config.weeklyPurchaseLimit==null)db.config.weeklyPurchaseLimit=0;
+4116: ensureProductSuggestionSettings();
+4117: db.goals=Array.isArray(db.goals)?db.goals:[];
+4118: db.missingPieces=Array.isArray(db.missingPieces)?db.missingPieces:[];
+4119: (db.suppliers||[]).forEach(s=>{
+4120:   if(!Array.isArray(s.products))s.products=[];
+4121: });
+4122: 
+4123: if(typeof ensureRobeAlice==="function") ensureRobeAlice();
+4124: (db.products||[]).forEach(p=>{
+4125:   (p.materials||[]).forEach(m=>{
+4126:     if(!m.calcMode){
+4127:       let u=String(m.unit||"").trim().toLowerCase();
+4128:       m.calcMode=(u==="pk")?"yield":"consumption";
+4129:     }
+4130:   });
+4131: });
+4132: 
+4133: renderProducts();
+4134: renderProductSuggestionSettings();
+4135: }
+4136: 
+4137: function fmtDate(v){ if(!v) return "-"; let d=new Date(String(v)+"T12:00:00"); return isNaN(d)?String(v):d.toLocaleDateString("pt-BR"); }
+4138: function noteDueInfo(o){
+4139:   let raw=o.dueDate||o.date;
+4140:   if(!raw) return {label:"-",cls:""};
+4141:   let d=new Date(raw+"T12:00:00");
+4142:   if(isNaN(d)) return {label:fmtDate(raw),cls:""};
+4143:   let today=new Date(); today.setHours(12,0,0,0);
+4144:   let diff=Math.round((d-today)/86400000);
+4145:   if(diff<0) return {label:`Vencida há ${Math.abs(diff)} dia${Math.abs(diff)===1?"":"s"}`,cls:"warn"};
+4146:   if(diff===0) return {label:"Vence hoje",cls:"warn"};
+4147:   return {label:`Vence em ${diff} dia${diff===1?"":"s"}`,cls:""};
+4148: }
+4149: function orderPaid(o){
+4150:   let arr=Array.isArray(o.paymentHistory)?o.paymentHistory:[];
+4151:   if(arr.length) return arr.reduce((s,p)=>s+(+p.value||0),0);
+4152:   // Compatibilidade com versões anteriores que guardavam o recebido
+4153:   // diretamente no pedido, sem registrar o histórico.
+4154:   return Math.max(0,+o.received||0);
+4155: }
+4156: function orderRemaining(o){
+4157:   return Math.max(0,(+o.total||0)-orderPaid(o));
+4158: }
+4159: 
+4160: function ensureRobeAlice(){
+4161:   db.products=db.products||[];
+4162:   if(db.products.some(p=>String(p.name||"").trim().toLowerCase()==="robe alice")) return;
+4163:   db.products.push({
+4164:     id:1787849000001,
+4165:     code:"",
+4166:     name:"Robe Alice",
+4167:     category:"Robe",
+4168:     material:"Tulle",
+4169:     color:"",
+4170:     supplierId:null,
+4171:     sizes:["P","M","G","GG"],
+4172:     note:"Tabela da planilha: Luz/Embalagem R$ 0,30. Matéria Prima R$ 8,84. Mão de Obra R$ 4,42. Lucro R$ 4,42. Total da planilha R$ 17,68.",
+4173:     materials:[
+4174:       {name:"Tulle",cat:"Tecido",unit:"PK",qty:7.8,loss:0,price:5.38/7.8},
+4175:       {name:"Renda",cat:"Renda",unit:"m",qty:1.26,loss:0,price:1.83/1.26},
+4176:       {name:"Anis",cat:"Aviamento",unit:"m",qty:2.25,loss:0,price:1.04/2.25},
+4177:       {name:"Fita 005",cat:"Aviamento",unit:"m",qty:1.55,loss:0,price:0.59/1.55}
+4178:     ],
+4179:     labor:4.42,
+4180:     cutCost:0,
+4181:     factionCost:0,
+4182:     packCost:0,
+4183:     otherCost:0,
+4184:     price:17.68,
+4185:     costTable:[
+4186:       {item:"Tulle",consumo:"7,80 PK",custo:"R$ 5,38"},
+4187:       {item:"Renda",consumo:"1,26 MT",custo:"R$ 1,83"},
+4188:       {item:"Anis",consumo:"2,25 MT",custo:"R$ 1,04"},
+4189:       {item:"Fita 005",consumo:"1,55 MT",custo:"R$ 0,59"},
+4190:       {item:"Luz/Embalagem",consumo:"-",custo:"R$ 0,30"},
+4191:       {item:"Matéria Prima",consumo:"-",custo:"R$ 8,84"},
+4192:       {item:"Mão de Obra",consumo:"-",custo:"R$ 4,42"},
+4193:       {item:"Lucro",consumo:"-",custo:"R$ 4,42"},
+4194:       {item:"Total da planilha",consumo:"-",custo:"R$ 17,68"}
+4195:     ]
+4196:   });
+4197:   persistDb();
+4198: }
+4199: 
+4200: function migratePaymentHistory(){
+4201:   db.orders=db.orders||[];
+4202:   db.finance=db.finance||[];
+4203:   db.invoices=db.invoices||[];
+4204:   db.orders.forEach(o=>{
+4205:     o.paymentHistory=Array.isArray(o.paymentHistory)?o.paymentHistory:[];
+4206:     if(o.paymentHistory.length===0 && (+o.received||0)>0){
+4207:       o.paymentHistory.push({
+4208:         id:Date.now()+Math.floor(Math.random()*100000),
+4209:         date:o.invoiceDate||o.date||isoDate(new Date()),
+4210:         method:o.lastPaymentMethod||"PIX",
+4211:         value:+(+o.received).toFixed(2),
+4212:         note:"Recebimento registrado anteriormente"
+4213:       });
+4214:     }
+4215:     let paid=orderPaid(o), rem=orderRemaining(o);
+4216:     o.received=paid;
+4217:     o.remaining=rem;
+4218:     o.paymentStatus=rem<=0.009?"Pago":(paid>0?"Parcial":"Pendente");
+4219: 
+4220:     db.finance.filter(f=>+f.orderId===+o.id&&f.type==="Receber").forEach(f=>{
+4221:       f.paid=paid;
+4222:       f.remaining=rem;
+4223:       f.status=rem<=0.009?"Pago":"Pendente";
+4224:     });
+4225:     db.invoices.filter(n=>+n.orderId===+o.id).forEach(n=>{
+4226:       n.status=rem<=0.009?"Paga":"Pendente";
+4227:       n.paidAt=rem<=0.009?(n.paidAt||isoDate(new Date())):null;
+4228:     });
+4229:   });
+4230:   persistDb();
+4231: }
+4232: 
+4233: function paymentBadge(o){let rem=orderRemaining(o);if(rem<=0.009)return '<span class="badge ok">PAGO</span>';if(orderPaid(o)>0)return '<span class="badge">PARCIAL</span>';return '<span class="badge warn">EM ABERTO</span>'}
+4234: function renderOrderNotes(){
+4235:  let ready=(db.orders||[]).filter(o=>o.invoiceReady===true || o.noteReady===true || (db.invoices||[]).some(n=>+n.orderId===+o.id));
+4236:  ready.forEach(o=>{o.paymentHistory=o.paymentHistory||[]});
+4237:  let openList=ready.filter(o=>orderRemaining(o)>0.009);
+4238:  let open=openList.length;
+4239:  let paid=ready.filter(o=>orderRemaining(o)<=0.009).length;
+4240:  let total=ready.reduce((s,o)=>s+(+o.total||0),0);
+4241:  let openValue=openList.reduce((s,o)=>s+orderRemaining(o),0);
+4242:  let overdue=openList.filter(o=>{let x=noteDueInfo(o);return x.cls==="warn" && String(x.label).startsWith("Vencida")}).length;
+4243:  let summaryHtml=`<div class="card"><small>Notas em aberto</small><strong>${open}</strong></div><div class="card"><small>Notas vencidas</small><strong>${overdue}</strong></div><div class="card"><small>Valor em aberto</small><strong>${money(openValue)}</strong></div><div class="card"><small>Total das notas</small><strong>${money(total)}</strong></div>`;
+4244:  ["orderNotesSummary","allOrderNotesSummary"].forEach(id=>{let sum=document.getElementById(id);if(sum)sum.innerHTML=summaryHtml});
+4245:  let openHtml=openList.length?table(["Cliente","Pedido","Total","Recebido","Restante","Data da cobrança","Vencimento","Condição de pagamento","Situação","Ações"],openList.map(o=>{
+4246:    let info=noteDueInfo(o), paidValue=orderPaid(o), rem=orderRemaining(o);
+4247:    return [esc(o.client||""),"#"+o.id,money(o.total),money(paidValue),money(rem),fmtDate(o.invoiceDate||o.date),fmtDate(o.dueDate||o.date),esc(o.paymentTerms||"Não informado"),`<span class="badge ${info.cls}">${esc(info.label)}</span>`,
+4248:    `<button class="primary" onclick="openAcerto(${o.id})">💰 Acerto</button>
+4249:     <button class="secondary" onclick="notaPronta(${o.id})">🖨️ Imprimir</button>
+4250:     <button class="danger" onclick="deleteNote(${o.id})">Excluir nota</button>`]
+4251:  })): '<div class="empty">Nenhuma nota em aberto.</div>';
+4252:  let allHtml=ready.length?table(["Cliente","Pedido","Total","Recebido","Restante","Vencimento","Condição de pagamento","Status","Ações"],ready.map(o=>{
+4253:    let rem=orderRemaining(o), paidValue=orderPaid(o);
+4254:    return [esc(o.client||""),"#"+o.id,money(o.total),money(paidValue),money(rem),fmtDate(o.dueDate||o.date),esc(o.paymentTerms||"Não informado"),paymentBadge(o),
+4255:    `<button class="primary" onclick="openAcerto(${o.id})">💰 Acerto</button>
+4256:    <button class="secondary" onclick="notaPronta(${o.id})">🖨️ Imprimir</button>
+4257:    <button class="danger" onclick="deleteNote(${o.id})">Excluir nota</button>`]
+4258:  })): '<div class="empty">Nenhuma nota pronta foi gerada ainda.</div>';
+4259:  ["orderNotesTable","allOrderNotesTable"].forEach(id=>{let tbl=document.getElementById(id);if(tbl)tbl.innerHTML=id==="orderNotesTable"?openHtml:allHtml});
+4260: }
+4261: function paymentMethodRows(o){
+4262:  let arr=o.paymentHistory||[];
+4263:  if(!arr.length)return '<div class="empty">Nenhum pagamento lançado ainda.</div>';
+4264:  return table(["Data","Forma","Valor","Detalhes","Ação"],arr.map((p,i)=>{
+4265:   let det=esc(p.note||'-');
+4266:   if(p.method==='Cheque'){const c=p.cheque||{};det=`Cheque${c.number?' nº '+esc(c.number):''}${c.owner?' — '+esc(c.owner):''}${c.date?' — data '+fmtDate(c.date):''}${c.photo?` <button class="secondary" type="button" onclick="viewChequePhoto(${o.id},${i})">📷 Foto</button>`:''}${p.note?`<br>${esc(p.note)}`:''}`;}
+4267:   return [fmtDate(p.date),esc(p.method),money(p.value),det,`<button class="danger" onclick="removePayment(${o.id},${i})">Excluir</button>`];
+4268:  }));
+4269: }
+4270: function openAcerto(orderId){
+4271:  let o=(db.orders||[]).find(x=>+x.id===+orderId);if(!o)return;
+4272:  o.paymentHistory=o.paymentHistory||[];
+4273:  let paid=orderPaid(o),rem=orderRemaining(o);
+4274:  let body=`<div class="cards" style="margin-bottom:14px"><div class="card"><small>Total do pedido</small><strong>${money(o.total)}</strong></div><div class="card"><small>Já recebido</small><strong>${money(paid)}</strong></div><div class="card"><small>Saldo restante</small><strong id="acertoRemaining">${money(rem)}</strong></div></div>
+4275:  <div style="display:flex;gap:8px;flex-wrap:wrap;margin:10px 0 14px">
+4276:   <button type="button" class="secondary acTab" data-method="PIX">💠 PIX</button>
+4277:   <button type="button" class="secondary acTab" data-method="Cheque">🧾 Cheque</button>
+4278:   <button type="button" class="secondary acTab" data-method="Dinheiro">💵 Dinheiro</button>
+4279:   <button type="button" class="secondary acTab" data-method="Transferência">🏦 Transferência</button>
+4280:   <button type="button" class="secondary acTab" data-method="Outro">➕ Outro</button>
+4281:  </div>
+4282:  <div class="panel" style="margin:0 0 14px;padding:14px"><h3 style="margin-top:0">Lançar recebimento</h3>
+4283:  <div class="grid"><div class="field"><label>Forma de pagamento</label><select id="acMethod"><option>PIX</option><option>Cheque</option><option>Dinheiro</option><option>Transferência</option><option>Outro</option></select></div><div class="field"><label>Valor recebido</label><input id="acValue" type="number" step="0.01" min="0" value="${rem.toFixed(2)}"></div><div class="field"><label>Data</label><input id="acDate" type="date" value="${isoDate(new Date())}"></div><div class="field"><label>Observação</label><input id="acNote" placeholder="Ex.: cheque nº 1234"></div></div>
+4284:  <div id="acChequeFields" class="panel" style="display:none;margin-top:12px;padding:12px;background:#fff8fb"><strong>Dados do cheque</strong><div class="grid" style="margin-top:10px"><div class="field"><label>Data do cheque</label><input id="acChequeDate" type="date"></div><div class="field"><label>Dono do cheque</label><input id="acChequeOwner" placeholder="Nome de quem emitiu o cheque"></div><div class="field"><label>Número do cheque</label><input id="acChequeNumber" placeholder="Ex.: 123456"></div><div class="field"><label>Foto do cheque</label><input id="acChequePhoto" type="file" accept="image/*"></div></div></div>
+4285:  <button type="button" class="primary" onclick="addPayment(${o.id})">💾 Salvar recebimento e dar baixa</button>
+4286:  <div id="acertoSaveFeedback" style="display:none;margin-top:9px;color:#287a4b;font-size:13px;font-weight:700"></div>
+4287:  </div>
+4288:  <h3>Histórico do acerto</h3><div id="paymentHistoryBox">${paymentMethodRows(o)}</div>`;
+4289:  openModal(`Acerto do cliente — ${esc(o.client||"Pedido #"+o.id)}`,body,()=>{});
+4290:  const methodSelect=document.getElementById('acMethod'), chequeFields=document.getElementById('acChequeFields'), chequeDate=document.getElementById('acChequeDate');
+4291:  if(chequeDate)chequeDate.value=isoDate(new Date());
+4292:  function toggleCheque(){if(chequeFields)chequeFields.style.display=methodSelect&&methodSelect.value==='Cheque'?'block':'none';}
+4293:  if(methodSelect)methodSelect.addEventListener('change',toggleCheque);
+4294:  document.querySelectorAll('.acTab').forEach(b=>b.addEventListener('click',()=>{methodSelect.value=b.dataset.method;document.querySelectorAll('.acTab').forEach(x=>x.classList.remove('primary'));b.classList.add('primary');toggleCheque()}));
+
+===== line 7605 =====
+7580:  });
+7581: }
+7582: function editMachine(id){
+7583:  let x=db.machines.find(m=>+m.id===+id);if(!x)return;
+7584:  openModal("Editar máquina",`<div class="field"><label>Nome da máquina</label><input id="catalogName" value="${esc(x.name)}"></div><button type="button" class="primary modalSave">Salvar alterações</button>`,()=>{
+7585:    let n=(document.getElementById("catalogName")?.value||"").trim();if(!n)return;x.name=n;closeModal();save();
+7586:  });
+7587: }
+7588: function deleteMachine(id){
+7589:  let used=(db.factionMasters||[]).some(f=>(f.machineIds||[]).some(x=>+x===+id));
+7590:  if(used&&!confirm("Esta máquina está vinculada a uma facção. Excluir mesmo assim?"))return;
+7591:  db.machines=db.machines.filter(x=>+x.id!==+id);
+7592:  (db.factionMasters||[]).forEach(f=>f.machineIds=(f.machineIds||[]).filter(x=>+x!==+id));
+7593:  save();
+7594: }
+7595: function productionLocationForm(l={}){
+7596:  let allowed=Array.isArray(l.allowedServices)?l.allowedServices:[];
+7597:  let checks=(db.serviceTypes||[]).map(x=>`<label style="display:flex;gap:7px;align-items:center;margin:5px 0"><input type="checkbox" class="locationServiceCheck" value="${esc(x.name)}" ${allowed.includes(x.name)?"checked":""}> ${esc(x.name)}</label>`).join("");
+7598:  return `<div class="grid"><div class="field"><label>Nome do local de produção</label><input id="mlocationname" placeholder="Ex.: Confecção 1 / Facção 01" value="${esc(l.name||'')}"></div><div class="field"><label>Capacidade semanal (peças)</label><input id="mlocationcapacity" type="number" min="0" value="${+l.weeklyCapacity||0}"></div><div class="field"><label>Status</label><select id="mlocationactive"><option value="true" ${l.active!==false?'selected':''}>Ativo</option><option value="false" ${l.active===false?'selected':''}>Inativo</option></select></div></div><div class="field"><label>Serviços/modelos que este local consegue fazer</label><div class="sub">Se não marcar nenhum, o sistema considera que aceita todos.</div>${checks||'<div class="sub">Cadastre primeiro os Tipos de serviço em Cadastros.</div>'}</div>`
+7599: }
+7600: function locationFormData(){return {name:mlocationname.value.trim(),active:mlocationactive.value==="true",weeklyCapacity:+mlocationcapacity.value||0,allowedServices:[...document.querySelectorAll('.locationServiceCheck:checked')].map(x=>x.value)}}
+7601: function newProductionLocation(){openModal("Novo local de produção",productionLocationForm()+`<button type="button" class="primary modalSave">💾 Salvar local</button>`,()=>{let d=locationFormData();if(!d.name){alert("Informe o nome do local.");return}db.productionLocations.push({id:Date.now()+Math.floor(Math.random()*1000),...d});closeModal();save();alert("Local de produção cadastrado com sucesso.")})}
+7602: function editProductionLocation(id){let l=db.productionLocations.find(x=>+x.id===+id);if(!l)return;openModal('Editar local de produção',productionLocationForm(l)+`<button type="button" class="primary modalSave">Salvar alterações</button>`,()=>{let d=locationFormData();if(!d.name)return;Object.assign(l,d);closeModal();save()})}
+7603: function delProductionLocation(id){if(confirm('Excluir este local de produção?')){db.productionLocations=db.productionLocations.filter(x=>+x.id!==+id);save()}}
+7604: function capacityDateRange(){let s=document.getElementById('capacityStart'),e=document.getElementById('capacityEnd'),now=new Date();if(!s||!e)return['',''];if(!s.value||!e.value){let d=new Date(now);let day=(d.getDay()+6)%7;d.setDate(d.getDate()-day);s.value=isoDate(d);let z=new Date(d);z.setDate(z.getDate()+4);e.value=isoDate(z)}return[s.value,e.value]}
+7605: function setCapacityWeek(){let s=document.getElementById('capacityStart'),e=document.getElementById('capacityEnd'),d=new Date(),day=(d.getDay()+6)%7;d.setDate(d.getDate()-day);s.value=isoDate(d);let z=new Date(d);z.setDate(z.getDate()+4);e.value=isoDate(z);renderCapacityPlanning()}
+7606: function capacityAssignments(){db.capacityAssignments=Array.isArray(db.capacityAssignments)?db.capacityAssignments:[];return db.capacityAssignments}
+7607: function assignmentsFor(orderId,key){return capacityAssignments().filter(a=>+a.orderId===+orderId&&String(a.itemKey)===String(key)&&+a.locationId)}
+7608: function assignmentFor(orderId,key){return assignmentsFor(orderId,key)[0]}
+7609: function capacityAllowedModels(l){return Array.isArray(l.allowedModels)?l.allowedModels:(Array.isArray(l.allowedServices)?l.allowedServices:[])}
+7610: function capacityModelAllowed(l,name){let a=capacityAllowedModels(l);return !a.length||a.some(x=>String(name).toLowerCase().includes(String(x).toLowerCase())||String(x).toLowerCase().includes(String(name).toLowerCase()))}
+7611: function openCapacityLocationEditor(){
+7612:  let locs=(db.productionLocations||[]).filter(x=>x.active!==false);
+7613:  let products=[...new Set((db.products||[]).map(p=>p.name).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'pt-BR'));
+7614:  let body=locs.map(l=>{let allowed=capacityAllowedModels(l);let checks=products.map((p,i)=>`<label style="display:inline-flex;gap:5px;align-items:center;margin:3px 10px 3px 0"><input type="checkbox" class="capModel_${l.id}" value="${esc(p)}" ${allowed.includes(p)?'checked':''}>${esc(p)}</label>`).join('');return `<div class="panel" style="margin:10px 0;padding:14px"><h3>${esc(l.name)}</h3><div class="grid"><div class="field"><label>Responsável</label><input id="capResp_${l.id}" value="${esc(l.capacityResponsible||'')}" placeholder="Nome da pessoa responsável"></div><div class="field"><label>Capacidade semanal (peças)</label><input id="capQty_${l.id}" type="number" min="0" value="${+l.weeklyCapacity||0}"></div></div><div class="field"><label>Modelos que consegue produzir</label><div class="sub">Não marque nenhum se este local puder fazer todos os modelos.</div><div style="max-height:145px;overflow:auto;border:1px solid #eee;padding:8px;border-radius:8px">${checks||'<span class="sub">Cadastre produtos primeiro.</span>'}</div></div></div>`}).join('');
+7615:  openModal('Configurar capacidade de produção',body||'<div class="empty">Nenhum local de produção ativo cadastrado.</div>'+`<button class="primary modalSave">Salvar capacidades</button>`,()=>{
+7616:    locs.forEach(l=>{let q=document.getElementById('capQty_'+l.id),r=document.getElementById('capResp_'+l.id);l.weeklyCapacity=+(q?.value||0);l.capacityResponsible=(r?.value||'').trim();l.allowedModels=[...document.querySelectorAll('.capModel_'+l.id+':checked')].map(x=>x.value)});
+7617:    save();closeModal();renderCapacityPlanning();
+7618:  });
+7619: }
+7620: function openCapacityAllocation(orderId,key){
+7621:  let o=(db.orders||[]).find(x=>+x.id===+orderId),it=o&&projectionItemsForOrder(o).find(x=>String(x.key)===String(key));if(!o||!it)return;
+7622:  let locs=(db.productionLocations||[]).filter(x=>x.active!==false),existing=assignmentsFor(orderId,key);
+7623:  let rows=locs.map(l=>{let a=existing.find(x=>+x.locationId===+l.id);return `<tr><td><b>${esc(l.name)}</b>${l.capacityResponsible?`<div class="sub">${esc(l.capacityResponsible)}</div>`:''}</td><td>${capacityModelAllowed(l,it.name)?'<span class="badge ok">Modelo permitido</span>':'<span class="badge warn">Não cadastrado para este modelo</span>'}</td><td style="width:180px"><input class="capAllocQty" data-loc="${l.id}" type="number" min="0" max="${+it.qty||0}" value="${+a?.qty||0}" oninput="updateCapacityAllocationTotal(${+it.qty||0})"></td></tr>`}).join('');
+7624:  openModal(`Alocar produção — ${esc(it.name)}`,`<div class="cards"><div class="card"><small>Total do modelo</small><strong>${(+it.qty||0).toLocaleString('pt-BR')}</strong></div><div class="card"><small>Distribuído</small><strong id="capAllocTotal">0</strong></div><div class="card"><small>Restante</small><strong id="capAllocRemain">${(+it.qty||0).toLocaleString('pt-BR')}</strong></div></div><div style="overflow:auto"><table><thead><tr><th>Local / responsável</th><th>Compatibilidade</th><th>Quantidade</th></tr></thead><tbody>${rows}</tbody></table></div><div class="sub" style="margin-top:8px">Pode dividir o mesmo modelo entre quantos locais precisar. O sistema não altera o pedido original.</div><button class="primary modalSave">Salvar distribuição</button>`,()=>{
+7625:    let inputs=[...document.querySelectorAll('.capAllocQty')],sum=inputs.reduce((s,x)=>s+(+x.value||0),0);
+7626:    if(sum>(+it.qty||0)){alert('A quantidade distribuída não pode ultrapassar o total do modelo.');return}
+7627:    db.capacityAssignments=capacityAssignments().filter(a=>!(+a.orderId===+orderId&&String(a.itemKey)===String(key)));
+7628:    inputs.forEach(x=>{let qty=+x.value||0;if(qty>0)db.capacityAssignments.push({id:Date.now()+Math.random(),orderId:+orderId,itemKey:String(key),locationId:+x.dataset.loc,qty,updatedAt:new Date().toISOString()})});
+7629:    // Salva de forma direta para não depender do renderAll/sincronização pesada.
+7630:    // Isso evita que um erro em outra tela impeça a distribuição de ser gravada.
+7631:    try{persistDb()}catch(e){console.error(e);alert('Não foi possível salvar a divisão neste navegador.');return}
+7632:    closeModal();
+7633:    try{if(typeof renderProjection==='function')renderProjection()}catch(e){console.error('Atualização da projeção',e)}
+7634:    try{if(typeof renderCapacityPlanning==='function')renderCapacityPlanning()}catch(e){console.error('Atualização da capacidade',e)}
+7635:    try{if(typeof renderProductionHub==='function')renderProductionHub()}catch(e){console.error('Atualização da produção',e)}
+7636:    if(typeof auditAction==='function')auditAction('Dividiu produção',`${it.name}: ${sum} peça(s) em ${inputs.filter(x=>(+x.value||0)>0).length} local(is)`);
+7637:    alert('Distribuição salva com sucesso.');
+7638:  });setTimeout(()=>updateCapacityAllocationTotal(+it.qty||0),30);
+7639: }
+7640: function updateCapacityAllocationTotal(total){let sum=[...document.querySelectorAll('.capAllocQty')].reduce((s,x)=>s+(+x.value||0),0),a=document.getElementById('capAllocTotal'),r=document.getElementById('capAllocRemain');if(a)a.textContent=sum.toLocaleString('pt-BR');if(r){r.textContent=Math.max(0,total-sum).toLocaleString('pt-BR');r.style.color=sum>total?'#b91c1c':''}}
+7641: function saveCapacityAssignment(orderId,key,locationId){let o=(db.orders||[]).find(x=>+x.id===+orderId),it=o&&projectionItemsForOrder(o).find(x=>String(x.key)===String(key));if(!o||!it)return;db.capacityAssignments=capacityAssignments().filter(a=>!(+a.orderId===+orderId&&String(a.itemKey)===String(key)));if(locationId)db.capacityAssignments.push({id:Date.now()+Math.random(),orderId:+orderId,itemKey:String(key),locationId:+locationId,qty:+it.qty||0,updatedAt:isoDate(new Date())});save();renderCapacityPlanning()}
+7642: function renderCapacityPlanning(){
+7643:  let [start,end]=capacityDateRange();let rows=allProjectionRows().filter(r=>{let d=r.item.date||r.order.date||'';return(!start||d>=start)&&(!end||d<=end)});let locs=(db.productionLocations||[]).filter(x=>x.active!==false),usage={};locs.forEach(l=>usage[l.id]=0);
+7644:  rows.forEach(r=>assignmentsFor(r.order.id,r.item.key).forEach(a=>{if(usage[a.locationId]!=null)usage[a.locationId]+=+a.qty||0}));
+7645:  let total=rows.reduce((a,r)=>a+(+r.item.qty||0),0),assigned=rows.reduce((a,r)=>a+Math.min(+r.item.qty||0,assignmentsFor(r.order.id,r.item.key).reduce((s,x)=>s+(+x.qty||0),0)),0);
+7646:  let cards=document.getElementById('capacityCards');if(cards)cards.innerHTML=`<div class="card"><small>Peças previstas no período</small><strong>${total.toLocaleString('pt-BR')}</strong></div><div class="card"><small>Já distribuídas</small><strong>${assigned.toLocaleString('pt-BR')}</strong></div><div class="card"><small>Ainda sem local</small><strong>${Math.max(0,total-assigned).toLocaleString('pt-BR')}</strong></div><div class="card"><small>Locais ativos</small><strong>${locs.length}</strong></div>`;
+7647:  let lt=document.getElementById('capacityLocationTable');if(lt){let rr=locs.map(l=>{let used=usage[l.id]||0,cap=+l.weeklyCapacity||0,pct=cap?used/cap*100:0,cls=cap?(pct>=100?'bad':pct>=80?'warn':'ok'):'',status=cap?`${pct.toFixed(0)}%`:'Sem capacidade definida',models=capacityAllowedModels(l);return[esc(l.name),esc(l.capacityResponsible||'-'),used.toLocaleString('pt-BR'),cap?cap.toLocaleString('pt-BR'):'<b>Definir</b>',`<span class="badge ${cls}">${status}</span>`,cap?(cap-used).toLocaleString('pt-BR'):'-',esc(models.join(', ')||'Todos'),`<button class="secondary" onclick="openCapacityLocationEditor()">Editar capacidade</button>`]});lt.innerHTML=rr.length?table(['Local','Responsável','Carga prevista','Capacidade semanal','Ocupação','Saldo','Modelos permitidos','Ação'],rr):'<div class="empty">Cadastre locais de produção para usar o planejamento.</div>'}
+7648:  let ot=document.getElementById('capacityOrderTable');if(ot){let rr=rows.map(r=>{let aa=assignmentsFor(r.order.id,r.item.key),dist=aa.reduce((s,x)=>s+(+x.qty||0),0),places=aa.map(a=>{let l=locs.find(x=>+x.id===+a.locationId);return l?`${l.name}: ${(+a.qty||0).toLocaleString('pt-BR')}`:''}).filter(Boolean).join('<br>');let rem=Math.max(0,(+r.item.qty||0)-dist);return[`#${typeof displayOrderNumber==='function'?displayOrderNumber(r.order):r.order.id}`,esc(r.order.client||'-'),`<b>${esc(r.item.name)}</b>`,(+r.item.qty||0).toLocaleString('pt-BR'),dist.toLocaleString('pt-BR'),rem?`<span class="badge warn">${rem.toLocaleString('pt-BR')}</span>`:'<span class="badge ok">0</span>',places||'<span class="sub">Ainda sem local</span>',`<button class="primary" onclick="openCapacityAllocation(${r.order.id},'${String(r.item.key).replace(/'/g,"\\'")}')">Distribuir / dividir</button>`]});ot.innerHTML=rr.length?table(['Pedido','Cliente','Modelo','Total','Distribuído','Restante','Onde será produzido','Ação'],rr):'<div class="empty">Nenhum produto previsto neste período.</div>'}
+7649: }
+7650: function factionAvailableModels(){
+7651:   let out=[],seenOrders=new Set();
+7652:   let factions=Array.isArray(db.factions)?db.factions:[];
+7653:   let productions=Array.isArray(db.production)?db.production:[];
+7654:   let orders=Array.isArray(db.orders)?db.orders:[];
+7655:   productions.forEach(p=>{
+7656:     let o=orders.find(x=>+x.id===+p.orderId),product=(db.products||[]).find(x=>+x.id===+p.productId);
+7657:     let planned=+p.planned||0;if(planned<=0&&o){try{planned=+qtyOfOrder(o)||0}catch(e){}}
+7658:     let already=factions.filter(f=>+f.productionId===+p.id).reduce((s,f)=>s+(+f.sent||0),0);
+7659:     let remaining=Math.max(0,planned-already);
+7660:     let stage=String(p.stage||"");
+7661:     if(remaining<=0||(/^(Pronto|Finalizado)$/i.test(stage)&&(+p.done||0)>=planned))return;
+7662:     let model=product?.name||p.product||(o?orderProductSummary(o):"")||"Modelo";
+7663:     out.push({key:`p:${p.id}`,productionId:p.id,orderId:o?.id||p.orderId||null,productId:p.productId||o?.productId||null,op:p.op||"",model,remaining,dueDate:o?.date||p.factionDueDate||"",stage:stage||"Aguardando produção",client:o?.client||p.client||"-"});
+7664:     if(o)seenOrders.add(+o.id);
+7665:   });
+7666:   orders.forEach(o=>{
+7667:     if(seenOrders.has(+o.id)||o.deletedAt||o.cancelledAt)return;
+7668:     let cuts=(db.cuts||[]).filter(c=>+c.orderId===+o.id);
+7669:     let released=cuts.some(c=>/final|pronto|conclu/i.test(String(c.status||"")));
+7670:     if(!released)return;
+7671:     let planned=0;try{planned=+qtyOfOrder(o)||0}catch(e){}
+7672:     let already=factions.filter(f=>+f.orderId===+o.id).reduce((s,f)=>s+(+f.sent||0),0),remaining=Math.max(0,planned-already);
+7673:     if(remaining<=0)return;
+7674:     out.push({key:`o:${o.id}`,productionId:null,orderId:o.id,productId:o.productId||null,op:cuts[0]?.op||"",model:orderProductSummary(o)||o.items||"Modelo",remaining,dueDate:o.date||"",stage:"Corte finalizado",client:o.client||"-"});
+7675:   });
+7676:   return out.sort((a,b)=>String(a.dueDate||"9999-12-31").localeCompare(String(b.dueDate||"9999-12-31"))||String(a.model).localeCompare(String(b.model),'pt-BR'));
+7677: }
+7678: function renderFactionAvailableModels(){
+7679:   let el=document.getElementById("factionAvailableModels");if(!el)return;
+7680:   let rows=factionAvailableModels();
+7681:   el.innerHTML=rows.length?table(["Pedido","Cliente","Modelo","Etapa","Disponível","Previsão","Ação"],rows.map(r=>[
+7682:     r.orderId?`#${esc(typeof displayOrderNumber==='function'?displayOrderNumber((db.orders||[]).find(o=>+o.id===+r.orderId)||{id:r.orderId}):r.orderId)}`:"-",
+7683:     esc(r.client||"-"),`<b>${esc(r.model)}</b>`,esc(r.stage||"-"),r.remaining.toLocaleString("pt-BR"),r.dueDate?fmtDate(r.dueDate):"-",
+7684:     `<button type="button" class="primary" onclick='openFactionAvailableModel(${JSON.stringify(r.key)})'>Enviar para facção</button>`
+7685:   ])):'<div class="empty">Nenhum modelo liberado para envio no momento.</div>';
+7686: }
+7687: function openFactionAvailableModel(key){
+7688:   let r=factionAvailableModels().find(x=>String(x.key)===String(key));if(!r){alert("Este modelo já não está disponível para envio.");renderFactionAvailableModels();return}
+7689:   newFaction({productionId:r.productionId,orderId:r.orderId,productId:r.productId,op:r.op,description:r.model,sent:r.remaining,dueDate:r.dueDate});
+7690: }
+7691: 
+7692: function factionForm(f={}){
+7693:  return `<div class="grid">
+7694:    <input id="mfproductionid" type="hidden" value="${f.productionId??""}">
+7695:    <input id="mforderid" type="hidden" value="${f.orderId??""}">
+7696:    <input id="mfproductid" type="hidden" value="${f.productId??""}">
+7697:    <div class="field"><label>Facção</label><select id="mname">${(db.factionMasters||[]).map(x=>`<option value="${esc(x.name)}" ${String(x.name)===String(f.name||'')?'selected':''}>${esc(x.name)}</option>`).join('')}</select></div>
+7698:    <div class="field"><label>OP</label><input id="mop" value="${esc(f.op||'')}"></div>
+7699:    <div class="field"><label>Modelo</label><input id="mfdesc" list="factionAvailableModelList" placeholder="Ex.: Robe Alice" value="${esc((f.orderId&&((db.orders||[]).find(o=>+o.id===+f.orderId)))?orderProductSummary((db.orders||[]).find(o=>+o.id===+f.orderId)):(f.description||''))}"></div>
+7700:    <div class="field"><label>Local de produção</label><select id="mfactionlocation"><option value="">Selecione</option>${(db.productionLocations||[]).filter(x=>x.active!==false).map(x=>`<option value="${x.id}" ${+x.id===+f.productionLocationId?'selected':''}>${esc(x.name)}</option>`).join('')}</select></div>
+7701:    <div class="field"><label>Quantidade enviada</label><input id="msent" type="number" value="${f.sent??0}"></div>
+7702:    <div class="field"><label>Produzido / quantidade a pagar</label><input id="mdone" type="number" value="${f.done??0}"></div>
+7703:    <div class="field"><label>Retorno</label><input id="mret" type="number" value="${f.returned??0}"></div>
+7704:    <div class="field"><label>Defeitos</label><input id="mdef" type="number" value="${f.defects??0}"></div>
+7705:    <div class="field"><label>Perdas / desperdício</label><input id="mwaste" type="number" value="${f.waste??0}"></div>
+7706:    <div class="field"><label>Valor por peça</label><input id="mprice" type="number" step=".01" value="${f.price??0}"></div>
+7707:    <datalist id="factionAvailableModelList">${factionAvailableModels().map(r=>`<option value="${esc(r.model)}">`).join("")}</datalist>
+7708:    <div class="field"><label>Status do serviço</label><select id="mfstatus">
+7709:      ${["Enviado","Em produção","Finalizado"].map(x=>`<option ${x===(f.status||"Enviado")?"selected":""}>${x}</option>`).join("")}
+7710:    </select></div>
+7711:    <div class="field"><label>Data de envio</label><input id="mfsentat" type="date" value="${f.sentAt||f.date||isoDate(new Date())}"></div>
+7712:    <div class="field"><label>Previsão de entrega</label><input id="mfdue" type="date" value="${f.dueDate||""}"></div>
+7713:    <div class="field"><label>Data de finalização</label><input id="mffinished" type="date" value="${f.finishedAt||""}"></div>
+7714:  </div>`;
+7715: }
+7716: function saveFactionServiceFromForm(f){
+7717:  Object.assign(f,{
+7718:    productionId:document.getElementById("mfproductionid")?.value?+document.getElementById("mfproductionid").value:null,
+7719:    orderId:document.getElementById("mforderid")?.value?+document.getElementById("mforderid").value:null,
+7720:    productId:document.getElementById("mfproductid")?.value?+document.getElementById("mfproductid").value:null,
+7721:    name:document.getElementById("mname")?.value||"",
+7722:    op:document.getElementById("mop")?.value||"",
+7723:    description:document.getElementById("mfdesc")?.value||"",
+7724:    productionLocationId:document.getElementById("mfactionlocation")?.value?+document.getElementById("mfactionlocation").value:null,
+7725:    sent:+document.getElementById("msent")?.value||0,
+7726:    done:+document.getElementById("mdone")?.value||0,
+7727:    returned:+document.getElementById("mret")?.value||0,
+7728:    defects:+document.getElementById("mdef")?.value||0,
+7729:    waste:+document.getElementById("mwaste")?.value||0,
+7730:    price:+document.getElementById("mprice")?.value||0,
+7731:    status:document.getElementById("mfstatus")?.value||"Enviado",
+7732:    sentAt:document.getElementById("mfsentat")?.value||isoDate(new Date()),
+7733:    dueDate:document.getElementById("mfdue")?.value||"",
+7734:    finishedAt:document.getElementById("mffinished")?.value||""
+7735:  });
+7736:  if(f.status==="Finalizado" && !f.finishedAt)f.finishedAt=isoDate(new Date());
+7737:  let linkedOrder=(db.orders||[]).find(o=>+o.id===+f.orderId);
+7738:  if(linkedOrder)f.description=orderProductSummary(linkedOrder);
+7739: }
+7740: function newFaction(prefill=null){
+7741:  let seed=prefill&&typeof prefill==="object"?prefill:{};
+7742:  let f={id:Date.now(),date:isoDate(new Date()),sentAt:isoDate(new Date()),status:"Enviado",...seed};
+7743:  openModal("Novo envio para facção",factionForm(f)+`<button type="button" class="primary modalSave">💾 Salvar envio</button>`,()=>{
+7744:    saveFactionServiceFromForm(f);
+7745:    if(!f.name){alert("Selecione a facção.");return}
+7746:    if(!f.description){alert("Informe ou selecione o modelo.");return}
+7747:    db.factions.push(f);
+7748:    syncFactionPayments();
+7749:    closeModal();save();renderFactions();
+7750:  });
+7751: }
+7752: function editFaction(id){
+7753:  let f=db.factions.find(x=>+x.id===+id);if(!f)return;
+7754:  openModal("Editar envio para facção",factionForm(f)+`<button type="button" class="primary modalSave">💾 Salvar alterações</button>`,()=>{
+7755:    saveFactionServiceFromForm(f);
+7756:    syncFactionPayments();
+7757:    syncFactionIssuesToMissing();
+7758:    closeModal();save();
+7759:  });
+7760: }
+7761: 
+7762: function separateFactionForPayment(id){
+7763:  let f=(db.factions||[]).find(x=>+x.id===+id);if(!f)return;
+7764:  if(String(f.status||"")!=="Finalizado"){alert("Finalize e confira o retorno antes de separar para pagamento.");return}
+7765:  openModal("Separação para pagamento",`<div class="grid"><div class="field"><label>Facção</label><input value="${esc(f.name||"")}" disabled></div><div class="field"><label>Serviço</label><input value="${esc(f.description||f.op||"")}" disabled></div><div class="field"><label>Quantidade conferida</label><input value="${+f.done||0}" disabled></div><div class="field"><label>Valor previsto</label><input value="${money((+f.done||0)*(+f.price||0))}" disabled></div><div class="field"><label>Data prevista para pagamento</label><input id="fspDate" type="date" value="${f.scheduledPaymentDate||isoDate(new Date())}"></div></div><div class="sub">Após confirmar, o serviço aparecerá em Serviços para pagamento.</div><button type="button" class="primary modalSave">✅ Confirmar separação para pagamento</button>`,()=>{let d=document.getElementById("fspDate")?.value;if(!d){alert("Informe a data prevista para pagamento.");return}f.paymentSeparated=true;f.scheduledPaymentDate=d;syncFactionPayments();closeModal();save();renderFactions();renderFactionPayments();auditAction("Separou facção para pagamento",`${f.name} — ${f.description||f.op||""} — ${fmtDate(d)}`)});
+7766: }
+7767: 
+7768: function syncFactionPayments(){
+7769:  db.factions=Array.isArray(db.factions)?db.factions:[];
+7770:  db.factionPayments=Array.isArray(db.factionPayments)?db.factionPayments:[];
+7771:  let changed=false;
+7772: 
+7773:  db.factions.filter(f=>String(f.status||"").toLowerCase()==="finalizado" && f.paymentSeparated===true).forEach(f=>{
+7774:    let p=db.factionPayments.find(x=>+x.factionServiceId===+f.id);
+7775:    let master=(db.factionMasters||[]).find(x=>String(x.name||"").toLowerCase()===String(f.name||"").toLowerCase());
+7776:    let value=(+f.done||0)*(+f.price||0);
+7777:    if(!p){
+7778:      db.factionPayments.push({
+7779:        id:Date.now()+Math.floor(Math.random()*1000000),
+7780:        factionServiceId:f.id,
+7781:        factionName:f.name||"Facção",
+7782:        description:f.description||f.op||"Serviço de facção",
+7783:        quantity:+f.done||0,
+7784:        unitPrice:+f.price||0,
+7785:        value,
+7786:        pix:master?.pix||"",
+7787:        serviceFinishedAt:f.finishedAt||isoDate(new Date()),
+7788:        scheduledPaymentDate:f.scheduledPaymentDate||"",
+7789:        paidAmount:0,discountAmount:0,paymentHistory:[],
+7790:        status:"Pendente",
+7791:        paymentDate:"",
+7792:        paymentMethod:"",
+7793:        observation:""
+7794:      });
+7795:      changed=true;
+7796:    }else if(p.status!=="Pago"){
+7797:      p.factionName=f.name||p.factionName;
+7798:      p.description=f.description||f.op||p.description;
+7799:      p.quantity=+f.done||0;
+7800:      p.unitPrice=+f.price||0;
+7801:      p.value=value;
+7802:      p.pix=master?.pix||p.pix||"";
+7803:      p.serviceFinishedAt=f.finishedAt||p.serviceFinishedAt;
+7804:      p.scheduledPaymentDate=f.scheduledPaymentDate||p.scheduledPaymentDate||"";
+7805:      changed=true;
+7806:    }
+7807:  });
+7808:  if(changed)try{persistDb()}catch(e){}
+7809: }
+7810: 
+7811: function factionPaymentPeriod(){
+7812:  let start=document.getElementById("fpPeriodStart")?.value||"";
+7813:  let end=document.getElementById("fpPeriodEnd")?.value||"";
+7814:  return {start,end};
+7815: }
+7816: function setFactionPaymentPeriod(mode){
+7817:  let s=document.getElementById("fpPeriodStart"),e=document.getElementById("fpPeriodEnd");
+7818:  if(!s||!e)return;
+7819:  let now=new Date(),start="",end="";
+7820:  if(mode==="week"){
+7821:    let m=mondayOf(now),z=new Date(m);z.setDate(z.getDate()+6);
+7822:    start=isoDate(m);end=isoDate(z);
+7823:  }else if(mode==="month"){
+7824:    start=isoDate(new Date(now.getFullYear(),now.getMonth(),1,12));

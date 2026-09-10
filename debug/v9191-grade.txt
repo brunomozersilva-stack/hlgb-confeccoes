@@ -1,0 +1,1601 @@
+===== line 6800 =====
+6775:  let oo=(db.orders||[]).filter(o=>!o.invoiceReady&&!o.noteReady);
+6776:  let oq=oo.reduce((a,o)=>a+(typeof qtyOfOrder==="function"?qtyOfOrder(o):(+o.qty||+o.totalQty||0)),0),ov=oo.reduce((a,o)=>a+(+o.total||0),0);
+6777:  let cards=document.getElementById("cutSummaryCards");
+6778:  if(cards)cards.innerHTML=
+6779:  `<div class="card"><small>Pedidos aguardando corte</small><strong>${pp} peças</strong><div>${money(pv)}</div></div>
+6780:   <div class="card"><small>Cortes prontos para produzir</small><strong>${rp} peças</strong><div>${money(rv)}</div></div>
+6781:   <div class="card"><small>Corte interno finalizado</small><strong>${ip} peças</strong><div>${money(iv)}</div></div>
+6782:   <div class="card"><small>Corte externo finalizado</small><strong>${ep} peças</strong><div>${money(ev)}</div></div>
+6783:   <div class="card"><small>Mercadoria sem nota pronta</small><strong>${oq} peças</strong><div>${money(ov)}</div></div>`;
+6784:  let rt=document.getElementById("readyCutsTable");
+6785:  if(rt)rt.innerHTML=ready.length?table(["OP","Cliente","Produto","Peças","Valor","Corte","Cortador","Finalizado","Local de produção","Prioridade","Ações"],
+6786:   ready.map(c=>{let l=(db.productionLocations||[]).find(x=>+x.id===+c.productionLocationId),ct=(db.cutters||[]).find(x=>+x.id===+c.cutterId),ord=getOrderByCut(c);
+6787:   return[c.op,esc(c.client||ord?.client||"-"),esc(ord?orderProductSummary(ord):(c.product||"Pedido")),c.pieces||0,money(typeof cutValue==="function"?cutValue(c):0),esc(c.cutType||"-"),esc(ct?.name||"-"),fmtDate(c.finishedAt),esc(l?.name||"-"),priorityBadge(ord?.priority||"Padrão"),
+6788:   `${ord?`<button type="button" class="secondary" onclick="viewOrderDetails(${ord.id})">Ver pedido</button> `:""}<button type="button" class="secondary" onclick="editReadyCut(${c.id})">Editar</button>
+6789:    <button type="button" class="danger" onclick="deleteReadyCut(${c.id})">Excluir</button>`]}))
+6790:   :'<div class="empty">Nenhum corte finalizado aguardando produção.</div>';
+6791:  let ot=document.getElementById("openCutOrdersTable");
+6792:  if(ot)ot.innerHTML=oo.length?table(["Pedido","Cliente","Entrega","Peças","Valor","Status","Ações"],
+6793:   oo.map(o=>[o.id,esc(o.client),fmtDate(o.date),typeof qtyOfOrder==="function"?qtyOfOrder(o):(+o.qty||+o.totalQty||0),money(o.total),`<span class="badge">${esc(o.status||"Aberto")}</span>`,
+6794:   `<button type="button" class="secondary" onclick="editOpenMerchandise(${o.id})">Editar</button>
+6795:    <button type="button" class="danger" onclick="deleteOpenMerchandise(${o.id})">Excluir</button>`]))
+6796:   :'<div class="empty">Não há mercadoria sem nota pronta.</div>';
+6797:  renderCutMaterialNeedReport();
+6798:  try{persistDb()}catch(e){}
+6799: }
+6800: function finishCut(id){
+6801:  let c=(db.cuts||[]).find(x=>+x.id===+id);
+6802:  if(!c)return;
+6803:  c.status="Finalizado";
+6804:  c.finishedAt=isoDate(new Date());
+6805: 
+6806:  let o=(db.orders||[]).find(x=>+x.id===+c.orderId);
+6807:  if(o)o.status="Corte finalizado";
+6808: 
+6809:  try{persistDb()}catch(e){
+6810:    console.error(e);
+6811:    alert("Não foi possível salvar a finalização do corte.");
+6812:    return;
+6813:  }
+6814: 
+6815:  syncFinalizedCutsToProduction();
+6816:  renderCuts();
+6817:  renderOrders();
+6818:  renderCutters();
+6819:  renderProduction();
+6820:  alert("Corte finalizado e enviado automaticamente para a Produção.");
+6821: }
+6822: 
+6823: function cutForm(c={}){
+6824:  let ac=(db.cutters||[]).filter(x=>x.active!==false);
+6825:  return `<div class="grid"><div class="field"><label>OP</label><input id="mop" value="${esc(c.op||"")}"></div><div class="field"><label>Produto</label><select id="mcutproduct">${productOptions(c.productId)}</select></div><div class="field"><label>Tecido</label><input id="mfabric" value="${esc(c.fabric||"")}"></div><div class="field"><label>Cor</label><input id="mcolor" value="${esc(c.color||"")}"></div><div class="field"><label>Tamanho</label><input id="msize" value="${esc(c.size||"")}"></div><div class="field"><label>Camadas</label><input id="mlayers" type="number" value="${c.layers??0}"></div><div class="field"><label>Metros usados</label><input id="mmeters" type="number" step=".01" value="${c.meters??0}"></div><div class="field"><label>Peças previstas</label><input id="mpieces" type="number" value="${c.pieces??0}"></div><div class="field"><label>Tipo de corte</label><select id="mcuttype"><option value="">Selecione</option><option value="Interno" ${c.cutType==="Interno"?"selected":""}>Interno</option><option value="Externo" ${c.cutType==="Externo"?"selected":""}>Externo</option></select></div><div class="field"><label>Cortador</label><select id="mcutcutter"><option value="">Selecione</option>${ac.map(x=>`<option value="${x.id}" ${+x.id===+c.cutterId?"selected":""}>${esc(x.name)} — ${esc(x.cutType||"")}</option>`).join("")}</select></div><div class="field"><label>Local de produção</label><select id="mcutlocation"><option value="">Selecione</option>${(db.productionLocations||[]).filter(x=>x.active!==false).map(x=>`<option value="${x.id}" ${+x.id===+c.productionLocationId?"selected":""}>${esc(x.name)}</option>`).join("")}</select></div><div class="field"><label>Data prevista de corte</label><input id="mcutplanned" type="date" value="${c.plannedCutDate||""}"></div></div>`;
+6826: }
+6827: function saveCutData(c){c.op=mop.value.trim();c.productId=+mcutproduct.value||null;c.fabric=mfabric.value;c.color=mcolor.value;c.size=msize.value;c.layers=+mlayers.value||0;c.meters=+mmeters.value||0;c.pieces=+mpieces.value||0;c.cutType=mcuttype.value;c.cutterId=mcutcutter.value?+mcutcutter.value:null;c.productionLocationId=mcutlocation.value?+mcutlocation.value:null;c.plannedCutDate=document.getElementById("mcutplanned")?.value||c.plannedCutDate||"";let p=cutProduct(c);if(p)c.product=p.name;}
+6828: function newCut(){openModal("Novo plano de corte",cutForm()+`<button type="button" class="primary modalSave">💾 Salvar plano de corte</button>`,()=>{let c={id:Date.now(),status:"Planejado",date:isoDate(new Date())};saveCutData(c);db.cuts.push(c);closeModal();save()})}
+6829: function editCut(id){let c=db.cuts.find(x=>+x.id===+id);if(!c)return;openModal("Editar plano de corte",cutForm(c)+`<button type="button" class="primary modalSave">💾 Salvar alterações</button>`,()=>{saveCutData(c);closeModal();save()})}
+6830: 
+6831: 
+6832: function renderCatalogs(){
+6833:  colorTable.innerHTML=table(["Cor","Ações"],(db.colors||[]).map((c,i)=>[esc(c),`<button type="button" class="danger" onclick="deleteColor(${i})">Excluir</button>`]));
+6834:  sizeTable.innerHTML=table(["Tamanho","Ações"],(db.sizes||[]).map((s,i)=>[esc(s),`<button type="button" class="danger" onclick="deleteSize(${i})">Excluir</button>`]));
+6835: }
+6836: function newColor(){
+6837:  openModal("Nova cor",`<div class="field"><label>Nome da cor</label><input id="newColorName"></div><button type="button" class="primary modalSave">Salvar cor</button>`,()=>{
+6838:    let v=newColorName.value.trim();if(!v)return;if(!db.colors.includes(v))db.colors.push(v);closeModal();save();
+6839:  });
+6840: }
+6841: function deleteColor(i){if(confirm("Excluir esta cor do cadastro?")){db.colors.splice(i,1);save()}}
+6842: function newSize(){
+6843:  openModal("Novo tamanho / grade",`<div class="field"><label>Tamanho</label><input id="newSizeName" placeholder="Ex.: PP, P, M, G, GG, XG"></div><button type="button" class="primary modalSave">Salvar tamanho</button>`,()=>{
+6844:    let v=newSizeName.value.trim().toUpperCase();if(!v)return;if(!db.sizes.includes(v))db.sizes.push(v);closeModal();save();
+6845:  });
+6846: }
+6847: function deleteSize(i){if(confirm("Excluir este tamanho do cadastro?")){db.sizes.splice(i,1);save()}}
+6848: function materialPurchaseSummary(m){
+6849:  let mode=m.purchaseMode||m.purchaseUnit||"rolo";
+6850:  let p=+m.purchasePrice||0, conv=+m.purchaseConversion||0;
+6851:  if(mode==="kg"){
+6852:    let roll="";
+6853:    if((+m.packageMin||0)>0||(+m.packageMax||0)>0){
+6854:      let a=+m.packageMin||+m.packageAvg||0,b=+m.packageMax||a;
+6855:      roll=`<div class="sub">Rolo aprox.: ${a.toLocaleString("pt-BR")}–${b.toLocaleString("pt-BR")} kg</div>`;
+6856:    }
+6857:    return `<strong>${money(p||m.price||0)} / kg</strong>${roll}`;
+6858:  }
+6859:  if(mode==="m")return `<strong>${money(p||m.price||0)} / metro</strong>`;
+6860:  if(mode==="un.")return `<strong>${money(p||m.price||0)} / unidade</strong>`;
+6861:  let unit=m.unit||"un.";
+6862:  return `<strong>${money(p||((+m.price||0)*conv))} / ${esc(mode)}</strong>${conv?`<div class="sub">1 ${esc(mode)} = ${conv.toLocaleString("pt-BR")} ${esc(unit)}</div>`:""}`;
+6863: }
+6864: function renderMaterials(){
+6865:  let mats=db.materials||[];
+6866:  materialTable.innerHTML=table(["Material","Tipo","Como compra","Custo de uso","Estoque","Mínimo","Ações"],mats.map(m=>{
+6867:    let qty=(db.materialLots||[]).filter(l=>+l.materialId===+m.id).reduce((a,l)=>a+(+l.qty||0),0);
+6868:    return [esc(m.name),esc(m.cat||"Outro"),materialPurchaseSummary(m),`${money(m.price||0)} / ${esc(m.unit||"un.")}`,`${qty.toLocaleString("pt-BR",{maximumFractionDigits:2})} ${esc(m.unit||"")}`,m.min||0,
+6869:    `<button type="button" class="secondary" onclick="editMaterial(${m.id})">Editar</button> <button type="button" class="danger" onclick="delMaterial(${m.id})">Excluir</button>`];
+6870:  }));
+6871:  materialLotTable.innerHTML=table(["Material","Rolo/Lote","Quantidade inicial","Saldo","Valor da compra","Custo unitário","Fornecedor","Ações"],(db.materialLots||[]).map(l=>{
+6872:    let m=(db.materials||[]).find(x=>+x.id===+l.materialId);
+6873:    return [esc(m?.name||"-"),esc(l.lot||"-"),`${(+l.initialQty||0).toLocaleString("pt-BR")} ${esc(m?.unit||"")}`,`${(+l.qty||0).toLocaleString("pt-BR")} ${esc(m?.unit||"")}`,money(l.rollPrice??(l.price||0)*((+l.initialQty)||0)),`${money(l.price||m?.price||0)} / ${esc(m?.unit||"")}`,esc(l.supplier||"-"),
+6874:    `<button type="button" class="secondary" onclick="editMaterialLot(${l.id})">Editar</button>`];
+6875:  }));
+6876: }
+6877: function normalizeMaterialDuplicateKey(name){
+6878:  return String(name||"")
+6879:    .normalize("NFD").replace(/[\u0300-\u036f]/g,"")
+6880:    .toLowerCase().trim()
+6881:    .replace(/[^a-z0-9]+/g," ")
+6882:    .replace(/\s+/g," ").trim();
+6883: }
+6884: function findDuplicateMaterial(name,excludeId=null){
+6885:  let key=normalizeMaterialDuplicateKey(name);
+6886:  if(!key)return null;
+6887:  return (db.materials||[]).find(m=>normalizeMaterialDuplicateKey(m.name)===key && (excludeId==null || +m.id!==+excludeId))||null;
+6888: }
+6889: function checkMaterialNameDuplicate(excludeId=null){
+6890:  let input=document.getElementById("mmname"),msg=document.getElementById("mmDuplicateMsg");
+6891:  if(!input||!msg)return null;
+6892:  let dup=findDuplicateMaterial(input.value,excludeId);
+6893:  if(!String(input.value||"").trim()){
+6894:    msg.innerHTML=""; msg.style.display="none"; input.style.borderColor=""; return null;
+6895:  }
+6896:  if(dup){
+6897:    msg.style.display="block";
+6898:    msg.innerHTML=`⚠️ Já existe uma matéria-prima cadastrada com este nome: <strong>${esc(dup.name||"")}</strong>. Abra o cadastro existente para editar em vez de criar outro.`;
+6899:    msg.style.background="#fff3cd"; msg.style.border="1px solid #f0c36d"; msg.style.color="#7a4b00";
+6900:    input.style.borderColor="#d97706";
+6901:  }else{
+6902:    msg.style.display="block";
+6903:    msg.innerHTML="✓ Nome disponível para cadastro.";
+6904:    msg.style.background="#eefbf3"; msg.style.border="1px solid #b7e4c7"; msg.style.color="#176c38";
+6905:    input.style.borderColor="#62b27d";
+6906:  }
+6907:  return dup;
+6908: }
+6909: function materialModeFrom(m={}){
+6910:  if(m.purchaseMode)return m.purchaseMode;
+6911:  let pu=String(m.purchaseUnit||"").toLowerCase();
+6912:  if(["kg","m","un.","rolo","pacote","caixa"].includes(pu))return pu;
+6913:  return "rolo";
+6914: }
+6915: function materialForm(m={}){
+6916:  let mode=materialModeFrom(m),purchasePrice=+m.purchasePrice||0;
+6917:  if(!purchasePrice){
+6918:    let conv=+m.purchaseConversion||0;
+6919:    purchasePrice=["rolo","pacote","caixa"].includes(mode)&&conv>0?(+m.price||0)*conv:(+m.price||0);
+6920:  }
+6921:  return `<div class="panel" style="margin-top:0;background:#fff8fb">
+6922:    <h3 style="margin-top:0">1. Identificação</h3>
+6923:    <div class="grid">
+6924:      <div class="field"><label>Nome do material</label><input id="mmname" value="${esc(m.name||"")}" placeholder="Ex.: Romantic, Anis" oninput="checkMaterialNameDuplicate(${m.id!=null?+m.id:'null'})" autocomplete="off"><div id="mmDuplicateMsg" class="sub" style="display:none;margin-top:6px;padding:8px 10px;border-radius:8px"></div></div>
+6925:      <div class="field"><label>Tipo</label><select id="mmcat">${["Tecido","Renda","Aviamento","Elástico","Viés","Tule","Outro"].map(x=>`<option ${m.cat===x?"selected":""}>${x}</option>`).join("")}</select></div>
+6926:      <div class="field"><label>Estoque mínimo</label><input id="mmmin" type="number" step=".01" value="${m.min??0}"></div>
+6927:    </div>
+6928:  </div>
+6929:  <div class="panel" style="background:#fff">
+6930:    <h3 style="margin-top:0">2. Como você compra este material?</h3>
+6931:    <div class="sub" style="margin-bottom:10px">Escolha a forma que o fornecedor cobra. O sistema calcula o restante sozinho.</div>
+6932:    <div class="grid">
+6933:      <div class="field"><label>Forma de compra</label><select id="mmpurchasemode" onchange="updateSimpleMaterialForm()">
+6934:        <option value="kg" ${mode==="kg"?"selected":""}>Por quilo (kg)</option>
+6935:        <option value="rolo" ${mode==="rolo"?"selected":""}>Por rolo</option>
+6936:        <option value="pacote" ${mode==="pacote"?"selected":""}>Por pacote</option>
+6937:        <option value="caixa" ${mode==="caixa"?"selected":""}>Por caixa</option>
+6938:        <option value="m" ${mode==="m"?"selected":""}>Por metro</option>
+6939:        <option value="un." ${mode==="un."?"selected":""}>Por unidade</option>
+6940:      </select></div>
+6941:      <div class="field"><label id="mmpriceLabel">Preço da compra</label><input id="mmpurchaseprice" type="number" step=".01" min="0" value="${purchasePrice}" oninput="updateSimpleMaterialPreview()"></div>
+6942:      <div class="field" id="mmcontentField"><label id="mmcontentLabel">Quantidade que vem</label><input id="mmcontent" type="number" step=".0001" min="0" value="${m.purchaseConversion??0}" oninput="updateSimpleMaterialPreview()"></div>
+6943:      <div class="field" id="mmconsumeUnitField"><label>Unidade usada na ficha/estoque</label><select id="mmunit" onchange="updateSimpleMaterialPreview()">${["m","kg","un.","cm","g"].map(x=>`<option ${String(m.unit||((mode==="kg")?"kg":mode==="m"?"m":"m"))===x?"selected":""}>${x}</option>`).join("")}</select></div>
+6944:    </div>
+6945:    <div id="mmrollWeightBox" class="panel" style="margin-top:12px;background:#fff8fb;display:none">
+6946:       <strong>Se vem em rolos, qual o peso aproximado?</strong>
+6947:       <div class="sub">Opcional. Ajuda a transformar uma necessidade em kg também em uma estimativa de rolos.</div>
+6948:       <div class="grid" style="margin-top:8px">
+6949:        <div class="field"><label>Peso mínimo do rolo (kg)</label><input id="mmpackmin" type="number" step=".01" value="${m.packageMin??0}" oninput="updateSimpleMaterialPreview()"></div>
+6950:        <div class="field"><label>Peso máximo do rolo (kg)</label><input id="mmpackmax" type="number" step=".01" value="${m.packageMax??0}" oninput="updateSimpleMaterialPreview()"></div>
+6951:       </div>
+6952:    </div>
+6953:    <div id="mmSimplePreview" class="panel" style="margin-top:12px;background:#f8fbf9"></div>
+6954:  </div>`;
+6955: }
+6956: function updateSimpleMaterialForm(){
+6957:  let mode=document.getElementById("mmpurchasemode")?.value||"rolo";
+6958:  let unit=document.getElementById("mmunit"),content=document.getElementById("mmcontentField"),consume=document.getElementById("mmconsumeUnitField"),roll=document.getElementById("mmrollWeightBox"),label=document.getElementById("mmpriceLabel"),clabel=document.getElementById("mmcontentLabel");
+6959:  if(mode==="kg"){
+6960:    if(unit)unit.value="kg"; if(content)content.style.display="none"; if(consume)consume.style.display="none"; if(roll)roll.style.display="block"; if(label)label.textContent="Preço por kg";
+6961:  }else if(mode==="m"){
+6962:    if(unit)unit.value="m"; if(content)content.style.display="none"; if(consume)consume.style.display="none"; if(roll)roll.style.display="none"; if(label)label.textContent="Preço por metro";
+6963:  }else if(mode==="un."){
+6964:    if(unit)unit.value="un."; if(content)content.style.display="none"; if(consume)consume.style.display="none"; if(roll)roll.style.display="none"; if(label)label.textContent="Preço por unidade";
+6965:  }else{
+6966:    if(content)content.style.display="block"; if(consume)consume.style.display="block"; if(roll)roll.style.display="none"; if(label)label.textContent=`Preço por ${mode}`; if(clabel)clabel.textContent=`Quanto vem em 1 ${mode}`;
+6967:  }
+6968:  updateSimpleMaterialPreview();
+6969: }
+6970: function updateSimpleMaterialPreview(){
+6971:  let mode=document.getElementById("mmpurchasemode")?.value||"rolo",purchase=+document.getElementById("mmpurchaseprice")?.value||0,unit=document.getElementById("mmunit")?.value||"m",conv=+document.getElementById("mmcontent")?.value||0;
+6972:  let html="";
+6973:  if(mode==="kg"){
+6974:    let min=+document.getElementById("mmpackmin")?.value||0,max=+document.getElementById("mmpackmax")?.value||0;
+6975:    html=`<strong>Resumo:</strong> ${money(purchase)} por kg.`;
+6976:    if(min||max){let a=min||max,b=max||min;html+=` Um rolo de ${a.toLocaleString("pt-BR")} a ${b.toLocaleString("pt-BR")} kg custa aproximadamente <strong>${money(a*purchase)} a ${money(b*purchase)}</strong>.`;}
+6977:  }else if(mode==="m")html=`<strong>Resumo:</strong> ${money(purchase)} por metro.`;
+6978:  else if(mode==="un.")html=`<strong>Resumo:</strong> ${money(purchase)} por unidade.`;
+6979:  else if(conv>0){let cost=purchase/conv;html=`<strong>Resumo:</strong> 1 ${esc(mode)} = ${conv.toLocaleString("pt-BR")} ${esc(unit)} • custa ${money(purchase)} • custo de uso = <strong>${money(cost)} por ${esc(unit)}</strong>.`;}
+6980:  else html=`Informe quanto vem em 1 ${esc(mode)} para o sistema calcular o custo automaticamente.`;
+6981:  let el=document.getElementById("mmSimplePreview");if(el)el.innerHTML=html;
+6982: }
+6983: function readSimpleMaterialForm(){
+6984:  let mode=document.getElementById("mmpurchasemode")?.value||"rolo",purchase=+document.getElementById("mmpurchaseprice")?.value||0;
+6985:  let unit=mode==="kg"?"kg":mode==="m"?"m":mode==="un."?"un.":(document.getElementById("mmunit")?.value||"m");
+6986:  let conv=["kg","m","un."].includes(mode)?1:(+document.getElementById("mmcontent")?.value||0);
+6987:  let price=conv>0?purchase/conv:0;
+6988:  return {name:document.getElementById("mmname")?.value.trim()||"",cat:document.getElementById("mmcat")?.value||"Outro",unit,purchaseMode:mode,purchaseUnit:mode,purchaseConversion:conv,purchasePrice:purchase,price,allowFractionalPurchase:["kg","m","un."].includes(mode),packageName:mode==="kg"?"rolo":mode,packageMin:mode==="kg"?(+document.getElementById("mmpackmin")?.value||0):0,packageMax:mode==="kg"?(+document.getElementById("mmpackmax")?.value||0):0,packageAvg:mode==="kg"?(((+document.getElementById("mmpackmin")?.value||0)+(+document.getElementById("mmpackmax")?.value||0))/2||0):conv,min:+document.getElementById("mmmin")?.value||0};
+6989: }
+6990: function newMaterial(){
+6991:  openModal("Cadastro de material",materialForm()+`<button type="button" class="primary modalSave">Salvar material</button>`,()=>{
+6992:    let data=readSimpleMaterialForm();if(!data.name){alert("Informe o nome do material.");return}
+6993:    let duplicate=findDuplicateMaterial(data.name);
+6994:    if(duplicate){alert(`Este material já está cadastrado como “${duplicate.name}”.\n\nPara evitar estoque e custos duplicados, edite o cadastro existente em vez de criar outro.`);document.getElementById("mmname")?.focus();checkMaterialNameDuplicate(null);return}
+6995:    if(!(data.purchasePrice>0)){alert("Informe o preço de compra.");return}if(!["kg","m","un."].includes(data.purchaseMode)&&!(data.purchaseConversion>0)){alert("Informe quanto vem em cada "+data.purchaseMode+".");return}
+6996:    db.materials=db.materials||[];db.materials.push({id:Date.now(),...data});closeModal();save();
+6997:  });
+6998:  setTimeout(()=>{updateSimpleMaterialForm();checkMaterialNameDuplicate(null)},0);
+6999: }
+7000: function editMaterial(id){
+7001:  let m=(db.materials||[]).find(x=>+x.id===+id); if(!m)return;
+7002:  openModal("Editar material",materialForm(m)+`<button type="button" class="primary modalSave">Salvar alterações</button>`,()=>{
+7003:    let data=readSimpleMaterialForm();if(!data.name){alert("Informe o nome do material.");return}
+7004:    let duplicate=findDuplicateMaterial(data.name,id);
+7005:    if(duplicate){alert(`Já existe outro material cadastrado como “${duplicate.name}”.\n\nEscolha outro nome ou edite o cadastro existente.`);document.getElementById("mmname")?.focus();checkMaterialNameDuplicate(id);return}
+7006:    if(!(data.purchasePrice>0)){alert("Informe o preço de compra.");return}if(!["kg","m","un."].includes(data.purchaseMode)&&!(data.purchaseConversion>0)){alert("Informe quanto vem em cada "+data.purchaseMode+".");return}
+7007:    Object.assign(m,data);closeModal();save();
+7008:  });
+7009:  setTimeout(()=>{updateSimpleMaterialForm();checkMaterialNameDuplicate(id)},0);
+7010: }
+7011: function delMaterial(id){
+7012:  if(confirm("Excluir este material e seus rolos/lotes?")){
+7013:   db.materials=(db.materials||[]).filter(x=>+x.id!==+id);
+7014:   db.materialLots=(db.materialLots||[]).filter(x=>+x.materialId!==+id); save();
+7015:  }
+7016: }
+7017: function materialLotForm(l={}){
+7018:  let opts=(db.materials||[]).map(m=>`<option value="${m.id}" ${+l.materialId===+m.id?"selected":""}>${esc(m.name)}</option>`).join("");
+7019:  return `<div class="grid">
+7020:  <div class="field"><label>Material</label><select id="mlmat" onchange="updateLotCalc()">${opts}</select></div>
+7021:  <div class="field"><label>Rolo / lote</label><input id="mllot" value="${esc(l.lot||"")}"></div>
+7022:  <div class="field"><label>Metros do rolo</label><input id="mlinit" type="number" step=".01" value="${l.initialQty??0}" oninput="updateLotCalc()"></div>
+7023:  <div class="field"><label>Saldo atual (m)</label><input id="mlqty" type="number" step=".01" value="${l.qty??0}"></div>
+7024:  <div class="field"><label>Preço total do rolo</label><input id="mlrollprice" type="number" step=".01" value="${l.rollPrice??l.price??0}" oninput="updateLotCalc()"></div>
+7025:  <div class="field"><label>Preço calculado por metro</label><input id="mlprice" type="number" step=".0001" value="${l.price??0}" readonly></div>
+7026:  <div class="field"><label>Fornecedor</label><input id="mlsupplier" value="${esc(l.supplier||"")}"></div>
+7027:  </div><div id="lotCalcHint" class="sub" style="margin-top:8px"></div>`;
+7028: }
+7029: function updateLotCalc(){
+7030:  let len=+document.getElementById("mlinit")?.value||0, total=+document.getElementById("mlrollprice")?.value||0;
+7031:  let price=len?total/len:0, el=document.getElementById("mlprice"); if(el)el.value=price.toFixed(4);
+7032:  let h=document.getElementById("lotCalcHint"); if(h)h.textContent=len?`Rendimento do rolo: ${len.toFixed(2)} m • Custo: ${money(price)} por metro.`:"Informe a metragem e o preço do rolo.";
+7033: }
+7034: function newMaterialLot(){
+7035:  if(!(db.materials||[]).length){alert("Cadastre o material primeiro.");return}
+7036:  openModal("Adicionar rolo / lote",materialLotForm()+`<button type="button" class="primary modalSave">Salvar rolo</button>`,()=>{
+7037:    db.materialLots=db.materialLots||[];
+7038:    db.materialLots.push({id:Date.now(),materialId:+mlmat.value,lot:mllot.value,initialQty:+mlinit.value||0,qty:+mlqty.value||0,price:+mlprice.value||0,rollPrice:+mlrollprice.value||0,supplier:mlsupplier.value});
+7039:    closeModal();save();
+
+===== line 11811 =====
+11786:     // Urgente/urgentíssimo sem programação entra automaticamente no dia atual.
+11787:     if(!c.plannedCutDate && w<=1){c.plannedCutDate=today;c.autoScheduledPriority=true;changed=true}
+11788:     // Tudo que ficou para trás e não foi finalizado passa para o dia atual.
+11789:     if(String(c.status||"").toLowerCase()!=="finalizado" && c.plannedCutDate && c.plannedCutDate<today){
+11790:       c.carriedFromDate=c.carriedFromDate||c.plannedCutDate;
+11791:       c.lastCarriedFrom=c.plannedCutDate;
+11792:       c.plannedCutDate=today;
+11793:       c.rolloverCount=(+c.rolloverCount||0)+1;
+11794:       changed=true;
+11795:     }
+11796:   });
+11797:   if(changed){try{persistDb()}catch(e){console.error(e)}}
+11798: }
+11799: function saveCutSchedule(id){
+11800:   let c=(db.cuts||[]).find(x=>+x.id===+id);if(!c)return;
+11801:   let d=document.getElementById(`cutDate_${id}`),ct=document.getElementById(`cutCutter_${id}`),type=document.getElementById(`cutType_${id}`);
+11802:   c.plannedCutDate=d?.value||"";
+11803:   c.cutterId=ct?.value?+ct.value:null;
+11804:   c.cutType=type?.value||c.cutType||"";
+11805:   c.scheduleUpdatedAt=new Date().toISOString();
+11806:   try{persistDb()}catch(e){console.error(e)}
+11807:   renderCuts();
+11808: }
+11809: function setDailyCutToday(){let el=document.getElementById("dailyCutDate");if(el)el.value=isoDate(new Date());renderDailyCuts()}
+11810: function cutOrderFor(c){return (db.orders||[]).find(o=>+o.id===+c.orderId)||null}
+11811: function cutOriginalGrade(c,o){
+11812:   if(Array.isArray(c.originalGrade)&&c.originalGrade.length)return c.originalGrade;
+11813:   return cloneCutGrade(o?.grade||[]);
+11814: }
+11815: function cutActualGrade(c,o){
+11816:   if(Array.isArray(c.actualCutGrade)&&c.actualCutGrade.length)return c.actualCutGrade;
+11817:   return cutOriginalGrade(c,o);
+11818: }
+11819: function cutGradeComparisonHTML(c){
+11820:   let o=cutOrderFor(c),orig=cutOriginalGrade(c,o),actual=cutActualGrade(c,o);
+11821:   if(!orig.length)return `<div class="panel"><strong>Pedido original:</strong> ${(+c.originalPieces||qtyOfOrder(o||{})||0).toLocaleString("pt-BR")} peças<br><strong>Cortado:</strong> ${(+c.pieces||0).toLocaleString("pt-BR")} peças</div>`;
+11822:   let byKey={};
+11823:   const key=x=>`${x.productId||""}|${x.color||""}|${x.size||""}`;
+11824:   orig.forEach(x=>byKey[key(x)]={orig:+x.qty||0,actual:0,item:x});
+11825:   actual.forEach(x=>{let k=key(x);if(!byKey[k])byKey[k]={orig:0,actual:0,item:x};byKey[k].actual+=+x.qty||0});
+11826:   let rows=Object.values(byKey).map(r=>{
+11827:     let p=(db.products||[]).find(x=>+x.id===+r.item.productId),diff=r.actual-r.orig;
+11828:     return [esc(p?.name||"Produto"),esc(r.item.color||"-"),esc(r.item.size||"-"),r.orig,r.actual,diff===0?"0":`<span class="${diff<0?'cut-diff-negative':'cut-diff-positive'}">${diff>0?'+':''}${diff}</span>`];
+11829:   });
+11830:   return table(["Produto","Cor","Tamanho","Pedido original","Cortado","Diferença"],rows)+`<div class="sub" style="margin-top:8px"><strong>Observação:</strong> ${esc(c.cutAdjustmentNote||"-")}</div>`;
+11831: }
+11832: function viewCutGradeComparison(id){let c=(db.cuts||[]).find(x=>+x.id===+id);if(!c)return;openModal("Pedido original × corte realizado",cutGradeComparisonHTML(c),()=>{})}
+11833: function finishCut(id){
+11834:   let c=(db.cuts||[]).find(x=>+x.id===+id);if(!c)return;
+11835:   let o=cutOrderFor(c);
+11836:   if(!c.originalPieces)c.originalPieces=+c.pieces||qtyOfOrder(o||{})||0;
+11837:   if(!Array.isArray(c.originalGrade)||!c.originalGrade.length)c.originalGrade=cloneCutGrade(o?.grade||[]);
+11838:   let orig=cutOriginalGrade(c,o),actual=cutActualGrade(c,o);
+11839:   let gradeHtml="";
+11840:   if(orig.length){
+11841:     gradeHtml=`<div class="panel" style="margin-top:12px"><h3>Grade realmente cortada</h3><div class="sub">O pedido original fica preservado. Altere somente o que realmente saiu no corte caso tenha faltado material.</div>${table(["Produto","Cor","Tamanho","Pedido original","Cortado"],orig.map((it,i)=>{
+11842:       let p=(db.products||[]).find(x=>+x.id===+it.productId),a=actual.find(x=>+x.productId===+it.productId&&String(x.color||"")===String(it.color||"")&&String(x.size||"")===String(it.size||""));
+11843:       return [esc(p?.name||"Produto"),esc(it.color||"-"),esc(it.size||"-"),+it.qty||0,`<input id="cutActual_${i}" type="number" min="0" step="1" value="${a?.qty??it.qty??0}" style="width:90px;padding:7px;border:1px solid #ccd2dc;border-radius:7px">`];
+11844:     }))}</div>`;
+11845:   }else{
+11846:     gradeHtml=`<div class="field"><label>Quantidade realmente cortada</label><input id="cutActualPieces" type="number" min="0" step="1" value="${+c.pieces||0}"></div>`;
+11847:   }
+11848:   openModal("Finalizar corte",`<div class="cards"><div class="card"><small>Pedido</small><strong>#${esc(displayOrderNumber(o||{id:c.orderId})||c.orderId||'-')}</strong></div><div class="card"><small>Cliente</small><strong style="font-size:18px">${esc(o?.client||c.client||'-')}</strong></div><div class="card"><small>Peças do pedido</small><strong>${(+c.originalPieces||0).toLocaleString('pt-BR')}</strong></div></div>${gradeHtml}<div class="field" style="margin-top:12px"><label>Observação / motivo da alteração</label><textarea id="cutAdjustmentNote" placeholder="Ex.: faltou renda preta; retirei 8 peças tamanho M">${esc(c.cutAdjustmentNote||"")}</textarea></div><div class="sub" style="margin:10px 0">A grade do <strong>pedido original não será alterada</strong>. O sistema guardará as duas para conferência posterior.</div><button type="button" class="primary modalSave">✅ Confirmar corte finalizado</button>`,()=>{
+11849:     let finalGrade=[];
+11850:     if(orig.length){
+11851:       finalGrade=orig.map((it,i)=>({...it,qty:Math.max(0,+document.getElementById(`cutActual_${i}`)?.value||0)}));
+11852:       c.actualCutGrade=finalGrade;
+11853:       c.pieces=finalGrade.reduce((a,x)=>a+(+x.qty||0),0);
+11854:     }else{
+11855:       c.pieces=Math.max(0,+document.getElementById("cutActualPieces")?.value||0);
+11856:     }
+11857:     c.cutAdjustmentNote=document.getElementById("cutAdjustmentNote")?.value||"";
+11858:     c.status="Finalizado";c.finishedAt=isoDate(new Date());c.finishedAtTime=new Date().toISOString();
+11859:     if(o)o.status="Corte finalizado";
+11860:     closeModal();
+11861:     try{persistDb()}catch(e){console.error(e);alert("Não foi possível salvar a finalização do corte.");return}
+11862:     syncFinalizedCutsToProduction();renderCuts();renderOrders();renderCutters();renderProduction();
+11863:   });
+11864: }
+11865: function renderDailyCuts(){
+11866:   let el=document.getElementById("dailyCutTable"),sum=document.getElementById("dailyCutSummary"),dateEl=document.getElementById("dailyCutDate");if(!el)return;
+11867:   if(dateEl&&!dateEl.value)dateEl.value=isoDate(new Date());
+11868:   let day=dateEl?.value||isoDate(new Date());
+11869:   let all=(db.cuts||[]).filter(c=>c.plannedCutDate===day || (String(c.status||"").toLowerCase()==="finalizado"&&c.finishedAt===day));
+11870:   all.sort((a,b)=>{
+11871:     let wa=cutPriorityWeight(cutOrderFor(a)),wb=cutPriorityWeight(cutOrderFor(b));if(wa!==wb)return wa-wb;
+11872:     return String(a.op||"").localeCompare(String(b.op||""));
+11873:   });
+11874:   let pending=all.filter(c=>String(c.status||"").toLowerCase()!=="finalizado"),done=all.filter(c=>String(c.status||"").toLowerCase()==="finalizado");
+11875:   let pqty=pending.reduce((a,c)=>a+(+c.pieces||0),0),dqty=done.reduce((a,c)=>a+(+c.pieces||0),0);
+11876:   if(sum)sum.innerHTML=`<div class="card"><small>Programados no dia</small><strong>${all.length}</strong></div><div class="card"><small>Aguardando corte</small><strong>${pending.length}</strong><div>${pqty.toLocaleString('pt-BR')} peças</div></div><div class="card"><small>Finalizados</small><strong>${done.length}</strong><div>${dqty.toLocaleString('pt-BR')} peças</div></div><div class="card"><small>Levados de dias anteriores</small><strong>${pending.filter(c=>c.rolloverCount>0).length}</strong></div>`;
+11877:   if(!all.length){el.innerHTML='<div class="empty">Nenhum corte programado para este dia.</div>';return}
+11878:   let rows=all.map(c=>{
+11879:     let o=cutOrderFor(c),ct=(db.cutters||[]).find(x=>+x.id===+c.cutterId),finished=String(c.status||"").toLowerCase()==="finalizado";
+11880:     let carried=c.rolloverCount>0?`<span class="badge warn">Veio de ${fmtDate(c.lastCarriedFrom||c.carriedFromDate)}</span>`:"-";
+11881:     return [esc(displayOrderNumber(o||{id:c.orderId})||c.op||c.orderId),esc(o?.client||c.client||'-'),esc(o?orderProductSummary(o):(c.product||'-')),(+c.pieces||0).toLocaleString('pt-BR'),priorityBadge(o?.priority||'Padrão'),esc(ct?.name||'-'),carried,finished?'<span class="badge ok">Finalizado</span>':'<span class="badge warn">A cortar</span>',finished?`<button class="secondary" onclick="viewCutGradeComparison(${c.id})">Pedido original × corte</button>`:`<button class="primary" onclick="finishCut(${c.id})">✅ Finalizar corte</button> <button class="secondary" onclick="editCut(${c.id})">Editar</button>`];
+11882:   });
+11883:   el.innerHTML=table(["Pedido/OP","Cliente","Produto","Peças","Prioridade","Cortador","Reprogramação","Status","Ações"],rows);
+11884: }
+11885: function renderCuts(){
+11886:   prepareCutSchedule();
+11887:   let orders=pedidosQuePrecisamDeCorte();
+11888:   let pending=orders.map(obterCorteDoPedido);
+11889:   let ready=(db.cuts||[]).filter(c=>String(c.status||"").toLowerCase()==="finalizado");
+11890:   let el=document.getElementById("cutTable");
+11891:   if(el){
+11892:     let sorted=orders.slice().sort((a,b)=>{
+11893:       let wa=cutPriorityWeight(a),wb=cutPriorityWeight(b);if(wa!==wb)return wa-wb;
+11894:       let ca=obterCorteDoPedido(a),cb=obterCorteDoPedido(b),da=ca.plannedCutDate||'9999-99-99',dbb=cb.plannedCutDate||'9999-99-99';
+11895:       if(da!==dbb)return da.localeCompare(dbb);return (+displayOrderNumber(a)||+a.id)-(+displayOrderNumber(b)||+b.id);
+11896:     });
+11897:     let cutterOpts=(db.cutters||[]).filter(x=>x.active!==false);
+11898:     let rows=sorted.map((o,idx)=>{
+11899:       let c=obterCorteDoPedido(o),w=cutPriorityWeight(o);
+11900:       let auto=c.autoScheduledPriority?'<span class="badge warn">Data automática pela prioridade</span>':'';
+11901:       let carry=c.rolloverCount>0?`<div class="sub">Reprogramado ${c.rolloverCount}x</div>`:'';
+11902:       return [`<strong>${idx+1}º</strong>`,esc(displayOrderNumber(o)||o.id),esc(o.client||'-'),esc(orderProductSummary(o)),qtyOfOrder(o).toLocaleString('pt-BR'),priorityBadge(o.priority||'Padrão'),`<div class="cut-schedule-inline"><input id="cutDate_${c.id}" type="date" value="${c.plannedCutDate||''}"><select id="cutCutter_${c.id}"><option value="">Cortador</option>${cutterOpts.map(x=>`<option value="${x.id}" ${+x.id===+c.cutterId?'selected':''}>${esc(x.name)}</option>`).join('')}</select><select id="cutType_${c.id}"><option value="">Tipo</option><option value="Interno" ${c.cutType==='Interno'?'selected':''}>Interno</option><option value="Externo" ${c.cutType==='Externo'?'selected':''}>Externo</option></select><button class="secondary" onclick="saveCutSchedule(${c.id})">Salvar</button></div>${auto}${carry}`,`<button class="secondary" onclick="printCuttingSheet(${o.id})">🖨️ Imprimir grade</button> <button class="secondary" onclick="viewOrderDetails(${o.id})">Pedido original</button> <button class="secondary" onclick="editCut(${c.id})">Detalhes do corte</button> <button class="primary" onclick="finishCut(${c.id})">✅ Finalizar</button>`];
+11903:     });
+11904:     el.innerHTML=rows.length?table(["Ordem","Pedido","Cliente","Produto","Peças","Prioridade","Programação do corte","Ações"],rows):'<div class="empty">Nenhum pedido aguardando corte.</div>';
+11905:   }
+11906:   let pp=orders.reduce((a,o)=>a+qtyOfOrder(o),0),pv=orders.reduce((a,o)=>a+(+o.total||0),0);
+11907:   let rp=ready.reduce((a,c)=>a+(+c.pieces||0),0),rv=ready.reduce((a,c)=>a+(typeof cutValue==="function"?cutValue(c):0),0);
+11908:   let ri=ready.filter(c=>c.cutType==="Interno"),re=ready.filter(c=>c.cutType==="Externo");
+11909:   let ip=ri.reduce((a,c)=>a+(+c.pieces||0),0),ep=re.reduce((a,c)=>a+(+c.pieces||0),0),iv=ri.reduce((a,c)=>a+cutValue(c),0),ev=re.reduce((a,c)=>a+cutValue(c),0);
+11910:   let oo=(db.orders||[]).filter(o=>!o.invoiceReady&&!o.noteReady),oq=oo.reduce((a,o)=>a+qtyOfOrder(o),0),ov=oo.reduce((a,o)=>a+(+o.total||0),0);
+11911:   let cards=document.getElementById("cutSummaryCards");if(cards)cards.innerHTML=`<div class="card"><small>Fila de corte</small><strong>${orders.length} pedidos</strong><div>${pp.toLocaleString('pt-BR')} peças · ${money(pv)}</div></div><div class="card"><small>Cortes prontos</small><strong>${rp.toLocaleString('pt-BR')} peças</strong><div>${money(rv)}</div></div><div class="card"><small>Corte interno finalizado</small><strong>${ip.toLocaleString('pt-BR')}</strong><div>${money(iv)}</div></div><div class="card"><small>Corte externo finalizado</small><strong>${ep.toLocaleString('pt-BR')}</strong><div>${money(ev)}</div></div><div class="card"><small>Mercadoria sem nota pronta</small><strong>${oq.toLocaleString('pt-BR')} peças</strong><div>${money(ov)}</div></div>`;
+11912:   let rt=document.getElementById("readyCutsTable");
+11913:   if(rt)rt.innerHTML=ready.length?table(["OP","Cliente","Produto","Peças cortadas","Corte","Cortador","Finalizado","Local de produção","Prioridade","Conferência","Ações"],ready.map(c=>{let l=(db.productionLocations||[]).find(x=>+x.id===+c.productionLocationId),ct=(db.cutters||[]).find(x=>+x.id===+c.cutterId),ord=getOrderByCut(c);return[esc(c.op||'-'),esc(c.client||ord?.client||'-'),esc(ord?orderProductSummary(ord):(c.product||'Pedido')),(+c.pieces||0).toLocaleString('pt-BR'),esc(c.cutType||'-'),esc(ct?.name||'-'),fmtDate(c.finishedAt),esc(l?.name||'-'),priorityBadge(ord?.priority||'Padrão'),`<button class="secondary" onclick="viewCutGradeComparison(${c.id})">Pedido original × corte</button>`,`<button class="primary" onclick="distributeCutClients(${c.id})">👥 Distribuir clientes</button> <button class="secondary" onclick="editReadyCut(${c.id})">Editar</button> <button class="danger" onclick="deleteReadyCut(${c.id})">Excluir</button>`]})):'<div class="empty">Nenhum corte finalizado aguardando produção.</div>';
+11914:   let ot=document.getElementById("openCutOrdersTable");if(ot)ot.innerHTML=oo.length?table(["Pedido","Cliente","Entrega","Peças","Valor","Status","Ações"],oo.map(o=>[displayOrderNumber(o)||o.id,esc(o.client),fmtDate(o.date),qtyOfOrder(o),money(o.total),`<span class="badge">${esc(o.status||'Aberto')}</span>`,`<button type="button" class="secondary" onclick="editOpenMerchandise(${o.id})">Editar</button> <button type="button" class="danger" onclick="deleteOpenMerchandise(${o.id})">Excluir</button>`])):'<div class="empty">Não há mercadoria sem nota pronta.</div>';
+11915:   renderDailyCuts();renderCutClientDistributions();renderCutMaterialNeedReport();
+11916:   try{persistDb()}catch(e){}
+11917: }
+11918: 
+11919: 
+11920: 
+11921: /* ===== v89.63 — DISTRIBUIÇÃO DE UM CORTE ENTRE VÁRIOS CLIENTES ===== */
+11922: function ensureCutClientAllocations(c){
+11923:   if(!c)return [];
+11924:   c.clientAllocations=Array.isArray(c.clientAllocations)?c.clientAllocations:[];
+11925:   return c.clientAllocations;
+11926: }
+11927: function cutDistributionTotal(c){return ensureCutClientAllocations(c).reduce((a,x)=>a+(+x.qty||0),0)}
+11928: function cutDistributionAvailable(c){return Math.max(0,+c.pieces||0)}
+11929: function cutDistributionRemaining(c){return Math.max(0,cutDistributionAvailable(c)-cutDistributionTotal(c))}
+11930: function cutSizeTotals(c){
+11931:   let o=cutOrderFor(c),g=cutActualGrade(c,o),m={};
+11932:   (g||[]).forEach(x=>{let z=String(x.size||'Sem tamanho');m[z]=(m[z]||0)+(+x.qty||0)});
+11933:   return m;
+11934: }
+11935: function allocationSizeUsed(c,skipId){
+11936:   let m={};ensureCutClientAllocations(c).forEach(a=>{if(skipId&&String(a.id)===String(skipId))return;Object.entries(a.sizeGrade||{}).forEach(([k,v])=>m[k]=(m[k]||0)+(+v||0))});return m;
+11937: }
+11938: function addCutAllocationRow(){
+11939:   let box=document.getElementById('cutAllocRows');if(!box)return;
+11940:   let i=Date.now()+Math.floor(Math.random()*9999),opts=(db.clients||[]).slice().sort((a,b)=>String(a.name||'').localeCompare(String(b.name||''),'pt-BR')).map(c=>`<option value="${c.id}">${esc(c.name)}</option>`).join('');
+11941:   box.insertAdjacentHTML('beforeend',`<div class="cut-alloc-row" data-id="${i}" style="display:grid;grid-template-columns:minmax(220px,2fr) minmax(120px,1fr) auto;gap:10px;align-items:end;margin:8px 0"><div class="field"><label>Cliente</label><select class="allocClient"><option value="">Selecione</option>${opts}</select></div><div class="field"><label>Quantidade</label><input class="allocQty" type="number" min="0" step="1" value="0" oninput="refreshCutAllocationModal()"></div><button type="button" class="danger" onclick="this.closest('.cut-alloc-row').remove();refreshCutAllocationModal()">Excluir</button></div>`);
+11942:   refreshCutAllocationModal();
+11943: }
+11944: function refreshCutAllocationModal(){
+11945:   let total=+document.getElementById('cutAllocTotal')?.dataset.total||0,used=[...document.querySelectorAll('#cutAllocRows .allocQty')].reduce((a,e)=>a+(+e.value||0),0),rem=total-used;
+11946:   let el=document.getElementById('cutAllocLive');if(el)el.innerHTML=`<div class="cards"><div class="card"><small>Corte original</small><strong>${total.toLocaleString('pt-BR')}</strong><div>peças</div></div><div class="card"><small>Distribuído</small><strong>${used.toLocaleString('pt-BR')}</strong><div>peças</div></div><div class="card"><small>Restante</small><strong style="${rem<0?'color:#b42318':rem>0?'color:#9a6700':'color:#087443'}">${rem.toLocaleString('pt-BR')}</strong><div>${rem<0?'acima do corte':rem>0?'a distribuir':'distribuição completa'}</div></div></div>`;
+11947: }
+11948: function fillCutAllocationRemainder(){
+11949:   let total=+document.getElementById('cutAllocTotal')?.dataset.total||0,rows=[...document.querySelectorAll('#cutAllocRows .cut-alloc-row')];if(!rows.length){addCutAllocationRow();rows=[...document.querySelectorAll('#cutAllocRows .cut-alloc-row')]}
+11950:   let used=rows.slice(0,-1).reduce((a,r)=>a+(+r.querySelector('.allocQty')?.value||0),0),last=rows[rows.length-1].querySelector('.allocQty');if(last)last.value=Math.max(0,total-used);refreshCutAllocationModal();
+11951: }
+11952: function distributeCutClients(id){
+11953:   let c=(db.cuts||[]).find(x=>+x.id===+id);if(!c)return;let arr=ensureCutClientAllocations(c),total=cutDistributionAvailable(c),opts=(db.clients||[]).slice().sort((a,b)=>String(a.name||'').localeCompare(String(b.name||''),'pt-BR')).map(cl=>`<option value="${cl.id}">${esc(cl.name)}</option>`).join('');
+11954:   let rows=arr.map(a=>`<div class="cut-alloc-row" data-id="${a.id}" style="display:grid;grid-template-columns:minmax(220px,2fr) minmax(120px,1fr) auto;gap:10px;align-items:end;margin:8px 0"><div class="field"><label>Cliente</label><select class="allocClient"><option value="">Selecione</option>${(db.clients||[]).slice().sort((x,y)=>String(x.name||'').localeCompare(String(y.name||''),'pt-BR')).map(cl=>`<option value="${cl.id}" ${String(cl.id)===String(a.clientId)?'selected':''}>${esc(cl.name)}</option>`).join('')}</select></div><div class="field"><label>Quantidade</label><input class="allocQty" type="number" min="0" step="1" value="${+a.qty||0}" oninput="refreshCutAllocationModal()"></div><button type="button" class="danger" onclick="this.closest('.cut-alloc-row').remove();refreshCutAllocationModal()">Excluir</button></div>`).join('');
+11955:   openModal('Distribuir corte entre clientes',`<div id="cutAllocTotal" data-total="${total}"></div><div id="cutAllocLive"></div><div class="panel"><div class="toolbar" style="justify-content:space-between"><div><h3 style="margin:0">Clientes deste corte</h3><div class="sub">Informe só cliente + quantidade. Depois, se quiser, detalhe a grade de cada cliente.</div></div><div><button type="button" class="secondary" onclick="addCutAllocationRow()">+ Cliente</button> <button type="button" class="secondary" onclick="fillCutAllocationRemainder()">Usar todo o restante</button></div></div><div id="cutAllocRows">${rows}</div></div><div class="sub" style="margin:10px 0">O corte original não é alterado. Esta distribuição fica registrada separadamente para conferência e separação por cliente.</div><button type="button" class="primary modalSave">Salvar distribuição</button>`,()=>{
+11956:     let out=[],sum=0,seen=new Set();for(let r of document.querySelectorAll('#cutAllocRows .cut-alloc-row')){let cid=r.querySelector('.allocClient')?.value,q=Math.max(0,+r.querySelector('.allocQty')?.value||0);if(!cid||q<=0)continue;if(seen.has(String(cid))){alert('O mesmo cliente aparece duas vezes. Junte a quantidade em uma única linha.');return false}seen.add(String(cid));let cl=(db.clients||[]).find(x=>String(x.id)===String(cid));out.push({id:+r.dataset.id||Date.now()+out.length,clientId:cl?.id||cid,clientName:cl?.name||'',qty:q,sizeGrade:(arr.find(a=>String(a.id)===String(r.dataset.id))?.sizeGrade)||{}});sum+=q}
+11957:     if(sum>total){alert(`A distribuição soma ${sum.toLocaleString('pt-BR')} peças, mas o corte possui ${total.toLocaleString('pt-BR')}.`);return false}
+11958:     c.clientAllocations=out;c.clientAllocationUpdatedAt=new Date().toISOString();try{persistDb()}catch(e){}closeModal();renderCuts();
+11959:   });setTimeout(refreshCutAllocationModal,0);
+11960: }
+11961: function editCutAllocationGrade(cutId,allocId){
+11962:   let c=(db.cuts||[]).find(x=>+x.id===+cutId),a=ensureCutClientAllocations(c).find(x=>String(x.id)===String(allocId));if(!c||!a)return;let totals=cutSizeTotals(c),used=allocationSizeUsed(c,a.id),sizes=Object.keys(totals);
+11963:   if(!sizes.length){alert('Este corte não possui grade por tamanho cadastrada. A distribuição por quantidade já está salva.');return}
+11964:   let rows=sizes.map((sz,i)=>{let max=Math.max(0,(+totals[sz]||0)-(+used[sz]||0)),v=+(a.sizeGrade||{})[sz]||0;return [esc(sz),(+totals[sz]||0).toLocaleString('pt-BR'),(+used[sz]||0).toLocaleString('pt-BR'),`<input id="allocSize_${i}" data-size="${esc(sz)}" data-max="${max}" type="number" min="0" max="${max}" step="1" value="${v}" style="width:100px">`]}).join('');
+11965:   openModal(`Grade simplificada — ${a.clientName}`,`<div class="cards"><div class="card"><small>Cliente</small><strong style="font-size:18px">${esc(a.clientName)}</strong></div><div class="card"><small>Quantidade destinada</small><strong>${(+a.qty||0).toLocaleString('pt-BR')}</strong></div></div>${table(['Tamanho','Disponível no corte','Já destinado a outros','Para este cliente'],sizes.map((sz,i)=>[esc(sz),(+totals[sz]||0).toLocaleString('pt-BR'),(+used[sz]||0).toLocaleString('pt-BR'),`<input id="allocSize_${i}" data-size="${esc(sz)}" data-max="${Math.max(0,(+totals[sz]||0)-(+used[sz]||0))}" type="number" min="0" step="1" value="${+(a.sizeGrade||{})[sz]||0}" style="width:100px">`]))}<div class="sub" style="margin:10px 0">Aqui a grade é resumida apenas por tamanho, sem repetir cores/modelos. A soma deve ser igual à quantidade destinada ao cliente.</div><button type="button" class="primary modalSave">Salvar grade</button>`,()=>{let g={},sum=0;document.querySelectorAll('[id^="allocSize_"]').forEach(e=>{let v=Math.max(0,+e.value||0),mx=+e.dataset.max||0;if(v>mx)v=mx;g[e.dataset.size]=v;sum+=v});if(sum!==+a.qty){alert(`A grade soma ${sum} peças. Ela precisa somar ${+a.qty||0} peças destinadas a este cliente.`);return false}a.sizeGrade=g;try{persistDb()}catch(e){}closeModal();renderCuts()});
+11966: }
+11967: function renderCutClientDistributions(){
+11968:   let el=document.getElementById('cutClientDistributionTable');if(!el)return;let cuts=(db.cuts||[]).filter(c=>ensureCutClientAllocations(c).length);
+11969:   if(!cuts.length){el.innerHTML='<div class="empty">Nenhum corte foi distribuído entre clientes ainda.</div>';return}
+11970:   let rows=[];cuts.forEach(c=>{let o=cutOrderFor(c),total=cutDistributionAvailable(c),dist=cutDistributionTotal(c),rem=Math.max(0,total-dist);ensureCutClientAllocations(c).forEach((a,i)=>{let grade=Object.entries(a.sizeGrade||{}).filter(([,v])=>+v>0).map(([k,v])=>`${k}: ${v}`).join(' · ');rows.push([i===0?esc(c.op||displayOrderNumber(o||{})||c.id):'',i===0?esc(o?orderProductSummary(o):(c.product||'-')):'',esc(a.clientName||'-'),(+a.qty||0).toLocaleString('pt-BR'),grade||'<span class="sub">Só quantidade</span>',`<button class="secondary" onclick="editCutAllocationGrade(${c.id},${a.id})">Grade</button>`,i===0?`${dist.toLocaleString('pt-BR')} / ${total.toLocaleString('pt-BR')}<div class="sub">${rem?rem.toLocaleString('pt-BR')+' restantes':'Completo'}</div>`:''])})});el.innerHTML=table(['Corte/OP','Produto','Cliente','Peças','Grade simplificada','Ação','Resumo do corte'],rows);
+11971: }
+11972: 
+11973: /* ==========================================================
+11974:    v89.46 — Vales, fotos, rescisões por período, divisão de produção,
+11975:    inventário de bens e estoque de peças prontas
+11976:    ========================================================== */
+11977: 
+11978: function ensureV8946Data(){
+11979:   ensurePayrollData();
+11980:   db.employeeAdvances=Array.isArray(db.employeeAdvances)?db.employeeAdvances:[];
+11981:   db.assets=Array.isArray(db.assets)?db.assets:[];
+11982:   db.stock=Array.isArray(db.stock)?db.stock:[];
+11983:   db.defectReturns=Array.isArray(db.defectReturns)?db.defectReturns:[];
+11984:   if(!db.config)db.config={};
+11985:   if(db.config.advanceLimitPct==null)db.config.advanceLimitPct=0;
+11986:   (db.products||[]).forEach(p=>{p.photos=Array.isArray(p.photos)?p.photos:[]});
+11987:   (db.terminations||[]).forEach(t=>{
+11988:     if(t.fgtsPaid==null)t.fgtsPaid=0;
+11989:     if(t.fgtsFine==null)t.fgtsFine=0;
+11990:     if(t.otherCharges==null)t.otherCharges=0;
+11991:   });
+11992: }
+11993: ensureV8946Data();
+11994: 
+11995: // ---------- Vales / adiantamentos ----------
+11996: function copyText(v){
+11997:   v=String(v||"");
+11998:   if(navigator.clipboard?.writeText){navigator.clipboard.writeText(v).then(()=>alert("Copiado para a área de transferência."));return}
+11999:   let ta=document.createElement("textarea");ta.value=v;document.body.appendChild(ta);ta.select();document.execCommand("copy");ta.remove();alert("Copiado para a área de transferência.");
+12000: }
+12001: function saveAdvanceLimitPct(){
+12002:   ensureV8946Data();
+12003:   db.config.advanceLimitPct=Math.max(0,Math.min(100,+document.getElementById("advanceLimitPct")?.value||0));
+12004:   try{persistDb()}catch(e){}
+12005:   updateAdvanceEmployeeLimitPreview();renderEmployeeAdvances();
+12006:   alert("Limite de vale salvo.");
+12007: }
+12008: function advanceNextPayrollMonth(dateValue){
+12009:   let d=dateValue?new Date(String(dateValue)+"T12:00:00"):new Date();
+12010:   if(Number.isNaN(d.getTime()))d=new Date();
+12011:   d=new Date(d.getFullYear(),d.getMonth()+1,1,12);
+12012:   return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
+12013: }
+12014: function updateAdvanceTargetMonth(){
+12015:   let date=document.getElementById("advanceDate")?.value||isoDate(new Date()),month=document.getElementById("advanceMonth");
+12016:   if(month)month.value=advanceNextPayrollMonth(date);updateAdvanceEmployeeLimitPreview();
+12017: }
+12018: function advanceCommittedForEmployee(employeeId,month){
+12019:   return (db.employeeAdvances||[]).filter(a=>+a.employeeId===+employeeId&&String(a.month||"")===String(month||"")).reduce((s,a)=>s+(+a.value||0),0);
+12020: }
+12021: function updateAdvanceEmployeeLimitPreview(){
+12022:   let box=document.getElementById("advanceEmployeeLimitPreview");if(!box)return;
+12023:   let emp=(db.employees||[]).find(e=>String(e.id)===String(document.getElementById("advanceEmployee")?.value));
+12024:   if(!emp){box.innerHTML='<div class="sub">Selecione um funcionário para ver salário, limite e valor disponível para vale.</div>';return}
+12025:   let month=document.getElementById("advanceMonth")?.value||advanceNextPayrollMonth(document.getElementById("advanceDate")?.value),pct=+document.getElementById("advanceLimitPct")?.value||+db.config.advanceLimitPct||0,salary=+emp.salary||0,limit=salary*pct/100,used=advanceCommittedForEmployee(emp.id,month),available=Math.max(0,limit-used);
+12026:   box.innerHTML=`<div class="cards" style="margin:0"><div class="card"><small>Funcionário</small><strong style="font-size:18px">${esc(emp.name||'-')}</strong></div><div class="card"><small>Salário atual</small><strong>${money(salary)}</strong></div><div class="card"><small>Limite ${pct.toFixed(1).replace('.',',')}%</small><strong>${money(limit)}</strong></div><div class="card"><small>Já comprometido para ${esc(month)}</small><strong>${money(used)}</strong></div><div class="card"><small>Ainda pode receber</small><strong>${money(available)}</strong></div></div>`;
+12027: }
+12028: function fillAdvanceEmployees(){
+12029:   let sel=document.getElementById("advanceEmployee");if(!sel)return;
+12030:   let cur=String(sel.value||"");
+12031:   let arr=(db.employees||[]).filter(e=>e.active!==false).slice().sort((a,b)=>String(a.name||"").localeCompare(String(b.name||""),"pt-BR"));
+12032:   let emp=arr.find(e=>String(e.id)===cur);
+12033:   if(cur&&!emp)sel.value="";
+12034:   let btn=document.getElementById("advanceEmployeeButton"),info=document.getElementById("advanceEmployeeSelected");
+12035:   if(emp){
+12036:     if(btn)btn.innerHTML=`👤 ${esc(emp.name||"Funcionário")} <span style="opacity:.7">— trocar</span>`;
+12037:     if(info)info.innerHTML=`${esc(employeeCompanyName(emp)||"Sem confecção")} · Salário: <strong>${money(+emp.salary||0)}</strong>${emp.pix?` · PIX: ${esc(emp.pix)}`:""}`;
+12038:   }else{
+12039:     if(btn)btn.textContent="👤 Selecionar funcionário";
+12040:     if(info)info.textContent=arr.length?"Clique no botão para buscar e selecionar.":"Nenhum funcionário ativo cadastrado.";
+12041:   }
+12042: }
+12043: function openAdvanceEmployeePicker(){
+12044:   let employees=(db.employees||[]).filter(e=>e.active!==false).slice().sort((a,b)=>String(a.name||"").localeCompare(String(b.name||""),"pt-BR"));
+12045:   if(!employees.length){alert("Nenhum funcionário ativo cadastrado. Cadastre o funcionário primeiro.");return}
+12046:   let companies=[...new Set(employees.map(e=>employeeCompanyName(e)).filter(Boolean))].sort((a,b)=>String(a).localeCompare(String(b),"pt-BR"));
+12047:   openModal("Selecionar funcionário para o vale",`
+12048:     <div class="grid" style="align-items:end">
+12049:       <div class="field" style="grid-column:span 2"><label>Buscar pelo nome</label><input id="advanceEmployeeSearch" placeholder="Digite o nome do funcionário" oninput="renderAdvanceEmployeePicker()"></div>
+12050:       <div class="field"><label>Confecção</label><select id="advanceEmployeeCompany" onchange="renderAdvanceEmployeePicker()"><option value="">Todas</option>${companies.map(c=>`<option value="${esc(c)}">${esc(c)}</option>`).join("")}</select></div>
+
+===== line 11812 =====
+11787:     if(!c.plannedCutDate && w<=1){c.plannedCutDate=today;c.autoScheduledPriority=true;changed=true}
+11788:     // Tudo que ficou para trás e não foi finalizado passa para o dia atual.
+11789:     if(String(c.status||"").toLowerCase()!=="finalizado" && c.plannedCutDate && c.plannedCutDate<today){
+11790:       c.carriedFromDate=c.carriedFromDate||c.plannedCutDate;
+11791:       c.lastCarriedFrom=c.plannedCutDate;
+11792:       c.plannedCutDate=today;
+11793:       c.rolloverCount=(+c.rolloverCount||0)+1;
+11794:       changed=true;
+11795:     }
+11796:   });
+11797:   if(changed){try{persistDb()}catch(e){console.error(e)}}
+11798: }
+11799: function saveCutSchedule(id){
+11800:   let c=(db.cuts||[]).find(x=>+x.id===+id);if(!c)return;
+11801:   let d=document.getElementById(`cutDate_${id}`),ct=document.getElementById(`cutCutter_${id}`),type=document.getElementById(`cutType_${id}`);
+11802:   c.plannedCutDate=d?.value||"";
+11803:   c.cutterId=ct?.value?+ct.value:null;
+11804:   c.cutType=type?.value||c.cutType||"";
+11805:   c.scheduleUpdatedAt=new Date().toISOString();
+11806:   try{persistDb()}catch(e){console.error(e)}
+11807:   renderCuts();
+11808: }
+11809: function setDailyCutToday(){let el=document.getElementById("dailyCutDate");if(el)el.value=isoDate(new Date());renderDailyCuts()}
+11810: function cutOrderFor(c){return (db.orders||[]).find(o=>+o.id===+c.orderId)||null}
+11811: function cutOriginalGrade(c,o){
+11812:   if(Array.isArray(c.originalGrade)&&c.originalGrade.length)return c.originalGrade;
+11813:   return cloneCutGrade(o?.grade||[]);
+11814: }
+11815: function cutActualGrade(c,o){
+11816:   if(Array.isArray(c.actualCutGrade)&&c.actualCutGrade.length)return c.actualCutGrade;
+11817:   return cutOriginalGrade(c,o);
+11818: }
+11819: function cutGradeComparisonHTML(c){
+11820:   let o=cutOrderFor(c),orig=cutOriginalGrade(c,o),actual=cutActualGrade(c,o);
+11821:   if(!orig.length)return `<div class="panel"><strong>Pedido original:</strong> ${(+c.originalPieces||qtyOfOrder(o||{})||0).toLocaleString("pt-BR")} peças<br><strong>Cortado:</strong> ${(+c.pieces||0).toLocaleString("pt-BR")} peças</div>`;
+11822:   let byKey={};
+11823:   const key=x=>`${x.productId||""}|${x.color||""}|${x.size||""}`;
+11824:   orig.forEach(x=>byKey[key(x)]={orig:+x.qty||0,actual:0,item:x});
+11825:   actual.forEach(x=>{let k=key(x);if(!byKey[k])byKey[k]={orig:0,actual:0,item:x};byKey[k].actual+=+x.qty||0});
+11826:   let rows=Object.values(byKey).map(r=>{
+11827:     let p=(db.products||[]).find(x=>+x.id===+r.item.productId),diff=r.actual-r.orig;
+11828:     return [esc(p?.name||"Produto"),esc(r.item.color||"-"),esc(r.item.size||"-"),r.orig,r.actual,diff===0?"0":`<span class="${diff<0?'cut-diff-negative':'cut-diff-positive'}">${diff>0?'+':''}${diff}</span>`];
+11829:   });
+11830:   return table(["Produto","Cor","Tamanho","Pedido original","Cortado","Diferença"],rows)+`<div class="sub" style="margin-top:8px"><strong>Observação:</strong> ${esc(c.cutAdjustmentNote||"-")}</div>`;
+11831: }
+11832: function viewCutGradeComparison(id){let c=(db.cuts||[]).find(x=>+x.id===+id);if(!c)return;openModal("Pedido original × corte realizado",cutGradeComparisonHTML(c),()=>{})}
+11833: function finishCut(id){
+11834:   let c=(db.cuts||[]).find(x=>+x.id===+id);if(!c)return;
+11835:   let o=cutOrderFor(c);
+11836:   if(!c.originalPieces)c.originalPieces=+c.pieces||qtyOfOrder(o||{})||0;
+11837:   if(!Array.isArray(c.originalGrade)||!c.originalGrade.length)c.originalGrade=cloneCutGrade(o?.grade||[]);
+11838:   let orig=cutOriginalGrade(c,o),actual=cutActualGrade(c,o);
+11839:   let gradeHtml="";
+11840:   if(orig.length){
+11841:     gradeHtml=`<div class="panel" style="margin-top:12px"><h3>Grade realmente cortada</h3><div class="sub">O pedido original fica preservado. Altere somente o que realmente saiu no corte caso tenha faltado material.</div>${table(["Produto","Cor","Tamanho","Pedido original","Cortado"],orig.map((it,i)=>{
+11842:       let p=(db.products||[]).find(x=>+x.id===+it.productId),a=actual.find(x=>+x.productId===+it.productId&&String(x.color||"")===String(it.color||"")&&String(x.size||"")===String(it.size||""));
+11843:       return [esc(p?.name||"Produto"),esc(it.color||"-"),esc(it.size||"-"),+it.qty||0,`<input id="cutActual_${i}" type="number" min="0" step="1" value="${a?.qty??it.qty??0}" style="width:90px;padding:7px;border:1px solid #ccd2dc;border-radius:7px">`];
+11844:     }))}</div>`;
+11845:   }else{
+11846:     gradeHtml=`<div class="field"><label>Quantidade realmente cortada</label><input id="cutActualPieces" type="number" min="0" step="1" value="${+c.pieces||0}"></div>`;
+11847:   }
+11848:   openModal("Finalizar corte",`<div class="cards"><div class="card"><small>Pedido</small><strong>#${esc(displayOrderNumber(o||{id:c.orderId})||c.orderId||'-')}</strong></div><div class="card"><small>Cliente</small><strong style="font-size:18px">${esc(o?.client||c.client||'-')}</strong></div><div class="card"><small>Peças do pedido</small><strong>${(+c.originalPieces||0).toLocaleString('pt-BR')}</strong></div></div>${gradeHtml}<div class="field" style="margin-top:12px"><label>Observação / motivo da alteração</label><textarea id="cutAdjustmentNote" placeholder="Ex.: faltou renda preta; retirei 8 peças tamanho M">${esc(c.cutAdjustmentNote||"")}</textarea></div><div class="sub" style="margin:10px 0">A grade do <strong>pedido original não será alterada</strong>. O sistema guardará as duas para conferência posterior.</div><button type="button" class="primary modalSave">✅ Confirmar corte finalizado</button>`,()=>{
+11849:     let finalGrade=[];
+11850:     if(orig.length){
+11851:       finalGrade=orig.map((it,i)=>({...it,qty:Math.max(0,+document.getElementById(`cutActual_${i}`)?.value||0)}));
+11852:       c.actualCutGrade=finalGrade;
+11853:       c.pieces=finalGrade.reduce((a,x)=>a+(+x.qty||0),0);
+11854:     }else{
+11855:       c.pieces=Math.max(0,+document.getElementById("cutActualPieces")?.value||0);
+11856:     }
+11857:     c.cutAdjustmentNote=document.getElementById("cutAdjustmentNote")?.value||"";
+11858:     c.status="Finalizado";c.finishedAt=isoDate(new Date());c.finishedAtTime=new Date().toISOString();
+11859:     if(o)o.status="Corte finalizado";
+11860:     closeModal();
+11861:     try{persistDb()}catch(e){console.error(e);alert("Não foi possível salvar a finalização do corte.");return}
+11862:     syncFinalizedCutsToProduction();renderCuts();renderOrders();renderCutters();renderProduction();
+11863:   });
+11864: }
+11865: function renderDailyCuts(){
+11866:   let el=document.getElementById("dailyCutTable"),sum=document.getElementById("dailyCutSummary"),dateEl=document.getElementById("dailyCutDate");if(!el)return;
+11867:   if(dateEl&&!dateEl.value)dateEl.value=isoDate(new Date());
+11868:   let day=dateEl?.value||isoDate(new Date());
+11869:   let all=(db.cuts||[]).filter(c=>c.plannedCutDate===day || (String(c.status||"").toLowerCase()==="finalizado"&&c.finishedAt===day));
+11870:   all.sort((a,b)=>{
+11871:     let wa=cutPriorityWeight(cutOrderFor(a)),wb=cutPriorityWeight(cutOrderFor(b));if(wa!==wb)return wa-wb;
+11872:     return String(a.op||"").localeCompare(String(b.op||""));
+11873:   });
+11874:   let pending=all.filter(c=>String(c.status||"").toLowerCase()!=="finalizado"),done=all.filter(c=>String(c.status||"").toLowerCase()==="finalizado");
+11875:   let pqty=pending.reduce((a,c)=>a+(+c.pieces||0),0),dqty=done.reduce((a,c)=>a+(+c.pieces||0),0);
+11876:   if(sum)sum.innerHTML=`<div class="card"><small>Programados no dia</small><strong>${all.length}</strong></div><div class="card"><small>Aguardando corte</small><strong>${pending.length}</strong><div>${pqty.toLocaleString('pt-BR')} peças</div></div><div class="card"><small>Finalizados</small><strong>${done.length}</strong><div>${dqty.toLocaleString('pt-BR')} peças</div></div><div class="card"><small>Levados de dias anteriores</small><strong>${pending.filter(c=>c.rolloverCount>0).length}</strong></div>`;
+11877:   if(!all.length){el.innerHTML='<div class="empty">Nenhum corte programado para este dia.</div>';return}
+11878:   let rows=all.map(c=>{
+11879:     let o=cutOrderFor(c),ct=(db.cutters||[]).find(x=>+x.id===+c.cutterId),finished=String(c.status||"").toLowerCase()==="finalizado";
+11880:     let carried=c.rolloverCount>0?`<span class="badge warn">Veio de ${fmtDate(c.lastCarriedFrom||c.carriedFromDate)}</span>`:"-";
+11881:     return [esc(displayOrderNumber(o||{id:c.orderId})||c.op||c.orderId),esc(o?.client||c.client||'-'),esc(o?orderProductSummary(o):(c.product||'-')),(+c.pieces||0).toLocaleString('pt-BR'),priorityBadge(o?.priority||'Padrão'),esc(ct?.name||'-'),carried,finished?'<span class="badge ok">Finalizado</span>':'<span class="badge warn">A cortar</span>',finished?`<button class="secondary" onclick="viewCutGradeComparison(${c.id})">Pedido original × corte</button>`:`<button class="primary" onclick="finishCut(${c.id})">✅ Finalizar corte</button> <button class="secondary" onclick="editCut(${c.id})">Editar</button>`];
+11882:   });
+11883:   el.innerHTML=table(["Pedido/OP","Cliente","Produto","Peças","Prioridade","Cortador","Reprogramação","Status","Ações"],rows);
+11884: }
+11885: function renderCuts(){
+11886:   prepareCutSchedule();
+11887:   let orders=pedidosQuePrecisamDeCorte();
+11888:   let pending=orders.map(obterCorteDoPedido);
+11889:   let ready=(db.cuts||[]).filter(c=>String(c.status||"").toLowerCase()==="finalizado");
+11890:   let el=document.getElementById("cutTable");
+11891:   if(el){
+11892:     let sorted=orders.slice().sort((a,b)=>{
+11893:       let wa=cutPriorityWeight(a),wb=cutPriorityWeight(b);if(wa!==wb)return wa-wb;
+11894:       let ca=obterCorteDoPedido(a),cb=obterCorteDoPedido(b),da=ca.plannedCutDate||'9999-99-99',dbb=cb.plannedCutDate||'9999-99-99';
+11895:       if(da!==dbb)return da.localeCompare(dbb);return (+displayOrderNumber(a)||+a.id)-(+displayOrderNumber(b)||+b.id);
+11896:     });
+11897:     let cutterOpts=(db.cutters||[]).filter(x=>x.active!==false);
+11898:     let rows=sorted.map((o,idx)=>{
+11899:       let c=obterCorteDoPedido(o),w=cutPriorityWeight(o);
+11900:       let auto=c.autoScheduledPriority?'<span class="badge warn">Data automática pela prioridade</span>':'';
+11901:       let carry=c.rolloverCount>0?`<div class="sub">Reprogramado ${c.rolloverCount}x</div>`:'';
+11902:       return [`<strong>${idx+1}º</strong>`,esc(displayOrderNumber(o)||o.id),esc(o.client||'-'),esc(orderProductSummary(o)),qtyOfOrder(o).toLocaleString('pt-BR'),priorityBadge(o.priority||'Padrão'),`<div class="cut-schedule-inline"><input id="cutDate_${c.id}" type="date" value="${c.plannedCutDate||''}"><select id="cutCutter_${c.id}"><option value="">Cortador</option>${cutterOpts.map(x=>`<option value="${x.id}" ${+x.id===+c.cutterId?'selected':''}>${esc(x.name)}</option>`).join('')}</select><select id="cutType_${c.id}"><option value="">Tipo</option><option value="Interno" ${c.cutType==='Interno'?'selected':''}>Interno</option><option value="Externo" ${c.cutType==='Externo'?'selected':''}>Externo</option></select><button class="secondary" onclick="saveCutSchedule(${c.id})">Salvar</button></div>${auto}${carry}`,`<button class="secondary" onclick="printCuttingSheet(${o.id})">🖨️ Imprimir grade</button> <button class="secondary" onclick="viewOrderDetails(${o.id})">Pedido original</button> <button class="secondary" onclick="editCut(${c.id})">Detalhes do corte</button> <button class="primary" onclick="finishCut(${c.id})">✅ Finalizar</button>`];
+11903:     });
+11904:     el.innerHTML=rows.length?table(["Ordem","Pedido","Cliente","Produto","Peças","Prioridade","Programação do corte","Ações"],rows):'<div class="empty">Nenhum pedido aguardando corte.</div>';
+11905:   }
+11906:   let pp=orders.reduce((a,o)=>a+qtyOfOrder(o),0),pv=orders.reduce((a,o)=>a+(+o.total||0),0);
+11907:   let rp=ready.reduce((a,c)=>a+(+c.pieces||0),0),rv=ready.reduce((a,c)=>a+(typeof cutValue==="function"?cutValue(c):0),0);
+11908:   let ri=ready.filter(c=>c.cutType==="Interno"),re=ready.filter(c=>c.cutType==="Externo");
+11909:   let ip=ri.reduce((a,c)=>a+(+c.pieces||0),0),ep=re.reduce((a,c)=>a+(+c.pieces||0),0),iv=ri.reduce((a,c)=>a+cutValue(c),0),ev=re.reduce((a,c)=>a+cutValue(c),0);
+11910:   let oo=(db.orders||[]).filter(o=>!o.invoiceReady&&!o.noteReady),oq=oo.reduce((a,o)=>a+qtyOfOrder(o),0),ov=oo.reduce((a,o)=>a+(+o.total||0),0);
+11911:   let cards=document.getElementById("cutSummaryCards");if(cards)cards.innerHTML=`<div class="card"><small>Fila de corte</small><strong>${orders.length} pedidos</strong><div>${pp.toLocaleString('pt-BR')} peças · ${money(pv)}</div></div><div class="card"><small>Cortes prontos</small><strong>${rp.toLocaleString('pt-BR')} peças</strong><div>${money(rv)}</div></div><div class="card"><small>Corte interno finalizado</small><strong>${ip.toLocaleString('pt-BR')}</strong><div>${money(iv)}</div></div><div class="card"><small>Corte externo finalizado</small><strong>${ep.toLocaleString('pt-BR')}</strong><div>${money(ev)}</div></div><div class="card"><small>Mercadoria sem nota pronta</small><strong>${oq.toLocaleString('pt-BR')} peças</strong><div>${money(ov)}</div></div>`;
+11912:   let rt=document.getElementById("readyCutsTable");
+11913:   if(rt)rt.innerHTML=ready.length?table(["OP","Cliente","Produto","Peças cortadas","Corte","Cortador","Finalizado","Local de produção","Prioridade","Conferência","Ações"],ready.map(c=>{let l=(db.productionLocations||[]).find(x=>+x.id===+c.productionLocationId),ct=(db.cutters||[]).find(x=>+x.id===+c.cutterId),ord=getOrderByCut(c);return[esc(c.op||'-'),esc(c.client||ord?.client||'-'),esc(ord?orderProductSummary(ord):(c.product||'Pedido')),(+c.pieces||0).toLocaleString('pt-BR'),esc(c.cutType||'-'),esc(ct?.name||'-'),fmtDate(c.finishedAt),esc(l?.name||'-'),priorityBadge(ord?.priority||'Padrão'),`<button class="secondary" onclick="viewCutGradeComparison(${c.id})">Pedido original × corte</button>`,`<button class="primary" onclick="distributeCutClients(${c.id})">👥 Distribuir clientes</button> <button class="secondary" onclick="editReadyCut(${c.id})">Editar</button> <button class="danger" onclick="deleteReadyCut(${c.id})">Excluir</button>`]})):'<div class="empty">Nenhum corte finalizado aguardando produção.</div>';
+11914:   let ot=document.getElementById("openCutOrdersTable");if(ot)ot.innerHTML=oo.length?table(["Pedido","Cliente","Entrega","Peças","Valor","Status","Ações"],oo.map(o=>[displayOrderNumber(o)||o.id,esc(o.client),fmtDate(o.date),qtyOfOrder(o),money(o.total),`<span class="badge">${esc(o.status||'Aberto')}</span>`,`<button type="button" class="secondary" onclick="editOpenMerchandise(${o.id})">Editar</button> <button type="button" class="danger" onclick="deleteOpenMerchandise(${o.id})">Excluir</button>`])):'<div class="empty">Não há mercadoria sem nota pronta.</div>';
+11915:   renderDailyCuts();renderCutClientDistributions();renderCutMaterialNeedReport();
+11916:   try{persistDb()}catch(e){}
+11917: }
+11918: 
+11919: 
+11920: 
+11921: /* ===== v89.63 — DISTRIBUIÇÃO DE UM CORTE ENTRE VÁRIOS CLIENTES ===== */
+11922: function ensureCutClientAllocations(c){
+11923:   if(!c)return [];
+11924:   c.clientAllocations=Array.isArray(c.clientAllocations)?c.clientAllocations:[];
+11925:   return c.clientAllocations;
+11926: }
+11927: function cutDistributionTotal(c){return ensureCutClientAllocations(c).reduce((a,x)=>a+(+x.qty||0),0)}
+11928: function cutDistributionAvailable(c){return Math.max(0,+c.pieces||0)}
+11929: function cutDistributionRemaining(c){return Math.max(0,cutDistributionAvailable(c)-cutDistributionTotal(c))}
+11930: function cutSizeTotals(c){
+11931:   let o=cutOrderFor(c),g=cutActualGrade(c,o),m={};
+11932:   (g||[]).forEach(x=>{let z=String(x.size||'Sem tamanho');m[z]=(m[z]||0)+(+x.qty||0)});
+11933:   return m;
+11934: }
+11935: function allocationSizeUsed(c,skipId){
+11936:   let m={};ensureCutClientAllocations(c).forEach(a=>{if(skipId&&String(a.id)===String(skipId))return;Object.entries(a.sizeGrade||{}).forEach(([k,v])=>m[k]=(m[k]||0)+(+v||0))});return m;
+11937: }
+11938: function addCutAllocationRow(){
+11939:   let box=document.getElementById('cutAllocRows');if(!box)return;
+11940:   let i=Date.now()+Math.floor(Math.random()*9999),opts=(db.clients||[]).slice().sort((a,b)=>String(a.name||'').localeCompare(String(b.name||''),'pt-BR')).map(c=>`<option value="${c.id}">${esc(c.name)}</option>`).join('');
+11941:   box.insertAdjacentHTML('beforeend',`<div class="cut-alloc-row" data-id="${i}" style="display:grid;grid-template-columns:minmax(220px,2fr) minmax(120px,1fr) auto;gap:10px;align-items:end;margin:8px 0"><div class="field"><label>Cliente</label><select class="allocClient"><option value="">Selecione</option>${opts}</select></div><div class="field"><label>Quantidade</label><input class="allocQty" type="number" min="0" step="1" value="0" oninput="refreshCutAllocationModal()"></div><button type="button" class="danger" onclick="this.closest('.cut-alloc-row').remove();refreshCutAllocationModal()">Excluir</button></div>`);
+11942:   refreshCutAllocationModal();
+11943: }
+11944: function refreshCutAllocationModal(){
+11945:   let total=+document.getElementById('cutAllocTotal')?.dataset.total||0,used=[...document.querySelectorAll('#cutAllocRows .allocQty')].reduce((a,e)=>a+(+e.value||0),0),rem=total-used;
+11946:   let el=document.getElementById('cutAllocLive');if(el)el.innerHTML=`<div class="cards"><div class="card"><small>Corte original</small><strong>${total.toLocaleString('pt-BR')}</strong><div>peças</div></div><div class="card"><small>Distribuído</small><strong>${used.toLocaleString('pt-BR')}</strong><div>peças</div></div><div class="card"><small>Restante</small><strong style="${rem<0?'color:#b42318':rem>0?'color:#9a6700':'color:#087443'}">${rem.toLocaleString('pt-BR')}</strong><div>${rem<0?'acima do corte':rem>0?'a distribuir':'distribuição completa'}</div></div></div>`;
+11947: }
+11948: function fillCutAllocationRemainder(){
+11949:   let total=+document.getElementById('cutAllocTotal')?.dataset.total||0,rows=[...document.querySelectorAll('#cutAllocRows .cut-alloc-row')];if(!rows.length){addCutAllocationRow();rows=[...document.querySelectorAll('#cutAllocRows .cut-alloc-row')]}
+11950:   let used=rows.slice(0,-1).reduce((a,r)=>a+(+r.querySelector('.allocQty')?.value||0),0),last=rows[rows.length-1].querySelector('.allocQty');if(last)last.value=Math.max(0,total-used);refreshCutAllocationModal();
+11951: }
+11952: function distributeCutClients(id){
+11953:   let c=(db.cuts||[]).find(x=>+x.id===+id);if(!c)return;let arr=ensureCutClientAllocations(c),total=cutDistributionAvailable(c),opts=(db.clients||[]).slice().sort((a,b)=>String(a.name||'').localeCompare(String(b.name||''),'pt-BR')).map(cl=>`<option value="${cl.id}">${esc(cl.name)}</option>`).join('');
+11954:   let rows=arr.map(a=>`<div class="cut-alloc-row" data-id="${a.id}" style="display:grid;grid-template-columns:minmax(220px,2fr) minmax(120px,1fr) auto;gap:10px;align-items:end;margin:8px 0"><div class="field"><label>Cliente</label><select class="allocClient"><option value="">Selecione</option>${(db.clients||[]).slice().sort((x,y)=>String(x.name||'').localeCompare(String(y.name||''),'pt-BR')).map(cl=>`<option value="${cl.id}" ${String(cl.id)===String(a.clientId)?'selected':''}>${esc(cl.name)}</option>`).join('')}</select></div><div class="field"><label>Quantidade</label><input class="allocQty" type="number" min="0" step="1" value="${+a.qty||0}" oninput="refreshCutAllocationModal()"></div><button type="button" class="danger" onclick="this.closest('.cut-alloc-row').remove();refreshCutAllocationModal()">Excluir</button></div>`).join('');
+11955:   openModal('Distribuir corte entre clientes',`<div id="cutAllocTotal" data-total="${total}"></div><div id="cutAllocLive"></div><div class="panel"><div class="toolbar" style="justify-content:space-between"><div><h3 style="margin:0">Clientes deste corte</h3><div class="sub">Informe só cliente + quantidade. Depois, se quiser, detalhe a grade de cada cliente.</div></div><div><button type="button" class="secondary" onclick="addCutAllocationRow()">+ Cliente</button> <button type="button" class="secondary" onclick="fillCutAllocationRemainder()">Usar todo o restante</button></div></div><div id="cutAllocRows">${rows}</div></div><div class="sub" style="margin:10px 0">O corte original não é alterado. Esta distribuição fica registrada separadamente para conferência e separação por cliente.</div><button type="button" class="primary modalSave">Salvar distribuição</button>`,()=>{
+11956:     let out=[],sum=0,seen=new Set();for(let r of document.querySelectorAll('#cutAllocRows .cut-alloc-row')){let cid=r.querySelector('.allocClient')?.value,q=Math.max(0,+r.querySelector('.allocQty')?.value||0);if(!cid||q<=0)continue;if(seen.has(String(cid))){alert('O mesmo cliente aparece duas vezes. Junte a quantidade em uma única linha.');return false}seen.add(String(cid));let cl=(db.clients||[]).find(x=>String(x.id)===String(cid));out.push({id:+r.dataset.id||Date.now()+out.length,clientId:cl?.id||cid,clientName:cl?.name||'',qty:q,sizeGrade:(arr.find(a=>String(a.id)===String(r.dataset.id))?.sizeGrade)||{}});sum+=q}
+11957:     if(sum>total){alert(`A distribuição soma ${sum.toLocaleString('pt-BR')} peças, mas o corte possui ${total.toLocaleString('pt-BR')}.`);return false}
+11958:     c.clientAllocations=out;c.clientAllocationUpdatedAt=new Date().toISOString();try{persistDb()}catch(e){}closeModal();renderCuts();
+11959:   });setTimeout(refreshCutAllocationModal,0);
+11960: }
+11961: function editCutAllocationGrade(cutId,allocId){
+11962:   let c=(db.cuts||[]).find(x=>+x.id===+cutId),a=ensureCutClientAllocations(c).find(x=>String(x.id)===String(allocId));if(!c||!a)return;let totals=cutSizeTotals(c),used=allocationSizeUsed(c,a.id),sizes=Object.keys(totals);
+11963:   if(!sizes.length){alert('Este corte não possui grade por tamanho cadastrada. A distribuição por quantidade já está salva.');return}
+11964:   let rows=sizes.map((sz,i)=>{let max=Math.max(0,(+totals[sz]||0)-(+used[sz]||0)),v=+(a.sizeGrade||{})[sz]||0;return [esc(sz),(+totals[sz]||0).toLocaleString('pt-BR'),(+used[sz]||0).toLocaleString('pt-BR'),`<input id="allocSize_${i}" data-size="${esc(sz)}" data-max="${max}" type="number" min="0" max="${max}" step="1" value="${v}" style="width:100px">`]}).join('');
+11965:   openModal(`Grade simplificada — ${a.clientName}`,`<div class="cards"><div class="card"><small>Cliente</small><strong style="font-size:18px">${esc(a.clientName)}</strong></div><div class="card"><small>Quantidade destinada</small><strong>${(+a.qty||0).toLocaleString('pt-BR')}</strong></div></div>${table(['Tamanho','Disponível no corte','Já destinado a outros','Para este cliente'],sizes.map((sz,i)=>[esc(sz),(+totals[sz]||0).toLocaleString('pt-BR'),(+used[sz]||0).toLocaleString('pt-BR'),`<input id="allocSize_${i}" data-size="${esc(sz)}" data-max="${Math.max(0,(+totals[sz]||0)-(+used[sz]||0))}" type="number" min="0" step="1" value="${+(a.sizeGrade||{})[sz]||0}" style="width:100px">`]))}<div class="sub" style="margin:10px 0">Aqui a grade é resumida apenas por tamanho, sem repetir cores/modelos. A soma deve ser igual à quantidade destinada ao cliente.</div><button type="button" class="primary modalSave">Salvar grade</button>`,()=>{let g={},sum=0;document.querySelectorAll('[id^="allocSize_"]').forEach(e=>{let v=Math.max(0,+e.value||0),mx=+e.dataset.max||0;if(v>mx)v=mx;g[e.dataset.size]=v;sum+=v});if(sum!==+a.qty){alert(`A grade soma ${sum} peças. Ela precisa somar ${+a.qty||0} peças destinadas a este cliente.`);return false}a.sizeGrade=g;try{persistDb()}catch(e){}closeModal();renderCuts()});
+11966: }
+11967: function renderCutClientDistributions(){
+11968:   let el=document.getElementById('cutClientDistributionTable');if(!el)return;let cuts=(db.cuts||[]).filter(c=>ensureCutClientAllocations(c).length);
+11969:   if(!cuts.length){el.innerHTML='<div class="empty">Nenhum corte foi distribuído entre clientes ainda.</div>';return}
+11970:   let rows=[];cuts.forEach(c=>{let o=cutOrderFor(c),total=cutDistributionAvailable(c),dist=cutDistributionTotal(c),rem=Math.max(0,total-dist);ensureCutClientAllocations(c).forEach((a,i)=>{let grade=Object.entries(a.sizeGrade||{}).filter(([,v])=>+v>0).map(([k,v])=>`${k}: ${v}`).join(' · ');rows.push([i===0?esc(c.op||displayOrderNumber(o||{})||c.id):'',i===0?esc(o?orderProductSummary(o):(c.product||'-')):'',esc(a.clientName||'-'),(+a.qty||0).toLocaleString('pt-BR'),grade||'<span class="sub">Só quantidade</span>',`<button class="secondary" onclick="editCutAllocationGrade(${c.id},${a.id})">Grade</button>`,i===0?`${dist.toLocaleString('pt-BR')} / ${total.toLocaleString('pt-BR')}<div class="sub">${rem?rem.toLocaleString('pt-BR')+' restantes':'Completo'}</div>`:''])})});el.innerHTML=table(['Corte/OP','Produto','Cliente','Peças','Grade simplificada','Ação','Resumo do corte'],rows);
+11971: }
+11972: 
+11973: /* ==========================================================
+11974:    v89.46 — Vales, fotos, rescisões por período, divisão de produção,
+11975:    inventário de bens e estoque de peças prontas
+11976:    ========================================================== */
+11977: 
+11978: function ensureV8946Data(){
+11979:   ensurePayrollData();
+11980:   db.employeeAdvances=Array.isArray(db.employeeAdvances)?db.employeeAdvances:[];
+11981:   db.assets=Array.isArray(db.assets)?db.assets:[];
+11982:   db.stock=Array.isArray(db.stock)?db.stock:[];
+11983:   db.defectReturns=Array.isArray(db.defectReturns)?db.defectReturns:[];
+11984:   if(!db.config)db.config={};
+11985:   if(db.config.advanceLimitPct==null)db.config.advanceLimitPct=0;
+11986:   (db.products||[]).forEach(p=>{p.photos=Array.isArray(p.photos)?p.photos:[]});
+11987:   (db.terminations||[]).forEach(t=>{
+11988:     if(t.fgtsPaid==null)t.fgtsPaid=0;
+11989:     if(t.fgtsFine==null)t.fgtsFine=0;
+11990:     if(t.otherCharges==null)t.otherCharges=0;
+11991:   });
+11992: }
+11993: ensureV8946Data();
+11994: 
+11995: // ---------- Vales / adiantamentos ----------
+11996: function copyText(v){
+11997:   v=String(v||"");
+11998:   if(navigator.clipboard?.writeText){navigator.clipboard.writeText(v).then(()=>alert("Copiado para a área de transferência."));return}
+11999:   let ta=document.createElement("textarea");ta.value=v;document.body.appendChild(ta);ta.select();document.execCommand("copy");ta.remove();alert("Copiado para a área de transferência.");
+12000: }
+12001: function saveAdvanceLimitPct(){
+12002:   ensureV8946Data();
+12003:   db.config.advanceLimitPct=Math.max(0,Math.min(100,+document.getElementById("advanceLimitPct")?.value||0));
+12004:   try{persistDb()}catch(e){}
+12005:   updateAdvanceEmployeeLimitPreview();renderEmployeeAdvances();
+12006:   alert("Limite de vale salvo.");
+12007: }
+12008: function advanceNextPayrollMonth(dateValue){
+12009:   let d=dateValue?new Date(String(dateValue)+"T12:00:00"):new Date();
+12010:   if(Number.isNaN(d.getTime()))d=new Date();
+12011:   d=new Date(d.getFullYear(),d.getMonth()+1,1,12);
+12012:   return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
+12013: }
+12014: function updateAdvanceTargetMonth(){
+12015:   let date=document.getElementById("advanceDate")?.value||isoDate(new Date()),month=document.getElementById("advanceMonth");
+12016:   if(month)month.value=advanceNextPayrollMonth(date);updateAdvanceEmployeeLimitPreview();
+12017: }
+12018: function advanceCommittedForEmployee(employeeId,month){
+12019:   return (db.employeeAdvances||[]).filter(a=>+a.employeeId===+employeeId&&String(a.month||"")===String(month||"")).reduce((s,a)=>s+(+a.value||0),0);
+12020: }
+12021: function updateAdvanceEmployeeLimitPreview(){
+12022:   let box=document.getElementById("advanceEmployeeLimitPreview");if(!box)return;
+12023:   let emp=(db.employees||[]).find(e=>String(e.id)===String(document.getElementById("advanceEmployee")?.value));
+12024:   if(!emp){box.innerHTML='<div class="sub">Selecione um funcionário para ver salário, limite e valor disponível para vale.</div>';return}
+12025:   let month=document.getElementById("advanceMonth")?.value||advanceNextPayrollMonth(document.getElementById("advanceDate")?.value),pct=+document.getElementById("advanceLimitPct")?.value||+db.config.advanceLimitPct||0,salary=+emp.salary||0,limit=salary*pct/100,used=advanceCommittedForEmployee(emp.id,month),available=Math.max(0,limit-used);
+12026:   box.innerHTML=`<div class="cards" style="margin:0"><div class="card"><small>Funcionário</small><strong style="font-size:18px">${esc(emp.name||'-')}</strong></div><div class="card"><small>Salário atual</small><strong>${money(salary)}</strong></div><div class="card"><small>Limite ${pct.toFixed(1).replace('.',',')}%</small><strong>${money(limit)}</strong></div><div class="card"><small>Já comprometido para ${esc(month)}</small><strong>${money(used)}</strong></div><div class="card"><small>Ainda pode receber</small><strong>${money(available)}</strong></div></div>`;
+12027: }
+12028: function fillAdvanceEmployees(){
+12029:   let sel=document.getElementById("advanceEmployee");if(!sel)return;
+12030:   let cur=String(sel.value||"");
+12031:   let arr=(db.employees||[]).filter(e=>e.active!==false).slice().sort((a,b)=>String(a.name||"").localeCompare(String(b.name||""),"pt-BR"));
+12032:   let emp=arr.find(e=>String(e.id)===cur);
+12033:   if(cur&&!emp)sel.value="";
+12034:   let btn=document.getElementById("advanceEmployeeButton"),info=document.getElementById("advanceEmployeeSelected");
+12035:   if(emp){
+12036:     if(btn)btn.innerHTML=`👤 ${esc(emp.name||"Funcionário")} <span style="opacity:.7">— trocar</span>`;
+12037:     if(info)info.innerHTML=`${esc(employeeCompanyName(emp)||"Sem confecção")} · Salário: <strong>${money(+emp.salary||0)}</strong>${emp.pix?` · PIX: ${esc(emp.pix)}`:""}`;
+12038:   }else{
+12039:     if(btn)btn.textContent="👤 Selecionar funcionário";
+12040:     if(info)info.textContent=arr.length?"Clique no botão para buscar e selecionar.":"Nenhum funcionário ativo cadastrado.";
+12041:   }
+12042: }
+12043: function openAdvanceEmployeePicker(){
+12044:   let employees=(db.employees||[]).filter(e=>e.active!==false).slice().sort((a,b)=>String(a.name||"").localeCompare(String(b.name||""),"pt-BR"));
+12045:   if(!employees.length){alert("Nenhum funcionário ativo cadastrado. Cadastre o funcionário primeiro.");return}
+12046:   let companies=[...new Set(employees.map(e=>employeeCompanyName(e)).filter(Boolean))].sort((a,b)=>String(a).localeCompare(String(b),"pt-BR"));
+12047:   openModal("Selecionar funcionário para o vale",`
+12048:     <div class="grid" style="align-items:end">
+12049:       <div class="field" style="grid-column:span 2"><label>Buscar pelo nome</label><input id="advanceEmployeeSearch" placeholder="Digite o nome do funcionário" oninput="renderAdvanceEmployeePicker()"></div>
+12050:       <div class="field"><label>Confecção</label><select id="advanceEmployeeCompany" onchange="renderAdvanceEmployeePicker()"><option value="">Todas</option>${companies.map(c=>`<option value="${esc(c)}">${esc(c)}</option>`).join("")}</select></div>
+12051:     </div>
+
+===== line 11816 =====
+11791:       c.lastCarriedFrom=c.plannedCutDate;
+11792:       c.plannedCutDate=today;
+11793:       c.rolloverCount=(+c.rolloverCount||0)+1;
+11794:       changed=true;
+11795:     }
+11796:   });
+11797:   if(changed){try{persistDb()}catch(e){console.error(e)}}
+11798: }
+11799: function saveCutSchedule(id){
+11800:   let c=(db.cuts||[]).find(x=>+x.id===+id);if(!c)return;
+11801:   let d=document.getElementById(`cutDate_${id}`),ct=document.getElementById(`cutCutter_${id}`),type=document.getElementById(`cutType_${id}`);
+11802:   c.plannedCutDate=d?.value||"";
+11803:   c.cutterId=ct?.value?+ct.value:null;
+11804:   c.cutType=type?.value||c.cutType||"";
+11805:   c.scheduleUpdatedAt=new Date().toISOString();
+11806:   try{persistDb()}catch(e){console.error(e)}
+11807:   renderCuts();
+11808: }
+11809: function setDailyCutToday(){let el=document.getElementById("dailyCutDate");if(el)el.value=isoDate(new Date());renderDailyCuts()}
+11810: function cutOrderFor(c){return (db.orders||[]).find(o=>+o.id===+c.orderId)||null}
+11811: function cutOriginalGrade(c,o){
+11812:   if(Array.isArray(c.originalGrade)&&c.originalGrade.length)return c.originalGrade;
+11813:   return cloneCutGrade(o?.grade||[]);
+11814: }
+11815: function cutActualGrade(c,o){
+11816:   if(Array.isArray(c.actualCutGrade)&&c.actualCutGrade.length)return c.actualCutGrade;
+11817:   return cutOriginalGrade(c,o);
+11818: }
+11819: function cutGradeComparisonHTML(c){
+11820:   let o=cutOrderFor(c),orig=cutOriginalGrade(c,o),actual=cutActualGrade(c,o);
+11821:   if(!orig.length)return `<div class="panel"><strong>Pedido original:</strong> ${(+c.originalPieces||qtyOfOrder(o||{})||0).toLocaleString("pt-BR")} peças<br><strong>Cortado:</strong> ${(+c.pieces||0).toLocaleString("pt-BR")} peças</div>`;
+11822:   let byKey={};
+11823:   const key=x=>`${x.productId||""}|${x.color||""}|${x.size||""}`;
+11824:   orig.forEach(x=>byKey[key(x)]={orig:+x.qty||0,actual:0,item:x});
+11825:   actual.forEach(x=>{let k=key(x);if(!byKey[k])byKey[k]={orig:0,actual:0,item:x};byKey[k].actual+=+x.qty||0});
+11826:   let rows=Object.values(byKey).map(r=>{
+11827:     let p=(db.products||[]).find(x=>+x.id===+r.item.productId),diff=r.actual-r.orig;
+11828:     return [esc(p?.name||"Produto"),esc(r.item.color||"-"),esc(r.item.size||"-"),r.orig,r.actual,diff===0?"0":`<span class="${diff<0?'cut-diff-negative':'cut-diff-positive'}">${diff>0?'+':''}${diff}</span>`];
+11829:   });
+11830:   return table(["Produto","Cor","Tamanho","Pedido original","Cortado","Diferença"],rows)+`<div class="sub" style="margin-top:8px"><strong>Observação:</strong> ${esc(c.cutAdjustmentNote||"-")}</div>`;
+11831: }
+11832: function viewCutGradeComparison(id){let c=(db.cuts||[]).find(x=>+x.id===+id);if(!c)return;openModal("Pedido original × corte realizado",cutGradeComparisonHTML(c),()=>{})}
+11833: function finishCut(id){
+11834:   let c=(db.cuts||[]).find(x=>+x.id===+id);if(!c)return;
+11835:   let o=cutOrderFor(c);
+11836:   if(!c.originalPieces)c.originalPieces=+c.pieces||qtyOfOrder(o||{})||0;
+11837:   if(!Array.isArray(c.originalGrade)||!c.originalGrade.length)c.originalGrade=cloneCutGrade(o?.grade||[]);
+11838:   let orig=cutOriginalGrade(c,o),actual=cutActualGrade(c,o);
+11839:   let gradeHtml="";
+11840:   if(orig.length){
+11841:     gradeHtml=`<div class="panel" style="margin-top:12px"><h3>Grade realmente cortada</h3><div class="sub">O pedido original fica preservado. Altere somente o que realmente saiu no corte caso tenha faltado material.</div>${table(["Produto","Cor","Tamanho","Pedido original","Cortado"],orig.map((it,i)=>{
+11842:       let p=(db.products||[]).find(x=>+x.id===+it.productId),a=actual.find(x=>+x.productId===+it.productId&&String(x.color||"")===String(it.color||"")&&String(x.size||"")===String(it.size||""));
+11843:       return [esc(p?.name||"Produto"),esc(it.color||"-"),esc(it.size||"-"),+it.qty||0,`<input id="cutActual_${i}" type="number" min="0" step="1" value="${a?.qty??it.qty??0}" style="width:90px;padding:7px;border:1px solid #ccd2dc;border-radius:7px">`];
+11844:     }))}</div>`;
+11845:   }else{
+11846:     gradeHtml=`<div class="field"><label>Quantidade realmente cortada</label><input id="cutActualPieces" type="number" min="0" step="1" value="${+c.pieces||0}"></div>`;
+11847:   }
+11848:   openModal("Finalizar corte",`<div class="cards"><div class="card"><small>Pedido</small><strong>#${esc(displayOrderNumber(o||{id:c.orderId})||c.orderId||'-')}</strong></div><div class="card"><small>Cliente</small><strong style="font-size:18px">${esc(o?.client||c.client||'-')}</strong></div><div class="card"><small>Peças do pedido</small><strong>${(+c.originalPieces||0).toLocaleString('pt-BR')}</strong></div></div>${gradeHtml}<div class="field" style="margin-top:12px"><label>Observação / motivo da alteração</label><textarea id="cutAdjustmentNote" placeholder="Ex.: faltou renda preta; retirei 8 peças tamanho M">${esc(c.cutAdjustmentNote||"")}</textarea></div><div class="sub" style="margin:10px 0">A grade do <strong>pedido original não será alterada</strong>. O sistema guardará as duas para conferência posterior.</div><button type="button" class="primary modalSave">✅ Confirmar corte finalizado</button>`,()=>{
+11849:     let finalGrade=[];
+11850:     if(orig.length){
+11851:       finalGrade=orig.map((it,i)=>({...it,qty:Math.max(0,+document.getElementById(`cutActual_${i}`)?.value||0)}));
+11852:       c.actualCutGrade=finalGrade;
+11853:       c.pieces=finalGrade.reduce((a,x)=>a+(+x.qty||0),0);
+11854:     }else{
+11855:       c.pieces=Math.max(0,+document.getElementById("cutActualPieces")?.value||0);
+11856:     }
+11857:     c.cutAdjustmentNote=document.getElementById("cutAdjustmentNote")?.value||"";
+11858:     c.status="Finalizado";c.finishedAt=isoDate(new Date());c.finishedAtTime=new Date().toISOString();
+11859:     if(o)o.status="Corte finalizado";
+11860:     closeModal();
+11861:     try{persistDb()}catch(e){console.error(e);alert("Não foi possível salvar a finalização do corte.");return}
+11862:     syncFinalizedCutsToProduction();renderCuts();renderOrders();renderCutters();renderProduction();
+11863:   });
+11864: }
+11865: function renderDailyCuts(){
+11866:   let el=document.getElementById("dailyCutTable"),sum=document.getElementById("dailyCutSummary"),dateEl=document.getElementById("dailyCutDate");if(!el)return;
+11867:   if(dateEl&&!dateEl.value)dateEl.value=isoDate(new Date());
+11868:   let day=dateEl?.value||isoDate(new Date());
+11869:   let all=(db.cuts||[]).filter(c=>c.plannedCutDate===day || (String(c.status||"").toLowerCase()==="finalizado"&&c.finishedAt===day));
+11870:   all.sort((a,b)=>{
+11871:     let wa=cutPriorityWeight(cutOrderFor(a)),wb=cutPriorityWeight(cutOrderFor(b));if(wa!==wb)return wa-wb;
+11872:     return String(a.op||"").localeCompare(String(b.op||""));
+11873:   });
+11874:   let pending=all.filter(c=>String(c.status||"").toLowerCase()!=="finalizado"),done=all.filter(c=>String(c.status||"").toLowerCase()==="finalizado");
+11875:   let pqty=pending.reduce((a,c)=>a+(+c.pieces||0),0),dqty=done.reduce((a,c)=>a+(+c.pieces||0),0);
+11876:   if(sum)sum.innerHTML=`<div class="card"><small>Programados no dia</small><strong>${all.length}</strong></div><div class="card"><small>Aguardando corte</small><strong>${pending.length}</strong><div>${pqty.toLocaleString('pt-BR')} peças</div></div><div class="card"><small>Finalizados</small><strong>${done.length}</strong><div>${dqty.toLocaleString('pt-BR')} peças</div></div><div class="card"><small>Levados de dias anteriores</small><strong>${pending.filter(c=>c.rolloverCount>0).length}</strong></div>`;
+11877:   if(!all.length){el.innerHTML='<div class="empty">Nenhum corte programado para este dia.</div>';return}
+11878:   let rows=all.map(c=>{
+11879:     let o=cutOrderFor(c),ct=(db.cutters||[]).find(x=>+x.id===+c.cutterId),finished=String(c.status||"").toLowerCase()==="finalizado";
+11880:     let carried=c.rolloverCount>0?`<span class="badge warn">Veio de ${fmtDate(c.lastCarriedFrom||c.carriedFromDate)}</span>`:"-";
+11881:     return [esc(displayOrderNumber(o||{id:c.orderId})||c.op||c.orderId),esc(o?.client||c.client||'-'),esc(o?orderProductSummary(o):(c.product||'-')),(+c.pieces||0).toLocaleString('pt-BR'),priorityBadge(o?.priority||'Padrão'),esc(ct?.name||'-'),carried,finished?'<span class="badge ok">Finalizado</span>':'<span class="badge warn">A cortar</span>',finished?`<button class="secondary" onclick="viewCutGradeComparison(${c.id})">Pedido original × corte</button>`:`<button class="primary" onclick="finishCut(${c.id})">✅ Finalizar corte</button> <button class="secondary" onclick="editCut(${c.id})">Editar</button>`];
+11882:   });
+11883:   el.innerHTML=table(["Pedido/OP","Cliente","Produto","Peças","Prioridade","Cortador","Reprogramação","Status","Ações"],rows);
+11884: }
+11885: function renderCuts(){
+11886:   prepareCutSchedule();
+11887:   let orders=pedidosQuePrecisamDeCorte();
+11888:   let pending=orders.map(obterCorteDoPedido);
+11889:   let ready=(db.cuts||[]).filter(c=>String(c.status||"").toLowerCase()==="finalizado");
+11890:   let el=document.getElementById("cutTable");
+11891:   if(el){
+11892:     let sorted=orders.slice().sort((a,b)=>{
+11893:       let wa=cutPriorityWeight(a),wb=cutPriorityWeight(b);if(wa!==wb)return wa-wb;
+11894:       let ca=obterCorteDoPedido(a),cb=obterCorteDoPedido(b),da=ca.plannedCutDate||'9999-99-99',dbb=cb.plannedCutDate||'9999-99-99';
+11895:       if(da!==dbb)return da.localeCompare(dbb);return (+displayOrderNumber(a)||+a.id)-(+displayOrderNumber(b)||+b.id);
+11896:     });
+11897:     let cutterOpts=(db.cutters||[]).filter(x=>x.active!==false);
+11898:     let rows=sorted.map((o,idx)=>{
+11899:       let c=obterCorteDoPedido(o),w=cutPriorityWeight(o);
+11900:       let auto=c.autoScheduledPriority?'<span class="badge warn">Data automática pela prioridade</span>':'';
+11901:       let carry=c.rolloverCount>0?`<div class="sub">Reprogramado ${c.rolloverCount}x</div>`:'';
+11902:       return [`<strong>${idx+1}º</strong>`,esc(displayOrderNumber(o)||o.id),esc(o.client||'-'),esc(orderProductSummary(o)),qtyOfOrder(o).toLocaleString('pt-BR'),priorityBadge(o.priority||'Padrão'),`<div class="cut-schedule-inline"><input id="cutDate_${c.id}" type="date" value="${c.plannedCutDate||''}"><select id="cutCutter_${c.id}"><option value="">Cortador</option>${cutterOpts.map(x=>`<option value="${x.id}" ${+x.id===+c.cutterId?'selected':''}>${esc(x.name)}</option>`).join('')}</select><select id="cutType_${c.id}"><option value="">Tipo</option><option value="Interno" ${c.cutType==='Interno'?'selected':''}>Interno</option><option value="Externo" ${c.cutType==='Externo'?'selected':''}>Externo</option></select><button class="secondary" onclick="saveCutSchedule(${c.id})">Salvar</button></div>${auto}${carry}`,`<button class="secondary" onclick="printCuttingSheet(${o.id})">🖨️ Imprimir grade</button> <button class="secondary" onclick="viewOrderDetails(${o.id})">Pedido original</button> <button class="secondary" onclick="editCut(${c.id})">Detalhes do corte</button> <button class="primary" onclick="finishCut(${c.id})">✅ Finalizar</button>`];
+11903:     });
+11904:     el.innerHTML=rows.length?table(["Ordem","Pedido","Cliente","Produto","Peças","Prioridade","Programação do corte","Ações"],rows):'<div class="empty">Nenhum pedido aguardando corte.</div>';
+11905:   }
+11906:   let pp=orders.reduce((a,o)=>a+qtyOfOrder(o),0),pv=orders.reduce((a,o)=>a+(+o.total||0),0);
+11907:   let rp=ready.reduce((a,c)=>a+(+c.pieces||0),0),rv=ready.reduce((a,c)=>a+(typeof cutValue==="function"?cutValue(c):0),0);
+11908:   let ri=ready.filter(c=>c.cutType==="Interno"),re=ready.filter(c=>c.cutType==="Externo");
+11909:   let ip=ri.reduce((a,c)=>a+(+c.pieces||0),0),ep=re.reduce((a,c)=>a+(+c.pieces||0),0),iv=ri.reduce((a,c)=>a+cutValue(c),0),ev=re.reduce((a,c)=>a+cutValue(c),0);
+11910:   let oo=(db.orders||[]).filter(o=>!o.invoiceReady&&!o.noteReady),oq=oo.reduce((a,o)=>a+qtyOfOrder(o),0),ov=oo.reduce((a,o)=>a+(+o.total||0),0);
+11911:   let cards=document.getElementById("cutSummaryCards");if(cards)cards.innerHTML=`<div class="card"><small>Fila de corte</small><strong>${orders.length} pedidos</strong><div>${pp.toLocaleString('pt-BR')} peças · ${money(pv)}</div></div><div class="card"><small>Cortes prontos</small><strong>${rp.toLocaleString('pt-BR')} peças</strong><div>${money(rv)}</div></div><div class="card"><small>Corte interno finalizado</small><strong>${ip.toLocaleString('pt-BR')}</strong><div>${money(iv)}</div></div><div class="card"><small>Corte externo finalizado</small><strong>${ep.toLocaleString('pt-BR')}</strong><div>${money(ev)}</div></div><div class="card"><small>Mercadoria sem nota pronta</small><strong>${oq.toLocaleString('pt-BR')} peças</strong><div>${money(ov)}</div></div>`;
+11912:   let rt=document.getElementById("readyCutsTable");
+11913:   if(rt)rt.innerHTML=ready.length?table(["OP","Cliente","Produto","Peças cortadas","Corte","Cortador","Finalizado","Local de produção","Prioridade","Conferência","Ações"],ready.map(c=>{let l=(db.productionLocations||[]).find(x=>+x.id===+c.productionLocationId),ct=(db.cutters||[]).find(x=>+x.id===+c.cutterId),ord=getOrderByCut(c);return[esc(c.op||'-'),esc(c.client||ord?.client||'-'),esc(ord?orderProductSummary(ord):(c.product||'Pedido')),(+c.pieces||0).toLocaleString('pt-BR'),esc(c.cutType||'-'),esc(ct?.name||'-'),fmtDate(c.finishedAt),esc(l?.name||'-'),priorityBadge(ord?.priority||'Padrão'),`<button class="secondary" onclick="viewCutGradeComparison(${c.id})">Pedido original × corte</button>`,`<button class="primary" onclick="distributeCutClients(${c.id})">👥 Distribuir clientes</button> <button class="secondary" onclick="editReadyCut(${c.id})">Editar</button> <button class="danger" onclick="deleteReadyCut(${c.id})">Excluir</button>`]})):'<div class="empty">Nenhum corte finalizado aguardando produção.</div>';
+11914:   let ot=document.getElementById("openCutOrdersTable");if(ot)ot.innerHTML=oo.length?table(["Pedido","Cliente","Entrega","Peças","Valor","Status","Ações"],oo.map(o=>[displayOrderNumber(o)||o.id,esc(o.client),fmtDate(o.date),qtyOfOrder(o),money(o.total),`<span class="badge">${esc(o.status||'Aberto')}</span>`,`<button type="button" class="secondary" onclick="editOpenMerchandise(${o.id})">Editar</button> <button type="button" class="danger" onclick="deleteOpenMerchandise(${o.id})">Excluir</button>`])):'<div class="empty">Não há mercadoria sem nota pronta.</div>';
+11915:   renderDailyCuts();renderCutClientDistributions();renderCutMaterialNeedReport();
+11916:   try{persistDb()}catch(e){}
+11917: }
+11918: 
+11919: 
+11920: 
+11921: /* ===== v89.63 — DISTRIBUIÇÃO DE UM CORTE ENTRE VÁRIOS CLIENTES ===== */
+11922: function ensureCutClientAllocations(c){
+11923:   if(!c)return [];
+11924:   c.clientAllocations=Array.isArray(c.clientAllocations)?c.clientAllocations:[];
+11925:   return c.clientAllocations;
+11926: }
+11927: function cutDistributionTotal(c){return ensureCutClientAllocations(c).reduce((a,x)=>a+(+x.qty||0),0)}
+11928: function cutDistributionAvailable(c){return Math.max(0,+c.pieces||0)}
+11929: function cutDistributionRemaining(c){return Math.max(0,cutDistributionAvailable(c)-cutDistributionTotal(c))}
+11930: function cutSizeTotals(c){
+11931:   let o=cutOrderFor(c),g=cutActualGrade(c,o),m={};
+11932:   (g||[]).forEach(x=>{let z=String(x.size||'Sem tamanho');m[z]=(m[z]||0)+(+x.qty||0)});
+11933:   return m;
+11934: }
+11935: function allocationSizeUsed(c,skipId){
+11936:   let m={};ensureCutClientAllocations(c).forEach(a=>{if(skipId&&String(a.id)===String(skipId))return;Object.entries(a.sizeGrade||{}).forEach(([k,v])=>m[k]=(m[k]||0)+(+v||0))});return m;
+11937: }
+11938: function addCutAllocationRow(){
+11939:   let box=document.getElementById('cutAllocRows');if(!box)return;
+11940:   let i=Date.now()+Math.floor(Math.random()*9999),opts=(db.clients||[]).slice().sort((a,b)=>String(a.name||'').localeCompare(String(b.name||''),'pt-BR')).map(c=>`<option value="${c.id}">${esc(c.name)}</option>`).join('');
+11941:   box.insertAdjacentHTML('beforeend',`<div class="cut-alloc-row" data-id="${i}" style="display:grid;grid-template-columns:minmax(220px,2fr) minmax(120px,1fr) auto;gap:10px;align-items:end;margin:8px 0"><div class="field"><label>Cliente</label><select class="allocClient"><option value="">Selecione</option>${opts}</select></div><div class="field"><label>Quantidade</label><input class="allocQty" type="number" min="0" step="1" value="0" oninput="refreshCutAllocationModal()"></div><button type="button" class="danger" onclick="this.closest('.cut-alloc-row').remove();refreshCutAllocationModal()">Excluir</button></div>`);
+11942:   refreshCutAllocationModal();
+11943: }
+11944: function refreshCutAllocationModal(){
+11945:   let total=+document.getElementById('cutAllocTotal')?.dataset.total||0,used=[...document.querySelectorAll('#cutAllocRows .allocQty')].reduce((a,e)=>a+(+e.value||0),0),rem=total-used;
+11946:   let el=document.getElementById('cutAllocLive');if(el)el.innerHTML=`<div class="cards"><div class="card"><small>Corte original</small><strong>${total.toLocaleString('pt-BR')}</strong><div>peças</div></div><div class="card"><small>Distribuído</small><strong>${used.toLocaleString('pt-BR')}</strong><div>peças</div></div><div class="card"><small>Restante</small><strong style="${rem<0?'color:#b42318':rem>0?'color:#9a6700':'color:#087443'}">${rem.toLocaleString('pt-BR')}</strong><div>${rem<0?'acima do corte':rem>0?'a distribuir':'distribuição completa'}</div></div></div>`;
+11947: }
+11948: function fillCutAllocationRemainder(){
+11949:   let total=+document.getElementById('cutAllocTotal')?.dataset.total||0,rows=[...document.querySelectorAll('#cutAllocRows .cut-alloc-row')];if(!rows.length){addCutAllocationRow();rows=[...document.querySelectorAll('#cutAllocRows .cut-alloc-row')]}
+11950:   let used=rows.slice(0,-1).reduce((a,r)=>a+(+r.querySelector('.allocQty')?.value||0),0),last=rows[rows.length-1].querySelector('.allocQty');if(last)last.value=Math.max(0,total-used);refreshCutAllocationModal();
+11951: }
+11952: function distributeCutClients(id){
+11953:   let c=(db.cuts||[]).find(x=>+x.id===+id);if(!c)return;let arr=ensureCutClientAllocations(c),total=cutDistributionAvailable(c),opts=(db.clients||[]).slice().sort((a,b)=>String(a.name||'').localeCompare(String(b.name||''),'pt-BR')).map(cl=>`<option value="${cl.id}">${esc(cl.name)}</option>`).join('');
+11954:   let rows=arr.map(a=>`<div class="cut-alloc-row" data-id="${a.id}" style="display:grid;grid-template-columns:minmax(220px,2fr) minmax(120px,1fr) auto;gap:10px;align-items:end;margin:8px 0"><div class="field"><label>Cliente</label><select class="allocClient"><option value="">Selecione</option>${(db.clients||[]).slice().sort((x,y)=>String(x.name||'').localeCompare(String(y.name||''),'pt-BR')).map(cl=>`<option value="${cl.id}" ${String(cl.id)===String(a.clientId)?'selected':''}>${esc(cl.name)}</option>`).join('')}</select></div><div class="field"><label>Quantidade</label><input class="allocQty" type="number" min="0" step="1" value="${+a.qty||0}" oninput="refreshCutAllocationModal()"></div><button type="button" class="danger" onclick="this.closest('.cut-alloc-row').remove();refreshCutAllocationModal()">Excluir</button></div>`).join('');
+11955:   openModal('Distribuir corte entre clientes',`<div id="cutAllocTotal" data-total="${total}"></div><div id="cutAllocLive"></div><div class="panel"><div class="toolbar" style="justify-content:space-between"><div><h3 style="margin:0">Clientes deste corte</h3><div class="sub">Informe só cliente + quantidade. Depois, se quiser, detalhe a grade de cada cliente.</div></div><div><button type="button" class="secondary" onclick="addCutAllocationRow()">+ Cliente</button> <button type="button" class="secondary" onclick="fillCutAllocationRemainder()">Usar todo o restante</button></div></div><div id="cutAllocRows">${rows}</div></div><div class="sub" style="margin:10px 0">O corte original não é alterado. Esta distribuição fica registrada separadamente para conferência e separação por cliente.</div><button type="button" class="primary modalSave">Salvar distribuição</button>`,()=>{
+11956:     let out=[],sum=0,seen=new Set();for(let r of document.querySelectorAll('#cutAllocRows .cut-alloc-row')){let cid=r.querySelector('.allocClient')?.value,q=Math.max(0,+r.querySelector('.allocQty')?.value||0);if(!cid||q<=0)continue;if(seen.has(String(cid))){alert('O mesmo cliente aparece duas vezes. Junte a quantidade em uma única linha.');return false}seen.add(String(cid));let cl=(db.clients||[]).find(x=>String(x.id)===String(cid));out.push({id:+r.dataset.id||Date.now()+out.length,clientId:cl?.id||cid,clientName:cl?.name||'',qty:q,sizeGrade:(arr.find(a=>String(a.id)===String(r.dataset.id))?.sizeGrade)||{}});sum+=q}
+11957:     if(sum>total){alert(`A distribuição soma ${sum.toLocaleString('pt-BR')} peças, mas o corte possui ${total.toLocaleString('pt-BR')}.`);return false}
+11958:     c.clientAllocations=out;c.clientAllocationUpdatedAt=new Date().toISOString();try{persistDb()}catch(e){}closeModal();renderCuts();
+11959:   });setTimeout(refreshCutAllocationModal,0);
+11960: }
+11961: function editCutAllocationGrade(cutId,allocId){
+11962:   let c=(db.cuts||[]).find(x=>+x.id===+cutId),a=ensureCutClientAllocations(c).find(x=>String(x.id)===String(allocId));if(!c||!a)return;let totals=cutSizeTotals(c),used=allocationSizeUsed(c,a.id),sizes=Object.keys(totals);
+11963:   if(!sizes.length){alert('Este corte não possui grade por tamanho cadastrada. A distribuição por quantidade já está salva.');return}
+11964:   let rows=sizes.map((sz,i)=>{let max=Math.max(0,(+totals[sz]||0)-(+used[sz]||0)),v=+(a.sizeGrade||{})[sz]||0;return [esc(sz),(+totals[sz]||0).toLocaleString('pt-BR'),(+used[sz]||0).toLocaleString('pt-BR'),`<input id="allocSize_${i}" data-size="${esc(sz)}" data-max="${max}" type="number" min="0" max="${max}" step="1" value="${v}" style="width:100px">`]}).join('');
+11965:   openModal(`Grade simplificada — ${a.clientName}`,`<div class="cards"><div class="card"><small>Cliente</small><strong style="font-size:18px">${esc(a.clientName)}</strong></div><div class="card"><small>Quantidade destinada</small><strong>${(+a.qty||0).toLocaleString('pt-BR')}</strong></div></div>${table(['Tamanho','Disponível no corte','Já destinado a outros','Para este cliente'],sizes.map((sz,i)=>[esc(sz),(+totals[sz]||0).toLocaleString('pt-BR'),(+used[sz]||0).toLocaleString('pt-BR'),`<input id="allocSize_${i}" data-size="${esc(sz)}" data-max="${Math.max(0,(+totals[sz]||0)-(+used[sz]||0))}" type="number" min="0" step="1" value="${+(a.sizeGrade||{})[sz]||0}" style="width:100px">`]))}<div class="sub" style="margin:10px 0">Aqui a grade é resumida apenas por tamanho, sem repetir cores/modelos. A soma deve ser igual à quantidade destinada ao cliente.</div><button type="button" class="primary modalSave">Salvar grade</button>`,()=>{let g={},sum=0;document.querySelectorAll('[id^="allocSize_"]').forEach(e=>{let v=Math.max(0,+e.value||0),mx=+e.dataset.max||0;if(v>mx)v=mx;g[e.dataset.size]=v;sum+=v});if(sum!==+a.qty){alert(`A grade soma ${sum} peças. Ela precisa somar ${+a.qty||0} peças destinadas a este cliente.`);return false}a.sizeGrade=g;try{persistDb()}catch(e){}closeModal();renderCuts()});
+11966: }
+11967: function renderCutClientDistributions(){
+11968:   let el=document.getElementById('cutClientDistributionTable');if(!el)return;let cuts=(db.cuts||[]).filter(c=>ensureCutClientAllocations(c).length);
+11969:   if(!cuts.length){el.innerHTML='<div class="empty">Nenhum corte foi distribuído entre clientes ainda.</div>';return}
+11970:   let rows=[];cuts.forEach(c=>{let o=cutOrderFor(c),total=cutDistributionAvailable(c),dist=cutDistributionTotal(c),rem=Math.max(0,total-dist);ensureCutClientAllocations(c).forEach((a,i)=>{let grade=Object.entries(a.sizeGrade||{}).filter(([,v])=>+v>0).map(([k,v])=>`${k}: ${v}`).join(' · ');rows.push([i===0?esc(c.op||displayOrderNumber(o||{})||c.id):'',i===0?esc(o?orderProductSummary(o):(c.product||'-')):'',esc(a.clientName||'-'),(+a.qty||0).toLocaleString('pt-BR'),grade||'<span class="sub">Só quantidade</span>',`<button class="secondary" onclick="editCutAllocationGrade(${c.id},${a.id})">Grade</button>`,i===0?`${dist.toLocaleString('pt-BR')} / ${total.toLocaleString('pt-BR')}<div class="sub">${rem?rem.toLocaleString('pt-BR')+' restantes':'Completo'}</div>`:''])})});el.innerHTML=table(['Corte/OP','Produto','Cliente','Peças','Grade simplificada','Ação','Resumo do corte'],rows);
+11971: }
+11972: 
+11973: /* ==========================================================
+11974:    v89.46 — Vales, fotos, rescisões por período, divisão de produção,
+11975:    inventário de bens e estoque de peças prontas
+11976:    ========================================================== */
+11977: 
+11978: function ensureV8946Data(){
+11979:   ensurePayrollData();
+11980:   db.employeeAdvances=Array.isArray(db.employeeAdvances)?db.employeeAdvances:[];
+11981:   db.assets=Array.isArray(db.assets)?db.assets:[];
+11982:   db.stock=Array.isArray(db.stock)?db.stock:[];
+11983:   db.defectReturns=Array.isArray(db.defectReturns)?db.defectReturns:[];
+11984:   if(!db.config)db.config={};
+11985:   if(db.config.advanceLimitPct==null)db.config.advanceLimitPct=0;
+11986:   (db.products||[]).forEach(p=>{p.photos=Array.isArray(p.photos)?p.photos:[]});
+11987:   (db.terminations||[]).forEach(t=>{
+11988:     if(t.fgtsPaid==null)t.fgtsPaid=0;
+11989:     if(t.fgtsFine==null)t.fgtsFine=0;
+11990:     if(t.otherCharges==null)t.otherCharges=0;
+11991:   });
+11992: }
+11993: ensureV8946Data();
+11994: 
+11995: // ---------- Vales / adiantamentos ----------
+11996: function copyText(v){
+11997:   v=String(v||"");
+11998:   if(navigator.clipboard?.writeText){navigator.clipboard.writeText(v).then(()=>alert("Copiado para a área de transferência."));return}
+11999:   let ta=document.createElement("textarea");ta.value=v;document.body.appendChild(ta);ta.select();document.execCommand("copy");ta.remove();alert("Copiado para a área de transferência.");
+12000: }
+12001: function saveAdvanceLimitPct(){
+12002:   ensureV8946Data();
+12003:   db.config.advanceLimitPct=Math.max(0,Math.min(100,+document.getElementById("advanceLimitPct")?.value||0));
+12004:   try{persistDb()}catch(e){}
+12005:   updateAdvanceEmployeeLimitPreview();renderEmployeeAdvances();
+12006:   alert("Limite de vale salvo.");
+12007: }
+12008: function advanceNextPayrollMonth(dateValue){
+12009:   let d=dateValue?new Date(String(dateValue)+"T12:00:00"):new Date();
+12010:   if(Number.isNaN(d.getTime()))d=new Date();
+12011:   d=new Date(d.getFullYear(),d.getMonth()+1,1,12);
+12012:   return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
+12013: }
+12014: function updateAdvanceTargetMonth(){
+12015:   let date=document.getElementById("advanceDate")?.value||isoDate(new Date()),month=document.getElementById("advanceMonth");
+12016:   if(month)month.value=advanceNextPayrollMonth(date);updateAdvanceEmployeeLimitPreview();
+12017: }
+12018: function advanceCommittedForEmployee(employeeId,month){
+12019:   return (db.employeeAdvances||[]).filter(a=>+a.employeeId===+employeeId&&String(a.month||"")===String(month||"")).reduce((s,a)=>s+(+a.value||0),0);
+12020: }
+12021: function updateAdvanceEmployeeLimitPreview(){
+12022:   let box=document.getElementById("advanceEmployeeLimitPreview");if(!box)return;
+12023:   let emp=(db.employees||[]).find(e=>String(e.id)===String(document.getElementById("advanceEmployee")?.value));
+12024:   if(!emp){box.innerHTML='<div class="sub">Selecione um funcionário para ver salário, limite e valor disponível para vale.</div>';return}
+12025:   let month=document.getElementById("advanceMonth")?.value||advanceNextPayrollMonth(document.getElementById("advanceDate")?.value),pct=+document.getElementById("advanceLimitPct")?.value||+db.config.advanceLimitPct||0,salary=+emp.salary||0,limit=salary*pct/100,used=advanceCommittedForEmployee(emp.id,month),available=Math.max(0,limit-used);
+12026:   box.innerHTML=`<div class="cards" style="margin:0"><div class="card"><small>Funcionário</small><strong style="font-size:18px">${esc(emp.name||'-')}</strong></div><div class="card"><small>Salário atual</small><strong>${money(salary)}</strong></div><div class="card"><small>Limite ${pct.toFixed(1).replace('.',',')}%</small><strong>${money(limit)}</strong></div><div class="card"><small>Já comprometido para ${esc(month)}</small><strong>${money(used)}</strong></div><div class="card"><small>Ainda pode receber</small><strong>${money(available)}</strong></div></div>`;
+12027: }
+12028: function fillAdvanceEmployees(){
+12029:   let sel=document.getElementById("advanceEmployee");if(!sel)return;
+12030:   let cur=String(sel.value||"");
+12031:   let arr=(db.employees||[]).filter(e=>e.active!==false).slice().sort((a,b)=>String(a.name||"").localeCompare(String(b.name||""),"pt-BR"));
+12032:   let emp=arr.find(e=>String(e.id)===cur);
+12033:   if(cur&&!emp)sel.value="";
+12034:   let btn=document.getElementById("advanceEmployeeButton"),info=document.getElementById("advanceEmployeeSelected");
+12035:   if(emp){
+12036:     if(btn)btn.innerHTML=`👤 ${esc(emp.name||"Funcionário")} <span style="opacity:.7">— trocar</span>`;
+12037:     if(info)info.innerHTML=`${esc(employeeCompanyName(emp)||"Sem confecção")} · Salário: <strong>${money(+emp.salary||0)}</strong>${emp.pix?` · PIX: ${esc(emp.pix)}`:""}`;
+12038:   }else{
+12039:     if(btn)btn.textContent="👤 Selecionar funcionário";
+12040:     if(info)info.textContent=arr.length?"Clique no botão para buscar e selecionar.":"Nenhum funcionário ativo cadastrado.";
+12041:   }
+12042: }
+12043: function openAdvanceEmployeePicker(){
+12044:   let employees=(db.employees||[]).filter(e=>e.active!==false).slice().sort((a,b)=>String(a.name||"").localeCompare(String(b.name||""),"pt-BR"));
+12045:   if(!employees.length){alert("Nenhum funcionário ativo cadastrado. Cadastre o funcionário primeiro.");return}
+12046:   let companies=[...new Set(employees.map(e=>employeeCompanyName(e)).filter(Boolean))].sort((a,b)=>String(a).localeCompare(String(b),"pt-BR"));
+12047:   openModal("Selecionar funcionário para o vale",`
+12048:     <div class="grid" style="align-items:end">
+12049:       <div class="field" style="grid-column:span 2"><label>Buscar pelo nome</label><input id="advanceEmployeeSearch" placeholder="Digite o nome do funcionário" oninput="renderAdvanceEmployeePicker()"></div>
+12050:       <div class="field"><label>Confecção</label><select id="advanceEmployeeCompany" onchange="renderAdvanceEmployeePicker()"><option value="">Todas</option>${companies.map(c=>`<option value="${esc(c)}">${esc(c)}</option>`).join("")}</select></div>
+12051:     </div>
+12052:     <div class="sub" style="margin:8px 0">Mostrando somente funcionários ativos.</div>
+12053:     <div id="advanceEmployeePickerList"></div>
+12054:   `);
+12055:   renderAdvanceEmployeePicker();
+
+===== line 11817 =====
+11792:       c.plannedCutDate=today;
+11793:       c.rolloverCount=(+c.rolloverCount||0)+1;
+11794:       changed=true;
+11795:     }
+11796:   });
+11797:   if(changed){try{persistDb()}catch(e){console.error(e)}}
+11798: }
+11799: function saveCutSchedule(id){
+11800:   let c=(db.cuts||[]).find(x=>+x.id===+id);if(!c)return;
+11801:   let d=document.getElementById(`cutDate_${id}`),ct=document.getElementById(`cutCutter_${id}`),type=document.getElementById(`cutType_${id}`);
+11802:   c.plannedCutDate=d?.value||"";
+11803:   c.cutterId=ct?.value?+ct.value:null;
+11804:   c.cutType=type?.value||c.cutType||"";
+11805:   c.scheduleUpdatedAt=new Date().toISOString();
+11806:   try{persistDb()}catch(e){console.error(e)}
+11807:   renderCuts();
+11808: }
+11809: function setDailyCutToday(){let el=document.getElementById("dailyCutDate");if(el)el.value=isoDate(new Date());renderDailyCuts()}
+11810: function cutOrderFor(c){return (db.orders||[]).find(o=>+o.id===+c.orderId)||null}
+11811: function cutOriginalGrade(c,o){
+11812:   if(Array.isArray(c.originalGrade)&&c.originalGrade.length)return c.originalGrade;
+11813:   return cloneCutGrade(o?.grade||[]);
+11814: }
+11815: function cutActualGrade(c,o){
+11816:   if(Array.isArray(c.actualCutGrade)&&c.actualCutGrade.length)return c.actualCutGrade;
+11817:   return cutOriginalGrade(c,o);
+11818: }
+11819: function cutGradeComparisonHTML(c){
+11820:   let o=cutOrderFor(c),orig=cutOriginalGrade(c,o),actual=cutActualGrade(c,o);
+11821:   if(!orig.length)return `<div class="panel"><strong>Pedido original:</strong> ${(+c.originalPieces||qtyOfOrder(o||{})||0).toLocaleString("pt-BR")} peças<br><strong>Cortado:</strong> ${(+c.pieces||0).toLocaleString("pt-BR")} peças</div>`;
+11822:   let byKey={};
+11823:   const key=x=>`${x.productId||""}|${x.color||""}|${x.size||""}`;
+11824:   orig.forEach(x=>byKey[key(x)]={orig:+x.qty||0,actual:0,item:x});
+11825:   actual.forEach(x=>{let k=key(x);if(!byKey[k])byKey[k]={orig:0,actual:0,item:x};byKey[k].actual+=+x.qty||0});
+11826:   let rows=Object.values(byKey).map(r=>{
+11827:     let p=(db.products||[]).find(x=>+x.id===+r.item.productId),diff=r.actual-r.orig;
+11828:     return [esc(p?.name||"Produto"),esc(r.item.color||"-"),esc(r.item.size||"-"),r.orig,r.actual,diff===0?"0":`<span class="${diff<0?'cut-diff-negative':'cut-diff-positive'}">${diff>0?'+':''}${diff}</span>`];
+11829:   });
+11830:   return table(["Produto","Cor","Tamanho","Pedido original","Cortado","Diferença"],rows)+`<div class="sub" style="margin-top:8px"><strong>Observação:</strong> ${esc(c.cutAdjustmentNote||"-")}</div>`;
+11831: }
+11832: function viewCutGradeComparison(id){let c=(db.cuts||[]).find(x=>+x.id===+id);if(!c)return;openModal("Pedido original × corte realizado",cutGradeComparisonHTML(c),()=>{})}
+11833: function finishCut(id){
+11834:   let c=(db.cuts||[]).find(x=>+x.id===+id);if(!c)return;
+11835:   let o=cutOrderFor(c);
+11836:   if(!c.originalPieces)c.originalPieces=+c.pieces||qtyOfOrder(o||{})||0;
+11837:   if(!Array.isArray(c.originalGrade)||!c.originalGrade.length)c.originalGrade=cloneCutGrade(o?.grade||[]);
+11838:   let orig=cutOriginalGrade(c,o),actual=cutActualGrade(c,o);
+11839:   let gradeHtml="";
+11840:   if(orig.length){
+11841:     gradeHtml=`<div class="panel" style="margin-top:12px"><h3>Grade realmente cortada</h3><div class="sub">O pedido original fica preservado. Altere somente o que realmente saiu no corte caso tenha faltado material.</div>${table(["Produto","Cor","Tamanho","Pedido original","Cortado"],orig.map((it,i)=>{
+11842:       let p=(db.products||[]).find(x=>+x.id===+it.productId),a=actual.find(x=>+x.productId===+it.productId&&String(x.color||"")===String(it.color||"")&&String(x.size||"")===String(it.size||""));
+11843:       return [esc(p?.name||"Produto"),esc(it.color||"-"),esc(it.size||"-"),+it.qty||0,`<input id="cutActual_${i}" type="number" min="0" step="1" value="${a?.qty??it.qty??0}" style="width:90px;padding:7px;border:1px solid #ccd2dc;border-radius:7px">`];
+11844:     }))}</div>`;
+11845:   }else{
+11846:     gradeHtml=`<div class="field"><label>Quantidade realmente cortada</label><input id="cutActualPieces" type="number" min="0" step="1" value="${+c.pieces||0}"></div>`;
+11847:   }
+11848:   openModal("Finalizar corte",`<div class="cards"><div class="card"><small>Pedido</small><strong>#${esc(displayOrderNumber(o||{id:c.orderId})||c.orderId||'-')}</strong></div><div class="card"><small>Cliente</small><strong style="font-size:18px">${esc(o?.client||c.client||'-')}</strong></div><div class="card"><small>Peças do pedido</small><strong>${(+c.originalPieces||0).toLocaleString('pt-BR')}</strong></div></div>${gradeHtml}<div class="field" style="margin-top:12px"><label>Observação / motivo da alteração</label><textarea id="cutAdjustmentNote" placeholder="Ex.: faltou renda preta; retirei 8 peças tamanho M">${esc(c.cutAdjustmentNote||"")}</textarea></div><div class="sub" style="margin:10px 0">A grade do <strong>pedido original não será alterada</strong>. O sistema guardará as duas para conferência posterior.</div><button type="button" class="primary modalSave">✅ Confirmar corte finalizado</button>`,()=>{
+11849:     let finalGrade=[];
+11850:     if(orig.length){
+11851:       finalGrade=orig.map((it,i)=>({...it,qty:Math.max(0,+document.getElementById(`cutActual_${i}`)?.value||0)}));
+11852:       c.actualCutGrade=finalGrade;
+11853:       c.pieces=finalGrade.reduce((a,x)=>a+(+x.qty||0),0);
+11854:     }else{
+11855:       c.pieces=Math.max(0,+document.getElementById("cutActualPieces")?.value||0);
+11856:     }
+11857:     c.cutAdjustmentNote=document.getElementById("cutAdjustmentNote")?.value||"";
+11858:     c.status="Finalizado";c.finishedAt=isoDate(new Date());c.finishedAtTime=new Date().toISOString();
+11859:     if(o)o.status="Corte finalizado";
+11860:     closeModal();
+11861:     try{persistDb()}catch(e){console.error(e);alert("Não foi possível salvar a finalização do corte.");return}
+11862:     syncFinalizedCutsToProduction();renderCuts();renderOrders();renderCutters();renderProduction();
+11863:   });
+11864: }
+11865: function renderDailyCuts(){
+11866:   let el=document.getElementById("dailyCutTable"),sum=document.getElementById("dailyCutSummary"),dateEl=document.getElementById("dailyCutDate");if(!el)return;
+11867:   if(dateEl&&!dateEl.value)dateEl.value=isoDate(new Date());
+11868:   let day=dateEl?.value||isoDate(new Date());
+11869:   let all=(db.cuts||[]).filter(c=>c.plannedCutDate===day || (String(c.status||"").toLowerCase()==="finalizado"&&c.finishedAt===day));
+11870:   all.sort((a,b)=>{
+11871:     let wa=cutPriorityWeight(cutOrderFor(a)),wb=cutPriorityWeight(cutOrderFor(b));if(wa!==wb)return wa-wb;
+11872:     return String(a.op||"").localeCompare(String(b.op||""));
+11873:   });
+11874:   let pending=all.filter(c=>String(c.status||"").toLowerCase()!=="finalizado"),done=all.filter(c=>String(c.status||"").toLowerCase()==="finalizado");
+11875:   let pqty=pending.reduce((a,c)=>a+(+c.pieces||0),0),dqty=done.reduce((a,c)=>a+(+c.pieces||0),0);
+11876:   if(sum)sum.innerHTML=`<div class="card"><small>Programados no dia</small><strong>${all.length}</strong></div><div class="card"><small>Aguardando corte</small><strong>${pending.length}</strong><div>${pqty.toLocaleString('pt-BR')} peças</div></div><div class="card"><small>Finalizados</small><strong>${done.length}</strong><div>${dqty.toLocaleString('pt-BR')} peças</div></div><div class="card"><small>Levados de dias anteriores</small><strong>${pending.filter(c=>c.rolloverCount>0).length}</strong></div>`;
+11877:   if(!all.length){el.innerHTML='<div class="empty">Nenhum corte programado para este dia.</div>';return}
+11878:   let rows=all.map(c=>{
+11879:     let o=cutOrderFor(c),ct=(db.cutters||[]).find(x=>+x.id===+c.cutterId),finished=String(c.status||"").toLowerCase()==="finalizado";
+11880:     let carried=c.rolloverCount>0?`<span class="badge warn">Veio de ${fmtDate(c.lastCarriedFrom||c.carriedFromDate)}</span>`:"-";
+11881:     return [esc(displayOrderNumber(o||{id:c.orderId})||c.op||c.orderId),esc(o?.client||c.client||'-'),esc(o?orderProductSummary(o):(c.product||'-')),(+c.pieces||0).toLocaleString('pt-BR'),priorityBadge(o?.priority||'Padrão'),esc(ct?.name||'-'),carried,finished?'<span class="badge ok">Finalizado</span>':'<span class="badge warn">A cortar</span>',finished?`<button class="secondary" onclick="viewCutGradeComparison(${c.id})">Pedido original × corte</button>`:`<button class="primary" onclick="finishCut(${c.id})">✅ Finalizar corte</button> <button class="secondary" onclick="editCut(${c.id})">Editar</button>`];
+11882:   });
+11883:   el.innerHTML=table(["Pedido/OP","Cliente","Produto","Peças","Prioridade","Cortador","Reprogramação","Status","Ações"],rows);
+11884: }
+11885: function renderCuts(){
+11886:   prepareCutSchedule();
+11887:   let orders=pedidosQuePrecisamDeCorte();
+11888:   let pending=orders.map(obterCorteDoPedido);
+11889:   let ready=(db.cuts||[]).filter(c=>String(c.status||"").toLowerCase()==="finalizado");
+11890:   let el=document.getElementById("cutTable");
+11891:   if(el){
+11892:     let sorted=orders.slice().sort((a,b)=>{
+11893:       let wa=cutPriorityWeight(a),wb=cutPriorityWeight(b);if(wa!==wb)return wa-wb;
+11894:       let ca=obterCorteDoPedido(a),cb=obterCorteDoPedido(b),da=ca.plannedCutDate||'9999-99-99',dbb=cb.plannedCutDate||'9999-99-99';
+11895:       if(da!==dbb)return da.localeCompare(dbb);return (+displayOrderNumber(a)||+a.id)-(+displayOrderNumber(b)||+b.id);
+11896:     });
+11897:     let cutterOpts=(db.cutters||[]).filter(x=>x.active!==false);
+11898:     let rows=sorted.map((o,idx)=>{
+11899:       let c=obterCorteDoPedido(o),w=cutPriorityWeight(o);
+11900:       let auto=c.autoScheduledPriority?'<span class="badge warn">Data automática pela prioridade</span>':'';
+11901:       let carry=c.rolloverCount>0?`<div class="sub">Reprogramado ${c.rolloverCount}x</div>`:'';
+11902:       return [`<strong>${idx+1}º</strong>`,esc(displayOrderNumber(o)||o.id),esc(o.client||'-'),esc(orderProductSummary(o)),qtyOfOrder(o).toLocaleString('pt-BR'),priorityBadge(o.priority||'Padrão'),`<div class="cut-schedule-inline"><input id="cutDate_${c.id}" type="date" value="${c.plannedCutDate||''}"><select id="cutCutter_${c.id}"><option value="">Cortador</option>${cutterOpts.map(x=>`<option value="${x.id}" ${+x.id===+c.cutterId?'selected':''}>${esc(x.name)}</option>`).join('')}</select><select id="cutType_${c.id}"><option value="">Tipo</option><option value="Interno" ${c.cutType==='Interno'?'selected':''}>Interno</option><option value="Externo" ${c.cutType==='Externo'?'selected':''}>Externo</option></select><button class="secondary" onclick="saveCutSchedule(${c.id})">Salvar</button></div>${auto}${carry}`,`<button class="secondary" onclick="printCuttingSheet(${o.id})">🖨️ Imprimir grade</button> <button class="secondary" onclick="viewOrderDetails(${o.id})">Pedido original</button> <button class="secondary" onclick="editCut(${c.id})">Detalhes do corte</button> <button class="primary" onclick="finishCut(${c.id})">✅ Finalizar</button>`];
+11903:     });
+11904:     el.innerHTML=rows.length?table(["Ordem","Pedido","Cliente","Produto","Peças","Prioridade","Programação do corte","Ações"],rows):'<div class="empty">Nenhum pedido aguardando corte.</div>';
+11905:   }
+11906:   let pp=orders.reduce((a,o)=>a+qtyOfOrder(o),0),pv=orders.reduce((a,o)=>a+(+o.total||0),0);
+11907:   let rp=ready.reduce((a,c)=>a+(+c.pieces||0),0),rv=ready.reduce((a,c)=>a+(typeof cutValue==="function"?cutValue(c):0),0);
+11908:   let ri=ready.filter(c=>c.cutType==="Interno"),re=ready.filter(c=>c.cutType==="Externo");
+11909:   let ip=ri.reduce((a,c)=>a+(+c.pieces||0),0),ep=re.reduce((a,c)=>a+(+c.pieces||0),0),iv=ri.reduce((a,c)=>a+cutValue(c),0),ev=re.reduce((a,c)=>a+cutValue(c),0);
+11910:   let oo=(db.orders||[]).filter(o=>!o.invoiceReady&&!o.noteReady),oq=oo.reduce((a,o)=>a+qtyOfOrder(o),0),ov=oo.reduce((a,o)=>a+(+o.total||0),0);
+11911:   let cards=document.getElementById("cutSummaryCards");if(cards)cards.innerHTML=`<div class="card"><small>Fila de corte</small><strong>${orders.length} pedidos</strong><div>${pp.toLocaleString('pt-BR')} peças · ${money(pv)}</div></div><div class="card"><small>Cortes prontos</small><strong>${rp.toLocaleString('pt-BR')} peças</strong><div>${money(rv)}</div></div><div class="card"><small>Corte interno finalizado</small><strong>${ip.toLocaleString('pt-BR')}</strong><div>${money(iv)}</div></div><div class="card"><small>Corte externo finalizado</small><strong>${ep.toLocaleString('pt-BR')}</strong><div>${money(ev)}</div></div><div class="card"><small>Mercadoria sem nota pronta</small><strong>${oq.toLocaleString('pt-BR')} peças</strong><div>${money(ov)}</div></div>`;
+11912:   let rt=document.getElementById("readyCutsTable");
+11913:   if(rt)rt.innerHTML=ready.length?table(["OP","Cliente","Produto","Peças cortadas","Corte","Cortador","Finalizado","Local de produção","Prioridade","Conferência","Ações"],ready.map(c=>{let l=(db.productionLocations||[]).find(x=>+x.id===+c.productionLocationId),ct=(db.cutters||[]).find(x=>+x.id===+c.cutterId),ord=getOrderByCut(c);return[esc(c.op||'-'),esc(c.client||ord?.client||'-'),esc(ord?orderProductSummary(ord):(c.product||'Pedido')),(+c.pieces||0).toLocaleString('pt-BR'),esc(c.cutType||'-'),esc(ct?.name||'-'),fmtDate(c.finishedAt),esc(l?.name||'-'),priorityBadge(ord?.priority||'Padrão'),`<button class="secondary" onclick="viewCutGradeComparison(${c.id})">Pedido original × corte</button>`,`<button class="primary" onclick="distributeCutClients(${c.id})">👥 Distribuir clientes</button> <button class="secondary" onclick="editReadyCut(${c.id})">Editar</button> <button class="danger" onclick="deleteReadyCut(${c.id})">Excluir</button>`]})):'<div class="empty">Nenhum corte finalizado aguardando produção.</div>';
+11914:   let ot=document.getElementById("openCutOrdersTable");if(ot)ot.innerHTML=oo.length?table(["Pedido","Cliente","Entrega","Peças","Valor","Status","Ações"],oo.map(o=>[displayOrderNumber(o)||o.id,esc(o.client),fmtDate(o.date),qtyOfOrder(o),money(o.total),`<span class="badge">${esc(o.status||'Aberto')}</span>`,`<button type="button" class="secondary" onclick="editOpenMerchandise(${o.id})">Editar</button> <button type="button" class="danger" onclick="deleteOpenMerchandise(${o.id})">Excluir</button>`])):'<div class="empty">Não há mercadoria sem nota pronta.</div>';
+11915:   renderDailyCuts();renderCutClientDistributions();renderCutMaterialNeedReport();
+11916:   try{persistDb()}catch(e){}
+11917: }
+11918: 
+11919: 
+11920: 
+11921: /* ===== v89.63 — DISTRIBUIÇÃO DE UM CORTE ENTRE VÁRIOS CLIENTES ===== */
+11922: function ensureCutClientAllocations(c){
+11923:   if(!c)return [];
+11924:   c.clientAllocations=Array.isArray(c.clientAllocations)?c.clientAllocations:[];
+11925:   return c.clientAllocations;
+11926: }
+11927: function cutDistributionTotal(c){return ensureCutClientAllocations(c).reduce((a,x)=>a+(+x.qty||0),0)}
+11928: function cutDistributionAvailable(c){return Math.max(0,+c.pieces||0)}
+11929: function cutDistributionRemaining(c){return Math.max(0,cutDistributionAvailable(c)-cutDistributionTotal(c))}
+11930: function cutSizeTotals(c){
+11931:   let o=cutOrderFor(c),g=cutActualGrade(c,o),m={};
+11932:   (g||[]).forEach(x=>{let z=String(x.size||'Sem tamanho');m[z]=(m[z]||0)+(+x.qty||0)});
+11933:   return m;
+11934: }
+11935: function allocationSizeUsed(c,skipId){
+11936:   let m={};ensureCutClientAllocations(c).forEach(a=>{if(skipId&&String(a.id)===String(skipId))return;Object.entries(a.sizeGrade||{}).forEach(([k,v])=>m[k]=(m[k]||0)+(+v||0))});return m;
+11937: }
+11938: function addCutAllocationRow(){
+11939:   let box=document.getElementById('cutAllocRows');if(!box)return;
+11940:   let i=Date.now()+Math.floor(Math.random()*9999),opts=(db.clients||[]).slice().sort((a,b)=>String(a.name||'').localeCompare(String(b.name||''),'pt-BR')).map(c=>`<option value="${c.id}">${esc(c.name)}</option>`).join('');
+11941:   box.insertAdjacentHTML('beforeend',`<div class="cut-alloc-row" data-id="${i}" style="display:grid;grid-template-columns:minmax(220px,2fr) minmax(120px,1fr) auto;gap:10px;align-items:end;margin:8px 0"><div class="field"><label>Cliente</label><select class="allocClient"><option value="">Selecione</option>${opts}</select></div><div class="field"><label>Quantidade</label><input class="allocQty" type="number" min="0" step="1" value="0" oninput="refreshCutAllocationModal()"></div><button type="button" class="danger" onclick="this.closest('.cut-alloc-row').remove();refreshCutAllocationModal()">Excluir</button></div>`);
+11942:   refreshCutAllocationModal();
+11943: }
+11944: function refreshCutAllocationModal(){
+11945:   let total=+document.getElementById('cutAllocTotal')?.dataset.total||0,used=[...document.querySelectorAll('#cutAllocRows .allocQty')].reduce((a,e)=>a+(+e.value||0),0),rem=total-used;
+11946:   let el=document.getElementById('cutAllocLive');if(el)el.innerHTML=`<div class="cards"><div class="card"><small>Corte original</small><strong>${total.toLocaleString('pt-BR')}</strong><div>peças</div></div><div class="card"><small>Distribuído</small><strong>${used.toLocaleString('pt-BR')}</strong><div>peças</div></div><div class="card"><small>Restante</small><strong style="${rem<0?'color:#b42318':rem>0?'color:#9a6700':'color:#087443'}">${rem.toLocaleString('pt-BR')}</strong><div>${rem<0?'acima do corte':rem>0?'a distribuir':'distribuição completa'}</div></div></div>`;
+11947: }
+11948: function fillCutAllocationRemainder(){
+11949:   let total=+document.getElementById('cutAllocTotal')?.dataset.total||0,rows=[...document.querySelectorAll('#cutAllocRows .cut-alloc-row')];if(!rows.length){addCutAllocationRow();rows=[...document.querySelectorAll('#cutAllocRows .cut-alloc-row')]}
+11950:   let used=rows.slice(0,-1).reduce((a,r)=>a+(+r.querySelector('.allocQty')?.value||0),0),last=rows[rows.length-1].querySelector('.allocQty');if(last)last.value=Math.max(0,total-used);refreshCutAllocationModal();
+11951: }
+11952: function distributeCutClients(id){
+11953:   let c=(db.cuts||[]).find(x=>+x.id===+id);if(!c)return;let arr=ensureCutClientAllocations(c),total=cutDistributionAvailable(c),opts=(db.clients||[]).slice().sort((a,b)=>String(a.name||'').localeCompare(String(b.name||''),'pt-BR')).map(cl=>`<option value="${cl.id}">${esc(cl.name)}</option>`).join('');
+11954:   let rows=arr.map(a=>`<div class="cut-alloc-row" data-id="${a.id}" style="display:grid;grid-template-columns:minmax(220px,2fr) minmax(120px,1fr) auto;gap:10px;align-items:end;margin:8px 0"><div class="field"><label>Cliente</label><select class="allocClient"><option value="">Selecione</option>${(db.clients||[]).slice().sort((x,y)=>String(x.name||'').localeCompare(String(y.name||''),'pt-BR')).map(cl=>`<option value="${cl.id}" ${String(cl.id)===String(a.clientId)?'selected':''}>${esc(cl.name)}</option>`).join('')}</select></div><div class="field"><label>Quantidade</label><input class="allocQty" type="number" min="0" step="1" value="${+a.qty||0}" oninput="refreshCutAllocationModal()"></div><button type="button" class="danger" onclick="this.closest('.cut-alloc-row').remove();refreshCutAllocationModal()">Excluir</button></div>`).join('');
+11955:   openModal('Distribuir corte entre clientes',`<div id="cutAllocTotal" data-total="${total}"></div><div id="cutAllocLive"></div><div class="panel"><div class="toolbar" style="justify-content:space-between"><div><h3 style="margin:0">Clientes deste corte</h3><div class="sub">Informe só cliente + quantidade. Depois, se quiser, detalhe a grade de cada cliente.</div></div><div><button type="button" class="secondary" onclick="addCutAllocationRow()">+ Cliente</button> <button type="button" class="secondary" onclick="fillCutAllocationRemainder()">Usar todo o restante</button></div></div><div id="cutAllocRows">${rows}</div></div><div class="sub" style="margin:10px 0">O corte original não é alterado. Esta distribuição fica registrada separadamente para conferência e separação por cliente.</div><button type="button" class="primary modalSave">Salvar distribuição</button>`,()=>{
+11956:     let out=[],sum=0,seen=new Set();for(let r of document.querySelectorAll('#cutAllocRows .cut-alloc-row')){let cid=r.querySelector('.allocClient')?.value,q=Math.max(0,+r.querySelector('.allocQty')?.value||0);if(!cid||q<=0)continue;if(seen.has(String(cid))){alert('O mesmo cliente aparece duas vezes. Junte a quantidade em uma única linha.');return false}seen.add(String(cid));let cl=(db.clients||[]).find(x=>String(x.id)===String(cid));out.push({id:+r.dataset.id||Date.now()+out.length,clientId:cl?.id||cid,clientName:cl?.name||'',qty:q,sizeGrade:(arr.find(a=>String(a.id)===String(r.dataset.id))?.sizeGrade)||{}});sum+=q}
+11957:     if(sum>total){alert(`A distribuição soma ${sum.toLocaleString('pt-BR')} peças, mas o corte possui ${total.toLocaleString('pt-BR')}.`);return false}
+11958:     c.clientAllocations=out;c.clientAllocationUpdatedAt=new Date().toISOString();try{persistDb()}catch(e){}closeModal();renderCuts();
+11959:   });setTimeout(refreshCutAllocationModal,0);
+11960: }
+11961: function editCutAllocationGrade(cutId,allocId){
+11962:   let c=(db.cuts||[]).find(x=>+x.id===+cutId),a=ensureCutClientAllocations(c).find(x=>String(x.id)===String(allocId));if(!c||!a)return;let totals=cutSizeTotals(c),used=allocationSizeUsed(c,a.id),sizes=Object.keys(totals);
+11963:   if(!sizes.length){alert('Este corte não possui grade por tamanho cadastrada. A distribuição por quantidade já está salva.');return}
+11964:   let rows=sizes.map((sz,i)=>{let max=Math.max(0,(+totals[sz]||0)-(+used[sz]||0)),v=+(a.sizeGrade||{})[sz]||0;return [esc(sz),(+totals[sz]||0).toLocaleString('pt-BR'),(+used[sz]||0).toLocaleString('pt-BR'),`<input id="allocSize_${i}" data-size="${esc(sz)}" data-max="${max}" type="number" min="0" max="${max}" step="1" value="${v}" style="width:100px">`]}).join('');
+11965:   openModal(`Grade simplificada — ${a.clientName}`,`<div class="cards"><div class="card"><small>Cliente</small><strong style="font-size:18px">${esc(a.clientName)}</strong></div><div class="card"><small>Quantidade destinada</small><strong>${(+a.qty||0).toLocaleString('pt-BR')}</strong></div></div>${table(['Tamanho','Disponível no corte','Já destinado a outros','Para este cliente'],sizes.map((sz,i)=>[esc(sz),(+totals[sz]||0).toLocaleString('pt-BR'),(+used[sz]||0).toLocaleString('pt-BR'),`<input id="allocSize_${i}" data-size="${esc(sz)}" data-max="${Math.max(0,(+totals[sz]||0)-(+used[sz]||0))}" type="number" min="0" step="1" value="${+(a.sizeGrade||{})[sz]||0}" style="width:100px">`]))}<div class="sub" style="margin:10px 0">Aqui a grade é resumida apenas por tamanho, sem repetir cores/modelos. A soma deve ser igual à quantidade destinada ao cliente.</div><button type="button" class="primary modalSave">Salvar grade</button>`,()=>{let g={},sum=0;document.querySelectorAll('[id^="allocSize_"]').forEach(e=>{let v=Math.max(0,+e.value||0),mx=+e.dataset.max||0;if(v>mx)v=mx;g[e.dataset.size]=v;sum+=v});if(sum!==+a.qty){alert(`A grade soma ${sum} peças. Ela precisa somar ${+a.qty||0} peças destinadas a este cliente.`);return false}a.sizeGrade=g;try{persistDb()}catch(e){}closeModal();renderCuts()});
+11966: }
+11967: function renderCutClientDistributions(){
+11968:   let el=document.getElementById('cutClientDistributionTable');if(!el)return;let cuts=(db.cuts||[]).filter(c=>ensureCutClientAllocations(c).length);
+11969:   if(!cuts.length){el.innerHTML='<div class="empty">Nenhum corte foi distribuído entre clientes ainda.</div>';return}
+11970:   let rows=[];cuts.forEach(c=>{let o=cutOrderFor(c),total=cutDistributionAvailable(c),dist=cutDistributionTotal(c),rem=Math.max(0,total-dist);ensureCutClientAllocations(c).forEach((a,i)=>{let grade=Object.entries(a.sizeGrade||{}).filter(([,v])=>+v>0).map(([k,v])=>`${k}: ${v}`).join(' · ');rows.push([i===0?esc(c.op||displayOrderNumber(o||{})||c.id):'',i===0?esc(o?orderProductSummary(o):(c.product||'-')):'',esc(a.clientName||'-'),(+a.qty||0).toLocaleString('pt-BR'),grade||'<span class="sub">Só quantidade</span>',`<button class="secondary" onclick="editCutAllocationGrade(${c.id},${a.id})">Grade</button>`,i===0?`${dist.toLocaleString('pt-BR')} / ${total.toLocaleString('pt-BR')}<div class="sub">${rem?rem.toLocaleString('pt-BR')+' restantes':'Completo'}</div>`:''])})});el.innerHTML=table(['Corte/OP','Produto','Cliente','Peças','Grade simplificada','Ação','Resumo do corte'],rows);
+11971: }
+11972: 
+11973: /* ==========================================================
+11974:    v89.46 — Vales, fotos, rescisões por período, divisão de produção,
+11975:    inventário de bens e estoque de peças prontas
+11976:    ========================================================== */
+11977: 
+11978: function ensureV8946Data(){
+11979:   ensurePayrollData();
+11980:   db.employeeAdvances=Array.isArray(db.employeeAdvances)?db.employeeAdvances:[];
+11981:   db.assets=Array.isArray(db.assets)?db.assets:[];
+11982:   db.stock=Array.isArray(db.stock)?db.stock:[];
+11983:   db.defectReturns=Array.isArray(db.defectReturns)?db.defectReturns:[];
+11984:   if(!db.config)db.config={};
+11985:   if(db.config.advanceLimitPct==null)db.config.advanceLimitPct=0;
+11986:   (db.products||[]).forEach(p=>{p.photos=Array.isArray(p.photos)?p.photos:[]});
+11987:   (db.terminations||[]).forEach(t=>{
+11988:     if(t.fgtsPaid==null)t.fgtsPaid=0;
+11989:     if(t.fgtsFine==null)t.fgtsFine=0;
+11990:     if(t.otherCharges==null)t.otherCharges=0;
+11991:   });
+11992: }
+11993: ensureV8946Data();
+11994: 
+11995: // ---------- Vales / adiantamentos ----------
+11996: function copyText(v){
+11997:   v=String(v||"");
+11998:   if(navigator.clipboard?.writeText){navigator.clipboard.writeText(v).then(()=>alert("Copiado para a área de transferência."));return}
+11999:   let ta=document.createElement("textarea");ta.value=v;document.body.appendChild(ta);ta.select();document.execCommand("copy");ta.remove();alert("Copiado para a área de transferência.");
+12000: }
+12001: function saveAdvanceLimitPct(){
+12002:   ensureV8946Data();
+12003:   db.config.advanceLimitPct=Math.max(0,Math.min(100,+document.getElementById("advanceLimitPct")?.value||0));
+12004:   try{persistDb()}catch(e){}
+12005:   updateAdvanceEmployeeLimitPreview();renderEmployeeAdvances();
+12006:   alert("Limite de vale salvo.");
+12007: }
+12008: function advanceNextPayrollMonth(dateValue){
+12009:   let d=dateValue?new Date(String(dateValue)+"T12:00:00"):new Date();
+12010:   if(Number.isNaN(d.getTime()))d=new Date();
+12011:   d=new Date(d.getFullYear(),d.getMonth()+1,1,12);
+12012:   return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
+12013: }
+12014: function updateAdvanceTargetMonth(){
+12015:   let date=document.getElementById("advanceDate")?.value||isoDate(new Date()),month=document.getElementById("advanceMonth");
+12016:   if(month)month.value=advanceNextPayrollMonth(date);updateAdvanceEmployeeLimitPreview();
+12017: }
+12018: function advanceCommittedForEmployee(employeeId,month){
+12019:   return (db.employeeAdvances||[]).filter(a=>+a.employeeId===+employeeId&&String(a.month||"")===String(month||"")).reduce((s,a)=>s+(+a.value||0),0);
+12020: }
+12021: function updateAdvanceEmployeeLimitPreview(){
+12022:   let box=document.getElementById("advanceEmployeeLimitPreview");if(!box)return;
+12023:   let emp=(db.employees||[]).find(e=>String(e.id)===String(document.getElementById("advanceEmployee")?.value));
+12024:   if(!emp){box.innerHTML='<div class="sub">Selecione um funcionário para ver salário, limite e valor disponível para vale.</div>';return}
+12025:   let month=document.getElementById("advanceMonth")?.value||advanceNextPayrollMonth(document.getElementById("advanceDate")?.value),pct=+document.getElementById("advanceLimitPct")?.value||+db.config.advanceLimitPct||0,salary=+emp.salary||0,limit=salary*pct/100,used=advanceCommittedForEmployee(emp.id,month),available=Math.max(0,limit-used);
+12026:   box.innerHTML=`<div class="cards" style="margin:0"><div class="card"><small>Funcionário</small><strong style="font-size:18px">${esc(emp.name||'-')}</strong></div><div class="card"><small>Salário atual</small><strong>${money(salary)}</strong></div><div class="card"><small>Limite ${pct.toFixed(1).replace('.',',')}%</small><strong>${money(limit)}</strong></div><div class="card"><small>Já comprometido para ${esc(month)}</small><strong>${money(used)}</strong></div><div class="card"><small>Ainda pode receber</small><strong>${money(available)}</strong></div></div>`;
+12027: }
+12028: function fillAdvanceEmployees(){
+12029:   let sel=document.getElementById("advanceEmployee");if(!sel)return;
+12030:   let cur=String(sel.value||"");
+12031:   let arr=(db.employees||[]).filter(e=>e.active!==false).slice().sort((a,b)=>String(a.name||"").localeCompare(String(b.name||""),"pt-BR"));
+12032:   let emp=arr.find(e=>String(e.id)===cur);
+12033:   if(cur&&!emp)sel.value="";
+12034:   let btn=document.getElementById("advanceEmployeeButton"),info=document.getElementById("advanceEmployeeSelected");
+12035:   if(emp){
+12036:     if(btn)btn.innerHTML=`👤 ${esc(emp.name||"Funcionário")} <span style="opacity:.7">— trocar</span>`;
+12037:     if(info)info.innerHTML=`${esc(employeeCompanyName(emp)||"Sem confecção")} · Salário: <strong>${money(+emp.salary||0)}</strong>${emp.pix?` · PIX: ${esc(emp.pix)}`:""}`;
+12038:   }else{
+12039:     if(btn)btn.textContent="👤 Selecionar funcionário";
+12040:     if(info)info.textContent=arr.length?"Clique no botão para buscar e selecionar.":"Nenhum funcionário ativo cadastrado.";
+12041:   }
+12042: }
+12043: function openAdvanceEmployeePicker(){
+12044:   let employees=(db.employees||[]).filter(e=>e.active!==false).slice().sort((a,b)=>String(a.name||"").localeCompare(String(b.name||""),"pt-BR"));
+12045:   if(!employees.length){alert("Nenhum funcionário ativo cadastrado. Cadastre o funcionário primeiro.");return}
+12046:   let companies=[...new Set(employees.map(e=>employeeCompanyName(e)).filter(Boolean))].sort((a,b)=>String(a).localeCompare(String(b),"pt-BR"));
+12047:   openModal("Selecionar funcionário para o vale",`
+12048:     <div class="grid" style="align-items:end">
+12049:       <div class="field" style="grid-column:span 2"><label>Buscar pelo nome</label><input id="advanceEmployeeSearch" placeholder="Digite o nome do funcionário" oninput="renderAdvanceEmployeePicker()"></div>
+12050:       <div class="field"><label>Confecção</label><select id="advanceEmployeeCompany" onchange="renderAdvanceEmployeePicker()"><option value="">Todas</option>${companies.map(c=>`<option value="${esc(c)}">${esc(c)}</option>`).join("")}</select></div>
+12051:     </div>
+12052:     <div class="sub" style="margin:8px 0">Mostrando somente funcionários ativos.</div>
+12053:     <div id="advanceEmployeePickerList"></div>
+12054:   `);
+12055:   renderAdvanceEmployeePicker();
+12056:   setTimeout(()=>document.getElementById("advanceEmployeeSearch")?.focus(),50);
+
+===== line 11820 =====
+11795:     }
+11796:   });
+11797:   if(changed){try{persistDb()}catch(e){console.error(e)}}
+11798: }
+11799: function saveCutSchedule(id){
+11800:   let c=(db.cuts||[]).find(x=>+x.id===+id);if(!c)return;
+11801:   let d=document.getElementById(`cutDate_${id}`),ct=document.getElementById(`cutCutter_${id}`),type=document.getElementById(`cutType_${id}`);
+11802:   c.plannedCutDate=d?.value||"";
+11803:   c.cutterId=ct?.value?+ct.value:null;
+11804:   c.cutType=type?.value||c.cutType||"";
+11805:   c.scheduleUpdatedAt=new Date().toISOString();
+11806:   try{persistDb()}catch(e){console.error(e)}
+11807:   renderCuts();
+11808: }
+11809: function setDailyCutToday(){let el=document.getElementById("dailyCutDate");if(el)el.value=isoDate(new Date());renderDailyCuts()}
+11810: function cutOrderFor(c){return (db.orders||[]).find(o=>+o.id===+c.orderId)||null}
+11811: function cutOriginalGrade(c,o){
+11812:   if(Array.isArray(c.originalGrade)&&c.originalGrade.length)return c.originalGrade;
+11813:   return cloneCutGrade(o?.grade||[]);
+11814: }
+11815: function cutActualGrade(c,o){
+11816:   if(Array.isArray(c.actualCutGrade)&&c.actualCutGrade.length)return c.actualCutGrade;
+11817:   return cutOriginalGrade(c,o);
+11818: }
+11819: function cutGradeComparisonHTML(c){
+11820:   let o=cutOrderFor(c),orig=cutOriginalGrade(c,o),actual=cutActualGrade(c,o);
+11821:   if(!orig.length)return `<div class="panel"><strong>Pedido original:</strong> ${(+c.originalPieces||qtyOfOrder(o||{})||0).toLocaleString("pt-BR")} peças<br><strong>Cortado:</strong> ${(+c.pieces||0).toLocaleString("pt-BR")} peças</div>`;
+11822:   let byKey={};
+11823:   const key=x=>`${x.productId||""}|${x.color||""}|${x.size||""}`;
+11824:   orig.forEach(x=>byKey[key(x)]={orig:+x.qty||0,actual:0,item:x});
+11825:   actual.forEach(x=>{let k=key(x);if(!byKey[k])byKey[k]={orig:0,actual:0,item:x};byKey[k].actual+=+x.qty||0});
+11826:   let rows=Object.values(byKey).map(r=>{
+11827:     let p=(db.products||[]).find(x=>+x.id===+r.item.productId),diff=r.actual-r.orig;
+11828:     return [esc(p?.name||"Produto"),esc(r.item.color||"-"),esc(r.item.size||"-"),r.orig,r.actual,diff===0?"0":`<span class="${diff<0?'cut-diff-negative':'cut-diff-positive'}">${diff>0?'+':''}${diff}</span>`];
+11829:   });
+11830:   return table(["Produto","Cor","Tamanho","Pedido original","Cortado","Diferença"],rows)+`<div class="sub" style="margin-top:8px"><strong>Observação:</strong> ${esc(c.cutAdjustmentNote||"-")}</div>`;
+11831: }
+11832: function viewCutGradeComparison(id){let c=(db.cuts||[]).find(x=>+x.id===+id);if(!c)return;openModal("Pedido original × corte realizado",cutGradeComparisonHTML(c),()=>{})}
+11833: function finishCut(id){
+11834:   let c=(db.cuts||[]).find(x=>+x.id===+id);if(!c)return;
+11835:   let o=cutOrderFor(c);
+11836:   if(!c.originalPieces)c.originalPieces=+c.pieces||qtyOfOrder(o||{})||0;
+11837:   if(!Array.isArray(c.originalGrade)||!c.originalGrade.length)c.originalGrade=cloneCutGrade(o?.grade||[]);
+11838:   let orig=cutOriginalGrade(c,o),actual=cutActualGrade(c,o);
+11839:   let gradeHtml="";
+11840:   if(orig.length){
+11841:     gradeHtml=`<div class="panel" style="margin-top:12px"><h3>Grade realmente cortada</h3><div class="sub">O pedido original fica preservado. Altere somente o que realmente saiu no corte caso tenha faltado material.</div>${table(["Produto","Cor","Tamanho","Pedido original","Cortado"],orig.map((it,i)=>{
+11842:       let p=(db.products||[]).find(x=>+x.id===+it.productId),a=actual.find(x=>+x.productId===+it.productId&&String(x.color||"")===String(it.color||"")&&String(x.size||"")===String(it.size||""));
+11843:       return [esc(p?.name||"Produto"),esc(it.color||"-"),esc(it.size||"-"),+it.qty||0,`<input id="cutActual_${i}" type="number" min="0" step="1" value="${a?.qty??it.qty??0}" style="width:90px;padding:7px;border:1px solid #ccd2dc;border-radius:7px">`];
+11844:     }))}</div>`;
+11845:   }else{
+11846:     gradeHtml=`<div class="field"><label>Quantidade realmente cortada</label><input id="cutActualPieces" type="number" min="0" step="1" value="${+c.pieces||0}"></div>`;
+11847:   }
+11848:   openModal("Finalizar corte",`<div class="cards"><div class="card"><small>Pedido</small><strong>#${esc(displayOrderNumber(o||{id:c.orderId})||c.orderId||'-')}</strong></div><div class="card"><small>Cliente</small><strong style="font-size:18px">${esc(o?.client||c.client||'-')}</strong></div><div class="card"><small>Peças do pedido</small><strong>${(+c.originalPieces||0).toLocaleString('pt-BR')}</strong></div></div>${gradeHtml}<div class="field" style="margin-top:12px"><label>Observação / motivo da alteração</label><textarea id="cutAdjustmentNote" placeholder="Ex.: faltou renda preta; retirei 8 peças tamanho M">${esc(c.cutAdjustmentNote||"")}</textarea></div><div class="sub" style="margin:10px 0">A grade do <strong>pedido original não será alterada</strong>. O sistema guardará as duas para conferência posterior.</div><button type="button" class="primary modalSave">✅ Confirmar corte finalizado</button>`,()=>{
+11849:     let finalGrade=[];
+11850:     if(orig.length){
+11851:       finalGrade=orig.map((it,i)=>({...it,qty:Math.max(0,+document.getElementById(`cutActual_${i}`)?.value||0)}));
+11852:       c.actualCutGrade=finalGrade;
+11853:       c.pieces=finalGrade.reduce((a,x)=>a+(+x.qty||0),0);
+11854:     }else{
+11855:       c.pieces=Math.max(0,+document.getElementById("cutActualPieces")?.value||0);
+11856:     }
+11857:     c.cutAdjustmentNote=document.getElementById("cutAdjustmentNote")?.value||"";
+11858:     c.status="Finalizado";c.finishedAt=isoDate(new Date());c.finishedAtTime=new Date().toISOString();
+11859:     if(o)o.status="Corte finalizado";
+11860:     closeModal();
+11861:     try{persistDb()}catch(e){console.error(e);alert("Não foi possível salvar a finalização do corte.");return}
+11862:     syncFinalizedCutsToProduction();renderCuts();renderOrders();renderCutters();renderProduction();
+11863:   });
+11864: }
+11865: function renderDailyCuts(){
+11866:   let el=document.getElementById("dailyCutTable"),sum=document.getElementById("dailyCutSummary"),dateEl=document.getElementById("dailyCutDate");if(!el)return;
+11867:   if(dateEl&&!dateEl.value)dateEl.value=isoDate(new Date());
+11868:   let day=dateEl?.value||isoDate(new Date());
+11869:   let all=(db.cuts||[]).filter(c=>c.plannedCutDate===day || (String(c.status||"").toLowerCase()==="finalizado"&&c.finishedAt===day));
+11870:   all.sort((a,b)=>{
+11871:     let wa=cutPriorityWeight(cutOrderFor(a)),wb=cutPriorityWeight(cutOrderFor(b));if(wa!==wb)return wa-wb;
+11872:     return String(a.op||"").localeCompare(String(b.op||""));
+11873:   });
+11874:   let pending=all.filter(c=>String(c.status||"").toLowerCase()!=="finalizado"),done=all.filter(c=>String(c.status||"").toLowerCase()==="finalizado");
+11875:   let pqty=pending.reduce((a,c)=>a+(+c.pieces||0),0),dqty=done.reduce((a,c)=>a+(+c.pieces||0),0);
+11876:   if(sum)sum.innerHTML=`<div class="card"><small>Programados no dia</small><strong>${all.length}</strong></div><div class="card"><small>Aguardando corte</small><strong>${pending.length}</strong><div>${pqty.toLocaleString('pt-BR')} peças</div></div><div class="card"><small>Finalizados</small><strong>${done.length}</strong><div>${dqty.toLocaleString('pt-BR')} peças</div></div><div class="card"><small>Levados de dias anteriores</small><strong>${pending.filter(c=>c.rolloverCount>0).length}</strong></div>`;
+11877:   if(!all.length){el.innerHTML='<div class="empty">Nenhum corte programado para este dia.</div>';return}
+11878:   let rows=all.map(c=>{
+11879:     let o=cutOrderFor(c),ct=(db.cutters||[]).find(x=>+x.id===+c.cutterId),finished=String(c.status||"").toLowerCase()==="finalizado";
+11880:     let carried=c.rolloverCount>0?`<span class="badge warn">Veio de ${fmtDate(c.lastCarriedFrom||c.carriedFromDate)}</span>`:"-";
+11881:     return [esc(displayOrderNumber(o||{id:c.orderId})||c.op||c.orderId),esc(o?.client||c.client||'-'),esc(o?orderProductSummary(o):(c.product||'-')),(+c.pieces||0).toLocaleString('pt-BR'),priorityBadge(o?.priority||'Padrão'),esc(ct?.name||'-'),carried,finished?'<span class="badge ok">Finalizado</span>':'<span class="badge warn">A cortar</span>',finished?`<button class="secondary" onclick="viewCutGradeComparison(${c.id})">Pedido original × corte</button>`:`<button class="primary" onclick="finishCut(${c.id})">✅ Finalizar corte</button> <button class="secondary" onclick="editCut(${c.id})">Editar</button>`];
+11882:   });
+11883:   el.innerHTML=table(["Pedido/OP","Cliente","Produto","Peças","Prioridade","Cortador","Reprogramação","Status","Ações"],rows);
+11884: }
+11885: function renderCuts(){
+11886:   prepareCutSchedule();
+11887:   let orders=pedidosQuePrecisamDeCorte();
+11888:   let pending=orders.map(obterCorteDoPedido);
+11889:   let ready=(db.cuts||[]).filter(c=>String(c.status||"").toLowerCase()==="finalizado");
+11890:   let el=document.getElementById("cutTable");
+11891:   if(el){
+11892:     let sorted=orders.slice().sort((a,b)=>{
+11893:       let wa=cutPriorityWeight(a),wb=cutPriorityWeight(b);if(wa!==wb)return wa-wb;
+11894:       let ca=obterCorteDoPedido(a),cb=obterCorteDoPedido(b),da=ca.plannedCutDate||'9999-99-99',dbb=cb.plannedCutDate||'9999-99-99';
+11895:       if(da!==dbb)return da.localeCompare(dbb);return (+displayOrderNumber(a)||+a.id)-(+displayOrderNumber(b)||+b.id);
+11896:     });
+11897:     let cutterOpts=(db.cutters||[]).filter(x=>x.active!==false);
+11898:     let rows=sorted.map((o,idx)=>{
+11899:       let c=obterCorteDoPedido(o),w=cutPriorityWeight(o);
+11900:       let auto=c.autoScheduledPriority?'<span class="badge warn">Data automática pela prioridade</span>':'';
+11901:       let carry=c.rolloverCount>0?`<div class="sub">Reprogramado ${c.rolloverCount}x</div>`:'';
+11902:       return [`<strong>${idx+1}º</strong>`,esc(displayOrderNumber(o)||o.id),esc(o.client||'-'),esc(orderProductSummary(o)),qtyOfOrder(o).toLocaleString('pt-BR'),priorityBadge(o.priority||'Padrão'),`<div class="cut-schedule-inline"><input id="cutDate_${c.id}" type="date" value="${c.plannedCutDate||''}"><select id="cutCutter_${c.id}"><option value="">Cortador</option>${cutterOpts.map(x=>`<option value="${x.id}" ${+x.id===+c.cutterId?'selected':''}>${esc(x.name)}</option>`).join('')}</select><select id="cutType_${c.id}"><option value="">Tipo</option><option value="Interno" ${c.cutType==='Interno'?'selected':''}>Interno</option><option value="Externo" ${c.cutType==='Externo'?'selected':''}>Externo</option></select><button class="secondary" onclick="saveCutSchedule(${c.id})">Salvar</button></div>${auto}${carry}`,`<button class="secondary" onclick="printCuttingSheet(${o.id})">🖨️ Imprimir grade</button> <button class="secondary" onclick="viewOrderDetails(${o.id})">Pedido original</button> <button class="secondary" onclick="editCut(${c.id})">Detalhes do corte</button> <button class="primary" onclick="finishCut(${c.id})">✅ Finalizar</button>`];
+11903:     });
+11904:     el.innerHTML=rows.length?table(["Ordem","Pedido","Cliente","Produto","Peças","Prioridade","Programação do corte","Ações"],rows):'<div class="empty">Nenhum pedido aguardando corte.</div>';
+11905:   }
+11906:   let pp=orders.reduce((a,o)=>a+qtyOfOrder(o),0),pv=orders.reduce((a,o)=>a+(+o.total||0),0);
+11907:   let rp=ready.reduce((a,c)=>a+(+c.pieces||0),0),rv=ready.reduce((a,c)=>a+(typeof cutValue==="function"?cutValue(c):0),0);
+11908:   let ri=ready.filter(c=>c.cutType==="Interno"),re=ready.filter(c=>c.cutType==="Externo");
+11909:   let ip=ri.reduce((a,c)=>a+(+c.pieces||0),0),ep=re.reduce((a,c)=>a+(+c.pieces||0),0),iv=ri.reduce((a,c)=>a+cutValue(c),0),ev=re.reduce((a,c)=>a+cutValue(c),0);
+11910:   let oo=(db.orders||[]).filter(o=>!o.invoiceReady&&!o.noteReady),oq=oo.reduce((a,o)=>a+qtyOfOrder(o),0),ov=oo.reduce((a,o)=>a+(+o.total||0),0);
+11911:   let cards=document.getElementById("cutSummaryCards");if(cards)cards.innerHTML=`<div class="card"><small>Fila de corte</small><strong>${orders.length} pedidos</strong><div>${pp.toLocaleString('pt-BR')} peças · ${money(pv)}</div></div><div class="card"><small>Cortes prontos</small><strong>${rp.toLocaleString('pt-BR')} peças</strong><div>${money(rv)}</div></div><div class="card"><small>Corte interno finalizado</small><strong>${ip.toLocaleString('pt-BR')}</strong><div>${money(iv)}</div></div><div class="card"><small>Corte externo finalizado</small><strong>${ep.toLocaleString('pt-BR')}</strong><div>${money(ev)}</div></div><div class="card"><small>Mercadoria sem nota pronta</small><strong>${oq.toLocaleString('pt-BR')} peças</strong><div>${money(ov)}</div></div>`;
+11912:   let rt=document.getElementById("readyCutsTable");
+11913:   if(rt)rt.innerHTML=ready.length?table(["OP","Cliente","Produto","Peças cortadas","Corte","Cortador","Finalizado","Local de produção","Prioridade","Conferência","Ações"],ready.map(c=>{let l=(db.productionLocations||[]).find(x=>+x.id===+c.productionLocationId),ct=(db.cutters||[]).find(x=>+x.id===+c.cutterId),ord=getOrderByCut(c);return[esc(c.op||'-'),esc(c.client||ord?.client||'-'),esc(ord?orderProductSummary(ord):(c.product||'Pedido')),(+c.pieces||0).toLocaleString('pt-BR'),esc(c.cutType||'-'),esc(ct?.name||'-'),fmtDate(c.finishedAt),esc(l?.name||'-'),priorityBadge(ord?.priority||'Padrão'),`<button class="secondary" onclick="viewCutGradeComparison(${c.id})">Pedido original × corte</button>`,`<button class="primary" onclick="distributeCutClients(${c.id})">👥 Distribuir clientes</button> <button class="secondary" onclick="editReadyCut(${c.id})">Editar</button> <button class="danger" onclick="deleteReadyCut(${c.id})">Excluir</button>`]})):'<div class="empty">Nenhum corte finalizado aguardando produção.</div>';
+11914:   let ot=document.getElementById("openCutOrdersTable");if(ot)ot.innerHTML=oo.length?table(["Pedido","Cliente","Entrega","Peças","Valor","Status","Ações"],oo.map(o=>[displayOrderNumber(o)||o.id,esc(o.client),fmtDate(o.date),qtyOfOrder(o),money(o.total),`<span class="badge">${esc(o.status||'Aberto')}</span>`,`<button type="button" class="secondary" onclick="editOpenMerchandise(${o.id})">Editar</button> <button type="button" class="danger" onclick="deleteOpenMerchandise(${o.id})">Excluir</button>`])):'<div class="empty">Não há mercadoria sem nota pronta.</div>';
+11915:   renderDailyCuts();renderCutClientDistributions();renderCutMaterialNeedReport();
+11916:   try{persistDb()}catch(e){}
+11917: }
+11918: 
+11919: 
+11920: 
+11921: /* ===== v89.63 — DISTRIBUIÇÃO DE UM CORTE ENTRE VÁRIOS CLIENTES ===== */
+11922: function ensureCutClientAllocations(c){
+11923:   if(!c)return [];
+11924:   c.clientAllocations=Array.isArray(c.clientAllocations)?c.clientAllocations:[];
+11925:   return c.clientAllocations;
+11926: }
+11927: function cutDistributionTotal(c){return ensureCutClientAllocations(c).reduce((a,x)=>a+(+x.qty||0),0)}
+11928: function cutDistributionAvailable(c){return Math.max(0,+c.pieces||0)}
+11929: function cutDistributionRemaining(c){return Math.max(0,cutDistributionAvailable(c)-cutDistributionTotal(c))}
+11930: function cutSizeTotals(c){
+11931:   let o=cutOrderFor(c),g=cutActualGrade(c,o),m={};
+11932:   (g||[]).forEach(x=>{let z=String(x.size||'Sem tamanho');m[z]=(m[z]||0)+(+x.qty||0)});
+11933:   return m;
+11934: }
+11935: function allocationSizeUsed(c,skipId){
+11936:   let m={};ensureCutClientAllocations(c).forEach(a=>{if(skipId&&String(a.id)===String(skipId))return;Object.entries(a.sizeGrade||{}).forEach(([k,v])=>m[k]=(m[k]||0)+(+v||0))});return m;
+11937: }
+11938: function addCutAllocationRow(){
+11939:   let box=document.getElementById('cutAllocRows');if(!box)return;
+11940:   let i=Date.now()+Math.floor(Math.random()*9999),opts=(db.clients||[]).slice().sort((a,b)=>String(a.name||'').localeCompare(String(b.name||''),'pt-BR')).map(c=>`<option value="${c.id}">${esc(c.name)}</option>`).join('');
+11941:   box.insertAdjacentHTML('beforeend',`<div class="cut-alloc-row" data-id="${i}" style="display:grid;grid-template-columns:minmax(220px,2fr) minmax(120px,1fr) auto;gap:10px;align-items:end;margin:8px 0"><div class="field"><label>Cliente</label><select class="allocClient"><option value="">Selecione</option>${opts}</select></div><div class="field"><label>Quantidade</label><input class="allocQty" type="number" min="0" step="1" value="0" oninput="refreshCutAllocationModal()"></div><button type="button" class="danger" onclick="this.closest('.cut-alloc-row').remove();refreshCutAllocationModal()">Excluir</button></div>`);
+11942:   refreshCutAllocationModal();
+11943: }
+11944: function refreshCutAllocationModal(){
+11945:   let total=+document.getElementById('cutAllocTotal')?.dataset.total||0,used=[...document.querySelectorAll('#cutAllocRows .allocQty')].reduce((a,e)=>a+(+e.value||0),0),rem=total-used;
+11946:   let el=document.getElementById('cutAllocLive');if(el)el.innerHTML=`<div class="cards"><div class="card"><small>Corte original</small><strong>${total.toLocaleString('pt-BR')}</strong><div>peças</div></div><div class="card"><small>Distribuído</small><strong>${used.toLocaleString('pt-BR')}</strong><div>peças</div></div><div class="card"><small>Restante</small><strong style="${rem<0?'color:#b42318':rem>0?'color:#9a6700':'color:#087443'}">${rem.toLocaleString('pt-BR')}</strong><div>${rem<0?'acima do corte':rem>0?'a distribuir':'distribuição completa'}</div></div></div>`;
+11947: }
+11948: function fillCutAllocationRemainder(){
+11949:   let total=+document.getElementById('cutAllocTotal')?.dataset.total||0,rows=[...document.querySelectorAll('#cutAllocRows .cut-alloc-row')];if(!rows.length){addCutAllocationRow();rows=[...document.querySelectorAll('#cutAllocRows .cut-alloc-row')]}
+11950:   let used=rows.slice(0,-1).reduce((a,r)=>a+(+r.querySelector('.allocQty')?.value||0),0),last=rows[rows.length-1].querySelector('.allocQty');if(last)last.value=Math.max(0,total-used);refreshCutAllocationModal();
+11951: }
+11952: function distributeCutClients(id){
+11953:   let c=(db.cuts||[]).find(x=>+x.id===+id);if(!c)return;let arr=ensureCutClientAllocations(c),total=cutDistributionAvailable(c),opts=(db.clients||[]).slice().sort((a,b)=>String(a.name||'').localeCompare(String(b.name||''),'pt-BR')).map(cl=>`<option value="${cl.id}">${esc(cl.name)}</option>`).join('');
+11954:   let rows=arr.map(a=>`<div class="cut-alloc-row" data-id="${a.id}" style="display:grid;grid-template-columns:minmax(220px,2fr) minmax(120px,1fr) auto;gap:10px;align-items:end;margin:8px 0"><div class="field"><label>Cliente</label><select class="allocClient"><option value="">Selecione</option>${(db.clients||[]).slice().sort((x,y)=>String(x.name||'').localeCompare(String(y.name||''),'pt-BR')).map(cl=>`<option value="${cl.id}" ${String(cl.id)===String(a.clientId)?'selected':''}>${esc(cl.name)}</option>`).join('')}</select></div><div class="field"><label>Quantidade</label><input class="allocQty" type="number" min="0" step="1" value="${+a.qty||0}" oninput="refreshCutAllocationModal()"></div><button type="button" class="danger" onclick="this.closest('.cut-alloc-row').remove();refreshCutAllocationModal()">Excluir</button></div>`).join('');
+11955:   openModal('Distribuir corte entre clientes',`<div id="cutAllocTotal" data-total="${total}"></div><div id="cutAllocLive"></div><div class="panel"><div class="toolbar" style="justify-content:space-between"><div><h3 style="margin:0">Clientes deste corte</h3><div class="sub">Informe só cliente + quantidade. Depois, se quiser, detalhe a grade de cada cliente.</div></div><div><button type="button" class="secondary" onclick="addCutAllocationRow()">+ Cliente</button> <button type="button" class="secondary" onclick="fillCutAllocationRemainder()">Usar todo o restante</button></div></div><div id="cutAllocRows">${rows}</div></div><div class="sub" style="margin:10px 0">O corte original não é alterado. Esta distribuição fica registrada separadamente para conferência e separação por cliente.</div><button type="button" class="primary modalSave">Salvar distribuição</button>`,()=>{
+11956:     let out=[],sum=0,seen=new Set();for(let r of document.querySelectorAll('#cutAllocRows .cut-alloc-row')){let cid=r.querySelector('.allocClient')?.value,q=Math.max(0,+r.querySelector('.allocQty')?.value||0);if(!cid||q<=0)continue;if(seen.has(String(cid))){alert('O mesmo cliente aparece duas vezes. Junte a quantidade em uma única linha.');return false}seen.add(String(cid));let cl=(db.clients||[]).find(x=>String(x.id)===String(cid));out.push({id:+r.dataset.id||Date.now()+out.length,clientId:cl?.id||cid,clientName:cl?.name||'',qty:q,sizeGrade:(arr.find(a=>String(a.id)===String(r.dataset.id))?.sizeGrade)||{}});sum+=q}
+11957:     if(sum>total){alert(`A distribuição soma ${sum.toLocaleString('pt-BR')} peças, mas o corte possui ${total.toLocaleString('pt-BR')}.`);return false}
+11958:     c.clientAllocations=out;c.clientAllocationUpdatedAt=new Date().toISOString();try{persistDb()}catch(e){}closeModal();renderCuts();
+11959:   });setTimeout(refreshCutAllocationModal,0);
+11960: }
+11961: function editCutAllocationGrade(cutId,allocId){
+11962:   let c=(db.cuts||[]).find(x=>+x.id===+cutId),a=ensureCutClientAllocations(c).find(x=>String(x.id)===String(allocId));if(!c||!a)return;let totals=cutSizeTotals(c),used=allocationSizeUsed(c,a.id),sizes=Object.keys(totals);
+11963:   if(!sizes.length){alert('Este corte não possui grade por tamanho cadastrada. A distribuição por quantidade já está salva.');return}
+11964:   let rows=sizes.map((sz,i)=>{let max=Math.max(0,(+totals[sz]||0)-(+used[sz]||0)),v=+(a.sizeGrade||{})[sz]||0;return [esc(sz),(+totals[sz]||0).toLocaleString('pt-BR'),(+used[sz]||0).toLocaleString('pt-BR'),`<input id="allocSize_${i}" data-size="${esc(sz)}" data-max="${max}" type="number" min="0" max="${max}" step="1" value="${v}" style="width:100px">`]}).join('');
+11965:   openModal(`Grade simplificada — ${a.clientName}`,`<div class="cards"><div class="card"><small>Cliente</small><strong style="font-size:18px">${esc(a.clientName)}</strong></div><div class="card"><small>Quantidade destinada</small><strong>${(+a.qty||0).toLocaleString('pt-BR')}</strong></div></div>${table(['Tamanho','Disponível no corte','Já destinado a outros','Para este cliente'],sizes.map((sz,i)=>[esc(sz),(+totals[sz]||0).toLocaleString('pt-BR'),(+used[sz]||0).toLocaleString('pt-BR'),`<input id="allocSize_${i}" data-size="${esc(sz)}" data-max="${Math.max(0,(+totals[sz]||0)-(+used[sz]||0))}" type="number" min="0" step="1" value="${+(a.sizeGrade||{})[sz]||0}" style="width:100px">`]))}<div class="sub" style="margin:10px 0">Aqui a grade é resumida apenas por tamanho, sem repetir cores/modelos. A soma deve ser igual à quantidade destinada ao cliente.</div><button type="button" class="primary modalSave">Salvar grade</button>`,()=>{let g={},sum=0;document.querySelectorAll('[id^="allocSize_"]').forEach(e=>{let v=Math.max(0,+e.value||0),mx=+e.dataset.max||0;if(v>mx)v=mx;g[e.dataset.size]=v;sum+=v});if(sum!==+a.qty){alert(`A grade soma ${sum} peças. Ela precisa somar ${+a.qty||0} peças destinadas a este cliente.`);return false}a.sizeGrade=g;try{persistDb()}catch(e){}closeModal();renderCuts()});
+11966: }
+11967: function renderCutClientDistributions(){
+11968:   let el=document.getElementById('cutClientDistributionTable');if(!el)return;let cuts=(db.cuts||[]).filter(c=>ensureCutClientAllocations(c).length);
+11969:   if(!cuts.length){el.innerHTML='<div class="empty">Nenhum corte foi distribuído entre clientes ainda.</div>';return}
+11970:   let rows=[];cuts.forEach(c=>{let o=cutOrderFor(c),total=cutDistributionAvailable(c),dist=cutDistributionTotal(c),rem=Math.max(0,total-dist);ensureCutClientAllocations(c).forEach((a,i)=>{let grade=Object.entries(a.sizeGrade||{}).filter(([,v])=>+v>0).map(([k,v])=>`${k}: ${v}`).join(' · ');rows.push([i===0?esc(c.op||displayOrderNumber(o||{})||c.id):'',i===0?esc(o?orderProductSummary(o):(c.product||'-')):'',esc(a.clientName||'-'),(+a.qty||0).toLocaleString('pt-BR'),grade||'<span class="sub">Só quantidade</span>',`<button class="secondary" onclick="editCutAllocationGrade(${c.id},${a.id})">Grade</button>`,i===0?`${dist.toLocaleString('pt-BR')} / ${total.toLocaleString('pt-BR')}<div class="sub">${rem?rem.toLocaleString('pt-BR')+' restantes':'Completo'}</div>`:''])})});el.innerHTML=table(['Corte/OP','Produto','Cliente','Peças','Grade simplificada','Ação','Resumo do corte'],rows);
+11971: }
+11972: 
+11973: /* ==========================================================
+11974:    v89.46 — Vales, fotos, rescisões por período, divisão de produção,
+11975:    inventário de bens e estoque de peças prontas
+11976:    ========================================================== */
+11977: 
+11978: function ensureV8946Data(){
+11979:   ensurePayrollData();
+11980:   db.employeeAdvances=Array.isArray(db.employeeAdvances)?db.employeeAdvances:[];
+11981:   db.assets=Array.isArray(db.assets)?db.assets:[];
+11982:   db.stock=Array.isArray(db.stock)?db.stock:[];
+11983:   db.defectReturns=Array.isArray(db.defectReturns)?db.defectReturns:[];
+11984:   if(!db.config)db.config={};
+11985:   if(db.config.advanceLimitPct==null)db.config.advanceLimitPct=0;
+11986:   (db.products||[]).forEach(p=>{p.photos=Array.isArray(p.photos)?p.photos:[]});
+11987:   (db.terminations||[]).forEach(t=>{
+11988:     if(t.fgtsPaid==null)t.fgtsPaid=0;
+11989:     if(t.fgtsFine==null)t.fgtsFine=0;
+11990:     if(t.otherCharges==null)t.otherCharges=0;
+11991:   });
+11992: }
+11993: ensureV8946Data();
+11994: 
+11995: // ---------- Vales / adiantamentos ----------
+11996: function copyText(v){
+11997:   v=String(v||"");
+11998:   if(navigator.clipboard?.writeText){navigator.clipboard.writeText(v).then(()=>alert("Copiado para a área de transferência."));return}
+11999:   let ta=document.createElement("textarea");ta.value=v;document.body.appendChild(ta);ta.select();document.execCommand("copy");ta.remove();alert("Copiado para a área de transferência.");
+12000: }
+12001: function saveAdvanceLimitPct(){
+12002:   ensureV8946Data();
+12003:   db.config.advanceLimitPct=Math.max(0,Math.min(100,+document.getElementById("advanceLimitPct")?.value||0));
+12004:   try{persistDb()}catch(e){}
+12005:   updateAdvanceEmployeeLimitPreview();renderEmployeeAdvances();
+12006:   alert("Limite de vale salvo.");
+12007: }
+12008: function advanceNextPayrollMonth(dateValue){
+12009:   let d=dateValue?new Date(String(dateValue)+"T12:00:00"):new Date();
+12010:   if(Number.isNaN(d.getTime()))d=new Date();
+12011:   d=new Date(d.getFullYear(),d.getMonth()+1,1,12);
+12012:   return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
+12013: }
+12014: function updateAdvanceTargetMonth(){
+12015:   let date=document.getElementById("advanceDate")?.value||isoDate(new Date()),month=document.getElementById("advanceMonth");
+12016:   if(month)month.value=advanceNextPayrollMonth(date);updateAdvanceEmployeeLimitPreview();
+12017: }
+12018: function advanceCommittedForEmployee(employeeId,month){
+12019:   return (db.employeeAdvances||[]).filter(a=>+a.employeeId===+employeeId&&String(a.month||"")===String(month||"")).reduce((s,a)=>s+(+a.value||0),0);
+12020: }
+12021: function updateAdvanceEmployeeLimitPreview(){
+12022:   let box=document.getElementById("advanceEmployeeLimitPreview");if(!box)return;
+12023:   let emp=(db.employees||[]).find(e=>String(e.id)===String(document.getElementById("advanceEmployee")?.value));
+12024:   if(!emp){box.innerHTML='<div class="sub">Selecione um funcionário para ver salário, limite e valor disponível para vale.</div>';return}
+12025:   let month=document.getElementById("advanceMonth")?.value||advanceNextPayrollMonth(document.getElementById("advanceDate")?.value),pct=+document.getElementById("advanceLimitPct")?.value||+db.config.advanceLimitPct||0,salary=+emp.salary||0,limit=salary*pct/100,used=advanceCommittedForEmployee(emp.id,month),available=Math.max(0,limit-used);
+12026:   box.innerHTML=`<div class="cards" style="margin:0"><div class="card"><small>Funcionário</small><strong style="font-size:18px">${esc(emp.name||'-')}</strong></div><div class="card"><small>Salário atual</small><strong>${money(salary)}</strong></div><div class="card"><small>Limite ${pct.toFixed(1).replace('.',',')}%</small><strong>${money(limit)}</strong></div><div class="card"><small>Já comprometido para ${esc(month)}</small><strong>${money(used)}</strong></div><div class="card"><small>Ainda pode receber</small><strong>${money(available)}</strong></div></div>`;
+12027: }
+12028: function fillAdvanceEmployees(){
+12029:   let sel=document.getElementById("advanceEmployee");if(!sel)return;
+12030:   let cur=String(sel.value||"");
+12031:   let arr=(db.employees||[]).filter(e=>e.active!==false).slice().sort((a,b)=>String(a.name||"").localeCompare(String(b.name||""),"pt-BR"));
+12032:   let emp=arr.find(e=>String(e.id)===cur);
+12033:   if(cur&&!emp)sel.value="";
+12034:   let btn=document.getElementById("advanceEmployeeButton"),info=document.getElementById("advanceEmployeeSelected");
+12035:   if(emp){
+12036:     if(btn)btn.innerHTML=`👤 ${esc(emp.name||"Funcionário")} <span style="opacity:.7">— trocar</span>`;
+12037:     if(info)info.innerHTML=`${esc(employeeCompanyName(emp)||"Sem confecção")} · Salário: <strong>${money(+emp.salary||0)}</strong>${emp.pix?` · PIX: ${esc(emp.pix)}`:""}`;
+12038:   }else{
+12039:     if(btn)btn.textContent="👤 Selecionar funcionário";
+12040:     if(info)info.textContent=arr.length?"Clique no botão para buscar e selecionar.":"Nenhum funcionário ativo cadastrado.";
+12041:   }
+12042: }
+12043: function openAdvanceEmployeePicker(){
+12044:   let employees=(db.employees||[]).filter(e=>e.active!==false).slice().sort((a,b)=>String(a.name||"").localeCompare(String(b.name||""),"pt-BR"));
+12045:   if(!employees.length){alert("Nenhum funcionário ativo cadastrado. Cadastre o funcionário primeiro.");return}
+12046:   let companies=[...new Set(employees.map(e=>employeeCompanyName(e)).filter(Boolean))].sort((a,b)=>String(a).localeCompare(String(b),"pt-BR"));
+12047:   openModal("Selecionar funcionário para o vale",`
+12048:     <div class="grid" style="align-items:end">
+12049:       <div class="field" style="grid-column:span 2"><label>Buscar pelo nome</label><input id="advanceEmployeeSearch" placeholder="Digite o nome do funcionário" oninput="renderAdvanceEmployeePicker()"></div>
+12050:       <div class="field"><label>Confecção</label><select id="advanceEmployeeCompany" onchange="renderAdvanceEmployeePicker()"><option value="">Todas</option>${companies.map(c=>`<option value="${esc(c)}">${esc(c)}</option>`).join("")}</select></div>
+12051:     </div>
+12052:     <div class="sub" style="margin:8px 0">Mostrando somente funcionários ativos.</div>
+12053:     <div id="advanceEmployeePickerList"></div>
+12054:   `);
+12055:   renderAdvanceEmployeePicker();
+12056:   setTimeout(()=>document.getElementById("advanceEmployeeSearch")?.focus(),50);
+12057: }
+12058: function renderAdvanceEmployeePicker(){
+12059:   let box=document.getElementById("advanceEmployeePickerList");if(!box)return;

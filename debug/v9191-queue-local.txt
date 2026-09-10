@@ -1,0 +1,1234 @@
+===== line 3038 =====
+3013:  document.querySelectorAll("#nav .nav-group").forEach(g=>{if(g!==group)g.classList.remove("open")});
+3014:  group.classList.add("open");
+3015: }
+3016: function restoreNavGroups(){
+3017:  try{
+3018:    let states=JSON.parse(localStorage.getItem("hlgb_nav_groups")||"[]");
+3019:    let groups=[...document.querySelectorAll("#nav .nav-group")];
+3020:    groups.forEach((g,i)=>g.classList.toggle("open",!!states[i]));
+3021:  }catch(e){}
+3022: }
+3023: 
+3024: function ensurePayrollData(){
+3025:  db.employees=Array.isArray(db.employees)?db.employees:[];
+3026:  db.payroll=Array.isArray(db.payroll)?db.payroll:[];
+3027:  db.terminations=Array.isArray(db.terminations)?db.terminations:[];
+3028:  db.formerEmployees=Array.isArray(db.formerEmployees)?db.formerEmployees:[];
+3029:  if(!db.config)db.config={};
+3030:  if(db.config.payrollExtraChargesPct==null)db.config.payrollExtraChargesPct=0;
+3031:  if(db.config.transportFare==null)db.config.transportFare=0;
+3032:  db.config.payrollWorkDays=typeof db.config.payrollWorkDays==="object"&&db.config.payrollWorkDays?db.config.payrollWorkDays:{};
+3033: }
+3034: function payrollCurrentMonth(){
+3035:  let d=new Date();return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}`;
+3036: }
+3037: function employeeCompanyName(e){
+3038:  let l=(db.productionLocations||[]).find(x=>+x.id===+e.productionLocationId);
+3039:  return l?.name||e.companyName||"Sem confecção";
+3040: }
+3041: function tenureInfo(hireDate,refDate){
+3042:  if(!hireDate)return {months:0,years:0,remMonths:0,label:"Não informado"};
+3043:  let a=new Date(hireDate+"T12:00:00"),b=refDate?new Date(refDate+"T12:00:00"):new Date();
+3044:  if(b<a)return {months:0,years:0,remMonths:0,label:"0 meses"};
+3045:  let months=(b.getFullYear()-a.getFullYear())*12+(b.getMonth()-a.getMonth());
+3046:  if(b.getDate()<a.getDate())months--;
+3047:  months=Math.max(0,months);
+3048:  let years=Math.floor(months/12),rem=months%12;
+3049:  return {months,years,remMonths:rem,label:years?`${years} ano${years!==1?"s":""} e ${rem} mês${rem!==1?"es":""}`:`${months} mês${months!==1?"es":""}`};
+3050: }
+3051: function calcINSS2026(base){
+3052:  base=Math.max(0,+base||0);
+3053:  const bands=[
+3054:    {limit:1621.00,rate:.075},
+3055:    {limit:2902.84,rate:.09},
+3056:    {limit:4354.27,rate:.12},
+3057:    {limit:8475.55,rate:.14}
+3058:  ];
+3059:  let prev=0,total=0;
+3060:  for(const b of bands){
+3061:    let taxable=Math.max(0,Math.min(base,b.limit)-prev);
+3062:    if(taxable>0)total+=taxable*b.rate;
+3063:    prev=b.limit;
+3064:    if(base<=b.limit)break;
+3065:  }
+3066:  return Number(total.toFixed(2));
+3067: }
+3068: function payrollCalc(r,e){
+3069:  let salary=+r.salary||+e.salary||0;
+3070:  let fare=+db.config?.transportFare||0;
+3071:  let month=r.month||payrollCurrentMonth();
+3072:  let workDays=+db.config?.payrollWorkDays?.[month]||0;
+3073:  let transportAbsenceDays=Math.max(0,+r.transportAbsenceDays||0);
+3074:  let eligibleTransport=e.hasTransport!==false;
+3075:  let transport=eligibleTransport?Math.max(0,workDays-transportAbsenceDays)*fare:0;
+3076:  let benefit=+r.benefit||0, overtime=+r.overtime||0, bonus=+r.bonus||0, otherCredit=+r.otherCredit||0;
+3077:  let absence=+r.absence||0, union=+r.unionDiscount||0, advance=+r.advance||0, purchase=+r.purchase||0, otherDiscount=+r.otherDiscount||0;
+3078:  let contribBase=Math.max(0,salary+overtime+bonus-absence);
+3079:  let calculatedInss=calcINSS2026(contribBase);
+3080:  let inss=r.discountInss===false?0:calculatedInss;
+3081:  let gross=salary+transport+benefit+overtime+bonus+otherCredit;
+3082:  let discounts=absence+inss+union+advance+purchase+otherDiscount;
+3083:  let net=Math.max(0,gross-discounts);
+3084:  return {salary,transport,benefit,overtime,bonus,otherCredit,absence,union,advance,purchase,otherDiscount,contribBase,inss,gross,discounts,net};
+3085: }
+3086: function newEmployee(){
+3087:  ensurePayrollData();
+3088:  let locations=(db.productionLocations||[]).filter(x=>x.active!==false);
+3089:  openModal("Novo funcionário",`
+3090:  <div class="grid">
+3091:   <div class="field"><label>Nome</label><input id="empName"></div>
+3092:   <div class="field"><label>Confecção</label><select id="empLocation"><option value="">Selecione</option>${locations.map(l=>`<option value="${l.id}">${esc(l.name)}</option>`).join("")}</select></div>
+3093:   <div class="field"><label>Salário base</label><input id="empSalary" type="number" step=".01"></div>
+3094:   <div class="field"><label>Tem direito a vale-transporte?</label><select id="empHasTransport"><option value="true">Sim</option><option value="false">Não</option></select></div>
+3095:   <div class="field"><label>Benefício / salário-família padrão</label><input id="empBenefit" type="number" step=".01"></div>
+3096:   <div class="field"><label>Data de admissão</label><input id="empHire" type="date"></div>
+3097:   <div class="field"><label>Chave PIX</label><input id="empPix"></div>
+3098:   <div class="field"><label>Ativo</label><select id="empActive"><option value="true">Sim</option><option value="false">Não</option></select></div>
+3099:  </div>
+3100:  <button type="button" class="primary modalSave">Salvar funcionário</button>`,()=>{
+3101:    let name=document.getElementById("empName")?.value.trim();
+3102:    if(!name){alert("Informe o nome.");return}
+3103:    let locId=+document.getElementById("empLocation")?.value||null;
+3104:    let loc=locations.find(l=>+l.id===+locId);
+3105:    let employee={
+3106:      id:Date.now(),name,productionLocationId:locId,companyName:loc?.name||"",
+3107:      salary:+document.getElementById("empSalary")?.value||0,
+3108:      hasTransport:document.getElementById("empHasTransport")?.value!=="false",
+3109:      benefitDefault:+document.getElementById("empBenefit")?.value||0,
+3110:      hireDate:document.getElementById("empHire")?.value||"",
+3111:      pix:document.getElementById("empPix")?.value||"",
+3112:      active:document.getElementById("empActive")?.value!=="false",
+3113:      salaryHistory:[]
+3114:    };
+3115:    db.employees.push(employee);
+3116:    ensureEmployeePayrollForMonth(employee,payrollCurrentMonth());
+3117:    try{persistDb()}catch(e){console.error(e)}
+3118:    closeModal();
+3119:    renderEmployees();
+3120:    renderPayroll();
+3121:    alert("Funcionário cadastrado e incluído automaticamente na folha do mês atual.");
+3122:  });
+3123: }
+3124: 
+3125: function ensureEmployeeSalaryHistory(e){
+3126:  e.salaryHistory=Array.isArray(e.salaryHistory)?e.salaryHistory:[];
+3127:  return e.salaryHistory;
+3128: }
+3129: function employeeSalaryHistoryHTML(e){
+3130:  let hist=ensureEmployeeSalaryHistory(e).slice().sort((a,b)=>String(b.date||"").localeCompare(String(a.date||"")));
+3131:  if(!hist.length)return '<div class="empty" style="padding:10px 0">Nenhum aumento salarial registrado.</div>';
+3132:  return table(["Data","Salário anterior","Novo salário","Aumento","Observação","Ação"],hist.map(h=>[
+3133:    h.date?fmtDate(h.date):"-",
+3134:    money(h.oldSalary||0),
+3135:    money(h.newSalary||0),
+3136:    `${(+h.percent||0).toFixed(2).replace(".",",")}%`,
+3137:    esc(h.note||"-"),
+3138:    `<button type="button" class="danger" onclick="deleteSalaryIncrease(${e.id},${JSON.stringify(String(h.id))})">Excluir</button>`
+3139:  ]));
+3140: }
+3141: function openSalaryIncrease(employeeId){
+3142:  let e=(db.employees||[]).find(x=>+x.id===+employeeId);if(!e)return;
+3143:  let oldSalary=+e.salary||0;
+3144:  openModal("Registrar aumento salarial",`
+3145:    <div class="grid">
+3146:      <div class="field"><label>Funcionário</label><input value="${esc(e.name||"")}" disabled></div>
+3147:      <div class="field"><label>Salário atual</label><input value="${money(oldSalary)}" disabled></div>
+3148:      <div class="field"><label>Novo salário</label><input id="salaryNewValue" type="number" min="0" step="0.01"></div>
+3149:      <div class="field"><label>Data do reajuste</label><input id="salaryIncreaseDate" type="date" value="${isoDate(new Date())}"></div>
+3150:      <div class="field" style="grid-column:1/-1"><label>Observação</label><input id="salaryIncreaseNote" placeholder="Ex.: reajuste anual, promoção, acordo..."></div>
+3151:    </div>
+3152:    <div class="sub">O percentual será calculado automaticamente sobre o salário atual.</div>
+3153:    <button type="button" class="primary modalSave">Salvar aumento</button>`,()=>{
+3154:      let newSalary=+document.getElementById("salaryNewValue")?.value||0;
+3155:      let date=document.getElementById("salaryIncreaseDate")?.value||isoDate(new Date());
+3156:      let note=document.getElementById("salaryIncreaseNote")?.value||"";
+3157:      if(newSalary<=0){alert("Informe o novo salário.");return}
+3158:      if(oldSalary>0 && newSalary<=oldSalary){
+3159:        if(!confirm("O novo salário não é maior que o atual. Deseja registrar mesmo assim?"))return;
+3160:      }
+3161:      let percent=oldSalary>0?((newSalary-oldSalary)/oldSalary*100):0;
+3162:      ensureEmployeeSalaryHistory(e).push({
+3163:        id:"sal-"+Date.now()+"-"+Math.floor(Math.random()*10000),
+3164:        date,oldSalary,newSalary,percent,note
+3165:      });
+3166:      e.salary=newSalary;
+3167:      closeModal();
+3168:      try{persistDb()}catch(err){console.error(err)}
+3169:      if(typeof auditAction==="function")auditAction("Registrou aumento salarial",`${e.name} — ${money(oldSalary)} → ${money(newSalary)} (${percent.toFixed(2)}%)`);
+3170:      renderEmployees();
+3171:      renderPayroll();
+3172:      editEmployee(employeeId);
+3173:    });
+3174: }
+3175: function deleteSalaryIncrease(employeeId,historyId){
+3176:  let e=(db.employees||[]).find(x=>+x.id===+employeeId);if(!e)return;
+3177:  ensureEmployeeSalaryHistory(e);
+3178:  let h=e.salaryHistory.find(x=>String(x.id)===String(historyId));if(!h)return;
+3179:  if(!confirm("Excluir este registro do histórico salarial?"))return;
+3180:  e.salaryHistory=e.salaryHistory.filter(x=>String(x.id)!==String(historyId));
+3181:  try{persistDb()}catch(err){console.error(err)}
+3182:  renderEmployees();
+3183:  closeModal();
+3184:  editEmployee(employeeId);
+3185: }
+3186: function editEmployee(id){
+3187:  ensurePayrollData();
+3188:  let e=db.employees.find(x=>+x.id===+id);if(!e)return;
+3189:  let locations=(db.productionLocations||[]).filter(x=>x.active!==false);
+3190:  openModal("Editar funcionário",`
+3191:  <div class="grid">
+3192:   <div class="field"><label>Nome</label><input id="empName" value="${esc(e.name||"")}"></div>
+3193:   <div class="field"><label>Confecção</label><select id="empLocation"><option value="">Selecione</option>${locations.map(l=>`<option value="${l.id}" ${+l.id===+e.productionLocationId?"selected":""}>${esc(l.name)}</option>`).join("")}</select></div>
+3194:   <div class="field"><label>Salário base</label><input id="empSalary" type="number" step=".01" value="${+e.salary||0}"></div>
+3195:   <div class="field"><label>Tem direito a vale-transporte?</label><select id="empHasTransport"><option value="true" ${e.hasTransport!==false?"selected":""}>Sim</option><option value="false" ${e.hasTransport===false?"selected":""}>Não</option></select></div>
+3196:   <div class="field"><label>Benefício / salário-família padrão</label><input id="empBenefit" type="number" step=".01" value="${+e.benefitDefault||0}"></div>
+3197:   <div class="field"><label>Data de admissão</label><input id="empHire" type="date" value="${e.hireDate||""}"></div>
+3198:   <div class="field"><label>Chave PIX</label><input id="empPix" value="${esc(e.pix||"")}"></div>
+3199:   <div class="field"><label>Ativo</label><select id="empActive"><option value="true" ${e.active!==false?"selected":""}>Sim</option><option value="false" ${e.active===false?"selected":""}>Não</option></select></div>
+3200:  </div>
+3201:  <div class="sub">Tempo de empresa: <strong>${esc(tenureInfo(e.hireDate).label)}</strong></div>
+3202:  <div class="panel" style="margin-top:14px">
+3203:    <h3 style="margin-top:0">Histórico salarial</h3>
+3204:    <div class="sub">Registre cada reajuste para acompanhar quando aconteceu e quantos por cento o salário aumentou.</div>
+3205:    <div id="employeeSalaryHistoryBox">${employeeSalaryHistoryHTML(e)}</div>
+3206:    <button type="button" class="secondary" onclick="openSalaryIncrease(${e.id})">+ Registrar aumento salarial</button>
+3207:  </div>
+3208:  <button type="button" class="primary modalSave">Salvar alterações</button>`,()=>{
+3209:    let locId=+document.getElementById("empLocation")?.value||null,loc=locations.find(l=>+l.id===+locId);
+3210:    let previousSalary=+e.salary||0;
+3211:    let editedSalary=+document.getElementById("empSalary")?.value||0;
+3212:    if(editedSalary!==previousSalary){
+3213:      let pct=previousSalary>0?((editedSalary-previousSalary)/previousSalary*100):0;
+3214:      ensureEmployeeSalaryHistory(e).push({
+3215:        id:"sal-"+Date.now()+"-"+Math.floor(Math.random()*10000),
+3216:        date:isoDate(new Date()),oldSalary:previousSalary,newSalary:editedSalary,percent:pct,
+3217:        note:"Alteração feita pelo cadastro do funcionário"
+3218:      });
+3219:    }
+3220:    Object.assign(e,{
+3221:      name:document.getElementById("empName")?.value.trim()||e.name,
+3222:      productionLocationId:locId,companyName:loc?.name||"",
+3223:      salary:editedSalary,
+3224:      hasTransport:document.getElementById("empHasTransport")?.value!=="false",
+3225:      benefitDefault:+document.getElementById("empBenefit")?.value||0,
+3226:      hireDate:document.getElementById("empHire")?.value||"",
+3227:      pix:document.getElementById("empPix")?.value||"",
+3228:      active:document.getElementById("empActive")?.value!=="false"
+3229:    });
+3230:    ensureEmployeePayrollForMonth(e,document.getElementById("payrollMonth")?.value||payrollCurrentMonth());
+3231:    closeModal();save();renderEmployees();renderPayroll();
+3232:  });
+3233: }
+3234: function deleteEmployee(id){
+3235:  let e=(db.employees||[]).find(x=>+x.id===+id);if(!e)return;
+3236:  if(!confirm(`Excluir o cadastro de ${e.name}? O histórico de folhas já geradas será preservado.`))return;
+3237:  db.employees=db.employees.filter(x=>+x.id!==+id);
+3238:  try{persistDb()}catch(e){}
+3239:  renderEmployees();
+3240: }
+3241: function renderEmployees(){
+3242:  ensurePayrollData();
+3243:  // Cadastro de Funcionários mostra somente quem está ativo.
+3244:  // Funcionários desligados/rescindidos ficam exclusivamente em Ex-funcionários.
+3245:  let active=(db.employees||[]).filter(e=>e.active!==false);
+3246:  let totalSalary=active.reduce((a,e)=>a+(+e.salary||0),0);
+3247:  let cards=document.getElementById("employeeCards"),tbl=document.getElementById("employeeTable");
+3248:  if(cards)cards.innerHTML=`<div class="card"><small>Funcionários ativos</small><strong>${active.length}</strong></div><div class="card"><small>Salários base</small><strong>${money(totalSalary)}</strong></div><div class="card"><small>Confecções com funcionários</small><strong>${new Set(active.map(employeeCompanyName)).size}</strong></div>`;
+3249:  if(tbl)tbl.innerHTML=active.length?table(["Funcionário","Confecção","Salário","Vale-transporte","Admissão","Tempo de empresa","PIX","Ações"],active.map(e=>[
+3250:    esc(e.name),esc(employeeCompanyName(e)),money(e.salary||0),e.hasTransport!==false?'<span class="badge ok">Sim</span>':'<span class="badge">Não</span>',e.hireDate?fmtDate(e.hireDate):"-",esc(tenureInfo(e.hireDate).label),esc(e.pix||"-"),
+3251:    `<button class="secondary" onclick="editEmployee(${e.id})">Editar / histórico</button> <button class="secondary" onclick="openSalaryIncrease(${e.id})">+ Aumento</button> <button class="danger" onclick="deleteEmployee(${e.id})">Excluir</button>`
+3252:  ])):'<div class="empty">Nenhum funcionário ativo cadastrado.</div>';
+3253: }
+3254: function payrollCompanyOptions(){
+3255:  let select=document.getElementById("payrollCompanyFilter");if(!select)return;
+3256:  let current=select.value;
+3257:  let names=[...new Set((db.employees||[]).map(employeeCompanyName).filter(Boolean))].sort();
+
+===== line 3106 =====
+3081:  let gross=salary+transport+benefit+overtime+bonus+otherCredit;
+3082:  let discounts=absence+inss+union+advance+purchase+otherDiscount;
+3083:  let net=Math.max(0,gross-discounts);
+3084:  return {salary,transport,benefit,overtime,bonus,otherCredit,absence,union,advance,purchase,otherDiscount,contribBase,inss,gross,discounts,net};
+3085: }
+3086: function newEmployee(){
+3087:  ensurePayrollData();
+3088:  let locations=(db.productionLocations||[]).filter(x=>x.active!==false);
+3089:  openModal("Novo funcionário",`
+3090:  <div class="grid">
+3091:   <div class="field"><label>Nome</label><input id="empName"></div>
+3092:   <div class="field"><label>Confecção</label><select id="empLocation"><option value="">Selecione</option>${locations.map(l=>`<option value="${l.id}">${esc(l.name)}</option>`).join("")}</select></div>
+3093:   <div class="field"><label>Salário base</label><input id="empSalary" type="number" step=".01"></div>
+3094:   <div class="field"><label>Tem direito a vale-transporte?</label><select id="empHasTransport"><option value="true">Sim</option><option value="false">Não</option></select></div>
+3095:   <div class="field"><label>Benefício / salário-família padrão</label><input id="empBenefit" type="number" step=".01"></div>
+3096:   <div class="field"><label>Data de admissão</label><input id="empHire" type="date"></div>
+3097:   <div class="field"><label>Chave PIX</label><input id="empPix"></div>
+3098:   <div class="field"><label>Ativo</label><select id="empActive"><option value="true">Sim</option><option value="false">Não</option></select></div>
+3099:  </div>
+3100:  <button type="button" class="primary modalSave">Salvar funcionário</button>`,()=>{
+3101:    let name=document.getElementById("empName")?.value.trim();
+3102:    if(!name){alert("Informe o nome.");return}
+3103:    let locId=+document.getElementById("empLocation")?.value||null;
+3104:    let loc=locations.find(l=>+l.id===+locId);
+3105:    let employee={
+3106:      id:Date.now(),name,productionLocationId:locId,companyName:loc?.name||"",
+3107:      salary:+document.getElementById("empSalary")?.value||0,
+3108:      hasTransport:document.getElementById("empHasTransport")?.value!=="false",
+3109:      benefitDefault:+document.getElementById("empBenefit")?.value||0,
+3110:      hireDate:document.getElementById("empHire")?.value||"",
+3111:      pix:document.getElementById("empPix")?.value||"",
+3112:      active:document.getElementById("empActive")?.value!=="false",
+3113:      salaryHistory:[]
+3114:    };
+3115:    db.employees.push(employee);
+3116:    ensureEmployeePayrollForMonth(employee,payrollCurrentMonth());
+3117:    try{persistDb()}catch(e){console.error(e)}
+3118:    closeModal();
+3119:    renderEmployees();
+3120:    renderPayroll();
+3121:    alert("Funcionário cadastrado e incluído automaticamente na folha do mês atual.");
+3122:  });
+3123: }
+3124: 
+3125: function ensureEmployeeSalaryHistory(e){
+3126:  e.salaryHistory=Array.isArray(e.salaryHistory)?e.salaryHistory:[];
+3127:  return e.salaryHistory;
+3128: }
+3129: function employeeSalaryHistoryHTML(e){
+3130:  let hist=ensureEmployeeSalaryHistory(e).slice().sort((a,b)=>String(b.date||"").localeCompare(String(a.date||"")));
+3131:  if(!hist.length)return '<div class="empty" style="padding:10px 0">Nenhum aumento salarial registrado.</div>';
+3132:  return table(["Data","Salário anterior","Novo salário","Aumento","Observação","Ação"],hist.map(h=>[
+3133:    h.date?fmtDate(h.date):"-",
+3134:    money(h.oldSalary||0),
+3135:    money(h.newSalary||0),
+3136:    `${(+h.percent||0).toFixed(2).replace(".",",")}%`,
+3137:    esc(h.note||"-"),
+3138:    `<button type="button" class="danger" onclick="deleteSalaryIncrease(${e.id},${JSON.stringify(String(h.id))})">Excluir</button>`
+3139:  ]));
+3140: }
+3141: function openSalaryIncrease(employeeId){
+3142:  let e=(db.employees||[]).find(x=>+x.id===+employeeId);if(!e)return;
+3143:  let oldSalary=+e.salary||0;
+3144:  openModal("Registrar aumento salarial",`
+3145:    <div class="grid">
+3146:      <div class="field"><label>Funcionário</label><input value="${esc(e.name||"")}" disabled></div>
+3147:      <div class="field"><label>Salário atual</label><input value="${money(oldSalary)}" disabled></div>
+3148:      <div class="field"><label>Novo salário</label><input id="salaryNewValue" type="number" min="0" step="0.01"></div>
+3149:      <div class="field"><label>Data do reajuste</label><input id="salaryIncreaseDate" type="date" value="${isoDate(new Date())}"></div>
+3150:      <div class="field" style="grid-column:1/-1"><label>Observação</label><input id="salaryIncreaseNote" placeholder="Ex.: reajuste anual, promoção, acordo..."></div>
+3151:    </div>
+3152:    <div class="sub">O percentual será calculado automaticamente sobre o salário atual.</div>
+3153:    <button type="button" class="primary modalSave">Salvar aumento</button>`,()=>{
+3154:      let newSalary=+document.getElementById("salaryNewValue")?.value||0;
+3155:      let date=document.getElementById("salaryIncreaseDate")?.value||isoDate(new Date());
+3156:      let note=document.getElementById("salaryIncreaseNote")?.value||"";
+3157:      if(newSalary<=0){alert("Informe o novo salário.");return}
+3158:      if(oldSalary>0 && newSalary<=oldSalary){
+3159:        if(!confirm("O novo salário não é maior que o atual. Deseja registrar mesmo assim?"))return;
+3160:      }
+3161:      let percent=oldSalary>0?((newSalary-oldSalary)/oldSalary*100):0;
+3162:      ensureEmployeeSalaryHistory(e).push({
+3163:        id:"sal-"+Date.now()+"-"+Math.floor(Math.random()*10000),
+3164:        date,oldSalary,newSalary,percent,note
+3165:      });
+3166:      e.salary=newSalary;
+3167:      closeModal();
+3168:      try{persistDb()}catch(err){console.error(err)}
+3169:      if(typeof auditAction==="function")auditAction("Registrou aumento salarial",`${e.name} — ${money(oldSalary)} → ${money(newSalary)} (${percent.toFixed(2)}%)`);
+3170:      renderEmployees();
+3171:      renderPayroll();
+3172:      editEmployee(employeeId);
+3173:    });
+3174: }
+3175: function deleteSalaryIncrease(employeeId,historyId){
+3176:  let e=(db.employees||[]).find(x=>+x.id===+employeeId);if(!e)return;
+3177:  ensureEmployeeSalaryHistory(e);
+3178:  let h=e.salaryHistory.find(x=>String(x.id)===String(historyId));if(!h)return;
+3179:  if(!confirm("Excluir este registro do histórico salarial?"))return;
+3180:  e.salaryHistory=e.salaryHistory.filter(x=>String(x.id)!==String(historyId));
+3181:  try{persistDb()}catch(err){console.error(err)}
+3182:  renderEmployees();
+3183:  closeModal();
+3184:  editEmployee(employeeId);
+3185: }
+3186: function editEmployee(id){
+3187:  ensurePayrollData();
+3188:  let e=db.employees.find(x=>+x.id===+id);if(!e)return;
+3189:  let locations=(db.productionLocations||[]).filter(x=>x.active!==false);
+3190:  openModal("Editar funcionário",`
+3191:  <div class="grid">
+3192:   <div class="field"><label>Nome</label><input id="empName" value="${esc(e.name||"")}"></div>
+3193:   <div class="field"><label>Confecção</label><select id="empLocation"><option value="">Selecione</option>${locations.map(l=>`<option value="${l.id}" ${+l.id===+e.productionLocationId?"selected":""}>${esc(l.name)}</option>`).join("")}</select></div>
+3194:   <div class="field"><label>Salário base</label><input id="empSalary" type="number" step=".01" value="${+e.salary||0}"></div>
+3195:   <div class="field"><label>Tem direito a vale-transporte?</label><select id="empHasTransport"><option value="true" ${e.hasTransport!==false?"selected":""}>Sim</option><option value="false" ${e.hasTransport===false?"selected":""}>Não</option></select></div>
+3196:   <div class="field"><label>Benefício / salário-família padrão</label><input id="empBenefit" type="number" step=".01" value="${+e.benefitDefault||0}"></div>
+3197:   <div class="field"><label>Data de admissão</label><input id="empHire" type="date" value="${e.hireDate||""}"></div>
+3198:   <div class="field"><label>Chave PIX</label><input id="empPix" value="${esc(e.pix||"")}"></div>
+3199:   <div class="field"><label>Ativo</label><select id="empActive"><option value="true" ${e.active!==false?"selected":""}>Sim</option><option value="false" ${e.active===false?"selected":""}>Não</option></select></div>
+3200:  </div>
+3201:  <div class="sub">Tempo de empresa: <strong>${esc(tenureInfo(e.hireDate).label)}</strong></div>
+3202:  <div class="panel" style="margin-top:14px">
+3203:    <h3 style="margin-top:0">Histórico salarial</h3>
+3204:    <div class="sub">Registre cada reajuste para acompanhar quando aconteceu e quantos por cento o salário aumentou.</div>
+3205:    <div id="employeeSalaryHistoryBox">${employeeSalaryHistoryHTML(e)}</div>
+3206:    <button type="button" class="secondary" onclick="openSalaryIncrease(${e.id})">+ Registrar aumento salarial</button>
+3207:  </div>
+3208:  <button type="button" class="primary modalSave">Salvar alterações</button>`,()=>{
+3209:    let locId=+document.getElementById("empLocation")?.value||null,loc=locations.find(l=>+l.id===+locId);
+3210:    let previousSalary=+e.salary||0;
+3211:    let editedSalary=+document.getElementById("empSalary")?.value||0;
+3212:    if(editedSalary!==previousSalary){
+3213:      let pct=previousSalary>0?((editedSalary-previousSalary)/previousSalary*100):0;
+3214:      ensureEmployeeSalaryHistory(e).push({
+3215:        id:"sal-"+Date.now()+"-"+Math.floor(Math.random()*10000),
+3216:        date:isoDate(new Date()),oldSalary:previousSalary,newSalary:editedSalary,percent:pct,
+3217:        note:"Alteração feita pelo cadastro do funcionário"
+3218:      });
+3219:    }
+3220:    Object.assign(e,{
+3221:      name:document.getElementById("empName")?.value.trim()||e.name,
+3222:      productionLocationId:locId,companyName:loc?.name||"",
+3223:      salary:editedSalary,
+3224:      hasTransport:document.getElementById("empHasTransport")?.value!=="false",
+3225:      benefitDefault:+document.getElementById("empBenefit")?.value||0,
+3226:      hireDate:document.getElementById("empHire")?.value||"",
+3227:      pix:document.getElementById("empPix")?.value||"",
+3228:      active:document.getElementById("empActive")?.value!=="false"
+3229:    });
+3230:    ensureEmployeePayrollForMonth(e,document.getElementById("payrollMonth")?.value||payrollCurrentMonth());
+3231:    closeModal();save();renderEmployees();renderPayroll();
+3232:  });
+3233: }
+3234: function deleteEmployee(id){
+3235:  let e=(db.employees||[]).find(x=>+x.id===+id);if(!e)return;
+3236:  if(!confirm(`Excluir o cadastro de ${e.name}? O histórico de folhas já geradas será preservado.`))return;
+3237:  db.employees=db.employees.filter(x=>+x.id!==+id);
+3238:  try{persistDb()}catch(e){}
+3239:  renderEmployees();
+3240: }
+3241: function renderEmployees(){
+3242:  ensurePayrollData();
+3243:  // Cadastro de Funcionários mostra somente quem está ativo.
+3244:  // Funcionários desligados/rescindidos ficam exclusivamente em Ex-funcionários.
+3245:  let active=(db.employees||[]).filter(e=>e.active!==false);
+3246:  let totalSalary=active.reduce((a,e)=>a+(+e.salary||0),0);
+3247:  let cards=document.getElementById("employeeCards"),tbl=document.getElementById("employeeTable");
+3248:  if(cards)cards.innerHTML=`<div class="card"><small>Funcionários ativos</small><strong>${active.length}</strong></div><div class="card"><small>Salários base</small><strong>${money(totalSalary)}</strong></div><div class="card"><small>Confecções com funcionários</small><strong>${new Set(active.map(employeeCompanyName)).size}</strong></div>`;
+3249:  if(tbl)tbl.innerHTML=active.length?table(["Funcionário","Confecção","Salário","Vale-transporte","Admissão","Tempo de empresa","PIX","Ações"],active.map(e=>[
+3250:    esc(e.name),esc(employeeCompanyName(e)),money(e.salary||0),e.hasTransport!==false?'<span class="badge ok">Sim</span>':'<span class="badge">Não</span>',e.hireDate?fmtDate(e.hireDate):"-",esc(tenureInfo(e.hireDate).label),esc(e.pix||"-"),
+3251:    `<button class="secondary" onclick="editEmployee(${e.id})">Editar / histórico</button> <button class="secondary" onclick="openSalaryIncrease(${e.id})">+ Aumento</button> <button class="danger" onclick="deleteEmployee(${e.id})">Excluir</button>`
+3252:  ])):'<div class="empty">Nenhum funcionário ativo cadastrado.</div>';
+3253: }
+3254: function payrollCompanyOptions(){
+3255:  let select=document.getElementById("payrollCompanyFilter");if(!select)return;
+3256:  let current=select.value;
+3257:  let names=[...new Set((db.employees||[]).map(employeeCompanyName).filter(Boolean))].sort();
+3258:  select.innerHTML='<option value="">Todas as confecções</option>'+names.map(n=>`<option value="${esc(n)}">${esc(n)}</option>`).join("");
+3259:  if(names.includes(current))select.value=current;
+3260: }
+3261: 
+3262: function savePayrollTransportConfig(){
+3263:  ensurePayrollData();
+3264:  let fare=+document.getElementById("payrollFareValue")?.value||0;
+3265:  let month=document.getElementById("payrollMonth")?.value||payrollCurrentMonth();
+3266:  let days=Math.max(0,+document.getElementById("payrollWorkDays")?.value||0);
+3267:  db.config.transportFare=fare;
+3268:  db.config.payrollWorkDays[month]=days;
+3269:  try{persistDb()}catch(e){console.error(e)}
+3270:  renderPayroll();
+3271: }
+3272: 
+3273: function ensureEmployeePayrollForMonth(employee,month){
+3274:  ensurePayrollData();
+3275:  if(!employee)return null;
+3276:  month=month||payrollCurrentMonth();
+3277:  let r=db.payroll.find(x=>x.month===month&&+x.employeeId===+employee.id);
+3278:  if(!r){
+3279:    r={
+3280:      id:Date.now()+Math.floor(Math.random()*1000000),
+3281:      month,
+3282:      employeeId:employee.id,
+3283:      employeeName:employee.name,
+3284:      companyName:employeeCompanyName(employee),
+3285:      salary:+employee.salary||0,
+3286:      benefit:+employee.benefitDefault||0,
+3287:      overtime:0,bonus:0,absence:0,transportAbsenceDays:0,
+3288:      unionDiscount:0,advance:0,purchase:0,
+3289:      pix:employee.pix||"",paid:false,paidAt:"",paidValue:0
+3290:    };
+3291:    db.payroll.push(r);
+3292:  }else{
+3293:    r.employeeName=employee.name;
+3294:    r.companyName=employeeCompanyName(employee);
+3295:    r.pix=employee.pix||r.pix||"";
+3296:  }
+3297:  return r;
+3298: }
+3299: function generatePayrollMonth(){
+3300:  ensurePayrollData();
+3301:  let month=document.getElementById("payrollMonth")?.value||payrollCurrentMonth();
+3302:  (db.employees||[]).filter(e=>e.active!==false).forEach(e=>ensureEmployeePayrollForMonth(e,month));
+3303:  try{persistDb()}catch(e){}
+3304:  renderPayroll();
+3305: }
+3306: function editPayrollRow(id){
+3307:  let r=(db.payroll||[]).find(x=>+x.id===+id);if(!r)return;
+3308:  let e=(db.employees||[]).find(x=>+x.id===+r.employeeId)||{salary:r.salary||0};
+3309:  let c=payrollCalc(r,e);
+3310:  const payrollBase=hlgbRecordClone(r);
+3311:  openModal(`Folha — ${esc(r.employeeName||e.name||"Funcionário")}`,`
+3312:  <div class="grid">
+3313:   <div class="field"><label>Salário</label><input id="prSalary" type="number" step=".01" value="${c.salary}"></div>
+3314:   <div class="field"><label>Vale-transporte calculado</label><input value="${money(c.transport)}" disabled></div>
+3315:   <div class="field"><label>Dias de falta para descontar do VT</label><input id="prTransportAbsenceDays" type="number" min="0" step="1" value="${+r.transportAbsenceDays||0}"></div>
+3316:   <div class="field"><label>Benefício / salário-família</label><input id="prBenefit" type="number" step=".01" value="${c.benefit}"></div>
+3317:   <div class="field"><label>Hora extra</label><input id="prOvertime" type="number" step=".01" value="${c.overtime}"></div>
+3318:   <div class="field"><label>Bônus</label><input id="prBonus" type="number" step=".01" value="${c.bonus}"></div>
+3319:   <div class="field"><label>Outros créditos (+)</label><input id="prOtherCredit" type="number" step=".01" value="${c.otherCredit||0}"></div>
+3320:   <div class="field"><label>Faltas / desconto</label><input id="prAbsence" type="number" step=".01" value="${c.absence}"></div>
+3321:   <div class="field"><label>Desconto sindical</label><input id="prUnion" type="number" step=".01" value="${c.union}"></div>
+3322:   <div class="field"><label>Vale / adiantamento</label><input id="prAdvance" type="number" step=".01" value="${c.advance}"></div>
+3323:   <div class="field"><label>Compra</label><input id="prPurchase" type="number" step=".01" value="${c.purchase}"></div>
+3324:   <div class="field"><label>Outros descontos (-)</label><input id="prOtherDiscount" type="number" step=".01" value="${c.otherDiscount||0}"></div>
+3325:   <div class="field"><label>Descontar INSS?</label><select id="prDiscountInss"><option value="yes" ${r.discountInss!==false?"selected":""}>Sim</option><option value="no" ${r.discountInss===false?"selected":""}>Não</option></select></div>
+
+===== line 3193 =====
+3168:      try{persistDb()}catch(err){console.error(err)}
+3169:      if(typeof auditAction==="function")auditAction("Registrou aumento salarial",`${e.name} — ${money(oldSalary)} → ${money(newSalary)} (${percent.toFixed(2)}%)`);
+3170:      renderEmployees();
+3171:      renderPayroll();
+3172:      editEmployee(employeeId);
+3173:    });
+3174: }
+3175: function deleteSalaryIncrease(employeeId,historyId){
+3176:  let e=(db.employees||[]).find(x=>+x.id===+employeeId);if(!e)return;
+3177:  ensureEmployeeSalaryHistory(e);
+3178:  let h=e.salaryHistory.find(x=>String(x.id)===String(historyId));if(!h)return;
+3179:  if(!confirm("Excluir este registro do histórico salarial?"))return;
+3180:  e.salaryHistory=e.salaryHistory.filter(x=>String(x.id)!==String(historyId));
+3181:  try{persistDb()}catch(err){console.error(err)}
+3182:  renderEmployees();
+3183:  closeModal();
+3184:  editEmployee(employeeId);
+3185: }
+3186: function editEmployee(id){
+3187:  ensurePayrollData();
+3188:  let e=db.employees.find(x=>+x.id===+id);if(!e)return;
+3189:  let locations=(db.productionLocations||[]).filter(x=>x.active!==false);
+3190:  openModal("Editar funcionário",`
+3191:  <div class="grid">
+3192:   <div class="field"><label>Nome</label><input id="empName" value="${esc(e.name||"")}"></div>
+3193:   <div class="field"><label>Confecção</label><select id="empLocation"><option value="">Selecione</option>${locations.map(l=>`<option value="${l.id}" ${+l.id===+e.productionLocationId?"selected":""}>${esc(l.name)}</option>`).join("")}</select></div>
+3194:   <div class="field"><label>Salário base</label><input id="empSalary" type="number" step=".01" value="${+e.salary||0}"></div>
+3195:   <div class="field"><label>Tem direito a vale-transporte?</label><select id="empHasTransport"><option value="true" ${e.hasTransport!==false?"selected":""}>Sim</option><option value="false" ${e.hasTransport===false?"selected":""}>Não</option></select></div>
+3196:   <div class="field"><label>Benefício / salário-família padrão</label><input id="empBenefit" type="number" step=".01" value="${+e.benefitDefault||0}"></div>
+3197:   <div class="field"><label>Data de admissão</label><input id="empHire" type="date" value="${e.hireDate||""}"></div>
+3198:   <div class="field"><label>Chave PIX</label><input id="empPix" value="${esc(e.pix||"")}"></div>
+3199:   <div class="field"><label>Ativo</label><select id="empActive"><option value="true" ${e.active!==false?"selected":""}>Sim</option><option value="false" ${e.active===false?"selected":""}>Não</option></select></div>
+3200:  </div>
+3201:  <div class="sub">Tempo de empresa: <strong>${esc(tenureInfo(e.hireDate).label)}</strong></div>
+3202:  <div class="panel" style="margin-top:14px">
+3203:    <h3 style="margin-top:0">Histórico salarial</h3>
+3204:    <div class="sub">Registre cada reajuste para acompanhar quando aconteceu e quantos por cento o salário aumentou.</div>
+3205:    <div id="employeeSalaryHistoryBox">${employeeSalaryHistoryHTML(e)}</div>
+3206:    <button type="button" class="secondary" onclick="openSalaryIncrease(${e.id})">+ Registrar aumento salarial</button>
+3207:  </div>
+3208:  <button type="button" class="primary modalSave">Salvar alterações</button>`,()=>{
+3209:    let locId=+document.getElementById("empLocation")?.value||null,loc=locations.find(l=>+l.id===+locId);
+3210:    let previousSalary=+e.salary||0;
+3211:    let editedSalary=+document.getElementById("empSalary")?.value||0;
+3212:    if(editedSalary!==previousSalary){
+3213:      let pct=previousSalary>0?((editedSalary-previousSalary)/previousSalary*100):0;
+3214:      ensureEmployeeSalaryHistory(e).push({
+3215:        id:"sal-"+Date.now()+"-"+Math.floor(Math.random()*10000),
+3216:        date:isoDate(new Date()),oldSalary:previousSalary,newSalary:editedSalary,percent:pct,
+3217:        note:"Alteração feita pelo cadastro do funcionário"
+3218:      });
+3219:    }
+3220:    Object.assign(e,{
+3221:      name:document.getElementById("empName")?.value.trim()||e.name,
+3222:      productionLocationId:locId,companyName:loc?.name||"",
+3223:      salary:editedSalary,
+3224:      hasTransport:document.getElementById("empHasTransport")?.value!=="false",
+3225:      benefitDefault:+document.getElementById("empBenefit")?.value||0,
+3226:      hireDate:document.getElementById("empHire")?.value||"",
+3227:      pix:document.getElementById("empPix")?.value||"",
+3228:      active:document.getElementById("empActive")?.value!=="false"
+3229:    });
+3230:    ensureEmployeePayrollForMonth(e,document.getElementById("payrollMonth")?.value||payrollCurrentMonth());
+3231:    closeModal();save();renderEmployees();renderPayroll();
+3232:  });
+3233: }
+3234: function deleteEmployee(id){
+3235:  let e=(db.employees||[]).find(x=>+x.id===+id);if(!e)return;
+3236:  if(!confirm(`Excluir o cadastro de ${e.name}? O histórico de folhas já geradas será preservado.`))return;
+3237:  db.employees=db.employees.filter(x=>+x.id!==+id);
+3238:  try{persistDb()}catch(e){}
+3239:  renderEmployees();
+3240: }
+3241: function renderEmployees(){
+3242:  ensurePayrollData();
+3243:  // Cadastro de Funcionários mostra somente quem está ativo.
+3244:  // Funcionários desligados/rescindidos ficam exclusivamente em Ex-funcionários.
+3245:  let active=(db.employees||[]).filter(e=>e.active!==false);
+3246:  let totalSalary=active.reduce((a,e)=>a+(+e.salary||0),0);
+3247:  let cards=document.getElementById("employeeCards"),tbl=document.getElementById("employeeTable");
+3248:  if(cards)cards.innerHTML=`<div class="card"><small>Funcionários ativos</small><strong>${active.length}</strong></div><div class="card"><small>Salários base</small><strong>${money(totalSalary)}</strong></div><div class="card"><small>Confecções com funcionários</small><strong>${new Set(active.map(employeeCompanyName)).size}</strong></div>`;
+3249:  if(tbl)tbl.innerHTML=active.length?table(["Funcionário","Confecção","Salário","Vale-transporte","Admissão","Tempo de empresa","PIX","Ações"],active.map(e=>[
+3250:    esc(e.name),esc(employeeCompanyName(e)),money(e.salary||0),e.hasTransport!==false?'<span class="badge ok">Sim</span>':'<span class="badge">Não</span>',e.hireDate?fmtDate(e.hireDate):"-",esc(tenureInfo(e.hireDate).label),esc(e.pix||"-"),
+3251:    `<button class="secondary" onclick="editEmployee(${e.id})">Editar / histórico</button> <button class="secondary" onclick="openSalaryIncrease(${e.id})">+ Aumento</button> <button class="danger" onclick="deleteEmployee(${e.id})">Excluir</button>`
+3252:  ])):'<div class="empty">Nenhum funcionário ativo cadastrado.</div>';
+3253: }
+3254: function payrollCompanyOptions(){
+3255:  let select=document.getElementById("payrollCompanyFilter");if(!select)return;
+3256:  let current=select.value;
+3257:  let names=[...new Set((db.employees||[]).map(employeeCompanyName).filter(Boolean))].sort();
+3258:  select.innerHTML='<option value="">Todas as confecções</option>'+names.map(n=>`<option value="${esc(n)}">${esc(n)}</option>`).join("");
+3259:  if(names.includes(current))select.value=current;
+3260: }
+3261: 
+3262: function savePayrollTransportConfig(){
+3263:  ensurePayrollData();
+3264:  let fare=+document.getElementById("payrollFareValue")?.value||0;
+3265:  let month=document.getElementById("payrollMonth")?.value||payrollCurrentMonth();
+3266:  let days=Math.max(0,+document.getElementById("payrollWorkDays")?.value||0);
+3267:  db.config.transportFare=fare;
+3268:  db.config.payrollWorkDays[month]=days;
+3269:  try{persistDb()}catch(e){console.error(e)}
+3270:  renderPayroll();
+3271: }
+3272: 
+3273: function ensureEmployeePayrollForMonth(employee,month){
+3274:  ensurePayrollData();
+3275:  if(!employee)return null;
+3276:  month=month||payrollCurrentMonth();
+3277:  let r=db.payroll.find(x=>x.month===month&&+x.employeeId===+employee.id);
+3278:  if(!r){
+3279:    r={
+3280:      id:Date.now()+Math.floor(Math.random()*1000000),
+3281:      month,
+3282:      employeeId:employee.id,
+3283:      employeeName:employee.name,
+3284:      companyName:employeeCompanyName(employee),
+3285:      salary:+employee.salary||0,
+3286:      benefit:+employee.benefitDefault||0,
+3287:      overtime:0,bonus:0,absence:0,transportAbsenceDays:0,
+3288:      unionDiscount:0,advance:0,purchase:0,
+3289:      pix:employee.pix||"",paid:false,paidAt:"",paidValue:0
+3290:    };
+3291:    db.payroll.push(r);
+3292:  }else{
+3293:    r.employeeName=employee.name;
+3294:    r.companyName=employeeCompanyName(employee);
+3295:    r.pix=employee.pix||r.pix||"";
+3296:  }
+3297:  return r;
+3298: }
+3299: function generatePayrollMonth(){
+3300:  ensurePayrollData();
+3301:  let month=document.getElementById("payrollMonth")?.value||payrollCurrentMonth();
+3302:  (db.employees||[]).filter(e=>e.active!==false).forEach(e=>ensureEmployeePayrollForMonth(e,month));
+3303:  try{persistDb()}catch(e){}
+3304:  renderPayroll();
+3305: }
+3306: function editPayrollRow(id){
+3307:  let r=(db.payroll||[]).find(x=>+x.id===+id);if(!r)return;
+3308:  let e=(db.employees||[]).find(x=>+x.id===+r.employeeId)||{salary:r.salary||0};
+3309:  let c=payrollCalc(r,e);
+3310:  const payrollBase=hlgbRecordClone(r);
+3311:  openModal(`Folha — ${esc(r.employeeName||e.name||"Funcionário")}`,`
+3312:  <div class="grid">
+3313:   <div class="field"><label>Salário</label><input id="prSalary" type="number" step=".01" value="${c.salary}"></div>
+3314:   <div class="field"><label>Vale-transporte calculado</label><input value="${money(c.transport)}" disabled></div>
+3315:   <div class="field"><label>Dias de falta para descontar do VT</label><input id="prTransportAbsenceDays" type="number" min="0" step="1" value="${+r.transportAbsenceDays||0}"></div>
+3316:   <div class="field"><label>Benefício / salário-família</label><input id="prBenefit" type="number" step=".01" value="${c.benefit}"></div>
+3317:   <div class="field"><label>Hora extra</label><input id="prOvertime" type="number" step=".01" value="${c.overtime}"></div>
+3318:   <div class="field"><label>Bônus</label><input id="prBonus" type="number" step=".01" value="${c.bonus}"></div>
+3319:   <div class="field"><label>Outros créditos (+)</label><input id="prOtherCredit" type="number" step=".01" value="${c.otherCredit||0}"></div>
+3320:   <div class="field"><label>Faltas / desconto</label><input id="prAbsence" type="number" step=".01" value="${c.absence}"></div>
+3321:   <div class="field"><label>Desconto sindical</label><input id="prUnion" type="number" step=".01" value="${c.union}"></div>
+3322:   <div class="field"><label>Vale / adiantamento</label><input id="prAdvance" type="number" step=".01" value="${c.advance}"></div>
+3323:   <div class="field"><label>Compra</label><input id="prPurchase" type="number" step=".01" value="${c.purchase}"></div>
+3324:   <div class="field"><label>Outros descontos (-)</label><input id="prOtherDiscount" type="number" step=".01" value="${c.otherDiscount||0}"></div>
+3325:   <div class="field"><label>Descontar INSS?</label><select id="prDiscountInss"><option value="yes" ${r.discountInss!==false?"selected":""}>Sim</option><option value="no" ${r.discountInss===false?"selected":""}>Não</option></select></div>
+3326:   <div class="field"><label>Chave PIX</label><input id="prPix" value="${esc(r.pix||e.pix||"")}"></div>
+3327:  </div>
+3328:  <div class="sub">INSS é calculado automaticamente quando “Descontar INSS?” estiver em Sim. Se escolher Não, o valor não entra nos descontos desta folha.</div>
+3329:  <button type="button" class="primary modalSave">Salvar folha</button>`,async()=>{
+3330:    const btn=document.querySelector("#modal .modalSave");
+3331:    const desired={...hlgbRecordClone(payrollBase),
+3332:      salary:+document.getElementById("prSalary")?.value||0,
+3333:      transportAbsenceDays:+document.getElementById("prTransportAbsenceDays")?.value||0,
+3334:      benefit:+document.getElementById("prBenefit")?.value||0,
+3335:      overtime:+document.getElementById("prOvertime")?.value||0,
+3336:      bonus:+document.getElementById("prBonus")?.value||0,
+3337:      otherCredit:+document.getElementById("prOtherCredit")?.value||0,
+3338:      absence:+document.getElementById("prAbsence")?.value||0,
+3339:      unionDiscount:+document.getElementById("prUnion")?.value||0,
+3340:      advance:+document.getElementById("prAdvance")?.value||0,
+3341:      purchase:+document.getElementById("prPurchase")?.value||0,
+3342:      otherDiscount:+document.getElementById("prOtherDiscount")?.value||0,
+3343:      pix:document.getElementById("prPix")?.value||"",
+3344:      discountInss:document.getElementById("prDiscountInss")?.value!=="no"
+3345:     };
+3346:    try{
+3347:      if(btn){btn.disabled=true;btn.textContent="☁️ Salvando na nuvem…"}
+3348:      if(!hlgbRecordReady){
+3349:        const ok=await hlgbEnsureRecordsOnlineAfterLogin();
+3350:        if(!ok||!hlgbRecordReady)throw new Error("A nuvem não está pronta para salvar a folha.");
+3351:      }
+3352:      const latest=hlgbRecordSnapshots?.payroll?.get(String(id))?.data || (db.payroll||[]).find(x=>String(x.id)===String(id)) || payrollBase;
+3353:      const merged=cloudMergeThreeWay(payrollBase,desired,latest);
+3354:      setCloudStatus("☁️ Salvando folha…");
+3355:      const confirmed=await hlgbRecordSaveWithRetry("payroll",String(id),merged,false);
+3356:      if(!confirmed||confirmed.applied!==true)throw new Error("O Supabase não confirmou a alteração da folha.");
+3357:      const finalData=hlgbRecordClone(confirmed.data||merged);
+3358:      let current=(db.payroll||[]).find(x=>String(x.id)===String(id));
+3359:      if(current){Object.keys(current).forEach(k=>delete current[k]);Object.assign(current,finalData)}
+3360:      else {db.payroll=db.payroll||[];db.payroll.push(finalData)}
+3361:      localSaveOnly();
+3362:      closeModal();
+3363:      renderPayroll();
+3364:      try{auditAction("Atualizou folha de pagamento",`${finalData.employeeName||"Funcionário"} — ${finalData.month||""}`)}catch(e){}
+3365:      setCloudStatus("⚡ Online · folha confirmada","ok");
+3366:    }catch(err){
+3367:      console.error("HLGB v91.29 folha não confirmada",err);
+3368:      if(btn){btn.disabled=false;btn.textContent="💾 Salvar folha"}
+3369:      setCloudStatus("☁️ Folha não confirmada","bad");
+3370:      alert("A alteração da folha NÃO foi confirmada na nuvem. Nada foi removido e a janela ficou aberta para você tentar novamente.\n\n"+String(err?.message||err));
+3371:    }
+3372:  });
+3373: }
+3374: function deletePayrollRow(id){
+3375:  let r=(db.payroll||[]).find(x=>+x.id===+id);if(!r)return;
+3376:  let label=`${r.employeeName||"Funcionário"} — ${r.month||""}`;
+3377:  if(!confirm(`Excluir a folha de ${label}? Isso remove somente este lançamento mensal e não apaga o cadastro do funcionário.`))return;
+3378:  db.payroll=(db.payroll||[]).filter(x=>+x.id!==+id);
+3379:  try{persistDb()}catch(e){console.error(e)}
+3380:  if(typeof auditAction==="function")auditAction("Excluiu folha de pagamento",label);
+3381:  renderPayroll();
+3382: }
+3383: function togglePayrollPaid(id){
+3384:  let r=(db.payroll||[]).find(x=>+x.id===+id);if(!r)return;
+3385:  let e=(db.employees||[]).find(x=>+x.id===+r.employeeId)||{};
+3386:  let calc=payrollCalc(r,e);
+3387:  if(r.paid){
+3388:    if(!confirm("Reabrir este pagamento como pendente?"))return;
+3389:    r.paid=false;r.paidAt="";r.paidValue=0;
+3390:  }else{
+3391:    if(!confirm(`Marcar ${r.employeeName} como PAGO em ${money(calc.net)}?`))return;
+3392:    r.paid=true;r.paidAt=isoDate(new Date());r.paidValue=calc.net;
+3393:  }
+3394:  try{persistDb()}catch(e){}
+3395:  renderPayroll();
+3396: }
+3397: function savePayrollExtraCharges(){
+3398:  ensurePayrollData();
+3399:  db.config.payrollExtraChargesPct=+document.getElementById("payrollExtraCharges")?.value||0;
+3400:  try{persistDb()}catch(e){}
+3401:  renderPayroll();renderPayrollProvisions();
+3402: }
+3403: function archiveEmployeeAfterTermination(emp,termination){
+3404:  ensurePayrollData();
+3405:  if(!emp||!termination)return;
+3406:  let tenure=tenureInfo(emp.hireDate,termination.date);
+3407:  let existing=db.formerEmployees.find(x=>+x.employeeId===+emp.id);
+3408:  let snapshot={
+3409:    id:existing?.id||("former-"+Date.now()+"-"+Math.floor(Math.random()*10000)),
+3410:    employeeId:emp.id,
+3411:    name:emp.name,
+3412:    productionLocationId:emp.productionLocationId||null,
+
+===== line 3222 =====
+3197:   <div class="field"><label>Data de admissão</label><input id="empHire" type="date" value="${e.hireDate||""}"></div>
+3198:   <div class="field"><label>Chave PIX</label><input id="empPix" value="${esc(e.pix||"")}"></div>
+3199:   <div class="field"><label>Ativo</label><select id="empActive"><option value="true" ${e.active!==false?"selected":""}>Sim</option><option value="false" ${e.active===false?"selected":""}>Não</option></select></div>
+3200:  </div>
+3201:  <div class="sub">Tempo de empresa: <strong>${esc(tenureInfo(e.hireDate).label)}</strong></div>
+3202:  <div class="panel" style="margin-top:14px">
+3203:    <h3 style="margin-top:0">Histórico salarial</h3>
+3204:    <div class="sub">Registre cada reajuste para acompanhar quando aconteceu e quantos por cento o salário aumentou.</div>
+3205:    <div id="employeeSalaryHistoryBox">${employeeSalaryHistoryHTML(e)}</div>
+3206:    <button type="button" class="secondary" onclick="openSalaryIncrease(${e.id})">+ Registrar aumento salarial</button>
+3207:  </div>
+3208:  <button type="button" class="primary modalSave">Salvar alterações</button>`,()=>{
+3209:    let locId=+document.getElementById("empLocation")?.value||null,loc=locations.find(l=>+l.id===+locId);
+3210:    let previousSalary=+e.salary||0;
+3211:    let editedSalary=+document.getElementById("empSalary")?.value||0;
+3212:    if(editedSalary!==previousSalary){
+3213:      let pct=previousSalary>0?((editedSalary-previousSalary)/previousSalary*100):0;
+3214:      ensureEmployeeSalaryHistory(e).push({
+3215:        id:"sal-"+Date.now()+"-"+Math.floor(Math.random()*10000),
+3216:        date:isoDate(new Date()),oldSalary:previousSalary,newSalary:editedSalary,percent:pct,
+3217:        note:"Alteração feita pelo cadastro do funcionário"
+3218:      });
+3219:    }
+3220:    Object.assign(e,{
+3221:      name:document.getElementById("empName")?.value.trim()||e.name,
+3222:      productionLocationId:locId,companyName:loc?.name||"",
+3223:      salary:editedSalary,
+3224:      hasTransport:document.getElementById("empHasTransport")?.value!=="false",
+3225:      benefitDefault:+document.getElementById("empBenefit")?.value||0,
+3226:      hireDate:document.getElementById("empHire")?.value||"",
+3227:      pix:document.getElementById("empPix")?.value||"",
+3228:      active:document.getElementById("empActive")?.value!=="false"
+3229:    });
+3230:    ensureEmployeePayrollForMonth(e,document.getElementById("payrollMonth")?.value||payrollCurrentMonth());
+3231:    closeModal();save();renderEmployees();renderPayroll();
+3232:  });
+3233: }
+3234: function deleteEmployee(id){
+3235:  let e=(db.employees||[]).find(x=>+x.id===+id);if(!e)return;
+3236:  if(!confirm(`Excluir o cadastro de ${e.name}? O histórico de folhas já geradas será preservado.`))return;
+3237:  db.employees=db.employees.filter(x=>+x.id!==+id);
+3238:  try{persistDb()}catch(e){}
+3239:  renderEmployees();
+3240: }
+3241: function renderEmployees(){
+3242:  ensurePayrollData();
+3243:  // Cadastro de Funcionários mostra somente quem está ativo.
+3244:  // Funcionários desligados/rescindidos ficam exclusivamente em Ex-funcionários.
+3245:  let active=(db.employees||[]).filter(e=>e.active!==false);
+3246:  let totalSalary=active.reduce((a,e)=>a+(+e.salary||0),0);
+3247:  let cards=document.getElementById("employeeCards"),tbl=document.getElementById("employeeTable");
+3248:  if(cards)cards.innerHTML=`<div class="card"><small>Funcionários ativos</small><strong>${active.length}</strong></div><div class="card"><small>Salários base</small><strong>${money(totalSalary)}</strong></div><div class="card"><small>Confecções com funcionários</small><strong>${new Set(active.map(employeeCompanyName)).size}</strong></div>`;
+3249:  if(tbl)tbl.innerHTML=active.length?table(["Funcionário","Confecção","Salário","Vale-transporte","Admissão","Tempo de empresa","PIX","Ações"],active.map(e=>[
+3250:    esc(e.name),esc(employeeCompanyName(e)),money(e.salary||0),e.hasTransport!==false?'<span class="badge ok">Sim</span>':'<span class="badge">Não</span>',e.hireDate?fmtDate(e.hireDate):"-",esc(tenureInfo(e.hireDate).label),esc(e.pix||"-"),
+3251:    `<button class="secondary" onclick="editEmployee(${e.id})">Editar / histórico</button> <button class="secondary" onclick="openSalaryIncrease(${e.id})">+ Aumento</button> <button class="danger" onclick="deleteEmployee(${e.id})">Excluir</button>`
+3252:  ])):'<div class="empty">Nenhum funcionário ativo cadastrado.</div>';
+3253: }
+3254: function payrollCompanyOptions(){
+3255:  let select=document.getElementById("payrollCompanyFilter");if(!select)return;
+3256:  let current=select.value;
+3257:  let names=[...new Set((db.employees||[]).map(employeeCompanyName).filter(Boolean))].sort();
+3258:  select.innerHTML='<option value="">Todas as confecções</option>'+names.map(n=>`<option value="${esc(n)}">${esc(n)}</option>`).join("");
+3259:  if(names.includes(current))select.value=current;
+3260: }
+3261: 
+3262: function savePayrollTransportConfig(){
+3263:  ensurePayrollData();
+3264:  let fare=+document.getElementById("payrollFareValue")?.value||0;
+3265:  let month=document.getElementById("payrollMonth")?.value||payrollCurrentMonth();
+3266:  let days=Math.max(0,+document.getElementById("payrollWorkDays")?.value||0);
+3267:  db.config.transportFare=fare;
+3268:  db.config.payrollWorkDays[month]=days;
+3269:  try{persistDb()}catch(e){console.error(e)}
+3270:  renderPayroll();
+3271: }
+3272: 
+3273: function ensureEmployeePayrollForMonth(employee,month){
+3274:  ensurePayrollData();
+3275:  if(!employee)return null;
+3276:  month=month||payrollCurrentMonth();
+3277:  let r=db.payroll.find(x=>x.month===month&&+x.employeeId===+employee.id);
+3278:  if(!r){
+3279:    r={
+3280:      id:Date.now()+Math.floor(Math.random()*1000000),
+3281:      month,
+3282:      employeeId:employee.id,
+3283:      employeeName:employee.name,
+3284:      companyName:employeeCompanyName(employee),
+3285:      salary:+employee.salary||0,
+3286:      benefit:+employee.benefitDefault||0,
+3287:      overtime:0,bonus:0,absence:0,transportAbsenceDays:0,
+3288:      unionDiscount:0,advance:0,purchase:0,
+3289:      pix:employee.pix||"",paid:false,paidAt:"",paidValue:0
+3290:    };
+3291:    db.payroll.push(r);
+3292:  }else{
+3293:    r.employeeName=employee.name;
+3294:    r.companyName=employeeCompanyName(employee);
+3295:    r.pix=employee.pix||r.pix||"";
+3296:  }
+3297:  return r;
+3298: }
+3299: function generatePayrollMonth(){
+3300:  ensurePayrollData();
+3301:  let month=document.getElementById("payrollMonth")?.value||payrollCurrentMonth();
+3302:  (db.employees||[]).filter(e=>e.active!==false).forEach(e=>ensureEmployeePayrollForMonth(e,month));
+3303:  try{persistDb()}catch(e){}
+3304:  renderPayroll();
+3305: }
+3306: function editPayrollRow(id){
+3307:  let r=(db.payroll||[]).find(x=>+x.id===+id);if(!r)return;
+3308:  let e=(db.employees||[]).find(x=>+x.id===+r.employeeId)||{salary:r.salary||0};
+3309:  let c=payrollCalc(r,e);
+3310:  const payrollBase=hlgbRecordClone(r);
+3311:  openModal(`Folha — ${esc(r.employeeName||e.name||"Funcionário")}`,`
+3312:  <div class="grid">
+3313:   <div class="field"><label>Salário</label><input id="prSalary" type="number" step=".01" value="${c.salary}"></div>
+3314:   <div class="field"><label>Vale-transporte calculado</label><input value="${money(c.transport)}" disabled></div>
+3315:   <div class="field"><label>Dias de falta para descontar do VT</label><input id="prTransportAbsenceDays" type="number" min="0" step="1" value="${+r.transportAbsenceDays||0}"></div>
+3316:   <div class="field"><label>Benefício / salário-família</label><input id="prBenefit" type="number" step=".01" value="${c.benefit}"></div>
+3317:   <div class="field"><label>Hora extra</label><input id="prOvertime" type="number" step=".01" value="${c.overtime}"></div>
+3318:   <div class="field"><label>Bônus</label><input id="prBonus" type="number" step=".01" value="${c.bonus}"></div>
+3319:   <div class="field"><label>Outros créditos (+)</label><input id="prOtherCredit" type="number" step=".01" value="${c.otherCredit||0}"></div>
+3320:   <div class="field"><label>Faltas / desconto</label><input id="prAbsence" type="number" step=".01" value="${c.absence}"></div>
+3321:   <div class="field"><label>Desconto sindical</label><input id="prUnion" type="number" step=".01" value="${c.union}"></div>
+3322:   <div class="field"><label>Vale / adiantamento</label><input id="prAdvance" type="number" step=".01" value="${c.advance}"></div>
+3323:   <div class="field"><label>Compra</label><input id="prPurchase" type="number" step=".01" value="${c.purchase}"></div>
+3324:   <div class="field"><label>Outros descontos (-)</label><input id="prOtherDiscount" type="number" step=".01" value="${c.otherDiscount||0}"></div>
+3325:   <div class="field"><label>Descontar INSS?</label><select id="prDiscountInss"><option value="yes" ${r.discountInss!==false?"selected":""}>Sim</option><option value="no" ${r.discountInss===false?"selected":""}>Não</option></select></div>
+3326:   <div class="field"><label>Chave PIX</label><input id="prPix" value="${esc(r.pix||e.pix||"")}"></div>
+3327:  </div>
+3328:  <div class="sub">INSS é calculado automaticamente quando “Descontar INSS?” estiver em Sim. Se escolher Não, o valor não entra nos descontos desta folha.</div>
+3329:  <button type="button" class="primary modalSave">Salvar folha</button>`,async()=>{
+3330:    const btn=document.querySelector("#modal .modalSave");
+3331:    const desired={...hlgbRecordClone(payrollBase),
+3332:      salary:+document.getElementById("prSalary")?.value||0,
+3333:      transportAbsenceDays:+document.getElementById("prTransportAbsenceDays")?.value||0,
+3334:      benefit:+document.getElementById("prBenefit")?.value||0,
+3335:      overtime:+document.getElementById("prOvertime")?.value||0,
+3336:      bonus:+document.getElementById("prBonus")?.value||0,
+3337:      otherCredit:+document.getElementById("prOtherCredit")?.value||0,
+3338:      absence:+document.getElementById("prAbsence")?.value||0,
+3339:      unionDiscount:+document.getElementById("prUnion")?.value||0,
+3340:      advance:+document.getElementById("prAdvance")?.value||0,
+3341:      purchase:+document.getElementById("prPurchase")?.value||0,
+3342:      otherDiscount:+document.getElementById("prOtherDiscount")?.value||0,
+3343:      pix:document.getElementById("prPix")?.value||"",
+3344:      discountInss:document.getElementById("prDiscountInss")?.value!=="no"
+3345:     };
+3346:    try{
+3347:      if(btn){btn.disabled=true;btn.textContent="☁️ Salvando na nuvem…"}
+3348:      if(!hlgbRecordReady){
+3349:        const ok=await hlgbEnsureRecordsOnlineAfterLogin();
+3350:        if(!ok||!hlgbRecordReady)throw new Error("A nuvem não está pronta para salvar a folha.");
+3351:      }
+3352:      const latest=hlgbRecordSnapshots?.payroll?.get(String(id))?.data || (db.payroll||[]).find(x=>String(x.id)===String(id)) || payrollBase;
+3353:      const merged=cloudMergeThreeWay(payrollBase,desired,latest);
+3354:      setCloudStatus("☁️ Salvando folha…");
+3355:      const confirmed=await hlgbRecordSaveWithRetry("payroll",String(id),merged,false);
+3356:      if(!confirmed||confirmed.applied!==true)throw new Error("O Supabase não confirmou a alteração da folha.");
+3357:      const finalData=hlgbRecordClone(confirmed.data||merged);
+3358:      let current=(db.payroll||[]).find(x=>String(x.id)===String(id));
+3359:      if(current){Object.keys(current).forEach(k=>delete current[k]);Object.assign(current,finalData)}
+3360:      else {db.payroll=db.payroll||[];db.payroll.push(finalData)}
+3361:      localSaveOnly();
+3362:      closeModal();
+3363:      renderPayroll();
+3364:      try{auditAction("Atualizou folha de pagamento",`${finalData.employeeName||"Funcionário"} — ${finalData.month||""}`)}catch(e){}
+3365:      setCloudStatus("⚡ Online · folha confirmada","ok");
+3366:    }catch(err){
+3367:      console.error("HLGB v91.29 folha não confirmada",err);
+3368:      if(btn){btn.disabled=false;btn.textContent="💾 Salvar folha"}
+3369:      setCloudStatus("☁️ Folha não confirmada","bad");
+3370:      alert("A alteração da folha NÃO foi confirmada na nuvem. Nada foi removido e a janela ficou aberta para você tentar novamente.\n\n"+String(err?.message||err));
+3371:    }
+3372:  });
+3373: }
+3374: function deletePayrollRow(id){
+3375:  let r=(db.payroll||[]).find(x=>+x.id===+id);if(!r)return;
+3376:  let label=`${r.employeeName||"Funcionário"} — ${r.month||""}`;
+3377:  if(!confirm(`Excluir a folha de ${label}? Isso remove somente este lançamento mensal e não apaga o cadastro do funcionário.`))return;
+3378:  db.payroll=(db.payroll||[]).filter(x=>+x.id!==+id);
+3379:  try{persistDb()}catch(e){console.error(e)}
+3380:  if(typeof auditAction==="function")auditAction("Excluiu folha de pagamento",label);
+3381:  renderPayroll();
+3382: }
+3383: function togglePayrollPaid(id){
+3384:  let r=(db.payroll||[]).find(x=>+x.id===+id);if(!r)return;
+3385:  let e=(db.employees||[]).find(x=>+x.id===+r.employeeId)||{};
+3386:  let calc=payrollCalc(r,e);
+3387:  if(r.paid){
+3388:    if(!confirm("Reabrir este pagamento como pendente?"))return;
+3389:    r.paid=false;r.paidAt="";r.paidValue=0;
+3390:  }else{
+3391:    if(!confirm(`Marcar ${r.employeeName} como PAGO em ${money(calc.net)}?`))return;
+3392:    r.paid=true;r.paidAt=isoDate(new Date());r.paidValue=calc.net;
+3393:  }
+3394:  try{persistDb()}catch(e){}
+3395:  renderPayroll();
+3396: }
+3397: function savePayrollExtraCharges(){
+3398:  ensurePayrollData();
+3399:  db.config.payrollExtraChargesPct=+document.getElementById("payrollExtraCharges")?.value||0;
+3400:  try{persistDb()}catch(e){}
+3401:  renderPayroll();renderPayrollProvisions();
+3402: }
+3403: function archiveEmployeeAfterTermination(emp,termination){
+3404:  ensurePayrollData();
+3405:  if(!emp||!termination)return;
+3406:  let tenure=tenureInfo(emp.hireDate,termination.date);
+3407:  let existing=db.formerEmployees.find(x=>+x.employeeId===+emp.id);
+3408:  let snapshot={
+3409:    id:existing?.id||("former-"+Date.now()+"-"+Math.floor(Math.random()*10000)),
+3410:    employeeId:emp.id,
+3411:    name:emp.name,
+3412:    productionLocationId:emp.productionLocationId||null,
+3413:    companyName:employeeCompanyName(emp),
+3414:    salary:+emp.salary||0,
+3415:    pix:emp.pix||"",
+3416:    hireDate:emp.hireDate||"",
+3417:    terminationDate:termination.date||"",
+3418:    terminationType:termination.type||"",
+3419:    terminationValue:+termination.value||0,
+3420:    tenureMonths:tenure.months,
+3421:    tenureLabel:tenure.label,
+3422:    salaryHistory:cloneForTrash?cloneForTrash(emp.salaryHistory||[]):JSON.parse(JSON.stringify(emp.salaryHistory||[])),
+3423:    employeeSnapshot:cloneForTrash?cloneForTrash(emp):JSON.parse(JSON.stringify(emp)),
+3424:    archivedAt:new Date().toISOString()
+3425:  };
+3426:  if(existing)Object.assign(existing,snapshot);
+3427:  else db.formerEmployees.push(snapshot);
+3428: 
+3429:  emp.active=false;
+3430:  emp.terminationDate=termination.date||"";
+3431:  emp.terminationType=termination.type||"";
+3432:  emp.terminationId=termination.id;
+3433: 
+3434:  // Remove futuras folhas ainda não pagas a partir da competência da rescisão.
+3435:  let termMonth=String(termination.date||"").slice(0,7);
+3436:  db.payroll=(db.payroll||[]).filter(r=>{
+3437:    if(+r.employeeId!==+emp.id)return true;
+3438:    if(r.paid)return true;
+3439:    if(!termMonth)return true;
+3440:    return String(r.month||"")<termMonth;
+3441:  });
+
+===== line 3412 =====
+3387:  if(r.paid){
+3388:    if(!confirm("Reabrir este pagamento como pendente?"))return;
+3389:    r.paid=false;r.paidAt="";r.paidValue=0;
+3390:  }else{
+3391:    if(!confirm(`Marcar ${r.employeeName} como PAGO em ${money(calc.net)}?`))return;
+3392:    r.paid=true;r.paidAt=isoDate(new Date());r.paidValue=calc.net;
+3393:  }
+3394:  try{persistDb()}catch(e){}
+3395:  renderPayroll();
+3396: }
+3397: function savePayrollExtraCharges(){
+3398:  ensurePayrollData();
+3399:  db.config.payrollExtraChargesPct=+document.getElementById("payrollExtraCharges")?.value||0;
+3400:  try{persistDb()}catch(e){}
+3401:  renderPayroll();renderPayrollProvisions();
+3402: }
+3403: function archiveEmployeeAfterTermination(emp,termination){
+3404:  ensurePayrollData();
+3405:  if(!emp||!termination)return;
+3406:  let tenure=tenureInfo(emp.hireDate,termination.date);
+3407:  let existing=db.formerEmployees.find(x=>+x.employeeId===+emp.id);
+3408:  let snapshot={
+3409:    id:existing?.id||("former-"+Date.now()+"-"+Math.floor(Math.random()*10000)),
+3410:    employeeId:emp.id,
+3411:    name:emp.name,
+3412:    productionLocationId:emp.productionLocationId||null,
+3413:    companyName:employeeCompanyName(emp),
+3414:    salary:+emp.salary||0,
+3415:    pix:emp.pix||"",
+3416:    hireDate:emp.hireDate||"",
+3417:    terminationDate:termination.date||"",
+3418:    terminationType:termination.type||"",
+3419:    terminationValue:+termination.value||0,
+3420:    tenureMonths:tenure.months,
+3421:    tenureLabel:tenure.label,
+3422:    salaryHistory:cloneForTrash?cloneForTrash(emp.salaryHistory||[]):JSON.parse(JSON.stringify(emp.salaryHistory||[])),
+3423:    employeeSnapshot:cloneForTrash?cloneForTrash(emp):JSON.parse(JSON.stringify(emp)),
+3424:    archivedAt:new Date().toISOString()
+3425:  };
+3426:  if(existing)Object.assign(existing,snapshot);
+3427:  else db.formerEmployees.push(snapshot);
+3428: 
+3429:  emp.active=false;
+3430:  emp.terminationDate=termination.date||"";
+3431:  emp.terminationType=termination.type||"";
+3432:  emp.terminationId=termination.id;
+3433: 
+3434:  // Remove futuras folhas ainda não pagas a partir da competência da rescisão.
+3435:  let termMonth=String(termination.date||"").slice(0,7);
+3436:  db.payroll=(db.payroll||[]).filter(r=>{
+3437:    if(+r.employeeId!==+emp.id)return true;
+3438:    if(r.paid)return true;
+3439:    if(!termMonth)return true;
+3440:    return String(r.month||"")<termMonth;
+3441:  });
+3442: }
+3443: function formerEmployeeCompanyOptions(){
+3444:  let s=document.getElementById("exEmployeeCompanyFilter");if(!s)return;
+3445:  let cur=s.value;
+3446:  let names=[...new Set((db.formerEmployees||[]).map(x=>x.companyName).filter(Boolean))].sort();
+3447:  s.innerHTML='<option value="">Todas</option>'+names.map(n=>`<option value="${esc(n)}">${esc(n)}</option>`).join("");
+3448:  if(names.includes(cur))s.value=cur;
+3449: }
+3450: function formerSalaryHistoryText(x){
+3451:  let hist=Array.isArray(x.salaryHistory)?x.salaryHistory:[];
+3452:  if(!hist.length)return "-";
+3453:  return hist.slice().sort((a,b)=>String(a.date||"").localeCompare(String(b.date||""))).map(h=>
+3454:    `${h.date?fmtDate(h.date):"-"}: ${money(h.oldSalary||0)} → ${money(h.newSalary||0)} (${(+h.percent||0).toFixed(2).replace(".",",")}%)`
+3455:  ).join("<br>");
+3456: }
+3457: function renderFormerEmployees(){
+3458:  ensurePayrollData();
+3459:  formerEmployeeCompanyOptions();
+3460:  let q=(document.getElementById("exEmployeeSearch")?.value||"").toLowerCase().trim();
+3461:  let company=document.getElementById("exEmployeeCompanyFilter")?.value||"";
+3462:  let arr=db.formerEmployees.filter(x=>{
+3463:    if(q&&!String(x.name||"").toLowerCase().includes(q))return false;
+3464:    if(company&&x.companyName!==company)return false;
+3465:    return true;
+3466:  });
+3467:  let cards=document.getElementById("formerEmployeeCards");
+3468:  if(cards){
+3469:    let totalPaid=arr.reduce((a,x)=>a+(+x.terminationValue||0),0);
+3470:    cards.innerHTML=`<div class="card"><small>Ex-funcionários</small><strong>${arr.length}</strong></div><div class="card"><small>Total pago em rescisões</small><strong>${money(totalPaid)}</strong></div>`;
+3471:  }
+3472:  let tbl=document.getElementById("formerEmployeeTable");
+3473:  if(tbl)tbl.innerHTML=arr.length?table(
+3474:    ["Funcionário","Confecção","Admissão","Saída","Tempo de empresa","Último salário","PIX","Tipo de rescisão","Valor rescisão","Histórico salarial"],
+3475:    arr.slice().sort((a,b)=>String(b.terminationDate||"").localeCompare(String(a.terminationDate||""))).map(x=>[
+3476:      esc(x.name||"-"),esc(x.companyName||"-"),x.hireDate?fmtDate(x.hireDate):"-",x.terminationDate?fmtDate(x.terminationDate):"-",
+3477:      esc(x.tenureLabel||"-"),money(x.salary||0),esc(x.pix||"-"),esc(x.terminationType||"-"),money(x.terminationValue||0),formerSalaryHistoryText(x)
+3478:    ])
+3479:  ):'<div class="empty">Nenhum ex-funcionário registrado.</div>';
+3480: }
+3481: function newTermination(){
+3482:  ensurePayrollData();
+3483:  let employees=(db.employees||[]).slice().sort((a,b)=>String(a.name||"").localeCompare(String(b.name||"")));
+3484:  openModal("Lançar rescisão",`
+3485:    <div class="grid">
+3486:      <div class="field"><label>Funcionário</label><select id="termEmployee"><option value="">Selecione</option>${employees.map(e=>`<option value="${e.id}">${esc(e.name)} — ${esc(employeeCompanyName(e))}</option>`).join("")}</select></div>
+3487:      <div class="field"><label>Data da rescisão</label><input id="termDate" type="date" value="${isoDate(new Date())}"></div>
+3488:      <div class="field"><label>Tipo / motivo</label><select id="termType"><option>Sem justa causa</option><option>Pedido de demissão</option><option>Justa causa</option><option>Término de contrato</option><option>Acordo</option><option>Outro</option></select></div>
+3489:      <div class="field"><label>Valor pago</label><input id="termValue" type="number" min="0" step="0.01"></div>
+3490:      <div class="field" style="grid-column:1/-1"><label>Observação</label><input id="termNote" placeholder="Ex.: rescisão quitada, parcelas, observações..."></div>
+3491:    </div>
+3492:    <button type="button" class="primary modalSave">Salvar rescisão</button>`,()=>{
+3493:      let emp=(db.employees||[]).find(e=>+e.id===+document.getElementById("termEmployee")?.value);
+3494:      if(!emp){alert("Selecione o funcionário.");return}
+3495:      let value=+document.getElementById("termValue")?.value||0;
+3496:      if(value<0){alert("Informe um valor válido.");return}
+3497:      let termination={
+3498:        id:Date.now(),
+3499:        employeeId:emp.id,
+3500:        employeeName:emp.name,
+3501:        companyName:employeeCompanyName(emp),
+3502:        date:document.getElementById("termDate")?.value||isoDate(new Date()),
+3503:        type:document.getElementById("termType")?.value||"Outro",
+3504:        value,
+3505:        note:document.getElementById("termNote")?.value||""
+3506:      };
+3507:      db.terminations.push(termination);
+3508:      archiveEmployeeAfterTermination(emp,termination);
+3509:      try{persistDb()}catch(e){console.error(e)}
+3510:      closeModal();
+3511:      if(typeof auditAction==="function")auditAction("Lançou rescisão",`${emp.name} — ${money(value)}`);
+3512:      renderEmployees();
+3513:      renderPayroll();
+3514:      renderFormerEmployees();
+3515:      alert("Rescisão registrada. O funcionário foi baixado da folha e enviado ao histórico de ex-funcionários.");
+3516:    });
+3517: }
+3518: function editTermination(id){
+3519:  let r=(db.terminations||[]).find(x=>+x.id===+id);if(!r)return;
+3520:  openModal("Editar rescisão",`
+3521:    <div class="grid">
+3522:      <div class="field"><label>Funcionário</label><input value="${esc(r.employeeName||"")}" disabled></div>
+3523:      <div class="field"><label>Confecção</label><input value="${esc(r.companyName||"")}" disabled></div>
+3524:      <div class="field"><label>Data da rescisão</label><input id="termDate" type="date" value="${r.date||""}"></div>
+3525:      <div class="field"><label>Tipo / motivo</label><select id="termType">${["Sem justa causa","Pedido de demissão","Justa causa","Término de contrato","Acordo","Outro"].map(x=>`<option ${x===r.type?"selected":""}>${x}</option>`).join("")}</select></div>
+3526:      <div class="field"><label>Valor pago</label><input id="termValue" type="number" min="0" step="0.01" value="${+r.value||0}"></div>
+3527:      <div class="field" style="grid-column:1/-1"><label>Observação</label><input id="termNote" value="${esc(r.note||"")}"></div>
+3528:    </div>
+3529:    <button type="button" class="primary modalSave">Salvar alterações</button>`,()=>{
+3530:      r.date=document.getElementById("termDate")?.value||r.date;
+3531:      r.type=document.getElementById("termType")?.value||r.type;
+3532:      r.value=+document.getElementById("termValue")?.value||0;
+3533:      r.note=document.getElementById("termNote")?.value||"";
+3534:      let emp=(db.employees||[]).find(e=>+e.id===+r.employeeId);
+3535:      if(emp)archiveEmployeeAfterTermination(emp,r);
+3536:      try{persistDb()}catch(e){}
+3537:      closeModal();renderPayroll();renderFormerEmployees();
+3538:    });
+3539: }
+3540: function deleteTermination(id){
+3541:  let r=(db.terminations||[]).find(x=>+x.id===+id);if(!r)return;
+3542:  if(!confirm(`Excluir a rescisão de ${r.employeeName}?`))return;
+3543:  db.terminations=db.terminations.filter(x=>+x.id!==+id);
+3544:  try{persistDb()}catch(e){}
+3545:  renderPayroll();
+3546: }
+3547: function renderTerminations(month,company,q){
+3548:  let arr=(db.terminations||[]).filter(r=>{
+3549:    let m=String(r.date||"").slice(0,7);
+3550:    if(month&&m!==month)return false;
+3551:    if(company&&r.companyName!==company)return false;
+3552:    if(q&&!String(r.employeeName||"").toLowerCase().includes(q))return false;
+3553:    return true;
+3554:  });
+3555:  let cards=document.getElementById("terminationCards");
+3556:  let total=arr.reduce((a,r)=>a+(+r.value||0),0);
+3557:  if(cards)cards.innerHTML=`<div class="card"><small>Rescisões no período</small><strong>${arr.length}</strong></div><div class="card"><small>Valor total pago em rescisões</small><strong>${money(total)}</strong></div>`;
+3558:  let tbl=document.getElementById("terminationTable");
+3559:  if(tbl)tbl.innerHTML=arr.length?table(["Data","Funcionário","Confecção","Tipo","Valor pago","Observação","Ações"],arr.slice().sort((a,b)=>String(b.date||"").localeCompare(String(a.date||""))).map(r=>[
+3560:    r.date?fmtDate(r.date):"-",esc(r.employeeName||"-"),esc(r.companyName||"-"),esc(r.type||"-"),money(r.value||0),esc(r.note||"-"),
+3561:    `<button class="secondary" onclick="editTermination(${r.id})">Editar</button> <button class="danger" onclick="deleteTermination(${r.id})">Excluir</button>`
+3562:  ])):'<div class="empty">Nenhuma rescisão registrada para este período.</div>';
+3563: }
+3564: 
+3565: 
+3566: function renderPayroll(){
+3567:  ensurePayrollData();
+3568:  let monthEl=document.getElementById("payrollMonth");
+3569:  if(!monthEl)return;
+3570:  if(!monthEl.value)monthEl.value=payrollCurrentMonth();
+3571:  let month=monthEl.value;
+3572:  let yearEl=document.getElementById("payrollYear");
+3573:  if(yearEl&&!yearEl.value)yearEl.value=month.slice(0,4);
+3574:  renderPayrollMonthButtons();
+3575:  payrollCompanyOptions();
+3576: 
+3577:  let fareEl=document.getElementById("payrollFareValue");if(fareEl)fareEl.value=+db.config.transportFare||0;
+3578:  let daysEl=document.getElementById("payrollWorkDays");if(daysEl)daysEl.value=+db.config.payrollWorkDays?.[month]||0;
+3579:  let extraEl=document.getElementById("payrollExtraCharges");if(extraEl)extraEl.value=+db.config.payrollExtraChargesPct||0;
+3580: 
+3581:  let company=document.getElementById("payrollCompanyFilter")?.value||"";
+3582:  let q=(document.getElementById("payrollEmployeeFilter")?.value||"").trim().toLowerCase();
+3583:  let rows=(db.payroll||[]).filter(r=>{
+3584:    if(r.month!==month)return false;
+3585:    if(company&&r.companyName!==company)return false;
+3586:    if(q&&!String(r.employeeName||"").toLowerCase().includes(q))return false;
+3587:    return true;
+3588:  });
+3589:  let total=0,paid=0,inss=0;
+3590:  rows.forEach(r=>{
+3591:    let e=(db.employees||[]).find(x=>+x.id===+r.employeeId)||{};
+3592:    let c=payrollCalc(r,e); total+=c.net; inss+=c.inss;if(r.paid)paid+=c.net;
+3593:  });
+3594:  let cards=document.getElementById("payrollSummaryCards");
+3595:  if(cards)cards.innerHTML=`<div class="card"><small>Funcionários</small><strong>${rows.length}</strong></div><div class="card"><small>Folha líquida</small><strong>${money(total)}</strong></div><div class="card"><small>Pago</small><strong>${money(paid)}</strong></div><div class="card"><small>Pendente</small><strong>${money(Math.max(0,total-paid))}</strong></div><div class="card"><small>INSS funcionários</small><strong>${money(inss)}</strong></div>`;
+3596:  let tbl=document.getElementById("payrollTable");
+3597:  if(tbl){
+3598:    if(!rows.length){
+3599:      tbl.innerHTML='<div class="payroll-empty">Nenhuma folha gerada para esta competência. Clique em “Gerar / atualizar folha do mês”.</div>';
+3600:    }else{
+3601:      let grouped={};
+3602:      rows.forEach(r=>{
+3603:        let name=r.companyName||"Sem confecção";
+3604:        (grouped[name]||(grouped[name]=[])).push(r);
+3605:      });
+3606:      let companyNames=Object.keys(grouped).sort((a,b)=>a.localeCompare(b,"pt-BR"));
+3607:      tbl.innerHTML='<div class="payroll-company-list">'+companyNames.map(companyName=>{
+3608:        let companyRows=grouped[companyName].slice().sort((a,b)=>String(a.employeeName||"").localeCompare(String(b.employeeName||""),"pt-BR"));
+3609:        let companyNet=0,companyPaid=0,companyInss=0;
+3610:        companyRows.forEach(r=>{
+3611:          let e=(db.employees||[]).find(x=>+x.id===+r.employeeId)||{};
+3612:          let c=payrollCalc(r,e);companyNet+=c.net;companyInss+=c.inss;if(r.paid)companyPaid+=c.net;
+3613:        });
+3614:        let companyPending=Math.max(0,companyNet-companyPaid);
+3615:        return `<section class="payroll-company">
+3616:          <div class="payroll-company-head">
+3617:            <div class="payroll-company-title">🏭 ${esc(companyName)}</div>
+3618:            <div class="payroll-company-stats">
+3619:              <span class="payroll-company-stat"><strong>${companyRows.length}</strong> funcionário${companyRows.length===1?"":"s"}</span>
+3620:              <span class="payroll-company-stat">Folha <strong>${money(companyNet)}</strong></span>
+3621:              <span class="payroll-company-stat">Pago <strong>${money(companyPaid)}</strong></span>
+3622:              <span class="payroll-company-stat">Pendente <strong>${money(companyPending)}</strong></span>
+3623:            </div>
+3624:          </div>
+3625:          <div class="payroll-list-head"><div>Funcionário</div><div>Salário</div><div>Adicionais</div><div>Descontos</div><div>A pagar</div><div>PIX</div><div>Status</div><div>Ações</div></div>
+3626:          ${companyRows.map(r=>{
+3627:            let e=(db.employees||[]).find(x=>+x.id===+r.employeeId)||{};
+3628:            let c=payrollCalc(r,e);
+3629:            let additions=(+c.transport||0)+(+c.benefit||0)+(+c.overtime||0)+(+c.bonus||0)+(+c.otherCredit||0);
+3630:            let discounts=(+c.absence||0)+(+c.inss||0)+(+c.union||0)+(+c.advance||0)+(+c.purchase||0)+(+c.otherDiscount||0);
+3631:            let status=r.paid?'<span class="badge ok">PAGO</span>':'<span class="badge warn">PENDENTE</span>';

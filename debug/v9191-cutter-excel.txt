@@ -1,0 +1,605 @@
+===== line 16838 =====
+16818:   };
+16819: 
+16820:   function enhanceCutPage9179(){
+16821:     const sec=document.getElementById('corte');if(!sec)return;
+16822:     const toolbar=sec.querySelector('.panel .toolbar');
+16823:     if(toolbar&&!toolbar.querySelector('.hlgb9179-any-model')){const b=document.createElement('button');b.type='button';b.className='primary hlgb9179-any-model';b.textContent='+ Programar qualquer modelo';b.onclick=hlgbProgramAnyModel9179;toolbar.appendChild(b)}
+16824:     // Marca visualmente situações nas telas que exibem linhas de modelos sem destino.
+16825:     document.querySelectorAll('#corte tr, #producao tr, #capacidadeProducao tr, #projecao tr').forEach(tr=>{
+16826:       if(tr.querySelector('.hlgb9179-cut-status'))return;
+16827:       const text=tr.textContent||'';let order=null;const m=text.match(/#\s*(\d+)/);if(m)order=(db.orders||[]).find(o=>String(orderNo9179(o))===String(m[1]));
+16828:       let product=null;for(const p of (db.products||[])){if(p.name&&norm(text).includes(norm(p.name))&&(!product||String(p.name).length>String(product.name).length))product=p}
+16829:       if(!product&&!order)return;
+16830:       const s=cutStatus9179(product?.id,order?.id);const td=product?[...tr.children].find(x=>norm(x.textContent).includes(norm(product.name))):tr.children[0];if(!td)return;
+16831:       const sp=document.createElement('span');sp.className='hlgb9179-cut-status '+s.cls;sp.textContent=s.text;td.appendChild(sp);
+16832:     });
+16833:   }
+16834: 
+16835:   let cutterWeek9179='';
+16836:   function monday9179(v){const d=v?new Date(v+'T12:00:00'):new Date(),day=d.getDay(),diff=day===0?-6:1-day;d.setDate(d.getDate()+diff);return d}
+16837:   function iso9179(d){return d.toISOString().slice(0,10)}
+16838:   window.hlgbMoveCutterWeek9179=function(delta){const d=monday9179(cutterWeek9179||iso9179(new Date()));d.setDate(d.getDate()+delta*7);cutterWeek9179=iso9179(d);hlgbRenderCutterExcel9179()};
+16839:   window.hlgbSetCutterWeek9179=function(v){cutterWeek9179=iso9179(monday9179(v||iso9179(new Date())));hlgbRenderCutterExcel9179()};
+16840:   window.hlgbCurrentCutterWeek9179=function(){cutterWeek9179=iso9179(monday9179());hlgbRenderCutterExcel9179()};
+16841:   function cutsForDay9179(cutterId,day){return (db.cuts||[]).filter(c=>String(c.cutterId||'')===String(cutterId||'')&&asDate(c.plannedCutDate||c.finishedAt||c.date)===day)}
+16842:   window.hlgbRenderCutterExcel9179=function(){
+16843:     const el=document.getElementById('hlgbCutterExcel9179');if(!el)return;if(!cutterWeek9179)cutterWeek9179=iso9179(monday9179());
+16844:     const mon=monday9179(cutterWeek9179),days=Array.from({length:7},(_,i)=>{const d=new Date(mon);d.setDate(d.getDate()+i);return d}),dayIds=days.map(iso9179);
+16845:     let cutters=(db.cutters||[]).filter(c=>c.active!==false).map(c=>({id:c.id,name:c.name||'Cortador'}));if((db.cuts||[]).some(c=>!c.cutterId&&dayIds.includes(asDate(c.plannedCutDate||c.finishedAt||c.date))))cutters.push({id:'',name:'⚠ Sem cortador'});
+16846:     const heads=days.map(d=>`<th>${d.toLocaleDateString('pt-BR',{weekday:'short',day:'2-digit',month:'2-digit'})}</th>`).join('');
+16847:     const rows=cutters.map(ct=>{let weekTotal=0;const cells=dayIds.map(day=>{const cuts=cutsForDay9179(ct.id,day);const total=cuts.reduce((a,c)=>a+(+c.pieces||0),0);weekTotal+=total;const chips=cuts.map(c=>`<span class="hlgb9179-cut-chip"><strong>${esc9179(c.product||'Modelo')}</strong>${(+c.pieces||0).toLocaleString('pt-BR')} pç · ${norm(c.status)==='finalizado'?'✓ cortado':'a cortar'}</span>`).join('');return `<td>${chips||'<span class="sub">—</span>'}${total?`<div class="hlgb9179-week-total">${total.toLocaleString('pt-BR')} pç</div>`:''}</td>`}).join('');return `<tr><td class="cutter-name">${esc9179(ct.name)}</td>${cells}<td class="hlgb9179-week-total">${weekTotal.toLocaleString('pt-BR')} pç</td></tr>`}).join('');
+16848:     el.innerHTML=`<div class="toolbar" style="justify-content:space-between;align-items:flex-end;flex-wrap:wrap;margin-bottom:10px"><div><button class="secondary" onclick="hlgbMoveCutterWeek9179(-1)">← Semana anterior</button> <button class="secondary" onclick="hlgbCurrentCutterWeek9179()">Esta semana</button> <button class="secondary" onclick="hlgbMoveCutterWeek9179(1)">Próxima semana →</button></div><div class="field"><label>Semana</label><input type="date" value="${cutterWeek9179}" onchange="hlgbSetCutterWeek9179(this.value)"></div><button class="secondary" onclick="hlgbPrintCutterExcel9179()">🖨️ Imprimir</button></div><div class="hlgb9179-excel-wrap"><table class="hlgb9179-excel"><thead><tr><th>Cortador</th>${heads}<th>Total semana</th></tr></thead><tbody>${rows||'<tr><td colspan="9">Nenhum cortador cadastrado.</td></tr>'}</tbody></table></div>`;
+16849:   };
+16850:   window.hlgbPrintCutterExcel9179=function(){const el=document.getElementById('hlgbCutterExcel9179');if(!el)return;const w=window.open('','_blank');if(!w){alert('Permita pop-ups para imprimir.');return}w.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>Projeção de cortadores</title><style>body{font-family:Arial;margin:18px}table{border-collapse:collapse;width:100%;font-size:10px}th,td{border:1px solid #aaa;padding:5px;vertical-align:top}.hlgb9179-cut-chip{display:block;margin-bottom:4px}.toolbar,.field label,.field input,button{display:none}</style></head><body><h2>HLGB Confecções — Projeção semanal dos cortadores</h2>${el.innerHTML}</body></html>`);w.document.close();setTimeout(()=>w.print(),150)};
+16851:   function ensureCutterExcel9179(){
+16852:     const anchor=document.getElementById('cutterTable')?.closest('.panel');if(!anchor)return;
+16853:     let panel=document.getElementById('hlgbCutterExcelPanel9179');if(!panel){panel=document.createElement('div');panel.id='hlgbCutterExcelPanel9179';panel.className='panel';panel.innerHTML='<h2>📊 Projeção semanal dos cortadores — visão tipo Excel</h2><div class="sub">Cada linha é um cortador e cada coluna é um dia. Assim fica fácil enxergar quem está com cada modelo e quantas peças estão programadas.</div><div id="hlgbCutterExcel9179" style="margin-top:12px"></div>';anchor.insertAdjacentElement('afterend',panel)}hlgbRenderCutterExcel9179();
+16854:   }
+16855: 
+16856:   // Login Safari/rede: impede uma requisição de senha de ficar pendurada indefinidamente e tenta uma vez novamente.
+16857:   try{
+16858:     if(typeof cloudSignIn==='function' && typeof HLGB_SUPABASE_URL!=='undefined' && typeof HLGB_SUPABASE_KEY!=='undefined'){
+16859:       window.hlgbCloudSignInBase9179=cloudSignIn;
+16860:       cloudSignIn=async function(email,password){
+16861:         let lastErr=null;
+16862:         for(let attempt=0;attempt<2;attempt++){
+16863:           const controller=typeof AbortController!=='undefined'?new AbortController():null;const timer=controller?setTimeout(()=>controller.abort(),30000):null;
+16864:           try{
+16865:             const res=await fetch(`${HLGB_SUPABASE_URL}/auth/v1/token?grant_type=password`,{method:'POST',headers:{apikey:HLGB_SUPABASE_KEY,'Content-Type':'application/json'},body:JSON.stringify({email,password}),signal:controller?.signal});
+16866:             const data=await res.json().catch(()=>({}));if(!res.ok||!data.access_token)throw new Error(data.error_description||data.msg||data.message||'Não foi possível entrar.');if(timer)clearTimeout(timer);cloudApplyAuth(data);return data;
+16867:           }catch(e){if(timer)clearTimeout(timer);lastErr=e;if(attempt===0&&(e?.name==='AbortError'||/network|fetch|tempo|timeout/i.test(String(e?.message||'')))){await new Promise(r=>setTimeout(r,700));continue}throw e}
+16868:         }
+16869:         throw lastErr||new Error('A sessão demorou para responder. Tente entrar novamente.');
+16870:       };
+16871:     }
+16872:   }catch(e){console.warn('HLGB v91.83: proteção de login não aplicada',e)}
+16873: 
+16874:   // Encadeia os renderizadores existentes sem trocar a lógica principal.
+16875:   try{const base=renderClients;renderClients=function(){const r=base.apply(this,arguments);setTimeout(enhanceClients9179,0);return r}}catch(e){}
+16876:   try{const base=renderCuts;renderCuts=function(){const r=base.apply(this,arguments);setTimeout(enhanceCutPage9179,0);return r}}catch(e){}
+16877:   try{const base=renderCutters;renderCutters=function(){const r=base.apply(this,arguments);setTimeout(ensureCutterExcel9179,0);return r}}catch(e){}
+16878:   ['renderProduction','renderProjection','renderCapacityPlanning'].forEach(name=>{try{const base=window[name];if(typeof base==='function')window[name]=function(){const r=base.apply(this,arguments);setTimeout(enhanceCutPage9179,0);return r}}catch(e){}});
+16879: 
+16880:   document.addEventListener('DOMContentLoaded',()=>{setTimeout(()=>{try{enhanceClients9179()}catch(e){}try{enhanceCutPage9179()}catch(e){}try{ensureCutterExcel9179()}catch(e){}},300)});
+16881:   console.log('HLGB v'+V+' carregada: relatórios de cliente, filtro de preços, corte avulso e projeção tipo Excel.');
+16882: })();
+16883: </script>
+16884: <!-- HLGB_V9179_END -->
+16885: 
+16886: <!-- HLGB_V9185_HUB_CUT_START -->
+16887: <style id="hlgb-v9185-style">
+16888: #hubDue9166 .hub9185-cards{grid-template-columns:repeat(auto-fit,minmax(150px,1fr))}
+16889: #hubDue9166 .hub9185-headsum{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-top:5px;font-size:12px}
+16890: #hubDue9166 .hub9185-item{display:grid;grid-template-columns:92px minmax(180px,1fr) 120px 115px auto;gap:10px;align-items:center;padding:9px 0;border-bottom:1px solid #f1eaee}
+16891: #hubDue9166 .hub9185-actions{display:flex;gap:6px;justify-content:flex-end;flex-wrap:wrap}
+16892: #hubDue9166 .hub9185-flow{font-weight:800}
+16893: #hubDue9166 .hub9185-day-empty{padding:9px 13px;color:var(--muted);font-size:12px}
+16894: .cut9185{display:inline-block;margin-top:5px;padding:4px 8px;border-radius:999px;font-size:11px;font-weight:800;line-height:1.2}
+16895: .cut9185.ok{background:#e7f7ec;color:#176b35}.cut9185.partial{background:#fff4d8;color:#8a5b00}.cut9185.pending{background:#eaf2ff;color:#2458a6}.cut9185.no{background:#f3f3f3;color:#666}
+16896: @media(max-width:900px){#hubDue9166 .hub9185-item{grid-template-columns:80px minmax(150px,1fr) 105px auto}.hub9185-item .hub9185-status{grid-column:3}.hub9185-item .hub9185-actions{grid-column:4}.hub9185-item .hub9185-value{grid-column:3;grid-row:2}}
+16897: @media(max-width:650px){#hubDue9166 .hub9185-item{grid-template-columns:1fr}.hub9185-item>*{grid-column:auto!important;grid-row:auto!important}.hub9185-actions{justify-content:flex-start!important}}
+16898: </style>
+16899: <script>
+16900: (function(){
+16901: 'use strict';
+16902: const c9185=v=>{try{return JSON.parse(JSON.stringify(v))}catch(e){return v}},q9185=v=>Math.max(0,+v||0),n9185=v=>String(v??'').trim().toLowerCase();
+16903: function due9185(e){return String(e?.date||e?.dueDate||'').slice(0,10)}
+16904: function isDone9185(e){return n9185(e?.status)==='realizado'}
+16905: function sum9185(a){return (a||[]).reduce((s,x)=>s+q9185(x?.value),0)}
+16906: function flow9185(e){return n9185(e?.flow)==='entrada'?'Entrada':'Saída'}
+16907: function statusLabel9185(e){let done=isDone9185(e);return flow9185(e)==='Entrada'?(done?'Recebido':'A receber'):(done?'Pago':'Falta pagar')}
+16908: function statusClass9185(e){return isDone9185(e)?'ok':(flow9185(e)==='Saída'?'warn':'')}
+16909: function hubRange9185(){let w=document.getElementById('hubFinanceWeek')?.value||weekValue(new Date());return typeof hlgb916HubRange==='function'?hlgb916HubRange(w):{start:w,end:w}}
+16910: function allHub9185(){return (db.hubFinanceEntries||[]).filter(e=>due9185(e))}
+16911: function period9185(arr,prefix){return arr.filter(e=>due9185(e).startsWith(prefix))}
+16912: 
+16913: async function saveHub9185(next){
+16914:   if(!next||next.id==null)throw new Error('Lançamento sem id.');
+16915:   if(typeof cloudEnsureFreshSession==='function')await cloudEnsureFreshSession(false);
+16916:   if(!hlgbRecordReady&&typeof hlgbEnsureRecordsOnlineAfterLogin==='function'){
+16917:     let ok=await hlgbEnsureRecordsOnlineAfterLogin();if(!ok)throw new Error('A nuvem não ficou disponível.');
+16918:   }
+16919:   if(typeof hlgbRecordSaveWithRetry!=='function'||!cloudAccessToken)throw new Error('Sincronização por registro indisponível.');
+16920:   let out=await hlgbRecordSaveWithRetry('hubFinanceEntries',String(next.id),c9185(next),false);
+16921:   if(!out?.applied)throw new Error('A nuvem não confirmou a alteração.');
+16922:   let confirmed=out.data||next,arr=db.hubFinanceEntries=Array.isArray(db.hubFinanceEntries)?db.hubFinanceEntries:[],i=arr.findIndex(x=>String(x?.id)===String(next.id));
+16923:   if(i>=0)arr[i]=c9185(confirmed);else arr.push(c9185(confirmed));
+16924:   try{localSaveOnly()}catch(e){}
+16925:   return confirmed;
+16926: }
+16927: window.quickEditHub9185=function(id){
+16928:   let e=(db.hubFinanceEntries||[]).find(x=>String(x.id)===String(id));if(!e)return;
+16929:   let entrada=flow9185(e)==='Entrada',done=isDone9185(e);
+16930:   openModal(`Editar rápido — ${esc(e.description||e.category||'Lançamento')}`,`<div class="sub" style="margin-bottom:12px">Altere somente a data e se já foi ${entrada?'recebido':'pago'}.</div><div class="grid"><div class="field"><label>Data</label><input id="hubQuickDate9185" type="date" value="${esc(due9185(e)||isoDate(new Date()))}"></div><div class="field"><label>Status</label><select id="hubQuickStatus9185"><option value="Previsto" ${done?'':'selected'}>${entrada?'A receber':'Falta pagar'}</option><option value="Realizado" ${done?'selected':''}>${entrada?'Recebido':'Pago'}</option></select></div></div><div class="cards"><div class="card"><small>Tipo</small><strong>${entrada?'Entrada':'Saída'}</strong></div><div class="card"><small>Valor</small><strong>${money(e.value)}</strong></div></div><button type="button" class="primary modalSave">☁️ Salvar alteração</button>`,async()=>{
+16931:     let btn=document.querySelector('#modal .modalSave');if(btn){btn.disabled=true;btn.textContent='☁️ Salvando…'}
+16932:     let st=document.getElementById('hubQuickStatus9185')?.value||'Previsto',date=document.getElementById('hubQuickDate9185')?.value||due9185(e),next={...e,date,status:st,updatedAt:new Date().toISOString()};
+16933:     next.realizedAt=st==='Realizado'?(e.realizedAt||isoDate(new Date())):'';
+16934:     try{await saveHub9185(next);closeModal();renderHubFinance();try{setCloudStatus('⚡ Online · lançamento atualizado','ok')}catch(x){}}
+16935:     catch(err){console.error(err);if(btn){btn.disabled=false;btn.textContent='☁️ Salvar alteração'}alert('Não consegui confirmar essa alteração na nuvem. O lançamento foi mantido como estava.');}
+16936:   });
+16937: };
+16938: window.toggleHubQuick9185=async function(id){
+16939:   let e=(db.hubFinanceEntries||[]).find(x=>String(x.id)===String(id));
+16940:   if(!e)return;
+16941:   let done=isDone9185(e),next={...e,status:done?'Previsto':'Realizado',updatedAt:new Date().toISOString()};
+16942:   next.realizedAt=next.status==='Realizado'?(e.realizedAt||isoDate(new Date())):'';
+16943:   try{await saveHub9185(next);renderHubFinance()}catch(err){console.error(err);alert('A mudança não foi confirmada na nuvem. Nada foi alterado.');}
+16944: };
+16945: function renderHubDue9185(){
+16946:   const anchor=document.getElementById('hubFinanceCards');if(!anchor)return;let panel=document.getElementById('hubDue9166');if(!panel){panel=document.createElement('div');panel.id='hubDue9166';panel.className='panel';anchor.insertAdjacentElement('afterend',panel)}
+16947:   let range=hubRange9185(),all=allHub9185(),week=all.filter(e=>{let d=due9185(e);return d>=range.start&&d<=range.end}),ins=week.filter(e=>flow9185(e)==='Entrada'),outs=week.filter(e=>flow9185(e)==='Saída'),rec=ins.filter(isDone9185),recv=ins.filter(e=>!isDone9185(e)),paid=outs.filter(isDone9185),open=outs.filter(e=>!isDone9185(e));
+16948:   let month=range.start.slice(0,7),year=range.start.slice(0,4),monthRows=period9185(all,month),yearRows=period9185(all,year),groups={};week.forEach(e=>(groups[due9185(e)]||(groups[due9185(e)]=[])).push(e));
+16949:   let base=new Date(range.start+'T12:00:00'),days=[];for(let i=0;i<7;i++){let d=new Date(base);d.setDate(base.getDate()+i);days.push(isoDate(d))}
+16950:   let dayHtml=days.map(d=>{let a=(groups[d]||[]).slice().sort((x,y)=>flow9185(x).localeCompare(flow9185(y))||q9185(y.value)-q9185(x.value)),di=a.filter(x=>flow9185(x)==='Entrada'),do_=a.filter(x=>flow9185(x)==='Saída'),dp=do_.filter(isDone9185),df=do_.filter(x=>!isDone9185(x));return `<div class="hub9166-day"><div class="hub9166-head"><div><b>${new Date(d+'T12:00:00').toLocaleDateString('pt-BR',{weekday:'long',day:'2-digit',month:'2-digit'})}</b><div class="hub9185-headsum"><span>🟢 Entradas: <b>${money(sum9185(di))}</b></span><span>🔴 Saídas: <b>${money(sum9185(do_))}</b></span><span>✅ Pago: <b>${money(sum9185(dp))}</b></span><span>⏳ Falta: <b>${money(sum9185(df))}</b></span></div></div><strong>${a.length} lançamento(s)</strong></div>${a.length?`<div class="hub9166-items">${a.map(e=>`<div class="hub9185-item"><span class="badge ${flow9185(e)==='Entrada'?'ok':'warn'} hub9185-flow">${flow9185(e)}</span><div><b>${esc(e.description||e.category||'Lançamento')}</b>${e.origin||e.person?`<small style="display:block;margin-top:3px">${esc(e.person||e.origin)}</small>`:''}</div><span class="badge ${statusClass9185(e)} hub9185-status">${statusLabel9185(e)}</span><b class="hub9185-value">${money(e.value)}</b><div class="hub9185-actions"><button type="button" class="secondary" onclick="quickEditHub9185('${String(e.id).replace(/'/g,"\\'")}')">Editar</button><button type="button" class="${isDone9185(e)?'secondary':'primary'}" onclick="toggleHubQuick9185('${String(e.id).replace(/'/g,"\\'")}')">${isDone9185(e)?'Reabrir':(flow9185(e)==='Entrada'?'✓ Recebido':'✓ Pago')}</button></div></div>`).join('')}</div>`:`<div class="hub9185-day-empty">Nenhum lançamento neste dia.</div>`}</div>`}).join('');
+16951:   let monthIn=sum9185(monthRows.filter(e=>flow9185(e)==='Entrada')),monthOut=sum9185(monthRows.filter(e=>flow9185(e)==='Saída')),yearIn=sum9185(yearRows.filter(e=>flow9185(e)==='Entrada')),yearOut=sum9185(yearRows.filter(e=>flow9185(e)==='Saída'));
+16952:   panel.innerHTML=`<h2>📆 Entradas e saídas por vencimento</h2><div class="sub">Edite a data ou marque Pago/Recebido diretamente aqui. Mês: entradas ${money(monthIn)} · saídas ${money(monthOut)}. Ano: entradas ${money(yearIn)} · saídas ${money(yearOut)}.</div><div class="cards hub9185-cards"><div class="card"><small>Entradas na semana</small><strong>${money(sum9185(ins))}</strong></div><div class="card"><small>Recebido</small><strong>${money(sum9185(rec))}</strong></div><div class="card"><small>A receber</small><strong>${money(sum9185(recv))}</strong></div><div class="card"><small>Saídas na semana</small><strong>${money(sum9185(outs))}</strong></div><div class="card"><small>Pago</small><strong>${money(sum9185(paid))}</strong></div><div class="card"><small>Falta pagar</small><strong>${money(sum9185(open))}</strong></div></div>${dayHtml}`;
+16953: }
+16954: 
+16955: function orderItems9185(o){try{return typeof projectionItemsForOrder==='function'?projectionItemsForOrder(o):[]}catch(e){return []}}
+16956: function cutInfo9185(o,item){
+16957:   let pid=String(item?.productId||item?.key||''),total=q9185(item?.qty),finals=(db.cuts||[]).filter(c=>String(c.orderId)===String(o.id)&&n9185(c.status)==='finalizado'),finalIds=new Set(finals.map(c=>String(c.id))),seen=new Set(),cut=0;
+16958:   (db.production||[]).forEach(p=>{if(String(p.orderId)!==String(o.id))return;let match=String(p.productId||'')===pid||String(p.cutProductKey||'').split(':').pop()===pid;if(!match)return;if(p.cutId!=null&&finalIds.size&&!finalIds.has(String(p.cutId)))return;let k=String(p.id??`${p.cutId}:${pid}:${p.planned}`);if(seen.has(k))return;seen.add(k);cut+=q9185(p.planned)});
+16959:   if(cut<=0){let specific=finals.filter(c=>String(c.productId||'')===pid);if(specific.length)cut=specific.reduce((s,c)=>s+q9185(c.pieces),0);else if(orderItems9185(o).length<=1&&finals.length)cut=Math.max(...finals.map(c=>q9185(c.pieces)),0)}
+16960:   if(total<=0)total=q9185(item?.remainingQty)||cut;cut=Math.min(total||cut,cut);
+16961:   let pending=(db.cuts||[]).find(c=>String(c.orderId)===String(o.id)&&n9185(c.status)!=='finalizado'&&(!c.productId||String(c.productId)===pid));
+16962:   if(total>0&&cut>=total)return {cls:'ok',text:`✅ Já cortado · ${Math.round(cut).toLocaleString('pt-BR')} pç`};
+16963:   if(cut>0)return {cls:'partial',text:`🟡 Parcialmente cortado · ${Math.round(cut).toLocaleString('pt-BR')} de ${Math.round(total).toLocaleString('pt-BR')} pç`};
+16964:   if(pending)return {cls:'pending',text:pending.plannedCutDate?`✂️ Corte programado · ${fmtDate(pending.plannedCutDate)}`:'✂️ Corte em aberto'};
+16965:   return {cls:'no',text:'⚪ Não cortado'};
+16966: }
+16967: function enhanceUnassignedCut9185(){
+16968:   document.querySelectorAll('#capacity940Root .cap944-unassigned-row').forEach(row=>{if(row.querySelector('.cut9185'))return;let btn=row.querySelector('button[onclick*="openCapacityAssign940"]');if(!btn)return;let call=btn.getAttribute('onclick')||'',m=call.match(/openCapacityAssign940\(([^,]+),'([^']*)'/);if(!m)return;let oid=String(m[1]).replace(/["']/g,'').trim(),key=m[2].replace(/\\'/g,"'"),o=(db.orders||[]).find(x=>String(x.id)===oid);if(!o)return;let item=orderItems9185(o).find(x=>String(x.key||x.productId)===String(key)||String(x.productId)===String(key));if(!item)return;let info=cutInfo9185(o,item),target=row.children[1]||row.firstElementChild;if(target)target.insertAdjacentHTML('beforeend',`<div class="cut9185 ${info.cls}">${esc(info.text)}</div>`)});
+16969: }
+16970: const oldHub9185=window.renderHubFinance;if(typeof oldHub9185==='function')window.renderHubFinance=function(){let r=oldHub9185.apply(this,arguments);setTimeout(renderHubDue9185,35);return r};
+16971: const oldCap9185=window.renderCapacityPlanning;if(typeof oldCap9185==='function')window.renderCapacityPlanning=function(){let r=oldCap9185.apply(this,arguments);setTimeout(enhanceUnassignedCut9185,90);setTimeout(enhanceUnassignedCut9185,220);return r};
+16972: function setVersion9185(){let el=document.querySelector('#appShell .logo small');if(el&&el.textContent!=='v91.90')el.textContent='v91.90'}
+16973: function boot9185(){try{renderHubDue9185()}catch(e){console.warn('v91.85 hub',e)}try{enhanceUnassignedCut9185()}catch(e){console.warn('v91.85 cut',e)}setVersion9185()}
+16974: hlgbAfterLogin(()=>{setTimeout(boot9185,250);setTimeout(boot9185,1800);document.addEventListener('visibilitychange',()=>{if(!document.hidden)setTimeout(boot9185,120)});window.addEventListener('focus',()=>setTimeout(boot9185,120));},0);
+16975: hlgbAfterLogin(()=>{let ver=document.querySelector('#appShell .logo small');if(ver&&window.MutationObserver)new MutationObserver(setVersion9185).observe(ver,{childList:true,characterData:true,subtree:true});},0);
+16976: })();
+16977: </script>
+16978: <!-- HLGB_V9185_HUB_CUT_END -->
+16979: <!-- HLGB_STABILITY_V9186 -->
+16980: <!-- HLGB_STABILITY_V9187_DEFER_WAL_UNTIL_AUTH -->
+16981: <!-- HLGB_V9189_START -->
+16982: <style id="hlgb-v9189-style">
+16983: #dailyCutsTable .hlgb9189-week{display:flex;flex-direction:column;gap:14px}
+16984: .hlgb9189-summary{display:grid;grid-template-columns:repeat(4,minmax(135px,1fr));gap:10px;margin:12px 0 16px}
+16985: .hlgb9189-card{background:#fff;border:1px solid #e7dce2;border-radius:12px;padding:12px}
+16986: .hlgb9189-card small{display:block;color:#74666e;margin-bottom:4px}.hlgb9189-card strong{font-size:20px}
+16987: .hlgb9189-day{border:1px solid #d9ccd3;border-radius:12px;overflow:hidden;background:#fff}
+16988: .hlgb9189-day-head{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px 12px;background:#f5edf1;border-bottom:1px solid #d9ccd3}
+16989: .hlgb9189-day-head.today{background:#fff3f7}.hlgb9189-day-head strong{font-size:15px}.hlgb9189-day-head span{font-weight:800}
+16990: .hlgb9189-table-wrap{overflow:auto}.hlgb9189-table{width:100%;border-collapse:collapse;min-width:900px;font-size:12px}
+16991: .hlgb9189-table th,.hlgb9189-table td{padding:8px 9px;border-bottom:1px solid #eee5e9;text-align:left;vertical-align:middle}
+16992: .hlgb9189-table th{background:#fcf8fa;font-weight:800}.hlgb9189-table tr:last-child td{border-bottom:0}
+16993: .hlgb9189-empty{padding:16px;color:#897b83;text-align:center}
+16994: .hlgb9189-badge{display:inline-flex;align-items:center;border-radius:999px;padding:4px 8px;font-weight:800;font-size:11px;white-space:nowrap}
+16995: .hlgb9189-badge.ok{background:#e9f8ef;color:#087443;border:1px solid #b9e4c9}.hlgb9189-badge.warn{background:#fff4d6;color:#865b00;border:1px solid #efd58b}.hlgb9189-badge.info{background:#f2eef7;color:#58456e;border:1px solid #d9cbea}
+16996: .hlgb9189-actions{display:flex;gap:5px;flex-wrap:wrap}.hlgb9189-actions button{padding:6px 9px!important;font-size:11px!important}
+16997: .hlgb9189-toptools{display:flex;gap:7px;align-items:end;flex-wrap:wrap;margin:10px 0}.hlgb9189-toptools .field{min-width:155px}
+16998: .hlgb9189-note{font-size:11px;color:#776b72;margin-top:3px}
+16999: @media(max-width:800px){.hlgb9189-summary{grid-template-columns:1fr 1fr}}
+17000: </style>
+17001: <script id="hlgb-v9189-script">
+17002: (function(){
+17003: 'use strict';
+17004: const VERSION='91.89';
+17005: const clone9189=o=>{try{return structuredClone(o)}catch(e){return JSON.parse(JSON.stringify(o))}};
+17006: const norm9189=v=>String(v||'').trim().toLowerCase();
+17007: const esc9189=v=>typeof esc==='function'?esc(v):String(v??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+17008: const money9189=v=>typeof money==='function'?money(+v||0):('R$ '+(+v||0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2}));
+17009: const iso9189=d=>{let x=new Date(d);x.setMinutes(x.getMinutes()-x.getTimezoneOffset());return x.toISOString().slice(0,10)};
+17010: const date9189=v=>{if(!v)return '-';try{return new Date(String(v).slice(0,10)+'T12:00:00').toLocaleDateString('pt-BR')}catch(e){return String(v)}};
+17011: const qty9189=c=>Math.max(0,+c?.pieces||0);
+17012: const product9189=c=>{let p=null;try{if(typeof cutProduct==='function')p=cutProduct(c)}catch(e){};if(!p&&c?.productId)p=(db.products||[]).find(x=>String(x.id)===String(c.productId));if(!p&&c?.product)p=(db.products||[]).find(x=>norm9189(x.name)===norm9189(c.product));return p||null};
+17013: const productName9189=c=>product9189(c)?.name||c?.product||'Modelo sem nome';
+17014: const unit9189=c=>{if(c?.unitValue!=null&&Number.isFinite(+c.unitValue))return +c.unitValue;return +(product9189(c)?.price||0)};
+17015: const cutter9189=c=>(db.cutters||[]).find(x=>String(x.id)===String(c?.cutterId))||null;
+17016: const isDone9189=c=>norm9189(c?.status)==='finalizado'||norm9189(c?.status)==='finalizada'||c?.done===true;
+17017: const appOpen9189=()=>document.getElementById('appShell')?.style.display==='block'&&!!(window.cloudUser||window.cloudAccessToken);
+
+===== line 16839 =====
+16819: 
+16820:   function enhanceCutPage9179(){
+16821:     const sec=document.getElementById('corte');if(!sec)return;
+16822:     const toolbar=sec.querySelector('.panel .toolbar');
+16823:     if(toolbar&&!toolbar.querySelector('.hlgb9179-any-model')){const b=document.createElement('button');b.type='button';b.className='primary hlgb9179-any-model';b.textContent='+ Programar qualquer modelo';b.onclick=hlgbProgramAnyModel9179;toolbar.appendChild(b)}
+16824:     // Marca visualmente situações nas telas que exibem linhas de modelos sem destino.
+16825:     document.querySelectorAll('#corte tr, #producao tr, #capacidadeProducao tr, #projecao tr').forEach(tr=>{
+16826:       if(tr.querySelector('.hlgb9179-cut-status'))return;
+16827:       const text=tr.textContent||'';let order=null;const m=text.match(/#\s*(\d+)/);if(m)order=(db.orders||[]).find(o=>String(orderNo9179(o))===String(m[1]));
+16828:       let product=null;for(const p of (db.products||[])){if(p.name&&norm(text).includes(norm(p.name))&&(!product||String(p.name).length>String(product.name).length))product=p}
+16829:       if(!product&&!order)return;
+16830:       const s=cutStatus9179(product?.id,order?.id);const td=product?[...tr.children].find(x=>norm(x.textContent).includes(norm(product.name))):tr.children[0];if(!td)return;
+16831:       const sp=document.createElement('span');sp.className='hlgb9179-cut-status '+s.cls;sp.textContent=s.text;td.appendChild(sp);
+16832:     });
+16833:   }
+16834: 
+16835:   let cutterWeek9179='';
+16836:   function monday9179(v){const d=v?new Date(v+'T12:00:00'):new Date(),day=d.getDay(),diff=day===0?-6:1-day;d.setDate(d.getDate()+diff);return d}
+16837:   function iso9179(d){return d.toISOString().slice(0,10)}
+16838:   window.hlgbMoveCutterWeek9179=function(delta){const d=monday9179(cutterWeek9179||iso9179(new Date()));d.setDate(d.getDate()+delta*7);cutterWeek9179=iso9179(d);hlgbRenderCutterExcel9179()};
+16839:   window.hlgbSetCutterWeek9179=function(v){cutterWeek9179=iso9179(monday9179(v||iso9179(new Date())));hlgbRenderCutterExcel9179()};
+16840:   window.hlgbCurrentCutterWeek9179=function(){cutterWeek9179=iso9179(monday9179());hlgbRenderCutterExcel9179()};
+16841:   function cutsForDay9179(cutterId,day){return (db.cuts||[]).filter(c=>String(c.cutterId||'')===String(cutterId||'')&&asDate(c.plannedCutDate||c.finishedAt||c.date)===day)}
+16842:   window.hlgbRenderCutterExcel9179=function(){
+16843:     const el=document.getElementById('hlgbCutterExcel9179');if(!el)return;if(!cutterWeek9179)cutterWeek9179=iso9179(monday9179());
+16844:     const mon=monday9179(cutterWeek9179),days=Array.from({length:7},(_,i)=>{const d=new Date(mon);d.setDate(d.getDate()+i);return d}),dayIds=days.map(iso9179);
+16845:     let cutters=(db.cutters||[]).filter(c=>c.active!==false).map(c=>({id:c.id,name:c.name||'Cortador'}));if((db.cuts||[]).some(c=>!c.cutterId&&dayIds.includes(asDate(c.plannedCutDate||c.finishedAt||c.date))))cutters.push({id:'',name:'⚠ Sem cortador'});
+16846:     const heads=days.map(d=>`<th>${d.toLocaleDateString('pt-BR',{weekday:'short',day:'2-digit',month:'2-digit'})}</th>`).join('');
+16847:     const rows=cutters.map(ct=>{let weekTotal=0;const cells=dayIds.map(day=>{const cuts=cutsForDay9179(ct.id,day);const total=cuts.reduce((a,c)=>a+(+c.pieces||0),0);weekTotal+=total;const chips=cuts.map(c=>`<span class="hlgb9179-cut-chip"><strong>${esc9179(c.product||'Modelo')}</strong>${(+c.pieces||0).toLocaleString('pt-BR')} pç · ${norm(c.status)==='finalizado'?'✓ cortado':'a cortar'}</span>`).join('');return `<td>${chips||'<span class="sub">—</span>'}${total?`<div class="hlgb9179-week-total">${total.toLocaleString('pt-BR')} pç</div>`:''}</td>`}).join('');return `<tr><td class="cutter-name">${esc9179(ct.name)}</td>${cells}<td class="hlgb9179-week-total">${weekTotal.toLocaleString('pt-BR')} pç</td></tr>`}).join('');
+16848:     el.innerHTML=`<div class="toolbar" style="justify-content:space-between;align-items:flex-end;flex-wrap:wrap;margin-bottom:10px"><div><button class="secondary" onclick="hlgbMoveCutterWeek9179(-1)">← Semana anterior</button> <button class="secondary" onclick="hlgbCurrentCutterWeek9179()">Esta semana</button> <button class="secondary" onclick="hlgbMoveCutterWeek9179(1)">Próxima semana →</button></div><div class="field"><label>Semana</label><input type="date" value="${cutterWeek9179}" onchange="hlgbSetCutterWeek9179(this.value)"></div><button class="secondary" onclick="hlgbPrintCutterExcel9179()">🖨️ Imprimir</button></div><div class="hlgb9179-excel-wrap"><table class="hlgb9179-excel"><thead><tr><th>Cortador</th>${heads}<th>Total semana</th></tr></thead><tbody>${rows||'<tr><td colspan="9">Nenhum cortador cadastrado.</td></tr>'}</tbody></table></div>`;
+16849:   };
+16850:   window.hlgbPrintCutterExcel9179=function(){const el=document.getElementById('hlgbCutterExcel9179');if(!el)return;const w=window.open('','_blank');if(!w){alert('Permita pop-ups para imprimir.');return}w.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>Projeção de cortadores</title><style>body{font-family:Arial;margin:18px}table{border-collapse:collapse;width:100%;font-size:10px}th,td{border:1px solid #aaa;padding:5px;vertical-align:top}.hlgb9179-cut-chip{display:block;margin-bottom:4px}.toolbar,.field label,.field input,button{display:none}</style></head><body><h2>HLGB Confecções — Projeção semanal dos cortadores</h2>${el.innerHTML}</body></html>`);w.document.close();setTimeout(()=>w.print(),150)};
+16851:   function ensureCutterExcel9179(){
+16852:     const anchor=document.getElementById('cutterTable')?.closest('.panel');if(!anchor)return;
+16853:     let panel=document.getElementById('hlgbCutterExcelPanel9179');if(!panel){panel=document.createElement('div');panel.id='hlgbCutterExcelPanel9179';panel.className='panel';panel.innerHTML='<h2>📊 Projeção semanal dos cortadores — visão tipo Excel</h2><div class="sub">Cada linha é um cortador e cada coluna é um dia. Assim fica fácil enxergar quem está com cada modelo e quantas peças estão programadas.</div><div id="hlgbCutterExcel9179" style="margin-top:12px"></div>';anchor.insertAdjacentElement('afterend',panel)}hlgbRenderCutterExcel9179();
+16854:   }
+16855: 
+16856:   // Login Safari/rede: impede uma requisição de senha de ficar pendurada indefinidamente e tenta uma vez novamente.
+16857:   try{
+16858:     if(typeof cloudSignIn==='function' && typeof HLGB_SUPABASE_URL!=='undefined' && typeof HLGB_SUPABASE_KEY!=='undefined'){
+16859:       window.hlgbCloudSignInBase9179=cloudSignIn;
+16860:       cloudSignIn=async function(email,password){
+16861:         let lastErr=null;
+16862:         for(let attempt=0;attempt<2;attempt++){
+16863:           const controller=typeof AbortController!=='undefined'?new AbortController():null;const timer=controller?setTimeout(()=>controller.abort(),30000):null;
+16864:           try{
+16865:             const res=await fetch(`${HLGB_SUPABASE_URL}/auth/v1/token?grant_type=password`,{method:'POST',headers:{apikey:HLGB_SUPABASE_KEY,'Content-Type':'application/json'},body:JSON.stringify({email,password}),signal:controller?.signal});
+16866:             const data=await res.json().catch(()=>({}));if(!res.ok||!data.access_token)throw new Error(data.error_description||data.msg||data.message||'Não foi possível entrar.');if(timer)clearTimeout(timer);cloudApplyAuth(data);return data;
+16867:           }catch(e){if(timer)clearTimeout(timer);lastErr=e;if(attempt===0&&(e?.name==='AbortError'||/network|fetch|tempo|timeout/i.test(String(e?.message||'')))){await new Promise(r=>setTimeout(r,700));continue}throw e}
+16868:         }
+16869:         throw lastErr||new Error('A sessão demorou para responder. Tente entrar novamente.');
+16870:       };
+16871:     }
+16872:   }catch(e){console.warn('HLGB v91.83: proteção de login não aplicada',e)}
+16873: 
+16874:   // Encadeia os renderizadores existentes sem trocar a lógica principal.
+16875:   try{const base=renderClients;renderClients=function(){const r=base.apply(this,arguments);setTimeout(enhanceClients9179,0);return r}}catch(e){}
+16876:   try{const base=renderCuts;renderCuts=function(){const r=base.apply(this,arguments);setTimeout(enhanceCutPage9179,0);return r}}catch(e){}
+16877:   try{const base=renderCutters;renderCutters=function(){const r=base.apply(this,arguments);setTimeout(ensureCutterExcel9179,0);return r}}catch(e){}
+16878:   ['renderProduction','renderProjection','renderCapacityPlanning'].forEach(name=>{try{const base=window[name];if(typeof base==='function')window[name]=function(){const r=base.apply(this,arguments);setTimeout(enhanceCutPage9179,0);return r}}catch(e){}});
+16879: 
+16880:   document.addEventListener('DOMContentLoaded',()=>{setTimeout(()=>{try{enhanceClients9179()}catch(e){}try{enhanceCutPage9179()}catch(e){}try{ensureCutterExcel9179()}catch(e){}},300)});
+16881:   console.log('HLGB v'+V+' carregada: relatórios de cliente, filtro de preços, corte avulso e projeção tipo Excel.');
+16882: })();
+16883: </script>
+16884: <!-- HLGB_V9179_END -->
+16885: 
+16886: <!-- HLGB_V9185_HUB_CUT_START -->
+16887: <style id="hlgb-v9185-style">
+16888: #hubDue9166 .hub9185-cards{grid-template-columns:repeat(auto-fit,minmax(150px,1fr))}
+16889: #hubDue9166 .hub9185-headsum{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-top:5px;font-size:12px}
+16890: #hubDue9166 .hub9185-item{display:grid;grid-template-columns:92px minmax(180px,1fr) 120px 115px auto;gap:10px;align-items:center;padding:9px 0;border-bottom:1px solid #f1eaee}
+16891: #hubDue9166 .hub9185-actions{display:flex;gap:6px;justify-content:flex-end;flex-wrap:wrap}
+16892: #hubDue9166 .hub9185-flow{font-weight:800}
+16893: #hubDue9166 .hub9185-day-empty{padding:9px 13px;color:var(--muted);font-size:12px}
+16894: .cut9185{display:inline-block;margin-top:5px;padding:4px 8px;border-radius:999px;font-size:11px;font-weight:800;line-height:1.2}
+16895: .cut9185.ok{background:#e7f7ec;color:#176b35}.cut9185.partial{background:#fff4d8;color:#8a5b00}.cut9185.pending{background:#eaf2ff;color:#2458a6}.cut9185.no{background:#f3f3f3;color:#666}
+16896: @media(max-width:900px){#hubDue9166 .hub9185-item{grid-template-columns:80px minmax(150px,1fr) 105px auto}.hub9185-item .hub9185-status{grid-column:3}.hub9185-item .hub9185-actions{grid-column:4}.hub9185-item .hub9185-value{grid-column:3;grid-row:2}}
+16897: @media(max-width:650px){#hubDue9166 .hub9185-item{grid-template-columns:1fr}.hub9185-item>*{grid-column:auto!important;grid-row:auto!important}.hub9185-actions{justify-content:flex-start!important}}
+16898: </style>
+16899: <script>
+16900: (function(){
+16901: 'use strict';
+16902: const c9185=v=>{try{return JSON.parse(JSON.stringify(v))}catch(e){return v}},q9185=v=>Math.max(0,+v||0),n9185=v=>String(v??'').trim().toLowerCase();
+16903: function due9185(e){return String(e?.date||e?.dueDate||'').slice(0,10)}
+16904: function isDone9185(e){return n9185(e?.status)==='realizado'}
+16905: function sum9185(a){return (a||[]).reduce((s,x)=>s+q9185(x?.value),0)}
+16906: function flow9185(e){return n9185(e?.flow)==='entrada'?'Entrada':'Saída'}
+16907: function statusLabel9185(e){let done=isDone9185(e);return flow9185(e)==='Entrada'?(done?'Recebido':'A receber'):(done?'Pago':'Falta pagar')}
+16908: function statusClass9185(e){return isDone9185(e)?'ok':(flow9185(e)==='Saída'?'warn':'')}
+16909: function hubRange9185(){let w=document.getElementById('hubFinanceWeek')?.value||weekValue(new Date());return typeof hlgb916HubRange==='function'?hlgb916HubRange(w):{start:w,end:w}}
+16910: function allHub9185(){return (db.hubFinanceEntries||[]).filter(e=>due9185(e))}
+16911: function period9185(arr,prefix){return arr.filter(e=>due9185(e).startsWith(prefix))}
+16912: 
+16913: async function saveHub9185(next){
+16914:   if(!next||next.id==null)throw new Error('Lançamento sem id.');
+16915:   if(typeof cloudEnsureFreshSession==='function')await cloudEnsureFreshSession(false);
+16916:   if(!hlgbRecordReady&&typeof hlgbEnsureRecordsOnlineAfterLogin==='function'){
+16917:     let ok=await hlgbEnsureRecordsOnlineAfterLogin();if(!ok)throw new Error('A nuvem não ficou disponível.');
+16918:   }
+16919:   if(typeof hlgbRecordSaveWithRetry!=='function'||!cloudAccessToken)throw new Error('Sincronização por registro indisponível.');
+16920:   let out=await hlgbRecordSaveWithRetry('hubFinanceEntries',String(next.id),c9185(next),false);
+16921:   if(!out?.applied)throw new Error('A nuvem não confirmou a alteração.');
+16922:   let confirmed=out.data||next,arr=db.hubFinanceEntries=Array.isArray(db.hubFinanceEntries)?db.hubFinanceEntries:[],i=arr.findIndex(x=>String(x?.id)===String(next.id));
+16923:   if(i>=0)arr[i]=c9185(confirmed);else arr.push(c9185(confirmed));
+16924:   try{localSaveOnly()}catch(e){}
+16925:   return confirmed;
+16926: }
+16927: window.quickEditHub9185=function(id){
+16928:   let e=(db.hubFinanceEntries||[]).find(x=>String(x.id)===String(id));if(!e)return;
+16929:   let entrada=flow9185(e)==='Entrada',done=isDone9185(e);
+16930:   openModal(`Editar rápido — ${esc(e.description||e.category||'Lançamento')}`,`<div class="sub" style="margin-bottom:12px">Altere somente a data e se já foi ${entrada?'recebido':'pago'}.</div><div class="grid"><div class="field"><label>Data</label><input id="hubQuickDate9185" type="date" value="${esc(due9185(e)||isoDate(new Date()))}"></div><div class="field"><label>Status</label><select id="hubQuickStatus9185"><option value="Previsto" ${done?'':'selected'}>${entrada?'A receber':'Falta pagar'}</option><option value="Realizado" ${done?'selected':''}>${entrada?'Recebido':'Pago'}</option></select></div></div><div class="cards"><div class="card"><small>Tipo</small><strong>${entrada?'Entrada':'Saída'}</strong></div><div class="card"><small>Valor</small><strong>${money(e.value)}</strong></div></div><button type="button" class="primary modalSave">☁️ Salvar alteração</button>`,async()=>{
+16931:     let btn=document.querySelector('#modal .modalSave');if(btn){btn.disabled=true;btn.textContent='☁️ Salvando…'}
+16932:     let st=document.getElementById('hubQuickStatus9185')?.value||'Previsto',date=document.getElementById('hubQuickDate9185')?.value||due9185(e),next={...e,date,status:st,updatedAt:new Date().toISOString()};
+16933:     next.realizedAt=st==='Realizado'?(e.realizedAt||isoDate(new Date())):'';
+16934:     try{await saveHub9185(next);closeModal();renderHubFinance();try{setCloudStatus('⚡ Online · lançamento atualizado','ok')}catch(x){}}
+16935:     catch(err){console.error(err);if(btn){btn.disabled=false;btn.textContent='☁️ Salvar alteração'}alert('Não consegui confirmar essa alteração na nuvem. O lançamento foi mantido como estava.');}
+16936:   });
+16937: };
+16938: window.toggleHubQuick9185=async function(id){
+16939:   let e=(db.hubFinanceEntries||[]).find(x=>String(x.id)===String(id));
+16940:   if(!e)return;
+16941:   let done=isDone9185(e),next={...e,status:done?'Previsto':'Realizado',updatedAt:new Date().toISOString()};
+16942:   next.realizedAt=next.status==='Realizado'?(e.realizedAt||isoDate(new Date())):'';
+16943:   try{await saveHub9185(next);renderHubFinance()}catch(err){console.error(err);alert('A mudança não foi confirmada na nuvem. Nada foi alterado.');}
+16944: };
+16945: function renderHubDue9185(){
+16946:   const anchor=document.getElementById('hubFinanceCards');if(!anchor)return;let panel=document.getElementById('hubDue9166');if(!panel){panel=document.createElement('div');panel.id='hubDue9166';panel.className='panel';anchor.insertAdjacentElement('afterend',panel)}
+16947:   let range=hubRange9185(),all=allHub9185(),week=all.filter(e=>{let d=due9185(e);return d>=range.start&&d<=range.end}),ins=week.filter(e=>flow9185(e)==='Entrada'),outs=week.filter(e=>flow9185(e)==='Saída'),rec=ins.filter(isDone9185),recv=ins.filter(e=>!isDone9185(e)),paid=outs.filter(isDone9185),open=outs.filter(e=>!isDone9185(e));
+16948:   let month=range.start.slice(0,7),year=range.start.slice(0,4),monthRows=period9185(all,month),yearRows=period9185(all,year),groups={};week.forEach(e=>(groups[due9185(e)]||(groups[due9185(e)]=[])).push(e));
+16949:   let base=new Date(range.start+'T12:00:00'),days=[];for(let i=0;i<7;i++){let d=new Date(base);d.setDate(base.getDate()+i);days.push(isoDate(d))}
+16950:   let dayHtml=days.map(d=>{let a=(groups[d]||[]).slice().sort((x,y)=>flow9185(x).localeCompare(flow9185(y))||q9185(y.value)-q9185(x.value)),di=a.filter(x=>flow9185(x)==='Entrada'),do_=a.filter(x=>flow9185(x)==='Saída'),dp=do_.filter(isDone9185),df=do_.filter(x=>!isDone9185(x));return `<div class="hub9166-day"><div class="hub9166-head"><div><b>${new Date(d+'T12:00:00').toLocaleDateString('pt-BR',{weekday:'long',day:'2-digit',month:'2-digit'})}</b><div class="hub9185-headsum"><span>🟢 Entradas: <b>${money(sum9185(di))}</b></span><span>🔴 Saídas: <b>${money(sum9185(do_))}</b></span><span>✅ Pago: <b>${money(sum9185(dp))}</b></span><span>⏳ Falta: <b>${money(sum9185(df))}</b></span></div></div><strong>${a.length} lançamento(s)</strong></div>${a.length?`<div class="hub9166-items">${a.map(e=>`<div class="hub9185-item"><span class="badge ${flow9185(e)==='Entrada'?'ok':'warn'} hub9185-flow">${flow9185(e)}</span><div><b>${esc(e.description||e.category||'Lançamento')}</b>${e.origin||e.person?`<small style="display:block;margin-top:3px">${esc(e.person||e.origin)}</small>`:''}</div><span class="badge ${statusClass9185(e)} hub9185-status">${statusLabel9185(e)}</span><b class="hub9185-value">${money(e.value)}</b><div class="hub9185-actions"><button type="button" class="secondary" onclick="quickEditHub9185('${String(e.id).replace(/'/g,"\\'")}')">Editar</button><button type="button" class="${isDone9185(e)?'secondary':'primary'}" onclick="toggleHubQuick9185('${String(e.id).replace(/'/g,"\\'")}')">${isDone9185(e)?'Reabrir':(flow9185(e)==='Entrada'?'✓ Recebido':'✓ Pago')}</button></div></div>`).join('')}</div>`:`<div class="hub9185-day-empty">Nenhum lançamento neste dia.</div>`}</div>`}).join('');
+16951:   let monthIn=sum9185(monthRows.filter(e=>flow9185(e)==='Entrada')),monthOut=sum9185(monthRows.filter(e=>flow9185(e)==='Saída')),yearIn=sum9185(yearRows.filter(e=>flow9185(e)==='Entrada')),yearOut=sum9185(yearRows.filter(e=>flow9185(e)==='Saída'));
+16952:   panel.innerHTML=`<h2>📆 Entradas e saídas por vencimento</h2><div class="sub">Edite a data ou marque Pago/Recebido diretamente aqui. Mês: entradas ${money(monthIn)} · saídas ${money(monthOut)}. Ano: entradas ${money(yearIn)} · saídas ${money(yearOut)}.</div><div class="cards hub9185-cards"><div class="card"><small>Entradas na semana</small><strong>${money(sum9185(ins))}</strong></div><div class="card"><small>Recebido</small><strong>${money(sum9185(rec))}</strong></div><div class="card"><small>A receber</small><strong>${money(sum9185(recv))}</strong></div><div class="card"><small>Saídas na semana</small><strong>${money(sum9185(outs))}</strong></div><div class="card"><small>Pago</small><strong>${money(sum9185(paid))}</strong></div><div class="card"><small>Falta pagar</small><strong>${money(sum9185(open))}</strong></div></div>${dayHtml}`;
+16953: }
+16954: 
+16955: function orderItems9185(o){try{return typeof projectionItemsForOrder==='function'?projectionItemsForOrder(o):[]}catch(e){return []}}
+16956: function cutInfo9185(o,item){
+16957:   let pid=String(item?.productId||item?.key||''),total=q9185(item?.qty),finals=(db.cuts||[]).filter(c=>String(c.orderId)===String(o.id)&&n9185(c.status)==='finalizado'),finalIds=new Set(finals.map(c=>String(c.id))),seen=new Set(),cut=0;
+16958:   (db.production||[]).forEach(p=>{if(String(p.orderId)!==String(o.id))return;let match=String(p.productId||'')===pid||String(p.cutProductKey||'').split(':').pop()===pid;if(!match)return;if(p.cutId!=null&&finalIds.size&&!finalIds.has(String(p.cutId)))return;let k=String(p.id??`${p.cutId}:${pid}:${p.planned}`);if(seen.has(k))return;seen.add(k);cut+=q9185(p.planned)});
+16959:   if(cut<=0){let specific=finals.filter(c=>String(c.productId||'')===pid);if(specific.length)cut=specific.reduce((s,c)=>s+q9185(c.pieces),0);else if(orderItems9185(o).length<=1&&finals.length)cut=Math.max(...finals.map(c=>q9185(c.pieces)),0)}
+16960:   if(total<=0)total=q9185(item?.remainingQty)||cut;cut=Math.min(total||cut,cut);
+16961:   let pending=(db.cuts||[]).find(c=>String(c.orderId)===String(o.id)&&n9185(c.status)!=='finalizado'&&(!c.productId||String(c.productId)===pid));
+16962:   if(total>0&&cut>=total)return {cls:'ok',text:`✅ Já cortado · ${Math.round(cut).toLocaleString('pt-BR')} pç`};
+16963:   if(cut>0)return {cls:'partial',text:`🟡 Parcialmente cortado · ${Math.round(cut).toLocaleString('pt-BR')} de ${Math.round(total).toLocaleString('pt-BR')} pç`};
+16964:   if(pending)return {cls:'pending',text:pending.plannedCutDate?`✂️ Corte programado · ${fmtDate(pending.plannedCutDate)}`:'✂️ Corte em aberto'};
+16965:   return {cls:'no',text:'⚪ Não cortado'};
+16966: }
+16967: function enhanceUnassignedCut9185(){
+16968:   document.querySelectorAll('#capacity940Root .cap944-unassigned-row').forEach(row=>{if(row.querySelector('.cut9185'))return;let btn=row.querySelector('button[onclick*="openCapacityAssign940"]');if(!btn)return;let call=btn.getAttribute('onclick')||'',m=call.match(/openCapacityAssign940\(([^,]+),'([^']*)'/);if(!m)return;let oid=String(m[1]).replace(/["']/g,'').trim(),key=m[2].replace(/\\'/g,"'"),o=(db.orders||[]).find(x=>String(x.id)===oid);if(!o)return;let item=orderItems9185(o).find(x=>String(x.key||x.productId)===String(key)||String(x.productId)===String(key));if(!item)return;let info=cutInfo9185(o,item),target=row.children[1]||row.firstElementChild;if(target)target.insertAdjacentHTML('beforeend',`<div class="cut9185 ${info.cls}">${esc(info.text)}</div>`)});
+16969: }
+16970: const oldHub9185=window.renderHubFinance;if(typeof oldHub9185==='function')window.renderHubFinance=function(){let r=oldHub9185.apply(this,arguments);setTimeout(renderHubDue9185,35);return r};
+16971: const oldCap9185=window.renderCapacityPlanning;if(typeof oldCap9185==='function')window.renderCapacityPlanning=function(){let r=oldCap9185.apply(this,arguments);setTimeout(enhanceUnassignedCut9185,90);setTimeout(enhanceUnassignedCut9185,220);return r};
+16972: function setVersion9185(){let el=document.querySelector('#appShell .logo small');if(el&&el.textContent!=='v91.90')el.textContent='v91.90'}
+16973: function boot9185(){try{renderHubDue9185()}catch(e){console.warn('v91.85 hub',e)}try{enhanceUnassignedCut9185()}catch(e){console.warn('v91.85 cut',e)}setVersion9185()}
+16974: hlgbAfterLogin(()=>{setTimeout(boot9185,250);setTimeout(boot9185,1800);document.addEventListener('visibilitychange',()=>{if(!document.hidden)setTimeout(boot9185,120)});window.addEventListener('focus',()=>setTimeout(boot9185,120));},0);
+16975: hlgbAfterLogin(()=>{let ver=document.querySelector('#appShell .logo small');if(ver&&window.MutationObserver)new MutationObserver(setVersion9185).observe(ver,{childList:true,characterData:true,subtree:true});},0);
+16976: })();
+16977: </script>
+16978: <!-- HLGB_V9185_HUB_CUT_END -->
+16979: <!-- HLGB_STABILITY_V9186 -->
+16980: <!-- HLGB_STABILITY_V9187_DEFER_WAL_UNTIL_AUTH -->
+16981: <!-- HLGB_V9189_START -->
+16982: <style id="hlgb-v9189-style">
+16983: #dailyCutsTable .hlgb9189-week{display:flex;flex-direction:column;gap:14px}
+16984: .hlgb9189-summary{display:grid;grid-template-columns:repeat(4,minmax(135px,1fr));gap:10px;margin:12px 0 16px}
+16985: .hlgb9189-card{background:#fff;border:1px solid #e7dce2;border-radius:12px;padding:12px}
+16986: .hlgb9189-card small{display:block;color:#74666e;margin-bottom:4px}.hlgb9189-card strong{font-size:20px}
+16987: .hlgb9189-day{border:1px solid #d9ccd3;border-radius:12px;overflow:hidden;background:#fff}
+16988: .hlgb9189-day-head{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px 12px;background:#f5edf1;border-bottom:1px solid #d9ccd3}
+16989: .hlgb9189-day-head.today{background:#fff3f7}.hlgb9189-day-head strong{font-size:15px}.hlgb9189-day-head span{font-weight:800}
+16990: .hlgb9189-table-wrap{overflow:auto}.hlgb9189-table{width:100%;border-collapse:collapse;min-width:900px;font-size:12px}
+16991: .hlgb9189-table th,.hlgb9189-table td{padding:8px 9px;border-bottom:1px solid #eee5e9;text-align:left;vertical-align:middle}
+16992: .hlgb9189-table th{background:#fcf8fa;font-weight:800}.hlgb9189-table tr:last-child td{border-bottom:0}
+16993: .hlgb9189-empty{padding:16px;color:#897b83;text-align:center}
+16994: .hlgb9189-badge{display:inline-flex;align-items:center;border-radius:999px;padding:4px 8px;font-weight:800;font-size:11px;white-space:nowrap}
+16995: .hlgb9189-badge.ok{background:#e9f8ef;color:#087443;border:1px solid #b9e4c9}.hlgb9189-badge.warn{background:#fff4d6;color:#865b00;border:1px solid #efd58b}.hlgb9189-badge.info{background:#f2eef7;color:#58456e;border:1px solid #d9cbea}
+16996: .hlgb9189-actions{display:flex;gap:5px;flex-wrap:wrap}.hlgb9189-actions button{padding:6px 9px!important;font-size:11px!important}
+16997: .hlgb9189-toptools{display:flex;gap:7px;align-items:end;flex-wrap:wrap;margin:10px 0}.hlgb9189-toptools .field{min-width:155px}
+16998: .hlgb9189-note{font-size:11px;color:#776b72;margin-top:3px}
+16999: @media(max-width:800px){.hlgb9189-summary{grid-template-columns:1fr 1fr}}
+17000: </style>
+17001: <script id="hlgb-v9189-script">
+17002: (function(){
+17003: 'use strict';
+17004: const VERSION='91.89';
+17005: const clone9189=o=>{try{return structuredClone(o)}catch(e){return JSON.parse(JSON.stringify(o))}};
+17006: const norm9189=v=>String(v||'').trim().toLowerCase();
+17007: const esc9189=v=>typeof esc==='function'?esc(v):String(v??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+17008: const money9189=v=>typeof money==='function'?money(+v||0):('R$ '+(+v||0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2}));
+17009: const iso9189=d=>{let x=new Date(d);x.setMinutes(x.getMinutes()-x.getTimezoneOffset());return x.toISOString().slice(0,10)};
+17010: const date9189=v=>{if(!v)return '-';try{return new Date(String(v).slice(0,10)+'T12:00:00').toLocaleDateString('pt-BR')}catch(e){return String(v)}};
+17011: const qty9189=c=>Math.max(0,+c?.pieces||0);
+17012: const product9189=c=>{let p=null;try{if(typeof cutProduct==='function')p=cutProduct(c)}catch(e){};if(!p&&c?.productId)p=(db.products||[]).find(x=>String(x.id)===String(c.productId));if(!p&&c?.product)p=(db.products||[]).find(x=>norm9189(x.name)===norm9189(c.product));return p||null};
+17013: const productName9189=c=>product9189(c)?.name||c?.product||'Modelo sem nome';
+17014: const unit9189=c=>{if(c?.unitValue!=null&&Number.isFinite(+c.unitValue))return +c.unitValue;return +(product9189(c)?.price||0)};
+17015: const cutter9189=c=>(db.cutters||[]).find(x=>String(x.id)===String(c?.cutterId))||null;
+17016: const isDone9189=c=>norm9189(c?.status)==='finalizado'||norm9189(c?.status)==='finalizada'||c?.done===true;
+17017: const appOpen9189=()=>document.getElementById('appShell')?.style.display==='block'&&!!(window.cloudUser||window.cloudAccessToken);
+17018: function monday9189(v){let d=new Date((v||iso9189(new Date()))+'T12:00:00'),n=d.getDay(),diff=n===0?-6:1-n;d.setDate(d.getDate()+diff);return d}
+
+===== line 16840 =====
+16820:   function enhanceCutPage9179(){
+16821:     const sec=document.getElementById('corte');if(!sec)return;
+16822:     const toolbar=sec.querySelector('.panel .toolbar');
+16823:     if(toolbar&&!toolbar.querySelector('.hlgb9179-any-model')){const b=document.createElement('button');b.type='button';b.className='primary hlgb9179-any-model';b.textContent='+ Programar qualquer modelo';b.onclick=hlgbProgramAnyModel9179;toolbar.appendChild(b)}
+16824:     // Marca visualmente situações nas telas que exibem linhas de modelos sem destino.
+16825:     document.querySelectorAll('#corte tr, #producao tr, #capacidadeProducao tr, #projecao tr').forEach(tr=>{
+16826:       if(tr.querySelector('.hlgb9179-cut-status'))return;
+16827:       const text=tr.textContent||'';let order=null;const m=text.match(/#\s*(\d+)/);if(m)order=(db.orders||[]).find(o=>String(orderNo9179(o))===String(m[1]));
+16828:       let product=null;for(const p of (db.products||[])){if(p.name&&norm(text).includes(norm(p.name))&&(!product||String(p.name).length>String(product.name).length))product=p}
+16829:       if(!product&&!order)return;
+16830:       const s=cutStatus9179(product?.id,order?.id);const td=product?[...tr.children].find(x=>norm(x.textContent).includes(norm(product.name))):tr.children[0];if(!td)return;
+16831:       const sp=document.createElement('span');sp.className='hlgb9179-cut-status '+s.cls;sp.textContent=s.text;td.appendChild(sp);
+16832:     });
+16833:   }
+16834: 
+16835:   let cutterWeek9179='';
+16836:   function monday9179(v){const d=v?new Date(v+'T12:00:00'):new Date(),day=d.getDay(),diff=day===0?-6:1-day;d.setDate(d.getDate()+diff);return d}
+16837:   function iso9179(d){return d.toISOString().slice(0,10)}
+16838:   window.hlgbMoveCutterWeek9179=function(delta){const d=monday9179(cutterWeek9179||iso9179(new Date()));d.setDate(d.getDate()+delta*7);cutterWeek9179=iso9179(d);hlgbRenderCutterExcel9179()};
+16839:   window.hlgbSetCutterWeek9179=function(v){cutterWeek9179=iso9179(monday9179(v||iso9179(new Date())));hlgbRenderCutterExcel9179()};
+16840:   window.hlgbCurrentCutterWeek9179=function(){cutterWeek9179=iso9179(monday9179());hlgbRenderCutterExcel9179()};
+16841:   function cutsForDay9179(cutterId,day){return (db.cuts||[]).filter(c=>String(c.cutterId||'')===String(cutterId||'')&&asDate(c.plannedCutDate||c.finishedAt||c.date)===day)}
+16842:   window.hlgbRenderCutterExcel9179=function(){
+16843:     const el=document.getElementById('hlgbCutterExcel9179');if(!el)return;if(!cutterWeek9179)cutterWeek9179=iso9179(monday9179());
+16844:     const mon=monday9179(cutterWeek9179),days=Array.from({length:7},(_,i)=>{const d=new Date(mon);d.setDate(d.getDate()+i);return d}),dayIds=days.map(iso9179);
+16845:     let cutters=(db.cutters||[]).filter(c=>c.active!==false).map(c=>({id:c.id,name:c.name||'Cortador'}));if((db.cuts||[]).some(c=>!c.cutterId&&dayIds.includes(asDate(c.plannedCutDate||c.finishedAt||c.date))))cutters.push({id:'',name:'⚠ Sem cortador'});
+16846:     const heads=days.map(d=>`<th>${d.toLocaleDateString('pt-BR',{weekday:'short',day:'2-digit',month:'2-digit'})}</th>`).join('');
+16847:     const rows=cutters.map(ct=>{let weekTotal=0;const cells=dayIds.map(day=>{const cuts=cutsForDay9179(ct.id,day);const total=cuts.reduce((a,c)=>a+(+c.pieces||0),0);weekTotal+=total;const chips=cuts.map(c=>`<span class="hlgb9179-cut-chip"><strong>${esc9179(c.product||'Modelo')}</strong>${(+c.pieces||0).toLocaleString('pt-BR')} pç · ${norm(c.status)==='finalizado'?'✓ cortado':'a cortar'}</span>`).join('');return `<td>${chips||'<span class="sub">—</span>'}${total?`<div class="hlgb9179-week-total">${total.toLocaleString('pt-BR')} pç</div>`:''}</td>`}).join('');return `<tr><td class="cutter-name">${esc9179(ct.name)}</td>${cells}<td class="hlgb9179-week-total">${weekTotal.toLocaleString('pt-BR')} pç</td></tr>`}).join('');
+16848:     el.innerHTML=`<div class="toolbar" style="justify-content:space-between;align-items:flex-end;flex-wrap:wrap;margin-bottom:10px"><div><button class="secondary" onclick="hlgbMoveCutterWeek9179(-1)">← Semana anterior</button> <button class="secondary" onclick="hlgbCurrentCutterWeek9179()">Esta semana</button> <button class="secondary" onclick="hlgbMoveCutterWeek9179(1)">Próxima semana →</button></div><div class="field"><label>Semana</label><input type="date" value="${cutterWeek9179}" onchange="hlgbSetCutterWeek9179(this.value)"></div><button class="secondary" onclick="hlgbPrintCutterExcel9179()">🖨️ Imprimir</button></div><div class="hlgb9179-excel-wrap"><table class="hlgb9179-excel"><thead><tr><th>Cortador</th>${heads}<th>Total semana</th></tr></thead><tbody>${rows||'<tr><td colspan="9">Nenhum cortador cadastrado.</td></tr>'}</tbody></table></div>`;
+16849:   };
+16850:   window.hlgbPrintCutterExcel9179=function(){const el=document.getElementById('hlgbCutterExcel9179');if(!el)return;const w=window.open('','_blank');if(!w){alert('Permita pop-ups para imprimir.');return}w.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>Projeção de cortadores</title><style>body{font-family:Arial;margin:18px}table{border-collapse:collapse;width:100%;font-size:10px}th,td{border:1px solid #aaa;padding:5px;vertical-align:top}.hlgb9179-cut-chip{display:block;margin-bottom:4px}.toolbar,.field label,.field input,button{display:none}</style></head><body><h2>HLGB Confecções — Projeção semanal dos cortadores</h2>${el.innerHTML}</body></html>`);w.document.close();setTimeout(()=>w.print(),150)};
+16851:   function ensureCutterExcel9179(){
+16852:     const anchor=document.getElementById('cutterTable')?.closest('.panel');if(!anchor)return;
+16853:     let panel=document.getElementById('hlgbCutterExcelPanel9179');if(!panel){panel=document.createElement('div');panel.id='hlgbCutterExcelPanel9179';panel.className='panel';panel.innerHTML='<h2>📊 Projeção semanal dos cortadores — visão tipo Excel</h2><div class="sub">Cada linha é um cortador e cada coluna é um dia. Assim fica fácil enxergar quem está com cada modelo e quantas peças estão programadas.</div><div id="hlgbCutterExcel9179" style="margin-top:12px"></div>';anchor.insertAdjacentElement('afterend',panel)}hlgbRenderCutterExcel9179();
+16854:   }
+16855: 
+16856:   // Login Safari/rede: impede uma requisição de senha de ficar pendurada indefinidamente e tenta uma vez novamente.
+16857:   try{
+16858:     if(typeof cloudSignIn==='function' && typeof HLGB_SUPABASE_URL!=='undefined' && typeof HLGB_SUPABASE_KEY!=='undefined'){
+16859:       window.hlgbCloudSignInBase9179=cloudSignIn;
+16860:       cloudSignIn=async function(email,password){
+16861:         let lastErr=null;
+16862:         for(let attempt=0;attempt<2;attempt++){
+16863:           const controller=typeof AbortController!=='undefined'?new AbortController():null;const timer=controller?setTimeout(()=>controller.abort(),30000):null;
+16864:           try{
+16865:             const res=await fetch(`${HLGB_SUPABASE_URL}/auth/v1/token?grant_type=password`,{method:'POST',headers:{apikey:HLGB_SUPABASE_KEY,'Content-Type':'application/json'},body:JSON.stringify({email,password}),signal:controller?.signal});
+16866:             const data=await res.json().catch(()=>({}));if(!res.ok||!data.access_token)throw new Error(data.error_description||data.msg||data.message||'Não foi possível entrar.');if(timer)clearTimeout(timer);cloudApplyAuth(data);return data;
+16867:           }catch(e){if(timer)clearTimeout(timer);lastErr=e;if(attempt===0&&(e?.name==='AbortError'||/network|fetch|tempo|timeout/i.test(String(e?.message||'')))){await new Promise(r=>setTimeout(r,700));continue}throw e}
+16868:         }
+16869:         throw lastErr||new Error('A sessão demorou para responder. Tente entrar novamente.');
+16870:       };
+16871:     }
+16872:   }catch(e){console.warn('HLGB v91.83: proteção de login não aplicada',e)}
+16873: 
+16874:   // Encadeia os renderizadores existentes sem trocar a lógica principal.
+16875:   try{const base=renderClients;renderClients=function(){const r=base.apply(this,arguments);setTimeout(enhanceClients9179,0);return r}}catch(e){}
+16876:   try{const base=renderCuts;renderCuts=function(){const r=base.apply(this,arguments);setTimeout(enhanceCutPage9179,0);return r}}catch(e){}
+16877:   try{const base=renderCutters;renderCutters=function(){const r=base.apply(this,arguments);setTimeout(ensureCutterExcel9179,0);return r}}catch(e){}
+16878:   ['renderProduction','renderProjection','renderCapacityPlanning'].forEach(name=>{try{const base=window[name];if(typeof base==='function')window[name]=function(){const r=base.apply(this,arguments);setTimeout(enhanceCutPage9179,0);return r}}catch(e){}});
+16879: 
+16880:   document.addEventListener('DOMContentLoaded',()=>{setTimeout(()=>{try{enhanceClients9179()}catch(e){}try{enhanceCutPage9179()}catch(e){}try{ensureCutterExcel9179()}catch(e){}},300)});
+16881:   console.log('HLGB v'+V+' carregada: relatórios de cliente, filtro de preços, corte avulso e projeção tipo Excel.');
+16882: })();
+16883: </script>
+16884: <!-- HLGB_V9179_END -->
+16885: 
+16886: <!-- HLGB_V9185_HUB_CUT_START -->
+16887: <style id="hlgb-v9185-style">
+16888: #hubDue9166 .hub9185-cards{grid-template-columns:repeat(auto-fit,minmax(150px,1fr))}
+16889: #hubDue9166 .hub9185-headsum{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-top:5px;font-size:12px}
+16890: #hubDue9166 .hub9185-item{display:grid;grid-template-columns:92px minmax(180px,1fr) 120px 115px auto;gap:10px;align-items:center;padding:9px 0;border-bottom:1px solid #f1eaee}
+16891: #hubDue9166 .hub9185-actions{display:flex;gap:6px;justify-content:flex-end;flex-wrap:wrap}
+16892: #hubDue9166 .hub9185-flow{font-weight:800}
+16893: #hubDue9166 .hub9185-day-empty{padding:9px 13px;color:var(--muted);font-size:12px}
+16894: .cut9185{display:inline-block;margin-top:5px;padding:4px 8px;border-radius:999px;font-size:11px;font-weight:800;line-height:1.2}
+16895: .cut9185.ok{background:#e7f7ec;color:#176b35}.cut9185.partial{background:#fff4d8;color:#8a5b00}.cut9185.pending{background:#eaf2ff;color:#2458a6}.cut9185.no{background:#f3f3f3;color:#666}
+16896: @media(max-width:900px){#hubDue9166 .hub9185-item{grid-template-columns:80px minmax(150px,1fr) 105px auto}.hub9185-item .hub9185-status{grid-column:3}.hub9185-item .hub9185-actions{grid-column:4}.hub9185-item .hub9185-value{grid-column:3;grid-row:2}}
+16897: @media(max-width:650px){#hubDue9166 .hub9185-item{grid-template-columns:1fr}.hub9185-item>*{grid-column:auto!important;grid-row:auto!important}.hub9185-actions{justify-content:flex-start!important}}
+16898: </style>
+16899: <script>
+16900: (function(){
+16901: 'use strict';
+16902: const c9185=v=>{try{return JSON.parse(JSON.stringify(v))}catch(e){return v}},q9185=v=>Math.max(0,+v||0),n9185=v=>String(v??'').trim().toLowerCase();
+16903: function due9185(e){return String(e?.date||e?.dueDate||'').slice(0,10)}
+16904: function isDone9185(e){return n9185(e?.status)==='realizado'}
+16905: function sum9185(a){return (a||[]).reduce((s,x)=>s+q9185(x?.value),0)}
+16906: function flow9185(e){return n9185(e?.flow)==='entrada'?'Entrada':'Saída'}
+16907: function statusLabel9185(e){let done=isDone9185(e);return flow9185(e)==='Entrada'?(done?'Recebido':'A receber'):(done?'Pago':'Falta pagar')}
+16908: function statusClass9185(e){return isDone9185(e)?'ok':(flow9185(e)==='Saída'?'warn':'')}
+16909: function hubRange9185(){let w=document.getElementById('hubFinanceWeek')?.value||weekValue(new Date());return typeof hlgb916HubRange==='function'?hlgb916HubRange(w):{start:w,end:w}}
+16910: function allHub9185(){return (db.hubFinanceEntries||[]).filter(e=>due9185(e))}
+16911: function period9185(arr,prefix){return arr.filter(e=>due9185(e).startsWith(prefix))}
+16912: 
+16913: async function saveHub9185(next){
+16914:   if(!next||next.id==null)throw new Error('Lançamento sem id.');
+16915:   if(typeof cloudEnsureFreshSession==='function')await cloudEnsureFreshSession(false);
+16916:   if(!hlgbRecordReady&&typeof hlgbEnsureRecordsOnlineAfterLogin==='function'){
+16917:     let ok=await hlgbEnsureRecordsOnlineAfterLogin();if(!ok)throw new Error('A nuvem não ficou disponível.');
+16918:   }
+16919:   if(typeof hlgbRecordSaveWithRetry!=='function'||!cloudAccessToken)throw new Error('Sincronização por registro indisponível.');
+16920:   let out=await hlgbRecordSaveWithRetry('hubFinanceEntries',String(next.id),c9185(next),false);
+16921:   if(!out?.applied)throw new Error('A nuvem não confirmou a alteração.');
+16922:   let confirmed=out.data||next,arr=db.hubFinanceEntries=Array.isArray(db.hubFinanceEntries)?db.hubFinanceEntries:[],i=arr.findIndex(x=>String(x?.id)===String(next.id));
+16923:   if(i>=0)arr[i]=c9185(confirmed);else arr.push(c9185(confirmed));
+16924:   try{localSaveOnly()}catch(e){}
+16925:   return confirmed;
+16926: }
+16927: window.quickEditHub9185=function(id){
+16928:   let e=(db.hubFinanceEntries||[]).find(x=>String(x.id)===String(id));if(!e)return;
+16929:   let entrada=flow9185(e)==='Entrada',done=isDone9185(e);
+16930:   openModal(`Editar rápido — ${esc(e.description||e.category||'Lançamento')}`,`<div class="sub" style="margin-bottom:12px">Altere somente a data e se já foi ${entrada?'recebido':'pago'}.</div><div class="grid"><div class="field"><label>Data</label><input id="hubQuickDate9185" type="date" value="${esc(due9185(e)||isoDate(new Date()))}"></div><div class="field"><label>Status</label><select id="hubQuickStatus9185"><option value="Previsto" ${done?'':'selected'}>${entrada?'A receber':'Falta pagar'}</option><option value="Realizado" ${done?'selected':''}>${entrada?'Recebido':'Pago'}</option></select></div></div><div class="cards"><div class="card"><small>Tipo</small><strong>${entrada?'Entrada':'Saída'}</strong></div><div class="card"><small>Valor</small><strong>${money(e.value)}</strong></div></div><button type="button" class="primary modalSave">☁️ Salvar alteração</button>`,async()=>{
+16931:     let btn=document.querySelector('#modal .modalSave');if(btn){btn.disabled=true;btn.textContent='☁️ Salvando…'}
+16932:     let st=document.getElementById('hubQuickStatus9185')?.value||'Previsto',date=document.getElementById('hubQuickDate9185')?.value||due9185(e),next={...e,date,status:st,updatedAt:new Date().toISOString()};
+16933:     next.realizedAt=st==='Realizado'?(e.realizedAt||isoDate(new Date())):'';
+16934:     try{await saveHub9185(next);closeModal();renderHubFinance();try{setCloudStatus('⚡ Online · lançamento atualizado','ok')}catch(x){}}
+16935:     catch(err){console.error(err);if(btn){btn.disabled=false;btn.textContent='☁️ Salvar alteração'}alert('Não consegui confirmar essa alteração na nuvem. O lançamento foi mantido como estava.');}
+16936:   });
+16937: };
+16938: window.toggleHubQuick9185=async function(id){
+16939:   let e=(db.hubFinanceEntries||[]).find(x=>String(x.id)===String(id));
+16940:   if(!e)return;
+16941:   let done=isDone9185(e),next={...e,status:done?'Previsto':'Realizado',updatedAt:new Date().toISOString()};
+16942:   next.realizedAt=next.status==='Realizado'?(e.realizedAt||isoDate(new Date())):'';
+16943:   try{await saveHub9185(next);renderHubFinance()}catch(err){console.error(err);alert('A mudança não foi confirmada na nuvem. Nada foi alterado.');}
+16944: };
+16945: function renderHubDue9185(){
+16946:   const anchor=document.getElementById('hubFinanceCards');if(!anchor)return;let panel=document.getElementById('hubDue9166');if(!panel){panel=document.createElement('div');panel.id='hubDue9166';panel.className='panel';anchor.insertAdjacentElement('afterend',panel)}
+16947:   let range=hubRange9185(),all=allHub9185(),week=all.filter(e=>{let d=due9185(e);return d>=range.start&&d<=range.end}),ins=week.filter(e=>flow9185(e)==='Entrada'),outs=week.filter(e=>flow9185(e)==='Saída'),rec=ins.filter(isDone9185),recv=ins.filter(e=>!isDone9185(e)),paid=outs.filter(isDone9185),open=outs.filter(e=>!isDone9185(e));
+16948:   let month=range.start.slice(0,7),year=range.start.slice(0,4),monthRows=period9185(all,month),yearRows=period9185(all,year),groups={};week.forEach(e=>(groups[due9185(e)]||(groups[due9185(e)]=[])).push(e));
+16949:   let base=new Date(range.start+'T12:00:00'),days=[];for(let i=0;i<7;i++){let d=new Date(base);d.setDate(base.getDate()+i);days.push(isoDate(d))}
+16950:   let dayHtml=days.map(d=>{let a=(groups[d]||[]).slice().sort((x,y)=>flow9185(x).localeCompare(flow9185(y))||q9185(y.value)-q9185(x.value)),di=a.filter(x=>flow9185(x)==='Entrada'),do_=a.filter(x=>flow9185(x)==='Saída'),dp=do_.filter(isDone9185),df=do_.filter(x=>!isDone9185(x));return `<div class="hub9166-day"><div class="hub9166-head"><div><b>${new Date(d+'T12:00:00').toLocaleDateString('pt-BR',{weekday:'long',day:'2-digit',month:'2-digit'})}</b><div class="hub9185-headsum"><span>🟢 Entradas: <b>${money(sum9185(di))}</b></span><span>🔴 Saídas: <b>${money(sum9185(do_))}</b></span><span>✅ Pago: <b>${money(sum9185(dp))}</b></span><span>⏳ Falta: <b>${money(sum9185(df))}</b></span></div></div><strong>${a.length} lançamento(s)</strong></div>${a.length?`<div class="hub9166-items">${a.map(e=>`<div class="hub9185-item"><span class="badge ${flow9185(e)==='Entrada'?'ok':'warn'} hub9185-flow">${flow9185(e)}</span><div><b>${esc(e.description||e.category||'Lançamento')}</b>${e.origin||e.person?`<small style="display:block;margin-top:3px">${esc(e.person||e.origin)}</small>`:''}</div><span class="badge ${statusClass9185(e)} hub9185-status">${statusLabel9185(e)}</span><b class="hub9185-value">${money(e.value)}</b><div class="hub9185-actions"><button type="button" class="secondary" onclick="quickEditHub9185('${String(e.id).replace(/'/g,"\\'")}')">Editar</button><button type="button" class="${isDone9185(e)?'secondary':'primary'}" onclick="toggleHubQuick9185('${String(e.id).replace(/'/g,"\\'")}')">${isDone9185(e)?'Reabrir':(flow9185(e)==='Entrada'?'✓ Recebido':'✓ Pago')}</button></div></div>`).join('')}</div>`:`<div class="hub9185-day-empty">Nenhum lançamento neste dia.</div>`}</div>`}).join('');
+16951:   let monthIn=sum9185(monthRows.filter(e=>flow9185(e)==='Entrada')),monthOut=sum9185(monthRows.filter(e=>flow9185(e)==='Saída')),yearIn=sum9185(yearRows.filter(e=>flow9185(e)==='Entrada')),yearOut=sum9185(yearRows.filter(e=>flow9185(e)==='Saída'));
+16952:   panel.innerHTML=`<h2>📆 Entradas e saídas por vencimento</h2><div class="sub">Edite a data ou marque Pago/Recebido diretamente aqui. Mês: entradas ${money(monthIn)} · saídas ${money(monthOut)}. Ano: entradas ${money(yearIn)} · saídas ${money(yearOut)}.</div><div class="cards hub9185-cards"><div class="card"><small>Entradas na semana</small><strong>${money(sum9185(ins))}</strong></div><div class="card"><small>Recebido</small><strong>${money(sum9185(rec))}</strong></div><div class="card"><small>A receber</small><strong>${money(sum9185(recv))}</strong></div><div class="card"><small>Saídas na semana</small><strong>${money(sum9185(outs))}</strong></div><div class="card"><small>Pago</small><strong>${money(sum9185(paid))}</strong></div><div class="card"><small>Falta pagar</small><strong>${money(sum9185(open))}</strong></div></div>${dayHtml}`;
+16953: }
+16954: 
+16955: function orderItems9185(o){try{return typeof projectionItemsForOrder==='function'?projectionItemsForOrder(o):[]}catch(e){return []}}
+16956: function cutInfo9185(o,item){
+16957:   let pid=String(item?.productId||item?.key||''),total=q9185(item?.qty),finals=(db.cuts||[]).filter(c=>String(c.orderId)===String(o.id)&&n9185(c.status)==='finalizado'),finalIds=new Set(finals.map(c=>String(c.id))),seen=new Set(),cut=0;
+16958:   (db.production||[]).forEach(p=>{if(String(p.orderId)!==String(o.id))return;let match=String(p.productId||'')===pid||String(p.cutProductKey||'').split(':').pop()===pid;if(!match)return;if(p.cutId!=null&&finalIds.size&&!finalIds.has(String(p.cutId)))return;let k=String(p.id??`${p.cutId}:${pid}:${p.planned}`);if(seen.has(k))return;seen.add(k);cut+=q9185(p.planned)});
+16959:   if(cut<=0){let specific=finals.filter(c=>String(c.productId||'')===pid);if(specific.length)cut=specific.reduce((s,c)=>s+q9185(c.pieces),0);else if(orderItems9185(o).length<=1&&finals.length)cut=Math.max(...finals.map(c=>q9185(c.pieces)),0)}
+16960:   if(total<=0)total=q9185(item?.remainingQty)||cut;cut=Math.min(total||cut,cut);
+16961:   let pending=(db.cuts||[]).find(c=>String(c.orderId)===String(o.id)&&n9185(c.status)!=='finalizado'&&(!c.productId||String(c.productId)===pid));
+16962:   if(total>0&&cut>=total)return {cls:'ok',text:`✅ Já cortado · ${Math.round(cut).toLocaleString('pt-BR')} pç`};
+16963:   if(cut>0)return {cls:'partial',text:`🟡 Parcialmente cortado · ${Math.round(cut).toLocaleString('pt-BR')} de ${Math.round(total).toLocaleString('pt-BR')} pç`};
+16964:   if(pending)return {cls:'pending',text:pending.plannedCutDate?`✂️ Corte programado · ${fmtDate(pending.plannedCutDate)}`:'✂️ Corte em aberto'};
+16965:   return {cls:'no',text:'⚪ Não cortado'};
+16966: }
+16967: function enhanceUnassignedCut9185(){
+16968:   document.querySelectorAll('#capacity940Root .cap944-unassigned-row').forEach(row=>{if(row.querySelector('.cut9185'))return;let btn=row.querySelector('button[onclick*="openCapacityAssign940"]');if(!btn)return;let call=btn.getAttribute('onclick')||'',m=call.match(/openCapacityAssign940\(([^,]+),'([^']*)'/);if(!m)return;let oid=String(m[1]).replace(/["']/g,'').trim(),key=m[2].replace(/\\'/g,"'"),o=(db.orders||[]).find(x=>String(x.id)===oid);if(!o)return;let item=orderItems9185(o).find(x=>String(x.key||x.productId)===String(key)||String(x.productId)===String(key));if(!item)return;let info=cutInfo9185(o,item),target=row.children[1]||row.firstElementChild;if(target)target.insertAdjacentHTML('beforeend',`<div class="cut9185 ${info.cls}">${esc(info.text)}</div>`)});
+16969: }
+16970: const oldHub9185=window.renderHubFinance;if(typeof oldHub9185==='function')window.renderHubFinance=function(){let r=oldHub9185.apply(this,arguments);setTimeout(renderHubDue9185,35);return r};
+16971: const oldCap9185=window.renderCapacityPlanning;if(typeof oldCap9185==='function')window.renderCapacityPlanning=function(){let r=oldCap9185.apply(this,arguments);setTimeout(enhanceUnassignedCut9185,90);setTimeout(enhanceUnassignedCut9185,220);return r};
+16972: function setVersion9185(){let el=document.querySelector('#appShell .logo small');if(el&&el.textContent!=='v91.90')el.textContent='v91.90'}
+16973: function boot9185(){try{renderHubDue9185()}catch(e){console.warn('v91.85 hub',e)}try{enhanceUnassignedCut9185()}catch(e){console.warn('v91.85 cut',e)}setVersion9185()}
+16974: hlgbAfterLogin(()=>{setTimeout(boot9185,250);setTimeout(boot9185,1800);document.addEventListener('visibilitychange',()=>{if(!document.hidden)setTimeout(boot9185,120)});window.addEventListener('focus',()=>setTimeout(boot9185,120));},0);
+16975: hlgbAfterLogin(()=>{let ver=document.querySelector('#appShell .logo small');if(ver&&window.MutationObserver)new MutationObserver(setVersion9185).observe(ver,{childList:true,characterData:true,subtree:true});},0);
+16976: })();
+16977: </script>
+16978: <!-- HLGB_V9185_HUB_CUT_END -->
+16979: <!-- HLGB_STABILITY_V9186 -->
+16980: <!-- HLGB_STABILITY_V9187_DEFER_WAL_UNTIL_AUTH -->
+16981: <!-- HLGB_V9189_START -->
+16982: <style id="hlgb-v9189-style">
+16983: #dailyCutsTable .hlgb9189-week{display:flex;flex-direction:column;gap:14px}
+16984: .hlgb9189-summary{display:grid;grid-template-columns:repeat(4,minmax(135px,1fr));gap:10px;margin:12px 0 16px}
+16985: .hlgb9189-card{background:#fff;border:1px solid #e7dce2;border-radius:12px;padding:12px}
+16986: .hlgb9189-card small{display:block;color:#74666e;margin-bottom:4px}.hlgb9189-card strong{font-size:20px}
+16987: .hlgb9189-day{border:1px solid #d9ccd3;border-radius:12px;overflow:hidden;background:#fff}
+16988: .hlgb9189-day-head{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px 12px;background:#f5edf1;border-bottom:1px solid #d9ccd3}
+16989: .hlgb9189-day-head.today{background:#fff3f7}.hlgb9189-day-head strong{font-size:15px}.hlgb9189-day-head span{font-weight:800}
+16990: .hlgb9189-table-wrap{overflow:auto}.hlgb9189-table{width:100%;border-collapse:collapse;min-width:900px;font-size:12px}
+16991: .hlgb9189-table th,.hlgb9189-table td{padding:8px 9px;border-bottom:1px solid #eee5e9;text-align:left;vertical-align:middle}
+16992: .hlgb9189-table th{background:#fcf8fa;font-weight:800}.hlgb9189-table tr:last-child td{border-bottom:0}
+16993: .hlgb9189-empty{padding:16px;color:#897b83;text-align:center}
+16994: .hlgb9189-badge{display:inline-flex;align-items:center;border-radius:999px;padding:4px 8px;font-weight:800;font-size:11px;white-space:nowrap}
+16995: .hlgb9189-badge.ok{background:#e9f8ef;color:#087443;border:1px solid #b9e4c9}.hlgb9189-badge.warn{background:#fff4d6;color:#865b00;border:1px solid #efd58b}.hlgb9189-badge.info{background:#f2eef7;color:#58456e;border:1px solid #d9cbea}
+16996: .hlgb9189-actions{display:flex;gap:5px;flex-wrap:wrap}.hlgb9189-actions button{padding:6px 9px!important;font-size:11px!important}
+16997: .hlgb9189-toptools{display:flex;gap:7px;align-items:end;flex-wrap:wrap;margin:10px 0}.hlgb9189-toptools .field{min-width:155px}
+16998: .hlgb9189-note{font-size:11px;color:#776b72;margin-top:3px}
+16999: @media(max-width:800px){.hlgb9189-summary{grid-template-columns:1fr 1fr}}
+17000: </style>
+17001: <script id="hlgb-v9189-script">
+17002: (function(){
+17003: 'use strict';
+17004: const VERSION='91.89';
+17005: const clone9189=o=>{try{return structuredClone(o)}catch(e){return JSON.parse(JSON.stringify(o))}};
+17006: const norm9189=v=>String(v||'').trim().toLowerCase();
+17007: const esc9189=v=>typeof esc==='function'?esc(v):String(v??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+17008: const money9189=v=>typeof money==='function'?money(+v||0):('R$ '+(+v||0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2}));
+17009: const iso9189=d=>{let x=new Date(d);x.setMinutes(x.getMinutes()-x.getTimezoneOffset());return x.toISOString().slice(0,10)};
+17010: const date9189=v=>{if(!v)return '-';try{return new Date(String(v).slice(0,10)+'T12:00:00').toLocaleDateString('pt-BR')}catch(e){return String(v)}};
+17011: const qty9189=c=>Math.max(0,+c?.pieces||0);
+17012: const product9189=c=>{let p=null;try{if(typeof cutProduct==='function')p=cutProduct(c)}catch(e){};if(!p&&c?.productId)p=(db.products||[]).find(x=>String(x.id)===String(c.productId));if(!p&&c?.product)p=(db.products||[]).find(x=>norm9189(x.name)===norm9189(c.product));return p||null};
+17013: const productName9189=c=>product9189(c)?.name||c?.product||'Modelo sem nome';
+17014: const unit9189=c=>{if(c?.unitValue!=null&&Number.isFinite(+c.unitValue))return +c.unitValue;return +(product9189(c)?.price||0)};
+17015: const cutter9189=c=>(db.cutters||[]).find(x=>String(x.id)===String(c?.cutterId))||null;
+17016: const isDone9189=c=>norm9189(c?.status)==='finalizado'||norm9189(c?.status)==='finalizada'||c?.done===true;
+17017: const appOpen9189=()=>document.getElementById('appShell')?.style.display==='block'&&!!(window.cloudUser||window.cloudAccessToken);
+17018: function monday9189(v){let d=new Date((v||iso9189(new Date()))+'T12:00:00'),n=d.getDay(),diff=n===0?-6:1-n;d.setDate(d.getDate()+diff);return d}
+17019: 
