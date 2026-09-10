@@ -1,0 +1,19 @@
+name: Diagnosticar JavaScript HLGB v91.99
+on:
+  push:
+    paths:
+      - 'scripts/hlgb_debug_v9199_addon.py'
+      - '.github/workflows/hlgb-debug-v9199.yml'
+  workflow_dispatch:
+jobs:
+  debug:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - run: python scripts/hlgb_debug_v9199_addon.py
