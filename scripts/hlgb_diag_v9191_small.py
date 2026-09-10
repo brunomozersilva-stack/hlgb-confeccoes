@@ -22,3 +22,4 @@ grab('v9191-cutter-excel.txt',[r'hlgbRenderCutterExcel9179',r'Projeção semanal
 grab('v9191-capacity.txt',[r'renderCapacityPlanning',r'capacityAssignments',r'Planejamento de capacidade'],25,220,5)
 grab('v9191-queue-local.txt',[r'Modelos ainda sem destino',r'Fila por local',r'productionLocationId',r'Escolher quem vai produzir'],25,220,5)
 grab('v9191-grade.txt',[r'actualCutGrade',r'originalGrade',r'cutAdjustmentNote',r'function finishCut',r'window\.finishCut'],25,240,6)
+# trigger
