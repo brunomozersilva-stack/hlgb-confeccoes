@@ -1,0 +1,19 @@
+function hlgbRecordPendingStore(){
+  if(!hlgbRecordReady||cloudApplying||cloudBootstrapping)return;
+  try{
+    const pending={at:Date.now(),email:normEmail(cloudUser?.email||""),modules:{}};let any=false;
+    for(const module of HLGB_RECORD_MODULES){
+      // Não deixa um usuário secundário ficar eternamente “pendente” por mudanças
+      // internas de módulos que ele não tem permissão para gravar.
+      if(!hlgbRecordCanWrite(module))continue;
+      const snap=hlgbRecordSnapshots[module]||new Map(),local=hlgbRecordLocalMap(module),ops=[];
+      for(const [id,item] of local){
+        const old=snap.get(id);
+        if(!old||old.deleted_at||!cloudEq(old.data,item)){ops.push({id,data:hlgbRecordClone(item),deleted:false});any=true}
+      }
+      // v91.26: ausência local nunca gera exclusão automática na nuvem.
+      if(ops.length)pending.modules[module]=ops;
+    }
+    if(any)localStorage.setItem(HLGB_RECORD_PENDING_KEY,JSON.stringify(pending));else hlgbRecordPendingClear();
+  }catch(e){console.warn("HLGB record pending",e)}
+}

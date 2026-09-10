@@ -1,0 +1,22 @@
+async function hlgbRecordSaveWithRetry(module,id,data,deleted=false){
+  let snap=hlgbRecordSnapshots[module]||new Map(),old=snap.get(String(id)),expected=+old?.revision||0;
+  let result=await hlgbRecordRpcSave(module,id,hlgbRecordClone(data),expected,deleted);
+  if(result?.applied===false){
+    // Outra máquina editou exatamente o mesmo registro. Mescla campo a campo e tenta de novo.
+    const remote=result.data;
+    const base=old?.data;
+    const merged=deleted?hlgbRecordClone(data):cloudMergeThreeWay(base,hlgbRecordClone(data),remote);
+    result=await hlgbRecordRpcSave(module,id,merged,+result.revision||0,deleted);
+    if(result?.applied===false)throw new Error(`Conflito ao salvar ${module}. Atualize e tente novamente.`);
+    if(!deleted){
+      const arr=Array.isArray(db[module])?db[module]:[],idx=arr.findIndex((x,i)=>hlgbRecordId(module,x,i)===String(id));
+      if(idx>=0)arr[idx]=hlgbRecordClone(result.data||merged);
+    }
+  }
+  if(!result)throw new Error(`Supabase não confirmou o salvamento de ${module}.`);
+  const map=hlgbRecordSnapshots[module]||new Map();
+  map.set(String(id),{data:hlgbRecordClone(result.data),deleted_at:result.deleted_at||null,revision:+result.revision||1,updated_at:result.updated_at||new Date().toISOString(),updated_by:result.updated_by||null});
+  hlgbRecordSnapshots[module]=map;
+  if(String(result.updated_at||"")>String(hlgbRecordLastSeen[module]||""))hlgbRecordLastSeen[module]=String(result.updated_at||"");
+  return result;
+}

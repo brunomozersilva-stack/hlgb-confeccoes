@@ -1,0 +1,1877 @@
+eturn true;
+}
+async function hlgbHandleNormalizedRealtime(module,payload){
+ try{
+  const row=payload?.new&&Object.keys(payload.new).length?payload.new:payload?.old;
+  if(!row?.entity_id)return;
+  // Nosso modelo usa tombstone; DELETE físico é tratado como remoção também.
+  if(payload.eventType==="DELETE")row.deleted_at=row.deleted_at||new Date().toISOString();
+  hlgbApplyNormalizedRow(module,row);localSaveOnly();
+  if(!cloudUserIsEditing()){
+   const prev=cloudApplying;cloudApplying=true;try{renderAll()}finally{cloudApplying=prev}
+  }else cloudRemoteUpdatePending=true;
+  setCloudStatus("⚡ Online · atualização recebida","ok");
+  setTimeout(()=>setCloudStatus("⚡ Online · multiusuário","ok"),700);
+ }catch(e){console.warn("HLGB Core realtime",e)}
+}
+async function hlgbPullNormalizedCoreChanges(){
+ if(!hlgbNormalizedReady||hlgbNormalizedPulling||!cloudAccessToken||document.hidden)return false;
+ hlgbNormalizedPulling=true;let changed=false;
+ try{
+  for(const [module,cfg] of Object.entries(HLGB_CORE_MODULES)){
+   const last=hlgbNormalizedLastSeen[module]||"";
+   const path=last
+    ?`${cfg.table}?select=entity_id,data,updated_at,deleted_at&updated_at=gt.${encodeURIComponent(last)}&order=updated_at.asc&limit=200`
+    :`${cfg.table}?select=entity_id,data,updated_at,deleted_at&order=updated_at.desc&limit=200`;
+   let rows=await cloudRequest(path,{method:"GET"});rows=Array.isArray(rows)?rows:[];
+   for(const row of rows){hlgbApplyNormalizedRow(module,row);changed=true}
+  }
+  if(changed){localSaveOnly();if(!cloudUserIsEditing()){const prev=cloudApplying;cloudApplying=true;try{renderAll()}finally{cloudApplying=prev}}else cloudRemoteUpdatePending=true}
+  return changed;
+ }catch(e){console.warn("HLGB Core pull",e);return false}
+ finally{hlgbNormalizedPulling=false}
+}
+function hlgbLegacyComparablePayload(v){
+ const x=hlgbCoreClone(v||{});
+ for(const module of Object.keys(HLGB_CORE_MODULES))delete x[module];
+ delete x.auditLog;delete x.userSessions;delete x.session;delete x.activeSessionId;
+ return x;
+}
+
+function hlgbStopRealtime(){
+ try{
+  clearTimeout(hlgbRealtimeApplyTimer);
+  if(hlgbRealtimeClient&&hlgbRealtimeChannel)hlgbRealtimeClient.removeChannel(hlgbRealtimeChannel);
+ }catch(e){console.warn("HLGB Realtime stop",e)}
+ hlgbRealtimeChannel=null;hlgbRealtimeState="offline";
+}
+function hlgbRealtimeSetAuth(){
+ try{if(hlgbRealtimeClient&&cloudAccessToken)hlgbRealtimeClient.realtime.setAuth(cloudAccessToken)}catch(e){console.warn("HLGB Realtime auth",e)}
+}
+function hlgbBroadcastDbUpdate(version){
+ try{
+  if(!hlgbRealtimeChannel||hlgbRealtimeState!=="SUBSCRIBED")return false;
+  hlgbRealtimeChannel.send({type:"broadcast",event:"hlgb_db_update",payload:{version:+version||+cloudVersion||0,at:Date.now(),sender:String(cloudUser?.id||"")}});
+  return true;
+ }catch(e){console.warn("HLGB Broadcast",e);return false}
+}
+async function hlgbHandleBroadcast(payload){
+ try{
+  const v=+(payload?.payload?.version||0);
+  if(v&&v<=+cloudVersion)return;
+  if(cloudDirty&&!cloudSaving)await cloudSaveNow(false);
+  else await cloudPullRemoteIfNewer(true);
+ }catch(e){console.warn("HLGB Broadcast receive",e)}
+}
+async function hlgbHandleRealtimeDataChange(payload){
+ try{
+  const next=payload?.new||{};
+  if(cloudRowId&&next.id!=null&&String(next.id)!==String(cloudRowId))return;
+  const remoteVersion=Number(next.versao||0)||0;
+  if(remoteVersion&&remoteVersion<=Number(cloudVersion||0))return;
+  clearTimeout(hlgbRealtimeApplyTimer);
+  hlgbRealtimeApplyTimer=setTimeout(async()=>{
+   try{
+    // Se esta máquina também acabou de editar, primeiro grava/mescla usando o
+    // controle otimista de versão; depois busca o resultado consolidado.
+    if(cloudDirty&&!cloudSaving)await cloudSaveNow(false);
+    if(!cloudDirty&&!cloudSaving)await cloudPullRemoteIfNewer(false);
+    else cloudRemoteUpdatePending=true;
+   }catch(e){console.warn("HLGB Realtime apply",e)}
+  },40);
+ }catch(e){console.warn("HLGB Realtime event",e)}
+}
+function hlgbStartRealtime(){
+ try{
+  if(!cloudReady||!cloudRowId||!cloudAccessToken||!window.supabase?.createClient)return false;
+  hlgbStopRealtime();
+  hlgbRealtimeClient=window.supabase.createClient(HLGB_SUPABASE_URL,HLGB_SUPABASE_KEY,{
+   auth:{persistSession:false,autoRefreshToken:false,detectSessionInUrl:false},
+   realtime:{params:{eventsPerSecond:40}}
+  });
+  hlgbRealtimeClient.realtime.setAuth(cloudAccessToken);
+  let ch=hlgbRealtimeClient.channel(`hlgb-live-${cloudRowId}`)
+   .on('postgres_changes',{event:'UPDATE',schema:'public',table:'hlgb_data',filter:`id=eq.${cloudRowId}`},hlgbHandleRealtimeDataChange)
+   .on('broadcast',{event:'hlgb_db_update'},hlgbHandleBroadcast);
+  for(const [module,cfg] of Object.entries(HLGB_CORE_MODULES)){
+   ch=ch.on('postgres_changes',{event:'*',schema:'public',table:cfg.table},payload=>hlgbHandleNormalizedRealtime(module,payload));
+  }
+  hlgbRealtimeChannel=ch.subscribe((status,err)=>{
+    hlgbRealtimeState=status;
+    if(status==='SUBSCRIBED'){
+     setCloudStatus((cloudDirty||hlgbCorePendingRead())?'☁️ Salvando automático…':'⚡ Online · multiusuário',(cloudDirty||hlgbCorePendingRead())?'':'ok');
+    }else if(status==='CHANNEL_ERROR'||status==='TIMED_OUT'){
+     console.warn('HLGB Realtime',status,err);
+     setCloudStatus('☁️ Online · reconectando…');
+    }
+   });
+  return true;
+ }catch(e){console.warn("HLGB Realtime start",e);return false}
+}
+
+function cloudStoreAuth(){
+ // Mantém somente o REFRESH token persistido no navegador. Isso evita que Safari/Chrome
+ // percam a sessão ao suspender a aba, fechar a janela ou reiniciar o navegador.
+ // O access token continua sendo renovado automaticamente pelo Supabase.
+ try{
+  const payload=JSON.stringify({refresh_token:cloudRefreshToken||"",expires_at:cloudTokenExpiresAt||0,user:cloudUser||null});
+  if(cloudRefreshToken){
+    localStorage.setItem(HLGB_CLOUD_AUTH_KEY,payload);
+    try{sessionStorage.setItem(HLGB_CLOUD_AUTH_KEY,payload)}catch(e){}
+  }else{
+    localStorage.removeItem(HLGB_CLOUD_AUTH_KEY);
+    try{sessionStorage.removeItem(HLGB_CLOUD_AUTH_KEY)}catch(e){}
+  }
+ }catch(e){}
+}
+function cloudRestoreStoredAuth(){
+ try{
+   let raw=localStorage.getItem(HLGB_CLOUD_AUTH_KEY);
+   if(!raw){try{raw=sessionStorage.getItem(HLGB_CLOUD_AUTH_KEY)}catch(e){}}
+   if(!raw)return false;
+   const saved=JSON.parse(raw||"{}");
+   cloudRefreshToken=saved.refresh_token||"";
+   cloudTokenExpiresAt=Number(saved.expires_at||0)||0;
+   cloudUser=saved.user||null;
+   return !!cloudRefreshToken;
+ }catch(e){return false}
+}
+function cloudApplyAuth(data){
+ cloudAccessToken=data?.access_token||cloudAccessToken||"";
+ cloudRefreshToken=data?.refresh_token||cloudRefreshToken||"";
+ cloudUser=data?.user||cloudUser||null;
+ let exp=Number(data?.expires_at||0);
+ if(exp>0&&exp<100000000000)exp*=1000;
+ if(!exp){let secs=Number(data?.expires_in||3600);exp=Date.now()+Math.max(60,secs)*1000}
+ cloudTokenExpiresAt=exp;
+ cloudStoreAuth();
+ hlgbRealtimeSetAuth();
+}
+async function cloudRefreshSession(force=false){
+ if(cloudRefreshPromise)return cloudRefreshPromise;
+ if(!cloudRefreshToken)throw new Error("Sua sessão expirou. Entre novamente para continuar.");
+ if(!force&&cloudAccessToken&&cloudTokenExpiresAt>Date.now()+90000)return true;
+ cloudRefreshPromise=(async()=>{
+  // v91.74: algumas versões do Safari deixam a requisição de renovação pendurada
+  // quando o refresh token guardado ficou obsoleto. Abortamos somente a chamada;
+  // banco local, diário de pendências e dados da nuvem não são tocados.
+  const controller=typeof AbortController!=="undefined"?new AbortController():null;
+  const timeoutId=setTimeout(()=>{try{controller?.abort()}catch(e){}},8000);
+  let res;
+  try{
+   res=await fetch(`${HLGB_SUPABASE_URL}/auth/v1/token?grant_type=refresh_token`,{
+    method:"POST",headers:{"apikey":HLGB_SUPABASE_KEY,"Content-Type":"application/json"},
+    body:JSON.stringify({refresh_token:cloudRefreshToken}),...(controller?{signal:controller.signal}:{})
+   });
+  }catch(e){
+   if(e?.name==="AbortError")throw new Error("A sessão anterior não respondeu. Entre novamente para continuar.");
+   throw e;
+  }finally{clearTimeout(timeoutId)}
+  let data=await res.json().catch(()=>({}));
+  // 429 não significa sessão inválida: significa excesso temporário de refresh.
+  // Se o JWT atual ainda é válido, continuamos usando-o e tentamos renovar depois.
+  if(res.status===429){
+   if(cloudAccessToken&&cloudTokenExpiresAt>Date.now()+5000)return true;
+   throw new Error(data.error_description||data.msg||data.message||"Muitas tentativas de renovação da sessão. Aguarde alguns segundos.");
+  }
+  if(!res.ok||!data.access_token){
+   cloudAccessToken="";cloudRefreshToken="";cloudTokenExpiresAt=0;cloudStoreAuth();
+   throw new Error(data.error_description||data.msg||data.message||"Sua sessão expirou. Entre novamente.");
+  }
+  cloudApplyAuth(data);setCloudStatus("☁️ Online","ok");return true;
+ })();
+ try{return await cloudRefreshPromise}finally{cloudRefreshPromise=null}
+}
+const HLGB_CLOUD_REFRESH_MARGIN_MS=45*1000;
+async function cloudEnsureFreshSession(force=false){
+ // Safari pode suspender timers quando a aba fica em segundo plano. Por isso,
+ // antes de QUALQUER acesso à nuvem, validamos/renovamos a sessão de forma proativa.
+ if(!cloudAccessToken){
+   if(cloudRefreshToken){await cloudRefreshSession(true);return true}
+   return false;
+ }
+ if(force||!cloudTokenExpiresAt||cloudTokenExpiresAt<=Date.now()+HLGB_CLOUD_REFRESH_MARGIN_MS){
+   if(cloudRefreshToken)await cloudRefreshSession(true);
+ }
+ return !!cloudAccessToken;
+}
+function cloudSessionExpired(){
+ setCloudStatus("☁️ Sessão expirada","bad");
+}
+
+
+function setCloudStatus(text,kind=""){
+ const el=document.getElementById("cloudStatus");if(!el)return;
+ el.textContent=text;
+ el.style.background=kind==="ok"?"#ffffff22":kind==="bad"?"#7a1f2b":"transparent";
+}
+function localSaveOnly(){
+ Storage.prototype.setItem.call(localStorage,KEY,JSON.stringify(db));
+}
+// Archive only historical safety copies. Never remove the working database,
+// authentication, pending writes or WAL. Commit and read back before removal.
+async function hlgbPrepareStorage9178(){
+ const keys=["hlgb_cloud_conflict_backup_v1","hlgb_projection_safety_backup","hlgb_v9148_precloud_snapshot","hlgb_v9149_forensic_snapshot","hlgb_durable_wal_archive_v1"];
+ const copies=keys.map(key=>({key,value:localStorage.getItem(key)})).filter(x=>x.value!==null);
+ if(!copies.length)return;
+ const archive=await new Promise((resolve,reject)=>{
+  const request=indexedDB.open("hlgb_preserved_backups",1);
+  request.onupgradeneeded=()=>request.result.createObjectStore("backups");
+  request.onsuccess=()=>resolve(request.result);
+  request.onerror=()=>reject(request.error);
+  request.onblocked=()=>reject(new Error("Feche outras abas do sistema para preparar o armazenamento."));
+ });
+ try{
+  for(const copy of copies){
+   const archiveKey=copy.key+":"+Date.now()+":"+Math.random();
+   await new Promise((resolve,reject)=>{
+    const tx=archive.transaction("backups","readwrite");
+    tx.objectStore("backups").put({...copy,savedAt:new Date().toISOString()},archiveKey);
+    tx.oncomplete=resolve;tx.onabort=()=>reject(tx.error||new Error("Backup não confirmado"));tx.onerror=()=>{};
+   });
+   const verified=await new Promise((resolve,reject)=>{
+    const request=archive.transaction("backups","readonly").objectStore("backups").get(archiveKey);
+    request.onsuccess=()=>resolve(request.result);request.onerror=()=>reject(request.error);
+   });
+   if(verified?.value!==copy.value)throw new Error("A conferência do backup local falhou; o original foi preservado.");
+   if(localStorage.getItem(copy.key)===copy.value)localStorage.removeItem(copy.key);
+  }
+ }finally{archive.close()}
+}
+function cloudDirtyMeta(){
+ try{return JSON.parse(localStorage.getItem(HLGB_CLOUD_DIRTY_KEY)||"null")}catch(e){return null}
+}
+function cloudMarkLocalDirty(dirty=true){
+ try{
+  if(!dirty){localStorage.removeItem(HLGB_CLOUD_DIRTY_KEY);return}
+  localStorage.setItem(HLGB_CLOUD_DIRTY_KEY,JSON.stringify({dirty:true,updatedAt:Date.now(),baseVersion:+cloudVersion||0,email:normEmail(cloudUser?.email||"")}));
+ }catch(e){}
+}
+function cloudSaveConflictSnapshot(localDb,remoteRow){
+ try{localStorage.setItem(HLGB_CLOUD_CONFLICT_KEY,JSON.stringify({savedAt:new Date().toISOString(),local:localDb,remote:remoteRow||null}))}catch(e){}
+}
+function cloudPayload(remoteSource=null){
+ let copy=JSON.parse(JSON.stringify(db||{}));
+ copy.session=null;copy.activeSessionId=null;
+ if(Array.isArray(copy.users))copy.users=copy.users.map(u=>{let x={...u};delete x.password;return x});
+
+ // Usuários secundários não podem alterar o diretório global de usuários.
+ // O perfil online dedicado é mesclado localmente para controlar menus, e isso fazia
+ // o JSON de `users` parecer alterado mesmo quando a pessoa apenas cadastrava um
+ // produto. O trigger de segurança do Supabase então rejeitava TODO o salvamento,
+ // deixando a máquina eternamente em "Pendente de sincronização" e bloqueando
+ // atualizações vindas de outras máquinas.
+ // Para secundários, enviamos exatamente o diretório de usuários que já está na nuvem.
+ if(!isOwnerUser()){
+   const remoteUsers=Array.isArray(remoteSource?.users)?remoteSource.users:(Array.isArray(cloudBaseSnapshot?.users)?cloudBaseSnapshot.users:null);
+   if(remoteUsers)copy.users=cloudClone(remoteUsers);
+ }
+ // Depois da migração v90, estes módulos deixam de ser gravados dentro do JSON
+ // compartilhado. Preservamos a cópia legada apenas como backup histórico.
+ if(hlgbNormalizedReady){
+   for(const module of Object.keys(HLGB_CORE_MODULES)){
+     const oldArr=Array.isArray(remoteSource?.[module])?remoteSource[module]:(Array.isArray(cloudBaseSnapshot?.[module])?cloudBaseSnapshot[module]:null);
+     if(oldArr)copy[module]=cloudClone(oldArr);
+   }
+ }
+ return copy;
+}
+function cloudClone(v){try{return JSON.parse(JSON.stringify(v))}catch(e){return v}}
+function cloudEq(a,b){try{return JSON.stringify(a)===JSON.stringify(b)}catch(e){return a===b}}
+function cloudOperationalPayload(v){
+ const x=cloudClone(v||{});
+ if(x&&typeof x
+
+===== NEXT =====
+
+et(k), l=lm.get(k), r=rm.get(k);
+  if(l===undefined){
+   if(b!==undefined&&r!==undefined&&!cloudEq(r,b))out.push(cloudClone(r));
+   continue;
+  }
+  if(r===undefined){
+   if(b===undefined||!cloudEq(l,b))out.push(cloudClone(l));
+   continue;
+  }
+  if(b===undefined){out.push(cloudMergeThreeWay(undefined,l,r));continue}
+  out.push(cloudMergeThreeWay(b,l,r));
+ }
+ return out;
+}
+function cloudMergeThreeWay(base,local,remote){
+ if(cloudEq(local,base))return cloudClone(remote);
+ if(cloudEq(remote,base))return cloudClone(local);
+ if(Array.isArray(local)&&Array.isArray(remote)&&Array.isArray(base))return cloudMergeArray(base,local,remote);
+ if(cloudPlainObject(local)&&cloudPlainObject(remote)){
+  const b=cloudPlainObject(base)?base:{}; const out={};
+  const keys=new Set([...Object.keys(b),...Object.keys(remote),...Object.keys(local)]);
+  for(const k of keys){
+   const hasL=Object.prototype.hasOwnProperty.call(local,k), hasR=Object.prototype.hasOwnProperty.call(remote,k), hasB=Object.prototype.hasOwnProperty.call(b,k);
+   if(!hasL){if(hasR&&!hasB)out[k]=cloudClone(remote[k]);else if(hasR&&hasB&&!cloudEq(remote[k],b[k]))out[k]=cloudClone(remote[k]);continue}
+   if(!hasR){if(!hasB||!cloudEq(local[k],b[k]))out[k]=cloudClone(local[k]);continue}
+   out[k]=cloudMergeThreeWay(hasB?b[k]:undefined,local[k],remote[k]);
+  }
+  return out;
+ }
+ // Em conflito no mesmo campo, preserva a alteração deste navegador.
+ return cloudClone(local);
+}
+function cloudUserIsEditing(){
+ const ae=document.activeElement;
+ if(ae&&["INPUT","TEXTAREA","SELECT"].includes(ae.tagName))return true;
+ return !!document.querySelector("#modal.show");
+}
+async function cloudPullRemoteIfNewer(force=false){
+ if(cloudPulling||cloudSaving||!cloudAccessToken||!cloudReady||!cloudRowId)return false;
+ // Logs de navegação/sessão não podem bloquear a chegada de dados operacionais de
+ // outra máquina. Se não existe mudança real fora desses metadados, liberamos o pull.
+ if(cloudDirty&&!cloudHasOperationalChanges()){cloudDirty=false;cloudMarkLocalDirty(false);}
+ if(cloudDirty)return false;
+ cloudPulling=true;
+ try{
+  const rows=await cloudRequest(`hlgb_data?id=eq.${encodeURIComponent(cloudRowId)}&select=id,dados,versao,atualizado_em&limit=1`,{method:"GET"});
+  const remote=Array.isArray(rows)?rows[0]:null;
+  if(!remote)return false;
+  const rv=+remote.versao||1;
+  if(rv<=cloudVersion){cloudRemoteUpdatePending=false;return false}
+  if(!remote.dados||typeof remote.dados!=="object")return false;
+  // Atualiza a base em memória imediatamente. Se a pessoa estiver digitando,
+  // preserva o formulário aberto e adia apenas o redesenho visual.
+  cloudApplying=true;db=cloudClone(remote.dados);cloudApplying=false;
+  cloudVersion=rv;cloudBaseSnapshot=cloudClone(remote.dados);cloudDirty=false;cloudMarkLocalDirty(false);cloudLastSavedAt=Date.now();
+  try{await ensureCloudUserAccessOnline()}catch(e){console.warn(e)}
+  try{localSaveOnly()}catch(e){}
+  const editing=cloudUserIsEditing();
+  if(!editing||force){
+   try{
+    applyAccess();
+    const prevApplying=cloudApplying;
+    cloudApplying=true;
+    try{renderAll()}finally{cloudApplying=prevApplying}
+   }catch(e){console.warn("Falha ao atualizar tela após sincronização",e)}
+   cloudRemoteUpdatePending=false;
+  }else{
+   cloudRemoteUpdatePending=true;
+  }
+  setCloudStatus(hlgbRealtimeState==="SUBSCRIBED"?"⚡ Online · atualizado":"☁️ Online · atualizado","ok");
+  setTimeout(()=>setCloudStatus(hlgbRealtimeState==="SUBSCRIBED"?"⚡ Online · tempo real":"☁️ Online · automático","ok"),900);
+  return true;
+ }catch(e){console.warn("Falha ao buscar atualização remota",e);return false}
+ finally{cloudPulling=false}
+}
+async function cloudCheckRemoteVersion(){
+ if(cloudPulling||cloudSaving||!cloudAccessToken||!cloudReady||!cloudRowId||document.hidden)return false;
+ try{
+  if(cloudDirty&&!cloudHasOperationalChanges()){cloudDirty=false;cloudMarkLocalDirty(false);}
+  if(cloudDirty){if(!cloudSaving)await cloudSaveNow(false);return false}
+  const rows=await cloudRequest(`hlgb_data?id=eq.${encodeURIComponent(cloudRowId)}&select=id,versao,atualizado_em&limit=1`,{method:"GET"});
+  const row=Array.isArray(rows)?rows[0]:null;
+  if(row&&(+row.versao||0)>+cloudVersion)return await cloudPullRemoteIfNewer(false);
+ }catch(e){console.warn("HLGB verificação de versão",e)}
+ return false;
+}
+
+function persistDb(){
+ localSaveOnly();
+ if(cloudBootstrapping||cloudApplying)return true;
+ // Módulos v90 são enviados por registro, sem depender do JSON gigante.
+ if(hlgbNormalizedReady)hlgbQueueNormalizedSync(70);
+ // Só marca o JSON legado como pendente se ALGUM módulo ainda não migrado mudou.
+ // Isso elimina conflitos entre um usuário cadastrando produto e outro lançando pedido.
+ let legacyChanged=true;
+ try{legacyChanged=!cloudEq(hlgbLegacyComparablePayload(cloudPayload(cloudBaseSnapshot||null)),hlgbLegacyComparablePayload(cloudBaseSnapshot||{}))}catch(e){}
+ if(legacyChanged){
+   cloudDirty=true;cloudMarkLocalDirty(true);
+   if(cloudReady&&cloudAccessToken){setCloudStatus("☁️ Salvando automático…");cloudQueueSave()}
+ }else if(!hlgbCorePendingRead()){
+   setCloudStatus(hlgbRealtimeState==="SUBSCRIBED"?"⚡ Online · multiusuário":"☁️ Online · automático","ok");
+ }
+ return true;
+}
+function cloudQueueSave(delay=150){
+ clearTimeout(cloudSaveTimer);
+ cloudSaveTimer=setTimeout(()=>cloudSaveNow(false),delay);
+}
+async function cloudRequest(path,options={}){
+ const method=String(options.method||"GET").toUpperCase();
+ // Para gravações, renova com antecedência maior para não deixar o token vencer no meio do salvamento.
+ await cloudEnsureFreshSession(false);
+ const expiredRx=/PGRST303|jwt\s*expired|token[^\n]*expired|invalid[^\n]*jwt/i;
+ async function send(){
+   let headers={"apikey":HLGB_SUPABASE_KEY,"Content-Type":"application/json",...(options.headers||{})};
+   if(cloudAccessToken)headers.Authorization=`Bearer ${cloudAccessToken}`;
+   const res=await fetch(HLGB_SUPABASE_REST+path,{...options,headers});
+   const txt=res.status===204?"":await res.text();
+   return {res,txt};
+ }
+ let out=await send();
+ // Se o Data API responder 401, renovamos a sessão UMA vez e repetimos a chamada.
+ // Isso cobre Safari/abas retomadas em que uma requisição pode sair durante a troca do JWT.
+ // Com a leitura em lote da v91.06, isso não gera mais tempestade de refresh.
+ if(!out.res.ok&&(out.res.status===401||expiredRx.test(out.txt||""))&&cloudRefreshToken){
+   try{
+     setCloudStatus("☁️ Renovando sessão…");
+     await cloudRefreshSession(true);
+     out=await send();
+   }catch(e){
+     cloudSessionExpired();
+     throw new Error("Sua sessão online venceu e não pôde ser renovada. Seus dados continuam salvos neste navegador. Clique em Sair e entre novamente para sincronizar.");
+   }
+ }
+ if(!out.res.ok){
+   if(expiredRx.test(out.txt||""))cloudSessionExpired();
+   throw new Error(out.txt||`Erro HTTP ${out.res.status}`);
+ }
+ if(!out.txt)return null;
+ try{return JSON.parse(out.txt)}catch(e){return out.txt}
+}
+async function cloudSignIn(email,password){
+ let res=await fetch(`${HLGB_SUPABASE_URL}/auth/v1/token?grant_type=password`,{
+   method:"POST",headers:{"apikey":HLGB_SUPABASE_KEY,"Content-Type":"application/json"},
+   body:JSON.stringify({email,password})
+ });
+ let data=await res.json().catch(()=>({}));
+ if(!res.ok||!data.access_token)throw new Error(data.error_description||data.msg||data.message||"Não foi possível entrar.");
+ cloudApplyAuth(data);return data;
+}
+function normEmail(v){return String(v||"").trim().toLowerCase()}
+function cloudProfileForCurrentUser(){
+ db.users=Array.isArray(db.users)?db.users:[];
+ const uid=String(cloudUser?.id||"");
+ const email=normEmail(cloudUser?.email);
+ return db.users.find(u=>String(u.authId||"")===uid || String(u.id||"")===uid || normEmail(u.user||u.email)===email);
+}
+async function cloudFlushCriticalUserChange(){
+ // Usuário secundário deve ficar autorizado sem o proprietário precisar apertar
+ // “Sincronizar agora”. Reabre a sessão persistida, renova o token e tenta até 3 vezes.
+ try{
+   if(!cloudRefreshToken)cloudRestoreStoredAuth();
+   await cloudEnsureFreshSession(true);
+   clearTimeout(cloudSaveTimer);
+   for(let attempt=1;attempt<=3;attempt++){
+     const deadline=Date.now()+8000;
+     while(cloudSaving && Date.now()<deadline)await new Promise(r=>setTimeout(r,120));
+     cloudDirty=true;
+     const ok=await cloudSaveNow(false);
+     const deadline2=Date.now()+8000;
+     while(cloudSaving && Date.now()<deadline2)await new Promise(r=>setTimeout(r,120));
+     if(ok&&!cloudDirty){setCloudStatus("☁️ Online · automático","ok");return true}
+     if(attempt<3){
+       try{await cloudRefreshSession(true)}catch(e){}
+       await new Promise(r=>setTimeout(r,500*attempt));
+     }
+   }
+   return false;
+ }catch(e){console.error("Falha ao sincronizar autorização de usuário",e);return false}
+}
+
+
+async function cloudGetDedicatedAccessProfile(){
+ const uid=String(cloudUser?.id||"");
+ const email=normEmail(cloudUser?.email);
+ if(!email)return null;
+ if(email===normEmail(HLGB_OWNER_EMAIL))return {auth_id:uid||null,email,name:"Administrador",role:"admin",active:true,access:[]};
+ try{
+   let rows=await cloudRequest(`hlgb_user_access?select=auth_id,email,name,role,active,access&email=eq.${encodeURIComponent(email)}&limit=1`,{method:"GET"});
+   if(Array.isArray(rows)&&rows.length)return rows[0];
+   if(uid){
+     rows=await cloudRequest(`hlgb_user_access?select=auth_id,email,name,role,active,access&auth_id=eq.${encodeURIComponent(uid)}&limit=1`,{method:"GET"});
+     if(Array.isArray(rows)&&rows.length)return rows[0];
+   }
+ }catch(e){
+   if(!/hlgb_user_access|42P01|PGRST205|does not exist|schema cache/i.test(String(e?.message||"")))console.warn("Falha ao consultar autorização dedicada",e);
+ }
+ return null;
+}
+function mergeDedicatedAccessIntoLocal(row){
+ if(!row)return null;
+ db.users=Array.isArray(db.users)?db.users:[];
+ const uid=String(row.auth_id||cloudUser?.id||"");
+ const email=normEmail(row.email||cloudUser?.email);
+ let profile=db.users.find(u=>String(u.authId||"")===uid || normEmail(u.user||u.email)===email);
+ if(!profile){
+   profile={id:Date.now()+Math.random(),name:row.name||email,user:email,email,authId:uid,role:"user",active:row.active!==false,access:Array.isArray(row.access)?row.access:[],onlineReady:true};
+   db.users.push(profile);
+ }
+ profile.name=row.name||profile.name||email;
+ profile.user=email;profile.email=email;profile.authId=uid;profile.onlineReady=true;
+ profile.active=row.active!==false;
+ profile.role=email===normEmail(HLGB_OWNER_EMAIL)?"admin":"user";
+ profile.access=Array.isArray(row.access)?row.access:(Array.isArray(profile.access)?profile.access:[]);
+ delete profile.password;
+ db.session=profile.id;
+ try{localSaveOnly()}catch(e){}
+ return profile;
+}
+async function ensureCloudUserAccessOnline(){
+ const email=normEmail(cloudUser?.email);
+ if(email===normEmail(HLGB_OWNER_EMAIL))return ensureCloudUserAccess();
+ const dedicated=await cloudGetDedicatedAccessProfile();
+ if(dedicated){
+   if(dedicated.active===false)throw new Error("Este usuário está desativado. Fale com o administrador.");
+   return mergeDedicatedAccessIntoLocal(dedicated);
+ }
+ return ensureCloudUserAccess();
+}
+function secondaryAccessPayload(u){
+ const authId=String(u?.authId||"").trim();
+ return {
+   auth_id:authId||null,
+   email:normEmail(u?.user||u?.email),
+   name:String(u?.name||u?.user||u?.email||"Usuário"),
+   role:"user",
+   active:u?.active!==false,
+   access:Array.isArray(u?.access)?u.access:[],
+   updated_at:new Date().toISOString()
+ };
+}
+async function cloudRequireOwnerSession(){
+ if(!cloudRefreshToken)cloudRestoreStoredAuth();
+ if(!cloudAccessToken || !isOwnerUser()){
+   try{await cloudEnsureFreshSession(true)}catch(e){}
+ }
+ if(!cloudAccessToken || !isOwnerUser()){
+   throw new Error("Sua sessão online de proprietário não está ativa. Atualize a página e entre novamente.");
+ }
+ return true;
+}
+async function cloudUpsertSecondaryAccess(u){
+ const email=normEmail(u?.user||u?.email);
+ if(!email||!email.includes("@"))throw new Error("Informe um e-mail válido para o usuário.");
+ await cloudRequireOwnerSession();
+ const payload=secondaryAccessPayload(u);
+ const row=await cloudRequest("rpc/hlgb_admin_upsert_user_access",{
+   method:"POST",
+   body:JSON.stringify({
+     p_auth_id:payload.auth_id||null,
+     p_email:payload.email,
+     p_name:payload.name,
+     p_active:payload.active!==false,
+     p_access:Array.isArray(payload.access)?payload.access:[]
+   })
+ });
+ return Array.isArray(row)?row[0]:row;
+}
+async function cloudDeleteSecondaryAccessByAuthId(authId){
+ if(!authId||!isOwnerUser())return false;
+ try{
+   await cloudRequireOwnerSession();
+   await cloudRequest("rpc/hlgb_admin_delete_user_access",{method:"POST",body:JSON.stringify({p_email:null,p_auth_id:String(authId)})});
+   return true;
+ }catch(e){console.warn(e);return false}
+}
+async function cloudDeleteSecondaryAccessByEmail(email){
+ const em=normEmail(email);
+ if(!em)return false;
+ try{
+   await cloudRequireOwnerSession();
+   await cloudRequest("rpc/hlgb_admin_delete_user_access",{method:"POST",body:JSON.stringify({p_email:em,p_auth_id:null})});
+   return true;
+ }catch(e){console.warn(e);return false}
+}
+
+function normalizeUserDirectoryForOwner(){
+ if(!isOwnerUser())return false;
+ db.users=Array.isArray(db.users)?db.users:[];
+ const ownerEmail=normEmail(HLGB_OWNER_EMAIL);
+ let changed=false;
+ // Garante um único proprietário real.
+ let owner=db.users.find(u=>normEmail(u.user||u.email)===ownerEmail);
+ if(!owner){owner={id:Date.now()+Math.random(),name:"Administrador",user:ownerEmail,email:ownerEmail,authId:String(cloudUser?.id||""),role:"admin",active:true,access:[],onlineReady:true};db.users.unshift(owner);changed=true}
+ owner.role="admin";owner.active=true;owner.onlineReady=true;owner.user=ownerEmail;owner.email=ownerEmail;if(cloudUser?.id)owner.authId=String(cloudUser.id);
+ // Qualquer outro e-mail que versões antigas tenham marcado como Administrador vira secundário.
+ for(const u of db.users){
+   const em=normEmail(u.user||u.email);
+   if(em&&em!==ownerEm
+
+===== NEXT =====
+
+ou a nuvem.
+   // Se atualizou, mescla as mudanças locais sobre a versão mais recente para evitar
+   // que um usuário apague silenciosamente o trabalho do outro.
+   let currentRows=await cloudRequest(`hlgb_data?id=eq.${encodeURIComponent(cloudRowId)}&select=dados,versao&limit=1`,{method:"GET"});
+   let current=Array.isArray(currentRows)?currentRows[0]:null;
+   let remoteVersion=+(current?.versao||cloudVersion||1);
+   if(current?.dados&&remoteVersion>cloudVersion){
+     const localPayload=cloudPayload(current.dados);
+     const merged=cloudMergeThreeWay(cloudBaseSnapshot||{},localPayload,current.dados);
+     cloudApplying=true;db=merged;cloudApplying=false;
+     cloudVersion=remoteVersion;cloudBaseSnapshot=cloudClone(current.dados);
+     try{await ensureCloudUserAccessOnline()}catch(e){}
+     try{localSaveOnly()}catch(e){}
+   }
+   let attempts=0;
+   while(attempts<3){
+     attempts++;
+     const baseVersion=+cloudVersion||1;
+     const nextVersion=baseVersion+1;
+     const payload=cloudPayload(current?.dados||cloudBaseSnapshot||null);
+     const rows=await cloudRequest(`hlgb_data?id=eq.${encodeURIComponent(cloudRowId)}&versao=eq.${baseVersion}`,{
+       method:"PATCH",headers:{Prefer:"return=representation"},
+       body:JSON.stringify({dados:payload,versao:nextVersion,atualizado_em:new Date().toISOString(),atualizado_por:cloudUser?.id||null})
+     });
+     const saved=Array.isArray(rows)?rows[0]:rows;
+     if(saved&&saved.id!==undefined){
+       cloudVersion=nextVersion;cloudBaseSnapshot=cloudClone(payload);
+       cloudDirty=false;cloudMarkLocalDirty(false);cloudLastSavedAt=Date.now();
+       setCloudStatus(hlgbNormalizedReady?"⚡ Online · multiusuário":(hlgbRealtimeState==="SUBSCRIBED"?"⚡ Online · tempo real":"☁️ Online · automático"),"ok");if(showMessage)alert("Dados sincronizados com a nuvem.");
+       hlgbBroadcastDbUpdate(nextVersion);
+       setTimeout(()=>cloudPullRemoteIfNewer(false),250);
+       return true;
+     }
+     // Houve uma atualização exatamente entre a leitura e a gravação. Busca novamente,
+     // mescla e tenta outra vez sem pedir intervenção do usuário.
+     currentRows=await cloudRequest(`hlgb_data?id=eq.${encodeURIComponent(cloudRowId)}&select=dados,versao&limit=1`,{method:"GET"});
+     current=Array.isArray(currentRows)?currentRows[0]:null;
+     if(!current)break;
+     const localPayload=cloudPayload(current?.dados||cloudBaseSnapshot||null);
+     const merged=cloudMergeThreeWay(cloudBaseSnapshot||{},localPayload,current.dados||{});
+     cloudApplying=true;db=merged;cloudApplying=false;
+     cloudVersion=+(current.versao||cloudVersion);cloudBaseSnapshot=cloudClone(current.dados||{});
+     try{await ensureCloudUserAccessOnline()}catch(e){}
+     try{localSaveOnly()}catch(e){}
+   }
+   throw new Error("Outra máquina atualizou os dados ao mesmo tempo. O sistema preservou suas alterações e tentará novamente automaticamente.");
+ }catch(e){console.error(e);cloudDirty=true;setCloudStatus("☁️ Pendente de sincronização","bad");try{const el=document.getElementById("cloudStatus");if(el)el.title=String(e?.message||e||"");}catch(_){}if(showMessage)alert("Não foi possível sincronizar com a nuvem agora. Os dados ficaram salvos neste navegador e o sistema tentará novamente automaticamente.\n\n"+(e.message||"Tente novamente."));return false}
+ finally{cloudSaving=false;if(cloudPending||cloudDirty){cloudPending=false;cloudQueueSave(2500)}}
+}
+
+async function cloudUploadCurrentDb(showMessage=true){
+ try{
+   if(!cloudAccessToken){
+     if(!cloudRefreshToken)cloudRestoreStoredAuth();
+     try{await cloudEnsureFreshSession(true)}catch(e){}
+   }
+   if(!cloudAccessToken){
+     setCloudStatus("☁️ Login necessário","bad");
+     if(showMessage)alert("Sua sessão online não está mais ativa. Clique em Sair e entre novamente para continuar. Seus dados deste navegador não serão apagados.");
+     return false;
+   }
+   return await (cloudReady?cloudSaveNow(showMessage):cloudInitializeFromCurrentDb(showMessage));
+ }catch(e){console.error(e);setCloudStatus("☁️ Erro","bad");if(showMessage)alert("Erro ao enviar para a nuvem: "+e.message);return false}
+}
+
+// Mantém o login válido enquanto o sistema permanece aberto.
+// Ao trocar de aba/minimizar, tenta descarregar alterações pendentes enquanto
+// a sessão ainda está válida. Não depende do usuário apertar nenhum botão.
+document.addEventListener("visibilitychange",()=>{
+ if(document.visibilityState==="hidden"&&cloudAccessToken&&cloudReady){
+   clearTimeout(cloudSaveTimer);if(hlgbNormalizedReady)hlgbNormalizedSyncNow(false).catch(()=>{});if(cloudDirty)cloudSaveNow(false).catch(()=>{});
+ }
+});
+
+setInterval(()=>{
+ if(cloudAccessToken&&cloudRefreshToken&&(!cloudTokenExpiresAt||cloudTokenExpiresAt<=Date.now()+HLGB_CLOUD_REFRESH_MARGIN_MS)){
+  cloudRefreshSession(true).catch(e=>{console.warn("Falha ao renovar sessão:",e);cloudSessionExpired()});
+ }
+},60000);
+function cloudRefreshWhenBack(){
+ if(cloudRefreshToken)cloudEnsureFreshSession().then(()=>{
+   setCloudStatus(cloudDirty?"☁️ Salvando automático…":"☁️ Online · automático",cloudDirty?"":"ok");
+   if(hlgbNormalizedReady)hlgbPullNormalizedCoreChanges().catch(()=>{});
+   if(cloudDirty)cloudQueueSave(100);
+   else cloudPullRemoteIfNewer(false).catch(()=>{});
+ }).catch(()=>cloudSessionExpired());
+}
+// Segurança extra: se houver algo pendente, tenta sincronizar ao voltar para a aba,
+// ao recuperar a internet e também periodicamente.
+document.addEventListener("visibilitychange",()=>{
+ if(document.hidden){if(cloudAccessToken){if(hlgbNormalizedReady)hlgbNormalizedSyncNow(false).catch(()=>{});if(cloudDirty)cloudSaveNow(false).catch(()=>{});}}
+ else {cloudRefreshWhenBack();hlgbPullNormalizedCoreChanges().catch(()=>{});}
+});
+window.addEventListener("focus",()=>{cloudRefreshWhenBack();hlgbPullNormalizedCoreChanges().catch(()=>{})});
+window.addEventListener("online",()=>{cloudRefreshWhenBack();hlgbPullNormalizedCoreChanges().catch(()=>{})});
+setInterval(()=>{
+ if(cloudDirty&&cloudAccessToken&&cloudReady&&!cloudSaving)cloudSaveNow(false).catch(()=>{});
+},15000);
+setInterval(()=>{
+ // JSON legado: somente módulos ainda não migrados.
+ cloudCheckRemoteVersion().catch(()=>{});
+},2500);
+setInterval(()=>{
+ // Fallback das tabelas v90. O Realtime costuma ser instantâneo; esta verificação
+ // garante recuperação automática se WebSocket/RLS perder algum evento.
+ hlgbPullNormalizedCoreChanges().catch(()=>{});
+},1800);
+setInterval(()=>{
+ if(hlgbNormalizedReady&&cloudAccessToken&&hlgbCorePendingRead())hlgbNormalizedSyncNow(false).catch(()=>{});
+},7000);
+document.addEventListener("focusin",()=>{});
+document.addEventListener("focusout",()=>{
+ if(cloudRemoteUpdatePending)setTimeout(()=>{
+  if(!cloudUserIsEditing()){
+   try{applyAccess();const prevApplying=cloudApplying;cloudApplying=true;try{renderAll()}finally{cloudApplying=prevApplying};cloudRemoteUpdatePending=false}catch(e){console.warn(e)}
+  }
+ },120)
+});
+
+// Novos cadastros: preserva os dados existentes e cria as estruturas apenas se necessário.
+db.factionMasters=Array.isArray(db.factionMasters)?db.factionMasters:[];
+db.productionLocations=Array.isArray(db.productionLocations)?db.productionLocations:[{id:1,name:"Confecção 1",active:true}];
+db.factions=Array.isArray(db.factions)?db.factions:[];
+db.factionPayments=Array.isArray(db.factionPayments)?db.factionPayments:[];
+db.cuts=Array.isArray(db.cuts)?db.cuts:[];
+db.cutters=Array.isArray(db.cutters)?db.cutters:[];
+if(!Array.isArray(db.cutterPieceTypes)||!db.cutterPieceTypes.length)db.cutterPieceTypes=[
+ "Calcinha","Conjunto","Conjunto sem bojo","Conjunto com bojo","Camisola","Shorts","Robe","Sutiã"
+];
+db.production=Array.isArray(db.production)?db.production:[];
+db.orders=Array.isArray(db.orders)?db.orders:[];
+if(!Array.isArray(db.factionMasters))db.factionMasters=[];
+if(!Array.isArray(db.productionLocations))db.productionLocations=[];
+if(!db.productionLocations.length)db.productionLocations.push({id:Date.now()+1,name:"Confecção 1",active:true});
+if(!Array.isArray(db.serviceTypes)||!db.serviceTypes.length)db.serviceTypes=[
+ {id:101,name:"Calcinha"},{id:102,name:"Camisola"},{id:103,name:"Shorts"},
+ {id:104,name:"Conjunto"},{id:105,name:"Robe"},{id:106,name:"Sutiã"},
+ {id:107,name:"Costura"},{id:108,name:"Acabamento"}
+];
+if(!Array.isArray(db.machines)||!db.machines.length)db.machines=[
+ {id:201,name:"Reta"},{id:202,name:"Overloque"},{id:203,name:"Galoneira"},
+ {id:204,name:"Elastiqueira"},{id:205,name:"Travete"},{id:206,name:"Zigue-zague"},
+ {id:207,name:"Máquina de viés"},{id:208,name:"Cortador de elástico"}
+];
+
+// v89.48 — materiais simplificados e exemplos prontos.
+function ensureSimpleMaterialDefaults(){
+  db.materials=Array.isArray(db.materials)?db.materials:[];
+  function find(name){
+    let n=String(name).normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLowerCase();
+    return db.materials.find(m=>String(m.name||"").normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLowerCase()===n);
+  }
+  let romantic=find("Romantic");
+  if(!romantic){
+    romantic={id:Date.now()+481,name:"Romantic",cat:"Tecido",unit:"kg",purchaseMode:"kg",purchaseUnit:"kg",purchaseConversion:1,purchasePrice:32.90,price:32.90,allowFractionalPurchase:true,packageName:"rolo",packageMin:18,packageMax:20,packageAvg:19,min:0};
+    db.materials.push(romantic);
+  }else{
+    // Só completa campos novos; não apaga informações que o usuário já cadastrou.
+    if(!romantic.purchaseMode)romantic.purchaseMode="kg";
+    if(!romantic.unit)romantic.unit="kg";
+    if(!romantic.purchaseUnit)romantic.purchaseUnit="kg";
+    if(!romantic.purchaseConversion)romantic.purchaseConversion=1;
+    if(!(romantic.purchasePrice>0))romantic.purchasePrice=(+romantic.price||32.90);
+    if(!(romantic.price>0))romantic.price=32.90;
+    if(!romantic.packageName)romantic.packageName="rolo";
+    if(!(romantic.packageMin>0))romantic.packageMin=18;
+    if(!(romantic.packageMax>0))romantic.packageMax=20;
+    if(!(romantic.packageAvg>0))romantic.packageAvg=19;
+  }
+  let anis=find("Anis");
+  if(!anis){
+    anis={id:Date.now()+482,name:"Anis",cat:"Aviamento",unit:"m",purchaseMode:"rolo",purchaseUnit:"rolo",purchaseConversion:50,purchasePrice:24,price:0.48,allowFractionalPurchase:false,packageName:"rolo",packageMin:50,packageMax:50,packageAvg:50,min:0};
+    db.materials.push(anis);
+  }else{
+    if(!anis.purchaseMode)anis.purchaseMode="rolo";
+    if(!anis.unit)anis.unit="m";
+    if(!anis.purchaseUnit)anis.purchaseUnit="rolo";
+    if(!(anis.purchaseConversion>0))anis.purchaseConversion=50;
+    if(!(anis.purchasePrice>0))anis.purchasePrice=24;
+    if(!(anis.price>0))anis.price=24/50;
+    anis.allowFractionalPurchase=false;
+  }
+}
+ensureSimpleMaterialDefaults();
+
+// Migra textos antigos de facções para as novas seleções, sem perder informação.
+(db.factionMasters||[]).forEach(f=>{
+ if(!Array.isArray(f.serviceTypeIds)){
+   let vals=String(f.serviceType||"").split(",").map(x=>x.trim()).filter(Boolean);
+   f.serviceTypeIds=vals.map(v=>{
+     let item=db.serviceTypes.find(x=>x.name.toLowerCase()===v.toLowerCase());
+     if(!item){item={id:Date.now()+Math.floor(Math.random()*100000),name:v};db.serviceTypes.push(item)}
+     return item.id;
+   });
+ }
+ if(!Array.isArray(f.machineIds)){
+   let vals=String(f.machines||"").split(",").map(x=>x.trim()).filter(Boolean);
+   f.machineIds=vals.map(v=>{
+     let item=db.machines.find(x=>x.name.toLowerCase()===v.toLowerCase());
+     if(!item){item={id:Date.now()+Math.floor(Math.random()*100000),name:v};db.machines.push(item)}
+     return item.id;
+   });
+ }
+});
+
+
+
+
+function ensureProductReferences(){
+ db.products=Array.isArray(db.products)?db.products:[];
+ // Mantém referências que já existam e numera automaticamente somente as vazias.
+ let used=new Set(
+   db.products.map(p=>String(p.code||"").trim())
+     .filter(v=>/^\d+$/.test(v))
+     .map(v=>+v)
+ );
+ let next=1;
+ db.products.forEach(p=>{
+   if(String(p.code||"").trim())return;
+   while(used.has(next))next++;
+   p.code=String(next);
+   used.add(next);
+   next++;
+ });
+ try{persistDb()}catch(e){}
+}
+function nextProductReference(){
+ ensureProductReferences();
+ let nums=(db.products||[]).map(p=>String(p.code||"").trim()).filter(v=>/^\d+$/.test(v)).map(Number);
+ return String((nums.length?Math.max(...nums):0)+1);
+}
+ensureProductReferences();
+
+function priorityBadge(v){
+ let p=v||"Padrão",key=p.normalize("NFD").replace(/[\u0300-\u036f]/g,"").replace(/[^A-Za-z]/g,"");
+ return `<span class="priority-badge priority-${key}">${esc(p)}</span>`;
+}
+function cleanFactionProductName(text){
+ let s=String(text||"").trim();
+ if(!s)return "-";
+ // Remove segmentos típicos de grade: "10 Robe Alice Preto Tam P | 20 ..."
+ let first=s.split(" | ")[0].trim();
+ first=first.replace(/^\s*\d+\s+/,"");
+ first=first.replace(/\s+(Preto|Branco|Rubi|Frozen|Pantera|Azul|Vermelho|Rosa|Nude|Bege|Cinza|Verde|Amarelo|Marrom)\s+Tam(?:anho)?\.?\s+\w+\s*$/i,"");
+ first=first.replace(/\s+Tam(?:anho)?\.?\s+\w+\s*$/i,"");
+ return first.trim()||"-";
+}
+function orderProductSummary(o){
+ let names=[];
+ (o?.grade||[]).forEach(it=>{let p=(db.products||[]).find(x=>+x.id===+it.productId);if(p?.name&&!names.includes(p.name))names.push(p.name)});
+ if(names.length)return names.join(", ");
+ let p=(db.products||[]).find(x=>+x.id===+o?.productId);if(p?.name)return p.name;
+ return String(o?.items||"Pedido").replace(/\b\d+\s+/g,"").replace(/\s+(Preto|Branco|Rubi|Frozen|Pantera)\s+Tam\s+\w+/gi,"").split(" | ")[0]||"Pedido";
+}
+function getOrderByProduction(p){return (db.orders||[]).find(o=>+o.id===+p?.orderId)}
+function getOrderByCut(c){return (db.orders||[]).find(o=>+o.id===+c?.orderId)}
+function viewOrderDetails(orderId){
+ let o=(db.orders||[]).find(x=>+x.id===+orderId);if(!o)return;
+ let grade=Array.isArray(o.grade)?o.grade:[];
+ let rows=grade.map(it=>[esc((db.products||[]).find(p=>+p.id===+it.productId)?.name||"-"),esc(it.color||"-"),esc(it.size||"-"),(+it.qty||0).toLocaleString("pt-BR")]);
+ openModal(`Pedido #${o.id} — ${esc(o.client||"")}`,`<div class="grid"><div class="field"><label>Cliente</label><input value="${esc(o.client|
+
+===== NEXT =====
+
+cordGlobalLastSeen&&serverTime)hlgbRecordGlobalLastSeen=serverTime;
+  return {readable,rows,serverTime};
+}
+async function hlgbLoadNormalizedCore(opts={}){
+  if(!cloudAccessToken)return false;
+  try{
+    await hlgbRecordLoadBundle({preserveLocal:!!opts.preserveLocal,since:null});
+    hlgbLastRecordLoadError="";
+    hlgbRecordReady=true;hlgbNormalizedReady=true;
+    const pending=hlgbRecordPendingRead();
+    if(pending?.modules&&(!pending.email||normEmail(pending.email)===normEmail(cloudUser?.email||""))){
+      for(const [module,ops] of Object.entries(pending.modules)){
+        if(!HLGB_RECORD_MODULES.includes(module)||!Array.isArray(ops)||!hlgbRecordCanWrite(module))continue;
+        const local=hlgbRecordLocalMap(module);
+        for(const op of ops){if(!op.deleted)local.set(String(op.id),hlgbRecordClone(op.data))}
+        db[module]=[...local.values()];
+      }
+      localSaveOnly();try{if(typeof hlgb923EnsureProjectionIntegrity==="function")hlgb923EnsureProjectionIntegrity()}catch(e){console.warn("HLGB v91.24 projection repair after load",e)}setTimeout(()=>hlgbNormalizedSyncNow(false),40);
+    }else hlgbRecordPendingClear();
+    return true;
+  }catch(e){
+    hlgbRecordReady=false;hlgbNormalizedReady=false;
+    hlgbLastRecordLoadError=String(e?.message||e||"Falha desconhecida");
+    console.error("HLGB v91: falha ao carregar pacote de registros",e);setCloudStatus("☁️ Erro ao carregar dados","bad");return false;
+  }
+}
+async function hlgbRecordRpcSave(module,id,data,expectedRevision,deleted=false){
+  const body={p_module:module,p_entity_id:String(id),p_data:data,p_expected_revision:+expectedRevision||0,p_deleted:!!deleted};
+  let out=await cloudRequest("rpc/hlgb_save_record",{method:"POST",headers:{Prefer:"return=representation"},body:JSON.stringify(body)});
+  return Array.isArray(out)?out[0]:out;
+}
+async function hlgbRecordSaveWithRetry(module,id,data,deleted=false){
+  let snap=hlgbRecordSnapshots[module]||new Map(),old=snap.get(String(id)),expected=+old?.revision||0;
+  let result=await hlgbRecordRpcSave(module,id,hlgbRecordClone(data),expected,deleted);
+  if(result?.applied===false){
+    // Outra máquina editou exatamente o mesmo registro. Mescla campo a campo e tenta de novo.
+    const remote=result.data;
+    const base=old?.data;
+    const merged=deleted?hlgbRecordClone(data):cloudMergeThreeWay(base,hlgbRecordClone(data),remote);
+    result=await hlgbRecordRpcSave(module,id,merged,+result.revision||0,deleted);
+    if(result?.applied===false)throw new Error(`Conflito ao salvar ${module}. Atualize e tente novamente.`);
+    if(!deleted){
+      const arr=Array.isArray(db[module])?db[module]:[],idx=arr.findIndex((x,i)=>hlgbRecordId(module,x,i)===String(id));
+      if(idx>=0)arr[idx]=hlgbRecordClone(result.data||merged);
+    }
+  }
+  if(!result)throw new Error(`Supabase não confirmou o salvamento de ${module}.`);
+  const map=hlgbRecordSnapshots[module]||new Map();
+  map.set(String(id),{data:hlgbRecordClone(result.data),deleted_at:result.deleted_at||null,revision:+result.revision||1,updated_at:result.updated_at||new Date().toISOString(),updated_by:result.updated_by||null});
+  hlgbRecordSnapshots[module]=map;
+  if(String(result.updated_at||"")>String(hlgbRecordLastSeen[module]||""))hlgbRecordLastSeen[module]=String(result.updated_at||"");
+  return result;
+}
+async function hlgbNormalizedSyncModule(module){
+  if(!hlgbRecordReady||!cloudAccessToken)return true;
+  if(!hlgbRecordCanWrite(module))return true;
+  const snap=hlgbRecordSnapshots[module]||new Map(),local=hlgbRecordLocalMap(module),jobs=[];
+  for(const [id,item] of local){const old=snap.get(id);if(!old||old.deleted_at||!cloudEq(old.data,item))jobs.push({id,data:item,deleted:false})}
+  // v91.26: nenhuma exclusão é inferida por diferença entre navegador e nuvem.
+  for(const job of jobs)await hlgbRecordSaveWithRetry(module,job.id,job.data,job.deleted);
+  return true;
+}
+async function hlgbNormalizedSyncNow(showMessage=false){
+  if(!hlgbRecordReady||!cloudAccessToken)return false;
+  if(hlgbRecordSyncing){hlgbRecordSyncAgain=true;return true;}
+  hlgbRecordSyncing=true;
+  try{
+    await cloudEnsureFreshSession(false);
+    for(const module of HLGB_RECORD_MODULES)await hlgbNormalizedSyncModule(module);
+    hlgbRecordPendingStore();
+    if(!hlgbRecordPendingRead())hlgbRecordPendingClear();
+    localSaveOnly();
+    setCloudStatus("⚡ Online · multiusuário","ok");
+    if(showMessage)alert("Dados sincronizados com sucesso.");
+    return true;
+  }catch(e){
+    console.error("HLGB v91.16 sync",e);hlgbRecordPendingStore();setCloudStatus("☁️ Alterações pendentes","bad");try{const el=document.getElementById("cloudStatus");if(el)el.title=String(e?.message||e||"");}catch(_){}return false;
+  }finally{
+    hlgbRecordSyncing=false;
+    if(hlgbRecordSyncAgain){
+      hlgbRecordSyncAgain=false;
+      setTimeout(()=>hlgbNormalizedSyncNow(false),10);
+    }
+  }
+}
+function hlgbQueueNormalizedSync(delay=10){
+  if(!hlgbRecordReady)return;
+  hlgbRecordPendingStore();
+  setCloudStatus("☁️ Salvando automático…");
+  clearTimeout(hlgbRecordSyncTimer);
+  hlgbRecordSyncTimer=setTimeout(()=>hlgbNormalizedSyncNow(false),Math.max(0,delay));
+}
+function hlgbApplyRecordRow(row){
+  const module=String(row?.module||"");if(!HLGB_RECORD_MODULES.includes(module)||row?.entity_id==null)return false;
+  const id=String(row.entity_id),arr=Array.isArray(db[module])?db[module]:[],idx=arr.findIndex((x,i)=>hlgbRecordId(module,x,i)===id);
+  if(row.deleted_at){if(idx>=0)arr.splice(idx,1)}
+  else {const data=hlgbRecordHydrateData(module,row);if(idx>=0)arr[idx]=data;else arr.push(data)}
+  db[module]=arr;
+  const snap=hlgbRecordSnapshots[module]||new Map();snap.set(id,{data:hlgbRecordClone(row.data),deleted_at:row.deleted_at||null,revision:+row.revision||1,updated_at:row.updated_at||"",updated_by:row.updated_by||null});hlgbRecordSnapshots[module]=snap;
+  if(String(row.updated_at||"")>String(hlgbRecordLastSeen[module]||""))hlgbRecordLastSeen[module]=String(row.updated_at||"");
+  if(String(row.updated_at||"")>String(hlgbRecordGlobalLastSeen||""))hlgbRecordGlobalLastSeen=String(row.updated_at||"");
+  return true;
+}
+function hlgbRenderIncomingRecord(module){
+  module=String(module||"");
+  const modalOpen=!!document.querySelector("#modal.show");
+  const activePage=document.querySelector(".page.active")?.id||"";
+
+  // A ficha aberta em modal continua protegida contra redesenho enquanto a pessoa digita.
+  if(modalOpen){cloudRemoteUpdatePending=true;return false;}
+
+  const prev=cloudApplying;cloudApplying=true;
+  try{
+    // Produtos precisa atualizar a tabela mesmo que o cursor esteja em Busca/Preço mínimo/Preço máximo.
+    // Antes qualquer INPUT focado bloqueava a atualização visual e a edição só aparecia após sair da tela.
+    if(module==="products" && activePage==="produtos"){
+      if(typeof renderProducts==="function")renderProducts();
+      cloudRemoteUpdatePending=false;
+      return true;
+    }
+
+    // v91.29: na Folha, uma alteração confirmada por outra máquina precisa aparecer
+    // imediatamente. O modal aberto continua protegido pelo guard acima.
+    if(module==="payroll" && activePage==="folhaPagamento"){
+      if(typeof renderPayroll==="function")renderPayroll();
+      cloudRemoteUpdatePending=false;
+      return true;
+    }
+
+    // Para as demais telas mantemos a proteção antiga enquanto há um formulário/campo sendo editado.
+    if(!cloudUserIsEditing()){
+      renderAll();
+      cloudRemoteUpdatePending=false;
+      return true;
+    }
+    cloudRemoteUpdatePending=true;
+    return false;
+  }finally{cloudApplying=prev}
+}
+
+async function hlgbHandleRecordRealtime(payload){
+  try{
+    let row=payload?.new&&Object.keys(payload.new).length?payload.new:payload?.old;
+    if(!row)return;
+    if(payload.eventType==="DELETE")row={...row,deleted_at:row.deleted_at||new Date().toISOString()};
+    const module=String(row.module||"");
+    if(!HLGB_RECORD_MODULES.includes(module))return;
+    hlgbApplyRecordRow(row);localSaveOnly();
+    hlgbRenderIncomingRecord(module);
+    setCloudStatus("⚡ Online · atualização recebida","ok");
+    setTimeout(()=>setCloudStatus("⚡ Online · multiusuário","ok"),650);
+  }catch(e){console.warn("HLGB v91.16 realtime",e)}
+}
+async function hlgbPullNormalizedCoreChanges(force=false){
+  if(!hlgbRecordReady||hlgbRecordPulling||!cloudAccessToken||document.hidden)return false;
+  // Realtime continua sendo o caminho principal, mas mantemos UMA leitura em lote como segurança.
+  // A chamada legada ocorre com frequência, porém este limitador permite no máximo 1 pacote/8 s,
+  // em vez das dezenas de consultas por módulo que existiam nas versões antigas.
+  const now=Date.now();
+  if(!force&&now-hlgbRecordLastPullAt<8000)return false;
+  hlgbRecordLastPullAt=now;hlgbRecordPulling=true;
+  try{
+    // Guardamos o último instante realmente conhecido ANTES da leitura. A consulta usa 1 s de
+    // sobreposição para não perder registros, então ela pode devolver novamente linhas já aplicadas.
+    // Essas linhas repetidas não podem provocar renderAll(), senão a tela dá a impressão de tremida.
+    const lastBeforePull=String(hlgbRecordGlobalLastSeen||"");
+    let since=null;
+    if(lastBeforePull){
+      const t=Date.parse(lastBeforePull);
+      if(Number.isFinite(t))since=new Date(Math.max(0,t-1000)).toISOString();
+    }
+    const bundle=await hlgbRecordLoadBundle({preserveLocal:true,since});
+    const rows=Array.isArray(bundle?.rows)?bundle.rows:[];
+    const freshRows=lastBeforePull
+      ? rows.filter(r=>String(r?.updated_at||"")>lastBeforePull)
+      : rows;
+    const changed=freshRows.length>0;
+    if(changed){
+      localSaveOnly();
+      const modules=[...new Set(freshRows.map(r=>String(r?.module||"")).filter(Boolean))];
+      // Produtos e Folha atualizam a tela mesmo com filtros focados.
+      let handled=false;
+      if(modules.includes("products"))handled=hlgbRenderIncomingRecord("products")||handled;
+      if(modules.includes("payroll"))handled=hlgbRenderIncomingRecord("payroll")||handled;
+      if(!handled&&!cloudUserIsEditing()){
+        const prev=cloudApplying;cloudApplying=true;try{renderAll();cloudRemoteUpdatePending=false}finally{cloudApplying=prev}
+      }else if(!handled) cloudRemoteUpdatePending=true;
+    }
+    return changed;
+  }catch(e){
+    // Uma falha transitória de leitura jamais desativa o modo por registros.
+    console.warn("HLGB v91 pull bundle",e);return false;
+  }finally{hlgbRecordPulling=false}
+}
+
+// O JSON legado continua guardando somente configuração, usuários e históricos administrativos.
+const _v9100CloudPayload=cloudPayload;
+cloudPayload=function(remoteSource=null){
+  const copy=_v9100CloudPayload(remoteSource);
+  if(hlgbRecordReady){
+    for(const module of HLGB_RECORD_MODULES){
+      const oldArr=Array.isArray(remoteSource?.[module])?remoteSource[module]:(Array.isArray(cloudBaseSnapshot?.[module])?cloudBaseSnapshot[module]:null);
+      if(oldArr)copy[module]=cloudClone(oldArr);
+    }
+  }
+  return copy;
+};
+hlgbLegacyComparablePayload=function(v){
+  const x=hlgbRecordClone(v||{});for(const module of HLGB_RECORD_MODULES)delete x[module];
+  delete x.auditLog;delete x.userSessions;delete x.session;delete x.activeSessionId;return x;
+};
+
+hlgbStartRealtime=function(){
+  try{
+    if(!cloudReady||!cloudRowId||!cloudAccessToken||!window.supabase?.createClient)return false;
+    hlgbStopRealtime();
+    hlgbRealtimeClient=window.supabase.createClient(HLGB_SUPABASE_URL,HLGB_SUPABASE_KEY,{auth:{persistSession:false,autoRefreshToken:false,detectSessionInUrl:false},realtime:{params:{eventsPerSecond:80}}});
+    hlgbRealtimeClient.realtime.setAuth(cloudAccessToken);
+    hlgbRealtimeChannel=hlgbRealtimeClient.channel(`hlgb-v91-live-${cloudRowId}`)
+      .on('postgres_changes',{event:'*',schema:'public',table:'hlgb_records'},hlgbHandleRecordRealtime)
+      .on('postgres_changes',{event:'UPDATE',schema:'public',table:'hlgb_data',filter:`id=eq.${cloudRowId}`},hlgbHandleRealtimeDataChange)
+      .subscribe((status,err)=>{
+        hlgbRealtimeState=status;
+        if(status==='SUBSCRIBED')setCloudStatus((cloudDirty||hlgbRecordPendingRead())?'☁️ Salvando automático…':'⚡ Online · multiusuário',(cloudDirty||hlgbRecordPendingRead())?'':'ok');
+        else if(status==='CHANNEL_ERROR'||status==='TIMED_OUT'){console.warn('HLGB Realtime',status,err);setCloudStatus('☁️ Online · reconectando…')}
+      });
+    return true;
+  }catch(e){console.warn("HLGB v91 realtime start",e);return false}
+};
+
+// Grava local imediatamente e agenda apenas os registros que mudaram.
+const _v9100PersistDb=persistDb;
+persistDb=function(){
+  localSaveOnly();
+  if(cloudBootstrapping||cloudApplying)return true;
+  if(hlgbRecordReady)hlgbQueueNormalizedSync(5);
+  let legacyChanged=true;
+  try{legacyChanged=!cloudEq(hlgbLegacyComparablePayload(cloudPayload(cloudBaseSnapshot||null)),hlgbLegacyComparablePayload(cloudBaseSnapshot||{}))}catch(e){}
+  if(legacyChanged && isOwnerUser()){cloudDirty=true;cloudMarkLocalDirty(true);if(cloudReady&&cloudAccessToken){setCloudStatus("☁️ Salvando automático…");cloudQueueSave(120)}}
+  else {
+    if(!isOwnerUser()){cloudDirty=false;cloudMarkLocalDirty(false);}
+    if(!hlgbRecordPendingRead())setCloudStatus("⚡ Online · multiusuário","ok");
+  }
+  return true;
+};
+
+// Fallback rápido se o websocket cair: lê somente linhas alteradas.
+setInterval(()=>{
+  if(hlgbRecordReady&&cloudAccessToken&&hlgbRealtimeState!=="SUBSCRIBED")hlgbPullNormalizedCoreChanges(false).catch(()=>{});
+},8000);
+setInterval(()=>{if(hlgbRecordReady&&cloudAccessToken&&hlgbRecordPendingRead())hlgbNormalizedSyncNow(false).catch(()=>{})},3500);
+// Rede de segurança: mesmo com Realtime marcado como conectado, faz uma leitura única e leve
+// periodicamente. Isso cobre navegador que mantém o websocket aberto mas deixa de entregar eventos.
+setInterval(()=>{if(hlgbRecordReady&&cloudAccessToken&&!document.hidden)hlgbPullNormalizedCoreChanges(true).catch(()=>{})},6000);
+window.addEventListener("focus",()=>{if(hlgbRecordReady&&cloudAccessToken)hlgbPullNormalizedCoreChanges(tru
+
+===== NEXT =====
+
+odule==="payroll" && activePage==="folhaPagamento"){
+      if(typeof renderPayroll==="function")renderPayroll();
+      cloudRemoteUpdatePending=false;
+      return true;
+    }
+
+    // Para as demais telas mantemos a proteção antiga enquanto há um formulário/campo sendo editado.
+    if(!cloudUserIsEditing()){
+      renderAll();
+      cloudRemoteUpdatePending=false;
+      return true;
+    }
+    cloudRemoteUpdatePending=true;
+    return false;
+  }finally{cloudApplying=prev}
+}
+
+async function hlgbHandleRecordRealtime(payload){
+  try{
+    let row=payload?.new&&Object.keys(payload.new).length?payload.new:payload?.old;
+    if(!row)return;
+    if(payload.eventType==="DELETE")row={...row,deleted_at:row.deleted_at||new Date().toISOString()};
+    const module=String(row.module||"");
+    if(!HLGB_RECORD_MODULES.includes(module))return;
+    hlgbApplyRecordRow(row);localSaveOnly();
+    hlgbRenderIncomingRecord(module);
+    setCloudStatus("⚡ Online · atualização recebida","ok");
+    setTimeout(()=>setCloudStatus("⚡ Online · multiusuário","ok"),650);
+  }catch(e){console.warn("HLGB v91.16 realtime",e)}
+}
+async function hlgbPullNormalizedCoreChanges(force=false){
+  if(!hlgbRecordReady||hlgbRecordPulling||!cloudAccessToken||document.hidden)return false;
+  // Realtime continua sendo o caminho principal, mas mantemos UMA leitura em lote como segurança.
+  // A chamada legada ocorre com frequência, porém este limitador permite no máximo 1 pacote/8 s,
+  // em vez das dezenas de consultas por módulo que existiam nas versões antigas.
+  const now=Date.now();
+  if(!force&&now-hlgbRecordLastPullAt<8000)return false;
+  hlgbRecordLastPullAt=now;hlgbRecordPulling=true;
+  try{
+    // Guardamos o último instante realmente conhecido ANTES da leitura. A consulta usa 1 s de
+    // sobreposição para não perder registros, então ela pode devolver novamente linhas já aplicadas.
+    // Essas linhas repetidas não podem provocar renderAll(), senão a tela dá a impressão de tremida.
+    const lastBeforePull=String(hlgbRecordGlobalLastSeen||"");
+    let since=null;
+    if(lastBeforePull){
+      const t=Date.parse(lastBeforePull);
+      if(Number.isFinite(t))since=new Date(Math.max(0,t-1000)).toISOString();
+    }
+    const bundle=await hlgbRecordLoadBundle({preserveLocal:true,since});
+    const rows=Array.isArray(bundle?.rows)?bundle.rows:[];
+    const freshRows=lastBeforePull
+      ? rows.filter(r=>String(r?.updated_at||"")>lastBeforePull)
+      : rows;
+    const changed=freshRows.length>0;
+    if(changed){
+      localSaveOnly();
+      const modules=[...new Set(freshRows.map(r=>String(r?.module||"")).filter(Boolean))];
+      // Produtos e Folha atualizam a tela mesmo com filtros focados.
+      let handled=false;
+      if(modules.includes("products"))handled=hlgbRenderIncomingRecord("products")||handled;
+      if(modules.includes("payroll"))handled=hlgbRenderIncomingRecord("payroll")||handled;
+      if(!handled&&!cloudUserIsEditing()){
+        const prev=cloudApplying;cloudApplying=true;try{renderAll();cloudRemoteUpdatePending=false}finally{cloudApplying=prev}
+      }else if(!handled) cloudRemoteUpdatePending=true;
+    }
+    return changed;
+  }catch(e){
+    // Uma falha transitória de leitura jamais desativa o modo por registros.
+    console.warn("HLGB v91 pull bundle",e);return false;
+  }finally{hlgbRecordPulling=false}
+}
+
+// O JSON legado continua guardando somente configuração, usuários e históricos administrativos.
+const _v9100CloudPayload=cloudPayload;
+cloudPayload=function(remoteSource=null){
+  const copy=_v9100CloudPayload(remoteSource);
+  if(hlgbRecordReady){
+    for(const module of HLGB_RECORD_MODULES){
+      const oldArr=Array.isArray(remoteSource?.[module])?remoteSource[module]:(Array.isArray(cloudBaseSnapshot?.[module])?cloudBaseSnapshot[module]:null);
+      if(oldArr)copy[module]=cloudClone(oldArr);
+    }
+  }
+  return copy;
+};
+hlgbLegacyComparablePayload=function(v){
+  const x=hlgbRecordClone(v||{});for(const module of HLGB_RECORD_MODULES)delete x[module];
+  delete x.auditLog;delete x.userSessions;delete x.session;delete x.activeSessionId;return x;
+};
+
+hlgbStartRealtime=function(){
+  try{
+    if(!cloudReady||!cloudRowId||!cloudAccessToken||!window.supabase?.createClient)return false;
+    hlgbStopRealtime();
+    hlgbRealtimeClient=window.supabase.createClient(HLGB_SUPABASE_URL,HLGB_SUPABASE_KEY,{auth:{persistSession:false,autoRefreshToken:false,detectSessionInUrl:false},realtime:{params:{eventsPerSecond:80}}});
+    hlgbRealtimeClient.realtime.setAuth(cloudAccessToken);
+    hlgbRealtimeChannel=hlgbRealtimeClient.channel(`hlgb-v91-live-${cloudRowId}`)
+      .on('postgres_changes',{event:'*',schema:'public',table:'hlgb_records'},hlgbHandleRecordRealtime)
+      .on('postgres_changes',{event:'UPDATE',schema:'public',table:'hlgb_data',filter:`id=eq.${cloudRowId}`},hlgbHandleRealtimeDataChange)
+      .subscribe((status,err)=>{
+        hlgbRealtimeState=status;
+        if(status==='SUBSCRIBED')setCloudStatus((cloudDirty||hlgbRecordPendingRead())?'☁️ Salvando automático…':'⚡ Online · multiusuário',(cloudDirty||hlgbRecordPendingRead())?'':'ok');
+        else if(status==='CHANNEL_ERROR'||status==='TIMED_OUT'){console.warn('HLGB Realtime',status,err);setCloudStatus('☁️ Online · reconectando…')}
+      });
+    return true;
+  }catch(e){console.warn("HLGB v91 realtime start",e);return false}
+};
+
+// Grava local imediatamente e agenda apenas os registros que mudaram.
+const _v9100PersistDb=persistDb;
+persistDb=function(){
+  localSaveOnly();
+  if(cloudBootstrapping||cloudApplying)return true;
+  if(hlgbRecordReady)hlgbQueueNormalizedSync(5);
+  let legacyChanged=true;
+  try{legacyChanged=!cloudEq(hlgbLegacyComparablePayload(cloudPayload(cloudBaseSnapshot||null)),hlgbLegacyComparablePayload(cloudBaseSnapshot||{}))}catch(e){}
+  if(legacyChanged && isOwnerUser()){cloudDirty=true;cloudMarkLocalDirty(true);if(cloudReady&&cloudAccessToken){setCloudStatus("☁️ Salvando automático…");cloudQueueSave(120)}}
+  else {
+    if(!isOwnerUser()){cloudDirty=false;cloudMarkLocalDirty(false);}
+    if(!hlgbRecordPendingRead())setCloudStatus("⚡ Online · multiusuário","ok");
+  }
+  return true;
+};
+
+// Fallback rápido se o websocket cair: lê somente linhas alteradas.
+setInterval(()=>{
+  if(hlgbRecordReady&&cloudAccessToken&&hlgbRealtimeState!=="SUBSCRIBED")hlgbPullNormalizedCoreChanges(false).catch(()=>{});
+},8000);
+setInterval(()=>{if(hlgbRecordReady&&cloudAccessToken&&hlgbRecordPendingRead())hlgbNormalizedSyncNow(false).catch(()=>{})},3500);
+// Rede de segurança: mesmo com Realtime marcado como conectado, faz uma leitura única e leve
+// periodicamente. Isso cobre navegador que mantém o websocket aberto mas deixa de entregar eventos.
+setInterval(()=>{if(hlgbRecordReady&&cloudAccessToken&&!document.hidden)hlgbPullNormalizedCoreChanges(true).catch(()=>{})},6000);
+window.addEventListener("focus",()=>{if(hlgbRecordReady&&cloudAccessToken)hlgbPullNormalizedCoreChanges(true).catch(()=>{})});
+
+
+function hlgb928EnsureCloudCoverage(module){
+  try{
+    if(!HLGB_RECORD_MODULES.includes(module))return 0;
+    const snap=hlgbRecordSnapshots?.[module];
+    if(!(snap instanceof Map))return 0;
+    const local=hlgbRecordLocalMap(module);let added=0;
+    for(const [id,row] of snap.entries()){
+      if(!row||row.deleted_at||local.has(String(id)))continue;
+      const data=hlgbRecordClone(row.data);
+      if(data&&typeof data==="object"){
+        local.set(String(id),data);added++;
+      }
+    }
+    if(added)db[module]=[...local.values()];
+    return added;
+  }catch(e){console.warn("HLGB v91.28 coverage",module,e);return 0}
+}
+
+async function hlgbEnsureRecordsOnlineAfterLogin(){
+  if(!cloudAccessToken||!cloudReady)return false;
+  if(hlgbRecordReady)return true;
+  try{
+    setCloudStatus("☁️ Carregando dados multiusuário…");
+    const ok=await hlgbLoadNormalizedCore({preserveLocal:false});
+    if(ok){
+      // Safety net: after the official full load, a browser may never contain fewer
+      // cloud products/orders than the authoritative snapshots.
+      const repairedProducts=hlgb928EnsureCloudCoverage("products");
+      const repairedOrders=hlgb928EnsureCloudCoverage("orders");
+      if(repairedProducts||repairedOrders)console.warn("HLGB v91.28 repaired local cloud gaps",{products:repairedProducts,orders:repairedOrders});
+      localSaveOnly();
+      // Recalcula a fila pendente com os snapshots recém-carregados. Se a fila era
+      // apenas resíduo de uma versão anterior com erro, ela desaparece aqui.
+      try{hlgbRecordPendingStore()}catch(e){}
+      const prev=cloudApplying;cloudApplying=true;try{renderAll()}finally{cloudApplying=prev}
+      hlgbStartRealtime();
+      setCloudStatus(hlgbRecordPendingRead()?"☁️ Salvando automático…":"⚡ Online · multiusuário",hlgbRecordPendingRead()?"":"ok");
+      return true;
+    }
+  }catch(e){console.error("HLGB v91.16 bootstrap",e);}
+  return false;
+}
+/* ===== fim v91.16 ===== */
+
+if(cloudRestoreStoredAuth()){
+ (async()=>{
+  try{
+   await cloudRefreshSession(true);
+   await cloudLoad();
+   await hlgbEnsureRecordsOnlineAfterLogin();
+   if(normEmail(cloudUser?.email)===normEmail(HLGB_OWNER_EMAIL)){normalizeUserDirectoryForOwner();}
+   const profile=await ensureCloudUserAccessOnline();
+   // Depois que permissões e os 44/45 registros da nuvem foram carregados, recupera somente
+   // eventual produto excedente que já existia neste navegador antes da nuvem.
+   await hlgbRecoverLocalOnlyProducts();
+   cloudBootstrapping=false;
+   db.userSessions=Array.isArray(db.userSessions)?db.userSessions:[];
+   const sess={id:Date.now()+Math.random(),userId:profile.id,user:profile.name||cloudUser.email,login:cloudUser.email,loginAt:new Date().toISOString(),logoutAt:"",restored:true};
+   db.userSessions.push(sess);db.activeSessionId=sess.id;localSaveOnly();
+   if(window.HLGB_SESSION_BOOT_CANCELLED)throw new Error("Restauração da sessão cancelada por demora.");
+   loginScreen.style.display="none";sessionLoader.style.display="none";appShell.style.display="block";setTimeout(()=>window.hlgbMarkAuthenticated?.(),0);applyAccess();restoreNavGroups();
+   {const prevApplying=cloudApplying;cloudApplying=true;try{renderAll()}finally{cloudApplying=prevApplying}}
+  }catch(e){
+   console.warn("Não foi possível restaurar a sessão online",e);
+   cloudAccessToken="";cloudRefreshToken="";cloudTokenExpiresAt=0;cloudUser=null;cloudReady=false;cloudRowId=null;cloudStoreAuth();
+   db.session=null;localSaveOnly();
+   sessionLoader.style.display="none";appShell.style.display="none";loginScreen.style.display="flex";
+ }
+ })();
+}else{sessionLoader.style.display="none";loginScreen.style.display="flex"}
+setTimeout(()=>document.getElementById("loginUser")?.focus(),0);
+if(document.getElementById("weekStart")) setCurrentWeek(); if(document.getElementById("clientProfitReport")) renderClientProfitReport("month");
+
+
+
+
+
+
+/* ===== v89.44 — ORDEM DE CORTE / CORTES DO DIA ===== */
+function cutPriorityWeight(o){
+  let p=String(o?.priority||"Padrão").normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLowerCase();
+  if(p.includes("urgentissimo"))return 0;
+  if(p.includes("urgente"))return 1;
+  return 2;
+}
+function cloneCutGrade(v){try{return JSON.parse(JSON.stringify(v||[]))}catch(e){return []}}
+function prepareCutSchedule(){
+  db.cuts=Array.isArray(db.cuts)?db.cuts:[];
+  let today=isoDate(new Date()),changed=false;
+  let orders=pedidosQuePrecisamDeCorte();
+  orders.forEach(o=>{
+    let c=obterCorteDoPedido(o);
+    let w=cutPriorityWeight(o);
+    // Urgente/urgentíssimo sem programação entra automaticamente no dia atual.
+    if(!c.plannedCutDate && w<=1){c.plannedCutDate=today;c.autoScheduledPriority=true;changed=true}
+    // Tudo que ficou para trás e não foi finalizado passa para o dia atual.
+    if(String(c.status||"").toLowerCase()!=="finalizado" && c.plannedCutDate && c.plannedCutDate<today){
+      c.carriedFromDate=c.carriedFromDate||c.plannedCutDate;
+      c.lastCarriedFrom=c.plannedCutDate;
+      c.plannedCutDate=today;
+      c.rolloverCount=(+c.rolloverCount||0)+1;
+      changed=true;
+    }
+  });
+  if(changed){try{persistDb()}catch(e){console.error(e)}}
+}
+function saveCutSchedule(id){
+  let c=(db.cuts||[]).find(x=>+x.id===+id);if(!c)return;
+  let d=document.getElementById(`cutDate_${id}`),ct=document.getElementById(`cutCutter_${id}`),type=document.getElementById(`cutType_${id}`);
+  c.plannedCutDate=d?.value||"";
+  c.cutterId=ct?.value?+ct.value:null;
+  c.cutType=type?.value||c.cutType||"";
+  c.scheduleUpdatedAt=new Date().toISOString();
+  try{persistDb()}catch(e){console.error(e)}
+  renderCuts();
+}
+function setDailyCutToday(){let el=document.getElementById("dailyCutDate");if(el)el.value=isoDate(new Date());renderDailyCuts()}
+function cutOrderFor(c){return (db.orders||[]).find(o=>+o.id===+c.orderId)||null}
+function cutOriginalGrade(c,o){
+  if(Array.isArray(c.originalGrade)&&c.originalGrade.length)return c.originalGrade;
+  return cloneCutGrade(o?.grade||[]);
+}
+function cutActualGrade(c,o){
+  if(Array.isArray(c.actualCutGrade)&&c.actualCutGrade.length)return c.actualCutGrade;
+  return cutOriginalGrade(c,o);
+}
+function cutGradeComparisonHTML(c){
+  let o=cutOrderFor(c),orig=cutOriginalGrade(c,o),actual=cutActualGrade(c,o);
+  if(!orig.length)return `<div class="panel"><strong>Pedido original:</strong> ${(+c.originalPieces||qtyOfOrder(o||{})||0).toLocaleString("pt-BR")} peças<br><strong>Cortado:</strong> ${(+c.pieces||0).toLocaleString("pt-BR")} peças</div>`;
+  let byKey={};
+  const key=x=>`${x.productId||""}|${x.color||""}|${x.size||""}`;
+  orig.forEach(x=>byKey[key(x)]={orig:+x.qty||0,actual:0,item:x});
+  actual.forEach(x=>{let k=key(x);if(!byKey[k])byKey[k]={orig:0,actual:0,item:x};byKey[k].actual+=+x.qty||0});
+  let rows=Object.values(byKey).map(r=>{
+    let p=(db.products||[]).find(x=>+x.id===+r.item.productId),diff=r.actual-r.orig;
+    return [esc(p?.name||"Produto"),esc(r.item.color||"-"),esc(r.item.size||"-"),r.orig,r.actual,diff===0?"0":`<span class="${diff<0?'cut-diff-negative':'cut-diff-positive'}">${diff>0?'+':''}${diff}</span>`];
+  });
+  r
+
+===== NEXT =====
+
+rd(module);
+    setCloudStatus("⚡ Online · atualização recebida","ok");
+    setTimeout(()=>setCloudStatus("⚡ Online · multiusuário","ok"),650);
+  }catch(e){console.warn("HLGB v91.16 realtime",e)}
+}
+async function hlgbPullNormalizedCoreChanges(force=false){
+  if(!hlgbRecordReady||hlgbRecordPulling||!cloudAccessToken||document.hidden)return false;
+  // Realtime continua sendo o caminho principal, mas mantemos UMA leitura em lote como segurança.
+  // A chamada legada ocorre com frequência, porém este limitador permite no máximo 1 pacote/8 s,
+  // em vez das dezenas de consultas por módulo que existiam nas versões antigas.
+  const now=Date.now();
+  if(!force&&now-hlgbRecordLastPullAt<8000)return false;
+  hlgbRecordLastPullAt=now;hlgbRecordPulling=true;
+  try{
+    // Guardamos o último instante realmente conhecido ANTES da leitura. A consulta usa 1 s de
+    // sobreposição para não perder registros, então ela pode devolver novamente linhas já aplicadas.
+    // Essas linhas repetidas não podem provocar renderAll(), senão a tela dá a impressão de tremida.
+    const lastBeforePull=String(hlgbRecordGlobalLastSeen||"");
+    let since=null;
+    if(lastBeforePull){
+      const t=Date.parse(lastBeforePull);
+      if(Number.isFinite(t))since=new Date(Math.max(0,t-1000)).toISOString();
+    }
+    const bundle=await hlgbRecordLoadBundle({preserveLocal:true,since});
+    const rows=Array.isArray(bundle?.rows)?bundle.rows:[];
+    const freshRows=lastBeforePull
+      ? rows.filter(r=>String(r?.updated_at||"")>lastBeforePull)
+      : rows;
+    const changed=freshRows.length>0;
+    if(changed){
+      localSaveOnly();
+      const modules=[...new Set(freshRows.map(r=>String(r?.module||"")).filter(Boolean))];
+      // Produtos e Folha atualizam a tela mesmo com filtros focados.
+      let handled=false;
+      if(modules.includes("products"))handled=hlgbRenderIncomingRecord("products")||handled;
+      if(modules.includes("payroll"))handled=hlgbRenderIncomingRecord("payroll")||handled;
+      if(!handled&&!cloudUserIsEditing()){
+        const prev=cloudApplying;cloudApplying=true;try{renderAll();cloudRemoteUpdatePending=false}finally{cloudApplying=prev}
+      }else if(!handled) cloudRemoteUpdatePending=true;
+    }
+    return changed;
+  }catch(e){
+    // Uma falha transitória de leitura jamais desativa o modo por registros.
+    console.warn("HLGB v91 pull bundle",e);return false;
+  }finally{hlgbRecordPulling=false}
+}
+
+// O JSON legado continua guardando somente configuração, usuários e históricos administrativos.
+const _v9100CloudPayload=cloudPayload;
+cloudPayload=function(remoteSource=null){
+  const copy=_v9100CloudPayload(remoteSource);
+  if(hlgbRecordReady){
+    for(const module of HLGB_RECORD_MODULES){
+      const oldArr=Array.isArray(remoteSource?.[module])?remoteSource[module]:(Array.isArray(cloudBaseSnapshot?.[module])?cloudBaseSnapshot[module]:null);
+      if(oldArr)copy[module]=cloudClone(oldArr);
+    }
+  }
+  return copy;
+};
+hlgbLegacyComparablePayload=function(v){
+  const x=hlgbRecordClone(v||{});for(const module of HLGB_RECORD_MODULES)delete x[module];
+  delete x.auditLog;delete x.userSessions;delete x.session;delete x.activeSessionId;return x;
+};
+
+hlgbStartRealtime=function(){
+  try{
+    if(!cloudReady||!cloudRowId||!cloudAccessToken||!window.supabase?.createClient)return false;
+    hlgbStopRealtime();
+    hlgbRealtimeClient=window.supabase.createClient(HLGB_SUPABASE_URL,HLGB_SUPABASE_KEY,{auth:{persistSession:false,autoRefreshToken:false,detectSessionInUrl:false},realtime:{params:{eventsPerSecond:80}}});
+    hlgbRealtimeClient.realtime.setAuth(cloudAccessToken);
+    hlgbRealtimeChannel=hlgbRealtimeClient.channel(`hlgb-v91-live-${cloudRowId}`)
+      .on('postgres_changes',{event:'*',schema:'public',table:'hlgb_records'},hlgbHandleRecordRealtime)
+      .on('postgres_changes',{event:'UPDATE',schema:'public',table:'hlgb_data',filter:`id=eq.${cloudRowId}`},hlgbHandleRealtimeDataChange)
+      .subscribe((status,err)=>{
+        hlgbRealtimeState=status;
+        if(status==='SUBSCRIBED')setCloudStatus((cloudDirty||hlgbRecordPendingRead())?'☁️ Salvando automático…':'⚡ Online · multiusuário',(cloudDirty||hlgbRecordPendingRead())?'':'ok');
+        else if(status==='CHANNEL_ERROR'||status==='TIMED_OUT'){console.warn('HLGB Realtime',status,err);setCloudStatus('☁️ Online · reconectando…')}
+      });
+    return true;
+  }catch(e){console.warn("HLGB v91 realtime start",e);return false}
+};
+
+// Grava local imediatamente e agenda apenas os registros que mudaram.
+const _v9100PersistDb=persistDb;
+persistDb=function(){
+  localSaveOnly();
+  if(cloudBootstrapping||cloudApplying)return true;
+  if(hlgbRecordReady)hlgbQueueNormalizedSync(5);
+  let legacyChanged=true;
+  try{legacyChanged=!cloudEq(hlgbLegacyComparablePayload(cloudPayload(cloudBaseSnapshot||null)),hlgbLegacyComparablePayload(cloudBaseSnapshot||{}))}catch(e){}
+  if(legacyChanged && isOwnerUser()){cloudDirty=true;cloudMarkLocalDirty(true);if(cloudReady&&cloudAccessToken){setCloudStatus("☁️ Salvando automático…");cloudQueueSave(120)}}
+  else {
+    if(!isOwnerUser()){cloudDirty=false;cloudMarkLocalDirty(false);}
+    if(!hlgbRecordPendingRead())setCloudStatus("⚡ Online · multiusuário","ok");
+  }
+  return true;
+};
+
+// Fallback rápido se o websocket cair: lê somente linhas alteradas.
+setInterval(()=>{
+  if(hlgbRecordReady&&cloudAccessToken&&hlgbRealtimeState!=="SUBSCRIBED")hlgbPullNormalizedCoreChanges(false).catch(()=>{});
+},8000);
+setInterval(()=>{if(hlgbRecordReady&&cloudAccessToken&&hlgbRecordPendingRead())hlgbNormalizedSyncNow(false).catch(()=>{})},3500);
+// Rede de segurança: mesmo com Realtime marcado como conectado, faz uma leitura única e leve
+// periodicamente. Isso cobre navegador que mantém o websocket aberto mas deixa de entregar eventos.
+setInterval(()=>{if(hlgbRecordReady&&cloudAccessToken&&!document.hidden)hlgbPullNormalizedCoreChanges(true).catch(()=>{})},6000);
+window.addEventListener("focus",()=>{if(hlgbRecordReady&&cloudAccessToken)hlgbPullNormalizedCoreChanges(true).catch(()=>{})});
+
+
+function hlgb928EnsureCloudCoverage(module){
+  try{
+    if(!HLGB_RECORD_MODULES.includes(module))return 0;
+    const snap=hlgbRecordSnapshots?.[module];
+    if(!(snap instanceof Map))return 0;
+    const local=hlgbRecordLocalMap(module);let added=0;
+    for(const [id,row] of snap.entries()){
+      if(!row||row.deleted_at||local.has(String(id)))continue;
+      const data=hlgbRecordClone(row.data);
+      if(data&&typeof data==="object"){
+        local.set(String(id),data);added++;
+      }
+    }
+    if(added)db[module]=[...local.values()];
+    return added;
+  }catch(e){console.warn("HLGB v91.28 coverage",module,e);return 0}
+}
+
+async function hlgbEnsureRecordsOnlineAfterLogin(){
+  if(!cloudAccessToken||!cloudReady)return false;
+  if(hlgbRecordReady)return true;
+  try{
+    setCloudStatus("☁️ Carregando dados multiusuário…");
+    const ok=await hlgbLoadNormalizedCore({preserveLocal:false});
+    if(ok){
+      // Safety net: after the official full load, a browser may never contain fewer
+      // cloud products/orders than the authoritative snapshots.
+      const repairedProducts=hlgb928EnsureCloudCoverage("products");
+      const repairedOrders=hlgb928EnsureCloudCoverage("orders");
+      if(repairedProducts||repairedOrders)console.warn("HLGB v91.28 repaired local cloud gaps",{products:repairedProducts,orders:repairedOrders});
+      localSaveOnly();
+      // Recalcula a fila pendente com os snapshots recém-carregados. Se a fila era
+      // apenas resíduo de uma versão anterior com erro, ela desaparece aqui.
+      try{hlgbRecordPendingStore()}catch(e){}
+      const prev=cloudApplying;cloudApplying=true;try{renderAll()}finally{cloudApplying=prev}
+      hlgbStartRealtime();
+      setCloudStatus(hlgbRecordPendingRead()?"☁️ Salvando automático…":"⚡ Online · multiusuário",hlgbRecordPendingRead()?"":"ok");
+      return true;
+    }
+  }catch(e){console.error("HLGB v91.16 bootstrap",e);}
+  return false;
+}
+/* ===== fim v91.16 ===== */
+
+if(cloudRestoreStoredAuth()){
+ (async()=>{
+  try{
+   await cloudRefreshSession(true);
+   await cloudLoad();
+   await hlgbEnsureRecordsOnlineAfterLogin();
+   if(normEmail(cloudUser?.email)===normEmail(HLGB_OWNER_EMAIL)){normalizeUserDirectoryForOwner();}
+   const profile=await ensureCloudUserAccessOnline();
+   // Depois que permissões e os 44/45 registros da nuvem foram carregados, recupera somente
+   // eventual produto excedente que já existia neste navegador antes da nuvem.
+   await hlgbRecoverLocalOnlyProducts();
+   cloudBootstrapping=false;
+   db.userSessions=Array.isArray(db.userSessions)?db.userSessions:[];
+   const sess={id:Date.now()+Math.random(),userId:profile.id,user:profile.name||cloudUser.email,login:cloudUser.email,loginAt:new Date().toISOString(),logoutAt:"",restored:true};
+   db.userSessions.push(sess);db.activeSessionId=sess.id;localSaveOnly();
+   if(window.HLGB_SESSION_BOOT_CANCELLED)throw new Error("Restauração da sessão cancelada por demora.");
+   loginScreen.style.display="none";sessionLoader.style.display="none";appShell.style.display="block";setTimeout(()=>window.hlgbMarkAuthenticated?.(),0);applyAccess();restoreNavGroups();
+   {const prevApplying=cloudApplying;cloudApplying=true;try{renderAll()}finally{cloudApplying=prevApplying}}
+  }catch(e){
+   console.warn("Não foi possível restaurar a sessão online",e);
+   cloudAccessToken="";cloudRefreshToken="";cloudTokenExpiresAt=0;cloudUser=null;cloudReady=false;cloudRowId=null;cloudStoreAuth();
+   db.session=null;localSaveOnly();
+   sessionLoader.style.display="none";appShell.style.display="none";loginScreen.style.display="flex";
+ }
+ })();
+}else{sessionLoader.style.display="none";loginScreen.style.display="flex"}
+setTimeout(()=>document.getElementById("loginUser")?.focus(),0);
+if(document.getElementById("weekStart")) setCurrentWeek(); if(document.getElementById("clientProfitReport")) renderClientProfitReport("month");
+
+
+
+
+
+
+/* ===== v89.44 — ORDEM DE CORTE / CORTES DO DIA ===== */
+function cutPriorityWeight(o){
+  let p=String(o?.priority||"Padrão").normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLowerCase();
+  if(p.includes("urgentissimo"))return 0;
+  if(p.includes("urgente"))return 1;
+  return 2;
+}
+function cloneCutGrade(v){try{return JSON.parse(JSON.stringify(v||[]))}catch(e){return []}}
+function prepareCutSchedule(){
+  db.cuts=Array.isArray(db.cuts)?db.cuts:[];
+  let today=isoDate(new Date()),changed=false;
+  let orders=pedidosQuePrecisamDeCorte();
+  orders.forEach(o=>{
+    let c=obterCorteDoPedido(o);
+    let w=cutPriorityWeight(o);
+    // Urgente/urgentíssimo sem programação entra automaticamente no dia atual.
+    if(!c.plannedCutDate && w<=1){c.plannedCutDate=today;c.autoScheduledPriority=true;changed=true}
+    // Tudo que ficou para trás e não foi finalizado passa para o dia atual.
+    if(String(c.status||"").toLowerCase()!=="finalizado" && c.plannedCutDate && c.plannedCutDate<today){
+      c.carriedFromDate=c.carriedFromDate||c.plannedCutDate;
+      c.lastCarriedFrom=c.plannedCutDate;
+      c.plannedCutDate=today;
+      c.rolloverCount=(+c.rolloverCount||0)+1;
+      changed=true;
+    }
+  });
+  if(changed){try{persistDb()}catch(e){console.error(e)}}
+}
+function saveCutSchedule(id){
+  let c=(db.cuts||[]).find(x=>+x.id===+id);if(!c)return;
+  let d=document.getElementById(`cutDate_${id}`),ct=document.getElementById(`cutCutter_${id}`),type=document.getElementById(`cutType_${id}`);
+  c.plannedCutDate=d?.value||"";
+  c.cutterId=ct?.value?+ct.value:null;
+  c.cutType=type?.value||c.cutType||"";
+  c.scheduleUpdatedAt=new Date().toISOString();
+  try{persistDb()}catch(e){console.error(e)}
+  renderCuts();
+}
+function setDailyCutToday(){let el=document.getElementById("dailyCutDate");if(el)el.value=isoDate(new Date());renderDailyCuts()}
+function cutOrderFor(c){return (db.orders||[]).find(o=>+o.id===+c.orderId)||null}
+function cutOriginalGrade(c,o){
+  if(Array.isArray(c.originalGrade)&&c.originalGrade.length)return c.originalGrade;
+  return cloneCutGrade(o?.grade||[]);
+}
+function cutActualGrade(c,o){
+  if(Array.isArray(c.actualCutGrade)&&c.actualCutGrade.length)return c.actualCutGrade;
+  return cutOriginalGrade(c,o);
+}
+function cutGradeComparisonHTML(c){
+  let o=cutOrderFor(c),orig=cutOriginalGrade(c,o),actual=cutActualGrade(c,o);
+  if(!orig.length)return `<div class="panel"><strong>Pedido original:</strong> ${(+c.originalPieces||qtyOfOrder(o||{})||0).toLocaleString("pt-BR")} peças<br><strong>Cortado:</strong> ${(+c.pieces||0).toLocaleString("pt-BR")} peças</div>`;
+  let byKey={};
+  const key=x=>`${x.productId||""}|${x.color||""}|${x.size||""}`;
+  orig.forEach(x=>byKey[key(x)]={orig:+x.qty||0,actual:0,item:x});
+  actual.forEach(x=>{let k=key(x);if(!byKey[k])byKey[k]={orig:0,actual:0,item:x};byKey[k].actual+=+x.qty||0});
+  let rows=Object.values(byKey).map(r=>{
+    let p=(db.products||[]).find(x=>+x.id===+r.item.productId),diff=r.actual-r.orig;
+    return [esc(p?.name||"Produto"),esc(r.item.color||"-"),esc(r.item.size||"-"),r.orig,r.actual,diff===0?"0":`<span class="${diff<0?'cut-diff-negative':'cut-diff-positive'}">${diff>0?'+':''}${diff}</span>`];
+  });
+  return table(["Produto","Cor","Tamanho","Pedido original","Cortado","Diferença"],rows)+`<div class="sub" style="margin-top:8px"><strong>Observação:</strong> ${esc(c.cutAdjustmentNote||"-")}</div>`;
+}
+function viewCutGradeComparison(id){let c=(db.cuts||[]).find(x=>+x.id===+id);if(!c)return;openModal("Pedido original × corte realizado",cutGradeComparisonHTML(c),()=>{})}
+function finishCut(id){
+  let c=(db.cuts||[]).find(x=>+x.id===+id);if(!c)return;
+  let o=cutOrderFor(c);
+  if(!c.originalPieces)c.originalPieces=+c.pieces||qtyOfOrder(o||{})||0;
+  if(!Array.isArray(c.originalGrade)||!c.originalGrade.length)c.originalGrade=cloneCutGrade(o?.grade||[]);
+  let orig=cutOriginalGrade(c,o),actual=cutActualGrade(c,o);
+  let gradeHtml="";
+  if(orig.length){
+    gradeHtml=`<div class="panel" style="margin-top:12px"><h3>Grade realmente cortada</h3><div class="sub">O pedido original fica preservado. Altere som
+
+===== NEXT =====
+
+[module])?remoteSource[module]:(Array.isArray(cloudBaseSnapshot?.[module])?cloudBaseSnapshot[module]:null);
+      if(oldArr)copy[module]=cloudClone(oldArr);
+    }
+  }
+  return copy;
+};
+hlgbLegacyComparablePayload=function(v){
+  const x=hlgbRecordClone(v||{});for(const module of HLGB_RECORD_MODULES)delete x[module];
+  delete x.auditLog;delete x.userSessions;delete x.session;delete x.activeSessionId;return x;
+};
+
+hlgbStartRealtime=function(){
+  try{
+    if(!cloudReady||!cloudRowId||!cloudAccessToken||!window.supabase?.createClient)return false;
+    hlgbStopRealtime();
+    hlgbRealtimeClient=window.supabase.createClient(HLGB_SUPABASE_URL,HLGB_SUPABASE_KEY,{auth:{persistSession:false,autoRefreshToken:false,detectSessionInUrl:false},realtime:{params:{eventsPerSecond:80}}});
+    hlgbRealtimeClient.realtime.setAuth(cloudAccessToken);
+    hlgbRealtimeChannel=hlgbRealtimeClient.channel(`hlgb-v91-live-${cloudRowId}`)
+      .on('postgres_changes',{event:'*',schema:'public',table:'hlgb_records'},hlgbHandleRecordRealtime)
+      .on('postgres_changes',{event:'UPDATE',schema:'public',table:'hlgb_data',filter:`id=eq.${cloudRowId}`},hlgbHandleRealtimeDataChange)
+      .subscribe((status,err)=>{
+        hlgbRealtimeState=status;
+        if(status==='SUBSCRIBED')setCloudStatus((cloudDirty||hlgbRecordPendingRead())?'☁️ Salvando automático…':'⚡ Online · multiusuário',(cloudDirty||hlgbRecordPendingRead())?'':'ok');
+        else if(status==='CHANNEL_ERROR'||status==='TIMED_OUT'){console.warn('HLGB Realtime',status,err);setCloudStatus('☁️ Online · reconectando…')}
+      });
+    return true;
+  }catch(e){console.warn("HLGB v91 realtime start",e);return false}
+};
+
+// Grava local imediatamente e agenda apenas os registros que mudaram.
+const _v9100PersistDb=persistDb;
+persistDb=function(){
+  localSaveOnly();
+  if(cloudBootstrapping||cloudApplying)return true;
+  if(hlgbRecordReady)hlgbQueueNormalizedSync(5);
+  let legacyChanged=true;
+  try{legacyChanged=!cloudEq(hlgbLegacyComparablePayload(cloudPayload(cloudBaseSnapshot||null)),hlgbLegacyComparablePayload(cloudBaseSnapshot||{}))}catch(e){}
+  if(legacyChanged && isOwnerUser()){cloudDirty=true;cloudMarkLocalDirty(true);if(cloudReady&&cloudAccessToken){setCloudStatus("☁️ Salvando automático…");cloudQueueSave(120)}}
+  else {
+    if(!isOwnerUser()){cloudDirty=false;cloudMarkLocalDirty(false);}
+    if(!hlgbRecordPendingRead())setCloudStatus("⚡ Online · multiusuário","ok");
+  }
+  return true;
+};
+
+// Fallback rápido se o websocket cair: lê somente linhas alteradas.
+setInterval(()=>{
+  if(hlgbRecordReady&&cloudAccessToken&&hlgbRealtimeState!=="SUBSCRIBED")hlgbPullNormalizedCoreChanges(false).catch(()=>{});
+},8000);
+setInterval(()=>{if(hlgbRecordReady&&cloudAccessToken&&hlgbRecordPendingRead())hlgbNormalizedSyncNow(false).catch(()=>{})},3500);
+// Rede de segurança: mesmo com Realtime marcado como conectado, faz uma leitura única e leve
+// periodicamente. Isso cobre navegador que mantém o websocket aberto mas deixa de entregar eventos.
+setInterval(()=>{if(hlgbRecordReady&&cloudAccessToken&&!document.hidden)hlgbPullNormalizedCoreChanges(true).catch(()=>{})},6000);
+window.addEventListener("focus",()=>{if(hlgbRecordReady&&cloudAccessToken)hlgbPullNormalizedCoreChanges(true).catch(()=>{})});
+
+
+function hlgb928EnsureCloudCoverage(module){
+  try{
+    if(!HLGB_RECORD_MODULES.includes(module))return 0;
+    const snap=hlgbRecordSnapshots?.[module];
+    if(!(snap instanceof Map))return 0;
+    const local=hlgbRecordLocalMap(module);let added=0;
+    for(const [id,row] of snap.entries()){
+      if(!row||row.deleted_at||local.has(String(id)))continue;
+      const data=hlgbRecordClone(row.data);
+      if(data&&typeof data==="object"){
+        local.set(String(id),data);added++;
+      }
+    }
+    if(added)db[module]=[...local.values()];
+    return added;
+  }catch(e){console.warn("HLGB v91.28 coverage",module,e);return 0}
+}
+
+async function hlgbEnsureRecordsOnlineAfterLogin(){
+  if(!cloudAccessToken||!cloudReady)return false;
+  if(hlgbRecordReady)return true;
+  try{
+    setCloudStatus("☁️ Carregando dados multiusuário…");
+    const ok=await hlgbLoadNormalizedCore({preserveLocal:false});
+    if(ok){
+      // Safety net: after the official full load, a browser may never contain fewer
+      // cloud products/orders than the authoritative snapshots.
+      const repairedProducts=hlgb928EnsureCloudCoverage("products");
+      const repairedOrders=hlgb928EnsureCloudCoverage("orders");
+      if(repairedProducts||repairedOrders)console.warn("HLGB v91.28 repaired local cloud gaps",{products:repairedProducts,orders:repairedOrders});
+      localSaveOnly();
+      // Recalcula a fila pendente com os snapshots recém-carregados. Se a fila era
+      // apenas resíduo de uma versão anterior com erro, ela desaparece aqui.
+      try{hlgbRecordPendingStore()}catch(e){}
+      const prev=cloudApplying;cloudApplying=true;try{renderAll()}finally{cloudApplying=prev}
+      hlgbStartRealtime();
+      setCloudStatus(hlgbRecordPendingRead()?"☁️ Salvando automático…":"⚡ Online · multiusuário",hlgbRecordPendingRead()?"":"ok");
+      return true;
+    }
+  }catch(e){console.error("HLGB v91.16 bootstrap",e);}
+  return false;
+}
+/* ===== fim v91.16 ===== */
+
+if(cloudRestoreStoredAuth()){
+ (async()=>{
+  try{
+   await cloudRefreshSession(true);
+   await cloudLoad();
+   await hlgbEnsureRecordsOnlineAfterLogin();
+   if(normEmail(cloudUser?.email)===normEmail(HLGB_OWNER_EMAIL)){normalizeUserDirectoryForOwner();}
+   const profile=await ensureCloudUserAccessOnline();
+   // Depois que permissões e os 44/45 registros da nuvem foram carregados, recupera somente
+   // eventual produto excedente que já existia neste navegador antes da nuvem.
+   await hlgbRecoverLocalOnlyProducts();
+   cloudBootstrapping=false;
+   db.userSessions=Array.isArray(db.userSessions)?db.userSessions:[];
+   const sess={id:Date.now()+Math.random(),userId:profile.id,user:profile.name||cloudUser.email,login:cloudUser.email,loginAt:new Date().toISOString(),logoutAt:"",restored:true};
+   db.userSessions.push(sess);db.activeSessionId=sess.id;localSaveOnly();
+   if(window.HLGB_SESSION_BOOT_CANCELLED)throw new Error("Restauração da sessão cancelada por demora.");
+   loginScreen.style.display="none";sessionLoader.style.display="none";appShell.style.display="block";setTimeout(()=>window.hlgbMarkAuthenticated?.(),0);applyAccess();restoreNavGroups();
+   {const prevApplying=cloudApplying;cloudApplying=true;try{renderAll()}finally{cloudApplying=prevApplying}}
+  }catch(e){
+   console.warn("Não foi possível restaurar a sessão online",e);
+   cloudAccessToken="";cloudRefreshToken="";cloudTokenExpiresAt=0;cloudUser=null;cloudReady=false;cloudRowId=null;cloudStoreAuth();
+   db.session=null;localSaveOnly();
+   sessionLoader.style.display="none";appShell.style.display="none";loginScreen.style.display="flex";
+ }
+ })();
+}else{sessionLoader.style.display="none";loginScreen.style.display="flex"}
+setTimeout(()=>document.getElementById("loginUser")?.focus(),0);
+if(document.getElementById("weekStart")) setCurrentWeek(); if(document.getElementById("clientProfitReport")) renderClientProfitReport("month");
+
+
+
+
+
+
+/* ===== v89.44 — ORDEM DE CORTE / CORTES DO DIA ===== */
+function cutPriorityWeight(o){
+  let p=String(o?.priority||"Padrão").normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLowerCase();
+  if(p.includes("urgentissimo"))return 0;
+  if(p.includes("urgente"))return 1;
+  return 2;
+}
+function cloneCutGrade(v){try{return JSON.parse(JSON.stringify(v||[]))}catch(e){return []}}
+function prepareCutSchedule(){
+  db.cuts=Array.isArray(db.cuts)?db.cuts:[];
+  let today=isoDate(new Date()),changed=false;
+  let orders=pedidosQuePrecisamDeCorte();
+  orders.forEach(o=>{
+    let c=obterCorteDoPedido(o);
+    let w=cutPriorityWeight(o);
+    // Urgente/urgentíssimo sem programação entra automaticamente no dia atual.
+    if(!c.plannedCutDate && w<=1){c.plannedCutDate=today;c.autoScheduledPriority=true;changed=true}
+    // Tudo que ficou para trás e não foi finalizado passa para o dia atual.
+    if(String(c.status||"").toLowerCase()!=="finalizado" && c.plannedCutDate && c.plannedCutDate<today){
+      c.carriedFromDate=c.carriedFromDate||c.plannedCutDate;
+      c.lastCarriedFrom=c.plannedCutDate;
+      c.plannedCutDate=today;
+      c.rolloverCount=(+c.rolloverCount||0)+1;
+      changed=true;
+    }
+  });
+  if(changed){try{persistDb()}catch(e){console.error(e)}}
+}
+function saveCutSchedule(id){
+  let c=(db.cuts||[]).find(x=>+x.id===+id);if(!c)return;
+  let d=document.getElementById(`cutDate_${id}`),ct=document.getElementById(`cutCutter_${id}`),type=document.getElementById(`cutType_${id}`);
+  c.plannedCutDate=d?.value||"";
+  c.cutterId=ct?.value?+ct.value:null;
+  c.cutType=type?.value||c.cutType||"";
+  c.scheduleUpdatedAt=new Date().toISOString();
+  try{persistDb()}catch(e){console.error(e)}
+  renderCuts();
+}
+function setDailyCutToday(){let el=document.getElementById("dailyCutDate");if(el)el.value=isoDate(new Date());renderDailyCuts()}
+function cutOrderFor(c){return (db.orders||[]).find(o=>+o.id===+c.orderId)||null}
+function cutOriginalGrade(c,o){
+  if(Array.isArray(c.originalGrade)&&c.originalGrade.length)return c.originalGrade;
+  return cloneCutGrade(o?.grade||[]);
+}
+function cutActualGrade(c,o){
+  if(Array.isArray(c.actualCutGrade)&&c.actualCutGrade.length)return c.actualCutGrade;
+  return cutOriginalGrade(c,o);
+}
+function cutGradeComparisonHTML(c){
+  let o=cutOrderFor(c),orig=cutOriginalGrade(c,o),actual=cutActualGrade(c,o);
+  if(!orig.length)return `<div class="panel"><strong>Pedido original:</strong> ${(+c.originalPieces||qtyOfOrder(o||{})||0).toLocaleString("pt-BR")} peças<br><strong>Cortado:</strong> ${(+c.pieces||0).toLocaleString("pt-BR")} peças</div>`;
+  let byKey={};
+  const key=x=>`${x.productId||""}|${x.color||""}|${x.size||""}`;
+  orig.forEach(x=>byKey[key(x)]={orig:+x.qty||0,actual:0,item:x});
+  actual.forEach(x=>{let k=key(x);if(!byKey[k])byKey[k]={orig:0,actual:0,item:x};byKey[k].actual+=+x.qty||0});
+  let rows=Object.values(byKey).map(r=>{
+    let p=(db.products||[]).find(x=>+x.id===+r.item.productId),diff=r.actual-r.orig;
+    return [esc(p?.name||"Produto"),esc(r.item.color||"-"),esc(r.item.size||"-"),r.orig,r.actual,diff===0?"0":`<span class="${diff<0?'cut-diff-negative':'cut-diff-positive'}">${diff>0?'+':''}${diff}</span>`];
+  });
+  return table(["Produto","Cor","Tamanho","Pedido original","Cortado","Diferença"],rows)+`<div class="sub" style="margin-top:8px"><strong>Observação:</strong> ${esc(c.cutAdjustmentNote||"-")}</div>`;
+}
+function viewCutGradeComparison(id){let c=(db.cuts||[]).find(x=>+x.id===+id);if(!c)return;openModal("Pedido original × corte realizado",cutGradeComparisonHTML(c),()=>{})}
+function finishCut(id){
+  let c=(db.cuts||[]).find(x=>+x.id===+id);if(!c)return;
+  let o=cutOrderFor(c);
+  if(!c.originalPieces)c.originalPieces=+c.pieces||qtyOfOrder(o||{})||0;
+  if(!Array.isArray(c.originalGrade)||!c.originalGrade.length)c.originalGrade=cloneCutGrade(o?.grade||[]);
+  let orig=cutOriginalGrade(c,o),actual=cutActualGrade(c,o);
+  let gradeHtml="";
+  if(orig.length){
+    gradeHtml=`<div class="panel" style="margin-top:12px"><h3>Grade realmente cortada</h3><div class="sub">O pedido original fica preservado. Altere somente o que realmente saiu no corte caso tenha faltado material.</div>${table(["Produto","Cor","Tamanho","Pedido original","Cortado"],orig.map((it,i)=>{
+      let p=(db.products||[]).find(x=>+x.id===+it.productId),a=actual.find(x=>+x.productId===+it.productId&&String(x.color||"")===String(it.color||"")&&String(x.size||"")===String(it.size||""));
+      return [esc(p?.name||"Produto"),esc(it.color||"-"),esc(it.size||"-"),+it.qty||0,`<input id="cutActual_${i}" type="number" min="0" step="1" value="${a?.qty??it.qty??0}" style="width:90px;padding:7px;border:1px solid #ccd2dc;border-radius:7px">`];
+    }))}</div>`;
+  }else{
+    gradeHtml=`<div class="field"><label>Quantidade realmente cortada</label><input id="cutActualPieces" type="number" min="0" step="1" value="${+c.pieces||0}"></div>`;
+  }
+  openModal("Finalizar corte",`<div class="cards"><div class="card"><small>Pedido</small><strong>#${esc(displayOrderNumber(o||{id:c.orderId})||c.orderId||'-')}</strong></div><div class="card"><small>Cliente</small><strong style="font-size:18px">${esc(o?.client||c.client||'-')}</strong></div><div class="card"><small>Peças do pedido</small><strong>${(+c.originalPieces||0).toLocaleString('pt-BR')}</strong></div></div>${gradeHtml}<div class="field" style="margin-top:12px"><label>Observação / motivo da alteração</label><textarea id="cutAdjustmentNote" placeholder="Ex.: faltou renda preta; retirei 8 peças tamanho M">${esc(c.cutAdjustmentNote||"")}</textarea></div><div class="sub" style="margin:10px 0">A grade do <strong>pedido original não será alterada</strong>. O sistema guardará as duas para conferência posterior.</div><button type="button" class="primary modalSave">✅ Confirmar corte finalizado</button>`,()=>{
+    let finalGrade=[];
+    if(orig.length){
+      finalGrade=orig.map((it,i)=>({...it,qty:Math.max(0,+document.getElementById(`cutActual_${i}`)?.value||0)}));
+      c.actualCutGrade=finalGrade;
+      c.pieces=finalGrade.reduce((a,x)=>a+(+x.qty||0),0);
+    }else{
+      c.pieces=Math.max(0,+document.getElementById("cutActualPieces")?.value||0);
+    }
+    c.cutAdjustmentNote=document.getElementById("cutAdjustmentNote")?.value||"";
+    c.status="Finalizado";c.finishedAt=isoDate(new Date());c.finishedAtTime=new Date().toISOString();
+    if(o)o.status="Corte finalizado";
+    closeModal();
+    try{persistDb()}catch(e){console.error(e);alert("Não foi possível salvar a finalização do corte.");return}
+    syncFinalizedCutsToProduction();renderCuts();renderOrders();renderCutters();renderProduction();
+  });
+}
+function renderDailyCuts(){
+  let el=document.getElementById("dailyCutTable"),sum=document.getElementById("dailyCutSummary"),dateEl=document.getElementById("dailyCutDate");if(!el)return;
+  if(dateEl&&!dateEl.value)dateEl.value=isoDate(new Date(

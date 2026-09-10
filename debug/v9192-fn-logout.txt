@@ -1,0 +1,31 @@
+async function logout(){
+ cloudBootstrapping=true;
+ // Fecha controles exclusivos imediatamente.
+ ["backupBtn","importBackupBtn","backupImportInput","cloudSaveBtn"].forEach(id=>{let el=document.getElementById(id);if(el)el.style.display="none";});
+ try{auditAction("Logout","Saída do sistema")}catch(e){}
+ let sess=(db.userSessions||[]).find(x=>x.id===db.activeSessionId);if(sess)sess.logoutAt=new Date().toISOString();db.activeSessionId=null;
+ db.session=null;
+ // Grava local e marca pendente. O ponto crítico é NÃO apagar o token antes de
+ // tentar enviar a última alteração para o Supabase. Era isso que fazia produto
+ // e autorização de funcionário sumirem ao sair e entrar novamente.
+ try{localSaveOnly();cloudDirty=true;cloudMarkLocalDirty(true)}catch(e){}
+ try{
+   if(!cloudAccessToken&&cloudRefreshToken)await cloudEnsureFreshSession(true);
+   if(cloudAccessToken&&cloudReady){
+     clearTimeout(cloudSaveTimer);
+     try{await hlgbNormalizedSyncNow(false)}catch(e){}
+     if(cloudDirty)await cloudSaveNow(false);
+   }
+ }catch(e){
+   console.warn("HLGB: saída com sincronização pendente; será recuperada no próximo login",e);
+   cloudMarkLocalDirty(true);
+ }
+ hlgbStopRealtime();
+ cloudAccessToken="";cloudRefreshToken="";cloudTokenExpiresAt=0;cloudUser=null;cloudReady=false;cloudRowId=null;cloudStoreAuth();
+ document.getElementById("appShell").style.display="none";
+ document.getElementById("loginScreen").style.display="flex";
+ document.getElementById("loginPass").value="";
+ document.getElementById("loginError").textContent="";
+ document.getElementById("loginError").style.display="none";
+ document.getElementById("loginUser").focus();
+}

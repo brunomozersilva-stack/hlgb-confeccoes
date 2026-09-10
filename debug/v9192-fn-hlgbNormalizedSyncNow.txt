@@ -1,0 +1,15 @@
+async function hlgbNormalizedSyncNow(showMessage=false){
+ if(!hlgbNormalizedReady||!cloudAccessToken||hlgbNormalizedSyncing)return false;
+ hlgbNormalizedSyncing=true;
+ try{
+  await cloudEnsureFreshSession();
+  for(const module of Object.keys(HLGB_CORE_MODULES))await hlgbNormalizedSyncModule(module);
+  hlgbCorePendingStore();
+  const left=hlgbCorePendingRead();if(!left?.modules||!Object.keys(left.modules).length)hlgbCorePendingClear();
+  if(showMessage)alert("Dados principais sincronizados por registro.");
+  if(!cloudDirty)setCloudStatus("⚡ Online · multiusuário","ok");
+  return true;
+ }catch(e){
+  console.warn("HLGB Core sync",e);hlgbCorePendingStore();setCloudStatus("☁️ Alterações principais pendentes","bad");return false;
+ }finally{hlgbNormalizedSyncing=false}
+}

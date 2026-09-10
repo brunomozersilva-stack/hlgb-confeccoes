@@ -1,0 +1,1 @@
+function hlgbRecordPendingRead(){try{return JSON.parse(localStorage.getItem(HLGB_RECORD_PENDING_KEY)||"null")}catch(e){return null}}

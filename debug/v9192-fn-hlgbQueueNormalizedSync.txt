@@ -1,0 +1,5 @@
+function hlgbQueueNormalizedSync(delay=90){
+ if(!hlgbNormalizedReady)return;
+ hlgbCorePendingStore();
+ clearTimeout(hlgbNormalizedSyncTimer);hlgbNormalizedSyncTimer=setTimeout(()=>hlgbNormalizedSyncNow(false),delay);
+}

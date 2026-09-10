@@ -1,0 +1,35 @@
+async function cloudRefreshSession(force=false){
+ if(cloudRefreshPromise)return cloudRefreshPromise;
+ if(!cloudRefreshToken)throw new Error("Sua sessão expirou. Entre novamente para continuar.");
+ if(!force&&cloudAccessToken&&cloudTokenExpiresAt>Date.now()+90000)return true;
+ cloudRefreshPromise=(async()=>{
+  // v91.74: algumas versões do Safari deixam a requisição de renovação pendurada
+  // quando o refresh token guardado ficou obsoleto. Abortamos somente a chamada;
+  // banco local, diário de pendências e dados da nuvem não são tocados.
+  const controller=typeof AbortController!=="undefined"?new AbortController():null;
+  const timeoutId=setTimeout(()=>{try{controller?.abort()}catch(e){}},8000);
+  let res;
+  try{
+   res=await fetch(`${HLGB_SUPABASE_URL}/auth/v1/token?grant_type=refresh_token`,{
+    method:"POST",headers:{"apikey":HLGB_SUPABASE_KEY,"Content-Type":"application/json"},
+    body:JSON.stringify({refresh_token:cloudRefreshToken}),...(controller?{signal:controller.signal}:{})
+   });
+  }catch(e){
+   if(e?.name==="AbortError")throw new Error("A sessão anterior não respondeu. Entre novamente para continuar.");
+   throw e;
+  }finally{clearTimeout(timeoutId)}
+  let data=await res.json().catch(()=>({}));
+  // 429 não significa sessão inválida: significa excesso temporário de refresh.
+  // Se o JWT atual ainda é válido, continuamos usando-o e tentamos renovar depois.
+  if(res.status===429){
+   if(cloudAccessToken&&cloudTokenExpiresAt>Date.now()+5000)return true;
+   throw new Error(data.error_description||data.msg||data.message||"Muitas tentativas de renovação da sessão. Aguarde alguns segundos.");
+  }
+  if(!res.ok||!data.access_token){
+   cloudAccessToken="";cloudRefreshToken="";cloudTokenExpiresAt=0;cloudStoreAuth();
+   throw new Error(data.error_description||data.msg||data.message||"Sua sessão expirou. Entre novamente.");
+  }
+  cloudApplyAuth(data);setCloudStatus("☁️ Online","ok");return true;
+ })();
+ try{return await cloudRefreshPromise}finally{cloudRefreshPromise=null}
+}

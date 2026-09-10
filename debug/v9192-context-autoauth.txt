@@ -1,0 +1,229 @@
+ad=function(v){
+  const x=hlgbRecordClone(v||{});for(const module of HLGB_RECORD_MODULES)delete x[module];
+  delete x.auditLog;delete x.userSessions;delete x.session;delete x.activeSessionId;return x;
+};
+
+hlgbStartRealtime=function(){
+  try{
+    if(!cloudReady||!cloudRowId||!cloudAccessToken||!window.supabase?.createClient)return false;
+    hlgbStopRealtime();
+    hlgbRealtimeClient=window.supabase.createClient(HLGB_SUPABASE_URL,HLGB_SUPABASE_KEY,{auth:{persistSession:false,autoRefreshToken:false,detectSessionInUrl:false},realtime:{params:{eventsPerSecond:80}}});
+    hlgbRealtimeClient.realtime.setAuth(cloudAccessToken);
+    hlgbRealtimeChannel=hlgbRealtimeClient.channel(`hlgb-v91-live-${cloudRowId}`)
+      .on('postgres_changes',{event:'*',schema:'public',table:'hlgb_records'},hlgbHandleRecordRealtime)
+      .on('postgres_changes',{event:'UPDATE',schema:'public',table:'hlgb_data',filter:`id=eq.${cloudRowId}`},hlgbHandleRealtimeDataChange)
+      .subscribe((status,err)=>{
+        hlgbRealtimeState=status;
+        if(status==='SUBSCRIBED')setCloudStatus((cloudDirty||hlgbRecordPendingRead())?'☁️ Salvando automático…':'⚡ Online · multiusuário',(cloudDirty||hlgbRecordPendingRead())?'':'ok');
+        else if(status==='CHANNEL_ERROR'||status==='TIMED_OUT'){console.warn('HLGB Realtime',status,err);setCloudStatus('☁️ Online · reconectando…')}
+      });
+    return true;
+  }catch(e){console.warn("HLGB v91 realtime start",e);return false}
+};
+
+// Grava local imediatamente e agenda apenas os registros que mudaram.
+const _v9100PersistDb=persistDb;
+persistDb=function(){
+  localSaveOnly();
+  if(cloudBootstrapping||cloudApplying)return true;
+  if(hlgbRecordReady)hlgbQueueNormalizedSync(5);
+  let legacyChanged=true;
+  try{legacyChanged=!cloudEq(hlgbLegacyComparablePayload(cloudPayload(cloudBaseSnapshot||null)),hlgbLegacyComparablePayload(cloudBaseSnapshot||{}))}catch(e){}
+  if(legacyChanged && isOwnerUser()){cloudDirty=true;cloudMarkLocalDirty(true);if(cloudReady&&cloudAccessToken){setCloudStatus("☁️ Salvando automático…");cloudQueueSave(120)}}
+  else {
+    if(!isOwnerUser()){cloudDirty=false;cloudMarkLocalDirty(false);}
+    if(!hlgbRecordPendingRead())setCloudStatus("⚡ Online · multiusuário","ok");
+  }
+  return true;
+};
+
+// Fallback rápido se o websocket cair: lê somente linhas alteradas.
+setInterval(()=>{
+  if(hlgbRecordReady&&cloudAccessToken&&hlgbRealtimeState!=="SUBSCRIBED")hlgbPullNormalizedCoreChanges(false).catch(()=>{});
+},8000);
+setInterval(()=>{if(hlgbRecordReady&&cloudAccessToken&&hlgbRecordPendingRead())hlgbNormalizedSyncNow(false).catch(()=>{})},3500);
+// Rede de segurança: mesmo com Realtime marcado como conectado, faz uma leitura única e leve
+// periodicamente. Isso cobre navegador que mantém o websocket aberto mas deixa de entregar eventos.
+setInterval(()=>{if(hlgbRecordReady&&cloudAccessToken&&!document.hidden)hlgbPullNormalizedCoreChanges(true).catch(()=>{})},6000);
+window.addEventListener("focus",()=>{if(hlgbRecordReady&&cloudAccessToken)hlgbPullNormalizedCoreChanges(true).catch(()=>{})});
+
+
+function hlgb928EnsureCloudCoverage(module){
+  try{
+    if(!HLGB_RECORD_MODULES.includes(module))return 0;
+    const snap=hlgbRecordSnapshots?.[module];
+    if(!(snap instanceof Map))return 0;
+    const local=hlgbRecordLocalMap(module);let added=0;
+    for(const [id,row] of snap.entries()){
+      if(!row||row.deleted_at||local.has(String(id)))continue;
+      const data=hlgbRecordClone(row.data);
+      if(data&&typeof data==="object"){
+        local.set(String(id),data);added++;
+      }
+    }
+    if(added)db[module]=[...local.values()];
+    return added;
+  }catch(e){console.warn("HLGB v91.28 coverage",module,e);return 0}
+}
+
+async function hlgbEnsureRecordsOnlineAfterLogin(){
+  if(!cloudAccessToken||!cloudReady)return false;
+  if(hlgbRecordReady)return true;
+  try{
+    setCloudStatus("☁️ Carregando dados multiusuário…");
+    const ok=await hlgbLoadNormalizedCore({preserveLocal:false});
+    if(ok){
+      // Safety net: after the official full load, a browser may never contain fewer
+      // cloud products/orders than the authoritative snapshots.
+      const repairedProducts=hlgb928EnsureCloudCoverage("products");
+      const repairedOrders=hlgb928EnsureCloudCoverage("orders");
+      if(repairedProducts||repairedOrders)console.warn("HLGB v91.28 repaired local cloud gaps",{products:repairedProducts,orders:repairedOrders});
+      localSaveOnly();
+      // Recalcula a fila pendente com os snapshots recém-carregados. Se a fila era
+      // apenas resíduo de uma versão anterior com erro, ela desaparece aqui.
+      try{hlgbRecordPendingStore()}catch(e){}
+      const prev=cloudApplying;cloudApplying=true;try{renderAll()}finally{cloudApplying=prev}
+      hlgbStartRealtime();
+      setCloudStatus(hlgbRecordPendingRead()?"☁️ Salvando automático…":"⚡ Online · multiusuário",hlgbRecordPendingRead()?"":"ok");
+      return true;
+    }
+  }catch(e){console.error("HLGB v91.16 bootstrap",e);}
+  return false;
+}
+/* ===== fim v91.16 ===== */
+
+if(cloudRestoreStoredAuth()){
+ (async()=>{
+  try{
+   await cloudRefreshSession(true);
+   await cloudLoad();
+   await hlgbEnsureRecordsOnlineAfterLogin();
+   if(normEmail(cloudUser?.email)===normEmail(HLGB_OWNER_EMAIL)){normalizeUserDirectoryForOwner();}
+   const profile=await ensureCloudUserAccessOnline();
+   // Depois que permissões e os 44/45 registros da nuvem foram carregados, recupera somente
+   // eventual produto excedente que já existia neste navegador antes da nuvem.
+   await hlgbRecoverLocalOnlyProducts();
+   cloudBootstrapping=false;
+   db.userSessions=Array.isArray(db.userSessions)?db.userSessions:[];
+   const sess={id:Date.now()+Math.random(),userId:profile.id,user:profile.name||cloudUser.email,login:cloudUser.email,loginAt:new Date().toISOString(),logoutAt:"",restored:true};
+   db.userSessions.push(sess);db.activeSessionId=sess.id;localSaveOnly();
+   if(window.HLGB_SESSION_BOOT_CANCELLED)throw new Error("Restauração da sessão cancelada por demora.");
+   loginScreen.style.display="none";sessionLoader.style.display="none";appShell.style.display="block";setTimeout(()=>window.hlgbMarkAuthenticated?.(),0);applyAccess();restoreNavGroups();
+   {const prevApplying=cloudApplying;cloudApplying=true;try{renderAll()}finally{cloudApplying=prevApplying}}
+  }catch(e){
+   console.warn("Não foi possível restaurar a sessão online",e);
+   cloudAccessToken="";cloudRefreshToken="";cloudTokenExpiresAt=0;cloudUser=null;cloudReady=false;cloudRowId=null;cloudStoreAuth();
+   db.session=null;localSaveOnly();
+   sessionLoader.style.display="none";appShell.style.display="none";loginScreen.style.display="flex";
+ }
+ })();
+}else{sessionLoader.style.display="none";loginScreen.style.display="flex"}
+setTimeout(()=>document.getElementById("loginUser")?.focus(),0);
+if(document.getElementById("weekStart")) setCurrentWeek(); if(document.getElementById("clientProfitReport")) renderClientProfitReport("month");
+
+
+
+
+
+
+/* ===== v89.44 — ORDEM DE CORTE / CORTES DO DIA ===== */
+function cutPriorityWeight(o){
+  let p=String(o?.priority||"Padrão").normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLowerCase();
+  if(p.includes("urgentissimo"))return 0;
+  if(p.includes("urgente"))return 1;
+  return 2;
+}
+function cloneCutGrade(v){try{return JSON.parse(JSON.stringify(v||[]))}catch(e){return []}}
+function prepareCutSchedule(){
+  db.cuts=Array.isArray(db.cuts)?db.cuts:[];
+  let today=isoDate(new Date()),changed=false;
+  let orders=pedidosQuePrecisamDeCorte();
+  orders.forEach(o=>{
+    let c=obterCorteDoPedido(o);
+    let w=cutPriorityWeight(o);
+    // Urgente/urgentíssimo sem programação entra automaticamente no dia atual.
+    if(!c.plannedCutDate && w<=1){c.plannedCutDate=today;c.autoScheduledPriority=true;changed=true}
+    // Tudo que ficou para trás e não foi finalizado passa para o dia atual.
+    if(String(c.status||"").toLowerCase()!=="finalizado" && c.plannedCutDate && c.plannedCutDate<today){
+      c.carriedFromDate=c.carriedFromDate||c.plannedCutDate;
+      c.lastCarriedFrom=c.plannedCutDate;
+      c.plannedCutDate=today;
+      c.rolloverCount=(+c.rolloverCount||0)+1;
+      changed=true;
+    }
+  });
+  if(changed){try{persistDb()}catch(e){console.error(e)}}
+}
+function saveCutSchedule(id){
+  let c=(db.cuts||[]).find(x=>+x.id===+id);if(!c)return;
+  let d=document.getElementById(`cutDate_${id}`),ct=document.getElementById(`cutCutter_${id}`),type=document.getElementById(`cutType_${id}`);
+  c.plannedCutDate=d?.value||"";
+  c.cutterId=ct?.value?+ct.value:null;
+  c.cutType=type?.value||c.cutType||"";
+  c.scheduleUpdatedAt=new Date().toISOString();
+  try{persistDb()}catch(e){console.error(e)}
+  renderCuts();
+}
+function setDailyCutToday(){let el=document.getElementById("dailyCutDate");if(el)el.value=isoDate(new Date());renderDailyCuts()}
+function cutOrderFor(c){return (db.orders||[]).find(o=>+o.id===+c.orderId)||null}
+function cutOriginalGrade(c,o){
+  if(Array.isArray(c.originalGrade)&&c.originalGrade.length)return c.originalGrade;
+  return cloneCutGrade(o?.grade||[]);
+}
+function cutActualGrade(c,o){
+  if(Array.isArray(c.actualCutGrade)&&c.actualCutGrade.length)return c.actualCutGrade;
+  return cutOriginalGrade(c,o);
+}
+function cutGradeComparisonHTML(c){
+  let o=cutOrderFor(c),orig=cutOriginalGrade(c,o),actual=cutActualGrade(c,o);
+  if(!orig.length)return `<div class="panel"><strong>Pedido original:</strong> ${(+c.originalPieces||qtyOfOrder(o||{})||0).toLocaleString("pt-BR")} peças<br><strong>Cortado:</strong> ${(+c.pieces||0).toLocaleString("pt-BR")} peças</div>`;
+  let byKey={};
+  const key=x=>`${x.productId||""}|${x.color||""}|${x.size||""}`;
+  orig.forEach(x=>byKey[key(x)]={orig:+x.qty||0,actual:0,item:x});
+  actual.forEach(x=>{let k=key(x);if(!byKey[k])byKey[k]={orig:0,actual:0,item:x};byKey[k].actual+=+x.qty||0});
+  let rows=Object.values(byKey).map(r=>{
+    let p=(db.products||[]).find(x=>+x.id===+r.item.productId),diff=r.actual-r.orig;
+    return [esc(p?.name||"Produto"),esc(r.item.color||"-"),esc(r.item.size||"-"),r.orig,r.actual,diff===0?"0":`<span class="${diff<0?'cut-diff-negative':'cut-diff-positive'}">${diff>0?'+':''}${diff}</span>`];
+  });
+  return table(["Produto","Cor","Tamanho","Pedido original","Cortado","Diferença"],rows)+`<div class="sub" style="margin-top:8px"><strong>Observação:</strong> ${esc(c.cutAdjustmentNote||"-")}</div>`;
+}
+function viewCutGradeComparison(id){let c=(db.cuts||[]).find(x=>+x.id===+id);if(!c)return;openModal("Pedido original × corte realizado",cutGradeComparisonHTML(c),()=>{})}
+function finishCut(id){
+  let c=(db.cuts||[]).find(x=>+x.id===+id);if(!c)return;
+  let o=cutOrderFor(c);
+  if(!c.originalPieces)c.originalPieces=+c.pieces||qtyOfOrder(o||{})||0;
+  if(!Array.isArray(c.originalGrade)||!c.originalGrade.length)c.originalGrade=cloneCutGrade(o?.grade||[]);
+  let orig=cutOriginalGrade(c,o),actual=cutActualGrade(c,o);
+  let gradeHtml="";
+  if(orig.length){
+    gradeHtml=`<div class="panel" style="margin-top:12px"><h3>Grade realmente cortada</h3><div class="sub">O pedido original fica preservado. Altere somente o que realmente saiu no corte caso tenha faltado material.</div>${table(["Produto","Cor","Tamanho","Pedido original","Cortado"],orig.map((it,i)=>{
+      let p=(db.products||[]).find(x=>+x.id===+it.productId),a=actual.find(x=>+x.productId===+it.productId&&String(x.color||"")===String(it.color||"")&&String(x.size||"")===String(it.size||""));
+      return [esc(p?.name||"Produto"),esc(it.color||"-"),esc(it.size||"-"),+it.qty||0,`<input id="cutActual_${i}" type="number" min="0" step="1" value="${a?.qty??it.qty??0}" style="width:90px;padding:7px;border:1px solid #ccd2dc;border-radius:7px">`];
+    }))}</div>`;
+  }else{
+    gradeHtml=`<div class="field"><label>Quantidade realmente cortada</label><input id="cutActualPieces" type="number" min="0" step="1" value="${+c.pieces||0}"></div>`;
+  }
+  openModal("Finalizar corte",`<div class="cards"><div class="card"><small>Pedido</small><strong>#${esc(displayOrderNumber(o||{id:c.orderId})||c.orderId||'-')}</strong></div><div class="card"><small>Cliente</small><strong style="font-size:18px">${esc(o?.client||c.client||'-')}</strong></div><div class="card"><small>Peças do pedido</small><strong>${(+c.originalPieces||0).toLocaleString('pt-BR')}</strong></div></div>${gradeHtml}<div class="field" style="margin-top:12px"><label>Observação / motivo da alteração</label><textarea id="cutAdjustmentNote" placeholder="Ex.: faltou renda preta; retirei 8 peças tamanho M">${esc(c.cutAdjustmentNote||"")}</textarea></div><div class="sub" style="margin:10px 0">A grade do <strong>pedido original não será alterada</strong>. O sistema guardará as duas para conferência posterior.</div><button type="button" class="primary modalSave">✅ Confirmar corte finalizado</button>`,()=>{
+    let finalGrade=[];
+    if(orig.length){
+      finalGrade=orig.map((it,i)=>({...it,qty:Math.max(0,+document.getElementById(`cutActual_${i}`)?.value||0)}));
+      c.actualCutGrade=finalGrade;
+      c.pieces=finalGrade.reduce((a,x)=>a+(+x.qty||0),0);
+    }else{
+      c.pieces=Math.max(0,+document.getElementById("cutActualPieces")?.value||0);
+    }
+    c.cutAdjustmentNote=document.getElementById("cutAdjustmentNote")?.value||"";
+    c.status="Finalizado";c.finishedAt=isoDate(new Date());c.finishedAtTime=new Date().toISOString();
+    if(o)o.status="Corte finalizado";
+    closeModal();
+    try{persistDb()}catch(e){console.error(e);alert("Não foi possível salvar a finalização do corte.");return}
+    syncFinalizedCutsToProduction();renderCuts();renderOrders();renderCutters();renderProduction();
+  });
+}
+function renderDailyCuts(){
+  let el=document.getElementById("dailyCutTable"),sum=document.getElementById("dailyCutSummary"),dateEl=document.getElementById("dailyCutDate");if(!el)return;
+  if(dateEl&&!dateEl.value)dateEl.value=isoDate(new Date());
+  let day=dateEl?.value||isoDate(new Date());
+  let all=(db.cuts||[]).filter(c=>c.plannedCutDate===day || (String(c.status||"").toLowerCase()==="finalizado"&&c.finishedAt===day));
+  all.sort((a,b)=>{
+    le

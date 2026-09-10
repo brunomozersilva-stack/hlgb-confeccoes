@@ -1,0 +1,5 @@
+function setCloudStatus(text,kind=""){
+ const el=document.getElementById("cloudStatus");if(!el)return;
+ el.textContent=text;
+ el.style.background=kind==="ok"?"#ffffff22":kind==="bad"?"#7a1f2b":"transparent";
+}

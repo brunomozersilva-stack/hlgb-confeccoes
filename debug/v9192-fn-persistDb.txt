@@ -1,0 +1,17 @@
+function persistDb(){
+ localSaveOnly();
+ if(cloudBootstrapping||cloudApplying)return true;
+ // Módulos v90 são enviados por registro, sem depender do JSON gigante.
+ if(hlgbNormalizedReady)hlgbQueueNormalizedSync(70);
+ // Só marca o JSON legado como pendente se ALGUM módulo ainda não migrado mudou.
+ // Isso elimina conflitos entre um usuário cadastrando produto e outro lançando pedido.
+ let legacyChanged=true;
+ try{legacyChanged=!cloudEq(hlgbLegacyComparablePayload(cloudPayload(cloudBaseSnapshot||null)),hlgbLegacyComparablePayload(cloudBaseSnapshot||{}))}catch(e){}
+ if(legacyChanged){
+   cloudDirty=true;cloudMarkLocalDirty(true);
+   if(cloudReady&&cloudAccessToken){setCloudStatus("☁️ Salvando automático…");cloudQueueSave()}
+ }else if(!hlgbCorePendingRead()){
+   setCloudStatus(hlgbRealtimeState==="SUBSCRIBED"?"⚡ Online · multiusuário":"☁️ Online · automático","ok");
+ }
+ return true;
+}

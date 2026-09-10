@@ -1,0 +1,12 @@
+function cloudRestoreStoredAuth(){
+ try{
+   let raw=localStorage.getItem(HLGB_CLOUD_AUTH_KEY);
+   if(!raw){try{raw=sessionStorage.getItem(HLGB_CLOUD_AUTH_KEY)}catch(e){}}
+   if(!raw)return false;
+   const saved=JSON.parse(raw||"{}");
+   cloudRefreshToken=saved.refresh_token||"";
+   cloudTokenExpiresAt=Number(saved.expires_at||0)||0;
+   cloudUser=saved.user||null;
+   return !!cloudRefreshToken;
+ }catch(e){return false}
+}

@@ -1,0 +1,15 @@
+function cloudStoreAuth(){
+ // Mantém somente o REFRESH token persistido no navegador. Isso evita que Safari/Chrome
+ // percam a sessão ao suspender a aba, fechar a janela ou reiniciar o navegador.
+ // O access token continua sendo renovado automaticamente pelo Supabase.
+ try{
+  const payload=JSON.stringify({refresh_token:cloudRefreshToken||"",expires_at:cloudTokenExpiresAt||0,user:cloudUser||null});
+  if(cloudRefreshToken){
+    localStorage.setItem(HLGB_CLOUD_AUTH_KEY,payload);
+    try{sessionStorage.setItem(HLGB_CLOUD_AUTH_KEY,payload)}catch(e){}
+  }else{
+    localStorage.removeItem(HLGB_CLOUD_AUTH_KEY);
+    try{sessionStorage.removeItem(HLGB_CLOUD_AUTH_KEY)}catch(e){}
+  }
+ }catch(e){}
+}
