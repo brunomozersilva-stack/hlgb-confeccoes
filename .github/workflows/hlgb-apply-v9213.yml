@@ -1,0 +1,62 @@
+name: Aplicar HLGB v92.13 restauração estável
+on:
+  push:
+    paths:
+      - 'scripts/hlgb_v9213_emergency_stable.py'
+      - '.github/workflows/hlgb-apply-v9213.yml'
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Restaurar versão estável v92.13
+        run: python scripts/hlgb_v9213_emergency_stable.py
+      - name: Validar abertura e JavaScript
+        run: |
+          python - <<'PY'
+          from html.parser import HTMLParser
+          from pathlib import Path
+          import subprocess
+          s=Path('app9213.html').read_text(encoding='utf-8')
+          class P(HTMLParser):
+              def __init__(self): super().__init__(convert_charrefs=False); self.ins=False; self.buf=[]; self.scripts=[]; self.src=False
+              def handle_starttag(self,tag,attrs):
+                  if tag.lower()=='script': self.ins=True; self.buf=[]; self.src=bool(dict(attrs).get('src'))
+              def handle_data(self,data):
+                  if self.ins:self.buf.append(data)
+              def handle_endtag(self,tag):
+                  if tag.lower()=='script' and self.ins:
+                      if not self.src:self.scripts.append(''.join(self.buf))
+                      self.ins=False; self.buf=[]; self.src=False
+          p=P();p.feed(s)
+          failures=[]
+          for i,js in enumerate(p.scripts):
+              if not js.strip(): continue
+              fn=f'/tmp/hlgb_stable_{i}.js';Path(fn).write_text(js,encoding='utf-8')
+              r=subprocess.run(['node','--check',fn],capture_output=True,text=True)
+              if r.returncode: failures.append((i,r.stderr[-900:]))
+          if failures:
+              for i,e in failures[:6]: print('SCRIPT',i,'\n',e)
+              raise SystemExit(f'{len(failures)} erros de JavaScript')
+          for x in ['id="loginUser"','id="loginPass"','onclick="return doLogin()"','HLGB_V9200_START','HLGB_V9201_START','HLGB_V9202_START']:
+              if x not in s: raise SystemExit('Ausente: '+x)
+          print('v92.13 validada: HTML e',len(p.scripts),'scripts OK')
+          PY
+      - name: Publicar v92.13
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add index.html app9213.html abrir.html
+          git commit -m "Publicar HLGB v92.13 - restaurar versão estável e acesso" || exit 0
+          git push
