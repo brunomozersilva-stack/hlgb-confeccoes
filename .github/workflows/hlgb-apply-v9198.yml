@@ -1,0 +1,37 @@
+name: Aplicar HLGB v91.98 checklist e facções
+on:
+  push:
+    paths:
+      - 'scripts/hlgb_v9198_checklist_grade_rolls.py'
+      - '.github/workflows/hlgb-apply-v9198.yml'
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Aplicar e validar v91.98
+        run: python scripts/hlgb_v9198_checklist_grade_rolls.py
+      - name: Guardas finais
+        run: |
+          grep -q 'HLGB_V9198_START' index.html
+          grep -q 'renderFactionChecklists9198' index.html
+          grep -q 'hlgbRegisterFactionMissing9198' index.html
+          grep -q 'separationGradePanel9198' index.html
+          grep -q 'v91.98' index.html
+          test $(wc -c < index.html) -gt 1000000
+      - name: Publicar v91.98
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add index.html
+          git commit -m 'Publicar HLGB v91.98 - checklist, grade, rolos e faltas de facção' || exit 0
+          git push
