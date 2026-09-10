@@ -3,6 +3,7 @@ on:
   push:
     paths:
       - 'scripts/hlgb_v9191_cut_capacity_cleanup.py'
+      - '.github/workflows/hlgb-apply-v9191.yml'
   workflow_dispatch:
 permissions:
   contents: write
