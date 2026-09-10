@@ -1,0 +1,43 @@
+name: Aplicar HLGB v92.11 restauração emergencial
+on:
+  push:
+    paths:
+      - 'scripts/hlgb_v9211_emergency_restore.py'
+      - '.github/workflows/hlgb-apply-v9211.yml'
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+      - name: Restaurar versão estável e corrigir nuvem
+        run: python scripts/hlgb_v9211_emergency_restore.py
+      - name: Validar v92.11
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          s=Path('index.html').read_text(encoding='utf-8')
+          a=Path('abrir.html').read_text(encoding='utf-8')
+          req=['HLGB_V9200_START','HLGB_V9201_START','HLGB_V9202_START','HLGB_V9209_START','v92.11','hlgbRegisterFactionMissing9197']
+          miss=[x for x in req if x not in s]
+          if miss: raise SystemExit('Ausente: '+repr(miss))
+          if 'HLGB_V9210_START' in s or 'HLGB_V9210_END' in s: raise SystemExit('Bloco v92.10 quebrado ainda presente')
+          if '!window.cloudAccessToken' in s: raise SystemExit('Checagem incorreta de token ainda presente')
+          if "typeof window.hlgbRecordReady!=='undefined'&&!window.hlgbRecordReady" in s: raise SystemExit('Checagem incorreta de readiness ainda presente')
+          if '92.11' not in a: raise SystemExit('abrir.html não aponta para v92.11')
+          print('v92.11 OK')
+          PY
+      - name: Publicar v92.11
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add index.html abrir.html
+          git commit -m "Publicar HLGB v92.11 - restaurar acesso e corrigir checagem da nuvem" || exit 0
+          git push
