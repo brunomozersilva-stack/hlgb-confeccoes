@@ -6,7 +6,7 @@
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
-<title>HLGB Confecções — Sistema de Gestão v92.06 Multiusuário</title>
+<title>HLGB Confecções — Sistema de Gestão v92.07 Multiusuário</title>
 <style>
 :root{--navy:#6f3f59;--orange:#c96b8f;--bg:#fbf6f8;--line:#eadde4;--text:#30262c;--muted:#786b73;--ok:#e9f7ef;--warn:#fff5df;--bad:#fdeaea;--rose:#f3dbe5;--rose2:#fff8fb}
 *{box-sizing:border-box}body{margin:0;font-family:Arial,Helvetica,sans-serif;background:var(--bg);color:var(--text)}
@@ -1812,7 +1812,38 @@ function setCloudStatus(text,kind=""){
  el.style.background=kind==="ok"?"#ffffff22":kind==="bad"?"#7a1f2b":"transparent";
 }
 function localSaveOnly(){
- Storage.prototype.setItem.call(localStorage,KEY,JSON.stringify(db));
+ const payload=JSON.stringify(db);
+ try{
+  Storage.prototype.setItem.call(localStorage,KEY,payload);
+  window.__hlgbLocalCacheQuotaBlocked=false;
+  return true;
+ }catch(e){
+  const msg=String(e?.message||e||'');
+  const quota=(e?.name==='QuotaExceededError'||e?.name==='NS_ERROR_DOM_QUOTA_REACHED'||/quota|storage.*full|exceed/i.test(msg));
+  if(!quota)throw e;
+  // v92.07: falta de espaço local nunca pode derrubar o login multiusuário.
+  // Remove somente cópias auxiliares/recriáveis; nunca apaga banco de trabalho, sessão ou filas pendentes.
+  const disposable=[
+   'hlgb_cloud_conflict_backup_v1','hlgb_projection_safety_backup','hlgb_v9148_precloud_snapshot',
+   'hlgb_v9149_forensic_snapshot','hlgb_durable_wal_archive_v1','hlgb_v9148_integrity_report',
+   'hlgb_v9149_recovery_report','hlgb_v9149_recovery_journal'
+  ];
+  for(const k of disposable){try{Storage.prototype.removeItem.call(localStorage,k)}catch(_){}}
+  try{
+   Storage.prototype.setItem.call(localStorage,KEY,payload);
+   window.__hlgbLocalCacheQuotaBlocked=false;
+   console.warn('[HLGB v92.07] Espaço local liberado; cache salvo novamente.');
+   return true;
+  }catch(e2){
+   const msg2=String(e2?.message||e2||'');
+   const quota2=(e2?.name==='QuotaExceededError'||e2?.name==='NS_ERROR_DOM_QUOTA_REACHED'||/quota|storage.*full|exceed/i.test(msg2));
+   if(!quota2)throw e2;
+   // A nuvem continua sendo a fonte principal. Não interrompe a carga/login por falha de cache local.
+   window.__hlgbLocalCacheQuotaBlocked=true;
+   console.warn('[HLGB v92.07] Cache local cheio; seguindo em modo nuvem sem bloquear o usuário.');
+   return false;
+  }
+ }
 }
 // Archive only historical safety copies. Never remove the working database,
 // authentication, pending writes or WAL. Commit and read back before removal.
@@ -18674,7 +18705,7 @@ function decorate(){
  rows.forEach(btn=>{const m=String(btn.getAttribute('onclick')||'').match(/registerFactionDelivery935\(([^)]+)\)/);if(!m)return;const id=String(m[1]).replace(/[\"']/g,'').trim();const f=(db.factions||[]).find(x=>String(x.id)===id);if(!f||pendingQty(f)<=0)return;const td=btn.parentElement;if(!td||td.querySelector('.toNotes9201'))return;const b=document.createElement('button');b.className='secondary toNotes9201';b.type='button';b.textContent='🧾 Enviar para Notas';b.onclick=()=>window.sendFactionDeliveryToNotes9201(id);td.appendChild(document.createTextNode(' '));td.appendChild(b)});
 }
 const mo=new MutationObserver(decorate);mo.observe(document.documentElement,{childList:true,subtree:true});setTimeout(decorate,600);setTimeout(decorate,1800);
-console.log('[HLGB] v92.06 facção -> fila de notas carregado');
+console.log('[HLGB] v92.07 facção -> fila de notas carregado');
 })();
 </script>
 <!-- HLGB_V9201_END -->
@@ -18754,7 +18785,7 @@ const mo=new MutationObserver((mutations)=>{
 });
 mo.observe(document.documentElement,{childList:true,subtree:true});
 setTimeout(async()=>{await loadQueue();decorateProjection();renderQueue()},700);setTimeout(()=>{decorateProjection();renderQueue()},1900);
-console.log('[HLGB] v92.06 planejamento/fila/notas agrupadas carregado');
+console.log('[HLGB] v92.07 planejamento/fila/notas agrupadas carregado');
 })();
 </script>
 <!-- HLGB_V9202_END -->
