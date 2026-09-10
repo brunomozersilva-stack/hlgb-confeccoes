@@ -46,17 +46,23 @@ def extract_assignment(name):
                 i+=1
     return ''
 
-names=['renderCapacityPlanning','assignmentsFor','allProjectionRows','projectionItemsForOrder','capacityDateRange','renderProduction','renderFactions','renderCutters','renderDailyCuts','finishCut','renderCuts','piecesByDestination940','itemRows940','destinations940','prod940','ord940','exactProduction940','plannedAssignments940','activeItems940']
+names=['hlgbRecordPendingRead','hlgbRecordPendingStore','hlgbNormalizedSyncNow','hlgbQueueNormalizedSync','hlgbRecordSaveWithRetry','cloudRestoreStoredAuth','cloudStoreAuth','cloudRefreshSession','doLogin','logout','persistDb','setCloudStatus']
 for n in names:
     txt=extract_function(n) or extract_assignment(n)
-    Path('debug',f'v9191-fn-{n}.txt').write_text(txt,encoding='utf-8')
+    Path('debug',f'v9192-fn-{n}.txt').write_text(txt,encoding='utf-8')
     print(n,len(txt))
 
-for fname,term in [('v9191-context-destino.txt','Modelos ainda sem destino'),('v9191-context-queue.txt','Fila por local'),('v9191-context-grade.txt','actualCutGrade'),('v9191-context-capacity.txt','capacityAssignments')]:
-    pos=s.lower().find(term.lower())
-    if pos<0:txt=''
-    else:
-        a=max(0,pos-8000);b=min(len(s),pos+18000);txt=s[a:b]
-    Path('debug',fname).write_text(txt,encoding='utf-8')
-    print(fname,len(txt))
-# trigger 4
+terms=[
+ ('v9192-context-autoauth.txt','if(cloudRestoreStoredAuth())'),
+ ('v9192-context-pending-ui.txt','aguardando nuvem'),
+ ('v9192-context-pending-key.txt','HLGB_RECORD_PENDING'),
+ ('v9192-context-saving.txt','Salvando automático'),
+ ('v9192-context-login-screen.txt','loginScreen.style.display')
+]
+for fname,term in terms:
+    positions=[m.start() for m in re.finditer(re.escape(term),s,re.I)]
+    out=[]
+    for pos in positions[:8]:
+        a=max(0,pos-5000);b=min(len(s),pos+9000);out.append(s[a:b])
+    Path('debug',fname).write_text('\n\n===== NEXT =====\n\n'.join(out),encoding='utf-8')
+    print(fname,len(positions),sum(map(len,out)))
