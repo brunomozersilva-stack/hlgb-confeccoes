@@ -1,5 +1,8 @@
 name: Aplicar HLGB v92.02
 on:
+  push:
+    paths:
+      - '.github/workflows/hlgb-apply-v9202.yml'
   workflow_dispatch:
 permissions:
   contents: write
@@ -12,6 +15,15 @@ jobs:
         with:
           python-version: '3.x'
       - run: python scripts/hlgb_v9202_group_notes.py
+      - run: |
+          python - <<'PY'
+          from pathlib import Path
+          s=Path('index.html').read_text(encoding='utf-8')
+          req=['HLGB_V9202_START','v92.02','openMergeNotes9202','mergedFrom']
+          miss=[x for x in req if x not in s]
+          if miss: raise SystemExit('Ausente: '+repr(miss))
+          print('v92.02 OK')
+          PY
       - run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
