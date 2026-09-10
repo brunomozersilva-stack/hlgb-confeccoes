@@ -1,0 +1,65 @@
+name: Aplicar HLGB v92.12 reparo de abertura
+on:
+  push:
+    paths:
+      - 'scripts/hlgb_v9212_repair_html_boot.py'
+      - '.github/workflows/hlgb-apply-v9212.yml'
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Aplicar reparo v92.12
+        run: python scripts/hlgb_v9212_repair_html_boot.py
+      - name: Validar HTML e JavaScript como o navegador
+        run: |
+          python - <<'PY'
+          from html.parser import HTMLParser
+          from pathlib import Path
+          import subprocess,tempfile,os
+          s=Path('app9212.html').read_text(encoding='utf-8')
+          class P(HTMLParser):
+              def __init__(self): super().__init__(convert_charrefs=False); self.ins=False; self.buf=[]; self.scripts=[]; self.src=False
+              def handle_starttag(self,tag,attrs):
+                  if tag.lower()=='script':
+                      self.ins=True; self.buf=[]; self.src=bool(dict(attrs).get('src'))
+              def handle_data(self,data):
+                  if self.ins:self.buf.append(data)
+              def handle_endtag(self,tag):
+                  if tag.lower()=='script' and self.ins:
+                      if not self.src:self.scripts.append(''.join(self.buf))
+                      self.ins=False; self.buf=[]; self.src=False
+          p=P(); p.feed(s)
+          print('scripts inline encontrados:',len(p.scripts))
+          failures=[]
+          for i,js in enumerate(p.scripts):
+              if not js.strip(): continue
+              fn=f'/tmp/hlgb_script_{i}.js'; Path(fn).write_text(js,encoding='utf-8')
+              r=subprocess.run(['node','--check',fn],capture_output=True,text=True)
+              if r.returncode:
+                  failures.append((i,r.stderr[-1200:]))
+          if failures:
+              for i,e in failures[:8]: print('\nSCRIPT',i,'FALHOU\n',e)
+              raise SystemExit(f'{len(failures)} script(s) com erro de sintaxe')
+          req=['id="loginUser"','id="loginPass"','onclick="return doLogin()"','HLGB_V9209_START','HLGB_V9212_BOOT_REPAIR']
+          miss=[x for x in req if x not in s]
+          if miss: raise SystemExit('Ausente: '+repr(miss))
+          if 'HLGB_V9208_VERSION_BADGE' in s or 'HLGB_V9210_START' in s: raise SystemExit('Bloco quebrado ainda presente')
+          print('HTML/JS v92.12 OK')
+          PY
+      - name: Publicar v92.12
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add index.html app9212.html abrir.html
+          git commit -m "Publicar HLGB v92.12 - reparar abertura e preservar v92.09" || exit 0
+          git push
