@@ -46,13 +46,12 @@ def extract_assignment(name):
                 i+=1
     return ''
 
-names=['renderCapacityPlanning','assignmentsFor','allProjectionRows','projectionItemsForOrder','capacityDateRange','renderProduction','renderFactions','renderCutters','renderDailyCuts','finishCut','renderCuts']
+names=['renderCapacityPlanning','assignmentsFor','allProjectionRows','projectionItemsForOrder','capacityDateRange','renderProduction','renderFactions','renderCutters','renderDailyCuts','finishCut','renderCuts','piecesByDestination940','itemRows940','destinations940','prod940','ord940']
 for n in names:
     txt=extract_function(n) or extract_assignment(n)
     Path('debug',f'v9191-fn-{n}.txt').write_text(txt,encoding='utf-8')
     print(n,len(txt))
 
-# contexts by phrase, narrow and useful
 for fname,term in [('v9191-context-destino.txt','Modelos ainda sem destino'),('v9191-context-queue.txt','Fila por local'),('v9191-context-grade.txt','actualCutGrade'),('v9191-context-capacity.txt','capacityAssignments')]:
     pos=s.lower().find(term.lower())
     if pos<0:txt=''
@@ -60,3 +59,4 @@ for fname,term in [('v9191-context-destino.txt','Modelos ainda sem destino'),('v
         a=max(0,pos-8000);b=min(len(s),pos+18000);txt=s[a:b]
     Path('debug',fname).write_text(txt,encoding='utf-8')
     print(fname,len(txt))
+# trigger 3
