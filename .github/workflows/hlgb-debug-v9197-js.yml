@@ -1,0 +1,31 @@
+name: Diagnosticar JS HLGB v91.97
+on:
+  push:
+    paths:
+      - '.github/workflows/hlgb-debug-v9197-js.yml'
+  workflow_dispatch:
+jobs:
+  debug:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Extrair e validar addon v91.97
+        run: |
+          python - <<'PY'
+          import ast,re
+          src=open('scripts/hlgb_v9197_order_edit_faction_missing.py',encoding='utf-8').read()
+          t=ast.parse(src)
+          addon=None
+          for n in ast.walk(t):
+              if isinstance(n,ast.Assign) and any(isinstance(x,ast.Name) and x.id=='addon' for x in n.targets):
+                  addon=ast.literal_eval(n.value);break
+          if not addon: raise SystemExit('addon não encontrado')
+          js=re.search(r'<script id="hlgb-v9197-script">(.*?)</script>',addon,re.S).group(1)
+          open('/tmp/v9197-addon.js','w',encoding='utf-8').write(js)
+          print('linhas addon',len(js.splitlines()))
+          PY
+          node --check /tmp/v9197-addon.js || true
+          nl -ba /tmp/v9197-addon.js | tail -n 80
