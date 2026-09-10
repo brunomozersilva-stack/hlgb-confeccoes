@@ -1,0 +1,1 @@
+function prod940(id){return (db.products||[]).find(x=>String(x.id)===String(id))||null}

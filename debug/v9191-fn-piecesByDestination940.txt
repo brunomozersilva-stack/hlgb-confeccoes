@@ -1,0 +1,15 @@
+function piecesByDestination940(){
+  let dests=destinations940(),map=new Map(dests.map(d=>[d.key,{dest:d,rows:[]}])) ,unassigned=[];
+  activeItems940().forEach(({o,item,qty})=>{
+    let left=qty,prods=exactProduction940(o,item),usedAny=false;
+    if(prods.length){
+      prods.forEach(p=>{let key=p.factionId?`F:${p.factionId}`:(p.productionLocationId?`L:${p.productionLocationId}`:'');let take=Math.min(left,q940(p.planned)-q940(p.done));if(key&&map.has(key)&&take>0){map.get(key).rows.push({kind:'production',row:p,o,item,qty:take,rank:q940(p.queueRank)||999999});left-=take;usedAny=true}});
+    }
+    if(!usedAny||left>0){
+      plannedAssignments940(o,item).forEach(a=>{let key=a.factionId?`F:${a.factionId}`:(a.locationId?`L:${a.locationId}`:'');let take=Math.min(left,q940(a.qty));if(key&&map.has(key)&&take>0){map.get(key).rows.push({kind:'assignment',row:a,o,item,qty:take,rank:q940(a.queueRank)||999999});left-=take}});
+    }
+    if(left>0)unassigned.push({o,item,qty:left});
+  });
+  for(const lane of map.values())lane.rows.sort((a,b)=>a.rank-b.rank||priority940(a.o)-priority940(b.o)||String(a.o.date||'').localeCompare(String(b.o.date||''))||String(a.o.id).localeCompare(String(b.o.id)));
+  return {map,unassigned,dests};
+}

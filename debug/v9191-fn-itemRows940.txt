@@ -1,0 +1,4 @@
+function itemRows940(o){
+  try{if(typeof projectionItemsForOrder==='function')return projectionItemsForOrder(o)||[]}catch(e){}
+  let m=new Map();(o?.grade||[]).forEach(g=>{let pid=String(g.productId||'');if(!pid)return;let x=m.get(pid)||{key:pid,productId:+pid,name:prod940(pid)?.name||'Produto',qty:0};x.qty+=q940(g.qty);m.set(pid,x)});return [...m.values()];
+}

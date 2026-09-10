@@ -1,0 +1,1 @@
+function ord940(id){return (db.orders||[]).find(x=>String(x.id)===String(id))||null}

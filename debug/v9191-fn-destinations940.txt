@@ -1,0 +1,6 @@
+function destinations940(){
+  let out=[];
+  (db.productionLocations||[]).filter(x=>x.active!==false&&canon940(x.name)!=='externo').forEach(x=>out.push({key:`L:${x.id}`,type:'Confecção',id:x.id,name:x.name,goal:goal940('Confecção',x.name)}));
+  (db.factionMasters||[]).filter(x=>x.active!==false).forEach(x=>out.push({key:`F:${x.id}`,type:'Facção',id:x.id,name:x.name,goal:goal940('Facção',x.name)}));
+  return out;
+}
