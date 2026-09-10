@@ -1,0 +1,17 @@
+name: Diagnosticar HLGB v91.98
+on:
+  push:
+    paths:
+      - 'scripts/hlgb_diag_v9198_flow.py'
+      - '.github/workflows/hlgb-diag-v9198.yml'
+  workflow_dispatch:
+jobs:
+  diag:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+      - name: Diagnosticar fluxo
+        run: python scripts/hlgb_diag_v9198_flow.py
