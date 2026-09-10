@@ -1,0 +1,56 @@
+name: Aplicar HLGB v92.09 notas e cortes
+on:
+  push:
+    paths:
+      - 'scripts/hlgb_v9209_notes_cuts_fix.py'
+      - '.github/workflows/hlgb-apply-v9209.yml'
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+      - name: Corrigir validação interna da v92.09
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p=Path('scripts/hlgb_v9209_notes_cuts_fix.py')
+          s=p.read_text(encoding='utf-8')
+          s=s.replace("'HLGB_V9207'","'__hlgbLocalCacheQuotaBlocked'")
+          p.write_text(s,encoding='utf-8')
+          PY
+      - name: Aplicar notas e cortes por modelos pedidos
+        run: python scripts/hlgb_v9209_notes_cuts_fix.py
+      - name: Validar v92.09
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          s=Path('index.html').read_text(encoding='utf-8')
+          req=[
+            'HLGB_V9209_START','hlgbRefreshNotes9209','hlgbOpenModelCut9209',
+            'hlgbOpenOrderedModelPlan9209','Modelos pedidos a serem cortados',
+            'ordered_model_planning','v92.09','HLGB_V9200_START','HLGB_V9201_START',
+            'HLGB_V9202_START','HLGB_V9203_START','__hlgbLocalCacheQuotaBlocked',
+            'HLGB_V9208_VERSION_BADGE'
+          ]
+          miss=[x for x in req if x not in s]
+          if miss: raise SystemExit('Ausente: '+repr(miss))
+          block=s[s.index('HLGB_V9209_START'):s.index('HLGB_V9209_END')]
+          if 'MutationObserver' in block: raise SystemExit('v92.09 não pode depender de MutationObserver')
+          if 'window.cloudUser||window.cloudAccessToken' in block: raise SystemExit('Validação antiga de login ainda presente na v92.09')
+          if 'window.hlgbOpenModelCut9189=window.hlgbOpenModelCut9209' not in block:
+              raise SystemExit('Programador antigo não foi redirecionado')
+          print('v92.09 OK')
+          PY
+      - name: Publicar v92.09
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add index.html scripts/hlgb_v9209_notes_cuts_fix.py
+          git commit -m "Publicar HLGB v92.09 - notas e cortes por modelos pedidos" || exit 0
+          git push
