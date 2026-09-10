@@ -1,0 +1,40 @@
+name: Aplicar HLGB v91.99 corrigida
+on:
+  push:
+    paths:
+      - 'scripts/hlgb_v9199_operational_repairs_fixed.py'
+      - '.github/workflows/hlgb-apply-v9199-fixed.yml'
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Aplicar e validar v91.99
+        run: python scripts/hlgb_v9199_operational_repairs_fixed.py
+      - name: Guardas finais
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          s=Path('index.html').read_text(encoding='utf-8')
+          required=['HLGB_V9199_START','v91.99','materialSeparationParallel:true',"saveRow9199('factionMasters'","saveRow9199('hubFinanceEntries'",'hlgbRecoverRecordLoad9199','Grade do produto','rollConversion','Registrar falta','Pedido salvo e liberado imediatamente para o Corte']
+          miss=[x for x in required if x not in s]
+          if miss: raise SystemExit('Ausente: '+repr(miss))
+          if s.count('<!-- HLGB_V9199_START -->')!=1: raise SystemExit('v91.99 duplicada')
+          print('v91.99 guardas OK',len(s))
+          PY
+      - name: Publicar v91.99
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add index.html
+          git commit -m "Publicar HLGB v91.99 - reparos operacionais e nuvem"
+          git push
