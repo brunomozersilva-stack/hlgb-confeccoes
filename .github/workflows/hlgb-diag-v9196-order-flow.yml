@@ -1,0 +1,19 @@
+name: Diagnóstico HLGB v91.96 fluxo pedido produção notas
+on:
+  push:
+    paths:
+      - 'scripts/hlgb_diag_v9196_order_flow.py'
+      - '.github/workflows/hlgb-diag-v9196-order-flow.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+      - name: Diagnosticar fluxo atual
+        run: python scripts/hlgb_diag_v9196_order_flow.py
