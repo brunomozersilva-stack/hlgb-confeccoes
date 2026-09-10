@@ -1,0 +1,16 @@
+name: Diagnosticar carregador HLGB
+on:
+  push:
+    paths:
+      - 'scripts/hlgb_diag_record_loader_error.py'
+      - '.github/workflows/hlgb-diag-record-loader.yml'
+  workflow_dispatch:
+jobs:
+  diag:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+      - run: python scripts/hlgb_diag_record_loader_error.py
