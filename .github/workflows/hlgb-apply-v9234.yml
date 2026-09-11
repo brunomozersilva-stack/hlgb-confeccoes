@@ -1,0 +1,64 @@
+name: Aplicar HLGB v92.34 acerto detalhado clientes
+on:
+  push:
+    paths:
+      - 'scripts/hlgb_v9234_acerto_cliente_rico.py'
+      - '.github/workflows/hlgb-apply-v9234.yml'
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Montar pagina v92.34
+        run: python scripts/hlgb_v9234_acerto_cliente_rico.py
+      - name: Validar somente acerto detalhado e sintaxe
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import re, subprocess
+          s=Path('app9234.html').read_text(encoding='utf-8')
+          required=[
+            '<title>HLGB Confecções — Sistema de Gestão v92.34 Multiusuário</title>',
+            'HLGB_V9234_CLIENT_SETTLEMENT_START',
+            'window.openProjectionAcerto9200=open9234',
+            'window.openProjectionAcerto9214=open9234',
+            'Pagamento picado',
+            'Dados do cheque',
+            'Foto do cheque',
+            'Histórico do acerto',
+            'window.hlgbRemoveProjectionPayment9234',
+            'window.hlgbViewChequePhoto9234',
+          ]
+          missing=[x for x in required if x not in s]
+          if missing: raise SystemExit('Itens obrigatórios ausentes: '+repr(missing))
+          # Garante que não houve migração/alteração estrutural do banco nesta versão.
+          block=s[s.index('<!-- HLGB_V9234_CLIENT_SETTLEMENT_START -->'):s.index('<!-- HLGB_V9234_CLIENT_SETTLEMENT_END -->')]
+          forbidden=['create table','alter table','delete from hlgb_records','update hlgb_records set']
+          low=block.lower()
+          bad=[x for x in forbidden if x in low]
+          if bad: raise SystemExit('Operação de banco não permitida nesta versão: '+repr(bad))
+          scripts=re.findall(r'<script(?:\s[^>]*)?>(.*?)</script>',s,flags=re.S|re.I)
+          for i,js in enumerate(scripts):
+            if not js.strip(): continue
+            p=Path('/tmp')/f'hlgb9234_{i}.js';p.write_text(js,encoding='utf-8')
+            r=subprocess.run(['node','--check',str(p)],capture_output=True,text=True)
+            if r.returncode: raise SystemExit(f'Erro de sintaxe no script #{i}:\n{r.stderr}')
+          print(f'{len(scripts)} blocos JavaScript verificados. Acerto v92.34 OK.')
+          PY
+      - name: Publicar v92.34
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add app9234.html abrir.html
+          if git diff --cached --quiet; then exit 0; fi
+          git commit -m "Publicar HLGB v92.34 - restaurar acerto detalhado de clientes"
+          git push
