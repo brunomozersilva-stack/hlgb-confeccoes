@@ -1,0 +1,31 @@
+name: Aplicar selo final HLGB v92.28
+on:
+  push:
+    paths:
+      - 'scripts/hlgb_v9228_version_stamp_fix.py'
+      - '.github/workflows/hlgb-apply-v9228-stamp-fix.yml'
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+      - name: Aplicar selo final v92.28
+        run: python scripts/hlgb_v9228_version_stamp_fix.py
+      - name: Validar selo final
+        run: |
+          grep -q 'HLGB_V9228_FINAL_VERSION_STAMP_START' app9228.html
+          grep -q "el.textContent='v92.28'" app9228.html
+      - name: Publicar ajuste v92.28
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add app9228.html
+          if git diff --cached --quiet; then exit 0; fi
+          git commit -m "Ajustar selo final HLGB v92.28"
+          git push
