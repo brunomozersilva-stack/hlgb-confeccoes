@@ -1,0 +1,65 @@
+name: Aplicar HLGB v92.31 pente fino estabilidade
+on:
+  push:
+    paths:
+      - 'scripts/hlgb_v9231_system_audit.py'
+      - '.github/workflows/hlgb-apply-v9231.yml'
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Montar pagina v92.31
+        run: python scripts/hlgb_v9231_system_audit.py
+      - name: Pente fino estatico e sintaxe
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import re, subprocess, tempfile
+          s=Path('app9231.html').read_text(encoding='utf-8')
+          required=[
+            '<title>HLGB Confecções — Sistema de Gestão v92.31 Multiusuário</title>',
+            '>v92.31</small>',
+            'HLGB_V9231_SYSTEM_AUDIT_START',
+            'window.hlgb955FlushSilent',
+            '☁️ Salvando ${n} alteração(ões)…',
+          ]
+          missing=[x for x in required if x not in s]
+          if missing: raise SystemExit('Itens obrigatórios ausentes: '+repr(missing))
+          forbidden=['window.cloudAccessToken','window.cloudUser','!!window.hlgbRecordReady']
+          bad=[x for x in forbidden if x in s]
+          if bad: raise SystemExit('Padrões antigos de readiness ainda presentes: '+repr(bad))
+          stale=[]
+          for pat in [r'document\.title\s*=.*v92\.22',r'\.textContent\s*=\s*[\'\"]v92\.22',r'\.textContent\s*!==\s*[\'\"]v92\.22']:
+            if re.search(pat,s): stale.append(pat)
+          if stale: raise SystemExit('Setters visuais antigos encontrados: '+repr(stale))
+          scripts=re.findall(r'<script(?:\s[^>]*)?>(.*?)</script>',s,flags=re.S|re.I)
+          checked=0
+          for i,js in enumerate(scripts):
+            if not js.strip(): continue
+            p=Path('/tmp')/f'hlgb9231_{i}.js'
+            p.write_text(js,encoding='utf-8')
+            r=subprocess.run(['node','--check',str(p)],capture_output=True,text=True)
+            if r.returncode:
+              raise SystemExit(f'Erro de sintaxe no script #{i}:\n{r.stderr}')
+            checked+=1
+          print(f'{checked} blocos JavaScript validados sem erro de sintaxe.')
+          print('Pente fino estático OK.')
+          PY
+      - name: Publicar v92.31
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add app9231.html abrir.html
+          if git diff --cached --quiet; then exit 0; fi
+          git commit -m "Publicar HLGB v92.31 - pente fino de estabilidade e nuvem"
+          git push
