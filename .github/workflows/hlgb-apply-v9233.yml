@@ -1,0 +1,63 @@
+name: Aplicar HLGB v92.33 pedidos compactos e pendencias
+on:
+  push:
+    paths:
+      - 'scripts/hlgb_v9233_orders_pending_cleanup.py'
+      - '.github/workflows/hlgb-apply-v9233.yml'
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Montar pagina v92.33
+        run: python scripts/hlgb_v9233_orders_pending_cleanup.py
+      - name: Validar pedidos compactos, pendencias e sintaxe
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import re, subprocess
+          s=Path('app9233.html').read_text(encoding='utf-8')
+          required=[
+            '<title>HLGB Confecções — Sistema de Gestão v92.33 Multiusuário</title>',
+            '>v92.33</small>',
+            'HLGB_V9233_ORDERS_PENDING_CLEANUP_START',
+            '#pedidos #ordersTable',
+            'max-height:56vh',
+            'window.hlgbReconcilePending9233',
+            "const WAL9233='hlgb_durable_wal_v1'",
+            'Segurança de gravação — v92.33',
+            "app9233.html?v=92.33&fresh=",
+          ]
+          missing=[x for x in required if x not in s and x not in Path('abrir.html').read_text(encoding='utf-8')]
+          if missing: raise SystemExit('Itens obrigatórios ausentes: '+repr(missing))
+          if 'v92.32 Multiusuário' in s: raise SystemExit('Carimbo visual v92.32 ainda presente')
+          scripts=re.findall(r'<script(?:\s[^>]*)?>(.*?)</script>',s,flags=re.S|re.I)
+          checked=0
+          for i,js in enumerate(scripts):
+            if not js.strip(): continue
+            p=Path('/tmp')/f'hlgb9233_{i}.js'
+            p.write_text(js,encoding='utf-8')
+            r=subprocess.run(['node','--check',str(p)],capture_output=True,text=True)
+            if r.returncode:
+              raise SystemExit(f'Erro de sintaxe no script #{i}:\n{r.stderr}')
+            checked+=1
+          print(f'{checked} blocos JavaScript validados.')
+          print('v92.33 validada.')
+          PY
+      - name: Publicar v92.33
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add app9233.html abrir.html
+          if git diff --cached --quiet; then exit 0; fi
+          git commit -m "Publicar HLGB v92.33 - pedidos compactos e limpeza de pendencias"
+          git push
