@@ -19,15 +19,27 @@ jobs:
         with:
           node-version: '20'
       - name: Montar página v92.27
-        run: python scripts/hlgb_v9227_cutter_day_week_month_values.py
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p=Path('scripts/hlgb_v9227_cutter_day_week_month_values.py')
+          s=p.read_text(encoding='utf-8')
+          old="s,n=re.subn(pat,new,s,count=1,flags=re.S)"
+          new="s,n=re.subn(pat,lambda _m:new,s,count=1,flags=re.S)"
+          if old not in s: raise SystemExit('Linha de substituição não localizada')
+          p.write_text(s.replace(old,new,1),encoding='utf-8')
+          PY
+          python scripts/hlgb_v9227_cutter_day_week_month_values.py
       - name: Validar edição e resumos dos cortadores
         run: |
           python - <<'PY'
           from pathlib import Path
           import re
           s=Path('app9227.html').read_text(encoding='utf-8')
-          req=['HLGB_V9227_CUTTER_DAY_WEEK_MONTH_START','hlgbUpdateCutterExcel9227','TOTAL DO DIA','Valor por cortador — semana e mês','Mês do resumo','Semana produzida','Mês programado','app9227.html?v=92.27']
-          miss=[x for x in req if x not in s and x not in Path('abrir.html').read_text(encoding='utf-8')]
+          launcher=Path('abrir.html').read_text(encoding='utf-8')
+          req=['HLGB_V9227_CUTTER_DAY_WEEK_MONTH_START','hlgbUpdateCutterExcel9227','TOTAL DO DIA','Valor por cortador — semana e mês','Mês do resumo','Semana produzida','Mês programado']
+          miss=[x for x in req if x not in s]
+          if 'app9227.html?v=92.27' not in launcher: miss.append('launcher v92.27')
           if miss: raise SystemExit('Itens ausentes: '+repr(miss))
           m=re.search(r"(  window\.hlgbRenderCutterExcel9179=function\(\)\{.*?\n  \};)\n  window\.hlgbPrintCutterExcel9179=function",s,re.S)
           if not m: raise SystemExit('Renderer dos cortadores não localizado')
