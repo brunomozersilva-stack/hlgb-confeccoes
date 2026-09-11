@@ -1,0 +1,45 @@
+name: Aplicar HLGB v92.29 pedidos compactos e finalizacao automatica
+on:
+  push:
+    paths:
+      - 'scripts/hlgb_v9229_orders_compact_finalize.py'
+      - '.github/workflows/hlgb-apply-v9229.yml'
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Montar pagina v92.29
+        run: python scripts/hlgb_v9229_orders_compact_finalize.py
+      - name: Validar v92.29
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          s=Path('app9229.html').read_text(encoding='utf-8')
+          req=['HLGB_V9229_ORDERS_COMPACT_FINALIZE_START','hlgbOrderFullyDelivered9229','Pedido finalizado','orderViewControls9229','hlgbOrderPage9229','v92.29']
+          miss=[x for x in req if x not in s]
+          if miss: raise SystemExit('Itens ausentes: '+repr(miss))
+          a=s.index('<!-- HLGB_V9229_ORDERS_COMPACT_FINALIZE_START -->');b=s.index('<!-- HLGB_V9229_ORDERS_COMPACT_FINALIZE_END -->',a)
+          block=s[a:b]
+          js=block.split('<script>',1)[1].rsplit('</script>',1)[0]
+          Path('/tmp/v9229.js').write_text(js,encoding='utf-8')
+          print('Estrutura v92.29 OK')
+          PY
+          node --check /tmp/v9229.js
+      - name: Publicar v92.29
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add app9229.html abrir.html
+          if git diff --cached --quiet; then exit 0; fi
+          git commit -m "Publicar HLGB v92.29 - pedidos compactos e finalizacao por entrega"
+          git push
