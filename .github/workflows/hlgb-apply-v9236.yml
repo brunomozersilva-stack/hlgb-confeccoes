@@ -1,0 +1,51 @@
+name: Aplicar HLGB v92.36 notas agrupadas direto da nuvem
+on:
+  push:
+    paths:
+      - 'scripts/hlgb_v9236_notes_cloud_picker.py'
+      - '.github/workflows/hlgb-apply-v9236.yml'
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Montar pagina v92.36
+        run: python scripts/hlgb_v9236_notes_cloud_picker.py
+      - name: Validar fila direta da nuvem e sintaxe
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import re, subprocess
+          s=Path('app9236.html').read_text(encoding='utf-8')
+          a=Path('abrir.html').read_text(encoding='utf-8')
+          req=['HLGB_V9236_NOTES_CLOUD_PICKER_START','loadCloudQueue9236','hlgbOpenCloudQueue9236','diretamente da nuvem agora','hlgb_records?select=entity_id,data,updated_at,deleted_at&module=eq.noteQueue','app9236.html?v=92.36&fresh=']
+          miss=[x for x in req if x not in s and x not in a]
+          if miss: raise SystemExit('Itens obrigatórios ausentes: '+repr(miss))
+          if '<title>HLGB Confecções — Sistema de Gestão v92.36 Multiusuário</title>' not in s: raise SystemExit('Versão visual incorreta')
+          scripts=re.findall(r'<script(?:\s[^>]*)?>(.*?)</script>',s,flags=re.S|re.I)
+          checked=0
+          for i,js in enumerate(scripts):
+            if not js.strip(): continue
+            p=Path('/tmp')/f'hlgb9236_{i}.js';p.write_text(js,encoding='utf-8')
+            r=subprocess.run(['node','--check',str(p)],capture_output=True,text=True)
+            if r.returncode: raise SystemExit(f'Erro de sintaxe no script #{i}:\n{r.stderr}')
+            checked+=1
+          print(f'{checked} blocos JavaScript validados. v92.36 OK.')
+          PY
+      - name: Publicar v92.36
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add app9236.html abrir.html
+          if git diff --cached --quiet; then exit 0; fi
+          git commit -m "Publicar HLGB v92.36 - notas agrupadas direto da nuvem"
+          git push
