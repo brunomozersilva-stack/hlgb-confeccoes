@@ -1,0 +1,49 @@
+name: Aplicar HLGB v92.22 Hub Financeiro
+on:
+  push:
+    paths:
+      - 'scripts/hlgb_v9222_hub_finance_recurring.py'
+      - '.github/workflows/hlgb-apply-v9222.yml'
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Montar página v92.22
+        run: python scripts/hlgb_v9222_hub_finance_recurring.py
+      - name: Validar Hub e JavaScript
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          s=Path('app9222.html').read_text(encoding='utf-8')
+          abrir=Path('abrir.html').read_text(encoding='utf-8')
+          req=['id="loginUser"','id="loginPass"','onclick="return doLogin()"','HLGB_V9222_HUB_FINANCE_START','hubQuickValue9222','hubLaunchFilter9222','Despesas fixas mensais','openRecurringHub9222','recurringTemplateId','app9222.html?v=92.22','v92.22']
+          both=s+abrir
+          miss=[x for x in req if x not in both]
+          if miss: raise SystemExit('Itens obrigatórios ausentes: '+repr(miss))
+          start=s.index('<!-- HLGB_V9222_HUB_FINANCE_START -->')
+          end=s.index('<!-- HLGB_V9222_HUB_FINANCE_END -->',start)
+          block=s[start:end]
+          if 'MutationObserver' in block: raise SystemExit('Novo bloco v92.22 não deve usar MutationObserver')
+          js=block.split('<script>',1)[1].rsplit('</script>',1)[0]
+          Path('/tmp/v9222.js').write_text(js,encoding='utf-8')
+          print('Estrutura v92.22 OK')
+          PY
+          node --check /tmp/v9222.js
+      - name: Publicar v92.22
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add app9222.html abrir.html
+          if git diff --cached --quiet; then exit 0; fi
+          git commit -m "Publicar HLGB v92.22 - editar valores, filtrar lançamentos e despesas fixas"
+          git push
