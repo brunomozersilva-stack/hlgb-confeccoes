@@ -1,0 +1,43 @@
+name: Aplicar HLGB v92.25 saldo da montagem de notas
+on:
+  push:
+    paths:
+      - 'scripts/hlgb_v9225_note_queue_balance.py'
+      - '.github/workflows/hlgb-apply-v9225.yml'
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Montar página v92.25
+        run: python scripts/hlgb_v9225_note_queue_balance.py
+      - name: Validar JavaScript e fluxo
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          s=Path('app9225.html').read_text(encoding='utf-8')
+          req=['HLGB_V9225_NOTE_QUEUE_BALANCE_START',"if(x.orderId!=null&&x.itemKey!=null&&x.sourceType!=='resale')",'HLGB_V9224_RESALE_START','HLGB_V9223_NOTES_QUEUE_CENTRAL_START','id="loginUser"']
+          miss=[x for x in req if x not in s]
+          if miss: raise SystemExit('Itens ausentes: '+repr(miss))
+          a=s.index('<!-- HLGB_V9225_NOTE_QUEUE_BALANCE_START -->');b=s.index('<!-- HLGB_V9225_NOTE_QUEUE_BALANCE_END -->',a)
+          js=s[a:b].split('<script>',1)[1].rsplit('</script>',1)[0]
+          Path('/tmp/v9225.js').write_text(js,encoding='utf-8')
+          PY
+          node --check /tmp/v9225.js
+      - name: Publicar v92.25
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add app9225.html abrir.html
+          if git diff --cached --quiet; then exit 0; fi
+          git commit -m "Publicar HLGB v92.25 - fechar saldo da montagem ao faturar"
+          git push
