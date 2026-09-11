@@ -1,0 +1,45 @@
+name: Aplicar HLGB v92.23 montagem de notas central
+on:
+  push:
+    paths:
+      - 'scripts/hlgb_v9223_notes_queue_central.py'
+      - '.github/workflows/hlgb-apply-v9223.yml'
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Montar página v92.23
+        run: python scripts/hlgb_v9223_notes_queue_central.py
+      - name: Validar fluxo de notas e JavaScript
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          s=Path('app9223.html').read_text(encoding='utf-8')
+          req=['HLGB_V9223_NOTES_QUEUE_CENTRAL_START','hlgb_register_faction_delivery_to_note_queue_v9223',"['noteQueue',data?.noteQueue]",'Histórico antigo de notas','Itens aguardando nota','groupNote9202','id="loginUser"','onclick="return doLogin()"']
+          miss=[x for x in req if x not in s]
+          if miss: raise SystemExit('Itens ausentes: '+repr(miss))
+          a=s.index('<!-- HLGB_V9223_NOTES_QUEUE_CENTRAL_START -->');b=s.index('<!-- HLGB_V9223_NOTES_QUEUE_CENTRAL_END -->',a)
+          block=s[a:b]
+          js=block.split('<script>',1)[1].rsplit('</script>',1)[0]
+          Path('/tmp/v9223.js').write_text(js,encoding='utf-8')
+          print('Estrutura v92.23 OK')
+          PY
+          node --check /tmp/v9223.js
+      - name: Publicar v92.23
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add app9223.html abrir.html
+          if git diff --cached --quiet; then exit 0; fi
+          git commit -m "Publicar HLGB v92.23 - entregas na montagem de notas"
+          git push
