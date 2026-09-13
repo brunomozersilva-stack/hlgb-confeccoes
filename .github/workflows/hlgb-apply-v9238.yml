@@ -1,0 +1,43 @@
+name: Publicar HLGB v92.38
+on:
+  push:
+    paths:
+      - 'scripts/hlgb_v9238_projection_clients_cutter_filters.py'
+      - '.github/workflows/hlgb-apply-v9238.yml'
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Gerar v92.38
+        run: python scripts/hlgb_v9238_projection_clients_cutter_filters.py
+      - name: Validar
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import re, subprocess
+          s=Path('app9238.html').read_text(encoding='utf-8')
+          for x in ['HLGB_V9238_PROJECTION_CLIENTS_CUTTER_FILTERS_START','splitRemaining9238','hlgbCutterFilter9238','v92.38']:
+              if x not in s: raise SystemExit('Ausente: '+x)
+          scripts=re.findall(r'<script(?:\s[^>]*)?>(.*?)</script>',s,flags=re.S|re.I)
+          for i,js in enumerate(scripts):
+              if not js.strip(): continue
+              p=Path('/tmp')/f'v9238_{i}.js';p.write_text(js,encoding='utf-8')
+              r=subprocess.run(['node','--check',str(p)],capture_output=True,text=True)
+              if r.returncode: raise SystemExit(f'Erro JS #{i}:\n{r.stderr}')
+          print('v92.38 validada')
+          PY
+      - name: Publicar arquivos
+        uses: stefanzweifel/git-auto-commit-action@v5
+        with:
+          commit_message: Publicar HLGB v92.38
+          file_pattern: app9238.html abrir.html
