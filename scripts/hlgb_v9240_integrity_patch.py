@@ -37,7 +37,7 @@ function locationForOrder(o,pid){
   const item=o.projectionItems?.[sid(pid)]||o.projectionItems?.[pid]||{};
   let id=item?.locationId||o.productionLocationId||null;
   if(!id){
-    const a=(db.capacityAssignments||[]).find(x=>sid(x?.orderId)===sid(o.id)&&(!pid||sid(x?.productId)===sid(pid))&&x?.locationId);
+    const a=(db.capacityAssignments||[]).find(x=>sid(x?.orderId)===sid(o.id)&&(!pid||!x?.productId||sid(x?.productId)===sid(pid))&&x?.locationId);
     id=a?.locationId||null;
   }
   if(!id){
@@ -57,6 +57,10 @@ function hydrateLocationsLocal(){
       for(const key of Object.keys(o.projectionItems)){
         const it=o.projectionItems[key];if(!it||typeof it!=='object'||it.locationId)continue;
         const loc=locationForOrder(o,key);if(loc)it.locationId=loc;
+      }
+      if(!o.productionLocationId){
+        const first=Object.values(o.projectionItems||{}).find(it=>it&&typeof it==='object'&&it.locationId);
+        const loc=first?.locationId||locationForOrder(o,null);if(loc)o.productionLocationId=loc;
       }
     }
     for(const p of (db.production||[])){
@@ -126,6 +130,11 @@ function patchRecordSaver(){
           for(const k of Object.keys(payload.projectionItems||{})){
             const it=payload.projectionItems[k];
             if(it&&typeof it==='object'&&!it.locationId){const loc=locationForOrder({...cur,...payload},k);if(loc)it.locationId=loc;}
+          }
+          if(!payload.productionLocationId){
+            const first=Object.values(payload.projectionItems||{}).find(it=>it&&typeof it==='object'&&it.locationId);
+            const loc=cur.productionLocationId||first?.locationId||locationForOrder({...cur,...payload},null);
+            if(loc)payload.productionLocationId=loc;
           }
         }
       }
