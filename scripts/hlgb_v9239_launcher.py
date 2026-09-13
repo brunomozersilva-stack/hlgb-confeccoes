@@ -1,0 +1,2 @@
+from pathlib import Path
+Path('abrir.html').write_text("<!doctype html><html><head><meta charset='utf-8'><meta http-equiv='Cache-Control' content='no-cache, no-store, must-revalidate'><title>Abrindo HLGB v92.39</title><script>location.replace('./app9239.html?v=92.39&fresh='+Date.now())</script></head><body>Abrindo HLGB...</body></html>",encoding='utf-8')
