@@ -1,0 +1,27 @@
+name: Publicar HLGB v92.39
+on:
+  push:
+    paths:
+      - 'scripts/hlgb_v9239_patch_only.py'
+      - 'scripts/hlgb_v9239_launcher.py'
+      - '.github/workflows/hlgb-apply-v9239.yml'
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+      - name: Gerar
+        run: |
+          python scripts/hlgb_v9239_patch_only.py
+          python scripts/hlgb_v9239_launcher.py
+      - name: Publicar
+        uses: stefanzweifel/git-auto-commit-action@v5
+        with:
+          commit_message: Publicar HLGB v92.39
+          file_pattern: app9239.html abrir.html
