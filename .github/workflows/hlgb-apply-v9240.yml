@@ -1,0 +1,30 @@
+name: Publicar HLGB v92.40
+
+on:
+  push:
+    paths:
+      - 'scripts/hlgb_v9240_integrity_patch.py'
+      - 'scripts/hlgb_v9240_launcher.py'
+      - '.github/workflows/hlgb-apply-v9240.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+      - name: Gerar versão 92.40
+        run: |
+          python scripts/hlgb_v9240_integrity_patch.py
+          python scripts/hlgb_v9240_launcher.py
+      - name: Publicar versão 92.40
+        uses: stefanzweifel/git-auto-commit-action@v5
+        with:
+          commit_message: Publicar HLGB v92.40
+          file_pattern: app9240.html abrir.html
