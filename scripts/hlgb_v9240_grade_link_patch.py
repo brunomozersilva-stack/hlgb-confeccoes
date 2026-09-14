@@ -15,9 +15,10 @@ addon = r'''<!-- HLGB_V9240_GRADE_LINK_V9243_START -->
 <script>
 (function(){
 'use strict';
-const V='92.43-grade-link';
+const V='92.44-grade-lock';
 const sid=v=>String(v??'');
 const clone=v=>{try{return JSON.parse(JSON.stringify(v))}catch(e){return v}};
+const norm=v=>String(v??'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').trim().toLowerCase();
 
 function effectiveGrade(c){
   if(Array.isArray(c?.actualCutGrade)&&c.actualCutGrade.length)return c.actualCutGrade;
@@ -50,11 +51,15 @@ function gradeProductText(list,fallback){
   }
   return parts.join(' | ')||fallback||'';
 }
+function isAdjustedCut(c){
+  const actual=Array.isArray(c?.actualCutGrade)?c.actualCutGrade:[];
+  return !!(actual.length&&(c?.gradeAdjustedAt||c?.gradeLinkedV9243||!sameJson(actual,c?.originalGrade)||gradeQty(actual)!==(Number(c?.pieces)||0)));
+}
 function normalizeAdjustedCut(c,current){
   if(!c||typeof c!=='object')return c;
   const actual=Array.isArray(c.actualCutGrade)?c.actualCutGrade:[];
   if(!actual.length)return c;
-  const changed=!!c.gradeAdjustedAt||!sameJson(actual,c.originalGrade)||gradeQty(actual)!==(Number(c.pieces)||0);
+  const changed=isAdjustedCut(c);
   if(!changed)return c;
   const out=clone(c);
   const old=(current&&typeof current==='object')?current:c;
@@ -80,11 +85,17 @@ function syncCutLocal(id,payload){
 }
 function normalizeExistingLocalCuts(){
   try{
+    let changed=false;
     for(const c of (db?.cuts||[])){
+      if(!isAdjustedCut(c))continue;
+      const before=JSON.stringify([c.pieces,c.product,c.originalGrade,c.grade,c.gradeLinkedV9243]);
       const fixed=normalizeAdjustedCut(c,c);
-      if(fixed!==c&&fixed?.gradeLinkedV9243)Object.assign(c,fixed);
+      Object.assign(c,fixed);
+      const after=JSON.stringify([c.pieces,c.product,c.originalGrade,c.grade,c.gradeLinkedV9243]);
+      if(before!==after)changed=true;
     }
-  }catch(e){console.warn('[HLGB '+V+'] normalização local',e)}
+    return changed;
+  }catch(e){console.warn('[HLGB '+V+'] normalização local',e);return false}
 }
 function patchSaver(){
   const current=window.hlgbRecordSaveWithRetry;
@@ -102,7 +113,8 @@ function patchSaver(){
     }
     const result=await original.call(this,module,id,payload,deleted);
     if(module==='cuts'&&!deleted&&payload){
-      syncCutLocal(id,payload);
+      const confirmed=(result&&result.data&&typeof result.data==='object')?normalizeAdjustedCut(result.data,payload):payload;
+      syncCutLocal(id,confirmed);
       try{localSaveOnly()}catch(e){}
     }
     return result;
@@ -113,15 +125,112 @@ function patchSaver(){
   return true;
 }
 
+/*
+ * A rotina antiga pedido -> corte atualizava pieces/product em TODO save().
+ * Depois de Ajustar grade isso fazia 118 voltar para 120, a nuvem corrigia
+ * novamente para 118 e o navegador entrava num ciclo infinito de pendências.
+ * Aqui deixamos o pedido criar/sincronizar cortes normais, mas um corte que já
+ * tem grade efetivamente ajustada passa a ser autoritativo para grade/quantidade.
+ */
+function terminalCut(c){
+  const s=norm(c?.status);
+  return !!(c&&(c.done===true||c.fulfilledAt||['finalizado','cancelado','concluido'].includes(s)||s.includes('atendido por producao')));
+}
+function protectedCutState(c){
+  const keys=['pieces','product','productId','actualCutGrade','originalGrade','grade','qty','quantity','totalPieces','gradeAdjustedAt','cutAdjustmentNote','plannedGradeBeforeAdjustmentV9243','gradeLinkedV9243','updatedAt'];
+  const out={};for(const k of keys)if(Object.prototype.hasOwnProperty.call(c||{},k))out[k]=clone(c[k]);
+  return out;
+}
+function restoreProtectedCut(c,state){
+  if(!c||!state)return;
+  for(const [k,v] of Object.entries(state))c[k]=clone(v);
+  const fixed=normalizeAdjustedCut(c,c);Object.assign(c,fixed);
+}
+function patchOrderCutSync(){
+  const current=window.syncOrdersToCuts;
+  if(typeof current!=='function'||current.__hlgbGradeLockV9244)return false;
+  const original=current;
+  const wrapped=function(){
+    const cuts=Array.isArray(db?.cuts)?db.cuts:[];
+    const protectedMap=new Map();
+    const beforeIds=new Set(cuts.map(c=>sid(c?.id)));
+    const beforeOrdinary=new Map();
+    for(const c of cuts){
+      const id=sid(c?.id);if(!id)continue;
+      if(isAdjustedCut(c))protectedMap.set(id,{state:protectedCutState(c),client:c?.client});
+      else if(c?.autoOrderCutV9199||c?.autoOrderCutV9203)beforeOrdinary.set(id,JSON.stringify([c?.pieces,c?.client,c?.product,c?.materialSeparationParallel,c?.updatedAt]));
+    }
+    let raw=false;
+    try{raw=!!original.apply(this,arguments)}catch(e){console.warn('[HLGB '+V+'] sync pedido→corte legado',e);throw e}
+    let net=false;
+    for(const c of (db?.cuts||[])){
+      const id=sid(c?.id);if(!id)continue;
+      const keep=protectedMap.get(id);
+      if(keep){
+        const clientAfter=c?.client;
+        restoreProtectedCut(c,keep.state);
+        if(clientAfter!==keep.client){c.client=clientAfter;c.updatedAt=new Date().toISOString();net=true;}
+        continue;
+      }
+      if(!beforeIds.has(id)){net=true;continue;}
+      if(beforeOrdinary.has(id)){
+        const after=JSON.stringify([c?.pieces,c?.client,c?.product,c?.materialSeparationParallel,c?.updatedAt]);
+        if(after!==beforeOrdinary.get(id))net=true;
+      }
+    }
+    return raw&&net;
+  };
+  wrapped.__hlgbGradeLockV9244=true;
+  wrapped.__originalGradeLock=original;
+  window.syncOrdersToCuts=wrapped;
+  return true;
+}
+function patchGetOrderCut(){
+  const current=window.obterCorteDoPedido;
+  if(typeof current!=='function'||current.__hlgbGradeLockV9244)return false;
+  const original=current;
+  const wrapped=function(o){
+    try{
+      const adjusted=(db?.cuts||[]).find(c=>sid(c?.orderId)===sid(o?.id)&&!terminalCut(c)&&isAdjustedCut(c));
+      if(adjusted){const fixed=normalizeAdjustedCut(adjusted,adjusted);Object.assign(adjusted,fixed);return adjusted;}
+    }catch(e){}
+    return original.apply(this,arguments);
+  };
+  wrapped.__hlgbGradeLockV9244=true;
+  window.obterCorteDoPedido=wrapped;
+  return true;
+}
+async function flushRepairedPending(){
+  try{
+    const changed=normalizeExistingLocalCuts();
+    if(changed){try{localSaveOnly()}catch(e){}}
+    try{if(typeof hlgbRecordPendingStore==='function')hlgbRecordPendingStore()}catch(e){}
+    try{if(typeof hlgbCorePendingStore==='function')hlgbCorePendingStore()}catch(e){}
+    if(typeof hlgbNormalizedSyncNow==='function'){
+      const ok=await hlgbNormalizedSyncNow(false);
+      if(ok!==false){
+        try{if(typeof cloudDirty!=='undefined'&&cloudDirty&&typeof cloudSaveNow==='function')await cloudSaveNow(false)}catch(e){}
+      }
+    }
+  }catch(e){console.warn('[HLGB '+V+'] descarga de pendências',e)}
+}
+
 normalizeExistingLocalCuts();
 let tries=0;
 const timer=setInterval(()=>{
   tries++;
   normalizeExistingLocalCuts();
-  if(patchSaver()||tries>40)clearInterval(timer);
+  const a=patchSaver(),b=patchOrderCutSync(),c=patchGetOrderCut();
+  if((a||window.hlgbRecordSaveWithRetry?.__hlgbGradeLinkV9243)&&(b||window.syncOrdersToCuts?.__hlgbGradeLockV9244)&&(c||window.obterCorteDoPedido?.__hlgbGradeLockV9244)||tries>60)clearInterval(timer);
 },250);
 
-console.info('[HLGB] grade ajustada vinculada a impressão/detalhes/quantidade '+V);
+try{
+  if(typeof hlgbAfterLogin==='function')hlgbAfterLogin(()=>{setTimeout(flushRepairedPending,1200);setTimeout(flushRepairedPending,3500)},0);
+  else {setTimeout(flushRepairedPending,1800);setTimeout(flushRepairedPending,4200);}
+}catch(e){}
+window.addEventListener('online',()=>setTimeout(flushRepairedPending,300));
+
+console.info('[HLGB] grade ajustada protegida contra ressincronização do pedido '+V);
 })();
 </script>
 <!-- HLGB_V9240_GRADE_LINK_V9243_END -->'''
