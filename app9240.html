@@ -5394,6 +5394,27 @@ function openProjectionProductionSplit(orderId,itemKey){
  if(typeof openCapacityAllocation!=="function"){alert("A divisão de produção não está disponível.");return}
  openCapacityAllocation(orderId,itemKey);
 }
+/* HLGB_V9240_PROJECTION_CLIENT_TOTALS */
+function projectionClientParts9240(order,item){
+  const q=v=>Math.max(0,+v||0);
+  const pid=String(item?.productId??item?.key??''),key=String(item?.key??pid);
+  const saved=order?.projectionItems?.[key]||order?.projectionItems?.[pid]||{};
+  const allocations=Array.isArray(saved.clientAllocations)?saved.clientAllocations.filter(a=>q(a?.qty)>0):[];
+  const available=q(typeof projectionDeliverableQty==='function'?projectionDeliverableQty(order,item):item?.remainingQty);
+  const fallback=()=>{
+    const assigned=order?.productClientAssignments?.[pid]||null;
+    return {clientId:assigned?.clientId??item?.clientId??order?.clientId??null,clientName:assigned?.clientName||item?.clientName||order?.client||'Sem cliente'};
+  };
+  if(!allocations.length)return available>0?[{...fallback(),qty:available}]:[];
+  let left=available,out=[];
+  allocations.forEach(a=>{
+    const qty=Math.min(left,q(a.qty));
+    if(qty>0)out.push({clientId:a.clientId??null,clientName:a.clientName||'Sem cliente',qty});
+    left=Math.max(0,left-qty);
+  });
+  if(left>0)out.push({...fallback(),qty:left,residual:true});
+  return out;
+}
 function renderProjection(){
  let sEl=document.getElementById("projectionStart"),eEl=document.getElementById("projectionEnd");if(!sEl||!eEl)return;
  if(!sEl.value&&!eEl.value){let m=mondayOf(new Date()),z=new Date(m);z.setDate(z.getDate()+6);sEl.value=isoDate(m);eEl.value=isoDate(z)}
@@ -5455,8 +5476,9 @@ function renderProjection(){
    ])
  ):'<div class="empty">Todos os produtos já estão programados na projeção.</div>';
 
- let totalQty=scheduled.reduce((a,x)=>a+projectionDeliverableQty(x.order,x.item),0);
- let totalValue=scheduled.reduce((a,x)=>a+projectionDeliverableValue(x.order,x.item),0);
+ let scopedClientParts9240=clientF?scheduled.flatMap(({order:o,item})=>projectionClientParts9240(o,item).filter(part=>String(part.clientName||'').toLowerCase().includes(clientF)).map(part=>({order:o,item,part}))):[];
+ let totalQty=clientF?scopedClientParts9240.reduce((a,x)=>a+(+x.part.qty||0),0):scheduled.reduce((a,x)=>a+projectionDeliverableQty(x.order,x.item),0);
+ let totalValue=clientF?scopedClientParts9240.reduce((a,x)=>a+(+x.part.qty||0)*projectionUnitForItem(x.item),0):scheduled.reduce((a,x)=>a+projectionDeliverableValue(x.order,x.item),0);
  let deliveredPeriodRows=projectionDeliveredRows(startS,endS).filter(r=>projectionTrackingMatches(r.order,r.item.productName));
  let invoicedValue=deliveredPeriodRows.reduce((a,x)=>a+(+x.value||0),0),openQty=totalQty;
  let label=document.getElementById("projectionPeriodLabel");if(label)label.textContent=`Exibindo de ${fmtDate(startS)} até ${fmtDate(endS)}.`;
@@ -5496,9 +5518,14 @@ function renderProjection(){
 
  let clients={};
  scheduled.forEach(({order:o,item})=>{
-   let k=item.clientName||o.client||"Sem cliente";if(!clients[k])clients[k]={qty:0,value:0,products:0,invoiced:0};
-   const deliverableQty=projectionDeliverableQty(o,item),deliverableValue=projectionDeliverableValue(o,item);
-   clients[k].qty+=deliverableQty;clients[k].value+=deliverableValue;clients[k].products++;if(item.invoiced)clients[k].invoiced+=deliverableValue;
+   const unit=projectionUnitForItem(item);
+   projectionClientParts9240(o,item).filter(part=>!clientF||String(part.clientName||'').toLowerCase().includes(clientF)).forEach(part=>{
+     const k=part.clientName||"Sem cliente";
+     if(!clients[k])clients[k]={qty:0,value:0,products:0,invoiced:0};
+     clients[k].qty+=(+part.qty||0);
+     clients[k].value+=(+part.qty||0)*unit;
+     clients[k].products++;
+   });
  });
  let clientRows=Object.entries(clients).sort((a,b)=>b[1].value-a[1].value),max=Math.max(...clientRows.map(x=>x[1].qty),1);
  let cpt=document.getElementById("clientProjectionTable");
