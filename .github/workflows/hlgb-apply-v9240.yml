@@ -6,6 +6,7 @@ on:
       - 'scripts/hlgb_v9240_integrity_patch.py'
       - 'scripts/hlgb_v9240_grade_link_patch.py'
       - 'scripts/hlgb_v9240_cut_production_qty_patch.py'
+      - 'scripts/hlgb_v9240_material_separation_patch.py'
       - 'scripts/hlgb_v9240_launcher.py'
       - '.github/workflows/hlgb-apply-v9240.yml'
   workflow_dispatch:
@@ -52,14 +53,15 @@ jobs:
           p.write_text(s, encoding='utf-8')
           print('hotfix multiusuário aplicado')
           PY
-      - name: Vincular grade ajustada, produção e reduzir pulos
+      - name: Vincular grade, produção e navegação operacional
         run: |
           python scripts/hlgb_v9240_grade_link_patch.py
           python scripts/hlgb_v9240_cut_production_qty_patch.py
+          python scripts/hlgb_v9240_material_separation_patch.py
           python scripts/check_html_scripts.py app9240.html
           python scripts/hlgb_v9240_launcher.py
       - name: Publicar versão 92.40
         uses: stefanzweifel/git-auto-commit-action@v5
         with:
-          commit_message: Publicar HLGB v92.40 grade e produção vinculadas ao corte efetivo
+          commit_message: Publicar HLGB v92.40 com Separação de Materiais corrigida
           file_pattern: app9240.html abrir.html
