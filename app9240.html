@@ -1743,8 +1743,7 @@ function cloudStoreAuth(){
   }
  }catch(e){}
 }
-function cloudRestoreStoredAuth(allowExplicitRestore=false){
-  if(allowExplicitRestore!==true)return false;
+function cloudRestoreStoredAuth(allowExplicitRestore=true){
   try{
     let raw=localStorage.getItem(HLGB_CLOUD_AUTH_KEY);
     if(!raw){try{raw=sessionStorage.getItem(HLGB_CLOUD_AUTH_KEY)}catch(e){}}
