@@ -11477,19 +11477,9 @@ async function hlgbRecordLoadDirect(since=null){
 async function hlgbRecordLoadBundle({preserveLocal=false,since=null}={}){
   const body={p_since:since||null};
   let bundle;
-  const ownerLoading=normEmail(cloudUser?.email)===normEmail(HLGB_OWNER_EMAIL);
-  if(ownerLoading){
-    // O administrador lê todos os módulos. Dividir em páginas evita que Safari e
-    // redes móveis interrompam o login ao receber mais de mil registros de uma vez.
-    bundle=await hlgbRecordLoadDirect(since);
-  }else{
-    try{
-      bundle=await cloudRequest("rpc/hlgb_load_bundle",{method:"POST",body:JSON.stringify(body)});
-    }catch(primaryError){
-      console.warn("HLGB: pacote principal indisponível; usando leitura paginada segura.",primaryError);
-      bundle=await hlgbRecordLoadDirect(since);
-    }
-  }
+  // v92.40 hotfix: carga paginada para todos os usuários.
+  // Evita falha de inicialização no Safari quando há muitos registros.
+  bundle=await hlgbRecordLoadDirect(since);
   if(Array.isArray(bundle)&&bundle.length===1&&bundle[0]&&bundle[0].rows)bundle=bundle[0];
   if(!bundle||typeof bundle!=="object")bundle=await hlgbRecordLoadDirect(since);
   const readable=Array.isArray(bundle.modules)?bundle.modules.filter(m=>HLGB_RECORD_MODULES.includes(String(m))):[];
