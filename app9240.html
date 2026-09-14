@@ -6894,7 +6894,7 @@ function finishCut(id){
 
 function cutForm(c={}){
  let ac=(db.cutters||[]).filter(x=>x.active!==false);
- return `<div class="grid"><div class="field"><label>OP</label><input id="mop" value="${esc(c.op||"")}"></div><div class="field"><label>Produto</label><select id="mcutproduct">${productOptions(c.productId)}</select></div><div class="field"><label>Tecido</label><input id="mfabric" value="${esc(c.fabric||"")}"></div><div class="field"><label>Cor</label><input id="mcolor" value="${esc(c.color||"")}"></div><div class="field"><label>Tamanho</label><input id="msize" value="${esc(c.size||"")}"></div><div class="field"><label>Camadas</label><input id="mlayers" type="number" value="${c.layers??0}"></div><div class="field"><label>Metros usados</label><input id="mmeters" type="number" step=".01" value="${c.meters??0}"></div><div class="field"><label>Peças previstas</label><input id="mpieces" type="number" value="${c.pieces??0}"></div><div class="field"><label>Tipo de corte</label><select id="mcuttype"><option value="">Selecione</option><option value="Interno" ${c.cutType==="Interno"?"selected":""}>Interno</option><option value="Externo" ${c.cutType==="Externo"?"selected":""}>Externo</option></select></div><div class="field"><label>Cortador</label><select id="mcutcutter"><option value="">Selecione</option>${ac.map(x=>`<option value="${x.id}" ${+x.id===+c.cutterId?"selected":""}>${esc(x.name)} — ${esc(x.cutType||"")}</option>`).join("")}</select></div><div class="field"><label>Local de produção</label><select id="mcutlocation"><option value="">Selecione</option>${(db.productionLocations||[]).filter(x=>x.active!==false).map(x=>`<option value="${x.id}" ${+x.id===+c.productionLocationId?"selected":""}>${esc(x.name)}</option>`).join("")}</select></div><div class="field"><label>Data prevista de corte</label><input id="mcutplanned" type="date" value="${c.plannedCutDate||""}"></div></div>`;
+ return `<div class="grid"><div class="field"><label>OP</label><input id="mop" value="${esc(c.op||"")}"></div><div class="field"><label>Produto</label><select id="mcutproduct">${productOptions(c.productId)}</select></div><div class="field"><label>Tecido</label><input id="mfabric" value="${esc(c.fabric||"")}"></div><div class="field"><label>Cor</label><input id="mcolor" value="${esc(c.color||"")}"></div><div class="field"><label>Tamanho</label><input id="msize" value="${esc(c.size||"")}"></div><div class="field"><label>Camadas</label><input id="mlayers" type="number" value="${c.layers??0}"></div><div class="field"><label>Metros usados</label><input id="mmeters" type="number" step=".01" value="${c.meters??0}"></div><div class="field"><label>Peças previstas</label><input id="mpieces" type="number" ${cutActualGrade(c,cutOrderFor(c)).length?'readonly title="Use Ajustar grade para alterar as quantidades por tamanho"':''} value="${hlgbCutQuantity9245(c,cutOrderFor(c))}"></div><div class="field"><label>Tipo de corte</label><select id="mcuttype"><option value="">Selecione</option><option value="Interno" ${c.cutType==="Interno"?"selected":""}>Interno</option><option value="Externo" ${c.cutType==="Externo"?"selected":""}>Externo</option></select></div><div class="field"><label>Cortador</label><select id="mcutcutter"><option value="">Selecione</option>${ac.map(x=>`<option value="${x.id}" ${+x.id===+c.cutterId?"selected":""}>${esc(x.name)} — ${esc(x.cutType||"")}</option>`).join("")}</select></div><div class="field"><label>Local de produção</label><select id="mcutlocation"><option value="">Selecione</option>${(db.productionLocations||[]).filter(x=>x.active!==false).map(x=>`<option value="${x.id}" ${+x.id===+c.productionLocationId?"selected":""}>${esc(x.name)}</option>`).join("")}</select></div><div class="field"><label>Data prevista de corte</label><input id="mcutplanned" type="date" value="${c.plannedCutDate||""}"></div></div>`;
 }
 function saveCutData(c){c.op=mop.value.trim();c.productId=+mcutproduct.value||null;c.fabric=mfabric.value;c.color=mcolor.value;c.size=msize.value;c.layers=+mlayers.value||0;c.meters=+mmeters.value||0;c.pieces=+mpieces.value||0;c.cutType=mcuttype.value;c.cutterId=mcutcutter.value?+mcutcutter.value:null;c.productionLocationId=mcutlocation.value?+mcutlocation.value:null;c.plannedCutDate=document.getElementById("mcutplanned")?.value||c.plannedCutDate||"";let p=cutProduct(c);if(p)c.product=p.name;}
 function newCut(){openModal("Novo plano de corte",cutForm()+`<button type="button" class="primary modalSave">💾 Salvar plano de corte</button>`,()=>{let c={id:Date.now(),status:"Planejado",date:isoDate(new Date())};saveCutData(c);db.cuts.push(c);closeModal();save()})}
@@ -11907,6 +11907,7 @@ function saveCutSchedule(id){
 function setDailyCutToday(){let el=document.getElementById("dailyCutDate");if(el)el.value=isoDate(new Date());renderDailyCuts()}
 function cutOrderFor(c){return (db.orders||[]).find(o=>+o.id===+c.orderId)||null}
 function cutOriginalGrade(c,o){
+  if(Array.isArray(c.plannedGradeBeforeAdjustmentV9243)&&c.plannedGradeBeforeAdjustmentV9243.length)return c.plannedGradeBeforeAdjustmentV9243;
   if(Array.isArray(c.originalGrade)&&c.originalGrade.length)return c.originalGrade;
   return cloneCutGrade(o?.grade||[]);
 }
@@ -11997,11 +11998,11 @@ function renderCuts(){
       let c=obterCorteDoPedido(o),w=cutPriorityWeight(o);
       let auto=c.autoScheduledPriority?'<span class="badge warn">Data automática pela prioridade</span>':'';
       let carry=c.rolloverCount>0?`<div class="sub">Reprogramado ${c.rolloverCount}x</div>`:'';
-      return [`<strong>${idx+1}º</strong>`,esc(displayOrderNumber(o)||o.id),esc(o.client||'-'),esc(orderProductSummary(o)),qtyOfOrder(o).toLocaleString('pt-BR'),priorityBadge(o.priority||'Padrão'),`<div class="cut-schedule-inline"><input id="cutDate_${c.id}" type="date" value="${c.plannedCutDate||''}"><select id="cutCutter_${c.id}"><option value="">Cortador</option>${cutterOpts.map(x=>`<option value="${x.id}" ${+x.id===+c.cutterId?'selected':''}>${esc(x.name)}</option>`).join('')}</select><select id="cutType_${c.id}"><option value="">Tipo</option><option value="Interno" ${c.cutType==='Interno'?'selected':''}>Interno</option><option value="Externo" ${c.cutType==='Externo'?'selected':''}>Externo</option></select><button class="secondary" onclick="saveCutSchedule(${c.id})">Salvar</button></div>${auto}${carry}`,`<button class="secondary" onclick="printCuttingSheet(${o.id})">🖨️ Imprimir grade</button> <button class="secondary" onclick="viewOrderDetails(${o.id})">Pedido original</button> <button class="secondary" onclick="editCut(${c.id})">Detalhes do corte</button> <button class="primary" onclick="finishCut(${c.id})">✅ Finalizar</button>`];
+      return [`<strong>${idx+1}º</strong>`,esc(displayOrderNumber(o)||o.id),esc(o.client||'-'),esc(orderProductSummary(o)),hlgbCutQuantity9245(c,o).toLocaleString('pt-BR'),priorityBadge(o.priority||'Padrão'),`<div class="cut-schedule-inline"><input id="cutDate_${c.id}" type="date" value="${c.plannedCutDate||''}"><select id="cutCutter_${c.id}"><option value="">Cortador</option>${cutterOpts.map(x=>`<option value="${x.id}" ${+x.id===+c.cutterId?'selected':''}>${esc(x.name)}</option>`).join('')}</select><select id="cutType_${c.id}"><option value="">Tipo</option><option value="Interno" ${c.cutType==='Interno'?'selected':''}>Interno</option><option value="Externo" ${c.cutType==='Externo'?'selected':''}>Externo</option></select><button class="secondary" onclick="saveCutSchedule(${c.id})">Salvar</button></div>${auto}${carry}`,`<button class="secondary" onclick="printCuttingSheet(${o.id},${c.id})">🖨️ Imprimir grade</button> <button class="secondary" onclick="viewOrderDetails(${o.id})">Pedido original</button> <button class="secondary" onclick="editCut(${c.id})">Detalhes do corte</button> <button class="primary" onclick="finishCut(${c.id})">✅ Finalizar</button>`];
     });
     el.innerHTML=rows.length?table(["Ordem","Pedido","Cliente","Produto","Peças","Prioridade","Programação do corte","Ações"],rows):'<div class="empty">Nenhum pedido aguardando corte.</div>';
   }
-  let pp=orders.reduce((a,o)=>a+qtyOfOrder(o),0),pv=orders.reduce((a,o)=>a+(+o.total||0),0);
+  let pp=orders.reduce((a,o)=>a+hlgbCutQuantity9245(obterCorteDoPedido(o),o),0),pv=orders.reduce((a,o)=>{const q=qtyOfOrder(o);return a+(q?hlgbCutQuantity9245(obterCorteDoPedido(o),o)*(+o.total||0)/q:0)},0);
   let rp=ready.reduce((a,c)=>a+(+c.pieces||0),0),rv=ready.reduce((a,c)=>a+(typeof cutValue==="function"?cutValue(c):0),0);
   let ri=ready.filter(c=>c.cutType==="Interno"),re=ready.filter(c=>c.cutType==="Externo");
   let ip=ri.reduce((a,c)=>a+(+c.pieces||0),0),ep=re.reduce((a,c)=>a+(+c.pieces||0),0),iv=ri.reduce((a,c)=>a+cutValue(c),0),ev=re.reduce((a,c)=>a+cutValue(c),0);
@@ -14310,10 +14311,12 @@ function hubFinanceManualSync(){alert("O botão de sincronização está prepara
     </section>`;
   }
 
-  window.printCuttingSheet=function(orderId){
+  window.printCuttingSheet=function(orderId,cutId){
     let o=(db.orders||[]).find(x=>+x.id===+orderId);
     if(!o)return;
-    let groups=modelGroups936(o);
+    const cut=cutId!=null?(db.cuts||[]).find(c=>String(c.id)===String(cutId)):obterCorteDoPedido(o);
+    const effective=cut?cutActualGrade(cut,o):o.grade;
+    let groups=modelGroups936({...o,grade:effective});
     let blocks=groups.map((g,i)=>gradeBlock936(g,i,groups.length)).join('');
     if(!blocks)blocks='<div style="padding:16px;border:1px solid #bbb">Pedido sem grade cadastrada.</div>';
     let w=window.open('','_blank');
@@ -17351,7 +17354,7 @@ window.hlgbEditCut9189=function(id){
  let html=`<div class="panel" style="margin:0 0 12px"><b>${esc9189(productName9189(c))}</b><div class="sub">Você pode mudar o dia e o cortador quantas vezes precisar.</div></div><div class="grid">
  <div class="field"><label>Dia do corte *</label><input id="editCutDate9189" type="date" value="${esc9189(c.plannedCutDate||iso9189(new Date()))}"></div>
  <div class="field"><label>Cortador</label><select id="editCutCutter9189"><option value="">Sem cortador definido</option>${cutters.map(x=>`<option value="${esc9189(x.id)}" ${String(x.id)===String(c.cutterId)?'selected':''}>${esc9189(x.name)}</option>`).join('')}</select></div>
- <div class="field"><label>Quantidade</label><input id="editCutQty9189" type="number" min="1" step="1" value="${qty9189(c)}"></div>
+ <div class="field"><label>Quantidade</label><input id="editCutQty9189" type="number" min="0" step="1" ${cutActualGrade(c,cutOrderFor(c)).length?'readonly title="Use Ajustar grade para alterar as quantidades por tamanho"':''} value="${hlgbCutQuantity9245(c,cutOrderFor(c))}"></div>
  <div class="field"><label>Valor unitário</label><input id="editCutUnit9189" type="number" min="0" step="0.01" value="${unit9189(c).toFixed(2)}"></div>
  <div class="field"><label>Tipo</label><select id="editCutType9189"><option value="" ${!c.cutType?'selected':''}>Não definido</option><option value="Interno" ${c.cutType==='Interno'?'selected':''}>Interno</option><option value="Externo" ${c.cutType==='Externo'?'selected':''}>Externo</option></select></div>
  <div class="field"><label>Observação</label><input id="editCutNote9189" value="${esc9189(c.note||'')}"></div></div><button type="button" class="primary modalSave">☁️ Salvar alteração</button>`;
@@ -17452,7 +17455,7 @@ async function saveCut9191(next,backup){
 }
 window.hlgbAdjustCutGrade9191=function(id){
   let c=(db.cuts||[]).find(x=>String(x.id)===String(id));if(!c)return;let o=orderFor9191(c),backup=clone9191(c);
-  let orig=Array.isArray(c.originalGrade)&&c.originalGrade.length?clone9191(c.originalGrade):clone9191(o?.grade||[]),actual=Array.isArray(c.actualCutGrade)&&c.actualCutGrade.length?clone9191(c.actualCutGrade):clone9191(orig);
+  let orig=clone9191(cutOriginalGrade(c,o)),actual=Array.isArray(c.actualCutGrade)&&c.actualCutGrade.length?clone9191(c.actualCutGrade):clone9191(orig);
   if(orig.length&&!c.originalGrade)c.originalGrade=clone9191(orig);
   let body='';
   if(orig.length){body=`<div class="sub" style="margin-bottom:10px">Altere somente a quantidade que realmente será/foi cortada. O pedido original fica preservado.</div>${table(['Modelo','Cor','Tamanho','Previsto','Corte real'],orig.map((it,i)=>{let p=(db.products||[]).find(x=>String(x.id)===String(it.productId)),a=actual.find(x=>String(x.productId)===String(it.productId)&&String(x.color||'')===String(it.color||'')&&String(x.size||'')===String(it.size||''));return[esc9191(p?.name||'Produto'),esc9191(it.color||'-'),esc9191(it.size||'-'),(+it.qty||0).toLocaleString('pt-BR'),`<input id="adj9191_${i}" type="number" min="0" step="1" value="${a?.qty??it.qty??0}" style="width:85px">`] }))}`}
@@ -21097,7 +21100,13 @@ console.info('[HLGB] integridade de fluxo v'+V+' ativa');
 <script>
 (function(){
 'use strict';
-const V='92.44-grade-lock';
+const V='92.45-grade-consumers';
+window.hlgbCutQuantity9245=function(c,o){
+  if(!c)return typeof qtyOfOrder==='function'?qtyOfOrder(o||{}):0;
+  if(Array.isArray(c.actualCutGrade)&&c.actualCutGrade.length)return c.actualCutGrade.reduce((s,g)=>s+(Number(g.qty)||0),0);
+  if(c.pieces!=null&&Number.isFinite(Number(c.pieces)))return Number(c.pieces);
+  return typeof qtyOfOrder==='function'?qtyOfOrder(o||{}):0;
+};
 const sid=v=>String(v??'');
 const clone=v=>{try{return JSON.parse(JSON.stringify(v))}catch(e){return v}};
 const norm=v=>String(v??'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').trim().toLowerCase();
