@@ -22,10 +22,38 @@ jobs:
       - name: Gerar versão 92.40
         run: |
           python scripts/hlgb_v9240_integrity_patch.py
+      - name: Hotfix login multiusuário paginado
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          p = Path('app9240.html')
+          s = p.read_text(encoding='utf-8')
+          fn = 'async function hlgbRecordLoadBundle({preserveLocal=false,since=null}={}){'
+          start = s.find(fn)
+          if start < 0:
+              raise SystemExit('hlgbRecordLoadBundle não encontrado')
+          body = s.find('  const body={p_since:since||null};', start)
+          if body < 0:
+              raise SystemExit('início do carregador não encontrado')
+          replace_start = s.find('\n', body) + 1
+          replace_end = s.find('  if(Array.isArray(bundle)', replace_start)
+          if replace_end < 0:
+              raise SystemExit('fim do bloco de bundle não encontrado')
+          hotfix = (
+              '  let bundle;\n'
+              '  // v92.40 hotfix: carga paginada para todos os usuários.\n'
+              '  // Evita falha de inicialização no Safari quando há muitos registros.\n'
+              '  bundle=await hlgbRecordLoadDirect(since);\n'
+          )
+          s = s[:replace_start] + hotfix + s[replace_end:]
+          p.write_text(s, encoding='utf-8')
+          print('hotfix multiusuário aplicado')
+          PY
           python scripts/check_html_scripts.py app9240.html
           python scripts/hlgb_v9240_launcher.py
       - name: Publicar versão 92.40
         uses: stefanzweifel/git-auto-commit-action@v5
         with:
-          commit_message: Publicar HLGB v92.40
+          commit_message: Publicar HLGB v92.40 hotfix login multiusuario
           file_pattern: app9240.html abrir.html
