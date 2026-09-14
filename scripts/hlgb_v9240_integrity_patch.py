@@ -179,7 +179,10 @@ console.info('[HLGB] integridade de fluxo v'+V+' ativa');
 
 if 'HLGB_V9240_WORKFLOW_INTEGRITY_START' not in s:
     if '</body>' in s:
-        s = s.replace('</body>', addon + '\n</body>')
+        # Printing templates also contain </body>; only the document's final
+        # closing body may receive executable application scripts.
+        head, tail = s.rsplit('</body>', 1)
+        s = head + addon + '\n</body>' + tail
     else:
         s += '\n' + addon
 
