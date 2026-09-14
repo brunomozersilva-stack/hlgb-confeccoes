@@ -2549,17 +2549,15 @@ setInterval(()=>{
  if(cloudDirty&&cloudAccessToken&&cloudReady&&!cloudSaving)cloudSaveNow(false).catch(()=>{});
 },15000);
 setInterval(()=>{
- // JSON legado: somente módulos ainda não migrados.
- cloudCheckRemoteVersion().catch(()=>{});
-},2500);
+ if(typeof hlgbRecordReady==='undefined'||!hlgbRecordReady)cloudCheckRemoteVersion().catch(()=>{});
+},30000);
 setInterval(()=>{
- // Fallback das tabelas v90. O Realtime costuma ser instantâneo; esta verificação
- // garante recuperação automática se WebSocket/RLS perder algum evento.
- hlgbPullNormalizedCoreChanges().catch(()=>{});
-},1800);
+ // Realtime e o caminho principal; fallback leve somente a cada 30 s.
+ hlgbPullNormalizedCoreChanges(false).catch(()=>{});
+},30000);
 setInterval(()=>{
  if(hlgbNormalizedReady&&cloudAccessToken&&hlgbCorePendingRead())hlgbNormalizedSyncNow(false).catch(()=>{});
-},7000);
+},20000);
 document.addEventListener("focusin",()=>{});
 document.addEventListener("focusout",()=>{
  if(cloudRemoteUpdatePending)setTimeout(()=>{
@@ -4526,7 +4524,73 @@ function cleanupOrphanOrderRecords(){
  }
  return {total,removed};
 }
+function hlgbLowMemorySafeV9240(name,...args){
+ try{const fn=window[name];if(typeof fn==='function')return fn(...args)}
+ catch(e){console.warn('[HLGB memoria v92.40] '+name,e)}
+}
+let hlgbLowMemoryTimerV9240=null;
+function hlgbLowMemoryRenderNowV9240(){
+ const page=document.querySelector('.page.active');
+ const id=page?.id||'dashboard';
+ const sep=document.getElementById('separationOrder');
+ const keepSep=String(window.__hlgbOpenSeparation9240||sep?.value||'');
+ const R=(name,...args)=>hlgbLowMemorySafeV9240(name,...args);
+
+ switch(id){
+  case 'dashboard': R('renderDash'); break;
+  case 'pedidos': R('renderOrders');R('fillSeparationOrders');R('renderOrderNotes');break;
+  case 'corte': R('renderCuts');R('renderCutAssignmentQueue');break;
+  case 'producao': R('renderProduction');R('renderProductionHub');break;
+  case 'projecao': R('renderProjection');break;
+  case 'capacidadeProducao': R('renderCapacityPlanning');break;
+  case 'clientes': R('renderClients');R('renderClientPotentialReport');break;
+  case 'produtos': R('renderProducts');break;
+  case 'materiais': R('renderMaterials');R('fillSeparationOrders');break;
+  case 'estoque': R('renderStock');break;
+  case 'faccoes': case 'cadFaccoes': case 'cadLocaisProducao': case 'cadMaquinas': case 'cadTiposServico': R('renderFactions');break;
+  case 'pagamentosFaccoes': R('renderFactionPayments');R('renderFactionPaymentPlanner');break;
+  case 'cortadores': R('renderCutters');R('drawCutterChart');R('renderCutterProductCosts');break;
+  case 'financeiro': R('renderFinance');break;
+  case 'hubFinanceiro': R('renderHubFinance');break;
+  case 'fornecedores': R('renderSuppliers');break;
+  case 'compras': R('renderPurchases');break;
+  case 'funcionarios': R('renderEmployees');break;
+  case 'exFuncionarios': R('renderFormerEmployees');break;
+  case 'folhaPagamento': R('renderPayroll');break;
+  case 'faltas': R('renderMissingPieces');break;
+  case 'devolucoesDefeitos': R('renderDefectReturns');break;
+  case 'inventarioBens': R('renderAssets');break;
+  case 'lixeiraPedidos': R('renderOrderTrash');break;
+  case 'metas': R('renderGoals');break;
+  case 'notas': R('renderOrderNotes');break;
+  case 'relatorios': R('renderReports');break;
+  case 'usuarios': R('renderUsers');break;
+  default:
+   // Paginas de cadastro/legadas sao atualizadas ao serem abertas pelo roteador.
+   // Evitamos redesenhar dezenas de telas invisiveis a cada evento da nuvem.
+   break;
+ }
+
+ // Separacao de materiais: mantem a selecao aberta sem reconstruir o sistema.
+ if(page?.querySelector?.('#separationOrder')){
+  R('fillSeparationOrders');
+  const sel=document.getElementById('separationOrder');
+  if(keepSep&&sel){sel.value=keepSep;R('renderSeparation')}
+  R('renderDestinationChecklists');
+  R('renderFactionChecklists9198');
+ }
+ R('ensurePageSyncButtons');
+}
 function renderAll(){
+ // Realtime pode entregar varias linhas juntas. Uma unica renderizacao atende
+ // ao lote inteiro e impede crescimento de DOM/heap por tempestade de eventos.
+ if(hlgbLowMemoryTimerV9240)clearTimeout(hlgbLowMemoryTimerV9240);
+ hlgbLowMemoryTimerV9240=setTimeout(()=>{
+  hlgbLowMemoryTimerV9240=null;
+  hlgbLowMemoryRenderNowV9240();
+ },120);
+}
+function renderAllFullV9240(){
  // Renderizar a interface nunca deve, por si só, criar uma alteração pendente.
  // Algumas rotinas legadas abaixo também fazem sincronizações derivadas; só
  // persistimos se elas realmente mudarem dados operacionais.
@@ -11478,7 +11542,7 @@ async function hlgbRecordLoadBundle({preserveLocal=false,since=null}={}){
   const body={p_since:since||null};
   let bundle;
   // v92.40 hotfix: carga paginada para todos os usuários.
-  // Evita falha de inicialização no Safari quando há muitos registros.
+  // Evita falha de inicialização quando há muitos registros.
   bundle=await hlgbRecordLoadDirect(since);
   if(Array.isArray(bundle)&&bundle.length===1&&bundle[0]&&bundle[0].rows)bundle=bundle[0];
   if(!bundle||typeof bundle!=="object")bundle=await hlgbRecordLoadDirect(since);
@@ -11781,10 +11845,10 @@ persistDb=function(){
 setInterval(()=>{
   if(hlgbRecordReady&&cloudAccessToken&&hlgbRealtimeState!=="SUBSCRIBED")hlgbPullNormalizedCoreChanges(false).catch(()=>{});
 },8000);
-setInterval(()=>{if(hlgbRecordReady&&cloudAccessToken&&hlgbRecordPendingRead())hlgbNormalizedSyncNow(false).catch(()=>{})},3500);
+setInterval(()=>{if(hlgbRecordReady&&cloudAccessToken&&hlgbRecordPendingRead())hlgbNormalizedSyncNow(false).catch(()=>{})},15000);
 // Rede de segurança: mesmo com Realtime marcado como conectado, faz uma leitura única e leve
 // periodicamente. Isso cobre navegador que mantém o websocket aberto mas deixa de entregar eventos.
-setInterval(()=>{if(hlgbRecordReady&&cloudAccessToken&&!document.hidden)hlgbPullNormalizedCoreChanges(true).catch(()=>{})},6000);
+setInterval(()=>{if(hlgbRecordReady&&cloudAccessToken&&!document.hidden)hlgbPullNormalizedCoreChanges(false).catch(()=>{})},30000);
 window.addEventListener("focus",()=>{if(hlgbRecordReady&&cloudAccessToken)hlgbPullNormalizedCoreChanges(true).catch(()=>{})});
 
 
@@ -21641,6 +21705,15 @@ console.info('[HLGB] Separação de Materiais estável carregada '+VERSION);
 })();
 </script>
 <!-- HLGB_V9240_MATERIAL_SEPARATION_NAV_END -->
+<!-- HLGB_V9240_MEMORY_GUARD_START -->
+<script>
+(function(){
+ 'use strict';
+ window.__HLGB_MEMORY_GUARD_V9240__={active:true,mode:'active-page',pollFallbackMs:30000};
+ console.info('[HLGB] protecao estrutural de memoria v92.40 ativa');
+})();
+</script>
+<!-- HLGB_V9240_MEMORY_GUARD_END -->
 <!-- HLGB_V9240_MEMORY_START -->
 <script>
 (function(){
