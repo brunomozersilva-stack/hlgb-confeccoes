@@ -24,6 +24,7 @@ replace_once("function cutOriginalGrade(c,o){", "function cutOriginalGrade(c,o){
 replace_once("let orig=Array.isArray(c.originalGrade)&&c.originalGrade.length?clone9191(c.originalGrade):clone9191(o?.grade||[]),actual=", "let orig=clone9191(cutOriginalGrade(c,o)),actual=")
 replace_once('id="mpieces" type="number" value="${c.pieces??0}"', 'id="mpieces" type="number" ${cutActualGrade(c,cutOrderFor(c)).length?\'readonly title="Use Ajustar grade para alterar as quantidades por tamanho"\':\'\'} value="${hlgbCutQuantity9245(c,cutOrderFor(c))}"')
 replace_once('id="editCutQty9189" type="number" min="1" step="1" value="${qty9189(c)}"', 'id="editCutQty9189" type="number" min="0" step="1" ${cutActualGrade(c,cutOrderFor(c)).length?\'readonly title="Use Ajustar grade para alterar as quantidades por tamanho"\':\'\'} value="${hlgbCutQuantity9245(c,cutOrderFor(c))}"')
+replace_once("if(!c.originalPieces)c.originalPieces=qty9173(c.pieces)||qtyOfOrder(o||{});", "if(!c.originalPieces)c.originalPieces=qtyOfOrder(o||{})||qty9173(c.pieces);")
 
 # Evita a correção de integridade rodando a cada 500 ms por 30 segundos.
 # Ela continua sendo aplicada na abertura e após os renders relevantes, sem
