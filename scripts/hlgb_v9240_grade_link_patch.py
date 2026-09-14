@@ -13,6 +13,8 @@ def replace_once(old, new):
         raise SystemExit('Trecho de corte inesperado: ' + old[:100])
     s = s.replace(old, new, 1)
 
+replace_once('let firstPanel=pg.querySelector(".panel");', 'let firstPanel=pg.querySelector(":scope > .panel");')
+
 replace_once("window.printCuttingSheet=function(orderId){", "window.printCuttingSheet=function(orderId,cutId){")
 replace_once("    let groups=modelGroups936(o);", "    const cut=cutId!=null?(db.cuts||[]).find(c=>String(c.id)===String(cutId)):obterCorteDoPedido(o);\n    const effective=cut?cutActualGrade(cut,o):o.grade;\n    let groups=modelGroups936({...o,grade:effective});")
 replace_once('onclick="printCuttingSheet(${o.id})">🖨️ Imprimir grade</button> <button class="secondary" onclick="viewOrderDetails', 'onclick="printCuttingSheet(${o.id},${c.id})">🖨️ Imprimir grade</button> <button class="secondary" onclick="viewOrderDetails')
