@@ -3,6 +3,26 @@ from pathlib import Path
 p = Path('app9240.html')
 s = p.read_text(encoding='utf-8')
 
+# Corrige os consumidores da grade, além da persistência. O pedido comercial
+# permanece intacto; impressão e fila de corte usam a quantidade operacional.
+def replace_once(old, new):
+    global s
+    if new in s:
+        return
+    if s.count(old) != 1:
+        raise SystemExit('Trecho de corte inesperado: ' + old[:100])
+    s = s.replace(old, new, 1)
+
+replace_once("window.printCuttingSheet=function(orderId){", "window.printCuttingSheet=function(orderId,cutId){")
+replace_once("    let groups=modelGroups936(o);", "    const cut=cutId!=null?(db.cuts||[]).find(c=>String(c.id)===String(cutId)):obterCorteDoPedido(o);\n    const effective=cut?cutActualGrade(cut,o):o.grade;\n    let groups=modelGroups936({...o,grade:effective});")
+replace_once('onclick="printCuttingSheet(${o.id})">🖨️ Imprimir grade</button> <button class="secondary" onclick="viewOrderDetails', 'onclick="printCuttingSheet(${o.id},${c.id})">🖨️ Imprimir grade</button> <button class="secondary" onclick="viewOrderDetails')
+replace_once("esc(orderProductSummary(o)),qtyOfOrder(o).toLocaleString('pt-BR'),priorityBadge", "esc(orderProductSummary(o)),hlgbCutQuantity9245(c,o).toLocaleString('pt-BR'),priorityBadge")
+replace_once("let pp=orders.reduce((a,o)=>a+qtyOfOrder(o),0),pv=orders.reduce((a,o)=>a+(+o.total||0),0);", "let pp=orders.reduce((a,o)=>a+hlgbCutQuantity9245(obterCorteDoPedido(o),o),0),pv=orders.reduce((a,o)=>{const q=qtyOfOrder(o);return a+(q?hlgbCutQuantity9245(obterCorteDoPedido(o),o)*(+o.total||0)/q:0)},0);")
+replace_once("function cutOriginalGrade(c,o){", "function cutOriginalGrade(c,o){\n  if(Array.isArray(c.plannedGradeBeforeAdjustmentV9243)&&c.plannedGradeBeforeAdjustmentV9243.length)return c.plannedGradeBeforeAdjustmentV9243;")
+replace_once("let orig=Array.isArray(c.originalGrade)&&c.originalGrade.length?clone9191(c.originalGrade):clone9191(o?.grade||[]),actual=", "let orig=clone9191(cutOriginalGrade(c,o)),actual=")
+replace_once('id="mpieces" type="number" value="${c.pieces??0}"', 'id="mpieces" type="number" ${cutActualGrade(c,cutOrderFor(c)).length?\'readonly title="Use Ajustar grade para alterar as quantidades por tamanho"\':\'\'} value="${hlgbCutQuantity9245(c,cutOrderFor(c))}"')
+replace_once('id="editCutQty9189" type="number" min="1" step="1" value="${qty9189(c)}"', 'id="editCutQty9189" type="number" min="0" step="1" ${cutActualGrade(c,cutOrderFor(c)).length?\'readonly title="Use Ajustar grade para alterar as quantidades por tamanho"\':\'\'} value="${hlgbCutQuantity9245(c,cutOrderFor(c))}"')
+
 # Evita a correção de integridade rodando a cada 500 ms por 30 segundos.
 # Ela continua sendo aplicada na abertura e após os renders relevantes, sem
 # provocar repinturas/reconciliações repetitivas na tela.
@@ -15,7 +35,13 @@ addon = r'''<!-- HLGB_V9240_GRADE_LINK_V9243_START -->
 <script>
 (function(){
 'use strict';
-const V='92.44-grade-lock';
+const V='92.45-grade-consumers';
+window.hlgbCutQuantity9245=function(c,o){
+  if(!c)return typeof qtyOfOrder==='function'?qtyOfOrder(o||{}):0;
+  if(Array.isArray(c.actualCutGrade)&&c.actualCutGrade.length)return c.actualCutGrade.reduce((s,g)=>s+(Number(g.qty)||0),0);
+  if(c.pieces!=null&&Number.isFinite(Number(c.pieces)))return Number(c.pieces);
+  return typeof qtyOfOrder==='function'?qtyOfOrder(o||{}):0;
+};
 const sid=v=>String(v??'');
 const clone=v=>{try{return JSON.parse(JSON.stringify(v))}catch(e){return v}};
 const norm=v=>String(v??'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').trim().toLowerCase();
@@ -235,7 +261,13 @@ console.info('[HLGB] grade ajustada protegida contra ressincronização do pedid
 </script>
 <!-- HLGB_V9240_GRADE_LINK_V9243_END -->'''
 
-if 'HLGB_V9240_GRADE_LINK_V9243_START' not in s:
+start_marker = '<!-- HLGB_V9240_GRADE_LINK_V9243_START -->'
+end_marker = '<!-- HLGB_V9240_GRADE_LINK_V9243_END -->'
+if start_marker in s:
+    start = s.index(start_marker)
+    end = s.index(end_marker, start) + len(end_marker)
+    s = s[:start] + addon + s[end:]
+else:
     if '</body>' in s:
         head, tail = s.rsplit('</body>', 1)
         s = head + addon + '\n</body>' + tail
