@@ -7,6 +7,7 @@ on:
       - 'scripts/hlgb_v9240_grade_link_patch.py'
       - 'scripts/hlgb_v9240_cut_production_qty_patch.py'
       - 'scripts/hlgb_v9240_material_separation_patch.py'
+      - 'scripts/hlgb_v9240_memory_guard_patch.py'
       - 'scripts/hlgb_v9240_launcher.py'
       - '.github/workflows/hlgb-apply-v9240.yml'
   workflow_dispatch:
@@ -46,22 +47,23 @@ jobs:
           hotfix = (
               '  let bundle;\n'
               '  // v92.40 hotfix: carga paginada para todos os usuários.\n'
-              '  // Evita falha de inicialização no Safari quando há muitos registros.\n'
+              '  // Evita falha de inicialização quando há muitos registros.\n'
               '  bundle=await hlgbRecordLoadDirect(since);\n'
           )
           s = s[:replace_start] + hotfix + s[replace_end:]
           p.write_text(s, encoding='utf-8')
           print('hotfix multiusuário aplicado')
           PY
-      - name: Vincular grade, produção e navegação operacional
+      - name: Vincular grade, produção, separação e memória
         run: |
           python scripts/hlgb_v9240_grade_link_patch.py
           python scripts/hlgb_v9240_cut_production_qty_patch.py
           python scripts/hlgb_v9240_material_separation_patch.py
+          python scripts/hlgb_v9240_memory_guard_patch.py
           python scripts/check_html_scripts.py app9240.html
           python scripts/hlgb_v9240_launcher.py
       - name: Publicar versão 92.40
         uses: stefanzweifel/git-auto-commit-action@v5
         with:
-          commit_message: Publicar HLGB v92.40 com Separação de Materiais corrigida
+          commit_message: Publicar HLGB v92.40 com proteção de memória
           file_pattern: app9240.html abrir.html
