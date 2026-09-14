@@ -8,6 +8,8 @@ PUBLIC_OLD = "window.hlgb955FlushNow=()=>flush955(true);window.hlgb955FlushSilen
 PUBLIC_NEW = """window.hlgb955FlushNow=async()=>{try{if(typeof window.hlgb955ReconcileServer==='function')await window.hlgb955ReconcileServer()}catch(_){}return flush955(true)};
 window.hlgb955FlushSilent=async()=>{try{if(typeof window.hlgb955ReconcileServer==='function')await window.hlgb955ReconcileServer()}catch(_){}return flush955(false)};"""
 ANCHOR = "window.hlgb955PendingCount=()=>count955();"
+AUTH_OLD = "function cloudRestoreStoredAuth(allowExplicitRestore=false){\n  if(allowExplicitRestore!==true)return false;"
+AUTH_NEW = "function cloudRestoreStoredAuth(allowExplicitRestore=true){"
 
 INJECTION = r'''
 /* HLGB_V9240_VERSION_PENDING_SELF_HEAL
@@ -57,6 +59,11 @@ if LOGIN_OLD in s:
 elif LOGIN_NEW not in s:
     raise SystemExit("rótulo de versão do login não encontrado")
 
+if AUTH_OLD in s:
+    s = s.replace(AUTH_OLD, AUTH_NEW, 1)
+elif AUTH_NEW not in s:
+    raise SystemExit("rotina de restauração de sessão não encontrada")
+
 if MARKER not in s:
     if PUBLIC_OLD not in s:
         raise SystemExit("atalhos públicos da fila v91.59 não encontrados")
@@ -66,4 +73,4 @@ if MARKER not in s:
     s = s.replace(ANCHOR, ANCHOR + INJECTION, 1)
 
 PATH.write_text(s, encoding="utf-8")
-print("v92.40: versão visível corrigida e fila pendente com autorrecuperação")
+print("v92.40: versão, restauração de sessão e fila pendente corrigidas")
