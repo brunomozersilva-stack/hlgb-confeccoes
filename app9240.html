@@ -297,7 +297,7 @@ main{min-width:0;}
     <div class="field" style="text-align:left;margin-bottom:10px"><label>E-mail</label><input id="loginUser" type="email" autocomplete="username" placeholder="seuemail@exemplo.com"></div>
     <div class="field" style="text-align:left;margin-bottom:14px"><label>Senha</label><input id="loginPass" type="password" autocomplete="current-password" onkeydown="if(event.key==='Enter')return doLogin()"></div>
     <button class="primary" style="width:100%" onclick="return doLogin()">Entrar</button>
-    <div id="loginError" style="color:#a51d2d;font-size:13px;margin-top:10px"></div><div style="margin-top:12px;font-size:12px;color:#786b73">Acesso protegido pelo Supabase • HLGB Online<br><b style="color:#6f3f59">Versão v92.13</b></div>
+    <div id="loginError" style="color:#a51d2d;font-size:13px;margin-top:10px"></div><div style="margin-top:12px;font-size:12px;color:#786b73">Acesso protegido pelo Supabase • HLGB Online<br><b style="color:#6f3f59">Versão v92.40</b></div>
   </div>
 </div>
 
@@ -16421,8 +16421,48 @@ function deltaSatisfied990(base,wanted,latest){
 function pendingSatisfied990(e,s){if(!s)return false;if(e.deleted===true)return !!s.deleted_at;if(s.deleted_at)return false;if(norm955(e.data)===norm955(s.data))return true;if(eqBusiness990(e.data,s.data))return true;if(e.baseData!==undefined&&e.baseData!==null)return deltaSatisfied990(e.baseData,e.data,s.data);return false}
 
 async function flush955(manual=false){if(flushBusy955)return false;flushBusy955=true;try{if(!rawSave955)install955();if(!cloudReady955()){try{if(typeof cloudEnsureFreshSession==='function')await cloudEnsureFreshSession(false)}catch(_){}try{if(!(typeof hlgbRecordReady!=='undefined'&&hlgbRecordReady)&&typeof hlgbEnsureRecordsOnlineAfterLogin==='function')await hlgbEnsureRecordsOnlineAfterLogin()}catch(_){}if(!cloudReady955()){update955();if(manual)alert('A nuvem ainda não está pronta. As alterações continuam protegidas localmente e serão reenviadas automaticamente.');return false}}const es=entries955().sort((a,b)=>String(a.createdAt).localeCompare(String(b.createdAt)));let changed=false;for(const e of es){const k=e.key,s=snap955(e.module,e.id);try{if(s&&pendingSatisfied990(e,s)){await ack955(k,{applied:true,alreadyApplied:true,updated_at:s.updated_at,revision:s.revision,deleted_at:s.deleted_at,data:C955(s.data)},C955(s.data));if(!e.deleted&&!s.deleted_at)applyData955(e.module,e.id,C955(s.data),false);continue}if(e.deleted){if(s?.deleted_at||(!s&&e.baseData)){await ack955(k,{applied:true,alreadyApplied:true},e.data);changed=true;continue}if(e.baseUpdatedAt&&s?.updated_at&&String(e.baseUpdatedAt)!==String(s.updated_at)){await fail955(k,new Error('O registro mudou em outra máquina depois desta exclusão. A exclusão foi bloqueada para evitar perda.'),'conflict');continue}const out=await rawSave955(e.module,e.id,C955(e.data),true);if(!out?.applied)throw new Error('Exclusão não confirmada pelo Supabase.');await ack955(k,out,e.data);applyData955(e.module,e.id,null,true);changed=true;continue}if(s&&!s.deleted_at&&norm955(s.data)===norm955(e.data)){await ack955(k,{applied:true,alreadyApplied:true,updated_at:s.updated_at},s.data);changed=true;continue}const latest=C955(s?.data??null);let payload=C955(e.data);if(latest&&e.baseData&&typeof cloudMergeThreeWay==='function'){try{payload=cloudMergeThreeWay(C955(e.baseData),C955(e.data),latest)}catch(_){payload={...latest,...C955(e.data)}}}else if(latest&&payload&&typeof payload==='object'&&!Array.isArray(payload))payload={...latest,...payload};const out=await rawSave955(e.module,e.id,payload,false);if(!out?.applied)throw new Error('Salvamento não confirmado pelo Supabase.');await ack955(k,out,out.data||payload);applyData955(e.module,e.id,C955(out.data||payload),false);changed=true}catch(err){await fail955(k,err,e.state==='conflict'?'conflict':'pending')}}if(changed){try{localSaveOnly()}catch(_){}}update955();return count955()===0}finally{flushBusy955=false}}
-window.hlgb955FlushNow=()=>flush955(true);window.hlgb955FlushSilent=()=>flush955(false);
+window.hlgb955FlushNow=async()=>{try{if(typeof window.hlgb955ReconcileServer==='function')await window.hlgb955ReconcileServer()}catch(_){}return flush955(true)};
+window.hlgb955FlushSilent=async()=>{try{if(typeof window.hlgb955ReconcileServer==='function')await window.hlgb955ReconcileServer()}catch(_){}return flush955(false)};
 window.hlgb955PendingCount=()=>count955();
+/* HLGB_V9240_VERSION_PENDING_SELF_HEAL
+   Confere a fila local diretamente no Supabase antes de reenviar.
+   Se a resposta anterior se perdeu mas o dado já chegou ao servidor,
+   remove apenas a pendência comprovadamente satisfeita. */
+window.hlgb955ReconcileServer=async function(){
+ if(flushBusy955||!cloudReady955())return false;
+ flushBusy955=true;
+ try{
+  const pending=entries955().slice();
+  let changed=false;
+  for(const e of pending){
+   if(!e||!e.key||!e.module||e.id==null)continue;
+   try{
+    const rows=await cloudRequest('hlgb_records?select=module,entity_id,data,deleted_at,revision,updated_at&module=eq.'+encodeURIComponent(String(e.module))+'&entity_id=eq.'+encodeURIComponent(String(e.id))+'&limit=1',{method:'GET'});
+    const row=Array.isArray(rows)&&rows.length?rows[0]:null;
+    if(!pendingSatisfied990(e,row))continue;
+    await ack955(e.key,{applied:true,data:row.data,revision:row.revision,updated_at:row.updated_at},row.data);
+    applyData955(e.module,e.id,row.data,!!row.deleted_at);
+    changed=true;
+   }catch(err){console.warn('[HLGB 92.40] conferência da pendência',e.module,e.id,err)}
+  }
+  if(changed){
+   try{localSaveOnly()}catch(_){}
+   console.info('[HLGB 92.40] pendências já confirmadas na nuvem foram conciliadas');
+  }
+  return count955()===0;
+ }finally{
+  flushBusy955=false;
+  update955();
+ }
+};
+function schedulePendingSelfHeal9240(){
+ [700,2400,7000,15000].forEach(ms=>setTimeout(()=>window.hlgb955FlushSilent?.(),ms));
+}
+if(typeof hlgbAfterLogin==='function')hlgbAfterLogin(schedulePendingSelfHeal9240,0);
+else setTimeout(schedulePendingSelfHeal9240,1200);
+window.addEventListener('online',()=>setTimeout(()=>window.hlgb955FlushSilent?.(),300));
+document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')setTimeout(()=>window.hlgb955FlushSilent?.(),500)});
+
 window.hlgb955ReliableSave=async function(m,id,data,deleted=false){const e=await enqueue955(m,id,data,deleted);if(!rawSave955)install955();if(!rawSave955){await fail955(e.key,new Error('Rotina de nuvem ainda não carregada.'));return {applied:false,pending:true}}try{const out=await rawSave955(m,String(id),C955(data),deleted===true);if(out?.applied===true){await ack955(e.key,out,out.data||data);return out}await fail955(e.key,new Error('Supabase não confirmou a alteração.'));return {...(out||{}),applied:false,pending:true}}catch(err){await fail955(e.key,err);throw err}};
 function install955(){const f=window.hlgbRecordSaveWithRetry;if(typeof f!=='function'||f.__hlgb955Wrapped){if(!rawSave955&&typeof f==='function'&&f.__hlgb955Original)rawSave955=f.__hlgb955Original;return false}rawSave955=f;const w=async function(m,id,data,deleted=false){const e=await enqueue955(m,id,data,deleted);try{const out=await rawSave955.apply(this,arguments);if(out?.applied===true){await ack955(e.key,out,out.data||data);return out}await fail955(e.key,new Error('Supabase não confirmou a alteração.'));return out}catch(err){await fail955(e.key,err);throw err}};w.__hlgb955Wrapped=true;w.__hlgb955Original=f;window.hlgbRecordSaveWithRetry=w;return true}
 async function scanDirty955(){
