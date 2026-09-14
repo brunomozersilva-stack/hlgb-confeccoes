@@ -35,11 +35,11 @@ if anchor not in s:
     raise SystemExit('renderProjection não encontrado')
 s = s.replace(anchor, helper + anchor, 1)
 
-old_totals = ''' let totalQty=scheduled.reduce((a,x)=>a+projectionRemainingQty(x.item),0);
- let totalValue=scheduled.reduce((a,x)=>a+projectionRemainingValue(x.item),0);'''
+old_totals = ''' let totalQty=scheduled.reduce((a,x)=>a+projectionDeliverableQty(x.order,x.item),0);
+ let totalValue=scheduled.reduce((a,x)=>a+projectionDeliverableValue(x.order,x.item),0);'''
 new_totals = ''' let scopedClientParts9240=clientF?scheduled.flatMap(({order:o,item})=>projectionClientParts9240(o,item).filter(part=>String(part.clientName||'').toLowerCase().includes(clientF)).map(part=>({order:o,item,part}))):[];
- let totalQty=clientF?scopedClientParts9240.reduce((a,x)=>a+(+x.part.qty||0),0):scheduled.reduce((a,x)=>a+projectionRemainingQty(x.item),0);
- let totalValue=clientF?scopedClientParts9240.reduce((a,x)=>a+(+x.part.qty||0)*projectionUnitForItem(x.item),0):scheduled.reduce((a,x)=>a+projectionRemainingValue(x.item),0);'''
+ let totalQty=clientF?scopedClientParts9240.reduce((a,x)=>a+(+x.part.qty||0),0):scheduled.reduce((a,x)=>a+projectionDeliverableQty(x.order,x.item),0);
+ let totalValue=clientF?scopedClientParts9240.reduce((a,x)=>a+(+x.part.qty||0)*projectionUnitForItem(x.item),0):scheduled.reduce((a,x)=>a+projectionDeliverableValue(x.order,x.item),0);'''
 if old_totals not in s:
     raise SystemExit('totais gerais da projeção não encontrados')
 s = s.replace(old_totals, new_totals, 1)
