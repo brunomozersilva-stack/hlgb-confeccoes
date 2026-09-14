@@ -66,4 +66,4 @@ jobs:
         uses: stefanzweifel/git-auto-commit-action@v5
         with:
           commit_message: Publicar HLGB v92.40 com proteção de memória
-          file_pattern: app9240.html abrir.html
+          file_pattern: app9240.html abrir.html index.html
