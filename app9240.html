@@ -2977,7 +2977,7 @@ function ensurePageSyncButtons(){
    bar.className="globalSyncBar toolbar";
    bar.style.cssText="justify-content:flex-end;margin:0 0 12px 0";
    bar.innerHTML=`<button type="button" class="secondary" onclick="syncAllData(true)">🔄 Atualizar / sincronizar</button>`;
-   let firstPanel=pg.querySelector(".panel");
+   let firstPanel=pg.querySelector(":scope > .panel");
    if(firstPanel)pg.insertBefore(bar,firstPanel);
    else pg.insertBefore(bar,pg.firstChild);
  });
