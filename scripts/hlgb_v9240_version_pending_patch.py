@@ -74,3 +74,63 @@ if MARKER not in s:
 
 PATH.write_text(s, encoding="utf-8")
 print("v92.40: versão, restauração de sessão e fila pendente corrigidas")
+
+# A manutenção antiga retirava o corte local mesmo quando a nuvem recusava
+# sua exclusão. O sincronizador então recriava o corte a cada login.
+FIX_MARKER = "HLGB_V9240_REFRESH_MIRROR_QUEUE_FIX"
+if FIX_MARKER not in s:
+    def replace_once(old, new):
+        global s
+        if s.count(old) != 1:
+            raise SystemExit("âncora de refresh ausente ou ambígua: " + old[:100])
+        s = s.replace(old, new, 1)
+
+    start = s.index("  for(const c of bad){", s.index("async function cleanupMirrorPlans9219(){"))
+    end = s.index("  const ids=new Set(bad.map", start)
+    s = s[:start] + "  // Apenas apresentação local; nunca excluir automaticamente na nuvem.\n" + s[end:]
+    replace_once(
+        "if(!o||o.invoiceReady||o.noteReady)return false;const st=norm9203(o.status);",
+        "if(!o||o.invoiceReady||o.noteReady)return false;const st=norm9203(o.status);\n"
+        "  if(o.workflowSourceOrderId&&(norm9203(o.cutStatus).includes('finalizado')||o.workflowStageReconciled===true))return false;"
+    )
+    replace_once(
+        "host.insertBefore(box,before||null)",
+        "host.insertBefore(box,before?.parentNode===host?before:host.firstElementChild)"
+    )
+    cancel = r'''
+/* HLGB_V9240_REFRESH_MIRROR_QUEUE_FIX */
+function isAutomaticMirrorDelete9240(e){
+ return e?.module==='cuts'&&e.deleted===true&&e.data?.supersededV9219===true
+  &&e.data?.supersededReason==='mirror_order_already_cut'
+  &&e.data?.__hlgb_explicit_delete!==true;
+}
+async function cancelAutomaticMirrorDelete9240(e){
+ if(!isAutomaticMirrorDelete9240(e))return false;
+ const rows=await cloudRequest('hlgb_records?select=module,entity_id,data,deleted_at,revision,updated_at&module=eq.cuts&entity_id=eq.'+encodeURIComponent(String(e.id))+'&limit=1',{method:'GET'});
+ const row=Array.isArray(rows)?rows[0]:null;
+ // Uma exclusão já efetivada segue a conciliação normal; nunca restaurar aqui.
+ if(!row||row.deleted_at)return false;
+ const w=read955(),current=w.entries[e.key];
+ // Uma edição concorrente não pode ser descartada após a consulta.
+ if(!current||norm955(current)!==norm955(e))return false;
+ let archive=JSON.parse(localStorage.getItem(ARC955)||'[]');
+ if(!Array.isArray(archive))archive=[];
+ archive.push({...C955(e),applied:false,cancelled:true,cancelledAt:now955(),
+  cancellationReason:'Exclusão automática desativada; registro preservado na nuvem.',
+  serverUpdatedAt:row.updated_at,serverRevision:row.revision});
+ localStorage.setItem(ARC955,JSON.stringify(archive.slice(-MAX_ARCH955)));
+ delete w.entries[e.key];write955(w);
+ await idbDel955(e.key);
+ const latest=read955().entries[e.key];if(latest)await idbPut955(latest);
+ const map=hlgbRecordSnapshots?.cuts;if(map instanceof Map)map.set(String(e.id),C955(row));
+ lastErr955='';update955();
+ console.info('[HLGB 92.40] exclusão automática cancelada; corte preservado',e.id);
+ return true;
+}
+'''
+    replace_once("function pendingSatisfied990(e,s){", cancel + "\nfunction pendingSatisfied990(e,s){")
+    replace_once("x?.opId&&x?.key&&x?.applied!==false", "x?.opId&&x?.key&&(x?.applied!==false||x?.cancelled===true)")
+    replace_once("try{if(s&&pendingSatisfied990(e,s))", "try{if(await cancelAutomaticMirrorDelete9240(e)){changed=true;continue}if(s&&pendingSatisfied990(e,s))")
+    replace_once("    if(!pendingSatisfied990(e,row))continue;", "    if(await cancelAutomaticMirrorDelete9240(e)){changed=true;continue}\n    if(!pendingSatisfied990(e,row))continue;")
+    PATH.write_text(s, encoding="utf-8")
+print("v92.40: ciclo de cortes espelho e montagem do histórico corrigidos")
