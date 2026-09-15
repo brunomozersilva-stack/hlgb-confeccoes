@@ -12,11 +12,10 @@ function getProductName(f){const p=arr('products').find(x=>String(x?.id)===Strin
 function getOrder(f){return arr('orders').find(o=>String(o?.id)===String(f?.orderId))||null}
 function orderDisplay(o){try{return typeof displayOrderNumber==='function'?displayOrderNumber(o):(o?.orderNumber||o?.number||o?.id||'-')}catch(e){return o?.id||'-'}}
 function fmtDateSafe(v){try{return typeof fmtDate==='function'?fmtDate(v):String(v||'-')}catch(e){return String(v||'-')}}
-function moneySafe(v){try{return typeof money==='function'?money(v):Number(v||0).toLocaleString('pt-BR',{style:'currency',currency:'BRL'})}catch(e){return String(v||0)}}
 function stamp(){
   try{document.title='HLGB Confecções — Sistema de Gestão v'+V+' Multiusuário'}catch(e){}
   try{const el=document.querySelector('#appShell .logo small');if(el&&el.textContent!=='v'+V)el.textContent='v'+V}catch(e){}
-  try{const b=document.querySelector('#loginScreen b');if(b&&/Versão/i.test(b.textContent||''))b.textContent='Versão v'+V}catch(e){}
+  try{const b=document.querySelector('#loginScreen b');if(b&&/Versão/i.test(b.textContent||'')&&b.textContent!=='Versão v'+V)b.textContent='Versão v'+V}catch(e){}
 }
 
 /* 1) Registrar falta: usa sempre o ID real da facção da própria linha. */
@@ -43,6 +42,8 @@ function repairMainFactionTable(){
   root.querySelectorAll('tbody tr').forEach(tr=>{
     const id=idFromRow(tr);if(!id)return;
     const buttons=[...tr.querySelectorAll('button')].filter(b=>norm(b.textContent).includes('registrar falta'));
+    const correct=buttons.length===1&&buttons[0].classList.contains('hlgb-release-missing')&&String(buttons[0].dataset.factionId||'')===String(id);
+    if(correct)return;
     buttons.forEach(b=>b.remove());
     const cell=tr.lastElementChild;if(!cell)return;
     const f=getFaction(id),b=document.createElement('button');
@@ -99,19 +100,14 @@ if(typeof oldDate==='function')window.changeProjectionRemainingDate=function(){c
 
 /* 4) Mantém a sessão visualmente estável no refresh. */
 function normalizeAuth(){const loader=document.getElementById('sessionLoader'),login=document.getElementById('loginScreen'),app=document.getElementById('appShell');if(!loader||!login||!app)return;if(app.style.display==='block'){loader.style.display='none';login.style.display='none'}}
-
-function repair(){
-  stamp();normalizeAuth();removeChecklistGradeColumn();repairMainFactionTable();
-  if(document.getElementById('factionDeliveryTable935'))renderFactionDeliveryExact();
-  enhanceDateModal();
-}
+function repair(){stamp();normalizeAuth();removeChecklistGradeColumn();repairMainFactionTable();enhanceDateModal()}
 const oldRenderFactions=window.renderFactions;
-if(typeof oldRenderFactions==='function')window.renderFactions=function(){const r=oldRenderFactions.apply(this,arguments);setTimeout(repairMainFactionTable,0);setTimeout(repairMainFactionTable,120);setTimeout(removeChecklistGradeColumn,140);return r};
+if(typeof oldRenderFactions==='function')window.renderFactions=function(){const r=oldRenderFactions.apply(this,arguments);setTimeout(()=>{repairMainFactionTable();removeChecklistGradeColumn();renderFactionDeliveryExact()},120);return r};
 
 document.addEventListener('click',function(e){const b=e.target?.closest?.('button');if(!b||!norm(b.textContent).includes('registrar falta'))return;const root=b.closest('#factionTable,#factionDeliveryTable935');if(!root)return;const id=b.dataset.factionId||idFromRow(b.closest('tr'));if(!id)return;e.preventDefault();e.stopImmediatePropagation();exactMissing(id)},true);
 let pending=false;const obs=new MutationObserver(()=>{if(pending)return;pending=true;setTimeout(()=>{pending=false;repair()},35)});
-function boot(){repair();try{obs.observe(document.body,{childList:true,subtree:true})}catch(e){};let n=0;const iv=setInterval(()=>{stamp();if(++n>=32)clearInterval(iv)},250)}
-try{if(typeof hlgbAfterLogin==='function')hlgbAfterLogin(()=>{setTimeout(repair,80);setTimeout(repair,500);setTimeout(repair,1400);setTimeout(repair,5200)},0)}catch(e){}
+function boot(){repair();renderFactionDeliveryExact();try{obs.observe(document.body,{childList:true,subtree:true})}catch(e){};let n=0;const iv=setInterval(()=>{stamp();if(++n>=32)clearInterval(iv)},250)}
+try{if(typeof hlgbAfterLogin==='function')hlgbAfterLogin(()=>{setTimeout(()=>{repair();renderFactionDeliveryExact()},80);setTimeout(repair,500);setTimeout(repair,1400);setTimeout(repair,5200)},0)}catch(e){}
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',boot,{once:true});else boot();
 console.info('[HLGB] RELEASE v'+V+' ativa — build consolidado');
 })();
