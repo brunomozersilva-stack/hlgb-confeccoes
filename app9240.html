@@ -16394,7 +16394,7 @@ function openIdb955(){return new Promise((resolve,reject)=>{try{const r=indexedD
 async function idbPut955(e){try{const d=await openIdb955();await new Promise((res,rej)=>{const tx=d.transaction(STORE955,'readwrite');tx.objectStore(STORE955).put(C955(e));tx.oncomplete=()=>res();tx.onerror=()=>rej(tx.error)});d.close()}catch(e){console.warn('HLGB v91.55 WAL IDB put',e)}}
 async function idbDel955(k){try{const d=await openIdb955();await new Promise((res,rej)=>{const tx=d.transaction(STORE955,'readwrite');tx.objectStore(STORE955).delete(k);tx.oncomplete=()=>res();tx.onerror=()=>rej(tx.error)});d.close()}catch(e){console.warn('HLGB v91.55 WAL IDB delete',e)}}
 async function idbAll955(){try{const d=await openIdb955();const a=await new Promise((res,rej)=>{const tx=d.transaction(STORE955,'readonly'),r=tx.objectStore(STORE955).getAll();r.onsuccess=()=>res(r.result||[]);r.onerror=()=>rej(r.error)});d.close();return a}catch(e){return []}}
-function archivedOps990(){try{let a=JSON.parse(localStorage.getItem(ARC955)||'[]');if(!Array.isArray(a))a=[];return new Set(a.filter(x=>x?.opId&&x?.key&&x?.applied!==false).map(x=>String(x.opId)+'|'+String(x.key)))}catch(e){return new Set()}}
+function archivedOps990(){try{let a=JSON.parse(localStorage.getItem(ARC955)||'[]');if(!Array.isArray(a))a=[];return new Set(a.filter(x=>x?.opId&&x?.key&&(x?.applied!==false||x?.cancelled===true)).map(x=>String(x.opId)+'|'+String(x.key)))}catch(e){return new Set()}}
 async function mergeIdb955(){const a=await idbAll955();if(!a.length)return;const acked=archivedOps990(),w=read955();let ch=false;for(const e of a){if(!e?.key)continue;const tag=String(e.opId||'')+'|'+String(e.key||'');if(e.opId&&acked.has(tag)){await idbDel955(e.key);continue}const cur=w.entries[e.key];if(!cur||String(e.updatedAt||'')>String(cur.updatedAt||'')){w.entries[e.key]=e;ch=true}}if(ch)write955(w)}
 function archive955(e,out){try{let a=JSON.parse(localStorage.getItem(ARC955)||'[]');if(!Array.isArray(a))a=[];a.push({...C955(e),ackedAt:now955(),serverUpdatedAt:out?.updated_at||out?.updatedAt||'',applied:true});if(a.length>MAX_ARCH955)a=a.slice(-MAX_ARCH955);localStorage.setItem(ARC955,JSON.stringify(a))}catch(_){}}
 async function enqueue955(m,id,data,deleted){m=String(m||'');id=String(id??'');if(!m||!id)throw new Error('Gravação sem módulo/ID.');const k=key955(m,id),w=read955(),cur=w.entries[k],s=snap955(m,id);const e={key:k,opId:cur?.opId||((crypto?.randomUUID&&crypto.randomUUID())||('op-'+Date.now()+'-'+Math.random().toString(36).slice(2))),module:m,id,deleted:deleted===true,data:C955(data),createdAt:cur?.createdAt||now955(),updatedAt:now955(),attempts:cur?.attempts||0,lastAttemptAt:cur?.lastAttemptAt||'',lastError:'',state:'pending',clientVersion:VER955,baseData:cur?.baseData!==undefined?cur.baseData:C955(s?.data??null),baseUpdatedAt:cur?.baseUpdatedAt||String(s?.updated_at||'')};w.entries[k]=e;try{write955(w)}catch(err){console.error('HLGB v91.55 local WAL failed',err);throw new Error('Não foi possível registrar a alteração no diário local. O sistema não enviará a gravação para evitar perda de dados.')}await idbPut955(e);update955();return e}
@@ -16417,9 +16417,40 @@ function deltaSatisfied990(base,wanted,latest){
  if(wo&&lo){const b=bo?base:{},keys=new Set([...Object.keys(b),...Object.keys(wanted)]);for(const k of keys){if(META990.has(k))continue;const bh=own990(b,k),wh=own990(wanted,k),lh=own990(latest,k);if(bh&&wh&&eqBusiness990(b[k],wanted[k]))continue;if(!bh&&!wh)continue;if(!wh){if(lh)return false;continue}if(!lh)return false;if(!deltaSatisfied990(bh?b[k]:undefined,wanted[k],latest[k]))return false}return true}
  return eqBusiness990(wanted,latest)
 }
+
+/* HLGB_V9240_REFRESH_MIRROR_QUEUE_FIX */
+function isAutomaticMirrorDelete9240(e){
+ return e?.module==='cuts'&&e.deleted===true&&e.data?.supersededV9219===true
+  &&e.data?.supersededReason==='mirror_order_already_cut'
+  &&e.data?.__hlgb_explicit_delete!==true;
+}
+async function cancelAutomaticMirrorDelete9240(e){
+ if(!isAutomaticMirrorDelete9240(e))return false;
+ const rows=await cloudRequest('hlgb_records?select=module,entity_id,data,deleted_at,revision,updated_at&module=eq.cuts&entity_id=eq.'+encodeURIComponent(String(e.id))+'&limit=1',{method:'GET'});
+ const row=Array.isArray(rows)?rows[0]:null;
+ // Uma exclusão já efetivada segue a conciliação normal; nunca restaurar aqui.
+ if(!row||row.deleted_at)return false;
+ const w=read955(),current=w.entries[e.key];
+ // Uma edição concorrente não pode ser descartada após a consulta.
+ if(!current||norm955(current)!==norm955(e))return false;
+ let archive=JSON.parse(localStorage.getItem(ARC955)||'[]');
+ if(!Array.isArray(archive))archive=[];
+ archive.push({...C955(e),applied:false,cancelled:true,cancelledAt:now955(),
+  cancellationReason:'Exclusão automática desativada; registro preservado na nuvem.',
+  serverUpdatedAt:row.updated_at,serverRevision:row.revision});
+ localStorage.setItem(ARC955,JSON.stringify(archive.slice(-MAX_ARCH955)));
+ delete w.entries[e.key];write955(w);
+ await idbDel955(e.key);
+ const latest=read955().entries[e.key];if(latest)await idbPut955(latest);
+ const map=hlgbRecordSnapshots?.cuts;if(map instanceof Map)map.set(String(e.id),C955(row));
+ lastErr955='';update955();
+ console.info('[HLGB 92.40] exclusão automática cancelada; corte preservado',e.id);
+ return true;
+}
+
 function pendingSatisfied990(e,s){if(!s)return false;if(e.deleted===true)return !!s.deleted_at;if(s.deleted_at)return false;if(norm955(e.data)===norm955(s.data))return true;if(eqBusiness990(e.data,s.data))return true;if(e.baseData!==undefined&&e.baseData!==null)return deltaSatisfied990(e.baseData,e.data,s.data);return false}
 
-async function flush955(manual=false){if(flushBusy955)return false;flushBusy955=true;try{if(!rawSave955)install955();if(!cloudReady955()){try{if(typeof cloudEnsureFreshSession==='function')await cloudEnsureFreshSession(false)}catch(_){}try{if(!(typeof hlgbRecordReady!=='undefined'&&hlgbRecordReady)&&typeof hlgbEnsureRecordsOnlineAfterLogin==='function')await hlgbEnsureRecordsOnlineAfterLogin()}catch(_){}if(!cloudReady955()){update955();if(manual)alert('A nuvem ainda não está pronta. As alterações continuam protegidas localmente e serão reenviadas automaticamente.');return false}}const es=entries955().sort((a,b)=>String(a.createdAt).localeCompare(String(b.createdAt)));let changed=false;for(const e of es){const k=e.key,s=snap955(e.module,e.id);try{if(s&&pendingSatisfied990(e,s)){await ack955(k,{applied:true,alreadyApplied:true,updated_at:s.updated_at,revision:s.revision,deleted_at:s.deleted_at,data:C955(s.data)},C955(s.data));if(!e.deleted&&!s.deleted_at)applyData955(e.module,e.id,C955(s.data),false);continue}if(e.deleted){if(s?.deleted_at||(!s&&e.baseData)){await ack955(k,{applied:true,alreadyApplied:true},e.data);changed=true;continue}if(e.baseUpdatedAt&&s?.updated_at&&String(e.baseUpdatedAt)!==String(s.updated_at)){await fail955(k,new Error('O registro mudou em outra máquina depois desta exclusão. A exclusão foi bloqueada para evitar perda.'),'conflict');continue}const out=await rawSave955(e.module,e.id,C955(e.data),true);if(!out?.applied)throw new Error('Exclusão não confirmada pelo Supabase.');await ack955(k,out,e.data);applyData955(e.module,e.id,null,true);changed=true;continue}if(s&&!s.deleted_at&&norm955(s.data)===norm955(e.data)){await ack955(k,{applied:true,alreadyApplied:true,updated_at:s.updated_at},s.data);changed=true;continue}const latest=C955(s?.data??null);let payload=C955(e.data);if(latest&&e.baseData&&typeof cloudMergeThreeWay==='function'){try{payload=cloudMergeThreeWay(C955(e.baseData),C955(e.data),latest)}catch(_){payload={...latest,...C955(e.data)}}}else if(latest&&payload&&typeof payload==='object'&&!Array.isArray(payload))payload={...latest,...payload};const out=await rawSave955(e.module,e.id,payload,false);if(!out?.applied)throw new Error('Salvamento não confirmado pelo Supabase.');await ack955(k,out,out.data||payload);applyData955(e.module,e.id,C955(out.data||payload),false);changed=true}catch(err){await fail955(k,err,e.state==='conflict'?'conflict':'pending')}}if(changed){try{localSaveOnly()}catch(_){}}update955();return count955()===0}finally{flushBusy955=false}}
+async function flush955(manual=false){if(flushBusy955)return false;flushBusy955=true;try{if(!rawSave955)install955();if(!cloudReady955()){try{if(typeof cloudEnsureFreshSession==='function')await cloudEnsureFreshSession(false)}catch(_){}try{if(!(typeof hlgbRecordReady!=='undefined'&&hlgbRecordReady)&&typeof hlgbEnsureRecordsOnlineAfterLogin==='function')await hlgbEnsureRecordsOnlineAfterLogin()}catch(_){}if(!cloudReady955()){update955();if(manual)alert('A nuvem ainda não está pronta. As alterações continuam protegidas localmente e serão reenviadas automaticamente.');return false}}const es=entries955().sort((a,b)=>String(a.createdAt).localeCompare(String(b.createdAt)));let changed=false;for(const e of es){const k=e.key,s=snap955(e.module,e.id);try{if(await cancelAutomaticMirrorDelete9240(e)){changed=true;continue}if(s&&pendingSatisfied990(e,s)){await ack955(k,{applied:true,alreadyApplied:true,updated_at:s.updated_at,revision:s.revision,deleted_at:s.deleted_at,data:C955(s.data)},C955(s.data));if(!e.deleted&&!s.deleted_at)applyData955(e.module,e.id,C955(s.data),false);continue}if(e.deleted){if(s?.deleted_at||(!s&&e.baseData)){await ack955(k,{applied:true,alreadyApplied:true},e.data);changed=true;continue}if(e.baseUpdatedAt&&s?.updated_at&&String(e.baseUpdatedAt)!==String(s.updated_at)){await fail955(k,new Error('O registro mudou em outra máquina depois desta exclusão. A exclusão foi bloqueada para evitar perda.'),'conflict');continue}const out=await rawSave955(e.module,e.id,C955(e.data),true);if(!out?.applied)throw new Error('Exclusão não confirmada pelo Supabase.');await ack955(k,out,e.data);applyData955(e.module,e.id,null,true);changed=true;continue}if(s&&!s.deleted_at&&norm955(s.data)===norm955(e.data)){await ack955(k,{applied:true,alreadyApplied:true,updated_at:s.updated_at},s.data);changed=true;continue}const latest=C955(s?.data??null);let payload=C955(e.data);if(latest&&e.baseData&&typeof cloudMergeThreeWay==='function'){try{payload=cloudMergeThreeWay(C955(e.baseData),C955(e.data),latest)}catch(_){payload={...latest,...C955(e.data)}}}else if(latest&&payload&&typeof payload==='object'&&!Array.isArray(payload))payload={...latest,...payload};const out=await rawSave955(e.module,e.id,payload,false);if(!out?.applied)throw new Error('Salvamento não confirmado pelo Supabase.');await ack955(k,out,out.data||payload);applyData955(e.module,e.id,C955(out.data||payload),false);changed=true}catch(err){await fail955(k,err,e.state==='conflict'?'conflict':'pending')}}if(changed){try{localSaveOnly()}catch(_){}}update955();return count955()===0}finally{flushBusy955=false}}
 window.hlgb955FlushNow=async()=>{try{if(typeof window.hlgb955ReconcileServer==='function')await window.hlgb955ReconcileServer()}catch(_){}return flush955(true)};
 window.hlgb955FlushSilent=async()=>{try{if(typeof window.hlgb955ReconcileServer==='function')await window.hlgb955ReconcileServer()}catch(_){}return flush955(false)};
 window.hlgb955PendingCount=()=>count955();
@@ -16438,6 +16469,7 @@ window.hlgb955ReconcileServer=async function(){
    try{
     const rows=await cloudRequest('hlgb_records?select=module,entity_id,data,deleted_at,revision,updated_at&module=eq.'+encodeURIComponent(String(e.module))+'&entity_id=eq.'+encodeURIComponent(String(e.id))+'&limit=1',{method:'GET'});
     const row=Array.isArray(rows)&&rows.length?rows[0]:null;
+    if(await cancelAutomaticMirrorDelete9240(e)){changed=true;continue}
     if(!pendingSatisfied990(e,row))continue;
     await ack955(e.key,{applied:true,data:row.data,revision:row.revision,updated_at:row.updated_at},row.data);
     applyData955(e.module,e.id,row.data,!!row.deleted_at);
@@ -18842,6 +18874,7 @@ setTimeout(()=>window.reloadHubFinance9203?.(),900);setTimeout(()=>window.reload
 function terminal9203(c){const st=norm9203(c?.status);return !!(c&&(c.done===true||c.fulfilledAt||st.includes('finalizado')||st.includes('cancelado')||st.includes('concluido')||st.includes('atendido por producao')))}
 function orderNeeds9203(o){
   if(!o||o.invoiceReady||o.noteReady)return false;const st=norm9203(o.status);
+  if(o.workflowSourceOrderId&&(norm9203(o.cutStatus).includes('finalizado')||o.workflowStageReconciled===true))return false;
   if(st.includes('cancel')||st.includes('nota emitida')||st.includes('mercadoria pronta')||st.includes('pedido finalizado')||st.includes('corte finalizado'))return false;
   return true;
 }
@@ -19397,13 +19430,7 @@ async function cleanupMirrorPlans9219(){
   if(!Array.isArray(db.cuts))return 0;
   const bad=db.cuts.filter(mirrorPlanInvalid9219);
   if(!bad.length)return 0;
-  for(const c of bad){
-    try{
-      if(typeof hlgbRecordSaveWithRetry==='function'){
-        await hlgbRecordSaveWithRetry('cuts',String(c.id),{...c,supersededV9219:true,supersededReason:'mirror_order_already_cut',supersededAt:new Date().toISOString()},true);
-      }
-    }catch(e){console.warn('[HLGB 92.19] tombstone de corte espelho',c.id,e)}
-  }
+  // Apenas apresentação local; nunca excluir automaticamente na nuvem.
   const ids=new Set(bad.map(x=>String(x.id)));
   db.cuts=db.cuts.filter(x=>!ids.has(String(x.id)));
   try{localSaveOnly()}catch(e){}
@@ -19723,7 +19750,7 @@ function oldRealNotes9223(){
 }
 function renderLegacy9223(){
  const host=document.getElementById('hlgbNotesHistoryHost9215')||document.querySelector('#notas .page-body')||document.getElementById('notas');if(!host)return;
- let box=document.getElementById('legacyNotes9223');if(!box){box=document.createElement('div');box.id='legacyNotes9223';box.className='panel';const before=document.getElementById('projectionNotes9200')||host.firstElementChild;host.insertBefore(box,before||null)}
+ let box=document.getElementById('legacyNotes9223');if(!box){box=document.createElement('div');box.id='legacyNotes9223';box.className='panel';const before=document.getElementById('projectionNotes9200')||host.firstElementChild;host.insertBefore(box,before?.parentNode===host?before:host.firstElementChild)}
  const list=oldRealNotes9223();
  const rows=list.map(inv=>{const names=(inv.items||[]).map(i=>i.productName).filter(Boolean).join(', '),pieces=(inv.items||[]).reduce((a,i)=>a+q9223(i.qty),0),cy=/cyrlene|celene/i.test(names);return `<tr class="${cy?'cyrlene9223':''}"><td><b>${esc9223(inv.client||'')}</b></td><td>${esc9223(inv.issueDate||inv.date||'')}</td><td>${esc9223(names)} ${cy?'<span class="tag9223">nota antiga recuperada</span>':''}</td><td>${pieces.toLocaleString('pt-BR')}</td><td>${money9223(inv.value)}</td><td>${esc9223(inv.status||'Pendente')}</td><td><button class="primary" type="button" onclick="window.openProjectionAcerto9200?.('${esc9223(inv.id)}')">💰 Acerto</button></td></tr>`}).join('');
  box.innerHTML=`<h3 style="margin-top:0">📚 Histórico antigo de notas</h3><div class="sub">Aqui ficam somente as notas que já tinham sido realmente fechadas no modo antigo. As entregas novas aparecem acima em <b>Itens aguardando nota</b> até você montar a nota agrupada.</div>${rows?`<div style="overflow:auto;margin-top:10px"><table><thead><tr><th>Cliente</th><th>Data</th><th>Produto</th><th>Peças</th><th>Total</th><th>Status</th><th>Ação</th></tr></thead><tbody>${rows}</tbody></table></div>`:'<div class="empty">Nenhuma nota antiga encontrada.</div>'}`;
