@@ -159,8 +159,8 @@ if(typeof oldHiddenSave==='function')window.hlgbSaveHiddenCut9239=async function
 };
 
 function stamp(){
-  try{document.title='HLGB Confecções — Sistema de Gestão v'+V+' Multiusuário'}catch(e){}
-  try{const e=document.querySelector('#appShell .logo small');if(e)e.textContent='v'+V}catch(e){}
+  try{document.title=window.hlgbReleaseTitle()}catch(e){}
+  try{const e=document.querySelector('#appShell .logo small');if(e)e.textContent=window.hlgbReleaseLabel()}catch(e){}
 }
 function boot(){mirrorLimitRules();stamp();try{if(typeof renderFinanceWeeklyLimit==='function')renderFinanceWeeklyLimit()}catch(e){};try{if(typeof renderWeeklyPurchases==='function')renderWeeklyPurchases()}catch(e){}}
 try{if(typeof hlgbAfterLogin==='function')hlgbAfterLogin(()=>{setTimeout(boot,250);setTimeout(boot,1300);setTimeout(boot,3200)},0)}catch(e){}

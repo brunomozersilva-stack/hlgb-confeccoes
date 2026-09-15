@@ -1,7 +1,7 @@
-/* HLGB RELEASE ATUAL v92.46 — correção consolidada sem cadeia de hotfixes */
+/* HLGB RELEASE ATUAL v92.47 — correção consolidada sem cadeia de hotfixes */
 (function(){
 'use strict';
-const V='92.46';
+const V=window.HLGB_RELEASE_VERSION||'92.47';
 window.HLGB_RELEASE_VERSION=V;
 const norm=v=>String(v??'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').trim().toLowerCase().replace(/\s+/g,' ');
 const esc=s=>String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));

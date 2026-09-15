@@ -6,7 +6,12 @@
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
-<title>HLGB Confecções — Sistema de Gestão v92.40 Multiusuário</title>
+<title>HLGB Confecções — Sistema de Gestão v92.47 Multiusuário</title>
+<script id="hlgb-release-identity">
+window.HLGB_RELEASE_VERSION='92.47';
+window.hlgbReleaseLabel=()=> 'v'+window.HLGB_RELEASE_VERSION;
+window.hlgbReleaseTitle=()=> 'HLGB Confecções — Sistema de Gestão '+window.hlgbReleaseLabel()+' Multiusuário';
+</script>
 <style>
 :root{--navy:#6f3f59;--orange:#c96b8f;--bg:#fbf6f8;--line:#eadde4;--text:#30262c;--muted:#786b73;--ok:#e9f7ef;--warn:#fff5df;--bad:#fdeaea;--rose:#f3dbe5;--rose2:#fff8fb}
 *{box-sizing:border-box}body{margin:0;font-family:Arial,Helvetica,sans-serif;background:var(--bg);color:var(--text)}
@@ -297,7 +302,7 @@ main{min-width:0;}
     <div class="field" style="text-align:left;margin-bottom:10px"><label>E-mail</label><input id="loginUser" type="email" autocomplete="username" placeholder="seuemail@exemplo.com"></div>
     <div class="field" style="text-align:left;margin-bottom:14px"><label>Senha</label><input id="loginPass" type="password" autocomplete="current-password" onkeydown="if(event.key==='Enter')return doLogin()"></div>
     <button class="primary" style="width:100%" onclick="return doLogin()">Entrar</button>
-    <div id="loginError" style="color:#a51d2d;font-size:13px;margin-top:10px"></div><div style="margin-top:12px;font-size:12px;color:#786b73">Acesso protegido pelo Supabase • HLGB Online<br><b style="color:#6f3f59">Versão v92.40</b></div>
+    <div id="loginError" style="color:#a51d2d;font-size:13px;margin-top:10px"></div><div style="margin-top:12px;font-size:12px;color:#786b73">Acesso protegido pelo Supabase • HLGB Online<br><b style="color:#6f3f59">Versão v92.47</b></div>
   </div>
 </div>
 
@@ -320,7 +325,7 @@ main{min-width:0;}
 })();
 </script>
 
-<div id="appShell" style="display:none"><header><div class="logo">HLGB <b>CONFECÇÕES</b> <small style="font-size:10px;opacity:.8">v92.40</small></div><div><span id="cloudStatus" style="margin-right:10px;font-size:12px;padding:6px 9px;border:1px solid #ffffff44;border-radius:8px">☁️ Nuvem</span><span id="currentUserLabel" style="margin-right:10px;font-size:13px"></span><button id="cloudSaveBtn" onclick="cloudUploadCurrentDb(true)" style="display:none" title="Sincronização automática">🔄 Sincronizar agora</button> <button id="backupBtn" onclick="backup()" style="display:none">Exportar backup</button> <button id="importBackupBtn" onclick="document.getElementById('backupImportInput').click()" style="display:none">Importar backup</button><input id="backupImportInput" type="file" accept=".json,application/json" style="display:none" onchange="importBackupFile(this)"> <button onclick="logout()">Sair</button></div></header>
+<div id="appShell" style="display:none"><header><div class="logo">HLGB <b>CONFECÇÕES</b> <small style="font-size:10px;opacity:.8">v92.47</small></div><div><span id="cloudStatus" style="margin-right:10px;font-size:12px;padding:6px 9px;border:1px solid #ffffff44;border-radius:8px">☁️ Nuvem</span><span id="currentUserLabel" style="margin-right:10px;font-size:13px"></span><button id="cloudSaveBtn" onclick="cloudUploadCurrentDb(true)" style="display:none" title="Sincronização automática">🔄 Sincronizar agora</button> <button id="backupBtn" onclick="backup()" style="display:none">Exportar backup</button> <button id="importBackupBtn" onclick="document.getElementById('backupImportInput').click()" style="display:none">Importar backup</button><input id="backupImportInput" type="file" accept=".json,application/json" style="display:none" onchange="importBackupFile(this)"> <button onclick="logout()">Sair</button></div></header>
 <div class="app">
 <aside><nav id="nav" class="clean-nav">
 <button class="nav-home active" onclick="page('dashboard',this)">🏠 <span>Início</span></button>
@@ -16912,7 +16917,7 @@ function simplify9164(){
  ['projectionExitTable','locationProjectionTable','cutterProjectionTable'].forEach(id=>{const el=document.getElementById(id),p=el?.closest('.panel');if(p&&p!==tracking&&p!==productTable?.closest('.panel'))p.classList.add('projection-advanced-hidden')});
  const client=document.getElementById('clientProjectionTable');if(client){const p=client.closest('.panel');p?.classList.remove('projection-advanced-hidden');const h=p?.querySelector('h2');if(h)h.textContent='💰 3. Valor por cliente';const sub=p?.querySelector('.sub');if(sub)sub.textContent='Veja quanto cada cliente tem previsto e quanto já foi entregue/finalizado no período.'}
  document.querySelectorAll('#projecao .field label').forEach(l=>{if(['Valor mínimo','Valor máximo','Prioridade','Status'].includes(l.textContent.trim()))l.closest('.field')?.classList.add('projection-advanced-hidden')});
- const logo=document.querySelector('#appShell .logo small');if(logo)logo.textContent='v92.40';
+ const logo=document.querySelector('#appShell .logo small');if(logo)logo.textContent=window.hlgbReleaseLabel();
 }
 const old=window.renderProjection;if(typeof old==='function')window.renderProjection=function(){const r=old.apply(this,arguments);setTimeout(simplify9164,0);return r};
 hlgbAfterLogin(()=>{if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',simplify9164,{once:true});else simplify9164();},0);
@@ -16941,7 +16946,7 @@ window.openProjectionClientAssign9166=function(oid,key){let {o,it}=item9166(oid,
 function enhanceProjection9166(){document.querySelectorAll('#projectionProductsTable tbody tr').forEach(tr=>{if(tr.querySelector('.assignClientBtn9166'))return;let b=[...tr.querySelectorAll('button')].find(x=>String(x.getAttribute('onclick')).includes('openProjectionProductionSplit'));if(!b)return;let m=String(b.getAttribute('onclick')).match(/openProjectionProductionSplit\(([^,]+),'([^']*)'/);if(!m)return;let {o,it}=item9166(m[1],m[2]),list=o?.projectionItems?.[it?.key]?.clientAllocations||[],btn=document.createElement('button');btn.type='button';btn.className='secondary assignClientBtn9166';btn.textContent='👥 Atribuir clientes';btn.onclick=()=>openProjectionClientAssign9166(m[1],m[2]);b.parentElement.append(' ',btn);if(list.length){let d=document.createElement('div');d.className='proj-client9166';d.textContent='Clientes: '+list.map(x=>`${x.clientName} (${q9166(x.qty)})`).join(' · ');tr.children[3]?.appendChild(d)}})}
 const oldHub=window.renderHubFinance;if(typeof oldHub==='function')window.renderHubFinance=function(){let r=oldHub.apply(this,arguments);setTimeout(renderHub9166,0);return r};
 const oldProj=window.renderProjection;if(typeof oldProj==='function')window.renderProjection=function(){let r=oldProj.apply(this,arguments);setTimeout(enhanceProjection9166,0);return r};
-function boot(){let logo=document.querySelector('#appShell .logo small');if(logo)logo.textContent='v92.40';try{renderHub9166();enhanceProjection9166()}catch(e){}}
+function boot(){let logo=document.querySelector('#appShell .logo small');if(logo)logo.textContent=window.hlgbReleaseLabel();try{renderHub9166();enhanceProjection9166()}catch(e){}}
 hlgbAfterLogin(()=>{if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',boot,{once:true});else boot();},0);
 })();
 </script>
@@ -16954,7 +16959,7 @@ function capacityRows9167(){let out=[];(db.orders||[]).forEach(o=>{let st=String
 function range9168(){if(typeof hlgb916HubRange==='function')return hlgb916HubRange(capacityWeek9168);let d=new Date((capacityWeek9168||isoDate(new Date()))+'T12:00:00'),s=mondayOf(d),e=new Date(s);e.setDate(s.getDate()+6);return {start:isoDate(s),end:isoDate(e)}}
 window.setCapacityWeek9168=function(v){capacityWeek9168=v||capacityWeek9168;enhance9167()};
 window.openCapacityFinalizer9168=function(){document.querySelectorAll('.projectionSelect').forEach(x=>x.checked=false);let rows=capacityRows9167(),rg=range9168(),period=rows.filter(x=>!x.date||(x.date>=rg.start&&x.date<=rg.end)),groups={};period.forEach(x=>{let c=x.it.clientName||x.o.client||'Sem cliente';(groups[c]||(groups[c]=[])).push(x)});let body=Object.entries(groups).sort((a,b)=>a[0].localeCompare(b[0],'pt-BR')).map(([client,list])=>`<div class="panel" style="margin:9px 0"><b>${esc(client)}</b><div class="sub">Escolha um modelo ou marque vários para agrupar na mesma nota.</div>${list.map(x=>`<label style="display:grid;grid-template-columns:28px minmax(160px,1fr) 90px 115px;gap:8px;align-items:center;padding:9px 0;border-bottom:1px solid var(--line)"><input class="projectionSelect" type="checkbox" value="${x.o.id}::${esc(x.it.key)}"><span><b>${esc(x.it.name||'Produto')}</b><small style="display:block">Pedido #${esc(displayOrderNumber(x.o)||x.o.id)}</small></span><span>${x.qty.toLocaleString('pt-BR')} pç</span><b>${money(x.value)}</b></label>`).join('')}</div>`).join('');openModal('Finalizar nota — escolher modelos',`<div class="sub">Semana de ${fmtDate(rg.start)} a ${fmtDate(rg.end)}. Para uma nota, selecione modelos do mesmo cliente.</div>${body||'<div class="empty">Nenhum modelo disponível nessa semana.</div>'}${period.length?'<button type="button" class="primary modalSave">Continuar com os modelos escolhidos</button>':''}`,()=>window.finalizeSelectedProjection())};
-function enhance9167(){let root=document.getElementById('capacity940Root');if(!root)return;let rows=capacityRows9167(),rg=range9168(),w0=rg.start,w1=rg.end,ym=w0.slice(0,7),yy=w0.slice(0,4),sum=a=>a.reduce((s,x)=>s+q9167(x.value),0),top=document.getElementById('capTotals9167');if(!top){top=document.createElement('div');top.id='capTotals9167';top.className='panel';root.prepend(top)}top.innerHTML=`<div class="toolbar" style="align-items:end"><div><h2>💰 Valor planejado</h2><div class="sub">Escolha qualquer dia no calendário para conferir a semana completa daquela data.</div></div><div class="field"><label>Escolher a semana pelo calendário</label><input type="date" value="${esc(capacityWeek9168)}" onchange="setCapacityWeek9168(this.value)"><div class="sub">A semana será calculada automaticamente.</div></div></div><div class="cards"><div class="card"><small>Semana selecionada</small><strong>${money(sum(rows.filter(x=>x.date>=w0&&x.date<=w1)))}</strong></div><div class="card"><small>Mês da semana</small><strong>${money(sum(rows.filter(x=>x.date.startsWith(ym))))}</strong></div><div class="card"><small>Ano da semana</small><strong>${money(sum(rows.filter(x=>x.date.startsWith(yy))))}</strong></div><div class="card"><small>Total ativo</small><strong>${money(sum(rows))}</strong></div></div>`;let fin=document.getElementById('capFinalize9167');if(!fin){fin=document.createElement('div');fin.id='capFinalize9167';fin.className='panel';root.append(fin)}fin.innerHTML=`<div class="toolbar"><div><h2>🧾 Finalizar nota</h2><div class="sub">Abra a caixinha, escolha um modelo ou agrupe vários modelos do mesmo cliente e finalize a nota do jeito que precisar.</div></div><button type="button" class="primary" onclick="openCapacityFinalizer9168()">Abrir finalizador de nota</button></div>`;let logo=document.querySelector('#appShell .logo small');if(logo)logo.textContent='v92.40'}
+function enhance9167(){let root=document.getElementById('capacity940Root');if(!root)return;let rows=capacityRows9167(),rg=range9168(),w0=rg.start,w1=rg.end,ym=w0.slice(0,7),yy=w0.slice(0,4),sum=a=>a.reduce((s,x)=>s+q9167(x.value),0),top=document.getElementById('capTotals9167');if(!top){top=document.createElement('div');top.id='capTotals9167';top.className='panel';root.prepend(top)}top.innerHTML=`<div class="toolbar" style="align-items:end"><div><h2>💰 Valor planejado</h2><div class="sub">Escolha qualquer dia no calendário para conferir a semana completa daquela data.</div></div><div class="field"><label>Escolher a semana pelo calendário</label><input type="date" value="${esc(capacityWeek9168)}" onchange="setCapacityWeek9168(this.value)"><div class="sub">A semana será calculada automaticamente.</div></div></div><div class="cards"><div class="card"><small>Semana selecionada</small><strong>${money(sum(rows.filter(x=>x.date>=w0&&x.date<=w1)))}</strong></div><div class="card"><small>Mês da semana</small><strong>${money(sum(rows.filter(x=>x.date.startsWith(ym))))}</strong></div><div class="card"><small>Ano da semana</small><strong>${money(sum(rows.filter(x=>x.date.startsWith(yy))))}</strong></div><div class="card"><small>Total ativo</small><strong>${money(sum(rows))}</strong></div></div>`;let fin=document.getElementById('capFinalize9167');if(!fin){fin=document.createElement('div');fin.id='capFinalize9167';fin.className='panel';root.append(fin)}fin.innerHTML=`<div class="toolbar"><div><h2>🧾 Finalizar nota</h2><div class="sub">Abra a caixinha, escolha um modelo ou agrupe vários modelos do mesmo cliente e finalize a nota do jeito que precisar.</div></div><button type="button" class="primary" onclick="openCapacityFinalizer9168()">Abrir finalizador de nota</button></div>`;let logo=document.querySelector('#appShell .logo small');if(logo)logo.textContent=window.hlgbReleaseLabel()}
 const old=window.renderCapacityPlanning;if(typeof old==='function')window.renderCapacityPlanning=function(){let r=old.apply(this,arguments);setTimeout(enhance9167,20);return r};if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>setTimeout(enhance9167,500),{once:true});else setTimeout(enhance9167,500);
 })();
 </script>
@@ -17004,7 +17009,7 @@ window.hlgbRetireCoveredPlannedCuts9218=retireCoveredPlannedCuts9218;
 
 window.finishCut=function(id){let c=(db.cuts||[]).find(x=>String(x.id)===String(id));if(!c)return;let o=(db.orders||[]).find(x=>String(x.id)===String(c.orderId));if(!c.originalPieces)c.originalPieces=qtyOfOrder(o||{})||qty9173(c.pieces);if(!Array.isArray(c.originalGrade)||!c.originalGrade.length)c.originalGrade=cloneCutGrade(o?.grade||[]);let orig=cutOriginalGrade(c,o),actual=cutActualGrade(c,o),gradeHtml=orig.length?`<div class="panel" style="margin-top:12px"><h3>Grade realmente cortada</h3><div class="sub">O pedido original fica preservado. Ajuste somente o que realmente saiu.</div>${table(['Produto','Cor','Tamanho','Pedido original','Cortado'],orig.map((it,i)=>{let p=(db.products||[]).find(x=>String(x.id)===String(it.productId)),a=actual.find(x=>String(x.productId)===String(it.productId)&&String(x.color||'')===String(it.color||'')&&String(x.size||'')===String(it.size||''));return [esc(p?.name||'Produto'),esc(it.color||'-'),esc(it.size||'-'),qty9173(it.qty),`<input id="cutActual_${i}" type="number" min="0" step="1" value="${a?.qty??it.qty??0}" style="width:90px;padding:7px;border:1px solid #ccd2dc;border-radius:7px">`]}))}</div>`:`<div class="field"><label>Quantidade realmente cortada</label><input id="cutActualPieces" type="number" min="0" step="1" value="${qty9173(c.pieces)}"></div>`;openModal('Finalizar corte',`<div class="cards"><div class="card"><small>Pedido</small><strong>#${esc(displayOrderNumber(o||{id:c.orderId})||c.orderId||'-')}</strong></div><div class="card"><small>Cliente</small><strong style="font-size:18px">${esc(o?.client||c.client||'-')}</strong></div><div class="card"><small>Peças do pedido</small><strong>${qty9173(c.originalPieces).toLocaleString('pt-BR')}</strong></div></div>${gradeHtml}<div class="field" style="margin-top:12px"><label>Observação / motivo da alteração</label><textarea id="cutAdjustmentNote">${esc(c.cutAdjustmentNote||'')}</textarea></div><div class="sub" style="margin:10px 0">O item só sairá da fila depois que corte, pedido e entrada em Produção forem confirmados na nuvem.</div><button type="button" class="primary modalSave">☁️ Confirmar corte finalizado</button>`,async()=>{let btn=document.querySelector('#modal .modalSave');if(btn){btn.disabled=true;btn.textContent='☁️ Confirmando tudo na nuvem…'}try{let next=clone9173(c);if(orig.length){next.actualCutGrade=orig.map((it,i)=>({...it,qty:qty9173(document.getElementById(`cutActual_${i}`)?.value)}));next.pieces=next.actualCutGrade.reduce((s,x)=>s+qty9173(x.qty),0)}else next.pieces=qty9173(document.getElementById('cutActualPieces')?.value);next.cutAdjustmentNote=document.getElementById('cutAdjustmentNote')?.value||'';next.status='Finalizado';next.finishedAt=isoDate(new Date());next.finishedAtTime=new Date().toISOString();next=await save9173('cuts',next);try{await retireCoveredPlannedCuts9218(next)}catch(cleanErr){console.warn('[HLGB 92.18] limpeza de planejados duplicados falhou sem desfazer o corte',cleanErr)}if(o)await save9173('orders',{...clone9173(o),status:'Corte finalizado',updatedAt:new Date().toISOString()});let parts=cutParts9173(next,o);for(let i=0;i<parts.length;i++){let part=parts[i],existing=(db.production||[]).find(p=>String(p.cutId)===String(next.id)&&(String(p.productId||'')===String(part.productId||'')||parts.length===1));if(existing)continue;let pr=(db.products||[]).find(x=>String(x.id)===String(part.productId));await save9173('production',{id:Date.now()+i+Math.floor(Math.random()*900000),cutId:next.id,orderId:next.orderId||null,productId:part.productId?+part.productId:null,op:next.op||('CORTE-'+next.id),product:pr?.name||next.product||o?.items||'Produto',client:next.client||o?.client||'',color:'',size:'',planned:part.qty,done:0,stage:'Aguardando atribuição',productionLocationId:null,factionId:null,date:next.finishedAt,assignmentSource:true,cutProductKey:`${next.id}:${part.productId||'geral'}`})}closeModal();try{renderCuts();renderOrders();renderProduction();renderCutAssignmentQueue();renderTracking9173();setCloudStatus('⚡ Online · corte confirmado na Produção','ok')}catch(e){}}catch(err){console.error(err);if(btn){btn.disabled=false;btn.textContent='☁️ Tentar confirmar novamente'}alert('O corte não saiu da tela porque a gravação completa não foi confirmada.\n\n'+(err?.message||err))}})};
 const oldCuts9173=window.renderCuts;window.renderCuts=function(){let r=oldCuts9173?oldCuts9173.apply(this,arguments):undefined;setTimeout(renderTracking9173,0);return r};const oldIncoming9173=window.hlgbRenderIncomingRecord;window.hlgbRenderIncomingRecord=function(module){let r=oldIncoming9173?oldIncoming9173.apply(this,arguments):undefined;if(['cuts','orders','production','productionLocations','factionMasters'].includes(module))setTimeout(renderTracking9173,0);return r};
-function boot9173(){document.title='HLGB Confecções — Sistema de Gestão v92.40 Multiusuário';let logo=document.querySelector('#appShell .logo small');if(logo){logo.textContent='v92.40';/* versão visual sincronizada com a publicação atual */}renderTracking9173()}
+function boot9173(){document.title=window.hlgbReleaseTitle();let logo=document.querySelector('#appShell .logo small');if(logo){logo.textContent=window.hlgbReleaseLabel();/* versão visual sincronizada com a publicação atual */}renderTracking9173()}
 hlgbAfterLogin(()=>{if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>setTimeout(boot9173,600),{once:true});else setTimeout(boot9173,600);},0);
 })();
 </script>
@@ -17066,7 +17071,7 @@ function renderFactionChecklists9176(){
 const oldCapacity9176=window.renderCapacityPlanning;if(typeof oldCapacity9176==='function')window.renderCapacityPlanning=function(){let r=oldCapacity9176.apply(this,arguments);setTimeout(ensurePlanningSearch9176,60);return r};
 const oldFactions9176=window.renderFactions;if(typeof oldFactions9176==='function')window.renderFactions=function(){let r=oldFactions9176.apply(this,arguments);setTimeout(renderFactionChecklists9176,0);return r};
 const oldIncoming9176=window.hlgbRenderIncomingRecord;window.hlgbRenderIncomingRecord=function(module){let r=oldIncoming9176?oldIncoming9176.apply(this,arguments):undefined;if(['orders','products','cuts','separations','production','factions','productionLocations','factionMasters'].includes(module))setTimeout(()=>{ensurePlanningSearch9176();renderFactionChecklists9176()},40);return r};
-function boot9176(){let logo=document.querySelector('#appShell .logo small');if(logo)logo.textContent='v92.40';if(document.querySelector('.page.active')?.id==='capacidadeProducao')ensurePlanningSearch9176();renderFactionChecklists9176()}
+function boot9176(){let logo=document.querySelector('#appShell .logo small');if(logo)logo.textContent=window.hlgbReleaseLabel();if(document.querySelector('.page.active')?.id==='capacidadeProducao')ensurePlanningSearch9176();renderFactionChecklists9176()}
 hlgbAfterLogin(()=>{if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>setTimeout(boot9176,700),{once:true});else setTimeout(boot9176,700);},0);
 })();
 </script>
@@ -17478,7 +17483,7 @@ function enhanceUnassignedCut9185(){
 }
 const oldHub9185=window.renderHubFinance;if(typeof oldHub9185==='function')window.renderHubFinance=function(){let r=oldHub9185.apply(this,arguments);setTimeout(renderHubDue9185,35);return r};
 const oldCap9185=window.renderCapacityPlanning;if(typeof oldCap9185==='function')window.renderCapacityPlanning=function(){let r=oldCap9185.apply(this,arguments);setTimeout(enhanceUnassignedCut9185,90);setTimeout(enhanceUnassignedCut9185,220);return r};
-function setVersion9185(){let el=document.querySelector('#appShell .logo small');if(el&&el.textContent!=='v92.40')el.textContent='v92.40'}
+function setVersion9185(){let el=document.querySelector('#appShell .logo small');if(el&&el.textContent!==window.hlgbReleaseLabel())el.textContent=window.hlgbReleaseLabel()}
 function boot9185(){try{renderHubDue9185()}catch(e){console.warn('v91.85 hub',e)}try{enhanceUnassignedCut9185()}catch(e){console.warn('v91.85 cut',e)}setVersion9185()}
 hlgbAfterLogin(()=>{setTimeout(boot9185,250);setTimeout(boot9185,1800);document.addEventListener('visibilitychange',()=>{if(!document.hidden)setTimeout(boot9185,120)});window.addEventListener('focus',()=>setTimeout(boot9185,120));},0);
 hlgbAfterLogin(()=>{let ver=document.querySelector('#appShell .logo small');if(ver&&window.MutationObserver)new MutationObserver(setVersion9185).observe(ver,{childList:true,characterData:true,subtree:true});},0);
@@ -17627,7 +17632,7 @@ window.openDailyCutPlanner=window.hlgbOpenModelCut9189;
 
 // Sem boot pesado no pré-login. Só acrescenta a melhoria quando a página de corte for renderizada após autenticação.
 try{const base=window.renderCuts;if(typeof base==='function'&&!base.__hlgb9189){const w=function(){let r=base.apply(this,arguments);if(appOpen9189())setTimeout(()=>{try{ensurePlannerUI9189();renderDailyCuts()}catch(e){console.warn('HLGB v91.89 planejamento',e)}},0);return r};w.__hlgb9189=true;window.renderCuts=w}}catch(e){console.warn('HLGB v91.89 wrapper',e)}
-try{document.title='HLGB Confecções — Sistema de Gestão v92.40 Multiusuário'}catch(e){}
+try{document.title=window.hlgbReleaseTitle()}catch(e){}
 console.log('HLGB v91.89 carregada: planejamento de corte por modelo.');
 })();
 </script>
@@ -17716,7 +17721,7 @@ try{const base=window.renderCuts;window.renderCuts=function(){let r=base?.apply(
 try{const base=window.renderDailyCuts;window.renderDailyCuts=function(){let r=base?.apply(this,arguments);setTimeout(enhanceGradeButtons9191,0);return r}}catch(e){}
 try{const base=window.renderCutters;window.renderCutters=function(){let r=base?.apply(this,arguments);setTimeout(()=>{try{window.hlgbRenderCutterExcel9179?.()}catch(e){}},0);return r}}catch(e){}
 
-setTimeout(()=>{try{let x=document.querySelector('#appShell .logo small');if(x)x.textContent='v92.40';document.title='HLGB Confecções — Sistema de Gestão v92.40 Multiusuário'}catch(e){}},0);
+setTimeout(()=>{try{let x=document.querySelector('#appShell .logo small');if(x)x.textContent=window.hlgbReleaseLabel();document.title=window.hlgbReleaseTitle()}catch(e){}},0);
 console.log('HLGB v91.93: cortadores clean, ajuste de grade, status de corte na fila e capacidade por atribuição.');
 })();
 </script>
@@ -18133,8 +18138,8 @@ const uniq9197=a=>[...new Set((a||[]).map(x=>String(x||'').trim()).filter(Boolea
 const esc9197=v=>typeof esc==='function'?esc(v):String(v??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
 
 function setVersion9197(){
-  try{const x=document.querySelector('#appShell .logo small');if(x)x.textContent='v92.40'}catch(e){}
-  try{document.title='HLGB Confecções — Sistema de Gestão v92.40 Multiusuário'}catch(e){}
+  try{const x=document.querySelector('#appShell .logo small');if(x)x.textContent=window.hlgbReleaseLabel()}catch(e){}
+  try{document.title=window.hlgbReleaseTitle()}catch(e){}
 }
 
 // 1) Edição de pedido: nunca bloquear a inclusão apenas porque a cópia local do produto veio sem cores.
@@ -18282,8 +18287,8 @@ const fmtQty9198=v=>(+v||0).toLocaleString('pt-BR',{maximumFractionDigits:3});
 let showClosedChecklist9198=false;
 
 function setVersion9198(){
-  try{let x=document.querySelector('#appShell .logo small');if(x)x.textContent='v92.40'}catch(e){}
-  try{document.title='HLGB Confecções — Sistema de Gestão v92.40 Multiusuário'}catch(e){}
+  try{let x=document.querySelector('#appShell .logo small');if(x)x.textContent=window.hlgbReleaseLabel()}catch(e){}
+  try{document.title=window.hlgbReleaseTitle()}catch(e){}
 }
 function product9198(id){return (db.products||[]).find(x=>String(x.id)===String(id))||null}
 function order9198(id){return (db.orders||[]).find(x=>String(x.id)===String(id))||null}
@@ -18609,7 +18614,7 @@ const q9199=v=>Math.max(0,+v||0);
 const clone9199=o=>{try{return structuredClone(o)}catch(e){return JSON.parse(JSON.stringify(o))}};
 const esc9199=v=>typeof esc==='function'?esc(v):String(v??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot',"'":'&#39;'}[m]));
 const fmt9199=v=>(+v||0).toLocaleString('pt-BR',{maximumFractionDigits:3});
-function setVersion9199(){try{let x=document.querySelector('#appShell .logo small');if(x)x.textContent='v92.40'}catch(e){}try{document.title='HLGB Confecções — Sistema de Gestão v92.40 Multiusuário'}catch(e){}}
+function setVersion9199(){try{let x=document.querySelector('#appShell .logo small');if(x)x.textContent=window.hlgbReleaseLabel()}catch(e){}try{document.title=window.hlgbReleaseTitle()}catch(e){}}
 function arr9199(name){db[name]=Array.isArray(db[name])?db[name]:[];return db[name]}
 function upsert9199(module,row){let a=arr9199(module),i=a.findIndex(x=>String(x.id)===String(row.id));if(i>=0)a[i]=clone9199(row);else a.push(clone9199(row));return row}
 
@@ -18929,7 +18934,7 @@ window.editFactionMaster=function(id){
 
 // 2) Hub Financeiro: recarga direta do módulo crítico para evitar tela vazia após gravação.
 async function loadModule9203(module){
-  if(typeof cloudRequest!=='function')return false;
+  if(typeof cloudRequest!=='function'||!window.__HLGB_AUTH_READY)return false;
   try{if(typeof cloudEnsureFreshSession==='function')await cloudEnsureFreshSession(false)}catch(e){}
   const rows=await cloudRequest('hlgb_records?select=entity_id,data,revision,updated_at,deleted_at&module=eq.'+encodeURIComponent(module)+'&order=updated_at.asc&limit=3000',{method:'GET'});
   if(!Array.isArray(rows))return false;
@@ -18944,7 +18949,7 @@ window.reloadHubFinance9203=async function(){
 };
 const oldHubRender9203=window.renderHubFinance;
 if(typeof oldHubRender9203==='function')window.renderHubFinance=function(){db.hubFinanceEntries=Array.isArray(db.hubFinanceEntries)?db.hubFinanceEntries:[];return oldHubRender9203.apply(this,arguments)};
-setTimeout(()=>window.reloadHubFinance9203?.(),900);setTimeout(()=>window.reloadHubFinance9203?.(),2800);
+hlgbAfterLogin(()=>window.reloadHubFinance9203?.(),900);
 
 // 3) Pedido -> Corte: separação de material nunca bloqueia e nenhum novo corte é criado se já houver corte operacional ativo.
 function terminal9203(c){const st=norm9203(c?.status);return !!(c&&(c.done===true||c.fulfilledAt||st.includes('finalizado')||st.includes('cancelado')||st.includes('concluido')||st.includes('atendido por producao')))}
@@ -18959,8 +18964,8 @@ function makeCut9203(o){let id=Number(o.id)+1;if(!Number.isFinite(id)||arr9203('
 window.syncOrdersToCuts=function(){
   let changed=false;arr9203('orders').forEach(o=>{
     if(!orderNeeds9203(o))return;
-    const active=arr9203('cuts').filter(c=>String(c.orderId)===String(o.id)&&!terminal9203(c));
-    if(active.length){const auto=active.find(c=>c.autoOrderCutV9199||c.autoOrderCutV9203);if(auto){const q=qty9203(o),prod=String(o.items||'Pedido');if(+auto.pieces!==q||auto.client!==(o.client||'')||auto.product!==prod){auto.pieces=q;auto.client=o.client||'';auto.product=prod;auto.materialSeparationParallel=true;auto.updatedAt=new Date().toISOString();changed=true}}return}
+    const active=arr9203('cuts').filter(c=>String(c.orderId)===String(o.id)&&!norm9203(c.status).includes('cancel'));
+    if(active.length){const auto=active.find(c=>!terminal9203(c)&&(c.autoOrderCutV9199||c.autoOrderCutV9203));if(auto){const q=qty9203(o),prod=String(o.items||'Pedido');if(+auto.pieces!==q||auto.client!==(o.client||'')||auto.product!==prod){auto.pieces=q;auto.client=o.client||'';auto.product=prod;auto.materialSeparationParallel=true;auto.updatedAt=new Date().toISOString();changed=true}}return}
     arr9203('cuts').push(makeCut9203(o));changed=true;
   });return changed;
 };
@@ -19032,8 +19037,8 @@ window.addEventListener('unhandledrejection',function(){
 
 // Mantém a versão visível correta em navegadores que restauram DOM antigo do cache.
 function setVersion9204(){
-  try{const x=document.querySelector('#appShell .logo small');if(x)x.textContent='v92.40'}catch(e){}
-  try{document.title='HLGB Confecções — Sistema de Gestão v92.40 Multiusuário'}catch(e){}
+  try{const x=document.querySelector('#appShell .logo small');if(x)x.textContent=window.hlgbReleaseLabel()}catch(e){}
+  try{document.title=window.hlgbReleaseTitle()}catch(e){}
 }
 setVersion9204();
 window.addEventListener('pageshow',setVersion9204);
@@ -19049,7 +19054,12 @@ console.log('[HLGB] v92.04 compatibilidade Chrome/Safari carregada', {isSafari})
 const clone=x=>{try{return structuredClone(x)}catch(e){return JSON.parse(JSON.stringify(x))}};
 const esc=v=>String(v??'').replace(/[&<>\"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','\"':'&quot;',"'":'&#39;'}[m]));
 function qtyDone(f){return +f.done||+f.returned||0}
-function queuedQty(f){return +f.sentToNotesQty||0}
+function queuedQty(f){
+ // A entrega integrada também reserva peças; não depende do contador do botão legado.
+ const linked=(db.noteQueue||[]).filter(x=>x&&!x.deleted_at&&!['cancelado','cancelada'].includes(String(x.status||'').toLowerCase())&&String(x.sourceFactionId??x.factionServiceId??'')===String(f.id));
+ const reserved=linked.reduce((sum,x)=>sum+Math.max(0,Number(x.qty)||0),0);
+ return Math.max(0,Number(f.sentToNotesQty)||0,reserved);
+}
 function pendingQty(f){return Math.max(0,qtyDone(f)-queuedQty(f))}
 function ensureClient(f){let c=(db.clients||[]).find(x=>String(x.id)===String(f.clientId));if(c)return c;let o=(db.orders||[]).find(x=>String(x.id)===String(f.orderId));if(o){c=(db.clients||[]).find(x=>String(x.id)===String(o.clientId));if(c)return c;c=(db.clients||[]).find(x=>String(x.name||'').toLowerCase()===String(o.client||'').toLowerCase());if(c)return c}return (db.clients||[]).find(x=>String(x.name||'').toLowerCase()===String(f.client||'').toLowerCase())||null}
 async function saveRow9201(module,row){
@@ -19068,7 +19078,8 @@ window.sendFactionDeliveryToNotes9201=function(id){
  const productName=product?.name||f.description||'Produto';
  const price=+((product?.clientPrices||{})[String(client.id)]??product?.price??0)||0;
  openModal('Enviar para Notas',`<div class="cards"><div class="card"><small>Facção</small><strong>${esc(f.name||'')}</strong></div><div class="card"><small>Produto</small><strong>${esc(productName)}</strong></div><div class="card"><small>Peças disponíveis</small><strong>${q.toLocaleString('pt-BR')}</strong></div></div><div class="grid" style="margin-top:12px"><div class="field"><label>Cliente</label><input value="${esc(client.name)}" disabled></div><div class="field"><label>Quantidade para a fila de Notas</label><input id="fnQty9201" type="number" min="1" max="${q}" value="${q}"></div><div class="field"><label>Valor por peça sugerido</label><input id="fnPrice9201" type="number" min="0" step="0.01" value="${price.toFixed(2)}"></div><div class="field"><label>Data da entrega</label><input id="fnDate9201" type="date" value="${f.lastDeliveryAt||f.deliveryDate||new Date().toISOString().slice(0,10)}"></div></div><div class="sub">Esta ação apenas coloca as peças na fila da Central de Notas. A nota será criada depois, junto com outros produtos do mesmo cliente se você quiser.</div><button type="button" class="primary modalSave">Enviar para Notas</button>`,async()=>{
-   const amount=Math.max(0,Math.min(q,+document.getElementById('fnQty9201')?.value||0));if(!amount){alert('Informe a quantidade.');return false}
+   const amount=Math.max(0,+document.getElementById('fnQty9201')?.value||0);if(!amount){alert('Informe a quantidade.');return false}
+   if(amount>pendingQty(f)){alert('Esta entrega já foi reservada em Notas. Atualize a fila antes de continuar.');return false}
    const unit=+document.getElementById('fnPrice9201')?.value||0;
    const date=document.getElementById('fnDate9201')?.value||new Date().toISOString().slice(0,10);
    db.noteQueue=Array.isArray(db.noteQueue)?db.noteQueue:[];
@@ -19109,8 +19120,8 @@ async function saveRow(module,row){
  if(!out||out.applied===false)throw new Error(out?.reason||('Nuvem não confirmou '+module));return out.data||row;
 }
 async function loadQueue(){
- if(typeof cloudRequest!=='function')return false;
- try{let rows=await cloudRequest('hlgb_records?select=entity_id,data,deleted_at&module=eq.noteQueue&order=updated_at.asc&limit=2000',{method:'GET'});if(!Array.isArray(rows))return false;let remote=rows.filter(r=>!r.deleted_at&&r.data).map(r=>clone(r.data)),map=new Map(remote.map(x=>[String(x.id),x]));arr('noteQueue').forEach(x=>{if(x?.id!=null&&!map.has(String(x.id)))remote.push(x)});db.noteQueue=remote;local();return true}catch(e){console.warn('v92.05 fila notas',e);return false}
+ if(typeof cloudRequest!=='function'||!window.__HLGB_AUTH_READY)return false;
+ try{let rows=await cloudRequest('hlgb_records?select=entity_id,data,deleted_at&module=eq.noteQueue&order=updated_at.asc&limit=2000',{method:'GET'});if(!Array.isArray(rows))return false;let remote=rows.filter(r=>!r.deleted_at&&r.data).map(r=>clone(r.data)),known=new Set(rows.map(r=>String(r.entity_id)));arr('noteQueue').forEach(x=>{if(x?.id!=null&&!known.has(String(x.id)))remote.push(x)});db.noteQueue=remote;local();return true}catch(e){console.warn('v92.05 fila notas',e);return false}
 }
 function clientForOrder(o){let c=arr('clients').find(x=>String(x.id)===String(o?.clientId));return {id:c?.id||o?.clientId||null,name:c?.name||o?.client||'Sem cliente'}}
 function priceFor(cid,pid,fallback){try{if(typeof suggestedPrice==='function'){let v=+suggestedPrice(cid,pid)||0;if(v)return v}}catch(e){}let p=arr('products').find(x=>String(x.id)===String(pid));return +((p?.clientPrices||{})[String(cid)]??p?.price??fallback??0)||0}
@@ -19164,7 +19175,7 @@ const mo=new MutationObserver((mutations)=>{
   },120);
 });
 mo.observe(document.documentElement,{childList:true,subtree:true});
-setTimeout(async()=>{await loadQueue();decorateProjection();renderQueue()},700);setTimeout(()=>{decorateProjection();renderQueue()},1900);
+hlgbAfterLogin(async()=>{await loadQueue();decorateProjection();renderQueue()},700);
 console.log('[HLGB] v92.07 planejamento/fila/notas agrupadas carregado');
 })();
 </script>
@@ -19478,8 +19489,8 @@ console.log('[HLGB] v92.17 reconciliação de etapas carregada');
 <script>
 (function(){
   function stamp9218(){
-    document.title='HLGB Confecções — Sistema de Gestão v92.40 Multiusuário';
-    const logo=document.querySelector('#appShell .logo small');if(logo)logo.textContent='v92.40';
+    document.title=window.hlgbReleaseTitle();
+    const logo=document.querySelector('#appShell .logo small');if(logo)logo.textContent=window.hlgbReleaseLabel();
   }
   if(typeof hlgbAfterLogin==='function')hlgbAfterLogin(()=>setTimeout(stamp9218,50),0);
   setTimeout(stamp9218,900);
@@ -19491,8 +19502,8 @@ console.log('[HLGB] v92.17 reconciliação de etapas carregada');
 (function(){
 'use strict';
 function stamp9219(){
-  try{document.title='HLGB Confecções — Sistema de Gestão v92.40 Multiusuário'}catch(e){}
-  const el=document.querySelector('#appShell .logo small');if(el)el.textContent='v92.40';
+  try{document.title=window.hlgbReleaseTitle()}catch(e){}
+  const el=document.querySelector('#appShell .logo small');if(el)el.textContent=window.hlgbReleaseLabel();
 }
 function mirrorPlanInvalid9219(c){
   if(String(c?.status||'').toLowerCase()!=='planejado')return false;
@@ -19591,8 +19602,8 @@ window.hlgbStableRenderNow9220=stableRenderNow9220;
 window.hlgbScheduleStableRender9220=scheduleStableRender9220;
 
 function stamp9220(){
-  try{document.title='HLGB Confecções — Sistema de Gestão v92.40 Multiusuário'}catch(e){}
-  const el=document.querySelector('#appShell .logo small');if(el)el.textContent='v92.40';
+  try{document.title=window.hlgbReleaseTitle()}catch(e){}
+  const el=document.querySelector('#appShell .logo small');if(el)el.textContent=window.hlgbReleaseLabel();
 }
 if(typeof hlgbAfterLogin==='function')hlgbAfterLogin(()=>setTimeout(stamp9220,100),0);
 setTimeout(stamp9220,650);
@@ -19644,8 +19655,8 @@ window.hlgbUpdateCutterExcel9221=async function(id,field,value){
   }
 };
 function stamp9221(){
-  try{document.title='HLGB Confecções — Sistema de Gestão v92.40 Multiusuário'}catch(e){}
-  const el=document.querySelector('#appShell .logo small');if(el)el.textContent='v92.40';
+  try{document.title=window.hlgbReleaseTitle()}catch(e){}
+  const el=document.querySelector('#appShell .logo small');if(el)el.textContent=window.hlgbReleaseLabel();
 }
 if(typeof hlgbAfterLogin==='function')hlgbAfterLogin(()=>setTimeout(stamp9221,120),0);
 setTimeout(stamp9221,700);
@@ -19797,7 +19808,7 @@ window.renderRecurringPanel9222=renderRecurringPanel9222;
 
 const oldRender9222=window.renderHubFinance;
 if(typeof oldRender9222==='function')window.renderHubFinance=function(){let r=oldRender9222.apply(this,arguments);setTimeout(()=>{try{ensureWeekFilter9222();renderRecurringPanel9222();ensureRecurringVisible9222()}catch(e){console.warn('[HLGB 92.22] Hub',e)}},45);return r};
-function stamp9222(){try{document.title='HLGB Confecções — Sistema de Gestão v92.40 Multiusuário'}catch(e){};let el=document.querySelector('#appShell .logo small');if(el)el.textContent='v92.40'}
+function stamp9222(){try{document.title=window.hlgbReleaseTitle()}catch(e){};let el=document.querySelector('#appShell .logo small');if(el)el.textContent=window.hlgbReleaseLabel()}
 if(typeof hlgbAfterLogin==='function')hlgbAfterLogin(()=>{setTimeout(()=>{stamp9222();try{ensureWeekFilter9222();renderRecurringPanel9222();ensureRecurringVisible9222()}catch(e){}},250)},0);
 setTimeout(stamp9222,800);
 console.log('[HLGB] v92.22 Hub: edição rápida de valor/data, filtros e despesas fixas mensais');
@@ -19838,7 +19849,7 @@ const oldRefresh9223=window.hlgbRefreshNotes9215;
 if(typeof oldRefresh9223==='function')window.hlgbRefreshNotes9215=async function(){const r=await oldRefresh9223.apply(this,arguments);setTimeout(()=>{try{window.renderNoteQueue9202?.();forceQueueCopy9223();renderLegacy9223()}catch(e){console.warn('[HLGB 92.23] notas',e)}},30);return r};
 const oldRenderQueue9223=window.renderNoteQueue9202;
 if(typeof oldRenderQueue9223==='function')window.renderNoteQueue9202=function(){const r=oldRenderQueue9223.apply(this,arguments);forceQueueCopy9223();return r};
-function setVersion9223(){let el=document.querySelector('#appShell .logo small');if(el)el.textContent='v92.40'}
+function setVersion9223(){let el=document.querySelector('#appShell .logo small');if(el)el.textContent=window.hlgbReleaseLabel()}
 function boot9223(){setVersion9223();try{window.renderNoteQueue9202?.()}catch(e){};try{forceQueueCopy9223();renderLegacy9223()}catch(e){};}
 hlgbAfterLogin(()=>{setTimeout(boot9223,250);setTimeout(()=>window.hlgbRefreshNotes9215?.(false),800);setTimeout(boot9223,1800)},0);
 console.log('[HLGB] v92.23 entregas centralizadas na montagem de notas');
@@ -19896,7 +19907,7 @@ window.toggleResaleProduct9224=async function(sid,pid){const {s}=find9224(sid,pi
 window.openResaleSale9224=function(sid,pid){const {s,p}=find9224(sid,pid);if(!s||!p||p.active===false)return;const opts=clients9224().map(c=>`<option value="${esc9224(c.id)}">${esc9224(c.name||'Cliente')}</option>`).join('');if(!opts){alert('Cadastre um cliente antes de lançar a venda.');return}openModal('Lançar mercadoria para cliente',`<div class="cards"><div class="card"><small>Fornecedor</small><strong style="font-size:17px">${esc9224(s.name||'')}</strong></div><div class="card"><small>Produto</small><strong style="font-size:17px">${esc9224(p.name||'')}</strong></div><div class="card"><small>Seu custo</small><strong>${money9224(p.costPrice)}</strong></div><div class="card"><small>Preço padrão</small><strong>${money9224(p.salePrice)}</strong></div></div><div class="grid"><div class="field"><label>Cliente</label><select id="resClient9224">${opts}</select></div><div class="field"><label>Quantidade</label><input id="resQty9224" type="number" min="1" step="1" value="1"></div><div class="field"><label>Preço de venda por peça</label><input id="resPrice9224" type="number" min="0" step=".01" value="${q9224(p.salePrice).toFixed(2)}"></div><div class="field"><label>Data</label><input id="resDate9224" type="date" value="${today9224()}"></div></div><div class="sub">Ao confirmar, esta mercadoria aparecerá em <b>Notas → Itens aguardando nota</b>. Você poderá juntar com seus produtos normais na mesma nota.</div><button class="primary modalSave">☁️ Enviar para montagem de notas</button>`,async()=>{const cid=document.getElementById('resClient9224')?.value,c=clients9224().find(x=>String(x.id)===String(cid)),qty=Math.floor(q9224(document.getElementById('resQty9224')?.value)),price=q9224(document.getElementById('resPrice9224')?.value),date=document.getElementById('resDate9224')?.value||today9224();if(!c||qty<=0)return alert('Informe cliente e quantidade.');const id='resale-'+Date.now()+'-'+Math.floor(Math.random()*999),row={id,clientId:c.id,clientName:c.name,productId:null,productName:p.name,resaleProductId:p.id,supplierId:s.id,supplierName:s.name,qty,remainingQty:qty,unitPrice:price,unitCost:q9224(p.costPrice),deliveryDate:date,source:'Revenda',sourceType:'resale',status:'Aguardando',createdAt:new Date().toISOString()};const btn=document.querySelector('#modal .modalSave');if(btn){btn.disabled=true;btn.textContent='☁️ Confirmando…'}try{await save9224('noteQueue',row);closeModal();render9224();try{window.renderNoteQueue9202?.()}catch(e){}alert(`${qty.toLocaleString('pt-BR')} peça(s) enviada(s) para a Montagem de notas de ${c.name}.`)}catch(e){if(btn){btn.disabled=false;btn.textContent='Enviar para montagem de notas'}alert('Não foi possível confirmar na nuvem: '+(e?.message||e))}})};
 const oldSup9224=window.renderSuppliers;if(typeof oldSup9224==='function')window.renderSuppliers=function(){const r=oldSup9224.apply(this,arguments);setTimeout(render9224,0);return r};
 const oldPage9224=window.page;if(typeof oldPage9224==='function')window.page=function(id){const r=oldPage9224.apply(this,arguments);if(String(id)==='fornecedores')setTimeout(render9224,40);return r};
-function setVersion9224(){let el=document.querySelector('#appShell .logo small');if(el)el.textContent='v92.40'}
+function setVersion9224(){let el=document.querySelector('#appShell .logo small');if(el)el.textContent=window.hlgbReleaseLabel()}
 hlgbAfterLogin(()=>{setTimeout(()=>{setVersion9224();if(document.querySelector('#fornecedores.page.active'))render9224()},400);setTimeout(setVersion9224,1800)},0);
 console.log('[HLGB] v92.24 revenda de mercadorias integrada à montagem de notas');
 })();
@@ -19906,7 +19917,7 @@ console.log('[HLGB] v92.24 revenda de mercadorias integrada à montagem de notas
 <script>
 (function(){
 'use strict';
-function setVersion9225(){let el=document.querySelector('#appShell .logo small');if(el)el.textContent='v92.40'}
+function setVersion9225(){let el=document.querySelector('#appShell .logo small');if(el)el.textContent=window.hlgbReleaseLabel()}
 hlgbAfterLogin(()=>{setTimeout(setVersion9225,250);setTimeout(setVersion9225,1600)},0);
 console.log('[HLGB] v92.25 saldo da montagem é baixado ao criar a nota para qualquer item de pedido');
 })();
@@ -19916,7 +19927,7 @@ console.log('[HLGB] v92.25 saldo da montagem é baixado ao criar a nota para qua
 <script>
 (function(){
 'use strict';
-function setVersion9226(){let el=document.querySelector('#appShell .logo small');if(el)el.textContent='v92.40'}
+function setVersion9226(){let el=document.querySelector('#appShell .logo small');if(el)el.textContent=window.hlgbReleaseLabel()}
 hlgbAfterLogin(()=>{setTimeout(setVersion9226,250);setTimeout(setVersion9226,1600)},0);
 console.log('[HLGB] v92.26 editor rápido do Hub permite alterar data, valor e status');
 })();
@@ -19976,7 +19987,7 @@ window.hlgbUpdateCutterExcel9227=async function(id,field,value){
     alert('Não foi possível salvar a alteração na nuvem. O corte foi mantido como estava. '+String(e?.message||e));
   }
 };
-function stamp9227(){try{document.title='HLGB Confecções — Sistema de Gestão v92.40 Multiusuário'}catch(e){}const el=document.querySelector('#appShell .logo small');if(el)el.textContent='v92.40'}
+function stamp9227(){try{document.title=window.hlgbReleaseTitle()}catch(e){}const el=document.querySelector('#appShell .logo small');if(el)el.textContent=window.hlgbReleaseLabel()}
 if(typeof hlgbAfterLogin==='function')hlgbAfterLogin(()=>{setTimeout(stamp9227,300);setTimeout(stamp9227,1800);setTimeout(stamp9227,2600)},0);
 setTimeout(stamp9227,900);
 console.log('[HLGB] v92.27 cortadores: edição direta e valores por dia, semana, mês e cortador');
@@ -20141,7 +20152,7 @@ function ensureConfigButtons9228(){
 }
 const oldFactions9228=window.renderFactions;if(typeof oldFactions9228==='function')window.renderFactions=function(){const r=oldFactions9228.apply(this,arguments);setTimeout(ensureConfigButtons9228,40);return r};
 const oldDest9228=window.renderDestinationChecklists;if(typeof oldDest9228==='function')window.renderDestinationChecklists=function(){const r=oldDest9228.apply(this,arguments);setTimeout(ensureConfigButtons9228,40);return r};
-function setVersion9228(){try{document.title='HLGB Confecções — Sistema de Gestão v92.40 Multiusuário'}catch(e){}const el=document.querySelector('#appShell .logo small');if(el)el.textContent='v92.40';ensureConfigButtons9228()}
+function setVersion9228(){try{document.title=window.hlgbReleaseTitle()}catch(e){}const el=document.querySelector('#appShell .logo small');if(el)el.textContent=window.hlgbReleaseLabel();ensureConfigButtons9228()}
 if(typeof hlgbAfterLogin==='function')hlgbAfterLogin(()=>{setTimeout(setVersion9228,250);setTimeout(setVersion9228,1400)},0);else{setTimeout(setVersion9228,700)}
 console.log('[HLGB] v92.28 grade exata do envio no checklist e visibilidade de matérias-primas por facção/confecção');
 })();
@@ -20149,7 +20160,7 @@ console.log('[HLGB] v92.28 grade exata do envio no checklist e visibilidade de m
 <!-- HLGB_V9228_CHECKLIST_GRADE_MATERIAL_VISIBILITY_END -->
 <!-- HLGB_V9228_FINAL_VERSION_STAMP_START -->
 <script>
-(function(){function finalStamp9228(){try{document.title='HLGB Confecções — Sistema de Gestão v92.40 Multiusuário'}catch(e){}const el=document.querySelector('#appShell .logo small');if(el)el.textContent='v92.40'};[3000,4200,6500,10000].forEach(ms=>setTimeout(finalStamp9228,ms));if(typeof hlgbAfterLogin==='function')hlgbAfterLogin(()=>[3000,4200,6500].forEach(ms=>setTimeout(finalStamp9228,ms)),0);})();
+(function(){function finalStamp9228(){try{document.title=window.hlgbReleaseTitle()}catch(e){}const el=document.querySelector('#appShell .logo small');if(el)el.textContent=window.hlgbReleaseLabel()};[3000,4200,6500,10000].forEach(ms=>setTimeout(finalStamp9228,ms));if(typeof hlgbAfterLogin==='function')hlgbAfterLogin(()=>[3000,4200,6500].forEach(ms=>setTimeout(finalStamp9228,ms)),0);})();
 </script>
 <!-- HLGB_V9228_FINAL_VERSION_STAMP_END -->
 <!-- HLGB_V9229_ORDERS_COMPACT_FINALIZE_START -->
@@ -20265,7 +20276,7 @@ window.renderOrders=function(){
 const oldIncoming9229=window.hlgbRenderIncomingRecord;
 window.hlgbRenderIncomingRecord=function(module){let r=oldIncoming9229?oldIncoming9229.apply(this,arguments):undefined;if(['orders','factions','noteQueue','projectionInvoices'].includes(module))setTimeout(()=>{try{reconcileAll9229();if(document.querySelector('#pedidos.page.active'))renderOrders()}catch(e){}},100);return r};
 const oldPage9229=window.page;if(typeof oldPage9229==='function')window.page=function(id){let r=oldPage9229.apply(this,arguments);if(String(id)==='pedidos')setTimeout(()=>{reconcileAll9229();renderOrders()},120);return r};
-function stamp9229(){try{document.title='HLGB Confecções — Sistema de Gestão v92.40 Multiusuário'}catch(e){}const el=document.querySelector('#appShell .logo small');if(el)el.textContent='v92.40'}
+function stamp9229(){try{document.title=window.hlgbReleaseTitle()}catch(e){}const el=document.querySelector('#appShell .logo small');if(el)el.textContent=window.hlgbReleaseLabel()}
 if(typeof hlgbAfterLogin==='function')hlgbAfterLogin(()=>{setTimeout(()=>{reconcileAll9229();try{renderOrders()}catch(e){}},700);[900,3200,5200,7600,10500,12500].forEach(ms=>setTimeout(stamp9229,ms))},0);else [900,3200,5200,7600,10500,12500].forEach(ms=>setTimeout(stamp9229,ms));
 console.log('[HLGB] v92.29 pedidos compactos, paginação e finalização automática por entrega');
 })();
@@ -20326,7 +20337,7 @@ window.hlgbPayFactionGroup9230=function(key){const g=findGroup9230(key);if(!g)re
  })};
 window.hlgbReopenFactionGroup9230=function(key){const g=findGroup9230(key);if(!g)return;if(!confirm(`Reabrir o acerto semanal de ${g.name} (${g.week})? Os pagamentos e abatimentos registrados nesses modelos voltarão para pendente.`))return;g.items.forEach(p=>{p.status='Pendente';p.paymentDate='';p.paymentMethod='';p.paidAmount=0;p.discountAmount=0;p.paymentHistory=[];p.observation=''});try{save()}catch(e){};render9230()};
 const oldRender9230=window.renderFactionPayments;window.renderFactionPayments=function(){try{if(typeof oldRender9230==='function')oldRender9230.apply(this,arguments)}catch(e){console.warn('[HLGB 92.30] render anterior',e)}try{render9230()}catch(e){console.error('[HLGB 92.30] agrupamento',e)}};
-function stamp9230(){try{document.title='HLGB Confecções — Sistema de Gestão v92.40 Multiusuário'}catch(e){}const el=document.querySelector('#appShell .logo small');if(el)el.textContent='v92.40'}
+function stamp9230(){try{document.title=window.hlgbReleaseTitle()}catch(e){}const el=document.querySelector('#appShell .logo small');if(el)el.textContent=window.hlgbReleaseLabel()}
 if(typeof hlgbAfterLogin==='function')hlgbAfterLogin(()=>{setTimeout(stamp9230,250);setTimeout(()=>{try{render9230()}catch(e){}},700);[1800,3500,6500].forEach(ms=>setTimeout(stamp9230,ms))},0);setTimeout(stamp9230,1000);
 console.log('[HLGB] v92.30 pagamentos de facção agrupados por facção e semana');
 })();
@@ -20337,7 +20348,7 @@ console.log('[HLGB] v92.30 pagamentos de facção agrupados por facção e seman
 <script>
 (function(){
 'use strict';
-const CURRENT9231='v92.40';
+const CURRENT9231=window.hlgbReleaseLabel();
 function stamp9231(){
   try{document.title='HLGB Confecções — Sistema de Gestão '+CURRENT9231+' Multiusuário'}catch(e){}
   try{const x=document.querySelector('#appShell .logo small');if(x&&x.textContent!==CURRENT9231)x.textContent=CURRENT9231}catch(e){}
@@ -20408,7 +20419,7 @@ function renderSummary9232(){const host=document.getElementById('factionPaymentS
 function renderServices9232(){const host=document.getElementById('factionPaymentTable');if(!host)return;const groups=visibleGroups9232(),rows=groups.map(g=>{const t=totals9232(g),st=status9232(g),rg=range9232(g.week),models=g.items.slice().sort((a,b)=>String(a.serviceFinishedAt||'').localeCompare(String(b.serviceFinishedAt||''))).map(p=>`<div class="hlgb9232-model"><b>${e9232(p.description||'Serviço')}</b>${q9232(p.quantity).toLocaleString('pt-BR')} pç · ${m9232(p.unitPrice)}/pç · ${m9232(p.value)}</div>`).join('');return [`<span class="hlgb9232-week">${e9232(g.week)}</span><div class="sub">${e9232(rg.label)}</div>`,`<b>${e9232(g.name)}</b>`,g.pix?e9232(g.pix):'-',`<div class="hlgb9232-models">${models}</div>`,t.pieces.toLocaleString('pt-BR'),m9232(t.gross),t.trav?'- '+m9232(t.trav):'-',t.disc?'- '+m9232(t.disc):'-',m9232(t.net),m9232(t.paid),m9232(t.rem),`<span class="badge ${st==='Pago'?'ok':st==='Parcial'?'warn':''}">${st}</span>`,`<div class="hlgb9232-actions"><button class="secondary" onclick='hlgbFactionStatement9232(${JSON.stringify(g.key)})'>Detalhes</button><button class="secondary" onclick='hlgbPrintFactionStatement9232(${JSON.stringify(g.key)})'>🖨️ PDF</button>${st==='Pago'?`<button class="secondary" onclick='hlgbReopenFactionGroup9230(${JSON.stringify(g.key)})'>Reabrir</button>`:`<button class="primary" onclick='hlgbPayFactionGroup9230(${JSON.stringify(g.key)})'>Dar baixa</button>`}</div>`]});host.innerHTML=rows.length?table(['Semana','Facção','PIX','Modelos / serviços','Peças','Bruto','Traveta','Outros abat.','Líquido','Pago','Saldo','Status','Ações'],rows):'<div class="empty">Nenhum serviço encontrado.</div>'}
 function render9232(){try{renderSummary9232();renderServices9232()}catch(e){console.error('[HLGB 92.32] render acertos',e)}}
 const prev9232=window.renderFactionPayments;window.renderFactionPayments=function(){let r;try{r=typeof prev9232==='function'?prev9232.apply(this,arguments):undefined}catch(e){console.warn('[HLGB 92.32] render anterior',e)}setTimeout(render9232,0);return r};
-function stamp9232(){try{document.title='HLGB Confecções — Sistema de Gestão v92.40 Multiusuário'}catch(e){}try{const el=document.querySelector('#appShell .logo small');if(el)el.textContent='v92.40'}catch(e){}}
+function stamp9232(){try{document.title=window.hlgbReleaseTitle()}catch(e){}try{const el=document.querySelector('#appShell .logo small');if(el)el.textContent=window.hlgbReleaseLabel()}catch(e){}}
 if(typeof hlgbAfterLogin==='function')hlgbAfterLogin(()=>{setTimeout(()=>{stamp9232();render9232()},500)},0);setTimeout(stamp9232,900);
 console.log('[HLGB] v92.40 acerto semanal detalhado, agrupado e pronto para impressão/PDF');
 })();
@@ -20459,8 +20470,8 @@ const IDB9233='hlgb_durable_wal';
 const STORE9233='entries';
 
 function stamp9233(){
-  try{document.title='HLGB Confecções — Sistema de Gestão v92.40 Multiusuário'}catch(e){}
-  const el=document.querySelector('#appShell .logo small');if(el)el.textContent='v92.40';
+  try{document.title=window.hlgbReleaseTitle()}catch(e){}
+  const el=document.querySelector('#appShell .logo small');if(el)el.textContent=window.hlgbReleaseLabel();
 }
 
 function relabelSecurity9233(){
@@ -20705,7 +20716,7 @@ window.openProjectionAcerto9234=open9234;
 window.openProjectionAcerto9200=open9234;
 window.openProjectionAcerto9214=open9234;
 
-function stamp9234(){try{document.title='HLGB Confecções — Sistema de Gestão v92.40 Multiusuário'}catch(e){}const el=document.querySelector('#appShell .logo small');if(el)el.textContent='v92.40'}
+function stamp9234(){try{document.title=window.hlgbReleaseTitle()}catch(e){}const el=document.querySelector('#appShell .logo small');if(el)el.textContent=window.hlgbReleaseLabel()}
 if(typeof hlgbAfterLogin==='function')hlgbAfterLogin(()=>{[600,1800,4200,9000].forEach(ms=>setTimeout(stamp9234,ms))},0);else setTimeout(stamp9234,900);window.addEventListener('focus',()=>setTimeout(stamp9234,30));
 console.log('[HLGB] v92.40 acerto detalhado de clientes restaurado');
 })();
@@ -20810,7 +20821,7 @@ window.hlgbOpenResale9235=function(btn){
   moveResale9235();
 };
 
-function stamp9235(){try{document.title='HLGB Confecções — Sistema de Gestão v92.40 Multiusuário'}catch(e){}const v=document.querySelector('#appShell .logo small');if(v)v.textContent='v92.40'}
+function stamp9235(){try{document.title=window.hlgbReleaseTitle()}catch(e){}const v=document.querySelector('#appShell .logo small');if(v)v.textContent=window.hlgbReleaseLabel()}
 function boot9235(){stamp9235();ensureResalePage9235();moveResale9235();applySelection9235()}
 if(typeof hlgbAfterLogin==='function')hlgbAfterLogin(()=>{setTimeout(boot9235,700);setTimeout(stamp9235,2500)},0);else setTimeout(boot9235,1200);
 setTimeout(stamp9235,400);
@@ -20915,7 +20926,7 @@ if(typeof prevRefresh9236==='function')window.hlgbRefreshNotes9215=async functio
   try{await loadCloudQueue9236();renderFresh9236([])}catch(e){console.warn('[HLGB 92.36] fila direta da nuvem',e)}
   return r;
 };
-function stamp9236(){try{document.title='HLGB Confecções — Sistema de Gestão v92.40 Multiusuário'}catch(e){}const v=document.querySelector('#appShell .logo small');if(v)v.textContent='v92.40'}
+function stamp9236(){try{document.title=window.hlgbReleaseTitle()}catch(e){}const v=document.querySelector('#appShell .logo small');if(v)v.textContent=window.hlgbReleaseLabel()}
 if(typeof hlgbAfterLogin==='function')hlgbAfterLogin(()=>setTimeout(stamp9236,500),0);setTimeout(stamp9236,600);
 console.log('[HLGB] v92.40 montagem de nota agrupada usa fila autoritativa da nuvem');
 })();
@@ -21025,7 +21036,7 @@ window.hlgbClearCutterFilter9238=function(){window.hlgbCutterStatus9238='';windo
 const oldCutter9238=window.hlgbRenderCutterExcel9179;
 if(typeof oldCutter9238==='function')window.hlgbRenderCutterExcel9179=function(){const full=db.cuts;db.cuts=(Array.isArray(full)?full:[]).filter(cutFilter9238);try{return oldCutter9238.apply(this,arguments)}finally{db.cuts=full;setTimeout(ensureCutterFilter9238,0)}};
 
-function stamp9238(){const l=document.querySelector('#appShell .logo small');if(l)l.textContent='v92.40';document.title='HLGB Confecções — Sistema de Gestão v92.40 Multiusuário'}
+function stamp9238(){const l=document.querySelector('#appShell .logo small');if(l)l.textContent=window.hlgbReleaseLabel();document.title=window.hlgbReleaseTitle()}
 if(typeof hlgbAfterLogin==='function')hlgbAfterLogin(()=>{setTimeout(()=>{stamp9238();enhanceTopClients9238();ensureCutterFilter9238()},700);[3000,6500,11000,14000].forEach(t=>setTimeout(stamp9238,t))},0);else setTimeout(stamp9238,1000);
 })();
 </script>
@@ -21151,7 +21162,7 @@ function enhanceCutterQuick9239(){
 }
 const oldCutter9239=window.hlgbRenderCutterExcel9179;if(typeof oldCutter9239==='function')window.hlgbRenderCutterExcel9179=function(){const r=oldCutter9239.apply(this,arguments);setTimeout(enhanceCutterQuick9239,0);return r};
 
-function stamp9239(){const l=document.querySelector('#appShell .logo small');if(l)l.textContent='v92.40';document.title='HLGB Confecções — Sistema de Gestão v92.40 Multiusuário'}
+function stamp9239(){const l=document.querySelector('#appShell .logo small');if(l)l.textContent=window.hlgbReleaseLabel();document.title=window.hlgbReleaseTitle()}
 if(typeof hlgbAfterLogin==='function')hlgbAfterLogin(()=>{setTimeout(()=>{stamp9239();renderHiddenCuts9239();enhanceCutterQuick9239()},700);[3000,6500,11000,15000].forEach(t=>setTimeout(stamp9239,t))},0);else setTimeout(stamp9239,900);
 console.log('[HLGB] v92.40 cortes ocultos + confirmação real de atribuição de clientes');
 })();
