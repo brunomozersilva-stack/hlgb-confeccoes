@@ -66,6 +66,26 @@ jobs:
           python scripts/hlgb_v9240_version_pending_patch.py
           python scripts/check_html_scripts.py app9240.html
           python scripts/hlgb_v9240_launcher.py
+      - name: Diagnosticar sessão e catálogos
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          s = Path('app9240.html').read_text(encoding='utf-8')
+          checks = [
+              ('MODULES', 'HLGB_RECORD_MODULES', 1800),
+              ('DIRECT', 'async function hlgbRecordLoadDirect', 3000),
+              ('BUNDLE', 'async function hlgbRecordLoadBundle', 2800),
+              ('RESTORE', 'function cloudRestoreStoredAuth', 2200),
+              ('LOGIN', 'function enableAppAfterLogin', 2600),
+              ('MATERIALS', 'loadCloudMaterials', 1600),
+              ('REFRESH_MATERIALS', 'refreshSupabaseMaterials', 1600),
+          ]
+          for label, needle, span in checks:
+              pos = s.find(needle)
+              print(f'--- DIAG {label} pos={pos} ---')
+              if pos >= 0:
+                  print(s[max(0,pos-250):pos+span])
+          PY
       - name: Publicar versão 92.40
         uses: stefanzweifel/git-auto-commit-action@v5
         with:
