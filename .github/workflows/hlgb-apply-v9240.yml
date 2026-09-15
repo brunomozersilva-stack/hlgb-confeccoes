@@ -32,29 +32,15 @@ jobs:
         run: |
           python - <<'PY'
           from pathlib import Path
-
-          p = Path('app9240.html')
-          s = p.read_text(encoding='utf-8')
-          fn = 'async function hlgbRecordLoadBundle({preserveLocal=false,since=null}={}){'
-          start = s.find(fn)
-          if start < 0:
-              raise SystemExit('hlgbRecordLoadBundle não encontrado')
-          body = s.find('  const body={p_since:since||null};', start)
-          if body < 0:
-              raise SystemExit('início do carregador não encontrado')
-          replace_start = s.find('\n', body) + 1
-          replace_end = s.find('  if(Array.isArray(bundle)', replace_start)
-          if replace_end < 0:
-              raise SystemExit('fim do bloco de bundle não encontrado')
-          hotfix = (
-              '  let bundle;\n'
-              '  // v92.40 hotfix: carga paginada para todos os usuários.\n'
-              '  // Evita falha de inicialização quando há muitos registros.\n'
-              '  bundle=await hlgbRecordLoadDirect(since);\n'
-          )
-          s = s[:replace_start] + hotfix + s[replace_end:]
-          p.write_text(s, encoding='utf-8')
-          print('hotfix multiusuário aplicado')
+          p=Path('app9240.html');s=p.read_text(encoding='utf-8')
+          fn='async function hlgbRecordLoadBundle({preserveLocal=false,since=null}={}){';start=s.find(fn)
+          if start<0: raise SystemExit('hlgbRecordLoadBundle não encontrado')
+          body=s.find('  const body={p_since:since||null};',start)
+          if body<0: raise SystemExit('início do carregador não encontrado')
+          replace_start=s.find('\n',body)+1;replace_end=s.find('  if(Array.isArray(bundle)',replace_start)
+          if replace_end<0: raise SystemExit('fim do bloco de bundle não encontrado')
+          hotfix='  let bundle;\n  // v92.40 hotfix: carga paginada para todos os usuários.\n  // Evita falha de inicialização quando há muitos registros.\n  bundle=await hlgbRecordLoadDirect(since);\n'
+          s=s[:replace_start]+hotfix+s[replace_end:];p.write_text(s,encoding='utf-8');print('hotfix multiusuário aplicado')
           PY
       - name: Vincular grade, produção, separação, memória e projeção
         run: |
@@ -66,36 +52,25 @@ jobs:
           python scripts/hlgb_v9240_version_pending_patch.py
           python scripts/check_html_scripts.py app9240.html
           python scripts/hlgb_v9240_launcher.py
-      - name: Diagnosticar fluxo completo de refresh
+      - name: Diagnosticar carga normalizada
         run: |
           python - <<'PY'
           from pathlib import Path
-          s = Path('app9240.html').read_text(encoding='utf-8')
-          def show(label, needle, before=400, after=7000):
-              pos=s.find(needle)
-              print(f'--- DIAG {label} pos={pos} ---')
+          s=Path('app9240.html').read_text(encoding='utf-8')
+          def show(label,needle,before=300,after=9000):
+              pos=s.find(needle);print(f'--- DIAG {label} pos={pos} ---')
               if pos>=0: print(s[max(0,pos-before):pos+after])
-          show('RESTORE_BOOT','if(cloudRestoreStoredAuth()){',500,9500)
-          show('ENSURE_RECORDS','async function hlgbEnsureRecordsOnlineAfterLogin',500,9000)
-          show('CLOUD_LOAD','async function cloudLoad(',500,9000)
-          show('LOGIN_FUNCTION','function doLogin(',500,9000)
-          show('WATCHDOG','HLGB_SESSION_BOOT_WATCHDOG=setTimeout',500,5500)
-          print('--- DIAG hlgbMarkAuthenticated occurrences ---')
+          show('LOAD_NORMALIZED','async function hlgbLoadNormalizedCore',400,11000)
+          show('LOAD_BUNDLE','async function hlgbRecordLoadBundle',400,12000)
+          show('RECORD_ID','function hlgbRecordId',400,4000)
+          show('CAN_READ','function hlgbRecordCanRead',400,4000)
+          show('RECORD_BOOTSTRAP','async function hlgbRecordBootstrap',400,9000)
+          print('--- READY ASSIGNMENTS ---')
           start=0
-          for i in range(s.count('hlgbMarkAuthenticated(')):
-              pos=s.find('hlgbMarkAuthenticated(',start)
+          for i in range(min(s.count('hlgbRecordReady='),20)):
+              pos=s.find('hlgbRecordReady=',start)
               if pos<0: break
-              print(f'[{i}] pos={pos}')
-              print(s[max(0,pos-700):pos+1800])
-              start=pos+1
-          print('--- DIAG cloudLoad occurrences ---')
-          start=0
-          for i in range(min(s.count('cloudLoad()'),12)):
-              pos=s.find('cloudLoad()',start)
-              if pos<0: break
-              print(f'[{i}] pos={pos}')
-              print(s[max(0,pos-450):pos+1200])
-              start=pos+1
+              print(f'[{i}] pos={pos}');print(s[max(0,pos-500):pos+900]);start=pos+1
           PY
       - name: Publicar versão 92.40
         uses: stefanzweifel/git-auto-commit-action@v5
