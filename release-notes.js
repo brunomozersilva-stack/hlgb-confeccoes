@@ -1,11 +1,19 @@
-/* HLGB stable module v2: fila de notas reserva sem esconder o planejamento */
+/* HLGB stable module v3: fila de notas reserva sem esconder o planejamento */
 (function(){
 'use strict';
 const q=v=>Math.max(0,Number(v)||0),sid=v=>String(v??''),norm=v=>String(v??'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').trim().toLowerCase().replace(/\s+/g,' ');
 function arr(n){try{return Array.isArray(db?.[n])?db[n]:[]}catch(e){return []}}
+function orderAliases(orderId,item){
+  const ids=new Set(),id=sid(orderId);if(id)ids.add(id);
+  const o=arr('orders').find(x=>sid(x?.id)===id);if(!o)return ids;
+  if(o.noteSourceOrderId!=null)ids.add(sid(o.noteSourceOrderId));
+  const key=sid(item?.key||item?.productId),pid=sid(item?.productId||key),map=o.fulfillmentByProduct&&typeof o.fulfillmentByProduct==='object'?o.fulfillmentByProduct:{};
+  const link=map[pid]||map[key];if(link?.sourceOrderId!=null)ids.add(sid(link.sourceOrderId));
+  return ids;
+}
 function activeQueues(orderId,item){
-  const key=sid(item?.key||item?.productId),pid=sid(item?.productId);
-  return arr('noteQueue').filter(x=>x&&sid(x.orderId)===sid(orderId)&&!['faturado','cancelado','cancelada'].includes(norm(x.status))&&q(x.remainingQty??x.qty)>0&&(sid(x.itemKey)===key||sid(x.productId)===pid));
+  const key=sid(item?.key||item?.productId),pid=sid(item?.productId),aliases=orderAliases(orderId,item);
+  return arr('noteQueue').filter(x=>x&&!['faturado','cancelado','cancelada'].includes(norm(x.status))&&q(x.remainingQty??x.qty)>0&&[x.orderId,x.readyOrderId,x.sourceOrderId].some(v=>aliases.has(sid(v)))&&(sid(x.itemKey)===key||sid(x.productId)===pid));
 }
 function queued(orderId,item){return activeQueues(orderId,item).reduce((s,x)=>s+q(x.remainingQty??x.qty),0)}
 function syncLocal(){
@@ -20,7 +28,7 @@ function syncLocal(){
       }
     }
     return true;
-  }catch(e){console.warn('[HLGB notes v2] sync',e);return false}
+  }catch(e){console.warn('[HLGB notes v3] sync',e);return false}
 }
 function decorateProjection(){
   try{
@@ -39,12 +47,12 @@ function decorateProjection(){
         if(z>=remaining&&remaining>0){cb.checked=false;cb.disabled=true;cb.title='Quantidade já reservada na fila de Notas';}
       }
     });
-  }catch(e){console.warn('[HLGB notes v2] decorate',e)}
+  }catch(e){console.warn('[HLGB notes v3] decorate',e)}
 }
 const oldSend=window.sendProjectionToNotes9202;
-if(typeof oldSend==='function'&&!oldSend.__hlgbNotesV2){const w=function(){syncLocal();return oldSend.apply(this,arguments)};w.__hlgbNotesV2=true;window.sendProjectionToNotes9202=w}
+if(typeof oldSend==='function'&&!oldSend.__hlgbNotesV3){const w=function(){syncLocal();return oldSend.apply(this,arguments)};w.__hlgbNotesV3=true;window.sendProjectionToNotes9202=w}
 const oldRender=window.renderProjection;
-if(typeof oldRender==='function'&&!oldRender.__hlgbNotesV2){const w=function(){syncLocal();const r=oldRender.apply(this,arguments);setTimeout(decorateProjection,0);return r};w.__hlgbNotesV2=true;window.renderProjection=w}
+if(typeof oldRender==='function'&&!oldRender.__hlgbNotesV3){const w=function(){syncLocal();const r=oldRender.apply(this,arguments);setTimeout(decorateProjection,0);return r};w.__hlgbNotesV3=true;window.renderProjection=w}
 const oldIncoming=window.hlgbRenderIncomingRecord;
 window.hlgbRenderIncomingRecord=function(module){
   const r=typeof oldIncoming==='function'?oldIncoming.apply(this,arguments):undefined;
@@ -55,5 +63,5 @@ function refresh(){syncLocal();try{window.renderProjection?.()}catch(e){};setTim
 try{if(typeof hlgbAfterLogin==='function')hlgbAfterLogin(()=>{setTimeout(refresh,700);setTimeout(refresh,2200)},0)}catch(e){}
 setTimeout(refresh,1100);setTimeout(refresh,3200);
 try{if(!window.HLGB_UI_CLEANUP&&!document.querySelector('script[data-hlgb-ui-cleanup]')){const s=document.createElement('script');s.dataset.hlgbUiCleanup='1';s.src='./release-ui-cleanup.js?fresh='+Date.now();document.head.appendChild(s)}}catch(e){}
-window.HLGB_NOTE_QUEUE_GUARD='v2';console.info('[HLGB] fila de notas preserva planejamento visível e bloqueia envio duplicado');
+window.HLGB_NOTE_QUEUE_GUARD='v3';console.info('[HLGB] fila de notas reconhece vínculos de pedido-fonte e bloqueia reserva duplicada');
 })();
