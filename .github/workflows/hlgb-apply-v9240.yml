@@ -72,19 +72,28 @@ jobs:
           from pathlib import Path
           s = Path('app9240.html').read_text(encoding='utf-8')
           checks = [
-              ('MODULES', 'HLGB_RECORD_MODULES', 1800),
-              ('DIRECT', 'async function hlgbRecordLoadDirect', 3000),
-              ('BUNDLE', 'async function hlgbRecordLoadBundle', 2800),
-              ('RESTORE', 'function cloudRestoreStoredAuth', 2200),
-              ('LOGIN', 'function enableAppAfterLogin', 2600),
-              ('MATERIALS', 'loadCloudMaterials', 1600),
-              ('REFRESH_MATERIALS', 'refreshSupabaseMaterials', 1600),
+              ('ROW_VALUE', 'function hlgbRecordRowValue', 2600),
+              ('LOCAL_MAP', 'function hlgbRecordLocalMap', 2200),
+              ('RESTORE_FN', 'function cloudRestoreStoredAuth', 1800),
+              ('DO_LOGIN', 'async function doLogin', 3500),
+              ('AFTER_LOGIN', 'hlgbAfterLogin', 3200),
+              ('ENSURE_SESSION', 'cloudEnsureFreshSession', 3200),
+              ('REFRESH_TRUE', 'cloudRefreshSession(true)', 3200),
           ]
           for label, needle, span in checks:
               pos = s.find(needle)
               print(f'--- DIAG {label} pos={pos} ---')
               if pos >= 0:
-                  print(s[max(0,pos-250):pos+span])
+                  print(s[max(0,pos-350):pos+span])
+          for needle in ['db.materials','db.colors','db.sizes','cloudRestoreStoredAuth(']:
+              print(f'--- DIAG OCCURRENCES {needle} count={s.count(needle)} ---')
+              start=0
+              for i in range(min(s.count(needle),8)):
+                  pos=s.find(needle,start)
+                  if pos<0: break
+                  print(f'[{i}] pos={pos}')
+                  print(s[max(0,pos-260):pos+850])
+                  start=pos+len(needle)
           PY
       - name: Publicar versão 92.40
         uses: stefanzweifel/git-auto-commit-action@v5
