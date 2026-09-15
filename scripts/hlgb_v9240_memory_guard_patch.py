@@ -60,6 +60,8 @@ function hlgbLowMemoryRenderNowV9240(){
   case 'notas': R('renderOrderNotes');break;
   case 'relatorios': R('renderReports');break;
   case 'usuarios': R('renderUsers');break;
+  case 'cadastros': R('renderCatalogs');break;
+  case 'config': R('renderUsers');R('renderAuditLog');break;
   default:
    // Paginas de cadastro/legadas sao atualizadas ao serem abertas pelo roteador.
    // Evitamos redesenhar dezenas de telas invisiveis a cada evento da nuvem.
@@ -88,6 +90,26 @@ function renderAll(){
 function renderAllFullV9240(){'''
 
 s = s.replace(anchor, light, 1)
+
+# Estas telas dependiam do renderAll pesado no login. Renderizar apenas a tela
+# ativa exige inicializa-las tambem ao navegar, antes de qualquer evento remoto.
+route_anchor = 'target.classList.add("active");'
+route_fix = r'''target.classList.add("active");
+// HLGB_V9240_CATALOG_ROUTE_FIX: dados existentes devem aparecer ao abrir.
+if(id==="fornecedores")renderSuppliers();
+if(id==="materiais")renderMaterials();
+if(id==="cadastros")renderCatalogs();
+if(id==="config"){
+ renderUsers();renderAuditLog();
+ document.getElementById("companyName").value=db.config.name||"";
+ document.getElementById("companyNote").value=db.config.note||"";
+}'''
+route_start = s.index('function page(id,btn){')
+route_end = s.index('function openModal(', route_start)
+route = s[route_start:route_end]
+if route.count(route_anchor) != 1:
+    raise SystemExit('ERRO: ancora unica de navegacao nao encontrada')
+s = s[:route_start] + route.replace(route_anchor, route_fix, 1) + s[route_end:]
 
 # Reduz polling duplicado. Realtime continua sendo o caminho principal; estes
 # timers ficam apenas como rede de seguranca, sem forcar download/render a cada
