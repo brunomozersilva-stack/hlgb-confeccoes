@@ -98,9 +98,17 @@ function enhanceDateModal(){
 const oldDate=window.changeProjectionRemainingDate;
 if(typeof oldDate==='function')window.changeProjectionRemainingDate=function(){const r=oldDate.apply(this,arguments);setTimeout(enhanceDateModal,0);setTimeout(enhanceDateModal,80);return r};
 
-/* 4) Mantém a sessão visualmente estável no refresh. */
+/* 4) O painel legado de cortes ocultos não deve voltar a aparecer. */
+function suppressHiddenCutsPanel(){
+  const root=document.getElementById('hlgbHiddenCuts9239');if(!root)return;
+  const panel=root.closest('.panel')||root;panel.style.display='none';panel.setAttribute('aria-hidden','true');root.innerHTML='';
+}
+const oldHiddenCutsRenderer=window.renderHiddenCuts9239;
+if(typeof oldHiddenCutsRenderer==='function')window.renderHiddenCuts9239=function(){suppressHiddenCutsPanel();return false};
+
+/* 5) Mantém a sessão visualmente estável no refresh. */
 function normalizeAuth(){const loader=document.getElementById('sessionLoader'),login=document.getElementById('loginScreen'),app=document.getElementById('appShell');if(!loader||!login||!app)return;if(app.style.display==='block'){loader.style.display='none';login.style.display='none'}}
-function repair(){stamp();normalizeAuth();removeChecklistGradeColumn();repairMainFactionTable();enhanceDateModal()}
+function repair(){stamp();normalizeAuth();removeChecklistGradeColumn();repairMainFactionTable();enhanceDateModal();suppressHiddenCutsPanel()}
 const oldRenderFactions=window.renderFactions;
 if(typeof oldRenderFactions==='function')window.renderFactions=function(){const r=oldRenderFactions.apply(this,arguments);setTimeout(()=>{repairMainFactionTable();removeChecklistGradeColumn();renderFactionDeliveryExact()},120);return r};
 
