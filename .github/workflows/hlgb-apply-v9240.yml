@@ -66,34 +66,36 @@ jobs:
           python scripts/hlgb_v9240_version_pending_patch.py
           python scripts/check_html_scripts.py app9240.html
           python scripts/hlgb_v9240_launcher.py
-      - name: Diagnosticar sessão e catálogos
+      - name: Diagnosticar fluxo completo de refresh
         run: |
           python - <<'PY'
           from pathlib import Path
           s = Path('app9240.html').read_text(encoding='utf-8')
-          checks = [
-              ('ROW_VALUE', 'function hlgbRecordRowValue', 2600),
-              ('LOCAL_MAP', 'function hlgbRecordLocalMap', 2200),
-              ('RESTORE_FN', 'function cloudRestoreStoredAuth', 1800),
-              ('DO_LOGIN', 'async function doLogin', 3500),
-              ('AFTER_LOGIN', 'hlgbAfterLogin', 3200),
-              ('ENSURE_SESSION', 'cloudEnsureFreshSession', 3200),
-              ('REFRESH_TRUE', 'cloudRefreshSession(true)', 3200),
-          ]
-          for label, needle, span in checks:
-              pos = s.find(needle)
+          def show(label, needle, before=400, after=7000):
+              pos=s.find(needle)
               print(f'--- DIAG {label} pos={pos} ---')
-              if pos >= 0:
-                  print(s[max(0,pos-350):pos+span])
-          for needle in ['db.materials','db.colors','db.sizes','cloudRestoreStoredAuth(']:
-              print(f'--- DIAG OCCURRENCES {needle} count={s.count(needle)} ---')
-              start=0
-              for i in range(min(s.count(needle),8)):
-                  pos=s.find(needle,start)
-                  if pos<0: break
-                  print(f'[{i}] pos={pos}')
-                  print(s[max(0,pos-260):pos+850])
-                  start=pos+len(needle)
+              if pos>=0: print(s[max(0,pos-before):pos+after])
+          show('RESTORE_BOOT','if(cloudRestoreStoredAuth()){',500,9500)
+          show('ENSURE_RECORDS','async function hlgbEnsureRecordsOnlineAfterLogin',500,9000)
+          show('CLOUD_LOAD','async function cloudLoad(',500,9000)
+          show('LOGIN_FUNCTION','function doLogin(',500,9000)
+          show('WATCHDOG','HLGB_SESSION_BOOT_WATCHDOG=setTimeout',500,5500)
+          print('--- DIAG hlgbMarkAuthenticated occurrences ---')
+          start=0
+          for i in range(s.count('hlgbMarkAuthenticated(')):
+              pos=s.find('hlgbMarkAuthenticated(',start)
+              if pos<0: break
+              print(f'[{i}] pos={pos}')
+              print(s[max(0,pos-700):pos+1800])
+              start=pos+1
+          print('--- DIAG cloudLoad occurrences ---')
+          start=0
+          for i in range(min(s.count('cloudLoad()'),12)):
+              pos=s.find('cloudLoad()',start)
+              if pos<0: break
+              print(f'[{i}] pos={pos}')
+              print(s[max(0,pos-450):pos+1200])
+              start=pos+1
           PY
       - name: Publicar versão 92.40
         uses: stefanzweifel/git-auto-commit-action@v5
