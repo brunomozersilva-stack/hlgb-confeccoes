@@ -4116,6 +4116,15 @@ document.querySelectorAll(".page").forEach(x=>x.classList.remove("active"));
 const target=document.getElementById(id);
 if(!target){alert("Esta tela ainda não foi carregada.");return}
 target.classList.add("active");
+// HLGB_V9240_CATALOG_ROUTE_FIX: dados existentes devem aparecer ao abrir.
+if(id==="fornecedores")renderSuppliers();
+if(id==="materiais")renderMaterials();
+if(id==="cadastros")renderCatalogs();
+if(id==="config"){
+ renderUsers();renderAuditLog();
+ document.getElementById("companyName").value=db.config.name||"";
+ document.getElementById("companyNote").value=db.config.note||"";
+}
 document.querySelectorAll("nav button").forEach(x=>x.classList.remove("active"));
 if(btn){btn.classList.add("active");openParentNavGroup(btn)}
 if(id==="projecao")renderProjection();
@@ -4564,6 +4573,8 @@ function hlgbLowMemoryRenderNowV9240(){
   case 'notas': R('renderOrderNotes');break;
   case 'relatorios': R('renderReports');break;
   case 'usuarios': R('renderUsers');break;
+  case 'cadastros': R('renderCatalogs');break;
+  case 'config': R('renderUsers');R('renderAuditLog');break;
   default:
    // Paginas de cadastro/legadas sao atualizadas ao serem abertas pelo roteador.
    // Evitamos redesenhar dezenas de telas invisiveis a cada evento da nuvem.
