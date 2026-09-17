@@ -1,4 +1,4 @@
-/* HLGB audit guard v5: tombstones, concorrência segura e no-op de metadados técnicos */
+/* HLGB audit guard v6: tombstones, concorrência segura e no-op de metadados técnicos */
 (function(){
 'use strict';
 const sid=v=>String(v??'');
@@ -78,27 +78,32 @@ function conflictError(paths){
  const err=new Error('Conflito de edição: outra sessão alterou o mesmo campo ('+paths.slice(0,3).join(', ')+'). A alteração local foi preservada como pendente e NÃO sobrescreveu a nuvem. Atualize a tela e revise antes de salvar novamente.');
  err.code='HLGB_SAME_FIELD_CONFLICT';err.paths=paths;return err;
 }
-function withoutMeta(v,keys){
+function normalizedForNoop(module,v,metaKeys=[]){
  if(!plain(v))return clone(v);
- const x=clone(v);for(const k of keys)delete x[k];return x;
+ const x=clone(v);for(const k of metaKeys)delete x[k];
+ if(module==='cuts'){
+  const a=x.clientAllocations;
+  if(a==null||(Array.isArray(a)&&a.length===0))x.clientAllocations=[];
+ }
+ return x;
 }
-function semanticNoop(local,remote){
+function semanticNoop(module,local,remote){
  if(eq(local,remote))return {noop:true,reason:'identical'};
  if(!plain(local)||!plain(remote))return {noop:false,reason:''};
- if(eq(withoutMeta(local,['updatedAt']),withoutMeta(remote,['updatedAt'])))return {noop:true,reason:'updatedAt-only'};
- if(eq(withoutMeta(local,['updatedAt','createdAt']),withoutMeta(remote,['updatedAt','createdAt'])))return {noop:true,reason:'technical-metadata-only'};
+ if(eq(normalizedForNoop(module,local,['updatedAt']),normalizedForNoop(module,remote,['updatedAt'])))return {noop:true,reason:'updatedAt-only-or-empty-cut-allocation'};
+ if(eq(normalizedForNoop(module,local,['updatedAt','createdAt']),normalizedForNoop(module,remote,['updatedAt','createdAt'])))return {noop:true,reason:'technical-metadata-only'};
  return {noop:false,reason:''};
 }
 function noopResult(snap,reason){return {applied:true,data:clone(snap.data),deleted_at:snap.deleted_at||null,revision:+snap.revision||1,updated_at:snap.updated_at||'',updated_by:snap.updated_by||null,hlgbNoop:true,hlgbNoopReason:reason}}
 
 const oldMerge=window.cloudMergeThreeWay;
-if(typeof oldMerge==='function'&&!oldMerge.__hlgbConflictGuardV5){
+if(typeof oldMerge==='function'&&!oldMerge.__hlgbConflictGuardV6){
  const safeMerge=function(base,local,remote){const paths=conflictPaths(base,local,remote);if(paths.length)throw conflictError(paths);return oldMerge(base,local,remote)};
- safeMerge.__hlgbConflictGuardV3=true;safeMerge.__hlgbConflictGuardV4=true;safeMerge.__hlgbConflictGuardV5=true;safeMerge.__original=oldMerge;window.cloudMergeThreeWay=safeMerge;
+ safeMerge.__hlgbConflictGuardV3=true;safeMerge.__hlgbConflictGuardV4=true;safeMerge.__hlgbConflictGuardV5=true;safeMerge.__hlgbConflictGuardV6=true;safeMerge.__original=oldMerge;window.cloudMergeThreeWay=safeMerge;
 }
 
 const original=window.hlgbRecordSaveWithRetry;
-if(typeof original==='function'&&!original.__hlgbRecordIntegrityV5){
+if(typeof original==='function'&&!original.__hlgbRecordIntegrityV6){
  const wrapped=async function(module,id,data,deleted=false){
   const restore=explicitRestore(data),snap=snapshot(module,id);
   if(!deleted&&!restore&&snap?.deleted_at){
@@ -112,11 +117,8 @@ if(typeof original==='function'&&!original.__hlgbRecordIntegrityV5){
    err.code='HLGB_ORPHAN_AUTO_CUT_BLOCK';throw err;
   }
   if(!deleted&&!restore&&snap&&!snap.deleted_at){
-   const same=semanticNoop(data,snap.data);
-   if(same.noop){
-    replaceLocal(module,id,snap.data);
-    return noopResult(snap,same.reason);
-   }
+   const same=semanticNoop(module,data,snap.data);
+   if(same.noop){replaceLocal(module,id,snap.data);return noopResult(snap,same.reason)}
   }
   if(!deleted&&!restore){
    const stale=stalePending(module,id,data,snap);
@@ -134,12 +136,12 @@ if(typeof original==='function'&&!original.__hlgbRecordIntegrityV5){
   }
   return out;
  };
- wrapped.__hlgbRecordIntegrityV1=true;wrapped.__hlgbRecordIntegrityV2=true;wrapped.__hlgbRecordIntegrityV3=true;wrapped.__hlgbRecordIntegrityV4=true;wrapped.__hlgbRecordIntegrityV5=true;wrapped.__original=original;
+ wrapped.__hlgbRecordIntegrityV1=true;wrapped.__hlgbRecordIntegrityV2=true;wrapped.__hlgbRecordIntegrityV3=true;wrapped.__hlgbRecordIntegrityV4=true;wrapped.__hlgbRecordIntegrityV5=true;wrapped.__hlgbRecordIntegrityV6=true;wrapped.__original=original;
  window.hlgbRecordSaveWithRetry=wrapped;
 }
-window.HLGB_RECORD_INTEGRITY_GUARD='v5';
+window.HLGB_RECORD_INTEGRITY_GUARD='v6';
 window.hlgbRecordConflictPaths=conflictPaths;
 window.hlgbRecordStalePending=stalePending;
 window.hlgbRecordSemanticNoop=semanticNoop;
-console.info('[HLGB] integridade de registros v5: tombstone, corte órfão, concorrência e churn de metadados técnicos protegidos');
+console.info('[HLGB] integridade de registros v6: churn técnico e alocação vazia de corte não geram revisão');
 })();
