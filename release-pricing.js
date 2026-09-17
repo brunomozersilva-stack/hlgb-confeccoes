@@ -25,5 +25,6 @@ const original=window.registerFactionDelivery935;
 if(typeof original==='function')window.registerFactionDelivery935=function(id){const r=original.apply(this,arguments);[0,30,120,300].forEach(ms=>setTimeout(()=>apply(id),ms));return r};
 window.updateFactionSale940=function(){const m=modal(),id=m?.dataset?.hlgbFactionId,cid=m?.querySelector('#fdClient940')?.value||'';if(id)apply(id,cid)};
 document.addEventListener('click',function(e){const b=e.target?.closest?.('button');if(!b||(!b.classList.contains('modalSave')&&!norm(b.textContent).includes('confirmar entrega integrada')))return;const m=b.closest('.modalbox'),id=m?.dataset?.hlgbFactionId;if(!id)return;apply(id,m.querySelector('#fdClient940')?.value||'');const mode=m.querySelector('#fdMode940')?.value||'expected',input=priceInput(m);if(mode!=='stock'&&q(input?.value)<=0){e.preventDefault();e.stopImmediatePropagation();alert('Este produto não tem preço de venda cadastrado para o cliente. Informe o valor correto antes de confirmar a entrega.');input?.focus()}},true);
+window.hlgbFactionPriceFor=priceFor;
 window.HLGB_PRICING_MODULE='exact-faction-v2';console.info('[HLGB] preço da entrega preso ao ID exato da facção');
 })();
