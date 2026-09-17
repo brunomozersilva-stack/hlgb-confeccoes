@@ -23,6 +23,7 @@ jobs:
           set -euo pipefail
           for test in \
             tests/audit-cut-view-regression.cjs \
+            tests/audit-queue-cut-regression.cjs \
             tests/audit-faction-payment-guard.cjs \
             tests/audit-faction-description-regression.cjs \
             tests/audit-notes-alias-regression.cjs \
