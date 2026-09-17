@@ -1,4 +1,4 @@
-/* HLGB audit guard v6: tombstones, concorrência segura e no-op de metadados técnicos */
+/* HLGB audit guard v7: tombstones, concorrência segura, IDs de corte e no-op técnico */
 (function(){
 'use strict';
 const sid=v=>String(v??'');
@@ -7,6 +7,7 @@ const eq=(a,b)=>{try{return JSON.stringify(a)===JSON.stringify(b)}catch(e){retur
 const plain=v=>!!v&&typeof v==='object'&&!Array.isArray(v);
 function explicitRestore(data){return !!(data&&['true','1','yes'].includes(String(data.__hlgb_explicit_restore??'').toLowerCase()))}
 function snapshot(module,id){try{return hlgbRecordSnapshots?.[module]?.get?.(sid(id))||null}catch(e){return null}}
+function snapshotHas(module,id){try{return !!hlgbRecordSnapshots?.[module]?.has?.(sid(id))}catch(e){return !!snapshot(module,id)}}
 function localIndex(module,id){
  try{
   const arr=Array.isArray(db?.[module])?db[module]:[];
@@ -96,14 +97,48 @@ function semanticNoop(module,local,remote){
 }
 function noopResult(snap,reason){return {applied:true,data:clone(snap.data),deleted_at:snap.deleted_at||null,revision:+snap.revision||1,updated_at:snap.updated_at||'',updated_by:snap.updated_by||null,hlgbNoop:true,hlgbNoopReason:reason}}
 
+/* O gerador legado de cortes usa Date.now()+random e só checa a memória local.
+   Se um ID tombstonado/antigo já existir apenas na nuvem, reidentifique o corte
+   recém-criado ANTES de qualquer persistência. */
+let cutIdSeq=0;
+function freshCutId(){
+ const used=new Set((Array.isArray(db?.cuts)?db.cuts:[]).map(x=>sid(x?.id)).filter(Boolean));
+ for(let i=0;i<5000;i++){
+  const n=Date.now()*1000+((cutIdSeq++)%1000);
+  if(!Number.isSafeInteger(n))break;
+  const k=sid(n);
+  if(!used.has(k)&&!snapshotHas('cuts',k))return n;
+ }
+ throw new Error('Não foi possível gerar um identificador único para o novo corte. Atualize a tela e tente novamente.');
+}
+const oldSyncCuts=window.syncOrdersToCuts;
+if(typeof oldSyncCuts==='function'&&!oldSyncCuts.__hlgbCutIdGuardV7){
+ const safeSync=function(){
+  const before=new Set((Array.isArray(db?.cuts)?db.cuts:[]).map(x=>sid(x?.id)).filter(Boolean));
+  const result=oldSyncCuts.apply(this,arguments);
+  let rekeyed=false;
+  for(const c of (Array.isArray(db?.cuts)?db.cuts:[])){
+   if(!c||c.autoOrderCutV9203!==true)continue;
+   const oldId=sid(c.id);if(!oldId||before.has(oldId))continue;
+   if(!snapshotHas('cuts',oldId))continue;
+   const newId=freshCutId();
+   console.warn('[HLGB record integrity] colisão de ID de corte automático evitada',oldId,'→',newId);
+   c.id=newId;c.updatedAt=new Date().toISOString();rekeyed=true;
+  }
+  if(rekeyed){try{localSaveOnly?.()}catch(e){}}
+  return result||rekeyed;
+ };
+ safeSync.__hlgbCutIdGuardV7=true;safeSync.__original=oldSyncCuts;window.syncOrdersToCuts=safeSync;
+}
+
 const oldMerge=window.cloudMergeThreeWay;
-if(typeof oldMerge==='function'&&!oldMerge.__hlgbConflictGuardV6){
+if(typeof oldMerge==='function'&&!oldMerge.__hlgbConflictGuardV7){
  const safeMerge=function(base,local,remote){const paths=conflictPaths(base,local,remote);if(paths.length)throw conflictError(paths);return oldMerge(base,local,remote)};
- safeMerge.__hlgbConflictGuardV3=true;safeMerge.__hlgbConflictGuardV4=true;safeMerge.__hlgbConflictGuardV5=true;safeMerge.__hlgbConflictGuardV6=true;safeMerge.__original=oldMerge;window.cloudMergeThreeWay=safeMerge;
+ safeMerge.__hlgbConflictGuardV3=true;safeMerge.__hlgbConflictGuardV4=true;safeMerge.__hlgbConflictGuardV5=true;safeMerge.__hlgbConflictGuardV6=true;safeMerge.__hlgbConflictGuardV7=true;safeMerge.__original=oldMerge;window.cloudMergeThreeWay=safeMerge;
 }
 
 const original=window.hlgbRecordSaveWithRetry;
-if(typeof original==='function'&&!original.__hlgbRecordIntegrityV6){
+if(typeof original==='function'&&!original.__hlgbRecordIntegrityV7){
  const wrapped=async function(module,id,data,deleted=false){
   const restore=explicitRestore(data),snap=snapshot(module,id);
   if(!deleted&&!restore&&snap?.deleted_at){
@@ -136,12 +171,13 @@ if(typeof original==='function'&&!original.__hlgbRecordIntegrityV6){
   }
   return out;
  };
- wrapped.__hlgbRecordIntegrityV1=true;wrapped.__hlgbRecordIntegrityV2=true;wrapped.__hlgbRecordIntegrityV3=true;wrapped.__hlgbRecordIntegrityV4=true;wrapped.__hlgbRecordIntegrityV5=true;wrapped.__hlgbRecordIntegrityV6=true;wrapped.__original=original;
+ wrapped.__hlgbRecordIntegrityV1=true;wrapped.__hlgbRecordIntegrityV2=true;wrapped.__hlgbRecordIntegrityV3=true;wrapped.__hlgbRecordIntegrityV4=true;wrapped.__hlgbRecordIntegrityV5=true;wrapped.__hlgbRecordIntegrityV6=true;wrapped.__hlgbRecordIntegrityV7=true;wrapped.__original=original;
  window.hlgbRecordSaveWithRetry=wrapped;
 }
-window.HLGB_RECORD_INTEGRITY_GUARD='v6';
+window.HLGB_RECORD_INTEGRITY_GUARD='v7';
 window.hlgbRecordConflictPaths=conflictPaths;
 window.hlgbRecordStalePending=stalePending;
 window.hlgbRecordSemanticNoop=semanticNoop;
-console.info('[HLGB] integridade de registros v6: churn técnico e alocação vazia de corte não geram revisão');
+window.hlgbFreshCutId=freshCutId;
+console.info('[HLGB] integridade de registros v7: tombstones, colisões de ID e churn técnico protegidos');
 })();
