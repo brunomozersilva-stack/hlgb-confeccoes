@@ -1,7 +1,7 @@
 const fs=require('fs'),vm=require('vm'),assert=require('assert');
 const src=fs.readFileSync(require('path').join(__dirname,'..','release-record-integrity.js'),'utf8');
 let calls=0,saves=0,lastCall=null;const store=new Map();
-const localStorage={getItem:k=>store.has(k)?store.get(k):null,setItem:(k,v)=>store.set(k(String(v))),removeItem:k=>store.delete(k)};
+const localStorage={getItem:k=>store.has(k)?store.get(k):null,setItem:(k,v)=>store.set(k,String(v)),removeItem:k=>store.delete(k)};
 const row={id:'70k',description:'Pagamento',value:70000};
 const deletedOrder={id:'ord-del',orderNumber:49};
 const same=(a,b)=>JSON.stringify(a)===JSON.stringify(b);
