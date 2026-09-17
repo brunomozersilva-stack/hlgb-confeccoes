@@ -1,6 +1,7 @@
 -- AUDITORIA HLGB — NÃO APLICAR EM PRODUÇÃO ANTES DO RETESTE NO WORK.
 -- Objetivo: impedir que uma sessão antiga, inclusive com o mesmo login, ressuscite
--- um registro já excluído; também impedir replay exato de um estado histórico antigo.
+-- um registro já excluído; impedir replay exato de estado histórico antigo; e
+-- impedir corte automático quando o pedido pai já foi excluído.
 
 create or replace function public.hlgb_save_record(
   p_module text,
@@ -29,6 +30,7 @@ declare
   v_data jsonb := coalesce(p_data,'null'::jsonb);
   v_explicit_delete boolean := false;
   v_explicit_restore boolean := false;
+  v_parent_order_id text := null;
 begin
   if not public.hlgb_pode_escrever_modulo(p_module) then
     raise exception 'Usuário sem permissão para alterar o módulo %', p_module;
@@ -55,12 +57,28 @@ begin
   from public.hlgb_records rec
   where rec.module=p_module and rec.entity_id=p_entity_id;
 
-  -- PROTEÇÃO NOVA 1: tombstone vence qualquer sessão antiga.
+  -- PROTEÇÃO 1: tombstone vence qualquer sessão antiga.
   if found and not p_deleted and not v_explicit_restore and v_current.deleted_at is not null then
     raise exception 'Atualização bloqueada: o registro %/% já foi excluído. Atualize a tela antes de continuar.', p_module, p_entity_id;
   end if;
 
-  -- PROTEÇÃO NOVA 2: replay exato de um estado histórico antigo é ignorado mesmo
+  -- PROTEÇÃO 2: um corte automático nunca pode nascer/reaparecer se o pedido pai
+  -- já estiver tombstonado na fonte autoritativa. Isso encerra o ciclo
+  -- cria corte -> dedup exclui -> sessão velha recria.
+  if not p_deleted and not v_explicit_restore and p_module='cuts'
+     and lower(coalesce(v_data->>'autoOrderCutV9203','false')) in ('true','1','yes') then
+    v_parent_order_id := nullif(trim(coalesce(v_data->>'orderId','')),'');
+    if v_parent_order_id is not null and exists (
+      select 1 from public.hlgb_records o
+      where o.module='orders'
+        and o.entity_id=v_parent_order_id
+        and o.deleted_at is not null
+    ) then
+      raise exception 'Corte automático bloqueado: o pedido % já foi excluído.', v_parent_order_id;
+    end if;
+  end if;
+
+  -- PROTEÇÃO 3: replay exato de um estado histórico antigo é ignorado mesmo
   -- quando a sessão velha usa o mesmo login da sessão que gravou o estado atual.
   if found and not p_deleted and not v_explicit_restore
      and v_current.data is distinct from v_data
