@@ -31,7 +31,9 @@ jobs:
             tests/audit-record-integrity-regression.cjs \
             tests/audit-payroll-integrity-regression.cjs \
             tests/audit-checklist-integrity-regression.cjs \
-            tests/audit-capacity-integrity-regression.cjs
+            tests/audit-capacity-integrity-regression.cjs \
+            tests/audit-pricing-regression.cjs \
+            tests/audit-limits-regression.cjs
           do
             echo "==> $test"
             node "$test"
