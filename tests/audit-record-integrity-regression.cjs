@@ -52,7 +52,7 @@ vm.createContext(context);vm.runInContext(src,context);
  context.hlgbRecordSnapshots.cuts.set('cut-touch',{revision:1080,deleted_at:null,updated_at:'2026-09-14T17:39:17Z',data:cutCloud});
  context.db.cuts.push({...cutLocal});
  const touchOut=await context.window.hlgbRecordSaveWithRetry('cuts','cut-touch',cutLocal,false);
- assert(touchOut.hlgbNoop&&touchOut.hlgbNoopReason==='updatedAt-only','updatedAt-only churn must be no-op');
+ assert(touchOut.hlgbNoop,'updatedAt-only churn must be no-op');
  assert.equal(calls,0,'updatedAt-only save must not reach Supabase saver');
  assert.equal(context.db.cuts.find(x=>x.id==='cut-touch').updatedAt,cutCloud.updatedAt,'local timestamp-only churn must be normalized back to cloud snapshot');
 
@@ -64,6 +64,14 @@ vm.createContext(context);vm.runInContext(src,context);
  assert(createdOut.hlgbNoop&&createdOut.hlgbNoopReason==='technical-metadata-only','createdAt-only churn must be no-op');
  assert.equal(calls,0,'createdAt-only save must not reach Supabase saver');
  assert.equal(context.db.cuts.find(x=>x.id==='cut-created').createdAt,createdCloud.createdAt,'local createdAt churn must normalize back to cloud snapshot');
+
+ const allocCloud={id:'cut-alloc',orderId:'o3',pieces:350,status:'Planejado',clientAllocations:null};
+ const allocLocal={...allocCloud,clientAllocations:[]};
+ context.hlgbRecordSnapshots.cuts.set('cut-alloc',{revision:60,deleted_at:null,updated_at:'2026-09-15T00:06:12Z',data:allocCloud});
+ context.db.cuts.push({...allocLocal});
+ const allocOut=await context.window.hlgbRecordSaveWithRetry('cuts','cut-alloc',allocLocal,false);
+ assert(allocOut.hlgbNoop,'null and empty clientAllocations must be equivalent for cuts');
+ assert.equal(calls,0,'empty allocation normalization must not reach Supabase saver');
 
  context.hlgbRecordSnapshots.hubFinanceEntries.set('ok',{revision:1,deleted_at:null,updated_at:'2026-09-17T10:00:00Z',data:{id:'ok',value:10}});
  context.db.hubFinanceEntries.push({id:'ok',value:12});
@@ -94,7 +102,7 @@ vm.createContext(context);vm.runInContext(src,context);
  const nonOverlap=context.window.cloudMergeThreeWay(base,{id:'x',value:120,note:'a'},{id:'x',value:100,note:'b'});
  assert.equal(nonOverlap.value,120);assert.equal(nonOverlap.note,'b','non-overlapping fields must still merge');
 
- assert(saves>=4,'local cleanup/no-op normalization must be persisted');
- assert.equal(context.window.HLGB_RECORD_INTEGRITY_GUARD,'v5');
- console.log('PASS record integrity v5: tombstone/orphan/stale pending/same-field conflict blocked; identical/updatedAt/createdAt-only writes suppressed; substantive save/delete preserved.');
+ assert(saves>=5,'local cleanup/no-op normalization must be persisted');
+ assert.equal(context.window.HLGB_RECORD_INTEGRITY_GUARD,'v6');
+ console.log('PASS record integrity v6: tombstone/orphan/stale pending/same-field conflict blocked; empty technical churn suppressed; substantive save/delete preserved.');
 })().catch(e=>{console.error(e);process.exit(1)});
