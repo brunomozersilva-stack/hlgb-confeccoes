@@ -1,4 +1,4 @@
-/* HLGB audit guard v3: tombstones, cortes órfãos e concorrência segura */
+/* HLGB audit guard v4: tombstones, concorrência segura e no-op de gravações vazias */
 (function(){
 'use strict';
 const sid=v=>String(v??'');
@@ -7,11 +7,27 @@ const eq=(a,b)=>{try{return JSON.stringify(a)===JSON.stringify(b)}catch(e){retur
 const plain=v=>!!v&&typeof v==='object'&&!Array.isArray(v);
 function explicitRestore(data){return !!(data&&['true','1','yes'].includes(String(data.__hlgb_explicit_restore??'').toLowerCase()))}
 function snapshot(module,id){try{return hlgbRecordSnapshots?.[module]?.get?.(sid(id))||null}catch(e){return null}}
+function localIndex(module,id){
+ try{
+  const arr=Array.isArray(db?.[module])?db[module]:[];
+  return arr.findIndex((x,i)=>{
+   try{if(typeof hlgbRecordId==='function')return sid(hlgbRecordId(module,x,i))===sid(id)}catch(_){}
+   return sid(x?.id)===sid(id);
+  });
+ }catch(e){return -1}
+}
+function replaceLocal(module,id,data){
+ try{
+  if(!window.db||!Array.isArray(db?.[module]))return false;
+  const i=localIndex(module,id);if(i<0)return false;
+  db[module][i]=clone(data);if(typeof localSaveOnly==='function')localSaveOnly();return true;
+ }catch(e){console.warn('[HLGB record integrity] restauração local',e);return false}
+}
 function removeLocal(module,id){
  try{
   if(!window.db||!Array.isArray(db?.[module]))return;
-  const before=db[module].length;db[module]=db[module].filter(x=>sid(x?.id)!==sid(id));
-  if(db[module].length!==before&&typeof localSaveOnly==='function')localSaveOnly();
+  const i=localIndex(module,id);if(i<0)return;
+  db[module].splice(i,1);if(typeof localSaveOnly==='function')localSaveOnly();
  }catch(e){console.warn('[HLGB record integrity] limpeza local',e)}
 }
 function isAutoOrderCut(module,data){return module==='cuts'&&data&&String(data.autoOrderCutV9203??'').toLowerCase()==='true'}
@@ -56,24 +72,31 @@ function conflictPaths(base,local,remote,path=''){
   }
   return out;
  }
- // Arrays alterados dos dois lados são tratados como conflito por segurança.
- // É preferível pedir atualização a misturar silenciosamente grade, histórico ou pagamentos.
  return [path||'(registro)'];
 }
 function conflictError(paths){
  const err=new Error('Conflito de edição: outra sessão alterou o mesmo campo ('+paths.slice(0,3).join(', ')+'). A alteração local foi preservada como pendente e NÃO sobrescreveu a nuvem. Atualize a tela e revise antes de salvar novamente.');
  err.code='HLGB_SAME_FIELD_CONFLICT';err.paths=paths;return err;
 }
+function withoutTopLevelUpdatedAt(v){
+ if(!plain(v))return clone(v);
+ const x=clone(v);delete x.updatedAt;return x;
+}
+function semanticNoop(local,remote){
+ if(eq(local,remote))return {noop:true,reason:'identical'};
+ if(plain(local)&&plain(remote)&&eq(withoutTopLevelUpdatedAt(local),withoutTopLevelUpdatedAt(remote)))return {noop:true,reason:'updatedAt-only'};
+ return {noop:false,reason:''};
+}
+function noopResult(snap,reason){return {applied:true,data:clone(snap.data),deleted_at:snap.deleted_at||null,revision:+snap.revision||1,updated_at:snap.updated_at||'',updated_by:snap.updated_by||null,hlgbNoop:true,hlgbNoopReason:reason}}
 
-/* Endurece a mescla central: alterações independentes continuam mesclando; o mesmo campo nunca escolhe automaticamente a sessão local. */
 const oldMerge=window.cloudMergeThreeWay;
-if(typeof oldMerge==='function'&&!oldMerge.__hlgbConflictGuardV3){
+if(typeof oldMerge==='function'&&!oldMerge.__hlgbConflictGuardV4){
  const safeMerge=function(base,local,remote){const paths=conflictPaths(base,local,remote);if(paths.length)throw conflictError(paths);return oldMerge(base,local,remote)};
- safeMerge.__hlgbConflictGuardV3=true;safeMerge.__original=oldMerge;window.cloudMergeThreeWay=safeMerge;
+ safeMerge.__hlgbConflictGuardV3=true;safeMerge.__hlgbConflictGuardV4=true;safeMerge.__original=oldMerge;window.cloudMergeThreeWay=safeMerge;
 }
 
 const original=window.hlgbRecordSaveWithRetry;
-if(typeof original==='function'&&!original.__hlgbRecordIntegrityV3){
+if(typeof original==='function'&&!original.__hlgbRecordIntegrityV4){
  const wrapped=async function(module,id,data,deleted=false){
   const restore=explicitRestore(data),snap=snapshot(module,id);
   if(!deleted&&!restore&&snap?.deleted_at){
@@ -85,6 +108,13 @@ if(typeof original==='function'&&!original.__hlgbRecordIntegrityV3){
    removeLocal(module,id);
    const err=new Error('Corte automático bloqueado porque o pedido correspondente já foi excluído na nuvem.');
    err.code='HLGB_ORPHAN_AUTO_CUT_BLOCK';throw err;
+  }
+  if(!deleted&&!restore&&snap&&!snap.deleted_at){
+   const same=semanticNoop(data,snap.data);
+   if(same.noop){
+    replaceLocal(module,id,snap.data);
+    return noopResult(snap,same.reason);
+   }
   }
   if(!deleted&&!restore){
    const stale=stalePending(module,id,data,snap);
@@ -102,11 +132,12 @@ if(typeof original==='function'&&!original.__hlgbRecordIntegrityV3){
   }
   return out;
  };
- wrapped.__hlgbRecordIntegrityV1=true;wrapped.__hlgbRecordIntegrityV2=true;wrapped.__hlgbRecordIntegrityV3=true;wrapped.__original=original;
+ wrapped.__hlgbRecordIntegrityV1=true;wrapped.__hlgbRecordIntegrityV2=true;wrapped.__hlgbRecordIntegrityV3=true;wrapped.__hlgbRecordIntegrityV4=true;wrapped.__original=original;
  window.hlgbRecordSaveWithRetry=wrapped;
 }
-window.HLGB_RECORD_INTEGRITY_GUARD='v3';
+window.HLGB_RECORD_INTEGRITY_GUARD='v4';
 window.hlgbRecordConflictPaths=conflictPaths;
 window.hlgbRecordStalePending=stalePending;
-console.info('[HLGB] integridade de registros v3: tombstones, corte órfão, pendência obsoleta e conflito no mesmo campo protegidos');
+window.hlgbRecordSemanticNoop=semanticNoop;
+console.info('[HLGB] integridade de registros v4: tombstone, corte órfão, concorrência e gravações vazias protegidos');
 })();
