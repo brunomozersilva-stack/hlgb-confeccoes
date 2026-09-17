@@ -4,7 +4,7 @@ const projectionInvoices=[
  {id:'1788874522423544',items:[{productId:'amanda',qty:437}],value:1782.96},
  {id:'true-old',items:[{productId:'old',qty:100}],value:500},
  {id:'source-legacy',items:[{productId:'x',qty:10,source:'faction_delivery_v9140'}],value:10},
- {id:'dynamic-shadow',items:[{productId:'y',qty:12}],value:12}
+ {id:'9999999999999',items:[{productId:'y',qty:12}],value:12}
 ];
 const orders=[
  {id:'ord-amanda',grade:[{productId:'amanda',qty:490}]},
@@ -12,7 +12,7 @@ const orders=[
  {id:'ord-sandy',grade:[{productId:'sandy',qty:420}]}
 ];
 const noteQueue=[
- {id:'m9223-dynamic-shadow-1',orderId:'ord-amanda',productId:'other',qty:1,status:'Aguardando'},
+ {id:'m9223-9999999999999-1',orderId:'ord-amanda',productId:'other',qty:1,status:'Aguardando'},
  {id:'a1',orderId:'ord-amanda',productId:'amanda',qty:437,status:'Aguardando'},
  {id:'a2',orderId:'ord-amanda',productId:'amanda',qty:51,status:'Aguardando'},
  {id:'t1',orderId:'ord-tammy',productId:'tammy',qty:1077,status:'Aguardando'},
@@ -37,5 +37,5 @@ assert(!unsafe.includes('a1')&&!unsafe.includes('a2'),'437+51 Amanda is a valid 
 assert(!unsafe.includes('s1')&&!unsafe.includes('s2'),'419+1 Sandy exactly completes the order');
 const shadows=context.window.hlgbNoteLegacyShadowIds();
 assert(shadows.has('1788874522423544'),'known migration id must stay quarantined');
-assert(shadows.has('dynamic-shadow'),'active m9223 lineage must quarantine its old invoice');
+assert(shadows.has('9999999999999'),'active m9223 lineage must quarantine its old invoice');
 console.log('PASS note integrity guard: migrated history deduped; valid partial deliveries preserved; overqueued Tammy blocked.');
