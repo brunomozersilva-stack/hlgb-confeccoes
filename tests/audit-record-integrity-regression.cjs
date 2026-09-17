@@ -20,10 +20,11 @@ const context={
  db:{hubFinanceEntries:[row],cuts:[{id:'cut-orphan',orderId:'ord-del',autoOrderCutV9203:true}],orders:[]},
  hlgbRecordSnapshots:{
   hubFinanceEntries:new Map([['70k',{revision:7,deleted_at:'2026-09-16T15:30:37Z',updated_at:'2026-09-16T15:30:37Z',data:row}]]),
-  orders:new Map([['ord-del',{revision:14,deleted_at:'2026-09-17T12:56:20Z',updated_at:'2026-09-17T12:56:20Z',data:deletedOrder}]])
+  orders:new Map([['ord-del',{revision:14,deleted_at:'2026-09-17T12:56:20Z',updated_at:'2026-09-17T12:56:20Z',data:deletedOrder}]]),
+  cuts:new Map()
  },
  localSaveOnly(){saves++},
- window:{db:null,cloudMergeThreeWay:baseMerge,hlgbRecordSaveWithRetry:async(module,id,data,deleted)=>{calls++;lastCall={module,id,data,deleted};return {applied:true,deleted_at:deleted?'2026-09-17T13:00:00Z':null,data}}}
+ window:{db:null,cloudMergeThreeWay:baseMerge,hlgbRecordSaveWithRetry:async(module,id,data,deleted)=>{calls++;lastCall={module,id,data,deleted};return {applied:true,deleted_at:deleted?'2026-09-17T13:00:00Z':null,data,revision:9,updated_at:'2026-09-17T13:00:00Z'}}}
 };
 context.window.db=context.db;
 vm.createContext(context);vm.runInContext(src,context);
@@ -40,12 +41,27 @@ vm.createContext(context);vm.runInContext(src,context);
  assert.equal(calls,0,'orphan auto cut must not reach original saver');
  assert.equal(context.db.cuts.length,0,'orphan cut must be removed locally');
 
- context.hlgbRecordSnapshots.hubFinanceEntries.set('ok',{revision:1,deleted_at:null,updated_at:'2026-09-17T10:00:00Z',data:{id:'ok',value:10}});
- context.db.hubFinanceEntries.push({id:'ok',value:10});
- const out=await context.window.hlgbRecordSaveWithRetry('hubFinanceEntries','ok',{id:'ok',value:10},false);
- assert(out.applied&&calls===1,'normal active save must pass');
+ context.hlgbRecordSnapshots.hubFinanceEntries.set('same',{revision:3,deleted_at:null,updated_at:'2026-09-17T10:00:00Z',data:{id:'same',value:10}});
+ context.db.hubFinanceEntries.push({id:'same',value:10});
+ const sameOut=await context.window.hlgbRecordSaveWithRetry('hubFinanceEntries','same',{id:'same',value:10},false);
+ assert(sameOut.applied&&sameOut.hlgbNoop&&sameOut.hlgbNoopReason==='identical','identical save must be treated as confirmed no-op');
+ assert.equal(calls,0,'identical save must not reach Supabase saver');
 
- await context.window.hlgbRecordSaveWithRetry('hubFinanceEntries','ok',{id:'ok',value:10},true);
+ const cutCloud={id:'cut-touch',orderId:'o1',pieces:118,status:'Planejado',updatedAt:'2026-09-14T17:39:15.986Z'};
+ const cutLocal={...cutCloud,updatedAt:'2026-09-14T17:39:21.991Z'};
+ context.hlgbRecordSnapshots.cuts.set('cut-touch',{revision:1080,deleted_at:null,updated_at:'2026-09-14T17:39:17Z',data:cutCloud});
+ context.db.cuts.push({...cutLocal});
+ const touchOut=await context.window.hlgbRecordSaveWithRetry('cuts','cut-touch',cutLocal,false);
+ assert(touchOut.hlgbNoop&&touchOut.hlgbNoopReason==='updatedAt-only','updatedAt-only churn must be no-op');
+ assert.equal(calls,0,'updatedAt-only save must not reach Supabase saver');
+ assert.equal(context.db.cuts.find(x=>x.id==='cut-touch').updatedAt,cutCloud.updatedAt,'local timestamp-only churn must be normalized back to cloud snapshot');
+
+ context.hlgbRecordSnapshots.hubFinanceEntries.set('ok',{revision:1,deleted_at:null,updated_at:'2026-09-17T10:00:00Z',data:{id:'ok',value:10}});
+ context.db.hubFinanceEntries.push({id:'ok',value:12});
+ const out=await context.window.hlgbRecordSaveWithRetry('hubFinanceEntries','ok',{id:'ok',value:12},false);
+ assert(out.applied&&calls===1,'substantive active change must pass to saver');
+
+ await context.window.hlgbRecordSaveWithRetry('hubFinanceEntries','ok',{id:'ok',value:12},true);
  assert(calls===2&&lastCall.deleted===true,'legitimate delete must reach original saver');
  assert(lastCall.data.__hlgb_explicit_delete===true,'legitimate delete must carry explicit marker');
 
@@ -69,7 +85,7 @@ vm.createContext(context);vm.runInContext(src,context);
  const nonOverlap=context.window.cloudMergeThreeWay(base,{id:'x',value:120,note:'a'},{id:'x',value:100,note:'b'});
  assert.equal(nonOverlap.value,120);assert.equal(nonOverlap.note,'b','non-overlapping fields must still merge');
 
- assert(saves>=2,'local cleanup must be persisted');
- assert.equal(context.window.HLGB_RECORD_INTEGRITY_GUARD,'v3');
- console.log('PASS record integrity v3: tombstone/orphan/stale pending/same-field conflict blocked; normal save/delete and non-overlap merge preserved.');
+ assert(saves>=3,'local cleanup/no-op normalization must be persisted');
+ assert.equal(context.window.HLGB_RECORD_INTEGRITY_GUARD,'v4');
+ console.log('PASS record integrity v4: tombstone/orphan/stale pending/same-field conflict blocked; identical and updatedAt-only writes suppressed; substantive save/delete preserved.');
 })().catch(e=>{console.error(e);process.exit(1)});
