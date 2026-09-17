@@ -1,0 +1,34 @@
+name: HLGB Audit Regression
+
+on:
+  push:
+    branches: [audit-work-20260915]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  regression:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Run audit regressions
+        shell: bash
+        run: |
+          set -euo pipefail
+          for test in \
+            tests/audit-cut-view-regression.cjs \
+            tests/audit-faction-payment-guard.cjs \
+            tests/audit-notes-alias-regression.cjs \
+            tests/audit-note-integrity-regression.cjs \
+            tests/audit-record-integrity-regression.cjs \
+            tests/audit-payroll-integrity-regression.cjs
+          do
+            echo "==> $test"
+            node "$test"
+          done
