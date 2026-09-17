@@ -14,7 +14,7 @@ function orderAliases(orderId,item){
 function snapshotQueueSource(){
  try{
    const map=hlgbRecordSnapshots?.noteQueue;
-   if(!(map instanceof Map)||map.size===0)return null;
+   if(!map||typeof map.get!=='function'||typeof map.keys!=='function'||typeof map[Symbol.iterator]!=='function'||Number(map.size||0)===0)return null;
    const rows=[];for(const [id,s] of map){if(s&&!s.deleted_at&&s.data)rows.push({...s.data,id:s.data.id??id})}
    const known=new Set([...map.keys()].map(sid));
    for(const x of arr('noteQueue'))if(x?.id!=null&&!known.has(sid(x.id)))rows.push(x);
@@ -36,8 +36,6 @@ function syncLocal(){
       for(const it of items){
         const k=sid(it.key||it.productId);if(!k)continue;
         const sv=o.projectionItems[k]||{},base=q(it.remainingQty!=null?it.remainingQty:it.qty),calculated=Math.min(base,queued(o.id,it,src.rows));
-        // Antes do snapshot autoritativo terminar de carregar, uma lista local vazia NÃO prova que a fila é zero.
-        // Preserva reserva já conhecida; quando o snapshot chega, exclusões reais podem reduzir o saldo normalmente.
         const z=src.authoritative?calculated:Math.max(calculated,q(sv.noteQueuedQty));
         if(q(sv.noteQueuedQty)!==z)o.projectionItems[k]={...sv,noteQueuedQty:z};
       }
