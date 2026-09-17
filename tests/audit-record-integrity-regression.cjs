@@ -4,7 +4,17 @@ let calls=0,saves=0,lastCall=null;const store=new Map();
 const localStorage={getItem:k=>store.has(k)?store.get(k):null,setItem:(k,v)=>store.set(k,String(v)),removeItem:k=>store.delete(k)};
 const row={id:'70k',description:'Pagamento',value:70000};
 const deletedOrder={id:'ord-del',orderNumber:49};
-const baseMerge=(base,local,remote)=>({...remote,...local});
+const same=(a,b)=>JSON.stringify(a)===JSON.stringify(b);
+function baseMerge(base,local,remote){
+ if(same(local,base))return JSON.parse(JSON.stringify(remote));
+ if(same(remote,base))return JSON.parse(JSON.stringify(local));
+ if(local&&remote&&typeof local==='object'&&typeof remote==='object'&&!Array.isArray(local)&&!Array.isArray(remote)){
+  const b=base&&typeof base==='object'&&!Array.isArray(base)?base:{},out={};
+  for(const k of new Set([...Object.keys(b),...Object.keys(local),...Object.keys(remote)]))out[k]=baseMerge(b[k],local[k],remote[k]);
+  return out;
+ }
+ return JSON.parse(JSON.stringify(local));
+}
 const context={
  console,localStorage,
  db:{hubFinanceEntries:[row],cuts:[{id:'cut-orphan',orderId:'ord-del',autoOrderCutV9203:true}],orders:[]},
