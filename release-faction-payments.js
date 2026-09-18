@@ -13,6 +13,8 @@ function overAccounted(f){
   return ps.length>1&&sum>limit?{payments:ps,sum,limit,sent:q(f.sent),done:q(f.done),excess:sum-limit}:null;
 }
 function weekKey(p){
+  // A baixa agrupada usa a semana explicitamente escolhida antes da data.
+  if(p?.scheduledPaymentWeek)return sid(p.scheduledPaymentWeek);
   const ds=sid(p?.scheduledPaymentDate||p?.serviceFinishedAt).slice(0,10);if(!ds)return 'SEM-DATA';
   const d=new Date(ds+'T12:00:00'),tmp=new Date(d);tmp.setHours(0,0,0,0);tmp.setDate(tmp.getDate()+3-((tmp.getDay()+6)%7));const w1=new Date(tmp.getFullYear(),0,4),wk=1+Math.round(((tmp-w1)/86400000-3+((w1.getDay()+6)%7))/7);return `${tmp.getFullYear()}-W${String(wk).padStart(2,'0')}`;
 }
@@ -104,7 +106,7 @@ if(typeof oldRenderPayments==='function')window.renderFactionPayments=function()
 function repair(){repairFactionButtons();repairPaymentWarnings()}
 try{if(typeof hlgbAfterLogin==='function')hlgbAfterLogin(()=>{setTimeout(repair,500);setTimeout(repair,1800)},0)}catch(e){}
 setTimeout(repair,1200);
-window.HLGB_FACTION_PAYMENT_GUARD='v2';
+window.HLGB_FACTION_PAYMENT_GUARD='v3';
 window.hlgbFactionPaymentOverAccounted=overAccounted;
 window.hlgbFactionPaymentBadGroup=badGroup;
 console.info('[HLGB] proteção de pagamentos por entrega de facção ativa, inclusive baixa semanal agrupada');

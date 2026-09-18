@@ -87,7 +87,9 @@ function patchGroup(){
  };w.__hlgbNoteIntegrityV1=true;w.__original=fn;window.groupNote9202=w;
 }
 function apply(){patchRenderer('renderNotes9200');patchRenderer('renderNotes9214');patchGroup();cleanRenderedHistory();decorateQueueSafety()}
-const css=document.createElement('style');css.id='hlgb-note-integrity-style';css.textContent='#legacyNotes9223{display:none!important}';document.head.appendChild(css);
+// A lista v930 repete a lista canônica de entregas, sem ações próprias.
+// Ocultar somente esse bloco redundante; os registros permanecem no banco.
+const css=document.createElement('style');css.id='hlgb-note-integrity-style';css.textContent='#legacyNotes9223,.v930ProjectionNotes{display:none!important}';document.head.appendChild(css);
 let timer=null;const mo=new MutationObserver(()=>{clearTimeout(timer);timer=setTimeout(apply,20)});try{mo.observe(document.documentElement,{childList:true,subtree:true})}catch(e){}
 const oldIncoming=window.hlgbRenderIncomingRecord;
 if(typeof oldIncoming==='function'&&!oldIncoming.__hlgbNoteIntegrityV1){const w=function(module){const r=oldIncoming.apply(this,arguments);if(['noteQueue','projectionInvoices','orders'].includes(module))setTimeout(apply,30);return r};w.__hlgbNoteIntegrityV1=true;window.hlgbRenderIncomingRecord=w}
@@ -97,6 +99,6 @@ window.hlgbNoteLegacyShadowIds=legacyShadowIds;
 window.hlgbCanonicalProjectionInvoices=canonicalInvoices;
 window.hlgbNoteQueueOverages=queueOverages;
 window.hlgbNoteUnsafeQueueIds=unsafeQueueIds;
-window.HLGB_NOTE_INTEGRITY_GUARD='v1';
+window.HLGB_NOTE_INTEGRITY_GUARD='v2';
 console.info('[HLGB] integridade de notas: histórico migrado deduplicado e filas excedentes bloqueadas');
 })();

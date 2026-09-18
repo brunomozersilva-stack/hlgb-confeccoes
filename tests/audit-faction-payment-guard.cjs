@@ -44,5 +44,13 @@ assert.equal(oldGroupCalls,0,'unsafe grouped payment must not reach original gro
 assert.match(alerts.at(-1),/Acerto bloqueado por segurança/);
 assert.equal(window.hlgbPayFactionGroup9230('legada||2026-W37'),true,'valid weekly group remains payable');
 assert.equal(oldGroupCalls,1);
-assert.equal(window.HLGB_FACTION_PAYMENT_GUARD,'v2');
-console.log('PASS faction payment guard v2: individual and weekly grouped over-accounted payments are blocked; valid legacy flow remains available.');
+db.factions.push({id:3,name:'Vanessa',sent:490,done:488,paymentByDeliveryV9135:true});
+db.factionPayments.push(
+ {id:31,factionServiceId:3,factionName:'Vanessa',quantity:437,status:'Pendente',scheduledPaymentWeek:'2026-W37',scheduledPaymentDate:'2026-09-07'},
+ {id:32,factionServiceId:3,factionName:'Vanessa',quantity:488,status:'Pendente',scheduledPaymentWeek:'2026-W38',scheduledPaymentDate:'2026-09-11'}
+);
+assert.equal(window.hlgbPayFactionGroup9230('vanessa||2026-W38'),false,'explicit displayed week must be blocked even when date belongs to another week');
+assert.equal(oldGroupCalls,1,'Vanessa must not open the original modal');
+assert.equal(window.hlgbFactionPaymentBadGroup('vanessa||2026-W38').issues[0].bad.sum,925);
+assert.equal(window.HLGB_FACTION_PAYMENT_GUARD,'v3');
+console.log('PASS faction payment guard v3: explicit scheduled week, individual and grouped over-accounted payments; valid legacy flow remains available.');
