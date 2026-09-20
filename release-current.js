@@ -101,7 +101,7 @@ if(typeof oldDate==='function')window.changeProjectionRemainingDate=function(){c
 /* 4) O painel legado de cortes ocultos não deve voltar a aparecer. */
 function suppressHiddenCutsPanel(){
   const root=document.getElementById('hlgbHiddenCuts9239');if(!root)return;
-  const panel=root.closest('.panel')||root;panel.style.display='none';panel.setAttribute('aria-hidden','true');root.innerHTML='';
+  root.style.setProperty('display','none','important');root.setAttribute('aria-hidden','true');root.innerHTML='';
 }
 const oldHiddenCutsRenderer=window.renderHiddenCuts9239;
 if(typeof oldHiddenCutsRenderer==='function')window.renderHiddenCuts9239=function(){suppressHiddenCutsPanel();return false};

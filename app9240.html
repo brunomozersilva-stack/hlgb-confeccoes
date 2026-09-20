@@ -5734,7 +5734,7 @@ function setMissingPeriod(mode){
  if(mode==="week"){let m=mondayOf(now),z=new Date(m);z.setDate(z.getDate()+6);start=isoDate(m);end=isoDate(z)}
  else if(mode==="month"){start=isoDate(new Date(now.getFullYear(),now.getMonth(),1,12));end=isoDate(new Date(now.getFullYear(),now.getMonth()+1,0,12))}
  else if(mode==="year"){start=isoDate(new Date(now.getFullYear(),0,1,12));end=isoDate(new Date(now.getFullYear(),11,31,12))}
- s.value=start;e.value=end;renderMissingPieces();
+ s.value=start;e.value=end;s.dataset.periodInitialized='1';renderMissingPieces();
 }
 function abateMissingPiece(id){
  let m=(db.missingPieces||[]).find(x=>+x.id===+id);if(!m)return;
@@ -5887,7 +5887,8 @@ function renderMissingPieces(){
 
  let s=document.getElementById("missingStart"),e=document.getElementById("missingEnd");
  if(!s||!e)return;
- if(!s.value&&!e.value){let m=mondayOf(new Date()),z=new Date(m);z.setDate(z.getDate()+6);s.value=isoDate(m);e.value=isoDate(z)}
+ if(!s.value&&!e.value&&!s.dataset.periodInitialized){let m=mondayOf(new Date()),z=new Date(m);z.setDate(z.getDate()+6);s.value=isoDate(m);e.value=isoDate(z)}
+ s.dataset.periodInitialized='1';
  let start=s.value||"0000-01-01",end=e.value||"9999-12-31";
  let arr=db.missingPieces.filter(m=>(m.date||"")>=start&&(m.date||"")<=end);
  let open=arr.filter(m=>(+m.remainingQty||0)>0);
@@ -5903,7 +5904,7 @@ function renderMissingPieces(){
  let recovered=arr.reduce((a,m)=>a+(+m.recoveredQty||0),0);
 
  let label=document.getElementById("missingPeriodLabel");
- if(label)label.textContent=`Exibindo de ${fmtDate(start)} até ${fmtDate(end)}. Defeitos e faltas lançados nas facções são sincronizados automaticamente.`;
+ if(label)label.textContent=(!s.value&&!e.value?'Exibindo todo o período.':`Exibindo de ${fmtDate(start)} até ${fmtDate(end)}.`)+' Defeitos e faltas lançados nas facções são sincronizados automaticamente.';
 
  let cards=document.getElementById("missingCards");
  if(cards)cards.innerHTML=`
@@ -18635,7 +18636,7 @@ function orderFulfilled9199(o){let ids=orderProductIds9199(o);return !!(ids.leng
 function orderNeedsCut9199(o){
   if(!o||o.invoiceReady||o.noteReady)return false;
   let s=n9199(o.status);
-  if(s.includes('cancel')||s.includes('aguardando nota')||s.includes('nota emitida')||s.includes('mercadoria pronta')||s.includes('pedido finalizado')||s.includes('pedido em producao')||s==='producao'||s==='produção'||s.includes('corte finalizado'))return false;
+  if(s.includes('cancel')||s.includes('aguardando nota')||s.includes('nota emitida')||s.includes('mercadoria pronta')||s.includes('pedido finalizado')||s.includes('pedido em producao')||s==='producao'||s==='produção')return false;
   if(orderFulfilled9199(o))return false;
   // Se já há um corte terminal que representa o pedido inteiro, não recrie outro.
   let qty=typeof qtyOfOrder==='function'?q9199(qtyOfOrder(o)):q9199(o.qty||o.totalQty);
