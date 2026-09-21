@@ -34,6 +34,7 @@ jobs:
             tests/audit-payroll-integrity-regression.cjs \
             tests/audit-checklist-integrity-regression.cjs \
             tests/audit-capacity-integrity-regression.cjs \
+            tests/audit-production-reconcile-regression.cjs \
             tests/audit-ui-stability-regression.cjs \
             tests/audit-hub-search-regression.cjs \
             tests/audit-hub-integrity-regression.cjs \
