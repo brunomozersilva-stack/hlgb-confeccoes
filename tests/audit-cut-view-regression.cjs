@@ -41,3 +41,23 @@ queueDb.cuts[1].pieces=300;
 assert.equal(queue.orderNeedsCut9199(order),true,'partial coverage leaves pending work');
 assert.equal(queue.orderNeedsCut9199({...order,invoiceReady:true}),false);
 console.log('PASS actual order queue: unproven final status retained; covered and invoiced orders excluded.');
+
+
+// PED-<numero exibido> must never be treated as the internal order id.
+const resolverStart=html.indexOf('function resolveOrder9179(');
+const resolverEnd=html.indexOf('function cutStatus9179(',resolverStart);
+assert(resolverStart>=0&&resolverEnd>resolverStart,'order resolver for cut badges must exist');
+const resolverDb={orders:[
+  {id:1788443919436,orderNumber:20},
+  {id:20,orderNumber:999}
+]};
+const resolver=vm.createContext({
+  db:resolverDb,
+  orderNo9179:o=>o.orderNumber||o.id,
+  window:{}
+});
+vm.runInContext(html.slice(resolverStart,resolverEnd),resolver);
+assert.equal(resolver.resolveOrder9179(null,'20',null).id,1788443919436,'PED-20 resolves by displayed order number, not internal id 20');
+assert.equal(resolver.resolveOrder9179(1788443919436,'20',null).id,1788443919436,'an explicit internal order id keeps priority');
+assert.equal(resolver.window.hlgbResolveOrder9179(null,'20',null).id,1788443919436,'resolver is exposed for audit diagnostics');
+console.log('PASS cut-status order resolution: PED display number cannot overwrite the correct internal order link.');
