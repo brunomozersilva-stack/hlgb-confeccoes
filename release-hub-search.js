@@ -84,11 +84,10 @@ function syncInputs(){
   const dl=document.getElementById('hubSearchNames9248');if(dl)dl.innerHTML=names().map(x=>'<option value="'+escHtml(x)+'"></option>').join('');
 }
 function actions(e){
-  const id=Number(e?.id);
-  if(!Number.isFinite(id))return '<span class="sub">Sem ação disponível</span>';
-  const realized=sid(e?.status)==='Realizado';
-  return '<button type="button" class="secondary" onclick="editHubFinanceEntry('+id+')">Editar</button> '+
-    '<button type="button" class="primary" onclick="toggleHubFinanceEntry('+id+')">'+(realized?'Reabrir':'✓ Realizado')+'</button>';
+  const id=sid(e?.id??e?.__hlgbId);if(!id)return '<span class="sub">Sem ação disponível</span>';
+  const js=JSON.stringify(id).replace(/</g,'\\u003c'),realized=sid(e?.status)==='Realizado';
+  return '<button type="button" class="secondary" onclick=\'editHubFinanceEntry('+js+')\'>Editar</button> '+
+    '<button type="button" class="primary" onclick=\'toggleHubFinanceEntry('+js+')\'>'+(realized?'Reabrir':'✓ Realizado')+'</button>';
 }
 function render(){
   if(!ensurePanel())return;
