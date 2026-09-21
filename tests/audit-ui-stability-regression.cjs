@@ -20,7 +20,7 @@ const root={
   querySelectorAll(){return []},
   querySelector(){return null}
 };
-let renders=0;
+let renders=0,capacityRenders=0;
 const document={
   activeElement:null,
   querySelector(sel){
@@ -38,6 +38,11 @@ const window={
   addEventListener(){},
   renderProduction(){
     renders++;
+    this.scrollY=0;
+    root.scrollTop=0;
+  },
+  renderCapacityPlanning(){
+    capacityRenders++;
     this.scrollY=0;
     root.scrollTop=0;
   },
@@ -80,4 +85,16 @@ window.renderProduction();
 flushTimers();
 assert.equal(renders,2,'remote redraw for a hidden page must be skipped');
 
-console.log('PASS UI stability: remote redraw burst collapsed, hidden-page redraw skipped, manual redraw immediate, scroll preserved.');
+now=12000;
+root.id='capacidadeProducao';root.scrollTop=210;window.scrollY=410;
+window.hlgbUiStabilityMarkRemote();
+window.renderCapacityPlanning();
+window.renderCapacityPlanning();
+window.renderCapacityPlanning();
+assert.equal(capacityRenders,0,'capacity remote burst must be held before redraw');
+flushTimers();
+assert.equal(capacityRenders,1,'capacity repeated redraws must collapse to one stable render');
+assert.equal(window.scrollY,410,'capacity redraw must preserve window scroll');
+assert.equal(root.scrollTop,210,'capacity redraw must preserve active page scroll');
+
+console.log('PASS UI stability: remote redraw bursts collapse for production/capacity, hidden-page redraw is skipped, manual redraw immediate, scroll preserved.');
