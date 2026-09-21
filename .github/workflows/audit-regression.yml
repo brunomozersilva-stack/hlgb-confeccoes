@@ -36,6 +36,10 @@ jobs:
             tests/audit-ui-stability-regression.cjs \
             tests/audit-hub-search-regression.cjs \
             tests/audit-hub-integrity-regression.cjs \
+            tests/audit-projection-client-regression.cjs \
+            tests/audit-safari-date-regression.cjs \
+            tests/audit-missing-route-regression.cjs \
+            tests/audit-catalog-modules-regression.cjs \
             tests/audit-pricing-regression.cjs \
             tests/audit-limits-regression.cjs
           do
