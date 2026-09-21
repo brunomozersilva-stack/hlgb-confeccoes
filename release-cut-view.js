@@ -8,9 +8,19 @@ function hasFinishedCoverage(c){
   if(need<=0)return false;
   return arr('cuts').some(function(x){return x&&String(x.id)!==String(c.id)&&String(x.orderId)===String(c.orderId)&&String(x.productId||'')===String(c.productId||'')&&String(x.status||'').toLowerCase()==='finalizado'&&num(x.pieces)>=need});
 }
-function obsolete(c){return !!(c&&String(c.status||'').toLowerCase()==='planejado'&&hasFinishedCoverage(c))}
+function parentOrderTombstoned(c){
+  try{
+    if(!c||c.orderId==null||ord(c.orderId))return false;
+    var snap=hlgbRecordSnapshots&&hlgbRecordSnapshots.orders;
+    var row=snap&&typeof snap.get==='function'?snap.get(String(c.orderId)):null;
+    return !!(row&&row.deleted_at);
+  }catch(e){return false}
+}
+function obsolete(c){
+  return !!(c&&String(c.status||'').toLowerCase()==='planejado'&&(hasFinishedCoverage(c)||parentOrderTombstoned(c)));
+}
 function clean(){try{var cuts=arr('cuts'),keep=cuts.filter(function(c){return !obsolete(c)});if(keep.length===cuts.length)return false;db.cuts=keep;try{if(typeof renderCuts==='function')renderCuts()}catch(e){}try{if(typeof renderProjection==='function')renderProjection()}catch(e){}return true}catch(e){return false}}
 var incoming=window.hlgbRenderIncomingRecord;if(typeof incoming==='function'){window.hlgbRenderIncomingRecord=function(module){var r=incoming.apply(this,arguments);if(module==='cuts'||module==='orders')setTimeout(clean,0);return r}}
 try{if(typeof hlgbAfterLogin==='function')hlgbAfterLogin(function(){setTimeout(clean,800);setTimeout(clean,2600);setTimeout(clean,5200)},0)}catch(e){}
-window.HLGB_CUT_VIEW_GUARD='v2';
+window.HLGB_CUT_VIEW_GUARD='v3';
 })();
