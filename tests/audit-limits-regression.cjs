@@ -20,4 +20,10 @@ assert.equal(rules.length,1,'one normalized rule must produce one config rule');
 assert.equal(rules[0].value,25000);
 assert.notStrictEqual(rules[0],context.db.weeklyPurchaseLimits[0],'config rules must be copied, not alias the normalized records');
 assert.equal(context.window.HLGB_LIMITS_MODULE,'normalized-only-v1');
-console.log('PASS limits: deleted legacy R$38k cannot resurrect; normalized active rule remains authoritative.');
+
+const app=fs.readFileSync(require('path').join(__dirname,'..','app9240.html'),'utf8');
+const moduleBlock=app.match(/const HLGB_RECORD_MODULES=\[[\s\S]*?\];/)?.[0]||'';
+assert(moduleBlock.includes('weeklyPurchaseLimits'),'weeklyPurchaseLimits must be loaded as an authoritative record module on login/refresh');
+const writeBlock=app.match(/const HLGB_RECORD_WRITE_AREA=\{[\s\S]*?\};/)?.[0]||'';
+assert(writeBlock.includes('weeklyPurchaseLimits:"financeiro"'),'weeklyPurchaseLimits must use Financeiro write permissions');
+console.log('PASS limits: deleted legacy R$38k cannot resurrect; normalized active rule remains authoritative and is loaded on refresh.');
