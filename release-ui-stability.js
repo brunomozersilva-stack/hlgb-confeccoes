@@ -8,6 +8,8 @@ const REMOTE_WINDOW_MS=1600;
 let remoteUntil=0;
 let executingBatch=false;
 let interactionVersion=0;
+let lastInteractionAt=0;
+const USER_ACTION_WINDOW_MS=1800;
 const queues=new Map();
 
 const rendererPages={
@@ -56,7 +58,9 @@ function isEditing(){
   try{return !!document.querySelector('#modal.show')||(typeof cloudUserIsEditing==='function'&&cloudUserIsEditing())}catch(e){return false}
 }
 function isRemote(){return Date.now()<remoteUntil}
+function isUserDriven(){return lastInteractionAt>0&&(Date.now()-lastInteractionAt)<USER_ACTION_WINDOW_MS}
 function markRemote(){remoteUntil=Math.max(remoteUntil,Date.now()+REMOTE_WINDOW_MS)}
+function noteInteraction(){interactionVersion++;lastInteractionAt=Date.now()}
 function relevant(name){
   const pages=rendererPages[name];
   if(!pages)return true;
@@ -149,7 +153,9 @@ function wrapRenderer(name){
   const fn=window[name];
   if(typeof fn!=='function'||fn.__hlgbUiStabilityV1)return false;
   const wrapped=function(){
-    if(executingBatch||!isRemote())return fn.apply(this,arguments);
+    if(executingBatch)return fn.apply(this,arguments);
+    const background=isRemote()||!isUserDriven();
+    if(!background)return fn.apply(this,arguments);
     if(!relevant(name))return undefined;
     return queueRender(name,fn,this,Array.from(arguments));
   };
@@ -185,11 +191,12 @@ const installTimer=setInterval(()=>{
 },250);
 
 for(const ev of ['pointerdown','keydown','wheel','touchstart']){
-  document.addEventListener(ev,()=>{if(!restoring)interactionVersion++},{capture:true,passive:true});
+  document.addEventListener(ev,()=>{if(!restoring)noteInteraction()},{capture:true,passive:true});
 }
-window.addEventListener('scroll',()=>{if(!restoring)interactionVersion++},{passive:true});
+window.addEventListener('scroll',()=>{if(!restoring)noteInteraction()},{passive:true});
 
 window.hlgbUiStabilityMarkRemote=markRemote;
+window.hlgbUiStabilityNoteInteraction=noteInteraction;
 window.hlgbUiStabilityPending=()=>[...queues.keys()];
 window.HLGB_UI_STABILITY_GUARD=V;
 console.info('[HLGB] estabilidade visual global '+V+' ativa — redraw remoto agrupado e posição preservada');
