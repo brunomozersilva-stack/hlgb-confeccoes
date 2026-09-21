@@ -11562,27 +11562,67 @@ function hlgbRecordPendingStore(){
     if(any)localStorage.setItem(HLGB_RECORD_PENDING_KEY,JSON.stringify(pending));else hlgbRecordPendingClear();
   }catch(e){console.warn("HLGB record pending",e)}
 }
-async function hlgbRecordLoadDirect(since=null){
-  // Carga em pacotes pequenos: evita que o Safari interrompa uma resposta grande.
-  // O RPC é SECURITY INVOKER, exige sessão autenticada e continua protegido por RLS.
-  const pageSize=250,rows=[];let serverTime="";
+function hlgbPendingExplicitRestore917(data){
+  return !!(data&&["true","1","yes"].includes(String(data.__hlgb_explicit_restore??"").toLowerCase()));
+}
+function hlgbPendingOpCanReplay917(module,op){
+  if(!op||op.deleted===true)return false;
   try{
-    for(let offset=0;offset<12000;offset+=pageSize){
+    const snap=hlgbRecordSnapshots?.[module]?.get?.(String(op.id));
+    if(snap?.deleted_at&&!hlgbPendingExplicitRestore917(op.data))return false;
+  }catch(e){}
+  return true;
+}
+async function hlgbRecordPendingAuthoritativeRows917(){
+  const pending=hlgbRecordPendingRead(),out=[],seen=new Set();
+  if(!pending?.modules)return out;
+  for(const [module,ops] of Object.entries(pending.modules)){
+    if(!HLGB_RECORD_MODULES.includes(module)||!Array.isArray(ops))continue;
+    for(const op of ops){
+      if(!op||op.id==null||op.deleted===true)continue;
+      const id=String(op.id),key=module+"::"+id;if(seen.has(key))continue;seen.add(key);
+      const path=`hlgb_records?select=module,entity_id,data,deleted_at,revision,updated_at,updated_by&module=eq.${encodeURIComponent(module)}&entity_id=eq.${encodeURIComponent(id)}&limit=1`;
+      const rows=await cloudRequest(path,{method:"GET"});
+      if(!Array.isArray(rows))throw new Error("Não foi possível validar uma alteração pendente na nuvem.");
+      if(rows[0])out.push(rows[0]);
+    }
+  }
+  return out;
+}
+async function hlgbRecordLoadDirect(since=null){
+  // A carga completa traz todos os registros ATIVOS. Tombstones são consultados
+  // pontualmente para os IDs que estão na fila pendente, evitando ressuscitar exclusões.
+  const pageSize=500,maxPages=200,rows=[];let serverTime="",complete=false;
+  try{
+    for(let pageNo=0,offset=0;pageNo<maxPages;pageNo++,offset+=pageSize){
       let packet=await cloudRequest("rpc/hlgb_load_records_page",{method:"POST",body:JSON.stringify({p_offset:offset,p_limit:pageSize,p_since:since||null})});
       if(Array.isArray(packet)&&packet.length===1)packet=packet[0];
       const page=Array.isArray(packet?.rows)?packet.rows:[];
       if(!packet||typeof packet!=="object")throw new Error("O pacote paginado não respondeu corretamente.");
       rows.push(...page);serverTime=String(packet.server_time||serverTime||"");
-      if(packet.has_more!==true||page.length<pageSize)break;
+      if(packet.has_more!==true||page.length<pageSize){complete=true;break}
     }
+    if(!complete)throw new Error("A carga por registros excedeu o limite de segurança sem chegar ao fim.");
   }catch(rpcPageError){
     console.warn("HLGB: RPC paginado indisponível; tentando leitura REST paginada.",rpcPageError);
-    rows.length=0;
-    for(let offset=0;offset<12000;offset+=pageSize){
-      let filter=since?`&updated_at=gte.${encodeURIComponent(since)}`:"";
-      let page=await cloudRequest(`hlgb_records?select=module,entity_id,data,deleted_at,revision,updated_at,updated_by${filter}&order=updated_at.asc&limit=${pageSize}&offset=${offset}`);
+    rows.length=0;complete=false;
+    for(let pageNo=0,offset=0;pageNo<maxPages;pageNo++,offset+=pageSize){
+      // No full load, o fallback espelha o RPC e lê só ativos. Isso impede milhares
+      // de tombstones históricos de ocuparem as primeiras páginas e esconderem dados ativos.
+      const filter=since?`&updated_at=gte.${encodeURIComponent(since)}`:"&deleted_at=is.null";
+      const page=await cloudRequest(`hlgb_records?select=module,entity_id,data,deleted_at,revision,updated_at,updated_by${filter}&order=updated_at.asc&limit=${pageSize}&offset=${offset}`,{method:"GET"});
       if(!Array.isArray(page))throw new Error("A leitura REST paginada não retornou uma lista de registros.");
-      rows.push(...page);if(page.length<pageSize)break;
+      rows.push(...page);
+      if(page.length<pageSize){complete=true;break}
+    }
+    if(!complete)throw new Error("A leitura REST excedeu o limite de segurança sem chegar ao fim.");
+  }
+  if(!since){
+    const exact=await hlgbRecordPendingAuthoritativeRows917();
+    const byKey=new Map(rows.map((r,i)=>[String(r?.module||"")+"::"+String(r?.entity_id??""),i]));
+    for(const row of exact){
+      const key=String(row?.module||"")+"::"+String(row?.entity_id??""),i=byKey.get(key);
+      if(i==null){byKey.set(key,rows.length);rows.push(row)}else rows[i]=row;
     }
   }
   const visibleModules=[...new Set(rows.map(r=>String(r?.module||"")).filter(m=>HLGB_RECORD_MODULES.includes(m)))];
@@ -11616,11 +11656,14 @@ async function hlgbRecordLoadBundle({preserveLocal=false,since=null}={}){
         const pendingNow=hlgbRecordPendingRead();
         const pendingOps=Array.isArray(pendingNow?.modules?.[module])?pendingNow.modules[module]:[];
         const pendingIds=new Set(pendingOps.filter(op=>op&&op.deleted!==true).map(op=>String(op.id)));
+        const explicitRestoreIds=new Set(pendingOps.filter(op=>op&&op.deleted!==true&&hlgbPendingExplicitRestore917(op.data)).map(op=>String(op.id)));
         for(const row of moduleRows){
           const rid=String(row?.entity_id??"");
           if(!rid)continue;
           if(row.deleted_at){
-            if(!pendingIds.has(rid))local.delete(rid);
+            // Tombstone confirmado vence qualquer fila velha. Só uma restauração
+            // explicitamente marcada pode manter a cópia local.
+            if(!explicitRestoreIds.has(rid))local.delete(rid);
             continue;
           }
           // Cloud wins unless this exact record has a confirmed local pending write.
@@ -11652,7 +11695,13 @@ async function hlgbLoadNormalizedCore(opts={}){
       for(const [module,ops] of Object.entries(pending.modules)){
         if(!HLGB_RECORD_MODULES.includes(module)||!Array.isArray(ops)||!hlgbRecordCanWrite(module))continue;
         const local=hlgbRecordLocalMap(module);
-        for(const op of ops){if(!op.deleted)local.set(String(op.id),hlgbRecordClone(op.data))}
+        for(const op of ops){
+          if(!hlgbPendingOpCanReplay917(module,op)){
+            try{local.delete(String(op?.id??""))}catch(e){}
+            continue;
+          }
+          local.set(String(op.id),hlgbRecordClone(op.data));
+        }
         db[module]=[...local.values()];
       }
       localSaveOnly();try{if(typeof hlgb923EnsureProjectionIntegrity==="function")hlgb923EnsureProjectionIntegrity()}catch(e){console.warn("HLGB v91.24 projection repair after load",e)}setTimeout(()=>hlgbNormalizedSyncNow(false),40);
