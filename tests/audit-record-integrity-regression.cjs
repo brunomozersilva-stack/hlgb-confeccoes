@@ -18,11 +18,12 @@ function baseMerge(base,local,remote){
 let context;
 context={
  console,localStorage,
- db:{hubFinanceEntries:[row],cuts:[{id:'cut-orphan',orderId:'ord-del',autoOrderCutV9203:true}],orders:[]},
+ db:{hubFinanceEntries:[row],cuts:[{id:'cut-orphan',orderId:'ord-del',autoOrderCutV9203:true}],production:[],orders:[]},
  hlgbRecordSnapshots:{
   hubFinanceEntries:new Map([['70k',{revision:7,deleted_at:'2026-09-16T15:30:37Z',updated_at:'2026-09-16T15:30:37Z',data:row}]]),
   orders:new Map([['ord-del',{revision:14,deleted_at:'2026-09-17T12:56:20Z',updated_at:'2026-09-17T12:56:20Z',data:deletedOrder}],['ord-ok',{revision:1,deleted_at:null,updated_at:'2026-09-17T13:00:00Z',data:{id:'ord-ok'}}]]),
-  cuts:new Map([['cloud-cut-id',{revision:4,deleted_at:'2026-09-17T16:28:56Z',updated_at:'2026-09-17T16:28:56Z',data:{id:'cloud-cut-id',orderId:'old-order',autoOrderCutV9203:true}}]])
+  cuts:new Map([['cloud-cut-id',{revision:4,deleted_at:'2026-09-17T16:28:56Z',updated_at:'2026-09-17T16:28:56Z',data:{id:'cloud-cut-id',orderId:'old-order',autoOrderCutV9203:true}}],['final-existing',{revision:5,deleted_at:null,updated_at:'2026-09-21T10:00:00Z',data:{id:'final-existing',orderId:'dup-order',status:'Finalizado',pieces:180}}]]),
+  production:new Map([['prod-existing',{revision:6,deleted_at:null,updated_at:'2026-09-21T10:01:00Z',data:{id:'prod-existing',cutId:'cut-75',orderId:'ord-75',productId:'prod-a',cutProductKey:'cut-75:prod-a',planned:1080,done:0,stage:'Aguardando atribuição',assignmentSource:true,productionLocationId:null,factionId:null}}]])
  },
  localSaveOnly(){saves++},
  window:{db:null,cloudMergeThreeWay:baseMerge,
@@ -43,6 +44,22 @@ vm.createContext(context);vm.runInContext(src,context);
  assert(orphanBlocked,'auto cut for deleted parent order must be blocked');
  assert.equal(calls,0,'orphan auto cut must not reach original saver');
  assert.equal(context.db.cuts.length,0,'orphan cut must be removed locally');
+
+ context.db.cuts.push({id:'dup-new',orderId:'dup-order',status:'Planejado',pieces:180,autoOrderCutV9203:true});
+ const cutDup=await context.window.hlgbRecordSaveWithRetry('cuts','dup-new',context.db.cuts[0],false);
+ assert(cutDup.hlgbLogicalDuplicate&&cutDup.hlgbDuplicateKind==='auto-cut-order','second automatic cut for an order with an active final/auto cut must be blocked logically');
+ assert.equal(cutDup.hlgbTwinId,'final-existing');
+ assert.equal(calls,0,'logical auto-cut duplicate must not reach Supabase saver');
+ assert.equal(context.db.cuts.some(x=>x.id==='dup-new'),false,'blocked duplicate auto cut must be removed locally');
+
+ context.db.production.push({id:'prod-new',cutId:'cut-75',orderId:'ord-75',productId:'prod-a',cutProductKey:'cut-75:prod-a',planned:1080,done:0,stage:'Aguardando atribuição',assignmentSource:true,productionLocationId:null,factionId:null});
+ const prodDup=await context.window.hlgbRecordSaveWithRetry('production','prod-new',context.db.production[0],false);
+ assert(prodDup.hlgbLogicalDuplicate&&prodDup.hlgbDuplicateKind==='production-cut-key','second free automatic production row for the same cut/model must be blocked');
+ assert.equal(prodDup.hlgbTwinId,'prod-existing');
+ assert.equal(calls,0,'logical production duplicate must not reach Supabase saver');
+ assert.equal(context.db.production.length,0,'blocked duplicate production row must be removed locally');
+ assert.equal(context.window.hlgbLogicalProductionTwin('split-ok',{id:'split-ok',cutId:'cut-75',orderId:'ord-75',productId:'prod-a',cutProductKey:'cut-75:prod-a',planned:300,done:0,stage:'Aguardando produção',assignmentSource:true,productionLocationId:'LOC-2',factionId:null}),null,'legitimate assigned split production must not be treated as an automatic free-row duplicate');
+ assert.equal(context.window.HLGB_LOGICAL_DUPLICATE_GUARD,'v1');
 
  const syncOut=context.window.syncOrdersToCuts();
  const rekeyed=context.db.cuts.find(x=>x.orderId==='ord-ok');
@@ -123,5 +140,5 @@ vm.createContext(context);vm.runInContext(src,context);
 
  assert(saves>=6,'local cleanup/no-op/rekey normalization must be persisted');
  assert.equal(context.window.HLGB_RECORD_INTEGRITY_GUARD,'v7');
- console.log('PASS record integrity v7 + pending guard: tombstone replay/orphan/stale pending/same-field conflict blocked; cut ID collision rekeyed; technical churn suppressed; substantive save/delete preserved.');
+ console.log('PASS record integrity v7: tombstones, stale pending/conflicts, logical auto-cut/production duplicates and technical churn blocked; legitimate split/save/delete preserved.');
 })().catch(e=>{console.error(e);process.exit(1)});
