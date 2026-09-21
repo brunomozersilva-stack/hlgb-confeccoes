@@ -17223,6 +17223,14 @@ hlgbAfterLogin(()=>{if(document.readyState==='loading')document.addEventListener
     setTimeout(()=>document.getElementById('hlgbClientPriceFilter9179')?.focus(),0);
   };
 
+  function resolveOrder9179(internalId,displayNo,current){
+    const byInternal=internalId?(db.orders||[]).find(o=>String(o.id)===String(internalId)):null;
+    if(byInternal)return byInternal;
+    const byDisplay=displayNo?(db.orders||[]).find(o=>String(orderNo9179(o))===String(displayNo)):null;
+    return byDisplay||current||null;
+  }
+  window.hlgbResolveOrder9179=resolveOrder9179;
+
   function cutStatus9179(productId,orderId){
     const pid=String(productId||'');
     const oid=String(orderId||'');
@@ -17268,8 +17276,8 @@ hlgbAfterLogin(()=>{if(document.readyState==='loading')document.addEventListener
       const production=assignment?(db.production||[]).find(p=>String(p.id)===assignment[1]):null;
       const op=text.match(/\bPED-(\d+)/);
       const orderButton=[...tr.querySelectorAll('button[onclick]')].map(b=>String(b.getAttribute('onclick')||'').match(/viewOrderDetails\(\s*['"]?(\d+)/)).find(Boolean);
-      const orderId=production?.orderId||op?.[1]||orderButton?.[1];
-      if(orderId)order=(db.orders||[]).find(o=>String(o.id)===String(orderId));
+      const internalOrderId=production?.orderId||orderButton?.[1];
+      order=resolveOrder9179(internalOrderId,op?.[1],order);
       let product=production?(db.products||[]).find(p=>String(p.id)===String(production.productId)):null;
       if(!product)for(const p of (db.products||[])){if(p.name&&norm(text).includes(norm(p.name))&&(!product||String(p.name).length>String(product.name).length))product=p}
       if(!product||!order)return;
