@@ -1,0 +1,12 @@
+const fs=require('fs'),assert=require('assert');
+const src=fs.readFileSync('release-current.js','utf8');
+const start=src.indexOf('function exactMissing(id)');
+const end=src.indexOf('function idFromRow',start);
+assert(start>=0&&end>start,'exactMissing route must exist');
+const body=src.slice(start,end);
+assert(/getFaction\(id\)/.test(body),'missing action must resolve the exact faction by id');
+assert(/hlgbRegisterFactionMissing9197/.test(body),'missing action must use the protected missing-pieces function');
+assert(/String\(f\.id\)/.test(body),'resolved real faction id must be passed through');
+assert(src.includes("data-faction-id"),'faction delivery rows must carry the exact faction id');
+assert(src.includes("e.stopImmediatePropagation()"),'legacy click handlers must be prevented from also firing');
+console.log('PASS missing route: Registrar falta is wired to the exact faction id and legacy duplicate handler is stopped.');
