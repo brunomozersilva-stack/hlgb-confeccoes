@@ -104,6 +104,15 @@ vm.createContext(context);vm.runInContext(src,context);
  assert(staleBlocked,'pending write older than remote snapshot must be blocked');
  assert.equal(calls,3,'stale pending must not reach original saver');
 
+ // A fila pendente jamais pode ressuscitar um registro já tombstonado.
+ context.db.hubFinanceEntries.push({...row});
+ store.set('hlgb_records_pending_v91',JSON.stringify({at:Date.now(),modules:{hubFinanceEntries:[{id:'70k',data:{...row},deleted:false}]}}));
+ const pruned=context.window.hlgbPrunePendingTombstones();
+ assert(pruned.changed&&pruned.removed===1,'pending tombstone replay must be pruned');
+ assert.equal(context.db.hubFinanceEntries.some(x=>x.id==='70k'),false,'tombstoned pending row must be removed locally');
+ assert.equal(store.has('hlgb_records_pending_v91'),false,'empty pending envelope must be cleared');
+ assert.equal(context.window.HLGB_RECORD_PENDING_TOMBSTONE_GUARD,'v1');
+
  const base={id:'x',value:100,note:'a'},local={id:'x',value:120,note:'a'},remote={id:'x',value:130,note:'a'};
  assert.deepEqual(context.window.hlgbRecordConflictPaths(base,local,remote),['value'],'same scalar edited on both sides must conflict');
  let mergeBlocked=false;
@@ -114,5 +123,5 @@ vm.createContext(context);vm.runInContext(src,context);
 
  assert(saves>=6,'local cleanup/no-op/rekey normalization must be persisted');
  assert.equal(context.window.HLGB_RECORD_INTEGRITY_GUARD,'v7');
- console.log('PASS record integrity v7: tombstone/orphan/stale pending/same-field conflict blocked; cut ID collision rekeyed; technical churn suppressed; substantive save/delete preserved.');
+ console.log('PASS record integrity v7 + pending guard: tombstone replay/orphan/stale pending/same-field conflict blocked; cut ID collision rekeyed; technical churn suppressed; substantive save/delete preserved.');
 })().catch(e=>{console.error(e);process.exit(1)});
