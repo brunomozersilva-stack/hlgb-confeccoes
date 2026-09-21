@@ -71,3 +71,22 @@ assert.equal(resolver.resolveOrder9179(null,'20',null).id,1788443919436,'PED-20 
 assert.equal(resolver.resolveOrder9179(1788443919436,'20',null).id,1788443919436,'an explicit internal order id keeps priority');
 assert.equal(resolver.window.hlgbResolveOrder9179(null,'20',null).id,1788443919436,'resolver is exposed for audit diagnostics');
 console.log('PASS cut-status order resolution: PED display number cannot overwrite the correct internal order link.');
+
+
+// Historical aggregate cuts without productId must not be mistaken for exact model coverage.
+const cutStatusStart=html.indexOf('function cutStatus9179(');
+const cutStatusEnd=html.indexOf('window.hlgbCutStatusEvidence9179',cutStatusStart);
+assert(cutStatusStart>=0&&cutStatusEnd>cutStatusStart,'cutStatus9179 must exist');
+const statusDb={
+ orders:[{id:'O1',projectionItems:{}}],
+ cuts:[{id:'agg',orderId:'O1',productId:null,product:'100 Produto A | 100 Produto B',status:'Finalizado',pieces:200}]
+};
+const statusCtx=vm.createContext({
+ db:statusDb,window:{},
+ norm:v=>String(v??'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().trim()
+});
+vm.runInContext(html.slice(cutStatusStart,cutStatusEnd),statusCtx);
+assert.equal(statusCtx.cutStatus9179('P1','O1').text,'Ainda não cortado','aggregate cut with no product evidence cannot mark a specific product as cut');
+statusDb.cuts[0].actualCutGrade=[{productId:'P1',qty:100}];
+assert.equal(statusCtx.cutStatus9179('P1','O1').text,'✓ Já cortado','grade evidence may link a historical aggregate cut to an exact product');
+console.log('PASS cut-status evidence: aggregate historical cut needs exact productId/grade proof before marking a model as cut.');
