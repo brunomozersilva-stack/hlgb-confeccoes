@@ -50,6 +50,38 @@ function matchingPending(module,id,data){
  const op=ops.find(x=>x&&sid(x.id)===sid(id)&&x.deleted!==true&&eq(x.data,data));
  return op?{pending:p,op}:null;
 }
+function storePendingEnvelope(p){
+ try{
+  const modules=p?.modules&&typeof p.modules==='object'?p.modules:{};
+  let any=false;
+  for(const [module,ops] of Object.entries(modules)){
+   if(!Array.isArray(ops)||!ops.length){delete modules[module];continue}
+   any=true;
+  }
+  if(any)localStorage.setItem('hlgb_records_pending_v91',JSON.stringify({...p,modules}));
+  else localStorage.removeItem('hlgb_records_pending_v91');
+ }catch(e){console.warn('[HLGB record integrity] limpeza da fila pendente',e)}
+}
+function prunePendingTombstones(){
+ const p=pendingEnvelope();if(!p?.modules||typeof p.modules!=='object')return {changed:false,removed:0};
+ let changed=false,removed=0;
+ for(const [module,ops] of Object.entries(p.modules)){
+  if(!Array.isArray(ops)){delete p.modules[module];changed=true;continue}
+  const keep=[];
+  for(const op of ops){
+   if(!op){changed=true;continue}
+   const snap=snapshot(module,op.id),restore=explicitRestore(op.data);
+   if(op.deleted!==true&&snap?.deleted_at&&!restore){
+    removeLocal(module,op.id);removed++;changed=true;continue;
+   }
+   keep.push(op);
+  }
+  if(keep.length)p.modules[module]=keep;
+  else if(ops.length||Object.prototype.hasOwnProperty.call(p.modules,module)){delete p.modules[module];changed=true}
+ }
+ if(changed)storePendingEnvelope(p);
+ return {changed,removed};
+}
 function stalePending(module,id,data,snap){
  const hit=matchingPending(module,id,data);if(!hit||!snap?.updated_at)return null;
  const pendingAt=Number(hit.pending?.at)||0,remoteAt=Date.parse(String(snap.updated_at||''));
@@ -174,10 +206,41 @@ if(typeof original==='function'&&!original.__hlgbRecordIntegrityV7){
  wrapped.__hlgbRecordIntegrityV1=true;wrapped.__hlgbRecordIntegrityV2=true;wrapped.__hlgbRecordIntegrityV3=true;wrapped.__hlgbRecordIntegrityV4=true;wrapped.__hlgbRecordIntegrityV5=true;wrapped.__hlgbRecordIntegrityV6=true;wrapped.__hlgbRecordIntegrityV7=true;wrapped.__original=original;
  window.hlgbRecordSaveWithRetry=wrapped;
 }
+const oldPendingStore=window.hlgbRecordPendingStore;
+if(typeof oldPendingStore==='function'&&!oldPendingStore.__hlgbPendingTombstoneV1){
+ const wrapped=function(){
+  prunePendingTombstones();
+  const out=oldPendingStore.apply(this,arguments);
+  prunePendingTombstones();
+  return out;
+ };
+ wrapped.__hlgbPendingTombstoneV1=true;wrapped.__original=oldPendingStore;window.hlgbRecordPendingStore=wrapped;
+}
+const oldLoadCore=window.hlgbLoadNormalizedCore;
+if(typeof oldLoadCore==='function'&&!oldLoadCore.__hlgbPendingTombstoneV1){
+ const wrapped=async function(){
+  const out=await oldLoadCore.apply(this,arguments);
+  prunePendingTombstones();
+  return out;
+ };
+ wrapped.__hlgbPendingTombstoneV1=true;wrapped.__original=oldLoadCore;window.hlgbLoadNormalizedCore=wrapped;
+}
+const oldLoadBundle=window.hlgbRecordLoadBundle;
+if(typeof oldLoadBundle==='function'&&!oldLoadBundle.__hlgbPendingTombstoneV1){
+ const wrapped=async function(){
+  const out=await oldLoadBundle.apply(this,arguments);
+  prunePendingTombstones();
+  return out;
+ };
+ wrapped.__hlgbPendingTombstoneV1=true;wrapped.__original=oldLoadBundle;window.hlgbRecordLoadBundle=wrapped;
+}
+try{prunePendingTombstones()}catch(e){}
 window.HLGB_RECORD_INTEGRITY_GUARD='v7';
+window.HLGB_RECORD_PENDING_TOMBSTONE_GUARD='v1';
+window.hlgbPrunePendingTombstones=prunePendingTombstones;
 window.hlgbRecordConflictPaths=conflictPaths;
 window.hlgbRecordStalePending=stalePending;
 window.hlgbRecordSemanticNoop=semanticNoop;
 window.hlgbFreshCutId=freshCutId;
-console.info('[HLGB] integridade de registros v7: tombstones, colisões de ID e churn técnico protegidos');
+console.info('[HLGB] integridade de registros v7 + fila tombstone v1: restauração pendente de excluídos bloqueada');
 })();
