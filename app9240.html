@@ -4138,7 +4138,7 @@ if(["cadFaccoes","cadLocaisProducao","cadMaquinas","cadTiposServico"].includes(i
 if(id==="lixeiraPedidos")renderOrderTrash();
 if(id==="metas")renderGoals();
 if(id==="notas")renderOrderNotes();
-if(id==="corte"){try{syncOrdersToCuts()}catch(e){console.error(e)} renderCuts();}
+if(id==="corte"){try{syncOrdersToCuts()}catch(e){console.error(e)} renderCuts();renderCutAssignmentQueue();}
 if(id==="faccoes")renderFactions();
 if(id==="pagamentosFaccoes")renderFactionPayments();
 if(id==="cortadores"){renderCutters();if(typeof drawCutterChart==="function")drawCutterChart();renderCutterProductCosts();}
@@ -17230,12 +17230,6 @@ hlgbAfterLogin(()=>{if(document.readyState==='loading')document.addEventListener
     const pitems=order?.projectionItems||{};
     const pmeta=pitems[pid]||pitems[productId]||{};
     const sourceOrderId=pmeta?.sourceOrderId||order?.workflowSourceOrderId||null;
-    const isFinal=v=>String(v||'').toLowerCase().includes('finalizado');
-
-    // A reconciliação do pedido prevalece sobre qualquer registro planejado antigo.
-    if(order&&(isFinal(order.cutStatus)||isFinal(order.status)||order.workflowStageReconciled===true))
-      return {text:'✓ Já cortado',cls:'done'};
-
     const linkedOrderIds=new Set([oid,String(sourceOrderId||'')].filter(Boolean));
     const containsProduct=c=>{
       if(pid&&String(c?.productId||'')===pid)return true;
@@ -17247,13 +17241,11 @@ hlgbAfterLogin(()=>{if(document.readyState==='loading')document.addEventListener
     const cuts=(db.cuts||[]).filter(c=>linkedOrderIds.has(String(c?.orderId||''))&&containsProduct(c));
     if(cuts.some(c=>norm(c.status)==='finalizado'))return {text:'✓ Já cortado',cls:'done'};
 
-    // Pedido espelho não pode ser classificado como "a cortar" por resíduo local antigo.
-    if(sourceOrderId)return {text:'✓ Já cortado',cls:'done'};
-
     if(cuts.some(c=>c.plannedCutDate||c.cutterId||norm(c.status)==='planejado'))
       return {text:'Programado / a cortar',cls:'pending'};
     return {text:'Ainda não cortado',cls:'none'};
   }
+  window.hlgbCutStatusEvidence9179=cutStatus9179;
   window.hlgbProgramAnyModel9179=function(){
     const products=(db.products||[]).slice().sort((a,b)=>String(a.name||'').localeCompare(String(b.name||''),'pt-BR'));
     const cutters=(db.cutters||[]).filter(x=>x.active!==false);
@@ -17270,10 +17262,17 @@ hlgbAfterLogin(()=>{if(document.readyState==='loading')document.addEventListener
     if(toolbar&&!toolbar.querySelector('.hlgb9179-any-model')){const b=document.createElement('button');b.type='button';b.className='primary hlgb9179-any-model';b.textContent='+ Programar qualquer modelo';b.onclick=hlgbProgramAnyModel9179;toolbar.appendChild(b)}
     // Marca visualmente situações nas telas que exibem linhas de modelos sem destino.
     document.querySelectorAll('#corte tr, #producao tr, #capacidadeProducao tr, #projecao tr').forEach(tr=>{
-      if(tr.querySelector('.hlgb9179-cut-status'))return;
+      tr.querySelectorAll('.hlgb9179-cut-status').forEach(e=>e.remove());
       const text=tr.textContent||'';let order=null;const m=text.match(/#\s*(\d+)/);if(m)order=(db.orders||[]).find(o=>String(orderNo9179(o))===String(m[1]));
-      let product=null;for(const p of (db.products||[])){if(p.name&&norm(text).includes(norm(p.name))&&(!product||String(p.name).length>String(product.name).length))product=p}
-      if(!product&&!order)return;
+      const assignment=[...tr.querySelectorAll('button[onclick]')].map(b=>String(b.getAttribute('onclick')||'').match(/openCutAssignment\(\s*['"]?(\d+)/)).find(Boolean);
+      const production=assignment?(db.production||[]).find(p=>String(p.id)===assignment[1]):null;
+      const op=text.match(/\bPED-(\d+)/);
+      const orderButton=[...tr.querySelectorAll('button[onclick]')].map(b=>String(b.getAttribute('onclick')||'').match(/viewOrderDetails\(\s*['"]?(\d+)/)).find(Boolean);
+      const orderId=production?.orderId||op?.[1]||orderButton?.[1];
+      if(orderId)order=(db.orders||[]).find(o=>String(o.id)===String(orderId));
+      let product=production?(db.products||[]).find(p=>String(p.id)===String(production.productId)):null;
+      if(!product)for(const p of (db.products||[])){if(p.name&&norm(text).includes(norm(p.name))&&(!product||String(p.name).length>String(product.name).length))product=p}
+      if(!product||!order)return;
       const s=cutStatus9179(product?.id,order?.id);const td=product?[...tr.children].find(x=>norm(x.textContent).includes(norm(product.name))):tr.children[0];if(!td)return;
       const sp=document.createElement('span');sp.className='hlgb9179-cut-status '+s.cls;sp.textContent=s.text;td.appendChild(sp);
     });
@@ -21262,18 +21261,7 @@ function reconcileLocalCuts(){
 
 /* Status da projeção: considera productId dentro das grades do corte. */
 window.cutStatus9179=function(productId,orderId){
-  const pid=sid(productId),oid=sid(orderId);
-  const order=(db.orders||[]).find(o=>sid(o?.id)===oid);
-  const pitems=order?.projectionItems||{},pmeta=pitems[pid]||pitems[productId]||{};
-  const sourceOrderId=pmeta?.sourceOrderId||order?.workflowSourceOrderId||null;
-  const isFinal=v=>norm(v).includes('finalizado');
-  if(order&&(isFinal(order.cutStatus)||isFinal(order.status)||order.workflowStageReconciled===true))return {text:'✓ Já cortado',cls:'done'};
-  const linked=new Set([oid,sid(sourceOrderId)].filter(Boolean));
-  const cuts=(db.cuts||[]).filter(c=>linked.has(sid(c?.orderId))&&(!pid||gradeProductIds(c).has(pid)||sid(c?.productId)===pid));
-  if(cuts.some(c=>norm(c.status)==='finalizado'))return {text:'✓ Já cortado',cls:'done'};
-  if(sourceOrderId)return {text:'✓ Já cortado',cls:'done'};
-  if(cuts.some(c=>c?.plannedCutDate||c?.cutterId||norm(c?.status)==='planejado'))return {text:'Programado / a cortar',cls:'pending'};
-  return {text:'Ainda não cortado',cls:'none'};
+  return window.hlgbCutStatusEvidence9179(productId,orderId);
 };
 
 function patchRecordSaver(){
