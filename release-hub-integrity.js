@@ -11,7 +11,7 @@ function explicitRestore(v){return !!(v&&['true','1','yes'].includes(String(v.__
 function localId(row){return sid(row?.id??row?.__hlgbId)}
 function purgeTombstones(){
  try{
-  const m=hlgbRecordSnapshots?.hubFinanceEntries;if(!(m instanceof Map))return 0;
+  const m=hlgbRecordSnapshots?.hubFinanceEntries;if(!m||typeof m.get!=='function')return 0;
   const before=hub().length;
   db.hubFinanceEntries=hub().filter(row=>{const s=m.get(localId(row));return !(s?.deleted_at&&!explicitRestore(row))});
   const removed=before-db.hubFinanceEntries.length;
