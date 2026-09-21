@@ -37,6 +37,63 @@ function parentOrderTombstoned(data){
  const s=snapshot('orders',oid);
  return !!(s&&s.deleted_at);
 }
+function statusNorm(v){return sid(v).normalize('NFD').replace(/[\u0300-\u036f]/g,'').trim().toLowerCase()}
+function activeSnapshotRows(module){
+ const out=[];try{
+  const map=hlgbRecordSnapshots?.[module];
+  if(map&&typeof map[Symbol.iterator]==='function'){
+   for(const [id,s] of map)if(s&&!s.deleted_at&&s.data)out.push({id:sid(id),data:s.data,snapshot:s});
+  }
+ }catch(e){}
+ return out;
+}
+function cutBlocksAuto(c){
+ if(!c)return false;const st=statusNorm(c.status);
+ if(st.includes('cancel'))return false;
+ if(c.autoOrderCutV9203===true||c.autoOrderCutV9199===true)return true;
+ return c.done===true||!!c.fulfilledAt||st.includes('finalizado')||st.includes('concluido')||st.includes('atendido por producao');
+}
+function logicalAutoCutTwin(id,data){
+ if(!isAutoOrderCut('cuts',data)||data?.orderId==null)return null;
+ const oid=sid(data.orderId),own=sid(id);
+ for(const c of (Array.isArray(db?.cuts)?db.cuts:[])){
+  if(!c||sid(c.id)===own||sid(c.orderId)!==oid||!cutBlocksAuto(c))continue;
+  return {id:sid(c.id),data:c,source:'local'};
+ }
+ for(const row of activeSnapshotRows('cuts')){
+  const c=row.data;if(row.id===own||sid(c?.orderId)!==oid||!cutBlocksAuto(c))continue;
+  return row;
+ }
+ return null;
+}
+function freeAutoProduction(p){
+ if(!p||p.assignmentSource!==true)return false;
+ if(p.productionLocationId||p.factionId||p.finishedAt||(+p.done||0)>0)return false;
+ const st=statusNorm(p.stage||p.status);
+ return !st.includes('pronto')&&!st.includes('finalizado')&&!st.includes('consolidado')&&(+p.planned||0)>0;
+}
+function productionLogicalKey(p){
+ if(!p)return '';
+ const explicit=sid(p.cutProductKey);if(explicit)return 'K:'+explicit;
+ const cut=sid(p.cutId);if(!cut)return '';
+ const pid=sid(p.productId);return 'C:'+cut+(pid?':P:'+pid:'');
+}
+function logicalProductionTwin(id,data){
+ if(!freeAutoProduction(data))return null;
+ const key=productionLogicalKey(data);if(!key)return null;const own=sid(id);
+ for(const p of (Array.isArray(db?.production)?db.production:[])){
+  if(!p||sid(p.id)===own||!freeAutoProduction(p)||productionLogicalKey(p)!==key)continue;
+  return {id:sid(p.id),data:p,source:'local'};
+ }
+ for(const row of activeSnapshotRows('production')){
+  const p=row.data;if(row.id===own||!freeAutoProduction(p)||productionLogicalKey(p)!==key)continue;
+  return row;
+ }
+ return null;
+}
+function blockedDuplicateResult(data,twin,kind){
+ return {applied:true,data:clone(data),deleted_at:null,revision:+twin?.snapshot?.revision||1,updated_at:twin?.snapshot?.updated_at||new Date().toISOString(),updated_by:twin?.snapshot?.updated_by||null,hlgbLogicalDuplicate:true,hlgbDuplicateKind:kind,hlgbTwinId:sid(twin?.id)};
+}
 function withDeleteMarker(data){
  const base=(data&&typeof data==='object'&&!Array.isArray(data))?{...data}:{};
  base.__hlgb_explicit_delete=true;
@@ -183,6 +240,22 @@ if(typeof original==='function'&&!original.__hlgbRecordIntegrityV7){
    const err=new Error('Corte automático bloqueado porque o pedido correspondente já foi excluído na nuvem.');
    err.code='HLGB_ORPHAN_AUTO_CUT_BLOCK';throw err;
   }
+  if(!deleted&&!restore&&module==='cuts'&&isAutoOrderCut(module,data)){
+   const twin=logicalAutoCutTwin(id,data);
+   if(twin){
+    removeLocal(module,id);
+    console.warn('[HLGB record integrity] corte automático lógico duplicado bloqueado',id,'→',twin.id);
+    return blockedDuplicateResult(data,twin,'auto-cut-order');
+   }
+  }
+  if(!deleted&&!restore&&module==='production'&&freeAutoProduction(data)){
+   const twin=logicalProductionTwin(id,data);
+   if(twin){
+    removeLocal(module,id);
+    console.warn('[HLGB record integrity] produção automática lógica duplicada bloqueada',id,'→',twin.id);
+    return blockedDuplicateResult(data,twin,'production-cut-key');
+   }
+  }
   if(!deleted&&!restore&&snap&&!snap.deleted_at){
    const same=semanticNoop(module,data,snap.data);
    if(same.noop){replaceLocal(module,id,snap.data);return noopResult(snap,same.reason)}
@@ -237,10 +310,13 @@ if(typeof oldLoadBundle==='function'&&!oldLoadBundle.__hlgbPendingTombstoneV1){
 try{prunePendingTombstones()}catch(e){}
 window.HLGB_RECORD_INTEGRITY_GUARD='v7';
 window.HLGB_RECORD_PENDING_TOMBSTONE_GUARD='v1';
+window.HLGB_LOGICAL_DUPLICATE_GUARD='v1';
+window.hlgbLogicalAutoCutTwin=logicalAutoCutTwin;
+window.hlgbLogicalProductionTwin=logicalProductionTwin;
 window.hlgbPrunePendingTombstones=prunePendingTombstones;
 window.hlgbRecordConflictPaths=conflictPaths;
 window.hlgbRecordStalePending=stalePending;
 window.hlgbRecordSemanticNoop=semanticNoop;
 window.hlgbFreshCutId=freshCutId;
-console.info('[HLGB] integridade de registros v7 + fila tombstone v1: restauração pendente de excluídos bloqueada');
+console.info('[HLGB] integridade de registros v7 + tombstone v1 + duplicidade lógica v1 ativa');
 })();
