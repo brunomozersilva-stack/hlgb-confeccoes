@@ -62,7 +62,7 @@ function canonicalize(rows){
    take=Math.min(rawQty,left);used.set(key,already+take);
   }
   if(take<=0)continue;
-  const unit=rawQty>0?q(row.value)/rawQty:q(row.item?.unitPrice);
+  const valueUnit=rawQty>0?q(row.value)/rawQty:0,unit=valueUnit>0?valueUnit:q(row.item?.unitPrice);
   const client=resolveClient(order,row);
   row.order=order||row.order||null;
   row.qty=take;
