@@ -11453,7 +11453,7 @@ const HLGB_RECORD_MODULES=[
   "factions","factionMasters","factionPayments","cutters",
   "finance","purchases","invoices","receipts","operationalCosts","weeklyPurchaseLimits",
   "suppliers","employees","formerEmployees","payroll","terminations","employeeAdvances",
-  "materialLots","separations","projectionInvoices","machines","serviceTypes","colors","sizes","materialChecklists","hubFinanceEntries","finishedPieces","factionSettings"];
+  "materialLots","separations","projectionInvoices","noteQueue","machines","serviceTypes","colors","sizes","materialChecklists","hubFinanceEntries","finishedPieces","factionSettings"];
 const HLGB_RECORD_PENDING_KEY="hlgb_records_pending_v91";
 let hlgbRecordSnapshots={};
 let hlgbRecordLastSeen={};
@@ -11473,7 +11473,7 @@ const HLGB_RECORD_WRITE_AREA={
  factions:"faccoes",factionMasters:"faccoes",factionPayments:"faccoes",cutters:"cortadores",
  finance:"financeiro",purchases:"financeiro",invoices:"financeiro",receipts:"financeiro",operationalCosts:"financeiro",weeklyPurchaseLimits:"financeiro",
  suppliers:"fornecedores",employees:"funcionarios",formerEmployees:"exFuncionarios",payroll:"folhaPagamento",terminations:"folhaPagamento",employeeAdvances:"folhaPagamento",
- materialLots:"materiais",separations:"materiais",projectionInvoices:"projecao",colors:"cadastros",sizes:"cadastros",hubFinanceEntries:"hubFinanceiro",finishedPieces:"producao",factionSettings:"faccoes"
+ materialLots:"materiais",separations:"materiais",projectionInvoices:"projecao",noteQueue:"projecao",colors:"cadastros",sizes:"cadastros",hubFinanceEntries:"hubFinanceiro",finishedPieces:"producao",factionSettings:"faccoes"
 };
 function hlgbRecordCanWrite(module){
   if(isOwnerUser())return true;
