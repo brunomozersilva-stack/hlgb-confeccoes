@@ -26,6 +26,7 @@ jobs:
             tests/audit-queue-cut-regression.cjs \
             tests/audit-faction-payment-guard.cjs \
             tests/audit-faction-description-regression.cjs \
+            tests/audit-faction-master-integrity-regression.cjs \
             tests/audit-notes-alias-regression.cjs \
             tests/audit-note-integrity-regression.cjs \
             tests/audit-record-integrity-regression.cjs \
