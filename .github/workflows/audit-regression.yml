@@ -37,6 +37,8 @@ jobs:
             tests/audit-hub-search-regression.cjs \
             tests/audit-hub-integrity-regression.cjs \
             tests/audit-projection-client-regression.cjs \
+            tests/audit-projection-delivery-regression.cjs \
+            tests/audit-period-navigation-regression.cjs \
             tests/audit-safari-date-regression.cjs \
             tests/audit-missing-route-regression.cjs \
             tests/audit-catalog-modules-regression.cjs \
