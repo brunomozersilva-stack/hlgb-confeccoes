@@ -70,6 +70,7 @@ assert.equal(window.scrollY,320,'window scroll position must be restored');
 assert.equal(root.scrollTop,140,'active page scroll position must be restored');
 
 now=5000;
+window.hlgbUiStabilityNoteInteraction();
 window.renderProduction();
 assert.equal(renders,2,'local/manual render must remain immediate');
 
