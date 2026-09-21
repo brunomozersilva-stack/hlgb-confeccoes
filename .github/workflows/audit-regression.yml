@@ -33,6 +33,7 @@ jobs:
             tests/audit-checklist-integrity-regression.cjs \
             tests/audit-capacity-integrity-regression.cjs \
             tests/audit-ui-stability-regression.cjs \
+            tests/audit-hub-search-regression.cjs \
             tests/audit-pricing-regression.cjs \
             tests/audit-limits-regression.cjs
           do
