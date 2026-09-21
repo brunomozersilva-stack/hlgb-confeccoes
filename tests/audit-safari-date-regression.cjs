@@ -1,0 +1,16 @@
+const fs=require('fs'),vm=require('vm'),assert=require('assert');
+const src=fs.readFileSync('release-current.js','utf8');
+const start=src.indexOf('function validIso(');
+const end=src.indexOf('function enhanceDateModal()',start);
+assert(start>=0&&end>start,'Safari projection date helpers must exist');
+const ctx=vm.createContext({Date});
+vm.runInContext(src.slice(start,end),ctx);
+assert.equal(ctx.brFromIso('2026-09-21'),'21/09/2026');
+assert.equal(ctx.isoFromAny('21/09/2026'),'2026-09-21');
+assert.equal(ctx.isoFromAny('21-09-2026'),'2026-09-21');
+assert.equal(ctx.isoFromAny('21.09.2026'),'2026-09-21');
+assert.equal(ctx.isoFromAny('2026-09-21'),'2026-09-21');
+assert.equal(ctx.isoFromAny('31/02/2026'),'','invalid calendar date must be rejected');
+assert.equal(ctx.isoFromAny('29/02/2028'),'2028-02-29','valid leap day must be accepted');
+assert.equal(ctx.validIso('2026-13-01'),false);
+console.log('PASS Safari date helpers: BR typing converts safely to ISO and invalid dates are blocked.');
