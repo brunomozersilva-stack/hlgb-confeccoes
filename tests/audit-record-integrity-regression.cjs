@@ -26,10 +26,11 @@ context={
   production:new Map([['prod-existing',{revision:6,deleted_at:null,updated_at:'2026-09-21T10:01:00Z',data:{id:'prod-existing',cutId:'cut-75',orderId:'ord-75',productId:'prod-a',cutProductKey:'cut-75:prod-a',planned:1080,done:0,stage:'Aguardando atribuição',assignmentSource:true,productionLocationId:null,factionId:null}}]])
  },
  localSaveOnly(){saves++},
- window:{db:null,cloudMergeThreeWay:baseMerge,
+ window:{cloudMergeThreeWay:baseMerge,
   syncOrdersToCuts(){context.db.cuts.push({id:'cloud-cut-id',orderId:'ord-ok',productId:'prod-new',product:'350 Produto novo',pieces:350,status:'Planejado',autoOrderCutV9203:true,createdAt:new Date().toISOString()});return true},
   hlgbRecordPendingStore(){store.set('hlgb_records_pending_v91',JSON.stringify({at:Date.parse('2026-09-17T13:00:00Z'),modules:{hubFinanceEntries:[{id:'age',data:{id:'age',value:100},deleted:false}]}}));},
   hlgbRecordSaveWithRetry:async(module,id,data,deleted)=>{calls++;lastCall={module,id,data,deleted};return {applied:true,deleted_at:deleted?'2026-09-17T13:00:00Z':null,data,revision:9,updated_at:'2026-09-17T13:00:00Z'}}
+ }
 };
 store.set('hlgb_records_pending_v91',JSON.stringify({at:Date.parse('2026-09-17T11:00:00Z'),modules:{hubFinanceEntries:[{id:'age',data:{id:'age',value:100},deleted:false}]}}));
 vm.createContext(context);vm.runInContext(src,context);
