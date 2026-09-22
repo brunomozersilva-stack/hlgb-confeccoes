@@ -14,7 +14,7 @@ function canonicalRows(rows){
 }
 function autoCapacityKey(row){
  if(!row||String(row.source||'')!=='cut_assignment')return '';
- return [row.orderId,row.itemKey,row.locationId,row.qty,row.date,row.source].map(v=>String(v??'')).join('|');
+ return [row.orderId,row.itemKey,row.locationId,row.factionId,row.qty,row.date,row.source].map(v=>String(v??'')).join('|');
 }
 function canonicalCapacity(rows){
  const out=[],seen=new Set();
