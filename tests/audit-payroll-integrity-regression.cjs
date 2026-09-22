@@ -21,6 +21,7 @@ const context={
  }
 };
 vm.createContext(context);vm.runInContext(src,context);
+(async()=>{
 const api=context.window.hlgbPayrollIntegrity;
 assert(api,'payroll integrity API must load');
 const vitoria={id:'v',name:'Vitoria',salary:2090,hireDate:'2025-07-09',provisionPaidHistory:[]};
@@ -62,3 +63,4 @@ assert(termCalls.every(x=>x.id===firstId),'retry after partial failure must reus
 assert.equal(context.db.terminations.filter(x=>String(x.id)===String(firstId)).length,1,'local retry must remain one termination record');
 
 console.log('PASS payroll integrity: accrual, advances, termination settlement, stable retry id and legacy audit.');
+})().catch(e=>{console.error(e);process.exit(1)});
