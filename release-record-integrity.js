@@ -19,14 +19,14 @@ function localIndex(module,id){
 }
 function replaceLocal(module,id,data){
  try{
-  if(!window.db||!Array.isArray(db?.[module]))return false;
+  if(typeof db==='undefined'||!Array.isArray(db?.[module]))return false;
   const i=localIndex(module,id);if(i<0)return false;
   db[module][i]=clone(data);if(typeof localSaveOnly==='function')localSaveOnly();return true;
  }catch(e){console.warn('[HLGB record integrity] restauração local',e);return false}
 }
 function removeLocal(module,id){
  try{
-  if(!window.db||!Array.isArray(db?.[module]))return;
+  if(typeof db==='undefined'||!Array.isArray(db?.[module]))return;
   const i=localIndex(module,id);if(i<0)return;
   db[module].splice(i,1);if(typeof localSaveOnly==='function')localSaveOnly();
  }catch(e){console.warn('[HLGB record integrity] limpeza local',e)}
@@ -102,6 +102,10 @@ function withDeleteMarker(data){
 function pendingEnvelope(){
  try{return JSON.parse(localStorage.getItem('hlgb_records_pending_v91')||'null')}catch(e){return null}
 }
+function pendingOpAt(p,op){
+ const n=Number(op?.__hlgb_pending_at??op?.queuedAt??op?.at??p?.at)||0;
+ return Number.isFinite(n)?n:0;
+}
 function matchingPending(module,id,data){
  const p=pendingEnvelope(),ops=Array.isArray(p?.modules?.[module])?p.modules[module]:[];
  const op=ops.find(x=>x&&sid(x.id)===sid(id)&&x.deleted!==true&&eq(x.data,data));
@@ -141,7 +145,7 @@ function prunePendingTombstones(){
 }
 function stalePending(module,id,data,snap){
  const hit=matchingPending(module,id,data);if(!hit||!snap?.updated_at)return null;
- const pendingAt=Number(hit.pending?.at)||0,remoteAt=Date.parse(String(snap.updated_at||''));
+ const pendingAt=pendingOpAt(hit.pending,hit.op),remoteAt=Date.parse(String(snap.updated_at||''));
  if(!pendingAt||!Number.isFinite(remoteAt))return null;
  return remoteAt>pendingAt+1000?{pendingAt,remoteAt,op:hit.op}:null;
 }
@@ -283,11 +287,27 @@ const oldPendingStore=window.hlgbRecordPendingStore;
 if(typeof oldPendingStore==='function'&&!oldPendingStore.__hlgbPendingTombstoneV1){
  const wrapped=function(){
   prunePendingTombstones();
+  const before=pendingEnvelope();
   const out=oldPendingStore.apply(this,arguments);
+  const after=pendingEnvelope();
+  if(after?.modules&&typeof after.modules==='object'){
+   let changed=false;
+   for(const [module,ops] of Object.entries(after.modules)){
+    if(!Array.isArray(ops))continue;
+    const prev=Array.isArray(before?.modules?.[module])?before.modules[module]:[];
+    for(const op of ops){
+     if(!op)continue;
+     const old=prev.find(x=>x&&sid(x.id)===sid(op.id)&&!!x.deleted===!!op.deleted&&eq(x.data,op.data));
+     const stamp=old?pendingOpAt(before,old):pendingOpAt(after,op)||Date.now();
+     if(Number(op.__hlgb_pending_at)!==stamp){op.__hlgb_pending_at=stamp;changed=true}
+    }
+   }
+   if(changed)storePendingEnvelope(after);
+  }
   prunePendingTombstones();
   return out;
  };
- wrapped.__hlgbPendingTombstoneV1=true;wrapped.__original=oldPendingStore;window.hlgbRecordPendingStore=wrapped;
+ wrapped.__hlgbPendingTombstoneV1=true;wrapped.__hlgbPendingAgeV1=true;wrapped.__original=oldPendingStore;window.hlgbRecordPendingStore=wrapped;
 }
 const oldLoadCore=window.hlgbLoadNormalizedCore;
 if(typeof oldLoadCore==='function'&&!oldLoadCore.__hlgbPendingTombstoneV1){
@@ -310,6 +330,7 @@ if(typeof oldLoadBundle==='function'&&!oldLoadBundle.__hlgbPendingTombstoneV1){
 try{prunePendingTombstones()}catch(e){}
 window.HLGB_RECORD_INTEGRITY_GUARD='v7';
 window.HLGB_RECORD_PENDING_TOMBSTONE_GUARD='v1';
+window.HLGB_RECORD_PENDING_AGE_GUARD='v1';
 window.HLGB_LOGICAL_DUPLICATE_GUARD='v1';
 window.hlgbLogicalAutoCutTwin=logicalAutoCutTwin;
 window.hlgbLogicalProductionTwin=logicalProductionTwin;
@@ -318,5 +339,5 @@ window.hlgbRecordConflictPaths=conflictPaths;
 window.hlgbRecordStalePending=stalePending;
 window.hlgbRecordSemanticNoop=semanticNoop;
 window.hlgbFreshCutId=freshCutId;
-console.info('[HLGB] integridade de registros v7 + tombstone v1 + duplicidade lógica v1 ativa');
+console.info('[HLGB] integridade de registros v7 + tombstone/idade pendente v1 + duplicidade lógica v1 ativa');
 })();
