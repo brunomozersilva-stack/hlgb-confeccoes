@@ -6,6 +6,8 @@ const distinct={...first,id:3,createdAt:'2026-09-10T10:00:20Z',destinationId:41}
 const cap1={id:101,orderId:20,itemKey:'30',locationId:40,qty:420,date:'2026-09-11',source:'cut_assignment'};
 const capDup={...cap1,id:102};
 const capManual={id:103,orderId:20,itemKey:'30',locationId:40,qty:420,date:'2026-09-11',source:'capacity_queue_v9140',active:true};
+const capFactionA={id:104,orderId:20,itemKey:'30',locationId:null,factionId:'FA',qty:210,date:'2026-09-11',source:'cut_assignment'};
+const capFactionB={id:105,orderId:20,itemKey:'30',locationId:null,factionId:'FB',qty:210,date:'2026-09-11',source:'cut_assignment'};
 let renders=0,capRenders=0;
 const db={materialChecklists:[first],capacityAssignments:[cap1]};
 const window={
