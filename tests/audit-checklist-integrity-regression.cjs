@@ -26,11 +26,11 @@ const rendered=window.renderDestinationChecklists();
 assert.deepEqual(rendered,[1,3],'checklist renderer hides only exact equivalent duplicate');
 assert.deepEqual(db.materialChecklists.map(x=>x.id),[1,2,3],'renderer must not delete historical checklist rows');
 
-db.capacityAssignments.push(capDup,capManual);
+db.capacityAssignments.push(capDup,capManual,capFactionA,capFactionB);
 const capCanonical=window.hlgbCanonicalAutoCapacity(db.capacityAssignments);
-assert.deepEqual(capCanonical.map(x=>x.id),[101,103],'only duplicate automatic cut_assignment is consolidated; manual queue preserved');
+assert.deepEqual(capCanonical.map(x=>x.id),[101,103,104,105],'only exact automatic duplicate is consolidated; manual and distinct faction assignments are preserved');
 const capRendered=window.renderCapacityPlanning();
-assert.deepEqual(capRendered,[101,103],'capacity renderer must not double-count exact automatic duplicate');
-assert.deepEqual(db.capacityAssignments.map(x=>x.id),[101,102,103],'capacity renderer must not delete historical rows');
+assert.deepEqual(capRendered,[101,103,104,105],'capacity renderer must not merge different faction destinations');
+assert.deepEqual(db.capacityAssignments.map(x=>x.id),[101,102,103,104,105],'capacity renderer must not delete historical rows');
 assert.equal(renders,1);assert.equal(capRenders,1);assert.equal(window.HLGB_CHECKLIST_INTEGRITY_GUARD,'v2');
-console.log('PASS checklist/capacity integrity: exact automatic duplicates blocked/hidden; manual assignments and history preserved.');
+console.log('PASS checklist/capacity integrity: exact duplicates hidden; manual and distinct faction destinations preserved.');
