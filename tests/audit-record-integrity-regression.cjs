@@ -28,11 +28,29 @@ context={
  localSaveOnly(){saves++},
  window:{db:null,cloudMergeThreeWay:baseMerge,
   syncOrdersToCuts(){context.db.cuts.push({id:'cloud-cut-id',orderId:'ord-ok',productId:'prod-new',product:'350 Produto novo',pieces:350,status:'Planejado',autoOrderCutV9203:true,createdAt:new Date().toISOString()});return true},
-  hlgbRecordSaveWithRetry:async(module,id,data,deleted)=>{calls++;lastCall={module,id,data,deleted};return {applied:true,deleted_at:deleted?'2026-09-17T13:00:00Z':null,data,revision:9,updated_at:'2026-09-17T13:00:00Z'}}}
+  hlgbRecordPendingStore(){store.set('hlgb_records_pending_v91',JSON.stringify({at:Date.parse('2026-09-17T13:00:00Z'),modules:{hubFinanceEntries:[{id:'age',data:{id:'age',value:100},deleted:false}]}}));},
+  hlgbRecordSaveWithRetry:async(module,id,data,deleted)=>{calls++;lastCall={module,id,data,deleted};return {applied:true,deleted_at:deleted?'2026-09-17T13:00:00Z':null,data,revision:9,updated_at:'2026-09-17T13:00:00Z'}}
 };
-context.window.db=context.db;
+store.set('hlgb_records_pending_v91',JSON.stringify({at:Date.parse('2026-09-17T11:00:00Z'),modules:{hubFinanceEntries:[{id:'age',data:{id:'age',value:100},deleted:false}]}}));
 vm.createContext(context);vm.runInContext(src,context);
 (async()=>{
+ // Browser real: top-level let db is a lexical global and window.db does not exist.
+ assert.equal(context.window.db,undefined,'regression must not fake window.db');
+
+ // Recomputing the pending envelope must not make an old operation look new.
+ context.window.hlgbRecordPendingStore();
+ const aged=JSON.parse(store.get('hlgb_records_pending_v91'));
+ const ageOp=aged.modules.hubFinanceEntries[0];
+ assert.equal(ageOp.__hlgb_pending_at,Date.parse('2026-09-17T11:00:00Z'),'same pending operation must preserve its original queue time');
+ assert.equal(context.window.HLGB_RECORD_PENDING_AGE_GUARD,'v1');
+ context.hlgbRecordSnapshots.hubFinanceEntries.set('age',{revision:4,deleted_at:null,updated_at:'2026-09-17T12:00:00Z',data:{id:'age',value:200}});
+ context.db.hubFinanceEntries.push({id:'age',value:100});
+ let ageBlocked=false;
+ try{await context.window.hlgbRecordSaveWithRetry('hubFinanceEntries','age',{id:'age',value:100},false)}catch(e){ageBlocked=e.code==='HLGB_STALE_PENDING_BLOCK'}
+ assert(ageBlocked,'old pending operation must stay stale even after pending envelope is regenerated');
+ assert.equal(calls,0,'aged stale operation must not reach original saver');
+ store.delete('hlgb_records_pending_v91');
+
  let blocked=false;
  try{await context.window.hlgbRecordSaveWithRetry('hubFinanceEntries','70k',row,false)}catch(e){blocked=e.code==='HLGB_TOMBSTONE_BLOCK'}
  assert(blocked,'tombstone must block stale restore');
@@ -138,7 +156,7 @@ vm.createContext(context);vm.runInContext(src,context);
  const nonOverlap=context.window.cloudMergeThreeWay(base,{id:'x',value:120,note:'a'},{id:'x',value:100,note:'b'});
  assert.equal(nonOverlap.value,120);assert.equal(nonOverlap.note,'b','non-overlapping fields must still merge');
 
- assert(saves>=6,'local cleanup/no-op/rekey normalization must be persisted');
+ assert(saves>=6,'lexical-db cleanup/no-op/rekey normalization must be persisted');
  assert.equal(context.window.HLGB_RECORD_INTEGRITY_GUARD,'v7');
  console.log('PASS record integrity v7: tombstones, stale pending/conflicts, logical auto-cut/production duplicates and technical churn blocked; legitimate split/save/delete preserved.');
 })().catch(e=>{console.error(e);process.exit(1)});
