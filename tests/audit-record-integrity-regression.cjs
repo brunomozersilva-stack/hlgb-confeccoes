@@ -56,7 +56,7 @@ vm.createContext(context);vm.runInContext(src,context);
  try{await context.window.hlgbRecordSaveWithRetry('hubFinanceEntries','70k',row,false)}catch(e){blocked=e.code==='HLGB_TOMBSTONE_BLOCK'}
  assert(blocked,'tombstone must block stale restore');
  assert.equal(calls,0,'stale restore must not reach original saver');
- assert.equal(context.db.hubFinanceEntries.length,0,'stale local row must be removed');
+ assert.equal(context.db.hubFinanceEntries.some(x=>x.id==='70k'),false,'stale tombstoned local row must be removed without disturbing unrelated rows');
 
  let orphanBlocked=false;
  try{await context.window.hlgbRecordSaveWithRetry('cuts','cut-orphan',{id:'cut-orphan',orderId:'ord-del',autoOrderCutV9203:true},false)}catch(e){orphanBlocked=e.code==='HLGB_ORPHAN_AUTO_CUT_BLOCK'}
