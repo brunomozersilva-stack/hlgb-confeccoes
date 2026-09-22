@@ -3,16 +3,17 @@ const vm=require('node:vm');
 const assert=require('node:assert/strict');
 const src=fs.readFileSync('release-ui-stability.js','utf8');
 
-let now=1000, seq=0;
+let now=1000, seq=0,editing=false,modalOpen=false;
 const timers=new Map();
 function setTimeoutMock(fn,ms){const id=++seq;timers.set(id,{fn,ms});return id}
 function clearTimeoutMock(id){timers.delete(id)}
+function runOneTimer(){
+  const x=timers.entries().next().value;if(!x)return false;
+  const [id,t]=x;timers.delete(id);t.fn();return true;
+}
 function flushTimers(limit=100){
   let n=0;
-  while(timers.size&&n++<limit){
-    const [id,t]=timers.entries().next().value;
-    timers.delete(id);t.fn();
-  }
+  while(timers.size&&n++<limit)runOneTimer();
   assert(n<limit,'timer loop did not settle');
 }
 const root={
@@ -25,7 +26,7 @@ const document={
   activeElement:null,
   querySelector(sel){
     if(sel==='.page.active')return root;
-    if(sel==='#modal.show')return null;
+    if(sel==='#modal.show')return modalOpen?{}:null;
     return null;
   },
   getElementById(){return null},
@@ -60,7 +61,7 @@ const ctx=vm.createContext({
   setTimeout:setTimeoutMock,clearTimeout:clearTimeoutMock,
   setInterval(){return 1},clearInterval(){},
   requestAnimationFrame(fn){fn()},
-  cloudUserIsEditing(){return false},
+  cloudUserIsEditing(){return editing},
   cloudRemoteUpdatePending:false
 });
 vm.runInContext(src,ctx);
@@ -97,4 +98,19 @@ assert.equal(capacityRenders,1,'capacity repeated redraws must collapse to one s
 assert.equal(window.scrollY,410,'capacity redraw must preserve window scroll');
 assert.equal(root.scrollTop,210,'capacity redraw must preserve active page scroll');
 
-console.log('PASS UI stability: remote redraw bursts collapse for production/capacity, hidden-page redraw is skipped, manual redraw immediate, scroll preserved.');
+// Remote redraws must wait while the user is editing or a modal is open, then flush once.
+now=16000;root.id='producao';editing=true;window.hlgbUiStabilityMarkRemote();window.renderProduction();
+assert.equal(renders,2,'editing must prevent immediate remote redraw');
+assert(runOneTimer(),'queued edit timer must exist');
+assert.equal(renders,2,'queued redraw must stay deferred while editing');
+assert.deepEqual(Array.from(window.hlgbUiStabilityPending()),['renderProduction']);
+editing=false;flushTimers();
+assert.equal(renders,3,'deferred remote redraw must execute after editing ends');
+
+now=20000;modalOpen=true;window.hlgbUiStabilityMarkRemote();window.renderProduction();
+assert(runOneTimer(),'queued modal timer must exist');
+assert.equal(renders,3,'open modal must keep remote redraw deferred');
+modalOpen=false;flushTimers();
+assert.equal(renders,4,'queued redraw must execute after modal closes');
+
+console.log('PASS UI stability: bursts collapse, hidden redraws skip, manual redraws stay immediate, scroll survives and edit/modal deferral flushes safely.');
