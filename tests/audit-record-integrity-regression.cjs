@@ -68,6 +68,7 @@ vm.createContext(context);vm.runInContext(src,context);
  const cutDup=await context.window.hlgbRecordSaveWithRetry('cuts','dup-new',context.db.cuts[0],false);
  assert(cutDup.hlgbLogicalDuplicate&&cutDup.hlgbDuplicateKind==='auto-cut-order','second automatic cut for an order with an active final/auto cut must be blocked logically');
  assert.equal(cutDup.hlgbTwinId,'final-existing');
+ assert.equal(cutDup.applied,false,'blocked auto-cut duplicate must not masquerade as a confirmed cloud save');
  assert.equal(calls,0,'logical auto-cut duplicate must not reach Supabase saver');
  assert.equal(context.db.cuts.some(x=>x.id==='dup-new'),false,'blocked duplicate auto cut must be removed locally');
 
@@ -75,6 +76,7 @@ vm.createContext(context);vm.runInContext(src,context);
  const prodDup=await context.window.hlgbRecordSaveWithRetry('production','prod-new',context.db.production[0],false);
  assert(prodDup.hlgbLogicalDuplicate&&prodDup.hlgbDuplicateKind==='production-cut-key','second free automatic production row for the same cut/model must be blocked');
  assert.equal(prodDup.hlgbTwinId,'prod-existing');
+ assert.equal(prodDup.applied,false,'blocked production duplicate must not masquerade as a confirmed cloud save');
  assert.equal(calls,0,'logical production duplicate must not reach Supabase saver');
  assert.equal(context.db.production.length,0,'blocked duplicate production row must be removed locally');
  assert.equal(context.window.hlgbLogicalProductionTwin('split-ok',{id:'split-ok',cutId:'cut-75',orderId:'ord-75',productId:'prod-a',cutProductKey:'cut-75:prod-a',planned:300,done:0,stage:'Aguardando produção',assignmentSource:true,productionLocationId:'LOC-2',factionId:null}),null,'legitimate assigned split production must not be treated as an automatic free-row duplicate');

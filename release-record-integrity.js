@@ -92,7 +92,7 @@ function logicalProductionTwin(id,data){
  return null;
 }
 function blockedDuplicateResult(data,twin,kind){
- return {applied:true,data:clone(data),deleted_at:null,revision:+twin?.snapshot?.revision||1,updated_at:twin?.snapshot?.updated_at||new Date().toISOString(),updated_by:twin?.snapshot?.updated_by||null,hlgbLogicalDuplicate:true,hlgbDuplicateKind:kind,hlgbTwinId:sid(twin?.id)};
+ return {applied:false,reason:'logical-duplicate-blocked',data:clone(data),deleted_at:null,revision:+twin?.snapshot?.revision||1,updated_at:twin?.snapshot?.updated_at||new Date().toISOString(),updated_by:twin?.snapshot?.updated_by||null,hlgbLogicalDuplicate:true,hlgbDuplicateKind:kind,hlgbTwinId:sid(twin?.id)};
 }
 function withDeleteMarker(data){
  const base=(data&&typeof data==='object'&&!Array.isArray(data))?{...data}:{};
