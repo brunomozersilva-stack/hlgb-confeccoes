@@ -230,6 +230,28 @@ if(typeof oldMerge==='function'&&!oldMerge.__hlgbConflictGuardV7){
  safeMerge.__hlgbConflictGuardV3=true;safeMerge.__hlgbConflictGuardV4=true;safeMerge.__hlgbConflictGuardV5=true;safeMerge.__hlgbConflictGuardV6=true;safeMerge.__hlgbConflictGuardV7=true;safeMerge.__original=oldMerge;window.cloudMergeThreeWay=safeMerge;
 }
 
+// A exclusão pode chegar na resposta de conflito, depois da checagem local.
+// Intercepte antes de o salvador legado mesclar e repetir com a nova revisão.
+const oldRpcSave=window.hlgbRecordRpcSave;
+if(typeof oldRpcSave==='function'&&!oldRpcSave.__hlgbRemoteTombstoneGuardV1){
+ const guardedRpc=async function(module,id,data,expectedRevision,deleted=false){
+  const out=await oldRpcSave.apply(this,arguments);
+  if(!deleted&&!explicitRestore(data)&&out?.deleted_at){
+   const map=hlgbRecordSnapshots[module]||new Map(),current=map.get(sid(id));
+   if(!current||(+current.revision||0)<=(+out.revision||0)){
+    map.set(sid(id),{data:clone(out.data),deleted_at:out.deleted_at,revision:+out.revision||1,updated_at:out.updated_at||'',updated_by:out.updated_by||null});
+    hlgbRecordSnapshots[module]=map;
+    removeLocal(module,id);prunePendingTombstones();
+   }
+   const err=new Error('Registro excluído por outra sessão. A tentativa de restauração automática foi bloqueada. Atualize a tela.');
+   err.code='HLGB_TOMBSTONE_BLOCK';throw err;
+  }
+  return out;
+ };
+ guardedRpc.__hlgbRemoteTombstoneGuardV1=true;guardedRpc.__original=oldRpcSave;
+ window.hlgbRecordRpcSave=guardedRpc;
+}
+
 const original=window.hlgbRecordSaveWithRetry;
 if(typeof original==='function'&&!original.__hlgbRecordIntegrityV7){
  const wrapped=async function(module,id,data,deleted=false){
