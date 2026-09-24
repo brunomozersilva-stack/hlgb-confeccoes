@@ -30,6 +30,7 @@ jobs:
             tests/audit-notes-alias-regression.cjs \
             tests/audit-note-integrity-regression.cjs \
             tests/audit-record-integrity-regression.cjs \
+            tests/audit-remote-tombstone-regression.cjs \
             tests/audit-record-loading-regression.cjs \
             tests/audit-payroll-integrity-regression.cjs \
             tests/audit-checklist-integrity-regression.cjs \
