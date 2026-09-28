@@ -1993,6 +1993,18 @@ function cloudUserIsEditing(){
  if(ae&&["INPUT","TEXTAREA","SELECT"].includes(ae.tagName))return true;
  return !!document.querySelector("#modal.show");
 }
+function cloudApplyLegacySnapshot(payload){
+ const next=cloudClone(payload||{});
+ // Os módulos migrados pertencem ao salvamento por registro. Nem durante um
+ // await o JSON legado pode substituir seus objetos atuais ou edições pendentes.
+ if(typeof hlgbRecordReady!=='undefined'&&hlgbRecordReady){
+   for(const module of HLGB_RECORD_MODULES){
+     if(Object.prototype.hasOwnProperty.call(db,module))next[module]=db[module];
+     else delete next[module];
+   }
+ }
+ db=next;
+}
 async function cloudPullRemoteIfNewer(force=false){
  if(cloudPulling||cloudSaving||!cloudAccessToken||!cloudReady||!cloudRowId)return false;
  // Logs de navegação/sessão não podem bloquear a chegada de dados operacionais de
@@ -2009,7 +2021,7 @@ async function cloudPullRemoteIfNewer(force=false){
   if(!remote.dados||typeof remote.dados!=="object")return false;
   // Atualiza a base em memória imediatamente. Se a pessoa estiver digitando,
   // preserva o formulário aberto e adia apenas o redesenho visual.
-  cloudApplying=true;db=cloudClone(remote.dados);cloudApplying=false;
+  cloudApplying=true;cloudApplyLegacySnapshot(remote.dados);cloudApplying=false;
   cloudVersion=rv;cloudBaseSnapshot=cloudClone(remote.dados);cloudDirty=false;cloudMarkLocalDirty(false);cloudLastSavedAt=Date.now();
   try{await ensureCloudUserAccessOnline()}catch(e){console.warn(e)}
   try{localSaveOnly()}catch(e){}
@@ -2463,7 +2475,7 @@ async function cloudSaveNow(showMessage=false){
    if(current?.dados&&remoteVersion>cloudVersion){
      const localPayload=cloudPayload(current.dados);
      const merged=cloudMergeThreeWay(cloudBaseSnapshot||{},localPayload,current.dados);
-     cloudApplying=true;db=merged;cloudApplying=false;
+     cloudApplying=true;cloudApplyLegacySnapshot(merged);cloudApplying=false;
      cloudVersion=remoteVersion;cloudBaseSnapshot=cloudClone(current.dados);
      try{await ensureCloudUserAccessOnline()}catch(e){}
      try{localSaveOnly()}catch(e){}
@@ -2494,7 +2506,7 @@ async function cloudSaveNow(showMessage=false){
      if(!current)break;
      const localPayload=cloudPayload(current?.dados||cloudBaseSnapshot||null);
      const merged=cloudMergeThreeWay(cloudBaseSnapshot||{},localPayload,current.dados||{});
-     cloudApplying=true;db=merged;cloudApplying=false;
+     cloudApplying=true;cloudApplyLegacySnapshot(merged);cloudApplying=false;
      cloudVersion=+(current.versao||cloudVersion);cloudBaseSnapshot=cloudClone(current.dados||{});
      try{await ensureCloudUserAccessOnline()}catch(e){}
      try{localSaveOnly()}catch(e){}
@@ -6553,6 +6565,12 @@ function openProductionDestination(id){
     <div class="sub">Defeitos e faltas lançados aqui entram automaticamente em <b>Faltas e defeitos</b>. Se o destino for uma facção, o envio também é sincronizado na aba Facções.</div>
     <button type="button" class="primary modalSave">💾 Salvar destino</button>
   `,()=>{
+    const current=(db.production||[]).find(x=>String(x.id)===String(id));
+    const fields=['planned','done','stage','productionLocationId','factionId','assignedAt','sentToFactionAt','factionDueDate','defects','missingQty','finishedAt','productionCompletedAt'];
+    if(!current||fields.some(key=>String(current[key]??'')!==String(p[key]??''))){
+      alert("A produção foi alterada por outra sessão. Feche a janela e confira o estado atual antes de continuar.");return;
+    }
+    p=current;
     let v=document.getElementById("prodDestination")?.value||"";
     let oldFactionId=p.factionId||null;
 
@@ -6563,6 +6581,9 @@ function openProductionDestination(id){
 
     p.stage=document.getElementById("prodStage")?.value||"Aguardando produção";
     p.sentToFactionAt=document.getElementById("prodSentDate")?.value||isoDate(new Date());
+    // Somente esta confirmação explícita registra atribuição operacional.
+    // A simples carga/propagação de um local legado não altera assignedAt.
+    if((p.productionLocationId||p.factionId)&&["Em produção","Acabamento","Pronto"].includes(p.stage)&&!p.assignedAt)p.assignedAt=p.sentToFactionAt;
     p.factionDueDate=document.getElementById("prodDueDate")?.value||"";
     p.defects=Math.max(0,+document.getElementById("prodDefects")?.value||0);
     p.missingQty=Math.max(0,+document.getElementById("prodMissing")?.value||0);
@@ -6579,6 +6600,7 @@ function openProductionDestination(id){
     closeModal();
     save();
     renderProduction();
+    renderProductionHub();
     renderFactions();
   });
 }
@@ -12932,6 +12954,13 @@ function openCutAssignment(productionId){
     ${eligible.length?'':'<div class="panel"><span class="badge bad">Nenhum local está cadastrado para o tipo identificado. Ajuste o tipo de serviço ou o cadastro do local.</span></div>'}
     <div id="assignTargetPreview"></div>
     <button type="button" class="primary modalSave">Confirmar atribuição</button>`,()=>{
+      const current=(db.production||[]).find(x=>String(x.id)===String(productionId));
+      if(!current){alert("Esta produção não está mais disponível. Feche a janela e atualize a tela.");return}
+      const assignmentFields=['planned','done','stage','productionLocationId','factionId','assignedAt','finishedAt'];
+      if(assignmentFields.some(key=>String(current[key]??'')!==String(p[key]??''))){alert("A produção foi alterada por outra sessão. Feche a janela e confira a atribuição atual antes de continuar.");return}
+      // Realtime pode substituir o objeto sem fechar o modal. A ação explícita
+      // deve atingir a linha atual, preservando campos remotos não relacionados.
+      p=current;
       let qty=Math.max(0,+document.getElementById("assignQty")?.value||0),serviceNow=document.getElementById("assignService")?.value||"",raw=document.getElementById("assignDestination")?.value||"";
       if(qty<=0||qty>(+p.planned||0)){alert("Informe uma quantidade válida.");return}
       let [type,id]=raw.split(":"),dest=hlgb916EligibleDestinations(serviceNow).find(d=>d.type===type&&+d.id===+id);
@@ -12952,6 +12981,8 @@ function openCutAssignment(productionId){
       if(o&&projDate){let its=projectionItemsForOrder(o);if(key&&its.some(i=>String(i.key)===key))saveProjectionItemDate(o,key,projDate);else its.forEach(i=>saveProjectionItemDate(o,i.key,projDate));o.status="Pedido em produção";}
       if(o&&dest.locationId){db.capacityAssignments.push({id:Date.now()+Math.floor(Math.random()*99999),orderId:o.id,itemKey:key||projectionItemsForOrder(o)[0]?.key||"legacy",locationId:dest.locationId,qty,date:assigned.assignedWeekStart,source:"cut_assignment"});}
       hlgb916CreateMaterialChecklist(assigned,dest,rate,serviceNow);
+      const gradeReceipt=document.querySelector('#modal .modalSave')?.__hlgbAssignmentReceipt;
+      if(gradeReceipt)Object.assign(gradeReceipt,{confirmed:true,id:String(assigned.id),stage:assigned.stage,assignedAt:assigned.assignedAt,location:assigned.productionLocationId,faction:assigned.factionId});
       closeModal();save();renderCuts();renderProduction();renderCutAssignmentQueue();renderDestinationChecklists();renderProjection();renderFactions();renderFactionPaymentPlanner();
     });
   setTimeout(updateCutAssignmentPreview,30);
@@ -14989,11 +15020,14 @@ function hubFinanceManualSync(){alert("O botão de sincronização está prepara
     try{localSaveOnly()}catch(e){}
     if(typeof hlgbRecordSaveWithRetry==='function'&&cloudAccessToken){for(const row of unique){let out=await hlgbRecordSaveWithRetry('production',String(row.id),c938(row),false);if(!out||out.applied!==true)throw new Error('produção não confirmada')}}
   }
-  function applyPostGrade938(kind,pid,beforeIds,grade,originalGrade){
+  function applyPostGrade938(kind,pid,beforeIds,grade,originalGrade,receipt){
     if(!grade?.length)return;setTimeout(async()=>{try{
       let p=(db.production||[]).find(x=>+x.id===+pid),rows=[];
       if(kind==='assign'){
-        let created=(db.production||[]).filter(x=>!beforeIds.has(String(x.id))&&+x.parentProductionId===+pid).sort((a,b)=>+b.id-+a.id)[0],assigned=created||p;if(!assigned||(!created&&!assigned.productionLocationId&&!assigned.factionId))return;assigned.assignedGrade=mergeGrade938(grade);assigned.gradeAllocationMode='grade';assigned.gradeAllocatedAt=new Date().toISOString();rows.push(assigned);
+        if(!receipt?.confirmed)return;
+        const current=(db.production||[]).find(x=>String(x.id)===receipt.id);
+        if(!current||current.stage!==receipt.stage||current.assignedAt!==receipt.assignedAt||current.productionLocationId!==receipt.location||current.factionId!==receipt.faction)return;
+        let created=String(current.id)!==String(pid)?current:null,assigned=current;if(!assigned.productionLocationId&&!assigned.factionId)return;assigned.assignedGrade=mergeGrade938(grade);assigned.gradeAllocationMode='grade';assigned.gradeAllocatedAt=new Date().toISOString();rows.push(assigned);
         if(created&&p){p.remainingGrade=subtractGrade938(originalGrade,grade);p.gradeAllocationMode='grade';rows.push(p)}
       }else{
         let created=(db.production||[]).filter(x=>!beforeIds.has(String(x.id))&&+x.splitFromId===+pid).sort((a,b)=>+b.id-+a.id)[0];if(!created||!p)return;created.assignedGrade=mergeGrade938(grade);created.gradeAllocationMode='grade';created.gradeAllocatedAt=new Date().toISOString();p.assignedGrade=subtractGrade938(originalGrade,grade);p.gradeAllocationMode='grade';rows.push(p,created);
@@ -15004,7 +15038,7 @@ function hubFinanceManualSync(){alert("O botão de sincronização está prepara
   const oldCutAssignment938=window.openCutAssignment;
   window.openCutAssignment=function(id){
     let p=(db.production||[]).find(x=>+x.id===+id),before=new Set((db.production||[]).map(x=>String(x.id))),orig=availableGradeForProduction938(p),r=oldCutAssignment938?oldCutAssignment938.apply(this,arguments):undefined;
-    setTimeout(()=>{let btn=document.querySelector('#modal .modalSave'),target=document.getElementById('assignTargetPreview');if(!btn||!target||document.getElementById('assignUseGrade938'))return;target.insertAdjacentHTML('beforebegin',gradePanel938('assign',p,'assignQty'));btn.addEventListener('click',()=>{if(!document.getElementById('assignUseGrade938')?.checked)return;let raw=document.getElementById('assignDestination')?.value||'',service=document.getElementById('assignService')?.value||'',dest=(typeof hlgb916EligibleDestinations==='function'?hlgb916EligibleDestinations(service):[]).find(d=>`${d.type}:${d.id}`===raw),qty=q938(document.getElementById('assignQty')?.value),rate=q938(document.getElementById('assignFactionPrice')?.value);if(!dest||qty<=0||qty>q938(p?.planned)||(dest.type==='F'&&rate<=0))return;let g=readGradeSplit938('assign');if(!g.length||gradeTotal938(g)!==qty)return;applyPostGrade938('assign',id,before,g,orig)},true)},20);return r;
+    setTimeout(()=>{let btn=document.querySelector('#modal .modalSave'),target=document.getElementById('assignTargetPreview');if(!btn||!target||document.getElementById('assignUseGrade938'))return;target.insertAdjacentHTML('beforebegin',gradePanel938('assign',p,'assignQty'));btn.addEventListener('click',()=>{if(!document.getElementById('assignUseGrade938')?.checked)return;let raw=document.getElementById('assignDestination')?.value||'',service=document.getElementById('assignService')?.value||'',dest=(typeof hlgb916EligibleDestinations==='function'?hlgb916EligibleDestinations(service):[]).find(d=>`${d.type}:${d.id}`===raw),qty=q938(document.getElementById('assignQty')?.value),rate=q938(document.getElementById('assignFactionPrice')?.value);if(!dest||qty<=0||qty>q938(p?.planned)||(dest.type==='F'&&rate<=0))return;let g=readGradeSplit938('assign');if(!g.length||gradeTotal938(g)!==qty)return;const receipt={confirmed:false};btn.__hlgbAssignmentReceipt=receipt;applyPostGrade938('assign',id,before,g,orig,receipt)},true)},20);return r;
   };
   const oldSplit938=window.splitProduction;
   window.splitProduction=function(id){
@@ -15423,6 +15457,36 @@ const oldRenderSep941=window.renderSeparation;window.renderSeparation=function()
 function sourceCandidates941(o,item){let key=String(item.key||item.productId||''),out=[];(db.capacityAssignments||[]).filter(a=>+a.orderId===+o.id&&String(a.itemKey)===key&&a.active!==false&&+a.locationId&&q941(a.qty)>0).forEach(a=>{let l=loc941(a.locationId);if(l)out.push({locationId:l.id,name:l.name,planned:q941(a.qty)})});(db.production||[]).filter(p=>+p.orderId===+o.id&&p.productionLocationId&&!p.factionId&&(String(p.productId||'')===key||String(p.cutProductKey||'').split(':').pop()===key)).forEach(p=>{let l=loc941(p.productionLocationId);if(l)out.push({locationId:l.id,name:l.name,planned:q941(p.planned)})});let m=new Map();out.forEach(x=>{let y=m.get(String(x.locationId));if(y)y.planned=Math.max(y.planned,x.planned);else m.set(String(x.locationId),x)});return [...m.values()]}
 function selectedContexts941(){return [...document.querySelectorAll('.projectionSelect:checked')].map(v=>{let [oid,key]=String(v.value).split('::'),o=ord941(oid),item=o&&items941(o).find(i=>String(i.key)===String(key));return o&&item?{o,item}:null}).filter(Boolean)}
 async function createOnlyMissing941(contexts){db.missingPieces=Array.isArray(db.missingPieces)?db.missingPieces:[];for(let i=0;i<contexts.length;i++){let q=Math.floor(q941(document.querySelector(`.missingQty940[data-i="${i}"]`)?.value));if(!q)continue;let ctx=contexts[i],note=document.querySelector(`.missingNote940[data-i="${i}"]`)?.value?.trim()||'A localizar nas confecções',unit=ctx.item.qty?q941(ctx.item.value)/q941(ctx.item.qty):q941(prod941(ctx.item.productId)?.price),row={id:id941(),sourceKey:`projection-missing:${ctx.o.id}:${ctx.item.productId||ctx.item.key}:${Date.now()}`,sourceType:'Projeção / falta',orderId:ctx.o.id,client:ctx.item.clientName||ctx.o.client||'',clientId:ctx.item.clientId||ctx.o.clientId||null,productId:ctx.item.productId||null,product:ctx.item.name||'Produto',issueType:'Peça faltante',originalQty:q,remainingQty:q,recoveredQty:0,date:isoDate(new Date()),deliveryDate:ctx.item.date||ctx.o.date||'',unitPrice:unit,unitCost:0,note,status:'Em aberto',history:[{date:isoDate(new Date()),qty:q,note:'Falta registrada sem contabilizar como entrega'}]};row=await save941('missingPieces',row);db.missingPieces.push(row)}try{localSaveOnly()}catch(e){}closeModal();try{renderMissingPieces();renderProjection()}catch(e){}alert('Falta registrada. Essas peças NÃO foram contabilizadas como entrega e continuarão em aberto até serem abatidas.')}
+// Registro direto de falta: independente da criação de notas.
+window.openProjectionMissing941=function(){
+ const selected=selectedContexts941();
+ if(selected.length!==1){alert('Selecione somente um produto para registrar a falta.');return}
+ const oid=selected[0].o.id,key=String(selected[0].item.key);
+ const current=()=>{const o=ord941(oid),item=o&&items941(o).find(x=>String(x.key)===key);return o&&item?{o,item}:null};
+ const existing=()=> (db.missingPieces||[]).find(m=>!m.deletedAt&&String(m.orderId)===String(oid)&&String(m.productId||m.itemKey)===String(selected[0].item.productId||key)&&q941(m.remainingQty)>0);
+ const ctx=current(),available=ctx&&q941(ctx.item.remainingQty??ctx.item.qty);
+ if(!available||existing()){alert('Este produto já possui falta em aberto ou não tem saldo. Confira Peças faltantes.');return}
+ const rowId=id941(); // ID numérico compatível com os controles existentes; reutilizado em retries deste modal.
+ let busy=false,completed=false;
+ openModal('Registrar falta da Projeção',`<p><b>Pedido #${esc(typeof displayOrderNumber==='function'?displayOrderNumber(ctx.o):oid)}</b> · ${esc(ctx.o.client||'')}<br>${esc(ctx.item.name)}</p><p>Saldo não faturado: <b>${available} peça(s)</b>.</p><div class="field"><label>Quantidade em falta</label><input id="projectionMissingQty941" type="number" min="1" max="${available}" step="1" value="${available}"></div><div class="field"><label>Observação</label><input id="projectionMissingNote941" placeholder="Onde procurar as peças"></div><p>A falta será acompanhada em Peças faltantes. Nenhuma nota ou cobrança será gerada.</p><button type="button" class="primary modalSave">☁️ Registrar somente falta</button>`,async()=>{
+  if(busy||completed)return;
+  const fresh=current(),amount=Number(document.getElementById('projectionMissingQty941')?.value);
+  if(!fresh||existing()||q941(fresh.item.invoicedQty)!==q941(ctx.item.invoicedQty)||q941(fresh.item.remainingQty??fresh.item.qty)!==available){alert('O saldo mudou. Feche a janela e confira a Projeção antes de continuar.');return}
+  if(!Number.isInteger(amount)||amount<1||amount>available){alert('Informe uma quantidade inteira entre 1 e '+available+'.');return}
+  if(typeof hlgbRecordSaveWithRetry!=='function'||!cloudAccessToken){alert('Conecte-se à nuvem antes de registrar a falta.');return}
+  busy=true;const btn=document.querySelector('#modal .modalSave');if(btn)btn.disabled=true;
+  const date=isoDate(new Date()),note=document.getElementById('projectionMissingNote941')?.value?.trim()||'A localizar nas confecções';
+  const row={id:rowId,sourceKey:rowId,sourceType:'Projeção / falta',orderId:fresh.o.id,itemKey:key,client:fresh.item.clientName||fresh.o.client||'',clientId:fresh.item.clientId||fresh.o.clientId||null,productId:fresh.item.productId||null,product:fresh.item.name||'Produto',issueType:'Peça faltante',originalQty:amount,remainingQty:amount,recoveredQty:0,date,deliveryDate:fresh.item.date||fresh.o.date||'',unitPrice:fresh.item.qty?q941(fresh.item.value)/q941(fresh.item.qty):0,unitCost:0,note,status:'Em aberto',history:[{date,qty:amount,note:'Falta registrada sem contabilizar como entrega'}]};
+  try{
+   const saved=await save941('missingPieces',row);
+   db.missingPieces=Array.isArray(db.missingPieces)?db.missingPieces:[];
+   const index=db.missingPieces.findIndex(m=>String(m.id)===String(rowId));
+   if(index>=0)db.missingPieces[index]=saved;else db.missingPieces.push(saved);
+   completed=true;try{localSaveOnly()}catch(e){}closeModal();renderMissingPieces();renderProjection();
+  }catch(e){alert('Não foi possível confirmar a falta: '+String(e.message||e));}
+  finally{busy=false;if(btn)btn.disabled=false}
+ });
+};
 const oldFinalize941=window.finalizeSelectedProjection;
 window.finalizeSelectedProjection=function(){let contexts=selectedContexts941(),before=new Set((db.projectionInvoices||[]).map(x=>String(x.id))),r=oldFinalize941?oldFinalize941.apply(this,arguments):undefined;setTimeout(()=>{let modal=document.querySelector('#modal .modalbox'),btn=modal?.querySelector('.modalSave');if(!modal||!btn||document.getElementById('projectionSources941')||!contexts.length)return;let box=document.createElement('div');box.id='projectionSources941';box.className='panel';box.innerHTML=`<h3>🏭 Qual confecção entregou cada parte?</h3><div class="sub">Quando o produto foi dividido no Planejamento de capacidade, informe aqui quanto saiu de cada confecção. A soma deve ser igual à quantidade realmente entregue na nota, sem contar as faltas.</div>${contexts.map((ctx,i)=>{let cs=sourceCandidates941(ctx.o,ctx.item);if(!cs.length)return `<div class="source941-row"><b>${esc(ctx.item.name)}</b><span class="sub">Sem divisão de produção cadastrada</span><span>-</span><span>-</span></div>`;return cs.map((s,j)=>`<div class="source941-row"><div><b>${esc(ctx.item.name)}</b><div class="sub">Pedido #${esc(typeof displayOrderNumber==='function'?displayOrderNumber(ctx.o):ctx.o.id)}</div></div><div><b>${esc(s.name)}</b><div class="sub">Planejado: ${s.planned.toLocaleString('pt-BR')} pç</div></div><div><label class="sub">Entregou agora</label><input class="sourceQty941" data-i="${i}" data-loc="${s.locationId}" data-name="${esc(s.name)}" type="number" min="0" step="1" value="0"></div><span class="badge">Origem</span></div>`).join('')}).join('')}`;btn.parentNode.insertBefore(box,btn);btn.addEventListener('click',function(ev){let onlyMissing=true,invalid='';contexts.forEach((ctx,i)=>{let mode=document.querySelector(`.projectionInvoiceMode[data-index="${i}"]`)?.value||'quantity',qty=mode==='grade'?[...document.querySelectorAll(`.projGradeQty930[data-index="${i}"]`)].reduce((s,x)=>s+q941(x.value),0):q941(document.querySelector(`.projectionInvoiceQty[data-index="${i}"]`)?.value),miss=q941(document.querySelector(`.missingQty940[data-i="${i}"]`)?.value);if(miss>qty){invalid=`${ctx.item.name}: a falta não pode ser maior que a quantidade selecionada.`;return}if(mode==='grade'&&miss>0){invalid=`${ctx.item.name}: para registrar falta, use a baixa por quantidade nesta nota.`;return}let delivered=Math.max(0,qty-miss);if(delivered>0)onlyMissing=false;if(mode==='quantity'){let inp=document.querySelector(`.projectionInvoiceQty[data-index="${i}"]`);if(inp)inp.value=delivered}let cs=sourceCandidates941(ctx.o,ctx.item),src=[...document.querySelectorAll(`.sourceQty941[data-i="${i}"]`)],sum=src.reduce((s,x)=>s+q941(x.value),0);if(delivered>0&&cs.length>1&&Math.abs(sum-delivered)>.0001)invalid=`${ctx.item.name}: informe quanto cada confecção entregou. A soma deve dar ${delivered} peça(s).`;if(delivered>0&&cs.length===1&&src[0]&&sum===0)src[0].value=delivered});if(invalid){ev.preventDefault();ev.stopImmediatePropagation();alert(invalid);return}if(onlyMissing){ev.preventDefault();ev.stopImmediatePropagation();createOnlyMissing941(contexts).catch(e=>alert(e.message||'Não foi possível registrar a falta.'));return}setTimeout(async()=>{let inv=(db.projectionInvoices||[]).find(x=>!before.has(String(x.id)));if(!inv)return;let changed=false;(inv.items||[]).forEach(async it=>{let i=contexts.findIndex(c=>+c.o.id===+it.orderId&&String(c.item.key)===String(it.itemKey));if(i<0)return;let src=[...document.querySelectorAll(`.sourceQty941[data-i="${i}"]`)].map(x=>({locationId:+x.dataset.loc,locationName:x.dataset.name,qty:q941(x.value)})).filter(x=>x.qty>0);if(src.length){it.productionSources=src;it.sourceLocationsText=src.map(s=>`${s.locationName}: ${s.qty}`).join(' · ');changed=true;let o=contexts[i].o,saved=o.projectionItems?.[contexts[i].item.key],hist=saved?.deliveryHistory;if(Array.isArray(hist)){let h=hist.slice().reverse().find(x=>String(x.invoiceId)===String(inv.id));if(h)h.productionSources=src}try{await save941('orders',o)}catch(e){console.error(e)}}});if(changed)try{await save941('projectionInvoices',inv)}catch(e){console.error(e)}},180)},true)},70);return r};
 
@@ -15833,36 +15897,9 @@ async function authoritative948(render=true){
 }
 window.hlgb948AuthoritativeRefresh=authoritative948;
 
-const oldPull948=window.cloudPullRemoteIfNewer;
-if(typeof oldPull948==='function'){
-  window.cloudPullRemoteIfNewer=async function(){
-    const keep=keepRecords948();
-    let out;
-    try{out=await oldPull948.apply(this,arguments)}finally{
-      restoreRecords948(keep);
-      try{localSaveOnly()}catch(e){}
-    }
-    if(out){
-      try{await authoritative948(true)}catch(e){console.error('HLGB v91.48 authoritative pull',e);restoreRecords948(keep);try{localSaveOnly()}catch(_){}}
-    }
-    return out;
-  };
-}
-const oldSave948=window.cloudSaveNow;
-if(typeof oldSave948==='function'){
-  window.cloudSaveNow=async function(){
-    const keep=keepRecords948();
-    let out;
-    try{out=await oldSave948.apply(this,arguments)}finally{
-      restoreRecords948(keep);
-      try{localSaveOnly()}catch(e){}
-    }
-    if(typeof hlgbRecordReady!=='undefined'&&hlgbRecordReady){
-      try{await authoritative948(false)}catch(e){console.warn('HLGB v91.48 post legacy save refresh',e);restoreRecords948(keep)}
-    }
-    return out;
-  };
-}
+// O isolamento agora acontece no instante da aplicação do JSON legado.
+// Restaurar uma cópia capturada antes de await descartaria edições concorrentes;
+// recarregar todos os módulos após salvar configuração também apagaria pendências.
 
 async function ensureReady948(){
   if(typeof cloudEnsureFreshSession==='function')await cloudEnsureFreshSession(false);
@@ -17036,7 +17073,7 @@ function trackingRows9173(){let rows=[];(db.cuts||[]).filter(c=>norm9173(c.statu
 function renderTracking9173(){let page=document.getElementById('corte');if(!page)return;let panel=document.getElementById('cutTracking9173');if(!panel){panel=document.createElement('div');panel.id='cutTracking9173';panel.className='panel';let anchor=document.getElementById('cutAssignmentQueue')?.closest('.panel');if(anchor)anchor.insertAdjacentElement('afterend',panel);else page.appendChild(panel)}let previous=document.getElementById('cutTrackSearch9173')?.value||'';let rows=trackingRows9173();panel.innerHTML=`<div class="toolbar" style="justify-content:space-between"><div><h2>🔎 Onde estão os cortes finalizados</h2><div class="sub">Aqui o corte continua visível depois de receber um destino. Assim você sabe se ainda aguarda local ou para onde foi enviado.</div></div><div class="field"><label>Buscar modelo, pedido ou local</label><input id="cutTrackSearch9173" value="${esc(previous)}" placeholder="Ex.: Gabrielle" oninput="filterCutTracking9173()"></div></div><div id="cutTrackRows9173"></div>`;window.__cutTrackRows9173=rows;filterCutTracking9173()}
 window.filterCutTracking9173=function(){let q=norm9173(document.getElementById('cutTrackSearch9173')?.value||''),box=document.getElementById('cutTrackRows9173'),rows=(window.__cutTrackRows9173||[]).filter(({c,o,p})=>{let d=destination9173(p);return !q||norm9173([prodName9173(p,c,o),o?.client,displayOrderNumber(o||{}),d.label,d.detail].join(' ')).includes(q)});if(!box)return;box.innerHTML=rows.length?rows.map(({c,o,p})=>{let d=destination9173(p),name=prodName9173(p,c,o),pieces=qty9173(p?.planned||c.pieces);return `<div class="cut-track9173"><div><b>#${esc(displayOrderNumber(o||{id:c.orderId})||c.orderId||'-')}</b><small style="display:block">${fmtDate(c.finishedAt||c.date)}</small></div><div class="cut-track9173-model"><b>${esc(name)}</b><small>${esc(o?.client||c.client||'-')}</small></div><div><b>${pieces.toLocaleString('pt-BR')}</b> pç</div><div class="cut-track9173-place"><span class="badge ${d.cls}">${esc(d.label)}</span><small style="display:block;margin-top:4px">${esc(d.detail)}</small></div><div>${p&&!p.productionLocationId&&!p.factionId?`<button type="button" class="primary" onclick="openCutAssignment(${p.id})">Escolher local</button>`:`<button type="button" class="secondary" onclick="openProduction9173('${encodeURIComponent(name)}')">Ver em Produção</button>`}</div></div>`}).join(''):'<div class="empty">Nenhum corte finalizado encontrado.</div>'};
 window.renderCutTracking9173=renderTracking9173;
-window.openProduction9173=function(encoded){let name='';try{name=decodeURIComponent(encoded)}catch(e){};showPage('producao');setTimeout(()=>{let s=document.getElementById('productionHubSearch');if(s)s.value=name;try{renderProductionHub()}catch(e){try{renderProduction()}catch(x){}}},30)};
+window.openProduction9173=function(encoded){let name='';try{name=decodeURIComponent(encoded)}catch(e){};page('producao');setTimeout(()=>{let s=document.getElementById('productionHubSearch');if(s)s.value=name;try{renderProductionHub()}catch(e){try{renderProduction()}catch(x){}}},30)};
 async function save9173(module,row){if(typeof cloudEnsureFreshSession==='function')await cloudEnsureFreshSession(false);if(typeof hlgbRecordReady!=='undefined'&&!hlgbRecordReady&&typeof hlgbEnsureRecordsOnlineAfterLogin==='function')await hlgbEnsureRecordsOnlineAfterLogin();if(typeof hlgbRecordSaveWithRetry!=='function'||(typeof hlgbRecordReady!=='undefined'&&!hlgbRecordReady))throw new Error('A conexão por registro ainda não está pronta.');let out=await hlgbRecordSaveWithRetry(module,String(row.id),clone9173(row),false);if(!out?.applied)throw new Error('A nuvem não confirmou '+module+'.');db[module]=Array.isArray(db[module])?db[module]:[];let v=clone9173(out.data||row),i=db[module].findIndex(x=>String(x.id)===String(row.id));if(i>=0)db[module][i]=v;else db[module].push(v);try{localSaveOnly()}catch(e){};return v}
 function cutParts9173(c,o){let grade=Array.isArray(c.actualCutGrade)&&c.actualCutGrade.length?c.actualCutGrade:(Array.isArray(c.originalGrade)&&c.originalGrade.length?c.originalGrade:(o?.grade||[])),map={};grade.forEach(g=>{let id=String(g.productId||c.productId||''),key=id||'single';if(!map[key])map[key]={productId:id||null,qty:0};map[key].qty+=qty9173(g.qty)});let parts=Object.values(map);if(!parts.length)parts=[{productId:c.productId||null,qty:qty9173(c.pieces)}];return parts}
 async function retireCoveredPlannedCuts9218(finalCut){
@@ -19205,6 +19242,7 @@ window.sendProjectionToNotes9202=async function(){
 function decorateProjection(){
  let cb=document.querySelector('.projectionSelect');if(!cb)return;let panel=cb.closest('.panel')||cb.closest('section')||cb.parentElement;if(!panel)return;
  if(!panel.querySelector('.sendProjection9202')){let b=document.createElement('button');b.type='button';b.className='primary sendProjection9202';b.textContent='🧾 Enviar selecionados para Notas';b.onclick=()=>window.sendProjectionToNotes9202();panel.insertBefore(b,panel.firstChild)}
+ if(!panel.querySelector('.missingProjection941')){let b=document.createElement('button');b.type='button';b.className='secondary missingProjection941';b.textContent='⚠️ Registrar falta do selecionado';b.onclick=()=>window.openProjectionMissing941();panel.insertBefore(b,panel.firstChild)}
  panel.querySelectorAll('button').forEach(b=>{if(b.classList.contains('sendProjection9202'))return;let t=String(b.textContent||'').toLowerCase();if(t.includes('finalizar nota')||t.includes('finalizar esta nota'))b.style.display='none'});
 }
 function openRows(){return arr('noteQueue').filter(x=>x&&x.status!=='Faturado'&&q(x.remainingQty??x.qty)>0)}
@@ -19212,8 +19250,17 @@ function ensurePanel(){let anchor=document.getElementById('projectionNotes9200')
 function selectedQueue(){let keys=[...document.querySelectorAll('.nqSelect9202:checked')].map(x=>x.value);return openRows().filter(x=>keys.includes(String(x.id)))}
 function renderQueue(){
  if(!ensurePanel())return;let list=openRows(),box=document.getElementById('noteQueue9202');let rows=list.map(x=>`<tr><td><input class="nqSelect9202" type="checkbox" value="${esc2(x.id)}"></td><td><b>${esc2(x.clientName||'Sem cliente')}</b></td><td>${esc2(x.productName||'Produto')}</td><td>${q(x.remainingQty??x.qty).toLocaleString('pt-BR')}</td><td>${money2(x.unitPrice)}</td><td>${money2(q(x.remainingQty??x.qty)*q(x.unitPrice))}</td><td>${esc2(x.deliveryDate||'')}</td><td><span class="nq9202-src">${esc2(x.source||'')}</span></td></tr>`).join('');
- box.innerHTML=`<div class="nq9202-top"><div><h3 style="margin:0">Itens aguardando nota</h3><div class="nq9202-sub">Agrupe vários produtos do mesmo cliente e gere uma única nota conforme a entrega.</div></div><button type="button" class="primary" onclick="window.groupNote9202()">Criar nota agrupada</button></div>${rows?`<div style="overflow:auto;margin-top:10px"><table><thead><tr><th></th><th>Cliente</th><th>Produto</th><th>Peças</th><th>Valor/peça</th><th>Total</th><th>Entrega</th><th>Origem</th></tr></thead><tbody>${rows}</tbody></table></div>`:'<div class="empty" style="margin-top:10px">Nenhum item aguardando nota.</div>'}`;
+ const markup=`<div class="nq9202-top"><div><h3 style="margin:0">Itens aguardando nota</h3><div class="nq9202-sub">Agrupe vários produtos do mesmo cliente e gere uma única nota conforme a entrega.</div></div><button type="button" class="primary" onclick="window.groupNote9202()">Criar nota agrupada</button></div>${rows?`<div style="overflow:auto;margin-top:10px"><table><thead><tr><th></th><th>Cliente</th><th>Produto</th><th>Peças</th><th>Valor/peça</th><th>Total</th><th>Entrega</th><th>Origem</th></tr></thead><tbody>${rows}</tbody></table></div>`:'<div class="empty" style="margin-top:10px">Nenhum item aguardando nota.</div>'}`; // The legacy observer calls this closure directly, bypassing selection wrappers.
+ // Keep live controls when data did not change; restore selection on real updates.
+ if(box.__hlgbQueueMarkup===markup&&box.querySelector('.nq9202-top'))return;
+ const selected=new Set([...box.querySelectorAll('.nqSelect9202:checked')].map(cb=>String(cb.value)));
+ box.innerHTML=markup;
+ box.__hlgbQueueMarkup=markup;
+ const active=new Set(list.map(x=>String(x.id)));
+ try{window.hlgbSelectedNotes9235?.forEach(id=>{if(active.has(String(id)))selected.add(String(id))})}catch(e){}
+ box.querySelectorAll('.nqSelect9202').forEach(cb=>{cb.checked=selected.has(String(cb.value))});
 }
+
 window.groupNote9202=function(){
  let sel=selectedQueue();if(!sel.length){alert('Selecione pelo menos um item.');return}let clients=new Set(sel.map(x=>String(x.clientId||x.clientName)));if(clients.size!==1){alert('Selecione somente itens do mesmo cliente para montar uma nota.');return}
  let clientId=sel[0].clientId,clientName=sel[0].clientName||'Cliente';let rows=sel.map((x,i)=>`<tr><td>${esc2(x.productName)}</td><td><input class="gQty9202" data-i="${i}" type="number" min="0" max="${q(x.remainingQty??x.qty)}" value="${q(x.remainingQty??x.qty)}"></td><td><input class="gUnit9202" data-i="${i}" type="number" min="0" step=".01" value="${q(x.unitPrice).toFixed(2)}"></td></tr>`).join('');
@@ -20988,7 +21035,12 @@ if(typeof previousGroup9236==='function')window.groupNote9202=async function(){
 const prevRefresh9236=window.hlgbRefreshNotes9215;
 if(typeof prevRefresh9236==='function')window.hlgbRefreshNotes9215=async function(){
   const r=await prevRefresh9236.apply(this,arguments);
-  try{await loadCloudQueue9236();renderFresh9236([])}catch(e){console.warn('[HLGB 92.36] fila direta da nuvem',e)}
+  try{
+    const items=await loadCloudQueue9236();
+    const active=new Set(items.map(x=>String(x.id)));
+    const selected=[...document.querySelectorAll('.nqSelect9202:checked')].map(cb=>String(cb.value)).filter(id=>active.has(id));
+    renderFresh9236(selected);
+  }catch(e){console.warn('[HLGB 92.36] fila direta da nuvem',e)}
   return r;
 };
 function stamp9236(){try{document.title=window.hlgbReleaseTitle()}catch(e){}const v=document.querySelector('#appShell .logo small');if(v)v.textContent=window.hlgbReleaseLabel()}

@@ -1,0 +1,20 @@
+// Recovered guard adapted to the preserved Work implementation; behavioral scenarios run separately.
+const fs=require('node:fs'),assert=require('node:assert/strict');
+const html=fs.readFileSync('app9240.html','utf8');
+let a=html.indexOf('function openCutAssignment(productionId){');assert(a>=0,'openCutAssignment deve existir');
+let b=html.indexOf('// A Projeção Semanal passa a considerar',a);if(b<0)b=html.indexOf('function applyPostGrade938(',a);if(b<0)b=a+12000;
+const src=html.slice(a,b);
+assert(src.includes('const assignmentFields='),'modal deve guardar snapshot operacional ao abrir');
+assert(src.includes("const current=(db.production||[]).find(x=>String(x.id)===String(productionId))"),'confirmação deve reencontrar registro atual');
+assert(src.includes('Esta produção não está mais disponível'),'produção removida deve ser bloqueada');
+assert(src.includes('A produção foi alterada por outra sessão'),'conflito remoto deve ser bloqueado');
+assert(src.includes('p=current;'),'campos não operacionais remotos devem ser preservados usando objeto atual');
+assert(src.includes('__hlgbAssignmentReceipt'),'atribuição principal deve emitir recibo para grade');
+let g=html.indexOf('function applyPostGrade938('),ge=html.indexOf('// ---------------------------------------------------------------------------',g);
+assert(g>=0,'recibo da grade deve existir');
+const gs=html.slice(g,ge>g?ge:g+10000);
+assert(gs.includes('receipt?.confirmed'),'grade atrasada deve estar vinculada ao token da atribuição');
+assert(gs.includes('String(current.id)!==String(pid)'),'split criado deve ser distinguido do registro original');
+assert(gs.includes("current.productionLocationId!==receipt.location"),'destino deve ser revalidado antes de gravar grade');
+assert(gs.includes("current.factionId!==receipt.faction"),'facção deve ser revalidada antes de gravar grade');
+console.log('PASS production assignment: revalida registro atual e grade só segue atribuição confirmada no destino exato.');

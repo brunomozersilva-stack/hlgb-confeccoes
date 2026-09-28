@@ -1,0 +1,20 @@
+// Recovered guard adapted to the preserved Work implementation; behavioral scenarios run separately.
+const fs=require('node:fs'),assert=require('node:assert/strict');
+const html=fs.readFileSync('app9240.html','utf8');
+let a=html.indexOf('window.openProjectionMissing941=function(){'),b=html.indexOf('const oldFinalize941=window.finalizeSelectedProjection;',a);
+assert(a>=0&&b>a,'ação dedicada de falta deve existir');
+const src=html.slice(a,b);
+assert(src.includes('if(selected.length!==1)'),'ação deve exigir um único produto');
+assert(src.includes('const rowId=id941();'),'ID deve ser numérico/compatível e fixado ao abrir modal');
+assert(src.includes('if(!available||existing())'),'falta já aberta deve bloquear nova falta');
+assert(src.includes('if(!fresh||existing()'),'retry/conflito deve revalidar falta já aberta');
+assert(src.includes("if(typeof hlgbRecordSaveWithRetry!=='function'||!cloudAccessToken)"),'falta exige nuvem pronta');
+assert(src.includes("const saved=await save941('missingPieces',row)"),'ação deve gravar somente missingPieces');
+assert(src.includes('q941(fresh.item.remainingQty??fresh.item.qty)!==available'),'mudança remota de saldo deve bloquear confirmação');
+assert(!src.includes("save941('projectionInvoices'"),'ação não pode criar nota');
+assert(!src.includes("save941('finance'"),'ação não pode criar financeiro');
+const d=html.indexOf('function decorateProjection(){',b);assert(d>=0,'decorateProjection deve existir');let de=html.indexOf('function openRows()',d);if(de<0)de=d+3000;
+const dec=html.slice(d,de);
+assert(dec.includes('missingProjection941'),'botão dedicado deve aparecer na Projeção');
+assert(dec.includes("b.onclick=()=>window.openProjectionMissing941()"),'botão deve chamar a ação dedicada');
+console.log('PASS projection missing: falta dedicada é idempotente, revalida saldo e não cria nota/financeiro.');

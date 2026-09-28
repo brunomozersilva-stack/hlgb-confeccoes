@@ -90,3 +90,17 @@ assert.equal(statusCtx.cutStatus9179('P1','O1').text,'Ainda não cortado','aggre
 statusDb.cuts[0].actualCutGrade=[{productId:'P1',qty:100}];
 assert.equal(statusCtx.cutStatus9179('P1','O1').text,'✓ Já cortado','grade evidence may link a historical aggregate cut to an exact product');
 console.log('PASS cut-status evidence: aggregate historical cut needs exact productId/grade proof before marking a model as cut.');
+
+// Exercise the actual tracking-card action against the application's router.
+const trackingAction=html.split('\n').find(line=>line.startsWith('window.openProduction9173=function'));
+assert(trackingAction,'tracking production action exists');
+const searchField={value:''};let routed=null,hubRenders=0;
+const trackingCtx=vm.createContext({window:{},page:id=>{routed=id},
+ document:{getElementById:id=>id==='productionHubSearch'?searchField:null},
+ setTimeout:fn=>fn(),renderProductionHub:()=>{hubRenders++}});
+vm.runInContext(trackingAction,trackingCtx);
+trackingCtx.window.openProduction9173(encodeURIComponent('TESTE PEÇA'));
+assert.equal(routed,'producao');
+assert.equal(searchField.value,'TESTE PEÇA');
+assert.equal(hubRenders,1);
+console.log('PASS tracking-card navigation uses the existing page router and filters production.');
