@@ -2,7 +2,7 @@ name: HLGB Audit Regression
 
 on:
   push:
-    branches: [audit-work-20260915, fix-payroll-provisions-termination-20260928]
+    branches: [audit-work-20260915]
   workflow_dispatch:
 
 permissions:
