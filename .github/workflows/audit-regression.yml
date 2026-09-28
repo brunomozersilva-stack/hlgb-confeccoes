@@ -2,7 +2,7 @@ name: HLGB Audit Regression
 
 on:
   push:
-    branches: [audit-work-20260915]
+    branches: [audit-work-20260915, fix-payroll-provisions-termination-20260928]
   workflow_dispatch:
 
 permissions:
@@ -35,6 +35,7 @@ jobs:
             tests/audit-remote-tombstone-regression.cjs \
             tests/audit-record-loading-regression.cjs \
             tests/audit-payroll-integrity-regression.cjs \
+            tests/audit-payroll-termination-provisions-regression.cjs \
             tests/audit-checklist-integrity-regression.cjs \
             tests/audit-capacity-integrity-regression.cjs \
             tests/audit-production-reconcile-regression.cjs \
