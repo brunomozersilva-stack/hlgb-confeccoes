@@ -170,6 +170,46 @@ async function runOfficialHubRealizedAction(id){
   await fn(row.id);
   return {changed:true,alreadyDone:false,row};
 }
+function canonicalPriority(v){
+  const n=norm(v);
+  if(n==='urgentissimo'||n==='urgentissima'||n==='urgentíssim o')return 'Urgentíssimo';
+  if(n.includes('urgentissim'))return 'Urgentíssimo';
+  if(n==='urgente')return 'Urgente';
+  if(n==='padrao'||n==='padrão'||n==='normal')return 'Padrão';
+  return '';
+}
+function prepareOrderPriorityAction(number,targetRaw){
+  const o=findOrderByNumber(number);
+  if(!o)return {title:'Pedido não encontrado',text:'Não encontrei o pedido #'+sid(number)+'.',kind:'empty'};
+  const target=canonicalPriority(targetRaw);
+  if(!target)return {title:'Prioridade inválida',text:'Use Padrão, Urgente ou Urgentíssimo.',kind:'empty'};
+  const current=o.priority||'Padrão';
+  if(current===target)return {title:'Prioridade já aplicada',text:'O pedido #'+escSafe(orderNo(o))+' já está como <b>'+escSafe(target)+'</b>.',kind:'empty'};
+  return {
+    title:'Alterar prioridade do pedido #'+orderNo(o),
+    text:'Pedido: <b>#'+escSafe(orderNo(o))+' · '+escSafe(o.client||'-')+'</b><br>Antes: <b>'+escSafe(current)+'</b><br>Depois: <b>'+escSafe(target)+'</b><br><br>Ao confirmar, o Assistente abrirá o editor oficial do pedido já com essa prioridade selecionada. A alteração só será gravada quando você clicar em <b>Salvar alterações</b>.',
+    kind:'priority-action',
+    orderId:sid(o.id),orderNumber:orderNo(o),current,target
+  };
+}
+function runOfficialPriorityAction(orderId,targetRaw){
+  const o=arr('orders').find(x=>sid(x?.id)===sid(orderId));
+  if(!o)throw new Error('O pedido não está mais disponível.');
+  const target=canonicalPriority(targetRaw);
+  if(!target)throw new Error('Prioridade inválida.');
+  if(typeof window.editOrder!=='function'&&typeof editOrder!=='function')throw new Error('O editor oficial do pedido não está disponível.');
+  const fn=typeof window.editOrder==='function'?window.editOrder:editOrder;
+  fn(o.id);
+  setTimeout(()=>{
+    const el=document.getElementById('mpriority');
+    if(el){
+      el.value=target;
+      try{el.dispatchEvent(new Event('change',{bubbles:true}))}catch(e){}
+      try{el.focus()}catch(e){}
+    }
+  },0);
+  return {opened:true,orderId:sid(o.id),target};
+}
 function detectWriteIntent(qry){
   return /\b(dar baixa|baixa|marcar.*pag|pagar|mudar status|alterar status|cancelar|excluir|apagar|finalizar|entregar|registrar entrega|trocar prioridade|colocar.*urgente|salvar|editar)\b/i.test(qry);
 }
@@ -184,6 +224,9 @@ function query(raw){
   if(baixa)return openMissingForOrder(baixa[1]);
   const hubDone=original.match(/(?:marcar|colocar|dar\s+baixa\s+em)\s+(.+?)\s+(?:como\s+)?(?:pago|paga|realizado|realizada)(?:\s+no\s+hub)?\s*$/i);
   if(hubDone&&hubDone[1]?.trim())return prepareHubRealizedAction(hubDone[1].trim());
+  const pri=n.match(/(?:mudar|alterar|trocar|colocar|marcar)?\s*(?:a\s+)?(?:prioridade|urgencia)?\s*(?:do\s+)?pedido\s*#?\s*(\d+)\s*(?:para|como)?\s*(padrao|padrão|normal|urgente|urgentissimo|urgentíssima|urgentissimo|urgentíssimo)/i)
+    ||n.match(/(?:colocar|marcar)\s+(?:o\s+)?pedido\s*#?\s*(\d+)\s+(?:como\s+)?(urgente|urgentissimo|urgentíssimo|padrao|padrão|normal)/i);
+  if(pri)return prepareOrderPriorityAction(pri[1],pri[2]);
   if(detectWriteIntent(n))return {title:'Ação protegida',text:'Eu entendi que você quer <b>alterar dados</b>. Este comando ainda não foi liberado para execução automática. As ações são liberadas uma por uma, sempre com prévia e confirmação.',kind:'protected'};
   let m=n.match(/pedido\s*#?\s*(\d+)/);
   if(m)return answerOrder(m[1]);
@@ -233,6 +276,9 @@ window.hlgbAssistantAsk=function(){
   if(a.kind==='hub-realized-action'&&Array.isArray(a.actions)){
     actions='<div class="toolbar" style="margin-top:12px">'+a.actions.map(x=>'<button type="button" class="primary" onclick="hlgbAssistantConfirmHubRealized(\''+escSafe(x.id)+'\')">💰 '+escSafe(x.label)+' · '+moneySafe(x.value)+'</button>').join('')+'</div>';
   }
+  if(a.kind==='priority-action'){
+    actions='<div class="toolbar" style="margin-top:12px"><button type="button" class="primary" onclick="hlgbAssistantOpenPriority(\''+escSafe(a.orderId)+'\',\''+escSafe(a.target)+'\')">⚡ Confirmar e abrir pedido</button></div>';
+  }
   out.dataset.pendingKind=a.kind||'';out.dataset.pendingText=a.description||'';
   out.innerHTML='<h3 style="margin-top:0">'+escSafe(a.title)+'</h3>'+a.text+actions;
   try{auditAction?.('Consultou Assistente HLGB',String(input.value||'').slice(0,160))}catch(e){}
@@ -278,7 +324,20 @@ window.hlgbAssistantConfirmHubRealized=async function(id){
     if(out)out.innerHTML='<b>✅ Lançamento enviado para confirmação no Hub.</b><br>'+escSafe(hubEntryLabel(row))+' · '+moneySafe(q(row.value));
   }catch(e){alert('Não foi possível confirmar a alteração no Hub.\n\n'+String(e?.message||e))}
 };
-window.hlgbAssistant={query,answerOrder,answerDeliveries,answerProblems,orderSnapshot,openMissingForOrder,runOfficialMissingAction,prepareHubRealizedAction,runOfficialHubRealizedAction,findHubEntries,detectWriteIntent,version:V};
+window.hlgbAssistantOpenPriority=function(orderId,target){
+  const o=arr('orders').find(x=>sid(x?.id)===sid(orderId));
+  if(!o)return alert('O pedido não está mais disponível.');
+  const desired=canonicalPriority(target),current=o.priority||'Padrão';
+  if(!desired)return alert('Prioridade inválida.');
+  if(current===desired)return alert('O pedido já está com essa prioridade.');
+  if(!confirm('Abrir o pedido #'+orderNo(o)+' para alterar a prioridade?\n\n'+current+' → '+desired+'\n\nA alteração ainda NÃO será salva automaticamente. Confira e clique em Salvar alterações no editor oficial.'))return;
+  try{
+    closeModal();
+    runOfficialPriorityAction(orderId,desired);
+    try{auditAction?.('Assistente abriu alteração de prioridade',String(orderId)+' '+current+' -> '+desired)}catch(e){}
+  }catch(e){alert('Não foi possível abrir o editor oficial.\n\n'+String(e?.message||e))}
+};
+window.hlgbAssistant={query,answerOrder,answerDeliveries,answerProblems,orderSnapshot,openMissingForOrder,runOfficialMissingAction,prepareHubRealizedAction,runOfficialHubRealizedAction,findHubEntries,prepareOrderPriorityAction,runOfficialPriorityAction,canonicalPriority,detectWriteIntent,version:V};
 function boot(){injectButton();try{if(typeof hlgbAfterLogin==='function')hlgbAfterLogin(()=>setTimeout(injectButton,300),0)}catch(e){}}
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',boot,{once:true});else boot();
 console.info('[HLGB] Assistente HLGB consulta v1 carregado');
