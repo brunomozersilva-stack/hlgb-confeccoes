@@ -18,6 +18,14 @@ function dateLabel(iso){
   if(iso===addDays(today(),1))return 'Amanhã · '+(typeof fmtDate==='function'?fmtDate(iso):iso);
   return typeof fmtDate==='function'?fmtDate(iso):iso;
 }
+function cutterAndMissing(order,item){
+  const pid=sid(item?.productId);
+  const cuts=arr('cuts').filter(c=>sid(c?.orderId)===sid(order?.id)&&(!pid||!c?.productId||sid(c.productId)===pid));
+  const cutterIds=[...new Set(cuts.map(c=>sid(c?.cutterId)).filter(Boolean))];
+  const cutters=cutterIds.map(cid=>arr('cutters').find(c=>sid(c?.id)===cid)?.name).filter(Boolean);
+  const missing=arr('missingPieces').filter(m=>sid(m?.orderId)===sid(order?.id)&&(!pid||!m?.productId||sid(m.productId)===pid)&&norm(m?.status)!=='resolvido').reduce((a,m)=>a+q(m?.remainingQty!=null?m.remainingQty:m?.originalQty),0);
+  return {cutters:[...new Set(cutters)],missing};
+}
 function prodProgress(order,item){
   const pid=sid(item?.productId),key=sid(item?.key);
   let list=arr('production').filter(p=>sid(p?.orderId)===sid(order?.id));
@@ -36,11 +44,11 @@ function baseRows(){
   return allProjectionRows().filter(({order,item})=>item?.date&&typeof projectionDeliverableQty==='function'&&projectionDeliverableQty(order,item)>0).map(({order,item})=>{
     const qty=projectionDeliverableQty(order,item),value=typeof projectionDeliverableValue==='function'?projectionDeliverableValue(order,item):q(item?.value);
     const location=(typeof projectionProductionSplit==='function'?projectionProductionSplit(order.id,item.key):'')||(typeof projectionLocationForOrder==='function'?projectionLocationForOrder(order):'')||'Sem local';
-    const progress=prodProgress(order,item);
+    const progress=prodProgress(order,item),detail=cutterAndMissing(order,item);
     return {
       order,item,date:String(item.date).slice(0,10),client:item.clientName||order.client||'Sem cliente',
       product:item.name||'Produto',qty,value,location,priority:order.priority||'Padrão',status:item.invoiced?'Nota finalizada':(order.status||'Em produção'),
-      number:typeof displayOrderNumber==='function'?displayOrderNumber(order):order.id,progress
+      number:typeof displayOrderNumber==='function'?displayOrderNumber(order):order.id,progress,cutters:detail.cutters,missing:detail.missing
     };
   });
 }
@@ -91,7 +99,7 @@ function card(r){
   const cls=ready?'ready':late?'late':urgent?'urgent':'';
   const progress=r.progress.has?('<div class="hlgb-team-line"><span>Produção</span><b>'+r.progress.done.toLocaleString('pt-BR')+' / '+r.progress.planned.toLocaleString('pt-BR')+' · '+r.progress.pct+'%</b></div><div class="hlgb-team-progress"><i style="width:'+r.progress.pct+'%"></i></div>'):'<div class="hlgb-team-line"><span>Produção</span><span class="badge">Sem apontamento</span></div>';
   const situation=ready?'Pronto':late?'Atrasado':r.status;
-  return '<div class="hlgb-team-card '+cls+'"><div class="hlgb-team-client">'+escSafe(r.client)+'</div><div class="hlgb-team-product">'+escSafe(r.product)+'</div><div class="hlgb-team-line"><span>Pedido #'+escSafe(r.number)+'</span><span class="badge">'+escSafe(r.priority)+'</span></div><div class="hlgb-team-line"><span><b>'+r.qty.toLocaleString('pt-BR')+' peças</b></span><span class="hlgb-team-value">'+money(r.value)+'</span></div>'+progress+'<div class="hlgb-team-line"><span>📍 '+escSafe(r.location)+'</span><span class="badge '+(ready?'ok':late?'warn':'')+'">'+escSafe(situation)+'</span></div></div>';
+  return '<div class="hlgb-team-card '+cls+'"><div class="hlgb-team-client">'+escSafe(r.client)+'</div><div class="hlgb-team-product">'+escSafe(r.product)+'</div><div class="hlgb-team-line"><span>Pedido #'+escSafe(r.number)+'</span><span class="badge">'+escSafe(r.priority)+'</span></div><div class="hlgb-team-line"><span><b>'+r.qty.toLocaleString('pt-BR')+' peças</b></span><span class="hlgb-team-value">'+money(r.value)+'</span></div>'+progress+'<div class="hlgb-team-line"><span>✂️ Cortador: <b>'+escSafe(r.cutters.length?r.cutters.join(' · '):'Não definido')+'</b></span><span>'+(r.missing>0?'⚠️ Faltam <b>'+r.missing.toLocaleString('pt-BR')+'</b>':'✅ Sem faltas em aberto')+'</span></div><div class="hlgb-team-line"><span>📍 '+escSafe(r.location)+'</span><span class="badge '+(ready?'ok':late?'warn':'')+'">'+escSafe(situation)+'</span></div></div>';
 }
 function renderTeam(){
   injectUI();
@@ -128,7 +136,7 @@ if(typeof old==='function'&&!old.__hlgbTeamProjectionV1){
   const wrapped=function(){const out=old.apply(this,arguments);try{injectUI();applyMode();if(mode==='team')renderTeam()}catch(e){console.error('[HLGB projeção equipe]',e)}return out};
   wrapped.__hlgbTeamProjectionV1=true;wrapped.__original=old;window.renderProjection=wrapped;
 }
-window.hlgbProjectionTeam={baseRows,teamRows,prodProgress,setMode:v=>window.hlgbProjectionSetView(v)};
+window.hlgbProjectionTeam={baseRows,teamRows,prodProgress,cutterAndMissing,setMode:v=>window.hlgbProjectionSetView(v)};
 function boot(){injectUI();applyMode();if(document.getElementById('projecao')?.classList.contains('active'))renderTeam()}
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',boot,{once:true});else boot();
 console.info('[HLGB] Projeção semanal: visão da equipe '+V+' carregada');
