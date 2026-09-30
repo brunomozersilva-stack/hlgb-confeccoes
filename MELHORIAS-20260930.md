@@ -157,3 +157,29 @@ Botão "Preparar para o ChatGPT":
 - nenhuma criação de dados reais só para testar;
 - conferir Safari e Chrome quando a mudança afetar interface;
 - main permanece intacto até autorização expressa.
+
+
+## Andamento em 30/09/2026
+
+### Implementado na branch e ainda NÃO publicado no main
+- ✅ Central de Erros e Melhorias.
+- ✅ Captura automática de erro JavaScript, promise e falha de gravação.
+- ✅ Registro manual de erro e sugestão.
+- ✅ Varredura inicial somente de leitura.
+- ✅ Relatório sanitizado "Preparar para o ChatGPT".
+- ✅ Permissão de systemIssues/systemSuggestions vinculada a Cadastros no mapeamento do Supabase.
+- ✅ Correção de provisões: desligado não mantém saldo aberto após a rescisão; histórico anterior é preservado.
+- ✅ Correção do Hub: rescisão/funcionário não entra na lista nem no resumo de gasto pessoal.
+- ✅ Projeção: nova Visão da equipe sem remover a Visão administrativa.
+- ✅ Projeção equipe: cliente, pedido, produto, quantidade, valor, progresso, local/facção, urgência, cortador e faltantes.
+- ✅ Assistente HLGB v1 em modo consulta.
+- ✅ Assistente reconhece pedido, entregas hoje/amanhã/semana, atrasos, clientes/produtos e Central de erros.
+- ✅ Comandos de alteração de dados operacionais permanecem bloqueados nesta fase.
+- ✅ Erro/sugestão podem ser preparados no Assistente e confirmados para a Central.
+- ✅ Testes automatizados novos adicionados à regressão.
+
+### Ainda pendente antes de qualquer publicação
+- Teste visual da nova Central, Projeção e Assistente em navegador real.
+- Revisão fina de interface/redundâncias após o teste visual.
+- Implementar ações operacionais do Assistente somente com prévia + confirmação + função oficial.
+- Reconfirmar regressão final e main antes de qualquer publicação.
