@@ -131,5 +131,23 @@ assert(bad.checks.some(x=>x.title==='Falha de integridade'&&x.status==='fail'));
   assert.equal(idem.id,'audit-same','identical remote audit must be accepted idempotently without operational WAL');
   assert.equal(pendingWrites,0,'idempotent audit save must still bypass operational WAL');
 
+  ls.delete('hlgb_records_pending_v91');
+  ls.delete('hlgb_durable_wal_v1');
+  context.window.hlgbDiagnosticsCenter.scanSystem=()=>[];
+  const businessBefore=JSON.stringify(context.db);
+  context.cloudRequest=async(url,opts)=>{
+    assert.equal(url,'rpc/hlgb_save_record');
+    const body=JSON.parse(opts.body);
+    assert.equal(body.p_module,'systemAuditRuns');
+    return {applied:true,data:body.p_data,revision:1};
+  };
+  const cleanRun=await api.run('full',true);
+  assert(!cleanRun.saveError,'fresh simulated audit must save successfully');
+  assert.equal(cleanRun.summary.fail,0);
+  assert.equal(JSON.stringify(context.db),businessBefore,'fresh audit must preserve business data');
+  assert(!ls.has('hlgb_records_pending_v91'),'fresh audit must not create normalized pending entries');
+  assert(!ls.has('hlgb_durable_wal_v1'),'fresh audit must not create WAL entries');
+  assert.equal(pendingWrites,0,'fresh audit must not invoke operational writes');
+
   console.log('PASS internal auditor: read-only checks, dedicated cloud history, stale technical queue cleanup and operational queue preservation.');
 })().catch(e=>{console.error(e);process.exit(1)});

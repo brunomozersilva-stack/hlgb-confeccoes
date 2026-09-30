@@ -11565,6 +11565,13 @@ function hlgb924ProtectImplicitDelete(module,old){
   if(module==="finance"&&old?.data?.projectionInvoiceId!=null)return true;
   return false;
 }
+function hlgbRecordDataEqual(a,b){
+  // JSONB não preserva a ordem das chaves. Compare o conteúdo completo,
+  // mantendo a ordem dos arrays e todos os campos, inclusive metadados.
+  const stable=v=>Array.isArray(v)?v.map(stable):v&&typeof v==='object'
+    ?Object.fromEntries(Object.keys(v).sort().map(k=>[k,stable(v[k])])):v;
+  try{return JSON.stringify(stable(a))===JSON.stringify(stable(b))}catch(e){return a===b}
+}
 function hlgbRecordPendingStore(){
   if(!hlgbRecordReady||cloudApplying||cloudBootstrapping)return;
   try{
@@ -11576,7 +11583,7 @@ function hlgbRecordPendingStore(){
       const snap=hlgbRecordSnapshots[module]||new Map(),local=hlgbRecordLocalMap(module),ops=[];
       for(const [id,item] of local){
         const old=snap.get(id);
-        if(!old||old.deleted_at||!cloudEq(old.data,item)){ops.push({id,data:hlgbRecordClone(item),deleted:false});any=true}
+        if(!old||old.deleted_at||!hlgbRecordDataEqual(old.data,item)){ops.push({id,data:hlgbRecordClone(item),deleted:false});any=true}
       }
       // v91.26: ausência local nunca gera exclusão automática na nuvem.
       if(ops.length)pending.modules[module]=ops;
@@ -11766,7 +11773,7 @@ async function hlgbNormalizedSyncModule(module){
   if(!hlgbRecordReady||!cloudAccessToken)return true;
   if(!hlgbRecordCanWrite(module))return true;
   const snap=hlgbRecordSnapshots[module]||new Map(),local=hlgbRecordLocalMap(module),jobs=[];
-  for(const [id,item] of local){const old=snap.get(id);if(!old||old.deleted_at||!cloudEq(old.data,item))jobs.push({id,data:item,deleted:false})}
+  for(const [id,item] of local){const old=snap.get(id);if(!old||old.deleted_at||!hlgbRecordDataEqual(old.data,item))jobs.push({id,data:item,deleted:false})}
   // v91.26: nenhuma exclusão é inferida por diferença entre navegador e nuvem.
   for(const job of jobs)await hlgbRecordSaveWithRetry(module,job.id,job.data,job.deleted);
   return true;
