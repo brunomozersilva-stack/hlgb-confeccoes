@@ -174,12 +174,18 @@ Botão "Preparar para o ChatGPT":
 - ✅ Projeção equipe: cliente, pedido, produto, quantidade, valor, progresso, local/facção, urgência, cortador e faltantes.
 - ✅ Assistente HLGB v1 em modo consulta.
 - ✅ Assistente reconhece pedido, entregas hoje/amanhã/semana, atrasos, clientes/produtos e Central de erros.
-- ✅ Comandos de alteração de dados operacionais permanecem bloqueados nesta fase.
+- ✅ Comandos destrutivos ou ainda não liberados permanecem bloqueados.
 - ✅ Erro/sugestão podem ser preparados no Assistente e confirmados para a Central.
+- ✅ Assistente: baixa de faltante liberada com prévia e abertura da função oficial “Abater / recuperar”; quantidade/data/observação continuam exigindo confirmação na tela oficial.
+- ✅ Assistente: lançamento do Hub pode ser localizado por descrição/pessoa e marcado como realizado após prévia e confirmação, usando a função oficial do Hub.
+- ✅ Assistente: prioridade de pedido pode ser preparada com antes/depois; após confirmação abre o editor oficial com a prioridade pré-selecionada e não salva automaticamente.
+- ✅ Assistente: status de pedido pode ser preparado com antes/depois; após confirmação abre o editor oficial com o status pré-selecionado e não salva automaticamente.
+- ✅ Assistente impede alternar um lançamento do Hub que já esteja realizado.
 - ✅ Testes automatizados novos adicionados à regressão.
 
 ### Ainda pendente antes de qualquer publicação
 - Teste visual da nova Central, Projeção e Assistente em navegador real.
 - Revisão fina de interface/redundâncias após o teste visual.
-- Implementar ações operacionais do Assistente somente com prévia + confirmação + função oficial.
+- Teste visual das ações do Assistente em navegador real, confirmando os modais oficiais sem usar dados reais para ensaio.
+- Expandir outras ações do Assistente somente depois de validar as primeiras ações liberadas.
 - Reconfirmar regressão final e main antes de qualquer publicação.
