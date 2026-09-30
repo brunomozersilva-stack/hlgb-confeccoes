@@ -38,7 +38,7 @@ function appVersion(){
 function sanitize(value){
   let s=String(value??'');
   s=s.replace(/eyJ[a-zA-Z0-9_-]{12,}\.[a-zA-Z0-9_-]{12,}\.[a-zA-Z0-9_-]{12,}/g,'[TOKEN REMOVIDO]');
-  s=s.replace(/((?:access|refresh|service[_ -]?role|api)[_ -]?token|apikey|api[_ -]?key|senha|password)\s*[:=]\s*)[^\s,;}"']+/gi,'$1[REMOVIDO]');
+  s=s.replace(/((?:(?:access|refresh|service[_ -]?role|api)[_ -]?token|apikey|api[_ -]?key|senha|password)\s*[:=]\s*)[^\s,;}"']+/gi,'$1[REMOVIDO]');
   s=s.replace(/Bearer\s+[A-Za-z0-9._~-]+/gi,'Bearer [REMOVIDO]');
   return s.slice(0,12000);
 }
@@ -249,7 +249,7 @@ function injectUI(){
   const main=document.querySelector('#appShell main');
   if(main&&!document.getElementById('hlgbDiagnosticsCenter')){
     const sec=document.createElement('section');sec.id='hlgbDiagnosticsCenter';sec.className='page';
-    sec.innerHTML='<h1>🩺 Central de Erros e Melhorias</h1><div class="sub">Registre problemas e sugestões, rode verificações de leitura e prepare um relatório técnico para manutenção.</div><div class="hlgb-dg-summary" id="hlgbDgCards"></div><div class="hlgb-dg-tabs"><button id="hlgbDgTabErrors" class="primary" onclick="hlgbDiagnosticsShowTab(\\'errors\\')">Erros</button><button id="hlgbDgTabSuggestions" class="secondary" onclick="hlgbDiagnosticsShowTab(\\'suggestions\\')">Sugestões</button><button id="hlgbDgTabScan" class="secondary" onclick="hlgbDiagnosticsShowTab(\\'scan\\')">🔍 Varrer sistema</button><button id="hlgbDgTabReport" class="secondary" onclick="hlgbDiagnosticsShowTab(\\'report\\')">📋 Preparar para o ChatGPT</button></div><div id="hlgbDgBody"></div>';
+    sec.innerHTML='<h1>🩺 Central de Erros e Melhorias</h1><div class="sub">Registre problemas e sugestões, rode verificações de leitura e prepare um relatório técnico para manutenção.</div><div class="hlgb-dg-summary" id="hlgbDgCards"></div><div class="hlgb-dg-tabs"><button id="hlgbDgTabErrors" class="primary" onclick="hlgbDiagnosticsShowTab(\'errors\')">Erros</button><button id="hlgbDgTabSuggestions" class="secondary" onclick="hlgbDiagnosticsShowTab(\'suggestions\')">Sugestões</button><button id="hlgbDgTabScan" class="secondary" onclick="hlgbDiagnosticsShowTab(\'scan\')">🔍 Varrer sistema</button><button id="hlgbDgTabReport" class="secondary" onclick="hlgbDiagnosticsShowTab(\'report\')">📋 Preparar para o ChatGPT</button></div><div id="hlgbDgBody"></div>';
     main.appendChild(sec);
   }
 }
@@ -284,7 +284,7 @@ function renderCards(){
   cards.innerHTML='<div class="card"><small>Erros abertos</small><strong>'+open+'</strong></div><div class="card"><small>Alta prioridade</small><strong>'+critical+'</strong></div><div class="card"><small>Sugestões pendentes</small><strong>'+pending+'</strong></div><div class="card"><small>Versão observada</small><strong style="font-size:16px">'+esc(appVersion())+'</strong></div>';
 }
 function issueRow(x){
-  return ['<input class="hlgb-dg-check" type="checkbox" data-dg-select="issue" value="'+esc(x.id)+'" checked>', '<div class="hlgb-dg-row-title">'+esc(x.title||'Erro')+'</div><div class="hlgb-dg-meta">'+esc(x.page||'-')+' · '+esc(x.user||'-')+' · '+esc(x.browser||'-')+'</div>',priorityBadge(x.priority),statusBadge(x.status),esc(String(x.occurrences||1)),esc((x.lastSeenAt||x.firstSeenAt||'').replace('T',' ').slice(0,16)),'<div class="hlgb-dg-actions"><button class="secondary" onclick="hlgbDiagnosticsViewIssue(\\''+esc(x.id)+'\\')">Ver</button><button class="secondary" onclick="hlgbDiagnosticsSetIssueStatus(\\''+esc(x.id)+'\\',\\'Em análise\\')">Em análise</button><button class="primary" onclick="hlgbDiagnosticsSetIssueStatus(\\''+esc(x.id)+'\\',\\'Resolvido\\')">Resolver</button></div>'];
+  return ['<input class="hlgb-dg-check" type="checkbox" data-dg-select="issue" value="'+esc(x.id)+'" checked>', '<div class="hlgb-dg-row-title">'+esc(x.title||'Erro')+'</div><div class="hlgb-dg-meta">'+esc(x.page||'-')+' · '+esc(x.user||'-')+' · '+esc(x.browser||'-')+'</div>',priorityBadge(x.priority),statusBadge(x.status),esc(String(x.occurrences||1)),esc((x.lastSeenAt||x.firstSeenAt||'').replace('T',' ').slice(0,16)),'<div class="hlgb-dg-actions"><button class="secondary" onclick="hlgbDiagnosticsViewIssue(\''+esc(x.id)+'\')">Ver</button><button class="secondary" onclick="hlgbDiagnosticsSetIssueStatus(\''+esc(x.id)+'\',\'Em análise\')">Em análise</button><button class="primary" onclick="hlgbDiagnosticsSetIssueStatus(\''+esc(x.id)+'\',\'Resolvido\')">Resolver</button></div>'];
 }
 function renderErrors(){
   const body=document.getElementById('hlgbDgBody');if(!body)return;
@@ -292,7 +292,7 @@ function renderErrors(){
   body.innerHTML='<div class="toolbar"><button class="primary" onclick="hlgbDiagnosticsNewIssue()">+ Relatar erro</button><button class="secondary" onclick="hlgbDiagnosticsRefresh()">🔄 Atualizar</button></div><div id="hlgbDgErrorTable">'+(list.length?table(['✓','Erro','Prioridade','Status','Ocorrências','Última ocorrência','Ações'],list.map(issueRow)):'<div class="empty">Nenhum erro registrado.</div>')+'</div>';
 }
 function suggestionRow(x){
-  return ['<input class="hlgb-dg-check" type="checkbox" data-dg-select="suggestion" value="'+esc(x.id)+'" checked>','<div class="hlgb-dg-row-title">'+esc(x.title||'Sugestão')+'</div><div class="hlgb-dg-meta">'+esc(x.page||'-')+' · '+esc(x.user||'-')+'</div>',priorityBadge(x.priority),statusBadge(x.status),esc((x.updatedAt||x.createdAt||'').replace('T',' ').slice(0,16)),'<div class="hlgb-dg-actions"><button class="secondary" onclick="hlgbDiagnosticsViewSuggestion(\\''+esc(x.id)+'\\')">Ver</button><button class="secondary" onclick="hlgbDiagnosticsSetSuggestionStatus(\\''+esc(x.id)+'\\',\\'Em andamento\\')">Em andamento</button><button class="primary" onclick="hlgbDiagnosticsSetSuggestionStatus(\\''+esc(x.id)+'\\',\\'Concluída\\')">Concluir</button></div>'];
+  return ['<input class="hlgb-dg-check" type="checkbox" data-dg-select="suggestion" value="'+esc(x.id)+'" checked>','<div class="hlgb-dg-row-title">'+esc(x.title||'Sugestão')+'</div><div class="hlgb-dg-meta">'+esc(x.page||'-')+' · '+esc(x.user||'-')+'</div>',priorityBadge(x.priority),statusBadge(x.status),esc((x.updatedAt||x.createdAt||'').replace('T',' ').slice(0,16)),'<div class="hlgb-dg-actions"><button class="secondary" onclick="hlgbDiagnosticsViewSuggestion(\''+esc(x.id)+'\')">Ver</button><button class="secondary" onclick="hlgbDiagnosticsSetSuggestionStatus(\''+esc(x.id)+'\',\'Em andamento\')">Em andamento</button><button class="primary" onclick="hlgbDiagnosticsSetSuggestionStatus(\''+esc(x.id)+'\',\'Concluída\')">Concluir</button></div>'];
 }
 function renderSuggestions(){
   const body=document.getElementById('hlgbDgBody');if(!body)return;
@@ -316,7 +316,7 @@ window.hlgbDiagnosticsNewIssue=function(){
     const row=issueBase({title:sanitize(title),description:sanitize(description),priority:document.getElementById('dgIssuePriority')?.value||'Média',page:String(document.getElementById('dgIssuePage')?.value||currentPage()),recordRefs:ref?[{label:sanitize(ref)}]:[],sourceType:'manual'});
     row.fingerprint=fingerprint(['manual',row.title,row.page,ref]);
     const b=document.querySelector('#modal .modalSave');if(b){b.disabled=true;b.textContent='☁️ Salvando…'}
-    try{await saveDiagnostic(ISSUE_MODULE,row);closeModal();activeTab='errors';renderCenter()}catch(e){if(b){b.disabled=false;b.textContent='☁️ Salvar erro'}alert('Não foi possível salvar o erro na nuvem.\\n\\n'+String(e?.message||e))}
+    try{await saveDiagnostic(ISSUE_MODULE,row);closeModal();activeTab='errors';renderCenter()}catch(e){if(b){b.disabled=false;b.textContent='☁️ Salvar erro'}alert('Não foi possível salvar o erro na nuvem.\n\n'+String(e?.message||e))}
   });
 };
 window.hlgbDiagnosticsNewSuggestion=function(){
@@ -325,16 +325,16 @@ window.hlgbDiagnosticsNewSuggestion=function(){
     if(!title||!description)return alert('Informe o título e a sugestão.');
     const row=suggestionBase({title:sanitize(title),description:sanitize(description),priority:document.getElementById('dgSugPriority')?.value||'Média',page:String(document.getElementById('dgSugPage')?.value||currentPage())});
     const b=document.querySelector('#modal .modalSave');if(b){b.disabled=true;b.textContent='☁️ Salvando…'}
-    try{await saveDiagnostic(SUGGESTION_MODULE,row);closeModal();activeTab='suggestions';renderCenter()}catch(e){if(b){b.disabled=false;b.textContent='☁️ Salvar sugestão'}alert('Não foi possível salvar a sugestão na nuvem.\\n\\n'+String(e?.message||e))}
+    try{await saveDiagnostic(SUGGESTION_MODULE,row);closeModal();activeTab='suggestions';renderCenter()}catch(e){if(b){b.disabled=false;b.textContent='☁️ Salvar sugestão'}alert('Não foi possível salvar a sugestão na nuvem.\n\n'+String(e?.message||e))}
   });
 };
 window.hlgbDiagnosticsSetIssueStatus=async function(rowId,status){
   const row=arr(ISSUE_MODULE).find(x=>sid(x.id)===sid(rowId));if(!row)return;
-  try{await saveDiagnostic(ISSUE_MODULE,{...clone(row),status,updatedAt:now(),resolvedAt:status==='Resolvido'?now():row.resolvedAt||''});renderCenter()}catch(e){alert('Status não confirmado.\\n\\n'+String(e?.message||e))}
+  try{await saveDiagnostic(ISSUE_MODULE,{...clone(row),status,updatedAt:now(),resolvedAt:status==='Resolvido'?now():row.resolvedAt||''});renderCenter()}catch(e){alert('Status não confirmado.\n\n'+String(e?.message||e))}
 };
 window.hlgbDiagnosticsSetSuggestionStatus=async function(rowId,status){
   const row=arr(SUGGESTION_MODULE).find(x=>sid(x.id)===sid(rowId));if(!row)return;
-  try{await saveDiagnostic(SUGGESTION_MODULE,{...clone(row),status,updatedAt:now()});renderCenter()}catch(e){alert('Status não confirmado.\\n\\n'+String(e?.message||e))}
+  try{await saveDiagnostic(SUGGESTION_MODULE,{...clone(row),status,updatedAt:now()});renderCenter()}catch(e){alert('Status não confirmado.\n\n'+String(e?.message||e))}
 };
 window.hlgbDiagnosticsViewIssue=function(rowId){
   const x=arr(ISSUE_MODULE).find(r=>sid(r.id)===sid(rowId));if(!x)return;
@@ -405,27 +405,27 @@ function selected(type,id){
 function makeReport(){
   const issues=arr(ISSUE_MODULE).filter(x=>x.status!=='Resolvido'&&selected('issue',x.id));
   const sugs=arr(SUGGESTION_MODULE).filter(x=>!['Concluída','Recusada'].includes(x.status)&&selected('suggestion',x.id));
-  let out='HLGB CONFECÇÕES — RELATÓRIO PARA MANUTENÇÃO\\n';
-  out+='Gerado em: '+new Date().toLocaleString('pt-BR')+'\\n';
-  out+='Versão observada: '+appVersion()+'\\n';
-  out+='Navegador: '+browserLabel()+'\\n\\n';
-  out+='ERROS ABERTOS ('+issues.length+')\\n';
+  let out='HLGB CONFECÇÕES — RELATÓRIO PARA MANUTENÇÃO\n';
+  out+='Gerado em: '+new Date().toLocaleString('pt-BR')+'\n';
+  out+='Versão observada: '+appVersion()+'\n';
+  out+='Navegador: '+browserLabel()+'\n\n';
+  out+='ERROS ABERTOS ('+issues.length+')\n';
   issues.forEach((x,i)=>{
-    out+='\\n'+(i+1)+'. '+sanitize(x.title)+'\\n';
-    out+='Prioridade: '+sanitize(x.priority)+' | Status: '+sanitize(x.status)+' | Tela: '+sanitize(x.page)+'\\n';
-    out+='Relatado/capturado por: '+sanitize(x.user)+' | Ocorrências: '+String(x.occurrences||1)+'\\n';
-    out+='Descrição: '+sanitize(x.description||'-')+'\\n';
-    if(x.technical)out+='Detalhe técnico: '+sanitize(x.technical)+'\\n';
-    if(Array.isArray(x.recordRefs)&&x.recordRefs.length)out+='Referências: '+sanitize(x.recordRefs.map(r=>(r.module||r.label||'registro')+':'+(r.id||'')).join(', '))+'\\n';
+    out+='\n'+(i+1)+'. '+sanitize(x.title)+'\n';
+    out+='Prioridade: '+sanitize(x.priority)+' | Status: '+sanitize(x.status)+' | Tela: '+sanitize(x.page)+'\n';
+    out+='Relatado/capturado por: '+sanitize(x.user)+' | Ocorrências: '+String(x.occurrences||1)+'\n';
+    out+='Descrição: '+sanitize(x.description||'-')+'\n';
+    if(x.technical)out+='Detalhe técnico: '+sanitize(x.technical)+'\n';
+    if(Array.isArray(x.recordRefs)&&x.recordRefs.length)out+='Referências: '+sanitize(x.recordRefs.map(r=>(r.module||r.label||'registro')+':'+(r.id||'')).join(', '))+'\n';
   });
-  out+='\\n\\nSUGESTÕES PENDENTES ('+sugs.length+')\\n';
+  out+='\n\nSUGESTÕES PENDENTES ('+sugs.length+')\n';
   sugs.forEach((x,i)=>{
-    out+='\\n'+(i+1)+'. '+sanitize(x.title)+'\\n';
-    out+='Prioridade: '+sanitize(x.priority)+' | Status: '+sanitize(x.status)+' | Tela: '+sanitize(x.page)+'\\n';
-    out+='Sugerido por: '+sanitize(x.user)+'\\n';
-    out+='Descrição: '+sanitize(x.description||'-')+'\\n';
+    out+='\n'+(i+1)+'. '+sanitize(x.title)+'\n';
+    out+='Prioridade: '+sanitize(x.priority)+' | Status: '+sanitize(x.status)+' | Tela: '+sanitize(x.page)+'\n';
+    out+='Sugerido por: '+sanitize(x.user)+'\n';
+    out+='Descrição: '+sanitize(x.description||'-')+'\n';
   });
-  out+='\\n\\nObservação: relatório sanitizado automaticamente; senhas, tokens e chaves detectáveis são removidos.';
+  out+='\n\nObservação: relatório sanitizado automaticamente; senhas, tokens e chaves detectáveis são removidos.';
   return out;
 }
 function renderReportTab(){
