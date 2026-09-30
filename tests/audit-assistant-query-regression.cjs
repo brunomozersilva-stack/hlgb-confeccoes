@@ -4,6 +4,7 @@ const src=fs.readFileSync(path.join(root,'release-assistant-query.js'),'utf8');
 const loader=fs.readFileSync(path.join(root,'app-stable3.html'),'utf8');
 assert(loader.includes("'release-assistant-query.js'"),'loader must include assistant');
 
+let openedMissing=null;
 const context={
   console,
   db:{
@@ -13,10 +14,10 @@ const context={
     cuts:[{id:'cut1',orderId:'o1',productId:'p1'}],
     production:[{id:'prod1',orderId:'o1',productId:'p1',planned:100,done:60,productionLocationId:'loc1'}],
     productionLocations:[{id:'loc1',name:'Facção Teste'}],
-    missingPieces:[{id:'m1',orderId:'o1',remainingQty:5,status:'Em aberto'}],
+    missingPieces:[{id:'m1',orderId:'o1',product:'Camisola Romantic',remainingQty:5,status:'Em aberto'}],
     systemIssues:[{id:'e1',title:'Erro de teste',status:'Aberto',priority:'Alta',page:'projecao'}]
   },
-  window:{},
+  window:{abateMissingPiece(id){openedMissing=id}},
   document:{readyState:'loading',addEventListener(){},getElementById(){return null},querySelector(){return null}},
   setTimeout(){return 0},
   openModal(){},closeModal(){},
@@ -43,8 +44,16 @@ const issues=api.query('quais erros estão abertos?');
 assert.equal(issues.kind,'issues');
 assert(issues.text.includes('Erro de teste'),'must answer from diagnostics center');
 
-const blocked=api.query('dar baixa no pedido 63');
-assert.equal(blocked.kind,'protected','write intent must be protected in query-only phase');
+const missingAction=api.query('dar baixa nos faltantes do pedido 63');
+assert.equal(missingAction.kind,'missing-action','missing-piece write intent must become a protected action proposal');
+assert.equal(missingAction.actions.length,1,'must offer the one open missing occurrence');
+assert.equal(missingAction.actions[0].id,'m1');
+assert.equal(openedMissing,null,'query must never execute the write action');
+api.runOfficialMissingAction('m1');
+assert.equal(openedMissing,'m1','confirmed execution helper must delegate to the official missing-piece function');
+
+const blocked=api.query('mudar status do pedido 63');
+assert.equal(blocked.kind,'protected','unreleased write intents must remain protected');
 
 const suggestion=api.query('anotar sugestão: deixar o cliente maior na projeção');
 assert.equal(suggestion.kind,'suggestion-intent','assistant must recognize suggestion registration intent');
@@ -57,4 +66,4 @@ const product=api.query('Camisola Romantic');
 assert.equal(product.kind,'product','must locate product by natural text');
 assert(product.text.includes('CR01'));
 
-console.log('PASS assistant query: order lookup, diagnostics, product search and protected write intent.');
+console.log('PASS assistant query: lookup, diagnostics, product search, safe missing-piece action and protected unreleased writes.');
