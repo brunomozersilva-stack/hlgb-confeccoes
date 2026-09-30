@@ -13,6 +13,8 @@ assert(cleanup.includes("hlgbSystemBackupExport"),'backup export must be availab
 assert(cleanup.includes("hlgbSystemBackupImport"),'backup import must be available in Sistema');
 assert(cleanup.includes("#hlgb955SaveBadge{top:auto!important"),'cloud saved badge must be moved away from top bar');
 assert(cleanup.includes("bottom:16px!important"),'cloud saved badge must be anchored at the bottom');
+assert(cleanup.includes("#hlgb955SaveBadge.ok,#hlgb955SaveBadge.off{display:none!important}"),'saved/off badge must stay hidden when no attention is required');
+assert(cleanup.includes("#hlgb955SaveBadge.wait,#hlgb955SaveBadge.bad{display:block!important}"),'badge must appear only for saving/pending/error states');
 assert(cleanup.includes("#backupBtn")&&cleanup.includes("display:none!important"),'legacy header backup controls must remain hidden');
 assert(cleanup.includes("hlgbAssistantBtn")&&cleanup.includes("remove()"),'any old assistant header button must be removed');
 
