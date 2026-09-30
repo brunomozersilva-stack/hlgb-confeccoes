@@ -116,6 +116,10 @@ function detectWriteIntent(qry){
 function query(raw){
   const original=String(raw||'').trim(),n=norm(original);
   if(!n)return {title:'Assistente HLGB',text:'Digite o que você quer localizar no sistema.',kind:'help'};
+  const sug=original.match(/^(?:anotar|registrar|salvar)?\s*sugest[aã]o\s*[:\-]?\s*(.+)$/i);
+  if(sug&&sug[1]?.trim())return {title:'Anotar sugestão',text:'Posso registrar esta sugestão na Central:<br><br><b>'+escSafe(sug[1].trim())+'</b>',kind:'suggestion-intent',description:sug[1].trim()};
+  const err=original.match(/^(?:anotar|registrar|relatar)?\s*(?:erro|problema|falha)\s*[:\-]?\s*(.+)$/i);
+  if(err&&err[1]?.trim())return {title:'Relatar erro',text:'Posso registrar este erro na Central:<br><br><b>'+escSafe(err[1].trim())+'</b>',kind:'issue-intent',description:err[1].trim()};
   if(detectWriteIntent(n))return {title:'Ação protegida',text:'Eu entendi que você quer <b>alterar dados</b>. Nesta primeira fase o Assistente está liberado somente para consulta. A próxima etapa vai preparar a ação, mostrar antes/depois e pedir confirmação antes de gravar.',kind:'protected'};
   let m=n.match(/pedido\s*#?\s*(\d+)/);
   if(m)return answerOrder(m[1]);
@@ -156,8 +160,27 @@ window.hlgbAssistantAsk=function(){
   const input=document.getElementById('hlgbAssistantInput'),out=document.getElementById('hlgbAssistantAnswer');
   if(!input||!out)return;
   const a=query(input.value);
-  out.innerHTML='<h3 style="margin-top:0">'+escSafe(a.title)+'</h3>'+a.text;
+  let actions='';
+  if(a.kind==='suggestion-intent')actions='<div class="toolbar" style="margin-top:12px"><button class="primary" onclick="hlgbAssistantConfirmNote(\'suggestion\')">☁️ Confirmar sugestão</button></div>';
+  if(a.kind==='issue-intent')actions='<div class="toolbar" style="margin-top:12px"><button class="primary" onclick="hlgbAssistantConfirmNote(\'issue\')">☁️ Confirmar erro</button></div>';
+  out.dataset.pendingKind=a.kind||'';out.dataset.pendingText=a.description||'';
+  out.innerHTML='<h3 style="margin-top:0">'+escSafe(a.title)+'</h3>'+a.text+actions;
   try{auditAction?.('Consultou Assistente HLGB',String(input.value||'').slice(0,160))}catch(e){}
+};
+window.hlgbAssistantConfirmNote=async function(type){
+  const out=document.getElementById('hlgbAssistantAnswer'),text=String(out?.dataset?.pendingText||'').trim();
+  if(!out||!text)return;
+  const api=window.hlgbDiagnosticsCenter;
+  try{
+    out.innerHTML='<b>☁️ Salvando na Central…</b>';
+    if(type==='suggestion'&&typeof api?.createSuggestionText==='function')await api.createSuggestionText(text);
+    else if(type==='issue'&&typeof api?.createIssueText==='function')await api.createIssueText(text);
+    else throw new Error('A Central de Erros e Melhorias não está disponível.');
+    out.innerHTML='<b>✅ '+(type==='suggestion'?'Sugestão':'Erro')+' registrado na Central.</b><br>'+escSafe(text);
+    try{await api?.refresh?.(false)}catch(e){}
+  }catch(e){
+    out.innerHTML='<b>Não foi possível confirmar o registro.</b><br>'+escSafe(String(e?.message||e));
+  }
 };
 window.hlgbAssistantExample=function(s){const i=document.getElementById('hlgbAssistantInput');if(i)i.value=s;window.hlgbAssistantAsk()};
 window.hlgbAssistant={query,answerOrder,answerDeliveries,answerProblems,orderSnapshot,detectWriteIntent,version:V};
