@@ -46,6 +46,13 @@ assert(issues.text.includes('Erro de teste'),'must answer from diagnostics cente
 const blocked=api.query('dar baixa no pedido 63');
 assert.equal(blocked.kind,'protected','write intent must be protected in query-only phase');
 
+const suggestion=api.query('anotar sugestão: deixar o cliente maior na projeção');
+assert.equal(suggestion.kind,'suggestion-intent','assistant must recognize suggestion registration intent');
+assert(suggestion.description.includes('cliente maior'),'suggestion text must be preserved');
+
+const issue=api.query('relatar erro: botão de salvar não funcionou');
+assert.equal(issue.kind,'issue-intent','assistant must recognize error registration intent');
+
 const product=api.query('Camisola Romantic');
 assert.equal(product.kind,'product','must locate product by natural text');
 assert(product.text.includes('CR01'));
