@@ -28,7 +28,15 @@ function patchTable(){
 }
 const oldRender=window.renderFactions;
 if(typeof oldRender==='function'&&!oldRender.__hlgbFactionDescriptionGuard){
- const wrapped=function(){normalizeAll();const r=oldRender.apply(this,arguments);normalizeAll();try{patchTable()}catch(e){console.warn('[HLGB faction integrity] tabela',e)}return r};
+ const wrapped=function(){
+  const before=new Map((Array.isArray(db?.factions)?db.factions:[]).filter(x=>x?.id!=null).map(x=>[sid(x.id),String(x.description||'')]));
+  const r=oldRender.apply(this,arguments);
+  for(const x of (Array.isArray(db?.factions)?db.factions:[])){
+    const k=sid(x?.id);if(before.has(k))x.description=before.get(k);
+  }
+  try{patchTable()}catch(e){console.warn('[HLGB faction integrity] tabela',e)}
+  return r;
+ };
  wrapped.__hlgbFactionDescriptionGuard=true;wrapped.__original=oldRender;window.renderFactions=wrapped;
 }
 const oldForm=window.factionForm;
@@ -54,7 +62,7 @@ if(typeof oldSync==='function'&&!oldSync.__hlgbFactionDescriptionGuard){
 }
 window.hlgbFactionCanonicalDescription=canonicalDescription;
 window.hlgbNormalizeFactionDescriptions=normalizeAll;
-window.HLGB_FACTION_DESCRIPTION_GUARD='v1';
-try{normalizeAll();setTimeout(()=>{normalizeAll();try{patchTable()}catch(e){}},0)}catch(e){}
-console.info('[HLGB] facções: descrição vinculada ao modelo específico, não ao resumo inteiro do pedido');
+window.HLGB_FACTION_DESCRIPTION_GUARD='v2';
+try{setTimeout(()=>{try{patchTable()}catch(e){}},0)}catch(e){}
+console.info('[HLGB] facções v2: descrição por modelo é derivada na UI sem sujar o registro ao renderizar');
 })();
