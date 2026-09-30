@@ -442,7 +442,18 @@ window.hlgbDiagnosticsDownloadReport=function(){
   a.href=URL.createObjectURL(blob);a.download='HLGB-RELATORIO-MANUTENCAO-'+new Date().toISOString().slice(0,10)+'.txt';document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove()},1000);
 };
 
-window.hlgbDiagnosticsCenter={VERSION,sanitize,fingerprint,scanSystem,makeReport,refresh:refreshCenterData,modules:[ISSUE_MODULE,SUGGESTION_MODULE]};
+async function createSuggestionText(description,title='Sugestão pelo Assistente HLGB'){
+  const desc=sanitize(String(description||'').trim());if(!desc)throw new Error('Sugestão vazia.');
+  const row=suggestionBase({title:sanitize(title),description:desc,priority:'Média',page:currentPage(),sourceType:'assistant'});
+  return saveDiagnostic(SUGGESTION_MODULE,row);
+}
+async function createIssueText(description,title='Erro relatado pelo Assistente HLGB'){
+  const desc=sanitize(String(description||'').trim());if(!desc)throw new Error('Descrição do erro vazia.');
+  const row=issueBase({title:sanitize(title),description:desc,priority:'Média',page:currentPage(),sourceType:'assistant'});
+  row.fingerprint=fingerprint(['assistant',row.title,row.page,row.description]);
+  return saveDiagnostic(ISSUE_MODULE,row);
+}
+window.hlgbDiagnosticsCenter={VERSION,sanitize,fingerprint,scanSystem,makeReport,refresh:refreshCenterData,modules:[ISSUE_MODULE,SUGGESTION_MODULE],createSuggestionText,createIssueText};
 
 function boot(){
   if(centerLoaded)return;centerLoaded=true;
