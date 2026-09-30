@@ -186,6 +186,37 @@ Botão "Preparar para o ChatGPT":
 ### Ainda pendente antes de qualquer publicação
 - Teste visual da nova Central, Projeção e Assistente em navegador real.
 - Revisão fina de interface/redundâncias após o teste visual.
-- Teste visual das ações do Assistente em navegador real, confirmando os modais oficiais sem usar dados reais para ensaio.
+- Teste visual da Central, Projeção, Assistente e Auditor em navegador real, sem usar dados reais para ensaio.
 - Expandir outras ações do Assistente somente depois de validar as primeiras ações liberadas.
 - Reconfirmar regressão final e main antes de qualquer publicação.
+
+
+## Melhoria 7 — Modo Auditor/Testador HLGB
+Objetivo: reduzir a dependência do Work para testes e manutenção cotidiana.
+
+### Implementado na branch
+- ✅ Módulo técnico `systemAuditRuns` para salvar histórico das auditorias no Supabase.
+- ✅ Permissão do módulo vinculada à área Cadastros.
+- ✅ Auditoria interna em modo somente leitura.
+- ✅ Conferência de funções essenciais.
+- ✅ Conferência de módulos novos carregados.
+- ✅ Conferência da estrutura das principais telas.
+- ✅ Detecção de IDs duplicados no DOM.
+- ✅ Conferência estrutural/visual da tela ativa: overflow horizontal, painéis fora da viewport, controles anormalmente pequenos e modal fora da tela.
+- ✅ Conferência da sessão/sincronização e pendências locais.
+- ✅ Reutilização da varredura de integridade da Central de Erros.
+- ✅ Leitura dos erros abertos já registrados.
+- ✅ Registro de navegador, versão, usuário, viewport, tela ativa e resultado.
+- ✅ Histórico com resultado Aprovado / Atenção / Falhou.
+- ✅ Relatório copiável para manutenção.
+- ✅ Integração ao Assistente:
+  - “rodar auditoria do sistema” prepara e confirma a auditoria;
+  - “qual foi a última auditoria?” lê o último resultado salvo.
+- ✅ Auditoria não cria pedidos, não dá baixa e não altera produção/financeiro.
+- ✅ Teste automatizado específico adicionado à regressão e aprovado.
+
+### Próxima evolução do Auditor
+- Automatizar verificações visuais mais profundas sem executar ações destrutivas.
+- Acrescentar testes controlados de persistência usando dados técnicos isolados quando realmente necessário.
+- Acrescentar comparação de comportamento entre Chromium/WebKit na automação do GitHub.
+- Manter Safari real como navegador capaz de executar o próprio Auditor dentro do HLGB, sem depender do Work.
