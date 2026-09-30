@@ -24,7 +24,7 @@ const ctx=vm.createContext({db,window,document,console,setTimeout(fn){fn()},clea
 assert.equal(window.hlgbFactionCanonicalDescription(factions[0]),'Calcinha Tammy');
 window.renderFactions();
 assert.equal(renderCalls,1);
-assert.equal(factions[0].description,'Calcinha Tammy','render must not leave whole-order description in faction data');
+assert.equal(factions[0].description,'Calcinha Tammy, Camisola Juliana','render must preserve persisted faction data and avoid creating a dirty record');
 assert.equal(row.cells[2].textContent,'Calcinha Tammy','table must display exact model');
 const html=window.factionForm(factions[0]);
 assert.match(html,/mforderid[^>]+value="20"/,'order link must stay in form');
@@ -33,5 +33,5 @@ window.saveFactionServiceFromForm(factions[0]);
 assert.equal(saveFormCalls,1);assert.equal(factions[0].description,'Calcinha Tammy','form save must normalize exact model after legacy overwrite');
 window.syncProductionToFaction(db.production[0]);
 assert.equal(syncCalls,1);assert.equal(factions[0].description,'Calcinha Tammy','production sync must keep exact model');
-assert.equal(window.HLGB_FACTION_DESCRIPTION_GUARD,'v1');
-console.log('PASS faction description guard: model-specific description survives render/form/sync while order linkage is preserved.');
+assert.equal(window.HLGB_FACTION_DESCRIPTION_GUARD,'v2');
+console.log('PASS faction description guard: UI shows exact model without dirtying persisted data; explicit save/sync can normalize.');
