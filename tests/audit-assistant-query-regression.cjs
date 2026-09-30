@@ -5,7 +5,7 @@ const loader=fs.readFileSync(path.join(root,'app-stable3.html'),'utf8');
 assert(loader.includes("'release-assistant-query.js'"),'loader must include assistant');
 
 let openedMissing=null,hubToggled=null,editOpened=null;
-const priorityEl={value:'',dispatchEvent(){},focus(){}};
+const priorityEl={value:'',dispatchEvent(){},focus(){}},statusEl={value:'',dispatchEvent(){},focus(){}};
 const context={
   console,
   db:{
@@ -27,7 +27,7 @@ const context={
     async toggleHubFinanceEntry(id){hubToggled=id},
     editOrder(id){editOpened=id}
   },
-  document:{readyState:'loading',addEventListener(){},getElementById(id){return id==='mpriority'?priorityEl:null},querySelector(){return null}},
+  document:{readyState:'loading',addEventListener(){},getElementById(id){if(id==='mpriority')return priorityEl;if(id==='mstatus')return statusEl;return null},querySelector(){return null}},
   setTimeout(fn){if(typeof fn==='function')fn();return 0},
   openModal(){},closeModal(){},
   displayOrderNumber:o=>o.orderNumber,
@@ -83,8 +83,17 @@ api.runOfficialPriorityAction('o1','Urgentíssimo');
 assert.equal(editOpened,'o1','confirmed priority action must delegate to official order editor');
 assert.equal(priorityEl.value,'Urgentíssimo','official editor priority field must be preselected, not auto-saved');
 
-const blocked=api.query('mudar status do pedido 63');
-assert.equal(blocked.kind,'protected','unreleased write intents must remain protected');
+const statusAction=api.query('mudar status do pedido 63 para aguardando nota');
+assert.equal(statusAction.kind,'status-action','status intent must produce a preview');
+assert.equal(statusAction.current,'Em produção');
+assert.equal(statusAction.target,'Aguardando nota');
+editOpened=null;
+api.runOfficialStatusAction('o1','Aguardando nota');
+assert.equal(editOpened,'o1','confirmed status action must delegate to official order editor');
+assert.equal(statusEl.value,'Aguardando nota','official editor status field must be preselected, not auto-saved');
+
+const blocked=api.query('excluir pedido 63');
+assert.equal(blocked.kind,'protected','unreleased destructive intents must remain protected');
 
 const suggestion=api.query('anotar sugestão: deixar o cliente maior na projeção');
 assert.equal(suggestion.kind,'suggestion-intent','assistant must recognize suggestion registration intent');
