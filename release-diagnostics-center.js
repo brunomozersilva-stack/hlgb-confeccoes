@@ -357,9 +357,32 @@ function scanSystem(){
     const d=duplicateIds(m);if(d.length)out.push({severity:'Crítica',code:'duplicate-id',title:'IDs duplicados em '+m,description:d.length+' ID(s) duplicado(s): '+d.slice(0,10).join(', '),page:'sistema',refs:d.map(id=>({module:m,id}))});
   });
   const orders=new Map(arr('orders').map(x=>[sid(x?.id),x])),products=new Set(arr('products').map(x=>sid(x?.id)));
+  const distinctProductIds=(rows)=>{
+    const set=new Set();
+    (Array.isArray(rows)?rows:[]).forEach(x=>{const p=sid(x?.productId);if(p)set.add(p)});
+    return [...set];
+  };
   for(const c of arr('cuts')){
-    if(c?.orderId!=null&&!orders.has(sid(c.orderId)))out.push({severity:'Alta',code:'cut-order-missing',title:'Corte sem pedido existente',description:'Corte '+sid(c.id)+' aponta para pedido '+sid(c.orderId)+' que não está ativo.',page:'corte',refs:[{module:'cuts',id:sid(c.id)},{module:'orders',id:sid(c.orderId)}]});
-    if(c?.productId==null||!products.has(sid(c.productId)))out.push({severity:'Alta',code:'cut-product-missing',title:'Corte sem produto válido',description:'Corte '+sid(c.id)+' está sem productId válido.',page:'corte',refs:[{module:'cuts',id:sid(c.id)}]});
+    const orderId=sid(c?.orderId),order=orderId?orders.get(orderId):null,cutProduct=sid(c?.productId);
+    if(orderId&&!order){
+      out.push({severity:'Alta',code:'cut-order-missing',title:'Corte sem pedido existente',description:'Corte '+sid(c.id)+' aponta para pedido '+orderId+' que não está ativo.',page:'corte',refs:[{module:'cuts',id:sid(c.id)},{module:'orders',id:orderId}]});
+      continue; // evita duplicar o mesmo problema como produto ausente
+    }
+    if(cutProduct){
+      if(!products.has(cutProduct))out.push({severity:'Alta',code:'cut-product-missing',title:'Corte com produto inexistente',description:'Corte '+sid(c.id)+' aponta para productId '+cutProduct+' que não está ativo.',page:'corte',refs:[{module:'cuts',id:sid(c.id)},{module:'products',id:cutProduct}]});
+      continue;
+    }
+    const cutGradeIds=[...new Set([...distinctProductIds(c?.originalGrade),...distinctProductIds(c?.actualCutGrade)])];
+    const orderGradeIds=distinctProductIds(order?.grade);
+    const represented=cutGradeIds.length?cutGradeIds:orderGradeIds;
+    if(represented.length>1){
+      continue; // corte agregado: vários produtos, portanto não existe um único productId correto
+    }
+    if(!orderId){
+      out.push({severity:'Média',code:'cut-legacy-unlinked',title:'Corte legado sem vínculo de pedido/produto',description:'Corte '+sid(c.id)+' não possui orderId nem productId. Trate como histórico/manual se for intencional.',page:'corte',refs:[{module:'cuts',id:sid(c.id)}]});
+      continue;
+    }
+    out.push({severity:'Alta',code:'cut-product-missing',title:'Corte sem produto válido',description:'Corte '+sid(c.id)+' está ligado a um único produto, mas está sem productId válido.',page:'corte',refs:[{module:'cuts',id:sid(c.id)},{module:'orders',id:orderId}]});
   }
   for(const p of arr('production')){
     if(p?.orderId!=null&&!orders.has(sid(p.orderId)))out.push({severity:'Alta',code:'production-order-missing',title:'Produção sem pedido existente',description:'Produção '+sid(p.id)+' aponta para pedido '+sid(p.orderId)+' que não está ativo.',page:'producao',refs:[{module:'production',id:sid(p.id)}]});
