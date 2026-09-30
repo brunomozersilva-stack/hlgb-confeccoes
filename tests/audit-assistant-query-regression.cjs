@@ -17,6 +17,7 @@ const context={
     productionLocations:[{id:'loc1',name:'Facção Teste'}],
     missingPieces:[{id:'m1',orderId:'o1',product:'Camisola Romantic',remainingQty:5,status:'Em aberto'}],
     systemIssues:[{id:'e1',title:'Erro de teste',status:'Aberto',priority:'Alta',page:'projecao'}],
+    systemAuditRuns:[{id:'a1',completedAt:'2026-09-30T15:55:00Z',browser:'Safari',activePage:'projecao',summary:{result:'Atenção',pass:20,warn:2,fail:0},checks:[{status:'warn',title:'Overflow',detail:'Teste visual',category:'Visual'}]}],
     hubFinanceEntries:[
       {id:'h1',flow:'Saída',description:'Rescisão Arisergio',category:'Funcionários',subcategory:'Rescisão',person:'Arisergio Inacio Luiz',date:'2026-09-30',value:1582.02,status:'Previsto'},
       {id:'h2',flow:'Saída',description:'Conta já paga',category:'Outros',date:'2026-09-29',value:100,status:'Realizado'}
@@ -25,7 +26,11 @@ const context={
   window:{
     abateMissingPiece(id){openedMissing=id},
     async toggleHubFinanceEntry(id){hubToggled=id},
-    editOrder(id){editOpened=id}
+    editOrder(id){editOpened=id},
+    hlgbInternalAuditor:{
+      latest(){return context.db.systemAuditRuns[0]},
+      async run(){return {id:'a2',summary:{result:'Aprovado',pass:25,warn:0,fail:0}}}
+    }
   },
   document:{readyState:'loading',addEventListener(){},getElementById(id){if(id==='mpriority')return priorityEl;if(id==='mstatus')return statusEl;return null},querySelector(){return null}},
   setTimeout(fn){if(typeof fn==='function')fn();return 0},
@@ -54,6 +59,14 @@ assert(order.text.includes('5 peças'),'order answer must contain missing quanti
 const issues=api.query('quais erros estão abertos?');
 assert.equal(issues.kind,'issues');
 assert(issues.text.includes('Erro de teste'),'must answer from diagnostics center');
+
+const auditLatest=api.query('qual foi a última auditoria?');
+assert.equal(auditLatest.kind,'audit-result','assistant must read latest saved internal audit');
+assert(auditLatest.text.includes('Atenção'));
+assert(auditLatest.text.includes('20 passou'));
+
+const auditAction=api.query('rodar auditoria do sistema');
+assert.equal(auditAction.kind,'audit-action','assistant must prepare internal audit action instead of silently running it');
 
 const missingAction=api.query('dar baixa nos faltantes do pedido 63');
 assert.equal(missingAction.kind,'missing-action','missing-piece write intent must become a protected action proposal');
@@ -106,5 +119,5 @@ const product=api.query('Camisola Romantic');
 assert.equal(product.kind,'product','must locate product by natural text');
 assert(product.text.includes('CR01'));
 
-console.log('PASS assistant query: lookup, diagnostics, safe operational actions and protected unreleased writes.');
+console.log('PASS assistant query: lookup, diagnostics, internal audit, safe operational actions and protected unreleased writes.');
 })().catch(e=>{console.error(e);process.exit(1)});
