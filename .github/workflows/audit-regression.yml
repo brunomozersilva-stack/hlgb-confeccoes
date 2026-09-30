@@ -31,6 +31,7 @@ jobs:
             tests/audit-faction-master-integrity-regression.cjs \
             tests/audit-notes-alias-regression.cjs \
             tests/audit-note-integrity-regression.cjs \
+            tests/audit-notes-render-no-dirty-regression.cjs \
             tests/audit-record-integrity-regression.cjs \
             tests/audit-remote-tombstone-regression.cjs \
             tests/audit-record-loading-regression.cjs \
