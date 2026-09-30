@@ -20,6 +20,26 @@ const now=()=>new Date().toISOString();
 const escSafe=v=>typeof esc==='function'?esc(v):String(v??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
 const norm=v=>String(v??'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').trim().toLowerCase();
 const clone=v=>{try{return JSON.parse(JSON.stringify(v))}catch(e){return v}};
+function redactDiagnostic(value,key=''){
+  const k=String(key||'').toLowerCase();
+  if(/^(access_token|refresh_token|token|password|senha|secret|service_role|apikey|api_key|authorization|jwt|session)$/.test(k))return '[REMOVIDO]';
+  if(typeof value==='string'){
+    let out=value;
+    out=out.replace(/Bearer\s+[A-Za-z0-9._~-]+/gi,'Bearer [REMOVIDO]');
+    out=out.replace(/eyJ[a-zA-Z0-9_-]{12,}\.[a-zA-Z0-9_-]{12,}\.[a-zA-Z0-9_-]{12,}/g,'[TOKEN REMOVIDO]');
+    return out;
+  }
+  if(Array.isArray(value))return value.map(v=>redactDiagnostic(v,''));
+  if(value&&typeof value==='object'){
+    const o={};
+    for(const [kk,v] of Object.entries(value)){
+      if(String(kk).toLowerCase()==='email')continue;
+      o[kk]=redactDiagnostic(v,kk);
+    }
+    return o;
+  }
+  return value;
+}
 function arr(n){try{return Array.isArray(db?.[n])?db[n]:[]}catch(e){return []}}
 function userLabel(){
   try{const u=typeof currentUser==='function'?currentUser():null;return String(u?.name||u?.login||cloudUser?.email||'Usuário')}catch(e){return 'Usuário'}
@@ -98,6 +118,113 @@ async function cleanupTechnicalPending(){
     }
   }catch(e){console.warn('[HLGB Auditor] limpeza IndexedDB técnica',e)}
 }
+function readJsonStorage(key){
+  try{
+    const raw=localStorage.getItem(key);
+    if(!raw)return null;
+    return JSON.parse(raw);
+  }catch(e){return {__readError:String(e?.message||e)}}
+}
+function normalizedPendingDiagnostic(){
+  const src=readJsonStorage(PENDING_KEY);
+  if(!src)return {present:false,count:0,modules:{}};
+  const modules={};let count=0;
+  for(const [module,ops] of Object.entries(src?.modules||{})){
+    if(module===AUDIT_MODULE)continue;
+    const list=Array.isArray(ops)?ops:[];
+    modules[module]=list.map(op=>redactDiagnostic(clone(op)));
+    count+=list.length;
+  }
+  return {present:true,at:src?.at||null,count,modules};
+}
+function localWalDiagnostic(){
+  const src=readJsonStorage(WAL_KEY);
+  const entries=[];
+  for(const [key,e] of Object.entries(src?.entries||{})){
+    if(e?.module===AUDIT_MODULE||String(key).startsWith(AUDIT_MODULE+'|'))continue;
+    entries.push(redactDiagnostic({...clone(e),__storageKey:key}));
+  }
+  return {present:!!src,count:entries.length,entries};
+}
+async function indexedDbWalDiagnostic(){
+  if(typeof indexedDB==='undefined')return {available:false,count:0,entries:[]};
+  return await new Promise(resolve=>{
+    let req,settled=false;
+    const done=v=>{if(settled)return;settled=true;resolve(v)};
+    try{req=indexedDB.open('hlgb_durable_wal')}catch(e){done({available:false,count:0,entries:[],error:String(e?.message||e)});return}
+    req.onupgradeneeded=()=>{try{req.transaction.abort()}catch(e){};done({available:true,count:0,entries:[],note:'Banco ainda não existente neste navegador.'})};
+    req.onerror=()=>done({available:false,count:0,entries:[],error:String(req.error?.message||'Falha ao abrir IndexedDB')});
+    req.onsuccess=()=>{
+      const d=req.result;
+      try{
+        if(!d.objectStoreNames.contains('entries')){d.close();done({available:true,count:0,entries:[]});return}
+        const tx=d.transaction('entries','readonly'),store=tx.objectStore('entries'),entries=[],cur=store.openCursor();
+        cur.onsuccess=()=>{
+          const c=cur.result;
+          if(!c)return;
+          const v=c.value||{};
+          if(v?.module!==AUDIT_MODULE&&!String(v?.key||c.key).startsWith(AUDIT_MODULE+'|'))entries.push(redactDiagnostic({...clone(v),__storageKey:String(c.key)}));
+          c.continue();
+        };
+        tx.oncomplete=()=>{d.close();done({available:true,count:entries.length,entries})};
+        tx.onerror=()=>{const err=String(tx.error?.message||'Falha ao ler IndexedDB');d.close();done({available:true,count:entries.length,entries,error:err})};
+        tx.onabort=()=>{d.close();done({available:true,count:entries.length,entries,error:'Leitura abortada'})};
+      }catch(e){try{d.close()}catch(_){ }done({available:true,count:0,entries:[],error:String(e?.message||e)})}
+    };
+  });
+}
+async function buildSyncDiagnostic(){
+  const normalized=normalizedPendingDiagnostic(),localWal=localWalDiagnostic(),indexedWal=await indexedDbWalDiagnostic();
+  const modules={};
+  const add=(source,list)=>{
+    (list||[]).forEach(e=>{
+      const m=String(e?.module||e?.__module||'desconhecido');
+      const id=sid(e?.id??e?.entity_id??e?.entityId??e?.__hlgbId??'');
+      if(!modules[m])modules[m]={normalized:0,walLocalStorage:0,walIndexedDb:0,ids:[]};
+      modules[m][source]++;
+      if(id&&!modules[m].ids.includes(id))modules[m].ids.push(id);
+    });
+  };
+  for(const [m,ops] of Object.entries(normalized.modules||{})){
+    if(!modules[m])modules[m]={normalized:0,walLocalStorage:0,walIndexedDb:0,ids:[]};
+    modules[m].normalized+=(ops||[]).length;
+    (ops||[]).forEach(e=>{const id=sid(e?.id??e?.entity_id??e?.entityId??'');if(id&&!modules[m].ids.includes(id))modules[m].ids.push(id)});
+  }
+  add('walLocalStorage',localWal.entries);
+  add('walIndexedDb',indexedWal.entries);
+  return redactDiagnostic({
+    kind:'hlgb_sync_diagnostic',
+    diagnosticVersion:'2026.09.30-sync-export-v1',
+    generatedAt:now(),
+    appVersion:appVersion(),
+    browser:browserLabel(),
+    activePage:document.querySelector('.page.active')?.id||'',
+    readOnly:true,
+    credentialsIncluded:false,
+    summary:{
+      normalizedPending:normalized.count,
+      walLocalStorage:localWal.count,
+      walIndexedDb:indexedWal.count
+    },
+    modules,
+    normalizedPending:normalized,
+    durableWalLocalStorage:localWal,
+    durableWalIndexedDb:indexedWal
+  });
+}
+async function downloadSyncDiagnostic(){
+  const data=await buildSyncDiagnostic();
+  const text=JSON.stringify(data,null,2);
+  const blob=new Blob([text],{type:'application/json;charset=utf-8'});
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(blob);
+  const stamp=new Date().toISOString().replace(/[:.]/g,'-');
+  a.download='HLGB-DIAGNOSTICO-SINCRONIZACAO-'+stamp+'.json';
+  document.body.appendChild(a);a.click();
+  setTimeout(()=>{try{URL.revokeObjectURL(a.href)}catch(e){};a.remove()},1000);
+  return data;
+}
+
 async function loadRuns(){
   detachTechnicalModule();
   await cleanupTechnicalPending();
@@ -357,7 +484,7 @@ function historyHtml(){
 function openAuditor(){
   inject();
   const last=latest();
-  openModal('🧪 Auditor / Testador HLGB','<div class="sub">Executa conferência interna <b>somente de leitura</b>. Não cria pedidos, não dá baixa e não altera produção ou financeiro.</div><div class="hlgb-auditor-actions"><button type="button" class="primary" onclick="hlgbAuditorRunFull()">🧪 Testar sistema</button><button type="button" class="secondary" onclick="hlgbAuditorRunVisual()">👁️ Conferir tela atual</button><button type="button" class="secondary" onclick="hlgbAuditorCopyLatest()">📋 Copiar última auditoria</button></div><div id="hlgbAuditorResult">'+renderRun(last)+'</div><div class="panel"><h3 style="margin-top:0">Histórico</h3><div id="hlgbAuditorHistory" class="hlgb-auditor-history">'+historyHtml()+'</div></div><button type="button" class="secondary modalSave">Fechar</button>',()=>closeModal());
+  openModal('🧪 Auditor / Testador HLGB','<div class="sub">Executa conferência interna <b>somente de leitura</b>. Não cria pedidos, não dá baixa e não altera produção ou financeiro.</div><div class="hlgb-auditor-actions"><button type="button" class="primary" onclick="hlgbAuditorRunFull()">🧪 Testar sistema</button><button type="button" class="secondary" onclick="hlgbAuditorRunVisual()">👁️ Conferir tela atual</button><button type="button" class="secondary" onclick="hlgbAuditorCopyLatest()">📋 Copiar última auditoria</button><button type="button" class="secondary" onclick="hlgbAuditorExportSync()">📦 Exportar diagnóstico de sincronização</button></div><div id="hlgbAuditorResult">'+renderRun(last)+'</div><div class="panel"><h3 style="margin-top:0">Histórico</h3><div id="hlgbAuditorHistory" class="hlgb-auditor-history">'+historyHtml()+'</div></div><button type="button" class="secondary modalSave">Fechar</button>',()=>closeModal());
   loadRuns().then(()=>{const h=document.getElementById('hlgbAuditorHistory');if(h)h.innerHTML=historyHtml();const r=document.getElementById('hlgbAuditorResult');if(r)r.innerHTML=renderRun(latest())}).catch(()=>{});
 }
 window.openHlgbAuditor=openAuditor;
@@ -380,7 +507,15 @@ window.hlgbAuditorCopyLatest=async function(){
   const text=report(latest());
   try{await navigator.clipboard.writeText(text);alert('Última auditoria copiada.')}catch(e){alert(text)}
 };
-window.hlgbInternalAuditor={VERSION,module:AUDIT_MODULE,buildRun,run,latest,report,auditFunctions,auditModules,auditDomStructure,auditVisualCurrent,auditSync,auditDataIntegrity,loadRuns,saveRun,stableJson,cleanupTechnicalPending};
+window.hlgbAuditorExportSync=async function(){
+  try{
+    const data=await downloadSyncDiagnostic();
+    alert('Diagnóstico exportado.\n\nPendências normalizadas: '+q(data?.summary?.normalizedPending)+'\nWAL local: '+q(data?.summary?.walLocalStorage)+'\nIndexedDB: '+q(data?.summary?.walIndexedDb)+'\n\nO arquivo não inclui senhas nem tokens.');
+  }catch(e){
+    alert('Não foi possível exportar o diagnóstico de sincronização.\n\n'+String(e?.message||e));
+  }
+};
+window.hlgbInternalAuditor={VERSION,module:AUDIT_MODULE,buildRun,run,latest,report,auditFunctions,auditModules,auditDomStructure,auditVisualCurrent,auditSync,auditDataIntegrity,loadRuns,saveRun,stableJson,cleanupTechnicalPending,redactDiagnostic,normalizedPendingDiagnostic,localWalDiagnostic,indexedDbWalDiagnostic,buildSyncDiagnostic,downloadSyncDiagnostic};
 function boot(){
   detachTechnicalModule();cleanupTechnicalPending();inject();
   try{if(typeof hlgbAfterLogin==='function')hlgbAfterLogin(()=>{setTimeout(()=>{inject();loadRuns()},500)},0)}catch(e){}
