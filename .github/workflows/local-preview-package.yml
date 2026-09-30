@@ -50,7 +50,7 @@ jobs:
             release-internal-auditor.js
             release-assistant-query.js
           )
-          for f in "\${files[@]}"; do
+          for f in "${files[@]}"; do
             test -f "$f"
             cp "$f" preview/
           done
@@ -130,7 +130,7 @@ jobs:
       - name: Upload preview package
         uses: actions/upload-artifact@v4
         with:
-          name: HLGB-PREVIEW-\${{ github.sha }}
+          name: HLGB-PREVIEW-${{ github.sha }}
           path: preview/
           if-no-files-found: error
           retention-days: 7
