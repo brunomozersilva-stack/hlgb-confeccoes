@@ -2,7 +2,7 @@ name: HLGB Audit Regression
 
 on:
   push:
-    branches: [audit-work-20260915]
+    branches: [audit-work-20260915, melhorias-ia-diagnostico-20260930]
   workflow_dispatch:
 
 permissions:
@@ -57,7 +57,8 @@ jobs:
             tests/audit-legacy-sync-isolation-behavior-regression.cjs \
             tests/audit-note-selection-behavior-regression.cjs \
             tests/audit-production-assignment-behavior-regression.cjs \
-            tests/audit-projection-missing-behavior-regression.cjs
+            tests/audit-projection-missing-behavior-regression.cjs \
+            tests/audit-diagnostics-center.cjs
           do
             echo "==> $test"
             node "$test"
