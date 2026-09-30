@@ -104,6 +104,33 @@ assert(bad.checks.some(x=>x.title==='Falha de integridade'&&x.status==='fail'));
   assert(!wal.entries['systemAuditRuns|old-audit'],'audit WAL entry must be removed');
   assert(wal.entries['orders|o-pending'],'operational WAL entry must be preserved');
 
+  ls.set('hlgb_records_pending_v91',JSON.stringify({
+    at:123,
+    email:'usuario@example.com',
+    modules:{
+      orders:[{id:'o-pending',deleted:false,data:{client:'Cliente A',access_token:'segredo-nao-pode-sair'}}],
+      finance:[{id:'f-pending',deleted:false,data:{value:100}}]
+    }
+  }));
+  ls.set('hlgb_durable_wal_v1',JSON.stringify({schema:1,entries:{
+    'cuts|c-pending':{key:'cuts|c-pending',module:'cuts',id:'c-pending',data:{password:'123456',qty:10}}
+  }}));
+  const pendingBefore=ls.get('hlgb_records_pending_v91'),walBefore=ls.get('hlgb_durable_wal_v1');
+  const diagnostic=await api.buildSyncDiagnostic();
+  assert.equal(diagnostic.readOnly,true,'sync diagnostic must be explicitly read-only');
+  assert.equal(diagnostic.credentialsIncluded,false,'sync diagnostic must state that credentials are excluded');
+  assert.equal(diagnostic.summary.normalizedPending,2,'diagnostic must count normalized pending records');
+  assert.equal(diagnostic.summary.walLocalStorage,1,'diagnostic must count localStorage WAL records');
+  assert.equal(diagnostic.summary.walIndexedDb,0,'missing IndexedDB in unit test must count zero');
+  assert.equal(diagnostic.modules.orders.normalized,1,'diagnostic must group normalized queue by module');
+  assert.equal(diagnostic.modules.finance.normalized,1,'diagnostic must preserve each operational module');
+  assert.equal(diagnostic.modules.cuts.walLocalStorage,1,'diagnostic must group WAL by module');
+  assert(!JSON.stringify(diagnostic).includes('segredo-nao-pode-sair'),'diagnostic must redact access tokens');
+  assert(!JSON.stringify(diagnostic).includes('123456'),'diagnostic must redact passwords');
+  assert(!JSON.stringify(diagnostic).includes('usuario@example.com'),'diagnostic must omit queue email');
+  assert.equal(ls.get('hlgb_records_pending_v91'),pendingBefore,'export diagnostic must not mutate normalized pending queue');
+  assert.equal(ls.get('hlgb_durable_wal_v1'),walBefore,'export diagnostic must not mutate localStorage WAL');
+
   const first={id:'audit-new',kind:'system_audit',startedAt:'2026-09-30T18:00:00Z',completedAt:'2026-09-30T18:00:01Z',summary:{result:'Aprovado',pass:1,warn:0,fail:0},checks:[]};
   context.cloudEnsureFreshSession=async()=>true;
   context.cloudRequest=async(url,opts)=>{
@@ -149,5 +176,5 @@ assert(bad.checks.some(x=>x.title==='Falha de integridade'&&x.status==='fail'));
   assert(!ls.has('hlgb_durable_wal_v1'),'fresh audit must not create WAL entries');
   assert.equal(pendingWrites,0,'fresh audit must not invoke operational writes');
 
-  console.log('PASS internal auditor: read-only checks, dedicated cloud history, stale technical queue cleanup and operational queue preservation.');
+  console.log('PASS internal auditor: read-only checks, dedicated cloud history, sync diagnostic export, credential redaction and operational queue preservation.');
 })().catch(e=>{console.error(e);process.exit(1)});
