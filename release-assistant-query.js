@@ -210,6 +210,56 @@ function runOfficialPriorityAction(orderId,targetRaw){
   },0);
   return {opened:true,orderId:sid(o.id),target};
 }
+const ORDER_STATUSES=['Aguardando corte','Pedido para corte','Corte finalizado','Pedido em produção','Aguardando nota','Pedido finalizado'];
+function canonicalOrderStatus(v){
+  const n=norm(v);
+  const aliases={
+    'aguardando corte':'Aguardando corte',
+    'pedido para corte':'Pedido para corte',
+    'para corte':'Pedido para corte',
+    'corte finalizado':'Corte finalizado',
+    'cortado':'Corte finalizado',
+    'pedido em producao':'Pedido em produção',
+    'em producao':'Pedido em produção',
+    'producao':'Pedido em produção',
+    'aguardando nota':'Aguardando nota',
+    'pronto para nota':'Aguardando nota',
+    'pedido finalizado':'Pedido finalizado',
+    'finalizado':'Pedido finalizado'
+  };
+  return aliases[n]||'';
+}
+function prepareOrderStatusAction(number,targetRaw){
+  const o=findOrderByNumber(number);
+  if(!o)return {title:'Pedido não encontrado',text:'Não encontrei o pedido #'+sid(number)+'.',kind:'empty'};
+  const target=canonicalOrderStatus(targetRaw);
+  if(!target)return {title:'Status não reconhecido',text:'Use um dos status do editor oficial: '+ORDER_STATUSES.map(escSafe).join(', ')+'.',kind:'empty'};
+  const current=o.status||'-';
+  if(current===target)return {title:'Status já aplicado',text:'O pedido #'+escSafe(orderNo(o))+' já está como <b>'+escSafe(target)+'</b>.',kind:'empty'};
+  return {
+    title:'Alterar status do pedido #'+orderNo(o),
+    text:'Pedido: <b>#'+escSafe(orderNo(o))+' · '+escSafe(o.client||'-')+'</b><br>Antes: <b>'+escSafe(current)+'</b><br>Depois: <b>'+escSafe(target)+'</b><br><br>Ao confirmar, o Assistente abrirá o editor oficial com esse status selecionado. A alteração só será gravada quando você clicar em <b>Salvar alterações</b>.',
+    kind:'status-action',orderId:sid(o.id),orderNumber:orderNo(o),current,target
+  };
+}
+function runOfficialStatusAction(orderId,targetRaw){
+  const o=arr('orders').find(x=>sid(x?.id)===sid(orderId));
+  if(!o)throw new Error('O pedido não está mais disponível.');
+  const target=canonicalOrderStatus(targetRaw);
+  if(!target)throw new Error('Status inválido.');
+  if(typeof window.editOrder!=='function'&&typeof editOrder!=='function')throw new Error('O editor oficial do pedido não está disponível.');
+  const fn=typeof window.editOrder==='function'?window.editOrder:editOrder;
+  fn(o.id);
+  setTimeout(()=>{
+    const el=document.getElementById('mstatus');
+    if(el){
+      el.value=target;
+      try{el.dispatchEvent(new Event('change',{bubbles:true}))}catch(e){}
+      try{el.focus()}catch(e){}
+    }
+  },0);
+  return {opened:true,orderId:sid(o.id),target};
+}
 function detectWriteIntent(qry){
   return /\b(dar baixa|baixa|marcar.*pag|pagar|mudar status|alterar status|cancelar|excluir|apagar|finalizar|entregar|registrar entrega|trocar prioridade|colocar.*urgente|salvar|editar)\b/i.test(qry);
 }
@@ -227,6 +277,9 @@ function query(raw){
   const pri=n.match(/(?:mudar|alterar|trocar|colocar|marcar)?\s*(?:a\s+)?(?:prioridade|urgencia)?\s*(?:do\s+)?pedido\s*#?\s*(\d+)\s*(?:para|como)?\s*(padrao|padrão|normal|urgente|urgentissimo|urgentíssima|urgentissimo|urgentíssimo)/i)
     ||n.match(/(?:colocar|marcar)\s+(?:o\s+)?pedido\s*#?\s*(\d+)\s+(?:como\s+)?(urgente|urgentissimo|urgentíssimo|padrao|padrão|normal)/i);
   if(pri)return prepareOrderPriorityAction(pri[1],pri[2]);
+  const st=original.match(/(?:mudar|alterar|trocar|colocar|marcar)\s+(?:o\s+)?status\s+(?:do\s+)?pedido\s*#?\s*(\d+)\s+(?:para|como)\s+(.+)$/i)
+    ||original.match(/(?:mudar|alterar|trocar|colocar|marcar)\s+(?:o\s+)?pedido\s*#?\s*(\d+)\s+(?:para|como)\s+(aguardando corte|pedido para corte|corte finalizado|cortado|pedido em produção|pedido em producao|em produção|em producao|aguardando nota|pronto para nota|pedido finalizado|finalizado)$/i);
+  if(st)return prepareOrderStatusAction(st[1],st[2]);
   if(detectWriteIntent(n))return {title:'Ação protegida',text:'Eu entendi que você quer <b>alterar dados</b>. Este comando ainda não foi liberado para execução automática. As ações são liberadas uma por uma, sempre com prévia e confirmação.',kind:'protected'};
   let m=n.match(/pedido\s*#?\s*(\d+)/);
   if(m)return answerOrder(m[1]);
@@ -278,6 +331,9 @@ window.hlgbAssistantAsk=function(){
   }
   if(a.kind==='priority-action'){
     actions='<div class="toolbar" style="margin-top:12px"><button type="button" class="primary" onclick="hlgbAssistantOpenPriority(\''+escSafe(a.orderId)+'\',\''+escSafe(a.target)+'\')">⚡ Confirmar e abrir pedido</button></div>';
+  }
+  if(a.kind==='status-action'){
+    actions='<div class="toolbar" style="margin-top:12px"><button type="button" class="primary" onclick="hlgbAssistantOpenStatus(\''+escSafe(a.orderId)+'\',\''+escSafe(a.target)+'\')">🔄 Confirmar e abrir pedido</button></div>';
   }
   out.dataset.pendingKind=a.kind||'';out.dataset.pendingText=a.description||'';
   out.innerHTML='<h3 style="margin-top:0">'+escSafe(a.title)+'</h3>'+a.text+actions;
@@ -337,7 +393,20 @@ window.hlgbAssistantOpenPriority=function(orderId,target){
     try{auditAction?.('Assistente abriu alteração de prioridade',String(orderId)+' '+current+' -> '+desired)}catch(e){}
   }catch(e){alert('Não foi possível abrir o editor oficial.\n\n'+String(e?.message||e))}
 };
-window.hlgbAssistant={query,answerOrder,answerDeliveries,answerProblems,orderSnapshot,openMissingForOrder,runOfficialMissingAction,prepareHubRealizedAction,runOfficialHubRealizedAction,findHubEntries,prepareOrderPriorityAction,runOfficialPriorityAction,canonicalPriority,detectWriteIntent,version:V};
+window.hlgbAssistantOpenStatus=function(orderId,target){
+  const o=arr('orders').find(x=>sid(x?.id)===sid(orderId));
+  if(!o)return alert('O pedido não está mais disponível.');
+  const desired=canonicalOrderStatus(target),current=o.status||'-';
+  if(!desired)return alert('Status inválido.');
+  if(current===desired)return alert('O pedido já está com esse status.');
+  if(!confirm('Abrir o pedido #'+orderNo(o)+' para alterar o status?\n\n'+current+' → '+desired+'\n\nA alteração ainda NÃO será salva automaticamente. Confira e clique em Salvar alterações no editor oficial.'))return;
+  try{
+    closeModal();
+    runOfficialStatusAction(orderId,desired);
+    try{auditAction?.('Assistente abriu alteração de status',String(orderId)+' '+current+' -> '+desired)}catch(e){}
+  }catch(e){alert('Não foi possível abrir o editor oficial.\n\n'+String(e?.message||e))}
+};
+window.hlgbAssistant={query,answerOrder,answerDeliveries,answerProblems,orderSnapshot,openMissingForOrder,runOfficialMissingAction,prepareHubRealizedAction,runOfficialHubRealizedAction,findHubEntries,prepareOrderPriorityAction,runOfficialPriorityAction,canonicalPriority,prepareOrderStatusAction,runOfficialStatusAction,canonicalOrderStatus,detectWriteIntent,version:V};
 function boot(){injectButton();try{if(typeof hlgbAfterLogin==='function')hlgbAfterLogin(()=>setTimeout(injectButton,300),0)}catch(e){}}
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',boot,{once:true});else boot();
 console.info('[HLGB] Assistente HLGB consulta v1 carregado');
