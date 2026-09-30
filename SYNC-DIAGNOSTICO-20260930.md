@@ -29,3 +29,20 @@ As filas originais do Safari não estão disponíveis nesta sessão. Permanecem 
 Para concluir: obter uma exportação somente leitura de `hlgb_records_pending_v91`, `hlgb_durable_wal_v1` e do object store `entries` em IndexedDB `hlgb_durable_wal`, na mesma origem/sessão Safari do incidente. Não limpar armazenamento, não reenviar pendências como teste e não incluir tokens/sessão de autenticação nessa exportação. Comparar cada payload com consulta atual ao Supabase pelo módulo/ID, preservando qualquer alteração operacional ainda não confirmada. Rodar a versão corrigida em sessão limpa e repetir o Auditor, verificando as três filas antes/depois.
 
 Nenhuma publicação ou merge no main autorizado ou realizado.
+
+
+## Evidência nova — exportação real do Safari às 20:30
+
+Foi analisado o arquivo real `HLGB-DIAGNOSTICO-SINCRONIZACAO-2026-09-30T20-30-48-607Z.json`, gerado no Safari da sessão afetada, e comparado por consultas somente leitura com `public.hlgb_records` no Supabase.
+
+- No momento da exportação havia **11 pendências normalizadas**, não 13: **1 em `orders`** (ID `1788437076679`) e **10 em `factions`** (IDs `1788439929438`, `1788440003849`, `1788439983951`, `1788439978349`, `1788439938662`, `1788440009025`, `1788439901034`, `1788547747038`, `1789307296209`, `1788439971026`).
+- O mesmo arquivo mostrou **WAL localStorage = 0** e **WAL IndexedDB = 0**. Portanto as “2 alterações salvando” vistas às 20:13 já não existiam às 20:30; essa exportação posterior não permite identificar quais eram aquelas 2.
+- Nas 10 facções, a comparação com a nuvem mostra que a diferença é somente o campo derivado `description`: a fila local contém o nome exato do modelo daquela produção, enquanto o snapshot remoto antigo contém uma descrição agregada de vários modelos do pedido.
+- No pedido `1788437076679`, a diferença é somente `projectionItems[*].noteQueuedQty` em itens da projeção. Os demais campos do payload conferido coincidem com o snapshot remoto.
+- Assim, **os 11 itens presentes nessa exportação são classificáveis com segurança pelo limpador atual como falsos positivos derivados**, desde que não exista WAL para o mesmo módulo/ID e o snapshot carregado continue sendo o remoto atual. O limpador já restaura a cópia local a partir do snapshot da nuvem e não grava nem apaga dados remotos.
+- A branch atual já contém duas prevenções para não recriar esse tipo de sujeira durante simples renderização: a descrição canônica de facção é aplicada só na UI sem alterar o objeto ao renderizar, e o indicador de fila de notas é calculado para exibição sem atualizar `noteQueuedQty` durante `renderProjection`.
+- O botão **“🧹 Limpar falsos positivos confirmados”** existe somente na versão atual da branch de diagnóstico. A tela fotografada pela usuária é a versão publicada anterior e por isso mostra apenas três botões. Como `main` não pode ser publicado/alterado nesta investigação, a limpeza não deve ser procurada nessa tela publicada.
+
+### Estado do incidente após a nova evidência
+
+A origem das **11 pendências restantes às 20:30** está identificada e não representa 11 edições operacionais reais pendentes. Continua sem prova individual apenas o par de alterações transitórias exibidas às 20:13, porque elas já haviam drenado quando o diagnóstico foi exportado. Nenhum dado real foi alterado para chegar a essa conclusão.
