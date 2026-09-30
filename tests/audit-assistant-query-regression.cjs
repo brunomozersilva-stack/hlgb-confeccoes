@@ -4,7 +4,8 @@ const src=fs.readFileSync(path.join(root,'release-assistant-query.js'),'utf8');
 const loader=fs.readFileSync(path.join(root,'app-stable3.html'),'utf8');
 assert(loader.includes("'release-assistant-query.js'"),'loader must include assistant');
 
-let openedMissing=null,hubToggled=null;
+let openedMissing=null,hubToggled=null,editOpened=null;
+const priorityEl={value:'',dispatchEvent(){},focus(){}};
 const context={
   console,
   db:{
@@ -23,10 +24,11 @@ const context={
   },
   window:{
     abateMissingPiece(id){openedMissing=id},
-    async toggleHubFinanceEntry(id){hubToggled=id}
+    async toggleHubFinanceEntry(id){hubToggled=id},
+    editOrder(id){editOpened=id}
   },
-  document:{readyState:'loading',addEventListener(){},getElementById(){return null},querySelector(){return null}},
-  setTimeout(){return 0},
+  document:{readyState:'loading',addEventListener(){},getElementById(id){return id==='mpriority'?priorityEl:null},querySelector(){return null}},
+  setTimeout(fn){if(typeof fn==='function')fn();return 0},
   openModal(){},closeModal(){},
   displayOrderNumber:o=>o.orderNumber,
   qtyOfOrder:o=>o.grade.reduce((a,x)=>a+(+x.qty||0),0),
@@ -71,6 +73,15 @@ assert.equal(hubToggled,'h1','confirmed Hub helper must delegate to official tog
 
 const already=api.prepareHubRealizedAction('Conta já paga');
 assert.equal(already.kind,'empty','already realized entry must not be offered for toggling');
+
+const priority=api.query('mudar prioridade do pedido 63 para urgentíssimo');
+assert.equal(priority.kind,'priority-action','priority intent must produce a preview');
+assert.equal(priority.current,'Urgente');
+assert.equal(priority.target,'Urgentíssimo');
+assert.equal(editOpened,null,'priority query must not open editor automatically');
+api.runOfficialPriorityAction('o1','Urgentíssimo');
+assert.equal(editOpened,'o1','confirmed priority action must delegate to official order editor');
+assert.equal(priorityEl.value,'Urgentíssimo','official editor priority field must be preselected, not auto-saved');
 
 const blocked=api.query('mudar status do pedido 63');
 assert.equal(blocked.kind,'protected','unreleased write intents must remain protected');
