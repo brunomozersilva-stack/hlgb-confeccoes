@@ -5,7 +5,10 @@
 'use strict';
 
 const AUDIT_MODULE='systemAuditRuns';
-const VERSION='2026.09.30-internal-auditor-v1';
+const VERSION='2026.09.30-internal-auditor-v2';
+const PENDING_KEY='hlgb_records_pending_v91';
+const WAL_KEY='hlgb_durable_wal_v1';
+let auditRunsCache=[];
 const REQUIRED_PAGES=['dashboard','pedidos','corte','producao','projecao','faltas','hubFinanceiro','config'];
 const REQUIRED_FUNCTIONS=[
   'renderOrders','renderProjection','renderHubFinance','renderPayrollProvisions',
@@ -32,26 +35,77 @@ function appVersion(){
   try{return String(window.HLGB_RELEASE_VERSION||document.querySelector('#appShell .logo small')?.textContent||'').replace(/^v/i,'')||'desconhecida'}catch(e){return 'desconhecida'}
 }
 function id(){return 'audit-'+Date.now()+'-'+Math.floor(Math.random()*900000+100000)}
-function registerModule(){
+function detachTechnicalModule(){
   try{
-    if(typeof HLGB_RECORD_MODULES!=='undefined'&&!HLGB_RECORD_MODULES.includes(AUDIT_MODULE))HLGB_RECORD_MODULES.push(AUDIT_MODULE);
-    if(typeof HLGB_RECORD_WRITE_AREA!=='undefined')HLGB_RECORD_WRITE_AREA[AUDIT_MODULE]='cadastros';
-    if(typeof hlgbRecordSnapshots!=='undefined'&&!hlgbRecordSnapshots[AUDIT_MODULE])hlgbRecordSnapshots[AUDIT_MODULE]=new Map();
-    if(typeof hlgbRecordLastSeen!=='undefined'&&hlgbRecordLastSeen[AUDIT_MODULE]==null)hlgbRecordLastSeen[AUDIT_MODULE]='';
-    if(typeof db!=='undefined'&&!Array.isArray(db[AUDIT_MODULE]))db[AUDIT_MODULE]=[];
-  }catch(e){console.warn('[HLGB Auditor] módulo',e)}
+    if(typeof HLGB_RECORD_MODULES!=='undefined'&&Array.isArray(HLGB_RECORD_MODULES)){
+      let i;while((i=HLGB_RECORD_MODULES.indexOf(AUDIT_MODULE))>=0)HLGB_RECORD_MODULES.splice(i,1);
+    }
+    if(typeof HLGB_RECORD_WRITE_AREA!=='undefined')delete HLGB_RECORD_WRITE_AREA[AUDIT_MODULE];
+    if(typeof hlgbRecordSnapshots!=='undefined')delete hlgbRecordSnapshots[AUDIT_MODULE];
+    if(typeof hlgbRecordLastSeen!=='undefined')delete hlgbRecordLastSeen[AUDIT_MODULE];
+    if(typeof db!=='undefined'&&Object.prototype.hasOwnProperty.call(db,AUDIT_MODULE)){
+      delete db[AUDIT_MODULE];
+      try{localSaveOnly?.()}catch(e){}
+    }
+  }catch(e){console.warn('[HLGB Auditor] separação do módulo técnico',e)}
+}
+async function cleanupTechnicalPending(){
+  try{
+    const raw=localStorage.getItem(PENDING_KEY);
+    if(raw){
+      const p=JSON.parse(raw);
+      if(p?.modules&&Object.prototype.hasOwnProperty.call(p.modules,AUDIT_MODULE)){
+        delete p.modules[AUDIT_MODULE];
+        if(Object.keys(p.modules).length)localStorage.setItem(PENDING_KEY,JSON.stringify(p));
+        else localStorage.removeItem(PENDING_KEY);
+      }
+    }
+  }catch(e){console.warn('[HLGB Auditor] limpeza da fila normalizada',e)}
+  try{
+    const raw=localStorage.getItem(WAL_KEY);
+    if(raw){
+      const w=JSON.parse(raw),entries=w?.entries||{};
+      let changed=false;
+      for(const [k,e] of Object.entries(entries)){
+        if(e?.module===AUDIT_MODULE||String(k).startsWith(AUDIT_MODULE+'|')){delete entries[k];changed=true}
+      }
+      if(changed){w.entries=entries;localStorage.setItem(WAL_KEY,JSON.stringify(w))}
+    }
+  }catch(e){console.warn('[HLGB Auditor] limpeza do WAL técnico',e)}
+  try{
+    if(typeof indexedDB!=='undefined'){
+      await new Promise(resolve=>{
+        let req;
+        try{req=indexedDB.open('hlgb_durable_wal')}catch(e){resolve();return}
+        req.onupgradeneeded=()=>{try{req.transaction.abort()}catch(e){};resolve()};
+        req.onerror=()=>resolve();
+        req.onsuccess=()=>{
+          const d=req.result;
+          try{
+            if(!d.objectStoreNames.contains('entries')){d.close();resolve();return}
+            const tx=d.transaction('entries','readwrite'),store=tx.objectStore('entries'),cur=store.openCursor();
+            cur.onsuccess=()=>{
+              const c=cur.result;if(!c)return;
+              const v=c.value;if(v?.module===AUDIT_MODULE||String(v?.key||c.key).startsWith(AUDIT_MODULE+'|'))c.delete();
+              c.continue();
+            };
+            tx.oncomplete=()=>{d.close();resolve()};
+            tx.onerror=()=>{d.close();resolve()};
+            tx.onabort=()=>{d.close();resolve()};
+          }catch(e){try{d.close()}catch(_){ }resolve()}
+        };
+      });
+    }
+  }catch(e){console.warn('[HLGB Auditor] limpeza IndexedDB técnica',e)}
 }
 async function loadRuns(){
-  registerModule();
+  detachTechnicalModule();
+  await cleanupTechnicalPending();
   if(typeof cloudRequest!=='function'||!cloudAccessToken)return false;
   try{
     const rows=await cloudRequest('hlgb_records?select=module,entity_id,data,deleted_at,revision,updated_at,updated_by&module=eq.'+encodeURIComponent(AUDIT_MODULE)+'&order=updated_at.desc&limit=100',{method:'GET'});
     if(!Array.isArray(rows))return false;
-    if(typeof hlgbRecordSnapshotRows==='function')hlgbRecordSnapshotRows(AUDIT_MODULE,rows);
-    db[AUDIT_MODULE]=rows.filter(r=>!r.deleted_at).map(r=>{
-      try{return typeof hlgbRecordRowValue==='function'?hlgbRecordRowValue(r,AUDIT_MODULE):clone(r.data)}catch(e){return clone(r.data)}
-    }).filter(Boolean);
-    try{localSaveOnly?.()}catch(e){}
+    auditRunsCache=rows.filter(r=>!r.deleted_at).map(r=>clone(r.data)).filter(Boolean);
     return true;
   }catch(e){console.warn('[HLGB Auditor] carga',e);return false}
 }
@@ -71,31 +125,36 @@ async function exactAuditRow(id){
   return Array.isArray(rows)?(rows[0]||null):null;
 }
 function applySavedRun(out,row){
-  const saved=clone(out?.data||row),list=arr(AUDIT_MODULE),i=list.findIndex(x=>sid(x?.id)===sid(saved.id));
-  if(i>=0)list[i]=saved;else list.unshift(saved);
-  db[AUDIT_MODULE]=list;
-  if(typeof hlgbRecordSnapshots!=='undefined'){
-    const map=hlgbRecordSnapshots[AUDIT_MODULE]||new Map();
-    map.set(sid(saved.id),{data:clone(saved),deleted_at:out?.deleted_at||null,revision:+out?.revision||1,updated_at:out?.updated_at||now(),updated_by:out?.updated_by||null});
-    hlgbRecordSnapshots[AUDIT_MODULE]=map;
-  }
-  try{localSaveOnly?.()}catch(e){}
+  const saved=clone(out?.data||row),i=auditRunsCache.findIndex(x=>sid(x?.id)===sid(saved.id));
+  if(i>=0)auditRunsCache[i]=saved;else auditRunsCache.unshift(saved);
+  auditRunsCache=auditRunsCache.slice(0,100);
   return saved;
 }
 async function saveRun(row){
-  registerModule();
-  if(typeof hlgbRecordSaveWithRetry!=='function')throw new Error('Gravação por registro indisponível.');
-  if(typeof cloudEnsureFreshSession==='function')await cloudEnsureFreshSession(false);
-  let out;
-  try{
-    out=await hlgbRecordSaveWithRetry(AUDIT_MODULE,sid(row.id),clone(row),false);
-  }catch(e){
-    // A auditoria é imutável. Se outra rotina já gravou EXATAMENTE o mesmo
-    // registro, trate como confirmação idempotente em vez de gerar erro crítico.
-    if(e?.code!=='HLGB_SAME_FIELD_CONFLICT')throw e;
-    const remote=await exactAuditRow(row.id);
-    if(!remote||remote.deleted_at||stableJson(remote.data)!==stableJson(row))throw e;
-    out={applied:true,data:remote.data,deleted_at:null,revision:remote.revision,updated_at:remote.updated_at,updated_by:remote.updated_by,hlgbAuditIdempotent:true};
+  detachTechnicalModule();
+  await cleanupTechnicalPending();
+  if(typeof cloudRequest!=='function')throw new Error('A conexão com a nuvem não está disponível.');
+  if(typeof cloudEnsureFreshSession==='function'){
+    const ok=await cloudEnsureFreshSession(false);
+    if(ok===false)throw new Error('Sessão da nuvem indisponível.');
+  }
+  let out=await cloudRequest('rpc/hlgb_save_record',{
+    method:'POST',
+    headers:{Prefer:'return=representation'},
+    body:JSON.stringify({
+      p_module:AUDIT_MODULE,
+      p_entity_id:sid(row.id),
+      p_data:clone(row),
+      p_expected_revision:0,
+      p_deleted:false
+    })
+  });
+  if(Array.isArray(out))out=out[0];
+  if(out?.applied===false){
+    const remote=out?.data?out:await exactAuditRow(row.id);
+    if(remote&&!remote.deleted_at&&stableJson(remote.data)===stableJson(row)){
+      out={...remote,applied:true,hlgbAuditIdempotent:true};
+    }else throw new Error('Conflito ao salvar o histórico técnico da auditoria.');
   }
   if(!out?.applied)throw new Error('O Supabase não confirmou a auditoria.');
   return applySavedRun(out,row);
@@ -185,7 +244,7 @@ function auditSync(){
     try{
       const p=typeof hlgbRecordPendingRead==='function'?hlgbRecordPendingRead():null;
       if(!p?.modules)return 0;
-      return Object.values(p.modules).reduce((n,a)=>n+(Array.isArray(a)?a.length:0),0);
+      return Object.entries(p.modules).reduce((n,[m,a])=>n+(m===AUDIT_MODULE?0:(Array.isArray(a)?a.length:0)),0);
     }catch(e){return 0}
   })();
   checks.push(check('sync:pending','Sincronização',pending?'warn':'pass','Pendências locais de sincronização',pending?pending+' registro(s) aguardando sincronização.':'Nenhuma pendência local detectada.',pending?'warn':'info'));
@@ -240,7 +299,7 @@ async function run(mode='full',save=true){
   return row;
 }
 function latest(){
-  return arr(AUDIT_MODULE).slice().sort((a,b)=>String(b?.completedAt||b?.startedAt||'').localeCompare(String(a?.completedAt||a?.startedAt||'')))[0]||null;
+  return auditRunsCache.slice().sort((a,b)=>String(b?.completedAt||b?.startedAt||'').localeCompare(String(a?.completedAt||a?.startedAt||'')))[0]||null;
 }
 function resultBadge(run){
   const r=run?.summary?.result||'-',cls=r==='Aprovado'?'ok':r==='Atenção'?'warn':'bad';
@@ -292,7 +351,7 @@ function inject(){
   }
 }
 function historyHtml(){
-  const runs=arr(AUDIT_MODULE).slice().sort((a,b)=>String(b?.completedAt||'').localeCompare(String(a?.completedAt||''))).slice(0,12);
+  const runs=auditRunsCache.slice().sort((a,b)=>String(b?.completedAt||'').localeCompare(String(a?.completedAt||''))).slice(0,12);
   return runs.length?runs.map(x=>'<button type="button" class="secondary" onclick="hlgbAuditorShowRun(\''+escSafe(x.id)+'\')">'+resultBadge(x)+' '+escSafe(String(x.completedAt||'').replace('T',' ').slice(0,16))+' · '+escSafe(x.browser||'-')+' · '+escSafe(x.activePage||'-')+'</button>').join(''):'<div class="empty">Nenhuma auditoria salva.</div>';
 }
 function openAuditor(){
@@ -314,16 +373,16 @@ async function runUi(mode){
 window.hlgbAuditorRunFull=()=>runUi('full');
 window.hlgbAuditorRunVisual=()=>runUi('visual');
 window.hlgbAuditorShowRun=function(runId){
-  const row=arr(AUDIT_MODULE).find(x=>sid(x?.id)===sid(runId)),out=document.getElementById('hlgbAuditorResult');
+  const row=auditRunsCache.find(x=>sid(x?.id)===sid(runId)),out=document.getElementById('hlgbAuditorResult');
   if(out)out.innerHTML=renderRun(row);
 };
 window.hlgbAuditorCopyLatest=async function(){
   const text=report(latest());
   try{await navigator.clipboard.writeText(text);alert('Última auditoria copiada.')}catch(e){alert(text)}
 };
-window.hlgbInternalAuditor={VERSION,module:AUDIT_MODULE,buildRun,run,latest,report,auditFunctions,auditModules,auditDomStructure,auditVisualCurrent,auditSync,auditDataIntegrity,loadRuns,saveRun,stableJson};
+window.hlgbInternalAuditor={VERSION,module:AUDIT_MODULE,buildRun,run,latest,report,auditFunctions,auditModules,auditDomStructure,auditVisualCurrent,auditSync,auditDataIntegrity,loadRuns,saveRun,stableJson,cleanupTechnicalPending};
 function boot(){
-  registerModule();inject();
+  detachTechnicalModule();cleanupTechnicalPending();inject();
   try{if(typeof hlgbAfterLogin==='function')hlgbAfterLogin(()=>{setTimeout(()=>{inject();loadRuns()},500)},0)}catch(e){}
   if(document.getElementById('appShell')?.style.display==='block')setTimeout(()=>loadRuns(),500);
 }
