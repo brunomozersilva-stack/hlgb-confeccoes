@@ -49,6 +49,7 @@ jobs:
             release-diagnostics-center.js
             release-internal-auditor.js
             release-assistant-query.js
+            release-header-cleanup.js
           )
           for f in "${files[@]}"; do
             test -f "$f"
