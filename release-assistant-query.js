@@ -323,15 +323,18 @@ function injectStyles(){
 }
 function injectButton(){
   injectStyles();
-  if(document.getElementById('hlgbAssistantBtn'))return;
-  const header=document.querySelector('#appShell header > div:last-child');
-  if(!header)return;
-  const b=document.createElement('button');b.id='hlgbAssistantBtn';b.type='button';b.className='hlgb-assistant-btn';b.textContent='🤖 Assistente';b.onclick=openAssistant;
-  const logout=[...header.querySelectorAll('button')].find(x=>norm(x.textContent)==='sair');
-  if(logout)header.insertBefore(b,logout);else header.appendChild(b);
+  const headerBtn=document.getElementById('hlgbAssistantBtn');
+  if(headerBtn)headerBtn.remove();
+  if(document.getElementById('hlgbAssistantNavBtn'))return;
+  const groups=[...document.querySelectorAll('#nav .nav-group')];
+  const sys=groups.find(g=>norm(g.querySelector('.nav-group-title span')?.textContent||'')==='sistema');
+  const menu=sys?.querySelector('.nav-submenu');
+  if(!menu)return;
+  const b=document.createElement('button');b.id='hlgbAssistantNavBtn';b.type='button';b.textContent='🤖 Assistente HLGB';b.onclick=openAssistant;
+  menu.insertBefore(b,menu.firstChild);
 }
 function openAssistant(){
-  openModal('🤖 Assistente HLGB','<div class="hlgb-assistant-box"><div class="sub">Pergunte sobre pedidos, clientes, produtos, entregas e erros registrados. Nesta fase ele não altera dados.</div><div class="hlgb-assistant-input"><input id="hlgbAssistantInput" placeholder="Ex.: onde está o pedido 63?" onkeydown="if(event.key===\'Enter\')hlgbAssistantAsk()"><button type="button" class="primary" onclick="hlgbAssistantAsk()">Perguntar</button></div><div class="hlgb-assistant-examples"><button type="button" class="secondary" onclick="hlgbAssistantExample(\'O que entrega hoje?\')">Entregas de hoje</button><button type="button" class="secondary" onclick="hlgbAssistantExample(\'O que entrega amanhã?\')">Entregas de amanhã</button><button type="button" class="secondary" onclick="hlgbAssistantExample(\'Quais erros estão abertos?\')">Erros abertos</button></div><div id="hlgbAssistantAnswer" class="hlgb-assistant-answer">Digite uma pergunta para começar.</div><button type="button" class="secondary modalSave">Fechar</button></div>',()=>closeModal());
+  openModal('🤖 Assistente HLGB','<div class="hlgb-assistant-box"><div class="sub">Pergunte sobre pedidos, clientes, produtos, entregas e erros. Ações liberadas sempre mostram uma prévia e pedem confirmação.</div><div class="hlgb-assistant-input"><input id="hlgbAssistantInput" placeholder="Ex.: onde está o pedido 63?" onkeydown="if(event.key===\'Enter\')hlgbAssistantAsk()"><button type="button" class="primary" onclick="hlgbAssistantAsk()">Perguntar</button></div><div class="hlgb-assistant-examples"><button type="button" class="secondary" onclick="hlgbAssistantExample(\'O que entrega hoje?\')">Entregas de hoje</button><button type="button" class="secondary" onclick="hlgbAssistantExample(\'O que entrega amanhã?\')">Entregas de amanhã</button><button type="button" class="secondary" onclick="hlgbAssistantExample(\'Quais erros estão abertos?\')">Erros abertos</button></div><div id="hlgbAssistantAnswer" class="hlgb-assistant-answer">Digite uma pergunta para começar.</div><button type="button" class="secondary modalSave">Fechar</button></div>',()=>closeModal());
   setTimeout(()=>document.getElementById('hlgbAssistantInput')?.focus(),0);
 }
 window.openHlgbAssistant=openAssistant;
