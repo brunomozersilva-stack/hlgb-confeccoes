@@ -131,6 +131,36 @@ assert(bad.checks.some(x=>x.title==='Falha de integridade'&&x.status==='fail'));
   assert.equal(ls.get('hlgb_records_pending_v91'),pendingBefore,'export diagnostic must not mutate normalized pending queue');
   assert.equal(ls.get('hlgb_durable_wal_v1'),walBefore,'export diagnostic must not mutate localStorage WAL');
 
+  const localOrder={id:'order-derived',status:'Pedido em produção',projectionItems:{p1:{date:'2026-09-03',noteQueuedQty:2}}};
+  const cloudOrder={id:'order-derived',status:'Pedido em produção',projectionItems:{p1:{date:'2026-09-03',noteQueuedQty:9}}};
+  const localFaction={id:'faction-derived',productId:'p1',productionId:'prod1',description:'Modelo A',done:10};
+  const cloudFaction={id:'faction-derived',productId:'p1',productionId:'prod1',description:'Modelo A, Modelo B',done:10};
+  context.db.orders=[localOrder];
+  context.db.factions=[localFaction];
+  context.db.products=[{id:'p1',name:'Modelo A'}];
+  context.db.production=[{id:'prod1',productId:'p1',product:'Modelo A'}];
+  context.hlgbRecordSnapshots.orders=new Map([['order-derived',{data:JSON.parse(JSON.stringify(cloudOrder)),deleted_at:null}]]);
+  context.hlgbRecordSnapshots.factions=new Map([['faction-derived',{data:JSON.parse(JSON.stringify(cloudFaction)),deleted_at:null}]]);
+  context.window.hlgbFactionCanonicalDescription=()=> 'Modelo A';
+  ls.set('hlgb_records_pending_v91',JSON.stringify({modules:{
+    orders:[{id:'order-derived',data:JSON.parse(JSON.stringify(localOrder)),deleted:false}],
+    factions:[{id:'faction-derived',data:JSON.parse(JSON.stringify(localFaction)),deleted:false}],
+    finance:[{id:'keep-real',data:{id:'keep-real',value:99},deleted:false}]
+  }}));
+  ls.set('hlgb_durable_wal_v1',JSON.stringify({schema:1,entries:{}}));
+  const classified=await api.classifiedDerivedPending();
+  assert.equal(classified.length,2,'only known derived differences must be classified as safe false positives');
+  assert(classified.some(x=>x.module==='orders'&&x.id==='order-derived'));
+  assert(classified.some(x=>x.module==='factions'&&x.id==='faction-derived'));
+  const cleaned=await api.cleanClassifiedDerivedPending();
+  assert.equal(cleaned.removed,2,'safe cleanup must remove only classified derived pending entries');
+  assert.equal(cleaned.remaining,1,'unrelated pending entry must remain');
+  const remainingPending=JSON.parse(ls.get('hlgb_records_pending_v91'));
+  assert(!remainingPending.modules.orders&&!remainingPending.modules.factions,'derived queues must be removed');
+  assert.equal(remainingPending.modules.finance.length,1,'unrelated finance pending must remain untouched');
+  assert.equal(context.db.orders[0].projectionItems.p1.noteQueuedQty,9,'local order must be restored from authoritative snapshot after cleanup');
+  assert.equal(context.db.factions[0].description,'Modelo A, Modelo B','local faction must be restored from authoritative snapshot after cleanup');
+
   const first={id:'audit-new',kind:'system_audit',startedAt:'2026-09-30T18:00:00Z',completedAt:'2026-09-30T18:00:01Z',summary:{result:'Aprovado',pass:1,warn:0,fail:0},checks:[]};
   context.cloudEnsureFreshSession=async()=>true;
   context.cloudRequest=async(url,opts)=>{
@@ -176,5 +206,5 @@ assert(bad.checks.some(x=>x.title==='Falha de integridade'&&x.status==='fail'));
   assert(!ls.has('hlgb_durable_wal_v1'),'fresh audit must not create WAL entries');
   assert.equal(pendingWrites,0,'fresh audit must not invoke operational writes');
 
-  console.log('PASS internal auditor: read-only checks, dedicated cloud history, sync diagnostic export, credential redaction and operational queue preservation.');
+  console.log('PASS internal auditor: read-only checks, diagnostic export, safe derived-pending cleanup and operational queue preservation.');
 })().catch(e=>{console.error(e);process.exit(1)});
