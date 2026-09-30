@@ -1,0 +1,136 @@
+name: HLGB Local Preview Package
+
+on:
+  push:
+    branches:
+      - melhorias-ia-diagnostico-20260930
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  package:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout exact branch commit
+        uses: actions/checkout@v4
+
+      - name: Build local preview package
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p preview
+          files=(
+            abrir.html
+            app-stable3.html
+            app9240.html
+            hotfix9241.js
+            release-current.js
+            release-pricing.js
+            release-limits.js
+            release-cut-view.js
+            release-record-integrity.js
+            release-notes.js
+            release-note-integrity.js
+            release-projection-delivery-integrity.js
+            release-projection-team-view.js
+            release-faction-payments.js
+            release-faction-integrity.js
+            release-faction-master-integrity.js
+            release-payroll-integrity.js
+            release-payroll-termination-provisions.js
+            release-checklist-integrity.js
+            release-capacity-integrity.js
+            release-hub-search.js
+            release-hub-integrity.js
+            release-hub-personal-integrity.js
+            release-ui-stability.js
+            release-diagnostics-center.js
+            release-internal-auditor.js
+            release-assistant-query.js
+          )
+          for f in "\${files[@]}"; do
+            test -f "$f"
+            cp "$f" preview/
+          done
+
+          cat > preview/preview-server.py <<'PY'
+          from http.server import ThreadingHTTPServer, SimpleHTTPRequestHandler
+          import os
+
+          HOST = "127.0.0.1"
+          PORT = 8765
+
+          class NoCache(SimpleHTTPRequestHandler):
+              def end_headers(self):
+                  self.send_header("Cache-Control", "no-store, no-cache, must-revalidate")
+                  self.send_header("Pragma", "no-cache")
+                  self.send_header("Expires", "0")
+                  super().end_headers()
+
+          os.chdir(os.path.dirname(os.path.abspath(__file__)))
+          print(f"HLGB local: http://{HOST}:{PORT}/abrir.html", flush=True)
+          ThreadingHTTPServer((HOST, PORT), NoCache).serve_forever()
+          PY
+
+          cat > preview/start-preview.command <<'SH'
+          #!/bin/bash
+          set -e
+          cd "$(dirname "$0")"
+          echo ""
+          echo "HLGB — teste local"
+          echo "Versão da branch: melhorias-ia-diagnostico-20260930"
+          echo "Commit: __COMMIT__"
+          echo ""
+          echo "Abra no Safari ou Chrome:"
+          echo "http://localhost:8765/abrir.html"
+          echo ""
+          echo "Para encerrar, volte a esta janela e pressione Control + C."
+          echo ""
+          python3 preview-server.py
+          SH
+          sed -i "s/__COMMIT__/$GITHUB_SHA/g" preview/start-preview.command
+          chmod +x preview/start-preview.command
+
+          cat > preview/LEIA-ME.txt <<EOF
+          HLGB CONFECÇÕES — PACOTE LOCAL DE TESTE
+
+          Branch: melhorias-ia-diagnostico-20260930
+          Commit: $GITHUB_SHA
+
+          Este pacote NÃO publica o main.
+
+          COMO ABRIR NO MAC:
+          1. Descompacte o ZIP.
+          2. Abra a pasta.
+          3. Dê duplo clique em start-preview.command.
+          4. Se o macOS bloquear, abra o Terminal nessa pasta e rode:
+             python3 preview-server.py
+          5. Abra:
+             http://localhost:8765/abrir.html
+
+          TESTE PRINCIPAL:
+          - Central de Erros e Melhorias
+          - Projeção Semanal > Visão da equipe
+          - Assistente HLGB
+          - Auditor / Testes
+          - No Assistente: "rodar auditoria do sistema"
+          - Depois: "qual foi a última auditoria?"
+
+          O Auditor desta versão é somente leitura.
+          Não crie pedido TESTE para esta rodada.
+          EOF
+
+          (
+            cd preview
+            shasum -a 256 abrir.html app-stable3.html app9240.html *.js preview-server.py start-preview.command > MANIFEST-SHA256.txt
+          )
+
+      - name: Upload preview package
+        uses: actions/upload-artifact@v4
+        with:
+          name: HLGB-PREVIEW-\${{ github.sha }}
+          path: preview/
+          if-no-files-found: error
+          retention-days: 7
