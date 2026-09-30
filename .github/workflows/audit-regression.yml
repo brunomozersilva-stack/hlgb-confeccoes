@@ -59,7 +59,8 @@ jobs:
             tests/audit-production-assignment-behavior-regression.cjs \
             tests/audit-projection-missing-behavior-regression.cjs \
             tests/audit-diagnostics-center.cjs \
-            tests/audit-termination-provisions-regression.cjs
+            tests/audit-termination-provisions-regression.cjs \
+            tests/audit-hub-personal-integrity-regression.cjs
           do
             echo "==> $test"
             node "$test"
