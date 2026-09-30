@@ -83,4 +83,13 @@ const bad=api.buildRun('full');
 assert(bad.summary.fail>0,'high integrity finding must fail the audit');
 assert(bad.checks.some(x=>x.title==='Falha de integridade'&&x.status==='fail'));
 
-console.log('PASS internal auditor: read-only checks, Safari detection, module registration and integrity failures.');
+(async()=>{
+  const same={id:'audit-same',kind:'system_audit',startedAt:'2026-09-30T18:00:00Z',completedAt:'2026-09-30T18:00:01Z',summary:{result:'Aprovado',pass:1,warn:0,fail:0},checks:[]};
+  context.hlgbRecordSaveWithRetry=async()=>{const e=new Error('same field conflict');e.code='HLGB_SAME_FIELD_CONFLICT';throw e};
+  context.cloudEnsureFreshSession=async()=>true;
+  context.cloudRequest=async()=>[{module:'systemAuditRuns',entity_id:'audit-same',data:JSON.parse(JSON.stringify(same)),deleted_at:null,revision:1,updated_at:'2026-09-30T18:00:02Z',updated_by:'u1'}];
+  const saved=await api.saveRun(same);
+  assert.equal(saved.id,'audit-same','identical remote audit must be accepted as idempotent confirmation');
+  assert(context.db.systemAuditRuns.some(x=>x.id==='audit-same'),'idempotent audit must remain available locally');
+  console.log('PASS internal auditor: read-only checks, Safari detection, module registration, integrity failures and idempotent save conflict.');
+})().catch(e=>{console.error(e);process.exit(1)});
