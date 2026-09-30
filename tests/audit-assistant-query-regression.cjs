@@ -4,7 +4,7 @@ const src=fs.readFileSync(path.join(root,'release-assistant-query.js'),'utf8');
 const loader=fs.readFileSync(path.join(root,'app-stable3.html'),'utf8');
 assert(loader.includes("'release-assistant-query.js'"),'loader must include assistant');
 
-let openedMissing=null;
+let openedMissing=null,hubToggled=null;
 const context={
   console,
   db:{
@@ -15,9 +15,16 @@ const context={
     production:[{id:'prod1',orderId:'o1',productId:'p1',planned:100,done:60,productionLocationId:'loc1'}],
     productionLocations:[{id:'loc1',name:'Facção Teste'}],
     missingPieces:[{id:'m1',orderId:'o1',product:'Camisola Romantic',remainingQty:5,status:'Em aberto'}],
-    systemIssues:[{id:'e1',title:'Erro de teste',status:'Aberto',priority:'Alta',page:'projecao'}]
+    systemIssues:[{id:'e1',title:'Erro de teste',status:'Aberto',priority:'Alta',page:'projecao'}],
+    hubFinanceEntries:[
+      {id:'h1',flow:'Saída',description:'Rescisão Arisergio',category:'Funcionários',subcategory:'Rescisão',person:'Arisergio Inacio Luiz',date:'2026-09-30',value:1582.02,status:'Previsto'},
+      {id:'h2',flow:'Saída',description:'Conta já paga',category:'Outros',date:'2026-09-29',value:100,status:'Realizado'}
+    ]
   },
-  window:{abateMissingPiece(id){openedMissing=id}},
+  window:{
+    abateMissingPiece(id){openedMissing=id},
+    async toggleHubFinanceEntry(id){hubToggled=id}
+  },
   document:{readyState:'loading',addEventListener(){},getElementById(){return null},querySelector(){return null}},
   setTimeout(){return 0},
   openModal(){},closeModal(){},
@@ -33,6 +40,8 @@ const context={
 vm.createContext(context);vm.runInContext(src,context);
 const api=context.window.hlgbAssistant;
 assert(api,'assistant API must load');
+
+(async()=>{
 
 const order=api.query('onde está o pedido 63?');
 assert.equal(order.kind,'order','must understand order lookup');
@@ -52,6 +61,17 @@ assert.equal(openedMissing,null,'query must never execute the write action');
 api.runOfficialMissingAction('m1');
 assert.equal(openedMissing,'m1','confirmed execution helper must delegate to the official missing-piece function');
 
+const hubAction=api.query('marcar Rescisão Arisergio como realizado');
+assert.equal(hubAction.kind,'hub-realized-action','Hub realization intent must create a confirmation proposal');
+assert.equal(hubAction.actions.length,1);
+assert.equal(hubAction.actions[0].id,'h1');
+assert.equal(hubToggled,null,'query must not toggle Hub automatically');
+await api.runOfficialHubRealizedAction('h1');
+assert.equal(hubToggled,'h1','confirmed Hub helper must delegate to official toggle function');
+
+const already=api.prepareHubRealizedAction('Conta já paga');
+assert.equal(already.kind,'empty','already realized entry must not be offered for toggling');
+
 const blocked=api.query('mudar status do pedido 63');
 assert.equal(blocked.kind,'protected','unreleased write intents must remain protected');
 
@@ -66,4 +86,5 @@ const product=api.query('Camisola Romantic');
 assert.equal(product.kind,'product','must locate product by natural text');
 assert(product.text.includes('CR01'));
 
-console.log('PASS assistant query: lookup, diagnostics, product search, safe missing-piece action and protected unreleased writes.');
+console.log('PASS assistant query: lookup, diagnostics, safe operational actions and protected unreleased writes.');
+})().catch(e=>{console.error(e);process.exit(1)});
