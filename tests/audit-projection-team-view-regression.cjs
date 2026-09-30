@@ -15,7 +15,10 @@ const context={
     production:[
       {id:'prod1',orderId:'o1',productId:'p1',planned:100,done:75},
       {id:'prod2',orderId:'o2',productId:'p2',planned:50,done:50}
-    ]
+    ],
+    cuts:[{id:'cut1',orderId:'o1',productId:'p1',cutterId:'cutter1'}],
+    cutters:[{id:'cutter1',name:'Thiago'}],
+    missingPieces:[{id:'missing1',orderId:'o1',productId:'p1',status:'Em aberto',remainingQty:4}]
   },
   window:{renderProjection(){return true}},
   document:{
@@ -50,6 +53,8 @@ assert.equal(base[0].number,101);
 assert.equal(base[0].progress.done,75);
 assert.equal(base[0].progress.planned,100);
 assert.equal(base[0].progress.pct,75);
+assert.deepEqual(Array.from(base[0].cutters),['Thiago'],'must show cutter linked to the cut');
+assert.equal(base[0].missing,4,'must show open missing pieces for the order/product');
 
 assert.equal(base[1].location,'Confecção B');
 assert.equal(base[1].progress.done,50);
