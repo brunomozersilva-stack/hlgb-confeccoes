@@ -110,6 +110,23 @@ function answerProblems(){
   const high=issues.filter(x=>['Crítica','Alta'].includes(x.priority));
   return {title:'Central de erros',text:'Erros abertos: <b>'+issues.length+'</b> · Alta prioridade: <b>'+high.length+'</b><br><br>'+issues.slice(0,10).map(x=>'• '+escSafe(x.priority||'Média')+' · <b>'+escSafe(x.title||'Erro')+'</b> · '+escSafe(x.page||'-')).join('<br>'),kind:'issues'};
 }
+function latestAudit(){
+  try{
+    const direct=window.hlgbInternalAuditor?.latest?.();
+    if(direct)return direct;
+  }catch(e){}
+  return arr('systemAuditRuns').slice().sort((a,b)=>String(b?.completedAt||b?.startedAt||'').localeCompare(String(a?.completedAt||a?.startedAt||'')))[0]||null;
+}
+function answerLatestAudit(){
+  const r=latestAudit();
+  if(!r)return {title:'Auditoria interna',text:'Ainda não existe auditoria interna salva. Você pode pedir <b>“rodar auditoria do sistema”</b>.',kind:'audit-empty'};
+  const s=r.summary||{},result=s.result||'-',icon=result==='Aprovado'?'✅':result==='Atenção'?'🟡':'🔴';
+  const bad=(r.checks||[]).filter(x=>x?.status!=='pass').slice(0,8);
+  return {title:'Última auditoria interna',text:icon+' <b>'+escSafe(result)+'</b> · '+q(s.pass)+' passou · '+q(s.warn)+' atenção · '+q(s.fail)+' falha(s)<br>Executada: '+escSafe(String(r.completedAt||r.startedAt||'').replace('T',' ').slice(0,19))+' · '+escSafe(r.browser||'-')+' · tela '+escSafe(r.activePage||'-')+(bad.length?'<br><br>'+bad.map(x=>'• '+(x.status==='fail'?'🔴':'🟡')+' <b>'+escSafe(x.title||'Verificação')+'</b> · '+escSafe(x.detail||'')).join('<br>'):'<br><br>Nenhum ponto de atenção registrado.'),kind:'audit-result',data:r};
+}
+function prepareAuditAction(){
+  return {title:'Executar auditoria interna',text:'Vou executar uma conferência <b>somente de leitura</b>: funções essenciais, estrutura das telas, tela atual, sincronização, integridade dos dados e erros registrados.<br><br><b>Não cria pedido, não dá baixa e não altera produção ou financeiro.</b>',kind:'audit-action'};
+}
 function openMissingForOrder(number){
   const o=findOrderByNumber(number);
   if(!o)return {title:'Pedido não encontrado',text:'Não encontrei o pedido #'+sid(number)+' entre os pedidos ativos.',kind:'empty'};
@@ -287,6 +304,8 @@ function query(raw){
   if(/(entrega|entregar|sair|saida|projecao).*(hoje)/.test(n)||/hoje.*(entrega|sair|saida)/.test(n))return answerDeliveries('today');
   if(/(entrega|entregar|sair|saida|projecao).*(semana)/.test(n)||/semana.*(entrega|sair|saida)/.test(n))return answerDeliveries('week');
   if(/atrasad/.test(n))return answerDeliveries('late');
+  if(/(?:ultima|última|resultado|ver|mostrar|consultar).*(?:auditoria|teste do sistema)|(?:auditoria).*(?:ultima|última|resultado|mais recente)/.test(n))return answerLatestAudit();
+  if(/(?:rodar|executar|fazer|iniciar).*(?:auditoria|teste do sistema)|(?:testar|auditar|varrer)\s+(?:o\s+)?sistema/.test(n))return prepareAuditAction();
   if(/\b(erros?|problemas?|falhas?)\b/.test(n))return answerProblems();
 
   // Busca literal de cliente/produto usando a frase inteira e, depois, palavras relevantes.
@@ -334,6 +353,9 @@ window.hlgbAssistantAsk=function(){
   }
   if(a.kind==='status-action'){
     actions='<div class="toolbar" style="margin-top:12px"><button type="button" class="primary" onclick="hlgbAssistantOpenStatus(\''+escSafe(a.orderId)+'\',\''+escSafe(a.target)+'\')">🔄 Confirmar e abrir pedido</button></div>';
+  }
+  if(a.kind==='audit-action'){
+    actions='<div class="toolbar" style="margin-top:12px"><button type="button" class="primary" onclick="hlgbAssistantRunAudit()">🧪 Confirmar auditoria</button></div>';
   }
   out.dataset.pendingKind=a.kind||'';out.dataset.pendingText=a.description||'';
   out.innerHTML='<h3 style="margin-top:0">'+escSafe(a.title)+'</h3>'+a.text+actions;
@@ -406,7 +428,19 @@ window.hlgbAssistantOpenStatus=function(orderId,target){
     try{auditAction?.('Assistente abriu alteração de status',String(orderId)+' '+current+' -> '+desired)}catch(e){}
   }catch(e){alert('Não foi possível abrir o editor oficial.\n\n'+String(e?.message||e))}
 };
-window.hlgbAssistant={query,answerOrder,answerDeliveries,answerProblems,orderSnapshot,openMissingForOrder,runOfficialMissingAction,prepareHubRealizedAction,runOfficialHubRealizedAction,findHubEntries,prepareOrderPriorityAction,runOfficialPriorityAction,canonicalPriority,prepareOrderStatusAction,runOfficialStatusAction,canonicalOrderStatus,detectWriteIntent,version:V};
+window.hlgbAssistantRunAudit=async function(){
+  const out=document.getElementById('hlgbAssistantAnswer');
+  const auditor=window.hlgbInternalAuditor;
+  if(!auditor?.run){if(out)out.innerHTML='<b>Auditor interno não está disponível.</b>';return}
+  if(!confirm('Executar auditoria interna somente de leitura agora?\n\nNenhum pedido, produção ou financeiro será alterado.'))return;
+  try{
+    if(out)out.innerHTML='<b>🧪 Executando auditoria interna…</b>';
+    const run=await auditor.run('full',true),sum=run?.summary||{};
+    if(out)out.innerHTML='<h3 style="margin-top:0">Auditoria concluída</h3><b>'+escSafe(sum.result||'-')+'</b> · '+q(sum.pass)+' passou · '+q(sum.warn)+' atenção · '+q(sum.fail)+' falha(s)<br><br>O resultado foi salvo para consulta posterior.';
+    try{auditAction?.('Assistente executou Auditor HLGB',String(sum.result||'-'))}catch(e){}
+  }catch(e){if(out)out.innerHTML='<b>Não foi possível concluir a auditoria.</b><br>'+escSafe(String(e?.message||e))}
+};
+window.hlgbAssistant={query,answerOrder,answerDeliveries,answerProblems,answerLatestAudit,prepareAuditAction,orderSnapshot,openMissingForOrder,runOfficialMissingAction,prepareHubRealizedAction,runOfficialHubRealizedAction,findHubEntries,prepareOrderPriorityAction,runOfficialPriorityAction,canonicalPriority,prepareOrderStatusAction,runOfficialStatusAction,canonicalOrderStatus,detectWriteIntent,version:V};
 function boot(){injectButton();try{if(typeof hlgbAfterLogin==='function')hlgbAfterLogin(()=>setTimeout(injectButton,300),0)}catch(e){}}
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',boot,{once:true});else boot();
 console.info('[HLGB] Assistente HLGB consulta v1 carregado');
