@@ -132,6 +132,44 @@ function runOfficialMissingAction(id){
   fn(row.id);
   return true;
 }
+function hubEntryLabel(e){
+  return String(e?.description||e?.desc||e?.person||e?.origin||e?.category||'Lançamento').trim()||'Lançamento';
+}
+function hubEntryIsConfig(e){
+  return !!(e?.kind&&String(e.kind).startsWith('hub_settings'))||String(e?.flow||'')==='Config'||String(e?.status||'')==='Configuração';
+}
+function hubEntryDone(e){
+  const st=norm(e?.status);
+  return st==='realizado'||st==='pago'||st==='concluido'||st==='concluida';
+}
+function findHubEntries(term){
+  const n=norm(term),idMatch=String(term||'').match(/(?:lancamento|lançamento|id)\s*#?\s*([\w:-]+)/i);
+  let rows=arr('hubFinanceEntries').filter(e=>e&&!hubEntryIsConfig(e));
+  if(idMatch)rows=rows.filter(e=>sid(e?.id)===sid(idMatch[1]));
+  else if(n)rows=rows.filter(e=>norm([e?.description,e?.desc,e?.person,e?.origin,e?.category,e?.subcategory,e?.note,e?.id].join(' ')).includes(n));
+  return rows.slice().sort((a,b)=>String(b?.date||'').localeCompare(String(a?.date||''))).slice(0,12);
+}
+function prepareHubRealizedAction(term){
+  const rows=findHubEntries(term);
+  if(!rows.length)return {title:'Lançamento não encontrado',text:'Não encontrei lançamento no Hub correspondente a <b>'+escSafe(term||'-')+'</b>. Tente usar parte da descrição, nome da pessoa ou o ID do lançamento.',kind:'empty'};
+  const pending=rows.filter(e=>!hubEntryDone(e));
+  if(!pending.length)return {title:'Lançamento já realizado',text:'Os lançamentos encontrados já estão marcados como realizados. Nenhuma alteração é necessária.',kind:'empty'};
+  return {
+    title:'Marcar no Hub como realizado',
+    text:'Encontrei '+pending.length+' lançamento(s) ainda previsto(s). Confira antes de confirmar:<br><br>'+pending.map(e=>'• <b>'+escSafe(hubEntryLabel(e))+'</b> · '+moneySafe(q(e?.value))+(e?.date?' · '+escSafe(fmt(e.date)):'')+' · '+escSafe(e?.status||'Previsto')).join('<br>'),
+    kind:'hub-realized-action',
+    actions:pending.map(e=>({id:sid(e.id),label:hubEntryLabel(e),value:q(e.value),date:e.date||'',status:e.status||'Previsto'}))
+  };
+}
+async function runOfficialHubRealizedAction(id){
+  const row=arr('hubFinanceEntries').find(e=>sid(e?.id)===sid(id)&&!hubEntryIsConfig(e));
+  if(!row)throw new Error('Este lançamento não está mais disponível no Hub.');
+  if(hubEntryDone(row))return {changed:false,alreadyDone:true,row};
+  if(typeof window.toggleHubFinanceEntry!=='function'&&typeof toggleHubFinanceEntry!=='function')throw new Error('A função oficial do Hub não está disponível.');
+  const fn=typeof window.toggleHubFinanceEntry==='function'?window.toggleHubFinanceEntry:toggleHubFinanceEntry;
+  await fn(row.id);
+  return {changed:true,alreadyDone:false,row};
+}
 function detectWriteIntent(qry){
   return /\b(dar baixa|baixa|marcar.*pag|pagar|mudar status|alterar status|cancelar|excluir|apagar|finalizar|entregar|registrar entrega|trocar prioridade|colocar.*urgente|salvar|editar)\b/i.test(qry);
 }
@@ -144,6 +182,8 @@ function query(raw){
   if(err&&err[1]?.trim())return {title:'Relatar erro',text:'Posso registrar este erro na Central:<br><br><b>'+escSafe(err[1].trim())+'</b>',kind:'issue-intent',description:err[1].trim()};
   const baixa=n.match(/(?:dar\s+baixa|baixar|abater|recuperar)(?:\s+(?:no|nos|do|dos|em))?\s*(?:faltante|faltantes|falta|faltas|peca faltante|pecas faltantes)?[^0-9]*(?:pedido\s*)?#?\s*(\d+)/i);
   if(baixa)return openMissingForOrder(baixa[1]);
+  const hubDone=original.match(/(?:marcar|colocar|dar\s+baixa\s+em)\s+(.+?)\s+(?:como\s+)?(?:pago|paga|realizado|realizada)(?:\s+no\s+hub)?\s*$/i);
+  if(hubDone&&hubDone[1]?.trim())return prepareHubRealizedAction(hubDone[1].trim());
   if(detectWriteIntent(n))return {title:'Ação protegida',text:'Eu entendi que você quer <b>alterar dados</b>. Este comando ainda não foi liberado para execução automática. As ações são liberadas uma por uma, sempre com prévia e confirmação.',kind:'protected'};
   let m=n.match(/pedido\s*#?\s*(\d+)/);
   if(m)return answerOrder(m[1]);
@@ -190,6 +230,9 @@ window.hlgbAssistantAsk=function(){
   if(a.kind==='missing-action'&&Array.isArray(a.actions)){
     actions='<div class="toolbar" style="margin-top:12px">'+a.actions.map(x=>'<button type="button" class="primary" onclick="hlgbAssistantOpenMissing(\''+escSafe(x.id)+'\')">✅ '+escSafe(x.label)+'</button>').join('')+'</div>';
   }
+  if(a.kind==='hub-realized-action'&&Array.isArray(a.actions)){
+    actions='<div class="toolbar" style="margin-top:12px">'+a.actions.map(x=>'<button type="button" class="primary" onclick="hlgbAssistantConfirmHubRealized(\''+escSafe(x.id)+'\')">💰 '+escSafe(x.label)+' · '+moneySafe(x.value)+'</button>').join('')+'</div>';
+  }
   out.dataset.pendingKind=a.kind||'';out.dataset.pendingText=a.description||'';
   out.innerHTML='<h3 style="margin-top:0">'+escSafe(a.title)+'</h3>'+a.text+actions;
   try{auditAction?.('Consultou Assistente HLGB',String(input.value||'').slice(0,160))}catch(e){}
@@ -221,7 +264,21 @@ window.hlgbAssistantOpenMissing=function(id){
     try{auditAction?.('Assistente abriu baixa oficial de faltante',String(id))}catch(e){}
   }catch(e){alert('Não foi possível abrir a baixa oficial.\n\n'+String(e?.message||e))}
 };
-window.hlgbAssistant={query,answerOrder,answerDeliveries,answerProblems,orderSnapshot,openMissingForOrder,runOfficialMissingAction,detectWriteIntent,version:V};
+window.hlgbAssistantConfirmHubRealized=async function(id){
+  const row=arr('hubFinanceEntries').find(e=>sid(e?.id)===sid(id)&&!hubEntryIsConfig(e));
+  if(!row)return alert('Este lançamento não está mais disponível.');
+  if(hubEntryDone(row))return alert('Este lançamento já está realizado. Nenhuma alteração foi feita.');
+  const msg='Marcar como REALIZADO?\n\n'+hubEntryLabel(row)+'\n'+moneySafe(q(row.value))+(row.date?'\nData: '+fmt(row.date):'')+'\n\nEsta alteração será gravada usando a função oficial do Hub.';
+  if(!confirm(msg))return;
+  try{
+    const out=document.getElementById('hlgbAssistantAnswer');
+    if(out)out.innerHTML='<b>☁️ Confirmando no Hub…</b>';
+    await runOfficialHubRealizedAction(id);
+    try{auditAction?.('Assistente marcou lançamento do Hub como realizado',String(id))}catch(e){}
+    if(out)out.innerHTML='<b>✅ Lançamento enviado para confirmação no Hub.</b><br>'+escSafe(hubEntryLabel(row))+' · '+moneySafe(q(row.value));
+  }catch(e){alert('Não foi possível confirmar a alteração no Hub.\n\n'+String(e?.message||e))}
+};
+window.hlgbAssistant={query,answerOrder,answerDeliveries,answerProblems,orderSnapshot,openMissingForOrder,runOfficialMissingAction,prepareHubRealizedAction,runOfficialHubRealizedAction,findHubEntries,detectWriteIntent,version:V};
 function boot(){injectButton();try{if(typeof hlgbAfterLogin==='function')hlgbAfterLogin(()=>setTimeout(injectButton,300),0)}catch(e){}}
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',boot,{once:true});else boot();
 console.info('[HLGB] Assistente HLGB consulta v1 carregado');
