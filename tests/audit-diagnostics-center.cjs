@@ -9,11 +9,17 @@ assert(loader.includes("'release-diagnostics-center.js'"),'official loader must 
 const context={
   console,
   db:{
-    orders:[{id:'o1'}],
-    products:[{id:'p1'}],
+    orders:[
+      {id:'o1',grade:[{productId:'p1'}]},
+      {id:'o2',grade:[{productId:'p1'},{productId:'p2'}]}
+    ],
+    products:[{id:'p1'},{id:'p2'}],
     cuts:[
       {id:'c1',orderId:'missing-order',productId:null},
-      {id:'c2',orderId:'o1',productId:'p1'}
+      {id:'c2',orderId:'o1',productId:'p1'},
+      {id:'c3',orderId:'o2',productId:null},
+      {id:'c4',orderId:null,productId:null,pieces:293},
+      {id:'c5',orderId:'o1',productId:null}
     ],
     production:[],
     capacityAssignments:[],
@@ -59,8 +65,11 @@ assert(!sanitized.includes('password:abc'),'password value must be removed');
 assert(sanitized.includes('[REMOVIDO]'),'sanitizer must leave redaction marker');
 
 const findings=api.scanSystem();
-assert(findings.some(x=>x.code==='cut-order-missing'),'scan must find cut linked to missing order');
-assert(findings.some(x=>x.code==='cut-product-missing'),'scan must find cut without valid product');
+assert(findings.some(x=>x.code==='cut-order-missing'&&String(x.description).includes('c1')),'scan must find cut linked to missing order');
+assert(!findings.some(x=>x.code==='cut-product-missing'&&String(x.description).includes('c1')),'missing-order cut must not be duplicated as missing-product');
+assert(!findings.some(x=>String(x.description||'').includes('c3')),'aggregate multi-product cut must not be reported as product error');
+assert(findings.some(x=>x.code==='cut-legacy-unlinked'&&String(x.description).includes('c4')&&x.severity==='Média'),'manual legacy cut must be a warning, not a failure');
+assert(findings.some(x=>x.code==='cut-product-missing'&&String(x.description).includes('c5')),'single-product active cut without productId must remain a real error');
 assert(findings.some(x=>x.code==='active-with-termination'),'scan must find active employee with termination date');
 assert(!findings.some(x=>String(x.description||'').includes('c2')&&x.code==='cut-order-missing'),'valid cut must not be reported as missing-order');
 
