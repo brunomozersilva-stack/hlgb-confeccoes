@@ -55,17 +55,50 @@ async function loadRuns(){
     return true;
   }catch(e){console.warn('[HLGB Auditor] carga',e);return false}
 }
+function stableJson(v){
+  const walk=x=>{
+    if(Array.isArray(x))return x.map(walk);
+    if(x&&typeof x==='object'){
+      const o={};Object.keys(x).sort().forEach(k=>o[k]=walk(x[k]));return o;
+    }
+    return x;
+  };
+  try{return JSON.stringify(walk(v))}catch(e){return JSON.stringify(v)}
+}
+async function exactAuditRow(id){
+  if(typeof cloudRequest!=='function')return null;
+  const rows=await cloudRequest('hlgb_records?select=module,entity_id,data,deleted_at,revision,updated_at,updated_by&module=eq.'+encodeURIComponent(AUDIT_MODULE)+'&entity_id=eq.'+encodeURIComponent(sid(id))+'&limit=1',{method:'GET'});
+  return Array.isArray(rows)?(rows[0]||null):null;
+}
+function applySavedRun(out,row){
+  const saved=clone(out?.data||row),list=arr(AUDIT_MODULE),i=list.findIndex(x=>sid(x?.id)===sid(saved.id));
+  if(i>=0)list[i]=saved;else list.unshift(saved);
+  db[AUDIT_MODULE]=list;
+  if(typeof hlgbRecordSnapshots!=='undefined'){
+    const map=hlgbRecordSnapshots[AUDIT_MODULE]||new Map();
+    map.set(sid(saved.id),{data:clone(saved),deleted_at:out?.deleted_at||null,revision:+out?.revision||1,updated_at:out?.updated_at||now(),updated_by:out?.updated_by||null});
+    hlgbRecordSnapshots[AUDIT_MODULE]=map;
+  }
+  try{localSaveOnly?.()}catch(e){}
+  return saved;
+}
 async function saveRun(row){
   registerModule();
   if(typeof hlgbRecordSaveWithRetry!=='function')throw new Error('Gravação por registro indisponível.');
   if(typeof cloudEnsureFreshSession==='function')await cloudEnsureFreshSession(false);
-  const out=await hlgbRecordSaveWithRetry(AUDIT_MODULE,sid(row.id),clone(row),false);
+  let out;
+  try{
+    out=await hlgbRecordSaveWithRetry(AUDIT_MODULE,sid(row.id),clone(row),false);
+  }catch(e){
+    // A auditoria é imutável. Se outra rotina já gravou EXATAMENTE o mesmo
+    // registro, trate como confirmação idempotente em vez de gerar erro crítico.
+    if(e?.code!=='HLGB_SAME_FIELD_CONFLICT')throw e;
+    const remote=await exactAuditRow(row.id);
+    if(!remote||remote.deleted_at||stableJson(remote.data)!==stableJson(row))throw e;
+    out={applied:true,data:remote.data,deleted_at:null,revision:remote.revision,updated_at:remote.updated_at,updated_by:remote.updated_by,hlgbAuditIdempotent:true};
+  }
   if(!out?.applied)throw new Error('O Supabase não confirmou a auditoria.');
-  const saved=clone(out.data||row),list=arr(AUDIT_MODULE),i=list.findIndex(x=>sid(x?.id)===sid(saved.id));
-  if(i>=0)list[i]=saved;else list.unshift(saved);
-  db[AUDIT_MODULE]=list;
-  try{localSaveOnly?.()}catch(e){}
-  return saved;
+  return applySavedRun(out,row);
 }
 function check(code,category,status,title,detail='',severity='info',meta={}){
   return {code,category,status,title,detail,severity,...meta};
@@ -288,7 +321,7 @@ window.hlgbAuditorCopyLatest=async function(){
   const text=report(latest());
   try{await navigator.clipboard.writeText(text);alert('Última auditoria copiada.')}catch(e){alert(text)}
 };
-window.hlgbInternalAuditor={VERSION,module:AUDIT_MODULE,buildRun,run,latest,report,auditFunctions,auditModules,auditDomStructure,auditVisualCurrent,auditSync,auditDataIntegrity,loadRuns};
+window.hlgbInternalAuditor={VERSION,module:AUDIT_MODULE,buildRun,run,latest,report,auditFunctions,auditModules,auditDomStructure,auditVisualCurrent,auditSync,auditDataIntegrity,loadRuns,saveRun,stableJson};
 function boot(){
   registerModule();inject();
   try{if(typeof hlgbAfterLogin==='function')hlgbAfterLogin(()=>{setTimeout(()=>{inject();loadRuns()},500)},0)}catch(e){}
