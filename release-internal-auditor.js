@@ -224,6 +224,79 @@ async function downloadSyncDiagnostic(){
   setTimeout(()=>{try{URL.revokeObjectURL(a.href)}catch(e){};a.remove()},1000);
   return data;
 }
+function stripFactionDerived(v){
+  const x=clone(v);if(x&&typeof x==='object'&&!Array.isArray(x))delete x.description;return x;
+}
+function stripOrderDerived(v){
+  const x=clone(v);
+  if(x?.projectionItems&&typeof x.projectionItems==='object'){
+    for(const item of Object.values(x.projectionItems)){
+      if(item&&typeof item==='object'&&!Array.isArray(item))delete item.noteQueuedQty;
+    }
+  }
+  return x;
+}
+async function classifiedDerivedPending(){
+  const pending=readJsonStorage(PENDING_KEY),out=[];
+  if(!pending?.modules)return out;
+  const localWal=localWalDiagnostic(),idbWal=await indexedDbWalDiagnostic(),walKeys=new Set();
+  for(const e of [...(localWal.entries||[]),...(idbWal.entries||[])]){
+    const m=String(e?.module||''),id=sid(e?.id??e?.entity_id??e?.entityId??'');
+    if(m&&id)walKeys.add(m+'|'+id);
+  }
+  for(const [module,ops] of Object.entries(pending.modules)){
+    for(const op of (Array.isArray(ops)?ops:[])){
+      const id=sid(op?.id);if(!id||walKeys.has(module+'|'+id))continue;
+      const snap=hlgbRecordSnapshots?.[module]?.get?.(id);
+      if(!snap||snap.deleted_at||!snap.data||!op?.data)continue;
+      if(stableJson(op.data)===stableJson(snap.data)){
+        out.push({module,id,reason:'Já é idêntico ao snapshot da nuvem.'});continue;
+      }
+      if(module==='factions'&&stableJson(stripFactionDerived(op.data))===stableJson(stripFactionDerived(snap.data))){
+        let canonical='';
+        try{canonical=String(window.hlgbFactionCanonicalDescription?.(op.data)||'')}catch(e){}
+        if(canonical&&String(op.data.description||'')===canonical){
+          out.push({module,id,reason:'Somente descrição derivada do modelo difere do snapshot.'});
+        }
+        continue;
+      }
+      if(module==='orders'&&stableJson(stripOrderDerived(op.data))===stableJson(stripOrderDerived(snap.data))){
+        out.push({module,id,reason:'Somente noteQueuedQty derivado difere do snapshot.'});
+      }
+    }
+  }
+  return out;
+}
+async function cleanClassifiedDerivedPending(){
+  const classified=await classifiedDerivedPending();
+  if(!classified.length)return {removed:0,items:[],remaining:normalizedPendingDiagnostic().count};
+  const keys=new Set(classified.map(x=>x.module+'|'+x.id));
+  const pending=readJsonStorage(PENDING_KEY);
+  if(!pending?.modules)return {removed:0,items:[],remaining:0};
+  let removed=0;
+  for(const [module,ops] of Object.entries(pending.modules)){
+    if(!Array.isArray(ops))continue;
+    const keep=[];
+    for(const op of ops){
+      const id=sid(op?.id),key=module+'|'+id;
+      if(!keys.has(key)){keep.push(op);continue}
+      const snap=hlgbRecordSnapshots?.[module]?.get?.(id);
+      if(!snap||snap.deleted_at||!snap.data){keep.push(op);continue}
+      removed++;
+      const list=Array.isArray(db?.[module])?db[module]:null;
+      if(list){
+        const ix=list.findIndex(x=>sid(x?.id??x?.__hlgbId)===id);
+        if(ix>=0)list[ix]=clone(snap.data);
+      }
+    }
+    if(keep.length)pending.modules[module]=keep;else delete pending.modules[module];
+  }
+  if(Object.keys(pending.modules).length)localStorage.setItem(PENDING_KEY,JSON.stringify(pending));
+  else localStorage.removeItem(PENDING_KEY);
+  try{localSaveOnly?.()}catch(e){}
+  try{if(typeof update955==='function')update955()}catch(e){}
+  return {removed,items:classified,remaining:normalizedPendingDiagnostic().count};
+}
 
 async function loadRuns(){
   detachTechnicalModule();
@@ -484,7 +557,7 @@ function historyHtml(){
 function openAuditor(){
   inject();
   const last=latest();
-  openModal('🧪 Auditor / Testador HLGB','<div class="sub">Executa conferência interna <b>somente de leitura</b>. Não cria pedidos, não dá baixa e não altera produção ou financeiro.</div><div class="hlgb-auditor-actions"><button type="button" class="primary" onclick="hlgbAuditorRunFull()">🧪 Testar sistema</button><button type="button" class="secondary" onclick="hlgbAuditorRunVisual()">👁️ Conferir tela atual</button><button type="button" class="secondary" onclick="hlgbAuditorCopyLatest()">📋 Copiar última auditoria</button><button type="button" class="secondary" onclick="hlgbAuditorExportSync()">📦 Exportar diagnóstico de sincronização</button></div><div id="hlgbAuditorResult">'+renderRun(last)+'</div><div class="panel"><h3 style="margin-top:0">Histórico</h3><div id="hlgbAuditorHistory" class="hlgb-auditor-history">'+historyHtml()+'</div></div><button type="button" class="secondary modalSave">Fechar</button>',()=>closeModal());
+  openModal('🧪 Auditor / Testador HLGB','<div class="sub">Executa conferência interna <b>somente de leitura</b>. Não cria pedidos, não dá baixa e não altera produção ou financeiro.</div><div class="hlgb-auditor-actions"><button type="button" class="primary" onclick="hlgbAuditorRunFull()">🧪 Testar sistema</button><button type="button" class="secondary" onclick="hlgbAuditorRunVisual()">👁️ Conferir tela atual</button><button type="button" class="secondary" onclick="hlgbAuditorCopyLatest()">📋 Copiar última auditoria</button><button type="button" class="secondary" onclick="hlgbAuditorExportSync()">📦 Exportar diagnóstico de sincronização</button><button type="button" class="secondary" onclick="hlgbAuditorCleanDerivedSync()">🧹 Limpar falsos positivos confirmados</button></div><div id="hlgbAuditorResult">'+renderRun(last)+'</div><div class="panel"><h3 style="margin-top:0">Histórico</h3><div id="hlgbAuditorHistory" class="hlgb-auditor-history">'+historyHtml()+'</div></div><button type="button" class="secondary modalSave">Fechar</button>',()=>closeModal());
   loadRuns().then(()=>{const h=document.getElementById('hlgbAuditorHistory');if(h)h.innerHTML=historyHtml();const r=document.getElementById('hlgbAuditorResult');if(r)r.innerHTML=renderRun(latest())}).catch(()=>{});
 }
 window.openHlgbAuditor=openAuditor;
@@ -515,7 +588,21 @@ window.hlgbAuditorExportSync=async function(){
     alert('Não foi possível exportar o diagnóstico de sincronização.\n\n'+String(e?.message||e));
   }
 };
-window.hlgbInternalAuditor={VERSION,module:AUDIT_MODULE,buildRun,run,latest,report,auditFunctions,auditModules,auditDomStructure,auditVisualCurrent,auditSync,auditDataIntegrity,loadRuns,saveRun,stableJson,cleanupTechnicalPending,redactDiagnostic,normalizedPendingDiagnostic,localWalDiagnostic,indexedDbWalDiagnostic,buildSyncDiagnostic,downloadSyncDiagnostic};
+window.hlgbAuditorCleanDerivedSync=async function(){
+  try{
+    const items=await classifiedDerivedPending();
+    if(!items.length)return alert('Nenhum falso positivo classificado com segurança foi encontrado.');
+    const byModule=items.reduce((a,x)=>(a[x.module]=(a[x.module]||0)+1,a),{});
+    const resumo=Object.entries(byModule).map(([m,n])=>m+': '+n).join('\n');
+    if(!confirm('Foram identificadas '+items.length+' pendência(s) automáticas que diferem da nuvem somente em campos derivados.\n\n'+resumo+'\n\nNenhum WAL será apagado e nenhum dado da nuvem será alterado. Deseja limpar somente essas pendências locais?'))return;
+    const out=await cleanClassifiedDerivedPending();
+    alert('Limpeza concluída.\n\nRemovidas: '+out.removed+'\nPendências normalizadas restantes: '+out.remaining+'\n\nNenhum dado da nuvem foi alterado.');
+    try{if(typeof window.hlgbAuditorRunFull==='function')await window.hlgbAuditorRunFull()}catch(e){}
+  }catch(e){
+    alert('Não foi possível concluir a limpeza segura.\n\n'+String(e?.message||e));
+  }
+};
+window.hlgbInternalAuditor={VERSION,module:AUDIT_MODULE,buildRun,run,latest,report,auditFunctions,auditModules,auditDomStructure,auditVisualCurrent,auditSync,auditDataIntegrity,loadRuns,saveRun,stableJson,cleanupTechnicalPending,redactDiagnostic,normalizedPendingDiagnostic,localWalDiagnostic,indexedDbWalDiagnostic,buildSyncDiagnostic,downloadSyncDiagnostic,classifiedDerivedPending,cleanClassifiedDerivedPending};
 function boot(){
   detachTechnicalModule();cleanupTechnicalPending();inject();
   try{if(typeof hlgbAfterLogin==='function')hlgbAfterLogin(()=>{setTimeout(()=>{inject();loadRuns()},500)},0)}catch(e){}
