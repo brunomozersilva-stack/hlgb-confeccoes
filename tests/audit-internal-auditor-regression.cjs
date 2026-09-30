@@ -60,6 +60,7 @@ vm.runInContext(src,context);
 const api=context.window.hlgbInternalAuditor;
 assert(api,'internal auditor API must load');
 assert.equal(api.module,'systemAuditRuns');
+api.loadRuns(); // registerModule runs before any cloud fetch; no business write is performed.
 assert(context.HLGB_RECORD_MODULES.includes('systemAuditRuns'),'audit module must register');
 assert.equal(context.HLGB_RECORD_WRITE_AREA.systemAuditRuns,'cadastros');
 
