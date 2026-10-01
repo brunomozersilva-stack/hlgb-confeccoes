@@ -1,4 +1,4 @@
-/* HLGB stable module v4: fila de notas autoritativa sem oscilação para zero */
+/* HLGB stable module v5: fila de notas derivada sem sujar pedidos durante renderização */
 (function(){
 'use strict';
 const q=v=>Math.max(0,Number(v)||0),sid=v=>String(v??''),norm=v=>String(v??'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').trim().toLowerCase().replace(/\s+/g,' ');
@@ -65,18 +65,18 @@ function decorateProjection(){
 const oldSend=window.sendProjectionToNotes9202;
 if(typeof oldSend==='function'&&!oldSend.__hlgbNotesV4){const w=function(){syncLocal();return oldSend.apply(this,arguments)};w.__hlgbNotesV3=true;w.__hlgbNotesV4=true;window.sendProjectionToNotes9202=w}
 const oldRender=window.renderProjection;
-if(typeof oldRender==='function'&&!oldRender.__hlgbNotesV4){const w=function(){syncLocal();const r=oldRender.apply(this,arguments);setTimeout(decorateProjection,0);return r};w.__hlgbNotesV3=true;w.__hlgbNotesV4=true;window.renderProjection=w}
+if(typeof oldRender==='function'&&!oldRender.__hlgbNotesV5){const w=function(){const r=oldRender.apply(this,arguments);setTimeout(decorateProjection,0);return r};w.__hlgbNotesV3=true;w.__hlgbNotesV4=true;w.__hlgbNotesV5=true;window.renderProjection=w}
 const oldIncoming=window.hlgbRenderIncomingRecord;
 window.hlgbRenderIncomingRecord=function(module){
   const r=typeof oldIncoming==='function'?oldIncoming.apply(this,arguments):undefined;
-  if(['noteQueue','orders','projectionInvoices'].includes(module))setTimeout(()=>{syncLocal();try{window.renderProjection?.()}catch(e){}},40);
+  if(['noteQueue','orders','projectionInvoices'].includes(module))setTimeout(()=>{try{window.renderProjection?.()}catch(e){};try{decorateProjection()}catch(e){}},40);
   return r;
 };
-function refresh(){syncLocal();try{window.renderProjection?.()}catch(e){};setTimeout(decorateProjection,40)}
+function refresh(){try{window.renderProjection?.()}catch(e){};setTimeout(decorateProjection,40)}
 try{if(typeof hlgbAfterLogin==='function')hlgbAfterLogin(()=>{setTimeout(refresh,700);setTimeout(refresh,2200)},0)}catch(e){}
 setTimeout(refresh,1100);setTimeout(refresh,3200);
 try{if(!window.HLGB_UI_CLEANUP&&!document.querySelector('script[data-hlgb-ui-cleanup]')){const s=document.createElement('script');s.dataset.hlgbUiCleanup='1';s.src='./release-ui-cleanup.js?fresh='+Date.now();document.head.appendChild(s)}}catch(e){}
 window.hlgbNotesQueueSource=queueSource;
 window.hlgbNotesSyncLocal=syncLocal;
-window.HLGB_NOTE_QUEUE_GUARD='v4';console.info('[HLGB] fila de notas v4: snapshot autoritativo impede oscilação temporária para zero');
+window.HLGB_NOTE_QUEUE_GUARD='v5';console.info('[HLGB] fila de notas v5: cálculo derivado não altera pedidos durante renderização');
 })();
