@@ -379,6 +379,15 @@ function scanSystem(){
       continue; // corte agregado: vários produtos, portanto não existe um único productId correto
     }
     if(!orderId){
+      const confirmedHistoricalLegacyCut=
+        sid(c?.id)==='1'&&
+        String(c?.op||'').trim()==='OP-00126'&&
+        Number(c?.pieces||0)===293&&
+        Number(c?.layers||0)===20&&
+        Number(c?.meters||0)===82&&
+        String(c?.color||'').trim()==='Rubi'&&
+        String(c?.fabric||'').trim()==='Tule';
+      if(confirmedHistoricalLegacyCut)continue; // registro histórico confirmado no Supabase e em backups antigos
       out.push({severity:'Média',code:'cut-legacy-unlinked',title:'Corte legado sem vínculo de pedido/produto',description:'Corte '+sid(c.id)+' não possui orderId nem productId. Trate como histórico/manual se for intencional.',page:'corte',refs:[{module:'cuts',id:sid(c.id)}]});
       continue;
     }
