@@ -2,11 +2,13 @@ const fs=require('fs'),vm=require('vm'),assert=require('assert'),path=require('p
 const src=fs.readFileSync(path.join(__dirname,'..','release-assistant-system-wide.js'),'utf8');
 const loader=fs.readFileSync(path.join(__dirname,'..','app-stable3.html'),'utf8');
 assert(loader.includes("'release-assistant-system-wide.js'"));
-const context={console,setTimeout(){return 0},setInterval(){return 0},db:{suppliers:[{name:'Rafael',products:[{name:'Romantic',unit:'Quilo',price:29.9}]},{name:'Outro',products:[{name:'Romantic',unit:'Quilo',price:31.5}]}],purchases:[{date:'2026-09-01',total:100},{date:'2026-09-08',total:300}],orders:[{id:1,orderNumber:87,client:'Bianca'}],clients:[{id:'c1',name:'Bianca'}]},window:{hlgbAssistantAsk(){}},document:{getElementById(){return null}},money:v=>'R$ '+Number(v).toFixed(2)};
+const context={console,setTimeout(){return 0},setInterval(){return 0},db:{suppliers:[{name:'Rafael',products:[{name:'Romantic',unit:'Quilo',price:29.9}]},{name:'Outro',products:[{name:'Romantic',unit:'Quilo',price:31.5}]}],purchases:[{date:'2026-09-01',total:100},{date:'2026-09-08',total:300}],orders:[{id:1,orderNumber:87,client:'Bianca'}],clients:[{id:'c1',name:'Bianca'},{id:'c2',name:'Kesy'}],products:[{id:'p1',name:'Camisola Liliane'}],cuts:[{id:'cut1',status:'Finalizado',cutterId:'ct1',pieces:500}],cutters:[{id:'ct1',name:'João'}]},window:{hlgbAssistantAsk(){}},document:{getElementById(){return null}},money:v=>'R$ '+Number(v).toFixed(2),allProjectionRows:()=>[{order:{id:'o2',client:'Kesy'},item:{key:'x',productId:'p1',name:'Camisola Liliane',qty:120,value:1548,date:'2026-10-03'}}],projectionDeliverableQty:(o,i)=>i.qty,projectionDeliverableValue:(o,i)=>i.value};
 vm.createContext(context);vm.runInContext(src,context);
 const api=context.window.hlgbAssistantSystemWide;assert(api);
 const m=api.materialSupplier('quem tem Romantic mais barato');assert(m.text.includes('Rafael'));
 const w=api.purchaseWeekly('qual minha média de compras por semana');assert(w.text.includes('R$ 200.00'));
 const g=api.globalSearch('qual pedido da Bianca');assert(g.text.includes('Pedido #87'));
-assert.equal(context.window.HLGB_ASSISTANT_SYSTEM_WIDE_GUARD,'2026.10.01-assistant-system-wide-v1');
-console.log('PASS system-wide assistant: supplier comparison, weekly purchase average and global system search work.');
+const d=api.parse('quanto tem de entrega para Kesy');assert(d.title.includes('Kesy'));assert(d.text.includes('120 peças'));assert(!d.text.includes('Romantic'),'delivery answer must not mix supplier/material data');
+const ct=api.parse('quanto cada cortador já cortou');assert(ct.text.includes('João'));assert(ct.text.includes('500 peças'));assert(!ct.text.includes('Pedido #87'),'cutter answer must not mix orders');
+assert.equal(context.window.HLGB_ASSISTANT_SYSTEM_WIDE_GUARD,'2026.10.01-assistant-system-wide-v2');
+console.log('PASS system-wide assistant v2: scoped delivery/cutter queries do not mix unrelated modules.');
