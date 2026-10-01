@@ -1,0 +1,10 @@
+const fs=require('fs'),vm=require('vm'),assert=require('assert'),path=require('path');
+const src=fs.readFileSync(path.join(__dirname,'..','release-purchase-checkers.js'),'utf8');
+const loader=fs.readFileSync(path.join(__dirname,'..','app-stable3.html'),'utf8');
+assert(loader.includes("'release-purchase-checkers.js'"));
+const context={console,setTimeout(){return 0},db:{employees:[{id:1,name:'Ana',active:true},{id:2,name:'Bia',active:true}],users:[{id:3,name:'Ana',active:true}],purchases:[]},window:{purchaseForm:()=>'<div>base</div>',savePurchaseFromForm:p=>{p.base=true;return true},renderPurchases(){}},document:{getElementById(){return null}},hlgbAfterLogin:null};
+vm.createContext(context);vm.runInContext(src,context);
+const api=context.window.hlgbPurchaseCheckers;assert(api);assert.equal(api.people().length,2,'duplicate names across user/employee must collapse');
+assert.equal(api.people()[0].name,'Ana');assert.equal(api.people()[1].name,'Bia');
+assert.equal(context.window.HLGB_PURCHASE_CHECKERS_GUARD,'2026.10.01-purchase-checkers-v1');
+console.log('PASS purchase checkers: exactly two distinct people can be sourced for note conference.');
