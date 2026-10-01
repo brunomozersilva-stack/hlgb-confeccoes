@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - sync-auditor-clean-20260930
+      - hotfix-hub-tombstone-20261001
   workflow_dispatch:
 
 permissions:
@@ -67,7 +68,7 @@ jobs:
           cd "$(dirname "$0")"
           echo ""
           echo "HLGB — teste local da branch limpa"
-          echo "Branch: sync-auditor-clean-20260930"
+          echo "Branch: hotfix-hub-tombstone-20261001"
           echo "Commit: __COMMIT__"
           echo ""
           echo "Abra no Safari:"
@@ -80,7 +81,7 @@ jobs:
 
           cat > preview/LEIA-ME.txt <<EOF
           HLGB CONFECÇÕES — BRANCH LIMPA DE SINCRONIZAÇÃO/AUDITOR
-          Branch: sync-auditor-clean-20260930
+          Branch: hotfix-hub-tombstone-20261001
           Commit: $GITHUB_SHA
           Não publica nem altera o main.
           Abra start-preview.command e depois http://localhost:8765/abrir.html
