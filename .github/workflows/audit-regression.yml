@@ -87,6 +87,8 @@ jobs:
             tests/audit-purchase-supplier-materials-regression.cjs \
             tests/audit-assistant-fresh-query-regression.cjs \
             tests/audit-assistant-precision-regression.cjs \
+            tests/audit-purchase-hub-due-regression.cjs \
+            tests/audit-assistant-client-merchandise-regression.cjs \
             tests/audit-purchase-note-import-regression.cjs \
             tests/audit-faction-checklist-grade-standard-regression.cjs \
             tests/audit-hub-period-detail-regression.cjs \
