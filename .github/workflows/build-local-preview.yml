@@ -1,0 +1,83 @@
+name: Build HLGB local preview
+
+on:
+  push:
+    branches:
+      - melhorias-ia-diagnostico-20260930
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  package:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Prepare local preview
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p preview
+          cp app9240.html preview/HLGB-TESTE.html
+          cp hotfix9241.js preview/
+          cp release-current.js preview/
+          cp release-pricing.js preview/
+          cp release-limits.js preview/
+          cp release-cut-view.js preview/
+          cp release-record-integrity.js preview/
+          cp release-notes.js preview/
+          cp release-note-integrity.js preview/
+          cp release-projection-delivery-integrity.js preview/
+          cp release-projection-team-view.js preview/
+          cp release-faction-payments.js preview/
+          cp release-faction-integrity.js preview/
+          cp release-faction-master-integrity.js preview/
+          cp release-payroll-integrity.js preview/
+          cp release-payroll-termination-provisions.js preview/
+          cp release-checklist-integrity.js preview/
+          cp release-capacity-integrity.js preview/
+          cp release-hub-search.js preview/
+          cp release-hub-integrity.js preview/
+          cp release-hub-personal-integrity.js preview/
+          cp release-ui-stability.js preview/
+          cp release-diagnostics-center.js preview/
+          cp release-internal-auditor.js preview/
+          cp release-assistant-query.js preview/
+          cp release-header-cleanup.js preview/
+          cp release-user-fixes-20261001.js preview/
+          cp release-ui-cleanup.js preview/
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path("preview/HLGB-TESTE.html")
+          h=p.read_text(encoding="utf-8")
+          files=[
+            "hotfix9241.js","release-current.js","release-pricing.js","release-limits.js",
+            "release-cut-view.js","release-record-integrity.js","release-notes.js",
+            "release-note-integrity.js","release-projection-delivery-integrity.js",
+            "release-projection-team-view.js","release-faction-payments.js",
+            "release-faction-integrity.js","release-faction-master-integrity.js",
+            "release-payroll-integrity.js","release-payroll-termination-provisions.js",
+            "release-checklist-integrity.js","release-capacity-integrity.js",
+            "release-hub-search.js","release-hub-integrity.js","release-hub-personal-integrity.js",
+            "release-ui-stability.js","release-diagnostics-center.js","release-internal-auditor.js",
+            "release-assistant-query.js","release-header-cleanup.js","release-user-fixes-20261001.js"
+          ]
+          inj="".join(f'<script src="./{f}"></script>' for f in files)
+          i=h.lower().rfind("</body>")
+          h=(h[:i]+inj+h[i:]) if i>=0 else h+inj
+          p.write_text(h,encoding="utf-8")
+          Path("preview/LEIA-ME.txt").write_text(
+            "HLGB - BRANCH DE TESTE\n\n"
+            "Abra HLGB-TESTE.html com dois cliques.\n"
+            "Nao instala Git, Python ou ferramentas de desenvolvedor.\n"
+            "Branch: melhorias-ia-diagnostico-20260930\n"
+            "Nao publica nem altera o main.\n", encoding="utf-8")
+          PY
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: HLGB-preview-sem-ferramentas
+          path: preview/
+          if-no-files-found: error
