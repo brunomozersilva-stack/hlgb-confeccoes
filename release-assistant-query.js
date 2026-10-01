@@ -388,7 +388,7 @@ function query(raw){
 function injectStyles(){
   if(document.getElementById('hlgbAssistantStyle'))return;
   const st=document.createElement('style');st.id='hlgbAssistantStyle';
-  st.textContent='.hlgb-assistant-btn{margin-left:6px}.hlgb-assistant-box{display:grid;gap:12px}.hlgb-assistant-input{display:flex;gap:8px;align-items:center;flex-wrap:wrap}.hlgb-assistant-input input{flex:1;min-width:180px}.hlgb-assistant-answer{background:#fffafd;border:1px solid #eadde5;border-radius:14px;padding:14px;line-height:1.55}.hlgb-assistant-examples{display:flex;gap:6px;flex-wrap:wrap}.hlgb-assistant-examples button{font-size:12px}';
+  st.textContent='.hlgb-assistant-btn{margin-left:6px}.hlgb-assistant-modal{width:min(920px,94vw)!important;max-width:94vw!important;max-height:90vh!important;resize:both!important;overflow:auto!important}.hlgb-assistant-box{display:grid;gap:12px;min-height:0}.hlgb-assistant-input{display:flex;gap:8px;align-items:center;flex-wrap:wrap;position:sticky;top:0;z-index:2;background:var(--card,#fff);padding:4px 0}.hlgb-assistant-input input{flex:1;min-width:180px}.hlgb-assistant-answer{background:#fffafd;border:1px solid #eadde5;border-radius:14px;padding:14px;line-height:1.55;max-height:52vh;min-height:120px;overflow-y:auto;overscroll-behavior:contain;scrollbar-gutter:stable;resize:vertical}.hlgb-assistant-examples{display:flex;gap:6px;flex-wrap:wrap}.hlgb-assistant-examples button{font-size:12px}@media(max-width:700px){.hlgb-assistant-modal{width:96vw!important;max-width:96vw!important;resize:vertical!important}.hlgb-assistant-answer{max-height:55vh}}';
   document.head.appendChild(st);
 }
 function injectButton(){
@@ -405,7 +405,12 @@ function injectButton(){
 }
 function openAssistant(){
   openModal('🤖 Assistente HLGB','<div class="hlgb-assistant-box"><div class="sub">Pergunte sobre pedidos, clientes, produtos, entregas e erros. Ações liberadas sempre mostram uma prévia e pedem confirmação.</div><div class="hlgb-assistant-input"><input id="hlgbAssistantInput" placeholder="Ex.: onde está o pedido 63?" onkeydown="if(event.key===\'Enter\')hlgbAssistantAsk()"><button type="button" class="primary" onclick="hlgbAssistantAsk()">Perguntar</button></div><div class="hlgb-assistant-examples"><button type="button" class="secondary" onclick="hlgbAssistantExample(\'O que entrega hoje?\')">Entregas de hoje</button><button type="button" class="secondary" onclick="hlgbAssistantExample(\'O que entrega amanhã?\')">Entregas de amanhã</button><button type="button" class="secondary" onclick="hlgbAssistantExample(\'Quais erros estão abertos?\')">Erros abertos</button></div><div id="hlgbAssistantAnswer" class="hlgb-assistant-answer">Digite uma pergunta para começar.</div><button type="button" class="secondary modalSave">Fechar</button></div>',()=>closeModal());
-  setTimeout(()=>document.getElementById('hlgbAssistantInput')?.focus(),0);
+  setTimeout(()=>{
+    const input=document.getElementById('hlgbAssistantInput');
+    const modal=input?.closest?.('.modalbox');
+    if(modal)modal.classList.add('hlgb-assistant-modal');
+    input?.focus();
+  },0);
 }
 window.openHlgbAssistant=openAssistant;
 
