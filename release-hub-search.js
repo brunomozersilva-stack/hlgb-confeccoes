@@ -1,8 +1,8 @@
 /* HLGB audit — pesquisa do Hub Financeiro por nome e período, com edição segura */
 (function(){
 'use strict';
-const V='v1';
-const state={query:'',start:'',end:'',flow:'',status:''};
+const V='v2';
+const state={query:'',start:'',end:'',flow:'',status:'',showAll:false};
 
 const sid=v=>String(v??'');
 const norm=v=>sid(v).normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/\s+/g,' ').trim();
@@ -42,6 +42,7 @@ function readUi(){
   state.end=document.getElementById('hubSearchEnd9248')?.value||'';
   state.flow=document.getElementById('hubSearchFlow9248')?.value||'';
   state.status=document.getElementById('hubSearchStatus9248')?.value||'';
+  state.showAll=!!document.getElementById('hubSearchShowAll9248')?.checked;
 }
 function names(){
   const set=new Set();
@@ -69,6 +70,7 @@ function ensurePanel(){
       <div class="field"><label>Até</label><input id="hubSearchEnd9248" type="date" onchange="hlgbHubSearchApply9248()"></div>
       <div class="field"><label>Tipo</label><select id="hubSearchFlow9248" onchange="hlgbHubSearchApply9248()"><option value="">Todos</option><option>Entrada</option><option>Saída</option></select></div>
       <div class="field"><label>Status</label><select id="hubSearchStatus9248" onchange="hlgbHubSearchApply9248()"><option value="">Todos</option><option>Previsto</option><option>Realizado</option></select></div>
+      <label style="display:flex;gap:8px;align-items:center;padding:9px 10px;border:1px solid #ddd;border-radius:10px"><input id="hubSearchShowAll9248" type="checkbox" onchange="hlgbHubSearchApply9248()"> Mostrar período inteiro</label>
       <button type="button" class="secondary" onclick="hlgbHubSearchClear9248()">Limpar</button>
     </div>
     <div id="hubSearchCards9248" class="cards" style="margin-top:10px"></div>
@@ -80,7 +82,7 @@ function ensurePanel(){
 }
 function syncInputs(){
   const set=(id,v)=>{const el=document.getElementById(id);if(el&&el.value!==v)el.value=v};
-  set('hubSearchName9248',state.query);set('hubSearchStart9248',state.start);set('hubSearchEnd9248',state.end);set('hubSearchFlow9248',state.flow);set('hubSearchStatus9248',state.status);
+  set('hubSearchName9248',state.query);set('hubSearchStart9248',state.start);set('hubSearchEnd9248',state.end);set('hubSearchFlow9248',state.flow);set('hubSearchStatus9248',state.status);const all=document.getElementById('hubSearchShowAll9248');if(all)all.checked=!!state.showAll;
   const dl=document.getElementById('hubSearchNames9248');if(dl)dl.innerHTML=names().map(x=>'<option value="'+escHtml(x)+'"></option>').join('');
 }
 function actions(e){
@@ -92,7 +94,8 @@ function actions(e){
 function render(){
   if(!ensurePanel())return;
   syncInputs();
-  const list=filterRows(rows(),state),t=totals(list);
+  const hasExplicit=!!(norm(state.query)||state.start||state.end||state.flow||state.status||state.showAll);
+  const list=hasExplicit?filterRows(rows(),state):[],t=totals(list);
   const cards=document.getElementById('hubSearchCards9248');
   if(cards)cards.innerHTML=
     '<div class="card"><small>Encontrados</small><strong>'+t.count.toLocaleString('pt-BR')+'</strong></div>'+
@@ -102,9 +105,10 @@ function render(){
   const range=document.getElementById('hubSearchRange9248');
   if(range){
     let bits=[];if(state.query)bits.push('Busca: “'+escHtml(state.query)+'”');if(state.start)bits.push('de '+fmtDateSafe(state.start));if(state.end)bits.push('até '+fmtDateSafe(state.end));if(state.flow)bits.push(state.flow);if(state.status)bits.push(state.status);
-    range.innerHTML=bits.length?bits.join(' · '):'Sem filtros: mostrando todos os lançamentos do Hub.';
+    range.innerHTML=bits.length?bits.join(' · '):(state.showAll?'Mostrando todos os lançamentos do Hub.':'Informe um nome, período, tipo ou status. A lista completa não é carregada automaticamente.');
   }
   const box=document.getElementById('hubSearchResults9248');if(!box)return;
+  if(!hasExplicit){box.innerHTML='<div class="empty">Use os filtros acima para pesquisar. Marque “Mostrar período inteiro” somente quando quiser visualizar tudo.</div>';return}
   if(!list.length){box.innerHTML='<div class="empty">Nenhum lançamento encontrado com esses filtros.</div>';return}
   const body=list.map(e=>{
     const payment=sid(e?.flow)==='Entrada'?(e?.method||'-'):(Array.isArray(e?.acceptedMethods)&&e.acceptedMethods.length?e.acceptedMethods.join(' / '):'-');
@@ -124,7 +128,7 @@ function render(){
 }
 
 window.hlgbHubSearchApply9248=function(){readUi();render()};
-window.hlgbHubSearchClear9248=function(){state.query='';state.start='';state.end='';state.flow='';state.status='';render()};
+window.hlgbHubSearchClear9248=function(){state.query='';state.start='';state.end='';state.flow='';state.status='';state.showAll=false;render()};
 window.hlgbHubSearchFilterRows=filterRows;
 window.hlgbHubSearchTotals=totals;
 window.hlgbHubSearchState=state;
