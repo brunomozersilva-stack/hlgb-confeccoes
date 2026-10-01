@@ -1,5 +1,5 @@
 name: HLGB Assistant Universal Preview
-# refreshed precision assistant + checklist + purchase import
+# refreshed client-merchandise + purchase-hub-due
 
 on:
   push:
