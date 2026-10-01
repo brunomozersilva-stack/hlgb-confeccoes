@@ -1,7 +1,7 @@
 /* HLGB — Assistente: consultas amplas do sistema + registro de ações */
 (function(){
 'use strict';
-const V='2026.10.01-assistant-system-wide-v2';
+const V='2026.10.01-assistant-system-wide-v3';
 const sid=v=>String(v??''),q=v=>Math.max(0,Number(v)||0),norm=v=>sid(v).normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().trim().replace(/\s+/g,' ');
 const escSafe=v=>typeof esc==='function'?esc(v):sid(v).replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
 const moneySafe=v=>typeof money==='function'?money(v):Number(v||0).toLocaleString('pt-BR',{style:'currency',currency:'BRL'});
@@ -77,6 +77,62 @@ function cutterTotals(raw){
  if(!rows.length)return {kind:'system-info',title:'Produção dos cortadores',text:'Ainda não encontrei cortes finalizados vinculados a cortadores.'};
  return {kind:'system-info',title:'Produção dos cortadores',text:rows.map(x=>'• <b>'+escSafe(x.name)+'</b> · '+x.pieces.toLocaleString('pt-BR')+' peças · '+x.cuts+' corte(s)').join('<br>')+'<br><br><span class="sub">Somente cortes finalizados vinculados ao cortador. Não mistura pedidos, compras ou matéria-prima.</span>'};
 }
+
+function fuzzyClient(raw){
+ const n=norm(raw),all=arr('clients').filter(x=>x?.name);
+ let exact=all.filter(x=>n.includes(norm(x.name))).sort((a,b)=>String(b.name).length-String(a.name).length)[0];
+ if(exact)return exact;
+ const ws=n.split(/\s+/).filter(x=>x.length>=3);
+ return all.map(x=>({x,score:ws.some(w=>norm(x.name).includes(w)||w.includes(norm(x.name)))?1:0})).filter(z=>z.score).map(z=>z.x)[0]||null;
+}
+function fuzzyProduct(raw){
+ const n=norm(raw),all=arr('products').filter(x=>x?.name);
+ let exact=all.filter(x=>n.includes(norm(x.name))).sort((a,b)=>String(b.name).length-String(a.name).length)[0];
+ if(exact)return exact;
+ const ws=words(raw);
+ return all.map(p=>({p,score:ws.filter(w=>norm(p.name).includes(w)).length})).filter(x=>x.score>0).sort((a,b)=>b.score-a.score||String(b.p.name).length-String(a.p.name).length)[0]?.p||null;
+}
+function gradeMatrix(rows,productName){
+ const ss=(typeof hlgbSortedSizes==='function'?hlgbSortedSizes(db.sizes):['P','M','G','GG']).map(String),groups={};
+ for(const g of rows||[]){const color=g.color||'-';groups[color]=groups[color]||{};groups[color][g.size]=(groups[color][g.size]||0)+q(g.qty)}
+ if(!Object.keys(groups).length)return '';
+ return '<div style="overflow:auto"><table><thead><tr><th>Produto</th><th>Cor</th>'+ss.map(s=>'<th>'+escSafe(s)+'</th>').join('')+'<th>Total</th></tr></thead><tbody>'+Object.entries(groups).map(([color,map])=>'<tr><td><b>'+escSafe(productName)+'</b></td><td>'+escSafe(color)+'</td>'+ss.map(s=>'<td>'+q(map[s])+'</td>').join('')+'<td><b>'+ss.reduce((a,s)=>a+q(map[s]),0)+'</b></td></tr>').join('')+'</tbody></table></div>';
+}
+function clientProductGrade(raw){
+ const n=norm(raw);if(!/(grade|tamanho|p\b|m\b|g\b|gg\b)/.test(n))return null;
+ const client=fuzzyClient(raw),product=fuzzyProduct(raw);if(!client)return null;
+ const clientOrders=arr('orders').filter(o=>norm(o?.client)===norm(client.name)&&!['cancelado','cancelada'].includes(norm(o?.status)));
+ if(!product){
+  const ids=[...new Set(clientOrders.flatMap(o=>(o.grade||[]).map(g=>sid(g.productId))).filter(Boolean))],names=ids.map(id=>arr('products').find(p=>sid(p.id)===id)?.name).filter(Boolean);
+  return {kind:'system-info',title:'Grade — '+client.name,text:names.length?'Não identifiquei com segurança o produto citado. Para <b>'+escSafe(client.name)+'</b>, encontrei estes produtos em pedidos: '+names.slice(0,12).map(x=>'<b>'+escSafe(x)+'</b>').join(', ')+'.':'Não encontrei produtos em pedidos de <b>'+escSafe(client.name)+'</b>.'};
+ }
+ const matches=clientOrders.map(o=>({o,rows:(o.grade||[]).filter(g=>sid(g.productId)===sid(product.id)&&q(g.qty)>0)})).filter(x=>x.rows.length);
+ if(!matches.length){
+  const ids=[...new Set(clientOrders.flatMap(o=>(o.grade||[]).map(g=>sid(g.productId))).filter(Boolean))],other=ids.map(id=>arr('products').find(p=>sid(p.id)===id)?.name).filter(Boolean);
+  return {kind:'system-info',title:'Grade — '+product.name+' / '+client.name,text:'Não encontrei <b>'+escSafe(product.name)+'</b> em nenhum pedido de <b>'+escSafe(client.name)+'</b>.'+(other.length?'<br><br>Outros produtos que aparecem para '+escSafe(client.name)+': '+other.slice(0,10).map(x=>'<b>'+escSafe(x)+'</b>').join(', ')+'.':'')};
+ }
+ const blocks=matches.slice(0,8).map(({o,rows})=>'<div class="panel" style="margin:8px 0;background:#fff"><b>Pedido #'+escSafe(o.orderNumber||o.id)+'</b> · '+escSafe(o.status||'-')+gradeMatrix(rows,product.name)+'</div>').join('');
+ return {kind:'system-info',title:'Grade — '+product.name+' / '+client.name,text:blocks+(matches.length>8?'<div class="sub">Há mais '+(matches.length-8)+' pedido(s) com este produto.</div>':'')};
+}
+function weekBounds(){
+ const d=new Date(),day=(d.getDay()+6)%7,start=new Date(d);start.setHours(0,0,0,0);start.setDate(d.getDate()-day);const end=new Date(start);end.setDate(start.getDate()+6);end.setHours(23,59,59,999);
+ const iso=x=>x.toISOString().slice(0,10);return {start:iso(start),end:iso(end)};
+}
+function cutterWeeklyPlan(raw){
+ const n=norm(raw);if(!/(cortador|cortadores)/.test(n)||!/(semana|semanal|tem que cortar|precisa cortar|planejado|programado)/.test(n))return null;
+ const w=weekBounds(),groups={};
+ for(const c of arr('cuts')){
+  if(!c||String(c.status||'').toLowerCase()==='finalizado')continue;
+  const date=String(c.plannedCutDate||c.date||'').slice(0,10);if(!date||date<w.start||date>w.end)continue;
+  const ct=arr('cutters').find(x=>sid(x?.id)===sid(c.cutterId));if(!ct)continue;
+  const type=norm(ct.type||ct.kind||c.cutType||'');if(n.includes('intern')&&type&& !type.includes('intern'))continue;
+  const g=groups[ct.name]||(groups[ct.name]={name:ct.name,pieces:0,cuts:0});g.pieces+=q(c.pieces);g.cuts++;
+ }
+ const rows=Object.values(groups).sort((a,b)=>b.pieces-a.pieces);
+ if(!rows.length)return {kind:'system-info',title:'Cortes programados desta semana',text:'Não encontrei cortes programados para '+(n.includes('intern')?'cortadores internos':'cortadores')+' entre <b>'+w.start+'</b> e <b>'+w.end+'</b>.'};
+ const total=rows.reduce((a,x)=>a+x.pieces,0);
+ return {kind:'system-info',title:'Cortes programados desta semana',text:'Total: <b>'+total.toLocaleString('pt-BR')+' peças</b> entre '+w.start+' e '+w.end+'.<br><br>'+rows.map(x=>'• <b>'+escSafe(x.name)+'</b> · '+x.pieces.toLocaleString('pt-BR')+' peças · '+x.cuts+' corte(s)').join('<br>')};
+}
 function globalSearch(raw){
  const ws=words(raw);if(!ws.length)return null;
  const modules=['orders','clients','products','materials','suppliers','purchases','employees','cuts','production','factions','hubFinanceEntries','missingPieces'];
@@ -91,6 +147,8 @@ function globalSearch(raw){
 }
 function parse(raw){
  const n=norm(raw);
+ const gr=clientProductGrade(raw);if(gr)return gr;
+ const wp=cutterWeeklyPlan(raw);if(wp)return wp;
  const d=clientDeliveries(raw);if(d)return d;
  const ct=cutterTotals(raw);if(ct)return ct;
  if(/(mais barato|mais barata|menor preco|menor preço|comparar fornecedor|fornecedor mais)/.test(n))return materialSupplier(raw);
@@ -106,7 +164,7 @@ function install(){
 }
 window.hlgbAssistantActions=window.hlgbAssistantActions||{};
 window.hlgbRegisterAssistantAction=function(name,fn,canRun){if(name&&typeof fn==='function')window.hlgbAssistantActions[name]={fn,canRun:typeof canRun==='function'?canRun:()=>true}};
-window.hlgbAssistantSystemWide={parse,materialSupplier,purchaseWeekly,clientDeliveries,cutterTotals,deliveryRows,findNamedClient,globalSearch,weekKey,actions:window.hlgbAssistantActions};
+window.hlgbAssistantSystemWide={parse,materialSupplier,purchaseWeekly,clientDeliveries,cutterTotals,clientProductGrade,cutterWeeklyPlan,gradeMatrix,deliveryRows,findNamedClient,globalSearch,weekKey,actions:window.hlgbAssistantActions};
 setTimeout(install,2400);setInterval(()=>{if(typeof window.hlgbAssistantAsk==='function'&&!window.hlgbAssistantAsk.__hlgbSystemWideV1)install()},3500);
 window.HLGB_ASSISTANT_SYSTEM_WIDE_GUARD=V;
 })();
