@@ -1,5 +1,5 @@
 name: HLGB Local Preview Package
-# refreshed after assistant notes/material/checkers
+# refreshed after screenshot fixes invoice + split cuts
 
 on:
   push:
