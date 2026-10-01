@@ -1,0 +1,64 @@
+name: HLGB Hotfix Preview
+
+on:
+  push:
+    branches: [hotfix-assistant-voice-grade-20261001]
+    paths:
+      - '.github/workflows/hotfix-preview.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  package:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: hotfix-assistant-voice-grade-20261001
+      - name: Build local preview
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p preview
+          cp abrir.html preview/
+          cp app-stable3.html preview/
+          cp app9240.html preview/
+          cp hotfix9241.js preview/
+          cp release-*.js preview/
+          cat > preview/start-preview.command <<'SH'
+          #!/bin/bash
+          set -e
+          cd "$(dirname "$0")"
+          PORT=8765
+          echo "HLGB Confecções - Hotfix teste local"
+          echo "Abrindo http://localhost:${PORT}/abrir.html"
+          if command -v python3 >/dev/null 2>&1; then
+            (sleep 1; open "http://localhost:${PORT}/abrir.html") >/dev/null 2>&1 &
+            exec python3 -m http.server "$PORT" --bind 127.0.0.1
+          fi
+          echo "Python 3 não encontrado."
+          read -r -p "Enter para fechar."
+          SH
+          chmod +x preview/start-preview.command
+          cat > preview/LEIA-ME.txt <<'TXT'
+          TESTE DE CORREÇÕES HLGB
+
+          Corrige:
+          - nota do Assistente sempre baseada somente no pedido atual
+          - sem reaproveitar resposta antiga quando faltam produtos/quantidades
+          - voz continua ouvindo até você tocar "Terminar e enviar"
+          - grade de corte em matriz igual à Folha dos Cortadores
+          - finalizar corte, finalizar modelo, ajustar grade e comparação no mesmo padrão
+
+          Este pacote NÃO altera o sistema oficial.
+          TXT
+      - name: Upload preview
+        uses: actions/upload-artifact@v4
+        with:
+          name: HLGB-HOTFIX-ASSISTENTE-GRADE
+          path: preview/
+          if-no-files-found: error
+          retention-days: 7
