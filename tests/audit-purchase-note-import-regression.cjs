@@ -1,0 +1,13 @@
+const fs=require('fs'),vm=require('vm'),assert=require('assert'),path=require('path');
+const src=fs.readFileSync(path.join(__dirname,'..','release-purchase-note-import.js'),'utf8');
+const loader=fs.readFileSync(path.join(__dirname,'..','app-stable3.html'),'utf8');
+assert(loader.includes("'release-purchase-note-import.js'"));
+const context={console,setTimeout(){return 0},db:{suppliers:[{id:'s1',name:'Rafael',products:[]}],materials:[]},window:{},document:{getElementById(){return null}},alert(){}};
+vm.createContext(context);vm.runInContext(src,context);
+const api=context.window.hlgbPurchaseNoteImport;assert(api);
+const d=api.draft('Fornecedor Rafael\nNota 12345\nRomantic\t30\tkg\t29,90\nRenda\t10\tkg\t40,00\nVencimento 10/10/2026');
+assert.equal(d.supplierName,'Rafael');assert.equal(d.number,'12345');assert.equal(d.items.length,2);
+assert.equal(d.items[0].description,'Romantic');assert.equal(d.items[0].qty,30);assert.equal(d.items[0].price,29.9);
+assert.equal(d.due,'2026-10-10');
+assert.equal(context.window.HLGB_PURCHASE_NOTE_IMPORT_GUARD,'2026.10.01-purchase-note-import-v1');
+console.log('PASS purchase-note import: supplier, note, items, qty, unit price and due date are parsed.');
