@@ -28,5 +28,5 @@ const btn=created.find(x=>x.id==='hlgbAssistantFloatingBtn');
 assert(btn,'assistant must create a fallback button when Sistema menu is not visible');
 assert.equal(btn.textContent,'🤖 Assistente HLGB');
 assert.equal(typeof btn.onclick,'function');
-assert.equal(context.window.HLGB_ASSISTANT_QUERY_GUARD,'2026.10.01-assistant-all-users-v2');
+assert.equal(context.window.hlgbAssistant.version,'2026.10.01-assistant-all-users-v2');
 console.log('PASS assistant visibility: fallback button is available without Sistema menu.');
