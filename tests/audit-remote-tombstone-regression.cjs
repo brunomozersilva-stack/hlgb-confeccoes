@@ -31,7 +31,8 @@ function fixture({guarded=true,restore=false,deleted=false}={}){
 (async()=>{
  const before=fixture({guarded:false});await before.save();
  assert.equal(before.calls.length,2);assert.equal(before.remote().deleted_at,null,'legacy saver reproduces resurrection');
- const after=fixture();await assert.rejects(after.save(),e=>e.code==='HLGB_TOMBSTONE_BLOCK');
+ const after=fixture();const afterResult=await after.save();
+ assert.equal(afterResult?.hlgbTombstonePruned,true,'stale tombstone must be absorbed as a successful local cleanup');
  assert.equal(after.calls.length,1,'conflict tombstone must prevent second RPC');
  assert(after.remote().deleted_at,'remote deletion remains intact');
  assert.equal(after.ctx.db.hubFinanceEntries.length,0,'stale local row removed');
@@ -41,5 +42,5 @@ function fixture({guarded=true,restore=false,deleted=false}={}){
  assert.equal(restore.calls.length,2);assert.equal(restore.remote().deleted_at,null,'explicit restoration remains supported');
  const deletion=fixture({deleted:true});await deletion.save();
  assert(deletion.remote().deleted_at,'repeat explicit deletion remains supported');
- console.log('PASS remote tombstone: actual legacy retry reproduced; guarded retry, snapshot, pending queue, explicit restore and delete verified.');
+ console.log('PASS remote tombstone: legacy resurrection reproduced; stale replay is silently pruned, snapshot/pending cleanup preserved, explicit restore/delete verified.');
 })().catch(e=>{console.error(e);process.exitCode=1});
