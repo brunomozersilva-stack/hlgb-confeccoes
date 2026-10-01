@@ -73,7 +73,8 @@ jobs:
             tests/audit-material-tools-regression.cjs \
             tests/audit-cutter-planner-regression.cjs \
             tests/audit-cut-organization-regression.cjs \
-            tests/audit-assistant-voice-regression.cjs
+            tests/audit-assistant-voice-regression.cjs \
+            tests/audit-assistant-orders-regression.cjs
           do
             echo "==> $test"
             node "$test"
