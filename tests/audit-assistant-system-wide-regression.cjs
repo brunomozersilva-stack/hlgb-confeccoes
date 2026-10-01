@@ -10,5 +10,5 @@ const w=api.purchaseWeekly('qual minha média de compras por semana');assert(w.t
 const g=api.globalSearch('qual pedido da Bianca');assert(g.text.includes('Pedido #87'));
 const d=api.parse('quanto tem de entrega para Kesy');assert(d.title.includes('Kesy'));assert(d.text.includes('120 peças'));assert(!d.text.includes('Romantic'),'delivery answer must not mix supplier/material data');
 const ct=api.parse('quanto cada cortador já cortou');assert(ct.text.includes('João'));assert(ct.text.includes('500 peças'));assert(!ct.text.includes('Pedido #87'),'cutter answer must not mix orders');
-assert.equal(context.window.HLGB_ASSISTANT_SYSTEM_WIDE_GUARD,'2026.10.01-assistant-system-wide-v3');
+assert.equal(context.window.HLGB_ASSISTANT_SYSTEM_WIDE_GUARD,'2026.10.01-assistant-system-wide-v4');
 console.log('PASS system-wide assistant v2: scoped delivery/cutter queries do not mix unrelated modules.');
