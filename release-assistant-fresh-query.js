@@ -28,12 +28,13 @@ function install(){
   if(!input||!out)return;
   window.__hlgbAssistantInvoicePending=null;
   out.dataset.pendingKind='';out.dataset.pendingText='';
+  const priorHtml=out.innerHTML;
   out.innerHTML='<div class="sub">Consultando esta pergunta…</div>';
   const before=out.innerHTML;
   try{base.apply(this,arguments)}catch(e){console.warn('[HLGB pergunta atual]',e)}
   const after=out.innerHTML;
   if(!raw){render({title:'Assistente HLGB',text:'Digite sua pergunta.',kind:'help'});return}
-  if(raw!==lastQuery&&(after===lastHtml||after===before||/Digite uma pergunta para começar/i.test(after))){
+  if(raw!==lastQuery&&(after===lastHtml||after===priorHtml||after===before||/Digite uma pergunta para começar/i.test(after))){
     render(directFallback(raw));
   }
   lastQuery=raw;lastHtml=out.innerHTML;
