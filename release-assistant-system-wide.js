@@ -106,7 +106,7 @@ function gradeMatrix(rows,productName){
  return '<div style="overflow:auto"><table><thead><tr><th>Produto</th><th>Cor</th>'+ss.map(s=>'<th>'+escSafe(s)+'</th>').join('')+'<th>Total</th></tr></thead><tbody>'+Object.entries(groups).map(([color,map])=>'<tr><td><b>'+escSafe(productName)+'</b></td><td>'+escSafe(color)+'</td>'+ss.map(s=>'<td>'+q(map[s])+'</td>').join('')+'<td><b>'+ss.reduce((a,s)=>a+q(map[s]),0)+'</b></td></tr>').join('')+'</tbody></table></div>';
 }
 function clientProductGrade(raw){
- const n=norm(raw);if(!/(grade|tamanho|p\b|m\b|g\b|gg\b)/.test(n))return null;
+ const n=norm(raw);if(!/(grade|tamanho|\b(?:p|m|g|gg)\b)/.test(n))return null;
  const client=fuzzyClient(raw),product=fuzzyProduct(raw);if(!client)return null;
  const clientOrders=arr('orders').filter(o=>norm(o?.client)===norm(client.name)&&!['cancelado','cancelada'].includes(norm(o?.status)));
  if(!product){
