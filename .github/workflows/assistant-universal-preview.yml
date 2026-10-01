@@ -1,5 +1,5 @@
 name: HLGB Assistant Universal Preview
-# refreshed finance + scoped assistant
+# refreshed precision assistant + checklist + purchase import
 
 on:
   push:
