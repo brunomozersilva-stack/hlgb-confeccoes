@@ -1,7 +1,7 @@
 /* HLGB — Assistente: consultas amplas do sistema + registro de ações */
 (function(){
 'use strict';
-const V='2026.10.01-assistant-system-wide-v3';
+const V='2026.10.01-assistant-system-wide-v4';
 const sid=v=>String(v??''),q=v=>Math.max(0,Number(v)||0),norm=v=>sid(v).normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().trim().replace(/\s+/g,' ');
 const escSafe=v=>typeof esc==='function'?esc(v):sid(v).replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
 const moneySafe=v=>typeof money==='function'?money(v):Number(v||0).toLocaleString('pt-BR',{style:'currency',currency:'BRL'});
@@ -140,6 +140,39 @@ function cutterWeeklyPlan(raw){
  const total=rows.reduce((a,x)=>a+x.pieces,0);
  return {kind:'system-info',title:'Cortes programados desta semana',text:'Total: <b>'+total.toLocaleString('pt-BR')+' peças</b> entre '+w.start+' e '+w.end+'.<br><br>'+rows.map(x=>'• <b>'+escSafe(x.name)+'</b> · '+x.pieces.toLocaleString('pt-BR')+' peças · '+x.cuts+' corte(s)').join('<br>')};
 }
+
+function orderProductRows(order){
+ const out=[],seen=new Set();
+ for(const g of (order?.grade||[])){
+  if(!g?.productId||q(g.qty)<=0)continue;
+  const k=sid(g.productId)+'|'+sid(g.color)+'|'+sid(g.size),p=arr('products').find(x=>sid(x?.id)===sid(g.productId));
+  out.push({productId:g.productId,product:p?.name||g.productName||'Produto',qty:q(g.qty),color:g.color||'',size:g.size||'',key:k});
+ }
+ if(out.length)return out;
+ for(const it of (order?.itemsList||order?.products||order?.orderItems||[])){
+  const pid=it?.productId||it?.id;if(!pid)continue;const p=arr('products').find(x=>sid(x?.id)===sid(pid));
+  out.push({productId:pid,product:it?.name||p?.name||'Produto',qty:q(it?.qty||it?.quantity),color:it?.color||'',size:it?.size||''});
+ }
+ if(!out.length&&order?.productId){
+  const p=arr('products').find(x=>sid(x?.id)===sid(order.productId));
+  out.push({productId:order.productId,product:p?.name||order.product||order.items||'Produto',qty:q(order.qty||order.totalQty),color:order.color||'',size:order.size||''});
+ }
+ return out;
+}
+function clientOrderedMerchandise(raw){
+ const n=norm(raw);
+ if(!/(mercadoria|mercadorias|produto|produtos|modelo|modelos|o que|quais).*(pedido|pedidos|pediu|comprou)|(?:pedido|pedidos).*(mercadoria|mercadorias|produto|produtos|modelo|modelos)/.test(n))return null;
+ const client=fuzzyClient(raw);if(!client)return null;
+ const orders=arr('orders').filter(o=>norm(o?.client)===norm(client.name)&&!['cancelado','cancelada'].includes(norm(o?.status)));
+ if(!orders.length)return {kind:'system-info',title:'Mercadorias pedidas — '+client.name,text:'Não encontrei pedidos cadastrados para <b>'+escSafe(client.name)+'</b>.'};
+ const groups={};
+ for(const o of orders)for(const r of orderProductRows(o)){
+  const k=sid(r.productId)||norm(r.product),g=groups[k]||(groups[k]={product:r.product,qty:0,orders:new Set()});g.qty+=q(r.qty);g.orders.add(sid(o.orderNumber||o.id));
+ }
+ const rows=Object.values(groups).sort((a,b)=>b.qty-a.qty||a.product.localeCompare(b.product,'pt-BR'));
+ if(!rows.length)return {kind:'system-info',title:'Mercadorias pedidas — '+client.name,text:'Encontrei pedido(s) de <b>'+escSafe(client.name)+'</b>, mas não encontrei os produtos detalhados nesses registros.'};
+ return {kind:'system-info',title:'Mercadorias pedidas — '+client.name,text:rows.map(x=>'• <b>'+escSafe(x.product)+'</b> · '+x.qty.toLocaleString('pt-BR')+' peças · pedido(s) '+[...x.orders].map(n=>'#'+escSafe(n)).join(', ')).join('<br>')+'<br><br><span class="sub">Resposta limitada aos pedidos de '+escSafe(client.name)+'. Não inclui compras, fornecedores ou matéria-prima.</span>'};
+}
 function globalSearch(raw){
  const ws=words(raw);if(!ws.length)return null;
  const modules=['orders','clients','products','materials','suppliers','purchases','employees','cuts','production','factions','hubFinanceEntries','missingPieces'];
@@ -155,6 +188,7 @@ function globalSearch(raw){
 function parse(raw){
  const n=norm(raw);
  const gr=clientProductGrade(raw);if(gr)return gr;
+ const merch=clientOrderedMerchandise(raw);if(merch)return merch;
  const wp=cutterWeeklyPlan(raw);if(wp)return wp;
  const d=clientDeliveries(raw);if(d)return d;
  const ct=cutterTotals(raw);if(ct)return ct;
@@ -171,7 +205,7 @@ function install(){
 }
 window.hlgbAssistantActions=window.hlgbAssistantActions||{};
 window.hlgbRegisterAssistantAction=function(name,fn,canRun){if(name&&typeof fn==='function')window.hlgbAssistantActions[name]={fn,canRun:typeof canRun==='function'?canRun:()=>true}};
-window.hlgbAssistantSystemWide={parse,materialSupplier,purchaseWeekly,clientDeliveries,cutterTotals,clientProductGrade,cutterWeeklyPlan,gradeMatrix,deliveryRows,findNamedClient,globalSearch,weekKey,actions:window.hlgbAssistantActions};
+window.hlgbAssistantSystemWide={parse,materialSupplier,purchaseWeekly,clientDeliveries,cutterTotals,clientProductGrade,clientOrderedMerchandise,orderProductRows,cutterWeeklyPlan,gradeMatrix,deliveryRows,findNamedClient,globalSearch,weekKey,actions:window.hlgbAssistantActions};
 setTimeout(install,2400);setInterval(()=>{if(typeof window.hlgbAssistantAsk==='function'&&!window.hlgbAssistantAsk.__hlgbSystemWideV1)install()},3500);
 window.HLGB_ASSISTANT_SYSTEM_WIDE_GUARD=V;
 })();
