@@ -61,7 +61,11 @@ jobs:
             tests/audit-diagnostics-center.cjs \
             tests/audit-internal-auditor-regression.cjs \
             tests/audit-sync-key-order-regression.cjs \
-            tests/audit-notes-render-no-dirty-regression.cjs
+            tests/audit-notes-render-no-dirty-regression.cjs \
+            tests/audit-termination-provisions-regression.cjs \
+            tests/audit-hub-personal-integrity-regression.cjs \
+            tests/audit-projection-team-view-regression.cjs \
+            tests/audit-assistant-query-regression.cjs
           do
             echo "==> $test"
             node "$test"
