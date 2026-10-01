@@ -45,16 +45,23 @@ function findNamedClient(raw){
  const n=norm(raw);return arr('clients').filter(c=>c?.name&&n.includes(norm(c.name))).sort((a,b)=>String(b.name).length-String(a.name).length)[0]||null;
 }
 function deliveryRows(){
+ const out=[];
  try{
-  if(typeof allProjectionRows==='function')return allProjectionRows().map(({order,item})=>({
-   order,item,date:String(item?.date||'').slice(0,10),
-   qty:typeof projectionDeliverableQty==='function'?q(projectionDeliverableQty(order,item)):q(item?.qty),
-   value:typeof projectionDeliverableValue==='function'?q(projectionDeliverableValue(order,item)):q(item?.value),
-   client:item?.clientName||order?.client||'Sem cliente',
-   product:item?.name||arr('products').find(p=>sid(p?.id)===sid(item?.productId))?.name||'Produto'
-  })).filter(x=>x.qty>0);
- }catch(e){return []}
- return [];
+  if(typeof allProjectionRows==='function'){
+   for(const z of allProjectionRows()){
+    const order=z?.order,item=z?.item;if(!order||!item)continue;
+    const qty=typeof projectionDeliverableQty==='function'?q(projectionDeliverableQty(order,item)):q(item?.qty);
+    if(qty<=0)continue;
+    out.push({order,item,date:String(item?.date||order?.date||'').slice(0,10),qty,value:typeof projectionDeliverableValue==='function'?q(projectionDeliverableValue(order,item)):q(item?.value),client:item?.clientName||order?.client||'Sem cliente',product:item?.name||arr('products').find(p=>sid(p?.id)===sid(item?.productId))?.name||'Produto'});
+   }
+  }
+ }catch(e){}
+ if(out.length)return out;
+ for(const order of arr('orders'))for(const item of (order?.projectionItems||[])){
+  const qty=q(item?.remainingQty??item?.qty);if(qty<=0)continue;
+  out.push({order,item,date:String(item?.date||order?.date||'').slice(0,10),qty,value:q(item?.value),client:item?.clientName||order?.client||'Sem cliente',product:item?.name||arr('products').find(p=>sid(p?.id)===sid(item?.productId))?.name||'Produto'});
+ }
+ return out;
 }
 function clientDeliveries(raw){
  const n=norm(raw);if(!/(entrega|entregas|entregar|sair|saida|projecao)/.test(n))return null;
