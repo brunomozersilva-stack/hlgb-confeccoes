@@ -1,0 +1,67 @@
+name: HLGB Assistant Universal Preview
+
+on:
+  push:
+    branches: [assistant-import-universal-20261001]
+    paths:
+      - '.github/workflows/assistant-universal-preview.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  package:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: assistant-import-universal-20261001
+      - name: Build preview
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p preview
+          cp abrir.html preview/
+          cp app-stable3.html preview/
+          cp app9240.html preview/
+          cp hotfix9241.js preview/
+          cp release-*.js preview/
+          cat > preview/start-preview.command <<'SH'
+          #!/bin/bash
+          set -e
+          cd "$(dirname "$0")"
+          PORT=8765
+          echo "HLGB Confecções - Preview"
+          echo "Abrindo http://localhost:${PORT}/abrir.html"
+          if command -v python3 >/dev/null 2>&1; then
+            (sleep 1; open "http://localhost:${PORT}/abrir.html") >/dev/null 2>&1 &
+            exec python3 -m http.server "$PORT" --bind 127.0.0.1
+          fi
+          echo "Python 3 não encontrado."
+          read -r -p "Enter para fechar."
+          SH
+          chmod +x preview/start-preview.command
+          cat > preview/LEIA-ME.txt <<'TXT'
+          HLGB — VERSÃO TESTE COMPLETA
+
+          Inclui:
+          - Assistente: consultas amplas do sistema
+          - comparação de fornecedores e média de compras
+          - importar WhatsApp por texto
+          - importar foto, PDF, Excel, CSV e TXT para montar grade/pedido
+          - sempre mostrar prévia antes de abrir/salvar pedido
+          - matérias-primas do fornecedor dentro da nota de compra
+          - cadastrar matéria-prima no ato da nota de compra
+          - correções anteriores de voz do Assistente e grade padrão
+
+          Nada neste ZIP publica no main.
+          TXT
+      - name: Upload preview
+        uses: actions/upload-artifact@v4
+        with:
+          name: HLGB-ASSISTENTE-UNIVERSAL-TESTE
+          path: preview/
+          if-no-files-found: error
+          retention-days: 7
