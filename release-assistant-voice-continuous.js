@@ -74,8 +74,10 @@ function install(){
  const wrap=document.createElement('div');wrap.id='hlgbAssistantVoiceControls';wrap.style.cssText='display:flex;gap:6px;flex-wrap:wrap';
  wrap.innerHTML='<button type="button" id="hlgbAssistantMicBtn" class="secondary">🎙️ Falar</button><button type="button" id="hlgbAssistantSpeakBtn" class="secondary">🔊 Ler resposta</button><button type="button" id="hlgbAssistantStopSpeakBtn" class="secondary" disabled>⏹️ Parar leitura</button>';
  if(old)old.replaceWith(wrap);else (e.closest?.('.hlgb-assistant-input')||e.parentElement)?.insertAdjacentElement('afterend',wrap);
- wrap.querySelector('#hlgbAssistantMicBtn').onclick=start;wrap.querySelector('#hlgbAssistantSpeakBtn').onclick=speak;wrap.querySelector('#hlgbAssistantStopSpeakBtn').onclick=stopReading;
- if(!Ctor())wrap.querySelector('#hlgbAssistantMicBtn').disabled=true;
+ wrap.dataset.continuous='1';
+ const mic=wrap.querySelector('#hlgbAssistantMicBtn'),read=wrap.querySelector('#hlgbAssistantSpeakBtn'),stop=wrap.querySelector('#hlgbAssistantStopSpeakBtn');
+ if(mic)mic.onclick=start;if(read)read.onclick=speak;if(stop)stop.onclick=stopReading;
+ if(!Ctor()&&mic)mic.disabled=true;
 }
 function boot(){if(input())install()}
 setTimeout(boot,2100);
