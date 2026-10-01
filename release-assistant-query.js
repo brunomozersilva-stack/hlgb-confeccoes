@@ -119,6 +119,43 @@ function answerClientProductsScoped(raw){
   }
   const rows=[...byProduct.values()].sort((a,b)=>String(a.name).localeCompare(String(b.name),'pt-BR'));
   if(!rows.length)return {title:'Cliente: '+chosen,text:'Encontrei pedido(s) para <b>'+escSafe(chosen)+'</b>, mas sem produtos identificados.',kind:'client-products'};
+
+  // Se a pergunta citar um produto/modelo específico, responda somente sobre ele.
+  // Ex.: "tem pedido de camisola liliane para quesia?" não pode listar todas as mercadorias da cliente.
+  const masterProducts=arr('products').map(p=>({id:sid(p?.id),name:String(p?.name||'').trim(),nn:norm(p?.name||'')})).filter(p=>p.name);
+  const significant=s=>norm(s).split(' ').filter(w=>w.length>=4&&!['pedido','pedidos','produto','produtos','modelo','modelos','mercadoria','mercadorias','cliente','camisola','conjunto','calcinha','body','short','doll'].includes(w));
+  let mentioned=masterProducts.filter(p=>p.nn&&n.includes(p.nn));
+  if(!mentioned.length){
+    mentioned=masterProducts.filter(p=>{
+      const words=significant(p.name);
+      return words.length&&words.some(w=>n.includes(w));
+    });
+  }
+  if(mentioned.length){
+    // Prefere o nome mais específico/mais longo quando houver mais de um candidato.
+    mentioned.sort((a,b)=>b.nn.length-a.nn.length);
+    const targetProduct=mentioned[0];
+    const targetWords=significant(targetProduct.name);
+    const matches=rows.filter(r=>{
+      const rn=norm(r.name);
+      return rn===targetProduct.nn||rn.includes(targetProduct.nn)||targetProduct.nn.includes(rn)||
+        (targetWords.length&&targetWords.some(w=>rn.includes(w)));
+    });
+    if(!matches.length){
+      return {
+        title:'Pedido de '+targetProduct.name+' · '+chosen,
+        text:'Não encontrei pedido de <b>'+escSafe(targetProduct.name)+'</b> para <b>'+escSafe(chosen)+'</b>.',
+        kind:'client-product-empty',client:chosen,product:targetProduct.name,data:[]
+      };
+    }
+    return {
+      title:targetProduct.name+' · '+chosen,
+      text:matches.map(x=>'• <b>'+escSafe(x.name)+'</b> · '+x.qty.toLocaleString('pt-BR')+' peça(s)'+(x.orders.size?' · pedido(s) #'+[...x.orders].map(escSafe).join(', #'):'')).join('<br>'),
+      kind:'client-product',client:chosen,product:targetProduct.name,
+      data:matches.map(x=>({name:x.name,qty:x.qty,orders:[...x.orders]}))
+    };
+  }
+
   return {
     title:'Mercadorias pedidas por '+chosen,
     text:rows.map(x=>'• <b>'+escSafe(x.name)+'</b> · '+x.qty.toLocaleString('pt-BR')+' peça(s)'+(x.orders.size?' · pedido(s) #'+[...x.orders].map(escSafe).join(', #'):'')).join('<br>'),
