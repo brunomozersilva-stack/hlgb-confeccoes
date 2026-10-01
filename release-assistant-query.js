@@ -477,7 +477,18 @@ window.hlgbAssistantRunAudit=async function(){
   }catch(e){if(out)out.innerHTML='<b>Não foi possível concluir a auditoria.</b><br>'+escSafe(String(e?.message||e))}
 };
 window.hlgbAssistant={query,answerOrder,answerDeliveries,answerProblems,answerLatestAudit,prepareAuditAction,orderSnapshot,answerClientProductsScoped,openMissingForOrder,runOfficialMissingAction,prepareHubRealizedAction,runOfficialHubRealizedAction,findHubEntries,prepareOrderPriorityAction,runOfficialPriorityAction,canonicalPriority,prepareOrderStatusAction,runOfficialStatusAction,canonicalOrderStatus,detectWriteIntent,version:V};
-function boot(){injectButton();try{if(typeof hlgbAfterLogin==='function')hlgbAfterLogin(()=>setTimeout(injectButton,300),0)}catch(e){}}
+function boot(){
+  injectButton();
+  [200,500,900,1500,2500,4000].forEach(ms=>setTimeout(injectButton,ms));
+  try{if(typeof hlgbAfterLogin==='function')hlgbAfterLogin(()=>[100,350,800,1600].forEach(ms=>setTimeout(injectButton,ms)),0)}catch(e){}
+  try{
+    if(!window.__hlgbAssistantNavObserver){
+      const mo=new MutationObserver(()=>{if(!document.getElementById('hlgbAssistantNavBtn'))injectButton()});
+      mo.observe(document.documentElement,{childList:true,subtree:true});
+      window.__hlgbAssistantNavObserver=mo;
+    }
+  }catch(e){}
+}
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',boot,{once:true});else boot();
 console.info('[HLGB] Assistente HLGB consulta v1 carregado');
 })();
