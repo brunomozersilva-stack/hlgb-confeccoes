@@ -84,6 +84,7 @@ jobs:
             tests/audit-cut-model-grade-adjust-regression.cjs \
             tests/audit-grade-standard-regression.cjs \
             tests/audit-assistant-system-wide-regression.cjs \
+            tests/audit-purchase-supplier-materials-regression.cjs \
             tests/audit-assistant-order-import-regression.cjs \
             tests/audit-assistant-voice-continuous-regression.cjs \
             tests/audit-assistant-invoice-fresh-regression.cjs
