@@ -5,7 +5,8 @@
    4) nota finalizada cria/atualiza lançamento no Hub na data correta, sem duplicar */
 (function(){
 'use strict';
-const V='2026.10.01-user-fixes-v1';
+const V='2026.10.01-user-fixes-v2';
+const HUB_AUTO_START='2026-10-02';
 const sid=v=>String(v??'');
 const q=v=>Math.max(0,Number(v)||0);
 const norm=v=>sid(v).normalize('NFD').replace(/[\u0300-\u036f]/g,'').trim().toLowerCase().replace(/\s+/g,' ');
@@ -126,6 +127,11 @@ function newestNewInvoice(before){
 }
 async function syncInvoiceToHub(inv,mode){
   if(!inv||!inv.id||typeof window.hlgbHubSaveConfirmed!=='function')return false;
+  const created=sid(inv?.createdAt||inv?.updatedAt||'').slice(0,10),issueDate=sid(inv?.issueDate||inv?.date||'').slice(0,10);
+  const effectiveDate=created||issueDate;
+  // Regra de corte: automação vale somente para notas criadas a partir de 02/10/2026.
+  // Notas antigas permanecem intocadas para não duplicar lançamentos já feitos manualmente no Hub.
+  if(!effectiveDate||effectiveDate<HUB_AUTO_START)return false;
   const sourceId=sid(inv.id),existing=arr('hubFinanceEntries').find(e=>sid(e?.sourceType)==='projectionInvoice'&&sid(e?.sourceId)===sourceId);
   const today=new Date().toISOString().slice(0,10);
   const due=sid(inv?.dueDate||'').slice(0,10),issue=sid(inv?.issueDate||inv?.date||today).slice(0,10)||today;
@@ -179,6 +185,7 @@ try{mo.observe(document.documentElement,{childList:true,subtree:true})}catch(e){
 watchInvoiceSave();
 [0,200,800,1800].forEach(ms=>setTimeout(decorate,ms));
 try{if(typeof hlgbAfterLogin==='function')hlgbAfterLogin(()=>[200,800,1800].forEach(ms=>setTimeout(decorate,ms)),0)}catch(e){}
+window.HLGB_HUB_AUTO_START=HUB_AUTO_START;
 window.HLGB_USER_FIXES_20261001=V;
 console.info('[HLGB] '+V+' carregado');
 })();
