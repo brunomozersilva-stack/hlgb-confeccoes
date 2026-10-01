@@ -52,9 +52,8 @@ vm.createContext(context);vm.runInContext(src,context);
  assert.equal(calls,0,'aged stale operation must not reach original saver');
  store.delete('hlgb_records_pending_v91');
 
- let blocked=false;
- try{await context.window.hlgbRecordSaveWithRetry('hubFinanceEntries','70k',row,false)}catch(e){blocked=e.code==='HLGB_TOMBSTONE_BLOCK'}
- assert(blocked,'tombstone must block stale restore');
+ const tombstoneOut=await context.window.hlgbRecordSaveWithRetry('hubFinanceEntries','70k',row,false);
+ assert(tombstoneOut.applied&&tombstoneOut.hlgbTombstonePruned,'tombstone must absorb stale restore as confirmed local cleanup');
  assert.equal(calls,0,'stale restore must not reach original saver');
  assert.equal(context.db.hubFinanceEntries.some(x=>x.id==='70k'),false,'stale tombstoned local row must be removed without disturbing unrelated rows');
 
@@ -160,6 +159,6 @@ vm.createContext(context);vm.runInContext(src,context);
  assert.equal(nonOverlap.value,120);assert.equal(nonOverlap.note,'b','non-overlapping fields must still merge');
 
  assert(saves>=6,'lexical-db cleanup/no-op/rekey normalization must be persisted');
- assert.equal(context.window.HLGB_RECORD_INTEGRITY_GUARD,'v7');
- console.log('PASS record integrity v7: tombstones, stale pending/conflicts, logical auto-cut/production duplicates and technical churn blocked; legitimate split/save/delete preserved.');
+ assert.equal(context.window.HLGB_RECORD_INTEGRITY_GUARD,'v8');
+ console.log('PASS record integrity v8: stale tombstones are silently pruned; stale pending/conflicts and logical duplicates remain blocked; legitimate split/save/delete preserved.');
 })().catch(e=>{console.error(e);process.exit(1)});
