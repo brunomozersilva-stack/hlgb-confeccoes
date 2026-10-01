@@ -1,0 +1,12 @@
+const fs=require('fs'),vm=require('vm'),assert=require('assert'),path=require('path');
+const src=fs.readFileSync(path.join(__dirname,'..','release-assistant-system-wide.js'),'utf8');
+const loader=fs.readFileSync(path.join(__dirname,'..','app-stable3.html'),'utf8');
+assert(loader.includes("'release-assistant-system-wide.js'"));
+const context={console,setTimeout(){return 0},setInterval(){return 0},db:{suppliers:[{name:'Rafael',products:[{name:'Romantic',unit:'Quilo',price:29.9}]},{name:'Outro',products:[{name:'Romantic',unit:'Quilo',price:31.5}]}],purchases:[{date:'2026-09-01',total:100},{date:'2026-09-08',total:300}],orders:[{id:1,orderNumber:87,client:'Bianca'}],clients:[{id:'c1',name:'Bianca'}]},window:{hlgbAssistantAsk(){}},document:{getElementById(){return null}},money:v=>'R$ '+Number(v).toFixed(2)};
+vm.createContext(context);vm.runInContext(src,context);
+const api=context.window.hlgbAssistantSystemWide;assert(api);
+const m=api.materialSupplier('quem tem Romantic mais barato');assert(m.text.includes('Rafael'));
+const w=api.purchaseWeekly('qual minha média de compras por semana');assert(w.text.includes('R$ 200.00'));
+const g=api.globalSearch('qual pedido da Bianca');assert(g.text.includes('Pedido #87'));
+assert.equal(context.window.HLGB_ASSISTANT_SYSTEM_WIDE_GUARD,'2026.10.01-assistant-system-wide-v1');
+console.log('PASS system-wide assistant: supplier comparison, weekly purchase average and global system search work.');
