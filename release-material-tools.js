@@ -1,7 +1,7 @@
 /* HLGB — grades e calculadora de materiais */
 (function(){
 'use strict';
-const V='2026.10.01-material-tools-v2';
+const V='2026.10.01-material-tools-v3';
 const sid=v=>String(v??''),q=v=>Math.max(0,Number(v)||0);
 const escSafe=v=>typeof esc==='function'?esc(v):sid(v).replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
 function arr(n){try{return Array.isArray(db?.[n])?db[n]:[]}catch(e){return []}}
@@ -20,6 +20,43 @@ function standardGradeHTML(o){
   const rows=Object.values(groups).map(g=>'<tr><td>'+escSafe(g.product)+'</td><td>'+escSafe(g.color)+'</td>'+sizes.map(s=>'<td>'+q(g.qty[s])+'</td>').join('')+'<td><b>'+sizes.reduce((a,s)=>a+q(g.qty[s]),0)+'</b></td></tr>').join('');
   const grand=grade.reduce((a,x)=>a+q(x.qty),0);
   return '<div style="overflow:auto"><table><thead><tr><th>Produto</th><th>Cor</th>'+sizes.map(s=>'<th>'+escSafe(s)+'</th>').join('')+'<th>Total</th></tr></thead><tbody>'+rows+'<tr><td colspan="'+(sizes.length+2)+'" style="text-align:right"><b>Total do pedido</b></td><td><b>'+grand+'</b></td></tr></tbody></table></div>';
+}
+function cutterSheetGradeForModel(o,productId){
+  const grade=(Array.isArray(o?.grade)?o.grade:[]).filter(it=>sid(it?.productId)===sid(productId));
+  if(!grade.length)return '<div class="empty">Este modelo não possui grade cadastrada.</div>';
+  const sizes=sortedSizes(),p=product(productId),pname=p?.name||'-',groups={};
+  grade.forEach(it=>{
+    const color=it.color||'-',key=color;
+    if(!groups[key])groups[key]={color,qty:{}};
+    groups[key].qty[it.size]=(groups[key].qty[it.size]||0)+q(it.qty);
+  });
+  const heads=sizes.map(s=>'<th>'+escSafe(s)+'</th>').join('');
+  const body=Object.values(groups).map(g=>{
+    const total=sizes.reduce((a,s)=>a+q(g.qty[s]),0);
+    return '<tr><td>'+escSafe(pname)+'</td><td>'+escSafe(g.color)+'</td>'+sizes.map(s=>'<td>'+q(g.qty[s])+'</td>').join('')+'<td><b>'+total+'</b></td></tr>';
+  }).join('');
+  const grand=grade.reduce((a,it)=>a+q(it.qty),0);
+  return '<div class="hlgb-model-cutter-grade" style="overflow:auto;margin:10px 0 14px"><table><tr><th>Produto</th><th>Cor</th>'+heads+'<th>Total</th></tr>'+body+'<tr><td colspan="'+(sizes.length+2)+'" style="text-align:right"><b>Total do modelo</b></td><td><b>'+grand+'</b></td></tr></table></div>';
+}
+function decorateSeparationModelGrades(){
+  const root=document.getElementById('separationTable'),sel=document.getElementById('separationOrder');if(!root||!sel?.value)return;
+  const o=order(sel.value);if(!o)return;
+  const productsByName=new Map();
+  [...new Set((o.grade||[]).map(x=>sid(x.productId)).filter(Boolean))].forEach(pid=>{
+    const p=product(pid);if(p?.name)productsByName.set(String(p.name).trim().toLowerCase(),pid);
+  });
+  root.querySelectorAll('.panel').forEach(panel=>{
+    const h3=panel.querySelector('h3');if(!h3||panel.querySelector('.hlgb-model-cutter-grade-wrap'))return;
+    const title=String(h3.childNodes?.[0]?.textContent||h3.textContent||'').trim().toLowerCase();
+    let pid=productsByName.get(title);
+    if(!pid){
+      for(const [name,id] of productsByName.entries()){if(title===name||title.startsWith(name+' ')){pid=id;break}}
+    }
+    if(!pid)return;
+    const wrap=document.createElement('div');wrap.className='hlgb-model-cutter-grade-wrap';
+    wrap.innerHTML='<div style="font-weight:800;margin-top:10px">📋 Grade para separação / corte</div><div class="sub">Mesmo formato da Folha dos Cortadores.</div>'+cutterSheetGradeForModel(o,pid);
+    h3.insertAdjacentElement('afterend',wrap);
+  });
 }
 function ensureSeparationGradePanel(){
   const sel=document.getElementById('separationOrder'),box=document.getElementById('separationTable');if(!sel||!box||!sel.value)return;
@@ -113,11 +150,11 @@ function ensureCalculator(){
   box.innerHTML='<h2>🧮 Calculadora de material</h2><div class="sub">Você pode colocar vários produtos no mesmo cálculo. No manual, também pode escolher uma matéria-prima já cadastrada ou digitar uma nova apenas para simulação.</div><div class="panel" style="background:#fff8fb;margin-top:12px"><h3 style="margin-top:0">Automático — produtos cadastrados</h3><div id="hlgbMatAutoLines"></div><button type="button" class="primary" style="margin-top:8px" onclick="hlgbMatAddAuto()">➕ Adicionar outro produto</button></div><div class="panel" style="margin-top:12px"><h3 style="margin-top:0">Manual — matéria-prima + grade</h3><div id="hlgbMatManualLines"></div><button type="button" class="secondary" style="margin-top:8px" onclick="hlgbMatAddManual()">➕ Adicionar outro material</button></div><h3>Resultado consolidado</h3><div id="hlgbMaterialCalcResult"></div>';
   panel.insertAdjacentElement('afterend',box);autoLine();manualLine();renderCalc();
 }
-window.hlgbMatAddAuto=()=>{autoLine();renderCalc()};window.hlgbMatAddManual=()=>{manualLine();renderCalc()};window.hlgbMaterialTools={standardGradeHTML,needForPieces,autoResult,manualResult,renderCalc};
+window.hlgbMatAddAuto=()=>{autoLine();renderCalc()};window.hlgbMatAddManual=()=>{manualLine();renderCalc()};window.hlgbMaterialTools={standardGradeHTML,cutterSheetGradeForModel,decorateSeparationModelGrades,needForPieces,autoResult,manualResult,renderCalc};
 const oldSepList=window.renderSeparationList;if(typeof oldSepList==='function'&&!oldSepList.__hlgbMaterialToolsV2){const w=function(){const r=oldSepList.apply(this,arguments);setTimeout(decorateSeparation,0);setTimeout(ensureCalculator,0);return r};w.__hlgbMaterialToolsV2=true;w.__original=oldSepList;window.renderSeparationList=w}
-const oldSep=window.renderSeparation;if(typeof oldSep==='function'&&!oldSep.__hlgbMaterialToolsV2){const w=function(){const r=oldSep.apply(this,arguments);setTimeout(ensureSeparationGradePanel,0);return r};w.__hlgbMaterialToolsV2=true;w.__original=oldSep;window.renderSeparation=w}
+const oldSep=window.renderSeparation;if(typeof oldSep==='function'&&!oldSep.__hlgbMaterialToolsV3){const w=function(){const r=oldSep.apply(this,arguments);setTimeout(()=>{decorateSeparationModelGrades();ensureSeparationGradePanel()},0);return r};w.__hlgbMaterialToolsV3=true;w.__original=oldSep;window.renderSeparation=w}
 const oldProd=window.renderProducts;if(typeof oldProd==='function'&&!oldProd.__hlgbMaterialToolsV2){const w=function(){const r=oldProd.apply(this,arguments);setTimeout(()=>{decorateProductTable();observeProducts()},0);return r};w.__hlgbMaterialToolsV2=true;w.__original=oldProd;window.renderProducts=w}
-function boot(){try{decorateSeparation();decorateProductTable();observeProducts();ensureCalculator();ensureSeparationGradePanel()}catch(e){console.warn('[HLGB material tools]',e)}}try{if(typeof hlgbAfterLogin==='function')hlgbAfterLogin(()=>setTimeout(boot,900),0)}catch(e){}setTimeout(boot,1600);
+function boot(){try{decorateSeparation();decorateProductTable();observeProducts();ensureCalculator();decorateSeparationModelGrades();ensureSeparationGradePanel()}catch(e){console.warn('[HLGB material tools]',e)}}try{if(typeof hlgbAfterLogin==='function')hlgbAfterLogin(()=>setTimeout(boot,900),0)}catch(e){}setTimeout(boot,1600);
 window.HLGB_MATERIAL_TOOLS_GUARD=V;
 console.info('[HLGB] grades e calculadora de materiais v2 ativas');
 })();
