@@ -48,7 +48,7 @@ function requestedQty(raw,productName){
  let pos=-1;
  for(const t of tokens){const i=n.indexOf(t);if(i>=0&&(pos<0||i<pos))pos=i}
  if(pos<0)return 0;
- const before=n.slice(Math.max(0,pos-65),pos),nums=[...before.matchAll(/(\\d{1,7})/g)];
+ const before=n.slice(Math.max(0,pos-65),pos),nums=[...before.matchAll(/(\d{1,7})/g)];
  return nums.length?q(nums[nums.length-1][1]):0;
 }
 function parse(raw){
