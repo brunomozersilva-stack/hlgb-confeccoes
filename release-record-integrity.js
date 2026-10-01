@@ -241,10 +241,9 @@ if(typeof oldRpcSave==='function'&&!oldRpcSave.__hlgbRemoteTombstoneGuardV1){
    if(!current||(+current.revision||0)<=(+out.revision||0)){
     map.set(sid(id),{data:clone(out.data),deleted_at:out.deleted_at,revision:+out.revision||1,updated_at:out.updated_at||'',updated_by:out.updated_by||null});
     hlgbRecordSnapshots[module]=map;
-    removeLocal(module,id);prunePendingTombstones();
    }
-   const err=new Error('Registro excluído por outra sessão. A tentativa de restauração automática foi bloqueada. Atualize a tela.');
-   err.code='HLGB_TOMBSTONE_BLOCK';throw err;
+   removeLocal(module,id);prunePendingTombstones();
+   return {...out,applied:true,hlgbTombstonePruned:true};
   }
   return out;
  };
@@ -257,9 +256,8 @@ if(typeof original==='function'&&!original.__hlgbRecordIntegrityV7){
  const wrapped=async function(module,id,data,deleted=false){
   const restore=explicitRestore(data),snap=snapshot(module,id);
   if(!deleted&&!restore&&snap?.deleted_at){
-   removeLocal(module,id);
-   const err=new Error('Registro já excluído na nuvem. Uma sessão antiga tentou restaurá-lo automaticamente. Atualize a tela antes de continuar.');
-   err.code='HLGB_TOMBSTONE_BLOCK';throw err;
+   removeLocal(module,id);prunePendingTombstones();
+   return {applied:true,data:clone(snap.data),deleted_at:snap.deleted_at,revision:+snap.revision||1,updated_at:snap.updated_at||'',updated_by:snap.updated_by||null,hlgbTombstonePruned:true};
   }
   if(!deleted&&!restore&&isAutoOrderCut(module,data)&&parentOrderTombstoned(data)){
    removeLocal(module,id);
@@ -296,9 +294,8 @@ if(typeof original==='function'&&!original.__hlgbRecordIntegrityV7){
   const sendData=deleted?withDeleteMarker(data):data;
   const out=await original.call(this,module,id,sendData,deleted);
   if(!deleted&&!restore&&out?.deleted_at){
-   removeLocal(module,id);
-   const err=new Error('Registro já excluído na nuvem. A restauração automática foi bloqueada.');
-   err.code='HLGB_TOMBSTONE_BLOCK';throw err;
+   removeLocal(module,id);prunePendingTombstones();
+   return {...out,applied:true,hlgbTombstonePruned:true};
   }
   return out;
  };
@@ -350,7 +347,7 @@ if(typeof oldLoadBundle==='function'&&!oldLoadBundle.__hlgbPendingTombstoneV1){
  wrapped.__hlgbPendingTombstoneV1=true;wrapped.__original=oldLoadBundle;window.hlgbRecordLoadBundle=wrapped;
 }
 try{prunePendingTombstones()}catch(e){}
-window.HLGB_RECORD_INTEGRITY_GUARD='v7';
+window.HLGB_RECORD_INTEGRITY_GUARD='v8';
 window.HLGB_RECORD_PENDING_TOMBSTONE_GUARD='v1';
 window.HLGB_RECORD_PENDING_AGE_GUARD='v1';
 window.HLGB_LOGICAL_DUPLICATE_GUARD='v1';
@@ -361,5 +358,5 @@ window.hlgbRecordConflictPaths=conflictPaths;
 window.hlgbRecordStalePending=stalePending;
 window.hlgbRecordSemanticNoop=semanticNoop;
 window.hlgbFreshCutId=freshCutId;
-console.info('[HLGB] integridade de registros v7 + tombstone/idade pendente v1 + duplicidade lógica v1 ativa');
+console.info('[HLGB] integridade de registros v8 + tombstone silencioso/idade pendente v1 + duplicidade lógica v1 ativa');
 })();
