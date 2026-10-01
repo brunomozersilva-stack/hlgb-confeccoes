@@ -1,7 +1,7 @@
 /* HLGB — Assistente cria nota de cliente usando o fluxo oficial */
 (function(){
 'use strict';
-const V='2026.10.01-assistant-invoice-v1';
+const V='2026.10.01-assistant-invoice-v2';
 const sid=v=>String(v??''),q=v=>Math.max(0,Number(v)||0),norm=v=>sid(v).normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().trim().replace(/\s+/g,' ');
 const escSafe=v=>typeof esc==='function'?esc(v):sid(v).replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
 const moneySafe=v=>typeof money==='function'?money(v):Number(v||0).toLocaleString('pt-BR',{style:'currency',currency:'BRL'});
@@ -34,21 +34,31 @@ function invoiceableForClient(client){
  return out;
 }
 function escapedRegex(s){return String(s).replace(/[-/\\^$*+?.()|[\]{}]/g,'\\$&')}
+function productTokens(name){
+ const generic=new Set(['camisola','camisolas','camisa','camisas','body','bodies','calcinha','calcinhas','conjunto','conjuntos','short','doll','shortdoll','sutia','sutiã','top']);
+ return norm(name).split(/\s+/).filter(t=>t.length>=3&&!generic.has(t));
+}
 function requestedQty(raw,productName){
  const n=norm(raw),p=norm(productName),pp=escapedRegex(p).replace(/\\ /g,'\\s+');
- const m1=n.match(new RegExp('(?:^|\\s)(\\d{1,7})\\s*(?:pecas|peças|unidades|un)?\\s*'+pp,'i'));
- if(m1)return q(m1[1]);
- const m2=n.match(new RegExp(pp+'\\s*(?:-|:)?\\s*(\\d{1,7})\\s*(?:pecas|peças|unidades|un)?','i'));
- return m2?q(m2[1]):0;
+ let m=n.match(new RegExp('(?:^|\\s)(\\d{1,7})\\s*(?:pecas|peças|unidades|un)?\\s*'+pp,'i'));
+ if(m)return q(m[1]);
+ m=n.match(new RegExp(pp+'\\s*(?:-|:)?\\s*(\\d{1,7})\\s*(?:pecas|peças|unidades|un)?','i'));
+ if(m)return q(m[1]);
+ const tokens=productTokens(productName);
+ let pos=-1;
+ for(const t of tokens){const i=n.indexOf(t);if(i>=0&&(pos<0||i<pos))pos=i}
+ if(pos<0)return 0;
+ const before=n.slice(Math.max(0,pos-65),pos),nums=[...before.matchAll(/(\\d{1,7})/g)];
+ return nums.length?q(nums[nums.length-1][1]):0;
 }
 function parse(raw){
  const s=String(raw||'').trim();
- if(!/(?:fazer|criar|emitir|finalizar|montar)\s+(?:uma\s+)?nota|nota\s+(?:para|da|do)\s+/i.test(s))return null;
+ if(!/(?:fazer|faça|faca|faz|criar|emitir|gerar|finalizar|montar|preciso\s+que\s+faça|preciso\s+que\s+faca|quero)\s+(?:uma\s+)?nota|(?:preciso|quero)\s+(?:de\s+)?(?:uma\s+)?nota|nota\s+(?:para|pra|da|do)\s+/i.test(s))return null;
  const client=clientFromText(s);if(!client)return {kind:'invoice-client-missing',title:'Cliente da nota',text:'Diga o nome do cliente. Ex.: <b>“fazer nota da Gisele”</b>.'};
  const rows=invoiceableForClient(client);if(!rows.length)return {kind:'invoice-empty',title:'Sem saldo para nota',text:'Não encontrei peças disponíveis na Projeção para <b>'+escSafe(client.name)+'</b>.'};
  let anyQty=false;
- const lines=rows.map(r=>{const asked=requestedQty(s,r.product);if(asked>0)anyQty=true;return {...r,qty:asked>0?Math.min(r.available,asked):r.available}});
- const selected=anyQty?lines.filter(x=>requestedQty(s,x.product)>0):lines;
+ const lines=rows.map(r=>{const asked=requestedQty(s,r.product);if(asked>0)anyQty=true;const mentioned=productTokens(r.product).some(t=>norm(s).includes(t))||norm(s).includes(norm(r.product));return {...r,mentioned,qty:asked>0?Math.min(r.available,asked):r.available}});
+ const selected=anyQty?lines.filter(x=>x.qty>0&&x.mentioned):lines;
  if(!selected.length)return {kind:'invoice-empty',title:'Produtos não encontrados',text:'Encontrei saldo para '+escSafe(client.name)+', mas os produtos/quantidades falados não bateram com a Projeção.'};
  const totalQty=selected.reduce((a,x)=>a+x.qty,0),total=selected.reduce((a,x)=>a+x.qty*x.unit,0);
  return {kind:'invoice-action',title:'Nota para '+client.name,clientId:sid(client.id),clientName:client.name,items:selected,totalQty,total,
@@ -96,8 +106,28 @@ function enhance(){
  w.__hlgbInvoiceV1=true;w.__original=base;window.hlgbAssistantAsk=w;
 }
 window.hlgbAssistantOpenInvoice=function(){const a=window.__hlgbAssistantInvoicePending;if(!a)return;try{openOfficial(a);try{auditAction?.('Assistente preparou nota oficial de cliente',a.clientName+' · '+a.totalQty+' peças')}catch(e){}}catch(e){alert(String(e?.message||e))}};
-window.hlgbAssistantInvoice={parse,invoiceableForClient,requestedQty,openOfficial,unitFor,currentClient};
+window.hlgbAssistantInvoice={parse,invoiceableForClient,requestedQty,productTokens,openOfficial,unitFor,currentClient};
 function boot(){enhance()}try{if(typeof hlgbAfterLogin==='function')hlgbAfterLogin(()=>setTimeout(boot,700),0)}catch(e){}setTimeout(boot,1200);
+function printProjectionInvoice(id){
+ const inv=arr('projectionInvoices').find(x=>sid(x?.id)===sid(id));if(!inv)return alert('Nota não encontrada.');
+ const client=arr('clients').find(x=>sid(x?.id)===sid(inv.clientId));
+ const rows=(inv.items||[]).map(it=>'<tr><td>'+escSafe(it.productName||'Produto')+'</td><td>'+q(it.qty).toLocaleString('pt-BR')+'</td><td>'+moneySafe(it.unitPrice)+'</td><td>'+moneySafe(it.value??q(it.qty)*q(it.unitPrice))+'</td></tr>').join('');
+ const total=(inv.items||[]).reduce((a,it)=>a+q(it.value??q(it.qty)*q(it.unitPrice)),0);
+ const w=window.open('','_blank');if(!w)return alert('O navegador bloqueou a janela de impressão.');
+ w.document.write('<!doctype html><html><head><meta charset="utf-8"><title>Nota '+escSafe(inv.id)+'</title><style>body{font-family:Arial;padding:24px;color:#222}h1{margin:0;color:#6f3f59}table{width:100%;border-collapse:collapse;margin-top:18px}th,td{border:1px solid #ddd;padding:8px;text-align:left}.tot{font-weight:700}.muted{color:#666;font-size:12px}@media print{button{display:none}}</style></head><body><h1>HLGB CONFECÇÕES</h1><div class="muted">Nota de cliente</div><p><b>Cliente:</b> '+escSafe(inv.client||client?.name||'-')+'<br><b>Emissão:</b> '+escSafe(inv.issueDate||inv.date||'-')+'<br><b>Vencimento:</b> '+escSafe(inv.dueDate||'-')+'<br><b>Condição:</b> '+escSafe(inv.terms||'-')+(inv.termsDetail?' — '+escSafe(inv.termsDetail):'')+'</p><table><thead><tr><th>Produto</th><th>Qtd.</th><th>Valor/pç</th><th>Total</th></tr></thead><tbody>'+rows+'<tr class="tot"><td colspan="3">TOTAL</td><td>'+moneySafe(total)+'</td></tr></tbody></table><p class="muted">Para gerar PDF, escolha “Salvar como PDF” na janela de impressão.</p><script>setTimeout(()=>window.print(),250)<\\/script></body></html>');w.document.close();w.focus();
+}
+function decorateProjectionNotes(){
+ document.querySelectorAll('.v930ProjectionNotes table tbody tr').forEach(tr=>{
+  if(tr.querySelector('.hlgbInvoicePdfBtn'))return;
+  const cells=tr.children;if(!cells?.length)return;
+  const clientName=String(cells[1]?.textContent||'').trim(),date=String(cells[0]?.textContent||'').trim();
+  const inv=arr('projectionInvoices').slice().reverse().find(x=>String(x.client||'').trim()===clientName && (!date || (typeof fmtDate==='function'?fmtDate(x.issueDate||x.date):String(x.issueDate||x.date))===date));
+  if(!inv)return;
+  const td=document.createElement('td'),b=document.createElement('button');b.type='button';b.className='secondary hlgbInvoicePdfBtn';b.textContent='🖨️ PDF';b.onclick=()=>printProjectionInvoice(inv.id);td.appendChild(b);tr.appendChild(td);
+ });
+}
+const oldNotes=window.renderOrderNotes;if(typeof oldNotes==='function'&&!oldNotes.__hlgbInvoicePdfV2){const w=function(){const r=oldNotes.apply(this,arguments);setTimeout(decorateProjectionNotes,0);return r};w.__hlgbInvoicePdfV2=true;w.__original=oldNotes;window.renderOrderNotes=w}
+window.hlgbPrintProjectionInvoice=printProjectionInvoice;
 window.HLGB_ASSISTANT_INVOICE_GUARD=V;
-console.info('[HLGB] Assistente: nota oficial por voz/texto ativa');
+console.info('[HLGB] Assistente: nota oficial por voz/texto v2 ativa');
 })();
