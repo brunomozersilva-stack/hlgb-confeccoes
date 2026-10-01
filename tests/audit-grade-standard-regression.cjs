@@ -1,0 +1,14 @@
+const fs=require('fs'),vm=require('vm'),assert=require('assert'),path=require('path');
+const src=fs.readFileSync(path.join(__dirname,'..','release-grade-standard.js'),'utf8');
+const loader=fs.readFileSync(path.join(__dirname,'..','app-stable3.html'),'utf8');
+assert(loader.includes("'release-grade-standard.js'"));
+const context={console,setTimeout(){return 0},db:{sizes:['P','M','G','GG'],products:[{id:'p1',name:'Conjunto Marcia'}],cuts:[],orders:[]},window:{finishCut(){}},document:{querySelectorAll(){return []}},hlgbSortedSizes:()=>['P','M','G','GG']};
+vm.createContext(context);vm.runInContext(src,context);
+const api=context.window.hlgbGradeMatrix;assert(api);
+const planned=[{productId:'p1',color:'Preto',size:'P',qty:20},{productId:'p1',color:'Preto',size:'M',qty:40},{productId:'p1',color:'Preto',size:'G',qty:40},{productId:'p1',color:'Preto',size:'GG',qty:20}];
+const html=api.matrixEditable(planned,planned,'x');
+for(const x of ['Produto','Cor','P','M','G','GG','Total','Conjunto Marcia','Preto'])assert(html.includes(x),x+' missing');
+assert(!html.includes('<th>Tamanho</th>'),'old one-size-per-row grade must not be used');
+const comp=api.matrixReadOnly(planned,planned);assert(comp.includes('orig. 20'));
+assert.equal(context.window.HLGB_GRADE_STANDARD_GUARD,'2026.10.01-grade-standard-v1');
+console.log('PASS grade standard: cut screens use cutter-sheet matrix columns.');
