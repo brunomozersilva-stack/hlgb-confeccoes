@@ -21,5 +21,6 @@ assert.equal(api.matches('').length,0,'nothing should appear before search');
 assert.equal(api.matches('gisele').length,2,'searching the client must show every model separately');
 assert.equal(api.matches('romantic').length,1);
 assert.equal(api.matches('liz').length,1);
-assert.equal(context.window.HLGB_CUTTER_PLANNER_GUARD,'2026.10.01-cutter-planner-v3');
-console.log('PASS cutter planner v3: one order can schedule each model independently and all models appear in search.');
+assert.equal(api.orderSearchRows('87').length,1,'order search must find the order before choosing a model');
+assert.equal(context.window.HLGB_CUTTER_PLANNER_GUARD,'2026.10.01-cutter-planner-v4');
+console.log('PASS cutter planner v4: explicit order search exposes each model for independent scheduling.');
