@@ -19,6 +19,7 @@ const context={
       {id:'c2',orderId:'o1',productId:'p1'},
       {id:'c3',orderId:'o2',productId:null},
       {id:'c4',orderId:null,productId:null,pieces:293},
+      {id:1,op:'OP-00126',orderId:null,productId:null,pieces:293,layers:20,meters:82,color:'Rubi',fabric:'Tule'},
       {id:'c5',orderId:'o1',productId:null}
     ],
     production:[],
@@ -69,6 +70,7 @@ assert(findings.some(x=>x.code==='cut-order-missing'&&String(x.description).incl
 assert(!findings.some(x=>x.code==='cut-product-missing'&&String(x.description).includes('c1')),'missing-order cut must not be duplicated as missing-product');
 assert(!findings.some(x=>String(x.description||'').includes('c3')),'aggregate multi-product cut must not be reported as product error');
 assert(findings.some(x=>x.code==='cut-legacy-unlinked'&&String(x.description).includes('c4')&&x.severity==='Média'),'manual legacy cut must be a warning, not a failure');
+assert(!findings.some(x=>x.code==='cut-legacy-unlinked'&&String(x.description).includes('Corte 1 ')),'confirmed historical OP-00126 cut must be ignored by diagnostics');
 assert(findings.some(x=>x.code==='cut-product-missing'&&String(x.description).includes('c5')),'single-product active cut without productId must remain a real error');
 assert(findings.some(x=>x.code==='active-with-termination'),'scan must find active employee with termination date');
 assert(!findings.some(x=>String(x.description||'').includes('c2')&&x.code==='cut-order-missing'),'valid cut must not be reported as missing-order');
