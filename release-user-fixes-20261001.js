@@ -118,6 +118,7 @@ function injectPaymentChoice(modal){
   const host=due?.closest('.field')||due?.parentElement;
   if(host)host.insertAdjacentElement('afterend',box);else modal.prepend(box);
 }
+const linkedInvoiceIds=new Set();
 function invoiceIds(){return new Set(arr('projectionInvoices').map(x=>sid(x?.id)))}
 function newestNewInvoice(before){
   const rows=arr('projectionInvoices').filter(x=>!before.has(sid(x?.id)));
@@ -161,11 +162,11 @@ function watchInvoiceSave(){
     if(!b.classList.contains('modalSave')&&!/(salvar|finalizar|confirmar)/.test(norm(b.textContent)))return;
     const before=invoiceIds(),mode=modal.querySelector('#hlgbInvoicePaymentMode')?.value||'prazo';
     [500,1200,2400].forEach(ms=>setTimeout(async()=>{
-      const inv=newestNewInvoice(before);if(!inv||inv.__hlgbHubLinked20261001)return;
+      const inv=newestNewInvoice(before),key=sid(inv?.id);if(!inv||!key||linkedInvoiceIds.has(key))return;
+      linkedInvoiceIds.add(key);
       try{
-        inv.__hlgbHubLinked20261001=true;
         await syncInvoiceToHub(inv,mode);
-      }catch(err){console.error('[HLGB '+V+'] nota -> hub',err);inv.__hlgbHubLinked20261001=false}
+      }catch(err){console.error('[HLGB '+V+'] nota -> hub',err);linkedInvoiceIds.delete(key)}
     },ms));
   },true);
 }
