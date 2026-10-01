@@ -1,0 +1,13 @@
+const fs=require('fs'),vm=require('vm'),assert=require('assert'),path=require('path');
+const src=fs.readFileSync(path.join(__dirname,'..','release-purchase-hub-due.js'),'utf8');
+const loader=fs.readFileSync(path.join(__dirname,'..','app-stable3.html'),'utf8');
+assert(loader.includes("'release-purchase-hub-due.js'"));
+const context={console,setTimeout(){return 0},db:{purchases:[],hubFinanceEntries:[]},window:{savePurchaseFromForm(){return true},newPurchase(){},editPurchase(){}},document:{getElementById(){return null},querySelector(){return null}},persistDb(){},localSaveOnly(){},renderHubFinance(){},hlgbAfterLogin:null};
+vm.createContext(context);vm.runInContext(src,context);
+const api=context.window.hlgbPurchaseHubDue;assert(api);
+const term=api.hubEntryFor({id:'p1',supplierId:'s1',supplierName:'Rafael',invoiceNumber:'123',date:'2026-10-01',dueDate:'2026-10-20',status:'Pendente',paymentCondition:'term',total:1000});
+assert.equal(term.date,'2026-10-20');assert.equal(term.status,'Previsto');assert.equal(term.value,1000);assert.equal(term.sourcePurchaseId,'p1');
+const paid=api.hubEntryFor({id:'p2',supplierId:'s1',supplierName:'Rafael',invoiceNumber:'124',date:'2026-10-01',paymentDate:'2026-10-01',status:'Pago',paymentCondition:'paid_now',total:500});
+assert.equal(paid.date,'2026-10-01');assert.equal(paid.status,'Realizado');assert.equal(paid.realizedAt,'2026-10-01');
+assert.equal(context.window.HLGB_PURCHASE_HUB_DUE_GUARD,'2026.10.01-purchase-hub-due-v1');
+console.log('PASS purchase Hub due: term notes go to due date; paid-now notes are realized on payment date.');
