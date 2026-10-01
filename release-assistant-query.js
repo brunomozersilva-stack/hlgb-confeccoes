@@ -351,7 +351,7 @@ function query(raw){
 function injectStyles(){
   if(document.getElementById('hlgbAssistantStyle'))return;
   const st=document.createElement('style');st.id='hlgbAssistantStyle';
-  st.textContent='.hlgb-assistant-btn{margin-left:6px}.hlgb-assistant-box{display:grid;gap:12px}.hlgb-assistant-input{display:flex;gap:8px;align-items:center}.hlgb-assistant-input input{flex:1;min-width:180px}.hlgb-assistant-answer{background:#fffafd;border:1px solid #eadde5;border-radius:14px;padding:14px;line-height:1.55}.hlgb-assistant-examples{display:flex;gap:6px;flex-wrap:wrap}.hlgb-assistant-examples button{font-size:12px}';
+  st.textContent='.hlgb-assistant-btn{margin-left:6px}.hlgb-assistant-box{display:grid;gap:12px}.hlgb-assistant-input{display:flex;gap:8px;align-items:center;flex-wrap:wrap}.hlgb-assistant-input input{flex:1;min-width:180px}.hlgb-assistant-answer{background:#fffafd;border:1px solid #eadde5;border-radius:14px;padding:14px;line-height:1.55}.hlgb-assistant-examples{display:flex;gap:6px;flex-wrap:wrap}.hlgb-assistant-examples button{font-size:12px}';
   document.head.appendChild(st);
 }
 function injectButton(){
@@ -371,6 +371,77 @@ function openAssistant(){
   setTimeout(()=>document.getElementById('hlgbAssistantInput')?.focus(),0);
 }
 window.openHlgbAssistant=openAssistant;
+
+let hlgbAssistantRecognition=null;
+let hlgbAssistantListening=false;
+function hlgbAssistantSpeechCtor(){
+  return window.SpeechRecognition||window.webkitSpeechRecognition||null;
+}
+function hlgbAssistantSetMicState(listening,message){
+  hlgbAssistantListening=!!listening;
+  const btn=document.getElementById('hlgbAssistantMicBtn');
+  if(btn){
+    btn.textContent=listening?'🎙️ Ouvindo…':'🎤 Falar';
+    btn.classList.toggle('primary',!!listening);
+    btn.classList.toggle('secondary',!listening);
+  }
+  if(message){
+    const out=document.getElementById('hlgbAssistantAnswer');
+    if(out)out.innerHTML='<b>'+escSafe(message)+'</b>';
+  }
+}
+window.hlgbAssistantToggleMic=function(){
+  const input=document.getElementById('hlgbAssistantInput');
+  if(!input)return;
+  const Ctor=hlgbAssistantSpeechCtor();
+  if(!Ctor){
+    hlgbAssistantSetMicState(false,'Este navegador não liberou reconhecimento de voz. Tente abrir no Chrome ou Safari atualizado.');
+    return;
+  }
+  if(hlgbAssistantListening&&hlgbAssistantRecognition){
+    try{hlgbAssistantRecognition.stop()}catch(e){}
+    return;
+  }
+  try{
+    const r=new Ctor();
+    hlgbAssistantRecognition=r;
+    r.lang='pt-BR';
+    r.interimResults=true;
+    r.continuous=false;
+    let finalText='';
+    r.onstart=()=>hlgbAssistantSetMicState(true,'Pode falar. Estou ouvindo…');
+    r.onresult=(ev)=>{
+      let interim='';
+      for(let i=ev.resultIndex;i<ev.results.length;i++){
+        const txt=String(ev.results[i][0]?.transcript||'').trim();
+        if(ev.results[i].isFinal) finalText+=(finalText?' ':'')+txt;
+        else interim+=(interim?' ':'')+txt;
+      }
+      const spoken=(finalText||interim).trim();
+      if(spoken)input.value=spoken;
+    };
+    r.onerror=(ev)=>{
+      const code=String(ev?.error||'');
+      const msg=code==='not-allowed'||code==='service-not-allowed'
+        ?'O microfone foi bloqueado pelo navegador. Libere a permissão de microfone para esta página.'
+        :code==='no-speech'
+          ?'Não consegui ouvir sua fala. Tente novamente.'
+          :'Não consegui usar o microfone agora.';
+      hlgbAssistantSetMicState(false,msg);
+    };
+    r.onend=()=>{
+      hlgbAssistantSetMicState(false);
+      if(finalText.trim()){
+        input.value=finalText.trim();
+        setTimeout(()=>{try{window.hlgbAssistantAsk()}catch(e){}},120);
+      }
+    };
+    r.start();
+  }catch(err){
+    hlgbAssistantSetMicState(false,'Não foi possível iniciar o microfone neste navegador.');
+  }
+};
+
 window.hlgbAssistantAsk=function(){
   const input=document.getElementById('hlgbAssistantInput'),out=document.getElementById('hlgbAssistantAnswer');
   if(!input||!out)return;
