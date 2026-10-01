@@ -31,9 +31,13 @@ function install(){
   const priorHtml=out.innerHTML;
   out.innerHTML='<div class="sub">Consultando esta pergunta…</div>';
   const before=out.innerHTML;
+  if(!raw){render({title:'Assistente HLGB',text:'Digite sua pergunta.',kind:'help'});return}
+  try{
+    const sys=window.hlgbAssistantSystemWide?.parse?.(raw);
+    if(sys){render(sys);lastQuery=raw;lastHtml=out.innerHTML;return}
+  }catch(e){console.warn('[HLGB consulta direcionada]',e)}
   try{base.apply(this,arguments)}catch(e){console.warn('[HLGB pergunta atual]',e)}
   const after=out.innerHTML;
-  if(!raw){render({title:'Assistente HLGB',text:'Digite sua pergunta.',kind:'help'});return}
   if(raw!==lastQuery&&(after===lastHtml||after===priorHtml||after===before||/Digite uma pergunta para começar/i.test(after))){
     render(directFallback(raw));
   }
