@@ -1,4 +1,5 @@
 name: HLGB Assistant Universal Preview
+# refreshed finance + scoped assistant
 
 on:
   push:
