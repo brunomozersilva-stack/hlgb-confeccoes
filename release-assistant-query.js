@@ -2,7 +2,7 @@
    Busca dados do sistema em linguagem natural. Nenhuma ação de escrita é executada nesta fase. */
 (function(){
 'use strict';
-const V='2026.09.30-assistant-query-v1';
+const V='2026.10.01-assistant-all-users-v2';
 const norm=v=>String(v??'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').trim().toLowerCase().replace(/\s+/g,' ');
 const escSafe=v=>typeof esc==='function'?esc(v):String(v??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
 const moneySafe=v=>typeof money==='function'?money(v):'R$ '+Number(v||0).toFixed(2).replace('.',',');
@@ -318,20 +318,25 @@ function query(raw){
 function injectStyles(){
   if(document.getElementById('hlgbAssistantStyle'))return;
   const st=document.createElement('style');st.id='hlgbAssistantStyle';
-  st.textContent='.hlgb-assistant-btn{margin-left:6px}.hlgb-assistant-box{display:grid;gap:12px}.hlgb-assistant-input{display:flex;gap:8px;align-items:center}.hlgb-assistant-input input{flex:1;min-width:180px}.hlgb-assistant-answer{background:#fffafd;border:1px solid #eadde5;border-radius:14px;padding:14px;line-height:1.55}.hlgb-assistant-examples{display:flex;gap:6px;flex-wrap:wrap}.hlgb-assistant-examples button{font-size:12px}';
+  st.textContent='.hlgb-assistant-btn{margin-left:6px}.hlgb-assistant-floating{position:fixed;right:18px;bottom:18px;z-index:9997;border-radius:999px;padding:11px 16px;box-shadow:0 4px 18px #0002}.hlgb-assistant-box{display:grid;gap:12px}.hlgb-assistant-input{display:flex;gap:8px;align-items:center}.hlgb-assistant-input input{flex:1;min-width:180px}.hlgb-assistant-answer{background:#fffafd;border:1px solid #eadde5;border-radius:14px;padding:14px;line-height:1.55}.hlgb-assistant-examples{display:flex;gap:6px;flex-wrap:wrap}.hlgb-assistant-examples button{font-size:12px}';
   document.head.appendChild(st);
 }
 function injectButton(){
   injectStyles();
   const headerBtn=document.getElementById('hlgbAssistantBtn');
   if(headerBtn)headerBtn.remove();
-  if(document.getElementById('hlgbAssistantNavBtn'))return;
+  if(document.getElementById('hlgbAssistantNavBtn')||document.getElementById('hlgbAssistantFloatingBtn'))return;
   const groups=[...document.querySelectorAll('#nav .nav-group')];
   const sys=groups.find(g=>norm(g.querySelector('.nav-group-title span')?.textContent||'')==='sistema');
   const menu=sys?.querySelector('.nav-submenu');
-  if(!menu)return;
-  const b=document.createElement('button');b.id='hlgbAssistantNavBtn';b.type='button';b.textContent='🤖 Assistente HLGB';b.onclick=openAssistant;
-  menu.insertBefore(b,menu.firstChild);
+  if(menu){
+    const b=document.createElement('button');b.id='hlgbAssistantNavBtn';b.type='button';b.textContent='🤖 Assistente HLGB';b.onclick=openAssistant;
+    menu.insertBefore(b,menu.firstChild);
+    return;
+  }
+  const b=document.createElement('button');
+  b.id='hlgbAssistantFloatingBtn';b.type='button';b.className='primary hlgb-assistant-floating';b.textContent='🤖 Assistente HLGB';b.onclick=openAssistant;
+  (document.body||document.documentElement).appendChild(b);
 }
 function openAssistant(){
   openModal('🤖 Assistente HLGB','<div class="hlgb-assistant-box"><div class="sub">Pergunte sobre pedidos, clientes, produtos, entregas e erros. Ações liberadas sempre mostram uma prévia e pedem confirmação.</div><div class="hlgb-assistant-input"><input id="hlgbAssistantInput" placeholder="Ex.: onde está o pedido 63?" onkeydown="if(event.key===\'Enter\')hlgbAssistantAsk()"><button type="button" class="primary" onclick="hlgbAssistantAsk()">Perguntar</button></div><div class="hlgb-assistant-examples"><button type="button" class="secondary" onclick="hlgbAssistantExample(\'O que entrega hoje?\')">Entregas de hoje</button><button type="button" class="secondary" onclick="hlgbAssistantExample(\'O que entrega amanhã?\')">Entregas de amanhã</button><button type="button" class="secondary" onclick="hlgbAssistantExample(\'Quais erros estão abertos?\')">Erros abertos</button></div><div id="hlgbAssistantAnswer" class="hlgb-assistant-answer">Digite uma pergunta para começar.</div><button type="button" class="secondary modalSave">Fechar</button></div>',()=>closeModal());
