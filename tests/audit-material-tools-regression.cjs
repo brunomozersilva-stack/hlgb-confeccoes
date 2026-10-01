@@ -2,12 +2,12 @@ const fs=require('fs'),vm=require('vm'),assert=require('assert'),path=require('p
 const src=fs.readFileSync(path.join(__dirname,'..','release-material-tools.js'),'utf8');
 const loader=fs.readFileSync(path.join(__dirname,'..','app-stable3.html'),'utf8');
 assert(loader.includes("'release-material-tools.js'"));
-const context={console,setTimeout(){return 0},db:{products:[{id:'p1',name:'Camisola',sizes:['P','M','G','GG'],colors:['Preto','Rubi'],materials:[{name:'Renda',unit:'m',qty:1.5,loss:10,calcMode:'consumption'}]}],orders:[{id:'o1',grade:[{productId:'p1',color:'Preto',size:'P',qty:10},{productId:'p1',color:'Preto',size:'M',qty:20},{productId:'p1',color:'Rubi',size:'P',qty:5}]}]},window:{},document:{getElementById(){return null},querySelectorAll(){return []}},openModal(){},closeModal(){},localStorage:{getItem(){return null},setItem(){}}};
+const context={console,setTimeout(){return 0},MutationObserver:function(){this.observe=()=>{}},db:{sizes:[{name:'P'},{name:'M'},{name:'G'},{name:'GG'}],materials:[{id:'m1',name:'Renda cadastrada',unit:'m'}],products:[{id:'p1',name:'Camisola',sizes:['P','M','G','GG'],colors:['Preto','Rubi'],materials:[{name:'Renda',unit:'m',qty:1.5,loss:10,calcMode:'consumption'}]}],orders:[{id:'o1',grade:[{productId:'p1',color:'Preto',size:'P',qty:10},{productId:'p1',color:'Preto',size:'M',qty:20},{productId:'p1',color:'Rubi',size:'P',qty:5}]}]},window:{},document:{getElementById(){return null},querySelectorAll(){return []}},openModal(){},closeModal(){},hlgbSortedSizes:()=>['P','M','G','GG']};
 vm.createContext(context);vm.runInContext(src,context);
 const api=context.window.hlgbMaterialTools;
 assert(api,'material tools API must load');
-assert.equal(api.orderProductGrade(context.db.orders[0],'p1').length,3);
 assert(Math.abs(api.needForPieces(100,{qty:1.5,loss:10,calcMode:'consumption'})-165)<0.001);
 assert(Math.abs(api.needForPieces(100,{qty:20,loss:0,calcMode:'yield'})-5)<0.001);
-const html=api.gradeTable(context.db.orders[0].grade);assert(html.includes('Preto')&&html.includes('Rubi')&&html.includes('30')&&html.includes('5'));
-console.log('PASS material tools: grade view and consumption/yield calculations.');
+const html=api.standardGradeHTML(context.db.orders[0]);assert(html.includes('Produto')&&html.includes('Cor')&&html.includes('Preto')&&html.includes('Rubi')&&html.includes('Total do pedido')&&html.includes('35'));
+assert.equal(context.window.HLGB_MATERIAL_TOOLS_GUARD,'2026.10.01-material-tools-v2');
+console.log('PASS material tools v2: standard cutter-sheet grade layout and material calculation helpers.');
