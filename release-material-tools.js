@@ -1,7 +1,7 @@
 /* HLGB — grades e calculadora de materiais */
 (function(){
 'use strict';
-const V='2026.10.01-material-tools-v3';
+const V='2026.10.01-material-tools-v4';
 const sid=v=>String(v??''),q=v=>Math.max(0,Number(v)||0);
 const escSafe=v=>typeof esc==='function'?esc(v):sid(v).replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
 function arr(n){try{return Array.isArray(db?.[n])?db[n]:[]}catch(e){return []}}
@@ -104,7 +104,7 @@ function observeProducts(){
   root.__hlgbGradeObserver=true;new MutationObserver(()=>decorateProductTable()).observe(root,{childList:true,subtree:true});
 }
 function needForPieces(pieces,m){const qty=q(m?.qty),loss=q(m?.loss);if(qty<=0)return 0;const base=(m?.calcMode||'consumption')==='yield'?q(pieces)/qty:q(pieces)*qty;return base*(1+loss/100)}
-let autoSeq=0,manualSeq=0;
+let autoSeq=0,manualSeq=0;const priceOverrides={};
 function autoLine(){
   const host=document.getElementById('hlgbMatAutoLines');if(!host)return;
   const row=document.createElement('div');row.className='panel hlgbMatAutoLine';row.dataset.id=++autoSeq;row.style.margin='8px 0';
@@ -116,8 +116,8 @@ function autoLine(){
 }
 function fillManualFromMaterial(row,id){
   const m=material(id);if(!m)return;
-  const name=row.querySelector('.hlgbMmName'),unit=row.querySelector('.hlgbMmUnit');
-  if(name)name.value=m.name||'';if(unit)unit.value=m.unit||'';
+  const name=row.querySelector('.hlgbMmName'),unit=row.querySelector('.hlgbMmUnit'),price=row.querySelector('.hlgbMmPrice');
+  if(name)name.value=m.name||'';if(unit)unit.value=m.unit||'';if(price)price.value=q(m.price||m.purchasePrice||0);
 }
 function manualLine(){
   const host=document.getElementById('hlgbMatManualLines');if(!host)return;
@@ -131,30 +131,41 @@ function manualLine(){
 }
 function autoData(){return [...document.querySelectorAll('.hlgbMatAutoLine')].map(row=>{const p=product(row.querySelector('.hlgbMatProduct')?.value),sizes={};row.querySelectorAll('.hlgbMatSize').forEach(x=>sizes[x.dataset.size]=q(x.value));const pieces=Object.values(sizes).reduce((a,v)=>a+v,0);return {product:p,sizes,pieces}}).filter(x=>x.product&&x.pieces>0)}
 function autoResult(){
-  const agg={};for(const line of autoData())for(const m of (line.product.materials||[])){const key=(m.materialId||String(m.name||'').toLowerCase())+'|'+(m.unit||'');const a=agg[key]||(agg[key]={name:m.name||'Material',unit:m.unit||'',qty:0,products:[]});const need=needForPieces(line.pieces,m);a.qty+=need;a.products.push(line.product.name+' '+line.pieces+' pç')}
+  const agg={};
+  for(const line of autoData())for(const m of (line.product.materials||[])){
+    const key=(m.materialId||String(m.name||'').toLowerCase())+'|'+(m.unit||''),catalog=material(m.materialId);
+    const a=agg[key]||(agg[key]={key,name:m.name||catalog?.name||'Material',unit:m.unit||catalog?.unit||'',qty:0,products:[],unitPrice:q(m.price||catalog?.price||catalog?.purchasePrice||0)});
+    const need=needForPieces(line.pieces,m);a.qty+=need;a.products.push(line.product.name+' '+line.pieces+' pç');
+    if(!a.unitPrice)a.unitPrice=q(m.price||catalog?.price||catalog?.purchasePrice||0);
+  }
   return Object.values(agg).sort((a,b)=>a.name.localeCompare(b.name,'pt-BR'));
 }
 function manualResult(){
-  return [...document.querySelectorAll('.hlgbMatManualLine')].map(row=>{const pieces=[...row.querySelectorAll('.hlgbMmGrade input')].reduce((a,x)=>a+q(x.value),0),m={qty:q(row.querySelector('.hlgbMmQty')?.value),loss:q(row.querySelector('.hlgbMmLoss')?.value),calcMode:row.querySelector('.hlgbMmMode')?.value||'consumption'};return {name:row.querySelector('.hlgbMmName')?.value||'Material',unit:row.querySelector('.hlgbMmUnit')?.value||'',pieces,qty:needForPieces(pieces,m)}}).filter(x=>x.pieces>0&&x.qty>0);
+  return [...document.querySelectorAll('.hlgbMatManualLine')].map(row=>{const pieces=[...row.querySelectorAll('.hlgbMmGrade input')].reduce((a,x)=>a+q(x.value),0),m={qty:q(row.querySelector('.hlgbMmQty')?.value),loss:q(row.querySelector('.hlgbMmLoss')?.value),calcMode:row.querySelector('.hlgbMmMode')?.value||'consumption'};return {name:row.querySelector('.hlgbMmName')?.value||'Material',unit:row.querySelector('.hlgbMmUnit')?.value||'',pieces,qty:needForPieces(pieces,m),unitPrice:q(row.querySelector('.hlgbMmPrice')?.value)}}).filter(x=>x.pieces>0&&x.qty>0);
 }
 function renderCalc(){
   document.querySelectorAll('.hlgbMatAutoLine').forEach(row=>{const p=product(row.querySelector('.hlgbMatProduct')?.value),pieces=[...row.querySelectorAll('.hlgbMatSize')].reduce((a,x)=>a+q(x.value),0),box=row.querySelector('.hlgbMatLineResult');if(box)box.textContent=p?(pieces.toLocaleString('pt-BR')+' peças na grade'):'Selecione um produto.'});
   document.querySelectorAll('.hlgbMatManualLine').forEach(row=>{const box=row.querySelector('.hlgbMmResult');if(box){const pieces=[...row.querySelectorAll('.hlgbMmGrade input')].reduce((a,x)=>a+q(x.value),0),m={qty:q(row.querySelector('.hlgbMmQty')?.value),loss:q(row.querySelector('.hlgbMmLoss')?.value),calcMode:row.querySelector('.hlgbMmMode')?.value||'consumption'};box.textContent=pieces?('Grade total: '+pieces+' peças · Necessidade: '+needForPieces(pieces,m).toLocaleString('pt-BR',{maximumFractionDigits:3})+' '+(row.querySelector('.hlgbMmUnit')?.value||'')):'Preencha a grade.'}});
   const a=autoResult(),m=manualResult(),box=document.getElementById('hlgbMaterialCalcResult');if(!box)return;
-  const rows=[...a.map(x=>({name:x.name,unit:x.unit,qty:x.qty,detail:x.products.join(' · ')})),...m.map(x=>({name:x.name,unit:x.unit,qty:x.qty,detail:'Manual · '+x.pieces+' peças'}))];
-  box.innerHTML=rows.length?'<div style="overflow:auto"><table><thead><tr><th>Material</th><th>Necessidade</th><th>Origem</th></tr></thead><tbody>'+rows.map(x=>'<tr><td><b>'+escSafe(x.name)+'</b></td><td>'+x.qty.toLocaleString('pt-BR',{maximumFractionDigits:3})+' '+escSafe(x.unit)+'</td><td>'+escSafe(x.detail)+'</td></tr>').join('')+'</tbody></table></div>':'<div class="empty">Adicione produtos ou materiais e preencha a grade para calcular.</div>';
+  const rows=[
+    ...a.map(x=>({key:x.key,name:x.name,unit:x.unit,qty:x.qty,detail:x.products.join(' · '),unitPrice:priceOverrides[x.key]??x.unitPrice})),
+    ...m.map((x,i)=>({key:'manual|'+i+'|'+String(x.name).toLowerCase()+'|'+x.unit,name:x.name,unit:x.unit,qty:x.qty,detail:'Manual · '+x.pieces+' peças',unitPrice:priceOverrides['manual|'+i+'|'+String(x.name).toLowerCase()+'|'+x.unit]??x.unitPrice}))
+  ];
+  const grand=rows.reduce((s,x)=>s+q(x.qty)*q(x.unitPrice),0);
+  box.innerHTML=rows.length?'<div style="overflow:auto"><table><thead><tr><th>Material</th><th>Necessidade</th><th>Valor unitário</th><th>Total compra</th><th>Origem</th></tr></thead><tbody>'+rows.map(x=>'<tr><td><b>'+escSafe(x.name)+'</b></td><td>'+x.qty.toLocaleString('pt-BR',{maximumFractionDigits:3})+' '+escSafe(x.unit)+'</td><td><input class="hlgbMatSimPrice" data-key="'+escSafe(x.key)+'" type="number" min="0" step="0.01" value="'+q(x.unitPrice).toFixed(2)+'" style="width:110px"></td><td><b>'+((q(x.qty)*q(x.unitPrice)).toLocaleString('pt-BR',{style:'currency',currency:'BRL'}))+'</b></td><td>'+escSafe(x.detail)+'</td></tr>').join('')+'<tr><td colspan="3" style="text-align:right"><b>Total estimado da compra</b></td><td colspan="2"><b>'+grand.toLocaleString('pt-BR',{style:'currency',currency:'BRL'})+'</b></td></tr></tbody></table></div>':'<div class="empty">Adicione produtos ou materiais e preencha a grade para calcular.</div>';
+  box.querySelectorAll('.hlgbMatSimPrice').forEach(inp=>inp.addEventListener('input',()=>{priceOverrides[inp.dataset.key]=q(inp.value);renderCalc()}));
 }
 function ensureCalculator(){
   const sep=document.getElementById('separationList');const panel=sep?.closest?.('.panel');if(!panel||document.getElementById('hlgbMaterialCalculator'))return;
   const box=document.createElement('div');box.id='hlgbMaterialCalculator';box.className='panel';box.style.marginTop='14px';
-  box.innerHTML='<h2>🧮 Calculadora de material</h2><div class="sub">Você pode colocar vários produtos no mesmo cálculo. No manual, também pode escolher uma matéria-prima já cadastrada ou digitar uma nova apenas para simulação.</div><div class="panel" style="background:#fff8fb;margin-top:12px"><h3 style="margin-top:0">Automático — produtos cadastrados</h3><div id="hlgbMatAutoLines"></div><button type="button" class="primary" style="margin-top:8px" onclick="hlgbMatAddAuto()">➕ Adicionar outro produto</button></div><div class="panel" style="margin-top:12px"><h3 style="margin-top:0">Manual — matéria-prima + grade</h3><div id="hlgbMatManualLines"></div><button type="button" class="secondary" style="margin-top:8px" onclick="hlgbMatAddManual()">➕ Adicionar outro material</button></div><h3>Resultado consolidado</h3><div id="hlgbMaterialCalcResult"></div>';
+  box.innerHTML='<h2>🧮 Calculadora de material</h2><div class="sub">Você pode colocar vários produtos no mesmo cálculo. Também pode informar ou alterar o valor unitário de cada matéria-prima para simular o custo total da compra.</div><div class="panel" style="background:#fff8fb;margin-top:12px"><h3 style="margin-top:0">Automático — produtos cadastrados</h3><div id="hlgbMatAutoLines"></div><button type="button" class="primary" style="margin-top:8px" onclick="hlgbMatAddAuto()">➕ Adicionar outro produto</button></div><div class="panel" style="margin-top:12px"><h3 style="margin-top:0">Manual — matéria-prima + grade</h3><div id="hlgbMatManualLines"></div><button type="button" class="secondary" style="margin-top:8px" onclick="hlgbMatAddManual()">➕ Adicionar outro material</button></div><h3>Resultado consolidado</h3><div id="hlgbMaterialCalcResult"></div>';
   panel.insertAdjacentElement('afterend',box);autoLine();manualLine();renderCalc();
 }
-window.hlgbMatAddAuto=()=>{autoLine();renderCalc()};window.hlgbMatAddManual=()=>{manualLine();renderCalc()};window.hlgbMaterialTools={standardGradeHTML,cutterSheetGradeForModel,decorateSeparationModelGrades,needForPieces,autoResult,manualResult,renderCalc};
+window.hlgbMatAddAuto=()=>{autoLine();renderCalc()};window.hlgbMatAddManual=()=>{manualLine();renderCalc()};window.hlgbMaterialTools={standardGradeHTML,cutterSheetGradeForModel,decorateSeparationModelGrades,needForPieces,autoResult,manualResult,renderCalc,priceOverrides};
 const oldSepList=window.renderSeparationList;if(typeof oldSepList==='function'&&!oldSepList.__hlgbMaterialToolsV2){const w=function(){const r=oldSepList.apply(this,arguments);setTimeout(decorateSeparation,0);setTimeout(ensureCalculator,0);return r};w.__hlgbMaterialToolsV2=true;w.__original=oldSepList;window.renderSeparationList=w}
 const oldSep=window.renderSeparation;if(typeof oldSep==='function'&&!oldSep.__hlgbMaterialToolsV3){const w=function(){const r=oldSep.apply(this,arguments);setTimeout(()=>{decorateSeparationModelGrades();ensureSeparationGradePanel()},0);return r};w.__hlgbMaterialToolsV3=true;w.__original=oldSep;window.renderSeparation=w}
 const oldProd=window.renderProducts;if(typeof oldProd==='function'&&!oldProd.__hlgbMaterialToolsV2){const w=function(){const r=oldProd.apply(this,arguments);setTimeout(()=>{decorateProductTable();observeProducts()},0);return r};w.__hlgbMaterialToolsV2=true;w.__original=oldProd;window.renderProducts=w}
 function boot(){try{decorateSeparation();decorateProductTable();observeProducts();ensureCalculator();decorateSeparationModelGrades();ensureSeparationGradePanel()}catch(e){console.warn('[HLGB material tools]',e)}}try{if(typeof hlgbAfterLogin==='function')hlgbAfterLogin(()=>setTimeout(boot,900),0)}catch(e){}setTimeout(boot,1600);
 window.HLGB_MATERIAL_TOOLS_GUARD=V;
-console.info('[HLGB] grades e calculadora de materiais v2 ativas');
+console.info('[HLGB] grades e calculadora de materiais v4 com simulação de custo ativas');
 })();
