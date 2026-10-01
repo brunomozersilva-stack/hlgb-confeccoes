@@ -98,6 +98,33 @@ function answerClient(term){
   const rows=orders.slice().sort((a,b)=>String(b.date||'').localeCompare(String(a.date||''))).slice(0,10);
   return {title:'Cliente: '+(names[0]||term),text:'Pedidos encontrados: <b>'+orders.length+'</b><br>'+rows.map(o=>'• #'+escSafe(orderNo(o))+' · '+escSafe(o.status||'-')+' · '+orderQty(o).toLocaleString('pt-BR')+' peças · '+moneySafe(orderValue(o))+(o.date?' · '+escSafe(fmt(o.date)):'')).join('<br>'),kind:'client'};
 }
+function answerClientProductsScoped(raw){
+  const text=String(raw||'').trim(),n=norm(text);
+  if(!/(pedido|pedidos|mercadoria|mercadorias|produto|produtos|modelo|modelos)/.test(n))return null;
+  const known=[...arr('clients').map(x=>x?.name),...arr('orders').map(x=>x?.client)].filter(Boolean);
+  const names=[...new Set(known)].sort((a,b)=>String(b).length-String(a).length);
+  const chosen=names.find(name=>n.includes(norm(name)));
+  if(!chosen)return null;
+  const target=norm(chosen);
+  const orders=arr('orders').filter(o=>norm(o?.client)===target||norm(o?.client).includes(target)||target.includes(norm(o?.client)));
+  if(!orders.length)return {title:'Cliente: '+chosen,text:'Não encontrei pedidos para <b>'+escSafe(chosen)+'</b>.',kind:'empty'};
+  const byProduct=new Map();
+  for(const o of orders){
+    const src=Array.isArray(o?.grade)?o.grade:Array.isArray(o?.items)?o.items:[];
+    for(const it of src){
+      const name=productName(it?.productId)||it?.product||it?.name||'Produto';
+      const key=norm(name),cur=byProduct.get(key)||{name,qty:0,orders:new Set()};
+      cur.qty+=q(it?.qty);cur.orders.add(String(orderNo(o)));byProduct.set(key,cur);
+    }
+  }
+  const rows=[...byProduct.values()].sort((a,b)=>String(a.name).localeCompare(String(b.name),'pt-BR'));
+  if(!rows.length)return {title:'Cliente: '+chosen,text:'Encontrei pedido(s) para <b>'+escSafe(chosen)+'</b>, mas sem produtos identificados.',kind:'client-products'};
+  return {
+    title:'Mercadorias pedidas por '+chosen,
+    text:rows.map(x=>'• <b>'+escSafe(x.name)+'</b> · '+x.qty.toLocaleString('pt-BR')+' peça(s)'+(x.orders.size?' · pedido(s) #'+[...x.orders].map(escSafe).join(', #'):'')).join('<br>'),
+    kind:'client-products',client:chosen,data:rows.map(x=>({name:x.name,qty:x.qty,orders:[...x.orders]}))
+  };
+}
 function answerProduct(term){
   const n=norm(term);
   const products=arr('products').filter(p=>norm([p?.name,p?.code,p?.category].join(' ')).includes(n)).slice(0,10);
@@ -308,6 +335,12 @@ function query(raw){
   if(/(?:rodar|executar|fazer|iniciar).*(?:auditoria|teste do sistema)|(?:testar|auditar|varrer)\s+(?:o\s+)?sistema/.test(n))return prepareAuditAction();
   if(/\b(erros?|problemas?|falhas?)\b/.test(n))return answerProblems();
 
+  // Quando a pergunta cita explicitamente um cliente e pede mercadoria/pedido,
+  // limitar a resposta somente aos pedidos desse cliente. Não misturar compras,
+  // fornecedores, matéria-prima ou outros clientes.
+  const clientScoped=answerClientProductsScoped(original);
+  if(clientScoped)return clientScoped;
+
   // Busca literal de cliente/produto usando a frase inteira e, depois, palavras relevantes.
   const stop=new Set(['onde','esta','estao','quero','achar','buscar','procure','mostre','mostrar','cliente','produto','modelo','qual','tem','do','da','de','para','com','por','um','uma']);
   const terms=[original,...original.split(/\s+/).filter(w=>w.length>=3&&!stop.has(norm(w))).sort((a,b)=>b.length-a.length)];
@@ -443,7 +476,7 @@ window.hlgbAssistantRunAudit=async function(){
     try{auditAction?.('Assistente executou Auditor HLGB',String(sum.result||'-'))}catch(e){}
   }catch(e){if(out)out.innerHTML='<b>Não foi possível concluir a auditoria.</b><br>'+escSafe(String(e?.message||e))}
 };
-window.hlgbAssistant={query,answerOrder,answerDeliveries,answerProblems,answerLatestAudit,prepareAuditAction,orderSnapshot,openMissingForOrder,runOfficialMissingAction,prepareHubRealizedAction,runOfficialHubRealizedAction,findHubEntries,prepareOrderPriorityAction,runOfficialPriorityAction,canonicalPriority,prepareOrderStatusAction,runOfficialStatusAction,canonicalOrderStatus,detectWriteIntent,version:V};
+window.hlgbAssistant={query,answerOrder,answerDeliveries,answerProblems,answerLatestAudit,prepareAuditAction,orderSnapshot,answerClientProductsScoped,openMissingForOrder,runOfficialMissingAction,prepareHubRealizedAction,runOfficialHubRealizedAction,findHubEntries,prepareOrderPriorityAction,runOfficialPriorityAction,canonicalPriority,prepareOrderStatusAction,runOfficialStatusAction,canonicalOrderStatus,detectWriteIntent,version:V};
 function boot(){injectButton();try{if(typeof hlgbAfterLogin==='function')hlgbAfterLogin(()=>setTimeout(injectButton,300),0)}catch(e){}}
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',boot,{once:true});else boot();
 console.info('[HLGB] Assistente HLGB consulta v1 carregado');
