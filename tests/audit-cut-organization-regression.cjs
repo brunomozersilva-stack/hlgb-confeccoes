@@ -1,0 +1,10 @@
+const fs=require('fs'),vm=require('vm'),assert=require('assert'),path=require('path');
+const src=fs.readFileSync(path.join(__dirname,'..','release-cut-organization.js'),'utf8');
+const loader=fs.readFileSync(path.join(__dirname,'..','app-stable3.html'),'utf8');
+assert(loader.includes("'release-cut-organization.js'"));
+const context={console,setTimeout(){return 0},db:{cuts:[],orders:[],cutters:[]},window:{renderCuts(){}},document:{getElementById(){return null}},localStorage:{getItem(){return null},setItem(){}}};
+vm.createContext(context);vm.runInContext(src,context);
+assert(context.window.hlgbCutOrganization,'cut organization API must load');
+assert.equal(typeof context.window.hlgbCutOrganization.apply,'function');
+assert.equal(context.window.HLGB_CUT_ORGANIZATION_GUARD,'2026.10.01-cut-organization-v1');
+console.log('PASS Cut organization: filter/compact module loads and is guarded.');
