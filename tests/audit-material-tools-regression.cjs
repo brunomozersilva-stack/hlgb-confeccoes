@@ -9,5 +9,5 @@ assert(api,'material tools API must load');
 assert.equal(api.orderProductGrade(context.db.orders[0],'p1').length,3);
 assert(Math.abs(api.needForPieces(100,{qty:1.5,loss:10,calcMode:'consumption'})-165)<0.001);
 assert(Math.abs(api.needForPieces(100,{qty:20,loss:0,calcMode:'yield'})-5)<0.001);
-const html=api.gradeTable(context.db.orders[0].grade);assert(html.includes('Preto')&&html.includes('Rubi')&&html.includes('35'));
+const html=api.gradeTable(context.db.orders[0].grade);assert(html.includes('Preto')&&html.includes('Rubi')&&html.includes('30')&&html.includes('5'));
 console.log('PASS material tools: grade view and consumption/yield calculations.');
