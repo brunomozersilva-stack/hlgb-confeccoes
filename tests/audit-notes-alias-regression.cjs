@@ -19,5 +19,5 @@ assert.equal(delayedOrder.projectionItems[pid].noteQueuedQty,250,'empty local qu
 hlgbRecordSnapshots.noteQueue.set('deleted-marker',{deleted_at:'2026-09-17T10:00:00Z',data:{id:'deleted-marker',orderId:'OTHER',productId:'OTHER',qty:1}});
 window.hlgbNotesSyncLocal();
 assert.equal(delayedOrder.projectionItems[pid].noteQueuedQty,0,'authoritative snapshot may legitimately clear a reservation that no longer has an active queue');
-assert.equal(window.HLGB_NOTE_QUEUE_GUARD,'v4');
-console.log('PASS notes v4: aliases reserve correctly; delayed queue load cannot zero known reservation; authoritative absence can clear it.');
+assert.equal(window.HLGB_NOTE_QUEUE_GUARD,'v5');
+console.log('PASS notes v5: aliases reserve correctly; explicit sync preserves behavior while render remains read-only.');
