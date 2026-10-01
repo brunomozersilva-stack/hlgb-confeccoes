@@ -1,5 +1,5 @@
 name: HLGB Local Preview Package
-# refreshed after visual-test fixes v2
+# refreshed after visual-test fixes v3
 
 on:
   push:
