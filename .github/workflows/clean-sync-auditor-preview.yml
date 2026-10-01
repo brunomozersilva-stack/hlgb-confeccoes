@@ -1,0 +1,94 @@
+name: HLGB Clean Sync Auditor Preview
+
+on:
+  push:
+    branches:
+      - sync-auditor-clean-20260930
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  package:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build clean local preview
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p preview
+          files=(
+            abrir.html
+            app-stable3.html
+            app9240.html
+            hotfix9241.js
+            release-current.js
+            release-pricing.js
+            release-limits.js
+            release-cut-view.js
+            release-record-integrity.js
+            release-notes.js
+            release-note-integrity.js
+            release-projection-delivery-integrity.js
+            release-faction-payments.js
+            release-faction-integrity.js
+            release-faction-master-integrity.js
+            release-payroll-integrity.js
+            release-checklist-integrity.js
+            release-capacity-integrity.js
+            release-hub-search.js
+            release-hub-integrity.js
+            release-ui-stability.js
+            release-diagnostics-center.js
+            release-internal-auditor.js
+          )
+          for f in "${files[@]}"; do test -f "$f"; cp "$f" preview/; done
+
+          cat > preview/preview-server.py <<'PY'
+          from http.server import ThreadingHTTPServer, SimpleHTTPRequestHandler
+          import os
+          HOST="127.0.0.1"; PORT=8765
+          class NoCache(SimpleHTTPRequestHandler):
+              def end_headers(self):
+                  self.send_header("Cache-Control","no-store, no-cache, must-revalidate")
+                  self.send_header("Pragma","no-cache")
+                  self.send_header("Expires","0")
+                  super().end_headers()
+          os.chdir(os.path.dirname(os.path.abspath(__file__)))
+          print(f"HLGB local: http://{HOST}:{PORT}/abrir.html", flush=True)
+          ThreadingHTTPServer((HOST,PORT),NoCache).serve_forever()
+          PY
+
+          cat > preview/start-preview.command <<'SH'
+          #!/bin/bash
+          set -e
+          cd "$(dirname "$0")"
+          echo ""
+          echo "HLGB — teste local da branch limpa"
+          echo "Branch: sync-auditor-clean-20260930"
+          echo "Commit: __COMMIT__"
+          echo ""
+          echo "Abra no Safari:"
+          echo "http://localhost:8765/abrir.html"
+          echo ""
+          python3 preview-server.py
+          SH
+          sed -i "s/__COMMIT__/$GITHUB_SHA/g" preview/start-preview.command
+          chmod +x preview/start-preview.command
+
+          cat > preview/LEIA-ME.txt <<EOF
+          HLGB CONFECÇÕES — BRANCH LIMPA DE SINCRONIZAÇÃO/AUDITOR
+          Branch: sync-auditor-clean-20260930
+          Commit: $GITHUB_SHA
+          Não publica nem altera o main.
+          Abra start-preview.command e depois http://localhost:8765/abrir.html
+          EOF
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: HLGB-CLEAN-SYNC-AUDITOR-${{ github.sha }}
+          path: preview/
+          if-no-files-found: error
+          retention-days: 7
