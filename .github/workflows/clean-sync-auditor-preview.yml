@@ -5,7 +5,6 @@ on:
     branches:
       - sync-auditor-clean-20260930
       - hotfix-hub-tombstone-20261001
-      - hotfix-online-tombstone-cache-20261001
   workflow_dispatch:
 
 permissions:
@@ -69,7 +68,7 @@ jobs:
           cd "$(dirname "$0")"
           echo ""
           echo "HLGB — teste local da branch limpa"
-          echo "Branch: hotfix-online-tombstone-cache-20261001
+          echo "Branch: hotfix-hub-tombstone-20261001"
           echo "Commit: __COMMIT__"
           echo ""
           echo "Abra no Safari:"
