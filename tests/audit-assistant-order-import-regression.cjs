@@ -9,5 +9,5 @@ const d=api.draftFromText('Bianca\nCamisola Liliane Preto P 20 M 40 G 40 GG 20\n
 assert.equal(d.clientName,'Bianca');assert.equal(d.grade.length,8);
 assert.equal(d.grade.filter(x=>String(x.productId)==='p1').reduce((a,x)=>a+x.qty,0),120);
 assert.equal(d.grade.filter(x=>String(x.productId)==='p2').reduce((a,x)=>a+x.qty,0),60);
-assert.equal(context.window.HLGB_ASSISTANT_ORDER_IMPORT_GUARD,'2026.10.01-assistant-order-import-v2');
+assert.equal(context.window.HLGB_ASSISTANT_ORDER_IMPORT_GUARD,'2026.10.02-assistant-order-import-v3');
 console.log('PASS order import v2: WhatsApp text with 20P/20M commas becomes reviewed matrix grade.');
