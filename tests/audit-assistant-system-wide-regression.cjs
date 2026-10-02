@@ -9,6 +9,7 @@ const m=api.materialSupplier('quem tem Romantic mais barato');assert(m.text.incl
 const w=api.purchaseWeekly('qual minha média de compras por semana');assert(w.text.includes('R$ 200.00'));
 const g=api.globalSearch('qual pedido da Bianca');assert(g.text.includes('Pedido #87'));
 const d=api.parse('quanto tem de entrega para Kesy');assert(d.title.includes('Kesy'));assert(d.text.includes('120 peças'));assert(!d.text.includes('Romantic'),'delivery answer must not mix supplier/material data');
-const ct=api.parse('quanto cada cortador já cortou');assert(ct.text.includes('João'));assert(ct.text.includes('500 peças'));assert(!ct.text.includes('Pedido #87'),'cutter answer must not mix orders');\nconst todayCuts=api.parse('quais cortes tem pra fazer hoje');assert(todayCuts.title.includes('hoje'));assert(todayCuts.text.includes('Camisola Liliane'));assert(todayCuts.text.includes('120'));
+const ct=api.parse('quanto cada cortador já cortou');assert(ct.text.includes('João'));assert(ct.text.includes('500 peças'));assert(!ct.text.includes('Pedido #87'),'cutter answer must not mix orders');
+const todayCuts=api.parse('quais cortes tem pra fazer hoje');assert(todayCuts.title.includes('hoje'));assert(todayCuts.text.includes('Camisola Liliane'));assert(todayCuts.text.includes('120'));
 assert.equal(context.window.HLGB_ASSISTANT_SYSTEM_WIDE_GUARD,'2026.10.01-assistant-system-wide-v5');
 console.log('PASS system-wide assistant v5: deliveries, cutters and cuts-today queries stay scoped.');
