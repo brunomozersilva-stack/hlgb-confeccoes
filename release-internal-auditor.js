@@ -653,6 +653,39 @@ function inject(){
     }
   }
 }
+
+function actionableFindings9249(run){
+  const list=(run?.checks||[]).filter(x=>x.status==='fail'||x.status==='warn');
+  return list.filter(x=>{
+    const c=String(x.code||''),cat=String(x.category||'');
+    if(c==='sync:pending')return false;
+    if(c==='issues:open')return false;
+    if(cat==='RH')return false;
+    return true;
+  });
+}
+function issueSeverity9249(run){
+  const a=actionableFindings9249(run),fails=a.filter(x=>x.status==='fail').length,visual=a.filter(x=>String(x.code||'').startsWith('visual-sweep:')||x.category==='Visual').length,runtime=a.filter(x=>String(x.code||'').startsWith('runtime:')).length;
+  if(fails>0)return {level:'error',label:'Erro provável',count:a.length};
+  if(visual>0||runtime>0)return {level:'warn',label:'Problema visual/comportamental detectado',count:a.length};
+  if(a.length)return {level:'warn',label:'Atenção encontrada',count:a.length};
+  return {level:'ok',label:'Nenhum problema relevante detectado',count:0};
+}
+function alertHtml9249(run){
+  if(!run)return '';
+  const sev=issueSeverity9249(run),a=actionableFindings9249(run);
+  if(sev.level==='ok')return '<div class="panel" style="background:#eefaf1;border:1px solid #bfe6c8"><b>✅ Nenhum problema relevante detectado</b><div class="sub">O Auditor não encontrou falha visual/comportamental que exija envio para análise.</div></div>';
+  const lines=a.slice(0,6).map(x=>'• '+escSafe(x.title)+(x.detail?' — '+escSafe(x.detail):'')).join('<br>');
+  return '<div class="panel" style="background:#fff4e5;border:1px solid #f0c36d"><b>⚠️ '+escSafe(sev.label)+'</b><div class="sub" style="margin-top:6px">'+lines+'</div><div class="hlgb-auditor-actions"><button type="button" class="primary" onclick="hlgbAuditorPrepareForChat()">📦 Preparar arquivo para enviar ao ChatGPT</button><button type="button" class="secondary" onclick="hlgbAuditorCopyIssueSummary()">📋 Copiar resumo do erro</button></div></div>';
+}
+function issueSummaryText9249(run){
+  const sev=issueSeverity9249(run),a=actionableFindings9249(run),lines=[];
+  lines.push('HLGB — '+sev.label);
+  lines.push('Versão: '+String(run?.appVersion||appVersion())+' | Navegador: '+String(run?.browser||browserLabel()));
+  lines.push('Tela ativa: '+String(run?.activePage||document.querySelector('.page.active')?.id||'-'));
+  a.slice(0,12).forEach(x=>lines.push((x.status==='fail'?'FALHA':'ATENÇÃO')+' | '+String(x.category||'')+' | '+String(x.title||'')+(x.detail?' | '+String(x.detail):'')));
+  return lines.join('\n');
+}
 function historyHtml(){
   const runs=auditRunsCache.slice().sort((a,b)=>String(b?.completedAt||'').localeCompare(String(a?.completedAt||''))).slice(0,12);
   return runs.length?runs.map(x=>'<button type="button" class="secondary" onclick="hlgbAuditorShowRun(\''+escSafe(x.id)+'\')">'+resultBadge(x)+' '+escSafe(String(x.completedAt||'').replace('T',' ').slice(0,16))+' · '+escSafe(x.browser||'-')+' · '+escSafe(x.activePage||'-')+'</button>').join(''):'<div class="empty">Nenhuma auditoria salva.</div>';
@@ -668,7 +701,7 @@ async function runUi(mode){
   const out=document.getElementById('hlgbAuditorResult');
   if(out)out.innerHTML='<div class="panel"><b>🧪 Executando auditoria interna…</b><div class="sub">Nenhum dado operacional será alterado.</div></div>';
   const row=await run(mode,true);
-  if(out)out.innerHTML=renderRun(row)+(row.saveError?'<div class="panel"><span class="badge warn">Executou, mas não conseguiu salvar na nuvem</span><div class="sub">'+escSafe(row.saveError)+'</div></div>':'');
+  if(out)out.innerHTML=alertHtml9249(row)+renderRun(row)+(row.saveError?'<div class="panel"><span class="badge warn">Executou, mas não conseguiu salvar na nuvem</span><div class="sub">'+escSafe(row.saveError)+'</div></div>':'');
   const h=document.getElementById('hlgbAuditorHistory');if(h)h.innerHTML=historyHtml();
   try{auditAction?.('Executou Auditor HLGB',row.summary?.result+' · '+mode)}catch(e){}
   return row;
@@ -680,6 +713,18 @@ window.hlgbAuditorExportVisual=async function(){try{const data=await downloadVis
 window.hlgbAuditorShowRun=function(runId){
   const row=auditRunsCache.find(x=>sid(x?.id)===sid(runId)),out=document.getElementById('hlgbAuditorResult');
   if(out)out.innerHTML=renderRun(row);
+};
+window.hlgbAuditorPrepareForChat=async function(){
+  try{
+    const data=await downloadVisualDiagnostic();
+    const summary=issueSummaryText9249(data?.audit||latest());
+    try{await navigator.clipboard.writeText(summary)}catch(_){}
+    alert('Arquivo preparado para enviar ao ChatGPT.\n\nO resumo do problema também foi copiado para a área de transferência quando permitido pelo navegador.');
+  }catch(e){alert('Não foi possível preparar o diagnóstico.\n\n'+String(e?.message||e))}
+};
+window.hlgbAuditorCopyIssueSummary=async function(){
+  const text=issueSummaryText9249(latest());
+  try{await navigator.clipboard.writeText(text);alert('Resumo do erro copiado.')}catch(e){alert(text)}
 };
 window.hlgbAuditorCopyLatest=async function(){
   const text=report(latest());
