@@ -241,17 +241,78 @@ function histOrder9249(text){return (sid(text).match(/(?:pedido|ped\.?|ordem)[^0
 function histClient9249(text){
  const n=histNorm9249(text);return arr('clients').filter(c=>c?.name&&n.includes(histNorm9249(c.name))).sort((a,b)=>sid(b.name).length-sid(a.name).length)[0]||null;
 }
+function histMoney9249(v){
+ const x=sid(v).replace(/R\$/gi,'').replace(/\s/g,'').replace(/\.(?=\d{3}(?:\D|$))/g,'').replace(',','.');
+ return Math.max(0,Number(x)||0);
+}
+function histCatalogProduct9249(name){
+ const raw=sid(name).trim(),n=histNorm9249(raw);if(!n)return null;
+ const ps=arr('products');
+ let exact=ps.find(x=>histNorm9249(x?.name)===n);if(exact)return exact;
+ exact=ps.find(x=>n.includes(histNorm9249(x?.name))||histNorm9249(x?.name).includes(n));if(exact)return exact;
+ const toks=n.split(/\s+/).filter(x=>x.length>=3),ranked=ps.map(p=>{
+   const pn=histNorm9249(p?.name),pt=pn.split(/\s+/).filter(x=>x.length>=3),score=toks.filter(t=>pt.some(z=>z===t||z.includes(t)||t.includes(z))).length;
+   return {p,score};
+ }).filter(x=>x.score>0).sort((a,b)=>b.score-a.score||sid(b.p?.name).length-sid(a.p?.name).length);
+ return ranked[0]?.p||null;
+}
+function histClientExact9249(name){
+ const n=histNorm9249(name);if(!n)return null;
+ const cs=arr('clients');return cs.find(x=>histNorm9249(x?.name)===n)||cs.find(x=>histNorm9249(x?.name).includes(n)||n.includes(histNorm9249(x?.name)))||null;
+}
+function histNoteBlocks9249(text){
+ const t=sid(text).replace(/\u00a0/g,' ').replace(/\r/g,'\n');
+ const re=/HLGB\s+Confec(?:c|ç)[oõ]es/ig,matches=[...t.matchAll(re)],blocks=[];
+ if(!matches.length)return [t];
+ for(let i=0;i<matches.length;i++){const a=matches[i].index,b=i+1<matches.length?matches[i+1].index:t.length;blocks.push(t.slice(a,b))}
+ return blocks;
+}
 function histRowsFromText9249(text){
- const client=histClient9249(text),date=histDate9249(text),orderNo=histOrder9249(text),lines=sid(text).split(/\r?\n/).map(x=>x.trim()).filter(Boolean),products=arr('products').slice().sort((a,b)=>sid(b.name).length-sid(a.name).length),out=[],seen=new Set();
+ const out=[],seen=new Set(),blocks=histNoteBlocks9249(text);
+ for(const block of blocks){
+   const clientRaw=(block.match(/Nome\s+Cliente\s+([\s\S]*?)(?=\s+Prazo\s+de\s+Vencimento)/i)||[])[1]?.trim()||'';
+   const client=histClientExact9249(clientRaw);
+   const date=(block.match(/Data\s+de\s+Entrega\s+(\d{1,2}[\/.-]\d{1,2}[\/.-]\d{2,4})/i)||[])[1]||'';
+   const orderNo=(block.match(/Numero\s+De\s+Nota\s+#?\s*(\d{1,20})/i)||[])[1]||'';
+   const isoDate=histDate9249(date);
+   let body=block;
+   const h=body.search(/Descri[cç][aã]o\s+Produto\s+Quantidade\s+Produto\s+Valor\s+Unitario\s+Total\s+Volume/i);
+   if(h>=0)body=body.slice(h);
+   const vt=body.search(/Valor\s+Total/i);if(vt>=0)body=body.slice(0,vt);
+   const rowRe=/([A-Za-zÀ-ÿ0-9][A-Za-zÀ-ÿ0-9\s./_-]*?)\s+(\d{1,7})\s+R\$\s*([\d.]+,\d{2})\s+R\$\s*([\d.]+,\d{2})/g;
+   let m;
+   while((m=rowRe.exec(body))){
+     let productRaw=sid(m[1]).replace(/Descri[cç][aã]o\s+Produto[\s\S]*$/i,'').trim();
+     productRaw=productRaw.replace(/^(?:Volume\s+)?/i,'').trim();
+     if(!productRaw||/valor\s+total|prazo|data\s+de|numero\s+de\s+nota|nome\s+cliente/i.test(productRaw))continue;
+     const qty=Math.floor(q(m[2])),unit=histMoney9249(m[3]),total=histMoney9249(m[4]);if(!qty)continue;
+     const p=histCatalogProduct9249(productRaw);
+     const key=[orderNo,clientRaw,productRaw,qty,total].join('|');if(seen.has(key))continue;seen.add(key);
+     out.push({
+       client:client?.name||clientRaw,
+       clientId:client?.id||'',
+       clientMatched:!!client,
+       product:p?.name||productRaw,
+       productRaw,
+       productId:p?.id||'',
+       productMatched:!!p,
+       qty,
+       date:isoDate,
+       value:total,
+       unitPrice:unit,
+       orderNo,
+       status:'Prévia PDF'
+     });
+   }
+ }
+ if(out.length)return out;
+ // fallback para PDFs/listas sem o layout de notas HLGB
+ const client=histClient9249(text),date=histDate9249(text),orderNo=histOrder9249(text),lines=sid(text).split(/\r?\n/).map(x=>x.trim()).filter(Boolean),products=arr('products').slice().sort((a,b)=>sid(b.name).length-sid(a.name).length);
  for(const line of lines){
    const nl=histNorm9249(line),p=products.find(x=>x?.name&&nl.includes(histNorm9249(x.name)));if(!p)continue;
-   let qty=0;
-   const pname=histNorm9249(p.name),pos=nl.indexOf(pname),tail=pos>=0?line.slice(Math.min(line.length,pos+pname.length)):'';
-   const candidates=[...(tail.match(/\b\d{1,6}\b/g)||[]),...(line.match(/\b\d{1,6}\b/g)||[])].map(Number).filter(x=>x>0&&x<1000000);
-   if(candidates.length)qty=candidates[0];
-   if(!qty)continue;
-   const k=sid(p.id)+'|'+qty+'|'+line;if(seen.has(k))continue;seen.add(k);
-   out.push({client:client?.name||'',product:p.name,qty,date,value:0,orderNo,status:'Prévia PDF'});
+   const nums=(line.match(/\b\d{1,6}\b/g)||[]).map(Number).filter(x=>x>0&&x<1000000);if(!nums.length)continue;
+   const key=sid(p.id)+'|'+nums[0]+'|'+line;if(seen.has(key))continue;seen.add(key);
+   out.push({client:client?.name||'',clientId:client?.id||'',clientMatched:!!client,product:p.name,productRaw:p.name,productId:p.id,productMatched:true,qty:nums[0],date,value:0,unitPrice:0,orderNo,status:'Prévia PDF'});
  }
  return out;
 }
@@ -273,7 +334,7 @@ window.readHistoricalFile9249=async function(){
    if(status)status.textContent='Lendo arquivo…';
    const text=await histReadFileText9249(f);if(ta)ta.value=text;
    histDraft9249=histRowsFromText9249(text);
-   if(status)status.textContent=histDraft9249.length?('Arquivo lido: '+histDraft9249.length+' item(ns) reconhecido(s). Confira a prévia abaixo.'):'Arquivo lido, mas não consegui reconhecer os itens automaticamente. Você pode revisar o texto extraído e usar Gerar prévia.';
+   if(status){const notes=new Set(histDraft9249.map(x=>x.orderNo).filter(Boolean));const bad=histDraft9249.filter(x=>!x.clientMatched||!x.productMatched).length;status.textContent=histDraft9249.length?('Arquivo lido: '+histDraft9249.length+' item(ns) em '+notes.size+' nota(s) reconhecida(s).'+(bad?' '+bad+' item(ns) precisam de conferência de cliente/produto.':' Tudo reconhecido; confira a prévia abaixo.')):'Arquivo lido, mas não consegui reconhecer os itens automaticamente. Você pode revisar o texto extraído e usar Gerar prévia.';}
    renderHistPreview();
  }catch(e){if(status)status.textContent='Não foi possível ler o arquivo: '+sid(e?.message||e)}
 };
