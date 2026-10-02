@@ -6,9 +6,9 @@
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
-<title>HLGB Confecções — Sistema de Gestão v92.47 Multiusuário</title>
+<title>HLGB Confecções — Sistema de Gestão v92.48 Multiusuário</title>
 <script id="hlgb-release-identity">
-window.HLGB_RELEASE_VERSION='92.47';
+window.HLGB_RELEASE_VERSION='92.48';
 window.hlgbReleaseLabel=()=> 'v'+window.HLGB_RELEASE_VERSION;
 window.hlgbReleaseTitle=()=> 'HLGB Confecções — Sistema de Gestão '+window.hlgbReleaseLabel()+' Multiusuário';
 </script>
@@ -22000,4 +22000,124 @@ console.info('[HLGB] Separação de Materiais estável carregada '+VERSION);
 })();
 </script>
 <!-- HLGB_V9240_MEMORY_GUARD_END -->
+
+<!-- HLGB_V9248_SCREEN_STABILITY_START -->
+<script>
+(function(){
+'use strict';
+const V='92.48';
+window.HLGB_RELEASE_VERSION=V;
+
+let pending9248=new Map();
+let timer9248=null;
+let flushing9248=false;
+let remoteBurstUntil9248=0;
+let lastUserAction9248=0;
+
+function activeEditor9248(){
+  try{
+    if(document.querySelector('#modal.show'))return true;
+    if(typeof cloudUserIsEditing==='function'&&cloudUserIsEditing())return true;
+    const el=document.activeElement;
+    if(!el)return false;
+    const tag=String(el.tagName||'').toUpperCase();
+    return tag==='INPUT'||tag==='TEXTAREA'||tag==='SELECT'||el.isContentEditable===true;
+  }catch(e){return false}
+}
+function userBusy9248(){
+  return activeEditor9248()||(Date.now()-lastUserAction9248<700);
+}
+function markBurst9248(ms){
+  remoteBurstUntil9248=Math.max(remoteBurstUntil9248,Date.now()+(Number(ms)||650));
+}
+function scheduleFlush9248(delay){
+  if(timer9248)clearTimeout(timer9248);
+  timer9248=setTimeout(flush9248,Math.max(120,Number(delay)||420));
+}
+function queueRender9248(name,base,ctx,args){
+  if(typeof base!=='function')return;
+  if(name==='renderAll'){
+    pending9248.clear();
+    pending9248.set(name,{base,ctx,args});
+  }else if(!pending9248.has('renderAll')){
+    pending9248.set(name,{base,ctx,args});
+  }
+  scheduleFlush9248(420);
+}
+function flush9248(){
+  timer9248=null;
+  if(flushing9248||!pending9248.size)return;
+  if(Date.now()<remoteBurstUntil9248||userBusy9248()){
+    scheduleFlush9248(420);
+    return;
+  }
+  const jobs=[...pending9248.entries()];
+  pending9248.clear();
+  flushing9248=true;
+  try{
+    for(const [,job] of jobs){
+      try{
+        if(typeof window.hlgbStableRenderNow9220==='function'){
+          window.hlgbStableRenderNow9220(()=>job.base.apply(job.ctx,job.args));
+        }else job.base.apply(job.ctx,job.args);
+      }catch(e){console.warn('[HLGB '+V+'] render adiado',e)}
+    }
+    try{cloudRemoteUpdatePending=false}catch(e){}
+  }finally{flushing9248=false}
+}
+function guard9248(name){
+  const base=window[name];
+  if(typeof base!=='function'||base.__hlgb9248Guard)return;
+  const wrapped=function(){
+    if(flushing9248)return base.apply(this,arguments);
+    let defer=false;
+    try{
+      defer=Date.now()<remoteBurstUntil9248||
+        (typeof cloudApplying!=='undefined'&&cloudApplying===true);
+    }catch(e){defer=Date.now()<remoteBurstUntil9248}
+    if(defer){
+      queueRender9248(name,base,this,Array.from(arguments));
+      return;
+    }
+    return base.apply(this,arguments);
+  };
+  wrapped.__hlgb9248Guard=true;
+  wrapped.__hlgb9248Base=base;
+  window[name]=wrapped;
+}
+
+[
+ 'renderAll','renderOrders','renderProduction','renderProductionHub','renderProjection',
+ 'renderCapacityPlanning','renderCuts','renderDailyCuts','renderCutAssignmentQueue',
+ 'renderSeparation','renderSeparationList','renderProducts','renderPayroll',
+ 'renderFactions','renderFactionPayments','renderHubFinance','renderFinance',
+ 'renderOrderNotes','renderGoals','renderFinishedPieces','renderEmployeeAdvances',
+ 'renderReady934','renderFactionDelivery935','renderTracking9173',
+ 'renderFactionChecklists9176','renderFactionChecklists9198'
+].forEach(guard9248);
+
+const incoming9248=window.hlgbRenderIncomingRecord;
+if(typeof incoming9248==='function'&&!incoming9248.__hlgb9248Incoming){
+  const wrappedIncoming=function(){
+    markBurst9248(650);
+    try{return incoming9248.apply(this,arguments)}
+    finally{scheduleFlush9248(700)}
+  };
+  wrappedIncoming.__hlgb9248Incoming=true;
+  window.hlgbRenderIncomingRecord=wrappedIncoming;
+}
+
+['pointerdown','keydown','wheel','touchstart'].forEach(type=>{
+  document.addEventListener(type,e=>{if(e.isTrusted)lastUserAction9248=Date.now()},{capture:true,passive:type!=='keydown'});
+});
+window.addEventListener('focus',()=>{markBurst9248(900);scheduleFlush9248(950)},true);
+document.addEventListener('visibilitychange',()=>{if(!document.hidden){markBurst9248(900);scheduleFlush9248(950)}},true);
+
+window.hlgbFlushStableUi9248=()=>{remoteBurstUntil9248=0;lastUserAction9248=0;flush9248()};
+window.hlgbPendingStableUi9248=()=>pending9248.size;
+console.info('[HLGB] camada anti-pulo '+V+' carregada');
+})();
+</script>
+<!-- HLGB_V9248_SCREEN_STABILITY_END -->
+
 </body></html>
