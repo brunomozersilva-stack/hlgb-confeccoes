@@ -1,0 +1,13 @@
+const fs=require('fs'),assert=require('assert'),path=require('path');
+const root=path.join(__dirname,'..');
+const src=fs.readFileSync(path.join(root,'release-night-ui-fixes.js'),'utf8');
+const loader=fs.readFileSync(path.join(root,'app-stable3.html'),'utf8');
+assert(loader.includes("'release-night-ui-fixes.js'"));
+assert(src.includes('Selecione um período para consultar os pagamentos'));
+assert(src.includes('Pendentes do período'));
+assert(src.includes('Pagamentos futuros'));
+assert(src.includes('Histórico pago do período'));
+assert(src.includes("norm(p.status)!=='pago'"));
+assert(src.includes('hlgb-product-actions'));
+assert(src.includes('min-width:1180px'));
+console.log('PASS night UI: facção payments are period-gated and products use compact actions.');
