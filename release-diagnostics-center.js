@@ -48,6 +48,41 @@ function fingerprint(parts){
   for(let i=0;i<s.length;i++){h^=s.charCodeAt(i);h=Math.imul(h,16777619)}
   return 'f'+(h>>>0).toString(16);
 }
+function classifySaveError(err,module,id){
+  const code=String(err?.code||'');
+  const msg=String(err?.message||err||'');
+  const stack=String(err?.stack||'');
+  const paths=Array.isArray(err?.paths)?err.paths.map(String):[];
+  const protectedConflict=
+    ['HLGB_SAME_FIELD_CONFLICT','HLGB_STALE_PENDING_BLOCK','HLGB_TOMBSTONE_BLOCK','HLGB_ORPHAN_AUTO_CUT_BLOCK'].includes(code) ||
+    /(conflito de edicao|conflito ao salvar|conflicterror|safemerge)/i.test(norm([msg,stack].join(' ')));
+  if(protectedConflict){
+    return {
+      kind:'protected-conflict',
+      title:'Conflito protegido em '+module,
+      description:'O sistema impediu que uma alteração local sobrescrevesse um dado mais novo ou incompatível da nuvem. O registro foi preservado para revisão.',
+      priority:'Alta',
+      fingerprintParts:['protected-conflict',module,code,paths.slice().sort().join('|')||msg.replace(/\d{6,}/g,'#')]
+    };
+  }
+  const networkLike=/(load failed|failed to fetch|networkerror|network error|network request failed|fetch failed|connection reset|connection refused|connection aborted|internet connection|offline|the network connection was lost|a conexão de rede foi perdida)/i.test([msg,stack].join(' '));
+  if(networkLike){
+    return {
+      kind:'network-save',
+      title:'Falha de conexão ao salvar '+module,
+      description:'A gravação não foi confirmada por falha de conexão/rede. Isso é diferente de conflito de dados; a alteração deve permanecer pendente para nova tentativa quando a conexão estabilizar.',
+      priority:'Alta',
+      fingerprintParts:['network-save',module,code||'network',msg.replace(/https?:\/\/\S+/g,'URL').replace(/\d{6,}/g,'#')]
+    };
+  }
+  return {
+    kind:'save',
+    title:'Falha ao salvar '+module,
+    description:'O sistema tentou gravar um registro e a confirmação falhou.',
+    priority:'Crítica',
+    fingerprintParts:['save',module,id,msg]
+  };
+}
 function registerModules(){
   try{
     for(const m of [ISSUE_MODULE,SUGGESTION_MODULE]){
@@ -198,15 +233,16 @@ function installErrorCapture(){
         try{return await original.apply(this,arguments)}
         catch(err){
           if(!savingDiagnostic&&module!==ISSUE_MODULE&&module!==SUGGESTION_MODULE){
+            const cls=classifySaveError(err,module,id);
             queueAutoIssue({
-              title:'Falha ao salvar '+module,
-              description:'O sistema tentou gravar um registro e a confirmação falhou.',
+              title:cls.title,
+              description:cls.description,
               technical:sanitize(err?.stack||err?.message||err),
               page:currentPage(),
-              sourceType:'save',
-              priority:'Crítica',
+              sourceType:cls.kind,
+              priority:cls.priority,
               recordRefs:[{module:String(module),id:String(id)}],
-              fingerprint:fingerprint(['save',module,id,err?.message])
+              fingerprint:fingerprint(cls.fingerprintParts)
             });
           }
           throw err;
@@ -357,6 +393,22 @@ function scanSystem(){
     const d=duplicateIds(m);if(d.length)out.push({severity:'Crítica',code:'duplicate-id',title:'IDs duplicados em '+m,description:d.length+' ID(s) duplicado(s): '+d.slice(0,10).join(', '),page:'sistema',refs:d.map(id=>({module:m,id}))});
   });
   const orders=new Map(arr('orders').map(x=>[sid(x?.id),x])),products=new Set(arr('products').map(x=>sid(x?.id)));
+  const orderNumberGroups=new Map();
+  for(const o of arr('orders')){
+    const no=sid(o?.orderNumber??o?.number??'').trim();
+    if(!no)continue;
+    const list=orderNumberGroups.get(no)||[];list.push(o);orderNumberGroups.set(no,list);
+  }
+  for(const [no,list] of orderNumberGroups){
+    if(list.length>1)out.push({
+      severity:'Crítica',
+      code:'duplicate-order-number',
+      title:'Número de pedido duplicado',
+      description:'Existem '+list.length+' pedidos ativos usando o número #'+no+'. Isso pode causar seleção/sincronização do pedido errado.',
+      page:'pedidos',
+      refs:list.map(o=>({module:'orders',id:sid(o?.id)}))
+    });
+  }
   const distinctProductIds=(rows)=>{
     const set=new Set();
     (Array.isArray(rows)?rows:[]).forEach(x=>{const p=sid(x?.productId);if(p)set.add(p)});
@@ -426,7 +478,7 @@ window.hlgbDiagnosticsSaveScanFindings=saveScanFindings;
 function renderScanTab(){
   const body=document.getElementById('hlgbDgBody');if(!body)return;
   scanFindings=scanSystem();
-  body.innerHTML='<div class="panel hlgb-dg-scan"><h3 style="margin-top:0">Varredura somente de leitura</h3><div class="sub">Esta verificação não altera pedido, corte, produção, financeiro ou folha. Ela apenas procura inconsistências objetivas nos dados já carregados.</div><div class="toolbar" style="margin-top:10px"><button class="primary" onclick="hlgbDiagnosticsRunScan()">🔍 Varrer novamente</button>'+(scanFindings.length?'<button class="secondary" onclick="hlgbDiagnosticsSaveScanFindings()">Salvar achados na Central</button>':'')+'</div></div><div class="hlgb-dg-summary"><div class="card"><small>Problemas encontrados</small><strong>'+scanFindings.length+'</strong></div><div class="card"><small>Verificações executadas</small><strong>7</strong></div></div>'+(scanFindings.length?table(['Prioridade','Problema','Tela','Referências'],scanFindings.map(f=>[priorityBadge(f.severity),'<b>'+esc(f.title)+'</b><div class="sub">'+esc(f.description)+'</div>',esc(f.page),esc((f.refs||[]).map(r=>r.module+':'+r.id).join(', ')||'-')])):'<div class="panel"><b>✅ Nenhuma inconsistência dessas regras foi encontrada.</b><div class="sub">Isso não substitui os testes funcionais, mas reduz a procura manual por erros de integridade.</div></div>');
+  body.innerHTML='<div class="panel hlgb-dg-scan"><h3 style="margin-top:0">Varredura somente de leitura</h3><div class="sub">Esta verificação não altera pedido, corte, produção, financeiro ou folha. Ela apenas procura inconsistências objetivas nos dados já carregados.</div><div class="toolbar" style="margin-top:10px"><button class="primary" onclick="hlgbDiagnosticsRunScan()">🔍 Varrer novamente</button>'+(scanFindings.length?'<button class="secondary" onclick="hlgbDiagnosticsSaveScanFindings()">Salvar achados na Central</button>':'')+'</div></div><div class="hlgb-dg-summary"><div class="card"><small>Problemas encontrados</small><strong>'+scanFindings.length+'</strong></div><div class="card"><small>Verificações executadas</small><strong>8</strong></div></div>'+(scanFindings.length?table(['Prioridade','Problema','Tela','Referências'],scanFindings.map(f=>[priorityBadge(f.severity),'<b>'+esc(f.title)+'</b><div class="sub">'+esc(f.description)+'</div>',esc(f.page),esc((f.refs||[]).map(r=>r.module+':'+r.id).join(', ')||'-')])):'<div class="panel"><b>✅ Nenhuma inconsistência dessas regras foi encontrada.</b><div class="sub">Isso não substitui os testes funcionais, mas reduz a procura manual por erros de integridade.</div></div>');
 }
 window.hlgbDiagnosticsRunScan=()=>renderScanTab();
 
@@ -485,7 +537,7 @@ async function createIssueText(description,title='Erro relatado pelo Assistente 
   row.fingerprint=fingerprint(['assistant',row.title,row.page,row.description]);
   return saveDiagnostic(ISSUE_MODULE,row);
 }
-window.hlgbDiagnosticsCenter={VERSION,sanitize,fingerprint,scanSystem,makeReport,refresh:refreshCenterData,modules:[ISSUE_MODULE,SUGGESTION_MODULE],createSuggestionText,createIssueText};
+window.hlgbDiagnosticsCenter={VERSION,sanitize,fingerprint,classifySaveError,scanSystem,makeReport,refresh:refreshCenterData,modules:[ISSUE_MODULE,SUGGESTION_MODULE],createSuggestionText,createIssueText};
 
 function boot(){
   if(centerLoaded)return;centerLoaded=true;
