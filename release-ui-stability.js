@@ -1,7 +1,7 @@
 /* HLGB audit — estabilidade visual global: agrupa redraws remotos sem atrasar acoes locais */
 (function(){
 'use strict';
-const V='v2';
+const V='v3';
 const QUIET_MS=420;
 const MAX_WAIT_MS=1200;
 const REMOTE_WINDOW_MS=1600;
@@ -197,9 +197,69 @@ for(const ev of ['pointerdown','keydown','wheel','touchstart']){
 }
 window.addEventListener('scroll',()=>{if(!restoring)noteInteraction()},{passive:true});
 
+
+/* Navegação estável: telas pesadas só aparecem depois que os adornos atrasados terminam. */
+const HEAVY_PAGES=new Set(['pedidos','corte','producao','projecao','capacidadeProducao','clientes','produtos','estoque','faccoes','pagamentosFaccoes','financeiro','hubFinanceiro','notas']);
+let settleToken=0,settleObserver=null,settleTimer=null,settleMaxTimer=null;
+function ensureSettleStyle(){
+  if(document.getElementById('hlgbPageSettleStyle'))return;
+  const s=document.createElement('style');s.id='hlgbPageSettleStyle';
+  s.textContent='.page.hlgb-page-settling{visibility:hidden!important;overflow-anchor:none!important}.hlgb-page-settle-overlay{position:fixed;left:50%;top:110px;transform:translateX(-50%);z-index:99998;background:#fff;border:1px solid #ead6df;border-radius:12px;padding:10px 16px;box-shadow:0 8px 26px rgba(0,0,0,.12);font-weight:700;color:#6b4256}.hlgb-page-settle-overlay[hidden]{display:none!important}';
+  document.head.appendChild(s);
+}
+function settleOverlay(show){
+  let el=document.getElementById('hlgbPageSettleOverlay');
+  if(!el){el=document.createElement('div');el.id='hlgbPageSettleOverlay';el.className='hlgb-page-settle-overlay';el.textContent='Carregando tela…';el.hidden=true;document.body.appendChild(el)}
+  el.hidden=!show;
+}
+function finishPageSettle(token,target){
+  if(token!==settleToken)return;
+  if(settleObserver){try{settleObserver.disconnect()}catch(e){}settleObserver=null}
+  if(settleTimer){clearTimeout(settleTimer);settleTimer=null}
+  if(settleMaxTimer){clearTimeout(settleMaxTimer);settleMaxTimer=null}
+  target?.classList?.remove('hlgb-page-settling');settleOverlay(false);
+}
+function beginPageSettle(id){
+  ensureSettleStyle();
+  const target=document.getElementById(id);if(!target||!HEAVY_PAGES.has(id)){settleOverlay(false);return}
+  const token=++settleToken,started=Date.now(),MIN_MS=320,QUIET_MS=170,MAX_MS=950;
+  if(settleObserver){try{settleObserver.disconnect()}catch(e){}}
+  if(settleTimer)clearTimeout(settleTimer);if(settleMaxTimer)clearTimeout(settleMaxTimer);
+  target.classList.add('hlgb-page-settling');settleOverlay(true);
+  try{window.scrollTo(0,0);target.scrollTop=0}catch(e){}
+  const schedule=()=>{
+    if(token!==settleToken)return;
+    if(settleTimer)clearTimeout(settleTimer);
+    const elapsed=Date.now()-started,delay=Math.max(QUIET_MS,MIN_MS-elapsed);
+    settleTimer=setTimeout(()=>finishPageSettle(token,target),delay);
+  };
+  settleObserver=new MutationObserver(records=>{
+    if(token!==settleToken)return;
+    if(records?.some(m=>m.type==='childList'||m.type==='attributes'))schedule();
+  });
+  try{settleObserver.observe(target,{childList:true,subtree:true,attributes:true,attributeFilter:['class','style','hidden']})}catch(e){}
+  schedule();
+  settleMaxTimer=setTimeout(()=>finishPageSettle(token,target),MAX_MS);
+}
+function installStablePageRouter(){
+  const fn=window.page;if(typeof fn!=='function'||fn.__hlgbStablePageV3)return false;
+  const wrapped=function(id,btn){
+    const target=document.getElementById(id),heavy=HEAVY_PAGES.has(id);
+    if(heavy&&target){ensureSettleStyle();target.classList.add('hlgb-page-settling');settleOverlay(true)}
+    let out;
+    try{out=fn.apply(this,arguments)}finally{
+      if(heavy)setTimeout(()=>beginPageSettle(id),0);
+    }
+    return out;
+  };
+  wrapped.__hlgbStablePageV3=true;wrapped.__original=fn;window.page=wrapped;return true;
+}
+installStablePageRouter();
+let pageWrapTries=0;const pageWrapTimer=setInterval(()=>{pageWrapTries++;installStablePageRouter();if(pageWrapTries>=20)clearInterval(pageWrapTimer)},250);
 window.hlgbUiStabilityMarkRemote=markRemote;
 window.hlgbUiStabilityNoteInteraction=noteInteraction;
 window.hlgbUiStabilityPending=()=>[...queues.keys()];
+window.hlgbUiStabilityBeginPageSettle=beginPageSettle;
 window.HLGB_UI_STABILITY_GUARD=V;
 console.info('[HLGB] estabilidade visual global '+V+' ativa — redraw remoto agrupado e posição preservada');
 })();
