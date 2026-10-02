@@ -54,7 +54,9 @@ function classifySaveError(err,module,id){
   const stack=String(err?.stack||'');
   const text=norm([code,msg,stack].join(' '));
   const paths=Array.isArray(err?.paths)?err.paths.map(String):[];
-  const protectedConflict=['HLGB_SAME_FIELD_CONFLICT','HLGB_STALE_PENDING_BLOCK','HLGB_TOMBSTONE_BLOCK','HLGB_ORPHAN_AUTO_CUT_BLOCK'].includes(code);
+  const protectedConflict=
+    ['HLGB_SAME_FIELD_CONFLICT','HLGB_STALE_PENDING_BLOCK','HLGB_TOMBSTONE_BLOCK','HLGB_ORPHAN_AUTO_CUT_BLOCK'].includes(code) ||
+    /(conflito de edicao|conflito ao salvar|conflicterror|safemerge)/i.test(norm([msg,stack].join(' ')));
   if(protectedConflict){
     return {
       kind:'protected-conflict',
