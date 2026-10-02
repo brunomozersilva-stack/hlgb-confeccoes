@@ -1,7 +1,7 @@
 /* HLGB — importar pedidos de WhatsApp, imagem, PDF e Excel */
 (function(){
 'use strict';
-const V='2026.10.01-assistant-order-import-v1';
+const V='2026.10.01-assistant-order-import-v2';
 const sid=v=>String(v??''),q=v=>Math.max(0,Number(v)||0),norm=v=>sid(v).normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().trim().replace(/\s+/g,' ');
 const escSafe=v=>typeof esc==='function'?esc(v):sid(v).replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
 function arr(n){try{return Array.isArray(db?.[n])?db[n]:[]}catch(e){return []}}
@@ -29,14 +29,32 @@ function parseMatrixTable(lines){
  }
  return out;
 }
+function sizePairs(segment,ss){
+ const out=[];
+ for(const sz of ss){
+  const z=reEsc(sz);
+  const m=segment.match(new RegExp('(?:^|[\\s,;])'+z+'\\s*[:=x-]?\\s*(\\d{1,6})(?=[\\s,;./]|$)','i'))||
+          segment.match(new RegExp('(?:^|[\\s,;])(\\d{1,6})\\s*(?:x|-)?\\s*'+z+'(?=[\\s,;./]|$)','i'));
+  if(m&&q(m[1])>0)out.push({size:sz,qty:q(m[1])});
+ }
+ return out;
+}
 function parseFreeText(text){
  const lines=String(text||'').split(/\r?\n/).map(x=>x.trim()).filter(Boolean),table=parseMatrixTable(lines);if(table.length)return table;
  const out=[];let p=null,color='';const ss=sizes().map(s=>String(s).toUpperCase());
+ const colors=(db.colors||[]).map(String).filter(Boolean).sort((a,b)=>b.length-a.length);
  for(const line of lines){
-  p=productFromLine(line,p);color=colorFromLine(line,color);if(!p)continue;
-  for(const sz of ss){
-   const z=reEsc(sz),m=line.match(new RegExp('(?:^|\\s)'+z+'\\s*[:=x-]?\\s*(\\d{1,6})(?:\\s|$)','i'))||line.match(new RegExp('(?:^|\\s)(\\d{1,6})\\s*(?:x|-)?\\s*'+z+'(?:\\s|$)','i'));
-   if(m&&q(m[1])>0)out.push({productId:p.id,color,size:sz,qty:q(m[1])});
+  p=productFromLine(line,p);if(!p)continue;
+  const low=norm(line),found=colors.map(c=>({c,i:low.indexOf(norm(c))})).filter(x=>x.i>=0).sort((a,b)=>a.i-b.i);
+  if(found.length){
+   found.forEach((x,idx)=>{
+    const start=x.i,end=idx+1<found.length?found[idx+1].i:line.length,segment=line.slice(start,end),pairs=sizePairs(segment,ss);
+    pairs.forEach(z=>out.push({productId:p.id,color:x.c,size:z.size,qty:z.qty}));
+   });
+   color=found[found.length-1].c;
+  }else{
+   color=colorFromLine(line,color);
+   sizePairs(line,ss).forEach(z=>out.push({productId:p.id,color,size:z.size,qty:z.qty}));
   }
  }
  return out;
