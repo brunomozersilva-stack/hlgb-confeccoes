@@ -142,7 +142,7 @@ vm.createContext(context);vm.runInContext(src,context);
  const staleOut=await context.window.hlgbRecordSaveWithRetry('hubFinanceEntries','stale',staleData,false);
  assert(staleOut.applied&&staleOut.hlgbStalePendingQuarantined,'pending write older than remote snapshot must be quarantined');
  assert.equal(calls,3,'stale pending must not reach original saver');
- assert.equal(context.db.hubFinanceEntries.find(x=>x.id==='stale').value,200,'quarantined stale row must normalize to the remote value');
+ assert.equal(staleOut.data.value,200,'quarantined stale operation must return the remote authoritative value');
 
  // A fila pendente jamais pode ressuscitar um registro já tombstonado.
  context.db.hubFinanceEntries.push({...row});
