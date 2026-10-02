@@ -171,7 +171,7 @@ const renderStamp=new Map();
 function allowGovernedRender(name){
   const now=Date.now(),last=renderStamp.get(name)||0;
   if(isUserDriven()){renderStamp.set(name,now);return true}
-  if(now-last<RENDER_COOLDOWN_MS)return false;
+  if(last>0&&now-last<RENDER_COOLDOWN_MS)return false;
   renderStamp.set(name,now);return true;
 }
 
