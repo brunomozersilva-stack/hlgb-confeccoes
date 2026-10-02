@@ -1,0 +1,13 @@
+const fs=require('fs'),vm=require('vm'),assert=require('assert'),path=require('path');
+const src=fs.readFileSync(path.join(__dirname,'..','release-assistant-order-import.js'),'utf8');
+const loader=fs.readFileSync(path.join(__dirname,'..','app-stable3.html'),'utf8');
+assert(loader.includes("'release-assistant-order-import.js'"));
+const context={console,setTimeout(){return 0},db:{sizes:['P','M','G','GG'],colors:['Preto','Branco','Rubi'],clients:[{id:'c1',name:'Bianca'}],products:[{id:'p1',name:'Camisola Liliane'},{id:'p2',name:'Calcinha Ariana'}]},window:{},document:{getElementById(){return null}},hlgbSortedSizes:()=>['P','M','G','GG']};
+vm.createContext(context);vm.runInContext(src,context);
+const api=context.window.hlgbAssistantOrderImport;assert(api);
+const d=api.draftFromText('Bianca\nCamisola Liliane Preto P 20 M 40 G 40 GG 20\nCalcinha Ariana Rubi P 10 M 20 G 20 GG 10');
+assert.equal(d.clientName,'Bianca');assert.equal(d.grade.length,8);
+assert.equal(d.grade.filter(x=>String(x.productId)==='p1').reduce((a,x)=>a+x.qty,0),120);
+assert.equal(d.grade.filter(x=>String(x.productId)==='p2').reduce((a,x)=>a+x.qty,0),60);
+assert.equal(context.window.HLGB_ASSISTANT_ORDER_IMPORT_GUARD,'2026.10.01-assistant-order-import-v1');
+console.log('PASS order import: WhatsApp-style text becomes reviewed matrix grade.');
