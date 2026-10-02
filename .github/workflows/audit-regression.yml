@@ -2,7 +2,7 @@ name: HLGB Audit Regression
 
 on:
   push:
-    branches: [audit-work-20260915, sync-auditor-clean-20260930, hotfix-hub-tombstone-20261001]
+    branches: [audit-work-20260915, sync-auditor-clean-20260930, hotfix-hub-tombstone-20261001, ajustes-noite-20261001]
   workflow_dispatch:
 
 permissions:
@@ -81,7 +81,17 @@ jobs:
             tests/audit-purchase-checkers-regression.cjs \
             tests/audit-cut-material-usage-regression.cjs \
             tests/audit-cut-model-split-regression.cjs \
-            tests/audit-cut-model-grade-adjust-regression.cjs
+            tests/audit-cut-model-grade-adjust-regression.cjs \
+            tests/audit-grade-standard-regression.cjs \
+            tests/audit-assistant-system-wide-regression.cjs \
+            tests/audit-assistant-fresh-query-regression.cjs \
+            tests/audit-faction-checklist-grade-standard-regression.cjs \
+            tests/audit-hub-period-detail-regression.cjs \
+            tests/audit-assistant-order-import-regression.cjs \
+            tests/audit-assistant-voice-continuous-regression.cjs \
+            tests/audit-assistant-invoice-fresh-regression.cjs \
+            tests/audit-assistant-order-grade-regression.cjs \
+            tests/audit-night-ui-regression.cjs
           do
             echo "==> $test"
             node "$test"
