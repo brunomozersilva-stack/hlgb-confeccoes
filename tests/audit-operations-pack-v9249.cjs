@@ -14,6 +14,8 @@ assert(ops.includes("packagingAssignments"),'packaging assignments must exist');
 assert(ops.includes("labelTemplates"),'client/product label mapping must exist');
 assert(ops.includes("noCutterAssignment:true"),'historical regularization must not assign cutter');
 assert(ops.includes("reconcileHistoricalOrder9249"),'historical exact-order reconciliation must exist');
+assert(ops.includes("readHistoricalFile9249"),'historical regularization must import PDF/files');
+assert(ops.includes("pdf.js/3.11.174/pdf.min.js"),'historical PDF import must have PDF reader fallback');
 assert(ops.includes("hlgbInternalAuditor"),'automatic internal audit integration must exist');
 
 new Function(ops);
