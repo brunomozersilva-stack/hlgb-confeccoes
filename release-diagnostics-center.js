@@ -198,15 +198,26 @@ function installErrorCapture(){
         try{return await original.apply(this,arguments)}
         catch(err){
           if(!savingDiagnostic&&module!==ISSUE_MODULE&&module!==SUGGESTION_MODULE){
+            const code=String(err?.code||'');
+            const paths=Array.isArray(err?.paths)?err.paths.map(String):[];
+            const protectedConflict=['HLGB_SAME_FIELD_CONFLICT','HLGB_STALE_PENDING_BLOCK','HLGB_TOMBSTONE_BLOCK','HLGB_ORPHAN_AUTO_CUT_BLOCK'].includes(code);
+            const title=protectedConflict?'Conflito protegido em '+module:'Falha ao salvar '+module;
+            const description=protectedConflict
+              ?'O sistema impediu que uma alteração local sobrescrevesse um dado mais novo ou incompatível da nuvem. O registro foi preservado para revisão.'
+              :'O sistema tentou gravar um registro e a confirmação falhou.';
             queueAutoIssue({
-              title:'Falha ao salvar '+module,
-              description:'O sistema tentou gravar um registro e a confirmação falhou.',
+              title,
+              description,
               technical:sanitize(err?.stack||err?.message||err),
               page:currentPage(),
-              sourceType:'save',
-              priority:'Crítica',
+              sourceType:protectedConflict?'protected-conflict':'save',
+              priority:protectedConflict?'Alta':'Crítica',
               recordRefs:[{module:String(module),id:String(id)}],
-              fingerprint:fingerprint(['save',module,id,err?.message])
+              // Conflitos protegidos iguais são agrupados por módulo/código/campos,
+              // em vez de abrir um erro crítico separado para cada registro.
+              fingerprint:protectedConflict
+                ?fingerprint(['protected-conflict',module,code,paths.slice().sort().join('|')||String(err?.message||'').replace(/\d{6,}/g,'#')])
+                :fingerprint(['save',module,id,err?.message])
             });
           }
           throw err;
