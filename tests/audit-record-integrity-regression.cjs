@@ -43,13 +43,14 @@ vm.createContext(context);vm.runInContext(src,context);
  const aged=JSON.parse(store.get('hlgb_records_pending_v91'));
  const ageOp=aged.modules.hubFinanceEntries[0];
  assert.equal(ageOp.__hlgb_pending_at,Date.parse('2026-09-17T11:00:00Z'),'same pending operation must preserve its original queue time');
- assert.equal(context.window.HLGB_RECORD_PENDING_AGE_GUARD,'v1');
+ assert.equal(context.window.HLGB_RECORD_PENDING_AGE_GUARD,'v2');
+ assert.equal(context.window.HLGB_RECORD_STALE_QUARANTINE_GUARD,'v1');
  context.hlgbRecordSnapshots.hubFinanceEntries.set('age',{revision:4,deleted_at:null,updated_at:'2026-09-17T12:00:00Z',data:{id:'age',value:200}});
  context.db.hubFinanceEntries.push({id:'age',value:100});
- let ageBlocked=false;
- try{await context.window.hlgbRecordSaveWithRetry('hubFinanceEntries','age',{id:'age',value:100},false)}catch(e){ageBlocked=e.code==='HLGB_STALE_PENDING_BLOCK'}
- assert(ageBlocked,'old pending operation must stay stale even after pending envelope is regenerated');
+ const ageOut=await context.window.hlgbRecordSaveWithRetry('hubFinanceEntries','age',{id:'age',value:100},false);
+ assert(ageOut.applied&&ageOut.hlgbStalePendingQuarantined,'old pending operation must be quarantined after a newer cloud version is confirmed');
  assert.equal(calls,0,'aged stale operation must not reach original saver');
+ assert.equal(JSON.parse(store.get('hlgb_records_stale_quarantine_v1')).slice(-1)[0].id,'age','quarantined stale operation must remain auditable');
  store.delete('hlgb_records_pending_v91');
 
  const tombstoneOut=await context.window.hlgbRecordSaveWithRetry('hubFinanceEntries','70k',row,false);
@@ -136,9 +137,9 @@ vm.createContext(context);vm.runInContext(src,context);
  const staleData={id:'stale',value:100};
  context.hlgbRecordSnapshots.hubFinanceEntries.set('stale',{revision:4,deleted_at:null,updated_at:'2026-09-17T12:00:00Z',data:{id:'stale',value:200}});
  store.set('hlgb_records_pending_v91',JSON.stringify({at:Date.parse('2026-09-17T11:00:00Z'),modules:{hubFinanceEntries:[{id:'stale',data:staleData,deleted:false}]}}));
- let staleBlocked=false;
- try{await context.window.hlgbRecordSaveWithRetry('hubFinanceEntries','stale',staleData,false)}catch(e){staleBlocked=e.code==='HLGB_STALE_PENDING_BLOCK'}
- assert(staleBlocked,'pending write older than remote snapshot must be blocked');
+ const staleOut=await context.window.hlgbRecordSaveWithRetry('hubFinanceEntries','stale',staleData,false);
+ assert(staleOut.applied&&staleOut.hlgbStalePendingQuarantined,'pending write older than remote snapshot must be quarantined');
+ assert.equal(staleOut.data.value,200,'quarantined stale operation must return the remote authoritative value');
  assert.equal(calls,3,'stale pending must not reach original saver');
 
  // A fila pendente jamais pode ressuscitar um registro já tombstonado.
@@ -160,5 +161,5 @@ vm.createContext(context);vm.runInContext(src,context);
 
  assert(saves>=6,'lexical-db cleanup/no-op/rekey normalization must be persisted');
  assert.equal(context.window.HLGB_RECORD_INTEGRITY_GUARD,'v8');
- console.log('PASS record integrity v8: stale tombstones are silently pruned; stale pending/conflicts and logical duplicates remain blocked; legitimate split/save/delete preserved.');
+ console.log('PASS record integrity v8: stale tombstones pruned; stale pending quarantined; conflicts/logical duplicates guarded; legitimate split/save/delete preserved.');
 })().catch(e=>{console.error(e);process.exit(1)});
