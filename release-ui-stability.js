@@ -159,6 +159,7 @@ function wrapRenderer(name){
     const background=isRemote()||!isUserDriven();
     if(!background){renderStamp.set(name,Date.now());return fn.apply(this,arguments)}
     if(!relevant(name))return undefined;
+    if(isEditing())return queueRender(name,fn,this,Array.from(arguments));
     if(!allowGovernedRender(name))return undefined;
     return queueRender(name,fn,this,Array.from(arguments));
   };
