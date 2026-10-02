@@ -5,10 +5,18 @@
 'use strict';
 
 const AUDIT_MODULE='systemAuditRuns';
-const VERSION='2026.09.30-internal-auditor-v2';
+const VERSION='2026.10.02-internal-auditor-v3';
 const PENDING_KEY='hlgb_records_pending_v91';
 const WAL_KEY='hlgb_durable_wal_v1';
 let auditRunsCache=[];
+const runtimeErrors=[];
+const MAX_RUNTIME_ERRORS=80;
+function keepRuntimeError(type,message,stack=''){
+  const row={at:new Date().toISOString(),type:String(type||'error'),message:String(message||'').slice(0,1200),stack:String(stack||'').slice(0,2500)};
+  runtimeErrors.push(row);if(runtimeErrors.length>MAX_RUNTIME_ERRORS)runtimeErrors.splice(0,runtimeErrors.length-MAX_RUNTIME_ERRORS);
+}
+window.addEventListener('error',e=>{try{keepRuntimeError('error',e?.message||'Erro JavaScript',e?.error?.stack||'')}catch(_){ }},true);
+window.addEventListener('unhandledrejection',e=>{try{keepRuntimeError('unhandledrejection',e?.reason?.message||String(e?.reason||'Promise rejeitada'),e?.reason?.stack||'')}catch(_){ }},true);
 const REQUIRED_PAGES=['dashboard','pedidos','corte','producao','projecao','faltas','hubFinanceiro','config'];
 const REQUIRED_FUNCTIONS=[
   'renderOrders','renderProjection','renderHubFinance','renderPayrollProvisions',
@@ -430,6 +438,105 @@ function auditVisualCurrent(){
   }
   return checks;
 }
+
+function visualTargetPages(){
+  return [...document.querySelectorAll('#appShell .page')].filter(el=>el?.id&&el.id!=='loginScreen').map(el=>el.id);
+}
+function visualMetricsForPage(el){
+  const vw=Number(window.innerWidth||document.documentElement?.clientWidth||0),vh=Number(window.innerHeight||document.documentElement?.clientHeight||0);
+  const rect=el.getBoundingClientRect();
+  const controls=[...el.querySelectorAll('button,input,select,textarea,a')].filter(isVisible);
+  const panels=[...el.querySelectorAll('.panel,.card,table,[role="dialog"]')].filter(isVisible);
+  const clipped=[];
+  for(const node of [...controls,...panels]){
+    try{
+      const r=node.getBoundingClientRect();
+      if(r.right>vw+16||r.left<-16)clipped.push(node.id||node.textContent?.trim()?.slice(0,40)||node.tagName);
+    }catch(_){}
+  }
+  const anchors=[...el.querySelectorAll('h1,h2,.panel,.card,table,button,input,select,textarea')].filter(isVisible).slice(0,45).map((node,i)=>{
+    const r=node.getBoundingClientRect();return {k:node.id||node.getAttribute('name')||node.textContent?.trim()?.slice(0,32)||node.tagName+'#'+i,x:Math.round(r.x*10)/10,y:Math.round(r.y*10)/10,w:Math.round(r.width*10)/10,h:Math.round(r.height*10)/10};
+  });
+  return {
+    width:Math.round(rect.width),height:Math.round(rect.height),
+    scrollWidth:Math.round(el.scrollWidth||0),scrollHeight:Math.round(el.scrollHeight||0),
+    viewport:{width:vw,height:vh},controls:controls.length,panels:panels.length,
+    clipped:[...new Set(clipped)].slice(0,20),anchors
+  };
+}
+function compareAnchorShift(a,b){
+  const bm=new Map((b?.anchors||[]).map(x=>[x.k,x])),moved=[];
+  for(const x of (a?.anchors||[])){
+    const y=bm.get(x.k);if(!y)continue;
+    const dx=Math.abs(x.x-y.x),dy=Math.abs(x.y-y.y),dw=Math.abs(x.w-y.w),dh=Math.abs(x.h-y.h);
+    if(dx>2||dy>2||dw>2||dh>2)moved.push({element:x.k,dx:+dx.toFixed(1),dy:+dy.toFixed(1),dw:+dw.toFixed(1),dh:+dh.toFixed(1)});
+  }
+  return moved;
+}
+async function auditVisualSweep(){
+  const prior=document.querySelector('#appShell .page.active'),priorId=prior?.id||'',priorScroll={x:window.scrollX||0,y:window.scrollY||0},priorFocus=document.activeElement;
+  const pages=visualTargetPages(),results=[],started=Date.now();
+  let observer=null,currentMutations=0;
+  try{
+    observer=new MutationObserver(list=>{currentMutations+=list.filter(m=>m.type==='childList'||m.type==='attributes').length});
+    observer.observe(document.getElementById('appShell')||document.body,{subtree:true,childList:true,attributes:true,attributeFilter:['class','style','hidden']});
+    for(const pid of pages){
+      const el=document.getElementById(pid);if(!el)continue;
+      document.querySelectorAll('#appShell .page').forEach(x=>x.classList.remove('active'));el.classList.add('active');
+      window.scrollTo(0,0);currentMutations=0;
+      await new Promise(r=>setTimeout(r,180));
+      const s1=visualMetricsForPage(el),m1=currentMutations;currentMutations=0;
+      await new Promise(r=>setTimeout(r,260));
+      const s2=visualMetricsForPage(el),m2=currentMutations;currentMutations=0;
+      await new Promise(r=>setTimeout(r,260));
+      const s3=visualMetricsForPage(el),m3=currentMutations;
+      const shift=[...compareAnchorShift(s1,s2),...compareAnchorShift(s2,s3)];
+      const maxShift=shift.reduce((m,x)=>Math.max(m,x.dx,x.dy,x.dw,x.dh),0);
+      const overflow=s3.viewport.width>0&&s3.scrollWidth>s3.viewport.width+16;
+      const unstable=maxShift>3||m2+m3>18;
+      results.push({
+        page:pid,status:unstable?'warn':(overflow||s3.clipped.length?'warn':'pass'),
+        maxShiftPx:+maxShift.toFixed(1),layoutShiftElements:shift.slice(0,15),
+        mutationsAfterSettle:m2+m3,initialMutations:m1,
+        horizontalOverflow:overflow,clipped:s3.clipped,
+        metrics:{width:s3.width,height:s3.height,scrollWidth:s3.scrollWidth,scrollHeight:s3.scrollHeight,controls:s3.controls,panels:s3.panels}
+      });
+    }
+  }finally{
+    try{observer?.disconnect()}catch(_){}
+    document.querySelectorAll('#appShell .page').forEach(x=>x.classList.remove('active'));
+    if(priorId&&document.getElementById(priorId))document.getElementById(priorId).classList.add('active');
+    try{window.scrollTo(priorScroll.x,priorScroll.y)}catch(_){}
+    try{if(priorFocus&&document.contains(priorFocus)&&typeof priorFocus.focus==='function')priorFocus.focus({preventScroll:true})}catch(_){}
+  }
+  const checks=results.map(r=>check('visual-sweep:'+r.page,'Varredura visual',r.status,r.page,
+    (r.maxShiftPx>3?'Movimento detectado: '+r.maxShiftPx+'px. ':'')+
+    (r.mutationsAfterSettle>18?'Muitas mutações após estabilizar: '+r.mutationsAfterSettle+'. ':'')+
+    (r.horizontalOverflow?'Overflow horizontal. ':'')+
+    (r.clipped.length?'Elementos fora da largura: '+r.clipped.slice(0,5).join(', ')+'. ':'')+
+    ((!r.maxShiftPx&&!r.horizontalOverflow&&!r.clipped.length)?'Tela estável no teste interno.':''),
+    r.status==='warn'?'warn':'info',{page:r.page,visualSweep:r}));
+  return {pages:results,checks,durationMs:Date.now()-started,runtimeErrors:clone(runtimeErrors.slice(-30))};
+}
+async function runVisualSweep(save=true){
+  const startedAt=now(),sweep=await auditVisualSweep();
+  const baseChecks=[...auditFunctions(),...auditModules(),...auditDomStructure(),...auditSync(),...auditDataIntegrity(),...auditRuntimeErrors(),...sweep.checks];
+  const recentRuntime=sweep.runtimeErrors||[];
+  if(recentRuntime.length){
+    baseChecks.push(check('runtime:captured','Erros JavaScript','warn','Erros JavaScript capturados nesta sessão',recentRuntime.slice(-10).map(x=>x.type+': '+x.message).join(' | '),'warn',{runtimeErrors:recentRuntime}));
+  }else baseChecks.push(check('runtime:captured','Erros JavaScript','pass','Erros JavaScript capturados nesta sessão','Nenhum erro global capturado pelo Auditor.','info'));
+  const row={id:id(),kind:'system_audit_visual_sweep',auditorVersion:VERSION,mode:'visual-sweep',readOnly:true,startedAt,completedAt:now(),appVersion:appVersion(),browser:browserLabel(),user:userLabel(),viewport:{width:Number(window.innerWidth||0),height:Number(window.innerHeight||0),devicePixelRatio:Number(window.devicePixelRatio||1)},activePage:document.querySelector('.page.active')?.id||'',summary:summarize(baseChecks),checks:baseChecks,visualSweep:sweep.pages,visualSweepDurationMs:sweep.durationMs,runtimeErrors:recentRuntime};
+  if(save){try{return await saveRun(row)}catch(e){row.saveError=String(e?.message||e);return row}}
+  return row;
+}
+async function downloadVisualDiagnostic(){
+  const row=await runVisualSweep(true),sync=await buildSyncDiagnostic();
+  const data=redactDiagnostic({kind:'hlgb_full_visual_diagnostic',diagnosticVersion:'2026.10.02-visual-v1',generatedAt:now(),appVersion:appVersion(),browser:browserLabel(),readOnly:true,credentialsIncluded:false,audit:row,sync});
+  const blob=new Blob([JSON.stringify(data,null,2)],{type:'application/json;charset=utf-8'}),a=document.createElement('a');
+  a.href=URL.createObjectURL(blob);a.download='HLGB-DIAGNOSTICO-VISUAL-'+new Date().toISOString().replace(/[:.]/g,'-')+'.json';document.body.appendChild(a);a.click();setTimeout(()=>{try{URL.revokeObjectURL(a.href)}catch(_){ }a.remove()},1000);
+  return data;
+}
+
 function auditSync(){
   const checks=[];
   const authenticated=!!(typeof cloudAccessToken!=='undefined'&&cloudAccessToken);
@@ -553,7 +660,7 @@ function historyHtml(){
 function openAuditor(){
   inject();
   const last=latest();
-  openModal('🧪 Auditor / Testador HLGB','<div class="sub">Executa conferência interna <b>somente de leitura</b>. Não cria pedidos, não dá baixa e não altera produção ou financeiro.</div><div class="hlgb-auditor-actions"><button type="button" class="primary" onclick="hlgbAuditorRunFull()">🧪 Testar sistema</button><button type="button" class="secondary" onclick="hlgbAuditorRunVisual()">👁️ Conferir tela atual</button><button type="button" class="secondary" onclick="hlgbAuditorCopyLatest()">📋 Copiar última auditoria</button><button type="button" class="secondary" onclick="hlgbAuditorExportSync()">📦 Exportar diagnóstico de sincronização</button><button type="button" class="secondary" onclick="hlgbAuditorCleanDerivedSync()">🧹 Limpar falsos positivos confirmados</button></div><div id="hlgbAuditorResult">'+renderRun(last)+'</div><div class="panel"><h3 style="margin-top:0">Histórico</h3><div id="hlgbAuditorHistory" class="hlgb-auditor-history">'+historyHtml()+'</div></div><button type="button" class="secondary modalSave">Fechar</button>',()=>closeModal());
+  openModal('🧪 Auditor / Testador HLGB','<div class="sub">Executa conferência interna <b>somente de leitura</b>. Não cria pedidos, não dá baixa e não altera produção ou financeiro.</div><div class="hlgb-auditor-actions"><button type="button" class="primary" onclick="hlgbAuditorRunVisualSweep()">👁️ Teste visual completo</button><button type="button" class="secondary" onclick="hlgbAuditorRunFull()">🧪 Testar sistema</button><button type="button" class="secondary" onclick="hlgbAuditorRunVisual()">Tela atual</button><button type="button" class="secondary" onclick="hlgbAuditorExportVisual()">📦 Exportar diagnóstico visual</button><button type="button" class="secondary" onclick="hlgbAuditorCopyLatest()">📋 Copiar última auditoria</button><button type="button" class="secondary" onclick="hlgbAuditorExportSync()">Sincronização</button><button type="button" class="secondary" onclick="hlgbAuditorCleanDerivedSync()">🧹 Limpar falsos positivos confirmados</button></div><div id="hlgbAuditorResult">'+renderRun(last)+'</div><div class="panel"><h3 style="margin-top:0">Histórico</h3><div id="hlgbAuditorHistory" class="hlgb-auditor-history">'+historyHtml()+'</div></div><button type="button" class="secondary modalSave">Fechar</button>',()=>closeModal());
   loadRuns().then(()=>{const h=document.getElementById('hlgbAuditorHistory');if(h)h.innerHTML=historyHtml();const r=document.getElementById('hlgbAuditorResult');if(r)r.innerHTML=renderRun(latest())}).catch(()=>{});
 }
 window.openHlgbAuditor=openAuditor;
@@ -568,6 +675,8 @@ async function runUi(mode){
 }
 window.hlgbAuditorRunFull=()=>runUi('full');
 window.hlgbAuditorRunVisual=()=>runUi('visual');
+window.hlgbAuditorRunVisualSweep=async function(){const out=document.getElementById('hlgbAuditorResult');if(out)out.innerHTML='<div class="panel"><b>👁️ Testando todas as telas…</b><div class="sub">A tela pode alternar rapidamente durante o teste. Nenhum dado será alterado.</div></div>';const row=await runVisualSweep(true);if(out)out.innerHTML=renderRun(row)+(row.saveError?'<div class="panel"><span class="badge warn">Executou, mas não conseguiu salvar na nuvem</span><div class="sub">'+escSafe(row.saveError)+'</div></div>':'');const h=document.getElementById('hlgbAuditorHistory');if(h)h.innerHTML=historyHtml();return row;};
+window.hlgbAuditorExportVisual=async function(){try{const data=await downloadVisualDiagnostic();alert('Diagnóstico visual exportado.\n\nTelas verificadas: '+q(data?.audit?.visualSweep?.length)+'\nAtenções: '+q(data?.audit?.summary?.warn)+'\nFalhas: '+q(data?.audit?.summary?.fail)+'\n\nO arquivo não inclui senhas nem tokens.');}catch(e){alert('Não foi possível exportar o diagnóstico visual.\n\n'+String(e?.message||e))}};
 window.hlgbAuditorShowRun=function(runId){
   const row=auditRunsCache.find(x=>sid(x?.id)===sid(runId)),out=document.getElementById('hlgbAuditorResult');
   if(out)out.innerHTML=renderRun(row);
@@ -598,7 +707,7 @@ window.hlgbAuditorCleanDerivedSync=async function(){
     alert('Não foi possível concluir a limpeza segura.\n\n'+String(e?.message||e));
   }
 };
-window.hlgbInternalAuditor={VERSION,module:AUDIT_MODULE,buildRun,run,latest,report,auditFunctions,auditModules,auditDomStructure,auditVisualCurrent,auditSync,auditDataIntegrity,loadRuns,saveRun,stableJson,cleanupTechnicalPending,redactDiagnostic,normalizedPendingDiagnostic,localWalDiagnostic,indexedDbWalDiagnostic,buildSyncDiagnostic,downloadSyncDiagnostic,classifiedDerivedPending,cleanClassifiedDerivedPending};
+window.hlgbInternalAuditor={VERSION,module:AUDIT_MODULE,buildRun,run,runVisualSweep,auditVisualSweep,downloadVisualDiagnostic,latest,report,auditFunctions,auditModules,auditDomStructure,auditVisualCurrent,auditSync,auditDataIntegrity,loadRuns,saveRun,stableJson,cleanupTechnicalPending,redactDiagnostic,normalizedPendingDiagnostic,localWalDiagnostic,indexedDbWalDiagnostic,buildSyncDiagnostic,downloadSyncDiagnostic,classifiedDerivedPending,cleanClassifiedDerivedPending,runtimeErrors};
 function boot(){
   detachTechnicalModule();cleanupTechnicalPending();inject();
   try{if(typeof hlgbAfterLogin==='function')hlgbAfterLogin(()=>{setTimeout(()=>{inject();loadRuns()},500)},0)}catch(e){}
