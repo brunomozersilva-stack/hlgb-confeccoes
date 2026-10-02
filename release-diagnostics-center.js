@@ -396,6 +396,22 @@ function scanSystem(){
     const d=duplicateIds(m);if(d.length)out.push({severity:'Crítica',code:'duplicate-id',title:'IDs duplicados em '+m,description:d.length+' ID(s) duplicado(s): '+d.slice(0,10).join(', '),page:'sistema',refs:d.map(id=>({module:m,id}))});
   });
   const orders=new Map(arr('orders').map(x=>[sid(x?.id),x])),products=new Set(arr('products').map(x=>sid(x?.id)));
+  const orderNumberGroups=new Map();
+  for(const o of arr('orders')){
+    const no=sid(o?.orderNumber??o?.number??'').trim();
+    if(!no)continue;
+    const list=orderNumberGroups.get(no)||[];list.push(o);orderNumberGroups.set(no,list);
+  }
+  for(const [no,list] of orderNumberGroups){
+    if(list.length>1)out.push({
+      severity:'Crítica',
+      code:'duplicate-order-number',
+      title:'Número de pedido duplicado',
+      description:'Existem '+list.length+' pedidos ativos usando o número #'+no+'. Isso pode causar seleção/sincronização do pedido errado.',
+      page:'pedidos',
+      refs:list.map(o=>({module:'orders',id:sid(o?.id)}))
+    });
+  }
   const distinctProductIds=(rows)=>{
     const set=new Set();
     (Array.isArray(rows)?rows:[]).forEach(x=>{const p=sid(x?.productId);if(p)set.add(p)});
@@ -465,7 +481,7 @@ window.hlgbDiagnosticsSaveScanFindings=saveScanFindings;
 function renderScanTab(){
   const body=document.getElementById('hlgbDgBody');if(!body)return;
   scanFindings=scanSystem();
-  body.innerHTML='<div class="panel hlgb-dg-scan"><h3 style="margin-top:0">Varredura somente de leitura</h3><div class="sub">Esta verificação não altera pedido, corte, produção, financeiro ou folha. Ela apenas procura inconsistências objetivas nos dados já carregados.</div><div class="toolbar" style="margin-top:10px"><button class="primary" onclick="hlgbDiagnosticsRunScan()">🔍 Varrer novamente</button>'+(scanFindings.length?'<button class="secondary" onclick="hlgbDiagnosticsSaveScanFindings()">Salvar achados na Central</button>':'')+'</div></div><div class="hlgb-dg-summary"><div class="card"><small>Problemas encontrados</small><strong>'+scanFindings.length+'</strong></div><div class="card"><small>Verificações executadas</small><strong>7</strong></div></div>'+(scanFindings.length?table(['Prioridade','Problema','Tela','Referências'],scanFindings.map(f=>[priorityBadge(f.severity),'<b>'+esc(f.title)+'</b><div class="sub">'+esc(f.description)+'</div>',esc(f.page),esc((f.refs||[]).map(r=>r.module+':'+r.id).join(', ')||'-')])):'<div class="panel"><b>✅ Nenhuma inconsistência dessas regras foi encontrada.</b><div class="sub">Isso não substitui os testes funcionais, mas reduz a procura manual por erros de integridade.</div></div>');
+  body.innerHTML='<div class="panel hlgb-dg-scan"><h3 style="margin-top:0">Varredura somente de leitura</h3><div class="sub">Esta verificação não altera pedido, corte, produção, financeiro ou folha. Ela apenas procura inconsistências objetivas nos dados já carregados.</div><div class="toolbar" style="margin-top:10px"><button class="primary" onclick="hlgbDiagnosticsRunScan()">🔍 Varrer novamente</button>'+(scanFindings.length?'<button class="secondary" onclick="hlgbDiagnosticsSaveScanFindings()">Salvar achados na Central</button>':'')+'</div></div><div class="hlgb-dg-summary"><div class="card"><small>Problemas encontrados</small><strong>'+scanFindings.length+'</strong></div><div class="card"><small>Verificações executadas</small><strong>8</strong></div></div>'+(scanFindings.length?table(['Prioridade','Problema','Tela','Referências'],scanFindings.map(f=>[priorityBadge(f.severity),'<b>'+esc(f.title)+'</b><div class="sub">'+esc(f.description)+'</div>',esc(f.page),esc((f.refs||[]).map(r=>r.module+':'+r.id).join(', ')||'-')])):'<div class="panel"><b>✅ Nenhuma inconsistência dessas regras foi encontrada.</b><div class="sub">Isso não substitui os testes funcionais, mas reduz a procura manual por erros de integridade.</div></div>');
 }
 window.hlgbDiagnosticsRunScan=()=>renderScanTab();
 
