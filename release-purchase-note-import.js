@@ -1,7 +1,7 @@
 /* HLGB — importar nota de compra por foto/PDF/Excel e cadastrar materiais no fornecedor */
 (function(){
 'use strict';
-const V='2026.10.01-purchase-note-import-v1';
+const V='2026.10.02-purchase-note-import-v2';
 const sid=v=>String(v??''),q=v=>Math.max(0,Number(v)||0),norm=v=>sid(v).normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().trim().replace(/\s+/g,' ');
 const escSafe=v=>typeof esc==='function'?esc(v):sid(v).replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
 function arr(n){try{return Array.isArray(db?.[n])?db[n]:[]}catch(e){return []}}
@@ -34,7 +34,7 @@ function parseItems(text){
 function draft(text){
  const supplier=supplierByText(text),items=parseItems(text);
  const note=(String(text||'').match(/(?:nota|nf|nº|numero|número)[^0-9]{0,10}([0-9]{2,20})/i)||[])[1]||'';
- return {supplierId:supplier?.id||'',supplierName:supplier?.name||'',number:note,date:parseDate(text,'(?:data|emissao|emissão)')||parseDate(text),due:parseDate(text,'(?:vencimento|vence)'),items,sourceText:String(text||'')};
+ const totals=[...String(text||'').matchAll(/(?:total(?:\s+da\s+nota)?|valor\s+total)[^0-9]{0,12}(?:R\$\s*)?([0-9.]+(?:,[0-9]{1,2})?)/ig)].map(m=>parseNumber(m[1])).filter(v=>v>0);const total=totals.length?totals[totals.length-1]:items.reduce((a,x)=>a+q(x.qty)*q(x.price),0);return {supplierId:supplier?.id||'',supplierName:supplier?.name||'',number:note,date:parseDate(text,'(?:data|emissao|emissão)')||parseDate(text),due:parseDate(text,'(?:vencimento|vence)'),items,total,sourceText:String(text||'')};
 }
 async function loadScript(src,name){if(window[name])return window[name];await new Promise((res,rej)=>{const s=document.createElement('script');s.src=src;s.onload=res;s.onerror=()=>rej(new Error('Não foi possível carregar o leitor do arquivo.'));document.head.appendChild(s)});return window[name]}
 async function readFile(file){
@@ -46,7 +46,7 @@ async function readFile(file){
 }
 function previewHtml(d){
  const rows=d.items.map((x,i)=>'<tr><td><input class="hlgbImpBuyDesc" data-i="'+i+'" value="'+escSafe(x.description)+'"></td><td><input class="hlgbImpBuyQty" data-i="'+i+'" type="number" min="0" step=".001" value="'+q(x.qty)+'"></td><td><input class="hlgbImpBuyUnit" data-i="'+i+'" value="'+escSafe(x.unit||'UN')+'"></td><td><input class="hlgbImpBuyPrice" data-i="'+i+'" type="number" min="0" step=".0001" value="'+q(x.price)+'"></td></tr>').join('');
- return '<div class="grid"><div class="field"><label>Fornecedor reconhecido</label><select id="hlgbImpBuySupplier"><option value="">Selecione</option>'+arr('suppliers').map(s=>'<option value="'+escSafe(s.id)+'" '+(sid(s.id)===sid(d.supplierId)?'selected':'')+'>'+escSafe(s.name)+'</option>').join('')+'</select></div><div class="field"><label>Número da nota</label><input id="hlgbImpBuyNumber" value="'+escSafe(d.number||'')+'"></div><div class="field"><label>Data</label><input id="hlgbImpBuyDate" type="date" value="'+escSafe(d.date||'')+'"></div><div class="field"><label>Vencimento</label><input id="hlgbImpBuyDue" type="date" value="'+escSafe(d.due||'')+'"></div></div><div style="overflow:auto"><table><thead><tr><th>Descrição</th><th>Qtd.</th><th>Unidade</th><th>Preço unit.</th></tr></thead><tbody>'+rows+'</tbody></table></div><div class="sub">Itens novos serão cadastrados nesse fornecedor quando você confirmar a importação.</div><button type="button" class="primary" onclick="hlgbPurchaseImportApply()">✅ Conferi — preencher nota oficial</button>';
+ return '<div class="grid"><div class="field"><label>Fornecedor reconhecido</label><select id="hlgbImpBuySupplier"><option value="">Selecione</option>'+arr('suppliers').map(s=>'<option value="'+escSafe(s.id)+'" '+(sid(s.id)===sid(d.supplierId)?'selected':'')+'>'+escSafe(s.name)+'</option>').join('')+'</select></div><div class="field"><label>Número da nota</label><input id="hlgbImpBuyNumber" value="'+escSafe(d.number||'')+'"></div><div class="field"><label>Data</label><input id="hlgbImpBuyDate" type="date" value="'+escSafe(d.date||'')+'"></div><div class="field"><label>Vencimento</label><input id="hlgbImpBuyDue" type="date" value="'+escSafe(d.due||'')+'"></div></div><div style="overflow:auto"><table><thead><tr><th>Descrição</th><th>Qtd.</th><th>Unidade</th><th>Preço unit.</th></tr></thead><tbody>'+rows+'</tbody></table></div><div class="sub">Itens novos serão cadastrados nesse fornecedor quando você confirmar a importação.</div>'+(d.total?'<div class="panel" style="margin-top:8px"><b>Total reconhecido:</b> '+(typeof money==='function'?money(d.total):('R$ '+d.total.toFixed(2)))+'</div>':'')+'<button type="button" class="primary" onclick="hlgbPurchaseImportApply()">✅ Conferi — preencher nota oficial</button>';
 }
 async function analyze(){
  const f=document.getElementById('hlgbPurchaseImportFile')?.files?.[0],ta=document.getElementById('hlgbPurchaseImportText'),status=document.getElementById('hlgbPurchaseImportStatus');let text=ta?.value||'';
@@ -65,27 +65,37 @@ async function apply(){
  const d=window.__hlgbPurchaseImportDraft;if(!d)return;
  const supplierId=document.getElementById('hlgbImpBuySupplier')?.value||'',s=arr('suppliers').find(x=>sid(x.id)===sid(supplierId));if(!s)return alert('Selecione o fornecedor.');
  const items=[...document.querySelectorAll('.hlgbImpBuyDesc')].map((e,i)=>({description:e.value.trim(),qty:q(document.querySelector('.hlgbImpBuyQty[data-i="'+i+'"]')?.value),unit:document.querySelector('.hlgbImpBuyUnit[data-i="'+i+'"]')?.value||'UN',price:q(document.querySelector('.hlgbImpBuyPrice[data-i="'+i+'"]')?.value)})).filter(x=>x.description&&x.qty>0);
- if(!items.length)return alert('Nenhum item válido para importar.');
- try{await ensureSupplierProducts(s,items)}catch(e){return alert(String(e?.message||e))}
+ if(items.length){try{await ensureSupplierProducts(s,items)}catch(e){return alert(String(e?.message||e))}}
+ if(!items.length&&!q(d.total))return alert('Não consegui identificar itens nem valor total da nota.');
+ const number=document.getElementById('hlgbImpBuyNumber')?.value||d.number||'',dateVal=document.getElementById('hlgbImpBuyDate')?.value||d.date||'',dueVal=document.getElementById('hlgbImpBuyDue')?.value||d.due||'';
  closeModal();
  if(typeof newPurchase!=='function')return alert('Tela oficial de nota de compra indisponível.');
  newPurchase();setTimeout(()=>{
   const sup=document.getElementById('purchaseSupplier');if(sup){sup.value=sid(s.id);sup.dispatchEvent(new Event('change',{bubbles:true}))}
-  const num=document.getElementById('purchaseNumber');if(num)num.value=document.getElementById('hlgbImpBuyNumber')?.value||d.number||'';
-  const date=document.getElementById('purchaseDate');if(date)date.value=d.date||date.value;
-  const due=document.getElementById('purchaseDue');if(due)due.value=d.due||due.value;
-  const body=document.getElementById('purchaseItemsBody');if(body){body.innerHTML='';items.forEach((it,i)=>{addPurchaseItemRow?.();const row=body.querySelectorAll('.purchaseItemRow')[i];if(!row)return;row.querySelector('.piDesc').value=it.description;row.querySelector('.piQty').value=it.qty;row.querySelector('.piUnit').value=it.unit;row.querySelector('.piPrice').value=it.price});updatePurchaseTotal?.()}
-  alert('A nota foi preenchida. Confira fornecedor, itens, valores, vencimento e os dois conferentes antes de salvar.');
- },120);
+  const num=document.getElementById('purchaseNumber');if(num)num.value=number;
+  const date=document.getElementById('purchaseDate');if(date&&dateVal)date.value=dateVal;
+  const due=document.getElementById('purchaseDue');if(due&&dueVal)due.value=dueVal;
+  if(items.length){
+    const radio=document.querySelector('input[name="purchaseEntryMode"][value="Itens"]');if(radio){radio.checked=true;togglePurchaseEntryMode?.()}
+    const body=document.getElementById('purchaseItemsBody');if(body){body.innerHTML='';items.forEach((it,i)=>{addPurchaseItemRow?.();const row=body.querySelectorAll('.purchaseItemRow')[i];if(!row)return;const desc=row.querySelector('.piDesc'),qtyEl=row.querySelector('.piQty'),unit=row.querySelector('.piUnit'),price=row.querySelector('.piPrice');if(desc)desc.value=it.description;if(qtyEl)qtyEl.value=it.qty;if(unit)unit.value=it.unit;if(price)price.value=it.price});updatePurchaseTotal?.()}
+  }else{
+    const radio=document.querySelector('input[name="purchaseEntryMode"][value="Simplificada"]');if(radio){radio.checked=true;togglePurchaseEntryMode?.()}
+    const total=document.getElementById('purchaseSimpleTotal');if(total)total.value=q(d.total);
+    const desc=document.getElementById('purchaseSimpleDescription');if(desc)desc.value='Importado de foto/PDF/arquivo';
+    updatePurchaseTotal?.();
+  }
+  alert('A nota foi transformada em lançamento normal do programa. Confira os campos antes de salvar.');
+ },180);
 }
 function decorate(){
- const modal=document.getElementById('modal');if(!modal||document.getElementById('hlgbPurchaseImportBtn'))return;
- const heading=[...modal.querySelectorAll('h1,h2')].find(x=>/Lançar nota de compra|Editar nota de compra/i.test(x.textContent||''));if(!heading)return;
- const b=document.createElement('button');b.id='hlgbPurchaseImportBtn';b.type='button';b.className='secondary';b.textContent='📥 Importar foto / arquivo';b.style.margin='8px 0';b.onclick=openImporter;heading.insertAdjacentElement('afterend',b);
+ if(document.getElementById('hlgbPurchaseImportBtn'))return;
+ const headings=[...document.querySelectorAll('h1,h2,h3')],heading=headings.find(x=>/Lançar nota de compra|Editar nota de compra/i.test(x.textContent||''));if(!heading)return;
+ const root=heading.closest('.modalbox,[role="dialog"],#modal')||heading.parentElement;if(!root)return;
+ const b=document.createElement('button');b.id='hlgbPurchaseImportBtn';b.type='button';b.className='secondary';b.textContent='📥 Importar foto / PDF / Excel';b.style.margin='8px 0';b.onclick=openImporter;heading.insertAdjacentElement('afterend',b);
 }
 const oldNew=window.newPurchase;if(typeof oldNew==='function'&&!oldNew.__hlgbPurchaseImportV1){const w=function(){const r=oldNew.apply(this,arguments);setTimeout(decorate,50);return r};w.__hlgbPurchaseImportV1=true;window.newPurchase=w}
 window.hlgbPurchaseImportAnalyze=analyze;window.hlgbPurchaseImportApply=apply;window.hlgbPurchaseNoteImport={draft,parseItems,readFile,ensureSupplierProducts,openImporter,apply};
-setTimeout(decorate,1600);
-window.HLGB_PURCHASE_NOTE_IMPORT_GUARD=V;
+setTimeout(decorate,800);setInterval(decorate,1200);
+window.hlgbPurchaseImportDecorate=decorate;window.HLGB_PURCHASE_NOTE_IMPORT_GUARD=V;
 console.info('[HLGB] importação de nota de compra por foto/arquivo ativa');
 })();
