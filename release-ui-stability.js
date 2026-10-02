@@ -1,7 +1,7 @@
 /* HLGB audit — estabilidade visual global: agrupa redraws remotos sem atrasar acoes locais */
 (function(){
 'use strict';
-const V='v5-emergency-work';
+const V='v6-screen-stability-20261002';
 const QUIET_MS=420;
 const MAX_WAIT_MS=1200;
 const REMOTE_WINDOW_MS=1600;
@@ -48,7 +48,16 @@ const rendererPages={
  renderUsers:['usuarios','config'],
  renderCatalogs:['cadastros'],
  renderAuditLog:['config'],
- renderFinishedPieces:['pecasProntas']
+ renderFinishedPieces:['pecasProntas'],
+ renderSeparation:['separacao'],
+ renderSeparationList:['separacao'],
+ renderOrderNotes:['notas','pedidos'],
+ renderEmployeeAdvances:['folhaPagamento'],
+ renderReady934:['corte'],
+ renderFactionDelivery935:['faccoes'],
+ renderTracking9173:['corte','producao'],
+ renderFactionChecklists9176:['faccoes'],
+ renderFactionChecklists9198:['faccoes']
 };
 
 function activePage(){
@@ -156,7 +165,9 @@ function wrapRenderer(name){
   if(typeof fn!=='function'||fn.__hlgbUiStabilityV2)return false;
   const wrapped=function(){
     if(executingBatch)return fn.apply(this,arguments);
-    const background=isRemote()||!isUserDriven();
+    // Somente atualizações realmente remotas entram na fila anti-pulo.
+    // Ações locais e renders normais não devem reaparecer 420 ms depois do clique.
+    const background=isRemote();
     if(!background){renderStamp.set(name,Date.now());return fn.apply(this,arguments)}
     if(!relevant(name))return undefined;
     if(isEditing())return queueRender(name,fn,this,Array.from(arguments));
