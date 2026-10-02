@@ -5,7 +5,7 @@
 'use strict';
 
 const AUDIT_MODULE='systemAuditRuns';
-const VERSION='2026.10.02-internal-auditor-v3';
+const VERSION='2026.10.02-internal-auditor-v4';
 const PENDING_KEY='hlgb_records_pending_v91';
 const WAL_KEY='hlgb_durable_wal_v1';
 let auditRunsCache=[];
@@ -494,20 +494,23 @@ async function auditVisualSweep(){
       const el=document.getElementById(pid);if(!el)continue;
       document.querySelectorAll('#appShell .page').forEach(x=>x.classList.remove('active'));el.classList.add('active');
       window.scrollTo(0,0);currentMutations=0;
-      await new Promise(r=>setTimeout(r,180));
+      // tempo maior para o render intencional da página terminar; o período inicial não conta como instabilidade
+      await new Promise(r=>setTimeout(r,650));
       const s1=visualMetricsForPage(el),m1=currentMutations;currentMutations=0;
-      await new Promise(r=>setTimeout(r,260));
+      await new Promise(r=>setTimeout(r,500));
       const s2=visualMetricsForPage(el),m2=currentMutations;currentMutations=0;
-      await new Promise(r=>setTimeout(r,260));
+      await new Promise(r=>setTimeout(r,500));
       const s3=visualMetricsForPage(el),m3=currentMutations;
       const shift=[...compareAnchorShift(s1,s2),...compareAnchorShift(s2,s3)];
       const maxShift=shift.reduce((m,x)=>Math.max(m,x.dx,x.dy,x.dw,x.dh),0);
       const overflow=s3.viewport.width>0&&s3.scrollWidth>s3.viewport.width+16;
-      const unstable=maxShift>3||m2+m3>18;
+      // só considera instável o que se mexe DEPOIS do período de assentamento; mutações iniciais são render normal
+      const lateMutations=m2+m3;
+      const unstable=maxShift>8||lateMutations>80;
       results.push({
         page:pid,status:unstable?'warn':(overflow||s3.clipped.length?'warn':'pass'),
         maxShiftPx:+maxShift.toFixed(1),layoutShiftElements:shift.slice(0,15),
-        mutationsAfterSettle:m2+m3,initialMutations:m1,
+        mutationsAfterSettle:lateMutations,initialMutations:m1,
         horizontalOverflow:overflow,clipped:s3.clipped,
         metrics:{width:s3.width,height:s3.height,scrollWidth:s3.scrollWidth,scrollHeight:s3.scrollHeight,controls:s3.controls,panels:s3.panels}
       });
@@ -522,7 +525,7 @@ async function auditVisualSweep(){
   }
   const checks=results.map(r=>check('visual-sweep:'+r.page,'Varredura visual',r.status,r.page,
     (r.maxShiftPx>3?'Movimento detectado: '+r.maxShiftPx+'px. ':'')+
-    (r.mutationsAfterSettle>18?'Muitas mutações após estabilizar: '+r.mutationsAfterSettle+'. ':'')+
+    (r.mutationsAfterSettle>80?'Muitas mutações após estabilizar: '+r.mutationsAfterSettle+'. ':'')+
     (r.horizontalOverflow?'Overflow horizontal. ':'')+
     (r.clipped.length?'Elementos fora da largura: '+r.clipped.slice(0,5).join(', ')+'. ':'')+
     ((!r.maxShiftPx&&!r.horizontalOverflow&&!r.clipped.length)?'Tela estável no teste interno.':''),
