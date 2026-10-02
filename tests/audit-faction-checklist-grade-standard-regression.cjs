@@ -1,0 +1,12 @@
+const fs=require('fs'),vm=require('vm'),assert=require('assert'),path=require('path');
+const src=fs.readFileSync(path.join(__dirname,'..','release-faction-checklist-grade-standard.js'),'utf8');
+const loader=fs.readFileSync(path.join(__dirname,'..','app-stable3.html'),'utf8');
+assert(loader.includes("'release-faction-checklist-grade-standard.js'"));
+const context={console,db:{sizes:['P','M','G','GG'],materialChecklists:[{id:'k1',productId:'p1',qty:180,grade:[{productId:'p1',color:'Preto',size:'P',qty:30},{productId:'p1',color:'Preto',size:'M',qty:60},{productId:'p1',color:'Preto',size:'G',qty:60},{productId:'p1',color:'Preto',size:'GG',qty:30}]}],cuts:[],orders:[]},window:{},hlgbSortedSizes:()=>['P','M','G','GG']};
+vm.createContext(context);vm.runInContext(src,context);
+const api=context.window.hlgbFactionChecklistGrade;assert(api);
+const html=api.matrix(context.db.materialChecklists[0]);
+for(const x of ['Cor','P','M','G','GG','Total','Preto'])assert(html.includes(x),x+' missing');
+assert(!html.includes('<th>Tamanho</th>'));
+assert.equal(context.window.HLGB_FACTION_CHECKLIST_GRADE_GUARD,'2026.10.01-faction-checklist-grade-v1');
+console.log('PASS faction checklist grade: matrix follows cutter-sheet P/M/G/GG format.');
