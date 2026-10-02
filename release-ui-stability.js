@@ -1,7 +1,7 @@
 /* HLGB audit — estabilidade visual global: agrupa redraws remotos sem atrasar acoes locais */
 (function(){
 'use strict';
-const V='v3';
+const V='v4';
 const QUIET_MS=420;
 const MAX_WAIT_MS=1200;
 const REMOTE_WINDOW_MS=1600;
@@ -165,6 +165,29 @@ function wrapRenderer(name){
 }
 function installRenderers(){Object.keys(rendererPages).forEach(wrapRenderer)}
 
+const RENDER_COOLDOWN_MS=1400;
+const renderStamp=new Map();
+function allowGovernedRender(name){
+  const now=Date.now(),last=renderStamp.get(name)||0;
+  const user=isUserDriven();
+  if(user){renderStamp.set(name,now);return true}
+  if(now-last<RENDER_COOLDOWN_MS)return false;
+  renderStamp.set(name,now);return true;
+}
+function installRenderGovernor(){
+  for(const name of Object.keys(rendererPages)){
+    const fn=window[name];
+    if(typeof fn!=='function'||fn.__hlgbRenderGovernorV4)return;
+    const wrapped=function(){
+      if(!relevant(name))return undefined;
+      if(!allowGovernedRender(name))return undefined;
+      return fn.apply(this,arguments);
+    };
+    wrapped.__hlgbRenderGovernorV4=true;wrapped.__original=fn;window[name]=wrapped;
+  }
+}
+
+
 function wrapRemoteSource(name){
   const fn=window[name];
   if(typeof fn!=='function'||fn.__hlgbRemoteStabilityV2)return false;
@@ -182,12 +205,12 @@ if(typeof incoming==='function'&&!incoming.__hlgbUiStabilityV2){
 }
 
 ['hlgbHandleNormalizedRealtime','hlgbPullNormalizedCoreChanges','cloudPullRemoteIfNewer','hlgb948AuthoritativeRefresh'].forEach(wrapRemoteSource);
-installRenderers();
+installRenderers();installRenderGovernor();
 
 // Reinstala por poucos segundos porque alguns módulos antigos ainda substituem renderizadores no boot.
 let tries=0;
 const installTimer=setInterval(()=>{
-  tries++;installRenderers();
+  tries++;installRenderers();installRenderGovernor();
   ['hlgbHandleNormalizedRealtime','hlgbPullNormalizedCoreChanges','cloudPullRemoteIfNewer','hlgb948AuthoritativeRefresh'].forEach(wrapRemoteSource);
   if(tries>=40)clearInterval(installTimer);
 },250);
@@ -222,7 +245,7 @@ function finishPageSettle(token,target){
 function beginPageSettle(id){
   ensureSettleStyle();
   const target=document.getElementById(id);if(!target||!HEAVY_PAGES.has(id)){settleOverlay(false);return}
-  const token=++settleToken,started=Date.now(),MIN_MS=320,QUIET_MS=170,MAX_MS=950;
+  const token=++settleToken,started=Date.now(),MIN_MS=380,QUIET_MS=220,MAX_MS=1600;
   if(settleObserver){try{settleObserver.disconnect()}catch(e){}}
   if(settleTimer)clearTimeout(settleTimer);if(settleMaxTimer)clearTimeout(settleMaxTimer);
   target.classList.add('hlgb-page-settling');settleOverlay(true);
@@ -260,6 +283,8 @@ window.hlgbUiStabilityMarkRemote=markRemote;
 window.hlgbUiStabilityNoteInteraction=noteInteraction;
 window.hlgbUiStabilityPending=()=>[...queues.keys()];
 window.hlgbUiStabilityBeginPageSettle=beginPageSettle;
+window.hlgbUiStabilityRenderAllowed=allowGovernedRender;
+window.hlgbUiStabilityRenderCooldown=RENDER_COOLDOWN_MS;
 window.HLGB_UI_STABILITY_GUARD=V;
 console.info('[HLGB] estabilidade visual global '+V+' ativa — redraw remoto agrupado e posição preservada');
 })();
