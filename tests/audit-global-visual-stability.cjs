@@ -13,7 +13,7 @@ assert(current.includes("if(root.childNodes?.length)root.innerHTML=''"),'hidden 
 assert(notes.includes('function noteMutationRelevant(records)'),'note integrity must filter mutation records');
 assert(notes.includes('if(!noteMutationRelevant(records))return'),'note observer must ignore unrelated DOM mutations');
 
-assert(stability.includes("const V='v3'"),'UI stability v3 must remain active');
+assert(stability.includes("const V='v4'"),'UI stability v4 must remain active');
 const list=(loader.match(/const files=\[(.*?)\];const inj=/s)||[])[1]||'';
 assert(list.trim().endsWith("'release-ui-stability.js'"),'UI stability must load last');
 
