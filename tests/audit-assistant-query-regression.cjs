@@ -9,9 +9,16 @@ const priorityEl={value:'',dispatchEvent(){},focus(){}},statusEl={value:'',dispa
 const context={
   console,
   db:{
-    clients:[{id:'c1',name:'Gisele'}],
-    products:[{id:'p1',name:'Camisola Romantic',code:'CR01',price:15}],
-    orders:[{id:'o1',orderNumber:63,client:'Gisele',status:'Em produção',priority:'Urgente',date:'2026-09-30',total:1500,grade:[{productId:'p1',qty:100}]}],
+    clients:[{id:'c1',name:'Gisele'},{id:'c2',name:'Quézia'}],
+    products:[
+      {id:'p1',name:'Camisola Romantic',code:'CR01',price:15},
+      {id:'p2',name:'Camisola Liliane',code:'CL01',price:12.9},
+      {id:'p3',name:'Conjunto Selena',code:'CS01',price:17}
+    ],
+    orders:[
+      {id:'o1',orderNumber:63,client:'Gisele',status:'Em produção',priority:'Urgente',date:'2026-09-30',total:1500,grade:[{productId:'p1',qty:100}]},
+      {id:'o2',orderNumber:64,client:'Quézia',status:'Aguardando corte',priority:'Padrão',date:'2026-10-01',total:2000,grade:[{productId:'p2',qty:80},{productId:'p3',qty:40}]}
+    ],
     cuts:[{id:'cut1',orderId:'o1',productId:'p1'}],
     production:[{id:'prod1',orderId:'o1',productId:'p1',planned:100,done:60,productionLocationId:'loc1'}],
     productionLocations:[{id:'loc1',name:'Facção Teste'}],
@@ -118,6 +125,17 @@ assert.equal(issue.kind,'issue-intent','assistant must recognize error registrat
 const product=api.query('Camisola Romantic');
 assert.equal(product.kind,'product','must locate product by natural text');
 assert(product.text.includes('CR01'));
+
+const clientProducts=api.query('quais mercadorias foram pedidas por Quézia?');
+assert.equal(clientProducts.kind,'client-products','client merchandise query must stay scoped to that client');
+assert(clientProducts.text.includes('Camisola Liliane'));
+assert(clientProducts.text.includes('Conjunto Selena'));
+const onlyLiliane=api.query('só Liliane');
+assert.equal(onlyLiliane.kind,'client-product','short follow-up must reuse the last client context and filter the requested product');
+assert(onlyLiliane.text.includes('Camisola Liliane'));
+assert(!onlyLiliane.text.includes('Conjunto Selena'),'filtered follow-up must not repeat unrelated products');
+assert(src.includes('overflow-y:auto'),'assistant long answers must have vertical scrolling');
+assert(src.includes('resize:both'),'assistant modal must be resizable on desktop');
 
 console.log('PASS assistant query: lookup, diagnostics, internal audit, safe operational actions and protected unreleased writes.');
 })().catch(e=>{console.error(e);process.exit(1)});
