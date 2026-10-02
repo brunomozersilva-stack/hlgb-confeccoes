@@ -1,0 +1,10 @@
+const fs=require('fs'),vm=require('vm'),assert=require('assert'),path=require('path');
+const src=fs.readFileSync(path.join(__dirname,'..','release-assistant-order-import.js'),'utf8');
+const context={console,setTimeout(){return 0},db:{sizes:['P','M','G','GG'],colors:['Preto','Branco'],clients:[{id:'c1',name:'Quesia'}],products:[{id:'p1',name:'Camisola Liliane'}]},window:{},document:{getElementById(){return null}},hlgbSortedSizes:()=>['P','M','G','GG'],hlgbRecordCanWrite:()=>true};
+vm.createContext(context);vm.runInContext(src,context);
+const api=context.window.hlgbAssistantOrderImport;assert(api);
+const d=api.draftFromText('quero camisola liliane preta 10 10 10 10');
+assert.equal(d.clientId,'');assert(d.warnings.some(x=>/Cliente não informado/.test(x)));
+assert.equal(d.grade.length,4);assert.deepEqual(Array.from(d.grade.map(x=>x.size)),['P','M','G','GG']);assert.equal(d.grade.reduce((a,x)=>a+x.qty,0),40);assert(d.grade.every(x=>x.color==='Preto'));
+assert(src.includes('id="hlgbImportClient"'));assert.equal(context.window.HLGB_ASSISTANT_ORDER_IMPORT_GUARD,'2026.10.02-assistant-order-import-v3');
+console.log('PASS order import v3: unlabeled 10 10 10 10 maps to P/M/G/GG and only asks for missing client.');
