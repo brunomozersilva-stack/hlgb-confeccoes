@@ -172,15 +172,11 @@ function ensureImportButton(){
  const b=document.createElement('button');b.id='hlgbAssistantImportBtn';b.type='button';b.className='secondary';b.textContent='📥 Importar WhatsApp / PDF / Excel';b.onclick=()=>api.openImporter();
  const controls=document.getElementById('hlgbAssistantVoiceControls');(controls||input.parentElement)?.insertAdjacentElement('afterend',b);
 }
-function installAssistantTop(){
- const cur=window.hlgbAssistantAsk;if(typeof cur!=='function'||cur.__hlgbPolishV2)return;const base=cur;
- const w=function(){const raw=document.getElementById('hlgbAssistantInput')?.value||'',out=document.getElementById('hlgbAssistantAnswer');const g=gradeRequest(raw),c=cutsForRaw(raw),a=g||c;if(a&&out){out.innerHTML='<h3 style="margin-top:0">'+a.title+'</h3>'+a.text;return}return base.apply(this,arguments)};
- w.__hlgbPolishV2=true;w.__original=base;window.hlgbAssistantAsk=w;
-}
-function boot(){decorateSeparation();cleanProductTable();renderStockV2();decorateHubButtons();ensureImportButton();installAssistantTop()}
-setTimeout(boot,2200);setInterval(()=>{ensureImportButton();if(typeof window.hlgbAssistantAsk==='function'&&!window.hlgbAssistantAsk.__hlgbPolishV2)installAssistantTop()},1800);
+function assistantDirect(raw){return gradeRequest(raw)||cutsForRaw(raw)||null}
+function boot(){decorateSeparation();cleanProductTable();renderStockV2();decorateHubButtons();ensureImportButton()}
+setTimeout(boot,2200);setInterval(()=>{ensureImportButton();decorateHubButtons()},1800);
 try{if(typeof hlgbAfterLogin==='function')hlgbAfterLogin(()=>setTimeout(boot,1000),0)}catch(e){}
-window.hlgbOperationalPolish={matrix,decorateSeparation,renderStockV2,stockUnitValue,activeFactionNames,cutsForRaw,gradeRequest,ensureImportButton,cleanProductTable,renderHubFactionDetail};
+window.hlgbOperationalPolish={matrix,decorateSeparation,renderStockV2,stockUnitValue,activeFactionNames,cutsForRaw,gradeRequest,assistantDirect,ensureImportButton,cleanProductTable,renderHubFactionDetail};
 window.HLGB_OPERATIONAL_POLISH_GUARD=V;
 console.info('[HLGB] pacote operacional v2 ativo');
 })();
