@@ -4010,9 +4010,7 @@ function renderPayrollProvisions(){
 }
 
 function productionHubRows(){
-  // A visão da Produção deve vir dos registros reais de produção criados a partir dos cortes.
-  // Assim, local, etapa e previsão são os mesmos dados usados no operacional da produção.
-  syncFinalizedCutsToProduction();
+  // Visão somente leitura: reconciliação ocorre em ações de corte, nunca ao renderizar a tela.
   let rows=[];
   let validOrders=(db.orders||[]).filter(o=>!o.deletedAt&&!o.cancelledAt);
   let active=(db.production||[]).filter(p=>{
@@ -4157,7 +4155,7 @@ if(id==="cortadores"){renderCutters();if(typeof drawCutterChart==="function")dra
 if(id==="produtos")renderProducts();
 if(id==="pedidos"){renderOrders();fillSeparationOrders();renderOrderNotes();}
 if(id==="clientes"){ensureClientPotentialFilter();renderClients();renderClientPotentialReport();}
-if(id==="producao"){syncFinalizedCutsToProduction();renderProduction();}
+if(id==="producao"){renderProduction();}
 if(id==="faltas")renderMissingPieces();
 if(id==="devolucoesDefeitos")renderDefectReturns();
 if(id==="financeiro")renderFinance();
@@ -6611,7 +6609,7 @@ function hlgbProductionDone9196(p){
   return !!p?.finishedAt || !!p?.productionCompletedAt || st.includes('conclu') || (planned>0&&done>=planned);
 }
 function renderProduction(){
- syncFinalizedCutsToProduction();
+ // Somente leitura: não altera Produção ao abrir/renderizar.
  db.production=Array.isArray(db.production)?db.production:[];
  let f=document.getElementById("prodFilter")?.value||"";
  let arr=db.production.filter(p=>!hlgbProductionDone9196(p)&&(!f||p.stage===f));
@@ -12634,7 +12632,7 @@ function splitProduction(id){
  });
 }
 renderProduction=function(){
- syncFinalizedCutsToProduction();db.production=Array.isArray(db.production)?db.production:[];let f=document.getElementById("prodFilter")?.value||"",arr=db.production.filter(p=>!f||p.stage===f),el=document.getElementById("productionTable");if(!el)return;
+ // Somente leitura: não reconcilia durante renderização.db.production=Array.isArray(db.production)?db.production:[];let f=document.getElementById("prodFilter")?.value||"",arr=db.production.filter(p=>!f||p.stage===f),el=document.getElementById("productionTable");if(!el)return;
  let rows=arr.map(p=>{let ord=getOrderByProduction(p);return [esc(p.op||"-"),esc(p.client||ord?.client||"-"),esc(ord?orderProductSummary(ord):(p.product||"-")),(+p.planned||0).toLocaleString("pt-BR"),(+p.done||0).toLocaleString("pt-BR"),Math.max(0,(+p.planned||0)-(+p.done||0)).toLocaleString("pt-BR"),esc(productionDestinationName(p)),p.sentToFactionAt?fmtDate(p.sentToFactionAt):"-",p.factionDueDate?fmtDate(p.factionDueDate):"-",priorityBadge(ord?.priority||"Padrão"),`<span class="badge">${esc(p.stage||"Aguardando produção")}</span>`,`${ord?`<button class="secondary" onclick="viewOrderDetails(${ord.id})">Ver pedido</button> `:""}<button class="secondary" onclick="openProductionDestination(${p.id})">Definir local</button> <button class="secondary" onclick="splitProduction(${p.id})">↔ Dividir produção</button> <button class="secondary" onclick="advanceProd(${p.id})">+ produção</button>`]});
  el.innerHTML=rows.length?table(["OP","Cliente","Produto","Planejado","Produzido","Falta","Local de produção","Enviado em","Previsão entrega","Prioridade","Etapa","Ações"],rows):'<div class="empty">Nenhum corte finalizado aguardando produção.</div>';
 };
@@ -12904,7 +12902,7 @@ function syncFinalizedCutsToProduction(){
   return changed;
 }
 function hlgb916UnassignedProduction(){
-  syncFinalizedCutsToProduction();
+  // Consulta somente leitura.
   return (db.production||[]).filter(p=>p.cutId&&!p.productionLocationId&&!p.factionId&&!p.finishedAt&&(+p.planned||0)>0&&!["pronto","finalizado"].includes(hlgb916Norm(p.stage)));
 }
 function renderCutAssignmentQueue(){
@@ -13710,7 +13708,7 @@ function hubFinanceManualSync(){alert("O botão de sincronização está prepara
   };
 
   // Reconcilia uma vez depois que os dados multiusuário terminarem de carregar.
-  function boot927(){try{syncFinalizedCutsToProduction();renderCutAssignmentQueue();renderFactionAvailableModels();renderFactionPaymentPlanner()}catch(e){console.warn('HLGB v91.27 boot',e)}}
+  function boot927(){try{renderCutAssignmentQueue();renderFactionAvailableModels();renderFactionPaymentPlanner()}catch(e){console.warn('HLGB v91.27 boot',e)}}
   setTimeout(boot927,700);
   window.addEventListener('focus',()=>setTimeout(boot927,80));
 })();
@@ -13976,9 +13974,9 @@ function hubFinanceManualSync(){alert("O botão de sincronização está prepara
   function boot930(){ensure930();
     if(!document.getElementById('pecasProntas')){let prod=document.getElementById('producao'),sec=document.createElement('section');sec.id='pecasProntas';sec.className='page';sec.innerHTML=`<h1>✅ Peças prontas por confecção</h1><div class="sub">Livro diário independente da produção. Cada lançamento soma a produção da confecção sem criar nota, pedido ou movimentação de estoque.</div><div class="panel"><div class="toolbar" style="align-items:flex-end"><button class="primary" onclick="newFinishedPieces()">+ Lançar peças prontas</button><div class="field"><label>Data</label><input id="finishedPiecesDate" type="date" onchange="renderFinishedPieces()"></div><div class="field"><label>Confecção</label><select id="finishedPiecesLocation" onchange="renderFinishedPieces()"><option value="">Todas</option></select></div><div class="field"><label>Produto</label><input id="finishedPiecesSearch" placeholder="Buscar modelo" oninput="renderFinishedPieces()"></div></div></div><div id="finishedPiecesCards" class="cards"></div><div class="panel"><h2>Produção lançada no dia</h2><div id="finishedPiecesTable"></div></div>`;prod?.after(sec);let navBtn=[...document.querySelectorAll('.nav-group-title')].find(b=>n930(b.textContent).includes('producao'))?.parentElement?.querySelector('.nav-submenu');if(navBtn){let b=document.createElement('button');b.setAttribute('onclick',"page('pecasProntas',this)");b.textContent='Peças prontas';navBtn.insertBefore(b,navBtn.children[1]||null)}}
     let dc=document.getElementById('dailyCutDate')?.closest('.toolbar');if(dc&&!document.getElementById('dailyCutPlanner930')){let b=document.createElement('button');b.id='dailyCutPlanner930';b.type='button';b.className='primary';b.textContent='+ Programar corte';b.onclick=openDailyCutPlanner;dc.appendChild(b);let sub=dc.querySelector('.sub');if(sub)sub.textContent='Programação manual por data e cortador. Um corte só muda de dia quando você alterar a data.'}
-    vacationThirdField930();try{renderEmployeeAdvances()}catch(e){}try{renderOrderNotes()}catch(e){}try{syncFinalizedCutsToProduction();renderCutAssignmentQueue()}catch(e){}
+    vacationThirdField930();try{renderEmployeeAdvances()}catch(e){}try{renderOrderNotes()}catch(e){}try{renderCutAssignmentQueue()}catch(e){}
   }
-  setTimeout(boot930,900);window.addEventListener('focus',()=>setTimeout(()=>{try{syncFinalizedCutsToProduction();if(document.querySelector('.page.active')?.id==='pecasProntas')renderFinishedPieces()}catch(e){}},100));
+  setTimeout(boot930,900);window.addEventListener('focus',()=>setTimeout(()=>{try{if(document.querySelector('.page.active')?.id==='pecasProntas')renderFinishedPieces()}catch(e){}},100));
 })();
 </script>
 
@@ -16633,7 +16631,7 @@ async function cancelAutomaticMirrorDelete9240(e){
 
 function pendingSatisfied990(e,s){if(!s)return false;if(e.deleted===true)return !!s.deleted_at;if(s.deleted_at)return false;if(norm955(e.data)===norm955(s.data))return true;if(eqBusiness990(e.data,s.data))return true;if(e.baseData!==undefined&&e.baseData!==null)return deltaSatisfied990(e.baseData,e.data,s.data);return false}
 
-async function flush955(manual=false){if(flushBusy955)return false;flushBusy955=true;try{if(!rawSave955)install955();if(!cloudReady955()){try{if(typeof cloudEnsureFreshSession==='function')await cloudEnsureFreshSession(false)}catch(_){}try{if(!(typeof hlgbRecordReady!=='undefined'&&hlgbRecordReady)&&typeof hlgbEnsureRecordsOnlineAfterLogin==='function')await hlgbEnsureRecordsOnlineAfterLogin()}catch(_){}if(!cloudReady955()){update955();if(manual)alert('A nuvem ainda não está pronta. As alterações continuam protegidas localmente e serão reenviadas automaticamente.');return false}}const es=entries955().sort((a,b)=>String(a.createdAt).localeCompare(String(b.createdAt)));let changed=false;for(const e of es){const k=e.key,s=snap955(e.module,e.id);try{if(await cancelAutomaticMirrorDelete9240(e)){changed=true;continue}if(s&&pendingSatisfied990(e,s)){await ack955(k,{applied:true,alreadyApplied:true,updated_at:s.updated_at,revision:s.revision,deleted_at:s.deleted_at,data:C955(s.data)},C955(s.data));if(!e.deleted&&!s.deleted_at)applyData955(e.module,e.id,C955(s.data),false);continue}if(e.deleted){if(s?.deleted_at||(!s&&e.baseData)){await ack955(k,{applied:true,alreadyApplied:true},e.data);changed=true;continue}if(e.baseUpdatedAt&&s?.updated_at&&String(e.baseUpdatedAt)!==String(s.updated_at)){await fail955(k,new Error('O registro mudou em outra máquina depois desta exclusão. A exclusão foi bloqueada para evitar perda.'),'conflict');continue}const out=await rawSave955(e.module,e.id,C955(e.data),true);if(!out?.applied)throw new Error('Exclusão não confirmada pelo Supabase.');await ack955(k,out,e.data);applyData955(e.module,e.id,null,true);changed=true;continue}if(s&&!s.deleted_at&&norm955(s.data)===norm955(e.data)){await ack955(k,{applied:true,alreadyApplied:true,updated_at:s.updated_at},s.data);changed=true;continue}const latest=C955(s?.data??null);let payload=C955(e.data);if(latest&&e.baseData&&typeof cloudMergeThreeWay==='function'){try{payload=cloudMergeThreeWay(C955(e.baseData),C955(e.data),latest)}catch(_){payload={...latest,...C955(e.data)}}}else if(latest&&payload&&typeof payload==='object'&&!Array.isArray(payload))payload={...latest,...payload};const out=await rawSave955(e.module,e.id,payload,false);if(!out?.applied)throw new Error('Salvamento não confirmado pelo Supabase.');await ack955(k,out,out.data||payload);applyData955(e.module,e.id,C955(out.data||payload),false);changed=true}catch(err){await fail955(k,err,e.state==='conflict'?'conflict':'pending')}}if(changed){try{localSaveOnly()}catch(_){}}update955();return count955()===0}finally{flushBusy955=false}}
+async function flush955(manual=false){if(flushBusy955)return false;flushBusy955=true;try{if(!rawSave955)install955();if(!cloudReady955()){try{if(typeof cloudEnsureFreshSession==='function')await cloudEnsureFreshSession(false)}catch(_){}try{if(!(typeof hlgbRecordReady!=='undefined'&&hlgbRecordReady)&&typeof hlgbEnsureRecordsOnlineAfterLogin==='function')await hlgbEnsureRecordsOnlineAfterLogin()}catch(_){}if(!cloudReady955()){update955();if(manual)alert('A nuvem ainda não está pronta. As alterações continuam protegidas localmente e serão reenviadas automaticamente.');return false}}const es=entries955().filter(e=>manual||e.state!=='conflict').sort((a,b)=>String(a.createdAt).localeCompare(String(b.createdAt)));let changed=false;for(const e of es){const k=e.key,s=snap955(e.module,e.id);try{if(await cancelAutomaticMirrorDelete9240(e)){changed=true;continue}if(s&&pendingSatisfied990(e,s)){await ack955(k,{applied:true,alreadyApplied:true,updated_at:s.updated_at,revision:s.revision,deleted_at:s.deleted_at,data:C955(s.data)},C955(s.data));if(!e.deleted&&!s.deleted_at)applyData955(e.module,e.id,C955(s.data),false);continue}if(e.deleted){if(s?.deleted_at||(!s&&e.baseData)){await ack955(k,{applied:true,alreadyApplied:true},e.data);changed=true;continue}if(e.baseUpdatedAt&&s?.updated_at&&String(e.baseUpdatedAt)!==String(s.updated_at)){await fail955(k,new Error('O registro mudou em outra máquina depois desta exclusão. A exclusão foi bloqueada para evitar perda.'),'conflict');continue}const out=await rawSave955(e.module,e.id,C955(e.data),true);if(!out?.applied)throw new Error('Exclusão não confirmada pelo Supabase.');await ack955(k,out,e.data);applyData955(e.module,e.id,null,true);changed=true;continue}if(s&&!s.deleted_at&&norm955(s.data)===norm955(e.data)){await ack955(k,{applied:true,alreadyApplied:true,updated_at:s.updated_at},s.data);changed=true;continue}const latest=C955(s?.data??null);let payload=C955(e.data);if(latest&&e.baseData&&typeof cloudMergeThreeWay==='function'){try{payload=cloudMergeThreeWay(C955(e.baseData),C955(e.data),latest)}catch(_){payload={...latest,...C955(e.data)}}}else if(latest&&payload&&typeof payload==='object'&&!Array.isArray(payload))payload={...latest,...payload};const out=await rawSave955(e.module,e.id,payload,false);if(!out?.applied)throw new Error('Salvamento não confirmado pelo Supabase.');await ack955(k,out,out.data||payload);applyData955(e.module,e.id,C955(out.data||payload),false);changed=true}catch(err){await fail955(k,err,e.state==='conflict'?'conflict':'pending')}}if(changed){try{localSaveOnly()}catch(_){}}update955();return count955()===0}finally{flushBusy955=false}}
 window.hlgb955FlushNow=async()=>{try{if(typeof window.hlgb955ReconcileServer==='function')await window.hlgb955ReconcileServer()}catch(_){}return flush955(true)};
 window.hlgb955FlushSilent=async()=>{try{if(typeof window.hlgb955ReconcileServer==='function')await window.hlgb955ReconcileServer()}catch(_){}return flush955(false)};
 window.hlgb955PendingCount=()=>count955();
@@ -21816,16 +21814,11 @@ function syncFromEffectiveCut(){
 window.syncFinalizedCutsToProduction=syncFromEffectiveCut;
 window.hlgbSyncFinalizedCutsToProductionV9240=syncFromEffectiveCut;
 
-function run(){syncFromEffectiveCut();try{renderProduction?.()}catch(e){}}
-try{
-  if(typeof hlgbAfterLogin==='function')hlgbAfterLogin(()=>{setTimeout(syncFromEffectiveCut,700);setTimeout(syncFromEffectiveCut,2200)},0);
-  else {setTimeout(syncFromEffectiveCut,1000);setTimeout(syncFromEffectiveCut,2600);}
-}catch(e){}
-window.addEventListener('online',()=>setTimeout(syncFromEffectiveCut,300));
+// Reconciliação intencional: somente ações que realmente alteram/finalizam corte chamam esta rotina.
+// Abrir página, login, foco ou voltar online NÃO modifica Produção.
 setTimeout(()=>{
-  // Outros patches podem ter sido carregados depois; garante que esta versão fique por último.
+  // Garante apenas a referência correta, sem executar reconciliação automática.
   window.syncFinalizedCutsToProduction=syncFromEffectiveCut;
-  syncFromEffectiveCut();
 },4500);
 console.info('[HLGB] quantidade da produção vinculada ao corte efetivo '+V);
 })();
