@@ -98,6 +98,75 @@ function answerClient(term){
   const rows=orders.slice().sort((a,b)=>String(b.date||'').localeCompare(String(a.date||''))).slice(0,10);
   return {title:'Cliente: '+(names[0]||term),text:'Pedidos encontrados: <b>'+orders.length+'</b><br>'+rows.map(o=>'• #'+escSafe(orderNo(o))+' · '+escSafe(o.status||'-')+' · '+orderQty(o).toLocaleString('pt-BR')+' peças · '+moneySafe(orderValue(o))+(o.date?' · '+escSafe(fmt(o.date)):'')).join('<br>'),kind:'client'};
 }
+let hlgbAssistantContext={client:'',kind:''};
+function answerClientProductsScoped(raw){
+  const text=String(raw||'').trim(),n=norm(text);
+  const productWords=/(pedido|pedidos|mercadoria|mercadorias|produto|produtos|modelo|modelos)/.test(n);
+  const shortFollowup=!!hlgbAssistantContext.client && n.split(/\s+/).filter(Boolean).length<=4;
+  if(!productWords&&!shortFollowup)return null;
+
+  const known=[...arr('clients').map(x=>x?.name),...arr('orders').map(x=>x?.client)].filter(Boolean);
+  const names=[...new Set(known)].sort((a,b)=>String(b).length-String(a).length);
+  let chosen=names.find(name=>n.includes(norm(name)));
+  if(!chosen&&shortFollowup)chosen=hlgbAssistantContext.client;
+  if(!chosen)return null;
+
+  const target=norm(chosen);
+  const orders=arr('orders').filter(o=>norm(o?.client)===target||norm(o?.client).includes(target)||target.includes(norm(o?.client)));
+  if(!orders.length)return {title:'Cliente: '+chosen,text:'Não encontrei pedidos para <b>'+escSafe(chosen)+'</b>.',kind:'empty'};
+
+  const byProduct=new Map();
+  for(const o of orders){
+    const src=Array.isArray(o?.grade)?o.grade:Array.isArray(o?.items)?o.items:[];
+    for(const it of src){
+      const name=productName(it?.productId)||it?.product||it?.name||'Produto';
+      const key=norm(name),cur=byProduct.get(key)||{name,qty:0,orders:new Set()};
+      cur.qty+=q(it?.qty);cur.orders.add(String(orderNo(o)));byProduct.set(key,cur);
+    }
+  }
+  const rows=[...byProduct.values()].sort((a,b)=>String(a.name).localeCompare(String(b.name),'pt-BR'));
+  if(!rows.length)return {title:'Cliente: '+chosen,text:'Encontrei pedido(s) para <b>'+escSafe(chosen)+'</b>, mas sem produtos identificados.',kind:'client-products'};
+
+  const masterProducts=arr('products').map(p=>({id:sid(p?.id),name:String(p?.name||'').trim(),nn:norm(p?.name||'')})).filter(p=>p.name);
+  const significant=s=>norm(s).split(' ').filter(w=>w.length>=4&&!['pedido','pedidos','produto','produtos','modelo','modelos','mercadoria','mercadorias','cliente','camisola','conjunto','calcinha','body','short','doll','so','somente','apenas'].includes(w));
+  let mentioned=masterProducts.filter(p=>p.nn&&n.includes(p.nn));
+  if(!mentioned.length){
+    mentioned=masterProducts.filter(p=>{
+      const words=significant(p.name);
+      return words.length&&words.some(w=>n.includes(w));
+    });
+  }
+  if(mentioned.length){
+    mentioned.sort((a,b)=>b.nn.length-a.nn.length);
+    const targetProduct=mentioned[0],targetWords=significant(targetProduct.name);
+    const matches=rows.filter(r=>{
+      const rn=norm(r.name);
+      return rn===targetProduct.nn||rn.includes(targetProduct.nn)||targetProduct.nn.includes(rn)||
+        (targetWords.length&&targetWords.some(w=>rn.includes(w)));
+    });
+    hlgbAssistantContext={client:chosen,kind:'client-product'};
+    if(!matches.length)return {
+      title:'Pedido de '+targetProduct.name+' · '+chosen,
+      text:'Não encontrei pedido de <b>'+escSafe(targetProduct.name)+'</b> para <b>'+escSafe(chosen)+'</b>.',
+      kind:'client-product-empty',client:chosen,product:targetProduct.name,data:[]
+    };
+    return {
+      title:targetProduct.name+' · '+chosen,
+      text:matches.map(x=>'• <b>'+escSafe(x.name)+'</b> · '+x.qty.toLocaleString('pt-BR')+' peça(s)'+(x.orders.size?' · pedido(s) #'+[...x.orders].map(escSafe).join(', #'):'')).join('<br>'),
+      kind:'client-product',client:chosen,product:targetProduct.name,
+      data:matches.map(x=>({name:x.name,qty:x.qty,orders:[...x.orders]}))
+    };
+  }
+
+  // Só usa contexto em pergunta curta quando ela realmente parece um refinamento.
+  if(shortFollowup&&!productWords)return null;
+  hlgbAssistantContext={client:chosen,kind:'client-products'};
+  return {
+    title:'Mercadorias pedidas por '+chosen,
+    text:rows.map(x=>'• <b>'+escSafe(x.name)+'</b> · '+x.qty.toLocaleString('pt-BR')+' peça(s)'+(x.orders.size?' · pedido(s) #'+[...x.orders].map(escSafe).join(', #'):'')).join('<br>'),
+    kind:'client-products',client:chosen,data:rows.map(x=>({name:x.name,qty:x.qty,orders:[...x.orders]}))
+  };
+}
 function answerProduct(term){
   const n=norm(term);
   const products=arr('products').filter(p=>norm([p?.name,p?.code,p?.category].join(' ')).includes(n)).slice(0,10);
@@ -308,6 +377,11 @@ function query(raw){
   if(/(?:rodar|executar|fazer|iniciar).*(?:auditoria|teste do sistema)|(?:testar|auditar|varrer)\s+(?:o\s+)?sistema/.test(n))return prepareAuditAction();
   if(/\b(erros?|problemas?|falhas?)\b/.test(n))return answerProblems();
 
+  // Perguntas de mercadoria/pedido por cliente devem ficar restritas ao que foi pedido.
+  // Também permite refinamentos curtos como "só Liliane" após uma consulta de cliente.
+  const clientScoped=answerClientProductsScoped(original);
+  if(clientScoped)return clientScoped;
+
   // Busca literal de cliente/produto usando a frase inteira e, depois, palavras relevantes.
   const stop=new Set(['onde','esta','estao','quero','achar','buscar','procure','mostre','mostrar','cliente','produto','modelo','qual','tem','do','da','de','para','com','por','um','uma']);
   const terms=[original,...original.split(/\s+/).filter(w=>w.length>=3&&!stop.has(norm(w))).sort((a,b)=>b.length-a.length)];
@@ -318,7 +392,7 @@ function query(raw){
 function injectStyles(){
   if(document.getElementById('hlgbAssistantStyle'))return;
   const st=document.createElement('style');st.id='hlgbAssistantStyle';
-  st.textContent='.hlgb-assistant-btn{margin-left:6px}.hlgb-assistant-floating{position:fixed;right:18px;bottom:18px;z-index:9997;border-radius:999px;padding:11px 16px;box-shadow:0 4px 18px #0002}.hlgb-assistant-box{display:grid;gap:12px}.hlgb-assistant-input{display:flex;gap:8px;align-items:center}.hlgb-assistant-input input{flex:1;min-width:180px}.hlgb-assistant-answer{background:#fffafd;border:1px solid #eadde5;border-radius:14px;padding:14px;line-height:1.55}.hlgb-assistant-examples{display:flex;gap:6px;flex-wrap:wrap}.hlgb-assistant-examples button{font-size:12px}';
+  st.textContent='.hlgb-assistant-btn{margin-left:6px}.hlgb-assistant-floating{position:fixed;right:18px;bottom:18px;z-index:9997;border-radius:999px;padding:11px 16px;box-shadow:0 4px 18px #0002}.hlgb-assistant-modal{width:min(920px,94vw)!important;max-width:94vw!important;max-height:90vh!important;resize:both!important;overflow:auto!important}.hlgb-assistant-box{display:grid;gap:12px;min-height:0}.hlgb-assistant-input{display:flex;gap:8px;align-items:center;flex-wrap:wrap;position:sticky;top:0;z-index:2;background:var(--card,#fff);padding:4px 0}.hlgb-assistant-input input{flex:1;min-width:180px}.hlgb-assistant-answer{background:#fffafd;border:1px solid #eadde5;border-radius:14px;padding:14px;line-height:1.55;max-height:52vh;min-height:120px;overflow-y:auto;overscroll-behavior:contain;scrollbar-gutter:stable;resize:vertical}.hlgb-assistant-examples{display:flex;gap:6px;flex-wrap:wrap}.hlgb-assistant-examples button{font-size:12px}@media(max-width:700px){.hlgb-assistant-modal{width:96vw!important;max-width:96vw!important;resize:vertical!important}.hlgb-assistant-answer{max-height:55vh}}';
   document.head.appendChild(st);
 }
 function injectButton(){
@@ -340,7 +414,12 @@ function injectButton(){
 }
 function openAssistant(){
   openModal('🤖 Assistente HLGB','<div class="hlgb-assistant-box"><div class="sub">Pergunte sobre pedidos, clientes, produtos, entregas e erros. Ações liberadas sempre mostram uma prévia e pedem confirmação.</div><div class="hlgb-assistant-input"><input id="hlgbAssistantInput" placeholder="Ex.: onde está o pedido 63?" onkeydown="if(event.key===\'Enter\')hlgbAssistantAsk()"><button type="button" class="primary" onclick="hlgbAssistantAsk()">Perguntar</button></div><div class="hlgb-assistant-examples"><button type="button" class="secondary" onclick="hlgbAssistantExample(\'O que entrega hoje?\')">Entregas de hoje</button><button type="button" class="secondary" onclick="hlgbAssistantExample(\'O que entrega amanhã?\')">Entregas de amanhã</button><button type="button" class="secondary" onclick="hlgbAssistantExample(\'Quais erros estão abertos?\')">Erros abertos</button></div><div id="hlgbAssistantAnswer" class="hlgb-assistant-answer">Digite uma pergunta para começar.</div><button type="button" class="secondary modalSave">Fechar</button></div>',()=>closeModal());
-  setTimeout(()=>document.getElementById('hlgbAssistantInput')?.focus(),0);
+  setTimeout(()=>{
+    const input=document.getElementById('hlgbAssistantInput');
+    const modal=input?.closest?.('.modalbox');
+    if(modal)modal.classList.add('hlgb-assistant-modal');
+    input?.focus();
+  },0);
 }
 window.openHlgbAssistant=openAssistant;
 window.hlgbAssistantAsk=function(){
