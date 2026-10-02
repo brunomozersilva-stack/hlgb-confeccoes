@@ -2,6 +2,7 @@
 (function(){
 'use strict';
 const V='92.49-ops';
+window.HLGB_RELEASE_VERSION='92.49';
 const sid=v=>String(v??''), q=v=>Math.max(0,Number(v)||0);
 const escSafe=v=>typeof esc==='function'?esc(v):sid(v).replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
 const moneySafe=v=>{try{return Number(v||0).toLocaleString('pt-BR',{style:'currency',currency:'BRL'})}catch(e){return 'R$ '+Number(v||0).toFixed(2)}};
@@ -310,6 +311,7 @@ function refreshIncoming(module){
  if(module==='suppliers'&&document.querySelector('#revenda9235.page.active'))setTimeout(renderResaleEnhanced,60);
 }
 function boot(){
+ try{const v=document.querySelector('#appShell .logo small');if(v)v.textContent='v92.49';const lb=document.querySelector('#loginScreen b');if(lb&&/Versão/i.test(lb.textContent||''))lb.textContent='Versão v92.49';document.title='HLGB Confecções — Sistema de Gestão v92.49 Multiusuário'}catch(e){}
  ensureStyle();ensurePages();ensureNav();installResaleFix();enhanceAssistant();installAssistantGrade();scheduleAudit();
  if(document.querySelector('#revenda9235.page.active'))renderResaleEnhanced();
 }
