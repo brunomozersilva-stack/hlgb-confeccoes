@@ -157,8 +157,9 @@ function wrapRenderer(name){
   const wrapped=function(){
     if(executingBatch)return fn.apply(this,arguments);
     const background=isRemote()||!isUserDriven();
-    if(!background)return fn.apply(this,arguments);
+    if(!background){renderStamp.set(name,Date.now());return fn.apply(this,arguments)}
     if(!relevant(name))return undefined;
+    if(!allowGovernedRender(name))return undefined;
     return queueRender(name,fn,this,Array.from(arguments));
   };
   wrapped.__hlgbUiStabilityV2=true;wrapped.__original=fn;window[name]=wrapped;return true;
@@ -169,22 +170,9 @@ const RENDER_COOLDOWN_MS=1400;
 const renderStamp=new Map();
 function allowGovernedRender(name){
   const now=Date.now(),last=renderStamp.get(name)||0;
-  const user=isUserDriven();
-  if(user){renderStamp.set(name,now);return true}
+  if(isUserDriven()){renderStamp.set(name,now);return true}
   if(now-last<RENDER_COOLDOWN_MS)return false;
   renderStamp.set(name,now);return true;
-}
-function installRenderGovernor(){
-  for(const name of Object.keys(rendererPages)){
-    const fn=window[name];
-    if(typeof fn!=='function'||fn.__hlgbRenderGovernorV4)return;
-    const wrapped=function(){
-      if(!relevant(name))return undefined;
-      if(!allowGovernedRender(name))return undefined;
-      return fn.apply(this,arguments);
-    };
-    wrapped.__hlgbRenderGovernorV4=true;wrapped.__original=fn;window[name]=wrapped;
-  }
 }
 
 
@@ -205,12 +193,12 @@ if(typeof incoming==='function'&&!incoming.__hlgbUiStabilityV2){
 }
 
 ['hlgbHandleNormalizedRealtime','hlgbPullNormalizedCoreChanges','cloudPullRemoteIfNewer','hlgb948AuthoritativeRefresh'].forEach(wrapRemoteSource);
-installRenderers();installRenderGovernor();
+installRenderers();
 
 // Reinstala por poucos segundos porque alguns módulos antigos ainda substituem renderizadores no boot.
 let tries=0;
 const installTimer=setInterval(()=>{
-  tries++;installRenderers();installRenderGovernor();
+  tries++;installRenderers();
   ['hlgbHandleNormalizedRealtime','hlgbPullNormalizedCoreChanges','cloudPullRemoteIfNewer','hlgb948AuthoritativeRefresh'].forEach(wrapRemoteSource);
   if(tries>=40)clearInterval(installTimer);
 },250);
