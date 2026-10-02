@@ -1,0 +1,11 @@
+const fs=require('fs'),vm=require('vm'),assert=require('assert'),path=require('path');
+const src=fs.readFileSync(path.join(__dirname,'..','release-purchase-note-import.js'),'utf8');
+const loader=fs.readFileSync(path.join(__dirname,'..','app-stable3.html'),'utf8');
+assert(loader.includes("'release-purchase-note-import.js'"));
+const context={console,setTimeout(){return 0},setInterval(){return 0},db:{suppliers:[{id:'s1',name:'Fornecedor Teste',products:[]}]},window:{},document:{getElementById(){return null},querySelectorAll(){return []}},hlgbAfterLogin:null};
+vm.createContext(context);vm.runInContext(src,context);
+const api=context.window.hlgbPurchaseNoteImport;assert(api);
+const d=api.draft('Fornecedor Teste\nNota 12345\nData 01/10/2026\nVencimento 15/10/2026\nRenda Romantic\t10\tkg\t32,90\nValor total R$ 329,00');
+assert.equal(d.supplierName,'Fornecedor Teste');assert.equal(d.number,'12345');assert.equal(d.date,'2026-10-01');assert.equal(d.due,'2026-10-15');assert(d.total>=329);assert(d.items.length>=1);
+assert.equal(context.window.HLGB_PURCHASE_NOTE_IMPORT_GUARD,'2026.10.02-purchase-note-import-v2');
+console.log('PASS purchase import v2: file/text data becomes structured purchase draft with supplier, dates, items and total.');
