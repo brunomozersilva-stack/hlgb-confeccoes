@@ -2,7 +2,7 @@ name: HLGB Audit Regression
 
 on:
   push:
-    branches: [audit-work-20260915, sync-auditor-clean-20260930, hotfix-hub-tombstone-20261001, hotfix-render-governor-20261002]
+    branches: [audit-work-20260915, sync-auditor-clean-20260930, hotfix-hub-tombstone-20261001]
   workflow_dispatch:
 
 permissions:
