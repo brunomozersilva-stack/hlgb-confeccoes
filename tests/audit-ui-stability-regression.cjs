@@ -66,7 +66,7 @@ const ctx=vm.createContext({
 });
 vm.runInContext(src,ctx);
 
-assert.equal(window.HLGB_UI_STABILITY_GUARD,'v3');
+assert.equal(window.HLGB_UI_STABILITY_GUARD,'v4');
 window.hlgbRenderIncomingRecord('production');
 assert.equal(renders,0,'remote burst should not redraw immediately');
 assert.deepEqual(Array.from(window.hlgbUiStabilityPending()),['renderProduction']);
@@ -113,4 +113,4 @@ assert.equal(renders,3,'open modal must keep remote redraw deferred');
 modalOpen=false;flushTimers();
 assert.equal(renders,4,'queued redraw must execute after modal closes');
 
-console.log('PASS UI stability v3: bursts collapse, hidden redraws skip, manual redraws stay immediate, scroll survives without delayed double-jump, and edit/modal deferral flushes safely.');
+console.log('PASS UI stability v4: bursts collapse, hidden redraws skip, manual redraws stay immediate, scroll survives without delayed double-jump, and edit/modal deferral flushes safely.');
