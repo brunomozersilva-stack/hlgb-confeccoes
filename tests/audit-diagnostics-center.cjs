@@ -10,8 +10,8 @@ const context={
   console,
   db:{
     orders:[
-      {id:'o1',grade:[{productId:'p1'}]},
-      {id:'o2',grade:[{productId:'p1'},{productId:'p2'}]}
+      {id:'o1',orderNumber:'101',grade:[{productId:'p1'}]},
+      {id:'o2',orderNumber:'102',grade:[{productId:'p1'},{productId:'p2'}]}
     ],
     products:[{id:'p1'},{id:'p2'}],
     cuts:[
@@ -74,6 +74,12 @@ assert(!findings.some(x=>x.code==='cut-legacy-unlinked'&&String(x.description).i
 assert(findings.some(x=>x.code==='cut-product-missing'&&String(x.description).includes('c5')),'single-product active cut without productId must remain a real error');
 assert(findings.some(x=>x.code==='active-with-termination'),'scan must find active employee with termination date');
 assert(!findings.some(x=>String(x.description||'').includes('c2')&&x.code==='cut-order-missing'),'valid cut must not be reported as missing-order');
+
+assert(!findings.some(x=>x.code==='duplicate-order-number'),'different active order numbers must not be flagged as duplicates');
+context.db.orders.push({id:'o3',orderNumber:'102',grade:[{productId:'p1'}]});
+const duplicateOrderFindings=api.scanSystem();
+assert(duplicateOrderFindings.some(x=>x.code==='duplicate-order-number'&&String(x.description).includes('#102')),'duplicate active order number must be detected');
+context.db.orders.pop();
 
 const fp1=api.fingerprint(['same','record']);
 const fp2=api.fingerprint(['same','record']);
