@@ -473,11 +473,21 @@ function compareAnchorShift(a,b){
   }
   return moved;
 }
+
+function visualSweepOverlay9249(show){
+ let el=document.getElementById('hlgbVisualSweepOverlay9249');
+ if(show){
+   if(!el){el=document.createElement('div');el.id='hlgbVisualSweepOverlay9249';el.style.cssText='position:fixed;inset:0;z-index:2147483000;background:rgba(255,255,255,.96);display:flex;align-items:center;justify-content:center;text-align:center;padding:30px;color:#222';el.innerHTML='<div><div style="font-size:42px">🧪</div><h2>Testando as telas do HLGB</h2><p>Não use o sistema por alguns segundos.<br>Ao terminar, a tela anterior será restaurada automaticamente.</p></div>';document.body.appendChild(el)}
+   el.style.display='flex';
+ }else if(el)el.style.display='none';
+}
+
 async function auditVisualSweep(){
   const prior=document.querySelector('#appShell .page.active'),priorId=prior?.id||'',priorScroll={x:window.scrollX||0,y:window.scrollY||0},priorFocus=document.activeElement;
   const pages=visualTargetPages(),results=[],started=Date.now();
   let observer=null,currentMutations=0;
   try{
+    visualSweepOverlay9249(true);
     observer=new MutationObserver(list=>{currentMutations+=list.filter(m=>m.type==='childList'||m.type==='attributes').length});
     observer.observe(document.getElementById('appShell')||document.body,{subtree:true,childList:true,attributes:true,attributeFilter:['class','style','hidden']});
     for(const pid of pages){
@@ -504,6 +514,7 @@ async function auditVisualSweep(){
     }
   }finally{
     try{observer?.disconnect()}catch(_){}
+    visualSweepOverlay9249(false);
     document.querySelectorAll('#appShell .page').forEach(x=>x.classList.remove('active'));
     if(priorId&&document.getElementById(priorId))document.getElementById(priorId).classList.add('active');
     try{window.scrollTo(priorScroll.x,priorScroll.y)}catch(_){}
