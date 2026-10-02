@@ -1,7 +1,7 @@
 /* HLGB — Assistente: criação/edição protegida de pedidos */
 (function(){
 'use strict';
-const V='2026.10.01-assistant-orders-v1';
+const V='2026.10.01-assistant-orders-v2';
 const norm=v=>String(v??'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').trim().toLowerCase().replace(/\s+/g,' ');
 const sid=v=>String(v??'');
 function arr(n){try{return Array.isArray(db?.[n])?db[n]:[]}catch(e){return []}}
@@ -31,11 +31,24 @@ function dateFromText(text){
 function qtyFromText(text){
   const m=String(text||'').match(/(?:\b|^)(\d{1,6})\s*(?:pecas|peças|unidades|un\b)/i);return m?Math.max(0,+m[1]||0):0;
 }
+function gradePreview(grade){
+  if(!Array.isArray(grade)||!grade.length)return '';
+  const by={};
+  for(const g of grade){
+    const p=arr('products').find(x=>sid(x.id)===sid(g.productId)),key=sid(g.productId)+'|'+String(g.color||'-');
+    if(!by[key])by[key]={product:p?.name||'Produto',color:g.color||'-',sizes:{},total:0};
+    by[key].sizes[String(g.size||'-')]=(by[key].sizes[String(g.size||'-')]||0)+Math.max(0,+g.qty||0);by[key].total+=Math.max(0,+g.qty||0);
+  }
+  return Object.values(by).map(x=>'<b>'+x.product+'</b> · '+x.color+' · '+Object.entries(x.sizes).map(([s,n])=>s+' '+n).join(' · ')+' · total '+x.total).join('<br>');
+}
+function importedDraft(raw){
+  try{return window.hlgbAssistantOrderImport?.draftFromText?.(raw)||null}catch(e){return null}
+}
 function prepareCreate(raw){
   if(!canWriteOrders())return {kind:'order-permission',title:'Sem permissão para criar pedido',text:'Seu usuário não possui permissão de Pedidos. O Assistente não pode liberar uma ação que a sua conta não pode fazer manualmente.'};
-  const client=clientFromText(raw),product=productFromText(raw),priority=priorityFromText(raw),date=dateFromText(raw),qty=qtyFromText(raw);
-  const bits=[];if(client)bits.push('Cliente: <b>'+client.name+'</b>');if(product)bits.push('Produto: <b>'+product.name+'</b>');if(qty)bits.push('Quantidade mencionada: <b>'+qty+' peças</b>');if(date)bits.push('Entrega: <b>'+date+'</b>');if(priority)bits.push('Prioridade: <b>'+priority+'</b>');
-  return {kind:'order-create-action',title:'Criar novo pedido',text:(bits.length?bits.join('<br>'):'Vou abrir o formulário oficial de Novo pedido.')+'<br><br><b>Nada será salvo automaticamente.</b> Confira a grade, valores e dados e clique em Salvar pedido somente depois da revisão.',clientId:client?.id||'',productId:product?.id||'',priority,date,qty};
+  const d=importedDraft(raw),client=clientFromText(raw)||arr('clients').find(x=>sid(x.id)===sid(d?.clientId))||null,product=productFromText(raw),priority=priorityFromText(raw),date=dateFromText(raw)||d?.date||'',grade=Array.isArray(d?.grade)?d.grade:[],qty=grade.length?grade.reduce((a,x)=>a+Math.max(0,+x.qty||0),0):qtyFromText(raw);
+  const bits=[];if(client)bits.push('Cliente: <b>'+client.name+'</b>');if(product)bits.push('Produto: <b>'+product.name+'</b>');if(grade.length)bits.push('Grade reconhecida:<br>'+gradePreview(grade));else if(qty)bits.push('Quantidade mencionada: <b>'+qty+' peças</b>');if(date)bits.push('Entrega: <b>'+date+'</b>');if(priority)bits.push('Prioridade: <b>'+priority+'</b>');
+  return {kind:'order-create-action',title:'Criar novo pedido',text:(bits.length?bits.join('<br>'):'Vou abrir o formulário oficial de Novo pedido.')+'<br><br><b>Nada será salvo automaticamente.</b> Confira a grade, valores e dados e clique em Salvar pedido somente depois da revisão.',clientId:client?.id||'',productId:product?.id||'',priority,date,qty,grade};
 }
 function prepareEdit(number,raw){
   const o=findOrder(number);if(!o)return {kind:'empty',title:'Pedido não encontrado',text:'Não encontrei o pedido #'+sid(number)+'.'};
@@ -48,7 +61,13 @@ function prefillCreate(a){
   if(a.clientId){const e=document.getElementById('mclient');if(e){e.value=sid(a.clientId);try{e.dispatchEvent(new Event('change',{bubbles:true}))}catch(_){}}}
   if(a.date){const e=document.getElementById('mdate');if(e)e.value=a.date}
   if(a.priority){const e=document.getElementById('mpriority');if(e)e.value=a.priority}
-  if(a.productId){
+  if(Array.isArray(a.grade)&&a.grade.length){
+    const box=document.getElementById('orderMatrixBox');
+    if(box&&typeof orderMatrixProductBlock==='function'){
+      const groups={};for(const g of a.grade){const k=sid(g.productId);if(!groups[k])groups[k]=[];groups[k].push(g)}
+      box.innerHTML=Object.entries(groups).map(([pid,grade])=>orderMatrixProductBlock({productId:Number.isFinite(+pid)?+pid:pid,grade})).join('');
+    }
+  }else if(a.productId){
     const block=document.querySelector('.order-matrix-block'),sel=block?.querySelector('.matrixProduct'),p=arr('products').find(x=>sid(x.id)===sid(a.productId));
     if(sel&&p){
       sel.value=sid(p.id);
@@ -99,7 +118,7 @@ function enhanceAsk(){
 }
 window.hlgbAssistantOpenCreateOrder=function(){const a=window.__hlgbAssistantOrderPending;if(!a||a.kind!=='order-create-action')return;openCreate(a)};
 window.hlgbAssistantOpenEditOrder=function(){const a=window.__hlgbAssistantOrderPending;if(!a||a.kind!=='order-edit-action')return;openEdit(a)};
-window.hlgbAssistantOrders={parse,prepareCreate,prepareEdit,openCreate,openEdit,canWriteOrders,clientFromText,productFromText,dateFromText,priorityFromText,qtyFromText};
+window.hlgbAssistantOrders={parse,prepareCreate,prepareEdit,openCreate,openEdit,canWriteOrders,clientFromText,productFromText,dateFromText,priorityFromText,qtyFromText,gradePreview,importedDraft};
 function boot(){enhanceAsk()}try{if(typeof hlgbAfterLogin==='function')hlgbAfterLogin(()=>setTimeout(boot,500),0)}catch(e){}setTimeout(boot,900);
 window.HLGB_ASSISTANT_ORDERS_GUARD=V;
 console.info('[HLGB] Assistente: criação/edição protegida de pedidos ativa');
