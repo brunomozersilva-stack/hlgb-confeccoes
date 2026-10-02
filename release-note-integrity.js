@@ -90,7 +90,18 @@ function apply(){patchRenderer('renderNotes9200');patchRenderer('renderNotes9214
 // A lista v930 repete a lista canônica de entregas, sem ações próprias.
 // Ocultar somente esse bloco redundante; os registros permanecem no banco.
 const css=document.createElement('style');css.id='hlgb-note-integrity-style';css.textContent='#legacyNotes9223,.v930ProjectionNotes{display:none!important}';document.head.appendChild(css);
-let timer=null;const mo=new MutationObserver(()=>{clearTimeout(timer);timer=setTimeout(apply,20)});try{mo.observe(document.documentElement,{childList:true,subtree:true})}catch(e){}
+function noteMutationRelevant(records){
+ const selector='#legacyNotes9223,.v930ProjectionNotes,.nqSelect9202,[id^="noteQueue"],[id^="projectionInvoice"],[id*="Notes92"]';
+ for(const m of records||[]){
+  const nodes=[m.target,...(m.addedNodes||[]),...(m.removedNodes||[])];
+  for(const n of nodes){
+   const el=n?.nodeType===1?n:n?.parentElement;if(!el)continue;
+   try{if(el.matches?.(selector)||el.closest?.(selector)||el.querySelector?.(selector))return true}catch(e){}
+  }
+ }
+ return false;
+}
+let timer=null;const mo=new MutationObserver(records=>{if(!noteMutationRelevant(records))return;clearTimeout(timer);timer=setTimeout(apply,80)});try{mo.observe(document.documentElement,{childList:true,subtree:true})}catch(e){}
 const oldIncoming=window.hlgbRenderIncomingRecord;
 if(typeof oldIncoming==='function'&&!oldIncoming.__hlgbNoteIntegrityV1){const w=function(module){const r=oldIncoming.apply(this,arguments);if(['noteQueue','projectionInvoices','orders'].includes(module))setTimeout(apply,30);return r};w.__hlgbNoteIntegrityV1=true;window.hlgbRenderIncomingRecord=w}
 try{if(typeof hlgbAfterLogin==='function')hlgbAfterLogin(()=>[100,700,1800,3500].forEach(ms=>setTimeout(apply,ms)),0)}catch(e){}
