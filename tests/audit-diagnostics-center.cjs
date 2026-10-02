@@ -79,4 +79,15 @@ const fp1=api.fingerprint(['same','record']);
 const fp2=api.fingerprint(['same','record']);
 assert.equal(fp1,fp2,'fingerprint must be deterministic');
 
+const net=api.classifySaveError(new Error('Load failed'),'orders','o-net');
+assert.equal(net.kind,'network-save','Safari Load failed must be classified as network save failure');
+assert.equal(net.priority,'Alta','network save failure must not be marked as critical data corruption');
+const conflictErr=new Error('Conflito de edição'); conflictErr.code='HLGB_SAME_FIELD_CONFLICT'; conflictErr.paths=['materials','gradeV9198'];
+const protectedCls=api.classifySaveError(conflictErr,'materialChecklists','mc1');
+assert.equal(protectedCls.kind,'protected-conflict','same-field conflicts must remain protected conflicts');
+assert.equal(protectedCls.priority,'Alta','protected conflicts must not be marked as critical save failures');
+const hard=api.classifySaveError(new Error('Banco rejeitou gravação'),'orders','o-hard');
+assert.equal(hard.kind,'save','non-network/non-protected save errors must remain real save failures');
+assert.equal(hard.priority,'Crítica','real save failures must remain critical');
+
 console.log('PASS diagnostics center: loader, sanitizer, deterministic scan and integrity findings.');
