@@ -101,19 +101,33 @@ if(typeof oldDate==='function')window.changeProjectionRemainingDate=function(){c
 /* 4) O painel legado de cortes ocultos não deve voltar a aparecer. */
 function suppressHiddenCutsPanel(){
   const root=document.getElementById('hlgbHiddenCuts9239');if(!root)return;
-  root.style.setProperty('display','none','important');root.setAttribute('aria-hidden','true');root.innerHTML='';
+  if(root.style.getPropertyValue('display')!=='none'||root.style.getPropertyPriority('display')!=='important')root.style.setProperty('display','none','important');
+  if(root.getAttribute('aria-hidden')!=='true')root.setAttribute('aria-hidden','true');
+  if(root.childNodes?.length)root.innerHTML='';
 }
 const oldHiddenCutsRenderer=window.renderHiddenCuts9239;
 if(typeof oldHiddenCutsRenderer==='function')window.renderHiddenCuts9239=function(){suppressHiddenCutsPanel();return false};
 
 /* 5) Mantém a sessão visualmente estável no refresh. */
-function normalizeAuth(){const loader=document.getElementById('sessionLoader'),login=document.getElementById('loginScreen'),app=document.getElementById('appShell');if(!loader||!login||!app)return;if(app.style.display==='block'){loader.style.display='none';login.style.display='none'}}
-function repair(){stamp();normalizeAuth();removeChecklistGradeColumn();repairMainFactionTable();enhanceDateModal();suppressHiddenCutsPanel()}
+function normalizeAuth(){const loader=document.getElementById('sessionLoader'),login=document.getElementById('loginScreen'),app=document.getElementById('appShell');if(!loader||!login||!app)return;if(app.style.display==='block'){if(loader.style.display!=='none')loader.style.display='none';if(login.style.display!=='none')login.style.display='none'}}
+function repairDynamic(){removeChecklistGradeColumn();repairMainFactionTable();enhanceDateModal();suppressHiddenCutsPanel()}
+function repair(){stamp();normalizeAuth();repairDynamic()}
 const oldRenderFactions=window.renderFactions;
 if(typeof oldRenderFactions==='function')window.renderFactions=function(){const r=oldRenderFactions.apply(this,arguments);setTimeout(()=>{repairMainFactionTable();removeChecklistGradeColumn();renderFactionDeliveryExact()},120);return r};
 
 document.addEventListener('click',function(e){const b=e.target?.closest?.('button');if(!b||!norm(b.textContent).includes('registrar falta'))return;const root=b.closest('#factionTable,#factionDeliveryTable935');if(!root)return;const id=b.dataset.factionId||idFromRow(b.closest('tr'));if(!id)return;e.preventDefault();e.stopImmediatePropagation();exactMissing(id)},true);
-let pending=false;const obs=new MutationObserver(()=>{if(pending)return;pending=true;setTimeout(()=>{pending=false;repair()},35)});
+function releaseMutationRelevant(records){
+  const selector='#factionTable,#factionChecklistTable9176,#projectionRemainingNewDate,#hlgbHiddenCuts9239';
+  for(const m of records||[]){
+    const nodes=[m.target,...(m.addedNodes||[]),...(m.removedNodes||[])];
+    for(const n of nodes){
+      const el=n?.nodeType===1?n:n?.parentElement;if(!el)continue;
+      try{if(el.matches?.(selector)||el.closest?.(selector)||el.querySelector?.(selector))return true}catch(e){}
+    }
+  }
+  return false;
+}
+let pending=false;const obs=new MutationObserver(records=>{if(!releaseMutationRelevant(records)||pending)return;pending=true;setTimeout(()=>{pending=false;repairDynamic()},80)});
 function boot(){repair();renderFactionDeliveryExact();try{obs.observe(document.body,{childList:true,subtree:true})}catch(e){};let n=0;const iv=setInterval(()=>{stamp();if(++n>=32)clearInterval(iv)},250)}
 try{if(typeof hlgbAfterLogin==='function')hlgbAfterLogin(()=>{setTimeout(()=>{repair();renderFactionDeliveryExact()},80);setTimeout(repair,500);setTimeout(repair,1400);setTimeout(repair,5200)},0)}catch(e){}
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',boot,{once:true});else boot();
