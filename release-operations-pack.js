@@ -137,8 +137,64 @@ function renderRoutes(){
 }
 function routeStopHtml(stop,i){
  const locs=routeLocations(),opts=locs.map((x,j)=>'<option value="'+j+'" '+(sid(stop?.locationId)===sid(x.id)&&sid(stop?.type)===sid(x.type)?'selected':'')+'>'+escSafe(x.type+' — '+x.name)+'</option>').join('');
- return '<div class="ops-route-stop" data-i="'+i+'"><div class="grid"><div class="field"><label>Local</label><select class="ops-route-loc">'+opts+'</select></div><div class="field"><label>Observações</label><input class="ops-route-note" value="'+escSafe(stop?.notes||'')+'"></div></div><div class="grid"><div class="field"><label>LEVAR — um item por linha</label><textarea class="ops-route-carry" rows="5">'+escSafe((stop?.carry||[]).join('\n'))+'</textarea></div><div class="field"><label>BUSCAR — um item por linha</label><textarea class="ops-route-pickup" rows="5">'+escSafe((stop?.pickup||[]).join('\n'))+'</textarea></div></div><button type="button" class="danger" onclick="this.closest(\'.ops-route-stop\').remove()">Remover parada</button></div>';
+ return '<div class="ops-route-stop" data-i="'+i+'"><div class="grid"><div class="field"><label>Local</label><select class="ops-route-loc" onchange="routeLocationChanged9249(this)">'+opts+'</select></div><div class="field"><label>Observações</label><input class="ops-route-note" value="'+escSafe(stop?.notes||'')+'"></div></div><div class="ops-route-assigned" style="margin:8px 0"></div><div class="grid"><div class="field"><label>LEVAR — um item por linha</label><textarea class="ops-route-carry" rows="5">'+escSafe((stop?.carry||[]).join('\n'))+'</textarea></div><div class="field"><label>BUSCAR — um item por linha</label><textarea class="ops-route-pickup" rows="5">'+escSafe((stop?.pickup||[]).join('\n'))+'</textarea></div></div><button type="button" class="danger" onclick="this.closest(\'.ops-route-stop\').remove()">Remover parada</button></div>';
 }
+
+function routeOrderNo9249(o){try{return typeof displayOrderNumber==='function'?displayOrderNumber(o):o?.id}catch(e){return o?.id}}
+function routeProductName9249(p){
+ const prod=arr('products').find(x=>sid(x.id)===sid(p?.productId));
+ return prod?.name||p?.product||'Produto';
+}
+function routeAssignedProducts9249(loc){
+ if(!loc)return {active:[],planned:[]};
+ const active=[],planned=[],seen=new Set();
+ const prods=arr('production').filter(p=>{
+   if(loc.type==='Facção')return sid(p.factionId)===sid(loc.id);
+   return !p.factionId&&sid(p.productionLocationId)===sid(loc.id);
+ });
+ for(const p of prods){
+   const qty=Math.max(0,q(p.planned)-q(p.done));
+   if(qty<=0||/finalizado|pronto/i.test(sid(p.stage))&&q(p.done)>=q(p.planned))continue;
+   const o=arr('orders').find(x=>sid(x.id)===sid(p.orderId)),name=routeProductName9249(p),key='P|'+sid(p.id);
+   if(seen.has(key))continue;seen.add(key);
+   active.push({orderNo:o?routeOrderNo9249(o):'',product:name,qty,stage:p.stage||'Em produção',op:p.op||''});
+ }
+ const assignments=arr('capacityAssignments').filter(a=>{
+   if(a?.active===false)return false;
+   if(loc.type==='Facção')return sid(a.factionId)===sid(loc.id);
+   return sid(a.locationId)===sid(loc.id)&&!a.factionId;
+ });
+ for(const a of assignments){
+   const o=arr('orders').find(x=>sid(x.id)===sid(a.orderId));if(!o)continue;
+   let item=null;try{item=(typeof projectionItemsForOrder==='function'?(projectionItemsForOrder(o)||[]):[]).find(x=>sid(x.key)===sid(a.itemKey)||sid(x.productId)===sid(a.itemKey))}catch(e){}
+   const pid=item?.productId||a.productId||null,name=item?.name||arr('products').find(x=>sid(x.id)===sid(pid))?.name||'Produto';
+   const already=prods.some(p=>sid(p.orderId)===sid(o.id)&&sid(p.productId)===sid(pid)&&((loc.type==='Facção'&&sid(p.factionId)===sid(loc.id))||(loc.type!=='Facção'&&!p.factionId&&sid(p.productionLocationId)===sid(loc.id))));
+   const remain=Math.max(0,q(a.qty)-q(a.consumedQty));
+   if(remain>0&&!already)planned.push({orderNo:routeOrderNo9249(o),product:name,qty:remain,stage:'Planejado para o local'});
+ }
+ return {active,planned};
+}
+function routeAssignedLine9249(x){
+ return (x.orderNo?'Pedido #'+x.orderNo+' — ':'')+x.product+' — '+Math.floor(q(x.qty)).toLocaleString('pt-BR')+' pç';
+}
+window.routeLocationChanged9249=function(select){
+ const stop=select?.closest('.ops-route-stop');if(!stop)return;
+ const loc=routeLocations()[+select.value],box=stop.querySelector('.ops-route-assigned'),carry=stop.querySelector('.ops-route-carry'),pickup=stop.querySelector('.ops-route-pickup');
+ if(!loc){if(box)box.innerHTML='';return}
+ const data=routeAssignedProducts9249(loc),activeLines=data.active.map(routeAssignedLine9249),plannedLines=data.planned.map(routeAssignedLine9249);
+ if(box){
+   const a=data.active.length?data.active.map(x=>'<div>• '+escSafe(routeAssignedLine9249(x))+' <span class="ops-muted">('+escSafe(x.stage)+')</span></div>').join(''):'<div class="ops-muted">Nenhum produto em produção neste local.</div>';
+   const p=data.planned.length?'<div style="margin-top:7px"><b>Planejado para levar</b>'+data.planned.map(x=>'<div>• '+escSafe(routeAssignedLine9249(x))+'</div>').join('')+'</div>':'';
+   box.innerHTML='<div class="panel" style="margin:0;background:#f8fafc"><b>📦 Produtos atribuídos a '+escSafe(loc.name)+'</b><div style="margin-top:6px">'+a+'</div>'+p+'</div>';
+ }
+ if(pickup&&(!pickup.value.trim()||pickup.dataset.autoRoute9249==='1')){
+   pickup.value=activeLines.join('\n');pickup.dataset.autoRoute9249='1';
+ }
+ if(carry&&(!carry.value.trim()||carry.dataset.autoRoute9249==='1')){
+   carry.value=plannedLines.join('\n');carry.dataset.autoRoute9249='1';
+ }
+};
+
 function openRouteEditor(r){
  window.__opsRouteStops9249=clone(r?.stops||[]);
  const body='<div class="grid"><div class="field"><label>Data</label><input id="opsRouteDate" type="date" value="'+escSafe(r?.date||today())+'"></div><div class="field"><label>Responsável / motorista</label><input id="opsRouteDriver" value="'+escSafe(r?.driver||'')+'"></div><div class="field"><label>Status</label><select id="opsRouteStatus"><option>Planejada</option><option>Em rota</option><option>Concluída</option></select></div></div><div class="field"><label>Anotações gerais</label><textarea id="opsRouteGeneral" rows="3">'+escSafe(r?.notes||'')+'</textarea></div><div id="opsRouteStops">'+(r?.stops||[]).map(routeStopHtml).join('')+'</div><button type="button" class="secondary" onclick="addRouteStop9249()">+ Adicionar parada</button><button class="primary modalSave">Salvar rota</button>';
@@ -149,10 +205,11 @@ function openRouteEditor(r){
    try{await saveRow('routePlans',row);closeModal();renderRoutes()}catch(e){alert('Não foi possível salvar a rota: '+(e?.message||e))}
  });
  const st=document.getElementById('opsRouteStatus');if(st&&r?.status)st.value=r.status;
+ setTimeout(()=>{document.querySelectorAll('#opsRouteStops .ops-route-loc').forEach(sel=>window.routeLocationChanged9249?.(sel))},40);
 }
 window.newRoute9249=()=>openRouteEditor(null);
 window.editRoute9249=id=>{const r=arr('routePlans').find(x=>sid(x.id)===sid(id));if(r)openRouteEditor(r)};
-window.addRouteStop9249=function(){const host=document.getElementById('opsRouteStops');if(host)host.insertAdjacentHTML('beforeend',routeStopHtml({},host.children.length))};
+window.addRouteStop9249=function(){const host=document.getElementById('opsRouteStops');if(host){host.insertAdjacentHTML('beforeend',routeStopHtml({},host.children.length));const sel=host.lastElementChild?.querySelector('.ops-route-loc');if(sel)window.routeLocationChanged9249?.(sel)}};
 window.deleteRoute9249=async function(id){const r=arr('routePlans').find(x=>sid(x.id)===sid(id));if(!r||!confirm('Excluir esta rota?'))return;try{await saveRow('routePlans',r,true);renderRoutes()}catch(e){alert('Não foi possível excluir: '+(e?.message||e))}};
 function printHtml(title,html,css){
  const w=window.open('','_blank');if(!w){alert('Permita pop-ups para imprimir.');return}
