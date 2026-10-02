@@ -10,8 +10,8 @@ const context={
   console,
   db:{
     orders:[
-      {id:'o1',grade:[{productId:'p1'}]},
-      {id:'o2',grade:[{productId:'p1'},{productId:'p2'}]}
+      {id:'o1',orderNumber:'101',grade:[{productId:'p1'}]},
+      {id:'o2',orderNumber:'102',grade:[{productId:'p1'},{productId:'p2'}]}
     ],
     products:[{id:'p1'},{id:'p2'}],
     cuts:[
@@ -75,8 +75,29 @@ assert(findings.some(x=>x.code==='cut-product-missing'&&String(x.description).in
 assert(findings.some(x=>x.code==='active-with-termination'),'scan must find active employee with termination date');
 assert(!findings.some(x=>String(x.description||'').includes('c2')&&x.code==='cut-order-missing'),'valid cut must not be reported as missing-order');
 
+assert(!findings.some(x=>x.code==='duplicate-order-number'),'different active order numbers must not be flagged as duplicates');
+context.db.orders.push({id:'o3',orderNumber:'102',grade:[{productId:'p1'}]});
+const duplicateOrderFindings=api.scanSystem();
+assert(duplicateOrderFindings.some(x=>x.code==='duplicate-order-number'&&String(x.description).includes('#102')),'duplicate active order number must be detected');
+context.db.orders.pop();
+
 const fp1=api.fingerprint(['same','record']);
 const fp2=api.fingerprint(['same','record']);
 assert.equal(fp1,fp2,'fingerprint must be deterministic');
+
+const net=api.classifySaveError(new Error('Load failed'),'orders','o-net');
+assert.equal(net.kind,'network-save','Safari Load failed must be classified as network save failure');
+assert.equal(net.priority,'Alta','network save failure must not be marked as critical data corruption');
+const conflictErr=new Error('Conflito de edição'); conflictErr.code='HLGB_SAME_FIELD_CONFLICT'; conflictErr.paths=['materials','gradeV9198'];
+const protectedCls=api.classifySaveError(conflictErr,'materialChecklists','mc1');
+assert.equal(protectedCls.kind,'protected-conflict','same-field conflicts must remain protected conflicts');
+const legacyProd=api.classifySaveError(new Error('Conflito ao salvar production. Atualize e tente novamente.'),'production','p1');
+assert.equal(legacyProd.kind,'protected-conflict','legacy production conflict text must be recognized even without error code');
+const legacyCut=new Error('Falha ao salvar cuts');
+legacyCut.stack='conflictError@http://localhost/release-record-integrity.js:172:21\nsafeMerge@http://localhost/release-record-integrity.js:229:126';
+assert.equal(api.classifySaveError(legacyCut,'cuts','c1').kind,'protected-conflict','legacy cut conflict stack must be recognized without code');
+const hard=api.classifySaveError(new Error('Banco rejeitou gravação'),'orders','o-hard');
+assert.equal(hard.kind,'save','non-network/non-protected save errors must remain real save failures');
+assert.equal(hard.priority,'Crítica','real save failures must remain critical');
 
 console.log('PASS diagnostics center: loader, sanitizer, deterministic scan and integrity findings.');
