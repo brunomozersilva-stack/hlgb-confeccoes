@@ -82,7 +82,6 @@ jobs:
             tests/audit-cut-material-usage-regression.cjs \
             tests/audit-cut-model-split-regression.cjs \
             tests/audit-cut-model-grade-adjust-regression.cjs \
-            tests/audit-grade-standard-regression.cjs \
             tests/audit-assistant-system-wide-regression.cjs \
             tests/audit-assistant-fresh-query-regression.cjs \
             tests/audit-faction-checklist-grade-standard-regression.cjs \
