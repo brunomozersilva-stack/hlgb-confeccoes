@@ -228,11 +228,11 @@ window.editPackaging9249=function(id){
 let histDraft9249=[];
 function parseHistLine(line){
  const p=line.split(/[;\t]/).map(x=>x.trim());if(p.length<3)return null;
- return {client:p[0]||'',product:p[1]||'',qty:Math.floor(q(p[2])),date:p[3]||today(),value:q(String(p[4]||'').replace(',','.')),status:'Prévia'};
+ return {client:p[0]||'',product:p[1]||'',qty:Math.floor(q(p[2])),date:p[3]||today(),value:q(String(p[4]||'').replace(',','.')),orderNo:p[5]||'',status:'Prévia'};
 }
 function renderHistorical(){
  const h=document.getElementById('regularizacao9249Host');if(!h)return;
- h.innerHTML='<div class="panel"><h3>Importar lista para conferência</h3><div class="sub">Cole uma linha por item no formato: Cliente ; Produto ; Quantidade ; Data ; Valor. Nada é alterado até você confirmar.</div><textarea id="opsHistPaste" rows="8" style="width:100%" placeholder="Quézia; Camisola Romantic; 100; 2026-09-15; 1290"></textarea><div class="toolbar"><button class="secondary" onclick="previewHistorical9249()">Gerar prévia</button><button class="primary" onclick="applyHistorical9249()">Confirmar regularização</button></div></div><div id="opsHistPreview"></div>';
+ h.innerHTML='<div class="panel"><h3>Importar lista para conferência</h3><div class="sub">Cole uma linha por item no formato: Cliente ; Produto ; Quantidade ; Data ; Valor ; Pedido (opcional). Nada é alterado até você confirmar.</div><textarea id="opsHistPaste" rows="8" style="width:100%" placeholder="Quézia; Camisola Romantic; 100; 2026-09-15; 1290; 87"></textarea><div class="toolbar"><button class="secondary" onclick="previewHistorical9249()">Gerar prévia</button><button class="primary" onclick="applyHistorical9249()">Confirmar regularização</button></div></div><div id="opsHistPreview"></div>';
  renderHistPreview();
 }
 window.previewHistorical9249=function(){histDraft9249=sid(document.getElementById('opsHistPaste')?.value).split(/\n+/).map(parseHistLine).filter(x=>x&&x.qty>0);renderHistPreview()};
@@ -241,14 +241,38 @@ function findProductByName(n){const k=sid(n).toLowerCase();return arr('products'
 function renderHistPreview(){
  const box=document.getElementById('opsHistPreview');if(!box)return;
  const rows=histDraft9249.map((x,i)=>{const c=findClientByName(x.client),p=findProductByName(x.product),ok=!!(c&&p);return '<tr><td>'+(i+1)+'</td><td>'+escSafe(x.client)+(c?' ✅':' ⚠️')+'</td><td>'+escSafe(x.product)+(p?' ✅':' ⚠️')+'</td><td>'+x.qty+'</td><td>'+escSafe(x.date)+'</td><td>'+moneySafe(x.value)+'</td><td>'+(ok?'Pronto para confirmar':'Corrija cliente/produto')+'</td></tr>'}).join('');
- box.innerHTML=rows?'<div class="panel"><h3>Prévia — nenhuma alteração feita ainda</h3><div class="ops-table"><table><thead><tr><th>#</th><th>Cliente</th><th>Produto</th><th>Qtd.</th><th>Data</th><th>Valor</th><th>Conferência</th></tr></thead><tbody>'+rows+'</tbody></table></div><div class="sub">Ao confirmar, o item entra na Montagem de Notas como entrega histórica. O corte histórico não recebe cortador automaticamente.</div></div>':'';
+ box.innerHTML=rows?'<div class="panel"><h3>Prévia — nenhuma alteração feita ainda</h3><div class="ops-table"><table><thead><tr><th>#</th><th>Cliente</th><th>Produto</th><th>Qtd.</th><th>Data</th><th>Valor</th><th>Pedido</th><th>Conferência</th></tr></thead><tbody>'+rows+'</tbody></table></div><div class="sub">Ao confirmar, o item entra na Montagem de Notas como entrega histórica. O corte histórico não recebe cortador automaticamente.</div></div>':'';
+}
+
+function displayOrderNo9249(o){try{return typeof displayOrderNumber==='function'?sid(displayOrderNumber(o)):sid(o?.orderNumber||o?.number||o?.id)}catch(e){return sid(o?.orderNumber||o?.number||o?.id)}}
+async function reconcileHistoricalOrder9249(x,c,p){
+ if(!x.orderNo)return {linked:false};
+ const o=arr('orders').find(z=>displayOrderNo9249(z)===sid(x.orderNo)||sid(z.id)===sid(x.orderNo));
+ if(!o)throw new Error('Pedido '+x.orderNo+' não encontrado para '+c.name+'.');
+ if(sid(o.clientId)!==sid(c.id)&&sid(o.client).toLowerCase()!==sid(c.name).toLowerCase())throw new Error('O pedido '+x.orderNo+' não pertence ao cliente '+c.name+'.');
+ let cut=arr('cuts').find(z=>sid(z.orderId)===sid(o.id)&&sid(z.productId)===sid(p.id)&&z.historical===true);
+ if(!cut){
+   cut={id:Date.now()+Math.floor(Math.random()*900000),orderId:o.id,productId:p.id,client:c.name,product:p.name,pieces:x.qty,status:'Finalizado',finishedAt:x.date,finishedAtTime:new Date().toISOString(),historical:true,noCutterAssignment:true,cutterId:null,cutterName:'',cutAdjustmentNote:'Regularização histórica sem atribuição de cortador'};
+   cut=await saveRow('cuts',cut);
+ }
+ let prod=arr('production').find(z=>sid(z.cutId)===sid(cut.id)&&sid(z.productId)===sid(p.id));
+ if(!prod){
+   prod={id:Date.now()+Math.floor(Math.random()*900000),cutId:cut.id,orderId:o.id,productId:p.id,op:'HIST-'+displayOrderNo9249(o),product:p.name,client:c.name,planned:x.qty,done:x.qty,stage:'Finalizado',finishedAt:x.date,productionCompletedAt:x.date,historical:true,noCutterAssignment:true,date:x.date};
+   prod=await saveRow('production',prod);
+ }else if(q(prod.done)<x.qty||q(prod.planned)<x.qty){
+   const next={...clone(prod),planned:Math.max(q(prod.planned),x.qty),done:Math.max(q(prod.done),x.qty),stage:'Finalizado',finishedAt:prod.finishedAt||x.date,productionCompletedAt:prod.productionCompletedAt||x.date,historical:true,noCutterAssignment:true};
+   prod=await saveRow('production',next);
+ }
+ const nextOrder={...clone(o),status:'Nota emitida',updatedAt:new Date().toISOString(),historicalRegularizedAt:new Date().toISOString()};
+ await saveRow('orders',nextOrder);
+ return {linked:true,orderId:o.id,cutId:cut.id,productionId:prod.id};
 }
 window.applyHistorical9249=async function(){
  if(!histDraft9249.length)return alert('Gere a prévia primeiro.');
  const bad=histDraft9249.filter(x=>!findClientByName(x.client)||!findProductByName(x.product));if(bad.length)return alert('Há linhas com cliente ou produto não encontrado. Corrija antes de confirmar.');
  if(!confirm('Confirmar '+histDraft9249.length+' item(ns) históricos? Eles entrarão na Montagem de Notas sem atribuir cortador.'))return;
  try{
-  for(const x of histDraft9249){const c=findClientByName(x.client),p=findProductByName(x.product),unit=x.qty>0?x.value/x.qty:0,id='hist-'+Date.now()+'-'+Math.floor(Math.random()*900000);const row={id,clientId:c.id,clientName:c.name,productId:p.id,productName:p.name,qty:x.qty,remainingQty:x.qty,unitPrice:unit,deliveryDate:x.date,source:'Regularização histórica',sourceType:'historical',status:'Aguardando',historical:true,noCutterAssignment:true,createdAt:new Date().toISOString()};await saveRow('noteQueue',row);await saveRow('historicalImports',{id:'histlog-'+id,clientId:c.id,clientName:c.name,productId:p.id,productName:p.name,qty:x.qty,date:x.date,value:x.value,noteQueueId:id,noCutterAssignment:true,createdAt:new Date().toISOString()})}
+  for(const x of histDraft9249){const c=findClientByName(x.client),p=findProductByName(x.product),unit=x.qty>0?x.value/x.qty:0,id='hist-'+Date.now()+'-'+Math.floor(Math.random()*900000);const linked=await reconcileHistoricalOrder9249(x,c,p);const row={id,clientId:c.id,clientName:c.name,productId:p.id,productName:p.name,orderId:linked.orderId||null,qty:x.qty,remainingQty:x.qty,unitPrice:unit,deliveryDate:x.date,source:'Regularização histórica',sourceType:'historical',status:'Aguardando',historical:true,noCutterAssignment:true,createdAt:new Date().toISOString()};await saveRow('noteQueue',row);await saveRow('historicalImports',{id:'histlog-'+id,clientId:c.id,clientName:c.name,productId:p.id,productName:p.name,orderNo:x.orderNo||'',orderId:linked.orderId||null,cutId:linked.cutId||null,productionId:linked.productionId||null,qty:x.qty,date:x.date,value:x.value,noteQueueId:id,noCutterAssignment:true,createdAt:new Date().toISOString()})}
   histDraft9249=[];document.getElementById('opsHistPaste').value='';renderHistPreview();try{window.renderNoteQueue9202?.()}catch(e){};alert('Regularização lançada. Os itens estão na Montagem de Notas para você conferir/faturar.');
  }catch(e){alert('A regularização parou porque uma gravação não foi confirmada: '+(e?.message||e))}
 };
@@ -275,7 +299,7 @@ function installAssistantGrade(){
 /* ---------- DIAGNÓSTICO AUTOMÁTICO ---------- */
 function scheduleAudit(){
  const KEY='hlgb_ops_last_auto_audit_9249',last=Number(localStorage.getItem(KEY)||0),due=12*60*60*1000;if(Date.now()-last<due)return;
- setTimeout(async()=>{try{if(typeof window.hlgbRunInternalAudit==='function'){await window.hlgbRunInternalAudit({silent:true,source:'auto-12h'});localStorage.setItem(KEY,String(Date.now()))}else if(typeof window.runInternalAudit==='function'){await window.runInternalAudit();localStorage.setItem(KEY,String(Date.now()))}}catch(e){console.warn('[HLGB '+V+'] auditoria automática',e)}},4000);
+ setTimeout(async()=>{try{if(window.hlgbInternalAuditor&&typeof window.hlgbInternalAuditor.run==='function'){const run=await window.hlgbInternalAuditor.run('full');if(run&&typeof window.hlgbInternalAuditor.saveRun==='function')await window.hlgbInternalAuditor.saveRun(run);localStorage.setItem(KEY,String(Date.now()))}else if(typeof window.hlgbAuditorRunFull==='function'){await window.hlgbAuditorRunFull();localStorage.setItem(KEY,String(Date.now()))}}catch(e){console.warn('[HLGB '+V+'] auditoria automática',e)}},4000);
 }
 
 /* ---------- BOOT ---------- */
