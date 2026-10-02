@@ -123,6 +123,30 @@ function storePendingEnvelope(p){
   else localStorage.removeItem('hlgb_records_pending_v91');
  }catch(e){console.warn('[HLGB record integrity] limpeza da fila pendente',e)}
 }
+function quarantineStalePending(module,id,hit,snap){
+ if(!hit?.pending||!hit?.op||!snap)return {changed:false};
+ try{
+  const p=hit.pending,ops=Array.isArray(p?.modules?.[module])?p.modules[module]:[];
+  p.modules[module]=ops.filter(op=>op!==hit.op);
+  storePendingEnvelope(p);
+  const key='hlgb_records_stale_quarantine_v1';
+  let list=[];try{list=JSON.parse(localStorage.getItem(key)||'[]')}catch(e){}
+  if(!Array.isArray(list))list=[];
+  list.push({
+   module:String(module),id:sid(id),queuedAt:pendingOpAt(hit.pending,hit.op)||null,
+   remoteUpdatedAt:String(snap.updated_at||''),remoteRevision:+snap.revision||0,
+   quarantinedAt:new Date().toISOString(),localData:clone(hit.op.data),remoteData:clone(snap.data)
+  });
+  if(list.length>200)list=list.slice(-200);
+  localStorage.setItem(key,JSON.stringify(list));
+  if(!snap.deleted_at)replaceLocal(module,id,snap.data);else removeLocal(module,id);
+  console.warn('[HLGB record integrity] pendência local obsoleta arquivada e removida da fila',module,id);
+  return {changed:true,archived:true};
+ }catch(e){
+  console.warn('[HLGB record integrity] falha ao arquivar pendência obsoleta',module,id,e);
+  return {changed:false,error:e};
+ }
+}
 function prunePendingTombstones(){
  const p=pendingEnvelope();if(!p?.modules||typeof p.modules!=='object')return {changed:false,removed:0};
  let changed=false,removed=0;
@@ -287,6 +311,15 @@ if(typeof original==='function'&&!original.__hlgbRecordIntegrityV7){
   if(!deleted&&!restore){
    const stale=stalePending(module,id,data,snap);
    if(stale){
+    const hit=matchingPending(module,id,data);
+    const archived=quarantineStalePending(module,id,hit,snap);
+    if(archived.changed){
+      const out=noopResult(snap,'stale-pending-quarantined');
+      out.hlgbStalePendingQuarantined=true;
+      out.hlgbPendingAt=stale.pendingAt;
+      out.hlgbRemoteAt=stale.remoteAt;
+      return out;
+    }
     const err=new Error('Alteração pendente bloqueada: ela foi criada antes da versão mais recente que já está na nuvem. O sistema não vai regravar dado antigo por cima do novo. Atualize e revise este registro.');
     err.code='HLGB_STALE_PENDING_BLOCK';err.pendingAt=stale.pendingAt;err.remoteAt=stale.remoteAt;throw err;
    }
@@ -349,13 +382,15 @@ if(typeof oldLoadBundle==='function'&&!oldLoadBundle.__hlgbPendingTombstoneV1){
 try{prunePendingTombstones()}catch(e){}
 window.HLGB_RECORD_INTEGRITY_GUARD='v8';
 window.HLGB_RECORD_PENDING_TOMBSTONE_GUARD='v1';
-window.HLGB_RECORD_PENDING_AGE_GUARD='v1';
+window.HLGB_RECORD_PENDING_AGE_GUARD='v2';
+window.HLGB_RECORD_STALE_QUARANTINE_GUARD='v1';
 window.HLGB_LOGICAL_DUPLICATE_GUARD='v1';
 window.hlgbLogicalAutoCutTwin=logicalAutoCutTwin;
 window.hlgbLogicalProductionTwin=logicalProductionTwin;
 window.hlgbPrunePendingTombstones=prunePendingTombstones;
 window.hlgbRecordConflictPaths=conflictPaths;
 window.hlgbRecordStalePending=stalePending;
+window.hlgbQuarantineStalePending=quarantineStalePending;
 window.hlgbRecordSemanticNoop=semanticNoop;
 window.hlgbFreshCutId=freshCutId;
 console.info('[HLGB] integridade de registros v8 + tombstone silencioso/idade pendente v1 + duplicidade lógica v1 ativa');
