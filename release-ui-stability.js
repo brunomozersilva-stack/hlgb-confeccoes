@@ -1,7 +1,7 @@
 /* HLGB audit — estabilidade visual global: agrupa redraws remotos sem atrasar acoes locais */
 (function(){
 'use strict';
-const V='v1';
+const V='v2';
 const QUIET_MS=420;
 const MAX_WAIT_MS=1200;
 const REMOTE_WINDOW_MS=1600;
@@ -123,8 +123,10 @@ function stableCall(fn,ctx,args){
   try{out=fn.apply(ctx,args||[])}
   finally{executingBatch=false}
   const v=snap.interaction;
+  // Restaura imediatamente depois do redraw para evitar o salto visual.
+  if(v===interactionVersion)restoreUi(snap);
+  // Um único ajuste no próximo frame cobre mudanças tardias de layout sem criar efeito vai-e-volta.
   requestAnimationFrame(()=>{if(v===interactionVersion)restoreUi(snap)});
-  setTimeout(()=>{if(v===interactionVersion)restoreUi(snap)},90);
   return out;
 }
 function runQueued(name){
@@ -151,7 +153,7 @@ function queueRender(name,fn,ctx,args){
 }
 function wrapRenderer(name){
   const fn=window[name];
-  if(typeof fn!=='function'||fn.__hlgbUiStabilityV1)return false;
+  if(typeof fn!=='function'||fn.__hlgbUiStabilityV2)return false;
   const wrapped=function(){
     if(executingBatch)return fn.apply(this,arguments);
     const background=isRemote()||!isUserDriven();
@@ -159,24 +161,24 @@ function wrapRenderer(name){
     if(!relevant(name))return undefined;
     return queueRender(name,fn,this,Array.from(arguments));
   };
-  wrapped.__hlgbUiStabilityV1=true;wrapped.__original=fn;window[name]=wrapped;return true;
+  wrapped.__hlgbUiStabilityV2=true;wrapped.__original=fn;window[name]=wrapped;return true;
 }
 function installRenderers(){Object.keys(rendererPages).forEach(wrapRenderer)}
 
 function wrapRemoteSource(name){
   const fn=window[name];
-  if(typeof fn!=='function'||fn.__hlgbRemoteStabilityV1)return false;
+  if(typeof fn!=='function'||fn.__hlgbRemoteStabilityV2)return false;
   const wrapped=function(){markRemote();let out;try{out=fn.apply(this,arguments)}catch(e){throw e}
     if(out&&typeof out.then==='function')return out.finally(()=>markRemote());
     markRemote();return out;
   };
-  wrapped.__hlgbRemoteStabilityV1=true;wrapped.__original=fn;window[name]=wrapped;return true;
+  wrapped.__hlgbRemoteStabilityV2=true;wrapped.__original=fn;window[name]=wrapped;return true;
 }
 
 const incoming=window.hlgbRenderIncomingRecord;
-if(typeof incoming==='function'&&!incoming.__hlgbUiStabilityV1){
+if(typeof incoming==='function'&&!incoming.__hlgbUiStabilityV2){
   const wrapped=function(){markRemote();installRenderers();return incoming.apply(this,arguments)};
-  wrapped.__hlgbUiStabilityV1=true;wrapped.__original=incoming;window.hlgbRenderIncomingRecord=wrapped;
+  wrapped.__hlgbUiStabilityV2=true;wrapped.__original=incoming;window.hlgbRenderIncomingRecord=wrapped;
 }
 
 ['hlgbHandleNormalizedRealtime','hlgbPullNormalizedCoreChanges','cloudPullRemoteIfNewer','hlgb948AuthoritativeRefresh'].forEach(wrapRemoteSource);
@@ -187,7 +189,7 @@ let tries=0;
 const installTimer=setInterval(()=>{
   tries++;installRenderers();
   ['hlgbHandleNormalizedRealtime','hlgbPullNormalizedCoreChanges','cloudPullRemoteIfNewer','hlgb948AuthoritativeRefresh'].forEach(wrapRemoteSource);
-  if(tries>=20)clearInterval(installTimer);
+  if(tries>=40)clearInterval(installTimer);
 },250);
 
 for(const ev of ['pointerdown','keydown','wheel','touchstart']){
