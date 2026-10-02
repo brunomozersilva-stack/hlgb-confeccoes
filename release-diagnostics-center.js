@@ -48,6 +48,40 @@ function fingerprint(parts){
   for(let i=0;i<s.length;i++){h^=s.charCodeAt(i);h=Math.imul(h,16777619)}
   return 'f'+(h>>>0).toString(16);
 }
+function classifySaveError(err,module,id){
+  const code=String(err?.code||'');
+  const msg=String(err?.message||err||'');
+  const stack=String(err?.stack||'');
+  const text=norm([code,msg,stack].join(' '));
+  const paths=Array.isArray(err?.paths)?err.paths.map(String):[];
+  const protectedConflict=['HLGB_SAME_FIELD_CONFLICT','HLGB_STALE_PENDING_BLOCK','HLGB_TOMBSTONE_BLOCK','HLGB_ORPHAN_AUTO_CUT_BLOCK'].includes(code);
+  if(protectedConflict){
+    return {
+      kind:'protected-conflict',
+      title:'Conflito protegido em '+module,
+      description:'O sistema impediu que uma alteração local sobrescrevesse um dado mais novo ou incompatível da nuvem. O registro foi preservado para revisão.',
+      priority:'Alta',
+      fingerprintParts:['protected-conflict',module,code,paths.slice().sort().join('|')||msg.replace(/\d{6,}/g,'#')]
+    };
+  }
+  const networkLike=/(load failed|failed to fetch|networkerror|network error|network request failed|fetch failed|connection reset|connection refused|connection aborted|internet connection|offline|the network connection was lost|a conexão de rede foi perdida)/i.test([msg,stack].join(' '));
+  if(networkLike){
+    return {
+      kind:'network-save',
+      title:'Falha de conexão ao salvar '+module,
+      description:'A gravação não foi confirmada por falha de conexão/rede. Isso é diferente de conflito de dados; a alteração deve permanecer pendente para nova tentativa quando a conexão estabilizar.',
+      priority:'Alta',
+      fingerprintParts:['network-save',module,code||'network',msg.replace(/https?:\/\/\S+/g,'URL').replace(/\d{6,}/g,'#')]
+    };
+  }
+  return {
+    kind:'save',
+    title:'Falha ao salvar '+module,
+    description:'O sistema tentou gravar um registro e a confirmação falhou.',
+    priority:'Crítica',
+    fingerprintParts:['save',module,id,msg]
+  };
+}
 function registerModules(){
   try{
     for(const m of [ISSUE_MODULE,SUGGESTION_MODULE]){
@@ -198,26 +232,18 @@ function installErrorCapture(){
         try{return await original.apply(this,arguments)}
         catch(err){
           if(!savingDiagnostic&&module!==ISSUE_MODULE&&module!==SUGGESTION_MODULE){
-            const code=String(err?.code||'');
-            const paths=Array.isArray(err?.paths)?err.paths.map(String):[];
-            const protectedConflict=['HLGB_SAME_FIELD_CONFLICT','HLGB_STALE_PENDING_BLOCK','HLGB_TOMBSTONE_BLOCK','HLGB_ORPHAN_AUTO_CUT_BLOCK'].includes(code);
-            const title=protectedConflict?'Conflito protegido em '+module:'Falha ao salvar '+module;
-            const description=protectedConflict
-              ?'O sistema impediu que uma alteração local sobrescrevesse um dado mais novo ou incompatível da nuvem. O registro foi preservado para revisão.'
-              :'O sistema tentou gravar um registro e a confirmação falhou.';
+            const cls=classifySaveError(err,module,id);
             queueAutoIssue({
-              title,
-              description,
+              title:cls.title,
+              description:cls.description,
               technical:sanitize(err?.stack||err?.message||err),
               page:currentPage(),
-              sourceType:protectedConflict?'protected-conflict':'save',
-              priority:protectedConflict?'Alta':'Crítica',
+              sourceType:cls.kind,
+              priority:cls.priority,
               recordRefs:[{module:String(module),id:String(id)}],
-              // Conflitos protegidos iguais são agrupados por módulo/código/campos,
-              // em vez de abrir um erro crítico separado para cada registro.
-              fingerprint:protectedConflict
-                ?fingerprint(['protected-conflict',module,code,paths.slice().sort().join('|')||String(err?.message||'').replace(/\d{6,}/g,'#')])
-                :fingerprint(['save',module,id,err?.message])
+              // Conflitos protegidos e falhas de rede são agrupados para evitar
+              // dezenas de entradas equivalentes para o mesmo problema.
+              fingerprint:fingerprint(cls.fingerprintParts)
             });
           }
           throw err;
@@ -496,7 +522,7 @@ async function createIssueText(description,title='Erro relatado pelo Assistente 
   row.fingerprint=fingerprint(['assistant',row.title,row.page,row.description]);
   return saveDiagnostic(ISSUE_MODULE,row);
 }
-window.hlgbDiagnosticsCenter={VERSION,sanitize,fingerprint,scanSystem,makeReport,refresh:refreshCenterData,modules:[ISSUE_MODULE,SUGGESTION_MODULE],createSuggestionText,createIssueText};
+window.hlgbDiagnosticsCenter={VERSION,sanitize,fingerprint,classifySaveError,scanSystem,makeReport,refresh:refreshCenterData,modules:[ISSUE_MODULE,SUGGESTION_MODULE],createSuggestionText,createIssueText};
 
 function boot(){
   if(centerLoaded)return;centerLoaded=true;
