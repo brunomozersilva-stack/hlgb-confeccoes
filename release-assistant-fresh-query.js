@@ -5,6 +5,7 @@ const V='2026.10.01-assistant-fresh-query-v1';
 const escSafe=v=>typeof esc==='function'?esc(v):String(v??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
 let lastQuery='',lastHtml='';
 function directFallback(raw){
+ try{const direct=window.hlgbOperationalPolish?.assistantDirect?.(raw);if(direct)return direct}catch(e){}
  try{
   const sys=window.hlgbAssistantSystemWide?.parse?.(raw);if(sys)return sys;
  }catch(e){}
@@ -32,6 +33,10 @@ function install(){
   out.innerHTML='<div class="sub">Consultando esta pergunta…</div>';
   const before=out.innerHTML;
   if(!raw){render({title:'Assistente HLGB',text:'Digite sua pergunta.',kind:'help'});return}
+  try{
+    const direct=window.hlgbOperationalPolish?.assistantDirect?.(raw);
+    if(direct){render(direct);lastQuery=raw;lastHtml=out.innerHTML;return}
+  }catch(e){console.warn('[HLGB consulta operacional]',e)}
   try{
     const sys=window.hlgbAssistantSystemWide?.parse?.(raw);
     if(sys){render(sys);lastQuery=raw;lastHtml=out.innerHTML;return}
