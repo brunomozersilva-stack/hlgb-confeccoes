@@ -8,7 +8,7 @@
 <meta http-equiv="Expires" content="0">
 <title>HLGB Confecções — Sistema de Gestão v92.48 Multiusuário</title>
 <script id="hlgb-release-identity">
-window.HLGB_RELEASE_VERSION='92.48';
+window.HLGB_RELEASE_VERSION='92.49';
 window.hlgbReleaseLabel=()=> 'v'+window.HLGB_RELEASE_VERSION;
 window.hlgbReleaseTitle=()=> 'HLGB Confecções — Sistema de Gestão '+window.hlgbReleaseLabel()+' Multiusuário';
 </script>
@@ -11473,7 +11473,7 @@ const HLGB_RECORD_MODULES=[
   "factions","factionMasters","factionPayments","cutters",
   "finance","purchases","invoices","receipts","operationalCosts","weeklyPurchaseLimits",
   "suppliers","employees","formerEmployees","payroll","terminations","employeeAdvances",
-  "materialLots","separations","projectionInvoices","noteQueue","machines","serviceTypes","colors","sizes","materialChecklists","hubFinanceEntries","finishedPieces","factionSettings"];
+  "materialLots","separations","projectionInvoices","noteQueue","machines","serviceTypes","colors","sizes","materialChecklists","hubFinanceEntries","finishedPieces","factionSettings","routePlans","labelBatches","labelTemplates","packagingAssignments","historicalImports"];
 const HLGB_RECORD_PENDING_KEY="hlgb_records_pending_v91";
 let hlgbRecordSnapshots={};
 let hlgbRecordLastSeen={};
@@ -11493,7 +11493,7 @@ const HLGB_RECORD_WRITE_AREA={
  factions:"faccoes",factionMasters:"faccoes",factionPayments:"faccoes",cutters:"cortadores",
  finance:"financeiro",purchases:"financeiro",invoices:"financeiro",receipts:"financeiro",operationalCosts:"financeiro",weeklyPurchaseLimits:"financeiro",
  suppliers:"fornecedores",employees:"funcionarios",formerEmployees:"exFuncionarios",payroll:"folhaPagamento",terminations:"folhaPagamento",employeeAdvances:"folhaPagamento",
- materialLots:"materiais",separations:"materiais",projectionInvoices:"projecao",noteQueue:"projecao",colors:"cadastros",sizes:"cadastros",hubFinanceEntries:"hubFinanceiro",finishedPieces:"producao",factionSettings:"faccoes"
+ materialLots:"materiais",separations:"materiais",projectionInvoices:"projecao",noteQueue:"projecao",colors:"cadastros",sizes:"cadastros",hubFinanceEntries:"hubFinanceiro",finishedPieces:"producao",factionSettings:"faccoes",routePlans:"producao",labelBatches:"producao",labelTemplates:"producao",packagingAssignments:"producao",historicalImports:"pedidos"
 };
 function hlgbRecordCanWrite(module){
   if(isOwnerUser())return true;
