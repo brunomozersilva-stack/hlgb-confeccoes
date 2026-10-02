@@ -231,9 +231,55 @@ function parseHistLine(line){
  const p=line.split(/[;\t]/).map(x=>x.trim());if(p.length<3)return null;
  return {client:p[0]||'',product:p[1]||'',qty:Math.floor(q(p[2])),date:p[3]||today(),value:q(String(p[4]||'').replace(',','.')),orderNo:p[5]||'',status:'Prévia'};
 }
+
+function histNorm9249(v){return sid(v).normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/\s+/g,' ').trim()}
+function histDate9249(text){
+ let m=sid(text).match(/\b(\d{1,2})[\/.-](\d{1,2})[\/.-](\d{2,4})\b/);if(m){let y=m[3];if(y.length===2)y='20'+y;return y+'-'+String(m[2]).padStart(2,'0')+'-'+String(m[1]).padStart(2,'0')}
+ m=sid(text).match(/\b(\d{4})-(\d{2})-(\d{2})\b/);return m?m[0]:today();
+}
+function histOrder9249(text){return (sid(text).match(/(?:pedido|ped\.?|ordem)[^0-9]{0,8}#?\s*(\d{1,20})/i)||[])[1]||''}
+function histClient9249(text){
+ const n=histNorm9249(text);return arr('clients').filter(c=>c?.name&&n.includes(histNorm9249(c.name))).sort((a,b)=>sid(b.name).length-sid(a.name).length)[0]||null;
+}
+function histRowsFromText9249(text){
+ const client=histClient9249(text),date=histDate9249(text),orderNo=histOrder9249(text),lines=sid(text).split(/\r?\n/).map(x=>x.trim()).filter(Boolean),products=arr('products').slice().sort((a,b)=>sid(b.name).length-sid(a.name).length),out=[],seen=new Set();
+ for(const line of lines){
+   const nl=histNorm9249(line),p=products.find(x=>x?.name&&nl.includes(histNorm9249(x.name)));if(!p)continue;
+   let qty=0;
+   const pname=histNorm9249(p.name),pos=nl.indexOf(pname),tail=pos>=0?line.slice(Math.min(line.length,pos+pname.length)):'';
+   const candidates=[...(tail.match(/\b\d{1,6}\b/g)||[]),...(line.match(/\b\d{1,6}\b/g)||[])].map(Number).filter(x=>x>0&&x<1000000);
+   if(candidates.length)qty=candidates[0];
+   if(!qty)continue;
+   const k=sid(p.id)+'|'+qty+'|'+line;if(seen.has(k))continue;seen.add(k);
+   out.push({client:client?.name||'',product:p.name,qty,date,value:0,orderNo,status:'Prévia PDF'});
+ }
+ return out;
+}
+async function histReadFileText9249(file){
+ if(!file)return '';
+ if(window.hlgbAssistantOrderImport&&typeof window.hlgbAssistantOrderImport.fileText==='function')return await window.hlgbAssistantOrderImport.fileText(file);
+ if(window.hlgbPurchaseNoteImport&&typeof window.hlgbPurchaseNoteImport.readFile==='function')return await window.hlgbPurchaseNoteImport.readFile(file);
+ const name=sid(file.name).toLowerCase(),type=sid(file.type);
+ if(name.endsWith('.pdf')||type==='application/pdf'){
+   const load=async(src,name)=>{if(window[name])return window[name];await new Promise((res,rej)=>{const sc=document.createElement('script');sc.src=src;sc.onload=res;sc.onerror=()=>rej(new Error('Não foi possível carregar o leitor de PDF.'));document.head.appendChild(sc)});return window[name]};
+   const P=await load('https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js','pdfjsLib');P.GlobalWorkerOptions.workerSrc='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+   const pdf=await P.getDocument({data:await file.arrayBuffer()}).promise;let t='';for(let i=1;i<=pdf.numPages;i++){const pg=await pdf.getPage(i),ct=await pg.getTextContent();t+=ct.items.map(x=>x.str).join('\t')+'\n'}return t;
+ }
+ return await file.text();
+}
+window.readHistoricalFile9249=async function(){
+ const f=document.getElementById('opsHistFile9249')?.files?.[0],status=document.getElementById('opsHistFileStatus9249'),ta=document.getElementById('opsHistPaste');if(!f)return alert('Escolha um PDF ou arquivo primeiro.');
+ try{
+   if(status)status.textContent='Lendo arquivo…';
+   const text=await histReadFileText9249(f);if(ta)ta.value=text;
+   histDraft9249=histRowsFromText9249(text);
+   if(status)status.textContent=histDraft9249.length?('Arquivo lido: '+histDraft9249.length+' item(ns) reconhecido(s). Confira a prévia abaixo.'):'Arquivo lido, mas não consegui reconhecer os itens automaticamente. Você pode revisar o texto extraído e usar Gerar prévia.';
+   renderHistPreview();
+ }catch(e){if(status)status.textContent='Não foi possível ler o arquivo: '+sid(e?.message||e)}
+};
 function renderHistorical(){
  const h=document.getElementById('regularizacao9249Host');if(!h)return;
- h.innerHTML='<div class="panel"><h3>Importar lista para conferência</h3><div class="sub">Cole uma linha por item no formato: Cliente ; Produto ; Quantidade ; Data ; Valor ; Pedido (opcional). Nada é alterado até você confirmar.</div><textarea id="opsHistPaste" rows="8" style="width:100%" placeholder="Quézia; Camisola Romantic; 100; 2026-09-15; 1290; 87"></textarea><div class="toolbar"><button class="secondary" onclick="previewHistorical9249()">Gerar prévia</button><button class="primary" onclick="applyHistorical9249()">Confirmar regularização</button></div></div><div id="opsHistPreview"></div>';
+ h.innerHTML='<div class="panel"><h3>Importar notas/entregas para conferência</h3><div class="sub">Você pode colar a lista ou importar PDF/foto/TXT/CSV. O sistema extrai o conteúdo e monta uma prévia; nada é alterado até você confirmar.</div><div class="field"><label>Arquivo</label><input id="opsHistFile9249" type="file" accept=".pdf,image/*,.txt,.csv,application/pdf"></div><div class="toolbar"><button class="secondary" onclick="readHistoricalFile9249()">📥 Ler PDF / arquivo</button></div><div class="field"><label>Texto/lista extraída</label><textarea id="opsHistPaste" rows="8" style="width:100%" placeholder="Quézia; Camisola Romantic; 100; 2026-09-15; 1290; 87"></textarea></div><div id="opsHistFileStatus9249" class="sub"></div><div class="toolbar"><button class="secondary" onclick="previewHistorical9249()">Gerar prévia</button><button class="primary" onclick="applyHistorical9249()">Confirmar regularização</button></div></div><div id="opsHistPreview"></div>';
  renderHistPreview();
 }
 window.previewHistorical9249=function(){histDraft9249=sid(document.getElementById('opsHistPaste')?.value).split(/\n+/).map(parseHistLine).filter(x=>x&&x.qty>0);renderHistPreview()};
