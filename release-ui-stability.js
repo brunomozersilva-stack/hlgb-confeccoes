@@ -1,7 +1,7 @@
 /* HLGB audit — estabilidade visual global: agrupa redraws remotos sem atrasar acoes locais */
 (function(){
 'use strict';
-const V='v4';
+const V='v5-emergency-work';
 const QUIET_MS=420;
 const MAX_WAIT_MS=1200;
 const REMOTE_WINDOW_MS=1600;
@@ -9,7 +9,7 @@ let remoteUntil=0;
 let executingBatch=false;
 let interactionVersion=0;
 let lastInteractionAt=0;
-const USER_ACTION_WINDOW_MS=1800;
+const USER_ACTION_WINDOW_MS=180;
 const queues=new Map();
 
 const rendererPages={
@@ -166,7 +166,7 @@ function wrapRenderer(name){
 }
 function installRenderers(){Object.keys(rendererPages).forEach(wrapRenderer)}
 
-const RENDER_COOLDOWN_MS=1400;
+const RENDER_COOLDOWN_MS=5000;
 const renderStamp=new Map();
 function allowGovernedRender(name){
   const now=Date.now(),last=renderStamp.get(name)||0;
@@ -233,7 +233,7 @@ function finishPageSettle(token,target){
 function beginPageSettle(id){
   ensureSettleStyle();
   const target=document.getElementById(id);if(!target||!HEAVY_PAGES.has(id)){settleOverlay(false);return}
-  const token=++settleToken,started=Date.now(),MIN_MS=380,QUIET_MS=220,MAX_MS=1600;
+  const token=++settleToken,started=Date.now(),MIN_MS=260,QUIET_MS=140,MAX_MS=700;
   if(settleObserver){try{settleObserver.disconnect()}catch(e){}}
   if(settleTimer)clearTimeout(settleTimer);if(settleMaxTimer)clearTimeout(settleMaxTimer);
   target.classList.add('hlgb-page-settling');settleOverlay(true);
@@ -258,7 +258,11 @@ function installStablePageRouter(){
     const target=document.getElementById(id),heavy=HEAVY_PAGES.has(id);
     if(heavy&&target){ensureSettleStyle();target.classList.add('hlgb-page-settling');settleOverlay(true)}
     let out;
-    try{out=fn.apply(this,arguments)}finally{
+    try{
+      out=fn.apply(this,arguments);
+      const now=Date.now();
+      for(const [name,pages] of Object.entries(rendererPages))if(pages.includes(id))renderStamp.set(name,now);
+    }finally{
       if(heavy)setTimeout(()=>beginPageSettle(id),0);
     }
     return out;
@@ -273,6 +277,18 @@ window.hlgbUiStabilityPending=()=>[...queues.keys()];
 window.hlgbUiStabilityBeginPageSettle=beginPageSettle;
 window.hlgbUiStabilityRenderAllowed=allowGovernedRender;
 window.hlgbUiStabilityRenderCooldown=RENDER_COOLDOWN_MS;
+window.HLGB_WORK_STABILITY_MODE=true;
+window.hlgbManualRefreshCurrentPage=function(){
+  const pg=activePage(),now=Date.now();
+  noteInteraction();
+  for(const [name,pages] of Object.entries(rendererPages)){
+    if(!pages.includes(pg))continue;
+    renderStamp.delete(name);
+    const fn=window[name];
+    if(typeof fn==='function'){try{fn()}catch(e){console.warn('[HLGB manual refresh]',name,e)}}
+  }
+  lastInteractionAt=now;
+};
 window.HLGB_UI_STABILITY_GUARD=V;
 console.info('[HLGB] estabilidade visual global '+V+' ativa — redraw remoto agrupado e posição preservada');
 })();
