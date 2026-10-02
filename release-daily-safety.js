@@ -1,7 +1,7 @@
 /* HLGB — Segurança diária: auditoria sistêmica + backup local + pacote para suporte */
 (function(){
 'use strict';
-const V='2026.10.02-daily-safety-v2';
+const V='2026.10.02-daily-safety-v3';
 const DB_NAME='hlgb_daily_safety_backups_v1', STORE='backups', KEEP=14;
 const KEY_LAST='hlgb_daily_safety_last_v1', KEY_PENDING='hlgb_daily_safety_pending_v1';
 const REMOTE_MANIFEST='systemDailyBackupManifest', REMOTE_PARTS='systemDailyBackupParts', REMOTE_KEEP=7, REMOTE_CHUNK=220000;
@@ -141,8 +141,10 @@ async function exportBackup(){
   return row;
 }
 async function runDailyAudit(){
-  if(!window.hlgbInternalAuditor?.runVisualSweep)throw new Error('Auditor visual completo ainda não está disponível.');
-  const audit=await window.hlgbInternalAuditor.runVisualSweep(true);
+  if(!window.hlgbInternalAuditor?.run)throw new Error('Auditor interno ainda não está disponível.');
+  // A auditoria automática diária NÃO pode alternar páginas visíveis.
+  // Usa a auditoria sistêmica de fundo; a varredura visual completa fica manual.
+  const audit=await window.hlgbInternalAuditor.run('full',true);
   const sync=window.hlgbInternalAuditor.buildSyncDiagnostic?await window.hlgbInternalAuditor.buildSyncDiagnostic():null;
   const backup=await getTodayBackup()||await createBackup();
   let remoteBackup=null,remoteBackupError='';
@@ -156,7 +158,9 @@ async function runDailyAudit(){
     pass:Number(audit?.summary?.pass||0),
     warn:Number(audit?.summary?.warn||0),
     fail:Number(audit?.summary?.fail||0),
-    pagesChecked:Array.isArray(audit?.visualSweep)?audit.visualSweep.length:0,
+    pagesChecked:0,
+    visualSweepAutomatic:false,
+    visualSweepStatus:'Manual — não executado automaticamente para não interferir no trabalho',
     pendingSync:Number(sync?.summary?.normalizedPending||0),
     backupCreatedAt:backup?.createdAt||null,
     remoteBackupCreatedAt:remoteBackup?.createdAt||null,
@@ -201,7 +205,7 @@ function renderStatus(summary=readLast()){
   box.innerHTML='<h3 style="margin-top:0">🛡️ Segurança diária HLGB</h3>'+
     (ok?'<div class="cards"><div class="card"><small>Última varredura</small><strong>'+escSafe(summary.date)+'</strong></div><div class="card"><small>Resultado</small><strong>'+escSafe(summary.result||'-')+'</strong></div><div class="card"><small>Telas verificadas</small><strong>'+Number(summary.pagesChecked||0)+'</strong></div><div class="card"><small>Atenções / Falhas</small><strong>'+Number(summary.warn||0)+' / '+Number(summary.fail||0)+'</strong></div><div class="card"><small>Backup externo</small><strong>'+(summary.remoteBackupOk?'☁️ OK':'⚠️ Pendente')+'</strong></div></div>':'<div class="sub">A varredura diária ainda não foi concluída hoje.</div>')+
     '<div class="toolbar" style="margin-top:10px"><button class="primary" onclick="hlgbDailySafetyRunNow()">🛡️ Rodar varredura agora</button><button class="secondary" onclick="hlgbDailySafetyPackage()">📦 Baixar pacote diário</button><button class="secondary" onclick="hlgbDailySafetyBackup()">💾 Baixar backup de hoje</button><button class="secondary" onclick="hlgbDailySafetyRemoteBackup()">☁️ Fazer backup externo agora</button></div>'+
-    '<div class="sub">O backup automático fica guardado localmente neste navegador por até '+KEEP+' dias e também na nuvem do HLGB por até '+REMOTE_KEEP+' dias. O pacote diário contém diagnóstico e metadados dos backups, sem senha ou token.</div>';
+    '<div class="sub">A auditoria automática diária roda em segundo plano e não troca de tela. A varredura visual completa fica disponível manualmente no Auditor / Testes. O backup automático fica guardado localmente neste navegador por até '+KEEP+' dias e também na nuvem do HLGB por até '+REMOTE_KEEP+' dias.</div>';
 }
 function showAlert(summary){
   if(document.getElementById('hlgbDailySafetyAlert'))return;
@@ -228,8 +232,8 @@ function scheduleWhenIdle(){
   },5000);
 }
 window.hlgbDailySafetyRunNow=async function(){
-  if(userBusy()&&!confirm('Há um campo/modal em uso. Rodar a varredura visual agora pode trocar de tela por alguns segundos. Continuar?'))return;
-  try{const b=await createBackup();await createRemoteBackup(b);await runDailyAudit();alert('Varredura diária concluída.')}catch(e){alert('Não foi possível concluir a varredura diária.\n\n'+sid(e?.message||e))}
+  if(userBusy()&&!confirm('Há um campo/modal em uso. A auditoria sistêmica não troca de tela, mas é melhor concluir a edição antes. Continuar?'))return;
+  try{const b=await createBackup();await createRemoteBackup(b);await runDailyAudit();alert('Auditoria diária concluída sem trocar de tela.')}catch(e){alert('Não foi possível concluir a varredura diária.\n\n'+sid(e?.message||e))}
 };
 window.hlgbDailySafetyPackage=async function(){try{await buildSupportPackage()}catch(e){alert('Não foi possível preparar o pacote diário.\n\n'+sid(e?.message||e))}};
 window.hlgbDailySafetyBackup=async function(){try{await exportBackup()}catch(e){alert('Não foi possível baixar o backup.\n\n'+sid(e?.message||e))}};
