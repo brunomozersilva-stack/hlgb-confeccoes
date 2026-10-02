@@ -1,7 +1,7 @@
 /* HLGB — Assistente: consultas amplas do sistema + registro de ações */
 (function(){
 'use strict';
-const V='2026.10.01-assistant-system-wide-v4';
+const V='2026.10.01-assistant-system-wide-v5';
 const sid=v=>String(v??''),q=v=>Math.max(0,Number(v)||0),norm=v=>sid(v).normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().trim().replace(/\s+/g,' ');
 const escSafe=v=>typeof esc==='function'?esc(v):sid(v).replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
 const moneySafe=v=>typeof money==='function'?money(v):Number(v||0).toLocaleString('pt-BR',{style:'currency',currency:'BRL'});
@@ -125,6 +125,52 @@ function weekBounds(){
  const d=new Date(),day=(d.getDay()+6)%7,start=new Date(d);start.setHours(0,0,0,0);start.setDate(d.getDate()-day);const end=new Date(start);end.setDate(start.getDate()+6);end.setHours(23,59,59,999);
  const iso=x=>x.toISOString().slice(0,10);return {start:iso(start),end:iso(end)};
 }
+function localIsoToday(){
+ const d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+}
+function addLocalDays(iso,n){const d=new Date(iso+'T12:00:00');d.setDate(d.getDate()+n);return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0')}
+function cutDate(c){return String(c?.plannedCutDate||c?.cutDate||c?.scheduledDate||c?.date||c?.createdAt||'').slice(0,10)}
+function cutProduct(c){
+ const p=arr('products').find(x=>sid(x?.id)===sid(c?.productId));if(p?.name)return p.name;
+ if(c?.product)return c.product;if(c?.description)return c.description;
+ const o=arr('orders').find(x=>sid(x?.id)===sid(c?.orderId)),g=(o?.grade||[]).find(x=>sid(x?.productId)===sid(c?.productId));
+ return arr('products').find(x=>sid(x?.id)===sid(g?.productId))?.name||'Produto';
+}
+function cutPlan(raw){
+ const n=norm(raw);if(!/(\bcorte\b|\bcortes\b|\bcortar\b|\bcortando\b)/.test(n)||/(cortador|cortadores|cortou|cortaram)/.test(n))return null;
+ const today=localIsoToday(),tomorrow=addLocalDays(today,1),w=weekBounds();
+ let mode='pending',label='Cortes pendentes';
+ if(/hoje/.test(n)){mode='today';label='Cortes para hoje'}
+ else if(/amanha/.test(n)){mode='tomorrow';label='Cortes para amanhã'}
+ else if(/atrasad|vencid/.test(n)){mode='late';label='Cortes atrasados'}
+ else if(/semana/.test(n)){mode='week';label='Cortes desta semana'}
+ const active=arr('cuts').filter(c=>{
+   const st=norm(c?.status);return c&&!st.includes('finalizado')&&!st.includes('concluido')&&!st.includes('cancelado');
+ });
+ let rows=active.filter(c=>{
+   const d=cutDate(c);
+   if(mode==='today')return d===today;
+   if(mode==='tomorrow')return d===tomorrow;
+   if(mode==='late')return !!d&&d<today;
+   if(mode==='week')return !!d&&d>=w.start&&d<=w.end;
+   return true;
+ });
+ rows.sort((a,b)=>{
+   const oa=arr('orders').find(o=>sid(o?.id)===sid(a?.orderId)),ob=arr('orders').find(o=>sid(o?.id)===sid(b?.orderId));
+   const pa=norm(oa?.priority),pb=norm(ob?.priority),rank=x=>x.includes('urgentissimo')?0:x.includes('urgente')?1:2;
+   return rank(pa)-rank(pb)||String(cutDate(a)||'9999').localeCompare(String(cutDate(b)||'9999'));
+ });
+ if(!rows.length){
+   const undated=active.filter(c=>!cutDate(c)).length;
+   return {kind:'system-info',title:label,text:'Não encontrei cortes '+(mode==='today'?'programados para hoje':mode==='tomorrow'?'programados para amanhã':mode==='late'?'atrasados':mode==='week'?'programados nesta semana':'pendentes')+'.'+(undated?'<br><br><span class="sub">Há '+undated+' corte(s) pendente(s) sem data programada.</span>':'')};
+ }
+ const total=rows.reduce((a,c)=>a+q(c?.pieces),0);
+ const text=rows.slice(0,30).map(c=>{
+   const o=arr('orders').find(x=>sid(x?.id)===sid(c?.orderId)),ct=arr('cutters').find(x=>sid(x?.id)===sid(c?.cutterId));
+   return '• '+(cutDate(c)?escSafe(cutDate(c))+' · ':'')+'<b>'+escSafe(cutProduct(c))+'</b> · '+q(c?.pieces).toLocaleString('pt-BR')+' pç'+(o?' · pedido #'+escSafe(o.orderNumber||o.id)+' · '+escSafe(o.client||'-'):'')+(o?.priority?' · '+escSafe(o.priority):'')+(ct?.name?' · cortador '+escSafe(ct.name):'');
+ }).join('<br>');
+ return {kind:'system-info',title:label,text:'<b>'+rows.length+' corte(s) · '+total.toLocaleString('pt-BR')+' peças</b><br><br>'+text+(rows.length>30?'<br>… e mais '+(rows.length-30)+' corte(s).':'')};
+}
 function cutterWeeklyPlan(raw){
  const n=norm(raw);if(!/(cortador|cortadores)/.test(n)||!/(semana|semanal|tem que cortar|precisa cortar|planejado|programado)/.test(n))return null;
  const w=weekBounds(),groups={};
@@ -189,6 +235,7 @@ function parse(raw){
  const n=norm(raw);
  const gr=clientProductGrade(raw);if(gr)return gr;
  const merch=clientOrderedMerchandise(raw);if(merch)return merch;
+ const cp=cutPlan(raw);if(cp)return cp;
  const wp=cutterWeeklyPlan(raw);if(wp)return wp;
  const d=clientDeliveries(raw);if(d)return d;
  const ct=cutterTotals(raw);if(ct)return ct;
@@ -205,7 +252,7 @@ function install(){
 }
 window.hlgbAssistantActions=window.hlgbAssistantActions||{};
 window.hlgbRegisterAssistantAction=function(name,fn,canRun){if(name&&typeof fn==='function')window.hlgbAssistantActions[name]={fn,canRun:typeof canRun==='function'?canRun:()=>true}};
-window.hlgbAssistantSystemWide={parse,materialSupplier,purchaseWeekly,clientDeliveries,cutterTotals,clientProductGrade,clientOrderedMerchandise,orderProductRows,cutterWeeklyPlan,gradeMatrix,deliveryRows,findNamedClient,globalSearch,weekKey,actions:window.hlgbAssistantActions};
+window.hlgbAssistantSystemWide={parse,materialSupplier,purchaseWeekly,clientDeliveries,cutterTotals,clientProductGrade,clientOrderedMerchandise,orderProductRows,cutPlan,cutterWeeklyPlan,gradeMatrix,deliveryRows,findNamedClient,globalSearch,weekKey,actions:window.hlgbAssistantActions};
 setTimeout(install,2400);setInterval(()=>{if(typeof window.hlgbAssistantAsk==='function'&&!window.hlgbAssistantAsk.__hlgbSystemWideV1)install()},3500);
 window.HLGB_ASSISTANT_SYSTEM_WIDE_GUARD=V;
 })();
