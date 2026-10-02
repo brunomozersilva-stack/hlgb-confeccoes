@@ -90,4 +90,11 @@ const hard=api.classifySaveError(new Error('Banco rejeitou gravação'),'orders'
 assert.equal(hard.kind,'save','non-network/non-protected save errors must remain real save failures');
 assert.equal(hard.priority,'Crítica','real save failures must remain critical');
 
+const legacyProd=api.classifySaveError(new Error('Conflito ao salvar production. Atualize e tente novamente.'),'production','p1');
+assert.equal(legacyProd.kind,'protected-conflict','legacy production conflict text must be recognized even without error code');
+const legacyCut=new Error('Falha ao salvar cuts');
+legacyCut.stack='conflictError@http://localhost/release-record-integrity.js:172:21\nsafeMerge@http://localhost/release-record-integrity.js:229:126';
+const legacyCutCls=api.classifySaveError(legacyCut,'cuts','c1');
+assert.equal(legacyCutCls.kind,'protected-conflict','legacy cut conflict stack must be recognized even without error code');
+
 console.log('PASS diagnostics center: loader, sanitizer, deterministic scan and integrity findings.');
