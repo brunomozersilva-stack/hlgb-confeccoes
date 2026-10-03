@@ -10,9 +10,12 @@ function injectStyle(){
  if(document.getElementById('hlgbAssistantMobile9250Style'))return;
  const st=document.createElement('style');st.id='hlgbAssistantMobile9250Style';
  st.textContent=[
- '#hlgbAssistantMobileFab9250{display:none}',
+ '#hlgbAssistantMobileFab9250,#hlgbMobileNav9250{display:none}',
  '@media(max-width:700px){',
- '#hlgbAssistantMobileFab9250{display:flex!important;position:fixed;right:12px;bottom:18px;z-index:9996;border:0;border-radius:999px;background:#6f3f59;color:#fff;min-width:58px;height:58px;padding:0 16px;align-items:center;justify-content:center;gap:7px;font-size:17px;font-weight:800;box-shadow:0 10px 28px #0005}',
+ '#hlgbAssistantMobileFab9250{display:flex!important;position:fixed;right:12px;bottom:calc(82px + env(safe-area-inset-bottom));z-index:9996;border:0;border-radius:999px;background:#6f3f59;color:#fff;min-width:58px;height:58px;padding:0 16px;align-items:center;justify-content:center;gap:7px;font-size:17px;font-weight:800;box-shadow:0 10px 28px #0005}',
+ '#hlgbMobileNav9250{display:grid!important;grid-template-columns:repeat(4,1fr);position:fixed;left:8px;right:8px;bottom:calc(8px + env(safe-area-inset-bottom));z-index:9995;background:rgba(255,255,255,.96);border:1px solid #eadde4;border-radius:16px;box-shadow:0 8px 28px #0003;padding:5px;backdrop-filter:blur(10px)}',
+ '#hlgbMobileNav9250 button{border:0;background:transparent;border-radius:12px;min-height:50px;font-size:12px;color:#5f4251;font-weight:700}#hlgbMobileNav9250 button:active{background:#f3dbe5}',
+ 'body{padding-bottom:calc(76px + env(safe-area-inset-bottom))}',
  '.hlgb-assistant-modal{position:fixed!important;left:0!important;right:0!important;bottom:0!important;top:auto!important;width:100vw!important;max-width:100vw!important;max-height:94vh!important;border-radius:22px 22px 0 0!important;padding:16px!important;resize:none!important}',
  '.hlgb-assistant-box{gap:9px!important}.hlgb-assistant-answer{max-height:43vh!important;min-height:110px!important}',
  '.hlgb-assistant-input{display:grid!important;grid-template-columns:1fr auto!important}.hlgb-assistant-input input{min-width:0!important;font-size:16px!important;min-height:44px}',
@@ -26,6 +29,21 @@ function ensureFab(){
  if(document.getElementById('hlgbAssistantMobileFab9250'))return;
  const b=document.createElement('button');b.id='hlgbAssistantMobileFab9250';b.type='button';b.innerHTML='🤖 <span>Assistente</span>';b.onclick=()=>window.openHlgbAssistant?.();document.body.appendChild(b);
 }
+
+function go9250(id){
+ try{
+   const btn=[...document.querySelectorAll('#nav button')].find(b=>String(b.getAttribute('onclick')||'').includes("'"+id+"'")||String(b.getAttribute('onclick')||'').includes('"'+id+'"'));
+   if(typeof page==='function')page(id,btn||null);
+ }catch(e){console.warn('[HLGB mobile nav]',e)}
+}
+function ensureMobileNav9250(){
+ if(document.getElementById('hlgbMobileNav9250'))return;
+ const n=document.createElement('div');n.id='hlgbMobileNav9250';
+ n.innerHTML='<button type="button" onclick="hlgbMobileGo9250(\'dashboard\')">🏠<br>Início</button><button type="button" onclick="hlgbMobileGo9250(\'pedidos\')">📋<br>Pedidos</button><button type="button" onclick="hlgbMobileGo9250(\'producao\')">🏭<br>Produção</button><button type="button" onclick="hlgbMobileGo9250(\'hubFinanceiro\')">💰<br>Financeiro</button>';
+ document.body.appendChild(n);
+}
+window.hlgbMobileGo9250=go9250;
+
 function decorate(){
  const input=document.getElementById('hlgbAssistantInput');if(!input)return;
  const modal=input.closest('.modalbox');if(modal)modal.classList.add('hlgb-assistant-modal');
@@ -65,9 +83,9 @@ function install(){
  const base=cur,w=function(){const raw=document.getElementById('hlgbAssistantInput')?.value||'',a=smart(raw);if(a){const out=document.getElementById('hlgbAssistantAnswer');if(out)out.innerHTML='<h3 style="margin-top:0">'+escSafe(a.title)+'</h3>'+a.text;return}return base.apply(this,arguments)};
  w.__brain9250=true;w.__original=base;window.hlgbAssistantAsk=w;
 }
-function boot(){injectStyle();ensureFab();decorate();try{window.HLGB_RELEASE_VERSION='92.50'}catch(e){}}
+function boot(){injectStyle();ensureFab();ensureMobileNav9250();decorate();try{window.HLGB_RELEASE_VERSION='92.50'}catch(e){}}
 setTimeout(boot,1800);
-setInterval(()=>{ensureFab();if(document.getElementById('hlgbAssistantInput'))decorate()},2400);
+setInterval(()=>{ensureFab();ensureMobileNav9250();if(document.getElementById('hlgbAssistantInput'))decorate()},2400);
 setTimeout(()=>{window.HLGB_ASSISTANT_FINAL_V9250=true;install();decorate();},7200);
 window.hlgbAssistantMobile9250={grade,smart};
 console.info('[HLGB] '+V+' ativo');
