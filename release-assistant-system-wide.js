@@ -253,6 +253,6 @@ function install(){
 window.hlgbAssistantActions=window.hlgbAssistantActions||{};
 window.hlgbRegisterAssistantAction=function(name,fn,canRun){if(name&&typeof fn==='function')window.hlgbAssistantActions[name]={fn,canRun:typeof canRun==='function'?canRun:()=>true}};
 window.hlgbAssistantSystemWide={parse,materialSupplier,purchaseWeekly,clientDeliveries,cutterTotals,clientProductGrade,clientOrderedMerchandise,orderProductRows,cutPlan,cutterWeeklyPlan,gradeMatrix,deliveryRows,findNamedClient,globalSearch,weekKey,actions:window.hlgbAssistantActions};
-setTimeout(install,2400);setInterval(()=>{if(typeof window.hlgbAssistantAsk==='function'&&!window.hlgbAssistantAsk.__hlgbSystemWideV1)install()},3500);
+setTimeout(install,2400);setInterval(()=>{if(window.HLGB_ASSISTANT_FINAL_V9250)return;if(typeof window.hlgbAssistantAsk==='function'&&!window.hlgbAssistantAsk.__hlgbSystemWideV1)install()},3500);
 window.HLGB_ASSISTANT_SYSTEM_WIDE_GUARD=V;
 })();
