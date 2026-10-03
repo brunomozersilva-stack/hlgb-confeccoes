@@ -76,6 +76,7 @@ function smart(raw){
  if(m){const v=m.slice(1).filter(Boolean).map(x=>Number(x.replace(',','.')));return {title:'Cálculo',text:v.join(' + ')+' = <b>'+v.reduce((a,b)=>a+b,0).toLocaleString('pt-BR')+'</b>'}}
  if(/divida|dívida|devendo|exposicao|exposição/.test(n)){const d=debtSummary();return {title:'Dívidas e fornecedores',text:'Dívida antiga: <b>'+moneySafe(d.bal)+'</b><br>Notas abertas: <b>'+moneySafe(d.open)+'</b><br>Total exposto: <b>'+moneySafe(d.total)+'</b>'}}
  if(/compra.*funcionario|funcionari.*comprou|desconto.*folha/.test(n)){const v=arr('employeePurchases').filter(x=>!['Quitado','Cancelado'].includes(x.status)).reduce((a,x)=>a+q(x.remaining??x.finalValue),0);return {title:'Compras dos funcionários',text:'Pendente para desconto: <b>'+moneySafe(v)+'</b>'}}
+ if(/erro|erros|falha|falhas/.test(n)){const open=arr('systemIssues').filter(x=>x.status!=='Resolvido'),cut=Date.now()-24*60*60*1000,recent=open.filter(x=>Date.parse(x.lastSeenAt||x.firstSeenAt||0)>=cut),hist=open.filter(x=>Date.parse(x.lastSeenAt||x.firstSeenAt||0)<cut);return {title:'Central de erros',text:'Ocorrências abertas: <b>'+open.length+'</b><br>Vistas nas últimas 24h: <b>'+recent.length+'</b><br>Históricas sem nova ocorrência nas últimas 24h: <b>'+hist.length+'</b><br><br><span class="sub">Erro histórico não significa necessariamente que a falha continua acontecendo agora.</span>'}}
  return null;
 }
 function install(){
