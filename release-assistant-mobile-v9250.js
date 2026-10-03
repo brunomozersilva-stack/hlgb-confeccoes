@@ -75,6 +75,14 @@ function smart(raw){
  const m=n.match(/(\d+(?:[.,]\d+)?)\s*\+\s*(\d+(?:[.,]\d+)?)(?:\s*\+\s*(\d+(?:[.,]\d+)?))?/);
  if(m){const v=m.slice(1).filter(Boolean).map(x=>Number(x.replace(',','.')));return {title:'Cálculo',text:v.join(' + ')+' = <b>'+v.reduce((a,b)=>a+b,0).toLocaleString('pt-BR')+'</b>'}}
  if(/divida|dívida|devendo|exposicao|exposição/.test(n)){const d=debtSummary();return {title:'Dívidas e fornecedores',text:'Dívida antiga: <b>'+moneySafe(d.bal)+'</b><br>Notas abertas: <b>'+moneySafe(d.open)+'</b><br>Total exposto: <b>'+moneySafe(d.total)+'</b>'}}
+ if(/melhor preco|melhor preço|mais barato|menor preco|menor preço/.test(n)){
+   const stop=new Set(['qual','quem','tem','o','a','de','da','do','mais','barato','melhor','preco','preço','menor','valor','fornecedor','fornecedores']);
+   const toks=n.split(/\s+/).filter(x=>x.length>2&&!stop.has(x)),offers=[];
+   for(const sup of arr('suppliers'))for(const p of (sup.products||[])){const pn=norm(p.name);if(q(p.price)>0&&(!toks.length||toks.every(t=>pn.includes(t)||norm(sup.name).includes(t))))offers.push({supplier:sup.name,name:p.name,unit:p.unit||'',price:q(p.price)})}
+   offers.sort((a,b)=>a.price-b.price);
+   if(offers.length){const best=offers[0],alts=offers.slice(1,4);return {title:'Melhor preço encontrado',text:'<b>'+escSafe(best.name)+'</b><br><b>'+escSafe(best.supplier)+'</b> — '+moneySafe(best.price)+' / '+escSafe(best.unit||'un.')+(alts.length?'<br><br>Outras opções:<br>'+alts.map(x=>escSafe(x.supplier)+' — '+moneySafe(x.price)).join('<br>'):'')}}
+ }
+
  if(/compra.*funcionario|funcionari.*comprou|desconto.*folha/.test(n)){const v=arr('employeePurchases').filter(x=>!['Quitado','Cancelado'].includes(x.status)).reduce((a,x)=>a+q(x.remaining??x.finalValue),0);return {title:'Compras dos funcionários',text:'Pendente para desconto: <b>'+moneySafe(v)+'</b>'}}
  if(/erro|erros|falha|falhas/.test(n)){const open=arr('systemIssues').filter(x=>x.status!=='Resolvido'),cut=Date.now()-24*60*60*1000,recent=open.filter(x=>Date.parse(x.lastSeenAt||x.firstSeenAt||0)>=cut),hist=open.filter(x=>Date.parse(x.lastSeenAt||x.firstSeenAt||0)<cut);return {title:'Central de erros',text:'Ocorrências abertas: <b>'+open.length+'</b><br>Vistas nas últimas 24h: <b>'+recent.length+'</b><br>Históricas sem nova ocorrência nas últimas 24h: <b>'+hist.length+'</b><br><br><span class="sub">Erro histórico não significa necessariamente que a falha continua acontecendo agora.</span>'}}
  return null;
