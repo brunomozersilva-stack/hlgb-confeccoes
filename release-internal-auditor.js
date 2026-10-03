@@ -15,8 +15,10 @@ function keepRuntimeError(type,message,stack=''){
   const row={at:new Date().toISOString(),type:String(type||'error'),message:String(message||'').slice(0,1200),stack:String(stack||'').slice(0,2500)};
   runtimeErrors.push(row);if(runtimeErrors.length>MAX_RUNTIME_ERRORS)runtimeErrors.splice(0,runtimeErrors.length-MAX_RUNTIME_ERRORS);
 }
-window.addEventListener('error',e=>{try{keepRuntimeError('error',e?.message||'Erro JavaScript',e?.error?.stack||'')}catch(_){ }},true);
-window.addEventListener('unhandledrejection',e=>{try{keepRuntimeError('unhandledrejection',e?.reason?.message||String(e?.reason||'Promise rejeitada'),e?.reason?.stack||'')}catch(_){ }},true);
+if(typeof window.addEventListener==='function'){
+ window.addEventListener('error',e=>{try{keepRuntimeError('error',e?.message||'Erro JavaScript',e?.error?.stack||'')}catch(_){ }},true);
+ window.addEventListener('unhandledrejection',e=>{try{keepRuntimeError('unhandledrejection',e?.reason?.message||String(e?.reason||'Promise rejeitada'),e?.reason?.stack||'')}catch(_){ }},true);
+}
 const REQUIRED_PAGES=['dashboard','pedidos','corte','producao','projecao','faltas','hubFinanceiro','config'];
 const REQUIRED_FUNCTIONS=[
   'renderOrders','renderProjection','renderHubFinance','renderPayrollProvisions',
