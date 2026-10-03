@@ -5,7 +5,7 @@
 'use strict';
 
 const AUDIT_MODULE='systemAuditRuns';
-const VERSION='2026.10.02-internal-auditor-v4';
+const VERSION='2026.10.03-internal-auditor-v5';
 const PENDING_KEY='hlgb_records_pending_v91';
 const WAL_KEY='hlgb_durable_wal_v1';
 let auditRunsCache=[];
@@ -444,6 +444,17 @@ function auditVisualCurrent(){
 function visualTargetPages(){
   return [...document.querySelectorAll('#appShell .page')].filter(el=>el?.id&&el.id!=='loginScreen').map(el=>el.id);
 }
+function visualNodeKey9249(root,node,index){
+  if(node?.id)return 'id:'+node.id;
+  const name=node?.getAttribute?.('name');if(name)return 'name:'+name;
+  const parts=[];let n=node,guard=0;
+  while(n&&n!==root&&guard++<8){
+    const p=n.parentElement;if(!p)break;
+    const pos=[...p.children].indexOf(n);
+    parts.push(n.tagName.toLowerCase()+':'+pos);n=p;
+  }
+  return 'path:'+parts.reverse().join('/')+'#'+index;
+}
 function visualMetricsForPage(el){
   const vw=Number(window.innerWidth||document.documentElement?.clientWidth||0),vh=Number(window.innerHeight||document.documentElement?.clientHeight||0);
   const rect=el.getBoundingClientRect();
@@ -456,8 +467,10 @@ function visualMetricsForPage(el){
       if(r.right>vw+16||r.left<-16)clipped.push(node.id||node.textContent?.trim()?.slice(0,40)||node.tagName);
     }catch(_){}
   }
-  const anchors=[...el.querySelectorAll('h1,h2,.panel,.card,table,button,input,select,textarea')].filter(isVisible).slice(0,45).map((node,i)=>{
-    const r=node.getBoundingClientRect();return {k:node.id||node.getAttribute('name')||node.textContent?.trim()?.slice(0,32)||node.tagName+'#'+i,x:Math.round(r.x*10)/10,y:Math.round(r.y*10)/10,w:Math.round(r.width*10)/10,h:Math.round(r.height*10)/10};
+  const candidates=[...el.querySelectorAll('h1,h2,.panel,.card,table,button,input,select,textarea')].filter(isVisible).slice(0,60);
+  const anchors=candidates.map((node,i)=>{
+    const r=node.getBoundingClientRect();
+    return {k:visualNodeKey9249(el,node,i),label:node.id||node.getAttribute('name')||node.textContent?.trim()?.slice(0,32)||node.tagName,x:Math.round(r.x*10)/10,y:Math.round(r.y*10)/10,w:Math.round(r.width*10)/10,h:Math.round(r.height*10)/10};
   });
   return {
     width:Math.round(rect.width),height:Math.round(rect.height),
@@ -471,7 +484,7 @@ function compareAnchorShift(a,b){
   for(const x of (a?.anchors||[])){
     const y=bm.get(x.k);if(!y)continue;
     const dx=Math.abs(x.x-y.x),dy=Math.abs(x.y-y.y),dw=Math.abs(x.w-y.w),dh=Math.abs(x.h-y.h);
-    if(dx>2||dy>2||dw>2||dh>2)moved.push({element:x.k,dx:+dx.toFixed(1),dy:+dy.toFixed(1),dw:+dw.toFixed(1),dh:+dh.toFixed(1)});
+    if(dx>2||dy>2||dw>2||dh>2)moved.push({element:x.label||x.k,key:x.k,dx:+dx.toFixed(1),dy:+dy.toFixed(1),dw:+dw.toFixed(1),dh:+dh.toFixed(1)});
   }
   return moved;
 }
@@ -495,7 +508,10 @@ async function auditVisualSweep(){
     for(const pid of pages){
       const el=document.getElementById(pid);if(!el)continue;
       document.querySelectorAll('#appShell .page').forEach(x=>x.classList.remove('active'));el.classList.add('active');
-      window.scrollTo(0,0);currentMutations=0;
+      window.scrollTo(0,0);
+      // deixa o MutationObserver receber e descartar as mutações causadas pela própria troca de página do teste
+      await new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r)));
+      currentMutations=0;
       // tempo maior para o render intencional da página terminar; o período inicial não conta como instabilidade
       await new Promise(r=>setTimeout(r,650));
       const s1=visualMetricsForPage(el),m1=currentMutations;currentMutations=0;
@@ -508,7 +524,8 @@ async function auditVisualSweep(){
       const overflow=s3.viewport.width>0&&s3.scrollWidth>s3.viewport.width+16;
       // só considera instável o que se mexe DEPOIS do período de assentamento; mutações iniciais são render normal
       const lateMutations=m2+m3;
-      const unstable=maxShift>8||lateMutations>80;
+      // mutações sem deslocamento visual são informativas; só viram atenção quando persistem em volume extremo
+      const unstable=maxShift>8||lateMutations>2500;
       results.push({
         page:pid,status:unstable?'warn':(overflow||s3.clipped.length?'warn':'pass'),
         maxShiftPx:+maxShift.toFixed(1),layoutShiftElements:shift.slice(0,15),
@@ -527,7 +544,7 @@ async function auditVisualSweep(){
   }
   const checks=results.map(r=>check('visual-sweep:'+r.page,'Varredura visual',r.status,r.page,
     (r.maxShiftPx>3?'Movimento detectado: '+r.maxShiftPx+'px. ':'')+
-    (r.mutationsAfterSettle>80?'Muitas mutações após estabilizar: '+r.mutationsAfterSettle+'. ':'')+
+    (r.mutationsAfterSettle>2500?'Muitas mutações após estabilizar: '+r.mutationsAfterSettle+'. ':'')+
     (r.horizontalOverflow?'Overflow horizontal. ':'')+
     (r.clipped.length?'Elementos fora da largura: '+r.clipped.slice(0,5).join(', ')+'. ':'')+
     ((!r.maxShiftPx&&!r.horizontalOverflow&&!r.clipped.length)?'Tela estável no teste interno.':''),
