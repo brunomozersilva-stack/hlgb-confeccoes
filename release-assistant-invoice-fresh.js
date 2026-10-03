@@ -38,7 +38,7 @@ function ensureTop(){
 }
 function boot(){ensureTop()}
 setTimeout(boot,1900);
-setInterval(()=>{if(typeof window.hlgbAssistantAsk==='function'&&!window.hlgbAssistantAsk.__hlgbFreshInvoiceV1)ensureTop()},3000);
+setInterval(()=>{if(window.HLGB_ASSISTANT_FINAL_V9250)return;if(typeof window.hlgbAssistantAsk==='function'&&!window.hlgbAssistantAsk.__hlgbFreshInvoiceV1)ensureTop()},3000);
 window.HLGB_ASSISTANT_INVOICE_FRESH_GUARD=V;
 console.info('[HLGB] notas do Assistente usam somente a consulta atual');
 })();
