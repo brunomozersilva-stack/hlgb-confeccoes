@@ -51,6 +51,6 @@ function install(){
  w.__hlgbFreshQueryV1=true;w.__original=base;window.hlgbAssistantAsk=w;
 }
 setTimeout(install,3200);
-setInterval(()=>{if(typeof window.hlgbAssistantAsk==='function'&&!window.hlgbAssistantAsk.__hlgbFreshQueryV1)install()},3500);
+setInterval(()=>{if(window.HLGB_ASSISTANT_FINAL_V9250)return;if(typeof window.hlgbAssistantAsk==='function'&&!window.hlgbAssistantAsk.__hlgbFreshQueryV1)install()},3500);
 window.HLGB_ASSISTANT_FRESH_QUERY_GUARD=V;
 })();
