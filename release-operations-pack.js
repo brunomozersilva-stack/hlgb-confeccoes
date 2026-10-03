@@ -316,6 +316,7 @@ function histMoney9249(v){
 function histCatalogProduct9249(name){
  const raw=sid(name).trim(),n=histNorm9249(raw);if(!n)return null;
  const ps=arr('products');
+ const alias=arr('productAliases').find(a=>a.type==='own'&&histNorm9249(a.alias)===n);if(alias){const ap=ps.find(x=>sid(x.id)===sid(alias.productId));if(ap)return ap}
  let exact=ps.find(x=>histNorm9249(x?.name)===n);if(exact)return exact;
  exact=ps.find(x=>n.includes(histNorm9249(x?.name))||histNorm9249(x?.name).includes(n));if(exact)return exact;
  const toks=n.split(/\s+/).filter(x=>x.length>=3),ranked=ps.map(p=>{
@@ -326,7 +327,7 @@ function histCatalogProduct9249(name){
 }
 function histClientExact9249(name){
  const n=histNorm9249(name);if(!n)return null;
- const cs=arr('clients');return cs.find(x=>histNorm9249(x?.name)===n)||cs.find(x=>histNorm9249(x?.name).includes(n)||n.includes(histNorm9249(x?.name)))||null;
+ const cs=arr('clients'),alias=arr('clientAliases').find(a=>histNorm9249(a.alias)===n);if(alias){const c=cs.find(x=>sid(x.id)===sid(alias.clientId));if(c)return c}return cs.find(x=>histNorm9249(x?.name)===n)||cs.find(x=>histNorm9249(x?.name).includes(n)||n.includes(histNorm9249(x?.name)))||null;
 }
 function histNoteBlocks9249(text){
  const t=sid(text).replace(/\u00a0/g,' ').replace(/\r/g,'\n');
@@ -414,7 +415,7 @@ function renderHistorical(){
 window.previewHistorical9249=function(){histDraft9249=sid(document.getElementById('opsHistPaste')?.value).split(/\n+/).map(parseHistLine).filter(x=>x&&x.qty>0);renderHistPreview()};
 
 function findClientByName(n){
- const k=histNorm9249(n);if(!k)return null;
+ const k=histNorm9249(n);if(!k)return null;const alias=arr('clientAliases').find(a=>histNorm9249(a.alias)===k);if(alias){const c=arr('clients').find(x=>sid(x.id)===sid(alias.clientId));if(c)return c}
  return arr('clients').find(x=>histNorm9249(x.name)===k)||arr('clients').find(x=>histNorm9249(x.name).includes(k)||k.includes(histNorm9249(x.name)))||null;
 }
 function findProductByName(n){return histCatalogProduct9249(n)}
@@ -422,14 +423,14 @@ function histResaleCatalog9249(){
  const out=[];arr('suppliers').forEach(s=>(s.resaleProducts||[]).forEach(p=>{if(p?.active===false)return;out.push({supplier:s,product:p,n:histNorm9249(p?.name)})}));return out;
 }
 function histResaleMatch9249(name){
- const n=histNorm9249(name);if(!n)return null;const cat=histResaleCatalog9249();
+ const n=histNorm9249(name);if(!n)return null;const cat=histResaleCatalog9249(),alias=arr('productAliases').find(a=>a.type==='resale'&&histNorm9249(a.alias)===n);if(alias){const z=cat.find(x=>sid(x.supplier.id)===sid(alias.supplierId)&&sid(x.product.id)===sid(alias.resaleProductId));if(z)return {...z,exact:true,alias:true}}
  let x=cat.find(z=>z.n===n);if(x)return {...x,exact:true};
  x=cat.find(z=>n.includes(z.n)||z.n.includes(n));if(x)return {...x,exact:false};
  const toks=n.split(/\s+/).filter(t=>t.length>=3),rank=cat.map(z=>({z,score:toks.filter(t=>z.n.split(/\s+/).some(v=>v===t||v.includes(t)||t.includes(v))).length})).filter(x=>x.score>0).sort((a,b)=>b.score-a.score||b.z.n.length-a.z.n.length);
  return rank[0]?{...rank[0].z,exact:false}:null;
 }
 function histOwnMatch9249(name){
- const raw=sid(name),n=histNorm9249(raw),ps=arr('products');
+ const raw=sid(name),n=histNorm9249(raw),ps=arr('products'),alias=arr('productAliases').find(a=>a.type==='own'&&histNorm9249(a.alias)===n);if(alias){const ap=ps.find(p=>sid(p.id)===sid(alias.productId));if(ap)return {product:ap,exact:true,alias:true}}
  const exact=ps.find(p=>histNorm9249(p?.name)===n);if(exact)return {product:exact,exact:true};
  const p=histCatalogProduct9249(raw);return p?{product:p,exact:false}:null;
 }
@@ -496,14 +497,51 @@ function histPrepare9249(){
    return {...x,_client:client,_kind:kind,_ok:false,_reason:kind.type==='ambiguous'?'Produto existe como próprio e revenda; precisa conferir':'Produto não encontrado'};
  });
 }
+
+window.resolveHistoricalClient9250=function(i){
+ const x=histDraft9249[+i];if(!x)return;const clients=arr('clients').slice().sort((a,b)=>sid(a.name).localeCompare(sid(b.name),'pt-BR')),raw=x.client;
+ openModal('Resolver cliente do PDF','<div class="panel"><b>Nome no PDF:</b> '+escSafe(raw)+'</div><div class="field"><label>Vincular a cliente existente</label><select id="histClientLink9250"><option value="">Cadastrar como novo cliente</option>'+clients.map(c=>'<option value="'+escSafe(c.id)+'">'+escSafe(c.name)+'</option>').join('')+'</select></div><button class="primary modalSave">Confirmar</button>',async()=>{
+   let c=clients.find(z=>sid(z.id)===sid(document.getElementById('histClientLink9250')?.value));
+   try{
+     if(!c)c=await saveRow('clients',{id:Date.now()+Math.floor(Math.random()*1000),name:raw,phone:'',city:'',document:'',prices:{},createdAt:new Date().toISOString()});
+     await saveRow('clientAliases',{id:'ca-'+Date.now(),alias:raw,clientId:c.id,clientName:c.name,createdAt:new Date().toISOString()});
+     histDraft9249.forEach(r=>{if(histNorm9249(r.client)===histNorm9249(raw)){r.client=c.name;r.clientId=c.id;r.clientMatched=true}});
+     closeModal();renderHistPreview();
+   }catch(e){alert('Não foi possível resolver o cliente: '+(e?.message||e))}
+ });
+};
+window.resolveHistoricalProduct9250=function(i){
+ const x=histDraft9249[+i];if(!x)return;const products=arr('products').slice().sort((a,b)=>sid(a.name).localeCompare(sid(b.name),'pt-BR')),suppliers=arr('suppliers').slice().sort((a,b)=>sid(a.name).localeCompare(sid(b.name),'pt-BR')),raw=x.productRaw||x.product;
+ openModal('Resolver produto do PDF','<div class="panel"><b>Produto no PDF:</b> '+escSafe(raw)+'</div><div class="field"><label>Como tratar</label><select id="histProdMode9250"><option value="own-existing">Produto próprio já cadastrado</option><option value="own-new">Cadastrar novo produto da confecção</option><option value="resale-existing">Revenda já cadastrada</option><option value="resale-new">Cadastrar nova revenda</option></select></div><div class="field"><label>Produto próprio existente</label><select id="histOwnProd9250"><option value="">Selecione</option>'+products.map(p=>'<option value="'+escSafe(p.id)+'">'+escSafe(p.name)+'</option>').join('')+'</select></div><div class="field"><label>Fornecedor (revenda)</label><select id="histResSup9250"><option value="">Selecione</option>'+suppliers.map(p=>'<option value="'+escSafe(p.id)+'">'+escSafe(p.name)+'</option>').join('')+'</select></div><div class="field"><label>Produto de revenda existente</label><select id="histResProd9250"><option value="">Selecione após o fornecedor</option></select></div><div class="grid"><div class="field"><label>Nome para novo cadastro</label><input id="histNewName9250" value="'+escSafe(raw)+'"></div><div class="field"><label>Custo revenda</label><input id="histNewCost9250" type="number" min="0" step=".01"></div><div class="field"><label>Preço venda</label><input id="histNewSale9250" type="number" min="0" step=".01" value="'+q(x.unitPrice)+'"></div></div><button class="primary modalSave">Resolver produto</button>',async()=>{
+   const mode=document.getElementById('histProdMode9250')?.value,name=document.getElementById('histNewName9250')?.value?.trim()||raw;
+   try{
+     if(mode==='own-existing'){
+       const p=products.find(z=>sid(z.id)===sid(document.getElementById('histOwnProd9250')?.value));if(!p)return alert('Escolha o produto.');
+       await saveRow('productAliases',{id:'pa-'+Date.now(),alias:raw,type:'own',productId:p.id,productName:p.name,createdAt:new Date().toISOString()});
+     }else if(mode==='own-new'){
+       let p={id:Date.now()+Math.floor(Math.random()*1000),code:'',name,category:'Lingerie',materials:[],sizes:Array.isArray(db.sizes)&&db.sizes.length?db.sizes:['P','M','G','GG'],colors:[],price:q(x.unitPrice),labor:0,cutCost:0,factionCost:0,packCost:0,otherCost:0,createdAt:new Date().toISOString()};p=await saveRow('products',p);
+       await saveRow('productAliases',{id:'pa-'+Date.now(),alias:raw,type:'own',productId:p.id,productName:p.name,createdAt:new Date().toISOString()});
+     }else{
+       const sup=suppliers.find(z=>sid(z.id)===sid(document.getElementById('histResSup9250')?.value));if(!sup)return alert('Escolha o fornecedor.');
+       let rp=null;
+       if(mode==='resale-existing'){rp=(sup.resaleProducts||[]).find(z=>sid(z.id)===sid(document.getElementById('histResProd9250')?.value));if(!rp)return alert('Escolha o produto de revenda.')}
+       else{rp={id:'res-'+Date.now(),name,unit:'peça',costPrice:q(document.getElementById('histNewCost9250')?.value),salePrice:q(document.getElementById('histNewSale9250')?.value),active:true,createdAt:new Date().toISOString()};await saveRow('suppliers',{...clone(sup),resaleProducts:[...(sup.resaleProducts||[]),rp],updatedAt:new Date().toISOString()})}
+       await saveRow('productAliases',{id:'pa-'+Date.now(),alias:raw,type:'resale',supplierId:sup.id,supplierName:sup.name,resaleProductId:rp.id,productName:rp.name,createdAt:new Date().toISOString()});
+     }
+     closeModal();renderHistPreview();
+   }catch(e){alert('Não foi possível resolver o produto: '+(e?.message||e))}
+ });
+ setTimeout(()=>{const ss=document.getElementById('histResSup9250'),ps=document.getElementById('histResProd9250');if(ss&&ps)ss.onchange=()=>{const sup=suppliers.find(z=>sid(z.id)===sid(ss.value));ps.innerHTML='<option value="">Selecione</option>'+((sup?.resaleProducts||[]).filter(z=>z.active!==false).map(z=>'<option value="'+escSafe(z.id)+'">'+escSafe(z.name)+'</option>').join(''))}},20);
+};
+
 function renderHistPreview(){
  const box=document.getElementById('opsHistPreview');if(!box)return;
  const prep=histPrepare9249(),notes=new Set(prep.map(x=>x.orderNo).filter(Boolean)),own=prep.filter(x=>x._kind.type==='own').length,resale=prep.filter(x=>x._kind.type==='resale').length,bad=prep.filter(x=>!x._ok).length;
  const rows=prep.map((x,i)=>{
    const type=x._kind.type==='resale'?'🛍️ Revenda':x._kind.type==='own'?'🏭 Próprio':x._kind.type==='ambiguous'?'⚠️ Ambíguo':'⚠️ Não reconhecido';
-   return '<tr><td>'+(i+1)+'</td><td>#'+escSafe(x.orderNo||'-')+'</td><td>'+escSafe(x.client)+(x._client?' ✅':' ⚠️')+'</td><td>'+escSafe(x.productRaw||x.product)+'</td><td><b>'+type+'</b></td><td>'+x.qty+'</td><td>'+escSafe(x.date)+'</td><td>'+moneySafe(x.value)+'</td><td>'+escSafe(x._reason||'')+'</td></tr>';
+   const actions=(x._client?'':'<button class="secondary" onclick="resolveHistoricalClient9250('+i+')">Resolver cliente</button> ')+((x._kind.type==='unknown'||x._kind.type==='ambiguous')?'<button class="secondary" onclick="resolveHistoricalProduct9250('+i+')">Resolver produto</button>':'');return '<tr><td>'+(i+1)+'</td><td>#'+escSafe(x.orderNo||'-')+'</td><td>'+escSafe(x.client)+(x._client?' ✅':' ⚠️')+'</td><td>'+escSafe(x.productRaw||x.product)+'</td><td><b>'+type+'</b></td><td>'+x.qty+'</td><td>'+escSafe(x.date)+'</td><td>'+moneySafe(x.value)+'</td><td>'+escSafe(x._reason||'')+'</td><td>'+actions+'</td></tr>';
  }).join('');
- box.innerHTML=rows?'<div class="panel"><h3>Prévia — nenhuma alteração feita ainda</h3><div class="cards"><div class="card"><small>Notas do PDF</small><strong>'+notes.size+'</strong></div><div class="card"><small>Produtos próprios</small><strong>'+own+'</strong></div><div class="card"><small>Revenda</small><strong>'+resale+'</strong></div><div class="card"><small>Precisam conferir</small><strong>'+bad+'</strong></div></div><div class="ops-table"><table><thead><tr><th>#</th><th>Nota origem</th><th>Cliente</th><th>Produto do PDF</th><th>Tipo</th><th>Qtd.</th><th>Data</th><th>Valor</th><th>Baixa prevista</th></tr></thead><tbody>'+rows+'</tbody></table></div><div class="sub"><b>Importante:</b> o número da nota do PDF é apenas referência da nota original. Ele não é usado como número de pedido. Produtos próprios são baixados nos pedidos reais do cliente pelo produto e saldo aberto; produtos de revenda não criam corte nem produção.</div></div>':'';
+ box.innerHTML=rows?'<div class="panel"><h3>Prévia — nenhuma alteração feita ainda</h3><div class="cards"><div class="card"><small>Notas do PDF</small><strong>'+notes.size+'</strong></div><div class="card"><small>Produtos próprios</small><strong>'+own+'</strong></div><div class="card"><small>Revenda</small><strong>'+resale+'</strong></div><div class="card"><small>Precisam conferir</small><strong>'+bad+'</strong></div></div><div class="ops-table"><table><thead><tr><th>#</th><th>Nota origem</th><th>Cliente</th><th>Produto do PDF</th><th>Tipo</th><th>Qtd.</th><th>Data</th><th>Valor</th><th>Baixa prevista</th><th>Resolver</th></tr></thead><tbody>'+rows+'</tbody></table></div><div class="sub"><b>Importante:</b> o número da nota do PDF é apenas referência da nota original. Ele não é usado como número de pedido. Produtos próprios são baixados nos pedidos reais do cliente pelo produto e saldo aberto; produtos de revenda não criam corte nem produção.</div></div>':'';
 }
 function displayOrderNo9249(o){try{return typeof displayOrderNumber==='function'?sid(displayOrderNumber(o)):sid(o?.orderNumber||o?.number||o?.id)}catch(e){return sid(o?.orderNumber||o?.number||o?.id)}}
 async function histConsumeQueue9249(orderId,itemKey,qty,invoiceId){
