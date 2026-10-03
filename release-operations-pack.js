@@ -1,4 +1,4 @@
-/* HLGB v92.49 — pacote operacional: revenda, utilidades, rotas, etiquetas, embalagem e regularização */
+/* HLGB v92.50 — pacote operacional: revenda, utilidades, rotas, etiquetas, embalagem e regularização */
 (function(){
 'use strict';
 const V='92.50-ops';
@@ -655,7 +655,7 @@ function refreshIncoming(module){
  if(module==='suppliers'&&document.querySelector('#revenda9235.page.active'))setTimeout(renderResaleEnhanced,60);
 }
 function boot(){
- try{const v=document.querySelector('#appShell .logo small');if(v)v.textContent='v92.49';const lb=document.querySelector('#loginScreen b');if(lb&&/Versão/i.test(lb.textContent||''))lb.textContent='Versão v92.49';document.title='HLGB Confecções — Sistema de Gestão v92.49 Multiusuário'}catch(e){}
+ try{const v=document.querySelector('#appShell .logo small');if(v)v.textContent='v92.50';const lb=document.querySelector('#loginScreen b');if(lb&&/Versão/i.test(lb.textContent||''))lb.textContent='Versão v92.50';document.title='HLGB Confecções — Sistema de Gestão v92.50 Multiusuário'}catch(e){}
  ensureStyle();ensurePages();ensureNav();installResaleFix();enhanceAssistant();installAssistantGrade();scheduleAudit();
  if(document.querySelector('#revenda9235.page.active'))renderResaleEnhanced();
 }
