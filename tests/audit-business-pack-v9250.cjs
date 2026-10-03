@@ -28,6 +28,9 @@ assert(ops.includes("class=\"ls\""),'A4 labels must contain size field');
 assert(ops.includes('TAMANHO:'),'A4 labels must print size');
 assert(ops.includes('QUANTIDADE:'),'A4 labels must print piece quantity');
 assert(ops.includes('previewLabelTemplate9250'),'packaging labels must support preview');
+assert(ops.includes('previewPackagingLabel9250'),'packaging assignments must preview resolved label');
+assert(ops.includes('opsPackSize'),'packaging assignment must carry size');
+assert(ops.includes('opsPackLabelQty'),'packaging assignment must carry label quantity');
 assert(ops.includes('templateDataUrl'),'packaging labels must support uploaded PDF/image data');
 assert(ops.includes('productUrl'),'packaging labels must store product URL');
 assert(ops.includes('resolveHistoricalClient9250'),'PDF import must resolve unknown clients');
@@ -39,6 +42,8 @@ const assistant=src['release-assistant-mobile-v9250.js'];
 assert(assistant.includes('hlgbAssistantMobileFab9250'),'mobile assistant FAB required');
 assert(assistant.includes('Soma da grade'),'assistant grade math required');
 assert(assistant.includes('Produção')&&assistant.includes('Entregas')&&assistant.includes('Financeiro'),'mobile quick actions required');
+assert(assistant.includes('hlgbMobileNav9250'),'mobile bottom navigation required');
+assert(assistant.includes('HLGB_ASSISTANT_FINAL_V9250'),'assistant final router guard required');
 
 const comp=src['release-supplier-comparator-v9250.js'];
 assert(comp.includes('Melhor preço por matéria-prima'),'supplier comparator required');
@@ -48,7 +53,7 @@ const debts=src['release-supplier-debts-v9250.js'];
 for(const x of ['Pagamento','Juros','Acréscimo','Abatimento','Total exposto'])assert(debts.includes(x),'supplier debts missing '+x);
 
 const emp=src['release-employee-purchases-v9250.js'];
-for(const x of ['Compra de funcionário','Folha para desconto','baixar estoque','Cancelar/estornar'])assert(emp.includes(x),'employee purchases missing '+x);
+for(const x of ['Compra de funcionário','Folha para desconto','baixar estoque','Cancelar/estornar','postEmployeePurchaseToPayroll9250'])assert(emp.includes(x),'employee purchases missing '+x);
 
 const cutters=src['release-cutter-history-v9250.js'];
 for(const x of ['Histórico detalhado de cortadores','Material previsto','Material realizado','exportCutterHistory9250'])assert(cutters.includes(x),'cutter history missing '+x);
