@@ -11473,7 +11473,7 @@ const HLGB_RECORD_MODULES=[
   "factions","factionMasters","factionPayments","cutters",
   "finance","purchases","invoices","receipts","operationalCosts","weeklyPurchaseLimits",
   "suppliers","employees","formerEmployees","payroll","terminations","employeeAdvances",
-  "materialLots","separations","projectionInvoices","noteQueue","machines","serviceTypes","colors","sizes","materialChecklists","hubFinanceEntries","finishedPieces","factionSettings","routePlans","labelBatches","labelTemplates","packagingAssignments","historicalImports"];
+  "materialLots","separations","projectionInvoices","noteQueue","machines","serviceTypes","colors","sizes","materialChecklists","hubFinanceEntries","finishedPieces","factionSettings","routePlans","labelBatches","labelTemplates","packagingAssignments","historicalImports","supplierDebts","supplierDebtTransactions","employeePurchases","clientAliases","productAliases","whatsappPilotRules","whatsappPilotMessages"];
 const HLGB_RECORD_PENDING_KEY="hlgb_records_pending_v91";
 let hlgbRecordSnapshots={};
 let hlgbRecordLastSeen={};
@@ -11493,7 +11493,7 @@ const HLGB_RECORD_WRITE_AREA={
  factions:"faccoes",factionMasters:"faccoes",factionPayments:"faccoes",cutters:"cortadores",
  finance:"financeiro",purchases:"financeiro",invoices:"financeiro",receipts:"financeiro",operationalCosts:"financeiro",weeklyPurchaseLimits:"financeiro",
  suppliers:"fornecedores",employees:"funcionarios",formerEmployees:"exFuncionarios",payroll:"folhaPagamento",terminations:"folhaPagamento",employeeAdvances:"folhaPagamento",
- materialLots:"materiais",separations:"materiais",projectionInvoices:"projecao",noteQueue:"projecao",colors:"cadastros",sizes:"cadastros",hubFinanceEntries:"hubFinanceiro",finishedPieces:"producao",factionSettings:"faccoes",routePlans:"producao",labelBatches:"producao",labelTemplates:"producao",packagingAssignments:"producao",historicalImports:"pedidos"
+ materialLots:"materiais",separations:"materiais",projectionInvoices:"projecao",noteQueue:"projecao",colors:"cadastros",sizes:"cadastros",hubFinanceEntries:"hubFinanceiro",finishedPieces:"producao",factionSettings:"faccoes",routePlans:"producao",labelBatches:"producao",labelTemplates:"producao",packagingAssignments:"producao",historicalImports:"pedidos",supplierDebts:"hubFinanceiro",supplierDebtTransactions:"hubFinanceiro",employeePurchases:"folhaPagamento",clientAliases:"clientes",productAliases:"produtos",whatsappPilotRules:"config",whatsappPilotMessages:"config"
 };
 function hlgbRecordCanWrite(module){
   if(isOwnerUser())return true;
