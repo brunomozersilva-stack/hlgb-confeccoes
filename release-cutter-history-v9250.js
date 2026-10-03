@@ -12,7 +12,7 @@ function productName(c){
  const candidates=arr('products').filter(x=>x?.name&&norm(raw).includes(norm(x.name))).sort((a,b)=>sid(b.name).length-sid(a.name).length);if(candidates[0])return candidates[0].name;
  return raw.replace(/\b\d+\s+/g,' ').replace(/\bTam\s+(PP|P|M|G|GG|XG|EXG)\b/gi,' ').replace(/\s+/g,' ').trim().slice(0,120)||raw.slice(0,120);
 }
-function period(){return {s:document.getElementById('cutterStart')?.value||'',e:document.getElementById('cutterEnd')?.value||''}}
+function period(){try{if(typeof cutterPeriod==='function'){const r=cutterPeriod();return {s:r.start||'',e:r.end||''}}}catch(e){}return {s:document.getElementById('cutterPeriodStart')?.value||'',e:document.getElementById('cutterPeriodEnd')?.value||''}}
 function inside(d,s,e){d=sid(d).slice(0,10);return (!s||!d||d>=s)&&(!e||!d||d<=e)}
 function unitCost(c,cut,pieces){
  if(c?.cutType==='Interno')return pieces>0?q(c.monthlySalary)/pieces:0;
