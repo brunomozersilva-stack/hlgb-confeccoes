@@ -2,7 +2,7 @@
 (function(){
 'use strict';
 const V='2026.10.03-cutter-history-v9250';
-const sid=v=>String(v??''),q=v=>Math.max(0,Number(v)||0),today=()=>new Date().toISOString().slice(0,10),norm=v=>sid(v).normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().trim().replace(/\s+/g,' ');
+const sid=v=>String(v??''),q=v=>Math.max(0,Number(v)||0),today=()=>{const d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0')},norm=v=>sid(v).normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().trim().replace(/\s+/g,' ');
 const escSafe=v=>typeof esc==='function'?esc(v):sid(v).replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
 const moneySafe=v=>typeof money==='function'?money(v):Number(v||0).toLocaleString('pt-BR',{style:'currency',currency:'BRL'});
 function arr(n){try{return Array.isArray(db?.[n])?db[n]:[]}catch(e){return []}}
@@ -50,8 +50,9 @@ function quickPeriodRows9250(){
 }
 
 function render(){
- const cards=document.getElementById('cutterHistoryCards9250'),tbl=document.getElementById('cutterHistoryTable9250');if(!cards||!tbl)return;const d=dataset(),planned=d.reduce((a,x)=>a+x.planned,0),done=d.reduce((a,x)=>a+x.done,0),cost=d.reduce((a,x)=>a+x.total,0);
+ const cards=document.getElementById('cutterHistoryCards9250'),tbl=document.getElementById('cutterHistoryTable9250'),quick=document.getElementById('cutterQuickPeriod9250');if(!cards||!tbl)return;const d=dataset(),planned=d.reduce((a,x)=>a+x.planned,0),done=d.reduce((a,x)=>a+x.done,0),cost=d.reduce((a,x)=>a+x.total,0);
  cards.innerHTML='<div class="card"><small>Planejado</small><strong>'+planned.toLocaleString('pt-BR')+'</strong></div><div class="card"><small>Realizado</small><strong>'+done.toLocaleString('pt-BR')+'</strong></div><div class="card"><small>Falta</small><strong>'+Math.max(0,planned-done).toLocaleString('pt-BR')+'</strong></div><div class="card"><small>Custo do período</small><strong>'+moneySafe(cost)+'</strong></div>';
+ if(quick){const qr=quickPeriodRows9250();quick.innerHTML='<h3>Produção rápida por cortador</h3>'+(qr.length?table(['Cortador','Hoje','Esta semana','Este mês'],qr.map(x=>[escSafe(x[0]),x[1].toLocaleString('pt-BR'),x[2].toLocaleString('pt-BR'),x[3].toLocaleString('pt-BR')])):'<div class="empty">Sem produção.</div>')}
  const rs=d.map(x=>[escSafe(x.c?.name||'Sem cortador'),escSafe(x.c?.cutType||'-'),escSafe(x.cut.finishedAt||x.cut.date||'-'),x.o?'#'+escSafe(typeof displayOrderNumber==='function'?displayOrderNumber(x.o):x.o.id):'-',escSafe(productName(x.cut)),x.planned.toLocaleString('pt-BR'),x.done.toLocaleString('pt-BR'),x.missing.toLocaleString('pt-BR'),moneySafe(x.unit),moneySafe(x.total),escSafe(x.pred),escSafe(x.act)]);
  tbl.innerHTML=rs.length?table(['Cortador','Tipo','Data','Pedido','Modelo','Planejado','Realizado','Falta','Custo/peça','Custo total','Material previsto','Material realizado'],rs):'<div class="empty">Nenhum corte no período.</div>';
 }
