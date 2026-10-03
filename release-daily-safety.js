@@ -7,7 +7,7 @@ const KEY_LAST='hlgb_daily_safety_last_v1', KEY_PENDING='hlgb_daily_safety_pendi
 const REMOTE_MANIFEST='systemDailyBackupManifest', REMOTE_PARTS='systemDailyBackupParts', REMOTE_KEEP=7, REMOTE_CHUNK=220000;
 const sid=v=>String(v??'');
 const clone=v=>{try{return structuredClone(v)}catch(e){return JSON.parse(JSON.stringify(v))}};
-const day=()=>new Date().toISOString().slice(0,10);
+const day=()=>{const d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0')};
 const escSafe=v=>typeof esc==='function'?esc(v):sid(v).replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
 
 function isAdmin(){
