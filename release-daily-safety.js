@@ -172,7 +172,7 @@ async function runDailyAudit(){
   renderStatus(summary);
   if(summary.fail>0||summary.warn>0)showAlert(summary);
   return {audit,sync,backupMeta:{date:backup.date,createdAt:backup.createdAt,appVersion:backup.appVersion},
-    remoteBackupMeta:remote?{date:remote.date,createdAt:remote.createdAt,parts:remote.parts,bytes:remote.bytes,complete:remote.complete}:null,remoteBackupMeta:remoteBackup?{date:remoteBackup.date,createdAt:remoteBackup.createdAt,parts:remoteBackup.parts,bytes:remoteBackup.bytes}:null,summary};
+    remoteBackupMeta:remoteBackup?{date:remoteBackup.date,createdAt:remoteBackup.createdAt,parts:remoteBackup.parts,bytes:remoteBackup.bytes,complete:remoteBackup.complete}:null,summary};
 }
 async function buildSupportPackage(){
   const audit=window.hlgbInternalAuditor?.latest?.()||null;
@@ -189,6 +189,7 @@ async function buildSupportPackage(){
     audit,
     sync,
     backupMeta:{date:backup.date,createdAt:backup.createdAt,appVersion:backup.appVersion},
+    remoteBackupMeta:remote?{date:remote.date,createdAt:remote.createdAt,parts:remote.parts,bytes:remote.bytes,complete:remote.complete}:null,
     instructions:'Enviar este arquivo ao ChatGPT para análise do HLGB. Não contém senha/token e não inclui o conteúdo completo do backup.'
   };
   downloadJson('HLGB-PACOTE-DIARIO-'+day()+'.json',pkg);
