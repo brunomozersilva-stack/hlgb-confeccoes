@@ -710,7 +710,7 @@ function openAuditor(){
   inject();
   const last=latest();
   openModal('🧪 Auditor / Testador HLGB','<div class="sub">Executa conferência interna <b>somente de leitura</b>. Não cria pedidos, não dá baixa e não altera produção ou financeiro.</div><div class="hlgb-auditor-actions"><button type="button" class="primary" onclick="hlgbAuditorRunVisualSweep()">👁️ Teste visual completo</button><button type="button" class="secondary" onclick="hlgbAuditorRunFull()">🧪 Testar sistema</button><button type="button" class="secondary" onclick="hlgbAuditorRunVisual()">Tela atual</button><button type="button" class="secondary" onclick="hlgbAuditorExportVisual()">📦 Exportar diagnóstico visual</button><button type="button" class="secondary" onclick="hlgbAuditorCopyLatest()">📋 Copiar última auditoria</button><button type="button" class="secondary" onclick="hlgbAuditorExportSync()">Sincronização</button><button type="button" class="secondary" onclick="hlgbAuditorCleanDerivedSync()">🧹 Limpar falsos positivos confirmados</button></div><div id="hlgbAuditorResult">'+renderRun(last)+'</div><div class="panel"><h3 style="margin-top:0">Histórico</h3><div id="hlgbAuditorHistory" class="hlgb-auditor-history">'+historyHtml()+'</div></div><button type="button" class="secondary modalSave">Fechar</button>',()=>closeModal());
-  loadRuns().then(()=>{const h=document.getElementById('hlgbAuditorHistory');if(h)h.innerHTML=historyHtml();const r=document.getElementById('hlgbAuditorResult');if(r)r.innerHTML=renderRun(latest())}).catch(()=>{});
+  loadRuns().then(()=>{const h=document.getElementById('hlgbAuditorHistory');if(h)h.innerHTML=historyHtml();const r=document.getElementById('hlgbAuditorResult');if(r){const row=latest();r.innerHTML=alertHtml9249(row)+renderRun(row)}}).catch(()=>{});
 }
 window.openHlgbAuditor=openAuditor;
 async function runUi(mode){
@@ -724,11 +724,11 @@ async function runUi(mode){
 }
 window.hlgbAuditorRunFull=()=>runUi('full');
 window.hlgbAuditorRunVisual=()=>runUi('visual');
-window.hlgbAuditorRunVisualSweep=async function(){const out=document.getElementById('hlgbAuditorResult');if(out)out.innerHTML='<div class="panel"><b>👁️ Testando todas as telas…</b><div class="sub">A tela pode alternar rapidamente durante o teste. Nenhum dado será alterado.</div></div>';const row=await runVisualSweep(true);if(out)out.innerHTML=renderRun(row)+(row.saveError?'<div class="panel"><span class="badge warn">Executou, mas não conseguiu salvar na nuvem</span><div class="sub">'+escSafe(row.saveError)+'</div></div>':'');const h=document.getElementById('hlgbAuditorHistory');if(h)h.innerHTML=historyHtml();return row;};
+window.hlgbAuditorRunVisualSweep=async function(){const out=document.getElementById('hlgbAuditorResult');if(out)out.innerHTML='<div class="panel"><b>👁️ Testando todas as telas…</b><div class="sub">A tela pode alternar rapidamente durante o teste. Nenhum dado será alterado.</div></div>';const row=await runVisualSweep(true);if(out)out.innerHTML=alertHtml9249(row)+renderRun(row)+(row.saveError?'<div class="panel"><span class="badge warn">Executou, mas não conseguiu salvar na nuvem</span><div class="sub">'+escSafe(row.saveError)+'</div></div>':'');const h=document.getElementById('hlgbAuditorHistory');if(h)h.innerHTML=historyHtml();return row;};
 window.hlgbAuditorExportVisual=async function(){try{const data=await downloadVisualDiagnostic();alert('Diagnóstico visual exportado.\n\nTelas verificadas: '+q(data?.audit?.visualSweep?.length)+'\nAtenções: '+q(data?.audit?.summary?.warn)+'\nFalhas: '+q(data?.audit?.summary?.fail)+'\n\nO arquivo não inclui senhas nem tokens.');}catch(e){alert('Não foi possível exportar o diagnóstico visual.\n\n'+String(e?.message||e))}};
 window.hlgbAuditorShowRun=function(runId){
   const row=auditRunsCache.find(x=>sid(x?.id)===sid(runId)),out=document.getElementById('hlgbAuditorResult');
-  if(out)out.innerHTML=renderRun(row);
+  if(out)out.innerHTML=alertHtml9249(row)+renderRun(row);
 };
 window.hlgbAuditorPrepareForChat=async function(){
   try{
