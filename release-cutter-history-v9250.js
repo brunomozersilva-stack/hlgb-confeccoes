@@ -25,7 +25,7 @@ function materialInfo(cut,p,qty){
 function ensure(){
  const page=document.getElementById('cortadores');if(!page||document.getElementById('cutterHistory9250'))return;
  const p=document.createElement('div');p.id='cutterHistory9250';p.className='panel';
- p.innerHTML='<h2>📚 Histórico detalhado de cortadores</h2><div class="sub">Planejado x realizado, falta, custo e materiais por corte/modelo. Usa os mesmos filtros de período acima.</div><div class="toolbar"><button class="secondary" onclick="exportCutterHistory9250()">⬇️ Exportar CSV</button></div><div id="cutterHistoryCards9250" class="cards"></div><div id="cutterHistoryTable9250" style="overflow:auto"></div>';
+ p.innerHTML='<h2>📚 Histórico detalhado de cortadores</h2><div class="sub">Planejado x realizado, falta, custo e materiais por corte/modelo. Usa os mesmos filtros de período acima.</div><div class="toolbar"><button class="secondary" onclick="exportCutterHistory9250()">⬇️ Exportar CSV</button></div><div id="cutterHistoryCards9250" class="cards"></div><div id="cutterQuickPeriod9250" style="margin:12px 0"></div><div id="cutterHistoryTable9250" style="overflow:auto"></div>';
  page.appendChild(p);render();
 }
 function dataset(){
@@ -37,6 +37,18 @@ function dataset(){
  }
  return out;
 }
+
+function localDate9250(d=new Date()){return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0')}
+function quickPeriodRows9250(){
+ const now=new Date(),todayKey=localDate9250(now),startWeek=new Date(now);startWeek.setDate(now.getDate()-((now.getDay()+6)%7));const weekKey=localDate9250(startWeek),monthKey=todayKey.slice(0,7);
+ return arr('cutters').map(c=>{
+   const done=arr('cuts').filter(x=>sid(x.cutterId)===sid(c.id)&&/finalizado/i.test(sid(x.status)));
+   const sum=pred=>done.filter(x=>pred(sid(x.finishedAt||x.date).slice(0,10))).reduce((a,x)=>a+q(x.pieces),0);
+   const d=sum(x=>x===todayKey),w=sum(x=>x>=weekKey&&x<=todayKey),m=sum(x=>x.startsWith(monthKey));
+   return [c.name||'Cortador',d,w,m];
+ });
+}
+
 function render(){
  const cards=document.getElementById('cutterHistoryCards9250'),tbl=document.getElementById('cutterHistoryTable9250');if(!cards||!tbl)return;const d=dataset(),planned=d.reduce((a,x)=>a+x.planned,0),done=d.reduce((a,x)=>a+x.done,0),cost=d.reduce((a,x)=>a+x.total,0);
  cards.innerHTML='<div class="card"><small>Planejado</small><strong>'+planned.toLocaleString('pt-BR')+'</strong></div><div class="card"><small>Realizado</small><strong>'+done.toLocaleString('pt-BR')+'</strong></div><div class="card"><small>Falta</small><strong>'+Math.max(0,planned-done).toLocaleString('pt-BR')+'</strong></div><div class="card"><small>Custo do período</small><strong>'+moneySafe(cost)+'</strong></div>';
