@@ -46,6 +46,23 @@ window.updateEmployeePurchasePreview9250=function(){
  const unit=q(price?.value),disc=q(document.getElementById('empBuyDiscount9250')?.value),manual=document.getElementById('empBuyFinal9250')?.value,final=manual!==''?q(manual):Math.max(0,unit*qtyv-disc),stock=prod?productStock(prod):{qty:0};
  if(box)box.innerHTML='<b>Estoque disponível:</b> '+stock.qty.toLocaleString('pt-BR')+' peça(s) · <b>Valor normal:</b> '+moneySafe(unit*qtyv)+' · <b>Valor a descontar:</b> '+moneySafe(final);
 };
+
+window.postEmployeePurchaseToPayroll9250=async function(id){
+ const r=arr('employeePurchases').find(x=>sid(x.id)===sid(id));if(!r||['Quitado','Cancelado'].includes(r.status))return;
+ const emp=arr('employees').find(x=>sid(x.id)===sid(r.employeeId));if(!emp)return alert('Funcionário não encontrado.');
+ const month=r.payrollMonth||today().slice(0,7),value=q(r.remaining??r.finalValue);if(value<=0)return;
+ try{
+   if(typeof ensureEmployeePayrollForMonth!=='function')throw new Error('Função da folha não disponível.');
+   let payroll=ensureEmployeePayrollForMonth(emp,month);if(!payroll)throw new Error('Não foi possível criar/localizar a folha da competência '+month+'.');
+   payroll={...clone(payroll)};payroll.purchaseIds=Array.isArray(payroll.purchaseIds)?payroll.purchaseIds.map(String):[];
+   if(payroll.purchaseIds.includes(sid(r.id)))return alert('Esta compra já foi lançada nesta folha.');
+   payroll.purchase=q(payroll.purchase)+value;payroll.purchaseIds.push(sid(r.id));payroll.updatedAt=new Date().toISOString();
+   const confirmed=await saveRow('payroll',payroll);
+   await saveRow('employeePurchases',{...clone(r),remaining:0,discountedValue:q(r.discountedValue)+value,status:'Quitado',postedToPayroll:true,payrollRowId:confirmed.id,payrollMonth:month,postedAt:new Date().toISOString()});
+   render();try{renderPayroll?.()}catch(e){};alert('Compra lançada na folha '+month+' como desconto de Compra.');
+ }catch(e){alert('Não foi possível lançar na folha: '+(e?.message||e))}
+};
+
 window.settleEmployeePurchase9250=async function(id){
  const r=arr('employeePurchases').find(x=>sid(x.id)===sid(id));if(!r)return;const v=prompt('Valor descontado agora:',String(r.remaining??r.finalValue));if(v===null)return;const paid=q(String(v).replace(',','.'));if(paid<=0)return;
  const next={...clone(r),remaining:Math.max(0,q(r.remaining??r.finalValue)-paid),discountedValue:q(r.discountedValue)+paid,updatedAt:new Date().toISOString()};next.status=next.remaining<=0?'Quitado':'Parcial';
@@ -65,7 +82,7 @@ function render(){
  const c=document.getElementById('employeePurchaseCards9250'),t=document.getElementById('employeePurchaseTable9250');if(!c||!t)return;
  const a=arr('employeePurchases').filter(x=>x.status!=='Cancelado'),pending=a.reduce((s,x)=>s+q(x.remaining??x.finalValue),0),month=today().slice(0,7),monthValue=a.filter(x=>sid(x.payrollMonth)===month).reduce((s,x)=>s+q(x.remaining??x.finalValue),0);
  c.innerHTML='<div class="card"><small>Pendente total</small><strong>'+moneySafe(pending)+'</strong></div><div class="card"><small>Para a folha atual</small><strong>'+moneySafe(monthValue)+'</strong></div><div class="card"><small>Lançamentos</small><strong>'+a.length+'</strong></div>';
- const rs=a.slice().sort((x,y)=>sid(y.date).localeCompare(sid(x.date))).map(x=>[escSafe(x.employeeName),escSafe(x.productName)+(x.size?' · '+escSafe(x.size):'')+(x.color?' · '+escSafe(x.color):''),q(x.qty).toLocaleString('pt-BR'),moneySafe(x.unitPrice),moneySafe(x.discount),moneySafe(x.finalValue),moneySafe(x.remaining??x.finalValue),escSafe(x.payrollMonth||'-'),escSafe(x.status),'<button class="secondary" onclick="settleEmployeePurchase9250(\''+escSafe(x.id)+'\')">Descontar</button> <button class="danger" onclick="cancelEmployeePurchase9250(\''+escSafe(x.id)+'\')">Cancelar/estornar</button>']);
+ const rs=a.slice().sort((x,y)=>sid(y.date).localeCompare(sid(x.date))).map(x=>[escSafe(x.employeeName),escSafe(x.productName)+(x.size?' · '+escSafe(x.size):'')+(x.color?' · '+escSafe(x.color):''),q(x.qty).toLocaleString('pt-BR'),moneySafe(x.unitPrice),moneySafe(x.discount),moneySafe(x.finalValue),moneySafe(x.remaining??x.finalValue),escSafe(x.payrollMonth||'-'),escSafe(x.status),'<button class="primary" onclick="postEmployeePurchaseToPayroll9250(\''+escSafe(x.id)+'\')">Lançar na folha</button> <button class="secondary" onclick="settleEmployeePurchase9250(\''+escSafe(x.id)+'\')">Abater parcial</button> <button class="danger" onclick="cancelEmployeePurchase9250(\''+escSafe(x.id)+'\')">Cancelar/estornar</button>']);
  t.innerHTML=rs.length?table(['Funcionário','Produto','Qtd.','Preço','Desconto','Valor final','Saldo','Folha','Status','Ações'],rs):'<div class="empty">Nenhuma compra de funcionário cadastrada.</div>';
 }
 function install(){ensure();const r=window.renderPayroll;if(typeof r==='function'&&!r.__empbuy9250){window.renderPayroll=function(){const x=r.apply(this,arguments);setTimeout(render,0);return x};window.renderPayroll.__empbuy9250=true}}
