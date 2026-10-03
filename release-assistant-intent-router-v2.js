@@ -95,7 +95,7 @@ function install(){
  w.__hlgbIntentRouterV2=true;w.__original=base;window.hlgbAssistantAsk=w;
 }
 function boot(){install()}
-setTimeout(boot,4200);setInterval(()=>{if(typeof window.hlgbAssistantAsk==='function'&&!window.hlgbAssistantAsk.__hlgbIntentRouterV2)install()},2500);
+setTimeout(boot,4200);setInterval(()=>{if(window.HLGB_ASSISTANT_FINAL_V9250)return;if(typeof window.hlgbAssistantAsk==='function'&&!window.hlgbAssistantAsk.__hlgbIntentRouterV2)install()},2500);
 window.hlgbAssistantIntentRouter={direct,nextDelivery,cutsSummary,findProduct,aggregateCut};
 window.HLGB_ASSISTANT_INTENT_ROUTER_GUARD=V;
 console.info('[HLGB] roteador de intenção do Assistente v2 ativo');
