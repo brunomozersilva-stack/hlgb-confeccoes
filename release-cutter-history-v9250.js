@@ -1,7 +1,7 @@
 /* HLGB v92.50 — histórico e custos de cortadores */
 (function(){
 'use strict';
-const V='2026.10.03-cutter-history-v9250';
+const V='2026.10.03-cutter-history-v9252';
 const sid=v=>String(v??''),q=v=>Math.max(0,Number(v)||0),today=()=>{const d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0')},norm=v=>sid(v).normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().trim().replace(/\s+/g,' ');
 const escSafe=v=>typeof esc==='function'?esc(v):sid(v).replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
 const moneySafe=v=>typeof money==='function'?money(v):Number(v||0).toLocaleString('pt-BR',{style:'currency',currency:'BRL'});
@@ -15,8 +15,11 @@ function productName(c){
 function period(){try{if(typeof cutterPeriod==='function'){const r=cutterPeriod();return {s:r.start||'',e:r.end||''}}}catch(e){}return {s:document.getElementById('cutterPeriodStart')?.value||'',e:document.getElementById('cutterPeriodEnd')?.value||''}}
 function inside(d,s,e){d=sid(d).slice(0,10);return (!s||!d||d>=s)&&(!e||!d||d<=e)}
 function unitCost(c,cut,pieces){
- if(c?.cutType==='Interno')return pieces>0?q(c.monthlySalary)/pieces:0;
- const text=norm(productName(cut)),rates=Array.isArray(c?.rates)?c.rates:[],m=rates.filter(r=>text.includes(norm(r.type))).sort((a,b)=>sid(b.type).length-sid(a.type).length);return q(m[0]?.price);
+ const direct=q(cut?.cutPieceRate||cut?.pieceRate||cut?.unitCutCost);if(direct>0)return direct;
+ const p=arr('products').find(x=>sid(x.id)===sid(cut?.productId)),pc=q(p?.cutCost);if(pc>0)return pc;
+ const text=norm(productName(cut)),rates=Array.isArray(c?.rates)?c.rates:[],m=rates.filter(r=>text.includes(norm(r.type))).sort((a,b)=>sid(b.type).length-sid(a.type).length);if(q(m[0]?.price)>0)return q(m[0].price);
+ try{const g=window.hlgbCutterGroupRate9252&&arr('cutterGroups').find(x=>x&&x.active!==false&&(x.memberCutterIds||[]).some(id=>sid(id)===sid(c?.id)));if(g)return q(window.hlgbCutterGroupRate9252(g,cut?.productId))}catch(e){}
+ return 0;
 }
 function materialInfo(cut,p,qty){
  const pred=(p?.materials||[]).map(m=>({name:m.name||'Material',qty:q(m.qty)*qty,unit:m.unit||''})),act=Array.isArray(cut?.materialUsage)?cut.materialUsage:Array.isArray(cut?.materialsUsed)?cut.materialsUsed:[];
