@@ -1,7 +1,7 @@
 /* HLGB — pagamento avulso de facções */
 (function(){
 'use strict';
-const V='2026.10.01-faction-manual-payment-v1';
+const V='2026.10.03-faction-manual-payment-v2';\nconst HUB_CUTOFF='2026-10-05';
 const sid=v=>String(v??''),q=v=>Math.max(0,Number(v)||0),now=()=>new Date().toISOString(),today=()=>new Date().toISOString().slice(0,10);
 const escSafe=v=>typeof esc==='function'?esc(v):sid(v).replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
 function arr(n){try{return Array.isArray(db?.[n])?db[n]:[]}catch(e){return []}}
@@ -57,7 +57,7 @@ async function persist(){
     saved.push(await saveRecord('factionPayments',{id,source:'faction_manual_payment_v1',manual:true,manualGroupId:groupId,status:paid?'Pago':'Pendente',factionName,productId:x.productId,description:x.productName,quantity:x.quantity,unitPrice:x.unitPrice,value:x.value,paidAmount:paid?x.value:0,paymentDate:paid?date:'',scheduledPaymentDate:date,paymentMethod:method,paymentHistory:[],discountAmount:0,observation:note||'Pagamento avulso de facção',createdAt,updatedAt:now()}));
   }
   const total=lines.reduce((s,x)=>s+x.value,0);
-  await saveRecord('hubFinanceEntries',{id:hubId(groupId),flow:'Saída',description:'Pagamento avulso de facção — '+factionName,value:total,date,category:'Facções',subcategory:'Pagamento avulso',person:factionName,status:paid?'Realizado':'Previsto',acceptedMethods:method?[method]:[],paymentMethod:method,realizedAt:paid?date:'',note:(note?note+' · ':'')+lines.map(x=>x.productName+' '+x.quantity+'x').join(', '),sourceType:'faction_manual_payment',sourceId:groupId,createdAt,updatedAt:now()});
+  if(paid&&date>=HUB_CUTOFF)await saveRecord('hubFinanceEntries',{id:hubId(groupId),flow:'Saída',description:'Pagamento avulso de facção — '+factionName,value:total,date,category:'Facções',subcategory:'Pagamento avulso',person:factionName,status:'Realizado',acceptedMethods:method?[method]:[],paymentMethod:method,realizedAt:date,note:(note?note+' · ':'')+lines.map(x=>x.productName+' '+x.quantity+'x').join(', '),sourceType:'faction_manual_payment',sourceId:groupId,createdAt,updatedAt:now()});
   return {groupId,total,saved};
 }
 function openForm(){
