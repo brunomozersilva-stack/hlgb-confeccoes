@@ -74,6 +74,7 @@ function changeHubWeek9255(delta){
  const el=hubInput();if(!el)return;const r=hubRange(ensureHubDate()),d=new Date(r.start+'T12:00:00');d.setDate(d.getDate()+Number(delta||0)*7);el.value=iso(d);rememberHub(el.value);renderHubCore9255();
 }
 function installHub(){
+ if(window.HLGB_HUB_MASTER_9258)return; // HLGB_HUB_MASTER_9258_DISABLE
  window.changeHubFinanceWeek=changeHubWeek9255;
  window.renderHubFinance=renderHubCore9255;
  const el=hubInput();if(el&&!el.dataset.hub9255){el.dataset.hub9255='1';el.addEventListener('change',()=>{rememberHub(el.value);renderHubCore9255()},true)}
