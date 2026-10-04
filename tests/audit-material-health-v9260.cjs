@@ -12,16 +12,20 @@ const db={
   {id:'e',total:500,paidAmount:125,status:'Pendente',dueDate:'2026-10-25',supplierName:'E'}
  ],
  hubFinanceEntries:[
-  {flow:'Saída',category:'Matéria-prima',status:'Previsto',date:'2026-10-09',value:1000},
-  {flow:'Saída',category:'Matéria-prima',status:'Realizado',date:'2026-10-09',value:900}
+  {id:'m1',flow:'Saída',category:'Matéria-prima',status:'Previsto',date:'2026-10-09',value:1000},
+  {id:'m2',flow:'Saída',category:'Matéria-prima',status:'Realizado',date:'2026-10-09',value:900},
+  {id:'m3',flow:'Saída',category:'Matéria-prima',status:'Previsto',date:'2026-11-09',value:700},
+  {id:'auto-a',flow:'Saída',category:'Matéria-prima',status:'Previsto',date:'2026-10-09',value:100,sourceType:'purchase_auto',sourceId:'a'}
  ]
 };
 const context={console,db,setTimeout(){return 0},setInterval(){return 0},window:{HLGB_RELEASE_VERSION:'92.59'},document:{getElementById(){return null},querySelector(){return null}}};context.window.window=context.window;vm.createContext(context);vm.runInContext(src,context);
-const api=context.window.hlgbMaterialHealth9260;assert(api,'API v92.60 deve existir');
+const api=context.window.hlgbMaterialHealth9260;assert(api,'API de saúde de matéria-prima deve existir');
 assert.equal(api.outstanding(db.purchases[0]),100);
 assert.equal(api.outstanding(db.purchases[3]),0,'nota paga não pode permanecer aberta');
 assert.equal(api.outstanding(db.purchases[4]),375,'pagamento parcial deve reduzir saldo');
 assert.equal(api.due(db.purchases[2]),'','nota sem vencimento não pode usar data da compra como vencimento');
-assert.equal(api.openNotes().reduce((s,x)=>s+x.remain,0),975,'total aberto deve incluir saldos reais e nota sem vencimento');
-assert.equal(api.manualMaterialRows().length,1,'compromisso manual realizado não deve constar como aberto');
-console.log('PASS v92.60: notas abertas usam vencimento real, saldo parcial e separam compromissos manuais.');
+assert.equal(api.openNotes().reduce((s,x)=>s+x.remain,0),975,'notas abertas devem usar saldos reais');
+assert.equal(api.manualMaterialRows().length,2,'manual previsto deve entrar; realizado e automático vinculado devem ficar fora');
+assert.equal(api.manualMaterialRows().reduce((s,x)=>s+x.value,0),1700,'manual aberto deve compor a saúde financeira');
+assert.equal(api.isAutoPurchaseEntry(db.hubFinanceEntries[3]),true,'lançamento automático ligado à compra não pode duplicar a nota');
+console.log('PASS v92.61: total aberto combina notas e manual legado sem duplicar lançamentos automáticos vinculados.');
