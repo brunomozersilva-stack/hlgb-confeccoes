@@ -1,6 +1,7 @@
 /* HLGB v92.53 — correção autoritativa da navegação semanal do Hub Financeiro */
 (function(){
 'use strict';
+if(window.HLGB_HUB_MASTER_9258){window.HLGB_HUB_WEEK_9253_DISABLED=true;return;} // HLGB_HUB_MASTER_9258_DISABLE
 const V='2026.10.03-hub-week-v9253';
 const sid=v=>String(v??'');
 const q=v=>Math.max(0,Number(v)||0);
