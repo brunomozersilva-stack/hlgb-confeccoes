@@ -1,7 +1,7 @@
 /* HLGB v92.58 — Hub Financeiro master: uma semana, uma fonte, atualização integral */
 (function(){
 'use strict';
-const V='92.58';
+const V='92.59';
 const sid=v=>String(v??'');
 const norm=v=>sid(v).normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().trim().replace(/\s+/g,' ');
 const q=v=>Math.max(0,Number(v)||0);
@@ -74,16 +74,32 @@ function renderDue(range,s){
  panel.innerHTML='<h2>📆 Entradas e saídas por vencimento</h2><div class="sub"><b>Semana sincronizada: '+esc(fmt(range.start))+' a '+esc(fmt(range.end))+'</b>. Edite a data, o valor ou marque Pago/Recebido diretamente aqui. Mês: entradas '+money(monthIn)+' · saídas '+money(monthOut)+'. Ano: entradas '+money(yearIn)+' · saídas '+money(yearOut)+'.</div><div class="cards hub9185-cards"><div class="card"><small>Entradas na semana</small><strong>'+money(s.inTotal)+'</strong></div><div class="card"><small>Recebido</small><strong>'+money(sum(s.rec))+'</strong></div><div class="card"><small>A receber</small><strong>'+money(sum(s.recv))+'</strong></div><div class="card"><small>Saídas na semana</small><strong>'+money(s.outTotal)+'</strong></div><div class="card"><small>Pago</small><strong>'+money(sum(s.paid))+'</strong></div><div class="card"><small>Falta pagar</small><strong>'+money(sum(s.open))+'</strong></div></div>'+dayHtml;
 }
 
+function syncDerivedPeriod(){
+ const selected=selectedDate(),range=weekRange(selected),pm=document.getElementById('hlgbHubPeriodMode'),pw=document.getElementById('hlgbHubPeriodWeek');
+ if(pm&&pm.value!=='week')pm.value='week';
+ if(pw){
+   const d=parseIso(range.start),x=new Date(d);x.setDate(x.getDate()+3-((x.getDay()+6)%7));
+   const y=x.getFullYear(),w1=new Date(y,0,4,12),wk=1+Math.round(((x-w1)/86400000-3+((w1.getDay()+6)%7))/7);
+   const v=y+'-W'+String(wk).padStart(2,'0');
+   if(pw.value!==v)pw.value=v;
+ }
+ const month=document.getElementById('hlgbHubPeriodMonth'),year=document.getElementById('hlgbHubPeriodYear');
+ if(month)month.value=range.start.slice(0,7);
+ if(year)year.value=range.start.slice(0,4);
+ return range;
+}
 function renderDerived(){
- try{window.hlgbHubPersonalIntegrity?.repairPersonalSummary?.()}catch(e){console.warn('[HLGB 9258] pessoal',e)}
- try{window.hlgbRenderHubSearch9248?.()}catch(e){console.warn('[HLGB 9258] busca',e)}
- try{window.hlgbFinanceLocations9251?.renderConfExpenses?.()}catch(e){console.warn('[HLGB 9258] confecção',e)}
- try{window.hlgbHubPeriodSummary?.render?.()}catch(e){console.warn('[HLGB 9258] período',e)}
- try{window.hlgbOperationalPolish?.renderHubFactionDetail?.()}catch(e){console.warn('[HLGB 9258] facções',e)}
+ syncDerivedPeriod();
+ try{window.hlgbHubPersonalIntegrity?.repairPersonalSummary?.()}catch(e){console.warn('[HLGB 9259] pessoal',e)}
+ try{window.hlgbRenderHubSearch9248?.()}catch(e){console.warn('[HLGB 9259] busca',e)}
+ try{window.hlgbFinanceLocations9251?.renderConfExpenses?.()}catch(e){console.warn('[HLGB 9259] confecção',e)}
+ try{window.hlgbHubPeriodSummary?.render?.()}catch(e){console.warn('[HLGB 9259] período',e)}
+ try{window.hlgbOperationalPolish?.renderHubFactionDetail?.()}catch(e){console.warn('[HLGB 9259] facções',e)}
 }
 function renderAll(){
  const page=document.getElementById('hubFinanceiro'),el=document.getElementById('hubFinanceWeek');if(!page||!el)return false;
  const range=weekRange(selectedDate()),s=summary(range);
+ syncDerivedPeriod();
  renderCore(range,s);renderDue(range,s);
  const old9253=document.getElementById('hlgbHubWeek9253');if(old9253)old9253.style.setProperty('display','none','important');
  setTimeout(renderDerived,0);
