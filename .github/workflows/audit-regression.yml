@@ -103,7 +103,8 @@ jobs:
             tests/audit-sync-storm-guard.cjs \
             tests/audit-operations-pack-v9249.cjs \
             tests/audit-business-pack-v9250.cjs \
-            tests/audit-stabilization-v9259.cjs
+            tests/audit-stabilization-v9259.cjs \
+            tests/audit-material-health-v9260.cjs
           do
             echo "==> $test"
             node "$test"
