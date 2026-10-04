@@ -1,7 +1,8 @@
 /* HLGB — pagamento avulso de facções */
 (function(){
 'use strict';
-const V='2026.10.03-faction-manual-payment-v2';\nconst HUB_CUTOFF='2026-10-05';
+const V='2026.10.04-faction-manual-payment-v3';
+const HUB_CUTOFF='2026-10-05';
 const sid=v=>String(v??''),q=v=>Math.max(0,Number(v)||0),now=()=>new Date().toISOString(),today=()=>new Date().toISOString().slice(0,10);
 const escSafe=v=>typeof esc==='function'?esc(v):sid(v).replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
 function arr(n){try{return Array.isArray(db?.[n])?db[n]:[]}catch(e){return []}}
