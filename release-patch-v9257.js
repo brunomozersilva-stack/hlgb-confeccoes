@@ -76,6 +76,7 @@ function renderHub9257(){
 }
 function shiftHub9257(delta){const r=weekRange(selectedHubDate()),d=parseIso(r.start);d.setDate(d.getDate()+Number(delta||0)*7);setHubDate(iso(d))}
 function bindHub9257(){
+ if(window.HLGB_HUB_MASTER_9258)return; // HLGB_HUB_MASTER_9258_DISABLE
  const page=document.getElementById('hubFinanceiro'),el=hubDateEl();if(!page||!el)return;
  window.changeHubFinanceWeek=shiftHub9257;window.renderHubFinance=renderHub9257;
  if(!el.dataset.v9257){el.dataset.v9257='1';el.onchange=()=>setHubDate(el.value);el.oninput=null}
