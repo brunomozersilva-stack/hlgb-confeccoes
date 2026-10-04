@@ -185,6 +185,7 @@ function refreshHubWeek9252(){
  setTimeout(()=>{try{window.hlgbHubPeriodSummary?.render?.();window.hlgbRenderHubFactionDetail?.();window.renderConfExpenses?.()}catch(e){}},30);
 }
 function bindHubWeek9252(){
+ if(window.HLGB_HUB_MASTER_9258)return; // HLGB_HUB_MASTER_9258_DISABLE
  const page=document.getElementById('hubFinanceiro'),w=document.getElementById('hubFinanceWeek');if(!page||!w)return;
  if(!w.dataset.weekFix9252){w.dataset.weekFix9252='1';w.addEventListener('change',()=>setTimeout(refreshHubWeek9252,0));w.addEventListener('input',()=>setTimeout(refreshHubWeek9252,0))}
  page.querySelectorAll('button').forEach(b=>{const t=norm(b.textContent);if((t.includes('semana anterior')||t.includes('proxima semana'))&&!b.dataset.weekFix9252){b.dataset.weekFix9252='1';b.addEventListener('click',()=>{setTimeout(()=>{const x=document.getElementById('hubFinanceWeek');if(x&&!parseHubDate(x.value)){const d=new Date();x.value=formatForInput(x,d)}refreshHubWeek9252()},20)})}});
