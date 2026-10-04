@@ -122,11 +122,11 @@ function sendAssistant9256(){
  const text=voiceText9256(),input=document.getElementById('hlgbAssistantInput'),out=answerBox9256();if(!text)return alert('Não há texto para enviar.');
  if(!input)return alert('O campo do Assistente não está disponível.');
  input.value=text;try{input.dispatchEvent(new Event('input',{bubbles:true}));input.dispatchEvent(new Event('change',{bubbles:true}))}catch(e){}
- const before=sid(out?.innerHTML);
+ if(out)out.innerHTML='<b>⏳ Enviando pergunta…</b>';
  try{
    if(typeof window.hlgbAssistantAsk!=='function')throw new Error('Função de pergunta não carregada.');
    window.hlgbAssistantAsk();
-   setTimeout(()=>{const now=sid(out?.innerHTML);if(out&&now===before)out.innerHTML='<b>⚠️ A pergunta não recebeu resposta.</b><br><span class="sub">O texto foi enviado ao campo do Assistente. Tente novamente ou feche e abra o Assistente.</span>'},180);
+   setTimeout(()=>{const now=sid(out?.innerText||out?.textContent);if(out&&/Enviando pergunta/.test(now))out.innerHTML='<b>⚠️ A pergunta não recebeu resposta.</b><br><span class="sub">O texto foi enviado ao campo do Assistente, mas o processador não respondeu.</span>'},220);
  }catch(e){console.error('[HLGB 9256] envio assistente',e);if(out)out.innerHTML='<b>Não foi possível enviar a pergunta.</b><br>'+esc(e?.message||e)}
 }
 window.hlgbSendAssistant9256=sendAssistant9256;
