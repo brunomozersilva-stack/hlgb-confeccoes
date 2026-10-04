@@ -1,0 +1,15 @@
+const fs=require('fs'),vm=require('vm'),assert=require('assert'),path=require('path');
+const src=fs.readFileSync(path.join(__dirname,'..','release-tab-resume-v9262.js'),'utf8');
+const loader=fs.readFileSync(path.join(__dirname,'..','app-stable3.html'),'utf8');
+assert.doesNotThrow(()=>new vm.Script(src,{filename:'release-tab-resume-v9262.js'}),'v92.62 deve ter sintaxe válida');
+assert(loader.includes("'release-tab-resume-v9262.js'"),'loader deve carregar recuperação de aba');
+assert(loader.indexOf("'release-tab-resume-v9262.js'")<loader.indexOf("'release-ui-stability.js'"),'guard visual deve continuar por último');
+assert(src.includes("document.addEventListener('visibilitychange'"),'deve tratar retorno de aba');
+assert(src.includes("window.addEventListener('pageshow'"),'deve tratar pageshow/bfcache do Safari');
+assert(src.includes("window.addEventListener('focus'"),'deve tratar foco de retorno');
+assert(src.includes("document.querySelectorAll('.hlgb-page-settling')"),'deve remover settling preso');
+assert(src.includes("hlgbManualRefreshCurrentPage"),'deve preferir refresh leve da página atual');
+assert(src.includes("shellLooksBlank"),'deve detectar shell sem página visível');
+assert(src.includes("hlgb_tab_resume_log_9262"),'deve registrar diagnóstico local do retorno');
+assert(!/location\.reload\(\)/.test(src),'recuperação normal não deve recarregar a aplicação inteira');
+console.log('PASS v92.62: retorno de aba Safari recupera settling/página ativa sem reload total.');
