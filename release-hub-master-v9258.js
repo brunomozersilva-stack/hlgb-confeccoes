@@ -1,0 +1,123 @@
+/* HLGB v92.58 — Hub Financeiro master: uma semana, uma fonte, atualização integral */
+(function(){
+'use strict';
+const V='92.58';
+const sid=v=>String(v??'');
+const norm=v=>sid(v).normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().trim().replace(/\s+/g,' ');
+const q=v=>Math.max(0,Number(v)||0);
+const esc=v=>sid(v).replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+const arr=n=>{try{return Array.isArray(db?.[n])?db[n]:[]}catch(e){return []}};
+const money=v=>{try{return typeof window.money==='function'?window.money(v):Number(v||0).toLocaleString('pt-BR',{style:'currency',currency:'BRL'})}catch(e){return 'R$ '+Number(v||0).toFixed(2).replace('.',',')}};
+const fmt=v=>{try{return typeof window.fmtDate==='function'?window.fmtDate(v):sid(v)}catch(e){return sid(v)}};
+const KEY='hlgb_hub_master_week_9258';
+
+function iso(d){return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0')}
+function parseIso(v){const m=sid(v).match(/^(\d{4})-(\d{2})-(\d{2})$/);return m?new Date(+m[1],+m[2]-1,+m[3],12):null}
+function weekRange(v){
+ const d=parseIso(v)||new Date(),m=new Date(d);m.setHours(12,0,0,0);m.setDate(m.getDate()-((m.getDay()+6)%7));const s=new Date(m);s.setDate(s.getDate()+6);
+ return {selected:iso(d),start:iso(m),end:iso(s),monday:m,sunday:s};
+}
+function selectedDate(){
+ const el=document.getElementById('hubFinanceWeek');let v=sid(el?.value);
+ if(!/^\d{4}-\d{2}-\d{2}$/.test(v)){try{v=localStorage.getItem(KEY)||''}catch(e){}}
+ if(!/^\d{4}-\d{2}-\d{2}$/.test(v))v=iso(new Date());
+ if(el&&el.value!==v)el.value=v;
+ try{localStorage.setItem(KEY,v)}catch(e){}
+ return v;
+}
+function setDate(v){
+ const d=parseIso(v);if(!d)return false;const x=iso(d),el=document.getElementById('hubFinanceWeek');if(el)el.value=x;
+ try{localStorage.setItem(KEY,x)}catch(e){}
+ renderAll();
+ return true;
+}
+function shiftWeek(delta){const r=weekRange(selectedDate()),d=parseIso(r.start);d.setDate(d.getDate()+7*Number(delta||0));setDate(iso(d))}
+
+function methods(e){
+ try{return typeof window.hlgb916HubEntryMethods==='function'?window.hlgb916HubEntryMethods(e):(e.flow==='Entrada'?[e.method||'Pix']:(Array.isArray(e.acceptedMethods)&&e.acceptedMethods.length?e.acceptedMethods:['Pix']))}catch(e){return []}
+}
+function dataRows(){
+ return arr('hubFinanceEntries').filter(e=>e&&!sid(e.kind).startsWith('hub_settings')&&sid(e.date).slice(0,10));
+}
+function rowsFor(range){return dataRows().filter(e=>{const d=sid(e.date).slice(0,10);return d>=range.start&&d<=range.end})}
+function sum(list){return list.reduce((a,e)=>a+q(e.value),0)}
+function isDone(e){return sid(e.status)==='Realizado'}
+function summary(range){
+ const rows=rowsFor(range),ins=rows.filter(e=>e.flow==='Entrada'),outs=rows.filter(e=>e.flow==='Saída'),rec=ins.filter(isDone),recv=ins.filter(e=>!isDone(e)),paid=outs.filter(isDone),open=outs.filter(e=>!isDone(e));
+ let cashIn=0,checksIn=0,hardCash=0,strictCheck=0,flexCheck=0;
+ for(const e of ins){const m=norm(e.method);if(m==='cheque')checksIn+=q(e.value);else if(m==='pix'||m==='dinheiro')cashIn+=q(e.value)}
+ for(const e of outs){const ms=methods(e).map(norm),hasCheck=ms.includes('cheque'),hasCash=ms.includes('pix')||ms.includes('dinheiro');if(hasCheck&&!hasCash)strictCheck+=q(e.value);else if(hasCheck&&hasCash)flexCheck+=q(e.value);else hardCash+=q(e.value)}
+ const checkGap=Math.max(0,strictCheck-checksIn),remainingChecks=Math.max(0,checksIn-strictCheck),flexCovered=Math.min(flexCheck,remainingChecks),cashNeed=hardCash+Math.max(0,flexCheck-flexCovered),cashBalance=cashIn-cashNeed;
+ return {rows,ins,outs,rec,recv,paid,open,inTotal:sum(ins),outTotal:sum(outs),balance:sum(ins)-sum(outs),realizedIn:sum(rec),realizedOut:sum(paid),cashIn,checksIn,hardCash,strictCheck,flexCheck,checkEligible:strictCheck+flexCheck,checkGap,cashNeed,cashBalance};
+}
+function tableSafe(h,r){try{return typeof window.table==='function'?window.table(h,r):'<div class="empty">Tabela indisponível.</div>'}catch(e){return '<div class="empty">Tabela indisponível.</div>'}}
+
+function renderCore(range,s){
+ const label=document.getElementById('hubFinanceWeekLabel');if(label)label.innerHTML='<b>Semana de '+esc(fmt(range.start))+' a '+esc(fmt(range.end))+'</b> · referência '+esc(fmt(range.selected));
+ const cards=document.getElementById('hubFinanceCards');if(cards)cards.innerHTML='<div class="card"><small>Entradas previstas</small><strong>'+money(s.inTotal)+'</strong></div><div class="card"><small>Saídas previstas</small><strong>'+money(s.outTotal)+'</strong></div><div class="card"><small>Saldo previsto</small><strong>'+money(s.balance)+'</strong></div><div class="card"><small>Pix + dinheiro previsto</small><strong>'+money(s.cashIn)+'</strong></div><div class="card"><small>Cheques previstos</small><strong>'+money(s.checksIn)+'</strong></div><div class="card"><small>Contas que aceitam cheque</small><strong>'+money(s.checkEligible)+'</strong></div><div class="card"><small>Entradas realizadas</small><strong>'+money(s.realizedIn)+'</strong></div><div class="card"><small>Saídas realizadas</small><strong>'+money(s.realizedOut)+'</strong></div>';
+ const alertEl=document.getElementById('hubFinanceLiquidityAlert');if(alertEl){let parts=[],cls='ok';if(s.balance<0){parts.push('A semana fecha negativa em '+money(Math.abs(s.balance))+'.');cls='bad'}else parts.push('A semana fecha positiva em '+money(s.balance)+'.');if(s.checkGap>0){parts.push('Faltam '+money(s.checkGap)+' em cheque.');cls='bad'}if(s.cashBalance<0){parts.push('Faltam '+money(Math.abs(s.cashBalance))+' em Pix/dinheiro.');if(cls!=='bad')cls='warn'}alertEl.innerHTML='<div class="panel"><span class="badge '+cls+'" style="font-size:13px;padding:8px 12px">'+parts.map(esc).join(' ')+'</span></div>'}
+ const cat={};for(const e of s.outs)cat[e.category||'Outros']=(cat[e.category||'Outros']||0)+q(e.value);
+ const catRows=Object.entries(cat).sort((a,b)=>b[1]-a[1]),catEl=document.getElementById('hubFinanceCategoryTable');if(catEl)catEl.innerHTML=catRows.length?tableSafe(['Categoria','Valor','% das saídas'],catRows.map(([k,v])=>[esc(k),money(v),s.outTotal?((v/s.outTotal*100).toFixed(1).replace('.',',')+'%'):'0%'])):'<div class="empty">Nenhuma saída lançada nesta semana.</div>';
+ const methodEl=document.getElementById('hubFinanceMethodTable');if(methodEl)methodEl.innerHTML=tableSafe(['Indicador','Valor'],[['Entradas em Pix/dinheiro',money(s.cashIn)],['Entradas em cheque',money(s.checksIn)],['Saídas que exigem Pix/dinheiro',money(s.hardCash)],['Saídas somente em cheque',money(s.strictCheck)],['Saídas flexíveis que aceitam cheque',money(s.flexCheck)],['Necessidade final de Pix/dinheiro',money(s.cashNeed)]]);
+ const fut=document.getElementById('hubFinanceFutureTable');if(fut){const rows=[],base=parseIso(range.start);for(let i=0;i<6;i++){const d=new Date(base);d.setDate(d.getDate()+i*7);const r=weekRange(iso(d)),x=summary(r);rows.push([fmt(r.start)+' a '+fmt(r.end),money(x.inTotal),money(x.outTotal),money(x.balance),money(x.cashBalance)])}fut.innerHTML=tableSafe(['Semana','Entradas','Saídas','Saldo','Liquidez Pix/dinheiro'],rows)}
+ const tbl=document.getElementById('hubFinanceEntriesTable');if(tbl){const rows=s.rows.slice().sort((a,b)=>sid(a.date).localeCompare(sid(b.date))||sid(a.description).localeCompare(sid(b.description),'pt-BR'));tbl.innerHTML=rows.length?tableSafe(['Data','Tipo','Descrição','Categoria','Pessoa/Origem','Valor','Pagamento','Status','Ações'],rows.map(e=>[fmt(e.date),'<span class="badge '+(e.flow==='Entrada'?'ok':'warn')+'">'+esc(e.flow)+'</span>',esc(e.description||'-'),esc(e.category||'-'),esc(e.person||e.origin||'-'),money(e.value),esc(methods(e).join(' / ')),'<span class="badge '+(isDone(e)?'ok':'')+'">'+esc(e.status||'Previsto')+'</span>','<button type="button" class="secondary" onclick="editHubFinanceEntry('+JSON.stringify(e.id)+')">Editar</button> <button type="button" class="primary" onclick="toggleHubFinanceEntry('+JSON.stringify(e.id)+')">'+(isDone(e)?'Reabrir':'✓ Realizado')+'</button> <button type="button" class="danger" onclick="deleteHubFinanceEntry('+JSON.stringify(e.id)+')">Excluir</button>'])):'<div class="empty">Nenhum lançamento nesta semana.</div>'}
+}
+
+function renderDue(range,s){
+ const anchor=document.getElementById('hubFinanceCards');if(!anchor)return;
+ let panel=document.getElementById('hubDue9166');if(!panel){panel=document.createElement('div');panel.id='hubDue9166';panel.className='panel';anchor.insertAdjacentElement('afterend',panel)}
+ const groups={};for(const e of s.rows){const d=sid(e.date).slice(0,10);(groups[d]||(groups[d]=[])).push(e)}
+ const base=parseIso(range.start),days=[];for(let i=0;i<7;i++){const d=new Date(base);d.setDate(d.getDate()+i);days.push(iso(d))}
+ const dayHtml=days.map(d=>{const a=(groups[d]||[]).slice().sort((x,y)=>sid(x.flow).localeCompare(sid(y.flow))||q(y.value)-q(x.value)),di=a.filter(x=>x.flow==='Entrada'),do_=a.filter(x=>x.flow==='Saída'),dp=do_.filter(isDone),df=do_.filter(x=>!isDone(x));
+ return '<div class="hub9166-day"><div class="hub9166-head"><div><b>'+new Date(d+'T12:00:00').toLocaleDateString('pt-BR',{weekday:'long',day:'2-digit',month:'2-digit'})+'</b><div class="hub9185-headsum"><span>🟢 Entradas: <b>'+money(sum(di))+'</b></span><span>🔴 Saídas: <b>'+money(sum(do_))+'</b></span><span>✅ Pago: <b>'+money(sum(dp))+'</b></span><span>⏳ Falta: <b>'+money(sum(df))+'</b></span></div></div><strong>'+a.length+' lançamento(s)</strong></div>'+(a.length?'<div class="hub9166-items">'+a.map(e=>'<div class="hub9185-item"><span class="badge '+(e.flow==='Entrada'?'ok':'warn')+' hub9185-flow">'+esc(e.flow)+'</span><div><b>'+esc(e.description||e.category||'Lançamento')+'</b>'+(e.origin||e.person?'<small style="display:block;margin-top:3px">'+esc(e.person||e.origin)+'</small>':'')+'</div><span class="badge '+(isDone(e)?'ok':(e.flow==='Saída'?'warn':''))+' hub9185-status">'+(e.flow==='Entrada'?(isDone(e)?'Recebido':'A receber'):(isDone(e)?'Pago':'Falta pagar'))+'</span><b class="hub9185-value">'+money(e.value)+'</b><div class="hub9185-actions"><button type="button" class="secondary" onclick="quickEditHub9185('+JSON.stringify(sid(e.id))+')">Editar</button><button type="button" class="'+(isDone(e)?'secondary':'primary')+'" onclick="toggleHubQuick9185('+JSON.stringify(sid(e.id))+')">'+(isDone(e)?'Reabrir':(e.flow==='Entrada'?'✓ Recebido':'✓ Pago'))+'</button></div></div>').join('')+'</div>':'<div class="hub9185-day-empty">Nenhum lançamento neste dia.</div>')+'</div>'}).join('');
+ const all=dataRows(),month=range.start.slice(0,7),year=range.start.slice(0,4),monthRows=all.filter(e=>sid(e.date).startsWith(month)),yearRows=all.filter(e=>sid(e.date).startsWith(year)),monthIn=sum(monthRows.filter(e=>e.flow==='Entrada')),monthOut=sum(monthRows.filter(e=>e.flow==='Saída')),yearIn=sum(yearRows.filter(e=>e.flow==='Entrada')),yearOut=sum(yearRows.filter(e=>e.flow==='Saída'));
+ panel.innerHTML='<h2>📆 Entradas e saídas por vencimento</h2><div class="sub"><b>Semana sincronizada: '+esc(fmt(range.start))+' a '+esc(fmt(range.end))+'</b>. Edite a data, o valor ou marque Pago/Recebido diretamente aqui. Mês: entradas '+money(monthIn)+' · saídas '+money(monthOut)+'. Ano: entradas '+money(yearIn)+' · saídas '+money(yearOut)+'.</div><div class="cards hub9185-cards"><div class="card"><small>Entradas na semana</small><strong>'+money(s.inTotal)+'</strong></div><div class="card"><small>Recebido</small><strong>'+money(sum(s.rec))+'</strong></div><div class="card"><small>A receber</small><strong>'+money(sum(s.recv))+'</strong></div><div class="card"><small>Saídas na semana</small><strong>'+money(s.outTotal)+'</strong></div><div class="card"><small>Pago</small><strong>'+money(sum(s.paid))+'</strong></div><div class="card"><small>Falta pagar</small><strong>'+money(sum(s.open))+'</strong></div></div>'+dayHtml;
+}
+
+function renderDerived(){
+ try{window.hlgbHubPersonalIntegrity?.repairPersonalSummary?.()}catch(e){console.warn('[HLGB 9258] pessoal',e)}
+ try{window.hlgbRenderHubSearch9248?.()}catch(e){console.warn('[HLGB 9258] busca',e)}
+ try{window.hlgbFinanceLocations9251?.renderConfExpenses?.()}catch(e){console.warn('[HLGB 9258] confecção',e)}
+ try{window.hlgbHubPeriodSummary?.render?.()}catch(e){console.warn('[HLGB 9258] período',e)}
+ try{window.hlgbOperationalPolish?.renderHubFactionDetail?.()}catch(e){console.warn('[HLGB 9258] facções',e)}
+}
+function renderAll(){
+ const page=document.getElementById('hubFinanceiro'),el=document.getElementById('hubFinanceWeek');if(!page||!el)return false;
+ const range=weekRange(selectedDate()),s=summary(range);
+ renderCore(range,s);renderDue(range,s);
+ const old9253=document.getElementById('hlgbHubWeek9253');if(old9253)old9253.style.setProperty('display','none','important');
+ setTimeout(renderDerived,0);
+ page.dataset.hlgbHubRendered9258=range.start+'|'+range.end+'|'+s.rows.length+'|'+s.inTotal+'|'+s.outTotal;
+ return true;
+}
+function bind(){
+ const page=document.getElementById('hubFinanceiro'),el=document.getElementById('hubFinanceWeek');if(!page||!el)return;
+ window.renderHubFinance=renderAll;window.changeHubFinanceWeek=shiftWeek;
+ if(!el.dataset.master9258){el.dataset.master9258='1';el.onchange=()=>setDate(el.value);el.addEventListener('input',()=>{if(/^\d{4}-\d{2}-\d{2}$/.test(el.value))try{localStorage.setItem(KEY,el.value)}catch(e){}},false)}
+ if(!page.dataset.master9258){page.dataset.master9258='1';page.addEventListener('click',ev=>{const b=ev.target?.closest?.('button');if(!b)return;const t=norm(b.textContent);if(t.includes('semana anterior')){ev.preventDefault();ev.stopImmediatePropagation();shiftWeek(-1)}else if(t.includes('proxima semana')){ev.preventDefault();ev.stopImmediatePropagation();shiftWeek(1)}},true)}
+ renderAll();
+}
+function selfTest(){
+ const failures=[],assert=(ok,msg)=>{if(!ok)failures.push(msg)};
+ const a=weekRange('2026-10-05');assert(a.start==='2026-10-05'&&a.end==='2026-10-11','semana 05/10');
+ const b=weekRange('2026-10-12');assert(b.start==='2026-10-12'&&b.end==='2026-10-18','semana 12/10');
+ const c=weekRange('2026-01-01');assert(c.start==='2025-12-29'&&c.end==='2026-01-04','virada ano');
+ const entries=[
+  {date:'2026-10-05',flow:'Entrada',status:'Previsto',value:8681,method:'Pix'},
+  {date:'2026-10-09',flow:'Entrada',status:'Previsto',value:30075,method:'Pix'},
+  {date:'2026-10-06',flow:'Saída',status:'Previsto',value:64000,acceptedMethods:['Pix']},
+  {date:'2026-10-07',flow:'Saída',status:'Previsto',value:1450,acceptedMethods:['Pix']},
+  {date:'2026-10-09',flow:'Saída',status:'Previsto',value:55050.92,acceptedMethods:['Pix']},
+  {date:'2026-10-12',flow:'Saída',status:'Previsto',value:26700.26,acceptedMethods:['Pix']}
+ ];
+ const by=(r)=>entries.filter(e=>e.date>=r.start&&e.date<=r.end),x=by(a);assert(Math.abs(sum(x.filter(e=>e.flow==='Entrada'))-38756)<0.001,'entrada semana 05/10');assert(Math.abs(sum(x.filter(e=>e.flow==='Saída'))-120500.92)<0.001,'saída semana 05/10');assert(by(b).length===1,'troca de semana isola dados');
+ return {ok:!failures.length,failures};
+}
+function stamp(){try{window.HLGB_RELEASE_VERSION=V;const x=document.querySelector('#appShell .logo small');if(x)x.textContent='v'+V;const b=document.querySelector('#loginScreen b');if(b&&/Versão/i.test(b.textContent||''))b.textContent='Versão v'+V}catch(e){}}
+function boot(){stamp();bind();const t=selfTest();window.HLGB_HUB_9258_SELFTEST=t;if(!t.ok)console.error('[HLGB 9258] self-test',t)}
+setTimeout(boot,700);setInterval(()=>{stamp();if(document.getElementById('hubFinanceiro'))bind()},3000);
+try{if(typeof hlgbAfterLogin==='function')hlgbAfterLogin(()=>setTimeout(boot,250),0)}catch(e){}
+window.hlgbHubMaster9258={weekRange,selectedDate,setDate,shiftWeek,rowsFor,summary,renderAll,selfTest};
+window.HLGB_HUB_MASTER_ACTIVE_9258=V;
+console.info('[HLGB] Hub master v'+V+' ativo');
+})();
