@@ -92,7 +92,7 @@ function install(){
  const base=cur,w=function(){const raw=document.getElementById('hlgbAssistantInput')?.value||'',a=smart(raw);if(a){const out=document.getElementById('hlgbAssistantAnswer');if(out)out.innerHTML='<h3 style="margin-top:0">'+escSafe(a.title)+'</h3>'+a.text;return}return base.apply(this,arguments)};
  w.__brain9250=true;w.__original=base;window.hlgbAssistantAsk=w;
 }
-function boot(){injectStyle();ensureFab();ensureMobileNav9250();decorate();try{window.HLGB_RELEASE_VERSION='92.50'}catch(e){}}
+function boot(){injectStyle();ensureFab();ensureMobileNav9250();decorate();try{if((Number(window.HLGB_RELEASE_VERSION)||0)<=92.50)window.HLGB_RELEASE_VERSION='92.50'}catch(e){}}
 setTimeout(boot,1800);
 setInterval(()=>{ensureFab();ensureMobileNav9250();if(document.getElementById('hlgbAssistantInput'))decorate()},2400);
 setTimeout(()=>{window.HLGB_ASSISTANT_FINAL_V9250=true;install();decorate();},7200);
