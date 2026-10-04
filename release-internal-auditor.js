@@ -492,50 +492,75 @@ function compareAnchorShift(a,b){
 function visualSweepOverlay9249(show){
  let el=document.getElementById('hlgbVisualSweepOverlay9249');
  if(show){
-   if(!el){el=document.createElement('div');el.id='hlgbVisualSweepOverlay9249';el.style.cssText='position:fixed;inset:0;z-index:2147483000;background:rgba(255,255,255,.96);display:flex;align-items:center;justify-content:center;text-align:center;padding:30px;color:#222';el.innerHTML='<div><div style="font-size:42px">🧪</div><h2>Testando as telas do HLGB</h2><p>Não use o sistema por alguns segundos.<br>Ao terminar, a tela anterior será restaurada automaticamente.</p></div>';document.body.appendChild(el)}
+   if(!el){
+     el=document.createElement('div');el.id='hlgbVisualSweepOverlay9249';
+     el.style.cssText='position:fixed;inset:0;z-index:2147483000;background:rgba(255,255,255,.97);display:flex;align-items:center;justify-content:center;text-align:center;padding:30px;color:#222';
+     el.innerHTML='<div style="width:min(620px,92vw)"><div style="font-size:42px">🧪</div><h2 style="margin-bottom:8px">Testando as telas do HLGB</h2><div id="hlgbVisualSweepPct9249" style="font-size:34px;font-weight:800">0%</div><div style="height:16px;background:#eadde4;border-radius:999px;overflow:hidden;margin:12px 0"><div id="hlgbVisualSweepBar9249" style="height:100%;width:0%;background:#6f3f59;transition:width .2s ease"></div></div><div id="hlgbVisualSweepPage9249" style="font-weight:700">Preparando teste…</div><div id="hlgbVisualSweepCount9249" class="sub" style="margin-top:5px">0 de 0 telas</div><div id="hlgbVisualSweepPhase9249" class="sub" style="margin-top:5px">Aguardando início</div><div id="hlgbVisualSweepTime9249" class="sub" style="margin-top:5px">Tempo: 0s</div><p class="sub" style="margin-top:12px">Não use o sistema durante o teste. Se uma tela apresentar erro, ela será registrada e o teste tentará continuar.</p></div>';
+     document.body.appendChild(el);
+   }
    el.style.display='flex';
  }else if(el)el.style.display='none';
 }
-
+let visualSweepStarted9249=0,visualSweepTimer9249=null;
+function visualSweepProgress9249(done,total,pid='',phase=''){
+ const pct=total?Math.max(0,Math.min(100,Math.round(done/total*100))):0;
+ const p=document.getElementById('hlgbVisualSweepPct9249'),bar=document.getElementById('hlgbVisualSweepBar9249'),page=document.getElementById('hlgbVisualSweepPage9249'),count=document.getElementById('hlgbVisualSweepCount9249'),ph=document.getElementById('hlgbVisualSweepPhase9249'),tm=document.getElementById('hlgbVisualSweepTime9249');
+ if(p)p.textContent=pct+'%';if(bar)bar.style.width=pct+'%';if(page)page.textContent=pid?('Tela: '+pid):'Preparando teste…';if(count)count.textContent=done+' de '+total+' telas';if(ph)ph.textContent=phase||'Testando…';
+ if(tm&&visualSweepStarted9249)tm.textContent='Tempo: '+Math.max(0,Math.round((Date.now()-visualSweepStarted9249)/1000))+'s';
+}
 async function auditVisualSweep(){
   const prior=document.querySelector('#appShell .page.active'),priorId=prior?.id||'',priorScroll={x:window.scrollX||0,y:window.scrollY||0},priorFocus=document.activeElement;
   const pages=visualTargetPages(),results=[],started=Date.now();
   let observer=null,currentMutations=0;
+  visualSweepStarted9249=started;
   try{
     visualSweepOverlay9249(true);
+    visualSweepProgress9249(0,pages.length,'','Iniciando varredura…');
+    clearInterval(visualSweepTimer9249);visualSweepTimer9249=setInterval(()=>visualSweepProgress9249(results.length,pages.length,pages[results.length]||'','Teste em andamento…'),1000);
     observer=new MutationObserver(list=>{currentMutations+=list.filter(m=>m.type==='childList'||m.type==='attributes').length});
     observer.observe(document.getElementById('appShell')||document.body,{subtree:true,childList:true,attributes:true,attributeFilter:['class','style','hidden']});
-    for(const pid of pages){
-      const el=document.getElementById(pid);if(!el)continue;
-      document.querySelectorAll('#appShell .page').forEach(x=>x.classList.remove('active'));el.classList.add('active');
-      window.scrollTo(0,0);
-      // deixa o MutationObserver receber e descartar as mutações causadas pela própria troca de página do teste
-      await new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r)));
-      currentMutations=0;
-      // tempo maior para o render intencional da página terminar; o período inicial não conta como instabilidade
-      await new Promise(r=>setTimeout(r,650));
-      const s1=visualMetricsForPage(el),m1=currentMutations;currentMutations=0;
-      await new Promise(r=>setTimeout(r,500));
-      const s2=visualMetricsForPage(el),m2=currentMutations;currentMutations=0;
-      await new Promise(r=>setTimeout(r,500));
-      const s3=visualMetricsForPage(el),m3=currentMutations;
-      const shift=[...compareAnchorShift(s1,s2),...compareAnchorShift(s2,s3)];
-      const maxShift=shift.reduce((m,x)=>Math.max(m,x.dx,x.dy,x.dw,x.dh),0);
-      const overflow=s3.viewport.width>0&&s3.scrollWidth>s3.viewport.width+16;
-      // só considera instável o que se mexe DEPOIS do período de assentamento; mutações iniciais são render normal
-      const lateMutations=m2+m3;
-      // mutações sem deslocamento visual são informativas; só viram atenção quando persistem em volume extremo
-      const unstable=maxShift>8||lateMutations>2500;
-      results.push({
-        page:pid,status:unstable?'warn':(overflow||s3.clipped.length?'warn':'pass'),
-        maxShiftPx:+maxShift.toFixed(1),layoutShiftElements:shift.slice(0,15),
-        mutationsAfterSettle:lateMutations,initialMutations:m1,
-        horizontalOverflow:overflow,clipped:s3.clipped,
-        metrics:{width:s3.width,height:s3.height,scrollWidth:s3.scrollWidth,scrollHeight:s3.scrollHeight,controls:s3.controls,panels:s3.panels}
-      });
+    for(let index=0;index<pages.length;index++){
+      const pid=pages[index],el=document.getElementById(pid);if(!el){visualSweepProgress9249(index+1,pages.length,pid,'Tela não encontrada; seguindo…');continue}
+      const pageStarted=Date.now();
+      try{
+        visualSweepProgress9249(index,pages.length,pid,'Abrindo e aguardando estabilização…');
+        document.querySelectorAll('#appShell .page').forEach(x=>x.classList.remove('active'));el.classList.add('active');
+        window.scrollTo(0,0);
+        await new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r)));
+        currentMutations=0;
+        await new Promise(r=>setTimeout(r,650));
+        visualSweepProgress9249(index,pages.length,pid,'Medindo estabilidade — etapa 1 de 3');
+        const s1=visualMetricsForPage(el),m1=currentMutations;currentMutations=0;
+        await new Promise(r=>setTimeout(r,500));
+        visualSweepProgress9249(index,pages.length,pid,'Medindo estabilidade — etapa 2 de 3');
+        const s2=visualMetricsForPage(el),m2=currentMutations;currentMutations=0;
+        await new Promise(r=>setTimeout(r,500));
+        visualSweepProgress9249(index,pages.length,pid,'Medindo estabilidade — etapa 3 de 3');
+        const s3=visualMetricsForPage(el),m3=currentMutations;
+        const shift=[...compareAnchorShift(s1,s2),...compareAnchorShift(s2,s3)];
+        const maxShift=shift.reduce((m,x)=>Math.max(m,x.dx,x.dy,x.dw,x.dh),0);
+        const overflow=s3.viewport.width>0&&s3.scrollWidth>s3.viewport.width+16;
+        const lateMutations=m2+m3,unstable=maxShift>8||lateMutations>2500;
+        results.push({
+          page:pid,status:unstable?'warn':(overflow||s3.clipped.length?'warn':'pass'),
+          maxShiftPx:+maxShift.toFixed(1),layoutShiftElements:shift.slice(0,15),
+          mutationsAfterSettle:lateMutations,initialMutations:m1,
+          horizontalOverflow:overflow,clipped:s3.clipped,
+          durationMs:Date.now()-pageStarted,
+          metrics:{width:s3.width,height:s3.height,scrollWidth:s3.scrollWidth,scrollHeight:s3.scrollHeight,controls:s3.controls,panels:s3.panels}
+        });
+      }catch(e){
+        console.warn('[HLGB Auditor] tela '+pid+' falhou durante varredura',e);
+        results.push({page:pid,status:'warn',maxShiftPx:0,layoutShiftElements:[],mutationsAfterSettle:currentMutations,initialMutations:0,horizontalOverflow:false,clipped:[],durationMs:Date.now()-pageStarted,testError:String(e?.message||e),metrics:{}});
+      }
+      visualSweepProgress9249(index+1,pages.length,pid,'Concluída; seguindo para a próxima tela…');
     }
+    visualSweepProgress9249(pages.length,pages.length,'','Finalizando diagnóstico…');
   }finally{
+    clearInterval(visualSweepTimer9249);visualSweepTimer9249=null;
     try{observer?.disconnect()}catch(_){}
+    visualSweepProgress9249(pages.length,pages.length,'','Teste concluído');
+    await new Promise(r=>setTimeout(r,250));
     visualSweepOverlay9249(false);
     document.querySelectorAll('#appShell .page').forEach(x=>x.classList.remove('active'));
     if(priorId&&document.getElementById(priorId))document.getElementById(priorId).classList.add('active');
@@ -543,11 +568,12 @@ async function auditVisualSweep(){
     try{if(priorFocus&&document.contains(priorFocus)&&typeof priorFocus.focus==='function')priorFocus.focus({preventScroll:true})}catch(_){}
   }
   const checks=results.map(r=>check('visual-sweep:'+r.page,'Varredura visual',r.status,r.page,
+    (r.testError?'Teste da tela encontrou erro e continuou: '+r.testError+'. ':'')+
     (r.maxShiftPx>3?'Movimento detectado: '+r.maxShiftPx+'px. ':'')+
     (r.mutationsAfterSettle>2500?'Muitas mutações após estabilizar: '+r.mutationsAfterSettle+'. ':'')+
     (r.horizontalOverflow?'Overflow horizontal. ':'')+
-    (r.clipped.length?'Elementos fora da largura: '+r.clipped.slice(0,5).join(', ')+'. ':'')+
-    ((!r.maxShiftPx&&!r.horizontalOverflow&&!r.clipped.length)?'Tela estável no teste interno.':''),
+    ((r.clipped||[]).length?'Elementos fora da largura: '+r.clipped.slice(0,5).join(', ')+'. ':'')+
+    ((!r.testError&&!r.maxShiftPx&&!r.horizontalOverflow&&!(r.clipped||[]).length)?'Tela estável no teste interno.':''),
     r.status==='warn'?'warn':'info',{page:r.page,visualSweep:r}));
   return {pages:results,checks,durationMs:Date.now()-started,runtimeErrors:clone(runtimeErrors.slice(-30))};
 }
