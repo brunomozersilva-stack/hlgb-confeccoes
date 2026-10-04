@@ -117,7 +117,7 @@ function install(){
   window.__hlgbOpenProductsBase9254=window.openProducts;
   const w=function(btn){openProductsSafe(btn);};w.__catalog9254=true;w.__original=window.openProducts;window.openProducts=w;
  }
- try{const v=document.querySelector('#appShell .logo small');if(v)v.textContent='v92.54';window.HLGB_RELEASE_VERSION='92.54'}catch(e){}
+ try{const cur=parseFloat(String(window.HLGB_RELEASE_VERSION||'0').replace(/[^0-9.]/g,''))||0;if(cur<=92.54){const v=document.querySelector('#appShell .logo small');if(v)v.textContent='v92.54';window.HLGB_RELEASE_VERSION='92.54'}}catch(e){}
 }
 function boot(){
  install();
