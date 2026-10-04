@@ -10,7 +10,7 @@ const arr=n=>{try{return Array.isArray(db?.[n])?db[n]:[]}catch(e){return []}};
 const money=v=>{try{return typeof window.money==='function'?window.money(v):Number(v||0).toLocaleString('pt-BR',{style:'currency',currency:'BRL'})}catch(e){return 'R$ '+Number(v||0).toFixed(2).replace('.',',')}};
 const fmt=v=>{try{return typeof window.fmtDate==='function'?window.fmtDate(v):sid(v)}catch(e){return sid(v)}};
 const today=()=>{const d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0')};
-function stamp(){try{window.HLGB_RELEASE_VERSION=V;const x=document.querySelector('#appShell .logo small');if(x)x.textContent='v'+V;const b=document.querySelector('#loginScreen b');if(b&&/Versão/i.test(b.textContent||''))b.textContent='Versão v'+V}catch(e){}}
+function stamp(){try{const cur=parseFloat(String(window.HLGB_RELEASE_VERSION||'0').replace(/[^0-9.]/g,''))||0;if(cur>92.56)return;window.HLGB_RELEASE_VERSION=V;const x=document.querySelector('#appShell .logo small');if(x)x.textContent='v'+V;const b=document.querySelector('#loginScreen b');if(b&&/Versão/i.test(b.textContent||''))b.textContent='Versão v'+V}catch(e){}}
 
 /* ================= RELATÓRIOS ================= */
 function rowDate(x){return sid(x?.date||x?.createdAt||x?.invoiceDate||x?.paymentDate||x?.finishedAt||x?.sentAt||x?.updatedAt).slice(0,10)}
