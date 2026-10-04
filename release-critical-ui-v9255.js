@@ -161,7 +161,7 @@ function ensureVoice9255(){
 }
 function install(){
  installHub();ensureVoice9255();
- try{const v=document.querySelector('#appShell .logo small');if(v)v.textContent='v92.55';window.HLGB_RELEASE_VERSION='92.55'}catch(e){}
+ try{const cur=parseFloat(String(window.HLGB_RELEASE_VERSION||'0').replace(/[^0-9.]/g,''))||0;if(cur<=92.55){const v=document.querySelector('#appShell .logo small');if(v)v.textContent='v92.55';window.HLGB_RELEASE_VERSION='92.55'}}catch(e){}
 }
 setTimeout(install,1400);setInterval(()=>{installHub();if(document.getElementById('hlgbAssistantInput'))ensureVoice9255()},1800);
 try{if(typeof hlgbAfterLogin==='function')hlgbAfterLogin(()=>setTimeout(install,450),0)}catch(e){}
