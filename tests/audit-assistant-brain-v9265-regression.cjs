@@ -1,0 +1,16 @@
+const fs=require('fs'),vm=require('vm'),assert=require('assert'),path=require('path');
+const root=path.join(__dirname,'..'),file='release-assistant-brain-v9265.js';
+const src=fs.readFileSync(path.join(root,file),'utf8');
+assert.doesNotThrow(()=>new vm.Script(src,{filename:file}),'brain v92.65 deve compilar');
+assert(src.includes("const V='92.65'"),'versão do cérebro deve ser 92.65');
+assert(src.includes('window.HLGB_ASSISTANT_BRAIN_9265=true'),'guard do cérebro deve existir');
+assert(src.includes('sessionStorage'),'contexto deve ser mantido por sessão e não virar memória permanente');
+assert(src.includes('function resolve(raw,list,labelFn)'),'deve haver resolução semântica/fuzzy de entidades');
+assert(src.includes('function clientRanking(raw)'),'deve responder ranking de clientes');
+assert(src.includes('function productRanking(raw)'),'deve responder ranking de produtos');
+assert(src.includes('function productionByLocation(raw)'),'deve analisar produção por local');
+assert(src.includes('function financePosition(raw)'),'deve resumir posição financeira');
+assert(src.includes('function systemOverview(raw)'),'deve gerar visão geral operacional');
+assert(src.includes('return base.apply(this,arguments)'),'intents não tratados devem cair para o assistente existente');
+assert(!/hlgbRecord(?:Save|Delete)|cloudWrite|cloudDelete|supabase\.from\(/.test(src),'cérebro v92.65 deve permanecer sem gravação direta');
+console.log('PASS v92.65: cérebro avançado do Assistente compila, preserva fallback e não grava dados diretamente.');
