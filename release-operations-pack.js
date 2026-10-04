@@ -2,7 +2,7 @@
 (function(){
 'use strict';
 const V='92.50-ops';
-window.HLGB_RELEASE_VERSION='92.50';
+try{const cur=parseFloat(String(window.HLGB_RELEASE_VERSION||'0').replace(/[^0-9.]/g,''))||0;if(cur<=92.50)window.HLGB_RELEASE_VERSION='92.50'}catch(e){}
 const sid=v=>String(v??''), q=v=>Math.max(0,Number(v)||0);
 const escSafe=v=>typeof esc==='function'?esc(v):sid(v).replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
 const moneySafe=v=>{try{return Number(v||0).toLocaleString('pt-BR',{style:'currency',currency:'BRL'})}catch(e){return 'R$ '+Number(v||0).toFixed(2)}};
