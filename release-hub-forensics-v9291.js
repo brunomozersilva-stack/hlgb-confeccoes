@@ -1,7 +1,7 @@
-/* HLGB v92.91 — Forense leve do Hub/Auditor: erros, travamentos, DOM, sync e linha do tempo */
+/* HLGB v92.92 — Forense leve do Hub/Auditor: erros, travamentos, DOM, sync e linha do tempo */
 (function(){
 'use strict';
-const V='92.91';
+const V='92.92';
 const MAX_EVENTS=300, MAX_ERRORS=80, MAX_LONG=80;
 const events=[], errors=[], longTasks=[];
 let lastBeat=Date.now(), lastLag=0, maxLag=0, mutationTotal=0, mutationBurst=0, mutationFlush=null, hubObserver=null;
@@ -140,17 +140,17 @@ function injectAuditorButton(){
  b.onclick=()=>{try{const d=download(),r=d.redFlags||[];alert('Diagnóstico profundo do Hub exportado.\n\nAlertas técnicos: '+r.length+'\nErros JS capturados: '+d.errors.length+'\nPendências: '+d.sync.pending.count+'\nMaior atraso da tela: '+d.performance.eventLoopMaxLagMs+' ms\n\nO arquivo não inclui senhas nem tokens.')}catch(e){alert('Não foi possível gerar o diagnóstico profundo.\n\n'+safeMessage(e))}};
  actions.insertBefore(b,actions.firstChild);return true
 }
-const mo=new MutationObserver(()=>injectAuditorButton());
-try{mo.observe(document.documentElement,{childList:true,subtree:true})}catch(e){}
-setTimeout(injectAuditorButton,1200);
+function scheduleAuditorInject(){setTimeout(injectAuditorButton,40);setTimeout(injectAuditorButton,220);setTimeout(injectAuditorButton,700)}
+setTimeout(injectAuditorButton,1200);setTimeout(injectAuditorButton,3000);
 document.addEventListener('click',e=>{
  const b=e.target?.closest?.('button');if(!b)return;
+ if(b.id==='hlgbAuditorNavBtn'||b.id==='hlgbAuditorOpenBtn'||/Auditor\s*\/\s*Testes/i.test(sid(b.textContent)))scheduleAuditorInject();
  if(b.matches('.he-save9286'))event('hub-editor-save-click',{entries:dbInfo().counts.hubFinanceEntries||0});
  const modal=b.closest?.('#modal,.modal,.modalbox');if(modal?.querySelector?.('#hlgb916HubForm')&&(b.classList.contains('modalSave')||/salvar/i.test(sid(b.textContent))))event('hub-new-save-click',{entries:dbInfo().counts.hubFinanceEntries||0});
 },true);
-window.hlgbHubForensics9291={version:V,snapshot,download,event,errors,timeline:events,longTasks,injectAuditorButton};
+window.hlgbHubForensics9291={version:V,snapshot,download,event,errors,timeline:events,longTasks,injectAuditorButton,scheduleAuditorInject};
 window.hlgbCollectHubDiagnostics=snapshot;
 window.hlgbDownloadHubDiagnostics=download;
 event('forensics-ready',{version:V});
-console.info('[HLGB] Forense Hub v'+V+' ativo — diagnóstico profundo disponível no Auditor');
+console.info('[HLGB] Forense Hub v'+V+' ativo — diagnóstico profundo sem observer global contínuo');
 })();
