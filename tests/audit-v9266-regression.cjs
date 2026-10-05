@@ -1,8 +1,8 @@
 const fs=require('fs'),vm=require('vm'),assert=require('assert'),path=require('path');
 const root=path.join(__dirname,'..'),src=f=>fs.readFileSync(path.join(root,f),'utf8');
-for(const f of ['release-assistant-server-v9266.js','release-safari-resume-v9266.js','release-safety-gate-v9266.js'])assert.doesNotThrow(()=>new vm.Script(src(f),{filename:f}),f+' deve compilar');
+for(const f of ['release-assistant-server-v9266.js','release-safari-resume-v9266.js','release-safety-gate-v9267.js'])assert.doesNotThrow(()=>new vm.Script(src(f),{filename:f}),f+' deve compilar');
 const ai=src('release-assistant-server-v9266.js');
-assert(ai.includes("const V='92.66'"),'IA de servidor deve marcar v92.66');
+assert(ai.includes("const V='92.66'"),'IA de servidor deve preservar camada v92.66');
 assert(ai.includes('/functions/v1/hlgb-assistant-ai'),'frontend deve chamar Edge Function do Assistente');
 assert(ai.includes("'Authorization':'Bearer '+t"),'chamada deve usar sessão autenticada');
 assert(ai.includes('return base.apply(this,arguments)'),'falha da IA deve preservar fallback local');
@@ -18,9 +18,10 @@ assert(safari.includes('stale-settle-cleared'),'settle antigo deve ter watchdog 
 assert(safari.includes('visibility:visible!important'),'retorno deve impedir página escondida durante corrida do Safari');
 const loader=src('app-stable3.html');
 assert(loader.includes("'release-assistant-brain-v9265.js','release-assistant-server-v9266.js'"),'IA servidor deve ficar sobre o cérebro local');
-assert(loader.includes("'release-safety-gate-v9266.js','release-ui-stability.js','release-safari-resume-v9266.js'"),'guarda Safari deve carregar depois da estabilidade');
+assert(loader.includes("'release-safety-gate-v9267.js','release-ui-stability.js','release-safari-resume-v9266.js'"),'safety gate atual e guarda Safari devem carregar em ordem segura');
 assert(loader.lastIndexOf("'release-safari-resume-v9266.js'")>loader.lastIndexOf("'release-ui-stability.js'"),'guarda de retomada deve ser a última proteção visual');
 assert(!loader.includes("'release-safety-gate-v9265.js'"),'loader não deve carregar safety gate antigo');
-const manifest=JSON.parse(src('release.json'));assert.equal(manifest.version,'92.66');assert.equal(manifest.minimum_version,'92.66');
-const gate=src('release-safety-gate-v9266.js');assert(gate.includes("const V='92.66'"));assert(gate.includes('HLGB_AUDIT_READ_ONLY_ACTIVE'));
-console.log('PASS v92.66: IA híbrida, aprendizado controlado, fallback local, versão canônica e proteção Safari validados.');
+assert(!loader.includes("'release-safety-gate-v9266.js'"),'loader não deve carregar safety gate v92.66 após promoção da versão');
+const manifest=JSON.parse(src('release.json'));assert(Number(manifest.version)>=92.67);assert(Number(manifest.minimum_version)>=92.67);
+const gate=src('release-safety-gate-v9267.js');assert(gate.includes("const V='92.67'"));assert(gate.includes('HLGB_AUDIT_READ_ONLY_ACTIVE'));
+console.log('PASS compat v92.66: IA híbrida, aprendizado controlado, fallback local e proteção Safari preservados sob v92.67.');
