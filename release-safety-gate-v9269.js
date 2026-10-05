@@ -12,9 +12,6 @@ async function checkCanonicalVersion(reason='check'){
  try{
   const r=await fetch(MANIFEST+'?fresh='+Date.now(),{cache:'no-store'});if(!r.ok)return;
   const m=await r.json(),wanted=String(m?.version||V);
-  // Se já estamos na entrada canônica, nunca recarregue a página só porque a versão
-  // em memória ficou antiga durante suspensão/retomada do Safari. O loader já usa
-  // cache-busting para os scripts; basta carimbar a versão desejada.
   if(isCanonicalPath()){stampVersion(wanted);return}
   location.replace(canonicalUrl(reason));
  }catch(e){stampVersion(V)}
@@ -25,9 +22,10 @@ function installWriteGuards(){['hlgbRecordSaveWithRetry','hlgbRecordDeleteWithRe
 async function auditReadOnly(task){auditDepth++;window.HLGB_AUDIT_READ_ONLY_ACTIVE=true;installWriteGuards();try{return await task()}finally{auditDepth=Math.max(0,auditDepth-1);if(!auditDepth)window.HLGB_AUDIT_READ_ONLY_ACTIVE=false}}
 function wrapAuditButton(name){const fn=window[name];if(typeof fn!=='function'||fn.__hlgbAuditReadOnly9269)return;const w=function(){const that=this,args=arguments;return auditReadOnly(()=>fn.apply(that,args))};w.__hlgbAuditReadOnly9269=true;w.__hlgbOriginal=fn;window[name]=w}
 function installAuditGuards(){installWriteGuards();['hlgbAuditorRunVisualSweep','hlgbAuditorExportVisual'].forEach(wrapAuditButton)}
-function safeVersionCheck(reason){stampVersion(V);installAuditGuards();return checkCanonicalVersion(reason)}
+function safeVersionCheck(reason){installAuditGuards();return checkCanonicalVersion(reason)}
 function loadHubRescue(){try{if(document.getElementById('hlgbHubActionRescue9271Script')||window.hlgbHubActionRescue9271)return;const s=document.createElement('script');s.id='hlgbHubActionRescue9271Script';s.src='./release-hub-action-rescue-v9271.js?fresh='+Date.now();s.async=true;document.head.appendChild(s)}catch(e){console.warn('[HLGB] falha ao carregar resgate do Hub',e)}}
-function boot(){stampVersion(V);installAuditGuards();loadHubRescue();setTimeout(loadHubRescue,700);setTimeout(installAuditGuards,500);setTimeout(installAuditGuards,1800);window.addEventListener('pageshow',()=>safeVersionCheck('pageshow'));window.addEventListener('focus',()=>safeVersionCheck('focus'));document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')safeVersionCheck('resume')});setInterval(()=>{stampVersion(V);installAuditGuards()},15000);checkCanonicalVersion('startup')}
+function loadAssistantLight(){try{if(document.getElementById('hlgbAssistantLight9277Script')||window.hlgbAssistantLight9277)return;const s=document.createElement('script');s.id='hlgbAssistantLight9277Script';s.src='./release-assistant-ui-light-v9277.js?fresh='+Date.now();s.async=true;document.head.appendChild(s)}catch(e){console.warn('[HLGB] falha ao carregar UI leve do Assistente',e)}}
+function boot(){installAuditGuards();loadHubRescue();loadAssistantLight();setTimeout(loadHubRescue,700);setTimeout(loadAssistantLight,700);setTimeout(installAuditGuards,500);setTimeout(installAuditGuards,1800);window.addEventListener('pageshow',()=>safeVersionCheck('pageshow'));window.addEventListener('focus',()=>safeVersionCheck('focus'));document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')safeVersionCheck('resume')});setInterval(()=>{installAuditGuards()},15000);checkCanonicalVersion('startup')}
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',boot,{once:true});else boot();
 window.hlgbSafetyGate9269={version:V,checkCanonicalVersion,auditReadOnly,installAuditGuards};
 console.info('[HLGB] Safety Gate v'+V+' ativo · IA paga desativada · sem recarga ao retomar Safari');
