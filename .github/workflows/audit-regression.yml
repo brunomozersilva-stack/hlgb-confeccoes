@@ -109,7 +109,8 @@ jobs:
             tests/audit-safety-gate-v9264.cjs \
             tests/audit-v9266-regression.cjs \
             tests/audit-v9267-regression.cjs \
-            tests/audit-v9268-regression.cjs
+            tests/audit-v9268-regression.cjs \
+            tests/audit-v9269-regression.cjs
           do
             echo "==> $test"
             node "$test"
