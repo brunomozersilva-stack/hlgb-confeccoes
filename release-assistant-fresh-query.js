@@ -1,56 +1,58 @@
-/* HLGB — garante que cada pergunta do Assistente seja processada do zero */
+/* HLGB — Assistente preciso + rascunho conversacional (hotfix 2026-10-05) */
 (function(){
 'use strict';
-const V='2026.10.01-assistant-fresh-query-v1';
-const escSafe=v=>typeof esc==='function'?esc(v):String(v??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
-let lastQuery='',lastHtml='';
-function directFallback(raw){
- try{const direct=window.hlgbOperationalPolish?.assistantDirect?.(raw);if(direct)return direct}catch(e){}
- try{
-  const sys=window.hlgbAssistantSystemWide?.parse?.(raw);if(sys)return sys;
- }catch(e){}
- try{
-  const base=window.hlgbAssistant?.query?.(raw);if(base)return base;
- }catch(e){}
- return {title:'Não encontrei com segurança',text:'Não consegui responder essa pergunta com segurança usando os dados atuais do sistema. Tente citar cliente, pedido, produto, fornecedor, período ou valor.',kind:'help'};
+const V='2026.10.05-assistant-precision-v2';
+const DRAFT_KEY='hlgb_assistant_order_draft_v2';
+const CTX_KEY='hlgb_assistant_precision_ctx_v2';
+const sid=v=>String(v??'');
+const norm=v=>sid(v).normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().trim().replace(/\s+/g,' ');
+const esc=v=>sid(v).replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+const qty=v=>Math.max(0,Number(v)||0);
+function arr(n){try{return Array.isArray(window.db?.[n])?window.db[n]:[]}catch(e){return []}}
+function readJson(key,fallback){try{const x=JSON.parse(sessionStorage.getItem(key)||'null');return x??fallback}catch(e){return fallback}}
+function writeJson(key,value){try{sessionStorage.setItem(key,JSON.stringify(value))}catch(e){}return value}
+function render(a){const out=document.getElementById('hlgbAssistantAnswer');if(!out||!a)return false;out.innerHTML='<h3 style="margin-top:0">'+esc(a.title||'Assistente HLGB')+'</h3>'+(a.text||'');out.dataset.pendingKind=a.kind||'precision';return true}
+function uniqNames(values){return [...new Set(values.filter(Boolean).map(sid))].sort((a,b)=>b.length-a.length)}
+function clients(){return uniqNames([...arr('clients').map(x=>x?.name),...arr('orders').map(x=>x?.client),...arr('cuts').map(x=>x?.client),...arr('production').map(x=>x?.client)])}
+function products(){const names=[...arr('products').map(x=>x?.name)];for(const o of arr('orders'))for(const g of [...(Array.isArray(o?.grade)?o.grade:[]),...(Array.isArray(o?.items)?o.items:[])])names.push(g?.product,g?.productName,g?.name);return uniqNames(names)}
+function explicitName(raw,names){const n=norm(raw);return names.find(x=>n.includes(norm(x)))||''}
+function sameName(a,b){return !!a&&!!b&&norm(a)===norm(b)}
+function orderNo(o){return sid(o?.orderNumber||o?.number||o?.id)}
+function productById(id){return arr('products').find(p=>sid(p?.id)===sid(id))||null}
+function orderItems(o){const rows=[];const sources=[...(Array.isArray(o?.grade)?o.grade:[]),...(Array.isArray(o?.items)?o.items:[]),...(Array.isArray(o?.products)?o.products:[])];for(const x of sources){const p=productById(x?.productId);const name=sid(p?.name||x?.product||x?.productName||x?.name||'').trim();if(!name)continue;rows.push({name,qty:qty(x?.qty??x?.quantity??x?.pieces),color:sid(x?.color||''),size:sid(x?.size||'')})}if(!rows.length&&sid(o?.product||o?.productName).trim())rows.push({name:sid(o.product||o.productName).trim(),qty:qty(o?.qty??o?.totalQty??o?.pieces),color:'',size:''});return rows}
+function itemMatchesProduct(x,product){return !product||norm(x?.name).includes(norm(product))||norm(product).includes(norm(x?.name))}
+function saveCtx(patch){return writeJson(CTX_KEY,Object.assign(readJson(CTX_KEY,{}),patch,{updatedAt:Date.now()}))}
+function clientFromRaw(raw){const c=explicitName(raw,clients());if(c){saveCtx({client:c});return c}const n=norm(raw),ctx=readJson(CTX_KEY,{});if(ctx?.client&&/^(e\b|agora\b|e agora\b|desse cliente\b|dele\b|dela\b)/.test(n))return ctx.client;return ''}
+function productFromRaw(raw){return explicitName(raw,products())}
+function activeOrder(o){const s=norm(o?.status);return !/(cancel|entreg|finaliz|conclu)/.test(s)}
+function scopedOrders(raw,client,product){const n=norm(raw);if(!client)return null;if(!/(pedido|mercadoria|produto|modelo|entrega|entregar)/.test(n))return null;let os=arr('orders').filter(o=>sameName(o?.client,client)&&!/cancel/.test(norm(o?.status)));if(/entrega|entregar/.test(n))os=os.filter(activeOrder);if(product)os=os.filter(o=>orderItems(o).some(x=>itemMatchesProduct(x,product))||norm(o?.product||'').includes(norm(product)));if(!os.length){const what=product?' o produto <b>'+esc(product)+'</b>':'';return {kind:'precision-client-orders',title:'Pedidos de '+client,text:'Não encontrei'+what+' nos pedidos'+(/entrega|entregar/.test(n)?' abertos para entrega':'')+' de <b>'+esc(client)+'</b>. Não misturei dados de outros clientes.'}}
+ const lines=os.slice().sort((a,b)=>sid(b?.date||b?.createdAt).localeCompare(sid(a?.date||a?.createdAt))).slice(0,12).map(o=>{let items=orderItems(o).filter(x=>itemMatchesProduct(x,product));const by=new Map();for(const x of items){const k=norm(x.name),g=by.get(k)||{name:x.name,qty:0};g.qty+=qty(x.qty);by.set(k,g)}const itemText=[...by.values()].map(x=>'<b>'+esc(x.name)+'</b>'+(x.qty?' — '+x.qty.toLocaleString('pt-BR')+' peças':'')).join(' · ')||esc(o?.product||'Pedido sem produto detalhado');return '• Pedido #'+esc(orderNo(o))+' · '+itemText+(o?.status?' · '+esc(o.status):'')});
+ return {kind:'precision-client-orders',title:'Pedidos de '+client,text:lines.join('<br>')+'<br><br><span class="sub">Mostrei somente pedidos de '+esc(client)+'.</span>'}
 }
-function render(a){
- const out=document.getElementById('hlgbAssistantAnswer');if(!out||!a)return;
- let actions='';
- if(a.kind==='invoice-action')actions='<div class="toolbar" style="margin-top:12px"><button type="button" class="primary" onclick="hlgbAssistantOpenInvoice()">🧾 Confirmar e abrir nota oficial</button></div>';
- out.innerHTML='<h3 style="margin-top:0">'+escSafe(a.title||'Assistente HLGB')+'</h3>'+(a.text||'')+actions;
- out.dataset.pendingKind=a.kind||'';
+function scopedCuts(raw,client,product){const n=norm(raw);if(!client||!/(corte|cortar|cortado)/.test(n))return null;let rows=arr('cuts').filter(c=>sameName(c?.client,client)&&!/cancel/.test(norm(c?.status)));if(product)rows=rows.filter(c=>norm(c?.product||'').includes(norm(product)));if(!rows.length)return {kind:'precision-client-cuts',title:'Cortes de '+client,text:'Não encontrei'+(product?' <b>'+esc(product)+'</b>':'')+' em cortes de <b>'+esc(client)+'</b>. Não considerei cortes de outros clientes.'};return {kind:'precision-client-cuts',title:'Cortes de '+client,text:rows.slice(0,12).map(c=>'• '+esc(c?.product||'Corte')+' · '+qty(c?.pieces).toLocaleString('pt-BR')+' peças'+(c?.status?' · '+esc(c.status):'')).join('<br>')}
 }
-function install(){
- const current=window.hlgbAssistantAsk;if(typeof current!=='function'||current.__hlgbFreshQueryV1)return;
- const base=current;
- const w=function(){
-  const input=document.getElementById('hlgbAssistantInput'),out=document.getElementById('hlgbAssistantAnswer'),raw=String(input?.value||'').trim();
-  if(!input||!out)return;
-  window.__hlgbAssistantInvoicePending=null;
-  out.dataset.pendingKind='';out.dataset.pendingText='';
-  const priorHtml=out.innerHTML;
-  out.innerHTML='<div class="sub">Consultando esta pergunta…</div>';
-  const before=out.innerHTML;
-  if(!raw){render({title:'Assistente HLGB',text:'Digite sua pergunta.',kind:'help'});return}
-  try{
-    const direct=window.hlgbOperationalPolish?.assistantDirect?.(raw);
-    if(direct){render(direct);lastQuery=raw;lastHtml=out.innerHTML;return}
-  }catch(e){console.warn('[HLGB consulta operacional]',e)}
-  try{
-    const sys=window.hlgbAssistantSystemWide?.parse?.(raw);
-    if(sys){render(sys);lastQuery=raw;lastHtml=out.innerHTML;return}
-  }catch(e){console.warn('[HLGB consulta direcionada]',e)}
-  try{base.apply(this,arguments)}catch(e){console.warn('[HLGB pergunta atual]',e)}
-  const after=out.innerHTML;
-  if(raw!==lastQuery&&(after===lastHtml||after===priorHtml||after===before||/Digite uma pergunta para começar/i.test(after))){
-    render(directFallback(raw));
-  }
-  lastQuery=raw;lastHtml=out.innerHTML;
- };
- w.__hlgbFreshQueryV1=true;w.__original=base;window.hlgbAssistantAsk=w;
+function scopedProduction(raw,client,product){const n=norm(raw);if(!client||!/(producao|produção|produzir|faccao|facção)/.test(n))return null;let rows=arr('production').filter(p=>sameName(p?.client,client));if(product)rows=rows.filter(p=>norm(p?.product||'').includes(norm(product)));if(!rows.length)return {kind:'precision-client-production',title:'Produção de '+client,text:'Não encontrei'+(product?' <b>'+esc(product)+'</b>':'')+' na produção de <b>'+esc(client)+'</b>. Não considerei produção de outros clientes.'};return {kind:'precision-client-production',title:'Produção de '+client,text:rows.slice(0,12).map(p=>{const planned=qty(p?.planned??p?.qty??p?.pieces),done=qty(p?.done??p?.completed??p?.produced);return '• '+esc(p?.product||'Produção')+' · planejado '+planned.toLocaleString('pt-BR')+' · feito '+done.toLocaleString('pt-BR')+' · faltam '+Math.max(0,planned-done).toLocaleString('pt-BR')+(p?.stage?' · '+esc(p.stage):'')}).join('<br>')}
 }
-setTimeout(install,3200);
-setInterval(()=>{if(window.HLGB_ASSISTANT_FINAL_V9250)return;if(typeof window.hlgbAssistantAsk==='function'&&!window.hlgbAssistantAsk.__hlgbFreshQueryV1)install()},3500);
+function strictScoped(raw){const client=clientFromRaw(raw);if(!client)return null;const product=productFromRaw(raw);return scopedCuts(raw,client,product)||scopedProduction(raw,client,product)||scopedOrders(raw,client,product)}
+function draftRead(){return readJson(DRAFT_KEY,null)}
+function draftWrite(d){return writeJson(DRAFT_KEY,d)}
+function draftClear(){try{sessionStorage.removeItem(DRAFT_KEY)}catch(e){}return null}
+function isDraftStart(raw){return /(vou\s+(?:ir\s+)?somando\s+(?:um\s+)?pedido|vamos\s+(?:montar|somar|anotar)\s+(?:um\s+)?pedido|quero\s+(?:montar|somar|anotar)\s+(?:um\s+)?pedido|vou\s+(?:montar|passar|anotar)\s+(?:um\s+)?pedido|montando\s+(?:um\s+)?pedido)/.test(norm(raw))}
+function isDraftCancel(raw){return /^(cancelar|limpar|apagar|zerar)(\s+(o\s+)?)?(rascunho|pedido)?\s*$/.test(norm(raw))||/cancelar\s+(o\s+)?pedido/.test(norm(raw))}
+function isDraftPreview(raw){return /(mostrar|ver|manda|me da|me de|quero)\s+(a\s+)?previa|previa\s+(do\s+)?pedido|como\s+ficou/.test(norm(raw))}
+function isDraftFinish(raw){return /(finalizar|fechar|concluir)\s+(o\s+)?(rascunho|pedido)/.test(norm(raw))}
+function gradeLike(raw){return /(?:\b\d+\s*(?:pp|p|m|g|gg|xg|eg)\b|\b(?:pp|p|m|g|gg|xg|eg)\s*\d+\b)/i.test(norm(raw))}
+function parseGrade(raw,previousColor=''){const pieces=sid(raw).split(/[,;\n]+/).map(x=>x.trim()).filter(Boolean),rows=[];let carry=previousColor||'';const sizeRe=/(\d+)\s*(PP|GG|XG|EG|P|M|G)\b|\b(PP|GG|XG|EG|P|M|G)\s*(\d+)/ig;for(const piece of pieces){const matches=[...piece.matchAll(sizeRe)];if(!matches.length)continue;let color=piece.replace(sizeRe,' ').replace(/\b(pe[cç]as?|unidades?|unds?|und)\b/ig,' ').replace(/\s+/g,' ').trim().replace(/^[-–—:\s]+|[-–—:\s]+$/g,'');if(color)carry=color;else color=carry||'Sem cor';for(const m of matches){const amount=Number(m[1]||m[4]||0),size=sid(m[2]||m[3]).toUpperCase();if(amount>0&&size)rows.push({color:color||'Sem cor',size,qty:amount})}}return {rows,lastColor:carry}}
+function mergeItems(items,newRows){const map=new Map();for(const x of [...(items||[]),...(newRows||[])]){const key=norm(x.color)+'|'+sid(x.size).toUpperCase(),cur=map.get(key)||{color:x.color,size:sid(x.size).toUpperCase(),qty:0};cur.qty+=qty(x.qty);map.set(key,cur)}const order=['PP','P','M','G','GG','XG','EG'];return [...map.values()].sort((a,b)=>sid(a.color).localeCompare(sid(b.color),'pt-BR')||order.indexOf(a.size)-order.indexOf(b.size))}
+function draftTotal(d){return (d?.items||[]).reduce((a,x)=>a+qty(x.qty),0)}
+function draftPreview(d,message){const grouped=new Map();for(const x of d?.items||[]){if(!grouped.has(x.color))grouped.set(x.color,[]);grouped.get(x.color).push(x)}const rows=[...grouped.entries()].map(([color,items])=>'<tr><td><b>'+esc(color)+'</b></td><td>'+items.map(x=>esc(x.size)+' '+qty(x.qty).toLocaleString('pt-BR')).join(' · ')+'</td><td><b>'+items.reduce((a,x)=>a+qty(x.qty),0).toLocaleString('pt-BR')+'</b></td></tr>').join('');return {kind:'precision-order-draft',title:'🧾 Rascunho do pedido',text:'<div>'+esc(message||'Rascunho atualizado.')+'</div><div style="margin:8px 0">Cliente: <b>'+esc(d?.client||'a definir')+'</b> · Produto: <b>'+esc(d?.product||'a definir')+'</b></div>'+(rows?'<div style="overflow:auto"><table style="width:100%;border-collapse:collapse"><thead><tr><th style="text-align:left;padding:6px">Cor</th><th style="text-align:left;padding:6px">Grade</th><th style="text-align:right;padding:6px">Total</th></tr></thead><tbody>'+rows+'</tbody></table></div><div style="margin-top:9px"><b>Total: '+draftTotal(d).toLocaleString('pt-BR')+' peças</b></div>':'<div class="sub">Ainda não recebi a grade. Pode continuar ditando, por exemplo: <b>Preto P10 M20 G20 GG10</b>.</div>')+'<div class="sub" style="margin-top:10px">Esse é só um rascunho. Nada foi salvo no pedido real.</div>'}
+}
+function handleDraft(raw){raw=sid(raw).trim();if(!raw)return null;let d=draftRead();if(isDraftStart(raw)){const parsed=parseGrade(raw,'');d={active:true,client:explicitName(raw,clients()),product:explicitName(raw,products()),items:parsed.rows,lastColor:parsed.lastColor,startedAt:Date.now(),updatedAt:Date.now()};draftWrite(d);return draftPreview(d,'Comecei a somar esse pedido. Pode continuar me passando cores, tamanhos e quantidades.')}if(!d?.active)return null;if(isDraftCancel(raw)){draftClear();return {kind:'precision-order-draft',title:'Rascunho cancelado',text:'O rascunho foi limpo. Nenhum dado real foi alterado.'}}if(isDraftPreview(raw))return draftPreview(d,'Aqui está a prévia acumulada até agora.');if(isDraftFinish(raw))return draftPreview(d,'A soma está pronta para conferência. Eu não criei nem alterei pedido automaticamente.');const c=explicitName(raw,clients()),p=explicitName(raw,products());if(c)d.client=c;if(p)d.product=p;if(gradeLike(raw)){const parsed=parseGrade(raw,d.lastColor||'');d.items=mergeItems(d.items,parsed.rows);d.lastColor=parsed.lastColor||d.lastColor;d.updatedAt=Date.now();draftWrite(d);return draftPreview(d,parsed.rows.length?'Somei essa parte ao rascunho.':'Não consegui identificar a grade nessa frase.')}if(c||p){d.updatedAt=Date.now();draftWrite(d);return draftPreview(d,'Atualizei os dados do rascunho.')}return null}
+function chainHas(fn,marker){const seen=new Set();while(typeof fn==='function'&&!seen.has(fn)){if(fn[marker])return true;seen.add(fn);fn=fn.__original||fn.__hlgbOriginal}return false}
+function install(){const cur=window.hlgbAssistantAsk;if(typeof cur!=='function'||chainHas(cur,'__hlgbPrecisionV2'))return false;const base=cur;const w=function(){const input=document.getElementById('hlgbAssistantInput'),raw=sid(input?.value).trim();try{const draft=handleDraft(raw);if(draft){render(draft);return Promise.resolve({handled:true,kind:draft.kind})}const scoped=strictScoped(raw);if(scoped){render(scoped);return Promise.resolve({handled:true,kind:scoped.kind})}}catch(e){console.warn('[HLGB Assistente precisão '+V+']',e)}return base.apply(this,arguments)};w.__hlgbPrecisionV2=true;w.__original=base;window.hlgbAssistantAsk=w;return true}
+function boot(){install();setTimeout(install,1200);setTimeout(install,9000)}
+boot();document.addEventListener('click',e=>{if(e.target?.closest?.('#hlgbAssistantFloatingBtn,[onclick*="openHlgbAssistant"]'))setTimeout(install,120)},true);setInterval(()=>{if(typeof window.hlgbAssistantAsk==='function'&&!chainHas(window.hlgbAssistantAsk,'__hlgbPrecisionV2'))install()},5000);
+window.hlgbAssistantPrecisionV2={version:V,strictScoped,handleDraft,parseGrade,mergeItems,draftRead,draftClear,install};
 window.HLGB_ASSISTANT_FRESH_QUERY_GUARD=V;
+console.info('[HLGB] Assistente precisão v2 ativo');
 })();
