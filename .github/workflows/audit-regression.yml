@@ -110,7 +110,8 @@ jobs:
             tests/audit-v9266-regression.cjs \
             tests/audit-v9267-regression.cjs \
             tests/audit-v9268-regression.cjs \
-            tests/audit-v9269-regression.cjs
+            tests/audit-v9269-regression.cjs \
+            tests/audit-v9270-regression.cjs
           do
             echo "==> $test"
             node "$test"
