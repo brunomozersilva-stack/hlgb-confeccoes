@@ -1,7 +1,7 @@
-/* HLGB v92.72 — resgate seguro de ações + ponte de identificador do Hub */
+/* HLGB v92.73 — resgate seguro de ações + ponte do banco/identificador do Hub */
 (function(){
 'use strict';
-const V='92.72';
+const V='92.73';
 const sid=v=>String(v??'');
 const norm=v=>sid(v).normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().trim().replace(/\s+/g,' ');
 const HUB_SELECTOR='#hubFinanceiro,#hubDue9166';
@@ -10,7 +10,20 @@ const ACTIONS={
  toggleHubFinanceEntry:'toggle',toggleHubQuick9185:'toggle',
  deleteHubFinanceEntry:'delete'
 };
-function hub(){try{return Array.isArray(window.db?.hubFinanceEntries)?window.db.hubFinanceEntries:[]}catch(e){return []}}
+function liveDb(){
+ try{if(typeof db!=='undefined'&&db)return db}catch(e){}
+ try{if(window.db)return window.db}catch(e){}
+ return null;
+}
+function bridgeDb(){
+ const d=liveDb();
+ if(d){
+  try{if(window.db!==d)window.db=d}catch(e){}
+  window.HLGB_HUB_DB_BRIDGE_LAST={at:new Date().toISOString(),ok:true,entries:Array.isArray(d?.hubFinanceEntries)?d.hubFinanceEntries.length:0};
+ }
+ return d;
+}
+function hub(){try{const d=bridgeDb();return Array.isArray(d?.hubFinanceEntries)?d.hubFinanceEntries:[]}catch(e){return []}}
 function idOf(x){return x?.id??x?.__hlgbId}
 function invalidId(id){const s=sid(id).trim().toLowerCase();return id==null||!s||s==='undefined'||s==='null'}
 function insideHub(el){return !!el?.closest?.(HUB_SELECTOR)}
@@ -64,6 +77,7 @@ function candidateFromButton(btn){
  return rows.length===1?rows[0]:null;
 }
 function resolveId(call,btn){
+ bridgeDb();
  if(call&&!invalidId(call.id)&&entryById(call.id))return call.id;
  repairEntryIds();
  if(call&&!invalidId(call.id)&&entryById(call.id))return call.id;
@@ -71,6 +85,7 @@ function resolveId(call,btn){
 }
 function run(call,btn){
  if(!call)return false;
+ bridgeDb();
  const id=resolveId(call,btn);
  if(invalidId(id))throw new Error('Não consegui identificar este lançamento com segurança. Atualize a tela e tente novamente.');
  if(call.kind==='edit'){
@@ -97,7 +112,7 @@ function onClick(ev){
  try{run(call,btn)}catch(err){console.error('[HLGB Hub Rescue '+V+']',err);try{alert('Não foi possível executar esta ação do Hub: '+String(err?.message||err))}catch(_){}}
 }
 function repairButtons(){
- repairEntryIds();
+ bridgeDb();repairEntryIds();
  document.querySelectorAll(HUB_SELECTOR+' button[onclick]').forEach(btn=>{
    const call=parseCall(btn.getAttribute('onclick'));if(!call)return;
    const resolved=resolveId(call,btn);
@@ -106,14 +121,15 @@ function repairButtons(){
 }
 let rerendered=false;
 function repairAndRefresh(){
+ bridgeDb();
  const fixed=repairEntryIds();
  if(fixed&&!rerendered){rerendered=true;setTimeout(()=>{try{window.hlgbHubMaster9258?.renderAll?.()}catch(e){};try{window.renderHubFinance?.()}catch(e){};repairButtons()},40)}
  else repairButtons();
 }
 document.addEventListener('click',onClick,true);
 const mo=new MutationObserver(()=>repairButtons());
-function boot(){repairAndRefresh();setTimeout(repairAndRefresh,700);setTimeout(repairAndRefresh,1800);const h=document.getElementById('hubFinanceiro');if(h)try{mo.observe(h,{subtree:true,childList:true})}catch(e){}}
+function boot(){bridgeDb();repairAndRefresh();setTimeout(repairAndRefresh,700);setTimeout(repairAndRefresh,1800);const h=document.getElementById('hubFinanceiro');if(h)try{mo.observe(h,{subtree:true,childList:true})}catch(e){}}
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',boot,{once:true});else boot();
-window.hlgbHubActionRescue9271={version:V,parseCall,run,repairButtons,repairEntryIds,entryById,candidateFromButton,resolveId};
-console.info('[HLGB] Hub Action Rescue v'+V+' ativo — IDs internos ligados aos botões');
+window.hlgbHubActionRescue9271={version:V,liveDb,bridgeDb,parseCall,run,repairButtons,repairEntryIds,entryById,candidateFromButton,resolveId};
+console.info('[HLGB] Hub Action Rescue v'+V+' ativo — editor ligado ao banco ativo e IDs internos');
 })();
