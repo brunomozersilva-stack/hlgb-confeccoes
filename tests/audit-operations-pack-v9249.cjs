@@ -5,7 +5,8 @@ const ops=fs.readFileSync('release-operations-pack.js','utf8');
 
 assert(app.includes('"routePlans","labelBatches","labelTemplates","packagingAssignments","historicalImports"'),'custom operational modules must be normalized');
 assert(loader.includes("'release-operations-pack.js'"),'official loader must load operations pack');
-assert(loader.includes("HLGB_FORCE_MANUAL_LOGIN_9249"),'official loader must force manual login on open/refresh');
+assert(!loader.includes("HLGB_FORCE_MANUAL_LOGIN_9249"),'official loader must not force logout/manual login on refresh after v92.68');
+assert(!loader.includes("if(false&&cloudRestoreStoredAuth())"),'stored authentication must remain available on reload');
 assert(ops.includes("Venda agrupada de mercadorias de terceiros"),'grouped resale sale must exist');
 assert(ops.includes("deleteResale"),'resale product deletion must exist');
 assert(ops.includes("Rotas de busca e entrega"),'route utility must exist');
@@ -19,4 +20,4 @@ assert(ops.includes("pdf.js/3.11.174/pdf.min.js"),'historical PDF import must ha
 assert(ops.includes("hlgbInternalAuditor"),'automatic internal audit integration must exist');
 
 new Function(ops);
-console.log('PASS operational pack v92.50: resale, mixed notes support, routes, labels, packaging, historical regularization, manual-login loader and audit integration.');
+console.log('PASS operational pack: resale, routes, labels, packaging, historical regularization, persistent session loader and audit integration.');
