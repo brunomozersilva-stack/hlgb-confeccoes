@@ -15,6 +15,7 @@ assert(notes.includes('if(!noteMutationRelevant(records))return'),'note observer
 
 assert(stability.includes("const V='v6-screen-stability-20261002'"),'UI stability guard v6 must remain active');
 const list=(loader.match(/const files=\[(.*?)\];const inj=/s)||[])[1]||'';
-assert(list.trim().endsWith("'release-ui-stability.js'"),'UI stability must load last');
+assert(list.includes("'release-ui-stability.js','release-safari-resume-v9266.js'"),'Safari resume guard must load immediately after UI stability');
+assert(list.trim().endsWith("'release-safari-resume-v9266.js'"),'Safari resume guard must be the last visual protection');
 
-console.log('PASS global visual stability: global mutation observers are scoped and UI stability loads last.');
+console.log('PASS global visual stability: scoped observers, UI stability and Safari resume guard load in safe order.');
