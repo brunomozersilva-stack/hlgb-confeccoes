@@ -1,7 +1,7 @@
-/* HLGB v92.87 — exclusão segura de pagamentos de facção + escolha explícita de facção no Hub */
+/* HLGB v92.88 — exclusão segura de pagamentos de facção + escolha explícita sem observer recursivo */
 (function(){
 'use strict';
-const V='92.87';
+const V='92.88';
 const PENDING_KEY='hlgb_records_pending_v91';
 const sid=v=>String(v??'');
 const norm=v=>sid(v).normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().trim().replace(/\s+/g,' ');
@@ -38,7 +38,7 @@ function queueDelete(row){
 function clearDeletePending(id){
  const p=readPending();if(!p?.modules)return;const a=Array.isArray(p.modules.factionPayments)?p.modules.factionPayments:[];p.modules.factionPayments=a.filter(op=>!(op&&sid(op.id)===sid(id)&&op.deleted===true));writePending(p)
 }
-function removePaymentLocal(id){const d=dbRef(),a=arr('factionPayments'),i=a.findIndex((x,j)=>idOf('factionPayments',x)===sid(id));if(i>=0){a.splice(i,1);if(d)d.factionPayments=a;try{if(typeof localSaveOnly==='function')localSaveOnly()}catch(e){}}}
+function removePaymentLocal(id){const d=dbRef(),a=arr('factionPayments'),i=a.findIndex(x=>idOf('factionPayments',x)===sid(id));if(i>=0){a.splice(i,1);if(d)d.factionPayments=a;try{if(typeof localSaveOnly==='function')localSaveOnly()}catch(e){}}}
 function backgroundDelete(id,payload){
  setTimeout(async()=>{try{if(typeof window.hlgbRecordSaveWithRetry!=='function')return;const out=await window.hlgbRecordSaveWithRetry('factionPayments',sid(id),clone(payload),true);if(out?.applied===true&&out?.deleted_at){clearDeletePending(id);try{if(typeof localSaveOnly==='function')localSaveOnly()}catch(e){}}}catch(e){console.info('[HLGB Faction UX '+V+'] exclusão ficou pendente para sincronizar:',id,String(e?.message||e))}},0)
 }
@@ -53,19 +53,17 @@ function deleteRows(rows,label){
  try{setCloudStatus('⚡ Exclusão salva no aparelho · sincronização pendente','warn')}catch(e){}
  return true;
 }
-function deletePayment(id){const row=arr('factionPayments').find((x,i)=>idOf('factionPayments',x)===sid(id));return row?deleteRows([row],'Excluir este pagamento de facção?'):false}
+function deletePayment(id){const row=arr('factionPayments').find(x=>idOf('factionPayments',x)===sid(id));return row?deleteRows([row],'Excluir este pagamento de facção?'):false}
 function deleteGroup(key){
  const rows=arr('factionPayments').filter(p=>activePayment(p)&&paymentGroupKey(p)===sid(key));if(!rows.length)return false;
  const name=rows[0]?.factionName||'esta facção',week=isoWeek(rows[0]);return deleteRows(rows,'Excluir '+rows.length+' lançamento(s) de '+name+' da semana '+week+'?')
 }
 function parseArg(text,fn){const m=sid(text).match(new RegExp(fn.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')+'\\((.+?)\\)'));if(!m)return '';const raw=m[1].trim();try{return sid(JSON.parse(raw))}catch(e){return raw.replace(/^['"]|['"]$/g,'')}}
-function paymentIdFromRow(tr){
- for(const b of tr?.querySelectorAll?.('button[onclick]')||[]){const s=b.getAttribute('onclick')||'';for(const n of ['payFactionPayment','editFactionPayment']){const id=parseArg(s,n);if(id)return id}}
- return ''
-}
+function paymentIdFromRow(tr){for(const b of tr?.querySelectorAll?.('button[onclick]')||[]){const s=b.getAttribute('onclick')||'';for(const n of ['payFactionPayment','editFactionPayment']){const id=parseArg(s,n);if(id)return id}}return ''}
 function groupKeyFromRow(tr){for(const b of tr?.querySelectorAll?.('button[onclick]')||[]){const k=parseArg(b.getAttribute('onclick')||'','hlgbPayFactionGroup9230');if(k)return k}return ''}
-function bindDeleteButton(btn,handler,title){
- if(!btn)return;btn.type='button';btn.classList.add('danger');btn.textContent='Excluir';btn.title=title||'Excluir';btn.removeAttribute('onclick');btn.onclick=e=>{e.preventDefault();e.stopPropagation();handler()};btn.dataset.hlgbFactionDelete9287='1'
+function bindDeleteButton(btn,handler,title,key){
+ if(!btn)return;const marker=sid(key);if(btn.dataset.hlgbFactionDelete9288===marker)return;
+ btn.type='button';btn.classList.add('danger');if(btn.textContent!=='Excluir')btn.textContent='Excluir';btn.title=title||'Excluir';btn.removeAttribute('onclick');btn.onclick=e=>{e.preventDefault();e.stopPropagation();handler()};btn.dataset.hlgbFactionDelete9288=marker;
 }
 function repairPaymentDeletes(){
  const root=document.getElementById('factionPaymentTable');if(!root)return;
@@ -73,8 +71,8 @@ function repairPaymentDeletes(){
   const key=groupKeyFromRow(tr),pid=paymentIdFromRow(tr);if(!key&&!pid)return;
   let btn=[...tr.querySelectorAll('button')].find(b=>norm(b.textContent).includes('excluir'));
   if(!btn){const cell=tr.lastElementChild;if(!cell)return;btn=document.createElement('button');cell.append(' ',btn)}
-  if(key)bindDeleteButton(btn,()=>deleteGroup(key),'Excluir os lançamentos desta facção nesta semana');
-  else bindDeleteButton(btn,()=>deletePayment(pid),'Excluir este pagamento de facção');
+  if(key)bindDeleteButton(btn,()=>deleteGroup(key),'Excluir os lançamentos desta facção nesta semana','group:'+key);
+  else bindDeleteButton(btn,()=>deletePayment(pid),'Excluir este pagamento de facção','payment:'+pid);
  })
 }
 
@@ -94,16 +92,16 @@ function factionChooserHtml(current){
 function installChooser(container,partyInput,current){
  if(!container||!partyInput)return;let box=container.querySelector(':scope > .hlgb-faction-choice9287');if(!box){container.insertAdjacentHTML('beforeend',factionChooserHtml(current));box=container.querySelector(':scope > .hlgb-faction-choice9287')}
  const sel=box?.querySelector('.hlgb-faction-select9287'),nw=box?.querySelector('.hlgb-faction-new9287'),wrap=box?.querySelector('.hlgb-faction-new-wrap9287');if(!sel||!nw)return;
- const sync=()=>{if(sel.value==='__new__'||!sel.value){if(wrap)wrap.style.display='block';partyInput.value=nw.value}else{if(wrap)wrap.style.display='none';partyInput.value=sel.value}partyInput.dispatchEvent(new Event('input',{bubbles:true}))};
+ const sync=()=>{if(sel.value==='__new__'||!sel.value){if(wrap)wrap.style.display='block';partyInput.value=nw.value}else{if(wrap)wrap.style.display='none';partyInput.value=sel.value}};
  sel.onchange=sync;nw.oninput=sync;partyInput.style.display='none';sync()
 }
-function removeChooser(container,partyInput){container?.querySelector?.(':scope > .hlgb-faction-choice9287')?.remove();if(partyInput)partyInput.style.display=''}
+function removeChooser(container,partyInput){const box=container?.querySelector?.(':scope > .hlgb-faction-choice9287');if(box)box.remove();if(partyInput)partyInput.style.display=''}
 function updateCustomEditorChooser(){
  const root=document.getElementById('hlgbHubEditor9270');if(!root)return;const flow=root.querySelector('#heFlow9286'),cat=root.querySelector('#heCat9286'),party=root.querySelector('#heParty9286');if(!flow||!cat||!party)return;
  const field=party.closest('.he-field9286')||party.parentElement;if(!field)return;const on=norm(flow.value)==='saida'&&isFactionCategory(cat.value);
  if(on)installChooser(field,party,party.value);else removeChooser(field,party);
- if(!flow.dataset.faction9287){flow.dataset.faction9287='1';flow.addEventListener('change',()=>setTimeout(updateCustomEditorChooser,0))}
- if(!cat.dataset.faction9287){cat.dataset.faction9287='1';cat.addEventListener('input',()=>setTimeout(updateCustomEditorChooser,0));cat.addEventListener('change',()=>setTimeout(updateCustomEditorChooser,0))}
+ if(!flow.dataset.faction9288){flow.dataset.faction9288='1';flow.addEventListener('change',()=>setTimeout(updateCustomEditorChooser,0))}
+ if(!cat.dataset.faction9288){cat.dataset.faction9288='1';cat.addEventListener('input',()=>setTimeout(updateCustomEditorChooser,0));cat.addEventListener('change',()=>setTimeout(updateCustomEditorChooser,0))}
 }
 function findField(root,re){return [...root.querySelectorAll('.field')].find(f=>re.test(norm(f.querySelector('label')?.textContent||'')))||null}
 function enhanceLegacyHubModal(){
@@ -111,18 +109,23 @@ function enhanceLegacyHubModal(){
  const flowField=findField(modal,/^(tipo|movimento|fluxo)$/),catField=findField(modal,/categoria/),partyField=findField(modal,/(pessoa|origem)/);if(!flowField||!catField||!partyField)return;
  const flow=flowField.querySelector('select,input'),cat=catField.querySelector('select,input'),party=partyField.querySelector('input');if(!flow||!cat||!party)return;
  const refresh=()=>{const on=norm(flow.value)==='saida'&&isFactionCategory(cat.value);if(on)installChooser(partyField,party,party.value);else removeChooser(partyField,party)};
- if(!flow.dataset.faction9287){flow.dataset.faction9287='1';flow.addEventListener('change',refresh)}if(!cat.dataset.faction9287){cat.dataset.faction9287='1';cat.addEventListener('change',refresh);cat.addEventListener('input',refresh)}refresh()
+ if(!flow.dataset.faction9288){flow.dataset.faction9288='1';flow.addEventListener('change',refresh)}if(!cat.dataset.faction9288){cat.dataset.faction9288='1';cat.addEventListener('change',refresh);cat.addEventListener('input',refresh)}refresh()
 }
 function refreshManualFactionList(){
- const input=document.getElementById('hlgbMfpFaction'),list=document.getElementById('hlgbMfpFactions');if(!input||!list)return;list.innerHTML=factionNames().map(n=>'<option value="'+esc(n)+'"></option>').join('');input.placeholder='Escolha uma facção cadastrada ou digite um nome novo'
+ const input=document.getElementById('hlgbMfpFaction'),list=document.getElementById('hlgbMfpFactions');if(!input||!list)return;const html=factionNames().map(n=>'<option value="'+esc(n)+'"></option>').join('');if(list.innerHTML!==html)list.innerHTML=html;input.placeholder='Escolha uma facção cadastrada ou digite um nome novo'
 }
 function repair(){repairPaymentDeletes();updateCustomEditorChooser();enhanceLegacyHubModal();refreshManualFactionList()}
-const oldRender=window.renderFactionPayments;if(typeof oldRender==='function'&&!oldRender.__hlgbFactionUx9287){const w=function(){const r=oldRender.apply(this,arguments);setTimeout(repairPaymentDeletes,0);setTimeout(repairPaymentDeletes,120);return r};w.__hlgbFactionUx9287=true;w.__original=oldRender;window.renderFactionPayments=w}
+const oldRender=window.renderFactionPayments;if(typeof oldRender==='function'&&!oldRender.__hlgbFactionUx9288){const w=function(){const r=oldRender.apply(this,arguments);setTimeout(repairPaymentDeletes,0);setTimeout(repairPaymentDeletes,120);return r};w.__hlgbFactionUx9288=true;w.__original=oldRender;window.renderFactionPayments=w}
 document.addEventListener('click',e=>{const b=e.target?.closest?.('button');if(!b)return;if(b.dataset?.hubAction==='edit'||norm(b.textContent)==='editar')setTimeout(()=>{updateCustomEditorChooser();enhanceLegacyHubModal()},20)},true);
-const obs=new MutationObserver(records=>{let relevant=false;for(const m of records){const el=m.target?.nodeType===1?m.target:m.target?.parentElement;if(el&&(el.closest?.('#modal,#hlgbHubEditor9270,#factionPaymentTable')||el.matches?.('#modal,#hlgbHubEditor9270,#factionPaymentTable'))){relevant=true;break}for(const n of m.addedNodes||[]){if(n?.nodeType===1&&(n.matches?.('#modal,#hlgbHubEditor9270,#factionPaymentTable')||n.querySelector?.('#modal,#hlgbHubEditor9270,#factionPaymentTable'))){relevant=true;break}}if(relevant)break}if(relevant)setTimeout(repair,0)});
+let modalRepairPending=false;
+const obs=new MutationObserver(records=>{
+ let relevant=false;
+ for(const m of records){for(const n of m.addedNodes||[]){if(n?.nodeType!==1)continue;if(n.matches?.('#modal,#hlgbHubEditor9270')||n.querySelector?.('#modal,#hlgbHubEditor9270')){relevant=true;break}}if(relevant)break}
+ if(!relevant||modalRepairPending)return;modalRepairPending=true;setTimeout(()=>{modalRepairPending=false;updateCustomEditorChooser();enhanceLegacyHubModal();refreshManualFactionList()},0)
+});
 try{obs.observe(document.body,{childList:true,subtree:true})}catch(e){}
 try{if(typeof hlgbAfterLogin==='function')hlgbAfterLogin(()=>{setTimeout(repair,300);setTimeout(repair,1200)},0)}catch(e){}
 setTimeout(repair,500);
 window.hlgbDeleteFactionPayment9287=deletePayment;window.hlgbDeleteFactionGroup9287=deleteGroup;window.hlgbFactionNames9287=factionNames;window.HLGB_FACTION_UX_GUARD=V;
-console.info('[HLGB] Facções '+V+': exclusão local-first e escolha cadastrada/nome novo ativas');
+console.info('[HLGB] Facções '+V+': sem loop de observer; exclusão e escolha cadastrada/nome novo ativas');
 })();
