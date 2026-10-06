@@ -1,8 +1,8 @@
 {
-  "version": "92.99",
-  "version_label": "v92.99",
+  "version": "93.00",
+  "version_label": "v93.00",
   "entry": "app-stable3.html",
   "minimum_version": "92.69",
   "force_canonical": true,
-  "publishedAt": "2026-10-05T22:20:00-03:00"
+  "publishedAt": "2026-10-05T22:27:00-03:00"
 }
