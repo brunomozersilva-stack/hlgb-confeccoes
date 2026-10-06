@@ -20,7 +20,7 @@ function cloudReq(){try{if(typeof cloudRequest==='function')return cloudRequest}
 function localSave(){try{const f=typeof localSaveOnly==='function'?localSaveOnly:window.localSaveOnly;if(typeof f==='function')f()}catch(e){}}
 function recId(row,i){try{const f=typeof hlgbRecordId==='function'?hlgbRecordId:window.hlgbRecordId;if(typeof f==='function')return sid(f('production',row,i))}catch(e){}return sid(row?.id??row?.__hlgbId)}
 function editing(){if(document.querySelector('#modal.show'))return true;const a=document.activeElement;return !!(a&&/^(INPUT|TEXTAREA|SELECT)$/i.test(a.tagName)&&a.closest?.('#appShell'))}
-function linked(d){return !!(d&&(d.cutQuantityLinkedV9246===true||d.cutEffectiveQtyV9240===true||String(d.cutQuantityLinkedV9246).toLowerCase()==='true'||String(d.cutEffectiveQtyV9240).toLowerCase()==='true'))}
+function linked(d){return !!(d&&(d.cutQuantityLinkedV9246===true||d.cutEffectiveQtyV9246===true||d.cutEffectiveQtyV9240===true||String(d.cutQuantityLinkedV9246).toLowerCase()==='true'||String(d.cutEffectiveQtyV9246).toLowerCase()==='true'||String(d.cutEffectiveQtyV9240).toLowerCase()==='true'))}
 function explicitZero(d){return !!(d&&['true','1','yes'].includes(String(d.__hlgb_allow_planned_zero??'').toLowerCase()))}
 function suspicious(id,d){const g=authority.get(sid(id));return !!(g&&g.data&&num(g.data.planned)>0&&num(d?.planned)===0&&linked(d)&&!explicitZero(d))}
 function archive(kind,payload,reason){if(payload==null)return;let a=read(QUAR_KEY,[]);if(!Array.isArray(a))a=[];a.push({at:new Date().toISOString(),kind,reason,payload:clone(payload)});if(a.length>20)a=a.slice(-20);write(QUAR_KEY,a)}
