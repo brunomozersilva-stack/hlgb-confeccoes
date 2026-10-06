@@ -1,7 +1,7 @@
-/* HLGB v92.92 — extensão do Auditor: profiler, cadeias, soak do Hub e bundle único */
+/* HLGB v93.00 — extensão do Auditor: profiler, cadeias, soak do Hub e bundle único */
 (function(){
 'use strict';
-const V='92.92';
+const V='93.00';
 const sid=v=>String(v??'');
 const now=()=>new Date().toISOString();
 const wait=ms=>new Promise(r=>setTimeout(r,ms));
@@ -65,10 +65,10 @@ async function collect(){
  const releaseVersion=sid(window.HLGB_RELEASE_VERSION||document.querySelector('#appShell .logo small')?.textContent||'').replace(/^v/i,'');
  const forensics=window.hlgbCollectHubDiagnostics?.()||null;
  const runtimeProfiler=window.hlgbRuntimeProfiler9292?.snapshot?.()||null;
- const visualPerformance=visualPerformance();
+ const visualPerf=visualPerformance();
  const sync=window.hlgbInternalAuditor?.buildSyncDiagnostic?await window.hlgbInternalAuditor.buildSyncDiagnostic():null;
  const soak=await hubSoak(8000);
- const data={kind:'hlgb_max_debug_bundle',version:V,generatedAt:now(),readOnly:true,credentialsIncluded:false,releaseVersion,activePage:document.querySelector('.page.active')?.id||'',forensics,runtimeProfiler,visualPerformance,sync,chains:chains(),soak};
+ const data={kind:'hlgb_max_debug_bundle',version:V,generatedAt:now(),readOnly:true,credentialsIncluded:false,releaseVersion,activePage:document.querySelector('.page.active')?.id||'',forensics,runtimeProfiler,visualPerformance:visualPerf,sync,chains:chains(),soak};
  data.findings=findings(data);return data;
 }
 function downloadData(data){const blob=new Blob([JSON.stringify(data,null,2)],{type:'application/json;charset=utf-8'}),a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='HLGB-DEBUG-MAXIMO-'+new Date().toISOString().replace(/[:.]/g,'-')+'.json';document.body.appendChild(a);a.click();setTimeout(()=>{try{URL.revokeObjectURL(a.href)}catch(e){}a.remove()},1200)}
