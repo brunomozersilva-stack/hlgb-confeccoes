@@ -27,7 +27,6 @@ function sessionFn(){try{if(typeof cloudEnsureFreshSession==='function')return c
 function startRealtimeFn(){try{if(typeof hlgbStartRealtime==='function')return hlgbStartRealtime}catch(e){}return window.hlgbStartRealtime}
 function localSaveFn(){try{if(typeof localSaveOnly==='function')return localSaveOnly}catch(e){}return window.localSaveOnly}
 function statusFn(){try{if(typeof setCloudStatus==='function')return setCloudStatus}catch(e){}return window.setCloudStatus}
-function renderIncomingFn(){try{if(typeof hlgbRenderIncomingRecord==='function')return hlgbRenderIncomingRecord}catch(e){}return window.hlgbRenderIncomingRecord}
 function loggedIn(){const login=document.getElementById('loginScreen'),app=document.getElementById('appShell');if(!app)return false;if(login){try{if(getComputedStyle(login).display!=='none')return false}catch(e){}}return true}
 function userEditing(){const modal=document.querySelector('#modal.show');if(modal)return true;const a=document.activeElement;return !!(a&&/^(INPUT|TEXTAREA|SELECT)$/i.test(a.tagName)&&a.closest?.('#appShell'))}
 function opTime(e){for(const v of [e?.createdAt,e?.queuedAt,e?.updatedAt,e?.at,e?.__hlgb_pending_at]){const n=typeof v==='number'?v:Date.parse(String(v||''));if(Number.isFinite(n)&&n>0)return n}return 0}
@@ -104,7 +103,7 @@ function restartRealtimeIfNeeded(force=false){
 async function fullSync(reason='manual',force=false){
  if(busy)return lastResult||false;
  if(!navigator.onLine||document.visibilityState==='hidden'||!loggedIn())return false;
- if(userEditing()&&!force){clearTimeout(retryTimer);retryTimer=setTimeout(()=>fullSync(reason+'-after-edit',false),1200);return false}
+ if(userEditing()){clearTimeout(retryTimer);retryTimer=setTimeout(()=>fullSync(reason+'-after-edit',false),1200);return false}
  const now=Date.now();if(!force&&now-lastFull<12000)return true;
  busy=true;lastReason=reason;snapshotState();const started=Date.now();
  try{
@@ -115,7 +114,6 @@ async function fullSync(reason='manual',force=false){
    const load=loadBundleFn();if(typeof load!=='function')throw new Error('Leitura por registro indisponível');
    const out=await load({preserveLocal:false,since:null});
    markReady();
-   // Qualquer fila antiga que sobreviver à leitura não pode recolocar uma cópia velha sobre a nuvem.
    const after=quarantineStaleLocal('depois-'+reason,started);
    const idbAfter=await quarantineIndexedDb('depois-'+reason,started);
    try{const f=typeof hlgbRecordPendingStore==='function'?hlgbRecordPendingStore:window.hlgbRecordPendingStore;if(typeof f==='function')f()}catch(e){}
