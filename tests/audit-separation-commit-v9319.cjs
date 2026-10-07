@@ -13,20 +13,11 @@ assert(loader.indexOf('release-production-cut-reconcile-v9307.js')<loader.indexO
 
 (async()=>{
   const counters={detail:0,list:0,select:0},alerts=[],statuses=[];
-  const elements={
-    sepQty938_p1:{value:'10'},
-    separationOrder:{value:'o1'},
-  };
+  const elements={sepQty938_p1:{value:'10'},separationOrder:{value:'o1'}};
   const sep={id:'sep1',orderId:'o1',modelProgress:{p1:{qty:20}},done:false,updatedAt:'2026-10-07T15:00:00.000Z'};
   const snapMap=new Map([['sep1',{data:JSON.parse(JSON.stringify(sep)),updated_at:'2026-10-07T15:00:00.000Z'}]]);
   const context={
-    console,
-    Date,
-    Promise,
-    setTimeout,
-    clearTimeout,
-    setInterval:()=>0,
-    clearInterval:()=>{},
+    console,Date,Promise,Map,setTimeout,clearTimeout,setInterval:()=>0,clearInterval:()=>{},
     db:{separations:[sep],orders:[]},
     hlgbRecordSnapshots:{separations:snapMap,orders:new Map()},
     localSaveOnly:()=>{},
@@ -35,10 +26,7 @@ assert(loader.indexOf('release-production-cut-reconcile-v9307.js')<loader.indexO
     fillSeparationOrders:()=>{counters.select++},
     alert:m=>alerts.push(String(m)),
     setCloudStatus:(m,t)=>statuses.push({m:String(m),t:String(t||'')}),
-    document:{
-      getElementById:id=>elements[id]||null,
-      querySelector:()=>null,
-    },
+    document:{getElementById:id=>elements[id]||null,querySelector:()=>null},
     hlgbAfterLogin:cb=>cb(),
     applySeparationProgress938:async(orderId,pid)=>{
       // Reproduz o defeito legado: a separação chega à nuvem (20 -> 30),
