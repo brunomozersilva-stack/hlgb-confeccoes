@@ -12,5 +12,6 @@ assert(src.includes("hlgbRecordSaveWithRetry('hubFinanceEntries'"),'Hub delete m
 assert(src.includes('for(let i=0;i<3&&!confirmed;i++)'),'Hub delete must retry confirmation before declaring failure');
 const list=(loader.match(/const files=\[(.*?)\];const inj=/s)||[])[1]||'';
 assert(list.includes("'release-auditor-hub-reliability-v9315.js'"),'loader must include v93.15 patch');
-assert(list.includes("'release-auditor-hub-reliability-v9315.js','release-ui-stability.js','release-safari-resume-v9266.js'"),'v93.15 must load before final visual protections');
+const i15=list.indexOf("'release-auditor-hub-reliability-v9315.js'"),iUI=list.indexOf("'release-ui-stability.js'"),iSafari=list.indexOf("'release-safari-resume-v9266.js'");
+assert(i15>=0&&iUI>i15&&iSafari>iUI,'v93.15 must load before final visual protections, allowing later nonvisual guards');
 console.log('PASS auditor/hub v93.15: complete+critical audit actions, truthful Central warning, cloud-confirmed Hub delete.');
