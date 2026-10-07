@@ -51,14 +51,16 @@ function boot(){install();stamp();setInterval(install,1200);setTimeout(()=>recon
 if(typeof window.hlgbAfterLogin==='function')window.hlgbAfterLogin(()=>setTimeout(boot,400),0);else setTimeout(boot,1200);
 })();
 
-/* HLGB v93.12 — integridade de salvamento + separação confirmada + Hub estável */
+/* HLGB v93.13 — salvamento sem tempestade + separação sem espera infinita */
 (function(){
 'use strict';
-const V='93.12';
+const V='93.13';
 if(window.hlgbSaveIntegrity9312?.version===V)return;
 const sid=v=>String(v??'');
+const wait=ms=>new Promise(r=>setTimeout(r,ms));
+async function timed(promise,ms,label){let timer;try{return await Promise.race([Promise.resolve(promise),new Promise((_,rej)=>{timer=setTimeout(()=>rej(new Error(label||'Tempo esgotado')),ms)})])}finally{clearTimeout(timer)}}
 let confirmTimer=null,confirmBusy=false,confirmAgain=false,lastConfirm='',lastConfirmReason='',lastConfirmError='',confirmRuns=0;
-let sepBusy=false,sepRefreshTimer=null;
+let sepBusy=false,sepRefreshTimer=null,sepTimeouts=0;
 let hubRenderTimer=null,hubRenderBusy=false,hubRenderQueued=false,hubRenderRuns=0,hubRenderSkipped=0,lastHubRender=0;
 let masterRenderTimer=null,masterRenderBusy=false,masterRenderQueued=false,masterRenderRuns=0,lastMasterRender=0;
 
@@ -71,35 +73,37 @@ function setStatus(text,type=''){try{const f=typeof setCloudStatus==='function'?
 function recovery(){return window.hlgbSyncRecovery9301||null}
 function pending(){try{return recovery()?.pending?.()||{records:0,wal:0}}catch(e){return {records:0,wal:0}}}
 function totalPending(){const p=pending();return (+p.records||0)+(+p.wal||0)}
+function recoveryBusy(){try{return !!recovery()?.status?.()?.busy}catch(e){return false}}
+async function waitRecoveryIdle(maxMs=6000){const start=Date.now();while(recoveryBusy()&&Date.now()-start<maxMs)await wait(120);return !recoveryBusy()}
 async function ensureCloudReady(){
  if(!isOnline())throw new Error('Sem internet para confirmar a alteração.');
- try{const f=typeof cloudEnsureFreshSession==='function'?cloudEnsureFreshSession:window.cloudEnsureFreshSession;if(typeof f==='function')await f(false)}catch(e){throw new Error('Sessão da nuvem indisponível. '+sid(e?.message||e))}
+ try{const f=typeof cloudEnsureFreshSession==='function'?cloudEnsureFreshSession:window.cloudEnsureFreshSession;if(typeof f==='function')await timed(f(false),12000,'Tempo esgotado ao validar a sessão da nuvem')}catch(e){throw new Error('Sessão da nuvem indisponível. '+sid(e?.message||e))}
  if(!token())throw new Error('Sessão da nuvem indisponível.');
  if(!recordReady()){
   const f=window.hlgbEnsureRecordsOnlineAfterLogin;
-  if(typeof f!=='function'||!(await f()))throw new Error('A camada multiusuário ainda não está pronta.');
+  if(typeof f!=='function'||!(await timed(f(),12000,'Tempo esgotado ao preparar a camada multiusuário')))throw new Error('A camada multiusuário ainda não está pronta.');
  }
  if(typeof window.hlgbRecordSaveWithRetry!=='function')throw new Error('Gravação por registro indisponível.');
  return true;
 }
-async function flushConfirmed(reason='save'){
+async function flushConfirmed(reason='save',force=false){
  if(confirmBusy){confirmAgain=true;return false}
  if(!isOnline()||!loggedIn())return false;
- if(userEditing()){scheduleConfirmation(reason+'-after-edit',650);return false}
+ if(userEditing()&&!force){scheduleConfirmation(reason+'-after-edit',650,false);return false}
  confirmBusy=true;confirmRuns++;lastConfirmReason=reason;lastConfirmError='';
  try{
   try{const f=window.hlgbRecordPendingStore;if(typeof f==='function')f()}catch(e){}
   if(!recordReady()){
-   try{const f=window.hlgbEnsureRecordsOnlineAfterLogin;if(typeof f==='function')await f()}catch(e){}
-  }
-  if(recordReady()&&token()&&typeof window.hlgbNormalizedSyncNow==='function'){
-   try{await window.hlgbNormalizedSyncNow(false)}catch(e){lastConfirmError=sid(e?.message||e)}
+   try{const f=window.hlgbEnsureRecordsOnlineAfterLogin;if(typeof f==='function')await timed(f(),12000,'Tempo esgotado ao preparar registros')}catch(e){lastConfirmError=sid(e?.message||e)}
   }
   const rec=recovery();
   if(rec?.flushOutgoing){
-   try{const out=await rec.flushOutgoing('v9312-'+reason);if(out?.lastError)lastConfirmError=sid(out.lastError)}catch(e){lastConfirmError=sid(e?.message||e)}
-  }else if(typeof window.hlgb955FlushSilent==='function'){
-   try{await window.hlgb955FlushSilent()}catch(e){lastConfirmError=sid(e?.message||e)}
+   if(recoveryBusy()&&reason!=='separation'){scheduleConfirmation(reason+'-recovery-busy',700,force);return false}
+   if(reason==='separation')await waitRecoveryIdle(5000);
+   try{const out=await timed(rec.flushOutgoing('v9313-'+reason),30000,'Tempo esgotado ao confirmar alterações');if(out?.lastError)lastConfirmError=sid(out.lastError)}catch(e){lastConfirmError=sid(e?.message||e)}
+  }else if(recordReady()&&token()&&typeof window.hlgbNormalizedSyncNow==='function'){
+   try{await timed(window.hlgbNormalizedSyncNow(false),20000,'Tempo esgotado ao sincronizar alterações')}catch(e){lastConfirmError=sid(e?.message||e)}
+   if(typeof window.hlgb955FlushSilent==='function'){try{await timed(window.hlgb955FlushSilent(),20000,'Tempo esgotado ao reenviar diário local')}catch(e){lastConfirmError=sid(e?.message||e)}}
   }
   lastConfirm=new Date().toISOString();
   const n=totalPending();
@@ -109,18 +113,18 @@ async function flushConfirmed(reason='save'){
   return n===0&&!lastConfirmError;
  }finally{
   confirmBusy=false;
-  if(confirmAgain){confirmAgain=false;scheduleConfirmation(reason+'-queued',180)}
+  if(confirmAgain){confirmAgain=false;scheduleConfirmation(reason+'-queued',240,force)}
  }
 }
-function scheduleConfirmation(reason='save',delay=320){
+function scheduleConfirmation(reason='save',delay=320,force=false){
  clearTimeout(confirmTimer);
- confirmTimer=setTimeout(()=>{confirmTimer=null;flushConfirmed(reason).catch(e=>{lastConfirmError=sid(e?.message||e);setStatus('☁️ Alteração protegida · confirmação pendente','warn')})},Math.max(80,+delay||320));
+ confirmTimer=setTimeout(()=>{confirmTimer=null;flushConfirmed(reason,force).catch(e=>{lastConfirmError=sid(e?.message||e);setStatus('☁️ Alteração protegida · confirmação pendente','warn')})},Math.max(80,+delay||320));
  return true;
 }
 function installPersistGuard(){
  const f=window.persistDb;
  if(typeof f!=='function'||f.__hlgb9312)return false;
- const w=function(){const out=f.apply(this,arguments);scheduleConfirmation('persistDb',300);return out};
+ const w=function(){const out=f.apply(this,arguments);scheduleConfirmation('persistDb',450,false);return out};
  w.__hlgb9312=true;w.__hlgb9312Original=f;window.persistDb=w;return true;
 }
 function installPermissionGuard(){
@@ -144,13 +148,16 @@ function refreshSeparationSoon(reason='incoming'){
    const next=document.getElementById('separationOrder');if(next&&keep)next.value=keep;
    if(keep&&typeof window.renderSeparation==='function')window.renderSeparation();
   }catch(e){console.warn('[HLGB '+V+'] refresh separação',reason,e)}
- },80);
+ },100);
 }
 function installIncomingGuard(){
  const f=window.hlgbRenderIncomingRecord;
  if(typeof f!=='function'||f.__hlgb9312)return false;
  const w=function(module){const out=f.apply(this,arguments);if(module==='separations'||module==='orders')refreshSeparationSoon(module);return out};
  w.__hlgb9312=true;w.__hlgb9312Original=f;window.hlgbRenderIncomingRecord=w;return true;
+}
+function resetSeparationUi(pid){
+ try{const b=document.getElementById('sepBtn938_'+sid(pid));if(b){b.disabled=false;if(/salvando/i.test(b.textContent||''))b.textContent='Baixar parcial'}}catch(e){}
 }
 function installSeparationGuard(){
  const f=window.applySeparationProgress938;
@@ -159,17 +166,21 @@ function installSeparationGuard(){
   if(sepBusy){setStatus('☁️ Separação já está sendo salva…','warn');return false}
   sepBusy=true;
   try{
+   try{document.activeElement?.blur?.()}catch(e){}
    await ensureCloudReady();
    setStatus('☁️ Salvando separação na nuvem…');
-   const out=await f.apply(this,arguments);
-   await flushConfirmed('separation');
+   let out;
+   try{out=await timed(f.apply(this,arguments),35000,'A gravação da separação demorou demais')}catch(e){if(/demorou demais|Tempo esgotado/i.test(sid(e?.message||e)))sepTimeouts++;throw e}
+   await flushConfirmed('separation',true);
    refreshSeparationSoon('save');
    const n=totalPending();if(n>0)setStatus('⚠️ Separação protegida · '+n+' alteração(ões) aguardando confirmação','warn');
    return out;
   }catch(e){
    console.error('[HLGB '+V+'] separação não confirmada',e);
-   setStatus('☁️ Separação não confirmada · nada novo foi liberado','bad');
-   alert('Não foi possível confirmar a separação na nuvem. Tente novamente.\n\n'+sid(e?.message||e));
+   resetSeparationUi(pid);
+   scheduleConfirmation('separation-recovery',500,true);
+   setStatus('☁️ Separação não confirmada · tentando recuperar','bad');
+   alert('Não foi possível confirmar a separação na nuvem. A alteração ficou protegida para nova tentativa.\n\n'+sid(e?.message||e));
    return false;
   }finally{sepBusy=false}
  };
@@ -199,9 +210,9 @@ function installHubMasterGuard(){
  };
  w.__hlgb9312=true;w.__hlgb9312Original=f;master.renderAll=w;return true;
 }
-function stamp(){try{const cur=Number(window.HLGB_RELEASE_VERSION)||0;if(cur<93.12){window.HLGB_RELEASE_VERSION=V;const l=document.querySelector('#appShell .logo small');if(l)l.textContent='v'+V}}catch(e){}}
-function status(){return {version:V,persistGuard:!!window.persistDb?.__hlgb9312,separationGuard:!!window.applySeparationProgress938?.__hlgb9312,incomingGuard:!!window.hlgbRenderIncomingRecord?.__hlgb9312,permissionGuard:!!window.hlgbRecordCanWrite?.__hlgb9312,hubRendererGuard:!!window.renderHubFinance?.__hlgb9312,hubMasterGuard:!!window.hlgbHubMaster9258?.renderAll?.__hlgb9312,pending:pending(),confirmBusy,confirmRuns,lastConfirm,lastConfirmReason,lastConfirmError,hubRenderRuns,hubRenderSkipped,masterRenderRuns}}
+function stamp(){try{const cur=Number(window.HLGB_RELEASE_VERSION)||0;if(cur<93.13){window.HLGB_RELEASE_VERSION=V;const l=document.querySelector('#appShell .logo small');if(l)l.textContent='v'+V}}catch(e){}}
+function status(){return {version:V,persistGuard:!!window.persistDb?.__hlgb9312,separationGuard:!!window.applySeparationProgress938?.__hlgb9312,incomingGuard:!!window.hlgbRenderIncomingRecord?.__hlgb9312,permissionGuard:!!window.hlgbRecordCanWrite?.__hlgb9312,hubRendererGuard:!!window.renderHubFinance?.__hlgb9312,hubMasterGuard:!!window.hlgbHubMaster9258?.renderAll?.__hlgb9312,pending:pending(),confirmBusy,confirmRuns,lastConfirm,lastConfirmReason,lastConfirmError,sepTimeouts,recoveryBusy:recoveryBusy(),hubRenderRuns,hubRenderSkipped,masterRenderRuns}}
 function install(){installPersistGuard();installPermissionGuard();installIncomingGuard();installSeparationGuard();installHubMasterGuard();installHubRendererGuard();stamp();return status()}
-function boot(){install();setTimeout(install,350);setTimeout(install,1400);window.addEventListener('online',()=>scheduleConfirmation('online',150));window.addEventListener('focus',()=>{install();if(totalPending()>0)scheduleConfirmation('focus',180)});window.hlgbSaveIntegrity9312={version:V,status,install,flush:()=>flushConfirmed('manual'),refreshSeparation:refreshSeparationSoon};console.info('[HLGB] v'+V+' integridade de salvamento ativa — separação exige confirmação e Hub coalescido')}
+function boot(){install();setTimeout(install,350);setTimeout(install,1400);window.addEventListener('online',()=>scheduleConfirmation('online',180,true));window.addEventListener('focus',()=>{install();if(totalPending()>0)scheduleConfirmation('focus',220,false)});window.hlgbSaveIntegrity9312={version:V,status,install,flush:()=>flushConfirmed('manual',true),refreshSeparation:refreshSeparationSoon};console.info('[HLGB] v'+V+' salvamento estável ativo — confirmação serializada e separação com timeout')}
 if(typeof window.hlgbAfterLogin==='function')window.hlgbAfterLogin(()=>setTimeout(boot,250),0);else setTimeout(boot,700);
 })();
