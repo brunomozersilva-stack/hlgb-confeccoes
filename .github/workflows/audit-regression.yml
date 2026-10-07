@@ -38,6 +38,7 @@ jobs:
             tests/audit-auditor-hub-reliability-v9315.cjs \
             tests/audit-canonical-routing-v9316.cjs \
             tests/audit-hub-week-unified-v9317.cjs \
+            tests/audit-hub-master-syntax-v9318.cjs \
             tests/audit-ui-stability-regression.cjs \
             tests/audit-global-visual-stability.cjs \
             tests/audit-page-settle-stability.cjs \
