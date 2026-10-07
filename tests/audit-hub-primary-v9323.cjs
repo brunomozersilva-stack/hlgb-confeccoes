@@ -1,0 +1,18 @@
+const fs=require('fs'),path=require('path'),assert=require('assert');
+const root=path.join(__dirname,'..');
+const read=f=>fs.readFileSync(path.join(root,f),'utf8');
+const src=read('release-hub-primary-v9323.js'),stable=read('app-stable3.html'),manifest=JSON.parse(read('release.json'));
+assert(src.includes("const V='93.23'"),'Hub primary release must identify v93.23');
+assert(src.includes('window.newHubFinanceEntry=newEntry'),'new planned entry must use authoritative v93.23 handler');
+assert(src.includes("window.hlgbHubSaveConfirmed==='function'"),'Hub planned entry must use local-first save action when available');
+assert(src.includes('hlgbHubQueuePending'),'fallback must protect a planned entry in the pending queue');
+assert(src.includes("localSaveOnly==='function'"),'planned entry must be persisted locally before cloud confirmation');
+assert(src.includes("status('💾 Salvo no aparelho · confirmando na nuvem…'"),'local-first state must be explicit');
+assert(src.includes("id='hlgbHubPrimary9323'")||src.includes("primary.id='hlgbHubPrimary9323'"),'Hub must create a primary planned-entries section');
+assert(src.includes('Entradas e saídas previstas'),'planned entries must be visibly promoted');
+assert(src.includes("entries.classList.add('hlgb-hub-entry-panel9323')"),'weekly entries must be moved into the primary section');
+const iSave=stable.indexOf('release-save-actions-v9322.js'),iPrimary=stable.indexOf('release-hub-primary-v9323.js'),iAudit=stable.indexOf('release-auditor-hub-reliability-v9315.js');
+assert(iSave>=0&&iPrimary>iSave,'v93.23 must load after the local-first save actions');
+assert(iAudit<0||iPrimary<iAudit,'v93.23 should settle Hub handlers before the reliability auditor');
+assert(Number(manifest.version)>=93.23,'canonical manifest must publish v93.23 or newer');
+console.log('PASS Hub v93.23: planned entries save local-first and Hub primary layout is loaded canonically.');
