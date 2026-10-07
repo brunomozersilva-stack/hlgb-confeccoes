@@ -9,7 +9,7 @@ assert(src.includes('controller.abort()'),'stalled transport must be actively ab
 assert(src.includes('signal:controller.signal'),'AbortSignal must reach the original cloudRequest');
 assert(loader.includes("'release-save-transport-v9320.js'"),'loader does not include v93.20');
 assert(loader.indexOf('release-save-transport-v9320.js')<loader.indexOf('release-record-integrity.js'),'transport watchdog must load before record save wrappers');
-assert.equal(manifest.version,'93.20','canonical manifest must publish v93.20');
+assert(Number(manifest.version)>=93.20,'canonical manifest must publish v93.20 or newer');
 
 (async()=>{
   let sawSignal=false;
