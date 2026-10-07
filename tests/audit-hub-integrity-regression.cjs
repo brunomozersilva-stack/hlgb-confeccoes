@@ -2,7 +2,7 @@ const fs=require('fs'),vm=require('vm'),assert=require('assert');
 const src=fs.readFileSync(require('path').join(__dirname,'..','release-hub-integrity.js'),'utf8');
 const store=new Map();
 const localStorage={getItem:k=>store.get(k)||null,setItem:(k,v)=>store.set(k,String(v)),removeItem:k=>store.delete(k)};
-let calls=[],alerts=0,statuses=[];
+let calls=[],alerts=0,statuses=[],timers=[];
 const db={hubFinanceEntries:[
  {id:'payroll-month-2026-09',description:'Folha de pagamento',value:100,status:'Realizado'},
  {id:123,description:'Fornecedor',value:50,status:'Previsto'}
@@ -41,7 +41,7 @@ const context={
  confirm:()=>true,
  alert:()=>{alerts++},
  setCloudStatus:(s)=>statuses.push(s),
- setTimeout:()=>1,
+ setTimeout:(fn)=>{timers.push(fn);return timers.length},
  clearTimeout(){},
  hlgbAfterLogin:null
 };
@@ -62,11 +62,22 @@ vm.createContext(context);vm.runInContext(src,context);
  assert.equal(db.hubFinanceEntries.some(x=>String(x.id)==='123'),true,'unconfirmed delete must preserve local row');
  assert.equal(alerts,1,'unconfirmed delete should notify once');
 
- calls=[];
+ calls=[];timers=[];
  const toggled=await window.toggleHubFinanceEntry('123');
- assert.equal(toggled,true,'text-safe status toggle must save');
+ assert.equal(toggled,true,'text-safe status toggle must save locally');
+ const localRow=db.hubFinanceEntries.find(x=>String(x.id)==='123');
+ assert.equal(localRow.status,'Realizado','local-first toggle must update the local row immediately');
+ assert.equal(calls.length,0,'local-first toggle must not block on an immediate cloud write');
+ const pending=JSON.parse(store.get('hlgb_records_pending_v91')||'null');
+ assert.equal(pending.modules.hubFinanceEntries.length,1,'local-first toggle must queue one pending Hub write');
+ assert.equal(String(pending.modules.hubFinanceEntries[0].id),'123');
+ assert.equal(pending.modules.hubFinanceEntries[0].data.status,'Realizado');
+ assert.equal(timers.length,1,'local-first toggle must schedule one background cloud confirmation');
+ await timers.shift()();
+ assert.equal(calls.length,1,'background sync must attempt one cloud confirmation');
  assert.equal(calls[0].id,'123');
  assert.equal(calls[0].data.status,'Realizado');
+ assert.equal(store.has('hlgb_records_pending_v91'),false,'confirmed background sync must clear the pending Hub write');
 
  // If a legacy/local copy reappears after a cloud tombstone, purge must remove it.
  snaps.set('123',{revision:7,deleted_at:'2026-09-21T13:10:00Z',data:{id:123}});
@@ -75,5 +86,5 @@ vm.createContext(context);vm.runInContext(src,context);
  assert(removed>=1,'local copies of tombstoned Hub rows must be purged');
  assert.equal(db.hubFinanceEntries.some(x=>String(x.id)==='123'),false);
 
- console.log('PASS Hub integrity v2-local-first: string IDs, confirmed tombstone, pending replay cleanup, unconfirmed delete preservation and local purge.');
+ console.log('PASS Hub integrity v2-local-first: confirmed delete, guarded failed delete, immediate local save, queued write and background cloud confirmation verified.');
 })().catch(e=>{console.error(e);process.exit(1)});
