@@ -1,0 +1,17 @@
+const fs=require('fs'),path=require('path'),assert=require('assert');
+const root=path.join(__dirname,'..');
+const read=f=>fs.readFileSync(path.join(root,f),'utf8');
+const src=read('release-hub-delivery-v9324.js'),stable=read('app-stable3.html');
+assert(src.includes("const V='93.24'"),'Hub delivery release must identify v93.24');
+assert(src.includes("MODULE='hubFinanceEntries'"),'delivery must be scoped to Hub entries');
+assert(src.includes('hlgbRecordRpcSave'),'new Hub entries must bypass the stalled wrapper chain through the base RPC');
+assert(src.includes("p_expected_revision:0"),'new records must use revision zero only on direct create fallback');
+assert(src.includes('const verified=await cloudRow(id)'),'delivery must verify the row exists in Supabase after saving');
+assert(src.includes('if(existing){fallbackExisting++'),'existing Hub rows must retain the normal revision/conflict save flow');
+assert(src.includes('hlgbRecordPendingStore'),'confirmed direct saves must refresh normalized pending state');
+assert(src.includes('hlgb955ReconcileServer'),'confirmed direct saves must reconcile the durable WAL');
+assert(src.includes('window.hlgbHubSaveConfirmed=save'),'v93.24 must own Hub save dispatch');
+const i23=stable.indexOf('release-hub-primary-v9323.js'),i24=stable.indexOf('release-hub-delivery-v9324.js'),iAudit=stable.indexOf('release-auditor-hub-reliability-v9315.js');
+assert(i23>=0&&i24>i23,'v93.24 must load after v93.23 Hub primary');
+assert(iAudit<0||i24<iAudit,'v93.24 should settle delivery before reliability auditor');
+console.log('PASS Hub v93.24: new Hub entries use direct verified RPC while existing rows keep conflict-safe flow.');
