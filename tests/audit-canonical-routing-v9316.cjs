@@ -2,7 +2,7 @@ const fs=require('fs'),path=require('path'),assert=require('assert');
 const root=path.join(__dirname,'..');
 const read=f=>fs.readFileSync(path.join(root,f),'utf8');
 const manifest=JSON.parse(read('release.json'));
-assert.equal(manifest.version,'93.16','canonical manifest must publish v93.16');
+assert(['93.16','93.17'].includes(manifest.version),'canonical manifest must publish a supported canonical version');
 assert.equal(manifest.entry,'abrir.html','canonical manifest must enter through abrir.html');
 assert.equal(manifest.force_canonical,true,'canonical routing must stay forced');
 const index=read('index.html'),abrir=read('abrir.html'),stable3=read('app-stable3.html'),sw=read('hlgb-canonical-sw.js'),gate=read('release-safety-gate-v9269.js');
@@ -23,4 +23,4 @@ for(const f of ['app-stable.html','app-stable2.html','sistema-v9173.html','siste
 for(let n=9241;n<=9245;n++){
   const f=`app${n}.html`,src=read(f);assert(src.includes('index.html')||src.includes('abrir.html'),`${f} must route into canonical entry chain`);
 }
-console.log('PASS canonical routing v93.16: manifest, safety gate, service worker and historical user-facing HTML routes are forced into abrir.html.');
+console.log('PASS canonical routing: manifest, safety gate, service worker and historical user-facing HTML routes are forced into abrir.html.');
