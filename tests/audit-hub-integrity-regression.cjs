@@ -48,7 +48,7 @@ const context={
 vm.createContext(context);vm.runInContext(src,context);
 
 (async()=>{
- assert.equal(window.HLGB_HUB_INTEGRITY_GUARD,'v1');
+ assert.equal(window.HLGB_HUB_INTEGRITY_GUARD,'v2-local-first','test must track the active Hub integrity guard');
 
  const ok=await window.deleteHubFinanceEntry('payroll-month-2026-09');
  assert.equal(ok,true,'text id delete must succeed');
@@ -75,5 +75,5 @@ vm.createContext(context);vm.runInContext(src,context);
  assert(removed>=1,'local copies of tombstoned Hub rows must be purged');
  assert.equal(db.hubFinanceEntries.some(x=>String(x.id)==='123'),false);
 
- console.log('PASS Hub integrity: string IDs, confirmed tombstone, pending replay cleanup, unconfirmed delete preservation and local purge.');
+ console.log('PASS Hub integrity v2-local-first: string IDs, confirmed tombstone, pending replay cleanup, unconfirmed delete preservation and local purge.');
 })().catch(e=>{console.error(e);process.exit(1)});
