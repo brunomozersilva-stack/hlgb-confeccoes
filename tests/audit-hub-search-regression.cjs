@@ -23,7 +23,7 @@ const context=vm.createContext({
 });
 vm.runInContext(src,context);
 
-assert.equal(window.HLGB_HUB_SEARCH_GUARD,'v2');
+assert.equal(window.HLGB_HUB_SEARCH_GUARD,'92.79');
 
 let out=window.hlgbHubSearchFilterRows(sample,{query:'messias',start:'2026-09-01',end:'2026-09-30',flow:'',status:''});
 assert.deepEqual(Array.from(out,x=>x.id),[4,1],'name search should match person/origin/description inside the chosen period');
