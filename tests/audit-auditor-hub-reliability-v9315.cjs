@@ -1,0 +1,16 @@
+const fs=require('fs'),path=require('path'),assert=require('assert');
+const root=path.join(__dirname,'..');
+const src=fs.readFileSync(path.join(root,'release-auditor-hub-reliability-v9315.js'),'utf8');
+const loader=fs.readFileSync(path.join(root,'app-stable3.html'),'utf8');
+assert(src.includes("const V='93.15'"),'v93.15 patch must be active');
+assert(src.includes('Auditoria completa'),'Auditor must expose a clear complete-audit action');
+assert(src.includes('Teste crítico local'),'Auditor must expose a clear local critical-test action');
+assert(src.includes('db?.systemIssues'),'Auditor must use the real Central de Erros storage');
+assert(src.includes('alta/crítica prioridade'),'Auditor must surface serious unresolved Central issues');
+assert(src.includes('cloudTombstone'),'Hub delete must independently verify a cloud tombstone');
+assert(src.includes("hlgbRecordSaveWithRetry('hubFinanceEntries'"),'Hub delete must use record-layer delete');
+assert(src.includes('for(let i=0;i<3&&!confirmed;i++)'),'Hub delete must retry confirmation before declaring failure');
+const list=(loader.match(/const files=\[(.*?)\];const inj=/s)||[])[1]||'';
+assert(list.includes("'release-auditor-hub-reliability-v9315.js'"),'loader must include v93.15 patch');
+assert(list.includes("'release-auditor-hub-reliability-v9315.js','release-ui-stability.js','release-safari-resume-v9266.js'"),'v93.15 must load before final visual protections');
+console.log('PASS auditor/hub v93.15: complete+critical audit actions, truthful Central warning, cloud-confirmed Hub delete.');
