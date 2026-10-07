@@ -1,8 +1,8 @@
 {
-  "version": "93.03",
-  "version_label": "v93.03",
-  "entry": "app-stable3.html",
-  "minimum_version": "92.69",
+  "version": "93.16",
+  "version_label": "v93.16",
+  "entry": "abrir.html",
+  "minimum_version": "93.11",
   "force_canonical": true,
-  "publishedAt": "2026-10-06T07:55:00-03:00"
+  "publishedAt": "2026-10-07T12:00:00-03:00"
 }
