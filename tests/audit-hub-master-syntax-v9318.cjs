@@ -1,0 +1,10 @@
+const fs=require('fs'),assert=require('assert');
+const master=fs.readFileSync('release-hub-master-v9258.js','utf8');
+const unified=fs.readFileSync('release-hub-week-unified-v9317.js','utf8');
+assert.doesNotThrow(()=>new Function(master),'Hub master must parse without syntax errors');
+assert.doesNotThrow(()=>new Function(unified),'Unified week controller must parse without syntax errors');
+assert(master.includes("const V='93.18'"),'Hub master v93.18 must be active');
+assert(unified.includes("const V='93.18'"),'Unified week controller v93.18 must be active');
+assert(unified.includes("typeof window.renderHubFinance==='function'"),'Unified week controller must have main-render fallback');
+assert(unified.includes("main.onchange=()=>publish(main.value,'main-week')"),'Main week input must use the unified controller');
+console.log('PASS Hub v93.18: master parses and week controller has authoritative fallback rendering.');
