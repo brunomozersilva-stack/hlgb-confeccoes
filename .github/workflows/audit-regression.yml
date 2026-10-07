@@ -11,109 +11,64 @@ permissions:
   contents: read
 
 jobs:
-  regression:
+  critical:
+    name: Critical operational flows
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 4
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: '20'
-      - name: Run audit regressions
+      - name: Run critical audit
         shell: bash
         run: |
           set -euo pipefail
           for test in \
-            tests/audit-cut-navigation.cjs \
-            tests/audit-client-live-edit.cjs \
-            tests/audit-cut-view-regression.cjs \
-            tests/audit-queue-cut-regression.cjs \
-            tests/audit-faction-payment-guard.cjs \
-            tests/audit-faction-description-regression.cjs \
-            tests/audit-faction-master-integrity-regression.cjs \
-            tests/audit-notes-alias-regression.cjs \
-            tests/audit-note-integrity-regression.cjs \
             tests/audit-record-integrity-regression.cjs \
             tests/audit-remote-tombstone-regression.cjs \
             tests/audit-record-loading-regression.cjs \
-            tests/audit-payroll-integrity-regression.cjs \
-            tests/audit-checklist-integrity-regression.cjs \
-            tests/audit-capacity-integrity-regression.cjs \
+            tests/audit-sync-key-order-regression.cjs \
+            tests/audit-legacy-sync-isolation-regression.cjs \
+            tests/audit-legacy-sync-isolation-behavior-regression.cjs \
             tests/audit-production-reconcile-regression.cjs \
             tests/audit-production-cut-reconcile-v9307.cjs \
+            tests/audit-operational-auditor-v9314.cjs \
             tests/audit-ui-stability-regression.cjs \
-            tests/audit-hub-search-regression.cjs \
-            tests/audit-hub-integrity-regression.cjs \
-            tests/audit-projection-client-regression.cjs \
-            tests/audit-projection-delivery-regression.cjs \
-            tests/audit-projection-delivery-integrity-regression.cjs \
-            tests/audit-period-navigation-regression.cjs \
-            tests/audit-safari-date-regression.cjs \
-            tests/audit-missing-route-regression.cjs \
-            tests/audit-catalog-modules-regression.cjs \
-            tests/audit-pricing-regression.cjs \
-            tests/audit-limits-regression.cjs \
-            tests/audit-note-selection-regression.cjs \
-            tests/audit-production-assignment-regression.cjs \
-            tests/audit-legacy-sync-isolation-regression.cjs \
-            tests/audit-projection-missing-regression.cjs \
-            tests/audit-legacy-sync-isolation-behavior-regression.cjs \
-            tests/audit-note-selection-behavior-regression.cjs \
-            tests/audit-production-assignment-behavior-regression.cjs \
-            tests/audit-projection-missing-behavior-regression.cjs \
-            tests/audit-diagnostics-center.cjs \
-            tests/audit-internal-auditor-regression.cjs \
-            tests/audit-sync-key-order-regression.cjs \
-            tests/audit-notes-render-no-dirty-regression.cjs \
-            tests/audit-termination-provisions-regression.cjs \
-            tests/audit-hub-personal-integrity-regression.cjs \
-            tests/audit-projection-team-view-regression.cjs \
-            tests/audit-assistant-query-regression.cjs \
-            tests/audit-assistant-all-users-regression.cjs \
-            tests/audit-payroll-provision-sort-total-regression.cjs \
-            tests/audit-hub-search-period-regression.cjs \
-            tests/audit-faction-manual-payment-regression.cjs \
-            tests/audit-faction-send-model-grade-regression.cjs \
-            tests/audit-material-tools-regression.cjs \
-            tests/audit-cutter-planner-regression.cjs \
-            tests/audit-cut-organization-regression.cjs \
-            tests/audit-assistant-voice-regression.cjs \
-            tests/audit-assistant-orders-regression.cjs \
-            tests/audit-assistant-invoice-regression.cjs \
-            tests/audit-assistant-invoice-v3-regression.cjs \
-            tests/audit-purchase-checkers-regression.cjs \
-            tests/audit-cut-material-usage-regression.cjs \
-            tests/audit-cut-model-split-regression.cjs \
-            tests/audit-cut-model-grade-adjust-regression.cjs \
-            tests/audit-assistant-system-wide-regression.cjs \
-            tests/audit-assistant-fresh-query-regression.cjs \
-            tests/audit-faction-checklist-grade-standard-regression.cjs \
-            tests/audit-hub-period-detail-regression.cjs \
-            tests/audit-assistant-order-import-regression.cjs \
-            tests/audit-assistant-voice-continuous-regression.cjs \
-            tests/audit-assistant-invoice-fresh-regression.cjs \
-            tests/audit-assistant-order-grade-regression.cjs \
-            tests/audit-night-ui-regression.cjs \
-            tests/audit-operational-polish-v2.cjs \
-            tests/audit-purchase-note-import-regression.cjs \
-            tests/audit-assistant-intent-router-v2.cjs \
-            tests/audit-assistant-order-import-v3.cjs \
             tests/audit-global-visual-stability.cjs \
             tests/audit-page-settle-stability.cjs \
             tests/audit-render-governor.cjs \
             tests/audit-sync-storm-guard.cjs \
-            tests/audit-operations-pack-v9249.cjs \
-            tests/audit-business-pack-v9250.cjs \
-            tests/audit-stabilization-v9259.cjs \
-            tests/audit-material-health-v9260.cjs \
-            tests/audit-assistant-brain-v9265-regression.cjs \
-            tests/audit-safety-gate-v9264.cjs \
-            tests/audit-v9266-regression.cjs \
-            tests/audit-v9267-regression.cjs \
-            tests/audit-v9268-regression.cjs \
-            tests/audit-v9269-regression.cjs \
-            tests/audit-v9270-regression.cjs
+            tests/audit-hub-integrity-regression.cjs \
+            tests/audit-hub-search-regression.cjs \
+            tests/audit-hub-personal-integrity-regression.cjs \
+            tests/audit-payroll-integrity-regression.cjs \
+            tests/audit-payroll-provision-sort-total-regression.cjs \
+            tests/audit-note-integrity-regression.cjs \
+            tests/audit-capacity-integrity-regression.cjs \
+            tests/audit-faction-master-integrity-regression.cjs \
+            tests/audit-internal-auditor-regression.cjs \
+            tests/audit-diagnostics-center.cjs
           do
+            echo "==> $test"
+            node "$test"
+          done
+
+  full:
+    name: Full regression library
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    timeout-minutes: 7
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Run complete audit library
+        shell: bash
+        run: |
+          set -euo pipefail
+          for test in tests/audit-*.cjs; do
             echo "==> $test"
             node "$test"
           done
