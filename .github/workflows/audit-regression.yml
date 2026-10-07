@@ -38,6 +38,7 @@ jobs:
             tests/audit-save-transport-v9320.cjs \
             tests/audit-save-actions-v9322.cjs \
             tests/audit-hub-primary-v9323.cjs \
+            tests/audit-hub-delivery-v9324.cjs \
             tests/audit-operational-auditor-v9314.cjs \
             tests/audit-auditor-hub-reliability-v9315.cjs \
             tests/audit-canonical-routing-v9316.cjs \
