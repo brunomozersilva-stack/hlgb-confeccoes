@@ -23,7 +23,8 @@ jobs:
       - name: Run critical audit
         shell: bash
         run: |
-          set -euo pipefail
+          set -uo pipefail
+          failed=0
           for test in \
             tests/audit-record-integrity-regression.cjs \
             tests/audit-remote-tombstone-regression.cjs \
@@ -34,6 +35,7 @@ jobs:
             tests/audit-production-reconcile-regression.cjs \
             tests/audit-production-cut-reconcile-v9307.cjs \
             tests/audit-operational-auditor-v9314.cjs \
+            tests/audit-auditor-hub-reliability-v9315.cjs \
             tests/audit-ui-stability-regression.cjs \
             tests/audit-global-visual-stability.cjs \
             tests/audit-page-settle-stability.cjs \
@@ -51,8 +53,9 @@ jobs:
             tests/audit-diagnostics-center.cjs
           do
             echo "==> $test"
-            node "$test"
+            node "$test" || failed=1
           done
+          exit "$failed"
 
   full:
     name: Full regression library
@@ -67,8 +70,10 @@ jobs:
       - name: Run complete audit library
         shell: bash
         run: |
-          set -euo pipefail
+          set -uo pipefail
+          failed=0
           for test in tests/audit-*.cjs; do
             echo "==> $test"
-            node "$test"
+            node "$test" || failed=1
           done
+          exit "$failed"
