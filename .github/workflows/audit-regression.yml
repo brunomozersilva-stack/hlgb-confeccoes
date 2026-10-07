@@ -35,6 +35,7 @@ jobs:
             tests/audit-production-reconcile-regression.cjs \
             tests/audit-production-cut-reconcile-v9307.cjs \
             tests/audit-separation-commit-v9319.cjs \
+            tests/audit-save-transport-v9320.cjs \
             tests/audit-operational-auditor-v9314.cjs \
             tests/audit-auditor-hub-reliability-v9315.cjs \
             tests/audit-canonical-routing-v9316.cjs \
