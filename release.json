@@ -1,8 +1,8 @@
 {
-  "version": "93.17",
-  "version_label": "v93.17",
+  "version": "93.18",
+  "version_label": "v93.18",
   "entry": "abrir.html",
   "minimum_version": "93.11",
   "force_canonical": true,
-  "publishedAt": "2026-10-07T12:12:00-03:00"
+  "publishedAt": "2026-10-07T12:25:00-03:00"
 }
