@@ -2,7 +2,7 @@ const fs=require('fs'),path=require('path'),assert=require('assert');
 const root=path.join(__dirname,'..');
 const read=f=>fs.readFileSync(path.join(root,f),'utf8');
 const manifest=JSON.parse(read('release.json'));
-assert(['93.16','93.17'].includes(manifest.version),'canonical manifest must publish a supported canonical version');
+assert(['93.16','93.17','93.18'].includes(manifest.version),'canonical manifest must publish a supported canonical version');
 assert.equal(manifest.entry,'abrir.html','canonical manifest must enter through abrir.html');
 assert.equal(manifest.force_canonical,true,'canonical routing must stay forced');
 const index=read('index.html'),abrir=read('abrir.html'),stable3=read('app-stable3.html'),sw=read('hlgb-canonical-sw.js'),gate=read('release-safety-gate-v9269.js');
