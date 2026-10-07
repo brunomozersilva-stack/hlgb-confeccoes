@@ -1,7 +1,7 @@
-/* HLGB v92.97 — versão canônica + Auditor somente leitura + Assistente canônico + trava do Hub legado */
+/* HLGB v93.16 — versão canônica + Auditor somente leitura + Assistente canônico + trava do Hub legado */
 (function(){
 'use strict';
-const V='92.97';
+const V='93.16';
 const MANIFEST='./release.json';
 let auditDepth=0,assistantStable=false,assistantAttempts=0;
 window.HLGB_PAID_AI_DISABLED=true;
@@ -14,14 +14,14 @@ function lockHubMaster(){
 }
 lockHubMaster();
 function stampVersion(v=V){try{window.HLGB_RELEASE_VERSION=String(v);const logo=document.querySelector('#appShell .logo small');if(logo)logo.textContent='v'+v;const login=[...document.querySelectorAll('#loginScreen b,#loginScreen small')].find(x=>/vers[aã]o/i.test(x.textContent||''));if(login)login.textContent='Versão v'+v}catch(e){}}
-function canonicalUrl(reason='version'){const u=new URL('./app-stable3.html',location.href);u.searchParams.set('fresh',String(Date.now()));u.searchParams.set('reroute',reason);return u.href}
-function isCanonicalPath(){return /\/app-stable3\.html$/i.test(location.pathname)}
+function canonicalUrl(reason='version',entry='abrir.html'){const safe=String(entry||'abrir.html').replace(/^\.\//,'');const u=new URL('./'+safe,location.href);u.searchParams.set('fresh',String(Date.now()));u.searchParams.set('reroute',reason);return u.href}
+function isCanonicalPath(){return /\/(?:abrir|app-stable3)\.html$/i.test(location.pathname)}
 async function checkCanonicalVersion(reason='check'){
  try{
   const r=await fetch(MANIFEST+'?fresh='+Date.now(),{cache:'no-store'});if(!r.ok)return;
-  const m=await r.json(),wanted=String(m?.version||V);
+  const m=await r.json(),wanted=String(m?.version||V),entry=String(m?.entry||'abrir.html');
   if(isCanonicalPath()){stampVersion(wanted);return}
-  location.replace(canonicalUrl(reason));
+  location.replace(canonicalUrl(reason,entry));
  }catch(e){stampVersion(V)}
 }
 function skipAuditWrite(module){const m=String(module||'');return !!window.HLGB_AUDIT_READ_ONLY_ACTIVE&&m!=='systemAuditRuns'}
@@ -33,42 +33,11 @@ function installAuditGuards(){installWriteGuards();['hlgbAuditorRunVisualSweep',
 function safeVersionCheck(reason){installAuditGuards();bridgeDb();lockHubMaster();return checkCanonicalVersion(reason)}
 function bridgeDb(){try{if(typeof db!=='undefined'&&db&&window.db!==db)window.db=db;return !!window.db}catch(e){return false}}
 function chainHas(fn,marker){const seen=new Set();while(typeof fn==='function'&&!seen.has(fn)){if(fn[marker])return true;seen.add(fn);fn=fn.__original||fn.__hlgbOriginal}return false}
-function stabilizeAssistant(){
- bridgeDb();
- if(window.hlgbAssistantCanonical9297){assistantStable=true;return true}
- const cur=window.hlgbAssistantAsk;
- if(typeof cur!=='function')return false;
- if(cur.__hlgbCanonical9284){assistantStable=true;return true}
- if(!chainHas(cur,'__v9257')&&assistantAttempts++<8){setTimeout(stabilizeAssistant,350);return false}
- try{window.hlgbAssistantBrain9265?.install?.()}catch(e){console.warn('[HLGB] brain install único',e)}
- try{window.hlgbAssistantPrecisionV2?.install?.()}catch(e){console.warn('[HLGB] precisão install único',e)}
- const base=window.hlgbAssistantAsk;if(typeof base!=='function')return false;
- const stable=function(){return base.apply(this,arguments)};
- stable.__hlgbCanonical9284=true;
- stable.__v9257=true;
- stable.__hlgbBrain9265=true;
- stable.__hlgbPrecisionV2=true;
- stable.__original=base;
- window.hlgbAssistantAsk=stable;
- assistantStable=true;
- window.HLGB_ASSISTANT_ROUTER_STABLE='92.84';
- return true;
-}
+function stabilizeAssistant(){bridgeDb();if(window.hlgbAssistantCanonical9297){assistantStable=true;return true}const cur=window.hlgbAssistantAsk;if(typeof cur!=='function')return false;if(cur.__hlgbCanonical9284){assistantStable=true;return true}if(!chainHas(cur,'__v9257')&&assistantAttempts++<8){setTimeout(stabilizeAssistant,350);return false}try{window.hlgbAssistantBrain9265?.install?.()}catch(e){console.warn('[HLGB] brain install único',e)}try{window.hlgbAssistantPrecisionV2?.install?.()}catch(e){console.warn('[HLGB] precisão install único',e)}const base=window.hlgbAssistantAsk;if(typeof base!=='function')return false;const stable=function(){return base.apply(this,arguments)};stable.__hlgbCanonical9284=true;stable.__v9257=true;stable.__hlgbBrain9265=true;stable.__hlgbPrecisionV2=true;stable.__original=base;window.hlgbAssistantAsk=stable;assistantStable=true;window.HLGB_ASSISTANT_ROUTER_STABLE='92.84';return true}
 function loadAssistantCanonical(){try{if(document.getElementById('hlgbAssistantCanonical9297Script')||window.hlgbAssistantCanonical9297)return;const s=document.createElement('script');s.id='hlgbAssistantCanonical9297Script';s.src='./release-assistant-canonical-v9297.js?fresh='+Date.now();s.async=true;s.onload=()=>{assistantStable=true;try{window.hlgbAssistantCanonical9297?.install?.()}catch(e){}};document.head.appendChild(s)}catch(e){console.warn('[HLGB] falha ao carregar Assistente canônico',e)}}
 function loadAssistantLight(){try{if(window.hlgbAssistantCanonical9297||document.getElementById('hlgbAssistantLight9277Script')||window.hlgbAssistantLight9277)return;const s=document.createElement('script');s.id='hlgbAssistantLight9277Script';s.src='./release-assistant-ui-light-v9277.js?fresh='+Date.now();s.async=true;document.head.appendChild(s)}catch(e){console.warn('[HLGB] falha ao carregar UI leve do Assistente',e)}}
-function boot(){
- lockHubMaster();installAuditGuards();bridgeDb();
- loadAssistantCanonical();setTimeout(loadAssistantCanonical,350);
- setTimeout(loadAssistantLight,900);
- setTimeout(stabilizeAssistant,1800);setTimeout(()=>{if(!assistantStable)stabilizeAssistant()},4200);
- setTimeout(installAuditGuards,500);setTimeout(installAuditGuards,1800);
- window.addEventListener('pageshow',()=>{lockHubMaster();safeVersionCheck('pageshow');loadAssistantCanonical();setTimeout(stabilizeAssistant,150)});
- window.addEventListener('focus',()=>{lockHubMaster();safeVersionCheck('focus')});
- document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible'){lockHubMaster();safeVersionCheck('resume');loadAssistantCanonical();setTimeout(stabilizeAssistant,150)}});
- setInterval(()=>{lockHubMaster();installAuditGuards();bridgeDb()},15000);
- checkCanonicalVersion('startup')
-}
+function boot(){lockHubMaster();installAuditGuards();bridgeDb();loadAssistantCanonical();setTimeout(loadAssistantCanonical,350);setTimeout(loadAssistantLight,900);setTimeout(stabilizeAssistant,1800);setTimeout(()=>{if(!assistantStable)stabilizeAssistant()},4200);setTimeout(installAuditGuards,500);setTimeout(installAuditGuards,1800);window.addEventListener('pageshow',()=>{lockHubMaster();safeVersionCheck('pageshow');loadAssistantCanonical();setTimeout(stabilizeAssistant,150)});window.addEventListener('focus',()=>{lockHubMaster();safeVersionCheck('focus')});document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible'){lockHubMaster();safeVersionCheck('resume');loadAssistantCanonical();setTimeout(stabilizeAssistant,150)}});setInterval(()=>{lockHubMaster();installAuditGuards();bridgeDb()},15000);checkCanonicalVersion('startup')}
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',boot,{once:true});else boot();
 window.hlgbSafetyGate9269={version:V,checkCanonicalVersion,auditReadOnly,installAuditGuards,bridgeDb,stabilizeAssistant,lockHubMaster,loadAssistantCanonical};
-console.info('[HLGB] Safety Gate v'+V+' ativo · Hub legado bloqueado · Assistente canônico');
+console.info('[HLGB] Safety Gate v'+V+' ativo · entrada canônica abrir.html · Hub legado bloqueado');
 })();
