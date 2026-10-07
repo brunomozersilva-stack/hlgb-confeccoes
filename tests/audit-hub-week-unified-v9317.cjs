@@ -1,0 +1,13 @@
+const fs=require('fs');const assert=require('assert');
+const src=fs.readFileSync('release-hub-week-unified-v9317.js','utf8');
+const loader=fs.readFileSync('app-stable3.html','utf8');
+assert(src.includes("HLGB_HUB_WEEK_UNIFIED_9317"),'missing v93.17 guard');
+assert(src.includes("hubFinanceWeek"),'missing canonical Hub week input');
+assert(src.includes("hlgbHubPeriodWeek"),'missing period week input');
+assert(src.includes("localStorage.setItem(KEY,canonical)"),'canonical week is not persisted');
+assert(src.includes("window.hlgbHubMaster9258.setDate(canonical)"),'Hub master is not driven from canonical week');
+assert(src.includes("dateFromIsoWeek")&&src.includes("isoWeekFromDate"),'week/date conversion missing');
+assert(src.includes("2026-W41")&&src.includes("2026-10-05"),'week conversion regression missing');
+assert(loader.includes("release-hub-week-unified-v9317.js"),'loader does not activate v93.17');
+assert(loader.indexOf('release-hub-master-v9258.js')<loader.indexOf('release-hub-week-unified-v9317.js'),'v93.17 must load after Hub master');
+console.log('PASS Hub v93.17: single canonical week synchronizes main Hub and period selector.');
