@@ -12,8 +12,6 @@ const state={installed:false,lastExposeAt:0,lastRecoverAt:0,recovering:false,tim
 function pick(name){
   try{
     if(typeof window[name]==='function')return window[name];
-    // Acesso por identificador global lexical. eval indireto não enxerga lexical;
-    // eval direto neste script enxerga bindings globais existentes sem executar dados.
     const fn=eval('typeof '+name+'==="function" ? '+name+' : null');
     return typeof fn==='function'?fn:null;
   }catch(e){return null}
@@ -61,13 +59,21 @@ function stamp(){
     if(cur<93.32){window.HLGB_RELEASE_VERSION=V;const el=document.querySelector('#appShell .logo small');if(el)el.textContent='v'+V}
   }catch(e){}
 }
-function start(){
-  exposeAll();stamp();
-  setTimeout(()=>recover('boot').catch(()=>{}),900);
-  let n=0;const warm=setInterval(()=>{n++;exposeAll();if(state.installed||n>=20)clearInterval(warm)},500);
-  clearInterval(state.timer);state.timer=setInterval(()=>recover('interval').catch(()=>{}),12000);
+function ensureConfirmedReplay(){
+  try{
+    if(window.HLGB_WAL_CONFIRMED_REPLAY_9333)return true;
+    if(document.querySelector('script[data-hlgb-wal-confirmed="9333"]'))return true;
+    const s=document.createElement('script');s.dataset.hlgbWalConfirmed='9333';s.src='./release-wal-confirmed-replay-v9333.js?fresh='+Date.now();
+    (document.head||document.documentElement).appendChild(s);return true;
+  }catch(e){console.warn('[HLGB v93.32] replay confirmado não carregado',e);return false}
 }
-window.hlgbWalReplayBridge9332={version:V,state,exposeAll,recover};
+function start(){
+  exposeAll();stamp();ensureConfirmedReplay();
+  setTimeout(()=>recover('boot').catch(()=>{}),900);
+  let n=0;const warm=setInterval(()=>{n++;exposeAll();ensureConfirmedReplay();if((state.installed&&window.HLGB_WAL_CONFIRMED_REPLAY_9333)||n>=20)clearInterval(warm)},500);
+  clearInterval(state.timer);state.timer=setInterval(()=>{ensureConfirmedReplay();recover('interval').catch(()=>{})},12000);
+}
+window.hlgbWalReplayBridge9332={version:V,state,exposeAll,recover,ensureConfirmedReplay};
 window.addEventListener('online',()=>recover('online').catch(()=>{}));
 window.addEventListener('focus',()=>recover('focus').catch(()=>{}));
 document.addEventListener('visibilitychange',()=>{if(!document.hidden)recover('visible').catch(()=>{})});
