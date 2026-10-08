@@ -134,8 +134,16 @@ function organizeHub(){
   const excludes=[week,due].filter(Boolean);
   const planned=findPanel(page,'#hubFinanceEntriesTable',['entradas e saidas previstas','lancamentos previstos','entradas previstas','saidas previstas'],excludes);
   const ordered=[[week,'hlgb9326-week'],[due,'hlgb9326-due'],[planned,'hlgb9326-planned']];
-  for(const [p,cls] of ordered){if(!p||p===top||top.contains(p))continue;p.classList.add(cls);top.appendChild(p);moves++}
-  for(const [p,cls] of ordered){if(p&&p.parentElement===top){p.classList.add(cls);top.appendChild(p)}}
+  // The observer runs asynchronously, after layoutBusy is reset. Moving even
+  // an already placed child here would schedule this same layout forever.
+  let index=0;
+  for(const [p,cls] of ordered){
+   if(!p||p===top||p.contains(top)||(top.contains(p)&&p.parentElement!==top))continue;
+   if(!p.classList.contains(cls))p.classList.add(cls);
+   const expected=top.children[index]||null;
+   if(expected!==p){top.insertBefore(p,expected);moves++}
+   index++;
+  }
   layoutRuns++;layoutMoves+=moves;return !!(due||planned)
  }finally{layoutBusy=false;observeHub(page)}
 }
