@@ -30,5 +30,11 @@ function install(){
 function state(){return {version:V,installs,saves,confirmed,pending,failed,lastError,lastAt,saveAuthoritative:window.hlgbHubSaveConfirmed===save,editorAuthoritative:window.hlgbHubEditor9270?.open?window.editHubFinanceEntry===window.hlgbHubEditor9270.open:null}}
 install();let tries=0;const timer=setInterval(()=>{tries++;if(window.hlgbHubSaveConfirmed!==save||window.hlgbHubEditor9270?.open&&window.editHubFinanceEntry!==window.hlgbHubEditor9270.open)install();if(tries>=50)clearInterval(timer)},250);
 window.hlgbSaveActions9322={version:V,install,state,save};
+try{
+ if(!document.querySelector('script[data-hlgb-wal-bridge="9332"]')){
+  const s=document.createElement('script');s.dataset.hlgbWalBridge='9332';s.src='./release-wal-replay-bridge-v9332.js?fresh='+Date.now();
+  (document.head||document.documentElement).appendChild(s);
+ }
+}catch(e){console.warn('[HLGB v93.22] ponte WAL não carregada',e)}
 console.info('[HLGB] v'+V+' ações de salvar ativas — Hub local-first e editor autoritativo');
 })();
