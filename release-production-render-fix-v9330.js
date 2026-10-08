@@ -43,7 +43,17 @@ function install(){
   return true;
 }
 function stamp(){try{const cur=Number(window.HLGB_RELEASE_VERSION)||0;if(cur<93.30){window.HLGB_RELEASE_VERSION=V;const l=document.querySelector('#appShell .logo small');if(l)l.textContent='v'+V}}catch(e){}}
-function boot(){install();stamp();let n=0,t=setInterval(()=>{n++;install();if(n>=20)clearInterval(t)},250);window.hlgbProductionRenderFix9330={version:V,install}}
+function loadVisualLauncher(){
+  try{
+    if(window.HLGB_VISUAL_TEST_LAUNCHER_9331||document.getElementById('hlgbVisualLauncherScript9331'))return;
+    const s=document.createElement('script');
+    s.id='hlgbVisualLauncherScript9331';
+    s.async=true;
+    s.src='./release-visual-test-launcher-v9331.js?fresh='+Date.now();
+    document.head.appendChild(s);
+  }catch(e){console.warn('[HLGB] lançador do teste visual',e)}
+}
+function boot(){install();stamp();loadVisualLauncher();let n=0,t=setInterval(()=>{n++;install();if(n>=20)clearInterval(t)},250);window.hlgbProductionRenderFix9330={version:V,install}}
 if(typeof window.hlgbAfterLogin==='function')window.hlgbAfterLogin(()=>setTimeout(boot,50),0);else if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',boot,{once:true});else boot();
 console.info('[HLGB] v'+V+' correção de renderização da Produção ativa');
 })();
