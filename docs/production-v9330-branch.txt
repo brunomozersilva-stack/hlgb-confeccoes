@@ -1,0 +1,3 @@
+Branch de correção: fix/producao-arr-20261008
+Última validação local: 2026-10-08
+Objetivo: corrigir falha de renderização da Produção sem alterar os demais módulos aprovados no teste visual.
