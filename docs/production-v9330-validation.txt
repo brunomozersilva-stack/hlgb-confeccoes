@@ -1,0 +1,7 @@
+Validação local 2026-10-08
+Versão testada: 93.30
+Resultado do teste visual: APROVADO
+Telas aprovadas: Dashboard, Pedidos, Separação, Corte, Produção, Planejamento de capacidade, Projeção semanal, Hub Financeiro, RH/Folha.
+Falha corrigida: Safari ReferenceError "Can't find variable: arr" ao abrir Produção.
+Causa: uma redefinição antiga de renderProduction mantinha a inicialização de arr na mesma linha após comentário //, fazendo o Safari ignorar a declaração.
+Correção: release-production-render-fix-v9330.js substitui renderProduction por versão explícita e estável.
