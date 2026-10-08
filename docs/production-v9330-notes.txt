@@ -1,0 +1,1 @@
+Não inclui alterações em Separação, Hub Financeiro ou demais telas: todas elas já passaram no teste visual local v93.30.
