@@ -26,7 +26,14 @@ async function testAuth(){
 
 async function testAuditor(){
  const source=fs.readFileSync(path.join(__dirname,'..','release-auditor-operational-v9314.js'),'utf8');
- const box={innerHTML:'',querySelectorAll(){const self=this;const found=[];for(const attr of ['data-hlgb-operational-audit','data-hlgb-audit-consolidated']){if(self.innerHTML.includes(attr))found.push({remove(){self.innerHTML=self.innerHTML.replace(new RegExp('<div class="panel" '+attr+'[^>]*>[\\s\\S]*?</div>(?=<div class="panel"|$)','g'),'')}})}return found},insertAdjacentHTML(pos,h){this.innerHTML=pos==='afterbegin'?h+this.innerHTML:this.innerHTML+h}};
+ const nodes=[];
+ const box={
+   querySelectorAll(){return nodes.filter(n=>!n.removed)},
+   insertAdjacentHTML(_pos,h){
+     if(h.includes('data-hlgb-operational-audit'))nodes.push({kind:'operational',removed:false,remove(){this.removed=true}});
+     if(h.includes('data-hlgb-audit-consolidated'))nodes.push({kind:'consolidated',removed:false,remove(){this.removed=true}});
+   }
+ };
  const ctx={window:null,document:{getElementById:id=>id==='hlgbAuditorResult'?box:null,querySelectorAll:()=>[]},navigator:{onLine:true},localStorage:{getItem:()=>null},console,Date,Promise,db:{systemIssues:[]},getComputedStyle:()=>({display:'block',visibility:'visible'}),setTimeout:(f)=>{f();return 1},setInterval:()=>1};
  ctx.window=ctx;ctx.cloudAccessToken='x';ctx.hlgbRecordReady=true;ctx.hlgbRecordSaveWithRetry=async()=>({applied:true});
  ctx.applySeparationProgress938=async()=>true;ctx.applySeparationProgress938.__hlgbCanonicalSeparation=true;ctx.applySeparationProgress938.__hlgbCanonicalVersion='93.27';ctx.applySeparationProgress938.__hlgb9312Mode='canonical-no-wrapper';
@@ -36,8 +43,10 @@ async function testAuditor(){
  vm.runInNewContext(source,ctx,{filename:'release-auditor-operational-v9314.js'});
  const full=await ctx.hlgbAuditorRunFull();assert.equal(full.operational.checks.find(x=>x.code==='operational:separation-guard').status,'pass');
  assert.equal(full.summary.result,'Aprovado');
+ await ctx.hlgbAuditorRunFull();assert.equal(nodes.filter(n=>n.kind==='operational'&&!n.removed).length,1);
  const visual=await ctx.hlgbAuditorRunVisualSweep();assert.equal(visual.visualValidation.status,'not_tested');assert.equal(visual.summary.result,'Atenção');
- const count=(box.innerHTML.match(/Saúde operacional/g)||[]).length;assert.equal(count,1);
+ assert.equal(nodes.filter(n=>n.kind==='operational'&&!n.removed).length,1);
+ assert.equal(nodes.filter(n=>n.kind==='consolidated'&&!n.removed).length,1);
 }
 
 (async()=>{await testAuth();await testAuditor();console.log('PASS v93.28 access/auditor regression')})().catch(e=>{console.error(e);process.exit(1)});
