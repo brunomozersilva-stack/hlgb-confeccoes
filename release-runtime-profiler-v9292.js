@@ -1,6 +1,83 @@
-/* HLGB v92.92 — profiler passivo de intervalos dos módulos release */
+/* HLGB v93.37 — ponte central de login tardio + profiler passivo de intervalos.
+   Carregado primeiro no boot estável para que módulos release não percam o login
+   quando a sessão já foi restaurada antes de seus scripts serem executados. */
 (function(){
 'use strict';
+
+/* ------------------------------------------------------------------
+   Ponte central de hlgbAfterLogin.
+   Mantém o registro original, mas garante que cada callback rode uma única vez
+   quando o app já estiver aberto. Não grava dados, não limpa filas e não força
+   sincronização por conta própria.
+   ------------------------------------------------------------------ */
+(function installLateLoginBridge9337(){
+  if(window.HLGB_LATE_LOGIN_BRIDGE_9337)return;
+  const V='93.37', pending=new Set();
+  let base=null,wrapped=null,poll=null;
+  const ready=()=>{
+    try{
+      const app=document.getElementById('appShell');
+      if(!app)return false;
+      if(app.querySelector?.('.page.active'))return true;
+      const s=getComputedStyle(app);
+      return s.display!=='none'&&s.visibility!=='hidden'&&s.opacity!=='0'&&app.getClientRects().length>0;
+    }catch(e){return false}
+  };
+  function once(cb){
+    let done=false;
+    const fn=function(){
+      if(done)return;
+      done=true;fn.__hlgbDone=true;pending.delete(fn);
+      return cb.apply(this,arguments);
+    };
+    fn.__hlgbDone=false;return fn;
+  }
+  function flush(){
+    if(!ready())return false;
+    for(const fn of [...pending]){
+      if(fn.__hlgbDone){pending.delete(fn);continue}
+      const delay=Math.max(0,Number(fn.__hlgbDelay)||0);
+      setTimeout(()=>{try{fn()}catch(e){console.warn('[HLGB v93.37] callback tardio',e)}},delay);
+    }
+    return true;
+  }
+  function install(){
+    const cur=window.hlgbAfterLogin;
+    if(typeof cur!=='function')return false;
+    if(cur.__hlgbLateBridge9337)return true;
+    base=cur;
+    wrapped=function(cb,delay){
+      if(typeof cb!=='function')return base.apply(this,arguments);
+      const fn=once(cb);fn.__hlgbDelay=delay;
+      pending.add(fn);
+      let out;
+      try{out=base.call(this,fn,delay)}catch(e){console.warn('[HLGB v93.37] registro afterLogin legado',e)}
+      if(ready())setTimeout(()=>{try{fn()}catch(e){console.warn('[HLGB v93.37] callback imediato',e)}},Math.max(0,Number(delay)||0));
+      return out;
+    };
+    wrapped.__hlgbLateBridge9337=true;
+    wrapped.__hlgbBase=base;
+    window.hlgbAfterLogin=wrapped;
+    return true;
+  }
+  function stamp(){
+    try{
+      const cur=parseFloat(String(window.HLGB_RELEASE_VERSION||'0'))||0;
+      if(cur<93.37)window.HLGB_RELEASE_VERSION=V;
+      const el=document.querySelector('#appShell .logo small');if(el)el.textContent='v'+V;
+    }catch(e){}
+  }
+  function maintain(){install();stamp();flush()}
+  window.HLGB_LATE_LOGIN_BRIDGE_9337=V;
+  window.hlgbLateLoginBridge9337={version:V,ready,install,flush,pending:()=>pending.size};
+  maintain();
+  let tries=0;poll=setInterval(()=>{tries++;maintain();if(tries>=120){clearInterval(poll);poll=null}},250);
+  window.addEventListener?.('pageshow',maintain);
+  window.addEventListener?.('focus',maintain);
+  window.addEventListener?.('online',maintain);
+  document.addEventListener?.('visibilitychange',()=>{if(!document.hidden)maintain()});
+})();
+
 if(window.hlgbRuntimeProfiler9292)return;
 const V='92.92';
 const originalSetInterval=window.setInterval.bind(window),originalClearInterval=window.clearInterval.bind(window);
@@ -34,5 +111,5 @@ function snapshot(){
  return {kind:'hlgb_runtime_interval_profile',version:V,generatedAt:nowIso(),activeCount:active.length,active:active.slice(0,140),suspect,cleared:history.slice(-80)};
 }
 window.hlgbRuntimeProfiler9292={version:V,snapshot,active:()=>[...rows.values()],history,originalSetInterval,originalClearInterval};
-console.info('[HLGB] Runtime profiler v'+V+' ativo — intervalos release rastreados sem alterar cadência');
+console.info('[HLGB] Runtime profiler v'+V+' + ponte de login tardio v93.37 ativos');
 })();
