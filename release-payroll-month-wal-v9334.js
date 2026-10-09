@@ -50,8 +50,16 @@ async function pruneRedundantPayrollMonthWal(){
  return {removed:removed.length,keys:removed.map(x=>x.key)};
 }
 function stamp(){try{const cur=parseFloat(String(window.HLGB_RELEASE_VERSION||'0'))||0;if(cur<93.34){window.HLGB_RELEASE_VERSION=V;const el=document.querySelector('#appShell .logo small');if(el)el.textContent='v'+V}}catch(e){}}
-async function boot(){install();stamp();const out=await pruneRedundantPayrollMonthWal();if(out.removed)console.info('[HLGB] v'+V+' removeu WAL mensal redundante da folha',out.keys);setTimeout(()=>{install();stamp();window.hlgbWalConfirmedReplay9333?.run?.('v9334-after-prune',true)},350)}
-install();stamp();setTimeout(()=>boot().catch(e=>console.warn('[HLGB v93.34] folha mensal',e)),500);setTimeout(()=>{install();stamp()},1800);setTimeout(()=>{install();stamp()},4500);
-window.hlgbPayrollMonthWal9334={version:V,install,prune:pruneRedundantPayrollMonthWal,sameMeaning};
+function loadWalSingleAuthority(){
+ try{
+  if(window.HLGB_WAL_SINGLE_AUTHORITY_9339||document.querySelector('script[data-hlgb-wal-authority="9339"]'))return true;
+  const s=document.createElement('script');s.dataset.hlgbWalAuthority='9339';s.src='./release-wal-single-authority-v9339.js?fresh='+Date.now();
+  s.onerror=()=>console.warn('[HLGB v93.34] autoridade WAL v93.39 não carregou');
+  (document.head||document.documentElement).appendChild(s);return true;
+ }catch(e){console.warn('[HLGB v93.34] autoridade WAL v93.39 indisponível',e);return false}
+}
+async function boot(){install();stamp();loadWalSingleAuthority();const out=await pruneRedundantPayrollMonthWal();if(out.removed)console.info('[HLGB] v'+V+' removeu WAL mensal redundante da folha',out.keys);setTimeout(()=>{install();stamp();loadWalSingleAuthority();window.hlgbWalConfirmedReplay9333?.run?.('v9334-after-prune',true)},350)}
+install();stamp();loadWalSingleAuthority();setTimeout(()=>boot().catch(e=>console.warn('[HLGB v93.34] folha mensal',e)),500);setTimeout(()=>{install();stamp();loadWalSingleAuthority()},1800);setTimeout(()=>{install();stamp();loadWalSingleAuthority()},4500);
+window.hlgbPayrollMonthWal9334={version:V,install,prune:pruneRedundantPayrollMonthWal,sameMeaning,loadWalSingleAuthority};
 console.info('[HLGB] v'+V+' proteção da linha mensal da folha ativa');
 })();
