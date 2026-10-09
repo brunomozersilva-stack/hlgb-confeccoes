@@ -1,14 +1,13 @@
-/* HLGB v93.40 — autoridade única do replay WAL.
-   Evita que o flush legado concorra com o replay confirmado v93.38.
-   Mantém a autoridade durante toda a janela de boot para sobreviver a wrappers carregados depois.
-   Não apaga fila, não cria registros e não ignora conflitos. */
+/* HLGB v93.41 — autoridade única do replay WAL.
+   Evita concorrência com o flush legado e limita delegações para impedir tempestade de reenvio.
+   Mantém a autoridade durante a janela de boot sem apagar fila, criar registros ou ignorar conflitos. */
 (function(){
 'use strict';
-const V='93.40';
+const V='93.41', DELEGATE_MIN_MS=15000;
 if(window.HLGB_WAL_SINGLE_AUTHORITY_9339){try{window.hlgbWalSingleAuthority9339?.install?.()}catch(e){}return}
 window.HLGB_WAL_SINGLE_AUTHORITY_9339=V;
-let original=null,installed=false,calls=0,lastAt='',lastResult=null,reinstalls=0;
-function stamp(){try{const cur=parseFloat(String(window.HLGB_RELEASE_VERSION||'0'))||0;if(cur<93.40){window.HLGB_RELEASE_VERSION=V;const el=document.querySelector('#appShell .logo small');if(el)el.textContent='v'+V}}catch(e){}}
+let original=null,installed=false,calls=0,lastAt='',lastResult=null,reinstalls=0,lastDelegatedAt=0,throttled=0;
+function stamp(){try{const cur=parseFloat(String(window.HLGB_RELEASE_VERSION||'0'))||0;if(cur<93.41){window.HLGB_RELEASE_VERSION=V;const el=document.querySelector('#appShell .logo small');if(el)el.textContent='v'+V}}catch(e){}}
 function install(){
   const replay=window.hlgbWalConfirmedReplay9333;
   const legacy=window.hlgb955FlushSilent;
@@ -20,6 +19,9 @@ function install(){
     calls++;lastAt=new Date().toISOString();
     try{
       if(replay.state?.busy){lastResult='replay-busy';return false}
+      const now=Date.now();
+      if(now-lastDelegatedAt<DELEGATE_MIN_MS){throttled++;lastResult='throttled';return false}
+      lastDelegatedAt=now;
       const out=await replay.run('legacy-flush-delegated',true);
       lastResult=out===true?'confirmed':'pending';
       return out;
@@ -29,9 +31,9 @@ function install(){
   window.hlgb955FlushSilent=wrapped;installed=true;stamp();return true;
 }
 function maintain(){install();stamp()}
-window.hlgbWalSingleAuthority9339={version:V,status:()=>({installed,calls,lastAt,lastResult,reinstalls,replayVersion:window.hlgbWalConfirmedReplay9333?.version||'',replayBusy:!!window.hlgbWalConfirmedReplay9333?.state?.busy}),install,maintain};
+window.hlgbWalSingleAuthority9339={version:V,status:()=>({installed,calls,lastAt,lastResult,reinstalls,lastDelegatedAt,throttled,delegateMinMs:DELEGATE_MIN_MS,replayVersion:window.hlgbWalConfirmedReplay9333?.version||'',replayBusy:!!window.hlgbWalConfirmedReplay9333?.state?.busy}),install,maintain};
 [100,400,900,1800,3500,6000,9000,12000,16000,20000].forEach(ms=>setTimeout(maintain,ms));
 let tries=0;const t=setInterval(()=>{tries++;maintain();if(tries>=40)clearInterval(t)},500);
 window.addEventListener('online',maintain);window.addEventListener('focus',maintain);
-console.info('[HLGB] v'+V+' autoridade única do WAL ativa durante o boot');
+console.info('[HLGB] v'+V+' autoridade única do WAL ativa com throttle de '+DELEGATE_MIN_MS+'ms');
 })();
