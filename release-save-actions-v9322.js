@@ -36,5 +36,11 @@ try{
   (document.head||document.documentElement).appendChild(s);
  }
 }catch(e){console.warn('[HLGB v93.22] ponte WAL não carregada',e)}
+try{
+ if(!document.querySelector('script[data-hlgb-separation-cut-target="9335"]')){
+  const s=document.createElement('script');s.dataset.hlgbSeparationCutTarget='9335';s.src='./release-separation-cut-target-v9335.js?fresh='+Date.now();
+  (document.head||document.documentElement).appendChild(s);
+ }
+}catch(e){console.warn('[HLGB v93.22] proteção direcionada da separação não carregada',e)}
 console.info('[HLGB] v'+V+' ações de salvar ativas — Hub local-first e editor autoritativo');
 })();
