@@ -1,14 +1,15 @@
 /* HLGB v93.32 — ponte segura para recuperação do WAL durável.
    Não apaga fila, não grava direto e não ignora conflitos.
    Apenas expõe os replay handlers legados quando eles existem no escopo global
-   e aciona o transporte central já existente. */
+   e aciona o transporte central já existente.
+   v93.36 boot-fix: inicia também quando a sessão já estava aberta antes deste script. */
 (function(){
 'use strict';
 const V='93.32';
 if(window.HLGB_WAL_REPLAY_BRIDGE_9332)return;
 window.HLGB_WAL_REPLAY_BRIDGE_9332=V;
 
-const state={installed:false,lastExposeAt:0,lastRecoverAt:0,recovering:false,timer:null,exposed:{}};
+const state={installed:false,started:false,lastExposeAt:0,lastRecoverAt:0,recovering:false,timer:null,exposed:{}};
 function pick(name){
   try{
     if(typeof window[name]==='function')return window[name];
@@ -59,26 +60,46 @@ function stamp(){
     if(cur<93.32){window.HLGB_RELEASE_VERSION=V;const el=document.querySelector('#appShell .logo small');if(el)el.textContent='v'+V}
   }catch(e){}
 }
+function replayTryBoot(){
+  try{
+    const r=window.hlgbWalConfirmedReplay9333;
+    if(r&&typeof r.tryBoot==='function')r.tryBoot();
+  }catch(e){}
+}
 function ensureConfirmedReplay(){
   try{
-    if(window.HLGB_WAL_CONFIRMED_REPLAY_9333)return true;
-    if(document.querySelector('script[data-hlgb-wal-confirmed="9333"]'))return true;
+    if(window.HLGB_WAL_CONFIRMED_REPLAY_9333){replayTryBoot();return true}
+    const existing=document.querySelector('script[data-hlgb-wal-confirmed="9333"]');
+    if(existing){replayTryBoot();return true}
     const s=document.createElement('script');s.dataset.hlgbWalConfirmed='9333';s.src='./release-wal-confirmed-replay-v9333.js?fresh='+Date.now();
+    s.onload=()=>{replayTryBoot();setTimeout(replayTryBoot,250)};
     (document.head||document.documentElement).appendChild(s);return true;
   }catch(e){console.warn('[HLGB v93.32] replay confirmado não carregado',e);return false}
 }
 function start(){
+  if(state.started){ensureConfirmedReplay();replayTryBoot();return true}
+  state.started=true;
   exposeAll();stamp();ensureConfirmedReplay();
   setTimeout(()=>recover('boot').catch(()=>{}),900);
-  let n=0;const warm=setInterval(()=>{n++;exposeAll();ensureConfirmedReplay();if((state.installed&&window.HLGB_WAL_CONFIRMED_REPLAY_9333)||n>=20)clearInterval(warm)},500);
-  clearInterval(state.timer);state.timer=setInterval(()=>{ensureConfirmedReplay();recover('interval').catch(()=>{})},12000);
+  let n=0;const warm=setInterval(()=>{n++;exposeAll();ensureConfirmedReplay();replayTryBoot();if((state.installed&&window.HLGB_WAL_CONFIRMED_REPLAY_9333)||n>=20)clearInterval(warm)},500);
+  clearInterval(state.timer);state.timer=setInterval(()=>{ensureConfirmedReplay();replayTryBoot();recover('interval').catch(()=>{})},12000);
+  return true
 }
-window.hlgbWalReplayBridge9332={version:V,state,exposeAll,recover,ensureConfirmedReplay};
-window.addEventListener('online',()=>recover('online').catch(()=>{}));
-window.addEventListener('focus',()=>recover('focus').catch(()=>{}));
-document.addEventListener('visibilitychange',()=>{if(!document.hidden)recover('visible').catch(()=>{})});
+function appAlreadyOpen(){
+  try{
+    const app=document.getElementById('appShell'),login=document.getElementById('loginScreen');
+    if(!app)return false;
+    if(login&&getComputedStyle(login).display!=='none')return false;
+    return getComputedStyle(app).display!=='none';
+  }catch(e){return false}
+}
+function tryStart(){if(state.started)return true;if(appAlreadyOpen())return start();return false}
+window.hlgbWalReplayBridge9332={version:V,state,exposeAll,recover,ensureConfirmedReplay,start,tryStart};
+window.addEventListener('online',()=>{tryStart();ensureConfirmedReplay();recover('online').catch(()=>{})});
+window.addEventListener('focus',()=>{tryStart();ensureConfirmedReplay();recover('focus').catch(()=>{})});
+document.addEventListener('visibilitychange',()=>{if(!document.hidden){tryStart();ensureConfirmedReplay();recover('visible').catch(()=>{})}});
 if(typeof window.hlgbAfterLogin==='function')window.hlgbAfterLogin(()=>setTimeout(start,100),0);
-else if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',start,{once:true});
-else start();
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>setTimeout(tryStart,80),{once:true});
+[80,350,900,1800,3500].forEach(ms=>setTimeout(tryStart,ms));
 console.info('[HLGB] v'+V+' ponte de replay WAL ativa');
 })();
