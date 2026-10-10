@@ -71,9 +71,17 @@ function startSettlement(){
  settleTimer=setInterval(()=>settleTick().catch(()=>{}),TICK_MS);
  return true;
 }
+function loadFinalGuard(){
+ try{
+  if(window.hlgbPayrollWalRace9346?.install){window.hlgbPayrollWalRace9346.install();return true}
+  if(document.querySelector('script[data-hlgb-payroll-wal-race="9346"]'))return true;
+  const s=document.createElement('script');s.src='./release-payroll-wal-race-v9346.js?fresh='+Date.now();s.async=false;s.dataset.hlgbPayrollWalRace='9346';s.onload=()=>window.hlgbPayrollWalRace9346?.install?.();s.onerror=()=>console.warn('[HLGB] v93.46 não carregou a trava final da folha');(document.head||document.documentElement).appendChild(s);return true;
+ }catch(e){return false}
+}
 function maintain(){install();stamp();startSettlement()}
-window.hlgbPayrollReliableSaveGuard9344={version:V,install,startSettlement,settle:()=>settleTick(),status:()=>({version:V,installs,lastNoopAt,lastNoopId,installed:!!window.hlgb955ReliableSave?.__hlgbPayrollReliableSave9344,settleStartedAt,settleDeadline:settleDeadline?new Date(settleDeadline).toISOString():'',settleTicks,normalizedTimestamps,prunedWal,settleDone,settleBusy,lastSettleError})};
+window.hlgbPayrollReliableSaveGuard9344={version:V,install,startSettlement,settle:()=>settleTick(),loadFinalGuard,status:()=>({version:V,installs,lastNoopAt,lastNoopId,installed:!!window.hlgb955ReliableSave?.__hlgbPayrollReliableSave9344,settleStartedAt,settleDeadline:settleDeadline?new Date(settleDeadline).toISOString():'',settleTicks,normalizedTimestamps,prunedWal,settleDone,settleBusy,lastSettleError,finalGuard:window.hlgbPayrollWalRace9346?.status?.()||null})};
 [0,250,800,1800,3500,6000].forEach(ms=>setTimeout(maintain,ms));
-window.addEventListener('focus',()=>{install();stamp()});window.addEventListener('online',()=>{install();stamp()});
+setTimeout(loadFinalGuard,8000);
+window.addEventListener('focus',()=>{install();stamp();loadFinalGuard()});window.addEventListener('online',()=>{install();stamp();loadFinalGuard()});
 console.info('[HLGB] v'+V+' guarda da folha mensal com estabilização finita de 5 minutos ativa');
 })();
