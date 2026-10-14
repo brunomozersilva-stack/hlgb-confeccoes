@@ -59,9 +59,12 @@ async function pruneRedundantPayrollMonthWal(){
 function stamp(){try{const cur=parseFloat(String(window.HLGB_RELEASE_VERSION||'0'))||0;if(cur<93.44){window.HLGB_RELEASE_VERSION=V;const el=document.querySelector('#appShell .logo small');if(el)el.textContent='v'+V}}catch(e){}}
 function loadWalSingleAuthority(){
  try{
-  if(window.HLGB_WAL_SINGLE_AUTHORITY_9339||document.querySelector('script[data-hlgb-wal-authority="9339"]'))return true;
+  const cur=parseFloat(String(window.hlgbWalSingleAuthority9339?.version||window.HLGB_WAL_SINGLE_AUTHORITY_9339||'0'))||0;
+  if(cur>=93.48)return true;
+  if(cur>0&&cur<93.48){try{window.HLGB_WAL_SINGLE_AUTHORITY_9339=''}catch(e){}}
+  document.querySelectorAll('script[data-hlgb-wal-authority="9339"],script[data-hlgb-wal-authority-upgrade="9348"]').forEach(x=>{try{x.remove()}catch(e){}});
   const s=document.createElement('script');s.dataset.hlgbWalAuthority='9339';s.src='./release-wal-single-authority-v9339.js?fresh='+Date.now();
-  s.onerror=()=>console.warn('[HLGB v93.44] autoridade WAL não carregou');
+  s.onerror=()=>console.warn('[HLGB v93.44] autoridade WAL v93.48 não carregou');
   (document.head||document.documentElement).appendChild(s);return true;
  }catch(e){console.warn('[HLGB v93.44] autoridade WAL indisponível',e);return false}
 }
