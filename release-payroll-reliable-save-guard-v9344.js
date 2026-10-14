@@ -12,6 +12,8 @@ const clone=v=>{try{return structuredClone(v)}catch(e){try{return JSON.parse(JSO
 function payrollMonth(v){return !!(v&&v.sourceType==='payroll_month'&&sid(v.sourceId||'').trim())}
 function canonical(v){if(Array.isArray(v))return v.map(canonical);if(!v||typeof v!=='object')return v;const o={};for(const k of Object.keys(v).sort()){if(k==='updatedAt')continue;o[k]=canonical(v[k])}return o}
 function sameMeaning(a,b){try{return JSON.stringify(canonical(a))===JSON.stringify(canonical(b))}catch(e){return false}}
+function nextOriginal(f){return f?.__original||f?.__hlgb9306Original||f?.__originalGradeLink||f?.__hlgb9313Original||f?.__hlgb9312Original||f?.__hlgb9320Original||f?.__hlgbRecordIntegrityOriginal||f?.__hlgb955Original||f?.__hlgb9339Original||null}
+function chainHasMarker(fn,marker){let f=fn,n=0,seen=new Set();while(typeof f==='function'&&n++<64&&!seen.has(f)){seen.add(f);if(f?.[marker])return true;f=nextOriginal(f)}return false}
 function snapshot(id){try{return window.hlgbRecordSnapshots?.hubFinanceEntries?.get?.(sid(id))||null}catch(e){return null}}
 function localRows(){try{if(typeof db!=='undefined'&&db){db.hubFinanceEntries=Array.isArray(db.hubFinanceEntries)?db.hubFinanceEntries:[];return db.hubFinanceEntries}}catch(e){}try{window.db.hubFinanceEntries=Array.isArray(window.db?.hubFinanceEntries)?window.db.hubFinanceEntries:[];return window.db.hubFinanceEntries}catch(e){return []}}
 function localSave(){try{window.localSaveOnly?.();return true}catch(e){try{localSaveOnly?.();return true}catch(_){return false}}}
@@ -34,7 +36,7 @@ let installs=0,lastNoopAt='',lastNoopId='',settleTimer=null,settleBusy=false,set
 function install(){
  const base=window.hlgb955ReliableSave;
  if(typeof base!=='function')return false;
- if(base.__hlgbPayrollReliableSave9344)return true;
+ if(chainHasMarker(base,'__hlgbPayrollReliableSave9344'))return true;
  const wrapped=async function(module,id,data,deleted=false){
   if(module==='hubFinanceEntries'&&!deleted&&payrollMonth(data)){
    const s=snapshot(id);
@@ -79,7 +81,7 @@ function loadFinalGuard(){
  }catch(e){return false}
 }
 function maintain(){install();stamp();startSettlement()}
-window.hlgbPayrollReliableSaveGuard9344={version:V,install,startSettlement,settle:()=>settleTick(),loadFinalGuard,status:()=>({version:V,installs,lastNoopAt,lastNoopId,installed:!!window.hlgb955ReliableSave?.__hlgbPayrollReliableSave9344,settleStartedAt,settleDeadline:settleDeadline?new Date(settleDeadline).toISOString():'',settleTicks,normalizedTimestamps,prunedWal,settleDone,settleBusy,lastSettleError,finalGuard:window.hlgbPayrollWalRace9346?.status?.()||null})};
+window.hlgbPayrollReliableSaveGuard9344={version:V,install,startSettlement,settle:()=>settleTick(),loadFinalGuard,status:()=>({version:V,installs,lastNoopAt,lastNoopId,installed:chainHasMarker(window.hlgb955ReliableSave,'__hlgbPayrollReliableSave9344'),settleStartedAt,settleDeadline:settleDeadline?new Date(settleDeadline).toISOString():'',settleTicks,normalizedTimestamps,prunedWal,settleDone,settleBusy,lastSettleError,finalGuard:window.hlgbPayrollWalRace9346?.status?.()||null})};
 [0,250,800,1800,3500,6000].forEach(ms=>setTimeout(maintain,ms));
 setTimeout(loadFinalGuard,8000);
 window.addEventListener('focus',()=>{install();stamp();loadFinalGuard()});window.addEventListener('online',()=>{install();stamp();loadFinalGuard()});
