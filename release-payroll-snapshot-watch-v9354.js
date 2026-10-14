@@ -21,6 +21,8 @@ function canonical(v){
  return o;
 }
 function sameMeaning(a,b){try{return JSON.stringify(canonical(a))===JSON.stringify(canonical(b))}catch(e){return false}}
+function nextOriginal(f){return f?.__original||f?.__hlgb9306Original||f?.__originalGradeLink||f?.__hlgb9313Original||f?.__hlgb9312Original||f?.__hlgb9320Original||f?.__hlgbRecordIntegrityOriginal||f?.__hlgb955Original||f?.__hlgb9339Original||null}
+function chainHasMarker(fn,marker){let f=fn,n=0,seen=new Set();while(typeof f==='function'&&n++<64&&!seen.has(f)){seen.add(f);if(f?.[marker])return true;f=nextOriginal(f)}return false}
 function payroll(v){return !!(v&&v.sourceType==='payroll_month'&&sid(v.sourceId).trim())}
 function readWal(){try{const w=JSON.parse(localStorage.getItem(WAL_KEY)||'null');return w&&typeof w==='object'?w:null}catch(e){return null}}
 function snapshotMap(){
@@ -63,7 +65,8 @@ async function recover(){
 function stamp(){try{const cur=parseFloat(String(window.HLGB_RELEASE_VERSION||'0'))||0;if(cur<93.54){window.HLGB_RELEASE_VERSION=V;const el=document.querySelector('#appShell .logo small');if(el)el.textContent='v'+V}}catch(e){}}
 function installRecordGuard(){
  const base=window.hlgbRecordSaveWithRetry;
- if(typeof base!=='function'||base.__hlgb9354)return false;
+ if(typeof base!=='function'||chainHasMarker(base,'__hlgb9354'))return false;
+ const had955=chainHasMarker(base,'__hlgb955Wrapped');
  const wrapped=async function(module,id,data,deleted=false){
   if(module==='hubFinanceEntries'&&!deleted&&payroll(data)){
    try{const s=window.hlgbRecordSnapshots?.hubFinanceEntries?.get?.(sid(id));if(s&&!s.deleted_at&&s.data&&sameMeaning(data,s.data))return {applied:true,data:clone(s.data),deleted_at:null,revision:+s.revision||1,updated_at:s.updated_at||'',updated_by:s.updated_by||null,hlgbNoop:true,hlgbNoopReason:'payroll-technical-noop-v9354'}}catch(e){}
@@ -71,11 +74,11 @@ function installRecordGuard(){
   return base.apply(this,arguments);
  };
  wrapped.__hlgb9354=true;wrapped.__original=base;
- if(base.__hlgb955Wrapped)wrapped.__hlgb955Wrapped=true;
+ if(had955)wrapped.__hlgb955Wrapped=true;
  window.hlgbRecordSaveWithRetry=wrapped;return true;
 }
 function maintain(){stamp();installRecordGuard();recover()}
-window.hlgbPayrollSnapshotWatch9354={version:V,recover,maintain,status:()=>({version:V,scans,recovered,pruneRequests,lastRecoveredAt,lastRecoveredId,lastError,busy,installed:!!window.hlgbRecordSaveWithRetry?.__hlgb9354})};
+window.hlgbPayrollSnapshotWatch9354={version:V,recover,maintain,status:()=>({version:V,scans,recovered,pruneRequests,lastRecoveredAt,lastRecoveredId,lastError,busy,installed:chainHasMarker(window.hlgbRecordSaveWithRetry,'__hlgb9354')})};
 stamp();maintain();
 [100,300,700,1200,2000,3500,5000,8000,12000,20000].forEach(ms=>setTimeout(maintain,ms));
 setInterval(()=>{if(document.visibilityState==='visible')maintain()},750);

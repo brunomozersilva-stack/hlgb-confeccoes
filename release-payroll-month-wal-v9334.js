@@ -15,6 +15,8 @@ function canonical(v){
  const out={};for(const k of Object.keys(v).sort()){if(k==='updatedAt')continue;const x=v[k];out[k]=x&&typeof x==='object'&&!Array.isArray(x)?canonical(x):Array.isArray(x)?x.map(y=>y&&typeof y==='object'?canonical(y):y):x}return out;
 }
 function sameMeaning(a,b){try{return JSON.stringify(canonical(a))===JSON.stringify(canonical(b))}catch(e){return false}}
+function nextOriginal(f){return f?.__original||f?.__hlgb9306Original||f?.__originalGradeLink||f?.__hlgb9313Original||f?.__hlgb9312Original||f?.__hlgb9320Original||f?.__hlgbRecordIntegrityOriginal||f?.__hlgb955Original||f?.__hlgb9339Original||null}
+function chainHasMarker(fn,marker){let f=fn,n=0,seen=new Set();while(typeof f==='function'&&n++<64&&!seen.has(f)){seen.add(f);if(f?.[marker])return true;f=nextOriginal(f)}return false}
 function snapshot(id){try{return window.hlgbRecordSnapshots?.hubFinanceEntries?.get?.(sid(id))||null}catch(e){return null}}
 function localRows(){try{if(typeof db!=='undefined'&&db){db.hubFinanceEntries=Array.isArray(db.hubFinanceEntries)?db.hubFinanceEntries:[];return db.hubFinanceEntries}}catch(e){}try{window.db.hubFinanceEntries=Array.isArray(window.db?.hubFinanceEntries)?window.db.hubFinanceEntries:[];return window.db.hubFinanceEntries}catch(e){return []}}
 function normalizeLocalTimestamp(id,canonicalRow){
@@ -22,7 +24,7 @@ function normalizeLocalTimestamp(id,canonicalRow){
 }
 function noopResult(s){return {applied:true,data:clone(s.data),deleted_at:s.deleted_at||null,revision:+s.revision||1,updated_at:s.updated_at||'',updated_by:s.updated_by||null,hlgbNoop:true,hlgbNoopReason:'payroll-month-updatedAt-only-v9344'}}
 function install(){
- const base=window.hlgbRecordSaveWithRetry;if(typeof base!=='function'||base.__hlgbPayrollMonthWal9334)return false;
+ const base=window.hlgbRecordSaveWithRetry;if(typeof base!=='function'||chainHasMarker(base,'__hlgbPayrollMonthWal9334'))return false;
  const wrapped=async function(module,id,data,deleted=false){
   if(module==='hubFinanceEntries'&&!deleted&&payrollMonth(data)){
    const s=snapshot(id);
