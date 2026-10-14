@@ -1,12 +1,13 @@
-/* HLGB v93.53 — trava final da folha mensal acima dos wrappers legados.
+/* HLGB v93.55 — trava final da folha mensal acima dos wrappers legados.
    Impede que uma gravação tecnicamente idêntica chegue à WAL v91.59.
    v93.49: mantém o timestamp local alinhado ao snapshot confirmado.
    v93.51: tenta bloquear a recriação pelo scanDirty955 quando o snapshot não está presente.
    v93.53: quando existir WAL técnica da folha sem snapshot, confere o registro na nuvem,
-   restaura o snapshot confirmado e só então solicita a poda da WAL. Alterações reais continuam preservadas. */
+   restaura o snapshot confirmado e só então solicita a poda da WAL. Alterações reais continuam preservadas.
+   v93.55: torna a instalação dos guards idempotente em toda a cadeia __original para impedir reempacotamento infinito. */
 (function(){
 'use strict';
-const V='93.53',WAL_KEY='hlgb_durable_wal_v1',ARC_KEY='hlgb_durable_wal_archive_v1';
+const V='93.55',WAL_KEY='hlgb_durable_wal_v1',ARC_KEY='hlgb_durable_wal_archive_v1';
 if(window.HLGB_PAYROLL_WAL_RACE_9346===V)return;
 window.HLGB_PAYROLL_WAL_RACE_9346=V;
 const sid=v=>String(v??'');
@@ -32,7 +33,9 @@ function baselineFor(id,data){
  return null;
 }
 function noop(s,reason){return {applied:true,data:clone(s.data),deleted_at:s.deleted_at||null,revision:+s.revision||1,updated_at:s.updated_at||'',updated_by:s.updated_by||null,hlgbNoop:true,hlgbNoopReason:reason}}
-function chainHas955(fn){let f=fn,n=0,seen=new Set();while(typeof f==='function'&&n++<24&&!seen.has(f)){seen.add(f);if(f.__hlgb955Wrapped)return true;f=f.__original||f.__hlgb9313Original||f.__hlgb9312Original||f.__hlgb9320Original||f.__hlgbRecordIntegrityOriginal||null}return false}
+function nextOriginal(f){return f?.__original||f?.__hlgb9313Original||f?.__hlgb9312Original||f?.__hlgb9320Original||f?.__hlgbRecordIntegrityOriginal||f?.__hlgb955Original||f?.__hlgb9339Original||null}
+function chainHasMarker(fn,marker){let f=fn,n=0,seen=new Set();while(typeof f==='function'&&n++<64&&!seen.has(f)){seen.add(f);if(f?.[marker])return true;f=nextOriginal(f)}return false}
+function chainHas955(fn){return chainHasMarker(fn,'__hlgb955Wrapped')}
 let recordInstalls=0,reliableInstalls=0,saveInstalls=0,enqueueInstalls=0,suppressedEnqueues=0,lastNoopAt='',lastNoopId='',lastPath='',lastBaselineSource='',normalizedAt='',normalizedCount=0;
 let remoteBusy=false,remoteChecks=0,snapshotRecovered=0,lastRemoteAt='',lastRemoteId='',lastRemoteError='';
 function shouldNoop(module,id,data,deleted){
@@ -84,11 +87,11 @@ async function reconcileMissingPayrollSnapshot(){
 function installRecordGuard(){
  const base=window.hlgbRecordSaveWithRetry;
  if(typeof base!=='function')return false;
- if(base.__hlgbPayrollWalRace9346)return true;
+ if(chainHasMarker(base,'__hlgbPayrollWalRace9346'))return true;
  const had955=chainHas955(base);
  const wrapped=async function(module,id,data,deleted=false){
   const s=shouldNoop(module,id,data,deleted);
-  if(s){lastNoopAt=new Date().toISOString();lastNoopId=sid(id);lastPath='record';normalizePayrollLocal('record-noop');return noop(s,'payroll-month-updatedAt-only-v9353-record')}
+  if(s){lastNoopAt=new Date().toISOString();lastNoopId=sid(id);lastPath='record';normalizePayrollLocal('record-noop');return noop(s,'payroll-month-updatedAt-only-v9355-record')}
   return base.apply(this,arguments);
  };
  wrapped.__hlgbPayrollWalRace9346=true;
@@ -99,10 +102,10 @@ function installRecordGuard(){
 function installReliableGuard(){
  const base=window.hlgb955ReliableSave;
  if(typeof base!=='function')return false;
- if(base.__hlgbPayrollWalRace9346)return true;
+ if(chainHasMarker(base,'__hlgbPayrollWalRace9346'))return true;
  const wrapped=async function(module,id,data,deleted=false){
   const s=shouldNoop(module,id,data,deleted);
-  if(s){lastNoopAt=new Date().toISOString();lastNoopId=sid(id);lastPath='reliable';normalizePayrollLocal('reliable-noop');return noop(s,'payroll-month-updatedAt-only-v9353-reliable')}
+  if(s){lastNoopAt=new Date().toISOString();lastNoopId=sid(id);lastPath='reliable';normalizePayrollLocal('reliable-noop');return noop(s,'payroll-month-updatedAt-only-v9355-reliable')}
   return base.apply(this,arguments);
  };
  wrapped.__hlgbPayrollWalRace9346=true;
@@ -112,13 +115,13 @@ function installReliableGuard(){
 function installEnqueueGuard(){
  const base=window.enqueue955;
  if(typeof base!=='function')return false;
- if(base.__hlgbPayrollDirtyGuard9351)return true;
+ if(chainHasMarker(base,'__hlgbPayrollDirtyGuard9351'))return true;
  const wrapped=async function(module,id,data,deleted=false){
   if(module==='hubFinanceEntries'&&!deleted&&payrollMonth(data)){
    const b=baselineFor(id,data);
    if(b){
     suppressedEnqueues++;lastNoopAt=new Date().toISOString();lastNoopId=sid(id);lastPath='enqueue';lastBaselineSource=b.source;
-    return {key:'hubFinanceEntries|'+sid(id),opId:'suppressed-v9353-'+Date.now(),module,id:sid(id),data:clone(data),deleted:false,state:'suppressed',hlgbSuppressed:true,hlgbNoopReason:'payroll-month-dirty-scan-v9353'};
+    return {key:'hubFinanceEntries|'+sid(id),opId:'suppressed-v9355-'+Date.now(),module,id:sid(id),data:clone(data),deleted:false,state:'suppressed',hlgbSuppressed:true,hlgbNoopReason:'payroll-month-dirty-scan-v9355'};
    }
   }
   return base.apply(this,arguments);
@@ -130,7 +133,7 @@ function installEnqueueGuard(){
 function installSaveGuard(){
  const base=window.save;
  if(typeof base!=='function')return false;
- if(base.__hlgbPayrollWalRace9349Save)return true;
+ if(chainHasMarker(base,'__hlgbPayrollWalRace9349Save'))return true;
  const wrapped=function(){
   const out=base.apply(this,arguments);
   try{queueMicrotask(()=>normalizePayrollLocal('save-microtask'))}catch(e){Promise.resolve().then(()=>normalizePayrollLocal('save-promise'))}
@@ -141,13 +144,13 @@ function installSaveGuard(){
  wrapped.__original=base;
  window.save=wrapped;saveInstalls++;return true;
 }
-function stamp(){try{const cur=parseFloat(String(window.HLGB_RELEASE_VERSION||'0'))||0;if(cur<93.53){window.HLGB_RELEASE_VERSION=V;const el=document.querySelector('#appShell .logo small');if(el)el.textContent='v'+V}}catch(e){}}
+function stamp(){try{const cur=parseFloat(String(window.HLGB_RELEASE_VERSION||'0'))||0;if(cur<93.55){window.HLGB_RELEASE_VERSION=V;const el=document.querySelector('#appShell .logo small');if(el)el.textContent='v'+V}}catch(e){}}
 function install(){installRecordGuard();installReliableGuard();installEnqueueGuard();installSaveGuard();normalizePayrollLocal('install');stamp()}
 function maintain(){install();normalizePayrollLocal('maintain');pruneTechnicalWal();reconcileMissingPayrollSnapshot().catch(()=>{})}
-window.hlgbPayrollWalRace9346={version:V,install,maintain,normalizePayrollLocal,reconcileMissingPayrollSnapshot,status:()=>({version:V,recordInstalls,reliableInstalls,enqueueInstalls,saveInstalls,suppressedEnqueues,lastNoopAt,lastNoopId,lastPath,lastBaselineSource,normalizedAt,normalizedCount,remoteBusy,remoteChecks,snapshotRecovered,lastRemoteAt,lastRemoteId,lastRemoteError,recordInstalled:!!window.hlgbRecordSaveWithRetry?.__hlgbPayrollWalRace9346,reliableInstalled:!!window.hlgb955ReliableSave?.__hlgbPayrollWalRace9346,enqueueInstalled:!!window.enqueue955?.__hlgbPayrollDirtyGuard9351,saveInstalled:!!window.save?.__hlgbPayrollWalRace9349Save,recordCarries955:!!window.hlgbRecordSaveWithRetry?.__hlgb955Wrapped})};
+window.hlgbPayrollWalRace9346={version:V,install,maintain,normalizePayrollLocal,reconcileMissingPayrollSnapshot,status:()=>({version:V,recordInstalls,reliableInstalls,enqueueInstalls,saveInstalls,suppressedEnqueues,lastNoopAt,lastNoopId,lastPath,lastBaselineSource,normalizedAt,normalizedCount,remoteBusy,remoteChecks,snapshotRecovered,lastRemoteAt,lastRemoteId,lastRemoteError,recordInstalled:chainHasMarker(window.hlgbRecordSaveWithRetry,'__hlgbPayrollWalRace9346'),reliableInstalled:chainHasMarker(window.hlgb955ReliableSave,'__hlgbPayrollWalRace9346'),enqueueInstalled:chainHasMarker(window.enqueue955,'__hlgbPayrollDirtyGuard9351'),saveInstalled:chainHasMarker(window.save,'__hlgbPayrollWalRace9349Save'),recordCarries955:chainHas955(window.hlgbRecordSaveWithRetry)})};
 install();
 [100,350,900,1800,3500,7000,12000,20000].forEach(ms=>setTimeout(maintain,ms));
 let guardTimer=setInterval(()=>{if(document.visibilityState==='visible')maintain()},5000);
 window.addEventListener('focus',maintain);window.addEventListener('online',maintain);window.addEventListener('pageshow',maintain);
-console.info('[HLGB] v'+V+' trava final da WAL técnica da folha + reconciliação remota de snapshot ativa');
+console.info('[HLGB] v'+V+' trava final da WAL técnica da folha + reconciliação remota de snapshot + instalação idempotente ativa');
 })();
