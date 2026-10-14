@@ -20,7 +20,6 @@ function ensureStyle(){
 function hidden(){
  ensureStyle();generation++;resumeUntil=0;
  try{document.documentElement.classList.add('hlgb-tab-suspended-9266');document.documentElement.classList.remove('hlgb-tab-resuming-9266')}catch(e){}
- // Uma página nunca pode permanecer escondida enquanto o Safari suspende os timers.
  document.querySelectorAll('.hlgb-page-settling').forEach(el=>el.classList.remove('hlgb-page-settling'));overlayOff();
  window.HLGB_SAFARI_RESUME_LAST={at:new Date().toISOString(),reason:'hidden',generation};
 }
@@ -43,7 +42,6 @@ function armStaleGuard(el){
  const born=Date.now(),g=generation;
  setTimeout(()=>{
    if(!el.isConnected||!el.classList.contains('hlgb-page-settling'))return;
-   // O settle normal termina em até 700 ms. Acima disso é estado preso/stale.
    if(document.visibilityState==='hidden'||Date.now()-born>=850||Date.now()<resumeUntil){
      el.classList.remove('hlgb-page-settling');overlayOff();
      window.HLGB_SAFARI_RESUME_LAST={at:new Date().toISOString(),reason:'stale-settle-cleared',generation:g};
@@ -71,13 +69,26 @@ function watchdog(){
    try{const cs=getComputedStyle(active),r=active.getBoundingClientRect();if(cs.visibility==='hidden'||r.width<20||r.height<20){clearSettling('blank-watchdog');window.hlgbTabResume9262?.recover?.('v9266-watchdog')}}catch(e){}
  }
 }
+function ensureWalAuthorityUpgrade9348(){
+ try{
+  const cur=parseFloat(String(window.hlgbWalSingleAuthority9339?.version||window.HLGB_WAL_SINGLE_AUTHORITY_9339||'0'))||0;
+  if(cur>=93.48)return true;
+  window.HLGB_WAL_SINGLE_AUTHORITY_9339='';
+  const old=document.querySelector('script[data-hlgb-wal-authority-upgrade="9348"]');if(old)old.remove();
+  const s=document.createElement('script');s.dataset.hlgbWalAuthorityUpgrade='9348';s.src='./release-wal-single-authority-v9339.js?fresh='+Date.now();
+  s.onerror=()=>console.warn('[HLGB] não foi possível carregar autoridade WAL v93.48');
+  (document.head||document.documentElement).appendChild(s);return true;
+ }catch(e){console.warn('[HLGB] upgrade WAL v93.48 indisponível',e);return false}
+}
 ensureStyle();watch();
 document.addEventListener('visibilitychange',()=>document.visibilityState==='hidden'?hidden():resumed('visibility'),true);
 window.addEventListener('pagehide',hidden,true);
-window.addEventListener('pageshow',e=>resumed(e.persisted?'bfcache':'pageshow'),true);
-window.addEventListener('focus',()=>{if(document.visibilityState==='visible')resumed('focus')},true);
+window.addEventListener('pageshow',e=>{resumed(e.persisted?'bfcache':'pageshow');ensureWalAuthorityUpgrade9348()},true);
+window.addEventListener('focus',()=>{if(document.visibilityState==='visible')resumed('focus');ensureWalAuthorityUpgrade9348()},true);
 guardTimer=setInterval(watchdog,1800);
-window.hlgbSafariResume9266={version:V,clearSettling,resumed,hidden,watchdog,generation:()=>generation};
+setTimeout(ensureWalAuthorityUpgrade9348,120);
+setTimeout(ensureWalAuthorityUpgrade9348,1200);
+window.hlgbSafariResume9266={version:V,clearSettling,resumed,hidden,watchdog,generation:()=>generation,ensureWalAuthorityUpgrade9348};
 window.HLGB_SAFARI_WHITE_SCREEN_GUARD_9266=true;
 console.info('[HLGB] guarda Safari v92.66 ativo — settle preso não pode deixar a tela branca');
 })();
