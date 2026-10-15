@@ -4,7 +4,7 @@
 if(window.HLGB_AUDITOR_TEST_LOADER_9368){console.info('[HLGB TESTE] Auditor v93.68 já está ativo.');return}
 window.HLGB_AUDITOR_TEST_LOADER_9368=true;
 const before={recordSave:window.hlgbRecordSaveWithRetry,cloudRequest:window.cloudRequest,setInterval:window.setInterval,setTimeout:window.setTimeout};
-const AUDITOR_COMMIT='3f5d3dbf4795782a39870675adfd94b495e7a350';
+const AUDITOR_COMMIT='304e48ebe649852866509ccebbd523dd24b017a8';
 const base='https://raw.githubusercontent.com/brunomozersilva-stack/hlgb-confeccoes/'+AUDITOR_COMMIT+'/';
 function ready(){return !!window.hlgbInternalAuditor&&!!window.hlgbAuditorBlackbox9299&&!!window.hlgbOperationalAuditor9314}
 async function waitReady(){const end=Date.now()+20000;while(!ready()&&Date.now()<end)await new Promise(r=>setTimeout(r,250));if(!ready())throw new Error('Os módulos-base do Auditor ainda não ficaram prontos.')}
