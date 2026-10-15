@@ -19,7 +19,8 @@ function installLegacyHideCss(){
   '#hlgbAuditCritical9315',
   '#hlgbAuditDownloadFull9315',
   '#hlgbAuditDownloadCritical9315',
-  '#hlgbAuditorHubDeep9315'
+  '#hlgbAuditorHubDeep9315',
+  '.hlgb-auditor-actions:has(#hlgbSmartTest) button:not(#hlgbSmartTest):not(#hlgbSmartProblem):not(#hlgbSmartHistoryBtn)'
  ].join(',')+'{display:none!important}';
 }
 function cleanSmartModal(){
