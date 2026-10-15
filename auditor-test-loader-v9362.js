@@ -1,7 +1,7 @@
 /* HLGB Auditor v93.62 — loader temporário de teste. Só afeta a aba atual. */
 (async function(){
 'use strict';
-if(window.HLGB_AUDITOR_TEST_LOADER_9362){window.openHlgbAuditor?.();return}
+if(window.HLGB_AUDITOR_TEST_LOADER_9362){console.info('[HLGB TESTE] Auditor de teste já está ativo.');return}
 window.HLGB_AUDITOR_TEST_LOADER_9362=true;
 const before={recordSave:window.hlgbRecordSaveWithRetry,cloudRequest:window.cloudRequest,setInterval:window.setInterval,setTimeout:window.setTimeout};
 const base='https://raw.githubusercontent.com/brunomozersilva-stack/hlgb-confeccoes/feat/auditor-smart-v9360/';
@@ -12,10 +12,10 @@ try{
  await waitReady();
  await load('release-auditor-smart-v9360.js');
  await load('release-auditor-ui-compat-v9361.js');
- const safety={recordSave:before.recordSave===window.hlgbRecordSaveWithRetry,cloudRequest:before.cloudRequest===window.cloudRequest,setInterval:before.setInterval===window.setInterval,setTimeout:before.setTimeout===window.setTimeout};
+ const safety={recordSave:before.recordSave===window.hlgbRecordSaveWithRetry,cloudRequest:before.cloudRequest===window.cloudRequest,setInterval:before.setInterval,setTimeout:before.setTimeout===window.setTimeout};
  if(Object.values(safety).some(x=>!x))throw new Error('Teste interrompido: uma função crítica mudou durante a injeção.');
  if(window.hlgbAuditorSmart?.version!=='93.62')throw new Error('Auditor de teste não confirmou a versão 93.62.');
  console.info('[HLGB TESTE] Auditor v93.62 ativo. Funções críticas preservadas.',safety);
- window.openHlgbAuditor?.();
+ alert('Auditor de teste v93.62 ativado.\n\nAgora abra o Auditor pelo botão normal do HLGB.\n\nAo recarregar a página, este teste desaparece.');
 }catch(e){window.HLGB_AUDITOR_TEST_LOADER_9362=false;console.error('[HLGB TESTE] Falha',e);alert('Não foi possível ativar o Auditor de teste.\n\n'+String(e?.message||e))}
 })();
