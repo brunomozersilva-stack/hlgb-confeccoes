@@ -44,3 +44,5 @@ jobs:
           sleep 2
       - name: Teste WebKit Auditor
         run: node tests/auditor-v9362-webkit.js
+      - name: Injeção temporária WebKit
+        run: node tests/auditor-v9362-webkit-remote-inject.js
