@@ -21,3 +21,5 @@ jobs:
         run: node tests/auditor-v9360-smoke.js
       - name: Cenários críticos Auditor
         run: node tests/auditor-v9360-scenarios.js
+      - name: UI simplificada Auditor
+        run: node tests/auditor-ui-compat-v9361.js
