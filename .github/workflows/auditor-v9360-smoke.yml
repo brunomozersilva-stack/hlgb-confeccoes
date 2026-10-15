@@ -66,3 +66,5 @@ jobs:
         run: node tests/auditor-v9366-entry-webkit.js
       - name: Download Safari v93.67 WebKit
         run: node tests/auditor-v9367-safari-download-webkit.js
+      - name: Loader isolado v93.68 WebKit
+        run: node tests/auditor-v9368-loader-webkit.js
