@@ -4,7 +4,7 @@
 if(window.HLGB_AUDITOR_TEST_LOADER_9368){console.info('[HLGB TESTE] Auditor v93.68 já está ativo.');return}
 window.HLGB_AUDITOR_TEST_LOADER_9368=true;
 const before={recordSave:window.hlgbRecordSaveWithRetry,cloudRequest:window.cloudRequest,setInterval:window.setInterval,setTimeout:window.setTimeout};
-const AUDITOR_COMMIT='921d87c2367c30c896f56dc091c2aed50f9fe13b';
+const AUDITOR_COMMIT='3f5d3dbf4795782a39870675adfd94b495e7a350';
 const base='https://raw.githubusercontent.com/brunomozersilva-stack/hlgb-confeccoes/'+AUDITOR_COMMIT+'/';
 function ready(){return !!window.hlgbInternalAuditor&&!!window.hlgbAuditorBlackbox9299&&!!window.hlgbOperationalAuditor9314}
 async function waitReady(){const end=Date.now()+20000;while(!ready()&&Date.now()<end)await new Promise(r=>setTimeout(r,250));if(!ready())throw new Error('Os módulos-base do Auditor ainda não ficaram prontos.')}
@@ -46,7 +46,8 @@ try{
  if(Object.values(safety).some(x=>!x))throw new Error('Teste interrompido: uma função crítica mudou durante a injeção.');
  if(window.hlgbAuditorSmart?.version!=='93.63')throw new Error('Auditor inteligente não confirmou a versão esperada.');
  if(window.hlgbAuditorSmart?.safariDownload?.version!=='93.68')throw new Error('Entrega Safari v93.68 não ficou ativa.');
- console.info('[HLGB TESTE] Auditor v93.68 ativo sem timers de reinstalação.',safety);
+ if(window.hlgbAuditorSmart?.safariDownload?.authority!=='single-manual-download')throw new Error('Autoridade única de captura/download não ficou ativa.');
+ console.info('[HLGB TESTE] Auditor v93.68 ativo sem timers e com captura/download em autoridade única.',safety);
  alert('Auditor de teste v93.68 ativado. Ao recarregar a página, o teste desaparece.');
 }catch(e){window.HLGB_AUDITOR_TEST_LOADER_9368=false;console.error('[HLGB TESTE] Falha',e);alert('Não foi possível ativar o Auditor de teste.\n\n'+String(e?.message||e))}
 })();
