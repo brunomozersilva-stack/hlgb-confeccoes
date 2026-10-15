@@ -9,13 +9,30 @@ const base='https://raw.githubusercontent.com/brunomozersilva-stack/hlgb-confecc
 function ready(){return !!window.hlgbInternalAuditor&&!!window.hlgbAuditorBlackbox9299&&!!window.hlgbOperationalAuditor9314}
 async function waitReady(){const end=Date.now()+20000;while(!ready()&&Date.now()<end)await new Promise(r=>setTimeout(r,250));if(!ready())throw new Error('Os módulos-base do Auditor ainda não ficaram prontos.')}
 async function load(file){const r=await fetch(base+file+'?fresh='+Date.now(),{cache:'no-store'});if(!r.ok)throw new Error('Falha ao carregar '+file+' (HTTP '+r.status+')');(0,eval)(await r.text())}
+function cleanSmartModal(){
+ const status=document.getElementById('hlgbSmartStatus');if(!status)return;
+ const root=status.closest('[role="dialog"],.modal,.modal-content,.modalCard,.modal-card,.dialog')||status.parentElement?.parentElement||status.parentElement;
+ if(!root)return;
+ const keep=new Set(['hlgbSmartTest','hlgbSmartProblem','hlgbSmartHistoryBtn','hlgbSafariDownload9368']);
+ for(const el of root.querySelectorAll('button,a,[role="button"]')){
+  const txt=String(el.textContent||'').trim();
+  const close=el.classList?.contains('modalSave')||/fechar|close/i.test(txt)||/closeModal/.test(String(el.getAttribute('onclick')||''));
+  if(keep.has(el.id)||close){el.hidden=false;continue}
+  el.hidden=true;el.setAttribute('data-hlgb-auditor-hidden','1');
+ }
+}
+function postOpenCleanup(){
+ cleanSmartModal();
+ queueMicrotask(cleanSmartModal);
+ requestAnimationFrame(()=>{cleanSmartModal();requestAnimationFrame(cleanSmartModal)});
+}
 function installSingleEntry(){
  if(window.__hlgbAuditorEntryCapture9368)return;
  const handler=e=>{
   const b=e.target?.closest?.('#hlgbAuditorNavBtn,#hlgbAuditorOpenBtn');
   if(!b)return;
   e.preventDefault();e.stopImmediatePropagation();
-  if(typeof window.openHlgbAuditor==='function')window.openHlgbAuditor();
+  if(typeof window.openHlgbAuditor==='function'){window.openHlgbAuditor();postOpenCleanup()}
  };
  document.addEventListener('click',handler,true);
  window.__hlgbAuditorEntryCapture9368=handler;
