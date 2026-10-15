@@ -1,4 +1,5 @@
 const {webkit}=require('playwright');
+const fs=require('fs');
 (async()=>{
  const browser=await webkit.launch({headless:true});
  const page=await browser.newPage({viewport:{width:1280,height:900}});
@@ -15,15 +16,22 @@ const {webkit}=require('playwright');
  const buttons=(await page.locator('#entry9368Host .hlgb-auditor-actions button:visible').allTextContents()).map(x=>x.replace(/\s+/g,' ').trim());
  if(buttons.length!==3)throw new Error('v93.68 abriu quantidade errada de ações: '+buttons.join(' | '));
  for(const expected of ['Testar sistema','Registrar problema','Histórico'])if(!buttons.some(x=>x.includes(expected)))throw new Error('Ação ausente v93.68: '+expected);
- await page.evaluate(()=>{window.hlgbAuditorSmart.problem=async()=>({kind:'hlgb_bug_capture',ok:true});window.__hlgbBaseProblem9368=null;const src=require?null:null});
- // valida o download pela função já instalada, substituindo apenas a base capturada não é seguro; chama a função real do Auditor.
- await page.evaluate(()=>window.hlgbAuditorSmartProblem());
- await page.waitForSelector('#hlgbSafariDownload9368',{state:'visible',timeout:15000});
- const info=await page.$eval('#hlgbSafariDownload9368',a=>({text:a.textContent,href:a.href,download:a.download}));
+ if(errors.some(x=>/9368|auditor/i.test(x)))throw new Error('Erro WebKit relacionado ao loader v93.68: '+errors.join(' | '));
+
+ const dl=await browser.newPage();
+ await dl.setContent('<div id="hlgbAuditorResult"></div>');
+ await dl.evaluate(()=>{window.hlgbInternalAuditor={redactDiagnostic:x=>x};window.hlgbAuditorSmart={problem:async()=>({kind:'hlgb_bug_capture',ok:true})};window.hlgbAuditorSmartProblem=window.hlgbAuditorSmart.problem;window.__beforeIntervals=window.setInterval});
+ const src=fs.readFileSync('release-auditor-safari-download-v9368.js','utf8');
+ await dl.evaluate(src=>{(0,eval)(src)},src);
+ await dl.waitForFunction(()=>window.hlgbAuditorSmart?.safariDownload?.version==='93.68',null,{timeout:5000});
+ const sameInterval=await dl.evaluate(()=>window.__beforeIntervals===window.setInterval);
+ if(!sameInterval)throw new Error('Entrega v93.68 alterou setInterval');
+ await dl.evaluate(()=>window.hlgbAuditorSmartProblem());
+ await dl.waitForSelector('#hlgbSafariDownload9368',{state:'visible',timeout:5000});
+ const info=await dl.$eval('#hlgbSafariDownload9368',a=>({text:a.textContent,href:a.href,download:a.download}));
  if(!/Baixar diagnóstico/.test(info.text))throw new Error('Botão de download v93.68 não apareceu');
  if(!/^blob:/.test(info.href))throw new Error('Download v93.68 não usa Blob URL');
  if(!/^HLGB-PROBLEMA-/.test(info.download))throw new Error('Nome de arquivo v93.68 inválido: '+info.download);
- if(errors.some(x=>/9368|auditor/i.test(x)))throw new Error('Erro WebKit relacionado ao Auditor v93.68: '+errors.join(' | '));
  console.log('AUDITOR_V9368_ISOLATED_WEBKIT_OK',safety,buttons,info.download);
  await browser.close();
 })().catch(e=>{console.error(e);process.exit(1)});
