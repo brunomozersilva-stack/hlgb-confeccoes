@@ -1,9 +1,9 @@
-/* HLGB v93.61 — compatibilidade visual do Auditor simplificado.
+/* HLGB v93.63 — compatibilidade visual do Auditor simplificado.
    Não altera save/sync, não adiciona wrappers e não mexe em dados operacionais. */
 (function(){
 'use strict';
 if(window.HLGB_AUDITOR_UI_COMPAT_9361)return;
-window.HLGB_AUDITOR_UI_COMPAT_9361='93.61';
+window.HLGB_AUDITOR_UI_COMPAT_9361='93.63';
 function install(){
  if(document.getElementById('hlgbAuditorUiCompat9361'))return true;
  const st=document.createElement('style');
@@ -25,6 +25,6 @@ function install(){
 }
 install();
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',install,{once:true});
-window.hlgbAuditorUiCompat9361={version:'93.61',install};
-console.info('[HLGB] Auditor UI compat v93.61 ativo');
+window.hlgbAuditorUiCompat9361={version:'93.63',install};
+console.info('[HLGB] Auditor UI compat v93.63 ativo');
 })();
