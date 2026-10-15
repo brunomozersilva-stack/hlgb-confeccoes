@@ -15,6 +15,8 @@ jobs:
           node-version: '20'
       - name: Sintaxe Auditor
         run: node --check release-auditor-smart-v9360.js
+      - name: Sintaxe UI compat
+        run: node --check release-auditor-ui-compat-v9361.js
       - name: Smoke test Auditor
         run: node tests/auditor-v9360-smoke.js
       - name: Cenários críticos Auditor
