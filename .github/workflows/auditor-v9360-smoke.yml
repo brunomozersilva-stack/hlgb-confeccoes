@@ -25,3 +25,22 @@ jobs:
         run: node tests/auditor-ui-compat-v9361.js
       - name: Auditoria diária silenciosa
         run: node tests/auditor-v9362-background.js
+  webkit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Instalar Playwright WebKit
+        run: |
+          npm install --no-save playwright@1.55.0
+          npx playwright install --with-deps webkit
+      - name: Iniciar servidor local
+        run: |
+          python3 -m http.server 4173 >/tmp/hlgb-auditor-http.log 2>&1 &
+          echo $! >/tmp/hlgb-auditor-http.pid
+          sleep 2
+      - name: Teste WebKit Auditor
+        run: node tests/auditor-v9362-webkit.js
