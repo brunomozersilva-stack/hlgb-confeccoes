@@ -19,12 +19,18 @@ jobs:
         run: node --check release-auditor-ui-compat-v9361.js
       - name: Sintaxe Safari download v93.67
         run: node --check release-auditor-safari-download-v9367.js
+      - name: Sintaxe Safari download v93.68
+        run: node --check release-auditor-safari-download-v9368.js
       - name: Sintaxe loader v93.65
         run: node --check auditor-test-loader-v9365.js
       - name: Sintaxe loader v93.66
         run: node --check auditor-test-loader-v9366.js
       - name: Sintaxe loader v93.67
         run: node --check auditor-test-loader-v9367.js
+      - name: Sintaxe loader v93.68
+        run: node --check auditor-test-loader-v9368.js
+      - name: Loader v93.68 sem loops
+        run: node tests/auditor-v9368-no-timer.js
       - name: Smoke test Auditor
         run: node tests/auditor-v9360-smoke.js
       - name: Cenários críticos Auditor
