@@ -6,16 +6,14 @@ const {webkit}=require('playwright');
  await page.goto('http://127.0.0.1:4173/app-stable3.html',{waitUntil:'domcontentloaded',timeout:60000});
  await page.waitForFunction(()=>!!window.hlgbInternalAuditor&&!!window.hlgbAuditorBlackbox9299&&!!window.hlgbOperationalAuditor9314,null,{timeout:60000});
  await page.evaluate(()=>{window.alert=()=>{};window.openModal=(title,html)=>{let h=document.getElementById('remoteInjectHost');if(!h){h=document.createElement('div');h.id='remoteInjectHost';document.body.appendChild(h)}h.innerHTML=html};window.closeModal=()=>{}});
- const before=await page.evaluate(()=>{window.__auditorCriticalBefore={recordSave:window.hlgbRecordSaveWithRetry,cloudRequest:window.cloudRequest,setInterval:window.setInterval,setTimeout:window.setTimeout};return true});
- if(!before)throw new Error('nao foi possivel preparar identidades criticas');
+ await page.evaluate(()=>{window.__auditorCriticalBefore={recordSave:window.hlgbRecordSaveWithRetry,cloudRequest:window.cloudRequest,setInterval:window.setInterval,setTimeout:window.setTimeout}});
  await page.evaluate(async()=>{
-  const url='https://raw.githubusercontent.com/brunomozersilva-stack/hlgb-confeccoes/feat/auditor-smart-v9360/auditor-test-loader-v9362.js?fresh='+Date.now();
-  const r=await fetch(url,{cache:'no-store'});if(!r.ok)throw new Error('HTTP '+r.status+' no loader');const src=await r.text();(0,eval)(src);
+  const r=await fetch('/auditor-test-loader-v9362.js?fresh='+Date.now(),{cache:'no-store'});if(!r.ok)throw new Error('HTTP '+r.status+' no loader local');const src=await r.text();(0,eval)(src);
  });
- await page.waitForFunction(()=>window.HLGB_AUDITOR_TEST_LOADER_9362===true&&window.hlgbAuditorSmart?.version==='93.62',null,{timeout:30000});
+ await page.waitForFunction(()=>window.HLGB_AUDITOR_TEST_LOADER_9362===true&&window.hlgbAuditorSmart?.version==='93.62'&&!!window.HLGB_AUDITOR_UI_COMPAT_9361,null,{timeout:30000});
  const result=await page.evaluate(()=>({
   smart:window.HLGB_AUDITOR_SMART_9360===true,
-  compat:!!window.HLGB_AUDITOR_UI_COMPAT_9361,
+  compat:window.HLGB_AUDITOR_UI_COMPAT_9361,
   version:window.hlgbAuditorSmart?.version,
   open:typeof window.openHlgbAuditor==='function',
   identities:{
