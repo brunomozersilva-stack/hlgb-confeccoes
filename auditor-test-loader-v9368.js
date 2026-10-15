@@ -9,6 +9,19 @@ const base='https://raw.githubusercontent.com/brunomozersilva-stack/hlgb-confecc
 function ready(){return !!window.hlgbInternalAuditor&&!!window.hlgbAuditorBlackbox9299&&!!window.hlgbOperationalAuditor9314}
 async function waitReady(){const end=Date.now()+20000;while(!ready()&&Date.now()<end)await new Promise(r=>setTimeout(r,250));if(!ready())throw new Error('Os módulos-base do Auditor ainda não ficaram prontos.')}
 async function load(file){const r=await fetch(base+file+'?fresh='+Date.now(),{cache:'no-store'});if(!r.ok)throw new Error('Falha ao carregar '+file+' (HTTP '+r.status+')');(0,eval)(await r.text())}
+function installLegacyHideCss(){
+ let st=document.getElementById('hlgbAuditorLegacyHide9368');
+ if(!st){st=document.createElement('style');st.id='hlgbAuditorLegacyHide9368';(document.head||document.documentElement).appendChild(st)}
+ st.textContent=[
+  '#hlgbAuditorMaxDebug9292',
+  '#hlgbAuditorBlackbox9299',
+  '#hlgbAuditFull9315',
+  '#hlgbAuditCritical9315',
+  '#hlgbAuditDownloadFull9315',
+  '#hlgbAuditDownloadCritical9315',
+  '#hlgbAuditorHubDeep9315'
+ ].join(',')+'{display:none!important}';
+}
 function cleanSmartModal(){
  const status=document.getElementById('hlgbSmartStatus');if(!status)return;
  const root=status.closest('[role="dialog"],.modal,.modal-content,.modalCard,.modal-card,.dialog')||status.parentElement?.parentElement||status.parentElement;
@@ -41,6 +54,7 @@ try{
  await waitReady();
  await load('release-auditor-smart-v9360.js');
  await load('release-auditor-safari-download-v9368.js');
+ installLegacyHideCss();
  installSingleEntry();
  const safety={recordSave:before.recordSave===window.hlgbRecordSaveWithRetry,cloudRequest:before.cloudRequest===window.cloudRequest,setInterval:before.setInterval===window.setInterval,setTimeout:before.setTimeout===window.setTimeout};
  if(Object.values(safety).some(x=>!x))throw new Error('Teste interrompido: uma função crítica mudou durante a injeção.');
