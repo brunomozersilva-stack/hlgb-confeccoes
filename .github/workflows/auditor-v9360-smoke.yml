@@ -17,3 +17,5 @@ jobs:
         run: node --check release-auditor-smart-v9360.js
       - name: Smoke test Auditor
         run: node tests/auditor-v9360-smoke.js
+      - name: Cenários críticos Auditor
+        run: node tests/auditor-v9360-scenarios.js
