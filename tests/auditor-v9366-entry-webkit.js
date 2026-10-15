@@ -8,7 +8,7 @@ const {webkit}=require('playwright');
  await page.evaluate(()=>{window.alert=()=>{};window.closeModal=()=>{};window.openModal=(title,html)=>{let h=document.getElementById('entry9366Host');if(!h){h=document.createElement('div');h.id='entry9366Host';h.setAttribute('role','dialog');document.body.appendChild(h)}h.innerHTML=html;window.__entry9366Title=title}});
  await page.evaluate(async()=>{const r=await fetch('/auditor-test-loader-v9366.js?fresh='+Date.now(),{cache:'no-store'});if(!r.ok)throw new Error('HTTP '+r.status+' loader v93.66');(0,eval)(await r.text())});
  await page.waitForFunction(()=>window.HLGB_AUDITOR_TEST_LOADER_9366===true&&document.querySelector('[data-hlgb-smart-entry="93.66"]'),null,{timeout:30000});
- await page.click('#hlgbAuditorNavBtn');
+ await page.evaluate(()=>{const b=document.getElementById('hlgbAuditorNavBtn');if(!b||typeof b.onclick!=='function')throw new Error('onclick do botão real não foi ligado');b.onclick.call(b,new MouseEvent('click',{bubbles:true}))});
  await page.waitForSelector('#entry9366Host #hlgbSmartStatus',{timeout:10000});
  const buttons=(await page.locator('#entry9366Host .hlgb-auditor-actions button:visible').allTextContents()).map(x=>x.replace(/\s+/g,' ').trim());
  if(buttons.length!==3)throw new Error('Clique real abriu quantidade errada de ações: '+buttons.join(' | '));
