@@ -4,7 +4,9 @@
 if(window.HLGB_AUDITOR_TEST_LOADER_9362){console.info('[HLGB TESTE] Auditor de teste já está ativo.');return}
 window.HLGB_AUDITOR_TEST_LOADER_9362=true;
 const before={recordSave:window.hlgbRecordSaveWithRetry,cloudRequest:window.cloudRequest,setInterval:window.setInterval,setTimeout:window.setTimeout};
-const base='https://raw.githubusercontent.com/brunomozersilva-stack/hlgb-confeccoes/feat/auditor-smart-v9360/';
+/* Commit fixo que já contém release-auditor-smart-v9360.js v93.62. */
+const AUDITOR_COMMIT='303847fbbc5fc1a1472dde2547281d2cf874d1bc';
+const base='https://raw.githubusercontent.com/brunomozersilva-stack/hlgb-confeccoes/'+AUDITOR_COMMIT+'/';
 function ready(){return !!window.hlgbInternalAuditor&&!!window.hlgbAuditorBlackbox9299&&!!window.hlgbOperationalAuditor9314}
 async function waitReady(){const end=Date.now()+20000;while(!ready()&&Date.now()<end)await new Promise(r=>setTimeout(r,250));if(!ready())throw new Error('Os módulos-base do Auditor ainda não ficaram prontos. Recarregue o HLGB e tente novamente.')}
 async function load(file){const r=await fetch(base+file+'?fresh='+Date.now(),{cache:'no-store'});if(!r.ok)throw new Error('Falha ao carregar '+file+' (HTTP '+r.status+')');const src=await r.text();(0,eval)(src)}
