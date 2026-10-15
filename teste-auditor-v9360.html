@@ -17,26 +17,23 @@ html,body{margin:0;height:100%;font-family:Arial,sans-serif;background:#f7f7f8}#
 const frame=document.getElementById('app'),state=document.getElementById('state');
 let injected=false,tries=0;
 function setState(t){state.textContent=t}
+function addScript(d,id,src,onload){
+ if(d.getElementById(id)){onload?.();return}
+ const s=d.createElement('script');s.id=id;s.src=src;s.onload=()=>onload?.();s.onerror=()=>setState('Não foi possível carregar o Auditor de teste.');(d.head||d.documentElement).appendChild(s);
+}
 function inject(){
   if(injected)return true;
   let w,d;
   try{w=frame.contentWindow;d=frame.contentDocument||w.document}catch(e){setState('Falha ao acessar a versão de teste.');return false}
   if(!d||!d.documentElement)return false;
-  if(d.getElementById('hlgbAuditorSmart9360Script')){injected=true;setState('Auditor v93.60 carregado — TESTE');return true}
-  const s=d.createElement('script');
-  s.id='hlgbAuditorSmart9360Script';
-  s.src='./release-auditor-smart-v9360.js?fresh='+Date.now();
-  s.onload=()=>{injected=true;setState('Auditor v93.60 carregado — TESTE')};
-  s.onerror=()=>setState('Não foi possível carregar o Auditor de teste.');
-  (d.head||d.documentElement).appendChild(s);
+  addScript(d,'hlgbAuditorSmart9360Script','./release-auditor-smart-v9360.js?fresh='+Date.now(),()=>{
+    addScript(d,'hlgbAuditorUiCompat9361Script','./release-auditor-ui-compat-v9361.js?fresh='+Date.now(),()=>{injected=true;setState('Auditor v93.60/93.61 carregado — TESTE')});
+  });
   return true;
 }
 function waitForApp(){
   tries++;
-  try{
-    const d=frame.contentDocument||frame.contentWindow?.document;
-    if(d?.getElementById('loginScreen')||d?.getElementById('appShell')){inject();return}
-  }catch(e){}
+  try{const d=frame.contentDocument||frame.contentWindow?.document;if(d?.getElementById('loginScreen')||d?.getElementById('appShell')){inject();return}}catch(e){}
   if(tries<120)setTimeout(waitForApp,250);else setState('Sistema carregou, mas o Auditor não foi injetado.')
 }
 frame.addEventListener('load',()=>{setState('Sistema carregado. Ativando Auditor v93.60…');setTimeout(waitForApp,200)});
