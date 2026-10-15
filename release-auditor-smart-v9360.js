@@ -62,7 +62,7 @@ function enforceSimpleUi(){
  const root=findAuditorRoot();if(!root)return;
  const allowed=/hlgbAuditorSmartRun|hlgbAuditorSmartProblem|hlgbAuditorSmartHistory|closeModal/;
  for(const b of root.querySelectorAll('button,a,[role="button"]')){
-  if(b.id==='hlgbSmartTest'||b.id==='hlgbSmartProblem'||b.id==='hlgbSmartHistoryBtn')continue;
+  if(b.id==='hlgbSmartTest'||b.id==='hlgbSmartProblem'||b.id==='hlgbSmartHistoryBtn'||b.id==='hlgbSafariDownload9368')continue;
   const code=String(b.getAttribute('onclick')||'');
   const txt=String(b.textContent||'').trim().toLowerCase();
   const close=b.classList?.contains('modalSave')||/fechar|close/.test(txt)||/closeModal/.test(code);
