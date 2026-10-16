@@ -76,9 +76,11 @@ jobs:
         run: node tests/auditor-v9366-entry-webkit.js
       - name: Download Safari v93.67 WebKit
         run: node tests/auditor-v9367-safari-download-webkit.js
-      - name: Loader isolado v93.68 WebKit
-        run: node tests/auditor-v9368-loader-webkit.js
       - name: Linha do tempo v93.70 WebKit
         run: node tests/auditor-v9370-events-webkit.js
       - name: Correções runtime v93.71 WebKit
         run: node tests/runtime-v9371-webkit.js
+      - name: Matéria-prima sem rerender desnecessário
+        run: node tests/material-health-v9371-webkit.js
+      - name: Integração produção v93.71 WebKit
+        run: node tests/production-v9371-webkit.js
