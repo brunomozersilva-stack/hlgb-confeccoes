@@ -6,7 +6,6 @@ on:
       - fix/auditor-runtime-events-v9370
       - fix/runtime-render-save-v9371
       - fix/auditor-render-signal-v9372
-      - fix/auditor-known-cloud-wrapper-20261015
   workflow_dispatch:
 jobs:
   smoke:
