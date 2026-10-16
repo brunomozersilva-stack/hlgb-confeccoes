@@ -6,7 +6,7 @@ let creates=0;
 const realCreate=(url,key,opts)=>({id:++creates,url,key,opts});
 const ctx={
  console,
- window:{supabase:{createClient:realCreate},cloudRequest:async()=>[],HLGB_SAVE_TRANSPORT_TIMEOUT_MS:1000},
+ window:{supabase:{createClient:realCreate},cloudRequest:async()=>[],HLGB_SAVE_TRANSPORT_TIMEOUT_MS:1000,addEventListener:()=>{}},
  navigator:{onLine:true},
  document:{querySelector:()=>null,activeElement:null,addEventListener:()=>{}},
  localStorage:{getItem:()=>null},
