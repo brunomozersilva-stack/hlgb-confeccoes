@@ -1,0 +1,10 @@
+<!doctype html><html><head><meta charset="utf-8"></head><body><div id="appShell"><div class="page active" id="dashboard"></div></div><button id="hlgbAuditorNavBtn">Auditor</button><div id="hlgbAuditorResult"></div><script>
+window.hlgbRecordSaveWithRetry=async()=>({applied:true});
+window.cloudRequest=async()=>({ok:true});
+window.hlgbInternalAuditor={runtimeErrors:[],redactDiagnostic:x=>x,latest:()=>null,buildSyncDiagnostic:async()=>({summary:{normalizedPending:0,walLocalStorage:0,walIndexedDb:0}}),run:async()=>({summary:{pass:1,warn:0,fail:0},completedAt:new Date().toISOString()})};
+window.hlgbAuditorBlackbox9299={collect:async()=>({timeline:[],errors:[]})};
+window.hlgbOperationalAuditor9314={run:()=>({summary:{pass:1,warn:0,fail:0}})};
+window.hlgbRuntimeProfiler9292={snapshot:()=>({active:[],activeCount:0,suspect:[]})};
+window.openModal=(title,html)=>{let h=document.getElementById('fixtureModal');if(!h){h=document.createElement('div');h.id='fixtureModal';h.setAttribute('role','dialog');document.body.appendChild(h)}h.innerHTML=html};
+window.closeModal=()=>{};window.alert=()=>{};
+</script><script src="../release-auditor-production-v9369.js"></script></body></html>
