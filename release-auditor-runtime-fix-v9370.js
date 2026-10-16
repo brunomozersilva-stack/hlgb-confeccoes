@@ -38,6 +38,6 @@ wrappedProblem.__original=originalProblem;
 window.hlgbAuditorSmartProblem=wrappedProblem;
 smart.problem=wrappedProblem;
 smart.eventsSnapshot=snapshot;
-smart.runtimeFix9370={version:'93.70',eventsSnapshot:snapshot};
+smart.runtimeFix9370={version:'93.70',eventsSnapshot:snapshot,windowMs:MAX_AGE,maxEvents:MAX_EVENTS,listenerCount:4};
 console.info('[HLGB] Auditor runtime fix v93.70 ativo');
 })();
