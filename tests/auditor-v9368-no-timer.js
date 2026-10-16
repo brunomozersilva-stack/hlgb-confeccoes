@@ -1,0 +1,10 @@
+const fs=require('fs');
+const loader=fs.readFileSync('auditor-test-loader-v9368.js','utf8');
+const safari=fs.readFileSync('release-auditor-safari-download-v9368.js','utf8');
+if(/setInterval\s*\(/.test(loader))throw new Error('Loader v93.68 não pode criar setInterval.');
+if(/setInterval\s*\(/.test(safari))throw new Error('Entrega Safari v93.68 não pode criar setInterval.');
+if(/MutationObserver/.test(loader))throw new Error('Loader v93.68 não deve criar MutationObserver próprio.');
+if(!/addEventListener\('click',handler,true\)/.test(loader))throw new Error('Entrada isolada por listener único não encontrada.');
+if(!/hlgbSafariDownload9368/.test(safari))throw new Error('Botão de download v93.68 ausente.');
+if(!/download=/.test(safari))throw new Error('Atributo download ausente.');
+console.log('AUDITOR_V9368_NO_TIMER_OK');

@@ -1,0 +1,20 @@
+const {webkit}=require('playwright');
+(async()=>{
+ const browser=await webkit.launch({headless:true});
+ const page=await browser.newPage({viewport:{width:1280,height:900}});
+ const errors=[];page.on('pageerror',e=>errors.push(String(e.message||e)));
+ await page.goto('http://127.0.0.1:4173/app-stable3.html',{waitUntil:'domcontentloaded',timeout:60000});
+ await page.waitForFunction(()=>!!window.hlgbInternalAuditor&&!!window.hlgbAuditorBlackbox9299&&!!window.hlgbOperationalAuditor9314&&!!document.getElementById('hlgbAuditorNavBtn'),null,{timeout:60000});
+ await page.evaluate(()=>{window.alert=()=>{};window.closeModal=()=>{};window.openModal=(title,html)=>{let h=document.getElementById('entry9366Host');if(!h){h=document.createElement('div');h.id='entry9366Host';h.setAttribute('role','dialog');document.body.appendChild(h)}h.innerHTML=html;window.__entry9366Title=title}});
+ await page.evaluate(async()=>{const r=await fetch('/auditor-test-loader-v9366.js?fresh='+Date.now(),{cache:'no-store'});if(!r.ok)throw new Error('HTTP '+r.status+' loader v93.66');(0,eval)(await r.text())});
+ await page.waitForFunction(()=>window.HLGB_AUDITOR_TEST_LOADER_9366===true&&document.querySelector('[data-hlgb-smart-entry="93.66"]'),null,{timeout:30000});
+ await page.evaluate(()=>{const b=document.getElementById('hlgbAuditorNavBtn');if(!b||typeof b.onclick!=='function')throw new Error('onclick do botão real não foi ligado');b.onclick.call(b,new MouseEvent('click',{bubbles:true}))});
+ await page.waitForSelector('#entry9366Host #hlgbSmartStatus',{timeout:10000});
+ const buttons=(await page.locator('#entry9366Host .hlgb-auditor-actions button:visible').allTextContents()).map(x=>x.replace(/\s+/g,' ').trim());
+ if(buttons.length!==3)throw new Error('Clique real abriu quantidade errada de ações: '+buttons.join(' | '));
+ for(const expected of ['Testar sistema','Registrar problema','Histórico'])if(!buttons.some(x=>x.includes(expected)))throw new Error('Ação ausente no clique real: '+expected+'; '+buttons.join(' | '));
+ if(!/Auditor HLGB/i.test(String(await page.evaluate(()=>window.__entry9366Title||''))))throw new Error('Clique real não abriu o Auditor novo');
+ if(errors.some(x=>/9366|auditor/i.test(x)))throw new Error('Erro WebKit relacionado ao Auditor: '+errors.join(' | '));
+ console.log('AUDITOR_V9366_REAL_ENTRY_WEBKIT_OK',buttons);
+ await browser.close();
+})().catch(e=>{console.error(e);process.exit(1)});

@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>HLGB — Teste Auditor v93.60</title>
+<style>
+html,body{margin:0;height:100%;font-family:Arial,sans-serif;background:#f7f7f8}#bar{height:44px;display:flex;align-items:center;gap:12px;padding:0 14px;background:#fff;border-bottom:1px solid #ddd;box-sizing:border-box;font-size:14px}#state{font-weight:700}iframe{display:block;width:100%;height:calc(100% - 44px);border:0;background:#fff}
+</style>
+</head>
+<body>
+<div id="bar"><b>HLGB — ambiente de teste</b><span id="state">Carregando sistema da branch…</span></div>
+<iframe id="app" src="./app-stable3.html?auditorTest=9360"></iframe>
+<script>
+(function(){
+'use strict';
+const frame=document.getElementById('app'),state=document.getElementById('state');
+let injected=false,tries=0;
+function setState(t){state.textContent=t}
+function addScript(d,id,src,onload){
+ if(d.getElementById(id)){onload?.();return}
+ const s=d.createElement('script');s.id=id;s.src=src;s.onload=()=>onload?.();s.onerror=()=>setState('Não foi possível carregar o Auditor de teste.');(d.head||d.documentElement).appendChild(s);
+}
+function inject(){
+ if(injected)return true;
+ let w,d;
+ try{w=frame.contentWindow;d=frame.contentDocument||w.document}catch(e){setState('Falha ao acessar a versão de teste.');return false}
+ if(!d||!d.documentElement)return false;
+ addScript(d,'hlgbAuditorSmart9360Script','./release-auditor-smart-v9360.js?fresh='+Date.now(),()=>{
+  addScript(d,'hlgbAuditorUiCompat9361Script','./release-auditor-ui-compat-v9361.js?fresh='+Date.now(),()=>{injected=true;setState('Auditor v93.60/93.61 carregado — TESTE')});
+ });
+ return true;
+}
+function legacyAuditorReady(w,d){
+ return !!(d?.getElementById('loginScreen')||d?.getElementById('appShell'))
+  && !!w?.hlgbInternalAuditor
+  && !!w?.hlgbAuditorBlackbox9299
+  && !!w?.hlgbOperationalAuditor9314;
+}
+function waitForApp(){
+ tries++;
+ try{
+  const w=frame.contentWindow,d=frame.contentDocument||w?.document;
+  if(legacyAuditorReady(w,d)){setState('Sistema carregado. Ativando Auditor v93.60…');setTimeout(inject,250);return}
+ }catch(e){}
+ if(tries<240)setTimeout(waitForApp,250);else setState('Sistema carregou, mas os módulos-base do Auditor não ficaram prontos.')
+}
+frame.addEventListener('load',()=>{setState('Sistema carregado. Aguardando módulos-base…');setTimeout(waitForApp,300)});
+setTimeout(waitForApp,900);
+})();
+</script>
+</body>
+</html>
