@@ -1,9 +1,9 @@
 /* HLGB v92.50 — histórico e custos de cortadores */
 (function(){
 'use strict';
-const V='2026.10.03-cutter-history-v9252';
+const V='2026.10.16-cutter-history-v9377';
 const sid=v=>String(v??''),q=v=>Math.max(0,Number(v)||0),today=()=>{const d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0')},norm=v=>sid(v).normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().trim().replace(/\s+/g,' ');
-const escSafe=v=>typeof esc==='function'?esc(v):sid(v).replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+const escSafe=v=>typeof esc==='function'?esc(v):sid(v).replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot',"'":'&#39;'}[m]));
 const moneySafe=v=>typeof money==='function'?money(v):Number(v||0).toLocaleString('pt-BR',{style:'currency',currency:'BRL'});
 function arr(n){try{return Array.isArray(db?.[n])?db[n]:[]}catch(e){return []}}
 function productName(c){
@@ -14,6 +14,20 @@ function productName(c){
 }
 function period(){try{if(typeof cutterPeriod==='function'){const r=cutterPeriod();return {s:r.start||'',e:r.end||''}}}catch(e){}return {s:document.getElementById('cutterPeriodStart')?.value||'',e:document.getElementById('cutterPeriodEnd')?.value||''}}
 function inside(d,s,e){d=sid(d).slice(0,10);return (!s||!d||d>=s)&&(!e||!d||d<=e)}
+function localDate9250(d=new Date()){return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0')}
+function quickBounds(mode){
+ const now=new Date(),end=localDate9250(now),start=new Date(now);
+ if(mode==='today')return {s:end,e:end};
+ if(mode==='week'){start.setDate(now.getDate()-((now.getDay()+6)%7));return {s:localDate9250(start),e:end};}
+ if(mode==='month'){start.setDate(1);return {s:localDate9250(start),e:end};}
+ return {s:'',e:''};
+}
+function applyQuickPeriod(mode){
+ const {s,e}=quickBounds(mode),a=document.getElementById('cutterPeriodStart'),b=document.getElementById('cutterPeriodEnd');
+ if(a)a.value=s;if(b)b.value=e;
+ try{if(typeof renderCutters==='function')renderCutters()}catch(_){render()}
+ render();
+}
 function unitCost(c,cut,pieces){
  const direct=q(cut?.cutPieceRate||cut?.pieceRate||cut?.unitCutCost);if(direct>0)return direct;
  const p=arr('products').find(x=>sid(x.id)===sid(cut?.productId)),pc=q(p?.cutCost);if(pc>0)return pc;
@@ -28,20 +42,27 @@ function materialInfo(cut,p,qty){
 function ensure(){
  const page=document.getElementById('cortadores');if(!page||document.getElementById('cutterHistory9250'))return;
  const p=document.createElement('div');p.id='cutterHistory9250';p.className='panel';
- p.innerHTML='<h2>📚 Histórico detalhado de cortadores</h2><div class="sub">Planejado x realizado, falta, custo e materiais por corte/modelo. Usa os mesmos filtros de período acima.</div><div class="toolbar"><button class="secondary" onclick="exportCutterHistory9250()">⬇️ Exportar CSV</button></div><div id="cutterHistoryCards9250" class="cards"></div><div id="cutterQuickPeriod9250" style="margin:12px 0"></div><div id="cutterHistoryTable9250" style="overflow:auto"></div>';
- page.appendChild(p);render();
+ p.innerHTML='<h2>📚 Histórico detalhado de cortadores</h2><div class="sub">Planejado x realizado, falta, custo e materiais por corte/modelo. Usa os mesmos filtros De/Até da tela.</div><div class="toolbar" style="align-items:flex-end;flex-wrap:wrap;margin-top:10px"><button class="secondary" onclick="hlgbCutterQuickPeriod9250(\'today\')">Hoje</button><button class="secondary" onclick="hlgbCutterQuickPeriod9250(\'week\')">Esta semana</button><button class="secondary" onclick="hlgbCutterQuickPeriod9250(\'month\')">Este mês</button><button class="secondary" onclick="hlgbCutterQuickPeriod9250(\'all\')">Todo período</button><div class="field"><label>Cortador</label><select id="hlgbCutterFilter9250"><option value="">Todos</option></select></div><div class="field"><label>Ordenar</label><select id="hlgbCutterSort9250"><option value="date_desc">Mais recente</option><option value="cutter_az">Cortador A–Z</option><option value="done_desc">Maior realizado</option><option value="cost_desc">Maior custo</option><option value="missing_desc">Maior falta</option></select></div><button class="secondary" onclick="exportCutterHistory9250()">⬇️ Exportar CSV</button></div><div id="cutterHistoryCards9250" class="cards"></div><div id="cutterQuickPeriod9250" style="margin:12px 0"></div><div id="cutterHistoryTable9250" style="overflow:auto"></div>';
+ page.appendChild(p);
+ const f=document.getElementById('hlgbCutterFilter9250'),s=document.getElementById('hlgbCutterSort9250');
+ if(f)f.onchange=render;if(s)s.onchange=render;
+ refreshCutterOptions();render();
+}
+function refreshCutterOptions(){
+ const el=document.getElementById('hlgbCutterFilter9250');if(!el)return;const cur=el.value;
+ const opts=arr('cutters').slice().sort((a,b)=>sid(a.name).localeCompare(sid(b.name),'pt-BR')).map(c=>'<option value="'+escSafe(c.id)+'">'+escSafe(c.name||'Cortador')+'</option>').join('');
+ el.innerHTML='<option value="">Todos</option>'+opts;if([...el.options].some(o=>o.value===cur))el.value=cur;
 }
 function dataset(){
- const {s,e}=period(),cuts=arr('cuts').filter(x=>inside(x.finishedAt||x.date,s,e)),out=[];
+ const {s,e}=period(),filterId=document.getElementById('hlgbCutterFilter9250')?.value||'',sort=document.getElementById('hlgbCutterSort9250')?.value||'date_desc',cuts=arr('cuts').filter(x=>inside(x.finishedAt||x.date,s,e)&&(!filterId||sid(x.cutterId)===sid(filterId))),out=[];
  for(const cut of cuts){
    const c=arr('cutters').find(x=>sid(x.id)===sid(cut.cutterId)),p=arr('products').find(x=>sid(x.id)===sid(cut.productId)),pl=q(cut.plannedPieces||cut.pieces),dn=/finalizado/i.test(sid(cut.status))?q(cut.pieces):q(cut.done||0),missing=Math.max(0,pl-dn);
    const pieces=c?cuts.filter(x=>sid(x.cutterId)===sid(c.id)&&/finalizado/i.test(sid(x.status))).reduce((a,x)=>a+q(x.pieces),0):0,unit=c?unitCost(c,cut,pieces):0,mi=materialInfo(cut,p,dn),o=arr('orders').find(x=>sid(x.id)===sid(cut.orderId));
    out.push({cut,c,p,o,planned:pl,done:dn,missing,unit,total:unit*dn,pred:mi.pred.map(x=>x.name+': '+Number(x.qty.toFixed(3))+' '+x.unit).join(' · ')||'-',act:mi.act.length?mi.act.map(x=>(x.name||'Material')+': '+q(x.qty||x.used)+' '+(x.unit||'')).join(' · '):'Não informado'});
  }
- return out;
+ const cmp={cutter_az:(a,b)=>sid(a.c?.name).localeCompare(sid(b.c?.name),'pt-BR'),done_desc:(a,b)=>b.done-a.done,cost_desc:(a,b)=>b.total-a.total,missing_desc:(a,b)=>b.missing-a.missing,date_desc:(a,b)=>sid(b.cut.finishedAt||b.cut.date).localeCompare(sid(a.cut.finishedAt||a.cut.date))}[sort];
+ return out.sort(cmp||(()=>0));
 }
-
-function localDate9250(d=new Date()){return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0')}
 function quickPeriodRows9250(){
  const now=new Date(),todayKey=localDate9250(now),startWeek=new Date(now);startWeek.setDate(now.getDate()-((now.getDay()+6)%7));const weekKey=localDate9250(startWeek),monthKey=todayKey.slice(0,7);
  return arr('cutters').map(c=>{
@@ -51,13 +72,13 @@ function quickPeriodRows9250(){
    return [c.name||'Cortador',d,w,m];
  });
 }
-
 function render(){
+ refreshCutterOptions();
  const cards=document.getElementById('cutterHistoryCards9250'),tbl=document.getElementById('cutterHistoryTable9250'),quick=document.getElementById('cutterQuickPeriod9250');if(!cards||!tbl)return;const d=dataset(),planned=d.reduce((a,x)=>a+x.planned,0),done=d.reduce((a,x)=>a+x.done,0),cost=d.reduce((a,x)=>a+x.total,0);
  cards.innerHTML='<div class="card"><small>Planejado</small><strong>'+planned.toLocaleString('pt-BR')+'</strong></div><div class="card"><small>Realizado</small><strong>'+done.toLocaleString('pt-BR')+'</strong></div><div class="card"><small>Falta</small><strong>'+Math.max(0,planned-done).toLocaleString('pt-BR')+'</strong></div><div class="card"><small>Custo do período</small><strong>'+moneySafe(cost)+'</strong></div>';
  if(quick){const qr=quickPeriodRows9250();quick.innerHTML='<h3>Produção rápida por cortador</h3>'+(qr.length?table(['Cortador','Hoje','Esta semana','Este mês'],qr.map(x=>[escSafe(x[0]),x[1].toLocaleString('pt-BR'),x[2].toLocaleString('pt-BR'),x[3].toLocaleString('pt-BR')])):'<div class="empty">Sem produção.</div>')}
  const rs=d.map(x=>[escSafe(x.c?.name||'Sem cortador'),escSafe(x.c?.cutType||'-'),escSafe(x.cut.finishedAt||x.cut.date||'-'),x.o?'#'+escSafe(typeof displayOrderNumber==='function'?displayOrderNumber(x.o):x.o.id):'-',escSafe(productName(x.cut)),x.planned.toLocaleString('pt-BR'),x.done.toLocaleString('pt-BR'),x.missing.toLocaleString('pt-BR'),moneySafe(x.unit),moneySafe(x.total),escSafe(x.pred),escSafe(x.act)]);
- tbl.innerHTML=rs.length?table(['Cortador','Tipo','Data','Pedido','Modelo','Planejado','Realizado','Falta','Custo/peça','Custo total','Material previsto','Material realizado'],rs):'<div class="empty">Nenhum corte no período.</div>';
+ tbl.innerHTML=rs.length?table(['Cortador','Tipo','Data','Pedido','Modelo','Planejado','Realizado','Falta','Custo/peça','Custo total','Material previsto','Material realizado'],rs):'<div class="empty">Nenhum corte no período/filtro selecionado.</div>';
 }
 function installCleanup(){
  const base=window.renderCutterProductCosts;if(typeof base!=='function'||base.__clean9250)return;
@@ -78,9 +99,10 @@ window.exportCutterHistory9250=function(){
  for(const x of d)lines.push([x.c?.name||'Sem cortador',x.c?.cutType||'',x.cut.finishedAt||x.cut.date||'',x.o?(typeof displayOrderNumber==='function'?displayOrderNumber(x.o):x.o.id):'',productName(x.cut),x.planned,x.done,x.missing,x.unit,x.total].map(v=>'"'+sid(v).replace(/"/g,'""')+'"').join(';'));
  const blob=new Blob([lines.join('\n')],{type:'text/csv;charset=utf-8'}),a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='HLGB-HISTORICO-CORTADORES-'+today()+'.csv';a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000);
 };
+window.hlgbCutterQuickPeriod9250=applyQuickPeriod;
 function boot(){ensure();installCleanup();render()}
 setTimeout(boot,1800);setInterval(ensure,4000);
 window.renderCutterHistory9250=render;
-window.hlgbCutterHistory9250={dataset,productName,render};
+window.hlgbCutterHistory9250={dataset,productName,render,applyQuickPeriod};
 console.info('[HLGB] '+V+' ativo');
 })();
