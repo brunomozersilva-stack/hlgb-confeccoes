@@ -61,10 +61,11 @@ function installSingleEntry(){
 }
 try{
  await waitReady();
+ if(!window.HLGB_RUNTIME_PERFORMANCE_9371)await load('release-runtime-performance-v9371.js');
  if(!window.HLGB_AUDITOR_SMART_9360)await load('release-auditor-smart-v9360.js');
  if(!window.HLGB_AUDITOR_SAFARI_DOWNLOAD_9368)await load('release-auditor-safari-download-v9368.js');
  if(!window.HLGB_AUDITOR_RUNTIME_FIX_9370)await load('release-auditor-runtime-fix-v9370.js');
- if(!window.HLGB_RUNTIME_PERFORMANCE_9371)await load('release-runtime-performance-v9371.js');
+ window.hlgbRuntimePerformance9371?.installClassifier?.();
  installLegacyHideCss();installSingleEntry();
  const safety={recordSave:before.recordSave===window.hlgbRecordSaveWithRetry,cloudRequest:before.cloudRequest===window.cloudRequest,setInterval:before.setInterval===window.setInterval,setTimeout:before.setTimeout===window.setTimeout};
  if(Object.values(safety).some(x=>!x))throw new Error('Ativação interrompida: função crítica mudou.');
