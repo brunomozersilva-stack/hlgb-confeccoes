@@ -2,7 +2,7 @@
 (function(){
 'use strict';
 const V='93.15',sid=v=>String(v??''),clone=v=>{try{return JSON.parse(JSON.stringify(v))}catch(e){return v}},wait=ms=>new Promise(r=>setTimeout(r,ms));
-let lastFullAudit=null,lastCriticalAudit=null;
+let lastFullAudit=null,lastCriticalAudit=null,maintainTimer=null;
 function norm(v){return sid(v).normalize('NFD').replace(/[\u0300-\u036f]/g,'').trim().toLowerCase()}
 function openIssues(){try{return (Array.isArray(db?.systemIssues)?db.systemIssues:[]).filter(x=>norm(x?.status)!=='resolvido')}catch(e){return []}}
 function seriousIssues(){return openIssues().filter(x=>['alta','critica'].includes(norm(x?.priority)))}
@@ -47,6 +47,7 @@ function reconcileAuditorSummary(){
 }
 function insertAfter(ref,node){ref?.parentElement?.insertBefore(node,ref.nextSibling)}
 function addAuditorButtons(){
+ if(window.HLGB_AUDITOR_SMART_9360)return false;
  const box=auditorBox();if(!box)return false;const root=box.closest('.modal,.overlay,.panel')||box.parentElement;if(!root)return false;const buttons=[...root.querySelectorAll('button')];
  if(!root.querySelector('#hlgbAuditFull9315')){const anchor=buttons[0]||box,b=document.createElement('button');b.id='hlgbAuditFull9315';b.type='button';b.className='primary';b.textContent='✅ Auditoria completa';b.onclick=async()=>{b.disabled=true;const old=b.textContent;b.textContent='⏳ Auditando…';try{if(typeof window.hlgbAuditorRunFull==='function')lastFullAudit=await window.hlgbAuditorRunFull();else throw new Error('Auditoria completa indisponível.');reconcileAuditorSummary()}catch(e){alert(String(e?.message||e))}finally{b.disabled=false;b.textContent=old}};anchor.parentElement?.insertBefore(b,anchor)}
  if(!root.querySelector('#hlgbAuditCritical9315')){const anchor=root.querySelector('#hlgbAuditFull9315'),b=document.createElement('button');b.id='hlgbAuditCritical9315';b.type='button';b.className='primary';b.textContent='🧪 Teste crítico local';b.onclick=async()=>{b.disabled=true;const old=b.textContent;b.textContent='⏳ Testando…';try{const report=await buildCriticalReport(true);reconcileAuditorSummary();const f=report?.critical?.operational?.summary?.fail||0;if(f)alert(`Teste crítico encontrou ${f} falha(s). Veja Saúde operacional.`)}catch(e){alert(String(e?.message||e))}finally{b.disabled=false;b.textContent=old}};insertAfter(anchor,b)}
@@ -58,7 +59,8 @@ async function cloudTombstone(id){try{const s=window.hlgbRecordSnapshots?.hubFin
 async function robustDeleteHub(id){const list=Array.isArray(db?.hubFinanceEntries)?db.hubFinanceEntries:[],row=list.find(x=>sid(x?.id??x?.__hlgbId)===sid(id));if(!row)return false;if(!confirm('Excluir este lançamento do Hub Financeiro?'))return false;const payload={...clone(row),__hlgb_explicit_delete:true,updatedAt:new Date().toISOString()};try{if(typeof window.cloudEnsureFreshSession==='function')await window.cloudEnsureFreshSession(false);if(typeof window.hlgbRecordSaveWithRetry!=='function')throw new Error('Gravação multiusuário indisponível.');const out=await window.hlgbRecordSaveWithRetry('hubFinanceEntries',sid(id),payload,true);let confirmed=!!(out?.applied===true&&out?.deleted_at);if(!confirmed&&out?.applied===true){for(let i=0;i<3&&!confirmed;i++){await wait(350*(i+1));confirmed=await cloudTombstone(id)}}if(!confirmed)throw new Error('A nuvem não confirmou a exclusão do lançamento.');db.hubFinanceEntries=list.filter(x=>sid(x?.id??x?.__hlgbId)!==sid(id));try{localSaveOnly?.()}catch(e){};try{window.hlgbHubPurgeTombstones?.()}catch(e){};try{window.renderHubFinance?.()}catch(e){};try{setCloudStatus('✅ Lançamento excluído e confirmado na nuvem','ok')}catch(e){};return true}catch(e){console.error('[HLGB v'+V+'] exclusão Hub',e);alert('A exclusão não foi confirmada na nuvem. O lançamento foi mantido.\n\n'+String(e?.message||e));try{window.renderHubFinance?.()}catch(_){}return false}}
 function installHubDelete(){const old=window.deleteHubFinanceEntry;if(typeof old!=='function'||old.__hlgb9315)return false;robustDeleteHub.__hlgb9315=true;robustDeleteHub.__original=old;window.deleteHubFinanceEntry=robustDeleteHub;return true}
 function wrapAudit(name){const f=window[name];if(typeof f!=='function'||f.__hlgb9315)return;const w=async function(){const r=await f.apply(this,arguments);if(name==='hlgbAuditorRunFull')lastFullAudit=r;setTimeout(()=>{addAuditorButtons();reconcileAuditorSummary()},30);return r};w.__hlgb9315=true;w.__original=f;window[name]=w}
-function install(){installHubDelete();wrapAudit('hlgbAuditorRunFull');wrapAudit('hlgbAuditorRunVisualSweep');addAuditorButtons()}
-window.hlgbAuditorHubReliability9315={version:V,install,openIssues,seriousIssues,cloudTombstone,robustDeleteHub,reconcileAuditorSummary,buildFullReport,buildCriticalReport,downloadJson};
-if(typeof window.hlgbAfterLogin==='function')window.hlgbAfterLogin(()=>{setTimeout(install,500);setInterval(install,2500)},0);else{setTimeout(install,1200);setInterval(install,2500)}
+function stopMaintenance(){if(maintainTimer){clearInterval(maintainTimer);maintainTimer=null}}
+function install(){installHubDelete();if(window.HLGB_AUDITOR_SMART_9360){stopMaintenance();return true}wrapAudit('hlgbAuditorRunFull');wrapAudit('hlgbAuditorRunVisualSweep');addAuditorButtons();return true}
+window.hlgbAuditorHubReliability9315={version:V,install,openIssues,seriousIssues,cloudTombstone,robustDeleteHub,reconcileAuditorSummary,buildFullReport,buildCriticalReport,downloadJson,stopMaintenance};
+if(typeof window.hlgbAfterLogin==='function')window.hlgbAfterLogin(()=>{setTimeout(install,500);maintainTimer=setInterval(install,2500)},0);else{setTimeout(install,1200);maintainTimer=setInterval(install,2500)}
 })();

@@ -4,6 +4,7 @@
 const V='93.28';
 if(window.hlgbOperationalAuditor9314?.version===V)return;
 const sid=v=>String(v??''),now=()=>new Date().toISOString();
+let maintainTimer=null;
 function read(k,f=null){try{const x=JSON.parse(localStorage.getItem(k)||'null');return x??f}catch(e){return f}}
 function pendingCounts(){
  const p=read('hlgb_records_pending_v91',null),w=read('hlgb_durable_wal_v1',null),keys=new Set(),normalizedKeys=new Set(),walKeys=new Set();
@@ -65,7 +66,8 @@ function visualCheck(out,name){
  return [check('operational:visual-sweep-not-run','warn','Varredura visual não executada','Nenhuma página foi testada nesta varredura visual; pagesChecked=0 é NÃO TESTADO, não aprovação.',{pagesChecked:0,tested:false})];
 }
 function wrap(name){const f=window[name];if(typeof f!=='function'||f.__hlgbOperational9314)return false;const w=async function(){const out=await f.apply(this,arguments);try{const op=run(visualCheck(out,name));mergeSummary(out,op);replaceResult(out,op)}catch(e){console.warn('[HLGB '+V+'] auditor operacional',e)}return out};w.__hlgbOperational9314=true;w.__original=f;window[name]=w;return true}
-function install(){wrap('hlgbAuditorRunFull');wrap('hlgbAuditorRunVisualSweep');return true}
-function boot(){install();setTimeout(install,800);setInterval(install,2500);window.hlgbOperationalAuditor9314={version:V,run,install,pending:pendingCounts,savingControls};console.info('[HLGB] v'+V+' auditor operacional consolidado ativo')}
+function stopMaintenance(){if(maintainTimer){clearInterval(maintainTimer);maintainTimer=null}}
+function install(){if(window.HLGB_AUDITOR_SMART_9360){stopMaintenance();return true}wrap('hlgbAuditorRunFull');wrap('hlgbAuditorRunVisualSweep');return true}
+function boot(){install();setTimeout(install,800);maintainTimer=setInterval(install,2500);window.hlgbOperationalAuditor9314={version:V,run,install,pending:pendingCounts,savingControls,stopMaintenance};console.info('[HLGB] v'+V+' auditor operacional consolidado ativo')}
 if(typeof window.hlgbAfterLogin==='function')window.hlgbAfterLogin(()=>setTimeout(boot,500),0);else setTimeout(boot,1200);
 })();
