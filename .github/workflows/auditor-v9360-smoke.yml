@@ -4,6 +4,7 @@ on:
     branches:
       - feat/auditor-smart-v9360
       - fix/auditor-runtime-events-v9370
+      - fix/runtime-render-save-v9371
   workflow_dispatch:
 jobs:
   smoke:
@@ -24,7 +25,11 @@ jobs:
         run: node --check release-auditor-safari-download-v9368.js
       - name: Sintaxe runtime fix v93.70
         run: node --check release-auditor-runtime-fix-v9370.js
-      - name: Sintaxe produção v93.70
+      - name: Sintaxe runtime performance v93.71
+        run: node --check release-runtime-performance-v9371.js
+      - name: Sintaxe saúde matéria-prima
+        run: node --check release-material-health-v9260.js
+      - name: Sintaxe produção v93.71
         run: node --check release-auditor-production-v9369.js
       - name: Sintaxe loader v93.65
         run: node --check auditor-test-loader-v9365.js
@@ -75,3 +80,5 @@ jobs:
         run: node tests/auditor-v9368-loader-webkit.js
       - name: Linha do tempo v93.70 WebKit
         run: node tests/auditor-v9370-events-webkit.js
+      - name: Correções runtime v93.71 WebKit
+        run: node tests/runtime-v9371-webkit.js
