@@ -1,7 +1,10 @@
-/* HLGB v93.06 — guarda de convergência contra mutação automática de Produção */
+/* HLGB v93.06 — guarda de convergência contra mutação automática de Produção
+   Patch 2026-10-15: evita concorrência de leitura com a autoridade principal de sync. */
 (function(){
 'use strict';
 const V='93.06';
+const PATCH='2026-10-15-cloud-contention';
+const AUTHORITY_MIN_MS=60000;
 if(window.HLGB_SYNC_GUARD_9306)return;
 window.HLGB_SYNC_GUARD_9306=V;
 const PENDING_KEY='hlgb_records_pending_v91';
@@ -10,6 +13,7 @@ const LEGACY_KEY='hlgb_core_pending_v1';
 const QUAR_KEY='hlgb_sync_quarantine_v9306';
 const IDB='hlgb_durable_wal',STORE='entries';
 let authority=new Map(),refreshing=false,guarded=0,lastRefresh='',lastRepair='',lastIds=[];
+let lastAuthorityAttempt=0,skippedPrimaryBusy=0,skippedThrottle=0;
 const clone=v=>{try{return structuredClone(v)}catch(e){try{return JSON.parse(JSON.stringify(v))}catch(_){return v}}};
 const sid=v=>String(v??'');
 const num=v=>{const n=Number(v);return Number.isFinite(n)?n:0};
@@ -22,6 +26,13 @@ function cloudReq(){try{if(typeof cloudRequest==='function')return cloudRequest}
 function localSave(){try{const f=typeof localSaveOnly==='function'?localSaveOnly:window.localSaveOnly;if(typeof f==='function')f()}catch(e){}}
 function recId(row,i){try{const f=typeof hlgbRecordId==='function'?hlgbRecordId:window.hlgbRecordId;if(typeof f==='function')return sid(f('production',row,i))}catch(e){}return sid(row?.id??row?.__hlgbId)}
 function editing(){if(document.querySelector('#modal.show'))return true;const a=document.activeElement;return !!(a&&/^(INPUT|TEXTAREA|SELECT)$/i.test(a.tagName)&&a.closest?.('#appShell'))}
+function primarySyncBusy(){
+ try{
+  const api=window.hlgbSyncRecovery9301;
+  if(!api||typeof api.status!=='function')return false;
+  return !!api.status()?.busy;
+ }catch(e){return false}
+}
 function linked(d){return !!(d&&(d.cutQuantityLinkedV9246===true||d.cutEffectiveQtyV9246===true||d.cutEffectiveQtyV9240===true||String(d.cutQuantityLinkedV9246).toLowerCase()==='true'||String(d.cutEffectiveQtyV9246).toLowerCase()==='true'||String(d.cutEffectiveQtyV9240).toLowerCase()==='true'))}
 function explicitZero(d){return !!(d&&['true','1','yes'].includes(String(d.__hlgb_allow_planned_zero??'').toLowerCase()))}
 function suspicious(id,d){const g=authority.get(sid(id));return !!(g&&g.data&&num(g.data.planned)>0&&num(d?.planned)===0&&linked(d)&&!explicitZero(d))}
@@ -54,15 +65,34 @@ async function repair(reason='guard'){
  if(ids.size){guarded+=changed;lastRepair=new Date().toISOString();lastIds=[...ids];purgePending(ids,reason);await purgeIdb(ids,reason);localSave();try{if(document.querySelector('#producao.page.active')&&typeof window.renderProduction==='function')window.renderProduction()}catch(e){};try{if(document.querySelector('#capacidadeProducao.page.active')&&typeof window.renderCapacityPlanning==='function')window.renderCapacityPlanning()}catch(e){}}
  return changed;
 }
-async function refreshAuthority(reason='periodic'){
- if(refreshing||!navigator.onLine||editing())return false;const f=cloudReq();if(typeof f!=='function')return false;refreshing=true;
+async function refreshAuthority(reason='periodic',force=false){
+ if(refreshing||!navigator.onLine||editing())return false;
+ if(primarySyncBusy()){skippedPrimaryBusy++;return false}
+ const now=Date.now();
+ if(!force&&lastAuthorityAttempt&&now-lastAuthorityAttempt<AUTHORITY_MIN_MS){skippedThrottle++;return false}
+ const f=cloudReq();if(typeof f!=='function')return false;
+ refreshing=true;lastAuthorityAttempt=now;
  try{const rows=await f('hlgb_records?select=entity_id,data,revision,updated_at,deleted_at,updated_by&module=eq.production&deleted_at=is.null&limit=1000',{method:'GET'});if(!Array.isArray(rows))return false;const next=new Map();for(const r of rows){if(!r||r.entity_id==null||!r.data||typeof r.data!=='object')continue;next.set(sid(r.entity_id),{data:clone(r.data),revision:num(r.revision)||1,updated_at:r.updated_at||'',deleted_at:r.deleted_at||null,updated_by:r.updated_by||null})}if(next.size){authority=next;lastRefresh=new Date().toISOString();await repair('authority-'+reason);return true}return false}catch(e){console.warn('[HLGB sync guard '+V+'] autoridade',e);return false}finally{refreshing=false}}
 function faux(id){const g=authority.get(sid(id));return g?{applied:true,hlgbNoop:true,data:clone(g.data),revision:g.revision,updated_at:g.updated_at,deleted_at:g.deleted_at,updated_by:g.updated_by}:null}
 function installSaveGuard(){
  const f=window.hlgbRecordSaveWithRetry;if(typeof f==='function'&&!chainHasMarker(f,'__hlgb9306')){const had955=chainHasMarker(f,'__hlgb955Wrapped');const w=async function(m,id,data,deleted=false){if(!deleted&&m==='production'&&suspicious(id,data)){await repair('save-block');return faux(id)}const out=await f.apply(this,arguments);if(m==='production'&&out?.applied===true&&out?.data&&num(out.data.planned)>0){authority.set(sid(id),{data:clone(out.data),revision:num(out.revision)||1,updated_at:out.updated_at||'',deleted_at:out.deleted_at||null,updated_by:out.updated_by||null})}return out};w.__hlgb9306=true;w.__hlgb9306Original=f;w.__original=f;if(had955)w.__hlgb955Wrapped=true;window.hlgbRecordSaveWithRetry=w}
  const r=window.hlgb955ReliableSave;if(typeof r==='function'&&!chainHasMarker(r,'__hlgb9306')){const w=async function(m,id,data,deleted=false){if(!deleted&&m==='production'&&suspicious(id,data)){await repair('reliable-save-block');return faux(id)}return r.apply(this,arguments)};w.__hlgb9306=true;w.__hlgb9306Original=r;w.__original=r;window.hlgb955ReliableSave=w}
 }
-function status(){return {version:V,authority:authority.size,guarded,lastRefresh,lastRepair,lastIds,online:navigator.onLine}}
-async function boot(){installSaveGuard();await refreshAuthority('boot');await repair('boot');let fast=0;const iv=setInterval(async()=>{installSaveGuard();await repair('settle');if(++fast>=40)clearInterval(iv)},300);setInterval(()=>{installSaveGuard();repair('watch').catch(()=>{})},1800);setInterval(()=>refreshAuthority('periodic').catch(()=>{}),12000);window.addEventListener('focus',()=>setTimeout(()=>refreshAuthority('focus'),100));window.addEventListener('online',()=>setTimeout(()=>refreshAuthority('online'),150));document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')setTimeout(()=>refreshAuthority('visible'),100)});try{const n=Number(window.HLGB_RELEASE_VERSION)||0;if(n<93.06){window.HLGB_RELEASE_VERSION=V;const l=document.querySelector('#appShell .logo small');if(l)l.textContent='v'+V}}catch(e){}window.hlgbSyncGuard9306={version:V,status,refreshAuthority,repair};console.info('[HLGB] v'+V+' guarda de convergência ativa');}
+function status(){return {version:V,patch:PATCH,authority:authority.size,guarded,lastRefresh,lastRepair,lastIds,online:navigator.onLine,cloudPolicy:{authorityMinMs:AUTHORITY_MIN_MS,lastAuthorityAttempt,skippedPrimaryBusy,skippedThrottle,refreshing}}}
+function scheduleAuthority(reason,delay=2500,force=false){setTimeout(()=>refreshAuthority(reason,force).catch(()=>{}),delay)}
+async function boot(){
+ installSaveGuard();
+ await repair('boot');
+ scheduleAuthority('boot',3500,true);
+ let fast=0;const iv=setInterval(async()=>{installSaveGuard();await repair('settle');if(++fast>=40)clearInterval(iv)},300);
+ setInterval(()=>{installSaveGuard();repair('watch').catch(()=>{})},1800);
+ setInterval(()=>refreshAuthority('periodic',false).catch(()=>{}),AUTHORITY_MIN_MS);
+ window.addEventListener('focus',()=>scheduleAuthority('focus',2500,false));
+ window.addEventListener('online',()=>scheduleAuthority('online',3000,false));
+ document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')scheduleAuthority('visible',2500,false)});
+ try{const n=Number(window.HLGB_RELEASE_VERSION)||0;if(n<93.06){window.HLGB_RELEASE_VERSION=V;const l=document.querySelector('#appShell .logo small');if(l)l.textContent='v'+V}}catch(e){}
+ window.hlgbSyncGuard9306={version:V,patch:PATCH,status,refreshAuthority,repair};
+ console.info('[HLGB] v'+V+' guarda de convergência ativa · '+PATCH);
+}
 if(typeof window.hlgbAfterLogin==='function')window.hlgbAfterLogin(()=>setTimeout(boot,250),0);else setTimeout(boot,900);
 })();
