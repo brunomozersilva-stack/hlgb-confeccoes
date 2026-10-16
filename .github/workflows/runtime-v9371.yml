@@ -23,7 +23,14 @@ jobs:
         run: |
           npm install --no-save playwright@1.55.0
           npx playwright install --with-deps webkit
+      - name: Iniciar servidor local
+        run: |
+          python3 -m http.server 4173 >/tmp/hlgb-runtime-http.log 2>&1 &
+          echo $! >/tmp/hlgb-runtime-http.pid
+          sleep 2
       - name: Correções runtime v93.71 WebKit
         run: node tests/runtime-v9371-webkit.js
       - name: Matéria-prima sem rerender desnecessário
         run: node tests/material-health-v9371-webkit.js
+      - name: Integração produção v93.71 WebKit
+        run: node tests/production-v9371-webkit.js
