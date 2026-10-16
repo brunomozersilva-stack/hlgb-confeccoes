@@ -11,6 +11,8 @@ assert(!src.includes("setInterval(()=>refreshAuthority('periodic').catch(()=>{})
 assert(src.includes("window.addEventListener('focus',()=>scheduleAuthority('focus',2500,false))"),'focus deve ser espaçado');
 assert(src.includes("window.addEventListener('online',()=>scheduleAuthority('online',3000,false))"),'online deve ser espaçado');
 assert(src.includes("scheduleAuthority('visible',2500,false)"),'visibility deve ser espaçado');
+assert(src.includes('skippedPrimaryBusy'),'status deve expor skips por sync principal ocupado');
+assert(src.includes('skippedThrottle'),'status deve expor skips por throttle');
 
 // Proteções existentes não podem ser removidas pela correção de contenção.
 for(const required of [
