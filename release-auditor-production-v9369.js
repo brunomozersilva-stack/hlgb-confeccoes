@@ -1,9 +1,15 @@
 /* HLGB Auditor v93.69 — ativação de produção da versão aprovada no Safari */
 (async function(){
 'use strict';
-if(window.HLGB_AUDITOR_PRODUCTION_9369)return;
-window.HLGB_AUDITOR_PRODUCTION_9369=true;
+if(window.HLGB_AUDITOR_PRODUCTION_9369||window.HLGB_AUDITOR_PRODUCTION_9369_LOADING)return;
+window.HLGB_AUDITOR_PRODUCTION_9369_LOADING=true;
 const before={recordSave:window.hlgbRecordSaveWithRetry,cloudRequest:window.cloudRequest,setInterval:window.setInterval,setTimeout:window.setTimeout};
+function ready(){return !!window.hlgbInternalAuditor&&!!window.hlgbAuditorBlackbox9299&&!!window.hlgbOperationalAuditor9314}
+async function waitReady(){
+ const end=Date.now()+20000;
+ while(!ready()&&Date.now()<end)await new Promise(r=>setTimeout(r,250));
+ if(!ready())throw new Error('Módulos-base do Auditor ainda não ficaram prontos.');
+}
 function load(file){
  return new Promise((resolve,reject)=>{
   const s=document.createElement('script');
@@ -54,7 +60,7 @@ function installSingleEntry(){
  window.__hlgbAuditorEntryCapture9368=handler;
 }
 try{
- if(!window.hlgbInternalAuditor||!window.hlgbAuditorBlackbox9299||!window.hlgbOperationalAuditor9314)throw new Error('Módulos-base do Auditor indisponíveis.');
+ await waitReady();
  if(!window.HLGB_AUDITOR_SMART_9360)await load('release-auditor-smart-v9360.js');
  if(!window.HLGB_AUDITOR_SAFARI_DOWNLOAD_9368)await load('release-auditor-safari-download-v9368.js');
  installLegacyHideCss();installSingleEntry();
@@ -62,10 +68,14 @@ try{
  if(Object.values(safety).some(x=>!x))throw new Error('Ativação interrompida: função crítica mudou.');
  if(window.hlgbAuditorSmart?.version!=='93.63')throw new Error('Versão inesperada do Auditor inteligente.');
  if(window.hlgbAuditorSmart?.safariDownload?.authority!=='single-manual-download')throw new Error('Entrega manual Safari não ficou ativa.');
+ window.HLGB_AUDITOR_PRODUCTION_9369=true;
  window.hlgbAuditorProduction9369={version:'93.69',active:true,safety};
  console.info('[HLGB] Auditor de produção v93.69 ativo',safety);
 }catch(e){
+ window.HLGB_AUDITOR_PRODUCTION_9369=false;
  window.hlgbAuditorProduction9369={version:'93.69',active:false,error:String(e?.message||e)};
  console.error('[HLGB] Auditor de produção v93.69 não ativado',e);
+}finally{
+ window.HLGB_AUDITOR_PRODUCTION_9369_LOADING=false;
 }
 })();
