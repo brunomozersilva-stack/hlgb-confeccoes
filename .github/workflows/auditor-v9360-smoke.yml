@@ -5,6 +5,7 @@ on:
       - feat/auditor-smart-v9360
       - fix/auditor-runtime-events-v9370
       - fix/runtime-render-save-v9371
+      - fix/auditor-render-signal-v9372
   workflow_dispatch:
 jobs:
   smoke:
@@ -27,9 +28,11 @@ jobs:
         run: node --check release-auditor-runtime-fix-v9370.js
       - name: Sintaxe runtime performance v93.71
         run: node --check release-runtime-performance-v9371.js
+      - name: Sintaxe render signal v93.72
+        run: node --check release-auditor-render-signal-v9372.js
       - name: Sintaxe saúde matéria-prima
         run: node --check release-material-health-v9260.js
-      - name: Sintaxe produção v93.71
+      - name: Sintaxe produção v93.72
         run: node --check release-auditor-production-v9369.js
       - name: Sintaxe loader v93.65
         run: node --check auditor-test-loader-v9365.js
@@ -41,6 +44,8 @@ jobs:
         run: node --check auditor-test-loader-v9368.js
       - name: Loader v93.68 sem loops
         run: node tests/auditor-v9368-no-timer.js
+      - name: Sinal de render v93.72
+        run: node tests/auditor-v9372-render-signal.js
       - name: Smoke test Auditor
         run: node tests/auditor-v9360-smoke.js
       - name: Cenários críticos Auditor
