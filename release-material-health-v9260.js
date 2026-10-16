@@ -8,6 +8,7 @@ const norm=v=>sid(v).normalize('NFD').replace(/[\u0300-\u036f]/g,'').trim().toLo
 const esc=v=>sid(v).replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot',"'":'&#39;'}[m]));
 const money=v=>{try{return typeof window.money==='function'?window.money(v):Number(v||0).toLocaleString('pt-BR',{style:'currency',currency:'BRL'})}catch(e){return 'R$ '+Number(v||0).toFixed(2).replace('.',',')}};
 const arr=n=>{try{return Array.isArray(db?.[n])?db[n]:[]}catch(e){return []}};
+const setHtml=(el,html)=>{if(el&&el.innerHTML!==html)el.innerHTML=html};
 function today(){const d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0')}
 function outstanding(p){const total=q(p?.total),status=norm(p?.status);if(['pago','paga','quitado','quitada','realizado','realizada'].includes(status))return 0;const paid=q(p?.paid??p?.paidAmount??0);return Math.max(0,total-paid)}
 function due(p){const d=sid(p?.dueDate).slice(0,10);return /^\d{4}-\d{2}-\d{2}$/.test(d)?d:''}
@@ -28,7 +29,7 @@ function render(){
  const futureRows=Object.entries(future).sort((a,b)=>a[0].localeCompare(b[0])).map(([m,v])=>'<tr><td>'+esc(m)+'</td><td>'+money(v.notes)+'</td><td>'+money(v.manual)+'</td><td><b>'+money(v.notes+v.manual)+'</b></td></tr>').join('');
  const suppliers={};for(const x of monthNotes){const n=sid(x.p?.supplierName||'Sem fornecedor').trim()||'Sem fornecedor';suppliers[n]=(suppliers[n]||0)+x.remain}
  const supplierRows=Object.entries(suppliers).sort((a,b)=>b[1]-a[1]).map(([n,v])=>'<tr><td>'+esc(n)+'</td><td><b>'+money(v)+'</b></td></tr>').join('');
- host.innerHTML='<h3>🧾 Saúde da matéria-prima — tudo que ainda está aberto</h3><div class="sub">O total considera <b>notas de compra em aberto + lançamentos manuais de matéria-prima ainda previstos</b>. Lançamentos automáticos vinculados a uma nota são ignorados aqui para não contar a mesma compra duas vezes.</div>'+
+ const html='<h3>🧾 Saúde da matéria-prima — tudo que ainda está aberto</h3><div class="sub">O total considera <b>notas de compra em aberto + lançamentos manuais de matéria-prima ainda previstos</b>. Lançamentos automáticos vinculados a uma nota são ignorados aqui para não contar a mesma compra duas vezes.</div>'+
  '<div class="cards" style="margin-top:12px">'+
  '<div class="card"><small>Total aberto de matéria-prima</small><strong>'+money(grandTotal)+'</strong><div class="sub">Notas '+money(notesTotal)+' + manual '+money(manualTotal)+'</div></div>'+
  '<div class="card"><small>Aberto na semana '+esc(range.start)+' a '+esc(range.end)+'</small><strong>'+money(weekTotal)+'</strong><div class="sub">Notas '+money(sum(weekNotes))+' + manual '+money(sum(manualWeek,'value'))+'</div></div>'+
@@ -42,11 +43,12 @@ function render(){
  '<h3 style="margin-top:18px">Fornecedores com notas vencendo em '+esc(month)+'</h3>'+(supplierRows?'<div style="overflow:auto"><table><thead><tr><th>Fornecedor</th><th>Saldo a pagar no mês</th></tr></thead><tbody>'+supplierRows+'</tbody></table></div>':'<div class="empty">Nenhuma nota vence neste mês.</div>')+
  '<h3 style="margin-top:18px">📌 Parte lançada manualmente</h3><div class="sub">Esses valores continuam entrando no aberto porque foram usados enquanto o sistema ainda estava sendo implantado. Quando um lançamento vier automaticamente de uma nota de compra e estiver vinculado a ela, ele não entra novamente nesta parte.</div>'+
  '<div class="cards" style="margin-top:10px"><div class="card"><small>Manual total em aberto</small><strong>'+money(manualTotal)+'</strong><div class="sub">'+manual.length+' lançamento(s)</div></div><div class="card"><small>Manual na semana</small><strong>'+money(sum(manualWeek,'value'))+'</strong><div class="sub">'+manualWeek.length+' lançamento(s)</div></div><div class="card"><small>Manual em '+esc(month)+'</small><strong>'+money(sum(manualMonth,'value'))+'</strong><div class="sub">'+manualMonth.length+' lançamento(s)</div></div></div>';
- const cards=document.getElementById('supplierDebtCards9250');if(cards){let badge=document.getElementById('hlgbMaterialHealth9260');if(!badge){badge=document.createElement('div');badge.id='hlgbMaterialHealth9260';badge.className='panel';cards.insertAdjacentElement('afterend',badge)}badge.innerHTML='<b>Saúde da matéria-prima:</b> total aberto '+money(grandTotal)+' · '+esc(month)+' '+money(monthTotal)+' · semana '+money(weekTotal)+' · notas sem vencimento '+money(sum(noDue))+'.';}
+ setHtml(host,html);
+ const cards=document.getElementById('supplierDebtCards9250');if(cards){let badge=document.getElementById('hlgbMaterialHealth9260');if(!badge){badge=document.createElement('div');badge.id='hlgbMaterialHealth9260';badge.className='panel';cards.insertAdjacentElement('afterend',badge)}const badgeHtml='<b>Saúde da matéria-prima:</b> total aberto '+money(grandTotal)+' · '+esc(month)+' '+money(monthTotal)+' · semana '+money(weekTotal)+' · notas sem vencimento '+money(sum(noDue))+'.';setHtml(badge,badgeHtml);}
  return true;
 }
 function install(){render();const old=window.renderSupplierDebt9250;if(typeof old==='function'&&!old.__v9261){const w=function(){const r=old.apply(this,arguments);setTimeout(render,0);return r};w.__v9261=true;w.__original=old;window.renderSupplierDebt9250=w}const hub=window.renderHubFinance;if(typeof hub==='function'&&!hub.__material9261){const w=function(){const r=hub.apply(this,arguments);setTimeout(render,30);return r};w.__material9261=true;w.__original=hub;window.renderHubFinance=w}}
-setTimeout(install,1300);setInterval(()=>{if(document.getElementById('supplierDebtEvolution9250'))render()},5000);
+setTimeout(install,1300);setInterval(()=>{if(document.querySelector('.page.active')?.id==='hubFinanceiro'&&document.getElementById('supplierDebtEvolution9250'))render()},15000);
 try{if(typeof hlgbAfterLogin==='function')hlgbAfterLogin(()=>setTimeout(install,450),0)}catch(e){}
 window.hlgbMaterialHealth9260={outstanding,due,openNotes,manualMaterialRows,isAutoPurchaseEntry,render};
 try{const cur=Number(window.HLGB_RELEASE_VERSION)||0;if(cur<=92.61){window.HLGB_RELEASE_VERSION=V;const l=document.querySelector('#appShell .logo small');if(l)l.textContent='v'+V}}catch(e){}
