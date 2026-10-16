@@ -25,3 +25,5 @@ jobs:
           npx playwright install --with-deps webkit
       - name: Correções runtime v93.71 WebKit
         run: node tests/runtime-v9371-webkit.js
+      - name: Matéria-prima sem rerender desnecessário
+        run: node tests/material-health-v9371-webkit.js
