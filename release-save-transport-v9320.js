@@ -2,7 +2,8 @@
 (function(){
 'use strict';
 const V='93.20';
-const REALTIME_SINGLETON_PATCH='93.74';
+const REALTIME_SINGLETON_PATCH='93.76';
+const REALTIME_STORAGE_KEY='hlgb-realtime-nonpersistent-v9376';
 if(window.hlgbSaveTransport9320?.version===V)return;
 const DEFAULT_TIMEOUT_MS=18000;
 let installs=0,transportTimeouts=0,lastTimeout='',lastError='',lastInstall='';
@@ -25,7 +26,7 @@ function installRealtimeSingleton(){
  try{
   const api=window.supabase,f=api?.createClient;
   if(typeof f!=='function')return false;
-  if(f.__hlgbRealtimeSingleton9374)return true;
+  if(f.__hlgbRealtimeSingleton9376)return true;
   const original=f;
   const wrapped=function(url,key,opts){
    const realtime=isHlgbRealtimeOptions(opts);
@@ -33,17 +34,22 @@ function installRealtimeSingleton(){
     realtimeClientReuses++;
     return realtimeClient;
    }
-   const out=original.apply(this,arguments);
+   let callOpts=opts;
+   if(realtime){
+    callOpts={...(opts||{}),auth:{...(opts?.auth||{}),storageKey:REALTIME_STORAGE_KEY}};
+   }
+   const out=original.call(this,url,key,callOpts);
    if(realtime&&!realtimeClient){
     realtimeClient=out;realtimeUrl=sid(url);realtimeKey=sid(key);realtimeClientCreates++;
    }
    return out;
   };
+  wrapped.__hlgbRealtimeSingleton9376=true;
   wrapped.__hlgbRealtimeSingleton9374=true;
   wrapped.__original=original;
   api.createClient=wrapped;
   realtimeSingletonInstalls++;lastRealtimeSingletonInstall=new Date().toISOString();
-  console.info('[HLGB] v'+REALTIME_SINGLETON_PATCH+' cliente Supabase Realtime único ativo');
+  console.info('[HLGB] v'+REALTIME_SINGLETON_PATCH+' cliente Supabase Realtime único + storage isolado ativo');
   return true;
  }catch(e){lastError=sid(e?.message||e);return false}
 }
@@ -105,7 +111,7 @@ function scheduleRecovery(reason='transport',delay=500){
   }catch(e){lastError=sid(e?.message||e);console.warn('[HLGB '+V+'] recuperação',reason,e)}
  },Math.max(80,+delay||500));
 }
-function status(){return {version:V,installed:!!window.cloudRequest?.__hlgb9320,installs,transportTimeouts,lastTimeout,lastError,lastInstall,timeoutMs:configuredTimeout(),pending:pendingCounts(),realtimeSingleton:{patch:REALTIME_SINGLETON_PATCH,installed:!!window.supabase?.createClient?.__hlgbRealtimeSingleton9374,installs:realtimeSingletonInstalls,creates:realtimeClientCreates,reuses:realtimeClientReuses,lastInstall:lastRealtimeSingletonInstall}}}
+function status(){return {version:V,installed:!!window.cloudRequest?.__hlgb9320,installs,transportTimeouts,lastTimeout,lastError,lastInstall,timeoutMs:configuredTimeout(),pending:pendingCounts(),realtimeSingleton:{patch:REALTIME_SINGLETON_PATCH,installed:!!window.supabase?.createClient?.__hlgbRealtimeSingleton9376,installs:realtimeSingletonInstalls,creates:realtimeClientCreates,reuses:realtimeClientReuses,storageKey:REALTIME_STORAGE_KEY,lastInstall:lastRealtimeSingletonInstall}}}
 function boot(){
  installCloudTransport();installRealtimeSingleton();
  // Reinstala somente se algum módulo antigo substituir cloudRequest depois. Também
