@@ -87,5 +87,5 @@ jobs:
         run: node tests/runtime-v9371-webkit.js
       - name: Matéria-prima sem rerender desnecessário
         run: node tests/material-health-v9371-webkit.js
-      - name: Integração produção v93.71 WebKit
-        run: node tests/production-v9371-webkit.js
+      - name: Integração produção v93.72 WebKit
+        run: node tests/production-v9372-webkit.js
