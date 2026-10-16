@@ -34,6 +34,10 @@ jobs:
         run: node --check release-sync-guard-v9306.js
       - name: Política de contenção do sync guard
         run: node tests/sync-guard-cloud-contention-v9373.js
+      - name: Sintaxe transporte/singleton Realtime
+        run: node --check release-save-transport-v9320.js
+      - name: Cliente Supabase Realtime único
+        run: node tests/realtime-single-client-v9374.js
       - name: Sintaxe saúde matéria-prima
         run: node --check release-material-health-v9260.js
       - name: Sintaxe produção v93.72
