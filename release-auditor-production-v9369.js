@@ -1,4 +1,4 @@
-/* HLGB Auditor v93.70 — ativação de produção da versão aprovada no Safari + linha do tempo */
+/* HLGB Auditor v93.71 — produção Safari + linha do tempo + correções runtime */
 (async function(){
 'use strict';
 if(window.HLGB_AUDITOR_PRODUCTION_9369||window.HLGB_AUDITOR_PRODUCTION_9369_LOADING)return;
@@ -64,19 +64,21 @@ try{
  if(!window.HLGB_AUDITOR_SMART_9360)await load('release-auditor-smart-v9360.js');
  if(!window.HLGB_AUDITOR_SAFARI_DOWNLOAD_9368)await load('release-auditor-safari-download-v9368.js');
  if(!window.HLGB_AUDITOR_RUNTIME_FIX_9370)await load('release-auditor-runtime-fix-v9370.js');
+ if(!window.HLGB_RUNTIME_PERFORMANCE_9371)await load('release-runtime-performance-v9371.js');
  installLegacyHideCss();installSingleEntry();
  const safety={recordSave:before.recordSave===window.hlgbRecordSaveWithRetry,cloudRequest:before.cloudRequest===window.cloudRequest,setInterval:before.setInterval===window.setInterval,setTimeout:before.setTimeout===window.setTimeout};
  if(Object.values(safety).some(x=>!x))throw new Error('Ativação interrompida: função crítica mudou.');
  if(window.hlgbAuditorSmart?.version!=='93.63')throw new Error('Versão inesperada do Auditor inteligente.');
  if(window.hlgbAuditorSmart?.safariDownload?.authority!=='single-manual-download')throw new Error('Entrega manual Safari não ficou ativa.');
  if(typeof window.hlgbAuditorSmart?.eventsSnapshot!=='function')throw new Error('Linha do tempo v93.70 não ficou ativa.');
+ if(window.hlgbRuntimePerformance9371?.version!=='93.71')throw new Error('Correções runtime v93.71 não ficaram ativas.');
  window.HLGB_AUDITOR_PRODUCTION_9369=true;
- window.hlgbAuditorProduction9369={version:'93.70',active:true,safety,timeline:true};
- console.info('[HLGB] Auditor de produção v93.70 ativo',safety);
+ window.hlgbAuditorProduction9369={version:'93.71',active:true,safety,timeline:true,runtimeFix:true};
+ console.info('[HLGB] Auditor de produção v93.71 ativo',safety);
 }catch(e){
  window.HLGB_AUDITOR_PRODUCTION_9369=false;
- window.hlgbAuditorProduction9369={version:'93.70',active:false,error:String(e?.message||e)};
- console.error('[HLGB] Auditor de produção v93.70 não ativado',e);
+ window.hlgbAuditorProduction9369={version:'93.71',active:false,error:String(e?.message||e)};
+ console.error('[HLGB] Auditor de produção v93.71 não ativado',e);
 }finally{
  window.HLGB_AUDITOR_PRODUCTION_9369_LOADING=false;
 }
