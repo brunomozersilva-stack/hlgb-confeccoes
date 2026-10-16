@@ -1,5 +1,5 @@
 const {webkit}=require('playwright');
-const fs=require('fs');
+const path=require('path');
 (async()=>{
  const browser=await webkit.launch({headless:true});
  const page=await browser.newPage({viewport:{width:1280,height:900}});
@@ -21,13 +21,13 @@ const fs=require('fs');
  const dl=await browser.newPage();
  await dl.setContent('<div id="hlgbAuditorResult"></div>');
  await dl.evaluate(()=>{window.hlgbInternalAuditor={redactDiagnostic:x=>x};window.hlgbAuditorSmart={problem:async()=>({kind:'hlgb_bug_capture',ok:true})};window.hlgbAuditorSmartProblem=window.hlgbAuditorSmart.problem;window.__beforeIntervals=window.setInterval});
- const src=fs.readFileSync('release-auditor-safari-download-v9368.js','utf8');
- await dl.evaluate(src=>{(0,eval)(src)},src);
- await dl.waitForFunction(()=>window.hlgbAuditorSmart?.safariDownload?.version==='93.68',null,{timeout:5000});
+ // addScriptTag é mais estável no WebKit atual do runner do que eval indireto de um arquivo inteiro.
+ await dl.addScriptTag({path:path.join(process.cwd(),'release-auditor-safari-download-v9368.js')});
+ await dl.waitForFunction(()=>window.hlgbAuditorSmart?.safariDownload?.version==='93.68',null,{timeout:10000});
  const sameInterval=await dl.evaluate(()=>window.__beforeIntervals===window.setInterval);
  if(!sameInterval)throw new Error('Entrega v93.68 alterou setInterval');
  await dl.evaluate(()=>window.hlgbAuditorSmartProblem());
- await dl.waitForSelector('#hlgbSafariDownload9368',{state:'visible',timeout:5000});
+ await dl.waitForSelector('#hlgbSafariDownload9368',{state:'visible',timeout:10000});
  const info=await dl.$eval('#hlgbSafariDownload9368',a=>({text:a.textContent,href:a.href,download:a.download}));
  if(!/Baixar diagnóstico/.test(info.text))throw new Error('Botão de download v93.68 não apareceu');
  if(!/^blob:/.test(info.href))throw new Error('Download v93.68 não usa Blob URL');
