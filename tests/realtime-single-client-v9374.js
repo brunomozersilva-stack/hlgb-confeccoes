@@ -3,7 +3,8 @@ const vm=require('vm');
 const assert=require('assert');
 const src=fs.readFileSync('release-save-transport-v9320.js','utf8');
 let creates=0;
-const realCreate=(url,key,opts)=>({id:++creates,url,key,opts});
+const created=[];
+const realCreate=(url,key,opts)=>{const out={id:++creates,url,key,opts};created.push(out);return out};
 const ctx={
  console,
  window:{supabase:{createClient:realCreate},cloudRequest:async()=>[],HLGB_SAVE_TRANSPORT_TIMEOUT_MS:1000,addEventListener:()=>{}},
@@ -22,10 +23,16 @@ const a=ctx.window.supabase.createClient('https://project.supabase.co','key',opt
 const b=ctx.window.supabase.createClient('https://project.supabase.co','key',opts);
 assert.strictEqual(a,b,'Realtime deve reaproveitar a mesma instância');
 assert.strictEqual(creates,1,'createClient real deve rodar uma única vez para o mesmo Realtime');
-const auth=ctx.window.supabase.createClient('https://project.supabase.co','key',{auth:{persistSession:true}});
+assert.strictEqual(created[0].opts.auth.storageKey,'hlgb-realtime-nonpersistent-v9376','Realtime precisa de storageKey separado do cliente de login');
+assert.strictEqual(opts.auth.storageKey,undefined,'opções originais não devem ser mutadas');
+const authOpts={auth:{persistSession:true}};
+const auth=ctx.window.supabase.createClient('https://project.supabase.co','key',authOpts);
 assert.notStrictEqual(auth,a,'cliente não-Realtime não deve ser sequestrado pelo singleton');
 assert.strictEqual(creates,2);
+assert.strictEqual(created[1].opts,authOpts,'cliente normal deve receber opções intactas');
 const st=ctx.window.hlgbSaveTransport9320.status().realtimeSingleton;
+assert.strictEqual(st.patch,'93.76');
 assert.strictEqual(st.creates,1);
 assert.strictEqual(st.reuses,1);
-console.log('realtime single client: OK');
+assert.strictEqual(st.storageKey,'hlgb-realtime-nonpersistent-v9376');
+console.log('realtime single client + isolated storage: OK');
