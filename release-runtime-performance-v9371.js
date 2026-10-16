@@ -34,11 +34,10 @@ document.addEventListener('click',e=>{
 window.addEventListener('pageshow',()=>setTimeout(refreshVisibleLegacy,80));
 document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')setTimeout(refreshVisibleLegacy,80)});
 
-// O classificador antigo examinava o JSON inteiro do blackbox, inclusive código-fonte
-// carregado. Isso podia confundir palavras "PATCH"/"timeout" do próprio código com
-// uma falha real. Mantemos o alerta apenas quando há evidência operacional recente.
-const smart=window.hlgbAuditorSmart;
-if(smart&&typeof smart.classifyProblem==='function'&&!smart.classifyProblem.__hlgb9371){
+function installClassifier(){
+ const smart=window.hlgbAuditorSmart;
+ if(!smart||typeof smart.classifyProblem!=='function')return false;
+ if(smart.classifyProblem.__hlgb9371)return true;
  const base=smart.classifyProblem;
  const evidenceText=(sync,support)=>{
   const safe=v=>{try{return JSON.stringify(v||{})}catch(e){return ''}};
@@ -63,8 +62,11 @@ if(smart&&typeof smart.classifyProblem==='function'&&!smart.classifyProblem.__hl
   }
   return out;
  };
- wrapped.__hlgb9371=true;wrapped.__original=base;smart.classifyProblem=wrapped;
+ wrapped.__hlgb9371=true;wrapped.__original=base;smart.classifyProblem=wrapped;return true;
 }
-window.hlgbRuntimePerformance9371={version:V,stoppedIntervals:stopped,refreshVisibleLegacy};
+if(!installClassifier()){
+ let tries=0;const wait=()=>{tries++;if(installClassifier()||tries>=80)return;setTimeout(wait,125)};setTimeout(wait,0);
+}
+window.hlgbRuntimePerformance9371={version:V,stoppedIntervals:stopped,refreshVisibleLegacy,installClassifier};
 console.info('[HLGB] runtime performance v'+V+' ativo',stopped);
 })();
