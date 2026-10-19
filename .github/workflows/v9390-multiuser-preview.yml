@@ -27,7 +27,7 @@ jobs:
           python3 -m http.server 4173 >/tmp/hlgb-v9390-http.log 2>&1 &
           echo $! >/tmp/hlgb-v9390-http.pid
           sleep 2
-      - name: Abrir build v93.90 no Chromium
+      - name: Abrir build e Auditor v93.90 no Chromium
         run: |
           node <<'NODE'
           const { chromium } = require('playwright');
@@ -39,12 +39,18 @@ jobs:
             await page.goto('http://127.0.0.1:4173/abrir.html',{waitUntil:'domcontentloaded',timeout:30000});
             await page.waitForFunction(()=>document.getElementById('loginScreen')||document.getElementById('appShell'),null,{timeout:30000});
             await page.waitForFunction(()=>window.HLGB_BUILD_ID==='HLGB-2026.10.19-93.90-MULTIUSER',null,{timeout:30000});
-            const info=await page.evaluate(()=>({build:window.HLGB_BUILD_ID,version:window.HLGB_RELEASE_VERSION,login:!!document.getElementById('loginScreen'),app:!!document.getElementById('appShell'),replay:window.hlgbWalConfirmedReplay9333?.version||'',watch:window.hlgbPayrollSnapshotWatch9354?.version||'',auditor:window.hlgbAuditorMultiuser9390?.version||''}));
+            const info=await page.evaluate(()=>({build:window.HLGB_BUILD_ID,version:window.HLGB_RELEASE_VERSION,replay:window.hlgbWalConfirmedReplay9333?.version||'',watch:window.hlgbPayrollSnapshotWatch9354?.version||'',auditor:window.hlgbAuditorMultiuser9390?.version||'',open:typeof window.openHlgbAuditor==='function'}));
             console.log(JSON.stringify(info));
             if(info.build!=='HLGB-2026.10.19-93.90-MULTIUSER')throw new Error('Build ID incorreto');
             if(String(info.replay)!=='93.90')throw new Error('Replay v93.90 não carregou');
             if(String(info.watch)!=='93.90')throw new Error('Vigia v93.90 não carregou');
             if(String(info.auditor)!=='93.90')throw new Error('Auditor multiusuário v93.90 não carregou');
+            if(!info.open)throw new Error('Função de abertura do Auditor indisponível');
+            await page.evaluate(()=>window.openHlgbAuditor());
+            await page.waitForSelector('#hlgbAuditorResult',{state:'attached',timeout:5000});
+            await page.waitForSelector('#hlgbMultiUserAuditPanel9390',{state:'attached',timeout:5000});
+            const title=await page.locator('#hlgbMultiUserAuditPanel9390').innerText();
+            if(!title.includes('Validação multiusuário obrigatória'))throw new Error('Painel multiusuário não apareceu no Auditor');
             if(errs.length)throw new Error('Erros JS: '+errs.join(' | '));
             await browser.close();
           })().catch(e=>{console.error(e);process.exit(1)});
