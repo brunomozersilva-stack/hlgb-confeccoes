@@ -1,4 +1,4 @@
-name: HLGB v93.91 Writeoff Integrity
+name: HLGB v93.92 Writeoff + Separation Integrity
 
 on:
   push:
@@ -18,20 +18,21 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '20'
-      - name: Sintaxe dos arquivos de baixa v93.91
+      - name: Sintaxe das correções operacionais
         run: |
           node --check release-production-operations-v9380-preview-patch.js
           node --check release-production-writeoff-integrity-v9391.js
+          node --check release-separation-commit-v9319.js
       - name: Instalar Chromium
         run: |
           npm install --no-save playwright@1.55.0
           npx playwright install --with-deps chromium
       - name: Iniciar preview local
         run: |
-          python3 -m http.server 4173 >/tmp/hlgb-v9391-http.log 2>&1 &
-          echo $! >/tmp/hlgb-v9391-http.pid
+          python3 -m http.server 4173 >/tmp/hlgb-v9392-http.log 2>&1 &
+          echo $! >/tmp/hlgb-v9392-http.pid
           sleep 2
-      - name: Validar carga remota, filtro único e idempotência
+      - name: Validar carga remota, idempotência, replay único e recuperação da separação
         run: |
           node <<'NODE'
           const { chromium } = require('playwright');
@@ -41,13 +42,15 @@ jobs:
             const errors=[];
             page.on('pageerror',e=>errors.push(String(e.message||e)));
             await page.goto('http://127.0.0.1:4173/abrir.html',{waitUntil:'domcontentloaded',timeout:30000});
-            await page.waitForFunction(()=>window.hlgbWriteoffIntegrity9391?.version==='93.91',null,{timeout:30000});
+            await page.waitForFunction(()=>window.hlgbWriteoffIntegrity9391?.version==='93.91'&&window.hlgbSeparationCommit9319?.version==='93.92',null,{timeout:30000});
             const result=await page.evaluate(async()=>{
+              const boot=window.HLGB_BOOT_PATCH_9392;
+              if(!boot||boot.version!=='93.92'||Number(boot.legacyFlushRedirects)<1)throw new Error('flush955 interno não foi redirecionado para o replay confirmado');
               const reg=window.HLGB_OPERATIONAL_WRITEOFF_MODULE_REGISTERED;
               if(!reg?.modulesOk||!reg?.areaOk)throw new Error('operationalWriteoffs não foi registrado em HLGB_RECORD_MODULES/WRITE_AREA');
               window.db=window.db||{};
               const keep={};
-              for(const k of ['operationalWriteoffs','orders','cuts','production','products']){keep[k]=window.db[k];window.db[k]=[]}
+              for(const k of ['operationalWriteoffs','orders','cuts','production','products','separations']){keep[k]=window.db[k];window.db[k]=[]}
               const c=window.hlgbOperationalVisibility9385;
               const oldModels=c.writeoffModels;
               const models=[
@@ -68,20 +71,36 @@ jobs:
               const host=document.getElementById('darBaixa9378Host');if(!host)throw new Error('host Dar baixa ausente');
               window.hlgbWriteoffIntegrity9391.render();
               const box=host.querySelector('.hlgb9391-writeoff[value="m2"]');if(!box)throw new Error('candidato pendente não apareceu');box.checked=true;
-              const calls=[];
-              window.hlgbRecordSaveWithRetry=async(module,id,row)=>{calls.push({module,id,row});return{applied:true,data:row}};
+              const writeCalls=[];
+              window.hlgbRecordSaveWithRetry=async(module,id,row)=>{writeCalls.push({module,id,row});return{applied:true,data:row}};
               window.cloudEnsureFreshSession=async()=>true;
               window.closeModal=()=>{};
               window.openModal=(t,h,cb)=>{window.__hlgbTestModalPromise=Promise.resolve().then(cb)};
               await window.hlgbWriteoffSelected9385();
               await window.__hlgbTestModalPromise;
-              if(calls.length!==1)throw new Error('primeira baixa deveria gravar exatamente um pedido+modelo');
-              if(calls[0].id!==a)throw new Error('gravação não usou ID estável');
+              if(writeCalls.length!==1)throw new Error('primeira baixa deveria gravar exatamente um pedido+modelo');
+              if(writeCalls[0].id!==a)throw new Error('gravação não usou ID estável');
               const after=window.hlgbWriteoffIntegrity9391.pendingModels();
               if(after.length!==1||after[0].id!=='m1')throw new Error('após baixa, item confirmado permaneceu pendente');
+
+              window.db.orders=[{id:'o-sep',status:'Separação / compra de material',grade:[{productId:'p-sep',qty:5}]}];
+              window.db.separations=[{id:'s-sep',orderId:'o-sep',done:true,partial:false,modelProgress:{'p-sep':{qty:5,total:5}}}];
+              localStorage.setItem('hlgb_durable_wal_v1',JSON.stringify({entries:{x:{module:'separations',id:'s-sep',opId:'x'}}}));
+              const sepCalls=[];
+              window.hlgbRecordSaveWithRetry=async(module,id,row)=>{sepCalls.push({module,id,row:JSON.parse(JSON.stringify(row))});return{applied:true,data:row}};
+              window.hlgb955ReconcileServer=async()=>true;
+              window.localSaveOnly=()=>true;
+              window.setCloudStatus=()=>{};
+              const recovered=await window.hlgbSeparationCommit9319.apply('o-sep','p-sep',false);
+              if(!recovered?.recovered||recovered?.complete!==true)throw new Error('separação pendente completa não foi reconhecida como recuperação');
+              if(!sepCalls.some(x=>x.module==='orders'))throw new Error('recuperação da separação não concluiu o pedido');
+              const savedOrder=sepCalls.find(x=>x.module==='orders')?.row;
+              if(!savedOrder?.materialSeparationCompletedAt||savedOrder.status!=='Aguardando corte')throw new Error('pedido recuperado não recebeu conclusão/material status correto');
+
               c.writeoffModels=oldModels;
               for(const k of Object.keys(keep))window.db[k]=keep[k];
-              return {registration:reg,stableId:a,calls:calls.length};
+              localStorage.removeItem('hlgb_durable_wal_v1');
+              return {registration:reg,boot,stableId:a,writeCalls:writeCalls.length,separationCalls:sepCalls.map(x=>x.module)};
             });
             console.log(JSON.stringify(result));
             if(errors.length)throw new Error('Erros JS: '+errors.join(' | '));
