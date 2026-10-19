@@ -42,7 +42,7 @@ jobs:
             const info=await page.evaluate(()=>({build:window.HLGB_BUILD_ID,version:window.HLGB_RELEASE_VERSION,replay:window.hlgbWalConfirmedReplay9333?.version||'',watch:window.hlgbPayrollSnapshotWatch9354?.version||'',auditor:window.hlgbAuditorMultiuser9390?.version||'',writeoff:window.hlgbWriteoffIntegrity9391?.version||'',separation:window.hlgbSeparationCommit9319?.version||'',boot:window.HLGB_BOOT_PATCH_9392?.version||'',open:typeof window.openHlgbAuditor==='function'}));
             console.log(JSON.stringify(info));
             if(info.build!=='HLGB-2026.10.19-93.92-MULTIUSER')throw new Error('Build ID incorreto');
-            if(String(info.replay)!=='93.90')throw new Error('Replay confirmado v93.90 não carregou');
+            if(String(info.replay)!=='93.92')throw new Error('Replay confirmado v93.92 não carregou');
             if(String(info.watch)!=='93.90')throw new Error('Vigia da folha v93.90 não carregou');
             if(String(info.auditor)!=='93.92')throw new Error('Auditor multiusuário v93.92 não carregou');
             if(String(info.writeoff)!=='93.91')throw new Error('Integridade da baixa v93.91 não carregou');
