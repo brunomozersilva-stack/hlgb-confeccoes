@@ -52,15 +52,26 @@ function panelHtml(cmp=null){const p=currentProfile(),status=cmp?.status||'warn'
 function decorate(cmp=null){const out=document.getElementById('hlgbAuditorResult');if(!out)return false;let p=document.getElementById('hlgbMultiUserAuditPanel9390');if(!p){out.insertAdjacentHTML('beforebegin',panelHtml(cmp));p=document.getElementById('hlgbMultiUserAuditPanel9390')}else p.outerHTML=panelHtml(cmp);return true}
 window.hlgbAuditorCompareUsers9390=async function(){const cmp=await compareProfiles();decorate(cmp);if(cmp.status==='fail')alert('Há perfil carregando build diferente do atual. Não considere a correção concluída.');else if(cmp.status==='pass')alert(cmp.profiles+' perfis já aparecem no mesmo build '+BUILD_ID+'.');else alert('Este build está identificado. Execute o Auditor nos demais usuários ativos para completar a validação multiusuário.');return cmp};
 function wrapUi(name,origin){const base=window[name];if(typeof base!=='function'||base.__hlgbMulti9390)return false;const w=async function(){const row=await base.apply(this,arguments);try{await recordValidation(row,origin)}catch(e){};setTimeout(()=>window.hlgbAuditorCompareUsers9390?.().catch(()=>{}),80);return row};w.__hlgbMulti9390=true;w.__original=base;window[name]=w;return true}
+let modalWatch=null;
+function installModalWatch(){
+ if(modalWatch||typeof MutationObserver!=='function'||!document.documentElement)return;
+ modalWatch=new MutationObserver(()=>{
+  if(!document.getElementById('hlgbAuditorResult'))return;
+  if(decorate())setTimeout(()=>window.hlgbAuditorCompareUsers9390?.().catch(()=>{}),120);
+ });
+ modalWatch.observe(document.documentElement,{childList:true,subtree:true});
+}
 function install(){
  try{const el=document.querySelector('#appShell .logo small');if(el)el.textContent='v'+V}catch(e){}
  try{const oldOpen=window.openHlgbAuditor;if(typeof oldOpen==='function'&&!oldOpen.__hlgbMulti9390){const w=function(){const r=oldOpen.apply(this,arguments);setTimeout(()=>decorate(),30);setTimeout(()=>window.hlgbAuditorCompareUsers9390?.().catch(()=>{}),220);return r};w.__hlgbMulti9390=true;w.__original=oldOpen;window.openHlgbAuditor=w}}catch(e){}
  wrapUi('hlgbAuditorRunFull','ui-full');wrapUi('hlgbAuditorRunVisual','ui-visual');wrapUi('hlgbAuditorRunVisualSweep','ui-visual-sweep');
  const api=window.hlgbInternalAuditor;
  if(api&&typeof api.run==='function'&&!api.run.__hlgbMulti9390){const base=api.run.bind(api);const w=async function(){const row=await base(...arguments);try{await recordValidation(row,'api-run')}catch(e){}return row};w.__hlgbMulti9390=true;w.__original=api.run;api.run=w}
- if(api){api.multiUser={version:V,buildId:BUILD_ID,currentProfile,compareProfiles,recordValidation}}
+ if(api){api.multiUser={version:V,buildId:BUILD_ID,currentProfile,compareProfiles,recordValidation,decorate}}
+ installModalWatch();
+ if(document.getElementById('hlgbAuditorResult'))decorate();
 }
-window.hlgbAuditorMultiuser9390={version:V,buildId:BUILD_ID,currentProfile,compareProfiles,recordValidation,install};
+window.hlgbAuditorMultiuser9390={version:V,buildId:BUILD_ID,currentProfile,compareProfiles,recordValidation,decorate,install};
 install();[100,400,900,1800,3500].forEach(ms=>setTimeout(install,ms));
 console.info('[HLGB] v'+V+' Auditor multiusuário ativo · build '+BUILD_ID);
 })();
