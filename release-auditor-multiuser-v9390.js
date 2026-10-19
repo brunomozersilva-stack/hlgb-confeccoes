@@ -1,14 +1,14 @@
-/* HLGB v93.90 — Auditor multiusuário e identificador único de build.
+/* HLGB v93.92 — Auditor multiusuário e identificador único de build.
    O programa é único para todos os perfis. Permissões podem variar; build e correções não. */
 (function(){
 'use strict';
-const V='93.90',BUILD_ID='HLGB-2026.10.19-93.90-MULTIUSER',AUDIT_MODULE='systemAuditRuns';
+const V='93.92',BUILD_ID='HLGB-2026.10.19-93.92-MULTIUSER',AUDIT_MODULE='systemAuditRuns';
 if(window.HLGB_AUDITOR_MULTIUSER_9390===BUILD_ID)return;
 window.HLGB_AUDITOR_MULTIUSER_9390=BUILD_ID;
 window.HLGB_BUILD_ID=BUILD_ID;
 window.HLGB_BUILD_CHANNEL='unified';
 window.HLGB_BUILD_LOADED_AT=new Date().toISOString();
-try{const cur=parseFloat(String(window.HLGB_RELEASE_VERSION||'0'))||0;if(cur<93.90)window.HLGB_RELEASE_VERSION=V}catch(e){}
+try{const cur=parseFloat(String(window.HLGB_RELEASE_VERSION||'0'))||0;if(cur<93.92)window.HLGB_RELEASE_VERSION=V}catch(e){}
 const sid=v=>String(v??'');
 const clone=v=>{try{return structuredClone(v)}catch(e){try{return JSON.parse(JSON.stringify(v))}catch(_){return v}}};
 function hash(s){let h=2166136261>>>0;for(const ch of sid(s)){h^=ch.charCodeAt(0);h=Math.imul(h,16777619)>>>0}return ('00000000'+h.toString(16)).slice(-8)}
@@ -35,7 +35,7 @@ const recorded=new Set();
 async function recordValidation(baseRun,origin='manual'){
  if(!baseRun||baseRun.kind==='system_audit_multiuser_validation')return null;
  const baseId=sid(baseRun.id);if(baseId&&recorded.has(baseId))return null;
- const profile=currentProfile(),draft={id:'multiuser-'+Date.now()+'-'+Math.floor(Math.random()*900000+100000),kind:'system_audit_multiuser_validation',auditorVersion:'2026.10.19-multiuser-v3',readOnly:true,startedAt:new Date().toISOString(),completedAt:new Date().toISOString(),origin,buildId:BUILD_ID,appVersion:sid(window.HLGB_RELEASE_VERSION||V),browser:browser(),profile,baseAuditId:baseId||null,baseAuditKind:baseRun.kind||'system_audit',baseAuditSummary:clone(baseRun.summary||{}),rule:'O HLGB é um único programa. Toda correção global deve carregar igual para todos os usuários; somente permissões podem alterar funcionalidades disponíveis.'};
+ const profile=currentProfile(),draft={id:'multiuser-'+Date.now()+'-'+Math.floor(Math.random()*900000+100000),kind:'system_audit_multiuser_validation',auditorVersion:'2026.10.19-multiuser-v4',readOnly:true,startedAt:new Date().toISOString(),completedAt:new Date().toISOString(),origin,buildId:BUILD_ID,appVersion:sid(window.HLGB_RELEASE_VERSION||V),browser:browser(),profile,baseAuditId:baseId||null,baseAuditKind:baseRun.kind||'system_audit',baseAuditSummary:clone(baseRun.summary||{}),rule:'O HLGB é um único programa. Toda correção global deve carregar igual para todos os usuários; somente permissões podem alterar funcionalidades disponíveis.'};
  const cmp=await compareProfiles(draft),checks=[];
  checks.push(check('multiuser:build-local','pass','Build único carregado',BUILD_ID+' · perfil '+profile.profileKey,'info',{buildId:BUILD_ID,profileKey:profile.profileKey}));
  checks.push(check('multiuser:known-profiles',cmp.mismatched?'fail':cmp.profiles>1?'pass':'warn','Comparação entre perfis',cmp.mismatched?cmp.mismatched+' perfil(is) conhecido(s) está(ão) em build diferente.':cmp.profiles>1?cmp.profiles+' perfis conferidos no mesmo build.':'Este perfil foi conferido; ainda é necessário executar o Auditor nos demais usuários ativos.',cmp.mismatched?'error':cmp.profiles>1?'info':'warn',{profiles:cmp.profiles,mismatched:cmp.mismatched}));
