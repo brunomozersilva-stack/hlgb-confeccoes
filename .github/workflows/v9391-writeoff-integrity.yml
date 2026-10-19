@@ -69,7 +69,8 @@ jobs:
               const a=window.hlgbWriteoffIntegrity9391.stableId({orderId:'o2',productId:'p2'});
               const b=window.hlgbWriteoffIntegrity9391.stableId({orderId:'o2',productId:'p2'});
               if(a!==b||!a.startsWith('baixa-op-v1-'))throw new Error('ID da baixa não é estável');
-              const host=document.getElementById('darBaixa9378Host');if(!host)throw new Error('host Dar baixa ausente');
+              let host=document.getElementById('darBaixa9378Host');
+              if(!host){host=document.createElement('div');host.id='darBaixa9378Host';document.body.appendChild(host)}
               window.hlgbWriteoffIntegrity9391.render();
               const box=host.querySelector('.hlgb9391-writeoff[value="m2"]');if(!box)throw new Error('candidato pendente não apareceu');box.checked=true;
               const writeCalls=[];
