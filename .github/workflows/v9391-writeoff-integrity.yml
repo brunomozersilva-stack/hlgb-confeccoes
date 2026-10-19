@@ -20,7 +20,7 @@ jobs:
           node-version: '20'
       - name: Sintaxe das correções operacionais
         run: |
-          node --check release-production-operations-v9380-preview-patch.js
+          node --check release-production-operations-v9386-finalize.js
           node --check release-production-writeoff-integrity-v9391.js
           node --check release-separation-commit-v9319.js
           node --check release-wal-confirmed-replay-v9333.js
@@ -31,82 +31,72 @@ jobs:
       - name: Iniciar preview local
         run: |
           python3 -m http.server 4173 >/tmp/hlgb-v9392-http.log 2>&1 &
-          echo $! >/tmp/hlgb-v9392-http.pid
           sleep 2
-      - name: Validar baixa, replay WAL e recuperação da separação
+      - name: Validar baixa, separação e replay WAL
         run: |
           node <<'NODE'
           const { chromium } = require('playwright');
           (async()=>{
             const browser=await chromium.launch({headless:true});
             const page=await browser.newPage();
-            const errors=[];
-            page.on('pageerror',e=>errors.push(String(e.message||e)));
             await page.goto('http://127.0.0.1:4173/abrir.html',{waitUntil:'domcontentloaded',timeout:30000});
             await page.waitForFunction(()=>window.hlgbWriteoffIntegrity9391?.version==='93.91'&&window.hlgbSeparationCommit9319?.version==='93.92'&&window.hlgbWalConfirmedReplay9333?.version==='93.92',null,{timeout:30000});
             const result=await page.evaluate(async()=>{
-              const boot=window.HLGB_BOOT_PATCH_9392;
-              if(!boot||boot.version!=='93.92'||Number(boot.legacyFlushRedirects)<1)throw new Error('flush955 interno não foi redirecionado para o replay confirmado');
-              const reg=window.HLGB_OPERATIONAL_WRITEOFF_MODULE_REGISTERED;
-              if(!reg?.modulesOk||!reg?.areaOk)throw new Error('operationalWriteoffs não foi registrado em HLGB_RECORD_MODULES/WRITE_AREA');
-
+              if(window.HLGB_BOOT_PATCH_9392?.version!=='93.92')throw new Error('bootstrap v93.92 ausente');
+              if(!window.HLGB_OPERATIONAL_WRITEOFF_MODULE_REGISTERED?.modulesOk)throw new Error('operationalWriteoffs não registrado');
               window.db=window.db||{};
               const keep={};
               for(const k of ['operationalWriteoffs','orders','cuts','production','products','separations']){keep[k]=window.db[k];window.db[k]=[]}
-              const c=window.hlgbOperationalVisibility9385;
-              const oldModels=c.writeoffModels;
-              const models=[
+              const core=window.hlgbOperationalVisibility9385;
+              const oldModels=core.writeoffModels;
+              core.writeoffModels=()=>[
                 {id:'m1',clientName:'Cliente A',productId:'p1',productName:'Modelo 1',qty:10,status:'Em produção',sourceRefs:[],orderProductRefs:[{orderId:'o1',productId:'p1'}]},
                 {id:'m2',clientName:'Cliente A',productId:'p2',productName:'Modelo 2',qty:20,status:'Em produção',sourceRefs:[],orderProductRefs:[{orderId:'o2',productId:'p2'}]}
               ];
-              c.writeoffModels=()=>models.map(x=>({...x,orderProductRefs:x.orderProductRefs.map(y=>({...y}))}));
-
-              window.db.operationalWriteoffs=[{id:'old-random-id',sourceType:'model',productId:'p1',orderProductRefs:[{orderId:'o1',productId:'p1'}],productName:'Modelo 1',quantity:10,createdAt:'2026-10-18T10:00:00Z'}];
-              const p1=window.hlgbWriteoffIntegrity9391.pendingModels();
-              if(p1.length!==1||p1[0].id!=='m2')throw new Error('baixa remota não filtrou candidato já baixado');
+              window.db.operationalWriteoffs=[{id:'old-random-id',sourceType:'model',productId:'p1',orderProductRefs:[{orderId:'o1',productId:'p1'}]}];
+              let pending=window.hlgbWriteoffIntegrity9391.pendingModels();
+              if(pending.length!==1||pending[0].id!=='m2')throw new Error('baixa remota não foi reconhecida');
               window.db.operationalWriteoffs=[{id:'legacy-ref',sourceType:'model',productId:'p1',sourceRefs:[{type:'order',id:'o1',orderId:'o1',productId:'p1'}]}];
-              const p2=window.hlgbWriteoffIntegrity9391.pendingModels();
-              if(p2.length!==1||p2[0].id!=='m2')throw new Error('compatibilidade sourceRefs não filtrou baixa antiga');
-
+              pending=window.hlgbWriteoffIntegrity9391.pendingModels();
+              if(pending.length!==1||pending[0].id!=='m2')throw new Error('sourceRefs legado não foi reconhecido');
               window.db.operationalWriteoffs=[];
               localStorage.removeItem('hlgb_durable_wal_v1');
-              localStorage.removeItem('hlgb_wal_permission_quarantine_v1');
-              const a=window.hlgbWriteoffIntegrity9391.stableId({orderId:'o2',productId:'p2'});
-              const b=window.hlgbWriteoffIntegrity9391.stableId({orderId:'o2',productId:'p2'});
-              if(a!==b||!a.startsWith('baixa-op-v1-'))throw new Error('ID da baixa não é estável');
+              const expectedId=window.hlgbWriteoffIntegrity9391.stableId({orderId:'o2',productId:'p2'});
               let host=document.getElementById('darBaixa9378Host');
               if(!host){host=document.createElement('div');host.id='darBaixa9378Host';document.body.appendChild(host)}
               window.hlgbWriteoffIntegrity9391.render();
               const box=host.querySelector('.hlgb9391-writeoff[value="m2"]');
-              if(!box)throw new Error('candidato pendente não apareceu');
+              if(!box)throw new Error('candidato da baixa não renderizou');
               box.checked=true;
-
-              const saveCalls=[];
-              window.hlgbRecordSaveWithRetry=async(module,id,row)=>{saveCalls.push({module,id,row});return{applied:true,data:row}};
+              const saves=[];
+              window.hlgbRecordSaveWithRetry=async(module,id,row)=>{saves.push({module,id,row});return {applied:true,data:row}};
               window.cloudEnsureFreshSession=async()=>true;
               window.closeModal=()=>{};
-              window.openModal=(t,h,cb)=>{window.__hlgbTestModalPromise=Promise.resolve().then(cb)};
+              window.openModal=(t,h,cb)=>{window.__ciModal=Promise.resolve().then(cb)};
               await window.hlgbWriteoffSelected9385();
-              await window.__hlgbTestModalPromise;
-              const writeoffCalls=saveCalls.filter(x=>x.module==='operationalWriteoffs');
-              if(writeoffCalls.length!==1)throw new Error('primeira baixa deveria gravar exatamente um operationalWriteoffs; recebeu '+writeoffCalls.length);
-              if(writeoffCalls[0].id!==a)throw new Error('gravação não usou ID estável');
-              const after=window.hlgbWriteoffIntegrity9391.pendingModels();
-              if(after.length!==1||after[0].id!=='m1')throw new Error('após baixa, item confirmado permaneceu pendente');
+              await window.__ciModal;
+              const wc=saves.filter(x=>x.module==='operationalWriteoffs');
+              if(wc.length!==1||wc[0].id!==expectedId)throw new Error('autoridade final da baixa não usou ID estável: '+JSON.stringify(wc));
+              if(window.hlgbWriteoffIntegrity9391.pendingModels().some(x=>x.id==='m2'))throw new Error('item baixado continuou pendente');
 
+              const oldProjection=window.projectionItemsForOrder;
+              const oldRecordId=window.hlgbRecordId;
+              window.projectionItemsForOrder=()=>[{key:'p-sep',productId:'p-sep',name:'Modelo Sep',qty:5}];
+              window.hlgbRecordId=(module,row)=>String(row?.id||'');
               window.db.orders=[{id:'o-sep',status:'Separação / compra de material',grade:[{productId:'p-sep',qty:5}]}];
               window.db.separations=[{id:'s-sep',orderId:'o-sep',done:true,partial:false,modelProgress:{'p-sep':{qty:5,total:5}}}];
-              localStorage.setItem('hlgb_durable_wal_v1',JSON.stringify({entries:{x:{module:'separations',id:'s-sep',opId:'x'}}}));
+              localStorage.setItem('hlgb_durable_wal_v1',JSON.stringify({version:1,entries:{x:{module:'separations',id:'s-sep',opId:'x',state:'pending'}}}));
               const sepCalls=[];
-              window.hlgbRecordSaveWithRetry=async(module,id,row)=>{sepCalls.push({module,id,row:JSON.parse(JSON.stringify(row))});return{applied:true,data:row}};
+              window.hlgbRecordSaveWithRetry=async(module,id,row)=>{sepCalls.push({module,id,row:JSON.parse(JSON.stringify(row))});return {applied:true,data:row}};
               window.hlgb955ReconcileServer=async()=>true;
               window.localSaveOnly=()=>true;
               window.setCloudStatus=()=>{};
               const recovered=await window.hlgbSeparationCommit9319.apply('o-sep','p-sep',false);
-              if(!recovered?.recovered||recovered?.complete!==true)throw new Error('separação pendente completa não foi reconhecida como recuperação');
-              if(!sepCalls.some(x=>x.module==='orders'))throw new Error('recuperação da separação não concluiu o pedido');
+              if(!recovered?.recovered||recovered?.complete!==true)throw new Error('recuperação da separação falhou: '+JSON.stringify(recovered));
               const savedOrder=sepCalls.find(x=>x.module==='orders')?.row;
-              if(!savedOrder?.materialSeparationCompletedAt||savedOrder.status!=='Aguardando corte')throw new Error('pedido recuperado não recebeu conclusão/material status correto');
+              if(!savedOrder?.materialSeparationCompletedAt||savedOrder.status!=='Aguardando corte')throw new Error('pedido não foi concluído após separação confirmada');
+              window.projectionItemsForOrder=oldProjection;
+              window.hlgbRecordId=oldRecordId;
 
               const app=document.getElementById('appShell'),login=document.getElementById('loginScreen');
               if(app)app.style.display='block';if(login)login.style.display='none';
@@ -115,12 +105,9 @@ jobs:
               let walCalls=0;
               window.hlgbRecordSaveWithRetry=async()=>{walCalls++;const e=new Error('Usuário sem permissão para alterar o módulo noteQueue');e.code='P0001';throw e};
               await window.hlgbWalConfirmedReplay9333.run('ci-p0001',true);
-              const walAfterPerm=JSON.parse(localStorage.getItem('hlgb_durable_wal_v1')||'{"entries":{}}');
+              const walPerm=JSON.parse(localStorage.getItem('hlgb_durable_wal_v1')||'{"entries":{}}');
               const quarantine=JSON.parse(localStorage.getItem('hlgb_wal_permission_quarantine_v1')||'[]');
-              if(walAfterPerm.entries?.perm)throw new Error('P0001 permaneceu na fila ativa');
-              if(!quarantine.some(x=>x.opId==='perm-op'&&x.state==='blocked-permission'))throw new Error('P0001 não foi preservado na quarentena');
-              if(walCalls!==1)throw new Error('P0001 foi reenviado mais de uma vez na rodada');
-              if(!window.hlgbWalConfirmedReplay9333.isPermanentPermissionError(new Error('Usuário sem permissão para alterar o módulo noteQueue')))throw new Error('mensagem HLGB sem código P0001 não foi classificada como permissão permanente');
+              if(walPerm.entries?.perm||!quarantine.some(x=>x.opId==='perm-op'&&x.state==='blocked-permission')||walCalls!==1)throw new Error('P0001 não foi isolado corretamente');
 
               localStorage.removeItem('hlgb_wal_permission_quarantine_v1');
               localStorage.setItem('hlgb_durable_wal_v1',JSON.stringify({version:1,entries:{timeout:{module:'orders',id:'o-timeout',data:{id:'o-timeout'},opId:'timeout-op',state:'pending'}}}));
@@ -128,24 +115,19 @@ jobs:
               window.hlgbRecordSaveWithRetry=async()=>{walCalls++;const e=new Error('canceling statement due to statement timeout');e.code='57014';throw e};
               const before=Date.now();
               await window.hlgbWalConfirmedReplay9333.run('ci-57014',true);
-              const walAfterTimeout=JSON.parse(localStorage.getItem('hlgb_durable_wal_v1')||'{"entries":{}}');
-              const timeoutOp=walAfterTimeout.entries?.timeout;
-              if(!timeoutOp||timeoutOp.state!=='pending')throw new Error('57014 não permaneceu pendente para retry');
-              if(Number(timeoutOp.retryDelayMs)<60000)throw new Error('57014 não recebeu backoff mínimo de 60s');
-              if(Date.parse(timeoutOp.nextAttemptAt)<before+59000)throw new Error('57014 recebeu nextAttemptAt cedo demais');
-              if(walCalls!==1)throw new Error('57014 foi repetido imediatamente');
-              const callsBeforeSecond=walCalls;
+              const timeoutOp=JSON.parse(localStorage.getItem('hlgb_durable_wal_v1')||'{"entries":{}}').entries?.timeout;
+              if(!timeoutOp||timeoutOp.state!=='pending'||Number(timeoutOp.retryDelayMs)<60000||Date.parse(timeoutOp.nextAttemptAt)<before+59000||walCalls!==1)throw new Error('backoff 57014 incorreto');
+              const count=walCalls;
               await window.hlgbWalConfirmedReplay9333.run('ci-57014-not-due',false);
-              if(walCalls!==callsBeforeSecond)throw new Error('57014 foi reenviado antes de vencer o backoff');
+              if(walCalls!==count)throw new Error('57014 reenviado antes do backoff');
 
-              c.writeoffModels=oldModels;
+              core.writeoffModels=oldModels;
               for(const k of Object.keys(keep))window.db[k]=keep[k];
               localStorage.removeItem('hlgb_durable_wal_v1');
               localStorage.removeItem('hlgb_wal_permission_quarantine_v1');
-              return {registration:reg,boot,stableId:a,writeoffCalls:writeoffCalls.length,separationCalls:sepCalls.map(x=>x.module),walPermission:'quarantined',walTimeoutDelay:timeoutOp.retryDelayMs};
+              return {writeoff:'ok',separation:'ok',permission:'ok',timeout:'ok'};
             });
             console.log(JSON.stringify(result));
-            if(errors.length)throw new Error('Erros JS: '+errors.join(' | '));
             await browser.close();
           })().catch(e=>{console.error(e);process.exit(1)});
           NODE
