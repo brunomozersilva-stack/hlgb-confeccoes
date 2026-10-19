@@ -61,6 +61,48 @@ jobs:
           })().catch(e=>{console.error(e);process.exit(1)});
           NODE
 
+  webkit-smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Instalar WebKit
+        run: |
+          npm install --no-save playwright@1.55.0
+          npx playwright install --with-deps webkit
+      - name: Iniciar servidor local
+        run: |
+          python3 -m http.server 4173 >/tmp/hlgb-v9392-webkit-http.log 2>&1 &
+          echo $! >/tmp/hlgb-v9392-webkit-http.pid
+          sleep 2
+      - name: Abrir build e clicar no Auditor real no WebKit
+        run: |
+          node <<'NODE'
+          const { webkit } = require('playwright');
+          (async()=>{
+            const browser=await webkit.launch({headless:true});
+            const page=await browser.newPage();
+            const errs=[];
+            page.on('pageerror',e=>errs.push(String(e.message||e)));
+            await page.goto('http://127.0.0.1:4173/abrir.html',{waitUntil:'domcontentloaded',timeout:30000});
+            await page.waitForFunction(()=>window.HLGB_BUILD_ID==='HLGB-2026.10.19-93.92-MULTIUSER',null,{timeout:30000});
+            const info=await page.evaluate(()=>({build:window.HLGB_BUILD_ID,replay:window.hlgbWalConfirmedReplay9333?.version||'',auditor:window.hlgbAuditorMultiuser9390?.version||'',writeoff:window.hlgbWriteoffIntegrity9391?.version||'',separation:window.hlgbSeparationCommit9319?.version||'',boot:window.HLGB_BOOT_PATCH_9392?.version||''}));
+            if(info.build!=='HLGB-2026.10.19-93.92-MULTIUSER')throw new Error('Build ID incorreto no WebKit');
+            if(String(info.replay)!=='93.92'||String(info.auditor)!=='93.92'||String(info.writeoff)!=='93.91'||String(info.separation)!=='93.92'||String(info.boot)!=='93.92')throw new Error('Módulos críticos não carregaram no WebKit: '+JSON.stringify(info));
+            await page.waitForSelector('#hlgbAuditorNavBtn',{state:'attached',timeout:5000});
+            await page.locator('#hlgbAuditorNavBtn').click({force:true});
+            await page.waitForSelector('#hlgbAuditorResult',{state:'attached',timeout:5000});
+            await page.waitForSelector('#hlgbMultiUserAuditPanel9390',{state:'visible',timeout:5000});
+            const text=await page.locator('#hlgbMultiUserAuditPanel9390').innerText();
+            if(!text.includes('Validação multiusuário obrigatória')||!text.includes('HLGB-2026.10.19-93.92-MULTIUSER'))throw new Error('Painel multiusuário incompleto no WebKit');
+            if(errs.length)throw new Error('Erros JS no WebKit: '+errs.join(' | '));
+            await browser.close();
+          })().catch(e=>{console.error(e);process.exit(1)});
+          NODE
+
   preview-package:
     runs-on: ubuntu-latest
     timeout-minutes: 5
