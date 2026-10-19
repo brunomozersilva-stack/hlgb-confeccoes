@@ -23,6 +23,7 @@ jobs:
           node --check release-production-operations-v9380-preview-patch.js
           node --check release-production-writeoff-integrity-v9391.js
           node --check release-separation-commit-v9319.js
+          node --check release-wal-confirmed-replay-v9333.js
       - name: Instalar Chromium
         run: |
           npm install --no-save playwright@1.55.0
@@ -32,7 +33,7 @@ jobs:
           python3 -m http.server 4173 >/tmp/hlgb-v9392-http.log 2>&1 &
           echo $! >/tmp/hlgb-v9392-http.pid
           sleep 2
-      - name: Validar carga remota, idempotência, replay único e recuperação da separação
+      - name: Validar baixa, replay WAL e recuperação da separação
         run: |
           node <<'NODE'
           const { chromium } = require('playwright');
@@ -42,7 +43,7 @@ jobs:
             const errors=[];
             page.on('pageerror',e=>errors.push(String(e.message||e)));
             await page.goto('http://127.0.0.1:4173/abrir.html',{waitUntil:'domcontentloaded',timeout:30000});
-            await page.waitForFunction(()=>window.hlgbWriteoffIntegrity9391?.version==='93.91'&&window.hlgbSeparationCommit9319?.version==='93.92',null,{timeout:30000});
+            await page.waitForFunction(()=>window.hlgbWriteoffIntegrity9391?.version==='93.91'&&window.hlgbSeparationCommit9319?.version==='93.92'&&window.hlgbWalConfirmedReplay9333?.version==='93.92',null,{timeout:30000});
             const result=await page.evaluate(async()=>{
               const boot=window.HLGB_BOOT_PATCH_9392;
               if(!boot||boot.version!=='93.92'||Number(boot.legacyFlushRedirects)<1)throw new Error('flush955 interno não foi redirecionado para o replay confirmado');
@@ -97,10 +98,41 @@ jobs:
               const savedOrder=sepCalls.find(x=>x.module==='orders')?.row;
               if(!savedOrder?.materialSeparationCompletedAt||savedOrder.status!=='Aguardando corte')throw new Error('pedido recuperado não recebeu conclusão/material status correto');
 
+              const app=document.getElementById('appShell'),login=document.getElementById('loginScreen');
+              if(app)app.style.display='block';if(login)login.style.display='none';
+              localStorage.removeItem('hlgb_wal_permission_quarantine_v1');
+              localStorage.setItem('hlgb_durable_wal_v1',JSON.stringify({version:1,entries:{perm:{module:'noteQueue',id:'n1',data:{id:'n1'},opId:'perm-op',state:'pending'}}}));
+              let walCalls=0;
+              window.hlgbRecordSaveWithRetry=async()=>{walCalls++;const e=new Error('Usuário sem permissão para alterar o módulo noteQueue');e.code='P0001';throw e};
+              await window.hlgbWalConfirmedReplay9333.run('ci-p0001',true);
+              const walAfterPerm=JSON.parse(localStorage.getItem('hlgb_durable_wal_v1')||'{"entries":{}}');
+              const quarantine=JSON.parse(localStorage.getItem('hlgb_wal_permission_quarantine_v1')||'[]');
+              if(walAfterPerm.entries?.perm)throw new Error('P0001 permaneceu na fila ativa');
+              if(!quarantine.some(x=>x.opId==='perm-op'&&x.state==='blocked-permission'))throw new Error('P0001 não foi preservado na quarentena');
+              if(walCalls!==1)throw new Error('P0001 foi reenviado mais de uma vez na rodada');
+              if(!window.hlgbWalConfirmedReplay9333.isPermanentPermissionError(new Error('Usuário sem permissão para alterar o módulo noteQueue')))throw new Error('mensagem HLGB sem código P0001 não foi classificada como permissão permanente');
+
+              localStorage.removeItem('hlgb_wal_permission_quarantine_v1');
+              localStorage.setItem('hlgb_durable_wal_v1',JSON.stringify({version:1,entries:{timeout:{module:'orders',id:'o-timeout',data:{id:'o-timeout'},opId:'timeout-op',state:'pending'}}}));
+              walCalls=0;
+              window.hlgbRecordSaveWithRetry=async()=>{walCalls++;const e=new Error('canceling statement due to statement timeout');e.code='57014';throw e};
+              const before=Date.now();
+              await window.hlgbWalConfirmedReplay9333.run('ci-57014',true);
+              const walAfterTimeout=JSON.parse(localStorage.getItem('hlgb_durable_wal_v1')||'{"entries":{}}');
+              const timeoutOp=walAfterTimeout.entries?.timeout;
+              if(!timeoutOp||timeoutOp.state!=='pending')throw new Error('57014 não permaneceu pendente para retry');
+              if(Number(timeoutOp.retryDelayMs)<60000)throw new Error('57014 não recebeu backoff mínimo de 60s');
+              if(Date.parse(timeoutOp.nextAttemptAt)<before+59000)throw new Error('57014 recebeu nextAttemptAt cedo demais');
+              if(walCalls!==1)throw new Error('57014 foi repetido imediatamente');
+              const callsBeforeSecond=walCalls;
+              await window.hlgbWalConfirmedReplay9333.run('ci-57014-not-due',false);
+              if(walCalls!==callsBeforeSecond)throw new Error('57014 foi reenviado antes de vencer o backoff');
+
               c.writeoffModels=oldModels;
               for(const k of Object.keys(keep))window.db[k]=keep[k];
               localStorage.removeItem('hlgb_durable_wal_v1');
-              return {registration:reg,boot,stableId:a,writeCalls:writeCalls.length,separationCalls:sepCalls.map(x=>x.module)};
+              localStorage.removeItem('hlgb_wal_permission_quarantine_v1');
+              return {registration:reg,boot,stableId:a,writeCalls:writeCalls.length,separationCalls:sepCalls.map(x=>x.module),walPermission:'quarantined',walTimeoutDelay:timeoutOp.retryDelayMs};
             });
             console.log(JSON.stringify(result));
             if(errors.length)throw new Error('Erros JS: '+errors.join(' | '));
