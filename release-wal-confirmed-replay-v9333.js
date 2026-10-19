@@ -6,7 +6,7 @@
    v93.89: erros permanentes de permissão (P0001) são bloqueados, preservados no WAL e excluídos do replay ativo. */
 (function(){
 'use strict';
-const V='93.89', WAL_KEY='hlgb_durable_wal_v1', DB='hlgb_durable_wal', STORE='entries', SAVE_TIMEOUT_MS=22000;
+const V='93.89', WAL_KEY='hlgb_durable_wal_v1', QUAR_KEY='hlgb_wal_permission_quarantine_v1', DB='hlgb_durable_wal', STORE='entries', SAVE_TIMEOUT_MS=22000;
 if(window.HLGB_WAL_CONFIRMED_REPLAY_9333)return;
 window.HLGB_WAL_CONFIRMED_REPLAY_9333=V;
 const state={busy:false,booted:false,runs:0,confirmed:0,failed:0,blocked:0,lastRunAt:'',lastError:'',lastResult:null,currentKey:'',currentSince:''};
@@ -18,6 +18,8 @@ function readWal(){try{const w=JSON.parse(localStorage.getItem(WAL_KEY)||'null')
 function writeWal(w){try{localStorage.setItem(WAL_KEY,JSON.stringify(w));return true}catch(e){state.lastError=sid(e?.message||e);return false}}
 function activeEntries(w=readWal()){return Object.entries(w.entries||{}).filter(([,op])=>op?.state!=='blocked-permission')}
 function blockedEntries(w=readWal()){return Object.entries(w.entries||{}).filter(([,op])=>op?.state==='blocked-permission')}
+function readQuarantine(){try{const x=JSON.parse(localStorage.getItem(QUAR_KEY)||'[]');return Array.isArray(x)?x:[]}catch(e){return []}}
+function writeQuarantine(list){try{if(list.length)localStorage.setItem(QUAR_KEY,JSON.stringify(list));else localStorage.removeItem(QUAR_KEY);return true}catch(e){state.lastError=sid(e?.message||e);return false}}
 function normalizeText(v){return sid(v).normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase()}
 function isPermanentPermissionError(err){
  const text=normalizeText([err?.code,err?.message,err?.details,err?.hint,err?.error,err].map(sid).join(' '));
@@ -29,13 +31,24 @@ async function markAttempt(key,op){const w=readWal(),cur=w.entries?.[key];if(!cu
 async function markFailure(key,opId,err){const w=readWal(),cur=w.entries?.[key];if(!cur||sid(cur.opId)!==sid(opId))return false;cur.lastError=sid(err?.message||err).slice(0,1200);cur.updatedAt=new Date().toISOString();cur.state='pending';w.entries[key]=cur;writeWal(w);await idbPut(cur,key);return true}
 async function markPermissionBlocked(key,opId,err){
  const w=readWal(),cur=w.entries?.[key];if(!cur||sid(cur.opId)!==sid(opId))return false;
- const now=new Date().toISOString();
- cur.lastError=sid(err?.message||err).slice(0,1200);
- cur.updatedAt=now;cur.blockedAt=now;cur.blockedReason='permanent-permission';cur.state='blocked-permission';
- w.entries[key]=cur;if(!writeWal(w))return false;await idbPut(cur,key);state.blocked++;
+ const now=new Date().toISOString(),archived={...clone(cur),key,lastError:sid(err?.message||err).slice(0,1200),updatedAt:now,blockedAt:now,blockedReason:'permanent-permission',state:'blocked-permission'};
+ delete w.entries[key];
+ if(!writeWal(w))return false;
+ const q=readQuarantine().filter(x=>!(sid(x?.key)===sid(key)&&sid(x?.opId)===sid(opId)));q.push(archived);if(q.length>100)q.splice(0,q.length-100);
+ if(!writeQuarantine(q)){
+   const rollback=readWal();rollback.entries=rollback.entries||{};rollback.entries[key]=archived;writeWal(rollback);await idbPut(archived,key);return false;
+ }
+ await idbDeleteIfSame(key,opId);state.blocked++;
  try{window.dispatchEvent(new CustomEvent('hlgb-wal-permission-blocked',{detail:{key,module:cur.module,id:sid(cur.id),at:now}}))}catch(e){}
- console.warn('[HLGB v'+V+'] WAL bloqueado por permissão; dados preservados e replay suspenso',key);
+ console.warn('[HLGB v'+V+'] WAL arquivado por permissão; dados preservados fora da fila ativa',key);
  return true;
+}
+async function retryBlocked(){
+ const q=readQuarantine();if(!q.length)return {restored:0,remaining:0};const w=readWal();w.entries=w.entries||{};let restored=0;const keep=[];
+ for(const item of q){const key=sid(item?.key)||sid(item?.module)+'|'+sid(item?.id);if(!key||w.entries[key]){keep.push(item);continue}const op={...clone(item),state:'pending',lastError:'',blockedAt:'',blockedReason:'',updatedAt:new Date().toISOString()};delete op.key;w.entries[key]=op;restored++}
+ if(restored&&!writeWal(w))return {restored:0,remaining:q.length,error:'wal-write-failed'};
+ if(restored){for(const [key,op] of Object.entries(w.entries))if(op?.state==='pending')await idbPut(op,key);writeQuarantine(keep)}
+ return {restored,remaining:keep.length};
 }
 async function confirmRemove(key,opId){const w=readWal(),cur=w.entries?.[key];if(cur&&sid(cur.opId)===sid(opId)){delete w.entries[key];writeWal(w)}await idbDeleteIfSame(key,opId);return true}
 function saveWithTimeout(save,args,key){let timer=null;return new Promise((resolve,reject)=>{timer=setTimeout(()=>reject(new Error('Timeout v93.38 aguardando confirmação de '+key+' após '+SAVE_TIMEOUT_MS+'ms')),SAVE_TIMEOUT_MS);Promise.resolve().then(()=>save.apply(window,args)).then(v=>{clearTimeout(timer);resolve(v)},e=>{clearTimeout(timer);reject(e)})})}
@@ -58,11 +71,11 @@ async function replayOne(key,op){
 async function run(reason='manual',force=false){
  if(state.busy||navigator.onLine===false||!loggedIn()||(!force&&editing()))return false;
  const items=activeEntries();
- if(!items.length){state.lastResult={reason,at:new Date().toISOString(),results:[],remaining:0,blocked:blockedEntries().length};return true}
+ if(!items.length){state.lastResult={reason,at:new Date().toISOString(),results:[],remaining:0,blocked:readQuarantine().length+blockedEntries().length};return true}
  state.busy=true;state.runs++;state.lastRunAt=new Date().toISOString();state.lastError='';const results=[];
  try{
   for(const [key,op] of items){if(!op?.module||op?.id==null){results.push({key,ok:false,reason:'entrada-invalida'});continue}results.push(await replayOne(key,op))}
-  state.lastResult={reason,at:new Date().toISOString(),results,remaining:activeEntries().length,blocked:blockedEntries().length};
+  state.lastResult={reason,at:new Date().toISOString(),results,remaining:activeEntries().length,blocked:readQuarantine().length+blockedEntries().length};
   try{if(state.lastResult.remaining>0)window.hlgbSyncRecovery9301?.fullSync?.('v9389-after-replay',true)}catch(e){}
   return state.lastResult.remaining===0;
  }catch(e){state.lastError=sid(e?.message||e);return false}finally{state.busy=false;state.currentKey='';state.currentSince=''}
@@ -72,7 +85,7 @@ let intervalId=null;
 function boot(){if(state.booted)return true;state.booted=true;stamp();setTimeout(()=>run('boot',true).catch(()=>{}),650);intervalId=setInterval(()=>{if(activeEntries().length)run('interval',false).catch(()=>{})},15000);return true}
 function tryBoot(){if(state.booted)return true;if(loggedIn())return boot();return false}
 function loadPayrollMonthGuard(){try{if(window.HLGB_PAYROLL_MONTH_WAL_9334||document.querySelector('script[data-hlgb-payroll-month-wal="9334"]'))return;const s=document.createElement('script');s.dataset.hlgbPayrollMonthWal='9334';s.src='./release-payroll-month-wal-v9334.js?fresh='+Date.now();s.onerror=()=>console.warn('[HLGB v'+V+'] proteção v93.34 não carregou');(document.head||document.documentElement).appendChild(s)}catch(e){console.warn('[HLGB v'+V+'] proteção v93.34 indisponível',e)}}
-window.hlgbWalConfirmedReplay9333={version:V,state,run,boot,tryBoot,pending:()=>activeEntries().length,blocked:()=>blockedEntries().length,isPermanentPermissionError,timeoutMs:SAVE_TIMEOUT_MS};
+window.hlgbWalConfirmedReplay9333={version:V,state,run,boot,tryBoot,pending:()=>activeEntries().length,blocked:()=>readQuarantine().length+blockedEntries().length,retryBlocked,isPermanentPermissionError,timeoutMs:SAVE_TIMEOUT_MS};
 window.addEventListener('online',()=>{tryBoot();run('online',true).catch(()=>{})});window.addEventListener('focus',()=>{tryBoot();run('focus',false).catch(()=>{})});
 if(typeof window.hlgbAfterLogin==='function')window.hlgbAfterLogin(()=>setTimeout(boot,180),0);
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>setTimeout(tryBoot,120),{once:true});
