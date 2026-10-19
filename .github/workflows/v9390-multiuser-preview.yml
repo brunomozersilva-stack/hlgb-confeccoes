@@ -1,4 +1,4 @@
-name: HLGB v93.90 Multiuser Preview
+name: HLGB v93.92 Multiuser Preview
 
 on:
   push:
@@ -24,10 +24,10 @@ jobs:
           npx playwright install --with-deps chromium
       - name: Iniciar servidor local
         run: |
-          python3 -m http.server 4173 >/tmp/hlgb-v9390-http.log 2>&1 &
-          echo $! >/tmp/hlgb-v9390-http.pid
+          python3 -m http.server 4173 >/tmp/hlgb-v9392-http.log 2>&1 &
+          echo $! >/tmp/hlgb-v9392-http.pid
           sleep 2
-      - name: Abrir build e clicar no Auditor real v93.90
+      - name: Abrir build e clicar no Auditor real v93.92
         run: |
           node <<'NODE'
           const { chromium } = require('playwright');
@@ -38,13 +38,16 @@ jobs:
             page.on('pageerror',e=>errs.push(String(e.message||e)));
             await page.goto('http://127.0.0.1:4173/abrir.html',{waitUntil:'domcontentloaded',timeout:30000});
             await page.waitForFunction(()=>document.getElementById('loginScreen')||document.getElementById('appShell'),null,{timeout:30000});
-            await page.waitForFunction(()=>window.HLGB_BUILD_ID==='HLGB-2026.10.19-93.90-MULTIUSER',null,{timeout:30000});
-            const info=await page.evaluate(()=>({build:window.HLGB_BUILD_ID,version:window.HLGB_RELEASE_VERSION,replay:window.hlgbWalConfirmedReplay9333?.version||'',watch:window.hlgbPayrollSnapshotWatch9354?.version||'',auditor:window.hlgbAuditorMultiuser9390?.version||'',open:typeof window.openHlgbAuditor==='function'}));
+            await page.waitForFunction(()=>window.HLGB_BUILD_ID==='HLGB-2026.10.19-93.92-MULTIUSER',null,{timeout:30000});
+            const info=await page.evaluate(()=>({build:window.HLGB_BUILD_ID,version:window.HLGB_RELEASE_VERSION,replay:window.hlgbWalConfirmedReplay9333?.version||'',watch:window.hlgbPayrollSnapshotWatch9354?.version||'',auditor:window.hlgbAuditorMultiuser9390?.version||'',writeoff:window.hlgbWriteoffIntegrity9391?.version||'',separation:window.hlgbSeparationCommit9319?.version||'',boot:window.HLGB_BOOT_PATCH_9392?.version||'',open:typeof window.openHlgbAuditor==='function'}));
             console.log(JSON.stringify(info));
-            if(info.build!=='HLGB-2026.10.19-93.90-MULTIUSER')throw new Error('Build ID incorreto');
-            if(String(info.replay)!=='93.90')throw new Error('Replay v93.90 não carregou');
-            if(String(info.watch)!=='93.90')throw new Error('Vigia v93.90 não carregou');
-            if(String(info.auditor)!=='93.90')throw new Error('Auditor multiusuário v93.90 não carregou');
+            if(info.build!=='HLGB-2026.10.19-93.92-MULTIUSER')throw new Error('Build ID incorreto');
+            if(String(info.replay)!=='93.90')throw new Error('Replay confirmado v93.90 não carregou');
+            if(String(info.watch)!=='93.90')throw new Error('Vigia da folha v93.90 não carregou');
+            if(String(info.auditor)!=='93.92')throw new Error('Auditor multiusuário v93.92 não carregou');
+            if(String(info.writeoff)!=='93.91')throw new Error('Integridade da baixa v93.91 não carregou');
+            if(String(info.separation)!=='93.92')throw new Error('Separação v93.92 não carregou');
+            if(String(info.boot)!=='93.92')throw new Error('Bootstrap v93.92 não carregou');
             if(!info.open)throw new Error('Função de abertura do Auditor indisponível');
             await page.waitForSelector('#hlgbAuditorNavBtn',{state:'attached',timeout:5000});
             await page.locator('#hlgbAuditorNavBtn').click({force:true});
@@ -52,6 +55,7 @@ jobs:
             await page.waitForSelector('#hlgbMultiUserAuditPanel9390',{state:'visible',timeout:5000});
             const text=await page.locator('#hlgbMultiUserAuditPanel9390').innerText();
             if(!text.includes('Validação multiusuário obrigatória'))throw new Error('Painel multiusuário não apareceu após clique real no botão Auditor / Testes');
+            if(!text.includes('HLGB-2026.10.19-93.92-MULTIUSER'))throw new Error('Painel do Auditor não mostrou o build v93.92');
             if(errs.length)throw new Error('Erros JS: '+errs.join(' | '));
             await browser.close();
           })().catch(e=>{console.error(e);process.exit(1)});
@@ -78,7 +82,7 @@ jobs:
           #!/bin/bash
           set -e
           cd "$(dirname "$0")"
-          echo "HLGB v93.90 — TESTE LOCAL — NAO PUBLICA NO MAIN"
+          echo "HLGB v93.92 — TESTE LOCAL — NAO PUBLICA NO MAIN"
           echo "Abrindo http://localhost:8765/abrir.html"
           (sleep 1; open "http://localhost:8765/abrir.html") &
           python3 -m http.server 8765
@@ -87,15 +91,15 @@ jobs:
           cat > preview/start-preview.bat <<'BAT'
           @echo off
           cd /d %~dp0
-          echo HLGB v93.90 - TESTE LOCAL - NAO PUBLICA NO MAIN
+          echo HLGB v93.92 - TESTE LOCAL - NAO PUBLICA NO MAIN
           start "" http://localhost:8765/abrir.html
           where py >nul 2>nul
           if %errorlevel%==0 (py -m http.server 8765) else (python -m http.server 8765)
           BAT
           cat > preview/LEIA-ME.txt <<EOF
-          HLGB v93.90 - PREVIEW MULTIUSUARIO
+          HLGB v93.92 - PREVIEW MULTIUSUARIO
           Commit: $GITHUB_SHA
-          Build esperado: HLGB-2026.10.19-93.90-MULTIUSER
+          Build esperado: HLGB-2026.10.19-93.92-MULTIUSER
 
           Mac: dê duplo clique em start-preview.command.
           Windows: dê duplo clique em start-preview.bat.
@@ -104,7 +108,7 @@ jobs:
           EOF
       - uses: actions/upload-artifact@v4
         with:
-          name: HLGB-v93.90-MULTIUSER-PREVIEW-${{ github.sha }}
+          name: HLGB-v93.92-MULTIUSER-PREVIEW-${{ github.sha }}
           path: preview/
           if-no-files-found: error
           retention-days: 7
