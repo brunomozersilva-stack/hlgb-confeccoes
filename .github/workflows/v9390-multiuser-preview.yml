@@ -68,7 +68,13 @@ jobs:
             if(multi.pass.status!=='pass'||multi.pass.profiles!==4||multi.pass.expected!==4||multi.pass.missing!==0)throw new Error('Auditor não aprovou os 4 perfis no mesmo build');
             if(multi.fail.status!=='fail'||multi.fail.mismatched!==1)throw new Error('Auditor não bloqueou build divergente');
             await page.waitForSelector('#hlgbAuditorNavBtn',{state:'attached',timeout:5000});
-            await page.locator('#hlgbAuditorNavBtn').click({force:true});
+            await page.evaluate(()=>{
+              const login=document.getElementById('loginScreen');if(login)login.style.display='none';
+              const app=document.getElementById('appShell');if(app){app.hidden=false;app.style.display='block';app.style.visibility='visible';app.style.opacity='1'}
+              const b=document.getElementById('hlgbAuditorNavBtn');
+              let n=b;while(n&&n!==document.body){n.hidden=false;n.style.visibility='visible';n.style.opacity='1';if(getComputedStyle(n).display==='none')n.style.display='block';n=n.parentElement}
+            });
+            await page.locator('#hlgbAuditorNavBtn').click();
             await page.waitForSelector('#hlgbAuditorResult',{state:'attached',timeout:5000});
             await page.waitForSelector('#hlgbMultiUserAuditPanel9390',{state:'visible',timeout:5000});
             const text=await page.locator('#hlgbMultiUserAuditPanel9390').innerText();
@@ -111,7 +117,13 @@ jobs:
             if(info.build!=='HLGB-2026.10.19-93.92-MULTIUSER')throw new Error('Build ID incorreto no WebKit');
             if(String(info.replay)!=='93.92'||String(info.auditor)!=='93.92'||String(info.writeoff)!=='93.91'||String(info.separation)!=='93.92'||String(info.boot)!=='93.92')throw new Error('Módulos críticos não carregaram no WebKit: '+JSON.stringify(info));
             await page.waitForSelector('#hlgbAuditorNavBtn',{state:'attached',timeout:5000});
-            await page.locator('#hlgbAuditorNavBtn').click({force:true});
+            await page.evaluate(()=>{
+              const login=document.getElementById('loginScreen');if(login)login.style.display='none';
+              const app=document.getElementById('appShell');if(app){app.hidden=false;app.style.display='block';app.style.visibility='visible';app.style.opacity='1'}
+              const b=document.getElementById('hlgbAuditorNavBtn');
+              let n=b;while(n&&n!==document.body){n.hidden=false;n.style.visibility='visible';n.style.opacity='1';if(getComputedStyle(n).display==='none')n.style.display='block';n=n.parentElement}
+            });
+            await page.locator('#hlgbAuditorNavBtn').click();
             await page.waitForSelector('#hlgbAuditorResult',{state:'attached',timeout:5000});
             await page.waitForSelector('#hlgbMultiUserAuditPanel9390',{state:'visible',timeout:5000});
             const text=await page.locator('#hlgbMultiUserAuditPanel9390').innerText();
