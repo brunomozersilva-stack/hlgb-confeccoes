@@ -13,6 +13,24 @@ try{
 }finally{clearTimeout(bootTimer)}
 // Não apague a entrada se o servidor devolver conteúdo vazio, incompleto ou uma página de erro.
 if(!/<\/html\s*>/i.test(h)||!/<[^>]+id=["']loginScreen["']/i.test(h)||!/<[^>]+id=["']appShell["']/i.test(h))throw new Error('O sistema chegou incompleto. Tente novamente.');
+/* v93.92: a baixa operacional precisa participar da primeira carga remota, antes de o app executar. */
+const modulesNeedle='"whatsappPilotRules","whatsappPilotMessages"]';
+if(!h.includes('"operationalWriteoffs"')){
+  if(h.includes(modulesNeedle))h=h.replace(modulesNeedle,'"whatsappPilotRules","whatsappPilotMessages","operationalWriteoffs"]');
+  else console.error('[HLGB v93.92] lista HLGB_RECORD_MODULES não localizada para operationalWriteoffs');
+}
+const areaNeedle='whatsappPilotRules:"config",whatsappPilotMessages:"config"';
+if(!/operationalWriteoffs\s*:\s*["']producao["']/.test(h)){
+  if(h.includes(areaNeedle))h=h.replace(areaNeedle,areaNeedle+',operationalWriteoffs:"producao"');
+  else console.error('[HLGB v93.92] mapa HLGB_RECORD_WRITE_AREA não localizado para operationalWriteoffs');
+}
+/* Leitura da baixa é transversal: corte/facção/projeção também precisam enxergar o que já foi baixado. */
+const readNeedle='if(module==="factionMasters"||module==="factions")return any("faccoes","producao");';
+if(h.includes(readNeedle)&&!h.includes('if(module==="operationalWriteoffs")'))h=h.replace(readNeedle,readNeedle+'\n  if(module==="operationalWriteoffs")return any("producao","corte","faccoes","projecao","pedidos");');
+/* v93.92: caminhos internos do flush antigo não executam uma segunda autoridade. A WAL durável fica para o replay confirmado. */
+let legacyFlushRedirects=0;
+h=h.replace(/flush955\(false\)/g,()=>{legacyFlushRedirects++;return "(window.hlgbWalConfirmedReplay9333?.run?.('legacy-internal-flush',false)??false)"});
+window.HLGB_BOOT_PATCH_9392={version:'93.92',legacyFlushRedirects};
 /* v92.68: a WAL já é persistida; pendência local não deve disparar aviso Leave Page */h=h.split("window.addEventListener('beforeunload',e=>{if(count955()>0){e.preventDefault();e.returnValue=''}});").join("/* v92.68: saída segura; WAL continua persistida */");
 /* v93.52: impedir que scanDirty955 recrie WAL técnica da folha quando só updatedAt mudou e existe base confirmada arquivada. Alterações reais continuam entrando na WAL. */
 const dirtyOld="const same=!!sr&&!sr.deleted_at&&(typeof eqBusiness990==='function'?eqBusiness990(r,sr.data):norm955(r)===norm955(sr.data));\n      if(!same){todo.push([m,id,C955(r)]);if(todo.length>=40)break}";
