@@ -27,7 +27,7 @@ jobs:
           python3 -m http.server 4173 >/tmp/hlgb-v9392-http.log 2>&1 &
           echo $! >/tmp/hlgb-v9392-http.pid
           sleep 2
-      - name: Abrir build e clicar no Auditor real v93.92
+      - name: Abrir build, validar todos os perfis e clicar no Auditor real v93.92
         run: |
           node <<'NODE'
           const { chromium } = require('playwright');
@@ -49,6 +49,24 @@ jobs:
             if(String(info.separation)!=='93.92')throw new Error('Separação v93.92 não carregou');
             if(String(info.boot)!=='93.92')throw new Error('Bootstrap v93.92 não carregou');
             if(!info.open)throw new Error('Função de abertura do Auditor indisponível');
+            const multi=await page.evaluate(async()=>{
+              const api=window.hlgbAuditorMultiuser9390;
+              const old=window.cloudRequest;
+              const mk=(n,mismatch=false)=>Array.from({length:n},(_,i)=>({data:{kind:'system_audit_multiuser_validation',profile:{profileKey:'perfil-'+i,name:'Perfil '+i,role:'user'},buildId:mismatch&&i===0?'HLGB-ANTIGO':window.HLGB_BUILD_ID,completedAt:'2026-10-19T12:00:0'+i+'Z'}}));
+              let rows=mk(2);
+              window.cloudRequest=async path=>String(path).startsWith('rpc/')?4:rows;
+              const warn=await api.compareProfiles();
+              rows=mk(4);
+              const pass=await api.compareProfiles();
+              rows=mk(4,true);
+              const fail=await api.compareProfiles();
+              window.cloudRequest=old;
+              return {warn:{status:warn.status,profiles:warn.profiles,expected:warn.expectedProfiles,missing:warn.missing},pass:{status:pass.status,profiles:pass.profiles,expected:pass.expectedProfiles,missing:pass.missing},fail:{status:fail.status,mismatched:fail.mismatched}};
+            });
+            console.log(JSON.stringify(multi));
+            if(multi.warn.status!=='warn'||multi.warn.profiles!==2||multi.warn.expected!==4||multi.warn.missing!==2)throw new Error('Auditor aprovou antes de conferir todos os perfis ativos');
+            if(multi.pass.status!=='pass'||multi.pass.profiles!==4||multi.pass.expected!==4||multi.pass.missing!==0)throw new Error('Auditor não aprovou os 4 perfis no mesmo build');
+            if(multi.fail.status!=='fail'||multi.fail.mismatched!==1)throw new Error('Auditor não bloqueou build divergente');
             await page.waitForSelector('#hlgbAuditorNavBtn',{state:'attached',timeout:5000});
             await page.locator('#hlgbAuditorNavBtn').click({force:true});
             await page.waitForSelector('#hlgbAuditorResult',{state:'attached',timeout:5000});
