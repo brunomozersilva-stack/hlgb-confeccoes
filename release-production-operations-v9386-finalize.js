@@ -87,6 +87,7 @@ function correctedModel(m){
 async function officialSave(row){if(typeof window.cloudEnsureFreshSession==='function')await window.cloudEnsureFreshSession(false);if(typeof window.hlgbRecordSaveWithRetry!=='function')throw new Error('Gravação oficial indisponível.');const r=await window.hlgbRecordSaveWithRetry('operationalWriteoffs',sid(row.id),row,false);if(!r?.applied)throw new Error(r?.reason||'A nuvem não confirmou a baixa.');const a=arr('operationalWriteoffs'),i=a.findIndex(x=>sid(x.id)===sid(row.id));if(i>=0)a[i]=r.data||row;else a.push(r.data||row);return r.data||row}
 function userLabel(){try{const u=typeof window.currentUser==='function'?window.currentUser():null;return sid(u?.name||u?.login||window.cloudUser?.email||'Usuário HLGB')}catch(_){return'Usuário HLGB'}}
 function installWriteoff(){
+ if(window.hlgbWriteoffIntegrity9391?.version==='93.91')return;
  const fn=async function(){
   const c=core(),ids=[...document.querySelectorAll('.hlgb9385-writeoff:checked')].map(x=>x.value),base=typeof c?.writeoffModels==='function'?c.writeoffModels():[],sel=base.filter(x=>ids.includes(x.id)).map(correctedModel);
   if(!sel.length)return alert('Selecione pelo menos um modelo.');
