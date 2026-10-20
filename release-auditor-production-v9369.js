@@ -21,7 +21,6 @@ function cloudRequestIsSafe(previous,current){
  return false;
 }
 try{
- /* O guard de leitura é somente leitura e deve entrar antes de qualquer login. */
  if(!window.HLGB_BOOT_READ_COALESCE_9393)await load('release-boot-read-coalesce-v9393.js');
  await waitReady();
  before={recordSave:window.hlgbRecordSaveWithRetry,cloudRequest:window.cloudRequest,setInterval:window.setInterval,setTimeout:window.setTimeout};
@@ -41,7 +40,7 @@ try{
  if(window.hlgbRuntimePerformance9371?.version!=='93.71')throw new Error('Correções runtime v93.71 não ficaram ativas.');
  if(window.hlgbAuditorSmart?.renderSignal9372?.version!=='93.72')throw new Error('Sinal de render v93.72 não ficou ativo.');
  window.HLGB_AUDITOR_PRODUCTION_9369=true;
- window.hlgbAuditorProduction9369={version:'93.72',active:true,safety,timeline:true,runtimeFix:true,renderSignal:true,bootReadCoalesce:window.HLGB_BOOT_READ_COALESCE_9393?.version||'',patch:'2026-10-20-boot-read-coalesce'};
+ window.hlgbAuditorProduction9369={version:'93.72',active:true,safety,timeline:true,runtimeFix:true,renderSignal:true,bootReadCoalesce:window.HLGB_BOOT_READ_COALESCE_9393?.version||'',bootReadPatch:'2026-10-20-boot-read-coalesce',patch:'2026-10-15-known-cloud-wrapper'};
  console.info('[HLGB] Auditor de produção v93.72 ativo',safety);
-}catch(e){window.HLGB_AUDITOR_PRODUCTION_9369=false;window.hlgbAuditorProduction9369={version:'93.72',active:false,error:String(e?.message||e),patch:'2026-10-20-boot-read-coalesce'};console.error('[HLGB] Auditor de produção v93.72 não ativado',e);}finally{window.HLGB_AUDITOR_PRODUCTION_9369_LOADING=false;}
+}catch(e){window.HLGB_AUDITOR_PRODUCTION_9369=false;window.hlgbAuditorProduction9369={version:'93.72',active:false,error:String(e?.message||e),bootReadPatch:'2026-10-20-boot-read-coalesce',patch:'2026-10-15-known-cloud-wrapper'};console.error('[HLGB] Auditor de produção v93.72 não ativado',e);}finally{window.HLGB_AUDITOR_PRODUCTION_9369_LOADING=false;}
 })();
