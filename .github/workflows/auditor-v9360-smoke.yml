@@ -7,6 +7,7 @@ on:
       - fix/runtime-render-save-v9371
       - fix/auditor-render-signal-v9372
       - fix/realtime-auth-storage-key-20261015
+      - fix/sync-permission-retry-all-users-20261019
   workflow_dispatch:
 jobs:
   smoke:
@@ -65,6 +66,12 @@ jobs:
         run: node tests/auditor-ui-compat-v9361.js
       - name: Auditoria diária silenciosa
         run: node tests/auditor-v9362-background.js
+      - name: Sintaxe replay WAL v93.90
+        run: node --check release-wal-confirmed-replay-v9333.js
+      - name: Sintaxe vigia folha v93.90
+        run: node --check release-payroll-snapshot-watch-v9354.js
+      - name: Sintaxe Auditor multiusuário v93.90
+        run: node --check release-auditor-multiuser-v9390.js
   webkit:
     runs-on: ubuntu-latest
     timeout-minutes: 12

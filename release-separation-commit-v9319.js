@@ -1,7 +1,7 @@
-/* HLGB v93.27 — separação autoritativa com confirmação por registro */
+/* HLGB v93.92 — separação autoritativa: recuperação pendente também conclui pedido */
 (function(){
 'use strict';
-const V='93.27';
+const V='93.92';
 const sid=v=>String(v??'');
 const num=v=>Math.max(0,Number(v)||0);
 const clone=v=>{try{return structuredClone(v)}catch(e){try{return JSON.parse(JSON.stringify(v))}catch(_){return v}}};
@@ -64,7 +64,12 @@ async function confirmPendingSeparation(o,s,pid,wasVisible){
  try{
   const r=await confirmExisting('separations',s);
   if(!r?.applied){pending++;lastResult={kind:'separation',id:rid,state:'pending'};statusText('⚠️ Baixa preservada · toque em “Tentar confirmar”','warn');redraw(o.id,pid,'pending');return {pending:true,retry:true}}
-  confirmed++;lastError='';lastResult={kind:'separation',id:rid,state:'confirmed'};statusText('✅ Baixa pendente confirmada na nuvem','ok');redraw(o.id,pid,'idle');return {applied:true,separationConfirmed:true,recovered:true,complete:totals(o,s).complete}
+  const complete=totals(o,s).complete;
+  if(complete){
+   const os=await saveCompletedOrder(o,wasVisible);
+   if(os?.pending){lastResult={kind:'separation',id:rid,state:'confirmed',orderPending:true};statusText('⚠️ Separação confirmada; pedido aguardando nuvem','warn');redraw(o.id,pid,'idle');return {applied:true,separationConfirmed:true,recovered:true,complete:true,orderPending:true}}
+  }
+  confirmed++;lastError='';lastResult={kind:'separation',id:rid,state:'confirmed'};statusText(complete?'✅ Separação e pedido concluídos na nuvem':'✅ Baixa pendente confirmada na nuvem','ok');redraw(o.id,pid,'idle');return {applied:true,separationConfirmed:true,recovered:true,complete}
  }catch(err){lastError=sid(err?.message||err);pending++;keepSession(err,wasVisible);scheduleRecovery();lastResult={kind:'separation',id:rid,state:'pending',error:lastError};statusText('⚠️ Baixa preservada · toque em “Tentar confirmar”','warn');redraw(o.id,pid,'pending');return {pending:true,retry:true,error:lastError}}
 }
 async function directApply(orderId,pid,finish=false){
