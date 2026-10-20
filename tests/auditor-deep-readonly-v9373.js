@@ -1,0 +1,15 @@
+const fs=require('fs');
+const assert=require('assert');
+const src=fs.readFileSync('release-auditor-production-v9369.js','utf8');
+assert(src.includes("wrapAuditAction('hlgbAuditorRunFull'"),'teste completo não recebe diagnóstico profundo');
+assert(src.includes("wrapAuditAction('hlgbAuditorRunVisual'"),'teste visual não recebe diagnóstico profundo');
+assert(src.includes("wrapAuditAction('hlgbAuditorRunVisualSweep'"),'varredura visual não recebe diagnóstico profundo');
+assert(!/window\.hlgbRecordSaveWithRetry\s*=/.test(src),'diagnóstico profundo não pode substituir save');
+assert(!/window\.cloudRequest\s*=/.test(src),'diagnóstico profundo não pode substituir cloudRequest');
+assert(!/window\.setInterval\s*=/.test(src),'diagnóstico profundo não pode substituir setInterval');
+assert(!/window\.setTimeout\s*=/.test(src),'diagnóstico profundo não pode substituir setTimeout');
+assert(!src.includes('release-boot-read-coalesce-v9393.js'),'diagnóstico não pode ativar corretor de boot');
+assert(!src.includes('release-auditor-multiuser-v9390.js'),'diagnóstico não pode carregar camada que intercepta abertura do Auditor');
+assert(src.includes("kind:'system_audit_deep'"),'registro técnico profundo ausente');
+assert(src.includes("deepBuild:DEEP_BUILD"),'build do diagnóstico profundo ausente');
+console.log('auditor deep readonly v93.73: OK');
