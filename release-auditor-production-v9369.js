@@ -14,6 +14,8 @@ function installSingleEntry(){if(window.__hlgbAuditorEntryCapture9368)return;con
 function cloudRequestIsSafe(previous,current){
  if(previous===current)return true;
  if(typeof current!=='function')return false;
+ // O transporte v93.20 pode ser instalado durante o boot. Aceita apenas o wrapper
+ // conhecido quando ele prova que envolve exatamente a função observada antes.
  if(current.__hlgb9320===true){
   if(previous==null)return typeof current.__hlgb9320Original==='function';
   return current.__hlgb9320Original===previous;
@@ -21,8 +23,9 @@ function cloudRequestIsSafe(previous,current){
  return false;
 }
 try{
- if(!window.HLGB_BOOT_READ_COALESCE_9393)await load('release-boot-read-coalesce-v9393.js');
  await waitReady();
+ // A foto de segurança precisa ser tirada depois da espera dos módulos-base; durante
+ // essa espera o boot normal ainda pode instalar wrappers legítimos de persistência.
  before={recordSave:window.hlgbRecordSaveWithRetry,cloudRequest:window.cloudRequest,setInterval:window.setInterval,setTimeout:window.setTimeout};
  if(!window.HLGB_RUNTIME_PERFORMANCE_9371)await load('release-runtime-performance-v9371.js');
  if(!window.HLGB_AUDITOR_SMART_9360)await load('release-auditor-smart-v9360.js');
@@ -40,10 +43,7 @@ try{
  if(window.hlgbRuntimePerformance9371?.version!=='93.71')throw new Error('Correções runtime v93.71 não ficaram ativas.');
  if(window.hlgbAuditorSmart?.renderSignal9372?.version!=='93.72')throw new Error('Sinal de render v93.72 não ficou ativo.');
  window.HLGB_AUDITOR_PRODUCTION_9369=true;
- window.hlgbAuditorProduction9369={version:'93.72',active:true,safety,timeline:true,runtimeFix:true,renderSignal:true,bootReadCoalesce:window.HLGB_BOOT_READ_COALESCE_9393?.version||'',multiuser:'pending',bootReadPatch:'2026-10-20-boot-read-coalesce',patch:'2026-10-15-known-cloud-wrapper'};
+ window.hlgbAuditorProduction9369={version:'93.72',active:true,safety,timeline:true,runtimeFix:true,renderSignal:true,patch:'2026-10-15-known-cloud-wrapper'};
  console.info('[HLGB] Auditor de produção v93.72 ativo',safety);
- // A validação multiusuário só entra depois que o Auditor principal está funcional.
- // Assim ela nunca pode bloquear o botão de abertura do Auditor.
- setTimeout(()=>{if(!window.HLGB_AUDITOR_MULTIUSER_9390)load('release-auditor-multiuser-v9390.js').then(()=>{if(window.hlgbAuditorProduction9369)window.hlgbAuditorProduction9369.multiuser=window.HLGB_AUDITOR_MULTIUSER_9390||''}).catch(e=>console.warn('[HLGB] validação multiusuário não carregou',e))},0);
-}catch(e){window.HLGB_AUDITOR_PRODUCTION_9369=false;window.hlgbAuditorProduction9369={version:'93.72',active:false,error:String(e?.message||e),bootReadPatch:'2026-10-20-boot-read-coalesce',patch:'2026-10-15-known-cloud-wrapper'};console.error('[HLGB] Auditor de produção v93.72 não ativado',e);}finally{window.HLGB_AUDITOR_PRODUCTION_9369_LOADING=false;}
+}catch(e){window.HLGB_AUDITOR_PRODUCTION_9369=false;window.hlgbAuditorProduction9369={version:'93.72',active:false,error:String(e?.message||e),patch:'2026-10-15-known-cloud-wrapper'};console.error('[HLGB] Auditor de produção v93.72 não ativado',e);}finally{window.HLGB_AUDITOR_PRODUCTION_9369_LOADING=false;}
 })();
