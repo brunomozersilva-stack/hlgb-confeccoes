@@ -1,0 +1,63 @@
+name: HLGB v93.93 Boot Read Coalesce
+
+on:
+  push:
+    branches:
+      - fix/sync-permission-retry-all-users-20261019
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  boot-read:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Sintaxe
+        run: node --check release-boot-read-coalesce-v9393.js && node --check release-auditor-production-v9369.js
+      - name: Instalar Chromium
+        run: |
+          npm install --no-save playwright@1.55.0
+          npx playwright install --with-deps chromium
+      - name: Iniciar servidor
+        run: |
+          python3 -m http.server 4173 >/tmp/hlgb-v9393-http.log 2>&1 &
+          sleep 2
+      - name: Validar coalescencia isolada e carregamento real
+        run: |
+          node <<'NODE'
+          const { chromium } = require('playwright');
+          (async()=>{
+            const browser=await chromium.launch({headless:true});
+            const p=await browser.newPage();
+            await p.goto('http://127.0.0.1:4173/',{waitUntil:'domcontentloaded'});
+            const isolated=await p.evaluate(async()=>{
+              let calls=0,resolve;
+              window.hlgbRecordLoadBundle=()=>{calls++;return new Promise(r=>{resolve=r})};
+              await new Promise((ok,fail)=>{const s=document.createElement('script');s.src='./release-boot-read-coalesce-v9393.js?x='+Date.now();s.onload=ok;s.onerror=fail;document.head.appendChild(s)});
+              const a=window.hlgbRecordLoadBundle({preserveLocal:true,since:null});
+              const b=window.hlgbRecordLoadBundle({preserveLocal:true,since:null});
+              if(calls!==1)throw new Error('Leitura ampla concorrente não foi coalescida: '+calls);
+              resolve({rows:[1]});
+              const [ra,rb]=await Promise.all([a,b]);
+              const c=await window.hlgbRecordLoadBundle({preserveLocal:true,since:null});
+              if(calls!==1)throw new Error('Resultado amplo recente não foi reaproveitado: '+calls);
+              const st=window.HLGB_BOOT_READ_COALESCE_9393.status();
+              return {calls,coalesced:st.coalesced,reused:st.reused,ra,rb,c};
+            });
+            console.log('isolated',isolated);
+            if(isolated.coalesced<1||isolated.reused<1)throw new Error('Contadores de coalescência inválidos');
+            const app=await browser.newPage();
+            await app.goto('http://127.0.0.1:4173/abrir.html',{waitUntil:'domcontentloaded',timeout:30000});
+            await app.waitForFunction(()=>window.HLGB_BOOT_READ_COALESCE_9393?.installed===true,null,{timeout:30000});
+            const real=await app.evaluate(()=>({patch:window.HLGB_BOOT_READ_COALESCE_9393?.version||'',auditor:window.hlgbAuditorProduction9369?.bootReadCoalesce||''}));
+            console.log('real',real);
+            if(real.patch!=='93.93')throw new Error('Patch v93.93 não carregou no app real');
+            await browser.close();
+          })().catch(e=>{console.error(e);process.exit(1)});
+          NODE
