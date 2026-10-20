@@ -109,3 +109,5 @@ jobs:
         run: node tests/material-health-v9371-webkit.js
       - name: Integração produção v93.72 WebKit
         run: node tests/production-v9372-webkit.js
+      - name: Mapa de autoridades v93.74 WebKit
+        run: node tests/auditor-authority-v9374-webkit.js
