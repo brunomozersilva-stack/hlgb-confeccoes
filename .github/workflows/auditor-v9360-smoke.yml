@@ -44,10 +44,14 @@ jobs:
         run: node --check release-material-health-v9260.js
       - name: Sintaxe produção v93.73
         run: node --check release-auditor-production-v9369.js
+      - name: Auditor profundo somente leitura
+        run: node tests/auditor-deep-readonly-v9373.js
       - name: Sintaxe mapa de autoridades v93.74
         run: node --check release-auditor-authority-map-v9374.js
       - name: Mapa de versões e autoridades
         run: node tests/auditor-authority-map-v9374.js
+      - name: Carregamento seguro do mapa de autoridades
+        run: node tests/auditor-authority-loader-v9374.js
       - name: Wrapper conhecido do Auditor
         run: node tests/auditor-known-cloud-wrapper-v9375.js
       - name: Sintaxe loader v93.65
