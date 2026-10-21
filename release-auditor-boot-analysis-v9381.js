@@ -35,8 +35,9 @@ function render(){
 }
 function decorate(){
  const actions=document.querySelector('.hlgb-auditor-actions');if(!actions)return false;
- let b=document.getElementById('hlgbBootAnalysisBtn9381');if(!b){b=document.createElement('button');b.id='hlgbBootAnalysisBtn9381';b.type='button';b.className='secondary';b.textContent='🚦 Boot / cargas';b.onclick=()=>{window.hlgbAuditorBootAnalysis9381.last=render()};actions.appendChild(b)}
- b.hidden=false;b.removeAttribute('data-hlgb-auditor-hidden');return true;
+ let tools=document.getElementById('hlgbBootTools9381');if(!tools){tools=document.createElement('div');tools.id='hlgbBootTools9381';tools.style.cssText='margin-top:8px';actions.insertAdjacentElement('afterend',tools)}
+ let b=document.getElementById('hlgbBootAnalysisBtn9381');if(!b){b=document.createElement('button');b.id='hlgbBootAnalysisBtn9381';b.type='button';b.className='secondary';b.textContent='🚦 Boot / cargas';b.onclick=()=>{window.hlgbAuditorBootAnalysis9381.last=render()};tools.appendChild(b)}
+ tools.hidden=false;tools.removeAttribute('data-hlgb-auditor-hidden');b.hidden=false;b.removeAttribute('data-hlgb-auditor-hidden');return true;
 }
 function expose(){if(window.hlgbAuditorDeep9373)window.hlgbAuditorDeep9373.bootAnalysis=analyze;if(window.hlgbAuditorAuthority9374)window.hlgbAuditorAuthority9374.bootAnalysis=analyze;decorate()}
 document.addEventListener?.('click',e=>{if(e.target?.closest?.('#hlgbAuditorNavBtn,#hlgbAuditorOpenBtn'))[100,300,800,1500].forEach(ms=>setTimeout(()=>{decorate();if(ms===800)render()},ms))},true);
