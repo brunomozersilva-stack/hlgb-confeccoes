@@ -34,6 +34,14 @@ jobs:
         run: node --check release-runtime-profiler-v9292.js
       - name: Pós-login somente após autenticação real
         run: node tests/runtime-login-ready-v9378.js
+      - name: Sintaxe linha do tempo v93.79
+        run: node --check release-auditor-boot-timeline-v9379.js
+      - name: Sintaxe rastreador de chamadas v93.80
+        run: node --check release-auditor-call-trace-v9380.js
+      - name: Sintaxe análise de boot v93.81
+        run: node --check release-auditor-boot-analysis-v9381.js
+      - name: Rastreio passivo preserva comportamento
+        run: node tests/auditor-boot-trace-v9381.js
       - name: Sintaxe render signal v93.72
         run: node --check release-auditor-render-signal-v9372.js
       - name: Sintaxe sync guard
