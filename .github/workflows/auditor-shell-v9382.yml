@@ -9,6 +9,7 @@ on:
       - 'release-auditor-boot-analysis-v9381.js'
       - 'release-auditor-authority-map-v9374.js'
       - 'tests/auditor-shell-v9382.js'
+      - 'tests/auditor-shell-late-ready-v9382.js'
       - 'tests/auditor-shell-v9382-webkit.js'
       - '.github/workflows/auditor-shell-v9382.yml'
 jobs:
@@ -27,6 +28,8 @@ jobs:
         run: node --check release-auditor-authority-map-v9374.js
       - name: Autoridade única da interface
         run: node tests/auditor-shell-v9382.js
+      - name: Dependências smart tardias
+        run: node tests/auditor-shell-late-ready-v9382.js
   webkit:
     runs-on: ubuntu-latest
     steps:
