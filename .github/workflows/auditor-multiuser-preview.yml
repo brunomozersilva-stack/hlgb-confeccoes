@@ -7,8 +7,11 @@ on:
     paths:
       - 'release-auditor-shell-v9382.js'
       - 'release-auditor-production-v9369.js'
+      - 'release-ui-stability.js'
       - 'tests/auditor-multiuser-validation.js'
       - 'tests/auditor-multiuser-webkit.js'
+      - 'tests/ui-stability-local-order-render-v7.js'
+      - 'tests/ui-stability-local-order-render-v7-chromium.js'
       - 'docs/validacao-multiusuario-20261021.md'
       - '.github/workflows/auditor-multiuser-preview.yml'
   workflow_dispatch:
@@ -25,12 +28,14 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '20'
-      - name: Validar multiusuário antes do pacote
+      - name: Validar multiusuário e refresh local antes do pacote
         run: |
           set -euo pipefail
           node --check release-auditor-shell-v9382.js
           node --check release-auditor-production-v9369.js
+          node --check release-ui-stability.js
           node tests/auditor-multiuser-validation.js
+          node tests/ui-stability-local-order-render-v7.js
       - name: Montar preview local sem alterar main
         shell: bash
         run: |
@@ -74,12 +79,18 @@ jobs:
           Commit: $GITHUB_SHA
 
           ESTE PACOTE NÃO ALTERA O MAIN.
-          Ele serve somente para homologar a validação multiusuário antes do merge.
+          Ele serve somente para homologar a validação multiusuário e a correção de atualização visual de Pedidos antes do merge.
 
           COMO ABRIR NO MAC
           1. Abra start-preview.command.
           2. Deixe a janela do Terminal aberta.
           3. Abra http://localhost:8765/abrir.html no navegador.
+
+          TESTE RÁPIDO DO PEDIDO NO CHROME
+          A. Abra Pedidos e crie um pedido de teste seguro.
+          B. Clique em salvar e NÃO atualize a página.
+          C. Confirme que o pedido aparece imediatamente na lista.
+          D. Aguarde alguns segundos e confirme que ele não some nem volta para uma versão visual anterior.
 
           TESTE COM DUAS CONTAS REAIS
           A. Abra a conta 1 no Safari e a conta 2 em outro navegador/perfil isolado.
