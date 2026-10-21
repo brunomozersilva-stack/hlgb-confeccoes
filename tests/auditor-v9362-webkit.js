@@ -27,7 +27,7 @@ const {webkit}=require('playwright');
  await frame.waitForSelector('#hlgbAuditorTestHost #hlgbSmartStatus',{timeout:10000});
  const visible=await frame.locator('#hlgbAuditorTestHost .hlgb-auditor-actions button:visible').allTextContents();
  const normalized=visible.map(x=>x.replace(/\s+/g,' ').trim());
- const expected=['Testar sistema','Registrar problema','Histórico','Arquitetura / versões'];
+ const expected=['Testar sistema','Registrar problema','Histórico','Arquitetura / versões','Boot / cargas'];
  for(const label of expected){
   if(!normalized.some(x=>x.includes(label)))throw new Error('botao principal ausente: '+label+'; visiveis='+normalized.join(' | '));
  }
