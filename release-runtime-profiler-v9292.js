@@ -1,4 +1,4 @@
-/* HLGB v93.37 — ponte central de login tardio + profiler passivo de intervalos.
+/* HLGB v93.38 — ponte central de login tardio + profiler passivo de intervalos.
    Carregado primeiro no boot estável para que módulos release não percam o login
    quando a sessão já foi restaurada antes de seus scripts serem executados. */
 (function(){
@@ -7,20 +7,19 @@
 /* ------------------------------------------------------------------
    Ponte central de hlgbAfterLogin.
    Mantém o registro original, mas garante que cada callback rode uma única vez
-   quando o app já estiver aberto. Não grava dados, não limpa filas e não força
-   sincronização por conta própria.
+   somente depois da autoridade explícita de autenticação. Não grava dados, não
+   limpa filas e não força sincronização por conta própria.
    ------------------------------------------------------------------ */
 (function installLateLoginBridge9337(){
   if(window.HLGB_LATE_LOGIN_BRIDGE_9337)return;
-  const V='93.37', pending=new Set();
+  const V='93.38', pending=new Set();
   let base=null,wrapped=null,poll=null;
   const ready=()=>{
     try{
-      const app=document.getElementById('appShell');
-      if(!app)return false;
-      if(app.querySelector?.('.page.active'))return true;
-      const s=getComputedStyle(app);
-      return s.display!=='none'&&s.visibility!=='hidden'&&s.opacity!=='0'&&app.getClientRects().length>0;
+      /* Não inferir login por DOM: app9240 já nasce com dashboard.page.active
+         mesmo enquanto #appShell continua oculto. A autoridade é o marcador
+         explícito da sessão, definido pelo fluxo de autenticação. */
+      return window.__HLGB_AUTH_READY===true;
     }catch(e){return false}
   };
   function once(cb){
@@ -37,7 +36,7 @@
     for(const fn of [...pending]){
       if(fn.__hlgbDone){pending.delete(fn);continue}
       const delay=Math.max(0,Number(fn.__hlgbDelay)||0);
-      setTimeout(()=>{try{fn()}catch(e){console.warn('[HLGB v93.37] callback tardio',e)}},delay);
+      setTimeout(()=>{try{fn()}catch(e){console.warn('[HLGB v93.38] callback tardio',e)}},delay);
     }
     return true;
   }
@@ -51,8 +50,8 @@
       const fn=once(cb);fn.__hlgbDelay=delay;
       pending.add(fn);
       let out;
-      try{out=base.call(this,fn,delay)}catch(e){console.warn('[HLGB v93.37] registro afterLogin legado',e)}
-      if(ready())setTimeout(()=>{try{fn()}catch(e){console.warn('[HLGB v93.37] callback imediato',e)}},Math.max(0,Number(delay)||0));
+      try{out=base.call(this,fn,delay)}catch(e){console.warn('[HLGB v93.38] registro afterLogin legado',e)}
+      if(ready())setTimeout(()=>{try{fn()}catch(e){console.warn('[HLGB v93.38] callback imediato',e)}},Math.max(0,Number(delay)||0));
       return out;
     };
     wrapped.__hlgbLateBridge9337=true;
@@ -63,15 +62,16 @@
   function stamp(){
     try{
       const cur=parseFloat(String(window.HLGB_RELEASE_VERSION||'0'))||0;
-      if(cur<93.37)window.HLGB_RELEASE_VERSION=V;
+      if(cur<93.38)window.HLGB_RELEASE_VERSION=V;
       const el=document.querySelector('#appShell .logo small');if(el)el.textContent='v'+V;
     }catch(e){}
   }
   function maintain(){install();stamp();flush()}
   window.HLGB_LATE_LOGIN_BRIDGE_9337=V;
-  window.hlgbLateLoginBridge9337={version:V,ready,install,flush,pending:()=>pending.size};
+  window.hlgbLateLoginBridge9337={version:V,ready,install,flush,pending:()=>pending.size,authority:'__HLGB_AUTH_READY'};
   maintain();
   let tries=0;poll=setInterval(()=>{tries++;maintain();if(tries>=120){clearInterval(poll);poll=null}},250);
+  window.addEventListener?.('hlgb:authenticated',maintain);
   window.addEventListener?.('pageshow',maintain);
   window.addEventListener?.('focus',maintain);
   window.addEventListener?.('online',maintain);
@@ -111,5 +111,5 @@ function snapshot(){
  return {kind:'hlgb_runtime_interval_profile',version:V,generatedAt:nowIso(),activeCount:active.length,active:active.slice(0,140),suspect,cleared:history.slice(-80)};
 }
 window.hlgbRuntimeProfiler9292={version:V,snapshot,active:()=>[...rows.values()],history,originalSetInterval,originalClearInterval};
-console.info('[HLGB] Runtime profiler v'+V+' + ponte de login tardio v93.37 ativos');
+console.info('[HLGB] Runtime profiler v'+V+' + ponte de login tardio v93.38 ativos');
 })();
