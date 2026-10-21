@@ -5,6 +5,11 @@ if(window.HLGB_AUDITOR_SHELL_9382)return;
 const V='93.82';
 const KEEP=new Set(['hlgbSmartTest','hlgbSmartProblem','hlgbSmartHistoryBtn','hlgbAuthorityBtn9374','hlgbBootAnalysisBtn9381','hlgbSafariDownload9368']);
 const esc=v=>String(v??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+function ensureStyle(){
+ let st=document.getElementById('hlgbAuditorShellStyle9382');
+ if(!st){st=document.createElement('style');st.id='hlgbAuditorShellStyle9382';(document.head||document.documentElement).appendChild(st)}
+ st.textContent=['#hlgbSmartTest','#hlgbSmartProblem','#hlgbSmartHistoryBtn','#hlgbAuthorityBtn9374','#hlgbBootAnalysisBtn9381','#hlgbSafariDownload9368'].map(x=>x+'{display:inline-block!important;visibility:visible!important}').join('');
+}
 function smartStatus(){
  try{
   const rows=window.hlgbAuditorSmart?.hist?.()||[];
@@ -27,24 +32,27 @@ function currentBody(){
 }
 function root(){const s=document.getElementById('hlgbSmartStatus');return s?.closest?.('[role="dialog"],.modal,.modal-content,.modalCard,.modal-card,.dialog')||s?.parentElement?.parentElement||s?.parentElement||null}
 function normalize(){
+ ensureStyle();
  const r=root();if(!r)return false;
  for(const el of r.querySelectorAll('button,a,[role="button"]')){
   const txt=String(el.textContent||'').trim(),code=String(el.getAttribute?.('onclick')||'');
   const close=el.classList?.contains('modalSave')||/fechar|close/i.test(txt)||/closeModal/.test(code);
   const keep=KEEP.has(el.id)||close;
   el.hidden=!keep;
-  if(keep){el.removeAttribute?.('data-hlgb-auditor-hidden');el.style.removeProperty?.('display')}else el.setAttribute?.('data-hlgb-auditor-hidden','1');
+  if(keep){el.removeAttribute?.('data-hlgb-auditor-hidden');el.style.setProperty?.('display','inline-block','important');el.style.setProperty?.('visibility','visible','important')}else el.setAttribute?.('data-hlgb-auditor-hidden','1');
  }
  return true;
 }
 function openCurrent(){
  if(typeof window.openModal!=='function')return;
+ ensureStyle();
  window.openModal('🧪 Auditor / Testador HLGB · v'+V,currentBody(),()=>window.closeModal?.());
  try{window.hlgbAuditorAuthority9374?.decorate?.()}catch(e){}
  try{window.hlgbAuditorBootAnalysis9381?.decorate?.()}catch(e){}
- [0,30,120,350].forEach(ms=>setTimeout(normalize,ms));
+ [0,30,120,350,700].forEach(ms=>setTimeout(normalize,ms));
 }
 function install(){
+ ensureStyle();
  if(typeof window.hlgbAuditorSmartRun!=='function'||typeof window.hlgbAuditorSmartProblem!=='function')return false;
  window.openHlgbAuditor=openCurrent;
  window.HLGB_AUDITOR_SHELL_AUTHORITY=V;
