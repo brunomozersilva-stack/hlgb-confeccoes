@@ -6,6 +6,7 @@ on:
     branches: [main]
     paths:
       - 'release-production-operations-v9386-finalize.js'
+      - 'release-notes.js'
       - 'tests/production-hidden-render-guard-v9389.js'
       - 'tests/production-hidden-render-guard-v9389-webkit.js'
       - '.github/workflows/production-hidden-render-v9389.yml'
@@ -19,6 +20,8 @@ jobs:
           node-version: '20'
       - name: Sintaxe finalize
         run: node --check release-production-operations-v9386-finalize.js
+      - name: Sintaxe notes
+        run: node --check release-notes.js
       - name: Guard pré-login
         run: node tests/production-hidden-render-guard-v9389.js
   webkit:
