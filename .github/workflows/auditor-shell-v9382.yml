@@ -6,11 +6,14 @@ on:
     branches: [main]
     paths:
       - 'release-auditor-shell-v9382.js'
+      - 'release-auditor-production-v9369.js'
       - 'release-auditor-boot-analysis-v9381.js'
       - 'release-auditor-authority-map-v9374.js'
       - 'tests/auditor-shell-v9382.js'
       - 'tests/auditor-shell-late-ready-v9382.js'
       - 'tests/auditor-shell-v9382-webkit.js'
+      - 'tests/auditor-multiuser-validation.js'
+      - 'tests/auditor-multiuser-webkit.js'
       - '.github/workflows/auditor-shell-v9382.yml'
 jobs:
   test:
@@ -30,6 +33,8 @@ jobs:
         run: node tests/auditor-shell-v9382.js
       - name: Dependências smart tardias
         run: node tests/auditor-shell-late-ready-v9382.js
+      - name: Validação lógica multiusuário
+        run: node tests/auditor-multiuser-validation.js
   webkit:
     runs-on: ubuntu-latest
     steps:
@@ -48,3 +53,12 @@ jobs:
           sleep 2
       - name: Interface e downloads do Auditor no WebKit
         run: node tests/auditor-shell-v9382-webkit.js
+      - name: Validação multiusuário no WebKit
+        run: node tests/auditor-multiuser-webkit.js
+      - name: Publicar captura visual multiusuário
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: hlgb-multiuser-webkit
+          path: /tmp/hlgb-multiuser-webkit.png
+          if-no-files-found: warn
