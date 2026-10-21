@@ -9,11 +9,14 @@ on:
       - 'release-auditor-production-v9369.js'
       - 'release-auditor-boot-analysis-v9381.js'
       - 'release-auditor-authority-map-v9374.js'
+      - 'release-ui-stability.js'
       - 'tests/auditor-shell-v9382.js'
       - 'tests/auditor-shell-late-ready-v9382.js'
       - 'tests/auditor-shell-v9382-webkit.js'
       - 'tests/auditor-multiuser-validation.js'
       - 'tests/auditor-multiuser-webkit.js'
+      - 'tests/ui-stability-local-order-render-v7.js'
+      - 'tests/ui-stability-local-order-render-v7-chromium.js'
       - 'docs/validacao-multiusuario-20261021.md'
       - '.github/workflows/auditor-multiuser-preview.yml'
       - '.github/workflows/auditor-shell-v9382.yml'
@@ -31,12 +34,37 @@ jobs:
         run: node --check release-auditor-boot-analysis-v9381.js
       - name: Sintaxe mapa de autoridades
         run: node --check release-auditor-authority-map-v9374.js
+      - name: Sintaxe estabilidade visual v7
+        run: node --check release-ui-stability.js
       - name: Autoridade única da interface
         run: node tests/auditor-shell-v9382.js
       - name: Dependências smart tardias
         run: node tests/auditor-shell-late-ready-v9382.js
       - name: Validação lógica multiusuário
         run: node tests/auditor-multiuser-validation.js
+      - name: Render local de Pedidos vence janela remota
+        run: node tests/ui-stability-local-order-render-v7.js
+  chromium:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Instalar Playwright Chromium
+        run: |
+          npm init -y >/dev/null 2>&1
+          npm install playwright@1.55.0 --no-save
+          npx playwright install --with-deps chromium
+      - name: Salvar Pedido atualiza a tela no Chromium
+        run: node tests/ui-stability-local-order-render-v7-chromium.js
+      - name: Publicar captura visual Pedidos Chromium
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: hlgb-pedidos-refresh-chromium
+          path: /tmp/hlgb-pedidos-refresh-chromium.png
+          if-no-files-found: warn
   webkit:
     runs-on: ubuntu-latest
     steps:
