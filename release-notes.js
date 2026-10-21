@@ -62,21 +62,27 @@ function decorateProjection(){
     });
   }catch(e){console.warn('[HLGB notes v4] decorate',e)}
 }
+function canRenderProjection(){
+  if(window.__HLGB_AUTH_READY!==true)return false;
+  try{const shell=document.getElementById('appShell');if(!shell)return true;const s=getComputedStyle(shell);return s.display!=='none'&&s.visibility!=='hidden'&&s.opacity!=='0'}catch(e){return true}
+}
 const oldSend=window.sendProjectionToNotes9202;
 if(typeof oldSend==='function'&&!oldSend.__hlgbNotesV4){const w=function(){syncLocal();return oldSend.apply(this,arguments)};w.__hlgbNotesV3=true;w.__hlgbNotesV4=true;window.sendProjectionToNotes9202=w}
 const oldRender=window.renderProjection;
-if(typeof oldRender==='function'&&!oldRender.__hlgbNotesV5){const w=function(){const r=oldRender.apply(this,arguments);setTimeout(decorateProjection,0);return r};w.__hlgbNotesV3=true;w.__hlgbNotesV4=true;w.__hlgbNotesV5=true;window.renderProjection=w}
+if(typeof oldRender==='function'&&!oldRender.__hlgbNotesV5){const w=function(){const r=oldRender.apply(this,arguments);if(canRenderProjection())setTimeout(decorateProjection,0);return r};w.__hlgbNotesV3=true;w.__hlgbNotesV4=true;w.__hlgbNotesV5=true;window.renderProjection=w}
 const oldIncoming=window.hlgbRenderIncomingRecord;
 window.hlgbRenderIncomingRecord=function(module){
   const r=typeof oldIncoming==='function'?oldIncoming.apply(this,arguments):undefined;
-  if(['noteQueue','orders','projectionInvoices'].includes(module))setTimeout(()=>{try{window.renderProjection?.()}catch(e){};try{decorateProjection()}catch(e){}},40);
+  if(['noteQueue','orders','projectionInvoices'].includes(module))setTimeout(()=>{if(!canRenderProjection())return;try{window.renderProjection?.()}catch(e){};try{decorateProjection()}catch(e){}},40);
   return r;
 };
-function refresh(){try{window.renderProjection?.()}catch(e){};setTimeout(decorateProjection,40)}
+function refresh(){if(!canRenderProjection())return false;try{window.renderProjection?.()}catch(e){};setTimeout(decorateProjection,40);return true}
 try{if(typeof hlgbAfterLogin==='function')hlgbAfterLogin(()=>{setTimeout(refresh,700);setTimeout(refresh,2200)},0)}catch(e){}
 setTimeout(refresh,1100);setTimeout(refresh,3200);
 try{if(!window.HLGB_UI_CLEANUP&&!document.querySelector('script[data-hlgb-ui-cleanup]')){const s=document.createElement('script');s.dataset.hlgbUiCleanup='1';s.src='./release-ui-cleanup.js?fresh='+Date.now();document.head.appendChild(s)}}catch(e){}
 window.hlgbNotesQueueSource=queueSource;
 window.hlgbNotesSyncLocal=syncLocal;
+window.hlgbNotesCanRenderProjection=canRenderProjection;
+window.HLGB_NOTE_QUEUE_RENDER_GUARD='v6';
 window.HLGB_NOTE_QUEUE_GUARD='v5';console.info('[HLGB] fila de notas v5: cálculo derivado não altera pedidos durante renderização');
 })();
