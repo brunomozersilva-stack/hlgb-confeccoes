@@ -22,6 +22,14 @@ function analyze(){
  if(slow.length){if(status==='pass')status='warn';reasons.push(slow.length+' chamada(s) síncrona(s) >=80 ms.')}
  return {kind:'hlgb_boot_analysis',version:V,status,reasons,timeline:{session:timeline.session,startedWall:timeline.startedWall,installedWall:timeline.installedWall,coverage:timeline.coverage,authReady:timeline.authReady,resourceCount:timeline.resourceCount},trace:{wrapped:trace.wrapped,eventCount:trace.eventCount},summary:{calls:calls.length,loads:loads.length,renders:renders.length,preAuthLoads:preAuth.length,hiddenRenders:hiddenRenders.length,slowSyncCalls:slow.length},loads:loadGroups,renders:renderGroups,slow:calls.filter(x=>x.syncDurationMs>=80).slice(0,30),rawCalls:calls.slice(-120)}
 }
+function fileStamp(){return new Date().toISOString().replace(/[:.]/g,'-')}
+function download(report){
+ try{
+  const r=report||analyze(),payload={exportedAt:new Date().toISOString(),source:'HLGB Auditor Boot/Cargas',report:r};
+  const blob=new Blob([JSON.stringify(payload,null,2)],{type:'application/json;charset=utf-8'}),url=URL.createObjectURL(blob),a=document.createElement('a');
+  a.href=url;a.download='hlgb-boot-cargas-'+sid(r?.timeline?.session||'sessao')+'-'+fileStamp()+'.json';document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1000);return true;
+ }catch(e){console.warn('[HLGB] não foi possível baixar relatório de boot/cargas',e);return false}
+}
 function render(){
  const report=analyze(),host=document.getElementById('hlgbAuditorResult');if(!host)return report;
  document.getElementById('hlgbBootAnalysis9381')?.remove();
@@ -30,7 +38,8 @@ function render(){
  const icon=report.status==='fail'?'🔴':report.status==='warn'?'🟡':'✅';
  const loadRows=(report.loads||[]).slice(0,10).map(x=>'<div style="padding:6px 0;border-top:1px solid #eee"><b>'+esc(x.name)+'</b> · '+x.count+' chamada(s) · '+x.totalSyncMs+' ms sync<div class="sub">pré-login: '+x.preAuth+' · app oculto: '+x.hidden+' · pico: '+x.maxSyncMs+' ms</div><div class="sub">origem: '+esc(x.callers[0]||'não identificada')+'</div></div>').join('');
  const renderRows=(report.renders||[]).slice(0,10).map(x=>'<div style="padding:6px 0;border-top:1px solid #eee"><b>'+esc(x.name)+'</b> · '+x.count+' chamada(s) · oculto: '+x.hidden+' · '+x.totalSyncMs+' ms sync<div class="sub">origem: '+esc(x.callers[0]||'não identificada')+'</div></div>').join('');
- el.innerHTML='<h3 style="margin-top:0">'+icon+' Boot / cargas / renders</h3><div class="sub">v'+V+' · sessão '+esc(report.timeline.session)+'</div><div style="margin:8px 0"><b>Resumo:</b> '+report.summary.loads+' cargas · '+report.summary.renders+' renders · '+report.summary.preAuthLoads+' cargas pré-login · '+report.summary.hiddenRenders+' renders ocultos</div>'+(report.reasons||[]).map(x=>'<div class="sub">• '+esc(x)+'</div>').join('')+'<h4>Cargas por origem</h4>'+loadRows+'<h4>Renderizações</h4>'+renderRows;
+ el.innerHTML='<h3 style="margin-top:0">'+icon+' Boot / cargas / renders</h3><div class="sub">v'+V+' · sessão '+esc(report.timeline.session)+'</div><div style="margin:8px 0"><b>Resumo:</b> '+report.summary.loads+' cargas · '+report.summary.renders+' renders · '+report.summary.preAuthLoads+' cargas pré-login · '+report.summary.hiddenRenders+' renders ocultos</div>'+(report.reasons||[]).map(x=>'<div class="sub">• '+esc(x)+'</div>').join('')+'<div style="margin:10px 0"><button id="hlgbBootDownload9381" class="secondary" type="button">⬇️ Baixar relatório completo</button></div><h4>Cargas por origem</h4>'+loadRows+'<h4>Renderizações</h4>'+renderRows;
+ el.querySelector('#hlgbBootDownload9381')?.addEventListener('click',()=>download(report));
  host.prepend(el);return report;
 }
 function decorate(){
@@ -45,7 +54,7 @@ function loadCurrentShell(){
  const s=document.createElement('script');s.src='./release-auditor-shell-v9382.js?fresh='+Date.now();s.async=false;s.dataset.hlgbAuditorShell='9382';s.onerror=()=>console.warn('[HLGB] shell do Auditor v93.82 não carregou');(document.head||document.documentElement).appendChild(s);
 }
 document.addEventListener?.('click',e=>{if(e.target?.closest?.('#hlgbAuditorNavBtn,#hlgbAuditorOpenBtn'))[100,300,800,1500].forEach(ms=>setTimeout(()=>{decorate();if(ms===800)render()},ms))},true);
-window.HLGB_AUDITOR_BOOT_ANALYSIS_9381=V;window.hlgbAuditorBootAnalysis9381={version:V,analyze,render,decorate,last:null};
+window.HLGB_AUDITOR_BOOT_ANALYSIS_9381=V;window.hlgbAuditorBootAnalysis9381={version:V,analyze,render,decorate,download,last:null};
 [0,300,900,1800,3500].forEach(ms=>setTimeout(expose,ms));
 loadCurrentShell();
 console.info('[HLGB] análise de boot/cargas/renders v'+V+' ativa');
