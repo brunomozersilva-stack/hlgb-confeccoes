@@ -4,6 +4,20 @@
 (function(){
 'use strict';
 
+/* Instrumentação de diagnóstico: apenas observação, sem alterar carga/save/WAL. */
+(function loadBootDiagnostics(){
+  function load(file,flag){
+    try{
+      if(window[flag]||document.querySelector('script[data-hlgb-diag="'+file+'"]'))return;
+      const s=document.createElement('script');s.src='./'+file+'?fresh='+Date.now();s.async=false;s.dataset.hlgbDiag=file;
+      s.onerror=()=>console.warn('[HLGB diag] falha ao carregar '+file);
+      (document.head||document.documentElement).appendChild(s);
+    }catch(e){console.warn('[HLGB diag] loader',file,e)}
+  }
+  load('release-auditor-boot-timeline-v9379.js','HLGB_AUDITOR_BOOT_TIMELINE_9379');
+  load('release-auditor-call-trace-v9380.js','HLGB_AUDITOR_CALL_TRACE_9380');
+})();
+
 /* ------------------------------------------------------------------
    Ponte central de hlgbAfterLogin.
    Mantém o registro original, mas garante que cada callback rode uma única vez
