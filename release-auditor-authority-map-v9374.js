@@ -15,8 +15,6 @@ const FAMILIES=[
  {id:'assistant',label:'Assistente',re:/release-assistant-/i,functions:['hlgbAssistantAsk']},
  {id:'auditor',label:'Auditor',re:/release-auditor-/i,functions:['openHlgbAuditor','hlgbAuditorRunFull','hlgbAuditorRunVisualSweep']}
 ];
-/* Manifesto é evidência declarada, não inferência por número de arquivo. Sem supersedes explícito,
-   o Auditor nunca recomenda aposentadoria automática. */
 const RESPONSIBILITIES=[
  {id:'hub-save',family:'hub',label:'Confirmação de salvamento do Hub',fn:'hlgbHubSaveConfirmed',files:['release-save-actions-v9322.js','release-hub-delivery-v9324.js'],authority:'não comprovada',supersedes:[]},
  {id:'writeoff',family:'production',label:'Baixa operacional',fn:'hlgbWriteoffSelected9385',files:['release-production-operations-v9378-preview.js','release-production-operations-v9380-preview-patch.js'],authority:'não comprovada nesta branch',supersedes:[]},
@@ -73,20 +71,29 @@ function scan(){
  const consolidationPlan=RESPONSIBILITIES.map(r=>responsibilityState(r.id,inventory)).filter(Boolean).map(r=>({id:r.id,label:r.label,authority:r.authority,present:r.present,conflict:r.conflict,supersedes:r.supersedes,recommendation:r.conflict?'Mapear instaladores e escolher autoridade antes de remover qualquer arquivo.':r.present.length?'Responsabilidade declarada; sem aposentadoria inferida.':'Não medido: arquivos declarados não observados.'}));
  return {kind:'hlgb_authority_map',version:V,build:BUILD,at:new Date().toISOString(),appVersion:sid(window.HLGB_RELEASE_VERSION||''),measurement:'runtime-current-session',scriptInventory:inventory,scriptsCount:inventory.uniqueFiles.length,scripts:inventory.uniqueFiles,families,runtimeVersions:runtimeVersionEvidence(),consolidationPlan,retirementPlan:[],summary:{fail,warn,pass:families.length-fail-warn,result:fail?'Falhou':warn?'Atenção':'Aprovado'}};
 }
+function fileStamp(){return new Date().toISOString().replace(/[:.]/g,'-')}
+function download(report){
+ try{
+  const r=report||scan(),payload={exportedAt:new Date().toISOString(),source:'HLGB Auditor Arquitetura/Versões/Autoridades',report:r};
+  const blob=new Blob([JSON.stringify(payload,null,2)],{type:'application/json;charset=utf-8'}),url=URL.createObjectURL(blob),a=document.createElement('a');
+  a.href=url;a.download='hlgb-arquitetura-autoridades-'+fileStamp()+'.json';document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1000);return true;
+ }catch(e){console.warn('[HLGB] não foi possível baixar relatório de arquitetura',e);return false}
+}
 function panel(report){
  const old=document.getElementById('hlgbAuthorityMap9374');if(old)old.remove();
  const host=document.getElementById('hlgbAuditorResult');if(!host)return false;
  const el=document.createElement('div');el.id='hlgbAuthorityMap9374';el.className='panel';el.style.cssText='border:1px solid #c9bfd0;background:#fcf9ff;margin:10px 0';
  const rows=report.families.map(f=>{const icon=f.status==='fail'?'🔴':f.status==='warn'?'🟡':'✅';const issues=[];if(f.cycles.length)issues.push('ciclo em '+f.cycles.join(', '));if(f.deep.length)issues.push('wrapper profundo: '+f.deep.map(x=>x.name+'('+x.depth+')').join(', '));for(const r of f.responsibilities.filter(x=>x?.conflict))issues.push(r.label+': '+r.present.join(' + '));return '<div style="padding:8px 0;border-top:1px solid #eee"><b>'+icon+' '+esc(f.label)+'</b><div class="sub">Arquivos únicos: '+f.files.length+' · ocorrências observadas: '+f.occurrenceCount+'</div><div class="sub">Versão do nome é apenas pista: '+esc(f.filenameVersionHints.join(', ')||'sem pista')+'</div>'+(issues.length?'<div class="sub"><b>Conflito comprovável:</b> '+esc(issues.join(' | '))+'</div>':'')+'</div>'}).join('');
  const dup=report.scriptInventory.duplicates.length?'<div class="sub"><b>Scripts com multiplicidade:</b> '+esc(report.scriptInventory.duplicates.map(x=>x.file+' [DOM '+x.dom+', recurso '+x.resource+']').join(' | '))+'</div>':'<div class="sub">Nenhuma multiplicidade de script observada nesta sessão.</div>';
- el.innerHTML='<h3 style="margin-top:0">🧭 Arquitetura / Versões / Autoridades</h3><div class="sub">Somente leitura · '+V+' · versão do nome não define autoridade.</div><div style="margin:8px 0"><b>Resultado:</b> '+esc(report.summary.result)+' · '+report.summary.fail+' falha(s) · '+report.summary.warn+' atenção(ões)</div>'+dup+rows+'<div class="sub" style="margin-top:8px">Nenhum arquivo é marcado para aposentadoria só por ter versão menor. Consolidação exige manifesto de responsabilidade + teste funcional.</div>';
+ el.innerHTML='<h3 style="margin-top:0">🧭 Arquitetura / Versões / Autoridades</h3><div class="sub">Somente leitura · '+V+' · versão do nome não define autoridade.</div><div style="margin:8px 0"><b>Resultado:</b> '+esc(report.summary.result)+' · '+report.summary.fail+' falha(s) · '+report.summary.warn+' atenção(ões)</div>'+dup+'<div style="margin:10px 0"><button id="hlgbAuthorityDownload9374" class="secondary" type="button">⬇️ Baixar relatório completo</button></div>'+rows+'<div class="sub" style="margin-top:8px">Nenhum arquivo é marcado para aposentadoria só por ter versão menor. Consolidação exige manifesto de responsabilidade + teste funcional.</div>';
+ el.querySelector('#hlgbAuthorityDownload9374')?.addEventListener('click',()=>download(report));
  host.prepend(el);return true;
 }
 window.hlgbAuditorAuthorityScan9374=function(){const r=scan();panel(r);window.hlgbAuditorAuthority9374.last=r;return r};
 function decorate(){const host=document.getElementById('hlgbAuditorResult');if(!host)return false;const actions=host.parentElement?.querySelector?.('.hlgb-auditor-actions')||document.querySelector('.hlgb-auditor-actions');if(!actions)return false;let b=document.getElementById('hlgbAuthorityBtn9374');if(!b){b=document.createElement('button');b.id='hlgbAuthorityBtn9374';b.type='button';b.className='secondary';b.textContent='🧭 Arquitetura / versões';b.onclick=()=>window.hlgbAuditorAuthorityScan9374();actions.appendChild(b)}b.hidden=false;b.removeAttribute('data-hlgb-auditor-hidden');b.style.display='';return true}
 document.addEventListener?.('click',e=>{if(e.target?.closest?.('#hlgbAuditorNavBtn,#hlgbAuditorOpenBtn'))[80,250,700,1500].forEach(ms=>setTimeout(decorate,ms))},true);
 window.HLGB_AUDITOR_AUTHORITY_9374=BUILD;
-window.hlgbAuditorAuthority9374={version:V,build:BUILD,scan,panel,decorate,last:null,chain,loadedScripts,loadedScriptInventory,filenameVersionHint,RESPONSIBILITIES,FAMILIES};
+window.hlgbAuditorAuthority9374={version:V,build:BUILD,scan,panel,decorate,download,last:null,chain,loadedScripts,loadedScriptInventory,filenameVersionHint,RESPONSIBILITIES,FAMILIES};
 if(window.hlgbAuditorDeep9373)window.hlgbAuditorDeep9373.authorityScan=scan;
 setTimeout(decorate,500);
 console.info('[HLGB] Auditor mapa de autoridades v'+V+' ativo');

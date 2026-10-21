@@ -1,12 +1,13 @@
 name: HLGB Auditor Shell v93.82
 on:
   push:
-    branches: [fix/auditor-shell-current-20261021]
+    branches: [fix/auditor-shell-current-20261021, fix/auditor-report-downloads-20261021]
   pull_request:
     branches: [main]
     paths:
       - 'release-auditor-shell-v9382.js'
       - 'release-auditor-boot-analysis-v9381.js'
+      - 'release-auditor-authority-map-v9374.js'
       - 'tests/auditor-shell-v9382.js'
       - 'tests/auditor-shell-v9382-webkit.js'
       - '.github/workflows/auditor-shell-v9382.yml'
@@ -22,6 +23,8 @@ jobs:
         run: node --check release-auditor-shell-v9382.js
       - name: Sintaxe boot analysis
         run: node --check release-auditor-boot-analysis-v9381.js
+      - name: Sintaxe mapa de autoridades
+        run: node --check release-auditor-authority-map-v9374.js
       - name: Autoridade única da interface
         run: node tests/auditor-shell-v9382.js
   webkit:
@@ -40,5 +43,5 @@ jobs:
         run: |
           python3 -m http.server 4173 >/tmp/hlgb-http.log 2>&1 &
           sleep 2
-      - name: Interface atual do Auditor no WebKit
+      - name: Interface e downloads do Auditor no WebKit
         run: node tests/auditor-shell-v9382-webkit.js

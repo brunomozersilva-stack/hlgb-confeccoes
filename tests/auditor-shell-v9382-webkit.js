@@ -4,7 +4,7 @@ const {webkit}=require('playwright');
  const page=await browser.newPage({viewport:{width:1280,height:900}});
  const errors=[];page.on('pageerror',e=>errors.push(String(e.message||e)));
  await page.goto('http://127.0.0.1:4173/app-stable3.html',{waitUntil:'domcontentloaded',timeout:60000});
- await page.waitForFunction(()=>!!document.getElementById('loginScreen')&&!!document.getElementById('appShell')&&window.HLGB_AUDITOR_BOOT_ANALYSIS_9381==='93.81',null,{timeout:60000});
+ await page.waitForFunction(()=>!!document.getElementById('loginScreen')&&!!document.getElementById('appShell')&&window.HLGB_AUDITOR_BOOT_ANALYSIS_9381==='93.81'&&!!window.hlgbAuditorAuthority9374,null,{timeout:60000});
  await page.evaluate(()=>{window.__HLGB_AUTH_READY=true;window.dispatchEvent(new Event('hlgb:authenticated'))});
  await page.waitForFunction(()=>window.HLGB_AUDITOR_SHELL_AUTHORITY==='93.82'&&typeof window.openHlgbAuditor==='function'&&!!document.getElementById('hlgbAuditorNavBtn'),null,{timeout:60000});
  await page.evaluate(()=>{
@@ -21,19 +21,26 @@ const {webkit}=require('playwright');
    return {
     authority:window.HLGB_AUDITOR_SHELL_AUTHORITY,
     modalText:root.innerText,
-    hasSmart:visible('hlgbSmartTest'),
-    hasProblem:visible('hlgbSmartProblem'),
-    hasHistory:visible('hlgbSmartHistoryBtn'),
-    hasArch:visible('hlgbAuthorityBtn9374'),
-    hasBoot:visible('hlgbBootAnalysisBtn9381'),
-    oldHub:[...root.querySelectorAll('button')].some(b=>!b.hidden&&/Diagnóstico profundo do Hub/i.test(b.textContent||'')),
-    oldExport:[...root.querySelectorAll('button')].some(b=>!b.hidden&&/Exportar diagnóstico visual/i.test(b.textContent||''))
+    hasSmart:visible('hlgbSmartTest'),hasProblem:visible('hlgbSmartProblem'),hasHistory:visible('hlgbSmartHistoryBtn'),hasArch:visible('hlgbAuthorityBtn9374'),hasBoot:visible('hlgbBootAnalysisBtn9381'),
+    oldHub:[...root.querySelectorAll('button')].some(b=>!b.hidden&&/Diagnóstico profundo do Hub/i.test(b.textContent||'')),oldExport:[...root.querySelectorAll('button')].some(b=>!b.hidden&&/Exportar diagnóstico visual/i.test(b.textContent||''))
    };
  });
  if(out.authority!=='93.82'||!out.hasSmart||!out.hasProblem||!out.hasHistory||!out.hasArch||!out.hasBoot)throw new Error('interface atual incompleta '+JSON.stringify(out));
  if(out.oldHub||out.oldExport)throw new Error('controles legados visíveis no modal atual '+JSON.stringify(out));
  if(!/93\.82/.test(out.modalText)||!/Boot \/ cargas/.test(out.modalText)||!/Arquitetura \/ versões/.test(out.modalText))throw new Error('interface atual não ficou visível '+JSON.stringify(out));
- if(errors.some(x=>/auditor|9382/i.test(x)))throw new Error('pageerror relacionado ao Auditor: '+errors.join(' | '));
- console.log('AUDITOR_SHELL_V9382_WEBKIT_OK',out.authority);
+ await page.click('#hlgbBootAnalysisBtn9381');
+ await page.waitForSelector('#hlgbBootDownload9381',{state:'visible',timeout:10000});
+ const bootDownloadPromise=page.waitForEvent('download',{timeout:10000});
+ await page.click('#hlgbBootDownload9381');
+ const bootDownload=await bootDownloadPromise;
+ if(!/^hlgb-boot-cargas-.*\.json$/i.test(bootDownload.suggestedFilename()))throw new Error('nome inesperado do download de boot: '+bootDownload.suggestedFilename());
+ await page.click('#hlgbAuthorityBtn9374');
+ await page.waitForSelector('#hlgbAuthorityDownload9374',{state:'visible',timeout:10000});
+ const archDownloadPromise=page.waitForEvent('download',{timeout:10000});
+ await page.click('#hlgbAuthorityDownload9374');
+ const archDownload=await archDownloadPromise;
+ if(!/^hlgb-arquitetura-autoridades-.*\.json$/i.test(archDownload.suggestedFilename()))throw new Error('nome inesperado do download de arquitetura: '+archDownload.suggestedFilename());
+ if(errors.some(x=>/auditor|9382|9374|9381/i.test(x)))throw new Error('pageerror relacionado ao Auditor: '+errors.join(' | '));
+ console.log('AUDITOR_REPORT_DOWNLOADS_WEBKIT_OK',bootDownload.suggestedFilename(),archDownload.suggestedFilename());
  await browser.close();
 })().catch(e=>{console.error(e);process.exit(1)});
