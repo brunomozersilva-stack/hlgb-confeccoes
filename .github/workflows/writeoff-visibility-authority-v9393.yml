@@ -1,0 +1,60 @@
+name: HLGB Writeoff Visibility Authority v93.93
+on:
+  push:
+    branches:
+      - fix/writeoff-visibility-authority-20261021
+  pull_request:
+    branches: [main]
+    paths:
+      - 'release-production-operations-v9386-finalize.js'
+      - 'release-production-writeoff-integrity-v9391.js'
+      - 'tests/writeoff-integrity-v9391.js'
+      - 'tests/production-hidden-render-guard-v9389.js'
+      - 'tests/writeoff-visibility-authority-v9393.js'
+      - 'tests/writeoff-visibility-authority-v9393-webkit.js'
+      - '.github/workflows/writeoff-visibility-authority-v9393.yml'
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Sintaxe visibilidade operacional
+        run: node --check release-production-operations-v9386-finalize.js
+      - name: Sintaxe autoridade de baixa
+        run: node --check release-production-writeoff-integrity-v9391.js
+      - name: Integridade da baixa por pedido e modelo
+        run: node tests/writeoff-integrity-v9391.js
+      - name: Regressão de render pós-login
+        run: node tests/production-hidden-render-guard-v9389.js
+      - name: Visibilidade e autoridade da baixa
+        run: node tests/writeoff-visibility-authority-v9393.js
+  webkit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Instalar Playwright WebKit
+        run: |
+          npm init -y >/dev/null 2>&1
+          npm install playwright@1.55.0 --no-save
+          npx playwright install --with-deps webkit
+      - name: Iniciar servidor local
+        run: |
+          python3 -m http.server 4173 >/tmp/hlgb-writeoff-visibility-http.log 2>&1 &
+          sleep 2
+      - name: Teste visual de baixa no WebKit
+        run: node tests/writeoff-visibility-authority-v9393-webkit.js
+      - name: Publicar captura visual
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: hlgb-writeoff-visibility-webkit
+          path: /tmp/hlgb-writeoff-visibility-webkit.png
+          if-no-files-found: warn
+          retention-days: 7
