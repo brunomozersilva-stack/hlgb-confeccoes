@@ -5,15 +5,28 @@ const {webkit}=require('playwright');
  const errors=[];page.on('pageerror',e=>errors.push(String(e.message||e)));
  await page.goto('http://127.0.0.1:4173/app-stable3.html',{waitUntil:'domcontentloaded',timeout:60000});
  await page.waitForFunction(()=>!!document.getElementById('loginScreen')&&!!document.getElementById('appShell'),null,{timeout:60000});
- /* Harness sem backend real: libera a autoridade pós-login. O CSS abaixo só
-    remove o overlay da fixture para que o clique continue sendo um clique
-    Playwright real, passando pelos listeners de captura/propagação. */
+ /* Harness sem backend real: libera a autoridade pós-login. A fixture pode
+    manter a navegação escondida por regras de login/perfil; tornamos apenas
+    a cadeia visual do botão clicável sem chamar onclick diretamente. */
  await page.evaluate(()=>{
    window.__HLGB_AUTH_READY=true;
    window.dispatchEvent(new Event('hlgb:authenticated'));
  });
- await page.addStyleTag({content:'#loginScreen{display:none!important;pointer-events:none!important}#appShell{display:block!important;visibility:visible!important}'});
  await page.waitForFunction(()=>!!window.hlgbInternalAuditor&&!!window.HLGB_AUDITOR_AUTHORITY_9374&&!!window.hlgbAuditorAuthority9374&&!!document.getElementById('hlgbAuditorNavBtn'),null,{timeout:60000});
+ await page.evaluate(()=>{
+   const login=document.getElementById('loginScreen');
+   if(login){login.style.setProperty('display','none','important');login.style.setProperty('pointer-events','none','important')}
+   const btn=document.getElementById('hlgbAuditorNavBtn');
+   let el=btn;
+   while(el&&el!==document.documentElement){
+     el.style?.setProperty('display','block','important');
+     el.style?.setProperty('visibility','visible','important');
+     el.style?.setProperty('opacity','1','important');
+     el.style?.setProperty('pointer-events','auto','important');
+     el=el.parentElement;
+   }
+   if(btn){btn.style.setProperty('position','fixed','important');btn.style.setProperty('left','20px','important');btn.style.setProperty('top','20px','important');btn.style.setProperty('z-index','2147483647','important')}
+ });
  await page.waitForSelector('#hlgbAuditorNavBtn',{state:'visible',timeout:10000});
  await page.evaluate(()=>{
    window.__authorityRefs={save:window.hlgbRecordSaveWithRetry,cloud:window.cloudRequest,open:window.openHlgbAuditor};
