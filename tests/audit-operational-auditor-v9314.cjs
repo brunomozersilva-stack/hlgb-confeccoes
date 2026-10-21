@@ -9,7 +9,7 @@ function control(text,disabled=true){return {id:'saveBtn',textContent:text,disab
 const saving=control('☁️ Salvando…');
 const localStorage=storage({
  hlgb_records_pending_v91:JSON.stringify({modules:{separations:[{id:'s1'}],orders:[{id:'o1'}]}}),
- hlgb_durable_wal_v1:JSON.stringify({entries:{a:{module:'separations'},b:{module:'orders'},c:{module:'orders'}}})
+ hlgb_durable_wal_v1:JSON.stringify({entries:{a:{module:'separations',id:'s1'},b:{module:'orders',id:'o1'},c:{module:'orders',id:'o2'}}})
 });
 const document={querySelectorAll(){return [saving]},getElementById(){return null}};
 const window={
@@ -25,8 +25,9 @@ vm.runInNewContext(src,context,{filename:'release-auditor-operational-v9314.js'}
 assert(window.hlgbOperationalAuditor9314,'operational auditor must load');
 let r=window.hlgbOperationalAuditor9314.run();
 assert.equal(r.pending.totalCopies,5,'must count all record + WAL queue copies');
-assert.equal(r.pending.unique,2,'must deduplicate the same logical modules across queues');
-assert(r.checks.some(x=>x.code==='operational:pending'&&x.status==='warn'),'two unique idle pending operations must be attention, not a false hard failure');
+assert.equal(r.pending.unique,3,'must deduplicate matching record ids across normalized queue and WAL');
+assert.equal(r.pending.duplicatedAcrossQueues,2,'must report records duplicated across both queues');
+assert(r.checks.some(x=>x.code==='operational:pending'&&x.status==='fail'),'three unique idle pending operations must be a failure');
 assert(r.checks.some(x=>x.code==='operational:delivery'&&x.status==='fail'),'pending work with no active delivery must fail');
 assert(r.checks.some(x=>x.code==='operational:saving-ui'&&x.status==='fail'),'visible Salvando state without delivery must be detected');
 assert(r.checks.some(x=>x.code==='operational:separation-guard'&&x.status==='pass'),'separation guard must be recognized');
@@ -52,4 +53,4 @@ assert.equal(r.pending.totalCopies,0);
 assert(r.checks.some(x=>x.code==='operational:pending'&&x.status==='pass'));
 assert(r.checks.some(x=>x.code==='operational:saving-ui'&&x.status==='pass'));
 
-console.log('PASS operational auditor v93.28: counts queue copies and unique work, catches stuck saves, recognizes runtime-ready session/record/separation state, and treats active recovery as warning.');
+console.log('PASS operational auditor v93.28: counts queue copies and unique work, deduplicates matching record ids, catches stuck saves, and recognizes active recovery.');
