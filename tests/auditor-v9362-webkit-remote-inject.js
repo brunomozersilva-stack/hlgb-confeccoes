@@ -4,6 +4,10 @@ const {webkit}=require('playwright');
  const page=await browser.newPage({viewport:{width:1280,height:900}});
  const errors=[];page.on('pageerror',e=>errors.push(String(e.message||e)));
  await page.goto('http://127.0.0.1:4173/app-stable3.html',{waitUntil:'domcontentloaded',timeout:60000});
+ /* Este é um harness local sem backend/login real. A partir da ponte v93.38,
+    módulos pós-login só podem ser liberados pela autoridade explícita do produto. */
+ await page.waitForFunction(()=>!!document.getElementById('loginScreen')&&!!document.getElementById('appShell'),null,{timeout:60000});
+ await page.evaluate(()=>{window.__HLGB_AUTH_READY=true;window.dispatchEvent(new Event('hlgb:authenticated'))});
  await page.waitForFunction(()=>!!window.hlgbInternalAuditor&&!!window.hlgbAuditorBlackbox9299&&!!window.hlgbOperationalAuditor9314,null,{timeout:60000});
  await page.evaluate(()=>{window.alert=()=>{};window.openModal=(title,html)=>{let h=document.getElementById('remoteInjectHost');if(!h){h=document.createElement('div');h.id='remoteInjectHost';h.setAttribute('role','dialog');document.body.appendChild(h)}h.innerHTML=html};window.closeModal=()=>{}});
  await page.evaluate(()=>{window.__auditorCriticalBefore={recordSave:window.hlgbRecordSaveWithRetry,cloudRequest:window.cloudRequest,setInterval:window.setInterval,setTimeout:window.setTimeout}});
