@@ -14,6 +14,8 @@ on:
       - 'tests/auditor-shell-v9382-webkit.js'
       - 'tests/auditor-multiuser-validation.js'
       - 'tests/auditor-multiuser-webkit.js'
+      - 'docs/validacao-multiusuario-20261021.md'
+      - '.github/workflows/auditor-multiuser-preview.yml'
       - '.github/workflows/auditor-shell-v9382.yml'
 jobs:
   test:
