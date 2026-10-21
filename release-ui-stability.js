@@ -1,11 +1,12 @@
 /* HLGB audit — estabilidade visual global: agrupa redraws remotos sem atrasar acoes locais */
 (function(){
 'use strict';
-const V='v6-screen-stability-20261002';
+const V='v7-screen-stability-20261021';
 const QUIET_MS=420;
 const MAX_WAIT_MS=1200;
 const REMOTE_WINDOW_MS=1600;
 let remoteUntil=0;
+let remoteInteractionVersion=0;
 let executingBatch=false;
 let interactionVersion=0;
 let lastInteractionAt=0;
@@ -68,7 +69,8 @@ function isEditing(){
 }
 function isRemote(){return Date.now()<remoteUntil}
 function isUserDriven(){return lastInteractionAt>0&&(Date.now()-lastInteractionAt)<USER_ACTION_WINDOW_MS}
-function markRemote(){remoteUntil=Math.max(remoteUntil,Date.now()+REMOTE_WINDOW_MS)}
+function isRemoteRender(){return isRemote()&&interactionVersion===remoteInteractionVersion}
+function markRemote(){remoteUntil=Math.max(remoteUntil,Date.now()+REMOTE_WINDOW_MS);remoteInteractionVersion=interactionVersion}
 function noteInteraction(){interactionVersion++;lastInteractionAt=Date.now()}
 function relevant(name){
   const pages=rendererPages[name];
@@ -165,9 +167,9 @@ function wrapRenderer(name){
   if(typeof fn!=='function'||fn.__hlgbUiStabilityV2)return false;
   const wrapped=function(){
     if(executingBatch)return fn.apply(this,arguments);
-    // Somente atualizações realmente remotas entram na fila anti-pulo.
-    // Ações locais e renders normais não devem reaparecer 420 ms depois do clique.
-    const background=isRemote();
+    // Só é remoto enquanto nenhuma interação local ocorreu depois da origem remota.
+    // Assim, um salvar iniciado pelo usuário nunca fica preso na fila anti-pulo.
+    const background=isRemoteRender();
     if(!background){renderStamp.set(name,Date.now());return fn.apply(this,arguments)}
     if(!relevant(name))return undefined;
     if(isEditing())return queueRender(name,fn,this,Array.from(arguments));
@@ -289,6 +291,7 @@ window.hlgbUiStabilityPending=()=>[...queues.keys()];
 window.hlgbUiStabilityBeginPageSettle=beginPageSettle;
 window.hlgbUiStabilityRenderAllowed=allowGovernedRender;
 window.hlgbUiStabilityRenderCooldown=RENDER_COOLDOWN_MS;
+window.hlgbUiStabilityRemoteState=()=>({remote:isRemote(),remoteInteractionVersion,interactionVersion});
 window.HLGB_WORK_STABILITY_MODE=true;
 window.hlgbManualRefreshCurrentPage=function(){
   const pg=activePage(),now=Date.now();
@@ -302,5 +305,5 @@ window.hlgbManualRefreshCurrentPage=function(){
   lastInteractionAt=now;
 };
 window.HLGB_UI_STABILITY_GUARD=V;
-console.info('[HLGB] estabilidade visual global '+V+' ativa — redraw remoto agrupado e posição preservada');
+console.info('[HLGB] estabilidade visual global '+V+' ativa — redraw remoto agrupado e interação local preservada');
 })();
