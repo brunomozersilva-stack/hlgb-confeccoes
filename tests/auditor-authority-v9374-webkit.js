@@ -5,28 +5,21 @@ const {webkit}=require('playwright');
  const errors=[];page.on('pageerror',e=>errors.push(String(e.message||e)));
  await page.goto('http://127.0.0.1:4173/app-stable3.html',{waitUntil:'domcontentloaded',timeout:60000});
  await page.waitForFunction(()=>!!document.getElementById('loginScreen')&&!!document.getElementById('appShell'),null,{timeout:60000});
- /* Harness sem backend real: reproduz o estado visual e a autoridade explícita
-    que só existem depois que a sessão foi preparada pelo produto. */
+ /* Harness sem backend real: libera a autoridade pós-login. O CSS abaixo só
+    remove o overlay da fixture para que o clique continue sendo um clique
+    Playwright real, passando pelos listeners de captura/propagação. */
  await page.evaluate(()=>{
    window.__HLGB_AUTH_READY=true;
-   const login=document.getElementById('loginScreen');
-   const app=document.getElementById('appShell');
-   if(login)login.style.display='none';
-   if(app)app.style.display='block';
    window.dispatchEvent(new Event('hlgb:authenticated'));
  });
- await page.waitForFunction(()=>{
-   const login=document.getElementById('loginScreen');
-   const app=document.getElementById('appShell');
-   return window.__HLGB_AUTH_READY===true&&(!login||getComputedStyle(login).display==='none')&&!!app&&getComputedStyle(app).display!=='none';
- },null,{timeout:10000});
+ await page.addStyleTag({content:'#loginScreen{display:none!important;pointer-events:none!important}#appShell{display:block!important;visibility:visible!important}'});
  await page.waitForFunction(()=>!!window.hlgbInternalAuditor&&!!window.HLGB_AUDITOR_AUTHORITY_9374&&!!window.hlgbAuditorAuthority9374&&!!document.getElementById('hlgbAuditorNavBtn'),null,{timeout:60000});
+ await page.waitForSelector('#hlgbAuditorNavBtn',{state:'visible',timeout:10000});
  await page.evaluate(()=>{
    window.__authorityRefs={save:window.hlgbRecordSaveWithRetry,cloud:window.cloudRequest,open:window.openHlgbAuditor};
    window.alert=()=>{};window.closeModal=()=>{};
    window.openModal=(title,html)=>{let h=document.getElementById('authority9374Host');if(!h){h=document.createElement('div');h.id='authority9374Host';h.setAttribute('role','dialog');document.body.appendChild(h)}h.innerHTML=html;window.__authorityTitle=title};
  });
- /* Clique real: valida listeners de captura/propagação e não chama onclick diretamente. */
  await page.click('#hlgbAuditorNavBtn',{timeout:10000});
  await page.waitForSelector('#authority9374Host #hlgbAuditorResult',{timeout:10000});
  await page.waitForSelector('#authority9374Host #hlgbAuthorityBtn9374',{timeout:10000});
