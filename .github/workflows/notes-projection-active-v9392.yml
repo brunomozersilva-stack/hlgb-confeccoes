@@ -1,0 +1,22 @@
+name: HLGB Projection Active Guard v93.92
+on:
+  push:
+    branches: [fix/auditor-report-followup-20261021]
+  pull_request:
+    branches: [main]
+    paths:
+      - 'release-notes.js'
+      - 'tests/notes-projection-active-guard-v9392.js'
+      - '.github/workflows/notes-projection-active-v9392.yml'
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Sintaxe notes
+        run: node --check release-notes.js
+      - name: Projeção só renderiza quando ativa
+        run: node tests/notes-projection-active-guard-v9392.js

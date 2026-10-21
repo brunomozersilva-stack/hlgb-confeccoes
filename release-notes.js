@@ -64,12 +64,18 @@ function decorateProjection(){
 }
 function canRenderProjection(){
   if(window.__HLGB_AUTH_READY!==true)return false;
-  try{const shell=document.getElementById('appShell');if(!shell)return true;const s=getComputedStyle(shell);return s.display!=='none'&&s.visibility!=='hidden'&&s.opacity!=='0'}catch(e){return true}
+  try{
+    const shell=document.getElementById('appShell');if(shell){const s=getComputedStyle(shell);if(s.display==='none'||s.visibility==='hidden'||s.opacity==='0')return false}
+    const table=document.getElementById('projectionProductsTable');if(!table)return false;
+    const page=table.closest?.('.page');if(page)return page.classList.contains('active');
+    const active=document.querySelector('.page.active');if(active)return active.contains(table);
+    return table.offsetParent!==null;
+  }catch(e){return false}
 }
 const oldSend=window.sendProjectionToNotes9202;
 if(typeof oldSend==='function'&&!oldSend.__hlgbNotesV4){const w=function(){syncLocal();return oldSend.apply(this,arguments)};w.__hlgbNotesV3=true;w.__hlgbNotesV4=true;window.sendProjectionToNotes9202=w}
 const oldRender=window.renderProjection;
-if(typeof oldRender==='function'&&!oldRender.__hlgbNotesV5){const w=function(){const r=oldRender.apply(this,arguments);if(canRenderProjection())setTimeout(decorateProjection,0);return r};w.__hlgbNotesV3=true;w.__hlgbNotesV4=true;w.__hlgbNotesV5=true;window.renderProjection=w}
+if(typeof oldRender==='function'&&!oldRender.__hlgbNotesV5){const w=function(){if(!canRenderProjection())return false;const r=oldRender.apply(this,arguments);setTimeout(decorateProjection,0);return r};w.__hlgbNotesV3=true;w.__hlgbNotesV4=true;w.__hlgbNotesV5=true;window.renderProjection=w}
 const oldIncoming=window.hlgbRenderIncomingRecord;
 window.hlgbRenderIncomingRecord=function(module){
   const r=typeof oldIncoming==='function'?oldIncoming.apply(this,arguments):undefined;
@@ -83,6 +89,6 @@ try{if(!window.HLGB_UI_CLEANUP&&!document.querySelector('script[data-hlgb-ui-cle
 window.hlgbNotesQueueSource=queueSource;
 window.hlgbNotesSyncLocal=syncLocal;
 window.hlgbNotesCanRenderProjection=canRenderProjection;
-window.HLGB_NOTE_QUEUE_RENDER_GUARD='v6';
+window.HLGB_NOTE_QUEUE_RENDER_GUARD='v7';
 window.HLGB_NOTE_QUEUE_GUARD='v5';console.info('[HLGB] fila de notas v5: cálculo derivado não altera pedidos durante renderização');
 })();
