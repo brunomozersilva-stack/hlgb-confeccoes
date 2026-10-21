@@ -15,11 +15,20 @@ html,body{margin:0;height:100%;font-family:Arial,sans-serif;background:#f7f7f8}#
 (function(){
 'use strict';
 const frame=document.getElementById('app'),state=document.getElementById('state');
-let injected=false,tries=0;
+let injected=false,tries=0,authSimulated=false;
 function setState(t){state.textContent=t}
 function addScript(d,id,src,onload){
  if(d.getElementById(id)){onload?.();return}
  const s=d.createElement('script');s.id=id;s.src=src;s.onload=()=>onload?.();s.onerror=()=>setState('Não foi possível carregar o Auditor de teste.');(d.head||d.documentElement).appendChild(s);
+}
+function simulateAuthenticatedTestSession(w,d){
+ if(authSimulated||!w||!d?.getElementById('loginScreen')||!d?.getElementById('appShell'))return;
+ authSimulated=true;
+ /* O harness não possui backend/login real. Desde v93.38, pós-login só pode rodar
+    com a autoridade explícita usada pelo produto; por isso o teste simula apenas
+    esse marcador, dentro do iframe local, em vez de depender de .page.active. */
+ w.__HLGB_AUTH_READY=true;
+ try{w.dispatchEvent(new w.Event('hlgb:authenticated'))}catch(e){}
 }
 function inject(){
  if(injected)return true;
@@ -41,6 +50,7 @@ function waitForApp(){
  tries++;
  try{
   const w=frame.contentWindow,d=frame.contentDocument||w?.document;
+  simulateAuthenticatedTestSession(w,d);
   if(legacyAuditorReady(w,d)){setState('Sistema carregado. Ativando Auditor v93.60…');setTimeout(inject,250);return}
  }catch(e){}
  if(tries<240)setTimeout(waitForApp,250);else setState('Sistema carregou, mas os módulos-base do Auditor não ficaram prontos.')

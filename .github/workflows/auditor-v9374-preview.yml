@@ -1,0 +1,79 @@
+name: HLGB Auditor v93.74 Preview
+
+on:
+  push:
+    branches:
+      - fix/auditor-deep-diagnostics-20261020
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  package:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validar arquivos principais
+        run: |
+          set -euo pipefail
+          node --check release-auditor-production-v9369.js
+          node --check release-auditor-authority-map-v9374.js
+          node tests/auditor-deep-readonly-v9373.js
+          node tests/auditor-authority-map-v9374.js
+          node tests/auditor-authority-loader-v9374.js
+      - name: Montar preview local
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p preview
+          find . -maxdepth 1 -type f \( -name '*.html' -o -name '*.js' -o -name '*.json' \) -exec cp {} preview/ \;
+          cat > preview/preview-server.py <<'PY'
+          from http.server import ThreadingHTTPServer, SimpleHTTPRequestHandler
+          import os
+          HOST='127.0.0.1'; PORT=8765
+          class NoCache(SimpleHTTPRequestHandler):
+              def end_headers(self):
+                  self.send_header('Cache-Control','no-store, no-cache, must-revalidate')
+                  self.send_header('Pragma','no-cache')
+                  self.send_header('Expires','0')
+                  super().end_headers()
+          os.chdir(os.path.dirname(os.path.abspath(__file__)))
+          print(f'HLGB Auditor v93.74: http://{HOST}:{PORT}/abrir.html', flush=True)
+          ThreadingHTTPServer((HOST,PORT),NoCache).serve_forever()
+          PY
+          cat > preview/start-preview.command <<'SH'
+          #!/bin/bash
+          set -e
+          cd "$(dirname "$0")"
+          echo ""
+          echo "HLGB — Auditor v93.74"
+          echo "Branch: fix/auditor-deep-diagnostics-20261020"
+          echo "Commit: __COMMIT__"
+          echo ""
+          echo "Abra no Safari: http://localhost:8765/abrir.html"
+          echo ""
+          python3 preview-server.py
+          SH
+          sed -i "s/__COMMIT__/$GITHUB_SHA/g" preview/start-preview.command
+          chmod +x preview/start-preview.command
+          cat > preview/LEIA-ME.txt <<EOF
+          HLGB CONFECÇÕES — PREVIEW AUDITOR v93.74
+          Branch: fix/auditor-deep-diagnostics-20261020
+          Commit: $GITHUB_SHA
+
+          Este pacote NÃO altera o main.
+          Objetivo: validar abertura normal do sistema e Auditor com:
+          - diagnóstico profundo v93.73;
+          - mapa Arquitetura / Versões / Autoridades v93.74;
+          - validação multiusuário dentro do diagnóstico profundo.
+
+          Abra start-preview.command e depois http://localhost:8765/abrir.html
+          EOF
+      - uses: actions/upload-artifact@v4
+        with:
+          name: HLGB-AUDITOR-v93.74-${{ github.sha }}
+          path: preview/
+          if-no-files-found: error
+          retention-days: 7

@@ -1,0 +1,11 @@
+const fs=require('fs');
+const assert=require('assert');
+const html=fs.readFileSync('app-stable3.html','utf8');
+const prod='release-auditor-production-v9369.js';
+const auth='release-auditor-authority-map-v9374.js';
+assert(html.includes(prod),'Auditor de produção ausente do carregador');
+assert(html.includes(auth),'Mapa de autoridades ausente do carregador');
+assert(html.indexOf(auth)>html.indexOf(prod),'Mapa de autoridades deve carregar depois do Auditor principal');
+const once=(html.match(new RegExp(auth.replace(/[.*+?^${}()|[\]\\]/g,'\\$&'),'g'))||[]).length;
+assert.strictEqual(once,1,'Mapa de autoridades deve aparecer uma única vez no carregador');
+console.log('auditor authority loader v93.74: OK');
