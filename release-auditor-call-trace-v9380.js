@@ -37,5 +37,6 @@ window.HLGB_AUDITOR_CALL_TRACE_9380=V;
 window.hlgbAuditorCallTrace9380={version:V,install,snapshot,events,targets:TARGETS};
 install();[25,75,150,300,600,1000,1800,3000,5000].forEach(ms=>setTimeout(install,ms));
 mark('trace-ready','release-auditor-call-trace-v9380.js',{targets:Object.keys(TARGETS).length});
+try{if(!window.HLGB_AUDITOR_BOOT_ANALYSIS_9381&&!document.querySelector('script[data-hlgb-diag="release-auditor-boot-analysis-v9381.js"]')){const s=document.createElement('script');s.src='./release-auditor-boot-analysis-v9381.js?fresh='+Date.now();s.async=false;s.dataset.hlgbDiag='release-auditor-boot-analysis-v9381.js';(document.head||document.documentElement).appendChild(s)}}catch(e){console.warn('[HLGB diag] boot analysis',e)}
 console.info('[HLGB] rastreamento passivo de cargas/renders v'+V+' ativo');
 })();
