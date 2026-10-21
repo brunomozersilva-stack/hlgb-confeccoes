@@ -3,6 +3,7 @@
 'use strict';
 if(window.HLGB_AUDITOR_SHELL_9382)return;
 const V='93.82';
+const KEEP=new Set(['hlgbSmartTest','hlgbSmartProblem','hlgbSmartHistoryBtn','hlgbAuthorityBtn9374','hlgbBootAnalysisBtn9381','hlgbSafariDownload9368']);
 const esc=v=>String(v??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
 function smartStatus(){
  try{
@@ -24,11 +25,24 @@ function currentBody(){
  '<button id="hlgbBootAnalysisBtn9381" class="secondary" type="button" onclick="hlgbAuditorBootAnalysis9381.last=hlgbAuditorBootAnalysis9381.render()">🚦 Boot / cargas</button>'+
  '</div><div id="hlgbAuditorResult"></div><div id="hlgbSmartHistory" style="display:none"></div><button type="button" class="secondary modalSave">Fechar</button>';
 }
+function root(){const s=document.getElementById('hlgbSmartStatus');return s?.closest?.('[role="dialog"],.modal,.modal-content,.modalCard,.modal-card,.dialog')||s?.parentElement?.parentElement||s?.parentElement||null}
+function normalize(){
+ const r=root();if(!r)return false;
+ for(const el of r.querySelectorAll('button,a,[role="button"]')){
+  const txt=String(el.textContent||'').trim(),code=String(el.getAttribute?.('onclick')||'');
+  const close=el.classList?.contains('modalSave')||/fechar|close/i.test(txt)||/closeModal/.test(code);
+  const keep=KEEP.has(el.id)||close;
+  el.hidden=!keep;
+  if(keep){el.removeAttribute?.('data-hlgb-auditor-hidden');el.style.removeProperty?.('display')}else el.setAttribute?.('data-hlgb-auditor-hidden','1');
+ }
+ return true;
+}
 function openCurrent(){
  if(typeof window.openModal!=='function')return;
  window.openModal('🧪 Auditor / Testador HLGB · v'+V,currentBody(),()=>window.closeModal?.());
  try{window.hlgbAuditorAuthority9374?.decorate?.()}catch(e){}
  try{window.hlgbAuditorBootAnalysis9381?.decorate?.()}catch(e){}
+ [0,30,120,350].forEach(ms=>setTimeout(normalize,ms));
 }
 function install(){
  if(typeof window.hlgbAuditorSmartRun!=='function'||typeof window.hlgbAuditorSmartProblem!=='function')return false;
@@ -38,7 +52,7 @@ function install(){
  const open=document.getElementById('hlgbAuditorOpenBtn');if(open)open.onclick=openCurrent;
  return true;
 }
-window.hlgbAuditorShell9382={version:V,open:openCurrent,install};
+window.hlgbAuditorShell9382={version:V,open:openCurrent,install,normalize};
 window.HLGB_AUDITOR_SHELL_9382=true;
 [0,100,300,700,1500,3000].forEach(ms=>setTimeout(install,ms));
 document.addEventListener('click',e=>{if(e.target?.closest?.('#hlgbAuditorNavBtn,#hlgbAuditorOpenBtn'))setTimeout(install,0)},true);
