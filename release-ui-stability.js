@@ -162,6 +162,12 @@ function queueRender(name,fn,ctx,args){
   queues.set(name,q);
   return undefined;
 }
+function cancelQueued(name){
+  const q=queues.get(name);if(!q)return false;
+  if(q.timer)clearTimeout(q.timer);
+  queues.delete(name);
+  return true;
+}
 function wrapRenderer(name){
   const fn=window[name];
   if(typeof fn!=='function'||fn.__hlgbUiStabilityV2)return false;
@@ -170,7 +176,7 @@ function wrapRenderer(name){
     // Só é remoto enquanto nenhuma interação local ocorreu depois da origem remota.
     // Assim, um salvar iniciado pelo usuário nunca fica preso na fila anti-pulo.
     const background=isRemoteRender();
-    if(!background){renderStamp.set(name,Date.now());return fn.apply(this,arguments)}
+    if(!background){cancelQueued(name);renderStamp.set(name,Date.now());return fn.apply(this,arguments)}
     if(!relevant(name))return undefined;
     if(isEditing())return queueRender(name,fn,this,Array.from(arguments));
     if(!allowGovernedRender(name))return undefined;
