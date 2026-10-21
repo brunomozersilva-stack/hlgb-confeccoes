@@ -1,9 +1,12 @@
 const fs=require('fs');const vm=require('vm');
 const code=fs.readFileSync('release-auditor-shell-v9382.js','utf8');
 const timers=[];let opened=null;
+const style={id:'',textContent:'',style:{},appendChild:()=>{}};
 const els={hlgbAuditorNavBtn:{onclick:null},hlgbAuditorOpenBtn:{onclick:null}};
-const sandbox={console,setTimeout:(fn)=>{timers.push(fn);return timers.length},document:{getElementById:id=>els[id]||null,addEventListener:()=>{}},window:{hlgbAuditorSmartRun:()=>{},hlgbAuditorSmartProblem:()=>{},hlgbAuditorSmartHistory:()=>{},hlgbAuditorSmart:{hist:()=>[{type:'audit',at:'2026-10-21T10:00:00Z',pass:30,warn:0,fail:0}]},hlgbAuditorAuthority9374:{decorate:()=>{}},hlgbAuditorBootAnalysis9381:{decorate:()=>{},render:()=>({})},hlgbAuditorAuthorityScan9374:()=>{},openModal:(title,body)=>{opened={title,body}},closeModal:()=>{}}};
-sandbox.window.window=sandbox.window;sandbox.window.document=sandbox.document;sandbox.window.setTimeout=sandbox.setTimeout;
+const head={appendChild:el=>{if(el?.id)els[el.id]=el}};
+const document={getElementById:id=>els[id]||null,addEventListener:()=>{},createElement:tag=>tag==='style'?{...style,style:{},removeAttribute:()=>{}}:{tagName:String(tag).toUpperCase(),style:{},removeAttribute:()=>{}},head,documentElement:head};
+const sandbox={console,setTimeout:(fn)=>{timers.push(fn);return timers.length},document,window:{hlgbAuditorSmartRun:()=>{},hlgbAuditorSmartProblem:()=>{},hlgbAuditorSmartHistory:()=>{},hlgbAuditorSmart:{hist:()=>[{type:'audit',at:'2026-10-21T10:00:00Z',pass:30,warn:0,fail:0}]},hlgbAuditorAuthority9374:{decorate:()=>{}},hlgbAuditorBootAnalysis9381:{decorate:()=>{},render:()=>({})},hlgbAuditorAuthorityScan9374:()=>{},openModal:(title,body)=>{opened={title,body}},closeModal:()=>{}}};
+sandbox.window.window=sandbox.window;sandbox.window.document=document;sandbox.window.setTimeout=sandbox.setTimeout;
 vm.createContext(sandbox);vm.runInContext(code,sandbox);for(const fn of timers.splice(0))fn();
 if(sandbox.window.HLGB_AUDITOR_SHELL_AUTHORITY!=='93.82')throw new Error('autoridade do shell não ficou em 93.82');
 if(typeof sandbox.window.openHlgbAuditor!=='function')throw new Error('openHlgbAuditor não foi consolidado');
