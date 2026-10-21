@@ -7,6 +7,18 @@ const {webkit}=require('playwright');
  await page.waitForFunction(()=>!!document.getElementById('loginScreen')&&!!document.getElementById('appShell'),null,{timeout:60000});
  await page.evaluate(()=>{window.__HLGB_AUTH_READY=true;window.dispatchEvent(new Event('hlgb:authenticated'))});
  await page.waitForFunction(()=>!!window.hlgbInternalAuditor&&!!window.HLGB_AUDITOR_AUTHORITY_9374&&!!window.hlgbAuditorAuthority9374&&!!document.getElementById('hlgbAuditorNavBtn'),null,{timeout:60000});
+ /* A própria aplicação instala o sync guard v93.06 cerca de 250 ms após o login.
+    Esperamos essa autoridade tardia antes do snapshot para não atribuir ao mapa
+    uma troca legítima que aconteceria mesmo sem abrir o Auditor. */
+ await page.waitForFunction(()=>{
+   let f=window.hlgbRecordSaveWithRetry,n=0,seen=new Set();
+   while(typeof f==='function'&&n++<64&&!seen.has(f)){
+     seen.add(f);if(f.__hlgb9306)return true;
+     f=f.__original||f.__hlgb9306Original||f.__originalGradeLink||f.__hlgb9313Original||f.__hlgb9312Original||f.__hlgb9320Original||f.__hlgbRecordIntegrityOriginal||f.__hlgb955Original||f.__hlgb9339Original||null;
+   }
+   return false;
+ },null,{timeout:10000});
+ await page.waitForTimeout(350);
  await page.evaluate(()=>{
    const login=document.getElementById('loginScreen');
    if(login){login.style.setProperty('display','none','important');login.style.setProperty('pointer-events','none','important')}
@@ -35,9 +47,6 @@ const {webkit}=require('playwright');
    };
    return {refs,kind:r.kind,version:r.version,families:(r.families||[]).map(x=>x.id),title:window.__authorityTitle||'',text:document.getElementById('hlgbAuthorityMap9374')?.textContent||''};
  });
- /* save/cloud/timers são invariantes de segurança do mapa. openHlgbAuditor pode
-    ser encadeado por módulos de UI já existentes após o snapshot; registramos
-    isso separadamente para não atribuir ao mapa uma troca assíncrona alheia. */
  for(const key of ['save','cloud','setInterval','setTimeout'])if(!out.refs[key])throw new Error('Mapa de autoridades alterou função crítica '+key+' refs='+JSON.stringify(out.refs));
  if(out.kind!=='hlgb_authority_map'||out.version!=='93.74')throw new Error('Relatório de autoridade inválido: '+JSON.stringify(out));
  for(const id of ['hub','production','sync','auditor'])if(!out.families.includes(id))throw new Error('Família ausente: '+id);
