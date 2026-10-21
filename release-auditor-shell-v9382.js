@@ -5,6 +5,7 @@ if(window.HLGB_AUDITOR_SHELL_9382)return;
 const V='93.82';
 const KEEP=new Set(['hlgbSmartTest','hlgbSmartProblem','hlgbSmartHistoryBtn','hlgbAuthorityBtn9374','hlgbBootAnalysisBtn9381','hlgbBootDownload9381','hlgbAuthorityDownload9374','hlgbSafariDownload9368']);
 const esc=v=>String(v??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+let installed=false;
 function ensureStyle(){
  let st=document.getElementById('hlgbAuditorShellStyle9382');
  if(!st){st=document.createElement('style');st.id='hlgbAuditorShellStyle9382';(document.head||document.documentElement).appendChild(st)}
@@ -58,11 +59,18 @@ function install(){
  window.HLGB_AUDITOR_SHELL_AUTHORITY=V;
  const nav=document.getElementById('hlgbAuditorNavBtn');if(nav)nav.onclick=openCurrent;
  const open=document.getElementById('hlgbAuditorOpenBtn');if(open)open.onclick=openCurrent;
+ installed=true;
  return true;
 }
-window.hlgbAuditorShell9382={version:V,open:openCurrent,install,normalize};
+function scheduleInstall(){
+ [0,100,300,700,1500,3000,6000,10000,15000,20000,30000].forEach(ms=>setTimeout(()=>{if(!installed)install()},ms));
+}
+window.hlgbAuditorShell9382={version:V,open:openCurrent,install,normalize,get installed(){return installed}};
 window.HLGB_AUDITOR_SHELL_9382=true;
-[0,100,300,700,1500,3000].forEach(ms=>setTimeout(install,ms));
-document.addEventListener('click',e=>{if(e.target?.closest?.('#hlgbAuditorNavBtn,#hlgbAuditorOpenBtn'))setTimeout(install,0)},true);
+scheduleInstall();
+try{if(typeof window.hlgbAfterLogin==='function')window.hlgbAfterLogin(()=>{install();[100,500,1500].forEach(ms=>setTimeout(install,ms))},0)}catch(e){}
+window.addEventListener?.('hlgb:authenticated',()=>{install();[100,500,1500].forEach(ms=>setTimeout(install,ms))});
+window.addEventListener?.('pageshow',()=>install());
+document.addEventListener('click',e=>{if(e.target?.closest?.('#hlgbAuditorNavBtn,#hlgbAuditorOpenBtn')){install();setTimeout(install,0)}},true);
 console.info('[HLGB] Auditor shell oficial v'+V+' carregado');
 })();
