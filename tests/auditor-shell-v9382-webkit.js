@@ -13,21 +13,26 @@ const {webkit}=require('playwright');
  });
  await page.click('#hlgbAuditorNavBtn',{timeout:10000});
  await page.waitForSelector('#hlgbSmartStatus',{state:'visible',timeout:10000});
- const out=await page.evaluate(()=>({
-   authority:window.HLGB_AUDITOR_SHELL_AUTHORITY,
-   title:[...document.querySelectorAll('h1,h2,h3,.modal-title')].map(x=>x.textContent||'').join(' | '),
-   text:document.body.innerText,
-   hasSmart:!!document.getElementById('hlgbSmartTest'),
-   hasProblem:!!document.getElementById('hlgbSmartProblem'),
-   hasHistory:!!document.getElementById('hlgbSmartHistoryBtn'),
-   hasArch:!!document.getElementById('hlgbAuthorityBtn9374'),
-   hasBoot:!!document.getElementById('hlgbBootAnalysisBtn9381'),
-   oldHub:[...document.querySelectorAll('button')].some(b=>/Diagnóstico profundo do Hub/i.test(b.textContent||'')),
-   oldExport:[...document.querySelectorAll('button')].some(b=>/Exportar diagnóstico visual/i.test(b.textContent||''))
- }));
+ await page.waitForTimeout(500);
+ const out=await page.evaluate(()=>{
+   const status=document.getElementById('hlgbSmartStatus');
+   const root=status?.closest?.('[role="dialog"],.modal,.modal-content,.modalCard,.modal-card,.dialog')||status?.parentElement?.parentElement||status?.parentElement||document.body;
+   const visible=id=>{const el=root.querySelector('#'+id);if(!el)return false;const s=getComputedStyle(el),r=el.getBoundingClientRect();return !el.hidden&&s.display!=='none'&&s.visibility!=='hidden'&&r.width>0&&r.height>0};
+   return {
+    authority:window.HLGB_AUDITOR_SHELL_AUTHORITY,
+    modalText:root.innerText,
+    hasSmart:visible('hlgbSmartTest'),
+    hasProblem:visible('hlgbSmartProblem'),
+    hasHistory:visible('hlgbSmartHistoryBtn'),
+    hasArch:visible('hlgbAuthorityBtn9374'),
+    hasBoot:visible('hlgbBootAnalysisBtn9381'),
+    oldHub:[...root.querySelectorAll('button')].some(b=>!b.hidden&&/Diagnóstico profundo do Hub/i.test(b.textContent||'')),
+    oldExport:[...root.querySelectorAll('button')].some(b=>!b.hidden&&/Exportar diagnóstico visual/i.test(b.textContent||''))
+   };
+ });
  if(out.authority!=='93.82'||!out.hasSmart||!out.hasProblem||!out.hasHistory||!out.hasArch||!out.hasBoot)throw new Error('interface atual incompleta '+JSON.stringify(out));
- if(out.oldHub||out.oldExport)throw new Error('controles legados reapareceram '+JSON.stringify(out));
- if(!/93\.82/.test(out.text))throw new Error('versão do shell não está visível');
+ if(out.oldHub||out.oldExport)throw new Error('controles legados visíveis no modal atual '+JSON.stringify(out));
+ if(!/93\.82/.test(out.modalText)||!/Boot \/ cargas/.test(out.modalText)||!/Arquitetura \/ versões/.test(out.modalText))throw new Error('interface atual não ficou visível '+JSON.stringify(out));
  if(errors.some(x=>/auditor|9382/i.test(x)))throw new Error('pageerror relacionado ao Auditor: '+errors.join(' | '));
  console.log('AUDITOR_SHELL_V9382_WEBKIT_OK',out.authority);
  await browser.close();
