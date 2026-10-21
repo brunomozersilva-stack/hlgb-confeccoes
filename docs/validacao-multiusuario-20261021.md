@@ -28,10 +28,15 @@ Para encerrar a homologação, executar em ambiente de teste com dois usuários 
 
 - Teste comportamental de comparação, identidade, validade, esquema, filas e autenticação.
 - Regressões do shell, carregamento tardio, diagnóstico somente leitura, cliente Realtime único, contenção de nuvem, integridade e tombstones.
+- GitHub Actions executou a validação lógica multiusuário com sucesso no run `39635590380`.
+- GitHub Actions executou WebKit com dois contextos isolados simulados: geração dos dois relatórios, downloads, importação, comparação, rejeição do mesmo perfil e ausência de erros de página. A etapa passou no run `39635590380`.
+- A captura `hlgb-multiuser-webkit.png` foi publicada como artefato do mesmo run e revisada; não foi observada quebra aparente de layout no viewport de 1100 × 850 usado pelo teste.
 - O teste legado `audit-sync-confirmation-v9311.cjs` falha antes dos cenários por exigir texto da versão 93.11, enquanto o módulo atual é 93.47. Não é evidência de falha nova de sincronização; precisa de atualização de expectativas de carga compatível com o fluxo atual. Não foi alterado para forçar aprovação.
 
-O teste WebKit novo usa dois contextos isolados e dados simulados. Não representa login ou sincronização de contas reais.
+O teste WebKit novo usa dois contextos isolados e dados simulados. Ele valida interface e fluxo no motor WebKit, mas não representa login, Realtime, RLS ou sincronização de duas contas reais.
 
-### Bloqueio visual neste ambiente
+### Ambiente local x CI
 
-O WebKit 2336 foi baixado, mas não inicia por ausência de bibliotecas nativas (GTK4, GStreamer e outras). `playwright install-deps webkit` falhou por restrições de permissões do ambiente (`setgroups/seteuid`). O teste visual está preparado, mas **não passou nem foi executado até o fluxo de tela**. Manter PR em rascunho, sem merge, até executar o teste WebKit e revisar a tela.
+No ambiente local anterior, o WebKit não iniciou por ausência de bibliotecas nativas e restrições de permissão para `playwright install-deps webkit`. Esse bloqueio foi contornado no GitHub Actions, onde as dependências foram instaladas e o teste WebKit passou. A pendência restante para homologação é o teste operacional com duas contas reais autenticadas.
+
+Manter PR em rascunho e sem merge até concluir os testes operacionais com duas contas reais.
