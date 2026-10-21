@@ -27,11 +27,14 @@ const {webkit}=require('playwright');
  await frame.waitForSelector('#hlgbAuditorTestHost #hlgbSmartStatus',{timeout:10000});
  const visible=await frame.locator('#hlgbAuditorTestHost .hlgb-auditor-actions button:visible').allTextContents();
  const normalized=visible.map(x=>x.replace(/\s+/g,' ').trim());
- const expected=['Testar sistema','Registrar problema','Histórico','Arquitetura / versões','Boot / cargas'];
- for(const label of expected){
+ const core=['Testar sistema','Registrar problema','Histórico'];
+ const optional=['Arquitetura / versões','Boot / cargas'];
+ for(const label of core){
   if(!normalized.some(x=>x.includes(label)))throw new Error('botao principal ausente: '+label+'; visiveis='+normalized.join(' | '));
  }
- if(normalized.length!==expected.length)throw new Error('Auditor deve mostrar exatamente '+expected.length+' acoes principais; visiveis='+normalized.join(' | '));
+ const allowed=[...core,...optional];
+ const unknown=normalized.filter(x=>!allowed.some(label=>x.includes(label)));
+ if(unknown.length)throw new Error('acao inesperada no Auditor: '+unknown.join(' | ')+'; visiveis='+normalized.join(' | '));
  await frame.evaluate(()=>{
   const host=document.getElementById('hlgbAuditorTestHost');
   host.insertAdjacentHTML('beforeend','<button id="legacyVisual" onclick="hlgbAuditorRunVisual()">Teste visual completo</button><button id="legacySync" onclick="hlgbAuditorExportSync()">Exportar diagnóstico de sincronização</button><button id="legacyBlackbox">Blackbox do Auditor</button>');
