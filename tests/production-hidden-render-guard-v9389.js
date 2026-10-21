@@ -1,0 +1,16 @@
+const fs=require('fs'),vm=require('vm');
+const code=fs.readFileSync('release-production-operations-v9386-finalize.js','utf8');
+let afterLogin=null;const calls={projection:0,production:0,hub:0,cuts:0,notes:0,factions:0};
+const shell={};
+const document={getElementById:id=>id==='appShell'?shell:null,querySelectorAll:()=>[]};
+const window={db:{orders:[],products:[],cuts:[],production:[],operationalWriteoffs:[]},__HLGB_AUTH_READY:false,renderProjection:()=>calls.projection++,renderProduction:()=>calls.production++,renderProductionHub:()=>calls.hub++,renderCuts:()=>calls.cuts++,renderOrderNotes:()=>calls.notes++,renderFactions:()=>calls.factions++,hlgbAfterLogin:fn=>{afterLogin=fn}};
+window.window=window;window.document=document;
+const sandbox={window,document,console,alert:()=>{},getComputedStyle:()=>({display:'none',visibility:'visible',opacity:'1'}),setTimeout,Date,Math,Map,Set,Array,Number,String,Object,JSON};
+vm.createContext(sandbox);vm.runInContext(code,sandbox);
+if(window.HLGB_PRODUCTION_VISIBILITY_RENDER_GUARD!=='93.89')throw new Error('guard v93.89 ausente');
+if(Object.values(calls).some(Boolean))throw new Error('houve render antes da autenticação '+JSON.stringify(calls));
+if(typeof afterLogin!=='function')throw new Error('callback pós-login não foi registrado');
+window.__HLGB_AUTH_READY=true;sandbox.getComputedStyle=()=>({display:'block',visibility:'visible',opacity:'1'});
+afterLogin();
+if(calls.projection!==1||calls.production!==1||calls.hub!==1||calls.cuts!==1||calls.notes!==1||calls.factions!==1)throw new Error('refresh pós-login incompleto '+JSON.stringify(calls));
+console.log('PRODUCTION_HIDDEN_RENDER_GUARD_V9389_OK',calls);
