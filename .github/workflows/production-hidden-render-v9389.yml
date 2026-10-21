@@ -1,0 +1,44 @@
+name: HLGB Production Hidden Render v93.89
+on:
+  push:
+    branches: [fix/production-hidden-renders-20261021]
+  pull_request:
+    branches: [main]
+    paths:
+      - 'release-production-operations-v9386-finalize.js'
+      - 'release-notes.js'
+      - 'tests/production-hidden-render-guard-v9389.js'
+      - 'tests/production-hidden-render-guard-v9389-webkit.js'
+      - '.github/workflows/production-hidden-render-v9389.yml'
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Sintaxe finalize
+        run: node --check release-production-operations-v9386-finalize.js
+      - name: Sintaxe notes
+        run: node --check release-notes.js
+      - name: Guard pré-login
+        run: node tests/production-hidden-render-guard-v9389.js
+  webkit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Instalar Playwright WebKit
+        run: |
+          npm init -y >/dev/null 2>&1
+          npm install playwright@1.55.0 --no-save
+          npx playwright install --with-deps webkit
+      - name: Iniciar servidor local
+        run: |
+          python3 -m http.server 4173 >/tmp/hlgb-http.log 2>&1 &
+          sleep 2
+      - name: Guard no WebKit real
+        run: node tests/production-hidden-render-guard-v9389-webkit.js
