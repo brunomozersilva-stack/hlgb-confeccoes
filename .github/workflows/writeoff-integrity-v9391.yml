@@ -1,0 +1,37 @@
+name: HLGB v93.91 Writeoff Integrity
+on:
+  push:
+    branches:
+      - fix/autoridades-baixa-sync-20261021
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Sintaxe módulo de baixa
+        run: node --check release-production-writeoff-integrity-v9391.js
+      - name: Sintaxe bootstrap operacional
+        run: node --check release-production-operations-v9380-preview-patch.js
+      - name: Idempotência por pedido + modelo
+        run: node tests/writeoff-integrity-v9391.js
+  webkit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Instalar Playwright WebKit
+        run: |
+          npm install --no-save playwright@1.55.0
+          npx playwright install --with-deps webkit
+      - name: Iniciar servidor local
+        run: |
+          python3 -m http.server 4173 >/tmp/hlgb-writeoff-http.log 2>&1 &
+          sleep 2
+      - name: Baixa v93.91 no WebKit
+        run: node tests/writeoff-integrity-v9391-webkit.js
