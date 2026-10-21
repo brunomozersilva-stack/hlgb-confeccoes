@@ -123,3 +123,5 @@ jobs:
         run: node tests/production-v9372-webkit.js
       - name: Mapa de autoridades v93.74 WebKit
         run: node tests/auditor-authority-v9374-webkit.js
+      - name: Boot e cargas v93.81 WebKit
+        run: node tests/auditor-boot-v9381-webkit.js
