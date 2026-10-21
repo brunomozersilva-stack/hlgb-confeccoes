@@ -3,13 +3,12 @@ const {webkit}=require('playwright');
  const browser=await webkit.launch({headless:true});
  const page=await browser.newPage({viewport:{width:1180,height:760}});
  const errors=[];page.on('pageerror',e=>errors.push(String(e.message||e)));
- await page.goto('http://127.0.0.1:4173/',{waitUntil:'domcontentloaded',timeout:30000});
  await page.setContent(`<!doctype html><html><head><meta charset="utf-8"><style>
  body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;background:#f5f6f8;margin:0;padding:28px;color:#1f2937}
  #appShell{display:block}.panel{background:white;border:1px solid #e5e7eb;border-radius:14px;padding:20px;max-width:900px;margin:auto;box-shadow:0 6px 20px rgba(0,0,0,.06)}
  h2{margin:0 0 8px}.sub{color:#6b7280;margin-bottom:18px}.ok{background:#ecfdf5;border:1px solid #a7f3d0;padding:10px 12px;border-radius:10px;margin-bottom:14px}
  table{border-collapse:collapse;width:100%}th,td{text-align:left;border-bottom:1px solid #e5e7eb;padding:11px}th{font-size:12px;text-transform:uppercase;color:#6b7280}
- </style></head><body><div id="appShell"><div class="panel"><h2>Validação de baixa por pedido + modelo</h2><div class="sub">Itens com baixa confirmada não devem reaparecer em Cortes.</div><div class="ok" id="status">Aguardando filtro…</div><table><thead><tr><th>Corte</th><th>Produto</th><th>Situação</th></tr></thead><tbody id="cutRows"></tbody></table></div></div></body></html>`);
+ </style></head><body><div id="appShell"><div class="panel"><h2>Validação de baixa por pedido + modelo</h2><div class="sub">Itens com baixa confirmada não devem reaparecer em Cortes.</div><div class="ok" id="status">Aguardando filtro…</div><table><thead><tr><th>Corte</th><th>Produto</th><th>Situação</th></tr></thead><tbody id="cutRows"></tbody></table></div></div></body></html>`,{waitUntil:'domcontentloaded'});
  await page.evaluate(()=>{
   window.db={
    products:[{id:'babyP',name:'Baby Doll Bicolor'},{id:'nakaP',name:'Tanga Nakamura'},{id:'doneP',name:'Modelo baixado'},{id:'openP',name:'Modelo em aberto'}],
@@ -38,7 +37,7 @@ const {webkit}=require('playwright');
    document.getElementById('status').textContent='Visíveis após a baixa: '+window.db.cuts.map(x=>x.productName).join(', ');
   };
  });
- await page.addScriptTag({url:'http://127.0.0.1:4173/release-production-operations-v9386-finalize.js'});
+ await page.addScriptTag({path:'release-production-operations-v9386-finalize.js'});
  await page.waitForFunction(()=>!!window.hlgbOperationalVisibility9386&&document.getElementById('cutRows').children.length>0,null,{timeout:10000});
  const out=await page.evaluate(()=>({
   text:document.body.textContent||'',
