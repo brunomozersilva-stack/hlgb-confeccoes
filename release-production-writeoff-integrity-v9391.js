@@ -36,6 +36,9 @@ function install(){window.hlgbWriteoffSelected9385=writeoffSelected;window.hlgbW
 function diagnostics(){const meta=historyMeta();return{version:V,authority:window.HLGB_OPERATIONAL_WRITEOFF_AUTHORITY,writeoffs:arr('operationalWriteoffs').length,duplicatePairs:meta.duplicates,pendingModels:pendingModels().length}}
 window.hlgbWriteoffIntegrity9391={version:V,pairsFrom,pairIndex,pendingModels,stableId,recordCoversPair,render,install,diagnostics};
 install();
-try{if(typeof window.hlgbAfterLogin==='function')window.hlgbAfterLogin(()=>install(),0)}catch(_){}
+/* O módulo legado v93.79 cria o botão de baixa em boot tardio (900/1900 ms).
+   Reinstalamos apenas o handler da própria baixa depois desses dois pontos; sem loop, observer ou render amplo. */
+try{if(typeof window.hlgbAfterLogin==='function')window.hlgbAfterLogin(()=>{install();setTimeout(install,1200)},0)}catch(_){}
+setTimeout(install,2200);
 console.info('[HLGB] v'+V+' autoridade de integridade da baixa ativa');
 })();
