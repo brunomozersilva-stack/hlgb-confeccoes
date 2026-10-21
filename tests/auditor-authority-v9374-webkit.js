@@ -5,9 +5,9 @@ const {webkit}=require('playwright');
  const errors=[];page.on('pageerror',e=>errors.push(String(e.message||e)));
  await page.goto('http://127.0.0.1:4173/app-stable3.html',{waitUntil:'domcontentloaded',timeout:60000});
  await page.waitForFunction(()=>!!document.getElementById('loginScreen')&&!!document.getElementById('appShell'),null,{timeout:60000});
- /* Harness sem backend real: libera a autoridade pós-login. A fixture pode
-    manter a navegação escondida por regras de login/perfil; tornamos apenas
-    a cadeia visual do botão clicável sem chamar onclick diretamente. */
+ /* Harness sem backend real: libera a autoridade pós-login. A fixture deixa a
+    navegação escondida; reposicionamos o botão real no body apenas para o
+    clique Playwright continuar passando pelos listeners reais do documento. */
  await page.evaluate(()=>{
    window.__HLGB_AUTH_READY=true;
    window.dispatchEvent(new Event('hlgb:authenticated'));
@@ -17,15 +17,17 @@ const {webkit}=require('playwright');
    const login=document.getElementById('loginScreen');
    if(login){login.style.setProperty('display','none','important');login.style.setProperty('pointer-events','none','important')}
    const btn=document.getElementById('hlgbAuditorNavBtn');
-   let el=btn;
-   while(el&&el!==document.documentElement){
-     el.style?.setProperty('display','block','important');
-     el.style?.setProperty('visibility','visible','important');
-     el.style?.setProperty('opacity','1','important');
-     el.style?.setProperty('pointer-events','auto','important');
-     el=el.parentElement;
+   if(btn){
+     document.body.appendChild(btn);
+     btn.style.setProperty('display','block','important');
+     btn.style.setProperty('visibility','visible','important');
+     btn.style.setProperty('opacity','1','important');
+     btn.style.setProperty('pointer-events','auto','important');
+     btn.style.setProperty('position','fixed','important');
+     btn.style.setProperty('left','20px','important');
+     btn.style.setProperty('top','20px','important');
+     btn.style.setProperty('z-index','2147483647','important');
    }
-   if(btn){btn.style.setProperty('position','fixed','important');btn.style.setProperty('left','20px','important');btn.style.setProperty('top','20px','important');btn.style.setProperty('z-index','2147483647','important')}
  });
  await page.waitForSelector('#hlgbAuditorNavBtn',{state:'visible',timeout:10000});
  await page.evaluate(()=>{
