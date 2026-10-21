@@ -3,12 +3,12 @@
 'use strict';
 if(window.HLGB_AUDITOR_SHELL_9382)return;
 const V='93.82';
-const KEEP=new Set(['hlgbSmartTest','hlgbSmartProblem','hlgbSmartHistoryBtn','hlgbAuthorityBtn9374','hlgbBootAnalysisBtn9381','hlgbSafariDownload9368']);
+const KEEP=new Set(['hlgbSmartTest','hlgbSmartProblem','hlgbSmartHistoryBtn','hlgbAuthorityBtn9374','hlgbBootAnalysisBtn9381','hlgbBootDownload9381','hlgbAuthorityDownload9374','hlgbSafariDownload9368']);
 const esc=v=>String(v??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
 function ensureStyle(){
  let st=document.getElementById('hlgbAuditorShellStyle9382');
  if(!st){st=document.createElement('style');st.id='hlgbAuditorShellStyle9382';(document.head||document.documentElement).appendChild(st)}
- st.textContent=['#hlgbSmartTest','#hlgbSmartProblem','#hlgbSmartHistoryBtn','#hlgbAuthorityBtn9374','#hlgbBootAnalysisBtn9381','#hlgbSafariDownload9368'].map(x=>x+'{display:inline-block!important;visibility:visible!important}').join('');
+ st.textContent=['#hlgbSmartTest','#hlgbSmartProblem','#hlgbSmartHistoryBtn','#hlgbAuthorityBtn9374','#hlgbBootAnalysisBtn9381','#hlgbBootDownload9381','#hlgbAuthorityDownload9374','#hlgbSafariDownload9368'].map(x=>x+'{display:inline-block!important;visibility:visible!important}').join('');
 }
 function smartStatus(){
  try{
