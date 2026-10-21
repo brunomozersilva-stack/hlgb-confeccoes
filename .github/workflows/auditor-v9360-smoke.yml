@@ -30,6 +30,10 @@ jobs:
         run: node --check release-auditor-runtime-fix-v9370.js
       - name: Sintaxe runtime performance v93.71
         run: node --check release-runtime-performance-v9371.js
+      - name: Sintaxe profiler/login v93.38
+        run: node --check release-runtime-profiler-v9292.js
+      - name: Pós-login somente após autenticação real
+        run: node tests/runtime-login-ready-v9378.js
       - name: Sintaxe render signal v93.72
         run: node --check release-auditor-render-signal-v9372.js
       - name: Sintaxe sync guard
