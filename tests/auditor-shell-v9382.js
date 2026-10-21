@@ -1,0 +1,14 @@
+const fs=require('fs');const vm=require('vm');
+const code=fs.readFileSync('release-auditor-shell-v9382.js','utf8');
+const timers=[];let opened=null;
+const els={hlgbAuditorNavBtn:{onclick:null},hlgbAuditorOpenBtn:{onclick:null}};
+const sandbox={console,setTimeout:(fn)=>{timers.push(fn);return timers.length},document:{getElementById:id=>els[id]||null,addEventListener:()=>{}},window:{hlgbAuditorSmartRun:()=>{},hlgbAuditorSmartProblem:()=>{},hlgbAuditorSmartHistory:()=>{},hlgbAuditorSmart:{hist:()=>[{type:'audit',at:'2026-10-21T10:00:00Z',pass:30,warn:0,fail:0}]},hlgbAuditorAuthority9374:{decorate:()=>{}},hlgbAuditorBootAnalysis9381:{decorate:()=>{},render:()=>({})},hlgbAuditorAuthorityScan9374:()=>{},openModal:(title,body)=>{opened={title,body}},closeModal:()=>{}}};
+sandbox.window.window=sandbox.window;sandbox.window.document=sandbox.document;sandbox.window.setTimeout=sandbox.setTimeout;
+vm.createContext(sandbox);vm.runInContext(code,sandbox);for(const fn of timers.splice(0))fn();
+if(sandbox.window.HLGB_AUDITOR_SHELL_AUTHORITY!=='93.82')throw new Error('autoridade do shell não ficou em 93.82');
+if(typeof sandbox.window.openHlgbAuditor!=='function')throw new Error('openHlgbAuditor não foi consolidado');
+sandbox.window.openHlgbAuditor();
+if(!opened||!/v93\.82/.test(opened.title))throw new Error('título atual do Auditor não apareceu');
+for(const txt of ['Testar sistema','Registrar problema','Histórico','Arquitetura / versões','Boot / cargas'])if(!opened.body.includes(txt))throw new Error('ação atual ausente: '+txt);
+for(const old of ['Diagnóstico profundo do Hub','Exportar diagnóstico visual','Limpar falsos positivos confirmados'])if(opened.body.includes(old))throw new Error('controle legado reapareceu: '+old);
+console.log('AUDITOR_SHELL_V9382_OK');
