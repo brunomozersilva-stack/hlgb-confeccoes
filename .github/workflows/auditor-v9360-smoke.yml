@@ -2,6 +2,7 @@ name: Auditor v93.60 smoke
 on:
   push:
     branches:
+      - main
       - feat/auditor-smart-v9360
       - fix/auditor-runtime-events-v9370
       - fix/runtime-render-save-v9371
