@@ -45,31 +45,25 @@ context.global=context;
 vm.createContext(context);
 vm.runInContext(source,context,{filename:'release-ui-stability.js'});
 
-assert.notStrictEqual(window.renderOrders,undefined,'renderOrders deve continuar disponível');
 assert.strictEqual(window.save,originalSave,'a correção visual não pode embrulhar save()');
 assert.strictEqual(window.hlgbRecordSaveWithRetry,originalRecordSave,'a correção visual não pode embrulhar hlgbRecordSaveWithRetry');
-assert.ok(window.HLGB_UI_STABILITY_GUARD.includes('v7-screen-stability-20261021'),'versão v7 deve estar ativa');
+assert.ok(window.HLGB_UI_STABILITY_GUARD.includes('v8-screen-stability-20261022'),'versão v8 deve estar ativa');
 
-// 1) Uma origem remota abre a janela anti-pulo.
-window.cloudPullRemoteIfNewer();
-assert.strictEqual(window.hlgbUiStabilityRemoteState().remote,true,'janela remota deve estar ativa');
-
-// 2) O usuário clica em salvar depois dessa origem remota.
-for(const fn of listeners.pointerdown||[])fn({type:'pointerdown'});
-window.renderOrders();
-assert.strictEqual(renderCount,1,'render local após clique deve acontecer imediatamente');
-assert.ok(!window.hlgbUiStabilityPending().includes('renderOrders'),'render local não pode ficar na fila remota');
-
-// 3) Um redraw realmente remoto, sem nova interação, continua agrupado.
+// 1) Sem ação local, redraw remoto continua agrupado.
 window.cloudPullRemoteIfNewer();
 window.renderOrders();
-assert.strictEqual(renderCount,1,'redraw remoto deve continuar agrupado, sem executar imediatamente');
-assert.ok(window.hlgbUiStabilityPending().includes('renderOrders'),'redraw remoto deve entrar na fila anti-pulo');
+assert.strictEqual(renderCount,0,'redraw remoto deve continuar agrupado');
+assert.ok(window.hlgbUiStabilityPending().includes('renderOrders'),'redraw remoto deve entrar na fila');
 
-// 4) Se o usuário agir antes da fila remota rodar, a ação local deve vencer e cancelar o redraw atrasado.
-for(const fn of listeners.pointerdown||[])fn({type:'pointerdown'});
+// 2) Reprodução real: clique em Salvar, depois chega o eco remoto do próprio save,
+// e então syncAllData chama renderOrders. Esse render precisa ser local e imediato.
+const saveTarget={closest(sel){return sel==='.modalSave'?this:null}};
+for(const fn of listeners.click||[])fn({type:'click',target:saveTarget});
+assert.ok(!window.hlgbUiStabilityPending().includes('renderOrders'),'clique em Salvar deve cancelar redraw remoto antigo');
+window.cloudPullRemoteIfNewer(); // eco do próprio salvamento
 window.renderOrders();
-assert.strictEqual(renderCount,2,'novo render local deve executar imediatamente');
-assert.ok(!window.hlgbUiStabilityPending().includes('renderOrders'),'fila remota antiga deve ser cancelada pela ação local');
+assert.strictEqual(renderCount,1,'render do próprio salvamento deve acontecer imediatamente mesmo após eco remoto');
+assert.ok(!window.hlgbUiStabilityPending().includes('renderOrders'),'render do save não pode ficar na fila remota');
+assert.strictEqual(window.hlgbUiStabilityRemoteState().localCommit,true,'janela de commit local deve estar ativa');
 
-console.log('UI_STABILITY_LOCAL_ORDER_RENDER_V7_OK',JSON.stringify({renderCount,pending:window.hlgbUiStabilityPending(),guard:window.HLGB_UI_STABILITY_GUARD}));
+console.log('UI_STABILITY_LOCAL_ORDER_RENDER_V8_OK',JSON.stringify({renderCount,pending:window.hlgbUiStabilityPending(),state:window.hlgbUiStabilityRemoteState(),guard:window.HLGB_UI_STABILITY_GUARD}));
