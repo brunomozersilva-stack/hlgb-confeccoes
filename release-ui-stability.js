@@ -1,15 +1,18 @@
 /* HLGB audit — estabilidade visual global: agrupa redraws remotos sem atrasar acoes locais */
 (function(){
 'use strict';
-const V='v6-screen-stability-20261002';
+const V='v8-screen-stability-20261022';
 const QUIET_MS=420;
 const MAX_WAIT_MS=1200;
 const REMOTE_WINDOW_MS=1600;
 let remoteUntil=0;
+let remoteInteractionVersion=0;
 let executingBatch=false;
 let interactionVersion=0;
 let lastInteractionAt=0;
+let localCommitUntil=0;
 const USER_ACTION_WINDOW_MS=180;
+const LOCAL_COMMIT_WINDOW_MS=2400;
 const queues=new Map();
 
 const rendererPages={
@@ -68,8 +71,23 @@ function isEditing(){
 }
 function isRemote(){return Date.now()<remoteUntil}
 function isUserDriven(){return lastInteractionAt>0&&(Date.now()-lastInteractionAt)<USER_ACTION_WINDOW_MS}
-function markRemote(){remoteUntil=Math.max(remoteUntil,Date.now()+REMOTE_WINDOW_MS)}
+function localCommitActive(){return Date.now()<localCommitUntil}
+function isRemoteRender(){return isRemote()&&!localCommitActive()&&interactionVersion===remoteInteractionVersion}
+function markRemote(){
+  remoteUntil=Math.max(remoteUntil,Date.now()+REMOTE_WINDOW_MS);
+  // O eco da nuvem do próprio clique em Salvar não pode transformar o redraw local
+  // em redraw remoto. Só uma origem remota fora da janela do commit local assume a tela.
+  if(!localCommitActive())remoteInteractionVersion=interactionVersion;
+}
 function noteInteraction(){interactionVersion++;lastInteractionAt=Date.now()}
+function markLocalCommit(){
+  noteInteraction();
+  localCommitUntil=Math.max(localCommitUntil,Date.now()+LOCAL_COMMIT_WINDOW_MS);
+  const pg=activePage();
+  for(const [name,pages] of Object.entries(rendererPages)){
+    if(!pg||pages.includes(pg))cancelQueued(name);
+  }
+}
 function relevant(name){
   const pages=rendererPages[name];
   if(!pages)return true;
@@ -160,15 +178,21 @@ function queueRender(name,fn,ctx,args){
   queues.set(name,q);
   return undefined;
 }
+function cancelQueued(name){
+  const q=queues.get(name);if(!q)return false;
+  if(q.timer)clearTimeout(q.timer);
+  queues.delete(name);
+  return true;
+}
 function wrapRenderer(name){
   const fn=window[name];
   if(typeof fn!=='function'||fn.__hlgbUiStabilityV2)return false;
   const wrapped=function(){
     if(executingBatch)return fn.apply(this,arguments);
-    // Somente atualizações realmente remotas entram na fila anti-pulo.
-    // Ações locais e renders normais não devem reaparecer 420 ms depois do clique.
-    const background=isRemote();
-    if(!background){renderStamp.set(name,Date.now());return fn.apply(this,arguments)}
+    // Só é remoto enquanto nenhuma interação local ocorreu depois da origem remota.
+    // Assim, um salvar iniciado pelo usuário nunca fica preso na fila anti-pulo.
+    const background=isRemoteRender();
+    if(!background){cancelQueued(name);renderStamp.set(name,Date.now());return fn.apply(this,arguments)}
     if(!relevant(name))return undefined;
     if(isEditing())return queueRender(name,fn,this,Array.from(arguments));
     if(!allowGovernedRender(name))return undefined;
@@ -218,6 +242,13 @@ const installTimer=setInterval(()=>{
 for(const ev of ['pointerdown','keydown','wheel','touchstart']){
   document.addEventListener(ev,()=>{if(!restoring)noteInteraction()},{capture:true,passive:true});
 }
+// O clique de confirmação é um commit local explícito. O listener em captura roda antes
+// do submitModal legado e protege inclusive cliques de teclado que não geram pointerdown.
+document.addEventListener('click',e=>{
+  if(restoring)return;
+  const t=e?.target;
+  if(t?.closest?.('.modalSave'))markLocalCommit();
+},{capture:true,passive:true});
 window.addEventListener('scroll',()=>{if(!restoring)noteInteraction()},{passive:true});
 
 
@@ -289,6 +320,7 @@ window.hlgbUiStabilityPending=()=>[...queues.keys()];
 window.hlgbUiStabilityBeginPageSettle=beginPageSettle;
 window.hlgbUiStabilityRenderAllowed=allowGovernedRender;
 window.hlgbUiStabilityRenderCooldown=RENDER_COOLDOWN_MS;
+window.hlgbUiStabilityRemoteState=()=>({remote:isRemote(),remoteInteractionVersion,interactionVersion,localCommit:localCommitActive(),localCommitUntil});
 window.HLGB_WORK_STABILITY_MODE=true;
 window.hlgbManualRefreshCurrentPage=function(){
   const pg=activePage(),now=Date.now();
@@ -302,5 +334,5 @@ window.hlgbManualRefreshCurrentPage=function(){
   lastInteractionAt=now;
 };
 window.HLGB_UI_STABILITY_GUARD=V;
-console.info('[HLGB] estabilidade visual global '+V+' ativa — redraw remoto agrupado e posição preservada');
+console.info('[HLGB] estabilidade visual global '+V+' ativa — redraw remoto agrupado e interação local preservada');
 })();
