@@ -175,7 +175,13 @@ async function runDailyAudit(){
     remoteBackupMeta:remoteBackup?{date:remoteBackup.date,createdAt:remoteBackup.createdAt,parts:remoteBackup.parts,bytes:remoteBackup.bytes,complete:remoteBackup.complete}:null,summary};
 }
 async function buildSupportPackage(){
-  const audit=window.hlgbInternalAuditor?.latest?.()||null;
+  // O pacote de suporte precisa medir o estado atual. Nunca reutiliza uma auditoria
+  // antiga/futura só porque ela ficou no histórico local ou veio de outra sessão.
+  let audit=null;
+  if(window.hlgbInternalAuditor?.run){
+    try{audit=await window.hlgbInternalAuditor.run('full',true)}catch(e){console.warn('[HLGB daily] auditoria atual do pacote',e)}
+  }
+  if(!audit)audit=window.hlgbInternalAuditor?.latest?.()||null;
   const sync=window.hlgbInternalAuditor?.buildSyncDiagnostic?await window.hlgbInternalAuditor.buildSyncDiagnostic():null;
   const backup=await getTodayBackup()||await createBackup();
   const remote=await getRemoteBackupStatus().catch(()=>null);
