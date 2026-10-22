@@ -184,9 +184,21 @@ function cancelQueued(name){
   queues.delete(name);
   return true;
 }
+function chainHasMarker(fn,marker){
+ const seen=new Set(),pointers=['__original','__hlgb9307Original','__hlgb9320Original','__hlgb955Original','__hlgbReliableOriginal'];
+ let cur=fn,depth=0;
+ while(typeof cur==='function'&&!seen.has(cur)&&depth++<48){
+  if(cur[marker])return true;
+  seen.add(cur);
+  let next=null;
+  for(const key of pointers){try{if(typeof cur[key]==='function'){next=cur[key];break}}catch(e){}}
+  cur=next;
+ }
+ return false;
+}
 function wrapRenderer(name){
   const fn=window[name];
-  if(typeof fn!=='function'||fn.__hlgbUiStabilityV2)return false;
+  if(typeof fn!=='function'||chainHasMarker(fn,'__hlgbUiStabilityV2'))return false;
   const wrapped=function(){
     if(executingBatch)return fn.apply(this,arguments);
     // Só é remoto enquanto nenhuma interação local ocorreu depois da origem remota.
@@ -214,7 +226,7 @@ function allowGovernedRender(name){
 
 function wrapRemoteSource(name){
   const fn=window[name];
-  if(typeof fn!=='function'||fn.__hlgbRemoteStabilityV2)return false;
+  if(typeof fn!=='function'||chainHasMarker(fn,'__hlgbRemoteStabilityV2'))return false;
   const wrapped=function(){markRemote();let out;try{out=fn.apply(this,arguments)}catch(e){throw e}
     if(out&&typeof out.then==='function')return out.finally(()=>markRemote());
     markRemote();return out;
