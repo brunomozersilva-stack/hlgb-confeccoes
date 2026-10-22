@@ -4,9 +4,29 @@
 const V='93.07';
 if(window.HLGB_PRODUCTION_CUT_RECONCILE_9307)return;
 window.HLGB_PRODUCTION_CUT_RECONCILE_9307=V;
-let installs=0,runs=0,lastRun='',lastReason='';
+let installs=0,runs=0,lastRun='',lastReason='',settleTimer=null,settleQueued='',skippedNotReady=0,skippedNoWork=0;
 
 function guard(){return window.hlgbSyncGuard9306||null}
+function appReady(){
+ try{
+  if(window.__HLGB_AUTH_READY!==true)return false;
+  const app=document.getElementById('appShell'),login=document.getElementById('loginScreen');
+  if(!app)return false;
+  if(login&&getComputedStyle(login).display!=='none')return false;
+  const st=getComputedStyle(app);
+  return document.visibilityState!=='hidden'&&st.display!=='none'&&st.visibility!=='hidden'&&st.opacity!=='0'&&app.getClientRects().length>0;
+ }catch(e){return false}
+}
+function needsCutSync(){
+ try{
+  const d=window.db||{},cuts=Array.isArray(d.cuts)?d.cuts:[],prod=Array.isArray(d.production)?d.production:[];
+  return cuts.some(c=>{
+   if(String(c?.status||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase()!=='finalizado')return false;
+   const x=prod.find(p=>String(p?.cutId??'')===String(c?.id??''));
+   return !x||(!x.productId&&c?.productId);
+  });
+ }catch(e){return true}
+}
 async function reconcile(reason){
  const g=guard();if(!g)return false;
  runs++;lastRun=new Date().toISOString();lastReason=reason||'post-cut-sync';
@@ -15,19 +35,28 @@ async function reconcile(reason){
  try{if(typeof g.repair==='function')await g.repair((reason||'post-cut-sync')+'-confirmed')}catch(e){console.warn('[HLGB '+V+'] reparo confirmado',e)}
  return true;
 }
-function settle(reason){
- [0,60,250,900,1800].forEach(ms=>setTimeout(()=>reconcile(reason+'-'+ms).catch(()=>{}),ms));
+function settle(reason,delay=140){
+ settleQueued=reason||'post-cut-sync';
+ clearTimeout(settleTimer);
+ settleTimer=setTimeout(()=>{
+  settleTimer=null;
+  if(!appReady())return;
+  const why=settleQueued;settleQueued='';
+  reconcile(why).catch(()=>{});
+ },Math.max(80,+delay||140));
 }
 function install(){
  const f=window.syncFinalizedCutsToProduction;
  if(typeof f!=='function'||f.__hlgb9307)return false;
  const wrapped=function(){
+  if(!appReady()){skippedNotReady++;return false}
+  if(!needsCutSync()){skippedNoWork++;return false}
   let out;
-  try{out=f.apply(this,arguments)}catch(e){settle('cut-sync-error');throw e}
+  try{out=f.apply(this,arguments)}catch(e){settle('cut-sync-error',220);throw e}
   if(out&&typeof out.then==='function'){
    return Promise.resolve(out).then(
     value=>{settle('post-cut-sync');return value},
-    err=>{settle('cut-sync-rejected');throw err}
+    err=>{settle('cut-sync-rejected',220);throw err}
    );
   }
   settle('post-cut-sync');
@@ -46,9 +75,14 @@ function stamp(){
   if(cur<93.07){window.HLGB_RELEASE_VERSION=V;const l=document.querySelector('#appShell .logo small');if(l)l.textContent='v'+V}
  }catch(e){}
 }
-function status(){return {version:V,installs,runs,lastRun,lastReason,wrapped:!!window.syncFinalizedCutsToProduction?.__hlgb9307,guard:window.hlgbSyncGuard9306?.status?.()||null}}
-function boot(){install();stamp();setInterval(install,1200);setTimeout(()=>reconcile('boot').catch(()=>{}),700);window.hlgbProductionCutReconcile9307={version:V,status,reconcile,install}}
-if(typeof window.hlgbAfterLogin==='function')window.hlgbAfterLogin(()=>setTimeout(boot,400),0);else setTimeout(boot,1200);
+function status(){return {version:V,installs,runs,lastRun,lastReason,wrapped:!!window.syncFinalizedCutsToProduction?.__hlgb9307,appReady:appReady(),needsCutSync:needsCutSync(),skippedNotReady,skippedNoWork,guard:window.hlgbSyncGuard9306?.status?.()||null}}
+function boot(){
+ install();stamp();
+ [250,800,1800,3500].forEach(ms=>setTimeout(install,ms));
+ setTimeout(()=>{if(appReady()&&needsCutSync())window.syncFinalizedCutsToProduction?.()},500);
+ window.hlgbProductionCutReconcile9307={version:V,status,reconcile,install,appReady,needsCutSync};
+}
+if(typeof window.hlgbAfterLogin==='function')window.hlgbAfterLogin(()=>setTimeout(boot,250),0);else setTimeout(()=>{if(window.__HLGB_AUTH_READY===true)boot()},1200);
 })();
 
 /* HLGB v93.13 — salvamento sem tempestade + separação sem espera infinita */
