@@ -14,9 +14,21 @@ const TARGETS={
  hlgbRecordLoadBundle:'load',hlgbLoadNormalizedCore:'load',hlgbEnsureRecordsOnlineAfterLogin:'load',hlgb942FullCloudRefresh:'load',fullSync:'load',hlgb942Boot:'boot',boot9199:'boot',
  renderAll:'render',renderHubFinance:'render',organizeHub:'render',renderProduction:'render',renderProductionList:'render',renderProductionBoard:'render',renderProjection:'render',renderDashboard:'render',syncFinalizedCutsToProduction:'render'
 };
+function chainHasMarker(fn,marker){
+ const seen=new Set(),pointers=['__original','__hlgb9307Original','__hlgb9320Original','__hlgb955Original','__hlgbReliableOriginal'];
+ let cur=fn,depth=0;
+ while(typeof cur==='function'&&!seen.has(cur)&&depth++<48){
+  if(cur[marker])return true;
+  seen.add(cur);
+  let next=null;
+  for(const key of pointers){try{if(typeof cur[key]==='function'){next=cur[key];break}}catch(e){}}
+  cur=next;
+ }
+ return false;
+}
 function wrapName(name,kind){
  const cur=window[name];if(typeof cur!=='function')return false;
- if(cur.__hlgbCallTrace9380)return true;
+ if(chainHasMarker(cur,'__hlgbCallTrace9380')){wrapped.set(name,cur);return true;}
  const w=function(){
   const st=stack(),t0=now();mark(kind+':start',name,{stack:st,argsCount:arguments.length});
   let out;
