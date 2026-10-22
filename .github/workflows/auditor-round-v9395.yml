@@ -1,0 +1,29 @@
+name: Auditor round v93.95
+
+on:
+  pull_request:
+  push:
+    branches:
+      - fix/auditor-round-20261022
+
+jobs:
+  auditor-round:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Testar correções da rodada
+        run: node tests/auditor-round-v9395.js
+      - name: Verificar sintaxe dos scripts alterados
+        run: |
+          node --check release-production-cut-reconcile-v9307.js
+          node --check release-ui-stability.js
+          node --check release-auditor-call-trace-v9380.js
+          node --check release-production-operations-v9386-finalize.js
+          node --check release-hub-live-refresh-v9289.js
+          node --check release-save-actions-v9322.js
+          node --check release-hub-delivery-v9324.js
+          node --check release-auditor-authority-map-v9374.js
+          node --check release-daily-safety.js
