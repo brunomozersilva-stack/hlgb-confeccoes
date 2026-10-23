@@ -16,8 +16,8 @@ const FAMILIES=[
  {id:'auditor',label:'Auditor',re:/release-auditor-/i,functions:['openHlgbAuditor','hlgbAuditorRunFull','hlgbAuditorRunVisualSweep']}
 ];
 const RESPONSIBILITIES=[
- {id:'hub-save',family:'hub',label:'Confirmação de salvamento do Hub',fn:'hlgbHubSaveConfirmed',files:['release-save-actions-v9322.js','release-hub-delivery-v9324.js'],authority:'não comprovada',supersedes:[]},
- {id:'writeoff',family:'production',label:'Baixa operacional',fn:'hlgbWriteoffSelected9385',files:['release-production-operations-v9378-preview.js','release-production-operations-v9380-preview-patch.js'],authority:'não comprovada nesta branch',supersedes:[]},
+ {id:'hub-save',family:'hub',label:'Confirmação de salvamento do Hub',fn:'hlgbHubSaveConfirmed',files:['release-save-actions-v9322.js','release-hub-delivery-v9324.js'],authority:'release-hub-delivery-v9324.js',authorityFile:'release-hub-delivery-v9324.js',runtimeKey:'HLGB_HUB_SAVE_AUTHORITY',runtimeValue:'93.24',supersedes:['release-save-actions-v9322.js']},
+ {id:'writeoff',family:'production',label:'Baixa operacional',fn:'hlgbWriteoffSelected9385',files:['release-production-operations-v9378-preview.js','release-production-operations-v9380-preview-patch.js','release-production-operations-v9386-finalize.js','release-production-writeoff-integrity-v9391.js'],authority:'release-production-writeoff-integrity-v9391.js',authorityFile:'release-production-writeoff-integrity-v9391.js',runtimeKey:'HLGB_OPERATIONAL_WRITEOFF_AUTHORITY',runtimeValue:'93.91',supersedes:['release-production-operations-v9378-preview.js','release-production-operations-v9380-preview-patch.js','release-production-operations-v9386-finalize.js']},
  {id:'record-save',family:'sync',label:'Persistência de registro',fn:'hlgbRecordSaveWithRetry',files:['release-save-transport-v9320.js','release-sync-guard-v9306.js','release-payroll-reliable-save-guard-v9344.js'],authority:'precisa de consolidação por responsabilidade',supersedes:[]}
 ];
 function fileName(src){try{return decodeURIComponent(new URL(src,location.href).pathname.split('/').pop()||'')}catch(e){return sid(src).split(/[/?#]/).pop()||''}}
@@ -53,8 +53,15 @@ function runtimeVersionEvidence(){
  return rows.slice(0,180);
 }
 function responsibilityState(id,inventory){
- const r=RESPONSIBILITIES.find(x=>x.id===id);if(!r)return null;const present=r.files.filter(f=>inventory.uniqueFiles.includes(f));
- return {...r,present,conflict:present.length>1&&!r.supersedes.length,status:present.length>1&&!r.supersedes.length?'warn':present.length?'info':'unknown'};
+ const r=RESPONSIBILITIES.find(x=>x.id===id);if(!r)return null;
+ const present=r.files.filter(f=>inventory.uniqueFiles.includes(f));
+ const authorityPresent=!r.authorityFile||present.includes(r.authorityFile);
+ let runtimeConfirmed=!r.runtimeKey;
+ if(r.runtimeKey){try{runtimeConfirmed=sid(window[r.runtimeKey])===sid(r.runtimeValue)}catch(e){runtimeConfirmed=false}}
+ const supersededPresent=(r.supersedes||[]).filter(f=>present.includes(f));
+ const authorityConfirmed=!!r.authorityFile&&authorityPresent&&runtimeConfirmed;
+ const conflict=present.length>1&&!authorityConfirmed;
+ return {...r,present,authorityPresent,runtimeConfirmed,authorityConfirmed,supersededPresent,conflict,status:conflict?'warn':present.length?'info':'unknown'};
 }
 function familyScan(f,inventory){
  const files=inventory.uniqueFiles.filter(x=>f.re.test(x));
@@ -68,7 +75,7 @@ function familyScan(f,inventory){
 function scan(){
  const inventory=loadedScriptInventory(),families=FAMILIES.map(f=>familyScan(f,inventory));
  const fail=families.filter(x=>x.status==='fail').length,warn=families.filter(x=>x.status==='warn').length;
- const consolidationPlan=RESPONSIBILITIES.map(r=>responsibilityState(r.id,inventory)).filter(Boolean).map(r=>({id:r.id,label:r.label,authority:r.authority,present:r.present,conflict:r.conflict,supersedes:r.supersedes,recommendation:r.conflict?'Mapear instaladores e escolher autoridade antes de remover qualquer arquivo.':r.present.length?'Responsabilidade declarada; sem aposentadoria inferida.':'Não medido: arquivos declarados não observados.'}));
+ const consolidationPlan=RESPONSIBILITIES.map(r=>responsibilityState(r.id,inventory)).filter(Boolean).map(r=>({id:r.id,label:r.label,authority:r.authority,present:r.present,conflict:r.conflict,supersedes:r.supersedes,authorityConfirmed:r.authorityConfirmed,runtimeKey:r.runtimeKey||'',runtimeValue:r.runtimeValue||'',recommendation:r.conflict?'Autoridade declarada ainda não foi confirmada no runtime; revisar instaladores.':r.authorityConfirmed?'Autoridade final confirmada no runtime; camadas anteriores ficam como delegadas/fallback.':r.present.length?'Responsabilidade declarada; sem aposentadoria inferida.':'Não medido: arquivos declarados não observados.'}));
  return {kind:'hlgb_authority_map',version:V,build:BUILD,at:new Date().toISOString(),appVersion:sid(window.HLGB_RELEASE_VERSION||''),measurement:'runtime-current-session',scriptInventory:inventory,scriptsCount:inventory.uniqueFiles.length,scripts:inventory.uniqueFiles,families,runtimeVersions:runtimeVersionEvidence(),consolidationPlan,retirementPlan:[],summary:{fail,warn,pass:families.length-fail-warn,result:fail?'Falhou':warn?'Atenção':'Aprovado'}};
 }
 function fileStamp(){return new Date().toISOString().replace(/[:.]/g,'-')}

@@ -60,7 +60,19 @@ function itemPid(item){const direct=sid(item?.productId||'');if(direct)return di
 function projectionRowVisible(r){const oid=sid(r?.order?.id||r?.orderId||''),pid=itemPid(r?.item||r);return !oid||!pid||!isHidden(oid,pid)}
 function withFiltered(module,filter,fn,args,self){if(!window.db||!Array.isArray(window.db[module]))return fn.apply(self,args);const old=window.db[module];window.db[module]=old.filter(filter);try{return fn.apply(self,args)}finally{window.db[module]=old}}
 function withVisibleOrders(fn,args,self){if(!window.db||!Array.isArray(window.db.orders))return fn.apply(self,args);const old=window.db.orders;window.db.orders=old.filter(o=>!allHidden(o)).map(visibleOrder);try{return fn.apply(self,args)}finally{window.db.orders=old}}
-function wrap(name,maker){const old=window[name];if(typeof old!=='function'||old.__hlgb9388)return;const w=maker(old);w.__hlgb9388=true;w.__original=old;window[name]=w}
+function chainHasMarker(fn,marker){
+ const seen=new Set(),pointers=['__original','__hlgb9307Original','__hlgb9320Original','__hlgb955Original','__hlgbReliableOriginal'];
+ let cur=fn,depth=0;
+ while(typeof cur==='function'&&!seen.has(cur)&&depth++<48){
+  if(cur[marker])return true;
+  seen.add(cur);
+  let next=null;
+  for(const key of pointers){try{if(typeof cur[key]==='function'){next=cur[key];break}}catch(e){}}
+  cur=next;
+ }
+ return false;
+}
+function wrap(name,maker){const old=window[name];if(typeof old!=='function'||chainHasMarker(old,'__hlgb9388'))return;const w=maker(old);w.__hlgb9388=true;w.__original=old;window[name]=w}
 function wrapProviders(){
  wrap('projectionItemsForOrder',old=>function(o){const vo=visibleOrder(o),rows=old.call(this,vo)||[];return rows.filter(item=>{const pid=itemPid(item);return !pid||!isHidden(o?.id,pid)})});
  wrap('allProjectionRows',old=>function(){return (old.apply(this,arguments)||[]).filter(projectionRowVisible)});
@@ -86,7 +98,11 @@ function correctedModel(m){
 }
 async function officialSave(row){if(typeof window.cloudEnsureFreshSession==='function')await window.cloudEnsureFreshSession(false);if(typeof window.hlgbRecordSaveWithRetry!=='function')throw new Error('Gravação oficial indisponível.');const r=await window.hlgbRecordSaveWithRetry('operationalWriteoffs',sid(row.id),row,false);if(!r?.applied)throw new Error(r?.reason||'A nuvem não confirmou a baixa.');const a=arr('operationalWriteoffs'),i=a.findIndex(x=>sid(x.id)===sid(row.id));if(i>=0)a[i]=r.data||row;else a.push(r.data||row);return r.data||row}
 function userLabel(){try{const u=typeof window.currentUser==='function'?window.currentUser():null;return sid(u?.name||u?.login||window.cloudUser?.email||'Usuário HLGB')}catch(_){return'Usuário HLGB'}}
+function canonicalWriteoffActive(){
+ return window.HLGB_OPERATIONAL_WRITEOFF_AUTHORITY==='93.91'&&window.hlgbWriteoffIntegrity9391?.version==='93.91';
+}
 function installWriteoff(){
+ if(canonicalWriteoffActive())return false;
  const fn=async function(){
   const c=core(),ids=[...document.querySelectorAll('.hlgb9385-writeoff:checked')].map(x=>x.value),base=typeof c?.writeoffModels==='function'?c.writeoffModels():[],sel=base.filter(x=>ids.includes(x.id)).map(correctedModel);
   if(!sel.length)return alert('Selecione pelo menos um modelo.');
@@ -95,7 +111,7 @@ function installWriteoff(){
    try{for(const m of sel){const row={id:'baixa-'+Date.now()+'-'+Math.floor(Math.random()*999999),sourceType:'model',sourceId:m.id,sourceRefs:m.sourceRefs,orderProductRefs:m.orderProductRefs,productId:m.productId,productName:m.productName,clientName:m.clientName,quantity:m.qty,reason:document.getElementById('w9388reason')?.value||'Outro',note:document.getElementById('w9388note')?.value||'',user:userLabel(),date:new Date().toISOString().slice(0,10),createdAt:new Date().toISOString(),writeoffVersion:V};await officialSave(row)}window.closeModal?.();refresh()}catch(e){console.error('[HLGB v93.88] baixa',e);alert(e.message||e)}
   });
  };
- fn.__hlgb9388=true;window.hlgbWriteoffSelected9385=fn;window.hlgbWriteoffSelected9384=fn;window.hlgbWriteoffSelected9378=fn;
+ fn.__hlgb9388=true;window.hlgbWriteoffSelected9385=fn;window.hlgbWriteoffSelected9384=fn;window.hlgbWriteoffSelected9378=fn;return true;
 }
 function customerFor(o){try{return typeof window.clientContactForOrder==='function'?window.clientContactForOrder(o):{}}catch(_){return{}}}
 function isoToday(){try{return typeof window.isoDate==='function'?window.isoDate(new Date()):new Date().toISOString().slice(0,10)}catch(_){return new Date().toISOString().slice(0,10)}}
@@ -108,6 +124,6 @@ function appReadyForRender(){
 }
 function refresh(){wrapProviders();installWriteoff();installNotaPronta();if(!appReadyForRender())return false;try{window.renderProjection?.()}catch(_){}try{window.renderProduction?.()}catch(_){}try{window.renderProductionHub?.()}catch(_){}try{window.renderCuts?.()}catch(_){}try{window.renderOrderNotes?.()}catch(_){}try{window.renderFactions?.()}catch(_){}try{core()?.diagnostics?.()}catch(_){}return true}
 window.HLGB_PRODUCTION_VISIBILITY_RENDER_GUARD='93.89';
-window.hlgbOperationalVisibility9386={version:V,isHidden,writeoffPairs,hiddenPairIndex,visibleGrade,visibleOrder,allHidden,visibleTotal,projectionLeaks,diagnostics,appReadyForRender,refresh};
+window.hlgbOperationalVisibility9386={version:V,isHidden,writeoffPairs,hiddenPairIndex,visibleGrade,visibleOrder,allHidden,visibleTotal,projectionLeaks,diagnostics,appReadyForRender,canonicalWriteoffActive,refresh};
 refresh();try{if(typeof window.hlgbAfterLogin==='function')window.hlgbAfterLogin(()=>refresh(),0)}catch(_){}console.info('[HLGB] v'+V+' baixa por pedido + modelo ativa',diagnostics());
 })();

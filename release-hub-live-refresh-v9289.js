@@ -61,9 +61,21 @@ function watchNewEntry(){
  saveWatchTimer=setTimeout(tick,250);
  return true;
 }
+function chainHasMarker(fn,marker){
+ const seen=new Set(),pointers=['__original','__hlgb9307Original','__hlgb9320Original','__hlgb955Original','__hlgbReliableOriginal'];
+ let cur=fn,depth=0;
+ while(typeof cur==='function'&&!seen.has(cur)&&depth++<48){
+  if(cur[marker])return true;
+  seen.add(cur);
+  let next=null;
+  for(const key of pointers){try{if(typeof cur[key]==='function'){next=cur[key];break}}catch(e){}}
+  cur=next;
+ }
+ return false;
+}
 function installRecordHook(){
  const fn=window.hlgbRecordSaveWithRetry;
- if(typeof fn!=='function'||fn.__hlgbHubLive9291)return false;
+ if(typeof fn!=='function'||chainHasMarker(fn,'__hlgbHubLive9291'))return false;
  const wrapped=async function(module){
    const started=Date.now();
    try{

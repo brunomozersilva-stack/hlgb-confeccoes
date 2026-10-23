@@ -1,0 +1,93 @@
+name: HLGB Auditor Round v93.95 Preview
+
+on:
+  push:
+    branches:
+      - fix/auditor-round-20261022
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  package:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validar correções
+        run: |
+          set -euo pipefail
+          node tests/auditor-round-v9395.js
+          node --check release-production-cut-reconcile-v9307.js
+          node --check release-ui-stability.js
+          node --check release-auditor-call-trace-v9380.js
+          node --check release-production-operations-v9386-finalize.js
+          node --check release-hub-live-refresh-v9289.js
+          node --check release-save-actions-v9322.js
+          node --check release-hub-delivery-v9324.js
+          node --check release-auditor-authority-map-v9374.js
+          node --check release-daily-safety.js
+      - name: Montar preview local
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p preview
+          find . -maxdepth 1 -type f \( -name '*.html' -o -name '*.js' -o -name '*.json' \) -exec cp {} preview/ \;
+          cat > preview/preview-server.py <<'PY'
+          from http.server import ThreadingHTTPServer, SimpleHTTPRequestHandler
+          import os
+          HOST='127.0.0.1'; PORT=8765
+          class NoCache(SimpleHTTPRequestHandler):
+              def end_headers(self):
+                  self.send_header('Cache-Control','no-store, no-cache, must-revalidate')
+                  self.send_header('Pragma','no-cache')
+                  self.send_header('Expires','0')
+                  super().end_headers()
+          os.chdir(os.path.dirname(os.path.abspath(__file__)))
+          print(f'HLGB Auditor Round v93.95: http://{HOST}:{PORT}/abrir.html', flush=True)
+          ThreadingHTTPServer((HOST,PORT),NoCache).serve_forever()
+          PY
+          cat > preview/start-preview.command <<'SH'
+          #!/bin/bash
+          set -e
+          cd "$(dirname "$0")"
+          echo ""
+          echo "HLGB — CORREÇÕES DO AUDITOR v93.95"
+          echo "Branch: fix/auditor-round-20261022"
+          echo "Commit: __COMMIT__"
+          echo ""
+          echo "Abra no Safari ou Chrome: http://localhost:8765/abrir.html"
+          echo "Para encerrar, volte a esta janela e pressione Control+C."
+          echo ""
+          python3 preview-server.py
+          SH
+          sed -i "s/__COMMIT__/$GITHUB_SHA/g" preview/start-preview.command
+          chmod +x preview/start-preview.command
+          cat > preview/LEIA-ME.txt <<EOF
+          HLGB CONFECÇÕES — PREVIEW CORREÇÕES DO AUDITOR v93.95
+          Branch: fix/auditor-round-20261022
+          Commit: $GITHUB_SHA
+
+          ESTE PACOTE NÃO ALTERA O MAIN.
+
+          Correções em teste:
+          - contenção do corte -> produção antes do login / app oculto;
+          - redução de auto-duplicação de wrappers;
+          - autoridade do Hub v93.24;
+          - autoridade da baixa v93.91;
+          - pacote diário executa auditoria atual antes de exportar.
+
+          Pedido corrigido no banco real:
+          - Gisele continua #112;
+          - Click Sophia passou para #126.
+
+          Abra start-preview.command e depois:
+          http://localhost:8765/abrir.html
+          EOF
+      - uses: actions/upload-artifact@v4
+        with:
+          name: HLGB-AUDITOR-ROUND-v93.95-${{ github.sha }}
+          path: preview/
+          if-no-files-found: error
+          retention-days: 7

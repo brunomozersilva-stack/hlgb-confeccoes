@@ -57,8 +57,8 @@ async function save(row,deleted=false){
  Promise.resolve().then(()=>rawCreate(id,payload)).catch(err=>{failed++;lastError=sid(err?.message||err);console.error('[HLGB Hub '+V+'] entrega direta',err);status('⚠️ Salvo no aparelho · aguardando confirmação da nuvem','warn');queueRecovery()});
  return {applied:true,localFirst:true,pending:true,directDelivery:true,data:clone(payload),deleted_at:null};
 }
-function install(){window.hlgbHubSaveConfirmed=save;installs++;try{const cur=Number(window.HLGB_RELEASE_VERSION)||0;if(cur<93.24){window.HLGB_RELEASE_VERSION=V;const l=document.querySelector('#appShell .logo small');if(l)l.textContent='v'+V;const b=document.querySelector('#loginScreen b');if(b&&/Versão/i.test(b.textContent||''))b.textContent='Versão v'+V}}catch(e){}return true}
-function state(){return {version:V,installs,directAttempts,directConfirmed,fallbackExisting,failed,lastError,lastId,lastAt,authoritative:window.hlgbHubSaveConfirmed===save}}
+function install(){window.hlgbHubSaveConfirmed=save;window.HLGB_HUB_SAVE_AUTHORITY=V;save.__hlgbHubSaveAuthority=V;installs++;try{const cur=Number(window.HLGB_RELEASE_VERSION)||0;if(cur<93.24){window.HLGB_RELEASE_VERSION=V;const l=document.querySelector('#appShell .logo small');if(l)l.textContent='v'+V;const b=document.querySelector('#loginScreen b');if(b&&/Versão/i.test(b.textContent||''))b.textContent='Versão v'+V}}catch(e){}return true}
+function state(){return {version:V,installs,directAttempts,directConfirmed,fallbackExisting,failed,lastError,lastId,lastAt,authority:window.HLGB_HUB_SAVE_AUTHORITY,authoritative:window.hlgbHubSaveConfirmed===save}}
 install();let n=0;const timer=setInterval(()=>{n++;if(window.hlgbHubSaveConfirmed!==save)install();if(n>=120)clearInterval(timer)},500);
 try{if(typeof hlgbAfterLogin==='function')hlgbAfterLogin(()=>setTimeout(install,150),0)}catch(e){}
 window.hlgbHubDelivery9324={version:V,install,state,save,cloudRow,rawCreate};
