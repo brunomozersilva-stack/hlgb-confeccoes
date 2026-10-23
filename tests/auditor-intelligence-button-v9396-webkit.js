@@ -15,6 +15,17 @@ const {webkit}=require('playwright');
  await page.waitForSelector('#hlgbSmartStatus',{state:'visible',timeout:10000});
  await page.waitForSelector('#hlgbAuditorIntelligenceBtn9396',{state:'visible',timeout:10000});
 
+ // A interface oficial deve ser a única visível; nenhum controle legado pode reaparecer.
+ const shell=await page.evaluate(()=>{
+  const status=document.getElementById('hlgbSmartStatus');
+  const root=status?.closest?.('[role="dialog"],.modal,.modal-content,.modalCard,.modal-card,.dialog')||status?.parentElement?.parentElement||status?.parentElement;
+  const shown=[...(root?.querySelectorAll?.('button,a,[role="button"]')||[])].filter(el=>{const s=getComputedStyle(el),r=el.getBoundingClientRect();return !el.hidden&&s.display!=='none'&&s.visibility!=='hidden'&&r.width>0&&r.height>0}).map(el=>({id:el.id||'',text:String(el.textContent||'').trim()}));
+  const official=['hlgbMultiuserOpen','hlgbSmartTest','hlgbSmartProblem','hlgbSmartHistoryBtn','hlgbAuthorityBtn9374','hlgbBootAnalysisBtn9381','hlgbAuditorIntelligenceBtn9396'];
+  const legacyPattern=/Diagnóstico profundo do Hub|Teste visual completo|Tela atual|Exportar diagnóstico visual|Copiar última auditoria|Sincronização|Limpar falsos positivos confirmados|Executar teste visual|Diagnóstico Assistente|Diagnóstico da Folha/i;
+  return {shown,missing:official.filter(id=>!shown.some(x=>x.id===id)),legacy:shown.filter(x=>legacyPattern.test(x.text)),authority:window.HLGB_AUDITOR_SHELL_AUTHORITY,openerIsShell:window.openHlgbAuditor===window.hlgbAuditorShell9382?.open,legacyCapture:typeof window.__hlgbAuditorEntryCapture9368==='function'};
+ });
+ if(shell.missing.length||shell.legacy.length||shell.authority!=='93.82'||!shell.openerIsShell||shell.legacyCapture)throw new Error('Shell oficial do Auditor não é autoridade única '+JSON.stringify(shell));
+
  // Reproduz a janela real em que o Safari mostrou o botão piscando e depois sumindo.
  const stability=await page.evaluate(async()=>{
   const samples=[];
@@ -28,8 +39,8 @@ const {webkit}=require('playwright');
   for(let i=0;i<140;i++){await new Promise(r=>setTimeout(r,50));snap()}
   return samples;
  });
- const bad=stability.filter(x=>x.count!==1||x.hidden||x.display==='none'||x.visibility==='hidden'||x.width<=0||x.height<=0||!x.handler||x.inlineOnclick||x.legacyGeneric);
- if(bad.length)throw new Error('botão Inteligência piscou/sumiu, duplicou ou voltou ao filtro legado '+JSON.stringify({bad:bad.slice(0,12),last:stability.at(-1)}));
+ const bad=stability.filter(x=>x.count!==1||x.hidden||x.display==='none'||x.visibility==='hidden'||x.width<=0||x.height<=0||!x.handler||x.inlineOnclick||!x.legacyGeneric);
+ if(bad.length)throw new Error('botão Inteligência piscou/sumiu, duplicou ou perdeu o filtro oficial '+JSON.stringify({bad:bad.slice(0,12),last:stability.at(-1)}));
 
  await page.click('#hlgbAuditorIntelligenceBtn9396');
  await page.waitForSelector('#hlgbAuditorIntelligencePanel9396',{state:'visible',timeout:15000});
@@ -42,6 +53,6 @@ const {webkit}=require('playwright');
  if(!/Inteligência do Auditor/.test(after.panelText)||!after.downloadVisible)throw new Error('painel/download da Inteligência incompleto '+JSON.stringify(after));
  await page.screenshot({path:'/tmp/hlgb-auditor-inteligencia-webkit.png',fullPage:true});
  if(errors.some(x=>/auditor|9396|9382|intelig/i.test(x)))throw new Error('pageerror relacionado ao Auditor: '+errors.join(' | '));
- console.log('AUDITOR_INTELLIGENCE_BUTTON_WEBKIT_OK',JSON.stringify({samples:stability.length,last:stability.at(-1),downloadVisible:after.downloadVisible}));
+ console.log('AUDITOR_INTELLIGENCE_BUTTON_WEBKIT_OK',JSON.stringify({samples:stability.length,last:stability.at(-1),downloadVisible:after.downloadVisible,shell}));
  await browser.close();
 })().catch(e=>{console.error(e);process.exit(1)});
