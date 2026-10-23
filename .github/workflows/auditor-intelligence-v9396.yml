@@ -1,0 +1,25 @@
+name: HLGB Auditor Intelligence v93.96
+
+on:
+  push:
+    branches:
+      - fix/auditor-inteligente-20261023
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validar sintaxe
+        run: |
+          set -euo pipefail
+          node --check release-auditor-build-marker-v9396.js
+          node --check release-auditor-intelligence-v9396.js
+          node --check release-auditor-call-trace-v9380.js
+      - name: Testar inteligência incremental
+        run: node tests/auditor-intelligence-v9396.js
