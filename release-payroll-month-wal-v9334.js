@@ -63,8 +63,14 @@ function loadWalSingleAuthority(){
  try{
   const cur=parseFloat(String(window.hlgbWalSingleAuthority9339?.version||window.HLGB_WAL_SINGLE_AUTHORITY_9339||'0'))||0;
   if(cur>=93.48)return true;
-  if(cur>0&&cur<93.48){try{window.HLGB_WAL_SINGLE_AUTHORITY_9339=''}catch(e){}}
-  document.querySelectorAll('script[data-hlgb-wal-authority="9339"],script[data-hlgb-wal-authority-upgrade="9348"]').forEach(x=>{try{x.remove()}catch(e){}});
+  const selector='script[data-hlgb-wal-authority="9339"],script[data-hlgb-wal-authority-upgrade="9348"]';
+  const existing=document.querySelector(selector);
+  // Enquanto a primeira cópia ainda está carregando, não injeta uma segunda.
+  if(cur===0&&existing)return true;
+  if(cur>0&&cur<93.48){
+   try{window.HLGB_WAL_SINGLE_AUTHORITY_9339=''}catch(e){}
+   document.querySelectorAll(selector).forEach(x=>{try{x.remove()}catch(e){}});
+  }else if(existing)return true;
   const s=document.createElement('script');s.dataset.hlgbWalAuthority='9339';s.src='./release-wal-single-authority-v9339.js?fresh='+Date.now();
   s.onerror=()=>console.warn('[HLGB v93.44] autoridade WAL v93.48 não carregou');
   (document.head||document.documentElement).appendChild(s);return true;
