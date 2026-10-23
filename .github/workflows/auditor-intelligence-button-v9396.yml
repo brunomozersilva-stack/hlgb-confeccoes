@@ -1,0 +1,27 @@
+name: HLGB Auditor Intelligence Button v93.96
+
+on:
+  push:
+    branches:
+      - fix/auditor-intelligence-button-20261023
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validar sintaxe do Auditor
+        run: |
+          set -euo pipefail
+          node --check release-auditor-shell-v9382.js
+          node --check release-auditor-intelligence-v9396.js
+      - name: Validar visibilidade da Inteligência
+        run: node tests/auditor-intelligence-button-v9396.js
