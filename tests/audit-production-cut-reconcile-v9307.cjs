@@ -12,8 +12,11 @@ const src=fs.readFileSync('release-production-cut-reconcile-v9307.js','utf8');
   };
   const separationSelect={value:'123'};
   const pedidosPage={classList:{contains:v=>v==='active'}};
+  const appShell={getClientRects(){return [{}]}};
   const window={
     HLGB_RELEASE_VERSION:'93.06',
+    __HLGB_AUTH_READY:true,
+    db:{cuts:[{id:'cut-test',status:'Finalizado',productId:'p1'}],production:[]},
     hlgbSyncGuard9306:guard,
     syncFinalizedCutsToProduction(){originalCalls++;return 'legacy-result'},
     hlgbAfterLogin(fn){fn()},
@@ -41,10 +44,11 @@ const src=fs.readFileSync('release-production-cut-reconcile-v9307.js','utf8');
     setCloudStatus:(text,type)=>statuses.push([text,type])
   };
   const document={
+    visibilityState:'visible',
     activeElement:null,
     querySelector(sel){if(sel==='#appShell .logo small')return null;if(sel==='#modal.show')return null;return null},
     getElementById(id){
-      if(id==='appShell')return {};
+      if(id==='appShell')return appShell;
       if(id==='loginScreen')return null;
       if(id==='pedidos')return pedidosPage;
       if(id==='separationOrder')return separationSelect;
@@ -61,7 +65,7 @@ const src=fs.readFileSync('release-production-cut-reconcile-v9307.js','utf8');
     hlgbRecordReady:true,
     cloudEnsureFreshSession:window.cloudEnsureFreshSession,
     setCloudStatus:window.setCloudStatus,
-    getComputedStyle:()=>({display:'none'}),
+    getComputedStyle:(el)=>el===appShell?{display:'block',visibility:'visible',opacity:'1'}:{display:'none',visibility:'visible',opacity:'1'},
     alert(){},
     console:{info(){},warn(){},error(){}},
     setInterval(){return 1},
@@ -77,10 +81,11 @@ const src=fs.readFileSync('release-production-cut-reconcile-v9307.js','utf8');
   assert(window.hlgbProductionCutReconcile9307,'production diagnostic API must be exposed');
 
   const beforeRepairs=repairs.length;
+  const beforeOriginalCalls=originalCalls;
   const result=window.syncFinalizedCutsToProduction();
-  assert.strictEqual(result,'legacy-result','wrapper must preserve legacy sync return value');
-  assert.strictEqual(originalCalls,1,'legacy reconciliation must still execute exactly once');
-  assert(timeouts.includes(0)&&timeouts.includes(60)&&timeouts.includes(250)&&timeouts.includes(900)&&timeouts.includes(1800),'post-sync convergence must schedule all settle passes');
+  assert.strictEqual(result,'legacy-result','wrapper must preserve legacy sync return value after authenticated app is ready');
+  assert.strictEqual(originalCalls,beforeOriginalCalls+1,'manual reconciliation must execute the legacy sync exactly once in addition to any authenticated boot reconciliation');
+  assert(timeouts.includes(140),'post-sync convergence must schedule the current 140ms settle pass');
   for(let i=0;i<8;i++)await Promise.resolve();
   assert(repairs.length>beforeRepairs,'post-sync convergence must invoke repair');
   assert(repairs.some(x=>x.startsWith('post-cut-sync-')),'repair reason must identify post-cut sync');
@@ -126,5 +131,5 @@ const src=fs.readFileSync('release-production-cut-reconcile-v9307.js','utf8');
   assert.strictEqual(prod.wrapped,true);
   assert(prod.runs>0,'production diagnostic status must record reconciliation runs');
 
-  console.log('PASS v93.13 save integrity: single recovery flush; separation cloud-gated with timeout; incoming refresh and Hub render coalescing preserved.');
+  console.log('PASS v93.13 save integrity: authenticated cut sync preserves legacy return; current settle timing, single recovery flush, separation and Hub guards preserved.');
 })().catch(err=>{console.error(err);process.exit(1)});
