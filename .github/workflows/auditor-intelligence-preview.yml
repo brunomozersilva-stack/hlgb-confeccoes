@@ -1,0 +1,67 @@
+name: HLGB Auditor Intelligence Preview
+
+on:
+  push:
+    branches:
+      - fix/auditor-intelligence-button-20261023
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  preview:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Montar preview para Mac
+        run: |
+          set -euo pipefail
+          rm -rf /tmp/hlgb-preview
+          mkdir -p /tmp/hlgb-preview
+          rsync -a ./ /tmp/hlgb-preview/ \
+            --exclude '.git/' \
+            --exclude '.github/' \
+            --exclude 'tests/' \
+            --exclude 'node_modules/'
+          cat > /tmp/hlgb-preview/INICIAR-HLGB.command <<'EOF'
+          #!/bin/bash
+          set -u
+          cd "$(dirname "$0")"
+          PORT=8765
+          echo "Abrindo HLGB Preview do botão Inteligência..."
+          echo "Mantenha esta janela aberta durante o teste."
+          if command -v python3 >/dev/null 2>&1; then
+            (sleep 1; open "http://localhost:${PORT}/abrir.html") &
+            python3 -m http.server "$PORT"
+          elif command -v ruby >/dev/null 2>&1; then
+            (sleep 1; open "http://localhost:${PORT}/abrir.html") &
+            ruby -run -e httpd . -p "$PORT"
+          else
+            echo "Não encontrei Python 3 nem Ruby neste Mac."
+            read -r -p "Pressione Enter para fechar..."
+            exit 1
+          fi
+          EOF
+          chmod 755 /tmp/hlgb-preview/INICIAR-HLGB.command
+          cat > /tmp/hlgb-preview/LEIA-ME.txt <<'EOF'
+          PREVIEW HLGB - BOTÃO INTELIGÊNCIA
+
+          1. Feche qualquer preview antigo que esteja usando a porta 8765.
+          2. Clique com o botão direito em INICIAR-HLGB.command.
+          3. Escolha Abrir e depois Abrir novamente.
+          4. Faça login no HLGB.
+          5. Abra Auditor / Testes.
+          6. Confirme se aparece o botão 🧠 Inteligência.
+          7. Clique nele e confirme se abre o painel Inteligência do Auditor.
+
+          Este pacote é da branch de teste do PR #66 e não altera o main.
+          EOF
+      - name: Publicar preview
+        uses: actions/upload-artifact@v4
+        with:
+          name: HLGB-PREVIEW-INTELIGENCIA-PR66
+          path: /tmp/hlgb-preview
+          if-no-files-found: error
+          retention-days: 7
