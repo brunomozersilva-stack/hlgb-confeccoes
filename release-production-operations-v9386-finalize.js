@@ -41,7 +41,13 @@ function writeoffPairs(w){
  }
  return [...out.values()];
 }
-function hiddenPairIndex(){const s=new Set();for(const w of arr('operationalWriteoffs'))for(const x of writeoffPairs(w))s.add(x.orderId+'|'+x.productId);return s}
+function hiddenPairIndex(){
+ const a=window.hlgbWriteoffIntegrity9391;
+ if(a&&typeof a.pairIndex==='function'){
+  try{return new Set(a.pairIndex())}catch(_){}
+ }
+ const s=new Set();for(const w of arr('operationalWriteoffs'))for(const x of writeoffPairs(w))s.add(x.orderId+'|'+x.productId);return s;
+}
 function isHidden(orderId,pid){
  if(!orderId||!pid)return false;
  const s=hiddenPairIndex(),oid=sid(orderId),p=sid(pid);
@@ -49,6 +55,16 @@ function isHidden(orderId,pid){
  const c=core();return !!(c&&typeof c.orderProductHidden==='function'&&c.orderProductHidden(oid,p));
 }
 function prodHidden(p){if(!p)return false;if(p.orderId&&p.productId&&isHidden(p.orderId,p.productId))return true;const c=core();return !!(c&&typeof c.productionHidden==='function'&&c.productionHidden(p))}
+function cutHidden(c){
+ if(!c)return false;
+ const oid=sid(c.orderId||''),pid=sid(c.productId||'');
+ if(oid&&pid&&isHidden(oid,pid))return true;
+ if(oid&&!pid){
+  const o=order(oid),ids=[...new Set(gradeRows(o?.grade).map(r=>sid(r.productId)).filter(Boolean))];
+  if(ids.length&&ids.every(x=>isHidden(oid,x)))return true;
+ }
+ const x=core();return !!(x&&pid&&typeof x.cutProductHidden==='function'&&x.cutProductHidden(c,pid));
+}
 function visibleGrade(o){return gradeRows(o?.grade).filter(r=>!r.productId||!isHidden(o?.id,r.productId))}
 function allHidden(o){const ids=[...new Set(gradeRows(o?.grade).map(r=>sid(r.productId)).filter(Boolean))];if(ids.length)return ids.every(pid=>isHidden(o.id,pid));return !!(o?.productId&&isHidden(o.id,o.productId))}
 function unitPrice(o,r){if(Number(r?.unitPrice)>0)return Number(r.unitPrice);try{if(typeof window.suggestedPrice==='function'){const x=Number(window.suggestedPrice(o?.clientId||0,r?.productId));if(x>0)return x}}catch(_){}const p=product(r?.productId);return Number(p?.price||o?.unitPrice||0)}
@@ -69,6 +85,7 @@ function wrapProviders(){
  wrap('renderProduction',old=>function(){return withFiltered('production',p=>!prodHidden(p),old,arguments,this)});
  wrap('productionHubRows',old=>function(){return withFiltered('production',p=>!prodHidden(p),old,arguments,this)});
  wrap('renderProductionHub',old=>function(){return withFiltered('production',p=>!prodHidden(p),old,arguments,this)});
+ wrap('renderCuts',old=>function(){return withFiltered('cuts',c=>!cutHidden(c),old,arguments,this)});
  wrap('renderOrderNotes',old=>function(){return withVisibleOrders(old,arguments,this)});
  wrap('orderProductSummary',old=>function(o){if(allHidden(o))return'';return old.call(this,visibleOrder(o))});
  wrap('printCustomerNote',old=>function(o,c,info){const vo=visibleOrder(o);return old.call(this,vo,c,{...(info||{}),value:visibleTotal(o,vo.grade)})});
@@ -84,9 +101,11 @@ function correctedModel(m){
  const orderProductRefs=[...pairs.values()];let qty=orderProductRefs.reduce((s,x)=>s+orderQty(x.orderId,x.productId),0);if(!qty)qty=q(m?.qty);
  return {...m,qty,sourceRefs:refs,orderProductRefs};
 }
-async function officialSave(row){if(typeof window.cloudEnsureFreshSession==='function')await window.cloudEnsureFreshSession(false);if(typeof window.hlgbRecordSaveWithRetry!=='function')throw new Error('Gravação oficial indisponível.');const r=await window.hlgbRecordSaveWithRetry('operationalWriteoffs',sid(row.id),row,false);if(!r?.applied)throw new Error(r?.reason||'A nuvem não confirmou a baixa.');const a=arr('operationalWriteoffs'),i=a.findIndex(x=>sid(x.id)===sid(row.id));if(i>=0)a[i]=r.data||row;else a.push(r.data||row);return r.data||row}
+async function officialSave(row){if(typeof window.cloudEnsureFreshSession==='function')await window.cloudEnsureFreshSession(false);if(typeof window.hlgbRecordSaveWithRetry!=='function')throw new Error('Gravação oficial indisponível.');const r=await window.hlgbRecordSaveWithRetry('operationalWriteoffs',sid(row.id),row,false);if(!r?.applied)throw new Error(r?.reason||'A nuvem não confirmou a gravação.');const a=arr('operationalWriteoffs'),i=a.findIndex(x=>sid(x.id)===sid(row.id));if(i>=0)a[i]=r.data||row;else a.push(r.data||row);return r.data||row}
 function userLabel(){try{const u=typeof window.currentUser==='function'?window.currentUser():null;return sid(u?.name||u?.login||window.cloudUser?.email||'Usuário HLGB')}catch(_){return'Usuário HLGB'}}
+function canonicalWriteoffActive(){const a=window.hlgbWriteoffIntegrity9391;return !!(a&&typeof a.pairIndex==='function'&&sid(window.HLGB_OPERATIONAL_WRITEOFF_AUTHORITY)==='93.91')}
 function installWriteoff(){
+ if(canonicalWriteoffActive())return false;
  const fn=async function(){
   const c=core(),ids=[...document.querySelectorAll('.hlgb9385-writeoff:checked')].map(x=>x.value),base=typeof c?.writeoffModels==='function'?c.writeoffModels():[],sel=base.filter(x=>ids.includes(x.id)).map(correctedModel);
   if(!sel.length)return alert('Selecione pelo menos um modelo.');
@@ -95,19 +114,19 @@ function installWriteoff(){
    try{for(const m of sel){const row={id:'baixa-'+Date.now()+'-'+Math.floor(Math.random()*999999),sourceType:'model',sourceId:m.id,sourceRefs:m.sourceRefs,orderProductRefs:m.orderProductRefs,productId:m.productId,productName:m.productName,clientName:m.clientName,quantity:m.qty,reason:document.getElementById('w9388reason')?.value||'Outro',note:document.getElementById('w9388note')?.value||'',user:userLabel(),date:new Date().toISOString().slice(0,10),createdAt:new Date().toISOString(),writeoffVersion:V};await officialSave(row)}window.closeModal?.();refresh()}catch(e){console.error('[HLGB v93.88] baixa',e);alert(e.message||e)}
   });
  };
- fn.__hlgb9388=true;window.hlgbWriteoffSelected9385=fn;window.hlgbWriteoffSelected9384=fn;window.hlgbWriteoffSelected9378=fn;
+ fn.__hlgb9388=true;window.hlgbWriteoffSelected9385=fn;window.hlgbWriteoffSelected9384=fn;window.hlgbWriteoffSelected9378=fn;return true;
 }
 function customerFor(o){try{return typeof window.clientContactForOrder==='function'?window.clientContactForOrder(o):{}}catch(_){return{}}}
 function isoToday(){try{return typeof window.isoDate==='function'?window.isoDate(new Date()):new Date().toISOString().slice(0,10)}catch(_){return new Date().toISOString().slice(0,10)}}
 function installNotaPronta(){const old=window.notaPronta;if(typeof old!=='function'||old.__hlgb9388)return;const fn=function(id){const o=arr('orders').find(x=>sid(x.id)===sid(id));if(!o)return;if(allHidden(o))return alert('Todos os modelos deste pedido já tiveram baixa. Não há produto ativo para nota.');const vo=visibleOrder(o),c=customerFor(o),name=c?.contact||c?.name||o.client||'Cliente',phone=c?.phone||c?.whatsapp||c?.telefone||'',value=visibleTotal(o,vo.grade);if(typeof window.openModal!=='function')return old.apply(this,arguments);window.openModal('Nota pronta — cobrança','<div class="grid"><div class="field"><label>Cliente</label><input value="'+esc(c?.name||o.client||'')+'" disabled></div><div class="field"><label>Nome da pessoa / contato</label><input id="ncontact" value="'+esc(name)+'"></div><div class="field"><label>Telefone / WhatsApp</label><input id="nphone" value="'+esc(phone)+'"></div><div class="field"><label>Valor da cobrança</label><input id="nvalue" type="number" step=".01" value="'+value+'"></div><div class="field"><label>Data da cobrança</label><input id="ndate" type="date" value="'+isoToday()+'"></div><div class="field"><label>Vencimento</label><input id="ndue" type="date" value="'+esc(o.date||isoToday())+'"></div><div class="field"><label>Condições de pagamento</label><select id="ncond"><option>À vista</option><option>7 dias</option><option>14 dias</option><option>21 dias</option><option>28 dias</option><option>30 dias</option><option>Personalizado</option></select></div><div class="field"><label>Mensagem de agradecimento</label><textarea id="nmsg">Agradecemos pela preferência e pela confiança em nosso trabalho. Será um prazer continuar atendendo você!</textarea></div></div><div class="sub">Produtos baixados não entram nesta nota.</div><button type="button" class="primary modalSave">Lançar no financeiro e preparar impressão</button>',()=>{window.db.finance=Array.isArray(window.db.finance)?window.db.finance:[];const nv=q(document.getElementById('nvalue')?.value),contact=document.getElementById('ncontact')?.value||'',nphone=document.getElementById('nphone')?.value||'',ndate=document.getElementById('ndate')?.value||isoToday(),ndue=document.getElementById('ndue')?.value||o.date||isoToday(),cond=document.getElementById('ncond')?.value||'À vista',msg=document.getElementById('nmsg')?.value||'',existing=window.db.finance.find(f=>sid(f.orderId)===sid(o.id)&&f.type==='Receber'&&f.status!=='Pago'),names=[...new Set(vo.grade.map(r=>product(r.productId)?.name).filter(Boolean))],launch={type:'Receber',desc:'Pedido #'+o.id+' — '+(o.client||'')+(names.length?' — '+names.join(', '):''),value:nv,status:'Pendente',paid:0,remaining:nv,date:ndue,orderId:o.id,clientId:o.clientId||c?.id||null,clientName:o.client||c?.name||'',paymentTerms:cond,note:msg,contact,phone:nphone,operationalWriteoffFiltered:true,activeProductIds:[...new Set(vo.grade.map(r=>r.productId).filter(Boolean))]};if(existing)Object.assign(existing,launch);else window.db.finance.push({id:Date.now(),...launch});o.invoiceReady=true;o.noteReady=true;o.invoiceDate=ndate;o.dueDate=ndue;o.paymentTerms=cond;o.invoiceNote=msg;o.contactName=contact;o.contactPhone=nphone;window.closeModal?.();try{if(typeof window.save==='function')window.save();else if(typeof window.persistDb==='function')window.persistDb()}catch(e){console.error(e);return alert('Não foi possível salvar a nota.')}try{window.renderOrderNotes?.()}catch(_){}try{window.printCustomerNote?.(vo,c,{name:contact,phone:nphone,message:msg,value:nv,due:ndue,terms:cond})}catch(e){console.error(e)}})};fn.__hlgb9388=true;fn.__original=old;window.notaPronta=fn}
 function projectionLeaks(){try{const rows=typeof window.allProjectionRows==='function'?window.allProjectionRows():[];return rows.filter(r=>{const oid=sid(r?.order?.id||r?.orderId||''),pid=itemPid(r?.item||r);return oid&&pid&&isHidden(oid,pid)}).map(r=>({orderId:sid(r?.order?.id||r?.orderId),productId:itemPid(r?.item||r),name:r?.item?.name||''}))}catch(_){return[]}}
-function diagnostics(){const pairs=hiddenPairIndex();return{version:V,writeoffs:arr('operationalWriteoffs').length,hiddenOrderProducts:[...pairs].length,hiddenProduction:arr('production').filter(prodHidden).length,projectionLeaks:projectionLeaks().length}}
+function diagnostics(){const pairs=hiddenPairIndex();return{version:V,writeoffs:arr('operationalWriteoffs').length,hiddenOrderProducts:[...pairs].length,hiddenProduction:arr('production').filter(prodHidden).length,hiddenCuts:arr('cuts').filter(cutHidden).length,projectionLeaks:projectionLeaks().length,canonicalWriteoffProtected:canonicalWriteoffActive()}}
 function appReadyForRender(){
  if(window.__HLGB_AUTH_READY!==true)return false;
  try{const shell=document.getElementById('appShell');if(!shell)return true;const s=getComputedStyle(shell);return s.display!=='none'&&s.visibility!=='hidden'&&s.opacity!=='0'}catch(_){return true}
 }
 function refresh(){wrapProviders();installWriteoff();installNotaPronta();if(!appReadyForRender())return false;try{window.renderProjection?.()}catch(_){}try{window.renderProduction?.()}catch(_){}try{window.renderProductionHub?.()}catch(_){}try{window.renderCuts?.()}catch(_){}try{window.renderOrderNotes?.()}catch(_){}try{window.renderFactions?.()}catch(_){}try{core()?.diagnostics?.()}catch(_){}return true}
 window.HLGB_PRODUCTION_VISIBILITY_RENDER_GUARD='93.89';
-window.hlgbOperationalVisibility9386={version:V,isHidden,writeoffPairs,hiddenPairIndex,visibleGrade,visibleOrder,allHidden,visibleTotal,projectionLeaks,diagnostics,appReadyForRender,refresh};
+window.hlgbOperationalVisibility9386={version:V,isHidden,writeoffPairs,hiddenPairIndex,prodHidden,cutHidden,visibleGrade,visibleOrder,allHidden,visibleTotal,projectionLeaks,canonicalWriteoffActive,diagnostics,appReadyForRender,refresh};
 refresh();try{if(typeof window.hlgbAfterLogin==='function')window.hlgbAfterLogin(()=>refresh(),0)}catch(_){}console.info('[HLGB] v'+V+' baixa por pedido + modelo ativa',diagnostics());
 })();
