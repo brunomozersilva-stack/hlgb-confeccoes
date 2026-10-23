@@ -81,9 +81,10 @@ const src=fs.readFileSync('release-production-cut-reconcile-v9307.js','utf8');
   assert(window.hlgbProductionCutReconcile9307,'production diagnostic API must be exposed');
 
   const beforeRepairs=repairs.length;
+  const beforeOriginalCalls=originalCalls;
   const result=window.syncFinalizedCutsToProduction();
   assert.strictEqual(result,'legacy-result','wrapper must preserve legacy sync return value after authenticated app is ready');
-  assert.strictEqual(originalCalls,1,'legacy reconciliation must still execute exactly once');
+  assert.strictEqual(originalCalls,beforeOriginalCalls+1,'manual reconciliation must execute the legacy sync exactly once in addition to any authenticated boot reconciliation');
   assert(timeouts.includes(0)&&timeouts.includes(60)&&timeouts.includes(250)&&timeouts.includes(900)&&timeouts.includes(1800),'post-sync convergence must schedule all settle passes');
   for(let i=0;i<8;i++)await Promise.resolve();
   assert(repairs.length>beforeRepairs,'post-sync convergence must invoke repair');
@@ -130,5 +131,5 @@ const src=fs.readFileSync('release-production-cut-reconcile-v9307.js','utf8');
   assert.strictEqual(prod.wrapped,true);
   assert(prod.runs>0,'production diagnostic status must record reconciliation runs');
 
-  console.log('PASS v93.13 save integrity: authenticated cut sync preserves legacy return; single recovery flush; separation cloud-gated and Hub render coalescing preserved.');
+  console.log('PASS v93.13 save integrity: authenticated cut sync preserves legacy return; boot/manual reconciliation are distinguished; single recovery flush; separation and Hub guards preserved.');
 })().catch(err=>{console.error(err);process.exit(1)});
