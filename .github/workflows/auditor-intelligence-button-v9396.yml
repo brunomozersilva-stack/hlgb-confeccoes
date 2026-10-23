@@ -1,0 +1,54 @@
+name: HLGB Auditor Intelligence Button v93.96
+
+on:
+  push:
+    branches:
+      - fix/auditor-intelligence-button-20261023
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validar sintaxe do Auditor
+        run: |
+          set -euo pipefail
+          node --check release-auditor-shell-v9382.js
+          node --check release-auditor-intelligence-v9396.js
+      - name: Validar visibilidade da Inteligência
+        run: node tests/auditor-intelligence-button-v9396.js
+
+  webkit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Instalar Playwright WebKit
+        run: |
+          npm init -y >/dev/null 2>&1
+          npm install playwright@1.55.0 --no-save
+          npx playwright install --with-deps webkit
+      - name: Iniciar servidor local
+        run: |
+          python3 -m http.server 4173 >/tmp/hlgb-http.log 2>&1 &
+          sleep 2
+      - name: Validar botão Inteligência no WebKit
+        run: node tests/auditor-intelligence-button-v9396-webkit.js
+      - name: Publicar captura visual do Auditor
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: hlgb-auditor-inteligencia-webkit
+          path: /tmp/hlgb-auditor-inteligencia-webkit.png
+          if-no-files-found: warn
