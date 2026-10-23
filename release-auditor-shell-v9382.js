@@ -7,7 +7,9 @@ const KEEP=new Set(['hlgbMultiuserOpen','hlgbMultiuserCapture','hlgbMultiuserDow
 const esc=v=>String(v??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
 let installed=false;
 const LEGACY_HIDE=['#hlgbAuditorMaxDebug9292','#hlgbAuditorBlackbox9299','#hlgbAuditFull9315','#hlgbAuditCritical9315','#hlgbAuditDownloadFull9315','#hlgbAuditDownloadCritical9315','#hlgbAuditorHubDeep9315'];
-function retireLegacyActionFilter(){const st=document.getElementById('hlgbAuditorLegacyHide9368');if(!st)return false;const css=LEGACY_HIDE.join(',')+'{display:none!important}';if(st.textContent!==css)st.textContent=css;return true}
+const LEGACY_ACTION_FILTER='.hlgb-auditor-actions:has(#hlgbSmartTest) button:not(#hlgbMultiuserOpen):not(#hlgbSmartTest):not(#hlgbSmartProblem):not(#hlgbSmartHistoryBtn):not(#hlgbAuthorityBtn9374):not(#hlgbBootAnalysisBtn9381):not(#hlgbAuditorIntelligenceBtn9396)';
+function retireLegacyActionFilter(){const st=document.getElementById('hlgbAuditorLegacyHide9368');if(!st)return false;const css=LEGACY_HIDE.concat([LEGACY_ACTION_FILTER]).join(',')+'{display:none!important}';if(st.textContent!==css)st.textContent=css;return true}
+function retireLegacyEntryCapture(){const h=window.__hlgbAuditorEntryCapture9368;if(typeof h!=='function')return false;try{document.removeEventListener('click',h,true)}catch(e){}try{delete window.__hlgbAuditorEntryCapture9368}catch(e){window.__hlgbAuditorEntryCapture9368=null}return true}
 function bindIntelligence(){const b=document.getElementById('hlgbAuditorIntelligenceBtn9396');if(!b)return false;b.removeAttribute?.('onclick');b.onclick=()=>window.hlgbAuditorIntelligence9396?.run?.().catch?.(e=>console.warn('[HLGB Auditor 93.96] inteligência',e));b.hidden=false;b.removeAttribute?.('data-hlgb-auditor-hidden');b.style.setProperty?.('display','inline-block','important');b.style.setProperty?.('visibility','visible','important');return true}
 function ensureStyle(){
  retireLegacyActionFilter();
@@ -133,6 +135,7 @@ function normalize(){
 }
 function openCurrent(){
  if(typeof window.openModal!=='function')return;
+ retireLegacyEntryCapture();
  ensureStyle();
  window.openModal('🧪 Auditor / Testador HLGB · v'+V,currentBody(),()=>window.closeModal?.());
  try{bindIntelligence()}catch(e){}
@@ -141,6 +144,7 @@ function openCurrent(){
  [0,30,120,350,700].forEach(ms=>setTimeout(normalize,ms));
 }
 function install(){
+ retireLegacyEntryCapture();
  ensureStyle();
  if(typeof window.hlgbAuditorSmartRun!=='function'||typeof window.hlgbAuditorSmartProblem!=='function')return false;
  window.openHlgbAuditor=openCurrent;
@@ -151,7 +155,7 @@ function install(){
  return true;
 }
 function scheduleInstall(){
- [0,100,300,700,1500,3000,6000,10000,15000,20000,30000].forEach(ms=>setTimeout(()=>{if(!installed)install()},ms));
+ [0,100,300,700,1500,3000,6000,10000,15000,20000,30000].forEach(ms=>setTimeout(install,ms));
 }
 window.hlgbAuditorShell9382={version:V,open:openCurrent,install,normalize,get installed(){return installed}};
 window.HLGB_AUDITOR_SHELL_9382=true;
@@ -159,6 +163,6 @@ scheduleInstall();
 try{if(typeof window.hlgbAfterLogin==='function')window.hlgbAfterLogin(()=>{install();[100,500,1500].forEach(ms=>setTimeout(install,ms))},0)}catch(e){}
 window.addEventListener?.('hlgb:authenticated',()=>{install();[100,500,1500].forEach(ms=>setTimeout(install,ms))});
 window.addEventListener?.('pageshow',()=>install());
-document.addEventListener('click',e=>{if(e.target?.closest?.('#hlgbAuditorNavBtn,#hlgbAuditorOpenBtn')){install();setTimeout(install,0)}},true);
+document.addEventListener('click',e=>{const b=e.target?.closest?.('#hlgbAuditorNavBtn,#hlgbAuditorOpenBtn');if(!b)return;install();e.preventDefault();e.stopImmediatePropagation();openCurrent()},true);
 console.info('[HLGB] Auditor shell oficial v'+V+' carregado');
 })();
