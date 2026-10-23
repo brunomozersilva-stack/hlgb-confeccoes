@@ -13,7 +13,7 @@ assert(current.includes("if(root.childNodes?.length)root.innerHTML=''"),'hidden 
 assert(notes.includes('function noteMutationRelevant(records)'),'note integrity must filter mutation records');
 assert(notes.includes('if(!noteMutationRelevant(records))return'),'note observer must ignore unrelated DOM mutations');
 
-assert(stability.includes("const V='v6-screen-stability-20261002'"),'UI stability guard v6 must remain active');
+assert(stability.includes("const V='v8-screen-stability-20261022'"),'UI stability guard v8 must remain active');
 const list=(loader.match(/const files=\[(.*?)\];const inj=/s)||[])[1]||'';
 assert(list.includes("'release-ui-stability.js','release-safari-resume-v9266.js'"),'Safari resume guard must load immediately after UI stability');
 const stabilityAt=list.indexOf("'release-ui-stability.js'");
@@ -22,4 +22,4 @@ assert(stabilityAt>=0&&safariAt>stabilityAt,'Safari resume guard must remain aft
 assert(list.indexOf("'release-ui-stability.js'",stabilityAt+1)===-1,'UI stability guard must have a single loader authority');
 assert(list.indexOf("'release-safari-resume-v9266.js'",safariAt+1)===-1,'Safari resume guard must have a single loader authority');
 
-console.log('PASS global visual stability: scoped observers and the single UI stability/Safari resume chain load in safe order; later non-guard modules are allowed.');
+console.log('PASS global visual stability v8: scoped observers and the single UI stability/Safari resume chain load in safe order.');
