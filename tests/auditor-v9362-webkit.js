@@ -28,13 +28,17 @@ const {webkit}=require('playwright');
  const visible=await frame.locator('#hlgbAuditorTestHost .hlgb-auditor-actions button:visible').allTextContents();
  const normalized=visible.map(x=>x.replace(/\s+/g,' ').trim());
  const core=['Testar sistema','Registrar problema','Histórico'];
- const optional=['Arquitetura / versões','Boot / cargas'];
+ const official=['Validação multiusuário','Arquitetura / versões','Boot / cargas','Inteligência'];
  for(const label of core){
   if(!normalized.some(x=>x.includes(label)))throw new Error('botao principal ausente: '+label+'; visiveis='+normalized.join(' | '));
  }
- const allowed=[...core,...optional];
+ const allowed=[...core,...official];
  const unknown=normalized.filter(x=>!allowed.some(label=>x.includes(label)));
  if(unknown.length)throw new Error('acao inesperada no Auditor: '+unknown.join(' | ')+'; visiveis='+normalized.join(' | '));
+ // As ações atuais mais importantes precisam estar presentes na interface oficial.
+ for(const label of ['Validação multiusuário','Inteligência']){
+  if(!normalized.some(x=>x.includes(label)))throw new Error('acao oficial atual ausente: '+label+'; visiveis='+normalized.join(' | '));
+ }
  await frame.evaluate(()=>{
   const host=document.getElementById('hlgbAuditorTestHost');
   host.insertAdjacentHTML('beforeend','<button id="legacyVisual" onclick="hlgbAuditorRunVisual()">Teste visual completo</button><button id="legacySync" onclick="hlgbAuditorExportSync()">Exportar diagnóstico de sincronização</button><button id="legacyBlackbox">Blackbox do Auditor</button>');
