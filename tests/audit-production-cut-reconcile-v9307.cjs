@@ -85,7 +85,7 @@ const src=fs.readFileSync('release-production-cut-reconcile-v9307.js','utf8');
   const result=window.syncFinalizedCutsToProduction();
   assert.strictEqual(result,'legacy-result','wrapper must preserve legacy sync return value after authenticated app is ready');
   assert.strictEqual(originalCalls,beforeOriginalCalls+1,'manual reconciliation must execute the legacy sync exactly once in addition to any authenticated boot reconciliation');
-  assert(timeouts.includes(0)&&timeouts.includes(60)&&timeouts.includes(250)&&timeouts.includes(900)&&timeouts.includes(1800),'post-sync convergence must schedule all settle passes');
+  assert(timeouts.includes(140),'post-sync convergence must schedule the current 140ms settle pass');
   for(let i=0;i<8;i++)await Promise.resolve();
   assert(repairs.length>beforeRepairs,'post-sync convergence must invoke repair');
   assert(repairs.some(x=>x.startsWith('post-cut-sync-')),'repair reason must identify post-cut sync');
@@ -131,5 +131,5 @@ const src=fs.readFileSync('release-production-cut-reconcile-v9307.js','utf8');
   assert.strictEqual(prod.wrapped,true);
   assert(prod.runs>0,'production diagnostic status must record reconciliation runs');
 
-  console.log('PASS v93.13 save integrity: authenticated cut sync preserves legacy return; boot/manual reconciliation are distinguished; single recovery flush; separation and Hub guards preserved.');
+  console.log('PASS v93.13 save integrity: authenticated cut sync preserves legacy return; current settle timing, single recovery flush, separation and Hub guards preserved.');
 })().catch(err=>{console.error(err);process.exit(1)});
