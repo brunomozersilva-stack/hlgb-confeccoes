@@ -1,6 +1,6 @@
 const fs=require('fs'),assert=require('assert');
 const src=fs.readFileSync('release-ui-stability.js','utf8');
-assert(src.includes("const V='v6-screen-stability-20261002'"));
+assert(src.includes("const V='v8-screen-stability-20261022'"));
 assert(src.includes("HEAVY_PAGES=new Set(['pedidos','corte','producao','projecao','capacidadeProducao'"));
 assert(src.includes("target.classList.add('hlgb-page-settling')"));
 assert(src.includes("Carregando tela…"));
@@ -11,4 +11,4 @@ assert(src.includes("settleObserver.observe(target"));
 assert(src.includes("window.scrollTo(0,0)"));
 assert(src.includes("wrapped.__hlgbStablePageV3=true"));
 assert(!src.includes("setTimeout(()=>{if(v===interactionVersion)restoreUi(snap)},90)"),'double delayed scroll restore must stay removed');
-console.log('PASS stable page v3: heavy pages wait for DOM quiet before display and preserve top position.');
+console.log('PASS stable page v3 on UI stability v8: heavy pages wait for DOM quiet before display and preserve top position.');
