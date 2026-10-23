@@ -14,13 +14,23 @@ const {webkit}=require('playwright');
  await page.click('#hlgbAuditorNavBtn',{timeout:10000});
  await page.waitForSelector('#hlgbSmartStatus',{state:'visible',timeout:10000});
  await page.waitForSelector('#hlgbAuditorIntelligenceBtn9396',{state:'visible',timeout:10000});
- await page.waitForTimeout(900);
- const before=await page.evaluate(()=>{
-  const b=document.getElementById('hlgbAuditorIntelligenceBtn9396');
-  const s=b?getComputedStyle(b):null,r=b?.getBoundingClientRect();
-  return {exists:!!b,hidden:b?.hidden,display:s?.display,visibility:s?.visibility,width:r?.width||0,height:r?.height||0,text:b?.textContent||''};
+
+ // Reproduz a janela real em que o Safari mostrou o botão piscando e depois sumindo.
+ const stability=await page.evaluate(async()=>{
+  const samples=[];
+  const snap=()=>{
+   const all=[...document.querySelectorAll('#hlgbAuditorIntelligenceBtn9396')];
+   const b=all[0],s=b?getComputedStyle(b):null,r=b?.getBoundingClientRect();
+   const legacy=document.getElementById('hlgbAuditorLegacyHide9368')?.textContent||'';
+   samples.push({at:Math.round(performance.now()),count:all.length,hidden:b?.hidden??null,display:s?.display||null,visibility:s?.visibility||null,width:r?.width||0,height:r?.height||0,handler:typeof b?.onclick==='function',inlineOnclick:b?.getAttribute('onclick')||'',legacyGeneric:/hlgb-auditor-actions:has\(#hlgbSmartTest\)/.test(legacy)});
+  };
+  snap();
+  for(let i=0;i<140;i++){await new Promise(r=>setTimeout(r,50));snap()}
+  return samples;
  });
- if(!before.exists||before.hidden||before.display==='none'||before.visibility==='hidden'||before.width<=0||before.height<=0||!/Inteligência/.test(before.text))throw new Error('botão Inteligência não está realmente visível '+JSON.stringify(before));
+ const bad=stability.filter(x=>x.count!==1||x.hidden||x.display==='none'||x.visibility==='hidden'||x.width<=0||x.height<=0||!x.handler||x.inlineOnclick||x.legacyGeneric);
+ if(bad.length)throw new Error('botão Inteligência piscou/sumiu, duplicou ou voltou ao filtro legado '+JSON.stringify({bad:bad.slice(0,12),last:stability.at(-1)}));
+
  await page.click('#hlgbAuditorIntelligenceBtn9396');
  await page.waitForSelector('#hlgbAuditorIntelligencePanel9396',{state:'visible',timeout:15000});
  await page.waitForSelector('#hlgbAuditorIntelligenceDownload9396',{state:'visible',timeout:10000});
@@ -32,6 +42,6 @@ const {webkit}=require('playwright');
  if(!/Inteligência do Auditor/.test(after.panelText)||!after.downloadVisible)throw new Error('painel/download da Inteligência incompleto '+JSON.stringify(after));
  await page.screenshot({path:'/tmp/hlgb-auditor-inteligencia-webkit.png',fullPage:true});
  if(errors.some(x=>/auditor|9396|9382|intelig/i.test(x)))throw new Error('pageerror relacionado ao Auditor: '+errors.join(' | '));
- console.log('AUDITOR_INTELLIGENCE_BUTTON_WEBKIT_OK',JSON.stringify({before,downloadVisible:after.downloadVisible}));
+ console.log('AUDITOR_INTELLIGENCE_BUTTON_WEBKIT_OK',JSON.stringify({samples:stability.length,last:stability.at(-1),downloadVisible:after.downloadVisible}));
  await browser.close();
 })().catch(e=>{console.error(e);process.exit(1)});
