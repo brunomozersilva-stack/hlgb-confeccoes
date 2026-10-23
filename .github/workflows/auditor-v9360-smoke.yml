@@ -1,5 +1,6 @@
 name: Auditor v93.60 smoke
 on:
+  pull_request:
   push:
     branches:
       - main
