@@ -110,6 +110,7 @@ function currentBody(){
  '<button id="hlgbSmartHistoryBtn" class="secondary" type="button" onclick="hlgbAuditorSmartHistory()">🕘 Histórico</button>'+
  '<button id="hlgbAuthorityBtn9374" class="secondary" type="button" onclick="hlgbAuditorAuthorityScan9374()">🧭 Arquitetura / versões</button>'+
  '<button id="hlgbBootAnalysisBtn9381" class="secondary" type="button" onclick="hlgbAuditorBootAnalysis9381.last=hlgbAuditorBootAnalysis9381.render()">🚦 Boot / cargas</button>'+
+ '<button id="hlgbAuditorIntelligenceBtn9396" class="secondary" type="button" onclick="hlgbAuditorIntelligence9396.run()">🧠 Inteligência</button>'+
  '</div><div id="hlgbAuditorResult"></div><div id="hlgbSmartHistory" style="display:none"></div><button type="button" class="secondary modalSave">Fechar</button>';
 }
 function root(){const s=document.getElementById('hlgbSmartStatus');return s?.closest?.('[role="dialog"],.modal,.modal-content,.modalCard,.modal-card,.dialog')||s?.parentElement?.parentElement||s?.parentElement||null}
