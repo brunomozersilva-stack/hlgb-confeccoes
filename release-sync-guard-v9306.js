@@ -1,10 +1,10 @@
 /* HLGB v93.06 — guarda de convergência contra mutação automática de Produção
    Patch 2026-10-15: evita concorrência de leitura com a autoridade principal de sync.
-   Patch 2026-10-23: bloqueia cargas de registros e corte→produção antes da autenticação. */
+   Patch 2026-10-23: restauração autenticada pode carregar registros; corte→produção só após autenticação da interface. */
 (function(){
 'use strict';
 const V='93.06';
-const PATCH='2026-10-23-preauth-boot';
+const PATCH='2026-10-23-session-restore-cut-gate';
 const AUTHORITY_MIN_MS=60000;
 if(window.HLGB_SYNC_GUARD_9306)return;
 window.HLGB_SYNC_GUARD_9306=V;
@@ -43,8 +43,9 @@ function installEarlyGuard(name,kind){
  window[name]=w;earlyGuardInstalls++;lastEarlyGuard=new Date().toISOString();return true;
 }
 function installEarlyBootGuards(){
- installEarlyGuard('hlgbLoadNormalizedCore','load');
- installEarlyGuard('hlgbRecordLoadBundle','load');
+ /* Leituras de registros são permitidas durante cloudRestoreStoredAuth -> cloudRefreshSession -> cloudLoad.
+    __HLGB_AUTH_READY só é marcado depois que esses dados foram carregados e a interface pode ser exibida.
+    Portanto, bloquear hlgbLoadNormalizedCore/hlgbRecordLoadBundle aqui quebraria a restauração e o login manual. */
  installEarlyGuard('syncFinalizedCutsToProduction','cut-sync');
  return true;
 }
@@ -100,7 +101,10 @@ function installSaveGuard(){
  const f=window.hlgbRecordSaveWithRetry;if(typeof f==='function'&&!chainHasMarker(f,'__hlgb9306')){const had955=chainHasMarker(f,'__hlgb955Wrapped');const w=async function(m,id,data,deleted=false){if(!deleted&&m==='production'&&suspicious(id,data)){await repair('save-block');return faux(id)}const out=await f.apply(this,arguments);if(m==='production'&&out?.applied===true&&out?.data&&num(out.data.planned)>0){authority.set(sid(id),{data:clone(out.data),revision:num(out.revision)||1,updated_at:out.updated_at||'',deleted_at:out.deleted_at||null,updated_by:out.updated_by||null})}return out};w.__hlgb9306=true;w.__hlgb9306Original=f;w.__original=f;if(had955)w.__hlgb955Wrapped=true;window.hlgbRecordSaveWithRetry=w}
  const r=window.hlgb955ReliableSave;if(typeof r==='function'&&!chainHasMarker(r,'__hlgb9306')){const w=async function(m,id,data,deleted=false){if(!deleted&&m==='production'&&suspicious(id,data)){await repair('reliable-save-block');return faux(id)}return r.apply(this,arguments)};w.__hlgb9306=true;w.__hlgb9306Original=r;w.__original=r;window.hlgb955ReliableSave=w}
 }
-function status(){return {version:V,patch:PATCH,authority:authority.size,guarded,lastRefresh,lastRepair,lastIds,online:navigator.onLine,earlyBoot:{installs:earlyGuardInstalls,blockedPreAuthLoads,blockedPreAuthCutSync,lastInstall:lastEarlyGuard,loadCoreGuarded:chainHasMarker(window.hlgbLoadNormalizedCore,'__hlgb9306EarlyBoot'),loadBundleGuarded:chainHasMarker(window.hlgbRecordLoadBundle,'__hlgb9306EarlyBoot'),cutSyncGuarded:chainHasMarker(window.syncFinalizedCutsToProduction,'__hlgb9306EarlyBoot')},cloudPolicy:{authorityMinMs:AUTHORITY_MIN_MS,lastAuthorityAttempt,skippedPrimaryBusy,skippedThrottle,refreshing}}}
+function status(){
+ const cutViewBlocked=Number(window.__HLGB_PREAUTH_CUT_BLOCKED_9397||0);
+ return {version:V,patch:PATCH,authority:authority.size,guarded,lastRefresh,lastRepair,lastIds,online:navigator.onLine,earlyBoot:{installs:earlyGuardInstalls,blockedPreAuthLoads,blockedPreAuthCutSync:cutViewBlocked+blockedPreAuthCutSync,lastInstall:lastEarlyGuard,loadCoreGuarded:false,loadBundleGuarded:false,cutSyncGuarded:chainHasMarker(window.syncFinalizedCutsToProduction,'__hlgb9306EarlyBoot'),sessionRestoreLoadsAllowed:true},cloudPolicy:{authorityMinMs:AUTHORITY_MIN_MS,lastAuthorityAttempt,skippedPrimaryBusy,skippedThrottle,refreshing}}
+}
 function scheduleAuthority(reason,delay=2500,force=false){setTimeout(()=>refreshAuthority(reason,force).catch(()=>{}),delay)}
 async function boot(){
  installEarlyBootGuards();

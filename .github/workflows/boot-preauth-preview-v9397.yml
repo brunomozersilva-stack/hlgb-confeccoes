@@ -1,0 +1,100 @@
+name: HLGB Boot Preview v93.97
+
+on:
+  push:
+    branches:
+      - fix/boot-preauth-cut-sync-20261023
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  package:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validar boot antes do pacote
+        run: |
+          set -euo pipefail
+          node tests/auditor-boot-dedupe-v9397.js
+          node --check release-cut-view.js
+          node --check release-sync-guard-v9306.js
+          node --check release-auditor-call-trace-v9380.js
+          node --check release-auditor-boot-analysis-v9381.js
+      - name: Montar preview local Safari/Chrome
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p preview
+          find . -maxdepth 1 -type f \( -name '*.html' -o -name '*.js' -o -name '*.json' \) -exec cp {} preview/ \;
+          cat > preview/preview-server.py <<'PY'
+          from http.server import ThreadingHTTPServer, SimpleHTTPRequestHandler
+          import os
+          HOST='127.0.0.1'; PORT=8767
+          class Server(ThreadingHTTPServer):
+              allow_reuse_address=True
+              daemon_threads=True
+          class NoCache(SimpleHTTPRequestHandler):
+              protocol_version='HTTP/1.1'
+              def end_headers(self):
+                  self.send_header('Cache-Control','no-store, no-cache, must-revalidate')
+                  self.send_header('Pragma','no-cache')
+                  self.send_header('Expires','0')
+                  self.send_header('Connection','close')
+                  super().end_headers()
+          os.chdir(os.path.dirname(os.path.abspath(__file__)))
+          print(f'HLGB Boot v93.97: http://{HOST}:{PORT}/abrir.html', flush=True)
+          Server((HOST,PORT),NoCache).serve_forever()
+          PY
+          cat > preview/INICIAR-HLGB.command <<'SH'
+          #!/bin/bash
+          set -e
+          cd "$(dirname "$0")"
+          PORT=8767
+          echo ""
+          echo "HLGB — TESTE BOOT v93.97"
+          echo "Branch: fix/boot-preauth-cut-sync-20261023"
+          echo "Commit: __COMMIT__"
+          echo ""
+          if lsof -iTCP:$PORT -sTCP:LISTEN >/dev/null 2>&1; then
+            echo "A porta $PORT já está em uso. Feche outro preview HLGB e abra este arquivo novamente."
+            read -n 1 -s -r -p "Pressione qualquer tecla para fechar."
+            exit 1
+          fi
+          python3 preview-server.py &
+          PID=$!
+          trap 'kill $PID 2>/dev/null || true' EXIT INT TERM
+          for i in {1..40}; do
+            if curl -fsS "http://127.0.0.1:$PORT/abrir.html" >/dev/null 2>&1; then break; fi
+            sleep 0.15
+          done
+          if ! curl -fsS "http://127.0.0.1:$PORT/abrir.html" >/dev/null 2>&1; then
+            echo "Não foi possível iniciar o preview."
+            exit 1
+          fi
+          echo "Servidor pronto. Não feche esta janela durante o teste."
+          /usr/bin/open -a "Safari" "http://localhost:$PORT/abrir.html" || true
+          wait $PID
+          SH
+          sed -i "s/__COMMIT__/$GITHUB_SHA/g" preview/INICIAR-HLGB.command
+          chmod +x preview/INICIAR-HLGB.command
+          cat > preview/LEIA-ME.txt <<EOF
+          HLGB CONFECÇÕES — PREVIEW BOOT v93.97
+          Commit: $GITHUB_SHA
+
+          ESTE PACOTE NÃO ALTERA O MAIN.
+
+          Validar:
+          1. O sistema deve abrir e restaurar a sessão normalmente.
+          2. Auditor > Boot / cargas deve separar restauração autenticada de carga insegura.
+          3. Corte -> produção não deve executar escondido antes da autenticação.
+          4. Depois do login, Corte/Produção continuam funcionando normalmente.
+          EOF
+      - uses: actions/upload-artifact@v4
+        with:
+          name: HLGB-BOOT-PREVIEW-v93.97-${{ github.sha }}
+          path: preview/
+          if-no-files-found: error
+          retention-days: 7

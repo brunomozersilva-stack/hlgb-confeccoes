@@ -42,10 +42,11 @@ function chainDepth(fn){
  while(typeof cur==='function'&&!seen.has(cur)&&n<80){seen.add(cur);n++;let next=null;for(const p of POINTERS){try{if(typeof cur[p]==='function'){next=cur[p];break}}catch(e){}}cur=next}
  return n;
 }
+function isAuditProbe(u){try{return new URL(u,location.href).searchParams.has('hlgb_audit_fresh')}catch(e){return /(?:[?&])hlgb_audit_fresh=/.test(sid(u))}}
 function duplicateScripts(){
  const dom=new Map(),res=new Map(),name=u=>{try{return decodeURIComponent(new URL(u,location.href).pathname.split('/').pop()||'')}catch(e){return sid(u).split(/[/?#]/).pop()||''}};
  try{document.querySelectorAll('script[src]').forEach(s=>{const f=name(s.src);if(f)dom.set(f,(dom.get(f)||0)+1)})}catch(e){}
- try{performance.getEntriesByType('resource').forEach(x=>{const f=name(x.name);if(/\.js$/i.test(f))res.set(f,(res.get(f)||0)+1)})}catch(e){}
+ try{performance.getEntriesByType('resource').forEach(x=>{if(isAuditProbe(x.name))return;const f=name(x.name);if(/\.js$/i.test(f))res.set(f,(res.get(f)||0)+1)})}catch(e){}
  const all=new Set([...dom.keys(),...res.keys()]),rows=[];for(const f of all){const d=dom.get(f)||0,r=res.get(f)||0;if(d>1||r>1)rows.push({file:f,dom:d,resource:r})}
  return rows.sort((a,b)=>(b.dom+b.resource)-(a.dom+a.resource)||a.file.localeCompare(b.file));
 }
@@ -86,17 +87,18 @@ function currentMetrics(){
  const boot=bootSnapshot(),authority=authoritySnapshot(),queues=queueSnapshot(),dups=duplicateScripts(),auditorUi=auditorUiSnapshot();
  return {at:iso(),appVersion:sid(window.HLGB_RELEASE_VERSION||''),boot,authority,queues,duplicateScripts:dups,auditorUi,metrics:{preAuthLoads:+boot?.preAuthLoads||0,hiddenRenders:+boot?.hiddenRenders||0,loads:+boot?.loads||0,renders:+boot?.renders||0,scriptDuplicates:dups.length,auditorUiConflict:auditorUi.conflict?1:0,saveDepth:chainDepth(window.hlgbRecordSaveWithRetry),projectionDepth:chainDepth(window.renderProjection),cutSyncDepth:chainDepth(window.syncFinalizedCutsToProduction),hubSaveDepth:chainDepth(window.hlgbHubSaveConfirmed),writeoffDepth:chainDepth(window.hlgbWriteoffSelected9385),pendingUnique:queues.unique,pendingBusiness:queues.businessActive,pendingTechnicalRecent:queues.technicalRecent,pendingTechnicalHistorical:queues.technicalHistorical}};
 }
-const LOWER_BETTER=new Set(['preAuthLoads','hiddenRenders','loads','renders','scriptDuplicates','auditorUiConflict','saveDepth','projectionDepth','cutSyncDepth','hubSaveDepth','writeoffDepth','pendingUnique','pendingBusiness','pendingTechnicalRecent','pendingTechnicalHistorical']);
+const LOWER_BETTER=new Set(['preAuthLoads','hiddenRenders','scriptDuplicates','auditorUiConflict','saveDepth','projectionDepth','cutSyncDepth','hubSaveDepth','writeoffDepth','pendingUnique','pendingBusiness','pendingTechnicalRecent','pendingTechnicalHistorical']);
+const INFO_ONLY=new Set(['loads','renders']);
 function compareMetrics(cur,prev){
- if(!prev?.metrics)return {available:false,items:[],summary:{improved:0,regressed:0,same:0}};
- const items=[];let improved=0,regressed=0,same=0;
+ if(!prev?.metrics)return {available:false,items:[],summary:{improved:0,regressed:0,same:0,info:0}};
+ const items=[];let improved=0,regressed=0,same=0,info=0;
  for(const [key,value] of Object.entries(cur.metrics||{})){
   const before=Number(prev.metrics?.[key]);const after=Number(value);if(!Number.isFinite(before)||!Number.isFinite(after))continue;
-  const delta=after-before;let state='same';if(delta!==0){const lower=LOWER_BETTER.has(key);state=(lower?(after<before):(after>before))?'improved':'regressed'}
-  if(state==='improved')improved++;else if(state==='regressed')regressed++;else same++;
+  const delta=after-before;let state='same';if(delta!==0){if(INFO_ONLY.has(key))state='info';else{const lower=LOWER_BETTER.has(key);state=(lower?(after<before):(after>before))?'improved':'regressed'}}
+  if(state==='improved')improved++;else if(state==='regressed')regressed++;else if(state==='info')info++;else same++;
   items.push({key,before,after,delta,state});
  }
- return {available:true,items,summary:{improved,regressed,same}};
+ return {available:true,items,summary:{improved,regressed,same,info}};
 }
 async function collect(options={}){
  const current=currentMetrics(),previous=readJson(BASELINE_KEY,null),comparison=compareMetrics(current,previous),freshness=await sessionFreshness();
@@ -116,7 +118,7 @@ function renderReport(r){
  const host=document.getElementById('hlgbAuditorResult');if(!host)return r;document.getElementById('hlgbAuditorIntelligencePanel9396')?.remove();
  const el=document.createElement('div');el.id='hlgbAuditorIntelligencePanel9396';el.className='panel';el.style.cssText='border:1px solid #b7c7d9;background:#f8fbff;margin:10px 0';
  const fresh=r.freshness.status==='fresh'?'✅':r.freshness.status==='stale'?'🔴':'🟡';
- const cmp=r.comparison.available?r.comparison.items.filter(x=>x.state!=='same').map(x=>'<div class="sub">'+(x.state==='improved'?'✅':'🔴')+' '+esc(label(x.key))+': '+x.before+' → '+x.after+'</div>').join(''):'<div class="sub">Primeira rodada desta inteligência; a próxima terá comparação automática.</div>';
+ const cmp=r.comparison.available?r.comparison.items.filter(x=>x.state!=='same').map(x=>'<div class="sub">'+(x.state==='improved'?'✅':x.state==='regressed'?'🔴':'ℹ️')+' '+esc(label(x.key))+': '+x.before+' → '+x.after+'</div>').join(''):'<div class="sub">Primeira rodada desta inteligência; a próxima terá comparação automática.</div>';
  const q=r.current.queues;
  const dup=r.current.duplicateScripts.slice(0,8).map(x=>x.file+' (DOM '+x.dom+', rede '+x.resource+')').join(' | ');
  const ui=r.current.auditorUi?.conflict?'<div style="margin-top:8px"><b>🔴 Interface do Auditor:</b> conflito de autoridade detectado.</div>':'<div style="margin-top:8px"><b>✅ Interface do Auditor:</b> Shell oficial é a única autoridade visível.</div>';

@@ -4,7 +4,7 @@ on:
   pull_request:
   push:
     branches:
-      - fix/auditor-round-boot-dedupe-20261023
+      - fix/boot-preauth-cut-sync-20261023
 
 jobs:
   boot-dedupe:
@@ -14,11 +14,13 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - name: Testar boot pre-login e deduplicacao
+      - name: Testar restauração autenticada e corte pré-login
         run: node tests/auditor-boot-dedupe-v9397.js
       - name: Verificar sintaxe
         run: |
+          node --check release-cut-view.js
           node --check release-sync-guard-v9306.js
-          node --check release-payroll-month-wal-v9334.js
+          node --check release-auditor-call-trace-v9380.js
           node --check release-auditor-boot-analysis-v9381.js
+          node --check release-payroll-month-wal-v9334.js
           node --check tests/auditor-boot-dedupe-v9397.js

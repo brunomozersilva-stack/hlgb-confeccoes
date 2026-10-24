@@ -21,10 +21,11 @@ const RESPONSIBILITIES=[
  {id:'record-save',family:'sync',label:'Persistência de registro',fn:'hlgbRecordSaveWithRetry',files:['release-save-transport-v9320.js','release-sync-guard-v9306.js','release-payroll-reliable-save-guard-v9344.js'],authority:'precisa de consolidação por responsabilidade',supersedes:[]}
 ];
 function fileName(src){try{return decodeURIComponent(new URL(src,location.href).pathname.split('/').pop()||'')}catch(e){return sid(src).split(/[/?#]/).pop()||''}}
+function isAuditProbe(src){try{return new URL(src,location.href).searchParams.has('hlgb_audit_fresh')}catch(e){return /(?:[?&])hlgb_audit_fresh=/.test(sid(src))}}
 function loadedScriptInventory(){
  const occurrences=[];
  try{document.querySelectorAll('script[src]').forEach((s,index)=>{const file=fileName(s.src);if(file)occurrences.push({file,source:'dom',index,src:s.src})})}catch(e){}
- try{performance.getEntriesByType('resource').forEach((e,index)=>{const file=fileName(e.name);if(/\.js$/i.test(file))occurrences.push({file,source:'resource',index,startTime:Number(e.startTime||0),duration:Number(e.duration||0),src:e.name})})}catch(e){}
+ try{performance.getEntriesByType('resource').forEach((e,index)=>{if(isAuditProbe(e.name))return;const file=fileName(e.name);if(/\.js$/i.test(file))occurrences.push({file,source:'resource',index,startTime:Number(e.startTime||0),duration:Number(e.duration||0),src:e.name})})}catch(e){}
  const byFile=new Map();for(const row of occurrences){const cur=byFile.get(row.file)||{file:row.file,dom:0,resource:0,total:0};cur[row.source]=(cur[row.source]||0)+1;cur.total++;byFile.set(row.file,cur)}
  const counts=[...byFile.values()].sort((a,b)=>b.total-a.total||a.file.localeCompare(b.file));
  return {occurrences,counts,duplicates:counts.filter(x=>x.dom>1||x.resource>1),uniqueFiles:counts.map(x=>x.file).sort()};
