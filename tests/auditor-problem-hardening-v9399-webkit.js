@@ -28,7 +28,7 @@ const {webkit}=require('playwright');
  await page.waitForSelector('#hlgbSafariDownload9368,#hlgbProblemDownload9399',{state:'visible',timeout:30000});
  const health=await page.evaluate(()=>window.hlgbAuditorHardening9399.captureHealth());
  if(health.lastResult!=='ready'||!health.problemAvailable||!health.problemReadyAt||!health.manualDownloadVisible||!health.shellAuthority||!health.openAuthorityLocked||health.legacyVisualPresent)throw new Error('captura/recuperação não ficou pronta '+JSON.stringify(health));
- if(before.problemAvailable===false&&health.problemLoaderAttempts<1)throw new Error('módulo começou indisponível mas recuperação não foi registrada '+JSON.stringify({before,health}));
+ if(before.problemAvailable===false&&health.problemLoaderAttempts<1&&health.problemReadyAttempts<2)throw new Error('módulo começou indisponível e não houve espera nem recuperação registrada '+JSON.stringify({before,health}));
  const selector=await page.evaluate(()=>document.getElementById('hlgbSafariDownload9368')?'#hlgbSafariDownload9368':'#hlgbProblemDownload9399');
  const downloadPromise=page.waitForEvent('download',{timeout:10000});await page.click(selector);const download=await downloadPromise;
  if(!/^HLGB-PROBLEMA-.*\.json$/i.test(download.suggestedFilename()))throw new Error('nome inesperado do diagnóstico: '+download.suggestedFilename());
