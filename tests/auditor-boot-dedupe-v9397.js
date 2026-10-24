@@ -108,5 +108,22 @@ function base(){
   ok(r.status==='fail'&&r.summary.preAuthLoads===1,'truly unsafe pre-auth load was not reported as failure');
  }
 
- console.log('AUDITOR_BOOT_DEDUPE_V9397_OK',JSON.stringify({cutGate:true,restoreLoadsAllowed:true,walSingleFlight:true,reliableParserDedupe:true,restoreClassification:true}));
+ // 5) app-stable3 deixa de injetar os arquivos comprovadamente duplicados no runtime.
+ {
+  const router=source('app-stable3.html');
+  const exactDuplicates=[
+   'release-auditor-production-v9369.js',
+   'release-payroll-month-wal-v9334.js',
+   'release-payroll-reliable-save-guard-v9344.js',
+   'release-wal-replay-bridge-v9332.js'
+  ];
+  for(const file of exactDuplicates)ok(!router.includes("'"+file+"'"),'app-stable3 ainda injeta duplicado: '+file);
+  ok(router.includes("'release-wal-confirmed-replay-v9333.js'"),'replay confirmado saiu do roteador por engano');
+  ok(router.includes("'release-payroll-wal-race-v9346.js'"),'trava final da folha saiu do roteador por engano');
+  ok(source('release-wal-confirmed-replay-v9333.js').includes('release-payroll-month-wal-v9334.js'),'cadeia confirmada não carrega payroll-month-wal');
+  ok(source('release-payroll-month-wal-v9334.js').includes('release-payroll-reliable-save-guard-v9344.js'),'payroll-month-wal não carrega reliable-save-guard');
+  ok(source('release-payroll-month-wal-v9334.js').includes('release-wal-single-authority-v9339.js'),'payroll-month-wal não preserva autoridade WAL');
+ }
+
+ console.log('AUDITOR_BOOT_DEDUPE_V9397_OK',JSON.stringify({cutGate:true,restoreLoadsAllowed:true,walSingleFlight:true,reliableParserDedupe:true,restoreClassification:true,exactRouterDedupe:true}));
 })().catch(e=>{console.error(e.stack||e);process.exit(1)});
