@@ -1,0 +1,48 @@
+name: HLGB PR72 Preview Package
+
+on:
+  push:
+    branches:
+      - diagnostic/post-hotfix-save-depth-orphans-20261024
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  package:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validar arquivos críticos antes do pacote
+        run: |
+          set -euo pipefail
+          node --check release-sync-guard-v9306.js
+          node --check release-payroll-month-wal-v9334.js
+          node --check release-payroll-reliable-save-guard-v9344.js
+          node --check release-payroll-snapshot-watch-v9354.js
+          node --check release-auditor-authority-map-v9374.js
+          node --check release-auditor-intelligence-v9396.js
+          grep -q "HLGB-AUDITOR-INTELLIGENCE-93.98" release-auditor-intelligence-v9396.js
+          grep -q "HLGB-AUDITOR-AUTHORITY-93.98" release-auditor-authority-map-v9374.js
+      - name: Montar preview exato do head
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/hlgb-pr72-preview
+          rsync -a --exclude='.git' --exclude='.github' --exclude='node_modules' --exclude='tests' ./ /tmp/hlgb-pr72-preview/
+          printf '%s\n' \
+            'HLGB PR #72 - Preview v93.98' \
+            "Head: $GITHUB_SHA" \
+            'Base: main pós-hotfix #71' \
+            'Somente para teste visual/funcional. Não é main.' \
+            > /tmp/hlgb-pr72-preview/README-PR72-PREVIEW.txt
+          cd /tmp
+          zip -qr HLGB-PR72-PREVIEW-v93.98.zip hlgb-pr72-preview
+      - name: Publicar pacote para Safari real
+        uses: actions/upload-artifact@v4
+        with:
+          name: HLGB-PR72-PREVIEW-v93.98
+          path: /tmp/HLGB-PR72-PREVIEW-v93.98.zip
+          if-no-files-found: error
+          retention-days: 30
