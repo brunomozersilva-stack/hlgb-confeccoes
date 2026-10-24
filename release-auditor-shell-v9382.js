@@ -3,7 +3,7 @@
 'use strict';
 if(window.HLGB_AUDITOR_SHELL_9382)return;
 const V='93.82';
-const KEEP=new Set(['hlgbMultiuserOpen','hlgbMultiuserCapture','hlgbMultiuserDownload','hlgbSmartTest','hlgbSmartProblem','hlgbSmartHistoryBtn','hlgbAuthorityBtn9374','hlgbBootAnalysisBtn9381','hlgbBootDownload9381','hlgbAuthorityDownload9374','hlgbSafariDownload9368','hlgbAuditorIntelligenceBtn9396','hlgbAuditorIntelligenceDownload9396','hlgbAuditorBusinessBtn9401','hlgbAuditorBusinessDownload9401']);
+const KEEP=new Set(['hlgbMultiuserOpen','hlgbMultiuserCapture','hlgbMultiuserDownload','hlgbSmartTest','hlgbSmartProblem','hlgbSmartHistoryBtn','hlgbAuthorityBtn9374','hlgbBootAnalysisBtn9381','hlgbBootDownload9381','hlgbAuthorityDownload9374','hlgbSafariDownload9368','hlgbProblemDownload9399','hlgbAuditorIntelligenceBtn9396','hlgbAuditorIntelligenceDownload9396','hlgbAuditorBusinessBtn9401','hlgbAuditorBusinessDownload9401']);
 const esc=v=>String(v??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
 let installed=false;
 const LEGACY_HIDE=['#hlgbAuditorMaxDebug9292','#hlgbAuditorBlackbox9299','#hlgbAuditFull9315','#hlgbAuditCritical9315','#hlgbAuditDownloadFull9315','#hlgbAuditDownloadCritical9315','#hlgbAuditorHubDeep9315'];
@@ -16,7 +16,7 @@ function ensureStyle(){
  retireLegacyActionFilter();
  let st=document.getElementById('hlgbAuditorShellStyle9382');
  if(!st){st=document.createElement('style');st.id='hlgbAuditorShellStyle9382';(document.head||document.documentElement).appendChild(st)}
- st.textContent=['#hlgbMultiuserOpen','#hlgbMultiuserCapture','#hlgbMultiuserDownload','#hlgbSmartTest','#hlgbSmartProblem','#hlgbSmartHistoryBtn','#hlgbAuthorityBtn9374','#hlgbBootAnalysisBtn9381','#hlgbBootDownload9381','#hlgbAuthorityDownload9374','#hlgbSafariDownload9368','#hlgbAuditorIntelligenceBtn9396','#hlgbAuditorIntelligenceDownload9396','#hlgbAuditorBusinessBtn9401','#hlgbAuditorBusinessDownload9401'].map(x=>x+'{display:inline-block!important;visibility:visible!important}').join('');
+ st.textContent=['#hlgbMultiuserOpen','#hlgbMultiuserCapture','#hlgbMultiuserDownload','#hlgbSmartTest','#hlgbSmartProblem','#hlgbSmartHistoryBtn','#hlgbAuthorityBtn9374','#hlgbBootAnalysisBtn9381','#hlgbBootDownload9381','#hlgbAuthorityDownload9374','#hlgbSafariDownload9368','#hlgbProblemDownload9399','#hlgbAuditorIntelligenceBtn9396','#hlgbAuditorIntelligenceDownload9396','#hlgbAuditorBusinessBtn9401','#hlgbAuditorBusinessDownload9401'].map(x=>x+'{display:inline-block!important;visibility:visible!important}').join('');
 }
 function smartStatus(){
  try{
