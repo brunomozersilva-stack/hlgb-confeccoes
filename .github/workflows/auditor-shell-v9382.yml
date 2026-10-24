@@ -9,10 +9,13 @@ on:
       - 'release-auditor-production-v9369.js'
       - 'release-auditor-boot-analysis-v9381.js'
       - 'release-auditor-authority-map-v9374.js'
+      - 'release-auditor-build-marker-v9396.js'
+      - 'release-auditor-hardening-v9399.js'
       - 'release-ui-stability.js'
       - 'tests/auditor-shell-v9382.js'
       - 'tests/auditor-shell-late-ready-v9382.js'
       - 'tests/auditor-shell-v9382-webkit.js'
+      - 'tests/auditor-problem-hardening-v9399-webkit.js'
       - 'tests/auditor-multiuser-validation.js'
       - 'tests/auditor-multiuser-webkit.js'
       - 'tests/ui-stability-local-order-render-v7.js'
@@ -30,6 +33,8 @@ jobs:
           node-version: '20'
       - name: Sintaxe shell v93.82
         run: node --check release-auditor-shell-v9382.js
+      - name: Sintaxe hardening v93.99
+        run: node --check release-auditor-hardening-v9399.js
       - name: Sintaxe boot analysis
         run: node --check release-auditor-boot-analysis-v9381.js
       - name: Sintaxe mapa de autoridades
@@ -83,6 +88,8 @@ jobs:
           sleep 2
       - name: Interface e downloads do Auditor no WebKit
         run: node tests/auditor-shell-v9382-webkit.js
+      - name: Registrar problema e autoridade v93.99 no WebKit
+        run: node tests/auditor-problem-hardening-v9399-webkit.js
       - name: Validação multiusuário no WebKit
         run: node tests/auditor-multiuser-webkit.js
       - name: Publicar captura visual multiusuário
