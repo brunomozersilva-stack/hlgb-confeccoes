@@ -5,8 +5,11 @@ if(window.HLGB_AUDITOR_HARDENING_9399)return;
 const V='93.99',SHELL_V='93.82';
 let busy=false,lastResult='idle',lastError='',lastUrl='',observer=null,removedLegacy=0,intelligenceWrapped=false;
 let openAuthorityLocked=false,openOverrideAttempts=0,lastOpenOverride=null,authorityOpen=null;
+let problemReadyAttempts=0,problemReadyAt='',problemReadySource='',problemLoaderState='idle',problemLoaderAttempts=0,problemLoaderError='',problemDeliveryMode='';
+let problemLoaderPromise=null;
 const sid=v=>String(v??'');
-const esc=v=>sid(v).replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+const esc=v=>sid(v).replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot',"'":'&#39;'}[m]));
+const sleep=ms=>new Promise(r=>setTimeout(r,ms));
 function root(){const s=document.getElementById('hlgbSmartStatus');return s?.closest?.('[role="dialog"],.modal,.modal-content,.modalCard,.modal-card,.dialog')||s?.parentElement?.parentElement||s?.parentElement||null}
 function clearUrl(){if(lastUrl){try{URL.revokeObjectURL(lastUrl)}catch(e){}lastUrl=''}}
 function retireLegacyVisual(){
@@ -56,23 +59,56 @@ function problemFunctionHealth(){
 function captureHealth(){
  const f=problemFunctionHealth(),r=root(),legacy=!!document.getElementById('hlgbVisualControls9331')||!!document.getElementById('hlgbVisualRun9331'),shell=!!window.hlgbAuditorShell9382&&typeof window.openHlgbAuditor==='function'&&window.openHlgbAuditor===window.hlgbAuditorShell9382?.open;
  const link=!!r?.querySelector?.('#hlgbSafariDownload9368,#hlgbProblemDownload9399');
- return {version:V,shellVersion:SHELL_V,shellAuthority:shell,openAuthorityLocked,openOverrideAttempts,lastOpenOverride,problemAvailable:f.available,problemDepth:f.depth,runtimeTimeline:f.hasRuntimeTimeline,safariAuthority:f.safariAuthority,legacyVisualPresent:legacy,manualDownloadVisible:link,busy,lastResult,lastError,removedLegacy};
+ return {version:V,shellVersion:SHELL_V,shellAuthority:shell,openAuthorityLocked,openOverrideAttempts,lastOpenOverride,problemAvailable:f.available,problemDepth:f.depth,runtimeTimeline:f.hasRuntimeTimeline,safariAuthority:f.safariAuthority,problemReadyAttempts,problemReadyAt,problemReadySource,problemLoaderState,problemLoaderAttempts,problemLoaderError,problemDeliveryMode,legacyVisualPresent:legacy,manualDownloadVisible:link,busy,lastResult,lastError,removedLegacy};
 }
 function panel(html){const out=document.getElementById('hlgbAuditorResult');if(out)out.innerHTML='<div class="panel">'+html+'</div>';return out}
+function loadProblemModule(){
+ if(typeof window.hlgbAuditorSmartProblem==='function')return Promise.resolve(true);
+ if(problemLoaderPromise)return problemLoaderPromise;
+ problemLoaderAttempts++;problemLoaderState='loading';problemLoaderError='';
+ problemLoaderPromise=new Promise(resolve=>{
+  const old=document.querySelector('script[data-hlgb-auditor-smart-recovery="9360"]');if(old)try{old.remove()}catch(e){}
+  const s=document.createElement('script');s.src='./release-auditor-smart-v9360.js?recover=9399&try='+problemLoaderAttempts+'&t='+Date.now();s.async=false;s.dataset.hlgbAuditorSmartRecovery='9360';
+  let done=false;const finish=(ok,err)=>{if(done)return;done=true;clearTimeout(timer);problemLoaderState=ok?'loaded':'error';problemLoaderError=err?sid(err):'';resolve(ok)};
+  s.onload=()=>finish(typeof window.hlgbAuditorSmartProblem==='function',typeof window.hlgbAuditorSmartProblem==='function'?'':'Módulo carregou sem expor hlgbAuditorSmartProblem.');
+  s.onerror=()=>finish(false,'Falha ao carregar release-auditor-smart-v9360.js.');
+  const timer=setTimeout(()=>finish(typeof window.hlgbAuditorSmartProblem==='function','Tempo limite ao carregar módulo de captura.'),3500);
+  (document.head||document.documentElement).appendChild(s);
+ }).finally(()=>{problemLoaderPromise=null});
+ return problemLoaderPromise;
+}
+async function ensureProblemReady(){
+ for(let i=0;i<30;i++){
+  problemReadyAttempts++;
+  if(typeof window.hlgbAuditorSmartProblem==='function'){
+   problemReadyAt=problemReadyAt||new Date().toISOString();problemReadySource=problemReadySource||'existing';problemLoaderState=problemLoaderState==='idle'?'not-needed':problemLoaderState;return window.hlgbAuditorSmartProblem;
+  }
+  if(i===4||i===16){
+   panel('<b>Preparando diagnóstico…</b><div class="sub">Ativando o módulo de captura ('+(i===4?'1':'2')+'/2)…</div>');
+   const ok=await loadProblemModule();
+   if(ok&&typeof window.hlgbAuditorSmartProblem==='function'){
+    problemReadyAt=new Date().toISOString();problemReadySource='recovery-loader';return window.hlgbAuditorSmartProblem;
+   }
+  }
+  await sleep(100);
+ }
+ throw new Error('Captura de problema não ficou pronta após tentativas limitadas.');
+}
 function fallbackDownload(data){
  const out=document.getElementById('hlgbAuditorResult');if(!out||!data)return false;
  let safe=data;try{safe=window.hlgbInternalAuditor?.redactDiagnostic?window.hlgbInternalAuditor.redactDiagnostic(data):data}catch(e){}
  clearUrl();const blob=new Blob([JSON.stringify(safe,null,2)],{type:'application/json;charset=utf-8'});lastUrl=URL.createObjectURL(blob);const name='HLGB-PROBLEMA-'+new Date().toISOString().replace(/[:.]/g,'-')+'.json';
  out.innerHTML='<div class="panel"><b>✅ Problema registrado.</b><div class="sub">O diagnóstico ficou pronto. No Safari, use o botão abaixo para salvar.</div><div style="margin-top:10px"><a id="hlgbProblemDownload9399" class="primary" role="button" download="'+name+'" href="'+lastUrl+'">⬇️ Baixar diagnóstico</a></div></div>';
- return true;
+ problemDeliveryMode='hardening-fallback';return true;
 }
 async function captureProblem(){
- if(busy)return null;busy=true;lastResult='running';lastError='';retireLegacyVisual();ensureShellAuthority();panel('<b>Preparando diagnóstico…</b><div class="sub">Coletando os dados do problema sem alterar o sistema.</div>');
+ if(busy)return null;busy=true;lastResult='running';lastError='';problemDeliveryMode='';retireLegacyVisual();ensureShellAuthority();panel('<b>Preparando diagnóstico…</b><div class="sub">Coletando os dados do problema sem alterar o sistema.</div>');
  try{
-  const fn=window.hlgbAuditorSmartProblem;if(typeof fn!=='function')throw new Error('Captura de problema ainda não ficou pronta.');
+  const fn=await ensureProblemReady();
   const data=await fn();
   let ready=!!document.querySelector('#hlgbSafariDownload9368,#hlgbProblemDownload9399');
-  if(!ready){try{ready=window.hlgbAuditorSmart?.safariDownload?.renderReady?.()===true}catch(e){}}
+  if(ready&&document.getElementById('hlgbSafariDownload9368'))problemDeliveryMode='safari-adapter';
+  if(!ready){try{ready=window.hlgbAuditorSmart?.safariDownload?.renderReady?.()===true;if(ready)problemDeliveryMode='safari-adapter'}catch(e){}}
   if(!ready)ready=fallbackDownload(data);
   if(!ready)throw new Error('O diagnóstico foi coletado, mas o Safari não recebeu o link para salvar.');
   lastResult='ready';return data;
@@ -90,11 +126,11 @@ function bindOfficialEntryCapture(){
  document.addEventListener('click',handler,true);window.__hlgbAuditorEntry9399=handler;return true;
 }
 function decorateIntelligence(report){
- try{const host=document.getElementById('hlgbAuditorIntelligencePanel9396');if(!host)return;document.getElementById('hlgbProblemHealth9399')?.remove();const h=report?.current?.problemCapture||captureHealth(),el=document.createElement('div');el.id='hlgbProblemHealth9399';el.style.marginTop='8px';el.innerHTML='<b>'+(h.shellAuthority&&h.openAuthorityLocked&&h.problemAvailable&&!h.legacyVisualPresent?'✅':'🔴')+' Captura de problema:</b> '+(h.problemAvailable?'disponível':'indisponível')+' · autoridade '+(h.openAuthorityLocked?'travada':'solta')+' · sobrescritas bloqueadas '+Number(h.openOverrideAttempts||0)+' · Safari '+(h.safariAuthority?'pronto':'sem autoridade')+' · controle legado '+(h.legacyVisualPresent?'presente':'retirado');host.appendChild(el)}catch(e){}
+ try{const host=document.getElementById('hlgbAuditorIntelligencePanel9396');if(!host)return;document.getElementById('hlgbProblemHealth9399')?.remove();const h=report?.current?.problemCapture||captureHealth(),el=document.createElement('div');el.id='hlgbProblemHealth9399';el.style.marginTop='8px';el.innerHTML='<b>'+(h.shellAuthority&&h.openAuthorityLocked&&h.problemAvailable&&!h.legacyVisualPresent?'✅':'🔴')+' Captura de problema:</b> '+(h.problemAvailable?'disponível':'indisponível')+' · autoridade '+(h.openAuthorityLocked?'travada':'solta')+' · sobrescritas bloqueadas '+Number(h.openOverrideAttempts||0)+' · recuperação '+Number(h.problemLoaderAttempts||0)+' · entrega '+esc(h.problemDeliveryMode||'ainda não usada')+' · controle legado '+(h.legacyVisualPresent?'presente':'retirado');host.appendChild(el)}catch(e){}
 }
 function augmentReport(report){
  if(!report||typeof report!=='object')return report;report.hardeningVersion=V;report.current=report.current||{};report.current.problemCapture=captureHealth();report.recommendations=Array.isArray(report.recommendations)?report.recommendations:[];
- const h=report.current.problemCapture;if(!h.shellAuthority||!h.openAuthorityLocked||!h.problemAvailable||h.legacyVisualPresent)report.recommendations.unshift({priority:'high',code:'auditor-problem-capture',detail:'A captura de problema ou a autoridade visual do Auditor não está íntegra nesta sessão.'});return report;
+ const h=report.current.problemCapture;if(!h.shellAuthority||!h.openAuthorityLocked||(!h.problemAvailable&&h.problemLoaderState==='error')||h.legacyVisualPresent)report.recommendations.unshift({priority:'high',code:'auditor-problem-capture',detail:'A captura de problema ou a autoridade visual do Auditor não está íntegra nesta sessão.'});return report;
 }
 function wrapIntelligence(){
  const api=window.hlgbAuditorIntelligence9396;if(!api||api.__hlgb9399)return false;
@@ -109,12 +145,12 @@ function installObserver(){
  try{observer.observe(document.documentElement||document.body,{childList:true,subtree:true})}catch(e){}
 }
 function install(){bindProblemCapture();bindOfficialEntryCapture();retireLegacyVisual();ensureShellAuthority();wrapIntelligence();installObserver();return captureHealth()}
-window.HLGB_AUDITOR_HARDENING_9399=V;window.hlgbAuditorHardening9399={version:V,shellVersion:SHELL_V,install,captureProblem,captureHealth,retireLegacyVisual,ensureShellAuthority,lockOpenAuthority,wrapIntelligence};
+window.HLGB_AUDITOR_HARDENING_9399=V;window.hlgbAuditorHardening9399={version:V,shellVersion:SHELL_V,install,captureProblem,captureHealth,ensureProblemReady,retireLegacyVisual,ensureShellAuthority,lockOpenAuthority,wrapIntelligence};
 [0,100,300,700,1500,3000,6000,10000,20000,40000,60000].forEach(ms=>setTimeout(install,ms));
 try{if(typeof window.hlgbAfterLogin==='function')window.hlgbAfterLogin(()=>{install();[100,500,1500].forEach(ms=>setTimeout(install,ms))},0)}catch(e){}
 window.addEventListener?.('hlgb:authenticated',()=>{install();[100,500,1500].forEach(ms=>setTimeout(install,ms))});
 window.addEventListener?.('pageshow',install);
 document.addEventListener('click',e=>{if(e.target?.closest?.('#hlgbAuditorIntelligenceBtn9396')){ensureShellAuthority();retireLegacyVisual();wrapIntelligence()}},true);
 install();
-console.info('[HLGB] Auditor hardening v'+V+' ativo · captura Safari + autoridade visual travada');
+console.info('[HLGB] Auditor hardening v'+V+' ativo · captura Safari + autoridade visual travada + recuperação limitada');
 })();
