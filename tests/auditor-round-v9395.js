@@ -108,18 +108,23 @@ function run(file,ctx,part){let src=fs.readFileSync(path.join(ROOT,file),'utf8')
   ok(daily.includes("hlgbInternalAuditor.run('full',true)"), 'daily package does not run a fresh current audit');
  }
 
- // Auditor authority map must confirm declared authorities only with runtime evidence.
+ // Auditor authority map: arquivos coexistentes não são conflito quando cada responsabilidade tem sua autoridade real instalada.
  {
   const c=baseContext();
-  const files=['release-save-actions-v9322.js','release-hub-delivery-v9324.js','release-production-operations-v9378-preview.js','release-production-operations-v9380-preview-patch.js','release-production-operations-v9386-finalize.js','release-production-writeoff-integrity-v9391.js','release-save-transport-v9320.js','release-sync-guard-v9306.js','release-payroll-reliable-save-guard-v9344.js'];
+  const files=['release-save-actions-v9322.js','release-hub-delivery-v9324.js','release-production-operations-v9378-preview.js','release-production-operations-v9380-preview-patch.js','release-production-operations-v9386-finalize.js','release-production-writeoff-integrity-v9391.js','release-save-transport-v9320.js','release-sync-guard-v9306.js','release-payroll-month-wal-v9334.js','release-payroll-snapshot-watch-v9354.js','release-payroll-reliable-save-guard-v9344.js','release-payroll-wal-race-v9346.js'];
   c.document.querySelectorAll=sel=>sel==='script[src]'?files.map((f,i)=>({src:'https://example.test/'+f,index:i})):[];
-  c.HLGB_HUB_SAVE_AUTHORITY='93.24';c.HLGB_OPERATIONAL_WRITEOFF_AUTHORITY='93.91';
+  c.HLGB_HUB_SAVE_AUTHORITY='93.24';c.HLGB_OPERATIONAL_WRITEOFF_AUTHORITY='93.91';c.HLGB_SYNC_GUARD_9306='93.06';c.HLGB_PAYROLL_WAL_RACE_9346='93.56';
+  function cloudBase(){}function cloudTransport(){return cloudBase.apply(this,arguments)}cloudTransport.__hlgb9320=true;cloudTransport.__hlgb9320Original=cloudBase;c.cloudRequest=cloudTransport;
+  function rb(){}function rs(){return rb.apply(this,arguments)}rs.__hlgb9306=true;rs.__original=rb;function rp(){return rs.apply(this,arguments)}rp.__hlgbPayrollWalRace9346=true;rp.__original=rs;c.hlgbRecordSaveWithRetry=rp;
+  function lb(){}function ls(){return lb.apply(this,arguments)}ls.__hlgb9306=true;ls.__original=lb;function lp(){return ls.apply(this,arguments)}lp.__hlgbPayrollWalRace9346=true;lp.__original=ls;c.hlgb955ReliableSave=lp;
   run('release-auditor-authority-map-v9374.js',c);
   const r=c.hlgbAuditorAuthority9374.scan(),by=Object.fromEntries(r.consolidationPlan.map(x=>[x.id,x]));
   ok(by['hub-save'].authorityConfirmed===true&&!by['hub-save'].conflict,'Auditor did not confirm Hub authority');
   ok(by.writeoff.authorityConfirmed===true&&!by.writeoff.conflict,'Auditor did not confirm writeoff authority');
-  ok(by['record-save'].conflict===true,'Auditor incorrectly hid unresolved record-save conflict');
+  ok(by['record-transport'].authorityConfirmed===true&&!by['record-transport'].conflict,'Auditor did not confirm cloud transport authority');
+  ok(by['production-save-guard'].authorityConfirmed===true&&!by['production-save-guard'].conflict,'Auditor did not confirm production save guard');
+  ok(by['payroll-save'].authorityConfirmed===true&&!by['payroll-save'].conflict,'Auditor did not confirm payroll final authority');
  }
 
- console.log('AUDITOR_ROUND_V9395_OK',JSON.stringify({cutGuard:true,chainAware:true,hubAuthority:'93.24',writeoffAuthority:'93.91',recordSaveStillWarns:true}));
+ console.log('AUDITOR_ROUND_V9398_OK',JSON.stringify({cutGuard:true,chainAware:true,hubAuthority:'93.24',writeoffAuthority:'93.91',recordTransport:'93.20',productionGuard:'93.06',payrollAuthority:'93.56'}));
 })().catch(e=>{console.error(e.stack||e);process.exit(1)});

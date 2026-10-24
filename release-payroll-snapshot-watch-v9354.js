@@ -2,7 +2,8 @@
    Para payroll_month, quando a WAL difere da base confirmada apenas por metadados
    técnicos (updatedAt/revision/__*), repõe o snapshot local com a base confirmada
    e pede à autoridade WAL que faça a poda somente após confirmação remota.
-   Alterações reais continuam na fila e seguem o fluxo normal. */
+   Patch 2026-10-24: este vigia não envolve mais hlgbRecordSaveWithRetry; a interceptação
+   de save técnico fica centralizada na autoridade v93.56. */
 (function(){
 'use strict';
 const V='93.54', WAL_KEY='hlgb_durable_wal_v1';
@@ -63,25 +64,11 @@ async function recover(){
  }catch(e){lastError=sid(e?.message||e)}finally{busy=false}
 }
 function stamp(){try{const cur=parseFloat(String(window.HLGB_RELEASE_VERSION||'0'))||0;if(cur<93.54){window.HLGB_RELEASE_VERSION=V;const el=document.querySelector('#appShell .logo small');if(el)el.textContent='v'+V}}catch(e){}}
-function installRecordGuard(){
- const base=window.hlgbRecordSaveWithRetry;
- if(typeof base!=='function'||chainHasMarker(base,'__hlgb9354'))return false;
- const had955=chainHasMarker(base,'__hlgb955Wrapped');
- const wrapped=async function(module,id,data,deleted=false){
-  if(module==='hubFinanceEntries'&&!deleted&&payroll(data)){
-   try{const s=window.hlgbRecordSnapshots?.hubFinanceEntries?.get?.(sid(id));if(s&&!s.deleted_at&&s.data&&sameMeaning(data,s.data))return {applied:true,data:clone(s.data),deleted_at:null,revision:+s.revision||1,updated_at:s.updated_at||'',updated_by:s.updated_by||null,hlgbNoop:true,hlgbNoopReason:'payroll-technical-noop-v9354'}}catch(e){}
-  }
-  return base.apply(this,arguments);
- };
- wrapped.__hlgb9354=true;wrapped.__original=base;
- if(had955)wrapped.__hlgb955Wrapped=true;
- window.hlgbRecordSaveWithRetry=wrapped;return true;
-}
-function maintain(){stamp();installRecordGuard();recover()}
-window.hlgbPayrollSnapshotWatch9354={version:V,recover,maintain,status:()=>({version:V,scans,recovered,pruneRequests,lastRecoveredAt,lastRecoveredId,lastError,busy,installed:chainHasMarker(window.hlgbRecordSaveWithRetry,'__hlgb9354')})};
+function maintain(){stamp();recover()}
+window.hlgbPayrollSnapshotWatch9354={version:V,recover,maintain,status:()=>({version:V,scans,recovered,pruneRequests,lastRecoveredAt,lastRecoveredId,lastError,busy,recordSaveDelegated:true,finalRecordGuardInstalled:chainHasMarker(window.hlgbRecordSaveWithRetry,'__hlgbPayrollWalRace9346')})};
 stamp();maintain();
 [100,300,700,1200,2000,3500,5000,8000,12000,20000].forEach(ms=>setTimeout(maintain,ms));
 setInterval(()=>{if(document.visibilityState==='visible')maintain()},750);
 window.addEventListener('focus',maintain);window.addEventListener('pageshow',maintain);window.addEventListener('online',maintain);
-console.info('[HLGB] v'+V+' vigia de snapshot da folha ativa');
+console.info('[HLGB] v'+V+' vigia de snapshot da folha ativo · save delegado para v93.56');
 })();

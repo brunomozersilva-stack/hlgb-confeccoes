@@ -1,9 +1,10 @@
-name: HLGB Auditor Intelligence Button v93.96
+name: HLGB Auditor Intelligence Button v93.98
 
 on:
   push:
     branches:
       - fix/auditor-intelligence-button-20261023
+      - diagnostic/post-hotfix-save-depth-orphans-20261024
   pull_request:
     branches:
       - main
@@ -23,6 +24,8 @@ jobs:
           set -euo pipefail
           node --check release-auditor-shell-v9382.js
           node --check release-auditor-intelligence-v9396.js
+          node --check tests/auditor-intelligence-button-v9396.js
+          node --check tests/auditor-intelligence-button-v9396-webkit.js
       - name: Validar visibilidade da Inteligência
         run: node tests/auditor-intelligence-button-v9396.js
 
@@ -43,12 +46,12 @@ jobs:
         run: |
           python3 -m http.server 4173 >/tmp/hlgb-http.log 2>&1 &
           sleep 2
-      - name: Validar botão Inteligência no WebKit
+      - name: Validar botão e sinais v93.98 no WebKit
         run: node tests/auditor-intelligence-button-v9396-webkit.js
       - name: Publicar captura visual do Auditor
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: hlgb-auditor-inteligencia-webkit
+          name: hlgb-auditor-inteligencia-webkit-v9398
           path: /tmp/hlgb-auditor-inteligencia-webkit.png
           if-no-files-found: warn
