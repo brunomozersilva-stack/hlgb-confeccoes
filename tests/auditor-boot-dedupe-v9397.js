@@ -57,6 +57,24 @@ function base(){
   ok(source('release-sync-guard-v9306.js').includes('sessionRestoreLoadsAllowed:true'),'Sync Guard does not document allowed restore loads');
  }
 
+ // 1b) renderAll fica bloqueado apenas enquanto a sessão autenticada está sendo restaurada com o app oculto.
+ {
+  const c=base();let renders=0;
+  const shell={getClientRects:()=>[{}]};
+  c.db={cuts:[],orders:[]};
+  c.__HLGB_AUTH_READY=false;c.cloudBootstrapping=true;c.cloudAccessToken='token';c.cloudUser={id:'u1'};
+  c.document.getElementById=id=>id==='appShell'?shell:null;
+  c.getComputedStyle=()=>({display:'none',visibility:'visible',opacity:'1'});
+  c.renderAll=()=>{renders++;return true};
+  run('release-cut-view.js',c);
+  c.__timers.filter(x=>x.ms===2600).forEach(x=>x.fn());
+  ok(c.hlgbCutViewGuard?.status?.().hiddenRenderGuarded===true,'hidden restore render gate was not installed');
+  ok(c.renderAll()===false,'hidden render was not blocked during authenticated restore');
+  ok(renders===0&&c.__HLGB_HIDDEN_BOOT_RENDER_BLOCKED_9398===1,'hidden render executed base or counter failed');
+  c.__HLGB_AUTH_READY=true;c.cloudBootstrapping=false;c.getComputedStyle=()=>({display:'block',visibility:'visible',opacity:'1'});
+  ok(c.renderAll()===true&&renders===1,'visible/authenticated render did not delegate after restore');
+ }
+
  // 2) WAL authority loader remains single-flight while the first script is still loading.
  {
   const c=base();c.db={hubFinanceEntries:[]};c.hlgbRecordSaveWithRetry=async()=>({applied:true});
@@ -83,7 +101,7 @@ function base(){
  {
   const c=base();
   c.__HLGB_PREAUTH_CUT_BLOCKED_9397=1;
-  c.hlgbCutViewGuard={status:()=>({version:'v4',cutGateInstalls:1,blockedPreAuthCutSync:1,guarded:true})};
+  c.hlgbCutViewGuard={status:()=>({version:'v5',cutGateInstalls:1,blockedPreAuthCutSync:1,guarded:true,hiddenRenderGateInstalls:1,hiddenBootRendersBlocked:1,hiddenRenderGuarded:true})};
   c.hlgbBootTimeline9379={snapshot:()=>({session:'s1',startedWall:1,installedWall:1,coverage:{preInstrumentationGapMs:0,preInstrumentationMeasured:true},authReady:true,resourceCount:10})};
   const safeEvents=[
    {seq:1,type:'load:start',name:'hlgbLoadNormalizedCore',monoMs:10,authReady:false,sessionRestoring:true,activePage:'dashboard',appVisible:false,data:{stack:'restore@x.js:1:1'}},
@@ -125,5 +143,5 @@ function base(){
   ok(source('release-payroll-month-wal-v9334.js').includes('release-wal-single-authority-v9339.js'),'payroll-month-wal não preserva autoridade WAL');
  }
 
- console.log('AUDITOR_BOOT_DEDUPE_V9397_OK',JSON.stringify({cutGate:true,restoreLoadsAllowed:true,walSingleFlight:true,reliableParserDedupe:true,restoreClassification:true,exactRouterDedupe:true}));
+ console.log('AUDITOR_BOOT_DEDUPE_V9397_OK',JSON.stringify({cutGate:true,hiddenRestoreRenderGate:true,restoreLoadsAllowed:true,walSingleFlight:true,reliableParserDedupe:true,restoreClassification:true,exactRouterDedupe:true}));
 })().catch(e=>{console.error(e.stack||e);process.exit(1)});
