@@ -1,6 +1,6 @@
-/* HLGB Auditor v93.96 — marcador imutável do build carregado nesta sessão. */
+/* HLGB Auditor v93.98 — marcador imutável do build carregado nesta sessão. */
 (function(){
 'use strict';
-window.HLGB_RUNTIME_BUILD_ID='2026-10-23-auditor-intelligence-1';
-window.HLGB_RUNTIME_BUILD_AT='2026-10-23T09:30:00Z';
+window.HLGB_RUNTIME_BUILD_ID='2026-10-24-post-hotfix-auditor-2';
+window.HLGB_RUNTIME_BUILD_AT='2026-10-24T13:25:00Z';
 })();
