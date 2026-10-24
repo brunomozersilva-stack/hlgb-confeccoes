@@ -4,6 +4,7 @@
 if(window.HLGB_AUDITOR_HARDENING_9399)return;
 const V='93.99';
 let busy=false,lastResult='idle',lastError='',lastUrl='',observer=null,removedLegacy=0,intelligenceWrapped=false;
+let openAuthorityLocked=false,openOverrideAttempts=0,lastOpenOverride=null,authorityOpen=null;
 const sid=v=>String(v??'');
 const esc=v=>sid(v).replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
 function root(){const s=document.getElementById('hlgbSmartStatus');return s?.closest?.('[role="dialog"],.modal,.modal-content,.modalCard,.modal-card,.dialog')||s?.parentElement?.parentElement||s?.parentElement||null}
@@ -16,14 +17,36 @@ function retireLegacyVisual(){
  }
  removedLegacy+=n;return n;
 }
+function overrideInfo(v){
+ const stack=sid(new Error('late openHlgbAuditor override').stack||'').split('\n').slice(1,7).join('\n');
+ return {at:new Date().toISOString(),name:typeof v==='function'?(v.name||'anonymous'):typeof v,type:typeof v,stack};
+}
+function lockOpenAuthority(){
+ const shell=window.hlgbAuditorShell9382;if(!shell||typeof shell.open!=='function')return false;
+ authorityOpen=shell.open;
+ if(openAuthorityLocked)return window.openHlgbAuditor===authorityOpen;
+ const desc=Object.getOwnPropertyDescriptor(window,'openHlgbAuditor');
+ if(desc&&!desc.configurable){try{window.openHlgbAuditor=authorityOpen}catch(e){}return window.openHlgbAuditor===authorityOpen}
+ try{
+  Object.defineProperty(window,'openHlgbAuditor',{
+   configurable:false,enumerable:true,
+   get(){const live=window.hlgbAuditorShell9382?.open;return typeof live==='function'?live:authorityOpen},
+   set(v){const live=window.hlgbAuditorShell9382?.open;if(v===live||v===authorityOpen)return;openOverrideAttempts++;lastOpenOverride=overrideInfo(v)}
+  });
+  openAuthorityLocked=true;window.HLGB_AUDITOR_SHELL_AUTHORITY=V;return window.openHlgbAuditor===shell.open;
+ }catch(e){return false}
+}
 function ensureShellAuthority(){
  const shell=window.hlgbAuditorShell9382;
  if(!shell||typeof shell.open!=='function')return false;
  try{shell.install?.()}catch(e){}
- try{window.openHlgbAuditor=shell.open;window.HLGB_AUDITOR_SHELL_AUTHORITY='93.82'}catch(e){return false}
- const nav=document.getElementById('hlgbAuditorNavBtn');if(nav)nav.onclick=shell.open;
- const open=document.getElementById('hlgbAuditorOpenBtn');if(open)open.onclick=shell.open;
- return window.openHlgbAuditor===shell.open;
+ authorityOpen=shell.open;
+ if(!openAuthorityLocked){try{window.openHlgbAuditor=shell.open}catch(e){};lockOpenAuthority()}
+ window.HLGB_AUDITOR_SHELL_AUTHORITY=V;
+ const official=()=>window.hlgbAuditorShell9382?.open?.();
+ const nav=document.getElementById('hlgbAuditorNavBtn');if(nav)nav.onclick=official;
+ const open=document.getElementById('hlgbAuditorOpenBtn');if(open)open.onclick=official;
+ return typeof window.openHlgbAuditor==='function'&&window.openHlgbAuditor===shell.open;
 }
 function problemFunctionHealth(){
  const fn=window.hlgbAuditorSmartProblem;const seen=new Set();let cur=fn,depth=0,has9370=false;
@@ -31,9 +54,9 @@ function problemFunctionHealth(){
  return {available:typeof fn==='function',depth,hasRuntimeTimeline:has9370,safariAuthority:window.__hlgbSingleProblem9368===true&&typeof window.hlgbAuditorSmart?.safariDownload?.renderReady==='function'};
 }
 function captureHealth(){
- const f=problemFunctionHealth(),r=root(),legacy=!!document.getElementById('hlgbVisualControls9331')||!!document.getElementById('hlgbVisualRun9331'),shell=!!window.hlgbAuditorShell9382&&window.openHlgbAuditor===window.hlgbAuditorShell9382?.open;
+ const f=problemFunctionHealth(),r=root(),legacy=!!document.getElementById('hlgbVisualControls9331')||!!document.getElementById('hlgbVisualRun9331'),shell=!!window.hlgbAuditorShell9382&&typeof window.openHlgbAuditor==='function'&&window.openHlgbAuditor===window.hlgbAuditorShell9382?.open;
  const link=!!r?.querySelector?.('#hlgbSafariDownload9368,#hlgbProblemDownload9399');
- return {version:V,shellAuthority:shell,problemAvailable:f.available,problemDepth:f.depth,runtimeTimeline:f.hasRuntimeTimeline,safariAuthority:f.safariAuthority,legacyVisualPresent:legacy,manualDownloadVisible:link,busy,lastResult,lastError,removedLegacy};
+ return {version:V,shellAuthority:shell,openAuthorityLocked,openOverrideAttempts,lastOpenOverride,problemAvailable:f.available,problemDepth:f.depth,runtimeTimeline:f.hasRuntimeTimeline,safariAuthority:f.safariAuthority,legacyVisualPresent:legacy,manualDownloadVisible:link,busy,lastResult,lastError,removedLegacy};
 }
 function panel(html){const out=document.getElementById('hlgbAuditorResult');if(out)out.innerHTML='<div class="panel">'+html+'</div>';return out}
 function fallbackDownload(data){
@@ -61,12 +84,17 @@ function bindProblemCapture(){
  const handler=e=>{const b=e.target?.closest?.('#hlgbSmartProblem');if(!b)return;e.preventDefault();e.stopImmediatePropagation();captureProblem().catch(()=>{})};
  document.addEventListener('click',handler,true);window.__hlgbAuditorProblemCapture9399=handler;return true;
 }
+function bindOfficialEntryCapture(){
+ if(window.__hlgbAuditorEntry9399)return true;
+ const handler=e=>{const b=e.target?.closest?.('#hlgbAuditorNavBtn,#hlgbAuditorOpenBtn');if(!b)return;const shell=window.hlgbAuditorShell9382;if(!shell||typeof shell.open!=='function')return;e.preventDefault();e.stopImmediatePropagation();ensureShellAuthority();shell.open()};
+ document.addEventListener('click',handler,true);window.__hlgbAuditorEntry9399=handler;return true;
+}
 function decorateIntelligence(report){
- try{const host=document.getElementById('hlgbAuditorIntelligencePanel9396');if(!host)return;document.getElementById('hlgbProblemHealth9399')?.remove();const h=report?.current?.problemCapture||captureHealth(),el=document.createElement('div');el.id='hlgbProblemHealth9399';el.style.marginTop='8px';el.innerHTML='<b>'+(h.shellAuthority&&h.problemAvailable&&!h.legacyVisualPresent?'✅':'🔴')+' Captura de problema:</b> '+(h.problemAvailable?'disponível':'indisponível')+' · Safari '+(h.safariAuthority?'pronto':'sem autoridade')+' · controle legado '+(h.legacyVisualPresent?'presente':'retirado');host.appendChild(el)}catch(e){}
+ try{const host=document.getElementById('hlgbAuditorIntelligencePanel9396');if(!host)return;document.getElementById('hlgbProblemHealth9399')?.remove();const h=report?.current?.problemCapture||captureHealth(),el=document.createElement('div');el.id='hlgbProblemHealth9399';el.style.marginTop='8px';el.innerHTML='<b>'+(h.shellAuthority&&h.openAuthorityLocked&&h.problemAvailable&&!h.legacyVisualPresent?'✅':'🔴')+' Captura de problema:</b> '+(h.problemAvailable?'disponível':'indisponível')+' · autoridade '+(h.openAuthorityLocked?'travada':'solta')+' · sobrescritas bloqueadas '+Number(h.openOverrideAttempts||0)+' · Safari '+(h.safariAuthority?'pronto':'sem autoridade')+' · controle legado '+(h.legacyVisualPresent?'presente':'retirado');host.appendChild(el)}catch(e){}
 }
 function augmentReport(report){
  if(!report||typeof report!=='object')return report;report.hardeningVersion=V;report.current=report.current||{};report.current.problemCapture=captureHealth();report.recommendations=Array.isArray(report.recommendations)?report.recommendations:[];
- const h=report.current.problemCapture;if(!h.shellAuthority||!h.problemAvailable||h.legacyVisualPresent)report.recommendations.unshift({priority:'high',code:'auditor-problem-capture',detail:'A captura de problema ou a autoridade visual do Auditor não está íntegra nesta sessão.'});return report;
+ const h=report.current.problemCapture;if(!h.shellAuthority||!h.openAuthorityLocked||!h.problemAvailable||h.legacyVisualPresent)report.recommendations.unshift({priority:'high',code:'auditor-problem-capture',detail:'A captura de problema ou a autoridade visual do Auditor não está íntegra nesta sessão.'});return report;
 }
 function wrapIntelligence(){
  const api=window.hlgbAuditorIntelligence9396;if(!api||api.__hlgb9399)return false;
@@ -77,16 +105,16 @@ function wrapIntelligence(){
 }
 function installObserver(){
  if(observer||typeof MutationObserver!=='function')return;
- observer=new MutationObserver(list=>{let relevant=false;for(const m of list){for(const n of m.addedNodes||[]){if(n?.nodeType!==1)continue;if(n.id==='hlgbVisualControls9331'||n.id==='hlgbVisualRun9331'||n.querySelector?.('#hlgbVisualControls9331,#hlgbVisualRun9331,#hlgbSmartStatus')){relevant=true;break}}if(relevant)break}if(relevant){retireLegacyVisual();ensureShellAuthority();wrapIntelligence()}});
+ observer=new MutationObserver(list=>{let relevant=false;for(const m of list){for(const n of m.addedNodes||[]){if(n?.nodeType!==1)continue;if(n.id==='hlgbVisualControls9331'||n.id==='hlgbVisualRun9331'||n.querySelector?.('#hlgbVisualControls9331,#hlgbVisualRun9331,#hlgbSmartStatus,#hlgbAuditorNavBtn,#hlgbAuditorOpenBtn')){relevant=true;break}}if(relevant)break}if(relevant){retireLegacyVisual();ensureShellAuthority();wrapIntelligence()}});
  try{observer.observe(document.documentElement||document.body,{childList:true,subtree:true})}catch(e){}
 }
-function install(){bindProblemCapture();retireLegacyVisual();ensureShellAuthority();wrapIntelligence();installObserver();return captureHealth()}
-window.HLGB_AUDITOR_HARDENING_9399=V;window.hlgbAuditorHardening9399={version:V,install,captureProblem,captureHealth,retireLegacyVisual,ensureShellAuthority,wrapIntelligence};
+function install(){bindProblemCapture();bindOfficialEntryCapture();retireLegacyVisual();ensureShellAuthority();wrapIntelligence();installObserver();return captureHealth()}
+window.HLGB_AUDITOR_HARDENING_9399=V;window.hlgbAuditorHardening9399={version:V,install,captureProblem,captureHealth,retireLegacyVisual,ensureShellAuthority,lockOpenAuthority,wrapIntelligence};
 [0,100,300,700,1500,3000,6000,10000,20000,40000,60000].forEach(ms=>setTimeout(install,ms));
 try{if(typeof window.hlgbAfterLogin==='function')window.hlgbAfterLogin(()=>{install();[100,500,1500].forEach(ms=>setTimeout(install,ms))},0)}catch(e){}
 window.addEventListener?.('hlgb:authenticated',()=>{install();[100,500,1500].forEach(ms=>setTimeout(install,ms))});
 window.addEventListener?.('pageshow',install);
-document.addEventListener('click',e=>{if(e.target?.closest?.('#hlgbAuditorNavBtn,#hlgbAuditorOpenBtn,#hlgbAuditorIntelligenceBtn9396')){ensureShellAuthority();retireLegacyVisual();wrapIntelligence()}},true);
+document.addEventListener('click',e=>{if(e.target?.closest?.('#hlgbAuditorIntelligenceBtn9396')){ensureShellAuthority();retireLegacyVisual();wrapIntelligence()}},true);
 install();
-console.info('[HLGB] Auditor hardening v'+V+' ativo · captura Safari + autoridade visual');
+console.info('[HLGB] Auditor hardening v'+V+' ativo · captura Safari + autoridade visual travada');
 })();
