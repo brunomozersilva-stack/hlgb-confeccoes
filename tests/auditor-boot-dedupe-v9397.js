@@ -143,5 +143,27 @@ function base(){
   ok(source('release-payroll-month-wal-v9334.js').includes('release-wal-single-authority-v9339.js'),'payroll-month-wal não preserva autoridade WAL');
  }
 
- console.log('AUDITOR_BOOT_DEDUPE_V9397_OK',JSON.stringify({cutGate:true,hiddenRestoreRenderGate:true,restoreLoadsAllowed:true,walSingleFlight:true,reliableParserDedupe:true,restoreClassification:true,exactRouterDedupe:true}));
+ // 6) O probe de freshness do próprio Auditor não é execução duplicada; cargas/renders brutos são informativos.
+ {
+  const c=base();
+  const normal='https://example.test/release-auditor-build-marker-v9396.js?fresh=1';
+  const probe='https://example.test/release-auditor-build-marker-v9396.js?hlgb_audit_fresh=2';
+  c.document.querySelectorAll=sel=>sel==='script[src]'?[{src:normal}]:[];
+  c.performance.getEntriesByType=type=>type==='resource'?[{name:normal,startTime:1,duration:1},{name:probe,startTime:2,duration:1}]:[];
+  run('release-auditor-authority-map-v9374.js',c);
+  const inventory=c.hlgbAuditorAuthority9374.loadedScriptInventory();
+  ok(inventory.duplicates.length===0,'authority map counted freshness probe as duplicate script');
+  run('release-auditor-intelligence-v9396.js',c);
+  ok(c.hlgbAuditorIntelligence9396.duplicateScripts().length===0,'intelligence counted freshness probe as duplicate script');
+  const cmp=c.hlgbAuditorIntelligence9396.compareMetrics(
+   {metrics:{loads:5,renders:9,hiddenRenders:0,preAuthLoads:0}},
+   {metrics:{loads:10,renders:5,hiddenRenders:1,preAuthLoads:0}}
+  );
+  ok(cmp.items.find(x=>x.key==='renders')?.state==='info','raw render count should be informational');
+  ok(cmp.items.find(x=>x.key==='loads')?.state==='info','raw load count should be informational');
+  ok(cmp.items.find(x=>x.key==='hiddenRenders')?.state==='improved','hidden render improvement was lost');
+  ok(cmp.summary.regressed===0,'informational load/render count created false regression');
+ }
+
+ console.log('AUDITOR_BOOT_DEDUPE_V9397_OK',JSON.stringify({cutGate:true,hiddenRestoreRenderGate:true,restoreLoadsAllowed:true,walSingleFlight:true,reliableParserDedupe:true,restoreClassification:true,exactRouterDedupe:true,auditorFalsePositiveFilter:true}));
 })().catch(e=>{console.error(e.stack||e);process.exit(1)});
