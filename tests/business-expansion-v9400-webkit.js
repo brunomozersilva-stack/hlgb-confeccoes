@@ -1,0 +1,30 @@
+const {webkit}=require('playwright');
+(async()=>{
+ const browser=await webkit.launch({headless:true});
+ const page=await browser.newPage({viewport:{width:1365,height:900}});
+ const errors=[];page.on('pageerror',e=>errors.push(String(e.message||e)));
+ await page.goto('http://127.0.0.1:4173/app-stable3.html',{waitUntil:'domcontentloaded',timeout:60000});
+ await page.waitForFunction(()=>window.hlgbBusinessExpansion9400?.version==='94.00'&&!!document.getElementById('printer3dNav9400')&&!!document.getElementById('communicationsNav9400'),null,{timeout:60000});
+ const api=await page.evaluate(()=>{
+   const c=window.hlgbBusinessExpansion9400.calc3d({printHours:2,filamentGrams:100,filamentPriceKg:120,machineHourRate:1.25,cleaningQty:2,cleaningUnitCost:1,accessories:[{name:'corrente',qty:1,unitCost:3}],multiplier:2});
+   return {c,cut:window.hlgbBusinessExpansion9400.deriveOrderStage({status:'Em corte'}),prod:window.hlgbBusinessExpansion9400.deriveOrderStage({status:'Em produção'}),done:window.hlgbBusinessExpansion9400.deriveOrderStage({status:'Entregue'}),build:window.HLGB_BUSINESS_EXPANSION_V9400};
+ });
+ if(Math.abs(api.c.base-19.5)>.001||Math.abs(api.c.price-39)>.001||api.cut!=='corte'||api.prod!=='producao'||api.done!=='entregue')throw new Error('cálculo/etapas v94.00 inválidos '+JSON.stringify(api));
+ await page.evaluate(()=>{const l=document.getElementById('loginScreen');if(l)l.style.setProperty('display','none','important');const a=document.getElementById('appShell');if(a)a.style.setProperty('display','block','important')});
+ await page.click('#printer3dNav9400 .nav-group-title');
+ await page.click('#p3ProductsNav9400');
+ await page.waitForSelector('#printer3dProducts9400.active',{state:'visible',timeout:10000});
+ await page.evaluate(()=>window.new3dProduct9400());
+ await page.waitForSelector('#p3Name9400',{state:'visible',timeout:10000});
+ await page.fill('#p3Name9400','Teste 3D');await page.fill('#p3Hours9400','2');await page.fill('#p3Grams9400','100');await page.fill('#p3Kg9400','120');await page.fill('#p3Rate9400','1.25');await page.fill('#p3CleanQty9400','2');await page.fill('#p3CleanUnit9400','1');await page.fill('#p3Mult9400','2');await page.fill('#p3Acc9400','Corrente | 1 | 3');await page.click('button:text("Calcular agora")');
+ const preview=await page.locator('#p3Preview9400').innerText();if(!/R\$\s*19,50/.test(preview)||!/R\$\s*39,00/.test(preview))throw new Error('preview 3D incorreto: '+preview);
+ await page.evaluate(()=>{try{closeModal()}catch(e){const m=document.getElementById('modal');if(m)m.style.display='none'}});
+ await page.click('#communicationsNav9400 .nav-group-title');await page.click('#orderCommsNav9400');await page.waitForSelector('#communications9400.active',{state:'visible'});
+ const comm=await page.locator('#communications9400').innerText();if(!/Entrega externa ainda não ligada/i.test(comm))throw new Error('limite de e-mail não está explícito');
+ await page.click('#waAccessNav9400');await page.waitForSelector('#whatsappAccess9400.active',{state:'visible'});const wa=await page.locator('#whatsappAccess9400').innerText();if(!/servidor/i.test(wa)||!/escopo/i.test(wa))throw new Error('limite de segurança WhatsApp ausente');
+ await page.click('#faLookupNav9400');await page.waitForSelector('#factionLookup9400.active',{state:'visible'});
+ await page.screenshot({path:'/tmp/hlgb-business-v9400-webkit.png',fullPage:true});
+ if(errors.some(x=>/9400|business|printer3d|whatsapp/i.test(x)))throw new Error('pageerror v94.00: '+errors.join(' | '));
+ console.log('BUSINESS_EXPANSION_V9400_WEBKIT_OK',JSON.stringify({base:api.c.base,price:api.c.price,build:api.build,preview}));
+ await browser.close();
+})().catch(e=>{console.error(e);process.exit(1)});
