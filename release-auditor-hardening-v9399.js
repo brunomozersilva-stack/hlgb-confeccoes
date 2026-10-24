@@ -2,7 +2,7 @@
 (function(){
 'use strict';
 if(window.HLGB_AUDITOR_HARDENING_9399)return;
-const V='93.99';
+const V='93.99',SHELL_V='93.82';
 let busy=false,lastResult='idle',lastError='',lastUrl='',observer=null,removedLegacy=0,intelligenceWrapped=false;
 let openAuthorityLocked=false,openOverrideAttempts=0,lastOpenOverride=null,authorityOpen=null;
 const sid=v=>String(v??'');
@@ -33,7 +33,7 @@ function lockOpenAuthority(){
    get(){const live=window.hlgbAuditorShell9382?.open;return typeof live==='function'?live:authorityOpen},
    set(v){const live=window.hlgbAuditorShell9382?.open;if(v===live||v===authorityOpen)return;openOverrideAttempts++;lastOpenOverride=overrideInfo(v)}
   });
-  openAuthorityLocked=true;window.HLGB_AUDITOR_SHELL_AUTHORITY=V;return window.openHlgbAuditor===shell.open;
+  openAuthorityLocked=true;window.HLGB_AUDITOR_SHELL_AUTHORITY=SHELL_V;return window.openHlgbAuditor===shell.open;
  }catch(e){return false}
 }
 function ensureShellAuthority(){
@@ -42,7 +42,7 @@ function ensureShellAuthority(){
  try{shell.install?.()}catch(e){}
  authorityOpen=shell.open;
  if(!openAuthorityLocked){try{window.openHlgbAuditor=shell.open}catch(e){};lockOpenAuthority()}
- window.HLGB_AUDITOR_SHELL_AUTHORITY=V;
+ window.HLGB_AUDITOR_SHELL_AUTHORITY=SHELL_V;
  const official=()=>window.hlgbAuditorShell9382?.open?.();
  const nav=document.getElementById('hlgbAuditorNavBtn');if(nav)nav.onclick=official;
  const open=document.getElementById('hlgbAuditorOpenBtn');if(open)open.onclick=official;
@@ -56,7 +56,7 @@ function problemFunctionHealth(){
 function captureHealth(){
  const f=problemFunctionHealth(),r=root(),legacy=!!document.getElementById('hlgbVisualControls9331')||!!document.getElementById('hlgbVisualRun9331'),shell=!!window.hlgbAuditorShell9382&&typeof window.openHlgbAuditor==='function'&&window.openHlgbAuditor===window.hlgbAuditorShell9382?.open;
  const link=!!r?.querySelector?.('#hlgbSafariDownload9368,#hlgbProblemDownload9399');
- return {version:V,shellAuthority:shell,openAuthorityLocked,openOverrideAttempts,lastOpenOverride,problemAvailable:f.available,problemDepth:f.depth,runtimeTimeline:f.hasRuntimeTimeline,safariAuthority:f.safariAuthority,legacyVisualPresent:legacy,manualDownloadVisible:link,busy,lastResult,lastError,removedLegacy};
+ return {version:V,shellVersion:SHELL_V,shellAuthority:shell,openAuthorityLocked,openOverrideAttempts,lastOpenOverride,problemAvailable:f.available,problemDepth:f.depth,runtimeTimeline:f.hasRuntimeTimeline,safariAuthority:f.safariAuthority,legacyVisualPresent:legacy,manualDownloadVisible:link,busy,lastResult,lastError,removedLegacy};
 }
 function panel(html){const out=document.getElementById('hlgbAuditorResult');if(out)out.innerHTML='<div class="panel">'+html+'</div>';return out}
 function fallbackDownload(data){
@@ -109,7 +109,7 @@ function installObserver(){
  try{observer.observe(document.documentElement||document.body,{childList:true,subtree:true})}catch(e){}
 }
 function install(){bindProblemCapture();bindOfficialEntryCapture();retireLegacyVisual();ensureShellAuthority();wrapIntelligence();installObserver();return captureHealth()}
-window.HLGB_AUDITOR_HARDENING_9399=V;window.hlgbAuditorHardening9399={version:V,install,captureProblem,captureHealth,retireLegacyVisual,ensureShellAuthority,lockOpenAuthority,wrapIntelligence};
+window.HLGB_AUDITOR_HARDENING_9399=V;window.hlgbAuditorHardening9399={version:V,shellVersion:SHELL_V,install,captureProblem,captureHealth,retireLegacyVisual,ensureShellAuthority,lockOpenAuthority,wrapIntelligence};
 [0,100,300,700,1500,3000,6000,10000,20000,40000,60000].forEach(ms=>setTimeout(install,ms));
 try{if(typeof window.hlgbAfterLogin==='function')window.hlgbAfterLogin(()=>{install();[100,500,1500].forEach(ms=>setTimeout(install,ms))},0)}catch(e){}
 window.addEventListener?.('hlgb:authenticated',()=>{install();[100,500,1500].forEach(ms=>setTimeout(install,ms))});
