@@ -6,7 +6,7 @@ assert(intelligence.includes("HLGB-AUDITOR-INTELLIGENCE-93.98"),'build da inteli
 assert(trace.includes('release-auditor-intelligence-v9396.js'),'trace não carrega inteligência');
 assert(trace.includes('release-auditor-build-marker-v9396.js'),'trace não carrega marcador');
 assert(!trace.includes("s.src='./release-auditor-boot-analysis-v9381.js"),'trace ainda duplica Boot Analysis');
-assert(marker.includes("HLGB_RUNTIME_BUILD_ID='2026-10-24-post-hotfix-auditor-2'"),'marcador inesperado');
+assert(marker.includes("HLGB_RUNTIME_BUILD_ID='2026-10-24-post-hotfix-auditor-3'"),'marcador inesperado');
 const now=Date.now();
 const store={
   hlgb_records_pending_v91:JSON.stringify({modules:{
@@ -61,7 +61,7 @@ assert.strictEqual(cmp.items.find(x=>x.key==='saveDepth').state,'info','profundi
 assert.strictEqual(cmp.items.find(x=>x.key==='saveDuplicateResponsibilities').state,'improved','duplicação de responsabilidade não foi tratada como melhoria');
 assert.strictEqual(cmp.items.find(x=>x.key==='projectionOrphans').state,'improved','redução de órfãos não foi tratada como melhoria');
 assert.strictEqual(cmp.summary.regressed,0,'comparação criou regressão falsa');
-ctx.HLGB_RUNTIME_BUILD_ID='2026-10-24-post-hotfix-auditor-2';
+ctx.HLGB_RUNTIME_BUILD_ID='2026-10-24-post-hotfix-auditor-3';
 api.sessionFreshness().then(f=>{
  assert.strictEqual(f.status,'fresh','build igual deveria estar fresh');
  ctx.HLGB_RUNTIME_BUILD_ID='old-build';return api.sessionFreshness();
