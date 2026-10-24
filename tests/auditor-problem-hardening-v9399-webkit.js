@@ -28,7 +28,12 @@ const {webkit}=require('playwright');
  await page.waitForSelector('#hlgbSafariDownload9368,#hlgbProblemDownload9399',{state:'visible',timeout:30000});
  const health=await page.evaluate(()=>window.hlgbAuditorHardening9399.captureHealth());
  if(health.lastResult!=='ready'||!health.problemAvailable||!health.problemReadyAt||!health.manualDownloadVisible||!health.shellAuthority||!health.openAuthorityLocked||health.legacyVisualPresent)throw new Error('captura/recuperação não ficou pronta '+JSON.stringify(health));
- if(before.problemAvailable===false&&health.problemLoaderAttempts<1&&health.problemReadyAttempts<2)throw new Error('módulo começou indisponível e não houve espera nem recuperação registrada '+JSON.stringify({before,health}));
+ // Se o módulo estava ausente na fotografia imediatamente anterior ao clique, são válidos dois caminhos:
+ // (a) a própria carga normal tardia termina antes de ensureProblemReady (source=existing), ou
+ // (b) o hardening espera/aciona o recovery-loader. Em ambos os casos a captura e o download acima são obrigatórios.
+ const normalLateLoad=before.problemAvailable===false&&health.problemReadySource==='existing'&&health.problemReadyAttempts>=1;
+ const waitedOrRecovered=health.problemLoaderAttempts>=1||health.problemReadyAttempts>=2||health.problemReadySource==='recovery-loader';
+ if(before.problemAvailable===false&&!normalLateLoad&&!waitedOrRecovered)throw new Error('módulo começou indisponível e não houve carga tardia normal, espera nem recuperação registrada '+JSON.stringify({before,health}));
  const selector=await page.evaluate(()=>document.getElementById('hlgbSafariDownload9368')?'#hlgbSafariDownload9368':'#hlgbProblemDownload9399');
  const downloadPromise=page.waitForEvent('download',{timeout:10000});await page.click(selector);const download=await downloadPromise;
  if(!/^HLGB-PROBLEMA-.*\.json$/i.test(download.suggestedFilename()))throw new Error('nome inesperado do diagnóstico: '+download.suggestedFilename());
@@ -39,6 +44,6 @@ const {webkit}=require('playwright');
  if(!intel.health?.shellAuthority||!intel.health?.openAuthorityLocked||!intel.health?.problemAvailable||!intel.health?.problemReadyAt||intel.health?.legacyVisualPresent||intel.health?.openOverrideAttempts<1)throw new Error('Inteligência não incorporou saúde/recuperação/override da captura '+JSON.stringify(intel));
  if(!/Captura de problema/i.test(intel.text)||!/sobrescritas bloqueadas/i.test(intel.text)||!/recuperação/i.test(intel.text))throw new Error('status da captura não apareceu completo na Inteligência '+JSON.stringify(intel));
  if(errors.some(x=>/auditor|9399|smartproblem/i.test(x)))throw new Error('pageerror relacionado ao Auditor: '+errors.join(' | '));
- console.log('AUDITOR_PROBLEM_HARDENING_V9399_WEBKIT_OK',download.suggestedFilename(),JSON.stringify({problemReadySource:health.problemReadySource,problemLoaderAttempts:health.problemLoaderAttempts,problemReadyAttempts:health.problemReadyAttempts,delivery:health.problemDeliveryMode,openOverrideAttempts:health.openOverrideAttempts,removedLegacy:health.removedLegacy}));
+ console.log('AUDITOR_PROBLEM_HARDENING_V9399_WEBKIT_OK',download.suggestedFilename(),JSON.stringify({problemReadySource:health.problemReadySource,problemLoaderAttempts:health.problemLoaderAttempts,problemReadyAttempts:health.problemReadyAttempts,delivery:health.problemDeliveryMode,openOverrideAttempts:health.openOverrideAttempts,removedLegacy:health.removedLegacy,normalLateLoad}));
  await browser.close();
 })().catch(e=>{console.error(e);process.exit(1)});
