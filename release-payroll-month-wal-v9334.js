@@ -1,7 +1,9 @@
 /* HLGB v93.44 — evita WAL infinito da linha mensal consolidada da folha.
    Escopo estrito: hubFinanceEntries com sourceType=payroll_month.
    Trata como redundante apenas quando todos os campos, exceto updatedAt, são idênticos.
-   Preserva a marca do wrapper WAL legado e protege também hlgb955ReliableSave. */
+   Patch 2026-10-24: este módulo não envolve mais hlgbRecordSaveWithRetry.
+   A interceptação de save técnico da folha fica centralizada na autoridade v93.56;
+   v93.44 permanece responsável por normalização/poda do WAL e carregamento das autoridades auxiliares. */
 (function(){
 'use strict';
 const V='93.44',WAL_KEY='hlgb_durable_wal_v1',ARC_KEY='hlgb_durable_wal_archive_v1',DB_NAME='hlgb_durable_wal',STORE='entries',MAX_ARCH=250;
@@ -22,25 +24,9 @@ function localRows(){try{if(typeof db!=='undefined'&&db){db.hubFinanceEntries=Ar
 function normalizeLocalTimestamp(id,canonicalRow){
  try{if(!canonicalRow)return false;const row=localRows().find(x=>sid(x?.id??x?.__hlgbId)===sid(id));if(!row||!sameMeaning(row,canonicalRow))return false;const wanted=canonicalRow.updatedAt||'';if(sid(row.updatedAt)===sid(wanted))return false;row.updatedAt=wanted;try{window.localSaveOnly?.()}catch(e){try{localSaveOnly?.()}catch(_){}}return true}catch(e){return false}
 }
-function noopResult(s){return {applied:true,data:clone(s.data),deleted_at:s.deleted_at||null,revision:+s.revision||1,updated_at:s.updated_at||'',updated_by:s.updated_by||null,hlgbNoop:true,hlgbNoopReason:'payroll-month-updatedAt-only-v9344'}}
-function install(){
- const base=window.hlgbRecordSaveWithRetry;if(typeof base!=='function'||chainHasMarker(base,'__hlgbPayrollMonthWal9334'))return false;
- const wrapped=async function(module,id,data,deleted=false){
-  if(module==='hubFinanceEntries'&&!deleted&&payrollMonth(data)){
-   const s=snapshot(id);
-   if(s&&!s.deleted_at&&s.data&&sameMeaning(data,s.data)){
-    normalizeLocalTimestamp(id,s.data);
-    return noopResult(s);
-   }
-  }
-  return base.apply(this,arguments);
- };
- wrapped.__hlgbPayrollMonthWal9334=true;
- wrapped.__original=base;
- wrapped.__hlgb955Wrapped=true;
- wrapped.__hlgb955Original=base.__hlgb955Original||base.__original||base;
- window.hlgbRecordSaveWithRetry=wrapped;return true;
-}
+/* Compatibilidade: chamadas antigas a install() continuam válidas, mas não criam wrapper.
+   Retorna true somente quando a autoridade final v93.56 já está presente na cadeia. */
+function install(){return chainHasMarker(window.hlgbRecordSaveWithRetry,'__hlgbPayrollWalRace9346')}
 function readWal(){try{const w=JSON.parse(localStorage.getItem(WAL_KEY)||'null');return w&&typeof w==='object'?w:null}catch(e){return null}}
 function writeWal(w){try{const entries=w?.entries&&typeof w.entries==='object'?w.entries:{};w.entries=entries;if(Object.keys(entries).length)localStorage.setItem(WAL_KEY,JSON.stringify(w));else localStorage.removeItem(WAL_KEY);return true}catch(e){return false}}
 function archiveTechnical(key,op){try{if(!op?.opId)return false;let a=JSON.parse(localStorage.getItem(ARC_KEY)||'[]');if(!Array.isArray(a))a=[];const tag=sid(op.opId)+'|'+sid(key);if(!a.some(x=>sid(x?.opId)+'|'+sid(x?.key)===tag)){a.push({...clone(op),key,ackedAt:new Date().toISOString(),applied:true,hlgbTechnicalNoop:true,hlgbNoopReason:'payroll-month-updatedAt-only-v9344'});if(a.length>MAX_ARCH)a=a.slice(-MAX_ARCH);localStorage.setItem(ARC_KEY,JSON.stringify(a))}return true}catch(e){return false}}
@@ -84,8 +70,8 @@ function loadReliableGuard(){
  }catch(e){console.warn('[HLGB v93.44] guard hlgb955ReliableSave indisponível',e);return false}
 }
 function loadReliableGuardAfterParser(){setTimeout(()=>loadReliableGuard(),0)}
-async function boot(){install();stamp();loadWalSingleAuthority();loadReliableGuard();const out=await pruneRedundantPayrollMonthWal();if(out.removed)console.info('[HLGB] v'+V+' removeu WAL mensal redundante da folha',out.keys);setTimeout(()=>{install();stamp();loadWalSingleAuthority();loadReliableGuard();window.hlgbWalConfirmedReplay9333?.run?.('v9344-after-prune',true)},350)}
-install();stamp();loadWalSingleAuthority();loadReliableGuardAfterParser();setTimeout(()=>boot().catch(e=>console.warn('[HLGB v93.44] folha mensal',e)),500);setTimeout(()=>{install();stamp();loadWalSingleAuthority();loadReliableGuard()},1800);setTimeout(()=>{install();stamp();loadWalSingleAuthority();loadReliableGuard()},4500);
-window.hlgbPayrollMonthWal9334={version:V,install,prune:pruneRedundantPayrollMonthWal,sameMeaning,loadWalSingleAuthority,loadReliableGuard};
-console.info('[HLGB] v'+V+' proteção completa da linha mensal da folha ativa');
+async function boot(){stamp();loadWalSingleAuthority();loadReliableGuard();const out=await pruneRedundantPayrollMonthWal();if(out.removed)console.info('[HLGB] v'+V+' removeu WAL mensal redundante da folha',out.keys);setTimeout(()=>{stamp();loadWalSingleAuthority();loadReliableGuard();window.hlgbWalConfirmedReplay9333?.run?.('v9344-after-prune',true)},350)}
+stamp();loadWalSingleAuthority();loadReliableGuardAfterParser();setTimeout(()=>boot().catch(e=>console.warn('[HLGB v93.44] folha mensal',e)),500);setTimeout(()=>{stamp();loadWalSingleAuthority();loadReliableGuard()},1800);setTimeout(()=>{stamp();loadWalSingleAuthority();loadReliableGuard()},4500);
+window.hlgbPayrollMonthWal9334={version:V,install,prune:pruneRedundantPayrollMonthWal,sameMeaning,loadWalSingleAuthority,loadReliableGuard,status:()=>({version:V,recordSaveDelegated:true,finalRecordGuardInstalled:chainHasMarker(window.hlgbRecordSaveWithRetry,'__hlgbPayrollWalRace9346')})};
+console.info('[HLGB] v'+V+' poda WAL mensal ativa · save delegado para v93.56');
 })();
