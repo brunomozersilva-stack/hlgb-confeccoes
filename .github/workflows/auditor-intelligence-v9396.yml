@@ -21,6 +21,7 @@ jobs:
           set -euo pipefail
           node --check release-auditor-build-marker-v9396.js
           node --check release-auditor-intelligence-v9396.js
+          node --check release-auditor-authority-map-v9374.js
           node --check release-auditor-call-trace-v9380.js
           node --check release-sync-guard-v9306.js
           node --check release-payroll-month-wal-v9334.js
@@ -28,8 +29,11 @@ jobs:
           node --check release-payroll-reliable-save-guard-v9344.js
           node --check release-payroll-wal-race-v9346.js
           node --check tests/auditor-intelligence-v9396.js
+          node --check tests/auditor-authority-responsibility-v9398.js
           node --check tests/post-hotfix-save-consolidation-v9398.js
       - name: Testar inteligência incremental
         run: node tests/auditor-intelligence-v9396.js
+      - name: Testar autoridades por responsabilidade
+        run: node tests/auditor-authority-responsibility-v9398.js
       - name: Testar consolidação de save pós-hotfix
         run: node tests/post-hotfix-save-consolidation-v9398.js
