@@ -3,19 +3,20 @@
 'use strict';
 if(window.HLGB_AUDITOR_SHELL_9382)return;
 const V='93.82';
-const KEEP=new Set(['hlgbMultiuserOpen','hlgbMultiuserCapture','hlgbMultiuserDownload','hlgbSmartTest','hlgbSmartProblem','hlgbSmartHistoryBtn','hlgbAuthorityBtn9374','hlgbBootAnalysisBtn9381','hlgbBootDownload9381','hlgbAuthorityDownload9374','hlgbSafariDownload9368','hlgbAuditorIntelligenceBtn9396','hlgbAuditorIntelligenceDownload9396']);
+const KEEP=new Set(['hlgbMultiuserOpen','hlgbMultiuserCapture','hlgbMultiuserDownload','hlgbSmartTest','hlgbSmartProblem','hlgbSmartHistoryBtn','hlgbAuthorityBtn9374','hlgbBootAnalysisBtn9381','hlgbBootDownload9381','hlgbAuthorityDownload9374','hlgbSafariDownload9368','hlgbAuditorIntelligenceBtn9396','hlgbAuditorIntelligenceDownload9396','hlgbAuditorBusinessBtn9401','hlgbAuditorBusinessDownload9401']);
 const esc=v=>String(v??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
 let installed=false;
 const LEGACY_HIDE=['#hlgbAuditorMaxDebug9292','#hlgbAuditorBlackbox9299','#hlgbAuditFull9315','#hlgbAuditCritical9315','#hlgbAuditDownloadFull9315','#hlgbAuditDownloadCritical9315','#hlgbAuditorHubDeep9315'];
-const LEGACY_ACTION_FILTER='.hlgb-auditor-actions:has(#hlgbSmartTest) button:not(#hlgbMultiuserOpen):not(#hlgbSmartTest):not(#hlgbSmartProblem):not(#hlgbSmartHistoryBtn):not(#hlgbAuthorityBtn9374):not(#hlgbBootAnalysisBtn9381):not(#hlgbAuditorIntelligenceBtn9396)';
+const LEGACY_ACTION_FILTER='.hlgb-auditor-actions:has(#hlgbSmartTest) button:not(#hlgbMultiuserOpen):not(#hlgbSmartTest):not(#hlgbSmartProblem):not(#hlgbSmartHistoryBtn):not(#hlgbAuthorityBtn9374):not(#hlgbBootAnalysisBtn9381):not(#hlgbAuditorIntelligenceBtn9396):not(#hlgbAuditorBusinessBtn9401)';
 function retireLegacyActionFilter(){const st=document.getElementById('hlgbAuditorLegacyHide9368');if(!st)return false;const css=LEGACY_HIDE.concat([LEGACY_ACTION_FILTER]).join(',')+'{display:none!important}';if(st.textContent!==css)st.textContent=css;return true}
 function retireLegacyEntryCapture(){const h=window.__hlgbAuditorEntryCapture9368;if(typeof h!=='function')return false;try{document.removeEventListener('click',h,true)}catch(e){}try{delete window.__hlgbAuditorEntryCapture9368}catch(e){window.__hlgbAuditorEntryCapture9368=null}return true}
 function bindIntelligence(){const b=document.getElementById('hlgbAuditorIntelligenceBtn9396');if(!b)return false;b.removeAttribute?.('onclick');b.onclick=()=>window.hlgbAuditorIntelligence9396?.run?.().catch?.(e=>console.warn('[HLGB Auditor 93.96] inteligência',e));b.hidden=false;b.removeAttribute?.('data-hlgb-auditor-hidden');b.style.setProperty?.('display','inline-block','important');b.style.setProperty?.('visibility','visible','important');return true}
+function bindBusiness(){const b=document.getElementById('hlgbAuditorBusinessBtn9401');if(!b)return false;b.removeAttribute?.('onclick');b.onclick=()=>window.hlgbAuditorBusiness9401?.runAndRender?.().catch?.(e=>console.warn('[HLGB Auditor 94.01] expansão',e));b.hidden=false;b.removeAttribute?.('data-hlgb-auditor-hidden');b.style.setProperty?.('display','inline-block','important');b.style.setProperty?.('visibility','visible','important');return true}
 function ensureStyle(){
  retireLegacyActionFilter();
  let st=document.getElementById('hlgbAuditorShellStyle9382');
  if(!st){st=document.createElement('style');st.id='hlgbAuditorShellStyle9382';(document.head||document.documentElement).appendChild(st)}
- st.textContent=['#hlgbMultiuserOpen','#hlgbMultiuserCapture','#hlgbMultiuserDownload','#hlgbSmartTest','#hlgbSmartProblem','#hlgbSmartHistoryBtn','#hlgbAuthorityBtn9374','#hlgbBootAnalysisBtn9381','#hlgbBootDownload9381','#hlgbAuthorityDownload9374','#hlgbSafariDownload9368','#hlgbAuditorIntelligenceBtn9396','#hlgbAuditorIntelligenceDownload9396'].map(x=>x+'{display:inline-block!important;visibility:visible!important}').join('');
+ st.textContent=['#hlgbMultiuserOpen','#hlgbMultiuserCapture','#hlgbMultiuserDownload','#hlgbSmartTest','#hlgbSmartProblem','#hlgbSmartHistoryBtn','#hlgbAuthorityBtn9374','#hlgbBootAnalysisBtn9381','#hlgbBootDownload9381','#hlgbAuthorityDownload9374','#hlgbSafariDownload9368','#hlgbAuditorIntelligenceBtn9396','#hlgbAuditorIntelligenceDownload9396','#hlgbAuditorBusinessBtn9401','#hlgbAuditorBusinessDownload9401'].map(x=>x+'{display:inline-block!important;visibility:visible!important}').join('');
 }
 function smartStatus(){
  try{
@@ -117,6 +118,7 @@ function currentBody(){
  '<button id="hlgbAuthorityBtn9374" class="secondary" type="button" onclick="hlgbAuditorAuthorityScan9374()">🧭 Arquitetura / versões</button>'+
  '<button id="hlgbBootAnalysisBtn9381" class="secondary" type="button" onclick="hlgbAuditorBootAnalysis9381.last=hlgbAuditorBootAnalysis9381.render()">🚦 Boot / cargas</button>'+
  '<button id="hlgbAuditorIntelligenceBtn9396" class="secondary" type="button">🧠 Inteligência</button>'+
+ '<button id="hlgbAuditorBusinessBtn9401" class="secondary" type="button">🧩 Expansão v94</button>'+
  '</div><div id="hlgbAuditorResult"></div><div id="hlgbSmartHistory" style="display:none"></div><button type="button" class="secondary modalSave">Fechar</button>';
 }
 function root(){const s=document.getElementById('hlgbSmartStatus');return s?.closest?.('[role="dialog"],.modal,.modal-content,.modalCard,.modal-card,.dialog')||s?.parentElement?.parentElement||s?.parentElement||null}
@@ -131,6 +133,7 @@ function normalize(){
   if(keep){el.removeAttribute?.('data-hlgb-auditor-hidden');el.style.setProperty?.('display','inline-block','important');el.style.setProperty?.('visibility','visible','important')}else el.setAttribute?.('data-hlgb-auditor-hidden','1');
  }
  bindIntelligence();
+ bindBusiness();
  return true;
 }
 function openCurrent(){
@@ -139,6 +142,7 @@ function openCurrent(){
  ensureStyle();
  window.openModal('🧪 Auditor / Testador HLGB · v'+V,currentBody(),()=>window.closeModal?.());
  try{bindIntelligence()}catch(e){}
+ try{bindBusiness()}catch(e){}
  try{window.hlgbAuditorAuthority9374?.decorate?.()}catch(e){}
  try{window.hlgbAuditorBootAnalysis9381?.decorate?.()}catch(e){}
  [0,30,120,350,700].forEach(ms=>setTimeout(normalize,ms));
