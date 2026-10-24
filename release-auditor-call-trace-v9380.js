@@ -2,14 +2,22 @@
 (function(){
 'use strict';
 if(window.HLGB_AUDITOR_CALL_TRACE_9380)return;
-const V='93.80',BUILD='2026.10.23-trace-v3',MAX=420,events=[],wrapped=new Map(),startWall=Date.now();let seq=0;
+const V='93.80',BUILD='2026.10.23-trace-v4',MAX=420,events=[],wrapped=new Map(),startWall=Date.now();let seq=0;
 const now=()=>{try{return performance.now()}catch(e){return Date.now()-startWall}};
 const wall=()=>new Date().toISOString();
 const sid=v=>String(v??'');
 function stack(){try{return sid(new Error().stack).split('\n').slice(2,9).join('\n').slice(0,2200)}catch(e){return ''}}
 function activePage(){try{return document.querySelector('.page.active')?.id||''}catch(e){return ''}}
 function appVisible(){try{const a=document.getElementById('appShell');if(!a)return false;const s=getComputedStyle(a);return s.display!=='none'&&s.visibility!=='hidden'&&s.opacity!=='0'&&a.getClientRects().length>0}catch(e){return false}}
-function mark(type,name,data={}){const row={seq:++seq,type,name,monoMs:+now().toFixed(2),wallAt:wall(),authReady:window.__HLGB_AUTH_READY===true,activePage:activePage(),appVisible:appVisible(),data};events.push(row);if(events.length>MAX)events.splice(0,events.length-MAX);try{window.hlgbBootTimeline9379?.mark?.('trace:'+type,{name,...data,traceSeq:row.seq,authReady:row.authReady,activePage:row.activePage,appVisible:row.appVisible})}catch(e){}return row}
+function sessionRestoring(){
+ try{
+  const boot=typeof cloudBootstrapping!=='undefined'?cloudBootstrapping:window.cloudBootstrapping;
+  const token=typeof cloudAccessToken!=='undefined'?cloudAccessToken:window.cloudAccessToken;
+  const user=typeof cloudUser!=='undefined'?cloudUser:window.cloudUser;
+  return window.__HLGB_AUTH_READY!==true&&boot===true&&!!token&&!!(user&&(user.id||user.email));
+ }catch(e){return false}
+}
+function mark(type,name,data={}){const row={seq:++seq,type,name,monoMs:+now().toFixed(2),wallAt:wall(),authReady:window.__HLGB_AUTH_READY===true,sessionRestoring:sessionRestoring(),activePage:activePage(),appVisible:appVisible(),data};events.push(row);if(events.length>MAX)events.splice(0,events.length-MAX);try{window.hlgbBootTimeline9379?.mark?.('trace:'+type,{name,...data,traceSeq:row.seq,authReady:row.authReady,sessionRestoring:row.sessionRestoring,activePage:row.activePage,appVisible:row.appVisible})}catch(e){}return row}
 const TARGETS={
  hlgbRecordLoadBundle:'load',hlgbLoadNormalizedCore:'load',hlgbEnsureRecordsOnlineAfterLogin:'load',hlgb942FullCloudRefresh:'load',fullSync:'load',hlgb942Boot:'boot',boot9199:'boot',
  renderAll:'render',renderHubFinance:'render',organizeHub:'render',renderProduction:'render',renderProductionList:'render',renderProductionBoard:'render',renderProjection:'render',renderDashboard:'render',syncFinalizedCutsToProduction:'render'
@@ -30,12 +38,14 @@ function wrapName(name,kind){
  const cur=window[name];if(typeof cur!=='function')return false;
  if(chainHasMarker(cur,'__hlgbCallTrace9380')){wrapped.set(name,cur);return true;}
  const w=function(){
-  const st=stack(),t0=now();mark(kind+':start',name,{stack:st,argsCount:arguments.length});
+  const st=stack(),t0=now();
+  const blockedByEarlyGate=window.__HLGB_AUTH_READY!==true&&name==='syncFinalizedCutsToProduction'&&chainHasMarker(cur,'__hlgb9306EarlyBoot');
+  mark(kind+':start',name,{stack:st,argsCount:arguments.length,blockedByEarlyGate});
   let out;
-  try{out=cur.apply(this,arguments)}catch(err){mark(kind+':throw',name,{durationMs:+(now()-t0).toFixed(2),error:sid(err?.message||err)});throw err}
-  const sync=+(now()-t0).toFixed(2);mark(kind+':return',name,{syncDurationMs:sync,promise:!!out&&typeof out.then==='function'});
+  try{out=cur.apply(this,arguments)}catch(err){mark(kind+':throw',name,{durationMs:+(now()-t0).toFixed(2),error:sid(err?.message||err),blockedByEarlyGate});throw err}
+  const sync=+(now()-t0).toFixed(2);mark(kind+':return',name,{syncDurationMs:sync,promise:!!out&&typeof out.then==='function',blockedByEarlyGate});
   if(out&&typeof out.then==='function'){
-   Promise.resolve(out).then(()=>mark(kind+':resolve',name,{totalDurationMs:+(now()-t0).toFixed(2)}),err=>mark(kind+':reject',name,{totalDurationMs:+(now()-t0).toFixed(2),error:sid(err?.message||err)}));
+   Promise.resolve(out).then(()=>mark(kind+':resolve',name,{totalDurationMs:+(now()-t0).toFixed(2),blockedByEarlyGate}),err=>mark(kind+':reject',name,{totalDurationMs:+(now()-t0).toFixed(2),error:sid(err?.message||err),blockedByEarlyGate}));
   }
   return out;
  };
