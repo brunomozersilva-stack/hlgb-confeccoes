@@ -5,7 +5,13 @@ const {webkit}=require('playwright');
  const errors=[];page.on('pageerror',e=>errors.push(String(e.message||e)));
  await page.goto('http://127.0.0.1:4173/app-stable3.html',{waitUntil:'domcontentloaded',timeout:60000});
  await page.waitForFunction(()=>!!document.getElementById('loginScreen')&&!!document.getElementById('appShell')&&window.HLGB_AUDITOR_BOOT_TIMELINE_9379==='93.79'&&window.HLGB_AUDITOR_CALL_TRACE_9380==='93.80'&&window.HLGB_AUDITOR_BOOT_ANALYSIS_9381==='93.81',null,{timeout:60000});
- await page.evaluate(()=>{window.__HLGB_AUTH_READY=true;window.dispatchEvent(new Event('hlgb:authenticated'))});
+ /* Este cenário testa exclusivamente o Auditor de boot. O comportamento do gate v94.07
+    é coberto em login-3d-v9407-webkit.js; aqui simulamos que o usuário já confirmou Entrar. */
+ await page.evaluate(()=>{
+   window.hlgbLoginConfirmGate9407?.confirm?.();
+   const app=document.getElementById('appShell');if(app)app.style.setProperty('display','block','important');
+   window.__HLGB_AUTH_READY=true;window.dispatchEvent(new Event('hlgb:authenticated'));
+ });
  await page.waitForFunction(()=>!!window.hlgbInternalAuditor&&!!window.hlgbAuditorProduction9369?.active&&!!document.getElementById('hlgbAuditorNavBtn'),null,{timeout:60000});
  /* A autoridade de gravação v93.06 é instalada de forma tardia após login.
     Espere esse estado antes de medir se o painel de boot altera funções críticas. */
@@ -43,6 +49,6 @@ const {webkit}=require('playwright');
  if(!out.saveSame||!out.cloudSame)throw new Error('diagnóstico de boot alterou função crítica');
  if(!/Boot \/ cargas/.test(out.button)||!/Boot \/ cargas \/ renders/.test(out.panel))throw new Error('interface real do boot não apareceu');
  if(errors.some(x=>/9381|boot analysis|auditor/i.test(x)))throw new Error('pageerror relacionado ao Auditor: '+errors.join(' | '));
- console.log('AUDITOR_BOOT_V9381_WEBKIT_OK',{status:out.report.status,summary:out.report.summary});
+ console.log('AUDITOR_BOOT_V9381_WEBKIT_OK',{status:out.report.status,summary:out.report.summary,loginGateConfirmed:true});
  await browser.close();
 })().catch(e=>{console.error(e);process.exit(1)});
