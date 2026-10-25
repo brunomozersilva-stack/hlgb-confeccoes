@@ -4,7 +4,7 @@
 'use strict';
 const V='94.05',THEME_KEY='byhagatha_theme_v1';
 if(window.HLGB_UI_ACTIONS_9402===V){try{window.hlgbUiActions9402?.install?.()}catch(e){}return}
-let intelligenceBusy=false,intelligenceLoader=null,refreshBusy=false;
+let intelligenceBusy=false,intelligenceLoader=null,refreshBusy=false,intensityObserver=null,intensitySyncing=false;
 const esc=v=>String(v??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
 const clamp100=v=>Math.max(0,Math.min(100,Math.round(Number(v)||0)));
 function resultPanel(html){const out=document.getElementById('hlgbAuditorResult');if(out)out.innerHTML='<div class="panel">'+html+'</div>';return out}
@@ -30,8 +30,9 @@ function ensureIntensityStyle(){let st=document.getElementById('byhPhotoIntensit
 @media(max-width:900px){#appShell::before{left:0!important;background-position:70% center!important;background-size:auto 100%!important}#appShell::after{left:0!important}}
 @media print{#appShell::after{display:none!important}}
 `; (document.head||document.documentElement).appendChild(st);return st}
-function syncPhotoIntensity(value){ensureIntensityStyle();const s=readTheme(),op=document.getElementById('byhThemeOpacity');let n=value;if(n==null){if(Number.isFinite(Number(s.photoIntensity)))n=Number(s.photoIntensity);else if(op)n=Number(op.value);else n=Number(s.photoOpacity??18)}n=clamp100(n);document.documentElement.style.setProperty('--byh-photo-visual-opacity',String(n/100));if(op){op.max='100';op.value=String(n)}const inline=document.getElementById('byhThemeOpacityValue');if(inline)inline.textContent=n+'%';const out=document.getElementById('byhThemeOpacityReadout');if(out)out.innerHTML='<span>Intensidade aplicada na foto</span><strong>'+n+'%</strong>';return n}
-function intensityInput(e){const op=e.target?.closest?.('#byhThemeOpacity');if(!op)return;/* este listener roda na captura e é a autoridade única do slider; impede o listener legado de limitar novamente a 45 */e.stopImmediatePropagation();const n=clamp100(op.value);writeIntensity(n);syncPhotoIntensity(n);[40,160,500].forEach(ms=>setTimeout(()=>{const s=readTheme();if(Number.isFinite(Number(s.photoIntensity)))syncPhotoIntensity(s.photoIntensity)},ms))}
+function syncPhotoIntensity(value){ensureIntensityStyle();const s=readTheme(),op=document.getElementById('byhThemeOpacity');let n=value;if(n==null){if(Number.isFinite(Number(s.photoIntensity)))n=Number(s.photoIntensity);else if(op)n=Number(op.value);else n=Number(s.photoOpacity??18)}n=clamp100(n);intensitySyncing=true;try{document.documentElement.style.setProperty('--byh-photo-visual-opacity',String(n/100));if(op){op.max='100';op.value=String(n)}const inline=document.getElementById('byhThemeOpacityValue');if(inline)inline.textContent=n+'%';const out=document.getElementById('byhThemeOpacityReadout');if(out)out.innerHTML='<span>Intensidade aplicada na foto</span><strong>'+n+'%</strong>'}finally{queueMicrotask(()=>{intensitySyncing=false})}return n}
+function intensityInput(e){const op=e.target?.closest?.('#byhThemeOpacity');if(!op)return;e.stopImmediatePropagation();const n=clamp100(op.value);writeIntensity(n);syncPhotoIntensity(n);[40,160,500,1000].forEach(ms=>setTimeout(()=>{const s=readTheme();if(Number.isFinite(Number(s.photoIntensity)))syncPhotoIntensity(s.photoIntensity)},ms))}
+function ensureIntensityObserver(){if(intensityObserver)return intensityObserver;const root=document.body||document.documentElement;if(!root)return null;intensityObserver=new MutationObserver(()=>{if(intensitySyncing)return;const s=readTheme();if(!Number.isFinite(Number(s.photoIntensity)))return;const n=clamp100(s.photoIntensity),op=document.getElementById('byhThemeOpacity'),inline=document.getElementById('byhThemeOpacityValue'),out=document.getElementById('byhThemeOpacityReadout');if(!op)return;const wrong=op.max!=='100'||op.value!==String(n)||(inline&&!String(inline.textContent||'').includes(n+'%'))||(out&&!String(out.textContent||'').includes(n+'%'));if(wrong)syncPhotoIntensity(n)});intensityObserver.observe(root,{subtree:true,childList:true,characterData:true,attributes:true,attributeFilter:['max','value']});return intensityObserver}
 
 /* Fotos de produto: no legado a compressão começava depois de saveProductFromForm e chamava persistDb
    em paralelo ao save direto. Aqui a foto é preparada antes e entra no mesmo objeto enviado pelo save direto. */
@@ -47,7 +48,7 @@ function installProductPhotoSave(){const base=cleanProductBase();if(typeof base!
 async function protectEarlyProductSave(e){const b=e.target?.closest?.('#productDirectSaveBtn');if(!b||b.dataset.hlgbPhotoReplay==='1')return;const input=document.getElementById('fproductPhotos'),state=input?.__hlgbPhotoPrep9405;if(!state?.busy)return;e.preventDefault();e.stopImmediatePropagation();await state.promise;if(state.error)return;b.dataset.hlgbPhotoReplay='1';try{b.click()}finally{delete b.dataset.hlgbPhotoReplay}}
 
 function clickHandler(e){const intelligence=e.target?.closest?.('#hlgbAuditorIntelligenceBtn9396');if(intelligence){e.preventDefault();e.stopImmediatePropagation();runIntelligence(intelligence);return}const b=e.target?.closest?.('#hlgbDiagnosticsCenter button');if(b&&/atualizar/i.test(String(b.textContent||''))){e.preventDefault();e.stopImmediatePropagation();refreshCenter(b)}}
-function install(){ensureIntensityStyle();syncPhotoIntensity();installProductPhotoSave();return true}
+function install(){ensureIntensityStyle();syncPhotoIntensity();ensureIntensityObserver();installProductPhotoSave();return true}
 document.addEventListener('input',intensityInput,true);
 document.addEventListener('change',productPhotoChange,true);
 document.addEventListener('click',protectEarlyProductSave,true);
@@ -55,6 +56,6 @@ document.addEventListener('click',clickHandler,true);
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',install,{once:true});else install();
 window.addEventListener?.('pageshow',()=>setTimeout(install,0));
 [250,900,1800].forEach(ms=>setTimeout(install,ms));
-window.HLGB_UI_ACTIONS_9402=V;window.hlgbUiActions9402={version:V,runIntelligence,refreshCenter,install,syncPhotoIntensity,prepareProductPhotos,installProductPhotoSave,productPhotos:{version:V,mode:'prepare-before-existing-save',addsSaveAuthority:false}};
+window.HLGB_UI_ACTIONS_9402=V;window.hlgbUiActions9402={version:V,runIntelligence,refreshCenter,install,syncPhotoIntensity,prepareProductPhotos,installProductPhotoSave,ensureIntensityObserver,productPhotos:{version:V,mode:'prepare-before-existing-save',addsSaveAuthority:false}};
 console.info('[HLGB] ações centrais de UI v'+V+' ativas');
 })();
