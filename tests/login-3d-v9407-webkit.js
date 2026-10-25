@@ -1,0 +1,44 @@
+const {webkit}=require('playwright');
+(async()=>{
+ const browser=await webkit.launch({headless:true});
+ const page=await browser.newPage({viewport:{width:1280,height:900}});
+ const errors=[];page.on('pageerror',e=>errors.push(String(e.message||e)));
+ await page.goto('http://127.0.0.1:4173/app-stable3.html',{waitUntil:'domcontentloaded',timeout:60000});
+ await page.waitForFunction(()=>!!document.getElementById('loginScreen')&&!!document.getElementById('appShell')&&!!window.hlgbLoginConfirmGate9407,null,{timeout:60000});
+ const blocked=await page.evaluate(()=>{
+  const l=document.getElementById('loginScreen'),a=document.getElementById('appShell'),s=document.getElementById('sessionLoader');
+  l.style.display='none';a.style.display='block';if(s)s.style.display='block';
+  return {login:getComputedStyle(l).display,app:getComputedStyle(a).display,loader:s?getComputedStyle(s).display:null,gate:window.hlgbLoginConfirmGate9407.status()};
+ });
+ if(blocked.login==='none'||blocked.app!=='none')throw new Error('Sessão restaurada abriu sem gesto: '+JSON.stringify(blocked));
+ const enter=page.locator('#loginScreen button').filter({hasText:/Entrar/i}).first();
+ if(await enter.count()===0)throw new Error('Botão Entrar não localizado');
+ await enter.click();
+ await page.waitForFunction(()=>window.hlgbLoginConfirmGate9407?.status?.().confirmed===true,null,{timeout:5000});
+ const released=await page.evaluate(()=>({login:getComputedStyle(document.getElementById('loginScreen')).display,app:getComputedStyle(document.getElementById('appShell')).display,gate:window.hlgbLoginConfirmGate9407.status()}));
+ if(released.app==='none')throw new Error('Gesto explícito não liberou sessão já restaurada: '+JSON.stringify(released));
+ await page.reload({waitUntil:'domcontentloaded',timeout:60000});
+ await page.waitForFunction(()=>!!window.hlgbLoginConfirmGate9407&&!!document.getElementById('loginScreen')&&!!document.getElementById('appShell'),null,{timeout:60000});
+ const reset=await page.evaluate(()=>window.hlgbLoginConfirmGate9407.status());
+ if(reset.confirmed)throw new Error('Gate persistiu entre aberturas; deveria exigir novo Enter/clique');
+ await page.waitForFunction(()=>!!window.hlgbLogin3dBaseline9407&&!!window.save3dSettings9400?.__hlgb3dFreshBase9407&&!!window.hlgbBusinessExpansion9400,null,{timeout:60000});
+ const result=await page.evaluate(async()=>{
+  document.documentElement.classList.add('hlgb-login-confirmed-9407');
+  const order=[];let saved=null,loadOpts=null;
+  window.alert=()=>{};
+  window.cloudEnsureFreshSession=async()=>{order.push('session');return true};
+  window.hlgbRecordLoadBundle=async opts=>{order.push('load');loadOpts=opts;return {rows:[{module:'printer3dSettings',entity_id:'settings-main'}]}};
+  window.hlgbRecordSaveWithRetry=async(module,id,data)=>{order.push('save');saved={module,id,data};return {applied:true,data:{...data},revision:2,updated_at:new Date().toISOString()}};
+  window.hlgbBusinessExpansion9400.render3dHome();
+  const input=document.getElementById('p3sFil9400');if(!input)throw new Error('Campo de filamento não renderizou');input.value='123.45';
+  await window.save3dSettings9400();
+  return {order,saved,loadOpts,status:window.hlgbLogin3dBaseline9407.status()};
+ });
+ const li=result.order.indexOf('load'),si=result.order.indexOf('save');
+ if(li<0||si<0||li>si)throw new Error('3D salvou antes de atualizar a base: '+JSON.stringify(result));
+ if(result.loadOpts?.preserveLocal!==true||result.loadOpts?.since!==null)throw new Error('Carga 3D não preserva edição local/base completa: '+JSON.stringify(result.loadOpts));
+ if(Number(result.saved?.data?.filamentPriceKg)!==123.45)throw new Error('Valor digitado não chegou ao save protegido: '+JSON.stringify(result.saved));
+ if(errors.length)throw new Error('Erros WebKit: '+errors.join(' | '));
+ console.log('LOGIN_3D_V9407_WEBKIT_OK',{blocked,released,reset,order:result.order,value:result.saved.data.filamentPriceKg});
+ await browser.close();
+})().catch(e=>{console.error(e);process.exit(1)});
