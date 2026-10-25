@@ -3,7 +3,8 @@
    O reparo só ocorre quando o snapshot prova que o registro remoto já existia antes da pendência local. */
 (function(){
 'use strict';
-const V='94.08',BUILD='2026-10-25-3d-missing-wal-baseline-repair-v9408';
+const V='94.08',BUILD='2026-10-25-3d-missing-wal-baseline-repair-v9408-storage-direct';
+const WAL_KEY='hlgb_durable_wal_v1',WAL_DB='hlgb_durable_wal',WAL_STORE='entries';
 const sid=v=>String(v??'');
 const clone=v=>{try{return structuredClone(v)}catch(e){try{return JSON.parse(JSON.stringify(v))}catch(_){return v}}};
 let installs=0,refreshes=0,repairs=0,lastRefresh='',lastError='',lastResult=null,lastRepair=null;
@@ -11,12 +12,12 @@ function loadBundleFn(){try{if(typeof hlgbRecordLoadBundle==='function')return h
 function sessionFn(){try{if(typeof cloudEnsureFreshSession==='function')return cloudEnsureFreshSession}catch(e){}return window.cloudEnsureFreshSession}
 function snapshotFor(module,id){try{return hlgbRecordSnapshots?.[module]?.get?.(sid(id))||null}catch(e){try{return window.hlgbRecordSnapshots?.[module]?.get?.(sid(id))||null}catch(_){return null}}}
 function snapshot(){return snapshotFor('printer3dSettings','settings-main')}
-function fn(name){try{const v=window[name];if(typeof v==='function')return v}catch(e){}try{return eval('typeof '+name+'==="function"?'+name+':null')}catch(e){return null}}
+function readWal(){try{const x=JSON.parse(localStorage.getItem(WAL_KEY)||'null');if(x&&x.entries&&typeof x.entries==='object')return x}catch(e){}return {schema:1,updatedAt:new Date().toISOString(),entries:{}}}
+function writeWal(w){w.schema=1;w.updatedAt=new Date().toISOString();localStorage.setItem(WAL_KEY,JSON.stringify(w));return w}
+function openWalDb(){return new Promise((resolve,reject)=>{try{const r=indexedDB.open(WAL_DB,1);r.onupgradeneeded=()=>{const d=r.result;if(!d.objectStoreNames.contains(WAL_STORE))d.createObjectStore(WAL_STORE,{keyPath:'key'})};r.onsuccess=()=>resolve(r.result);r.onerror=()=>reject(r.error||new Error('IndexedDB indisponível'))}catch(e){reject(e)}})}
+async function putWalDb(entry){const d=await openWalDb();try{await new Promise((resolve,reject)=>{const tx=d.transaction(WAL_STORE,'readwrite');tx.objectStore(WAL_STORE).put(clone(entry));tx.oncomplete=()=>resolve();tx.onerror=()=>reject(tx.error||new Error('Falha ao atualizar WAL no IndexedDB'));tx.onabort=()=>reject(tx.error||new Error('Atualização da WAL abortada'))})}finally{try{d.close()}catch(e){}}}
 async function repairMissingWalBaseline(module,id){
- const key=sid(module)+'|'+sid(id),read=fn('read955'),write=fn('write955'),put=fn('idbPut955'),update=fn('update955');
- const s=snapshotFor(module,id);
- if(typeof read!=='function'||typeof write!=='function'){lastRepair={key,repaired:false,reason:'wal-api-unavailable'};return lastRepair}
- const w=read(),cur=w?.entries?.[key];
+ const key=sid(module)+'|'+sid(id),s=snapshotFor(module,id),w=readWal(),cur=w?.entries?.[key];
  if(!cur){lastRepair={key,repaired:false,reason:'no-pending'};return lastRepair}
  if(cur.baseData!==null&&cur.baseData!==undefined){lastRepair={key,repaired:false,reason:'baseline-present'};return lastRepair}
  if(!s||s.deleted_at||s.data===null||s.data===undefined){lastRepair={key,repaired:false,reason:'snapshot-missing'};return lastRepair}
@@ -30,9 +31,13 @@ async function repairMissingWalBaseline(module,id){
  if(remoteUpdated>pendingCreated){
   lastRepair={key,repaired:false,reason:'remote-newer-than-pending',pendingCreated:sid(cur.createdAt),remoteUpdated:sid(s.updated_at||s.updatedAt)};return lastRepair
  }
- const next={...cur,baseData:clone(s.data),baseUpdatedAt:sid(s.updated_at||s.updatedAt),updatedAt:new Date().toISOString(),baselineRepairVersion:V,baselineRepairedAt:new Date().toISOString()};
- w.entries[key]=next;write(w);if(typeof put==='function')await put(next);if(typeof update==='function')update();
- repairs++;lastRepair={key,repaired:true,reason:'remote-predates-pending',pendingCreated:sid(cur.createdAt),remoteUpdated:sid(s.updated_at||s.updatedAt),attempts:Number(cur.attempts||0),state:sid(cur.state||'')};
+ const repairedAt=new Date().toISOString();
+ const next={...cur,baseData:clone(s.data),baseUpdatedAt:sid(s.updated_at||s.updatedAt),updatedAt:repairedAt,baselineRepairVersion:V,baselineRepairedAt:repairedAt};
+ /* A WAL v91.59 vive dentro de um IIFE; seus helpers não são globais. Atualizamos diretamente
+    os dois armazenamentos que ela própria usa, com o mesmo registro, para impedir que um deles
+    restaure novamente a versão sem baseline. */
+ w.entries[key]=next;writeWal(w);await putWalDb(next);
+ repairs++;lastRepair={key,repaired:true,reason:'remote-predates-pending',pendingCreated:sid(cur.createdAt),remoteUpdated:sid(s.updated_at||s.updatedAt),attempts:Number(cur.attempts||0),state:sid(cur.state||''),storage:'localStorage+indexedDB'};
  return lastRepair;
 }
 async function refresh3dBase(){
