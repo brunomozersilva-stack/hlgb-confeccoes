@@ -1,0 +1,52 @@
+name: HLGB WhatsApp v94.03
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'release-whatsapp-pilot-v9250.js'
+      - 'supabase/functions/hlgb-whatsapp-api/**'
+      - 'supabase/functions/hlgb-whatsapp-webhook/**'
+      - 'tests/whatsapp-integration-v9403*'
+      - '.github/workflows/whatsapp-integration-v9403.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  logic:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Validar sintaxe e segurança do módulo
+        run: |
+          node --check release-whatsapp-pilot-v9250.js
+          node tests/whatsapp-integration-v9403.js
+  webkit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Instalar Playwright WebKit
+        run: |
+          npm init -y >/dev/null 2>&1
+          npm install playwright@1.55.0 --no-save
+          npx playwright install --with-deps webkit
+      - name: Iniciar servidor local
+        run: |
+          python3 -m http.server 4173 >/tmp/hlgb-http.log 2>&1 &
+          sleep 2
+      - name: Testar painel e Auditor no WebKit
+        run: node tests/whatsapp-integration-v9403-webkit.js
+      - name: Publicar captura visual
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: hlgb-whatsapp-v9403-webkit
+          path: /tmp/hlgb-whatsapp-v9403-webkit.png
+          if-no-files-found: warn
