@@ -7,23 +7,28 @@ const {webkit}=require('playwright');
  await page.waitForFunction(()=>!!document.getElementById('loginScreen')&&!!document.getElementById('appShell')&&!!window.hlgbLoginConfirmGate9407,null,{timeout:60000});
  const blocked=await page.evaluate(()=>{
   const l=document.getElementById('loginScreen'),a=document.getElementById('appShell'),s=document.getElementById('sessionLoader');
+  /* Simula o que o sistema real faz quando recupera uma sessão válida por baixo do gate. */
+  window.__HLGB_AUTH_READY=true;window.dispatchEvent(new Event('hlgb:authenticated'));
   l.style.display='none';a.style.display='block';if(s)s.style.display='block';
   return {login:getComputedStyle(l).display,app:getComputedStyle(a).display,loader:s?getComputedStyle(s).display:null,gate:window.hlgbLoginConfirmGate9407.status()};
  });
  if(blocked.login==='none'||blocked.app!=='none')throw new Error('Sessão restaurada abriu sem gesto: '+JSON.stringify(blocked));
+ if(!blocked.gate.authenticatedObserved&&!blocked.gate.authReady)throw new Error('Gate não reconheceu autenticação restaurada: '+JSON.stringify(blocked));
  const enter=page.locator('#loginScreen button').filter({hasText:/Entrar/i}).first();
  if(await enter.count()===0)throw new Error('Botão Entrar não localizado');
  await enter.click();
  await page.waitForFunction(()=>window.hlgbLoginConfirmGate9407?.status?.().confirmed===true,null,{timeout:5000});
+ await page.waitForFunction(()=>getComputedStyle(document.getElementById('appShell')).display!=='none',null,{timeout:5000});
  const released=await page.evaluate(()=>({login:getComputedStyle(document.getElementById('loginScreen')).display,app:getComputedStyle(document.getElementById('appShell')).display,gate:window.hlgbLoginConfirmGate9407.status()}));
- if(released.app==='none')throw new Error('Gesto explícito não liberou sessão já restaurada: '+JSON.stringify(released));
+ if(released.app==='none'||released.login!=='none')throw new Error('Gesto explícito não liberou sessão já autenticada: '+JSON.stringify(released));
+ if(!released.gate.releaseReason)throw new Error('Gate não registrou razão segura para liberar sessão: '+JSON.stringify(released));
  await page.reload({waitUntil:'domcontentloaded',timeout:60000});
  await page.waitForFunction(()=>!!window.hlgbLoginConfirmGate9407&&!!document.getElementById('loginScreen')&&!!document.getElementById('appShell'),null,{timeout:60000});
  const reset=await page.evaluate(()=>window.hlgbLoginConfirmGate9407.status());
  if(reset.confirmed)throw new Error('Gate persistiu entre aberturas; deveria exigir novo Enter/clique');
  await page.waitForFunction(()=>!!window.hlgbLogin3dBaseline9407&&!!window.save3dSettings9400?.__hlgb3dFreshBase9407&&!!window.hlgbBusinessExpansion9400,null,{timeout:60000});
  const result=await page.evaluate(async()=>{
-  document.documentElement.classList.add('hlgb-login-confirmed-9407');
+  window.hlgbLoginConfirmGate9407.confirm();
   const order=[];let saved=null,loadOpts=null;
   window.alert=()=>{};
   window.cloudEnsureFreshSession=async()=>{order.push('session');return true};
