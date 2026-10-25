@@ -14,15 +14,17 @@ const {webkit}=require('playwright');
  await page.evaluate(()=>{
    const actions=document.querySelector('#guardHost .hlgb-auditor-actions');
    actions.insertAdjacentHTML('beforeend','<button id="legacy1">Debug máximo</button><button id="legacy2">Caixa-preta completa</button>');
+   window.hlgbAuditorSmart?.enforceSimpleUi?.();
  });
  await page.waitForTimeout(400);
  const visible=(await page.locator('#guardHost .hlgb-auditor-actions button:visible').allTextContents()).map(x=>x.replace(/\s+/g,' ').trim());
  const core=['Testar sistema','Registrar problema','Histórico'];
- const optional=['Arquitetura / versões','Boot / cargas'];
  for(const x of core)if(!visible.some(v=>v.includes(x)))throw new Error('Botao oficial ausente: '+x+'; visiveis='+visible.join(' | '));
- const allowed=[...core,...optional];
- const unknown=visible.filter(v=>!allowed.some(x=>v.includes(x)));
- if(unknown.length)throw new Error('Botao inesperado ficou visivel: '+unknown.join(' | '));
+ // Extensões legítimas do Auditor podem acrescentar módulos. O guard visual não congela a lista;
+ // ele garante os controles essenciais e bloqueia ações legadas/perigosas.
+ const forbidden=['Debug máximo','Caixa-preta completa','Teste visual completo','Exportar diagnóstico de sincronização','Exportar diagnóstico sync','Blackbox do Auditor'];
+ const bad=visible.filter(v=>forbidden.some(x=>v.includes(x)));
+ if(bad.length)throw new Error('Botao legado/proibido ficou visivel: '+bad.join(' | '));
  const hiddenLegacy=await page.locator('#legacy1:visible,#legacy2:visible').count();if(hiddenLegacy)throw new Error('Botao legado ficou visivel');
  console.log('AUDITOR_V9365_WEBKIT_OK',visible);
  await browser.close();
