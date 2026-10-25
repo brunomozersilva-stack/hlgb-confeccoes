@@ -14,10 +14,12 @@ const {webkit}=require('playwright');
  await page.waitForSelector('#entry9366Host #hlgbSmartStatus',{timeout:10000});
  const buttons=(await page.locator('#entry9366Host .hlgb-auditor-actions button:visible').allTextContents()).map(x=>x.replace(/\s+/g,' ').trim());
  const core=['Testar sistema','Registrar problema','Histórico'];
- const optional=['Arquitetura / versões','Boot / cargas'];
  for(const expected of core)if(!buttons.some(x=>x.includes(expected)))throw new Error('Ação ausente no clique real: '+expected+'; '+buttons.join(' | '));
- const unknown=buttons.filter(x=>![...core,...optional].some(label=>x.includes(label)));
- if(unknown.length)throw new Error('Clique real abriu ação inesperada: '+unknown.join(' | ')+'; '+buttons.join(' | '));
+ // A entrada real pode ganhar novos módulos (multiusuário, inteligência, expansão, WhatsApp...).
+ // O teste deve proteger o contrato essencial e impedir o retorno de ações antigas, sem congelar a UI.
+ const forbidden=['Teste visual completo','Exportar diagnóstico de sincronização','Exportar diagnóstico sync','Blackbox do Auditor'];
+ const bad=buttons.filter(text=>forbidden.some(label=>text.includes(label)));
+ if(bad.length)throw new Error('Clique real exibiu ação legada/proibida: '+bad.join(' | ')+'; '+buttons.join(' | '));
  if(!/Auditor HLGB/i.test(String(await page.evaluate(()=>window.__entry9366Title||''))))throw new Error('Clique real não abriu o Auditor novo');
  if(errors.some(x=>/9366|auditor/i.test(x)))throw new Error('Erro WebKit relacionado ao Auditor: '+errors.join(' | '));
  console.log('AUDITOR_V9366_REAL_ENTRY_WEBKIT_OK',buttons);
