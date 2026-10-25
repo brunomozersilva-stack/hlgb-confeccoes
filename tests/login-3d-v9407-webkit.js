@@ -7,7 +7,6 @@ const {webkit}=require('playwright');
  await page.waitForFunction(()=>!!document.getElementById('loginScreen')&&!!document.getElementById('appShell')&&!!window.hlgbLoginConfirmGate9407,null,{timeout:60000});
  const blocked=await page.evaluate(()=>{
   const l=document.getElementById('loginScreen'),a=document.getElementById('appShell'),s=document.getElementById('sessionLoader');
-  /* Simula o que o sistema real faz quando recupera uma sessão válida por baixo do gate. */
   window.__HLGB_AUTH_READY=true;window.dispatchEvent(new Event('hlgb:authenticated'));
   l.style.display='none';a.style.display='block';if(s)s.style.display='block';
   return {login:getComputedStyle(l).display,app:getComputedStyle(a).display,loader:s?getComputedStyle(s).display:null,gate:window.hlgbLoginConfirmGate9407.status()};
@@ -30,12 +29,15 @@ const {webkit}=require('playwright');
  const result=await page.evaluate(async()=>{
   window.hlgbLoginConfirmGate9407.confirm();
   const order=[];let saved=null,loadOpts=null;
+  const openWalDb=()=>new Promise((resolve,reject)=>{const r=indexedDB.open('hlgb_durable_wal',1);r.onupgradeneeded=()=>{if(!r.result.objectStoreNames.contains('entries'))r.result.createObjectStore('entries',{keyPath:'key'})};r.onsuccess=()=>resolve(r.result);r.onerror=()=>reject(r.error)});
+  const walDbPut=async entry=>{const d=await openWalDb();try{await new Promise((resolve,reject)=>{const tx=d.transaction('entries','readwrite');tx.objectStore('entries').put(JSON.parse(JSON.stringify(entry)));tx.oncomplete=resolve;tx.onerror=()=>reject(tx.error)})}finally{d.close()}};
+  const walDbAll=async()=>{const d=await openWalDb();try{return await new Promise((resolve,reject)=>{const tx=d.transaction('entries','readonly'),r=tx.objectStore('entries').getAll();r.onsuccess=()=>resolve(r.result||[]);r.onerror=()=>reject(r.error)})}finally{d.close()}};
   const remoteUpdated='2026-10-25T18:42:59.226Z',pendingCreated='2026-10-25T19:45:57.000Z';
   const remoteData={id:'settings-main',updatedAt:'2026-10-25T18:42:58.880Z',filamentPriceKg:115,machineHourRate:1.25,cleaningUnitCost:1,defaultMultiplier:2};
   const stale={key:'printer3dSettings|settings-main',opId:'op-stale-3d',module:'printer3dSettings',id:'settings-main',deleted:false,data:{...remoteData,filamentPriceKg:120,updatedAt:'2026-10-25T21:05:17.000Z'},createdAt:pendingCreated,updatedAt:'2026-10-25T21:05:17.000Z',attempts:340,lastAttemptAt:'2026-10-25T21:05:17.000Z',lastError:'Conflito de edição: outra sessão alterou o mesmo campo (filamentPriceKg).',state:'conflict',clientVersion:'91.55',baseData:null,baseUpdatedAt:''};
   const unsafe={key:'printer3dSettings|unsafe-test',opId:'op-unsafe',module:'printer3dSettings',id:'unsafe-test',deleted:false,data:{id:'unsafe-test',filamentPriceKg:200},createdAt:'2026-10-25T18:00:00.000Z',updatedAt:'2026-10-25T18:00:00.000Z',attempts:1,lastError:'conflito',state:'conflict',clientVersion:'91.55',baseData:null,baseUpdatedAt:''};
   localStorage.setItem('hlgb_durable_wal_v1',JSON.stringify({schema:1,updatedAt:new Date().toISOString(),entries:{[stale.key]:stale,[unsafe.key]:unsafe}}));
-  if(typeof idbPut955==='function'){await idbPut955(stale);await idbPut955(unsafe)}
+  await walDbPut(stale);await walDbPut(unsafe);
   if(!(hlgbRecordSnapshots.printer3dSettings instanceof Map))hlgbRecordSnapshots.printer3dSettings=new Map();
   window.alert=()=>{};
   window.cloudEnsureFreshSession=async()=>{order.push('session');return true};
@@ -46,8 +48,6 @@ const {webkit}=require('playwright');
    return {rows:[{module:'printer3dSettings',entity_id:'settings-main'}]};
   };
   window.hlgbRecordSaveWithRetry=async(module,id,data)=>{order.push('save');saved={module,id,data};return {applied:true,data:{...data},revision:2,updated_at:new Date().toISOString()}};
-  /* O módulo cria a página/host durante install(); render3dHome sozinho é propositalmente
-     no-op quando a página 3D ainda não foi instalada. Reproduza o fluxo real. */
   const installed=window.hlgbBusinessExpansion9400.install();
   if(!installed)throw new Error('Módulo 3D não conseguiu instalar a página real');
   const nav=document.getElementById('p3HomeNav9400');
@@ -60,8 +60,8 @@ const {webkit}=require('playwright');
   const unsafeResult=await window.hlgbLogin3dBaseline9407.repairMissingWalBaseline('printer3dSettings','unsafe-test');
   const walFinal=JSON.parse(localStorage.getItem('hlgb_durable_wal_v1')||'{}');
   const unsafeAfter=walFinal?.entries?.['printer3dSettings|unsafe-test']||null;
-  const idb=typeof idbAll955==='function'?await idbAll955():[];
-  return {order,saved,loadOpts,status:window.hlgbLogin3dBaseline9407.status(),pageActive:document.getElementById('printer3dHome9400')?.classList.contains('active')||false,repaired,unsafeResult,unsafeAfter,idbRepaired:idb.find(x=>x?.key==='printer3dSettings|settings-main')||null};
+  const idb=await walDbAll();
+  return {order,saved,loadOpts,status:window.hlgbLogin3dBaseline9407.status(),pageActive:document.getElementById('printer3dHome9400')?.classList.contains('active')||false,repaired,unsafeResult,unsafeAfter,idbRepaired:idb.find(x=>x?.key==='printer3dSettings|settings-main')||null,idbUnsafe:idb.find(x=>x?.key==='printer3dSettings|unsafe-test')||null};
  });
  const li=result.order.indexOf('load'),si=result.order.indexOf('save');
  if(li<0||si<0||li>si)throw new Error('3D salvou antes de atualizar a base: '+JSON.stringify(result));
@@ -69,10 +69,10 @@ const {webkit}=require('playwright');
  if(Number(result.saved?.data?.filamentPriceKg)!==123.45)throw new Error('Valor digitado não chegou ao save protegido: '+JSON.stringify(result.saved));
  if(!result.pageActive)throw new Error('Fluxo real não ativou a página da Impressora 3D');
  if(result.status?.version!=='94.08'||!result.status?.walRepairInstalled)throw new Error('Reparo v94.08 não está ativo: '+JSON.stringify(result.status));
- if(!result.repaired||Number(result.repaired?.baseData?.filamentPriceKg)!==115||!result.repaired?.baseUpdatedAt)throw new Error('Pendência antiga não recebeu baseline remoto seguro: '+JSON.stringify(result.repaired));
+ if(!result.repaired||Number(result.repaired?.baseData?.filamentPriceKg)!==115||!result.repaired?.baseUpdatedAt)throw new Error('Pendência antiga não recebeu baseline remoto seguro: '+JSON.stringify({repaired:result.repaired,status:result.status}));
  if(Number(result.repaired?.attempts)!==340||result.repaired?.state!=='conflict')throw new Error('Reparo alterou histórico/estado antes do novo enqueue: '+JSON.stringify(result.repaired));
  if(!result.idbRepaired||Number(result.idbRepaired?.baseData?.filamentPriceKg)!==115)throw new Error('IndexedDB não recebeu o mesmo baseline reparado: '+JSON.stringify(result.idbRepaired));
- if(result.unsafeResult?.repaired!==false||result.unsafeResult?.reason!=='remote-newer-than-pending'||result.unsafeAfter?.baseData!==null)throw new Error('Conflito real foi rebaseado indevidamente: '+JSON.stringify({unsafeResult:result.unsafeResult,unsafeAfter:result.unsafeAfter}));
+ if(result.unsafeResult?.repaired!==false||result.unsafeResult?.reason!=='remote-newer-than-pending'||result.unsafeAfter?.baseData!==null||result.idbUnsafe?.baseData!==null)throw new Error('Conflito real foi rebaseado indevidamente: '+JSON.stringify({unsafeResult:result.unsafeResult,unsafeAfter:result.unsafeAfter,idbUnsafe:result.idbUnsafe}));
  if(errors.length)throw new Error('Erros WebKit: '+errors.join(' | '));
  console.log('LOGIN_3D_V9408_WEBKIT_OK',{blocked,released,reset,order:result.order,value:result.saved.data.filamentPriceKg,pageActive:result.pageActive,repair:result.status.lastResult?.repair,unsafe:result.unsafeResult});
  await browser.close();
