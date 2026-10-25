@@ -1,0 +1,11 @@
+const {webkit}=require('playwright');
+(async()=>{const browser=await webkit.launch({headless:true});const page=await browser.newPage({viewport:{width:1280,height:900}});
+await page.route('**/functions/v1/hlgb-whatsapp-api',async route=>route.fulfill({status:200,contentType:'application/json',body:JSON.stringify({ok:true,version:'94.03',configured:false,sendReady:false,webhookReady:false,accessTokenConfigured:false,phoneNumberIdConfigured:false,verifyTokenConfigured:false,appSecretConfigured:false,graphVersion:'v24.0'})}));
+await page.setContent('<!doctype html><html><body><div id="config"></div><div><button id="hlgbAuditorBusinessBtn9401">Expansão</button></div><div id="hlgbAuditorResult"></div></body></html>');
+await page.evaluate(()=>{window.db={whatsappPilotRules:[{id:'1',name:'Cliente Teste',phone:'22999999999',type:'Cliente'}]};window.esc=v=>String(v);window.table=(h,r)=>'<table><tbody>'+r.map(x=>'<tr>'+x.map(y=>'<td>'+y+'</td>').join('')+'</tr>').join('')+'</tbody></table>';window.localSaveOnly=()=>{};window.cloudEnsureFreshSession=async()=>true;window.hlgbRecordSaveWithRetry=async(m,id,row)=>({applied:true,data:row});localStorage.setItem('sb-huhrgvijgsshqlsnqeuz-auth-token',JSON.stringify({access_token:'header.payload.signature'}));});
+await page.addScriptTag({url:'http://127.0.0.1:4173/release-whatsapp-pilot-v9250.js'});await page.evaluate(()=>window.hlgbWhatsappPilot9250.ensure());await page.waitForTimeout(300);
+if(await page.locator('#whatsappPilot9250').count()!==1)throw new Error('painel WhatsApp não único');
+if(!(await page.locator('#whatsappPilot9250 h2').innerText()).includes('WhatsApp ByHagatha'))throw new Error('identidade incorreta');
+if(await page.locator('#hlgbAuditorWhatsappBtn9403').count()!==1)throw new Error('botão Auditor ausente');
+const r=await page.evaluate(()=>window.hlgbWhatsappPilot9250.audit());if(r.summary.fail!==0)throw new Error('Auditor encontrou falha: '+JSON.stringify(r));if(r.summary.warn!==2)throw new Error('Esperava 2 avisos de credenciais Meta pendentes: '+JSON.stringify(r.summary));
+await page.screenshot({path:'/tmp/hlgb-whatsapp-v9403-webkit.png',fullPage:true});console.log(JSON.stringify({ok:true,summary:r.summary}));await browser.close();})().catch(e=>{console.error(e);process.exit(1)});
