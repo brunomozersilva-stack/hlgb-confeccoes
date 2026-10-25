@@ -159,7 +159,13 @@ vm.createContext(context);vm.runInContext(src,context);
  const nonOverlap=context.window.cloudMergeThreeWay(base,{id:'x',value:120,note:'a'},{id:'x',value:100,note:'b'});
  assert.equal(nonOverlap.value,120);assert.equal(nonOverlap.note,'b','non-overlapping fields must still merge');
 
+ const technicalOnly=context.window.hlgbRecordConflictPaths({id:'p',filamentPriceKg:100,updatedAt:'A'},{id:'p',filamentPriceKg:119,updatedAt:'B'},{id:'p',filamentPriceKg:100,updatedAt:'C'});
+ assert.deepEqual(technicalOnly,[],'updatedAt must not create a false same-field conflict');
+ const filamentReal=context.window.hlgbRecordConflictPaths({id:'p',filamentPriceKg:100,updatedAt:'A'},{id:'p',filamentPriceKg:119,updatedAt:'B'},{id:'p',filamentPriceKg:125,updatedAt:'C'});
+ assert(filamentReal.includes('filamentPriceKg'),'real concurrent filament price edit must remain protected');
+ assert.equal(context.window.HLGB_RECORD_CONFLICT_METADATA_GUARD,'v1');
+
  assert(saves>=6,'lexical-db cleanup/no-op/rekey normalization must be persisted');
- assert.equal(context.window.HLGB_RECORD_INTEGRITY_GUARD,'v8');
- console.log('PASS record integrity v8: stale tombstones pruned; stale pending quarantined; conflicts/logical duplicates guarded; legitimate split/save/delete preserved.');
+ assert.equal(context.window.HLGB_RECORD_INTEGRITY_GUARD,'v9');
+ console.log('PASS record integrity v9: stale tombstones pruned; stale pending quarantined; technical metadata ignored in conflict detection; real conflicts/logical duplicates guarded; legitimate split/save/delete preserved.');
 })().catch(e=>{console.error(e);process.exit(1)});
