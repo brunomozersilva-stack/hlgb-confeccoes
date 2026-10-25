@@ -16,12 +16,14 @@ const {webkit}=require('playwright');
  const core=['Testar sistema','Registrar problema','Histórico'];
  for(const expected of core)if(!buttons.some(x=>x.includes(expected)))throw new Error('Ação ausente no clique real: '+expected+'; '+buttons.join(' | '));
  // A entrada real pode ganhar novos módulos (multiusuário, inteligência, expansão, WhatsApp...).
- // O teste deve proteger o contrato essencial e impedir o retorno de ações antigas, sem congelar a UI.
+ // O contrato é estrutural: a entrada abre o Auditor inteligente, mantém os controles essenciais
+ // e não reintroduz ações antigas. O título do modal pode mudar sem invalidar esse contrato.
  const forbidden=['Teste visual completo','Exportar diagnóstico de sincronização','Exportar diagnóstico sync','Blackbox do Auditor'];
  const bad=buttons.filter(text=>forbidden.some(label=>text.includes(label)));
  if(bad.length)throw new Error('Clique real exibiu ação legada/proibida: '+bad.join(' | ')+'; '+buttons.join(' | '));
- if(!/Auditor HLGB/i.test(String(await page.evaluate(()=>window.__entry9366Title||''))))throw new Error('Clique real não abriu o Auditor novo');
+ const opened=await page.locator('#entry9366Host #hlgbSmartStatus').count();
+ if(opened!==1)throw new Error('Clique real não abriu a estrutura do Auditor novo');
  if(errors.some(x=>/9366|auditor/i.test(x)))throw new Error('Erro WebKit relacionado ao Auditor: '+errors.join(' | '));
- console.log('AUDITOR_V9366_REAL_ENTRY_WEBKIT_OK',buttons);
+ console.log('AUDITOR_V9366_REAL_ENTRY_WEBKIT_OK',{title:await page.evaluate(()=>window.__entry9366Title||''),buttons});
  await browser.close();
 })().catch(e=>{console.error(e);process.exit(1)});
