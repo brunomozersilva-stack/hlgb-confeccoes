@@ -34,16 +34,23 @@ const {webkit}=require('playwright');
   window.cloudEnsureFreshSession=async()=>{order.push('session');return true};
   window.hlgbRecordLoadBundle=async opts=>{order.push('load');loadOpts=opts;return {rows:[{module:'printer3dSettings',entity_id:'settings-main'}]}};
   window.hlgbRecordSaveWithRetry=async(module,id,data)=>{order.push('save');saved={module,id,data};return {applied:true,data:{...data},revision:2,updated_at:new Date().toISOString()}};
-  window.hlgbBusinessExpansion9400.render3dHome();
-  const input=document.getElementById('p3sFil9400');if(!input)throw new Error('Campo de filamento não renderizou');input.value='123.45';
+  /* O módulo cria a página/host durante install(); render3dHome sozinho é propositalmente
+     no-op quando a página 3D ainda não foi instalada. Reproduza o fluxo real. */
+  const installed=window.hlgbBusinessExpansion9400.install();
+  if(!installed)throw new Error('Módulo 3D não conseguiu instalar a página real');
+  const nav=document.getElementById('p3HomeNav9400');
+  if(!nav)throw new Error('Navegação da Impressora 3D não foi criada');
+  nav.click();
+  const input=document.getElementById('p3sFil9400');if(!input)throw new Error('Campo de filamento não renderizou após abrir a Visão geral 3D');input.value='123.45';
   await window.save3dSettings9400();
-  return {order,saved,loadOpts,status:window.hlgbLogin3dBaseline9407.status()};
+  return {order,saved,loadOpts,status:window.hlgbLogin3dBaseline9407.status(),pageActive:document.getElementById('printer3dHome9400')?.classList.contains('active')||false};
  });
  const li=result.order.indexOf('load'),si=result.order.indexOf('save');
  if(li<0||si<0||li>si)throw new Error('3D salvou antes de atualizar a base: '+JSON.stringify(result));
  if(result.loadOpts?.preserveLocal!==true||result.loadOpts?.since!==null)throw new Error('Carga 3D não preserva edição local/base completa: '+JSON.stringify(result.loadOpts));
  if(Number(result.saved?.data?.filamentPriceKg)!==123.45)throw new Error('Valor digitado não chegou ao save protegido: '+JSON.stringify(result.saved));
+ if(!result.pageActive)throw new Error('Fluxo real não ativou a página da Impressora 3D');
  if(errors.length)throw new Error('Erros WebKit: '+errors.join(' | '));
- console.log('LOGIN_3D_V9407_WEBKIT_OK',{blocked,released,reset,order:result.order,value:result.saved.data.filamentPriceKg});
+ console.log('LOGIN_3D_V9407_WEBKIT_OK',{blocked,released,reset,order:result.order,value:result.saved.data.filamentPriceKg,pageActive:result.pageActive});
  await browser.close();
 })().catch(e=>{console.error(e);process.exit(1)});
