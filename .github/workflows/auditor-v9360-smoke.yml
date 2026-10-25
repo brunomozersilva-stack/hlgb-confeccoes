@@ -79,6 +79,12 @@ jobs:
         run: node tests/auditor-v9368-no-timer.js
       - name: Sinal de render v93.72
         run: node tests/auditor-v9372-render-signal.js
+      - name: Sintaxe integridade v94.06
+        run: node --check release-record-integrity.js
+      - name: Sintaxe Central v94.06
+        run: node --check release-diagnostics-maintenance-v9406.js
+      - name: Regras de manutenção v94.06
+        run: node tests/maintenance-v9406.js
       - name: Smoke test Auditor
         run: node tests/auditor-v9360-smoke.js
       - name: Cenários críticos Auditor
@@ -126,5 +132,5 @@ jobs:
         run: node tests/auditor-authority-v9374-webkit.js
       - name: Boot e cargas v93.81 WebKit
         run: node tests/auditor-boot-v9381-webkit.js
-      - name: Aparência + fotos de produto v94.05 WebKit
+      - name: Aparência + fotos + WAL confirmado v94.06 WebKit
         run: node tests/ui-control-v9404-webkit.js
