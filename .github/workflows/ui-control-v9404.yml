@@ -1,0 +1,50 @@
+name: HLGB UI Control v94.04
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'release-brand-theme-v9402.js'
+      - 'tests/ui-control-v9404-webkit.js'
+      - '.github/workflows/ui-control-v9404.yml'
+  workflow_dispatch:
+
+jobs:
+  logic:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Validar sintaxe e isolamento do controle central
+        run: |
+          node --check release-brand-theme-v9402.js
+          ! grep -Eq 'window\.(hlgbRecordSaveWithRetry|cloudRequest|persistDb)\s*=' release-brand-theme-v9402.js
+          ! grep -Eq 'setInterval\s*\(|new\s+MutationObserver\s*\(|beforeunload' release-brand-theme-v9402.js
+
+  webkit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Instalar Playwright WebKit
+        run: |
+          npm init -y >/dev/null 2>&1
+          npm install playwright@1.56.1 >/dev/null 2>&1
+          npx playwright install --with-deps webkit >/dev/null 2>&1
+      - name: Iniciar servidor local
+        run: |
+          python3 -m http.server 4173 >/tmp/hlgb-ui-http.log 2>&1 &
+          sleep 2
+      - name: Testar Auditor vivo e intensidade no WebKit
+        run: node tests/ui-control-v9404-webkit.js
+      - name: Publicar captura visual
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: hlgb-ui-control-v9404-webkit
+          path: /tmp/hlgb-ui-control-v9404-webkit.png
+          if-no-files-found: ignore
