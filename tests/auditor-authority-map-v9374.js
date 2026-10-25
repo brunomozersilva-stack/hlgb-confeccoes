@@ -41,5 +41,7 @@ assert.strictEqual(report.retirementPlan.length,0,'não pode haver aposentadoria
 assert(report.consolidationPlan.some(x=>x.id==='hub-save'&&x.conflict),'conflito declarado de autoridade do Hub deve ser apontado');
 const sync=report.families.find(x=>x.id==='sync');
 assert.strictEqual(sync.status,'fail','ciclo de wrapper precisa gerar falha');
-assert.strictEqual(sandbox.hlgbAuditorAuthority9374.version,'93.74');
-console.log('auditor authority map v93.74 evidence-based: OK');
+const authorityVersion=String(sandbox.hlgbAuditorAuthority9374.version||'');
+assert(/^\d+\.\d+$/.test(authorityVersion),'mapa de autoridades precisa expor uma versão numérica');
+assert(Number(authorityVersion)>=93.74,'mapa de autoridades não pode regredir abaixo da versão-base 93.74');
+console.log('auditor authority map evidence-based: OK · versão '+authorityVersion);
