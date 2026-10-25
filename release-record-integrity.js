@@ -5,6 +5,7 @@ const sid=v=>String(v??'');
 const clone=v=>{try{return JSON.parse(JSON.stringify(v))}catch(e){return v}};
 const eq=(a,b)=>{try{return JSON.stringify(a)===JSON.stringify(b)}catch(e){return a===b}};
 const plain=v=>!!v&&typeof v==='object'&&!Array.isArray(v);
+const TECHNICAL_CONFLICT_KEYS=new Set(['updatedAt','updated_at','revision']);
 function explicitRestore(data){return !!(data&&['true','1','yes'].includes(String(data.__hlgb_explicit_restore??'').toLowerCase()))}
 function snapshot(module,id){try{return hlgbRecordSnapshots?.[module]?.get?.(sid(id))||null}catch(e){return null}}
 function snapshotHas(module,id){try{return !!hlgbRecordSnapshots?.[module]?.has?.(sid(id))}catch(e){return !!snapshot(module,id)}}
@@ -178,6 +179,7 @@ function conflictPaths(base,local,remote,path=''){
  if(plain(local)&&plain(remote)){
   const b=plain(base)?base:{},keys=new Set([...Object.keys(b),...Object.keys(local),...Object.keys(remote)]),out=[];
   for(const k of keys){
+   if(TECHNICAL_CONFLICT_KEYS.has(k))continue;
    const hb=Object.prototype.hasOwnProperty.call(b,k),hl=Object.prototype.hasOwnProperty.call(local,k),hr=Object.prototype.hasOwnProperty.call(remote,k),p=path?path+'.'+k:k;
    const bv=hb?b[k]:undefined,lv=hl?local[k]:undefined,rv=hr?remote[k]:undefined;
    if(!hl||!hr){
@@ -380,11 +382,12 @@ if(typeof oldLoadBundle==='function'&&!oldLoadBundle.__hlgbPendingTombstoneV1){
  wrapped.__hlgbPendingTombstoneV1=true;wrapped.__original=oldLoadBundle;window.hlgbRecordLoadBundle=wrapped;
 }
 try{prunePendingTombstones()}catch(e){}
-window.HLGB_RECORD_INTEGRITY_GUARD='v8';
+window.HLGB_RECORD_INTEGRITY_GUARD='v9';
 window.HLGB_RECORD_PENDING_TOMBSTONE_GUARD='v1';
 window.HLGB_RECORD_PENDING_AGE_GUARD='v2';
 window.HLGB_RECORD_STALE_QUARANTINE_GUARD='v1';
 window.HLGB_LOGICAL_DUPLICATE_GUARD='v1';
+window.HLGB_RECORD_CONFLICT_METADATA_GUARD='v1';
 window.hlgbLogicalAutoCutTwin=logicalAutoCutTwin;
 window.hlgbLogicalProductionTwin=logicalProductionTwin;
 window.hlgbPrunePendingTombstones=prunePendingTombstones;
@@ -393,5 +396,5 @@ window.hlgbRecordStalePending=stalePending;
 window.hlgbQuarantineStalePending=quarantineStalePending;
 window.hlgbRecordSemanticNoop=semanticNoop;
 window.hlgbFreshCutId=freshCutId;
-console.info('[HLGB] integridade de registros v8 + tombstone silencioso/idade pendente v1 + duplicidade lógica v1 ativa');
+console.info('[HLGB] integridade de registros v9 + conflitos sem metadados técnicos + tombstone/idade/duplicidade ativa');
 })();
