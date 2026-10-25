@@ -1,0 +1,59 @@
+name: HLGB Business Expansion v94.01
+
+on:
+  push:
+    branches:
+      - diagnostic/post-hotfix-save-depth-orphans-20261024
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  logic:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validar sintaxe e isolamento v94.01
+        run: |
+          set -euo pipefail
+          node --check release-business-expansion-v9400.js
+          node --check release-auditor-business-v9401.js
+          node --check tests/business-expansion-v9400.js
+          node --check tests/auditor-business-v9401.js
+          node --check tests/business-expansion-v9400-webkit.js
+          node tests/business-expansion-v9400.js
+          node tests/auditor-business-v9401.js
+
+  webkit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Instalar Playwright WebKit
+        run: |
+          npm init -y >/dev/null 2>&1
+          npm install playwright@1.55.0 --no-save
+          npx playwright install --with-deps webkit
+      - name: Iniciar servidor local
+        run: |
+          python3 -m http.server 4173 >/tmp/hlgb-http.log 2>&1 &
+          sleep 2
+      - name: Validar expansão e Auditor v94.01 no WebKit
+        run: node tests/business-expansion-v9400-webkit.js
+      - name: Publicar capturas visuais v94.01
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: hlgb-business-auditor-v9401-webkit
+          path: |
+            /tmp/hlgb-business-v9400-webkit.png
+            /tmp/hlgb-auditor-business-v9401-webkit.png
+          if-no-files-found: warn

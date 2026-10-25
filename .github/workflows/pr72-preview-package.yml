@@ -1,0 +1,175 @@
+name: HLGB PR72 Safari Test Package
+
+on:
+  push:
+    branches:
+      - diagnostic/post-hotfix-save-depth-orphans-20261024
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  package:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validar arquivos críticos antes do pacote
+        run: |
+          set -euo pipefail
+          node --check release-sync-guard-v9306.js
+          node --check release-payroll-month-wal-v9334.js
+          node --check release-payroll-reliable-save-guard-v9344.js
+          node --check release-payroll-snapshot-watch-v9354.js
+          node --check release-auditor-authority-map-v9374.js
+          node --check release-auditor-intelligence-v9396.js
+          node --check release-auditor-hardening-v9399.js
+          node --check release-auditor-shell-v9382.js
+          node --check release-business-expansion-v9400.js
+          node --check release-auditor-business-v9401.js
+          node --check release-auditor-build-marker-v9396.js
+          grep -q "HLGB-AUDITOR-INTELLIGENCE-93.98" release-auditor-intelligence-v9396.js
+          grep -q "HLGB-AUDITOR-AUTHORITY-93.98" release-auditor-authority-map-v9374.js
+          grep -q "const V='94.00'" release-business-expansion-v9400.js
+          grep -q "const V='94.01'" release-auditor-business-v9401.js
+          grep -q "2026-10-24-pr72-v9401-combined-1" release-auditor-build-marker-v9396.js
+          grep -q "hlgbAuditorBusinessBtn9401" release-auditor-shell-v9382.js
+
+      - name: Montar pacote exato do head
+        run: |
+          set -euo pipefail
+          ROOT=/tmp/hlgb-pr72-safari
+          mkdir -p "$ROOT"
+          rsync -a --exclude='.git' --exclude='.github' --exclude='node_modules' --exclude='tests' ./ "$ROOT/"
+
+          cat > "$ROOT/ABRIR-HLGB-NO-MAC.command" <<'EOF'
+          #!/bin/bash
+          set -e
+          DIR="$(cd "$(dirname "$0")" && pwd)"
+          cd "$DIR"
+          PORT="$(python3 - <<'PY'
+          import socket
+          s=socket.socket()
+          s.bind(('127.0.0.1',0))
+          print(s.getsockname()[1])
+          s.close()
+          PY
+          )"
+          LOG="/tmp/hlgb-pr72-safari-${PORT}.log"
+          python3 -m http.server "$PORT" --bind 127.0.0.1 >"$LOG" 2>&1 &
+          PID=$!
+          trap 'kill "$PID" 2>/dev/null || true' EXIT INT TERM
+          sleep 1
+          open -a Safari "http://127.0.0.1:${PORT}/abrir.html"
+          echo "HLGB PR #72 aberto no Safari para teste."
+          echo "Servidor local: http://127.0.0.1:${PORT}/"
+          echo "Esta janela pode ficar aberta durante o teste. Para encerrar, pressione Control+C."
+          wait "$PID"
+          EOF
+          chmod +x "$ROOT/ABRIR-HLGB-NO-MAC.command"
+
+          cat > "$ROOT/README-PR72-SAFARI.txt" <<EOF
+          HLGB PR #72 — TESTE SAFARI COMBINADO v94.01
+          Head: $GITHUB_SHA
+          Base: main pós-hotfix #71 (340e26cf6df11361009df7488b82ae5f3f01dbaa)
+          Build de diagnóstico: 2026-10-24-pr72-v9401-combined-1
+
+          ESTE PACOTE NÃO É O MAIN E NÃO DEVE SER PUBLICADO.
+          Inclui: estabilidade pós-hotfix, Auditor v93.98/v93.99, expansão de negócio v94.00 e Auditor da expansão v94.01.
+
+          Abra apenas por ABRIR-HLGB-NO-MAC.command.
+          EOF
+
+          cat > "$ROOT/ROTEIRO-TESTE-SAFARI.txt" <<'EOF'
+          HLGB PR #72 — ROTEIRO ÚNICO DE TESTE REAL NO SAFARI
+
+          1. ABERTURA / LOGIN
+          - Abra ABRIR-HLGB-NO-MAC.command.
+          - Confirme que o Safari abre o HLGB.
+          - Entre normalmente. Se o login travar ou der erro, pare e registre exatamente a mensagem.
+
+          2. NAVEGAÇÃO PRINCIPAL
+          - Abra Pedidos.
+          - Abra Produção.
+          - Abra Hub Financeiro e troque período/semana uma vez.
+          - Volte ao painel e observe se houve página pulando, tela branca ou carregamento preso.
+
+          3. AUDITOR — PRIMEIRA RODADA
+          - Abra Auditor / Testes.
+          - Registrar problema: confirme que aparece o download do JSON e salve o arquivo.
+          - Rode Inteligência e baixe o JSON.
+          - Rode Boot / cargas e baixe o JSON.
+          - Rode Arquitetura / versões e baixe o JSON.
+          - Rode Expansão v94 e baixe o diagnóstico v94.
+          - Rode Testar sistema / Pacote Diário, se estiver disponível.
+
+          4. IMPRESSORA 3D
+          - Abra Impressora 3D > Visão geral e confira os campos de custo.
+          - Em Cadastro de produtos, crie UM produto de teste com tempo, gramas de filamento, custo/kg, acabamento, acessório e multiplicador.
+          - Confirme se o custo-base e o preço sugerido mudam ao recalcular.
+          - Abra Vendas e registre UMA venda de teste desse produto.
+          - Abra Catálogo / PDF e confira se o produto aparece e se a opção de imprimir/salvar PDF abre corretamente.
+
+          5. E-MAIL POR ETAPA
+          - Abra Comunicações > E-mail por etapa.
+          - Configure UM pedido de teste e ative somente as etapas desejadas.
+          - Use Verificar mudanças de etapa.
+          - Confirme que a fila fica como aguardando_integracao_email.
+          - NÃO espere e-mail real: envio externo ainda não está ligado e não pode aparecer como enviado.
+
+          6. WHATSAPP — ESCOPO
+          - Abra Comunicações > WhatsApp / permissões.
+          - Crie UM escopo de teste para apenas um pedido OU uma facção.
+          - A permissão deve permanecer Somente leitura.
+          - Abra a Prévia e confirme que ela mostra apenas o recurso selecionado.
+          - NÃO considere isso autorização externa real; esta etapa valida somente o escopo interno.
+
+          7. FACÇÃO — CONSULTA PRÓPRIA
+          - Abra Comunicações > WhatsApp / facções.
+          - Configure UM código de teste para uma facção.
+          - Consulte pelo código.
+          - Confirme que aparecem somente informações daquela facção e em modo somente leitura.
+
+          8. AUDITOR — SEGUNDA RODADA
+          - Depois dos testes 3D/comunicações, abra o Auditor novamente.
+          - Rode Expansão v94 outra vez e baixe o JSON.
+          - Rode Inteligência novamente.
+          - Se qualquer tela falhou, use Registrar problema logo após reproduzir e salve o JSON.
+
+          9. MULTIUSUÁRIO — DUAS CONTAS REAIS
+          - Em duas sessões/usuários diferentes, gere o relatório de Validação multiusuário com no máximo 2 minutos entre eles e compare.
+          - Faça uma alteração controlada e reversível na sessão A e confirme que B recebe.
+          - Faça uma alteração na sessão B e confirme que A recebe.
+          - Teste um caso de edição concorrente controlada.
+          - Saia e entre novamente para confirmar persistência.
+          - Confira Pedidos, Cortes, Produção e Hub Financeiro.
+          - No fim, as filas devem ficar zeradas e não deve haver duplicidade/corrupção.
+          - A comparação de JSON sozinha é parcial; a prova final é o teste operacional das duas contas.
+
+          10. O QUE ENVIAR PARA ANÁLISE
+          - JSON de Registrar problema.
+          - JSON de Inteligência.
+          - JSON de Boot / cargas.
+          - JSON de Arquitetura / versões.
+          - JSON do Auditor Expansão v94 antes/depois.
+          - Pacote Diário, se gerado.
+          - Os dois relatórios multiusuário.
+          - Print ou texto exato de qualquer erro visível.
+
+          IMPORTANTE
+          - Não fazer merge a partir deste pacote.
+          - Não usar dados sensíveis como exemplo de WhatsApp/e-mail.
+          - E-mail real e autorização externa real do WhatsApp continuam bloqueados até existir integração autenticada no servidor.
+          EOF
+
+          cd /tmp
+          zip -qr HLGB-PR72-SAFARI-v94.01.zip hlgb-pr72-safari
+
+      - name: Publicar pacote para Safari real
+        uses: actions/upload-artifact@v4
+        with:
+          name: HLGB-PR72-SAFARI-v94.01
+          path: /tmp/HLGB-PR72-SAFARI-v94.01.zip
+          if-no-files-found: error
+          retention-days: 30

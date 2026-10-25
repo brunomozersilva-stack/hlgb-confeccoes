@@ -1,10 +1,11 @@
 /* HLGB v93.06 — guarda de convergência contra mutação automática de Produção
    Patch 2026-10-15: evita concorrência de leitura com a autoridade principal de sync.
-   Patch 2026-10-23: restauração autenticada pode carregar registros; corte→produção só após autenticação da interface. */
+   Patch 2026-10-23: restauração autenticada pode carregar registros; corte→produção só após autenticação da interface.
+   Patch 2026-10-24: mantém a trava de corte ativa durante todo o login, mesmo se outro módulo substituir a função depois do boot inicial. */
 (function(){
 'use strict';
 const V='93.06';
-const PATCH='2026-10-23-session-restore-cut-gate';
+const PATCH='2026-10-24-session-restore-persistent-cut-gate';
 const AUTHORITY_MIN_MS=60000;
 if(window.HLGB_SYNC_GUARD_9306)return;
 window.HLGB_SYNC_GUARD_9306=V;
@@ -16,6 +17,7 @@ const IDB='hlgb_durable_wal',STORE='entries';
 let authority=new Map(),refreshing=false,guarded=0,lastRefresh='',lastRepair='',lastIds=[];
 let lastAuthorityAttempt=0,skippedPrimaryBusy=0,skippedThrottle=0;
 let earlyGuardInstalls=0,blockedPreAuthLoads=0,blockedPreAuthCutSync=0,lastEarlyGuard='';
+let earlyGuardWatchTimer=null,earlyGuardWatchTicks=0,earlyGuardWatchStartedAt='';
 const clone=v=>{try{return structuredClone(v)}catch(e){try{return JSON.parse(JSON.stringify(v))}catch(_){return v}}};
 const sid=v=>String(v??'');
 const num=v=>{const n=Number(v);return Number.isFinite(n)?n:0};
@@ -47,6 +49,20 @@ function installEarlyBootGuards(){
     __HLGB_AUTH_READY só é marcado depois que esses dados foram carregados e a interface pode ser exibida.
     Portanto, bloquear hlgbLoadNormalizedCore/hlgbRecordLoadBundle aqui quebraria a restauração e o login manual. */
  installEarlyGuard('syncFinalizedCutsToProduction','cut-sync');
+ return true;
+}
+function maintainEarlyBootGuard(){
+ earlyGuardWatchTicks++;
+ installEarlyBootGuards();
+ if(authReady()||earlyGuardWatchTicks>=160){
+  if(earlyGuardWatchTimer){clearInterval(earlyGuardWatchTimer);earlyGuardWatchTimer=null}
+ }
+ return true;
+}
+function startEarlyBootGuardWatch(){
+ if(authReady()||earlyGuardWatchTimer)return false;
+ earlyGuardWatchTicks=0;earlyGuardWatchStartedAt=new Date().toISOString();
+ earlyGuardWatchTimer=setInterval(maintainEarlyBootGuard,250);
  return true;
 }
 function primarySyncBusy(){
@@ -103,7 +119,7 @@ function installSaveGuard(){
 }
 function status(){
  const cutViewBlocked=Number(window.__HLGB_PREAUTH_CUT_BLOCKED_9397||0);
- return {version:V,patch:PATCH,authority:authority.size,guarded,lastRefresh,lastRepair,lastIds,online:navigator.onLine,earlyBoot:{installs:earlyGuardInstalls,blockedPreAuthLoads,blockedPreAuthCutSync:cutViewBlocked+blockedPreAuthCutSync,lastInstall:lastEarlyGuard,loadCoreGuarded:false,loadBundleGuarded:false,cutSyncGuarded:chainHasMarker(window.syncFinalizedCutsToProduction,'__hlgb9306EarlyBoot'),sessionRestoreLoadsAllowed:true},cloudPolicy:{authorityMinMs:AUTHORITY_MIN_MS,lastAuthorityAttempt,skippedPrimaryBusy,skippedThrottle,refreshing}}
+ return {version:V,patch:PATCH,authority:authority.size,guarded,lastRefresh,lastRepair,lastIds,online:navigator.onLine,earlyBoot:{installs:earlyGuardInstalls,blockedPreAuthLoads,blockedPreAuthCutSync:cutViewBlocked+blockedPreAuthCutSync,lastInstall:lastEarlyGuard,loadCoreGuarded:false,loadBundleGuarded:false,cutSyncGuarded:chainHasMarker(window.syncFinalizedCutsToProduction,'__hlgb9306EarlyBoot'),sessionRestoreLoadsAllowed:true,watchActive:!!earlyGuardWatchTimer,watchTicks:earlyGuardWatchTicks,watchStartedAt:earlyGuardWatchStartedAt},cloudPolicy:{authorityMinMs:AUTHORITY_MIN_MS,lastAuthorityAttempt,skippedPrimaryBusy,skippedThrottle,refreshing}}
 }
 function scheduleAuthority(reason,delay=2500,force=false){setTimeout(()=>refreshAuthority(reason,force).catch(()=>{}),delay)}
 async function boot(){
@@ -118,10 +134,11 @@ async function boot(){
  window.addEventListener('online',()=>scheduleAuthority('online',3000,false));
  document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')scheduleAuthority('visible',2500,false)});
  try{const n=Number(window.HLGB_RELEASE_VERSION)||0;if(n<93.06){window.HLGB_RELEASE_VERSION=V;const l=document.querySelector('#appShell .logo small');if(l)l.textContent='v'+V}}catch(e){}
- window.hlgbSyncGuard9306={version:V,patch:PATCH,status,refreshAuthority,repair,installEarlyBootGuards};
+ window.hlgbSyncGuard9306={version:V,patch:PATCH,status,refreshAuthority,repair,installEarlyBootGuards,startEarlyBootGuardWatch};
  console.info('[HLGB] v'+V+' guarda de convergência ativa · '+PATCH);
 }
 installEarlyBootGuards();
 [25,75,150,300,600,1000,1800,3000].forEach(ms=>setTimeout(installEarlyBootGuards,ms));
+startEarlyBootGuardWatch();
 if(typeof window.hlgbAfterLogin==='function')window.hlgbAfterLogin(()=>setTimeout(boot,250),0);else setTimeout(boot,900);
 })();
