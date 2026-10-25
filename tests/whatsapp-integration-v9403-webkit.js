@@ -1,6 +1,7 @@
 const {webkit}=require('playwright');
 (async()=>{const browser=await webkit.launch({headless:true});const page=await browser.newPage({viewport:{width:1280,height:900}});
 await page.route('**/functions/v1/hlgb-whatsapp-api',async route=>route.fulfill({status:200,contentType:'application/json',body:JSON.stringify({ok:true,version:'94.03',configured:false,sendReady:false,webhookReady:false,accessTokenConfigured:false,phoneNumberIdConfigured:false,verifyTokenConfigured:false,appSecretConfigured:false,graphVersion:'v24.0'})}));
+await page.goto('http://127.0.0.1:4173/',{waitUntil:'domcontentloaded'});
 await page.setContent('<!doctype html><html><body><div id="config"></div><div><button id="hlgbAuditorBusinessBtn9401">Expansão</button></div><div id="hlgbAuditorResult"></div></body></html>');
 await page.evaluate(()=>{window.db={whatsappPilotRules:[{id:'1',name:'Cliente Teste',phone:'22999999999',type:'Cliente'}]};window.esc=v=>String(v);window.table=(h,r)=>'<table><tbody>'+r.map(x=>'<tr>'+x.map(y=>'<td>'+y+'</td>').join('')+'</tr>').join('')+'</tbody></table>';window.localSaveOnly=()=>{};window.cloudEnsureFreshSession=async()=>true;window.hlgbRecordSaveWithRetry=async(m,id,row)=>({applied:true,data:row});localStorage.setItem('sb-huhrgvijgsshqlsnqeuz-auth-token',JSON.stringify({access_token:'header.payload.signature'}));});
 await page.addScriptTag({url:'http://127.0.0.1:4173/release-whatsapp-pilot-v9250.js'});await page.evaluate(()=>window.hlgbWhatsappPilot9250.ensure());await page.waitForTimeout(300);
