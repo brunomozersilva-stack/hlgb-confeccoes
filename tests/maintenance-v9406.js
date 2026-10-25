@@ -2,16 +2,22 @@ const fs=require('fs');
 const vm=require('vm');
 function ok(v,msg){if(!v)throw new Error(msg)}
 
-// 1) O gate de login precisa continuar apontando para trechos reais do app base.
+// 1) O gate v94.07 é estrutural: carrega no <head> antes do app e não depende
+//    de localizar uma sequência exata do fluxo de sessão restaurada.
 const loader=fs.readFileSync('app-stable3.html','utf8');
 const base=fs.readFileSync('app9240.html','utf8');
-const autoOpenOld='loginScreen.style.display="none";sessionLoader.style.display="none";appShell.style.display="block";setTimeout(()=>window.hlgbMarkAuthenticated?.(),0);applyAccess();restoreNavGroups();';
-ok(base.includes(autoOpenOld),'Trecho de autoabertura mudou no app base; gate v94.06 deixaria de funcionar');
+const gate=fs.readFileSync('release-login-confirm-gate-v9407.js','utf8');
 ok(base.includes('function doLogin(){'),'Função doLogin não encontrada no app base');
-ok(loader.includes("window.HLGB_LOGIN_CONFIRM_GATE='94.06'"),'Marker do gate de login v94.06 ausente');
-ok(loader.includes('__HLGB_RESTORED_SESSION_READY'),'Sessão restaurada não está sendo mantida atrás do login');
-ok(loader.includes('__HLGB_RESTORED_SESSION_ENTER'),'Ação explícita de Entrar não está ligada à sessão restaurada');
+ok(loader.includes("window.HLGB_LOGIN_CONFIRM_GATE='94.07'"),'Marker do gate de login v94.07 ausente');
+ok(loader.includes("const earlyLogin='<script src=\"./release-login-confirm-gate-v9407.js?fresh='"),'Gate v94.07 não está sendo injetado cedo no head');
+ok(loader.indexOf('earlyLogin+earlyBrand+earlyBoot')>=0,'Ordem de carregamento não garante gate antes de tema/diagnóstico');
+ok(loader.includes("'release-login-3d-baseline-v9407.js'"),'Base fresca da Impressora 3D v94.07 não está carregada');
 ok(loader.includes("'release-diagnostics-maintenance-v9406.js'"),'Manutenção da Central v94.06 não está carregada');
+ok(gate.includes("#appShell{display:none!important}"),'Gate v94.07 não bloqueia visualmente o painel antes da confirmação');
+ok(gate.includes("#loginScreen{display:flex!important}"),'Gate v94.07 não mantém a tela de login visível');
+ok(gate.includes("document.addEventListener('click',onAction,true)"),'Gate v94.07 não captura clique explícito de entrada');
+ok(gate.includes("document.addEventListener('keydown',onAction,true)"),'Gate v94.07 não captura Enter explícito');
+ok(!/MutationObserver/.test(gate),'Gate de login não deve adicionar MutationObserver ao boot');
 
 // 2) Metadado automático não pode virar conflito; campo de negócio concorrente continua bloqueado.
 const storage=new Map();
@@ -64,4 +70,12 @@ new Function(diag);
 ok(!/hlgbRecordSaveWithRetry\s*=/.test(diag),'Central v94.06 não pode substituir autoridade de save');
 ok(!/persistDb\s*=/.test(diag),'Central v94.06 não pode substituir persistência');
 
-console.log(JSON.stringify({ok:true,loginGate:'94.06',technicalConflict:technical,realConflict:real,photoConflict:photoReal,central:'read-only'}));
+// 4) O refresh da base 3D não pode assumir autoridade de save.
+const three=fs.readFileSync('release-login-3d-baseline-v9407.js','utf8');
+new Function(three);
+ok(three.includes("load({preserveLocal:true,since:null})"),'3D v94.07 não atualiza a base preservando a edição local');
+ok(!/window\.hlgbRecordSaveWithRetry\s*=/.test(three),'3D v94.07 não pode substituir autoridade de save');
+ok(!/window\.cloudRequest\s*=/.test(three),'3D v94.07 não pode substituir transporte de nuvem');
+ok(!/persistDb\s*=/.test(three),'3D v94.07 não pode criar persistência concorrente');
+
+console.log(JSON.stringify({ok:true,loginGate:'94.07-structural',technicalConflict:technical,realConflict:real,photoConflict:photoReal,central:'read-only',printer3d:'fresh-base-delegated-save'}));
