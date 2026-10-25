@@ -28,13 +28,15 @@ const {webkit}=require('playwright');
  const visible=await frame.locator('#hlgbAuditorTestHost .hlgb-auditor-actions button:visible').allTextContents();
  const normalized=visible.map(x=>x.replace(/\s+/g,' ').trim());
  const core=['Testar sistema','Registrar problema','Histórico'];
- const optional=['Arquitetura / versões','Boot / cargas'];
  for(const label of core){
   if(!normalized.some(x=>x.includes(label)))throw new Error('botao principal ausente: '+label+'; visiveis='+normalized.join(' | '));
  }
- const allowed=[...core,...optional];
- const unknown=normalized.filter(x=>!allowed.some(label=>x.includes(label)));
- if(unknown.length)throw new Error('acao inesperada no Auditor: '+unknown.join(' | ')+'; visiveis='+normalized.join(' | '));
+ // Não usar whitelist fechada: o Auditor recebe módulos novos (multiusuário, inteligência,
+ // expansão, WhatsApp etc.). O contrato é preservar os botões essenciais e impedir ações
+ // legadas/proibidas de reaparecerem, sem quebrar o CI a cada extensão válida.
+ const forbiddenVisible=['Teste visual completo','Exportar diagnóstico de sincronização','Blackbox do Auditor'];
+ const forbiddenNow=normalized.filter(x=>forbiddenVisible.some(label=>x.includes(label)));
+ if(forbiddenNow.length)throw new Error('acao legada/proibida apareceu no Auditor: '+forbiddenNow.join(' | '));
  await frame.evaluate(()=>{
   const host=document.getElementById('hlgbAuditorTestHost');
   host.insertAdjacentHTML('beforeend','<button id="legacyVisual" onclick="hlgbAuditorRunVisual()">Teste visual completo</button><button id="legacySync" onclick="hlgbAuditorExportSync()">Exportar diagnóstico de sincronização</button><button id="legacyBlackbox">Blackbox do Auditor</button>');
