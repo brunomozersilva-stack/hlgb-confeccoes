@@ -14,6 +14,8 @@ const {webkit}=require('playwright');
   </body></html>`);
   await page.evaluate(()=>{
     window.HLGB_RELEASE_VERSION='93.72';
+    window.__photoWalPrunes=0;
+    window.hlgbWalSingleAuthority9339={pruneConfirmed:async(force,max)=>{window.__photoWalPrunes++;return{removed:1,force,max}}};
     window.openHlgbAuditor=function(){
       const old=document.getElementById('hlgbAuditorResult');if(old)old.remove();
       const host=document.createElement('div');host.id='hlgbAuditorResult';host.innerHTML='<div id="oldAudit">Status do sistema: Falha · resultado antigo</div>';document.body.appendChild(host);return true;
@@ -60,10 +62,19 @@ const {webkit}=require('playwright');
   await page.waitForFunction(()=>document.querySelector('.hlgb-photo-prep-status')?.textContent?.includes('pronta'));
   const photoSave=await page.evaluate(()=>{
     const p={id:'produto-teste',photos:[]};
-    const ok=window.saveProductFromForm(p);
-    return {ok,photos:p.photos||[],legacy:window.__legacyPhotoSideEffect,patched:!!window.saveProductFromForm.__hlgbProductPhoto9405,mode:window.hlgbUiActions9402?.productPhotos?.mode,version:window.hlgbUiActions9402?.version};
+    const ok=window.saveProductFromForm(p),state=document.getElementById('fproductPhotos')?.__hlgbPhotoPrep9405;
+    return {
+      ok,photos:p.photos||[],legacy:window.__legacyPhotoSideEffect,
+      patched9405:!!window.saveProductFromForm.__hlgbProductPhoto9405,
+      patched9406:!!window.saveProductFromForm.__hlgbProductPhoto9406,
+      mode:window.hlgbUiActions9402?.productPhotos?.mode,
+      maxDataUrlBytes:window.hlgbUiActions9402?.productPhotos?.maxDataUrlBytes,
+      prunePolicy:window.hlgbUiActions9402?.productPhotos?.pruneConfirmedBeforePrepare,
+      walPruned:!!state?.walPruned,walPrunes:window.__photoWalPrunes,
+      version:window.hlgbUiActions9402?.version
+    };
   });
-  if(!photoSave.ok||photoSave.photos.length!==1||!String(photoSave.photos[0].data||'').startsWith('data:image/jpeg')||photoSave.legacy!==0||!photoSave.patched||photoSave.mode!=='prepare-before-existing-save'||photoSave.version!=='94.05')throw new Error('Foto de produto ainda usa o fluxo paralelo antigo: '+JSON.stringify(photoSave));
+  if(!photoSave.ok||photoSave.photos.length!==1||!String(photoSave.photos[0].data||'').startsWith('data:image/jpeg')||photoSave.legacy!==0||!photoSave.patched9405||!photoSave.patched9406||photoSave.mode!=='prepare-before-existing-save'||photoSave.version!=='94.06'||photoSave.walPrunes<1||!photoSave.walPruned||photoSave.prunePolicy!==true||!(photoSave.maxDataUrlBytes>0&&photoSave.maxDataUrlBytes<=300000))throw new Error('Foto de produto/WAL não segue fluxo v94.06: '+JSON.stringify(photoSave));
 
   await page.evaluate(()=>window.hlgbUiControl9404.installAuditorBridge());
   await page.evaluate(()=>window.openHlgbAuditor());
@@ -73,8 +84,8 @@ const {webkit}=require('playwright');
   const banner=await page.locator('#byhAuditorLive9404').innerText();
   if(!/Status atualizado/i.test(banner))throw new Error('Auditor não confirmou atualização desta abertura');
   const globals=await page.evaluate(()=>({ui:window.HLGB_UI_CONTROL_9404,theme:window.HLGB_BYHAGATHA_THEME_9402,actions:window.HLGB_UI_ACTIONS_9402}));
-  if(globals.ui!=='94.04'||globals.theme!=='94.04'||globals.actions!=='94.05')throw new Error('Versões centrais incorretas: '+JSON.stringify(globals));
-  await page.screenshot({path:'/tmp/hlgb-ui-control-v9405-webkit.png',fullPage:true});
-  console.log(JSON.stringify({ok:true,intensity80:intensity,zero,photoSave:{count:photoSave.photos.length,legacy:photoSave.legacy,version:photoSave.version},auditor:banner}));
+  if(globals.ui!=='94.04'||globals.theme!=='94.04'||globals.actions!=='94.06')throw new Error('Versões centrais incorretas: '+JSON.stringify(globals));
+  await page.screenshot({path:'/tmp/hlgb-ui-control-v9406-webkit.png',fullPage:true});
+  console.log(JSON.stringify({ok:true,intensity80:intensity,zero,photoSave:{count:photoSave.photos.length,legacy:photoSave.legacy,version:photoSave.version,walPrunes:photoSave.walPrunes,maxDataUrlBytes:photoSave.maxDataUrlBytes},auditor:banner}));
   await browser.close();
 })().catch(e=>{console.error(e);process.exit(1)});
