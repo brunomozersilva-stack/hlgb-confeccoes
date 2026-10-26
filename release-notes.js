@@ -133,6 +133,7 @@ function refresh(){if(!canRenderProjection())return false;captureProjectionSelec
 try{if(typeof hlgbAfterLogin==='function')hlgbAfterLogin(()=>{setTimeout(refresh,700);setTimeout(refresh,2200)},0)}catch(e){}
 setTimeout(refresh,1100);setTimeout(refresh,3200);
 try{if(!window.HLGB_UI_CLEANUP&&!document.querySelector('script[data-hlgb-ui-cleanup]')){const s=document.createElement('script');s.dataset.hlgbUiCleanup='1';s.src='./release-ui-cleanup.js?fresh='+Date.now();document.head.appendChild(s)}}catch(e){}
+try{if(!document.querySelector('script[data-hlgb-note-document-v9412]')){const s=document.createElement('script');s.dataset.hlgbNoteDocumentV9412='1';s.src='./release-note-document-v9412.js?fresh='+Date.now();document.head.appendChild(s)}}catch(e){console.warn('[HLGB notes '+V+'] documento v94.12',e)}
 window.hlgbNotesQueueSource=queueSource;
 window.hlgbNotesSyncLocal=syncLocal;
 window.hlgbNotesCanRenderProjection=canRenderProjection;
