@@ -10,22 +10,52 @@ const {webkit}=require('playwright');
  await page.waitForFunction(()=>window.HLGB_AUDITOR_SHELL_AUTHORITY==='93.82'&&typeof window.openHlgbAuditor==='function'&&!!document.getElementById('hlgbAuditorNavBtn'),null,{timeout:60000});
  await page.evaluate(()=>{
   const login=document.getElementById('loginScreen');if(login)login.style.setProperty('display','none','important');
+  const app=document.getElementById('appShell');if(app){app.style.setProperty('display','block','important');app.style.setProperty('visibility','visible','important');app.style.setProperty('opacity','1','important')}
   const btn=document.getElementById('hlgbAuditorNavBtn');if(btn){document.body.appendChild(btn);Object.assign(btn.style,{display:'block',visibility:'visible',opacity:'1',position:'fixed',left:'20px',top:'20px',zIndex:'2147483647'})}
  });
  await page.click('#hlgbAuditorNavBtn',{timeout:10000});
  await page.waitForSelector('#hlgbSmartStatus',{state:'visible',timeout:10000});
  await page.waitForSelector('#hlgbAuditorIntelligenceBtn9396',{state:'visible',timeout:10000});
+ await page.waitForSelector('#hlgbDailyReport9368',{state:'visible',timeout:10000});
 
  // A interface oficial deve ser a única visível; nenhum controle legado pode reaparecer.
  const shell=await page.evaluate(()=>{
   const status=document.getElementById('hlgbSmartStatus');
   const root=status?.closest?.('[role="dialog"],.modal,.modal-content,.modalCard,.modal-card,.dialog')||status?.parentElement?.parentElement||status?.parentElement;
   const shown=[...(root?.querySelectorAll?.('button,a,[role="button"]')||[])].filter(el=>{const s=getComputedStyle(el),r=el.getBoundingClientRect();return !el.hidden&&s.display!=='none'&&s.visibility!=='hidden'&&r.width>0&&r.height>0}).map(el=>({id:el.id||'',text:String(el.textContent||'').trim()}));
-  const official=['hlgbMultiuserOpen','hlgbSmartTest','hlgbSmartProblem','hlgbSmartHistoryBtn','hlgbAuthorityBtn9374','hlgbBootAnalysisBtn9381','hlgbAuditorIntelligenceBtn9396'];
+  const official=['hlgbMultiuserOpen','hlgbSmartTest','hlgbSmartProblem','hlgbSmartHistoryBtn','hlgbAuthorityBtn9374','hlgbBootAnalysisBtn9381','hlgbAuditorIntelligenceBtn9396','hlgbDailyReport9368'];
   const legacyPattern=/Diagnóstico profundo do Hub|Teste visual completo|Tela atual|Exportar diagnóstico visual|Copiar última auditoria|Sincronização|Limpar falsos positivos confirmados|Executar teste visual|Diagnóstico Assistente|Diagnóstico da Folha/i;
-  return {shown,missing:official.filter(id=>!shown.some(x=>x.id===id)),legacy:shown.filter(x=>legacyPattern.test(x.text)),authority:window.HLGB_AUDITOR_SHELL_AUTHORITY,openerIsShell:window.openHlgbAuditor===window.hlgbAuditorShell9382?.open,legacyCapture:typeof window.__hlgbAuditorEntryCapture9368==='function'};
+  return {shown,missing:official.filter(id=>!shown.some(x=>x.id===id)),legacy:shown.filter(x=>legacyPattern.test(x.text)),authority:window.HLGB_AUDITOR_SHELL_AUTHORITY,openerIsShell:window.openHlgbAuditor===window.hlgbAuditorShell9382?.open,legacyCapture:typeof window.__hlgbAuditorEntryCapture9368==='function',dailyFn:typeof window.hlgbAuditorDailyReport9368==='function'};
  });
- if(shell.missing.length||shell.legacy.length||shell.authority!=='93.82'||!shell.openerIsShell||shell.legacyCapture)throw new Error('Shell oficial do Auditor não é autoridade única '+JSON.stringify(shell));
+ if(shell.missing.length||shell.legacy.length||shell.authority!=='93.82'||!shell.openerIsShell||shell.legacyCapture||!shell.dailyFn)throw new Error('Shell oficial do Auditor não é autoridade única '+JSON.stringify(shell));
+
+ // O Testar sistema precisa terminar deixando um link manual baixável no WebKit/Safari.
+ await page.click('#hlgbSmartTest',{timeout:10000});
+ await page.waitForSelector('#hlgbSafariTestDownload9368',{state:'visible',timeout:60000});
+ const testDownload=await page.evaluate(()=>{
+  const a=document.getElementById('hlgbSafariTestDownload9368'),s=a?getComputedStyle(a):null,r=a?.getBoundingClientRect();
+  return {visible:!!a&&s?.display!=='none'&&s?.visibility!=='hidden'&&(r?.width||0)>0&&(r?.height||0)>0,href:a?.getAttribute('href')||'',download:a?.getAttribute('download')||'',text:String(a?.textContent||'').trim()};
+ });
+ if(!testDownload.visible||!/^blob:/.test(testDownload.href)||!/^HLGB-TESTE-SISTEMA-/.test(testDownload.download)||!/Baixar relatório do teste/i.test(testDownload.text))throw new Error('download manual do Testar sistema inválido '+JSON.stringify(testDownload));
+
+ // O relatório diário usa dados privados no sistema real. No preview local, simula somente as respostas
+ // para validar o fluxo visual e a geração do arquivo sem depender de credenciais.
+ await page.evaluate(()=>{
+  window.cloudEnsureFreshSession=async()=>true;
+  window.cloudRequest=async(path)=>{
+   if(path==='rpc/hlgb_auditor_report')return {summary:{profilesObserved:3,profiles:3,errors:0,slowOperations:0},profiles:[]};
+   throw new Error('endpoint inesperado no preview: '+path);
+  };
+  window.fetch=async()=>({ok:true,json:async()=>({schemaVersion:1,kind:'hlgb-nightly-code-audit',summary:{status:'ok',tests:10,passed:10,failed:0}})});
+ });
+ await page.click('#hlgbDailyReport9368',{timeout:10000});
+ await page.waitForSelector('#hlgbSafariDailyDownload9368',{state:'visible',timeout:15000});
+ const dailyDownload=await page.evaluate(()=>{
+  const a=document.getElementById('hlgbSafariDailyDownload9368'),s=a?getComputedStyle(a):null,r=a?.getBoundingClientRect();
+  const last=window.hlgbAuditorSmart?.safariDownload?.getLastDaily?.();
+  return {visible:!!a&&s?.display!=='none'&&s?.visibility!=='hidden'&&(r?.width||0)>0&&(r?.height||0)>0,href:a?.getAttribute('href')||'',download:a?.getAttribute('download')||'',text:String(a?.textContent||'').trim(),kind:last?.kind||'',timezone:last?.timezone||'',codeAvailable:last?.codeAvailable===true};
+ });
+ if(!dailyDownload.visible||!/^blob:/.test(dailyDownload.href)||!/^HLGB-RELATORIO-DIARIO-/.test(dailyDownload.download)||!/Baixar relatório diário/i.test(dailyDownload.text)||dailyDownload.kind!=='hlgb_daily_auditor_bundle'||dailyDownload.timezone!=='America/Sao_Paulo'||!dailyDownload.codeAvailable)throw new Error('download do relatório diário inválido '+JSON.stringify(dailyDownload));
 
  // Reproduz a janela real em que o Safari mostrou o botão piscando e depois sumindo.
  const stability=await page.evaluate(async()=>{
@@ -57,7 +87,7 @@ const {webkit}=require('playwright');
  if(after.version!=='93.98'||!/Inteligência do Auditor/.test(after.panelText)||!/Save:/.test(after.panelText)||!/Financeiro→Projeção:/.test(after.panelText)||!after.downloadVisible||!after.hasSaveChain||!after.hasProjectionIntegrity)throw new Error('painel/download v93.98 incompleto '+JSON.stringify(after));
  if(!Object.prototype.hasOwnProperty.call(after.metrics||{},'saveDuplicateResponsibilities')||!Object.prototype.hasOwnProperty.call(after.metrics||{},'projectionOrphans')||!Object.prototype.hasOwnProperty.call(after.metrics||{},'projectionOrphansUnresolved'))throw new Error('métricas v93.98 ausentes '+JSON.stringify(after.metrics));
  await page.screenshot({path:'/tmp/hlgb-auditor-inteligencia-webkit.png',fullPage:true});
- if(errors.some(x=>/auditor|9396|9398|9382|intelig/i.test(x)))throw new Error('pageerror relacionado ao Auditor: '+errors.join(' | '));
- console.log('AUDITOR_INTELLIGENCE_BUTTON_WEBKIT_V9398_OK',JSON.stringify({samples:stability.length,last:stability.at(-1),downloadVisible:after.downloadVisible,version:after.version,metrics:after.metrics,shell}));
+ if(errors.some(x=>/auditor|9396|9398|9382|9368|relat[oó]rio|download|intelig/i.test(x)))throw new Error('pageerror relacionado ao Auditor: '+errors.join(' | '));
+ console.log('AUDITOR_INTELLIGENCE_BUTTON_WEBKIT_V9398_OK',JSON.stringify({samples:stability.length,last:stability.at(-1),downloadVisible:after.downloadVisible,testDownload,dailyDownload,version:after.version,metrics:after.metrics,shell}));
  await browser.close();
 })().catch(e=>{console.error(e);process.exit(1)});
