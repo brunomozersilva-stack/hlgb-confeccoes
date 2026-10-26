@@ -1,6 +1,7 @@
 const fs=require('fs'),assert=require('assert');
 const app=fs.readFileSync('app9240.html','utf8');
 const loader=fs.readFileSync('app-stable3.html','utf8');
+const manifest=JSON.parse(fs.readFileSync('release.json','utf8'));
 const files=[
  'release-operations-pack.js',
  'release-assistant-mobile-v9250.js',
@@ -15,12 +16,15 @@ const src=Object.fromEntries(files.map(f=>[f,fs.readFileSync(f,'utf8')]));
 for(const [f,s] of Object.entries(src))new Function(s);
 
 for(const m of ['supplierDebts','supplierDebtTransactions','employeePurchases','clientAliases','productAliases','whatsappPilotRules','whatsappPilotMessages']){
- assert(app.includes('"'+m+'"'),m+' must be a normalized module');
+ assert(app.includes('"'+m+'"'),m+' must remain a normalized module');
 }
 for(const f of files.filter(f=>f.includes('v9250'))){
  assert(loader.includes("'"+f+"'"),f+' must be loaded by official loader');
 }
-assert(app.includes("window.HLGB_RELEASE_VERSION='92.50'"),'app identity must be v92.50');
+assert(Number(manifest.version)>=93.72,'current release must not regress below the stabilized line');
+assert(Number(manifest.minimum_version)>=93.11,'minimum supported version must keep the normalized sync baseline');
+assert.equal(manifest.entry,'abrir.html','canonical entry must be abrir.html');
+assert.equal(manifest.force_canonical,true);
 
 const ops=src['release-operations-pack.js'];
 assert(ops.includes('Quantidade de peças'),'A4 labels must contain piece quantity');
@@ -59,11 +63,16 @@ const cutters=src['release-cutter-history-v9250.js'];
 for(const x of ['Histórico detalhado de cortadores','Material previsto','Material realizado','exportCutterHistory9250'])assert(cutters.includes(x),'cutter history missing '+x);
 
 const wa=src['release-whatsapp-pilot-v9250.js'];
-assert(wa.includes('Sem conexão com o WhatsApp real'),'WhatsApp must remain pilot only');
-assert(wa.includes('Bloqueado no piloto'),'WhatsApp pilot must block sensitive questions');
+assert(wa.includes('WhatsApp Business Cloud API'),'WhatsApp must use the official Cloud API contract');
+assert(wa.includes('HLGB_WHATSAPP_INTEGRATION_9403'),'current WhatsApp integration guard required');
+assert(wa.includes('/functions/v1/hlgb-whatsapp-api'),'WhatsApp must call the protected Supabase edge function');
+assert(wa.includes('Tokens da Meta ficam só no Supabase'),'Meta token must remain server-side');
+assert(wa.includes("['permanent-interval',/setInterval"),'self-audit must reject permanent intervals');
+assert(wa.includes("['meta-token-client'"),'self-audit must reject client-side Meta tokens');
+assert(!wa.includes('WHATSAPP_ACCESS_TOKEN'),'Meta access token name must not be embedded in client source');
 
 const daily=src['release-daily-safety.js'];
 assert(!daily.includes('remoteBackupMeta:remote?') || daily.includes('const remote='),'daily package remote variable must be defined');
 assert(daily.includes('remoteBackupMeta:remoteBackup?'),'daily audit must return remote backup metadata');
 
-console.log('PASS v92.50 consolidated business package');
+console.log('PASS current business package: operations, suppliers, employees, labels and secure official WhatsApp contract.');
