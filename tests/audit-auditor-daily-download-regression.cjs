@@ -23,7 +23,8 @@ const required=[
   'usersAvailable:!!users',
   'usersErrorCode:userErrorCode||null',
   'partial:!users||!code',
-  'Relatório diário pronto'+"'"+'+(usersOk?'+"''"+':\' (parcial)\')'
+  ' (parcial)',
+  'acesso privado indisponível nesta sessão'
 ];
 for(const token of required)assert(src.includes(token),`Faltou contrato do Auditor: ${token}`);
 assert(!/userSnapshot:'17:55'/.test(src),'O relatório diário não deve prometer coleta cron às 17:55');
