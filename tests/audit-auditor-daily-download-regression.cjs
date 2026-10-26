@@ -18,9 +18,16 @@ const required=[
   "userCollection:'on-demand'",
   'userWindowHours:24',
   "technicalSuite:'18:00'",
-  'window.hlgbAuditorSmartRun=wrappedTest'
+  'window.hlgbAuditorSmartRun=wrappedTest',
+  'auditor_access_required',
+  'usersAvailable:!!users',
+  'usersErrorCode:userErrorCode||null',
+  'partial:!users||!code',
+  'Relatório diário pronto'+"'"+'+(usersOk?'+"''"+':\' (parcial)\')'
 ];
 for(const token of required)assert(src.includes(token),`Faltou contrato do Auditor: ${token}`);
 assert(!/userSnapshot:'17:55'/.test(src),'O relatório diário não deve prometer coleta cron às 17:55');
 assert(!/auto(?:matic)?Download/i.test(src),'O download não deve depender de disparo automático do Safari');
-console.log('OK auditor daily/download regression');
+assert(!src.includes("if(!users)throw new Error('Não foi possível ler o relatório privado dos usuários'"),'Falha do relatório privado não pode derrubar o relatório diário inteiro');
+assert(src.includes('return null}};'),'Falha inesperada do botão diário não deve ser relançada como exceção assíncrona global');
+console.log('OK auditor daily/download regression: download manual + relatório parcial seguro');
