@@ -15,10 +15,12 @@ const required=[
   'hlgb_daily_auditor_bundle',
   'rpc/hlgb_auditor_report',
   'auditor-nightly-data/latest.json',
-  "userSnapshot:'17:55'",
+  "userCollection:'on-demand'",
+  'userWindowHours:24',
   "technicalSuite:'18:00'",
   'window.hlgbAuditorSmartRun=wrappedTest'
 ];
 for(const token of required)assert(src.includes(token),`Faltou contrato do Auditor: ${token}`);
+assert(!/userSnapshot:'17:55'/.test(src),'O relatório diário não deve prometer coleta cron às 17:55');
 assert(!/auto(?:matic)?Download/i.test(src),'O download não deve depender de disparo automático do Safari');
 console.log('OK auditor daily/download regression');
