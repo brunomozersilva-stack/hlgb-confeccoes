@@ -31,6 +31,9 @@ jobs:
       - name: Validate daily 18h schedule
         run: node tests/audit-nightly-schedule-regression.cjs
 
+      - name: Validate sanitized nightly failure details
+        run: node tests/audit-nightly-failure-detail-regression.cjs
+
       - name: Run existing critical audit
         shell: bash
         run: |

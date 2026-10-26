@@ -10,6 +10,22 @@ const tests = readdirSync(testsDir)
   .filter(name => /^audit-.*\.cjs$/i.test(name))
   .sort();
 
+function summarizeFailure(proc, timedOut) {
+  if (timedOut) return 'Tempo limite excedido.';
+  const raw = String(proc?.stderr || proc?.stdout || proc?.error?.message || `Processo terminou com código ${proc?.status ?? 'desconhecido'}`)
+    .replace(/\x1b\[[0-9;]*m/g, '');
+  const lines = raw.split(/\r?\n/).map(x => x.trim()).filter(Boolean);
+  const preferred = lines.find(line => /^(?:AssertionError(?:\s+\[[^\]]+\])?|SyntaxError|ReferenceError|TypeError|RangeError|Error):/.test(line))
+    || lines.find(line => /AssertionError|SyntaxError|ReferenceError|TypeError|RangeError/.test(line))
+    || lines.find(line => !/^at\s/.test(line) && !/^node:/.test(line))
+    || `Processo terminou com código ${proc?.status ?? 'desconhecido'}`;
+  return preferred
+    .replaceAll(root, '<workspace>')
+    .replace(/\/home\/runner\/work\/[^\s:]+/g, '<workspace>')
+    .replace(/https:\/\/x-access-token:[^@\s]+@github\.com/gi, 'https://github.com')
+    .slice(0, 280);
+}
+
 const results = [];
 const startedAt = new Date();
 const suiteStart = performance.now();
@@ -25,12 +41,17 @@ for (const name of tests) {
   const durationMs = Math.round(performance.now() - started);
   const timedOut = !!proc.error && proc.error.code === 'ETIMEDOUT';
   const ok = !timedOut && proc.status === 0;
-  results.push({
+  const item = {
     test: basename(name),
     status: ok ? 'passed' : (timedOut ? 'timeout' : 'failed'),
     durationMs
-  });
-  process.stdout.write(`${ok ? 'PASS' : 'FAIL'} ${name} (${durationMs} ms)\n`);
+  };
+  if (!ok) {
+    item.exitCode = Number.isInteger(proc.status) ? proc.status : null;
+    item.detail = summarizeFailure(proc, timedOut);
+  }
+  results.push(item);
+  process.stdout.write(`${ok ? 'PASS' : 'FAIL'} ${name} (${durationMs} ms)${ok ? '' : ` — ${item.detail}`}\n`);
 }
 
 const durationMs = Math.round(performance.now() - suiteStart);
@@ -69,7 +90,7 @@ const lines = [
   `Duração: ${durationMs} ms`,
   '',
   failed ? 'Falhas:' : 'Falhas: nenhuma',
-  ...report.failures.map(r => `- ${r.test}: ${r.status} (${r.durationMs} ms)`),
+  ...report.failures.map(r => `- ${r.test}: ${r.status} (${r.durationMs} ms)${r.detail ? ` — ${r.detail}` : ''}`),
   '',
   'Mais lentos:',
   ...report.slowest.map(r => `- ${r.test}: ${r.durationMs} ms`)
