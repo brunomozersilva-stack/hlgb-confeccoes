@@ -1,8 +1,8 @@
-/* HLGB v93.47 — sincronização confirmada com contenção de Disk I/O.
-   Realtime é a via principal; polling vira contingência e nenhuma fila é descartada. */
+/* HLGB v93.48 — sincronização confirmada com verificação anti-evento perdido.
+   Realtime continua principal, mas a nuvem é confirmada periodicamente e ao abrir Pedidos. */
 (function(){
 'use strict';
-const V='93.47';
+const V='93.48';
 if(window.hlgbSyncRecovery9301?.version===V)return;
 
 const PENDING_KEY='hlgb_records_pending_v91';
@@ -13,10 +13,12 @@ const FULL_EVERY_MS=600000;
 const INCREMENTAL_EVERY_MS=60000;
 const MAINTENANCE_EVERY_MS=30000;
 const MIN_INCREMENTAL_MS=45000;
-const OVERLAP_MS=120000;
+const REALTIME_VERIFY_EVERY_MS=120000;
+const ORDERS_FULL_VERIFY_MIN_MS=5000;
+const OVERLAP_MS=600000;
 let busy=false,lastFull=0,lastIncremental=0,lastReason='',lastResult=null;
 let fullTimer=null,incrementalTimer=null,retryTimer=null,maintenanceTimer=null;
-let skippedRealtime=0,flushOnlyRuns=0;
+let skippedRealtime=0,flushOnlyRuns=0,lastCloudVerify=0,lastOrdersVerify=0;
 
 const wait=ms=>new Promise(r=>setTimeout(r,ms));
 const sid=v=>String(v??'');
@@ -37,7 +39,7 @@ function recordPendingCount(){const p=read(PENDING_KEY,null);return Object.value
 function walPendingCount(){const w=read(WAL_KEY,null);return w?.entries&&typeof w.entries==='object'?Object.keys(w.entries).length:0}
 function pendingCounts(){return {records:recordPendingCount(),wal:walPendingCount()}}
 function totalPending(){const p=pendingCounts();return p.records+p.wal}
-function snapshotState(extra={}){const s={version:V,at:new Date().toISOString(),busy,lastFull,lastIncremental,lastReason,lastResult,realtime:realtimeState(),recordReady:ready(),online:navigator.onLine,pending:pendingCounts(),ioPolicy:{fullEveryMs:FULL_EVERY_MS,incrementalEveryMs:INCREMENTAL_EVERY_MS,maintenanceEveryMs:MAINTENANCE_EVERY_MS,minIncrementalMs:MIN_INCREMENTAL_MS,skippedRealtime,flushOnlyRuns},...extra};try{localStorage.setItem(STATE_KEY,JSON.stringify(s))}catch(e){}return s}
+function snapshotState(extra={}){const s={version:V,at:new Date().toISOString(),busy,lastFull,lastIncremental,lastReason,lastResult,realtime:realtimeState(),recordReady:ready(),online:navigator.onLine,pending:pendingCounts(),ioPolicy:{fullEveryMs:FULL_EVERY_MS,incrementalEveryMs:INCREMENTAL_EVERY_MS,maintenanceEveryMs:MAINTENANCE_EVERY_MS,minIncrementalMs:MIN_INCREMENTAL_MS,realtimeVerifyEveryMs:REALTIME_VERIFY_EVERY_MS,ordersFullVerifyMinMs:ORDERS_FULL_VERIFY_MIN_MS,overlapMs:OVERLAP_MS,skippedRealtime,flushOnlyRuns,lastCloudVerify,lastOrdersVerify},...extra};try{localStorage.setItem(STATE_KEY,JSON.stringify(s))}catch(e){}return s}
 function quarantineHistory(){const x=read(QUAR_KEY,[]);return Array.isArray(x)?x:[]}
 
 /* Filas não confirmadas nunca são removidas por idade. */
@@ -114,12 +116,13 @@ async function fullSync(reason='manual',force=false){
    if(needPrime)out=await primeRecordLayer();
    const flush=await flushOutgoing(reason);
    const remaining=totalPending();
-   /* v93.47: no máximo uma carga ampla por ciclo. Se foi necessário inicializar
-      a camada, o prime já trouxe a nuvem preservando o local; não lê tudo de novo. */
+   /* Uma única carga ampla por ciclo. Se o prime inicializou a camada, ele já
+      trouxe a nuvem preservando o local. */
    if(!needPrime){
      const load=loadBundleFn();if(typeof load!=='function')throw new Error('Leitura por registro indisponível');
      out=await load({preserveLocal:remaining>0,since:null});markReady();saveLocal();
    }
+   lastCloudVerify=Date.now();
    const cursor=resetCursorFromSnapshots();
    restartRealtimeIfNeeded(realtimeState()!=='SUBSCRIBED');
    redrawCurrent();
@@ -138,8 +141,9 @@ async function incrementalSync(force=false){
  if(!ready()||!token())return fullSync('incremental-not-ready',true);
  const now=Date.now();if(!force&&now-lastIncremental<MIN_INCREMENTAL_MS)return true;
  const hadPending=totalPending()>0;
- /* Com Realtime saudável e sem fila local não fazemos polling do banco. */
- if(!force&&!hadPending&&realtimeState()==='SUBSCRIBED'){
+ /* Realtime é a via principal, mas SUBSCRIBED sozinho não prova que nenhum evento
+    foi perdido. A cada dois minutos fazemos uma confirmação curta no banco. */
+ if(!force&&!hadPending&&realtimeState()==='SUBSCRIBED'&&now-lastCloudVerify<REALTIME_VERIFY_EVERY_MS){
    skippedRealtime++;lastIncremental=now;lastReason='realtime-skip';snapshotState();return true;
  }
  busy=true;lastReason='incremental';snapshotState();
@@ -161,6 +165,7 @@ async function incrementalSync(force=false){
    if(!since){busy=false;snapshotState();return fullSync('incremental-bad-cursor',true)}
    const load=loadBundleFn();if(typeof load!=='function')throw new Error('Leitura por registro indisponível');
    const out=await load({preserveLocal:true,since});markReady();saveLocal();
+   lastCloudVerify=Date.now();
    const rows=Array.isArray(out?.rows)?out.rows:[];if(rows.length)redrawCurrent();
    restartRealtimeIfNeeded(false);lastIncremental=Date.now();
    const p=pendingCounts();lastResult={ok:p.records+p.wal===0,kind:'incremental',at:new Date().toISOString(),since,rows:rows.length,flush,pending:p,realtime:realtimeState()};
@@ -169,17 +174,34 @@ async function incrementalSync(force=false){
  }catch(e){console.warn('[HLGB sync '+V+'] incremental',e);lastResult={ok:false,kind:'incremental',at:new Date().toISOString(),error:sid(e?.message||e),pending:pendingCounts()};snapshotState();return false}
  finally{busy=false;snapshotState()}
 }
+function ordersPageCatchup(reason='open'){
+ const now=Date.now();
+ if(now-lastOrdersVerify<ORDERS_FULL_VERIFY_MIN_MS)return incrementalSync(true);
+ lastOrdersVerify=now;
+ return fullSync('orders-'+reason,true);
+}
 function scheduleFull(reason,delay=80,force=true){clearTimeout(retryTimer);retryTimer=setTimeout(()=>fullSync(reason,force).catch(()=>{}),delay)}
-function scheduleCatchup(reason,delay=180){clearTimeout(retryTimer);retryTimer=setTimeout(()=>{lastReason=reason;incrementalSync(true).catch(()=>{})},delay)}
-function stamp(){try{const cur=Number(window.HLGB_RELEASE_VERSION)||0;if(cur<93.47){window.HLGB_RELEASE_VERSION=V;const l=document.querySelector('#appShell .logo small');if(l)l.textContent='v'+V}}catch(e){}}
+function scheduleCatchup(reason,delay=180){clearTimeout(retryTimer);retryTimer=setTimeout(()=>{lastReason=reason;const p=activePage();if(p==='pedidos')ordersPageCatchup(reason).catch(()=>{});else incrementalSync(true).catch(()=>{})},delay)}
+function installOrdersOpenCatchup(){
+ if(document.documentElement.dataset.hlgbOrdersCatchup9348==='1')return;
+ document.documentElement.dataset.hlgbOrdersCatchup9348='1';
+ document.addEventListener('click',e=>{
+  const t=e.target?.closest?.('[data-page],button,a');if(!t)return;
+  const page=sid(t.dataset?.page||t.getAttribute?.('data-target')||'').toLowerCase();
+  const text=sid(t.textContent).replace(/\s+/g,' ').trim().toLowerCase();
+  if(page!=='pedidos'&&text!=='pedidos')return;
+  setTimeout(()=>{if(activePage()==='pedidos')ordersPageCatchup('open').catch(()=>{})},180);
+ },true);
+}
+function stamp(){try{const cur=Number(window.HLGB_RELEASE_VERSION)||0;if(cur<93.48){window.HLGB_RELEASE_VERSION=V;const l=document.querySelector('#appShell .logo small');if(l)l.textContent='v'+V}}catch(e){}}
 function installOverrides(){
- window.hlgb942FullCloudRefresh=(reason='manual',force=false)=>fullSync('v9347-'+reason,!!force);
+ window.hlgb942FullCloudRefresh=(reason='manual',force=false)=>fullSync('v9348-'+reason,!!force);
  try{hlgbPullNormalizedCoreChanges=(force=false)=>incrementalSync(!!force)}catch(e){window.hlgbPullNormalizedCoreChanges=(force=false)=>incrementalSync(!!force)}
- window.hlgbSyncRecovery9301={version:V,run:()=>fullSync('manual',true),fullSync,incrementalSync,flushOutgoing,status:()=>snapshotState(),quarantine:quarantineHistory,restartRealtime:()=>restartRealtimeIfNeeded(true),pending:pendingCounts};
- window.HLGB_SYNC_RECOVERY_9301=V;window.HLGB_SYNC_AUTHORITY='realtime-primary-cloud-after-confirmation';
+ window.hlgbSyncRecovery9301={version:V,run:()=>fullSync('manual',true),fullSync,incrementalSync,ordersPageCatchup,flushOutgoing,status:()=>snapshotState(),quarantine:quarantineHistory,restartRealtime:()=>restartRealtimeIfNeeded(true),pending:pendingCounts};
+ window.HLGB_SYNC_RECOVERY_9301=V;window.HLGB_SYNC_AUTHORITY='realtime-primary-cloud-verified-after-confirmation';
 }
 function boot(){
- installOverrides();stamp();
+ installOverrides();installOrdersOpenCatchup();stamp();
  if(typeof window.hlgbAfterLogin==='function')window.hlgbAfterLogin(()=>scheduleFull('login',250,true),0);else scheduleFull('boot',900,true);
  document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')scheduleCatchup('visible',250)},true);
  window.addEventListener('focus',()=>scheduleCatchup('focus',250),true);
@@ -187,10 +209,10 @@ function boot(){
  window.addEventListener('pageshow',()=>scheduleCatchup('pageshow',300),true);
  incrementalTimer=setInterval(()=>{if(document.visibilityState==='visible'&&navigator.onLine)incrementalSync(false).catch(()=>{})},INCREMENTAL_EVERY_MS);
  fullTimer=setInterval(()=>{if(document.visibilityState==='visible'&&navigator.onLine)fullSync('periodic-watchdog',false).catch(()=>{})},FULL_EVERY_MS);
- maintenanceTimer=setInterval(()=>{installOverrides();stamp();if(totalPending()>0&&loggedIn()&&navigator.onLine&&!userEditing())incrementalSync(false).catch(()=>{})},MAINTENANCE_EVERY_MS);
- setTimeout(()=>{installOverrides();stamp();if(loggedIn()&&(!ready()||!currentCursor()))scheduleFull('late-boot',100,true)},1800);
+ maintenanceTimer=setInterval(()=>{installOverrides();installOrdersOpenCatchup();stamp();if(totalPending()>0&&loggedIn()&&navigator.onLine&&!userEditing())incrementalSync(false).catch(()=>{})},MAINTENANCE_EVERY_MS);
+ setTimeout(()=>{installOverrides();installOrdersOpenCatchup();stamp();if(loggedIn()&&(!ready()||!currentCursor()))scheduleFull('late-boot',100,true)},1800);
  snapshotState({booted:true});
- console.info('[HLGB] v'+V+' contenção de Disk I/O ativa — Realtime principal, polling reduzido e filas preservadas');
+ console.info('[HLGB] v'+V+' Realtime principal + verificação de nuvem e recuperação de Pedidos ativa');
 }
 boot();
 })();
