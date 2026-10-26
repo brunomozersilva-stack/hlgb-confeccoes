@@ -1,8 +1,9 @@
-/* HLGB v94.11 — integridade de notas, nota avulsa, documentos e limpeza segura de órfãos */
+/* HLGB v94.18 — integridade de notas, nota avulsa, documentos e reconciliação de tombstones financeiros */
 (function(){
 'use strict';
 
-const V='94.11';
+const V='94.18';
+const FIN_TOMBSTONE_KEY='hlgb_note_orphan_finance_tombstones_v9418';
 const sid=v=>String(v??'');
 const q=v=>Math.max(0,Number(v)||0);
 const norm=v=>sid(v).normalize('NFD').replace(/[\u0300-\u036f]/g,'').trim().toLowerCase();
@@ -11,6 +12,7 @@ const esc=v=>sid(v).replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"
 const money=v=>Number(v||0).toLocaleString('pt-BR',{style:'currency',currency:'BRL'});
 const today=()=>{const d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0')};
 const fmtDate=v=>{const m=sid(v).slice(0,10).match(/^(\d{4})-(\d{2})-(\d{2})$/);return m?m[3]+'/'+m[2]+'/'+m[1]:sid(v||'-')};
+const truthy=v=>v===true||v===1||v==='1'||v==='true'||(typeof v==='string'&&v.trim()!==''&&v!=='0'&&v!=='false');
 
 const KNOWN_MIGRATED_9223=new Set([
 '1788874475152333','1788874522423544','1788874542096539','1788874889299282','1788874924647632',
@@ -31,6 +33,31 @@ function removeLocal(module,id){
  if(db[module].length!==before)localSave();
  return before-db[module].length;
 }
+function readFinanceTombstones(){
+ try{const raw=localStorage.getItem(FIN_TOMBSTONE_KEY),a=raw?JSON.parse(raw):[];return new Set(Array.isArray(a)?a.map(sid).filter(Boolean):[])}catch(e){return new Set()}
+}
+function writeFinanceTombstones(set){try{localStorage.setItem(FIN_TOMBSTONE_KEY,JSON.stringify([...set].filter(Boolean).slice(-5000)))}catch(e){}}
+function rememberFinanceTombstone(id){const x=sid(id);if(!x)return false;const s=readFinanceTombstones();const before=s.size;s.add(x);if(s.size!==before)writeFinanceTombstones(s);return true}
+function isRememberedFinanceTombstone(id){const x=sid(id);return !!x&&readFinanceTombstones().has(x)}
+function snapshotMap(module){try{const m=hlgbRecordSnapshots?.[module];return m&&typeof m.get==='function'&&typeof m.keys==='function'?m:null}catch(e){return null}}
+function snapshotDeleted(s){return !!(s&&(truthy(s.deleted_at)||truthy(s.deletedAt)||truthy(s.deleted)||truthy(s.tombstone)||truthy(s?.data?._deleted)||truthy(s?.data?.deleted_at)||truthy(s?.data?.deletedAt)))}
+function markFinanceSnapshotTombstone(id,out,row){
+ try{
+  const map=snapshotMap('finance');if(!map?.set)return false;
+  const key=sid(id),prev=map.get(key)||{},deletedAt=out?.deleted_at||out?.deletedAt||new Date().toISOString();
+  map.set(key,{...prev,data:clone(out?.data||prev?.data||row||{}),deleted_at:deletedAt,deletedAt:deletedAt,revision:+out?.revision||+prev?.revision||1,updated_at:out?.updated_at||prev?.updated_at||deletedAt});
+  return true;
+ }catch(e){return false}
+}
+function reconcileFinanceTombstones(){
+ const known=readFinanceTombstones(),map=snapshotMap('finance');
+ try{map?.forEach?.((s,id)=>{if(snapshotDeleted(s))known.add(sid(id))})}catch(e){}
+ writeFinanceTombstones(known);
+ if(!known.size)return {remembered:0,removed:0};
+ const before=arr('finance').length;db.finance=arr('finance').filter(x=>!known.has(sid(x?.id??x?.__hlgbId)));
+ const removed=before-db.finance.length;if(removed)localSave();
+ return {remembered:known.size,removed};
+}
 async function saveConfirmed(module,row,deleted=false){
  if(!row)throw new Error('Registro inválido.');
  const id=sid(row.id??row.__hlgbId);if(!id)throw new Error('Registro sem identificação.');
@@ -40,6 +67,7 @@ async function saveConfirmed(module,row,deleted=false){
  if(!out||out.applied!==true)throw new Error(out?.reason||'A nuvem não confirmou a alteração.');
  if(deleted){
    if(out.deleted_at==null&&out.deleted!==true&&out.tombstone!==true)throw new Error('A nuvem não confirmou o tombstone.');
+   if(module==='finance'){rememberFinanceTombstone(id);markFinanceSnapshotTombstone(id,out,row)}
    removeLocal(module,id);
    return out;
  }
@@ -67,7 +95,7 @@ function withCanonicalInvoices(fn,ctx,args){
 function patchRenderer(name){
  const fn=window[name];if(typeof fn!=='function'||fn.__hlgbNoteIntegrity9411)return;
  const w=function(){const r=withCanonicalInvoices(fn,this,arguments);setTimeout(()=>{cleanRenderedHistory();decorateNoteActions();ensureManualNoteButton()},0);return r};
- w.__hlgbNoteIntegrityV1=true;w.__hlgbNoteIntegrity9411=true;w.__original=fn;window[name]=w;
+ w.__hlgbNoteIntegrityV1=true;w.__hlgbNoteIntegrity9411=true;w.__hlgbNoteIntegrity9418=true;w.__original=fn;window[name]=w;
 }
 function shadowIdFromRow(tr){
  const b=tr?.querySelector?.('[data-acerto9214]');if(b)return sid(b.getAttribute('data-acerto9214'));
@@ -125,7 +153,7 @@ function patchGroup(){
   const unsafe=unsafeQueueIds(),checked=[...document.querySelectorAll('.nqSelect9202:checked')].map(x=>sid(x.value));
   if(checked.some(id=>unsafe.has(id))){alert('Esta montagem foi bloqueada porque a fila contém quantidade maior que o pedido. Confira as entregas duplicadas antes de criar a nota.');return false}
   return fn.apply(this,arguments);
- };w.__hlgbNoteIntegrityV1=true;w.__hlgbNoteIntegrity9411=true;w.__original=fn;window.groupNote9202=w;
+ };w.__hlgbNoteIntegrityV1=true;w.__hlgbNoteIntegrity9411=true;w.__hlgbNoteIntegrity9418=true;w.__original=fn;window.groupNote9202=w;
 }
 
 /* ---------- documento da nota: Ver / PDF / Imprimir ---------- */
@@ -298,42 +326,47 @@ function ensureManualNoteButton(){
 }
 
 /* ---------- limpeza autoritativa de lançamentos financeiros órfãos ---------- */
-function snapshotMap(module){try{const m=hlgbRecordSnapshots?.[module];return m&&typeof m.get==='function'&&typeof m.keys==='function'?m:null}catch(e){return null}}
 function activeProjectionId(id){
  const key=sid(id),snap=snapshotMap('projectionInvoices'),s=snap?.get?.(key);
- if(s?.deleted_at)return false;
+ if(snapshotDeleted(s))return false;
  if(canonicalInvoices().some(x=>sid(x?.id)===key))return true;
- return !!(s&&s.data&&!s.deleted_at);
+ return !!(s&&s.data&&!snapshotDeleted(s));
 }
 function orphanFinanceRows(){
  const pmap=snapshotMap('projectionInvoices'),fmap=snapshotMap('finance');
  if(!pmap||!fmap)return [];
- const localCanon=canonicalInvoices(),activeSnap=[...pmap].filter(([,s])=>s&&s.data&&!s.deleted_at).length;
+ const localCanon=canonicalInvoices(),activeSnap=[...pmap].filter(([,s])=>s&&s.data&&!snapshotDeleted(s)).length;
  if(localCanon.length>0&&activeSnap===0)return [];
+ const remembered=readFinanceTombstones();
  return arr('finance').filter(f=>{
+  const id=sid(f?.id??f?.__hlgbId);if(id&&remembered.has(id))return false;
+  const snap=fmap.get?.(id);if(snapshotDeleted(snap))return false;
   const ref=f?.projectionInvoiceId;if(ref==null||sid(ref)==='')return false;
   return !activeProjectionId(ref);
  });
 }
-let cleanupRunning=false,cleanupLast={at:'',checked:0,deleted:0,failed:0,ids:[],skipped:''};
+let cleanupRunning=false,cleanupLast={at:'',checked:0,deleted:0,failed:0,ids:[],skipped:'',reconciled:0};
 async function cleanupOrphanFinance(){
  if(cleanupRunning)return cleanupLast;
  const pmap=snapshotMap('projectionInvoices'),fmap=snapshotMap('finance');
  if(!pmap||!fmap){cleanupLast={...cleanupLast,at:new Date().toISOString(),skipped:'snapshots-not-ready'};return cleanupLast}
  if(typeof hlgbRecordReady!=='undefined'&&hlgbRecordReady===false){cleanupLast={...cleanupLast,at:new Date().toISOString(),skipped:'records-not-ready'};return cleanupLast}
- const rows=orphanFinanceRows();cleanupRunning=true;let deleted=0,failed=0;const ids=[];
+ const rec=reconcileFinanceTombstones(),rows=orphanFinanceRows();cleanupRunning=true;let deleted=0,failed=0;const ids=[];
  try{
   for(const row of rows){
    try{await saveConfirmed('finance',row,true);deleted++;ids.push(sid(row.id))}
    catch(e){failed++;console.warn('[HLGB notas '+V+'] não foi possível excluir financeiro órfão '+sid(row?.id),e)}
   }
-  cleanupLast={at:new Date().toISOString(),checked:rows.length,deleted,failed,ids,skipped:''};
-  if(deleted){try{window.renderFinance?.()}catch(e){}try{window.renderHubFinance?.()}catch(e){}}
+  const after=reconcileFinanceTombstones();
+  cleanupLast={at:new Date().toISOString(),checked:rows.length,deleted,failed,ids,skipped:'',reconciled:(rec.removed||0)+(after.removed||0)};
+  if(deleted||cleanupLast.reconciled){try{window.renderFinance?.()}catch(e){}try{window.renderHubFinance?.()}catch(e){}}
   return cleanupLast;
  }finally{cleanupRunning=false}
 }
 window.hlgbCleanupOrphanNoteFinance9411=cleanupOrphanFinance;
 window.hlgbFindOrphanNoteFinance9411=orphanFinanceRows;
+window.hlgbReconcileNoteFinanceTombstones9418=reconcileFinanceTombstones;
+window.hlgbNoteFinanceTombstoneIds9418=()=>[...readFinanceTombstones()];
 
 /* ---------- instalação ---------- */
 function apply(){
@@ -366,24 +399,28 @@ const oldIncoming=window.hlgbRenderIncomingRecord;
 if(typeof oldIncoming==='function'&&!oldIncoming.__hlgbNoteIntegrity9411){
  const w=function(module){
   const r=oldIncoming.apply(this,arguments);
+  if(module==='finance')reconcileFinanceTombstones();
   if(['noteQueue','projectionInvoices','orders','finance'].includes(module)){
    setTimeout(apply,30);
-   if(['projectionInvoices','finance'].includes(module))setTimeout(cleanupOrphanFinance,350);
+   if(['projectionInvoices','finance'].includes(module))setTimeout(()=>{reconcileFinanceTombstones();cleanupOrphanFinance()},350);
   }
   return r;
  };
- w.__hlgbNoteIntegrityV1=true;w.__hlgbNoteIntegrity9411=true;w.__original=oldIncoming;window.hlgbRenderIncomingRecord=w;
+ w.__hlgbNoteIntegrityV1=true;w.__hlgbNoteIntegrity9411=true;w.__hlgbNoteIntegrity9418=true;w.__original=oldIncoming;window.hlgbRenderIncomingRecord=w;
 }
 
 function boot(){
- apply();
- setTimeout(cleanupOrphanFinance,1800);
- setTimeout(cleanupOrphanFinance,4200);
+ reconcileFinanceTombstones();apply();
+ setTimeout(()=>{reconcileFinanceTombstones();cleanupOrphanFinance()},1800);
+ setTimeout(()=>{reconcileFinanceTombstones();cleanupOrphanFinance()},4200);
 }
-try{if(typeof hlgbAfterLogin==='function')hlgbAfterLogin(()=>[100,700,1800,3500].forEach(ms=>setTimeout(apply,ms)),0)}catch(e){}
+try{if(typeof hlgbAfterLogin==='function')hlgbAfterLogin(()=>[100,700,1800,3500].forEach(ms=>setTimeout(()=>{reconcileFinanceTombstones();apply()},ms)),0)}catch(e){}
 try{if(typeof hlgbAfterLogin==='function')hlgbAfterLogin(()=>setTimeout(boot,900),0)}catch(e){}
-[50,500,1500,3200].forEach(ms=>setTimeout(apply,ms));
-window.addEventListener('pageshow',()=>setTimeout(()=>{apply();cleanupOrphanFinance()},250));
+[50,500,1500,3200].forEach(ms=>setTimeout(()=>{reconcileFinanceTombstones();apply()},ms));
+if(typeof window.addEventListener==='function'){
+ window.addEventListener('pageshow',()=>setTimeout(()=>{reconcileFinanceTombstones();apply();cleanupOrphanFinance()},250));
+ window.addEventListener('focus',()=>setTimeout(()=>{reconcileFinanceTombstones();cleanupOrphanFinance()},120));
+}
 
 window.hlgbNoteLegacyShadowIds=legacyShadowIds;
 window.hlgbCanonicalProjectionInvoices=canonicalInvoices;
@@ -391,11 +428,12 @@ window.hlgbNoteQueueOverages=queueOverages;
 window.hlgbNoteUnsafeQueueIds=unsafeQueueIds;
 window.hlgbNoteInvoiceById9411=invoiceById;
 window.hlgbNoteOrphanCleanupState9411=()=>clone(cleanupLast);
-window.HLGB_NOTE_INTEGRITY_GUARD='v94.11';
+window.HLGB_NOTE_INTEGRITY_GUARD='v94.18';
 window.HLGB_NOTE_INTEGRITY_SELFTEST={
  ok:!activeQueueRows().some(x=>q(x.remainingQty??x.qty)<0),
  manualNoteDoesNotTouchStock:true,
- orphanRule:'finance.projectionInvoiceId sem projectionInvoice ativa'
+ orphanRule:'finance.projectionInvoiceId sem projectionInvoice ativa',
+ orphanTombstoneReconcile:true
 };
-console.info('[HLGB] v'+V+' notas: nota avulsa, Ver/PDF/Imprimir e limpeza segura de financeiros órfãos');
+console.info('[HLGB] v'+V+' notas: nota avulsa, Ver/PDF/Imprimir e tombstones de financeiros órfãos reconciliados');
 })();
