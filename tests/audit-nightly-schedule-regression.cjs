@@ -1,0 +1,11 @@
+'use strict';
+const fs=require('fs');
+const assert=require('assert');
+const workflow=fs.readFileSync('.github/workflows/audit-regression.yml','utf8');
+const runner=fs.readFileSync('scripts/run-nightly-audit.mjs','utf8');
+assert(workflow.includes("cron: '0 21 * * *'"),'Auditoria técnica deve rodar às 18:00 de Brasília (21:00 UTC)');
+assert(workflow.includes('node scripts/run-nightly-audit.mjs'),'Workflow deve gerar o relatório sanitizado');
+assert(workflow.includes('auditor-nightly-data'),'Workflow deve publicar o último relatório técnico');
+assert(runner.includes("tests/audit-*.cjs")||runner.includes("startsWith('audit-')"),'Runner deve descobrir a biblioteca audit-*');
+assert(runner.includes('latest.json'),'Runner deve gerar latest.json');
+console.log('OK nightly schedule regression');
