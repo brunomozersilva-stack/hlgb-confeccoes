@@ -21,7 +21,7 @@ const noteQueue=[
  {id:'s2',orderId:'ord-sandy',productId:'sandy',qty:1,status:'Aguardando'}
 ];
 const fakeEl=()=>({style:{setProperty(){}},setAttribute(){},appendChild(){},querySelector(){return null},querySelectorAll(){return[]},children:[]});
-const context={console,db:{projectionInvoices,noteQueue,orders},alert(){},clearTimeout(){},setTimeout(fn){fn();return 1},MutationObserver:class{constructor(){} observe(){}},document:{head:{appendChild(){}},documentElement:{},createElement(){return fakeEl()},getElementById(){return null},querySelector(){return null},querySelectorAll(){return[]}},window:{}};
+const context={console,db:{projectionInvoices,noteQueue,orders},alert(){},clearTimeout(){},setTimeout(fn){fn();return 1},MutationObserver:class{constructor(){} observe(){}},document:{head:{appendChild(){}},documentElement:{},createElement(){return fakeEl()},getElementById(){return null},querySelector(){return null},querySelectorAll(){return[]}},window:{addEventListener(){}}};
 vm.createContext(context);vm.runInContext(src,context);
 const canonical=context.window.hlgbCanonicalProjectionInvoices().map(x=>String(x.id));
 assert.deepStrictEqual(canonical,['true-old'],'only genuine legacy invoice must remain visible');
