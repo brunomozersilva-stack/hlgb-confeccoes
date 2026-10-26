@@ -1,7 +1,7 @@
 /* HLGB — ajustes visuais: pagamentos de facção, produtos e barra superior */
 (function(){
 'use strict';
-const V='2026.10.26-topbar-clean-v2';
+const V='2026.10.26-topbar-clean-v3';
 const sid=v=>String(v??''),q=v=>Math.max(0,Number(v)||0),norm=v=>sid(v).normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().trim();
 const escSafe=v=>typeof esc==='function'?esc(v):sid(v).replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
 const moneySafe=v=>typeof money==='function'?money(v):Number(v||0).toLocaleString('pt-BR',{style:'currency',currency:'BRL'});
@@ -93,6 +93,7 @@ function injectTopbarCss(){
 #appShell>header.hlgb-topbar-clean>.logo{flex:0 0 auto;min-width:max-content}
 #appShell>header .hlgb-topbar-host{display:flex!important;align-items:center!important;justify-content:flex-end!important;gap:8px!important;min-width:0!important;flex:1 1 auto!important;position:relative!important;overflow:visible!important}
 #appShell>header .hlgb-topbar-status{display:flex!important;align-items:center!important;justify-content:flex-end!important;gap:7px!important;min-width:0!important;flex:1 1 auto!important;flex-wrap:nowrap!important}
+#appShell>header #cloudStatus,#appShell>header #currentUserLabel{position:static!important;inset:auto!important;top:auto!important;right:auto!important;bottom:auto!important;left:auto!important;transform:none!important;margin:0!important}
 #appShell>header #cloudStatus{white-space:nowrap!important;flex:0 0 auto!important}
 #appShell>header #currentUserLabel{max-width:260px!important;min-width:0!important;white-space:nowrap!important;overflow:hidden!important;text-overflow:ellipsis!important;flex:0 1 auto!important}
 #appShell>header .hlgb-topbar-pending{white-space:nowrap!important;flex:0 0 auto!important}
@@ -122,10 +123,15 @@ function cleanTopbar(){
  const cloud=document.getElementById('cloudStatus');if(!header||!cloud)return false;
  header.classList.add('hlgb-topbar-clean');
  let host=document.getElementById('hlgbTopbarHost9253');
- if(!host){host=cloud.parentElement;if(!host||host===header)return false;host.id='hlgbTopbarHost9253';host.classList.add('hlgb-topbar-host')}
- else host.classList.add('hlgb-topbar-host');
+ if(!host){
+  const candidate=cloud.parentElement;
+  if(candidate&&candidate!==header&&candidate.id!=='hlgbTopbarStatus9253')host=candidate;
+  else{host=document.createElement('div');header.appendChild(host)}
+  host.id='hlgbTopbarHost9253';host.classList.add('hlgb-topbar-host');
+ }else host.classList.add('hlgb-topbar-host');
  let status=document.getElementById('hlgbTopbarStatus9253');
  if(!status){status=document.createElement('div');status.id='hlgbTopbarStatus9253';status.className='hlgb-topbar-status';host.insertBefore(status,host.firstChild)}
+ else if(status.parentElement!==host)host.insertBefore(status,host.firstChild);
  if(cloud.parentElement!==status)status.appendChild(cloud);
  const user=document.getElementById('currentUserLabel');if(user&&user.parentElement!==status)status.appendChild(user);
  for(const n of topbarPendingNodes(header)){n.classList.add('hlgb-topbar-pending');if(n.parentElement!==status)status.appendChild(n)}

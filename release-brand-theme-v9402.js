@@ -1,9 +1,9 @@
-/* ByHagatha Lingerie — identidade visual + controle central de UI v94.04.
+/* ByHagatha Lingerie — identidade visual + controle central de UI v94.05.
    UI only: não altera pedidos, produção, financeiro, filas ou autoridade de save.
    Centraliza aparência e garante que o Auditor mostre um resultado atual ao abrir. */
 (function(){
 'use strict';
-const V='94.04',KEY='byhagatha_theme_v1';
+const V='94.05',KEY='byhagatha_theme_v1';
 if(window.HLGB_UI_CONTROL_9404){try{window.hlgbUiControl9404?.install?.()}catch(e){}return}
 const DEFAULT_PHOTO='./byhagatha-bg-default.svg';
 const DEFAULTS={name:'ByHagathalingerie',bg:'#f7eef2',primary:'#5a1731',accent:'#c82755',photoOpacity:18,photoMode:'default',photoData:''};
@@ -17,7 +17,7 @@ function ensureStyle(){let st=document.getElementById('byhThemeStyle9402');if(st
 :root{--byh-bg:#f7eef2;--byh-bg-rgb:247,238,242;--byh-primary:#5a1731;--byh-accent:#c82755;--byh-photo-opacity:.18;--byh-photo:none}
 body{background:var(--byh-bg)!important}
 #appShell{position:relative;isolation:isolate;min-height:100vh;background:var(--byh-bg)!important}
-#appShell::before{content:"";position:fixed;z-index:0;top:68px;left:250px;right:0;bottom:0;pointer-events:none;background-image:linear-gradient(90deg,rgba(var(--byh-bg-rgb),1) 0%,rgba(var(--byh-bg-rgb),.97) 43%,rgba(var(--byh-bg-rgb),.86) 68%,rgba(var(--byh-bg-rgb),.58) 100%),var(--byh-photo);background-repeat:no-repeat,no-repeat;background-position:center,right 18% center;background-size:cover,auto 102%;opacity:var(--byh-photo-opacity)}
+#appShell::before{content:"";position:fixed;z-index:0;inset:0;pointer-events:none;background-image:linear-gradient(90deg,rgba(var(--byh-bg-rgb),1) 0%,rgba(var(--byh-bg-rgb),.97) 43%,rgba(var(--byh-bg-rgb),.86) 68%,rgba(var(--byh-bg-rgb),.58) 100%),var(--byh-photo);background-repeat:no-repeat,no-repeat;background-position:center,right 18% center;background-size:cover,auto 102%;opacity:var(--byh-photo-opacity)}
 #appShell>header,.app{position:relative;z-index:1}
 #appShell>header{background:linear-gradient(135deg,var(--byh-primary),#2d0b19)!important;border-bottom:1px solid rgba(255,255,255,.12)}
 #appShell aside{background:rgba(255,255,255,.965)!important;backdrop-filter:blur(10px)}
@@ -38,7 +38,7 @@ nav button.active,nav button:hover{background:rgba(200,39,85,.12)!important;colo
 .byh-theme-preview strong{font-family:"Bodoni 72","Didot","Baskerville","Times New Roman",serif;font-style:italic;font-size:25px;color:var(--byh-primary);background:rgba(255,255,255,.78);padding:4px 10px;border-radius:10px;backdrop-filter:blur(6px)}
 .byh-opacity-readout{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:7px;padding:7px 10px;border-radius:10px;background:rgba(90,23,49,.07);border:1px solid rgba(90,23,49,.12);font-size:12px;color:#5a1731}.byh-opacity-readout strong{font-size:15px}
 .byh-auditor-live{margin:0 0 10px;padding:9px 11px;border-radius:10px;background:#eef5ff;border:1px solid #bfd5f4;font-size:12px}.byh-auditor-live[data-state="ok"]{background:#eefaf1;border-color:#bfe6c8}.byh-auditor-live[data-state="error"]{background:#fff1f1;border-color:#efb8b8}
-@media(max-width:900px){#appShell::before{left:0;background-position:center,70% center;background-size:cover,auto 100%}.byh-brand-main{font-size:22px}.byh-brand-sub{letter-spacing:2px}}
+@media(max-width:900px){#appShell::before{background-position:center,70% center;background-size:cover,auto 100%}.byh-brand-main{font-size:22px}.byh-brand-sub{letter-spacing:2px}}
 @media print{#appShell::before{display:none!important}#appShell .panel,#appShell .card{background:#fff!important;backdrop-filter:none!important}}
 `; (document.head||document.documentElement).appendChild(st);return st}
 function brandHtml(){const v=String(window.HLGB_RELEASE_VERSION||'').replace(/^v/i,'');return '<span class="byh-brand-main">ByHagatha</span><span class="byh-brand-sub">lingerie</span>'+(v?'<small class="byh-brand-version">v'+esc(v)+'</small>':'')}
