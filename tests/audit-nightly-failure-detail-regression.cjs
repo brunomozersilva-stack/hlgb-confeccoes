@@ -1,0 +1,15 @@
+'use strict';
+const fs=require('fs');
+const assert=require('assert');
+const {spawnSync}=require('child_process');
+const runner='scripts/run-nightly-audit.mjs';
+const src=fs.readFileSync(runner,'utf8');
+const check=spawnSync(process.execPath,['--check',runner],{encoding:'utf8'});
+assert.equal(check.status,0,check.stderr||'runner syntax invalid');
+assert(src.includes('function summarizeFailure'),'runner must summarize failure reason');
+assert(src.includes('item.detail = summarizeFailure'),'failed tests must persist a short reason');
+assert(src.includes('item.exitCode'),'failed tests must persist exit code');
+assert(src.includes("replaceAll(root, '<workspace>')"),'failure details must scrub workspace path');
+assert(src.includes('.slice(0, 280)'),'failure details must be bounded');
+assert(src.includes("r.detail ? ` — ${r.detail}`"),'text report must expose the short reason');
+console.log('PASS nightly failure details are bounded and sanitized');
