@@ -9,15 +9,14 @@ const db={orders:[currentOrder,delayedOrder],noteQueue:[
  {id:'other-product',orderId:legacy,itemKey:'OTHER',productId:'OTHER',qty:418,remainingQty:418,status:'Aguardando'}
 ]};
 const hlgbRecordSnapshots={noteQueue:new Map()};
-const window={projectionItemsForOrder:o=>[{key:pid,productId:pid,qty:o.id===delayed?250:1078,remainingQty:o.id===delayed?250:1078}],sendProjectionToNotes9202:()=>true};
-const ctx=vm.createContext({db,window,hlgbRecordSnapshots,console,setTimeout(){},document:{querySelector(){return {}}}});
+const window={__HLGB_AUTH_READY:false,projectionItemsForOrder:o=>[{key:pid,productId:pid,qty:o.id===delayed?250:1078,remainingQty:o.id===delayed?250:1078}],sendProjectionToNotes9202:()=>true};
+const ctx=vm.createContext({db,window,hlgbRecordSnapshots,console,setTimeout(){return 0},document:{querySelector(){return {}},querySelectorAll(){return []},getElementById(){return null},head:{appendChild(){}},createElement(){return {dataset:{}}}}});
 vm.runInContext(src,ctx);
 window.sendProjectionToNotes9202();
 assert.equal(currentOrder.projectionItems[pid].noteQueuedQty,1078,'source-order queues must reserve the current linked order without double counting beyond remaining quantity');
 assert.equal(delayedOrder.projectionItems[pid].noteQueuedQty,250,'empty local queue before authoritative load must not erase a known reservation');
-// Once a non-empty snapshot map proves that the queue module was loaded, absence for this order is authoritative.
 hlgbRecordSnapshots.noteQueue.set('deleted-marker',{deleted_at:'2026-09-17T10:00:00Z',data:{id:'deleted-marker',orderId:'OTHER',productId:'OTHER',qty:1}});
 window.hlgbNotesSyncLocal();
 assert.equal(delayedOrder.projectionItems[pid].noteQueuedQty,0,'authoritative snapshot may legitimately clear a reservation that no longer has an active queue');
-assert.equal(window.HLGB_NOTE_QUEUE_GUARD,'v5');
-console.log('PASS notes v5: aliases reserve correctly; explicit sync preserves behavior while render remains read-only.');
+assert.equal(window.HLGB_NOTE_QUEUE_GUARD,'v6');
+console.log('PASS notes v6: aliases reserve correctly and authoritative snapshot clears stale reservation.');
