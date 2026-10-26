@@ -2881,7 +2881,7 @@ function doLogin(){
    db.userSessions.push(sess);db.activeSessionId=sess.id;
    localSaveOnly();
    errorEl.textContent="";errorEl.style.display="none";
-   loginEl.style.display="none";appEl.style.display="block";setTimeout(()=>window.hlgbMarkAuthenticated?.(),0);
+   loginEl.style.display="none";appEl.style.display="block";window.hlgbMarkAuthenticated?.();
    // v91.83: manutenção de backups fora do caminho crítico do login.
    setTimeout(()=>{
      try{
@@ -12013,7 +12013,6 @@ async function hlgbEnsureRecordsOnlineAfterLogin(){
       // Recalcula a fila pendente com os snapshots recém-carregados. Se a fila era
       // apenas resíduo de uma versão anterior com erro, ela desaparece aqui.
       try{hlgbRecordPendingStore()}catch(e){}
-      const prev=cloudApplying;cloudApplying=true;try{renderAll()}finally{cloudApplying=prev}
       hlgbStartRealtime();
       setCloudStatus(hlgbRecordPendingRead()?"☁️ Salvando automático…":"⚡ Online · multiusuário",hlgbRecordPendingRead()?"":"ok");
       return true;
@@ -12084,7 +12083,7 @@ if(cloudRestoreStoredAuth()){
    const sess={id:Date.now()+Math.random(),userId:profile.id,user:profile.name||cloudUser.email,login:cloudUser.email,loginAt:new Date().toISOString(),logoutAt:"",restored:true};
    db.userSessions.push(sess);db.activeSessionId=sess.id;localSaveOnly();
    if(window.HLGB_SESSION_BOOT_CANCELLED)throw new Error("Restauração da sessão cancelada por demora.");
-   loginScreen.style.display="none";sessionLoader.style.display="none";appShell.style.display="block";setTimeout(()=>window.hlgbMarkAuthenticated?.(),0);applyAccess();restoreNavGroups();
+   loginScreen.style.display="none";sessionLoader.style.display="none";appShell.style.display="block";window.hlgbMarkAuthenticated?.();applyAccess();restoreNavGroups();
    {const prevApplying=cloudApplying;cloudApplying=true;try{renderAll()}finally{cloudApplying=prevApplying}}
   }catch(e){
    console.warn("Não foi possível restaurar a sessão online",e);
