@@ -1,0 +1,1 @@
+Dados por usuário permanecem no Supabase e são consultados apenas pela permissão `auditor`. O relatório publicado pelo GitHub Actions contém somente resultados técnicos sanitizados da suíte de regressão.
