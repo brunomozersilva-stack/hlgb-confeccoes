@@ -43,7 +43,7 @@ jobs:
           app.write_text(s, encoding='utf-8')
 
           test = Path('tests/audit-boot-authready-render-order.cjs')
-          test.write_text(r'''\
+          test.write_text(r'''
           'use strict';
           const fs=require('fs'),assert=require('assert');
           const src=fs.readFileSync('app9240.html','utf8');
