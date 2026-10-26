@@ -37,6 +37,9 @@ jobs:
       - name: Validate ByHagatha background and topbar consolidation
         run: node tests/audit-brand-topbar-consolidation.cjs
 
+      - name: Validate boot authReady before render
+        run: node tests/audit-boot-authready-render-order.cjs
+
       - name: Validate modernized compatibility contracts
         shell: bash
         run: |
