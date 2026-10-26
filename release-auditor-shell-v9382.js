@@ -4,7 +4,7 @@
 if(window.HLGB_AUDITOR_SHELL_9382)return;
 const V='93.82';
 const KEEP=new Set(['hlgbMultiuserOpen','hlgbMultiuserCapture','hlgbMultiuserDownload','hlgbSmartTest','hlgbSmartProblem','hlgbSmartHistoryBtn','hlgbAuthorityBtn9374','hlgbBootAnalysisBtn9381','hlgbBootDownload9381','hlgbAuthorityDownload9374','hlgbSafariDownload9368','hlgbSafariTestDownload9368','hlgbDailyReport9368','hlgbSafariDailyDownload9368','hlgbProblemDownload9399','hlgbAuditorIntelligenceBtn9396','hlgbAuditorIntelligenceDownload9396','hlgbAuditorBusinessBtn9401','hlgbAuditorBusinessDownload9401']);
-const esc=v=>String(v??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot',"'":'&#39;'}[m]));
+const esc=v=>String(v??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
 let installed=false;
 const LEGACY_HIDE=['#hlgbAuditorMaxDebug9292','#hlgbAuditorBlackbox9299','#hlgbAuditFull9315','#hlgbAuditCritical9315','#hlgbAuditDownloadFull9315','#hlgbAuditDownloadCritical9315','#hlgbAuditorHubDeep9315'];
 const LEGACY_ACTION_FILTER='.hlgb-auditor-actions:has(#hlgbSmartTest) button:not(#hlgbMultiuserOpen):not(#hlgbSmartTest):not(#hlgbSmartProblem):not(#hlgbSmartHistoryBtn):not(#hlgbAuthorityBtn9374):not(#hlgbBootAnalysisBtn9381):not(#hlgbAuditorIntelligenceBtn9396):not(#hlgbAuditorBusinessBtn9401):not(#hlgbDailyReport9368)';
@@ -42,7 +42,6 @@ async function captureMultiuser(){
  const state=muState(),id=state.user?.auth_id||state.user?.authId||state.user?.id;
  if(!window.__HLGB_AUTH_READY||!id||!state.ready)throw new Error('Entre com seu usuário e aguarde a sincronização ficar pronta.');
  const startedAt=new Date().toISOString(),raw={};
- // Copia todos os módulos antes de qualquer await: uma única fotografia local.
  for(const module of MU_MODULES){
   const map=state.snapshots?.[module],local=state.db?.[module];
   if(!map||typeof map.entries!=='function'||!Array.isArray(local)){raw[module]=null;continue}
