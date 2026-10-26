@@ -55,7 +55,7 @@ async function buildDailyReport(){
  try{users=await fetchUserAudit()}catch(e){userError=String(e?.message||e)}
  try{code=await fetchCodeAudit()}catch(e){codeError=String(e?.message||e)}
  if(!users)throw new Error('Não foi possível ler o relatório privado dos usuários'+(userError?': '+userError:'')+'.');
- return safeData({schemaVersion:1,kind:'hlgb_daily_auditor_bundle',generatedAt,timezone:'America/Sao_Paulo',schedule:{userSnapshot:'17:55',technicalSuite:'18:00'},users,code,usersAvailable:true,codeAvailable:!!code,codeError:code?null:codeError||'Ainda não publicado',notes:['Relatório somente de leitura.','Ausência de observação de um perfil não significa aprovação: significa que não houve diagnóstico daquele perfil na janela.']});
+ return safeData({schemaVersion:1,kind:'hlgb_daily_auditor_bundle',generatedAt,timezone:'America/Sao_Paulo',schedule:{technicalSuite:'18:00',userCollection:'on-demand',userWindowHours:24},users,code,usersAvailable:true,codeAvailable:!!code,codeError:code?null:codeError||'Ainda não publicado',notes:['Relatório somente de leitura.','Os dados de usuários são consultados sob demanda para a janela móvel das últimas 24 horas.','Ausência de observação de um perfil não significa aprovação: significa que não houve diagnóstico daquele perfil na janela.']});
 }
 function ensureDailyButton(){
  const actions=document.querySelector('.hlgb-auditor-actions');if(!actions||document.getElementById('hlgbDailyReport9368'))return false;
@@ -68,7 +68,7 @@ function installOpenHook(){
 }
 function install(){
  const smart=window.hlgbAuditorSmart;if(!smart)throw new Error('Auditor inteligente ainda não está pronto.');
- window.hlgbAuditorDailyReport9368=async function(){const out=document.getElementById('hlgbAuditorResult');if(out)out.innerHTML='<div class="panel"><b>Montando relatório diário…</b><div class="sub">Juntando usuários e bateria técnica das 18h.</div></div>';try{lastDailyData=await buildDailyReport();renderDailyReady();return lastDailyData}catch(e){if(out)out.innerHTML='<div class="panel"><b>Não foi possível montar o relatório diário.</b><div class="sub">'+String(e?.message||e)+'</div></div>';throw e}};
+ window.hlgbAuditorDailyReport9368=async function(){const out=document.getElementById('hlgbAuditorResult');if(out)out.innerHTML='<div class="panel"><b>Montando relatório diário…</b><div class="sub">Juntando os últimos 24h dos usuários e a bateria técnica das 18h.</div></div>';try{lastDailyData=await buildDailyReport();renderDailyReady();return lastDailyData}catch(e){if(out)out.innerHTML='<div class="panel"><b>Não foi possível montar o relatório diário.</b><div class="sub">'+String(e?.message||e)+'</div></div>';throw e}};
  if(!window.__hlgbSingleProblem9368){
   const wrappedProblem=async function(){const out=document.getElementById('hlgbAuditorResult');if(out)out.innerHTML='<div class="panel"><b>Preparando diagnóstico…</b><div class="sub">Aguarde alguns segundos.</div></div>';try{const data=await buildProblem();lastData=data;renderProblemReady();return data}catch(e){if(out)out.innerHTML='<div class="panel"><b>Não foi possível preparar o diagnóstico.</b><div class="sub">'+String(e?.message||e)+'</div></div>';throw e}};
   window.__hlgbSingleProblem9368=true;window.hlgbAuditorSmartProblem=wrappedProblem;smart.problem=wrappedProblem;
