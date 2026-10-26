@@ -9,6 +9,7 @@ const {webkit}=require('playwright');
  await page.waitForFunction(()=>window.HLGB_AUDITOR_SHELL_AUTHORITY==='93.82'&&typeof window.openHlgbAuditor==='function'&&!!document.getElementById('hlgbAuditorNavBtn'),null,{timeout:60000});
  await page.evaluate(()=>{
   const login=document.getElementById('loginScreen');if(login)login.style.setProperty('display','none','important');
+  const app=document.getElementById('appShell');if(app){app.style.setProperty('display','block','important');app.style.setProperty('visibility','visible','important');app.style.setProperty('opacity','1','important')}
   const btn=document.getElementById('hlgbAuditorNavBtn');if(btn){document.body.appendChild(btn);Object.assign(btn.style,{display:'block',visibility:'visible',opacity:'1',position:'fixed',left:'20px',top:'20px',zIndex:'2147483647'})}
  });
  await page.click('#hlgbAuditorNavBtn',{timeout:10000});
@@ -21,13 +22,13 @@ const {webkit}=require('playwright');
    return {
     authority:window.HLGB_AUDITOR_SHELL_AUTHORITY,
     modalText:root.innerText,
-    hasSmart:visible('hlgbSmartTest'),hasProblem:visible('hlgbSmartProblem'),hasHistory:visible('hlgbSmartHistoryBtn'),hasArch:visible('hlgbAuthorityBtn9374'),hasBoot:visible('hlgbBootAnalysisBtn9381'),
+    hasSmart:visible('hlgbSmartTest'),hasProblem:visible('hlgbSmartProblem'),hasHistory:visible('hlgbSmartHistoryBtn'),hasArch:visible('hlgbAuthorityBtn9374'),hasBoot:visible('hlgbBootAnalysisBtn9381'),hasDaily:visible('hlgbDailyReport9368'),
     oldHub:[...root.querySelectorAll('button')].some(b=>!b.hidden&&/Diagnóstico profundo do Hub/i.test(b.textContent||'')),oldExport:[...root.querySelectorAll('button')].some(b=>!b.hidden&&/Exportar diagnóstico visual/i.test(b.textContent||''))
    };
  });
- if(out.authority!=='93.82'||!out.hasSmart||!out.hasProblem||!out.hasHistory||!out.hasArch||!out.hasBoot)throw new Error('interface atual incompleta '+JSON.stringify(out));
+ if(out.authority!=='93.82'||!out.hasSmart||!out.hasProblem||!out.hasHistory||!out.hasArch||!out.hasBoot||!out.hasDaily)throw new Error('interface atual incompleta '+JSON.stringify(out));
  if(out.oldHub||out.oldExport)throw new Error('controles legados visíveis no modal atual '+JSON.stringify(out));
- if(!/93\.82/.test(out.modalText)||!/Boot \/ cargas/.test(out.modalText)||!/Arquitetura \/ versões/.test(out.modalText))throw new Error('interface atual não ficou visível '+JSON.stringify(out));
+ if(!/93\.82/.test(out.modalText)||!/Boot \/ cargas/.test(out.modalText)||!/Arquitetura \/ versões/.test(out.modalText)||!/Relatório diário/.test(out.modalText))throw new Error('interface atual não ficou visível '+JSON.stringify(out));
  await page.click('#hlgbBootAnalysisBtn9381');
  await page.waitForSelector('#hlgbBootDownload9381',{state:'visible',timeout:10000});
  const bootDownloadPromise=page.waitForEvent('download',{timeout:10000});
