@@ -4,7 +4,7 @@ function fixture({module='hubFinanceEntries',withSnapshot=true}={}){
  const store=new Map(),calls=[];
  const row={id:'1790118449369',value:0.01,description:'TESTE'};
  const ctx={
-  console,
+  console,setTimeout(){return 0},
   db:{hubFinanceEntries:[{...row}],orders:[{id:'x'}]},
   localStorage:{getItem:k=>store.get(k)||null,setItem:(k,v)=>store.set(k,String(v)),removeItem:k=>store.delete(k)},
   hlgbRecordSnapshots:{
@@ -13,7 +13,7 @@ function fixture({module='hubFinanceEntries',withSnapshot=true}={}){
   },
   hlgbRecordId:(_m,r)=>String(r.id),
   localSaveOnly(){},
-  window:{
+  window:{addEventListener(){},
    hlgbRecordSaveWithRetry:async function(m,id,data,deleted){
     calls.push({m,id,deleted});
     const e=new Error('Registro já excluído na nuvem');e.code='HLGB_TOMBSTONE_BLOCK';throw e;
@@ -40,21 +40,13 @@ function fixture({module='hubFinanceEntries',withSnapshot=true}={}){
  assert.equal(pending.modules.hubFinanceEntries,undefined,'stale finance pending must be removed');
  assert.equal(pending.modules.orders.length,1,'unrelated pending data must remain');
  assert.equal(f.calls.length,1,'original cached guard is still invoked once');
- assert.equal(f.ctx.window.HLGB_HUB_TOMBSTONE_ONLINE_GUARD,'2026.10.01-v1');
+ assert.equal(f.ctx.window.HLGB_HUB_TOMBSTONE_ONLINE_GUARD,'94.10');
 
  const other=fixture();
- await assert.rejects(
-  other.ctx.window.hlgbRecordSaveWithRetry('orders','x',{id:'x'},false),
-  e=>e.code==='HLGB_TOMBSTONE_BLOCK',
-  'non-finance tombstones must keep existing behavior'
- );
+ await assert.rejects(other.ctx.window.hlgbRecordSaveWithRetry('orders','x',{id:'x'},false),e=>e.code==='HLGB_TOMBSTONE_BLOCK','non-finance tombstones must keep existing behavior');
 
  const noSnap=fixture({withSnapshot:false});
- await assert.rejects(
-  noSnap.ctx.window.hlgbRecordSaveWithRetry('hubFinanceEntries','1790118449369',noSnap.row,false),
-  e=>e.code==='HLGB_TOMBSTONE_BLOCK',
-  'without authoritative tombstone snapshot, do not mask the error'
- );
+ await assert.rejects(noSnap.ctx.window.hlgbRecordSaveWithRetry('hubFinanceEntries','1790118449369',noSnap.row,false),e=>e.code==='HLGB_TOMBSTONE_BLOCK','without authoritative tombstone snapshot, do not mask the error');
 
- console.log('PASS online tombstone compatibility: cached Safari wrapper is neutralized only for confirmed Hub Finance tombstones.');
+ console.log('PASS Hub v94.10 tombstone reconciliation: only confirmed finance tombstones are pruned locally.');
 })().catch(e=>{console.error(e);process.exit(1)});
