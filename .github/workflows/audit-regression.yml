@@ -34,6 +34,9 @@ jobs:
       - name: Validate sanitized nightly failure details
         run: node tests/audit-nightly-failure-detail-regression.cjs
 
+      - name: Validate ByHagatha background and topbar consolidation
+        run: node tests/audit-brand-topbar-consolidation.cjs
+
       - name: Validate modernized compatibility contracts
         shell: bash
         run: |
