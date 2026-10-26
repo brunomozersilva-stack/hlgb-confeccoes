@@ -34,6 +34,32 @@ jobs:
       - name: Validate sanitized nightly failure details
         run: node tests/audit-nightly-failure-detail-regression.cjs
 
+      - name: Validate modernized compatibility contracts
+        shell: bash
+        run: |
+          set -uo pipefail
+          failed=0
+          for test in \
+            tests/audit-assistant-fresh-query-regression.cjs \
+            tests/audit-business-pack-v9250.cjs \
+            tests/audit-cut-model-split-regression.cjs \
+            tests/audit-hub-tombstone-online-regression.cjs \
+            tests/audit-notes-alias-regression.cjs \
+            tests/audit-notes-render-no-dirty-regression.cjs \
+            tests/audit-safety-gate-v9264.cjs \
+            tests/audit-stabilization-v9259.cjs \
+            tests/audit-sync-confirmation-v9311.cjs \
+            tests/audit-v9266-regression.cjs \
+            tests/audit-v9267-regression.cjs \
+            tests/audit-v9268-regression.cjs \
+            tests/audit-v9269-regression.cjs \
+            tests/audit-v9270-regression.cjs
+          do
+            echo "==> $test"
+            node "$test" || failed=1
+          done
+          exit "$failed"
+
       - name: Run existing critical audit
         shell: bash
         run: |
