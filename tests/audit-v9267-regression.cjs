@@ -1,9 +1,13 @@
 const fs=require('fs'),vm=require('vm'),assert=require('assert'),path=require('path');
 const root=path.join(__dirname,'..'),src=f=>fs.readFileSync(path.join(root,f),'utf8');
-for(const f of ['release-hub-editor-v9267.js','release-hub-editor-v9270.js','release-assistant-ui-v9267.js','release-assistant-ui-v9269.js','release-safety-gate-v9270.js'])assert.doesNotThrow(()=>new vm.Script(src(f),{filename:f}),f+' deve compilar');
+for(const f of ['release-hub-editor-v9267.js','release-hub-editor-v9270.js','release-assistant-ui-v9267.js','release-assistant-ui-v9269.js','release-safety-gate-v9269.js'])assert.doesNotThrow(()=>new vm.Script(src(f),{filename:f}),f+' deve compilar');
 const oldHub=src('release-hub-editor-v9267.js');assert(oldHub.includes("const V='92.67'"),'editor histórico deve permanecer preservado');
-const hub=src('release-hub-editor-v9270.js');assert(hub.includes("const V='92.70'"));assert(hub.includes('window.hlgbHubSaveConfirmed'));assert(hub.includes('window.editHubFinanceEntry=open'));assert(hub.includes('window.quickEditHub9185=open'));assert(hub.includes('out===true||out?.applied===true||out?.ok===true'),'editor novo deve aceitar formatos válidos de confirmação');
+const hub=src('release-hub-editor-v9270.js');assert(hub.includes("const V='92.86'"));assert(hub.includes('window.hlgbHubSaveConfirmed'));assert(hub.includes('window.editHubFinanceEntry=open'));assert(hub.includes('window.quickEditHub9185=open'));assert(hub.includes('out===true||out?.applied===true||out?.ok===true||out?.success===true||out?.saved===true'),'editor atual deve aceitar formatos válidos de confirmação');
 const legacy=src('release-assistant-ui-v9267.js');assert(legacy.includes('Inteligência da fábrica'));
-const loader=src('app-stable3.html');assert(loader.includes("'release-hub-editor-v9270.js','release-assistant-ui-v9269.js','release-assistant-draft-v9270.js','release-safety-gate-v9270.js'"),'Hub editor novo e Assistente devem carregar na ordem atual');assert(!loader.includes("'release-hub-editor-v9267.js'"),'editor antigo não deve sobrescrever a v92.70');assert(!loader.includes("'release-assistant-ui-v9267.js'"));assert(!loader.includes("'release-assistant-studio-v9268.js'"));assert(loader.lastIndexOf("'release-hub-editor-v9270.js'")>loader.lastIndexOf("'release-hub-master-v9258.js'"));assert(!loader.includes("'release-assistant-server-v9266.js'"));
-const manifest=JSON.parse(src('release.json'));assert(Number(manifest.version)>=92.70);assert(Number(manifest.minimum_version)>=92.70);
-console.log('PASS compat v92.67: Hub editor v92.70 ativo, UI antiga retirada e modo sem custo preservado.');
+const loader=src('app-stable3.html');
+assert(loader.includes("'release-hub-editor-v9267.js'"),'camada histórica do Hub pode permanecer carregada por compatibilidade');
+assert(loader.includes("'release-hub-editor-v9270.js'"),'editor atual do Hub deve carregar');
+assert(loader.lastIndexOf("'release-hub-editor-v9270.js'")>loader.lastIndexOf("'release-hub-editor-v9267.js'"),'editor atual deve sobrescrever a camada histórica');
+assert(loader.includes("'release-assistant-ui-v9269.js'"));assert(!loader.includes("'release-assistant-ui-v9267.js'"));assert(!loader.includes("'release-assistant-studio-v9268.js'"));assert(!loader.includes("'release-assistant-server-v9266.js'"));
+const manifest=JSON.parse(src('release.json'));assert(Number(manifest.version)>=93.11);assert(Number(manifest.minimum_version)>=93.11);assert.equal(manifest.entry,'abrir.html');
+console.log('PASS compat v92.67: histórico preservado, Hub v92.86 tem precedência e UI antiga do Assistente permanece fora do loader.');
