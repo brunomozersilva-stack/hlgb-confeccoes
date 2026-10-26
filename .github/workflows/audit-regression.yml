@@ -60,6 +60,8 @@ jobs:
             tests/audit-capacity-integrity-regression.cjs \
             tests/audit-faction-master-integrity-regression.cjs \
             tests/audit-internal-auditor-regression.cjs \
+            tests/audit-auditor-daily-download-regression.cjs \
+            tests/audit-wal-equivalent-production-regression.cjs \
             tests/audit-diagnostics-center.cjs
           do
             echo "==> $test"
