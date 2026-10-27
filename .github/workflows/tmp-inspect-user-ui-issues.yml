@@ -15,13 +15,13 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Locate dynamic category builder
+      - name: Map products navigation
         shell: bash
         run: |
           set +e
-          echo '=== ANOTAR ==='
-          grep -RniE 'Anotar|anotar' --exclude-dir=.git --exclude='tmp-inspect-user-ui-issues.yml' --include='*.js' --include='*.html' . | head -n 160
-          echo '=== TODOS LABELS ==='
-          grep -RniE "['\"]Todos['\"]|>Todos<|Todos</button|Todos</" --exclude-dir=.git --include='*.js' --include='*.html' . | head -n 180
-          echo '=== CATEGORY BUILDERS ==='
-          grep -RniE 'categories|categorias|category|categoria|filter.*category|filter.*categoria|map\(.*category|map\(.*categoria' --exclude-dir=.git --include='*.js' --include='*.html' . | head -n 220
+          echo '=== NAV PRODUCTS ==='
+          grep -nE 'nav-group-title|Produtos|productsPage|productNav|showPage\(' app9240.html | head -n 220
+          echo '=== PRODUCT PAGE ==='
+          grep -nE '<section[^>]+id=.*product|id="products|renderProducts\(|newProduct\(|editProduct\(' app9240.html | head -n 160
+          echo '=== STABLE LOAD ORDER ==='
+          grep -n "release-.*\.js" app-stable3.html | tail -n 80
