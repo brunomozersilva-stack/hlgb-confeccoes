@@ -46,6 +46,9 @@ jobs:
       - name: Validate requested UI improvements v94.19
         run: node tests/audit-user-ui-requests-v9419.cjs
 
+      - name: Validate cut grade matrix v94.21
+        run: node tests/audit-cut-grade-matrix-v9421.cjs
+
       - name: Validate note queue against linked invoices v94.19
         run: node tests/audit-notequeue-invoice-reconcile-v9419.cjs
 
