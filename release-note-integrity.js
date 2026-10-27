@@ -1,8 +1,8 @@
-/* HLGB v94.19 — integridade de notas, fila faturada e reconciliação de tombstones financeiros */
+/* HLGB v94.20 — integridade de notas, fila faturada e reconciliação de produção já faturada */
 (function(){
 'use strict';
 
-const V='94.19';
+const V='94.20';
 const FIN_TOMBSTONE_KEY='hlgb_note_orphan_finance_tombstones_v9418';
 const sid=v=>String(v??'');
 const q=v=>Math.max(0,Number(v)||0);
@@ -261,8 +261,11 @@ function clientOptions(){
  return arr('clients').slice().sort((a,b)=>sid(a.name).localeCompare(sid(b.name),'pt-BR')).map(c=>'<option value="'+esc(c.id)+'">'+esc(c.name||'Cliente')+'</option>').join('');
 }
 function manualItemRow(i=0){
- return '<tr class="hlgb-manual-item9411"><td><input class="hlgb-manual-desc9411" placeholder="Ex.: Calcinha com pequeno defeito"></td><td><input class="hlgb-manual-qty9411" type="number" min="1" step="1" value="1"></td><td><input class="hlgb-manual-unit9411" type="number" min="0" step=".01" value="0"></td><td class="hlgb-manual-total9411">R$ 0,00</td><td><button type="button" class="danger hlgb-manual-remove9411">×</button></td></tr>';
+ return '<tr class="hlgb-manual-item9411"><td><input class="hlgb-manual-desc9411" list="hlgbManualProducts9411" placeholder="Busque por nome ou referência"></td><td><input class="hlgb-manual-qty9411" type="number" min="1" step="1" value="1"></td><td><input class="hlgb-manual-unit9411" type="number" min="0" step=".01" value="0"></td><td class="hlgb-manual-total9411">R$ 0,00</td><td><button type="button" class="danger hlgb-manual-remove9411">×</button></td></tr>';
 }
+function manualClientList9411(){return arr('clients').map(c=>'<option value="'+esc(c.name||'')+'" data-id="'+esc(c.id)+'"></option>').join('')}
+function manualProductList9411(){return arr('products').map(p=>'<option value="'+esc(p.name||'Produto')+'" data-id="'+esc(p.id)+'" data-price="'+q(p.price||p.salePrice||p.unitPrice)+'">'+esc(p.code||p.reference||p.ref||'')+'</option>').join('')}
+function bindManualSearch9411(){const ci=document.getElementById('hlgbManualClientSearch9411'),cs=document.getElementById('hlgbManualClient9411');if(ci&&cs)ci.oninput=()=>{const n=norm(ci.value),c=arr('clients').find(x=>norm(x.name)===n||norm(x.code)===n);if(c)cs.value=sid(c.id)};document.querySelectorAll('.hlgb-manual-desc9411').forEach(inp=>{if(inp.dataset.search9411)return;inp.dataset.search9411='1';inp.addEventListener('change',()=>{const tr=inp.closest('tr'),n=norm(inp.value),prod=arr('products').find(x=>norm(x.name)===n||norm(x.code)===n||norm(x.reference)===n||norm(x.ref)===n);inp.dataset.productId=prod?sid(prod.id):'';if(prod){inp.value=prod.name||inp.value;const u=tr?.querySelector('.hlgb-manual-unit9411');if(u&&q(u.value)<=0)u.value=q(prod.price||prod.salePrice||prod.unitPrice).toFixed(2);recalcManual()}})})}
 function recalcManual(){
  let total=0;document.querySelectorAll('.hlgb-manual-item9411').forEach(tr=>{const qty=q(tr.querySelector('.hlgb-manual-qty9411')?.value),unit=q(tr.querySelector('.hlgb-manual-unit9411')?.value),v=qty*unit;total+=v;const e=tr.querySelector('.hlgb-manual-total9411');if(e)e.textContent=money(v)});
  const e=document.getElementById('hlgbManualGrand9411');if(e)e.textContent=money(total);return total;
@@ -284,7 +287,7 @@ async function saveManualNote(){
  if(!clientName)return alert('Escolha um cliente ou digite o nome do cliente.');
  const issueDate=document.getElementById('hlgbManualIssue9411')?.value||today(),dueDate=document.getElementById('hlgbManualDue9411')?.value||issueDate,terms=document.getElementById('hlgbManualTerms9411')?.value||'À vista',termsDetail=sid(document.getElementById('hlgbManualTermsDetail9411')?.value).trim(),note=sid(document.getElementById('hlgbManualObs9411')?.value).trim();
  if(terms==='Personalizado'&&!termsDetail)return alert('Informe os detalhes da condição personalizada.');
- const items=[];document.querySelectorAll('.hlgb-manual-item9411').forEach(tr=>{const productName=sid(tr.querySelector('.hlgb-manual-desc9411')?.value).trim(),qty=Math.floor(q(tr.querySelector('.hlgb-manual-qty9411')?.value)),unitPrice=q(tr.querySelector('.hlgb-manual-unit9411')?.value);if(productName&&qty>0)items.push({orderId:null,itemKey:null,productId:null,productName,description:productName,projectionDate:issueDate,deliveredAt:issueDate,qty,unitPrice,value:+(qty*unitPrice).toFixed(2),sourceType:'manual_note',manualItem:true})});
+ const items=[];document.querySelectorAll('.hlgb-manual-item9411').forEach(tr=>{const desc=tr.querySelector('.hlgb-manual-desc9411'),productName=sid(desc?.value).trim(),productId=sid(desc?.dataset?.productId)||null,qty=Math.floor(q(tr.querySelector('.hlgb-manual-qty9411')?.value)),unitPrice=q(tr.querySelector('.hlgb-manual-unit9411')?.value);if(productName&&qty>0)items.push({orderId:null,itemKey:productId,productId,productName,description:productName,projectionDate:issueDate,deliveredAt:issueDate,qty,unitPrice,value:+(qty*unitPrice).toFixed(2),sourceType:'manual_note',manualItem:true})});
  if(!items.length)return alert('Adicione pelo menos um produto com descrição e quantidade.');
  const total=+items.reduce((s,i)=>s+i.value,0).toFixed(2);if(total<=0)return alert('Informe um valor maior que zero para a nota avulsa.');
  const invoiceId=makeId(),financeId=invoiceId+1,createdAt=new Date().toISOString();
@@ -311,12 +314,12 @@ window.hlgbOpenManualNote9411=function(){
  const issue=today(),clients=clientOptions();
  openModal('Criar nota avulsa',
   '<div class="panel" style="margin-top:0;background:#fff8fb"><b>Venda avulsa, sem pedido</b><div class="sub">Use para defeitos, sobras, amostras ou qualquer venda pontual. Esta nota não cria pedido e não movimenta estoque, corte ou produção.</div></div>'+
-  '<div class="grid"><div class="field"><label>Cliente cadastrado</label><select id="hlgbManualClient9411"><option value="">Selecione (opcional)</option>'+clients+'</select></div><div class="field"><label>Ou nome do cliente</label><input id="hlgbManualClientFree9411" placeholder="Digite se não estiver cadastrado"></div><div class="field"><label>Data de emissão</label><input id="hlgbManualIssue9411" type="date" value="'+issue+'"></div><div class="field"><label>Vencimento</label><input id="hlgbManualDue9411" type="date" value="'+issue+'"></div><div class="field"><label>Condição</label><select id="hlgbManualTerms9411"><option>À vista</option><option>7 dias</option><option>14 dias</option><option>21 dias</option><option>28 dias</option><option>30 dias</option><option>Cheque</option><option>Personalizado</option></select></div><div class="field" id="hlgbManualTermsDetailWrap9411" style="display:none"><label>Detalhes</label><input id="hlgbManualTermsDetail9411"></div></div>'+
+  '<datalist id="hlgbManualClients9411">'+manualClientList9411()+'</datalist><datalist id="hlgbManualProducts9411">'+manualProductList9411()+'</datalist><div class="grid"><div class="field"><label>Buscar cliente cadastrado</label><input id="hlgbManualClientSearch9411" list="hlgbManualClients9411" placeholder="Digite nome ou código"><select id="hlgbManualClient9411" style="margin-top:6px"><option value="">Selecione (opcional)</option>'+clients+'</select></div><div class="field"><label>Ou nome do cliente</label><input id="hlgbManualClientFree9411" placeholder="Digite se não estiver cadastrado"></div><div class="field"><label>Data de emissão</label><input id="hlgbManualIssue9411" type="date" value="'+issue+'"></div><div class="field"><label>Vencimento</label><input id="hlgbManualDue9411" type="date" value="'+issue+'"></div><div class="field"><label>Condição</label><select id="hlgbManualTerms9411"><option>À vista</option><option>7 dias</option><option>14 dias</option><option>21 dias</option><option>28 dias</option><option>30 dias</option><option>Cheque</option><option>Personalizado</option></select></div><div class="field" id="hlgbManualTermsDetailWrap9411" style="display:none"><label>Detalhes</label><input id="hlgbManualTermsDetail9411"></div></div>'+
   '<div style="overflow:auto;margin-top:14px"><table><thead><tr><th>Produto / descrição</th><th>Qtd.</th><th>Valor unit.</th><th>Total</th><th></th></tr></thead><tbody id="hlgbManualItems9411">'+manualItemRow()+'</tbody></table></div>'+
   '<div class="toolbar"><button type="button" class="secondary" id="hlgbManualAdd9411">+ Adicionar item</button></div><div class="field"><label>Observação</label><textarea id="hlgbManualObs9411" placeholder="Opcional"></textarea></div><div class="hlgb-manual-grand9411">Total: <strong id="hlgbManualGrand9411">R$ 0,00</strong></div><button type="button" class="primary modalSave">Criar nota avulsa</button>',
   saveManualNote
  );
- setTimeout(()=>{bindManualRows();recalcManual();const add=document.getElementById('hlgbManualAdd9411');if(add)add.onclick=window.hlgbAddManualNoteItem9411;const terms=document.getElementById('hlgbManualTerms9411');if(terms)terms.onchange=termsDetailToggle;},20);
+ setTimeout(()=>{bindManualRows();bindManualSearch9411();recalcManual();const add=document.getElementById('hlgbManualAdd9411');if(add)add.onclick=window.hlgbAddManualNoteItem9411;const terms=document.getElementById('hlgbManualTerms9411');if(terms)terms.onchange=termsDetailToggle;},20);
 };
 function ensureManualNoteButton(){
  const page=document.getElementById('notas');if(!page||document.getElementById('hlgbManualNoteBar9411'))return !!page;
@@ -426,6 +429,49 @@ async function reconcileQueueInvoices9419(force=false){
 }
 window.hlgbNoteQueueReconcile9419={version:'94.19',analyze:queueInvoiceAnalysis,reconcile:reconcileQueueInvoices9419};
 
+let productionInvoiceReconBusy9420=false,productionInvoiceReconAt9420=0;
+function productionInvoiceAnalysis9420(productionRows=arr('production'),orders=arr('orders'),invoices=canonicalInvoices(),queueRows=arr('noteQueue')){
+ const out=[],eps=.000001;
+ for(const row of (Array.isArray(productionRows)?productionRows:[])){
+  const orderId=sid(row?.orderId),productId=sid(row?.productId),planned=q(row?.planned),done=q(row?.done);
+  if(!orderId||!productId||planned<=0||done>=planned-eps)continue;
+  const order=(Array.isArray(orders)?orders:[]).find(o=>sid(o?.id)===orderId);if(!order)continue;
+  const meta=order?.projectionItems?.[productId]||{};
+  let invoiceQty=0;const invoiceIds=[];
+  for(const inv of (Array.isArray(invoices)?invoices:[])){
+   let matched=false;
+   for(const item of (Array.isArray(inv?.items)?inv.items:[])){
+    if(item?.noteOnly===true)continue;
+    if(sid(item?.orderId)!==orderId)continue;
+    const pid=sid(item?.productId||item?.itemKey);if(pid!==productId)continue;
+    invoiceQty+=q(item?.qty);matched=true;
+   }
+   if(matched&&sid(inv?.id))invoiceIds.push(sid(inv.id));
+  }
+  const billed=Math.max(invoiceQty,q(meta?.invoicedQty));
+  if(billed+eps<planned)continue;
+  const queues=(Array.isArray(queueRows)?queueRows:[]).filter(r=>sid(r?.orderId)===orderId&&sid(r?.productId||r?.itemKey)===productId);
+  const queueSettled=queues.length>0&&queues.every(r=>norm(r?.status)==='faturado'&&q(r?.remainingQty??r?.qty)<=eps);
+  const orderFinal=norm(order?.status)==='pedido finalizado'||truthy(order?.deliveryFinalized)||truthy(order?.projectionInvoiced);
+  if(!queueSettled&&!orderFinal)continue;
+  const ids=[...new Set([...(Array.isArray(meta?.invoiceIds)?meta.invoiceIds:[]),...invoiceIds].map(sid).filter(Boolean))];
+  out.push({id:sid(row?.id??row?.__hlgbId),orderId,productId,planned,done,invoicedQty:billed,invoiceIds:ids,queueSettled,orderFinal,row});
+ }
+ return out;
+}
+async function reconcileProductionInvoices9420(force=false){
+ if(productionInvoiceReconBusy9420)return {busy:true,changed:0};const stamp=Date.now();if(!force&&stamp-productionInvoiceReconAt9420<2500)return {throttled:true,changed:0};productionInvoiceReconAt9420=stamp;productionInvoiceReconBusy9420=true;
+ const changed=[],errors=[];try{
+  for(const x of productionInvoiceAnalysis9420()){
+   const at=new Date().toISOString(),next={...clone(x.row),done:x.planned,stage:'Finalizado',finishedAt:x.row?.finishedAt||today(),finishedAtTime:x.row?.finishedAtTime||at,invoicedQty:x.invoicedQty,invoiceIds:x.invoiceIds,invoiceReconciledAt:at,invoiceReconciledV9420:true,updatedAt:at};
+   try{await saveConfirmed('production',next,false);changed.push(x.id)}catch(e){errors.push({id:x.id,error:sid(e?.message||e)})}
+  }
+  if(changed.length){try{window.renderProduction?.()}catch(e){}try{window.renderProjection?.()}catch(e){}}
+  return {changed:changed.length,ids:changed,errors};
+ }finally{productionInvoiceReconBusy9420=false}
+}
+window.hlgbProductionInvoiceReconcile9420={version:'94.20',analyze:productionInvoiceAnalysis9420,reconcile:reconcileProductionInvoices9420};
+
 let timer=null;
 const mo=new MutationObserver(records=>{if(!noteMutationRelevant(records))return;clearTimeout(timer);timer=setTimeout(apply,80)});
 try{mo.observe(document.documentElement,{childList:true,subtree:true})}catch(e){}
@@ -435,9 +481,10 @@ if(typeof oldIncoming==='function'&&!oldIncoming.__hlgbNoteIntegrity9411){
  const w=function(module){
   const r=oldIncoming.apply(this,arguments);
   if(module==='finance')reconcileFinanceTombstones();
-  if(['noteQueue','projectionInvoices','orders','finance'].includes(module)){
+  if(['noteQueue','projectionInvoices','orders','finance','production'].includes(module)){
    setTimeout(apply,30);
    if(['noteQueue','projectionInvoices'].includes(module))setTimeout(()=>reconcileQueueInvoices9419(false).catch(()=>{}),420);
+   if(['noteQueue','projectionInvoices','orders','production'].includes(module))setTimeout(()=>reconcileProductionInvoices9420(false).catch(()=>{}),650);
    if(['projectionInvoices','finance'].includes(module))setTimeout(()=>{reconcileFinanceTombstones();cleanupOrphanFinance()},350);
   }
   return r;
@@ -448,10 +495,11 @@ if(typeof oldIncoming==='function'&&!oldIncoming.__hlgbNoteIntegrity9411){
 function boot(){
  reconcileFinanceTombstones();apply();
  setTimeout(()=>reconcileQueueInvoices9419(false).catch(()=>{}),900);
- setTimeout(()=>{reconcileFinanceTombstones();cleanupOrphanFinance();reconcileQueueInvoices9419(false).catch(()=>{})},1800);
+ setTimeout(()=>reconcileProductionInvoices9420(false).catch(()=>{}),1150);
+ setTimeout(()=>{reconcileFinanceTombstones();cleanupOrphanFinance();reconcileQueueInvoices9419(false).catch(()=>{});reconcileProductionInvoices9420(false).catch(()=>{})},1800);
  setTimeout(()=>{reconcileFinanceTombstones();cleanupOrphanFinance()},4200);
 }
-try{if(typeof hlgbAfterLogin==='function')hlgbAfterLogin(()=>[100,700,1800,3500].forEach(ms=>setTimeout(()=>{reconcileFinanceTombstones();apply();if(ms>=700)reconcileQueueInvoices9419(false).catch(()=>{})},ms)),0)}catch(e){}
+try{if(typeof hlgbAfterLogin==='function')hlgbAfterLogin(()=>[100,700,1800,3500].forEach(ms=>setTimeout(()=>{reconcileFinanceTombstones();apply();if(ms>=700){reconcileQueueInvoices9419(false).catch(()=>{});reconcileProductionInvoices9420(false).catch(()=>{})}},ms)),0)}catch(e){}
 try{if(typeof hlgbAfterLogin==='function')hlgbAfterLogin(()=>setTimeout(boot,900),0)}catch(e){}
 [50,500,1500,3200].forEach(ms=>setTimeout(()=>{reconcileFinanceTombstones();apply()},ms));
 if(typeof window.addEventListener==='function'){

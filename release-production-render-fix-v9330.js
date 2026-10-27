@@ -8,8 +8,8 @@ function fixedRenderProduction(){
   db.production=Array.isArray(db.production)?db.production:[];
   const f=document.getElementById('prodFilter')?.value||'';
   const arr=db.production.filter(p=>{
-    try{return !(typeof hlgbProductionDone9196==='function'&&hlgbProductionDone9196(p))&&(!f||p.stage===f)}
-    catch(e){return !f||p.stage===f}
+    try{const doneByQty=(+p.planned||0)>0&&(+p.done||0)>=(+p.planned||0);return !doneByQty&&!(typeof hlgbProductionDone9196==='function'&&hlgbProductionDone9196(p))&&(!f||p.stage===f)}
+    catch(e){return !((+p.planned||0)>0&&(+p.done||0)>=(+p.planned||0))&&(!f||p.stage===f)}
   });
   const el=document.getElementById('productionTable');
   if(!el)return;

@@ -96,7 +96,7 @@ async function saveEntry(row,deleted=false){
 }
 function refresh(){
  purgeTombstones();prunePending();
- try{if(typeof window.renderHubFinance==='function')window.renderHubFinance();else if(typeof window.hlgbRenderHubSearch9248==='function')window.hlgbRenderHubSearch9248()}catch(e){}
+ try{if(typeof window.renderHubFinance==='function')window.renderHubFinance();if(typeof window.hlgbRenderHubSearch9248==='function')window.hlgbRenderHubSearch9248()}catch(e){}
 }
 function disableDeleteButtons(id,disabled){
  try{const s=sid(id);for(const b of document.querySelectorAll('button[onclick*="deleteHubFinanceEntry"]')){const oc=String(b.getAttribute('onclick')||'');if(oc.includes(s)){b.disabled=!!disabled;if(disabled)b.dataset.hlgbDeleteBusy='1';else delete b.dataset.hlgbDeleteBusy}}}catch(e){}
