@@ -1,0 +1,21 @@
+name: TMP inspect HLGB round 20261027
+on:
+  push:
+    branches: [integration/hlgb-round-20261027]
+    paths: [.github/workflows/tmp-inspect-round-20261027.yml]
+permissions:
+  contents: read
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Mapear rotas, nota avulsa e exclusao financeira
+        shell: bash
+        run: |
+          echo '=== ROUTE ==='
+          grep -RniE --include='*.js' --include='*.html' 'Nova rota|Produtos atribu[ií]dos|LEVAR|BUSCAR|motorista|Adicionar parada' . | head -n 160 || true
+          echo '=== MANUAL NOTE ==='
+          grep -RniE --include='*.js' --include='*.html' 'Nota avulsa|manualNote|nota avulsa|openManual|manual note' . | head -n 180 || true
+          echo '=== HUB DELETE/SEARCH ==='
+          grep -RniE --include='*.js' --include='*.html' 'hub.*delete|delete.*hub|finance.*delete|delete.*finance|Pesquisar lan[cç]amentos|search.*finance|finance.*search|tombstone' . | head -n 220 || true
