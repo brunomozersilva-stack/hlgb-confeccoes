@@ -10,12 +10,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Mapear acertos por mercadoria e notas
+      - name: Inspecionar acerto canônico e exclusão Hub
         shell: bash
         run: |
-          echo '=== ACERTOS / ABATIMENTOS ==='
-          grep -RniE --include='*.js' --include='*.html' 'Acerto|acerto|abatimento|compensa[cç][aã]o|saldo.*fornecedor|fornecedor.*saldo|materia.prima|mat[eé]ria.prima' . | head -n 260 || true
-          echo '=== PROJECTION NOTES ==='
-          grep -RniE --include='*.js' --include='*.html' 'openProjectionAcerto|projectionInvoices|Notas prontas|nota.*entrega|entrega.*nota' . | head -n 260 || true
-          echo '=== SUPPLIER DEBT / PURCHASE ==='
-          grep -RniE --include='*.js' --include='*.html' 'supplierDebt|supplier.*debt|purchaseId|sourcePurchaseId|Nota de compra|notas de compra|purchases' . | head -n 300 || true
+          echo '=== ACERTO CANONICO 9234 ==='
+          sed -n '20690,20870p' app9240.html
+          echo '=== HUB DELETE FUNCTIONS ==='
+          grep -RniE --include='*.js' --include='*.html' 'deleteHubFinanceEntry|delHub|delete.*FinanceEntry|hub.*Excluir|Excluir.*lan[cç]amento|save.*hubFinanceEntries.*true|hubFinanceEntries.*true' . | head -n 240 || true
+          echo '=== PURCHASE BALANCE / SAVE ==='
+          sed -n '10090,10220p' app9240.html
