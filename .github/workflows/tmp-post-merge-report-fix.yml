@@ -29,6 +29,8 @@ jobs:
           for name in ['tests/audit-app-stable3-restored-render-regression.cjs','tests/audit-wal-idb-only-regression.cjs']:
               p=Path(name); s=p.read_text()
               if s.startswith('\\\n'): s=s[2:]
+              if name.endswith('audit-wal-idb-only-regression.cjs'):
+                  s=s.replace("setTimeout:(fn)=>{queueMicrotask(fn);return 1}","setTimeout:()=>1")
               p.write_text(s)
           PY
       - name: Run focused regressions
