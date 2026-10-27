@@ -1,0 +1,30 @@
+name: Integration round v94.23
+
+on:
+  pull_request:
+    branches: [main]
+
+jobs:
+  logic:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: node --check release-diagnostic-faction-stability-v9423.js
+      - run: node --check release-auditor-restore-v9263.js
+      - run: node tests/audit-diagnostics-factions-v9423.cjs
+
+  webkit:
+    runs-on: ubuntu-latest
+    container:
+      image: mcr.microsoft.com/playwright:v1.55.0-noble
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: npm install playwright@1.55.0 --no-save
+      - run: python3 -m http.server 4173 --bind 0.0.0.0 > /tmp/hlgb-http.log 2>&1 &
+      - run: node tests/audit-diagnostics-factions-v9423-webkit.js

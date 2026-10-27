@@ -1,0 +1,21 @@
+const fs=require('fs');
+const assert=require('assert');
+const release=fs.readFileSync('release-diagnostic-faction-stability-v9423.js','utf8');
+const loader=fs.readFileSync('release-auditor-restore-v9263.js','utf8');
+function has(s,msg){assert(release.includes(s),msg)}
+assert(loader.includes('release-diagnostic-faction-stability-v9423.js'),'loader v92.63 must bootstrap v94.23');
+has('window.hlgbAuditorSmartRun','Auditor SmartRun bridge missing');
+has('hlgbAuditorSmartDailyReport9423','daily report canonical bridge missing');
+has('window.hlgbFactionNames9287','canonical faction list must be reused');
+has("document.getElementById('mname')",'faction send select repair missing');
+has("norm(p?.stage||p?.status)==='aguardando atribuicao'",'waiting assignment authority missing');
+has('p.productionLocationId=null','stale location must not block reassignment locally');
+has('productionDone','finalized production filter missing');
+has('hlgb9423ChecklistValue','faction checklist value missing');
+has('Valor unitário','unit value missing from checklist');
+has('modelSplitParentV1===true','model split WAL predicate missing');
+has('hiddenByModelSplitV1===true','hidden split parent WAL predicate missing');
+has("norm(d?.status)==='desmembrado por modelo'",'split parent status guard missing');
+has('__hlgb9423Projection','projection burst governor missing');
+has('state.projectionCoalesced++','projection coalescing metric missing');
+console.log('audit-diagnostics-factions-v9423: ok');

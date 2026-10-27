@@ -3,12 +3,17 @@
 'use strict';
 const V='92.63';
 let scheduled=false;
+function load9423(){
+  if(window.HLGB_DIAGNOSTIC_FACTION_STABILITY_9423==='94.23'||document.getElementById('hlgbDiagnosticFactionStability9423'))return;
+  const s=document.createElement('script');s.id='hlgbDiagnosticFactionStability9423';s.src='./release-diagnostic-faction-stability-v9423.js?fresh='+Date.now();s.async=false;
+  s.onerror=()=>{try{s.remove()}catch(e){}};(document.head||document.documentElement).appendChild(s);
+}
 function open(){
   if(typeof window.openHlgbAuditor==='function')return window.openHlgbAuditor();
   alert('O Auditor ainda está carregando. Aguarde um instante e tente novamente.');
 }
 function ensure(){
-  scheduled=false;
+  scheduled=false;load9423();
   const nav=document.getElementById('nav')||document.querySelector('#appShell nav')||document.querySelector('nav');
   if(nav&&!document.getElementById('hlgbAuditorNavBtn')){
     const b=document.createElement('button');
@@ -27,7 +32,7 @@ function ensure(){
 }
 function queue(){if(scheduled)return;scheduled=true;requestAnimationFrame(()=>setTimeout(ensure,0));}
 function boot(){
-  ensure();
+  load9423();ensure();
   const root=document.getElementById('appShell')||document.body;
   if(root&&!root.__hlgbAuditorRestore9263){
     root.__hlgbAuditorRestore9263=true;
@@ -45,7 +50,7 @@ function boot(){
   try{const cur=Number(window.HLGB_RELEASE_VERSION)||0;if(cur<=92.63){window.HLGB_RELEASE_VERSION=V;const l=document.querySelector('#appShell .logo small');if(l)l.textContent='v'+V}}catch(e){}
 }
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',boot,{once:true});else boot();
-try{if(typeof hlgbAfterLogin==='function')hlgbAfterLogin(()=>setTimeout(ensure,250),0)}catch(e){}
-window.hlgbAuditorRestore9263={ensure,open};
+try{if(typeof hlgbAfterLogin==='function')hlgbAfterLogin(()=>setTimeout(()=>{load9423();ensure()},250),0)}catch(e){}
+window.hlgbAuditorRestore9263={ensure,open,load9423};
 console.info('[HLGB] restauração do Auditor/Testador v'+V+' ativa');
 })();
