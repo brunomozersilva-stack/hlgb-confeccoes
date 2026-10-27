@@ -1,0 +1,31 @@
+name: TMP inspect user UI issues
+
+on:
+  push:
+    branches:
+      - fix/ui-notes-payroll-auditor-20261026
+    paths:
+      - .github/workflows/tmp-inspect-user-ui-issues.yml
+
+permissions:
+  contents: read
+
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Locate user-requested UI and note code
+        shell: bash
+        run: |
+          set +e
+          echo '=== MELHORIAS / ANOTAR / CATEGORIAS ==='
+          grep -RniE 'Melhorias para Anotar|Melhorias|Anotar|melhorias|improvement|categoria' --exclude-dir=.git --include='*.js' --include='*.html' . | head -n 220
+          echo '=== TOPBAR / CLOUD STATUS ==='
+          grep -RniE 'Salvo na nuvem|cloudStatus|hlgb-topbar-status|topbar' --exclude-dir=.git --include='*.js' --include='*.html' . | head -n 260
+          echo '=== NOTE QUEUE / AGUARDANDO ==='
+          grep -RniE 'Aguardando nota|noteQueue|sourceQueueId|lastInvoiceId|remainingQty' --exclude-dir=.git --include='*.js' --include='*.html' . | head -n 320
+          echo '=== PAYROLL ACTIONS ==='
+          grep -RniE 'payroll-actions|PENDENTE|togglePayrollPaid|deletePayrollRow|editPayrollRow' --exclude-dir=.git --include='*.js' --include='*.html' . | head -n 260
+          echo '=== APP SHELL BACKGROUND ==='
+          grep -RniE '#appShell::before|byh-photo|background-size:cover|position:absolute.*appShell|position:fixed.*appShell' --exclude-dir=.git --include='*.js' --include='*.html' . | head -n 220
