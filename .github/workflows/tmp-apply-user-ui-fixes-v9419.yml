@@ -1,0 +1,50 @@
+name: TMP apply user UI fixes v94.19
+
+on:
+  push:
+    branches:
+      - fix/ui-notes-payroll-auditor-20261026
+    paths:
+      - .github/workflows/tmp-apply-user-ui-fixes-v9419.yml
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Apply requested fixes
+        run: python3 scripts/apply-user-ui-fixes-v9419.py
+      - name: Normalize generated test files
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          for name in ['tests/audit-user-ui-requests-v9419.cjs','tests/audit-notequeue-invoice-reconcile-v9419.cjs','tests/audit-auditor-notequeue-v9419.cjs']:
+              p=Path(name); s=p.read_text()
+              if s.startswith('\\\n'): s=s[2:]
+              p.write_text(s)
+          PY
+      - name: Run focused regressions
+        run: |
+          node tests/audit-user-ui-requests-v9419.cjs
+          node tests/audit-notequeue-invoice-reconcile-v9419.cjs
+          node tests/audit-auditor-notequeue-v9419.cjs
+          node tests/audit-note-integrity-regression.cjs
+          node tests/audit-payroll-integrity-regression.cjs
+          node tests/audit-brand-topbar-consolidation.cjs
+          node tests/auditor-boot-dedupe-v9397.js
+      - name: Commit functional patch
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add release-ui-actions-v9402.js release-night-ui-fixes.js release-payroll-view-v9295.js release-payroll-layout-v9298.js release-note-integrity.js release-auditor-blackbox-v9299.js release-product-catalog-v9419.js app-stable3.html tests/audit-user-ui-requests-v9419.cjs tests/audit-notequeue-invoice-reconcile-v9419.cjs tests/audit-auditor-notequeue-v9419.cjs
+          git commit -m "[ui9419-patched] Fundo, topbar, catálogo, notas, folha e Auditor"
+          git push origin HEAD:fix/ui-notes-payroll-auditor-20261026
