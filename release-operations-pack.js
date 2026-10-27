@@ -148,58 +148,41 @@ function routeProductName9249(p){
 function routeAssignedProducts9249(loc){
  if(!loc)return {active:[],planned:[]};
  const active=[],planned=[],seen=new Set();
- const prods=arr('production').filter(p=>{
-   if(loc.type==='Facção')return sid(p.factionId)===sid(loc.id);
-   return !p.factionId&&sid(p.productionLocationId)===sid(loc.id);
- });
+ const prods=arr('production').filter(p=>loc.type==='Facção'?sid(p.factionId)===sid(loc.id):(!p.factionId&&sid(p.productionLocationId)===sid(loc.id)));
  for(const p of prods){
-   const qty=Math.max(0,q(p.planned)-q(p.done));
-   if(qty<=0||/finalizado|pronto/i.test(sid(p.stage))&&q(p.done)>=q(p.planned))continue;
-   const o=arr('orders').find(x=>sid(x.id)===sid(p.orderId)),name=routeProductName9249(p),key='P|'+sid(p.id);
-   if(seen.has(key))continue;seen.add(key);
-   active.push({orderNo:o?routeOrderNo9249(o):'',product:name,qty,stage:p.stage||'Em produção',op:p.op||''});
+   const qty=Math.max(0,q(p.planned)-q(p.done));if(qty<=0)continue;
+   const o=arr('orders').find(x=>sid(x.id)===sid(p.orderId)),pid=sid(p.productId),prod=arr('products').find(x=>sid(x.id)===pid),name=p.product||prod?.name||'Produto';
+   const key='production:'+sid(p.id??p.__hlgbId??(sid(p.orderId)+'-'+pid));seen.add(sid(p.orderId)+'|'+pid);
+   const sent=!!(p.sentToFactionAt||p.sentAt||p.sentToProductionAt||p.sentToLocationAt||p.factionSentAt||p.productionSentAt);
+   active.push({key,source:'production',productionId:sid(p.id??p.__hlgbId),orderId:sid(p.orderId),productId:pid,orderNo:o?routeOrderNo9249(o):'',product:name,qty,stage:p.stage||'Em produção',op:p.op||'',direction:sent?'pickup':'carry',sent});
  }
- const assignments=arr('capacityAssignments').filter(a=>{
-   if(a?.active===false)return false;
-   if(loc.type==='Facção')return sid(a.factionId)===sid(loc.id);
-   return sid(a.locationId)===sid(loc.id)&&!a.factionId;
- });
- for(const a of assignments){
-   const o=arr('orders').find(x=>sid(x.id)===sid(a.orderId));if(!o)continue;
-   let item=null;try{item=(typeof projectionItemsForOrder==='function'?(projectionItemsForOrder(o)||[]):[]).find(x=>sid(x.key)===sid(a.itemKey)||sid(x.productId)===sid(a.itemKey))}catch(e){}
-   const pid=item?.productId||a.productId||null,name=item?.name||arr('products').find(x=>sid(x.id)===sid(pid))?.name||'Produto';
-   const already=prods.some(p=>sid(p.orderId)===sid(o.id)&&sid(p.productId)===sid(pid)&&((loc.type==='Facção'&&sid(p.factionId)===sid(loc.id))||(loc.type!=='Facção'&&!p.factionId&&sid(p.productionLocationId)===sid(loc.id))));
-   const remain=Math.max(0,q(a.qty)-q(a.consumedQty));
-   if(remain>0&&!already)planned.push({orderNo:routeOrderNo9249(o),product:name,qty:remain,stage:'Planejado para o local'});
+ for(const c of arr('capacityAssignments')){
+   const same=loc.type==='Facção'?sid(c.factionId)===sid(loc.id):sid(c.locationId||c.productionLocationId)===sid(loc.id);if(!same)continue;
+   const o=arr('orders').find(x=>sid(x.id)===sid(c.orderId)),pid=sid(c.productId),dupe=sid(c.orderId)+'|'+pid;if(seen.has(dupe))continue;
+   const prod=arr('products').find(x=>sid(x.id)===pid),qty=q(c.pieces||c.qty||c.planned);if(qty<=0)continue;
+   planned.push({key:'capacity:'+sid(c.id??dupe),source:'capacity',orderId:sid(c.orderId),productId:pid,orderNo:o?routeOrderNo9249(o):'',product:c.productName||prod?.name||'Produto',qty,stage:'Planejado para o local',direction:'carry'});
  }
  return {active,planned};
 }
-function routeAssignedLine9249(x){
- return (x.orderNo?'Pedido #'+x.orderNo+' — ':'')+x.product+' — '+Math.floor(q(x.qty)).toLocaleString('pt-BR')+' pç';
-}
+function routeAssignedLine9249(x){return (x.orderNo?'Pedido #'+x.orderNo+' — ':'')+(x.product||'Produto')+' — '+q(x.qty).toLocaleString('pt-BR')+' pç'}
+function routeItemHtml9249(x){const line=routeAssignedLine9249(x),dir=x.direction==='pickup'?'pickup':'carry';return '<div class="ops-route-item9422" data-route-item9249="1" data-key="'+escSafe(x.key||line)+'" data-line="'+escSafe(line)+'" data-direction="'+dir+'" data-source="'+escSafe(x.source||'')+'" data-production-id="'+escSafe(x.productionId||'')+'" data-order-id="'+escSafe(x.orderId||'')+'" data-product-id="'+escSafe(x.productId||'')+'" style="display:flex;justify-content:space-between;gap:10px;align-items:center;padding:8px 0;border-bottom:1px solid #eee"><div><b>'+escSafe(line)+'</b><div class="sub">'+escSafe(x.stage||'')+(x.sent?' · já enviado ao local':' · ainda não enviado')+'</div></div><div style="display:flex;gap:6px;flex-wrap:wrap"><button type="button" class="'+(dir==='carry'?'primary':'secondary')+'" data-dir="carry" onclick="routeItemDirection9249(this,\'carry\')">➜ LEVAR</button><button type="button" class="'+(dir==='pickup'?'primary':'secondary')+'" data-dir="pickup" onclick="routeItemDirection9249(this,\'pickup\')">⬅ BUSCAR</button></div></div>'}
+function routeLines9249(v){return sid(v).split(/\n+/).map(x=>x.trim()).filter(Boolean)}
+function routeSyncDirections9249(stop){if(!stop)return;const carry=stop.querySelector('.ops-route-carry'),pickup=stop.querySelector('.ops-route-pickup'),items=[...stop.querySelectorAll('[data-route-item9249]')],known=new Set(items.map(x=>sid(x.dataset.line)));let c=routeLines9249(carry?.value).filter(x=>!known.has(x)),b=routeLines9249(pickup?.value).filter(x=>!known.has(x));for(const it of items){const line=sid(it.dataset.line);if(!line)continue;(it.dataset.direction==='pickup'?b:c).push(line)}if(carry)carry.value=[...new Set(c)].join('\n');if(pickup)pickup.value=[...new Set(b)].join('\n')}
+window.routeItemDirection9249=function(btn,dir){const item=btn?.closest?.('[data-route-item9249]'),stop=btn?.closest?.('.ops-route-stop');if(!item||!stop)return;item.dataset.direction=dir==='pickup'?'pickup':'carry';item.querySelectorAll('button[data-dir]').forEach(b=>b.className=b.dataset.dir===item.dataset.direction?'primary':'secondary');routeSyncDirections9249(stop)};
 window.routeLocationChanged9249=function(select){
- const stop=select?.closest('.ops-route-stop');if(!stop)return;
- const loc=routeLocations()[+select.value],box=stop.querySelector('.ops-route-assigned'),carry=stop.querySelector('.ops-route-carry'),pickup=stop.querySelector('.ops-route-pickup');
- if(!loc){if(box)box.innerHTML='';return}
- const data=routeAssignedProducts9249(loc),activeLines=data.active.map(routeAssignedLine9249),plannedLines=data.planned.map(routeAssignedLine9249);
- if(box){
-   const a=data.active.length?data.active.map(x=>'<div>• '+escSafe(routeAssignedLine9249(x))+' <span class="ops-muted">('+escSafe(x.stage)+')</span></div>').join(''):'<div class="ops-muted">Nenhum produto em produção neste local.</div>';
-   const p=data.planned.length?'<div style="margin-top:7px"><b>Planejado para levar</b>'+data.planned.map(x=>'<div>• '+escSafe(routeAssignedLine9249(x))+'</div>').join('')+'</div>':'';
-   box.innerHTML='<div class="panel" style="margin:0;background:#f8fafc"><b>📦 Produtos atribuídos a '+escSafe(loc.name)+'</b><div style="margin-top:6px">'+a+'</div>'+p+'</div>';
- }
- if(pickup&&(!pickup.value.trim()||pickup.dataset.autoRoute9249==='1')){
-   pickup.value=activeLines.join('\n');pickup.dataset.autoRoute9249='1';
- }
- if(carry&&(!carry.value.trim()||carry.dataset.autoRoute9249==='1')){
-   carry.value=plannedLines.join('\n');carry.dataset.autoRoute9249='1';
- }
+ const stop=select?.closest?.('.ops-route-stop'),loc=routeLocations()[+select?.value],box=stop?.querySelector('.ops-route-assigned'),carry=stop?.querySelector('.ops-route-carry'),pickup=stop?.querySelector('.ops-route-pickup');if(!stop||!box||!loc)return;
+ const data=routeAssignedProducts9249(loc),items=[...data.active,...data.planned],idx=+stop.dataset.i||0,saved=window.__opsRouteStops9249?.[idx],savedItems=Array.isArray(saved?.routeItems)?saved.routeItems:[];
+ const carryExisting=new Set(routeLines9249(carry?.value)),pickupExisting=new Set(routeLines9249(pickup?.value));
+ for(const x of items){const line=routeAssignedLine9249(x),sv=savedItems.find(y=>sid(y.key)===sid(x.key)||sid(y.line)===line);if(sv?.direction)x.direction=sv.direction;else if(pickupExisting.has(line))x.direction='pickup';else if(carryExisting.has(line))x.direction='carry'}
+ box.innerHTML=items.length?'<div class="panel" style="padding:10px;background:#fff"><b>📦 O que fazer neste local</b><div class="sub">O sistema sugere <b>LEVAR</b> quando o produto foi atribuído mas ainda não foi enviado e <b>BUSCAR</b> quando já existe envio registrado. Você pode trocar pelo botão.</div>'+items.map(routeItemHtml9249).join('')+'</div>':'<div class="sub">Nenhum produto atribuído a este local agora. Use os campos abaixo para itens manuais.</div>';
+ routeSyncDirections9249(stop);
 };
 
 function openRouteEditor(r){
  window.__opsRouteStops9249=clone(r?.stops||[]);
  const body='<div class="grid"><div class="field"><label>Data</label><input id="opsRouteDate" type="date" value="'+escSafe(r?.date||today())+'"></div><div class="field"><label>Responsável / motorista</label><input id="opsRouteDriver" value="'+escSafe(r?.driver||'')+'"></div><div class="field"><label>Status</label><select id="opsRouteStatus"><option>Planejada</option><option>Em rota</option><option>Concluída</option></select></div></div><div class="field"><label>Anotações gerais</label><textarea id="opsRouteGeneral" rows="3">'+escSafe(r?.notes||'')+'</textarea></div><div id="opsRouteStops">'+(r?.stops||[]).map(routeStopHtml).join('')+'</div><button type="button" class="secondary" onclick="addRouteStop9249()">+ Adicionar parada</button><button class="primary modalSave">Salvar rota</button>';
  openModal(r?'Editar rota':'Nova rota',body,async()=>{
-   const stops=[];document.querySelectorAll('#opsRouteStops .ops-route-stop').forEach((el,i)=>{const loc=routeLocations()[+el.querySelector('.ops-route-loc')?.value];if(!loc)return;const lines=v=>sid(v).split(/\n+/).map(x=>x.trim()).filter(Boolean);stops.push({order:i+1,type:loc.type,locationId:loc.id,name:loc.name,address:loc.address,phone:loc.phone,carry:lines(el.querySelector('.ops-route-carry')?.value),pickup:lines(el.querySelector('.ops-route-pickup')?.value),notes:el.querySelector('.ops-route-note')?.value?.trim()||''})});
+   const stops=[];document.querySelectorAll('#opsRouteStops .ops-route-stop').forEach((el,i)=>{const loc=routeLocations()[+el.querySelector('.ops-route-loc')?.value];if(!loc)return;const lines=v=>sid(v).split(/\n+/).map(x=>x.trim()).filter(Boolean);const routeItems=[...el.querySelectorAll('[data-route-item9249]')].map(x=>({key:x.dataset.key||'',line:x.dataset.line||'',direction:x.dataset.direction==='pickup'?'pickup':'carry',source:x.dataset.source||'',productionId:x.dataset.productionId||'',orderId:x.dataset.orderId||'',productId:x.dataset.productId||''}));stops.push({order:i+1,type:loc.type,locationId:loc.id,name:loc.name,address:loc.address,phone:loc.phone,carry:lines(el.querySelector('.ops-route-carry')?.value),pickup:lines(el.querySelector('.ops-route-pickup')?.value),routeItems,notes:el.querySelector('.ops-route-note')?.value?.trim()||''})});
    if(!stops.length)return alert('Adicione pelo menos uma parada.');
    const row={...(r||{}),id:r?.id||('route-'+Date.now()),date:document.getElementById('opsRouteDate')?.value||today(),driver:document.getElementById('opsRouteDriver')?.value?.trim()||'',status:document.getElementById('opsRouteStatus')?.value||'Planejada',notes:document.getElementById('opsRouteGeneral')?.value?.trim()||'',stops,updatedAt:new Date().toISOString(),createdAt:r?.createdAt||new Date().toISOString()};
    try{await saveRow('routePlans',row);closeModal();renderRoutes()}catch(e){alert('Não foi possível salvar a rota: '+(e?.message||e))}

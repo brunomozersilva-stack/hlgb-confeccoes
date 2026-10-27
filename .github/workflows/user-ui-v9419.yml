@@ -20,7 +20,9 @@ jobs:
           set -euo pipefail
           node --check release-product-catalog-v9419.js
           node --check tests/audit-user-ui-v9419-webkit.js
+          node --check tests/audit-cut-grade-matrix-v9421-webkit.js
           node tests/audit-user-ui-requests-v9419.cjs
+          node tests/audit-cut-grade-matrix-v9421.cjs
           node tests/audit-notequeue-invoice-reconcile-v9419.cjs
           node tests/audit-auditor-notequeue-v9419.cjs
 
@@ -48,6 +50,8 @@ jobs:
           sleep 2
       - name: Validar fundo, topbar, catálogo e folha no WebKit
         run: node tests/audit-user-ui-v9419-webkit.js
+      - name: Validar ajustar grade horizontal no WebKit
+        run: node tests/audit-cut-grade-matrix-v9421-webkit.js
       - name: Publicar capturas visuais v94.19
         if: always()
         uses: actions/upload-artifact@v4
@@ -56,4 +60,5 @@ jobs:
           path: |
             /tmp/hlgb-v9419-catalogo-webkit.png
             /tmp/hlgb-v9419-folha-webkit.png
+            /tmp/hlgb-v9421-ajustar-grade-webkit.png
           if-no-files-found: warn
