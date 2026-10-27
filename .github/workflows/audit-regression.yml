@@ -25,6 +25,9 @@ jobs:
       - name: Validate Auditor download and daily report
         run: node tests/audit-auditor-daily-download-regression.cjs
 
+      - name: Validate Auditor owner RPC authorization
+        run: node tests/audit-auditor-owner-rpc-regression.cjs
+
       - name: Validate equivalent Production WAL cleanup
         run: node tests/audit-wal-equivalent-production-regression.cjs
 
@@ -36,6 +39,9 @@ jobs:
 
       - name: Validate ByHagatha background and topbar consolidation
         run: node tests/audit-brand-topbar-consolidation.cjs
+
+      - name: Validate boot authReady before render
+        run: node tests/audit-boot-authready-render-order.cjs
 
       - name: Validate modernized compatibility contracts
         shell: bash
