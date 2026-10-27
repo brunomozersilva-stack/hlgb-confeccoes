@@ -1,0 +1,66 @@
+name: HLGB Integration Round v94.22
+
+on:
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  logic:
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Validar Produção, grade e integração v94.22
+        run: |
+          set -euo pipefail
+          node --check release-operations-pack.js
+          node --check release-note-integrity.js
+          node --check release-hub-search.js
+          node --check release-hub-integrity.js
+          node --check release-trade-settlement-v9422.js
+          node tests/audit-production-invoice-reconcile-v9420.cjs
+          node tests/audit-cut-grade-matrix-v9421.cjs
+          node tests/audit-round-v9422.cjs
+          node tests/auditor-boot-dedupe-v9397.js
+
+  webkit:
+    runs-on: ubuntu-latest
+    container:
+      image: mcr.microsoft.com/playwright:v1.55.0-noble
+    timeout-minutes: 10
+    env:
+      PLAYWRIGHT_BROWSERS_PATH: /ms-playwright
+    steps:
+      - uses: actions/checkout@v4
+      - name: Preparar Playwright
+        run: |
+          npm init -y >/dev/null 2>&1
+          npm install playwright@1.55.0 --no-save
+      - name: Iniciar servidor local
+        shell: bash
+        run: |
+          python3 -m http.server 4173 >/tmp/hlgb-v9422-http.log 2>&1 &
+          sleep 2
+      - name: Validar rota, nota avulsa, Hub e acerto no WebKit
+        run: node tests/audit-round-v9422-webkit.js
+      - name: Validar grade horizontal no WebKit
+        run: node tests/audit-cut-grade-matrix-v9421-webkit.js
+      - name: Publicar capturas visuais
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: hlgb-integration-v9422-webkit
+          path: |
+            /tmp/hlgb-v9422-rota-webkit.png
+            /tmp/hlgb-v9422-nota-avulsa-webkit.png
+            /tmp/hlgb-v9422-acerto-webkit.png
+            /tmp/hlgb-v9422-hub-webkit.png
+            /tmp/hlgb-v9421-ajustar-grade-webkit.png
+          if-no-files-found: warn
