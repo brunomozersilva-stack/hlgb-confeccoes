@@ -10,12 +10,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Mapear rotas, nota avulsa e exclusao financeira
+      - name: Mapear acertos por mercadoria e notas
         shell: bash
         run: |
-          echo '=== ROUTE ==='
-          grep -RniE --include='*.js' --include='*.html' 'Nova rota|Produtos atribu[ií]dos|LEVAR|BUSCAR|motorista|Adicionar parada' . | head -n 160 || true
-          echo '=== MANUAL NOTE ==='
-          grep -RniE --include='*.js' --include='*.html' 'Nota avulsa|manualNote|nota avulsa|openManual|manual note' . | head -n 180 || true
-          echo '=== HUB DELETE/SEARCH ==='
-          grep -RniE --include='*.js' --include='*.html' 'hub.*delete|delete.*hub|finance.*delete|delete.*finance|Pesquisar lan[cç]amentos|search.*finance|finance.*search|tombstone' . | head -n 220 || true
+          echo '=== ACERTOS / ABATIMENTOS ==='
+          grep -RniE --include='*.js' --include='*.html' 'Acerto|acerto|abatimento|compensa[cç][aã]o|saldo.*fornecedor|fornecedor.*saldo|materia.prima|mat[eé]ria.prima' . | head -n 260 || true
+          echo '=== PROJECTION NOTES ==='
+          grep -RniE --include='*.js' --include='*.html' 'openProjectionAcerto|projectionInvoices|Notas prontas|nota.*entrega|entrega.*nota' . | head -n 260 || true
+          echo '=== SUPPLIER DEBT / PURCHASE ==='
+          grep -RniE --include='*.js' --include='*.html' 'supplierDebt|supplier.*debt|purchaseId|sourcePurchaseId|Nota de compra|notas de compra|purchases' . | head -n 300 || true
