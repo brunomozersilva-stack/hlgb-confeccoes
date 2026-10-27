@@ -94,7 +94,7 @@ function injectTopbarCss(){
 #appShell>header .hlgb-topbar-host{display:flex!important;align-items:center!important;justify-content:flex-end!important;gap:8px!important;min-width:0!important;flex:1 1 auto!important;position:relative!important;overflow:visible!important}
 #appShell>header .hlgb-topbar-status{display:flex!important;align-items:center!important;justify-content:flex-end!important;gap:7px!important;min-width:0!important;flex:1 1 auto!important;flex-wrap:nowrap!important}
 #appShell>header #cloudStatus,#appShell>header #currentUserLabel{position:static!important;inset:auto!important;top:auto!important;right:auto!important;bottom:auto!important;left:auto!important;transform:none!important;margin:0!important}
-#appShell>header #cloudStatus{white-space:nowrap!important;flex:0 0 auto!important}
+#appShell>header #cloudStatus{white-space:nowrap!important;flex:0 0 auto!important;width:auto!important;min-width:0!important;max-width:96px!important;padding:6px 8px!important;overflow:hidden!important;text-overflow:ellipsis!important;text-align:center!important}
 #appShell>header #currentUserLabel{max-width:260px!important;min-width:0!important;white-space:nowrap!important;overflow:hidden!important;text-overflow:ellipsis!important;flex:0 1 auto!important}
 #appShell>header .hlgb-topbar-pending{white-space:nowrap!important;flex:0 0 auto!important}
 #backupImportInput{display:none!important;visibility:hidden!important;width:0!important;height:0!important;position:absolute!important;pointer-events:none!important}

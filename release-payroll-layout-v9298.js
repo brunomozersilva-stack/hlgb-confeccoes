@@ -21,8 +21,8 @@ function inject(){
  }
  #payrollTable .payroll-row-main>*{min-width:0!important;box-sizing:border-box!important}
  #payrollTable .payroll-num,#payrollTable .payroll-net-cell,#payrollTable .payroll-pix{white-space:normal!important;overflow-wrap:anywhere!important}
- #payrollTable .payroll-actions{display:flex!important;gap:5px!important;align-items:center!important;justify-content:flex-start!important;flex-wrap:wrap!important;min-width:0!important;overflow:visible!important}
- #payrollTable .payroll-actions button{display:inline-flex!important;visibility:visible!important;opacity:1!important;align-items:center!important;justify-content:center!important;min-height:34px!important;min-width:auto!important;width:auto!important;max-width:100%!important;padding:6px 9px!important;margin:0!important;white-space:nowrap!important;font-size:12px!important;line-height:1.15!important}
+ #payrollTable .payroll-status-cell{display:flex!important;align-items:center!important;justify-content:center!important;min-width:0!important}#payrollTable .payroll-actions{display:grid!important;grid-template-columns:1fr!important;gap:6px!important;align-items:stretch!important;justify-content:stretch!important;min-width:0!important;overflow:visible!important}#payrollTable .payroll-row-tools{display:grid!important;grid-template-columns:1fr 1fr!important;gap:5px!important;min-width:0!important}#payrollTable .payroll-pay-action{width:100%!important;font-weight:800!important}
+ #payrollTable .payroll-actions button{display:inline-flex!important;visibility:visible!important;opacity:1!important;align-items:center!important;justify-content:center!important;min-height:34px!important;min-width:0!important;width:100%!important;max-width:100%!important;padding:6px 8px!important;margin:0!important;white-space:nowrap!important;font-size:11px!important;line-height:1.15!important}
  #payrollTable .hlgb-status-pill{max-width:100%!important;box-sizing:border-box!important}
  #payrollTable .payroll-company,#payrollTable .payroll-company-list{max-width:100%!important;overflow:visible!important}
  @media(max-width:1180px){

@@ -1,8 +1,8 @@
-/* HLGB v94.18 — integridade de notas, nota avulsa, documentos e reconciliação de tombstones financeiros */
+/* HLGB v94.19 — integridade de notas, fila faturada e reconciliação de tombstones financeiros */
 (function(){
 'use strict';
 
-const V='94.18';
+const V='94.19';
 const FIN_TOMBSTONE_KEY='hlgb_note_orphan_finance_tombstones_v9418';
 const sid=v=>String(v??'');
 const q=v=>Math.max(0,Number(v)||0);
@@ -391,6 +391,41 @@ function ensureCss(){
 }
 ensureCss();
 
+let queueInvoiceReconBusy9419=false,queueInvoiceReconAt9419=0;
+function queueInvoiceAnalysis(queueRows=arr('noteQueue'),invoices=canonicalInvoices()){
+ const links=new Map(),eps=.000001;
+ for(const inv of (Array.isArray(invoices)?invoices:[])){
+  if(!inv)continue;
+  const invId=sid(inv.id),stamp=sid(inv.issueDate||inv.date||inv.updatedAt||'');
+  for(const item of (Array.isArray(inv.items)?inv.items:[])){
+   const queueId=sid(item?.sourceQueueId||item?.sourceKey);if(!queueId)continue;
+   const cur=links.get(queueId)||{queueId,qty:0,lastInvoiceId:'',stamp:''};cur.qty+=q(item?.qty);
+   if(!cur.lastInvoiceId||stamp>=cur.stamp){cur.lastInvoiceId=invId;cur.stamp=stamp}links.set(queueId,cur);
+  }
+ }
+ const out=[];
+ for(const row of (Array.isArray(queueRows)?queueRows:[])){
+  if(!row||['cancelado','cancelada'].includes(norm(row.status)))continue;
+  const id=sid(row.id),link=links.get(id);if(!link)continue;
+  const total=q(row.qty),linked=q(link.qty),remaining=Math.max(0,total-linked),status=remaining<=eps?'Faturado':linked>eps?'Parcial':sid(row.status||'Aguardando nota');
+  const currentRemaining=q(row.remainingQty??row.qty),wrongRemaining=Math.abs(currentRemaining-remaining)>eps,wrongStatus=norm(row.status)!==norm(status),wrongInvoice=!!link.lastInvoiceId&&sid(row.lastInvoiceId)!==sid(link.lastInvoiceId);
+  if(wrongRemaining||wrongStatus||wrongInvoice)out.push({id,clientName:row.clientName||row.client||'',productName:row.productName||'',total,linkedQty:linked,currentRemaining,expectedRemaining:remaining,currentStatus:sid(row.status),expectedStatus:status,lastInvoiceId:link.lastInvoiceId,overInvoiced:linked>total+eps,row});
+ }
+ return out;
+}
+async function reconcileQueueInvoices9419(force=false){
+ if(queueInvoiceReconBusy9419)return {busy:true,changed:0};const now=Date.now();if(!force&&now-queueInvoiceReconAt9419<2500)return {throttled:true,changed:0};queueInvoiceReconAt9419=now;queueInvoiceReconBusy9419=true;
+ const changed=[],errors=[];try{
+  for(const x of queueInvoiceAnalysis()){
+   const next={...clone(x.row),remainingQty:x.expectedRemaining,status:x.expectedStatus,lastInvoiceId:x.lastInvoiceId,updatedAt:new Date().toISOString()};
+   try{await saveConfirmed('noteQueue',next,false);changed.push(x.id)}catch(e){errors.push({id:x.id,error:sid(e?.message||e)})}
+  }
+  if(changed.length){try{apply()}catch(e){}}
+  return {changed:changed.length,ids:changed,errors};
+ }finally{queueInvoiceReconBusy9419=false}
+}
+window.hlgbNoteQueueReconcile9419={version:'94.19',analyze:queueInvoiceAnalysis,reconcile:reconcileQueueInvoices9419};
+
 let timer=null;
 const mo=new MutationObserver(records=>{if(!noteMutationRelevant(records))return;clearTimeout(timer);timer=setTimeout(apply,80)});
 try{mo.observe(document.documentElement,{childList:true,subtree:true})}catch(e){}
@@ -402,6 +437,7 @@ if(typeof oldIncoming==='function'&&!oldIncoming.__hlgbNoteIntegrity9411){
   if(module==='finance')reconcileFinanceTombstones();
   if(['noteQueue','projectionInvoices','orders','finance'].includes(module)){
    setTimeout(apply,30);
+   if(['noteQueue','projectionInvoices'].includes(module))setTimeout(()=>reconcileQueueInvoices9419(false).catch(()=>{}),420);
    if(['projectionInvoices','finance'].includes(module))setTimeout(()=>{reconcileFinanceTombstones();cleanupOrphanFinance()},350);
   }
   return r;
@@ -411,10 +447,11 @@ if(typeof oldIncoming==='function'&&!oldIncoming.__hlgbNoteIntegrity9411){
 
 function boot(){
  reconcileFinanceTombstones();apply();
- setTimeout(()=>{reconcileFinanceTombstones();cleanupOrphanFinance()},1800);
+ setTimeout(()=>reconcileQueueInvoices9419(false).catch(()=>{}),900);
+ setTimeout(()=>{reconcileFinanceTombstones();cleanupOrphanFinance();reconcileQueueInvoices9419(false).catch(()=>{})},1800);
  setTimeout(()=>{reconcileFinanceTombstones();cleanupOrphanFinance()},4200);
 }
-try{if(typeof hlgbAfterLogin==='function')hlgbAfterLogin(()=>[100,700,1800,3500].forEach(ms=>setTimeout(()=>{reconcileFinanceTombstones();apply()},ms)),0)}catch(e){}
+try{if(typeof hlgbAfterLogin==='function')hlgbAfterLogin(()=>[100,700,1800,3500].forEach(ms=>setTimeout(()=>{reconcileFinanceTombstones();apply();if(ms>=700)reconcileQueueInvoices9419(false).catch(()=>{})},ms)),0)}catch(e){}
 try{if(typeof hlgbAfterLogin==='function')hlgbAfterLogin(()=>setTimeout(boot,900),0)}catch(e){}
 [50,500,1500,3200].forEach(ms=>setTimeout(()=>{reconcileFinanceTombstones();apply()},ms));
 if(typeof window.addEventListener==='function'){
