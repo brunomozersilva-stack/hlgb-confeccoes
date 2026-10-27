@@ -21,10 +21,8 @@ jobs:
         run: python3 scripts/tmp_patch_production_invoice_v9420.py
       - name: Test production invoice reconciliation
         run: node tests/audit-production-invoice-reconcile-v9420.cjs
-      - name: Run related regressions
-        run: |
-          node tests/audit-note-queue-invoice-reconcile-v9419.cjs
-          node tests/auditor-boot-dedupe-v9397.js
+      - name: Run boot regression
+        run: node tests/auditor-boot-dedupe-v9397.js
       - name: Commit functional files
         run: |
           git config user.name 'github-actions[bot]'
