@@ -7,7 +7,7 @@ const {webkit}=require('playwright');
   page.on('pageerror',e=>errors.push(String(e?.message||e)));
 
   await page.goto('http://127.0.0.1:4173/app-stable3.html',{waitUntil:'domcontentloaded',timeout:60000});
-  await page.waitForFunction(()=>!!document.getElementById('loginScreen')&&!!document.getElementById('appShell')&&!!window.hlgbProductCatalog9419&&!!window.hlgbPayrollView9295,null,{timeout:60000});
+  await page.waitForFunction(()=>!!document.getElementById('loginScreen')&&!!document.getElementById('appShell')&&!!window.hlgbProductCatalog9419&&!!window.hlgbPayrollView9295&&!!window.hlgbNightUi?.cleanTopbar,null,{timeout:60000});
 
   await page.evaluate(()=>{
     document.documentElement.classList.add('hlgb-login-confirmed-9407');
@@ -18,10 +18,11 @@ const {webkit}=require('playwright');
     root.style.setProperty('--byh-photo','linear-gradient(135deg,#6b1d33,#d7a0b2)');
     root.style.setProperty('--byh-photo-visual-opacity','0.35');
     window.dispatchEvent(new Event('hlgb:authenticated'));
-    try{window.hlgbNightUiFixes?.cleanTopbar?.()}catch(e){}
+    window.hlgbNightUi.cleanTopbar();
   });
 
-  await page.waitForTimeout(500);
+  await page.waitForFunction(()=>!!document.getElementById('hlgbTopbarHost9253')&&!!document.getElementById('hlgbTopbarActionsBtn9253'),null,{timeout:10000});
+  await page.waitForTimeout(250);
 
   const shellVisual=await page.evaluate(()=>{
     const app=document.getElementById('appShell'),cloud=document.getElementById('cloudStatus'),header=document.querySelector('#appShell>header');
