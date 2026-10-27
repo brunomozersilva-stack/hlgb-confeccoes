@@ -1,8 +1,8 @@
-/* HLGB v94.19 — integridade de notas, fila faturada e reconciliação de tombstones financeiros */
+/* HLGB v94.20 — integridade de notas, fila faturada e reconciliação de produção já faturada */
 (function(){
 'use strict';
 
-const V='94.19';
+const V='94.20';
 const FIN_TOMBSTONE_KEY='hlgb_note_orphan_finance_tombstones_v9418';
 const sid=v=>String(v??'');
 const q=v=>Math.max(0,Number(v)||0);
@@ -426,6 +426,49 @@ async function reconcileQueueInvoices9419(force=false){
 }
 window.hlgbNoteQueueReconcile9419={version:'94.19',analyze:queueInvoiceAnalysis,reconcile:reconcileQueueInvoices9419};
 
+let productionInvoiceReconBusy9420=false,productionInvoiceReconAt9420=0;
+function productionInvoiceAnalysis9420(productionRows=arr('production'),orders=arr('orders'),invoices=canonicalInvoices(),queueRows=arr('noteQueue')){
+ const out=[],eps=.000001;
+ for(const row of (Array.isArray(productionRows)?productionRows:[])){
+  const orderId=sid(row?.orderId),productId=sid(row?.productId),planned=q(row?.planned),done=q(row?.done);
+  if(!orderId||!productId||planned<=0||done>=planned-eps)continue;
+  const order=(Array.isArray(orders)?orders:[]).find(o=>sid(o?.id)===orderId);if(!order)continue;
+  const meta=order?.projectionItems?.[productId]||{};
+  let invoiceQty=0;const invoiceIds=[];
+  for(const inv of (Array.isArray(invoices)?invoices:[])){
+   let matched=false;
+   for(const item of (Array.isArray(inv?.items)?inv.items:[])){
+    if(item?.noteOnly===true)continue;
+    if(sid(item?.orderId)!==orderId)continue;
+    const pid=sid(item?.productId||item?.itemKey);if(pid!==productId)continue;
+    invoiceQty+=q(item?.qty);matched=true;
+   }
+   if(matched&&sid(inv?.id))invoiceIds.push(sid(inv.id));
+  }
+  const billed=Math.max(invoiceQty,q(meta?.invoicedQty));
+  if(billed+eps<planned)continue;
+  const queues=(Array.isArray(queueRows)?queueRows:[]).filter(r=>sid(r?.orderId)===orderId&&sid(r?.productId||r?.itemKey)===productId);
+  const queueSettled=queues.length>0&&queues.every(r=>norm(r?.status)==='faturado'&&q(r?.remainingQty??r?.qty)<=eps);
+  const orderFinal=norm(order?.status)==='pedido finalizado'||truthy(order?.deliveryFinalized)||truthy(order?.projectionInvoiced);
+  if(!queueSettled&&!orderFinal)continue;
+  const ids=[...new Set([...(Array.isArray(meta?.invoiceIds)?meta.invoiceIds:[]),...invoiceIds].map(sid).filter(Boolean))];
+  out.push({id:sid(row?.id??row?.__hlgbId),orderId,productId,planned,done,invoicedQty:billed,invoiceIds:ids,queueSettled,orderFinal,row});
+ }
+ return out;
+}
+async function reconcileProductionInvoices9420(force=false){
+ if(productionInvoiceReconBusy9420)return {busy:true,changed:0};const stamp=Date.now();if(!force&&stamp-productionInvoiceReconAt9420<2500)return {throttled:true,changed:0};productionInvoiceReconAt9420=stamp;productionInvoiceReconBusy9420=true;
+ const changed=[],errors=[];try{
+  for(const x of productionInvoiceAnalysis9420()){
+   const at=new Date().toISOString(),next={...clone(x.row),done:x.planned,stage:'Finalizado',finishedAt:x.row?.finishedAt||today(),finishedAtTime:x.row?.finishedAtTime||at,invoicedQty:x.invoicedQty,invoiceIds:x.invoiceIds,invoiceReconciledAt:at,invoiceReconciledV9420:true,updatedAt:at};
+   try{await saveConfirmed('production',next,false);changed.push(x.id)}catch(e){errors.push({id:x.id,error:sid(e?.message||e)})}
+  }
+  if(changed.length){try{window.renderProduction?.()}catch(e){}try{window.renderProjection?.()}catch(e){}}
+  return {changed:changed.length,ids:changed,errors};
+ }finally{productionInvoiceReconBusy9420=false}
+}
+window.hlgbProductionInvoiceReconcile9420={version:'94.20',analyze:productionInvoiceAnalysis9420,reconcile:reconcileProductionInvoices9420};
+
 let timer=null;
 const mo=new MutationObserver(records=>{if(!noteMutationRelevant(records))return;clearTimeout(timer);timer=setTimeout(apply,80)});
 try{mo.observe(document.documentElement,{childList:true,subtree:true})}catch(e){}
@@ -435,9 +478,10 @@ if(typeof oldIncoming==='function'&&!oldIncoming.__hlgbNoteIntegrity9411){
  const w=function(module){
   const r=oldIncoming.apply(this,arguments);
   if(module==='finance')reconcileFinanceTombstones();
-  if(['noteQueue','projectionInvoices','orders','finance'].includes(module)){
+  if(['noteQueue','projectionInvoices','orders','finance','production'].includes(module)){
    setTimeout(apply,30);
    if(['noteQueue','projectionInvoices'].includes(module))setTimeout(()=>reconcileQueueInvoices9419(false).catch(()=>{}),420);
+   if(['noteQueue','projectionInvoices','orders','production'].includes(module))setTimeout(()=>reconcileProductionInvoices9420(false).catch(()=>{}),650);
    if(['projectionInvoices','finance'].includes(module))setTimeout(()=>{reconcileFinanceTombstones();cleanupOrphanFinance()},350);
   }
   return r;
@@ -448,10 +492,11 @@ if(typeof oldIncoming==='function'&&!oldIncoming.__hlgbNoteIntegrity9411){
 function boot(){
  reconcileFinanceTombstones();apply();
  setTimeout(()=>reconcileQueueInvoices9419(false).catch(()=>{}),900);
- setTimeout(()=>{reconcileFinanceTombstones();cleanupOrphanFinance();reconcileQueueInvoices9419(false).catch(()=>{})},1800);
+ setTimeout(()=>reconcileProductionInvoices9420(false).catch(()=>{}),1150);
+ setTimeout(()=>{reconcileFinanceTombstones();cleanupOrphanFinance();reconcileQueueInvoices9419(false).catch(()=>{});reconcileProductionInvoices9420(false).catch(()=>{})},1800);
  setTimeout(()=>{reconcileFinanceTombstones();cleanupOrphanFinance()},4200);
 }
-try{if(typeof hlgbAfterLogin==='function')hlgbAfterLogin(()=>[100,700,1800,3500].forEach(ms=>setTimeout(()=>{reconcileFinanceTombstones();apply();if(ms>=700)reconcileQueueInvoices9419(false).catch(()=>{})},ms)),0)}catch(e){}
+try{if(typeof hlgbAfterLogin==='function')hlgbAfterLogin(()=>[100,700,1800,3500].forEach(ms=>setTimeout(()=>{reconcileFinanceTombstones();apply();if(ms>=700){reconcileQueueInvoices9419(false).catch(()=>{});reconcileProductionInvoices9420(false).catch(()=>{})}},ms)),0)}catch(e){}
 try{if(typeof hlgbAfterLogin==='function')hlgbAfterLogin(()=>setTimeout(boot,900),0)}catch(e){}
 [50,500,1500,3200].forEach(ms=>setTimeout(()=>{reconcileFinanceTombstones();apply()},ms));
 if(typeof window.addEventListener==='function'){
