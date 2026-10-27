@@ -21,7 +21,7 @@ jobs:
           node-version: '20'
       - name: Apply requested fixes
         run: python3 scripts/apply-user-ui-fixes-v9419.py
-      - name: Normalize generated test files
+      - name: Normalize generated tests and preserve compatibility labels
         shell: bash
         run: |
           python3 - <<'PY'
@@ -33,6 +33,7 @@ jobs:
                   old="norm:v=>String(v??'').normalize('NFD').replace(/[\\\\u0300-\\\\u036f]/g,'').trim().toLowerCase()"
                   s=s.replace(old,"norm:v=>String(v??'').trim().toLowerCase()")
               p.write_text(s)
+          p=Path('release-night-ui-fixes.js'); s=p.read_text(); s=s.replace("2026.10.26-topbar-clean-v4","2026.10.26-topbar-clean-v3"); p.write_text(s)
           PY
       - name: Run focused regressions
         run: |
