@@ -1,11 +1,11 @@
-/* HLGB v93.49 — autoridade única do replay WAL + poda somente após confirmação da nuvem.
+/* HLGB v93.50 — autoridade única do replay WAL + poda somente após confirmação da nuvem.
    Remove WAL apenas quando o mesmo opId ainda está presente e o registro remoto já
    corresponde aos dados locais. Preserva alterações reais, conflitos e substituições.
    v93.49: produção recriada com novo ID pode confirmar WAL antigo somente quando a
    identidade e todos os campos operacionais críticos forem equivalentes. */
 (function(){
 'use strict';
-const V='93.49', DELEGATE_MIN_MS=15000, SCAN_MIN_MS=12000;
+const V='93.50', DELEGATE_MIN_MS=15000, SCAN_MIN_MS=12000;
 const WAL_KEY='hlgb_durable_wal_v1', DB_NAME='hlgb_durable_wal', STORE='entries';
 if(window.HLGB_WAL_SINGLE_AUTHORITY_9339){try{window.hlgbWalSingleAuthority9339?.install?.();window.hlgbWalSingleAuthority9339?.pruneConfirmed?.(true)}catch(e){}return}
 window.HLGB_WAL_SINGLE_AUTHORITY_9339=V;
@@ -27,8 +27,11 @@ function sameProductionReplacement(remote,pending){
 function readWal(){try{const w=JSON.parse(localStorage.getItem(WAL_KEY)||'null');return w&&typeof w==='object'?w:null}catch(e){return null}}
 function writeWal(w){try{const entries=w?.entries&&typeof w.entries==='object'?w.entries:{};w.entries=entries;if(Object.keys(entries).length)localStorage.setItem(WAL_KEY,JSON.stringify(w));else localStorage.removeItem(WAL_KEY);return true}catch(e){return false}}
 function loggedIn(){try{const l=document.getElementById('loginScreen'),a=document.getElementById('appShell');if(!a)return false;if(l&&getComputedStyle(l).display!=='none')return false;return true}catch(e){return false}}
+function idbAll(){return new Promise(resolve=>{if(typeof indexedDB==='undefined'){resolve([]);return}let r;try{r=indexedDB.open(DB_NAME)}catch(e){resolve([]);return}r.onupgradeneeded=()=>{try{r.transaction.abort()}catch(e){};resolve([])};r.onerror=()=>resolve([]);r.onsuccess=()=>{const d=r.result;try{if(!d.objectStoreNames.contains(STORE)){d.close();resolve([]);return}const tx=d.transaction(STORE,'readonly'),s=tx.objectStore(STORE),g=s.getAll();g.onsuccess=()=>{const out=Array.isArray(g.result)?g.result:[];try{d.close()}catch(_){}resolve(out)};g.onerror=()=>{try{d.close()}catch(_){}resolve([])}}catch(e){try{d.close()}catch(_){}resolve([])}}})}
+function newerWal(a,b){const ta=Date.parse(a?.updatedAt||a?.createdAt||'')||0,tb=Date.parse(b?.updatedAt||b?.createdAt||'')||0;return tb>ta?b:a}
+async function mergedWalEntries(){const w=readWal(),out={...(w?.entries||{})};try{for(const e of await idbAll()){const key=sid(e?.key);if(!key)continue;out[key]=out[key]?newerWal(out[key],e):e}}catch(e){}return out}
 function idbDeleteSame(key,opId){return new Promise(resolve=>{if(typeof indexedDB==='undefined'){resolve(false);return}let r;try{r=indexedDB.open(DB_NAME)}catch(e){resolve(false);return}r.onupgradeneeded=()=>{try{r.transaction.abort()}catch(e){};resolve(false)};r.onerror=()=>resolve(false);r.onsuccess=()=>{const d=r.result;try{if(!d.objectStoreNames.contains(STORE)){d.close();resolve(false);return}const tx=d.transaction(STORE,'readwrite'),s=tx.objectStore(STORE),g=s.get(key);g.onsuccess=()=>{const cur=g.result;if(cur&&sid(cur.opId)===sid(opId))s.delete(key)};tx.oncomplete=()=>{d.close();resolve(true)};tx.onerror=tx.onabort=()=>{d.close();resolve(false)}}catch(e){try{d.close()}catch(_){}resolve(false)}}})}
-async function confirmRemove(key,opId){const w=readWal();const cur=w?.entries?.[key];if(!cur||sid(cur.opId)!==sid(opId))return false;delete w.entries[key];if(!writeWal(w))return false;await idbDeleteSame(key,opId);return true}
+async function confirmRemove(key,opId){const w=readWal();const cur=w?.entries?.[key]||null;let idbCur=null;try{idbCur=(await idbAll()).find(x=>sid(x?.key)===sid(key))||null}catch(e){}let matched=false;if(cur&&sid(cur.opId)===sid(opId)){delete w.entries[key];if(!writeWal(w))return false;matched=true}if(idbCur&&sid(idbCur.opId)===sid(opId)){await idbDeleteSame(key,opId);matched=true}return matched}
 async function cloudRows(query){const req=window.cloudRequest;if(typeof req!=='function')throw new Error('Consulta da nuvem indisponível');return await Promise.race([Promise.resolve(req(query,{method:'GET'})),new Promise((_,rej)=>setTimeout(()=>rej(new Error('Timeout conferindo WAL na nuvem')),12000))])}
 async function cloudRow(module,id){const q=`hlgb_records?select=module,entity_id,data,deleted_at,revision,updated_at&module=eq.${encodeURIComponent(sid(module))}&entity_id=eq.${encodeURIComponent(sid(id))}&limit=1`;const out=await cloudRows(q);return Array.isArray(out)&&out.length?out[0]:null}
 async function equivalentProductionRow(op){
@@ -41,7 +44,7 @@ async function equivalentProductionRow(op){
 async function pruneConfirmed(force=false,max=8){
  if(scanBusy||navigator.onLine===false||!loggedIn())return {removed:0,skipped:true};
  const now=Date.now();if(!force&&now-lastScanAt<SCAN_MIN_MS)return {removed:0,throttled:true};
- const w=readWal();const items=Object.entries(w?.entries||{}).slice(0,Math.max(1,max));
+ const items=Object.entries(await mergedWalEntries()).slice(0,Math.max(1,max));
  if(!items.length){lastScanAt=now;lastConfirmedPruneAt=new Date().toISOString();lastScanResult={removed:0,checked:0};return lastScanResult}
  scanBusy=true;lastScanAt=now;const removed=[],equivalent=[],kept=[],errors=[];
  try{
