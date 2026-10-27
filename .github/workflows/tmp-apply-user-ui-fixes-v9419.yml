@@ -29,6 +29,9 @@ jobs:
           for name in ['tests/audit-user-ui-requests-v9419.cjs','tests/audit-notequeue-invoice-reconcile-v9419.cjs','tests/audit-auditor-notequeue-v9419.cjs']:
               p=Path(name); s=p.read_text()
               if s.startswith('\\\n'): s=s[2:]
+              if name.endswith('audit-notequeue-invoice-reconcile-v9419.cjs'):
+                  old="norm:v=>String(v??'').normalize('NFD').replace(/[\\\\u0300-\\\\u036f]/g,'').trim().toLowerCase()"
+                  s=s.replace(old,"norm:v=>String(v??'').trim().toLowerCase()")
               p.write_text(s)
           PY
       - name: Run focused regressions
