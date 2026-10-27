@@ -21,6 +21,16 @@ jobs:
           node-version: '20'
       - name: Apply existing-authority fixes
         run: python3 scripts/apply-post-report-fixes.py
+      - name: Normalize generated regression files
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          for name in ['tests/audit-app-stable3-restored-render-regression.cjs','tests/audit-wal-idb-only-regression.cjs']:
+              p=Path(name); s=p.read_text()
+              if s.startswith('\\\n'): s=s[2:]
+              p.write_text(s)
+          PY
       - name: Run focused regressions
         run: |
           node tests/audit-app-stable3-restored-render-regression.cjs
