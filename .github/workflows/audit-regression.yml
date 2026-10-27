@@ -49,6 +49,9 @@ jobs:
       - name: Validate note queue against linked invoices v94.19
         run: node tests/audit-notequeue-invoice-reconcile-v9419.cjs
 
+      - name: Validate invoiced production reconciliation v94.20
+        run: node tests/audit-production-invoice-reconcile-v9420.cjs
+
       - name: Validate Auditor note queue finding v94.19
         run: node tests/audit-auditor-notequeue-v9419.cjs
 
