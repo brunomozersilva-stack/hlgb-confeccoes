@@ -31,6 +31,9 @@ jobs:
       - name: Validate equivalent Production WAL cleanup
         run: node tests/audit-wal-equivalent-production-regression.cjs
 
+      - name: Validate IDB-only WAL cleanup and replay
+        run: node tests/audit-wal-idb-only-regression.cjs
+
       - name: Validate daily 18h schedule
         run: node tests/audit-nightly-schedule-regression.cjs
 
@@ -42,6 +45,9 @@ jobs:
 
       - name: Validate boot authReady before render
         run: node tests/audit-boot-authready-render-order.cjs
+
+      - name: Validate stable router render after visible restore
+        run: node tests/audit-app-stable3-restored-render-regression.cjs
 
       - name: Validate modernized compatibility contracts
         shell: bash
