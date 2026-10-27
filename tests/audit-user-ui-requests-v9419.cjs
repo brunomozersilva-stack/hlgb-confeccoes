@@ -1,0 +1,8 @@
+'use strict';
+const fs=require('fs'),assert=require('assert');
+const ui=fs.readFileSync('release-ui-actions-v9402.js','utf8'),top=fs.readFileSync('release-night-ui-fixes.js','utf8'),pv=fs.readFileSync('release-payroll-view-v9295.js','utf8'),pl=fs.readFileSync('release-payroll-layout-v9298.js','utf8'),router=fs.readFileSync('app-stable3.html','utf8'),cat=fs.readFileSync('release-product-catalog-v9419.js','utf8');
+assert(ui.includes('background-size:cover!important'),'fundo final deve usar cover');assert(!ui.includes('background-size:auto 102%!important'),'override antigo do fundo não pode permanecer');
+assert(top.includes('max-width:96px!important'),'status da nuvem deve ter largura compacta');assert(top.includes('text-overflow:ellipsis!important'),'status longo deve caber sem empurrar o menu');assert(!/cloud\.textContent\s*=/.test(top),'topbar não pode alterar o texto real do status da nuvem');
+assert(pv.includes('payroll-status-cell')&&pv.includes('payroll-row-tools')&&pv.includes('payroll-pay-action'),'folha deve separar status, ação principal e ferramentas');assert(pl.includes('grid-template-columns:1fr 1fr!important'),'Editar/Excluir devem ficar agrupados');
+assert(router.includes("'release-product-catalog-v9419.js'"),'roteador deve carregar catálogo normal');assert(cat.includes("dataset.page='produtos'")&&cat.includes("Catálogo de produtos"),'catálogo deve herdar acesso de Produtos e entrar no submenu');assert(cat.includes("Array.isArray(d.products)?d.products:[]"),'catálogo deve ler o cadastro normal, sem duplicá-lo');
+console.log('OK UI v94.19: fundo cover, nuvem compacta, folha organizada e catálogo normal.');

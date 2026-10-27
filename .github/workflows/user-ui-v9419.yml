@@ -1,0 +1,59 @@
+name: HLGB User UI v94.19
+
+on:
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  logic:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validar sintaxe e contratos v94.19
+        run: |
+          set -euo pipefail
+          node --check release-product-catalog-v9419.js
+          node --check tests/audit-user-ui-v9419-webkit.js
+          node tests/audit-user-ui-requests-v9419.cjs
+          node tests/audit-notequeue-invoice-reconcile-v9419.cjs
+          node tests/audit-auditor-notequeue-v9419.cjs
+
+  webkit:
+    runs-on: ubuntu-latest
+    container:
+      image: mcr.microsoft.com/playwright:v1.55.0-noble
+    timeout-minutes: 8
+    env:
+      PLAYWRIGHT_BROWSERS_PATH: /ms-playwright
+    steps:
+      - uses: actions/checkout@v4
+      - name: Preparar Playwright da mesma versão da imagem
+        run: |
+          npm init -y >/dev/null 2>&1
+          npm install playwright@1.55.0 --no-save
+      - name: Iniciar servidor local
+        shell: bash
+        run: |
+          if command -v python3 >/dev/null 2>&1; then
+            python3 -m http.server 4173 >/tmp/hlgb-ui9419-http.log 2>&1 &
+          else
+            npx --yes http-server@14.1.1 -p 4173 -c-1 >/tmp/hlgb-ui9419-http.log 2>&1 &
+          fi
+          sleep 2
+      - name: Validar fundo, topbar, catálogo e folha no WebKit
+        run: node tests/audit-user-ui-v9419-webkit.js
+      - name: Publicar capturas visuais v94.19
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: hlgb-user-ui-webkit-v9419
+          path: |
+            /tmp/hlgb-v9419-catalogo-webkit.png
+            /tmp/hlgb-v9419-folha-webkit.png
+          if-no-files-found: warn

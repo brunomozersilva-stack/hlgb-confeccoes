@@ -43,6 +43,15 @@ jobs:
       - name: Validate ByHagatha background and topbar consolidation
         run: node tests/audit-brand-topbar-consolidation.cjs
 
+      - name: Validate requested UI improvements v94.19
+        run: node tests/audit-user-ui-requests-v9419.cjs
+
+      - name: Validate note queue against linked invoices v94.19
+        run: node tests/audit-notequeue-invoice-reconcile-v9419.cjs
+
+      - name: Validate Auditor note queue finding v94.19
+        run: node tests/audit-auditor-notequeue-v9419.cjs
+
       - name: Validate boot authReady before render
         run: node tests/audit-boot-authready-render-order.cjs
 
