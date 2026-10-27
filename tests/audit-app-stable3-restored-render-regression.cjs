@@ -1,0 +1,13 @@
+'use strict';
+const fs=require('fs'),assert=require('assert');
+const router=fs.readFileSync('app-stable3.html','utf8');
+const app=fs.readFileSync('app9240.html','utf8');
+const cur=router.match(/const autoOpenCurrent=`([\s\S]*?)`;/);
+const next=router.match(/const autoOpenNew=`([\s\S]*?)`;/);
+assert(cur&&next,'roteador deve expor os blocos atual e transformado da restauração');
+assert(app.includes(cur[1]),'roteador precisa reconhecer exatamente o bloco atual do app9240');
+assert(router.includes('if(h.includes(autoOpenCurrent))h=h.split(autoOpenCurrent).join(autoOpenNew)'),'roteador deve aplicar o replace atual');
+const n=next[1],show=n.indexOf('appShell.style.display="block"'),auth=n.indexOf('window.hlgbMarkAuthenticated?.();'),render=n.indexOf('renderAll()');
+assert(show>=0&&auth>show&&render>auth,'entrada restaurada deve mostrar app, marcar authReady e só então renderizar');
+assert(!n.includes('setTimeout(()=>window.hlgbMarkAuthenticated?.(),0)'),'restauração do roteador não deve adiar authReady');
+console.log('OK app-stable3 restore: app visível -> authReady -> renderAll.');
