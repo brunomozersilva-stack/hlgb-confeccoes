@@ -15,17 +15,17 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Locate user-requested UI and note code
+      - name: Locate exact improvement catalog UI
         shell: bash
         run: |
           set +e
-          echo '=== MELHORIAS / ANOTAR / CATEGORIAS ==='
-          grep -RniE 'Melhorias para Anotar|Melhorias|Anotar|melhorias|improvement|categoria' --exclude-dir=.git --include='*.js' --include='*.html' . | head -n 220
-          echo '=== TOPBAR / CLOUD STATUS ==='
-          grep -RniE 'Salvo na nuvem|cloudStatus|hlgb-topbar-status|topbar' --exclude-dir=.git --include='*.js' --include='*.html' . | head -n 260
-          echo '=== NOTE QUEUE / AGUARDANDO ==='
-          grep -RniE 'Aguardando nota|noteQueue|sourceQueueId|lastInvoiceId|remainingQty' --exclude-dir=.git --include='*.js' --include='*.html' . | head -n 320
-          echo '=== PAYROLL ACTIONS ==='
-          grep -RniE 'payroll-actions|PENDENTE|togglePayrollPaid|deletePayrollRow|editPayrollRow' --exclude-dir=.git --include='*.js' --include='*.html' . | head -n 260
-          echo '=== APP SHELL BACKGROUND ==='
-          grep -RniE '#appShell::before|byh-photo|background-size:cover|position:absolute.*appShell|position:fixed.*appShell' --exclude-dir=.git --include='*.js' --include='*.html' . | head -n 220
+          echo '=== EXACT LABELS ==='
+          grep -RniF 'Melhorias para Anotar' --exclude-dir=.git .
+          grep -RniF 'Processos' --exclude-dir=.git --include='*.js' --include='*.html' . | head -n 80
+          grep -RniE 'Todos.{0,120}Processos|Processos.{0,120}Todos|melhoria.{0,120}processo|processo.{0,120}melhoria' --exclude-dir=.git --include='*.js' --include='*.html' . | head -n 120
+          echo '=== NOTE INTEGRITY HOOKS ==='
+          grep -nE 'function (install|boot|patch|maintain)|setTimeout|setInterval|addEventListener|hlgbAfterLogin|RecordIncoming|Incoming' release-note-integrity.js | tail -n 140
+          echo '=== PAYROLL VIEW/LAYOUT ==='
+          grep -nE 'payroll-actions|status-pill|togglePayrollPaid|editPayrollRow|deletePayrollRow|renderPayroll|PENDENTE|PAGO' release-payroll-view-v9295.js release-payroll-layout-v9298.js | head -n 180
+          echo '=== AUDITOR EXTENSION POINTS ==='
+          grep -nE 'function (run|scan|analyze|render)|issues|findings|recommend|module' release-internal-auditor.js release-auditor-blackbox-v9299.js release-auditor-intelligence-v9396.js | tail -n 220
