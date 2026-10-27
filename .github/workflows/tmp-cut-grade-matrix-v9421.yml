@@ -1,0 +1,34 @@
+name: TMP cut grade matrix v94.21
+
+on:
+  push:
+    branches:
+      - fix/cut-grade-matrix-20261027
+    paths:
+      - .github/workflows/tmp-cut-grade-matrix-v9421.yml
+
+permissions:
+  contents: write
+
+jobs:
+  patch_test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix/cut-grade-matrix-20261027
+      - name: Aplicar matriz horizontal
+        run: python3 scripts/tmp_patch_cut_grade_matrix_v9421.py
+      - name: Validar matriz e regressão de boot
+        run: |
+          node tests/audit-cut-grade-matrix-v9421.cjs
+          node tests/auditor-boot-dedupe-v9397.js
+          node --check tests/audit-cut-grade-matrix-v9421-webkit.js
+      - name: Commitar app funcional
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add app9240.html
+          git diff --cached --quiet && exit 0
+          git commit -m 'fix: padronizar ajustar grade como folha dos cortadores'
+          git push origin HEAD:fix/cut-grade-matrix-20261027
