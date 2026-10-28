@@ -1,0 +1,24 @@
+name: Integration round v94.25
+
+on:
+  push:
+    branches: [main, fix/auditor-packaging-assistant-v9425]
+    paths:
+      - 'release-packaging-assistant-stability-v9425.js'
+      - 'release-auditor-restore-v9263.js'
+      - 'tests/audit-packaging-assistant-v9425.cjs'
+      - '.github/workflows/integration-round-v9425.yml'
+  pull_request:
+    branches: [main]
+
+jobs:
+  logic:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: node --check release-packaging-assistant-stability-v9425.js
+      - run: node tests/audit-packaging-assistant-v9425.cjs
+      - run: node --check release-auditor-restore-v9263.js
