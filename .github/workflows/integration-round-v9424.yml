@@ -1,0 +1,24 @@
+name: Integration round v94.24
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'release-faction-traveta-payment-v9424.js'
+      - 'release-auditor-restore-v9263.js'
+      - 'tests/audit-faction-traveta-payment-v9424.cjs'
+      - '.github/workflows/integration-round-v9424.yml'
+  pull_request:
+    branches: [main]
+
+jobs:
+  logic:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: node --check release-faction-traveta-payment-v9424.js
+      - run: node tests/audit-faction-traveta-payment-v9424.cjs
+      - run: node --check release-auditor-restore-v9263.js
