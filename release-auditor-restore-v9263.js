@@ -8,12 +8,17 @@ function load9423(){
   const s=document.createElement('script');s.id='hlgbDiagnosticFactionStability9423';s.src='./release-diagnostic-faction-stability-v9423.js?fresh='+Date.now();s.async=false;
   s.onerror=()=>{try{s.remove()}catch(e){}};(document.head||document.documentElement).appendChild(s);
 }
+function load9424(){
+  if(window.HLGB_FACTION_TRAVETA_PAYMENT_9424==='94.24'||document.getElementById('hlgbFactionTravetaPayment9424'))return;
+  const s=document.createElement('script');s.id='hlgbFactionTravetaPayment9424';s.src='./release-faction-traveta-payment-v9424.js?fresh='+Date.now();s.async=false;
+  s.onerror=()=>{try{s.remove()}catch(e){}};(document.head||document.documentElement).appendChild(s);
+}
 function open(){
   if(typeof window.openHlgbAuditor==='function')return window.openHlgbAuditor();
   alert('O Auditor ainda está carregando. Aguarde um instante e tente novamente.');
 }
 function ensure(){
-  scheduled=false;load9423();
+  scheduled=false;load9423();load9424();
   const nav=document.getElementById('nav')||document.querySelector('#appShell nav')||document.querySelector('nav');
   if(nav&&!document.getElementById('hlgbAuditorNavBtn')){
     const b=document.createElement('button');
@@ -32,7 +37,7 @@ function ensure(){
 }
 function queue(){if(scheduled)return;scheduled=true;requestAnimationFrame(()=>setTimeout(ensure,0));}
 function boot(){
-  load9423();ensure();
+  load9423();load9424();ensure();
   const root=document.getElementById('appShell')||document.body;
   if(root&&!root.__hlgbAuditorRestore9263){
     root.__hlgbAuditorRestore9263=true;
@@ -50,7 +55,7 @@ function boot(){
   try{const cur=Number(window.HLGB_RELEASE_VERSION)||0;if(cur<=92.63){window.HLGB_RELEASE_VERSION=V;const l=document.querySelector('#appShell .logo small');if(l)l.textContent='v'+V}}catch(e){}
 }
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',boot,{once:true});else boot();
-try{if(typeof hlgbAfterLogin==='function')hlgbAfterLogin(()=>setTimeout(()=>{load9423();ensure()},250),0)}catch(e){}
-window.hlgbAuditorRestore9263={ensure,open,load9423};
+try{if(typeof hlgbAfterLogin==='function')hlgbAfterLogin(()=>setTimeout(()=>{load9423();load9424();ensure()},250),0)}catch(e){}
+window.hlgbAuditorRestore9263={ensure,open,load9423,load9424};
 console.info('[HLGB] restauração do Auditor/Testador v'+V+' ativa');
 })();
