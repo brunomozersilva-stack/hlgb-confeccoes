@@ -4,12 +4,10 @@ const {webkit}=require('playwright');
  const page=await browser.newPage({viewport:{width:1280,height:900}});
  const errors=[];page.on('pageerror',e=>errors.push(String(e.message||e)));
  await page.goto('http://127.0.0.1:4173/app-stable3.html',{waitUntil:'domcontentloaded',timeout:60000});
- /* Este é um harness local sem backend/login real. A partir da ponte v93.38,
-    módulos pós-login só podem ser liberados pela autoridade explícita do produto. */
- await page.waitForFunction(()=>!!document.getElementById('loginScreen')&&!!document.getElementById('appShell'),null,{timeout:60000});
+ await page.waitForFunction(()=>!!document.getElementById('loginScreen')&&!!document.getElementById('appShell')&&window.HLGB_AUDITOR_SINGLE_ACTION_9429==='94.29',null,{timeout:60000});
  await page.evaluate(()=>{window.__HLGB_AUTH_READY=true;window.dispatchEvent(new Event('hlgb:authenticated'))});
- await page.waitForFunction(()=>!!window.hlgbInternalAuditor&&!!window.hlgbAuditorBlackbox9299&&!!window.hlgbOperationalAuditor9314,null,{timeout:60000});
- await page.evaluate(()=>{window.alert=()=>{};window.openModal=(title,html)=>{let h=document.getElementById('remoteInjectHost');if(!h){h=document.createElement('div');h.id='remoteInjectHost';h.setAttribute('role','dialog');document.body.appendChild(h)}h.innerHTML=html};window.closeModal=()=>{}});
+ await page.waitForFunction(()=>!!window.hlgbInternalAuditor&&!!window.hlgbAuditorBlackbox9299&&!!window.hlgbOperationalAuditor9314&&window.HLGB_AUDITOR_SHELL_AUTHORITY==='93.82',null,{timeout:60000});
+ await page.evaluate(()=>{window.alert=()=>{};window.openModal=(title,html)=>{let h=document.getElementById('remoteInjectHost');if(!h){h=document.createElement('div');h.id='remoteInjectHost';h.setAttribute('role','dialog');document.body.appendChild(h)}h.innerHTML=html};window.closeModal=()=>{};window.hlgbAuditorSingleAction9429.install()});
  await page.evaluate(()=>{window.__auditorCriticalBefore={recordSave:window.hlgbRecordSaveWithRetry,cloudRequest:window.cloudRequest,setInterval:window.setInterval,setTimeout:window.setTimeout}});
  await page.evaluate(async()=>{
   const r=await fetch('/auditor-test-loader-v9362.js?fresh='+Date.now(),{cache:'no-store'});if(!r.ok)throw new Error('HTTP '+r.status+' no loader local');const src=await r.text();(0,eval)(src);
@@ -29,20 +27,21 @@ const {webkit}=require('playwright');
  }));
  if(!result.smart||!result.compat||!result.open||result.version!=='93.63')throw new Error('loader temporario incompleto: '+JSON.stringify(result));
  for(const [name,same] of Object.entries(result.identities||{}))if(!same)throw new Error('loader alterou funcao critica: '+name);
- await page.evaluate(()=>window.openHlgbAuditor());
+ await page.evaluate(()=>{window.hlgbAuditorSingleAction9429.install();window.openHlgbAuditor();setTimeout(()=>window.hlgbAuditorSingleAction9429.canonicalize(),50)});
  await page.waitForSelector('#remoteInjectHost #hlgbSmartStatus',{timeout:10000});
- const buttons=(await page.locator('#remoteInjectHost .hlgb-auditor-actions button:visible').allTextContents()).map(x=>x.replace(/\s+/g,' ').trim());
- const required=['Testar sistema','Registrar problema','Histórico'];
- if(required.some(label=>!buttons.some(x=>x.includes(label))))throw new Error('botoes base ausentes: '+buttons.join(' | '));
- // O carregador temporário precisa aceitar módulos legítimos adicionados ao Auditor ao longo do tempo.
- // O contrato de segurança permanece: botões essenciais continuam presentes, funções críticas não mudam
- // e ações legadas/proibidas não podem reaparecer.
- const forbidden=['Teste visual completo','Exportar diagnóstico de sincronização','Exportar diagnóstico sync','Blackbox do Auditor'];
- const bad=buttons.filter(text=>forbidden.some(label=>text.includes(label)));
- if(bad.length)throw new Error('botao legado/proibido visivel: '+bad.join(' | '));
- await page.evaluate(()=>{const h=document.getElementById('remoteInjectHost');h.insertAdjacentHTML('beforeend','<button id="oldExtra" onclick="hlgbAuditorExportSync()">Exportar diagnóstico sync</button>');window.hlgbAuditorSmart.enforceSimpleUi()});
+ await page.waitForSelector('#remoteInjectHost #hlgbAuditorUnifiedRun9429',{state:'visible',timeout:10000});
+ await page.waitForTimeout(1200);
+ const buttons=await page.evaluate(()=>{
+  const host=document.getElementById('remoteInjectHost');const visible=el=>{const s=getComputedStyle(el),r=el.getBoundingClientRect();return !el.hidden&&s.display!=='none'&&s.visibility!=='hidden'&&r.width>0&&r.height>0};
+  return [...host.querySelectorAll('.hlgb-auditor-actions button')].filter(visible).map(x=>({id:x.id,text:(x.textContent||'').replace(/\s+/g,' ').trim()}));
+ });
+ if(buttons.length!==1||buttons[0].id!=='hlgbAuditorUnifiedRun9429')throw new Error('injeção antiga deve terminar com um único botão canônico: '+JSON.stringify(buttons));
+ await page.evaluate(()=>{const h=document.getElementById('remoteInjectHost');h.insertAdjacentHTML('beforeend','<div class="hlgb-auditor-actions"><button id="oldExtra" onclick="hlgbAuditorExportSync()">Exportar diagnóstico sync</button></div>');window.hlgbAuditorSmart.enforceSimpleUi();window.hlgbAuditorSingleAction9429.canonicalize()});
  if(await page.locator('#oldExtra:visible').count())throw new Error('opcao antiga voltou a aparecer apos injecao');
- if(errors.some(x=>/auditor|9360|9361|9362|9363/i.test(x)))throw new Error('erro relacionado ao Auditor: '+errors.join(' | '));
- console.log('AUDITOR_V9363_SINGLE_LOADER_SAFE_OK',result,buttons);
+ const canonical=await page.evaluate(()=>window.hlgbAuditorSingleAction9429.validate());
+ if(canonical?.ok!==true)throw new Error('validação canônica falhou após injeção antiga: '+JSON.stringify(canonical));
+ if(window?.unused){};
+ if(errors.some(x=>/auditor|9360|9361|9362|9363|9429/i.test(x)))throw new Error('erro relacionado ao Auditor: '+errors.join(' | '));
+ console.log('AUDITOR_LEGACY_REMOTE_INJECTION_SINGLE_ACTION_OK',result,buttons,canonical);
  await browser.close();
 })().catch(e=>{console.error(e);process.exit(1)});
