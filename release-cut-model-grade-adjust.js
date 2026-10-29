@@ -2,7 +2,7 @@
 (function(){
 'use strict';
 const V='94.23-cut-model-grade-adjust',sid=v=>String(v??''),q=v=>Math.max(0,Number(v)||0);
-const escSafe=v=>sid(v).replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+const escSafe=v=>sid(v).replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot',"'":'&#39;'}[m]));
 function cuts(){return Array.isArray(db?.cuts)?db.cuts:[]}
 function products(){return Array.isArray(db?.products)?db.products:[]}
 function productName(id,fallback){return products().find(p=>sid(p?.id)===sid(id))?.name||fallback||'Produto'}
@@ -37,7 +37,6 @@ window.hlgbOpenSplitGradeAdjust=openAdjust;
 const old=window.renderCuts;if(typeof old==='function'&&!old.__hlgbAdjust9423){const w=function(){const r=old.apply(this,arguments);setTimeout(decorate,0);return r};w.__hlgbAdjustV1=true;w.__hlgbAdjust9423=true;window.renderCuts=w}
 setTimeout(decorate,1200);
 try{if(!window.HLGB_STAGE_FLOW_INTEGRITY_GUARD&&!document.querySelector('script[data-hlgb-stage-flow-v9423]')){const s=document.createElement('script');s.dataset.hlgbStageFlowV9423='1';s.src='./release-stage-flow-integrity-v9423.js?fresh='+Date.now();document.head.appendChild(s)}}catch(e){console.warn('[HLGB '+V+'] carregar integridade de etapas',e)}
-try{if(!window.HLGB_AUDITOR_SINGLE_ACTION_9427&&!document.querySelector('script[data-hlgb-auditor-single-v9427]')){const s=document.createElement('script');s.dataset.hlgbAuditorSingleV9427='1';s.src='./release-auditor-single-action-v9427.js?fresh='+Date.now();document.head.appendChild(s)}}catch(e){console.warn('[HLGB '+V+'] carregar Auditor v94.27',e)}
-try{if(!window.HLGB_AUDITOR_DAILY_FIDELITY_9428&&!document.querySelector('script[data-hlgb-auditor-daily-fidelity-v9428]')){const s=document.createElement('script');s.dataset.hlgbAuditorDailyFidelityV9428='1';s.src='./release-auditor-daily-fidelity-v9428.js?fresh='+Date.now();document.head.appendChild(s)}}catch(e){console.warn('[HLGB '+V+'] carregar fidelidade do Relatório Diário v94.28',e)}
+try{if(!window.HLGB_AUDITOR_SINGLE_ACTION_9429&&!document.querySelector('script[data-hlgb-auditor-single-v9429]')){const s=document.createElement('script');s.dataset.hlgbAuditorSingleV9429='1';s.src='./release-auditor-single-action-v9429.js?fresh='+Date.now();document.head.appendChild(s)}}catch(e){console.warn('[HLGB '+V+'] carregar Auditor v94.29',e)}
 window.HLGB_CUT_MODEL_GRADE_ADJUST_GUARD=V;
 })();
