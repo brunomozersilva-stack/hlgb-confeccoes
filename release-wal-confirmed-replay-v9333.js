@@ -31,12 +31,11 @@ function stamp(){try{const cur=parseFloat(String(window.HLGB_RELEASE_VERSION||'0
 let intervalId=null;
 function boot(){if(state.booted)return true;state.booted=true;stamp();setTimeout(()=>run('boot',true).catch(()=>{}),650);intervalId=setInterval(()=>{run('interval',false).catch(()=>{})},30000);return true}
 function tryBoot(){if(state.booted)return true;if(loggedIn())return boot();return false}
-function loadPayrollMonthGuard(){try{if(window.HLGB_PAYROLL_MONTH_WAL_9334||document.querySelector('script[data-hlgb-payroll-month-wal="9334"]'))return;const s=document.createElement('script');s.dataset.hlgbPayrollMonthWal='9334';s.src='./release-payroll-month-wal-v9334.js?fresh='+Date.now();s.onerror=()=>console.warn('[HLGB v94.33] proteção v93.34 não carregou');(document.head||document.documentElement).appendChild(s)}catch(e){console.warn('[HLGB v94.33] proteção v93.34 indisponível',e)}}
-window.hlgbWalConfirmedReplay9333={version:V,state,run,boot,tryBoot,pending:()=>Object.keys(readWal().entries||{}).length,timeoutMs:SAVE_TIMEOUT_MS};
+function payrollMonthGuardReady(){return !!window.HLGB_PAYROLL_MONTH_WAL_9334}
+window.hlgbWalConfirmedReplay9333={version:V,state,run,boot,tryBoot,pending:()=>Object.keys(readWal().entries||{}).length,timeoutMs:SAVE_TIMEOUT_MS,payrollMonthGuardReady};
 window.addEventListener('online',()=>{tryBoot();run('online',true).catch(()=>{})});window.addEventListener('focus',()=>{tryBoot();run('focus',false).catch(()=>{})});
 if(typeof window.hlgbAfterLogin==='function')window.hlgbAfterLogin(()=>setTimeout(boot,180),0);
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>setTimeout(tryBoot,120),{once:true});
 [120,700,1800,4000].forEach(ms=>setTimeout(tryBoot,ms));
-loadPayrollMonthGuard();
 console.info('[HLGB] v'+V+' reenvio confirmado do WAL sem full-sync pós-replay');
 })();
