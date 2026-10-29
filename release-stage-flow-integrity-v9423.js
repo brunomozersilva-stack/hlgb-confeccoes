@@ -105,7 +105,7 @@ window.hlgbReconcileNoteCommitV9423=reconcileNoteCommit;
 function patchSend(){const fn=window.sendProjectionToNotes9202;if(typeof fn!=='function'||fn.__hlgbStageFlow9423)return false;const w=function(){const r=fn.apply(this,arguments),after=()=>{setTimeout(()=>reconcileNoteCommit('enviado_para_nota'),80);setTimeout(()=>reconcileNoteCommit('enviado_para_nota'),500);setTimeout(scheduleDecorate,120)};if(r&&typeof r.then==='function')return r.finally(after);after();return r};Object.assign(w,{__hlgbStageFlow9423:true,__original:fn});window.sendProjectionToNotes9202=w;return true}
 function patchIncoming(){const fn=window.hlgbRenderIncomingRecord;if(typeof fn!=='function'||fn.__hlgbStageFlow9423)return false;let timer=null;const w=function(module){const r=fn.apply(this,arguments);if(['noteQueue','projectionInvoices','production','cuts','orders'].includes(module)){clearTimeout(timer);timer=setTimeout(()=>{reconcileNoteCommit('sincronizacao');scheduleDecorate()},120)}return r};w.__hlgbStageFlow9423=true;w.__original=fn;window.hlgbRenderIncomingRecord=w;return true}
 
-let lastUserScrollAt=0;['wheel','touchmove','scroll'].forEach(ev=>window.addEventListener(ev,()=>{lastUserScrollAt=Date.now()},{passive:true,capture:true}));
+let lastUserScrollAt=0;['wheel','touchmove','pointerdown','keydown'].forEach(ev=>window.addEventListener(ev,()=>{lastUserScrollAt=Date.now()},{passive:true,capture:true}));
 function activePageKey(){const p=document.querySelector('.page.active');return p?.id||''}
 function patchStableRender(name){const fn=window[name];if(typeof fn!=='function'||fn.__hlgbStable9423)return false;const w=function(){const x=window.scrollX||0,y=window.scrollY||0,page=activePageKey(),focus=document.activeElement?.id||'',stamp=Date.now(),r=fn.apply(this,arguments);const restore=()=>{if(activePageKey()!==page||lastUserScrollAt>stamp)return;try{window.scrollTo(x,y)}catch(e){}if(focus){try{document.getElementById(focus)?.focus?.({preventScroll:true})}catch(e){}}scheduleDecorate()};if(typeof requestAnimationFrame==='function')requestAnimationFrame(()=>requestAnimationFrame(restore));else setTimeout(restore,0);return r};w.__hlgbStable9423=true;w.__original=fn;window[name]=w;return true}
 function install(){
@@ -113,7 +113,8 @@ function install(){
  try{document.documentElement.style.scrollbarGutter='stable'}catch(e){}
 }
 const observer=new MutationObserver(m=>{if(m.some(x=>x.addedNodes?.length))scheduleDecorate()});try{observer.observe(document.body,{childList:true,subtree:true})}catch(e){}
-setTimeout(install,900);setTimeout(install,2200);setInterval(()=>{patchSend();patchIncoming();reconcileNoteCommit('auto');scheduleDecorate()},5000);
+setTimeout(install,900);setTimeout(install,2200);setInterval(()=>{patchSend();patchIncoming();['renderCuts','renderDailyCuts','renderProduction','renderProjection','renderOrders'].forEach(patchStableRender);reconcileNoteCommit('auto');scheduleDecorate()},5000);
+window.hlgbStageFlowStatusV9423=()=>({version:V,gradeButtons:document.querySelectorAll('.hlgbStageGradeBtn9423').length,noteRows:activeQueueRows().length,productionRows:arr('production').length,sendPatched:!!window.sendProjectionToNotes9202?.__hlgbStageFlow9423,incomingPatched:!!window.hlgbRenderIncomingRecord?.__hlgbStageFlow9423,stableRenderers:['renderCuts','renderDailyCuts','renderProduction','renderProjection','renderOrders'].filter(n=>window[n]?.__hlgbStable9423)});
 window.HLGB_STAGE_FLOW_INTEGRITY_GUARD=V;
 console.info('[HLGB] v'+V+' integridade de etapas ativa: grade, baixa da Nota e estabilidade visual');
 })();
