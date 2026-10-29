@@ -19,17 +19,18 @@ function scriptDuplicates(){
  return [...map.entries()].filter(([,v])=>v.length>1).map(([name,sources])=>({name,count:sources.length,sources}));
 }
 function collect(){
- const production=arr('production'),factions=arr('factions'),locations=[...arr('productionLocations'),...arr('locations')];
+ const production=arr('production'),factions=[...arr('factionMasters'),...arr('factions')],locations=[...arr('productionLocations'),...arr('locations')];
  const factionIds=new Set(factions.map(idOf).filter(Boolean)),locationIds=new Set(locations.map(idOf).filter(Boolean));
+ const factionLocation=new Map(factions.map(f=>[idOf(f),sid(f?.productionLocationId??f?.locationId)]).filter(x=>x[0]));
  const stale=[],mismatch=[];
  for(const p of production){
   const loc=sid(p?.productionLocationId??p?.locationId),fid=sid(p?.factionId),free=isFreeProduction(p);
   if(free&&loc)stale.push({id:idOf(p),orderId:sid(p?.orderId),productId:sid(p?.productId),product:p?.productName||p?.product||'',stage:p?.stage||'',productionLocationId:loc});
-  if(loc&&fid&&loc===fid)mismatch.push({id:idOf(p),orderId:sid(p?.orderId),product:p?.productName||p?.product||'',factionId:fid,productionLocationId:loc,reason:'productionLocationId_equals_factionId'});
-  else if(loc&&factionIds.has(loc)&&!locationIds.has(loc))mismatch.push({id:idOf(p),orderId:sid(p?.orderId),product:p?.productName||p?.product||'',factionId:fid,productionLocationId:loc,reason:'productionLocationId_points_to_faction'});
+  if(loc&&fid&&loc===fid)mismatch.push({id:idOf(p),orderId:sid(p?.orderId),product:p?.productName||p?.product||'',factionId:fid,productionLocationId:loc,expectedLocationId:factionLocation.get(fid)||'',reason:'productionLocationId_equals_factionId'});
+  else if(loc&&factionIds.has(loc)&&!locationIds.has(loc))mismatch.push({id:idOf(p),orderId:sid(p?.orderId),product:p?.productName||p?.product||'',factionId:fid,productionLocationId:loc,expectedLocationId:factionLocation.get(fid)||'',reason:'productionLocationId_points_to_faction'});
  }
  const duplicates=scriptDuplicates();
- return {version:V,readOnly:true,checkedAt:new Date().toISOString(),production:{rows:production.length,ghostDestinationCount:stale.length,ghostDestinations:stale,locationMismatchCount:mismatch.length,locationMismatches:mismatch,serverGuardCompatible:stale.length===0},scripts:{duplicateNameCount:duplicates.length,duplicates},status:(stale.length||mismatch.length)?'fail':(duplicates.length?'warn':'pass')};
+ return {version:V,readOnly:true,checkedAt:new Date().toISOString(),production:{rows:production.length,ghostDestinationCount:stale.length,ghostDestinations:stale,locationMismatchCount:mismatch.length,locationMismatches:mismatch,serverGuardCompatible:stale.length===0&&mismatch.length===0},scripts:{duplicateNameCount:duplicates.length,duplicates},status:(stale.length||mismatch.length)?'fail':(duplicates.length?'warn':'pass')};
 }
 function persist(result){
  try{
