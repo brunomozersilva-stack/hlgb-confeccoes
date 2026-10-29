@@ -53,15 +53,38 @@ function status(){
  ensureArrays();const d=dbRef()||{},modules={},missing=[];let snapshotAvailable=false;
  for(const m of MODULES){const local=Array.isArray(d[m])?d[m]:[],remote=snapshotRows(m);if(remote!==null)snapshotAvailable=true;const remoteIds=new Set((remote||[]).map(x=>sid(x?.id))),localIds=new Set(local.map(x=>sid(x?.id)));const missingIds=(remote||[]).filter(x=>!localIds.has(sid(x?.id))).map(x=>sid(x?.id));if(missingIds.length)missing.push(...missingIds.map(id=>({module:m,id})));modules[m]={local:local.length,snapshot:remote===null?null:remote.length,missingLocally:missingIds.length,extraLocal:remote===null?null:[...localIds].filter(id=>!remoteIds.has(id)).length}}
  const allSnapshots=MODULES.every(m=>modules[m].snapshot!==null);
- return {version:V,at:new Date().toISOString(),snapshotAvailable,allSnapshots,modules,missingCount:missing.length,missing,status:allSnapshots&&missing.length?'fail':allSnapshots?'pass':'warn',state:{loads:state.loads,hydrates:state.hydrates,lastReason:state.lastReason,lastAt:state.lastAt,lastError:state.lastError,forcedLoadDone:state.forcedLoadDone}};
+ const empty3d=allSnapshots&&modules.printer3dProducts.local===0&&modules.printer3dSales.local===0;
+ const statusValue=allSnapshots&&missing.length?'fail':allSnapshots&&empty3d?'warn':allSnapshots?'pass':'warn';
+ return {version:V,at:new Date().toISOString(),snapshotAvailable,allSnapshots,empty3d,modules,missingCount:missing.length,missing,status:statusValue,state:{loads:state.loads,hydrates:state.hydrates,lastReason:state.lastReason,lastAt:state.lastAt,lastError:state.lastError,forcedLoadDone:state.forcedLoadDone}};
+}
+function markDailyBusiness(daily,out){
+ if(!daily||typeof daily!=='object')return daily;
+ daily.printer3dPersistenceV9431=clone(out);
+ if(!daily.business||typeof daily.business!=='object')daily.business={status:'info',summary:{}};
+ daily.business.printer3dPersistence=clone(out);
+ if(out.status==='fail'||out.status==='warn'){
+  const desired=out.status==='fail'?'fail':'warn';
+  if(daily.business.status!=='fail')daily.business.status=desired;
+  if(daily.business.summary&&typeof daily.business.summary==='object'){
+   if(daily.business.summary.status!=='fail')daily.business.summary.status=desired;
+   daily.business.summary.printer3dPersistenceStatus=desired;
+   daily.business.summary.printer3dEmpty=!!out.empty3d;
+   if(desired==='warn')daily.business.summary.warn=Math.max(1,Number(daily.business.summary.warn)||0);
+   if(desired==='fail')daily.business.summary.fail=Math.max(1,Number(daily.business.summary.fail)||0);
+  }
+ }
+ return daily;
 }
 function persistAudit(){
  const out=status();state.lastStatus=out;
  try{
   const last=window.HLGB_AUDITOR_SINGLE_ACTION_LAST||window.hlgbAuditorSingleAction9429?.last||null;
-  if(last&&typeof last==='object'){last.printer3dPersistenceV9431=clone(out);if(last.daily&&typeof last.daily==='object')last.daily.printer3dPersistenceV9431=clone(out)}
+  if(last&&typeof last==='object'){
+   last.printer3dPersistenceV9431=clone(out);
+   if(last.daily&&typeof last.daily==='object')markDailyBusiness(last.daily,out);
+  }
   for(const key of ['hlgb_auditor_daily_report_latest_v9429','hlgb_auditor_daily_report_latest_v9427']){
-   const raw=localStorage.getItem(key);if(!raw)continue;const daily=JSON.parse(raw);daily.printer3dPersistenceV9431=clone(out);localStorage.setItem(key,JSON.stringify(daily));
+   const raw=localStorage.getItem(key);if(!raw)continue;const daily=markDailyBusiness(JSON.parse(raw),out);localStorage.setItem(key,JSON.stringify(daily));
    const date=daily.date||new Date().toISOString().slice(0,10),prefix=key.includes('9429')?'hlgb_auditor_daily_report_v9429_':'hlgb_auditor_daily_report_v9427_';localStorage.setItem(prefix+date,JSON.stringify(daily));
   }
  }catch(e){console.warn('[HLGB v94.31] auditor 3D',e)}
@@ -78,10 +101,15 @@ function wrapIncoming(){
 function authenticated(){try{return window.__HLGB_AUTH_READY===true||document.getElementById('appShell')&&getComputedStyle(document.getElementById('appShell')).display!=='none'}catch(e){return false}}
 async function forceRepair(reason='boot'){
  if(state.forcedLoadDone||!authenticated())return false;ensureArrays();hydrate(reason+'-snapshot');const st=status();
- if(st.allSnapshots&&st.missingCount===0)return true;
+ if(st.status==='pass')return true;
  if(typeof window.hlgbRecordLoadBundle!=='function')return false;
  state.forcedLoadDone=true;
- try{state.loads++;await window.hlgbRecordLoadBundle({preserveLocal:true,since:null});hydrate(reason+'-forced-load');const after=status();if(after.allSnapshots&&after.missingCount===0)return true;state.lastError=after.allSnapshots?'Registros 3D ainda não foram hidratados.':'Snapshots 3D não foram carregados.';return false}catch(e){state.lastError=sid(e?.message||e);console.warn('[HLGB v94.31] recarga 3D',e);return false}
+ try{
+  state.loads++;await window.hlgbRecordLoadBundle({preserveLocal:true,since:null});hydrate(reason+'-forced-load');const after=status();
+  if(after.status==='pass')return true;
+  state.lastError=after.missingCount?'Registros 3D ainda não foram hidratados.':after.empty3d?'Nenhum registro 3D retornou da nuvem; verifique acesso/hidratação.':'Snapshots 3D não foram carregados.';
+  persistAudit();return false;
+ }catch(e){state.lastError=sid(e?.message||e);console.warn('[HLGB v94.31] recarga 3D',e);return false}
 }
 function install(){ensureArrays();wrapLoader();wrapIncoming();hydrate('install');
  [800,2200,5000].forEach(ms=>setTimeout(()=>{wrapLoader();wrapIncoming();hydrate('settle-'+ms);if(ms>=2200)forceRepair('settle-'+ms).catch(()=>{})},ms));
@@ -90,7 +118,7 @@ function install(){ensureArrays();wrapLoader();wrapIncoming();hydrate('install')
  document.addEventListener('click',e=>{if(e.target?.closest?.('#hlgbAuditorUnifiedRun9429,#hlgbAuditorUnifiedRun9427'))[1200,4500].forEach(ms=>setTimeout(persistAudit,ms))},{capture:true});
  try{const cur=parseFloat(String(window.HLGB_RELEASE_VERSION||'0'))||0;if(cur<94.31)window.HLGB_RELEASE_VERSION=V}catch(e){}
 }
-window.hlgbPrinter3dPersistence9431={version:V,state,ensureArrays,hydrate,status,forceRepair,persistAudit};
+window.hlgbPrinter3dPersistence9431={version:V,state,ensureArrays,hydrate,status,forceRepair,persistAudit,markDailyBusiness};
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',install,{once:true});else install();
 console.info('[HLGB] v94.31 persistência da Impressora 3D ativa');
 })();
