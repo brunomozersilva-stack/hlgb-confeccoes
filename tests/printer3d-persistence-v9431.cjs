@@ -24,7 +24,7 @@ function build(pending=false){
  const localStorage=storage(pendingStore?{hlgb_records_pending_v91:pendingStore}:{});
  const listeners={};
  const document={readyState:'complete',querySelector:()=>null,getElementById:()=>null,addEventListener:(n,f)=>{listeners[n]=f}};
- const context={console,Map,Set,Date,JSON,Math,Array,Object,String,Number,Boolean,Promise,structuredClone:global.structuredClone,db,hlgbRecordSnapshots:snapshots,localStorage,localSaveOnly:()=>{},document,navigator:{onLine:true},getComputedStyle:()=>({display:'none'}),setTimeout:()=>0,clearTimeout:()=>{},window:null};
+ const context={console,Map,Set,Date,JSON,Math,Array,Object,String,Number,Boolean,Promise,structuredClone:global.structuredClone,db,hlgbRecordSnapshots:snapshots,localStorage,localSaveOnly:()=>{},document,navigator:{onLine:true},getComputedStyle:()=>({display:'none'}),setTimeout:()=>0,clearTimeout:()=>{},addEventListener:(n,f)=>{listeners['window:'+n]=f},window:null};
  context.window=context;
  vm.createContext(context);vm.runInContext(src,context,{filename:'release-printer3d-persistence-v9431.js'});
  return context;
