@@ -47,6 +47,7 @@ function install(){
   if(!isImage(file))return original.apply(this,arguments);
   const ta=document.getElementById('hlgbImportText'),status=document.getElementById('hlgbImportStatus');
   const beforeText=ta?.value||'',sumMode=isSumIntent();
+  window.__hlgbImportedOrderDraft=null;
   if(status)status.textContent=sumMode?'Lendo a foto para conferir a soma…':'Lendo a foto e validando a grade…';
   let out;
   try{out=await original.apply(this,arguments)}catch(e){markUnsafe(sumMode,beforeText);return out}
