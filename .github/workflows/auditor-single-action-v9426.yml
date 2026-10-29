@@ -1,53 +1,28 @@
-name: HLGB Auditor Single Action v94.26
+name: HLGB Auditor Legacy v94.26
 on:
   push:
     branches: [main]
     paths:
       - 'release-auditor-single-action-v9426.js'
-      - 'release-cut-model-grade-adjust.js'
-      - 'release-auditor-shell-v9382.js'
-      - 'release-auditor-hub-reliability-v9315.js'
-      - 'release-auditor-authority-map-v9374.js'
-      - 'release-auditor-boot-analysis-v9381.js'
-      - 'release-auditor-intelligence-v9396.js'
       - 'tests/auditor-single-action-v9426-webkit.js'
       - '.github/workflows/auditor-single-action-v9426.yml'
   pull_request:
     branches: [main]
     paths:
       - 'release-auditor-single-action-v9426.js'
-      - 'release-cut-model-grade-adjust.js'
-      - 'release-auditor-shell-v9382.js'
-      - 'release-auditor-hub-reliability-v9315.js'
-      - 'release-auditor-authority-map-v9374.js'
-      - 'release-auditor-boot-analysis-v9381.js'
-      - 'release-auditor-intelligence-v9396.js'
       - 'tests/auditor-single-action-v9426-webkit.js'
       - '.github/workflows/auditor-single-action-v9426.yml'
 jobs:
-  webkit:
+  legacy-syntax:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: '20'
-      - name: Sintaxe Auditor v94.26
+      - name: Sintaxe legado v94.26
         run: node --check release-auditor-single-action-v9426.js
-      - name: Sem polling ou MutationObserver na trava v94.26
+      - name: v94.27 é a autoridade publicada
         run: |
-          ! grep -q 'setInterval' release-auditor-single-action-v9426.js
-          ! grep -q 'MutationObserver' release-auditor-single-action-v9426.js
-      - name: Loader v94.26 presente
-        run: grep -q 'release-auditor-single-action-v9426.js' release-cut-model-grade-adjust.js
-      - name: Instalar Playwright WebKit
-        run: |
-          npm init -y >/dev/null 2>&1
-          npm install playwright@1.55.0 --no-save
-          npx playwright install --with-deps webkit
-      - name: Iniciar servidor local
-        run: |
-          python3 -m http.server 4173 >/tmp/hlgb-http.log 2>&1 &
-          sleep 2
-      - name: Auditor tem uma única ação após scripts tardios
-        run: node tests/auditor-single-action-v9426-webkit.js
+          test -f release-auditor-single-action-v9427.js
+          grep -q 'release-auditor-single-action-v9427.js' release-cut-model-grade-adjust.js
