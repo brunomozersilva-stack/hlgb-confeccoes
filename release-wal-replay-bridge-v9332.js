@@ -2,8 +2,8 @@
    Não apaga fila, não grava direto e não ignora conflitos.
    Expõe os replay handlers legados e delega a recuperação para a autoridade
    incremental, que envia pendências sem forçar recarga ampla/redraw da tela.
-   v94.33: remove o full-sync periódico indireto que podia redesenhar Produtos
-   a cada ciclo enquanto existiam pendências. */
+   v94.33: remove o full-sync periódico indireto e não autoinjeta scripts que o
+   loader principal já entrega, evitando corridas/duplicidade no boot. */
 (function(){
 'use strict';
 const V='94.33', RECOVERY_EVERY_MS=30000;
@@ -65,7 +65,7 @@ async function recover(reason='bridge'){
     }
 
     /* Fallback seguro: replay confirmado do WAL. Ele usa applied:true como ACK e
-       não deve disparar full-sync depois do envio. */
+       não dispara full-sync depois do envio. */
     const replay=window.hlgbWalConfirmedReplay9333;
     if(replay&&typeof replay.run==='function'){
       state.delegatedReplay++;
@@ -74,13 +74,6 @@ async function recover(reason='bridge'){
       return ok===true;
     }
 
-    /* Compatibilidade com instalações antigas. Só chega aqui se as autoridades
-       novas ainda não estiverem disponíveis no boot. */
-    if(window.hlgbSaveTransport9320&&typeof window.hlgbSaveTransport9320.recover==='function'){
-      const ok=await window.hlgbSaveTransport9320.recover('wal-bridge-fallback-'+reason);
-      state.lastResult={ok:ok===true,reason,kind:'legacy-transport-fallback',pendingBefore:pending,pendingAfter:pendingCounts()};
-      return ok===true;
-    }
     let ok=true;
     if(typeof window.hlgb955FlushSilent==='function'){
       const out=await window.hlgb955FlushSilent(48);if(out===false)ok=false;
@@ -108,14 +101,10 @@ function replayTryBoot(){
   }catch(e){}
 }
 function ensureConfirmedReplay(){
-  try{
-    if(window.HLGB_WAL_CONFIRMED_REPLAY_9333){replayTryBoot();return true}
-    const existing=document.querySelector('script[data-hlgb-wal-confirmed="9333"]');
-    if(existing){replayTryBoot();return true}
-    const s=document.createElement('script');s.dataset.hlgbWalConfirmed='9333';s.src='./release-wal-confirmed-replay-v9333.js?fresh='+Date.now();
-    s.onload=()=>{replayTryBoot();setTimeout(replayTryBoot,250)};
-    (document.head||document.documentElement).appendChild(s);return true;
-  }catch(e){console.warn('[HLGB v94.33] replay confirmado não carregado',e);return false}
+  if(window.HLGB_WAL_CONFIRMED_REPLAY_9333){replayTryBoot();return true}
+  /* O app-stable3 já carrega release-wal-confirmed-replay-v9333.js. Não criar um
+     segundo <script> aqui: o warm-up apenas aguarda a autoridade ficar disponível. */
+  return false;
 }
 function start(){
   if(state.started){ensureConfirmedReplay();replayTryBoot();return true}
