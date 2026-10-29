@@ -38,5 +38,6 @@ const old=window.renderCuts;if(typeof old==='function'&&!old.__hlgbAdjust9423){c
 setTimeout(decorate,1200);
 try{if(!window.HLGB_STAGE_FLOW_INTEGRITY_GUARD&&!document.querySelector('script[data-hlgb-stage-flow-v9423]')){const s=document.createElement('script');s.dataset.hlgbStageFlowV9423='1';s.src='./release-stage-flow-integrity-v9423.js?fresh='+Date.now();document.head.appendChild(s)}}catch(e){console.warn('[HLGB '+V+'] carregar integridade de etapas',e)}
 try{if(!window.HLGB_AUDITOR_SINGLE_ACTION_9427&&!document.querySelector('script[data-hlgb-auditor-single-v9427]')){const s=document.createElement('script');s.dataset.hlgbAuditorSingleV9427='1';s.src='./release-auditor-single-action-v9427.js?fresh='+Date.now();document.head.appendChild(s)}}catch(e){console.warn('[HLGB '+V+'] carregar Auditor v94.27',e)}
+try{if(!window.HLGB_AUDITOR_DAILY_FIDELITY_9428&&!document.querySelector('script[data-hlgb-auditor-daily-fidelity-v9428]')){const s=document.createElement('script');s.dataset.hlgbAuditorDailyFidelityV9428='1';s.src='./release-auditor-daily-fidelity-v9428.js?fresh='+Date.now();document.head.appendChild(s)}}catch(e){console.warn('[HLGB '+V+'] carregar fidelidade do Relatório Diário v94.28',e)}
 window.HLGB_CUT_MODEL_GRADE_ADJUST_GUARD=V;
 })();
