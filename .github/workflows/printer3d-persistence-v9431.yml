@@ -1,0 +1,34 @@
+name: Printer 3D persistence v94.31
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'release-printer3d-persistence-v9431.js'
+      - 'release-cut-model-grade-adjust.js'
+      - 'tests/printer3d-persistence-v9431.cjs'
+      - '.github/workflows/printer3d-persistence-v9431.yml'
+  pull_request:
+    paths:
+      - 'release-printer3d-persistence-v9431.js'
+      - 'release-cut-model-grade-adjust.js'
+      - 'tests/printer3d-persistence-v9431.cjs'
+      - '.github/workflows/printer3d-persistence-v9431.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Syntax check
+        run: node --check release-printer3d-persistence-v9431.js
+      - name: Validate cloud-to-local hydration and pending preservation
+        run: node tests/printer3d-persistence-v9431.cjs
