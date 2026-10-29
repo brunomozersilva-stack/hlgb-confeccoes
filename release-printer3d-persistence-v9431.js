@@ -11,6 +11,7 @@ const sid=v=>String(v??'');
 const clone=v=>{try{return structuredClone(v)}catch(e){try{return JSON.parse(JSON.stringify(v))}catch(_){return v}}};
 const state={version:V,installedAt:new Date().toISOString(),loads:0,hydrates:0,lastReason:'',lastAt:'',lastError:'',forcedLoadDone:false,lastStatus:null};
 function dbRef(){try{if(typeof db!=='undefined'&&db)return db}catch(e){}return window.db||null}
+function snapshotsRef(){try{if(typeof hlgbRecordSnapshots!=='undefined'&&hlgbRecordSnapshots)return hlgbRecordSnapshots}catch(e){}return window.hlgbRecordSnapshots||null}
 function ensureArrays(){const d=dbRef();if(!d)return false;for(const m of MODULES)if(!Array.isArray(d[m]))d[m]=[];return true}
 function pendingIds(module){
  const out=new Set();
@@ -18,7 +19,7 @@ function pendingIds(module){
  try{const w=JSON.parse(localStorage.getItem('hlgb_durable_wal_v1')||'null'),entries=w?.entries&&typeof w.entries==='object'?Object.values(w.entries):[];for(const x of entries)if(x&&x.module===module&&x.deleted!==true)out.add(sid(x.id))}catch(e){}
  return out;
 }
-function snapshotMap(module){try{const m=window.hlgbRecordSnapshots?.[module];return m&&typeof m.forEach==='function'?m:null}catch(e){return null}}
+function snapshotMap(module){try{const m=snapshotsRef()?.[module];return m&&typeof m.forEach==='function'?m:null}catch(e){return null}}
 function snapshotRows(module){
  const map=snapshotMap(module);if(!map)return null;const rows=[];
  try{map.forEach((snap,id)=>{if(!snap||snap.deleted_at||snap.deletedAt||!snap.data)return;const row=clone(snap.data);if(row&&row.id==null)row.id=id;rows.push(row)})}catch(e){return null}
@@ -51,7 +52,8 @@ function hydrate(reason='manual'){
 function status(){
  ensureArrays();const d=dbRef()||{},modules={},missing=[];let snapshotAvailable=false;
  for(const m of MODULES){const local=Array.isArray(d[m])?d[m]:[],remote=snapshotRows(m);if(remote!==null)snapshotAvailable=true;const remoteIds=new Set((remote||[]).map(x=>sid(x?.id))),localIds=new Set(local.map(x=>sid(x?.id)));const missingIds=(remote||[]).filter(x=>!localIds.has(sid(x?.id))).map(x=>sid(x?.id));if(missingIds.length)missing.push(...missingIds.map(id=>({module:m,id})));modules[m]={local:local.length,snapshot:remote===null?null:remote.length,missingLocally:missingIds.length,extraLocal:remote===null?null:[...localIds].filter(id=>!remoteIds.has(id)).length}}
- return {version:V,at:new Date().toISOString(),snapshotAvailable,modules,missingCount:missing.length,missing,status:missing.length?'fail':'pass',state:{loads:state.loads,hydrates:state.hydrates,lastReason:state.lastReason,lastAt:state.lastAt,lastError:state.lastError,forcedLoadDone:state.forcedLoadDone}};
+ const allSnapshots=MODULES.every(m=>modules[m].snapshot!==null);
+ return {version:V,at:new Date().toISOString(),snapshotAvailable,allSnapshots,modules,missingCount:missing.length,missing,status:allSnapshots&&missing.length?'fail':allSnapshots?'pass':'warn',state:{loads:state.loads,hydrates:state.hydrates,lastReason:state.lastReason,lastAt:state.lastAt,lastError:state.lastError,forcedLoadDone:state.forcedLoadDone}};
 }
 function persistAudit(){
  const out=status();state.lastStatus=out;
@@ -76,11 +78,10 @@ function wrapIncoming(){
 function authenticated(){try{return window.__HLGB_AUTH_READY===true||document.getElementById('appShell')&&getComputedStyle(document.getElementById('appShell')).display!=='none'}catch(e){return false}}
 async function forceRepair(reason='boot'){
  if(state.forcedLoadDone||!authenticated())return false;ensureArrays();hydrate(reason+'-snapshot');const st=status();
- const localTotal=MODULES.reduce((n,m)=>n+(Array.isArray(dbRef()?.[m])?dbRef()[m].length:0),0),hasSnapshot=Object.values(st.modules).some(x=>x.snapshot!==null);
- if(localTotal>0&&st.missingCount===0)return true;
+ if(st.allSnapshots&&st.missingCount===0)return true;
  if(typeof window.hlgbRecordLoadBundle!=='function')return false;
  state.forcedLoadDone=true;
- try{state.loads++;await window.hlgbRecordLoadBundle({preserveLocal:true,since:null});hydrate(reason+'-forced-load');return status().missingCount===0}catch(e){state.lastError=sid(e?.message||e);console.warn('[HLGB v94.31] recarga 3D',e);return false}
+ try{state.loads++;await window.hlgbRecordLoadBundle({preserveLocal:true,since:null});hydrate(reason+'-forced-load');const after=status();if(after.allSnapshots&&after.missingCount===0)return true;state.lastError=after.allSnapshots?'Registros 3D ainda não foram hidratados.':'Snapshots 3D não foram carregados.';return false}catch(e){state.lastError=sid(e?.message||e);console.warn('[HLGB v94.31] recarga 3D',e);return false}
 }
 function install(){ensureArrays();wrapLoader();wrapIncoming();hydrate('install');
  [800,2200,5000].forEach(ms=>setTimeout(()=>{wrapLoader();wrapIncoming();hydrate('settle-'+ms);if(ms>=2200)forceRepair('settle-'+ms).catch(()=>{})},ms));
