@@ -35,7 +35,8 @@ function retireLegacy(){
 function visible(el){try{const s=getComputedStyle(el),r=el.getBoundingClientRect();return !el.hidden&&s.display!=='none'&&s.visibility!=='hidden'&&r.width>0&&r.height>0}catch(e){return !el.hidden}}
 function validate(){
  const host=actionHost(),buttons=host?[...host.querySelectorAll('button')].filter(visible):[],legacyVisible=LEGACY_IDS.filter(id=>{const el=document.getElementById(id);return !!el&&visible(el)}),ids=buttons.map(x=>x.id||sid(x.textContent).trim());
- const result={version:V,ok:!!host&&buttons.length===1&&buttons[0]?.id===BUTTON_ID&&legacyVisible.length===0,count:buttons.length,ids,legacyVisible,at:new Date().toISOString()};
+ const shellAuthority=window.HLGB_AUDITOR_SHELL_AUTHORITY==='93.82'&&window.openHlgbAuditor===window.hlgbAuditorShell9382?.open;
+ const result={version:V,ok:!!host&&buttons.length===1&&buttons[0]?.id===BUTTON_ID&&legacyVisible.length===0&&shellAuthority,count:buttons.length,ids,legacyVisible,shellAuthority,at:new Date().toISOString()};
  window.HLGB_AUDITOR_SINGLE_ACTION_TEST=result;
  if(!result.ok)console.error('[HLGB Auditor '+V+'] teste de ação única falhou',result);
  return result;
@@ -87,13 +88,8 @@ function patchOpenModal(){
  const f=window.openModal;if(typeof f!=='function'||f.__hlgbAuditorSingle9426)return false;
  const w=function(title){const r=f.apply(this,arguments);if(/auditor|testador hlgb/i.test(sid(title)))scheduleCanonicalize();return r};w.__hlgbAuditorSingle9426=true;w.__original=f;window.openModal=w;return true;
 }
-function patchOpen(){
- const f=window.openHlgbAuditor;if(typeof f!=='function'||f.__hlgbAuditorSingle9426)return false;
- const w=function(){const r=f.apply(this,arguments);scheduleCanonicalize();return r};w.__hlgbAuditorSingle9426=true;w.__original=f;window.openHlgbAuditor=w;
- const nav=document.getElementById('hlgbAuditorNavBtn'),open=document.getElementById('hlgbAuditorOpenBtn');if(nav)nav.onclick=w;if(open)open.onclick=w;return true;
-}
 function stamp(){try{if((Number(window.HLGB_RELEASE_VERSION)||0)<94.26)window.HLGB_RELEASE_VERSION='94.26'}catch(e){}window.HLGB_AUDITOR_RELEASE_VERSION=V}
-function install(){ensureStyle();patchOpenModal();patchOpen();retireLegacy();if(actionHost())canonicalize();stamp();return true}
+function install(){ensureStyle();patchOpenModal();retireLegacy();if(actionHost())canonicalize();stamp();return true}
 function boot(){install();[100,350,900,1800,3500,7000,12000].forEach(ms=>setTimeout(()=>{install();if(actionHost())validate()},ms))}
 window.HLGB_AUDITOR_SINGLE_ACTION_9426=V;
 window.hlgbAuditorSingleAction9426={version:V,install,canonicalize,validate,run:runUnified,collectDeep,get last(){return lastRun}};
