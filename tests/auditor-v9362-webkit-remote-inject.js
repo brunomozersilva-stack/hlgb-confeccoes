@@ -40,7 +40,6 @@ const {webkit}=require('playwright');
  if(await page.locator('#oldExtra:visible').count())throw new Error('opcao antiga voltou a aparecer apos injecao');
  const canonical=await page.evaluate(()=>window.hlgbAuditorSingleAction9429.validate());
  if(canonical?.ok!==true)throw new Error('validação canônica falhou após injeção antiga: '+JSON.stringify(canonical));
- if(window?.unused){};
  if(errors.some(x=>/auditor|9360|9361|9362|9363|9429/i.test(x)))throw new Error('erro relacionado ao Auditor: '+errors.join(' | '));
  console.log('AUDITOR_LEGACY_REMOTE_INJECTION_SINGLE_ACTION_OK',result,buttons,canonical);
  await browser.close();
