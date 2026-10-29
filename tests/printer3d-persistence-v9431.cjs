@@ -8,9 +8,11 @@ assert(/printer3dProducts/.test(src)&&/printer3dSales/.test(src)&&/printer3dSett
 
 function storage(seed={}){const m=new Map(Object.entries(seed));return{getItem:k=>m.has(k)?m.get(k):null,setItem:(k,v)=>m.set(k,String(v)),removeItem:k=>m.delete(k)}}
 function snap(data){return{data,deleted_at:null,revision:1,updated_at:data.updatedAt||'2026-10-29T10:00:00.000Z'}}
-function build(pending=false){
+function build(pending=false,empty=false){
  const db={};
- const snapshots={
+ const snapshots=empty?{
+  printer3dProducts:new Map(),printer3dSales:new Map(),printer3dSettings:new Map()
+ }:{
   printer3dProducts:new Map([
    ['p1',snap({id:'p1',name:'Boneco',updatedAt:'2026-10-25T01:29:55Z'})],
    ['p2',snap({id:'p2',name:'jogo da velha',updatedAt:'2026-10-27T15:54:56Z'})],
@@ -36,13 +38,24 @@ function build(pending=false){
  assert.equal(c.db.printer3dSales.length,1,'deve restaurar venda 3D');
  assert.equal(c.db.printer3dSettings.length,1,'deve restaurar configuração 3D');
  const st=c.hlgbPrinter3dPersistence9431.status();
- assert.equal(st.status,'pass');assert.equal(st.missingCount,0);assert.equal(st.allSnapshots,true);
+ assert.equal(st.status,'pass');assert.equal(st.missingCount,0);assert.equal(st.allSnapshots,true);assert.equal(st.empty3d,false);
 }
 {
  const c=build(true);
  assert.equal(c.db.printer3dProducts.length,4,'deve preservar produto local ainda pendente junto dos 3 confirmados');
  assert(c.db.printer3dProducts.some(x=>x.id==='local-pending'),'pendência local foi perdida');
 }
+{
+ const c=build(false,true);
+ const st=c.hlgbPrinter3dPersistence9431.status();
+ assert.equal(st.allSnapshots,true,'snapshots vazios ainda são snapshots carregados');
+ assert.equal(st.empty3d,true,'sessão 3D vazia deve ser identificada');
+ assert.equal(st.status,'warn','3D vazio não pode ser aprovado silenciosamente');
+ const daily={business:{status:'pass',summary:{status:'pass',warn:0,fail:0,products3d:0,sales3d:0}}};
+ c.hlgbPrinter3dPersistence9431.markDailyBusiness(daily,st);
+ assert.equal(daily.business.status,'warn','relatório diário deve alertar para 3D vazio');
+ assert.equal(daily.business.summary.printer3dEmpty,true,'relatório deve registrar motivo do alerta');
+}
 const loader=fs.readFileSync('release-cut-model-grade-adjust.js','utf8');
 assert.equal((loader.match(/release-printer3d-persistence-v9431\.js/g)||[]).length,1,'loader deve carregar v94.31 exatamente uma vez');
-console.log('OK: Printer 3D v94.31 restaura registros confirmados e preserva pendências locais.');
+console.log('OK: Printer 3D v94.31 restaura registros confirmados, preserva pendências e alerta para hidratação vazia.');
