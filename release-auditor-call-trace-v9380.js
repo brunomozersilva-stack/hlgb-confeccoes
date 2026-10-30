@@ -62,9 +62,7 @@ function loadScriptOnce(src,key,dataKey,onload){
   const s=document.createElement('script');s.src=src+'?fresh='+Date.now();s.async=false;if(dataKey)s.setAttribute('data-'+dataKey,'1');if(onload)s.onload=onload;s.onerror=()=>console.warn('[HLGB diag] não carregou '+src);(document.head||document.documentElement).appendChild(s);return true;
  }catch(e){console.warn('[HLGB diag] load '+src,e);return false}
 }
-function loadButtonGuard(){return loadScriptOnce('./release-auditor-button-stability-v9435.js','HLGB_AUDITOR_BUTTON_STABILITY_9435','hlgb-auditor-button-stability-9435')}
 function loadIntelligence(){
- loadButtonGuard();
  const loadBrain=()=>loadScriptOnce('./release-auditor-intelligence-v9396.js','HLGB_AUDITOR_INTELLIGENCE_9396','hlgb-auditor-intelligence-9396');
  if(window.HLGB_RUNTIME_BUILD_ID)loadBrain();else loadScriptOnce('./release-auditor-build-marker-v9396.js','HLGB_RUNTIME_BUILD_ID','hlgb-build-marker-9396',loadBrain);
 }
