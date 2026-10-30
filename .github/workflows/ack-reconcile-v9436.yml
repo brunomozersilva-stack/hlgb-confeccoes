@@ -1,0 +1,47 @@
+name: HLGB ACK Post Auth v94.36
+on:
+  push:
+    branches:
+      - main
+      - fix/ack-reconcile-post-auth-v9436
+  pull_request:
+    branches:
+      - main
+jobs:
+  logic:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Sintaxe ACK pós-login
+        run: node --check release-ack-reconcile-v9436.js
+      - name: Sintaxe gate de login
+        run: node --check release-login-confirm-gate-v9407.js
+      - name: ACK só após autenticação e sem apagar edição nova
+        run: node tests/ack-reconcile-post-auth-v9436.js
+      - name: Regressão da autoridade de login
+        run: node tests/runtime-login-ready-v9378.js
+  webkit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Instalar Playwright WebKit
+        run: |
+          npm install --no-save playwright@1.55.0
+          npx playwright install --with-deps webkit
+      - name: Iniciar servidor local
+        run: |
+          python3 -m http.server 4173 >/tmp/hlgb-ack-http.log 2>&1 &
+          echo $! >/tmp/hlgb-ack-http.pid
+          sleep 2
+      - name: Login real continua abrindo no WebKit
+        run: node tests/login-3d-v9409-webkit.js
+      - name: Auditor continua abrindo no WebKit
+        run: node tests/auditor-v9362-webkit.js
