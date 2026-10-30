@@ -6,7 +6,7 @@
 const V='94.35';
 if(window.HLGB_AUDITOR_BUTTON_STABILITY_9435===V)return;
 window.HLGB_AUDITOR_BUTTON_STABILITY_9435=V;
-const IDS=['hlgbAuditorIntelligenceBtn9396','hlgbAuditorBusinessBtn9401'];
+const IDS=['hlgbAuditorIntelligenceBtn9396','hlgbAuditorBusinessBtn9401','hlgbDailyReport9368'];
 const state={version:V,heals:0,moves:0,shown:0,lastAt:'',lastReason:''};
 function visible(el){if(!el)return false;try{const s=getComputedStyle(el),r=el.getBoundingClientRect();return !el.hidden&&s.display!=='none'&&s.visibility!=='hidden'&&r.width>0&&r.height>0}catch(e){return false}}
 function auditorRoot(){const s=document.getElementById('hlgbSmartStatus');return s?.closest?.('[role="dialog"],.modal,.modal-content,.modalCard,.modal-card,.dialog')||s?.parentElement?.parentElement||s?.parentElement||null}
