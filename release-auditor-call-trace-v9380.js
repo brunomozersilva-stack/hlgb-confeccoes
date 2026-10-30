@@ -66,6 +66,7 @@ function loadIntelligence(){
  const loadBrain=()=>loadScriptOnce('./release-auditor-intelligence-v9396.js','HLGB_AUDITOR_INTELLIGENCE_9396','hlgb-auditor-intelligence-9396');
  if(window.HLGB_RUNTIME_BUILD_ID)loadBrain();else loadScriptOnce('./release-auditor-build-marker-v9396.js','HLGB_RUNTIME_BUILD_ID','hlgb-build-marker-9396',loadBrain);
 }
+function loadSingleUi(){return loadScriptOnce('./release-auditor-single-ui-reclaim-v9434a.js','HLGB_AUDITOR_SINGLE_UI_RECLAIM_9434A','hlgb-auditor-single-ui-reclaim-9434a')}
 window.HLGB_AUDITOR_CALL_TRACE_9380=V;
 window.HLGB_AUDITOR_CALL_TRACE_BUILD=BUILD;
 window.hlgbAuditorCallTrace9380={version:V,build:BUILD,install,snapshot,events,targets:TARGETS};
@@ -74,5 +75,6 @@ mark('trace-ready','release-auditor-call-trace-v9380.js',{targets:Object.keys(TA
 /* v93.96: Boot Analysis já é carregado pela lista oficial do app-stable3.
    Não o carregamos novamente aqui; isso eliminava uma medição duplicada do próprio Auditor. */
 loadIntelligence();
+loadSingleUi();
 console.info('[HLGB] rastreamento passivo de cargas/renders v'+V+' ativo · build '+BUILD);
 })();
