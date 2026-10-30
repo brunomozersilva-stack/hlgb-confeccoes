@@ -4,6 +4,7 @@ on:
     branches:
       - main
       - fix/ack-reconcile-post-auth-v9436
+      - fix/v9436-current-auditor-ci
   pull_request:
     branches:
       - main
@@ -43,5 +44,5 @@ jobs:
           sleep 2
       - name: Login real continua abrindo no WebKit
         run: node tests/login-3d-v9409-webkit.js
-      - name: Auditor continua abrindo no WebKit
-        run: node tests/auditor-v9362-webkit.js
+      - name: Auditor atual de botão único continua abrindo no WebKit
+        run: node tests/auditor-single-ui-v9434a-webkit.js
