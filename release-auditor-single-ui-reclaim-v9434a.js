@@ -1,7 +1,7 @@
 /* HLGB v94.34a — restaura a interface de ação única do Auditor sem alterar sincronização. */
 (function(){
 'use strict';
-const V='94.34a';
+const V='94.34a',APP_BASE='94.34';
 if(window.HLGB_AUDITOR_SINGLE_UI_RECLAIM_9434A===V)return;
 window.HLGB_AUDITOR_SINGLE_UI_RECLAIM_9434A=V;
 const BUTTON_ID='hlgbAuditorUnifiedRun9434A';
@@ -13,8 +13,12 @@ const LEGACY_IDS=[
  'hlgbAuditDownloadCritical9315','hlgbAuditorHubDeep9315'
 ];
 const TOOL_IDS=['hlgbBootTools9381'];
-const state={version:V,heals:0,created:0,runs:0,errors:0,running:false,lastAt:'',lastReason:'',lastError:''};
+const state={version:V,appBase:APP_BASE,heals:0,created:0,runs:0,errors:0,running:false,lastAt:'',lastReason:'',lastError:''};
 const sid=v=>String(v??'');
+function stamp(){
+ try{if((parseFloat(sid(window.HLGB_RELEASE_VERSION))||0)<94.34)window.HLGB_RELEASE_VERSION=APP_BASE}catch(e){}
+ try{const el=document.querySelector('#appShell .logo small');if(el&&((parseFloat(sid(el.textContent).replace(/^v/i,''))||0)<94.34))el.textContent='v'+APP_BASE}catch(e){}
+}
 function root(){
  const s=document.getElementById('hlgbSmartStatus');
  return s?.closest?.('[role="dialog"],.modal,.modal-content,.modalCard,.modal-card,.dialog')||s?.parentElement?.parentElement||document.querySelector('.hlgb-auditor-actions')?.parentElement||null;
@@ -61,7 +65,7 @@ function ensureButton(){
  return true;
 }
 function heal(reason='manual'){
- ensureStyle();hideLegacy();const ok=ensureButton();
+ stamp();ensureStyle();hideLegacy();const ok=ensureButton();
  state.heals++;state.lastAt=new Date().toISOString();state.lastReason=reason;
  return ok;
 }
@@ -71,6 +75,6 @@ window.addEventListener?.('hlgb:auditor:open',()=>burst('auditor-open'));
 window.addEventListener?.('hlgb:authenticated',()=>burst('auth'));
 window.addEventListener?.('pageshow',()=>burst('pageshow'));
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>burst('dom-ready'),{once:true});else burst('boot');
-window.hlgbAuditorSingleUiReclaim9434A={version:V,state,heal,burst,status:()=>({...state,buttonPresent:!!document.getElementById(BUTTON_ID),apiReady:typeof window.hlgbAuditorSingleAction9429?.run==='function'})};
+window.hlgbAuditorSingleUiReclaim9434A={version:V,state,heal,burst,status:()=>({...state,buttonPresent:!!document.getElementById(BUTTON_ID),apiReady:typeof window.hlgbAuditorSingleAction9429?.run==='function',appVersion:sid(window.HLGB_RELEASE_VERSION)})};
 console.info('[HLGB] Auditor '+V+' interface de ação única restaurada');
 })();
