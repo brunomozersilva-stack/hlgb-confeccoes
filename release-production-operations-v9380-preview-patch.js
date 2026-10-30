@@ -6,4 +6,5 @@
   document.write('<script src="./release-production-writeoff-integrity-v9391.js?fresh='+ts+'"><\/script>');
   document.write('<script src="./release-ack-reconcile-v9435.js?fresh='+ts+'"><\/script>');
   document.write('<script src="./release-interaction-lock-v9434.js?fresh='+ts+'"><\/script>');
+  document.write('<script src="./release-auditor-button-stability-v9435.js?fresh='+ts+'"><\/script>');
 })();
