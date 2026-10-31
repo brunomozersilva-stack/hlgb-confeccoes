@@ -106,10 +106,13 @@ function base(){
  }
  {
   const router=source('app-stable3.html');
-  const explicit=['release-auditor-production-v9369.js','release-payroll-month-wal-v9334.js','release-payroll-reliable-save-guard-v9344.js','release-wal-replay-bridge-v9332.js','release-wal-single-authority-v9339.js'];
+  const explicit=['release-auditor-production-v9369.js','release-payroll-month-wal-v9334.js','release-payroll-reliable-save-guard-v9344.js','release-wal-replay-bridge-v9332.js'];
   for(const file of explicit){const count=router.split("'"+file+"'").length-1;ok(count===1,'script explícito deve aparecer uma vez no roteador: '+file+' count='+count)}
   ok(router.includes("'release-wal-confirmed-replay-v9333.js'"),'replay confirmado ausente');
   ok(router.includes("'release-payroll-wal-race-v9346.js'"),'autoridade final da folha ausente');
+  const payroll=source('release-payroll-month-wal-v9334.js'),safari=source('release-safari-resume-v9266.js');
+  ok(!payroll.includes("s.src='./release-wal-single-authority-v9339.js"),'Folha voltou a reinjetar v9339');
+  ok(!safari.includes("s.src='./release-wal-single-authority-v9339.js"),'Safari voltou a reinjetar v9339');
  }
  {
   const c=base(),normal='https://example.test/release-auditor-build-marker-v9396.js?fresh=1',probe='https://example.test/release-auditor-build-marker-v9396.js?hlgb_audit_fresh=2';
@@ -125,5 +128,5 @@ function base(){
   ok(cmp.items.find(x=>x.key==='hiddenRenders')?.state==='improved','melhoria de render oculto foi perdida');
   ok(cmp.summary.regressed===0,'contagem informativa criou regressão falsa');
  }
- console.log('AUDITOR_BOOT_DEDUPE_V9398_OK',JSON.stringify({syncGuardAuthority:true,persistentCutGate:true,restoreLoadsAllowed:true,cutViewNoAuthAuthority:true,walSingleAuthorityRouterOnly:true,reliableParserDedupe:true,restoreClassification:true,explicitHotfixScriptsSingle:true,auditorFalsePositiveFilter:true}));
+ console.log('AUDITOR_BOOT_DEDUPE_V9398_OK',JSON.stringify({syncGuardAuthority:true,persistentCutGate:true,restoreLoadsAllowed:true,cutViewNoAuthAuthority:true,walSingleAuthorityNoReinject:true,reliableParserDedupe:true,restoreClassification:true,explicitHotfixScriptsSingle:true,auditorFalsePositiveFilter:true}));
 })().catch(e=>{console.error(e.stack||e);process.exit(1)});
