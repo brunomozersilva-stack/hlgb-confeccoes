@@ -9,16 +9,20 @@ const {webkit}=require('playwright');
   window.__HLGB_AUTH_READY=true; window.dispatchEvent(new Event('hlgb:authenticated'));
   const l=document.getElementById('loginScreen'); if(l)l.style.setProperty('display','none','important');
   const a=document.getElementById('appShell'); if(a){a.style.setProperty('display','block','important');a.style.setProperty('visibility','visible','important')}
-  const b=document.getElementById('hlgbAuditorNavBtn'); if(b){document.body.appendChild(b);Object.assign(b.style,{display:'block',visibility:'visible',position:'fixed',left:'20px',top:'20px',zIndex:'2147483647'})}
  });
- await page.waitForSelector('#hlgbAuditorNavBtn',{state:'visible',timeout:15000});
- await page.click('#hlgbAuditorNavBtn');
- await page.waitForSelector('#hlgbAuditorUnifiedRun9434A',{state:'visible',timeout:15000});
+ await page.waitForFunction(()=>typeof window.openHlgbAuditor==='function',null,{timeout:15000});
+ await page.evaluate(()=>{window.openHlgbAuditor();window.hlgbAuditorSingleUiReclaim9434A?.heal?.('single-ui-v9434a-test')});
+ await page.waitForFunction(()=>{
+  window.hlgbAuditorSingleUiReclaim9434A?.heal?.('single-ui-v9434a-wait');
+  const b=document.getElementById('hlgbAuditorUnifiedRun9434A');if(!b)return false;
+  const s=getComputedStyle(b),r=b.getBoundingClientRect();return !b.hidden&&s.display!=='none'&&s.visibility!=='hidden'&&r.width>0&&r.height>0;
+ },null,{timeout:15000});
  await page.waitForTimeout(3500);
  const out=await page.evaluate(()=>{
+  window.hlgbAuditorSingleUiReclaim9434A?.heal?.('single-ui-v9434a-final');
   const vis=el=>{if(!el)return false;const s=getComputedStyle(el),r=el.getBoundingClientRect();return !el.hidden&&s.display!=='none'&&s.visibility!=='hidden'&&r.width>0&&r.height>0};
   const one=document.getElementById('hlgbAuditorUnifiedRun9434A');
-  const legacy=['hlgbSmartTest','hlgbSmartProblem','hlgbSmartHistoryBtn','hlgbAuthorityBtn9374','hlgbBootAnalysisBtn9381','hlgbAuditorIntelligenceBtn9396','hlgbAuditorBusinessBtn9401','hlgbDailyReport9368','hlgbAuditorUnifiedRun9429'];
+  const legacy=['hlgbAuditorNavBtn','hlgbSmartTest','hlgbSmartProblem','hlgbSmartHistoryBtn','hlgbAuthorityBtn9374','hlgbBootAnalysisBtn9381','hlgbAuditorIntelligenceBtn9396','hlgbAuditorBusinessBtn9401','hlgbDailyReport9368','hlgbAuditorUnifiedRun9429'];
   const legacyVisible=legacy.filter(id=>vis(document.getElementById(id)));
   const host=document.querySelector('.hlgb-auditor-actions');
   const visibleActions=host?[...host.querySelectorAll(':scope>button')].filter(vis).map(x=>x.id):[];
