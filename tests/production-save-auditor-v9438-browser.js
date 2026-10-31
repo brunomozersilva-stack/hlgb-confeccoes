@@ -16,14 +16,14 @@ const engine=kind==='chromium'?chromium:webkit;
  page.on('request',r=>{try{requests.push(new URL(r.url()).pathname.split('/').pop())}catch(e){}});
  await page.goto('http://127.0.0.1:4173/app-stable3.html',{waitUntil:'domcontentloaded',timeout:60000});
  await page.waitForFunction(()=>window.HLGB_AUDITOR_SINGLE_UI_RECLAIM_9434A==='94.34a'&&typeof window.hlgbAuditorSingleAction9429?.run==='function',null,{timeout:60000});
- const pre=await page.evaluate(()=>({prod:window.HLGB_PRODUCTION_SAVE_CONFIRM_9438||null,reliability:window.HLGB_AUDITOR_RELIABILITY_9438||null,reports:window.HLGB_REPORTS_STABILITY_9438||null}));
- if(pre.prod||pre.reliability||pre.reports)throw new Error('v94.38 carregou antes da autenticação '+JSON.stringify(pre));
+ const pre=await page.evaluate(()=>({prod:window.HLGB_PRODUCTION_SAVE_CONFIRM_9438||null,multiplicity:window.HLGB_AUDITOR_SCRIPT_MULTIPLICITY_9438||null,reliability:window.HLGB_AUDITOR_RELIABILITY_9438||null,reports:window.HLGB_REPORTS_STABILITY_9438||null}));
+ if(pre.prod||pre.multiplicity||pre.reliability||pre.reports)throw new Error('v94.38 carregou antes da autenticação '+JSON.stringify(pre));
  await page.evaluate(()=>{
   window.__HLGB_AUTH_READY=true;window.dispatchEvent(new Event('hlgb:authenticated'));
   const l=document.getElementById('loginScreen');if(l)l.style.setProperty('display','none','important');
   const a=document.getElementById('appShell');if(a){a.style.setProperty('display','block','important');a.style.setProperty('visibility','visible','important')}
  });
- await page.waitForFunction(()=>window.HLGB_PRODUCTION_SAVE_CONFIRM_9438==='94.38'&&window.HLGB_AUDITOR_RELIABILITY_9438==='94.38'&&window.HLGB_REPORTS_STABILITY_9438==='94.38',null,{timeout:20000});
+ await page.waitForFunction(()=>window.HLGB_PRODUCTION_SAVE_CONFIRM_9438==='94.38'&&window.HLGB_AUDITOR_SCRIPT_MULTIPLICITY_9438==='94.38'&&window.HLGB_AUDITOR_RELIABILITY_9438==='94.38'&&window.HLGB_REPORTS_STABILITY_9438==='94.38',null,{timeout:20000});
  await page.waitForTimeout(1200);
 
  const lostAck=await page.evaluate(async()=>{
@@ -85,15 +85,20 @@ const engine=kind==='chromium'?chromium:webkit;
  });
  if(Math.abs(reports.after-reports.before)>12||reports.focusId!=='hlgbReportDateTest9438'||reports.value!=='2026-10-31')throw new Error('Relatórios não preservou posição/foco/filtro '+JSON.stringify(reports));
 
- const dup={};for(const f of ['release-auditor-production-v9369.js','release-wal-replay-bridge-v9332.js','release-wal-single-authority-v9339.js'])dup[f]=requests.filter(x=>x===f).length;
- const duplicated=Object.entries(dup).filter(([,n])=>n>1);
+ const rawRequests={};for(const f of ['release-auditor-production-v9369.js','release-wal-replay-bridge-v9332.js','release-wal-single-authority-v9339.js'])rawRequests[f]=requests.filter(x=>x===f).length;
  const trace=await page.evaluate(()=>window.__hlgbDynamicScriptTrace9438||[]);
- if(duplicated.length)throw new Error('scripts ainda carregados mais de uma vez '+JSON.stringify({dup,trace}));
+ const multiplicity=await page.evaluate(()=>window.hlgbAuditorScriptMultiplicity9438?.snapshot?.()||null);
+ const relevant=new Set(['release-auditor-production-v9369.js','release-wal-replay-bridge-v9332.js','release-wal-single-authority-v9339.js']);
+ const executionDuplicates=(multiplicity?.executionDuplicates||[]).filter(x=>relevant.has(x.file));
+ if(executionDuplicates.length)throw new Error('há evidência de execução/instalação duplicada '+JSON.stringify({executionDuplicates,rawRequests,trace,multiplicity}));
+ const dynamicLegacy=trace.filter(x=>/release-(?:auditor-production-v9369|wal-replay-bridge-v9332)\.js/i.test(String(x.src||'')));
+ if(dynamicLegacy.length)throw new Error('loader antigo ainda reinjeta script dinamicamente '+JSON.stringify(dynamicLegacy));
+ if(rawRequests['release-wal-single-authority-v9339.js']>1)throw new Error('autoridade WAL 9339 ainda requisitada mais de uma vez '+JSON.stringify({rawRequests,trace,multiplicity}));
  const saveDup=Number(reliability.currentMetrics?.saveChain?.duplicateResponsibilities??reliability.currentMetrics?.saveDuplicateResponsibilities??0);
  if(saveDup>0)throw new Error('responsabilidade de save ainda duplicada '+JSON.stringify({saveDup,saveChain:reliability.currentMetrics?.saveChain||null}));
  const gate=await page.evaluate(()=>window.hlgbLoginConfirmGate9407?.status?.());
- if(!gate?.productionConfirmLoaded||!gate?.auditorReliabilityLoaded||!gate?.reportsStabilityLoaded)throw new Error('gate pós-login não confirmou v94.38 '+JSON.stringify(gate));
- if(errors.some(x=>/9438|production-save-confirm|auditor-reliability|reports-stability/i.test(x)))throw new Error('pageerror v94.38 '+errors.join(' | '));
- console.log('PRODUCTION_SAVE_AUDITOR_V9438_'+kind.toUpperCase()+'_OK',JSON.stringify({lostAck:{verifiedBy:lostAck.out.verifiedBy,reconcileCalls:lostAck.reconcileCalls,retryLoop:lostAck.q.retryLoop,ageMs:lostAck.q.ageMs},reliability:{roundId:reliability.roundId,breakdown:reliability.breakdown,oldComparison:reliability.oldComparison,saveChain:reliability.currentMetrics?.saveChain||null},reports,dup,trace,gate}));
+ if(!gate?.productionConfirmLoaded||!gate?.scriptMultiplicityLoaded||!gate?.auditorReliabilityLoaded||!gate?.reportsStabilityLoaded)throw new Error('gate pós-login não confirmou v94.38 '+JSON.stringify(gate));
+ if(errors.some(x=>/9438|production-save-confirm|auditor-reliability|script-multiplicity|reports-stability/i.test(x)))throw new Error('pageerror v94.38 '+errors.join(' | '));
+ console.log('PRODUCTION_SAVE_AUDITOR_V9438_'+kind.toUpperCase()+'_OK',JSON.stringify({lostAck:{verifiedBy:lostAck.out.verifiedBy,reconcileCalls:lostAck.reconcileCalls,retryLoop:lostAck.q.retryLoop,ageMs:lostAck.q.ageMs},reliability:{roundId:reliability.roundId,breakdown:reliability.breakdown,oldComparison:reliability.oldComparison,saveChain:reliability.currentMetrics?.saveChain||null},reports,rawRequests,multiplicity:{executionDuplicates:multiplicity?.executionDuplicates||[],repeatedRequests:multiplicity?.repeatedRequests||[]},trace,gate}));
  await browser.close();
 })().catch(e=>{console.error(e);process.exit(1)});
