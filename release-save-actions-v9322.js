@@ -20,9 +20,7 @@ async function save(row,deleted=false){
  if(deleted){if(typeof previousSave==='function')return previousSave(row,true);const id=idOf(row);if(!id)throw new Error('Lançamento sem identificação.');if(typeof window.hlgbRecordSaveWithRetry!=='function')throw new Error('Gravação multiusuário indisponível.');return window.hlgbRecordSaveWithRetry('hubFinanceEntries',id,clone(row),true)}
  if(!row)throw new Error('Lançamento inválido.');const id=idOf(row);if(!id)throw new Error('Lançamento sem identificação.');const payload=clone(row);if(payload.id==null&&payload.__hlgbId==null)payload.__hlgbId=id;payload.updatedAt=payload.updatedAt||new Date().toISOString();if(!upsert(payload,id))throw new Error('Não foi possível atualizar o lançamento neste aparelho.');localSave();try{queue(id,payload)}catch(err){lastError=sid(err?.message||err);throw err}saves++;lastAt=new Date().toISOString();status('💾 Salvo no aparelho · confirmando na nuvem…','warn');cloudConfirm(id,payload);return {applied:true,localFirst:true,queued:true,pending:true,data:clone(payload),deleted_at:null}
 }
-function finalHubAuthorityActive(){
- return window.HLGB_HUB_SAVE_AUTHORITY==='93.24'&&window.hlgbHubDelivery9324?.version==='93.24';
-}
+function finalHubAuthorityActive(){return window.HLGB_HUB_SAVE_AUTHORITY==='93.24'&&window.hlgbHubDelivery9324?.version==='93.24'}
 function install(){
  if(!finalHubAuthorityActive())window.hlgbHubSaveConfirmed=save;
  if(window.hlgbHubEditor9270?.open){window.editHubFinanceEntry=window.hlgbHubEditor9270.open;window.quickEditHub9185=id=>window.hlgbHubEditor9270.open(id,{quick:true})}
@@ -33,11 +31,8 @@ function install(){
 function state(){return {version:V,installs,saves,confirmed,pending,failed,lastError,lastAt,saveAuthoritative:window.hlgbHubSaveConfirmed===save,finalAuthorityActive:finalHubAuthorityActive(),editorAuthoritative:window.hlgbHubEditor9270?.open?window.editHubFinanceEntry===window.hlgbHubEditor9270.open:null}}
 install();let tries=0;const timer=setInterval(()=>{tries++;const editorDrift=window.hlgbHubEditor9270?.open&&window.editHubFinanceEntry!==window.hlgbHubEditor9270.open;if((!finalHubAuthorityActive()&&window.hlgbHubSaveConfirmed!==save)||editorDrift)install();if(tries>=50)clearInterval(timer)},250);
 window.hlgbSaveActions9322={version:V,install,state,save};
-try{
- if(!document.querySelector('script[data-hlgb-wal-bridge="9332"]')){
-  const s=document.createElement('script');s.dataset.hlgbWalBridge='9332';s.src='./release-wal-replay-bridge-v9332.js?fresh='+Date.now();
-  (document.head||document.documentElement).appendChild(s);
- }
-}catch(e){console.warn('[HLGB v93.22] ponte WAL não carregada',e)}
+/* v94.38: app-stable3 é a única autoridade de carregamento da ponte WAL.
+   Este módulo não injeta mais release-wal-replay-bridge-v9332.js, evitando a
+   corrida entre parser e injeção dinâmica que aparecia como script duplicado. */
 console.info('[HLGB] v'+V+' ações de salvar ativas — Hub local-first e editor autoritativo');
 })();
