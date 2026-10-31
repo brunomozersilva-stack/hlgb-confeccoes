@@ -10,6 +10,12 @@ const {webkit}=require('playwright');
   await page.waitForFunction(()=>!!document.getElementById('loginScreen')&&!!document.getElementById('appShell')&&!!window.hlgbProductCatalog9419&&!!window.hlgbPayrollView9295&&!!window.hlgbNightUi?.cleanTopbar,null,{timeout:60000});
 
   await page.evaluate(()=>{
+    window.__hlgbUi9419Trace=[];
+    const snap=reason=>{try{window.__hlgbUi9419Trace.push({at:Date.now(),reason,active:[...document.querySelectorAll('#appShell .page.active')].map(x=>x.id),catalogActive:document.getElementById('productCatalog9419')?.classList.contains('active')||false,authReady:window.__HLGB_AUTH_READY===true,release:String(window.HLGB_RELEASE_VERSION||'')})}catch(e){}};
+    window.__hlgbUi9419Snap=snap;
+    const obs=new MutationObserver(rs=>{for(const r of rs){if(r.type==='attributes'&&r.attributeName==='class'&&r.target?.classList?.contains('page'))snap('class:'+String(r.target.id||''))}});
+    obs.observe(document.getElementById('appShell'),{subtree:true,attributes:true,attributeFilter:['class']});
+    window.__hlgbUi9419Observer=obs;snap('trace-start');
     document.documentElement.classList.add('hlgb-login-confirmed-9407');
     window.__HLGB_AUTH_READY=true;
     const login=document.getElementById('loginScreen');if(login)login.style.setProperty('display','none','important');
@@ -18,7 +24,7 @@ const {webkit}=require('playwright');
     root.style.setProperty('--byh-photo','linear-gradient(135deg,#6b1d33,#d7a0b2)');
     root.style.setProperty('--byh-photo-visual-opacity','0.35');
     window.dispatchEvent(new Event('hlgb:authenticated'));
-    window.hlgbNightUi.cleanTopbar();
+    window.hlgbNightUi.cleanTopbar();snap('after-auth');
   });
 
   await page.waitForFunction(()=>!!document.getElementById('hlgbTopbarHost9253')&&!!document.getElementById('hlgbTopbarActionsBtn9253'),null,{timeout:10000});
@@ -53,9 +59,15 @@ const {webkit}=require('playwright');
     window.hlgbProductCatalog9419.install();
     window.hlgbProductCatalog9419.render();
     const b=document.getElementById('hlgbProductCatalogNav9419');
+    window.__hlgbUi9419Snap?.('catalog-before-open');
     window.hlgbProductCatalog9419.open(b);
+    window.__hlgbUi9419Snap?.('catalog-after-open');
+    [20,50,100,200,400,800,1200,2000,4000].forEach(ms=>setTimeout(()=>window.__hlgbUi9419Snap?.('catalog+'+ms),ms));
   });
-  await page.waitForSelector('#productCatalog9419.active',{state:'visible',timeout:10000});
+  try{await page.waitForSelector('#productCatalog9419.active',{state:'visible',timeout:6000})}catch(e){const trace=await page.evaluate(()=>window.__hlgbUi9419Trace||[]);throw new Error('Catálogo perdeu active durante pós-login. TRACE='+JSON.stringify(trace.slice(-120))) }
+  await page.waitForTimeout(1200);
+  const catalogStillActive=await page.evaluate(()=>document.getElementById('productCatalog9419')?.classList.contains('active'));
+  if(!catalogStillActive){const trace=await page.evaluate(()=>window.__hlgbUi9419Trace||[]);throw new Error('Catálogo abriu e depois perdeu active. TRACE='+JSON.stringify(trace.slice(-120)))}
   await page.waitForSelector('#hlgbCatGrid9419 .hlgb-cat9419-card',{state:'visible',timeout:10000});
   const catalog=await page.evaluate(()=>({
     nav:String(document.getElementById('hlgbProductCatalogNav9419')?.textContent||'').trim(),
@@ -98,6 +110,6 @@ const {webkit}=require('playwright');
 
   const relevant=errors.filter(x=>/9419|catalog|payroll|topbar|cloud|background|produto|folha/i.test(x));
   if(relevant.length)throw new Error('pageerror relacionado ao v94.19: '+relevant.join(' | '));
-  console.log('HLGB_USER_UI_WEBKIT_V9419_OK',JSON.stringify({shellVisual,catalog,payroll}));
+  console.log('HLGB_USER_UI_WEBKIT_V9419_OK',JSON.stringify({shellVisual,catalog,payroll,trace:(await page.evaluate(()=>window.__hlgbUi9419Trace||[])).slice(-40)}));
   await browser.close();
 })().catch(e=>{console.error(e);process.exit(1)});
