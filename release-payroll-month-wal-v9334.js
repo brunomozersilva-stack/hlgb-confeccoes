@@ -3,7 +3,8 @@
    Trata como redundante apenas quando todos os campos, exceto updatedAt, são idênticos.
    Patch 2026-10-24: este módulo não envolve mais hlgbRecordSaveWithRetry.
    A interceptação de save técnico da folha fica centralizada na autoridade v93.56;
-   v93.44 permanece responsável por normalização/poda do WAL e carregamento das autoridades auxiliares. */
+   v93.44 permanece responsável por normalização/poda do WAL e carregamento das autoridades auxiliares.
+   Patch v94.39: app-stable3 é a única autoridade de carregamento do v9339. */
 (function(){
 'use strict';
 const V='93.44',WAL_KEY='hlgb_durable_wal_v1',ARC_KEY='hlgb_durable_wal_archive_v1',DB_NAME='hlgb_durable_wal',STORE='entries',MAX_ARCH=250;
@@ -45,21 +46,15 @@ async function pruneRedundantPayrollMonthWal(){
  return {removed:removed.length,keys:removed.map(x=>x.key)};
 }
 function stamp(){try{const cur=parseFloat(String(window.HLGB_RELEASE_VERSION||'0'))||0;if(cur<93.44){window.HLGB_RELEASE_VERSION=V;const el=document.querySelector('#appShell .logo small');if(el)el.textContent='v'+V}}catch(e){}}
+/* v94.39: não injeta mais release-wal-single-authority-v9339.js.
+   O arquivo oficial é carregado apenas por app-stable3. Quando estiver disponível,
+   este módulo apenas reutiliza sua API e solicita manutenção. */
 function loadWalSingleAuthority(){
  try{
-  const cur=parseFloat(String(window.hlgbWalSingleAuthority9339?.version||window.HLGB_WAL_SINGLE_AUTHORITY_9339||'0'))||0;
-  if(cur>=93.48)return true;
-  const selector='script[data-hlgb-wal-authority="9339"],script[data-hlgb-wal-authority-upgrade="9348"]';
-  const existing=document.querySelector(selector);
-  if(cur===0&&existing)return true;
-  if(cur>0&&cur<93.48){
-   try{window.HLGB_WAL_SINGLE_AUTHORITY_9339=''}catch(e){}
-   document.querySelectorAll(selector).forEach(x=>{try{x.remove()}catch(e){}});
-  }else if(existing)return true;
-  const s=document.createElement('script');s.dataset.hlgbWalAuthority='9339';s.src='./release-wal-single-authority-v9339.js?fresh='+Date.now();
-  s.onerror=()=>console.warn('[HLGB v93.44] autoridade WAL v93.48 não carregou');
-  (document.head||document.documentElement).appendChild(s);return true;
- }catch(e){console.warn('[HLGB v93.44] autoridade WAL indisponível',e);return false}
+  const api=window.hlgbWalSingleAuthority9339,cur=parseFloat(String(api?.version||window.HLGB_WAL_SINGLE_AUTHORITY_9339||'0'))||0;
+  if(cur>=93.48){try{api?.maintain?.()}catch(e){};return true}
+  return false;
+ }catch(e){console.warn('[HLGB v93.44] autoridade WAL ainda não disponível',e);return false}
 }
 function loadReliableGuard(){
  try{
@@ -72,6 +67,6 @@ function loadReliableGuard(){
 function loadReliableGuardAfterParser(){setTimeout(()=>loadReliableGuard(),0)}
 async function boot(){stamp();loadWalSingleAuthority();loadReliableGuard();const out=await pruneRedundantPayrollMonthWal();if(out.removed)console.info('[HLGB] v'+V+' removeu WAL mensal redundante da folha',out.keys);setTimeout(()=>{stamp();loadWalSingleAuthority();loadReliableGuard();window.hlgbWalConfirmedReplay9333?.run?.('v9344-after-prune',true)},350)}
 stamp();loadWalSingleAuthority();loadReliableGuardAfterParser();setTimeout(()=>boot().catch(e=>console.warn('[HLGB v93.44] folha mensal',e)),500);setTimeout(()=>{stamp();loadWalSingleAuthority();loadReliableGuard()},1800);setTimeout(()=>{stamp();loadWalSingleAuthority();loadReliableGuard()},4500);
-window.hlgbPayrollMonthWal9334={version:V,install,prune:pruneRedundantPayrollMonthWal,sameMeaning,loadWalSingleAuthority,loadReliableGuard,status:()=>({version:V,recordSaveDelegated:true,finalRecordGuardInstalled:chainHasMarker(window.hlgbRecordSaveWithRetry,'__hlgbPayrollWalRace9346')})};
+window.hlgbPayrollMonthWal9334={version:V,install,prune:pruneRedundantPayrollMonthWal,sameMeaning,loadWalSingleAuthority,loadReliableGuard,status:()=>({version:V,recordSaveDelegated:true,walAuthorityLoaded:loadWalSingleAuthority(),finalRecordGuardInstalled:chainHasMarker(window.hlgbRecordSaveWithRetry,'__hlgbPayrollWalRace9346')})};
 console.info('[HLGB] v'+V+' poda WAL mensal ativa · save delegado para v93.56');
 })();
