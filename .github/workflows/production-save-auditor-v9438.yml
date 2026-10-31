@@ -26,6 +26,8 @@ jobs:
         run: node --check release-wal-confirmed-replay-v9333.js
       - name: Sintaxe Auditor confiável v94.38
         run: node --check release-auditor-reliability-v9438.js
+      - name: Sintaxe multiplicidade de scripts v94.38
+        run: node --check release-auditor-script-multiplicity-v9438.js
       - name: Sintaxe estabilidade Relatórios v94.38
         run: node --check release-reports-stability-v9438.js
       - name: Sintaxe gate pós-login
