@@ -93,10 +93,6 @@ window.HLGB_SAFARI_WHITE_SCREEN_GUARD_9266=true;
 console.info('[HLGB] guarda Safari v92.66 ativo — settle preso não pode deixar a tela branca');
 })();
 
-/* v93.69 — ativa o Auditor aprovado no Safari sem alterar o carregador principal. */
-(function(){
- if(window.HLGB_AUDITOR_PRODUCTION_9369||document.querySelector('script[data-hlgb-auditor-production="9369"]'))return;
- const s=document.createElement('script');s.dataset.hlgbAuditorProduction='9369';s.src='./release-auditor-production-v9369.js?fresh='+Date.now();s.async=false;
- s.onerror=()=>console.error('[HLGB] não foi possível carregar o Auditor de produção v93.69');
- (document.head||document.documentElement).appendChild(s);
-})();
+/* v94.38: o Auditor de produção v93.69 é carregado exclusivamente pela lista
+   oficial de app-stable3.html. Não reinjetar aqui: a segunda carga reinstalava
+   handlers e fazia o Auditor reportar script duplicado em Safari e Chrome. */
