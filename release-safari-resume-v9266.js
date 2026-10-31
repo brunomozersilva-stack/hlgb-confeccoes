@@ -69,16 +69,15 @@ function watchdog(){
    try{const cs=getComputedStyle(active),r=active.getBoundingClientRect();if(cs.visibility==='hidden'||r.width<20||r.height<20){clearSettling('blank-watchdog');window.hlgbTabResume9262?.recover?.('v9266-watchdog')}}catch(e){}
  }
 }
+/* v94.39: app-stable3 é a única autoridade de carregamento do v9339.
+   O guarda Safari nunca mais cria uma segunda <script>; apenas reutiliza a autoridade
+   oficial quando ela já estiver disponível. */
 function ensureWalAuthorityUpgrade9348(){
  try{
-  const cur=parseFloat(String(window.hlgbWalSingleAuthority9339?.version||window.HLGB_WAL_SINGLE_AUTHORITY_9339||'0'))||0;
-  if(cur>=93.48)return true;
-  window.HLGB_WAL_SINGLE_AUTHORITY_9339='';
-  const old=document.querySelector('script[data-hlgb-wal-authority-upgrade="9348"]');if(old)old.remove();
-  const s=document.createElement('script');s.dataset.hlgbWalAuthorityUpgrade='9348';s.src='./release-wal-single-authority-v9339.js?fresh='+Date.now();
-  s.onerror=()=>console.warn('[HLGB] não foi possível carregar autoridade WAL v93.48');
-  (document.head||document.documentElement).appendChild(s);return true;
- }catch(e){console.warn('[HLGB] upgrade WAL v93.48 indisponível',e);return false}
+  const api=window.hlgbWalSingleAuthority9339,cur=parseFloat(String(api?.version||window.HLGB_WAL_SINGLE_AUTHORITY_9339||'0'))||0;
+  if(cur>=93.48){try{api?.maintain?.()}catch(e){};return true}
+  return false;
+ }catch(e){return false}
 }
 ensureStyle();watch();
 document.addEventListener('visibilitychange',()=>document.visibilityState==='hidden'?hidden():resumed('visibility'),true);
@@ -88,11 +87,11 @@ window.addEventListener('focus',()=>{if(document.visibilityState==='visible')res
 guardTimer=setInterval(watchdog,1800);
 setTimeout(ensureWalAuthorityUpgrade9348,120);
 setTimeout(ensureWalAuthorityUpgrade9348,1200);
+setTimeout(ensureWalAuthorityUpgrade9348,3500);
 window.hlgbSafariResume9266={version:V,clearSettling,resumed,hidden,watchdog,generation:()=>generation,ensureWalAuthorityUpgrade9348};
 window.HLGB_SAFARI_WHITE_SCREEN_GUARD_9266=true;
 console.info('[HLGB] guarda Safari v92.66 ativo — settle preso não pode deixar a tela branca');
 })();
 
-/* v94.38: o Auditor de produção v93.69 é carregado exclusivamente pela lista
-   oficial de app-stable3.html. Não reinjetar aqui: a segunda carga reinstalava
-   handlers e fazia o Auditor reportar script duplicado em Safari e Chrome. */
+/* v94.38+: o Auditor de produção v93.69 é carregado exclusivamente pela lista
+   oficial de app-stable3.html. Não reinjetar aqui. */

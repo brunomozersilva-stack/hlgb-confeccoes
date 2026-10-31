@@ -64,10 +64,13 @@ function base(){
   run('release-payroll-month-wal-v9334.js',c);
   const api=c.hlgbPayrollMonthWal9334;
   ok(api&&typeof api.loadWalSingleAuthority==='function','payroll WAL API ausente');
-  const walTags=()=>c.__scripts.filter(x=>x.dataset?.hlgbWalAuthority==='9339');
-  ok(walTags().length===1,'tag inicial da autoridade WAL não foi criada uma vez');
-  api.loadWalSingleAuthority();api.loadWalSingleAuthority();
-  ok(walTags().length===1,'loader WAL criou tag duplicada enquanto carregava');
+  const walTags=()=>c.__scripts.filter(x=>x.dataset?.hlgbWalAuthority==='9339'||x.dataset?.hlgbWalAuthorityUpgrade==='9348');
+  ok(walTags().length===0,'payroll WAL voltou a injetar autoridade v9339 dinamicamente');
+  let maintained=0;c.HLGB_WAL_SINGLE_AUTHORITY_9339='93.48';c.hlgbWalSingleAuthority9339={version:'93.48',maintain:()=>{maintained++}};
+  ok(api.loadWalSingleAuthority()===true,'payroll WAL não reutilizou autoridade oficial já carregada');
+  api.loadWalSingleAuthority();
+  ok(maintained===2,'autoridade oficial não recebeu manutenção esperada');
+  ok(walTags().length===0,'reuso da autoridade oficial criou tag dinâmica');
  }
  {
   const c=base();c.db={hubFinanceEntries:[]};c.hlgbRecordSaveWithRetry=async()=>({applied:true});
@@ -107,6 +110,9 @@ function base(){
   for(const file of explicit){const count=router.split("'"+file+"'").length-1;ok(count===1,'script explícito deve aparecer uma vez no roteador: '+file+' count='+count)}
   ok(router.includes("'release-wal-confirmed-replay-v9333.js'"),'replay confirmado ausente');
   ok(router.includes("'release-payroll-wal-race-v9346.js'"),'autoridade final da folha ausente');
+  const payroll=source('release-payroll-month-wal-v9334.js'),safari=source('release-safari-resume-v9266.js');
+  ok(!payroll.includes("s.src='./release-wal-single-authority-v9339.js"),'Folha voltou a reinjetar v9339');
+  ok(!safari.includes("s.src='./release-wal-single-authority-v9339.js"),'Safari voltou a reinjetar v9339');
  }
  {
   const c=base(),normal='https://example.test/release-auditor-build-marker-v9396.js?fresh=1',probe='https://example.test/release-auditor-build-marker-v9396.js?hlgb_audit_fresh=2';
@@ -122,5 +128,5 @@ function base(){
   ok(cmp.items.find(x=>x.key==='hiddenRenders')?.state==='improved','melhoria de render oculto foi perdida');
   ok(cmp.summary.regressed===0,'contagem informativa criou regressão falsa');
  }
- console.log('AUDITOR_BOOT_DEDUPE_V9398_OK',JSON.stringify({syncGuardAuthority:true,persistentCutGate:true,restoreLoadsAllowed:true,cutViewNoAuthAuthority:true,walSingleFlight:true,reliableParserDedupe:true,restoreClassification:true,explicitHotfixScriptsSingle:true,auditorFalsePositiveFilter:true}));
+ console.log('AUDITOR_BOOT_DEDUPE_V9398_OK',JSON.stringify({syncGuardAuthority:true,persistentCutGate:true,restoreLoadsAllowed:true,cutViewNoAuthAuthority:true,walSingleAuthorityNoReinject:true,reliableParserDedupe:true,restoreClassification:true,explicitHotfixScriptsSingle:true,auditorFalsePositiveFilter:true}));
 })().catch(e=>{console.error(e.stack||e);process.exit(1)});
