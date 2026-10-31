@@ -4,7 +4,7 @@
 'use strict';
 const V='94.07',CLASS='hlgb-login-confirmed-9407',STYLE='hlgbLoginConfirmGate9407Style';
 const root=document.documentElement;
-let authenticatedObserved=false,lastReleaseReason='',ackLoading9436=false;
+let authenticatedObserved=false,lastReleaseReason='',ackLoading9436=false,rapidLoading9437=false;
 window.__HLGB_LOGIN_CONFIRM_REQUIRED_9407=true;
 window.__HLGB_LOGIN_CONFIRMED_9407=false;
 function ensureStyle(){
@@ -42,6 +42,20 @@ function loadAckReconcile9436(reason){
  }catch(e){ackLoading9436=false;console.warn('[HLGB 94.36] loader pós-login',e);return false}
 }
 function armAckReconcile9436(reason){[0,60,180,500,1200].forEach(ms=>setTimeout(()=>loadAckReconcile9436(reason),ms))}
+function loadRapid9437(reason){
+ if(window.__HLGB_AUTH_READY!==true)return false;
+ if(window.HLGB_AUDITOR_RAPID_9437==='94.37'){try{window.hlgbAuditorRapid9437?.activate?.(reason||'already-loaded')}catch(e){}return true}
+ if(document.querySelector('script[data-hlgb-auditor-rapid-9437]'))return true;
+ if(rapidLoading9437)return false;
+ rapidLoading9437=true;
+ try{
+  const s=document.createElement('script');s.src='./release-auditor-rapid-learning-v9437.js?fresh='+Date.now();s.async=false;s.setAttribute('data-hlgb-auditor-rapid-9437','1');
+  s.onload=()=>{rapidLoading9437=false;try{window.hlgbAuditorRapid9437?.activate?.(reason||'authenticated-load')}catch(e){}};
+  s.onerror=()=>{rapidLoading9437=false;try{s.remove()}catch(e){}console.warn('[HLGB 94.37] não foi possível carregar aprendizado rápido pós-login')};
+  (document.head||root).appendChild(s);return true;
+ }catch(e){rapidLoading9437=false;console.warn('[HLGB 94.37] loader pós-login',e);return false}
+}
+function armRapid9437(reason){[250,700,1500].forEach(ms=>setTimeout(()=>loadRapid9437(reason),ms))}
 function confirm(){window.__HLGB_LOGIN_CONFIRMED_9407=true;root.classList.add(CLASS);return true}
 function reset(){window.__HLGB_LOGIN_CONFIRMED_9407=false;authenticatedObserved=false;lastReleaseReason='';root.classList.remove(CLASS);ensureStyle();return true}
 function settleRestored(reason){
@@ -62,9 +76,9 @@ function onAction(e){
  if(reason){try{e.preventDefault()}catch(_){}try{e.stopImmediatePropagation()}catch(_){}settleRestored(reason)}
 }
 ensureStyle();
-window.addEventListener('hlgb:authenticated',()=>{authenticatedObserved=true;armAckReconcile9436('authenticated-event')},true);
+window.addEventListener('hlgb:authenticated',()=>{authenticatedObserved=true;armAckReconcile9436('authenticated-event');armRapid9437('authenticated-event')},true);
 document.addEventListener('click',onAction,true);document.addEventListener('keydown',onAction,true);
-if(window.__HLGB_AUTH_READY===true)armAckReconcile9436('already-authenticated');
-window.hlgbLoginConfirmGate9407={version:V,confirm,reset,restoredSessionReady,loadAckReconcile9436,status:()=>({version:V,required:true,confirmed:root.classList.contains(CLASS),authenticatedObserved,authReady:window.__HLGB_AUTH_READY===true,restoredReady:window.__HLGB_RESTORED_SESSION_READY===true,restoredAlreadyOpened:restoredAlreadyOpened(),releaseReason:lastReleaseReason,ackReconcileLoaded:window.HLGB_ACK_RECONCILE_9436==='94.36'})};
+if(window.__HLGB_AUTH_READY===true){armAckReconcile9436('already-authenticated');armRapid9437('already-authenticated')}
+window.hlgbLoginConfirmGate9407={version:V,confirm,reset,restoredSessionReady,loadAckReconcile9436,loadRapid9437,status:()=>({version:V,required:true,confirmed:root.classList.contains(CLASS),authenticatedObserved,authReady:window.__HLGB_AUTH_READY===true,restoredReady:window.__HLGB_RESTORED_SESSION_READY===true,restoredAlreadyOpened:restoredAlreadyOpened(),releaseReason:lastReleaseReason,ackReconcileLoaded:window.HLGB_ACK_RECONCILE_9436==='94.36',rapidLearningLoaded:window.HLGB_AUDITOR_RAPID_9437==='94.37'})};
 console.info('[HLGB] v'+V+' confirmação explícita de login ativa');
 })();

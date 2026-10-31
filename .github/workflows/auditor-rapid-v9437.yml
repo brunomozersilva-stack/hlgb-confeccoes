@@ -1,0 +1,49 @@
+name: HLGB Auditor Rapid v94.37
+on:
+  push:
+    branches:
+      - main
+      - fix/auditor-rapid-learning-v9437
+  pull_request:
+    branches:
+      - main
+jobs:
+  logic:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Sintaxe aprendizado rápido
+        run: node --check release-auditor-rapid-learning-v9437.js
+      - name: Sintaxe gate pós-login
+        run: node --check release-login-confirm-gate-v9407.js
+      - name: Contratos v94.37
+        run: node tests/auditor-rapid-learning-v9437.js
+      - name: Regressão da autoridade de login
+        run: node tests/runtime-login-ready-v9378.js
+  webkit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Instalar Playwright WebKit
+        run: |
+          npm install --no-save playwright@1.55.0
+          npx playwright install --with-deps webkit
+      - name: Iniciar servidor local
+        run: |
+          python3 -m http.server 4173 >/tmp/hlgb-9437-http.log 2>&1 &
+          echo $! >/tmp/hlgb-9437-http.pid
+          sleep 2
+      - name: Login real continua abrindo
+        run: node tests/login-3d-v9409-webkit.js
+      - name: Auditor continua com um botão
+        run: node tests/auditor-single-ui-v9434a-webkit.js
+      - name: Aprendizado rápido + relatório 18h
+        run: node tests/auditor-rapid-learning-v9437-webkit.js
