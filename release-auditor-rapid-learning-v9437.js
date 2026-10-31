@@ -1,5 +1,6 @@
 /* HLGB v94.37 — aprendizado rápido pós-login + relatório diário das 18h + estabilização adaptativa de renders.
-   Não participa do boot/login. Não grava dados de negócio. Mantém um único botão principal no Auditor. */
+   Não participa do boot/login. Não grava dados de negócio. Mantém um único botão principal no Auditor.
+   v94.39: a rodada automática das 18h monta o relatório sem executar varreduras que navegam pelas telas. */
 (function(){
 'use strict';
 const V='94.37';
@@ -177,12 +178,21 @@ function renderReportStatus(){
  c.innerHTML='<b>'+label+'</b><div class="sub">O aprendizado rápido coleta sinais durante o uso; não depende só de clicar no Auditor.</div>'+(ready?'<div style="margin-top:8px"><button id="hlgbDaily18CardDownload9437" type="button" class="secondary">⬇️ Baixar relatório das 18h</button></div>':'<div class="sub">Próxima referência: '+p2(next.getHours())+':'+p2(next.getMinutes())+'.</div>');
  c.querySelector('#hlgbDaily18CardDownload9437')?.addEventListener('click',()=>window.hlgbAuditorSingleAction9429?.downloadDaily?.(readJson(DAILY_LATEST_KEY,null)));return true;
 }
+async function runDailyNonNavigating(api){
+ let main=null;
+ if(typeof window.hlgbInternalAuditor?.run==='function')main=await window.hlgbInternalAuditor.run('full',true);
+ else if(typeof window.hlgbAuditorRunFull==='function')main=await window.hlgbAuditorRunFull();
+ else throw new Error('Auditoria automática não navegante indisponível.');
+ const deep=typeof api?.collectDeep==='function'?await api.collectDeep():{};
+ const daily=typeof api?.buildDailyReport==='function'?api.buildDailyReport(main,deep):api?.latestDaily;
+ return {version:V,at:iso(),main,deep,daily,background:true,nonNavigating:true};
+}
 async function runDaily18(trigger='timer',force=false){
  if(!authReady())return false;if(!force&&!after18())return false;if(!force&&scheduledToday()){showReady(readJson(DAILY_LATEST_KEY,null));renderReportStatus();return true}
- const api=window.hlgbAuditorSingleAction9429;if(typeof api?.run!=='function')return false;
+ const api=window.hlgbAuditorSingleAction9429;if(!api||typeof api?.buildDailyReport!=='function')return false;
  state.daily18={date:localDay(),status:'running',generatedAt:'',trigger,lastError:''};writeJson(DAILY_STATE_KEY,state.daily18);persist();renderReportStatus();
  try{
-  const out=await api.run(),report=enrichDaily(out?.daily||api.latestDaily||readJson(DAILY_LATEST_KEY,null),trigger);if(!report)throw new Error('Auditor não gerou relatório diário.');
+  const out=await runDailyNonNavigating(api),report=enrichDaily(out?.daily||api.latestDaily||readJson(DAILY_LATEST_KEY,null),trigger);if(!report)throw new Error('Auditor não gerou relatório diário.');
   state.daily18={date:localDay(),status:'ready',generatedAt:iso(),trigger,lastError:''};writeJson(DAILY_STATE_KEY,state.daily18);persist();showReady(report);renderReportStatus();return report;
  }catch(e){state.daily18={date:localDay(),status:'error',generatedAt:'',trigger,lastError:sid(e?.message||e)};writeJson(DAILY_STATE_KEY,state.daily18);state.lastError=state.daily18.lastError;persist();return false}
 }
@@ -206,7 +216,7 @@ window.addEventListener('focus',()=>{if(authReady()){sample('focus');scheduleDai
 document.addEventListener('visibilitychange',()=>{if(!document.hidden&&authReady()){sample('visible');scheduleDaily();renderReportStatus()}});
 window.addEventListener('hlgb:auditor:open',()=>setTimeout(renderReportStatus,50));
 window.addEventListener('hlgb:authenticated',()=>activate('authenticated-event'));
-window.hlgbAuditorRapid9437={version:V,state,activate,heal,sample,captureNow:sample,fullLearn,runDaily18,showReportStatus:renderReportStatus,installRenderGuards,rapidHistory:rapidRows,status:()=>({...state,authReady:authReady(),rapidHistoryCount:rapidRows().length,dailyStored:readJson(DAILY_STATE_KEY,null),after18:after18()})};
+window.hlgbAuditorRapid9437={version:V,state,activate,heal,sample,captureNow:sample,fullLearn,runDaily18,runDailyNonNavigating,showReportStatus:renderReportStatus,installRenderGuards,rapidHistory:rapidRows,status:()=>({...state,authReady:authReady(),rapidHistoryCount:rapidRows().length,dailyStored:readJson(DAILY_STATE_KEY,null),after18:after18()})};
 if(authReady())activate('loaded-after-auth');else persist();
 console.info('[HLGB] v'+V+' aprendizado rápido pós-login ativo · relatório diário às 18h · proteção adaptativa contra saltos de tela');
 })();
