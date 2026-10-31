@@ -20,6 +20,7 @@ jobs:
           set -euo pipefail
           node --check release-product-catalog-v9419.js
           node --check tests/audit-user-ui-v9419-webkit.js
+          node --check tests/navigation-race-v9439-webkit.js
           node --check tests/audit-cut-grade-matrix-v9421-webkit.js
           node tests/audit-user-ui-requests-v9419.cjs
           node tests/audit-cut-grade-matrix-v9421.cjs
@@ -48,6 +49,9 @@ jobs:
             npx --yes http-server@14.1.1 -p 4173 -c-1 >/tmp/hlgb-ui9419-http.log 2>&1 &
           fi
           sleep 2
+      - name: Diagnosticar corrida de navegação v94.39
+        continue-on-error: true
+        run: node tests/navigation-race-v9439-webkit.js
       - name: Validar fundo, topbar, catálogo e folha no WebKit
         run: node tests/audit-user-ui-v9419-webkit.js
       - name: Validar ajustar grade horizontal no WebKit
