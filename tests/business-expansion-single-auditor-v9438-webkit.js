@@ -1,0 +1,23 @@
+const {webkit}=require('playwright');
+(async()=>{
+ const browser=await webkit.launch({headless:true});
+ const page=await browser.newPage({viewport:{width:1365,height:900}});
+ const errors=[];page.on('pageerror',e=>errors.push(String(e.message||e)));
+ await page.goto('http://127.0.0.1:4173/app-stable3.html',{waitUntil:'domcontentloaded',timeout:60000});
+ await page.waitForFunction(()=>window.hlgbBusinessExpansion9400?.version==='94.00'&&window.hlgbAuditorBusiness9401?.version==='94.01'&&window.HLGB_AUDITOR_SINGLE_UI_RECLAIM_9434A==='94.34a'&&typeof window.hlgbAuditorSingleAction9429?.run==='function',null,{timeout:60000});
+ await page.evaluate(()=>{window.__HLGB_AUTH_READY=true;window.dispatchEvent(new Event('hlgb:authenticated'));const l=document.getElementById('loginScreen');if(l)l.style.setProperty('display','none','important');const a=document.getElementById('appShell');if(a){a.style.setProperty('display','block','important');a.style.setProperty('visibility','visible','important')}});
+ await page.waitForFunction(()=>typeof window.openHlgbAuditor==='function',null,{timeout:30000});
+ await page.evaluate(()=>window.openHlgbAuditor());
+ await page.waitForSelector('#hlgbSmartStatus',{state:'visible',timeout:10000});
+ await page.waitForFunction(()=>{window.hlgbAuditorSingleUiReclaim9434A?.heal?.('business-v9438');const b=document.getElementById('hlgbAuditorUnifiedRun9434A');if(!b)return false;const s=getComputedStyle(b),r=b.getBoundingClientRect();return !b.hidden&&s.display!=='none'&&s.visibility!=='hidden'&&r.width>0&&r.height>0},null,{timeout:10000});
+ const ui=await page.evaluate(()=>{const visible=e=>{if(!e)return false;const s=getComputedStyle(e),r=e.getBoundingClientRect();return !e.hidden&&s.display!=='none'&&s.visibility!=='hidden'&&r.width>0&&r.height>0};const unified=document.getElementById('hlgbAuditorUnifiedRun9434A'),legacy=document.getElementById('hlgbAuditorBusinessBtn9401');return {unifiedVisible:visible(unified),unifiedText:String(unified?.textContent||'').trim(),unifiedHandler:typeof unified?.onclick==='function',legacyBusinessVisible:visible(legacy),authority:window.HLGB_AUDITOR_SHELL_AUTHORITY}});
+ if(!ui.unifiedVisible||ui.unifiedText!=='🧪 Auditar sistema'||!ui.unifiedHandler||ui.legacyBusinessVisible||ui.authority!=='93.82')throw new Error('Expansão não está integrada ao Auditor único '+JSON.stringify(ui));
+ const audit=await page.evaluate(async()=>{const r=await window.hlgbAuditorBusiness9401.runAndRender();return {readOnly:r.readOnly,summary:r.summary,sourceViolations:r.source?.violations||[],saveBusinessNodes:r.saveBusinessNodes||[]}});
+ if(audit.readOnly!==true||audit.sourceViolations.length||audit.saveBusinessNodes.length)throw new Error('isolamento da Expansão falhou '+JSON.stringify(audit));
+ await page.waitForFunction(()=>/Expansão v94/.test(document.getElementById('hlgbAuditorResult')?.innerText||''),null,{timeout:15000});
+ const text=await page.locator('#hlgbAuditorResult').innerText();if(!/Somente leitura/i.test(text)||!/WhatsApp/i.test(text)||!/E-mail/i.test(text))throw new Error('diagnóstico da Expansão incompleto: '+text);
+ await page.screenshot({path:'/tmp/hlgb-auditor-business-v9401-webkit.png',fullPage:true});
+ if(errors.some(x=>/9400|9401|business|auditor/i.test(x)))throw new Error('pageerror relacionado à Expansão/Auditor: '+errors.join(' | '));
+ console.log('BUSINESS_EXPANSION_SINGLE_AUDITOR_V9438_WEBKIT_OK',JSON.stringify({ui,audit}));
+ await browser.close();
+})().catch(e=>{console.error(e);process.exit(1)});
