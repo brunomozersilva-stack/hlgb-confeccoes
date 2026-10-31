@@ -67,7 +67,10 @@ const kind=process.env.HLGB_BROWSER||'webkit',engine=kind==='chromium'?chromium:
  if(trace.length)throw new Error('Safari/loader ainda injetou v9339 dinamicamente '+JSON.stringify(trace));
  const gate=await page.evaluate(()=>window.hlgbLoginConfirmGate9407?.status?.());
  if(!gate?.productionReconcileLoaded||!gate?.productionPostSaveLoaded||!gate?.auditorFinalizerLoaded)throw new Error('gate não confirmou v94.39 '+JSON.stringify(gate));
- const visible=await page.evaluate(()=>{const vis=e=>{if(!e)return false;const s=getComputedStyle(e),r=e.getBoundingClientRect();return s.display!=='none'&&s.visibility!=='hidden'&&r.width>0&&r.height>0};const h=document.querySelector('.hlgb-auditor-actions');return h?[...h.querySelectorAll(':scope>button')].filter(vis).map(x=>x.id):[]});
+ await page.waitForFunction(()=>typeof window.openHlgbAuditor==='function',null,{timeout:15000});
+ await page.evaluate(()=>{window.openHlgbAuditor();window.hlgbAuditorSingleUiReclaim9434A?.heal?.('v9439-browser-test')});
+ await page.waitForFunction(()=>{window.hlgbAuditorSingleUiReclaim9434A?.heal?.('v9439-browser-wait');const b=document.getElementById('hlgbAuditorUnifiedRun9434A');if(!b)return false;const s=getComputedStyle(b),r=b.getBoundingClientRect();return !b.hidden&&s.display!=='none'&&s.visibility!=='hidden'&&r.width>0&&r.height>0},null,{timeout:15000});
+ const visible=await page.evaluate(()=>{window.hlgbAuditorSingleUiReclaim9434A?.heal?.('v9439-browser-final');const vis=e=>{if(!e)return false;const s=getComputedStyle(e),r=e.getBoundingClientRect();return !e.hidden&&s.display!=='none'&&s.visibility!=='hidden'&&r.width>0&&r.height>0};const h=document.querySelector('.hlgb-auditor-actions');return h?[...h.querySelectorAll(':scope>button')].filter(vis).map(x=>x.id):[]});
  if(visible.length!==1||visible[0]!=='hlgbAuditorUnifiedRun9434A')throw new Error('Auditor deixou de ter um botão '+JSON.stringify(visible));
  if(errors.some(x=>/9439|production-reconcile|auditor-finalize/i.test(x)))throw new Error('pageerror v94.39 '+errors.join(' | '));
  console.log('PRODUCTION_AUDITOR_V9439_'+kind.toUpperCase()+'_OK',JSON.stringify({production,postSave,finalizer:{appVersion:finalizer.fixed.appVersion,baselineReason:finalizer.fixed.regression.reason,futureRejected:!!finalizer.fixed.latestAuditRejected},raw9339,gate,visible}));
