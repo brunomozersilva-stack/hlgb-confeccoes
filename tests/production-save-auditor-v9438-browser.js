@@ -5,6 +5,13 @@ const engine=kind==='chromium'?chromium:webkit;
  const browser=await engine.launch({headless:true});
  const page=await browser.newPage({viewport:{width:1280,height:900}});
  const errors=[],requests=[];
+ await page.addInitScript(()=>{
+  window.__hlgbDynamicScriptTrace9438=[];
+  const watch=node=>{try{if(node?.tagName==='SCRIPT'){const src=String(node.src||node.getAttribute?.('src')||'');if(/(?:9369|9339|9332)\.js/i.test(src))window.__hlgbDynamicScriptTrace9438.push({src,stack:String(new Error().stack||'').slice(0,2400)})}}catch(e){}};
+  const ap=Node.prototype.appendChild,ib=Node.prototype.insertBefore;
+  Node.prototype.appendChild=function(node){watch(node);return ap.apply(this,arguments)};
+  Node.prototype.insertBefore=function(node){watch(node);return ib.apply(this,arguments)};
+ });
  page.on('pageerror',e=>errors.push(String(e.message||e)));
  page.on('request',r=>{try{requests.push(new URL(r.url()).pathname.split('/').pop())}catch(e){}});
  await page.goto('http://127.0.0.1:4173/app-stable3.html',{waitUntil:'domcontentloaded',timeout:60000});
@@ -49,16 +56,17 @@ const engine=kind==='chromium'?chromium:webkit;
   const last={at:now.toISOString(),main:{summary:{pass:76,warn:3,fail:0},operational:{summary:{pass:12,warn:0,fail:2}}}};
   const patched=window.hlgbAuditorReliability9438.patchReport(report,last,'browser-v9438');
   const retry=patched.pendingEvidence.find(x=>x.id==='1793299026551');
-  const mem=window.hlgbAuditorReliability9438.problemMemory();
-  const key=mem.find(x=>x.key.includes('production|1793299026551'))?.key;
-  const feedback=key?window.hlgbAuditorReliability9438.feedback(key,'continua'):false;
-  return {appVersion:patched.appVersion,auditorVersion:patched.auditorVersion,roundId:patched.roundId,breakdown:patched.resultBreakdown,retry,oldComparison:patched.intelligence.comparison,reliable:patched.reliableComparison,healthy:patched.healthyReference,feedback,key,confidence:patched.confidence};
+  const feedbackKey='retry:production|1793299026551';
+  const feedback=window.hlgbAuditorReliability9438.feedback(feedbackKey,'continua');
+  const feedbackRows=JSON.parse(localStorage.getItem('hlgb_auditor_feedback_v9438')||'[]');
+  let currentMetrics=null;try{currentMetrics=window.hlgbAuditorIntelligence9396?.currentMetrics?.()||null}catch(e){}
+  return {appVersion:patched.appVersion,auditorVersion:patched.auditorVersion,roundId:patched.roundId,breakdown:patched.resultBreakdown,retry,oldComparison:patched.intelligence.comparison,reliable:patched.reliableComparison,healthy:patched.healthyReference,feedback,feedbackStored:feedbackRows.some(x=>x.problemKey===feedbackKey&&x.value==='continua'),confidence:patched.confidence,currentMetrics};
  });
  if(reliability.appVersion!=='94.38'||!reliability.roundId)throw new Error('identidade da rodada/app inconsistente '+JSON.stringify(reliability));
  if(reliability.breakdown?.checks?.pass!==76||reliability.breakdown?.checks?.warn!==3||reliability.breakdown?.operations?.fail!==2)throw new Error('resultado Falhou não foi separado '+JSON.stringify(reliability.breakdown));
  if(reliability.oldComparison?.available!==false||reliability.oldComparison?.reason!=='baseline-too-close')throw new Error('baseline de 1ms ainda foi aceito '+JSON.stringify(reliability.oldComparison));
  if(reliability.healthy?.validated!==false)throw new Error('baseline saudável não deveria ser atualizado com pendência/falha '+JSON.stringify(reliability.healthy));
- if(!reliability.feedback)throw new Error('feedback por problema não foi persistido '+JSON.stringify(reliability));
+ if(!reliability.feedback||!reliability.feedbackStored)throw new Error('feedback por problema não foi persistido '+JSON.stringify(reliability));
 
  const reports=await page.evaluate(async()=>{
   const btn=[...document.querySelectorAll('#appShell button,aside button,nav button')].find(x=>/relat/i.test(String(x.textContent||'')));
@@ -77,12 +85,15 @@ const engine=kind==='chromium'?chromium:webkit;
  });
  if(Math.abs(reports.after-reports.before)>12||reports.focusId!=='hlgbReportDateTest9438'||reports.value!=='2026-10-31')throw new Error('Relatórios não preservou posição/foco/filtro '+JSON.stringify(reports));
 
- const dup={};for(const f of ['release-auditor-production-v9369.js','release-wal-replay-bridge-v9332.js','release-wal-confirmed-replay-v9333.js'])dup[f]=requests.filter(x=>x===f).length;
+ const dup={};for(const f of ['release-auditor-production-v9369.js','release-wal-replay-bridge-v9332.js','release-wal-single-authority-v9339.js'])dup[f]=requests.filter(x=>x===f).length;
  const duplicated=Object.entries(dup).filter(([,n])=>n>1);
- if(duplicated.length)throw new Error('scripts ainda carregados mais de uma vez '+JSON.stringify(dup));
+ const trace=await page.evaluate(()=>window.__hlgbDynamicScriptTrace9438||[]);
+ if(duplicated.length)throw new Error('scripts ainda carregados mais de uma vez '+JSON.stringify({dup,trace}));
+ const saveDup=Number(reliability.currentMetrics?.saveChain?.duplicateResponsibilities??reliability.currentMetrics?.saveDuplicateResponsibilities??0);
+ if(saveDup>0)throw new Error('responsabilidade de save ainda duplicada '+JSON.stringify({saveDup,saveChain:reliability.currentMetrics?.saveChain||null}));
  const gate=await page.evaluate(()=>window.hlgbLoginConfirmGate9407?.status?.());
  if(!gate?.productionConfirmLoaded||!gate?.auditorReliabilityLoaded||!gate?.reportsStabilityLoaded)throw new Error('gate pós-login não confirmou v94.38 '+JSON.stringify(gate));
  if(errors.some(x=>/9438|production-save-confirm|auditor-reliability|reports-stability/i.test(x)))throw new Error('pageerror v94.38 '+errors.join(' | '));
- console.log('PRODUCTION_SAVE_AUDITOR_V9438_'+kind.toUpperCase()+'_OK',JSON.stringify({lostAck:{verifiedBy:lostAck.out.verifiedBy,reconcileCalls:lostAck.reconcileCalls,retryLoop:lostAck.q.retryLoop,ageMs:lostAck.q.ageMs},reliability:{roundId:reliability.roundId,breakdown:reliability.breakdown,oldComparison:reliability.oldComparison},reports,dup,gate}));
+ console.log('PRODUCTION_SAVE_AUDITOR_V9438_'+kind.toUpperCase()+'_OK',JSON.stringify({lostAck:{verifiedBy:lostAck.out.verifiedBy,reconcileCalls:lostAck.reconcileCalls,retryLoop:lostAck.q.retryLoop,ageMs:lostAck.q.ageMs},reliability:{roundId:reliability.roundId,breakdown:reliability.breakdown,oldComparison:reliability.oldComparison,saveChain:reliability.currentMetrics?.saveChain||null},reports,dup,trace,gate}));
  await browser.close();
 })().catch(e=>{console.error(e);process.exit(1)});
