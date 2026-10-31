@@ -1,0 +1,88 @@
+name: HLGB Production Save + Auditor v94.38
+on:
+  push:
+    branches:
+      - main
+      - fix/production-save-auditor-v9438
+  pull_request:
+    branches:
+      - main
+permissions:
+  contents: read
+  issues: write
+  pull-requests: write
+jobs:
+  logic:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Sintaxe confirmação Produção v94.38
+        run: node --check release-production-save-confirm-v9438.js
+      - name: Sintaxe replay WAL v94.38
+        run: node --check release-wal-confirmed-replay-v9333.js
+      - name: Sintaxe Auditor confiável v94.38
+        run: node --check release-auditor-reliability-v9438.js
+      - name: Sintaxe multiplicidade de scripts v94.38
+        run: node --check release-auditor-script-multiplicity-v9438.js
+      - name: Sintaxe estabilidade Relatórios v94.38
+        run: node --check release-reports-stability-v9438.js
+      - name: Sintaxe gate pós-login
+        run: node --check release-login-confirm-gate-v9407.js
+      - name: Regressão de login
+        run: node tests/runtime-login-ready-v9378.js
+  browser:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        browser: [webkit, chromium]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Instalar Playwright ${{ matrix.browser }}
+        run: |
+          npm install --no-save playwright@1.55.0
+          npx playwright install --with-deps ${{ matrix.browser }}
+      - name: Iniciar servidor local
+        run: |
+          python3 -m http.server 4173 >/tmp/hlgb-9438-http.log 2>&1 &
+          echo $! >/tmp/hlgb-9438-http.pid
+          sleep 2
+      - name: Executar diagnóstico — ${{ matrix.browser }}
+        id: browser_test
+        env:
+          HLGB_BROWSER: ${{ matrix.browser }}
+        shell: bash
+        run: |
+          set +e
+          node tests/production-save-auditor-v9438-browser.js > /tmp/hlgb-9438-browser.log 2>&1
+          code=$?
+          cat /tmp/hlgb-9438-browser.log
+          echo "code=$code" >> "$GITHUB_OUTPUT"
+          exit 0
+      - name: Publicar diagnóstico no PR #96
+        if: steps.browser_test.outputs.code != '0' && github.ref_name == 'fix/production-save-auditor-v9438'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          tail -c 50000 /tmp/hlgb-9438-browser.log > /tmp/hlgb-9438-tail.log
+          {
+            echo "### Diagnóstico v94.38 — ${{ matrix.browser }}"
+            echo
+            echo '```text'
+            cat /tmp/hlgb-9438-tail.log
+            echo '```'
+          } > /tmp/hlgb-9438-comment.md
+          gh api "repos/${GITHUB_REPOSITORY}/issues/96/comments" --input /tmp/hlgb-9438-comment.json >/dev/null 2>&1 || \
+          gh pr comment 96 --body-file /tmp/hlgb-9438-comment.md
+      - name: Falhar se o diagnóstico encontrou problema
+        if: steps.browser_test.outputs.code != '0'
+        run: exit 1

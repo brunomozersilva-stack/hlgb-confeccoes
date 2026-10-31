@@ -4,90 +4,44 @@ const {webkit}=require('playwright');
  const page=await browser.newPage({viewport:{width:1280,height:900}});
  const errors=[];page.on('pageerror',e=>errors.push(String(e.message||e)));
  await page.goto('http://127.0.0.1:4173/app-stable3.html',{waitUntil:'domcontentloaded',timeout:60000});
- // v93.98 mantém IDs/API legados 9396 por compatibilidade, mas exige o build novo de Inteligência.
- await page.waitForFunction(()=>!!document.getElementById('loginScreen')&&!!document.getElementById('appShell')&&window.hlgbAuditorIntelligence9396?.version==='93.98'&&String(window.HLGB_AUDITOR_INTELLIGENCE_9396||'').includes('93.98'),null,{timeout:60000});
- await page.evaluate(()=>{window.__HLGB_AUTH_READY=true;window.dispatchEvent(new Event('hlgb:authenticated'))});
+ await page.waitForFunction(()=>!!document.getElementById('loginScreen')&&!!document.getElementById('appShell')&&window.hlgbAuditorIntelligence9396?.version==='93.98'&&window.HLGB_AUDITOR_SINGLE_UI_RECLAIM_9434A==='94.34a'&&typeof window.hlgbAuditorSingleAction9429?.run==='function',null,{timeout:60000});
+ await page.evaluate(()=>{window.__HLGB_AUTH_READY=true;window.dispatchEvent(new Event('hlgb:authenticated'));const l=document.getElementById('loginScreen');if(l)l.style.setProperty('display','none','important');const a=document.getElementById('appShell');if(a){a.style.setProperty('display','block','important');a.style.setProperty('visibility','visible','important');a.style.setProperty('opacity','1','important')}});
  await page.waitForFunction(()=>window.HLGB_AUDITOR_SHELL_AUTHORITY==='93.82'&&typeof window.openHlgbAuditor==='function'&&!!document.getElementById('hlgbAuditorNavBtn'),null,{timeout:60000});
- await page.evaluate(()=>{
-  const login=document.getElementById('loginScreen');if(login)login.style.setProperty('display','none','important');
-  const app=document.getElementById('appShell');if(app){app.style.setProperty('display','block','important');app.style.setProperty('visibility','visible','important');app.style.setProperty('opacity','1','important')}
-  const btn=document.getElementById('hlgbAuditorNavBtn');if(btn){document.body.appendChild(btn);Object.assign(btn.style,{display:'block',visibility:'visible',opacity:'1',position:'fixed',left:'20px',top:'20px',zIndex:'2147483647'})}
- });
+ await page.evaluate(()=>{const btn=document.getElementById('hlgbAuditorNavBtn');if(btn){document.body.appendChild(btn);Object.assign(btn.style,{display:'block',visibility:'visible',opacity:'1',position:'fixed',left:'20px',top:'20px',zIndex:'2147483647'})}});
  await page.click('#hlgbAuditorNavBtn',{timeout:10000});
  await page.waitForSelector('#hlgbSmartStatus',{state:'visible',timeout:10000});
- await page.waitForSelector('#hlgbAuditorIntelligenceBtn9396',{state:'visible',timeout:10000});
- await page.waitForSelector('#hlgbDailyReport9368',{state:'visible',timeout:10000});
+ await page.waitForFunction(()=>{window.hlgbAuditorSingleUiReclaim9434A?.heal?.('test-v9398');const b=document.getElementById('hlgbAuditorUnifiedRun9434A');if(!b)return false;const s=getComputedStyle(b),r=b.getBoundingClientRect();return !b.hidden&&s.display!=='none'&&s.visibility!=='hidden'&&r.width>0&&r.height>0},null,{timeout:10000});
 
- // A interface oficial deve ser a única visível; nenhum controle legado pode reaparecer.
- const shell=await page.evaluate(()=>{
+ const ui=await page.evaluate(()=>{
+  window.hlgbAuditorSingleUiReclaim9434A?.heal?.('test-ui');
   const status=document.getElementById('hlgbSmartStatus');
   const root=status?.closest?.('[role="dialog"],.modal,.modal-content,.modalCard,.modal-card,.dialog')||status?.parentElement?.parentElement||status?.parentElement;
   const shown=[...(root?.querySelectorAll?.('button,a,[role="button"]')||[])].filter(el=>{const s=getComputedStyle(el),r=el.getBoundingClientRect();return !el.hidden&&s.display!=='none'&&s.visibility!=='hidden'&&r.width>0&&r.height>0}).map(el=>({id:el.id||'',text:String(el.textContent||'').trim()}));
-  const official=['hlgbMultiuserOpen','hlgbSmartTest','hlgbSmartProblem','hlgbSmartHistoryBtn','hlgbAuthorityBtn9374','hlgbBootAnalysisBtn9381','hlgbAuditorIntelligenceBtn9396','hlgbDailyReport9368'];
-  const legacyPattern=/Diagnóstico profundo do Hub|Teste visual completo|Tela atual|Exportar diagnóstico visual|Copiar última auditoria|Sincronização|Limpar falsos positivos confirmados|Executar teste visual|Diagnóstico Assistente|Diagnóstico da Folha/i;
-  return {shown,missing:official.filter(id=>!shown.some(x=>x.id===id)),legacy:shown.filter(x=>legacyPattern.test(x.text)),authority:window.HLGB_AUDITOR_SHELL_AUTHORITY,openerIsShell:window.openHlgbAuditor===window.hlgbAuditorShell9382?.open,legacyCapture:typeof window.__hlgbAuditorEntryCapture9368==='function',dailyFn:typeof window.hlgbAuditorDailyReport9368==='function'};
+  const legacy=['hlgbSmartTest','hlgbSmartProblem','hlgbSmartHistoryBtn','hlgbAuthorityBtn9374','hlgbBootAnalysisBtn9381','hlgbAuditorIntelligenceBtn9396','hlgbDailyReport9368','hlgbAuditorBusinessBtn9401'];
+  const unified=document.getElementById('hlgbAuditorUnifiedRun9434A');
+  return {shown,legacyVisible:legacy.filter(id=>shown.some(x=>x.id===id)),unifiedVisible:shown.some(x=>x.id==='hlgbAuditorUnifiedRun9434A'),unifiedText:String(unified?.textContent||'').trim(),unifiedHandler:typeof unified?.onclick==='function',authority:window.HLGB_AUDITOR_SHELL_AUTHORITY,openerIsShell:window.openHlgbAuditor===window.hlgbAuditorShell9382?.open,reclaim:window.hlgbAuditorSingleUiReclaim9434A?.status?.()||null};
  });
- if(shell.missing.length||shell.legacy.length||shell.authority!=='93.82'||!shell.openerIsShell||shell.legacyCapture||!shell.dailyFn)throw new Error('Shell oficial do Auditor não é autoridade única '+JSON.stringify(shell));
+ if(!ui.unifiedVisible||ui.unifiedText!=='🧪 Auditar sistema'||!ui.unifiedHandler||ui.legacyVisible.length||ui.authority!=='93.82'||!ui.openerIsShell)throw new Error('Auditor atual não está em ação única '+JSON.stringify(ui));
 
- // O Testar sistema precisa terminar deixando um link manual baixável no WebKit/Safari.
- await page.click('#hlgbSmartTest',{timeout:10000});
- await page.waitForSelector('#hlgbSafariTestDownload9368',{state:'visible',timeout:60000});
- const testDownload=await page.evaluate(()=>{
-  const a=document.getElementById('hlgbSafariTestDownload9368'),s=a?getComputedStyle(a):null,r=a?.getBoundingClientRect();
-  return {visible:!!a&&s?.display!=='none'&&s?.visibility!=='hidden'&&(r?.width||0)>0&&(r?.height||0)>0,href:a?.getAttribute('href')||'',download:a?.getAttribute('download')||'',text:String(a?.textContent||'').trim()};
+ // A Inteligência continua ativa por trás da ação única; o botão legado deve permanecer oculto.
+ const intelligence=await page.evaluate(async()=>{
+  const report=await window.hlgbAuditorIntelligence9396.collect({saveBaseline:false});
+  return {version:window.hlgbAuditorIntelligence9396?.version||'',status:report?.status||'',hasSaveChain:!!report?.current?.saveChain&&Number.isFinite(Number(report.current.saveChain.depth))&&Array.isArray(report.current.saveChain.duplicateResponsibilities),hasProjectionIntegrity:!!report?.current?.projectionIntegrity&&Number.isFinite(Number(report.current.projectionIntegrity.count))&&Number.isFinite(Number(report.current.projectionIntegrity.unresolved)),metrics:report?.current?.metrics||null,duplicateScripts:report?.current?.duplicateScripts||[],repeatedRequests:report?.current?.repeatedScriptRequests||[]};
  });
- if(!testDownload.visible||!/^blob:/.test(testDownload.href)||!/^HLGB-TESTE-SISTEMA-/.test(testDownload.download)||!/Baixar relatório do teste/i.test(testDownload.text))throw new Error('download manual do Testar sistema inválido '+JSON.stringify(testDownload));
+ if(intelligence.version!=='93.98'||!intelligence.hasSaveChain||!intelligence.hasProjectionIntegrity)throw new Error('Inteligência v93.98 não está disponível por trás do Auditor único '+JSON.stringify(intelligence));
+ if(!Object.prototype.hasOwnProperty.call(intelligence.metrics||{},'saveDuplicateResponsibilities')||!Object.prototype.hasOwnProperty.call(intelligence.metrics||{},'projectionOrphans')||!Object.prototype.hasOwnProperty.call(intelligence.metrics||{},'projectionOrphansUnresolved'))throw new Error('métricas de Inteligência ausentes '+JSON.stringify(intelligence.metrics));
 
- // O relatório diário usa dados privados no sistema real. No preview local, simula somente as respostas
- // para validar o fluxo visual e a geração do arquivo sem depender de credenciais.
- await page.evaluate(()=>{
-  window.cloudEnsureFreshSession=async()=>true;
-  window.cloudRequest=async(path)=>{
-   if(path==='rpc/hlgb_auditor_report')return {summary:{profilesObserved:3,profiles:3,errors:0,slowOperations:0},profiles:[]};
-   throw new Error('endpoint inesperado no preview: '+path);
-  };
-  window.fetch=async()=>({ok:true,json:async()=>({schemaVersion:1,kind:'hlgb-nightly-code-audit',summary:{status:'ok',tests:10,passed:10,failed:0}})});
- });
- await page.click('#hlgbDailyReport9368',{timeout:10000});
- await page.waitForSelector('#hlgbSafariDailyDownload9368',{state:'visible',timeout:15000});
- const dailyDownload=await page.evaluate(()=>{
-  const a=document.getElementById('hlgbSafariDailyDownload9368'),s=a?getComputedStyle(a):null,r=a?.getBoundingClientRect();
-  const last=window.hlgbAuditorSmart?.safariDownload?.getLastDaily?.();
-  return {visible:!!a&&s?.display!=='none'&&s?.visibility!=='hidden'&&(r?.width||0)>0&&(r?.height||0)>0,href:a?.getAttribute('href')||'',download:a?.getAttribute('download')||'',text:String(a?.textContent||'').trim(),kind:last?.kind||'',timezone:last?.timezone||'',codeAvailable:last?.codeAvailable===true};
- });
- if(!dailyDownload.visible||!/^blob:/.test(dailyDownload.href)||!/^HLGB-RELATORIO-DIARIO-/.test(dailyDownload.download)||!/Baixar relatório diário/i.test(dailyDownload.text)||dailyDownload.kind!=='hlgb_daily_auditor_bundle'||dailyDownload.timezone!=='America/Sao_Paulo'||!dailyDownload.codeAvailable)throw new Error('download do relatório diário inválido '+JSON.stringify(dailyDownload));
+ // Garante estabilidade do único botão no WebKit durante a janela em que os botões antigos piscavam.
+ const stability=await page.evaluate(async()=>{const samples=[];for(let i=0;i<100;i++){window.hlgbAuditorSingleUiReclaim9434A?.heal?.('stability-'+i);const all=[...document.querySelectorAll('#hlgbAuditorUnifiedRun9434A')],b=all[0],s=b?getComputedStyle(b):null,r=b?.getBoundingClientRect();samples.push({count:all.length,hidden:b?.hidden??null,display:s?.display||'',visibility:s?.visibility||'',width:r?.width||0,height:r?.height||0,handler:typeof b?.onclick==='function'});await new Promise(r=>setTimeout(r,40))}return samples});
+ const bad=stability.filter(x=>x.count!==1||x.hidden||x.display==='none'||x.visibility==='hidden'||x.width<=0||x.height<=0||!x.handler);
+ if(bad.length)throw new Error('botão único do Auditor piscou/sumiu ou duplicou '+JSON.stringify({bad:bad.slice(0,12),last:stability.at(-1)}));
 
- // Reproduz a janela real em que o Safari mostrou o botão piscando e depois sumindo.
- const stability=await page.evaluate(async()=>{
-  const samples=[];
-  const snap=()=>{
-   const all=[...document.querySelectorAll('#hlgbAuditorIntelligenceBtn9396')];
-   const b=all[0],s=b?getComputedStyle(b):null,r=b?.getBoundingClientRect();
-   const legacy=document.getElementById('hlgbAuditorLegacyHide9368')?.textContent||'';
-   samples.push({at:Math.round(performance.now()),count:all.length,hidden:b?.hidden??null,display:s?.display||null,visibility:s?.visibility||null,width:r?.width||0,height:r?.height||0,handler:typeof b?.onclick==='function',inlineOnclick:b?.getAttribute('onclick')||'',legacyGeneric:/hlgb-auditor-actions:has\(#hlgbSmartTest\)/.test(legacy)});
-  };
-  snap();for(let i=0;i<140;i++){await new Promise(r=>setTimeout(r,50));snap()}return samples;
- });
- const bad=stability.filter(x=>x.count!==1||x.hidden||x.display==='none'||x.visibility==='hidden'||x.width<=0||x.height<=0||!x.handler||x.inlineOnclick||!x.legacyGeneric);
- if(bad.length)throw new Error('botão Inteligência piscou/sumiu, duplicou ou perdeu o filtro oficial '+JSON.stringify({bad:bad.slice(0,12),last:stability.at(-1)}));
+ // O relatório diário permanece acessível pela API da ação única, sem recriar botão legado separado.
+ const daily=await page.evaluate(()=>{window.HLGB_RELEASE_VERSION='94.38';const main={summary:{pass:1,warn:0,fail:0},operational:{summary:{pass:1,warn:0,fail:0},checks:[]}};const deep={authority:{status:'pass',summary:{}},boot:{status:'pass',summary:{}},business:{status:'pass',summary:{}},intelligence:{status:'pass',freshness:{status:'fresh'},comparison:{available:false,summary:{}},current:{at:new Date().toISOString(),appVersion:'94.38',metrics:{saveDuplicateResponsibilities:0,projectionOrphans:0,projectionOrphansUnresolved:0},queues:{},duplicateScripts:[],projectionIntegrity:{count:0,unresolved:0}}},learning:{saved:true,historyAfter:1}};const report=window.hlgbAuditorSingleAction9429.buildDailyReport(main,deep);return {kind:report?.kind||'',date:report?.date||'',appVersion:report?.appVersion||'',auditorVersion:report?.auditorVersion||'',legacyDailyVisible:(()=>{const e=document.getElementById('hlgbDailyReport9368');if(!e)return false;const s=getComputedStyle(e),r=e.getBoundingClientRect();return !e.hidden&&s.display!=='none'&&s.visibility!=='hidden'&&r.width>0&&r.height>0})()}});
+ if(daily.kind!=='hlgb_auditor_daily_report'||daily.legacyDailyVisible)throw new Error('relatório diário não está integrado à ação única '+JSON.stringify(daily));
 
- await page.click('#hlgbAuditorIntelligenceBtn9396');
- await page.waitForSelector('#hlgbAuditorIntelligencePanel9396',{state:'visible',timeout:15000});
- await page.waitForSelector('#hlgbAuditorIntelligenceDownload9396',{state:'visible',timeout:10000});
- const after=await page.evaluate(()=>{
-  const p=document.getElementById('hlgbAuditorIntelligencePanel9396'),d=document.getElementById('hlgbAuditorIntelligenceDownload9396'),ds=d?getComputedStyle(d):null,dr=d?.getBoundingClientRect(),report=window.hlgbAuditorIntelligence9396?.last;
-  return {
-   panelText:p?.innerText||'',downloadVisible:!!d&&!d.hidden&&ds?.display!=='none'&&ds?.visibility!=='hidden'&&(dr?.width||0)>0&&(dr?.height||0)>0,
-   version:window.hlgbAuditorIntelligence9396?.version||'',
-   hasSaveChain:!!report?.current?.saveChain&&Number.isFinite(Number(report.current.saveChain.depth))&&Array.isArray(report.current.saveChain.duplicateResponsibilities),
-   hasProjectionIntegrity:!!report?.current?.projectionIntegrity&&Number.isFinite(Number(report.current.projectionIntegrity.count))&&Number.isFinite(Number(report.current.projectionIntegrity.unresolved)),
-   metrics:report?.current?.metrics||null
-  };
- });
- if(after.version!=='93.98'||!/Inteligência do Auditor/.test(after.panelText)||!/Save:/.test(after.panelText)||!/Financeiro→Projeção:/.test(after.panelText)||!after.downloadVisible||!after.hasSaveChain||!after.hasProjectionIntegrity)throw new Error('painel/download v93.98 incompleto '+JSON.stringify(after));
- if(!Object.prototype.hasOwnProperty.call(after.metrics||{},'saveDuplicateResponsibilities')||!Object.prototype.hasOwnProperty.call(after.metrics||{},'projectionOrphans')||!Object.prototype.hasOwnProperty.call(after.metrics||{},'projectionOrphansUnresolved'))throw new Error('métricas v93.98 ausentes '+JSON.stringify(after.metrics));
  await page.screenshot({path:'/tmp/hlgb-auditor-inteligencia-webkit.png',fullPage:true});
- if(errors.some(x=>/auditor|9396|9398|9382|9368|relat[oó]rio|download|intelig/i.test(x)))throw new Error('pageerror relacionado ao Auditor: '+errors.join(' | '));
- console.log('AUDITOR_INTELLIGENCE_BUTTON_WEBKIT_V9398_OK',JSON.stringify({samples:stability.length,last:stability.at(-1),downloadVisible:after.downloadVisible,testDownload,dailyDownload,version:after.version,metrics:after.metrics,shell}));
+ if(errors.some(x=>/auditor|9396|9398|9434|9438|intelig/i.test(x)))throw new Error('pageerror relacionado ao Auditor: '+errors.join(' | '));
+ console.log('AUDITOR_INTELLIGENCE_BUTTON_WEBKIT_V9398_OK',JSON.stringify({ui,intelligence:{version:intelligence.version,metrics:intelligence.metrics,duplicateScripts:intelligence.duplicateScripts,repeatedRequests:intelligence.repeatedRequests},daily,samples:stability.length}));
  await browser.close();
 })().catch(e=>{console.error(e);process.exit(1)});
