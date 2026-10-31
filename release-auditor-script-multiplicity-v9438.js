@@ -3,11 +3,12 @@
    Somente diagnóstico: não altera dados de negócio, sincronização ou loaders. */
 (function(){
 'use strict';
-const V='94.38';
+const V='94.38',BASELINE_KEY='hlgb_auditor_intelligence_baseline_v9396';
 if(window.HLGB_AUDITOR_SCRIPT_MULTIPLICITY_9438===V){try{window.hlgbAuditorScriptMultiplicity9438?.activate?.()}catch(e){}return}
 window.HLGB_AUDITOR_SCRIPT_MULTIPLICITY_9438=V;
-const state={version:V,installed:false,intelligencePatched:false,authorityPatched:false,snapshots:0,lastAt:'',lastError:''};
+const state={version:V,installed:false,intelligencePatched:false,authorityPatched:false,snapshots:0,baselineCorrections:0,lastAt:'',lastError:''};
 const sid=v=>String(v??'');
+const clone=v=>{try{return structuredClone(v)}catch(e){try{return JSON.parse(JSON.stringify(v))}catch(_){return v}}};
 function fileName(src){try{return decodeURIComponent(new URL(src,location.href).pathname.split('/').pop()||'')}catch(e){return sid(src).split(/[/?#]/).pop()||''}}
 function auditProbe(src){try{return new URL(src,location.href).searchParams.has('hlgb_audit_fresh')}catch(e){return /(?:[?&])hlgb_audit_fresh=/.test(sid(src))}}
 function snapshot(){
@@ -19,6 +20,13 @@ function snapshot(){
  rows.sort((a,b)=>(b.executionDuplicate-a.executionDuplicate)||(b.repeatedRequest-a.repeatedRequest)||(b.dom+b.resource)-(a.dom+a.resource)||a.file.localeCompare(b.file));
  const out={version:V,at:new Date().toISOString(),executionDuplicates:rows.filter(x=>x.executionDuplicate),repeatedRequests:rows.filter(x=>x.repeatedRequest),rows};state.snapshots++;state.lastAt=out.at;return out;
 }
+function correctBaseline(report){
+ try{
+  if(report?.freshness?.status==='stale'||!report?.current?.at||!report?.current?.metrics)return false;
+  const base=JSON.parse(localStorage.getItem(BASELINE_KEY)||'null');if(!base||sid(base.at)!==sid(report.current.at))return false;
+  base.appVersion=report.current.appVersion||base.appVersion;base.metrics=clone(report.current.metrics);localStorage.setItem(BASELINE_KEY,JSON.stringify(base));state.baselineCorrections++;return true;
+ }catch(e){state.lastError=sid(e?.message||e);return false}
+}
 function cleanDuplicateRecommendation(report,m){
  if(!report||typeof report!=='object')return report;
  report.current=report.current||{};report.current.scriptMultiplicity=m;report.current.duplicateScripts=m.executionDuplicates;report.current.repeatedScriptRequests=m.repeatedRequests;
@@ -28,7 +36,7 @@ function cleanDuplicateRecommendation(report,m){
   if(m.executionDuplicates.length)report.recommendations.push({priority:'high',code:'duplicate-script-load',detail:m.executionDuplicates.length+' script(s) possuem mais de um elemento <script> ativo nesta sessão; há evidência de multiplicidade de execução/instalação.'});
   if(m.repeatedRequests.length)report.recommendations.push({priority:'low',code:'repeated-script-request',detail:m.repeatedRequests.length+' script(s) tiveram requisição de rede repetida sem prova de segunda instalação. Tratar como custo/performance, não como duplicação funcional.'});
  }
- return report;
+ correctBaseline(report);return report;
 }
 function patchIntelligence(){
  const api=window.hlgbAuditorIntelligence9396;if(!api)return false;
