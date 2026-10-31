@@ -1,0 +1,21 @@
+HLGB — Auditor noturno (código)
+Gerado: 2026-10-31T00:13:32.130Z
+Commit: e403861944eb39ad129d7507fd61335a65c74b2c
+Resultado: FAILED
+Testes: 122 | Aprovados: 121 | Falhas: 1
+Duração: 2987 ms
+
+Falhas:
+- audit-cut-model-grade-adjust-regression.cjs: failed (22 ms) — AssertionError [ERR_ASSERTION]: '94.23-cut-model-grade-adjust' == '2026.10.01-cut-model-grade-adjust-v1'
+
+Mais lentos:
+- audit-save-transport-v9320.cjs: 53 ms
+- audit-queue-cut-regression.cjs: 44 ms
+- audit-nightly-failure-detail-regression.cjs: 39 ms
+- audit-note-selection-behavior-regression.cjs: 36 ms
+- audit-cut-grade-matrix-v9421.cjs: 35 ms
+- audit-assistant-query-regression.cjs: 34 ms
+- audit-launcher-recovery.cjs: 34 ms
+- audit-assistant-system-wide-regression.cjs: 32 ms
+- audit-cut-view-regression.cjs: 32 ms
+- audit-faction-checklist-grade-standard-regression.cjs: 32 ms

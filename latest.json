@@ -1,0 +1,79 @@
+{
+  "schemaVersion": 1,
+  "kind": "hlgb-nightly-code-audit",
+  "generatedAt": "2026-10-31T00:13:32.130Z",
+  "startedAt": "2026-10-31T00:13:29.143Z",
+  "source": "github-actions",
+  "repository": "brunomozersilva-stack/hlgb-confeccoes",
+  "commit": "e403861944eb39ad129d7507fd61335a65c74b2c",
+  "runId": "41148969749",
+  "runNumber": "1158",
+  "summary": {
+    "status": "failed",
+    "tests": 122,
+    "passed": 121,
+    "failed": 1,
+    "durationMs": 2987
+  },
+  "failures": [
+    {
+      "test": "audit-cut-model-grade-adjust-regression.cjs",
+      "status": "failed",
+      "durationMs": 22,
+      "exitCode": 1,
+      "detail": "AssertionError [ERR_ASSERTION]: '94.23-cut-model-grade-adjust' == '2026.10.01-cut-model-grade-adjust-v1'"
+    }
+  ],
+  "slowest": [
+    {
+      "test": "audit-save-transport-v9320.cjs",
+      "status": "passed",
+      "durationMs": 53
+    },
+    {
+      "test": "audit-queue-cut-regression.cjs",
+      "status": "passed",
+      "durationMs": 44
+    },
+    {
+      "test": "audit-nightly-failure-detail-regression.cjs",
+      "status": "passed",
+      "durationMs": 39
+    },
+    {
+      "test": "audit-note-selection-behavior-regression.cjs",
+      "status": "passed",
+      "durationMs": 36
+    },
+    {
+      "test": "audit-cut-grade-matrix-v9421.cjs",
+      "status": "passed",
+      "durationMs": 35
+    },
+    {
+      "test": "audit-assistant-query-regression.cjs",
+      "status": "passed",
+      "durationMs": 34
+    },
+    {
+      "test": "audit-launcher-recovery.cjs",
+      "status": "passed",
+      "durationMs": 34
+    },
+    {
+      "test": "audit-assistant-system-wide-regression.cjs",
+      "status": "passed",
+      "durationMs": 32
+    },
+    {
+      "test": "audit-cut-view-regression.cjs",
+      "status": "passed",
+      "durationMs": 32
+    },
+    {
+      "test": "audit-faction-checklist-grade-standard-regression.cjs",
+      "status": "passed",
+      "durationMs": 32
+    }
+  ]
+}
