@@ -7,6 +7,10 @@ on:
   pull_request:
     branches:
       - main
+permissions:
+  contents: read
+  issues: write
+  pull-requests: write
 jobs:
   logic:
     runs-on: ubuntu-latest
@@ -49,7 +53,34 @@ jobs:
           python3 -m http.server 4173 >/tmp/hlgb-9438-http.log 2>&1 &
           echo $! >/tmp/hlgb-9438-http.pid
           sleep 2
-      - name: Produção ACK + Auditor + Relatórios + scripts únicos — ${{ matrix.browser }}
+      - name: Executar diagnóstico — ${{ matrix.browser }}
+        id: browser_test
         env:
           HLGB_BROWSER: ${{ matrix.browser }}
-        run: node tests/production-save-auditor-v9438-browser.js
+        shell: bash
+        run: |
+          set +e
+          node tests/production-save-auditor-v9438-browser.js > /tmp/hlgb-9438-browser.log 2>&1
+          code=$?
+          cat /tmp/hlgb-9438-browser.log
+          echo "code=$code" >> "$GITHUB_OUTPUT"
+          exit 0
+      - name: Publicar diagnóstico no PR #96
+        if: steps.browser_test.outputs.code != '0' && github.ref_name == 'fix/production-save-auditor-v9438'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          tail -c 50000 /tmp/hlgb-9438-browser.log > /tmp/hlgb-9438-tail.log
+          {
+            echo "### Diagnóstico v94.38 — ${{ matrix.browser }}"
+            echo
+            echo '```text'
+            cat /tmp/hlgb-9438-tail.log
+            echo '```'
+          } > /tmp/hlgb-9438-comment.md
+          gh api "repos/${GITHUB_REPOSITORY}/issues/96/comments" --input /tmp/hlgb-9438-comment.json >/dev/null 2>&1 || \
+          gh pr comment 96 --body-file /tmp/hlgb-9438-comment.md
+      - name: Falhar se o diagnóstico encontrou problema
+        if: steps.browser_test.outputs.code != '0'
+        run: exit 1
