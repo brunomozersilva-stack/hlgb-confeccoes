@@ -1,13 +1,14 @@
 /* HLGB v94.39 — finalizador de relatórios do Auditor.
    Não altera dados de negócio. Garante versão real no arquivo baixado, rejeita
-   baseline da mesma rodada e exclui referências futuras do aprendizado. */
+   baseline da mesma rodada e exclui referências futuras do aprendizado.
+   A auditoria automática das 18h usa modo não navegante para não trocar a tela do usuário. */
 (function(){
 'use strict';
 const V='94.39',MIN_GAP_MS=30000,FUTURE_TOLERANCE_MS=5*60*1000;
 const DAILY_LATEST='hlgb_auditor_daily_report_latest_v9429',DAILY_PREFIX='hlgb_auditor_daily_report_v9429_',ROUNDS='hlgb_auditor_reliable_rounds_v9438',HISTORY='hlgb_auditor_learning_history_v9429',HEALTHY='hlgb_auditor_healthy_baseline_v9438';
 if(window.HLGB_AUDITOR_FINALIZE_9439===V){try{window.hlgbAuditorFinalize9439?.activate?.()}catch(e){}return}
 window.HLGB_AUDITOR_FINALIZE_9439=V;
-const state={version:V,installed:false,runs:0,dailyFinalized:0,rejectedBaselines:0,rejectedFutureAudits:0,historyPruned:0,lastAt:'',lastError:''};
+const state={version:V,installed:false,runs:0,dailyFinalized:0,rejectedBaselines:0,rejectedFutureAudits:0,historyPruned:0,backgroundHeadlessRuns:0,backgroundVisualBypasses:0,lastAt:'',lastError:''};
 const sid=v=>String(v??'');
 const clone=v=>{try{return structuredClone(v)}catch(e){try{return JSON.parse(JSON.stringify(v))}catch(_){return v}}};
 function read(k,f=null){try{const x=JSON.parse(localStorage.getItem(k)||'null');return x??f}catch(e){return f}}
@@ -16,6 +17,12 @@ function ts(v){if(v==null||v==='')return NaN;if(typeof v==='number')return v;con
 function appVersion(){const n=parseFloat(String(window.HLGB_RELEASE_VERSION||'0'))||0;return (n>=94.39?String(window.HLGB_RELEASE_VERSION):V).replace(/^v/i,'')}
 function future(v){const n=ts(v);return Number.isFinite(n)&&n>Date.now()+FUTURE_TOLERANCE_MS}
 function localDay(d=new Date()){const p=n=>String(n).padStart(2,'0');return d.getFullYear()+'-'+p(d.getMonth()+1)+'-'+p(d.getDate())}
+function backgroundDailyActive(){try{return window.hlgbAuditorRapid9437?.state?.daily18?.status==='running'}catch(e){return false}}
+async function nonNavigatingAudit(){
+ if(typeof window.hlgbInternalAuditor?.run==='function')return await window.hlgbInternalAuditor.run('full',true);
+ if(typeof window.hlgbAuditorRunFull==='function')return await window.hlgbAuditorRunFull();
+ throw new Error('Auditoria não navegante indisponível.');
+}
 function rejectRegression(obj,rootAt){
  if(!obj||typeof obj!=='object')return;
  const r=obj.regression;if(r&&typeof r==='object'&&r.baseline){const b=r.baseline,ba=ts(b.at),ca=ts(obj?.metrics?.at||obj?.current?.at||obj?.createdAt||obj?.at||rootAt),gap=Number.isFinite(ba)&&Number.isFinite(ca)?Math.abs(ca-ba):NaN;let reason='';if(future(b.at))reason='baseline-future';else if(Number.isFinite(gap)&&gap<MIN_GAP_MS)reason='baseline-same-round';if(reason){r.rejectedBaseline={...clone(b),rejectionReason:reason,rejectedAt:new Date().toISOString(),gapMs:Number.isFinite(gap)?gap:null};r.baseline=null;r.rejected=true;r.available=false;r.reason=reason;r.findings=[];state.rejectedBaselines++}}
@@ -32,14 +39,22 @@ function pruneFutureHistory(){let total=0;for(const key of [ROUNDS,HISTORY]){let
 function patchStored(){pruneFutureHistory();const r=read(DAILY_LATEST,null);if(!r)return null;const fixed=finalizeDaily(r);write(DAILY_LATEST,fixed);write(DAILY_PREFIX+(fixed.date||localDay()),fixed);return fixed}
 function install(){
  const api=window.hlgbAuditorSingleAction9429;if(!api||typeof api.run!=='function')return false;
- if(!api.run.__hlgbFinalize9439){const orig=api.run;const w=async function(){const out=finalizeAny(await orig.apply(this,arguments));state.runs++;try{window.HLGB_AUDITOR_SINGLE_ACTION_LAST=out}catch(e){}return out};w.__hlgbFinalize9439=true;w.__original=orig;api.run=w}
+ if(!api.run.__hlgbFinalize9439){const orig=api.run;const w=async function(){
+   const background=backgroundDailyActive(),visualOrig=window.hlgbAuditorRunVisualSweep;
+   if(background&&typeof visualOrig==='function'){
+     const quiet=async function(){state.backgroundVisualBypasses++;return await nonNavigatingAudit()};
+     quiet.__hlgbQuiet9439=true;quiet.__original=visualOrig;window.hlgbAuditorRunVisualSweep=quiet;state.backgroundHeadlessRuns++;
+   }
+   try{const out=finalizeAny(await orig.apply(this,arguments));state.runs++;try{window.HLGB_AUDITOR_SINGLE_ACTION_LAST=out}catch(e){}return out}
+   finally{if(background&&window.hlgbAuditorRunVisualSweep?.__hlgbQuiet9439)window.hlgbAuditorRunVisualSweep=visualOrig}
+ };w.__hlgbFinalize9439=true;w.__original=orig;api.run=w}
  if(typeof api.buildDailyReport==='function'&&!api.buildDailyReport.__hlgbFinalize9439){const orig=api.buildDailyReport;const w=function(){return finalizeDaily(orig.apply(this,arguments))};w.__hlgbFinalize9439=true;w.__original=orig;api.buildDailyReport=w}
  if(typeof api.downloadDaily==='function'&&!api.downloadDaily.__hlgbFinalize9439){const orig=api.downloadDaily;const w=function(report){const fixed=finalizeDaily(clone(report||read(DAILY_LATEST,null)));if(fixed){write(DAILY_LATEST,fixed);write(DAILY_PREFIX+(fixed.date||localDay()),fixed)}return orig.call(this,fixed)};w.__hlgbFinalize9439=true;w.__original=orig;api.downloadDaily=w}
  state.installed=true;patchStored();return true;
 }
 function stamp(){try{const cur=parseFloat(String(window.HLGB_RELEASE_VERSION||'0'))||0;if(cur<94.39){window.HLGB_RELEASE_VERSION=V;const el=document.querySelector('#appShell .logo small');if(el)el.textContent='v'+V}}catch(e){}}
 function activate(){stamp();pruneFutureHistory();[0,120,450,1000,2200,4200].forEach(ms=>setTimeout(()=>{try{install()}catch(e){state.lastError=sid(e?.message||e)}},ms));return true}
-window.hlgbAuditorFinalize9439={version:V,state,activate,install,finalizeDaily,finalizeAny,patchStored,pruneFutureHistory,status:()=>({...state,appVersion:appVersion()})};
+window.hlgbAuditorFinalize9439={version:V,state,activate,install,finalizeDaily,finalizeAny,patchStored,pruneFutureHistory,status:()=>({...state,appVersion:appVersion(),backgroundDailyActive:backgroundDailyActive()})};
 window.addEventListener('hlgb:authenticated',activate);
 window.addEventListener('focus',()=>{if(window.__HLGB_AUTH_READY===true){try{install();patchStored()}catch(e){}}});
 document.addEventListener('click',e=>{if(e.target?.closest?.('#hlgbAuditorUnifiedRun9434A,#hlgbAuditorNavBtn,#hlgbAuditorOpenBtn,#hlgbDaily18Download9437,#hlgbDaily18CardDownload9437'))[0,300,1000].forEach(ms=>setTimeout(()=>{try{install();patchStored()}catch(_){}},ms))},true);
