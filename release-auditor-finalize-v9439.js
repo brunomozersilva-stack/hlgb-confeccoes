@@ -8,7 +8,7 @@ const V='94.39',MIN_GAP_MS=30000,FUTURE_TOLERANCE_MS=5*60*1000;
 const DAILY_LATEST='hlgb_auditor_daily_report_latest_v9429',DAILY_PREFIX='hlgb_auditor_daily_report_v9429_',ROUNDS='hlgb_auditor_reliable_rounds_v9438',HISTORY='hlgb_auditor_learning_history_v9429',HEALTHY='hlgb_auditor_healthy_baseline_v9438';
 if(window.HLGB_AUDITOR_FINALIZE_9439===V){try{window.hlgbAuditorFinalize9439?.activate?.()}catch(e){}return}
 window.HLGB_AUDITOR_FINALIZE_9439=V;
-const state={version:V,installed:false,runs:0,dailyFinalized:0,rejectedBaselines:0,rejectedFutureAudits:0,historyPruned:0,backgroundHeadlessRuns:0,backgroundVisualBypasses:0,lastAt:'',lastError:''};
+const state={version:V,installed:false,runs:0,dailyFinalized:0,rejectedBaselines:0,rejectedFutureAudits:0,historyPruned:0,backgroundHeadlessRuns:0,backgroundSmartBypasses:0,backgroundVisualBypasses:0,lastAt:'',lastError:''};
 const sid=v=>String(v??'');
 const clone=v=>{try{return structuredClone(v)}catch(e){try{return JSON.parse(JSON.stringify(v))}catch(_){return v}}};
 function read(k,f=null){try{const x=JSON.parse(localStorage.getItem(k)||'null');return x??f}catch(e){return f}}
@@ -40,13 +40,17 @@ function patchStored(){pruneFutureHistory();const r=read(DAILY_LATEST,null);if(!
 function install(){
  const api=window.hlgbAuditorSingleAction9429;if(!api||typeof api.run!=='function')return false;
  if(!api.run.__hlgbFinalize9439){const orig=api.run;const w=async function(){
-   const background=backgroundDailyActive(),visualOrig=window.hlgbAuditorRunVisualSweep;
-   if(background&&typeof visualOrig==='function'){
-     const quiet=async function(){state.backgroundVisualBypasses++;return await nonNavigatingAudit()};
-     quiet.__hlgbQuiet9439=true;quiet.__original=visualOrig;window.hlgbAuditorRunVisualSweep=quiet;state.backgroundHeadlessRuns++;
+   const background=backgroundDailyActive(),smartOrig=window.hlgbAuditorSmartRun,visualOrig=window.hlgbAuditorRunVisualSweep;
+   if(background){
+     const quietSmart=async function(){state.backgroundSmartBypasses++;return await nonNavigatingAudit()};quietSmart.__hlgbQuietSmart9439=true;quietSmart.__original=smartOrig;window.hlgbAuditorSmartRun=quietSmart;
+     if(typeof visualOrig==='function'){const quietVisual=async function(){state.backgroundVisualBypasses++;return await nonNavigatingAudit()};quietVisual.__hlgbQuiet9439=true;quietVisual.__original=visualOrig;window.hlgbAuditorRunVisualSweep=quietVisual}
+     state.backgroundHeadlessRuns++;
    }
    try{const out=finalizeAny(await orig.apply(this,arguments));state.runs++;try{window.HLGB_AUDITOR_SINGLE_ACTION_LAST=out}catch(e){}return out}
-   finally{if(background&&window.hlgbAuditorRunVisualSweep?.__hlgbQuiet9439)window.hlgbAuditorRunVisualSweep=visualOrig}
+   finally{
+     if(background&&window.hlgbAuditorSmartRun?.__hlgbQuietSmart9439)window.hlgbAuditorSmartRun=smartOrig;
+     if(background&&window.hlgbAuditorRunVisualSweep?.__hlgbQuiet9439)window.hlgbAuditorRunVisualSweep=visualOrig;
+   }
  };w.__hlgbFinalize9439=true;w.__original=orig;api.run=w}
  if(typeof api.buildDailyReport==='function'&&!api.buildDailyReport.__hlgbFinalize9439){const orig=api.buildDailyReport;const w=function(){return finalizeDaily(orig.apply(this,arguments))};w.__hlgbFinalize9439=true;w.__original=orig;api.buildDailyReport=w}
  if(typeof api.downloadDaily==='function'&&!api.downloadDaily.__hlgbFinalize9439){const orig=api.downloadDaily;const w=function(report){const fixed=finalizeDaily(clone(report||read(DAILY_LATEST,null)));if(fixed){write(DAILY_LATEST,fixed);write(DAILY_PREFIX+(fixed.date||localDay()),fixed)}return orig.call(this,fixed)};w.__hlgbFinalize9439=true;w.__original=orig;api.downloadDaily=w}
