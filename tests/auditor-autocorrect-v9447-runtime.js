@@ -8,6 +8,9 @@ const kind=process.env.HLGB_BROWSER||'webkit',engine=kind==='chromium'?chromium:
  await page.waitForFunction(()=>window.HLGB_AUDITOR_SINGLE_UI_RECLAIM_9434A==='94.34a'&&typeof window.hlgbLoginConfirmGate9407?.prepareAuditorRepairs9442==='function',null,{timeout:60000});
  await page.evaluate(()=>{window.__HLGB_AUTH_READY=true;window.dispatchEvent(new Event('hlgb:authenticated'));const l=document.getElementById('loginScreen');if(l)l.style.setProperty('display','none','important');const a=document.getElementById('appShell');if(a){a.style.setProperty('display','block','important');a.style.setProperty('visibility','visible','important')}});
  await page.waitForFunction(()=>window.HLGB_AUDITOR_AUTOCORRECT_9447==='94.47'&&typeof window.hlgbAuditorAutoCorrect9447?.run==='function'&&window.HLGB_AUDITOR_AUTOCORRECT_9446==='94.46',null,{timeout:30000});
+ const prep=await page.evaluate(()=>window.hlgbAuditorAutoCorrect9447.prepare('v9447-runtime-prep'));
+ if(!prep?.ok)throw new Error('v94.47 não preparou cadeia real '+JSON.stringify(prep));
+ await page.waitForFunction(()=>typeof window.hlgbAuditorAutoCorrect9441?.silentAudit==='function'&&typeof window.hlgbAuditorAutoCorrect9441?.repairEvents==='function'&&typeof window.hlgbAuditorIntelligence9396?.currentMetrics==='function'&&typeof window.hlgbDiagnosticsCenter?.getIssues==='function'&&typeof window.hlgbProductionReconcile9439?.candidates==='function',null,{timeout:30000});
  const out=await page.evaluate(async()=>{
   const now=Date.now(),old=new Date(now-2*60*60*1000).toISOString();
   const audit={main:{summary:{total:31,pass:29,warn:2,fail:0,result:'Atenção'},checks:[{code:'sync:pending',status:'warn',title:'Pendências locais de sincronização',detail:'21 registro(s) aguardando sincronização.'},{code:'issues:open',status:'warn',title:'Erros abertos na Central',detail:'124 aberto(s); 124 de alta prioridade.'}]},operations:{pending:{unique:0,records:0,wal:0,totalCopies:0},delivery:{status:'pass'},savingUi:{status:'pass'},runtime:{status:'pass'}}};
@@ -23,6 +26,6 @@ const kind=process.env.HLGB_BROWSER||'webkit',engine=kind==='chromium'?chromium:
  const ui=await page.evaluate(()=>window.hlgbAuditorSingleUiReclaim9434A.status());
  if(ui.appBase!=='94.47'||ui.repairReady!==true||ui.fastConvergenceReady!==true||ui.recordLearningScopeReady!==true)throw new Error('UI não aponta para v94.47 preservando v94.46 '+JSON.stringify(ui));
  if(errors.some(x=>/9447|autocorrect/i.test(x)))throw new Error('pageerror v94.47 '+errors.join(' | '));
- console.log('AUDITOR_AUTOCORRECT_V9447_RUNTIME_'+kind.toUpperCase()+'_OK',JSON.stringify({passes:out.passes,needsCode:out.needsCode.length,businessBlocked:out.businessBlocked.length,historical:out.historicalBacklog.count,ui:{appBase:ui.appBase,fastConvergenceReady:ui.fastConvergenceReady}}));
+ console.log('AUDITOR_AUTOCORRECT_V9447_RUNTIME_'+kind.toUpperCase()+'_OK',JSON.stringify({prep:{ok:prep.ok},passes:out.passes,needsCode:out.needsCode.length,businessBlocked:out.businessBlocked.length,historical:out.historicalBacklog.count,ui:{appBase:ui.appBase,fastConvergenceReady:ui.fastConvergenceReady}}));
  await browser.close();
 })().catch(e=>{console.error(e);process.exit(1)});
