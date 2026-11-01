@@ -15,7 +15,13 @@ const engine=process.env.HLGB_BROWSER==='chromium'?chromium:webkit;
  if(!out.one||!out.text.includes('Auditar e corrigir'))throw new Error('botão reparador único ausente '+JSON.stringify(out));
  if(out.navInsideActions||out.legacyVisible.length||out.visibleActions.length!==1||out.visibleActions[0]!=='hlgbAuditorUnifiedRun9434A')throw new Error('conflito de ações '+JSON.stringify(out));
  if(out.status?.version!=='94.34a'||out.status?.appBase!=='94.44')throw new Error('UI atual divergente '+JSON.stringify(out));
- // Reproduz a corrida vista no CI: um módulo legado recria o contêiner de ações depois do heal.
+ // Reproduz a corrida vista no Safari: o host fica no DOM, mas outro módulo remove só o botão.
+ const sameHost=await page.evaluate(()=>{const h=document.querySelector('.hlgb-auditor-actions'),b=document.getElementById('hlgbAuditorUnifiedRun9434A');if(!h||!b||b.parentElement!==h)return false;b.remove();return true});
+ if(!sameHost)throw new Error('não foi possível simular remoção isolada do botão');
+ await page.waitForFunction(()=>{const h=document.querySelector('.hlgb-auditor-actions'),b=document.getElementById('hlgbAuditorUnifiedRun9434A');if(!h||!b||b.parentElement!==h)return false;const s=getComputedStyle(b),r=b.getBoundingClientRect();return !b.hidden&&s.display!=='none'&&s.visibility!=='hidden'&&r.width>0&&r.height>0},null,{timeout:3000});
+ out=await snapshot();
+ if(!out.one||out.visibleActions.length!==1||out.visibleActions[0]!=='hlgbAuditorUnifiedRun9434A'||!(out.status?.buttonRestores>=1))throw new Error('botão não foi restaurado após remoção isolada '+JSON.stringify(out));
+ // Reproduz também a corrida anterior: um módulo legado recria o contêiner de ações inteiro.
  const replacement=await page.evaluate(()=>{const old=document.querySelector('.hlgb-auditor-actions');if(!old)return false;const next=old.cloneNode(true);next.querySelector('#hlgbAuditorUnifiedRun9434A')?.remove();old.replaceWith(next);return true});
  if(!replacement)throw new Error('não foi possível simular substituição do host do Auditor');
  await page.waitForFunction(()=>{const h=document.querySelector('.hlgb-auditor-actions'),b=document.getElementById('hlgbAuditorUnifiedRun9434A');if(!h||!b||b.parentElement!==h)return false;const s=getComputedStyle(b),r=b.getBoundingClientRect();return !b.hidden&&s.display!=='none'&&s.visibility!=='hidden'&&r.width>0&&r.height>0},null,{timeout:3000});
