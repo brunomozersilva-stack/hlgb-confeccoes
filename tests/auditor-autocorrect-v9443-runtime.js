@@ -12,6 +12,10 @@ const kind=process.env.HLGB_BROWSER||'webkit',engine=kind==='chromium'?chromium:
  await page.waitForFunction(()=>window.HLGB_AUDITOR_AUTOCORRECT_9443==='94.43'&&typeof window.hlgbAuditorAutoCorrect9443?.run==='function'&&window.HLGB_PRODUCTION_RECONCILE_COORDINATOR_9443==='94.43'&&window.hlgbProductionReconcile9439?.concurrencyPatch==='94.43-await-busy',null,{timeout:30000});
  const prep=await page.evaluate(()=>window.hlgbAuditorAutoCorrect9443.prepare('v9443-runtime'));
  if(!prep?.ok||!prep.productionCoordinator?.ready)throw new Error('v94.43 não preparou coordenador real '+JSON.stringify(prep));
+ // A v94.39 agenda reconciliações automáticas até 1,6 s após autenticação.
+ // Aguarde esse burst terminar para a simulação abaixo ter exatamente uma execução-base controlada.
+ await page.waitForTimeout(2300);
+ await page.waitForFunction(()=>window.hlgbProductionReconcile9439?.status?.().busy===false,null,{timeout:15000});
  const overlap=await page.evaluate(async()=>{
   const api=window.hlgbProductionReconcile9439,coord=window.hlgbProductionReconcileCoordinator9443;
   const before=coord.status();
@@ -24,6 +28,7 @@ const kind=process.env.HLGB_BROWSER||'webkit',engine=kind==='chromium'?chromium:
  });
  if(overlap.error||overlap.baseFalse||overlap.joinedFalse||!overlap.same)throw new Error('Auditor não reutilizou reconciliação já em andamento '+JSON.stringify(overlap));
  if(!(overlap.after.joinedExisting>overlap.before.joinedExisting))throw new Error('Coordenador não registrou junção à execução existente '+JSON.stringify(overlap));
+ await page.waitForFunction(()=>window.hlgbProductionReconcile9439?.status?.().busy===false,null,{timeout:15000});
  const concurrent=await page.evaluate(async()=>{
   const api=window.hlgbProductionReconcile9439,coord=window.hlgbProductionReconcileCoordinator9443,before=coord.status();
   const p1=api.reconcile('v9443-browser-concurrent-a'),p2=api.reconcile('v9443-browser-concurrent-b');
