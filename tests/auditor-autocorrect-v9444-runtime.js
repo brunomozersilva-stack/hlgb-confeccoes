@@ -20,13 +20,13 @@ const kind=process.env.HLGB_BROWSER||'webkit',engine=kind==='chromium'?chromium:
  const heal=await page.evaluate(()=>window.hlgbAuditorAutoCorrect9441.healTechnical('v9444-confidence-runtime'));
  const production=heal.find(x=>x.name==='production-reconcile');
  if(!production||production.skipped===true||production.error==='Receita sem confiança suficiente')throw new Error('Produção continua bloqueada pela confiança geral antiga '+JSON.stringify({production,heal}));
- await page.waitForFunction(()=>window.HLGB_AUDITOR_AUTOCORRECT_9447==='94.47'&&window.HLGB_AUDITOR_AUTOCORRECT_9446==='94.46'&&typeof window.hlgbAuditorAutoCorrect9447?.run==='function',null,{timeout:30000});
+ await page.waitForFunction(()=>window.HLGB_AUDITOR_AUTOCORRECT_9448==='94.48'&&window.HLGB_AUDITOR_AUTOCORRECT_9447==='94.47'&&window.HLGB_AUDITOR_AUTOCORRECT_9446==='94.46'&&typeof window.hlgbAuditorAutoCorrect9448?.run==='function',null,{timeout:30000});
  await page.waitForFunction(()=>typeof window.openHlgbAuditor==='function',null,{timeout:15000});
  await page.evaluate(()=>{window.openHlgbAuditor();window.hlgbAuditorSingleUiReclaim9434A?.heal?.('v9444-runtime')});
  await page.waitForFunction(()=>{const b=document.getElementById('hlgbAuditorUnifiedRun9434A');if(!b)return false;const s=getComputedStyle(b),r=b.getBoundingClientRect();return !b.hidden&&!b.disabled&&s.display!=='none'&&s.visibility!=='hidden'&&r.width>0&&r.height>0},null,{timeout:15000});
  const ui=await page.evaluate(()=>window.hlgbAuditorSingleUiReclaim9434A.status());
- if(ui.appBase!=='94.47'||ui.repairReady!==true||ui.fastConvergenceReady!==true||ui.learningAccountingReady!==true||ui.recordLearningScopeReady!==true||ui.productionConcurrencyReady!==true)throw new Error('UI final não preservou v94.44 sob v94.47 '+JSON.stringify(ui));
- if(errors.some(x=>/9447|9446|9444|autocorrect|production-reconcile/i.test(x)))throw new Error('pageerror '+errors.join(' | '));
- console.log('AUDITOR_AUTOCORRECT_V9444_BASE_'+kind.toUpperCase()+'_OK_WITH_V9447_UI',JSON.stringify({migration:{failures:migrated.failures,confidence:migrated.confidence},production:{ok:production.ok,skipped:!!production.skipped},prep:{ok:prep.ok},ui:{appBase:ui.appBase,repairReady:ui.repairReady,fastConvergenceReady:ui.fastConvergenceReady,learningAccountingReady:ui.learningAccountingReady,recordLearningScopeReady:ui.recordLearningScopeReady}}));
+ if(ui.appBase!=='94.48'||ui.repairReady!==true||ui.residualProofReady!==true||ui.fastConvergenceReady!==true||ui.learningAccountingReady!==true||ui.recordLearningScopeReady!==true||ui.productionConcurrencyReady!==true)throw new Error('UI final não preservou v94.44 sob v94.48 '+JSON.stringify(ui));
+ if(errors.some(x=>/9448|9447|9446|9444|autocorrect|production-reconcile/i.test(x)))throw new Error('pageerror '+errors.join(' | '));
+ console.log('AUDITOR_AUTOCORRECT_V9444_BASE_'+kind.toUpperCase()+'_OK_WITH_V9448_UI',JSON.stringify({migration:{failures:migrated.failures,confidence:migrated.confidence},production:{ok:production.ok,skipped:!!production.skipped},prep:{ok:prep.ok},ui:{appBase:ui.appBase,repairReady:ui.repairReady,residualProofReady:ui.residualProofReady,fastConvergenceReady:ui.fastConvergenceReady,learningAccountingReady:ui.learningAccountingReady,recordLearningScopeReady:ui.recordLearningScopeReady}}));
  await browser.close();
 })().catch(e=>{console.error(e);process.exit(1)});

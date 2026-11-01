@@ -1,4 +1,4 @@
-name: HLGB Auditor Repair v94.40 + Autocorrect v94.47
+name: HLGB Auditor Repair v94.40 + Autocorrect v94.48
 on:
   push:
     branches:
@@ -10,6 +10,7 @@ on:
       - fix/auditor-learning-v9444
       - fix/auditor-record-learning-v9446
       - fix/auditor-fast-convergence-v9447
+      - fix/auditor-production-residual-v9448
   pull_request:
     branches:
       - main
@@ -38,6 +39,10 @@ jobs:
         run: node --check release-auditor-autocorrect-v9446.js
       - name: Sintaxe Auditor v94.47
         run: node --check release-auditor-autocorrect-v9447.js
+      - name: Sintaxe prova residual Produção v94.48
+        run: node --check release-production-residual-v9448.js
+      - name: Sintaxe Auditor v94.48
+        run: node --check release-auditor-autocorrect-v9448.js
       - name: Sintaxe gate pós-login v94.42
         run: node --check release-login-confirm-gate-v9407.js
       - name: Sintaxe reconciliador Produção endurecido
@@ -64,6 +69,8 @@ jobs:
         run: node tests/auditor-autocorrect-v9446-learning.js
       - name: Convergência rápida sem reprocessar histórico v94.47
         run: node tests/auditor-autocorrect-v9447-fast.js
+      - name: Prova residual distingue técnico de negócio v94.48
+        run: node tests/production-v9448-residual.js
       - name: Regressão de login
         run: node tests/runtime-login-ready-v9378.js
   browsers:
@@ -86,7 +93,7 @@ jobs:
           npx playwright install --with-deps webkit chromium
       - name: Iniciar servidor local
         run: |
-          python3 -m http.server 4173 >/tmp/hlgb-9447-http.log 2>&1 &
+          python3 -m http.server 4173 >/tmp/hlgb-9448-http.log 2>&1 &
           sleep 2
       - name: Login real continua abrindo
         run: node tests/login-3d-v9409-webkit.js
@@ -102,6 +109,8 @@ jobs:
         run: node tests/auditor-autocorrect-v9446-runtime.js
       - name: Convergência rápida real v94.47
         run: node tests/auditor-autocorrect-v9447-runtime.js
+      - name: Prova residual real v94.48
+        run: node tests/auditor-autocorrect-v9448-runtime.js
       - name: Reconciliação de produção nas três filas
         run: node tests/production-save-auditor-v9439-browser.js
       - name: Relatório automático 18h continua não navegante
