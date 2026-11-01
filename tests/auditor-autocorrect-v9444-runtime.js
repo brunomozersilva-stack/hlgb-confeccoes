@@ -8,7 +8,6 @@ const kind=process.env.HLGB_BROWSER||'webkit',engine=kind==='chromium'?chromium:
  await page.waitForFunction(()=>window.HLGB_AUDITOR_SINGLE_UI_RECLAIM_9434A==='94.34a'&&typeof window.hlgbLoginConfirmGate9407?.prepareAuditorRepairs9442==='function',null,{timeout:60000});
  const before=await page.evaluate(()=>({auto44:!!window.hlgbAuditorAutoCorrect9444,auth:window.__HLGB_AUTH_READY===true}));
  if(before.auto44)throw new Error('v94.44 carregou antes da autenticação '+JSON.stringify(before));
- // Reproduz a memória real anterior: uma tentativa antiga foi registrada como duas falhas e caiu de 0,85 para 0,49.
  await page.evaluate(()=>localStorage.setItem('hlgb_auditor_repair_learning_v9441',JSON.stringify({'production-reconcile|general':{recipeId:'production-reconcile',fingerprint:'general',level:'B',observations:0,attempts:1,verifiedSuccesses:0,failures:2,recurrences:0,confidence:0.49,firstSeenVersion:'94.41',lastSeenVersion:'94.41',proofType:''}})));
  await page.evaluate(()=>{window.__HLGB_AUTH_READY=true;window.dispatchEvent(new Event('hlgb:authenticated'));const l=document.getElementById('loginScreen');if(l)l.style.setProperty('display','none','important');const a=document.getElementById('appShell');if(a){a.style.setProperty('display','block','important');a.style.setProperty('visibility','visible','important')}});
  await page.waitForFunction(()=>window.HLGB_AUDITOR_AUTOCORRECT_9444==='94.44'&&typeof window.hlgbAuditorAutoCorrect9444?.run==='function'&&window.HLGB_AUDITOR_AUTOCORRECT_9443==='94.43'&&window.hlgbProductionReconcile9439?.concurrencyPatch==='94.43-await-busy',null,{timeout:30000});
@@ -21,13 +20,13 @@ const kind=process.env.HLGB_BROWSER||'webkit',engine=kind==='chromium'?chromium:
  const heal=await page.evaluate(()=>window.hlgbAuditorAutoCorrect9441.healTechnical('v9444-confidence-runtime'));
  const production=heal.find(x=>x.name==='production-reconcile');
  if(!production||production.skipped===true||production.error==='Receita sem confiança suficiente')throw new Error('Produção continua bloqueada pela confiança geral antiga '+JSON.stringify({production,heal}));
- await page.waitForFunction(()=>window.HLGB_AUDITOR_AUTOCORRECT_9446==='94.46'&&typeof window.hlgbAuditorAutoCorrect9446?.run==='function',null,{timeout:15000});
+ await page.waitForFunction(()=>window.HLGB_AUDITOR_AUTOCORRECT_9447==='94.47'&&window.HLGB_AUDITOR_AUTOCORRECT_9446==='94.46'&&typeof window.hlgbAuditorAutoCorrect9447?.run==='function',null,{timeout:30000});
  await page.waitForFunction(()=>typeof window.openHlgbAuditor==='function',null,{timeout:15000});
  await page.evaluate(()=>{window.openHlgbAuditor();window.hlgbAuditorSingleUiReclaim9434A?.heal?.('v9444-runtime')});
  await page.waitForFunction(()=>{const b=document.getElementById('hlgbAuditorUnifiedRun9434A');if(!b)return false;const s=getComputedStyle(b),r=b.getBoundingClientRect();return !b.hidden&&!b.disabled&&s.display!=='none'&&s.visibility!=='hidden'&&r.width>0&&r.height>0},null,{timeout:15000});
  const ui=await page.evaluate(()=>window.hlgbAuditorSingleUiReclaim9434A.status());
- if(ui.appBase!=='94.46'||ui.repairReady!==true||ui.learningAccountingReady!==true||ui.recordLearningScopeReady!==true||ui.productionConcurrencyReady!==true)throw new Error('UI final não preservou v94.44 sob v94.46 '+JSON.stringify(ui));
- if(errors.some(x=>/9446|9444|autocorrect|production-reconcile/i.test(x)))throw new Error('pageerror '+errors.join(' | '));
- console.log('AUDITOR_AUTOCORRECT_V9444_BASE_'+kind.toUpperCase()+'_OK_WITH_V9446_UI',JSON.stringify({migration:{failures:migrated.failures,confidence:migrated.confidence},production:{ok:production.ok,skipped:!!production.skipped},prep:{ok:prep.ok},ui:{appBase:ui.appBase,repairReady:ui.repairReady,learningAccountingReady:ui.learningAccountingReady,recordLearningScopeReady:ui.recordLearningScopeReady}}));
+ if(ui.appBase!=='94.47'||ui.repairReady!==true||ui.fastConvergenceReady!==true||ui.learningAccountingReady!==true||ui.recordLearningScopeReady!==true||ui.productionConcurrencyReady!==true)throw new Error('UI final não preservou v94.44 sob v94.47 '+JSON.stringify(ui));
+ if(errors.some(x=>/9447|9446|9444|autocorrect|production-reconcile/i.test(x)))throw new Error('pageerror '+errors.join(' | '));
+ console.log('AUDITOR_AUTOCORRECT_V9444_BASE_'+kind.toUpperCase()+'_OK_WITH_V9447_UI',JSON.stringify({migration:{failures:migrated.failures,confidence:migrated.confidence},production:{ok:production.ok,skipped:!!production.skipped},prep:{ok:prep.ok},ui:{appBase:ui.appBase,repairReady:ui.repairReady,fastConvergenceReady:ui.fastConvergenceReady,learningAccountingReady:ui.learningAccountingReady,recordLearningScopeReady:ui.recordLearningScopeReady}}));
  await browser.close();
 })().catch(e=>{console.error(e);process.exit(1)});
