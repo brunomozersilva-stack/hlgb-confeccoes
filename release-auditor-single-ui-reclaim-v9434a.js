@@ -1,14 +1,14 @@
 /* HLGB v94.34a — restaura a interface de ação única do Auditor sem alterar sincronização.
-   Patch v94.46: pré-carrega o autocorretor com Produção aguardável, aprendizado global corrigido
-   e confiança por registro isolada; mantém o botão único quando módulos legados recriam o contêiner. */
+   Patch v94.47: carrega o motor de convergência rápida, que separa fila técnica viva,
+   pendências de negócio e histórico; mantém o botão único mesmo após recriação do contêiner. */
 (function(){
 'use strict';
-const V='94.34a',APP_BASE='94.46';
+const V='94.34a',APP_BASE='94.47';
 if(window.HLGB_AUDITOR_SINGLE_UI_RECLAIM_9434A===V)return;
 window.HLGB_AUDITOR_SINGLE_UI_RECLAIM_9434A=V;
 const BUTTON_ID='hlgbAuditorUnifiedRun9434A';
 const STYLE_ID='hlgbAuditorSingleUiReclaim9434A';
-const REPAIR_SRC='./release-auditor-autocorrect-v9446.js';
+const REPAIR_SRC='./release-auditor-autocorrect-v9447.js';
 const LEGACY_REPAIR_SRC='./release-auditor-repair-v9440.js';
 const LEGACY_IDS=[
  'hlgbAuditorUnifiedRun9426','hlgbAuditorUnifiedRun9427','hlgbAuditorUnifiedRun9429','hlgbMultiuserOpen','hlgbSmartTest','hlgbSmartProblem','hlgbSmartHistoryBtn',
@@ -21,8 +21,8 @@ const state={version:V,appBase:APP_BASE,heals:0,created:0,runs:0,errors:0,runnin
 let actionObserver=null,actionObserverHost=null,actionObserverRoot=null,observerQueued=false;
 const sid=v=>String(v??'');
 function stamp(){
- try{if((parseFloat(sid(window.HLGB_RELEASE_VERSION))||0)<94.46)window.HLGB_RELEASE_VERSION=APP_BASE}catch(e){}
- try{const el=document.querySelector('#appShell .logo small');if(el&&((parseFloat(sid(el.textContent).replace(/^v/i,''))||0)<94.46))el.textContent='v'+APP_BASE}catch(e){}
+ try{if((parseFloat(sid(window.HLGB_RELEASE_VERSION))||0)<94.47)window.HLGB_RELEASE_VERSION=APP_BASE}catch(e){}
+ try{const el=document.querySelector('#appShell .logo small');if(el&&((parseFloat(sid(el.textContent).replace(/^v/i,''))||0)<94.47))el.textContent='v'+APP_BASE}catch(e){}
 }
 function root(){
  const s=document.getElementById('hlgbSmartStatus');
@@ -82,29 +82,29 @@ async function prepareRepairs(reason='single-ui'){
  const out={ok:deps.every(x=>x[1]),ready:deps.every(x=>x[1]),missing:deps.filter(x=>!x[1]).map(x=>x[0]),dependencies:deps.map(([id,ready])=>({id,ready}))};state.lastPreparation=out;return out;
 }
 async function ensureRepair(){
- if(window.HLGB_AUDITOR_AUTOCORRECT_9446==='94.46'&&typeof window.hlgbAuditorAutoCorrect9446?.run==='function')return true;
+ if(window.HLGB_AUDITOR_AUTOCORRECT_9447==='94.47'&&typeof window.hlgbAuditorAutoCorrect9447?.run==='function')return true;
  if(window.__HLGB_AUTH_READY!==true)return false;
  const prep=await prepareRepairs('single-ui-ensure');if(!prep?.ok){state.lastError='Reparadores reais indisponíveis: '+(prep?.missing||[]).join(', ');return false}
- let existing=document.querySelector('script[data-hlgb-auditor-autocorrect-9446]');
+ let existing=document.querySelector('script[data-hlgb-auditor-autocorrect-9447]');
  if(existing?.__hlgbPromise)return existing.__hlgbPromise;
  const s=existing||document.createElement('script');
- if(!existing){s.src=REPAIR_SRC+'?fresh='+Date.now();s.async=false;s.setAttribute('data-hlgb-auditor-autocorrect-9446','1');(document.head||document.documentElement).appendChild(s);state.repairLoads++}
- const p=new Promise(resolve=>{if(window.HLGB_AUDITOR_AUTOCORRECT_9446==='94.46')return resolve(true);let done=false;const finish=()=>{if(done)return;done=true;resolve(window.HLGB_AUDITOR_AUTOCORRECT_9446==='94.46'&&typeof window.hlgbAuditorAutoCorrect9446?.run==='function')};s.addEventListener('load',finish,{once:true});s.addEventListener('error',()=>{try{s.remove()}catch(_){}finish()},{once:true});setTimeout(finish,10000)});s.__hlgbPromise=p;return p;
+ if(!existing){s.src=REPAIR_SRC+'?fresh='+Date.now();s.async=false;s.setAttribute('data-hlgb-auditor-autocorrect-9447','1');(document.head||document.documentElement).appendChild(s);state.repairLoads++}
+ const p=new Promise(resolve=>{if(window.HLGB_AUDITOR_AUTOCORRECT_9447==='94.47')return resolve(true);let done=false;const finish=()=>{if(done)return;done=true;resolve(window.HLGB_AUDITOR_AUTOCORRECT_9447==='94.47'&&typeof window.hlgbAuditorAutoCorrect9447?.run==='function')};s.addEventListener('load',finish,{once:true});s.addEventListener('error',()=>{try{s.remove()}catch(_){}finish()},{once:true});setTimeout(finish,10000)});s.__hlgbPromise=p;return p;
 }
 function ensureButton(){
  const api=window.hlgbAuditorSingleAction9429,h=host();if(typeof api?.run!=='function'||!h)return false;
  let btn=document.getElementById(BUTTON_ID);if(!btn){btn=document.createElement('button');btn.id=BUTTON_ID;btn.type='button';btn.className='primary';state.created++}if(btn.parentElement!==h)h.prepend(btn);
- btn.textContent=state.running?'🧠 Auditando e autocorrigindo…':'🧪 Auditar e corrigir';btn.disabled=state.running;showButton(btn);
+ btn.textContent=state.running?'⚡ Auditando o que realmente precisa…':'🧪 Auditar e corrigir';btn.disabled=state.running;showButton(btn);
  btn.onclick=async()=>{
   if(state.running||window.__HLGB_AUTH_READY!==true)return;state.running=true;state.runs++;ensureButton();hideLegacy();ensureActionObserver();
-  try{const loaded=await ensureRepair();if(loaded&&typeof window.hlgbAuditorAutoCorrect9446?.run==='function')await window.hlgbAuditorAutoCorrect9446.run({reason:'manual-button',download:true,render:true});else throw new Error(state.lastError||'Não foi possível preparar o autocorretor v94.46. Tente novamente.');}
+  try{const loaded=await ensureRepair();if(loaded&&typeof window.hlgbAuditorAutoCorrect9447?.run==='function')await window.hlgbAuditorAutoCorrect9447.run({reason:'manual-button',download:true,render:true});else throw new Error(state.lastError||'Não foi possível preparar o autocorretor v94.47. Tente novamente.');}
   catch(e){state.errors++;state.lastError=sid(e?.message||e);console.error('[HLGB Auditor '+V+'] ação única autocorretora',e)}finally{state.running=false;setTimeout(()=>heal('after-run'),0)}
  };
  hideLegacy();showButton(btn);ensureActionObserver();enforceActions(h);return true;
 }
 function heal(reason='manual'){
  stamp();ensureStyle();hideLegacy();const ok=ensureButton();hideLegacy();ensureActionObserver();enforceActions();showButton(document.getElementById(BUTTON_ID));
- if(window.hlgbAuditorAutoCorrect9446?.state?.lastSummary)window.hlgbAuditorAutoCorrect9446.render?.(window.hlgbAuditorAutoCorrect9446.state.lastSummary);
+ if(window.hlgbAuditorAutoCorrect9447?.state?.lastSummary)window.hlgbAuditorAutoCorrect9447.render?.(window.hlgbAuditorAutoCorrect9447.state.lastSummary);
  state.heals++;state.lastAt=new Date().toISOString();state.lastReason=reason;return ok;
 }
 function burst(reason){[0,40,120,300,700,1400,3000,7000,15000].forEach(ms=>setTimeout(()=>heal(reason+'-'+ms),ms));if(window.__HLGB_AUTH_READY===true)setTimeout(()=>ensureRepair().catch(()=>{}),20)}
@@ -113,6 +113,6 @@ window.addEventListener?.('hlgb:auditor:open',()=>burst('auditor-open'));
 window.addEventListener?.('hlgb:authenticated',()=>burst('auth'));
 window.addEventListener?.('pageshow',()=>burst('pageshow'));
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>burst('dom-ready'),{once:true});else burst('boot');
-window.hlgbAuditorSingleUiReclaim9434A={version:V,state,heal,burst,ensureRepair,prepareRepairs,enforceActions,status:()=>({...state,buttonPresent:!!document.getElementById(BUTTON_ID),apiReady:typeof window.hlgbAuditorSingleAction9429?.run==='function',repairReady:window.HLGB_AUDITOR_AUTOCORRECT_9446==='94.46',repairDependenciesReady:window.hlgbLoginConfirmGate9407?.repairReadiness?.()?.ready===true,productionConcurrencyReady:window.hlgbProductionReconcile9439?.concurrencyPatch==='94.43-await-busy',learningAccountingReady:window.HLGB_AUDITOR_AUTOCORRECT_9444==='94.44',recordLearningScopeReady:window.HLGB_AUDITOR_AUTOCORRECT_9446==='94.46',observerActive:!!actionObserver,observerRootConnected:actionObserverRoot?.isConnected!==false,appVersion:sid(window.HLGB_RELEASE_VERSION),legacyRepairSrc:LEGACY_REPAIR_SRC})};
-console.info('[HLGB] Auditor '+V+' interface de ação única restaurada · v94.46 com confiança por registro isolada');
+window.hlgbAuditorSingleUiReclaim9434A={version:V,state,heal,burst,ensureRepair,prepareRepairs,enforceActions,status:()=>({...state,buttonPresent:!!document.getElementById(BUTTON_ID),apiReady:typeof window.hlgbAuditorSingleAction9429?.run==='function',repairReady:window.HLGB_AUDITOR_AUTOCORRECT_9447==='94.47',repairDependenciesReady:window.hlgbLoginConfirmGate9407?.repairReadiness?.()?.ready===true,productionConcurrencyReady:window.hlgbProductionReconcile9439?.concurrencyPatch==='94.43-await-busy',learningAccountingReady:window.HLGB_AUDITOR_AUTOCORRECT_9444==='94.44',recordLearningScopeReady:window.HLGB_AUDITOR_AUTOCORRECT_9446==='94.46',fastConvergenceReady:window.HLGB_AUDITOR_AUTOCORRECT_9447==='94.47',observerActive:!!actionObserver,observerRootConnected:actionObserverRoot?.isConnected!==false,appVersion:sid(window.HLGB_RELEASE_VERSION),legacyRepairSrc:LEGACY_REPAIR_SRC})};
+console.info('[HLGB] Auditor '+V+' interface de ação única restaurada · v94.47 em convergência rápida');
 })();
