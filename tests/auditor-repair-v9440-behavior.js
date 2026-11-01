@@ -1,11 +1,12 @@
 const vm=require('vm'),fs=require('fs'),assert=require('assert/strict');
 function harness(){
- const storage=new Map(),listeners={},nodes=new Map();
+ const storage=new Map(),listeners={},nodes=new Map(),remoteIssues=new Map();
  const page={id:'pedidos',classList:{add(){},remove(){}},scrollTop:25,scrollLeft:0};
  const host={prepend(x){nodes.set(x.id,x)}};nodes.set('hlgbAuditorResult',host);nodes.set('pedidos',page);
  const c={console:{info(){}},Date,Map,Set,JSON,Promise,structuredClone,URL,setTimeout,clearTimeout,db:{systemIssues:[]},localSaveOnly(){},location:{href:'https://example.test/'},navigator:{locks:{request:async(n,o,f)=>f({name:n})}},localStorage:{getItem:k=>storage.get(k)||null,setItem:(k,v)=>storage.set(k,v)},document:{readyState:'loading',body:{},activeElement:null,addEventListener(){},querySelector:s=>s.includes('.page.active')?page:null,querySelectorAll:()=>[page],getElementById:id=>nodes.get(id)||null,createElement:()=>({style:{}})},addEventListener:(n,f)=>{(listeners[n]??=[]).push(f)},scrollTo(){},__HLGB_AUTH_READY:true,HLGB_RELEASE_VERSION:'94.40'};
  c.window=c;vm.createContext(c);
- c.hlgbRecordSaveWithRetry=async(m,id,data)=>({applied:true,data});
+ c.hlgbRecordSaveWithRetry=async(m,id,data)=>{if(m==='systemIssues')remoteIssues.set(String(id),structuredClone(data));return {applied:true,data}};
+ c.cloudRequest=async path=>{const match=String(path).match(/entity_id=eq\.([^&]+)/),id=decodeURIComponent(match?.[1]||'');if(!id)return[];if(!remoteIssues.has(id)){const local=c.db.systemIssues.find(x=>String(x?.id)===id);if(local)remoteIssues.set(id,structuredClone(local))}const data=remoteIssues.get(id);return data?[{entity_id:id,data:structuredClone(data),deleted_at:null,revision:7,updated_at:new Date().toISOString()}]:[]};
  vm.runInContext(fs.readFileSync('release-diagnostics-center.js','utf8'),c);
  vm.runInContext(fs.readFileSync('release-auditor-repair-v9440.js','utf8'),c);
  const metrics={pendingUnique:0,scriptDuplicates:0,saveDuplicateResponsibilities:0};
@@ -13,7 +14,7 @@ function harness(){
  c.report=()=>({main:{checks:orphans},daily:{operations:{delivery:{status:'pass'},savingUi:{status:'pass'}},intelligence:{metrics:{...metrics}}}});
  c.calls=0;c.hlgbAuditorSingleAction9429={run:async()=>{c.calls++;return c.report()}};
  c.hlgbAckReconcile9436={install:()=>true};c.hlgbProductionReconcile9439={reconcile:async()=>({results:[]}),candidates:async()=>[]};c.hlgbAuditorRapid9437={heal:()=>true};c.hlgbAuditorFinalize9439={install:()=>true};
- c.metrics=metrics;c.storage=storage;c.listeners=listeners;return c;
+ c.metrics=metrics;c.storage=storage;c.listeners=listeners;c.remoteIssues=remoteIssues;return c;
 }
 const old=(id,extra={})=>({id,title:'Falha ao salvar production',status:'Aberto',lastSeenAt:'2026-10-30T10:00:00Z',...extra});
 const proof=()=>({id:'prod',ok:true,proof:'server-semantic-match',normalizedRemoved:1,walRemoved:2,serverRevision:9,operationIds:['op']});
@@ -35,7 +36,7 @@ const proof=()=>({id:'prod',ok:true,proof:'server-semantic-match',normalizedRemo
  c=harness();c.hlgbProductionReconcile9439.reconcile=async()=>({results:[proof()]});c.hlgbProductionReconcile9439.candidates=async()=>[{id:'prod'}];s=await c.hlgbAuditorRepair9440.run();assert.equal(s.fixed,0);assert(s.unverified.length>0);
  c=harness();c.db.systemIssues=[old('wrong',{opId:'other-op',recordRefs:[{module:'production',id:'prod'}]})];c.hlgbProductionReconcile9439.reconcile=async()=>({results:[proof()]});s=await c.hlgbAuditorRepair9440.run();assert.equal(c.db.systemIssues[0].status,'Aberto');
  c=harness();c.db.systemIssues=[old('reject',{opId:'op',recordRefs:[{module:'production',id:'prod'}]})];c.hlgbRecordSaveWithRetry=async()=>({applied:false});c.hlgbProductionReconcile9439.reconcile=async()=>({results:[proof()]});s=await c.hlgbAuditorRepair9440.run();assert.equal(c.db.systemIssues[0].status,'Aberto');assert.equal(s.resolvedDiagnostics.length,0);
- c=harness();c.db.systemIssues=[old('incomplete',{opId:'op',recordRefs:[{module:'production',id:'prod'}]})];c.hlgbRecordSaveWithRetry=async()=>({applied:true});c.hlgbProductionReconcile9439.reconcile=async()=>({results:[proof()]});s=await c.hlgbAuditorRepair9440.run();assert.equal(c.db.systemIssues[0].status,'Aberto');assert.equal(s.resolvedDiagnostics.length,0);assert(s.unverified.some(x=>/Resposta remota incompleta/i.test(x.detail||'')));
+ c=harness();c.db.systemIssues=[old('incomplete',{opId:'op',recordRefs:[{module:'production',id:'prod'}]})];c.hlgbRecordSaveWithRetry=async()=>({applied:true});c.hlgbProductionReconcile9439.reconcile=async()=>({results:[proof()]});s=await c.hlgbAuditorRepair9440.run();assert.equal(c.db.systemIssues[0].status,'Aberto');assert.equal(s.resolvedDiagnostics.length,0);assert(s.unverified.some(x=>/Resposta remota incompleta|não confirmou/i.test(x.detail||'')));
  c=harness();const noOpProof=proof();noOpProof.operationIds=[];c.hlgbProductionReconcile9439.reconcile=async()=>({results:[noOpProof]});s=await c.hlgbAuditorRepair9440.run();assert.equal(s.fixed,0);assert(s.unverified.some(x=>/operação ou prova remota incompleta/i.test(x.detail||'')));
- console.log('AUDITOR_REPAIR_V9440_BEHAVIOR_OK: 12 scenarios, actual diagnostics API, evidence, incomplete remote responses, recurrence, idempotency, locks, 3 rounds and failed audit');
+ console.log('AUDITOR_REPAIR_V9440_BEHAVIOR_OK: 12 scenarios, diagnostics API + remote readback, evidence, incomplete responses, recurrence, idempotency, locks, 3 rounds and failed audit');
 })().catch(e=>{console.error(e);process.exitCode=1});
