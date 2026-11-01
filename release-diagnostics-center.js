@@ -537,7 +537,22 @@ async function createIssueText(description,title='Erro relatado pelo Assistente 
   row.fingerprint=fingerprint(['assistant',row.title,row.page,row.description]);
   return saveDiagnostic(ISSUE_MODULE,row);
 }
-window.hlgbDiagnosticsCenter={VERSION,sanitize,fingerprint,classifySaveError,scanSystem,makeReport,refresh:refreshCenterData,modules:[ISSUE_MODULE,SUGGESTION_MODULE],createSuggestionText,createIssueText};
+// Only a specific operation proof may retire a historical diagnostic automatically.
+async function resolveVerifiedIssue(issueId,evidence,expectedLastSeen){
+ const row=arr(ISSUE_MODULE).find(x=>sid(x.id)===sid(issueId));
+ if(!row||row.status==='Resolvido'||!evidence?.runId||evidence.issueId!==row.id)return false;
+ if((row.lastSeenAt||row.lastSeen)!==expectedLastSeen)return false;
+ const refs=row.recordRefs||[],opId=sid(row.operationId||row.opId);
+ if(refs.length!==1||!opId||opId!==evidence.operationId||!evidence.operationIds?.includes(opId))return false;
+ if(refs[0].module!==evidence.module||sid(refs[0].id)!==sid(evidence.id))return false;
+ if(evidence.verification!=='remote-proof-and-queue-readback'||!(evidence.serverRevision>0)||!evidence.proof)return false;
+ if(!Number.isFinite(Date.parse(evidence.verifiedAt))||Date.parse(evidence.verifiedAt)<Date.parse(expectedLastSeen))return false;
+ const history=Array.isArray(row.repairHistory)?row.repairHistory:[];
+ const next={...clone(row),status:'Resolvido',resolvedAt:now(),updatedAt:now(),repairHistory:[...history,clone(evidence)]};
+ const result=await saveDiagnostic(ISSUE_MODULE,next);
+ return result.status==='Resolvido'?result:false;
+}
+window.hlgbDiagnosticsCenter={VERSION,getIssues:()=>clone(arr(ISSUE_MODULE)),resolveVerifiedIssue,sanitize,fingerprint,classifySaveError,scanSystem,makeReport,refresh:refreshCenterData,modules:[ISSUE_MODULE,SUGGESTION_MODULE],createSuggestionText,createIssueText};
 
 function boot(){
   if(centerLoaded)return;centerLoaded=true;

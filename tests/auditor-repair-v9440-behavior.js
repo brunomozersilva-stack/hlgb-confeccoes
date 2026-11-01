@@ -1,0 +1,42 @@
+const vm=require('vm'),fs=require('fs'),assert=require('assert/strict');
+function harness(){
+ const storage=new Map(),listeners={},nodes=new Map(),remoteIssues=new Map();
+ const page={id:'pedidos',classList:{add(){},remove(){}},scrollTop:25,scrollLeft:0};
+ const host={prepend(x){nodes.set(x.id,x)}};nodes.set('hlgbAuditorResult',host);nodes.set('pedidos',page);
+ const c={console:{info(){}},Date,Map,Set,JSON,Promise,structuredClone,URL,setTimeout,clearTimeout,db:{systemIssues:[]},localSaveOnly(){},location:{href:'https://example.test/'},navigator:{locks:{request:async(n,o,f)=>f({name:n})}},localStorage:{getItem:k=>storage.get(k)||null,setItem:(k,v)=>storage.set(k,v)},document:{readyState:'loading',body:{},activeElement:null,addEventListener(){},querySelector:s=>s.includes('.page.active')?page:null,querySelectorAll:()=>[page],getElementById:id=>nodes.get(id)||null,createElement:()=>({style:{}})},addEventListener:(n,f)=>{(listeners[n]??=[]).push(f)},scrollTo(){},__HLGB_AUTH_READY:true,HLGB_RELEASE_VERSION:'94.40'};
+ c.window=c;vm.createContext(c);
+ c.hlgbRecordSaveWithRetry=async(m,id,data)=>{if(m==='systemIssues')remoteIssues.set(String(id),structuredClone(data));return {applied:true,data}};
+ c.cloudRequest=async path=>{const p=String(path);if(!p.includes('module=eq.systemIssues'))return[];const match=p.match(/entity_id=eq\.([^&]+)/),id=decodeURIComponent(match?.[1]||'');if(!id)return [...remoteIssues.entries()].map(([entity_id,data])=>({module:'systemIssues',entity_id,data:structuredClone(data),deleted_at:null,revision:7,updated_at:new Date().toISOString(),updated_by:'test'}));if(!remoteIssues.has(id)){const local=c.db.systemIssues.find(x=>String(x?.id)===id);if(local)remoteIssues.set(id,structuredClone(local))}const data=remoteIssues.get(id);return data?[{entity_id:id,data:structuredClone(data),deleted_at:null,revision:7,updated_at:new Date().toISOString()}]:[]};
+ vm.runInContext(fs.readFileSync('release-diagnostics-center.js','utf8'),c);
+ vm.runInContext(fs.readFileSync('release-auditor-repair-v9440.js','utf8'),c);
+ const metrics={pendingUnique:0,scriptDuplicates:0,saveDuplicateResponsibilities:0};
+ const orphans=Array.from({length:4},(_,i)=>({code:'data:finance-projection-orphan',status:'fail',refs:[{module:'finance',id:String(i)}],detail:'Sem nota '+i}));
+ c.report=()=>({main:{checks:orphans},daily:{operations:{delivery:{status:'pass'},savingUi:{status:'pass'}},intelligence:{metrics:{...metrics}}}});
+ c.calls=0;c.hlgbAuditorSingleAction9429={run:async()=>{c.calls++;return c.report()}};
+ c.hlgbAckReconcile9436={install:()=>true};c.hlgbProductionReconcile9439={reconcile:async()=>({results:[]}),candidates:async()=>[]};c.hlgbAuditorRapid9437={heal:()=>true};c.hlgbAuditorFinalize9439={install:()=>true};
+ c.metrics=metrics;c.storage=storage;c.listeners=listeners;c.remoteIssues=remoteIssues;return c;
+}
+const old=(id,extra={})=>({id,title:'Falha ao salvar production',status:'Aberto',lastSeenAt:'2026-10-30T10:00:00Z',...extra});
+const proof=()=>({id:'prod',ok:true,proof:'server-semantic-match',normalizedRemoved:1,walRemoved:2,serverRevision:9,operationIds:['op']});
+(async()=>{
+ let c=harness();c.db.systemIssues=[old('aggregate'),old('js',{title:'Erro JavaScript em corte'})];
+ let s=await c.hlgbAuditorRepair9440.run();assert.equal(s.fixed,0);assert.equal(s.blocked.length,4);assert.equal(s.unverified.length,2);assert.equal(c.calls,2);assert.equal(s.passes,1);assert(c.db.systemIssues.every(x=>x.status==='Aberto'));assert.equal(c.hlgbAuditorRepair9440.cleanTechnicalState({}),false);
+ c=harness();c.db.systemIssues=[old('exact',{opId:'op',recordRefs:[{module:'production',id:'prod'}]}),old('other')];let heals=0;
+ c.hlgbProductionReconcile9439.reconcile=async()=>({results:++heals===1?[proof()]:[]});
+ s=await c.hlgbAuditorRepair9440.run();assert.equal(s.fixed,1);assert.equal(c.db.systemIssues[0].status,'Resolvido');assert.equal(c.db.systemIssues[0].repairHistory[0].serverRevision,9);assert.equal(c.db.systemIssues[1].status,'Aberto');assert.equal(s.passes,2);assert.equal(s.resolvedDiagnostics.length,1);
+ s=await c.hlgbAuditorRepair9440.run();assert.equal(s.fixed,0);assert.equal(c.db.systemIssues[0].repairHistory.length,1);
+ c=harness();c.db.systemIssues=[old('same',{opId:'op',recordRefs:[{module:'production',id:'prod'}]})];heals=0;
+ c.hlgbProductionReconcile9439.reconcile=async()=>({results:++heals===1?[proof()]:[]});
+ c.hlgbAuditorSingleAction9429.run=async()=>{if(++c.calls===3)c.db.systemIssues[0].lastSeenAt=new Date().toISOString();return c.report()};
+ s=await c.hlgbAuditorRepair9440.run();assert.equal(s.fixed,0);assert.equal(c.db.systemIssues[0].status,'Aberto');assert.equal(s.currentTechnicalReproduced,true);
+ c=harness();c.hlgbAuditorSingleAction9429.run=async()=>{c.calls++;c.metrics.pendingUnique=c.calls;return c.report()};s=await c.hlgbAuditorRepair9440.run();assert.equal(s.passes,3);assert.equal(c.calls,4);assert.equal(s.rounds.length,3);
+ c=harness();let release;c.hlgbAuditorSingleAction9429.run=()=>new Promise(r=>{release=()=>r(c.report())});const pending=c.hlgbAuditorRepair9440.run();assert.equal(await c.hlgbAuditorRepair9440.run(),false);c.hlgbAuditorSingleAction9429.run=async()=>c.report();release();await pending;
+ c=harness();c.navigator.locks.request=async(n,o,f)=>f(null);assert.equal(await c.hlgbAuditorRepair9440.run(),false);assert.equal(c.calls,0);
+ c=harness();c.hlgbAuditorSingleAction9429.run=async()=>false;s=await c.hlgbAuditorRepair9440.run();assert.equal(s.stopReason,'Execução interrompida');assert.equal(s.fixed,0);assert.equal(c.hlgbAuditorRepair9440.state.running,false);
+ c=harness();c.hlgbProductionReconcile9439.reconcile=async()=>({results:[proof()]});c.hlgbProductionReconcile9439.candidates=async()=>[{id:'prod'}];s=await c.hlgbAuditorRepair9440.run();assert.equal(s.fixed,0);assert(s.unverified.length>0);
+ c=harness();c.db.systemIssues=[old('wrong',{opId:'other-op',recordRefs:[{module:'production',id:'prod'}]})];c.hlgbProductionReconcile9439.reconcile=async()=>({results:[proof()]});s=await c.hlgbAuditorRepair9440.run();assert.equal(c.db.systemIssues[0].status,'Aberto');
+ c=harness();c.db.systemIssues=[old('reject',{opId:'op',recordRefs:[{module:'production',id:'prod'}]})];c.hlgbRecordSaveWithRetry=async()=>({applied:false});c.hlgbProductionReconcile9439.reconcile=async()=>({results:[proof()]});s=await c.hlgbAuditorRepair9440.run();assert.equal(c.db.systemIssues[0].status,'Aberto');assert.equal(s.resolvedDiagnostics.length,0);
+ c=harness();c.db.systemIssues=[old('incomplete',{opId:'op',recordRefs:[{module:'production',id:'prod'}]})];c.hlgbRecordSaveWithRetry=async()=>({applied:true});c.hlgbProductionReconcile9439.reconcile=async()=>({results:[proof()]});s=await c.hlgbAuditorRepair9440.run();assert.equal(c.db.systemIssues[0].status,'Aberto');assert.equal(s.resolvedDiagnostics.length,0);assert(s.unverified.some(x=>/Resposta remota incompleta|não confirmou/i.test(x.detail||'')));
+ c=harness();const noOpProof=proof();noOpProof.operationIds=[];c.hlgbProductionReconcile9439.reconcile=async()=>({results:[noOpProof]});s=await c.hlgbAuditorRepair9440.run();assert.equal(s.fixed,0);assert(s.unverified.some(x=>/operação ou prova remota incompleta/i.test(x.detail||'')));
+ console.log('AUDITOR_REPAIR_V9440_BEHAVIOR_OK: 12 scenarios, diagnostics API + remote readback, evidence, incomplete responses, recurrence, idempotency, locks, 3 rounds and failed audit');
+})().catch(e=>{console.error(e);process.exitCode=1});

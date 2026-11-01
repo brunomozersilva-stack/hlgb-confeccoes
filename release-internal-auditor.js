@@ -11,12 +11,17 @@ const WAL_KEY='hlgb_durable_wal_v1';
 let auditRunsCache=[];
 const runtimeErrors=[];
 const MAX_RUNTIME_ERRORS=80;
-function keepRuntimeError(type,message,stack=''){
-  const row={at:new Date().toISOString(),type:String(type||'error'),message:String(message||'').slice(0,1200),stack:String(stack||'').slice(0,2500)};
+function keepRuntimeError(type,message,stack='',context={}){
+  const row={at:new Date().toISOString(),type:String(type||'error'),message:String(message||'').slice(0,1200),stack:String(stack||'').slice(0,2500),...context};
   runtimeErrors.push(row);if(runtimeErrors.length>MAX_RUNTIME_ERRORS)runtimeErrors.splice(0,runtimeErrors.length-MAX_RUNTIME_ERRORS);
 }
 if(typeof window.addEventListener==='function'){
- window.addEventListener('error',e=>{try{keepRuntimeError('error',e?.message||'Erro JavaScript',e?.error?.stack||'')}catch(_){ }},true);
+ window.addEventListener('error',e=>{try{
+  const target=e?.target,resource=target&&target!==window&&target.tagName;
+  const raw=resource?(target.currentSrc||target.src||target.href||''):(e?.filename||'');
+  let source='';try{const u=new URL(raw,location.href);source=u.origin+u.pathname}catch(_){}
+  keepRuntimeError(resource?'resource-error':'error',resource?'Falha ao carregar recurso '+target.tagName:(e?.message||e?.error?.message||'Erro JavaScript sem detalhe'),e?.error?.stack||'',{source,line:+e?.lineno||0,column:+e?.colno||0,resourceTag:resource?target.tagName:'',appVersion:String(window.HLGB_RELEASE_VERSION||''),page:document.querySelector('.page.active')?.id||''});
+ }catch(_){ }},true);
  window.addEventListener('unhandledrejection',e=>{try{keepRuntimeError('unhandledrejection',e?.reason?.message||String(e?.reason||'Promise rejeitada'),e?.reason?.stack||'')}catch(_){ }},true);
 }
 const REQUIRED_PAGES=['dashboard','pedidos','corte','producao','projecao','faltas','hubFinanceiro','config'];

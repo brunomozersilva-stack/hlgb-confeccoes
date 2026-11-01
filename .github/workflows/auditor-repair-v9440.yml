@@ -1,0 +1,62 @@
+name: HLGB Auditor Repair v94.40
+on:
+  push:
+    branches:
+      - main
+      - fix/auditor-repair-v9440
+  pull_request:
+    branches:
+      - main
+jobs:
+  logic:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Sintaxe Auditor Reparador
+        run: node --check release-auditor-repair-v9440.js
+      - name: Sintaxe interface de ação única
+        run: node --check release-auditor-single-ui-reclaim-v9434a.js
+      - name: Contratos v94.40
+        run: node tests/auditor-repair-v9440.js
+      - name: Comportamento e evidências com API real
+        run: node tests/auditor-repair-v9440-behavior.js
+      - name: Regressão de login
+        run: node tests/runtime-login-ready-v9378.js
+  browsers:
+    strategy:
+      fail-fast: false
+      matrix:
+        browser: [webkit, chromium]
+    env:
+      HLGB_BROWSER: ${{ matrix.browser }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Instalar Playwright WebKit
+        run: |
+          npm install --no-save playwright@1.55.0
+          npx playwright install --with-deps webkit chromium
+      - name: Iniciar servidor local
+        run: |
+          python3 -m http.server 4173 >/tmp/hlgb-9440-http.log 2>&1 &
+          sleep 2
+      - name: Login real continua abrindo
+        run: node tests/login-3d-v9409-webkit.js
+      - name: Auditor continua com uma ação
+        run: node tests/auditor-single-ui-v9434a-webkit.js
+      - name: Auditar corrigir retestar com segurança
+        run: node tests/auditor-repair-v9440-webkit.js
+      - name: Reconciliação de produção nas três filas
+        run: node tests/production-save-auditor-v9439-browser.js
+      - name: Relatório automático 18h continua não navegante
+        run: node tests/auditor-rapid-learning-v9437-webkit.js
+      - name: Corrida de navegação continua corrigida
+        run: node tests/navigation-race-v9439-webkit.js
