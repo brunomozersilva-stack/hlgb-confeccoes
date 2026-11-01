@@ -18,7 +18,7 @@ const engine=process.env.HLGB_BROWSER==='chromium'?chromium:webkit;
    window.hlgbAuditorSingleAction9429.run=async()=>{window.__acTest.singleCalls++;throw new Error('execução visual proibida')};
    window.hlgbAuditorIntelligence9396.currentMetrics=()=>({metrics:{...metrics}});
    window.hlgbInternalAuditor.run=async()=>{window.__acTest.auditCalls++;return {summary:{result:'Aprovado'},checks:[],operational:{checks:[{code:'operational:pending',pending:{unique:metrics.pendingUnique}},{code:'operational:delivery',status:'pass'},{code:'operational:saving-ui',status:'pass'}]}}};
-   window.hlgbAckReconcile9436={install:async()=>true};window.hlgbAuditorRapid9437.heal=async()=>true;window.hlgbAuditorFinalize9439.install=async()=>true;
+   window.hlgbAckReconcile9436={install:async()=>true};window.hlgbAuditorRapid9437={heal:async()=>true};window.hlgbAuditorFinalize9439={install:async()=>true};
    window.hlgbProductionReconcile9439={reconcile:async()=>({results:[]}),candidates:async()=>[]};
    const candidates=[...document.querySelectorAll('#appShell .page,.page')].filter(x=>x.id);const anchor=candidates.find(x=>x.classList.contains('active'))||candidates[0];if(!anchor)throw new Error('nenhuma página real encontrada para testar estabilidade');document.querySelectorAll('#appShell .page.active,.page.active').forEach(x=>x.classList.remove('active'));anchor.classList.add('active');const expectedPage=anchor.id;
    const first=await window.hlgbAuditorAutoCorrect9441.run({render:false,download:false});
