@@ -1,5 +1,6 @@
 /* HLGB v94.34a — restaura a interface de ação única do Auditor sem alterar sincronização.
-   Patch v94.43: pré-carrega o autocorretor com Produção aguardável após autenticação. */
+   Patch v94.43: pré-carrega o autocorretor com Produção aguardável após autenticação
+   e mantém o botão único quando módulos legados recriam o contêiner de ações. */
 (function(){
 'use strict';
 const V='94.34a',APP_BASE='94.43';
@@ -16,8 +17,8 @@ const LEGACY_IDS=[
  'hlgbAuditDownloadCritical9315','hlgbAuditorHubDeep9315'
 ];
 const TOOL_IDS=['hlgbBootTools9381'];
-const state={version:V,appBase:APP_BASE,heals:0,created:0,runs:0,errors:0,running:false,repairLoads:0,observerBinds:0,lastAt:'',lastReason:'',lastError:'',lastPreparation:null};
-let actionObserver=null,actionObserverHost=null,observerQueued=false;
+const state={version:V,appBase:APP_BASE,heals:0,created:0,runs:0,errors:0,running:false,repairLoads:0,observerBinds:0,hostRebinds:0,lastAt:'',lastReason:'',lastError:'',lastPreparation:null};
+let actionObserver=null,actionObserverHost=null,actionObserverRoot=null,observerQueued=false;
 const sid=v=>String(v??'');
 function stamp(){
  try{if((parseFloat(sid(window.HLGB_RELEASE_VERSION))||0)<94.43)window.HLGB_RELEASE_VERSION=APP_BASE}catch(e){}
@@ -48,10 +49,22 @@ function showButton(btn){if(!btn)return;try{if(btn.hidden)btn.hidden=false;if(bt
 function hideLegacy(){document.querySelectorAll('.hlgb-auditor-actions > button').forEach(hideElement);for(const id of LEGACY_IDS)hideElement(document.getElementById(id));for(const id of TOOL_IDS){const el=document.getElementById(id);if(el){try{if(!el.hidden)el.hidden=true;if(el.getAttribute('aria-hidden')!=='true')el.setAttribute('aria-hidden','true');setImportant(el,'display','none');setImportant(el,'visibility','hidden')}catch(e){}}}}
 function enforceActions(h=host()){if(!h)return false;try{h.querySelectorAll(':scope > button').forEach(el=>el.id===BUTTON_ID?showButton(el):hideElement(el))}catch(e){document.querySelectorAll('.hlgb-auditor-actions > button').forEach(el=>el.id===BUTTON_ID?showButton(el):hideElement(el))}return true}
 function ensureActionObserver(){
- const h=host();if(!h||typeof MutationObserver!=='function')return false;if(actionObserver&&actionObserverHost===h){enforceActions(h);return true}
- try{actionObserver?.disconnect?.()}catch(e){}actionObserverHost=h;
- actionObserver=new MutationObserver(mutations=>{const relevant=mutations.some(m=>m.type==='childList'||(m.type==='attributes'&&m.target?.tagName==='BUTTON'));if(!relevant||observerQueued)return;observerQueued=true;const run=()=>{observerQueued=false;if(actionObserverHost?.isConnected!==false)enforceActions(actionObserverHost)};if(typeof queueMicrotask==='function')queueMicrotask(run);else setTimeout(run,0)});
- try{actionObserver.observe(h,{childList:true,subtree:true,attributes:true,attributeFilter:['style','hidden','class','aria-hidden']});state.observerBinds++;enforceActions(h);return true}catch(e){actionObserver=null;actionObserverHost=null;return false}
+ const h=host(),r=root()||h;if(!h||!r||typeof MutationObserver!=='function')return false;
+ if(actionObserver&&actionObserverRoot===r){if(actionObserverHost!==h){actionObserverHost=h;state.hostRebinds++}enforceActions(h);return true}
+ try{actionObserver?.disconnect?.()}catch(e){}actionObserverRoot=r;actionObserverHost=h;
+ actionObserver=new MutationObserver(mutations=>{
+  const relevant=mutations.some(m=>m.type==='childList'||(m.type==='attributes'&&m.target?.tagName==='BUTTON'));if(!relevant||observerQueued)return;
+  observerQueued=true;
+  const run=()=>{
+   observerQueued=false;
+   const currentRoot=root(),currentHost=host();
+   if(currentRoot&&currentRoot!==actionObserverRoot){ensureActionObserver();ensureButton();enforceActions();return}
+   if(currentHost&&currentHost!==actionObserverHost){actionObserverHost=currentHost;state.hostRebinds++;ensureButton()}
+   enforceActions(currentHost||actionObserverHost);
+  };
+  if(typeof queueMicrotask==='function')queueMicrotask(run);else setTimeout(run,0)
+ });
+ try{actionObserver.observe(r,{childList:true,subtree:true,attributes:true,attributeFilter:['style','hidden','class','aria-hidden']});state.observerBinds++;enforceActions(h);return true}catch(e){actionObserver=null;actionObserverHost=null;actionObserverRoot=null;return false}
 }
 async function prepareRepairs(reason='single-ui'){
  const gate=window.hlgbLoginConfirmGate9407;
@@ -98,6 +111,6 @@ window.addEventListener?.('hlgb:auditor:open',()=>burst('auditor-open'));
 window.addEventListener?.('hlgb:authenticated',()=>burst('auth'));
 window.addEventListener?.('pageshow',()=>burst('pageshow'));
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>burst('dom-ready'),{once:true});else burst('boot');
-window.hlgbAuditorSingleUiReclaim9434A={version:V,state,heal,burst,ensureRepair,prepareRepairs,enforceActions,status:()=>({...state,buttonPresent:!!document.getElementById(BUTTON_ID),apiReady:typeof window.hlgbAuditorSingleAction9429?.run==='function',repairReady:window.HLGB_AUDITOR_AUTOCORRECT_9443==='94.43',repairDependenciesReady:window.hlgbLoginConfirmGate9407?.repairReadiness?.()?.ready===true,productionConcurrencyReady:window.hlgbProductionReconcile9439?.concurrencyPatch==='94.43-await-busy',observerActive:!!actionObserver,appVersion:sid(window.HLGB_RELEASE_VERSION),legacyRepairSrc:LEGACY_REPAIR_SRC})};
+window.hlgbAuditorSingleUiReclaim9434A={version:V,state,heal,burst,ensureRepair,prepareRepairs,enforceActions,status:()=>({...state,buttonPresent:!!document.getElementById(BUTTON_ID),apiReady:typeof window.hlgbAuditorSingleAction9429?.run==='function',repairReady:window.HLGB_AUDITOR_AUTOCORRECT_9443==='94.43',repairDependenciesReady:window.hlgbLoginConfirmGate9407?.repairReadiness?.()?.ready===true,productionConcurrencyReady:window.hlgbProductionReconcile9439?.concurrencyPatch==='94.43-await-busy',observerActive:!!actionObserver,observerRootConnected:actionObserverRoot?.isConnected!==false,appVersion:sid(window.HLGB_RELEASE_VERSION),legacyRepairSrc:LEGACY_REPAIR_SRC})};
 console.info('[HLGB] Auditor '+V+' interface de ação única restaurada · v94.43 com Produção aguardável');
 })();
