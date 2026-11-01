@@ -1,0 +1,15 @@
+const vm=require('vm'),fs=require('fs'),assert=require('assert/strict');
+const src=fs.readFileSync('release-production-reconcile-v9439.js','utf8');
+const store=new Map();
+const ctx={window:{__HLGB_AUTH_READY:false,addEventListener(){},HLGB_RELEASE_VERSION:'94.39'},document:{querySelector(){return null}},localStorage:{getItem:k=>store.get(k)||null,setItem:(k,v)=>store.set(k,String(v)),removeItem:k=>store.delete(k)},navigator:{onLine:true},console,structuredClone:global.structuredClone,setTimeout,clearTimeout,Date,JSON,Math,encodeURIComponent,indexedDB:undefined};Object.assign(ctx.window,ctx);ctx.globalThis=ctx;vm.createContext(ctx);vm.runInContext(src,ctx);
+const api=ctx.window.hlgbProductionReconcile9439;
+const base={id:'p1',op:'PED',date:'2026-11-01',done:0,size:'',color:'',cutId:'c1',stage:'A',client:'X',orderId:'o1',planned:10,product:'Y',factionId:null,productId:'pr1',cutProductKey:'c1:pr1',assignmentSource:true,productionLocationId:null,assignedAt:'',sentToFactionAt:''};
+assert.equal(api.patch,'94.42-safe-proof');
+assert.equal(api.productionEquivalent(base,{...base,productionLocationId:undefined}),true);
+const absent={...base};delete absent.productionLocationId;assert.equal(api.productionEquivalent(base,absent),true);
+assert.equal(api.productionEquivalent({...base,notes:'A'},{...base,notes:'B'}),false);
+assert.equal(api.productionEquivalent({...base,extra:{x:1}},{...base,extra:{x:2}}),false);
+let p=api.staleOperationSatisfied({module:'production',entity_id:'p1',data:base,deleted_at:null,revision:0,updated_at:new Date().toISOString()},base,base,new Date().toISOString(),'p1',false);assert.equal(p.ok,false);assert.equal(p.reason,'server-revision-missing');
+p=api.staleOperationSatisfied({module:'production',entity_id:'WRONG',data:base,deleted_at:null,revision:2,updated_at:new Date().toISOString()},base,base,new Date().toISOString(),'p1',false);assert.equal(p.ok,false);assert.equal(p.reason,'server-identity-mismatch');
+p=api.staleOperationSatisfied({module:'production',entity_id:'p1',data:base,deleted_at:null,revision:2,updated_at:new Date().toISOString()},base,base,new Date().toISOString(),'p1',false);assert.equal(p.ok,true);
+console.log('PRODUCTION_V9442_UNIT_OK');
