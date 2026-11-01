@@ -15,8 +15,11 @@ const engine=process.env.HLGB_BROWSER==='chromium'?chromium:webkit;
   const result=await page.evaluate(async()=>{
    let metrics={pendingUnique:0,scriptDuplicates:0,saveDuplicateResponsibilities:0};
    window.__acTest={singleCalls:0,auditCalls:0};
+   window.hlgbAuditorSingleAction9429=window.hlgbAuditorSingleAction9429||{};
    window.hlgbAuditorSingleAction9429.run=async()=>{window.__acTest.singleCalls++;throw new Error('execução visual proibida')};
+   window.hlgbAuditorIntelligence9396=window.hlgbAuditorIntelligence9396||{};
    window.hlgbAuditorIntelligence9396.currentMetrics=()=>({metrics:{...metrics}});
+   window.hlgbInternalAuditor=window.hlgbInternalAuditor||{};
    window.hlgbInternalAuditor.run=async()=>{window.__acTest.auditCalls++;return {summary:{result:'Aprovado'},checks:[],operational:{checks:[{code:'operational:pending',pending:{unique:metrics.pendingUnique}},{code:'operational:delivery',status:'pass'},{code:'operational:saving-ui',status:'pass'}]}}};
    window.hlgbAckReconcile9436={install:async()=>true};window.hlgbAuditorRapid9437={heal:async()=>true};window.hlgbAuditorFinalize9439={install:async()=>true};
    window.hlgbProductionReconcile9439={reconcile:async()=>({results:[]}),candidates:async()=>[]};
