@@ -1,11 +1,13 @@
-name: HLGB Auditor Boot + Dedupe v93.98
+name: HLGB Auditor Boot + Dedupe v94.45
 
 on:
   pull_request:
   push:
     branches:
+      - main
       - fix/boot-preauth-cut-sync-20261023
       - diagnostic/post-hotfix-save-depth-orphans-20261024
+      - fix/boot-analysis-v9445
 
 jobs:
   boot-dedupe:
@@ -17,6 +19,8 @@ jobs:
           node-version: '22'
       - name: Testar autoridade de boot pós-hotfix
         run: node tests/auditor-boot-dedupe-v9397.js
+      - name: Classificar restauração e duplicidade real v94.45
+        run: node tests/auditor-boot-analysis-v9445.js
       - name: Verificar sintaxe
         run: |
           node --check release-cut-view.js
@@ -29,3 +33,4 @@ jobs:
           node --check release-payroll-reliable-save-guard-v9344.js
           node --check release-payroll-wal-race-v9346.js
           node --check tests/auditor-boot-dedupe-v9397.js
+          node --check tests/auditor-boot-analysis-v9445.js
