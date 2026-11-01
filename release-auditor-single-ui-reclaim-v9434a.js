@@ -53,7 +53,7 @@ function ensureRepair(){
  if(existing?.__hlgbPromise)return existing.__hlgbPromise;
  const s=existing||document.createElement('script');
  if(!existing){s.src=REPAIR_SRC+'?fresh='+Date.now();s.async=false;s.setAttribute('data-hlgb-auditor-repair-9440','1');(document.head||document.documentElement).appendChild(s);state.repairLoads++}
- const p=new Promise(resolve=>{if(window.HLGB_AUDITOR_REPAIR_9440==='94.40')return resolve(true);const done=()=>resolve(window.HLGB_AUDITOR_REPAIR_9440==='94.40');s.addEventListener('load',done,{once:true});s.addEventListener('error',()=>resolve(false),{once:true});setTimeout(done,8000)});s.__hlgbPromise=p;return p;
+ const p=new Promise(resolve=>{if(window.HLGB_AUDITOR_REPAIR_9440==='94.40')return resolve(true);const done=()=>resolve(window.HLGB_AUDITOR_REPAIR_9440==='94.40');s.addEventListener('load',done,{once:true});s.addEventListener('error',()=>{s.remove();resolve(false)},{once:true});setTimeout(done,8000)});s.__hlgbPromise=p;return p;
 }
 function ensureButton(){
  const api=window.hlgbAuditorSingleAction9429,h=host();
@@ -66,12 +66,12 @@ function ensureButton(){
  btn.hidden=false;
  try{btn.style.setProperty('display','inline-flex','important');btn.style.setProperty('visibility','visible','important');btn.style.setProperty('opacity','1','important');btn.style.setProperty('pointer-events','auto','important')}catch(e){}
  btn.onclick=async()=>{
-  if(state.running)return;
+  if(state.running||window.__HLGB_AUTH_READY!==true)return;
   state.running=true;state.runs++;ensureButton();
   try{
    const loaded=await ensureRepair();
    if(loaded&&typeof window.hlgbAuditorRepair9440?.run==='function')await window.hlgbAuditorRepair9440.run();
-   else await Promise.resolve(window.hlgbAuditorSingleAction9429?.run?.());
+   else throw new Error('Não foi possível carregar o reparador. Tente novamente.');
   }
   catch(e){state.errors++;state.lastError=sid(e?.message||e);console.error('[HLGB Auditor '+V+'] ação única reparadora',e)}
   finally{state.running=false;setTimeout(()=>heal('after-run'),0)}
@@ -80,6 +80,7 @@ function ensureButton(){
 }
 function heal(reason='manual'){
  stamp();ensureStyle();hideLegacy();const ok=ensureButton();
+ if(window.hlgbAuditorRepair9440?.state?.lastSummary)window.hlgbAuditorRepair9440.render(window.hlgbAuditorRepair9440.state.lastSummary);
  state.heals++;state.lastAt=new Date().toISOString();state.lastReason=reason;
  return ok;
 }
