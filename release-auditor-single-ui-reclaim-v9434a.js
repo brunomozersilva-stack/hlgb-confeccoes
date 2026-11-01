@@ -1,6 +1,6 @@
 /* HLGB v94.34a — restaura a interface de ação única do Auditor sem alterar sincronização.
    Patch v94.44: pré-carrega o autocorretor com Produção aguardável e aprendizado corrigido após autenticação
-   e mantém o botão único quando módulos legados recriam o contêiner de ações. */
+   e mantém o botão único quando módulos legados recriam o contêiner de ações ou removem só o botão. */
 (function(){
 'use strict';
 const V='94.34a',APP_BASE='94.44';
@@ -17,7 +17,7 @@ const LEGACY_IDS=[
  'hlgbAuditDownloadCritical9315','hlgbAuditorHubDeep9315'
 ];
 const TOOL_IDS=['hlgbBootTools9381'];
-const state={version:V,appBase:APP_BASE,heals:0,created:0,runs:0,errors:0,running:false,repairLoads:0,observerBinds:0,hostRebinds:0,lastAt:'',lastReason:'',lastError:'',lastPreparation:null};
+const state={version:V,appBase:APP_BASE,heals:0,created:0,runs:0,errors:0,running:false,repairLoads:0,observerBinds:0,hostRebinds:0,buttonRestores:0,lastAt:'',lastReason:'',lastError:'',lastPreparation:null};
 let actionObserver=null,actionObserverHost=null,actionObserverRoot=null,observerQueued=false;
 const sid=v=>String(v??'');
 function stamp(){
@@ -59,7 +59,9 @@ function ensureActionObserver(){
    observerQueued=false;
    const currentRoot=root(),currentHost=host();
    if(currentRoot&&currentRoot!==actionObserverRoot){ensureActionObserver();ensureButton();enforceActions();return}
-   if(currentHost&&currentHost!==actionObserverHost){actionObserverHost=currentHost;state.hostRebinds++;ensureButton()}
+   if(currentHost&&currentHost!==actionObserverHost){actionObserverHost=currentHost;state.hostRebinds++}
+   const currentButton=document.getElementById(BUTTON_ID);
+   if(currentHost&&(!currentButton||currentButton.parentElement!==currentHost)){state.buttonRestores++;ensureButton()}
    enforceActions(currentHost||actionObserverHost);
   };
   if(typeof queueMicrotask==='function')queueMicrotask(run);else setTimeout(run,0)
