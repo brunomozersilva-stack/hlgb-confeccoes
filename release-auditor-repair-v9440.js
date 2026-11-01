@@ -47,7 +47,7 @@ async function validateRepairs(rows,round){
  const verified=[],unknown=[];
  for(const row of rows){
   if(!row.ok){unknown.push({action:row.name,detail:row.error||'Rotina não executada'});continue}
-  if(row.name!=='production-reconcile')continue; // Installing a guard is not proof of a repaired problem.
+  if(row.name!=='production-reconcile')continue;
   let pending;
   try{pending=await window.hlgbProductionReconcile9439?.candidates?.()}catch(e){unknown.push({action:row.name,detail:'Não foi possível reler a fila: '+sid(e?.message||e)});continue}
   for(const r of row.result?.results||[]){
@@ -62,30 +62,40 @@ async function validateRepairs(rows,round){
  }
  return {verified,unknown};
 }
+async function remoteDiagnostic(issueId){
+ if(typeof window.cloudRequest!=='function')return {ok:false,error:'Leitura remota da Central de ocorrências indisponível'};
+ try{
+  const q='hlgb_records?select=entity_id,data,deleted_at,revision,updated_at&module=eq.systemIssues&entity_id=eq.'+encodeURIComponent(sid(issueId))+'&limit=1';
+  const rows=await window.cloudRequest(q,{method:'GET'});
+  if(!Array.isArray(rows)||rows.length!==1||rows[0]?.deleted_at)return {ok:false,error:'Registro remoto da ocorrência não pôde ser confirmado'};
+  const data=clone(rows[0]?.data);
+  if(!data||sid(data.id||data.__hlgbId)!==sid(issueId))return {ok:false,error:'Resposta remota da ocorrência incompleta'};
+  return {ok:true,data,revision:+rows[0].revision||0,updatedAt:sid(rows[0].updated_at)};
+ }catch(e){return {ok:false,error:'Falha na releitura remota: '+sid(e?.message||e)}}
+}
+function restoreLocalIssue(snapshot){
+ try{const list=window.db?.systemIssues;if(!Array.isArray(list))return;const i=list.findIndex(x=>sid(x?.id)===sid(snapshot?.id));if(i>=0)list[i]=clone(snapshot)}catch(e){}
+}
 async function resolveStaleDiagnostics(startMs,proofs,runId){
  const api=window.hlgbDiagnosticsCenter,resolved=[],unknown=[];
- if(typeof api?.getIssues!=='function'){unknown.push({detail:'Central de ocorrências indisponível para validar encerramentos'});return {resolved,unknown}}
- if(typeof window.hlgbRecordSaveWithRetry!=='function'){unknown.push({detail:'Gravação remota indisponível para validar encerramentos'});return {resolved,unknown}}
+ if(typeof api?.getIssues!=='function'||typeof api?.resolveVerifiedIssue!=='function'){unknown.push({detail:'Central de ocorrências indisponível para validar encerramentos'});return {resolved,unknown}}
  for(const issue of issues()){
   if(!openIssue(issue)||!technicalIssue(issue)||!(issueAt(issue)<startMs))continue;
   const refs=issue.recordRefs||[],opId=sid(issue.operationId||issue.opId);
-  // Legacy aggregate issues cannot be closed from a clean global snapshot.
   if(!opId||refs.length!==1)continue;
   const proof=proofs.find(p=>p.module===refs[0].module&&p.id===sid(refs[0].id)&&p.operationIds.includes(opId));
   if(!proof)continue;
   const live=issues().find(x=>sid(x.id)===sid(issue.id));
   const expectedLastSeen=issue.lastSeenAt||issue.lastSeen;
   if(!live||!openIssue(live)||(live.lastSeenAt||live.lastSeen)!==expectedLastSeen){unknown.push({id:issue.id,title:sid(issue.title),detail:'Ocorrência mudou durante a validação; mantida aberta'});continue}
-  const history=Array.isArray(live.repairHistory)?live.repairHistory:[];
+  const before=await remoteDiagnostic(issue.id);
+  if(!before.ok||!openIssue(before.data)||(before.data.lastSeenAt||before.data.lastSeen)!==expectedLastSeen){unknown.push({id:issue.id,title:sid(issue.title),detail:before.error||'Estado remoto mudou antes do encerramento; mantida aberta'});continue}
   const evidence={...proof,runId,issueId:issue.id,operationId:opId};
-  const next={...clone(live),status:'Resolvido',resolvedAt:new Date().toISOString(),updatedAt:new Date().toISOString(),repairHistory:[...history,clone(evidence)]};
-  let out;
-  try{out=await window.hlgbRecordSaveWithRetry('systemIssues',sid(issue.id),clone(next),false)}catch(e){unknown.push({id:issue.id,title:sid(issue.title),detail:'Falha ao confirmar encerramento remoto: '+sid(e?.message||e)});continue}
-  // Automatic closure is stricter than normal diagnostic edits: applied:true alone is not enough.
-  const echoed=out?.data,echoId=sid(echoed?.id||echoed?.__hlgbId),echoHistory=Array.isArray(echoed?.repairHistory)?echoed.repairHistory:[];
-  const confirmed=out?.applied===true&&echoed&&echoId===sid(issue.id)&&echoed.status==='Resolvido'&&echoHistory.some(h=>h?.runId===runId&&h?.issueId===issue.id&&h?.verification==='remote-proof-and-queue-readback');
-  if(!confirmed){unknown.push({id:issue.id,title:sid(issue.title),detail:'Resposta remota incompleta; ocorrência não foi marcada como corrigida'});continue}
-  try{if(Array.isArray(window.db?.systemIssues)){const i=window.db.systemIssues.findIndex(x=>sid(x?.id)===sid(issue.id));if(i>=0)window.db.systemIssues[i]=clone(echoed);try{window.localSaveOnly?.()}catch(_){}}}catch(e){}
+  const result=await callSafe('resolve-diagnostic',()=>api.resolveVerifiedIssue(issue.id,evidence,expectedLastSeen));
+  if(!result.ok||result.result?.status!=='Resolvido'){unknown.push({id:issue.id,title:sid(issue.title),detail:result.error||'Central não confirmou o pedido de encerramento'});restoreLocalIssue(issue);continue}
+  const after=await remoteDiagnostic(issue.id),echoHistory=Array.isArray(after.data?.repairHistory)?after.data.repairHistory:[];
+  const confirmed=after.ok&&after.data?.status==='Resolvido'&&echoHistory.some(h=>h?.runId===runId&&h?.issueId===issue.id&&h?.operationId===opId&&h?.verification==='remote-proof-and-queue-readback');
+  if(!confirmed){unknown.push({id:issue.id,title:sid(issue.title),detail:after.error||'Resposta remota incompleta; ocorrência não foi marcada como corrigida'});restoreLocalIssue(issue);try{await api.refresh?.(false)}catch(e){}continue}
   resolved.push({id:issue.id,title:sid(issue.title),evidence:proof});
  }
  return {resolved,unknown};
@@ -115,7 +125,6 @@ async function execute(){
   for(let pass=1;pass<=MAX_PASSES;pass++){
    passes=pass;state.passes++;
    const before=signature(last),actions=await healTechnical();
-   // Every repair round has a subsequent audit, including round three.
    last=await api.run();
    if(!last||typeof last!=='object')throw new Error('Reteste não concluído na rodada '+pass);
    const validation=await validateRepairs(actions,pass);
@@ -124,7 +133,6 @@ async function execute(){
    state.repairActions+=actions.filter(x=>x.ok).length;
    if(before===signature(last)&&validation.verified.length===0){stopReason='Estabilizado: sem progresso adicional verificável';break}
   }
-  // A later recurrence invalidates the earlier repair outcome.
   const current=issues().filter(openIssue),failedRefs=unresolved(last).flatMap(x=>x.refs||[]);
   corrected=corrected.filter(p=>!failedRefs.some(r=>r.module===p.module&&sid(r.id)===p.id)&&!current.some(x=>issueAt(x)>=started&&(x.recordRefs||[]).some(r=>r.module===p.module&&sid(r.id)===p.id)));
   corrected=dedupe(corrected,p=>p.module+'|'+p.id);
@@ -134,7 +142,7 @@ async function execute(){
   stillFailing=dedupe(stillFailing,x=>sid(x.id)||sid(x.code)+'|'+JSON.stringify(x.refs||[])+'|'+sid(x.title));
   const resolution=await resolveStaleDiagnostics(started,corrected,runId);resolved=resolution.resolved;unknown.push(...resolution.unknown);
   const resolvedIds=new Set(resolved.map(x=>sid(x.id)));
-  let unverified=[...unknown,...current.filter(x=>!resolvedIds.has(sid(x.id))&&!(issueAt(x)>=started)).map(x=>({id:x.id,title:x.title,detail:'Sem verificação específica que comprove resolução'}))];
+  let unverified=[...unknown,...issues().filter(openIssue).filter(x=>!resolvedIds.has(sid(x.id))&&!(issueAt(x)>=started)).map(x=>({id:x.id,title:x.title,detail:'Sem verificação específica que comprove resolução'}))];
   if(typeof window.hlgbDiagnosticsCenter?.getIssues!=='function')unverified.push({detail:'Central de ocorrências indisponível'});
   unverified=dedupe(unverified,x=>sid(x.id)+'|'+sid(x.action)+'|'+sid(x.detail)+'|'+sid(x.title));
   const summary={version:V,readOnly:false,runId,at:new Date().toISOString(),passes,stopReason,fixed:corrected.length,corrected,stillFailing,unverified,blocked,rounds,resolvedDiagnostics:resolved,cleanTechnical:cleanTechnicalState(last),currentTechnicalReproduced:currentTechnicalReproduced(started),remainingOpenIssues:issues().filter(openIssue).length};
@@ -147,7 +155,6 @@ async function run(){
  if(state.running||!authReady())return false;
  state.running=true;
  try{
-  // Web Locks also prevent two tabs from repairing the same local queues concurrently.
   if(navigator.locks?.request)return await navigator.locks.request('hlgb-auditor-repair-v9440',{ifAvailable:true},lock=>lock?execute():false);
   state.lastError='Navegador sem bloqueio de execução entre abas';
   const summary={version:V,readOnly:false,runId:'blocked-'+Date.now(),passes:0,stopReason:'Execução não iniciada',corrected:[],fixed:0,stillFailing:[],blocked:[],unverified:[{detail:state.lastError}],rounds:[],at:new Date().toISOString()};summary.historySaved=persistSummary(summary);state.lastSummary=clone(summary);render(summary);return summary;
