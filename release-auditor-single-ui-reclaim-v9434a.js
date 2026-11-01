@@ -14,7 +14,8 @@ const LEGACY_IDS=[
  'hlgbAuditDownloadCritical9315','hlgbAuditorHubDeep9315'
 ];
 const TOOL_IDS=['hlgbBootTools9381'];
-const state={version:V,appBase:APP_BASE,heals:0,created:0,runs:0,errors:0,running:false,repairLoads:0,lastAt:'',lastReason:'',lastError:''};
+const state={version:V,appBase:APP_BASE,heals:0,created:0,runs:0,errors:0,running:false,repairLoads:0,observerBinds:0,lastAt:'',lastReason:'',lastError:''};
+let actionObserver=null,actionObserverHost=null,observerQueued=false;
 const sid=v=>String(v??'');
 function stamp(){
  try{if((parseFloat(sid(window.HLGB_RELEASE_VERSION))||0)<94.40)window.HLGB_RELEASE_VERSION=APP_BASE}catch(e){}
@@ -39,16 +40,41 @@ function ensureStyle(){
  ].join('');
  return st;
 }
+function setImportant(el,name,value){
+ try{if(el.style.getPropertyValue(name)!==value||el.style.getPropertyPriority(name)!=='important')el.style.setProperty(name,value,'important')}catch(e){}
+}
 function hideElement(el){
  if(!el||el.id===BUTTON_ID)return;
- try{el.hidden=true;el.setAttribute('aria-hidden','true');el.style.setProperty('display','none','important');el.style.setProperty('visibility','hidden','important');el.style.setProperty('opacity','0','important');el.style.setProperty('pointer-events','none','important')}catch(e){}
+ try{if(!el.hidden)el.hidden=true;if(el.getAttribute('aria-hidden')!=='true')el.setAttribute('aria-hidden','true');setImportant(el,'display','none');setImportant(el,'visibility','hidden');setImportant(el,'opacity','0');setImportant(el,'pointer-events','none')}catch(e){}
+}
+function showButton(btn){
+ if(!btn)return;
+ try{if(btn.hidden)btn.hidden=false;if(btn.hasAttribute('aria-hidden'))btn.removeAttribute('aria-hidden');setImportant(btn,'display','inline-flex');setImportant(btn,'visibility','visible');setImportant(btn,'opacity','1');setImportant(btn,'pointer-events','auto');setImportant(btn,'align-items','center')}catch(e){}
 }
 function hideLegacy(){
- // Hide every competing action, not only known historical IDs. Some late modules
- // recreate buttons with inline !important styles; inline hiding wins that race in Chromium.
  document.querySelectorAll('.hlgb-auditor-actions > button').forEach(hideElement);
  for(const id of LEGACY_IDS)hideElement(document.getElementById(id));
- for(const id of TOOL_IDS){const el=document.getElementById(id);if(el){try{el.hidden=true;el.setAttribute('aria-hidden','true');el.style.setProperty('display','none','important');el.style.setProperty('visibility','hidden','important')}catch(e){}}}
+ for(const id of TOOL_IDS){const el=document.getElementById(id);if(el){try{if(!el.hidden)el.hidden=true;if(el.getAttribute('aria-hidden')!=='true')el.setAttribute('aria-hidden','true');setImportant(el,'display','none');setImportant(el,'visibility','hidden')}catch(e){}}}
+}
+function enforceActions(h=host()){
+ if(!h)return false;
+ try{h.querySelectorAll(':scope > button').forEach(el=>el.id===BUTTON_ID?showButton(el):hideElement(el))}catch(e){document.querySelectorAll('.hlgb-auditor-actions > button').forEach(el=>el.id===BUTTON_ID?showButton(el):hideElement(el))}
+ return true;
+}
+function ensureActionObserver(){
+ const h=host();
+ if(!h||typeof MutationObserver!=='function')return false;
+ if(actionObserver&&actionObserverHost===h){enforceActions(h);return true}
+ try{actionObserver?.disconnect?.()}catch(e){}
+ actionObserverHost=h;
+ actionObserver=new MutationObserver(mutations=>{
+  const relevant=mutations.some(m=>m.type==='childList'||(m.type==='attributes'&&m.target?.tagName==='BUTTON'));
+  if(!relevant||observerQueued)return;
+  observerQueued=true;
+  const run=()=>{observerQueued=false;if(actionObserverHost?.isConnected!==false)enforceActions(actionObserverHost)};
+  if(typeof queueMicrotask==='function')queueMicrotask(run);else setTimeout(run,0);
+ });
+ try{actionObserver.observe(h,{childList:true,subtree:true,attributes:true,attributeFilter:['style','hidden','class','aria-hidden']});state.observerBinds++;enforceActions(h);return true}catch(e){actionObserver=null;actionObserverHost=null;return false}
 }
 function ensureRepair(){
  if(window.HLGB_AUDITOR_REPAIR_9440==='94.40'&&typeof window.hlgbAuditorRepair9440?.run==='function')return Promise.resolve(true);
@@ -67,11 +93,10 @@ function ensureButton(){
  if(btn.parentElement!==h)h.prepend(btn);
  btn.textContent=state.running?'🧪 Auditando e corrigindo…':'🧪 Auditar e corrigir';
  btn.disabled=state.running;
- btn.hidden=false;btn.removeAttribute('aria-hidden');
- try{btn.style.setProperty('display','inline-flex','important');btn.style.setProperty('visibility','visible','important');btn.style.setProperty('opacity','1','important');btn.style.setProperty('pointer-events','auto','important')}catch(e){}
+ showButton(btn);
  btn.onclick=async()=>{
   if(state.running||window.__HLGB_AUTH_READY!==true)return;
-  state.running=true;state.runs++;ensureButton();hideLegacy();
+  state.running=true;state.runs++;ensureButton();hideLegacy();ensureActionObserver();
   try{
    const loaded=await ensureRepair();
    if(loaded&&typeof window.hlgbAuditorRepair9440?.run==='function')await window.hlgbAuditorRepair9440.run();
@@ -80,14 +105,11 @@ function ensureButton(){
   catch(e){state.errors++;state.lastError=sid(e?.message||e);console.error('[HLGB Auditor '+V+'] ação única reparadora',e)}
   finally{state.running=false;setTimeout(()=>heal('after-run'),0)}
  };
- hideLegacy();
- btn.hidden=false;btn.removeAttribute('aria-hidden');
- try{btn.style.setProperty('display','inline-flex','important');btn.style.setProperty('visibility','visible','important');btn.style.setProperty('opacity','1','important');btn.style.setProperty('pointer-events','auto','important')}catch(e){}
+ hideLegacy();showButton(btn);ensureActionObserver();enforceActions(h);
  return true;
 }
 function heal(reason='manual'){
- stamp();ensureStyle();hideLegacy();const ok=ensureButton();hideLegacy();
- const btn=document.getElementById(BUTTON_ID);if(btn){btn.hidden=false;btn.removeAttribute('aria-hidden');try{btn.style.setProperty('display','inline-flex','important');btn.style.setProperty('visibility','visible','important');btn.style.setProperty('opacity','1','important');btn.style.setProperty('pointer-events','auto','important')}catch(e){}}
+ stamp();ensureStyle();hideLegacy();const ok=ensureButton();hideLegacy();ensureActionObserver();enforceActions();showButton(document.getElementById(BUTTON_ID));
  if(window.hlgbAuditorRepair9440?.state?.lastSummary)window.hlgbAuditorRepair9440.render(window.hlgbAuditorRepair9440.state.lastSummary);
  state.heals++;state.lastAt=new Date().toISOString();state.lastReason=reason;
  return ok;
@@ -98,6 +120,6 @@ window.addEventListener?.('hlgb:auditor:open',()=>burst('auditor-open'));
 window.addEventListener?.('hlgb:authenticated',()=>burst('auth'));
 window.addEventListener?.('pageshow',()=>burst('pageshow'));
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>burst('dom-ready'),{once:true});else burst('boot');
-window.hlgbAuditorSingleUiReclaim9434A={version:V,state,heal,burst,ensureRepair,status:()=>({...state,buttonPresent:!!document.getElementById(BUTTON_ID),apiReady:typeof window.hlgbAuditorSingleAction9429?.run==='function',repairReady:window.HLGB_AUDITOR_REPAIR_9440==='94.40',appVersion:sid(window.HLGB_RELEASE_VERSION)})};
+window.hlgbAuditorSingleUiReclaim9434A={version:V,state,heal,burst,ensureRepair,enforceActions,status:()=>({...state,buttonPresent:!!document.getElementById(BUTTON_ID),apiReady:typeof window.hlgbAuditorSingleAction9429?.run==='function',repairReady:window.HLGB_AUDITOR_REPAIR_9440==='94.40',observerActive:!!actionObserver,appVersion:sid(window.HLGB_RELEASE_VERSION)})};
 console.info('[HLGB] Auditor '+V+' interface de ação única restaurada · v94.40 auditar e corrigir');
 })();
