@@ -14,14 +14,13 @@ const {webkit}=require('playwright');
 
  const ui=await page.evaluate(()=>{
   window.hlgbAuditorSingleUiReclaim9434A?.heal?.('test-ui');
-  const status=document.getElementById('hlgbSmartStatus');
-  const root=status?.closest?.('[role="dialog"],.modal,.modal-content,.modalCard,.modal-card,.dialog')||status?.parentElement?.parentElement||status?.parentElement;
-  const shown=[...(root?.querySelectorAll?.('button,a,[role="button"]')||[])].filter(el=>{const s=getComputedStyle(el),r=el.getBoundingClientRect();return !el.hidden&&s.display!=='none'&&s.visibility!=='hidden'&&r.width>0&&r.height>0}).map(el=>({id:el.id||'',text:String(el.textContent||'').trim()}));
+  const actions=document.querySelector('.hlgb-auditor-actions');
+  const shown=[...(actions?.querySelectorAll?.(':scope > button')||[])].filter(el=>{const s=getComputedStyle(el),r=el.getBoundingClientRect();return !el.hidden&&s.display!=='none'&&s.visibility!=='hidden'&&r.width>0&&r.height>0}).map(el=>({id:el.id||'',text:String(el.textContent||'').trim()}));
   const legacy=['hlgbSmartTest','hlgbSmartProblem','hlgbSmartHistoryBtn','hlgbAuthorityBtn9374','hlgbBootAnalysisBtn9381','hlgbAuditorIntelligenceBtn9396','hlgbDailyReport9368','hlgbAuditorBusinessBtn9401'];
   const unified=document.getElementById('hlgbAuditorUnifiedRun9434A');
   return {shown,legacyVisible:legacy.filter(id=>shown.some(x=>x.id===id)),unifiedVisible:shown.some(x=>x.id==='hlgbAuditorUnifiedRun9434A'),unifiedText:String(unified?.textContent||'').trim(),unifiedHandler:typeof unified?.onclick==='function',authority:window.HLGB_AUDITOR_SHELL_AUTHORITY,openerIsShell:window.openHlgbAuditor===window.hlgbAuditorShell9382?.open,reclaim:window.hlgbAuditorSingleUiReclaim9434A?.status?.()||null};
  });
- if(!ui.unifiedVisible||ui.unifiedText!=='🧪 Auditar sistema'||!ui.unifiedHandler||ui.legacyVisible.length||ui.authority!=='93.82'||!ui.openerIsShell)throw new Error('Auditor atual não está em ação única '+JSON.stringify(ui));
+ if(ui.shown.length!==1||!ui.unifiedVisible||ui.unifiedText!=='🧪 Auditar e corrigir'||!ui.unifiedHandler||ui.legacyVisible.length||ui.authority!=='93.82'||!ui.openerIsShell)throw new Error('Auditor atual não está em ação única '+JSON.stringify(ui));
 
  // A Inteligência continua ativa por trás da ação única; o botão legado deve permanecer oculto.
  const intelligence=await page.evaluate(async()=>{
