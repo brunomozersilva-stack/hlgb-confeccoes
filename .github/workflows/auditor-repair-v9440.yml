@@ -1,9 +1,10 @@
-name: HLGB Auditor Repair v94.40
+name: HLGB Auditor Repair v94.40 + Autocorrect v94.41
 on:
   push:
     branches:
       - main
       - fix/auditor-repair-v9440
+      - fix/auditor-autocorrect-learning-v9441
   pull_request:
     branches:
       - main
@@ -16,14 +17,20 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '20'
-      - name: Sintaxe Auditor Reparador
+      - name: Sintaxe Auditor Reparador v94.40
         run: node --check release-auditor-repair-v9440.js
+      - name: Sintaxe Auditor Autocorretor v94.41
+        run: node --check release-auditor-autocorrect-v9441.js
       - name: Sintaxe interface de ação única
         run: node --check release-auditor-single-ui-reclaim-v9434a.js
       - name: Contratos v94.40
         run: node tests/auditor-repair-v9440.js
-      - name: Comportamento e evidências com API real
+      - name: Comportamento e evidências v94.40
         run: node tests/auditor-repair-v9440-behavior.js
+      - name: Contratos v94.41
+        run: node tests/auditor-autocorrect-v9441.js
+      - name: Aprendizado, segurança e relatórios v94.41
+        run: node tests/auditor-autocorrect-v9441-behavior.js
       - name: Regressão de login
         run: node tests/runtime-login-ready-v9378.js
   browsers:
@@ -40,20 +47,20 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '20'
-      - name: Instalar Playwright WebKit
+      - name: Instalar Playwright WebKit e Chromium
         run: |
           npm install --no-save playwright@1.55.0
           npx playwright install --with-deps webkit chromium
       - name: Iniciar servidor local
         run: |
-          python3 -m http.server 4173 >/tmp/hlgb-9440-http.log 2>&1 &
+          python3 -m http.server 4173 >/tmp/hlgb-9441-http.log 2>&1 &
           sleep 2
       - name: Login real continua abrindo
         run: node tests/login-3d-v9409-webkit.js
       - name: Auditor continua com uma ação
         run: node tests/auditor-single-ui-v9434a-webkit.js
-      - name: Auditar corrigir retestar com segurança
-        run: node tests/auditor-repair-v9440-webkit.js
+      - name: Autocorreção silenciosa sem navegar
+        run: node tests/auditor-autocorrect-v9441-webkit.js
       - name: Reconciliação de produção nas três filas
         run: node tests/production-save-auditor-v9439-browser.js
       - name: Relatório automático 18h continua não navegante

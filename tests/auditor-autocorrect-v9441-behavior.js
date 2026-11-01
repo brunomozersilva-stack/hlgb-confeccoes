@@ -1,0 +1,25 @@
+const vm=require('vm'),fs=require('fs'),assert=require('assert/strict');
+const src=fs.readFileSync('release-auditor-autocorrect-v9441.js','utf8');
+function harness(){
+ const store=new Map(); let active='pedidos', metrics={pendingUnique:0,scriptDuplicates:0,saveDuplicateResponsibilities:0}; let auditChecks=[]; let auditCalls=0; let productionResults=[];
+ const page=id=>({id,scrollTop:0,scrollLeft:0,isConnected:true,classList:{add(){active=id},remove(){if(active===id)active=''}},focus(){}});
+ const pages={pedidos:page('pedidos'),auditor:page('auditor')};
+ const document={hidden:false,body:{},activeElement:null,addEventListener(){},querySelector(sel){if(sel.includes('.page.active'))return pages[active]||null;return null},querySelectorAll(sel){if(sel.includes('.page.active'))return active&&pages[active]?[pages[active]]:[];return []},getElementById(id){return pages[id]||null},createElement(){return {style:{},setAttribute(){},addEventListener(){},click(){},remove(){},appendChild(){},querySelector(){return null}}}};document.activeElement=document.body;
+ const localStorage={getItem:k=>store.has(k)?store.get(k):null,setItem:(k,v)=>store.set(k,String(v)),removeItem:k=>store.delete(k)};
+ const window={__HLGB_TEST__:true,__HLGB_AUTH_READY:false,HLGB_RELEASE_VERSION:'94.40',db:{systemIssues:[]},scrollX:0,scrollY:0,scrollTo(){},addEventListener(){},dispatchEvent(){}};
+ const ctx={window,document,localStorage,navigator:{onLine:true,userAgent:'test',locks:{request:async(_n,_o,fn)=>fn({})}},console,structuredClone:global.structuredClone,Blob:global.Blob,URL:{createObjectURL(){return 'blob:test'},revokeObjectURL(){}},setTimeout,clearTimeout,Date,Math,JSON,encodeURIComponent};Object.assign(window,ctx);ctx.globalThis=ctx;
+ window.hlgbDiagnosticsCenter={getIssues:()=>window.db.systemIssues};
+ window.hlgbAuditorIntelligence9396={currentMetrics:()=>({metrics:{...metrics}})};
+ window.hlgbInternalAuditor={run:async()=>{auditCalls++;return {summary:{result:auditChecks.some(x=>x.status==='fail')?'Falhou':auditChecks.some(x=>x.status==='warn')?'Atenção':'Aprovado'},checks:JSON.parse(JSON.stringify(auditChecks)),operational:{checks:[{code:'operational:pending',pending:{unique:metrics.pendingUnique}},{code:'operational:delivery',status:'pass'},{code:'operational:saving-ui',status:'pass'}]}}}};
+ window.hlgbAckReconcile9436={install:async()=>true}; window.hlgbAuditorRapid9437={heal:async()=>true}; window.hlgbAuditorFinalize9439={install:async()=>true};
+ window.hlgbProductionReconcile9439={reconcile:async()=>({results:productionResults}),candidates:async()=>[]};
+ vm.createContext(ctx);vm.runInContext(src,ctx);window.__HLGB_AUTH_READY=true;
+ return {ctx,window,setMetrics:x=>metrics={...metrics,...x},setChecks:x=>auditChecks=x,setResults:x=>productionResults=x,getActive:()=>active,setActive:x=>active=x,getAuditCalls:()=>auditCalls,store};
+}
+(async()=>{
+ let h=harness(),out=await h.window.hlgbAuditorAutoCorrect9441.run({render:false,download:false});assert.equal(out.passes,0);assert.match(out.stopReason,/estável|nenhum reparo/i);assert.equal(h.getActive(),'pedidos');assert.equal(h.getAuditCalls(),1);
+ h=harness();h.setMetrics({pendingUnique:1});h.window.hlgbProductionReconcile9439.reconcile=async()=>{h.setMetrics({pendingUnique:0});return {results:[{id:'prod1',ok:true,proof:'server-equals-operation',normalizedRemoved:1,walRemoved:1,serverRevision:7,operationIds:['op-1']}]}};out=await h.window.hlgbAuditorAutoCorrect9441.run({render:false,download:false});assert.equal(out.passes,1);assert.equal(out.fixed,1);assert.equal(out.corrected[0].verification,'remote-proof-and-queue-readback');assert.equal(h.getActive(),'pedidos');assert.equal(h.getAuditCalls(),2);const ev=h.window.hlgbAuditorAutoCorrect9441.repairEvents().filter(x=>x.runId===out.runId&&x.status==='verified');assert.equal(ev.length,1);const learning=h.window.hlgbAuditorAutoCorrect9441.learning();assert(Object.values(learning).some(x=>x.recipeId==='production-reconcile'&&x.verifiedSuccesses===1&&x.confidence>0.85));assert(out.report.featureContracts['auditor-autocorrect-core']);
+ h=harness();h.setChecks([{code:'data:finance-projection-orphan',status:'warn',title:'Financeiro sem projeção',detail:'sem fonte histórica',refs:[{module:'finance',id:'f1'}]}]);out=await h.window.hlgbAuditorAutoCorrect9441.run({render:false,download:false});assert.equal(out.passes,0);assert.equal(out.blocked.length,1);assert.match(out.stopReason,/decisão humana/i);
+ h=harness();const bad=h.window.hlgbAuditorAutoCorrect9441.registerFeatureContract({featureId:'unsafe',repairRecipes:['production-reconcile'],healthChecks:[()=>true]});assert.equal(bad,false);const good=h.window.hlgbAuditorAutoCorrect9441.registerFeatureContract({featureId:'orders-v2',version:'1',repairRecipes:['production-reconcile','unknown'],healthChecks:['queue-consistency'],safetyLevel:'B'});assert.equal(good.repairRecipes.length,1);assert.equal(good.repairRecipes[0],'production-reconcile');
+ console.log('AUDITOR_AUTOCORRECT_V9441_BEHAVIOR_OK');
+})().catch(e=>{console.error(e);process.exit(1)});

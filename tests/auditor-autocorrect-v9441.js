@@ -1,0 +1,21 @@
+const fs=require('fs');
+function ok(v,m){if(!v)throw new Error(m)}
+const r=fs.readFileSync('release-auditor-autocorrect-v9441.js','utf8');
+const ui=fs.readFileSync('release-auditor-single-ui-reclaim-v9434a.js','utf8');
+ok(r.includes("const V='94.41',MAX_PASSES=3"),'versão/limite ausente');
+ok(r.includes("internal.run('full',false)"),'reteste silencioso precisa usar Auditor interno não navegante');
+ok(!r.includes('hlgbAuditorSingleAction9429?.run(')&&!r.includes('hlgbAuditorSingleAction9429.run('),'autocorretor não pode usar execução visual do Auditor');
+ok(r.includes("LOCK_NAME='hlgb-auditor-autocorrect-v9441'"),'Web Lock ausente');
+ok(r.includes("'production-reconcile':{id:'production-reconcile',level:'B',trusted:true"),'receita B comprovada ausente');
+ok(r.includes('remote-proof-and-queue-readback'),'prova remota + releitura de fila ausente');
+ok(r.includes('registerFeatureContract'),'contrato de saúde para novas funções ausente');
+ok(r.includes('updateLearning')&&r.includes('confidence')&&r.includes('recurrences'),'aprendizado verificável ausente');
+ok(r.includes('recordRepairEvent')&&r.includes('reportBundle')&&r.includes('downloadReport'),'relatório por reparo/final ausente');
+ok(r.includes('neverInvent')&&r.includes('Financeiro→Projeção'),'proteção de regra de negócio ausente');
+ok(!/hlgbRecordSaveWithRetry\s*\(/.test(r),'autocorretor não pode salvar dado de negócio diretamente');
+ok(!/persistDb\s*\(|localSaveOnly\s*\(/.test(r),'autocorretor não pode persistir negócio direto');
+ok(!/removeItem\s*\(\s*['"]hlgb_(records_pending|durable_wal)/.test(r),'autocorretor não pode apagar fila/WAL diretamente');
+ok(ui.includes("APP_BASE='94.41'")&&ui.includes('release-auditor-autocorrect-v9441.js'),'UI não carrega v94.41');
+ok(ui.includes("window.__HLGB_AUTH_READY!==true"),'autocorretor precisa ser pós-auth');
+ok(ui.includes("download:true")&&ui.includes("render:true"),'ação manual precisa entregar relatório final');
+console.log('AUDITOR_AUTOCORRECT_V9441_STATIC_OK');
