@@ -1,0 +1,43 @@
+const {webkit,chromium}=require('playwright');
+const kind=process.env.HLGB_BROWSER||'webkit',engine=kind==='chromium'?chromium:webkit;
+(async()=>{
+ const browser=await engine.launch({headless:true});
+ const page=await browser.newPage({viewport:{width:1280,height:900}}),errors=[];
+ page.on('pageerror',e=>errors.push(String(e.message||e)));
+ await page.goto('http://127.0.0.1:4173/app-stable3.html',{waitUntil:'domcontentloaded',timeout:60000});
+ await page.waitForFunction(()=>window.HLGB_AUDITOR_SINGLE_UI_RECLAIM_9434A==='94.34a'&&typeof window.hlgbLoginConfirmGate9407?.prepareAuditorRepairs9442==='function',null,{timeout:60000});
+ const before=await page.evaluate(()=>({auto43:!!window.hlgbAuditorAutoCorrect9443,coord:!!window.hlgbProductionReconcileCoordinator9443,production:!!window.hlgbProductionReconcile9439}));
+ if(before.auto43||before.coord||before.production)throw new Error('v94.43/Produção carregou antes da autenticação '+JSON.stringify(before));
+ await page.evaluate(()=>{window.__HLGB_AUTH_READY=true;window.dispatchEvent(new Event('hlgb:authenticated'));const l=document.getElementById('loginScreen');if(l)l.style.setProperty('display','none','important');const a=document.getElementById('appShell');if(a){a.style.setProperty('display','block','important');a.style.setProperty('visibility','visible','important')}});
+ await page.waitForFunction(()=>window.HLGB_AUDITOR_AUTOCORRECT_9443==='94.43'&&typeof window.hlgbAuditorAutoCorrect9443?.run==='function'&&window.HLGB_PRODUCTION_RECONCILE_COORDINATOR_9443==='94.43'&&window.hlgbProductionReconcile9439?.concurrencyPatch==='94.43-await-busy',null,{timeout:30000});
+ const prep=await page.evaluate(()=>window.hlgbAuditorAutoCorrect9443.prepare('v9443-runtime'));
+ if(!prep?.ok||!prep.productionCoordinator?.ready)throw new Error('v94.43 não preparou coordenador real '+JSON.stringify(prep));
+ const overlap=await page.evaluate(async()=>{
+  const api=window.hlgbProductionReconcile9439,coord=window.hlgbProductionReconcileCoordinator9443;
+  const before=coord.status();
+  const base=api.__hlgbBaseReconcile9443;
+  if(typeof base!=='function')return {error:'base real não preservada',before};
+  const basePromise=base('v9443-browser-base-overlap');
+  const joinedPromise=api.reconcile('v9443-browser-auditor-overlap');
+  const [baseResult,joinedResult]=await Promise.all([basePromise,joinedPromise]);
+  return {baseFalse:baseResult===false,joinedFalse:joinedResult===false,same:JSON.stringify(baseResult)===JSON.stringify(joinedResult),before,after:coord.status(),baseResult,joinedResult};
+ });
+ if(overlap.error||overlap.baseFalse||overlap.joinedFalse||!overlap.same)throw new Error('Auditor não reutilizou reconciliação já em andamento '+JSON.stringify(overlap));
+ if(!(overlap.after.joinedExisting>overlap.before.joinedExisting))throw new Error('Coordenador não registrou junção à execução existente '+JSON.stringify(overlap));
+ const concurrent=await page.evaluate(async()=>{
+  const api=window.hlgbProductionReconcile9439,coord=window.hlgbProductionReconcileCoordinator9443,before=coord.status();
+  const p1=api.reconcile('v9443-browser-concurrent-a'),p2=api.reconcile('v9443-browser-concurrent-b');
+  const samePromise=p1===p2,[a,b]=await Promise.all([p1,p2]);
+  return {samePromise,aFalse:a===false,bFalse:b===false,sameResult:JSON.stringify(a)===JSON.stringify(b),before,after:coord.status()};
+ });
+ if(!concurrent.samePromise||concurrent.aFalse||concurrent.bFalse||!concurrent.sameResult)throw new Error('Chamadas concorrentes não compartilharam a mesma reconciliação '+JSON.stringify(concurrent));
+ if(!(concurrent.after.shared>concurrent.before.shared))throw new Error('Coordenador não registrou compartilhamento '+JSON.stringify(concurrent));
+ await page.waitForFunction(()=>typeof window.openHlgbAuditor==='function',null,{timeout:15000});
+ await page.evaluate(()=>{window.openHlgbAuditor();window.hlgbAuditorSingleUiReclaim9434A?.heal?.('v9443-runtime')});
+ await page.waitForFunction(()=>{const b=document.getElementById('hlgbAuditorUnifiedRun9434A');if(!b)return false;const s=getComputedStyle(b),r=b.getBoundingClientRect();return !b.hidden&&!b.disabled&&s.display!=='none'&&s.visibility!=='hidden'&&r.width>0&&r.height>0},null,{timeout:15000});
+ const ui=await page.evaluate(()=>({status:window.hlgbAuditorSingleUiReclaim9434A.status(),visible:(()=>{const vis=e=>{if(!e)return false;const s=getComputedStyle(e),r=e.getBoundingClientRect();return !e.hidden&&s.display!=='none'&&s.visibility!=='hidden'&&r.width>0&&r.height>0};const h=document.querySelector('.hlgb-auditor-actions');return h?[...h.querySelectorAll(':scope>button')].filter(vis).map(x=>x.id):[]})()}));
+ if(ui.visible.length!==1||ui.visible[0]!=='hlgbAuditorUnifiedRun9434A'||ui.status.repairReady!==true||ui.status.productionConcurrencyReady!==true)throw new Error('UI não aponta integralmente para v94.43 '+JSON.stringify(ui));
+ if(errors.some(x=>/9443|production-reconcile|autocorrect/i.test(x)))throw new Error('pageerror v94.43 '+errors.join(' | '));
+ console.log('AUDITOR_AUTOCORRECT_V9443_RUNTIME_'+kind.toUpperCase()+'_OK',JSON.stringify({prep:{ok:prep.ok,productionCoordinator:prep.productionCoordinator},overlap:{joined:overlap.after.joinedExisting,same:overlap.same},concurrent:{samePromise:concurrent.samePromise,shared:concurrent.after.shared},ui}));
+ await browser.close();
+})().catch(e=>{console.error(e);process.exit(1)});
