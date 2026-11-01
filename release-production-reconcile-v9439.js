@@ -19,7 +19,7 @@ function canonical(v){
  if(!v||typeof v!=='object')return v;
  const o={};for(const k of Object.keys(v).sort()){if(META.has(k)||/^__hlgb/i.test(k)||/^__storage/i.test(k))continue;const x=v[k];if(OPTIONAL_NULLISH.has(k)&&(x===undefined||x===null||x==='')){o[k]=null;continue}o[k]=canonical(x)}return o;
 }
-function canonicalProduction(v){const o=canonical(v||{});for(const k of OPTIONAL_NULLISH){if(!(k in o)||o[k]===undefined||o[k]==='')o[k]=null}return o}
+function canonicalProduction(v){const o=canonical(v||{});for(const k of OPTIONAL_NULLISH){if(!(k in o)||o[k]===undefined||o[k]==='')o[k]=null}return Object.fromEntries(Object.keys(o).sort().map(k=>[k,o[k]]))}
 function sameJson(a,b){try{return JSON.stringify(a)===JSON.stringify(b)}catch(e){return false}}
 function prodIdentity(d){d=d||{};const cut=sid(d.cutId),order=sid(d.orderId),product=sid(d.productId),key=sid(d.cutProductKey);if(!cut||!order||!product||!key)return null;return {cut,order,product,key}}
 function productionEquivalent(a,b){
