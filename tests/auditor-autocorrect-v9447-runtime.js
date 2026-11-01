@@ -7,7 +7,7 @@ const kind=process.env.HLGB_BROWSER||'webkit',engine=kind==='chromium'?chromium:
  await page.goto('http://127.0.0.1:4173/app-stable3.html',{waitUntil:'domcontentloaded',timeout:60000});
  await page.waitForFunction(()=>window.HLGB_AUDITOR_SINGLE_UI_RECLAIM_9434A==='94.34a'&&typeof window.hlgbLoginConfirmGate9407?.prepareAuditorRepairs9442==='function',null,{timeout:60000});
  await page.evaluate(()=>{window.__HLGB_AUTH_READY=true;window.dispatchEvent(new Event('hlgb:authenticated'));const l=document.getElementById('loginScreen');if(l)l.style.setProperty('display','none','important');const a=document.getElementById('appShell');if(a){a.style.setProperty('display','block','important');a.style.setProperty('visibility','visible','important')}});
- await page.waitForFunction(()=>window.HLGB_AUDITOR_AUTOCORRECT_9447==='94.47'&&typeof window.hlgbAuditorAutoCorrect9447?.run==='function'&&window.HLGB_AUDITOR_AUTOCORRECT_9446==='94.46',null,{timeout:30000});
+ await page.waitForFunction(()=>window.HLGB_AUDITOR_AUTOCORRECT_9448==='94.48'&&window.HLGB_AUDITOR_AUTOCORRECT_9447==='94.47'&&typeof window.hlgbAuditorAutoCorrect9447?.run==='function'&&window.HLGB_AUDITOR_AUTOCORRECT_9446==='94.46',null,{timeout:30000});
  const prep=await page.evaluate(()=>window.hlgbAuditorAutoCorrect9447.prepare('v9447-runtime-prep'));
  if(!prep?.ok)throw new Error('v94.47 não preparou cadeia real '+JSON.stringify(prep));
  await page.waitForFunction(()=>typeof window.hlgbAuditorAutoCorrect9441?.silentAudit==='function'&&typeof window.hlgbAuditorAutoCorrect9441?.repairEvents==='function'&&typeof window.hlgbAuditorIntelligence9396?.currentMetrics==='function'&&typeof window.hlgbDiagnosticsCenter?.getIssues==='function'&&typeof window.hlgbProductionReconcile9439?.candidates==='function',null,{timeout:30000});
@@ -24,8 +24,8 @@ const kind=process.env.HLGB_BROWSER||'webkit',engine=kind==='chromium'?chromium:
  if(out?.version!=='94.47'||out?.repairSkipped!==true||out?.passes!==0)throw new Error('fast path não evitou rodadas '+JSON.stringify(out));
  if(out.needsCode?.length!==2||out.businessBlocked?.length!==2||out.unverified?.length!==2||out.historicalBacklog?.count!==116)throw new Error('triagem não ficou compacta '+JSON.stringify({needs:out.needsCode?.length,business:out.businessBlocked?.length,unverified:out.unverified?.length,historical:out.historicalBacklog?.count}));
  const ui=await page.evaluate(()=>window.hlgbAuditorSingleUiReclaim9434A.status());
- if(ui.appBase!=='94.47'||ui.repairReady!==true||ui.fastConvergenceReady!==true||ui.recordLearningScopeReady!==true)throw new Error('UI não aponta para v94.47 preservando v94.46 '+JSON.stringify(ui));
- if(errors.some(x=>/9447|autocorrect/i.test(x)))throw new Error('pageerror v94.47 '+errors.join(' | '));
- console.log('AUDITOR_AUTOCORRECT_V9447_RUNTIME_'+kind.toUpperCase()+'_OK',JSON.stringify({prep:{ok:prep.ok},passes:out.passes,needsCode:out.needsCode.length,businessBlocked:out.businessBlocked.length,historical:out.historicalBacklog.count,ui:{appBase:ui.appBase,fastConvergenceReady:ui.fastConvergenceReady}}));
+ if(ui.appBase!=='94.48'||ui.repairReady!==true||ui.residualProofReady!==true||ui.fastConvergenceReady!==true||ui.recordLearningScopeReady!==true)throw new Error('UI não aponta para v94.48 preservando v94.47/v94.46 '+JSON.stringify(ui));
+ if(errors.some(x=>/9448|9447|autocorrect/i.test(x)))throw new Error('pageerror v94.47 '+errors.join(' | '));
+ console.log('AUDITOR_AUTOCORRECT_V9447_RUNTIME_'+kind.toUpperCase()+'_OK_UNDER_V9448',JSON.stringify({prep:{ok:prep.ok},passes:out.passes,needsCode:out.needsCode.length,businessBlocked:out.businessBlocked.length,historical:out.historicalBacklog.count,ui:{appBase:ui.appBase,residualProofReady:ui.residualProofReady,fastConvergenceReady:ui.fastConvergenceReady}}));
  await browser.close();
 })().catch(e=>{console.error(e);process.exit(1)});
