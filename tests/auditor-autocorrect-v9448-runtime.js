@@ -1,0 +1,30 @@
+const {webkit,chromium}=require('playwright');
+const kind=process.env.HLGB_BROWSER||'webkit',engine=kind==='chromium'?chromium:webkit;
+(async()=>{
+ const browser=await engine.launch({headless:true});
+ const page=await browser.newPage({viewport:{width:1280,height:900}}),errors=[];page.on('pageerror',e=>errors.push(String(e.message||e)));
+ await page.goto('http://127.0.0.1:4173/app-stable3.html',{waitUntil:'domcontentloaded',timeout:60000});
+ await page.waitForFunction(()=>window.HLGB_AUDITOR_SINGLE_UI_RECLAIM_9434A==='94.34a'&&typeof window.hlgbLoginConfirmGate9407?.prepareAuditorRepairs9442==='function',null,{timeout:60000});
+ await page.evaluate(()=>{window.__HLGB_AUTH_READY=true;window.dispatchEvent(new Event('hlgb:authenticated'));const l=document.getElementById('loginScreen');if(l)l.style.setProperty('display','none','important');const a=document.getElementById('appShell');if(a){a.style.setProperty('display','block','important');a.style.setProperty('visibility','visible','important')}});
+ await page.waitForFunction(()=>window.HLGB_AUDITOR_AUTOCORRECT_9448==='94.48'&&typeof window.hlgbAuditorAutoCorrect9448?.run==='function'&&window.HLGB_PRODUCTION_RESIDUAL_9448==='94.48'&&window.HLGB_AUDITOR_AUTOCORRECT_9447==='94.47',null,{timeout:30000});
+ const prep=await page.evaluate(()=>window.hlgbAuditorAutoCorrect9448.prepare('v9448-runtime-prep'));if(!prep?.ok)throw new Error('v94.48 não preparou cadeia '+JSON.stringify(prep));
+ await page.waitForFunction(()=>typeof window.hlgbAuditorAutoCorrect9441?.silentAudit==='function'&&typeof window.hlgbAuditorAutoCorrect9441?.repairEvents==='function'&&typeof window.hlgbAuditorIntelligence9396?.currentMetrics==='function'&&typeof window.hlgbDiagnosticsCenter?.getIssues==='function'&&typeof window.hlgbProductionReconcile9439?.candidates==='function',null,{timeout:30000});
+ const out=await page.evaluate(async()=>{
+  const audit={main:{summary:{total:31,pass:29,warn:2,fail:0,result:'Atenção'},checks:[{code:'sync:pending',status:'warn',title:'Pendências locais de sincronização',detail:'2 registro(s) aguardando sincronização.'},{code:'issues:open',status:'warn',title:'Erros abertos na Central',detail:'10 aberto(s).'}]},operations:{pending:{unique:0,records:0,wal:0,totalCopies:0},delivery:{status:'pass'},savingUi:{status:'pass'},runtime:{status:'pass'}}};
+  const now=Date.now(),old=new Date(now-2*60*60*1000).toISOString(),issues=Array.from({length:10},(_,i)=>({id:'old-'+i,status:'Aberto',title:'Falha ao salvar production',detail:'Falha ao salvar production',lastSeenAt:old}));
+  const ev=[{recipeId:'production-reconcile',recordId:'a',status:'unverified',detail:'Reteste da fila, operação ou prova remota incompleta',at:new Date(now-1000).toISOString()},{recipeId:'production-reconcile',recordId:'b',status:'unverified',detail:'Reteste da fila, operação ou prova remota incompleta',at:new Date(now-900).toISOString()}];
+  const diag={version:'94.48',before:{safeCopies:1,businessCopies:1,incompleteCopies:1,candidateCount:2,items:[]},after:{safeCopies:0,businessCopies:1,incompleteCopies:1,candidateCount:2,items:[{id:'a',classification:'business-blocked',requires:'human-decision',detail:'business-difference',safeCopies:0,businessCopies:1,incompleteCopies:0},{id:'b',classification:'needs-code',requires:'code',detail:'Prova remota incompleta: no-server-proof',safeCopies:0,businessCopies:0,incompleteCopies:1}]},technicalCopiesCleared:1};
+  const a41=window.hlgbAuditorAutoCorrect9441,intel=window.hlgbAuditorIntelligence9396,dc=window.hlgbDiagnosticsCenter,prod=window.hlgbProductionReconcile9439,res=window.hlgbProductionResidual9448;
+  const saved={silent:a41.silentAudit,events:a41.repairEvents,metrics:intel.currentMetrics,issues:dc.getIssues,candidates:prod.candidates,residual:res.reconcileAndInspect};
+  a41.silentAudit=async()=>audit;a41.repairEvents=()=>ev;intel.currentMetrics=()=>({metrics:{pendingUnique:2,pendingBusiness:2,pendingTechnicalRecent:0,pendingTechnicalHistorical:0,scriptDuplicates:0,saveDuplicateResponsibilities:0}});dc.getIssues=()=>issues;prod.candidates=async()=>[{id:'a'},{id:'b'}];res.reconcileAndInspect=async()=>diag;
+  try{return await window.hlgbAuditorAutoCorrect9448.run({reason:'v9448-runtime',render:false,download:false})}finally{a41.silentAudit=saved.silent;a41.repairEvents=saved.events;intel.currentMetrics=saved.metrics;dc.getIssues=saved.issues;prod.candidates=saved.candidates;res.reconcileAndInspect=saved.residual}
+ });
+ if(out?.version!=='94.48'||out?.residualProof!==true||out?.repairSkipped!==true||out?.passes!==0)throw new Error('v94.48 não manteve fast path '+JSON.stringify(out));
+ if(out.needsCode?.length!==1||out.businessBlocked?.length!==1)throw new Error('prova residual não substituiu evento antigo '+JSON.stringify({needs:out.needsCode,business:out.businessBlocked}));
+ if(out.businessBlocked[0].id!=='a'||out.needsCode[0].id!=='b')throw new Error('IDs classificados incorretamente '+JSON.stringify(out));
+ if(out.productionResidual?.technicalCopiesCleared!==1||out.report?.version!=='94.48'||out.report?.productionResidual?.after?.candidateCount!==2)throw new Error('relatório residual incompleto '+JSON.stringify({residual:out.productionResidual,report:out.report?.version}));
+ const ui=await page.evaluate(()=>window.hlgbAuditorSingleUiReclaim9434A.status());if(ui.appBase!=='94.48'||ui.repairReady!==true||ui.residualProofReady!==true||ui.fastConvergenceReady!==true)throw new Error('UI não aponta para v94.48 '+JSON.stringify(ui));
+ if(errors.some(x=>/9448|autocorrect|production-residual/i.test(x)))throw new Error('pageerror v94.48 '+errors.join(' | '));
+ console.log('AUDITOR_AUTOCORRECT_V9448_RUNTIME_'+kind.toUpperCase()+'_OK',JSON.stringify({needsCode:out.needsCode.length,businessBlocked:out.businessBlocked.length,technicalCopiesCleared:out.productionResidual.technicalCopiesCleared,ui:{appBase:ui.appBase,residualProofReady:ui.residualProofReady}}));
+ await browser.close();
+})().catch(e=>{console.error(e);process.exit(1)});
