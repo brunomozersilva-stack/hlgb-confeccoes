@@ -1,23 +1,25 @@
-/* HLGB v94.39 — reconciliação conservadora de Produção confirmada.
+/* HLGB v94.50 — reconciliação conservadora de Produção confirmada.
    Pós-login. Consulta o Supabase por ID antes de qualquer poda.
    Remove somente cópias locais/WAL cuja operação esteja comprovadamente satisfeita
    pelo servidor, preservando qualquer edição de negócio mais nova.
-   Patch de segurança v94.42: comparação integral de campos de negócio, revisão remota
-   obrigatória antes de mutação e falha explícita quando IndexedDB não puder ser lido. */
+   v94.50: ignora somente marcadores técnicos conhecidos, trata replay seguro de localização
+   obsoleta e expõe diff de negócio sem relaxar campos reais de Produção. */
 (function(){
 'use strict';
-const V='94.39',PATCH='94.42-safe-proof',PENDING_KEY='hlgb_records_pending_v91',WAL_KEY='hlgb_durable_wal_v1',DB_NAME='hlgb_durable_wal',STORE='entries',PROOF_KEY='hlgb_production_save_proofs_v9439';
-if(window.HLGB_PRODUCTION_RECONCILE_9439===V&&window.hlgbProductionReconcile9439?.patch===PATCH){try{window.hlgbProductionReconcile9439?.activate?.('reload')}catch(e){}return}
+const V='94.50',PATCH='94.42-safe-proof',FIX='94.50-production-proof',PENDING_KEY='hlgb_records_pending_v91',WAL_KEY='hlgb_durable_wal_v1',DB_NAME='hlgb_durable_wal',STORE='entries',PROOF_KEY='hlgb_production_save_proofs_v9439';
+if(window.HLGB_PRODUCTION_RECONCILE_9439===V&&window.hlgbProductionReconcile9439?.fix===FIX){try{window.hlgbProductionReconcile9439?.activate?.('reload')}catch(e){}return}
 window.HLGB_PRODUCTION_RECONCILE_9439=V;
-const state={version:V,patch:PATCH,active:false,busy:false,runs:0,checked:0,confirmed:0,prunedNormalized:0,prunedWal:0,prunedIdb:0,skippedNewer:0,verificationErrors:0,lastAt:'',lastError:'',lastResult:null};
+const state={version:V,patch:PATCH,fix:FIX,active:false,busy:false,runs:0,checked:0,confirmed:0,prunedNormalized:0,prunedWal:0,prunedIdb:0,skippedNewer:0,verificationErrors:0,lastAt:'',lastError:'',lastResult:null};
 const sid=v=>String(v??'');
 const clone=v=>{try{return structuredClone(v)}catch(e){try{return JSON.parse(JSON.stringify(v))}catch(_){return v}}};
 const META=new Set(['updatedAt','updated_at','revision','__hlgb_pending_at','createdAt','lastAttemptAt','lastError','state','clientVersion','baseUpdatedAt','opId','operationId','key']);
+const TECHNICAL=new Set(['assignmentSource','cutEffectiveQtyV9240','cutEffectiveQtyV9246','cutQuantityLinkedV9246']);
 const OPTIONAL_NULLISH=new Set(['productionLocationId','factionId','assignedAt','sentToFactionAt','color','size']);
+function isTechnicalKey(k){return TECHNICAL.has(k)||/^cut(?:EffectiveQty|QuantityLinked)V\d+$/i.test(k)}
 function canonical(v){
  if(Array.isArray(v))return v.map(canonical);
  if(!v||typeof v!=='object')return v;
- const o={};for(const k of Object.keys(v).sort()){if(META.has(k)||/^__hlgb/i.test(k)||/^__storage/i.test(k))continue;const x=v[k];if(OPTIONAL_NULLISH.has(k)&&(x===undefined||x===null||x==='')){o[k]=null;continue}o[k]=canonical(x)}return o;
+ const o={};for(const k of Object.keys(v).sort()){if(META.has(k)||isTechnicalKey(k)||/^__hlgb/i.test(k)||/^__storage/i.test(k))continue;const x=v[k];if(OPTIONAL_NULLISH.has(k)&&(x===undefined||x===null||x==='')){o[k]=null;continue}o[k]=canonical(x)}return o;
 }
 function canonicalProduction(v){const o=canonical(v||{});for(const k of OPTIONAL_NULLISH){if(!(k in o)||o[k]===undefined||o[k]==='')o[k]=null}return Object.fromEntries(Object.keys(o).sort().map(k=>[k,o[k]]))}
 function sameJson(a,b){try{return JSON.stringify(a)===JSON.stringify(b)}catch(e){return false}}
@@ -26,6 +28,11 @@ function productionEquivalent(a,b){
  if(!a||!b||typeof a!=='object'||typeof b!=='object')return false;
  const ia=prodIdentity(a),ib=prodIdentity(b);if(!ia||!ib||!sameJson(ia,ib))return false;
  return sameJson(canonicalProduction(a),canonicalProduction(b));
+}
+function businessDiff(serverData,desired){
+ const a=canonicalProduction(serverData||{}),b=canonicalProduction(desired||{}),keys=[...new Set([...Object.keys(a),...Object.keys(b)])].sort(),out=[];
+ for(const field of keys){if(!sameJson(a[field],b[field]))out.push({field,server:a[field]===undefined?null:a[field],local:b[field]===undefined?null:b[field]});if(out.length>=20)break}
+ return out;
 }
 function parseMs(v){if(!v)return NaN;if(typeof v==='number')return v;const n=Date.parse(String(v));return Number.isFinite(n)?n:NaN}
 function serverProof(server,expectedId,deleted=false){
@@ -38,15 +45,24 @@ function serverProof(server,expectedId,deleted=false){
  if(!server.data||typeof server.data!=='object')return {ok:false,reason:'no-server-data'};
  return {ok:true,reason:'server-identity-revision-confirmed'};
 }
+function serverNewerThanBase(server,baseUpdatedAt){const remoteAt=parseMs(server?.updated_at),baseAt=parseMs(baseUpdatedAt);return Number.isFinite(remoteAt)&&Number.isFinite(baseAt)&&remoteAt>=baseAt}
+function staleLocationReplaySatisfied(server,desired,base,baseUpdatedAt){
+ if(!desired||typeof desired!=='object')return false;
+ const marker=desired.__hlgb9423StaleProductionLocationId;
+ if(marker===undefined||marker===null||marker==='')return false;
+ const desiredLoc=sid(desired.productionLocationId),markerId=sid(marker),serverLoc=sid(server?.data?.productionLocationId),baseLoc=sid(base?.productionLocationId);
+ if(!desiredLoc||desiredLoc!==markerId||serverLoc||baseLoc)return false;
+ const normalized=clone(desired);normalized.productionLocationId=null;
+ if(productionEquivalent(server.data,normalized))return true;
+ return !!base&&productionEquivalent(normalized,base)&&serverNewerThanBase(server,baseUpdatedAt);
+}
 function staleOperationSatisfied(server,desired,base,baseUpdatedAt,expectedId='',deleted=false){
  const structural=serverProof(server,expectedId,deleted);if(!structural.ok)return structural;if(deleted===true)return structural;
  if(!desired)return {ok:false,reason:'no-desired-data'};
  if(productionEquivalent(server.data,desired))return {ok:true,reason:'server-semantic-match'};
- if(base&&productionEquivalent(desired,base)){
-  const remoteAt=parseMs(server.updated_at),baseAt=parseMs(baseUpdatedAt);
-  if(Number.isFinite(remoteAt)&&Number.isFinite(baseAt)&&remoteAt>=baseAt)return {ok:true,reason:'server-newer-than-unchanged-pending'};
- }
- return {ok:false,reason:'business-difference'};
+ if(staleLocationReplaySatisfied(server,desired,base,baseUpdatedAt))return {ok:true,reason:'stale-production-location-marker'};
+ if(base&&productionEquivalent(desired,base)&&serverNewerThanBase(server,baseUpdatedAt))return {ok:true,reason:'server-newer-than-unchanged-pending'};
+ return {ok:false,reason:'business-difference',diff:businessDiff(server.data,desired)};
 }
 function readJson(k,f){try{const x=JSON.parse(localStorage.getItem(k)||'null');return x??f}catch(e){return f}}
 function writeJson(k,v){try{localStorage.setItem(k,JSON.stringify(v));return true}catch(e){state.lastError=sid(e?.message||e);return false}}
@@ -76,24 +92,24 @@ function normalizeLocal(c,server,desired,base,deleted=false){try{const d=window.
 function saveProof(row){try{let a=readJson(PROOF_KEY,[]);if(!Array.isArray(a))a=[];a.push(row);writeJson(PROOF_KEY,a.slice(-160))}catch(e){}}
 async function reconcileOne(c,reason){
  const op=chooseOperation(c);if(!op)return {id:c.id,ok:false,reason:'sem-operacao'};const server=await cloudRow(c.id);state.checked++;
- const proof=staleOperationSatisfied(server,op.data,op.baseData,op.baseUpdatedAt,c.id,op.deleted===true);const row={kind:'production-reconcile-proof',version:V,patch:PATCH,at:new Date().toISOString(),id:c.id,reason,confirmed:proof.ok,proofReason:proof.reason,serverRevision:+server?.revision||0,serverUpdatedAt:server?.updated_at||'',walLocal:c.walLocal.length,walIdb:c.walIdb.length,normalized:c.normalized.length};saveProof(row);if(!proof.ok){state.verificationErrors++;return {id:c.id,ok:false,reason:proof.reason}}
+ const proof=staleOperationSatisfied(server,op.data,op.baseData,op.baseUpdatedAt,c.id,op.deleted===true);const row={kind:'production-reconcile-proof',version:V,patch:PATCH,fix:FIX,at:new Date().toISOString(),id:c.id,reason,confirmed:proof.ok,proofReason:proof.reason,businessDiff:proof.diff||[],serverRevision:+server?.revision||0,serverUpdatedAt:server?.updated_at||'',walLocal:c.walLocal.length,walIdb:c.walIdb.length,normalized:c.normalized.length};saveProof(row);if(!proof.ok){state.verificationErrors++;return {id:c.id,ok:false,reason:proof.reason,businessDiff:proof.diff||[]}}
  const localSafe=normalizeLocal(c,server,op.data,op.baseData,op.deleted===true);if(!localSafe){state.verificationErrors++;return {id:c.id,ok:false,reason:'local-newer-preserved',serverRevision:+server.revision||0}}
  if(op.deleted!==true)updateSnapshot(server);const n=removeNormalizedConfirmed(c.id,server),w=await removeWalConfirmed(c,server);try{if(typeof hlgbRecordPendingStore==='function')hlgbRecordPendingStore();else window.hlgbRecordPendingStore?.()}catch(_){}state.confirmed++;
  const all=[...c.walLocal,...c.walIdb,...c.normalized],operationIds=[...new Set(all.filter(e=>staleOperationSatisfied(server,e.data,e.baseData,e.baseUpdatedAt,c.id,e.deleted===true).ok).map(e=>sid(e.opId||e.operationId)).filter(Boolean))];
- return {id:c.id,ok:true,proof:proof.reason,normalizedRemoved:n,walRemoved:w,serverRevision:+server.revision||0,operationIds,patch:PATCH};
+ return {id:c.id,ok:true,proof:proof.reason,normalizedRemoved:n,walRemoved:w,serverRevision:+server.revision||0,operationIds,patch:PATCH,fix:FIX};
 }
 async function reconcile(reason='manual'){
  if(state.busy||!authReady()||navigator.onLine===false)return false;state.busy=true;state.runs++;state.lastAt=new Date().toISOString();const results=[];
- try{const list=await candidates();for(const c of list){try{results.push(await reconcileOne(c,reason))}catch(e){results.push({id:c.id,ok:false,error:sid(e?.message||e)});state.lastError=sid(e?.message||e)}}state.lastResult={at:new Date().toISOString(),reason,results,patch:PATCH};return state.lastResult}
+ try{const list=await candidates();for(const c of list){try{results.push(await reconcileOne(c,reason))}catch(e){results.push({id:c.id,ok:false,error:sid(e?.message||e)});state.lastError=sid(e?.message||e)}}state.lastResult={at:new Date().toISOString(),reason,results,patch:PATCH,fix:FIX};return state.lastResult}
  catch(e){state.lastError=sid(e?.message||e);state.verificationErrors++;throw e}
  finally{state.busy=false}
 }
-function stamp(){try{const cur=parseFloat(String(window.HLGB_RELEASE_VERSION||'0'))||0;if(cur<94.39){window.HLGB_RELEASE_VERSION=V;const el=document.querySelector('#appShell .logo small');if(el)el.textContent='v'+V}}catch(e){}}
+function stamp(){try{const cur=parseFloat(String(window.HLGB_RELEASE_VERSION||'0'))||0;if(cur<94.50){window.HLGB_RELEASE_VERSION=V;const el=document.querySelector('#appShell .logo small');if(el)el.textContent='v'+V}}catch(e){}}
 function activate(reason='authenticated'){if(!authReady())return false;state.active=true;stamp();[0,120,500,1600].forEach(ms=>setTimeout(()=>reconcile(reason).catch(()=>{}),ms));return true}
-window.hlgbProductionReconcile9439={version:V,patch:PATCH,state,activate,reconcile,candidates,productionEquivalent,staleOperationSatisfied,serverProof,status:()=>({...state,authReady:authReady()})};
+window.hlgbProductionReconcile9439={version:V,patch:PATCH,fix:FIX,state,activate,reconcile,candidates,productionEquivalent,staleOperationSatisfied,serverProof,businessDiff,_test:{canonicalProduction,isTechnicalKey,staleLocationReplaySatisfied,businessDiff},status:()=>({...state,authReady:authReady()})};
 window.addEventListener('hlgb:authenticated',()=>activate('authenticated-event'));
 window.addEventListener('online',()=>{if(authReady())setTimeout(()=>reconcile('online').catch(()=>{}),80)});
 window.addEventListener('focus',()=>{if(authReady())setTimeout(()=>reconcile('focus').catch(()=>{}),150)});
 if(authReady())activate('loaded-after-auth');
-console.info('[HLGB] v'+V+' reconciliação conservadora de Produção ativa · patch '+PATCH);
+console.info('[HLGB] v'+V+' reconciliação conservadora de Produção ativa · patch '+PATCH+' · '+FIX);
 })();
