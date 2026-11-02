@@ -7,8 +7,9 @@ const esc=v=>sid(v).replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"
 const INTERNAL_CALLER_FRAMES=[/release-auditor-call-trace-v9380/i,/release-record-integrity\.js/i,/release-auditor-boot-analysis-v9381\.js/i];
 function stackFrames(stack){return sid(stack).split('\n').map(x=>x.trim()).filter(x=>x&&!/^Error\b/i.test(x))}
 function topFrame(stack){
- const frames=stackFrames(stack),external=frames.find(x=>!INTERNAL_CALLER_FRAMES.some(re=>re.test(x)));
- return external||frames.find(x=>!/release-auditor-call-trace-v9380/i.test(x))||frames[0]||'';
+ const frames=stackFrames(stack);
+ return frames.find(frame=>!INTERNAL_CALLER_FRAMES.some(re=>re.test(frame))&&
+  !(/\bhlgbPrinter3dLoadThrough\b/.test(frame)&&/release-printer3d-persistence-v9431\.js/.test(frame)))||'';
 }
 function safeEarlyBoot(){
  try{

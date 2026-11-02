@@ -92,7 +92,7 @@ function persistAudit(){
 }
 function wrapLoader(){
  const fn=window.hlgbRecordLoadBundle;if(typeof fn!=='function'||fn.__hlgbPrinter3d9431)return false;
- const w=async function(){ensureArrays();state.loads++;const out=await fn.apply(this,arguments);hydrate('record-load');return out};w.__hlgbPrinter3d9431=true;w.__original=fn;window.hlgbRecordLoadBundle=w;return true;
+ const w=async function hlgbPrinter3dLoadThrough(){ensureArrays();state.loads++;const out=await fn.apply(this,arguments);hydrate('record-load');return out};w.__hlgbPrinter3d9431=true;w.__original=fn;window.hlgbRecordLoadBundle=w;return true;
 }
 function wrapIncoming(){
  const fn=window.hlgbRenderIncomingRecord;if(typeof fn!=='function'||fn.__hlgbPrinter3d9431)return false;

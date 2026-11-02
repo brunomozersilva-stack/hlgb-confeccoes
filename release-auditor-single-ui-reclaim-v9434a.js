@@ -3,7 +3,7 @@
    mantendo convergência rápida e o botão único mesmo após recriação do contêiner. */
 (function(){
 'use strict';
-const V='94.34a',APP_BASE='94.48';
+const V='94.34a',APP_BASE='94.49';
 if(window.HLGB_AUDITOR_SINGLE_UI_RECLAIM_9434A===V)return;
 window.HLGB_AUDITOR_SINGLE_UI_RECLAIM_9434A=V;
 const BUTTON_ID='hlgbAuditorUnifiedRun9434A';
@@ -21,8 +21,8 @@ const state={version:V,appBase:APP_BASE,heals:0,created:0,runs:0,errors:0,runnin
 let actionObserver=null,actionObserverHost=null,actionObserverRoot=null,observerQueued=false;
 const sid=v=>String(v??'');
 function stamp(){
- try{if((parseFloat(sid(window.HLGB_RELEASE_VERSION))||0)<94.48)window.HLGB_RELEASE_VERSION=APP_BASE}catch(e){}
- try{const el=document.querySelector('#appShell .logo small');if(el&&((parseFloat(sid(el.textContent).replace(/^v/i,''))||0)<94.48))el.textContent='v'+APP_BASE}catch(e){}
+ try{if((parseFloat(sid(window.HLGB_RELEASE_VERSION))||0)<Number(APP_BASE))window.HLGB_RELEASE_VERSION=APP_BASE}catch(e){}
+ try{const el=document.querySelector('#appShell .logo small');if(el&&((parseFloat(sid(el.textContent).replace(/^v/i,''))||0)<Number(APP_BASE)))el.textContent='v'+APP_BASE}catch(e){}
 }
 function root(){
  const s=document.getElementById('hlgbSmartStatus');

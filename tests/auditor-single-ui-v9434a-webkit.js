@@ -15,7 +15,7 @@ const engine=process.env.HLGB_BROWSER==='chromium'?chromium:webkit;
  let out=await snapshot();
  if(!out.one||!out.text.includes('Auditar e corrigir'))throw new Error('botão reparador único ausente '+JSON.stringify(out));
  if(out.navInsideActions||out.legacyVisible.length||out.visibleActions.length!==1||out.visibleActions[0]!=='hlgbAuditorUnifiedRun9434A')throw new Error('conflito de ações '+JSON.stringify(out));
- if(out.status?.version!=='94.34a'||out.status?.appBase!=='94.48'||out.status?.repairReady!==true||out.status?.fastConvergenceReady!==true||out.status?.residualProofReady!==true||out.status?.recordLearningScopeReady!==true)throw new Error('UI atual divergente '+JSON.stringify(out));
+ if(out.status?.version!=='94.34a'||out.status?.appBase!=='94.49'||out.status?.repairReady!==true||out.status?.fastConvergenceReady!==true||out.status?.residualProofReady!==true||out.status?.recordLearningScopeReady!==true)throw new Error('UI atual divergente '+JSON.stringify(out));
  const sameHost=await page.evaluate(()=>{const h=document.querySelector('.hlgb-auditor-actions'),b=document.getElementById('hlgbAuditorUnifiedRun9434A');if(!h||!b||b.parentElement!==h)return false;b.remove();return true});
  if(!sameHost)throw new Error('não foi possível simular remoção isolada do botão');
  await page.waitForFunction(()=>{const h=document.querySelector('.hlgb-auditor-actions'),b=document.getElementById('hlgbAuditorUnifiedRun9434A');if(!h||!b||b.parentElement!==h)return false;const s=getComputedStyle(b),r=b.getBoundingClientRect();return !b.hidden&&s.display!=='none'&&s.visibility!=='hidden'&&r.width>0&&r.height>0},null,{timeout:3000});

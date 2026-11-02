@@ -62,7 +62,7 @@ function watchNewEntry(){
  return true;
 }
 function chainHasMarker(fn,marker){
- const seen=new Set(),pointers=['__original','__hlgb9307Original','__hlgb9320Original','__hlgb955Original','__hlgbReliableOriginal'];
+ const seen=new Set(),pointers=['__original','__hlgb9307Original','__hlgb9320Original','__hlgb955Original','__hlgbReliableOriginal','__originalGradeLink','__hlgb9306Original','__hlgbOriginal'];
  let cur=fn,depth=0;
  while(typeof cur==='function'&&!seen.has(cur)&&depth++<48){
   if(cur[marker])return true;
