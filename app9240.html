@@ -21564,7 +21564,14 @@ function normalizeExistingLocalCuts(){
 }
 function patchSaver(){
   const current=window.hlgbRecordSaveWithRetry;
-  if(typeof current!=='function'||current.__hlgbGradeLinkV9243)return false;
+  if(typeof current!=='function')return false;
+  // Other save guards may have wrapped the grade interceptor between boot retries.
+  const seen=new Set();
+  for(let fn=current;typeof fn==='function'&&!seen.has(fn);){
+    if(fn.__hlgbGradeLinkV9243)return true;
+    seen.add(fn);
+    fn=fn.__original||fn.__originalGradeLink||fn.__hlgb9306Original||fn.__hlgb955Original||fn.__hlgbOriginal;
+  }
   const original=current;
   const wrapped=async function(module,id,data,deleted){
     let payload=data;
@@ -21586,6 +21593,7 @@ function patchSaver(){
   };
   wrapped.__hlgbGradeLinkV9243=true;
   wrapped.__originalGradeLink=original;
+  wrapped.__original=original;
   window.hlgbRecordSaveWithRetry=wrapped;
   return true;
 }

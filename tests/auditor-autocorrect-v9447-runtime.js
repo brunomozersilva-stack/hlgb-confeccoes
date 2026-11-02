@@ -24,7 +24,7 @@ const kind=process.env.HLGB_BROWSER||'webkit',engine=kind==='chromium'?chromium:
  if(out?.version!=='94.47'||out?.repairSkipped!==true||out?.passes!==0)throw new Error('fast path não evitou rodadas '+JSON.stringify(out));
  if(out.needsCode?.length!==2||out.businessBlocked?.length!==2||out.unverified?.length!==2||out.historicalBacklog?.count!==116)throw new Error('triagem não ficou compacta '+JSON.stringify({needs:out.needsCode?.length,business:out.businessBlocked?.length,unverified:out.unverified?.length,historical:out.historicalBacklog?.count}));
  const ui=await page.evaluate(()=>window.hlgbAuditorSingleUiReclaim9434A.status());
- if(ui.appBase!=='94.48'||ui.repairReady!==true||ui.residualProofReady!==true||ui.fastConvergenceReady!==true||ui.recordLearningScopeReady!==true)throw new Error('UI não aponta para v94.48 preservando v94.47/v94.46 '+JSON.stringify(ui));
+ if(ui.appBase!=='94.49'||ui.repairReady!==true||ui.residualProofReady!==true||ui.fastConvergenceReady!==true||ui.recordLearningScopeReady!==true)throw new Error('UI não aponta para v94.48 preservando v94.47/v94.46 '+JSON.stringify(ui));
  if(errors.some(x=>/9448|9447|autocorrect/i.test(x)))throw new Error('pageerror v94.47 '+errors.join(' | '));
  console.log('AUDITOR_AUTOCORRECT_V9447_RUNTIME_'+kind.toUpperCase()+'_OK_UNDER_V9448',JSON.stringify({prep:{ok:prep.ok},passes:out.passes,needsCode:out.needsCode.length,businessBlocked:out.businessBlocked.length,historical:out.historicalBacklog.count,ui:{appBase:ui.appBase,residualProofReady:ui.residualProofReady,fastConvergenceReady:ui.fastConvergenceReady}}));
  await browser.close();

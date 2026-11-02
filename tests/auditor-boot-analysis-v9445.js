@@ -21,7 +21,8 @@ function pair(seq,name,kind,{authReady=true,sessionRestoring=false,appVisible=tr
   {seq:seq+1,type:kind+':return',name,monoMs:seq*10+duration,authReady,sessionRestoring,activePage:'dashboard',appVisible,data:{syncDurationMs:duration,blockedByEarlyGate:blocked}}
  ];
 }
-const stack=caller=>'Error\n    at traced (https://example.test/release-auditor-call-trace-v9380.js:20:10)\n    at wrapped (https://example.test/release-record-integrity.js:378:38)\n    at '+caller;
+const through3d='hlgbPrinter3dLoadThrough (https://example.test/release-printer3d-persistence-v9431.js:95:80)\n    at ';
+const stack=caller=>'Error\n    at traced (https://example.test/release-auditor-call-trace-v9380.js:20:10)\n    at wrapped (https://example.test/release-record-integrity.js:378:38)\n    at '+through3d+caller;
 (async()=>{
  const c=base();let events=[];c.hlgbAuditorCallTrace9380={snapshot:()=>({wrapped:['hlgbRecordLoadBundle','renderAll'],eventCount:events.length,events})};
  vm.runInNewContext(source('release-auditor-boot-analysis-v9381.js'),c,{filename:'release-auditor-boot-analysis-v9381.js'});
@@ -43,11 +44,11 @@ const stack=caller=>'Error\n    at traced (https://example.test/release-auditor-
  ok(r.loads[0].callers.length===3,'origens reais não foram separadas '+JSON.stringify(r.loads[0]));
  ok(r.loads[0].callers.every(x=>!x.includes('release-record-integrity')),'wrapper interno apareceu como origem '+JSON.stringify(r.loads[0].callers));
  // 3) Mesma função, mesmo chamador pós-login, repetida: deve alertar e apontar o chamador externo real.
- const realCaller='loadDashboardData (https://example.test/app-stable3.html:777:9)';
+ const realCaller='forceRepair@https://example.test/release-printer3d-persistence-v9431.js:107:8';
  events=[...pair(1,'hlgbRecordLoadBundle','load',{stack:stack(realCaller)}),...pair(3,'hlgbRecordLoadBundle','load',{stack:stack(realCaller)})];
  r=api.analyze();
  ok(r.status==='warn'&&r.summary.duplicateLoadGroups===1,'duplicidade real não gerou warning '+JSON.stringify(r));
- ok(r.duplicateGroups[0].count===2&&r.duplicateGroups[0].caller.includes('loadDashboardData'),'chamador real não identificado '+JSON.stringify(r.duplicateGroups[0]));
+ ok(r.duplicateGroups[0].count===2&&r.duplicateGroups[0].caller.includes('forceRepair'),'chamador real não identificado '+JSON.stringify(r.duplicateGroups[0]));
  ok(!r.duplicateGroups[0].caller.includes('release-record-integrity'),'wrapper interno mascarou chamador '+r.duplicateGroups[0].caller);
  ok(r.reasons.some(x=>x.includes('mesma função pelo mesmo chamador')),'motivo de duplicidade não ficou explícito '+JSON.stringify(r.reasons));
  // 4) Chamada lenta continua sendo warning independente da nova regra de duplicidade.

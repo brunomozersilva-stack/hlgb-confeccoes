@@ -23,7 +23,7 @@ ok(r.includes('neverInvent')&&r.includes('Financeiro→Projeção'),'proteção 
 ok(!/hlgbRecordSaveWithRetry\s*\(/.test(r),'autocorretor não pode salvar dado de negócio diretamente');
 ok(!/persistDb\s*\(|localSaveOnly\s*\(/.test(r),'autocorretor não pode persistir negócio direto');
 ok(!/removeItem\s*\(\s*['"]hlgb_(records_pending|durable_wal)/.test(r),'autocorretor não pode apagar fila/WAL diretamente');
-ok(ui.includes("APP_BASE='94.48'")&&ui.includes('release-auditor-autocorrect-v9448.js'),'UI precisa carregar v94.48');
+ok(ui.includes("APP_BASE='94.49'")&&ui.includes('release-auditor-autocorrect-v9448.js'),'UI precisa carregar v94.48');
 ok(v42.includes("BASE_V='94.41'")&&v42.includes('hlgbAuditorAutoCorrect9441'),'v94.42 precisa preservar o orquestrador verificável v94.41');
 ok(v42.includes('prepareAuditorRepairs9442')&&v42.includes('dependencyRows'),'v94.42 precisa aguardar reparadores reais');
 ok(v43.includes("BASE_V='94.42'")&&v43.includes('hlgbAuditorAutoCorrect9442'),'v94.43 precisa preservar a segurança da v94.42');

@@ -23,7 +23,7 @@ const kind=process.env.HLGB_BROWSER||'webkit',engine=kind==='chromium'?chromium:
  if(out.needsCode?.length!==1||out.businessBlocked?.length!==1)throw new Error('prova residual não substituiu evento antigo '+JSON.stringify({needs:out.needsCode,business:out.businessBlocked}));
  if(out.businessBlocked[0].id!=='a'||out.needsCode[0].id!=='b')throw new Error('IDs classificados incorretamente '+JSON.stringify(out));
  if(out.productionResidual?.technicalCopiesCleared!==1||out.report?.version!=='94.48'||out.report?.productionResidual?.after?.candidateCount!==2)throw new Error('relatório residual incompleto '+JSON.stringify({residual:out.productionResidual,report:out.report?.version}));
- const ui=await page.evaluate(()=>window.hlgbAuditorSingleUiReclaim9434A.status());if(ui.appBase!=='94.48'||ui.repairReady!==true||ui.residualProofReady!==true||ui.fastConvergenceReady!==true)throw new Error('UI não aponta para v94.48 '+JSON.stringify(ui));
+ const ui=await page.evaluate(()=>window.hlgbAuditorSingleUiReclaim9434A.status());if(ui.appBase!=='94.49'||ui.repairReady!==true||ui.residualProofReady!==true||ui.fastConvergenceReady!==true)throw new Error('UI não aponta para v94.48 '+JSON.stringify(ui));
  if(errors.some(x=>/9448|autocorrect|production-residual/i.test(x)))throw new Error('pageerror v94.48 '+errors.join(' | '));
  console.log('AUDITOR_AUTOCORRECT_V9448_RUNTIME_'+kind.toUpperCase()+'_OK',JSON.stringify({needsCode:out.needsCode.length,businessBlocked:out.businessBlocked.length,technicalCopiesCleared:out.productionResidual.technicalCopiesCleared,ui:{appBase:ui.appBase,residualProofReady:ui.residualProofReady}}));
  await browser.close();
