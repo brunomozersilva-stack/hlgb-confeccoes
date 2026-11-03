@@ -10,7 +10,7 @@ const store={};
 const ctx={window:{},db:database,cloudAccessToken:'test',cloudRequest:async()=>{reads++;return remote},
  hlgbRecordSnapshots:snapshots,localStorage:{getItem:k=>store[k]||null},
  document:{hidden:false,querySelector:s=>s==='#rotas9249.page.active'?{}:null,addEventListener:()=>{}},
- Date:{now:()=>now,parse:Date.parse,prototype:Date.prototype},JSON,Number,String,Object,Array,console,
+ Date,JSON,Number,String,Object,Array,console,
  sid:v=>String(v??''),clone:v=>JSON.parse(JSON.stringify(v)),arr:n=>database[n],
  localSaveOnly:()=>{},renderRoutes:()=>{redraws++},setInterval:()=>1};
 ctx.window.addEventListener=()=>{};ctx.window.cloudAccessToken='test';
