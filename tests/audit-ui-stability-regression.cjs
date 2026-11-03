@@ -113,4 +113,9 @@ assert.equal(renders,3,'open modal must keep remote redraw deferred');
 modalOpen=false;flushTimers();
 assert.equal(renders,4,'queued redraw must execute after modal closes');
 
+// Regression: a second remote revision within five seconds must not be discarded.
+now=21000;window.hlgbUiStabilityMarkRemote();window.renderProduction();
+flushTimers();
+assert.equal(renders,5,'second remote revision within cooldown must update the screen');
+
 console.log('PASS UI stability v8: bursts collapse, hidden redraws skip, manual redraws stay immediate, scroll survives, and edit/modal deferral flushes safely.');
