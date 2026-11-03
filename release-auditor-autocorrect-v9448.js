@@ -3,7 +3,7 @@
    técnicas já satisfeitas e só então separa prova incompleta de diferença de negócio. */
 (function(){
 'use strict';
-const V='94.48',BASE_V='94.47',BASE_SRC='./release-auditor-autocorrect-v9447.js',RESIDUAL_SRC='./release-production-residual-v9448.js';
+const V='94.48',RESIDUAL_V='94.50',BASE_V='94.47',BASE_SRC='./release-auditor-autocorrect-v9447.js',RESIDUAL_SRC='./release-production-residual-v9448.js';
 const REPORT_KEY='hlgb_auditor_autocorrect_latest_report_v9448',CARD_ID='hlgbAuditorAutoCorrect9448Card';
 if(window.HLGB_AUDITOR_AUTOCORRECT_9448===V)return;
 window.HLGB_AUDITOR_AUTOCORRECT_9448=V;
@@ -14,7 +14,7 @@ const nowIso=()=>new Date().toISOString();
 function authReady(){return window.__HLGB_AUTH_READY===true}
 function stamp(){try{if((parseFloat(sid(window.HLGB_RELEASE_VERSION))||0)<94.48)window.HLGB_RELEASE_VERSION=V;const el=document.querySelector?.('#appShell .logo small');if(el&&(parseFloat(sid(el.textContent).replace(/^v/i,''))||0)<94.48)el.textContent='v'+V}catch(e){}}
 function baseReady(){return window.HLGB_AUDITOR_AUTOCORRECT_9447===BASE_V&&typeof window.hlgbAuditorAutoCorrect9447?.run==='function'}
-function residualReady(){return window.HLGB_PRODUCTION_RESIDUAL_9448===V&&typeof window.hlgbProductionResidual9448?.reconcileAndInspect==='function'}
+function residualReady(){return window.HLGB_PRODUCTION_RESIDUAL_9448===RESIDUAL_V&&typeof window.hlgbProductionResidual9448?.reconcileAndInspect==='function'}
 function loadScript(src,attr,readyFn){if(readyFn())return Promise.resolve(true);let s=document.querySelector('script['+attr+']');if(s?.__hlgbPromise)return s.__hlgbPromise;if(!s){s=document.createElement('script');s.src=src+'?fresh='+Date.now();s.async=false;s.setAttribute(attr.split('=')[0].replace(/[\[\]]/g,''),'1');(document.head||document.documentElement).appendChild(s)}const p=new Promise(resolve=>{if(readyFn())return resolve(true);let done=false;const finish=()=>{if(done)return;done=true;resolve(readyFn())};s.addEventListener('load',finish,{once:true});s.addEventListener('error',()=>{try{s.remove()}catch(_){}finish()},{once:true});setTimeout(finish,12000)});s.__hlgbPromise=p;return p}
 async function ensureBase(){return baseReady()?true:loadScript(BASE_SRC,'data-hlgb-auditor-autocorrect-9447-for-9448',baseReady)}
 async function ensureResidual(){return residualReady()?true:loadScript(RESIDUAL_SRC,'data-hlgb-production-residual-9448',residualReady)}
@@ -22,7 +22,7 @@ async function prepare(reason='auditor-v9448'){
  if(!authReady())return {ok:false,ready:false,reason,error:'Autenticação ainda não está pronta',missing:['auth']};
  if(!(await ensureBase()))return {ok:false,ready:false,reason,error:'Autocorretor v94.47 indisponível',missing:['autocorrect-9447']};
  const bp=await window.hlgbAuditorAutoCorrect9447.prepare(reason+'-base');if(bp?.ok===false)return {ok:false,ready:false,reason,error:bp.error||'Preparação v94.47 falhou',missing:bp.missing||['base-prepare'],basePreparation:clone(bp)};
- if(!(await ensureResidual()))return {ok:false,ready:false,reason,error:'Diagnóstico residual v94.48 indisponível',missing:['production-residual-9448'],basePreparation:clone(bp)};
+ if(!(await ensureResidual()))return {ok:false,ready:false,reason,error:'Diagnóstico residual v94.50 indisponível',missing:['production-residual-9448'],basePreparation:clone(bp)};
  return {ok:true,ready:true,reason,baseVersion:BASE_V,basePreparation:clone(bp),productionResidual:{ready:true,version:V},at:nowIso()};
 }
 function reasonFor(item){if(!item)return '';if(item.classification==='business-blocked')return 'business-difference';if(item.safeCopies>0)return 'Prova remota incompleta: cópia técnica satisfeita permaneceu após reconciliação';if(item.classification==='needs-code')return item.detail||'Prova remota incompleta';if(item.classification==='mixed-residual')return 'Prova remota incompleta: resíduo misto permaneceu após reconciliação';return item.detail||''}
