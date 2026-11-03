@@ -262,31 +262,95 @@ window.printRoute9249=function(id){
  printHtml('Rota '+(r.date||''),summary+pages);
 };
 
-/* ---------- ETIQUETAS A4 ---------- */
+/* ---------- ETIQUETAS A4 v94.54: lote único e volumes numerados ---------- */
 let labelDraft9249=[];
+let labelMode9249='large'; // Grande: 2 colunas x 5 linhas = 10 por folha A4.
 function labelSize(mode){return mode==='large'?{w:92,h:52,cols:2,rows:5}:mode==='medium'?{w:62,h:40,cols:3,rows:6}:{w:62,h:34,cols:3,rows:7}}
+function emptyLabel9249(){return {name:'',model:'',size:'',pieceQty:'',volume:'',date:today(),qty:1}}
+function volumeCount9249(v){const n=String(v??'').trim();return /^[1-9]\d*$/.test(n)?Math.min(999,Number(n)):0}
+function effectiveLabelQty9249(x){const n=volumeCount9249(x.volume);return n||Math.max(1,Math.min(999,Math.floor(Number(x.qty)||1)))}
+function expandedLabels9249(){
+ const labels=[];
+ for(const x of labelDraft9249){
+  if(!String(x.name||x.model||'').trim())continue;
+  const total=effectiveLabelQty9249(x),volumes=volumeCount9249(x.volume);
+  for(let i=1;i<=total;i++)labels.push({...x,displayVolume:volumes?i+' de '+volumes:(x.volume||'-')});
+ }
+ return labels;
+}
+function labelCard9249(x,tag,sz){
+ const item=tag==='span'?'span':'div',v=escSafe(x.displayVolume||'-');
+ const items=['MODELO: '+escSafe(x.model||'-'),'TAMANHO: '+escSafe(x.size||'-'),'QUANTIDADE: '+escSafe(x.pieceQty||'-'),'VOLUME: '+v,'DATA: '+escSafe(x.date||'-')];
+ if(tag==='span')return '<div class="ops-label" style="width:'+sz.w+'mm;height:'+sz.h+'mm"><b>'+escSafe(x.name||'NOME')+'</b>'+items.map(y=>'<span>'+y+'</span>').join('')+'</div>';
+ return '<div class="label" style="width:'+sz.w+'mm;height:'+sz.h+'mm"><b>'+escSafe(x.name||'')+'</b>'+items.map(y=>'<div>'+y+'</div>').join('')+'</div>';
+}
+function labelPages9249(){
+ const mode=document.getElementById('opsLabelSize')?.value||labelMode9249,sz=labelSize(mode),labels=expandedLabels9249(),per=sz.cols*sz.rows,pages=[];
+ for(let i=0;i<labels.length;i+=per)pages.push(labels.slice(i,i+per));
+ return {mode,sz,per,labels,pages};
+}
 function renderLabels(){
  const h=document.getElementById('etiquetas9249Host');if(!h)return;
- h.innerHTML='<div class="toolbar"><button class="primary" onclick="addLabelRow9249()">+ Adicionar etiqueta/modelo</button><div class="field"><label>Tamanho</label><select id="opsLabelSize" onchange="renderLabelDraft9249()"><option value="small">Pequena</option><option value="medium">Média</option><option value="large">Grande</option></select></div><button class="secondary" onclick="printLabels9249()">🖨️ Imprimir</button></div><div id="opsLabelRows"></div><div id="opsLabelSummary" class="sub" style="margin:10px 0"></div><div id="opsLabelPreview"></div>';
- if(!labelDraft9249.length)labelDraft9249=[{name:'',model:'',size:'',pieceQty:'',volume:'',date:today(),qty:1}];renderLabelDraft9249();
+ h.innerHTML='<div class="toolbar"><button class="primary" onclick="addLabelRow9249()">+ Adicionar etiqueta/modelo</button><div class="field"><label>Tamanho</label><select id="opsLabelSize" onchange="labelModeChanged9249()"><option value="large">Grande (10 por folha)</option><option value="medium">Média (18 por folha)</option><option value="small">Pequena (21 por folha)</option></select></div><button class="secondary" onclick="printLabels9249()">🖨️ Imprimir todas as etiquetas</button></div><div class="sub" style="margin:8px 0">Monte vários modelos no mesmo lote. Volume 5 gera 5 etiquetas numeradas: 1 de 5 até 5 de 5. Sem volume, escolha a quantidade de etiquetas. A folha Grande comporta 10 etiquetas.</div><div id="opsLabelRows"></div><div id="opsLabelSummary" class="sub" style="margin:10px 0" aria-live="polite"></div><div id="opsLabelPreview"></div>';
+ document.getElementById('opsLabelSize').value=labelMode9249;
+ if(!labelDraft9249.length)labelDraft9249=[emptyLabel9249()];
+ renderLabelDraft9249();
 }
-window.addLabelRow9249=function(){labelDraft9249.push({name:'',model:'',size:'',pieceQty:'',volume:'',date:today(),qty:1});renderLabelDraft9249()};
-window.removeLabelRow9249=function(i){labelDraft9249.splice(i,1);if(!labelDraft9249.length)labelDraft9249.push({name:'',model:'',size:'',pieceQty:'',volume:'',date:today(),qty:1});renderLabelDraft9249()};
-function syncLabelsFromDom(){document.querySelectorAll('.ops-label-row').forEach((r,i)=>{if(!labelDraft9249[i])return;labelDraft9249[i]={name:r.querySelector('.ln')?.value||'',model:r.querySelector('.lm')?.value||'',size:r.querySelector('.ls')?.value||'',pieceQty:r.querySelector('.lpq')?.value||'',volume:r.querySelector('.lv')?.value||'',date:r.querySelector('.ld')?.value||today(),qty:Math.max(1,Math.floor(q(r.querySelector('.lq')?.value)||1))}})}
+window.labelModeChanged9249=function(){syncLabelsFromDom();labelMode9249=document.getElementById('opsLabelSize')?.value||'large';updateLabelPreview9249()};
+window.addLabelRow9249=function(){syncLabelsFromDom();labelDraft9249.push(emptyLabel9249());renderLabelDraft9249()};
+window.removeLabelRow9249=function(i){syncLabelsFromDom();labelDraft9249.splice(i,1);if(!labelDraft9249.length)labelDraft9249.push(emptyLabel9249());renderLabelDraft9249()};
+function syncLabelsFromDom(){
+ document.querySelectorAll('#opsLabelRows .ops-label-row').forEach((r,i)=>{
+  if(!labelDraft9249[i])return;
+  const prev=labelDraft9249[i];
+  labelDraft9249[i]={
+   name:r.querySelector('.ln')?.value??prev.name,model:r.querySelector('.lm')?.value??prev.model,
+   size:r.querySelector('.ls')?.value??prev.size,pieceQty:r.querySelector('.lpq')?.value??prev.pieceQty,
+   volume:r.querySelector('.lv')?.value??prev.volume,date:r.querySelector('.ld')?.value||prev.date||today(),
+   qty:Math.max(1,Math.min(999,Math.floor(Number(r.querySelector('.lq')?.value)||1)))
+  };
+ });
+}
 window.renderLabelDraft9249=function(){
- syncLabelsFromDom();const rows=document.getElementById('opsLabelRows'),preview=document.getElementById('opsLabelPreview');if(!rows||!preview)return;
- rows.innerHTML=labelDraft9249.map((x,i)=>'<div class="ops-card ops-label-row" style="margin-bottom:8px"><div class="grid"><div class="field"><label>Nome / Pessoa / Local</label><input class="ln" value="'+escSafe(x.name)+'" oninput="syncLabelDraft9249()"></div><div class="field"><label>Modelo</label><input class="lm" value="'+escSafe(x.model)+'" oninput="syncLabelDraft9249()"></div><div class="field"><label>Tamanho</label><input class="ls" value="'+escSafe(x.size||'')+'" oninput="syncLabelDraft9249()"></div><div class="field"><label>Quantidade de peças</label><input class="lpq" type="number" min="0" value="'+escSafe(x.pieceQty||'')+'" oninput="syncLabelDraft9249()"></div><div class="field"><label>Volume</label><input class="lv" value="'+escSafe(x.volume)+'" oninput="syncLabelDraft9249()"></div><div class="field"><label>Data</label><input class="ld" type="date" value="'+escSafe(x.date)+'" oninput="syncLabelDraft9249()"></div><div class="field"><label>Quantidade de etiquetas</label><input class="lq" type="number" min="1" value="'+x.qty+'" oninput="syncLabelDraft9249()"></div></div><button class="danger" onclick="removeLabelRow9249('+i+')">Remover</button></div>').join('');
- const mode=document.getElementById('opsLabelSize')?.value||'small',sz=labelSize(mode),labels=[];labelDraft9249.forEach(x=>{for(let n=0;n<x.qty;n++)labels.push(x)});
- document.getElementById('opsLabelSummary').textContent=labels.length+' etiqueta(s) · '+Math.ceil(labels.length/(sz.cols*sz.rows))+' folha(s) A4 · '+sz.cols+' colunas';
- preview.innerHTML='<div class="ops-label-grid" style="grid-template-columns:repeat('+sz.cols+','+sz.w+'mm)">'+labels.slice(0,sz.cols*sz.rows).map(x=>'<div class="ops-label" style="width:'+sz.w+'mm;height:'+sz.h+'mm"><b>'+escSafe(x.name||'NOME')+'</b><span>MODELO: '+escSafe(x.model||'-')+'</span><span>TAMANHO: '+escSafe(x.size||'-')+'</span><span>QUANTIDADE: '+escSafe(x.pieceQty||'-')+'</span><span>VOLUME: '+escSafe(x.volume||'-')+'</span><span>DATA: '+escSafe(x.date||'-')+'</span></div>').join('')+'</div>';
+ syncLabelsFromDom();const rows=document.getElementById('opsLabelRows');if(!rows)return;
+ rows.innerHTML=labelDraft9249.map((x,i)=>{
+  const vol=volumeCount9249(x.volume),qty=effectiveLabelQty9249(x);
+  return '<div class="ops-card ops-label-row" style="margin-bottom:8px"><b>Modelo '+(i+1)+'</b><div class="grid">'+
+  '<div class="field"><label>Nome / Pessoa / Local</label><input class="ln" value="'+escSafe(x.name)+'" oninput="syncLabelDraft9249()"></div>'+
+  '<div class="field"><label>Modelo</label><input class="lm" value="'+escSafe(x.model)+'" oninput="syncLabelDraft9249()"></div>'+
+  '<div class="field"><label>Tamanho</label><input class="ls" value="'+escSafe(x.size||'')+'" oninput="syncLabelDraft9249()"></div>'+
+  '<div class="field"><label>Quantidade de peças</label><input class="lpq" type="number" min="0" value="'+escSafe(x.pieceQty||'')+'" oninput="syncLabelDraft9249()"></div>'+
+  '<div class="field"><label>Volumes (ex.: 5)</label><input class="lv" type="number" min="0" max="999" placeholder="0 = sem numeração" value="'+escSafe(x.volume)+'" oninput="syncLabelDraft9249()"></div>'+
+  '<div class="field"><label>Data</label><input class="ld" type="date" value="'+escSafe(x.date)+'" oninput="syncLabelDraft9249()"></div>'+
+  '<div class="field"><label>Quantidade de etiquetas</label><input class="lq" type="number" min="1" max="999" value="'+qty+'" '+(vol?'disabled title="A quantidade é igual ao número de volumes"':'')+' oninput="syncLabelDraft9249()"></div></div>'+
+  '<div class="sub ops-volume-help">'+(vol?'Será gerada uma etiqueta para cada volume: 1 de '+vol+' até '+vol+' de '+vol+'.':'Defina quantas cópias deste modelo deseja colocar na folha.')+'</div>'+
+  '<button class="danger" onclick="removeLabelRow9249('+i+')">Remover</button></div>';
+ }).join('');
+ updateLabelPreview9249();
 }
-window.syncLabelDraft9249=function(){syncLabelsFromDom();clearTimeout(window.__opsLabelTimer9249);window.__opsLabelTimer9249=setTimeout(()=>{const mode=document.getElementById('opsLabelSize')?.value||'small',sz=labelSize(mode),labels=[];labelDraft9249.forEach(x=>{for(let n=0;n<x.qty;n++)labels.push(x)});const sm=document.getElementById('opsLabelSummary');if(sm)sm.textContent=labels.length+' etiqueta(s) · '+Math.ceil(labels.length/(sz.cols*sz.rows))+' folha(s) A4 · '+sz.cols+' colunas'},100)};
-window.printLabels9249=function(){
- syncLabelsFromDom();const mode=document.getElementById('opsLabelSize')?.value||'small',sz=labelSize(mode),per=sz.cols*sz.rows,labels=[];labelDraft9249.forEach(x=>{for(let n=0;n<x.qty;n++)labels.push(x)});if(!labels.length)return;
- const pages=[];for(let i=0;i<labels.length;i+=per){const part=labels.slice(i,i+per);pages.push('<div class="page labelpage" style="display:grid;grid-template-columns:repeat('+sz.cols+','+sz.w+'mm);grid-auto-rows:'+sz.h+'mm;gap:3mm;align-content:start">'+part.map(x=>'<div class="label" style="width:'+sz.w+'mm;height:'+sz.h+'mm"><b>'+escSafe(x.name||'')+'</b><div>MODELO: '+escSafe(x.model||'-')+'</div><div>TAMANHO: '+escSafe(x.size||'-')+'</div><div>QUANTIDADE: '+escSafe(x.pieceQty||'-')+'</div><div>VOLUME: '+escSafe(x.volume||'-')+'</div><div>DATA: '+escSafe(x.date||'-')+'</div></div>').join('')+'</div>')}
- printHtml('Etiquetas A4',pages.join(''),'.label{border:.3mm solid #111;box-sizing:border-box;padding:3mm;display:flex;flex-direction:column;justify-content:center;overflow:hidden}.label b{font-size:13px;margin-bottom:2mm}.label div{font-size:11px;line-height:1.35}.labelpage{page-break-after:always}.labelpage:last-child{page-break-after:auto}');
+function updateLabelPreview9249(){
+ const {sz,per,labels,pages}=labelPages9249(),sm=document.getElementById('opsLabelSummary'),preview=document.getElementById('opsLabelPreview');
+ const last=labels.length%per,remain=last?per-last:0;
+ if(sm)sm.textContent=labels.length+' etiqueta(s) de '+labelDraft9249.filter(x=>String(x.name||x.model||'').trim()).length+' modelo(s) · '+pages.length+' folha(s) A4 · '+per+' espaços por folha · '+(remain?remain+' espaço(s) livre(s) na última folha':'folhas completas');
+ if(preview)preview.innerHTML=pages.map((part,i)=>'<div style="margin:12px 0 5px;font-weight:700">Folha '+(i+1)+' de '+pages.length+' · '+part.length+'/'+per+' etiquetas</div><div class="ops-label-grid" style="grid-template-columns:repeat('+sz.cols+','+sz.w+'mm);gap:3mm">'+part.map(x=>labelCard9249(x,'span',sz)).join('')+'</div>').join('')||'<div class="sub">Preencha o nome ou modelo para montar a primeira folha.</div>';
+ const edits=document.querySelectorAll('#opsLabelRows .ops-label-row');
+ edits.forEach((r,i)=>{
+  const vol=volumeCount9249(labelDraft9249[i]?.volume),qty=r.querySelector('.lq'),help=r.querySelector('.ops-volume-help');
+  if(qty){qty.disabled=!!vol;if(vol)qty.value=String(vol)}
+  if(help)help.textContent=vol?'Etiquetas numeradas de 1 de '+vol+' até '+vol+' de '+vol+'.':'Cópias iguais deste modelo, junto com as demais na mesma folha.';
+ });
+}
+window.syncLabelDraft9249=function(){
+ syncLabelsFromDom();clearTimeout(window.__opsLabelTimer9249);
+ window.__opsLabelTimer9249=setTimeout(updateLabelPreview9249,130);
 };
-
+window.printLabels9249=function(){
+ syncLabelsFromDom();const {sz,per,labels,pages}=labelPages9249();if(!labels.length)return alert('Adicione pelo menos um modelo antes de imprimir.');
+ const html=pages.map(part=>'<div class="page labelpage" style="display:grid;grid-template-columns:repeat('+sz.cols+','+sz.w+'mm);grid-auto-rows:'+sz.h+'mm;gap:3mm;align-content:start">'+part.map(x=>labelCard9249(x,'div',sz)).join('')+'</div>').join('');
+ printHtml('Etiquetas A4',html,'.label{border:.3mm solid #111;box-sizing:border-box;padding:3mm;display:flex;flex-direction:column;justify-content:center;overflow:hidden}.label b{font-size:13px;margin-bottom:2mm}.label div{font-size:11px;line-height:1.35}.labelpage{page-break-after:always;break-after:page}.labelpage:last-child{page-break-after:auto;break-after:auto}');
+};
+window.HLGB_LABEL_BATCH_9454={version:'94.54',getPages:labelPages9249,expand:expandedLabels9249};
+ 
 /* ---------- EMBALAGEM / MODELOS DE ETIQUETA ---------- */
 function templateKey(c,p){return sid(c)+'|'+sid(p)}
 function labelTemplateFor(c,p){return arr('labelTemplates').find(x=>sid(x.clientId)===sid(c)&&sid(x.productId)===sid(p)&&x.active!==false)||arr('labelTemplates').find(x=>sid(x.clientId)===sid(c)&&!sid(x.productId)&&x.active!==false)||null}
