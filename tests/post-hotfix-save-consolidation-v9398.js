@@ -34,6 +34,7 @@ const ctx={
  addEventListener:()=>{},
  document:{
   visibilityState:'visible',
+  addEventListener:()=>{},
   querySelector:()=>null,
   querySelectorAll:()=>[],
   createElement:()=>({dataset:{},remove(){}}),

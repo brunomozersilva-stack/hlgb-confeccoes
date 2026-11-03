@@ -207,7 +207,8 @@ function wrapRenderer(name){
     if(!background){cancelQueued(name);renderStamp.set(name,Date.now());return fn.apply(this,arguments)}
     if(!relevant(name))return undefined;
     if(isEditing())return queueRender(name,fn,this,Array.from(arguments));
-    if(!allowGovernedRender(name))return undefined;
+    // A cada revisão remota, manter o último redraw pendente. O cooldown antigo
+    // descartava silenciosamente o segundo evento por 5 segundos, deixando a tela desatualizada.
     return queueRender(name,fn,this,Array.from(arguments));
   };
   wrapped.__hlgbUiStabilityV2=true;wrapped.__original=fn;window[name]=wrapped;return true;
