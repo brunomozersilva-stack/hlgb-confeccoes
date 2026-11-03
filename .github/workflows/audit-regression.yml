@@ -61,6 +61,9 @@ jobs:
       - name: Validate stable router render after visible restore
         run: node tests/audit-app-stable3-restored-render-regression.cjs
 
+      - name: Validate routePlans recipient refresh v94.53
+        run: node tests/routeplans-recipient-v9453.cjs
+
       - name: Validate Products Ficha Técnica search v94.52
         run: node tests/products-search-v9452.cjs
 
