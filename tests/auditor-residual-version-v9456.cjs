@@ -1,0 +1,13 @@
+const fs=require('node:fs'),assert=require('node:assert/strict');
+const residual=fs.readFileSync('release-production-residual-v9448.js','utf8');
+const auditor=fs.readFileSync('release-auditor-autocorrect-v9448.js','utf8');
+const shell=fs.readFileSync('release-auditor-single-ui-reclaim-v9434a.js','utf8');
+const runtime=fs.readFileSync('tests/auditor-autocorrect-v9448-runtime.js','utf8');
+const published=residual.match(/const V='([^']+)'/);assert(published,'Residual module must declare its runtime version');
+const expected=auditor.match(/RESIDUAL_V='([^']+)'/);assert(expected,'Auditor must declare expected residual runtime version');
+assert.equal(expected[1],published[1],'Auditor must accept the actual residual runtime version');
+assert(auditor.includes('window.HLGB_PRODUCTION_RESIDUAL_9448===RESIDUAL_V'),'Auditor readiness must use declared residual version');
+assert(shell.includes("residualProofReady:window.HLGB_PRODUCTION_RESIDUAL_9448==='"+published[1]+"'"),'UI readiness must use actual residual version');
+assert(runtime.includes("window.HLGB_PRODUCTION_RESIDUAL_9448==='"+published[1]+"'"),'Browser smoke test must use actual residual version');
+assert(auditor.includes('Diagnóstico residual v'+published[1]+' indisponível'),'Error message must identify actual version');
+console.log('PASS residual module version '+published[1]+' matches Auditor readiness, UI and browser tests');
