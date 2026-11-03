@@ -140,14 +140,14 @@ function routePending9453(id){
   if((p?.modules?.routePlans||[]).some(x=>sid(x?.id)===sid(id)))return true;
  }catch(e){}
  try{
-  const w=JSON.parse(localStorage.getItem('hlgb_wal_v9155')||'null');
+  const w=JSON.parse(localStorage.getItem('hlgb_durable_wal_v1')||'null');
   const a=w?.entries||{};
   if(Object.values(a).some(x=>x?.module==='routePlans'&&sid(x?.id)===sid(id)))return true;
  }catch(e){}
  return false;
 }
 async function refreshRoutes9453(force=false){
- if(routeSync9453.busy||document.hidden||typeof cloudRequest!=='function'||!window.cloudAccessToken)return false;
+ if(routeSync9453.busy||document.hidden||typeof cloudRequest!=='function'||!cloudAccessToken)return false;
  if(!force&&Date.now()-routeSync9453.lastCheck<8000)return false;
  routeSync9453.busy=true;routeSync9453.lastCheck=Date.now();
  try{
