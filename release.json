@@ -1,6 +1,7 @@
 {
   "version": "93.72",
   "version_label": "v93.72",
+  "app_version": "94.52",
   "entry": "abrir.html",
   "minimum_version": "93.11",
   "force_canonical": true,

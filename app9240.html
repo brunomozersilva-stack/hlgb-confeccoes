@@ -241,6 +241,7 @@ main{min-width:0;}
 <!-- HLGB v91.46 NON-BLOCKING SUPABASE LOADER -->
 <script>
 (function(){
+  let sdkAttempts=0;
   function loadSupabaseRealtime(){
     if(window.supabase&&window.supabase.createClient)return;
     var sc=document.createElement('script');
@@ -249,7 +250,8 @@ main{min-width:0;}
     sc.onload=function(){
       try{ if(typeof hlgbStartRealtime==='function') hlgbStartRealtime(); }catch(e){ console.warn('HLGB v91.46 realtime opcional',e); }
     };
-    sc.onerror=function(){ console.warn('HLGB v91.46: CDN do realtime indisponível; sistema segue por REST/polling.'); };
+    sc.onerror=function(){sc.remove(); if(++sdkAttempts<4)setTimeout(loadSupabaseRealtime,1000*2**sdkAttempts);};
+
     document.head.appendChild(sc);
   }
   if(document.readyState==='complete') setTimeout(loadSupabaseRealtime,0);
@@ -259,6 +261,7 @@ main{min-width:0;}
 
 <!-- HLGB_V9184_JITTER_FIX -->
 <style id="hlgb-v9184-jitter-style">
+.page.active{overflow-anchor:none}
 /* Evita deslocamento horizontal quando o texto do estado da nuvem muda. */
 #cloudStatus{display:inline-block;width:205px;text-align:center;white-space:nowrap;box-sizing:border-box}
 @media(max-width:680px){#cloudStatus{width:auto;min-width:0}}
@@ -1664,8 +1667,10 @@ function hlgbLegacyComparablePayload(v){
 
 function hlgbStopRealtime(){
  try{
+  window.hlgbPropagation?.stop();
   clearTimeout(hlgbRealtimeApplyTimer);
-  if(hlgbRealtimeClient&&hlgbRealtimeChannel)hlgbRealtimeClient.removeChannel(hlgbRealtimeChannel);
+  const previousChannel=hlgbRealtimeChannel;hlgbRealtimeChannel=null;
+  if(hlgbRealtimeClient&&previousChannel)hlgbRealtimeClient.removeChannel(previousChannel);
  }catch(e){console.warn("HLGB Realtime stop",e)}
  hlgbRealtimeChannel=null;hlgbRealtimeState="offline";
 }
@@ -1990,7 +1995,9 @@ function cloudMergeThreeWay(base,local,remote){
 }
 function cloudUserIsEditing(){
  const ae=document.activeElement;
- if(ae&&["INPUT","TEXTAREA","SELECT"].includes(ae.tagName))return true;
+ if(ae&&ae.closest('.page.active')&&ae.getClientRects().length&&
+    (ae.isContentEditable||["INPUT","TEXTAREA","SELECT"].includes(ae.tagName))&&
+    !(/search|filter|busca|filtro/i.test([ae.id,ae.type,ae.placeholder].join(' '))))return true;
  return !!document.querySelector("#modal.show");
 }
 function cloudApplyLegacySnapshot(payload){
@@ -11664,6 +11671,7 @@ async function hlgbRecordLoadBundle({preserveLocal=false,since=null}={}){
   bundle=await hlgbRecordLoadDirect(since);
   if(Array.isArray(bundle)&&bundle.length===1&&bundle[0]&&bundle[0].rows)bundle=bundle[0];
   if(!bundle||typeof bundle!=="object")bundle=await hlgbRecordLoadDirect(since);
+  const changedModules=new Set();
   const readable=Array.isArray(bundle.modules)?bundle.modules.filter(m=>HLGB_RECORD_MODULES.includes(String(m))):[];
   const rows=Array.isArray(bundle.rows)?bundle.rows:[];
   readable.forEach(m=>hlgbRecordReadable.add(String(m)));
@@ -11701,7 +11709,7 @@ async function hlgbRecordLoadBundle({preserveLocal=false,since=null}={}){
       }
     }
   }else{
-    for(const row of rows)hlgbApplyRecordRow(row);
+    for(const row of rows)if(hlgbApplyRecordRow(row))changedModules.add(String(row.module));
   }
   for(const row of rows){
     const t=String(row?.updated_at||"");
@@ -11709,7 +11717,7 @@ async function hlgbRecordLoadBundle({preserveLocal=false,since=null}={}){
   }
   const serverTime=String(bundle.server_time||"");
   if(!hlgbRecordGlobalLastSeen&&serverTime)hlgbRecordGlobalLastSeen=serverTime;
-  return {readable,rows,serverTime};
+  return {readable,rows,serverTime,changedModules:[...changedModules]};
 }
 async function hlgbLoadNormalizedCore(opts={}){
   if(!cloudAccessToken)return false;
@@ -11742,8 +11750,12 @@ async function hlgbLoadNormalizedCore(opts={}){
 }
 async function hlgbRecordRpcSave(module,id,data,expectedRevision,deleted=false){
   const body={p_module:module,p_entity_id:String(id),p_data:data,p_expected_revision:+expectedRevision||0,p_deleted:!!deleted};
+  const startedAt=Date.now();
+  window.hlgbPropagation?.sending(module,id,startedAt);
   let out=await cloudRequest("rpc/hlgb_save_record",{method:"POST",headers:{Prefer:"return=representation"},body:JSON.stringify(body)});
-  return Array.isArray(out)?out[0]:out;
+  const result=Array.isArray(out)?out[0]:out;
+  if(result?.applied===true)window.hlgbPropagation?.confirmed(module,id,result,startedAt);
+  return result;
 }
 async function hlgbRecordSaveWithRetry(module,id,data,deleted=false){
   let snap=hlgbRecordSnapshots[module]||new Map(),old=snap.get(String(id)),expected=+old?.revision||0;
@@ -11809,6 +11821,14 @@ function hlgbQueueNormalizedSync(delay=10){
 function hlgbApplyRecordRow(row){
   const module=String(row?.module||"");if(!HLGB_RECORD_MODULES.includes(module)||row?.entity_id==null)return false;
   const id=String(row.entity_id),arr=Array.isArray(db[module])?db[module]:[],idx=arr.findIndex((x,i)=>hlgbRecordId(module,x,i)===id);
+  const previous=hlgbRecordSnapshots[module]?.get(id);
+  if(previous && Number(row.revision)<=Number(previous.revision))return false;
+  const pending=hlgbRecordPendingRead()?.modules?.[module]?.some(op=>String(op.id)===id);
+  const wal=JSON.parse(localStorage.getItem('hlgb_durable_wal_v1')||'null')?.entries?.[module+'|'+id];
+  if(pending||wal){
+    // Preserve the edit AND its original conflict base until the save path reconciles it.
+    if(!row.deleted_at||hlgbPendingExplicitRestore917(arr[idx]))return false;
+  }
   if(row.deleted_at){if(idx>=0)arr.splice(idx,1)}
   else {const data=hlgbRecordHydrateData(module,row);if(idx>=0)arr[idx]=data;else arr.push(data)}
   db[module]=arr;
@@ -11849,15 +11869,7 @@ function hlgbRenderIncomingRecord(module){
       return true;
     }
 
-    // Para as demais telas, agrupa atualizações remotas para evitar a tela "pular".
-    if(!cloudUserIsEditing()){
-      if(typeof window.hlgbScheduleStableRender9220==='function')window.hlgbScheduleStableRender9220();
-      else renderAll();
-      cloudRemoteUpdatePending=false;
-      return true;
-    }
-    cloudRemoteUpdatePending=true;
-    return false;
+    return window.hlgbPropagation?.renderAffected(module,activePage)??false;
   }finally{cloudApplying=prev}
 }
 
@@ -11868,7 +11880,10 @@ async function hlgbHandleRecordRealtime(payload){
     if(payload.eventType==="DELETE")row={...row,deleted_at:row.deleted_at||new Date().toISOString()};
     const module=String(row.module||"");
     if(!HLGB_RECORD_MODULES.includes(module))return;
-    hlgbApplyRecordRow(row);localSaveOnly();
+    window.hlgbPropagation?.received(row,payload);
+    if(!hlgbApplyRecordRow(row))return;
+    window.hlgbPropagation?.applied(row);
+    localSaveOnly();
     hlgbRenderIncomingRecord(module);
     setCloudStatus("⚡ Online · atualização recebida","ok");
     setTimeout(()=>setCloudStatus("⚡ Online · multiusuário","ok"),650);
@@ -11937,19 +11952,30 @@ hlgbLegacyComparablePayload=function(v){
 hlgbStartRealtime=function(){
   try{
     if(!cloudReady||!cloudRowId||!cloudAccessToken||!window.supabase?.createClient)return false;
+    const identity=String(cloudUser?.id||cloudUser?.email||'')+'|'+cloudRowId;
+    if(hlgbRealtimeChannel && hlgbRealtimeChannel.__hlgbIdentity===identity &&
+       (hlgbRealtimeState==='SUBSCRIBED'||hlgbRealtimeState==='JOINING')){
+      hlgbRealtimeSetAuth();return true;
+    }
     hlgbStopRealtime();
     hlgbRealtimeClient=window.supabase.createClient(HLGB_SUPABASE_URL,HLGB_SUPABASE_KEY,{auth:{persistSession:false,autoRefreshToken:false,detectSessionInUrl:false},realtime:{params:{eventsPerSecond:80}}});
-    hlgbRealtimeClient.realtime.setAuth(cloudAccessToken);
-    hlgbRealtimeChannel=hlgbRealtimeClient.channel(`hlgb-v91-live-${cloudRowId}`)
-      .on('postgres_changes',{event:'*',schema:'public',table:'hlgb_records'},hlgbHandleRecordRealtime)
-      .on('postgres_changes',{event:'UPDATE',schema:'public',table:'hlgb_data',filter:`id=eq.${cloudRowId}`},hlgbHandleRealtimeDataChange)
-      .subscribe((status,err)=>{
-        hlgbRealtimeState=status;
+    hlgbRealtimeState='JOINING';
+    const channel=hlgbRealtimeClient.channel(`hlgb-v91-live-${cloudRowId}-${crypto.randomUUID()}`)
+      .on('postgres_changes',{event:'*',schema:'public',table:'hlgb_records'},payload=>{if(hlgbRealtimeChannel===channel)hlgbHandleRecordRealtime(payload)})
+      .on('postgres_changes',{event:'UPDATE',schema:'public',table:'hlgb_data',filter:`id=eq.${cloudRowId}`},hlgbHandleRealtimeDataChange);
+    hlgbRealtimeChannel=channel;channel.__hlgbIdentity=identity;
+    window.hlgbPropagation?.connection('JOINING');
+    Promise.resolve(hlgbRealtimeClient.realtime.setAuth(cloudAccessToken)).then(()=>{
+      if(hlgbRealtimeChannel!==channel)return;
+      channel.subscribe((status,err)=>{
+        if(hlgbRealtimeChannel!==channel)return;
+        hlgbRealtimeState=status;window.hlgbPropagation?.connection(status);
         if(status==='SUBSCRIBED')setCloudStatus((cloudDirty||hlgbRecordPendingRead())?'☁️ Salvando automático…':'⚡ Online · multiusuário',(cloudDirty||hlgbRecordPendingRead())?'':'ok');
         else if(status==='CHANNEL_ERROR'||status==='TIMED_OUT'){console.warn('HLGB Realtime',status,err);setCloudStatus('☁️ Online · reconectando…')}
       });
+    }).catch(()=>{if(hlgbRealtimeChannel===channel){hlgbRealtimeState='CHANNEL_ERROR';window.hlgbPropagation?.connection('CHANNEL_ERROR')}});
     return true;
-  }catch(e){console.warn("HLGB v91 realtime start",e);return false}
+  }catch(e){hlgbRealtimeState='CHANNEL_ERROR';window.hlgbPropagation?.connection('CHANNEL_ERROR');console.warn("HLGB v91 realtime start",e);return false}
 };
 
 // Grava local imediatamente e agenda apenas os registros que mudaram.
@@ -22044,7 +22070,7 @@ let lastUserAction9248=0;
 function activeEditor9248(){
   try{
     if(document.querySelector('#modal.show'))return true;
-    if(typeof cloudUserIsEditing==='function'&&cloudUserIsEditing())return true;
+    if(typeof cloudUserIsEditing==='function')return cloudUserIsEditing();
     const el=document.activeElement;
     if(!el)return false;
     const tag=String(el.tagName||'').toUpperCase();

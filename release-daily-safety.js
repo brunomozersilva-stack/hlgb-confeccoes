@@ -59,7 +59,7 @@ async function createBackup(){
   if(typeof indexedDB==='undefined')throw new Error('IndexedDB indisponível neste navegador.');
   const d=await openDb(),row={
     date:day(),createdAt:new Date().toISOString(),
-    appVersion:sid(window.HLGB_RELEASE_VERSION||''),
+    appVersion:sid(window.HLGB_RUNTIME_APP_VERSION||window.HLGB_RELEASE_VERSION||''),
     browser:sid(navigator.userAgent||''),
     data:sanitizeData()
   };
@@ -151,7 +151,7 @@ async function runDailyAudit(){
   try{remoteBackup=await getRemoteBackupStatus();if(!remoteBackup)remoteBackup=await createRemoteBackup(backup)}catch(e){remoteBackupError=sid(e?.message||e)}
   const summary={
     date:day(),completedAt:new Date().toISOString(),
-    appVersion:sid(window.HLGB_RELEASE_VERSION||audit?.appVersion||''),
+    appVersion:sid(window.HLGB_RUNTIME_APP_VERSION||window.HLGB_RELEASE_VERSION||audit?.appVersion||''),
     browser:audit?.browser||'',
     auditId:audit?.id||null,
     result:audit?.summary?.result||'',
@@ -190,7 +190,7 @@ async function buildSupportPackage(){
     kind:'hlgb_daily_support_package',
     packageVersion:V,
     generatedAt:new Date().toISOString(),
-    appVersion:sid(window.HLGB_RELEASE_VERSION||''),
+    appVersion:sid(window.HLGB_RUNTIME_APP_VERSION||window.HLGB_RELEASE_VERSION||''),
     dailySummary:last,
     audit,
     sync,

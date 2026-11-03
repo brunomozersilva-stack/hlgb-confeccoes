@@ -9,7 +9,7 @@ const PENDING_KEY='hlgb_records_pending_v91';
 const WAL_KEY='hlgb_durable_wal_v1';
 const QUAR_KEY='hlgb_sync_quarantine_v9305';
 const STATE_KEY='hlgb_sync_recovery_9301';
-const FULL_EVERY_MS=600000;
+
 const INCREMENTAL_EVERY_MS=60000;
 const MAINTENANCE_EVERY_MS=30000;
 const MIN_INCREMENTAL_MS=45000;
@@ -17,7 +17,7 @@ const REALTIME_VERIFY_EVERY_MS=120000;
 const ORDERS_FULL_VERIFY_MIN_MS=5000;
 const OVERLAP_MS=600000;
 let busy=false,lastFull=0,lastIncremental=0,lastReason='',lastResult=null;
-let fullTimer=null,incrementalTimer=null,retryTimer=null,maintenanceTimer=null;
+let incrementalTimer=null,retryTimer=null,maintenanceTimer=null;
 let skippedRealtime=0,flushOnlyRuns=0,lastCloudVerify=0,lastOrdersVerify=0;
 
 const wait=ms=>new Promise(r=>setTimeout(r,ms));
@@ -39,7 +39,7 @@ function recordPendingCount(){const p=read(PENDING_KEY,null);return Object.value
 function walPendingCount(){const w=read(WAL_KEY,null);return w?.entries&&typeof w.entries==='object'?Object.keys(w.entries).length:0}
 function pendingCounts(){return {records:recordPendingCount(),wal:walPendingCount()}}
 function totalPending(){const p=pendingCounts();return p.records+p.wal}
-function snapshotState(extra={}){const s={version:V,at:new Date().toISOString(),busy,lastFull,lastIncremental,lastReason,lastResult,realtime:realtimeState(),recordReady:ready(),online:navigator.onLine,pending:pendingCounts(),ioPolicy:{fullEveryMs:FULL_EVERY_MS,incrementalEveryMs:INCREMENTAL_EVERY_MS,maintenanceEveryMs:MAINTENANCE_EVERY_MS,minIncrementalMs:MIN_INCREMENTAL_MS,realtimeVerifyEveryMs:REALTIME_VERIFY_EVERY_MS,ordersFullVerifyMinMs:ORDERS_FULL_VERIFY_MIN_MS,overlapMs:OVERLAP_MS,skippedRealtime,flushOnlyRuns,lastCloudVerify,lastOrdersVerify},...extra};try{localStorage.setItem(STATE_KEY,JSON.stringify(s))}catch(e){}return s}
+function snapshotState(extra={}){const s={version:V,at:new Date().toISOString(),busy,lastFull,lastIncremental,lastReason,lastResult,realtime:realtimeState(),recordReady:ready(),online:navigator.onLine,pending:pendingCounts(),ioPolicy:{fullEveryMs:null,incrementalEveryMs:INCREMENTAL_EVERY_MS,maintenanceEveryMs:MAINTENANCE_EVERY_MS,minIncrementalMs:MIN_INCREMENTAL_MS,realtimeVerifyEveryMs:REALTIME_VERIFY_EVERY_MS,ordersFullVerifyMinMs:ORDERS_FULL_VERIFY_MIN_MS,overlapMs:OVERLAP_MS,skippedRealtime,flushOnlyRuns,lastCloudVerify,lastOrdersVerify},...extra};try{localStorage.setItem(STATE_KEY,JSON.stringify(s))}catch(e){}return s}
 function quarantineHistory(){const x=read(QUAR_KEY,[]);return Array.isArray(x)?x:[]}
 
 /* Filas não confirmadas nunca são removidas por idade. */
@@ -137,9 +137,9 @@ async function fullSync(reason='manual',force=false){
  }finally{busy=false;snapshotState()}
 }
 async function incrementalSync(force=false){
- if(busy||!navigator.onLine||document.visibilityState==='hidden'||!loggedIn()||userEditing())return false;
+ if(busy||!navigator.onLine||document.visibilityState==='hidden'||!loggedIn())return false;
  if(!ready()||!token())return fullSync('incremental-not-ready',true);
- const now=Date.now();if(!force&&now-lastIncremental<MIN_INCREMENTAL_MS)return true;
+ const now=Date.now();if(!force&&now-lastIncremental<(realtimeState()==='SUBSCRIBED'?MIN_INCREMENTAL_MS:8000))return true;
  const hadPending=totalPending()>0;
  /* Realtime é a via principal, mas SUBSCRIBED sozinho não prova que nenhum evento
     foi perdido. A cada dois minutos fazemos uma confirmação curta no banco. */
@@ -166,7 +166,8 @@ async function incrementalSync(force=false){
    const load=loadBundleFn();if(typeof load!=='function')throw new Error('Leitura por registro indisponível');
    const out=await load({preserveLocal:true,since});markReady();saveLocal();
    lastCloudVerify=Date.now();
-   const rows=Array.isArray(out?.rows)?out.rows:[];if(rows.length)redrawCurrent();
+   const rows=Array.isArray(out?.rows)?out.rows:[];
+   for(const module of out?.changedModules||[])window.hlgbRenderIncomingRecord?.(module);
    restartRealtimeIfNeeded(false);lastIncremental=Date.now();
    const p=pendingCounts();lastResult={ok:p.records+p.wal===0,kind:'incremental',at:new Date().toISOString(),since,rows:rows.length,flush,pending:p,realtime:realtimeState()};
    if(p.records+p.wal)setStatus('⚠️ '+(p.records+p.wal)+' alteração(ões) aguardando confirmação','warn');
@@ -208,7 +209,7 @@ function boot(){
  window.addEventListener('online',()=>scheduleFull('online',250,true),true);
  window.addEventListener('pageshow',()=>scheduleCatchup('pageshow',300),true);
  incrementalTimer=setInterval(()=>{if(document.visibilityState==='visible'&&navigator.onLine)incrementalSync(false).catch(()=>{})},INCREMENTAL_EVERY_MS);
- fullTimer=setInterval(()=>{if(document.visibilityState==='visible'&&navigator.onLine)fullSync('periodic-watchdog',false).catch(()=>{})},FULL_EVERY_MS);
+
  maintenanceTimer=setInterval(()=>{installOverrides();installOrdersOpenCatchup();stamp();if(totalPending()>0&&loggedIn()&&navigator.onLine&&!userEditing())incrementalSync(false).catch(()=>{})},MAINTENANCE_EVERY_MS);
  setTimeout(()=>{installOverrides();installOrdersOpenCatchup();stamp();if(loggedIn()&&(!ready()||!currentCursor()))scheduleFull('late-boot',100,true)},1800);
  snapshotState({booted:true});

@@ -1,0 +1,40 @@
+name: Propagação remota HLGB
+on:
+  push:
+    branches: [fix/remote-propagation]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  two-sessions:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: supabase/setup-cli@v1
+        with:
+          version: 2.39.2
+      - name: Iniciar Supabase descartável
+        run: |
+          mkdir -p "$RUNNER_TEMP/hlgb-test"
+          cd "$RUNNER_TEMP/hlgb-test"
+          supabase init
+          supabase start -x studio,imgproxy,storage-api,edge-runtime,logflare,vector,inbucket,postgres-meta,supavisor
+          supabase status -o env > "$RUNNER_TEMP/hlgb-test.env"
+      - name: Preparar registros e publicação Realtime de teste
+        run: |
+          source "$RUNNER_TEMP/hlgb-test.env"
+          psql "$DB_URL" -v ON_ERROR_STOP=1 -f tests/remote-propagation-fixture.sql -f scripts/hlgb_remote_tombstone_guard.sql
+          echo "HLGB_FIXTURE_KEY=$ANON_KEY" >> "$GITHUB_ENV"
+      - name: Instalar navegador e cliente
+        run: |
+          npm install --no-save playwright@1.55.0 @supabase/supabase-js@2.49.4
+          npx playwright install --with-deps chromium
+      - name: Testar duas sessões independentes
+        env:
+          HLGB_TEST_URL: http://127.0.0.1:4173/app-stable3.html
+        run: |
+          python3 -m http.server 4173 >/tmp/hlgb-test-http.log 2>&1 &
+          node tests/remote-propagation-live.js
+          node tests/remote-propagation-browser.js
+          node tests/ui-stability-local-order-render-v7-chromium.js

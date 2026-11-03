@@ -65,7 +65,8 @@ function ensureStyle(){
 }
 function relevant(name){const p=rendererPages[name];if(!p)return true;const a=activePage();return !a||p.includes(a)}
 function queue(name,fn,ctx,args){
- queues.set(name,{name,fn,ctx,args:Array.from(args||[]),at:Date.now()});
+ const key=name==='hlgbRenderIncomingRecord'?name+':'+String(args[0]):name;
+ queues.set(key,{name,fn,ctx,args:Array.from(args||[]),at:Date.now()});
  state.blocked++;state.lastBlocked=name;setLock(true);return false;
 }
 function stableCall(q){

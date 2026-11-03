@@ -43,7 +43,7 @@ function chainProbe(start){
    for(const k of props){try{if(/original|base/i.test(k)&&typeof fn[k]==='function'){next=fn[k];pointer=k;break}}catch(e){}}
   }
   node.nextPointer=pointer;
-  if(!next){stop='no-pointer';break}
+  if(!next){stop='no-pointer';fn=null;break}
   fn=next;stop='max-depth';
  }
  if(typeof fn==='function'&&seen.has(fn))stop='cycle';

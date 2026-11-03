@@ -67,7 +67,7 @@ function browserLabel(){
   return ua.slice(0,120)||'Navegador não identificado';
 }
 function appVersion(){
-  try{return String(window.HLGB_RELEASE_VERSION||document.querySelector('#appShell .logo small')?.textContent||'').replace(/^v/i,'')||'desconhecida'}catch(e){return 'desconhecida'}
+  try{return String(window.HLGB_RUNTIME_APP_VERSION||window.HLGB_RELEASE_VERSION||document.querySelector('#appShell .logo small')?.textContent||'').replace(/^v/i,'')||'desconhecida'}catch(e){return 'desconhecida'}
 }
 function id(){return 'audit-'+Date.now()+'-'+Math.floor(Math.random()*900000+100000)}
 function detachTechnicalModule(){
@@ -216,6 +216,7 @@ async function buildSyncDiagnostic(){
     activePage:document.querySelector('.page.active')?.id||'',
     readOnly:true,
     credentialsIncluded:false,
+    propagation:window.hlgbPropagation?.status()||null,
     summary:{
       normalizedPending:normalized.count,
       walLocalStorage:localWal.count,
@@ -600,6 +601,12 @@ function auditSync(){
       return Object.entries(p.modules).reduce((n,[m,a])=>n+(m===AUDIT_MODULE?0:(Array.isArray(a)?a.length:0)),0);
     }catch(e){return 0}
   })();
+  const propagation=window.hlgbPropagation?.status();
+  const connected=propagation?.status==='SUBSCRIBED';
+  const paired=connected&&propagation.comparison?.forward&&propagation.comparison?.reverse&&Date.now()-propagation.comparison.at<900000;
+  checks.push(check('sync:propagation','Sincronização',paired?'pass':'warn','Sincronização entre máquinas / propagação remota',
+    paired?'Propagação visual confirmada em ambos os sentidos nos relatórios comparados.':connected?'Listener conectado. A confirmação visual em outra sessão requer comparação da mesma revisão nas duas máquinas.':
+      'Listener '+(propagation?.status||'não observado')+'. Recebimento em outra sessão não verificado.','warn',propagation||{}));
   checks.push(check('sync:pending','Sincronização',pending?'warn':'pass','Pendências locais de sincronização',pending?pending+' registro(s) aguardando sincronização.':'Nenhuma pendência local detectada.',pending?'warn':'info'));
   return checks;
 }
@@ -708,7 +715,7 @@ function actionableFindings9249(run){
   const list=(run?.checks||[]).filter(x=>x.status==='fail'||x.status==='warn');
   return list.filter(x=>{
     const c=String(x.code||''),cat=String(x.category||'');
-    if(c==='sync:pending')return false;
+    if(c==='sync:pending'||c==='sync:propagation')return false;
     if(c==='issues:open')return false;
     if(cat==='RH')return false;
     return true;
