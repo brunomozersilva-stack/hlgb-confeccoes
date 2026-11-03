@@ -130,8 +130,65 @@ function routeLocations(){
  arr('productionLocations').forEach(x=>out.push({type:'Confecção',id:x.id,name:x.name||'Confecção',address:x.address||'',phone:x.phone||''}));
  return out;
 }
+/* v94.53: A lista de rotas deve consultar a nuvem também no computador receptor.
+   Realtime continua como canal rápido; leitura pontual cobre perda de eventos e reconexão.
+   Somente este módulo é atualizado, sem renderAll nem gravação remota. */
+const routeSync9453={busy:false,lastCheck:0,lastSuccess:'',lastError:'',reads:0,changed:0};
+function routePending9453(id){
+ try{
+  const p=JSON.parse(localStorage.getItem('hlgb_records_pending_v91')||'null');
+  if((p?.modules?.routePlans||[]).some(x=>sid(x?.id)===sid(id)))return true;
+ }catch(e){}
+ try{
+  const w=JSON.parse(localStorage.getItem('hlgb_wal_v9155')||'null');
+  const a=w?.entries||{};
+  if(Object.values(a).some(x=>x?.module==='routePlans'&&sid(x?.id)===sid(id)))return true;
+ }catch(e){}
+ return false;
+}
+async function refreshRoutes9453(force=false){
+ if(routeSync9453.busy||document.hidden||typeof cloudRequest!=='function'||!window.cloudAccessToken)return false;
+ if(!force&&Date.now()-routeSync9453.lastCheck<8000)return false;
+ routeSync9453.busy=true;routeSync9453.lastCheck=Date.now();
+ try{
+  const rows=await cloudRequest('hlgb_records?select=module,entity_id,data,revision,updated_at,deleted_at,updated_by&module=eq.routePlans&order=updated_at.desc&limit=100',{method:'GET'});
+  if(!Array.isArray(rows))throw new Error('Resposta de rotas inválida');
+  const local=arr('routePlans'),snap=typeof hlgbRecordSnapshots!=='undefined'?hlgbRecordSnapshots?.routePlans:null;
+  let changes=0;
+  for(const row of rows){
+   const id=sid(row?.entity_id),revision=Number(row?.revision)||0;
+   if(!id||routePending9453(id))continue;
+   const idx=local.findIndex(x=>sid(x?.id)===id);
+   const old=snap?.get?.(id);
+   if(old&&Number(old.revision||0)>revision)continue;
+   if(!old&&idx>=0&&Date.parse(local[idx]?.updatedAt||'')>Date.parse(row?.data?.updatedAt||''))continue;
+   if(old&&Number(old.revision||0)===revision&&String(old.updated_at||'')===String(row.updated_at||''))continue;
+   if(row.deleted_at){
+    if(idx>=0){local.splice(idx,1);changes++}
+   }else if(row.data&&typeof row.data==='object'){
+    const data=clone(row.data);if(data.id==null)data.id=id;
+    if(idx>=0){if(JSON.stringify(local[idx])!==JSON.stringify(data)){local[idx]=data;changes++}}
+    else{local.push(data);changes++}
+   }
+   try{snap?.set?.(id,{data:clone(row.data),revision,updated_at:row.updated_at||'',deleted_at:row.deleted_at||null,updated_by:row.updated_by||null})}catch(e){}
+  }
+  routeSync9453.reads++;routeSync9453.changed+=changes;routeSync9453.lastSuccess=new Date().toISOString();routeSync9453.lastError='';
+  if(changes){
+   try{localSaveOnly()}catch(e){}
+   if(document.querySelector('#rotas9249.page.active')&&!document.querySelector('#modal.show'))renderRoutes();
+  }
+  return changes>0;
+ }catch(e){routeSync9453.lastError=sid(e?.message||e);console.warn('[HLGB Rotas 94.53] consulta remota',e);return false}
+ finally{routeSync9453.busy=false}
+}
+window.hlgbRouteSync9453={refresh:refreshRoutes9453,status:()=>({...routeSync9453})};
+document.addEventListener('visibilitychange',()=>{if(!document.hidden&&document.querySelector('#rotas9249.page.active'))refreshRoutes9453(true)});
+window.addEventListener('focus',()=>{if(document.querySelector('#rotas9249.page.active'))refreshRoutes9453(true)});
+setInterval(()=>{if(document.querySelector('#rotas9249.page.active')&&!document.querySelector('#modal.show'))refreshRoutes9453(false)},12000);
 function renderRoutes(){
- const h=document.getElementById('rotas9249Host');if(!h)return;const a=arr('routePlans').slice().sort((x,y)=>sid(y.date).localeCompare(sid(x.date)));
+ const h=document.getElementById('rotas9249Host');if(!h)return;
+ // A abertura também força uma leitura de routePlans; nova chamada não gera loop devido ao cooldown.
+ refreshRoutes9453(false);const a=arr('routePlans').slice().sort((x,y)=>sid(y.date).localeCompare(sid(x.date)));
  const rows=a.map(r=>'<tr><td>'+escSafe(r.date||'')+'</td><td><b>'+escSafe(r.driver||'-')+'</b></td><td>'+((r.stops||[]).length)+'</td><td>'+escSafe(r.status||'Planejada')+'</td><td><button class="primary" onclick="editRoute9249(\''+escSafe(r.id)+'\')">Abrir</button> <button class="secondary" onclick="printRoute9249(\''+escSafe(r.id)+'\')">🖨️ Imprimir</button> <button class="danger" onclick="deleteRoute9249(\''+escSafe(r.id)+'\')">Excluir</button></td></tr>').join('');
  h.innerHTML='<div class="toolbar"><button class="primary" onclick="newRoute9249()">+ Nova rota</button></div><div class="ops-table">'+(rows?'<table><thead><tr><th>Data</th><th>Responsável</th><th>Paradas</th><th>Status</th><th>Ações</th></tr></thead><tbody>'+rows+'</tbody></table>':'<div class="empty">Nenhuma rota criada.</div>')+'</div>';
 }
