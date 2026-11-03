@@ -98,7 +98,10 @@ async function auditAndRecover(force=false){
   }
   if(report.changed){try{localSaveOnly?.()}catch(e){}}
   lastRun=Date.now();lastReport=report;window.HLGB_CATALOG_RECOVERY_LAST=report;
-  renderAffected();banner(report);
+  // Não reconstruir a tela de Produtos se a nuvem não recuperou nenhum cadastro.
+  // Isto evita saltos e perda de posição de filtros na abertura/retomada.
+  if(report.changed)renderAffected();
+  banner(report);
   return report;
  }finally{running=false}
 }
