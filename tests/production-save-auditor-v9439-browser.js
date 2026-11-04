@@ -18,7 +18,7 @@ const kind=process.env.HLGB_BROWSER||'webkit',engine=kind==='chromium'?chromium:
  const pre=await page.evaluate(()=>({reconcile:window.HLGB_PRODUCTION_RECONCILE_9439||null,post:window.HLGB_PRODUCTION_POSTSAVE_9439||null,finalizer:window.HLGB_AUDITOR_FINALIZE_9439||null}));
  if(pre.reconcile||pre.post||pre.finalizer)throw new Error('v94.39 carregou antes do login '+JSON.stringify(pre));
  await page.evaluate(()=>{window.__HLGB_AUTH_READY=true;window.dispatchEvent(new Event('hlgb:authenticated'));const l=document.getElementById('loginScreen');if(l)l.style.setProperty('display','none','important');const a=document.getElementById('appShell');if(a){a.style.setProperty('display','block','important');a.style.setProperty('visibility','visible','important')}});
- await page.waitForFunction(()=>window.HLGB_PRODUCTION_RECONCILE_9439==='94.39'&&window.HLGB_PRODUCTION_POSTSAVE_9439==='94.39'&&window.HLGB_AUDITOR_FINALIZE_9439==='94.39',null,{timeout:20000});
+ await page.waitForFunction(()=>window.HLGB_PRODUCTION_RECONCILE_9439==='94.50'&&window.HLGB_PRODUCTION_POSTSAVE_9439==='94.39'&&window.HLGB_AUDITOR_FINALIZE_9439==='94.39',null,{timeout:20000});
  await page.waitForTimeout(900);
 
  const production=await page.evaluate(async()=>{
