@@ -45,7 +45,9 @@ const {webkit}=require('playwright');
       topbarMenu:!!document.getElementById('hlgbTopbarActionsBtn9253')
     };
   });
-  if(shellVisual.backgroundSize!=='cover'||shellVisual.pseudoPosition!=='fixed')throw new Error('Fundo não ocupa o shell inteiro: '+JSON.stringify(shellVisual));
+  const baseBackgroundSize=String(shellVisual.backgroundSize||'').split(',')[0].trim();
+  // A primeira camada deve cobrir todo o shell; uma segunda camada decorativa é válida.
+  if(baseBackgroundSize!=='cover'||shellVisual.pseudoPosition!=='fixed')throw new Error('Fundo não ocupa o shell inteiro: '+JSON.stringify(shellVisual));
   if(shellVisual.cloudWidth<=0||shellVisual.cloudWidth>110||!shellVisual.topbarHost||!shellVisual.topbarMenu)throw new Error('Status da nuvem ainda invade o topbar: '+JSON.stringify(shellVisual));
   if(shellVisual.cloudRight>shellVisual.headerRight+1)throw new Error('Status da nuvem saiu do cabeçalho: '+JSON.stringify(shellVisual));
 

@@ -23,7 +23,9 @@ const window={
 };
 const ctx={window,console,setTimeout,clearTimeout,structuredClone};ctx.globalThis=ctx;vm.createContext(ctx);vm.runInContext(src,ctx);
 (async()=>{
- const api=window.hlgbProductionResidual9448;assert(api&&api.version==='94.48');
+ const expected=fs.readFileSync('release-auditor-autocorrect-v9448.js','utf8').match(/RESIDUAL_V='([^']+)'/);
+ assert(expected,'Auditor deve declarar a versão exigida do diagnóstico residual');
+ const api=window.hlgbProductionResidual9448;assert(api&&api.version===expected[1],'Diagnóstico residual em execução deve coincidir com contrato do Auditor');
  const before=await api.inspect('unit-before');
  assert.equal(before.safeCopies,2);assert.equal(before.businessCopies,2);assert.equal(before.incompleteCopies,1);
  assert.equal(before.items.find(x=>x.id==='a').classification,'technical-stale-copy');
