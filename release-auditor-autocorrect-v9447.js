@@ -26,6 +26,34 @@ function loadBase(){
  const p=new Promise(resolve=>{if(baseReady())return resolve(true);let done=false;const finish=()=>{if(done)return;done=true;resolve(baseReady())};s.addEventListener('load',finish,{once:true});s.addEventListener('error',()=>{try{s.remove()}catch(_){}finish()},{once:true});setTimeout(finish,12000)});s.__hlgbPromise=p;return p;
 }
 async function ensureBase(){return baseReady()?true:loadBase()}
+/* v94.68: uma fila durável exclusiva do IndexedDB não aparece em pendingSync:0.
+   Inventário SOMENTE leitura; não abre uma store nova nem presume que os dados foram enviados. */
+function indexedWalInventory9468(){
+ if(typeof indexedDB==='undefined')return Promise.resolve({status:'unsupported',count:null,items:[]});
+ return new Promise(resolve=>{
+  let req,done=false,db=null;
+  const finish=(result)=>{if(done)return;done=true;clearTimeout(timer);try{db?.close?.()}catch(_){}resolve(result)};
+  const timer=setTimeout(()=>finish({status:'timeout',count:null,items:[]}),6500);
+  try{
+   req=indexedDB.open('hlgb_durable_wal');
+   req.onupgradeneeded=()=>{try{req.transaction.abort()}catch(_){}finish({status:'no-store',count:0,items:[]})};
+   req.onerror=()=>finish({status:'error',count:null,items:[]});
+   req.onsuccess=()=>{
+    db=req.result;
+    if(!db.objectStoreNames.contains('entries'))return finish({status:'no-store',count:0,items:[]});
+    try{
+     const tx=db.transaction('entries','readonly'),get=tx.objectStore('entries').getAll();
+     get.onsuccess=()=>{
+      const rows=Array.isArray(get.result)?get.result:[];
+      finish({status:'ok',count:rows.length,items:rows.slice(0,30).map(x=>({module:sid(x?.module),id:sid(x?.id),opId:sid(x?.opId),key:sid(x?.key)}))});
+     };
+     get.onerror=()=>finish({status:'error',count:null,items:[]});
+     tx.onabort=()=>finish({status:'error',count:null,items:[]});
+    }catch(e){finish({status:'error',count:null,items:[]})}
+   };
+  }catch(e){finish({status:'error',count:null,items:[]})}
+ });
+}
 function metrics(){try{return clone(window.hlgbAuditorIntelligence9396?.currentMetrics?.()?.metrics||{})}catch(e){return {}}}
 function allIssues(){try{const x=window.hlgbDiagnosticsCenter?.getIssues?.();return Array.isArray(x)?x:[]}catch(e){return []}}
 function openIssue(x){return !/resolvid|closed|fechad/i.test(sid(x?.status))}
@@ -61,12 +89,14 @@ function classifyCandidate(c,event){
  return {...base,classification:'needs-code',requires:'code',detail:reason||'Pendência de Produção sem prova suficiente; requer diagnóstico de código'};
 }
 async function triage(audit){
- const at=Date.now(),m=metrics(),issues=allIssues(),signal=liveSignal(audit,m,issues),cs=await candidates(),events=repairEvents(),classified=cs.map(c=>classifyCandidate(c,latestEventFor(c?.id,events)));
+ const at=Date.now(),m=metrics(),issues=allIssues(),signal=liveSignal(audit,m,issues),idbWal=await indexedWalInventory9468(),cs=await candidates(),events=repairEvents(),classified=cs.map(c=>classifyCandidate(c,latestEventFor(c?.id,events)));
  const needsCode=classified.filter(x=>x.classification==='needs-code'),businessBlocked=classified.filter(x=>x.classification==='business-blocked'),historical=historicalIssues(issues,at);
  // Métricas estruturais NÃO são candidatas de Produção e não justificam executar quatro receitas genéricas.
  // A triagem preserva o sinal como tarefa de código, sem fingir que uma reconciliação sem alvo o corrigiu.
  if(signal.saveDuplicateResponsibilities>0)needsCode.push({id:'structure:save-responsibilities',module:'runtime',action:'review-save-chain',classification:'needs-code',requires:'code',detail:signal.saveDuplicateResponsibilities+' responsabilidade(s) repetida(s) no grafo de salvamento; verificar fases reais antes de retirar proteção.'});
+ if(idbWal.count>0)needsCode.push({id:'sync:indexeddb-wal',module:'sync',action:'review-indexeddb-pending',classification:'needs-code',requires:'remote-proof',detail:idbWal.count+' operação(ões) ainda no IndexedDB, mesmo que pendingSync indique 0. Não eliminar sem confirmação remota por opId e conteúdo.'});
  if(signal.scriptDuplicates>0)needsCode.push({id:'structure:duplicate-scripts',module:'runtime',action:'review-script-loader',classification:'needs-code',requires:'code',detail:signal.scriptDuplicates+' script(s) duplicado(s) detectado(s); revisar origem e inicialização antes de corrigir.'});
+ signal.indexedDbWal={status:idbWal.status,count:idbWal.count,items:idbWal.items};
  const out={version:V,at:nowIso(),signal,needsCode,businessBlocked,historicalBacklog:{count:historical.length,openTotal:issues.filter(openIssue).length,recentTechnicalCount:signal.recentTechnicalIssues.length,detail:historical.length?historical.length+' ocorrência(s) antiga(s) resumida(s); não entram no ciclo de reparo.':'Sem histórico antigo aberto.'},candidateCount:cs.length};state.lastTriage=clone(out);return out;
 }
 function compactUnknown(items){return (items||[]).filter(x=>!/^Sem verificação específica que comprove resolução$/i.test(sid(x?.detail))).slice(0,40)}
@@ -74,7 +104,7 @@ function mergeUnique(items,key){const out=[],seen=new Set();for(const x of items
 function buildFastSummary(audit,t,reason){
  const needs=t.needsCode.map(x=>({id:x.id,action:x.action,detail:x.detail,classification:x.classification}));
  const blocked=t.businessBlocked.map(x=>({id:x.id,action:x.action,detail:x.detail,safetyLevel:'C',classification:x.classification}));
- const stop=t.needsCode.length?'Triagem rápida: sem fila técnica viva; '+t.needsCode.length+' item(ns) precisam de código. Reparos repetitivos foram evitados.':'Triagem rápida: sem fila técnica viva; restam apenas pendências de negócio/histórico.';
+ const idbPending=+(t.signal?.indexedDbWal?.count||0);const stop=idbPending?'Triagem rápida: '+idbPending+' pendência(s) WAL no IndexedDB ainda sem prova de conclusão; não executar receitas sem alvo.':t.needsCode.length?'Triagem rápida: sem fila técnica reparável; '+t.needsCode.length+' item(ns) precisam de código. Reparos repetitivos foram evitados.':'Triagem rápida: sem fila técnica viva; restam apenas pendências de negócio/histórico.';
  return {version:V,runtimeVersion:V,runId:'autocorrect-fast-'+Date.now(),at:nowIso(),silent:true,nonNavigating:true,passes:0,repairSkipped:true,fastConvergence:true,reason,stopReason:stop,fixed:0,corrected:[],stillFailing:needs,unverified:needs,blocked,rounds:[],resolvedDiagnostics:[],cleanTechnical:needs.length===0&&blocked.length===0,remainingOpenIssues:t.historicalBacklog.openTotal,needsCode:clone(t.needsCode),businessBlocked:clone(t.businessBlocked),historicalBacklog:clone(t.historicalBacklog),triage:clone(t),ui:{pageBefore:'',pageAfter:'',stable:true},result:audit};
 }
 async function withLiveScope(fn){
@@ -110,6 +140,15 @@ async function run(opts={}){
  if(state.running||!authReady())return false;state.running=true;state.runs++;state.lastAt=nowIso();state.lastError='';stamp();
  try{
   const prep=await prepare(opts.reason||'auditor-run-v9447');if(!prep.ok)throw new Error(prep.error||'Preparação v94.47 incompleta');
+  // Apenas prova remota de WAL: poda exige conteúdo igual e mesmo opId.
+  // Não tenta reenviar alterações conflitantes ou reescrever registros de negócio.
+  const idbBefore=await indexedWalInventory9468();let walProof={attempted:false,removed:0,remaining:idbBefore.count,status:idbBefore.status};
+  if(idbBefore.count>0&&typeof window.hlgbWalSingleAuthority9339?.pruneConfirmed==='function'){
+   walProof.attempted=true;
+   try{const outcome=await window.hlgbWalSingleAuthority9339.pruneConfirmed(true,8);
+    walProof={...walProof,removed:Number(outcome?.removed)||0,checked:Number(outcome?.checked)||0,errors:clone(outcome?.errors||[])};
+   }catch(e){walProof.error=sid(e?.message||e)}
+  }
   const before=await silentAudit('v9447-preflight'),pre=await triage(before);let out,audit=before,t=pre;
   const signal=pre.signal||{},queue=signal.operationalQueue||{},actionable=(+queue.unique||0)+(+queue.records||0)+(+queue.wal||0)+(+signal.pendingTechnicalRecent||0)+((signal.recentTechnicalIssues||[]).length)+((signal.liveChecks||[]).length)+(signal.operationalFail?1:0);
   // Candidatos sem pendência operacional podem exigir classificação humana/código, não reconciliação.
@@ -119,7 +158,7 @@ async function run(opts={}){
    state.legacyRuns++;const legacy=window.hlgbAuditorAutoCorrect9446;if(typeof legacy?.run!=='function')throw new Error('Autocorretor v94.46 indisponível');
    const raw=await withLiveScope(()=>legacy.run({...opts,render:false,download:false,reason:(opts.reason||'v9447')+'-live-scope'}));if(raw===false)throw new Error('Autocorretor v94.46 retornou false');audit=await silentAudit('v9447-post-repair');t=await triage(audit);out=upgradeLegacy(raw,audit,t);
   }
-  out.version=V;out.runtimeVersion=V;out.fastConvergence=true;out.dependencyPreparation=clone(prep);out.triage=clone(t);const report=makeReport(out,audit,t);out.report=report;state.lastSummary=clone(out);if(opts.render!==false)render(out);if(opts.download===true)downloadReport(report);return out;
+  out.version=V;out.runtimeVersion=V;out.fastConvergence=true;out.dependencyPreparation=clone(prep);out.walProof=clone({...walProof,remaining:t.signal?.indexedDbWal?.count});out.triage=clone(t);const report=makeReport(out,audit,t);out.report=report;state.lastSummary=clone(out);if(opts.render!==false)render(out);if(opts.download===true)downloadReport(report);return out;
  }catch(e){state.lastError=sid(e?.message||e);const out={version:V,runId:'autocorrect-9447-blocked-'+Date.now(),at:nowIso(),silent:true,nonNavigating:true,passes:0,repairSkipped:true,fastConvergence:true,stopReason:'Execução interrompida',fixed:0,corrected:[],stillFailing:[],blocked:[],unverified:[{detail:state.lastError}],rounds:[]};state.lastSummary=clone(out);if(opts.render!==false)render(out);return out}
  finally{state.running=false}
 }
