@@ -31,7 +31,7 @@ function refresh(date){
 }
 function makeId(){return Date.now()*1000+Math.floor(Math.random()*900+100)}
 function newEntry(flow){
- const pendingId=makeId(); // Mesmo ID em tentativas após timeout; sem lançamento duplicado.
+ const pendingId=makeId(),pendingCreatedAt=new Date().toISOString(); // Mesmo ID e data de criação após timeout.
  const kind=flow==='Entrada'?'Entrada':'Saída';
  try{if(typeof window.hlgb916EnsureData==='function')window.hlgb916EnsureData();else if(typeof hlgb916EnsureData==='function')hlgb916EnsureData()}catch(e){}
  const formFn=window.hlgb916HubForm||((typeof hlgb916HubForm==='function')?hlgb916HubForm:null),readFn=window.hlgb916ReadHubForm||((typeof hlgb916ReadHubForm==='function')?hlgb916ReadHubForm:null),toggleDate=window.hlgb916ToggleHubChequeDate||((typeof hlgb916ToggleHubChequeDate==='function')?hlgb916ToggleHubChequeDate:null);
@@ -39,7 +39,7 @@ function newEntry(flow){
  openModal(`Nova ${kind.toLowerCase()} prevista`,formFn({flow:kind})+`<button type="button" class="primary modalSave">Salvar lançamento</button>`,async()=>{
    window.hlgbHubSaveTrace9483?.recordClick?.('create-button');
   const d=readFn(kind);if(!d)return false;
-  const row={id:pendingId,...d,createdAt:new Date().toISOString(),updatedAt:new Date().toISOString()};
+  const row={id:pendingId,...d,createdAt:pendingCreatedAt,updatedAt:new Date().toISOString()};
   const btn=document.querySelector('#modal .modalSave'),old=btn?.textContent||'Salvar lançamento';if(btn){btn.disabled=true;btn.textContent='💾 Salvando…'}
   try{const out=await saveLocalFirst(row);creates++;if(typeof closeModal==='function')closeModal();refresh(row.date);status('✅ Salvo na nuvem','ok');return true}catch(err){lastError=sid(err?.message||err);console.error('[HLGB Hub '+V+'] nova entrada/saída',err);if(btn){btn.disabled=false;btn.textContent=old}alert('Não consegui confirmar o lançamento na nuvem. A janela e os dados foram preservados.\n\n'+lastError);return false}
  });
