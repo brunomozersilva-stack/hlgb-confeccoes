@@ -161,7 +161,8 @@ async function runDailyAudit(){
     pagesChecked:0,
     visualSweepAutomatic:false,
     visualSweepStatus:'Manual — não executado automaticamente para não interferir no trabalho',
-    pendingSync:Number(sync?.summary?.normalizedPending||0),
+    pendingSync:Number(sync?.summary?.normalizedPending||0)+Number(sync?.summary?.walLocalStorage||0)+Number(sync?.summary?.walIndexedDb||0),
+    pendingSyncDetails:{normalized:Number(sync?.summary?.normalizedPending||0),walLocalStorage:Number(sync?.summary?.walLocalStorage||0),walIndexedDb:Number(sync?.summary?.walIndexedDb||0)},
     backupCreatedAt:backup?.createdAt||null,
     remoteBackupCreatedAt:remoteBackup?.createdAt||null,
     remoteBackupOk:!!remoteBackup,
@@ -191,7 +192,11 @@ async function buildSupportPackage(){
     packageVersion:V,
     generatedAt:new Date().toISOString(),
     appVersion:sid(window.HLGB_RELEASE_VERSION||''),
-    dailySummary:last,
+    dailySummary:last, // Última varredura diária; pode ser anterior à exportação.
+    currentAuditSummary:audit?.summary||null,
+    currentAuditAt:audit?.completedAt||audit?.at||null,
+    dailySummaryAgeMs:last?.completedAt?Math.max(0,Date.now()-Date.parse(last.completedAt)):null,
+    syncPendingTotal:Number(sync?.summary?.normalizedPending||0)+Number(sync?.summary?.walLocalStorage||0)+Number(sync?.summary?.walIndexedDb||0),
     audit,
     sync,
     backupMeta:{date:backup.date,createdAt:backup.createdAt,appVersion:backup.appVersion},
@@ -211,6 +216,7 @@ function renderStatus(summary=readLast()){
   const ok=summary&&summary.date===day();
   box.innerHTML='<h3 style="margin-top:0">🛡️ Segurança diária HLGB</h3>'+
     (ok?'<div class="cards"><div class="card"><small>Última varredura</small><strong>'+escSafe(summary.date)+'</strong></div><div class="card"><small>Resultado</small><strong>'+escSafe(summary.result||'-')+'</strong></div><div class="card"><small>Telas verificadas</small><strong>'+Number(summary.pagesChecked||0)+'</strong></div><div class="card"><small>Atenções / Falhas</small><strong>'+Number(summary.warn||0)+' / '+Number(summary.fail||0)+'</strong></div><div class="card"><small>Backup externo</small><strong>'+(summary.remoteBackupOk?'☁️ OK':'⚠️ Pendente')+'</strong></div></div>':'<div class="sub">A varredura diária ainda não foi concluída hoje.</div>')+
+    '<div class="sub">Pendências (registros + WAL local + IndexedDB): <b>'+Number(summary?.pendingSync||0)+'</b>. O resultado diário é da última varredura; exportações posteriores têm auditoria atual separada.</div>'+ 
     '<div class="toolbar" style="margin-top:10px"><button class="primary" onclick="hlgbDailySafetyRunNow()">🛡️ Rodar varredura agora</button><button class="secondary" onclick="hlgbDailySafetyPackage()">📦 Baixar pacote diário</button><button class="secondary" onclick="hlgbDailySafetyBackup()">💾 Baixar backup de hoje</button><button class="secondary" onclick="hlgbDailySafetyRemoteBackup()">☁️ Fazer backup externo agora</button></div>'+
     '<div class="sub">A auditoria automática diária roda em segundo plano e não troca de tela. A varredura visual completa fica disponível manualmente no Auditor / Testes. O backup automático fica guardado localmente neste navegador por até '+KEEP+' dias e também na nuvem do HLGB por até '+REMOTE_KEEP+' dias.</div>';
 }
