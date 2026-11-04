@@ -78,7 +78,7 @@ function flush(){
  if(editing()){setLock(true);scheduleFlush();return false}
  setLock(false);
  const list=[...queues.values()];queues.clear();
- for(const q of list){if(!relevant(q.name))continue;try{stableCall(q);state.flushed++}catch(e){console.warn('[HLGB '+V+'] redraw adiado',q.name,e)}}
+ for(const q of list){if(!relevant(q.name.split('::')[0]))continue;try{stableCall(q);state.flushed++}catch(e){console.warn('[HLGB '+V+'] redraw adiado',q.name,e)}}
  state.lastFlushAt=new Date().toISOString();return true;
 }
 function scheduleFlush(){clearTimeout(flushTimer);flushTimer=setTimeout(()=>{if(editing()){setLock(true);scheduleFlush()}else flush()},QUIET_MS)}
@@ -94,7 +94,16 @@ function wrap(name){
 }
 function wrapIncoming(){
  const name='hlgbRenderIncomingRecord',fn=window[name];if(typeof fn!=='function'||chainHas(fn))return false;
- const w=function(){if(replaying)return fn.apply(this,arguments);if(editing())return queue(name,fn,this,arguments);return fn.apply(this,arguments)};
+ const w=function(){
+  if(replaying)return fn.apply(this,arguments);
+  if(editing()){
+   // A mesma função recebe módulos diferentes. Chavear apenas pelo nome
+   // apagava o evento anterior quando chegavam mudanças em dois módulos.
+   const module=String(arguments[0]??'').trim();
+   return queue(name+'::'+(module||'unknown'),fn,this,arguments);
+  }
+  return fn.apply(this,arguments);
+ };
  w.__hlgbInteractionLock9434=true;w.__original=fn;window[name]=w;return true;
 }
 function observeModal(){
