@@ -61,6 +61,9 @@ jobs:
       - name: Validate stable router render after visible restore
         run: node tests/audit-app-stable3-restored-render-regression.cjs
 
+      - name: Validate P0 chain and faction modal safety v94.57
+        run: node tests/p0-cycle-faction-modal-v9457.cjs
+
       - name: Validate Auditor residual runtime version v94.56
         run: node tests/auditor-residual-version-v9456.cjs
 
