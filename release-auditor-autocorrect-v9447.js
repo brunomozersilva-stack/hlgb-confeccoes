@@ -85,7 +85,15 @@ function compactFinding(x){return {code:sid(x?.code),title:sid(x?.title),detail:
 async function silentAudit(reason='v9447-triage'){
  const api=window.hlgbAuditorAutoCorrect9441;if(typeof api?.silentAudit!=='function')throw new Error('Auditoria silenciosa v94.41 indisponível');return api.silentAudit(reason)
 }
-async function candidates(){try{const x=await window.hlgbProductionReconcile9439?.candidates?.();return Array.isArray(x)?x:[]}catch(e){state.lastError=sid(e?.message||e);return []}}
+async function candidates(){
+ const api=window.hlgbProductionReconcile9439;
+ if(typeof api?.candidates!=='function')throw new Error('Diagnóstico de Produção indisponível: função candidates ausente');
+ try{
+  const x=await api.candidates();
+  if(!Array.isArray(x))throw new Error('Diagnóstico de Produção devolveu resposta inválida');
+  return x;
+ }catch(e){state.lastError=sid(e?.message||e);throw new Error('Falha ao consultar candidatos de Produção: '+state.lastError)}
+}
 function repairEvents(){try{const x=window.hlgbAuditorAutoCorrect9441?.repairEvents?.();return Array.isArray(x)?x:[]}catch(e){return []}}
 function latestEventFor(id,events){return events.filter(e=>sid(e?.recipeId)==='production-reconcile'&&sid(e?.recordId)===sid(id)).sort((a,b)=>(ts(b?.at)||0)-(ts(a?.at)||0))[0]||null}
 function classifyCandidate(c,event){
@@ -102,6 +110,7 @@ async function triage(audit){
  // Métricas estruturais NÃO são candidatas de Produção e não justificam executar quatro receitas genéricas.
  // A triagem preserva o sinal como tarefa de código, sem fingir que uma reconciliação sem alvo o corrigiu.
  if(signal.saveDuplicateResponsibilities>0)needsCode.push({id:'structure:save-responsibilities',module:'runtime',action:'review-save-chain',classification:'needs-code',requires:'code',detail:signal.saveDuplicateResponsibilities+' responsabilidade(s) repetida(s) no grafo de salvamento: '+(structure.saveDuplicateResponsibilities.map(x=>x.id+' ('+x.count+' camadas)').join(', ')||'identidade não capturada')+'. Verificar fases reais antes de retirar proteção.'});
+ if((idbWal.count===null||idbWal.count===undefined)&&!['unsupported','no-store'].includes(idbWal.status))needsCode.push({id:'sync:indexeddb-unverified',module:'sync',action:'investigate-indexeddb-inventory',classification:'needs-code',requires:'read-proof',detail:'Não foi possível verificar IndexedDB ('+sid(idbWal.status)+'). Não declarar fila vazia nem limpar pendências.'});
  if(idbWal.count>0)needsCode.push({id:'sync:indexeddb-wal',module:'sync',action:'review-indexeddb-pending',classification:'needs-code',requires:'remote-proof',detail:idbWal.count+' operação(ões) ainda no IndexedDB, mesmo que pendingSync indique 0. Não eliminar sem confirmação remota por opId e conteúdo.'});
  if(signal.scriptDuplicates>0)needsCode.push({id:'structure:duplicate-scripts',module:'runtime',action:'review-script-loader',classification:'needs-code',requires:'code',detail:signal.scriptDuplicates+' script(s) duplicado(s) detectado(s): '+(structure.duplicateScripts.map(x=>x.file+' (DOM '+x.dom+', requests '+x.resource+')').join(', ')||'arquivo não identificado')+'. Revisar origem e inicialização antes de corrigir.'});
  signal.indexedDbWal={status:idbWal.status,count:idbWal.count,items:idbWal.items};

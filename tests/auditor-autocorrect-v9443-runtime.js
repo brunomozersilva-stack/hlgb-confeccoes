@@ -12,9 +12,10 @@ const kind=process.env.HLGB_BROWSER||'webkit',engine=kind==='chromium'?chromium:
  await page.waitForFunction(()=>window.HLGB_AUDITOR_AUTOCORRECT_9443==='94.43'&&typeof window.hlgbAuditorAutoCorrect9443?.run==='function'&&window.HLGB_PRODUCTION_RECONCILE_COORDINATOR_9443==='94.43'&&window.hlgbProductionReconcile9439?.concurrencyPatch==='94.43-await-busy',null,{timeout:30000});
  const prep=await page.evaluate(()=>window.hlgbAuditorAutoCorrect9443.prepare('v9443-runtime'));
  if(!prep?.ok||!prep.productionCoordinator?.ready)throw new Error('v94.43 não preparou coordenador real '+JSON.stringify(prep));
- // A v94.39 agenda reconciliações automáticas até 1,6 s após autenticação.
- // Aguarde esse burst terminar para a simulação abaixo ter exatamente uma execução-base controlada.
- await page.waitForTimeout(2300);
+ // O login agenda módulos e reconciliações pós-auth até 7,6 s (v94.07).
+ // Aguardar o fim deste burst evita que a reconciliação automática intercale com
+ // a simulação controlada abaixo e produza resultados com razões distintas.
+ await page.waitForTimeout(8800);
  await page.waitForFunction(()=>window.hlgbProductionReconcile9439?.status?.().busy===false,null,{timeout:15000});
  const overlap=await page.evaluate(async()=>{
   const api=window.hlgbProductionReconcile9439,coord=window.hlgbProductionReconcileCoordinator9443;
