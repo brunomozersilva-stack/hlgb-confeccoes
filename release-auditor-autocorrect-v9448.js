@@ -35,7 +35,10 @@ async function run(opts={}){
  if(state.running||!authReady())return false;state.running=true;state.runs++;state.lastAt=nowIso();state.lastError='';stamp();
  try{
   const prep=await prepare(opts.reason||'auditor-run-v9448');if(!prep.ok)throw new Error(prep.error||'Preparação v94.48 incompleta');
-  const diag=await window.hlgbProductionResidual9448.reconcileAndInspect(opts.reason||'manual-button');state.lastResidual=clone(diag);if(diag?.before?.safeCopies>0)state.preflightReconciles++;
+  const diag=await window.hlgbProductionResidual9448.reconcileAndInspect(opts.reason||'manual-button');state.lastResidual=clone(diag);
+  // A API residual captura erros e devolve {error,before:null,after:null}; isso NÃO é diagnóstico válido.
+  if(!diag||diag.error||diag.before?.ready!==true||diag.after?.ready!==true||!Number.isFinite(Number(diag.after.candidateCount)))throw new Error('Diagnóstico residual de Produção incompleto: '+sid(diag?.error||diag?.before?.error||diag?.after?.error||'não foi possível comprovar leitura antes/depois'));
+  if(diag.before.safeCopies>0)state.preflightReconciles++;
   const raw=await withResidualCandidateReasons(diag,()=>window.hlgbAuditorAutoCorrect9447.run({...opts,render:false,download:false,reason:(opts.reason||'v9448')+'-residual-proof'}));if(raw===false)throw new Error('Autocorretor v94.47 retornou false');
   // Uma falha da cadeia v94.47 vinha como objeto e era tratada como sucesso de 0 rodadas.
   if(raw?.executionFailed===true||/^Execução interrompida|^Execução não iniciada/i.test(sid(raw?.stopReason)))throw new Error('Etapa v94.47 falhou: '+sid(raw?.unverified?.[0]?.detail||raw?.failure?.message||window.hlgbAuditorAutoCorrect9447?.state?.lastError||raw?.stopReason));

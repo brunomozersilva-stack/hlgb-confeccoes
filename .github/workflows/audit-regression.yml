@@ -106,6 +106,9 @@ jobs:
       - name: Validate Auditor residual runtime version v94.56
         run: node tests/auditor-residual-version-v9456.cjs
 
+      - name: Validate residual failures stop Auditor v94.73
+        run: node tests/auditor-residual-failure-v9473.cjs
+
       - name: Validate interrupted Auditor does not report zero bugs v94.55
         run: node tests/auditor-failure-truth-v9455.cjs
 
