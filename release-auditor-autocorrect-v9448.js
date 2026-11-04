@@ -22,7 +22,7 @@ async function prepare(reason='auditor-v9448'){
  if(!authReady())return {ok:false,ready:false,reason,error:'Autenticação ainda não está pronta',missing:['auth']};
  if(!(await ensureBase()))return {ok:false,ready:false,reason,error:'Autocorretor v94.47 indisponível',missing:['autocorrect-9447']};
  const bp=await window.hlgbAuditorAutoCorrect9447.prepare(reason+'-base');if(bp?.ok===false)return {ok:false,ready:false,reason,error:bp.error||'Preparação v94.47 falhou',missing:bp.missing||['base-prepare'],basePreparation:clone(bp)};
- if(!(await ensureResidual()))return {ok:false,ready:false,reason,error:'Diagnóstico residual v94.50 indisponível',missing:['production-residual-9448'],basePreparation:clone(bp)};
+ if(!(await ensureResidual()))return {ok:false,ready:false,reason,error:'Diagnóstico residual v94.84 indisponível',missing:['production-residual-9448'],basePreparation:clone(bp)};
  return {ok:true,ready:true,reason,baseVersion:BASE_V,basePreparation:clone(bp),productionResidual:{ready:true,version:V},at:nowIso()};
 }
 function reasonFor(item){if(!item)return '';if(item.classification==='business-blocked')return 'business-difference';if(item.safeCopies>0)return 'Prova remota incompleta: cópia técnica satisfeita permaneceu após reconciliação';if(item.classification==='needs-code')return item.detail||'Prova remota incompleta';if(item.classification==='mixed-residual')return 'Prova remota incompleta: resíduo misto permaneceu após reconciliação';return item.detail||''}
