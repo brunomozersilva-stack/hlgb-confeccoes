@@ -44,7 +44,10 @@ function factionNames(){
  const seen=new Set();return out.filter(x=>{const k=norm(x);if(!k||seen.has(k))return false;seen.add(k);return true}).sort((a,b)=>a.localeCompare(b,'pt-BR'));
 }
 function repairFactionSelect(){
- const sel=document.getElementById('mname');if(!sel)return false;
+ /* O ID #mname é compartilhado com o INPUT do modal de Clientes.
+    Nunca interpretar um INPUT como SELECT nem alterar o formulário de Cliente. */
+ const sel=Array.from(document.querySelectorAll('[id="mname"]')).find(el=>el?.tagName==='SELECT'&&el?.options);
+ if(!sel)return false;
  const names=factionNames();if(!names.length)return false;
  const keep=sid(sel.value),before=[...sel.options].map(o=>norm(o.textContent)).filter(Boolean).join('|'),after=names.map(norm).join('|');
  if(before===after)return false;
