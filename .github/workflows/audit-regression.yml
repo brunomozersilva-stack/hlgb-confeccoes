@@ -114,6 +114,10 @@ jobs:
       - name: Validate Auditor WAL read-only proof v94.82
         run: node tests/auditor-wal-readonly-proof-v9482.cjs
 
+      - name: P0 Hub RPC ACK/revision and Safari quota v94.83
+        run: node tests/hub-save-ack-v9483.cjs
+
+
       - name: Validate WAL proof in Auditor panel v94.82
         run: node tests/auditor-wal-visible-proof-v9482.cjs
 

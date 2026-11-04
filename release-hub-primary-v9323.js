@@ -12,17 +12,15 @@ function idOf(row){const v=row?.id??row?.__hlgbId;return v==null?'':sid(v)}
 function upsert(row){const a=hub(),id=idOf(row);if(!id)return false;const next=clone(row),i=a.findIndex(x=>idOf(x)===id);if(i>=0)a[i]=next;else a.push(next);try{if(typeof localSaveOnly==='function')localSaveOnly()}catch(e){}return true}
 function status(text,type=''){try{if(typeof setCloudStatus==='function')setCloudStatus(text,type);else window.setCloudStatus?.(text,type)}catch(e){}}
 function recover(){try{window.hlgbSaveTransport9320?.retry?.()}catch(e){}try{window.hlgb955FlushSilent?.()}catch(e){}try{setTimeout(()=>window.hlgbSyncRecovery9301?.fullSync?.('hub-primary-9325',true),350)}catch(e){}}
-async function saveLocalFirst(row){
+async function saveLocalFirst(row,original=null){
  if(!row||!idOf(row))throw new Error('Lançamento sem identificação.');
- if(typeof window.hlgbHubSaveConfirmed==='function'){
-  const out=await window.hlgbHubSaveConfirmed(clone(row),false);
-  if(out?.applied===true||out?.localFirst===true){localFirst++;lastAt=new Date().toISOString();return out}
- }
- if(!upsert(row))throw new Error('Não foi possível salvar o lançamento neste aparelho.');
- try{window.hlgbHubQueuePending?.(idOf(row),clone(row),false)}catch(e){lastError=sid(e?.message||e);throw e}
- localFirst++;lastAt=new Date().toISOString();status('💾 Salvo no aparelho · confirmando na nuvem…','warn');
- Promise.resolve().then(async()=>{try{if(typeof window.hlgbRecordSaveWithRetry!=='function')throw new Error('Gravação multiusuário indisponível.');const out=await window.hlgbRecordSaveWithRetry('hubFinanceEntries',idOf(row),clone(row),false);if(out?.applied===true){upsert(out.data||row);status('✅ Salvo na nuvem','ok');lastError='';return}throw new Error('A nuvem ainda não confirmou o lançamento.')}catch(err){lastError=sid(err?.message||err);recover();status('⚠️ Salvo no aparelho · aguardando confirmação da nuvem','warn')}});
- return {applied:true,localFirst:true,pending:true,data:clone(row)}
+ // v94.83: nunca substituir falha de confirmação por "sucesso" local.
+ const confirmed=window.hlgbHubDelivery9324?.save;
+ if(typeof confirmed!=='function')throw new Error('A confirmação remota do Hub não carregou. Os dados do formulário foram preservados.');
+ const out=await confirmed(clone(row),false,{source:original?'status-button':'create-button',original:original?clone(original):null});
+ if(out?.applied!==true||out?.remoteVerified!==true||!Number.isSafeInteger(Number(out?.revision)))
+  throw new Error('O servidor não confirmou o lançamento e sua revisão.');
+ localFirst++;lastAt=new Date().toISOString();lastError='';return out;
 }
 function refresh(date){
  try{const el=document.getElementById('hubFinanceWeek');if(el&&date)el.value=sid(date).slice(0,10)}catch(e){}
@@ -33,22 +31,24 @@ function refresh(date){
 }
 function makeId(){return Date.now()*1000+Math.floor(Math.random()*900+100)}
 function newEntry(flow){
+ const pendingId=makeId(),pendingCreatedAt=new Date().toISOString(); // Mesmo ID e data de criação após timeout.
  const kind=flow==='Entrada'?'Entrada':'Saída';
  try{if(typeof window.hlgb916EnsureData==='function')window.hlgb916EnsureData();else if(typeof hlgb916EnsureData==='function')hlgb916EnsureData()}catch(e){}
  const formFn=window.hlgb916HubForm||((typeof hlgb916HubForm==='function')?hlgb916HubForm:null),readFn=window.hlgb916ReadHubForm||((typeof hlgb916ReadHubForm==='function')?hlgb916ReadHubForm:null),toggleDate=window.hlgb916ToggleHubChequeDate||((typeof hlgb916ToggleHubChequeDate==='function')?hlgb916ToggleHubChequeDate:null);
  if(typeof openModal!=='function'||typeof formFn!=='function'||typeof readFn!=='function'){alert('O formulário do Hub não terminou de carregar. Atualize a página e tente novamente.');return false}
  openModal(`Nova ${kind.toLowerCase()} prevista`,formFn({flow:kind})+`<button type="button" class="primary modalSave">Salvar lançamento</button>`,async()=>{
+   window.hlgbHubSaveTrace9483?.recordClick?.('create-button');
   const d=readFn(kind);if(!d)return false;
-  const row={id:makeId(),...d,createdAt:new Date().toISOString(),updatedAt:new Date().toISOString()};
+  const row={id:pendingId,...d,createdAt:pendingCreatedAt,updatedAt:new Date().toISOString()};
   const btn=document.querySelector('#modal .modalSave'),old=btn?.textContent||'Salvar lançamento';if(btn){btn.disabled=true;btn.textContent='💾 Salvando…'}
-  try{const out=await saveLocalFirst(row);creates++;if(typeof closeModal==='function')closeModal();refresh(row.date);status(out?.pending?'💾 Salvo · nuvem confirmando…':'✅ Salvo na nuvem',out?.pending?'warn':'ok');recover();return true}catch(err){lastError=sid(err?.message||err);console.error('[HLGB Hub '+V+'] nova entrada/saída',err);if(btn){btn.disabled=false;btn.textContent=old}alert('Não consegui salvar nem proteger este lançamento localmente. A janela ficou aberta para você não perder o que digitou.');return false}
+  try{const out=await saveLocalFirst(row);creates++;if(typeof closeModal==='function')closeModal();refresh(row.date);status('✅ Salvo na nuvem','ok');return true}catch(err){lastError=sid(err?.message||err);console.error('[HLGB Hub '+V+'] nova entrada/saída',err);if(btn){btn.disabled=false;btn.textContent=old}alert('Não consegui confirmar o lançamento na nuvem. A janela e os dados foram preservados.\n\n'+lastError);return false}
  });
  setTimeout(()=>{try{toggleDate?.()}catch(e){}},20);return true
 }
 async function toggleEntry(id){
  const e=hub().find(x=>idOf(x)===sid(id));if(!e)return false;
  const next={...clone(e),status:e.status==='Realizado'?'Previsto':'Realizado',updatedAt:new Date().toISOString()};next.realizedAt=next.status==='Realizado'?(e.realizedAt||new Date().toISOString().slice(0,10)):'';
- try{const out=await saveLocalFirst(next);toggles++;refresh(next.date);recover();return out}catch(err){lastError=sid(err?.message||err);console.error('[HLGB Hub '+V+'] status',err);alert('Não consegui salvar esta mudança. O lançamento original foi mantido.');return false}
+ try{const out=await saveLocalFirst(next,e);toggles++;refresh(next.date);return out}catch(err){lastError=sid(err?.message||err);console.error('[HLGB Hub '+V+'] status',err);alert('Não consegui confirmar esta mudança no servidor. O lançamento original foi mantido.\n\n'+lastError);return false}
 }
 function quickEdit(id){
  if(window.hlgbHubEditor9270?.open)return window.hlgbHubEditor9270.open(id,{quick:true});

@@ -11,8 +11,8 @@ assert(!loader.includes("'release-hub-editor-v9267.js','release-assistant-ui-v92
 
 const hub=src('release-hub-editor-v9270.js');
 assert(hub.includes("const V='92.86'"));
-assert(hub.includes('out===true||out?.applied===true||out?.ok===true||out?.success===true||out?.saved===true'),'editor deve aceitar confirmações válidas do salvamento');
-assert(hub.includes('window.hlgbHubSaveConfirmed'),'editor deve usar a autoridade confirmada do Hub quando disponível');
+assert(hub.includes('out?.remoteVerified===true'),'editor deve exigir confirmação de releitura do registro no servidor');
+assert(hub.includes('window.hlgbHubDelivery9324?.save'),'editor deve usar a autoridade remota do Hub, sem fila local como sucesso');
 assert(hub.includes('window.editHubFinanceEntry=open'));assert(hub.includes('window.quickEditHub9185=open'));
 
 const draft=src('release-assistant-draft-v9270.js');

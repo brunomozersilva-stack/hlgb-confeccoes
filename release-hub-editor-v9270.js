@@ -10,7 +10,7 @@ function dbRef(){try{if(typeof db!=='undefined'&&db)return db}catch(e){}try{if(w
 function hub(){try{const d=dbRef();return Array.isArray(d?.hubFinanceEntries)?d.hubFinanceEntries:[]}catch(e){return []}}
 function idOf(x){const direct=x?.id??x?.__hlgbId;if(direct!=null&&sid(direct).trim())return sid(direct);try{const a=hub(),i=a.indexOf(x);if(i>=0&&typeof hlgbRecordId==='function'){const id=hlgbRecordId('hubFinanceEntries',x,i);if(id!=null&&sid(id).trim())return sid(id)}}catch(e){}return ''}
 function find(id){return hub().find(x=>idOf(x)===sid(id))||null}
-function okResult(out){return out===true||out?.applied===true||out?.ok===true||out?.success===true||out?.saved===true}
+function okResult(out){return !!(out?.applied===true&&out?.remoteVerified===true&&Number.isSafeInteger(Number(out?.revision)))}
 function parseIso(v){const m=sid(v).match(/^(\d{4})-(\d{2})-(\d{2})$/);return m?new Date(+m[1],+m[2]-1,+m[3],12):null}
 function isoDate(d){return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0')}
 function css(){
@@ -65,10 +65,9 @@ function equivalent(a,b){return sid(a?.date).slice(0,10)===sid(b?.date).slice(0,
 async function persist(existing,next){
  const rid=idOf(existing);if(!rid)throw new Error('Este lançamento não possui identificação segura.');if(next.id==null&&next.__hlgbId==null)next.__hlgbId=rid;
  let out=null;
- if(typeof window.hlgbHubSaveConfirmed==='function')out=await window.hlgbHubSaveConfirmed(next,false);
- else if(typeof window.hlgbRecordSaveWithRetry==='function')out=await window.hlgbRecordSaveWithRetry('hubFinanceEntries',rid,next,false);
- else throw new Error('A função de gravação do Hub não está disponível.');
- if(!okResult(out)){const current=find(rid);if(!current||!equivalent(current,next))throw new Error(out?.reason||out?.error||'A gravação não foi confirmada. Tente novamente.')}
+ if(typeof window.hlgbHubDelivery9324?.save!=='function')throw new Error('A confirmação remota do Hub não está disponível. O formulário foi preservado.');
+ out=await window.hlgbHubDelivery9324.save(next,false,{source:'edit-button',original:clone(existing)});
+ if(!okResult(out))throw new Error(out?.reason||out?.error||'A releitura da nuvem não confirmou o lançamento. Tente novamente.');
  const a=hub(),i=a.findIndex(x=>idOf(x)===rid);if(i>=0&&out?.data)a[i]=out.data;else if(i>=0&&equivalent(a[i],existing))a[i]=next;return out
 }
 function readForm(existing){
@@ -85,7 +84,7 @@ function mount(e){
  css();document.body.insertAdjacentHTML('beforeend',html(e));
  const root=document.getElementById('hlgbHubEditor9270'),btn=root?.querySelector('.he-save9286');if(!root||!btn){window.HLGB_HUB_EDITING=false;return false}
  root.querySelector('.he-close9286').onclick=close;root.querySelector('.he-cancel9286').onclick=close;root.querySelector('#heFlow9286').onchange=()=>replacePayment(e);root.querySelector('#heDateBtn9286').onclick=toggleCalendar;root.querySelector('#heDate9286').onclick=toggleCalendar;root.querySelector('#heCalendar9286').onclick=calendarClick;
- btn.onclick=async()=>{btn.disabled=true;const old=btn.textContent;btn.textContent='Salvando…';const wait=setTimeout(()=>{if(btn.isConnected)btn.textContent='Ainda salvando…'},8000);try{const next=readForm(e);await persist(e,next);clearTimeout(wait);close();refreshLater()}catch(err){clearTimeout(wait);console.error('[HLGB Hub Editor '+V+']',err);showError(String(err?.message||err));btn.disabled=false;btn.textContent=old}};
+ btn.onclick=async()=>{window.hlgbHubSaveTrace9483?.recordClick?.('edit-button');btn.disabled=true;const old=btn.textContent;btn.textContent='Salvando…';const wait=setTimeout(()=>{if(btn.isConnected)btn.textContent='Ainda salvando…'},8000);try{const next=readForm(e);await persist(e,next);clearTimeout(wait);close();refreshLater()}catch(err){clearTimeout(wait);console.error('[HLGB Hub Editor '+V+']',err);showError(String(err?.message||err));btn.disabled=false;btn.textContent=old}};
  requestAnimationFrame(()=>{try{window.scrollTo(x,y)}catch(_){}});return true
 }
 function open(id){const e=find(id);if(!e){alert('Não encontrei esse lançamento no Hub. Atualize a tela e tente novamente.');return false}return mount(e)}
