@@ -106,6 +106,9 @@ jobs:
       - name: Validate Auditor residual runtime version v94.56
         run: node tests/auditor-residual-version-v9456.cjs
 
+      - name: Validate Auditor candidate-read error safety v94.80
+        run: node tests/auditor-candidate-errors-v9480.cjs
+
       - name: Validate Auditor visible pending evidence v94.79
         run: node tests/auditor-visible-evidence-v9479.cjs
 
