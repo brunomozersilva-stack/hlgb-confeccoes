@@ -34,6 +34,7 @@ function setup(){
    setInterval:()=>1,clearInterval:()=>{},setTimeout:()=>1,Date,Math,JSON,
    structuredClone,CustomEvent:function(_type,opts){this.detail=opts.detail},
    setCloudStatus:(s,t)=>status.push({s,t})};
+ ctx.localSaveOnly=()=>ctx.localStorage.setItem('large-db',JSON.stringify(db));
  vm.createContext(ctx);vm.runInContext(src,ctx);
  return {win,db,snaps,server,calls,status,events,navigator,
   get writes(){return writes},setDropAck:v=>dropAck=v,setCorruptRead:v=>corruptRead=v,setForceOkOnly:v=>forceOkOnly=v};
