@@ -95,6 +95,8 @@ jobs:
         run: |
           python3 -m http.server 4173 >/tmp/hlgb-9448-http.log 2>&1 &
           sleep 2
+      - name: P0 - abertura real index/abrir/app sem login simulado
+        run: node tests/p0-canonical-startup-v9475.js
       - name: Login real continua abrindo
         run: node tests/login-3d-v9409-webkit.js
       - name: Auditor continua com uma ação
