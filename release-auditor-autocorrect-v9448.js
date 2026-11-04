@@ -39,7 +39,7 @@ function pendingEvidence9479(summary){
  const fmt=v=>esc(sid(v).slice(0,450));
  const row=(label,detail)=>'<li><b>'+fmt(label)+'</b> — '+fmt(detail||'Sem detalhe capturado')+'</li>';
  const findings=needs.length?'<p><b>Problemas que exigem código/prova ('+needs.length+')</b></p><ul>'+needs.slice(0,20).map(x=>row(x.id||x.action||'pendência',x.detail||x.requires)).join('')+'</ul>':'';
- const walCount=Number.isFinite(Number(wal.count))?Number(wal.count):null;
+ const walCount=wal.count!==null&&wal.count!==undefined&&Number.isFinite(Number(wal.count))?Number(wal.count):null;
  const walItems=Array.isArray(wal.items)?wal.items:[];
  const walInfo=walCount!==null?'<p><b>WAL IndexedDB ('+walCount+')</b> · prova remota '+(proof.attempted?'tentada':'não executada')+' · cópias comprovadas removidas: '+fmt(proof.removed||0)+'</p>'+(walItems.length?'<ul>'+walItems.slice(0,20).map(x=>row([x.module,x.id].filter(Boolean).join(' / ')||x.key||'registro',x.opId?'Operação '+x.opId:'Sem opId informado')).join('')+'</ul>':''):'';
  const residual=candidates.length?'<p><b>Resíduos de Produção ('+candidates.length+')</b></p><ul>'+candidates.slice(0,20).map(x=>row(x.id||'registro',x.detail||x.classification||x.requires||'Sem classificação')).join('')+'</ul>':'';
