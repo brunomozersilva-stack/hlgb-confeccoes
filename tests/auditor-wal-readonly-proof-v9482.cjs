@@ -3,7 +3,7 @@ const fs=require('node:fs'),vm=require('node:vm'),assert=require('node:assert/st
 const source=fs.readFileSync('release-auditor-autocorrect-v9447.js','utf8');
 const sample={key:'routePlans|route-1',module:'routePlans',id:'route-1',opId:'op-abc',
  data:{id:'route-1',driver:'Entregas',stops:[{id:'a'},{id:'b'}],updatedAt:'2026-11-04T10:00:00Z'}};
-async function scenario(remote,available=true){
+async function scenario(remote,available=true,idbRows=[sample]){
  const transactionModes=[],requests=[],writes=[],events=[];
  const indexedDB={
   open(name){
@@ -14,7 +14,7 @@ async function scenario(remote,available=true){
      objectStoreNames:{contains:x=>x==='entries'},
      transaction(store,mode){
       assert.equal(store,'entries');transactionModes.push(mode);
-      return {objectStore(){return {getAll(){const g={};queueMicrotask(()=>{g.result=[structuredClone(sample)];g.onsuccess?.()});return g}}}}
+      return {objectStore(){return {getAll(){const g={};queueMicrotask(()=>{g.result=structuredClone(idbRows);g.onsuccess?.()});return g}}}}
      },
      close(){}
     };
@@ -65,6 +65,16 @@ async function scenario(remote,available=true){
  const missing=await scenario(null);
  assert.equal(missing.out.walProof.missing,1);
  assert.equal(missing.out.walProof.status,'not-confirmed');
+ const extraRows=Array.from({length:10},(_,i)=>({
+  ...sample,key:'routePlans|route-'+i,id:'route-'+i,opId:'op-'+i,
+  data:{...sample.data,id:'route-'+i}
+ }));
+ // Remote returns only route-1, so this run still tests that records beyond the 8-item limit
+ // cannot silently be counted as verified.
+ const extra=await scenario(sample.data,true,extraRows);
+ assert.equal(extra.out.walProof.checked,8);
+ assert.equal(extra.out.walProof.unverified>=2,true);
+ assert.equal(extra.out.walProof.status,'partially-unverified');
  const disconnected=await scenario(sample.data,false);
  assert.equal(disconnected.out.walProof.status,'cloud-api-unavailable');
  assert.equal(disconnected.out.walProof.attempted,false);
