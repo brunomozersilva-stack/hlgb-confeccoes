@@ -10,7 +10,7 @@ const doc={getElementById:id=>id==='factionChecklistTable9176'?box:id==='faction
 const db={materialChecklists:[{id:7,destinationType:'F',destinationName:'Roseli',productName:'Fio Briana',status:'Pendente',createdAt:'2026-11-03',qty:40,materials:[]}]};
 const ctx={document:doc,db,showClosedChecklist9198:false,
  n9198:v=>String(v||'').toLowerCase(),checklistClosed9198:()=>false,
- checklistMaterialRows9198:()=>[],fmtDate:x=>x,fmtQty:x=>x,esc9198:x=>String(x),
+ checklistMaterialRows9198:()=>[],fmtDate:x=>x,fmtQty9198:x=>x,esc9198:x=>String(x),
  gradeCompact9198:()=>'',table:(_headers,rows)=>JSON.stringify(rows),String,Array,Number,Object,console};
 vm.createContext(ctx);vm.runInContext(app.slice(begin,end),ctx);
 ctx.renderFactionChecklists9198();
