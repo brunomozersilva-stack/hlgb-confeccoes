@@ -97,6 +97,8 @@ jobs:
           sleep 2
       - name: P0 - abertura real index/abrir/app sem login simulado
         run: node tests/p0-canonical-startup-v9475.js
+      - name: P0 - URL canônica abre login real (Chrome e WebKit)
+        run: node tests/p0-canonical-startup-v9475.js
       - name: Login real continua abrindo
         run: node tests/login-3d-v9409-webkit.js
       - name: Auditor continua com uma ação
