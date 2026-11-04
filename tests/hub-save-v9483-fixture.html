@@ -1,0 +1,42 @@
+<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><title>HLGB P0 Hub v94.83 isolated test</title></head><body>
+<div id="hubFinanceiro" class="page active"><h1>Hub Financeiro — fixture isolada</h1><div id="uiRows"></div></div>
+<div id="modal" hidden></div>
+<script>
+window.__fixture={rpcCalls:[],statuses:[],dropAckOnce:false,remote:new Map(),lastAlert:''};
+const old={id:'hub-fixture-old',flow:'Saída',date:'2026-11-23',description:'Entrada existente',
+  category:'Matéria-prima',value:25,status:'Previsto',acceptedMethods:['Pix'],createdAt:'2026-11-01T00:00:00.000Z',updatedAt:'2026-11-01T00:00:00.000Z'};
+window.db={hubFinanceEntries:[structuredClone(old)]};
+window.hlgbRecordSnapshots={hubFinanceEntries:new Map([['hub-fixture-old',{data:structuredClone(old),revision:4,deleted_at:null}]])};
+window.__fixture.remote.set('hub-fixture-old',{module:'hubFinanceEntries',entity_id:'hub-fixture-old',data:structuredClone(old),revision:4,deleted_at:null,updated_at:'2026-11-01T00:00:00.000Z'});
+window.setCloudStatus=(s,t)=>window.__fixture.statuses.push({s,t});
+window.localSaveOnly=()=>{throw new DOMException('Simulated Safari quota failure','QuotaExceededError')};
+window.cloudRequest=async(q,opts)=>{
+ if(opts?.method!=='GET'||!q.startsWith('hlgb_records?'))throw Error('Unexpected URL '+q);
+ const match=q.match(/entity_id=eq\.([^&]+)/),id=decodeURIComponent(match?.[1]||'');
+ const v=window.__fixture.remote.get(id);
+ return v?[structuredClone(v)]:[];
+};
+window.hlgbRecordRpcSave=async(module,id,data,revision,deleted)=>{
+ window.__fixture.rpcCalls.push({module,id,revision,deleted});
+ const old=window.__fixture.remote.get(String(id));
+ if((old?.revision||0)!==revision||deleted)return {applied:false,reason:'conflict'};
+ const next={module,entity_id:String(id),data:structuredClone(data),revision:revision+1,deleted_at:null,updated_at:new Date().toISOString()};
+ window.__fixture.remote.set(String(id),next);
+ if(window.__fixture.dropAckOnce){window.__fixture.dropAckOnce=false;throw new Error('simulated ACK lost after commit')}
+ return {applied:true,revision:next.revision,data:structuredClone(data),deleted_at:null};
+};
+window.renderHubFinance=()=>{document.getElementById('uiRows').textContent=window.db.hubFinanceEntries.map(x=>x.description+': '+x.value).join(' | ')};
+window.renderHubDue9185=()=>{};
+window.hlgb916HubForm=()=>'<div id="hlgb916HubForm"><input id="testDesc" value=""><input id="testValue" type="number" value="0"><input id="testDate" value="2026-11-23"></div>';
+window.hlgb916ReadHubForm=flow=>({flow,description:document.getElementById('testDesc').value,value:Number(document.getElementById('testValue').value),date:document.getElementById('testDate').value,category:'Matéria-prima',status:'Previsto',acceptedMethods:['Pix']});
+window.openModal=(_title,html,onSave)=>{
+ const root=document.getElementById('modal');root.innerHTML=html;root.hidden=false;
+ root.querySelector('.modalSave').addEventListener('click',()=>{Promise.resolve(onSave()).catch(err=>{window.__fixture.lastAlert=String(err)})});
+};
+window.closeModal=()=>{document.getElementById('modal').hidden=true;document.getElementById('modal').innerHTML=''};
+window.alert=s=>{window.__fixture.lastAlert=String(s)};
+</script>
+<script src="../release-hub-editor-v9270.js"></script>
+<script src="../release-hub-primary-v9323.js"></script>
+<script src="../release-hub-delivery-v9324.js"></script>
+</body></html>
