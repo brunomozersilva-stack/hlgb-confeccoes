@@ -1,0 +1,16 @@
+const fs=require('node:fs'),vm=require('node:vm'),assert=require('node:assert/strict');
+const s=fs.readFileSync('release-sync-recovery-v9301.js','utf8');
+const begin=s.indexOf('function snapshotRevisionIndex(since){'),end=s.indexOf('async function incrementalSync(force=false){',begin);
+assert(begin>=0&&end>begin,'incremental snapshot functions exist');
+const snapshot={products:new Map([['1',{revision:4,updated_at:'2026-11-03T19:10:00Z',deleted_at:null}],['2',{revision:1,updated_at:'2026-11-03T19:09:00Z',deleted_at:null}]]),payroll:new Map([['p',{revision:2,updated_at:'2026-11-03T19:11:00Z',deleted_at:null}]])};
+const ctx={hlgbRecordSnapshots:snapshot,window:{},Map,Object,Array,Date,JSON,Number,String};
+vm.createContext(ctx);vm.runInContext(s.slice(begin,end),ctx);
+const baseline=ctx.snapshotRevisionIndex('2026-11-03T19:00:00Z');
+const same=[{module:'products',entity_id:'1',revision:4,updated_at:'2026-11-03T19:10:00Z',deleted_at:null},{module:'payroll',entity_id:'p',revision:2,updated_at:'2026-11-03T19:11:00Z',deleted_at:null}];
+assert.equal(ctx.changedRecordRows(same,baseline).length,0,'overlapping rows should not trigger redraw');
+const changed=[same[0],{...same[1],revision:3,updated_at:'2026-11-03T19:12:00Z'}];
+assert.equal(ctx.changedRecordRows(changed,baseline).length,1,'changed revision should trigger one redraw');
+assert.equal(ctx.changedRecordRows([{module:'products',entity_id:'3',revision:1,updated_at:'2026-11-03T19:13:00Z'}],baseline).length,1,'new remote row must not be lost');
+assert.equal(ctx.changedRecordRows([{...same[0],deleted_at:'2026-11-03T19:15:00Z',revision:5}],baseline).length,1,'deletion should trigger redraw');
+assert.equal(ctx.changedRecordRows(same,null).length,2,'unknown snapshot should fall back to safe redraw');
+console.log('PASS incremental sync: duplicate overlap zero redraw, new/change/tombstone trigger render, unknown baseline fallback');

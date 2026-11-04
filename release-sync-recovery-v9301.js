@@ -136,6 +136,32 @@ async function fullSync(reason='manual',force=false){
    console.error('[HLGB sync '+V+'] full',reason,e);setStatus('☁️ Alterações protegidas · reconectando','bad');snapshotState();return false;
  }finally{busy=false;snapshotState()}
 }
+// A leitura incremental traz uma janela com sobreposição. Linhas retornadas não
+// significam mudanças; só uma revisão/estado diferente justifica redesenhar a tela.
+function snapshotRevisionIndex(since){
+ let snapshots;
+ try{snapshots=typeof hlgbRecordSnapshots!=='undefined'?hlgbRecordSnapshots:window.hlgbRecordSnapshots}catch(e){snapshots=null}
+ if(!snapshots||typeof snapshots!=='object')return null;
+ const out=new Map(),threshold=Date.parse(since||'')||0;
+ for(const [module,items] of Object.entries(snapshots)){
+  if(!(items instanceof Map))continue;
+  for(const [id,row] of items){
+   if(!row||Date.parse(row.updated_at||'')<threshold)continue;
+   out.set(JSON.stringify([module,String(id)]),[Number(row.revision)||0,String(row.updated_at||''),String(row.deleted_at||'')]);
+  }
+ }
+ return out;
+}
+function changedRecordRows(rows,before){
+ if(!Array.isArray(rows))return [];
+ if(!before)return rows; // Conservador se o snapshot ainda não está disponível.
+ return rows.filter(row=>{
+  if(!row||row.module==null||row.entity_id==null)return false;
+  const old=before.get(JSON.stringify([String(row.module),String(row.entity_id)]));
+  if(!old)return true;
+  return old[0]!== (Number(row.revision)||0)||old[1]!==String(row.updated_at||'')||old[2]!==String(row.deleted_at||'');
+ });
+}
 async function incrementalSync(force=false){
  if(busy||!navigator.onLine||document.visibilityState==='hidden'||!loggedIn()||userEditing())return false;
  if(!ready()||!token())return fullSync('incremental-not-ready',true);
@@ -164,11 +190,13 @@ async function incrementalSync(force=false){
    const t=Date.parse(cursor);const since=Number.isFinite(t)?new Date(Math.max(0,t-OVERLAP_MS)).toISOString():null;
    if(!since){busy=false;snapshotState();return fullSync('incremental-bad-cursor',true)}
    const load=loadBundleFn();if(typeof load!=='function')throw new Error('Leitura por registro indisponível');
+   const before=snapshotRevisionIndex(since);
    const out=await load({preserveLocal:true,since});markReady();saveLocal();
    lastCloudVerify=Date.now();
-   const rows=Array.isArray(out?.rows)?out.rows:[];if(rows.length)redrawCurrent();
+   const rows=Array.isArray(out?.rows)?out.rows:[],changes=changedRecordRows(rows,before);
+   if(changes.length)redrawCurrent();
    restartRealtimeIfNeeded(false);lastIncremental=Date.now();
-   const p=pendingCounts();lastResult={ok:p.records+p.wal===0,kind:'incremental',at:new Date().toISOString(),since,rows:rows.length,flush,pending:p,realtime:realtimeState()};
+   const p=pendingCounts();lastResult={ok:p.records+p.wal===0,kind:'incremental',at:new Date().toISOString(),since,rows:rows.length,changedRows:changes.length,changedModules:[...new Set(changes.map(x=>String(x?.module||'')))],flush,pending:p,realtime:realtimeState()};
    if(p.records+p.wal)setStatus('⚠️ '+(p.records+p.wal)+' alteração(ões) aguardando confirmação','warn');
    snapshotState();return lastResult.ok;
  }catch(e){console.warn('[HLGB sync '+V+'] incremental',e);lastResult={ok:false,kind:'incremental',at:new Date().toISOString(),error:sid(e?.message||e),pending:pendingCounts()};snapshotState();return false}

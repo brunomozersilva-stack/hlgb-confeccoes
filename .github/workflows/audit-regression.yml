@@ -61,6 +61,9 @@ jobs:
       - name: Validate stable router render after visible restore
         run: node tests/audit-app-stable3-restored-render-regression.cjs
 
+      - name: Validate incremental sync delta-only redraw v94.62
+        run: node tests/sync-incremental-delta-v9462.cjs
+
       - name: Validate independent remote module queues v94.61
         run: node tests/incoming-module-queue-v9461.cjs
 
