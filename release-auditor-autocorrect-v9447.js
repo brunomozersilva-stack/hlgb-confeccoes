@@ -101,7 +101,8 @@ async function walRemoteReadOnlyProof9482(max=8){
  if(idb.status!=='ok')return result;
  const ops=idb.rows.slice(0,Math.max(1,max));
  if(!ops.length){result.status='empty';return result}
- if(!authReady()||typeof window.cloudRequest!=='function'){result.status='cloud-api-unavailable';result.unverified=ops.length;return result}
+ result.unverified=Math.max(0,idb.rows.length-ops.length); // Restante não consultado também exige prova.
+ if(!authReady()||navigator?.onLine===false||typeof window.cloudRequest!=='function'){result.status='cloud-api-unavailable';result.unverified=idb.rows.length;return result}
  result.attempted=true;result.status='checked';
  for(const op of ops){
   const module=sid(op?.module),id=sid(op?.id),opId=sid(op?.opId);
