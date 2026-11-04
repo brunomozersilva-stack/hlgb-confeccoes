@@ -84,7 +84,7 @@ function mount(e){
  css();document.body.insertAdjacentHTML('beforeend',html(e));
  const root=document.getElementById('hlgbHubEditor9270'),btn=root?.querySelector('.he-save9286');if(!root||!btn){window.HLGB_HUB_EDITING=false;return false}
  root.querySelector('.he-close9286').onclick=close;root.querySelector('.he-cancel9286').onclick=close;root.querySelector('#heFlow9286').onchange=()=>replacePayment(e);root.querySelector('#heDateBtn9286').onclick=toggleCalendar;root.querySelector('#heDate9286').onclick=toggleCalendar;root.querySelector('#heCalendar9286').onclick=calendarClick;
- btn.onclick=async()=>{btn.disabled=true;const old=btn.textContent;btn.textContent='Salvando…';const wait=setTimeout(()=>{if(btn.isConnected)btn.textContent='Ainda salvando…'},8000);try{const next=readForm(e);await persist(e,next);clearTimeout(wait);close();refreshLater()}catch(err){clearTimeout(wait);console.error('[HLGB Hub Editor '+V+']',err);showError(String(err?.message||err));btn.disabled=false;btn.textContent=old}};
+ btn.onclick=async()=>{window.hlgbHubSaveTrace9483?.recordClick?.('edit-button');btn.disabled=true;const old=btn.textContent;btn.textContent='Salvando…';const wait=setTimeout(()=>{if(btn.isConnected)btn.textContent='Ainda salvando…'},8000);try{const next=readForm(e);await persist(e,next);clearTimeout(wait);close();refreshLater()}catch(err){clearTimeout(wait);console.error('[HLGB Hub Editor '+V+']',err);showError(String(err?.message||err));btn.disabled=false;btn.textContent=old}};
  requestAnimationFrame(()=>{try{window.scrollTo(x,y)}catch(_){}});return true
 }
 function open(id){const e=find(id);if(!e){alert('Não encontrei esse lançamento no Hub. Atualize a tela e tente novamente.');return false}return mount(e)}
