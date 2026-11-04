@@ -119,10 +119,7 @@ async function save(row,deleted=false,opts={}){
    if(existing.deleted_at)throw new Error('Lançamento excluído na nuvem. Recarregue antes de editar.');
    const serverRev=revisionOf(existing);
    if(serverRev===null)throw new Error('Servidor não retornou revisão válida.');
-   const snap=snapshotFor(id),snapRev=revisionOf(snap);
-   if(snapRev!==null&&snapRev!==serverRev)throw new Error('Conflito: outra sessão alterou este lançamento. Recarregue antes de salvar.');
-   if(opts?.original&&!sameBusiness(existing.data,opts.original)&&!sameBusiness(existing.data,payload))
-    throw new Error('Conflito: o conteúdo foi alterado em outro computador. Recarregue antes de salvar.');
+   // Igualdade exata apos ACK perdido e uma confirmacao idempotente, mesmo se o snapshot ainda esta atrasado.
    if(sameBusiness(existing.data,payload)){
     // Retry idempotente após ACK perdido, ou campo de negócio inalterado.
     signal('remote-readback',{revision:serverRev});
@@ -132,6 +129,10 @@ async function save(row,deleted=false,opts={}){
     return {applied:true,remoteVerified:true,fromReadback:true,data:clone(existing.data),
       revision:serverRev,updated_at:existing.updated_at,deleted_at:null};
    }
+   const snap=snapshotFor(id),snapRev=revisionOf(snap);
+   if(snapRev!==null&&snapRev!==serverRev)throw new Error('Conflito: outra sessão alterou este lançamento. Recarregue antes de salvar.');
+   if(opts?.original&&!sameBusiness(existing.data,opts.original))
+    throw new Error('Conflito: o conteúdo foi alterado em outro computador. Recarregue antes de salvar.');
    fallbackExisting++;expected=serverRev;
   }else if(opts?.original){
    throw new Error('O lançamento original não existe na nuvem. Não foi criada uma cópia com outro ID.');
