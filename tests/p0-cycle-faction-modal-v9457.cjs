@@ -1,0 +1,20 @@
+const fs=require('node:fs'),vm=require('node:vm'),assert=require('node:assert/strict');
+function body(path,first,last){const s=fs.readFileSync(path,'utf8'),a=s.indexOf(first),b=s.indexOf(last,a);assert(a>=0&&b>a,path+' function region');return s.slice(a,b)}
+const src=body('release-sync-diagnostic-runtime-v9350.js','function chainProbe(start){','function runtimeState(data){');
+const ctx={POINTERS:['__original'],functionSummary:(fn,i)=>({name:fn.name,depth:i+1}),Set,Object,Array};
+vm.createContext(ctx);vm.runInContext(src,ctx);
+const leaf=function leaf(){};let out=ctx.chainProbe(leaf);assert.equal(out.stop,'no-pointer');assert.equal(out.depth,1);
+const a=function a(){},b=function b(){},c=function c(){};a.__original=b;b.__original=c;
+out=ctx.chainProbe(a);assert.equal(out.stop,'no-pointer');assert.equal(out.depth,3);
+c.__original=b;out=ctx.chainProbe(a);assert.equal(out.stop,'cycle');assert.equal(out.depth,3);
+c.__original=c;out=ctx.chainProbe(a);assert.equal(out.stop,'cycle');assert.equal(out.depth,3);
+const repair=body('release-diagnostic-faction-stability-v9423.js','function repairFactionSelect(){','/* Atribuição:');
+let input={tagName:'INPUT',value:'Cliente NÃO pode ser alterado',innerHTML:'CLIENT'};
+const select={tagName:'SELECT',value:'Roseli',options:[{textContent:'Roseli'}],_html:'',set innerHTML(v){this._html=v},get innerHTML(){return this._html}};
+const el={querySelectorAll:()=>[input]};
+const ui={document:el,factionNames:()=>['Roseli'],norm:x=>String(x||'').toLowerCase(),sid:x=>String(x??''),esc:x=>String(x),state:{factionSelectRepairs:0},Array};
+vm.createContext(ui);vm.runInContext(repair,ui);
+assert.equal(ui.repairFactionSelect(),false,'CLIENT input must not be used as faction select');assert.equal(input.value,'Cliente NÃO pode ser alterado');
+el.querySelectorAll=()=>[input,select];assert.equal(ui.repairFactionSelect(),false,'matching faction dropdown needs no redraw');
+ui.factionNames=()=>['Roseli','Vanessa'];assert.equal(ui.repairFactionSelect(),true,'faction dropdown should update from canonical options');assert(select.innerHTML.includes('Vanessa'));assert.equal(select.value,'Roseli');assert.equal(ui.state.factionSelectRepairs,1);
+console.log('PASS P0: wrapper leaf is not cycle, true cycles detected, Client INPUT ignored, Faction SELECT preserved');
