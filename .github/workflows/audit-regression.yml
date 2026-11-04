@@ -61,6 +61,9 @@ jobs:
       - name: Validate stable router render after visible restore
         run: node tests/audit-app-stable3-restored-render-regression.cjs
 
+      - name: Validate wrapper graph diamond versus cycle v94.60
+        run: node tests/auditor-graph-diamond-v9460.cjs
+
       - name: Validate cold-login Production reconciler v94.59
         run: node tests/production-reconcile-cold-login-v9459.cjs
 
