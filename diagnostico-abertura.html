@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta http-equiv="Cache-Control" content="no-store">
+<title>HLGB — Diagnóstico seguro de abertura</title>
+<style>
+:root{color-scheme:light;font-family:system-ui,-apple-system,Arial,sans-serif;background:#fbf6f8;color:#30262c}
+body{margin:0;padding:20px}main{max-width:760px;margin:30px auto;background:white;border:1px solid #e6dce2;border-radius:18px;padding:24px}
+h1{font-size:1.6rem;color:#743953}p{line-height:1.6}.muted{color:#695c64}
+button,a.go{font:inherit;border-radius:9px;padding:10px 14px;border:1px solid #a45f7d;background:white;color:#743953;cursor:pointer;display:inline-block;text-decoration:none;margin:4px 6px 4px 0}
+button.primary{background:#743953;color:#fff}.ok{color:#136844}.fail{color:#a61e33}.wait{color:#6c5d65}
+article{border:1px solid #eee5ea;border-radius:10px;padding:10px 12px;margin:8px 0}
+article strong{display:block}pre{white-space:pre-wrap;overflow-wrap:anywhere;font-size:12px;background:#faf6f8;padding:12px;border:1px solid #eee5ea;border-radius:8px;max-height:240px;overflow:auto}
+</style>
+</head>
+<body>
+<main>
+<h1>HLGB Confecções — diagnóstico de abertura</h1>
+<p>Esta página confere a conexão com os arquivos do sistema e o estado do navegador. <strong>Não apaga dados, não modifica pendências e não tenta acessar informações financeiras.</strong></p>
+<div id="items" role="status" aria-live="polite"><p>Preparando testes de carregamento…</p></div>
+<p><button class="primary" id="copy" type="button" disabled>Copiar diagnóstico para enviar ao suporte</button>
+<button type="button" id="rerun">Verificar novamente</button>
+<a class="go" href="./abrir.html">Tentar abrir o HLGB</a></p>
+<p class="muted">Se o sistema ainda não abrir, envie o texto copiado. Não apague os dados do Safari nem limpe o site enquanto houver alterações pendentes.</p>
+<pre id="raw" aria-label="Relatório técnico sem dados sensíveis"></pre>
+</main>
+<script>
+(()=>{
+'use strict';
+const checks=[
+ {file:'abrir.html',marker:'app-stable3.html'},
+ {file:'app-stable3.html',marker:'app9240.html'},
+ {file:'app9240.html',marker:'id="loginScreen"'},
+ {file:'release-login-confirm-gate-v9407.js',marker:'hlgbLoginConfirmGate9407'},
+ {file:'release-sync-recovery-v9301.js',marker:'hlgbSyncRecovery9301'}
+];
+const items=document.getElementById('items'),raw=document.getElementById('raw'),copy=document.getElementById('copy');
+let report=null;
+const clean=s=>String(s||'').slice(0,200).replace(/https?:\/\/\S+/g,'[endereço]');
+function line(result){
+ const el=document.createElement('article'),status=document.createElement('strong'),detail=document.createElement('span');
+ status.className=result.ok?'ok':'fail';status.textContent=(result.ok?'✓ ':'✕ ')+result.file;
+ detail.textContent=' · '+result.status+' · '+result.ms+' ms'+(result.bytes?' · '+result.bytes+' bytes':'')+(result.error?' · '+result.error:'');
+ el.append(status,detail);return el;
+}
+async function checkFile(test){
+ const started=performance.now(),controller=new AbortController();
+ const timer=setTimeout(()=>controller.abort(),18000);
+ try{
+  const response=await fetch('./'+test.file+'?hlgb_probe='+Date.now(),{cache:'no-store',signal:controller.signal});
+  const text=await response.text(),ok=response.ok&&text.includes(test.marker);
+  return {file:test.file,ok,status:response.status,ms:Math.round(performance.now()-started),bytes:text.length,error:!response.ok?'HTTP '+response.status:!ok?'Arquivo incompleto ou inesperado':''};
+ }catch(e){
+  return {file:test.file,ok:false,status:'indisponível',ms:Math.round(performance.now()-started),bytes:0,error:clean(e?.name||e?.message||e)};
+ }finally{clearTimeout(timer)}
+}
+async function run(){
+ copy.disabled=true;items.textContent='Executando verificações somente leitura…';raw.textContent='';
+ const start=new Date().toISOString();
+ const sw={supported:'serviceWorker' in navigator,controller:!!navigator.serviceWorker?.controller,scope:'não consultado'};
+ try{
+  const reg=await navigator.serviceWorker?.getRegistration?.('./');
+  sw.scope=reg?'registrado':'não registrado';
+ }catch(e){sw.scope='consulta não permitida'}
+ let storage='não consultado';
+ try{storage=typeof localStorage==='object'?'disponível':'indisponível'}catch(e){storage='bloqueado'}
+ const results=await Promise.all(checks.map(checkFile));
+ report={name:'HLGB boot diagnostic',version:'94.76',startedAt:start,entry:location.pathname,online:navigator.onLine,platform:navigator.platform||'',userAgent:navigator.userAgent||'',storage,serviceWorker:sw,results};
+ items.textContent='';
+ for(const result of results)items.appendChild(line(result));
+ const passed=results.filter(x=>x.ok).length;
+ const summary=document.createElement('p');summary.className=passed===results.length?'ok':'fail';
+ summary.textContent=passed+' de '+results.length+' arquivos essenciais carregados corretamente.';items.prepend(summary);
+ raw.textContent=JSON.stringify(report,null,2);
+ copy.disabled=false;
+}
+document.getElementById('rerun').addEventListener('click',run);
+copy.addEventListener('click',async()=>{if(!report)return;const payload=JSON.stringify(report,null,2);
+ try{await navigator.clipboard.writeText(payload);copy.textContent='Copiado! Cole na conversa do ChatGPT'}
+ catch(e){const ta=document.createElement('textarea');ta.value=payload;ta.style.width='100%';raw.replaceWith(ta);ta.focus();ta.select();copy.textContent='Selecione e copie o texto acima'}
+});
+run().catch(e=>{items.textContent='O diagnóstico foi interrompido: '+clean(e?.message||e)});
+})();
+</script>
+</body>
+</html>
