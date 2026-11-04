@@ -1,0 +1,14 @@
+const fs=require('fs'),vm=require('vm'),assert=require('node:assert/strict');
+const src=fs.readFileSync('release-daily-safety.js','utf8');
+const expected="Number(sync?.summary?.normalizedPending||0)+Number(sync?.summary?.walLocalStorage||0)+Number(sync?.summary?.walIndexedDb||0)";
+assert(src.includes("pendingSync:"+expected),'daily counter must include all three durable stores');
+assert(src.includes("syncPendingTotal:"+expected),'support package must include all three stores');
+assert(src.includes("pendingSyncDetails:{normalized:"),'per-store status must be transparent');
+assert(src.includes("currentAuditSummary:audit?.summary||null"),'export must distinguish current audit from previous daily run');
+assert(src.includes("dailySummaryAgeMs:last?.completedAt"),'export must measure staleness of prior daily summary');
+assert(src.includes("Pendências (registros + WAL local + IndexedDB)"),'screen must explain combined count');
+const count=sync=>vm.runInNewContext(expected,{sync,Number});
+assert.equal(count({summary:{normalizedPending:0,walLocalStorage:0,walIndexedDb:1}}),1,'IDB-only queue cannot be zero');
+assert.equal(count({summary:{normalizedPending:2,walLocalStorage:3,walIndexedDb:1}}),6);
+assert.equal(count({summary:{normalizedPending:0,walLocalStorage:0,walIndexedDb:0}}),0);
+console.log('PASS daily v94.70: full pending count, current audit separate from stale daily summary');
