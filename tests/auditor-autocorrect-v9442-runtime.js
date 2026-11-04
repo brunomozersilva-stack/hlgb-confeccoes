@@ -21,7 +21,7 @@ const kind=process.env.HLGB_BROWSER||'webkit',engine=kind==='chromium'?chromium:
   gate:window.hlgbLoginConfirmGate9407?.status?.()
  }));
  if(real.ack.version!=='94.36'||real.ack.install!=='function')throw new Error('ACK real indisponível '+JSON.stringify(real.ack));
- if(real.production.version!=='94.39'||real.production.patch!=='94.42-safe-proof'||real.production.reconcile!=='function'||real.production.candidates!=='function')throw new Error('Produção real/patch indisponível '+JSON.stringify(real.production));
+ if(real.production.version!=='94.50'||real.production.patch!=='94.42-safe-proof'||real.production.reconcile!=='function'||real.production.candidates!=='function')throw new Error('Produção real/patch indisponível '+JSON.stringify(real.production));
  if(real.rapid.version!=='94.37'||real.rapid.heal!=='function')throw new Error('Rapid real indisponível '+JSON.stringify(real.rapid));
  if(real.finalizer.version!=='94.39'||real.finalizer.install!=='function')throw new Error('Finalizador real indisponível '+JSON.stringify(real.finalizer));
  if(!real.autocorrect.status?.preparation?.ready)throw new Error('Autocorretor 94.42 não confirmou dependências '+JSON.stringify(real.autocorrect));
