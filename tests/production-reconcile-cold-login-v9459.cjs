@@ -1,0 +1,12 @@
+const fs=require('node:fs'),assert=require('node:assert/strict');
+const reconciler=fs.readFileSync('release-production-reconcile-v9439.js','utf8');
+const loader=fs.readFileSync('release-login-confirm-gate-v9407.js','utf8');
+const version=reconciler.match(/const V='([^']+)',PATCH='([^']+)'/);
+assert(version,'Production reconciliation module version and contract must be declared');
+const m=loader.match(/function loadProductionReconcile9439\(reason\)\{return loadOnce\(\{src:'\.\/release-production-reconcile-v9439\.js'.*?\}\)\}/s);
+assert(m,'Authenticated loader must invoke Production reconciliation through loadOnce');
+assert(m[0].includes("window.HLGB_PRODUCTION_RECONCILE_9439==='"+version[1]+"'"),'Loader must recognize actual exported version '+version[1]);
+assert(m[0].includes("window.hlgbProductionReconcile9439?.patch==='"+version[2]+"'"),'Loader must require safe proof contract');
+assert(m[0].includes("typeof window.hlgbProductionReconcile9439?.reconcile==='function'"),'Loader must require reconcile capability');
+assert(!m[0].includes("==='94.39'"),'Stale version must not block cold login');
+console.log('PASS cold-login Production reconcile loader version '+version[1]+' and safe proof '+version[2]);
