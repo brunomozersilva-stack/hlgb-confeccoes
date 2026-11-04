@@ -10,9 +10,9 @@ assert(guard.includes('if(editing())return false'),'organização do Hub não po
 
 const hub=src('release-hub-editor-v9270.js');
 assert(hub.includes("const V='92.86'"),'editor atual deve declarar v92.86');
-assert(hub.includes('window.hlgbHubSaveConfirmed'),'editor deve preferir autoridade confirmada do Hub');
+assert(hub.includes('window.hlgbHubDelivery9324?.save'),'editor deve usar a autoridade remota com RPC e leitura do Hub');
 assert(hub.includes('window.editHubFinanceEntry=open'));assert(hub.includes('window.quickEditHub9185=open'));
-assert(hub.includes('out===true||out?.applied===true||out?.ok===true||out?.success===true||out?.saved===true'),'editor deve aceitar respostas válidas de confirmação');
+assert(hub.includes('out?.remoteVerified===true'),'editor deve aceitar somente confirmação remota com revisão');
 
 const compat=src('release-assistant-ui-v9269.js');
 assert(compat.includes("version:'92.78',disabled:true,replacedBy:'release-assistant-ui-light-v9277.js'"),'UI pesada antiga deve ser somente compatibilidade');
