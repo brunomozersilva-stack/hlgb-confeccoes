@@ -37,6 +37,7 @@ function newEntry(flow){
  const formFn=window.hlgb916HubForm||((typeof hlgb916HubForm==='function')?hlgb916HubForm:null),readFn=window.hlgb916ReadHubForm||((typeof hlgb916ReadHubForm==='function')?hlgb916ReadHubForm:null),toggleDate=window.hlgb916ToggleHubChequeDate||((typeof hlgb916ToggleHubChequeDate==='function')?hlgb916ToggleHubChequeDate:null);
  if(typeof openModal!=='function'||typeof formFn!=='function'||typeof readFn!=='function'){alert('O formulário do Hub não terminou de carregar. Atualize a página e tente novamente.');return false}
  openModal(`Nova ${kind.toLowerCase()} prevista`,formFn({flow:kind})+`<button type="button" class="primary modalSave">Salvar lançamento</button>`,async()=>{
+   window.hlgbHubSaveTrace9483?.recordClick?.('create-button');
   const d=readFn(kind);if(!d)return false;
   const row={id:pendingId,...d,createdAt:new Date().toISOString(),updatedAt:new Date().toISOString()};
   const btn=document.querySelector('#modal .modalSave'),old=btn?.textContent||'Salvar lançamento';if(btn){btn.disabled=true;btn.textContent='💾 Salvando…'}
