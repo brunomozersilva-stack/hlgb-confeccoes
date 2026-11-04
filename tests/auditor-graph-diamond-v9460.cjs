@@ -1,0 +1,18 @@
+const fs=require('node:fs'),vm=require('node:vm'),assert=require('node:assert/strict');
+const file=fs.readFileSync('release-auditor-intelligence-v9396.js','utf8');
+const a=file.indexOf('function nextFns(fn){'),b=file.indexOf('function chainDepth(fn){',a);
+assert(a>=0&&b>a,'chainProfile and nextFns exist');
+const ctx={POINTERS:['__original','__other'],Set,Map,Object,Array,Math};vm.createContext(ctx);vm.runInContext(file.slice(a,b),ctx);
+const probe=fn=>ctx.chainProfile(fn);
+const leaf=function leaf(){};assert.equal(probe(leaf).cycle,false);assert.equal(probe(leaf).nodeCount,1);
+const head=function head(){},branch1=function branch1(){},branch2=function branch2(){},join=function join(){};
+head.__original=branch1;head.__other=branch2;branch1.__original=join;branch2.__original=join;
+let r=probe(head);assert.equal(r.cycle,false,'diamond graph must NOT count as a cycle');assert.equal(r.nodeCount,4);
+const aa=function aa(){},bb=function bb(){};aa.__original=bb;bb.__original=aa;
+r=probe(aa);assert.equal(r.cycle,true,'a->b->a is a real cycle');
+const self=function self(){};self.__original=self;assert.equal(probe(self).cycle,true);
+const one=function one(){},two=function two(){},three=function three(){};
+one.__original=two;two.__original=three;assert.equal(probe(one).cycle,false);assert.equal(probe(one).depth,3);
+const x=function x(){},y=function y(){};x.__original=y;x.__hlgbPayrollWalRace9346=true;
+let p=probe(x);assert.equal(p.duplicateResponsibilityCount,0,'one payroll guard is not duplicated');
+console.log('PASS Auditor wrapper graph: leaf, chain, diamond and real ancestor cycles');
