@@ -61,6 +61,9 @@ jobs:
       - name: Validate stable router render after visible restore
         run: node tests/audit-app-stable3-restored-render-regression.cjs
 
+      - name: Validate Realtime revision guard v94.65
+        run: node tests/realtime-revision-guard-v9465.cjs
+
       - name: Validate Faction checklist search focus v94.64
         run: node tests/faction-checklist-focus-v9464.cjs
 

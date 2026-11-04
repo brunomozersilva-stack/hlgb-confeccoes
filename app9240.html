@@ -11810,6 +11810,15 @@ function hlgbQueueNormalizedSync(delay=10){
 function hlgbApplyRecordRow(row){
   const module=String(row?.module||"");if(!HLGB_RECORD_MODULES.includes(module)||row?.entity_id==null)return false;
   const id=String(row.entity_id),arr=Array.isArray(db[module])?db[module]:[],idx=arr.findIndex((x,i)=>hlgbRecordId(module,x,i)===id);
+  // Eventos Realtime podem chegar fora de ordem ou ser repetidos no catch-up.
+  // Nunca substituir um snapshot confirmado mais novo nem renderizar um eco idêntico.
+  const previous=hlgbRecordSnapshots[module]?.get(id),newRevision=Number(row.revision)||0;
+  if(previous){
+    const oldRevision=Number(previous.revision)||0;
+    const oldTime=String(previous.updated_at||''),newTime=String(row.updated_at||'');
+    if(newRevision<oldRevision)return false;
+    if(newRevision===oldRevision&&(newTime<oldTime||(newTime===oldTime&&String(previous.deleted_at||'')===String(row.deleted_at||''))))return false;
+  }
   if(row.deleted_at){if(idx>=0)arr.splice(idx,1)}
   else {const data=hlgbRecordHydrateData(module,row);if(idx>=0)arr[idx]=data;else arr.push(data)}
   db[module]=arr;
@@ -11869,7 +11878,8 @@ async function hlgbHandleRecordRealtime(payload){
     if(payload.eventType==="DELETE")row={...row,deleted_at:row.deleted_at||new Date().toISOString()};
     const module=String(row.module||"");
     if(!HLGB_RECORD_MODULES.includes(module))return;
-    hlgbApplyRecordRow(row);localSaveOnly();
+    if(!hlgbApplyRecordRow(row))return; // eco ou revisão antiga: não redesenhar
+    localSaveOnly();
     hlgbRenderIncomingRecord(module);
     setCloudStatus("⚡ Online · atualização recebida","ok");
     setTimeout(()=>setCloudStatus("⚡ Online · multiusuário","ok"),650);
