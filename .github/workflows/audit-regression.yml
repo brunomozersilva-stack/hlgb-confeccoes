@@ -61,6 +61,9 @@ jobs:
       - name: Validate stable router render after visible restore
         run: node tests/audit-app-stable3-restored-render-regression.cjs
 
+      - name: Validate Auditor IndexedDB-only WAL proof v94.68
+        run: node tests/auditor-indexeddb-wal-v9468.cjs
+
       - name: Validate read-only filter remote refresh v94.67
         run: node tests/search-filter-remote-refresh-v9467.cjs
 
