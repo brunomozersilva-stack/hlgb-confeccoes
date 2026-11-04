@@ -47,8 +47,11 @@ async function edit(sender,receiver,id,name){
  await sender.waitForFunction(id=>hlgbPropagation.status().lastConfirmed?.id===String(id),key);
  const capture=tab=>tab.evaluate(()=>hlgbPropagation.evidence(parts=>parts.join('/')));
  await receiver.waitForFunction(name=>Array.from(document.querySelectorAll("#clientTable td")).some(e=>e.textContent===name),name);
+ const revision=await sender.evaluate(()=>hlgbPropagation.status().lastConfirmed.revision);
+ await receiver.waitForFunction(async({key,revision})=>(await hlgbPropagation.evidence(parts=>parts.join('/'))).probes.some(x=>x.key==='clients/'+key&&x.revision===revision&&x.receivedAt&&x.visualAt),{key,revision},{timeout:12000});
  const [a,b]=await Promise.all([capture(sender),capture(receiver)]);
  const result=await sender.evaluate(([a,b])=>hlgbPropagation.compare(a,b)?.forward,[a,b]);
+ assert.equal(result?.revision,revision,'Revisão divergente');
  assert.ok(result,'Prova incompleta: '+JSON.stringify({a,b}));
  console.log(JSON.stringify({direction:id==null?'A → B':'B → A',...result}));
  return key;

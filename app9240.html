@@ -19,7 +19,7 @@ header{height:68px;background:linear-gradient(135deg,#6f3f59,#8d506f);color:#fff
 .logo{font-size:21px;font-weight:700;letter-spacing:.3px}.logo:before{content:"♡";color:#f6c8d9;margin-right:7px}.logo b{color:var(--orange)}header button{background:transparent;color:#fff;border:1px solid #ffffff44;padding:9px 12px;border-radius:8px;cursor:pointer}
 .app{display:flex;min-height:calc(100vh - 68px)}aside{width:250px;min-width:250px;flex:0 0 250px;background:#fff;border-right:1px solid var(--line);padding:14px;position:sticky;top:68px;height:calc(100vh - 68px);overflow-y:auto;overflow-x:hidden}
 nav button{width:100%;border:0;background:transparent;text-align:left;padding:11px;border-radius:8px;margin:2px 0;cursor:pointer;font-size:14px;color:#333}nav button.active,nav button:hover{background:var(--rose);color:#6f3f59;font-weight:700}
-main{flex:1;padding:22px;max-width:1500px;margin:auto;width:100%}.page{display:none}.page.active{display:block}
+main{flex:1;padding:22px;max-width:1500px;margin:auto;width:100%}.page{display:none}.page.active{display:block;overflow-anchor:none}
 h1{font-size:25px;margin:0 0 5px}h2{font-size:20px;margin:0 0 15px}h3{margin:0 0 12px}.sub{color:var(--muted);font-size:13px}
 .cards{display:grid;grid-template-columns:repeat(4,1fr);gap:13px;margin:18px 0}.card,.panel{background:linear-gradient(180deg,#fff,#fffafb);border:1px solid var(--line);border-radius:15px;padding:17px;box-shadow:0 3px 12px rgba(111,63,89,.05)}.card small{color:var(--muted)}.card strong{display:block;font-size:25px;margin-top:7px}
 .panel{margin-top:15px}.toolbar{display:flex;gap:9px;flex-wrap:wrap;margin-bottom:13px}
@@ -2926,6 +2926,7 @@ function doLogin(){
  return false;
 }
 async function logout(){
+ window.hlgbPropagation?.reset();
  cloudBootstrapping=true;
  // Fecha controles exclusivos imediatamente.
  ["backupBtn","importBackupBtn","backupImportInput","cloudSaveBtn"].forEach(id=>{let el=document.getElementById(id);if(el)el.style.display="none";});
@@ -11705,7 +11706,8 @@ async function hlgbRecordLoadBundle({preserveLocal=false,since=null}={}){
       }
     }
   }else{
-    for(const row of rows)hlgbApplyRecordRow(row);
+    const walKeys=rows.length?await window.hlgbWalConfirmedReplay9333?.pendingKeys?.():null;
+    for(const row of rows)if(!window.hlgbPropagation?.deferIfPending(row,walKeys))hlgbApplyRecordRow(row);
   }
   for(const row of rows){
     const t=String(row?.updated_at||"");
@@ -11713,6 +11715,7 @@ async function hlgbRecordLoadBundle({preserveLocal=false,since=null}={}){
   }
   const serverTime=String(bundle.server_time||"");
   if(!hlgbRecordGlobalLastSeen&&serverTime)hlgbRecordGlobalLastSeen=serverTime;
+  window.hlgbPropagation?.bundleRows(rows);
   return {readable,rows,serverTime};
 }
 async function hlgbLoadNormalizedCore(opts={}){
@@ -11825,6 +11828,7 @@ function hlgbApplyRecordRow(row){
     if(newRevision<oldRevision)return false;
     if(newRevision===oldRevision&&(newTime<oldTime||(newTime===oldTime&&String(previous.deleted_at||'')===String(row.deleted_at||''))))return false;
   }
+  if(typeof window!=="undefined"&&window.hlgbPropagation?.deferIfPending(row))return false;
   if(row.deleted_at){if(idx>=0)arr.splice(idx,1)}
   else {const data=hlgbRecordHydrateData(module,row);if(idx>=0)arr[idx]=data;else arr.push(data)}
   db[module]=arr;
@@ -11882,6 +11886,9 @@ async function hlgbHandleRecordRealtime(payload){
     const module=String(row.module||"");
     if(!HLGB_RECORD_MODULES.includes(module))return;
     window.hlgbPropagation?.received(row,payload);
+    const receivedEpoch=window.__hlgbRealtimeEpochV9466;
+    const walKeys=await window.hlgbWalConfirmedReplay9333?.pendingKeys?.();
+    if(receivedEpoch!==window.__hlgbRealtimeEpochV9466||window.hlgbPropagation?.deferIfPending(row,walKeys))return;
     if(!hlgbApplyRecordRow(row))return; // eco ou revisão antiga: não redesenhar
     window.hlgbPropagation?.applied(row);
     localSaveOnly();

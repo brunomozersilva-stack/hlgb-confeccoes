@@ -36,4 +36,5 @@ jobs:
         run: |
           python3 -m http.server 4173 >/tmp/hlgb-test-http.log 2>&1 &
           node tests/remote-propagation-live.js
+          node tests/remote-propagation-browser.js
           node tests/ui-stability-local-order-render-v7-chromium.js

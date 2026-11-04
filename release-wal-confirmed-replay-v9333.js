@@ -43,7 +43,7 @@ function boot(){
 }
 function tryBoot(){if(state.booted)return true;if(loggedIn())return boot();return false}
 function payrollMonthGuardReady(){return !!window.HLGB_PAYROLL_MONTH_WAL_9334}
-window.hlgbWalConfirmedReplay9333={version:V,state,run,boot,tryBoot,pending:()=>Object.keys(readWal().entries||{}).length,timeoutMs:SAVE_TIMEOUT_MS,payrollMonthGuardReady};
+window.hlgbWalConfirmedReplay9333={version:V,state,run,boot,tryBoot,pendingKeys:async()=>new Set(Object.keys(await combinedEntries())),pending:()=>Object.keys(readWal().entries||{}).length,timeoutMs:SAVE_TIMEOUT_MS,payrollMonthGuardReady};
 if(!delegatedScheduler){
  window.addEventListener('online',()=>{tryBoot();run('online',true).catch(()=>{})});
  window.addEventListener('focus',()=>{tryBoot();run('focus',false).catch(()=>{})});

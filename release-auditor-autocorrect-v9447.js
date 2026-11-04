@@ -34,11 +34,11 @@ function protectedBusinessText(v){return /financeiro sem projeção|finance-proj
 function technicalText(v){return /falha ao salvar|conflito protegido|sincron|\bsync\b|\bwal\b|\back\b|load failed|failed to fetch|network|timeout|fila|pending|duplicad|render|listener|cache|snapshot|tombstone|erro javascript|falha assíncrona|falha assincrona/i.test(sid(v))}
 function technicalIssue(x){const t=[x?.title,x?.detail,x?.description,x?.source,x?.sourceType,x?.category,x?.kind,x?.technical].map(sid).join(' ');return !protectedBusinessText(t)&&technicalText(t)}
 function recentTechnicalIssues(list=allIssues(),at=Date.now()){return list.filter(x=>openIssue(x)&&technicalIssue(x)&&Number.isFinite(issueAt(x))&&issueAt(x)>=at-RECENT_MS)}
-function historicalIssues(list=allIssues(),at=Date.now()){return list.filter(x=>openIssue(x)&&!(Number.isFinite(issueAt(x))&&issueAt(x)>=at-RECENT_MS))}
+function historicalIssues(list=allIssues(),at=Date.now()){return list.filter(x=>openIssue(x)&&Number.isFinite(issueAt(x))&&issueAt(x)<at-RECENT_MS)}
 function operationPending(audit){const p=audit?.operations?.pending||audit?.main?.operational?.pending||{};return {unique:+p.unique||0,records:+p.records||0,wal:+p.wal||0,totalCopies:+p.totalCopies||0}}
 function opStatus(audit,key){return sid(audit?.operations?.[key]?.status||'')}
 function unresolvedChecks(audit){const x=audit?.main?.checks||audit?.audit?.checks||[];return Array.isArray(x)?x.filter(r=>r?.status==='fail'||r?.status==='warn'):[]}
-function liveTechnicalChecks(audit){return unresolvedChecks(audit).filter(x=>!['sync:pending','sync:propagation','issues:open','data:finance-projection-orphan','finance-projection-orphan'].includes(sid(x?.code))&&!protectedBusinessText([x?.code,x?.title,x?.detail,x?.category].map(sid).join(' '))&&technicalText([x?.code,x?.title,x?.detail,x?.category].map(sid).join(' ')))}
+function liveTechnicalChecks(audit){return unresolvedChecks(audit).filter(x=>!['sync:pending','issues:open','sync:propagation','data:finance-projection-orphan','finance-projection-orphan'].includes(sid(x?.code))&&!protectedBusinessText([x?.code,x?.title,x?.detail,x?.category].map(sid).join(' '))&&technicalText([x?.code,x?.title,x?.detail,x?.category].map(sid).join(' ')))}
 function liveSignal(audit,m=metrics(),issues=allIssues()){
  const p=operationPending(audit),recent=recentTechnicalIssues(issues),checks=liveTechnicalChecks(audit);
  const operationalFail=['delivery','savingUi','runtime'].some(k=>['fail','error'].includes(opStatus(audit,k)));
@@ -67,7 +67,14 @@ async function triage(audit){
  // A triagem preserva o sinal como tarefa de código, sem fingir que uma reconciliação sem alvo o corrigiu.
  if(signal.saveDuplicateResponsibilities>0)needsCode.push({id:'structure:save-responsibilities',module:'runtime',action:'review-save-chain',classification:'needs-code',requires:'code',detail:signal.saveDuplicateResponsibilities+' responsabilidade(s) repetida(s) no grafo de salvamento; verificar fases reais antes de retirar proteção.'});
  if(signal.scriptDuplicates>0)needsCode.push({id:'structure:duplicate-scripts',module:'runtime',action:'review-script-loader',classification:'needs-code',requires:'code',detail:signal.scriptDuplicates+' script(s) duplicado(s) detectado(s); revisar origem e inicialização antes de corrigir.'});
- const out={version:V,at:nowIso(),signal,needsCode,businessBlocked,historicalBacklog:{count:historical.length,openTotal:issues.filter(openIssue).length,recentTechnicalCount:signal.recentTechnicalIssues.length,detail:historical.length?historical.length+' ocorrência(s) antiga(s) resumida(s); não entram no ciclo de reparo.':'Sem histórico antigo aberto.'},candidateCount:cs.length};state.lastTriage=clone(out);return out;
+ const groups=new Map();
+ for(const issue of issues.filter(openIssue)){
+  const fp=sid(issue.fingerprint);
+  if(fp)groups.set(fp,(groups.get(fp)||0)+1);
+ }
+ const duplicateRows=[...groups.values()].reduce((sum,count)=>sum+count-1,0);
+ const undated=issues.filter(x=>openIssue(x)&&!Number.isFinite(issueAt(x))).length;
+ const out={version:V,at:nowIso(),signal,needsCode,businessBlocked,historicalBacklog:{count:historical.length,unknownDate:undated,distinctFingerprints:groups.size,duplicateFingerprintRows:duplicateRows,openTotal:issues.filter(openIssue).length,recentTechnicalCount:signal.recentTechnicalIssues.length,detail:historical.length?historical.length+' ocorrência(s) antiga(s) resumida(s); não entram no ciclo de reparo.':'Sem histórico antigo aberto.'},candidateCount:cs.length};state.lastTriage=clone(out);return out;
 }
 function compactUnknown(items){return (items||[]).filter(x=>!/^Sem verificação específica que comprove resolução$/i.test(sid(x?.detail))).slice(0,40)}
 function mergeUnique(items,key){const out=[],seen=new Set();for(const x of items||[]){const k=key(x);if(seen.has(k))continue;seen.add(k);out.push(x)}return out}

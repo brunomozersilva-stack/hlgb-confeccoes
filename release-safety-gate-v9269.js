@@ -13,13 +13,14 @@ function lockHubMaster(){
  }catch(e){return false}
 }
 lockHubMaster();
-function stampVersion(v=V){try{window.HLGB_RELEASE_VERSION=String(v);const logo=document.querySelector('#appShell .logo small');if(logo)logo.textContent='v'+v;const login=[...document.querySelectorAll('#loginScreen b,#loginScreen small')].find(x=>/vers[aã]o/i.test(x.textContent||''));if(login)login.textContent='Versão v'+v}catch(e){}}
+function stampVersion(v=V){try{v=window.HLGB_RUNTIME_APP_VERSION||v;window.HLGB_RELEASE_VERSION=String(v);const logo=document.querySelector('#appShell .logo small');if(logo)logo.textContent='v'+v;const login=[...document.querySelectorAll('#loginScreen b,#loginScreen small')].find(x=>/vers[aã]o/i.test(x.textContent||''));if(login)login.textContent='Versão v'+v}catch(e){}}
 function canonicalUrl(reason='version',entry='abrir.html'){const safe=String(entry||'abrir.html').replace(/^\.\//,'');const u=new URL('./'+safe,location.href);u.searchParams.set('fresh',String(Date.now()));u.searchParams.set('reroute',reason);return u.href}
 function isCanonicalPath(){return /\/(?:abrir|app-stable3)\.html$/i.test(location.pathname)}
 async function checkCanonicalVersion(reason='check'){
  try{
   const r=await fetch(MANIFEST+'?fresh='+Date.now(),{cache:'no-store'});if(!r.ok)return;
   const m=await r.json(),wanted=String(m?.version||V),entry=String(m?.entry||'abrir.html');
+  window.HLGB_PUBLISHED_APP_VERSION=m.app_version||null;
   if(isCanonicalPath()){stampVersion(wanted);return}
   location.replace(canonicalUrl(reason,entry));
  }catch(e){stampVersion(V)}

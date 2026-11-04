@@ -9,7 +9,6 @@ const PENDING_KEY='hlgb_records_pending_v91';
 const WAL_KEY='hlgb_durable_wal_v1';
 const QUAR_KEY='hlgb_sync_quarantine_v9305';
 const STATE_KEY='hlgb_sync_recovery_9301';
-const FULL_EVERY_MS=600000;
 const INCREMENTAL_EVERY_MS=60000;
 const MAINTENANCE_EVERY_MS=30000;
 const MIN_INCREMENTAL_MS=45000;
@@ -17,7 +16,7 @@ const REALTIME_VERIFY_EVERY_MS=120000;
 const ORDERS_FULL_VERIFY_MIN_MS=5000;
 const OVERLAP_MS=600000;
 let busy=false,lastFull=0,lastIncremental=0,lastReason='',lastResult=null;
-let fullTimer=null,incrementalTimer=null,retryTimer=null,maintenanceTimer=null;
+let incrementalTimer=null,retryTimer=null,maintenanceTimer=null;
 let skippedRealtime=0,flushOnlyRuns=0,lastCloudVerify=0,lastOrdersVerify=0;
 
 const wait=ms=>new Promise(r=>setTimeout(r,ms));
@@ -39,7 +38,7 @@ function recordPendingCount(){const p=read(PENDING_KEY,null);return Object.value
 function walPendingCount(){const w=read(WAL_KEY,null);return w?.entries&&typeof w.entries==='object'?Object.keys(w.entries).length:0}
 function pendingCounts(){return {records:recordPendingCount(),wal:walPendingCount()}}
 function totalPending(){const p=pendingCounts();return p.records+p.wal}
-function snapshotState(extra={}){const s={version:V,at:new Date().toISOString(),busy,lastFull,lastIncremental,lastReason,lastResult,realtime:realtimeState(),recordReady:ready(),online:navigator.onLine,pending:pendingCounts(),ioPolicy:{fullEveryMs:FULL_EVERY_MS,incrementalEveryMs:INCREMENTAL_EVERY_MS,maintenanceEveryMs:MAINTENANCE_EVERY_MS,minIncrementalMs:MIN_INCREMENTAL_MS,realtimeVerifyEveryMs:REALTIME_VERIFY_EVERY_MS,ordersFullVerifyMinMs:ORDERS_FULL_VERIFY_MIN_MS,overlapMs:OVERLAP_MS,skippedRealtime,flushOnlyRuns,lastCloudVerify,lastOrdersVerify},...extra};try{localStorage.setItem(STATE_KEY,JSON.stringify(s))}catch(e){}return s}
+function snapshotState(extra={}){const s={version:V,at:new Date().toISOString(),busy,lastFull,lastIncremental,lastReason,lastResult,realtime:realtimeState(),recordReady:ready(),online:navigator.onLine,pending:pendingCounts(),ioPolicy:{fullEveryMs:null,incrementalEveryMs:INCREMENTAL_EVERY_MS,maintenanceEveryMs:MAINTENANCE_EVERY_MS,minIncrementalMs:MIN_INCREMENTAL_MS,realtimeVerifyEveryMs:REALTIME_VERIFY_EVERY_MS,ordersFullVerifyMinMs:ORDERS_FULL_VERIFY_MIN_MS,overlapMs:OVERLAP_MS,skippedRealtime,flushOnlyRuns,lastCloudVerify,lastOrdersVerify},...extra};try{localStorage.setItem(STATE_KEY,JSON.stringify(s))}catch(e){}return s}
 function quarantineHistory(){const x=read(QUAR_KEY,[]);return Array.isArray(x)?x:[]}
 
 /* Filas não confirmadas nunca são removidas por idade. */
@@ -236,7 +235,6 @@ function boot(){
  window.addEventListener('online',()=>scheduleFull('online',250,true),true);
  window.addEventListener('pageshow',()=>scheduleCatchup('pageshow',300),true);
  incrementalTimer=setInterval(()=>{if(document.visibilityState==='visible'&&navigator.onLine)incrementalSync(false).catch(()=>{})},INCREMENTAL_EVERY_MS);
- fullTimer=setInterval(()=>{if(document.visibilityState==='visible'&&navigator.onLine)fullSync('periodic-watchdog',false).catch(()=>{})},FULL_EVERY_MS);
  maintenanceTimer=setInterval(()=>{installOverrides();installOrdersOpenCatchup();stamp();if(totalPending()>0&&loggedIn()&&navigator.onLine&&!userEditing())incrementalSync(false).catch(()=>{})},MAINTENANCE_EVERY_MS);
  setTimeout(()=>{installOverrides();installOrdersOpenCatchup();stamp();if(loggedIn()&&(!ready()||!currentCursor()))scheduleFull('late-boot',100,true)},1800);
  snapshotState({booted:true});

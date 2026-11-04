@@ -1,9 +1,10 @@
 /* Diagnostic and recovery for the existing hlgb_records subscription. */
 (function(){
 'use strict';
+window.HLGB_RUNTIME_APP_VERSION='94.68';
 
 const state={status:'offline',subscriptions:0,reconnections:0,lastSent:null,lastConfirmed:null,lastReceived:null,lastApplied:null,lastCatchup:null};
-const session=crypto.randomUUID();
+let session=crypto.randomUUID();
 const probes=[];
 const saveClicks=new Map();
 document.addEventListener('click',event=>{
@@ -45,8 +46,39 @@ function renderAffected(module,page){
  if(!target||!target.slice(1).includes(module)||typeof window[target[0]]!=='function')return false;
  window[target[0]]();return true;
 }
+// Keep the newest blocked revision until the local operation is acknowledged.
+const held=new Map();
+let heldTimer=null;
+function deferIfPending(row,keys){
+ const id=String(row.entity_id),key=row.module+'|'+id;
+ const normalized=typeof hlgbRecordPendingRead==='function'&&hlgbRecordPendingRead()?.modules?.[row.module]?.some(op=>String(op.id)===id);
+ let durable;
+ try{durable=JSON.parse(localStorage.getItem('hlgb_durable_wal_v1')||'null')?.entries?.[key]}catch(e){durable=true}
+ if(!normalized&&!durable&&!keys?.has(key))return false;
+ const previous=held.get(key);
+ if(!previous||Number(previous.revision)<=Number(row.revision))held.set(key,row);
+ if(!heldTimer)heldTimer=setTimeout(flushHeld,2000);
+ return true;
+}
+async function flushHeld(){
+ const activeSession=session;
+ const keys=await window.hlgbWalConfirmedReplay9333?.pendingKeys?.();
+ if(activeSession!==session)return;
+ heldTimer=null;
+ const changed=new Set();
+ for(const [key,row] of held){
+  if(deferIfPending(row,keys))continue;
+  held.delete(key);
+  if(hlgbApplyRecordRow(row)){changed.add(row.module);applied(row)}
+ }
+ if(changed.size){localSaveOnly();for(const module of changed)hlgbRenderIncomingRecord(module)}
+}
+function reset(){
+ clearTimeout(heldTimer);heldTimer=null;held.clear();probes.length=0;saveClicks.clear();comparison=null;
+ session=crypto.randomUUID();Object.assign(state,{status:'offline',subscriptions:0,reconnections:0,lastSent:null,lastConfirmed:null,lastReceived:null,lastApplied:null});
+}
 function connection(status){
- if(status==='SUBSCRIBED'&&state.status!==status)state.reconnections=state.subscriptions++;
+ if(status==='SUBSCRIBED'&&state.status!==status){state.subscriptions++;state.reconnections=state.subscriptions-1}
  state.status=status;
  window.dispatchEvent(new Event('hlgb:propagation-status'));
 }
@@ -54,26 +86,40 @@ function sending(module,id,at){state.lastSent={module,id:String(id),at}}
 function confirmed(module,id,row,sentAt){state.lastConfirmed={module,id:String(id),revision:row.revision,sentAt,at:Date.now(),serverAt:row.updated_at};
  if(testRow(module,row.data))Object.assign(probe(module,id,row.revision),{saveAt:saveClicks.get(row.data.name),sentAt,confirmedAt:state.lastConfirmed.at,serverAt:row.updated_at});
 }
-function received(row,payload){
+function received(row,payload,source='realtime'){
  const at=Date.now(),committed=Date.parse(payload?.commit_timestamp);
- state.lastReceived={module:row.module,id:String(row.entity_id),revision:row.revision,at,serverAt:payload?.commit_timestamp||null,
-  serverToReceiverMs:Number.isFinite(committed)?at-committed:null,
-  otherUser:row.updated_by&&cloudUser?.id?String(row.updated_by)!==String(cloudUser.id):null};
- if(testRow(row.module,row.data))Object.assign(probe(row.module,row.entity_id,row.revision),{receivedAt:at,serverAt:row.updated_at});
+ state.lastReceived={module:row.module,id:String(row.entity_id),revision:row.revision,at,source,
+  serverAt:row.updated_at,serverToReceiverMs:Number.isFinite(committed)?at-committed:null};
+ if(testRow(row.module,row.data)){
+  const item=probe(row.module,row.entity_id,row.revision);
+  if(!item.receivedAt)Object.assign(item,{receivedAt:at,source,serverAt:row.updated_at});
+ }
 }
-function applied(row){state.lastApplied={module:row.module,id:String(row.entity_id),revision:row.revision,at:Date.now()};
+const observing=new WeakSet();
+function applied(row){
+ state.lastApplied={module:row.module,id:String(row.entity_id),revision:row.revision,at:Date.now()};
  if(!testRow(row.module,row.data))return;
  const item=probe(row.module,row.entity_id,row.revision);
  const table=document.getElementById('clientTable');
- if(!table||!table.closest('.page.active'))return;
+ if(!table||!table.closest('.page.active')||item.visualAt||observing.has(item))return;
+ observing.add(item);
  const observer=new MutationObserver(check);
- const timeout=setTimeout(()=>observer.disconnect(),15000);
+ function finish(){observer.disconnect();observing.delete(item);clearTimeout(timeout)}
+ const timeout=setTimeout(finish,15000);
  function check(){
   if(!table.closest('.page.active')||!table.getClientRects().length)return;
+  const snap=hlgbRecordSnapshots.clients?.get(String(row.entity_id));
+  if(Number(snap?.revision)!==Number(row.revision)||!db.clients.some(c=>String(c.id)===String(row.entity_id)&&c.name===row.data.name))return;
   if(!Array.from(table.querySelectorAll('td:first-child')).some(td=>td.textContent===row.data.name))return;
-  item.visualAt=Date.now();observer.disconnect();clearTimeout(timeout);
+  item.visualAt=Date.now();finish();
  }
  observer.observe(table,{childList:true,subtree:true});check();
+}
+function bundleRows(rows){
+ for(const row of rows){
+  if(!testRow(row.module,row.data))continue;
+  received(row,null,'consulta de revisão');applied(row);
+ }
 }
 function compare(a,b){
  if(!a?.session||!b?.session||a.session===b.session||!Array.isArray(a.probes)||!Array.isArray(b.probes))return null;
@@ -83,7 +129,7 @@ function compare(a,b){
    if(!rx||!tx.key||!tx.serverAt||!Number.isInteger(tx.revision)||![tx.saveAt,tx.sentAt,tx.confirmedAt,rx.receivedAt,rx.visualAt].every(Number.isFinite))continue;
    if(tx.sentAt<tx.saveAt||tx.confirmedAt<tx.sentAt||rx.visualAt<rx.receivedAt||rx.visualAt<tx.sentAt||Date.now()-rx.visualAt>900000)continue;
    return {saveAt:tx.saveAt,sentAt:tx.sentAt,confirmedAt:tx.confirmedAt,receivedAt:rx.receivedAt,visualAt:rx.visualAt,
-    revision:tx.revision,totalMs:rx.visualAt-tx.saveAt};
+    source:rx.source,revision:tx.revision,totalMs:rx.visualAt-tx.saveAt};
   }
   return null;
  }
@@ -111,5 +157,5 @@ async function evidence(digest){
  const records=probes.map(x=>({...x}));
  return {session,probes:await Promise.all(records.map(async({id,module,...rest})=>({...rest,key:await digest([module,id])})))};
 }
-window.hlgbPropagation={repair,compare,evidence,connection,sending,confirmed,received,applied,renderAffected,status:()=>({...state,comparison,runtimeVersion:window.HLGB_RUNTIME_APP_VERSION,publishedVersion:window.HLGB_PUBLISHED_APP_VERSION||null})};
+window.hlgbPropagation={repair,reset,deferIfPending,compare,evidence,connection,sending,confirmed,received,applied,bundleRows,renderAffected,status:()=>({...state,comparison,runtimeVersion:window.HLGB_RUNTIME_APP_VERSION,publishedVersion:window.HLGB_PUBLISHED_APP_VERSION||null})};
 })();
