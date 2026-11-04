@@ -32,6 +32,9 @@ function visibleModal(){
 }
 function editing(){
  if(visibleModal())return true;
+ // Buscar/filtrar não é edição de dados. Os respectivos renderizadores preservam o campo.
+ const a=document.activeElement;
+ if(a?.closest?.('#appShell')&&['productSearchName','productPriceMin','productPriceMax','factionChecklistSearch9198'].includes(a.id))return false;
  try{if(typeof window.cloudUserIsEditing==='function'&&window.cloudUserIsEditing())return true}catch(e){}
  return false;
 }

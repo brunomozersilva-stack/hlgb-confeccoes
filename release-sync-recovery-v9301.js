@@ -34,7 +34,7 @@ function statusFn(){try{if(typeof setCloudStatus==='function')return setCloudSta
 function pendingStoreFn(){try{if(typeof hlgbRecordPendingStore==='function')return hlgbRecordPendingStore}catch(e){}return window.hlgbRecordPendingStore}
 function normalizedSyncFn(){try{if(typeof hlgbNormalizedSyncNow==='function')return hlgbNormalizedSyncNow}catch(e){}return window.hlgbNormalizedSyncNow}
 function loggedIn(){const login=document.getElementById('loginScreen'),app=document.getElementById('appShell');if(!app)return false;if(login){try{if(getComputedStyle(login).display!=='none')return false}catch(e){}}return true}
-function userEditing(){const modal=document.querySelector('#modal.show');if(modal)return true;const a=document.activeElement;return !!(a&&/^(INPUT|TEXTAREA|SELECT)$/i.test(a.tagName)&&a.closest?.('#appShell'))}
+function userEditing(){const modal=document.querySelector('#modal.show');if(modal)return true;const a=document.activeElement;if(a?.closest?.('#appShell')&&['productSearchName','productPriceMin','productPriceMax','factionChecklistSearch9198'].includes(a.id))return false;return !!(a&&/^(INPUT|TEXTAREA|SELECT)$/i.test(a.tagName)&&a.closest?.('#appShell'))}
 function recordPendingCount(){const p=read(PENDING_KEY,null);return Object.values(p?.modules||{}).reduce((n,x)=>n+(Array.isArray(x)?x.length:0),0)}
 function walPendingCount(){const w=read(WAL_KEY,null);return w?.entries&&typeof w.entries==='object'?Object.keys(w.entries).length:0}
 function pendingCounts(){return {records:recordPendingCount(),wal:walPendingCount()}}

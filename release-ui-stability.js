@@ -67,7 +67,12 @@ function activePage(){
   try{return document.querySelector('.page.active')?.id||''}catch(e){return ''}
 }
 function isEditing(){
-  try{return !!document.querySelector('#modal.show')||(typeof cloudUserIsEditing==='function'&&cloudUserIsEditing())}catch(e){return false}
+  try{
+    if(document.querySelector('#modal.show'))return true;
+    const a=document.activeElement;
+    if(a?.closest?.('#appShell')&&['productSearchName','productPriceMin','productPriceMax','factionChecklistSearch9198'].includes(a.id))return false;
+    return typeof cloudUserIsEditing==='function'&&cloudUserIsEditing();
+  }catch(e){return false}
 }
 function isRemote(){return Date.now()<remoteUntil}
 function isUserDriven(){return lastInteractionAt>0&&(Date.now()-lastInteractionAt)<USER_ACTION_WINDOW_MS}
