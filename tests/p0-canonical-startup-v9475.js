@@ -18,7 +18,7 @@ const engine=browserName==='chromium'?chromium:webkit;
   await page.goto('http://127.0.0.1:4173/index.html',{waitUntil:'domcontentloaded',timeout:90000});
   await page.waitForFunction(()=>{
     const l=document.getElementById('loginScreen'),shell=document.getElementById('appShell'),spinner=document.getElementById('sessionLoader');
-    return !!l&&!!shell&&getComputedStyle(l).display!=='none'&&getComputedStyle(shell).display==='none'&&(!spinner||getComputedStyle(spinner).display==='none')&&typeof window.doLogin==='function'&&!!document.getElementById('loginUser')&&!!document.getElementById('loginPass');
+    return !!l&&!!shell&&window.__HLGB_BOOT_READY_9477===true&&!document.documentElement.classList.contains('hlgb-boot-loading-9477')&&getComputedStyle(l).display!=='none'&&getComputedStyle(shell).display==='none'&&(!spinner||getComputedStyle(spinner).display==='none')&&typeof window.doLogin==='function'&&!!document.getElementById('loginUser')&&!!document.getElementById('loginPass');
   },null,{timeout:90000});
   const state=await page.evaluate(()=>({
     url:location.pathname,
@@ -28,10 +28,16 @@ const engine=browserName==='chromium'?chromium:webkit;
     gate: window.hlgbLoginConfirmGate9407?.status?.().confirmed??null,
     clickHandler:typeof doLogin,
     loadedScripts:document.scripts.length,
+    bootReady:window.__HLGB_BOOT_READY_9477===true,
+    failedFiles:window.__HLGB_BOOT_FAILED_FILES_9477||[],
+    loginPointerEvents:getComputedStyle(document.querySelector('#loginScreen button.primary')).pointerEvents,
     title:document.title
   }));
   assert(state.url.endsWith('/app-stable3.html'),'canonical redirects should land on app-stable3');
   assert.equal(state.clickHandler,'function');
+  assert.equal(state.bootReady,true,'login must not be available until all injected scripts complete');
+  assert.notEqual(state.loginPointerEvents,'none','login button should be enabled after boot');
+  assert.equal(state.failedFiles.length,0,'no script resource should fail during boot');
   assert.equal(state.login!=='none',true);
   assert.equal(state.app,'none');
   if(serverErrors.length||failed.length)throw Error('Resource failures: '+serverErrors.slice(0,8).join('; ')+' / '+failed.slice(0,8).join('; '));
