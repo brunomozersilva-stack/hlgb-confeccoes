@@ -18558,27 +18558,33 @@ window.toggleClosedFactionChecklists9198=function(){
 };
 function renderFactionChecklists9198(){
   const box=document.getElementById('factionChecklistTable9176');if(!box)return;
+  // Controles persistentes: nunca substituir o próprio input a cada tecla.
+  // O conteúdo da tabela é o único elemento reconstruído durante a busca.
+  let list=box.querySelector('#hlgbFactionChecklistRows9198');
+  if(!list){
+    box.innerHTML=
+      '<div class="toolbar" style="align-items:flex-end;justify-content:space-between;gap:12px;flex-wrap:wrap">'+
+        '<div class="field" style="min-width:290px"><label>Buscar facção ou modelo</label><input id="factionChecklistSearch9198" placeholder="Ex.: Cris ou Camisola" oninput="renderFactionChecklists9198()"></div>'+
+        '<label class="sub" style="display:flex;align-items:center;gap:7px"><input id="showClosedFactionChecklist9198" type="checkbox" '+(showClosedChecklist9198?'checked':'')+' onchange="toggleClosedFactionChecklists9198()"> Mostrar concluídos</label>'+
+      '</div><div id="hlgbFactionChecklistRows9198"></div>';
+    list=box.querySelector('#hlgbFactionChecklistRows9198');if(!list)return;
+  }
   const q=n9198(document.getElementById('factionChecklistSearch9198')?.value||'');
   let rows=(db.materialChecklists||[]).filter(c=>c.destinationType==='F').map(c=>({c,closed:checklistClosed9198(c)}));
   rows=rows.filter(x=>(showClosedChecklist9198||!x.closed)&&(!q||n9198([x.c.destinationName,x.c.productName,x.c.status].join(' ')).includes(q))).sort((a,b)=>String(b.c.createdAt||'').localeCompare(String(a.c.createdAt||'')));
-  box.innerHTML=
-    '<div class="toolbar" style="align-items:flex-end;justify-content:space-between;gap:12px;flex-wrap:wrap">'+
-      '<div class="field" style="min-width:290px"><label>Buscar facção ou modelo</label><input id="factionChecklistSearch9198" value="'+esc9198(document.getElementById('factionChecklistSearch9198')?.value||'')+'" placeholder="Ex.: Cris ou Camisola" oninput="renderFactionChecklists9198()"></div>'+
-      '<label class="sub" style="display:flex;align-items:center;gap:7px"><input id="showClosedFactionChecklist9198" type="checkbox" '+(showClosedChecklist9198?'checked':'')+' onchange="toggleClosedFactionChecklists9198()"> Mostrar concluídos</label>'+
-    '</div>'+
-    (rows.length?table(['Data','Facção','Modelo','Grade','Peças','Materiais','Status','Ações'],rows.map(x=>{
-      const c=x.c,computed=checklistMaterialRows9198(c),checked=(c.materials||[]).filter(m=>m.checked).length;
-      return [
-        c.createdAt?fmtDate(String(c.createdAt).slice(0,10)):'-',
-        esc9198(c.destinationName||'-'),
-        '<b>'+esc9198(c.productName||'-')+'</b>',
-        gradeCompact9198(c),
-        fmtQty9198(c.qty),
-        computed.length?computed.length+' item(ns)':'Sem ficha técnica',
-        '<span class="badge '+(x.closed?'ok':(c.status==='Conferido'?'ok':'warn'))+'">'+esc9198(x.closed?'Concluído':(c.status||'Pendente'))+'</span>',
-        '<button type="button" class="primary" onclick="openMaterialChecklist('+Number(c.id)+')">Conferir</button> <button type="button" class="secondary" onclick="printMaterialChecklist('+Number(c.id)+')">🖨️ Imprimir folha</button>'
-      ];
-    })):'<div class="empty">Nenhum checklist operacional de facção. Itens concluídos ficam ocultos; marque “Mostrar concluídos” para consultar o histórico.</div>');
+  list.innerHTML=rows.length?table(['Data','Facção','Modelo','Grade','Peças','Materiais','Status','Ações'],rows.map(x=>{
+    const c=x.c,computed=checklistMaterialRows9198(c);
+    return [
+      c.createdAt?fmtDate(String(c.createdAt).slice(0,10)):'-',
+      esc9198(c.destinationName||'-'),
+      '<b>'+esc9198(c.productName||'-')+'</b>',
+      gradeCompact9198(c),
+      fmtQty9198(c.qty),
+      computed.length?computed.length+' item(ns)':'Sem ficha técnica',
+      '<span class="badge '+(x.closed?'ok':(c.status==='Conferido'?'ok':'warn'))+'">'+esc9198(x.closed?'Concluído':(c.status||'Pendente'))+'</span>',
+      '<button type="button" class="primary" onclick="openMaterialChecklist('+Number(c.id)+')">Conferir</button> <button type="button" class="secondary" onclick="printMaterialChecklist('+Number(c.id)+')">🖨️ Imprimir folha</button>'
+    ];
+  })):'<div class="empty">'+(q?'Nenhum checklist encontrado para este filtro.':'Nenhum checklist operacional de facção. Itens concluídos ficam ocultos; marque “Mostrar concluídos” para consultar o histórico.')+'</div>';
 }
 window.renderFactionChecklists9198=renderFactionChecklists9198;
 
