@@ -1664,6 +1664,8 @@ function hlgbLegacyComparablePayload(v){
 
 function hlgbStopRealtime(){
  try{
+  // Invalidar callbacks antigos antes de remover o canal assíncrono.
+  window.__hlgbRealtimeEpochV9466=(Number(window.__hlgbRealtimeEpochV9466)||0)+1;
   clearTimeout(hlgbRealtimeApplyTimer);
   if(hlgbRealtimeClient&&hlgbRealtimeChannel)hlgbRealtimeClient.removeChannel(hlgbRealtimeChannel);
  }catch(e){console.warn("HLGB Realtime stop",e)}
@@ -11949,12 +11951,14 @@ hlgbStartRealtime=function(){
   try{
     if(!cloudReady||!cloudRowId||!cloudAccessToken||!window.supabase?.createClient)return false;
     hlgbStopRealtime();
+    const epoch=Number(window.__hlgbRealtimeEpochV9466)||0;
     hlgbRealtimeClient=window.supabase.createClient(HLGB_SUPABASE_URL,HLGB_SUPABASE_KEY,{auth:{persistSession:false,autoRefreshToken:false,detectSessionInUrl:false},realtime:{params:{eventsPerSecond:80}}});
     hlgbRealtimeClient.realtime.setAuth(cloudAccessToken);
-    hlgbRealtimeChannel=hlgbRealtimeClient.channel(`hlgb-v91-live-${cloudRowId}`)
-      .on('postgres_changes',{event:'*',schema:'public',table:'hlgb_records'},hlgbHandleRecordRealtime)
-      .on('postgres_changes',{event:'UPDATE',schema:'public',table:'hlgb_data',filter:`id=eq.${cloudRowId}`},hlgbHandleRealtimeDataChange)
+    hlgbRealtimeChannel=hlgbRealtimeClient.channel(`hlgb-v91-live-${cloudRowId}-g${epoch}`)
+      .on('postgres_changes',{event:'*',schema:'public',table:'hlgb_records'},payload=>{if(epoch===Number(window.__hlgbRealtimeEpochV9466))hlgbHandleRecordRealtime(payload)})
+      .on('postgres_changes',{event:'UPDATE',schema:'public',table:'hlgb_data',filter:`id=eq.${cloudRowId}`},payload=>{if(epoch===Number(window.__hlgbRealtimeEpochV9466))hlgbHandleRealtimeDataChange(payload)})
       .subscribe((status,err)=>{
+        if(epoch!==Number(window.__hlgbRealtimeEpochV9466))return;
         hlgbRealtimeState=status;
         if(status==='SUBSCRIBED')setCloudStatus((cloudDirty||hlgbRecordPendingRead())?'☁️ Salvando automático…':'⚡ Online · multiusuário',(cloudDirty||hlgbRecordPendingRead())?'':'ok');
         else if(status==='CHANNEL_ERROR'||status==='TIMED_OUT'){console.warn('HLGB Realtime',status,err);setCloudStatus('☁️ Online · reconectando…')}
