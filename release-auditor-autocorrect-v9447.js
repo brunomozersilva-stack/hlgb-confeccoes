@@ -106,6 +106,19 @@ function classifyCandidate(c,event){
 async function triage(audit){
  const at=Date.now(),m=metrics(),structure=structureEvidence9471(),issues=allIssues(),signal=liveSignal(audit,m,issues),idbWal=await indexedWalInventory9468(),cs=await candidates(),events=repairEvents(),classified=cs.map(c=>classifyCandidate(c,latestEventFor(c?.id,events)));
  const needsCode=classified.filter(x=>x.classification==='needs-code'),businessBlocked=classified.filter(x=>x.classification==='business-blocked'),historical=historicalIssues(issues,at);
+ const financeOrphans=(Array.isArray(audit?.main?.checks)?audit.main.checks:[]).filter(x=>x?.status==='fail'&&sid(x?.code)==='data:finance-projection-orphan');
+ // V94.81: findings of finance links to inactive invoices remain protected business exceptions.
+ // They must not disappear from the repair summary or trigger automatic recreation/deletion.
+ financeOrphans.forEach((finding,i)=>{
+  const ref=(Array.isArray(finding?.refs)?finding.refs:[]).find(x=>sid(x?.module)==='finance');
+  const financeId=sid(ref?.id||('unknown-'+i));
+  const id='business:finance-projection-orphan:'+financeId;
+  if(!businessBlocked.some(x=>x.id===id))businessBlocked.push({
+   id,module:'finance',action:'review-finance-projection-link',classification:'business-blocked',
+   requires:'human-decision',refs:clone(finding?.refs||[]),
+   detail:sid(finding?.detail)+' Conciliar com a projeção excluída antes de qualquer restauração ou exclusão. Nenhuma alteração financeira automática.'
+  });
+ });
  const coverage=operationalCoverage9474(audit);
  // Métricas estruturais NÃO são candidatas de Produção e não justificam executar quatro receitas genéricas.
  // A triagem preserva o sinal como tarefa de código, sem fingir que uma reconciliação sem alvo o corrigiu.
