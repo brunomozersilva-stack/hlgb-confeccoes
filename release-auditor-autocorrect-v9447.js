@@ -54,8 +54,79 @@ function indexedWalInventory9468(){
   }catch(e){finish({status:'error',count:null,items:[]})}
  });
 }
+
+/* v94.82: comprovação de WAL SOMENTE leitura quando a autoridade de poda v93.39 não foi carregada.
+   Nunca apaga a WAL nem escreve no Supabase: igual conteúdo não equivale a ACK gravado.
+   O resultado distingue operação presente, conteúdo igual e prova realmente executada. */
+function canonicalWalProof9482(v){
+ if(Array.isArray(v))return v.map(canonicalWalProof9482);
+ if(!v||typeof v!=='object')return v;
+ const out={};
+ for(const k of Object.keys(v).sort()){
+  if(k==='updatedAt'||k==='updated_at'||k==='revision'||k.startsWith('__'))continue;
+  out[k]=canonicalWalProof9482(v[k]);
+ }
+ return out;
+}
+function sameWalBusiness9482(a,b){
+ try{return JSON.stringify(canonicalWalProof9482(a))===JSON.stringify(canonicalWalProof9482(b))}
+ catch(_){return false}
+}
+function walRowsReadOnly9482(){
+ if(typeof indexedDB==='undefined')return Promise.resolve({status:'unsupported',rows:[]});
+ return new Promise(resolve=>{
+  let done=false,db=null,req;
+  const finish=x=>{if(done)return;done=true;clearTimeout(timer);try{db?.close?.()}catch(_){}resolve(x)};
+  const timer=setTimeout(()=>finish({status:'timeout',rows:[]}),6500);
+  try{
+   req=indexedDB.open('hlgb_durable_wal');
+   req.onupgradeneeded=()=>{try{req.transaction.abort()}catch(_){}finish({status:'no-store',rows:[]})};
+   req.onerror=()=>finish({status:'error',rows:[]});
+   req.onsuccess=()=>{
+    db=req.result;
+    if(!db.objectStoreNames.contains('entries'))return finish({status:'no-store',rows:[]});
+    try{
+     const tx=db.transaction('entries','readonly'),get=tx.objectStore('entries').getAll();
+     get.onsuccess=()=>finish({status:'ok',rows:Array.isArray(get.result)?get.result:[]});
+     get.onerror=()=>finish({status:'error',rows:[]});
+     tx.onabort=()=>finish({status:'error',rows:[]});
+    }catch(_){finish({status:'error',rows:[]})}
+   };
+  }catch(_){finish({status:'error',rows:[]})}
+ });
+}
+async function walRemoteReadOnlyProof9482(max=8){
+ const idb=await walRowsReadOnly9482();
+ const result={mode:'read-only',attempted:false,status:idb.status,checked:0,matched:0,different:0,missing:0,unverified:0,removed:0,items:[],errors:[]};
+ if(idb.status!=='ok')return result;
+ const ops=idb.rows.slice(0,Math.max(1,max));
+ if(!ops.length){result.status='empty';return result}
+ result.unverified=Math.max(0,idb.rows.length-ops.length); // Restante não consultado também exige prova.
+ if(!authReady()||navigator?.onLine===false||typeof window.cloudRequest!=='function'){result.status='cloud-api-unavailable';result.unverified=idb.rows.length;return result}
+ result.attempted=true;result.status='checked';
+ for(const op of ops){
+  const module=sid(op?.module),id=sid(op?.id),opId=sid(op?.opId);
+  const row={module,id,opId,status:'unverified'};
+  if(!module||!id||!opId){row.status='invalid-local-operation';result.unverified++;result.items.push(row);continue}
+  try{
+   const query='hlgb_records?select=module,entity_id,data,deleted_at,revision,updated_at&module=eq.'+encodeURIComponent(module)+'&entity_id=eq.'+encodeURIComponent(id)+'&limit=1';
+   const response=await Promise.race([Promise.resolve(window.cloudRequest(query,{method:'GET'})),new Promise((_,reject)=>setTimeout(()=>reject(new Error('Timeout da prova remota')),12000))]);
+   if(!Array.isArray(response))throw new Error('Resposta remota inválida');
+   const found=response.find(x=>sid(x?.module)===module&&sid(x?.entity_id)===id)||null;
+   if(!found){row.status=op?.deleted===true?'delete-absent':'missing';result.missing++}
+   else if(op?.deleted===true){row.status=found.deleted_at?'delete-confirmed':'different';if(found.deleted_at)result.matched++;else result.different++}
+   else if(!found.deleted_at&&sameWalBusiness9482(found.data,op.data)){row.status='content-match';row.revision=found.revision;result.matched++}
+   else{row.status='different';result.different++}
+  }catch(e){row.status='error';result.unverified++;result.errors.push({module,id,opId,error:sid(e?.message||e).slice(0,220)})}
+  result.checked++;result.items.push(row);
+ }
+ if(result.unverified)result.status='partially-unverified';
+ else if(result.different||result.missing)result.status='not-confirmed';
+ else result.status='all-content-matched';
+ return result;
+}
 function metrics(){try{return clone(window.hlgbAuditorIntelligence9396?.currentMetrics?.()?.metrics||{})}catch(e){return {}}}
-function structureEvidence9471(){try{const x=window.hlgbAuditorIntelligence9396?.currentMetrics?.()||{};return {duplicateScripts:(x.duplicateScripts||[]).slice(0,20).map(z=>({file:sid(z.file),dom:+z.dom||0,resource:+z.resource||0})),saveDuplicateResponsibilities:(x.saveChain?.duplicateResponsibilities||[]).slice(0,20).map(z=>({id:sid(z.id),count:+z.count||0,final:+z.final||0,legacy:+z.legacy||0})),saveDepth:+x.saveChain?.depth||0}}catch(e){return {duplicateScripts:[],saveDuplicateResponsibilities:[],saveDepth:0,error:sid(e?.message||e)}}}
+function structureEvidence9471(){try{const x=window.hlgbAuditorIntelligence9396?.currentMetrics?.()||{};return {duplicateScripts:(x.duplicateScripts||[]).slice(0,20).map(z=>({file:sid(z.file),dom:+z.dom||0,resource:+z.resource||0})),saveDuplicateResponsibilities:(x.saveChain?.duplicateResponsibilities||[]).slice(0,20).map(z=>({id:sid(z.id),count:+z.count||0,final:+z.final||0,legacy:+z.legacy||0})),saveDepth:+x.saveChain?.depth||0,payrollMarkedNodes:(x.saveChain?.responsibilities?.payrollFinal?.nodes||[]).slice(0,16).map(n=>({name:sid(n.name),depth:Number(n.depth)||0,markers:clone(n.markers||[])})),saveCycle:x.saveChain?.cycle===true}}catch(e){return {duplicateScripts:[],saveDuplicateResponsibilities:[],saveDepth:0,error:sid(e?.message||e)}}}
 function allIssues(){try{const x=window.hlgbDiagnosticsCenter?.getIssues?.();return Array.isArray(x)?x:[]}catch(e){return []}}
 function openIssue(x){return !/resolvid|closed|fechad/i.test(sid(x?.status))}
 function issueAt(x){return ts(x?.lastSeenAt||x?.lastSeen||x?.updatedAt||x?.updated_at||x?.createdAt||x?.firstSeen)}
@@ -122,7 +193,7 @@ async function triage(audit){
  const coverage=operationalCoverage9474(audit);
  // Métricas estruturais NÃO são candidatas de Produção e não justificam executar quatro receitas genéricas.
  // A triagem preserva o sinal como tarefa de código, sem fingir que uma reconciliação sem alvo o corrigiu.
- if(signal.saveDuplicateResponsibilities>0)needsCode.push({id:'structure:save-responsibilities',module:'runtime',action:'review-save-chain',classification:'needs-code',requires:'code',detail:signal.saveDuplicateResponsibilities+' responsabilidade(s) repetida(s) no grafo de salvamento: '+(structure.saveDuplicateResponsibilities.map(x=>x.id+' ('+x.count+' camadas)').join(', ')||'identidade não capturada')+'. Verificar fases reais antes de retirar proteção.'});
+ if(signal.saveDuplicateResponsibilities>0)needsCode.push({id:'structure:save-responsibilities',module:'runtime',action:'review-save-chain',classification:'needs-code',requires:'code',detail:signal.saveDuplicateResponsibilities+' responsabilidade(s) repetida(s) no grafo de salvamento: '+(structure.saveDuplicateResponsibilities.map(x=>x.id+' ('+x.count+' camadas)').join(', ')||'identidade não capturada')+'. Camadas marcadas não comprovam múltiplas gravações; confirmar cada fase e a contagem de escritas antes de retirar proteção.'});
  if((idbWal.count===null||idbWal.count===undefined)&&!['unsupported','no-store'].includes(idbWal.status))needsCode.push({id:'sync:indexeddb-unverified',module:'sync',action:'investigate-indexeddb-inventory',classification:'needs-code',requires:'read-proof',detail:'Não foi possível verificar IndexedDB ('+sid(idbWal.status)+'). Não declarar fila vazia nem limpar pendências.'});
  if(idbWal.count>0)needsCode.push({id:'sync:indexeddb-wal',module:'sync',action:'review-indexeddb-pending',classification:'needs-code',requires:'remote-proof',detail:idbWal.count+' operação(ões) ainda no IndexedDB, mesmo que pendingSync indique 0. Não eliminar sem confirmação remota por opId e conteúdo.'});
  if(signal.scriptDuplicates>0)needsCode.push({id:'structure:duplicate-scripts',module:'runtime',action:'review-script-loader',classification:'needs-code',requires:'code',detail:signal.scriptDuplicates+' script(s) duplicado(s) detectado(s): '+(structure.duplicateScripts.map(x=>x.file+' (DOM '+x.dom+', requests '+x.resource+')').join(', ')||'arquivo não identificado')+'. Revisar origem e inicialização antes de corrigir.'});
@@ -175,6 +246,12 @@ async function run(opts={}){
   // Apenas prova remota de WAL: poda exige conteúdo igual e mesmo opId.
   // Não tenta reenviar alterações conflitantes ou reescrever registros de negócio.
   const idbBefore=await indexedWalInventory9468();let walProof={attempted:false,removed:0,remaining:idbBefore.count,status:idbBefore.status};
+  // Se a autoridade antiga não existir, executar prova remota somente leitura.
+  // Não inventar ACK nem apagar uma cópia que pode conter alterações exclusivas.
+  if(idbBefore.count>0&&typeof window.hlgbWalSingleAuthority9339?.pruneConfirmed!=='function'){
+   const fallback=await walRemoteReadOnlyProof9482(8);
+   walProof={...walProof,...fallback,remaining:idbBefore.count,removed:0,authorityAvailable:false};
+  }
   if(idbBefore.count>0&&typeof window.hlgbWalSingleAuthority9339?.pruneConfirmed==='function'){
    walProof.attempted=true;
    try{const outcome=await window.hlgbWalSingleAuthority9339.pruneConfirmed(true,8);
