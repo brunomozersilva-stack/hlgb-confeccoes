@@ -32,7 +32,7 @@ function openIssue(x){return !/resolvid|closed|fechad/i.test(sid(x?.status))}
 function issueAt(x){return ts(x?.lastSeenAt||x?.lastSeen||x?.updatedAt||x?.updated_at||x?.createdAt||x?.firstSeen)}
 function protectedBusinessText(v){return /financeiro sem projeção|finance-projection-orphan|valor financeiro|preço|preco|quantidade|observaç|nota fiscal|associaç|vínculo|vinculo|decisão de negócio|decisao de negocio|business-difference/i.test(sid(v))}
 function technicalText(v){return /falha ao salvar|conflito protegido|sincron|\bsync\b|\bwal\b|\back\b|load failed|failed to fetch|network|timeout|fila|pending|duplicad|render|listener|cache|snapshot|tombstone|erro javascript|falha assíncrona|falha assincrona/i.test(sid(v))}
-function technicalIssue(x){const t=[x?.title,x?.detail,x?.source,x?.category].map(sid).join(' ');return !protectedBusinessText(t)&&technicalText(t)}
+function technicalIssue(x){const t=[x?.title,x?.detail,x?.description,x?.source,x?.sourceType,x?.category,x?.kind,x?.technical].map(sid).join(' ');return !protectedBusinessText(t)&&technicalText(t)}
 function recentTechnicalIssues(list=allIssues(),at=Date.now()){return list.filter(x=>openIssue(x)&&technicalIssue(x)&&Number.isFinite(issueAt(x))&&issueAt(x)>=at-RECENT_MS)}
 function historicalIssues(list=allIssues(),at=Date.now()){return list.filter(x=>openIssue(x)&&!(Number.isFinite(issueAt(x))&&issueAt(x)>=at-RECENT_MS))}
 function operationPending(audit){const p=audit?.operations?.pending||audit?.main?.operational?.pending||{};return {unique:+p.unique||0,records:+p.records||0,wal:+p.wal||0,totalCopies:+p.totalCopies||0}}
@@ -63,6 +63,10 @@ function classifyCandidate(c,event){
 async function triage(audit){
  const at=Date.now(),m=metrics(),issues=allIssues(),signal=liveSignal(audit,m,issues),cs=await candidates(),events=repairEvents(),classified=cs.map(c=>classifyCandidate(c,latestEventFor(c?.id,events)));
  const needsCode=classified.filter(x=>x.classification==='needs-code'),businessBlocked=classified.filter(x=>x.classification==='business-blocked'),historical=historicalIssues(issues,at);
+ // Métricas estruturais NÃO são candidatas de Produção e não justificam executar quatro receitas genéricas.
+ // A triagem preserva o sinal como tarefa de código, sem fingir que uma reconciliação sem alvo o corrigiu.
+ if(signal.saveDuplicateResponsibilities>0)needsCode.push({id:'structure:save-responsibilities',module:'runtime',action:'review-save-chain',classification:'needs-code',requires:'code',detail:signal.saveDuplicateResponsibilities+' responsabilidade(s) repetida(s) no grafo de salvamento; verificar fases reais antes de retirar proteção.'});
+ if(signal.scriptDuplicates>0)needsCode.push({id:'structure:duplicate-scripts',module:'runtime',action:'review-script-loader',classification:'needs-code',requires:'code',detail:signal.scriptDuplicates+' script(s) duplicado(s) detectado(s); revisar origem e inicialização antes de corrigir.'});
  const out={version:V,at:nowIso(),signal,needsCode,businessBlocked,historicalBacklog:{count:historical.length,openTotal:issues.filter(openIssue).length,recentTechnicalCount:signal.recentTechnicalIssues.length,detail:historical.length?historical.length+' ocorrência(s) antiga(s) resumida(s); não entram no ciclo de reparo.':'Sem histórico antigo aberto.'},candidateCount:cs.length};state.lastTriage=clone(out);return out;
 }
 function compactUnknown(items){return (items||[]).filter(x=>!/^Sem verificação específica que comprove resolução$/i.test(sid(x?.detail))).slice(0,40)}
@@ -71,7 +75,7 @@ function buildFastSummary(audit,t,reason){
  const needs=t.needsCode.map(x=>({id:x.id,action:x.action,detail:x.detail,classification:x.classification}));
  const blocked=t.businessBlocked.map(x=>({id:x.id,action:x.action,detail:x.detail,safetyLevel:'C',classification:x.classification}));
  const stop=t.needsCode.length?'Triagem rápida: sem fila técnica viva; '+t.needsCode.length+' item(ns) precisam de código. Reparos repetitivos foram evitados.':'Triagem rápida: sem fila técnica viva; restam apenas pendências de negócio/histórico.';
- return {version:V,runtimeVersion:V,runId:'autocorrect-fast-'+Date.now(),at:nowIso(),silent:true,nonNavigating:true,passes:0,repairSkipped:true,fastConvergence:true,reason,stopReason:stop,fixed:0,corrected:[],stillFailing:needs,unverified:needs,blocked,rounds:[],resolvedDiagnostics:[],cleanTechnical:true,remainingOpenIssues:t.historicalBacklog.openTotal,needsCode:clone(t.needsCode),businessBlocked:clone(t.businessBlocked),historicalBacklog:clone(t.historicalBacklog),triage:clone(t),ui:{pageBefore:'',pageAfter:'',stable:true},result:audit};
+ return {version:V,runtimeVersion:V,runId:'autocorrect-fast-'+Date.now(),at:nowIso(),silent:true,nonNavigating:true,passes:0,repairSkipped:true,fastConvergence:true,reason,stopReason:stop,fixed:0,corrected:[],stillFailing:needs,unverified:needs,blocked,rounds:[],resolvedDiagnostics:[],cleanTechnical:needs.length===0&&blocked.length===0,remainingOpenIssues:t.historicalBacklog.openTotal,needsCode:clone(t.needsCode),businessBlocked:clone(t.businessBlocked),historicalBacklog:clone(t.historicalBacklog),triage:clone(t),ui:{pageBefore:'',pageAfter:'',stable:true},result:audit};
 }
 async function withLiveScope(fn){
  const intel=window.hlgbAuditorIntelligence9396,diag=window.hlgbDiagnosticsCenter,origMetrics=intel?.currentMetrics,origIssues=diag?.getIssues;
@@ -107,7 +111,10 @@ async function run(opts={}){
  try{
   const prep=await prepare(opts.reason||'auditor-run-v9447');if(!prep.ok)throw new Error(prep.error||'Preparação v94.47 incompleta');
   const before=await silentAudit('v9447-preflight'),pre=await triage(before);let out,audit=before,t=pre;
-  if(!pre.signal.live){state.fastRuns++;out=buildFastSummary(before,pre,opts.reason||'v9447-fast')}
+  const signal=pre.signal||{},queue=signal.operationalQueue||{},actionable=(+queue.unique||0)+(+queue.records||0)+(+queue.wal||0)+(+signal.pendingTechnicalRecent||0)+((signal.recentTechnicalIssues||[]).length)+((signal.liveChecks||[]).length)+(signal.operationalFail?1:0);
+  // Candidatos sem pendência operacional podem exigir classificação humana/código, não reconciliação.
+  // Estrutura sem evidência de fila viva não aciona ACK, Produção ou rapid-heal.
+  if(!signal.live||!actionable){state.fastRuns++;out=buildFastSummary(before,pre,opts.reason||'v9447-no-repair-target')}
   else{
    state.legacyRuns++;const legacy=window.hlgbAuditorAutoCorrect9446;if(typeof legacy?.run!=='function')throw new Error('Autocorretor v94.46 indisponível');
    const raw=await withLiveScope(()=>legacy.run({...opts,render:false,download:false,reason:(opts.reason||'v9447')+'-live-scope'}));if(raw===false)throw new Error('Autocorretor v94.46 retornou false');audit=await silentAudit('v9447-post-repair');t=await triage(audit);out=upgradeLegacy(raw,audit,t);
