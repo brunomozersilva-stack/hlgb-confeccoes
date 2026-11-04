@@ -80,7 +80,7 @@ const engine=process.env.HLGB_BROWSER==='webkit'?webkit:chromium;
   await page.context().setOffline(true);
   await page.locator('#modal .modalSave').click();
   await page.waitForFunction(()=>window.__fixture.lastAlert.includes('Sem conexão'));
-  assert.equal(await page.locator('#testValue').inputValue(),'17');
+  assert.equal(Number(await page.locator('#testValue').inputValue()),17,'form value must be preserved exactly after offline failure');
   assert.equal(await page.locator('#modal').getAttribute('hidden'),null);
   await page.context().setOffline(false);
   assert.equal(errors.length,0,errors.join(' | '));
