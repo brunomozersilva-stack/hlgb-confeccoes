@@ -9500,15 +9500,16 @@ function renderProducts(){
  const el=document.getElementById("productTable");
  if(!el)return;
 
- let query=(document.getElementById("productSearchName")?.value||"").trim().toLowerCase();
+ const normProductFilter=v=>String(v??"").normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLowerCase();
+ let query=normProductFilter(document.getElementById("productSearchName")?.value||"").trim();
  let minRaw=document.getElementById("productPriceMin")?.value;
  let maxRaw=document.getElementById("productPriceMax")?.value;
  let min=minRaw!==""&&minRaw!=null?+minRaw:null;
  let max=maxRaw!==""&&maxRaw!=null?+maxRaw:null;
 
  let filtered=db.products.filter(p=>{
-   let name=String(p.name||"").toLowerCase();
-   let code=String(p.code||"").toLowerCase();
+   let name=normProductFilter(p.name||"");
+   let code=normProductFilter(p.code||"");
    let price=+p.price||0;
    if(query && !name.includes(query) && !code.includes(query))return false;
    if(min!=null && Number.isFinite(min) && price<min)return false;
@@ -9519,7 +9520,7 @@ function renderProducts(){
  let summary=document.getElementById("productFilterSummary");
  if(summary){
    let parts=[];
-   if(query)parts.push(`nome contendo "${query}"`);
+   if(query)parts.push(`nome ou código contendo "${query}"`);
    if(min!=null&&Number.isFinite(min))parts.push(`preço a partir de ${money(min)}`);
    if(max!=null&&Number.isFinite(max))parts.push(`preço até ${money(max)}`);
    summary.textContent=parts.length
