@@ -65,7 +65,7 @@ async function captureMultiuser(){
  const auditor=window.hlgbInternalAuditor;
  if(auditor?.buildSyncDiagnostic){const sync=await auditor.buildSyncDiagnostic();if(sync?.durableWalIndexedDb?.available===true&&!sync.durableWalIndexedDb.error&&sync.summary)queues={...sync.summary}}
  if(String(muState().user?.auth_id||muState().user?.authId||muState().user?.id)!==String(id))throw new Error('O usuário mudou durante a coleta. Gere novamente.');
- return {kind:MU_KIND,schema:MU_SCHEMA,startedAt,completedAt:new Date().toISOString(),profile,appVersion:String(window.HLGB_RELEASE_VERSION||'desconhecida'),readOnly:true,queues,modules,limitations:['Fotografia local; não comprova entrega em tempo real, persistência após novo login, conflitos ou permissões no servidor.','Identificadores e conteúdo são resumidos por SHA-256; não inclui nomes, valores, senhas ou tokens.']};
+ return {kind:MU_KIND,schema:MU_SCHEMA,startedAt,completedAt:new Date().toISOString(),profile,appVersion:String(window.HLGB_RELEASE_VERSION||'desconhecida'),readOnly:true,queues,modules,propagation:await window.hlgbPropagation?.evidence(digest),limitations:['Fotografia local; não comprova entrega em tempo real, persistência após novo login, conflitos ou permissões no servidor.','Identificadores e conteúdo são resumidos por SHA-256; não inclui nomes, valores, senhas ou tokens.']};
 }
 function validateMultiuser(r){
  const hex=v=>typeof v==='string'&&/^[a-f0-9]{64}$/.test(v);
@@ -77,7 +77,7 @@ function validateMultiuser(r){
 }
 function compareMultiuser(a,b){
  validateMultiuser(a);validateMultiuser(b);
- if(a.profile===b.profile)throw new Error('Os dois relatórios são do mesmo usuário. Importe o relatório do outro usuário.');
+ if(a.profile===b.profile&&(!a.propagation?.session||!b.propagation?.session||a.propagation.session===b.propagation.session))throw new Error('Os dois relatórios são do mesmo usuário. Importe o relatório do outro usuário.');
  if(Math.abs(Date.parse(a.startedAt)-Date.parse(b.startedAt))>120000)throw new Error('Colete os dois relatórios com no máximo 2 minutos de diferença.');
  const checks=[];
  checks.push({title:'Versão informada',status:a.appVersion==='desconhecida'||b.appVersion==='desconhecida'?'not_measured':a.appVersion===b.appVersion?'pass':'warn',detail:a.appVersion===b.appVersion?'Versões informadas iguais; isso não comprova que todos os scripts são idênticos.':'Versões diferentes: '+a.appVersion+' / '+b.appVersion});
@@ -90,7 +90,10 @@ function compareMultiuser(a,b){
   missing+=right.size;
   checks.push({title:m,status:!shared?'not_measured':different||missing||localDiff||x.duplicates||y.duplicates?'warn':'pass',detail:shared+' registros em comum; '+different+' divergências de revisão/conteúdo recebido; '+localDiff+' divergências locais; '+missing+' exclusivos. Diferenças podem decorrer do horário ou das permissões.',shared,different,localDiff,missing});
  }
- for(const title of ['Entrega automática nos dois sentidos','Persistência após novo login','Edição simultânea do mesmo registro','Permissões no servidor'])checks.push({title,status:'not_measured',detail:'Exige teste operacional com duas sessões autenticadas; esta comparação não executa gravações.'});
+ const remote=window.hlgbPropagation?.compare(a.propagation,b.propagation);
+ checks.push({title:'Entrega automática nos dois sentidos',status:remote?.forward&&remote?.reverse?'pass':'not_measured',
+  detail:remote?.forward&&remote?.reverse?'Mesma revisão confirmada, recebida e visível. A → B: '+remote.forward.totalMs+' ms. B → A: '+remote.reverse.totalMs+' ms. Comparação depende de relógios alinhados.':'Gere uma alteração de teste em cada sessão e compare as revisões e os horários.',remote});
+ for(const title of ['Persistência após novo login','Edição simultânea do mesmo registro','Permissões no servidor'])checks.push({title,status:'not_measured',detail:'Exige teste operacional com duas sessões autenticadas; esta comparação não executa gravações.'});
  return {kind:'hlgb_multiuser_comparison',status:'partial',checks};
 }
 function muMessage(text){const e=document.getElementById('hlgbMultiuserStatus');if(e)e.textContent=text}

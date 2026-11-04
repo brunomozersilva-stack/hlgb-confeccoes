@@ -38,7 +38,7 @@ function historicalIssues(list=allIssues(),at=Date.now()){return list.filter(x=>
 function operationPending(audit){const p=audit?.operations?.pending||audit?.main?.operational?.pending||{};return {unique:+p.unique||0,records:+p.records||0,wal:+p.wal||0,totalCopies:+p.totalCopies||0}}
 function opStatus(audit,key){return sid(audit?.operations?.[key]?.status||'')}
 function unresolvedChecks(audit){const x=audit?.main?.checks||audit?.audit?.checks||[];return Array.isArray(x)?x.filter(r=>r?.status==='fail'||r?.status==='warn'):[]}
-function liveTechnicalChecks(audit){return unresolvedChecks(audit).filter(x=>!['sync:pending','issues:open','data:finance-projection-orphan','finance-projection-orphan'].includes(sid(x?.code))&&!protectedBusinessText([x?.code,x?.title,x?.detail,x?.category].map(sid).join(' '))&&technicalText([x?.code,x?.title,x?.detail,x?.category].map(sid).join(' ')))}
+function liveTechnicalChecks(audit){return unresolvedChecks(audit).filter(x=>!['sync:pending','sync:propagation','issues:open','data:finance-projection-orphan','finance-projection-orphan'].includes(sid(x?.code))&&!protectedBusinessText([x?.code,x?.title,x?.detail,x?.category].map(sid).join(' '))&&technicalText([x?.code,x?.title,x?.detail,x?.category].map(sid).join(' ')))}
 function liveSignal(audit,m=metrics(),issues=allIssues()){
  const p=operationPending(audit),recent=recentTechnicalIssues(issues),checks=liveTechnicalChecks(audit);
  const operationalFail=['delivery','savingUi','runtime'].some(k=>['fail','error'].includes(opStatus(audit,k)));

@@ -1663,6 +1663,7 @@ function hlgbLegacyComparablePayload(v){
 }
 
 function hlgbStopRealtime(){
+ window.hlgbPropagation?.connection("offline");
  try{
   // Invalidar callbacks antigos antes de remover o canal assíncrono.
   window.__hlgbRealtimeEpochV9466=(Number(window.__hlgbRealtimeEpochV9466)||0)+1;
@@ -11745,8 +11746,11 @@ async function hlgbLoadNormalizedCore(opts={}){
 }
 async function hlgbRecordRpcSave(module,id,data,expectedRevision,deleted=false){
   const body={p_module:module,p_entity_id:String(id),p_data:data,p_expected_revision:+expectedRevision||0,p_deleted:!!deleted};
+  const sentAt=Date.now();window.hlgbPropagation?.sending(module,id,sentAt);
   let out=await cloudRequest("rpc/hlgb_save_record",{method:"POST",headers:{Prefer:"return=representation"},body:JSON.stringify(body)});
-  return Array.isArray(out)?out[0]:out;
+  const row=Array.isArray(out)?out[0]:out;
+  if(row?.applied===true)window.hlgbPropagation?.confirmed(module,id,row,sentAt);
+  return row;
 }
 async function hlgbRecordSaveWithRetry(module,id,data,deleted=false){
   let snap=hlgbRecordSnapshots[module]||new Map(),old=snap.get(String(id)),expected=+old?.revision||0;
@@ -11861,10 +11865,7 @@ function hlgbRenderIncomingRecord(module){
       return true;
     }
 
-    // Para as demais telas, agrupa atualizações remotas para evitar a tela "pular".
-    if(!cloudUserIsEditing()){
-      if(typeof window.hlgbScheduleStableRender9220==='function')window.hlgbScheduleStableRender9220();
-      else renderAll();
+    if(window.hlgbPropagation?.renderAffected(module,activePage)){
       cloudRemoteUpdatePending=false;
       return true;
     }
@@ -11880,7 +11881,9 @@ async function hlgbHandleRecordRealtime(payload){
     if(payload.eventType==="DELETE")row={...row,deleted_at:row.deleted_at||new Date().toISOString()};
     const module=String(row.module||"");
     if(!HLGB_RECORD_MODULES.includes(module))return;
+    window.hlgbPropagation?.received(row,payload);
     if(!hlgbApplyRecordRow(row))return; // eco ou revisão antiga: não redesenhar
+    window.hlgbPropagation?.applied(row);
     localSaveOnly();
     hlgbRenderIncomingRecord(module);
     setCloudStatus("⚡ Online · atualização recebida","ok");
@@ -11959,7 +11962,7 @@ hlgbStartRealtime=function(){
       .on('postgres_changes',{event:'UPDATE',schema:'public',table:'hlgb_data',filter:`id=eq.${cloudRowId}`},payload=>{if(epoch===Number(window.__hlgbRealtimeEpochV9466))hlgbHandleRealtimeDataChange(payload)})
       .subscribe((status,err)=>{
         if(epoch!==Number(window.__hlgbRealtimeEpochV9466))return;
-        hlgbRealtimeState=status;
+        hlgbRealtimeState=status;window.hlgbPropagation?.connection(status);
         if(status==='SUBSCRIBED')setCloudStatus((cloudDirty||hlgbRecordPendingRead())?'☁️ Salvando automático…':'⚡ Online · multiusuário',(cloudDirty||hlgbRecordPendingRead())?'':'ok');
         else if(status==='CHANNEL_ERROR'||status==='TIMED_OUT'){console.warn('HLGB Realtime',status,err);setCloudStatus('☁️ Online · reconectando…')}
       });
