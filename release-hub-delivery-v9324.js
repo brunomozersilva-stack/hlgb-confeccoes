@@ -22,19 +22,20 @@ async function cloudRow(id){
    revisao e releitura completa da linha; falha da fila local nao impede RPC autenticado. */
 const SAVE_BUILD='94.83';
 const trace={build:SAVE_BUILD,attempts:0,phase:'not-tested',outcome:'not-tested',lastAt:'',source:'',
-  clickAt:'',rpcAt:'',ackAt:'',readbackAt:'',visibleAt:'',revision:null,errorCode:'',history:[]};
+  clickAt:'',clickObserved:false,pendingClick:null,rpcAt:'',ackAt:'',readbackAt:'',modelAt:'',revision:null,errorCode:'',history:[]};
 function signal(phase,detail={}){
  const at=new Date().toISOString();trace.phase=phase;trace.lastAt=at;
  if(phase==='click')trace.clickAt=at;
  if(phase==='rpc-send')trace.rpcAt=at;
  if(phase==='rpc-ack')trace.ackAt=at;
  if(phase==='remote-readback')trace.readbackAt=at;
- if(phase==='ui-updated')trace.visibleAt=at;
+ if(phase==='local-model-updated')trace.modelAt=at;
  if(detail.revision!==undefined)trace.revision=detail.revision;
  const row={at,phase,...detail};delete row.id;delete row.data;delete row.value;
  trace.history.push(row);if(trace.history.length>18)trace.history.shift();
 }
-function traceStatus(){return clone(trace)}
+function traceStatus(){const t=clone(trace);delete t.pendingClick;return t}
+function recordClick(source){const at=new Date().toISOString();trace.pendingClick={source:sid(source),at};signal('click',{source:sid(source)})}
 function canonical(v){
  if(Array.isArray(v))return v.map(canonical);
  if(v===null||typeof v!=='object')return v;
@@ -98,7 +99,7 @@ function confirmLocal(id,data,verified){
   }
  }catch(e){}
  try{window.dispatchEvent?.(new CustomEvent('hlgb:hub-finance-changed',{detail:{source:'confirmed-save',module:MODULE}}))}catch(e){}
- signal('ui-updated',{revision:revisionOf(verified)});
+ signal('local-model-updated',{revision:revisionOf(verified)});
 }
 function queueRecovery(){try{window.hlgbSaveTransport9320?.retry?.()}catch(e){}}
 async function save(row,deleted=false,opts={}){
@@ -106,7 +107,9 @@ async function save(row,deleted=false,opts={}){
  const id=idOf(row);if(!id)throw new Error('Lançamento sem identificação.');
  const payload=clone(row);payload.updatedAt=payload.updatedAt||new Date().toISOString();
  trace.attempts++;trace.source=sid(opts?.source||'hub-save');trace.outcome='in-progress';trace.errorCode='';
- signal('click',{source:trace.source});
+ const click=trace.pendingClick;trace.clickObserved=!!(click&&click.source===trace.source&&Date.now()-Date.parse(click.at)<10000);
+ trace.clickAt=trace.clickObserved?click.at:'';trace.pendingClick=null;
+ signal('save-start',{source:trace.source,clickObserved:trace.clickObserved});
  try{
   if(navigator?.onLine===false)throw new Error('Sem conexão. O lançamento não foi confirmado na nuvem. Mantenha a janela aberta.');
   checkPending(id);signal('remote-preflight');
@@ -150,6 +153,6 @@ function install(){window.hlgbHubSaveConfirmed=save;window.HLGB_HUB_SAVE_AUTHORI
 function state(){return {version:V,installs,directAttempts,directConfirmed,fallbackExisting,failed,lastError,lastId,lastAt,authority:window.HLGB_HUB_SAVE_AUTHORITY,authoritative:window.hlgbHubSaveConfirmed===save,build:SAVE_BUILD,trace:traceStatus()}}
 install();let n=0;const timer=setInterval(()=>{n++;if(window.hlgbHubSaveConfirmed!==save)install();if(n>=120)clearInterval(timer)},500);
 try{if(typeof hlgbAfterLogin==='function')hlgbAfterLogin(()=>setTimeout(install,150),0)}catch(e){}
-window.hlgbHubSaveTrace9483={status:traceStatus};window.hlgbHubDelivery9324={version:V,build:SAVE_BUILD,install,state,save,cloudRow,rawCreate,traceStatus,sameBusiness};
+window.hlgbHubSaveTrace9483={status:traceStatus,recordClick};window.hlgbHubDelivery9324={version:V,build:SAVE_BUILD,install,state,save,cloudRow,rawCreate,traceStatus,sameBusiness};
 console.info('[HLGB] v'+V+' entrega direta e verificada de novos lançamentos do Hub ativa');
 })();
