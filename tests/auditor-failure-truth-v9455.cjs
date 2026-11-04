@@ -4,7 +4,7 @@ let html='',saved=null;
 const card={className:'',id:'',setAttribute(k,v){this[k]=v},set innerHTML(v){html=v},get innerHTML(){return html}};
 const host={prepend(){}};
 const document={querySelector:()=>null,getElementById:id=>id==='hlgbAuditorResult'?host:id==='hlgbAuditorAutoCorrect9448Card'?card:null,createElement:()=>card};
-const ctx={window:{__HLGB_AUTH_READY:true,HLGB_AUDITOR_AUTOCORRECT_9447:'94.47',HLGB_PRODUCTION_RESIDUAL_9448:'94.50',addEventListener:()=>{},
+const ctx={window:{__HLGB_AUTH_READY:true,HLGB_AUDITOR_AUTOCORRECT_9447:'94.47',HLGB_PRODUCTION_RESIDUAL_9448:'94.84',addEventListener:()=>{},
  hlgbAuditorAutoCorrect9447:{prepare:async()=>({ok:true}),run:async()=>({stopReason:'Execução interrompida',unverified:[{detail:'Erro real do reparador'}]})},
  hlgbProductionResidual9448:{reconcileAndInspect:async()=>({before:{ready:true,safeCopies:0},after:{ready:true,candidateCount:0}})}},
  document,console,localStorage:{setItem:(k,v)=>{saved=JSON.parse(v)}},Date,Promise,Map,Set,Object,JSON,String,Number,structuredClone,

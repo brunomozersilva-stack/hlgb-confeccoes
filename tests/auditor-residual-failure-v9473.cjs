@@ -11,7 +11,7 @@ const cases=[
   const card={setAttribute(k,v){this[k]=v},set innerHTML(x){html=x},get innerHTML(){return html}};
   const host={prepend(){}};
   const document={querySelector:()=>null,getElementById:id=>id==='hlgbAuditorResult'?host:id==='hlgbAuditorAutoCorrect9448Card'?card:null,createElement:()=>card};
-  const ctx={window:{__HLGB_AUTH_READY:true,HLGB_AUDITOR_AUTOCORRECT_9447:'94.47',HLGB_PRODUCTION_RESIDUAL_9448:'94.50',
+  const ctx={window:{__HLGB_AUTH_READY:true,HLGB_AUDITOR_AUTOCORRECT_9447:'94.47',HLGB_PRODUCTION_RESIDUAL_9448:'94.84',
    addEventListener:()=>{},hlgbAuditorAutoCorrect9447:{prepare:async()=>({ok:true}),run:async()=>{called++;return {passes:0,needsCode:[]}}},
    hlgbProductionResidual9448:{reconcileAndInspect:async()=>test.diag}},
    document,console,localStorage:{setItem:(k,v)=>{saved=JSON.parse(v)}},Date,Promise,Map,Set,Object,JSON,String,Number,
