@@ -46,7 +46,8 @@ function chainProbe(start){
   if(!next){stop='no-pointer';break}
   fn=next;stop='max-depth';
  }
- if(typeof fn==='function'&&seen.has(fn))stop='cycle';
+ // A folha corrente já está em seen; ciclo só existe se a PRÓXIMA aresta voltar a um nó visitado.
+ if(stop==='max-depth'&&typeof fn==='function'&&seen.has(fn))stop='cycle';
  return {stop,depth:nodes.length,nodes};
 }
 function runtimeState(data){
