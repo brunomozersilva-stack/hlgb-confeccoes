@@ -45,8 +45,8 @@ function make(){
  a=await submit({id:'order1',value:22},'finance','order1');
  assert.equal(x.counts().physical,3,'other modules pass without remote proof');
  x.fail(true);
- a=await submit({...base,updatedAt:'2026-11-05T10:00:00Z'});
- assert.equal(x.counts().physical,4,'failed remote read must never fabricate an ACK');
+ await assert.rejects(()=>submit({...base,updatedAt:'2026-11-05T10:00:00Z'}),/Não foi possível confirmar a folha/);
+ assert.equal(x.counts().physical,3,'failed remote read must neither fabricate ACK nor call underlying save');
  assert.equal(x.window.hlgbHubFinanceWal9451.status().remoteProofFailures,1);
  console.log('PASS v94.87: verified payroll read-only no-op; business differences/other modules/offline delegate exactly once');
 })().catch(e=>{console.error(e);process.exitCode=1});
