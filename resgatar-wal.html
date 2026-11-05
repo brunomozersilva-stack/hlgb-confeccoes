@@ -1,0 +1,112 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="referrer" content="no-referrer">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src 'none'; connect-src 'none'; form-action 'none'; object-src 'none'; base-uri 'none'">
+<title>HLGB · Resgate seguro de WAL local</title>
+<style>
+:root{font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:#18314a;background:#f4f7fc}
+*{box-sizing:border-box}
+body{margin:0;padding:26px 18px}
+main{max-width:740px;margin:0 auto;background:white;padding:30px;border:1px solid #dbe3ed;border-radius:14px;box-shadow:0 8px 25px rgba(0,27,50,.05)}
+h1{font-size:1.48rem;margin:0 0 8px}h2{font-size:1.06rem}
+p,li{line-height:1.6} .muted{color:#536779} .warning{padding:12px;border-left:4px solid #d68b22;background:#fff9e9;border-radius:5px}
+button{background:#1764b6;color:white;border:0;border-radius:8px;padding:12px 18px;font:600 1rem system-ui;cursor:pointer}
+button:disabled{opacity:.65;cursor:wait}
+#result{margin:15px 0;white-space:pre-wrap;font-weight:600}
+.status{color:#155f3f}.error{color:#a32936}#details{margin:12px 0;padding-left:20px}code{overflow-wrap:anywhere}
+small{color:#607284}
+</style>
+</head>
+<body>
+<main>
+<h1>HLGB · Resgate seguro de pendências locais</h1>
+<p>Use esta página no <strong>mesmo navegador e perfil</strong> em que o Auditor encontrou operações WAL. Ela funciona sem abrir o sistema e sem iniciar nenhuma sincronização.</p>
+<p class="warning"><strong>Não feche nem recarregue a aba antiga do HLGB.</strong> Esta página apenas consulta o IndexedDB e o localStorage do navegador para salvar uma cópia no seu computador. Ela não envia dados para a internet nem modifica as operações.</p>
+<button id="export" type="button">📦 Exportar cópia de segurança da WAL</button>
+<div id="result" role="status" aria-live="polite">Nenhuma leitura foi executada.</div>
+<ul id="details"></ul>
+<h2>Depois de exportar</h2>
+<p>Confira se o arquivo JSON foi baixado. Ele pode conter informações internas e financeiras; guarde em local privado e compartilhe somente por um canal confiável. <strong>Não exclua os dados do Safari.</strong></p>
+<small>Página independente de resgate v94.94. Sem bibliotecas externas, login, gravações ou conexões de rede.</small>
+</main>
+<script>
+(function(){
+'use strict';
+const button=document.getElementById('export'),result=document.getElementById('result'),details=document.getElementById('details');
+const DB='hlgb_durable_wal',STORE='entries',KEY='hlgb_durable_wal_v1';
+function setStatus(message,failed=false){result.className=failed?'error':'status';result.textContent=message}
+async function readIdb(){
+ if(!('indexedDB' in window))throw new Error('IndexedDB indisponível. Abra no mesmo navegador e perfil em que o Auditor encontrou as operações.');
+ return new Promise((resolve,reject)=>{
+  let finished=false,req;
+  const fail=e=>{if(finished)return;finished=true;reject(e instanceof Error?e:new Error(String(e)))};
+  try{req=indexedDB.open(DB)}catch(e){fail(e);return}
+  req.onblocked=()=>fail(new Error('A base local está bloqueada por outra transação; não feche a aba antiga. Tente novamente.'));
+  req.onupgradeneeded=()=>{try{req.transaction.abort()}catch(e){}fail(new Error('A WAL não existe neste perfil de navegador. Não foi criado arquivo vazio.'))};
+  req.onerror=()=>fail(req.error||new Error('O navegador não permitiu ler a WAL.'));
+  req.onsuccess=()=>{
+   const db=req.result;
+   if(finished){db.close();return}
+   if(!db.objectStoreNames.contains(STORE)){db.close();fail(new Error('A base WAL não possui a tabela de operações.'));return}
+   let tx;
+   try{
+    tx=db.transaction(STORE,'readonly');
+    const g=tx.objectStore(STORE).getAll();
+    g.onsuccess=()=>{const rows=Array.isArray(g.result)?g.result:null;
+     if(!rows){db.close();fail(new Error('Não foi possível obter as operações da WAL.'));return}
+     tx.oncomplete=()=>{db.close();if(!finished){finished=true;resolve(rows)}};
+    };
+    g.onerror=()=>{db.close();fail(g.error||new Error('Leitura incompleta da WAL.'))};
+    tx.onerror=tx.onabort=()=>{db.close();fail(tx.error||new Error('Falha na transação somente leitura.'))};
+   }catch(e){db.close();fail(e)}
+  }
+ })
+}
+function readLocalWal(){
+ let raw;
+ try{raw=localStorage.getItem(KEY)}catch(e){throw new Error('Não foi possível consultar a cópia localStorage: '+String(e.message||e))}
+ if(raw===null)return {present:false,value:null};
+ try{
+  const v=JSON.parse(raw);
+  if(!v||typeof v!=='object')throw Error('Formato inesperado');
+  return {present:true,value:v}
+ }catch(e){throw new Error('A cópia localStorage não pôde ser interpretada, portanto nenhum backup parcial será exportado.')}
+}
+function showSummary(rows,local){
+ details.textContent='';
+ const modules=rows.reduce((m,r)=>{const k=String(r?.module||'desconhecido');m[k]=(m[k]||0)+1;return m},{});
+ for(const [module,n] of Object.entries(modules)){
+  const li=document.createElement('li');li.textContent=module+': '+n+' operação(ões) no IndexedDB';details.appendChild(li)
+ }
+ const li=document.createElement('li');li.textContent='Segunda cópia localStorage: '+(local.present?'presente':'não encontrada');details.appendChild(li)
+}
+async function exportEvidence(){
+ button.disabled=true;setStatus('Conferindo operações em modo somente leitura…');details.textContent='';
+ try{
+  const indexedDbEntries=await readIdb(),local=readLocalWal();
+  const localCount=local.present&&local.value.entries&&typeof local.value.entries==='object'?Object.keys(local.value.entries).length:0;
+  if(!indexedDbEntries.length&&!localCount)throw new Error('Nenhuma WAL foi encontrada neste perfil. Não foi gerado um backup vazio.');
+  const payload={kind:'hlgb_wal_local_evidence_backup',formatVersion:'94.94',capturedAt:new Date().toISOString(),
+   source:'Página independente de resgate, somente leitura no mesmo origin GitHub Pages',
+   warning:'Pode conter informações financeiras internas; não publicar na internet nem apagar WAL.',
+   indexedDbEntries,localStorageWal:local.value,localStoragePresent:local.present};
+  const text=JSON.stringify(payload,null,2);
+  if(!text||!text.includes('"indexedDbEntries"'))throw new Error('Falha ao gerar o arquivo JSON.');
+  const filename='HLGB-WAL-COPIA-SEGURA-'+payload.capturedAt.replace(/[:.]/g,'-')+'.json';
+  const blob=new Blob([text],{type:'application/json;charset=utf-8'}),url=URL.createObjectURL(blob);
+  try{
+   const a=document.createElement('a');a.href=url;a.download=filename;document.body.appendChild(a);a.click();a.remove()
+  }finally{setTimeout(()=>URL.revokeObjectURL(url),20000)}
+  showSummary(indexedDbEntries,local);
+  setStatus('✅ Cópia exportada: '+filename+'. IndexedDB: '+indexedDbEntries.length+' · localStorage: '+localCount+'. Nenhuma operação foi excluída.');
+ }catch(e){setStatus('❌ '+String(e?.message||e)+'. Nenhum dado foi apagado.',true)}
+ finally{button.disabled=false}
+}
+button.addEventListener('click',exportEvidence);
+})();
+</script>
+</body>
+</html>
