@@ -133,7 +133,7 @@ function editPayrollRowShared(id){
      return false
     }
     desired.transportOverride=Math.round(amount*100)/100;
-   }else delete desired.transportOverride;
+   }else desired.transportOverride=null;
    if(desired.paid){const cc=calc(desired,e);desired.paidValue=cc.net}
    try{const saved=await saveConfirmed(base,desired);try{window.closeModal?.()}catch(e){}try{window.auditAction?.('Atualizou folha de pagamento',`${saved.employeeName||'Funcionário'} — ${saved.month||''}`)}catch(e){}return true}
    catch(err){console.error('[HLGB folha '+V+'] edição',err);status('❌ Folha não confirmada na nuvem','bad');alert('A alteração NÃO foi aplicada porque a nuvem não confirmou.\n\n'+(err?.message||err));if(btn){btn.disabled=false;btn.textContent='Salvar alterações'}return false}
@@ -201,7 +201,7 @@ async function saveEmployeeFare(employeeId,month,value){
   amount=Math.round(amount*100)/100;
  }
  const base=clone(row),desired=clone(row);
- if(reset)delete desired.transportOverride;
+ if(reset)desired.transportOverride=null;
  else desired.transportOverride=amount;
  desired.updatedAt=now();
  const verify=server=>reset?(server.transportOverride===undefined||server.transportOverride===null||server.transportOverride===''):manualFare(server)===amount;
