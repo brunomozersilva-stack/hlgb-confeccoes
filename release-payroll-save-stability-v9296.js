@@ -1,7 +1,7 @@
 /* HLGB v93.04 — Folha compartilhada: nuvem confirmada, sem folha paralela por usuário */
 (function(){
 'use strict';
-const V='94.90';
+const V='94.92';
 if(window.hlgbPayrollSaveStability9296?.version===V)return;
 const sid=v=>String(v??'');
 const q=v=>Math.max(0,Number(v)||0);
@@ -232,7 +232,7 @@ function employeeFarePanel(id){
  month.value=payrollMonth();
  function refresh(){
   const info=fareMonthInfo(id,month.value);
-  amount.value=info.manual===null?'':sid(info.manual);
+  amount.value=info.manual===null?'':sid(info.manual);amount.dataset.initialValue=amount.value;
   amount.disabled=info.status==='missing-payroll'||info.status==='paid'||info.hasTransport===false;
   btn.disabled=amount.disabled;
   result.textContent='';
@@ -262,15 +262,134 @@ function employeeFarePanel(id){
  refresh();
  return true
 }
+/* v94.92 — the legacy employee modal called save() and closed without
+   any proof of a cloud ACK. Route its primary Save through remote readback.
+   Never replace the local employee until remote identity/content is confirmed.
+   The independent month-specific Passage button remains available. */
+const employeeSaveState={attempts:0,confirmed:0,failed:0,partial:0,lastId:'',lastError:'',lastAt:''};
+const employeeEditable=['name','productionLocationId','salary','hasTransport','benefitDefault','hireDate','pix','active'];
+function employeeEqual(a,b){return JSON.stringify(a??null)===JSON.stringify(b??null)}
+function employeeInputs(id){
+ const original=findEmployee(id);if(!original)throw new Error('Funcionário não encontrado neste navegador.');
+ const name=sid(document.getElementById('empName')?.value).trim();
+ if(!name)throw new Error('Informe o nome do funcionário.');
+ const salaryText=sid(document.getElementById('empSalary')?.value).trim();
+ if(salaryText===''||!Number.isFinite(Number(salaryText))||Number(salaryText)<0)throw new Error('Salário inválido.');
+ const locValue=sid(document.getElementById('empLocation')?.value).trim();
+ const locId=locValue&&Number.isFinite(Number(locValue))?Number(locValue):null;
+ const loc=arr('productionLocations').find(x=>sid(x?.id)===sid(locId));
+ const out={
+  name,productionLocationId:locId,companyName:loc?.name||'',
+  salary:Number(salaryText),hasTransport:document.getElementById('empHasTransport')?.value!=='false',
+  benefitDefault:Number(document.getElementById('empBenefit')?.value)||0,
+  hireDate:sid(document.getElementById('empHire')?.value),
+  pix:sid(document.getElementById('empPix')?.value),
+  active:document.getElementById('empActive')?.value!=='false'
+ };
+ return out
+}
+async function fetchEmployeeCloud(id){
+ const request=typeof window.cloudRequest==='function'?window.cloudRequest:null;
+ if(!request)throw new Error('Consulta de confirmação no servidor indisponível. Cadastro não alterado.');
+ const query='hlgb_records?select=module,entity_id,revision,data,deleted_at,updated_at&module=eq.employees&entity_id=eq.'+encodeURIComponent(sid(id))+'&limit=1';
+ const rows=await request(query,{method:'GET'});
+ const row=Array.isArray(rows)?rows[0]:null;
+ if(!row||sid(row.module)!=='employees'||sid(row.entity_id)!==sid(id)||row.deleted_at||!Number.isInteger(+row.revision)||+row.revision<1||!row.data)throw new Error('Cadastro não encontrado ou não confirmado na nuvem.');
+ return row
+}
+function employeeFareTouched(){
+ const month=document.getElementById('hlgbFareMonth9490'),
+  field=document.getElementById('hlgbFareAmount9490');
+ return month&&field&&field.disabled!==true&&sid(field.value).trim()!==sid(field.dataset.initialValue??'').trim()
+}
+function employeeSaveMessage(message,bad=false){
+ let el=document.getElementById('hlgbEmployeeSaveStatus9492');
+ if(!el){
+  const btn=document.querySelector('#modal .modalSave');
+  if(!btn)return;
+  el=document.createElement('div');el.id='hlgbEmployeeSaveStatus9492';
+  el.setAttribute('role','status');
+  el.style.cssText='margin:9px 0;font-weight:600;white-space:pre-wrap';
+  btn.insertAdjacentElement('beforebegin',el)
+ }
+ el.textContent=message;el.style.color=bad?'#a11':'#116a3a'
+}
+async function saveEmployeeConfirmedFromModal(id,opened){
+ const btn=document.querySelector('#modal .modalSave');
+ if(!btn||btn.disabled||!document.getElementById('empName'))return false;
+ employeeSaveState.attempts++;employeeSaveState.lastId=sid(id);employeeSaveState.lastAt=now();
+ let employeeConfirmed=false;
+ btn.disabled=true;btn.textContent='☁️ Confirmando cadastro na nuvem…';
+ try{
+  await ensureOnline();
+  const fields=employeeInputs(id),remote=await fetchEmployeeCloud(id);
+  const current=findEmployee(id);
+  if(!current)throw new Error('Funcionário deixou de existir localmente.');
+  // A locally edited but unacknowledged employee must not be silently replaced.
+  for(const key of employeeEditable){
+   if(!employeeEqual(opened?.[key],remote.data?.[key])){
+    throw new Error('O cadastro local de '+(opened?.name||'funcionário')+' difere da nuvem ('+key+'). Não feche esta janela: preserve os valores e faça a conciliação.');
+   }
+  }
+  const desired=clone(remote.data);
+  for(const key of [...employeeEditable,'companyName'])desired[key]=fields[key];
+  const changes=employeeEditable.filter(key=>!employeeEqual(remote.data?.[key],desired[key]));
+  if(changes.includes('salary')){
+   const previous=Number(remote.data.salary)||0,actual=Number(desired.salary)||0;
+   const hist=Array.isArray(desired.salaryHistory)?clone(desired.salaryHistory):[];
+   hist.push({id:'sal-'+Date.now()+'-'+Math.floor(Math.random()*10000),
+    date:new Date().toLocaleDateString('en-CA'),oldSalary:previous,newSalary:actual,
+    percent:previous>0?(actual-previous)*100/previous:0,note:'Alteração feita pelo cadastro do funcionário'});
+   desired.salaryHistory=hist
+  }
+  let verified=remote;
+  if(changes.length||!employeeEqual(remote.data?.companyName,desired.companyName)){
+   status('☁️ Salvando cadastro do funcionário…','warn');
+   const result=await saveFn()('employees',sid(id),clone(desired),false);
+   if(result?.applied!==true)throw new Error('Nuvem não confirmou a gravação do funcionário.');
+   verified=await fetchEmployeeCloud(id);
+   for(const key of [...employeeEditable,'companyName']){
+    if(!employeeEqual(desired[key],verified.data[key]))throw new Error('A nuvem respondeu, mas o campo '+key+' ainda não foi confirmado. Não tente salvar novamente até conferir o registro.');
+   }
+  }
+  Object.assign(current,clone(verified.data));
+  saveLocal();employeeConfirmed=true;employeeSaveState.confirmed++;
+  const month=document.getElementById('hlgbFareMonth9490');
+  const amount=document.getElementById('hlgbFareAmount9490');
+  if(employeeFareTouched()){
+   btn.textContent='☁️ Confirmando passagem deste mês…';
+   await saveEmployeeFare(id,month.value,amount.value);
+  }
+  try{window.renderEmployees?.();window.renderPayroll?.()}catch(e){}
+  employeeSaveState.lastError='';
+  employeeSaveMessage('✅ Cadastro e passagem confirmados na nuvem.');
+  if(typeof window.closeModal==='function')window.closeModal();
+  return true
+ }catch(error){
+  employeeSaveState.failed++;if(employeeConfirmed)employeeSaveState.partial++;
+  employeeSaveState.lastError=sid(error?.message||error);
+  employeeSaveMessage((employeeConfirmed?'⚠️ Cadastro confirmado; confira a passagem. ':'❌ Cadastro NÃO confirmado. ')+employeeSaveState.lastError,true);
+  status('⚠️ Funcionário: salvamento não concluído','bad');
+  console.error('[HLGB v94.92] employee save failed',error);
+  return false
+ }finally{btn.disabled=false;btn.textContent='Salvar alterações'}
+}
 function wrapEmployeeEditor(){
  const original=window.editEmployee;
  if(typeof original!=='function'||original.__hlgbFareEmployee9490)return false;
  const wrapped=function(id){
+  const opened=clone(findEmployee(id));
   const out=original.apply(this,arguments);
-  try{employeeFarePanel(id)}catch(e){console.warn('[HLGB passagem 94.90] formulário',e)}
+  try{
+   employeeFarePanel(id);
+   if(opened&&typeof window.modalSave==='function'&&document.getElementById('empName')){
+    window.modalSave=()=>saveEmployeeConfirmedFromModal(id,opened)
+   }
+  }catch(e){console.warn('[HLGB passagem/cadastro 94.92] formulário',e)}
   return out
  };
- wrapped.__hlgbFareEmployee9490=true;wrapped.__original=original;
+ wrapped.__hlgbFareEmployee9490=true;wrapped.__hlgbEmployeeConfirmed9492=true;
+ wrapped.__original=original;
  window.editEmployee=wrapped;return true
 }
 function injectEmployeeFareButtons(){
@@ -311,7 +430,7 @@ function install(){
  return true
 }
 install();setTimeout(install,400);setTimeout(install,1600);setTimeout(install,5000);
-window.hlgbPayrollSaveStability9296={version:V,install,edit:editPayrollRowShared,togglePaid:togglePayrollPaidShared,generate:generatePayrollMonthShared,reconcileMonth,ensureFareControls,installFareCalculator,manualFare,saveEmployeeFare,fareMonthInfo,employeeFarePanel,injectEmployeeFareButtons,wrapEmployeeEditor,wrapEmployeeList};
+window.hlgbPayrollSaveStability9296={version:V,install,edit:editPayrollRowShared,togglePaid:togglePayrollPaidShared,generate:generatePayrollMonthShared,reconcileMonth,ensureFareControls,installFareCalculator,manualFare,saveEmployeeFare,fareMonthInfo,employeeFarePanel,injectEmployeeFareButtons,wrapEmployeeEditor,wrapEmployeeList,saveEmployeeConfirmedFromModal,employeeSaveState};
 window.HLGB_PAYROLL_SAVE_STABILITY_9296=V;
 console.info('[HLGB] Folha v'+V+' — compartilhada e confirmada na nuvem');
 })();
