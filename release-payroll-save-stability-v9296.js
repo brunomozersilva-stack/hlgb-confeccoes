@@ -12,6 +12,62 @@ function arr(n){const d=dbr();return Array.isArray(d?.[n])?d[n]:[]}
 function escs(v){try{return typeof window.esc==='function'?window.esc(v):sid(v).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}catch(e){return sid(v)}}
 function moneySafe(v){try{return typeof window.money==='function'?window.money(v):Number(v||0).toLocaleString('pt-BR',{style:'currency',currency:'BRL'})}catch(e){return 'R$ '+Number(v||0).toFixed(2).replace('.',',')}}
 function calc(r,e){try{if(typeof window.payrollCalc==='function')return window.payrollCalc(r,e||{})}catch(e){}const salary=q(r?.salary||e?.salary),transport=0,benefit=q(r?.benefit),overtime=q(r?.overtime),bonus=q(r?.bonus),otherCredit=q(r?.otherCredit),absence=q(r?.absence),inss=0,union=q(r?.unionDiscount),advance=q(r?.advance),purchase=q(r?.purchase),otherDiscount=q(r?.otherDiscount),gross=salary+transport+benefit+overtime+bonus+otherCredit,discounts=absence+inss+union+advance+purchase+otherDiscount;return {salary,transport,benefit,overtime,bonus,otherCredit,absence,inss,union,advance,purchase,otherDiscount,gross,discounts,net:Math.max(0,gross-discounts)}}
+/* v94.89: optional, per-employee/per-month passage amount. Empty means
+   the original daily fare x (workdays - absences) calculation is unchanged. */
+function manualFare(row){
+ if(!row||row.transportOverride===null||row.transportOverride===undefined||row.transportOverride==='')return null;
+ const value=Number(row.transportOverride);
+ return Number.isFinite(value)&&value>=0?Math.round(value*100)/100:null
+}
+function hasFareCalcMarker(fn){
+ let seen=new Set(),current=fn;
+ for(let i=0;i<40&&typeof current==='function'&&!seen.has(current);i++){
+  if(current.__hlgbPayrollFare9489===true)return true;
+  seen.add(current);current=current.__original
+ }
+ return false
+}
+function installFareCalculator(){
+ const base=window.payrollCalc;
+ if(typeof base!=='function'||hasFareCalcMarker(base))return false;
+ const wrapped=function(row,employee){
+  const c=base.apply(this,arguments);
+  const manual=manualFare(row);
+  if(manual===null||employee?.hasTransport===false||!c||typeof c!=='object')return c;
+  const previous=Number(c.transport)||0;
+  const gross=(Number(c.gross)||0)+manual-previous;
+  const discounts=Number(c.discounts)||0;
+  return {...c,transport:manual,gross,net:Math.max(0,gross-discounts)}
+ };
+ wrapped.__hlgbPayrollFare9489=true;
+ wrapped.__original=base;
+ window.payrollCalc=wrapped;
+ return true
+}
+function ensureFareControls(){
+ const page=document.getElementById('folhaPagamento'),
+  fare=document.getElementById('payrollFareValue'),
+  days=document.getElementById('payrollWorkDays');
+ if(!page||!fare||!days)return false;
+ let panel=document.getElementById('hlgbPayrollFare9489');
+ if(!panel){
+  panel=document.createElement('div');panel.id='hlgbPayrollFare9489';panel.className='panel';
+  panel.innerHTML='<h2 style="margin:0 0 6px">🚌 Passagem / vale-transporte</h2>'+
+   '<div class="sub" style="margin-bottom:10px">Defina o valor diário da passagem e os dias úteis do mês. Para ajustar apenas um funcionário por faltas, use Editar na linha dele.</div>'+
+   '<div class="toolbar" id="hlgbPayrollFareFields9489" style="display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap"></div>';
+  const first=page.querySelector('.panel');
+  if(first)first.insertAdjacentElement('afterend',panel);else page.prepend(panel)
+ }
+ const host=panel.querySelector('#hlgbPayrollFareFields9489');
+ if(!host)return false;
+ for(const control of [fare,days]){
+  const field=control.closest('.field');
+  if(field&&field.parentElement!==host)host.appendChild(field)
+ }
+ const lab=fare.closest('.field')?.querySelector('label');
+ if(lab)lab.textContent='Valor diário da passagem (R$)';
+ return true
+}
 function findRow(id){return arr('payroll').find(x=>sid(x?.id)===sid(id))||null}
 function findEmployee(id){return arr('employees').find(x=>sid(x?.id)===sid(id))||null}
 function saveLocal(){try{if(typeof window.localSaveOnly==='function')window.localSaveOnly();else if(typeof localSaveOnly==='function')localSaveOnly()}catch(e){console.warn('[HLGB folha '+V+'] local',e)}}
@@ -50,6 +106,7 @@ function editPayrollRowShared(id){
  <div class="grid">
   <div class="field"><label>Salário</label><input id="prSalary" type="number" step=".01" value="${c.salary}"></div>
   <div class="field"><label>Vale-transporte calculado</label><input value="${moneySafe(c.transport)}" disabled></div>
+  <div class="field"><label>Passagem manual deste funcionário no mês (R$)</label><input id="prTransportOverride" type="number" min="0" step=".01" placeholder="${c.transport.toFixed(2)} (automático)" value="${manualFare(r)??''}"><small>Opcional. Ajuste para faltas; deixe vazio para calcular pelos dias úteis e faltas informadas.</small></div>
   <div class="field"><label>Dias de falta para descontar do VT</label><input id="prTransportAbsenceDays" type="number" min="0" step="1" value="${+r.transportAbsenceDays||0}"></div>
   <div class="field"><label>Benefício / salário-família</label><input id="prBenefit" type="number" step=".01" value="${c.benefit}"></div>
   <div class="field"><label>Hora extra</label><input id="prOvertime" type="number" step=".01" value="${c.overtime}"></div>
@@ -67,6 +124,16 @@ function editPayrollRowShared(id){
  <button type="button" class="primary modalSave">Salvar alterações</button>`,async()=>{
    const btn=document.querySelector('#modal .modalSave');if(btn){btn.disabled=true;btn.textContent='☁️ Salvando…'}
    const desired={...clone(base),salary:+document.getElementById('prSalary')?.value||0,transportAbsenceDays:+document.getElementById('prTransportAbsenceDays')?.value||0,benefit:+document.getElementById('prBenefit')?.value||0,overtime:+document.getElementById('prOvertime')?.value||0,bonus:+document.getElementById('prBonus')?.value||0,otherCredit:+document.getElementById('prOtherCredit')?.value||0,absence:+document.getElementById('prAbsence')?.value||0,unionDiscount:+document.getElementById('prUnion')?.value||0,advance:+document.getElementById('prAdvance')?.value||0,purchase:+document.getElementById('prPurchase')?.value||0,otherDiscount:+document.getElementById('prOtherDiscount')?.value||0,pix:document.getElementById('prPix')?.value||'',discountInss:document.getElementById('prDiscountInss')?.value!=='no',updatedAt:now()};
+   const custom=document.getElementById('prTransportOverride')?.value?.trim()||'';
+   if(custom!==''){
+    const amount=Number(custom.replace(',','.'));
+    if(!Number.isFinite(amount)||amount<0){
+     alert('Informe um valor de passagem válido, maior ou igual a zero.');
+     if(btn){btn.disabled=false;btn.textContent='Salvar alterações'}
+     return false
+    }
+    desired.transportOverride=Math.round(amount*100)/100;
+   }else delete desired.transportOverride;
    if(desired.paid){const cc=calc(desired,e);desired.paidValue=cc.net}
    try{const saved=await saveConfirmed(base,desired);try{window.closeModal?.()}catch(e){}try{window.auditAction?.('Atualizou folha de pagamento',`${saved.employeeName||'Funcionário'} — ${saved.month||''}`)}catch(e){}return true}
    catch(err){console.error('[HLGB folha '+V+'] edição',err);status('❌ Folha não confirmada na nuvem','bad');alert('A alteração NÃO foi aplicada porque a nuvem não confirmou.\n\n'+(err?.message||err));if(btn){btn.disabled=false;btn.textContent='Salvar alterações'}return false}
@@ -97,9 +164,15 @@ async function generatePayrollMonthShared(){
  }catch(err){console.error('[HLGB folha '+V+'] gerar',err);status('❌ Não foi possível confirmar a folha compartilhada','bad');alert('A folha não foi gerada novamente para evitar criar uma versão diferente por usuário.\n\n'+(err?.message||err));return false}
  finally{if(btn)btn.disabled=false}
 }
-function install(){window.editPayrollRow=editPayrollRowShared;window.togglePayrollPaid=togglePayrollPaidShared;window.generatePayrollMonth=generatePayrollMonthShared;return true}
+function install(){
+ installFareCalculator();ensureFareControls();
+ window.editPayrollRow=editPayrollRowShared;
+ window.togglePayrollPaid=togglePayrollPaidShared;
+ window.generatePayrollMonth=generatePayrollMonthShared;
+ return true
+}
 install();setTimeout(install,400);setTimeout(install,1600);setTimeout(install,5000);
-window.hlgbPayrollSaveStability9296={version:V,install,edit:editPayrollRowShared,togglePaid:togglePayrollPaidShared,generate:generatePayrollMonthShared,reconcileMonth};
+window.hlgbPayrollSaveStability9296={version:V,install,edit:editPayrollRowShared,togglePaid:togglePayrollPaidShared,generate:generatePayrollMonthShared,reconcileMonth,ensureFareControls,installFareCalculator,manualFare};
 window.HLGB_PAYROLL_SAVE_STABILITY_9296=V;
 console.info('[HLGB] Folha v'+V+' — compartilhada e confirmada na nuvem');
 })();

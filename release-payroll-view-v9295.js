@@ -2,7 +2,7 @@
 (function(){
 'use strict';
 if(window.hlgbPayrollView9295)return;
-const V='92.95',VIEW_KEY='hlgb_payroll_view_9295',STATUS_KEY='hlgb_payroll_status_9295';
+const V='92.95',VIEW_KEY='hlgb_payroll_view_9489',STATUS_KEY='hlgb_payroll_status_9295';
 const sid=v=>String(v??'');
 const q=v=>Math.max(0,Number(v)||0);
 function dbr(){try{if(typeof db!=='undefined'&&db)return db}catch(e){}return window.db||null}
@@ -11,9 +11,21 @@ function escs(v){try{return typeof window.esc==='function'?window.esc(v):sid(v).
 function moneySafe(v){try{return typeof window.money==='function'?window.money(v):Number(v||0).toLocaleString('pt-BR',{style:'currency',currency:'BRL'})}catch(e){return 'R$ '+Number(v||0).toFixed(2).replace('.',',')}}
 function company(e,r){try{return typeof window.employeeCompanyName==='function'?window.employeeCompanyName(e):sid(r?.companyName||e?.companyName||'Sem confecção')}catch(_){return sid(r?.companyName||e?.companyName||'Sem confecção')}}
 function calc(r,e){try{if(typeof window.payrollCalc==='function')return window.payrollCalc(r,e||{})}catch(_){}const salary=q(r?.salary||e?.salary),transport=0,benefit=q(r?.benefit),overtime=q(r?.overtime),bonus=q(r?.bonus),otherCredit=q(r?.otherCredit),absence=q(r?.absence),inss=0,union=q(r?.unionDiscount),advance=q(r?.advance),purchase=q(r?.purchase),otherDiscount=q(r?.otherDiscount),gross=salary+transport+benefit+overtime+bonus+otherCredit,discounts=absence+inss+union+advance+purchase+otherDiscount;return {salary,transport,benefit,overtime,bonus,otherCredit,absence,inss,union,advance,purchase,otherDiscount,gross,discounts,net:Math.max(0,gross-discounts)}}
-function getView(){try{return localStorage.getItem(VIEW_KEY)==='alpha'?'alpha':'company'}catch(e){return 'company'}}
+/* v94.89: keep selected order in memory when localStorage has no quota.
+   New installations default to A-Z; an explicit company choice still works. */
+let sessionView=null;
+function getView(){
+ if(sessionView==='alpha'||sessionView==='company')return sessionView;
+ try{sessionView=localStorage.getItem(VIEW_KEY)==='company'?'company':'alpha'}
+ catch(e){sessionView='alpha'}
+ return sessionView
+}
 function getStatus(){try{const v=localStorage.getItem(STATUS_KEY);return v==='paid'||v==='pending'?v:'all'}catch(e){return 'all'}}
-function setView(v){try{localStorage.setItem(VIEW_KEY,v==='alpha'?'alpha':'company')}catch(e){}renderVisual()}
+function setView(v){
+ sessionView=v==='company'?'company':'alpha';
+ try{localStorage.setItem(VIEW_KEY,sessionView)}catch(e){}
+ renderVisual()
+}
 function setStatus(v){try{localStorage.setItem(STATUS_KEY,v==='paid'||v==='pending'?v:'all')}catch(e){}renderVisual()}
 function currentRows(){
  const month=document.getElementById('payrollMonth')?.value||new Date().toISOString().slice(0,7),companyFilter=document.getElementById('payrollCompanyFilter')?.value||'',qf=(document.getElementById('payrollEmployeeFilter')?.value||'').trim().toLowerCase(),status=getStatus();
