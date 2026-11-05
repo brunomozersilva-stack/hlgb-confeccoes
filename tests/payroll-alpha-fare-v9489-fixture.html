@@ -1,0 +1,67 @@
+<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><title>HLGB v94.89 payroll isolated safe fixture</title></head><body>
+<section id="folhaPagamento">
+ <h1>Folha de pagamento</h1>
+ <div class="panel"><div class="toolbar">
+  <div class="field"><label for="payrollFareValue">Valor da passagem (único)</label><input id="payrollFareValue" type="number" value="6"></div>
+  <div class="field"><label for="payrollWorkDays">Dias úteis do mês</label><input id="payrollWorkDays" type="number" value="22"></div>
+ </div></div>
+ <div><label>Mês <input id="payrollMonth" type="month" value="2026-11"></label></div>
+ <div><select id="payrollCompanyFilter"><option value="">Todas</option></select><input id="payrollEmployeeFilter" value=""></div>
+ <div id="payrollSummaryCards"></div><div id="payrollTable"></div>
+</section>
+<div id="modal"></div>
+<script>
+window.__fixture={rpcCalls:[],alerts:[],failOnce:false};
+const emps=[
+ {id:'1',name:'Ana',salary:2000,hasTransport:true,companyName:'Ateliê'},
+ {id:'2',name:'Zuleica',salary:2000,hasTransport:true,companyName:'Ateliê'}
+];
+const r=(id,name,eid,abs)=>({id,employeeId:eid,employeeName:name,companyName:'Ateliê',
+ month:'2026-11',salary:2000,benefit:0,overtime:0,bonus:0,otherCredit:0,absence:0,
+ transportAbsenceDays:abs,unionDiscount:0,advance:0,purchase:0,otherDiscount:0,
+ discountInss:false,pix:'',paid:false,paidAt:'',paidValue:0});
+window.db={employees:emps,payroll:[r('p-z','Zuleica','2',2),r('p-a','Ana','1',0)],
+ config:{transportFare:6,payrollWorkDays:{'2026-11':22}}};
+window.payrollCalc=(r,e)=>{
+ const salary=Number(r.salary||e.salary)||0,transport=e.hasTransport===false?0:
+  Math.max(0,(window.db.config.payrollWorkDays[r.month]||0)-(Number(r.transportAbsenceDays)||0))*window.db.config.transportFare;
+ const benefit=Number(r.benefit)||0,otherCredit=Number(r.otherCredit)||0;
+ const overtime=Number(r.overtime)||0,bonus=Number(r.bonus)||0;
+ const absence=Number(r.absence)||0,advance=Number(r.advance)||0;
+ const purchase=Number(r.purchase)||0,union=Number(r.unionDiscount)||0;
+ const otherDiscount=Number(r.otherDiscount)||0,inss=0;
+ const gross=salary+transport+benefit+overtime+bonus+otherCredit;
+ const discounts=absence+advance+purchase+union+otherDiscount+inss;
+ return {salary,transport,benefit,otherCredit,overtime,bonus,absence,advance,purchase,union,otherDiscount,inss,gross,discounts,net:Math.max(0,gross-discounts)};
+};
+window.money=v=>'R$ '+Number(v).toFixed(2).replace('.',',');
+window.esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot',"'":'&#39;'}[c]));
+window.renderPayroll=()=>true;
+window.localSaveOnly=()=>{};
+window.hlgbRecordReady=true;
+window.hlgbRecordSnapshots={payroll:new Map(window.db.payroll.map(x=>[x.id,{data:structuredClone(x),revision:1}]))};
+window.cloudMergeThreeWay=(_base,desired)=>desired;
+window.hlgbRecordSaveWithRetry=async(module,id,data,deleted)=>{
+ window.__fixture.rpcCalls.push({module,id,data:structuredClone(data),deleted});
+ if(window.__fixture.failOnce){window.__fixture.failOnce=false;throw Error('Simulated ACK failure')}
+ if(module!=='payroll'||deleted)throw Error('unexpected module/deletion');
+ const idx=window.db.payroll.findIndex(x=>x.id===id);
+ if(idx<0)throw Error('missing payroll row');
+ const snap=window.hlgbRecordSnapshots.payroll.get(id);
+ const revision=(snap?.revision||0)+1;
+ window.hlgbRecordSnapshots.payroll.set(id,{data:structuredClone(data),revision});
+ return {applied:true,data:structuredClone(data),revision};
+};
+window.setCloudStatus=()=>{};
+window.alert=msg=>{window.__fixture.alerts.push(String(msg))};
+window.confirm=()=>true;
+window.openModal=(title,html,onSave)=>{
+ const m=document.getElementById('modal');
+ m.innerHTML='<h2>'+title+'</h2>'+html;
+ m.querySelector('.modalSave')?.addEventListener('click',onSave);
+};
+window.closeModal=()=>{document.getElementById('modal').innerHTML=''};
+</script>
+<script src="../release-payroll-view-v9295.js"></script>
+<script src="../release-payroll-save-stability-v9296.js"></script>
+</body></html>
