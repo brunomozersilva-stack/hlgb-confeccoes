@@ -50,6 +50,28 @@ function setup(){
  assert.equal(a.writes,1,'only local cache attempt may fail; no queue dependency');
  assert.equal(a.win.hlgbHubSaveTrace9483.status().outcome,'confirmed');
  assert.equal(a.win.hlgbHubSaveTrace9483.status().history.some(x=>x.phase==='rpc-ack'),true);
+
+ // Repeating an already-saved edit proves the existing row without a new RPC.
+ // This is a DIFFERENT attempt; timestamps must not be inherited from the prior ACK.
+ a.win.hlgbHubSaveTrace9483.recordClick('edit-button');
+ const noOp=await a.win.hlgbHubSaveConfirmed(updated,false,{source:'edit-button',original:updated});
+ const last=a.win.hlgbHubSaveTrace9483.status();
+ assert.equal(noOp.fromReadback,true);
+ assert.equal(a.calls.length,1,'no-op may not send another RPC');
+ assert.equal(last.attemptId,2);
+ assert.equal(last.outcome,'already-saved');
+ assert.equal(last.confirmation,'readback-only');
+ assert.equal(last.clickObserved,true);
+ assert(last.clickAt,'must record current button click');
+ assert.equal(last.rpcAt,'','last click may not borrow previous RPC timestamp');
+ assert.equal(last.ackAt,'','last click may not borrow previous ACK');
+ assert(last.readbackAt&&last.modelAt);
+ assert.equal(last.revision,5);
+ assert(last.history.some(e=>e.attemptId===1&&e.phase==='rpc-ack'));
+ assert(last.history.some(e=>e.attemptId===2&&e.phase==='click'));
+ assert(last.history.some(e=>e.attemptId===2&&e.phase==='remote-readback'));
+ assert(!last.history.some(e=>e.attemptId===2&&e.phase==='rpc-send'));
+
  // Same-ID retry after ACK lost must return readback, not issue a second CREATE.
  const b=setup(),creation={...clone(initial),id:'hub-test-2',value:81};
  b.setDropAck(true);
