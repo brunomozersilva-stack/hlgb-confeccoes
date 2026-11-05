@@ -68,7 +68,7 @@ const engine=process.env.HLGB_BROWSER==='webkit'?webkit:chromium;
   // A blank passage goes back to automatic absence-based fare, no old data erased.
   await page.locator('#hlgbFareAmount9490').fill('');
   await page.locator('#hlgbFareSave9490').click();
-  await page.waitForFunction(()=>window.db.payroll.find(x=>x.id==='p-z').transportOverride===undefined);
+  await page.waitForFunction(()=>window.db.payroll.find(x=>x.id==='p-z').transportOverride===null);
   state=await page.evaluate(()=>{
    const z=window.db.payroll.find(x=>x.id==='p-z');return {transport:window.payrollCalc(z,window.db.employees[1]).transport,days:z.transportAbsenceDays}
   });
