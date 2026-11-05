@@ -68,6 +68,7 @@ function setup(){
  assert(last.readbackAt&&last.modelAt);
  assert.equal(last.revision,5);
  assert(last.history.some(e=>e.attemptId===1&&e.phase==='rpc-ack'));
+ assert(last.history.some(e=>e.attemptId===2&&e.phase==='click'));
  assert(last.history.some(e=>e.attemptId===2&&e.phase==='remote-readback'));
  assert(!last.history.some(e=>e.attemptId===2&&e.phase==='rpc-send'));
 
