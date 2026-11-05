@@ -98,7 +98,7 @@ async function remotePayrollNoop(module,id,data,deleted=false){
  try{
   const server=await cloudRow(id);
   const proof=operationProof(server,{id,data,deleted:false});
-  if(!proof.ok)return null;
+  if(!proof.ok){if(serverProof(server,id).ok)updateSnapshot(server);return null;}
   state.remoteNoops++;
   state.lastRemoteNoopAt=new Date().toISOString();
   state.lastRemoteNoopId=sid(id);
@@ -108,17 +108,17 @@ async function remotePayrollNoop(module,id,data,deleted=false){
   return out;
  }catch(e){
   state.remoteProofFailures++;state.lastRemoteProofError=sid(e?.message||e).slice(0,180);
-  return null; // Keep existing write path; do not pretend a failed GET is a proof.
+  throw new Error('Não foi possível confirmar a folha no servidor; nenhuma nova gravação foi tentada. Tente novamente.');
  }
 }
 function installRecordGuard(){
  const base=window.hlgbRecordSaveWithRetry;if(typeof base!=='function')return false;
  /* v94.51: só considera instalado quando o PRÓPRIO topo é a trava. Se houver um wrapper 955 por cima de uma trava antiga, reenvolve por fora. */
  if(base.__hlgbPayrollWalRace9346===true)return true;
- const had955=chainHas955(base),wrapped=async function(module,id,data,deleted=false){const s=shouldNoop(module,id,data,deleted);if(s){state.lastNoopAt=new Date().toISOString();state.lastNoopId=sid(id);state.lastPath='record';normalizePayrollLocal('record-noop');Promise.resolve().then(()=>reconcileHubFinanceWal('record-noop')).catch(()=>{});return noop(s,'payroll-month-updatedAt-only-v9451-record')}const remote=await remotePayrollNoop(module,id,data,deleted);if(remote)return remote;state.realDelegations++;return base.apply(this,arguments)};
+ const had955=chainHas955(base),wrapped=async function(module,id,data,deleted=false){const remote=await remotePayrollNoop(module,id,data,deleted);if(remote){state.lastNoopAt=new Date().toISOString();state.lastNoopId=sid(id);state.lastPath='record';normalizePayrollLocal('record-remote-noop');Promise.resolve().then(()=>reconcileHubFinanceWal('record-remote-noop')).catch(()=>{});return remote}state.realDelegations++;return base.apply(this,arguments)};
  wrapped.__hlgbPayrollWalRace9346=true;if(had955)wrapped.__hlgb955Wrapped=true;wrapped.__original=base;window.hlgbRecordSaveWithRetry=wrapped;state.recordInstalls++;return true;
 }
-function installReliableGuard(){const base=window.hlgb955ReliableSave;if(typeof base!=='function')return false;if(base.__hlgbPayrollWalRace9346===true)return true;const wrapped=async function(module,id,data,deleted=false){const s=shouldNoop(module,id,data,deleted);if(s){state.lastNoopAt=new Date().toISOString();state.lastNoopId=sid(id);state.lastPath='reliable';normalizePayrollLocal('reliable-noop');Promise.resolve().then(()=>reconcileHubFinanceWal('reliable-noop')).catch(()=>{});return noop(s,'payroll-month-updatedAt-only-v9451-reliable')}const remote=await remotePayrollNoop(module,id,data,deleted);if(remote)return remote;return base.apply(this,arguments)};wrapped.__hlgbPayrollWalRace9346=true;wrapped.__original=base;window.hlgb955ReliableSave=wrapped;state.reliableInstalls++;return true}
+function installReliableGuard(){const base=window.hlgb955ReliableSave;if(typeof base!=='function')return false;if(base.__hlgbPayrollWalRace9346===true)return true;const wrapped=async function(module,id,data,deleted=false){const remote=await remotePayrollNoop(module,id,data,deleted);if(remote){state.lastNoopAt=new Date().toISOString();state.lastNoopId=sid(id);state.lastPath='reliable';normalizePayrollLocal('reliable-remote-noop');Promise.resolve().then(()=>reconcileHubFinanceWal('reliable-remote-noop')).catch(()=>{});return remote}return base.apply(this,arguments)};wrapped.__hlgbPayrollWalRace9346=true;wrapped.__original=base;window.hlgb955ReliableSave=wrapped;state.reliableInstalls++;return true}
 function installEnqueueGuard(){const base=window.enqueue955;if(typeof base!=='function')return false;if(base.__hlgbPayrollDirtyGuard9351===true)return true;const wrapped=async function(module,id,data,deleted=false){if(module==='hubFinanceEntries'&&!deleted&&payrollMonth(data)){const b=baselineFor(id,data);if(b){state.suppressedEnqueues++;state.lastNoopAt=new Date().toISOString();state.lastNoopId=sid(id);state.lastPath='enqueue';state.lastBaselineSource=b.source;return {key:'hubFinanceEntries|'+sid(id),opId:'suppressed-v9451-'+Date.now(),module,id:sid(id),data:clone(data),deleted:false,state:'suppressed',hlgbSuppressed:true,hlgbNoopReason:'payroll-month-dirty-scan-v9451'}}}return base.apply(this,arguments)};wrapped.__hlgbPayrollDirtyGuard9351=true;wrapped.__original=base;window.enqueue955=wrapped;state.enqueueInstalls++;return true}
 function installSaveGuard(){const base=window.save;if(typeof base!=='function')return false;if(base.__hlgbPayrollWalRace9349Save===true)return true;const hadGeneric=chainHasMarker(base,'__hlgb955Generic'),wrapped=function(){const out=base.apply(this,arguments);try{queueMicrotask(()=>normalizePayrollLocal('save-microtask'))}catch(e){Promise.resolve().then(()=>normalizePayrollLocal('save-promise'))}setTimeout(()=>normalizePayrollLocal('save-50ms'),50);return out};wrapped.__hlgbPayrollWalRace9349Save=true;if(hadGeneric)wrapped.__hlgb955Generic=true;wrapped.__original=base;window.save=wrapped;state.saveInstalls++;return true}
 function stamp(){try{const cur=parseFloat(String(window.HLGB_RELEASE_VERSION||'0'))||0;if(cur<94.51){window.HLGB_RELEASE_VERSION=V;const el=document.querySelector('#appShell .logo small');if(el)el.textContent='v'+V}}catch(e){}}
