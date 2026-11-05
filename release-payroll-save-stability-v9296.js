@@ -279,7 +279,7 @@ function employeeInputs(id){
  const locId=locValue&&Number.isFinite(Number(locValue))?Number(locValue):null;
  const loc=arr('productionLocations').find(x=>sid(x?.id)===sid(locId));
  const out={
-  name,productionLocationId:locId,companyName:loc?.name||'',
+  name,productionLocationId:locId,companyName:loc?.name||original.companyName||'',
   salary:Number(salaryText),hasTransport:document.getElementById('empHasTransport')?.value!=='false',
   benefitDefault:Number(document.getElementById('empBenefit')?.value)||0,
   hireDate:sid(document.getElementById('empHire')?.value),
@@ -338,7 +338,7 @@ async function saveEmployeeConfirmedFromModal(id,opened){
    const previous=Number(remote.data.salary)||0,actual=Number(desired.salary)||0;
    const hist=Array.isArray(desired.salaryHistory)?clone(desired.salaryHistory):[];
    hist.push({id:'sal-'+Date.now()+'-'+Math.floor(Math.random()*10000),
-    date:new Date().toLocaleDateString('en-CA'),oldSalary:previous,newSalary:actual,
+    date:new Date().toISOString().slice(0,10),oldSalary:previous,newSalary:actual,
     percent:previous>0?(actual-previous)*100/previous:0,note:'Alteração feita pelo cadastro do funcionário'});
    desired.salaryHistory=hist
   }
@@ -353,6 +353,7 @@ async function saveEmployeeConfirmedFromModal(id,opened){
    }
   }
   Object.assign(current,clone(verified.data));
+  if(opened&&typeof opened==='object')Object.assign(opened,clone(verified.data));
   saveLocal();employeeConfirmed=true;employeeSaveState.confirmed++;
   const month=document.getElementById('hlgbFareMonth9490');
   const amount=document.getElementById('hlgbFareAmount9490');
