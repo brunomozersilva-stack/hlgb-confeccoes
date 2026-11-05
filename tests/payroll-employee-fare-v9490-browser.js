@@ -37,7 +37,7 @@ const engine=process.env.HLGB_BROWSER==='webkit'?webkit:chromium;
   await page.locator('#employeeTable [data-hlgb-employee-fare-9490]').last().click();
   assert.equal(await page.locator('#hlgbFareMonth9490').inputValue(),'2026-11');
   assert.equal(await page.locator('#hlgbFareAmount9490').inputValue(),'');
-  assert.match(await page.locator('#hlgbFareHint9490').text(),/R\$ 120,00|R\$ 120\.00/);
+  assert.match(await page.locator('#hlgbFareHint9490').textContent(),/R\$ 120,00|R\$ 120\.00/);
   await page.locator('#hlgbFareAmount9490').fill('73.50');
   await page.locator('#hlgbFareSave9490').click();
   await page.waitForFunction(()=>window.db.payroll.find(x=>x.id==='p-z').transportOverride===73.5);
@@ -56,7 +56,7 @@ const engine=process.env.HLGB_BROWSER==='webkit'?webkit:chromium;
   assert.equal(state.zCalc,73.5);
   assert.equal(state.count,1,'one write to exactly one payroll record');
   assert.equal(state.info.manual,73.5);
-  assert.match(await page.locator('#hlgbFareResult9490').text(),/confirmada/);
+  assert.match(await page.locator('#hlgbFareResult9490').textContent(),/confirmada/);
   // Correct to zero for an employee absent the whole month.
   await page.locator('#hlgbFareAmount9490').fill('0');
   await page.locator('#hlgbFareSave9490').click();
@@ -76,7 +76,7 @@ const engine=process.env.HLGB_BROWSER==='webkit'?webkit:chromium;
   // Different month must not magically change an existing payroll row.
   await page.locator('#hlgbFareMonth9490').fill('2026-12');
   assert.equal(await page.locator('#hlgbFareSave9490').isDisabled(),true);
-  assert.match(await page.locator('#hlgbFareHint9490').text(),/não gerada/);
+  assert.match(await page.locator('#hlgbFareHint9490').textContent(),/não gerada/);
   await page.locator('#hlgbFareMonth9490').fill('2026-11');
   // Cloud failure preserves original data and editability.
   await page.evaluate(()=>{window.__fixture.failOnce=true});
