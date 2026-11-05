@@ -109,7 +109,7 @@ jobs:
         run: node tests/employee-save-ack-v9492-browser.js
       - name: Read-only WAL evidence export with no deletion v94.94 (Chrome/WebKit)
         run: node tests/wal-evidence-export-v9494-browser.js
-      - name: Standalone WAL rescue: no app or sync boot v94.94
+      - name: 'Standalone WAL rescue - no app or sync boot v94.94'
         run: node tests/wal-standalone-rescue-v9494-browser.js
 
       - name: P0 - Página de diagnóstico de abertura sem alterar dados
