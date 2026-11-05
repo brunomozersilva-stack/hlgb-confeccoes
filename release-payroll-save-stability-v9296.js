@@ -242,7 +242,7 @@ function employeeFarePanel(id){
    info.hasTransport===false?'Ative o vale-transporte no cadastro e salve essa alteração primeiro.':
    'Valor atual: '+moneySafe(info.current)+'. Deixe vazio para usar o cálculo automático de faltas e dias úteis.';
  }
- month.addEventListener('change',refresh);
+ month.addEventListener('input',refresh);month.addEventListener('change',refresh);
  btn.addEventListener('click',async event=>{
   event.preventDefault();event.stopPropagation();
   btn.disabled=true;result.textContent='☁️ Confirmando a passagem na nuvem...';
