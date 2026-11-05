@@ -39,12 +39,13 @@ function hubEvidence9483(summary){
   return '<details><summary><b>Salvamento do Hub Financeiro</b> — não executado nesta sessão</summary><p>Não foi capturada uma tentativa de salvar. Abertura do Hub não equivale a clique no botão.</p></details>';
  const history=Array.isArray(h.history)?h.history:[],last=history[history.length-1]||{};
  const check=(at,label)=>'<div>'+label+': <b>'+(at?escPhase(at):'não executado')+'</b></div>';
- const result=h.outcome==='confirmed'?'confirmado após releitura':h.outcome==='failed'?'falhou sem confirmação':escPhase(h.outcome);
+ const result=h.outcome==='confirmed'?'nova gravação confirmada por RPC e releitura':h.outcome==='already-saved'?'já constava salvo na nuvem (sem nova RPC)':h.outcome==='failed'?'falhou sem confirmação':escPhase(h.outcome);
  return '<details open><summary><b>Salvamento do Hub Financeiro</b> — '+result+'</summary>'+
   '<p>Motor de salvamento: '+escPhase(h.build)+' · Etapa final: '+escPhase(h.phase)+
   (h.errorCode?' · Falha: '+escPhase(h.errorCode):'')+'</p>'+
   '<div>Clique real observado: <b>'+(h.clickObserved===true?'sim':'não')+'</b></div>'+
-  check(h.clickAt,'Horário do clique')+check(h.rpcAt,'Envio RPC')+
+  check(h.clickAt,'Horário do clique')+
+   '<div>Esta tentativa: '+(h.confirmation==='readback-only'?'somente releitura, sem nova gravação':h.confirmation==='rpc-ack-and-readback'?'RPC aplicada e relida':'sem conclusão comprovada')+'</div>'+check(h.rpcAt,'Envio RPC')+
   check(h.ackAt,'ACK aplicado')+check(h.readbackAt,'Revisão relida')+
   check(h.modelAt,'Modelo local atualizado')+
   '<div>Revisão: '+(Number.isSafeInteger(Number(h.revision))?escPhase(h.revision):'não comprovada')+'</div>'+
