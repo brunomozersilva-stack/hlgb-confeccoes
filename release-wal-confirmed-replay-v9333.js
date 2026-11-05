@@ -51,6 +51,8 @@ function idbDeleteIfSame(key,expected){
   }
  })
 }
+async function markAttempt(key,op){const w=readWal();let cur=w.entries?.[key]||null;if(!cur||sid(cur.opId)!==sid(op.opId)){try{cur=(await idbAll()).find(x=>sid(x?.key)===sid(key)&&sid(x?.opId)===sid(op.opId))||null}catch(e){cur=null}}if(!cur)return null;const now=new Date().toISOString();cur.attempts=(+cur.attempts||0)+1;cur.lastAttemptAt=now;cur.updatedAt=now;cur.lastError='';cur.state='sending';if(w.entries?.[key]&&sid(w.entries[key].opId)===sid(cur.opId)){w.entries[key]=cur;writeWal(w)}await idbPut(cur,key);return clone(cur)}
+async function markFailure(key,opId,err){const w=readWal();let cur=w.entries?.[key]||null;if(!cur||sid(cur.opId)!==sid(opId)){try{cur=(await idbAll()).find(x=>sid(x?.key)===sid(key)&&sid(x?.opId)===sid(opId))||null}catch(e){cur=null}}if(!cur)return false;cur.lastError=sid(err?.message||err).slice(0,1200);cur.updatedAt=new Date().toISOString();cur.state='pending';if(w.entries?.[key]&&sid(w.entries[key].opId)===sid(cur.opId)){w.entries[key]=cur;writeWal(w)}await idbPut(cur,key);return true}
 async function confirmRemove(key,expected){
  if(!expected?.opId||!expected?.module||expected.id==null)return false;
  const wal=readWal(),local=wal?.entries?.[key]||null;
