@@ -40,8 +40,9 @@ function signal(phase,detail={},attemptId=trace.attemptId){
 }
 function traceStatus(){const t=clone(trace);delete t.pendingClick;return t}
 function recordClick(source){
- const at=new Date().toISOString();trace.pendingClick={source:sid(source),at};
- signal('click',{source:sid(source)},0);
+ const at=new Date().toISOString(),attemptId=trace.attempts+1;
+ trace.pendingClick={source:sid(source),at,attemptId};
+ signal('click',{source:sid(source)},attemptId);
 }
 function canonical(v){
  if(Array.isArray(v))return v.map(canonical);
@@ -115,7 +116,7 @@ async function save(row,deleted=false,opts={}){
  const payload=clone(row);payload.updatedAt=payload.updatedAt||new Date().toISOString();
  const attemptId=++trace.attempts;
  const source=sid(opts?.source||'hub-save'),click=trace.pendingClick;
- const clickObserved=!!(click&&click.source===source&&Date.now()-Date.parse(click.at)<10000);
+ const clickObserved=!!(click&&click.source===source&&click.attemptId===attemptId&&Date.now()-Date.parse(click.at)<10000);
  trace.pendingClick=null;
  Object.assign(trace,{attemptId,source,clickObserved,clickAt:clickObserved?click.at:'',
   phase:'save-start',outcome:'in-progress',confirmation:'none',errorCode:'',revision:null,
