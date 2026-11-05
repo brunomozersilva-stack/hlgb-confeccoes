@@ -105,6 +105,8 @@ jobs:
         run: node tests/payroll-alpha-fare-v9489-browser.js
       - name: Folha e cadastro - passagem por funcionário e competência v94.90 (Chrome e WebKit)
         run: node tests/payroll-employee-fare-v9490-browser.js
+      - name: Guard employee save from optimistic close, ACK + remote readback v94.92
+        run: node tests/employee-save-ack-v9492-browser.js
 
       - name: P0 - Página de diagnóstico de abertura sem alterar dados
         run: node tests/p0-boot-diagnostic-v9476.js
