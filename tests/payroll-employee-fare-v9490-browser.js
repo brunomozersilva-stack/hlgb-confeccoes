@@ -85,7 +85,7 @@ const engine=process.env.HLGB_BROWSER==='webkit'?webkit:chromium;
   await page.waitForFunction(()=>document.getElementById('hlgbFareResult9490')?.textContent.includes('❌'));
   assert.equal(await page.locator('#hlgbFareAmount9490').inputValue(),'19.80');
   const afterFailure=await page.evaluate(()=>window.db.payroll.find(x=>x.id==='p-z').transportOverride);
-  assert.equal(afterFailure,undefined,'a failed ACK must not modify employee payroll');
+  assert.equal(afterFailure,null,'a failed ACK must not modify employee payroll');
   // Completed payments cannot silently have their amount rewritten.
   await page.evaluate(()=>{window.db.payroll.find(x=>x.id==='p-z').paid=true});
   await assert.rejects(()=>page.evaluate(()=>window.hlgbPayrollSaveStability9296.saveEmployeeFare('2','2026-11','18.00')),/PAGO/);
