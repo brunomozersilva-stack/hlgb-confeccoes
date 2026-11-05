@@ -9,7 +9,7 @@ oldInner.__hlgbPayrollWalRace9346=true;
 async function outer955(){outerCalls++;return oldInner.apply(this,arguments)}
 outer955.__hlgb955Wrapped=true;outer955.__original=oldInner;
 const snapshots={hubFinanceEntries:new Map([['payroll-month-2026-09',{data:{...baseData},revision:10,updated_at:'2026-11-02T13:24:13.464Z'}]])};
-const ctx={console,structuredClone:global.structuredClone,localStorage,indexedDB:undefined,navigator:{onLine:true},document:{querySelector:()=>null,addEventListener:()=>{},visibilityState:'visible'},setTimeout:()=>0,clearTimeout:()=>{},queueMicrotask,Promise,Date,Map,Set,JSON,Number,String,Math,encodeURIComponent,window:{HLGB_RELEASE_VERSION:'94.50',hlgbRecordSnapshots:snapshots,hlgbRecordSaveWithRetry:outer955,addEventListener:()=>{},cloudRequest:async()=>[]}};
+const ctx={console,structuredClone:global.structuredClone,localStorage,indexedDB:undefined,navigator:{onLine:true},document:{querySelector:()=>null,addEventListener:()=>{},visibilityState:'visible'},setTimeout:()=>0,clearTimeout:()=>{},queueMicrotask,Promise,Date,Map,Set,JSON,Number,String,Math,encodeURIComponent,window:{HLGB_RELEASE_VERSION:'94.50',hlgbRecordSnapshots:snapshots,hlgbRecordSaveWithRetry:outer955,addEventListener:()=>{},cloudRequest:async()=>[{module:'hubFinanceEntries',entity_id:'payroll-month-2026-09',revision:12,updated_at:'2026-11-02T17:50:00.000Z',deleted_at:null,data:{...baseData}}]}};
 ctx.window.window=ctx.window;ctx.window.document=ctx.document;ctx.window.navigator=ctx.navigator;ctx.window.localStorage=localStorage;ctx.window.indexedDB=undefined;ctx.window.setTimeout=ctx.setTimeout;ctx.window.queueMicrotask=queueMicrotask;
 vm.createContext(ctx);vm.runInContext(code,ctx);
 const t=ctx.window.hlgbHubFinanceWal9451._test;
