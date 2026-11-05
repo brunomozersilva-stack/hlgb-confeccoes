@@ -1,7 +1,7 @@
 /* HLGB v93.04 — Folha compartilhada: nuvem confirmada, sem folha paralela por usuário */
 (function(){
 'use strict';
-const V='93.04';
+const V='94.90';
 if(window.hlgbPayrollSaveStability9296?.version===V)return;
 const sid=v=>String(v??'');
 const q=v=>Math.max(0,Number(v)||0);
@@ -88,7 +88,7 @@ async function ensureOnline(){
  if(!saveFn())throw new Error('O salvamento compartilhado da folha não está disponível.');
  return true;
 }
-async function saveConfirmed(base,desired){
+async function saveConfirmed(base,desired,verify){
  await ensureOnline();
  const id=sid(desired?.id||base?.id);if(!id)throw new Error('Registro da folha sem identificação.');
  const latest=cloudLatest(id)||base;
@@ -96,7 +96,7 @@ async function saveConfirmed(base,desired){
  status('☁️ Salvando folha compartilhada…','warn');
  const out=await saveFn()('payroll',id,clone(merged),false);
  if(!out||out.applied!==true)throw new Error('A nuvem não confirmou a alteração da folha.');
- const finalData=clone(out.data||merged);replaceLocal(id,finalData);saveLocal();redraw();status('✅ Folha salva e compartilhada','ok');return finalData;
+ const finalData=clone(out.data||merged);if(typeof verify==='function'&&!verify(finalData)){throw new Error('A nuvem respondeu, mas não confirmou o valor de passagem solicitado. Reabra o lançamento antes de tentar novamente.')}replaceLocal(id,finalData);saveLocal();redraw();status('✅ Folha salva e compartilhada','ok');return finalData;
 }
 function editPayrollRowShared(id){
  const r=findRow(id);if(!r)return alert('Folha não encontrada. Atualize a página e tente novamente.');
@@ -133,7 +133,7 @@ function editPayrollRowShared(id){
      return false
     }
     desired.transportOverride=Math.round(amount*100)/100;
-   }else delete desired.transportOverride;
+   }else desired.transportOverride=null;
    if(desired.paid){const cc=calc(desired,e);desired.paidValue=cc.net}
    try{const saved=await saveConfirmed(base,desired);try{window.closeModal?.()}catch(e){}try{window.auditAction?.('Atualizou folha de pagamento',`${saved.employeeName||'Funcionário'} — ${saved.month||''}`)}catch(e){}return true}
    catch(err){console.error('[HLGB folha '+V+'] edição',err);status('❌ Folha não confirmada na nuvem','bad');alert('A alteração NÃO foi aplicada porque a nuvem não confirmou.\n\n'+(err?.message||err));if(btn){btn.disabled=false;btn.textContent='Salvar alterações'}return false}
@@ -164,15 +164,154 @@ async function generatePayrollMonthShared(){
  }catch(err){console.error('[HLGB folha '+V+'] gerar',err);status('❌ Não foi possível confirmar a folha compartilhada','bad');alert('A folha não foi gerada novamente para evitar criar uma versão diferente por usuário.\n\n'+(err?.message||err));return false}
  finally{if(btn)btn.disabled=false}
 }
+
+/* v94.90: A specific monthly passage can be set from the employee page.
+   It changes only one existing payroll record through the cloud-ACK path.
+   It does not rewrite the employee, other months or paid amounts. */
+function payrollMonth(){
+ const v=document.getElementById('payrollMonth')?.value;
+ return /^\d{4}-\d{2}$/.test(v||'')?v:new Date().toISOString().slice(0,7)
+}
+function employeePayrollRow(employeeId,month){
+ return arr('payroll').find(r=>sid(r?.employeeId)===sid(employeeId)&&sid(r?.month)===sid(month))||null
+}
+function fareMonthInfo(employeeId,month){
+ const emp=findEmployee(employeeId),row=employeePayrollRow(employeeId,month);
+ if(!emp)return {status:'missing-employee',month};
+ if(!row)return {status:'missing-payroll',month,name:emp.name};
+ const manual=manualFare(row);
+ return {status:row.paid?'paid':'ready',month,name:emp.name,
+  manual,automatic:manual===null?q(calc(row,emp).transport):null,
+  current:q(calc(row,emp).transport),hasTransport:emp.hasTransport!==false}
+}
+async function saveEmployeeFare(employeeId,month,value){
+ const m=sid(month).trim(),id=sid(employeeId);
+ if(!/^\d{4}-\d{2}$/.test(m))throw new Error('Selecione o mês da Folha.');
+ const employee=findEmployee(id);
+ if(!employee)throw new Error('Funcionário não encontrado. Atualize os cadastros.');
+ if(employee.hasTransport===false)throw new Error('Este funcionário está sem direito a vale-transporte no cadastro. Ative o benefício antes.');
+ const row=employeePayrollRow(id,m);
+ if(!row)throw new Error('A Folha deste funcionário não está gerada para '+m+'. Gere a Folha do mês antes de ajustar a passagem.');
+ if(row.paid)throw new Error('O pagamento já está marcado como PAGO. Reabra o pagamento na Folha antes de alterar a passagem, para não mudar valores pagos sem conferência.');
+ const raw=sid(value).trim(),reset=raw==='';
+ let amount=null;
+ if(!reset){
+  amount=Number(raw.replace(',','.'));
+  if(!Number.isFinite(amount)||amount<0)throw new Error('Digite um valor de passagem válido, maior ou igual a zero.');
+  amount=Math.round(amount*100)/100;
+ }
+ const base=clone(row),desired=clone(row);
+ if(reset)desired.transportOverride=null;
+ else desired.transportOverride=amount;
+ desired.updatedAt=now();
+ const verify=server=>reset?(server.transportOverride===undefined||server.transportOverride===null||server.transportOverride===''):manualFare(server)===amount;
+ const saved=await saveConfirmed(base,desired,verify);
+ if(!verify(saved))throw new Error('O valor não permaneceu no registro confirmado.');
+ return {employeeId:id,month:m,manual:manualFare(saved),amount:q(calc(saved,employee).transport),recordId:sid(saved.id)}
+}
+function employeeFarePanel(id){
+ const modal=document.getElementById('modal'),employee=findEmployee(id);
+ if(!modal||!employee||modal.querySelector('#hlgbEmployeeFare9490'))return false;
+ const anchor=modal.querySelector('.modalSave');
+ if(!anchor)return false;
+ const box=document.createElement('section');
+ box.id='hlgbEmployeeFare9490';box.className='panel';
+ box.style.cssText='margin:14px 0;padding:14px;border:1px solid #bcc9dc;border-radius:10px';
+ box.innerHTML='<h3 style="margin:0 0 7px">🚌 Passagem deste funcionário</h3>'+
+  '<div class="sub">Ajuste o valor total da passagem apenas nesta competência. Se houve faltas, informe o novo total. Salve a passagem no botão abaixo, separado do cadastro.</div>'+
+  '<div class="grid" style="margin-top:10px">'+
+  '<div class="field"><label>Mês da Folha</label><input id="hlgbFareMonth9490" type="month"></div>'+
+  '<div class="field"><label>Passagem do funcionário neste mês (R$)</label><input id="hlgbFareAmount9490" type="number" min="0" step=".01" placeholder="Automático"></div></div>'+
+  '<div id="hlgbFareHint9490" class="sub" role="status" style="margin:8px 0"></div>'+
+  '<button id="hlgbFareSave9490" class="secondary" type="button">☁️ Salvar passagem deste mês</button>'+
+  '<div id="hlgbFareResult9490" role="status" style="font-weight:600;margin-top:7px"></div>';
+ anchor.insertAdjacentElement('beforebegin',box);
+ const month=box.querySelector('#hlgbFareMonth9490'),amount=box.querySelector('#hlgbFareAmount9490');
+ const hint=box.querySelector('#hlgbFareHint9490'),result=box.querySelector('#hlgbFareResult9490');
+ const btn=box.querySelector('#hlgbFareSave9490');
+ month.value=payrollMonth();
+ function refresh(){
+  const info=fareMonthInfo(id,month.value);
+  amount.value=info.manual===null?'':sid(info.manual);
+  amount.disabled=info.status==='missing-payroll'||info.status==='paid'||info.hasTransport===false;
+  btn.disabled=amount.disabled;
+  result.textContent='';
+  hint.textContent=info.status==='missing-payroll'?
+   'Folha ainda não gerada neste mês. Abra Folha e gere a competência primeiro.':
+   info.status==='paid'?'Esta folha está PAGA. Reabra o pagamento para corrigir a passagem.':
+   info.hasTransport===false?'Ative o vale-transporte no cadastro e salve essa alteração primeiro.':
+   'Valor atual: '+moneySafe(info.current)+'. Deixe vazio para usar o cálculo automático de faltas e dias úteis.';
+ }
+ month.addEventListener('input',refresh);month.addEventListener('change',refresh);
+ btn.addEventListener('click',async event=>{
+  event.preventDefault();event.stopPropagation();
+  btn.disabled=true;result.textContent='☁️ Confirmando a passagem na nuvem...';
+  try{
+   const proof=await saveEmployeeFare(id,month.value,amount.value);
+   result.textContent='✅ Passagem '+moneySafe(proof.amount)+' confirmada na Folha '+proof.month+'.';
+   result.style.color='#116a3a';
+   refresh();
+   result.textContent='✅ Passagem '+moneySafe(proof.amount)+' confirmada na Folha '+proof.month+'.';
+  }catch(err){
+   result.textContent='❌ '+sid(err?.message||err);
+   result.style.color='#a11';
+  }finally{
+   btn.disabled=!!amount.disabled;
+  }
+ });
+ refresh();
+ return true
+}
+function wrapEmployeeEditor(){
+ const original=window.editEmployee;
+ if(typeof original!=='function'||original.__hlgbFareEmployee9490)return false;
+ const wrapped=function(id){
+  const out=original.apply(this,arguments);
+  try{employeeFarePanel(id)}catch(e){console.warn('[HLGB passagem 94.90] formulário',e)}
+  return out
+ };
+ wrapped.__hlgbFareEmployee9490=true;wrapped.__original=original;
+ window.editEmployee=wrapped;return true
+}
+function injectEmployeeFareButtons(){
+ const table=document.getElementById('employeeTable');
+ if(!table)return false;
+ for(const btn of table.querySelectorAll('button[onclick*="editEmployee("]')){
+  if(btn.parentElement?.querySelector('[data-hlgb-employee-fare-9490="'+btn.getAttribute('onclick')+'"]'))continue;
+  const expr=btn.getAttribute('onclick')||'',match=expr.match(/editEmployee\((\d+)\)/);
+  if(!match)continue;
+  const extra=document.createElement('button');
+  extra.type='button';extra.className='secondary';
+  extra.textContent='🚌 Passagem';extra.dataset.hlgbEmployeeFare9490=expr;
+  extra.setAttribute('data-hlgb-employee-fare-9490',expr);
+  extra.addEventListener('click',()=>window.editEmployee(match[1]));
+  btn.insertAdjacentElement('afterend',extra);
+ }
+ return true
+}
+function wrapEmployeeList(){
+ const original=window.renderEmployees;
+ if(typeof original!=='function'||original.__hlgbFareEmployeeList9490)return false;
+ const wrapped=function(){
+  const out=original.apply(this,arguments);
+  try{injectEmployeeFareButtons()}catch(e){console.warn('[HLGB passagem 94.90] lista',e)}
+  return out
+ };
+ wrapped.__hlgbFareEmployeeList9490=true;wrapped.__original=original;
+ window.renderEmployees=wrapped;
+ return true
+}
+
 function install(){
  installFareCalculator();ensureFareControls();
+ wrapEmployeeEditor();wrapEmployeeList();injectEmployeeFareButtons();
  window.editPayrollRow=editPayrollRowShared;
  window.togglePayrollPaid=togglePayrollPaidShared;
  window.generatePayrollMonth=generatePayrollMonthShared;
  return true
 }
 install();setTimeout(install,400);setTimeout(install,1600);setTimeout(install,5000);
-window.hlgbPayrollSaveStability9296={version:V,install,edit:editPayrollRowShared,togglePaid:togglePayrollPaidShared,generate:generatePayrollMonthShared,reconcileMonth,ensureFareControls,installFareCalculator,manualFare};
+window.hlgbPayrollSaveStability9296={version:V,install,edit:editPayrollRowShared,togglePaid:togglePayrollPaidShared,generate:generatePayrollMonthShared,reconcileMonth,ensureFareControls,installFareCalculator,manualFare,saveEmployeeFare,fareMonthInfo,employeeFarePanel,injectEmployeeFareButtons,wrapEmployeeEditor,wrapEmployeeList};
 window.HLGB_PAYROLL_SAVE_STABILITY_9296=V;
 console.info('[HLGB] Folha v'+V+' — compartilhada e confirmada na nuvem');
 })();

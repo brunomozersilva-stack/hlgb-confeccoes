@@ -78,7 +78,7 @@ const engine=process.env.HLGB_BROWSER==='webkit'?webkit:chromium;
    const row=window.db.payroll.find(x=>x.id==='p-z');
    return {row:structuredClone(row),c:window.payrollCalc(row,window.db.employees.find(e=>e.id==='2'))};
   });
-  assert.equal(restored.row.transportOverride,undefined);
+  assert.equal(restored.row.transportOverride,null);
   assert.equal(restored.row.transportAbsenceDays,3);
   assert.equal(restored.c.transport,114,'original 19 days * R$6,00');
   assert.equal(restored.row.paidValue,2114);
