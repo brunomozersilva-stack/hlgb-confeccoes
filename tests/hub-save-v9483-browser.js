@@ -8,7 +8,7 @@ const engine=process.env.HLGB_BROWSER==='webkit'?webkit:chromium;
   const page=await browser.newPage({viewport:{width:1408,height:900}});
   const errors=[];page.on('pageerror',e=>errors.push(e.message));
   await page.goto('http://127.0.0.1:4173/tests/hub-save-v9483-fixture.html');
-  await page.waitForFunction(()=>window.hlgbHubDelivery9324?.build==='94.83'&&typeof window.newHubFinanceEntry==='function');
+  await page.waitForFunction(()=>window.hlgbHubDelivery9324?.build==='94.88'&&typeof window.newHubFinanceEntry==='function');
 
   // Real create button event. Local persistence is intentionally QuotaExceededError.
   await page.evaluate(()=>window.newHubFinanceEntry('Saída'));
