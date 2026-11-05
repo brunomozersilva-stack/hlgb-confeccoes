@@ -46,6 +46,23 @@ const engine=process.env.HLGB_BROWSER==='webkit'?webkit:chromium;
   assert.equal(edited.trace.clickObserved,true);
   assert(edited.trace.readbackAt&&edited.trace.ackAt);
 
+  // A second REAL Save click on an unchanged edit may only read the remote row.
+  await page.evaluate(()=>window.hlgbHubEditor9270.open('hub-fixture-old'));
+  await page.locator('.he-save9286').click();
+  await page.waitForFunction(()=>!document.getElementById('hlgbHubEditor9270'));
+  const readbackOnly=await page.evaluate(()=>({
+   calls:window.__fixture.rpcCalls.filter(x=>x.id==='hub-fixture-old').length,
+   trace:window.hlgbHubSaveTrace9483.status()
+  }));
+  assert.equal(readbackOnly.calls,1,'unchanged click may not create another RPC');
+  assert.equal(readbackOnly.trace.outcome,'already-saved');
+  assert.equal(readbackOnly.trace.confirmation,'readback-only');
+  assert.equal(readbackOnly.trace.rpcAt,'');
+  assert.equal(readbackOnly.trace.ackAt,'');
+  assert.equal(readbackOnly.trace.clickObserved,true);
+  assert(readbackOnly.trace.readbackAt&&readbackOnly.trace.modelAt);
+
+
   // Remote revision changed by another computer; editor must remain open with same text.
   await page.evaluate(()=>{
    const remote=window.__fixture.remote.get('hub-fixture-old');remote.revision=6;remote.data.value=700;
