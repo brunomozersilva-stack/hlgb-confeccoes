@@ -30,8 +30,65 @@ function loggedIn(){try{const l=document.getElementById('loginScreen'),a=documen
 function idbAll(){return new Promise(resolve=>{if(typeof indexedDB==='undefined'){resolve([]);return}let r;try{r=indexedDB.open(DB_NAME)}catch(e){resolve([]);return}r.onupgradeneeded=()=>{try{r.transaction.abort()}catch(e){};resolve([])};r.onerror=()=>resolve([]);r.onsuccess=()=>{const d=r.result;try{if(!d.objectStoreNames.contains(STORE)){d.close();resolve([]);return}const tx=d.transaction(STORE,'readonly'),s=tx.objectStore(STORE),g=s.getAll();g.onsuccess=()=>{const out=Array.isArray(g.result)?g.result:[];try{d.close()}catch(_){}resolve(out)};g.onerror=()=>{try{d.close()}catch(_){}resolve([])}}catch(e){try{d.close()}catch(_){}resolve([])}}})}
 function newerWal(a,b){const ta=Date.parse(a?.updatedAt||a?.createdAt||'')||0,tb=Date.parse(b?.updatedAt||b?.createdAt||'')||0;return tb>ta?b:a}
 async function mergedWalEntries(){const w=readWal(),out={...(w?.entries||{})};try{for(const e of await idbAll()){const key=sid(e?.key);if(!key)continue;out[key]=out[key]?newerWal(out[key],e):e}}catch(e){}return out}
-function idbDeleteSame(key,opId){return new Promise(resolve=>{if(typeof indexedDB==='undefined'){resolve(false);return}let r;try{r=indexedDB.open(DB_NAME)}catch(e){resolve(false);return}r.onupgradeneeded=()=>{try{r.transaction.abort()}catch(e){};resolve(false)};r.onerror=()=>resolve(false);r.onsuccess=()=>{const d=r.result;try{if(!d.objectStoreNames.contains(STORE)){d.close();resolve(false);return}const tx=d.transaction(STORE,'readwrite'),s=tx.objectStore(STORE),g=s.get(key);g.onsuccess=()=>{const cur=g.result;if(cur&&sid(cur.opId)===sid(opId))s.delete(key)};tx.oncomplete=()=>{d.close();resolve(true)};tx.onerror=tx.onabort=()=>{d.close();resolve(false)}}catch(e){try{d.close()}catch(_){}resolve(false)}}})}
-async function confirmRemove(key,opId){const w=readWal();const cur=w?.entries?.[key]||null;let idbCur=null;try{idbCur=(await idbAll()).find(x=>sid(x?.key)===sid(key))||null}catch(e){}let matched=false;if(cur&&sid(cur.opId)===sid(opId)){delete w.entries[key];if(!writeWal(w))return false;matched=true}if(idbCur&&sid(idbCur.opId)===sid(opId)){await idbDeleteSame(key,opId);matched=true}return matched}
+/* v94.86: prove full WAL identity again INSIDE the IDB readwrite transaction.
+   A matching opId by itself is insufficient if a fresh edit replaced its payload. */
+function exactData(v){
+ if(Array.isArray(v))return v.map(exactData);
+ if(!v||typeof v!=='object')return v;
+ const out={};for(const k of Object.keys(v).sort())out[k]=exactData(v[k]);return out
+}
+function sameOperation(current,expected,key){
+ if(!current||!expected)return false;
+ return sid(current.key)===sid(key)&&sid(expected.key)===sid(key)&&
+  sid(current.module)===sid(expected.module)&&sid(current.id)===sid(expected.id)&&
+  sid(current.opId)===sid(expected.opId)&&
+  (current.deleted===true)===(expected.deleted===true)&&
+  JSON.stringify(exactData(current.data))===JSON.stringify(exactData(expected.data))
+}
+function idbDeleteSame(key,expected){
+ return new Promise(resolve=>{
+  if(typeof indexedDB==='undefined'){resolve(false);return}
+  let req;try{req=indexedDB.open(DB_NAME)}catch(_){resolve(false);return}
+  req.onupgradeneeded=()=>{try{req.transaction.abort()}catch(_){}resolve(false)};
+  req.onerror=()=>resolve(false);
+  req.onsuccess=()=>{
+   const db=req.result;
+   try{
+    if(!db.objectStoreNames.contains(STORE)){db.close();resolve(false);return}
+    const tx=db.transaction(STORE,'readwrite'),store=tx.objectStore(STORE),get=store.get(key);
+    let deleted=false;
+    get.onsuccess=()=>{
+     if(sameOperation(get.result,expected,key)){store.delete(key);deleted=true}
+    };
+    tx.oncomplete=()=>{db.close();resolve(deleted)};
+    tx.onerror=tx.onabort=()=>{db.close();resolve(false)}
+   }catch(_){try{db.close()}catch(_){}resolve(false)}
+  }
+ })
+}
+async function confirmRemove(key,expected){
+ if(!expected?.opId||!expected?.module||expected.id==null)return false;
+ const wal=readWal(),local=wal?.entries?.[key]||null;
+ const idb=(await idbAll()).find(x=>sid(x?.key)===sid(key))||null;
+ // Existing but divergent copies mean two different intentions: preserve both.
+ if(local&&!sameOperation(local,expected,key))return false;
+ if(idb&&!sameOperation(idb,expected,key))return false;
+ if(!local&&!idb)return false;
+ let didDelete=false;
+ if(idb){
+  if(!await idbDeleteSame(key,expected))return false;
+  didDelete=true;
+ }
+ // Re-read localStorage to avoid deleting a later write that arrived during IDB work.
+ const fresh=readWal();
+ const cur=fresh?.entries?.[key]||null;
+ if(cur&&sameOperation(cur,expected,key)){
+  delete fresh.entries[key];
+  if(writeWal(fresh))didDelete=true;
+ }
+ // If a newer local edit arrived, it remains untouched.
+ return didDelete;
+}
 async function cloudRows(query){const req=window.cloudRequest;if(typeof req!=='function')throw new Error('Consulta da nuvem indisponível');return await Promise.race([Promise.resolve(req(query,{method:'GET'})),new Promise((_,rej)=>setTimeout(()=>rej(new Error('Timeout conferindo WAL na nuvem')),12000))])}
 async function cloudRow(module,id){const q=`hlgb_records?select=module,entity_id,data,deleted_at,revision,updated_at&module=eq.${encodeURIComponent(sid(module))}&entity_id=eq.${encodeURIComponent(sid(id))}&limit=1`;const out=await cloudRows(q);return Array.isArray(out)&&out.length?out[0]:null}
 async function equivalentProductionRow(op){
@@ -46,7 +103,7 @@ async function pruneConfirmed(force=false,max=8){
  const now=Date.now();if(!force&&now-lastScanAt<SCAN_MIN_MS)return {removed:0,throttled:true};
  const items=Object.entries(await mergedWalEntries()).slice(0,Math.max(1,max));
  if(!items.length){lastScanAt=now;lastConfirmedPruneAt=new Date().toISOString();lastScanResult={removed:0,checked:0};return lastScanResult}
- scanBusy=true;lastScanAt=now;const removed=[],equivalent=[],kept=[],errors=[];
+ scanBusy=true;lastScanAt=now;const removed=[],equivalent=[],kept=[],errors=[],unproven=[];
  try{
   for(const [key,op] of items){
    if(!op?.module||op?.id==null){kept.push(key);continue}
@@ -55,10 +112,11 @@ async function pruneConfirmed(force=false,max=8){
     let same=op.deleted===true?(!row||!!row.deleted_at):!!(row&&!row.deleted_at&&sameMeaning(row.data,op.data));
     let replacement=null;
     if(!same&&!row&&sid(op.module)==='production'&&op.deleted!==true){replacement=await equivalentProductionRow(op);same=!!replacement}
-    if(same&&await confirmRemove(key,op.opId)){removed.push(key);if(replacement){equivalent.push({key,replacementId:sid(replacement.entity_id)});equivalentProductionPruned++}}else kept.push(key);
+    if(same&&sid(op.module)==='routePlans'&&sid(row?.data?.opId||row?.data?.operationId)!==sid(op.opId)){unproven.push({key,reason:'route-content-match-without-remote-operation-receipt'});kept.push(key);continue}
+    if(same&&await confirmRemove(key,op)){removed.push(key);if(replacement){equivalent.push({key,replacementId:sid(replacement.entity_id)});equivalentProductionPruned++}}else kept.push(key);
    }catch(e){errors.push({key,error:sid(e?.message||e)});kept.push(key)}
   }
-  confirmedPruned+=removed.length;lastConfirmedPruneAt=new Date().toISOString();lastScanResult={removed:removed.length,keys:removed,equivalent,checked:items.length,kept,errors};
+  confirmedPruned+=removed.length;lastConfirmedPruneAt=new Date().toISOString();lastScanResult={removed:removed.length,keys:removed,equivalent,checked:items.length,kept,unproven,errors};
   if(removed.length)console.info('[HLGB] v'+V+' removeu WAL somente após confirmação remota',lastScanResult);
   return clone(lastScanResult);
  }finally{scanBusy=false}

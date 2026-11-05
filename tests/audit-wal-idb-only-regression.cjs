@@ -50,7 +50,7 @@ const entry={key:'production|1793032272043',opId:'op-idb-only',module:'productio
     const window={HLGB_RELEASE_VERSION:'93.50',addEventListener(){},hlgbRecordSaveWithRetry:async(...args)=>{calls.push(args);return {applied:true}}};
     const ctx=baseContext(idb.indexedDB,window,localStorage);vm.createContext(ctx);vm.runInContext(src,ctx);
     const ok=await window.hlgbWalConfirmedReplay9333.run('idb-only-test',true);
-    assert.strictEqual(ok,true,'replay IDB-only deveria concluir');
+    assert.strictEqual(ok,true,'replay IDB-only deveria concluir: '+JSON.stringify({lastResult:window.hlgbWalConfirmedReplay9333.state.lastResult,lastError:window.hlgbWalConfirmedReplay9333.state.lastError,remaining:idb.store.size}));
     assert.strictEqual(calls.length,1,'operação IDB-only real deve ser reenviada');
     assert.strictEqual(idb.store.size,0,'WAL IDB-only só sai após confirmação applied:true');
   }
