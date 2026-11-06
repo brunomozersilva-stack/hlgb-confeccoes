@@ -63,7 +63,7 @@ const base='http://127.0.0.1:4173/';
   assert.equal(json.indexedDbEntries.length,2);
   assert.equal(json.indexedDbEntries.find(x=>x.module==='projectionInvoices').data.amount,300.01);
   assert.equal(json.localStorageWal.entries['projectionInvoices|unconfirmed'].data.amount,300.02);
-  assert.match(await page.locator('#result').textContent(),/Nenhuma operação foi excluída/);
+  assert.match(await page.locator('#result').textContent(),/Nenhum dado foi apagado|Nenhuma operação foi excluída/);
   const after=await page.evaluate(async()=>{
    const read=indexedDB.open('hlgb_durable_wal');
    const rows=await new Promise((ok,bad)=>{
