@@ -458,8 +458,39 @@ function scanSystem(){
     if(e?.active===false&&!e?.terminationDate)out.push({severity:'Média',code:'inactive-no-termination-date',title:'Funcionário inativo sem data de desligamento',description:(e.name||'Funcionário')+' está inativo sem terminationDate.',page:'funcionarios',refs:[{module:'employees',id:sid(e.id)}]});
   }
   const projections=new Set(arr('projectionInvoices').map(x=>sid(x?.id)));
+  // v94.97: a deleted invoice is not an invoice that never existed.
+  // Consult only the existing (read-only) record snapshot; never restore a
+  // tombstone or erase financial history based on the integrity scan.
+  let projectionSnapshots=null;
+  try{
+    if(typeof hlgbRecordSnapshots!=='undefined')projectionSnapshots=hlgbRecordSnapshots?.projectionInvoices||null;
+    if(!projectionSnapshots)projectionSnapshots=window.hlgbRecordSnapshots?.projectionInvoices||null;
+  }catch(_){}
   for(const f of arr('finance')){
-    if(f?.projectionInvoiceId!=null&&!projections.has(sid(f.projectionInvoiceId)))out.push({severity:'Alta',code:'finance-projection-orphan',title:'Financeiro sem projeção correspondente',description:'Finance '+sid(f.id)+' aponta para projectionInvoiceId '+sid(f.projectionInvoiceId)+' inexistente.',page:'financeiro',refs:[{module:'finance',id:sid(f.id)}]});
+    const projectionId=f?.projectionInvoiceId==null?'':sid(f.projectionInvoiceId);
+    if(!projectionId||projections.has(projectionId))continue;
+    let archived=null;
+    try{
+      const remote=projectionSnapshots?.get?.(projectionId);
+      if(remote?.deleted_at&&sid(remote?.data?.id)===projectionId)archived=remote;
+    }catch(_){}
+    const financeId=sid(f.id),financeStatus=sid(f.status||'Sem status'),
+      finValue=Number(f.value)||0,finPaid=Number(f.paid)||0;
+    let detail=archived?
+      'Finance '+financeId+' aponta para projectionInvoiceId '+projectionId+
+      ', nota excluída em '+sid(archived.deleted_at)+'.':
+      'Finance '+financeId+' aponta para projectionInvoiceId '+projectionId+
+      ', nota não encontrada entre as projeções ativas (pode ter sido excluída; conferir histórico).';
+    detail+=' Financeiro preservado, status '+financeStatus+
+      ', valor '+finValue.toFixed(2)+', pago registrado '+finPaid.toFixed(2)+'.';
+    if(archived&&sid(archived.data?.status).toLowerCase()==='pendente'&&financeStatus.toLowerCase()==='pago'){
+      detail+=' Divergência histórica: nota arquivada constava como pendente e financeiro está marcado como pago.';
+    }
+    detail+=' Exige conferência humana; não restaurar/excluir automaticamente.';
+    out.push({severity:'Alta',code:'finance-projection-orphan',
+      title:archived?'Financeiro vinculado a nota excluída':'Financeiro sem projeção ativa correspondente',
+      description:detail,page:'financeiro',
+      refs:[{module:'finance',id:financeId},{module:'projectionInvoices',id:projectionId}]});
   }
   const unique=new Map();
   out.forEach(x=>{const fp=fingerprint([x.code,x.title,JSON.stringify(x.refs||[])]);if(!unique.has(fp))unique.set(fp,{...x,fingerprint:fp})});
