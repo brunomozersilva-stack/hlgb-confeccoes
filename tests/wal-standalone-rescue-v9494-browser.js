@@ -28,8 +28,13 @@ const base='http://127.0.0.1:4173/';
    localStorage.setItem('hlgb_durable_wal_v1',JSON.stringify({version:1,entries:{
     'projectionInvoices|unconfirmed':{module:'projectionInvoices',opId:'test-id-151',data:{amount:300.02}}
    }}));
+   localStorage.setItem('hlgb_records_pending_v91',JSON.stringify({modules:{
+    cuts:[{id:'c100',data:{qty:25}}],
+    production:[{id:'p100',data:{planned:87}},{id:'p101',data:{planned:12}}]
+   }}));
   });
-  const before=await page.evaluate(()=>localStorage.getItem('hlgb_durable_wal_v1'));
+  const before=await page.evaluate(()=>({wal:localStorage.getItem('hlgb_durable_wal_v1'),
+   pending:localStorage.getItem('hlgb_records_pending_v91')}));
   await page.goto(base+'resgatar-wal.html');
   assert.equal(await page.locator('#export').count(),1);
   assert.equal(await page.evaluate(()=>typeof window.hlgbAuditorAutoCorrect9448),'undefined','rescue must not boot Auditor');
@@ -40,6 +45,11 @@ const base='http://127.0.0.1:4173/';
   const download=await d;
   const json=JSON.parse(fs.readFileSync(await download.path(),'utf8'));
   assert.equal(json.kind,'hlgb_wal_local_evidence_backup');
+  assert.equal(json.formatVersion,'94.99');
+  assert.equal(json.normalizedPendingCount,3);
+  assert.equal(json.normalizedPending.modules.cuts[0].data.qty,25);
+  assert.equal(json.normalizedPending.modules.production.length,2);
+  assert(download.suggestedFilename().includes(process.env.HLGB_BROWSER==='webkit'?'SAFARI':'CHROME'));
   assert.equal(json.indexedDbEntries.length,2);
   assert.equal(json.indexedDbEntries.find(x=>x.module==='projectionInvoices').data.amount,300.01);
   assert.equal(json.localStorageWal.entries['projectionInvoices|unconfirmed'].data.amount,300.02);
@@ -54,10 +64,12 @@ const base='http://127.0.0.1:4173/';
      tx.oncomplete=()=>db.close()
     }
    });
-   return {rows,local:localStorage.getItem('hlgb_durable_wal_v1')}
+   return {rows,local:localStorage.getItem('hlgb_durable_wal_v1'),
+    pending:localStorage.getItem('hlgb_records_pending_v91')}
   });
   assert.equal(after.rows.length,2);
-  assert.equal(after.local,before,'byte-for-byte localStorage unchanged');
+  assert.equal(after.local,before.wal,'byte-for-byte WAL localStorage unchanged');
+  assert.equal(after.pending,before.pending,'normalized pending queue must remain unchanged');
   assert.deepEqual(external,[],'rescue must make no external network requests');
   const fresh=await browser.newContext({acceptDownloads:true});
   const empty=await fresh.newPage();
@@ -66,6 +78,6 @@ const base='http://127.0.0.1:4173/';
   await empty.waitForFunction(()=>document.getElementById('result')?.textContent.includes('❌'));
   assert.match(await empty.locator('#result').textContent(),/WAL não existe|Nenhuma WAL/);
   await fresh.close();await ctx.close();
-  console.log('PASS v94.94 '+(process.env.HLGB_BROWSER||'chromium')+': standalone rescue has no app boot/network, exports both WAL copies unchanged, rejects empty profile');
+  console.log('PASS v94.99 '+(process.env.HLGB_BROWSER||'chromium')+': standalone rescue exports IndexedDB, WAL localStorage and normalized pending untouched; no network');
  }finally{await browser.close()}
 })().catch(e=>{console.error(e);process.exitCode=1});
