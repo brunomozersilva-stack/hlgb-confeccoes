@@ -72,6 +72,28 @@ function sameWalBusiness9482(a,b){
  try{return JSON.stringify(canonicalWalProof9482(a))===JSON.stringify(canonicalWalProof9482(b))}
  catch(_){return false}
 }
+/* v94.98: names of differing fields ONLY; never include private payloads or
+   mutate IndexedDB, server records or localStorage. Canonicalization is the
+   same as the existing content-match proof, to avoid contradictory results. */
+function walFieldDifferences9498(remote,local,max=16){
+ const a=canonicalWalProof9482(remote),b=canonicalWalProof9482(local),fields=[];
+ let visited=0;
+ const walk=(x,y,path)=>{
+  if(fields.length>=max||++visited>900)return;
+  if(JSON.stringify(x)===JSON.stringify(y))return;
+  const xo=x!==null&&typeof x==='object',yo=y!==null&&typeof y==='object';
+  if(!xo||!yo||Array.isArray(x)!==Array.isArray(y)){fields.push(path||'(raiz)');return}
+  if(Array.isArray(x)){
+   if(x.length!==y.length){fields.push((path||'(raiz)')+'.length');if(fields.length>=max)return}
+   for(let i=0;i<Math.max(x.length,y.length)&&fields.length<max;i++)walk(x[i],y[i],(path||'')+'['+i+']');
+  }else{
+   const keys=[...new Set([...Object.keys(x),...Object.keys(y)])].sort();
+   for(const k of keys){if(fields.length>=max)break;walk(x[k],y[k],(path?path+'.':'')+k.slice(0,90))}
+  }
+ };
+ try{walk(a,b,'')}catch(_){return ['(comparação indisponível)']}
+ return fields.map(x=>x.slice(0,160));
+}
 function walRowsReadOnly9482(){
  if(typeof indexedDB==='undefined')return Promise.resolve({status:'unsupported',rows:[]});
  return new Promise(resolve=>{
@@ -113,10 +135,15 @@ async function walRemoteReadOnlyProof9482(max=8){
    const response=await Promise.race([Promise.resolve(window.cloudRequest(query,{method:'GET'})),new Promise((_,reject)=>setTimeout(()=>reject(new Error('Timeout da prova remota')),12000))]);
    if(!Array.isArray(response))throw new Error('Resposta remota inválida');
    const found=response.find(x=>sid(x?.module)===module&&sid(x?.entity_id)===id)||null;
+   if(found){row.revision=found.revision;row.remoteDeleted=!!found.deleted_at}
    if(!found){row.status=op?.deleted===true?'delete-absent':'missing';result.missing++}
    else if(op?.deleted===true){row.status=found.deleted_at?'delete-confirmed':'different';if(found.deleted_at)result.matched++;else result.different++}
    else if(!found.deleted_at&&sameWalBusiness9482(found.data,op.data)){row.status='content-match';row.revision=found.revision;result.matched++}
-   else{row.status='different';result.different++}
+   else{
+    row.status='different';result.different++;
+    if(!found.deleted_at&&op?.deleted!==true)row.differentFields=walFieldDifferences9498(found.data,op.data);
+    else row.differentFields=['(exclusão ou restauração pendente)'];
+   }
   }catch(e){row.status='error';result.unverified++;result.errors.push({module,id,opId,error:sid(e?.message||e).slice(0,220)})}
   result.checked++;result.items.push(row);
  }
