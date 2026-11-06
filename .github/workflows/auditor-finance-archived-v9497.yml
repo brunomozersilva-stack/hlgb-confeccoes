@@ -1,0 +1,28 @@
+name: HLGB Auditor v94.97 — notas excluídas e financeiro
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'release-diagnostics-center.js'
+      - 'tests/auditor-finance-archived-v9497.cjs'
+      - '.github/workflows/auditor-finance-archived-v9497.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'release-diagnostics-center.js'
+      - 'tests/auditor-finance-archived-v9497.cjs'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '20'}
+      - run: node --check release-diagnostics-center.js
+      - run: node tests/auditor-finance-archived-v9497.cjs
+      - run: node tests/audit-diagnostics-center.cjs
+      - run: node tests/audit-internal-auditor-regression.cjs
