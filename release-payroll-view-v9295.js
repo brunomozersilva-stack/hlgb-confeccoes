@@ -1,8 +1,8 @@
-/* HLGB v92.95 — Folha: duas visões + status visual pago/pendente */
+/* HLGB v94.95 — Folha: preservar visualização escolhida durante redraws externos */
 (function(){
 'use strict';
 if(window.hlgbPayrollView9295)return;
-const V='92.95',VIEW_KEY='hlgb_payroll_view_9489',STATUS_KEY='hlgb_payroll_status_9295';
+const V='94.95',VIEW_KEY='hlgb_payroll_view_9489',STATUS_KEY='hlgb_payroll_status_9295';
 const sid=v=>String(v??'');
 const q=v=>Math.max(0,Number(v)||0);
 function dbr(){try{if(typeof db!=='undefined'&&db)return db}catch(e){}return window.db||null}
@@ -72,13 +72,55 @@ function rowHtml(r){
 }
 function renderCompany(rows,table){
  const groups={};for(const r of rows){const n=r.companyName||'Sem confecção';(groups[n]||(groups[n]=[])).push(r)}
- const names=Object.keys(groups).sort((a,b)=>a.localeCompare(b,'pt-BR'));table.innerHTML=names.length?`<div class="payroll-company-list">${names.map(name=>{const list=groups[name].slice().sort((a,b)=>sid(a.employeeName).localeCompare(sid(b.employeeName),'pt-BR')),paid=list.filter(x=>x.paid).length;return `<section class="payroll-company"><div class="payroll-company-head"><div class="payroll-company-title">🏭 ${escs(name)}</div><div class="payroll-company-stats"><span class="payroll-company-stat"><strong>${list.length}</strong> funcionário${list.length===1?'':'s'}</span><span class="payroll-company-stat"><strong>${paid}</strong> pago${paid===1?'':'s'}</span><span class="payroll-company-stat"><strong>${list.length-paid}</strong> pendente${list.length-paid===1?'':'s'}</span></div></div><div class="payroll-list-head"><div>Funcionário</div><div>Salário</div><div>Adicionais</div><div>Descontos</div><div>A pagar</div><div>PIX</div><div>Status</div><div>Ações</div></div>${list.map(rowHtml).join('')}</section>`}).join('')}</div>`:'<div class="empty">Nenhum funcionário encontrado para estes filtros.</div>'
+ const names=Object.keys(groups).sort((a,b)=>a.localeCompare(b,'pt-BR'));table.innerHTML=names.length?`<div class="payroll-company-list" data-hlgb-payroll-view="company">${names.map(name=>{const list=groups[name].slice().sort((a,b)=>sid(a.employeeName).localeCompare(sid(b.employeeName),'pt-BR')),paid=list.filter(x=>x.paid).length;return `<section class="payroll-company"><div class="payroll-company-head"><div class="payroll-company-title">🏭 ${escs(name)}</div><div class="payroll-company-stats"><span class="payroll-company-stat"><strong>${list.length}</strong> funcionário${list.length===1?'':'s'}</span><span class="payroll-company-stat"><strong>${paid}</strong> pago${paid===1?'':'s'}</span><span class="payroll-company-stat"><strong>${list.length-paid}</strong> pendente${list.length-paid===1?'':'s'}</span></div></div><div class="payroll-list-head"><div>Funcionário</div><div>Salário</div><div>Adicionais</div><div>Descontos</div><div>A pagar</div><div>PIX</div><div>Status</div><div>Ações</div></div>${list.map(rowHtml).join('')}</section>`}).join('')}</div>`:'<div class="empty" data-hlgb-payroll-view="company">Nenhum funcionário encontrado para estes filtros.</div>'
 }
 function renderAlpha(rows,table){
  const list=rows.slice().sort((a,b)=>sid(a.employeeName).localeCompare(sid(b.employeeName),'pt-BR'));let last='';
- table.innerHTML=list.length?`<div class="payroll-company-list"><div class="payroll-list-head"><div>Funcionário</div><div>Salário</div><div>Adicionais</div><div>Descontos</div><div>A pagar</div><div>PIX</div><div>Status</div><div>Ações</div></div>${list.map(r=>{const letter=(sid(r.employeeName).trim()[0]||'#').toUpperCase(),head=letter!==last?`<div class="hlgb-alpha-letter">${escs(letter)}</div>`:'';last=letter;return head+rowHtml(r)}).join('')}</div>`:'<div class="empty">Nenhum funcionário encontrado para estes filtros.</div>'
+ table.innerHTML=list.length?`<div class="payroll-company-list" data-hlgb-payroll-view="alpha"><div class="payroll-list-head"><div>Funcionário</div><div>Salário</div><div>Adicionais</div><div>Descontos</div><div>A pagar</div><div>PIX</div><div>Status</div><div>Ações</div></div>${list.map(r=>{const letter=(sid(r.employeeName).trim()[0]||'#').toUpperCase(),head=letter!==last?`<div class="hlgb-alpha-letter">${escs(letter)}</div>`:'';last=letter;return head+rowHtml(r)}).join('')}</div>`:'<div class="empty" data-hlgb-payroll-view="alpha">Nenhum funcionário encontrado para estes filtros.</div>'
 }
-function renderVisual(){style();ensureControls();const table=document.getElementById('payrollTable');if(!table)return false;const rows=currentRows();if(getView()==='alpha')renderAlpha(rows,table);else renderCompany(rows,table);return true}
+/* O renderPayroll original e outros módulos podem substituir o HTML da tabela depois
+   de salvar ou receber dados remotos, sem passar pelo nosso wrapper. Observar SOMENTE
+   os filhos diretos de #payrollTable (sem subtree, sem intervalo) e reconstituir a
+   visualização selecionada. Suspender o observer durante nossa própria renderização. */
+let tableObserver=null,observedTable=null,painting=false,queued=false;
+function renderedView(table){
+ try{return table?.firstElementChild?.getAttribute('data-hlgb-payroll-view')||''}catch(_){return ''}
+}
+function watchTable(table){
+ if(typeof MutationObserver!=='function')return false;
+ if(tableObserver&&observedTable===table)return true;
+ try{tableObserver?.disconnect()}catch(_){}
+ observedTable=table;
+ tableObserver=new MutationObserver(()=>{
+  if(painting||queued||!table.isConnected||document.getElementById('payrollTable')!==table)return;
+  if(renderedView(table)===getView())return;
+  queued=true;
+  Promise.resolve().then(()=>{
+   queued=false;
+   if(!painting&&table.isConnected&&document.getElementById('payrollTable')===table&&renderedView(table)!==getView())renderVisual();
+  });
+ });
+ tableObserver.observe(table,{childList:true});
+ return true;
+}
+function renderVisual(){
+ if(painting)return true;
+ style();
+ const table=document.getElementById('payrollTable');if(!table)return false;
+ try{tableObserver?.disconnect()}catch(_){}
+ painting=true;
+ try{
+  ensureControls();
+  const rows=currentRows();
+  if(getView()==='alpha')renderAlpha(rows,table);else renderCompany(rows,table);
+  return true;
+ }finally{
+  painting=false;
+  /* Reconnect even if a redraw failed. No mutation from this render is observed. */
+  if(tableObserver&&observedTable===table){try{tableObserver.observe(table,{childList:true})}catch(_){}}
+  else watchTable(table);
+ }
+}
 function wrap(){const fn=window.renderPayroll;if(typeof fn!=='function'||fn.__hlgbPayrollView9295)return false;const w=function(){const out=fn.apply(this,arguments);try{renderVisual()}catch(e){console.warn('[HLGB folha '+V+'] visual',e)}return out};w.__hlgbPayrollView9295=true;w.__original=fn;window.renderPayroll=w;return true}
 function boot(){style();wrap();try{renderVisual()}catch(e){}}
 boot();setTimeout(boot,500);setTimeout(boot,1700);
