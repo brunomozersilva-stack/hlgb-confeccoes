@@ -8,7 +8,7 @@ const engine=process.env.HLGB_BROWSER==='webkit'?webkit:chromium;
   const page=await browser.newPage({viewport:{width:1380,height:850}});
   const errors=[];page.on('pageerror',e=>errors.push(e.message));
   await page.goto('http://127.0.0.1:4173/tests/payroll-alpha-fare-v9489-fixture.html');
-  await page.waitForFunction(()=>window.hlgbPayrollSaveStability9296?.version==='94.92');
+  await page.waitForFunction(()=>window.hlgbPayrollSaveStability9296?.version==='94.96');
   await page.evaluate(()=>{
    window.__fixture.serverEmployees=new Map(window.db.employees.map(e=>[String(e.id),{data:structuredClone(e),revision:1}]));
    window.__fixture.employeeRpc=[];
