@@ -42,6 +42,11 @@ const base='http://127.0.0.1:4173/';
    'rescue must load no app JavaScript or external files');
   const d=page.waitForEvent('download');
   await page.locator('#export').click();
+  if(process.env.HLGB_BROWSER==='webkit'){
+   await page.locator('#manualDownload').waitFor({state:'visible'});
+   assert.match(await page.locator('#result').textContent(),/Cópia preparada/);
+   await page.locator('#manualDownload').click();
+  }
   const download=await d;
   const json=JSON.parse(fs.readFileSync(await download.path(),'utf8'));
   assert.equal(json.kind,'hlgb_wal_local_evidence_backup');
@@ -49,11 +54,16 @@ const base='http://127.0.0.1:4173/';
   assert.equal(json.normalizedPendingCount,3);
   assert.equal(json.normalizedPending.modules.cuts[0].data.qty,25);
   assert.equal(json.normalizedPending.modules.production.length,2);
+  await page.locator('#copyBackup').click();
+  assert.equal(await page.locator('#backupText').inputValue(),JSON.stringify(json,null,2),
+   'Safari/Chrome fallback textarea must contain complete and unchanged backup');
+  assert.equal(await page.locator('#backupText').isVisible(),true);
+  assert.equal(await page.locator('#manualDownload').isVisible(),true);
   assert(download.suggestedFilename().includes(process.env.HLGB_BROWSER==='webkit'?'SAFARI':'CHROME'));
   assert.equal(json.indexedDbEntries.length,2);
   assert.equal(json.indexedDbEntries.find(x=>x.module==='projectionInvoices').data.amount,300.01);
   assert.equal(json.localStorageWal.entries['projectionInvoices|unconfirmed'].data.amount,300.02);
-  assert.match(await page.locator('#result').textContent(),/Nenhuma operação foi excluída/);
+  assert.match(await page.locator('#result').textContent(),/Nenhum dado foi apagado|Nenhuma operação foi excluída/);
   const after=await page.evaluate(async()=>{
    const read=indexedDB.open('hlgb_durable_wal');
    const rows=await new Promise((ok,bad)=>{
@@ -78,6 +88,6 @@ const base='http://127.0.0.1:4173/';
   await empty.waitForFunction(()=>document.getElementById('result')?.textContent.includes('❌'));
   assert.match(await empty.locator('#result').textContent(),/WAL não existe|Nenhuma WAL/);
   await fresh.close();await ctx.close();
-  console.log('PASS v94.99 '+(process.env.HLGB_BROWSER||'chromium')+': standalone rescue exports IndexedDB, WAL localStorage and normalized pending untouched; no network');
+  console.log('PASS v95.00 '+(process.env.HLGB_BROWSER||'chromium')+': Safari manual click and copy fallback, complete 3-store backup, no writes/network');
  }finally{await browser.close()}
 })().catch(e=>{console.error(e);process.exitCode=1});
