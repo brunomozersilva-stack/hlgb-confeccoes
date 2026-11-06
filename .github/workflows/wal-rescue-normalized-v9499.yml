@@ -1,0 +1,40 @@
+name: HLGB v94.99 - Rescue WAL and normalized pending
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'resgatar-wal.html'
+      - 'tests/wal-standalone-rescue-v9494-browser.js'
+      - '.github/workflows/wal-rescue-normalized-v9499.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'resgatar-wal.html'
+      - 'tests/wal-standalone-rescue-v9494-browser.js'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  browser:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        browser: [chromium, webkit]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '20'}
+      - name: Install Playwright
+        run: |
+          npm install --no-save playwright@1.55.0
+          npx playwright install --with-deps ${{ matrix.browser }}
+      - name: Start local server
+        run: |
+          python3 -m http.server 4173 >/tmp/hlgb-rescue-v9499.log 2>&1 &
+          sleep 2
+      - name: Verify no modifications / downloads
+        env:
+          HLGB_BROWSER: ${{ matrix.browser }}
+        run: node tests/wal-standalone-rescue-v9494-browser.js
