@@ -1,0 +1,57 @@
+name: HLGB Folha v94.96 — passagem manual no total
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'release-payroll-save-stability-v9296.js'
+      - 'tests/payroll-explicit-fare-v9496-browser.js'
+      - 'tests/payroll-explicit-fare-v9496.cjs'
+      - 'tests/payroll-employee-fare-v9490-browser.js'
+      - 'tests/employee-save-ack-v9492-browser.js'
+      - '.github/workflows/payroll-explicit-fare-v9496.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'release-payroll-save-stability-v9296.js'
+      - 'tests/payroll-explicit-fare-v9496-browser.js'
+      - 'tests/payroll-explicit-fare-v9496.cjs'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  logic:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '20'}
+      - run: node --check release-payroll-save-stability-v9296.js
+      - run: node tests/payroll-explicit-fare-v9496.cjs
+  browser:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        browser: [chromium, webkit]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '20'}
+      - name: Install Playwright
+        run: |
+          npm install --no-save playwright@1.55.0
+          npx playwright install --with-deps ${{ matrix.browser }}
+      - name: Serve isolated fixture
+        run: |
+          python3 -m http.server 4173 >/tmp/hlgb-9496.log 2>&1 &
+          sleep 2
+      - name: Verify monthly fare and old flows
+        env:
+          HLGB_BROWSER: ${{ matrix.browser }}
+        run: |
+          node tests/payroll-explicit-fare-v9496-browser.js
+          node tests/payroll-alpha-fare-v9489-browser.js
+          node tests/payroll-employee-fare-v9490-browser.js
+          node tests/employee-save-ack-v9492-browser.js

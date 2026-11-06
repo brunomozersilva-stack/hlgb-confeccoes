@@ -1,0 +1,13 @@
+'use strict';
+const fs=require('node:fs'),assert=require('node:assert/strict');
+const s=fs.readFileSync('release-payroll-save-stability-v9296.js','utf8');
+assert.match(s,/const V='94\.96'/);
+assert.match(s,/if\(manual===null\|\|!c\|\|typeof c!=='object'\)return c;/);
+assert.doesNotMatch(s,/manual===null\|\|employee\?\.hasTransport===false/);
+assert.match(s,/const gross=\(Number\(c\.gross\)\|\|0\)\+manual-previous;/);
+assert.match(s,/net:Math\.max\(0,gross-discounts\)/);
+assert.match(s,/amount\.disabled=info\.status==='missing-payroll'\|\|info\.status==='paid';/);
+assert.match(s,/if\(row\.paid\)throw new Error/);
+assert.doesNotMatch(s,/if\(employee\.hasTransport===false\)throw/);
+assert.match(s,/const saved=await saveConfirmed\(base,desired,verify\)/);
+console.log('PASS: explicit monthly credit, no bulk mutation, paid guard and cloud ACK kept');
