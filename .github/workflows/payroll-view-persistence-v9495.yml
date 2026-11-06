@@ -1,0 +1,50 @@
+name: HLGB Folha v94.95 — fixar visualização por confecção / A-Z
+on:
+  pull_request:
+    paths:
+      - 'release-payroll-view-v9295.js'
+      - 'tests/payroll-view-persistence-v9495-browser.js'
+      - 'tests/payroll-view-persistence-v9495.cjs'
+      - '.github/workflows/payroll-view-persistence-v9495.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'release-payroll-view-v9295.js'
+      - 'tests/payroll-view-persistence-v9495-browser.js'
+      - 'tests/payroll-view-persistence-v9495.cjs'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  logic:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '20'}
+      - run: node --check release-payroll-view-v9295.js
+      - run: node tests/payroll-view-persistence-v9495.cjs
+  browser:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        browser: [chromium, webkit]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '20'}
+      - name: Instalar Playwright
+        run: |
+          npm install --no-save playwright@1.55.0
+          npx playwright install --with-deps ${{ matrix.browser }}
+      - name: Servidor do cenário de Folha
+        run: |
+          python3 -m http.server 4173 >/tmp/hlgb-payroll-9495-http.log 2>&1 &
+          sleep 2
+      - name: Garantir visualização após edições
+        env:
+          HLGB_BROWSER: ${{ matrix.browser }}
+        run: node tests/payroll-view-persistence-v9495-browser.js
