@@ -1,7 +1,7 @@
 /* HLGB v93.04 — Folha compartilhada: nuvem confirmada, sem folha paralela por usuário */
 (function(){
 'use strict';
-const V='94.92';
+const V='94.96';
 if(window.hlgbPayrollSaveStability9296?.version===V)return;
 const sid=v=>String(v??'');
 const q=v=>Math.max(0,Number(v)||0);
@@ -12,8 +12,10 @@ function arr(n){const d=dbr();return Array.isArray(d?.[n])?d[n]:[]}
 function escs(v){try{return typeof window.esc==='function'?window.esc(v):sid(v).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}catch(e){return sid(v)}}
 function moneySafe(v){try{return typeof window.money==='function'?window.money(v):Number(v||0).toLocaleString('pt-BR',{style:'currency',currency:'BRL'})}catch(e){return 'R$ '+Number(v||0).toFixed(2).replace('.',',')}}
 function calc(r,e){try{if(typeof window.payrollCalc==='function')return window.payrollCalc(r,e||{})}catch(e){}const salary=q(r?.salary||e?.salary),transport=0,benefit=q(r?.benefit),overtime=q(r?.overtime),bonus=q(r?.bonus),otherCredit=q(r?.otherCredit),absence=q(r?.absence),inss=0,union=q(r?.unionDiscount),advance=q(r?.advance),purchase=q(r?.purchase),otherDiscount=q(r?.otherDiscount),gross=salary+transport+benefit+overtime+bonus+otherCredit,discounts=absence+inss+union+advance+purchase+otherDiscount;return {salary,transport,benefit,overtime,bonus,otherCredit,absence,inss,union,advance,purchase,otherDiscount,gross,discounts,net:Math.max(0,gross-discounts)}}
-/* v94.89: optional, per-employee/per-month passage amount. Empty means
-   the original daily fare x (workdays - absences) calculation is unchanged. */
+/* v94.96: An explicit monthly fare has authority over the employee's
+   automatic-transport eligibility flag, including when the flag is false.
+   Empty override still uses the original eligibility/day/absence formula.
+   Paid rows are not rewritten by this display-only calculation. */
 function manualFare(row){
  if(!row||row.transportOverride===null||row.transportOverride===undefined||row.transportOverride==='')return null;
  const value=Number(row.transportOverride);
@@ -33,7 +35,7 @@ function installFareCalculator(){
  const wrapped=function(row,employee){
   const c=base.apply(this,arguments);
   const manual=manualFare(row);
-  if(manual===null||employee?.hasTransport===false||!c||typeof c!=='object')return c;
+  if(manual===null||!c||typeof c!=='object')return c;
   const previous=Number(c.transport)||0;
   const gross=(Number(c.gross)||0)+manual-previous;
   const discounts=Number(c.discounts)||0;
@@ -189,7 +191,6 @@ async function saveEmployeeFare(employeeId,month,value){
  if(!/^\d{4}-\d{2}$/.test(m))throw new Error('Selecione o mês da Folha.');
  const employee=findEmployee(id);
  if(!employee)throw new Error('Funcionário não encontrado. Atualize os cadastros.');
- if(employee.hasTransport===false)throw new Error('Este funcionário está sem direito a vale-transporte no cadastro. Ative o benefício antes.');
  const row=employeePayrollRow(id,m);
  if(!row)throw new Error('A Folha deste funcionário não está gerada para '+m+'. Gere a Folha do mês antes de ajustar a passagem.');
  if(row.paid)throw new Error('O pagamento já está marcado como PAGO. Reabra o pagamento na Folha antes de alterar a passagem, para não mudar valores pagos sem conferência.');
@@ -233,13 +234,13 @@ function employeeFarePanel(id){
  function refresh(){
   const info=fareMonthInfo(id,month.value);
   amount.value=info.manual===null?'':sid(info.manual);amount.dataset.initialValue=amount.value;
-  amount.disabled=info.status==='missing-payroll'||info.status==='paid'||info.hasTransport===false;
+  amount.disabled=info.status==='missing-payroll'||info.status==='paid';
   btn.disabled=amount.disabled;
   result.textContent='';
   hint.textContent=info.status==='missing-payroll'?
    'Folha ainda não gerada neste mês. Abra Folha e gere a competência primeiro.':
    info.status==='paid'?'Esta folha está PAGA. Reabra o pagamento para corrigir a passagem.':
-   info.hasTransport===false?'Ative o vale-transporte no cadastro e salve essa alteração primeiro.':
+   info.hasTransport===false?'Sem transporte automático no cadastro. Valor manual nesta competência entra no total da folha; deixe vazio para manter sem passagem. Atual: '+moneySafe(info.current)+'.':
    'Valor atual: '+moneySafe(info.current)+'. Deixe vazio para usar o cálculo automático de faltas e dias úteis.';
  }
  month.addEventListener('input',refresh);month.addEventListener('change',refresh);
