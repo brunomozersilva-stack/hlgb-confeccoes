@@ -66,7 +66,11 @@ function pendingEvidence9479(summary){
  const walItems=Array.isArray(wal.items)?wal.items:[];
  const proofDetail=proof.mode==='read-only'?' · conferência remota '+(proof.attempted?'executada (somente leitura)':'indisponível')+' · conteúdo igual: '+fmt(proof.matched||0)+' · diferente/ausente: '+fmt((proof.different||0)+(proof.missing||0))+' · não verificados: '+fmt(proof.unverified||0)+' · situação: '+fmt(proof.status||'desconhecida'):'';
  const proofItems=Array.isArray(proof.items)?proof.items:[];
- const walInfo=walCount!==null?'<p><b>WAL IndexedDB ('+walCount+')</b> · prova remota '+(proof.attempted?'tentada':'não executada — '+fmt(walCount)+' operações pendentes')+' · cópias comprovadas removidas: '+fmt(proof.removed||0)+proofDetail+'</p>'+(walItems.length?'<ul>'+walItems.slice(0,20).map(x=>{const p=proofItems.find(y=>sid(y.module)===sid(x.module)&&sid(y.id)===sid(x.id)&&sid(y.opId)===sid(x.opId));return row([x.module,x.id].filter(Boolean).join(' / ')||x.key||'registro',(x.opId?'Operação '+x.opId:'Sem opId informado')+(p?' · verificação '+sid(p.status):''))}).join('')+'</ul>':''):'';
+ const walInfo=walCount!==null?'<p><b>WAL IndexedDB ('+walCount+')</b> · prova remota '+(proof.attempted?'tentada':'não executada — '+fmt(walCount)+' operações pendentes')+' · cópias comprovadas removidas: '+fmt(proof.removed||0)+proofDetail+'</p>'+(walItems.length?'<ul>'+walItems.slice(0,20).map(x=>{const p=proofItems.find(y=>sid(y.module)===sid(x.module)&&sid(y.id)===sid(x.id)&&sid(y.opId)===sid(x.opId));const diffs=Array.isArray(p?.differentFields)?p.differentFields.filter(Boolean).slice(0,16):[];
+  const additional=p?(p.revision!=null?' · revisão remota '+sid(p.revision):'')+
+   (p.remoteDeleted?' · registro excluído no servidor':'')+
+   (diffs.length?' · campos diferentes: '+diffs.join(', '):''):'';
+  return row([x.module,x.id].filter(Boolean).join(' / ')||x.key||'registro',(x.opId?'Operação '+x.opId:'Sem opId informado')+(p?' · verificação '+sid(p.status):'')+additional)}).join('')+'</ul>':''):'';
  const unstable=summary?.productionResidual?.opIdUnstable===true?'<p><b>Alerta: opId de Produção mudou entre leituras — limpeza bloqueada por segurança.</b></p>':'';
   const residual=candidates.length?'<p><b>Resíduos de Produção ('+candidates.length+')</b></p><ul>'+candidates.slice(0,20).map(x=>row(x.id||'registro',x.detail||x.classification||x.requires||'Sem classificação')).join('')+'</ul>':'';
  if(!findings&&!walInfo&&!residual&&!unstable)return '';

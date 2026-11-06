@@ -62,6 +62,15 @@ async function scenario(remote,available=true,idbRows=[sample]){
  assert.equal(different.out.walProof.status,'not-confirmed');
  assert.equal(different.out.walProof.different,1);
  assert.equal(different.out.walProof.removed,0);
+ assert.deepEqual(Array.from(different.out.walProof.items[0].differentFields),['driver']);
+ assert.equal(different.out.walProof.items[0].revision,1);
+ assert(!JSON.stringify(different.out.walProof.items).includes('Different driver'),
+  'WAL proof must include field paths but never sensitive values');
+ const nested=await scenario({...sample.data,stops:[{id:'other'},{id:'b'}]});
+ assert(Array.from(nested.out.walProof.items[0].differentFields).includes('stops[0].id'),
+  'nested differences must be named without leaking payload');
+ assert(nested.transactionModes.every(x=>x==='readonly'));
+ assert.equal(nested.out.walProof.removed,0);
  const missing=await scenario(null);
  assert.equal(missing.out.walProof.missing,1);
  assert.equal(missing.out.walProof.status,'not-confirmed');
