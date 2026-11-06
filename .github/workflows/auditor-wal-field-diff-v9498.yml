@@ -1,0 +1,30 @@
+name: HLGB Auditor v94.98 - WAL field differences read-only
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'release-auditor-autocorrect-v9447.js'
+      - 'release-auditor-autocorrect-v9448.js'
+      - 'tests/auditor-wal-readonly-proof-v9482.cjs'
+      - '.github/workflows/auditor-wal-field-diff-v9498.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'release-auditor-autocorrect-v9447.js'
+      - 'release-auditor-autocorrect-v9448.js'
+      - 'tests/auditor-wal-readonly-proof-v9482.cjs'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  proof:
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '20'}
+      - run: node --check release-auditor-autocorrect-v9447.js
+      - run: node --check release-auditor-autocorrect-v9448.js
+      - run: node tests/auditor-wal-readonly-proof-v9482.cjs
+      - run: node tests/auditor-wal-visible-proof-v9482.cjs
