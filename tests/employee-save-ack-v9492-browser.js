@@ -65,6 +65,9 @@ const engine=process.env.HLGB_BROWSER==='webkit'?webkit:chromium;
   const mainSave=()=>page.locator('#modal .modalSave').click();
   // Main button must ACK employee AND edited passage before dismissing.
   await open();
+  // Regression: a legacy modal handler may overwrite window.modalSave after
+  // opening. The button must still use the confirmed cloud path.
+  await page.evaluate(()=>{window.modalSave=()=>{window.__fixture.legacySaveInvoked=true;window.closeModal()}});
   await page.locator('#empSalary').fill('2350');
   await page.locator('#hlgbFareAmount9490').fill('70.50');
   await mainSave();
@@ -89,6 +92,7 @@ const engine=process.env.HLGB_BROWSER==='webkit'?webkit:chromium;
   assert.equal(result.payrollRpc,1);
   assert.equal(result.otherSalary,2000);
   assert.equal(result.legacy,false,'legacy optimistic close must not run');
+  assert((await page.evaluate(()=>window.__fixture.cloudReads))>0,'employee save must query the cloud before saving');
 
   // Failed employee ACK: keep input and modal, and never update local salary.
   await page.evaluate(()=>{window.__fixture.failEmployeeOnce=true;window.editEmployee('1')});
