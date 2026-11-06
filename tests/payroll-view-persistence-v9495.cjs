@@ -1,0 +1,13 @@
+'use strict';
+const fs=require('node:fs'),assert=require('node:assert/strict');
+const s=fs.readFileSync('release-payroll-view-v9295.js','utf8');
+assert.match(s,/const V='94\.95'/);
+assert.match(s,/data-hlgb-payroll-view="company"/);
+assert.match(s,/data-hlgb-payroll-view="alpha"/);
+assert.match(s,/new MutationObserver\(/);
+assert.match(s,/tableObserver\.observe\(table,\{childList:true\}\)/);
+assert.doesNotMatch(s,/tableObserver\.observe\(table,[^\n]*subtree:true/);
+assert.match(s,/try\{tableObserver\?\.disconnect\(\)\}catch\(_\)\{\}/);
+assert.match(s,/if\(getView\(\)==='alpha'\)renderAlpha\(rows,table\);else renderCompany\(rows,table\)/);
+assert.doesNotMatch(s,/\.payroll\s*=/);
+console.log('PASS v94.95: view persistence guard is DOM-only, childList-only and preserves selected mode');
