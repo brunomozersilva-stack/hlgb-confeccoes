@@ -16,6 +16,9 @@ p,li{line-height:1.6} .muted{color:#536779} .warning{padding:12px;border-left:4p
 button{background:#1764b6;color:white;border:0;border-radius:8px;padding:12px 18px;font:600 1rem system-ui;cursor:pointer}
 button:disabled{opacity:.65;cursor:wait}
 #result{margin:15px 0;white-space:pre-wrap;font-weight:600}
+#manualDownload{display:inline-block;padding:12px 18px;border-radius:8px;background:#1764b6;color:white;font-weight:700;text-decoration:none;margin:10px 0}
+#manualDownload[hidden],#copyBackup[hidden],#backupText[hidden]{display:none}
+#backupText{width:100%;min-height:150px;margin-top:10px;font:12px/1.4 monospace;border:1px solid #b5c1ce;padding:8px;resize:vertical}
 .status{color:#155f3f}.error{color:#a32936}#details{margin:12px 0;padding-left:20px}code{overflow-wrap:anywhere}
 small{color:#607284}
 </style>
@@ -27,15 +30,27 @@ small{color:#607284}
 <p class="warning"><strong>Não feche nem recarregue a aba antiga do HLGB.</strong> Esta página apenas consulta o IndexedDB e o localStorage do navegador para salvar uma cópia no seu computador. Ela não envia dados para a internet nem modifica as operações.</p>
 <button id="export" type="button">📦 Exportar pendências locais do navegador</button>
 <div id="result" role="status" aria-live="polite">Nenhuma leitura foi executada.</div>
+<a id="manualDownload" hidden download>⬇️ Salvar arquivo JSON no Safari</a>
+<button id="copyBackup" type="button" class="secondary" hidden>📋 Mostrar conteúdo para salvar manualmente</button>
+<textarea id="backupText" readonly hidden aria-label="Conteúdo da cópia de segurança"></textarea>
+<p class="muted" id="manualGuide" hidden>Se o Safari não baixar, vá em Safari → Ajustes → Sites → Downloads e marque Permitir para brunomozersilva-stack.github.io. Se ainda não funcionar, use “Mostrar conteúdo” e copie o texto para um arquivo <code>.json</code>. Não limpe os dados deste navegador.</p>
 <ul id="details"></ul>
 <h2>Depois de exportar</h2>
 <p>Confira se o arquivo JSON foi baixado e guarde em local privado: ele pode conter dados internos e financeiros. Faça uma cópia separada em cada navegador com pendências. <strong>Não exclua dados do Chrome nem do Safari.</strong></p>
-<small>Página independente de resgate v94.99. Inclui WAL IndexedDB, WAL localStorage e pendências normalizadas. Sem bibliotecas externas, login, gravações ou conexões de rede.</small>
+<small>Página independente de resgate v95.00. Inclui WAL IndexedDB, WAL localStorage e pendências normalizadas. Sem bibliotecas externas, login, gravações ou conexões de rede.</small>
 </main>
 <script>
 (function(){
 'use strict';
 const button=document.getElementById('export'),result=document.getElementById('result'),details=document.getElementById('details');
+const manual=document.getElementById('manualDownload'),copyButton=document.getElementById('copyBackup'),backupText=document.getElementById('backupText'),guide=document.getElementById('manualGuide');
+const isSafari=/Safari\//i.test(navigator.userAgent)&&!/Chrome|Chromium|CriOS|Edg\//i.test(navigator.userAgent);
+let preparedUrl='',preparedText='';
+copyButton.addEventListener('click',()=>{
+ if(!preparedText)return;
+ backupText.value=preparedText;backupText.hidden=false;backupText.focus();backupText.select();
+ setStatus('📋 Texto completo selecionado. Pressione ⌘C, cole em um editor de texto simples e salve com extensão .json. Nenhum dado foi apagado.');
+});
 const DB='hlgb_durable_wal',STORE='entries',KEY='hlgb_durable_wal_v1',PENDING_KEY='hlgb_records_pending_v91';
 function setStatus(message,failed=false){result.className=failed?'error':'status';result.textContent=message}
 async function readIdb(){
@@ -121,11 +136,19 @@ async function exportEvidence(){
   const browser=/(?:Chrome|Chromium|CriOS)\//i.test(navigator.userAgent)?'CHROME':/Safari\//i.test(navigator.userAgent)?'SAFARI':'NAVEGADOR';
   const filename='HLGB-WAL-COPIA-SEGURA-'+browser+'-'+payload.capturedAt.replace(/[:.]/g,'-')+'.json';
   const blob=new Blob([text],{type:'application/json;charset=utf-8'}),url=URL.createObjectURL(blob);
-  try{
-   const a=document.createElement('a');a.href=url;a.download=filename;document.body.appendChild(a);a.click();a.remove()
-  }finally{setTimeout(()=>URL.revokeObjectURL(url),20000)}
+  if(preparedUrl)URL.revokeObjectURL(preparedUrl);
+  preparedUrl=url;preparedText=text;
+  manual.href=url;manual.download=filename;manual.hidden=false;
+  copyButton.hidden=false;guide.hidden=false;backupText.hidden=true;backupText.value='';
   showSummary(indexedDbEntries,local,pending);
-  setStatus('✅ Cópia exportada: '+filename+'. IndexedDB: '+indexedDbEntries.length+' · WAL localStorage: '+localCount+' · pendências normalizadas: '+pending.count+'. Nenhuma operação foi excluída.');
+  if(isSafari){
+   // Safari can reject a synthetic click after async IndexedDB reads: the
+   // browser no longer considers it a direct user gesture. Present a real link.
+   setStatus('✅ Cópia preparada: '+filename+'. Clique em “Salvar arquivo JSON no Safari” acima. IndexedDB: '+indexedDbEntries.length+' · pendências normalizadas: '+pending.count+'. Nenhum dado foi excluído.');
+  }else{
+   manual.click();
+   setStatus('✅ Cópia preparada e download solicitado: '+filename+'. IndexedDB: '+indexedDbEntries.length+' · pendências normalizadas: '+pending.count+'. Nenhum dado foi excluído.');
+  }
  }catch(e){setStatus('❌ '+String(e?.message||e)+'. Nenhum dado foi apagado.',true)}
  finally{button.disabled=false}
 }
