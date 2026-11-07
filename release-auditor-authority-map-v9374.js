@@ -75,11 +75,159 @@ function panel(report){
  el.innerHTML='<h3 style="margin-top:0">🧭 Arquitetura / Versões / Autoridades</h3><div class="sub">Somente leitura · '+V+' · arquivos diferentes podem coexistir quando têm responsabilidades diferentes.</div><div style="margin:8px 0"><b>Resultado:</b> '+esc(report.summary.result)+' · '+report.summary.fail+' falha(s) · '+report.summary.warn+' atenção(ões)</div>'+dup+'<div style="margin:8px 0"><b>Autoridades por responsabilidade</b>'+resp+'</div><div style="margin:10px 0"><button id="hlgbAuthorityDownload9374" class="secondary" type="button">⬇️ Baixar relatório completo</button></div>'+rows;
  el.querySelector('#hlgbAuthorityDownload9374')?.addEventListener('click',()=>download(report));host.prepend(el);return true;
 }
+
+/* v95.03: revisão de código sem executar scripts novamente nem alterar dados.
+   CacheStorage: limpeza manual EXCLUSIVAMENTE de recursos JS/CSS deste aplicativo. */
+const HYGIENE_SOURCES_9503=[
+ 'release-record-integrity.js','release-sync-guard-v9306.js',
+ 'release-save-transport-v9320.js','release-wal-single-authority-v9339.js',
+ 'release-wal-confirmed-replay-v9333.js','release-payroll-month-wal-v9334.js',
+ 'release-payroll-wal-race-v9346.js','release-payroll-save-stability-v9296.js',
+ 'release-hub-primary-v9323.js','release-hub-delivery-v9324.js',
+ 'release-auditor-autocorrect-v9447.js','release-auditor-autocorrect-v9448.js'
+];
+async function hygieneSources9503(){
+ const result=[];
+ for(let i=0;i<HYGIENE_SOURCES_9503.length;i+=4){
+  const group=HYGIENE_SOURCES_9503.slice(i,i+4);
+  const rows=await Promise.all(group.map(async file=>{
+   const controller=typeof AbortController==='function'?new AbortController():null;
+   const timer=controller?setTimeout(()=>controller.abort(),7000):null;
+   try{
+    const response=await fetch('./'+file+'?hlgb_audit_fresh='+Date.now(),{
+     cache:'no-store',credentials:'same-origin',...(controller?{signal:controller.signal}:{})
+    });
+    if(!response.ok)throw new Error('HTTP '+response.status);
+    const source=await response.text();
+    if(source.length>180000)throw new Error('Arquivo excedeu limite de leitura');
+    return {file,source};
+   }catch(error){return {file,error:sid(error?.message||error).slice(0,160)}}
+   finally{if(timer!==null)clearTimeout(timer)}
+  }));
+  result.push(...rows);
+ }
+ return result;
+}
+function hygieneCodeFindings9503(rows){
+ const assignments=new Map(),blocks=new Map();
+ for(const row of rows){
+  if(typeof row.source!=='string')continue;
+  const ls=row.source.split('\n');
+  ls.forEach((line,index)=>{
+   const match=line.match(/^\s*window\.([A-Za-z_$][\w$]*)\s*=/);
+   if(match){
+    const name=match[1],list=assignments.get(name)||[];
+    list.push({file:row.file,line:index+1});assignments.set(name,list);
+   }
+  });
+  const normalized=ls.map(x=>x.trim().replace(/\s+/g,' '));
+  for(let i=0;i+5<normalized.length;i++){
+   const six=normalized.slice(i,i+6);
+   if(six.some(x=>!x||/^(?:\/\/|\/\*|\*|\*\/)/.test(x)))continue;
+   const key=six.join('\n');
+   if(key.length<175||key.length>1800)continue;
+   const hits=blocks.get(key)||[];
+   hits.push({file:row.file,line:i+1});blocks.set(key,hits);
+  }
+ }
+ const overlaps=[...assignments].filter(([,hits])=>new Set(hits.map(h=>h.file)).size>1)
+  .map(([name,hits])=>({name,files:[...new Set(hits.map(h=>h.file))],locations:hits}))
+  .sort((a,b)=>b.files.length-a.files.length||a.name.localeCompare(b.name)).slice(0,50);
+ const identicalBlocks=[...blocks.values()].filter(h=>new Set(h.map(x=>x.file)).size>1)
+  .map(h=>({locations:h.slice(0,12)})).slice(0,30);
+ return {overlaps,identicalBlocks,checked:rows.filter(x=>x.source).length,errors:rows.filter(x=>x.error).map(x=>({file:x.file,error:x.error}))};
+}
+async function hygieneCacheCandidates9503(){
+ const out=[],scope=new URL('./',location.href);
+ if(typeof caches==='undefined'||typeof caches.keys!=='function')return {supported:false,entries:out,error:''};
+ try{
+  for(const name of await caches.keys()){
+   const cache=await caches.open(name);
+   for(const request of await cache.keys()){
+    let url;try{url=new URL(request.url)}catch(e){continue}
+    if(url.origin!==scope.origin||!url.pathname.startsWith(scope.pathname)||
+       !/\.(?:js|css)$/i.test(url.pathname))continue;
+    out.push({name,request,file:url.pathname.split('/').pop()});
+   }
+  }
+  return {supported:true,entries:out,error:''};
+ }catch(e){return {supported:true,entries:out,error:sid(e?.message||e)}}
+}
+async function hygieneCachePreview9503(){
+ const result=await hygieneCacheCandidates9503();
+ return {supported:result.supported,eligible:result.entries.length,
+  files:result.entries.slice(0,30).map(x=>x.file),error:result.error,
+  note:'Somente CacheStorage JS/CSS do HLGB; não inclui cache HTTP do Safari, WAL, IndexedDB, localStorage nem sessão.'};
+}
+let hygieneLast9503=null;
+function hygieneRender9503(report){
+ const host=document.getElementById('hlgbAuditorResult');if(!host)return false;
+ document.getElementById('hlgbHygienePanel9503')?.remove();
+ const panel=document.createElement('div');panel.id='hlgbHygienePanel9503';panel.className='panel';
+ panel.style.cssText='margin:10px 0;border:1px solid #c9bfd0;padding:12px';
+ const dup=report.scriptDuplicateExecutions.length;
+ const overlap=report.code.overlaps.slice(0,12).map(x=>'<div class="sub">⚠️ '+esc(x.name)+' · '+esc(x.files.join(' / '))+'</div>').join('');
+ const deep=report.deepChains.slice(0,12).map(x=>'<div class="sub">'+esc(x.fn)+' · '+x.depth+' camadas ('+esc(x.family)+')</div>').join('');
+ const repeated=report.code.identicalBlocks.slice(0,8).map(x=>'<div class="sub">🔁 '+esc(x.locations.map(a=>a.file+':'+a.line).join(' / '))+'</div>').join('');
+ panel.innerHTML='<h3 style="margin-top:0">🧹 Higiene do código · v95.03</h3>'+
+  '<div class="sub">Diagnóstico somente leitura. Camadas e sobrescritas podem ser intencionais; nenhum código é removido automaticamente.</div>'+
+  '<p><b>Scripts executados em duplicidade:</b> '+dup+' · <b>Funções atribuídas por arquivos diferentes:</b> '+report.code.overlaps.length+
+  ' · <b>Blocos idênticos entre arquivos:</b> '+report.code.identicalBlocks.length+
+  ' · <b>Fontes analisadas:</b> '+report.code.checked+'/'+HYGIENE_SOURCES_9503.length+'</p>'+
+  (dup?'<div class="sub"><b>Scripts repetidos:</b> '+esc(report.scriptDuplicateExecutions.map(x=>x.file).join(', '))+'</div>':'')+
+  (overlap?'<b>Possíveis funções sobrepostas (revisão humana):</b>'+overlap:'')+
+  (deep?'<b>Encadeamento de funções / wrappers:</b>'+deep:'')+
+  (repeated?'<b>Trechos idênticos entre arquivos (revisar antes de consolidar):</b>'+repeated:'')+
+  (report.code.errors.length?'<div class="sub">Arquivos não verificados: '+esc(report.code.errors.map(x=>x.file).join(', '))+'</div>':'')+
+  '<p><b>CacheStorage do HLGB:</b> '+(report.cache.supported?report.cache.eligible+' recurso(s) JS/CSS elegíveis':'indisponível')+
+  (report.cache.error?' · '+esc(report.cache.error):'')+'</p>'+
+  '<div class="sub">A limpeza de cache é manual e nunca remove dados de empresa. Não é limpeza geral de cache do navegador.</div>'+
+  '<button type="button" class="secondary" id="hlgbHygieneCacheClean9503">🧹 Limpar somente cache JS/CSS</button> '+
+  '<button type="button" class="secondary" id="hlgbHygieneDownload9503">⬇️ Baixar diagnóstico</button>'+
+  '<div class="sub" id="hlgbHygieneStatus9503" role="status"></div>';
+ host.prepend(panel);
+ panel.querySelector('#hlgbHygieneCacheClean9503')?.addEventListener('click',async()=>{
+  const status=panel.querySelector('#hlgbHygieneStatus9503');
+  const preview=await hygieneCachePreview9503();
+  if(preview.error){status.textContent='Não foi possível concluir a inspeção: '+preview.error;return}
+  if(!preview.eligible){status.textContent='Nenhum recurso JS/CSS em CacheStorage para limpar. Dados preservados.';return}
+  if(!window.confirm('Excluir '+preview.eligible+' cópia(s) de arquivos JS/CSS do CacheStorage deste HLGB? WAL, dados locais e sessão não serão tocados.'))return;
+  const result=await hygieneCacheCandidates9503();
+  if(result.error){status.textContent='Leitura incompleta; nada excluído: '+result.error;return}
+  let removed=0,failed=0;
+  for(const item of result.entries){
+   try{const cache=await caches.open(item.name);if(await cache.delete(item.request))removed++;else failed++}
+   catch(e){failed++}
+  }
+  status.textContent=removed+' recurso(s) de CacheStorage removido(s). '+failed+' falha(s). Não limpa cache HTTP nem dados locais. Não atualize uma aba com WAL pendente.';
+ });
+ panel.querySelector('#hlgbHygieneDownload9503')?.addEventListener('click',()=>{
+  const json=JSON.stringify(report,null,2),blob=new Blob([json],{type:'application/json;charset=utf-8'});
+  const url=URL.createObjectURL(blob),a=document.createElement('a');
+  a.href=url;a.download='HLGB-HIGIENE-CODIGO-'+new Date().toISOString().replace(/[:.]/g,'-')+'.json';
+  document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1000);
+ });
+ return true;
+}
+async function hygieneRun9503(){
+ const authority=scan(),sourceRows=await hygieneSources9503(),code=hygieneCodeFindings9503(sourceRows);
+ const m=window.hlgbAuditorScriptMultiplicity9438?.snapshot?.();
+ const duplicates=m?.executionDuplicates||authority.scriptInventory.counts.filter(x=>x.dom>1);
+ const deep=[];
+ for(const f of authority.families||[])for(const item of f.functions||[])
+  if(item.chain?.depth>8||item.chain?.cycle)deep.push({family:f.label,fn:item.name,depth:item.chain.depth,cycle:item.chain.cycle});
+ const report={kind:'hlgb_code_hygiene',version:'95.03',at:new Date().toISOString(),
+  readOnly:true,code,scriptDuplicateExecutions:duplicates.map(x=>({file:x.file,dom:x.dom,resource:x.resource})),
+  deepChains:deep,authorityConflicts:(authority.consolidationPlan||[]).filter(x=>x.conflict).map(x=>({id:x.id,present:x.present})),
+  cache:await hygieneCachePreview9503()};
+ hygieneLast9503=report;hygieneRender9503(report);return report;
+}
+
 window.hlgbAuditorAuthorityScan9374=function(){const r=scan();panel(r);window.hlgbAuditorAuthority9374.last=r;return r};
 function decorate(){const host=document.getElementById('hlgbAuditorResult');if(!host)return false;const actions=host.parentElement?.querySelector?.('.hlgb-auditor-actions')||document.querySelector('.hlgb-auditor-actions');if(!actions)return false;let b=document.getElementById('hlgbAuthorityBtn9374');if(!b){b=document.createElement('button');b.id='hlgbAuthorityBtn9374';b.type='button';b.className='secondary';b.textContent='🧭 Arquitetura / versões';b.onclick=()=>window.hlgbAuditorAuthorityScan9374();actions.appendChild(b)}b.hidden=false;b.removeAttribute('data-hlgb-auditor-hidden');b.style.display='';return true}
 document.addEventListener?.('click',e=>{if(e.target?.closest?.('#hlgbAuditorNavBtn,#hlgbAuditorOpenBtn'))[80,250,700,1500].forEach(ms=>setTimeout(decorate,ms))},true);
 window.HLGB_AUDITOR_AUTHORITY_9374=BUILD;
-window.hlgbAuditorAuthority9374={version:V,build:BUILD,scan,panel,decorate,download,last:null,chain,loadedScripts,loadedScriptInventory,filenameVersionHint,RESPONSIBILITIES,FAMILIES,responsibilityState};
+window.hlgbAuditorAuthority9374={version:V,build:BUILD,scan,panel,decorate,download,last:null,chain,loadedScripts,loadedScriptInventory,filenameVersionHint,RESPONSIBILITIES,FAMILIES,responsibilityState,hygiene:hygieneRun9503,hygieneCachePreview:hygieneCachePreview9503,hygieneCodeFindings:hygieneCodeFindings9503};
 if(window.hlgbAuditorDeep9373)window.hlgbAuditorDeep9373.authorityScan=scan;
 setTimeout(decorate,500);
 console.info('[HLGB] Auditor mapa de autoridades v'+V+' ativo');

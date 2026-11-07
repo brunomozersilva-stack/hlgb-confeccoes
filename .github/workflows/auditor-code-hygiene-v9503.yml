@@ -1,0 +1,29 @@
+name: HLGB Auditor Higiene v95.03
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'release-auditor-authority-map-v9374.js'
+      - 'release-auditor-shell-v9382.js'
+      - 'tests/auditor-code-hygiene-v9503.cjs'
+      - '.github/workflows/auditor-code-hygiene-v9503.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'release-auditor-authority-map-v9374.js'
+      - 'release-auditor-shell-v9382.js'
+      - 'tests/auditor-code-hygiene-v9503.cjs'
+      - '.github/workflows/auditor-code-hygiene-v9503.yml'
+permissions:
+  contents: read
+jobs:
+  audit-hygiene:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '20'}
+      - run: node --check release-auditor-authority-map-v9374.js
+      - run: node --check release-auditor-shell-v9382.js
+      - run: node tests/auditor-code-hygiene-v9503.cjs
