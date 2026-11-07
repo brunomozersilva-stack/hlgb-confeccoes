@@ -94,7 +94,7 @@ async function hygieneSources9503(){
    const controller=typeof AbortController==='function'?new AbortController():null;
    const timer=controller?setTimeout(()=>controller.abort(),7000):null;
    try{
-    const response=await fetch('./'+file+'?hlgb_hygiene_readonly='+Date.now(),{
+    const response=await fetch('./'+file+'?hlgb_audit_fresh='+Date.now(),{
      cache:'no-store',credentials:'same-origin',...(controller?{signal:controller.signal}:{})
     });
     if(!response.ok)throw new Error('HTTP '+response.status);
