@@ -386,6 +386,17 @@ function wrapEmployeeEditor(){
    employeeFarePanel(id);
    if(opened&&typeof window.modalSave==='function'&&document.getElementById('empName')){
     window.modalSave=()=>saveEmployeeConfirmedFromModal(id,opened)
+    // Direct button handler: prevents legacy modal click wiring from bypassing
+    // cloud acknowledgement when older pages use another modalSave binding.
+    const saveButton=document.querySelector('#modal .modalSave');
+    if(saveButton&&!saveButton.__hlgbEmployeeDirectSave9502){
+     saveButton.__hlgbEmployeeDirectSave9502=true;
+     saveButton.addEventListener('click',event=>{
+      if(!document.getElementById('empName'))return;
+      event.preventDefault();event.stopImmediatePropagation();
+      void saveEmployeeConfirmedFromModal(id,opened);
+     },true);
+    }
    }
   }catch(e){console.warn('[HLGB passagem/cadastro 94.92] formulário',e)}
   return out
