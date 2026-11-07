@@ -168,6 +168,7 @@ function hygieneRender9503(report){
  const dup=report.scriptDuplicateExecutions.length;
  const overlap=report.code.overlaps.slice(0,12).map(x=>'<div class="sub">⚠️ '+esc(x.name)+' · '+esc(x.files.join(' / '))+'</div>').join('');
  const deep=report.deepChains.slice(0,12).map(x=>'<div class="sub">'+esc(x.fn)+' · '+x.depth+' camadas ('+esc(x.family)+')</div>').join('');
+ const repeated=report.code.identicalBlocks.slice(0,8).map(x=>'<div class="sub">🔁 '+esc(x.locations.map(a=>a.file+':'+a.line).join(' / '))+'</div>').join('');
  panel.innerHTML='<h3 style="margin-top:0">🧹 Higiene do código · v95.03</h3>'+
   '<div class="sub">Diagnóstico somente leitura. Camadas e sobrescritas podem ser intencionais; nenhum código é removido automaticamente.</div>'+
   '<p><b>Scripts executados em duplicidade:</b> '+dup+' · <b>Funções atribuídas por arquivos diferentes:</b> '+report.code.overlaps.length+
@@ -176,6 +177,7 @@ function hygieneRender9503(report){
   (dup?'<div class="sub"><b>Scripts repetidos:</b> '+esc(report.scriptDuplicateExecutions.map(x=>x.file).join(', '))+'</div>':'')+
   (overlap?'<b>Possíveis funções sobrepostas (revisão humana):</b>'+overlap:'')+
   (deep?'<b>Encadeamento de funções / wrappers:</b>'+deep:'')+
+  (repeated?'<b>Trechos idênticos entre arquivos (revisar antes de consolidar):</b>'+repeated:'')+
   (report.code.errors.length?'<div class="sub">Arquivos não verificados: '+esc(report.code.errors.map(x=>x.file).join(', '))+'</div>':'')+
   '<p><b>CacheStorage do HLGB:</b> '+(report.cache.supported?report.cache.eligible+' recurso(s) JS/CSS elegíveis':'indisponível')+
   (report.cache.error?' · '+esc(report.cache.error):'')+'</p>'+
