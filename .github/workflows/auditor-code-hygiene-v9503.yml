@@ -6,6 +6,7 @@ on:
       - 'release-auditor-authority-map-v9374.js'
       - 'release-auditor-shell-v9382.js'
       - 'tests/auditor-code-hygiene-v9503.cjs'
+      - 'tests/auditor-hygiene-visible-v9504-browser.js'
       - '.github/workflows/auditor-code-hygiene-v9503.yml'
   push:
     branches: [main]
@@ -13,6 +14,7 @@ on:
       - 'release-auditor-authority-map-v9374.js'
       - 'release-auditor-shell-v9382.js'
       - 'tests/auditor-code-hygiene-v9503.cjs'
+      - 'tests/auditor-hygiene-visible-v9504-browser.js'
       - '.github/workflows/auditor-code-hygiene-v9503.yml'
 permissions:
   contents: read
@@ -27,3 +29,26 @@ jobs:
       - run: node --check release-auditor-authority-map-v9374.js
       - run: node --check release-auditor-shell-v9382.js
       - run: node tests/auditor-code-hygiene-v9503.cjs
+  browser:
+    runs-on: ubuntu-latest
+    timeout-minutes: 18
+    strategy:
+      fail-fast: false
+      matrix:
+        browser: [chromium, webkit]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '20'}
+      - name: Install Playwright
+        run: |
+          npm install --no-save playwright@1.55.0
+          npx playwright install --with-deps ${{ matrix.browser }}
+      - name: Serve real HLGB loader
+        run: |
+          python3 -m http.server 4173 >/tmp/hlgb-hygiene-9504.log 2>&1 &
+          sleep 2
+      - name: Verify Hygiene visible and usable in Auditor
+        env:
+          HLGB_BROWSER: ${{ matrix.browser }}
+        run: node tests/auditor-hygiene-visible-v9504-browser.js

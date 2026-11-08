@@ -72,8 +72,10 @@ function panel(report){
  const rows=report.families.map(f=>{const icon=f.status==='fail'?'🔴':f.status==='warn'?'🟡':'✅',issues=[];if(f.cycles.length)issues.push('ciclo em '+f.cycles.join(', '));if(f.deep.length)issues.push('cadeia extensa (informativa): '+f.deep.map(x=>x.name+'('+x.depth+')').join(', '));for(const r of f.responsibilities.filter(x=>x?.conflict))issues.push(r.label+': '+r.present.join(' + '));return '<div style="padding:8px 0;border-top:1px solid #eee"><b>'+icon+' '+esc(f.label)+'</b><div class="sub">Arquivos únicos: '+f.files.length+' · ocorrências observadas: '+f.occurrenceCount+'</div>'+(issues.length?'<div class="sub"><b>Conflito comprovável:</b> '+esc(issues.join(' | '))+'</div>':'')+'</div>'}).join('');
  const resp=report.consolidationPlan.map(r=>'<div class="sub">'+(r.conflict?'🟡':'✅')+' '+esc(r.label)+': '+esc(r.authority)+(r.supersedes.length?' · delegadas '+esc(r.supersedes.join(', ')):'')+'</div>').join('');
  const dup=report.scriptInventory.duplicates.length?'<div class="sub"><b>Scripts com multiplicidade:</b> '+esc(report.scriptInventory.duplicates.map(x=>x.file+' [DOM '+x.dom+', recurso '+x.resource+']').join(' | '))+'</div>':'<div class="sub">Nenhuma multiplicidade de script observada nesta sessão.</div>';
- el.innerHTML='<h3 style="margin-top:0">🧭 Arquitetura / Versões / Autoridades</h3><div class="sub">Somente leitura · '+V+' · arquivos diferentes podem coexistir quando têm responsabilidades diferentes.</div><div style="margin:8px 0"><b>Resultado:</b> '+esc(report.summary.result)+' · '+report.summary.fail+' falha(s) · '+report.summary.warn+' atenção(ões)</div>'+dup+'<div style="margin:8px 0"><b>Autoridades por responsabilidade</b>'+resp+'</div><div style="margin:10px 0"><button id="hlgbAuthorityDownload9374" class="secondary" type="button">⬇️ Baixar relatório completo</button></div>'+rows;
- el.querySelector('#hlgbAuthorityDownload9374')?.addEventListener('click',()=>download(report));host.prepend(el);return true;
+ el.innerHTML='<h3 style="margin-top:0">🧭 Arquitetura / Versões / Autoridades</h3><div class="sub">Somente leitura · '+V+' · arquivos diferentes podem coexistir quando têm responsabilidades diferentes.</div><div style="margin:8px 0"><b>Resultado:</b> '+esc(report.summary.result)+' · '+report.summary.fail+' falha(s) · '+report.summary.warn+' atenção(ões)</div>'+dup+'<div style="margin:8px 0"><b>Autoridades por responsabilidade</b>'+resp+'</div><div style="margin:10px 0"><button id="hlgbAuthorityDownload9374" class="secondary" type="button">⬇️ Baixar relatório completo</button> <button id="hlgbAuthorityHygieneBtn9504" class="secondary" type="button">🧹 Higiene do código</button></div>'+rows;
+ el.querySelector('#hlgbAuthorityDownload9374')?.addEventListener('click',()=>download(report));
+ el.querySelector('#hlgbAuthorityHygieneBtn9504')?.addEventListener('click',()=>hygieneRun9503().catch(err=>console.error('[HLGB hygiene] analysis failed',err)));
+ host.prepend(el);return true;
 }
 
 /* v95.03: revisão de código sem executar scripts novamente nem alterar dados.
@@ -224,7 +226,43 @@ async function hygieneRun9503(){
 }
 
 window.hlgbAuditorAuthorityScan9374=function(){const r=scan();panel(r);window.hlgbAuditorAuthority9374.last=r;return r};
-function decorate(){const host=document.getElementById('hlgbAuditorResult');if(!host)return false;const actions=host.parentElement?.querySelector?.('.hlgb-auditor-actions')||document.querySelector('.hlgb-auditor-actions');if(!actions)return false;let b=document.getElementById('hlgbAuthorityBtn9374');if(!b){b=document.createElement('button');b.id='hlgbAuthorityBtn9374';b.type='button';b.className='secondary';b.textContent='🧭 Arquitetura / versões';b.onclick=()=>window.hlgbAuditorAuthorityScan9374();actions.appendChild(b)}b.hidden=false;b.removeAttribute('data-hlgb-auditor-hidden');b.style.display='';return true}
+function decorate(){
+ const host=document.getElementById('hlgbAuditorResult');
+ if(!host||!host.parentElement)return false;
+ const parent=host.parentElement;
+ // v95.04: the official Auditor deliberately hides every extra toolbar action
+ // to keep a single 'Auditar e corrigir' button. Maintenance must live outside
+ // .hlgb-auditor-actions, or its visibility is reverted by a MutationObserver.
+ let launcher=parent.querySelector('#hlgbHygieneLauncher9504');
+ if(!launcher){
+  launcher=document.createElement('div');
+  launcher.id='hlgbHygieneLauncher9504';
+  launcher.className='panel';
+  launcher.style.cssText='margin:8px 0;padding:8px 12px;border:1px solid #d7c9d0';
+  const btn=document.createElement('button');
+  btn.id='hlgbHygieneLauncherBtn9504';btn.type='button';btn.className='secondary';
+  btn.textContent='🧹 Higiene do código';
+  launcher.appendChild(btn);
+  const note=document.createElement('span');note.className='sub';
+  note.textContent=' Verificar códigos repetidos e cache de arquivos (sem apagar dados).';
+  launcher.appendChild(note);
+  parent.insertBefore(launcher,host);
+ }
+ const btn=launcher.querySelector('#hlgbHygieneLauncherBtn9504');
+ if(btn){
+  btn.onclick=()=>hygieneRun9503().catch(err=>{
+   console.error('[HLGB hygiene] analysis failed',err);
+   const target=document.getElementById('hlgbAuditorResult');
+   if(target){const p=document.createElement('p');p.textContent='Falha ao abrir Higiene do código: '+sid(err?.message||err);target.prepend(p)}
+  });
+  btn.hidden=false;btn.removeAttribute('aria-hidden');
+  btn.style.setProperty('display','inline-block','important');
+  btn.style.setProperty('visibility','visible','important');
+  btn.style.setProperty('opacity','1','important');
+  btn.style.setProperty('pointer-events','auto','important');
+ }
+ return true;
+}
 document.addEventListener?.('click',e=>{if(e.target?.closest?.('#hlgbAuditorNavBtn,#hlgbAuditorOpenBtn'))[80,250,700,1500].forEach(ms=>setTimeout(decorate,ms))},true);
 window.HLGB_AUDITOR_AUTHORITY_9374=BUILD;
 window.hlgbAuditorAuthority9374={version:V,build:BUILD,scan,panel,decorate,download,last:null,chain,loadedScripts,loadedScriptInventory,filenameVersionHint,RESPONSIBILITIES,FAMILIES,responsibilityState,hygiene:hygieneRun9503,hygieneCachePreview:hygieneCachePreview9503,hygieneCodeFindings:hygieneCodeFindings9503};
