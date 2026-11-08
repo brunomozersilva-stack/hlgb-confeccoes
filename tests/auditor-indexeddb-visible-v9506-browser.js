@@ -9,7 +9,7 @@ const browserType=process.env.HLGB_BROWSER==='webkit'?webkit:chromium;
   await page.waitForFunction(()=>!!window.hlgbInternalAuditor?.run,null,{timeout:60000});
   const result=await page.evaluate(async()=>{
    await new Promise((resolve,reject)=>{
-    const req=indexedDB.open('hlgb_durable_wal',1);
+    const req=indexedDB.open('hlgb_durable_wal');
     req.onupgradeneeded=()=>{
      const db=req.result;
      if(!db.objectStoreNames.contains('entries'))db.createObjectStore('entries',{keyPath:'key'});
