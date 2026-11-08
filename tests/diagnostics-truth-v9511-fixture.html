@@ -1,0 +1,26 @@
+<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><title>HLGB Central — teste isolado</title></head><body>
+<div id="appShell"><nav id="nav"><button>Painel</button></nav><main><section id="dashboard" class="page active"></section></main></div>
+<script>
+window.__HLGB_TEST__=true;window.__HLGB_AUTH_READY=true;
+window.db={systemIssues:[],systemSuggestions:[]};
+window.cloudAccessToken="test-only-no-remote";
+window.HLGB_RECORD_MODULES=[];window.HLGB_RECORD_WRITE_AREA={};
+window.cloudEnsureFreshSession=async()=>true;
+window.__fakeCloudError=false;
+window.__fakeCloudData={systemIssues:[],systemSuggestions:[]};
+window.cloudRequest=async(q,options)=>{
+ if(window.__fakeCloudError)throw Error("simulated disconnection");
+ if(options?.method!=="GET")throw Error("Unexpected non-read-only cloud call");
+ let name=q.includes("module=eq.systemIssues")?"systemIssues":
+   q.includes("module=eq.systemSuggestions")?"systemSuggestions":null;
+ if(!name)throw Error("Unknown module");
+ return window.__fakeCloudData[name].map(item=>({module:name,entity_id:String(item.id),data:item,
+   deleted_at:null,updated_at:new Date().toISOString(),revision:1}));
+};
+window.localSaveOnly=()=>{};
+window.table=(headers,rows)=>'<table><thead><tr>'+headers.map(h=>'<th>'+h+'</th>').join('')+
+ '</tr></thead><tbody>'+rows.map(row=>'<tr>'+row.map(cell=>'<td>'+cell+'</td>').join('')+'</tr>').join('')+'</tbody></table>';
+</script>
+<script src="../release-diagnostics-center.js"></script>
+<script src="../release-diagnostics-maintenance-v9406.js"></script>
+</body></html>
