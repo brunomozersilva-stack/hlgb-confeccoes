@@ -1,0 +1,55 @@
+name: HLGB Diagnostics Truth v95.11
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'release-diagnostics-center.js'
+      - 'release-diagnostics-maintenance-v9406.js'
+      - 'release-internal-auditor.js'
+      - 'tests/diagnostics-truth-v9511*'
+      - '.github/workflows/diagnostics-truth-v9511.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'release-diagnostics-center.js'
+      - 'release-diagnostics-maintenance-v9406.js'
+      - 'release-internal-auditor.js'
+      - 'tests/diagnostics-truth-v9511*'
+      - '.github/workflows/diagnostics-truth-v9511.yml'
+permissions:
+  contents: read
+jobs:
+  logic:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '20'}
+      - run: node --check release-diagnostics-center.js
+      - run: node --check release-diagnostics-maintenance-v9406.js
+      - run: node --check release-internal-auditor.js
+      - run: node tests/diagnostics-truth-v9511-auditor.cjs
+  browser:
+    runs-on: ubuntu-latest
+    timeout-minutes: 18
+    strategy:
+      fail-fast: false
+      matrix:
+        browser: [chromium, webkit]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '20'}
+      - name: Install Playwright
+        run: |
+          npm install --no-save playwright@1.55.0
+          npx playwright install --with-deps ${{ matrix.browser }}
+      - name: Serve isolated fixture
+        run: |
+          python3 -m http.server 4173 >/tmp/hlgb-diag9511.log 2>&1 &
+          sleep 2
+      - name: Verify historic/current counters and cloud updates
+        env:
+          HLGB_BROWSER: ${{ matrix.browser }}
+        run: node tests/diagnostics-truth-v9511-browser.js
