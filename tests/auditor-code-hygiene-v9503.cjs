@@ -67,6 +67,7 @@ const ctx={
  indexedDB:{deleteDatabase(){throw Error('IndexedDB touched')}}
 };
 ctx.window=ctx;
+ctx.hlgbAuditorBootAnalysis9381={analyze:()=>({summary:{hiddenRenders:2,duplicateLoadGroups:0,slowSyncCalls:1},timeline:{coverage:{preInstrumentationGapMs:900}}})};
 vm.createContext(ctx);
 vm.runInContext(source,ctx,{filename:'release-auditor-authority-map-v9374.js'});
 (async()=>{
@@ -76,8 +77,15 @@ vm.runInContext(source,ctx,{filename:'release-auditor-authority-map-v9374.js'});
  assert.equal(report.readOnly,true);
  assert(report.scriptDuplicateExecutions.some(x=>x.file==='release-old.js'),'detect duplicated script tags');
  assert(report.code.overlaps.some(x=>x.name==='hlgbSharedReview9503'),'detect same global function across files');
- assert(report.code.identicalBlocks.length>0,'detect identical source blocks');
+ assert.equal(report.code.identicalBlocks.length,1,'adjacent six-line windows from one region must count as one duplicate block');
+ assert(report.code.identicalBlocks[0].approximateLines>=6,'duplicate region must preserve approximate line count');
+ assert.equal(report.version,'95.05');
+ assert.equal(report.boot.hiddenRenders,2,'include boot warning evidence without running boot again');
+ assert(report.reviewPriorities.some(x=>x.code==='boot-hidden-renders'),'prioritize hidden boot renders');
+ assert(report.reviewPriorities.some(x=>x.code==='duplicate-source-blocks'),'prioritize source duplication');
+ assert(report.reviewPriorities.every(x=>x.automatic===false),'recommendations must never rewrite business data');
  assert.equal(report.cache.eligible,2,'only owned JS/CSS resources are eligible');
+ assert(report.reviewPriorities.every(x=>x.code!=='no-cache-clean-needed'),'do not recommend cache cleanup when there are eligible resources');
  assert.equal(deleted.length,0,'scanning never removes any cache item');
  assert.equal(confirmCalls,0,'scanning must not open a confirmation dialog');
  assert.equal(storageReads,0,'scanning must not access local records');
