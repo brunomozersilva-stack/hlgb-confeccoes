@@ -20,8 +20,14 @@ const kind=process.env.HLGB_BROWSER||'webkit',engine=kind==='chromium'?chromium:
   try{return await window.hlgbAuditorAutoCorrect9448.run({reason:'v9448-runtime',render:false,download:false})}finally{a41.silentAudit=saved.silent;a41.repairEvents=saved.events;intel.currentMetrics=saved.metrics;dc.getIssues=saved.issues;prod.candidates=saved.candidates;res.reconcileAndInspect=saved.residual}
  });
  if(out?.version!=='94.48'||out?.residualProof!==true||out?.repairSkipped!==true||out?.passes!==0)throw new Error('v94.48 não manteve fast path '+JSON.stringify(out));
- if(out.needsCode?.length!==1||out.businessBlocked?.length!==1)throw new Error('prova residual não substituiu evento antigo '+JSON.stringify({needs:out.needsCode,business:out.businessBlocked}));
- if(out.businessBlocked[0].id!=='a'||out.needsCode[0].id!=='b')throw new Error('IDs classificados incorretamente '+JSON.stringify(out));
+ // A structural warning can appear independently during browser boot. Verify the
+ // precise production classifications without suppressing an unrelated warning.
+ const needsProduction=(out.needsCode||[]).filter(x=>x.module==='production');
+ const businessProduction=(out.businessBlocked||[]).filter(x=>x.module==='production');
+ if(needsProduction.length!==1||businessProduction.length!==1)
+  throw new Error('prova residual não substituiu evento antigo '+JSON.stringify({needs:out.needsCode,business:out.businessBlocked}));
+ if(businessProduction[0].id!=='a'||needsProduction[0].id!=='b')
+  throw new Error('IDs classificados incorretamente '+JSON.stringify(out));
  if(out.productionResidual?.technicalCopiesCleared!==1||out.report?.version!=='94.48'||out.report?.productionResidual?.after?.candidateCount!==2)throw new Error('relatório residual incompleto '+JSON.stringify({residual:out.productionResidual,report:out.report?.version}));
  const ui=await page.evaluate(()=>window.hlgbAuditorSingleUiReclaim9434A.status());if(ui.appBase!=='94.49'||ui.repairReady!==true||ui.residualProofReady!==true||ui.fastConvergenceReady!==true)throw new Error('UI não aponta para v94.48 '+JSON.stringify(ui));
  if(errors.some(x=>/9448|autocorrect|production-residual/i.test(x)))throw new Error('pageerror v94.48 '+errors.join(' | '));
