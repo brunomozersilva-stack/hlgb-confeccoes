@@ -30,7 +30,7 @@ const css=String.raw`
   body.hlgb-mobile-nav-open9512{overflow:hidden!important}
   #hlgbMobileBackdrop9512{display:none;position:fixed;inset:0;background:#1410198a;z-index:12003}
   body.hlgb-mobile-nav-open9512 #hlgbMobileBackdrop9512{display:block}
-  #hlgbMobileNav9250{grid-template-columns:repeat(5,minmax(0,1fr))!important;z-index:12002!important}
+  #hlgbMobileNav9250{display:grid!important;position:fixed!important;left:8px!important;right:8px!important;bottom:calc(8px + env(safe-area-inset-bottom))!important;grid-template-columns:repeat(5,minmax(0,1fr))!important;z-index:12002!important;background:#fffffff5;border:1px solid #eadde4;border-radius:16px;padding:5px;box-shadow:0 8px 24px #0003}
   #hlgbMobileNav9250 button{min-width:0!important;min-height:50px!important;padding:5px 2px!important;font-size:11px!important;line-height:1.3!important;touch-action:manipulation}
   #hlgbMobileNavClose9512{display:block;position:sticky;top:0;width:100%;min-height:46px;background:#f4edf1;border:0;text-align:left;padding:9px 14px;font-size:16px;font-weight:700;z-index:2}
   #hlgbMobileMenu9512[aria-expanded="true"]{background:#f3dbe5!important}
