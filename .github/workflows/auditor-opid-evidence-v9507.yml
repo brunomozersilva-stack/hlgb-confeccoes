@@ -1,0 +1,54 @@
+name: HLGB Auditor opId evidence v95.07
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'release-auditor-autocorrect-v9441.js'
+      - 'release-auditor-autocorrect-v9447.js'
+      - 'tests/auditor-opid-evidence-v9507.cjs'
+      - '.github/workflows/auditor-opid-evidence-v9507.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'release-auditor-autocorrect-v9441.js'
+      - 'release-auditor-autocorrect-v9447.js'
+      - 'tests/auditor-opid-evidence-v9507.cjs'
+      - '.github/workflows/auditor-opid-evidence-v9507.yml'
+permissions:
+  contents: read
+jobs:
+  opid-proof:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '20'}
+      - run: node --check release-auditor-autocorrect-v9441.js
+      - run: node --check release-auditor-autocorrect-v9447.js
+      - run: node tests/auditor-opid-evidence-v9507.cjs
+      - run: node tests/auditor-autocorrect-v9441-behavior.js
+      - run: node tests/auditor-autocorrect-v9447-fast.js
+  browser:
+    runs-on: ubuntu-latest
+    timeout-minutes: 18
+    strategy:
+      fail-fast: false
+      matrix:
+        browser: [webkit, chromium]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '20'}
+      - name: Install Playwright
+        run: |
+          npm install --no-save playwright@1.55.0
+          npx playwright install --with-deps ${{ matrix.browser }}
+      - name: Serve real HLGB loader
+        run: |
+          python3 -m http.server 4173 >/tmp/hlgb-opid-9507.log 2>&1 &
+          sleep 2
+      - name: Exercise autocorrect chain in real browser
+        env:
+          HLGB_BROWSER: ${{ matrix.browser }}
+        run: node tests/auditor-autocorrect-v9448-runtime.js

@@ -93,6 +93,25 @@ async function healTechnical(reason='autocorrect'){
 function repairEvents(){const a=readJson(EVENTS_KEY,[]);return Array.isArray(a)?a:[]}
 function sanitize(v,key='',depth=0){if(/password|senha|token|secret|authorization|cookie|session|access[_-]?key|refresh[_-]?key/i.test(key))return '[REDACTED]';if(v==null||typeof v==='number'||typeof v==='boolean')return v;if(typeof v==='string')return v.slice(0,1600);if(depth>5)return Array.isArray(v)?'[array]':'[object]';if(Array.isArray(v))return v.slice(0,120).map(x=>sanitize(x,key,depth+1));const out={};for(const [k,x] of Object.entries(v).slice(0,160))out[k]=sanitize(x,k,depth+1);return out}
 function recordRepairEvent(row){const clean=sanitize({...row,reportVersion:V});let a=repairEvents();a.push(clean);a=a.slice(-400);writeJson(EVENTS_KEY,a);return clean}
+/* v95.07: every removal is proved by opId, not by the record ID alone.
+   A newer/different operation for the same production record MUST stay pending,
+   without invalidating evidence that an older opId was safely reconciled.
+   Unknown legacy operations without opId make the proof inconclusive. */
+function repairedOperationsAbsent9507(pending,recordId,operationIds){
+ if(!Array.isArray(pending)||!Array.isArray(operationIds))return false;
+ const proved=new Set(operationIds.map(sid).filter(Boolean));
+ if(!proved.size)return false;
+ for(const candidate of pending){
+  if(sid(candidate?.id)!==sid(recordId))continue;
+  const copies=[...(candidate.normalized||[]),...(candidate.walLocal||[]),...(candidate.walIdb||[])];
+  if(!copies.length)return false;
+  for(const op of copies){
+   const opId=sid(op?.opId||op?.operationId);
+   if(!opId||proved.has(opId))return false;
+  }
+ }
+ return true;
+}
 async function validateRepairs(rows,round,runId){
  const verified=[],unknown=[],events=[];
  for(const row of rows){
@@ -105,8 +124,8 @@ async function validateRepairs(rows,round,runId){
    const fp='production|'+sid(r.id);
    if(r.ok!==true){const learn=updateLearning(row.name,fp,{failed:1});events.push(recordRepairEvent({kind:'repair',runId,round,recipeId:row.name,safetyLevel:'B',recordId:sid(r.id),status:'failed',detail:r.error||r.reason||'Sem confirmação',confidenceAfter:learn.confidence,at:nowIso()}));unknown.push({id:r.id,action:row.name,detail:r.error||r.reason||'Sem confirmação'});continue}
    const count=(+r.normalizedRemoved||0)+(+r.walRemoved||0);if(!count)continue;
-   const proofOk=Array.isArray(pending)&&!pending.some(x=>sid(x.id)===sid(r.id))&&!!r.proof&&(+r.serverRevision>0)&&Array.isArray(r.operationIds)&&r.operationIds.length>0;
-   if(!proofOk){const learn=updateLearning(row.name,fp,{failed:1});events.push(recordRepairEvent({kind:'repair',runId,round,recipeId:row.name,safetyLevel:'B',recordId:sid(r.id),status:'unverified',detail:'Reteste da fila, operação ou prova remota incompleta',confidenceAfter:learn.confidence,at:nowIso()}));unknown.push({id:r.id,action:row.name,detail:'Reteste da fila, operação ou prova remota incompleta'});continue}
+   const proofOk=repairedOperationsAbsent9507(pending,r.id,r.operationIds)&&!!r.proof&&(+r.serverRevision>0);
+   if(!proofOk){const learn=updateLearning(row.name,fp,{failed:1});events.push(recordRepairEvent({kind:'repair',runId,round,recipeId:row.name,safetyLevel:'B',recordId:sid(r.id),operationIds:clone(r.operationIds||[]),status:'unverified',detail:'Reteste do opId, da fila ou da prova remota incompleto; outra edição não deve ser apagada',confidenceAfter:learn.confidence,at:nowIso()}));unknown.push({id:r.id,action:row.name,detail:'Reteste do opId, da fila ou da prova remota incompleto; outra edição não deve ser apagada'});continue}
    const proof={id:sid(r.id),module:'production',action:row.name,proof:r.proof,serverRevision:+r.serverRevision,operationIds:r.operationIds.map(sid).filter(Boolean),round,verifiedAt:nowIso(),verification:'remote-proof-and-queue-readback'};verified.push(proof);
    const before=learningStore()[learnKey(row.name,fp)]?.confidence??confidenceDefault(recipe),learn=updateLearning(row.name,fp,{verified:1,proofType:proof.verification});events.push(recordRepairEvent({kind:'repair',runId,round,recipeId:row.name,safetyLevel:'B',module:'production',recordId:proof.id,operationIds:proof.operationIds,serverRevision:proof.serverRevision,proof:proof.proof,verification:proof.verification,status:'verified',confidenceBefore:before,confidenceAfter:learn.confidence,at:nowIso()}));
   }
