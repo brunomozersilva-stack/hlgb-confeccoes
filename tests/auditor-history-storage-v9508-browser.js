@@ -11,7 +11,11 @@ const engine=process.env.HLGB_BROWSER==='webkit'?webkit:chromium;
     const login=document.getElementById('loginScreen');if(login)login.style.setProperty('display','none','important');
     const app=document.getElementById('appShell');if(app){app.style.setProperty('display','block','important');app.style.setProperty('visibility','visible','important')}
   });
-  await page.waitForFunction(()=>typeof window.hlgbAuditorAutoCorrect9441?.historyPersistence9508?.save==='function',null,{timeout:25000});
+  // The history component can be lazy-loaded by the app; load the exact release
+  // under test explicitly rather than waiting for an unrelated menu action.
+  await page.evaluate(()=>{window.__HLGB_TEST__=true});
+  await page.addScriptTag({url:'http://127.0.0.1:4173/release-auditor-autocorrect-v9441.js'});
+  await page.waitForFunction(()=>typeof window.hlgbAuditorAutoCorrect9441?.historyPersistence9508?.save==='function',null,{timeout:15000});
   const proof=await page.evaluate(async()=>{
     const api=window.hlgbAuditorAutoCorrect9441.historyPersistence9508;
     const historyKey='hlgb_auditor_autocorrect_history_v9441';
