@@ -135,8 +135,24 @@ function hygieneCodeFindings9503(rows){
  const overlaps=[...assignments].filter(([,hits])=>new Set(hits.map(h=>h.file)).size>1)
   .map(([name,hits])=>({name,files:[...new Set(hits.map(h=>h.file))],locations:hits}))
   .sort((a,b)=>b.files.length-a.files.length||a.name.localeCompare(b.name)).slice(0,50);
- const identicalBlocks=[...blocks.values()].filter(h=>new Set(h.map(x=>x.file)).size>1)
-  .map(h=>({locations:h.slice(0,12)})).slice(0,30);
+ // Six-line scan windows may overlap in exactly the same code region.
+ // Collapse adjacent windows across the SAME file pair to avoid inflated counts.
+ const groups=new Map();
+ for(const hits of blocks.values()){
+  const files=[...new Set(hits.map(x=>x.file))].sort();if(files.length<2)continue;
+  const locations=files.map(file=>hits.find(x=>x.file===file)).filter(Boolean);
+  const signature=files.join('|'),list=groups.get(signature)||[],prev=list[list.length-1];
+  const nearby=prev&&locations.every(hit=>{
+   const before=prev.lastLocations.find(x=>x.file===hit.file);
+   return before&&hit.line>=before.line&&hit.line-before.line<=5;
+  });
+  if(nearby){
+   prev.lastLocations=locations;
+   prev.approximateLines=Math.max(prev.approximateLines,6+Math.max(...locations.map((x,i)=>x.line-prev.locations[i].line)));
+  }else list.push({locations,lastLocations:locations,approximateLines:6});
+  groups.set(signature,list);
+ }
+ const identicalBlocks=[...groups.values()].flat().map(({locations,approximateLines})=>({locations,approximateLines})).slice(0,30);
  return {overlaps,identicalBlocks,checked:rows.filter(x=>x.source).length,errors:rows.filter(x=>x.error).map(x=>({file:x.file,error:x.error}))};
 }
 async function hygieneCacheCandidates9503(){
@@ -162,6 +178,28 @@ async function hygieneCachePreview9503(){
   note:'Somente CacheStorage JS/CSS do HLGB; não inclui cache HTTP do Safari, WAL, IndexedDB, localStorage nem sessão.'};
 }
 let hygieneLast9503=null;
+function hygieneEvidencePlan9505(report){
+ const recommendations=[];
+ const add=(priority,code,title,why)=>recommendations.push({priority,code,title,why,automatic:false});
+ if(report.authorityConflicts?.length)add('high','authority-ownership','Revisar autoridades do salvamento','Há '+report.authorityConflicts.length+' responsabilidade(s) sem autoridade final comprovada. Não retirar camadas antes dos testes de ACK e gravação.');
+ const save=(report.deepChains||[]).find(x=>x.fn==='hlgbRecordSaveWithRetry');
+ if(save&&save.depth>=12)add('high','save-wrapper-depth','Reduzir camadas de salvamento com teste de regressão','Cadeia com '+save.depth+' funções; profundidade, sozinha, não prova gravações duplicadas.');
+ if(report.boot?.hiddenRenders>0)add('medium','boot-hidden-renders','Evitar renderizações antes de a tela estar visível',report.boot.hiddenRenders+' renderizações ocultas observadas. Investigar a origem antes de retirar chamadas.');
+ if(report.code?.identicalBlocks?.length)add('medium','duplicate-source-blocks','Consolidar trechos de código repetidos após testes',report.code.identicalBlocks.length+' região(ões) de código compartilhado entre arquivos, sem prova de execução duplicada.');
+ if(report.scriptDuplicateExecutions?.length)add('high','duplicate-script-elements','Investigar scripts duplicados no DOM',report.scriptDuplicateExecutions.length+' arquivo(s) com múltiplos elementos <script> nesta sessão.');
+ if(report.code?.errors?.length)add('medium','unscanned-sources','Repetir análise de arquivos indisponíveis',report.code.errors.length+' fonte(s) não puderam ser inspecionadas.');
+ if(report.cache?.supported&&report.cache.eligible===0)add('info','no-cache-clean-needed','Não é necessária limpeza de CacheStorage','Nenhum JS/CSS elegível foi encontrado. Isso não mede o cache HTTP do Safari.');
+ return recommendations.sort((a,b)=>({high:0,medium:1,info:2}[a.priority]-{high:0,medium:1,info:2}[b.priority]));
+}
+function hygieneBootEvidence9505(){
+ try{
+  const b=window.hlgbAuditorBootAnalysis9381?.analyze?.();
+  const summary=b?.summary;
+  if(!summary||typeof summary!=='object')return null;
+  return {hiddenRenders:Number(summary.hiddenRenders)||0,duplicateLoadGroups:Number(summary.duplicateLoadGroups)||0,
+   slowSyncCalls:Number(summary.slowSyncCalls)||0,preInstrumentationGapMs:Number(b?.timeline?.coverage?.preInstrumentationGapMs)||0};
+ }catch(e){return null}
+}
 function hygieneRender9503(report){
  const host=document.getElementById('hlgbAuditorResult');if(!host)return false;
  document.getElementById('hlgbHygienePanel9503')?.remove();
@@ -170,9 +208,11 @@ function hygieneRender9503(report){
  const dup=report.scriptDuplicateExecutions.length;
  const overlap=report.code.overlaps.slice(0,12).map(x=>'<div class="sub">⚠️ '+esc(x.name)+' · '+esc(x.files.join(' / '))+'</div>').join('');
  const deep=report.deepChains.slice(0,12).map(x=>'<div class="sub">'+esc(x.fn)+' · '+x.depth+' camadas ('+esc(x.family)+')</div>').join('');
- const repeated=report.code.identicalBlocks.slice(0,8).map(x=>'<div class="sub">🔁 '+esc(x.locations.map(a=>a.file+':'+a.line).join(' / '))+'</div>').join('');
- panel.innerHTML='<h3 style="margin-top:0">🧹 Higiene do código · v95.03</h3>'+
+ const repeated=report.code.identicalBlocks.slice(0,8).map(x=>'<div class="sub">🔁 '+esc(x.locations.map(a=>a.file+':'+a.line).join(' / '))+' ('+Number(x.approximateLines||6)+' linhas aproximadas)</div>').join('');
+ const plan=(report.reviewPriorities||[]).map(x=>'<div class="sub"><b>'+esc(x.priority==='high'?'Prioridade alta':x.priority==='medium'?'Acompanhar':'Informação')+': '+esc(x.title)+'</b> — '+esc(x.why)+'</div>').join('');
+ panel.innerHTML='<h3 style="margin-top:0">🧹 Higiene do código · v95.05</h3>'+
   '<div class="sub">Diagnóstico somente leitura. Camadas e sobrescritas podem ser intencionais; nenhum código é removido automaticamente.</div>'+
+  (plan?'<div style="margin:10px 0"><b>Plano de revisão com evidências (sem correção automática):</b>'+plan+'</div>':'')+
   '<p><b>Scripts executados em duplicidade:</b> '+dup+' · <b>Funções atribuídas por arquivos diferentes:</b> '+report.code.overlaps.length+
   ' · <b>Blocos idênticos entre arquivos:</b> '+report.code.identicalBlocks.length+
   ' · <b>Fontes analisadas:</b> '+report.code.checked+'/'+HYGIENE_SOURCES_9503.length+'</p>'+
@@ -218,10 +258,11 @@ async function hygieneRun9503(){
  const deep=[];
  for(const f of authority.families||[])for(const item of f.functions||[])
   if(item.chain?.depth>8||item.chain?.cycle)deep.push({family:f.label,fn:item.name,depth:item.chain.depth,cycle:item.chain.cycle});
- const report={kind:'hlgb_code_hygiene',version:'95.03',at:new Date().toISOString(),
+ const report={kind:'hlgb_code_hygiene',version:'95.05',at:new Date().toISOString(),
   readOnly:true,code,scriptDuplicateExecutions:duplicates.map(x=>({file:x.file,dom:x.dom,resource:x.resource})),
   deepChains:deep,authorityConflicts:(authority.consolidationPlan||[]).filter(x=>x.conflict).map(x=>({id:x.id,present:x.present})),
-  cache:await hygieneCachePreview9503()};
+  boot:hygieneBootEvidence9505(),cache:await hygieneCachePreview9503()};
+ report.reviewPriorities=hygieneEvidencePlan9505(report);
  hygieneLast9503=report;hygieneRender9503(report);return report;
 }
 
@@ -265,7 +306,7 @@ function decorate(){
 }
 document.addEventListener?.('click',e=>{if(e.target?.closest?.('#hlgbAuditorNavBtn,#hlgbAuditorOpenBtn'))[80,250,700,1500].forEach(ms=>setTimeout(decorate,ms))},true);
 window.HLGB_AUDITOR_AUTHORITY_9374=BUILD;
-window.hlgbAuditorAuthority9374={version:V,build:BUILD,scan,panel,decorate,download,last:null,chain,loadedScripts,loadedScriptInventory,filenameVersionHint,RESPONSIBILITIES,FAMILIES,responsibilityState,hygiene:hygieneRun9503,hygieneCachePreview:hygieneCachePreview9503,hygieneCodeFindings:hygieneCodeFindings9503};
+window.hlgbAuditorAuthority9374={version:V,build:BUILD,scan,panel,decorate,download,last:null,chain,loadedScripts,loadedScriptInventory,filenameVersionHint,RESPONSIBILITIES,FAMILIES,responsibilityState,hygiene:hygieneRun9503,hygieneCachePreview:hygieneCachePreview9503,hygieneCodeFindings:hygieneCodeFindings9503,hygieneEvidencePlan:hygieneEvidencePlan9505};
 if(window.hlgbAuditorDeep9373)window.hlgbAuditorDeep9373.authorityScan=scan;
 setTimeout(decorate,500);
 console.info('[HLGB] Auditor mapa de autoridades v'+V+' ativo');
