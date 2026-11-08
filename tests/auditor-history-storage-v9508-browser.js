@@ -6,7 +6,12 @@ const engine=process.env.HLGB_BROWSER==='webkit'?webkit:chromium;
  try{
   const page=await browser.newPage({viewport:{width:1280,height:900}});
   await page.goto('http://127.0.0.1:4173/app-stable3.html',{waitUntil:'domcontentloaded',timeout:60000});
-  await page.waitForFunction(()=>typeof window.hlgbAuditorAutoCorrect9441?.historyPersistence9508?.save==='function',null,{timeout:60000});
+  await page.evaluate(()=>{
+    window.__HLGB_AUTH_READY=true;window.dispatchEvent(new Event('hlgb:authenticated'));
+    const login=document.getElementById('loginScreen');if(login)login.style.setProperty('display','none','important');
+    const app=document.getElementById('appShell');if(app){app.style.setProperty('display','block','important');app.style.setProperty('visibility','visible','important')}
+  });
+  await page.waitForFunction(()=>typeof window.hlgbAuditorAutoCorrect9441?.historyPersistence9508?.save==='function',null,{timeout:25000});
   const proof=await page.evaluate(async()=>{
     const api=window.hlgbAuditorAutoCorrect9441.historyPersistence9508;
     const historyKey='hlgb_auditor_autocorrect_history_v9441';
