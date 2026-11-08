@@ -14,7 +14,7 @@ const BACKGROUND_COOLDOWN=10*60*1000;
 if(window.HLGB_AUDITOR_AUTOCORRECT_9441===V)return;
 window.HLGB_AUDITOR_AUTOCORRECT_9441=V;
 
-const state={version:V,running:false,runs:0,passes:0,repairActions:0,verifiedRepairs:0,diagnosticsResolved:0,blocked:0,lastAt:'',lastBackgroundAt:'',lastError:'',lastSummary:null,lastReport:null};
+const state={version:V,running:false,runs:0,passes:0,repairActions:0,verifiedRepairs:0,diagnosticsResolved:0,blocked:0,lastAt:'',lastBackgroundAt:'',lastError:'',historyStorage:'unverified',historySaveError:'',lastSummary:null,lastReport:null};
 const sid=v=>String(v??'');
 const clone=v=>{try{return structuredClone(v)}catch(e){try{return JSON.parse(JSON.stringify(v))}catch(_){return v}}};
 const ts=v=>{const n=Date.parse(sid(v));return Number.isFinite(n)?n:NaN};
@@ -160,7 +160,64 @@ function registerFeatureContract(contract){
 }
 registerFeatureContract({featureId:'auditor-autocorrect-core',version:V,healthChecks:['internal-audit-full-readonly','sync-queue-metrics','diagnostics-center','ui-page-stability'],repairRecipes:Object.keys(recipeDefs),safetyLevel:'B',postconditions:['reteste silencioso após cada rodada','prova remota e releitura de fila para limpeza de pendências','nenhuma mudança de tela'],protectedRules:['não inventar valor, quantidade, observação ou vínculo','não reparar Financeiro→Projeção órfão sem fonte histórica'],notes:'Contrato base da v94.41. Novas funções devem registrar seu contrato e referenciar apenas receitas confiáveis existentes no código.'});
 
-function persistSummary(summary){let h=readJson(HISTORY_KEY,[]);if(!Array.isArray(h))h=[];h=h.filter(x=>x.runId!==summary.runId);h.push(sanitize(summary));return writeJson(HISTORY_KEY,h.slice(-40))}
+/* v95.08 — use a separate, technical IndexedDB when Safari localStorage cannot
+   persist the audit history. Never delete or rewrite the business WAL database.
+   A successful transaction AND readback are required before reporting success. */
+const AUDITOR_HISTORY_DB_9508='hlgb_auditor_history_v9508',AUDITOR_HISTORY_STORE_9508='runs';
+function compactHistory9508(summary){
+ return {runId:sid(summary?.runId),at:sid(summary?.at),version:sid(summary?.version||V),
+  passes:Number(summary?.passes)||0,stopReason:sid(summary?.stopReason).slice(0,320),
+  fixed:Number(summary?.fixed)||0,remainingOpenIssues:Number(summary?.remainingOpenIssues)||0,
+  cleanTechnical:summary?.cleanTechnical===true,source:'auditor-compact-history-v95.08',
+  counts:{corrected:(summary?.corrected||[]).length,stillFailing:(summary?.stillFailing||[]).length,
+   unverified:(summary?.unverified||[]).length,blocked:(summary?.blocked||[]).length}};
+}
+async function persistHistoryIndexedDb9508(summary){
+ if(typeof indexedDB==='undefined')throw new Error('IndexedDB indisponível para histórico do Auditor');
+ const row=compactHistory9508(summary);if(!row.runId)throw new Error('ID da auditoria ausente');
+ const db=await new Promise((resolve,reject)=>{
+  let req;
+  try{req=indexedDB.open(AUDITOR_HISTORY_DB_9508,1)}catch(e){reject(e);return}
+  req.onupgradeneeded=()=>{const d=req.result;if(!d.objectStoreNames.contains(AUDITOR_HISTORY_STORE_9508))d.createObjectStore(AUDITOR_HISTORY_STORE_9508,{keyPath:'runId'})};
+  req.onerror=()=>reject(req.error||new Error('Falha ao abrir histórico IndexedDB'));
+  req.onblocked=()=>reject(new Error('Histórico IndexedDB bloqueado por outra aba'));
+  req.onsuccess=()=>resolve(req.result);
+ });
+ try{
+  await new Promise((resolve,reject)=>{
+   const tx=db.transaction(AUDITOR_HISTORY_STORE_9508,'readwrite'),put=tx.objectStore(AUDITOR_HISTORY_STORE_9508).put(row);
+   put.onerror=()=>reject(put.error||new Error('Falha ao gravar auditoria'));
+   tx.oncomplete=()=>resolve(true);
+   tx.onerror=tx.onabort=()=>reject(tx.error||new Error('Transação do histórico abortada'));
+  });
+  const proof=await new Promise((resolve,reject)=>{
+   const tx=db.transaction(AUDITOR_HISTORY_STORE_9508,'readonly'),get=tx.objectStore(AUDITOR_HISTORY_STORE_9508).get(row.runId);
+   get.onsuccess=()=>resolve(get.result||null);
+   get.onerror=()=>reject(get.error||new Error('Falha ao reler histórico'));
+  });
+  if(proof?.runId!==row.runId||proof?.at!==row.at)throw new Error('Histórico não comprovado por releitura');
+  return true;
+ }finally{db.close()}
+}
+async function persistSummary(summary){
+ state.historyStorage='unverified';state.historySaveError='';
+ let h=readJson(HISTORY_KEY,[]);if(!Array.isArray(h))h=[];
+ h=h.filter(x=>x.runId!==summary.runId);h.push(sanitize(summary));
+ if(writeJson(HISTORY_KEY,h.slice(-40))){
+  const check=readJson(HISTORY_KEY,[]);
+  if(Array.isArray(check)&&check.some(x=>sid(x?.runId)===sid(summary.runId))){
+   state.historyStorage='localStorage';return true;
+  }
+ }
+ try{
+  await persistHistoryIndexedDb9508(summary);
+  state.historyStorage='auditor-indexeddb';return true;
+ }catch(e){
+  state.historyStorage='unavailable';
+  state.historySaveError=sid(e?.message||e).slice(0,300);
+  return false;
+ }
+}
 function latestSummary(){const h=readJson(HISTORY_KEY,[]);return Array.isArray(h)&&h.length?clone(h[h.length-1]):null}
 function reportBundle(summary,last){const events=repairEvents().filter(x=>x.runId===summary.runId);const bundle=sanitize({kind:'hlgb_autocorrect_report',version:V,generatedAt:nowIso(),appVersion:sid(window.HLGB_RELEASE_VERSION||V),browser:sid(navigator.userAgent||''),run:summary,repairEvents:events,learning:learningStore(),featureContracts:featureContracts(),finalAudit:{summary:last?.main?.summary||null,checks:unresolved(last),metrics:currentMetrics(),operations:last?.operations||{}},rules:{automatic:['A: técnico idempotente','B: técnico com identidade/prova forte'],manual:['C: regra de negócio ou dado ausente'],neverInvent:['valores','quantidades','observações','vínculos sem fonte','órfãos Financeiro→Projeção']}});writeJson(REPORT_KEY,bundle);state.lastReport=clone(bundle);return bundle}
 function downloadReport(report){try{const data=report||state.lastReport||readJson(REPORT_KEY,null);if(!data)return false;const blob=new Blob([JSON.stringify(data,null,2)],{type:'application/json;charset=utf-8'}),url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download='hlgb-auditor-autocorretor-'+sid(data?.run?.runId||Date.now()).replace(/[^a-z0-9_-]/gi,'_')+'.json';document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1200);return true}catch(e){state.lastError=sid(e?.message||e);return false}}
@@ -182,8 +239,8 @@ async function execute(opts={}){
   const current=issues().filter(openIssue),failedRefs=unresolved(last).flatMap(x=>x.refs||[]);corrected=corrected.filter(p=>!failedRefs.some(r=>r.module===p.module&&sid(r.id)===p.id)&&!current.some(x=>issueAt(x)>=started&&(x.recordRefs||[]).some(r=>r.module===p.module&&sid(r.id)===p.id)));corrected=dedupe(corrected,p=>p.module+'|'+p.id+'|'+p.action);
   const blocked=findOrphans(last).filter(x=>x.refs.length||x.detail);let stillFailing=unresolved(last).filter(x=>x.code!=='data:finance-projection-orphan'&&x.code!=='finance-projection-orphan');for(const x of current.filter(x=>issueAt(x)>=started))stillFailing.push({id:x.id,title:x.title,detail:'Ocorrência atual; mantida aberta'});stillFailing=dedupe(stillFailing,x=>sid(x.id)||sid(x.code)+'|'+JSON.stringify(x.refs||[])+'|'+sid(x.title));
   const resolution=await resolveStaleDiagnostics(started,corrected,runId);resolved=resolution.resolved;unknown.push(...resolution.unknown);const resolvedIds=new Set(resolved.map(x=>sid(x.id)));let unverified=[...unknown,...issues().filter(openIssue).filter(x=>!resolvedIds.has(sid(x.id))&&!(issueAt(x)>=started)).map(x=>({id:x.id,title:x.title,detail:'Sem verificação específica que comprove resolução'}))];unverified=dedupe(unverified,x=>sid(x.id)+'|'+sid(x.action)+'|'+sid(x.detail)+'|'+sid(x.title));
-  const summary={version:V,runId,at:nowIso(),silent:true,nonNavigating:true,passes,stopReason,fixed:corrected.length,corrected,stillFailing,unverified,blocked,rounds,resolvedDiagnostics:resolved,cleanTechnical:cleanTechnicalState(last),remainingOpenIssues:issues().filter(openIssue).length,ui:{pageBefore:ui.page,pageAfter:activePage(),stable:ui.page===activePage()}};state.blocked=blocked.length;state.verifiedRepairs+=corrected.length;state.diagnosticsResolved+=resolved.length;summary.historySaved=persistSummary(summary);const bundle=reportBundle(summary,last);state.lastSummary=clone(summary);if(opts.render!==false)render(summary);if(opts.download===true)downloadReport(bundle);return {...summary,result:last,report:bundle}
- }catch(e){state.lastError=sid(e?.message||e);const summary={version:V,runId,at:nowIso(),silent:true,nonNavigating:true,passes,stopReason:'Execução interrompida',fixed:0,corrected:[],stillFailing:[],blocked:findOrphans(last),unverified:[{detail:state.lastError}],rounds};persistSummary(summary);const bundle=reportBundle(summary,last);state.lastSummary=clone(summary);if(opts.render!==false)render(summary);if(opts.download===true)downloadReport(bundle);return {...summary,report:bundle}}
+  const summary={version:V,runId,at:nowIso(),silent:true,nonNavigating:true,passes,stopReason,fixed:corrected.length,corrected,stillFailing,unverified,blocked,rounds,resolvedDiagnostics:resolved,cleanTechnical:cleanTechnicalState(last),remainingOpenIssues:issues().filter(openIssue).length,ui:{pageBefore:ui.page,pageAfter:activePage(),stable:ui.page===activePage()}};state.blocked=blocked.length;state.verifiedRepairs+=corrected.length;state.diagnosticsResolved+=resolved.length;summary.historySaved=await persistSummary(summary);summary.historyStorage=state.historyStorage;if(!summary.historySaved)summary.historySaveError=state.historySaveError;const bundle=reportBundle(summary,last);state.lastSummary=clone(summary);if(opts.render!==false)render(summary);if(opts.download===true)downloadReport(bundle);return {...summary,result:last,report:bundle}
+ }catch(e){state.lastError=sid(e?.message||e);const summary={version:V,runId,at:nowIso(),silent:true,nonNavigating:true,passes,stopReason:'Execução interrompida',fixed:0,corrected:[],stillFailing:[],blocked:findOrphans(last),unverified:[{detail:state.lastError}],rounds};summary.historySaved=await persistSummary(summary);summary.historyStorage=state.historyStorage;if(!summary.historySaved)summary.historySaveError=state.historySaveError;const bundle=reportBundle(summary,last);state.lastSummary=clone(summary);if(opts.render!==false)render(summary);if(opts.download===true)downloadReport(bundle);return {...summary,report:bundle}}
  finally{if(Date.now()-lastUserNavigationAt>=1500)restoreUi(ui)}
 }
 async function run(opts={}){if(state.running||!authReady())return false;state.running=true;try{if(navigator.locks?.request)return await navigator.locks.request(LOCK_NAME,{ifAvailable:true},lock=>lock?execute(opts):false);state.lastError='Navegador sem bloqueio de execução entre abas';return {version:V,runId:'blocked-'+Date.now(),passes:0,stopReason:'Execução não iniciada',corrected:[],stillFailing:[],blocked:[],unverified:[{detail:state.lastError}]}}finally{state.running=false}}
@@ -198,6 +255,6 @@ document.addEventListener?.('click',e=>{if(e.target?.closest?.('[data-page],.nav
 window.addEventListener?.('online',()=>{if(authReady()&&!window.__HLGB_TEST__)setTimeout(()=>backgroundCheck('online'),1500)});
 window.addEventListener?.('hlgb:authenticated',()=>activate());
 state.lastSummary=latestSummary();state.lastReport=readJson(REPORT_KEY,null);
-window.hlgbAuditorAutoCorrect9441={version:V,state,run,silentAudit,healTechnical,render,downloadReport,exportReport:()=>clone(state.lastReport||readJson(REPORT_KEY,null)),learning:()=>clone(learningStore()),repairEvents:()=>clone(repairEvents()),featureContracts:()=>clone(featureContracts()),registerFeatureContract,backgroundCheck,status:()=>({...state,authReady:authReady(),openIssues:issues().filter(openIssue).length,learningEntries:Object.keys(learningStore()).length,contracts:Object.keys(featureContracts()).length})};
+window.hlgbAuditorAutoCorrect9441={version:V,state,run,silentAudit,healTechnical,render,downloadReport,exportReport:()=>clone(state.lastReport||readJson(REPORT_KEY,null)),learning:()=>clone(learningStore()),repairEvents:()=>clone(repairEvents()),featureContracts:()=>clone(featureContracts()),registerFeatureContract,backgroundCheck,historyPersistence9508:{save:persistSummary,status:()=>({storage:state.historyStorage,error:state.historySaveError})},status:()=>({...state,authReady:authReady(),openIssues:issues().filter(openIssue).length,learningEntries:Object.keys(learningStore()).length,contracts:Object.keys(featureContracts()).length})};
 stamp();if(authReady())activate();console.info('[HLGB] v'+V+' Auditor Autocorretor silencioso pronto · aprendizado por prova · relatório por reparo');
 })();
