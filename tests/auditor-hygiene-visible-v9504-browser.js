@@ -27,13 +27,14 @@ const engine=process.env.HLGB_BROWSER==='webkit'?webkit:chromium;
   await page.waitForSelector('#hlgbAuditorNavBtn',{state:'visible',timeout:10000});
   await page.click('#hlgbAuditorNavBtn');
   await page.waitForSelector('#auditorVisibleHost9504 #hlgbAuditorResult',{state:'attached',timeout:10000});
-  await page.waitForSelector('#auditorVisibleHost9504 #hlgbHygieneBtn9503',{state:'visible',timeout:10000});
-  await page.click('#auditorVisibleHost9504 #hlgbHygieneBtn9503');
+  await page.waitForSelector('#auditorVisibleHost9504 #hlgbHygieneLauncherBtn9504',{state:'visible',timeout:10000});
+  await page.click('#auditorVisibleHost9504 #hlgbHygieneLauncherBtn9504');
   await page.waitForSelector('#auditorVisibleHost9504 #hlgbHygienePanel9503',{state:'visible',timeout:30000});
   const summary=await page.locator('#hlgbHygienePanel9503').innerText();
   if(!summary.includes('Higiene do código'))throw new Error('Incorrect hygiene panel: '+summary.slice(0,600));
   if(!summary.includes('CacheStorage'))throw new Error('Cache risk summary absent: '+summary.slice(0,600));
-  await page.click('#auditorVisibleHost9504 #hlgbAuthorityBtn9374');
+  // Architecture is intentionally hidden from the single-action toolbar; test its fallback through the API.
+  await page.evaluate(()=>window.hlgbAuditorAuthorityScan9374());
   await page.waitForSelector('#auditorVisibleHost9504 #hlgbAuthorityMap9374',{state:'visible',timeout:10000});
   await page.waitForSelector('#auditorVisibleHost9504 #hlgbAuthorityHygieneBtn9504',{state:'visible',timeout:10000});
   if(errors.some(e=>/hygiene|9374|9504/i.test(e)))throw new Error(errors.join(' | '));
