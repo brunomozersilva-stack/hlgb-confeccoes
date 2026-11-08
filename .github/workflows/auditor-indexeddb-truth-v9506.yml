@@ -5,12 +5,14 @@ on:
     paths:
       - 'release-internal-auditor.js'
       - 'tests/auditor-indexeddb-truth-v9506.cjs'
+      - 'tests/auditor-indexeddb-visible-v9506-browser.js'
       - '.github/workflows/auditor-indexeddb-truth-v9506.yml'
   push:
     branches: [main]
     paths:
       - 'release-internal-auditor.js'
       - 'tests/auditor-indexeddb-truth-v9506.cjs'
+      - 'tests/auditor-indexeddb-visible-v9506-browser.js'
       - '.github/workflows/auditor-indexeddb-truth-v9506.yml'
 permissions:
   contents: read
@@ -24,3 +26,26 @@ jobs:
         with: {node-version: '20'}
       - run: node --check release-internal-auditor.js
       - run: node tests/auditor-indexeddb-truth-v9506.cjs
+  browser:
+    runs-on: ubuntu-latest
+    timeout-minutes: 18
+    strategy:
+      fail-fast: false
+      matrix:
+        browser: [chromium, webkit]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '20'}
+      - name: Install Playwright
+        run: |
+          npm install --no-save playwright@1.55.0
+          npx playwright install --with-deps ${{ matrix.browser }}
+      - name: Serve main HLGB loader
+        run: |
+          python3 -m http.server 4173 >/tmp/hlgb-wal-audit-v9506.log 2>&1 &
+          sleep 2
+      - name: Verify real WAL audit without data mutation
+        env:
+          HLGB_BROWSER: ${{ matrix.browser }}
+        run: node tests/auditor-indexeddb-visible-v9506-browser.js
