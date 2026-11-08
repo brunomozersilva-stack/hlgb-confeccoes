@@ -81,7 +81,7 @@ document.addEventListener('click',e=>{
  const selected=e.target?.closest?.('#nav button[onclick],#nav a[href]');
  if(!selected)return;
  const fn=selected.getAttribute('onclick')||'';
- if(selected.tagName==='A'||/\\bpage\\s*\\(|\\bopenHlgb\\w+\\s*\\(/.test(fn))
+ if(selected.tagName==='A'||/\bpage\s*\(|\bopenHlgb\w+\s*\(/.test(fn))
   setTimeout(close,0);
 },true);
 window.addEventListener?.('resize',()=>{if(window.innerWidth>700)close()});
