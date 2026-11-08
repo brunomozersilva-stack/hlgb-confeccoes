@@ -201,8 +201,34 @@ function classifyCandidate(c,event){
  if(/reteste da fila|prova remota incompleta|readback|unverified|sem confirmação|sem confirmacao/.test(text))return {...base,classification:'needs-code',requires:'code'};
  return {...base,classification:'needs-code',requires:'code',detail:reason||'Pendência de Produção sem prova suficiente; requer diagnóstico de código'};
 }
+/* v95.07: when a newer operation with a different opId remains, distinguish
+   business conflict from a failed cleanup using a fresh READ-ONLY cloud proof.
+   Never classify by a stale repair event if the current payload is proven. */
+async function classifyCandidateCurrent9507(c,event){
+ const fallback=classifyCandidate(c,event);
+ const copies=[...(c?.normalized||[]),...(c?.walLocal||[]),...(c?.walIdb||[])];
+ const ids=copies.map(x=>sid(x?.opId||x?.operationId));
+ const api=window.hlgbProductionResidual9448;
+ if(!copies.length||ids.some(x=>!x)||typeof api?.inspectCandidate!=='function')return fallback;
+ try{
+  const proof=await api.inspectCandidate(c);
+  if(proof?.error||proof?.classification!=='business-blocked'||Number(proof.businessCopies)<1||Number(proof.incompleteCopies)>0||Number(proof.safeCopies)>0)return fallback;
+  const inspected=(proof.proofs||[]).map(x=>sid(x?.opId));
+  if(JSON.stringify([...ids].sort())!==JSON.stringify(inspected.sort()))return fallback;
+  const fields=[...new Set((proof.proofs||[]).flatMap(x=>Array.isArray(x?.diff)?x.diff:[])
+   .map(x=>typeof x==='string'?x:sid(x?.field||x?.key||'')).filter(x=>/^[A-Za-z][\w]*$/.test(x)))].slice(0,8);
+  return {...fallback,classification:'business-blocked',requires:'human-decision',
+   detail:'Operação WAL atual de Produção difere do servidor'+(fields.length?' nos campos '+fields.join(', '):'')+'. Preservar a alteração local até decisão humana; nenhuma escrita automática.',
+   currentOpIds:[...new Set(ids)],remoteRevision:Number(proof.serverRevision)||null,
+   diagnosticSource:'current-operation-readonly-proof'};
+ }catch(_){return fallback}
+}
 async function triage(audit){
- const at=Date.now(),m=metrics(),structure=structureEvidence9471(),issues=allIssues(),signal=liveSignal(audit,m,issues),idbWal=await indexedWalInventory9468(),cs=await candidates(),events=repairEvents(),classified=cs.map(c=>classifyCandidate(c,latestEventFor(c?.id,events)));
+ const at=Date.now(),m=metrics(),structure=structureEvidence9471(),issues=allIssues(),signal=liveSignal(audit,m,issues),idbWal=await indexedWalInventory9468(),cs=await candidates(),events=repairEvents(),classified=[];
+ for(let i=0;i<cs.length;i++){
+  const c=cs[i],event=latestEventFor(c?.id,events);
+  classified.push(i<8?await classifyCandidateCurrent9507(c,event):classifyCandidate(c,event));
+ }
  const needsCode=classified.filter(x=>x.classification==='needs-code'),businessBlocked=classified.filter(x=>x.classification==='business-blocked'),historical=historicalIssues(issues,at);
  const financeOrphans=(Array.isArray(audit?.main?.checks)?audit.main.checks:[]).filter(x=>x?.status==='fail'&&sid(x?.code)==='data:finance-projection-orphan');
  // V94.81: findings of finance links to inactive invoices remain protected business exceptions.
@@ -247,8 +273,13 @@ async function withLiveScope(fn){
 }
 function upgradeLegacy(raw,audit,t){
  const out=clone(raw||{});out.version=V;out.runtimeVersion=V;out.fastConvergence=true;out.repairSkipped=false;out.needsCode=clone(t.needsCode);out.businessBlocked=clone(t.businessBlocked);out.historicalBacklog=clone(t.historicalBacklog);out.triage=clone(t);
- const op=operationPending(out?.result||audit);let still=(out.stillFailing||[]).filter(x=>!(sid(x?.code)==='sync:pending'&&op.unique===0&&op.records===0&&op.wal===0));still.push(...t.needsCode.map(x=>({id:x.id,action:x.action,detail:x.detail,classification:x.classification})));out.stillFailing=mergeUnique(still,x=>sid(x?.id)||sid(x?.code)+'|'+sid(x?.detail));
- out.unverified=mergeUnique([...compactUnknown(out.unverified),...t.needsCode.map(x=>({id:x.id,action:x.action,detail:x.detail,classification:x.classification}))],x=>sid(x?.id)+'|'+sid(x?.action)+'|'+sid(x?.detail));
+ const op=operationPending(out?.result||audit);
+ const businessProduction=new Set((t.businessBlocked||[]).filter(x=>x.module==='production'&&x.diagnosticSource==='current-operation-readonly-proof').map(x=>sid(x.id)));
+ const isOldProdWarning=x=>sid(x?.action)==='production-reconcile'&&businessProduction.has(sid(x?.id));
+ let still=(out.stillFailing||[]).filter(x=>!isOldProdWarning(x)&&!(sid(x?.code)==='sync:pending'&&op.unique===0&&op.records===0&&op.wal===0));
+ still.push(...t.needsCode.map(x=>({id:x.id,action:x.action,detail:x.detail,classification:x.classification})));
+ out.stillFailing=mergeUnique(still,x=>sid(x?.id)||sid(x?.code)+'|'+sid(x?.detail));
+ out.unverified=mergeUnique([...compactUnknown(out.unverified).filter(x=>!isOldProdWarning(x)),...t.needsCode.map(x=>({id:x.id,action:x.action,detail:x.detail,classification:x.classification}))],x=>sid(x?.id)+'|'+sid(x?.action)+'|'+sid(x?.detail));
  out.blocked=mergeUnique([...(out.blocked||[]),...t.businessBlocked.map(x=>({id:x.id,action:x.action,detail:x.detail,safetyLevel:'C',classification:x.classification}))],x=>sid(x?.id)||sid(x?.detail));
  out.remainingOpenIssues=t.historicalBacklog.openTotal;return out;
 }
