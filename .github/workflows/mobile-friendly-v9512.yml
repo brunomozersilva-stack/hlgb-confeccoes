@@ -1,0 +1,51 @@
+name: HLGB Mobile Friendly Foundation v95.12
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'app-stable3.html'
+      - 'release-mobile-friendly-v9512.js'
+      - 'tests/mobile-friendly-v9512*'
+      - '.github/workflows/mobile-friendly-v9512.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'app-stable3.html'
+      - 'release-mobile-friendly-v9512.js'
+      - 'tests/mobile-friendly-v9512*'
+      - '.github/workflows/mobile-friendly-v9512.yml'
+permissions:
+  contents: read
+jobs:
+  syntax:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '20'}
+      - run: node --check release-mobile-friendly-v9512.js
+      - run: node tests/audit-canonical-routing-v9316.cjs
+  browser:
+    runs-on: ubuntu-latest
+    timeout-minutes: 18
+    strategy:
+      fail-fast: false
+      matrix:
+        browser: [chromium, webkit]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '20'}
+      - name: Install Playwright
+        run: |
+          npm install --no-save playwright@1.55.0
+          npx playwright install --with-deps ${{ matrix.browser }}
+      - name: Serve mobile fixture
+        run: |
+          python3 -m http.server 4173 >/tmp/hlgb-mobile9512.log 2>&1 &
+          sleep 2
+      - name: Verify responsive navigation and table layout
+        env:
+          HLGB_BROWSER: ${{ matrix.browser }}
+        run: node tests/mobile-friendly-v9512-browser.js
