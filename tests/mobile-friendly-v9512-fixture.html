@@ -1,0 +1,17 @@
+<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"></head><body style="margin:0">
+<div id="appShell" style="display:flex;min-height:100vh;">
+<nav id="nav" style="width:240px;flex-shrink:0;background:#f9f6f8;padding:12px;box-sizing:border-box">
+<button type="button" onclick="page('dashboard')">Início</button>
+<div class="nav-group"><button type="button" onclick="document.getElementById('sub').hidden=!document.getElementById('sub').hidden">Produção ›</button><div id="sub" hidden><button onclick="page('producao')">Produção</button></div></div>
+<button type="button" onclick="page('pedidos')">Pedidos</button>
+</nav>
+<main style="flex:1;min-width:0;padding:24px"><section id="dashboard" class="page active"><h1>Dashboard</h1><div class="toolbar"><button type="button">Salvar</button><button type="button">Editar</button></div><div id="hlgbDgCards" class="hlgb-dg-summary"><div class="card">Erro 1</div><div class="card">Erro 2</div></div>
+<table style="min-width:900px"><thead><tr><th>Cliente</th><th>Pedido</th><th>Modelo</th><th>Produção</th><th>Prazo</th><th>Quantidade</th><th>Status</th></tr></thead><tbody><tr><td>Cliente 1</td><td>100</td><td>Camisola</td><td>Produção</td><td>Hoje</td><td>120</td><td>Em produção</td></tr></tbody></table></section>
+<section id="pedidos" class="page" style="display:none"><h1>Pedidos</h1></section>
+<section id="producao" class="page" style="display:none"><h1>Produção</h1></section>
+</main></div>
+<div id="hlgbMobileNav9250"><button onclick="page('dashboard')">Início</button><button onclick="page('pedidos')">Pedidos</button><button onclick="page('producao')">Produção</button><button>Financeiro</button></div>
+<style>.page:not(.active){display:none!important}.toolbar{display:flex;gap:10px}.card{padding:12px;border:1px solid #ddd}#hlgbMobileNav9250{display:none}</style>
+<script>window.page=function(id){document.querySelectorAll('.page').forEach(x=>x.classList.toggle('active',x.id===id));window.__lastPage=id};</script>
+<script src="../release-mobile-friendly-v9512.js"></script>
+</body></html>
