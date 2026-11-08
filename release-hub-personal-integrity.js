@@ -65,12 +65,31 @@ window.toggleHubPerson937=function(){
     sel.innerHTML=optionsHtml(cur);
   }
 };
+/* v95.10: Do not run a finance UI render while the login screen is still
+   protecting a hidden app shell. Login completion renders all pages afresh.
+   Fail open if visibility cannot be established to avoid delaying real UI. */
+function hiddenPreAuthHub9510(){
+ try{
+  if(window.__HLGB_AUTH_READY===true)return false;
+  const shell=document.getElementById('appShell');
+  if(!shell)return false;
+  const style=typeof getComputedStyle==='function'?getComputedStyle(shell):null;
+  return shell.hidden===true||shell.style?.display==='none'||
+   style?.display==='none'||style?.visibility==='hidden';
+ }catch(_){return false}
+}
 const oldRender=window.renderHubFinance;
 if(typeof oldRender==='function'&&!oldRender.__hlgbHubPersonalV1){
-  const wrapped=function(){const out=oldRender.apply(this,arguments);try{repairPersonalSummary()}catch(e){console.error('[HLGB Hub pessoal]',e)};setTimeout(()=>{try{repairPersonalSummary()}catch(e){}},0);return out};
+  const wrapped=function(){
+   if(hiddenPreAuthHub9510())return undefined;
+   const out=oldRender.apply(this,arguments);
+   try{repairPersonalSummary()}catch(e){console.error('[HLGB Hub pessoal]',e)}
+   setTimeout(()=>{try{repairPersonalSummary()}catch(e){}},0);
+   return out
+  };
   wrapped.__hlgbHubPersonalV1=true;wrapped.__original=oldRender;window.renderHubFinance=wrapped;
 }
-window.hlgbHubPersonalIntegrity={isPersonal,personalPeople,personalEntriesForRange,patchForm,repairPersonalSummary};
+window.hlgbHubPersonalIntegrity={isPersonal,personalPeople,personalEntriesForRange,patchForm,repairPersonalSummary,hiddenPreAuthHub9510};
 window.HLGB_HUB_PERSONAL_INTEGRITY_GUARD=V;
 console.info('[HLGB] Hub: despesas pessoais separadas de funcionários/rescisões');
 })();
