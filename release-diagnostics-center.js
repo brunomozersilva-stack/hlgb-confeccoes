@@ -388,7 +388,7 @@ function renderCenter(){
 window.hlgbDiagnosticsRefresh=()=>refreshCenterData(true);
  /* On-screen refresh is read-only and runs only while authenticated and visible.
     Avoid a stale "up-to-date" label when the browser is offline or cloud checks fail. */
- setInterval(()=>{
+ if(typeof setInterval==='function')setInterval(()=>{
   try{
    if(window.__HLGB_AUTH_READY!==true||document.hidden||navigator.onLine===false)return;
    if(!document.getElementById('hlgbDiagnosticsCenter')?.classList.contains('active'))return;
