@@ -12,7 +12,11 @@ function data(){try{if(typeof db!=='undefined'&&db)return db}catch(e){}return wi
 function issues(){const d=data();return Array.isArray(d?.systemIssues)?d.systemIssues:[]}
 function unresolved(x){return norm(x?.status)!=='resolvido'}
 function seenMs(x){const n=Date.parse(String(x?.lastSeenAt||x?.firstSeenAt||''));return Number.isFinite(n)?n:0}
-function currentSession(x){return unresolved(x)&&seenMs(x)>=SESSION_STARTED_AT-30000}
+function currentSession(x){
+ const central=window.hlgbDiagnosticsCenter;
+ if(typeof central?.isIssueRecent9511==='function')return central.isIssueRecent9511(x);
+ return unresolved(x)&&seenMs(x)>=Math.max(SESSION_STARTED_AT-30000,Date.now()-15*60*1000);
+}
 function refsKey(x){return (Array.isArray(x?.recordRefs)?x.recordRefs:[]).map(r=>sid(r?.module||r?.label)+':'+sid(r?.id)).sort().join('|')}
 function logicalKey(x){return [norm(x?.sourceType),norm(x?.title),refsKey(x)].join('|')}
 function pendingRefs(){
@@ -55,7 +59,7 @@ function decorateCards(openIssues){
  if(all[1]){const s=all[1].querySelector('small'),b=all[1].querySelector('strong');if(s)s.textContent='Alta prioridade nesta abertura';if(b)b.textContent=String(high.length)}
  let hc=cards.querySelector('.hlgb-dg-history-card9406');if(!hc){hc=document.createElement('div');hc.className='card hlgb-dg-history-card9406';cards.appendChild(hc)}hc.innerHTML='<small>Histórico ainda aberto</small><strong>'+history.length+'</strong>';
 }
-function decorateInfo(){const body=document.getElementById('hlgbDgBody');if(!body||document.getElementById('hlgbDgInfo9406'))return;const info=document.createElement('div');info.id='hlgbDgInfo9406';info.className='hlgb-dg-info9406';info.innerHTML='<b>Como esta Central conta agora:</b> os números principais mostram somente erros ocorridos nesta abertura do sistema. Erros antigos continuam guardados como histórico. Repetições equivalentes do mesmo problema/registro aparecem agrupadas, sem apagar nenhum registro.';body.insertBefore(info,body.firstChild)}
+function decorateInfo(){const body=document.getElementById('hlgbDgBody');if(!body||document.getElementById('hlgbDgInfo9406'))return;const info=document.createElement('div');info.id='hlgbDgInfo9406';info.className='hlgb-dg-info9406';info.innerHTML='<b>Como a Central conta:</b> ocorrências recentes são as registradas nesta sessão e nos últimos 15 minutos; histórico ainda aberto significa registros antigos sem baixa formal, não falhas ocorrendo agora. A atualização da nuvem é identificada como confirmada ou não confirmada. Repetições equivalentes aparecem agrupadas; nenhum registro é apagado.';body.insertBefore(info,body.firstChild)}
 function renameResolve(){document.querySelectorAll('#hlgbDgErrorTable button').forEach(b=>{if(norm(b.textContent)==='resolver')b.textContent='Arquivar como resolvido'})}
 function decorate(){
  const center=document.getElementById('hlgbDiagnosticsCenter');if(!center||!center.classList.contains('active'))return false;
