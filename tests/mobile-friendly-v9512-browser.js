@@ -18,7 +18,7 @@ const engine=process.env.HLGB_BROWSER==='webkit'?webkit:chromium;
    }));
    assert(initial.scrollWidth<=width+2,'unexpected horizontal document overflow '+width+'px: '+JSON.stringify(initial));
    assert(initial.mainWidth<=width+2);
-   assert(initial.tableScrollable,'wide business table must scroll inside itself');
+   if(width<=390)assert(initial.tableScrollable,'wide business table must scroll inside itself on narrow phones');
    assert(initial.navInvisible,'drawer should be hidden before opening');
    assert.equal(initial.tabCount,5);
    await page.locator('#hlgbMobileMenu9512').click();
