@@ -26,6 +26,27 @@ function loadBase(){
  const p=new Promise(resolve=>{if(baseReady())return resolve(true);let done=false;const finish=()=>{if(done)return;done=true;resolve(baseReady())};s.addEventListener('load',finish,{once:true});s.addEventListener('error',()=>{try{s.remove()}catch(_){}finish()},{once:true});setTimeout(finish,12000)});s.__hlgbPromise=p;return p;
 }
 async function ensureBase(){return baseReady()?true:loadBase()}
+/* v95.09: isolated remote-confirmed tombstone pruning, only on Auditor action. */
+function ensureTombstonePruner9509(){
+ if(typeof window.hlgbWalTombstonePruner9509?.prune==='function')return Promise.resolve(true);
+ if(!authReady()||typeof document==='undefined')return Promise.resolve(false);
+ let script=document.querySelector('script[data-hlgb-wal-tombstone-pruner-v9509]');
+ if(script?.__hlgbPromise)return script.__hlgbPromise;
+ if(!script){
+  script=document.createElement('script');
+  script.src='./release-wal-tombstone-pruner-v9509.js';
+  script.async=false;script.setAttribute('data-hlgb-wal-tombstone-pruner-v9509','1');
+  (document.head||document.documentElement).appendChild(script);
+ }
+ const task=new Promise(resolve=>{
+  let done=false;
+  const finish=()=>{if(done)return;done=true;resolve(typeof window.hlgbWalTombstonePruner9509?.prune==='function')};
+  script.addEventListener('load',finish,{once:true});
+  script.addEventListener('error',()=>{try{script.remove()}catch(_){}finish()},{once:true});
+  setTimeout(finish,8000);
+ });
+ script.__hlgbPromise=task;return task;
+}
 /* v94.68: uma fila durável exclusiva do IndexedDB não aparece em pendingSync:0.
    Inventário SOMENTE leitura; não abre uma store nova nem presume que os dados foram enviados. */
 function indexedWalInventory9468(){
@@ -304,11 +325,23 @@ async function run(opts={}){
   // Apenas prova remota de WAL: poda exige conteúdo igual e mesmo opId.
   // Não tenta reenviar alterações conflitantes ou reescrever registros de negócio.
   const idbBefore=await indexedWalInventory9468();let walProof={attempted:false,removed:0,remaining:idbBefore.count,status:idbBefore.status};
-  // Se a autoridade antiga não existir, executar prova remota somente leitura.
-  // Não inventar ACK nem apagar uma cópia que pode conter alterações exclusivas.
+  // v95.09: confirm only remote-deleted finance tombstones and remove
+  // only the identical opId/payload from IndexedDB in a guarded transaction.
+  // Production, route and invoice business operations remain untouched.
   if(idbBefore.count>0&&typeof window.hlgbWalSingleAuthority9339?.pruneConfirmed!=='function'){
+   let safePrune=null,available=false;
+   try{
+    available=await ensureTombstonePruner9509();
+    if(available)safePrune=await window.hlgbWalTombstonePruner9509.prune({max:8});
+   }catch(e){safePrune={attempted:false,removed:0,errors:[{error:sid(e?.message||e)}]}}
    const fallback=await walRemoteReadOnlyProof9482(8);
-   walProof={...walProof,...fallback,remaining:idbBefore.count,removed:0,authorityAvailable:false};
+   walProof={...walProof,...fallback,removed:Number(safePrune?.removed)||0,
+    removedLocal:Number(safePrune?.removedLocal)||0,
+    pruneChecked:Number(safePrune?.checked)||0,remaining:idbBefore.count,
+    authorityAvailable:available,safePruneVersion:available?'95.09':null,
+    pruneErrors:clone(safePrune?.errors||[]),pruneProof:clone((safePrune?.rows||[]).map(x=>({
+     module:x.module,id:x.id,opId:x.opId,status:x.status
+    })))};
   }
   if(idbBefore.count>0&&typeof window.hlgbWalSingleAuthority9339?.pruneConfirmed==='function'){
    walProof.attempted=true;
