@@ -21,6 +21,24 @@ const norm=s=>String(s??'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').trim
 const id=prefix=>prefix+'-'+Date.now()+'-'+Math.floor(Math.random()*900000+100000);
 
 function arr(name){try{return Array.isArray(db?.[name])?db[name]:[]}catch(e){return []}}
+/* v95.11: count recent incidents separately from all unresolved historical rows.
+   Neither age nor this display summary silently resolves a persisted issue. */
+const DIAG_STARTED_9511=Date.now(), RECENT_WINDOW_9511=15*60*1000;
+const centerRefreshState9511={lastSuccessAt:'',lastAttemptAt:'',loading:false,error:'',confirmed:false};
+let centerRefreshInFlight9511=null;
+function recentIssue9511(x,at=Date.now()){
+ if(norm(x?.status)==='resolvido')return false;
+ const seen=Date.parse(sid(x?.lastSeenAt||x?.firstSeenAt||x?.createdAt||''));
+ return Number.isFinite(seen)&&seen>=Math.max(DIAG_STARTED_9511-30000,at-RECENT_WINDOW_9511)&&seen<=at+30000;
+}
+function issueSummary9511(){
+ const issues=arr(ISSUE_MODULE).filter(x=>norm(x?.status)!=='resolvido');
+ const current=issues.filter(x=>recentIssue9511(x)),historical=issues.length-current.length;
+ const highCurrent=current.filter(x=>['alta','critica'].includes(norm(x?.priority)));
+ return {recent:current.length,highRecent:highCurrent.length,historical,openTotal:issues.length,
+  windowMinutes:15,lastSuccessAt:centerRefreshState9511.lastSuccessAt,
+  confirmed:centerRefreshState9511.confirmed,refreshError:centerRefreshState9511.error};
+}
 function currentName(){
   try{const u=typeof currentUser==='function'?currentUser():null;return String(u?.name||u?.login||cloudUser?.email||'Usuário')}catch(e){return 'Usuário'}
 }
@@ -109,10 +127,27 @@ async function loadDiagnosticModule(module){
   }catch(e){console.warn('[HLGB diagnóstico] carga '+module,e);return false}
 }
 async function refreshCenterData(renderAfter=true){
-  if(typeof cloudEnsureFreshSession==='function')try{await cloudEnsureFreshSession(false)}catch(e){}
-  await loadDiagnosticModule(ISSUE_MODULE);
-  await loadDiagnosticModule(SUGGESTION_MODULE);
-  if(renderAfter)renderCenter();
+  if(centerRefreshInFlight9511){const result=await centerRefreshInFlight9511;if(renderAfter)renderCenter();return result}
+  centerRefreshState9511.loading=true;centerRefreshState9511.lastAttemptAt=now();
+  centerRefreshInFlight9511=(async()=>{
+   try{
+    if(typeof cloudEnsureFreshSession==='function')await cloudEnsureFreshSession(false);
+    const okIssues=await loadDiagnosticModule(ISSUE_MODULE);
+    const okSuggestions=await loadDiagnosticModule(SUGGESTION_MODULE);
+    if(!okIssues||!okSuggestions)throw new Error('A nuvem não confirmou a atualização completa da Central.');
+    centerRefreshState9511.confirmed=true;
+    centerRefreshState9511.lastSuccessAt=now();centerRefreshState9511.error='';
+    return true;
+   }catch(e){
+    centerRefreshState9511.error='A atualização não foi confirmada; os números podem ser de uma cópia anterior.';
+    console.warn('[HLGB Central] atualização não confirmada',e);
+    return false;
+   }finally{centerRefreshState9511.loading=false}
+  })();
+  try{return await centerRefreshInFlight9511}finally{
+   centerRefreshInFlight9511=null;
+   if(renderAfter)renderCenter();
+  }
 }
 async function saveDiagnostic(module,row){
   registerModules();
@@ -314,10 +349,18 @@ function updateTabButtons(){
   Object.entries(map).forEach(([k,id])=>{const b=document.getElementById(id);if(!b)return;b.className=k===activeTab?'primary active':'secondary'});
 }
 function renderCards(){
-  const issues=arr(ISSUE_MODULE),sugs=arr(SUGGESTION_MODULE);
-  const open=issues.filter(x=>x.status!=='Resolvido').length,critical=issues.filter(x=>x.status!=='Resolvido'&&['Crítica','Alta'].includes(x.priority)).length,pending=sugs.filter(x=>!['Concluída','Recusada'].includes(x.status)).length;
-  const cards=document.getElementById('hlgbDgCards');if(!cards)return;
-  cards.innerHTML='<div class="card"><small>Erros abertos</small><strong>'+open+'</strong></div><div class="card"><small>Alta prioridade</small><strong>'+critical+'</strong></div><div class="card"><small>Sugestões pendentes</small><strong>'+pending+'</strong></div><div class="card"><small>Versão observada</small><strong style="font-size:16px">'+esc(appVersion())+'</strong></div>';
+ const summary=issueSummary9511(),sugs=arr(SUGGESTION_MODULE);
+ const pending=sugs.filter(x=>!['concluida','recusada'].includes(norm(x?.status))).length;
+ const cards=document.getElementById('hlgbDgCards');if(!cards)return;
+ const state=centerRefreshState9511,stamp=state.lastSuccessAt?new Date(state.lastSuccessAt).toLocaleString('pt-BR'):'ainda sem confirmação';
+ const syncLabel=state.loading?'Atualizando com a nuvem…':state.error?'Falha na atualização · números não confirmados':
+  'Última atualização confirmada: '+stamp;
+ cards.innerHTML='<div class="card"><small>Ocorrências recentes (15 min)</small><strong>'+summary.recent+'</strong></div>'+
+  '<div class="card"><small>Alta/crítica recente</small><strong>'+summary.highRecent+'</strong></div>'+
+  '<div class="card hlgb-dg-history-card9406"><small>Histórico ainda aberto</small><strong>'+summary.historical+'</strong></div>'+
+  '<div class="card"><small>Sugestões pendentes</small><strong>'+pending+'</strong></div>'+
+  '<div class="card"><small>Versão observada</small><strong style="font-size:16px">'+esc(appVersion())+'</strong></div>'+
+  '<div class="card hlgb-dg-refresh-status9511"><small>Sincronização da Central</small><span style="font-size:12px">'+esc(syncLabel)+'</span></div>';
 }
 function issueRow(x){
   return ['<input class="hlgb-dg-check" type="checkbox" data-dg-select="issue" value="'+esc(x.id)+'" checked>', '<div class="hlgb-dg-row-title">'+esc(x.title||'Erro')+'</div><div class="hlgb-dg-meta">'+esc(x.page||'-')+' · '+esc(x.user||'-')+' · '+esc(x.browser||'-')+'</div>',priorityBadge(x.priority),statusBadge(x.status),esc(String(x.occurrences||1)),esc((x.lastSeenAt||x.firstSeenAt||'').replace('T',' ').slice(0,16)),'<div class="hlgb-dg-actions"><button class="secondary" onclick="hlgbDiagnosticsViewIssue(\''+esc(x.id)+'\')">Ver</button><button class="secondary" onclick="hlgbDiagnosticsSetIssueStatus(\''+esc(x.id)+'\',\'Em análise\')">Em análise</button><button class="primary" onclick="hlgbDiagnosticsSetIssueStatus(\''+esc(x.id)+'\',\'Resolvido\')">Resolver</button></div>'];
@@ -343,6 +386,17 @@ function renderCenter(){
   else renderErrors();
 }
 window.hlgbDiagnosticsRefresh=()=>refreshCenterData(true);
+ /* On-screen refresh is read-only and runs only while authenticated and visible.
+    Avoid a stale "up-to-date" label when the browser is offline or cloud checks fail. */
+ if(typeof setInterval==='function')setInterval(()=>{
+  try{
+   if(window.__HLGB_AUTH_READY!==true||document.hidden||navigator.onLine===false)return;
+   if(!document.getElementById('hlgbDiagnosticsCenter')?.classList.contains('active'))return;
+   if(centerRefreshInFlight9511)return;
+   const prev=Date.parse(centerRefreshState9511.lastAttemptAt)||0;
+   if(Date.now()-prev>=60000)refreshCenterData(true).catch(()=>{});
+  }catch(_){}
+ },20000);
 
 window.hlgbDiagnosticsNewIssue=function(){
   openModal('Relatar erro','<div class="grid"><div class="field"><label>Título</label><input id="dgIssueTitle" placeholder="Ex.: valor não atualizou"></div><div class="field"><label>Prioridade</label><select id="dgIssuePriority"><option>Baixa</option><option selected>Média</option><option>Alta</option><option>Crítica</option></select></div><div class="field" style="grid-column:1/-1"><label>O que aconteceu?</label><textarea id="dgIssueDescription" rows="5" placeholder="Explique o que você fez e o que apareceu de errado."></textarea></div><div class="field"><label>Tela</label><input id="dgIssuePage" value="'+esc(currentPage())+'"></div><div class="field"><label>Pedido/registro relacionado</label><input id="dgIssueRef" placeholder="Ex.: pedido #87"></div></div><button class="primary modalSave">☁️ Salvar erro</button>',async()=>{
@@ -583,7 +637,9 @@ async function resolveVerifiedIssue(issueId,evidence,expectedLastSeen){
  const result=await saveDiagnostic(ISSUE_MODULE,next);
  return result.status==='Resolvido'?result:false;
 }
-window.hlgbDiagnosticsCenter={VERSION,getIssues:()=>clone(arr(ISSUE_MODULE)),resolveVerifiedIssue,sanitize,fingerprint,classifySaveError,scanSystem,makeReport,refresh:refreshCenterData,modules:[ISSUE_MODULE,SUGGESTION_MODULE],createSuggestionText,createIssueText};
+window.hlgbDiagnosticsCenter={VERSION,getIssues:()=>clone(arr(ISSUE_MODULE)),resolveVerifiedIssue,sanitize,fingerprint,classifySaveError,scanSystem,makeReport,refresh:refreshCenterData,modules:[ISSUE_MODULE,SUGGESTION_MODULE],createSuggestionText,createIssueText,
+ sessionStartedAt9511:DIAG_STARTED_9511,isIssueRecent9511:recentIssue9511,issueSummary9511,
+ refreshStatus9511:()=>clone(centerRefreshState9511)};
 
 function boot(){
   if(centerLoaded)return;centerLoaded=true;
