@@ -18,7 +18,7 @@ const css=String.raw`
   #appShell .page :is(.grid,.form-grid){grid-template-columns:minmax(0,1fr)!important}
   #appShell .page :is(input,select,textarea){font-size:16px!important;max-width:100%!important;box-sizing:border-box}
   #appShell .page button{min-height:42px;max-width:100%;touch-action:manipulation;white-space:normal}
-  #appShell .page :is(table,.table){display:block;max-width:100%;overflow-x:auto;-webkit-overflow-scrolling:touch}
+  #appShell .page :is(table,.table){display:block;min-width:0!important;width:100%!important;max-width:100%;overflow-x:auto;-webkit-overflow-scrolling:touch}
   #appShell .page :is(table,.table) :is(th,td){white-space:normal;min-width:74px;vertical-align:top}
   #appShell .page #hlgbDgCards{display:grid!important;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px!important}
   #appShell .page #hlgbDgCards .card{min-width:0!important;width:auto!important;padding:10px!important}
