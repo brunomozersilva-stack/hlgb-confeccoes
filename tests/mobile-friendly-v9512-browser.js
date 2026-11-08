@@ -22,18 +22,36 @@ const engine=process.env.HLGB_BROWSER==='webkit'?webkit:chromium;
    assert(initial.navInvisible,'drawer should be hidden before opening');
    assert.equal(initial.tabCount,5);
    await page.locator('#hlgbMobileMenu9512').click();
-   assert(await page.locator('body').evaluate(b=>b.classList.contains('hlgb-mobile-nav-open9512')));
+   const panel=page.locator('#hlgbMobileSheetPanel9513');
+   assert(await panel.isVisible(),'body-level menu sheet should open');
+   const rect=await panel.boundingBox();
+   assert(rect&&rect.x>=0&&rect.width>width*.75&&rect.x+rect.width<=width+2,
+     'menu sheet must be fully visible in phone width: '+JSON.stringify(rect));
+   const closeRect=await page.locator('#hlgbMobileSheetClose9513').boundingBox();
+   assert(closeRect&&closeRect.x>=0&&closeRect.x+closeRect.width<=width+2,
+     'close button cannot be clipped by the app shell');
+   assert(await page.locator('body').evaluate(b=>b.classList.contains('hlgb-mobile-sheet-open9513')));
    assert.equal(await page.locator('#hlgbMobileMenu9512').getAttribute('aria-expanded'),'true');
-   await page.locator('#nav button').filter({hasText:'Produção ›'}).click();
-   assert(await page.locator('body').evaluate(b=>b.classList.contains('hlgb-mobile-nav-open9512')),'expanding nav group must not close drawer');
-   await page.locator('#nav button').filter({hasText:'Pedidos'}).click();
-   await page.waitForFunction(()=>!document.body.classList.contains('hlgb-mobile-nav-open9512'));
+   assert(await page.locator('#hlgbMobileSheetLinks9513 .hlgb-mobile-link9513').count()>=3,
+     'source navigation should be accessible even if original sidebar is hidden');
+   await page.locator('#hlgbMobileSheetSearch9513').fill('Pedidos');
+   const matches=await page.locator('#hlgbMobileSheetLinks9513 .hlgb-mobile-link9513:visible').allTextContents();
+   assert(matches.some(s=>s.includes('Pedidos')),'search finds the desired page');
+   assert(matches.every(s=>s.includes('Pedidos')),'search filters unrelated pages');
+   await page.locator('#hlgbMobileSheetLinks9513 .hlgb-mobile-link9513:visible').first().click();
+   await page.waitForFunction(()=>!document.body.classList.contains('hlgb-mobile-sheet-open9513'));
    assert.equal(await page.evaluate(()=>window.__lastPage),'pedidos');
    await page.locator('#hlgbMobileMenu9512').click();
+   await page.locator('#hlgbMobileSheetClose9513').click();
+   assert(!(await page.locator('body').evaluate(b=>b.classList.contains('hlgb-mobile-sheet-open9513'))));
+   await page.locator('#hlgbMobileMenu9512').click();
    await page.keyboard.press('Escape');
-   assert(!(await page.locator('body').evaluate(b=>b.classList.contains('hlgb-mobile-nav-open9512'))));
+   assert(!(await page.locator('body').evaluate(b=>b.classList.contains('hlgb-mobile-sheet-open9513'))));
+   await page.locator('#hlgbMobileMenu9512').click();
+   await page.locator('#hlgbMobileSheet9513').click({position:{x:2,y:2}});
+   assert(!(await page.locator('body').evaluate(b=>b.classList.contains('hlgb-mobile-sheet-open9513'))));
    assert.equal(errors.length,0,errors.join('\n'));
-   console.log('PASS v95.12 '+engine.name()+' '+width+'px: responsive main, scrollable tables, accessible drawer and navigation');
+   console.log('PASS v95.13 '+engine.name()+' '+width+'px: responsive main, scrollable tables, accessible drawer and navigation');
    await page.close();
   }
   const desktop=await browser.newPage({viewport:{width:1280,height:820}});
