@@ -227,17 +227,41 @@ async function hygieneRun9503(){
 
 window.hlgbAuditorAuthorityScan9374=function(){const r=scan();panel(r);window.hlgbAuditorAuthority9374.last=r;return r};
 function decorate(){
- const host=document.getElementById('hlgbAuditorResult');if(!host)return false;
- const actions=host.parentElement?.querySelector?.('.hlgb-auditor-actions')||document.querySelector('.hlgb-auditor-actions');if(!actions)return false;
- let b=document.getElementById('hlgbAuthorityBtn9374');
- if(!b){b=document.createElement('button');b.id='hlgbAuthorityBtn9374';b.type='button';b.className='secondary';b.textContent='🧭 Arquitetura / versões';actions.appendChild(b)}
- b.onclick=()=>window.hlgbAuditorAuthorityScan9374();b.hidden=false;b.removeAttribute('data-hlgb-auditor-hidden');b.style.display='';
- // v95.04: the production loader includes this module but not the optional shell.
- let h=document.getElementById('hlgbHygieneBtn9503');
- if(!h){h=document.createElement('button');h.id='hlgbHygieneBtn9503';h.type='button';h.className='secondary';h.textContent='🧹 Higiene do código';actions.appendChild(h)}
- h.onclick=()=>hygieneRun9503().catch(err=>{console.error('[HLGB hygiene] analysis failed',err);const target=document.getElementById('hlgbAuditorResult');if(target){const p=document.createElement('p');p.textContent='Falha ao abrir Higiene do código: '+sid(err?.message||err);target.prepend(p)}});
- h.hidden=false;h.removeAttribute('data-hlgb-auditor-hidden');h.style.display='inline-block';h.style.visibility='visible';
- return true
+ const host=document.getElementById('hlgbAuditorResult');
+ if(!host||!host.parentElement)return false;
+ const parent=host.parentElement;
+ // v95.04: the official Auditor deliberately hides every extra toolbar action
+ // to keep a single 'Auditar e corrigir' button. Maintenance must live outside
+ // .hlgb-auditor-actions, or its visibility is reverted by a MutationObserver.
+ let launcher=parent.querySelector('#hlgbHygieneLauncher9504');
+ if(!launcher){
+  launcher=document.createElement('div');
+  launcher.id='hlgbHygieneLauncher9504';
+  launcher.className='panel';
+  launcher.style.cssText='margin:8px 0;padding:8px 12px;border:1px solid #d7c9d0';
+  const btn=document.createElement('button');
+  btn.id='hlgbHygieneLauncherBtn9504';btn.type='button';btn.className='secondary';
+  btn.textContent='🧹 Higiene do código';
+  launcher.appendChild(btn);
+  const note=document.createElement('span');note.className='sub';
+  note.textContent=' Verificar códigos repetidos e cache de arquivos (sem apagar dados).';
+  launcher.appendChild(note);
+  parent.insertBefore(launcher,host);
+ }
+ const btn=launcher.querySelector('#hlgbHygieneLauncherBtn9504');
+ if(btn){
+  btn.onclick=()=>hygieneRun9503().catch(err=>{
+   console.error('[HLGB hygiene] analysis failed',err);
+   const target=document.getElementById('hlgbAuditorResult');
+   if(target){const p=document.createElement('p');p.textContent='Falha ao abrir Higiene do código: '+sid(err?.message||err);target.prepend(p)}
+  });
+  btn.hidden=false;btn.removeAttribute('aria-hidden');
+  btn.style.setProperty('display','inline-block','important');
+  btn.style.setProperty('visibility','visible','important');
+  btn.style.setProperty('opacity','1','important');
+  btn.style.setProperty('pointer-events','auto','important');
+ }
+ return true;
 }
 document.addEventListener?.('click',e=>{if(e.target?.closest?.('#hlgbAuditorNavBtn,#hlgbAuditorOpenBtn'))[80,250,700,1500].forEach(ms=>setTimeout(decorate,ms))},true);
 window.HLGB_AUDITOR_AUTHORITY_9374=BUILD;
