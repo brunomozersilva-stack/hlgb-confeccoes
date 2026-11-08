@@ -576,6 +576,7 @@ async function runVisualSweep(save=true){
     baseChecks.push(check('runtime:captured','Erros JavaScript','warn','Erros JavaScript capturados nesta sessão',recentRuntime.slice(-10).map(x=>x.type+': '+x.message).join(' | '),'warn',{runtimeErrors:recentRuntime}));
   }else baseChecks.push(check('runtime:captured','Erros JavaScript','pass','Erros JavaScript capturados nesta sessão','Nenhum erro global capturado pelo Auditor.','info'));
   const row={id:id(),kind:'system_audit_visual_sweep',auditorVersion:VERSION,mode:'visual-sweep',readOnly:true,startedAt,completedAt:now(),appVersion:appVersion(),browser:browserLabel(),user:userLabel(),viewport:{width:Number(window.innerWidth||0),height:Number(window.innerHeight||0),devicePixelRatio:Number(window.devicePixelRatio||1)},activePage:document.querySelector('.page.active')?.id||'',summary:summarize(baseChecks),checks:baseChecks,visualSweep:sweep.pages,visualSweepDurationMs:sweep.durationMs,runtimeErrors:recentRuntime};
+  await enrichWalAudit9506(row);
   if(save){try{return await saveRun(row)}catch(e){row.saveError=String(e?.message||e);return row}}
   return row;
 }
@@ -600,7 +601,7 @@ function auditSync(){
       return Object.entries(p.modules).reduce((n,[m,a])=>n+(m===AUDIT_MODULE?0:(Array.isArray(a)?a.length:0)),0);
     }catch(e){return 0}
   })();
-  checks.push(check('sync:pending','Sincronização',pending?'warn':'pass','Pendências locais de sincronização',pending?pending+' registro(s) aguardando sincronização.':'Nenhuma pendência local detectada.',pending?'warn':'info'));
+  checks.push(check('sync:pending','Sincronização',pending?'warn':'pass','Pendências na fila normalizada',pending?pending+' registro(s) nesta fila. WAL durável verificado separadamente.':'Fila normalizada vazia; este resultado não verifica o WAL durável do IndexedDB.',pending?'warn':'info'));
   return checks;
 }
 function auditDataIntegrity(){
@@ -626,6 +627,32 @@ function summarize(checks){
   const fail=checks.filter(x=>x.status==='fail').length,warn=checks.filter(x=>x.status==='warn').length,pass=checks.filter(x=>x.status==='pass').length;
   return {total:checks.length,pass,warn,fail,result:fail?'Falhou':warn?'Atenção':'Aprovado'};
 }
+/* v95.06: Do not call the system clean when the durable IndexedDB queue
+   still contains work. The normalized pending queue and the WAL are separate. */
+async function enrichWalAudit9506(row){
+ if(!row||!Array.isArray(row.checks))return row;
+ let evidence;
+ try{
+  evidence=await Promise.race([
+   indexedDbWalDiagnostic(),
+   new Promise(resolve=>setTimeout(()=>resolve({available:false,count:0,error:'Tempo excedido ao conferir WAL IndexedDB (5 segundos)'}),5000))
+  ]);
+ }catch(e){evidence={available:false,count:0,error:String(e?.message||e)}}
+ const count=Number.isSafeInteger(Number(evidence?.count))&&Number(evidence.count)>=0?Number(evidence.count):0;
+ const error=String(evidence?.error||'');
+ const verified=evidence?.available===true&&!error;
+ const status=!verified||count>0?'warn':'pass';
+ const detail=!verified
+  ?'Não foi possível verificar a fila WAL do IndexedDB: '+(error||'armazenamento indisponível')+'. Não afirmar ausência de pendências.'
+  :count?count+' operação(ões) no WAL durável IndexedDB; verificar provas remotas antes de remover qualquer operação.'
+  :'WAL durável IndexedDB consultado: nenhuma operação pendente nesta sessão.';
+ const rowCheck=check('sync:indexeddb-wal','Sincronização',status,'Pendências no WAL durável (IndexedDB)',detail,status==='warn'?'warn':'info');
+ const old=row.checks.findIndex(c=>c?.code==='sync:indexeddb-wal');
+ if(old>=0)row.checks.splice(old,1,rowCheck);else row.checks.push(rowCheck);
+ row.walEvidence={version:'95.06',available:verified,count:verified?count:null,verified,readOnly:true,error:error||null};
+ row.summary=summarize(row.checks);row.completedAt=now();
+ return row;
+}
 function buildRun(mode='full'){
   const startedAt=now(),checks=[];
   checks.push(...auditFunctions(),...auditModules(),...auditDomStructure(),...auditSync(),...auditDataIntegrity(),...auditRuntimeErrors());
@@ -641,6 +668,7 @@ function buildRun(mode='full'){
 }
 async function run(mode='full',save=true){
   const row=buildRun(mode);
+  await enrichWalAudit9506(row);
   if(save){
     try{return await saveRun(row)}
     catch(e){
@@ -802,7 +830,7 @@ window.hlgbAuditorCleanDerivedSync=async function(){
     alert('Não foi possível concluir a limpeza segura.\n\n'+String(e?.message||e));
   }
 };
-window.hlgbInternalAuditor={VERSION,module:AUDIT_MODULE,buildRun,run,runVisualSweep,auditVisualSweep,downloadVisualDiagnostic,latest,report,auditFunctions,auditModules,auditDomStructure,auditVisualCurrent,auditSync,auditDataIntegrity,loadRuns,saveRun,stableJson,cleanupTechnicalPending,redactDiagnostic,normalizedPendingDiagnostic,localWalDiagnostic,indexedDbWalDiagnostic,buildSyncDiagnostic,downloadSyncDiagnostic,classifiedDerivedPending,cleanClassifiedDerivedPending,runtimeErrors};
+window.hlgbInternalAuditor={VERSION,module:AUDIT_MODULE,buildRun,run,runVisualSweep,auditVisualSweep,downloadVisualDiagnostic,latest,report,auditFunctions,auditModules,auditDomStructure,auditVisualCurrent,auditSync,auditDataIntegrity,enrichWalAudit9506,loadRuns,saveRun,stableJson,cleanupTechnicalPending,redactDiagnostic,normalizedPendingDiagnostic,localWalDiagnostic,indexedDbWalDiagnostic,buildSyncDiagnostic,downloadSyncDiagnostic,classifiedDerivedPending,cleanClassifiedDerivedPending,runtimeErrors};
 function boot(){
   detachTechnicalModule();cleanupTechnicalPending();inject();
   try{if(typeof hlgbAfterLogin==='function')hlgbAfterLogin(()=>{setTimeout(()=>{inject();loadRuns()},500)},0)}catch(e){}
