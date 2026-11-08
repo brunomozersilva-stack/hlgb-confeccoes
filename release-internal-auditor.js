@@ -618,9 +618,25 @@ function auditDataIntegrity(){
   return checks;
 }
 function auditRuntimeErrors(){
-  const open=arr('systemIssues').filter(x=>x?.status!=='Resolvido'),high=open.filter(x=>['Crítica','Alta'].includes(x?.priority));
+  const issues=arr('systemIssues');
+  const api=window.hlgbDiagnosticsCenter;
+  const byStatus=issues.filter(x=>String(x?.status||'').toLowerCase()!=='resolvido');
+  const lastSession=Number(api?.sessionStartedAt9511)||Date.now();
+  const now=Date.now(),cutoff=Math.max(lastSession-30000,now-15*60*1000);
+  const isRecent=x=>{
+   if(typeof api?.isIssueRecent9511==='function')return api.isIssueRecent9511(x);
+   const seen=Date.parse(String(x?.lastSeenAt||x?.firstSeenAt||x?.createdAt||''));
+   return Number.isFinite(seen)&&seen>=cutoff&&seen<=now+30000;
+  };
+  const recent=byStatus.filter(isRecent),historical=byStatus.length-recent.length;
+  const high=recent.filter(x=>/^(alta|cr[ií]tica)$/i.test(String(x?.priority||'')));
+  const detail=recent.length+' ocorrência(s) recente(s) nesta sessão (últimos 15 min); '+
+   historical+' ocorrência(s) históricas ainda sem baixa; '+
+   high.length+' recente(s) de prioridade alta/crítica. Histórico não significa falha atual.';
   return [
-    check('issues:open','Erros registrados',high.length?'warn':'pass','Erros abertos na Central',open.length+' aberto(s); '+high.length+' de alta prioridade.',high.length?'warn':'info'),
+    check('issues:open','Erros registrados',recent.length?'warn':'pass',
+     'Ocorrências recentes e histórico da Central',detail,recent.length?'warn':'info',
+     {recentIssues:recent.length,historicalIssues:historical,recentHighPriority:high.length})
   ];
 }
 function summarize(checks){
