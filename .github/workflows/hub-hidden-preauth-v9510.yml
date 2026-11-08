@@ -1,0 +1,50 @@
+name: HLGB Hub hidden preauth render v95.10
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'release-hub-personal-integrity.js'
+      - 'tests/hub-hidden-preauth-v9510-fixture.html'
+      - 'tests/hub-hidden-preauth-v9510-browser.js'
+      - '.github/workflows/hub-hidden-preauth-v9510.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'release-hub-personal-integrity.js'
+      - 'tests/hub-hidden-preauth-v9510-fixture.html'
+      - 'tests/hub-hidden-preauth-v9510-browser.js'
+      - '.github/workflows/hub-hidden-preauth-v9510.yml'
+permissions:
+  contents: read
+jobs:
+  logic:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '20'}
+      - run: node --check release-hub-personal-integrity.js
+  browser:
+    runs-on: ubuntu-latest
+    timeout-minutes: 18
+    strategy:
+      fail-fast: false
+      matrix:
+        browser: [chromium, webkit]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '20'}
+      - name: Install Playwright
+        run: |
+          npm install --no-save playwright@1.55.0
+          npx playwright install --with-deps ${{ matrix.browser }}
+      - name: Serve HLGB scripts
+        run: |
+          python3 -m http.server 4173 >/tmp/hlgb-hub-9510.log 2>&1 &
+          sleep 2
+      - name: Test authenticated and hidden finance render paths
+        env:
+          HLGB_BROWSER: ${{ matrix.browser }}
+        run: node tests/hub-hidden-preauth-v9510-browser.js
