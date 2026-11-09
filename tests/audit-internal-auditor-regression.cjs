@@ -27,6 +27,7 @@ const context={
   window:{
     hlgbBusinessExpansion9400:{install(){return true}},
     hlgbPrinter3dNavGuard9516:{verify(){return {status:'pass'}}},
+    hlgbPrinter3dCloud9517:{status(){return {status:'pass',verified:true,filamentPriceKg:120,remoteCounts:{printer3dProducts:{cloud:6},printer3dSales:{cloud:1},printer3dSettings:{cloud:1}},localCounts:{printer3dProducts:6,printer3dSales:1,printer3dSettings:1},settingsMismatch:false}}},
     innerWidth:1000,innerHeight:800,devicePixelRatio:1,
     HLGB_RELEASE_VERSION:'92.47',
     hlgbDiagnosticsCenter:{scanSystem(){return []}},
@@ -87,6 +88,7 @@ assert.equal(run.browser,'Safari','Safari must be identified');
 assert.equal(run.activePage,'projecao');
 assert.equal(run.summary.fail,0,'clean mocked system must have no failing checks');
 assert(run.checks.some(x=>x.code==='nav:printer3d'&&x.status==='pass'),'auditor must check 3D navigation');
+assert(run.checks.some(x=>x.code==='data:printer3d-cloud'&&x.status==='pass'),'auditor must confirm 3D records and filament price');
 delete nodes.printer3dNav9400;
 const broken3d=api.buildRun('full');
 assert(broken3d.checks.some(x=>x.code==='nav:printer3d'&&x.status==='fail'),'missing 3D menu must be visible as a fail');
