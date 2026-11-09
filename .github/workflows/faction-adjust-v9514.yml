@@ -1,0 +1,56 @@
+name: HLGB Safe Faction Transfers and Pricing v95.14
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'release-faction-safe-adjust-v9514.js'
+      - 'app-stable3.html'
+      - 'migrations/hlgb_faction_safe_transfer_pricing_v9514.sql'
+      - 'tests/faction-adjust-v9514-*'
+      - '.github/workflows/faction-adjust-v9514.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'release-faction-safe-adjust-v9514.js'
+      - 'app-stable3.html'
+      - 'migrations/hlgb_faction_safe_transfer_pricing_v9514.sql'
+      - 'tests/faction-adjust-v9514-*'
+      - '.github/workflows/faction-adjust-v9514.yml'
+permissions:
+  contents: read
+jobs:
+  logic:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '20'}
+      - run: node --check release-faction-safe-adjust-v9514.js
+      - run: node --check tests/faction-adjust-v9514-browser.js
+      - run: node tests/faction-adjust-v9514-guards.cjs
+      - run: node tests/audit-faction-traveta-payment-v9424.cjs
+      - run: node tests/audit-faction-master-integrity-regression.cjs
+  browser:
+    runs-on: ubuntu-latest
+    timeout-minutes: 18
+    strategy:
+      fail-fast: false
+      matrix:
+        browser: [chromium,webkit]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '20'}
+      - name: Install Playwright
+        run: |
+          npm install --no-save playwright@1.55.0
+          npx playwright install --with-deps ${{ matrix.browser }}
+      - name: Serve isolated synthetic fixtures
+        run: |
+          python3 -m http.server 4173 >/tmp/hlgb-faction9514.log 2>&1 &
+          sleep 2
+      - name: Validate transfer and pricing UI with fake records
+        env:
+          HLGB_BROWSER: ${{ matrix.browser }}
+        run: node tests/faction-adjust-v9514-browser.js

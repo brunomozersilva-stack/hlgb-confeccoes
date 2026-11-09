@@ -1,0 +1,56 @@
+<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"></head>
+<body><div id="appShell"><main><section id="faccoes" class="page active">
+<h1>Facções</h1><div id="factionTable"><table><tbody>
+<tr><td>Facção Alfa</td><td><button type="button" onclick="editFaction(1)">Editar</button></td></tr>
+</tbody></table></div></section></main></div>
+<div id="modal"></div>
+<script>
+window.__HLGB_AUTH_READY=true;
+window.HLGB_RELEASE_VERSION='95.14';
+window.db={factions:[{id:1,name:'Facção Alfa',sent:100,done:0,returned:0,
+ defects:0,waste:0,price:2,orderId:10,productId:15,productionId:17,status:'Em produção'}],
+ factionMasters:[{id:1,name:'Facção Alfa',active:true},{id:2,name:'Facção Beta',active:true}]};
+window.openModal=(title,body,fn)=>{
+ const modal=document.getElementById('modal');modal.innerHTML='<h2>'+title+'</h2>'+body;
+ modal.querySelector('button.modalSave')?.addEventListener('click',fn);
+};window.closeModal=()=>{document.getElementById('modal').innerHTML=''};
+window.editFaction=id=>{};
+window.renderFactions=()=>{};
+window.renderFactionPayments=()=>{};
+window.localSaveOnly=()=>{window.__localSaveCount=(window.__localSaveCount||0)+1};
+window.cloudEnsureFreshSession=async()=>true;
+window.confirm=()=>true;
+window.__rpcCalls=[];window.__remote={
+ factions:{'1':{module:'factions',entity_id:'1',revision:5,deleted_at:null,data:{...window.db.factions[0]}}}
+};
+window.cloudRequest=async(query,opt)=>{
+ if(opt?.method==='GET'){
+  const module=decodeURIComponent(query.match(/module=eq\.([^&]+)/)?.[1]||'');
+  const id=decodeURIComponent(query.match(/entity_id=eq\.([^&]+)/)?.[1]||'');
+  const row=window.__remote[module]?.[id];return row?[structuredClone(row)]:[];
+ }
+ if(opt?.method!=='POST'||query!=='rpc/hlgb_faction_adjust_v9514')throw Error('Unexpected remote operation');
+ const a=JSON.parse(opt.body),r=window.__remote.factions[a.p_faction_id];
+ if(!r||r.revision!==a.p_expected_revision)throw Error('Revision collision');
+ window.__rpcCalls.push(a);
+ if(a.p_action==='transfer'){
+  const orig=r.data.sent;
+  if(a.p_quantity<orig){
+   const id='synthetic-target-'+window.__rpcCalls.length;
+   window.__remote.factions[id]={module:'factions',entity_id:id,revision:1,deleted_at:null,
+    data:{...r.data,id,name:a.p_target_name,sent:a.p_quantity}};
+   r.data.sent=orig-a.p_quantity;r.revision++;
+   return {applied:true,action:'transfer',sourceId:a.p_faction_id,
+    sourceRevision:r.revision,targetId:id,createdDestination:true,
+    remainingSource:orig-a.p_quantity,transferQty:a.p_quantity};
+  }
+  r.data.name=a.p_target_name;r.revision++;
+  return {applied:true,action:'transfer',sourceId:a.p_faction_id,
+    sourceRevision:r.revision,targetId:a.p_faction_id,createdDestination:false,
+    remainingSource:0,transferQty:a.p_quantity};
+ }
+ r.data.price=a.p_new_price;r.revision++;
+ return {applied:true,action:'price',sourceId:a.p_faction_id,sourceRevision:r.revision,
+  unpaidUpdated:0,paidPreserved:0};
+};
+</script><script src="../release-faction-safe-adjust-v9514.js"></script></body></html>
