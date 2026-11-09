@@ -23,7 +23,7 @@ function openWalReadOnly(){
   req.onerror=()=>{if(aborted)resolve([]);else reject(req.error||new Error('Falha de leitura WAL'))};
   req.onsuccess=()=>{
    const database=req.result;
-   if(!database.objectStoreNames.contains('entries')){database.close();resolve([]);return}
+   if(!database.objectStoreNames.contains('entries')){database.close();reject(new Error('WAL IndexedDB incompleta; operação bloqueada'));return}
    const tx=database.transaction('entries','readonly'),get=tx.objectStore('entries').getAll();
    get.onsuccess=()=>resolve(Array.isArray(get.result)?get.result:null);
    get.onerror=()=>reject(get.error||new Error('Falha ao conferir operações pendentes'));
@@ -42,7 +42,7 @@ async function assertNoLocalPending(id){
  let local;
  try{
   local=JSON.parse(localStorage.getItem('hlgb_durable_wal_v1')||'null');
-  if(local!==null&&(!local||typeof local!=='object'||Array.isArray(local)||!local.entries||typeof local.entries!=='object'))
+  if(local!==null&&(!local||typeof local!=='object'||Array.isArray(local)||!local.entries||typeof local.entries!=='object'||Array.isArray(local.entries)))
    throw new Error('WAL local incompleta');
  }catch(e){throw new Error('Não foi possível conferir a fila local. Nenhuma transferência foi enviada. '+sid(e?.message||e))}
  if(Object.values(local?.entries||{}).some(e=>pendingFor(id,e)))
@@ -50,7 +50,7 @@ async function assertNoLocalPending(id){
  let pending;
  try{pending=JSON.parse(localStorage.getItem('hlgb_records_pending_v91')||'null')}
  catch(e){throw new Error('Fila normalizada ilegível; operação bloqueada sem apagar dados')}
- if(pending&&typeof pending!=='object')throw new Error('Fila de sincronização inválida');
+ if(pending&&(typeof pending!=='object'||Array.isArray(pending)))throw new Error('Fila de sincronização inválida');
  for(const [module,entries] of Object.entries(pending?.modules||{})){
   if(!Array.isArray(entries))throw new Error('Lista de sincronização inválida para '+module);
   if(entries.some(e=>pendingFor(id,{module,id:e?.id,data:e?.data||e?.value||e?.record})))
