@@ -182,7 +182,7 @@ BEGIN
         'name',v_target,'transferHistoryV9514',v_history||jsonb_build_array(v_event),
         'updatedAt',v_now);
       IF v_target_location IS NOT NULL THEN
-        v_src_data := v_src_data||jsonb_build_object('productionLocationId',v_target_location);
+        v_src_data := v_src_data||jsonb_build_object('productionLocationId',v_master.data->'productionLocationId');
       END IF;
     ELSE
       v_src_data := v_src_data||jsonb_build_object(
@@ -199,7 +199,7 @@ BEGIN
         'transferHistoryV9514',jsonb_build_array(v_event),
         'sentAt',to_char(current_date,'YYYY-MM-DD'),'createdAt',v_now,'updatedAt',v_now);
       IF v_target_location IS NOT NULL THEN
-        v_dst_data := v_dst_data||jsonb_build_object('productionLocationId',v_target_location);
+        v_dst_data := v_dst_data||jsonb_build_object('productionLocationId',v_master.data->'productionLocationId');
       END IF;
       -- Numeric-string ID retains compatibility with legacy editFaction(123) buttons.
       -- Insert destination before adjusting source; any later failure rolls
