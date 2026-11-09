@@ -1,0 +1,56 @@
+name: HLGB Canonical Entry and Printer 3D Auditor v95.16
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'app9240.html'
+      - 'app-stable3.html'
+      - 'hlgb-canonical-sw.js'
+      - 'release-internal-auditor.js'
+      - 'tests/printer3d-entry-v9516*'
+      - '.github/workflows/printer3d-entry-v9516.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'app9240.html'
+      - 'app-stable3.html'
+      - 'hlgb-canonical-sw.js'
+      - 'release-internal-auditor.js'
+      - 'tests/printer3d-entry-v9516*'
+      - '.github/workflows/printer3d-entry-v9516.yml'
+permissions:
+  contents: read
+jobs:
+  logic:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '20'}
+      - run: node --check release-internal-auditor.js
+      - run: node --check hlgb-canonical-sw.js
+      - run: node --test tests/printer3d-entry-v9516.cjs
+  browser:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        browser: [chromium,webkit]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '20'}
+      - name: Install Playwright
+        run: |
+          npm install --no-save playwright@1.55.0
+          npx playwright install --with-deps ${{ matrix.browser }}
+      - name: Serve the complete frontend without writing production data
+        run: |
+          python3 -m http.server 4173 >/tmp/hlgb-printer3d-9516.log 2>&1 &
+          sleep 2
+      - name: Verify Chrome/Safari redirect, menu and auditor
+        env:
+          HLGB_BROWSER: ${{ matrix.browser }}
+        run: node tests/printer3d-entry-v9516-browser.cjs
