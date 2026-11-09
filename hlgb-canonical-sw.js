@@ -9,7 +9,7 @@ self.addEventListener('fetch',event=>{
   if(u.origin!==self.location.origin)return;
   const file=(u.pathname.split('/').pop()||'').toLowerCase();
   const isCurrent=file==='abrir.html'||file==='app-stable3.html'||file==='';
-  const isLegacy=/^app\d+(?:\.html)?$/.test(file)||/^sistema-v\d+\.html$/.test(file)||file==='app-stable.html'||file==='app-stable2.html';
+  const isLegacy=/^app\d+\.html$/.test(file)||/^app\d+$/.test(file)||/^sistema-v\d+\.html$/.test(file)||file==='app-stable.html'||file==='app-stable2.html';
   if(!isLegacy||isCurrent)return;
   const target=new URL('./'+CANONICAL,self.registration.scope);
   target.searchParams.set('reroute','legacy');
