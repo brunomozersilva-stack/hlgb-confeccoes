@@ -406,6 +406,7 @@ function auditDomStructure(){
   const required3dNav=['p3HomeNav9400','p3ProductsNav9400','p3SalesNav9400','p3CatalogNav9400'];
   const missing3dNav=required3dNav.filter(x=>!nav3d?.querySelector('#'+x));
   checks.push(check('nav:printer3d','Navegação',statusFor(!!nav3d&&!missing3dNav.length),'Menu Impressora 3D',nav3d&&!missing3dNav.length?'Grupo e quatro atalhos 3D presentes':'Menu 3D ausente ou incompleto: '+(!nav3d?'grupo printer3dNav9400; ':'')+missing3dNav.join(', '),'error'));
+  checks.push(check('guard:printer3d-nav','Navegação',statusFor(typeof window.hlgbPrinter3dNavGuard9516?.verify==='function'),'Reparo seguro do menu 3D',typeof window.hlgbPrinter3dNavGuard9516?.verify==='function'?'Monitor de navegação carregado':'Monitor 3D v95.16 ausente; não é possível reparar o menu automaticamente','error'));
   checks.push(check('module:printer3d','Módulos',statusFor(typeof window.hlgbBusinessExpansion9400?.install==='function'),'Módulo Impressora 3D',typeof window.hlgbBusinessExpansion9400?.install==='function'?'Instalador 3D disponível':'Script release-business-expansion-v9400.js não carregou','error'));
   const entryPath=String(location.pathname||'');
   const canonical=entryPath.toLowerCase().endsWith('/app-stable3.html');
