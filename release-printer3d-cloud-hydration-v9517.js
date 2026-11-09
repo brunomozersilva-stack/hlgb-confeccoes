@@ -120,7 +120,7 @@ async function refresh(reason='manual',force=false){
    const rows=await cloudRequest(path,{method:'GET'});
    if(!Array.isArray(rows))throw Error('A nuvem não retornou uma lista válida de registros 3D.');
    if(rows.length>=200)throw Error('Limite de leitura 3D atingido; não é seguro assumir que o retorno está completo.');
-   const pending=pendingLocal(),wal=await pendingIdb();for(const id of wal.ids)pending.add(id);
+   const pending=pendingLocal(),wal=await pendingIdb();state.idbPendingKeys=[...wal.ids];for(const id of wal.ids)pending.add(id);
    const out=mergeRows(rows,pending,wal.verified);
    state.remoteCounts=out.counts;state.missing=out.missing;state.preservedPending=out.preserved;state.extraLocal=out.extras;
    const d=dbRef(),settingsRemote=rows.find(r=>r.module==='printer3dSettings'&&sid(r.entity_id)==='settings-main')?.data||null;
@@ -128,9 +128,10 @@ async function refresh(reason='manual',force=false){
    state.settingsMismatch=!!settingsRemote&&!!settingsLocal&&!pending.has('printer3dSettings|settings-main')&&Number(settingsRemote.filamentPriceKg||0)!==Number(settingsLocal.filamentPriceKg||0);
    state.filamentPriceKg=settingsRemote?.filamentPriceKg??null;
    state.verified=true;state.lastAt=new Date().toISOString();lastGood=Date.now();state.lastError='';
-   state.status=out.missing.length||state.settingsMismatch?'fail':!rows.length||!wal.verified?'warn':'pass';
+   state.status=out.missing.length||state.settingsMismatch?'fail':!rows.length||!wal.verified||out.preserved?'warn':'pass';
    if(!rows.length)state.lastError='Nenhum registro retornou para este usuário; confirme permissão antes de cadastrar novamente.';
    if(!wal.verified)state.lastError='WAL IndexedDB não pôde ser conferido. Registros locais existentes foram preservados.';
+   if(out.preserved)state.lastError='Há alteração local 3D pendente ou revisão mais recente, mantida sem sobrescrever a nuvem.';
    redraw();return status();
   }catch(e){state.lastError=sid(e?.message||e);state.status='warn';state.verified=false;console.warn('[HLGB '+V+'] leitura 3D',e);return status()}
   finally{state.loading=false;decorate()}
