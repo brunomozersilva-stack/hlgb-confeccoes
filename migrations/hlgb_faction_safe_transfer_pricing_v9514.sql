@@ -254,6 +254,17 @@ BEGIN
     RAISE EXCEPTION 'Sem permissão para conferir pagamentos de facção';
   END IF;
 
+  -- Tombstoned historic payments must still count as paid evidence;
+  -- deleting a payment record does not permit rewriting financial history.
+  SELECT count(*) INTO v_paid
+  FROM public.hlgb_records r
+  WHERE r.module='factionPayments' AND r.deleted_at IS NOT NULL
+    AND r.data->>'factionServiceId'=p_faction_id
+    AND (lower(coalesce(r.data->>'status','')) IN ('pago','paga','paid','liquidado')
+      OR coalesce(nullif(r.data->>'paidAmount','')::numeric,0)>0
+      OR (jsonb_typeof(r.data->'paymentHistory')='array'
+          AND jsonb_array_length(r.data->'paymentHistory')>0));
+
   -- Evaluate each payment under a row lock. Historic and paid rows are left
   -- unchanged, while safely unpaid rows get a proportional recalculation.
   FOR v_payment IN
