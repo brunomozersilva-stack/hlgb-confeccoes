@@ -24,7 +24,7 @@ if(typeof window.addEventListener==='function'){
  }catch(_){ }},true);
  window.addEventListener('unhandledrejection',e=>{try{keepRuntimeError('unhandledrejection',e?.reason?.message||String(e?.reason||'Promise rejeitada'),e?.reason?.stack||'')}catch(_){ }},true);
 }
-const REQUIRED_PAGES=['dashboard','pedidos','corte','producao','projecao','faltas','hubFinanceiro','config'];
+const REQUIRED_PAGES=['dashboard','pedidos','corte','producao','projecao','faltas','hubFinanceiro','config','printer3dHome9400','printer3dProducts9400','printer3dSales9400','printer3dCatalog9400'];
 const REQUIRED_FUNCTIONS=[
   'renderOrders','renderProjection','renderHubFinance','renderPayrollProvisions',
   'abateMissingPiece','toggleHubFinanceEntry','editOrder','hlgbRecordSaveWithRetry'
@@ -401,6 +401,16 @@ function auditDomStructure(){
     const el=document.getElementById(pid);
     checks.push(check('page:'+pid,'Telas',statusFor(!!el),pid,el?'Tela presente no DOM':'Tela ausente no DOM','error',{page:pid}));
   });
+  // v95.16: uma tela existente nao significa acesso pelo menu. O Auditor deve falhar se a Impressora 3D desaparecer.
+  const nav3d=document.getElementById('printer3dNav9400');
+  const required3dNav=['p3HomeNav9400','p3ProductsNav9400','p3SalesNav9400','p3CatalogNav9400'];
+  const missing3dNav=required3dNav.filter(x=>!nav3d?.querySelector('#'+x));
+  checks.push(check('nav:printer3d','Navegação',statusFor(!!nav3d&&!missing3dNav.length),'Menu Impressora 3D',nav3d&&!missing3dNav.length?'Grupo e quatro atalhos 3D presentes':'Menu 3D ausente ou incompleto: '+(!nav3d?'grupo printer3dNav9400; ':'')+missing3dNav.join(', '),'error'));
+  checks.push(check('guard:printer3d-nav','Navegação',statusFor(typeof window.hlgbPrinter3dNavGuard9516?.verify==='function'),'Reparo seguro do menu 3D',typeof window.hlgbPrinter3dNavGuard9516?.verify==='function'?'Monitor de navegação carregado':'Monitor 3D v95.16 ausente; não é possível reparar o menu automaticamente','error'));
+  checks.push(check('module:printer3d','Módulos',statusFor(typeof window.hlgbBusinessExpansion9400?.install==='function'),'Módulo Impressora 3D',typeof window.hlgbBusinessExpansion9400?.install==='function'?'Instalador 3D disponível':'Script release-business-expansion-v9400.js não carregou','error'));
+  const entryPath=String(typeof location!=='undefined'?(location.pathname||''):(window.location?.pathname||''));
+  const canonical=entryPath.toLowerCase().endsWith('/app-stable3.html');
+  checks.push(check('route:canonical-entry','Navegação',canonical?'pass':'fail','Entrada canônica atualizada',canonical?'Roteador atualizado':'Entrada não canônica ('+entryPath+'): abra ./abrir.html','error'));
   const ids=[...document.querySelectorAll('[id]')].map(x=>x.id).filter(Boolean),counts={};
   ids.forEach(x=>counts[x]=(counts[x]||0)+1);
   const dup=Object.entries(counts).filter(([,n])=>n>1).map(([x,n])=>x+' ('+n+'x)');

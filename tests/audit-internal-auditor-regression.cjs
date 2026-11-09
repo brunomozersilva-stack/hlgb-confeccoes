@@ -4,8 +4,9 @@ const src=fs.readFileSync(path.join(root,'release-internal-auditor.js'),'utf8');
 const loader=fs.readFileSync(path.join(root,'app-stable3.html'),'utf8');
 assert(loader.includes("'release-internal-auditor.js'"),'loader must include internal auditor');
 
-const ids=['appShell','nav','dashboard','pedidos','corte','producao','projecao','faltas','hubFinanceiro','config'];
+const ids=['appShell','nav','dashboard','pedidos','corte','producao','projecao','faltas','hubFinanceiro','config','printer3dHome9400','printer3dProducts9400','printer3dSales9400','printer3dCatalog9400','printer3dNav9400','p3HomeNav9400','p3ProductsNav9400','p3SalesNav9400','p3CatalogNav9400'];
 const nodes=Object.fromEntries(ids.map(id=>[id,{id}]));
+nodes.printer3dNav9400.querySelector=sel=>nodes[String(sel).replace(/^#/,'')]||null;
 const activePage={id:'projecao',querySelectorAll(){return []}};
 let pendingWrites=0;
 const ls=new Map();
@@ -22,7 +23,10 @@ const context={
     systemIssues:[],
     systemAuditRuns:[{id:'stale-local-audit'}]
   },
+  location:{pathname:'/hlgb-confeccoes/app-stable3.html'},
   window:{
+    hlgbBusinessExpansion9400:{install(){return true}},
+    hlgbPrinter3dNavGuard9516:{verify(){return {status:'pass'}}},
     innerWidth:1000,innerHeight:800,devicePixelRatio:1,
     HLGB_RELEASE_VERSION:'92.47',
     hlgbDiagnosticsCenter:{scanSystem(){return []}},
@@ -82,6 +86,11 @@ assert.equal(run.readOnly,true,'audit must identify itself as read-only');
 assert.equal(run.browser,'Safari','Safari must be identified');
 assert.equal(run.activePage,'projecao');
 assert.equal(run.summary.fail,0,'clean mocked system must have no failing checks');
+assert(run.checks.some(x=>x.code==='nav:printer3d'&&x.status==='pass'),'auditor must check 3D navigation');
+delete nodes.printer3dNav9400;
+const broken3d=api.buildRun('full');
+assert(broken3d.checks.some(x=>x.code==='nav:printer3d'&&x.status==='fail'),'missing 3D menu must be visible as a fail');
+nodes.printer3dNav9400={id:'printer3dNav9400',querySelector:sel=>nodes[String(sel).replace(/^#/,'')]||null};
 assert(run.summary.pass>0,'audit must run passing checks');
 assert.equal(JSON.stringify(context.db.orders),before,'read-only audit must not mutate business orders');
 assert.equal(pendingWrites,0,'buildRun must not execute record writes');
