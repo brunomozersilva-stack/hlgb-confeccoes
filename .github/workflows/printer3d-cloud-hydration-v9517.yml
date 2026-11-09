@@ -1,0 +1,61 @@
+name: HLGB Printer 3D Cloud Hydration v95.17
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'release-printer3d-cloud-hydration-v9517.js'
+      - 'release-printer3d-persistence-v9431.js'
+      - 'release-internal-auditor.js'
+      - 'app-stable3.html'
+      - 'tests/printer3d-cloud-hydration-v9517*'
+      - 'tests/audit-internal-auditor-regression.cjs'
+      - '.github/workflows/printer3d-cloud-hydration-v9517.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'release-printer3d-cloud-hydration-v9517.js'
+      - 'release-printer3d-persistence-v9431.js'
+      - 'release-internal-auditor.js'
+      - 'app-stable3.html'
+      - 'tests/printer3d-cloud-hydration-v9517*'
+      - 'tests/audit-internal-auditor-regression.cjs'
+      - '.github/workflows/printer3d-cloud-hydration-v9517.yml'
+permissions:
+  contents: read
+jobs:
+  logic:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '20'}
+      - run: node --check release-printer3d-cloud-hydration-v9517.js
+      - run: node --check release-printer3d-persistence-v9431.js
+      - run: node --check release-internal-auditor.js
+      - run: node --test tests/printer3d-cloud-hydration-v9517.cjs
+      - run: node tests/printer3d-persistence-v9431.cjs
+      - run: node tests/audit-internal-auditor-regression.cjs
+  browser:
+    runs-on: ubuntu-latest
+    timeout-minutes: 18
+    strategy:
+      fail-fast: false
+      matrix:
+        browser: [chromium,webkit]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '20'}
+      - name: Install Playwright
+        run: |
+          npm install --no-save playwright@1.55.0
+          npx playwright install --with-deps ${{ matrix.browser }}
+      - name: Serve isolated synthetic 3D records
+        run: |
+          python3 -m http.server 4173 >/tmp/hlgb-printer3d-9517.log 2>&1 &
+          sleep 2
+      - name: Validate recovery and WAL preservation
+        env:
+          HLGB_BROWSER: ${{ matrix.browser }}
+        run: node tests/printer3d-cloud-hydration-v9517-browser.cjs
