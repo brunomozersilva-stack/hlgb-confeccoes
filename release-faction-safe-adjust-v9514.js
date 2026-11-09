@@ -20,10 +20,10 @@ function openWalReadOnly(){
   let req,aborted=false;
   try{req=indexedDB.open(WAL_DB)}catch(e){reject(e);return}
   req.onupgradeneeded=()=>{aborted=true;try{req.transaction.abort()}catch(_){}};
-  req.onerror=()=>{if(aborted)resolve(null);else reject(req.error||new Error('Falha de leitura WAL'))};
+  req.onerror=()=>{if(aborted)resolve([]);else reject(req.error||new Error('Falha de leitura WAL'))};
   req.onsuccess=()=>{
    const database=req.result;
-   if(!database.objectStoreNames.contains('entries')){database.close();resolve(null);return}
+   if(!database.objectStoreNames.contains('entries')){database.close();resolve([]);return}
    const tx=database.transaction('entries','readonly'),get=tx.objectStore('entries').getAll();
    get.onsuccess=()=>resolve(Array.isArray(get.result)?get.result:null);
    get.onerror=()=>reject(get.error||new Error('Falha ao conferir operações pendentes'));
@@ -57,7 +57,7 @@ async function assertNoLocalPending(id){
    throw new Error('Esta facção possui uma alteração pendente na fila de sincronização.');
  }
  const rows=await openWalReadOnly();
- if(rows===null)throw new Error('WAL não pôde ser confirmada no IndexedDB');
+ if(!Array.isArray(rows))throw new Error('WAL não pôde ser confirmada no IndexedDB');
  if(rows.some(e=>pendingFor(id,e)))throw new Error('Há uma operação pendente no IndexedDB relacionada a esta facção.');
  return true;
 }
@@ -138,7 +138,7 @@ function makeArgs(f){
   if(!target)throw new Error('Selecione a facção de destino');
   if(!Number.isInteger(q)||q<=0||q>qty(f.sent))throw new Error('Quantidade de transferência inválida');
  }else if(action==='price'){
-  if(!Number.isFinite(p)||p<0||p>10000||Math.round(p*100)!==p*100)
+  if(!Number.isFinite(p)||p<0||p>10000||Math.abs(Math.round(p*100)-p*100)>1e-7)
    throw new Error('Informe um valor de mão de obra válido, com até duas casas decimais');
   if(p===qty(f.price))throw new Error('Informe um valor diferente do atual');
  }else throw new Error('Ação inválida');
@@ -163,11 +163,11 @@ async function submit(){
   await assertNoLocalPending(args.p_faction_id);
   if(typeof window.cloudEnsureFreshSession==='function')await window.cloudEnsureFreshSession(false);
   const current=await remoteRecord('factions',args.p_faction_id);
-  if(!remoteEqualsLocal(original,current.data)){
+  if(!remoteEqualsLocal(original,current)){
    throw new Error('Os dados desta facção mudaram na nuvem. Reabra a tela para não sobrescrever uma alteração mais recente.');
   }
   args.p_expected_revision=Number(current.revision);
-  if(!state.requestId)state.requestId=crypto?.randomUUID?.()||'';
+  if(!state.requestId)state.requestId=window.crypto?.randomUUID?.()||'';
   if(!state.requestId)throw new Error('Identificador seguro indisponível');
   args.p_request_id=state.requestId;
   if(btn)btn.textContent='☁️ Salvando com segurança...';
