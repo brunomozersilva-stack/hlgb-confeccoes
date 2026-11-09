@@ -91,6 +91,15 @@ BEGIN
     IF v_idem->>'action'<>v_action THEN
       RAISE EXCEPTION 'Identificador de operação reutilizado com outra ação';
     END IF;
+    IF v_action='transfer' AND
+       (coalesce(v_idem->>'to','')<>btrim(coalesce(p_target_name,''))
+         OR (v_idem->>'quantity')::numeric IS DISTINCT FROM p_quantity) THEN
+      RAISE EXCEPTION 'Esta tentativa já foi processada com outros valores. Reabra a alocação';
+    END IF;
+    IF v_action='price' AND
+       (v_idem->>'newPrice')::numeric IS DISTINCT FROM p_new_price THEN
+      RAISE EXCEPTION 'Esta alteração de preço já foi processada com outro valor. Reabra a alocação';
+    END IF;
     RETURN jsonb_build_object('applied',true,'duplicate',true,'action',v_action,
       'sourceId',v_src.entity_id,'sourceRevision',v_src.revision,
       'targetId',coalesce(v_idem->>'targetId',''),
@@ -215,6 +224,21 @@ BEGIN
       'transferQty',v_qty,'remainingSource',v_new_source_sent,
       'originalSent',v_sent,'target',v_target_result,
       'productionLocationReviewRequired',true);
+  END IF;
+
+  -- Historic material checklists without their own price snapshot must
+  -- not silently display a newly negotiated price for an old delivery.
+  IF EXISTS (
+    SELECT 1 FROM public.hlgb_records c
+    WHERE c.module='materialChecklists' AND c.deleted_at IS NULL
+      AND ((c.data->>'factionId')=p_faction_id
+        OR ((c.data->>'orderId')=coalesce(v_src_data->>'orderId','')
+          AND coalesce(v_src_data->>'orderId','')<>''
+          AND (c.data->>'productId')=coalesce(v_src_data->>'productId','')
+          AND lower(btrim(coalesce(c.data->>'destinationName','')))=lower(btrim(v_src_name))))
+      AND coalesce(nullif(c.data->>'unitPrice','')::numeric,0)<=0
+  ) THEN
+    RAISE EXCEPTION 'Checklist antigo sem valor unitário próprio: ajuste de preço bloqueado para preservar valores históricos';
   END IF;
 
   -- New labor price: previous paid/part-paid payments are immutable.
