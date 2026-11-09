@@ -407,8 +407,9 @@ function auditDomStructure(){
   const missing3dNav=required3dNav.filter(x=>!nav3d?.querySelector('#'+x));
   checks.push(check('nav:printer3d','Navegação',statusFor(!!nav3d&&!missing3dNav.length),'Menu Impressora 3D',nav3d&&!missing3dNav.length?'Grupo e quatro atalhos 3D presentes':'Menu 3D ausente ou incompleto: '+(!nav3d?'grupo printer3dNav9400; ':'')+missing3dNav.join(', '),'error'));
   checks.push(check('module:printer3d','Módulos',statusFor(typeof window.hlgbBusinessExpansion9400?.install==='function'),'Módulo Impressora 3D',typeof window.hlgbBusinessExpansion9400?.install==='function'?'Instalador 3D disponível':'Script release-business-expansion-v9400.js não carregou','error'));
-  const entryPath=String(location.pathname||'').replace(/\\/+$/,'');
-  checks.push(check('route:canonical-entry','Navegação',/^\\/.*\\/app-stable3\\.html$/i.test(entryPath)||/\\/app-stable3\\.html$/i.test(entryPath)?'pass':'fail','Entrada canônica atualizada',/\\/app-stable3\\.html$/i.test(entryPath)?'Roteador atualizado':'Entrada não canônica ('+entryPath+'): abra ./abrir.html','error'));
+  const entryPath=String(location.pathname||'');
+  const canonical=entryPath.toLowerCase().endsWith('/app-stable3.html');
+  checks.push(check('route:canonical-entry','Navegação',canonical?'pass':'fail','Entrada canônica atualizada',canonical?'Roteador atualizado':'Entrada não canônica ('+entryPath+'): abra ./abrir.html','error'));
   const ids=[...document.querySelectorAll('[id]')].map(x=>x.id).filter(Boolean),counts={};
   ids.forEach(x=>counts[x]=(counts[x]||0)+1);
   const dup=Object.entries(counts).filter(([,n])=>n>1).map(([x,n])=>x+' ('+n+'x)');
