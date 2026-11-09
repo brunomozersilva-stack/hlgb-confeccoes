@@ -1,4 +1,4 @@
-/* HLGB — Service Worker canônico v93.16 */
+/* HLGB — Service Worker canônico v95.16: legado com e sem extensão */
 const CANONICAL='abrir.html';
 self.addEventListener('install',()=>self.skipWaiting());
 self.addEventListener('activate',event=>event.waitUntil(self.clients.claim()));
@@ -9,7 +9,7 @@ self.addEventListener('fetch',event=>{
   if(u.origin!==self.location.origin)return;
   const file=(u.pathname.split('/').pop()||'').toLowerCase();
   const isCurrent=file==='abrir.html'||file==='app-stable3.html'||file==='';
-  const isLegacy=/^app\d+\.html$/.test(file)||/^sistema-v\d+\.html$/.test(file)||file==='app-stable.html'||file==='app-stable2.html';
+  const isLegacy=/^app\d+(?:\.html)?$/.test(file)||/^sistema-v\d+\.html$/.test(file)||file==='app-stable.html'||file==='app-stable2.html';
   if(!isLegacy||isCurrent)return;
   const target=new URL('./'+CANONICAL,self.registration.scope);
   target.searchParams.set('reroute','legacy');
