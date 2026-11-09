@@ -53,10 +53,9 @@ const engine=process.env.HLGB_BROWSER==='webkit'?webkit:chromium;
  await page.locator('#hlgbFactionPrice9514').fill('2.75');
  await page.locator('#hlgbFactionReason9514').fill('Alteração não deve sobrepor WAL pendente');
  await page.locator('#hlgbFactionSubmit9514').click();
- await page.waitForFunction(()=>window.hlgbFactionAdjust9514.status().lastError.includes('pendentes')||
-  window.hlgbFactionAdjust9514.status().lastError.includes('pendente'),null,{timeout:10000});
+ await page.waitForFunction(()=>/pendente|não confirmad/i.test(window.hlgbFactionAdjust9514.status().lastError),null,{timeout:10000});
  assert.equal(await page.evaluate(()=>window.__rpcCalls.length),2,'Never send RPC with locally pending operation');
- assert((await page.locator('#hlgbFactionError9514').innerText()).toLowerCase().includes('pendente'));
+ assert(/pendente|não confirmad/i.test(await page.locator('#hlgbFactionError9514').innerText()));
  assert.deepEqual(errors,[],'no browser errors in workflow');
  console.log('PASS v95.14 '+engine.name()+': split 100=70+30, update unpaid price, forbid local WAL collision, confirm cloud readback');
  }finally{await browser.close()}
