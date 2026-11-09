@@ -9,7 +9,7 @@ const required=[
  /FOR UPDATE;/,
  /v_src\.revision<>p_expected_revision/,
  /hlgb_save_record\('factions'/,
- /hlgb_save_record\('factionPayments'/,
+ /hlgb_save_record\(\s*'factionPayments'/,
  /transferHistoryV9514/,/pricingHistoryV9514/,
  /paymentHistory/,/paidAmount/,/r\.deleted_at IS NULL/,
  /transferência bloqueada|Transferência bloqueada/,
