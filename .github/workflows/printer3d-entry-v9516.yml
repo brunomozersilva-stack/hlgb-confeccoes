@@ -6,7 +6,7 @@ on:
       - 'app9240.html'
       - 'app-stable3.html'
       - 'hlgb-canonical-sw.js'
-      - 'release-internal-auditor.js'
+      - 'release-internal-auditor.js'\n      - 'release-printer3d-nav-guard-v9516.js'
       - 'tests/printer3d-entry-v9516*'
       - '.github/workflows/printer3d-entry-v9516.yml'
   push:
@@ -28,7 +28,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with: {node-version: '20'}
-      - run: node --check release-internal-auditor.js
+      - run: node --check release-internal-auditor.js\n      - run: node --check release-printer3d-nav-guard-v9516.js
       - run: node --check hlgb-canonical-sw.js
       - run: node --test tests/printer3d-entry-v9516.cjs
   browser:
