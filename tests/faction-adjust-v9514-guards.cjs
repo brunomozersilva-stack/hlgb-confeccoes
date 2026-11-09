@@ -11,7 +11,7 @@ const required=[
  /hlgb_save_record\('factions'/,
  /hlgb_save_record\('factionPayments'/,
  /transferHistoryV9514/,/pricingHistoryV9514/,
- /paymentHistory/,/paidAmount/,/v_payment\.deleted_at IS NULL/,
+ /paymentHistory/,/paidAmount/,/r\.deleted_at IS NULL/,
  /transferência bloqueada|Transferência bloqueada/,
  /REVOKE ALL ON FUNCTION/,/GRANT EXECUTE ON FUNCTION/,
  /v_new_source_sent := v_sent-v_qty/,
