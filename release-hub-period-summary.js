@@ -6,7 +6,7 @@ const sid=v=>String(v??'');
 const q=v=>Math.max(0,Number(v)||0);
 const escSafe=v=>typeof esc==='function'?esc(v):sid(v).replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
 const moneySafe=v=>typeof money==='function'?money(v):Number(v||0).toLocaleString('pt-BR',{style:'currency',currency:'BRL'});
-function rows(){try{return Array.isArray(db?.hubFinanceEntries)?db.hubFinanceEntries:[]}catch(e){return []}}
+function rows(){try{const raw=Array.isArray(db?.hubFinanceEntries)?db.hubFinanceEntries:[];return typeof window.hlgbHubPayrollPaidDate9515?.rows==='function'?window.hlgbHubPayrollPaidDate9515.rows(raw,db?.payroll):raw}catch(e){return []}}
 function today(){return new Date().toISOString().slice(0,10)}
 function isoWeek(iso){
   const d=new Date((iso||today())+'T12:00:00'),tmp=new Date(d);tmp.setHours(0,0,0,0);tmp.setDate(tmp.getDate()+3-((tmp.getDay()+6)%7));
