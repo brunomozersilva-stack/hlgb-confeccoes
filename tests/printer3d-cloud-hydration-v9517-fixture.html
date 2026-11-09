@@ -1,0 +1,25 @@
+<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><title>Teste 3D nuvem 95.17</title>
+<script>
+window.db={printer3dProducts:[],printer3dSales:[],printer3dSettings:[]};
+window.hlgbRecordSnapshots={};
+var cloudAccessToken='fixture-token';
+var __writes=0,__calls=0,__failCloud=false;
+window.__rows=[
+ ...Array.from({length:6},(_,i)=>({module:'printer3dProducts',entity_id:'p'+(i+1),data:{id:'p'+(i+1),name:'Produto '+(i+1),filamentPriceKg:120},revision:1,updated_at:'2026-11-03T01:00:00Z'})),
+ {module:'printer3dSales',entity_id:'s1',data:{id:'s1',qty:1,total:15},revision:1,updated_at:'2026-11-03T01:00:00Z'},
+ {module:'printer3dSettings',entity_id:'settings-main',data:{id:'settings-main',filamentPriceKg:120,machineHourRate:1.25,defaultMultiplier:2},revision:2,updated_at:'2026-11-03T01:00:00Z'}
+];
+async function cloudEnsureFreshSession(){return true}
+async function cloudRequest(path,opts){__calls++;if(!path.includes('module=in.(printer3dProducts,printer3dSales,printer3dSettings)')||opts.method!=='GET')throw Error('Unexpected request');if(__failCloud)throw Error('simulated offline');return __rows}
+function localSaveOnly(){__writes++}
+function hlgbAfterLogin(){}
+window.hlgbBusinessExpansion9400={render3dProducts(){document.getElementById('printer3dProducts9400Host').textContent=window.db.printer3dProducts.map(x=>x.name).join(', ')},render3dHome(){const s=window.db.printer3dSettings[0];document.getElementById('printer3dHome9400Host').textContent='Filamento: '+(s?.filamentPriceKg??'?')},render3dSales(){},render3dCatalog(){}};
+</script></head><body>
+<div id="appShell">
+ <section class="page active" id="printer3dProducts9400"><div id="printer3dProducts9400Host"></div></section>
+ <section class="page" id="printer3dHome9400"><div id="printer3dHome9400Host"></div></section>
+ <section class="page" id="printer3dSales9400"><div id="printer3dSales9400Host"></div></section>
+ <section class="page" id="printer3dCatalog9400"><div id="printer3dCatalog9400Host"></div></section>
+</div>
+<script src="../release-printer3d-cloud-hydration-v9517.js"></script>
+</body></html>
