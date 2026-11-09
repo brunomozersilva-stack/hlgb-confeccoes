@@ -408,6 +408,12 @@ function auditDomStructure(){
   checks.push(check('nav:printer3d','Navegação',statusFor(!!nav3d&&!missing3dNav.length),'Menu Impressora 3D',nav3d&&!missing3dNav.length?'Grupo e quatro atalhos 3D presentes':'Menu 3D ausente ou incompleto: '+(!nav3d?'grupo printer3dNav9400; ':'')+missing3dNav.join(', '),'error'));
   checks.push(check('guard:printer3d-nav','Navegação',statusFor(typeof window.hlgbPrinter3dNavGuard9516?.verify==='function'),'Reparo seguro do menu 3D',typeof window.hlgbPrinter3dNavGuard9516?.verify==='function'?'Monitor de navegação carregado':'Monitor 3D v95.16 ausente; não é possível reparar o menu automaticamente','error'));
   checks.push(check('module:printer3d','Módulos',statusFor(typeof window.hlgbBusinessExpansion9400?.install==='function'),'Módulo Impressora 3D',typeof window.hlgbBusinessExpansion9400?.install==='function'?'Instalador 3D disponível':'Script release-business-expansion-v9400.js não carregou','error'));
+  // v95.17: tela presente não comprova dados 3D presentes. Checar leitura remota e preços.
+  const c3d=window.hlgbPrinter3dCloud9517?.status?.()||null;
+  const c3dStatus=c3d?.status==='pass'?'pass':c3d?.status==='fail'?'fail':'warn';
+  const c3dCloud=c3d?.remoteCounts||{},c3dLocal=c3d?.localCounts||{};
+  const c3dDetail=c3d?'Produtos '+(c3dCloud.printer3dProducts?.cloud??'?')+' nuvem / '+(c3dLocal.printer3dProducts??'?')+' tela; vendas '+(c3dCloud.printer3dSales?.cloud??'?')+' nuvem / '+(c3dLocal.printer3dSales??'?')+' tela; configurações '+(c3dCloud.printer3dSettings?.cloud??'?')+' nuvem / '+(c3dLocal.printer3dSettings??'?')+' tela; filamento R$ '+(c3d.filamentPriceKg??'?')+'/kg. '+(c3d.lastError||''):'Recuperação 3D v95.17 não carregada; produtos e custos não foram conferidos.';
+  checks.push(check('data:printer3d-cloud','Integridade dos dados',c3dStatus,'Produtos e preço de filamento 3D na nuvem',c3dDetail,c3dStatus==='pass'?'info':'error',{cloudVerified:!!c3d?.verified,remoteCounts:c3dCloud,localCounts:c3dLocal,settingsMismatch:!!c3d?.settingsMismatch}));
   const entryPath=String(typeof location!=='undefined'?(location.pathname||''):(window.location?.pathname||''));
   const canonical=entryPath.toLowerCase().endsWith('/app-stable3.html');
   checks.push(check('route:canonical-entry','Navegação',canonical?'pass':'fail','Entrada canônica atualizada',canonical?'Roteador atualizado':'Entrada não canônica ('+entryPath+'): abra ./abrir.html','error'));
