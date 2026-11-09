@@ -26,16 +26,25 @@ function snapshotRows(module){
  return rows;
 }
 function sameRows(a,b){
- try{const norm=x=>(Array.isArray(x)?x:[]).map(r=>[sid(r?.id),sid(r?.updatedAt),sid(r?.updated_at)]).sort((x,y)=>x[0].localeCompare(y[0]));return JSON.stringify(norm(a))===JSON.stringify(norm(b))}catch(e){return false}
+ try{return JSON.stringify(a)===JSON.stringify(b)}catch(e){return false}
 }
 function hydrateModule(module){
  const d=dbRef();if(!d)return {module,available:false,changed:false,reason:'db-unavailable'};
  if(!Array.isArray(d[module]))d[module]=[];
  const remote=snapshotRows(module);if(remote===null)return {module,available:false,changed:false,local:d[module].length};
- const pending=pendingIds(module),remoteIds=new Set(remote.map(x=>sid(x?.id))),keepLocal=d[module].filter(x=>pending.has(sid(x?.id))&&!remoteIds.has(sid(x?.id)));
- const merged=[...remote,...keepLocal];const changed=!sameRows(d[module],merged);
- if(changed)d[module]=merged;
- return {module,available:true,changed,remote:remote.length,local:d[module].length,preservedPending:keepLocal.length};
+ // v95.17: preservar TODO cadastro local ainda não confirmado. O merge não infere exclusões.
+ // Operações pendentes de mesmo ID (inclusive WAL no IndexedDB) não podem ser sobrescritas.
+ const pending=pendingIds(module),idb=window.hlgbPrinter3dCloud9517?.state?.idbPendingKeys||[];
+ for(const key of idb)if(String(key).startsWith(module+'|'))pending.add(String(key).slice(module.length+1));
+ const local=d[module],merged=new Map(local.filter(x=>x&&x.id!=null).map(x=>[sid(x.id),x]));
+ let preservedPending=0;
+ for(const row of remote){const id=sid(row?.id);if(!id)continue;
+  if(merged.has(id)&&pending.has(id)){preservedPending++;continue}
+  merged.set(id,row);
+ }
+ const result=[...merged.values()],changed=!sameRows(local,result);
+ if(changed)d[module]=result;
+ return {module,available:true,changed,remote:remote.length,local:d[module].length,preservedPending,extraLocal:[...merged.keys()].filter(x=>!remote.some(r=>sid(r?.id)===x)).length};
 }
 function redraw(){
  const active=document.querySelector('.page.active')?.id||'';
@@ -92,7 +101,7 @@ function persistAudit(){
 }
 function wrapLoader(){
  const fn=window.hlgbRecordLoadBundle;if(typeof fn!=='function'||fn.__hlgbPrinter3d9431)return false;
- const w=async function hlgbPrinter3dLoadThrough(){ensureArrays();state.loads++;const out=await fn.apply(this,arguments);hydrate('record-load');return out};w.__hlgbPrinter3d9431=true;w.__original=fn;window.hlgbRecordLoadBundle=w;return true;
+ const w=async function hlgbPrinter3dLoadThrough(){ensureArrays();state.loads++;const out=await fn.apply(this,arguments);try{if(!window.hlgbPrinter3dCloud9517)window.hlgbLogin3dBaseline9407?.hydrateExpansionSnapshots?.(out)}catch(e){}hydrate('record-load');return out};w.__hlgbPrinter3d9431=true;w.__original=fn;window.hlgbRecordLoadBundle=w;return true;
 }
 function wrapIncoming(){
  const fn=window.hlgbRenderIncomingRecord;if(typeof fn!=='function'||fn.__hlgbPrinter3d9431)return false;
@@ -100,6 +109,7 @@ function wrapIncoming(){
 }
 function authenticated(){try{return window.__HLGB_AUTH_READY===true||document.getElementById('appShell')&&getComputedStyle(document.getElementById('appShell')).display!=='none'}catch(e){return false}}
 async function forceRepair(reason='boot'){
+ if(typeof window.hlgbPrinter3dCloud9517?.refresh==='function'){const x=await window.hlgbPrinter3dCloud9517.refresh(reason,true);return x.status==='pass'}
  if(state.forcedLoadDone||!authenticated())return false;ensureArrays();hydrate(reason+'-snapshot');const st=status();
  if(st.status==='pass')return true;
  if(typeof window.hlgbRecordLoadBundle!=='function')return false;
@@ -112,9 +122,9 @@ async function forceRepair(reason='boot'){
  }catch(e){state.lastError=sid(e?.message||e);console.warn('[HLGB v94.31] recarga 3D',e);return false}
 }
 function install(){ensureArrays();wrapLoader();wrapIncoming();hydrate('install');
- [800,2200,5000].forEach(ms=>setTimeout(()=>{wrapLoader();wrapIncoming();hydrate('settle-'+ms);if(ms>=2200)forceRepair('settle-'+ms).catch(()=>{})},ms));
- try{if(typeof hlgbAfterLogin==='function')hlgbAfterLogin(()=>{ensureArrays();setTimeout(()=>forceRepair('login').catch(()=>{}),500)},0)}catch(e){}
- window.addEventListener('hlgb:authenticated',()=>{ensureArrays();setTimeout(()=>forceRepair('authenticated').catch(()=>{}),500)});
+ [800,2200,5000].forEach(ms=>setTimeout(()=>{wrapLoader();wrapIncoming();hydrate('settle-'+ms);if(ms>=2200&&!window.hlgbPrinter3dCloud9517)forceRepair('settle-'+ms).catch(()=>{})},ms));
+ try{if(typeof hlgbAfterLogin==='function')hlgbAfterLogin(()=>{ensureArrays();setTimeout(()=>{if(!window.hlgbPrinter3dCloud9517)forceRepair('login').catch(()=>{})},500)},0)}catch(e){}
+ window.addEventListener('hlgb:authenticated',()=>{ensureArrays();setTimeout(()=>{if(!window.hlgbPrinter3dCloud9517)forceRepair('authenticated').catch(()=>{})},500)});
  document.addEventListener('click',e=>{if(e.target?.closest?.('#hlgbAuditorUnifiedRun9429,#hlgbAuditorUnifiedRun9427'))[1200,4500].forEach(ms=>setTimeout(persistAudit,ms))},{capture:true});
  try{const cur=parseFloat(String(window.HLGB_RELEASE_VERSION||'0'))||0;if(cur<94.31)window.HLGB_RELEASE_VERSION=V}catch(e){}
 }
