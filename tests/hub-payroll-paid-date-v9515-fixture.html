@@ -1,0 +1,23 @@
+<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>HLGB Hub — teste isolado</title></head>
+<body><label>Semana <input type="date" id="hubFinanceWeek" value="2026-11-05"></label><div id="hubFinanceEntriesTable"></div>
+<script>
+window.__mutations=0;window.__syncWrites=0;
+window.db={
+ hubFinanceEntries:[
+ {id:'payroll-month-2026-11',sourceType:'payroll_month',sourceId:'2026-11',date:'2026-11-05',flow:'Saída',status:'Realizado',category:'Funcionários',value:39637.93},
+ {id:37,date:'2026-11-06',flow:'Saída',status:'Realizado',category:'Transporte',value:100}],
+ payroll:[
+ {id:'1',month:'2026-11',paid:true,paidAt:'2026-11-05',paidValue:1876.24},
+ {id:'2',month:'2026-11',paid:true,paidAt:'2026-11-06',paidValue:37761.69},
+ {id:'3',month:'2026-11',paid:true,paidAt:'2026-11-09',paidValue:16324.43}]
+};
+window.hlgb916HubWeekEntries=(range)=>window.db.hubFinanceEntries.filter(e=>e.date>=range.start&&e.date<=range.end);
+window.hlgb9163SyncAllPayrollMonths=async()=>{window.__syncWrites++;};
+window.hlgbAfterLogin=fn=>fn();
+window.renderHubFinance=()=>{const isCurrent=document.getElementById('hubFinanceWeek').value>='2026-11-09';
+ const r=isCurrent?{start:'2026-11-09',end:'2026-11-15'}:{start:'2026-11-02',end:'2026-11-08'};
+ const rows=window.hlgb916HubWeekEntries(r),box=document.getElementById('hubFinanceEntriesTable');
+ window.__total=Math.round(rows.reduce((x,e)=>x+Number(e.value||0),0)*100)/100;
+ box.innerHTML='<table><tbody>'+rows.map(e=>'<tr><td>'+e.description+'</td><td>'+e.value+'</td><td><button onclick="window.__mutations++">Editar</button></td></tr>').join('')+'</tbody></table>';
+};
+</script><script src="../release-hub-payroll-paid-date-v9515.js"></script><script>window.renderHubFinance();document.getElementById('hubFinanceWeek').onchange=window.renderHubFinance;</script></body></html>
