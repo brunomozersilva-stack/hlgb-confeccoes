@@ -163,7 +163,7 @@ BEGIN
 
     v_new_source_sent := v_sent-v_qty;
     v_target_id := CASE WHEN v_new_source_sent=0 THEN p_faction_id
-                   ELSE 'faction-transfer-v9514-'||replace(v_request,'-','') END;
+                   ELSE (100000000000000::bigint + (('x'||substr(md5(v_request),1,12))::bit(48)::bigint))::text END;
     v_event := jsonb_build_object('requestId',v_request,'action','transfer',
       'at',v_now,'by',auth.uid()::text,'reason',v_reason,
       'from',v_src_name,'to',v_target,'quantity',v_qty,'priorSent',v_sent,
@@ -192,6 +192,7 @@ BEGIN
       IF v_target_location IS NOT NULL THEN
         v_dst_data := v_dst_data||jsonb_build_object('productionLocationId',v_target_location);
       END IF;
+      -- Numeric-string ID retains compatibility with legacy editFaction(123) buttons.
       -- Insert destination before adjusting source; any later failure rolls
       -- back the full statement and cannot leave duplicate quantities.
       SELECT * INTO v_written
