@@ -1,0 +1,56 @@
+name: HLGB Payroll Paid Date Weekly Hub v95.15
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'release-hub-payroll-paid-date-v9515.js'
+      - 'release-hub-period-summary.js'
+      - 'release-hub-search.js'
+      - 'app-stable3.html'
+      - 'tests/hub-payroll-paid-date-v9515*'
+      - '.github/workflows/hub-payroll-paid-date-v9515.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'release-hub-payroll-paid-date-v9515.js'
+      - 'release-hub-period-summary.js'
+      - 'release-hub-search.js'
+      - 'app-stable3.html'
+      - 'tests/hub-payroll-paid-date-v9515*'
+      - '.github/workflows/hub-payroll-paid-date-v9515.yml'
+permissions:
+  contents: read
+jobs:
+  logic:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '20'}
+      - run: node --check release-hub-payroll-paid-date-v9515.js
+      - run: node --check tests/hub-payroll-paid-date-v9515-browser.cjs
+      - run: node --test tests/hub-payroll-paid-date-v9515.cjs
+  browser:
+    runs-on: ubuntu-latest
+    timeout-minutes: 18
+    strategy:
+      fail-fast: false
+      matrix:
+        browser: [chromium,webkit]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '20'}
+      - name: Install Playwright
+        run: |
+          npm install --no-save playwright@1.55.0
+          npx playwright install --with-deps ${{ matrix.browser }}
+      - name: Serve isolated synthetic fixtures
+        run: |
+          python3 -m http.server 4173 >/tmp/hlgb-hub9515.log 2>&1 &
+          sleep 2
+      - name: Verify weekly expenses in ${{ matrix.browser }}
+        env:
+          HLGB_BROWSER: ${{ matrix.browser }}
+        run: node tests/hub-payroll-paid-date-v9515-browser.cjs
