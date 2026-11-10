@@ -39,9 +39,14 @@ function displayMaterials(c){
  if(!api||typeof api.analyze!=='function')return {rows:snapshot,derived:false};
  let result;
  try{result=api.analyze(c)}catch(_){return {rows:snapshot,derived:false}}
- if(result?.status!=='current'||result.locked||!Array.isArray(result.materials))
+ if(result?.locked||!Array.isArray(result?.materials)||result?.different)
   return {rows:snapshot,derived:false,stale:result?.status==='stale'};
- return {rows:result.materials,derived:true};
+ // Quando somente a estrutura por cor mudou, mostrar prévia correta na impressão,
+ // mas não mentir que o checklist original já foi atualizado no servidor.
+ if(result.status==='detail-needed')
+  return {rows:result.materials,derived:true,notYetSaved:true};
+ if(result.status!=='current')return {rows:snapshot,derived:false};
+ return {rows:result.materials,derived:true,notYetSaved:false};
 }
 const oldOpen=window.openMaterialChecklist;
 if(typeof oldOpen==='function'&&!oldOpen.__hlgbChecklistMatrixV1){
@@ -68,7 +73,7 @@ window.printMaterialChecklist=function(id){
  }
  const mats=display.rows.map(m=>'<tr><td>☐</td><td>'+escSafe(m.name||'')+'</td><td>'+escSafe(m.cat||'-')+'</td><td>'+escSafe(m.color||'Total')+'</td><td>'+q(m.qty).toLocaleString('pt-BR',{maximumFractionDigits:3})+'</td><td>'+escSafe(m.unit||'')+'</td><td>'+(m.rolls!=null?q(m.rolls)+' rolo'+(q(m.rolls)===1?'':'s'):'-')+'</td></tr>').join('');
  const w=window.open('','_blank');if(!w)return alert('Permita pop-ups para imprimir.');
- w.document.write('<!doctype html><html><head><meta charset="utf-8"><title>Checklist — '+escSafe(c.destinationName||'')+'</title><style>body{font-family:Arial;padding:26px;color:#222}table{width:100%;border-collapse:collapse;margin:10px 0 18px}th,td{border:1px solid #aaa;padding:7px;font-size:12px;text-align:center}th:first-child,td:first-child{text-align:left}h1{font-size:21px}h2{font-size:16px}</style></head><body><h1>HLGB Confecções — Checklist da facção</h1><p><b>Destino:</b> '+escSafe(c.destinationName||'-')+'<br><b>Modelo:</b> '+escSafe(c.productName||'-')+'<br><b>Quantidade:</b> '+q(c.qty).toLocaleString('pt-BR')+' peças</p><h2>Grade do produto enviado</h2>'+matrix(c)+(display.derived?'<p style="font-size:11px">Detalhamento por cor conforme grade e ficha atual. Totais conferidos com o registro original; esta impressão não altera o envio salvo.</p>':'')+'<h2>Matéria-prima / aviamentos</h2><table><tr><th>OK</th><th>Material</th><th>Categoria</th><th>Cor</th><th>Quantidade</th><th>Unidade</th><th>Rolos</th></tr>'+(mats||'<tr><td colspan="7">Sem materiais cadastrados.</td></tr>')+'</table><p>Conferido por: __________________________ Data: ____/____/________</p><p>Observação: ______________________________________________________________</p><script>window.onload=()=>window.print();<\/script></body></html>');
+ w.document.write('<!doctype html><html><head><meta charset="utf-8"><title>Checklist — '+escSafe(c.destinationName||'')+'</title><style>body{font-family:Arial;padding:26px;color:#222}table{width:100%;border-collapse:collapse;margin:10px 0 18px}th,td{border:1px solid #aaa;padding:7px;font-size:12px;text-align:center}th:first-child,td:first-child{text-align:left}h1{font-size:21px}h2{font-size:16px}</style></head><body><h1>HLGB Confecções — Checklist da facção</h1><p><b>Destino:</b> '+escSafe(c.destinationName||'-')+'<br><b>Modelo:</b> '+escSafe(c.productName||'-')+'<br><b>Quantidade:</b> '+q(c.qty).toLocaleString('pt-BR')+' peças</p><h2>Grade do produto enviado</h2>'+matrix(c)+(display.derived?'<p style="font-size:11px">'+(display.notYetSaved?'PRÉVIA DA SEPARAÇÃO POR COR — o checklist original ainda está agregado na nuvem. Use Conferir > Salvar separação por cor na nuvem, antes de dar baixa.':'Detalhamento por cor conforme grade e ficha atual. Totais conferidos com o registro original; esta impressão não altera o envio salvo.')+'</p>':'')+'<h2>Matéria-prima / aviamentos</h2><table><tr><th>OK</th><th>Material</th><th>Categoria</th><th>Cor</th><th>Quantidade</th><th>Unidade</th><th>Rolos</th></tr>'+(mats||'<tr><td colspan="7">Sem materiais cadastrados.</td></tr>')+'</table><p>Conferido por: __________________________ Data: ____/____/________</p><p>Observação: ______________________________________________________________</p><script>window.onload=()=>window.print();<\/script></body></html>');
  w.document.close();
 };
 window.hlgbFactionChecklistGrade={sourceGrade,matrix,displayMaterials};
