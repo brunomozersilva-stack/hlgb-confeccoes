@@ -1,0 +1,33 @@
+name: HLGB Materiais por Cor e Rolos v95.30
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'release-faction-material-refresh-v9522.js'
+      - 'release-faction-checklist-grade-standard.js'
+      - 'tests/faction-materials-colors-rolls-v9530.cjs'
+      - '.github/workflows/faction-materials-colors-rolls-v9530.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'release-faction-material-refresh-v9522.js'
+      - 'release-faction-checklist-grade-standard.js'
+      - 'tests/faction-materials-colors-rolls-v9530.cjs'
+      - '.github/workflows/faction-materials-colors-rolls-v9530.yml'
+permissions:
+  contents: read
+jobs:
+  regression:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '20'}
+      - name: Check JavaScript syntax
+        run: |
+          node --check release-faction-material-refresh-v9522.js
+          node --check release-faction-checklist-grade-standard.js
+          node --check tests/faction-materials-colors-rolls-v9530.cjs
+      - name: Verify color, roll, and immutable receipt logic
+        run: node --test tests/faction-materials-colors-rolls-v9530.cjs

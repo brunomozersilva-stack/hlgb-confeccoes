@@ -30,6 +30,19 @@ function matrix(c){
  return '<div class="hlgbChecklistMatrix" style="overflow:auto"><table><thead><tr><th>Cor</th>'+ss.map(s=>'<th>'+escSafe(s)+'</th>').join('')+'<th>Total</th></tr></thead><tbody>'+rows+'<tr><td colspan="'+(ss.length+1)+'" style="text-align:right"><b>Total da grade</b></td><td><b>'+total.toLocaleString('pt-BR')+'</b></td></tr></tbody></table></div>';
 }
 function findChecklist(id){return arr('materialChecklists').find(x=>sid(x?.id)===sid(id))||null}
+function displayMaterials(c){
+ // Recompõe somente a apresentação de checklists não conferidos, sem salvar nada.
+ // A atualização técnica v95.30 só pode ser exibida quando os totais conferem
+ // com o snapshot do envio e a ficha técnica atual.
+ const snapshot=Array.isArray(c?.materials)?c.materials:[];
+ const api=window.hlgbFactionMaterialRefresh9522;
+ if(!api||typeof api.analyze!=='function')return {rows:snapshot,derived:false};
+ let result;
+ try{result=api.analyze(c)}catch(_){return {rows:snapshot,derived:false}}
+ if(result?.status!=='current'||result.locked||!Array.isArray(result.materials))
+  return {rows:snapshot,derived:false,stale:result?.status==='stale'};
+ return {rows:result.materials,derived:true};
+}
 const oldOpen=window.openMaterialChecklist;
 if(typeof oldOpen==='function'&&!oldOpen.__hlgbChecklistMatrixV1){
  const w=function(id){
@@ -49,12 +62,16 @@ if(typeof oldOpen==='function'&&!oldOpen.__hlgbChecklistMatrixV1){
 const oldPrint=window.printMaterialChecklist;
 window.printMaterialChecklist=function(id){
  const c=findChecklist(id);if(!c)return oldPrint?.apply(this,arguments);
- const mats=(c.materials||[]).map(m=>'<tr><td>☐</td><td>'+escSafe(m.name||'')+'</td><td>'+escSafe(m.cat||'-')+'</td><td>'+escSafe(m.color||'Total')+'</td><td>'+q(m.qty).toLocaleString('pt-BR',{maximumFractionDigits:3})+'</td><td>'+escSafe(m.unit||'')+'</td><td>'+(m.rolls!=null?q(m.rolls)+' rolo'+(q(m.rolls)===1?'':'s'):'-')+'</td></tr>').join('');
+ const display=displayMaterials(c);
+ if(display.stale&&window.hlgbFactionMaterialRefresh9522?.openReview){
+  return window.hlgbFactionMaterialRefresh9522.openReview(id);
+ }
+ const mats=display.rows.map(m=>'<tr><td>☐</td><td>'+escSafe(m.name||'')+'</td><td>'+escSafe(m.cat||'-')+'</td><td>'+escSafe(m.color||'Total')+'</td><td>'+q(m.qty).toLocaleString('pt-BR',{maximumFractionDigits:3})+'</td><td>'+escSafe(m.unit||'')+'</td><td>'+(m.rolls!=null?q(m.rolls)+' rolo'+(q(m.rolls)===1?'':'s'):'-')+'</td></tr>').join('');
  const w=window.open('','_blank');if(!w)return alert('Permita pop-ups para imprimir.');
- w.document.write('<!doctype html><html><head><meta charset="utf-8"><title>Checklist — '+escSafe(c.destinationName||'')+'</title><style>body{font-family:Arial;padding:26px;color:#222}table{width:100%;border-collapse:collapse;margin:10px 0 18px}th,td{border:1px solid #aaa;padding:7px;font-size:12px;text-align:center}th:first-child,td:first-child{text-align:left}h1{font-size:21px}h2{font-size:16px}</style></head><body><h1>HLGB Confecções — Checklist da facção</h1><p><b>Destino:</b> '+escSafe(c.destinationName||'-')+'<br><b>Modelo:</b> '+escSafe(c.productName||'-')+'<br><b>Quantidade:</b> '+q(c.qty).toLocaleString('pt-BR')+' peças</p><h2>Grade do produto enviado</h2>'+matrix(c)+'<h2>Matéria-prima / aviamentos</h2><table><tr><th>OK</th><th>Material</th><th>Categoria</th><th>Cor</th><th>Quantidade</th><th>Unidade</th><th>Rolos</th></tr>'+(mats||'<tr><td colspan="7">Sem materiais cadastrados.</td></tr>')+'</table><p>Conferido por: __________________________ Data: ____/____/________</p><p>Observação: ______________________________________________________________</p><script>window.onload=()=>window.print();<\/script></body></html>');
+ w.document.write('<!doctype html><html><head><meta charset="utf-8"><title>Checklist — '+escSafe(c.destinationName||'')+'</title><style>body{font-family:Arial;padding:26px;color:#222}table{width:100%;border-collapse:collapse;margin:10px 0 18px}th,td{border:1px solid #aaa;padding:7px;font-size:12px;text-align:center}th:first-child,td:first-child{text-align:left}h1{font-size:21px}h2{font-size:16px}</style></head><body><h1>HLGB Confecções — Checklist da facção</h1><p><b>Destino:</b> '+escSafe(c.destinationName||'-')+'<br><b>Modelo:</b> '+escSafe(c.productName||'-')+'<br><b>Quantidade:</b> '+q(c.qty).toLocaleString('pt-BR')+' peças</p><h2>Grade do produto enviado</h2>'+matrix(c)+(display.derived?'<p style="font-size:11px">Detalhamento por cor conforme grade e ficha atual. Totais conferidos com o registro original; esta impressão não altera o envio salvo.</p>':'')+'<h2>Matéria-prima / aviamentos</h2><table><tr><th>OK</th><th>Material</th><th>Categoria</th><th>Cor</th><th>Quantidade</th><th>Unidade</th><th>Rolos</th></tr>'+(mats||'<tr><td colspan="7">Sem materiais cadastrados.</td></tr>')+'</table><p>Conferido por: __________________________ Data: ____/____/________</p><p>Observação: ______________________________________________________________</p><script>window.onload=()=>window.print();<\/script></body></html>');
  w.document.close();
 };
-window.hlgbFactionChecklistGrade={sourceGrade,matrix};
+window.hlgbFactionChecklistGrade={sourceGrade,matrix,displayMaterials};
 window.HLGB_FACTION_CHECKLIST_GRADE_GUARD=V;
 console.info('[HLGB] checklist da facção com grade em matriz');
 })();
