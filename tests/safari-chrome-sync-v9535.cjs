@@ -40,6 +40,8 @@ function runtime(){
   hlgbRecordHydrateData:(module,row)=>({...row.data}),
   hlgbRecordRowValue:(row)=>({...row.data}),
   hlgbRecordClone:x=>JSON.parse(JSON.stringify(x)),
+  normEmail:x=>String(x||'').trim().toLowerCase(),
+  hlgbRecordId:(module,row)=>String(row?.id??row?.__hlgbId??''),
   hlgbRecordDataEqual:(a,b)=>JSON.stringify(a)===JSON.stringify(b),
   hlgbRecordLocalMap:function(module){return new Map((ctx.db[module]||[]).map(x=>[String(x.id),x]))},
   hlgbPendingExplicitRestore917:()=>false,
