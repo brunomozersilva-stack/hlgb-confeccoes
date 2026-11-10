@@ -6,9 +6,11 @@ on:
       - 'app-stable3.html'
       - 'release-cut-model-split.js'
       - 'release-faction-operations-v9520.js'
+      - 'release-faction-material-refresh-v9522.js'
       - 'tests/cut-post-finish-queue-v9519.cjs'
       - 'tests/faction-operations-v9520.cjs'
       - 'tests/cut-faction-traveta-*'
+      - 'tests/faction-material-refresh-v9522.cjs'
       - '.github/workflows/cut-faction-traveta-integrated-v9521.yml'
   push:
     branches: [main]
@@ -31,7 +33,8 @@ jobs:
       - run: node --check release-cut-model-split.js
       - run: node --check release-faction-safe-adjust-v9514.js
       - run: node --check release-faction-operations-v9520.js
-      - run: node --test tests/cut-post-finish-queue-v9519.cjs tests/faction-operations-v9520.cjs tests/cut-faction-traveta-integration-v9521.cjs
+      - run: node --check release-faction-material-refresh-v9522.js
+      - run: node --test tests/cut-post-finish-queue-v9519.cjs tests/faction-operations-v9520.cjs tests/cut-faction-traveta-integration-v9521.cjs tests/faction-material-refresh-v9522.cjs
       - run: node tests/audit-cut-model-split-regression.cjs
       - run: node tests/audit-canonical-routing-v9316.cjs
   browser:
