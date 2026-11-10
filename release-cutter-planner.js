@@ -14,6 +14,12 @@ function modelGrade(o,pid){return (Array.isArray(o?.grade)?o.grade:[]).filter(g=
 function modelPieces(o,pid){return modelGrade(o,pid).reduce((s,g)=>s+q(g.qty),0)}
 function modelIds(o){return [...new Set((Array.isArray(o?.grade)?o.grade:[]).map(g=>sid(g?.productId)).filter(Boolean))]}
 function productName(pid){return productById(pid)?.name||'Produto'}
+function modelAlreadyCut(o,pid){
+ // A finalização é por modelo, não pelo status geral do pedido.
+ const ids=modelIds(o);
+ return arr('cuts').some(c=>c&&sid(c.orderId)===sid(o.id)&&norm(c.status)==='finalizado'&&
+   (sid(c.productId)===sid(pid)||(!c.productId&&ids.length===1)));
+}
 function relevantOrders(){
   return arr('orders').filter(o=>{
     if(!o||!Array.isArray(o.grade)||!o.grade.length)return false;
@@ -24,7 +30,7 @@ function modelRows(){
   const out=[];
   for(const o of relevantOrders()){
     for(const pid of modelIds(o)){
-      const pieces=modelPieces(o,pid);if(pieces<=0)continue;
+      const pieces=modelPieces(o,pid);if(pieces<=0||modelAlreadyCut(o,pid))continue;
       const cuts=arr('cuts').filter(c=>c&&sid(c.orderId)===sid(o.id)&&sid(c.productId)===sid(pid)&&norm(c.status)!=='finalizado');
       const exact=cuts.find(c=>c.modelPlanningSplitV1)||cuts.find(c=>!c.size&&!c.color)||cuts[0]||null;
       const aggregate=arr('cuts').find(c=>c&&sid(c.orderId)===sid(o.id)&&!c.productId&&norm(c.status)!=='finalizado')||null;
@@ -65,13 +71,13 @@ function renderOrderSearch(){
 }
 function showOrderModels(orderId){
   const o=orderById(orderId),box=document.getElementById('hlgbCutterOrderModels');if(!o||!box)return;
-  const rows=modelIds(o).map(pid=>{
+  const rows=modelIds(o).filter(pid=>!modelAlreadyCut(o,pid)).map(pid=>{
     const p=productById(pid),pieces=modelPieces(o,pid);
     const planned=modelRows().find(r=>sid(r.orderId)===sid(o.id)&&sid(r.productId)===sid(pid));
     const status=planned?.date?('Programado '+planned.date+(planned.cutterId?' · '+(cutterById(planned.cutterId)?.name||'Cortador'):'')):'Ainda sem programação';
     return '<div class="panel" style="margin:8px 0;background:#fff"><div style="display:flex;justify-content:space-between;gap:10px;align-items:center;flex-wrap:wrap"><div><b>'+escSafe(p?.name||'Produto')+'</b><div class="sub">'+pieces.toLocaleString('pt-BR')+' peças · '+escSafe(status)+'</div></div><button type="button" class="primary" data-model="'+escSafe(sid(o.id)+'|'+sid(pid))+'">Programar este modelo</button></div></div>';
   }).join('');
-  box.innerHTML='<h3 style="margin-bottom:6px">Pedido #'+escSafe(displayNo(o))+' — '+escSafe(o.client||'-')+'</h3><div class="sub">Cada modelo abaixo pode receber uma data e um cortador diferente.</div>'+rows;
+  box.innerHTML='<h3 style="margin-bottom:6px">Pedido #'+escSafe(displayNo(o))+' — '+escSafe(o.client||'-')+'</h3><div class="sub">'+(rows?'Somente modelos ainda não finalizados aparecem para programar.':'Nenhum modelo pendente de corte. Os modelos finalizados estão preservados no histórico.')+'</div>'+rows;
   box.querySelectorAll('button[data-model]').forEach(b=>b.onclick=()=>{
     selectModel(b.dataset.model);
     document.getElementById('hlgbCutterPlanner')?.scrollIntoView?.({behavior:'smooth',block:'start'});
@@ -142,7 +148,7 @@ function ensurePanel(){
   if(first)page.insertBefore(panel,first);else page.appendChild(panel);
 }
 window.hlgbCutterPlannerRender=renderMatches;window.hlgbCutterOrderSearchRender=renderOrderSearch;window.hlgbCutterPlannerSave=async()=>{try{return await save()}catch(e){alert(String(e?.message||e));return false}};
-window.hlgbCutterPlanner={modelRows,matches,orderSearchRows,showOrderModels,selectModel,save,modelGrade,modelPieces,modelIds,productText};
+window.hlgbCutterPlanner={modelRows,matches,orderSearchRows,showOrderModels,selectModel,save,modelGrade,modelPieces,modelIds,modelAlreadyCut,productText};
 const old=window.renderCutters;if(typeof old==='function'&&!old.__hlgbPlannerV3){const w=function(){const r=old.apply(this,arguments);setTimeout(ensurePanel,0);return r};w.__hlgbPlannerV3=true;w.__original=old;window.renderCutters=w}
 function boot(){try{ensurePanel()}catch(e){console.warn('[HLGB cutter planner]',e)}}try{if(typeof hlgbAfterLogin==='function')hlgbAfterLogin(()=>setTimeout(boot,900),0)}catch(e){}setTimeout(boot,1600);
 window.HLGB_CUTTER_PLANNER_GUARD=V;

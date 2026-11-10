@@ -33,7 +33,13 @@ function apply(){
   ensureToolbar();syncCutters();decorateRows();
   const root=document.getElementById('cutTable');if(!root)return;
   const q=norm(document.getElementById('hlgbCutSearch')?.value||''),priority=document.getElementById('hlgbCutPriority')?.value||'',cutter=document.getElementById('hlgbCutCutter')?.value||'',date=document.getElementById('hlgbCutDate')?.value||'';
-  let shown=0,total=0;root.querySelectorAll('tbody tr').forEach(tr=>{total++;const ok=(!q||String(tr.dataset.hlgbSearch||'').includes(q))&&(!priority||tr.dataset.hlgbPriority===priority)&&(!cutter||tr.dataset.hlgbCutter===cutter)&&(!date||tr.dataset.hlgbDate===date);tr.style.display=ok?'':'none';if(ok)shown++});
+  let shown=0,total=0;root.querySelectorAll('tbody tr').forEach(tr=>{total++;const cut=cutByRow(tr),st=norm(cut?.status||'');
+    // Filtro não pode reabrir corte-pai desmembrado nem modelo já finalizado.
+    const completed=!!cut&&(st==='finalizado'||st.includes('desmembrado')||
+      cut.modelSplitParentV1===true||cut.hiddenByModelSplitV1===true);
+    const ok=!completed&&(!q||String(tr.dataset.hlgbSearch||'').includes(q))&&
+      (!priority||tr.dataset.hlgbPriority===priority)&&(!cutter||tr.dataset.hlgbCutter===cutter)&&
+      (!date||tr.dataset.hlgbDate===date);tr.style.display=ok?'':'none';if(ok)shown++});
   const count=document.getElementById('hlgbCutFilterCount');if(count)count.textContent=shown+' de '+total+' corte(s)';
 }
 function clearFilters(){['hlgbCutSearch','hlgbCutPriority','hlgbCutCutter','hlgbCutDate'].forEach(id=>{const e=document.getElementById(id);if(e)e.value=''});apply()}

@@ -1,0 +1,41 @@
+name: HLGB Etapas Automaticas Corte Producao v95.28
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'release-cutter-planner.js'
+      - 'release-cut-model-split.js'
+      - 'release-cut-organization.js'
+      - 'release-cut-step-queues-v9528.js'
+      - 'app-stable3.html'
+      - 'tests/cut-step-queues-v9528.cjs'
+      - '.github/workflows/cut-step-queues-v9528.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'release-cutter-planner.js'
+      - 'release-cut-model-split.js'
+      - 'release-cut-organization.js'
+      - 'release-cut-step-queues-v9528.js'
+      - 'app-stable3.html'
+      - 'tests/cut-step-queues-v9528.cjs'
+      - '.github/workflows/cut-step-queues-v9528.yml'
+permissions:
+  contents: read
+jobs:
+  unit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '20'}
+      - name: JavaScript syntax
+        run: |
+          node --check release-cutter-planner.js
+          node --check release-cut-model-split.js
+          node --check release-cut-organization.js
+          node --check release-cut-step-queues-v9528.js
+          node --check tests/cut-step-queues-v9528.cjs
+      - name: Queues auto exit and data safety tests
+        run: node --test tests/cut-step-queues-v9528.cjs
