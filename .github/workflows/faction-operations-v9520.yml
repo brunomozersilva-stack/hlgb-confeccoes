@@ -1,0 +1,29 @@
+name: HLGB Faction Operations and Traveta v95.20
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'release-faction-operations-v9520.js'
+      - 'app-stable3.html'
+      - 'tests/faction-operations-v9520.cjs'
+      - '.github/workflows/faction-operations-v9520.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'release-faction-operations-v9520.js'
+      - 'app-stable3.html'
+      - 'tests/faction-operations-v9520.cjs'
+      - '.github/workflows/faction-operations-v9520.yml'
+permissions:
+  contents: read
+jobs:
+  safe-operations:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '20'}
+      - run: node --check release-faction-operations-v9520.js
+      - run: node --check release-faction-safe-adjust-v9514.js
+      - run: node --test tests/faction-operations-v9520.cjs
