@@ -102,6 +102,7 @@ function ensurePanel(){
     .filter(c=>analyze(c).status==='unavailable').length;
   // A divergência fica abaixo da lista normal de envios; não ocupa o topo.
   if(panel.previousElementSibling!==table)table.insertAdjacentElement('afterend',panel);
+  const wasOpen=panel.querySelector('details')?.open||false;
   panel.innerHTML='<details class="hlgbMaterialReviewDetails9529"><summary style="cursor:pointer;font-weight:600">'+
    'Revisar materiais dos envios · '+stale.length+' divergência(s)'+
    (unavailable?' · '+unavailable+' ficha(s) indisponível(is)':'')+'</summary>'+
@@ -114,6 +115,7 @@ function ensurePanel(){
    ).join(''):'<div class="sub">Nenhuma divergência detectada nas fichas carregadas.</div>')+
    (unavailable?'<div class="sub">⚠️ '+unavailable+' ficha(s) não carregada(s). Não confirmar sem os dados.</div>':'')+
    '</details>';
+  const details=panel.querySelector('details');if(details)details.open=wasOpen;
   panel.onclick=e=>{const btn=e.target?.closest?.('[data-material-revision9522]');if(btn)openReview(btn.getAttribute('data-material-revision9522'))};
  }
 }
