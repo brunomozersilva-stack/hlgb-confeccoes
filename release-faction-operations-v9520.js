@@ -5,7 +5,7 @@
  */
 (function(){
 'use strict';
-const V='95.31',WAL_NAME='hlgb_durable_wal';
+const V='95.33',WAL_NAME='hlgb_durable_wal';
 if(window.hlgbFactionOperations9520?.version===V)return;
 const sid=v=>String(v??''),int=v=>Number(v),fmt=v=>Number(v||0).toLocaleString('pt-BR'),cash=v=>Number(v||0).toLocaleString('pt-BR',{style:'currency',currency:'BRL'});
 const esc=v=>sid(v).replace(/[&<>"']/g,x=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[x]));
@@ -136,8 +136,14 @@ function ensurePanel(){
    '<div class="field" style="margin-top:12px"><label>Localizar modelo, facção ou OP</label>'+
    '<input id="hlgbFactionOpsSearch9520" placeholder="Digite o nome do modelo ou a facção" autocomplete="off"></div>'+
    '<div id="hlgbFactionOpsRows9520" style="margin-top:10px"></div>'+
-   '<div class="sub">v95.31 · ajustes confirmados pelo servidor. Transferências com materiais já vinculados exigem conferência antes da mudança.</div></details>';
-  panel.querySelector('#hlgbFactionOpsSearch9520')?.addEventListener('input',renderRows);
+   '<div class="sub">v95.33 · ajustes confirmados pelo servidor. Transferências com materiais já vinculados exigem conferência antes da mudança.</div></details>';
+ }
+ // O HTML principal já contém a seção v95.33. Os handlers precisam ser
+ // vinculados mesmo quando o painel NÃO foi criado por este módulo.
+ if(panel.dataset.hlgbFactionOpsBound9533!=='yes'){
+  panel.dataset.hlgbFactionOpsBound9533='yes';
+  const input=panel.querySelector('#hlgbFactionOpsSearch9520');
+  if(input)input.addEventListener('input',renderRows);
   panel.addEventListener('click',e=>{
    const b=e.target?.closest?.('button[data-hlgb-faction-action]');if(!b)return;
    const id=b.getAttribute('data-id'),action=b.getAttribute('data-hlgb-faction-action');
@@ -268,6 +274,7 @@ async function submitTraveta(){
  }
 }
 function install(){
+ // Independente de login/renderFactions: a seção nativa deve sempre receber ações.
  const old=window.renderFactions;
  if(typeof old==='function'&&!old.__hlgbFactionOps9520){
   const wrapper=function(){const r=old.apply(this,arguments);setTimeout(()=>{ensurePanel();renderRows()},0);return r};
