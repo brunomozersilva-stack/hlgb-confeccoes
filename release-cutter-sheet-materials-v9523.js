@@ -89,6 +89,36 @@ function printSheet(o,c){
  popup.document.open();popup.document.write(renderSheet(o,c));popup.document.close();
  popup.focus();return true;
 }
+// A ação nova fica disponível também nas linhas dos cortes tradicionais.
+function cutIdFromRow(tr){
+ for(const b of tr.querySelectorAll('button[onclick]')){
+   const raw=b.getAttribute('onclick')||'';
+   const m=raw.match(/(?:hlgbEditCut9189|editCut|finishCut)\(([^)]+)\)/);
+   if(m)return m[1].replace(/['"]/g,'').trim();
+ }
+ return '';
+}
+function addActionButtons(){
+ for(const rootId of ['cutTable','dailyCutsTable']){
+   const root=document.getElementById(rootId);if(!root)continue;
+   root.querySelectorAll('tbody tr').forEach(tr=>{
+     if(tr.querySelector('.hlgbSheetMaterials9523'))return;
+     const c=byId('cuts',cutIdFromRow(tr));if(!c||!c.productId||!byId('orders',c.orderId))return;
+     const cell=tr.lastElementChild;if(!cell)return;
+     const b=document.createElement('button');b.type='button';b.className='secondary hlgbSheetMaterials9523';
+     b.textContent='🖨️ Folha completa';b.onclick=()=>{try{printSheet(byId('orders',c.orderId),c)}catch(e){alert(sid(e.message||e))}};
+     cell.appendChild(document.createTextNode(' '));cell.appendChild(b);
+   });
+ }
+}
+const beforeRender=window.renderCuts;
+if(typeof beforeRender==='function'&&!beforeRender.__hlgbSheetMaterials9523){
+ const patched=function(){const val=beforeRender.apply(this,arguments);setTimeout(addActionButtons,0);return val};
+ patched.__hlgbSheetMaterials9523=true;window.renderCuts=patched;
+}
+try{if(typeof hlgbAfterLogin==='function')hlgbAfterLogin(()=>setTimeout(addActionButtons,1000),0)}catch(_){}
+setTimeout(addActionButtons,1800);
+
 const legacy=window.printCuttingSheet;
 function wrapped(orderId,cutId){
  const c=cutId!=null?byId('cuts',cutId):null;
