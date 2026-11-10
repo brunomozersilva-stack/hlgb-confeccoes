@@ -26,9 +26,11 @@ function context(){
  ctx.globalThis=ctx;vm.createContext(ctx);
  return {ctx,db,window,document:doc,get lastModal(){return lastModal},get writes(){return changed}};
 }
-test('Scripts parse and render inside normal Facções page rather than top',()=>{
+test('Actions are collapsed and visible near the top of Envios para facção',()=>{
  for(const s of [factionOps,factionAdjust,materials])assert.doesNotThrow(()=>script(s));
- assert.match(factionOps,/page\.appendChild\(panel\)/);
+ assert.match(factionOps,/anchor\.insertAdjacentElement\('beforebegin',panel\)/);
+ assert.match(factionOps,/hlgbFactionOpsDetails9531/);
+ assert.match(factionOps,/factionChecklistPanel9176/);
  assert.match(factionOps,/data-hlgb-faction-action="price"/);
  assert.match(factionOps,/data-hlgb-faction-action="transfer"/);
  assert.match(factionOps,/if\(!query\)/);

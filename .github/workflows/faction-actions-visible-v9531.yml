@@ -1,0 +1,54 @@
+name: HLGB Acesso Envios Faccoes v95.31
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'release-faction-operations-v9520.js'
+      - 'release-faction-safe-adjust-v9514.js'
+      - 'tests/faction-actions-visible-v9531-browser.cjs'
+      - 'tests/faction-flow-material-review-v9529.cjs'
+      - '.github/workflows/faction-actions-visible-v9531.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'release-faction-operations-v9520.js'
+      - 'release-faction-safe-adjust-v9514.js'
+      - 'tests/faction-actions-visible-v9531-browser.cjs'
+      - 'tests/faction-flow-material-review-v9529.cjs'
+      - '.github/workflows/faction-actions-visible-v9531.yml'
+permissions:
+  contents: read
+jobs:
+  unit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 7
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '20'}
+      - name: Syntax
+        run: |
+          node --check release-faction-operations-v9520.js
+          node --check tests/faction-actions-visible-v9531-browser.cjs
+          node --check tests/faction-flow-material-review-v9529.cjs
+      - name: Existing regression
+        run: node --test tests/faction-flow-material-review-v9529.cjs
+  browser:
+    runs-on: ubuntu-latest
+    timeout-minutes: 18
+    strategy:
+      fail-fast: false
+      matrix:
+        browser: [chromium, webkit]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '20'}
+      - name: Install Playwright
+        run: |
+          npm install --no-save playwright@1.55.0
+          npx playwright install --with-deps ${{ matrix.browser }}
+      - name: Test real tab positioning and direct actions
+        env:
+          HLGB_BROWSER: ${{ matrix.browser }}
+        run: node tests/faction-actions-visible-v9531-browser.cjs
