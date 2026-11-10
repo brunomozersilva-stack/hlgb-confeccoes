@@ -41,10 +41,10 @@ function runtime(){
   hlgbRecordRowValue:(row)=>({...row.data}),
   hlgbRecordClone:x=>JSON.parse(JSON.stringify(x)),
   hlgbRecordDataEqual:(a,b)=>JSON.stringify(a)===JSON.stringify(b),
-  hlgbRecordLocalMap:function(module){return new Map((this.db[module]||[]).map(x=>[String(x.id),x]))},
+  hlgbRecordLocalMap:function(module){return new Map((ctx.db[module]||[]).map(x=>[String(x.id),x]))},
   hlgbPendingExplicitRestore917:()=>false,
   hlgbRecordSnapshotRows:function(module,rows){
-   this.hlgbRecordSnapshots[module]=new Map(rows.map(r=>[String(r.entity_id),
+   ctx.hlgbRecordSnapshots[module]=new Map(rows.map(r=>[String(r.entity_id),
     {data:r.data,deleted_at:r.deleted_at,revision:r.revision,updated_at:r.updated_at}]));
   },
   hlgbApplyRecordRow:()=>false,
@@ -166,7 +166,7 @@ function syncRecoveryRuntime(editing=false){
   hlgbRecordLoadBundle:async(opts)=>{call.push({load:opts});return {rows:[record('orders','new',2,{id:'new'},'2026-11-10T17:05:00Z')]};},
   setCloudStatus(){},renderOrders(){call.push('render')},
   console:{info(){},warn(){},error(){}},
-  setTimeout:()=>1,clearTimeout(){},setInterval:()=>1,clearInterval(){},
+  setTimeout:()=>1,clearTimeout(){},setInterval:()=>1,clearInterval(){},addEventListener(){},
   getComputedStyle:()=>({display:'none'})
  };
  Object.assign(win,ctx);ctx.window=ctx;
