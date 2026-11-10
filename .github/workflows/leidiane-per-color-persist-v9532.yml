@@ -1,0 +1,39 @@
+name: HLGB Camisola Leidiane Separacao por Cor v95.32
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'release-faction-material-refresh-v9522.js'
+      - 'release-faction-checklist-grade-standard.js'
+      - 'tests/leidiane-per-color-persist-v9532.cjs'
+      - 'tests/faction-flow-material-review-v9529.cjs'
+      - 'tests/faction-materials-colors-rolls-v9530.cjs'
+      - '.github/workflows/leidiane-per-color-persist-v9532.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'release-faction-material-refresh-v9522.js'
+      - 'release-faction-checklist-grade-standard.js'
+      - 'tests/leidiane-per-color-persist-v9532.cjs'
+      - 'tests/faction-flow-material-review-v9529.cjs'
+      - 'tests/faction-materials-colors-rolls-v9530.cjs'
+      - '.github/workflows/leidiane-per-color-persist-v9532.yml'
+permissions:
+  contents: read
+jobs:
+  regression:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '20'}
+      - name: Syntax
+        run: |
+          node --check release-faction-material-refresh-v9522.js
+          node --check release-faction-checklist-grade-standard.js
+          node --check tests/leidiane-per-color-persist-v9532.cjs
+      - name: Real Leidiane checklist and cloud-write mock
+        run: node --test tests/leidiane-per-color-persist-v9532.cjs
+      - name: Prior color and material review regressions
+        run: node --test tests/faction-materials-colors-rolls-v9530.cjs tests/faction-flow-material-review-v9529.cjs
