@@ -8,11 +8,12 @@ const V='95.28',sid=v=>String(v==null?'':v);
 const norm=v=>sid(v).normalize('NFD').replace(/[\u0300-\u036f]/g,'').trim().toLowerCase();
 const arr=k=>{try{return Array.isArray(db&&db[k])?db[k]:[]}catch(_){return []}};
 const hasDestination=p=>!!(p&&(p.productionLocationId||p.factionId));
-const assigned=p=>!!(p&&(hasDestination(p)||p.assignedAt||p.sentToFactionAt||
-  ['em producao','pronto','finalizado','concluido','consolidado'].includes(norm(p.stage))));
+// A etapa só foi concluída para esta lista se há destino concreto gravado.
+// Stage/assignedAt isolados sem local apontam inconsistência, não podem esconder pendência.
+const assigned=p=>hasDestination(p);
 const isAwaiting=p=>{
  if(!p||!p.cutId||p.finishedAt||Number(p.planned)<=0||assigned(p))return false;
- return !['cancelado','cancelada'].includes(norm(p.stage));
+ return !['cancelado','cancelada','pronto','finalizado','concluido','consolidado'].includes(norm(p.stage));
 };
 function currentProduction(p){
  if(!p)return null;
