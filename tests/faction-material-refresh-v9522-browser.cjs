@@ -22,6 +22,14 @@ const engine=process.env.HLGB_BROWSER==='webkit'?webkit:chromium;
   assert.match(first,/0 material\(is\) no envio \/ 4 na ficha/);
   assert.match(first,/0 material\(is\) no envio \/ 6 na ficha/);
   assert.equal(await page.evaluate(()=>window.__posts),0,'viewing old dispatch may not trigger write');
+  // Old printing must be blocked until the updated checklist is reviewed.
+  const unsafePrint=await page.evaluate(()=>{
+   printMaterialChecklist(1794313232479);
+   return {alerts:window.__alerts.slice(),legacy:document.getElementById('legacyPrint').textContent};
+  });
+  assert.ok(unsafePrint.alerts.some(v=>/desatualizado/i.test(v)),'stale print must warn');
+  assert.equal(unsafePrint.legacy,'','outdated checklist must not be printed');
+
   await page.locator('[data-material-revision9522="1794313232479"]').click();
   await page.waitForSelector('#hlgbMaterialRefreshConfirm9522');
   const modal=await page.locator('#modal').innerText();
