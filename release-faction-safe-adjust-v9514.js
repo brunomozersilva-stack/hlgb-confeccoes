@@ -87,13 +87,13 @@ function show(){
   '<div class="field"><label>Ação</label><select id="hlgbFactionAction9514">'+
     '<option value="transfer" '+(state.initialAction==='transfer'?'selected':'')+'>Transferir peças para outra facção</option>'+
     '<option value="price" '+(state.initialAction==='price'?'selected':'')+'>Alterar valor final da mão de obra</option></select></div>'+
-  '<div id="hlgbFactionTransferFields9514">'+
+  '<div id="hlgbFactionTransferFields9514" '+(state.initialAction==='price'?'hidden style="display:none"':'')+'>'+
     '<div class="field"><label>Facção de destino</label><select id="hlgbFactionTarget9514"><option value="">Selecione a facção</option>'+
        options.map(m=>'<option value="'+esc(m.name)+'">'+esc(m.name)+'</option>').join('')+'</select></div>'+
     '<div class="field"><label>Quantidade a transferir</label><input type="number" id="hlgbFactionQuantity9514" min="1" step="1" max="'+esc(f.sent||0)+'" value="'+esc(f.sent||0)+'"></div>'+
     '<div class="sub">Transferência total: muda a facção responsável. Transferência parcial: divide a alocação mantendo a soma original. Entregas, pagamentos e checklists vinculados exigem revisão antes da transferência.</div>'+
   '</div>'+
-  '<div id="hlgbFactionPriceFields9514" hidden>'+
+  '<div id="hlgbFactionPriceFields9514" '+(state.initialAction==='price'?'':'hidden style="display:none"')+'>'+
     '<div class="field"><label>Novo valor final por peça (R$)</label>'+
       '<input type="number" id="hlgbFactionPrice9514" min="0" max="10000" step="0.01" value="'+esc(Number(f.price||0).toFixed(2))+'"></div>'+
     '<div class="sub">Pagamentos realizados e parcialmente pagos não são modificados. Apenas pagamentos totalmente em aberto e sem descontos especiais poderão ser recalculados.</div>'+
