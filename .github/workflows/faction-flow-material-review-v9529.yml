@@ -1,0 +1,36 @@
+name: HLGB Faccoes e Revisao Materiais v95.29
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'release-faction-operations-v9520.js'
+      - 'release-faction-safe-adjust-v9514.js'
+      - 'release-faction-material-refresh-v9522.js'
+      - 'tests/faction-flow-material-review-v9529.cjs'
+      - '.github/workflows/faction-flow-material-review-v9529.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'release-faction-operations-v9520.js'
+      - 'release-faction-safe-adjust-v9514.js'
+      - 'release-faction-material-refresh-v9522.js'
+      - 'tests/faction-flow-material-review-v9529.cjs'
+      - '.github/workflows/faction-flow-material-review-v9529.yml'
+permissions:
+  contents: read
+jobs:
+  unit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '20'}
+      - name: Syntax check
+        run: |
+          node --check release-faction-operations-v9520.js
+          node --check release-faction-safe-adjust-v9514.js
+          node --check release-faction-material-refresh-v9522.js
+          node --check tests/faction-flow-material-review-v9529.cjs
+      - name: Price UI and material review regression
+        run: node --test tests/faction-flow-material-review-v9529.cjs
