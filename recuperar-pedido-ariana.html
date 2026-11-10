@@ -21,20 +21,32 @@
 <ol id="matches"></ol>
 <a class="download" id="download" hidden download>⬇️ Salvar cópia do pedido encontrado</a>
 <p class="muted" id="details"></p>
-<p>Se o pedido for localizado, salve o arquivo JSON e envie-o nesta conversa. O arquivo poderá conter dados de clientes; não o publique em redes sociais.</p>
+<p>Se encontrar o pedido ou as operações locais <code>orders|1794309183183</code> e <code>cuts|1794309183184</code>, salve o JSON e envie-o nesta conversa. <b>Os IDs, sozinhos, não provam que o conteúdo é da Ariana.</b> O arquivo poderá conter dados de clientes; não o publique em redes sociais.</p>
 <p>Se não aparecer, use também a <a href="./resgatar-wal.html">exportação completa de pendências do Safari</a>, que preserva operações que possam não conter o pedido inteiro.</p>
-<p class="muted">Página de diagnóstico independente v95.26. Consultas locais apenas: localStorage e IndexedDB HLGB, sem rede, login, gravação ou modificação de dados. Ela ignora o antigo #39 de Fio Bianca.</p>
+<p class="muted">Página de diagnóstico independente v95.27. Consultas locais apenas: localStorage e IndexedDB HLGB, sem rede, login, gravação ou modificação de dados. Ela ignora o antigo #39 de Fio Bianca.</p>
 </main>
 <script>
 (function(){
 'use strict';
-const target='1788960077143',button=document.getElementById('find');
+const target='1788960077143',missingOrder='1794309183183',missingCut='1794309183184',button=document.getElementById('find');
 const status=document.getElementById('status'),list=document.getElementById('matches'),download=document.getElementById('download'),details=document.getElementById('details');
 const sid=v=>String(v==null?'':v);
 const matchName=s=>/calcinha\s+ariana/i.test(sid(s));
 const matchingGrade=o=>Array.isArray(o?.grade)&&o.grade.some(g=>sid(g?.productId)===target);
-const records=[],seenRecords=new Set(),errors=[],scanned=[];
+const records=[],seenRecords=new Set(),linkedOperations=[],seenLinked=new Set(),errors=[],scanned=[];
 let objectCount=0,existingBlob='';
+function captureRelatedOperation(o,from){
+ if(!o||Array.isArray(o)||typeof o!=='object')return;
+ const module=sid(o.module),id=sid(o.id||o.entity_id),key=sid(o.key);
+ const relevant=(module==='orders'&&(id===missingOrder||key==='orders|'+missingOrder))||
+  (module==='cuts'&&(id===missingCut||key==='cuts|'+missingCut));
+ if(!relevant)return;
+ const unique=module+'|'+id+'|'+sid(o.opId||'')+'|'+from;
+ if(seenLinked.has(unique))return;
+ seenLinked.add(unique);
+ let op;try{op=JSON.parse(JSON.stringify(o))}catch(_){return}
+ linkedOperations.push({source:from,module,id,opId:sid(o.opId),record:op});
+}
 function candidate(o,from){
  if(!o||Array.isArray(o)||typeof o!=='object')return;
  const number=sid(o.orderNumber||o.number||o.num||'').trim();
@@ -57,7 +69,7 @@ function candidate(o,from){
 function walk(value,from,depth,seen){
  if(++objectCount>320000||depth>15||value===null||typeof value!=='object'||seen.has(value))return;
  seen.add(value);
- if(!Array.isArray(value))candidate(value,from);
+ if(!Array.isArray(value)){captureRelatedOperation(value,from);candidate(value,from);}
  if(Array.isArray(value)){for(let i=0;i<value.length;i++)walk(value[i],from+'['+i+']',depth+1,seen)}
  else{
   for(const [k,v] of Object.entries(value)){
@@ -76,7 +88,7 @@ function local(){
    const key=localStorage.key(i)||'';
    if(/token|password|senha|secret|authorization|jwt|session|apikey|api_key/i.test(key))continue;
    let raw;try{raw=localStorage.getItem(key)}catch(e){errors.push('localStorage '+key+': '+sid(e.message));continue}
-   if(!raw||raw.length>40000000||(!raw.includes(target)&&!matchName(raw)))continue;
+   if(!raw||raw.length>40000000||(!raw.includes(target)&&!matchName(raw)&&!raw.includes(missingOrder)&&!raw.includes(missingCut)))continue;
    try{inspect(JSON.parse(raw),'localStorage:'+key)}catch(e){errors.push('JSON localStorage '+key+': '+sid(e.message||e))}
   }
  }catch(e){errors.push('Leitura do armazenamento local: '+sid(e.message||e))}
@@ -129,6 +141,7 @@ async function allDbs(){
 function result(){
  list.textContent='';
  const ranked=records.slice().sort((a,b)=>(a.match==='pedido-39'?0:1)-(b.match==='pedido-39'?0:1));
+ const linked=linkedOperations.slice();
  for(const rec of ranked.slice(0,30)){
   const li=document.createElement('li');
   li.textContent=(rec.match==='pedido-39'?'Pedido #39 confirmado na cópia: ':'Candidato a conferir: ')+
@@ -136,17 +149,18 @@ function result(){
   ' linhas de grade · origem '+rec.source;
   list.appendChild(li);
  }
- if(records.length){
-  const payload={kind:'hlgb_ariana_39_readonly_recovery',version:'95.26',capturedAt:new Date().toISOString(),
+ for(const op of linked){const li=document.createElement('li');li.textContent=(op.module==='orders'?'Pedido pendente no Safari: ':'Corte relacionado pendente: ')+op.id+' · operação '+(op.opId||'não informada')+' · '+op.source;list.appendChild(li)}
+ if(records.length||linked.length){
+  const payload={kind:'hlgb_ariana_39_readonly_recovery',version:'95.27',capturedAt:new Date().toISOString(),
    warning:'Cópia SOMENTE leitura; não importar automaticamente, não substituir registros nem apagar WAL',
-   browser:navigator.userAgent,results:ranked,errors};
+   browser:navigator.userAgent,results:ranked,linkedOperations:linked,errors};
   const blob=new Blob([JSON.stringify(payload,null,2)],{type:'application/json;charset=utf-8'});
   if(existingBlob)URL.revokeObjectURL(existingBlob);
   existingBlob=URL.createObjectURL(blob);
   download.href=existingBlob;
   download.download='HLGB-ARIANA-PEDIDO-39-SAFARI-'+payload.capturedAt.replace(/[:.]/g,'-')+'.json';
   download.hidden=false;
-  status.textContent='✅ '+records.length+' cópia(s) candidata(s) encontrada(s). Clique em “Salvar cópia do pedido encontrado” e envie o JSON aqui. Nenhum pedido foi alterado.';
+  status.textContent='✅ '+records.length+' cópia(s) de pedido com grade compatível e '+linked.length+' registro(s) de pedido/corte pendente(s) encontrados. Salve o JSON para verificar a identidade e restaurar com segurança. Nenhum pedido foi alterado.';
  }else{
   download.hidden=true;
   status.textContent='⚠️ Nenhuma cópia do pedido #39 da Ariana foi localizada nas fontes verificadas. Isso não prova que o pedido foi apagado: ele ainda pode estar na aba antiga do Safari ou em outra cópia. Não limpe o navegador.';
