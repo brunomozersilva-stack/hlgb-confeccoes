@@ -1,0 +1,51 @@
+name: HLGB Folha do Cortador com Materiais v95.23
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'release-cutter-sheet-materials-v9523.js'
+      - 'app-stable3.html'
+      - 'tests/cutter-sheet-materials-v9523*'
+      - '.github/workflows/cutter-sheet-materials-v9523.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'release-cutter-sheet-materials-v9523.js'
+      - 'app-stable3.html'
+      - 'tests/cutter-sheet-materials-v9523*'
+      - '.github/workflows/cutter-sheet-materials-v9523.yml'
+permissions:
+  contents: read
+jobs:
+  unit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '20'}
+      - name: Check JavaScript syntax
+        run: |
+          node --check release-cutter-sheet-materials-v9523.js
+          node --check tests/cutter-sheet-materials-v9523.cjs
+      - name: Validate grade, technical sheet, no-ficha and no-write tests
+        run: node --test tests/cutter-sheet-materials-v9523.cjs
+  browser:
+    runs-on: ubuntu-latest
+    timeout-minutes: 18
+    strategy:
+      fail-fast: false
+      matrix:
+        browser: [chromium, webkit]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '20'}
+      - name: Install browser
+        run: |
+          npm install --no-save playwright@1.55.0
+          npx playwright install --with-deps ${{ matrix.browser }}
+      - name: Test printable sheet in browser with synthetic data
+        env:
+          HLGB_BROWSER: ${{ matrix.browser }}
+        run: node tests/cutter-sheet-materials-v9523-browser.cjs

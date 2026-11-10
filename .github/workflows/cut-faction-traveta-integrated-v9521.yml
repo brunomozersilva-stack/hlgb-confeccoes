@@ -1,0 +1,66 @@
+name: HLGB Integrated Corte, Faccao and Traveta v95.21
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'app-stable3.html'
+      - 'release-cut-model-split.js'
+      - 'release-faction-operations-v9520.js'
+      - 'release-faction-material-refresh-v9522.js'
+      - 'tests/cut-post-finish-queue-v9519.cjs'
+      - 'tests/faction-operations-v9520.cjs'
+      - 'tests/cut-faction-traveta-*'
+      - 'tests/faction-material-refresh-v9522.cjs'
+      - '.github/workflows/cut-faction-traveta-integrated-v9521.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'app-stable3.html'
+      - 'release-cut-model-split.js'
+      - 'release-faction-operations-v9520.js'
+      - 'tests/cut-faction-traveta-*'
+      - '.github/workflows/cut-faction-traveta-integrated-v9521.yml'
+permissions:
+  contents: read
+jobs:
+  logic-and-regressions:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '20'}
+      - run: node --check release-cut-model-split.js
+      - run: node --check release-faction-safe-adjust-v9514.js
+      - run: node --check release-faction-operations-v9520.js
+      - run: node --check release-faction-material-refresh-v9522.js
+      - run: node --test tests/cut-post-finish-queue-v9519.cjs tests/faction-operations-v9520.cjs tests/cut-faction-traveta-integration-v9521.cjs tests/faction-material-refresh-v9522.cjs
+      - run: node tests/audit-cut-model-split-regression.cjs
+      - run: node tests/audit-canonical-routing-v9316.cjs
+  browser:
+    runs-on: ubuntu-latest
+    timeout-minutes: 18
+    strategy:
+      fail-fast: false
+      matrix:
+        browser: [chromium, webkit]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '20'}
+      - name: Install Playwright
+        run: |
+          npm install --no-save playwright@1.55.0
+          npx playwright install --with-deps ${{ matrix.browser }}
+      - name: Serve isolated synthetic fixture
+        run: |
+          python3 -m http.server 4173 >/tmp/hlgb-v9521.log 2>&1 &
+          sleep 2
+      - name: Chrome and Safari integrated smoke
+        env:
+          HLGB_BROWSER: ${{ matrix.browser }}
+        run: node tests/cut-faction-traveta-v9521-browser.cjs
+      - name: Verify Crystal and Melanie technical-sheet refresh on browser
+        env:
+          HLGB_BROWSER: ${{ matrix.browser }}
+        run: node tests/faction-material-refresh-v9522-browser.cjs

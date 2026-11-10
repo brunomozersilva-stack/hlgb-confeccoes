@@ -1,0 +1,60 @@
+<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><title>HLGB v95.22 - material técnico por facção</title>
+<script>
+window.__HLGB_AUTH_READY=true;
+window.__writes=0;window.__posts=0;window.__alerts=[];
+const crystal={id:1794233310486,name:'Short Doll Crystal',materials:[
+ {materialId:1787861583858,name:'Romantic',unit:'kg',qty:6,loss:0,calcMode:'yield'},
+ {materialId:1788777471853,name:'renda 06',unit:'m',qty:.32,loss:0,calcMode:'consumption'},
+ {materialId:1788778167229,name:'laçarote G',unit:'un.',qty:2,loss:0,calcMode:'consumption'},
+ {materialId:1788203765087,name:'Alca Papiro .40 cm',unit:'un.',qty:1,loss:0,calcMode:'consumption'}]};
+const melanie={id:1788442854165,name:'Short Doll Melanie',materials:[
+ {materialId:1787861583858,name:'Romantic',unit:'kg',qty:8,loss:0,calcMode:'yield'},
+ {materialId:1787861563966,name:'Renda 18 Jacatronica',unit:'kg',qty:.038,loss:0,calcMode:'consumption'},
+ {materialId:1788203765087,name:'Alca Papiro .40 cm',unit:'un.',qty:1,loss:0,calcMode:'consumption'},
+ {materialId:1788203914667,name:'Laco M',unit:'un.',qty:2,loss:0,calcMode:'consumption'},
+ {materialId:1788777309734,name:'fita 002',unit:'m',qty:.4998,loss:0,calcMode:'consumption'},
+ {materialId:1791245626717,name:'Alpinia',unit:'m',qty:1,loss:0,calcMode:'consumption'}]};
+window.db={products:[crystal,melanie],materialChecklists:[
+ {id:1794313232479,productId:crystal.id,productName:crystal.name,destinationName:'Graziano',destinationType:'F',qty:192,materials:[],status:'Pendente',receivedBy:'',receivedAt:''},
+ {id:1794313367933,productId:melanie.id,productName:melanie.name,destinationName:'Vanessa',destinationType:'F',qty:172,materials:[],status:'Pendente',receivedBy:'',receivedAt:''}
+]};
+window.hlgbRecordSnapshots={materialChecklists:new Map()};
+window.hlgbRecordLastSeen={materialChecklists:''};
+window.__remote={
+ products:Object.fromEntries(db.products.map(p=>[String(p.id),{module:'products',entity_id:String(p.id),revision:4,updated_at:'2026-11-10T12:43:00Z',data:structuredClone(p)}])),
+ materialChecklists:Object.fromEntries(db.materialChecklists.map(c=>[String(c.id),{module:'materialChecklists',entity_id:String(c.id),revision:1,updated_at:'2026-11-10T12:15:00Z',data:structuredClone(c)}]))
+};
+function cloudEnsureFreshSession(){return Promise.resolve(true)}
+async function cloudRequest(path,opts){
+ if(opts.method==='GET'){
+  const search=new URLSearchParams(path.split('?')[1]||'');
+  const module=String(search.get('module')||'').replace(/^eq\./,'');
+  const id=String(search.get('entity_id')||'').replace(/^eq\./,'');
+  const r=__remote[module]?.[id];return r?[structuredClone(r)]:[];
+ }
+ if(path==='rpc/hlgb_save_record'&&opts.method==='POST'){
+  const b=JSON.parse(opts.body),r=__remote[b.p_module][b.p_entity_id];
+  if(r.revision!==b.p_expected_revision)return {applied:false,revision:r.revision,data:r.data};
+  __posts++;r.data=structuredClone(b.p_data);r.revision++;r.updated_at=new Date().toISOString();
+  return {applied:true,data:r.data,revision:r.revision};
+ }
+ throw new Error('Unsupported fake request');
+}
+function localSaveOnly(){__writes++}
+function renderDestinationChecklists(){
+ document.getElementById('destinationChecklistTable').innerHTML=db.materialChecklists.map(c=>
+ '<div><button onclick="openMaterialChecklist('+c.id+')">Conferir '+c.productName+'</button><button onclick="printMaterialChecklist('+c.id+')">Imprimir</button></div>').join('');
+}
+function renderFactionChecklists9198(){
+ document.getElementById('factionChecklistTable9176').innerHTML=db.materialChecklists.filter(c=>c.destinationType==='F').map(c=>
+  '<div><button onclick="openMaterialChecklist('+c.id+')">Conferir facção '+c.productName+'</button></div>').join('');
+}
+function openMaterialChecklist(id){document.getElementById('legacyOpen').textContent='Atual: '+id}
+function printMaterialChecklist(id){document.getElementById('legacyPrint').textContent='Imprimiu: '+id}
+function openModal(title,content){document.getElementById('modal').innerHTML='<h2>'+title+'</h2>'+content}
+function closeModal(){document.getElementById('modal').innerHTML=''}
+function alert(msg){__alerts.push(String(msg))}
+</script></head><body>
+<div id="destinationChecklistTable"></div><div id="factionChecklistTable9176"></div><div id="legacyOpen"></div><div id="legacyPrint"></div><div id="modal"></div>
+<script src="../release-faction-material-refresh-v9522.js"></script>
+</body></html>

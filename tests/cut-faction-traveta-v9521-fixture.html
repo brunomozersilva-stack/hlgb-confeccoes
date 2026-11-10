@@ -1,0 +1,29 @@
+<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><title>HLGB v95.21 - testes integrados sem dados reais</title></head>
+<body><h1>Teste operacional isolado</h1><div id="cutTable"></div><div id="factionTable"></div>
+<script>
+window.__HLGB_AUTH_READY=false;
+window.__writes=0;window.__transferId='';window.__modal=null;window.__materialGrade=null;
+window.db={
+ orders:[{id:100,client:'Teste',grade:[{productId:10,color:'Chocolate',size:'P',qty:30},{productId:10,color:'Preto',size:'M',qty:20},{productId:11,color:'Branco',size:'G',qty:15}]}],
+ cuts:[{id:1,orderId:100,productId:10,product:'Cueca',status:'Finalizado',modelSplitChildV1:true,pieces:20,actualCutGrade:[{productId:10,color:'Preto',size:'M',qty:20},{productId:10,color:'Chocolate',size:'P',qty:0}],originalGrade:[{productId:10,color:'Chocolate',size:'P',qty:30},{productId:10,color:'Preto',size:'M',qty:20}]},{id:2,orderId:100,productId:11,product:'Conjunto',status:'Planejado',modelSplitChildV1:true,pieces:15,originalGrade:[{productId:11,color:'Branco',size:'G',qty:15}]}],
+ products:[{id:10,name:'Cueca',travetadas:2,materials:[{name:'Elástico',qty:2,unit:'m'}]},{id:11,name:'Conjunto',travetadas:0}],
+ factions:[{id:301,orderId:100,productId:10,productionId:55,name:'Graziano',op:'OP-301',sent:20,done:20,returned:0,price:1.5,status:'Em produção'}],
+ cutters:[],production:[],factionMasters:[{id:800,name:'Roseli',active:true}]
+};
+function renderCuts(){}function renderFactions(){}
+function localSaveOnly(){window.__writes++}
+function save(){throw Error('No save allowed in display smoke test')}
+function displayOrderNumber(o){return o.id}
+function orderMaterialBreakdownByProduct(o){
+ window.__materialGrade=o.grade.map(x=>({...x}));
+ const pieces=o.grade.filter(x=>x.productId===10).reduce((s,x)=>s+Number(x.qty||0),0);
+ return [{productId:10,productName:'Cueca',materials:{elastic:{name:'Elástico',unit:'m',qty:pieces*2,byColor:{Preto:pieces*2}}}}];
+}
+function compositionTableForProduct(){return '<div>Composição do corte</div>'}
+function openModal(title,body){window.__modal={title,body}}
+function closeModal(){window.__modal=null}
+window.hlgbFactionAdjust9514={open(id){window.__transferId=String(id)}};
+</script>
+<script src="../release-cut-model-split.js"></script>
+<script src="../release-faction-operations-v9520.js"></script>
+</body></html>

@@ -1,0 +1,27 @@
+name: HLGB Corte - Modelos Pendentes e Materiais Pos-Corte v95.19
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'release-cut-model-split.js'
+      - 'tests/cut-post-finish-queue-v9519.cjs'
+      - '.github/workflows/cut-post-finish-queue-v9519.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'release-cut-model-split.js'
+      - 'tests/cut-post-finish-queue-v9519.cjs'
+      - '.github/workflows/cut-post-finish-queue-v9519.yml'
+permissions:
+  contents: read
+jobs:
+  safe-ui:
+    runs-on: ubuntu-latest
+    timeout-minutes: 7
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '20'}
+      - run: node --check release-cut-model-split.js
+      - run: node --test tests/cut-post-finish-queue-v9519.cjs
+      - run: node tests/audit-cut-model-split-regression.cjs

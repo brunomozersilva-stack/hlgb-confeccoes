@@ -1,0 +1,54 @@
+name: HLGB Faccoes - Material Ficha Atualizada v95.22
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'release-faction-material-refresh-v9522.js'
+      - 'app-stable3.html'
+      - 'tests/faction-material-refresh-v9522*'
+      - '.github/workflows/faction-material-refresh-v9522.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'release-faction-material-refresh-v9522.js'
+      - 'app-stable3.html'
+      - 'tests/faction-material-refresh-v9522*'
+      - '.github/workflows/faction-material-refresh-v9522.yml'
+permissions:
+  contents: read
+jobs:
+  safe-reconciliation:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '20'}
+      - name: Validate source
+        run: node --check release-faction-material-refresh-v9522.js
+      - name: Crystal/Melanie and WAL/ACK tests
+        run: node --test tests/faction-material-refresh-v9522.cjs
+
+  browser:
+    runs-on: ubuntu-latest
+    timeout-minutes: 18
+    strategy:
+      fail-fast: false
+      matrix:
+        browser: [chromium, webkit]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '20'}
+      - name: Install Chromium and WebKit
+        run: |
+          npm install --no-save playwright@1.55.0
+          npx playwright install --with-deps ${{ matrix.browser }}
+      - name: Serve isolated fixture (never connects to real Supabase)
+        run: |
+          python3 -m http.server 4173 > /tmp/hlgb-factions-material-9522.log 2>&1 &
+          sleep 2
+      - name: Crystal/Melanie refresh and checked receipts protection
+        env:
+          HLGB_BROWSER: ${{ matrix.browser }}
+        run: node tests/faction-material-refresh-v9522-browser.cjs
