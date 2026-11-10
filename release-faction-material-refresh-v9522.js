@@ -17,33 +17,98 @@ function rows(module){const r=dbRef()[module];return Array.isArray(r)?r:[]}
 function lookup(id){return rows(M).find(x=>sid(x?.id)===sid(id))||null}
 function product(id){return rows('products').find(x=>sid(x?.id)===sid(id))||null}
 function materialKey(m){const id=sid(m?.materialId);return id?'id:'+id:'name:'+norm(m?.name)+'|'+norm(m?.unit)}
-function buildMaterials(productRow,pieces,destinationType='F'){
+function gradeRowsForChecklist(c,pieces){
+ const target=Math.floor(Number(pieces)),data=dbRef(),pid=sid(c?.productId);
+ let rows=[];
+ // Usa a mesma grade impressa no cabeçalho do checklist (com corte real prioritário).
+ try{
+  if(typeof window.hlgbFactionChecklistGrade?.sourceGrade==='function'){
+   rows=window.hlgbFactionChecklistGrade.sourceGrade(c)||[];
+  }
+ }catch(e){console.warn('[HLGB materiais '+V+'] grade oficial',e)}
+ if(!rows.length){
+  const cut=rowsFor(data,'cuts').find(x=>sid(x?.id)===sid(c?.cutId));
+  const order=rowsFor(data,'orders').find(x=>sid(x?.id)===sid(c?.orderId));
+  const raw=[c?.gradeV9198,c?.grade,cut?.actualCutGrade,cut?.originalGrade,order?.grade]
+   .find(x=>Array.isArray(x)&&x.length)||[];
+  rows=raw.filter(x=>!pid||sid(x?.productId||pid)===pid)
+   .map(x=>({color:sid(x.color),qty:Number(x.qty)}))
+   .filter(x=>Number.isFinite(x.qty)&&x.qty>0);
+ }
+ if(!rows.length)return [{color:'Total',qty:target}];
+ rows=rows.map(x=>({color:sid(x.color||'Total').trim()||'Total',qty:Number(x.qty)}))
+  .filter(x=>Number.isFinite(x.qty)&&x.qty>0);
+ if(!rows.length)return [{color:'Total',qty:target}];
+ const sum=rows.reduce((total,x)=>total+x.qty,0);
+ if(sum<=0)return [{color:'Total',qty:target}];
+ if(Math.round(sum)!==target){
+  const scaled=rows.map((x,i)=>{
+   const raw=x.qty*target/sum,qty=Math.floor(raw);
+   return {...x,qty,remainder:raw-qty,index:i};
+  });
+  const left=target-scaled.reduce((total,x)=>total+x.qty,0);
+  for(const x of scaled.slice().sort((x,y)=>y.remainder-x.remainder||x.index-y.index).slice(0,left))
+   scaled[x.index].qty++;
+  rows=scaled.filter(x=>x.qty>0).map(x=>({color:x.color,qty:x.qty}));
+ }
+ return rows;
+}
+function rowsFor(data,module){return Array.isArray(data?.[module])?data[module]:[]}
+function rollDetails(master,need){
+ if(!master)return {rolls:null,rollConversion:0,rollLabel:''};
+ let conv=0;
+ const unit=norm(master.purchaseUnit),mode=norm(master.purchaseMode),name=norm(master.packageName);
+ if((unit.includes('rolo')||mode.includes('rolo'))&&Number(master.purchaseConversion)>0)
+  conv=Number(master.purchaseConversion);
+ else if(name.includes('rolo')&&Number(master.packageAvg)>0)
+  conv=Number(master.packageAvg);
+ if(!conv||!Number.isFinite(conv))return {rolls:null,rollConversion:0,rollLabel:''};
+ return {rolls:Math.ceil(need/conv-1e-9),rollConversion:conv,rollLabel:'rolo'};
+}
+function buildMaterials(productRow,pieces,destinationType='F',checklist=null){
  if(!productRow||!Array.isArray(productRow.materials))return null;
  const amount=Number(pieces);
- if(!Number.isFinite(amount)||amount<=0)throw new Error('Quantidade de peças inválida para o envio.');
- const byKey=new Map();
- for(const m of productRow.materials){
+ if(!Number.isInteger(amount)||amount<=0)throw new Error('Quantidade de peças inválida para o envio.');
+ const grade=gradeRowsForChecklist({...checklist,productId:checklist?.productId||productRow.id},amount);
+ const byColor=new Map();
+ for(const row of grade){const color=row.color||'Total';byColor.set(color,(byColor.get(color)||0)+Number(row.qty))}
+ if([...byColor.values()].reduce((sum,n)=>sum+n,0)!==amount)
+  throw new Error('A grade não corresponde à quantidade do checklist; confira o corte antes de gerar os materiais.');
+ const out=[],keyMap=new Map();
+ for(const [index,m] of productRow.materials.entries()){
   const master=rows('materials').find(x=>sid(x?.id)===sid(m?.materialId))||
-    rows('materials').find(x=>norm(x?.name)===norm(m?.name))||null;
+   rows('materials').find(x=>norm(x?.name)===norm(m?.name))||null;
   const visible=destinationType==='F'?(master?.showFactionChecklist??m?.showFactionChecklist)!==false:
    (master?.showProductionChecklist??m?.showProductionChecklist)!==false;
   if(!visible)continue;
   const per=Number(m?.qty),loss=Number(m?.loss||0);
-  if(!Number.isFinite(per)||per<0||!Number.isFinite(loss)||loss<0)throw new Error('Ficha técnica com consumo ou perda inválido. Corrija o produto.');
+  if(!Number.isFinite(per)||per<0||!Number.isFinite(loss)||loss<0)
+   throw new Error('Ficha técnica com consumo ou perda inválido. Corrija o produto.');
   const mode=sid(m?.calcMode||'consumption');
   if(mode!=='consumption'&&mode!=='yield')throw new Error('Modo de cálculo de material desconhecido.');
-  if(per<=0)continue;
-  const name=sid(m?.name).trim(),unit=sid(m?.unit).trim();
+  const name=sid(m?.name||master?.name).trim(),unit=sid(m?.unit||master?.unit).trim(),
+   cat=sid(m?.cat||master?.cat).trim();
   if(!name||!unit)throw new Error('Material com nome ou unidade ausente na ficha.');
-  const need=(mode==='yield'?amount/per:amount*per)*(1+loss/100);
-  if(!Number.isFinite(need)||need<0)throw new Error('Resultado de consumo inválido.');
-  const k=materialKey(m),cur=byKey.get(k);
-  if(cur&&norm(cur.unit)!==norm(unit))throw new Error('Mesmo material cadastrado com unidades diferentes.');
-  if(cur){cur.qty+=need;continue}
-  byKey.set(k,{id:byKey.size+1,materialId:m.materialId??null,name,unit,qty:need,
-    checked:false,calcMode:mode,source:'product_technical_sheet_v9522'});
+  const aviamento=norm(cat).includes('aviamento');
+  const splits=aviamento?[...byColor.entries()]:[['Total',amount]];
+  for(const [color,count] of splits){
+   const raw=per<=0?0:(mode==='yield'?count/per:count*per)*(1+loss/100);
+   if(!Number.isFinite(raw)||raw<0)throw new Error('Resultado de consumo inválido.');
+   const need=Number(raw.toFixed(6)),materialId=m?.materialId??master?.id??null;
+   const key=sid(materialId)+'|'+norm(name)+'|'+norm(unit)+'|'+(aviamento?norm(color):'');
+   const entry=keyMap.get(key);
+   if(entry){entry.qty=Number((entry.qty+need).toFixed(6));entry.rolls=rollDetails(master,entry.qty).rolls;continue}
+   const ri=rollDetails(master,need);
+   const row={id:index+1,materialId,name,baseName:name,cat,unit,
+    color:aviamento&&color!=='Total'?color:'',pieces:count,qty:need,
+    perPiece:per,loss,checked:false,calcMode:mode,source:'product_technical_sheet_v9530',
+    rolls:ri.rolls,rollConversion:ri.rollConversion,rollLabel:ri.rollLabel,
+    key9199:[materialId||'',name,aviamento&&color!=='Total'?color:''].join('|')};
+   row.key9198=row.key9199;
+   keyMap.set(key,row);out.push(row);
+  }
  }
- return [...byKey.values()];
+ return out;
 }
 function compare(oldRows,newRows){
  const old=Array.isArray(oldRows)?oldRows:[],next=Array.isArray(newRows)?newRows:[];
@@ -53,7 +118,10 @@ function compare(oldRows,newRows){
   const grouped=new Map();
   for(const m of list){
    const name=norm(m.name),unit=norm(m.unit),key=name+'|'+unit;
-   grouped.set(key,{name,unit,qty:(grouped.get(key)?.qty||0)+Number(m.qty||0)});
+   const qty=Number(m.qty||0);
+   // Linhas auxiliares com consumo zero não mudam o material efetivamente enviado.
+   if(!Number.isFinite(qty)||Math.abs(qty)<1e-9)continue;
+   grouped.set(key,{name,unit,qty:(grouped.get(key)?.qty||0)+qty});
   }
   // Aviamentos antigos podem estar divididos por cor; comparar o total agregado
   // evita marcar um checklist conferido como desatualizado quando o consumo e igual.
@@ -68,7 +136,7 @@ function analyze(c){
  const p=product(c?.productId);
  if(!c||!p||!Array.isArray(p.materials))return {status:'unavailable',reason:'A ficha técnica do modelo ainda não está carregada.'};
  let material;
- try{material=buildMaterials(p,c.qty,c.destinationType)}catch(e){return {status:'error',reason:String(e.message||e)}}
+ try{material=buildMaterials(p,c.qty,c.destinationType,c)}catch(e){return {status:'error',reason:String(e.message||e)}}
  const diff=compare(c.materials,material);
  const anyChecked=(c.materials||[]).some(m=>m.checked===true);
  const alreadyReceived=!!sid(c.receivedAt).trim()||!!sid(c.receivedBy).trim()||sid(c.status)==='Conferido';
@@ -196,7 +264,7 @@ async function reloadAndSave(id){
    throw new Error('O envio mudou na nuvem. Reabra a página antes de prosseguir.');
   if((check.materials||[]).some(m=>m.checked)||sid(check.status)==='Conferido'||check.receivedAt||check.receivedBy)
    throw new Error('A conferência deste envio já foi iniciada. Não é possível substituir os materiais automaticamente.');
-  const latest=buildMaterials(prod,check.qty,check.destinationType);
+  const latest=buildMaterials(prod,check.qty,check.destinationType,check);
   const stillDifferent=compare(check.materials,latest);
   if(!stillDifferent.different){
    // Se o servidor gravou mas a resposta HTTP se perdeu, apenas reconciliar o cache.
@@ -344,7 +412,7 @@ function install(){
  if(typeof oldCreate==='function')window.hlgb916CreateMaterialChecklist=function(prod,dest,unit,service){
   const record=oldCreate.apply(this,arguments),p=product(record.productId);
   if(p&&Array.isArray(p.materials)){
-   try{record.materials=buildMaterials(p,record.qty,record.destinationType);
+   try{record.materials=buildMaterials(p,record.qty,record.destinationType,record);
     record.materialsSourceV9522='product_technical_sheet';}
    catch(e){console.warn('[HLGB v95.22] ficha nova indisponível',e)}
   }
@@ -356,7 +424,7 @@ function install(){
  state.installed=true;setTimeout(ensurePanel,100);
 }
 window.hlgbFactionMaterialRefresh9522={version:V,state,install,analyze,buildMaterials,compare,openReview,reloadAndSave,ensurePanel,
- test:{materialKey,isRelevantPending,comparisonRows,comparisonTable}};
+ test:{materialKey,isRelevantPending,comparisonRows,comparisonTable,gradeRowsForChecklist,rollDetails}};
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',install,{once:true});else install();
 try{window.hlgbAfterLogin?.(()=>setTimeout(install,200),0)}catch(e){}
 setTimeout(install,1500);
