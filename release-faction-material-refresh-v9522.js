@@ -5,7 +5,7 @@
 (function(){
 'use strict';
 if(window.hlgbFactionMaterialRefresh9522)return;
-const V='95.22',M='materialChecklists',WAL_DB='hlgb_durable_wal';
+const V='95.32',M='materialChecklists',WAL_DB='hlgb_durable_wal';
 const state={version:V,lastError:'',lastSuccess:null,busy:false,installed:false,guardedPrints:0};
 const sid=v=>String(v??''),qty=v=>Number(v)||0,
  esc=v=>sid(v).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -128,8 +128,13 @@ function compare(oldRows,newRows){
   return [...grouped.values()].map(m=>({...m,qty:Number(m.qty.toFixed(6))}))
    .sort((a,b)=>a.name.localeCompare(b.name)||a.unit.localeCompare(b.unit));
  };
+ const structure=list=>list.map(m=>({
+   key:norm(m.name)+'|'+norm(m.unit)+'|'+norm(m.color||'Total'),
+   qty:Number((Number(m.qty)||0).toFixed(6))
+  })).sort((a,b)=>a.key.localeCompare(b.key)||a.qty-b.qty);
+ const detailDifferent=JSON.stringify(structure(old))!==JSON.stringify(structure(next));
  return {different:JSON.stringify(comparable(old))!==JSON.stringify(comparable(next)),
-  oldCount:old.length,newCount:next.length,
+  detailDifferent,oldCount:old.length,newCount:next.length,
   oldSignature:signature(old),newSignature:signature(next)};
 }
 function analyze(c){
@@ -141,14 +146,15 @@ function analyze(c){
  const anyChecked=(c.materials||[]).some(m=>m.checked===true);
  const alreadyReceived=!!sid(c.receivedAt).trim()||!!sid(c.receivedBy).trim()||sid(c.status)==='Conferido';
  const locked=anyChecked||alreadyReceived;
- return {...diff,materials:material,product:p,status:diff.different?'stale':'current',
+ return {...diff,materials:material,product:p,status:diff.different?'stale':diff.detailDifferent?'detail-needed':'current',
     locked,lockedReason:locked?'Há item conferido ou recebimento registrado; não é seguro substituir automaticamente.':'',
     productName:p.name||c.productName};
 }
 function htmlRows(materials){
- return '<table><thead><tr><th>Matéria-prima</th><th>Quantidade</th><th>Unidade</th></tr></thead><tbody>'+
- (materials||[]).map(m=>'<tr><td>'+esc(m.name)+'</td><td>'+fmt(m.qty)+'</td><td>'+esc(m.unit)+'</td></tr>').join('')+
- '</tbody></table>';
+ return '<div style="overflow-x:auto"><table><thead><tr><th>Material</th><th>Categoria</th><th>Cor</th><th>Quantidade</th><th>Unidade</th><th>Rolos</th></tr></thead><tbody>'+
+ (materials||[]).map(m=>'<tr><td>'+esc(m.name)+'</td><td>'+esc(m.cat||'-')+'</td><td>'+esc(m.color||'Total')+'</td>'+
+ '<td>'+fmt(m.qty)+'</td><td>'+esc(m.unit)+'</td><td>'+(m.rolls==null?'-':fmt(m.rolls))+'</td></tr>').join('')+
+ '</tbody></table></div>';
 }
 function ensurePanel(){
  const targets=[
@@ -165,14 +171,14 @@ function ensurePanel(){
    table.insertAdjacentElement('afterend',panel);
   }
   const stale=rows(M).filter(c=>!target.factionOnly||c.destinationType==='F')
-    .map(c=>({c,check:analyze(c)})).filter(x=>x.check.status==='stale');
+    .map(c=>({c,check:analyze(c)})).filter(x=>['stale','detail-needed'].includes(x.check.status));
   const unavailable=rows(M).filter(c=>!target.factionOnly||c.destinationType==='F')
     .filter(c=>analyze(c).status==='unavailable').length;
   // A divergência fica abaixo da lista normal de envios; não ocupa o topo.
   if(panel.previousElementSibling!==table)table.insertAdjacentElement('afterend',panel);
   const wasOpen=panel.querySelector('details')?.open||false;
   panel.innerHTML='<details class="hlgbMaterialReviewDetails9529"><summary style="cursor:pointer;font-weight:600">'+
-   'Revisar materiais dos envios · '+stale.length+' divergência(s)'+
+   'Revisar materiais dos envios · '+stale.length+' pendência(s) de material/cor'+
    (unavailable?' · '+unavailable+' ficha(s) indisponível(is)':'')+'</summary>'+
    '<div class="sub" style="margin:9px 0">As quantidades do envio original e a ficha atual são comparadas antes de qualquer alteração. Recebimentos já lançados não serão substituídos.</div>'+
    (stale.length?stale.map(({c,check})=>
@@ -249,7 +255,7 @@ function syncSnapshot(module,rec){
 async function reloadAndSave(id){
  if(state.busy)return false;
  const c=lookup(id),local=analyze(c);
- if(!c||local.status!=='stale')return false;
+ if(!c||!['stale','detail-needed'].includes(local.status))return false;
  if(local.locked)throw new Error('O envio já tem conferência/recebimento. É necessária conciliação manual; nenhuma baixa foi alterada.');
  if(window.__HLGB_AUTH_READY!==true||navigator.onLine===false||typeof cloudRequest!=='function')
   throw new Error('Faça login e conecte-se à nuvem antes de atualizar.');
@@ -266,7 +272,7 @@ async function reloadAndSave(id){
    throw new Error('A conferência deste envio já foi iniciada. Não é possível substituir os materiais automaticamente.');
   const latest=buildMaterials(prod,check.qty,check.destinationType,check);
   const stillDifferent=compare(check.materials,latest);
-  if(!stillDifferent.different){
+  if(!stillDifferent.different&&!stillDifferent.detailDifferent){
    // Se o servidor gravou mas a resposta HTTP se perdeu, apenas reconciliar o cache.
    // Nunca enviar um segundo POST para a mesma revisao de materiais.
    syncSnapshot(M,remoteCheck);
@@ -291,7 +297,7 @@ async function reloadAndSave(id){
   const applied=Array.isArray(out)?out[0]:out;
   if(applied?.applied!==true)throw new Error('Conflito de revisão. Nenhum material local foi substituído.');
   const confirmed=await getRemote(M,id),proof=compare(confirmed.data.materials,latest);
-  if(proof.different||Number(confirmed.revision)<=Number(remoteCheck.revision)||
+  if(proof.different||proof.detailDifferent||Number(confirmed.revision)<=Number(remoteCheck.revision)||
    sid(confirmed.data.materialsSourceV9522)!=='product_technical_sheet')
     throw new Error('O servidor ainda não confirmou os materiais. Confira antes de repetir.');
   syncSnapshot(M,confirmed);
@@ -340,7 +346,8 @@ function printComparison(c,review){
   '<h2>HLGB — conferência complementar (sem alteração de estoque)</h2>'+
   '<p><b>'+esc(review.productName)+'</b> · '+esc(c.destinationName)+' · '+fmt(c.qty)+' peças'+
   ' · recebimento: '+esc(c.receivedAt||'não registrado')+'</p>'+
-  comparisonTable(c,review)+
+  '<h3>Materiais separados por cor</h3>'+htmlRows(review.materials)+
+  '<h3>Totais originais e atuais</h3>'+comparisonTable(c,review)+
   '<p>Este relatório compara o registro original e a ficha atual. Não comprova uma transferência física de materiais.</p>'+
   '<p>Conferido por: ______________________ Data: ____/____/______</p>'+
   '<button onclick="window.print()">Imprimir</button></body></html>';
@@ -358,10 +365,12 @@ function openReview(id){
   '<p>'+review.oldCount+' materiais registrados no envio; ficha atual possui <b>'+review.newCount+' materiais</b>.</p>'+
   (locked?'<p><b>Conferência manual necessária:</b> o envio já tem '+(c.receivedAt?'recebimento registrado em '+esc(c.receivedAt):'conferência iniciada')+'. O material original será preservado; confira fisicamente as diferenças.</p>':
    '<p>Os novos materiais serão calculados com o rendimento, consumo e perda atuais. A alteração somente será gravada após confirmação na nuvem.</p>')+
-  '</div><h3>Comparativo: envio original × ficha atual</h3>'+comparisonTable(c,review)+
+  '</div><h3>Materiais por cor na ficha atual</h3>'+htmlRows(review.materials)+
+  '<h3>Comparativo dos totais</h3>'+comparisonTable(c,review)+
   '<p class="sub">Nenhuma baixa de material, pagamento, estoque ou entrega é realizada por esta atualização.</p>'+
   '<p id="hlgbMaterialRefreshError9522" role="alert" style="color:#a33"></p>'+
-  (locked?'':'<button type="button" class="primary" id="hlgbMaterialRefreshConfirm9522">☁️ Atualizar checklist deste envio</button>')+
+  (locked?'':'<button type="button" class="primary" id="hlgbMaterialRefreshConfirm9522">'+
+    (review.status==='detail-needed'?'☁️ Salvar separação por cor na nuvem':'☁️ Atualizar checklist deste envio')+'</button>')+
   ' <button type="button" class="secondary" id="hlgbMaterialPrintReview9529">Imprimir conferência</button>'+
   ' <button type="button" class="secondary" onclick="closeModal()">Fechar</button>';
  if(typeof openModal!=='function')return alert('Janela do HLGB não está disponível.');
@@ -375,12 +384,12 @@ function openReview(id){
    try{
     const result=await reloadAndSave(id);
     closeModal();alert(result?.alreadyCurrent?'Materiais já estão atualizados.':
-      '✅ Checklist atualizado na nuvem: '+result.count+' material(is). Confira antes de separar.');
+      '✅ Checklist separado por cor e confirmado na nuvem: '+result.count+' linha(s). Confira antes de separar.');
     window.__hlgbMaterialOriginalOpen9522?.(id);
    }catch(e){
     const el=document.getElementById('hlgbMaterialRefreshError9522');
     if(el)el.textContent=sid(e.message||e)+' Nenhum material foi alterado localmente sem confirmação.';
-   }finally{button.disabled=false;button.textContent='☁️ Atualizar checklist deste envio'}
+   }finally{button.disabled=false;button.textContent=review.status==='detail-needed'?'☁️ Salvar separação por cor na nuvem':'☁️ Atualizar checklist deste envio'}
   };
  },40);
 }
