@@ -123,55 +123,53 @@ function status(f){
    source:'travetaBaixasV9520',meaning:'registro operacional, não pagamento'};
 }
 function ensurePanel(){
- // O quadro deve ficar na página Facções, mesmo quando a tabela interna
- // é redesenhada ou não existe na primeira abertura do Safari.
+ // Operação fica como uma seção normal dos envios, depois dos relatórios,
+ // sem duplicar a lista de facções no início da página.
  const page=document.getElementById('faccoes');
- const table=document.getElementById('factionTable');
- if(!page&&!table)return null;
+ if(!page)return null;
  let panel=document.getElementById('hlgbFactionOpsPanel9520');
  if(!panel){
   panel=document.createElement('section');panel.id='hlgbFactionOpsPanel9520';panel.className='panel';
-  panel.style.cssText='margin-bottom:14px;padding:14px;background:#fffafd';
-  panel.innerHTML='<h3 style="margin-top:0">⚙️ Alterar facção e valor por peça</h3>'+
-    '<div class="sub">Nesta tela de Facções, pesquise o modelo e clique em “Trocar facção / preço”. A alteração usa confirmação na nuvem; pagamentos feitos são preservados.</div>'+
-    '<div class="field" style="margin-top:12px"><label>Buscar modelo, facção ou OP</label>'+
-    '<input id="hlgbFactionOpsSearch9520" placeholder="Ex.: cueca, Graziano, Roseli ou OP" autocomplete="off"></div>'+
-    '<div id="hlgbFactionOpsRows9520" style="margin-top:8px"></div>';
-  const anchor=page||table?.parentElement;
-  if(anchor)anchor.insertBefore(panel,anchor.firstElementChild);
+  panel.style.cssText='margin:14px 0;padding:14px';
+  panel.innerHTML='<h2 style="margin-top:0">Alterar envios já feitos</h2>'+
+   '<div class="sub">Trocar a facção, ajustar o valor por peça ou registrar travetada. Os registros e pagamentos anteriores são preservados.</div>'+
+   '<div class="field" style="margin-top:12px"><label>Localizar modelo, facção ou OP</label>'+
+   '<input id="hlgbFactionOpsSearch9520" placeholder="Digite o nome do modelo ou a facção" autocomplete="off"></div>'+
+   '<div id="hlgbFactionOpsRows9520" style="margin-top:10px"></div>'+
+   '<div class="sub">v95.29 · ajustes confirmados pelo servidor. Transferências com materiais já vinculados exigem conferência antes da mudança.</div>';
   panel.querySelector('#hlgbFactionOpsSearch9520')?.addEventListener('input',renderRows);
   panel.addEventListener('click',e=>{
-   const b=e.target?.closest?.('button[data-hlgb-faction-action]');
-   if(!b)return;
-   const id=b.getAttribute('data-id');
-   if(b.getAttribute('data-hlgb-faction-action')==='transfer')openTransfer(id);
-   if(b.getAttribute('data-hlgb-faction-action')==='traveta')openTraveta(id);
+   const b=e.target?.closest?.('button[data-hlgb-faction-action]');if(!b)return;
+   const id=b.getAttribute('data-id'),action=b.getAttribute('data-hlgb-faction-action');
+   if(action==='transfer'||action==='price')openTransfer(id,action);
+   if(action==='traveta')openTraveta(id);
   });
  }
- // Um painel antigo próximo à tabela pode ter ficado fora da aba visível.
- if(page&&panel.parentElement!==page)page.insertBefore(panel,page.firstElementChild);
+ // Recoloca mesmo quando a página do Safari é reconstruída.
+ if(panel.parentElement!==page||panel!==page.lastElementChild)page.appendChild(panel);
  return panel;
 }
 function renderRows(){
  const el=document.getElementById('hlgbFactionOpsRows9520');if(!el)return;
  const query=sid(document.getElementById('hlgbFactionOpsSearch9520')?.value).toLocaleLowerCase('pt-BR').trim();
- const rows=arr('factions').filter(f=>!query||[f.name,f.op,f.description,f.product,modelName(f)].some(v=>sid(v).toLocaleLowerCase('pt-BR').includes(query)))
-  .slice().sort((a,b)=>sid(a.name).localeCompare(sid(b.name),'pt-BR')).slice(0,100);
- el.innerHTML=rows.length?rows.map(f=>{
-  let st=null;try{st=status(f)}catch(e){}
-  const tag=st?st.done+' de '+st.eligible+' pç com baixa registrada (desde esta função)': 'A conferir';
-  return '<div class="panel" style="background:#fff;margin:7px 0;padding:10px"><div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:9px">'+
-   '<div style="flex:1;min-width:200px"><b>'+esc(modelName(f))+'</b><div class="sub">'+esc(f.name||'-')+' · OP '+esc(f.op||'-')+' · '+fmt(f.sent)+' peças · '+cash(f.price)+'/peça</div>'+
-   '<div class="sub">Travetada: '+esc(tag)+'</div></div>'+
-   '<div class="toolbar" style="gap:6px"><button type="button" class="secondary" data-hlgb-faction-action="transfer" data-id="'+esc(f.id)+'">↔ Trocar facção / preço</button>'+
-   '<button type="button" class="secondary" data-hlgb-faction-action="traveta" data-id="'+esc(f.id)+'">✓ Baixa de travetada</button></div></div></div>';
- }).join(''):'<div class="empty">Nenhum modelo de facção com esta busca.</div>';
+ if(!query){el.innerHTML='<div class="sub">Digite um modelo para localizar o envio e escolher a alteração.</div>';return}
+ const rows=arr('factions').filter(f=>[f.name,f.op,f.description,f.product,modelName(f)].some(v=>sid(v).toLocaleLowerCase('pt-BR').includes(query)))
+  .slice().sort((a,b)=>sid(a.name).localeCompare(sid(b.name),'pt-BR')).slice(0,60);
+ el.innerHTML=rows.length?'<div style="overflow-x:auto"><table><thead><tr><th>Modelo / OP</th><th>Facção</th><th>Peças</th><th>Preço atual</th><th>Ações</th></tr></thead><tbody>'+
+ rows.map(f=>'<tr><td><b>'+esc(modelName(f))+'</b><div class="sub">'+esc(f.op||'-')+'</div></td>'+
+   '<td>'+esc(f.name||'-')+'</td><td>'+fmt(f.sent)+'</td><td>'+cash(f.price)+'/peça</td>'+
+   '<td><div class="toolbar" style="gap:5px;flex-wrap:wrap">'+
+   '<button type="button" class="secondary" data-hlgb-faction-action="transfer" data-id="'+esc(f.id)+'">Trocar facção</button>'+
+   '<button type="button" class="secondary" data-hlgb-faction-action="price" data-id="'+esc(f.id)+'">Alterar preço</button>'+
+   '<button type="button" class="secondary" data-hlgb-faction-action="traveta" data-id="'+esc(f.id)+'">Travetada</button>'+
+   '</div></td></tr>').join('')+'</tbody></table></div>':
+   '<div class="empty">Nenhum envio encontrado para esta busca.</div>';
 }
-function openTransfer(id){
+function openTransfer(id,action='transfer'){
  const f=faction(id);if(!f)return alert('Alocação não localizada.');
  const fn=window.hlgbFactionAdjust9514?.open;
- if(typeof fn!=='function')return alert('A proteção de transferência v95.14 não carregou. Não use o campo Editar comum para mudar a facção; atualize o sistema.');
- fn(id);
+ if(typeof fn!=='function')return alert('A proteção de alteração não carregou. Reabra o sistema antes de mudar a facção ou preço.');
+ fn(id,action);
 }
 function openTraveta(id){
  if(state.busy)return;
