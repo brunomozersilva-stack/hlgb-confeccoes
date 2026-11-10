@@ -2,7 +2,7 @@
    Realtime continua principal, mas a nuvem é confirmada periodicamente e ao abrir Pedidos. */
 (function(){
 'use strict';
-const V='95.35';
+const V='95.36';
 if(window.hlgbSyncRecovery9301?.version===V)return;
 
 const PENDING_KEY='hlgb_records_pending_v91';
@@ -37,13 +37,22 @@ function loggedIn(){const login=document.getElementById('loginScreen'),app=docum
 function userEditing(){const modal=document.querySelector('#modal.show');if(modal)return true;const a=document.activeElement;if(a?.closest?.('#appShell')&&['productSearchName','productPriceMin','productPriceMax','factionChecklistSearch9198'].includes(a.id))return false;return !!(a&&/^(INPUT|TEXTAREA|SELECT)$/i.test(a.tagName)&&a.closest?.('#appShell'))}
 function recordPendingCount(){const p=read(PENDING_KEY,null);return Object.values(p?.modules||{}).reduce((n,x)=>n+(Array.isArray(x)?x.length:0),0)}
 function walPendingCount(){const w=read(WAL_KEY,null);return w?.entries&&typeof w.entries==='object'?Object.keys(w.entries).length:0}
-function pendingCounts(){return {records:recordPendingCount(),wal:walPendingCount()}}
-function totalPending(){const p=pendingCounts();return p.records+p.wal}
+function pendingCounts(){
+ const records=recordPendingCount(),wal=walPendingCount();
+ const idb=window.hlgbIndexedDbWal9536?.status?.()||{};
+ let total=records+wal;
+ try{const fn=window.hlgbRecordPendingCount9535;if(typeof fn==='function')total=Number(fn())||0}
+ catch(e){}
+ total=Math.max(total,Number(idb.count)||0);
+ return {records,wal,indexedDb:Number(idb.count)||0,
+   indexedDbVerified:idb.verified===true,indexedDbStatus:idb.status||'unavailable',total};
+}
+function totalPending(){return pendingCounts().total}
 function snapshotState(extra={}){const s={version:V,at:new Date().toISOString(),busy,lastFull,lastIncremental,lastReason,lastResult,realtime:realtimeState(),recordReady:ready(),online:navigator.onLine,pending:pendingCounts(),ioPolicy:{fullEveryMs:FULL_EVERY_MS,incrementalEveryMs:INCREMENTAL_EVERY_MS,maintenanceEveryMs:MAINTENANCE_EVERY_MS,minIncrementalMs:MIN_INCREMENTAL_MS,realtimeVerifyEveryMs:REALTIME_VERIFY_EVERY_MS,ordersFullVerifyMinMs:ORDERS_FULL_VERIFY_MIN_MS,overlapMs:OVERLAP_MS,skippedRealtime,flushOnlyRuns,lastCloudVerify,lastOrdersVerify},...extra};try{localStorage.setItem(STATE_KEY,JSON.stringify(s))}catch(e){}return s}
 function quarantineHistory(){const x=read(QUAR_KEY,[]);return Array.isArray(x)?x:[]}
 
 /* Filas não confirmadas nunca são removidas por idade. */
-function quarantineStaleLocal(){return {removedPending:0,removedWal:0,preservedPending:recordPendingCount(),preservedWal:walPendingCount()}}
+function quarantineStaleLocal(){const p=pendingCounts();return {removedPending:0,removedWal:0,preservedPending:p.records,preservedWal:p.wal,preservedIndexedDb:p.indexedDb}}
 async function quarantineIndexedDb(){return 0}
 
 function resetCursorFromSnapshots(){
@@ -86,6 +95,13 @@ async function primeRecordLayer(){
 async function timed(promise,ms,label){let timer;try{return await Promise.race([Promise.resolve(promise),new Promise((_,rej)=>{timer=setTimeout(()=>rej(new Error(label||'Tempo esgotado')),ms)})])}finally{clearTimeout(timer)}}
 async function flushOutgoing(reason='sync'){
  let recordSyncAttempted=false,walFlushAttempted=false,lastError='';
+ // Apenas leitura: sincronização deve contabilizar WAL no IndexedDB,
+ // mesmo quando o contador do localStorage já voltou a zero.
+ const refresh=window.hlgbIndexedDbWal9536?.refresh;
+ if(typeof refresh==='function'){
+  try{await timed(refresh(),9000,'Tempo esgotado lendo fila IndexedDB')}
+  catch(e){lastError='WAL IndexedDB não verificada: '+sid(e?.message||e)}
+ }
  try{const store=pendingStoreFn();if(typeof store==='function')store()}catch(e){lastError=sid(e?.message||e)}
  try{
   const sync=normalizedSyncFn();
@@ -100,6 +116,10 @@ async function flushOutgoing(reason='sync'){
   }
  }catch(e){lastError=sid(e?.message||e);console.warn('[HLGB sync '+V+'] WAL flush',reason,e)}
  try{const store=pendingStoreFn();if(typeof store==='function')store()}catch(e){}
+ if(typeof refresh==='function'){
+  try{await timed(refresh(),9000,'Tempo esgotado verificando fila IndexedDB')}
+  catch(e){lastError=lastError||'WAL IndexedDB não verificada: '+sid(e?.message||e)}
+ }
  return {recordSyncAttempted,walFlushAttempted,lastError,...pendingCounts()};
 }
 async function fullSync(reason='manual',force=false){
@@ -128,8 +148,10 @@ async function fullSync(reason='manual',force=false){
    redrawCurrent();
    lastFull=Date.now();lastIncremental=lastFull;
    const p=pendingCounts();
-   lastResult={ok:p.records+p.wal===0,kind:'full',reason,at:new Date().toISOString(),cursor,rows:Array.isArray(out?.rows)?out.rows.length:null,flush,pending:p,realtime:realtimeState(),needPrime};
-   if(p.records+p.wal)setStatus('⚠️ '+(p.records+p.wal)+' alteração(ões) aguardando confirmação','warn');else setStatus('✅ Online · tudo confirmado na nuvem','ok');
+   lastResult={ok:p.total===0&&p.indexedDbVerified===true,kind:'full',reason,at:new Date().toISOString(),cursor,rows:Array.isArray(out?.rows)?out.rows.length:null,flush,pending:p,realtime:realtimeState(),needPrime};
+   if(p.total)setStatus('⚠️ Pelo menos '+p.total+' operação(ões) aguardando confirmação (IndexedDB: '+p.indexedDb+')','warn');
+   else if(!p.indexedDbVerified)setStatus('⚠️ Nuvem conectada · WAL IndexedDB ainda não verificada','warn');
+   else setStatus('✅ Online · verificações locais concluídas','ok');
    snapshotState();return lastResult.ok;
  }catch(e){
    lastResult={ok:false,kind:'full',reason,at:new Date().toISOString(),error:sid(e?.message||e),pending:pendingCounts()};
@@ -200,8 +222,9 @@ async function incrementalSync(force=false){
     }else redrawCurrent();
    }
    restartRealtimeIfNeeded(false);lastIncremental=Date.now();
-   const p=pendingCounts();lastResult={ok:p.records+p.wal===0,kind:'incremental',at:new Date().toISOString(),since,rows:rows.length,changedRows:changes.length,changedModules:[...new Set(changes.map(x=>String(x?.module||'')))],flush,pending:p,realtime:realtimeState()};
-   if(p.records+p.wal)setStatus('⚠️ '+(p.records+p.wal)+' alteração(ões) aguardando confirmação','warn');
+   const p=pendingCounts();lastResult={ok:p.total===0&&p.indexedDbVerified===true,kind:'incremental',at:new Date().toISOString(),since,rows:rows.length,changedRows:changes.length,changedModules:[...new Set(changes.map(x=>String(x?.module||'')))],flush,pending:p,realtime:realtimeState()};
+   if(p.total)setStatus('⚠️ Pelo menos '+p.total+' operação(ões) aguardando confirmação (IndexedDB: '+p.indexedDb+')','warn');
+   else if(!p.indexedDbVerified)setStatus('⚠️ Verificação IndexedDB pendente · não declarar sincronizado','warn');
    snapshotState();return lastResult.ok;
  }catch(e){console.warn('[HLGB sync '+V+'] incremental',e);lastResult={ok:false,kind:'incremental',at:new Date().toISOString(),error:sid(e?.message||e),pending:pendingCounts()};snapshotState();return false}
  finally{busy=false;snapshotState()}
