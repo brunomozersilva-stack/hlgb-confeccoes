@@ -11494,12 +11494,21 @@ loginScreen.style.display="flex";
 /* ===== v91.16 — MULTIUSUÁRIO POR REGISTRO (TODOS OS MÓDULOS) ===== */
 const HLGB_RECORD_MODULES=[
   "products","materials","clients","orders","orderTrash",
-  "production","productionLocations","capacityAssignments","goals","defectReturns","missingPieces",
+  "production","productionLocations","capacityAssignments","goals","defectReturns","missingPieces","operationalWriteoffs",
   "cuts","cutterPieceTypes","stock","assets",
   "factions","factionMasters","factionPayments","cutters",
   "finance","purchases","invoices","receipts","operationalCosts","weeklyPurchaseLimits",
   "suppliers","employees","formerEmployees","payroll","terminations","employeeAdvances",
   "materialLots","separations","projectionInvoices","noteQueue","machines","serviceTypes","colors","sizes","materialChecklists","hubFinanceEntries","finishedPieces","factionSettings","routePlans","labelBatches","labelTemplates","packagingAssignments","historicalImports","supplierDebts","supplierDebtTransactions","employeePurchases","clientAliases","productAliases","whatsappPilotRules","whatsappPilotMessages"];
+// v95.35: backend RPC hlgb_load_records_page tem uma lista estática de 49 módulos
+// que NÃO inclui estas dez áreas já utilizadas pelo cliente. Sem este complemento,
+// o Chrome não vê a rota gravada pelo Safari nem os outros registros omitidos.
+// A consulta complementar é autenticada, via REST/RLS e somente de leitura.
+const HLGB_RECORD_RPC_OMITTED_9535=[
+  "routePlans","labelBatches","labelTemplates","packagingAssignments",
+  "historicalImports","supplierDebts","supplierDebtTransactions",
+  "employeePurchases","clientAliases","productAliases"
+];
 const HLGB_RECORD_PENDING_KEY="hlgb_records_pending_v91";
 let hlgbRecordSnapshots={};
 let hlgbRecordLastSeen={};
@@ -11514,7 +11523,7 @@ HLGB_RECORD_MODULES.forEach(m=>{hlgbRecordSnapshots[m]=new Map();hlgbRecordLastS
 
 const HLGB_RECORD_WRITE_AREA={
  products:"produtos",materials:"materiais",clients:"clientes",orders:"pedidos",orderTrash:"pedidos",
- production:"producao",productionLocations:"producao",capacityAssignments:"producao",goals:"producao",defectReturns:"producao",missingPieces:"producao",machines:"producao",serviceTypes:"producao",
+ production:"producao",productionLocations:"producao",capacityAssignments:"producao",goals:"producao",defectReturns:"producao",missingPieces:"producao",operationalWriteoffs:"producao",machines:"producao",serviceTypes:"producao",
  cuts:"corte",cutterPieceTypes:"corte",stock:"estoque",assets:"estoque",
  factions:"faccoes",factionMasters:"faccoes",factionPayments:"faccoes",cutters:"cortadores",
  finance:"financeiro",purchases:"financeiro",invoices:"financeiro",receipts:"financeiro",operationalCosts:"financeiro",weeklyPurchaseLimits:"financeiro",
@@ -11583,6 +11592,30 @@ function hlgbRecordSnapshotRows(module,rows){
   hlgbRecordSnapshots[module]=m;if(max)hlgbRecordLastSeen[module]=max;
 }
 function hlgbRecordPendingRead(){try{return JSON.parse(localStorage.getItem(HLGB_RECORD_PENDING_KEY)||"null")}catch(e){return null}}
+// Unifica identidades pendentes normalizadas e WAL durável, sem modificar a fila.
+function hlgbRecordPendingIdentitySet9535(){
+ const ids=new Set();
+ try{
+  const p=hlgbRecordPendingRead();
+  for(const [module,ops] of Object.entries(p?.modules||{})){
+   if(!Array.isArray(ops))continue;
+   for(const op of ops)if(op?.id!=null)ids.add(String(module)+"::"+String(op.id));
+  }
+ }catch(e){}
+ try{
+  const w=JSON.parse(localStorage.getItem("hlgb_durable_wal_v1")||"null");
+  for(const [key,op] of Object.entries(w?.entries||{})){
+   if(op?.module&&op.id!=null)ids.add(String(op.module)+"::"+String(op.id));
+   else if(key.includes("|")){
+    const i=key.indexOf("|");ids.add(key.slice(0,i)+"::"+key.slice(i+1));
+   }
+  }
+ }catch(e){}
+ return ids;
+}
+function hlgbRecordPendingCount9535(){
+ const pending=hlgbRecordPendingIdentitySet9535();return pending.size;
+}
 function hlgbRecordPendingClear(){try{localStorage.removeItem(HLGB_RECORD_PENDING_KEY)}catch(e){}}
 function hlgb924ProtectImplicitDelete(module,old){
   if(module==="projectionInvoices")return true;
@@ -11645,7 +11678,7 @@ async function hlgbRecordPendingAuthoritativeRows917(){
 async function hlgbRecordLoadDirect(since=null){
   // A carga completa traz todos os registros ATIVOS. Tombstones são consultados
   // pontualmente para os IDs que estão na fila pendente, evitando ressuscitar exclusões.
-  const pageSize=500,maxPages=200,rows=[];let serverTime="",complete=false;
+  const pageSize=500,maxPages=200,rows=[];let serverTime="",complete=false,rpcSucceeded=false;
   try{
     for(let pageNo=0,offset=0;pageNo<maxPages;pageNo++,offset+=pageSize){
       let packet=await cloudRequest("rpc/hlgb_load_records_page",{method:"POST",body:JSON.stringify({p_offset:offset,p_limit:pageSize,p_since:since||null})});
@@ -11656,6 +11689,7 @@ async function hlgbRecordLoadDirect(since=null){
       if(packet.has_more!==true||page.length<pageSize){complete=true;break}
     }
     if(!complete)throw new Error("A carga por registros excedeu o limite de segurança sem chegar ao fim.");
+    rpcSucceeded=true;
   }catch(rpcPageError){
     console.warn("HLGB: RPC paginado indisponível; tentando leitura REST paginada.",rpcPageError);
     rows.length=0;complete=false;
@@ -11670,6 +11704,26 @@ async function hlgbRecordLoadDirect(since=null){
     }
     if(!complete)throw new Error("A leitura REST excedeu o limite de segurança sem chegar ao fim.");
   }
+  // O RPC atual não devolve 10 módulos (inclusive routePlans). Ler esses módulos
+  // em uma única consulta adicional com RLS; a falha NUNCA pode ser interpretada
+  // como "não há registros" nem levar a substituir dados locais por [].
+  if(rpcSucceeded){
+   const missing=HLGB_RECORD_RPC_OMITTED_9535.filter(m=>HLGB_RECORD_MODULES.includes(m));
+   if(missing.length){
+    const query="hlgb_records?select=module,entity_id,data,deleted_at,revision,updated_at,updated_by"+
+     "&module=in.("+missing.map(encodeURIComponent).join(",")+")"+
+     (since?"&updated_at=gte."+encodeURIComponent(since):"&deleted_at=is.null")+
+     "&order=updated_at.asc,module.asc,entity_id.asc";
+    let completeGap=false;
+    for(let pageNo=0;pageNo<maxPages;pageNo++){
+     const pg=await cloudRequest(query+"&limit="+pageSize+"&offset="+(pageNo*pageSize),{method:"GET"});
+     if(!Array.isArray(pg))throw new Error("Leitura complementar de módulos (rotas/etiquetas) não foi confirmada.");
+     rows.push(...pg);
+     if(pg.length<pageSize){completeGap=true;break}
+    }
+    if(!completeGap)throw new Error("Leitura complementar excedeu o limite sem confirmação.");
+   }
+  }
   if(!since){
     const exact=await hlgbRecordPendingAuthoritativeRows917();
     const byKey=new Map(rows.map((r,i)=>[String(r?.module||"")+"::"+String(r?.entity_id??""),i]));
@@ -11678,6 +11732,15 @@ async function hlgbRecordLoadDirect(since=null){
       if(i==null){byKey.set(key,rows.length);rows.push(row)}else rows[i]=row;
     }
   }
+  // Evita aplicar a mesma revisão duas vezes quando houver complemento e fila.
+  const unique=new Map();
+  for(const row of rows){
+   const key=String(row?.module||"")+"::"+String(row?.entity_id??"");
+   const prev=unique.get(key);
+   if(!prev||Number(row.revision)>Number(prev.revision)||String(row.updated_at)>String(prev.updated_at))
+    unique.set(key,row);
+  }
+  rows.length=0;rows.push(...unique.values());
   const visibleModules=[...new Set(rows.map(r=>String(r?.module||"")).filter(m=>HLGB_RECORD_MODULES.includes(m)))];
   const modules=normEmail(cloudUser?.email)===normEmail(HLGB_OWNER_EMAIL)?HLGB_RECORD_MODULES.slice():visibleModules;
   return {modules,rows,server_time:serverTime||new Date().toISOString(),fallback:true};
@@ -11696,9 +11759,12 @@ async function hlgbRecordLoadBundle({preserveLocal=false,since=null}={}){
   if(!since){
     for(const module of readable){
       const moduleRows=rows.filter(r=>String(r?.module||"")===String(module));
+      const pending9535=hlgbRecordPendingIdentitySet9535();
+      const currentLocal=hlgbRecordLocalMap(module);
+      const protectLocal9535=[...currentLocal.keys()].some(id=>pending9535.has(String(module)+"::"+String(id)));
       hlgbRecordSnapshotRows(module,moduleRows);
       const remoteActive=moduleRows.filter(r=>!r.deleted_at).map(r=>hlgbRecordRowValue(r,module));
-      if(!preserveLocal){
+      if(!preserveLocal&&!protectLocal9535){
         db[module]=remoteActive;
       }else{
         // HLGB v91.28 AUTHORITATIVE RECORD MERGE
@@ -11709,6 +11775,8 @@ async function hlgbRecordLoadBundle({preserveLocal=false,since=null}={}){
         const pendingNow=hlgbRecordPendingRead();
         const pendingOps=Array.isArray(pendingNow?.modules?.[module])?pendingNow.modules[module]:[];
         const pendingIds=new Set(pendingOps.filter(op=>op&&op.deleted!==true).map(op=>String(op.id)));
+        for(const key of pending9535)if(key.startsWith(String(module)+"::"))
+          pendingIds.add(key.slice(String(module).length+2));
         const explicitRestoreIds=new Set(pendingOps.filter(op=>op&&op.deleted!==true&&hlgbPendingExplicitRestore917(op.data)).map(op=>String(op.id)));
         for(const row of moduleRows){
           const rid=String(row?.entity_id??"");
@@ -11843,6 +11911,14 @@ function hlgbApplyRecordRow(row){
     const oldTime=String(previous.updated_at||''),newTime=String(row.updated_at||'');
     if(newRevision<oldRevision)return false;
     if(newRevision===oldRevision&&(newTime<oldTime||(newTime===oldTime&&String(previous.deleted_at||'')===String(row.deleted_at||''))))return false;
+  }
+  // Caso a operação ainda esteja no diário do Safari, não permitir que
+  // o eco remoto/subscrição substitua uma edição local não confirmada.
+  if(!row.deleted_at&&hlgbRecordPendingIdentitySet9535().has(module+"::"+id)){
+   if(idx<0||!hlgbRecordDataEqual(arr[idx],hlgbRecordHydrateData(module,row))){
+    window.__HLGB_SYNC_PROTECTED_INCOMING_9535=(Number(window.__HLGB_SYNC_PROTECTED_INCOMING_9535)||0)+1;
+    return false;
+   }
   }
   if(row.deleted_at){if(idx>=0)arr.splice(idx,1)}
   else {const data=hlgbRecordHydrateData(module,row);if(idx>=0)arr[idx]=data;else arr.push(data)}
