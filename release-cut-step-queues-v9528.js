@@ -24,6 +24,19 @@ function pendingTrackingRow(r){
  // Sem produção materializada, permanece visível para investigação do corte.
  return !p||isAwaiting(p);
 }
+function trackingSources(){
+ const orders=arr('orders'),prod=arr('production'),rows=[];
+ for(const c of arr('cuts')){
+  if(!c||norm(c.status)!=='finalizado')continue;
+  const o=orders.find(x=>sid(x.id)===sid(c.orderId))||null;
+  const ps=prod.filter(p=>sid(p.cutId)===sid(c.id)&&Number(p.planned)>0&&
+    norm(p.stage)!=='consolidado');
+  if(ps.length)ps.forEach(p=>rows.push({c,o,p}));
+  else rows.push({c,o,p:null});
+ }
+ return rows.sort((a,b)=>sid(b.c.finishedAtTime||b.c.finishedAt||b.c.date)
+   .localeCompare(sid(a.c.finishedAtTime||a.c.finishedAt||a.c.date)));
+}
 function pendingAssignedByCut(c){
  // Nunca esconder o saldo de uma atribuição parcial. Só suprimir linhas antigas
  // quando a quantidade total cortada já tiver destino em registros confirmados.
@@ -80,8 +93,12 @@ const oldRender=window.renderCutTracking9173;
 if(typeof oldRender==='function'&&!oldRender.__hlgbStepQueue9528){
  const wrapped=function(){
   const out=oldRender.apply(this,arguments);
+  // A rotina antiga limitava a 60 ANTES de filtrar atribuídos, fazendo
+  // pendências antigas sumirem. Filtrar primeiro e limitar depois.
+  const complete=trackingSources();
+  window.__cutTrackRows9173=(showAlreadyAssigned?complete:complete.filter(pendingTrackingRow)).slice(0,120);
+  try{window.filterCutTracking9173?.()}catch(e){console.warn('[HLGB '+V+'] atualizar cortes',e)}
   updateTrackingTitle();
-  // O render original já chama o filtro global que foi protegido acima.
   return out;
  };
  wrapped.__hlgbStepQueue9528=true;wrapped.__original=oldRender;
@@ -101,7 +118,7 @@ if(typeof oldQueue==='function'&&!oldQueue.__hlgbStepQueue9528){
  window.renderCutAssignmentQueue=wrapped;
 }
 window.hlgbCutStepQueues9528={version:V,hasDestination,assigned,isAwaiting,
- pendingTrackingRow,pendingAssignedByCut,pendingProductionRows,updateTrackingTitle,
+ pendingTrackingRow,trackingSources,pendingAssignedByCut,pendingProductionRows,updateTrackingTitle,
  showAssigned:()=>showAlreadyAssigned,originalPending:oldPending};
 try{if(typeof window.hlgbAfterLogin==='function')window.hlgbAfterLogin(()=>{
  try{window.renderCutAssignmentQueue?.();window.renderCutTracking9173?.()}catch(_){}
