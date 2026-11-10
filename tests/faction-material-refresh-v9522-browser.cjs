@@ -14,10 +14,17 @@ const engine=process.env.HLGB_BROWSER==='webkit'?webkit:chromium;
     req.onerror=()=>reject(req.error);req.onsuccess=()=>resolve(req.result)
    });r.close();
    window.renderDestinationChecklists();
+   window.renderFactionChecklists9198();
   });
   await page.waitForSelector('#hlgbMaterialRevisions9522 button[data-material-revision9522]',{timeout:12000});
+  await page.waitForSelector('#hlgbFactionMaterialRevisions9522 button[data-material-revision9522]',{timeout:12000});
   const first=await page.locator('#hlgbMaterialRevisions9522').innerText();
   assert.match(first,/Short Doll Crystal/);
+  const faccoes=await page.locator('#hlgbFactionMaterialRevisions9522').innerText();
+  assert.match(faccoes,/Short Doll Crystal/);
+  assert.match(faccoes,/Short Doll Melanie/);
+  assert.match(faccoes,/Graziano/);
+  assert.match(faccoes,/Vanessa/);
   assert.match(first,/Short Doll Melanie/);
   assert.match(first,/0 material\(is\) no envio \/ 4 na ficha/);
   assert.match(first,/0 material\(is\) no envio \/ 6 na ficha/);
