@@ -166,9 +166,14 @@ async function reloadAndSave(id){
    throw new Error('A conferência deste envio já foi iniciada. Não é possível substituir os materiais automaticamente.');
   const latest=buildMaterials(prod,check.qty);
   const stillDifferent=compare(check.materials,latest);
-  if(!stillDifferent.different)return {alreadyCurrent:true,count:latest.length};
-  if(!compare(prod.materials,local.product.materials).different&&Number(remoteProd.revision)>0){
-    // A comparação acima é apenas uma pista; nao confundir revisao remota com cache local.
+  if(!stillDifferent.different){
+   // Se o servidor gravou mas a resposta HTTP se perdeu, apenas reconciliar o cache.
+   // Nunca enviar um segundo POST para a mesma revisao de materiais.
+   syncSnapshot(M,remoteCheck);
+   const current=lookup(id);if(current)Object.assign(current,clone(check));
+   try{if(typeof localSaveOnly==='function')localSaveOnly()}catch(e){}
+   ensurePanel();window.renderDestinationChecklists?.();
+   return {alreadyCurrent:true,count:latest.length,revision:remoteCheck.revision};
   }
   if(JSON.stringify((local.product.materials||[]).map(x=>[x.materialId,x.name,x.qty,x.unit,x.loss,x.calcMode]))!==
      JSON.stringify((prod.materials||[]).map(x=>[x.materialId,x.name,x.qty,x.unit,x.loss,x.calcMode])))
