@@ -94,21 +94,26 @@ function ensurePanel(){
   if(!panel){
    panel=document.createElement('section');panel.id=target.panel;
    panel.className='panel';panel.style.cssText='margin:10px 0;border:1px solid #e9dce4;background:#fffafd';
-   table.insertAdjacentElement('beforebegin',panel);
+   table.insertAdjacentElement('afterend',panel);
   }
   const stale=rows(M).filter(c=>!target.factionOnly||c.destinationType==='F')
     .map(c=>({c,check:analyze(c)})).filter(x=>x.check.status==='stale');
   const unavailable=rows(M).filter(c=>!target.factionOnly||c.destinationType==='F')
     .filter(c=>analyze(c).status==='unavailable').length;
-  panel.innerHTML='<h3 style="margin:0 0 6px">📦 Materiais dos envios × ficha técnica atual</h3>'+
-   '<div class="sub">Ao alterar a ficha técnica, confira e atualize aqui os envios anteriores. Nenhuma conferência é apagada automaticamente.</div>'+
+  // A divergência fica abaixo da lista normal de envios; não ocupa o topo.
+  if(panel.previousElementSibling!==table)table.insertAdjacentElement('afterend',panel);
+  panel.innerHTML='<details class="hlgbMaterialReviewDetails9529"><summary style="cursor:pointer;font-weight:600">'+
+   'Revisar materiais dos envios · '+stale.length+' divergência(s)'+
+   (unavailable?' · '+unavailable+' ficha(s) indisponível(is)':'')+'</summary>'+
+   '<div class="sub" style="margin:9px 0">As quantidades do envio original e a ficha atual são comparadas antes de qualquer alteração. Recebimentos já lançados não serão substituídos.</div>'+
    (stale.length?stale.map(({c,check})=>
-    '<div style="padding:9px 0;border-bottom:1px solid #ecdfe6"><b>'+esc(check.productName)+'</b> · '+esc(c.destinationName||'Destino')+
-    ' · '+fmt(c.qty)+' peça(s) · <b>'+check.oldCount+' linha(s) no envio / '+check.newCount+' linha(s) na ficha</b>'+
-    (check.locked?'<div class="sub">⚠️ Conferência existente: revisão manual obrigatória</div>':'')+
-    ' <button type="button" class="secondary" data-material-revision9522="'+esc(c.id)+'">Conferir materiais atualizados</button></div>'
-   ).join(''):'<div class="sub" style="margin-top:7px">Nenhuma divergência detectada nas fichas carregadas.</div>')+
-   (unavailable?'<div class="sub">⚠️ '+unavailable+' ficha(s) ainda não carregada(s); atualize a sessão antes de confirmar.</div>':'');
+    '<div style="padding:8px 0;border-bottom:1px solid #e5e5e5"><b>'+esc(check.productName)+'</b> · '+esc(c.destinationName||'Destino')+
+    ' · '+fmt(c.qty)+' peças · '+check.oldCount+' linha(s) no envio / '+check.newCount+' na ficha'+
+    (check.locked?'<div class="sub">Revisão manual · '+(c.receivedAt?'Recebimento em '+esc(c.receivedAt):'Conferência já iniciada')+'</div>':'')+
+    '<button type="button" class="secondary" data-material-revision9522="'+esc(c.id)+'">Comparar materiais</button></div>'
+   ).join(''):'<div class="sub">Nenhuma divergência detectada nas fichas carregadas.</div>')+
+   (unavailable?'<div class="sub">⚠️ '+unavailable+' ficha(s) não carregada(s). Não confirmar sem os dados.</div>':'')+
+   '</details>';
   panel.onclick=e=>{const btn=e.target?.closest?.('[data-material-revision9522]');if(btn)openReview(btn.getAttribute('data-material-revision9522'))};
  }
 }
@@ -229,6 +234,49 @@ async function reloadAndSave(id){
  }catch(e){state.lastError=sid(e?.message||e);throw e}
  finally{state.busy=false}
 }
+function comparisonRows(oldItems,newItems){
+ const group=list=>{
+  const x=new Map();
+  for(const item of Array.isArray(list)?list:[]){
+   const key=norm(item.name)+'|'+norm(item.unit);
+   const prior=x.get(key)||{name:sid(item.name),unit:sid(item.unit),qty:0};
+   prior.qty+=Number(item.qty)||0;x.set(key,prior);
+  }
+  return x;
+ };
+ const old=group(oldItems),fresh=group(newItems),keys=[...new Set([...old.keys(),...fresh.keys()])];
+ return keys.sort((a,b)=>a.localeCompare(b,'pt-BR')).map(key=>{
+  const a=old.get(key),b=fresh.get(key),diff=(b?.qty||0)-(a?.qty||0);
+  return {name:b?.name||a?.name||'',unit:b?.unit||a?.unit||'',
+   original:a?a.qty:null,updated:b?b.qty:null,difference:diff,
+   change:!a?'Novo na ficha':!b?'Somente no envio':Math.abs(diff)<0.000001?'Sem alteração':'Quantidade alterada'};
+ });
+}
+function comparisonTable(current,review){
+ const items=comparisonRows(current?.materials,review?.materials);
+ return '<div style="overflow-x:auto"><table><thead><tr><th>Matéria-prima</th><th>Un.</th><th>No envio original</th><th>Ficha atual</th><th>Diferença</th><th>Situação</th></tr></thead><tbody>'+
+ items.map(m=>'<tr><td>'+esc(m.name)+'</td><td>'+esc(m.unit)+'</td>'+
+  '<td>'+(m.original==null?'—':fmt(m.original))+'</td>'+
+  '<td>'+(m.updated==null?'—':fmt(m.updated))+'</td>'+
+  '<td>'+fmt(m.difference)+'</td><td>'+esc(m.change)+'</td></tr>').join('')+
+ '</tbody></table></div>';
+}
+function printComparison(c,review){
+ const pop=window.open('','_blank');
+ if(!pop)throw new Error('O Safari bloqueou a impressão. Autorize a janela de impressão.');
+ const html='<!doctype html><html lang="pt-BR"><head><meta charset="utf-8">'+
+  '<title>Conferência complementar de materiais</title>'+
+  '<style>body{font:12px Arial,sans-serif;padding:22px;color:#222}table{width:100%;border-collapse:collapse}th,td{border:1px solid #777;padding:7px;text-align:left}th{background:#eee}@media print{button{display:none}}</style></head><body>'+
+  '<h2>HLGB — conferência complementar (sem alteração de estoque)</h2>'+
+  '<p><b>'+esc(review.productName)+'</b> · '+esc(c.destinationName)+' · '+fmt(c.qty)+' peças'+
+  ' · recebimento: '+esc(c.receivedAt||'não registrado')+'</p>'+
+  comparisonTable(c,review)+
+  '<p>Este relatório compara o registro original e a ficha atual. Não comprova uma transferência física de materiais.</p>'+
+  '<p>Conferido por: ______________________ Data: ____/____/______</p>'+
+  '<button onclick="window.print()">Imprimir</button></body></html>';
+ pop.document.open();pop.document.write(html);pop.document.close();pop.focus();
+}
+
 function openReview(id){
  const c=lookup(id);if(!c)return alert('Checklist não localizado.');
  const review=analyze(c);
@@ -238,16 +286,19 @@ function openReview(id){
  const html='<div class="panel" style="background:#fff8fb"><b>'+esc(review.productName)+'</b><div>'+
   esc(c.destinationName)+' · '+fmt(c.qty)+' peça(s)</div>'+
   '<p>'+review.oldCount+' materiais registrados no envio; ficha atual possui <b>'+review.newCount+' materiais</b>.</p>'+
-  (locked?'<p style="color:#a33"><b>Conferência já iniciada:</b> revisão manual obrigatória; nada será substituído.</p>':
+  (locked?'<p><b>Conferência manual necessária:</b> o envio já tem '+(c.receivedAt?'recebimento registrado em '+esc(c.receivedAt):'conferência iniciada')+'. O material original será preservado; confira fisicamente as diferenças.</p>':
    '<p>Os novos materiais serão calculados com o rendimento, consumo e perda atuais. A alteração somente será gravada após confirmação na nuvem.</p>')+
-  '</div><h3>Materiais na ficha atual</h3>'+htmlRows(review.materials)+
+  '</div><h3>Comparativo: envio original × ficha atual</h3>'+comparisonTable(c,review)+
   '<p class="sub">Nenhuma baixa de material, pagamento, estoque ou entrega é realizada por esta atualização.</p>'+
   '<p id="hlgbMaterialRefreshError9522" role="alert" style="color:#a33"></p>'+
   (locked?'':'<button type="button" class="primary" id="hlgbMaterialRefreshConfirm9522">☁️ Atualizar checklist deste envio</button>')+
+  ' <button type="button" class="secondary" id="hlgbMaterialPrintReview9529">Imprimir conferência</button>'+
   ' <button type="button" class="secondary" onclick="closeModal()">Fechar</button>';
  if(typeof openModal!=='function')return alert('Janela do HLGB não está disponível.');
  openModal('📦 Materiais atualizados — conferência do envio',html,()=>{});
  setTimeout(()=>{
+  const printButton=document.getElementById('hlgbMaterialPrintReview9529');
+  if(printButton)printButton.onclick=()=>{try{printComparison(c,review)}catch(e){alert(sid(e.message||e))}};
   const button=document.getElementById('hlgbMaterialRefreshConfirm9522');
   if(button)button.onclick=async()=>{
    button.disabled=true;button.textContent='☁️ Conferindo e salvando…';
@@ -303,7 +354,7 @@ function install(){
  state.installed=true;setTimeout(ensurePanel,100);
 }
 window.hlgbFactionMaterialRefresh9522={version:V,state,install,analyze,buildMaterials,compare,openReview,reloadAndSave,ensurePanel,
- test:{materialKey,isRelevantPending}};
+ test:{materialKey,isRelevantPending,comparisonRows,comparisonTable}};
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',install,{once:true});else install();
 try{window.hlgbAfterLogin?.(()=>setTimeout(install,200),0)}catch(e){}
 setTimeout(install,1500);
