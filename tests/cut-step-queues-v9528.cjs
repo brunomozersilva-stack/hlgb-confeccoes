@@ -88,3 +88,19 @@ test('Concluídos ficam disponíveis no histórico, sem botão de baixa manual n
  assert.match(split,/showCompletedModels9519=false/);
  assert.match(org,/const completed=/);
 });
+
+
+test('older waiting cut remains visible even with more than 60 already attributed',()=>{
+ const {ctx,db}=fixture();
+ for(let i=0;i<80;i++){
+  const id=1000+i;
+  db.cuts.push({id,orderId:37,productId:11,modelSplitChildV1:true,
+   status:'Finalizado',pieces:1,finishedAtTime:'2026-11-10T14:50:00.000Z'});
+  db.production.push({id:1000+i,orderId:37,productId:11,cutId:id,planned:1,
+   stage:'Em produção',productionLocationId:101});
+ }
+ ctx.renderCutTracking9173();
+ assert.ok(ctx.lastVisible.includes(5),'older pending row should not be displaced by history');
+ assert.ok(ctx.lastVisible.includes(7),'incomplete destination should remain in queue');
+ assert.equal(ctx.lastVisible.includes(1001),false,'assigned row not shown in waiting queue');
+});
