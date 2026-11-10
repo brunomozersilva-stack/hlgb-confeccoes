@@ -2,7 +2,7 @@
    Realtime continua principal, mas a nuvem é confirmada periodicamente e ao abrir Pedidos. */
 (function(){
 'use strict';
-const V='93.48';
+const V='95.35';
 if(window.hlgbSyncRecovery9301?.version===V)return;
 
 const PENDING_KEY='hlgb_records_pending_v91';
@@ -10,10 +10,10 @@ const WAL_KEY='hlgb_durable_wal_v1';
 const QUAR_KEY='hlgb_sync_quarantine_v9305';
 const STATE_KEY='hlgb_sync_recovery_9301';
 const FULL_EVERY_MS=600000;
-const INCREMENTAL_EVERY_MS=60000;
+const INCREMENTAL_EVERY_MS=30000;
 const MAINTENANCE_EVERY_MS=30000;
-const MIN_INCREMENTAL_MS=45000;
-const REALTIME_VERIFY_EVERY_MS=120000;
+const MIN_INCREMENTAL_MS=12000;
+const REALTIME_VERIFY_EVERY_MS=45000;
 const ORDERS_FULL_VERIFY_MIN_MS=5000;
 const OVERLAP_MS=600000;
 let busy=false,lastFull=0,lastIncremental=0,lastReason='',lastResult=null;
@@ -163,7 +163,9 @@ function changedRecordRows(rows,before){
  });
 }
 async function incrementalSync(force=false){
- if(busy||!navigator.onLine||document.visibilityState==='hidden'||!loggedIn()||userEditing())return false;
+ // Consultar registros remotos mesmo com campo de busca ou modal aberto.
+ // O desenho da tela (não a atualização dos dados em memória) aguarda a edição terminar.
+ if(busy||!navigator.onLine||document.visibilityState==='hidden'||!loggedIn())return false;
  if(!ready()||!token())return fullSync('incremental-not-ready',true);
  const now=Date.now();if(!force&&now-lastIncremental<MIN_INCREMENTAL_MS)return true;
  const hadPending=totalPending()>0;
@@ -177,14 +179,11 @@ async function incrementalSync(force=false){
    if(!await ensureSession())throw new Error('Sessão indisponível');
    const flush=await flushOutgoing('incremental');
    const remaining=totalPending();
-   /* Reenviar fila não precisa ser seguido por outra leitura. A resposta de save
-      confirma a gravação; o Realtime/catch-up posterior traz alterações externas. */
-   if(hadPending){
-     flushOnlyRuns++;lastIncremental=Date.now();restartRealtimeIfNeeded(false);
-     const p=pendingCounts();lastResult={ok:p.records+p.wal===0,kind:'flush-only',at:new Date().toISOString(),flush,pending:p,realtime:realtimeState()};
-     if(p.records+p.wal)setStatus('⚠️ '+(p.records+p.wal)+' alteração(ões) aguardando confirmação','warn');
-     snapshotState();return lastResult.ok;
-   }
+   // Antes, qualquer pendência no Safari causava retorno antecipado "flush-only":
+   // isso IMPEDIA o Chrome de receber atualizações enquanto houvesse uma WAL local.
+   // A partir de agora a leitura remota continua, mas a aplicação protegerá
+   // cada identidade que ainda tiver gravação local não confirmada.
+   if(hadPending)flushOnlyRuns++;
    let cursor=currentCursor();
    if(!cursor){busy=false;snapshotState();return fullSync('incremental-no-cursor',true)}
    const t=Date.parse(cursor);const since=Number.isFinite(t)?new Date(Math.max(0,t-OVERLAP_MS)).toISOString():null;
@@ -194,7 +193,12 @@ async function incrementalSync(force=false){
    const out=await load({preserveLocal:true,since});markReady();saveLocal();
    lastCloudVerify=Date.now();
    const rows=Array.isArray(out?.rows)?out.rows:[],changes=changedRecordRows(rows,before);
-   if(changes.length)redrawCurrent();
+   if(changes.length){
+    if(userEditing()){
+     // As rotinas existentes de render já preservam modais/foco.
+     try{window.hlgbRenderIncomingRecord?.(changes[0].module)}catch(e){}
+    }else redrawCurrent();
+   }
    restartRealtimeIfNeeded(false);lastIncremental=Date.now();
    const p=pendingCounts();lastResult={ok:p.records+p.wal===0,kind:'incremental',at:new Date().toISOString(),since,rows:rows.length,changedRows:changes.length,changedModules:[...new Set(changes.map(x=>String(x?.module||'')))],flush,pending:p,realtime:realtimeState()};
    if(p.records+p.wal)setStatus('⚠️ '+(p.records+p.wal)+' alteração(ões) aguardando confirmação','warn');
