@@ -17,7 +17,8 @@ const melanie={id:1788442854165,name:'Short Doll Melanie',materials:[
  {materialId:1791245626717,name:'Alpinia',unit:'m',qty:1,loss:0,calcMode:'consumption'}
 ]};
 test('new reconciler loaded after faction operations, syntax valid',()=>{
- assert.match(router,/'release-faction-operations-v9520\.js','release-faction-material-refresh-v9522\.js'/);
+ assert.ok(router.indexOf("'release-faction-material-refresh-v9522.js'")>router.indexOf("'release-faction-checklist-grade-standard.js'"), 'the guard must load after checklist printing overrides');
+ assert.ok(router.indexOf("'release-faction-material-refresh-v9522.js'")>router.indexOf("'release-faction-operations-v9520.js'"));
  assert.doesNotThrow(()=>new vm.Script(source));
 });
 function setup({checked=false,pending=false,lostResponse=false}= {}){
