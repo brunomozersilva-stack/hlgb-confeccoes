@@ -62,7 +62,7 @@ test('Ana Melia receivedAt locks automatic overwrite even with no checked items'
  assert.equal(a.newCount,2);
  const before=JSON.stringify(f.db);
  f.window.hlgbFactionMaterialRefresh9522.openReview(19);
- assert.match(f.lastModal.html,/Comparativo: envio original/);
+ assert.match(f.lastModal.html,/Comparativo dos totais/);
  assert.match(f.lastModal.html,/Recebimento registrado|recebimento registrado/);
  assert.match(f.lastModal.html,/Renda antiga/);
  assert.match(f.lastModal.html,/Imprimir conferência/);
