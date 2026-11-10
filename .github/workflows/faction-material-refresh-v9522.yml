@@ -1,0 +1,30 @@
+name: HLGB Faccoes - Material Ficha Atualizada v95.22
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'release-faction-material-refresh-v9522.js'
+      - 'app-stable3.html'
+      - 'tests/faction-material-refresh-v9522*'
+      - '.github/workflows/faction-material-refresh-v9522.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'release-faction-material-refresh-v9522.js'
+      - 'app-stable3.html'
+      - 'tests/faction-material-refresh-v9522*'
+      - '.github/workflows/faction-material-refresh-v9522.yml'
+permissions:
+  contents: read
+jobs:
+  safe-reconciliation:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '20'}
+      - name: Validate source
+        run: node --check release-faction-material-refresh-v9522.js
+      - name: Crystal/Melanie and WAL/ACK tests
+        run: node --test tests/faction-material-refresh-v9522.cjs
