@@ -189,10 +189,13 @@ async function submitTraveta(){
   if(!sameOperationalFields(current,remoteFac))throw new Error('A alocação mudou na nuvem. Reabra para evitar baixa sobre dados antigos.');
   if(int(remoteProd.data?.travetadas||0)!==int(prod.travetadas||0))throw new Error('A ficha técnica de travetada mudou na nuvem. Atualize antes de continuar.');
   const latest=status(remoteFac.data),h=histories(remoteFac.data);
-  if(latest.done>latest.eligible||latest.remaining<requested)throw new Error('Saldo de travetada na nuvem insuficiente.');
+  if(latest.done>latest.eligible)throw new Error('Histórico de travetada excedeu a capacidade; bloqueado.');
   if(!state.requestId)state.requestId=window.crypto?.randomUUID?.()||'';
   if(!state.requestId)throw new Error('Identificador seguro de baixa indisponível.');
-  let isDuplicate=h.list.some(e=>sid(e.requestId)===state.requestId);
+  const matchingEvent=h.list.find(e=>sid(e.requestId)===state.requestId)||null;
+  let isDuplicate=!!matchingEvent;
+  if(isDuplicate&&Number(matchingEvent.quantity)!==requested)throw new Error('Esta baixa já foi registrada com outra quantidade. Confira o histórico.');
+  if(!isDuplicate&&latest.remaining<requested)throw new Error('Saldo de travetada na nuvem insuficiente.');
   const event={requestId:state.requestId,quantity:requested,pointsPerPiece:latest.pointsPerPiece,
    pointsTotal:requested*latest.pointsPerPiece,by:sid(window.cloudUser?.email||''),at:new Date().toISOString(),note};
   if(!isDuplicate){
@@ -208,7 +211,7 @@ async function submitTraveta(){
    if(saved?.applied!==true)throw new Error('Baixa não confirmada na revisão atual. Atualize e confira o histórico; não repita cegamente.');
   }
   const check=await remote('factions',current.id),hh=histories(check.data);
-  if(!hh.list.some(e=>sid(e.requestId)===state.requestId)||hh.total<h.total+requested)
+  if(!hh.list.some(e=>sid(e.requestId)===state.requestId)||hh.total<(isDuplicate?h.total:h.total+requested))
    throw new Error('Nuvem ainda não confirmou esta baixa. Confira o histórico antes de tentar novamente.');
   if(!sameOperationalFields(current,check))throw new Error('A baixa foi registrada, mas houve outra alteração da facção. Atualize a tela.');
   const xs=arr('factions'),i=xs.findIndex(x=>sid(x.id)===sid(current.id));if(i>=0)xs[i]=check.data;
