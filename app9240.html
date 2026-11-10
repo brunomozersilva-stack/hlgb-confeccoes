@@ -11593,8 +11593,75 @@ function hlgbRecordSnapshotRows(module,rows){
 }
 function hlgbRecordPendingRead(){try{return JSON.parse(localStorage.getItem(HLGB_RECORD_PENDING_KEY)||"null")}catch(e){return null}}
 // Unifica identidades pendentes normalizadas e WAL durável, sem modificar a fila.
+/* v95.36: índice SOMENTE LEITURA da WAL IndexedDB do Safari.
+   As operações podem existir no IndexedDB mesmo com pendingSync=0 e localStorage WAL vazio.
+   Nunca remover, reenviar ou modificar entradas por causa desta inspeção. */
+const hlgbIndexedDbWalState9536={ids:new Set(),verified:false,status:"not-checked",lastCheckedAt:"",lastError:""};
+let hlgbIndexedDbWalInflight9536=null;
+function hlgbIndexedDbWalStatus9536(){
+ return {version:"95.36",status:hlgbIndexedDbWalState9536.status,
+  verified:hlgbIndexedDbWalState9536.verified,count:hlgbIndexedDbWalState9536.ids.size,
+  lastCheckedAt:hlgbIndexedDbWalState9536.lastCheckedAt,
+  lastError:hlgbIndexedDbWalState9536.lastError};
+}
+function hlgbScanIndexedDbWal9536(){
+ if(hlgbIndexedDbWalInflight9536)return hlgbIndexedDbWalInflight9536;
+ const promise=new Promise(resolve=>{
+  let request=null,db=null,done=false;const found=new Set();
+  const finish=(ok,error="")=>{
+   if(done)return;done=true;clearTimeout(timer);
+   try{db?.close()}catch(e){}
+   hlgbIndexedDbWalState9536.status=ok?"verified":"unverified";
+   hlgbIndexedDbWalState9536.verified=ok;
+   hlgbIndexedDbWalState9536.lastCheckedAt=new Date().toISOString();
+   hlgbIndexedDbWalState9536.lastError=ok?"":String(error||"IndexedDB sem confirmação");
+   if(ok)hlgbIndexedDbWalState9536.ids=found; // Em erro, conservar evidências antigas.
+   resolve(hlgbIndexedDbWalStatus9536());
+  };
+  const timer=setTimeout(()=>finish(false,"Timeout na leitura de WAL IndexedDB"),8000);
+  if(typeof indexedDB==="undefined"){finish(false,"IndexedDB indisponível");return}
+  try{request=indexedDB.open("hlgb_durable_wal")}
+  catch(e){finish(false,String(e?.message||e));return}
+  request.onupgradeneeded=()=>{
+   // Banco nunca criado: ABORTAR upgrade. Não criar IndexedDB durante diagnóstico.
+   try{request.transaction?.abort()}catch(e){}
+   finish(true);
+  };
+  request.onerror=()=>finish(false,String(request.error?.message||"Falha ao abrir IndexedDB"));
+  request.onblocked=()=>finish(false,"IndexedDB bloqueado por outra aba");
+  request.onsuccess=()=>{
+   if(done){try{request.result?.close()}catch(e){}return}
+   db=request.result;
+   if(!db.objectStoreNames.contains("entries")){finish(true);return}
+   try{
+    const tx=db.transaction("entries","readonly");
+    const cursor=tx.objectStore("entries").openCursor();
+    cursor.onsuccess=e=>{
+     const c=e.target.result;if(!c)return;
+     const op=c.value||{},key=String(c.key??op.key??"");
+     if(op.module&&op.id!=null)found.add(String(op.module)+"::"+String(op.id));
+     else if(key.includes("|")){
+      const sep=key.indexOf("|");found.add(key.slice(0,sep)+"::"+key.slice(sep+1));
+     }
+     c.continue();
+    };
+    cursor.onerror=()=>finish(false,"Falha ao percorrer WAL IndexedDB");
+    tx.onabort=()=>finish(false,"Leitura de WAL abortada");
+    tx.onerror=()=>finish(false,"Erro na transação de leitura WAL");
+    tx.oncomplete=()=>finish(true);
+   }catch(e){finish(false,String(e?.message||e))}
+  };
+ });
+ hlgbIndexedDbWalInflight9536=promise;
+ return promise.finally(()=>{hlgbIndexedDbWalInflight9536=null});
+}
+window.hlgbIndexedDbWal9536={
+ version:"95.36",refresh:hlgbScanIndexedDbWal9536,status:hlgbIndexedDbWalStatus9536,
+ has:(module,id)=>hlgbIndexedDbWalState9536.ids.has(String(module)+"::"+String(id))
+};
+
 function hlgbRecordPendingIdentitySet9535(){
- const ids=new Set();
+ const ids=new Set(hlgbIndexedDbWalState9536.ids);
  try{
   const p=hlgbRecordPendingRead();
   for(const [module,ops] of Object.entries(p?.modules||{})){
@@ -11808,7 +11875,10 @@ async function hlgbRecordLoadBundle({preserveLocal=false,since=null}={}){
 async function hlgbLoadNormalizedCore(opts={}){
   if(!cloudAccessToken)return false;
   try{
-    await hlgbRecordLoadBundle({preserveLocal:!!opts.preserveLocal,since:null});
+    const indexedWal9536=await hlgbScanIndexedDbWal9536();
+    // Se o Safari negar leitura do diário, preservar cópias locais até
+    // existir prova suficiente — jamais assumir WAL vazia por timeout.
+    await hlgbRecordLoadBundle({preserveLocal:!!opts.preserveLocal||indexedWal9536.verified!==true,since:null});
     hlgbLastRecordLoadError="";
     hlgbRecordReady=true;hlgbNormalizedReady=true;
     const pending=hlgbRecordPendingRead();
@@ -11865,7 +11935,18 @@ async function hlgbNormalizedSyncModule(module){
   if(!hlgbRecordReady||!cloudAccessToken)return true;
   if(!hlgbRecordCanWrite(module))return true;
   const snap=hlgbRecordSnapshots[module]||new Map(),local=hlgbRecordLocalMap(module),jobs=[];
-  for(const [id,item] of local){const old=snap.get(id);if(!old||old.deleted_at||!hlgbRecordDataEqual(old.data,item))jobs.push({id,data:item,deleted:false})}
+  for(const [id,item] of local){
+    // Somente a autoridade WAL reconciliará estes IDs. A sincronização
+    // genérica não pode sobrescrever uma revisão remota divergente.
+    if(hlgbIndexedDbWalState9536.ids.has(String(module)+"::"+String(id))){
+      window.__HLGB_SYNC_AUTO_WRITES_SUPPRESSED_9536=
+       (Number(window.__HLGB_SYNC_AUTO_WRITES_SUPPRESSED_9536)||0)+1;
+      continue;
+    }
+    const old=snap.get(id);
+    if(!old||old.deleted_at||!hlgbRecordDataEqual(old.data,item))
+      jobs.push({id,data:item,deleted:false});
+  }
   // v91.26: nenhuma exclusão é inferida por diferença entre navegador e nuvem.
   for(const job of jobs)await hlgbRecordSaveWithRetry(module,job.id,job.data,job.deleted);
   return true;
