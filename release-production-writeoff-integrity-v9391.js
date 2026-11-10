@@ -63,7 +63,76 @@ function refsForPair(m,pair){const refs=[];for(const r of Array.isArray(m?.sourc
 function stableId(pair){const raw=sid(pair?.orderId)+'\u001f'+sid(pair?.productId||'*');let encoded='';try{encoded=btoa(unescape(encodeURIComponent(raw))).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'')}catch(_){encoded=raw.replace(/[^a-zA-Z0-9_-]+/g,'_')}return'baixa-op-v1-'+encoded}
 function recordCoversPair(row,pair){return pairsFrom(row).some(x=>sid(x.orderId)===sid(pair.orderId)&&(sid(x.productId)===sid(pair.productId)||sid(x.productId)==='*'))}
 function upsertLocal(row){const a=arr('operationalWriteoffs'),i=a.findIndex(x=>sid(x.id)===sid(row?.id));if(i>=0)a[i]=row;else a.push(row)}
-async function officialSave(row,pair){if(typeof window.cloudEnsureFreshSession==='function')await window.cloudEnsureFreshSession(false);if(typeof window.hlgbRecordSaveWithRetry!=='function')throw new Error('Gravação oficial indisponível.');const r=await window.hlgbRecordSaveWithRetry('operationalWriteoffs',sid(row.id),row,false);if(r?.applied){const saved=r.data||row;upsertLocal(saved);return saved}if(r?.data&&recordCoversPair(r.data,pair)){upsertLocal(r.data);return r.data}throw new Error(r?.reason||'A nuvem não confirmou a baixa.')}
+function touchesPair(op,pair){
+ if(!op||typeof op!=='object')return false;
+ const mod=sid(op.module),id=sid(op.id||op.entity_id),
+  data=op.data||op.value||op.record||{},child=splitChildFor(pair);
+ if(mod==='orders'&&id===sid(pair.orderId))return true;
+ if(mod==='cuts'&&child&&id===sid(child.id))return true;
+ if(mod==='production'&&sid(data.orderId)===sid(pair.orderId)&&sid(data.productId)===sid(pair.productId))return true;
+ if(mod==='operationalWriteoffs'&&(id===stableId(pair)||recordCoversPair(data,pair)))return true;
+ return false;
+}
+function idbPending(){
+ return new Promise((resolve,reject)=>{
+  if(typeof indexedDB==='undefined')return reject(new Error('IndexedDB indisponível para conferir baixas pendentes.'));
+  let req,aborted=false;
+  try{req=indexedDB.open('hlgb_durable_wal')}catch(e){reject(e);return}
+  req.onupgradeneeded=()=>{aborted=true;try{req.transaction.abort()}catch(_){}};
+  req.onerror=()=>reject(new Error(aborted?'WAL não inicializada':'Falha ao ler a WAL de baixas.'));
+  req.onsuccess=()=>{
+   const handle=req.result;
+   if(!handle.objectStoreNames.contains('entries')){handle.close();reject(new Error('Estrutura da WAL não reconhecida.'));return}
+   try{
+    const tx=handle.transaction('entries','readonly'),query=tx.objectStore('entries').getAll();
+    query.onsuccess=()=>resolve(Array.isArray(query.result)?query.result:[]);
+    query.onerror=()=>reject(new Error('Leitura IndexedDB falhou'));
+    tx.oncomplete=()=>handle.close();
+    tx.onerror=()=>reject(new Error('Transação WAL falhou'));
+   }catch(e){try{handle.close()}catch(_){}reject(e)}
+  };
+ });
+}
+async function assertNoPendingPair(pair){
+ let wal,normal;
+ try{wal=JSON.parse(localStorage.getItem('hlgb_durable_wal_v1')||'null')}
+ catch(_){throw new Error('WAL local ilegível: baixa bloqueada para proteger alterações.')}
+ if(wal!==null&&(!wal.entries||typeof wal.entries!=='object'))throw new Error('WAL local incompleta: baixa bloqueada.');
+ if(Object.values(wal?.entries||{}).some(op=>touchesPair(op,pair)))
+  throw new Error('Existem alterações pendentes deste pedido/modelo no navegador. Não foi feita baixa.');
+ try{normal=JSON.parse(localStorage.getItem('hlgb_records_pending_v91')||'null')}
+ catch(_){throw new Error('Fila normalizada ilegível: baixa bloqueada.')}
+ for(const [module,entries] of Object.entries(normal?.modules||{})){
+  if(!Array.isArray(entries))throw new Error('Fila normalizada inválida: baixa bloqueada.');
+  if(entries.some(x=>touchesPair({module,id:x.id,data:x.data||x.value||x.record},pair)))
+   throw new Error('Há uma gravação local pendente deste pedido/modelo. A baixa foi bloqueada.');
+ }
+ const idb=await idbPending();
+ if(idb.some(op=>touchesPair(op,pair)))throw new Error('IndexedDB contém alterações pendentes deste pedido/modelo. Não foi feita baixa.');
+}
+async function remoteWriteoffRecords(){
+ if(typeof window.cloudRequest!=='function')throw new Error('Consulta autenticada indisponível.');
+ const data=await window.cloudRequest('hlgb_records?select=module,entity_id,data,revision,deleted_at&module=eq.operationalWriteoffs&deleted_at=is.null&limit=500',{method:'GET'});
+ if(!Array.isArray(data)||data.length>=500)throw new Error('Não foi possível conferir todas as baixas ativas na nuvem.');
+ return data.filter(r=>!r.deleted_at&&sid(r.module)==='operationalWriteoffs');
+}
+async function officialSave(row,pair){
+ if(window.__HLGB_AUTH_READY!==true||navigator.onLine===false)
+  throw new Error('É necessário estar autenticado e online para dar baixa.');
+ if(typeof window.hlgbRecordSaveWithRetry!=='function')throw new Error('Gravação oficial indisponível.');
+ await assertNoPendingPair(pair);
+ if(typeof window.cloudEnsureFreshSession==='function')await window.cloudEnsureFreshSession(false);
+ const before=await remoteWriteoffRecords();
+ const already=before.find(rec=>recordCoversPair(rec.data,pair));
+ if(already){upsertLocal(already.data);return already.data}
+ const out=await window.hlgbRecordSaveWithRetry('operationalWriteoffs',sid(row.id),row,false);
+ if(out?.applied!==true)throw new Error(out?.reason||'A nuvem não confirmou a baixa.');
+ const after=await window.cloudRequest('hlgb_records?select=module,entity_id,data,revision,deleted_at&module=eq.operationalWriteoffs&entity_id=eq.'+encodeURIComponent(sid(row.id))+'&limit=1',{method:'GET'});
+ const receipt=Array.isArray(after)?after.find(rec=>sid(rec.entity_id)===sid(row.id)&&!rec.deleted_at):null;
+ if(!receipt||!recordCoversPair(receipt.data,pair)||Number(receipt.revision)<1)
+  throw new Error('Baixa enviada, mas ainda sem prova de leitura na nuvem. Não repita a operação; atualize a conferência.');
+ upsertLocal(receipt.data);return receipt.data;
+}
 function userLabel(){try{const u=typeof window.currentUser==='function'?window.currentUser():null;return sid(u?.name||u?.login||window.cloudUser?.email||window.currentUser?.email||'Usuário HLGB')}catch(_){return'Usuário HLGB'}}
 function historyMeta(){const counts=new Map();for(const w of arr('operationalWriteoffs'))for(const p of pairsFrom(w))counts.set(pairKey(p),(counts.get(pairKey(p))||0)+1);return{counts,duplicates:[...counts].filter(([,n])=>n>1).length}}
 function render(){const h=document.getElementById('darBaixa9378Host');if(!h)return;const rows=pendingModels().map(m=>'<tr><td><input class="hlgb9391-writeoff" type="checkbox" value="'+esc(m.id)+'"></td><td><b>'+esc(m.productName)+'</b><div class="sub">'+esc(m.clientName)+' · '+(m.orderProductRefs||[]).map(x=>'Pedido #'+esc(order(x.orderId)?.orderNumber||x.orderId)).join(' · ')+'</div></td><td>'+q(m.qty)+'</td><td>'+esc(m.status||'')+'</td><td>'+((m.orderProductRefs||[]).length||0)+' pedido/modelo pendente(s)</td></tr>').join('');const meta=historyMeta();const hist=arr('operationalWriteoffs').slice().sort((a,b)=>sid(b.createdAt).localeCompare(sid(a.createdAt))).slice(0,100).map(x=>{const dup=pairsFrom(x).some(p=>(meta.counts.get(pairKey(p))||0)>1);return'<tr><td>'+esc(x.date||'')+'</td><td>'+esc(x.productName||'')+(dup?' <span title="Registro antigo repetido">⚠️</span>':'')+'</td><td>'+q(x.quantity)+'</td><td>'+esc(x.reason||'')+'</td><td>'+esc(x.user||'')+'</td></tr>'}).join('');h.innerHTML='<div class="panel"><div class="toolbar"><button class="primary" onclick="hlgbWriteoffSelected9385()">✅ Dar baixa nos selecionados</button></div><div class="sub">Baixa operacional por pedido + modelo (não é baixa de estoque nem pagamento). A quantidade vem da grade efetivamente cortada; modelos com corte ainda planejado ficam fora da lista.</div><div style="overflow:auto"><table><thead><tr><th></th><th>Modelo / cliente</th><th>Qtd.</th><th>Status</th><th>Pendência</th></tr></thead><tbody>'+(rows||'<tr><td colspan="5" class="empty">Nenhuma pendência operacional.</td></tr>')+'</tbody></table></div></div><div class="panel"><h3>Histórico de baixas</h3>'+(meta.duplicates?'<div class="sub">⚠️ Há '+meta.duplicates+' pedido/modelo com registro antigo repetido. Eles foram preservados e não serão reenviados.</div>':'')+'<table><thead><tr><th>Data</th><th>Modelo</th><th>Qtd.</th><th>Motivo</th><th>Usuário</th></tr></thead><tbody>'+(hist||'<tr><td colspan="5" class="empty">Nenhuma baixa registrada.</td></tr>')+'</tbody></table></div>'}
@@ -91,7 +160,7 @@ function showWriteoffForSplit(cutId){
 window.hlgbShowWriteoffForSplit=showWriteoffForSplit;
 function install(){window.hlgbWriteoffSelected9385=writeoffSelected;window.hlgbWriteoffSelected9384=writeoffSelected;window.hlgbWriteoffSelected9378=writeoffSelected;window.hlgbRenderWriteoffs9385=render;window.HLGB_OPERATIONAL_WRITEOFF_AUTHORITY='93.91';const d=document.getElementById('hlgbDarBaixaNav9378');if(d)d.onclick=()=>{document.querySelectorAll('.page').forEach(x=>x.classList.remove('active'));document.getElementById('darBaixa9378')?.classList.add('active');render()};if(document.getElementById('darBaixa9378')?.classList.contains('active'))render()}
 function diagnostics(){const meta=historyMeta();return{version:V,authority:window.HLGB_OPERATIONAL_WRITEOFF_AUTHORITY,writeoffs:arr('operationalWriteoffs').length,duplicatePairs:meta.duplicates,pendingModels:pendingModels().length}}
-window.hlgbWriteoffIntegrity9391={version:V,pairsFrom,pairIndex,pendingModels,stableId,recordCoversPair,render,install,diagnostics,showWriteoffForSplit,_test:{splitChildFor,pairEligible,quantityForPair,modelPairs}};
+window.hlgbWriteoffIntegrity9391={version:V,pairsFrom,pairIndex,pendingModels,stableId,recordCoversPair,render,install,diagnostics,showWriteoffForSplit,_test:{splitChildFor,pairEligible,quantityForPair,modelPairs,touchesPair}};
 install();
 /* O módulo legado v93.79 cria o botão de baixa em boot tardio (900/1900 ms).
    Reinstalamos apenas o handler da própria baixa depois desses dois pontos; sem loop, observer ou render amplo. */
