@@ -1,0 +1,58 @@
+name: HLGB Faccoes e Baixa por Modelo v95.25
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'release-faction-operations-v9520.js'
+      - 'release-production-operations-v9385-core.js'
+      - 'release-production-writeoff-integrity-v9391.js'
+      - 'release-cut-model-split.js'
+      - 'tests/faction-split-writeoff-v9525*'
+      - '.github/workflows/faction-split-writeoff-v9525.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'release-faction-operations-v9520.js'
+      - 'release-production-operations-v9385-core.js'
+      - 'release-production-writeoff-integrity-v9391.js'
+      - 'release-cut-model-split.js'
+      - 'tests/faction-split-writeoff-v9525*'
+      - '.github/workflows/faction-split-writeoff-v9525.yml'
+permissions:
+  contents: read
+jobs:
+  unit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '20'}
+      - name: Check changed JavaScript
+        run: |
+          node --check release-faction-operations-v9520.js
+          node --check release-production-operations-v9385-core.js
+          node --check release-production-writeoff-integrity-v9391.js
+          node --check release-cut-model-split.js
+          node --check tests/faction-split-writeoff-v9525.cjs
+      - name: Verify split orders, writeoff safety, duplicate guard and quantities
+        run: node --test tests/faction-split-writeoff-v9525.cjs
+  browser:
+    runs-on: ubuntu-latest
+    timeout-minutes: 16
+    strategy:
+      fail-fast: false
+      matrix:
+        browser: [chromium, webkit]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '20'}
+      - name: Install browser
+        run: |
+          npm install --no-save playwright@1.55.0
+          npx playwright install --with-deps ${{ matrix.browser }}
+      - name: Check Facções screen
+        env:
+          HLGB_BROWSER: ${{ matrix.browser }}
+        run: node tests/faction-split-writeoff-v9525-browser.cjs
