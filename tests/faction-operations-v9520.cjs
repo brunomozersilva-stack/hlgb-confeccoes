@@ -8,7 +8,7 @@ test('new faction operations module loads after validated v95.14 transfer',()=>{
  assert.ok(src.includes('hlgb_save_record'));
  assert.ok(!src.includes("window.save("),'must never invoke generic full-db save');
 });
-function setup({pending=false,conflict=false,offline=false,existing=0}={}){
+function setup({pending=false,conflict=false,offline=false,existing=0,postResponseLost=false}={}){
  const fid='1001',pid='2001';
  const base={id:1001,name:'Graziano',productId:2001,orderId:3001,productionId:4001,
    op:'OP-1001',status:'Em produção',description:'Cueca modelo A',
@@ -50,12 +50,15 @@ function setup({pending=false,conflict=false,offline=false,existing=0}={}){
    assert.equal(body.p_expected_revision,remoteFac.revision);
    assert.equal(body.p_deleted,false);
    if(conflict)return {applied:false,data:remoteFac.data,revision:remoteFac.revision};
-   remoteFac={...remoteFac,revision:remoteFac.revision+1,data:body.p_data};
+   remoteFac={...remoteFac,revision:remoteFac.revision+1,data:body.p_data,updated_at:'2026-11-10T12:30:00Z'};
+   if(postResponseLost){postResponseLost=false;throw Error('failed to fetch after server commit')}
    return {applied:true,data:remoteFac.data,revision:remoteFac.revision};
   }
   throw Error('unexpected request '+path);
  };
- const ctx={console,Date,Number,String,Array,Object,JSON,Map,Set,Math,Promise,
+ const hlgbRecordSnapshots={factions:new Map([[fid,{data:{...base},deleted_at:null,revision:3,updated_at:'2026-11-10T12:00:00Z'}]])};
+ const hlgbRecordLastSeen={factions:'2026-11-10T12:00:00Z'};
+ const ctx={console,Date,Number,String,Array,Object,JSON,Map,Set,Math,Promise,hlgbRecordSnapshots,hlgbRecordLastSeen,
   db:{factions:[{...base}],products:[master],factionMasters:[]},
   window:null,document,navigator:{onLine:true},localStorage:{getItem(k){return k==='hlgb_durable_wal_v1'?JSON.stringify(localWAL):null}},
   indexedDB,setTimeout(){return 0},cloudRequest,cloudEnsureFreshSession:async()=>true,
@@ -88,6 +91,9 @@ test('traveta operation adds five finished garments, ten travetas, does not touc
  assert.equal(h.remote.done,20);
  assert.equal(h.localSaves,1);
  assert.equal(h.alerts.length,1);
+ assert.equal(h.ctx.hlgbRecordSnapshots.factions.get('1001').revision,4,'normal sync must see cloud revision');
+ assert.equal(h.ctx.hlgbRecordSnapshots.factions.get('1001').data.travetaDonePiecesV9520,5);
+ assert.equal(h.ctx.hlgbRecordLastSeen.factions,'2026-11-10T12:30:00Z');
 });
 test('refuses traveta write if WAL has pending faction operations',async()=>{
  const h=setup({pending:true});h.ctx.hlgbFactionOperations9520.openTraveta(1001);
@@ -116,4 +122,25 @@ test('history counts are not inferred as zero when old operations might exist',(
  assert.equal(st.done,5);assert.equal(st.eligible,20);assert.equal(st.remaining,15);
  assert.equal(st.recordedPoints,10);
  assert.equal(st.source,'travetaBaixasV9520');
+});
+
+test('lost response after real server commit retries only readback, never duplicate write',async()=>{
+ const h=setup({postResponseLost:true});h.ctx.hlgbFactionOperations9520.openTraveta(1001);
+ const first=await h.ctx.hlgbFactionOperations9520.submitTraveta();
+ assert.equal(first,false,'first request must report unconfirmed response');
+ assert.equal(h.post,1);
+ assert.equal(h.remote.travetaDonePiecesV9520,5,'database already committed one operation');
+ const second=await h.ctx.hlgbFactionOperations9520.submitTraveta();
+ assert.equal(second,true,h.error);
+ assert.equal(h.post,1,'retry must not send a second write');
+ assert.equal(h.remote.travetaBaixasV9520.length,1,'no duplicate event');
+ assert.equal(h.ctx.hlgbRecordSnapshots.factions.get('1001').revision,4);
+});
+test('refuses browser save when revision snapshot registry cannot be updated',async()=>{
+ const h=setup();h.ctx.hlgbRecordSnapshots.factions=null;
+ h.ctx.hlgbFactionOperations9520.openTraveta(1001);
+ const ok=await h.ctx.hlgbFactionOperations9520.submitTraveta();
+ assert.equal(ok,false);
+ assert.match(h.error,/Cache de revisões/i);
+ assert.equal(h.ctx.db.factions[0].travetaDonePiecesV9520,0,'local unsynchronized copy is not silently replaced');
 });
