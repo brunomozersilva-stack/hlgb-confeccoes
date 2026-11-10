@@ -60,3 +60,7 @@ jobs:
         env:
           HLGB_BROWSER: ${{ matrix.browser }}
         run: node tests/cut-faction-traveta-v9521-browser.cjs
+      - name: Verify Crystal and Melanie technical-sheet refresh on browser
+        env:
+          HLGB_BROWSER: ${{ matrix.browser }}
+        run: node tests/faction-material-refresh-v9522-browser.cjs
