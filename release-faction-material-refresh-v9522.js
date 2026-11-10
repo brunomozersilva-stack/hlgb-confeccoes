@@ -146,7 +146,14 @@ function analyze(c){
  const anyChecked=(c.materials||[]).some(m=>m.checked===true);
  const alreadyReceived=!!sid(c.receivedAt).trim()||!!sid(c.receivedBy).trim()||sid(c.status)==='Conferido';
  const locked=anyChecked||alreadyReceived;
- return {...diff,materials:material,product:p,status:diff.different?'stale':diff.detailDifferent?'detail-needed':'current',
+ // O wrapper antigo da tela podia criar as linhas por cor só em memória,
+ // enquanto o Supabase continuava com as 3 linhas somadas. Exigir prova
+ // persistente antes de declarar uma ficha antiga como já separada.
+ const unconfirmedLegacy=sid(c.materialsSourceV9522)==='product_technical_sheet'&&
+   !sid(c.materialsSourceV9532)&&material.some(m=>!!sid(m.color));
+ const detailNeeded=diff.detailDifferent||unconfirmedLegacy;
+ return {...diff,detailDifferent:detailNeeded,materials:material,product:p,
+    status:diff.different?'stale':detailNeeded?'detail-needed':'current',
     locked,lockedReason:locked?'Há item conferido ou recebimento registrado; não é seguro substituir automaticamente.':'',
     productName:p.name||c.productName};
 }
@@ -272,6 +279,9 @@ async function reloadAndSave(id){
    throw new Error('A conferência deste envio já foi iniciada. Não é possível substituir os materiais automaticamente.');
   const latest=buildMaterials(prod,check.qty,check.destinationType,check);
   const stillDifferent=compare(check.materials,latest);
+  // Se a pessoa só pediu separar por cor, proibir mudança no consumo total.
+  if(local.status==='detail-needed'&&stillDifferent.different)
+   throw new Error('O consumo total no servidor mudou. Faça a conferência antes de alterar por cor.');
   if(!stillDifferent.different&&!stillDifferent.detailDifferent){
    // Se o servidor gravou mas a resposta HTTP se perdeu, apenas reconciliar o cache.
    // Nunca enviar um segundo POST para a mesma revisao de materiais.
@@ -289,7 +299,8 @@ async function reloadAndSave(id){
   if(Number(productAtCommit.revision)!==Number(remoteProd.revision)||
      JSON.stringify(productAtCommit.data?.materials||[])!==JSON.stringify(prod.materials||[]))
    throw new Error('Ficha técnica alterada na nuvem durante a conferência. Reabra para calcular os materiais atuais.');
-  const payload={...check,materials:latest,materialSheetRevisionV9522:Number(remoteProd.revision),
+  const payload={...check,materials:latest,materialsSourceV9532:'per_color_confirmed',
+   materialSheetRevisionV9522:Number(remoteProd.revision),
    materialsRefreshedAtV9522:new Date().toISOString(),materialsSourceV9522:'product_technical_sheet',
    materialsRevisionReasonV9522:'Conferência explícita após atualização da ficha técnica'};
   const out=await cloudRequest('rpc/hlgb_save_record',{method:'POST',headers:{Prefer:'return=representation'},
@@ -298,7 +309,8 @@ async function reloadAndSave(id){
   if(applied?.applied!==true)throw new Error('Conflito de revisão. Nenhum material local foi substituído.');
   const confirmed=await getRemote(M,id),proof=compare(confirmed.data.materials,latest);
   if(proof.different||proof.detailDifferent||Number(confirmed.revision)<=Number(remoteCheck.revision)||
-   sid(confirmed.data.materialsSourceV9522)!=='product_technical_sheet')
+   sid(confirmed.data.materialsSourceV9522)!=='product_technical_sheet'||
+   sid(confirmed.data.materialsSourceV9532)!=='per_color_confirmed')
     throw new Error('O servidor ainda não confirmou os materiais. Confira antes de repetir.');
   syncSnapshot(M,confirmed);
   const dbRow=lookup(id);
