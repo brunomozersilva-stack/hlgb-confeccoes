@@ -71,6 +71,26 @@ async function remote(module,id){
  if(!row||!(Number(row.revision)>0))throw new Error('Registro não localizado na nuvem ou sem revisão');
  return row;
 }
+// A baixa confirmada não pode ficar com revisão antiga no cache: o sincronizador
+// normalizaria a linha como uma edição local e poderia tentar salvar outra vez.
+function syncConfirmedSnapshot9521(module,row){
+ const id=sid(row?.entity_id),rev=Number(row?.revision);
+ if(!id||!(rev>0)||!row?.data||row.deleted_at)throw new Error('Confirmação de nuvem incompleta: snapshot não atualizado');
+ let snapshots=null,lastSeen=null;
+ try{if(typeof hlgbRecordSnapshots!=='undefined')snapshots=hlgbRecordSnapshots}catch(_){}
+ if(!snapshots)snapshots=window.hlgbRecordSnapshots||null;
+ if(!snapshots||!(snapshots[module] instanceof Map))throw new Error('Cache de revisões do HLGB indisponível: reabra a tela antes de uma nova baixa');
+ const map=snapshots[module],current=map.get(id);
+ if(current&&Number(current.revision||0)>rev)throw new Error('Existe revisão local mais recente; não sobrescreva o cache');
+ const safe=JSON.parse(JSON.stringify(row.data));
+ map.set(id,{module,entity_id:id,data:safe,deleted_at:null,revision:rev,
+  updated_at:sid(row.updated_at),updated_by:row.updated_by||null});
+ try{
+  if(typeof hlgbRecordLastSeen!=='undefined'&&
+      sid(row.updated_at)>sid(hlgbRecordLastSeen[module]||''))hlgbRecordLastSeen[module]=sid(row.updated_at);
+ }catch(_){}
+ return true;
+}
 function sameOperationalFields(local,record){
  if(!local||!record?.data)return false;
  const keys=['name','sent','done','returned','defects','waste','price','orderId','productId','productionId','status'];
@@ -211,9 +231,16 @@ async function submitTraveta(){
    if(saved?.applied!==true)throw new Error('Baixa não confirmada na revisão atual. Atualize e confira o histórico; não repita cegamente.');
   }
   const check=await remote('factions',current.id),hh=histories(check.data);
-  if(!hh.list.some(e=>sid(e.requestId)===state.requestId)||hh.total<(isDuplicate?h.total:h.total+requested))
-   throw new Error('Nuvem ainda não confirmou esta baixa. Confira o histórico antes de tentar novamente.');
+  const recorded=hh.list.find(e=>sid(e.requestId)===state.requestId);
+  if(!recorded||Number(recorded.quantity)!==requested||
+     Number(recorded.pointsPerPiece)!==latest.pointsPerPiece||
+     Number(recorded.pointsTotal)!==requested*latest.pointsPerPiece||
+     hh.total<(isDuplicate?h.total:h.total+requested))
+   throw new Error('Nuvem não comprovou quantidade e pontos desta baixa. Confira o histórico antes de tentar novamente.');
   if(!sameOperationalFields(current,check))throw new Error('A baixa foi registrada, mas houve outra alteração da facção. Atualize a tela.');
+  if(!isDuplicate&&Number(check.revision)<=Number(remoteFac.revision))
+    throw new Error('Revisão não avançou após a baixa. Confira a operação.');
+  syncConfirmedSnapshot9521('factions',check);
   const xs=arr('factions'),i=xs.findIndex(x=>sid(x.id)===sid(current.id));if(i>=0)xs[i]=check.data;
   try{window.localSaveOnly?.()}catch(_){}
   state.lastConfirmed={id:sid(current.id),requestId:state.requestId,quantity:requested,points:requested*latest.pointsPerPiece,revision:check.revision};
