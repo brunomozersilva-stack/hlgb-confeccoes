@@ -123,18 +123,22 @@ function status(f){
    source:'travetaBaixasV9520',meaning:'registro operacional, não pagamento'};
 }
 function ensurePanel(){
+ // O quadro deve ficar na página Facções, mesmo quando a tabela interna
+ // é redesenhada ou não existe na primeira abertura do Safari.
+ const page=document.getElementById('faccoes');
  const table=document.getElementById('factionTable');
- if(!table)return null;
+ if(!page&&!table)return null;
  let panel=document.getElementById('hlgbFactionOpsPanel9520');
  if(!panel){
   panel=document.createElement('section');panel.id='hlgbFactionOpsPanel9520';panel.className='panel';
   panel.style.cssText='margin-bottom:14px;padding:14px;background:#fffafd';
-  panel.innerHTML='<h3 style="margin-top:0">⚙️ Modelos em facções — trocar responsável / preço</h3>'+
-    '<div class="sub">Escolha o modelo e altere a facção ou a mão de obra com confirmação da nuvem. Pagamentos já feitos ficam preservados.</div>'+
+  panel.innerHTML='<h3 style="margin-top:0">⚙️ Alterar facção e valor por peça</h3>'+
+    '<div class="sub">Nesta tela de Facções, pesquise o modelo e clique em “Trocar facção / preço”. A alteração usa confirmação na nuvem; pagamentos feitos são preservados.</div>'+
     '<div class="field" style="margin-top:12px"><label>Buscar modelo, facção ou OP</label>'+
     '<input id="hlgbFactionOpsSearch9520" placeholder="Ex.: cueca, Graziano, Roseli ou OP" autocomplete="off"></div>'+
     '<div id="hlgbFactionOpsRows9520" style="margin-top:8px"></div>';
-  table.insertAdjacentElement('beforebegin',panel);
+  const anchor=page||table?.parentElement;
+  if(anchor)anchor.insertBefore(panel,anchor.firstElementChild);
   panel.querySelector('#hlgbFactionOpsSearch9520')?.addEventListener('input',renderRows);
   panel.addEventListener('click',e=>{
    const b=e.target?.closest?.('button[data-hlgb-faction-action]');
@@ -144,6 +148,8 @@ function ensurePanel(){
    if(b.getAttribute('data-hlgb-faction-action')==='traveta')openTraveta(id);
   });
  }
+ // Um painel antigo próximo à tabela pode ter ficado fora da aba visível.
+ if(page&&panel.parentElement!==page)page.insertBefore(panel,page.firstElementChild);
  return panel;
 }
 function renderRows(){
