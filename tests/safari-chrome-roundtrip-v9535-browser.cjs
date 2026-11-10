@@ -24,6 +24,8 @@ const prelude=[
  "function hlgbRecordPendingRead(){try{return JSON.parse(localStorage.getItem(HLGB_RECORD_PENDING_KEY)||'null')}catch(_){return null}}",
  "function hlgbRecordPendingAuthoritativeRows917(){return Promise.resolve([])}",
  "function hlgbRecordClone(v){return JSON.parse(JSON.stringify(v))}",
+ "function normEmail(v){return String(v||'').trim().toLowerCase()}",
+ "function hlgbRecordId(module,row){return String(row?.id??row?.__hlgbId??'')}",
  "function hlgbRecordDataEqual(a,b){return JSON.stringify(a)===JSON.stringify(b)}",
  "function hlgbRecordHydrateData(module,row){return {...row.data}}",
  "function hlgbRecordRowValue(row){return {...row.data}}",
