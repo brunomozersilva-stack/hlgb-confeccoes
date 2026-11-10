@@ -118,10 +118,12 @@ async function finishChild(id){
   const next={...c,actualCutGrade:actual,pieces,cutAdjustmentNote:document.getElementById('hlgbSplitNote')?.value||'',status:'Finalizado',finishedAt:new Date().toISOString().slice(0,10),finishedAtTime:new Date().toISOString(),updatedAt:new Date().toISOString()};
   try{
    const saved=await saveRecord('cuts',next);upsert('cuts',saved);
+   // Depois do fechamento, a lista padrão nunca deve reexibir finalizados.
+   showCompletedModels9519=false;
    const oo=order(c.orderId);
    if(oo&&allChildrenDone(oo)){const on={...oo,status:'Corte finalizado',updatedAt:new Date().toISOString()};const os=await saveRecord('orders',on);upsert('orders',os)}
    try{localSaveOnly?.();syncFinalizedCutsToProduction?.()}catch(e){}
-   closeModal();renderCuts?.();renderDailyCuts?.();renderProduction?.();renderOrders?.();return true;
+   closeModal();renderCuts?.();renderSplitPanel();renderDailyCuts?.();renderProduction?.();renderOrders?.();return true;
   }catch(e){alert('Não foi possível finalizar este modelo.\n\n'+String(e?.message||e));return false}
  });
 }
@@ -200,20 +202,20 @@ async function confirmSplit(orderId){
  try{await splitOrder(orderId,{automatic:false});renderSplitPanel()}catch(e){alert('Não foi possível separar o pedido.\n\n'+String(e?.message||e))}
 }
 function isWaitingProduction(p){
- const s=norm(p?.stage);return !p?.assignedAt&&!p?.finishedAt&&q(p?.done)===0&&(s===''||s.includes('aguardando atribuicao')||s.includes('aguardando producao'));
+ const s=norm(p?.stage);
+ // Destino definido significa etapa concluída, mesmo em registros antigos sem assignedAt.
+ return !!p&&!p.productionLocationId&&!p.factionId&&!p.assignedAt&&!p.finishedAt&&
+   q(p.done)===0&&(s===''||s.includes('aguardando atribuicao')||s.includes('aguardando producao'));
 }
 async function repairInheritedDestinations(){
+ // v95.28: nunca retirar automaticamente local/facção que já foram escolhidos.
+ // Os dados de atribuição existentes são preservados; divergências precisam de revisão individual.
  if(window.__HLGB_AUTH_READY!==true)return {checked:0,repaired:0};
  if(typeof hlgbRecordReady!=='undefined'&&hlgbRecordReady===false)return {checked:0,repaired:0};
- const bad=arr('production').filter(p=>isWaitingProduction(p)&&(p.productionLocationId||p.factionId));
- let repaired=0;
- for(const p of bad){
-  const next={...clone(p),productionLocationId:null,factionId:null,assignedAt:'',sentToFactionAt:'',updatedAt:new Date().toISOString(),destinationRepairV9412:true};
-  try{const saved=await saveRecord('production',next);upsert('production',saved);try{removeProductionFactionLink?.(saved)}catch(e){};repaired++}
-  catch(e){console.warn('[HLGB corte '+V+'] limpar destino herdado '+sid(p.id),e)}
- }
- if(repaired){try{localSaveOnly?.();renderCutTracking9173?.();renderCutAssignmentQueue?.();renderProduction?.()}catch(e){}}
- return {checked:bad.length,repaired};
+ const suspect=arr('production').filter(p=>(p.productionLocationId||p.factionId)&&
+   !p.assignedAt&&norm(p.stage).includes('aguardando'));
+ if(suspect.length)console.warn('[HLGB corte v95.28] destinos existentes preservados para revisão:',suspect.length);
+ return {checked:suspect.length,repaired:0,preserved:suspect.length};
 }
 function commonDestinations(rows){
  let map=null;
@@ -274,7 +276,7 @@ async function openGroupAssignment(){
       syncProductionToFaction(saved);const fr=arr('factions').find(x=>sid(x.productionId)===sid(saved.id));if(fr){fr.price=rate;fr.sent=q(saved.planned);fr.description=product(saved.productId)?.name||saved.product||'';try{const fs=await saveRecord('factions',fr);upsert('factions',fs)}catch(e){console.warn('[HLGB corte '+V+'] comprovante facção',e)}}
     }else{try{removeProductionFactionLink?.(saved)}catch(e){}}
    }
-   selected.clear();try{localSaveOnly?.()}catch(e){};closeModal();try{renderCutTracking9173?.();renderCutAssignmentQueue?.();renderProduction?.();renderProjection?.()}catch(e){};setTimeout(decorateTrackingSelection,40);return true;
+   selected.clear();try{localSaveOnly?.()}catch(e){};closeModal();try{renderCutAssignmentQueue?.();renderCutTracking9173?.();renderProduction?.();renderProjection?.()}catch(e){};setTimeout(decorateTrackingSelection,40);return true;
   }catch(e){if(btn){btn.disabled=false;btn.textContent='Confirmar atribuição dos selecionados'}alert('Não foi possível confirmar toda a atribuição.\n\n'+String(e?.message||e));return false}
  });
  setTimeout(()=>{const d=document.getElementById('hlgbGroupDest9412');if(d)d.onchange=groupDestinationChanged},20);
