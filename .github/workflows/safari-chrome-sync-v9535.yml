@@ -1,0 +1,50 @@
+name: HLGB Safari Chrome Sync Audit v95.35
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'app9240.html'
+      - 'release-sync-recovery-v9301.js'
+      - 'tests/safari-chrome-sync-v9535.cjs'
+      - 'tests/safari-chrome-roundtrip-v9535-browser.cjs'
+      - '.github/workflows/safari-chrome-sync-v9535.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'app9240.html'
+      - 'release-sync-recovery-v9301.js'
+      - 'tests/safari-chrome-sync-v9535.cjs'
+      - 'tests/safari-chrome-roundtrip-v9535-browser.cjs'
+      - '.github/workflows/safari-chrome-sync-v9535.yml'
+permissions:
+  contents: read
+jobs:
+  unit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 9
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: JavaScript syntax checks
+        run: |
+          node --check release-sync-recovery-v9301.js
+          node --check tests/safari-chrome-sync-v9535.cjs
+          node --check tests/safari-chrome-roundtrip-v9535-browser.cjs
+      - name: Full synchronization, WAL, RPC gaps, and race regressions
+        run: node --test tests/safari-chrome-sync-v9535.cjs
+  browser:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Install Chromium and WebKit
+        run: |
+          npm install --no-save playwright@1.55.0
+          npx playwright install --with-deps chromium webkit
+      - name: Safari to Chrome and Chrome to Safari simulated roundtrip
+        run: node tests/safari-chrome-roundtrip-v9535-browser.cjs
