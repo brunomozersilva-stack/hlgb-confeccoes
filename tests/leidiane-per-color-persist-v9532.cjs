@@ -72,6 +72,7 @@ function fixture(opts={}){
   localStorage:{getItem(){return null}},indexedDB,navigator:{onLine:true},
   hlgbRecordSnapshots:win.hlgbRecordSnapshots,hlgbRecordLastSeen:{materialChecklists:''}};
  ctx.globalThis=ctx;vm.createContext(ctx);
+ vm.runInContext('hlgbRecordSnapshots={materialChecklists:new Map()};window.hlgbRecordSnapshots=hlgbRecordSnapshots;',ctx);
  vm.runInContext(printer,ctx);vm.runInContext(source,ctx);
  return {ctx,win,db,checklist,product,before,get modal(){return modal},get print(){return print},
   get posts(){return posts},get remote(){return remoteChecklist},get logs(){return logs}};
