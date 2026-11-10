@@ -1,16 +1,41 @@
-<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>HLGB Confecções</title><meta http-equiv="cache-control" content="no-cache,no-store,must-revalidate"><meta http-equiv="pragma" content="no-cache"><meta http-equiv="expires" content="0"></head><body><div style="font-family:Arial;padding:24px">Abrindo ByHagathalingerie…</div><script>(async()=>{const ts=Date.now();// A atualização do roteador nunca pode bloquear a abertura (Safari pode deixá-la pendente).
+<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>HLGB Confecções</title><meta http-equiv="cache-control" content="no-cache,no-store,must-revalidate"><meta http-equiv="pragma" content="no-cache"><meta http-equiv="expires" content="0"></head><body><div style="font-family:Arial;padding:24px">Abrindo HLGB Confecções…</div><script>(async()=>{const ts=Date.now();// A atualização do roteador nunca pode bloquear a abertura (Safari pode deixá-la pendente).
 if('serviceWorker' in navigator){
   Promise.resolve().then(()=>navigator.serviceWorker.register('./hlgb-canonical-sw.js',{scope:'./',updateViaCache:'none'})).then(reg=>reg.update()).catch(e=>console.warn('[HLGB] reroute SW',e));
 }
-const controller=typeof AbortController==='function'?new AbortController():null;
-let bootTimer;
-let h;
-try{
-  h=await Promise.race([
-    (async()=>{const r=await fetch('./app9240.html?fresh='+ts,{cache:'no-store',...(controller?{signal:controller.signal}:{})});if(!r.ok)throw new Error('Falha ao carregar aplicação (HTTP '+r.status+')');return r.text()})(),
-    new Promise((_,reject)=>{bootTimer=setTimeout(()=>{reject(new Error('O carregamento demorou demais. Confira a conexão e tente novamente.'));if(controller)controller.abort()},30000)})
-  ]);
-}finally{clearTimeout(bootTimer)}
+/* HLGB v95.18 — Chrome: tentativas finitas ao baixar a base, sem tocar em dados locais nem WAL.
+   1ª/2ª requisições evitam cache; 3ª pode aproveitar cópia íntegra do navegador. */
+const bootFetchFailures=[];
+async function fetchBase9518(attempt){
+  const cachedFallback=attempt===3,controller=typeof AbortController==='function'?new AbortController():null;
+  const timeoutMs=attempt===1?14000:attempt===2?16000:18000;
+  const url=cachedFallback?'./app9240.html':'./app9240.html?fresh='+Date.now()+'&attempt='+attempt;
+  const timeout=controller?setTimeout(()=>controller.abort(),timeoutMs):null;
+  try{
+    const r=await fetch(url,{cache:cachedFallback?'default':attempt===1?'no-store':'reload',...(controller?{signal:controller.signal}:{})});
+    if(!r.ok)throw new Error('HTTP '+r.status+' ao consultar arquivo principal');
+    const body=await r.text();
+    const validHtml=body.includes('</html>')&&body.includes('id="loginScreen"')&&body.includes('id="appShell"');
+    if(!validHtml){
+      throw new Error('Arquivo principal recebido incompleto');
+    }
+    return body;
+  }catch(e){
+    const record={attempt,category:e?.name==='AbortError'?'timeout':!navigator.onLine?'offline':'network-or-response',message:String(e?.message||e).slice(0,130)};
+    bootFetchFailures.push(record);
+    console.warn('[HLGB v95.18] falha ao buscar base, tentativa '+attempt,record.category,record.message);
+    throw e;
+  }finally{if(timeout!==null)clearTimeout(timeout)}
+}
+let h,lastBootError;
+for(let attempt=1;attempt<=3;attempt++){
+  try{h=await fetchBase9518(attempt);break}
+  catch(e){lastBootError=e;if(attempt<3)await new Promise(resolve=>setTimeout(resolve,attempt===1?500:900))}
+}
+if(!h){
+  const reason=String(lastBootError?.message||lastBootError||'Falha na rede').slice(0,130);
+  try{sessionStorage.setItem('hlgb_boot_failure_v9478',JSON.stringify({at:new Date().toISOString(),reason:'Falha ao baixar app9240.html em 3 tentativas: '+reason,failedFiles:['app9240.html'],attempts:bootFetchFailures}))}catch(e){}
+  throw new Error('Falha de conexão ao carregar o HLGB após 3 tentativas: '+reason+'. Use o diagnóstico seguro de abertura; não limpe os dados do navegador.');
+}
 // Não apague a entrada se o servidor devolver conteúdo vazio, incompleto ou uma página de erro.
 if(!/<\/html\s*>/i.test(h)||!/<[^>]+id=["']loginScreen["']/i.test(h)||!/<[^>]+id=["']appShell["']/i.test(h))throw new Error('O sistema chegou incompleto. Tente novamente.');
 /* v94.07: o gate entra no head antes de qualquer restauração de sessão. Não depende de localizar texto exato do login. */

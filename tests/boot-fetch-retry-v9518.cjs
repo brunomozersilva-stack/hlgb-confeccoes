@@ -1,0 +1,16 @@
+'use strict';
+const fs=require('node:fs'),assert=require('node:assert/strict'),vm=require('node:vm');
+const loader=fs.readFileSync('app-stable3.html','utf8');
+const diagnostic=fs.readFileSync('diagnostico-abertura.html','utf8');
+const inline=loader.match(/<script>([\s\S]*?)<\/script>/i);
+assert(inline,'loader must include its inline bootstrap');
+assert.doesNotThrow(()=>new vm.Script(inline[1]),'loader bootstrap must compile');
+assert.match(loader,/async function fetchBase9518\(attempt\)/);
+assert.match(loader,/attempt<=3/);
+assert.match(loader,/cachedFallback\?'default'/);
+assert.match(loader,/await fetchBase9518\(attempt\)/);
+assert.match(loader,/sessionStorage\.setItem\('hlgb_boot_failure_v9478'/);
+assert.match(loader,/diagnostico-abertura\.html/);
+assert.match(diagnostic,/bootAttempts:/);
+assert(!/localStorage\.clear\(/.test(loader));
+console.log('PASS v95.18: boot loader compiles, retries safely, supports cached main file and includes diagnostics.');

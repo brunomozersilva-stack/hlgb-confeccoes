@@ -69,10 +69,10 @@ async function run(){
  let previousBoot=null;
  try{
   const x=JSON.parse(sessionStorage.getItem('hlgb_boot_failure_v9478')||'null');
-  if(x&&typeof x==='object')previousBoot={at:String(x.at||'').slice(0,50),reason:String(x.reason||'').slice(0,160),failedFiles:Array.isArray(x.failedFiles)?x.failedFiles.slice(0,30).map(v=>String(v).replace(/[^a-zA-Z0-9_.-]/g,'').slice(0,100)):[]};
+  if(x&&typeof x==='object')previousBoot={at:String(x.at||'').slice(0,50),reason:String(x.reason||'').slice(0,200),failedFiles:Array.isArray(x.failedFiles)?x.failedFiles.slice(0,30).map(v=>String(v).replace(/[^a-zA-Z0-9_.-]/g,'').slice(0,100)):[],bootAttempts:Array.isArray(x.attempts)?x.attempts.slice(0,3).map(a=>({attempt:Number(a?.attempt)||0,category:String(a?.category||'').slice(0,40),message:String(a?.message||'').slice(0,130)})):[]};
  }catch(e){}
  const results=await Promise.all(checks.map(checkFile));
- report={name:'HLGB boot diagnostic',version:'94.78',startedAt:start,entry:location.pathname,online:navigator.onLine,platform:navigator.platform||'',userAgent:navigator.userAgent||'',storage,serviceWorker:sw,previousBoot,results};
+ report={name:'HLGB boot diagnostic',version:'95.18',startedAt:start,entry:location.pathname,online:navigator.onLine,platform:navigator.platform||'',userAgent:navigator.userAgent||'',storage,serviceWorker:sw,previousBoot,results};
  items.textContent='';
  for(const result of results)items.appendChild(line(result));
  const passed=results.filter(x=>x.ok).length;

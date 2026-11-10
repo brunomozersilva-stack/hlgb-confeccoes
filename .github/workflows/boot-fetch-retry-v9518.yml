@@ -1,0 +1,50 @@
+name: HLGB Boot Fetch Recovery v95.18
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'app-stable3.html'
+      - 'diagnostico-abertura.html'
+      - 'tests/boot-fetch-retry-v9518*'
+      - '.github/workflows/boot-fetch-retry-v9518.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'app-stable3.html'
+      - 'diagnostico-abertura.html'
+      - 'tests/boot-fetch-retry-v9518*'
+      - '.github/workflows/boot-fetch-retry-v9518.yml'
+permissions:
+  contents: read
+jobs:
+  logic:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '20'}
+      - run: node tests/boot-fetch-retry-v9518.cjs
+  browser:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        browser: [chromium,webkit]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '20'}
+      - name: Install Playwright
+        run: |
+          npm install --no-save playwright@1.55.0
+          npx playwright install --with-deps ${{ matrix.browser }}
+      - name: Serve local site without production data
+        run: |
+          python3 -m http.server 4173 >/tmp/hlgb-boot9518.log 2>&1 &
+          sleep 2
+      - name: Test first-request failure and safe fallback in ${{ matrix.browser }}
+        env:
+          HLGB_BROWSER: ${{ matrix.browser }}
+        run: node tests/boot-fetch-retry-v9518-browser.cjs

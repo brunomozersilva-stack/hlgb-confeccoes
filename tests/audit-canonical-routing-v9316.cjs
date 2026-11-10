@@ -9,7 +9,11 @@ assert.equal(manifest.force_canonical,true,'canonical routing must stay forced')
 const index=read('index.html'),abrir=read('abrir.html'),stable3=read('app-stable3.html'),sw=read('hlgb-canonical-sw.js'),gate=read('release-safety-gate-v9269.js');
 assert(index.includes('abrir.html'),'index must route through abrir.html');
 assert(abrir.includes('app-stable3.html'),'abrir must route to app-stable3');
-assert(stable3.includes("fetch('./app9240.html?fresh='+ts"),'app-stable3 must load current app9240 payload');
+assert(stable3.includes("fetch('./app9240.html?fresh='+ts")||(
+  stable3.includes('async function fetchBase9518(attempt)')&&
+  stable3.includes("'./app9240.html?fresh='+Date.now()")&&
+  stable3.includes('await fetchBase9518(attempt)')
+),'app-stable3 must load current app9240 payload with protected retries');
 assert(sw.includes("const CANONICAL='abrir.html'"),'service worker must route legacy navigation to abrir.html');
 assert(sw.includes("/^sistema-v\\d+\\.html$/"),'service worker must protect sistema-v legacy routes');
 assert(gate.includes("m?.entry||'abrir.html'"),'safety gate must obey canonical manifest entry');
