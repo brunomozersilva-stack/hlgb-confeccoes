@@ -17,12 +17,17 @@ function rows(module){const r=dbRef()[module];return Array.isArray(r)?r:[]}
 function lookup(id){return rows(M).find(x=>sid(x?.id)===sid(id))||null}
 function product(id){return rows('products').find(x=>sid(x?.id)===sid(id))||null}
 function materialKey(m){const id=sid(m?.materialId);return id?'id:'+id:'name:'+norm(m?.name)+'|'+norm(m?.unit)}
-function buildMaterials(productRow,pieces){
+function buildMaterials(productRow,pieces,destinationType='F'){
  if(!productRow||!Array.isArray(productRow.materials))return null;
  const amount=Number(pieces);
  if(!Number.isFinite(amount)||amount<=0)throw new Error('Quantidade de peças inválida para o envio.');
  const byKey=new Map();
  for(const m of productRow.materials){
+  const master=rows('materials').find(x=>sid(x?.id)===sid(m?.materialId))||
+    rows('materials').find(x=>norm(x?.name)===norm(m?.name))||null;
+  const visible=destinationType==='F'?(master?.showFactionChecklist??m?.showFactionChecklist)!==false:
+   (master?.showProductionChecklist??m?.showProductionChecklist)!==false;
+  if(!visible)continue;
   const per=Number(m?.qty),loss=Number(m?.loss||0);
   if(!Number.isFinite(per)||per<0||!Number.isFinite(loss)||loss<0)throw new Error('Ficha técnica com consumo ou perda inválido. Corrija o produto.');
   const mode=sid(m?.calcMode||'consumption');
@@ -44,7 +49,17 @@ function compare(oldRows,newRows){
  const old=Array.isArray(oldRows)?oldRows:[],next=Array.isArray(newRows)?newRows:[];
  const signature=list=>list.map(m=>({key:materialKey(m),name:norm(m.name),unit:norm(m.unit),qty:Number((Number(m.qty)||0).toFixed(6))})).sort((a,b)=>a.key.localeCompare(b.key));
  // Checklists antigos nao continham materialId. Comparacao por nome/unidade evita falsos alertas.
- const comparable=list=>list.map(m=>({name:norm(m.name),unit:norm(m.unit),qty:Number((Number(m.qty)||0).toFixed(6))})).sort((a,b)=>a.name.localeCompare(b.name)||a.unit.localeCompare(b.unit));
+ const comparable=list=>{
+  const grouped=new Map();
+  for(const m of list){
+   const name=norm(m.name),unit=norm(m.unit),key=name+'|'+unit;
+   grouped.set(key,{name,unit,qty:(grouped.get(key)?.qty||0)+Number(m.qty||0)});
+  }
+  // Aviamentos antigos podem estar divididos por cor; comparar o total agregado
+  // evita marcar um checklist conferido como desatualizado quando o consumo e igual.
+  return [...grouped.values()].map(m=>({...m,qty:Number(m.qty.toFixed(6))}))
+   .sort((a,b)=>a.name.localeCompare(b.name)||a.unit.localeCompare(b.unit));
+ };
  return {different:JSON.stringify(comparable(old))!==JSON.stringify(comparable(next)),
   oldCount:old.length,newCount:next.length,
   oldSignature:signature(old),newSignature:signature(next)};
@@ -53,7 +68,7 @@ function analyze(c){
  const p=product(c?.productId);
  if(!c||!p||!Array.isArray(p.materials))return {status:'unavailable',reason:'A ficha técnica do modelo ainda não está carregada.'};
  let material;
- try{material=buildMaterials(p,c.qty)}catch(e){return {status:'error',reason:String(e.message||e)}}
+ try{material=buildMaterials(p,c.qty,c.destinationType)}catch(e){return {status:'error',reason:String(e.message||e)}}
  const diff=compare(c.materials,material);
  const anyChecked=(c.materials||[]).some(m=>m.checked===true);
  const alreadyReceived=!!sid(c.receivedAt).trim()||!!sid(c.receivedBy).trim()||sid(c.status)==='Conferido';
@@ -68,24 +83,34 @@ function htmlRows(materials){
  '</tbody></table>';
 }
 function ensurePanel(){
- const target=document.getElementById('destinationChecklistTable');
- if(!target)return;
- let panel=document.getElementById('hlgbMaterialRevisions9522');
- if(!panel){
-  panel=document.createElement('section');panel.id='hlgbMaterialRevisions9522';
-  panel.className='panel';panel.style.cssText='margin:10px 0;border:1px solid #e9dce4;background:#fffafd';
-  target.insertAdjacentElement('beforebegin',panel);
+ const targets=[
+  {table:'destinationChecklistTable',panel:'hlgbMaterialRevisions9522',factionOnly:false},
+  {table:'factionChecklistTable9176',panel:'hlgbFactionMaterialRevisions9522',factionOnly:true}
+ ];
+ for(const target of targets){
+  const table=document.getElementById(target.table);
+  if(!table)continue;
+  let panel=document.getElementById(target.panel);
+  if(!panel){
+   panel=document.createElement('section');panel.id=target.panel;
+   panel.className='panel';panel.style.cssText='margin:10px 0;border:1px solid #e9dce4;background:#fffafd';
+   table.insertAdjacentElement('beforebegin',panel);
+  }
+  const stale=rows(M).filter(c=>!target.factionOnly||c.destinationType==='F')
+    .map(c=>({c,check:analyze(c)})).filter(x=>x.check.status==='stale');
+  const unavailable=rows(M).filter(c=>!target.factionOnly||c.destinationType==='F')
+    .filter(c=>analyze(c).status==='unavailable').length;
+  panel.innerHTML='<h3 style="margin:0 0 6px">📦 Materiais dos envios × ficha técnica atual</h3>'+
+   '<div class="sub">Ao alterar a ficha técnica, confira e atualize aqui os envios anteriores. Nenhuma conferência é apagada automaticamente.</div>'+
+   (stale.length?stale.map(({c,check})=>
+    '<div style="padding:9px 0;border-bottom:1px solid #ecdfe6"><b>'+esc(check.productName)+'</b> · '+esc(c.destinationName||'Destino')+
+    ' · '+fmt(c.qty)+' peça(s) · <b>'+check.oldCount+' linha(s) no envio / '+check.newCount+' linha(s) na ficha</b>'+
+    (check.locked?'<div class="sub">⚠️ Conferência existente: revisão manual obrigatória</div>':'')+
+    ' <button type="button" class="secondary" data-material-revision9522="'+esc(c.id)+'">Conferir materiais atualizados</button></div>'
+   ).join(''):'<div class="sub" style="margin-top:7px">Nenhuma divergência detectada nas fichas carregadas.</div>')+
+   (unavailable?'<div class="sub">⚠️ '+unavailable+' ficha(s) ainda não carregada(s); atualize a sessão antes de confirmar.</div>':'');
+  panel.onclick=e=>{const btn=e.target?.closest?.('[data-material-revision9522]');if(btn)openReview(btn.getAttribute('data-material-revision9522'))};
  }
- const stale=rows(M).map(c=>({c,check:analyze(c)})).filter(x=>x.check.status==='stale');
- panel.innerHTML='<h3 style="margin:0 0 6px">📦 Materiais dos envios × ficha técnica atual</h3>'+
-  '<div class="sub">Os envios anteriores à atualização da ficha não são substituídos silenciosamente. Confira antes de separar ou imprimir.</div>'+
-  (stale.length?stale.map(({c,check})=>
-   '<div style="padding:9px 0;border-bottom:1px solid #ecdfe6"><b>'+esc(check.productName)+'</b> · '+esc(c.destinationName||'Destino')+
-   ' · '+fmt(c.qty)+' peça(s) · <b>'+check.oldCount+' material(is) no envio / '+check.newCount+' na ficha</b>'+
-   (check.locked?'<div class="sub">⚠️ Conferência existente: revisão manual obrigatória</div>':'')+
-   ' <button type="button" class="secondary" data-material-revision9522="'+esc(c.id)+'">Conferir materiais atualizados</button></div>'
-  ).join(''):'<div class="sub" style="margin-top:7px">Nenhuma divergência detectada nas fichas carregadas.</div>');
- panel.onclick=e=>{const btn=e.target?.closest?.('[data-material-revision9522]');if(btn)openReview(btn.getAttribute('data-material-revision9522'))};
 }
 async function getRemote(module,id){
  if(typeof cloudRequest!=='function')throw new Error('A conexão com a nuvem não está disponível.');
@@ -164,7 +189,7 @@ async function reloadAndSave(id){
    throw new Error('O envio mudou na nuvem. Reabra a página antes de prosseguir.');
   if((check.materials||[]).some(m=>m.checked)||sid(check.status)==='Conferido'||check.receivedAt||check.receivedBy)
    throw new Error('A conferência deste envio já foi iniciada. Não é possível substituir os materiais automaticamente.');
-  const latest=buildMaterials(prod,check.qty);
+  const latest=buildMaterials(prod,check.qty,check.destinationType);
   const stillDifferent=compare(check.materials,latest);
   if(!stillDifferent.different){
    // Se o servidor gravou mas a resposta HTTP se perdeu, apenas reconciliar o cache.
@@ -172,7 +197,7 @@ async function reloadAndSave(id){
    syncSnapshot(M,remoteCheck);
    const current=lookup(id);if(current)Object.assign(current,clone(check));
    try{if(typeof localSaveOnly==='function')localSaveOnly()}catch(e){}
-   ensurePanel();window.renderDestinationChecklists?.();
+   ensurePanel();window.renderDestinationChecklists?.();window.renderFactionChecklists9198?.();window.renderFactionChecklists9198?.();
    return {alreadyCurrent:true,count:latest.length,revision:remoteCheck.revision};
   }
   if(JSON.stringify((local.product.materials||[]).map(x=>[x.materialId,x.name,x.qty,x.unit,x.loss,x.calcMode]))!==
@@ -199,7 +224,7 @@ async function reloadAndSave(id){
   if(dbRow)Object.assign(dbRow,clone(confirmed.data));
   try{if(typeof localSaveOnly==='function')localSaveOnly()}catch(e){console.warn('[HLGB v95.22] cache local',e)}
   state.lastSuccess={id:sid(id),count:latest.length,revision:confirmed.revision,at:new Date().toISOString()};
-  ensurePanel();window.renderDestinationChecklists?.();
+  ensurePanel();window.renderDestinationChecklists?.();window.renderFactionChecklists9198?.();
   return state.lastSuccess;
  }catch(e){state.lastError=sid(e?.message||e);throw e}
  finally{state.busy=false}
@@ -246,6 +271,12 @@ function install(){
  const previousOpen=window.openMaterialChecklist;
  window.__hlgbMaterialOriginalOpen9522=previousOpen;
  window.openMaterialChecklist=function(id){return openReview(id)};
+ const oldFactionRender=window.renderFactionChecklists9198;
+ if(typeof oldFactionRender==='function'&&!oldFactionRender.__hlgbMaterialRevision9522){
+  const wrapped=function(){const r=oldFactionRender.apply(this,arguments);setTimeout(ensurePanel,0);return r};
+  wrapped.__hlgbMaterialRevision9522=true;wrapped.__original=oldFactionRender;
+  window.renderFactionChecklists9198=wrapped;
+ }
  const oldPrint=window.printMaterialChecklist;
  if(typeof oldPrint==='function')window.printMaterialChecklist=function(id){
   const item=lookup(id),c=item?analyze(item):null;
@@ -260,7 +291,7 @@ function install(){
  if(typeof oldCreate==='function')window.hlgb916CreateMaterialChecklist=function(prod,dest,unit,service){
   const record=oldCreate.apply(this,arguments),p=product(record.productId);
   if(p&&Array.isArray(p.materials)){
-   try{record.materials=buildMaterials(p,record.qty);
+   try{record.materials=buildMaterials(p,record.qty,record.destinationType);
     record.materialsSourceV9522='product_technical_sheet';}
    catch(e){console.warn('[HLGB v95.22] ficha nova indisponível',e)}
   }
