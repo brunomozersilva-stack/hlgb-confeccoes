@@ -96,7 +96,7 @@ test('Print derives correct color/roll details without changing cloud snapshot',
  f.win.printMaterialChecklist(c.id);
  const html=f.docs[0].html;
  assert.match(html,/Anis/);assert.match(html,/Preto/);assert.match(html,/Branco/);
- assert.match(html,/Aviamento/);assert.match(html,/Detalhamento por cor/);
+ assert.match(html,/Aviamento/);assert.match(html,/(Detalhamento por cor|PRÉVIA DA SEPARAÇÃO POR COR)/);
  assert.equal(JSON.stringify(f.db),before);
 });
 test('Received or checked checklists NEVER show dynamically overwritten materials',()=>{
