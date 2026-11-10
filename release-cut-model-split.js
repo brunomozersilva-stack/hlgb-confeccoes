@@ -126,10 +126,44 @@ async function finishChild(id){
  });
 }
 function gradeMini(c){
- const sizes=[...new Set((c.originalGrade||[]).map(g=>g.size).filter(Boolean))],colors=[...new Set((c.originalGrade||[]).map(g=>g.color||'-'))];
+ const grade=(isFinal(c)&&Array.isArray(c.actualCutGrade)&&c.actualCutGrade.length?c.actualCutGrade:c.originalGrade)||[];
+ const sizes=[...new Set(grade.map(g=>g.size).filter(Boolean))],colors=[...new Set(grade.map(g=>g.color||'-'))];
  if(!sizes.length)return '';
- const rows=colors.map(color=>'<tr><td>'+escSafe(color)+'</td>'+sizes.map(s=>'<td>'+q((c.originalGrade||[]).filter(g=>String(g.color||'-')===String(color)&&String(g.size||'')===String(s)).reduce((a,g)=>a+q(g.qty),0))+'</td>').join('')+'</tr>').join('');
- return '<details style="margin-top:6px"><summary>Ver grade deste modelo</summary><div style="overflow:auto"><table><thead><tr><th>Cor</th>'+sizes.map(s=>'<th>'+escSafe(s)+'</th>').join('')+'</tr></thead><tbody>'+rows+'</tbody></table></div></details>';
+ const rows=colors.map(color=>'<tr><td>'+escSafe(color)+'</td>'+sizes.map(sz=>'<td>'+q(grade.filter(g=>String(g.color||'-')===String(color)&&String(g.size||'')===String(sz)).reduce((a,g)=>a+q(g.qty),0))+'</td>').join('')+'</tr>').join('');
+ return '<details style="margin-top:6px"><summary>'+(isFinal(c)?'📐 Ver grade realmente cortada':'Ver grade prevista deste modelo')+'</summary><div style="overflow:auto"><table><thead><tr><th>Cor</th>'+sizes.map(sz=>'<th>'+escSafe(sz)+'</th>').join('')+'</tr></thead><tbody>'+rows+'</tbody></table></div></details>';
+}
+// v95.19: somente visual; nenhum status é alterado ou removido do banco de dados.
+let showCompletedModels9519=false;
+function toggleCompletedModels9519(){
+ showCompletedModels9519=!showCompletedModels9519;
+ renderSplitPanel();
+}
+function postCutMaterialsPreview9519(cutId){
+ const c=arr('cuts').find(x=>sid(x?.id)===sid(cutId)&&x?.modelSplitChildV1);
+ if(!c||!isFinal(c))return alert('Conclua o corte deste modelo antes de conferir os materiais.');
+ const actual=Array.isArray(c.actualCutGrade)?c.actualCutGrade.filter(g=>q(g?.qty)>0).map(x=>({...x})):[];
+ if(!actual.length)return alert('A grade efetivamente cortada não está disponível. Confira este corte antes de separar material.');
+ const o=order(c.orderId),pid=sid(c.productId);
+ if(!o)return alert('Pedido original não encontrado.');
+ // Fonte exclusivamente do corte finalizado: jamais calcular pela grade planejada do pedido.
+ const virtual={...o,grade:actual};
+ let groups=[];
+ try{if(typeof orderMaterialBreakdownByProduct==='function')groups=orderMaterialBreakdownByProduct(virtual)||[]}
+ catch(e){console.warn('[HLGB 95.19] conferência de material',e);return alert('Não foi possível calcular os materiais da grade cortada. Nenhuma baixa foi feita.')}
+ const rows=groups.filter(g=>sid(g.productId)===pid).flatMap(g=>Object.values(g.materials||{}));
+ const materials=rows.length?'<table><thead><tr><th>Material</th><th>Unidade</th><th>Necessário</th><th>Por cor</th></tr></thead><tbody>'+
+ rows.map(m=>'<tr><td>'+escSafe(m.name||'-')+'</td><td>'+escSafe(m.unit||'-')+'</td><td>'+q(m.qty).toLocaleString('pt-BR',{maximumFractionDigits:2})+'</td><td>'+Object.entries(m.byColor||{}).filter(([,qty])=>q(qty)>0).map(([color,qty])=>escSafe(color||'-')+': '+q(qty).toLocaleString('pt-BR',{maximumFractionDigits:2})).join(' · ')+'</td></tr>').join('')+'</tbody></table>':
+ '<div class="sub">Este modelo não possui consumo de materiais cadastrado na ficha técnica.</div>';
+ let composition='';
+ try{if(typeof compositionTableForProduct==='function')composition=compositionTableForProduct(virtual,c.productId)||''}catch(e){console.warn('[HLGB 95.19] composição da grade',e)}
+ const byGrade=actual.map(x=>'<tr><td>'+escSafe(x.color||'-')+'</td><td>'+escSafe(x.size||'-')+'</td><td>'+q(x.qty).toLocaleString('pt-BR')+'</td></tr>').join('');
+ const body='<div class="panel" style="background:#fff8fb"><b>Pedido #'+escSafe(orderNo(o))+' · '+escSafe(c.product||product(c.productId)?.name||'Produto')+'</b><div class="sub">Prévia de conferência baseada somente na grade finalizada do corte. Nenhuma baixa de material ou estoque será feita nesta tela.</div></div>'+
+ '<h3>Grade realmente cortada</h3><div style="overflow:auto"><table><thead><tr><th>Cor</th><th>Tamanho</th><th>Quantidade</th></tr></thead><tbody>'+byGrade+'</tbody></table></div>'+
+ '<h3>Materiais necessários para esta grade</h3>'+materials+composition+
+ '<div class="sub" style="margin-top:14px"><b>Próxima etapa:</b> confirmação e baixa individual de material por modelo. A rotina antiga de separação do pedido permanece inalterada nesta atualização.</div>'+
+ '<button type="button" class="secondary" onclick="closeModal()" style="margin-top:14px">Fechar conferência</button>';
+ openModal('📦 Conferir material após o corte',body,()=>closeModal());
+ return {orderId:o.id,cutId:c.id,grade:actual,pieces:actual.reduce((sum,g)=>sum+q(g.qty),0),materialLines:rows.length,readOnly:true};
 }
 function renderSplitPanel(){
  const root=document.getElementById('cutTable');if(!root)return;
@@ -137,13 +171,18 @@ function renderSplitPanel(){
  if(!panel){panel=document.createElement('div');panel.id='hlgbCutSplitPanel';panel.className='panel';panel.style.marginBottom='14px';root.insertAdjacentElement('beforebegin',panel)}
  const orders=arr('orders').filter(o=>hasCompleteSplit(o));
  if(!orders.length){panel.innerHTML='<h2>✂️ Cortes separados por modelo</h2><div class="empty">Os pedidos com vários modelos serão desmembrados automaticamente quando entrarem no corte.</div>';return}
- let html='<h2>✂️ Cortes separados por modelo</h2><div class="sub">Cada modelo é um corte independente. O número do pedido aparece apenas como referência.</div>';
- for(const o of orders){
-  const children=splitChildren(o.id).sort((a,b)=>String(a.product||'').localeCompare(String(b.product||''),'pt-BR'));
+ const allChildren=orders.flatMap(o=>splitChildren(o.id)),completed=allChildren.filter(isFinal),pending=allChildren.filter(c=>!isFinal(c));
+ const visibleOrders=orders.filter(o=>showCompletedModels9519||splitChildren(o.id).some(c=>!isFinal(c)));
+ let html='<div class="toolbar" style="justify-content:space-between;align-items:center;flex-wrap:wrap"><div><h2 style="margin:0">✂️ Cortes por modelo — pendentes</h2><div class="sub">'+pending.length+' modelo(s) para cortar · '+completed.length+' finalizado(s) preservado(s) no histórico</div></div>'+
+ (completed.length?'<button type="button" class="secondary" onclick="hlgbToggleCutCompleted9519()">'+(showCompletedModels9519?'Ocultar finalizados':'Mostrar '+completed.length+' finalizado(s)')+'</button>':'')+'</div>';
+ if(!visibleOrders.length)html+='<div class="empty">Nenhum modelo aguardando corte. Use “Mostrar finalizados” para conferir o histórico.</div>';
+ for(const o of visibleOrders){
+  const children=splitChildren(o.id).sort((a,b)=>String(a.product||'').localeCompare(String(b.product||''),'pt-BR')).filter(c=>showCompletedModels9519||!isFinal(c));
+  if(!children.length)continue;
   html+='<div class="panel" style="margin-top:10px;background:#fff8fb"><h3 style="margin:0 0 8px">Pedido #'+escSafe(orderNo(o))+' · '+escSafe(o.client||'-')+'</h3>';
   for(const c of children){
    const done=isFinal(c),ct=cutter(c.cutterId);
-   html+='<div class="panel" style="margin:8px 0;background:#fff"><div style="display:grid;grid-template-columns:minmax(180px,1.4fr) 100px minmax(260px,1.4fr) minmax(260px,1.6fr);gap:10px;align-items:center"><div><b>'+escSafe(c.product||product(c.productId)?.name||'Produto')+'</b><div class="sub">Pedido #'+escSafe(orderNo(o))+' · '+(done?'✅ Finalizado':'A cortar')+(ct?' · '+escSafe(ct.name):'')+'</div>'+gradeMini(c)+'</div><div>'+q(c.pieces).toLocaleString('pt-BR')+' pç</div><div class="cut-schedule-inline"><input id="hlgbSplitDate_'+escSafe(c.id)+'" type="date" value="'+escSafe(c.plannedCutDate||'')+'" '+(done?'disabled':'')+'><select id="hlgbSplitCutter_'+escSafe(c.id)+'" '+(done?'disabled':'')+'>'+cutterOptions(c.cutterId)+'</select><select id="hlgbSplitType_'+escSafe(c.id)+'" '+(done?'disabled':'')+'>'+cutTypeOptions(c.cutType||'')+'</select>'+(done?'':'<button class="secondary" onclick="hlgbSaveSplitCutSchedule(\''+escSafe(c.id)+'\')">Salvar</button>')+'</div><div class="toolbar">'+(typeof printCuttingSheet==='function'?'<button class="secondary" onclick="printCuttingSheet(\''+escSafe(o.id)+'\',\''+escSafe(c.id)+'\')">🖨️ Imprimir grade</button>':'')+'<button class="secondary" onclick="viewOrderDetails(\''+escSafe(o.id)+'\')">Pedido original</button>'+(typeof editCut==='function'&&!done?'<button class="secondary" onclick="editCut(\''+escSafe(c.id)+'\')">Detalhes</button>':'')+(window.openHlgbCutMaterialSheet?'<button class="secondary" onclick="openHlgbCutMaterialSheet(\''+escSafe(c.id)+'\')">⚖️ Materiais</button>':'')+(done?'<span class="badge ok">Finalizado</span>':'<button class="primary" onclick="hlgbFinishSplitCut(\''+escSafe(c.id)+'\')">✅ Finalizar modelo</button>')+'</div></div></div>';
+   html+='<div class="panel" style="margin:8px 0;background:#fff"><div style="display:grid;grid-template-columns:minmax(180px,1.4fr) 100px minmax(260px,1.4fr) minmax(260px,1.6fr);gap:10px;align-items:center"><div><b>'+escSafe(c.product||product(c.productId)?.name||'Produto')+'</b><div class="sub">Pedido #'+escSafe(orderNo(o))+' · '+(done?'✅ Finalizado':'A cortar')+(ct?' · '+escSafe(ct.name):'')+'</div>'+gradeMini(c)+'</div><div>'+q(c.pieces).toLocaleString('pt-BR')+' pç</div><div class="cut-schedule-inline"><input id="hlgbSplitDate_'+escSafe(c.id)+'" type="date" value="'+escSafe(c.plannedCutDate||'')+'" '+(done?'disabled':'')+'><select id="hlgbSplitCutter_'+escSafe(c.id)+'" '+(done?'disabled':'')+'>'+cutterOptions(c.cutterId)+'</select><select id="hlgbSplitType_'+escSafe(c.id)+'" '+(done?'disabled':'')+'>'+cutTypeOptions(c.cutType||'')+'</select>'+(done?'':'<button class="secondary" onclick="hlgbSaveSplitCutSchedule(\''+escSafe(c.id)+'\')">Salvar</button>')+'</div><div class="toolbar">'+(typeof printCuttingSheet==='function'?'<button class="secondary" onclick="printCuttingSheet(\''+escSafe(o.id)+'\',\''+escSafe(c.id)+'\')">🖨️ Imprimir grade</button>':'')+'<button class="secondary" onclick="viewOrderDetails(\''+escSafe(o.id)+'\')">Pedido original</button>'+(typeof editCut==='function'&&!done?'<button class="secondary" onclick="editCut(\''+escSafe(c.id)+'\')">Detalhes</button>':'')+(window.openHlgbCutMaterialSheet?'<button class="secondary" onclick="openHlgbCutMaterialSheet(\''+escSafe(c.id)+'\')">⚖️ Materiais</button>':'')+(done?'<button type="button" class="primary" onclick="hlgbPostCutMaterialsPreview9519(\''+escSafe(c.id)+'\')">📦 Conferir materiais da grade cortada</button> <span class="badge ok">Finalizado</span>':'<button class="primary" onclick="hlgbFinishSplitCut(\''+escSafe(c.id)+'\')">✅ Finalizar modelo</button>')+'</div></div></div>';
   }
   html+='</div>';
  }
@@ -246,12 +285,14 @@ function installTrackingHook(){
  const filter=window.filterCutTracking9173;
  if(typeof filter==='function'&&!filter.__hlgbModelIndependent9412){const w=function(){const r=filter.apply(this,arguments);setTimeout(decorateTrackingSelection,0);return r};w.__hlgbModelIndependent9412=true;w.__original=filter;window.filterCutTracking9173=w}
 }
+window.hlgbToggleCutCompleted9519=toggleCompletedModels9519;
+window.hlgbPostCutMaterialsPreview9519=postCutMaterialsPreview9519;
 window.hlgbSplitOrderCuts=confirmSplit;
 window.hlgbSaveSplitCutSchedule=async id=>{try{await saveSchedule(id)}catch(e){alert(String(e?.message||e))}};
 window.hlgbFinishSplitCut=finishChild;
 window.hlgbRepairInheritedProductionDestinations9412=repairInheritedDestinations;
 window.hlgbOpenCutGroupAssignment9412=openGroupAssignment;
-window.hlgbCutModelSplit={version:V,splitOrder,splitChildren,hasCompleteSplit,modelGrade,modelPieces,renderSplitPanel,autoSplitPendingOrders,repairInheritedDestinations,decorateTrackingSelection};
+window.hlgbCutModelSplit={version:V,splitOrder,splitChildren,hasCompleteSplit,modelGrade,modelPieces,renderSplitPanel,postCutMaterialsPreview9519,toggleCompletedModels9519,autoSplitPendingOrders,repairInheritedDestinations,decorateTrackingSelection};
 const oldRender=window.renderCuts;
 if(typeof oldRender==='function'&&!oldRender.__hlgbSplitV2){
  const w=function(){const r=oldRender.apply(this,arguments);setTimeout(()=>{renderSplitPanel();hideAggregateRows();decorateTrackingSelection();autoSplitPendingOrders()},0);return r};w.__hlgbSplitV1=true;w.__hlgbSplitV2=true;w.__original=oldRender;window.renderCuts=w;
