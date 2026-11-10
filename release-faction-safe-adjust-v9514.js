@@ -8,7 +8,7 @@ const V='95.14',RPC='hlgb_faction_adjust_v9514',WAL_DB='hlgb_durable_wal';
 if(window.hlgbFactionAdjust9514?.version===V)return;
 const sid=v=>String(v??''),qty=v=>Number(v),money=v=>Number(v||0).toLocaleString('pt-BR',{style:'currency',currency:'BRL'});
 const esc=v=>sid(v).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-const state={busy:false,formFactionId:'',requestId:'',lastResult:null,lastError:'',lastConfirmedAt:'',lastProof:null};
+const state={busy:false,formFactionId:'',initialAction:'transfer',requestId:'',lastResult:null,lastError:'',lastConfirmedAt:'',lastProof:null};
 function arr(name){try{return Array.isArray(window.db?.[name])?window.db[name]:[]}catch(_){try{return Array.isArray(db?.[name])?db[name]:[]}catch(__){return []}}}
 function factionById(id){return arr('factions').find(f=>sid(f?.id)===sid(id))||null}
 function targetMasters(){return arr('factionMasters').filter(x=>x?.active!==false&&sid(x?.name).trim())
@@ -85,8 +85,8 @@ function show(){
  const content='<div class="sub">Alocação '+esc(f.id)+' · '+label+' · '+esc(f.name)+
     ' · '+qty(f.sent||0).toLocaleString('pt-BR')+' peça(s) · mão de obra atual '+esc(money(f.price||0))+'</div>'+
   '<div class="field"><label>Ação</label><select id="hlgbFactionAction9514">'+
-    '<option value="transfer">Transferir peças para outra facção</option>'+
-    '<option value="price">Alterar valor final da mão de obra</option></select></div>'+
+    '<option value="transfer" '+(state.initialAction==='transfer'?'selected':'')+'>Transferir peças para outra facção</option>'+
+    '<option value="price" '+(state.initialAction==='price'?'selected':'')+'>Alterar valor final da mão de obra</option></select></div>'+
   '<div id="hlgbFactionTransferFields9514">'+
     '<div class="field"><label>Facção de destino</label><select id="hlgbFactionTarget9514"><option value="">Selecione a facção</option>'+
        options.map(m=>'<option value="'+esc(m.name)+'">'+esc(m.name)+'</option>').join('')+'</select></div>'+
@@ -104,7 +104,7 @@ function show(){
   '<div id="hlgbFactionError9514" role="alert" style="color:#8c2b39;margin:8px 0"></div>'+
   '<button type="button" class="primary modalSave" id="hlgbFactionSubmit9514">☁️ Conferir e salvar na nuvem</button>';
  if(typeof window.openModal!=='function')throw new Error('A tela de edição ainda não terminou de carregar');
- window.openModal('Transferir facção / ajustar mão de obra',content,()=>submit());
+ window.openModal(state.initialAction==='price'?'Alterar preço por peça — facção':'Transferir peças para outra facção',content,()=>submit());
  setTimeout(()=>{
   document.getElementById('hlgbFactionAction9514')?.addEventListener('change',refreshForm);
   for(const key of ['hlgbFactionQuantity9514','hlgbFactionTarget9514','hlgbFactionPrice9514'])document.getElementById(key)?.addEventListener('input',refreshForm);
@@ -114,7 +114,8 @@ function show(){
 function refreshForm(){
  const action=document.getElementById('hlgbFactionAction9514')?.value||'transfer';
  const transfer=document.getElementById('hlgbFactionTransferFields9514'),price=document.getElementById('hlgbFactionPriceFields9514');
- if(transfer)transfer.hidden=action!=='transfer';if(price)price.hidden=action!=='price';
+ if(transfer){transfer.hidden=action!=='transfer';transfer.style.display=action==='transfer'?'':'none'}
+ if(price){price.hidden=action!=='price';price.style.display=action==='price'?'':'none'}
  const f=factionById(state.formFactionId),output=document.getElementById('hlgbFactionPreview9514');if(!f||!output)return;
  if(action==='transfer'){
   const moved=qty(document.getElementById('hlgbFactionQuantity9514')?.value||0);
@@ -214,42 +215,28 @@ async function submit(){
    '\nPagamentos pagos preservados: '+out.paidPreserved);
   return true;
  }catch(e){
-  state.lastError=sid(e?.message||e).slice(0,450);
+  const raw=sid(e?.message||e);
+  const blockedChecklist=/P0001|checklist de material vinculado|transfira os materiais com confer[eê]ncia/i.test(raw)&&/checklist|materiais/i.test(raw);
+  state.lastError=blockedChecklist?
+   'Transferência não realizada: existe um checklist de materiais ligado a esta facção. O servidor exige conferir e transferir o material junto com as peças. Abra “Checklist das facções” para conferir o envio. Não alteramos o destino nem apagamos o checklist.':
+   raw.slice(0,450);
   if(alertEl)alertEl.textContent=state.lastError+
    ' Se a conexão caiu durante o envio, confira o histórico da facção antes de tentar novamente.';
   console.warn('[HLGB facções v'+V+'] operação não comprovada',e);
   return false;
  }finally{state.busy=false;if(btn&&btn.isConnected){btn.disabled=false;btn.textContent='☁️ Conferir e salvar na nuvem'}}
 }
-function open(id){
+function open(id,action='transfer'){
  if(state.busy)return;
  const f=factionById(id);
  if(!f){alert('Alocação não encontrada. Atualize a lista de Facções.');return}
- state.formFactionId=sid(id);state.requestId='';
+ state.formFactionId=sid(id);state.initialAction=action==='price'?'price':'transfer';state.requestId='';
  try{show()}catch(e){alert('Não foi possível abrir a transferência. '+sid(e.message))}
 }
-function addButtons(){
- const root=document.getElementById('factionTable');if(!root)return;
- for(const tr of root.querySelectorAll('tr')){
-  if(tr.querySelector('.hlgb-faction-adjust9514'))continue;
-  const edit=[...tr.querySelectorAll('button[onclick]')].find(b=>/editFaction\(/.test(sid(b.getAttribute('onclick'))));
-  if(!edit)continue;
-  const match=sid(edit.getAttribute('onclick')).match(/editFaction\(\s*['"]?([^'") ]+)/);
-  if(!match||!factionById(match[1]))continue;
-  const b=document.createElement('button');b.type='button';b.className='secondary hlgb-faction-adjust9514';
-  b.textContent='↔ Transferir / mão de obra';
-  b.style.cssText='min-height:40px;margin:3px 4px 3px 0;white-space:normal';
-  b.addEventListener('click',()=>open(match[1]));
-  edit.insertAdjacentElement('afterend',b);
- }
-}
+// Os botões ficam apenas na seção normal “Envios para facção”.
 function install(){
- if(typeof window.renderFactions==='function'&&!window.renderFactions.__hlgbFactionAdjust9514){
-  const old=window.renderFactions;
-  const wrapped=function(){const result=old.apply(this,arguments);setTimeout(addButtons,0);return result};
-  wrapped.__hlgbFactionAdjust9514=true;wrapped.__original=old;window.renderFactions=wrapped;
- }
- addButtons();
+ const table=document.getElementById('factionTable');
+ table?.querySelectorAll('.hlgb-faction-adjust9514').forEach(b=>b.remove());
 }
 window.hlgbFactionAdjust9514={version:V,open,submit,install,status:()=>({busy:state.busy,lastResult:state.lastResult,
  lastError:state.lastError,lastConfirmedAt:state.lastConfirmedAt,lastProof:state.lastProof}),
