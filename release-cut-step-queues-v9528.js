@@ -84,7 +84,7 @@ function updateTrackingTitle(){
    showAlreadyAssigned=!showAlreadyAssigned;
    button.textContent=showAlreadyAssigned?'Ocultar já atribuídos':'Mostrar já atribuídos';
    updateTrackingTitle();
-   try{window.filterCutTracking9173?.()}catch(e){console.warn('[HLGB '+V+'] filtro',e)}
+   try{window.renderCutTracking9173?.()}catch(e){console.warn('[HLGB '+V+'] filtro',e)}
   };
  }
  button.textContent=showAlreadyAssigned?'Ocultar já atribuídos':'Mostrar já atribuídos';
