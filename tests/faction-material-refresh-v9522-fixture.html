@@ -15,8 +15,8 @@ const melanie={id:1788442854165,name:'Short Doll Melanie',materials:[
  {materialId:1788777309734,name:'fita 002',unit:'m',qty:.4998,loss:0,calcMode:'consumption'},
  {materialId:1791245626717,name:'Alpinia',unit:'m',qty:1,loss:0,calcMode:'consumption'}]};
 window.db={products:[crystal,melanie],materialChecklists:[
- {id:1794313232479,productId:crystal.id,productName:crystal.name,destinationName:'Graziano',qty:192,materials:[],status:'Pendente',receivedBy:'',receivedAt:''},
- {id:1794313367933,productId:melanie.id,productName:melanie.name,destinationName:'Vanessa',qty:172,materials:[],status:'Pendente',receivedBy:'',receivedAt:''}
+ {id:1794313232479,productId:crystal.id,productName:crystal.name,destinationName:'Graziano',destinationType:'F',qty:192,materials:[],status:'Pendente',receivedBy:'',receivedAt:''},
+ {id:1794313367933,productId:melanie.id,productName:melanie.name,destinationName:'Vanessa',destinationType:'F',qty:172,materials:[],status:'Pendente',receivedBy:'',receivedAt:''}
 ]};
 window.hlgbRecordSnapshots={materialChecklists:new Map()};
 window.hlgbRecordLastSeen={materialChecklists:''};
@@ -45,12 +45,16 @@ function renderDestinationChecklists(){
  document.getElementById('destinationChecklistTable').innerHTML=db.materialChecklists.map(c=>
  '<div><button onclick="openMaterialChecklist('+c.id+')">Conferir '+c.productName+'</button><button onclick="printMaterialChecklist('+c.id+')">Imprimir</button></div>').join('');
 }
+function renderFactionChecklists9198(){
+ document.getElementById('factionChecklistTable9176').innerHTML=db.materialChecklists.filter(c=>c.destinationType==='F').map(c=>
+  '<div><button onclick="openMaterialChecklist('+c.id+')">Conferir facção '+c.productName+'</button></div>').join('');
+}
 function openMaterialChecklist(id){document.getElementById('legacyOpen').textContent='Atual: '+id}
 function printMaterialChecklist(id){document.getElementById('legacyPrint').textContent='Imprimiu: '+id}
 function openModal(title,content){document.getElementById('modal').innerHTML='<h2>'+title+'</h2>'+content}
 function closeModal(){document.getElementById('modal').innerHTML=''}
 function alert(msg){__alerts.push(String(msg))}
 </script></head><body>
-<div id="destinationChecklistTable"></div><div id="legacyOpen"></div><div id="legacyPrint"></div><div id="modal"></div>
+<div id="destinationChecklistTable"></div><div id="factionChecklistTable9176"></div><div id="legacyOpen"></div><div id="legacyPrint"></div><div id="modal"></div>
 <script src="../release-faction-material-refresh-v9522.js"></script>
 </body></html>
