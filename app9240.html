@@ -628,6 +628,20 @@ main{min-width:0;}
 <section id="faccoes" class="page">
 <h1>Envios para facção</h1>
 <div class="sub">Acompanhe somente a operação enviada para as facções, sem misturar com telas de cadastro.</div>
+<!-- v95.33: entrada nativa no HTML, independente do módulo de injeção opcional. -->
+<div class="panel" id="hlgbFactionOpsPanel9520" data-hlgb-native="95.33" style="margin:12px 0;padding:14px">
+  <details id="hlgbFactionOpsDetails9531">
+    <summary style="cursor:pointer;font-weight:700;font-size:16px;padding:6px 0">⚙️ Trocar facção / alterar preço de um envio</summary>
+    <div class="sub" style="margin:10px 0">Pesquise o modelo ou a facção. Alteração de preço e transferência são operações distintas e usam confirmação do servidor.</div>
+    <div class="field" style="margin-top:10px">
+      <label for="hlgbFactionOpsSearch9520">Localizar modelo, facção ou OP</label>
+      <input id="hlgbFactionOpsSearch9520" placeholder="Ex.: Cueca Boxer Tule, Graziano ou Roseli" autocomplete="off" oninput="window.hlgbFactionOperations9520?.render?.()">
+    </div>
+    <div id="hlgbFactionOpsRows9520" style="margin-top:10px">
+      <div class="sub">Preparando o módulo de alteração de facções. Se esta mensagem continuar, o módulo não carregou e nenhuma alteração poderá ser feita.</div>
+    </div>
+  </details>
+</div>
 <div class="panel" id="factionChecklistPanel9176">
   <div class="toolbar" style="justify-content:space-between;align-items:center;gap:12px">
     <div><h2 style="margin:0 0 4px">✅ Checklist das facções</h2><div class="sub">Confira ou imprima a folha de matéria-prima enviada para cada facção.</div></div>

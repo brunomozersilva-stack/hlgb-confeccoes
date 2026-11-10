@@ -1,0 +1,49 @@
+name: HLGB Acesso Real Envios Faccoes v95.33
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'app9240.html'
+      - 'release-faction-operations-v9520.js'
+      - 'tests/faction-real-page-v9533-browser.cjs'
+      - '.github/workflows/faction-real-page-v9533.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'app9240.html'
+      - 'release-faction-operations-v9520.js'
+      - 'tests/faction-real-page-v9533-browser.cjs'
+      - '.github/workflows/faction-real-page-v9533.yml'
+permissions:
+  contents: read
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    timeout-minutes: 7
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '20'}
+      - name: Syntax
+        run: |
+          node --check release-faction-operations-v9520.js
+          node --check tests/faction-real-page-v9533-browser.cjs
+  browser:
+    runs-on: ubuntu-latest
+    timeout-minutes: 18
+    strategy:
+      fail-fast: false
+      matrix:
+        browser: [chromium, webkit]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '20'}
+      - name: Install Playwright
+        run: |
+          npm install --no-save playwright@1.55.0
+          npx playwright install --with-deps ${{ matrix.browser }}
+      - name: Real HTML shows faction action and opens both dialogs
+        env:
+          HLGB_BROWSER: ${{ matrix.browser }}
+        run: node tests/faction-real-page-v9533-browser.cjs
