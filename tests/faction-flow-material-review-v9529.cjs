@@ -21,7 +21,7 @@ function context(){
    renderFactions(){},renderDestinationChecklists(){},closeModal(){}};
  const ctx={window,db,document:doc,navigator:{onLine:true},console:{info(){},warn(){},error(){}},
   setTimeout(){},indexedDB:undefined,localStorage:{getItem(){return null}},
-  alert(){},cloudRequest(){changed++;throw Error('Unexpected cloud write')},
+  alert(){},openModal:window.openModal,cloudRequest(){changed++;throw Error('Unexpected cloud write')},
   get lastModal(){return lastModal}};
  ctx.globalThis=ctx;vm.createContext(ctx);
  return {ctx,db,window,document:doc,get lastModal(){return lastModal},get writes(){return changed}};
