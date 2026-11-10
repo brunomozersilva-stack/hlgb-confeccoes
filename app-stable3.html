@@ -14,7 +14,8 @@ async function fetchBase9518(attempt){
     const r=await fetch(url,{cache:cachedFallback?'default':attempt===1?'no-store':'reload',...(controller?{signal:controller.signal}:{})});
     if(!r.ok)throw new Error('HTTP '+r.status+' ao consultar arquivo principal');
     const body=await r.text();
-    if(!/<\\/html\\s*>/i.test(body)||!/<[^>]+id=["']loginScreen["']/i.test(body)||!/<[^>]+id=["']appShell["']/i.test(body)){
+    const validHtml=body.includes('</html>')&&body.includes('id="loginScreen"')&&body.includes('id="appShell"');
+    if(!validHtml){
       throw new Error('Arquivo principal recebido incompleto');
     }
     return body;
