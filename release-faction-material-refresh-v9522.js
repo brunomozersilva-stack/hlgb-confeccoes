@@ -159,8 +159,8 @@ async function reloadAndSave(id){
   if(typeof cloudEnsureFreshSession==='function')await cloudEnsureFreshSession(false);
   const [remoteCheck,remoteProd]=await Promise.all([getRemote(M,id),getRemote('products',c.productId)]);
   const check=remoteCheck.data,prod=remoteProd.data;
-  if(sid(check.productId)!==sid(c.productId)||Number(check.qty)!==Number(c.qty)||
-   sid(check.destinationName)!==sid(c.destinationName)||sid(check.status)!==sid(c.status))
+  const protectedKeys=['productId','orderId','productionId','cutId','destinationType','destinationId','destinationName','status'];
+  if(protectedKeys.some(k=>sid(check[k]??'')!==sid(c[k]??''))||Number(check.qty)!==Number(c.qty))
    throw new Error('O envio mudou na nuvem. Reabra a página antes de prosseguir.');
   if((check.materials||[]).some(m=>m.checked)||sid(check.status)==='Conferido'||check.receivedAt||check.receivedBy)
    throw new Error('A conferência deste envio já foi iniciada. Não é possível substituir os materiais automaticamente.');
@@ -178,6 +178,11 @@ async function reloadAndSave(id){
   if(JSON.stringify((local.product.materials||[]).map(x=>[x.materialId,x.name,x.qty,x.unit,x.loss,x.calcMode]))!==
      JSON.stringify((prod.materials||[]).map(x=>[x.materialId,x.name,x.qty,x.unit,x.loss,x.calcMode])))
    throw new Error('A ficha técnica foi alterada em outra sessão. Atualize o navegador antes de confirmar.');
+  // Impede que o checklist use uma ficha alterada por outra pessoa durante a conferência.
+  const productAtCommit=await getRemote('products',c.productId);
+  if(Number(productAtCommit.revision)!==Number(remoteProd.revision)||
+     JSON.stringify(productAtCommit.data?.materials||[])!==JSON.stringify(prod.materials||[]))
+   throw new Error('Ficha técnica alterada na nuvem durante a conferência. Reabra para calcular os materiais atuais.');
   const payload={...check,materials:latest,materialSheetRevisionV9522:Number(remoteProd.revision),
    materialsRefreshedAtV9522:new Date().toISOString(),materialsSourceV9522:'product_technical_sheet',
    materialsRevisionReasonV9522:'Conferência explícita após atualização da ficha técnica'};
@@ -261,6 +266,9 @@ function install(){
   }
   return record;
  };
+ // Atualiza o aviso ao voltar à aba dos envios após editar fichas ou sincronizar outra sessão.
+ try{window.addEventListener('focus',()=>setTimeout(ensurePanel,120))}catch(e){}
+ try{document.addEventListener('visibilitychange',()=>{if(!document.hidden)setTimeout(ensurePanel,120)})}catch(e){}
  state.installed=true;setTimeout(ensurePanel,100);
 }
 window.hlgbFactionMaterialRefresh9522={version:V,state,install,analyze,buildMaterials,compare,openReview,reloadAndSave,ensurePanel,
