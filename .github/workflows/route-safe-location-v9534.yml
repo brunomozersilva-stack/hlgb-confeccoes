@@ -1,0 +1,47 @@
+name: HLGB Rotas sem Vazamento e POST Seguro v95.34
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'release-operations-pack.js'
+      - 'tests/route-safe-save-location-v9534-browser.cjs'
+      - '.github/workflows/route-safe-location-v9534.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'release-operations-pack.js'
+      - 'tests/route-safe-save-location-v9534-browser.cjs'
+      - '.github/workflows/route-safe-location-v9534.yml'
+permissions:
+  contents: read
+jobs:
+  syntax:
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '20'}
+      - name: Check route code syntax
+        run: |
+          node --check release-operations-pack.js
+          node --check tests/route-safe-save-location-v9534-browser.cjs
+  browser:
+    runs-on: ubuntu-latest
+    timeout-minutes: 18
+    strategy:
+      fail-fast: false
+      matrix:
+        browser: [chromium, webkit]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '20'}
+      - name: Install Playwright
+        run: |
+          npm install --no-save playwright@1.55.0
+          npx playwright install --with-deps ${{ matrix.browser }}
+      - name: Verify route location isolation and timeout cloud proof
+        env:
+          HLGB_BROWSER: ${{ matrix.browser }}
+        run: node tests/route-safe-save-location-v9534-browser.cjs

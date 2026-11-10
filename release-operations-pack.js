@@ -1,7 +1,7 @@
 /* HLGB v92.50 — pacote operacional: revenda, utilidades, rotas, etiquetas, embalagem e regularização */
 (function(){
 'use strict';
-const V='92.50-ops';
+const V='95.34-route-safe';
 try{const cur=parseFloat(String(window.HLGB_RELEASE_VERSION||'0').replace(/[^0-9.]/g,''))||0;if(cur<=92.50)window.HLGB_RELEASE_VERSION='92.50'}catch(e){}
 const sid=v=>String(v??''), q=v=>Math.max(0,Number(v)||0);
 const escSafe=v=>typeof esc==='function'?esc(v):sid(v).replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
@@ -18,6 +18,59 @@ async function saveRow(module,row,deleted=false){
   if(deleted){const a=arr(module),i=a.findIndex(x=>sid(x?.id)===sid(row.id));if(i>=0)a.splice(i,1);try{localSaveOnly()}catch(e){};return true}
   const confirmed=r.data||row;upsertLocal(module,confirmed);return confirmed;
 }
+/* v95.34: comprovante de gravação de rota, SOMENTE LEITURA.
+   Quando o POST expira, não significa necessariamente que o banco recusou:
+   verificar o registro com o mesmo id antes de afirmar sucesso/falha. */
+function routeFingerprint9534(route){
+ const stable=x=>Array.isArray(x)?x.map(stable):
+  (x&&typeof x==='object')?Object.fromEntries(Object.keys(x).sort().filter(k=>x[k]!==undefined).map(k=>[k,stable(x[k])])):x;
+ return JSON.stringify(stable({date:route?.date||'',driver:route?.driver||'',
+  status:route?.status||'',notes:route?.notes||'',stops:Array.isArray(route?.stops)?route.stops:[]}));
+}
+async function routeRemoteProof9534(row){
+ if(typeof cloudRequest!=='function')throw new Error('Consulta remota indisponível.');
+ const path='hlgb_records?select=entity_id,data,revision,deleted_at&module=eq.routePlans&entity_id=eq.'+
+  encodeURIComponent(sid(row.id))+'&limit=1';
+ const result=await cloudRequest(path,{method:'GET'});
+ if(!Array.isArray(result))throw new Error('Consulta da rota retornou formato inválido.');
+ const remote=result.find(x=>sid(x?.entity_id)===sid(row.id));
+ if(!remote||remote.deleted_at)return {status:'missing'};
+ if(!remote.data||typeof remote.data!=='object')return {status:'invalid'};
+ if(routeFingerprint9534(remote.data)!==routeFingerprint9534(row))
+  return {status:'different',revision:Number(remote.revision)||0};
+ return {status:'confirmed',data:remote.data,revision:Number(remote.revision)||0};
+}
+function routeStatus9534(message,kind='warn'){
+ const el=document.getElementById('opsRouteCloudStatus9534');
+ if(el){el.textContent=message;el.style.color=kind==='ok'?'#186b39':'#9a5312'}
+}
+function routeCollect9534(base,draftId,createdAt){
+ const els=[...document.querySelectorAll('#opsRouteStops .ops-route-stop')];
+ if(!els.length)throw new Error('Adicione pelo menos uma parada.');
+ const locs=routeLocations(),stops=[];
+ for(const [i,el] of els.entries()){
+  const sel=sid(el.querySelector('.ops-route-loc')?.value);
+  const loc=sel===''?null:locs[Number(sel)];
+  if(!loc)throw new Error('Escolha a facção ou confecção da parada '+(i+1)+'.');
+  const items=[...el.querySelectorAll('[data-route-item9249]')].map(x=>({
+    key:x.dataset.key||'',line:x.dataset.line||'',
+    direction:x.dataset.direction==='pickup'?'pickup':'carry',source:x.dataset.source||'',
+    productionId:x.dataset.productionId||'',orderId:x.dataset.orderId||'',
+    productId:x.dataset.productId||''}));
+  stops.push({order:i+1,type:loc.type,locationId:loc.id,name:loc.name,
+    address:loc.address,phone:loc.phone,
+    carry:routeLines9249(el.querySelector('.ops-route-carry')?.value),
+    pickup:routeLines9249(el.querySelector('.ops-route-pickup')?.value),
+    routeItems:items,notes:el.querySelector('.ops-route-note')?.value?.trim()||''});
+ }
+ return {...(base||{}),id:draftId,
+  date:document.getElementById('opsRouteDate')?.value||today(),
+  driver:document.getElementById('opsRouteDriver')?.value?.trim()||'',
+  status:document.getElementById('opsRouteStatus')?.value||'Planejada',
+  notes:document.getElementById('opsRouteGeneral')?.value?.trim()||'',
+  stops,updatedAt:new Date().toISOString(),createdAt};
+}
+
 function activate(id,btn,render){
   document.querySelectorAll('.page').forEach(x=>x.classList.remove('active'));
   const p=document.getElementById(id);if(!p)return false;p.classList.add('active');
@@ -193,7 +246,11 @@ function renderRoutes(){
  h.innerHTML='<div class="toolbar"><button class="primary" onclick="newRoute9249()">+ Nova rota</button></div><div class="ops-table">'+(rows?'<table><thead><tr><th>Data</th><th>Responsável</th><th>Paradas</th><th>Status</th><th>Ações</th></tr></thead><tbody>'+rows+'</tbody></table>':'<div class="empty">Nenhuma rota criada.</div>')+'</div>';
 }
 function routeStopHtml(stop,i){
- const locs=routeLocations(),opts=locs.map((x,j)=>'<option value="'+j+'" '+(sid(stop?.locationId)===sid(x.id)&&sid(stop?.type)===sid(x.type)?'selected':'')+'>'+escSafe(x.type+' — '+x.name)+'</option>').join('');
+ const locs=routeLocations(),selected=locs.some(x=>sid(stop?.locationId)===sid(x.id)&&sid(stop?.type)===sid(x.type));
+ // Nova parada começa sem local: nunca selecionar implicitamente Roseli,
+ // nem outro primeiro registro, antes de a pessoa escolher a facção.
+ const opts='<option value="" disabled '+(!selected?'selected':'')+'>Selecione a facção ou confecção</option>'+
+  locs.map((x,j)=>'<option value="'+j+'" '+(selected&&sid(stop?.locationId)===sid(x.id)&&sid(stop?.type)===sid(x.type)?'selected':'')+'>'+escSafe(x.type+' — '+x.name)+'</option>').join('');
  return '<div class="ops-route-stop" data-i="'+i+'"><div class="grid"><div class="field"><label>Local</label><select class="ops-route-loc" onchange="routeLocationChanged9249(this)">'+opts+'</select></div><div class="field"><label>Observações</label><input class="ops-route-note" value="'+escSafe(stop?.notes||'')+'"></div></div><div class="ops-route-assigned" style="margin:8px 0"></div><div class="grid"><div class="field"><label>LEVAR — um item por linha</label><textarea class="ops-route-carry" rows="5">'+escSafe((stop?.carry||[]).join('\n'))+'</textarea></div><div class="field"><label>BUSCAR — um item por linha</label><textarea class="ops-route-pickup" rows="5">'+escSafe((stop?.pickup||[]).join('\n'))+'</textarea></div></div><button type="button" class="danger" onclick="this.closest(\'.ops-route-stop\').remove()">Remover parada</button></div>';
 }
 
@@ -227,8 +284,24 @@ function routeLines9249(v){return sid(v).split(/\n+/).map(x=>x.trim()).filter(Bo
 function routeSyncDirections9249(stop){if(!stop)return;const carry=stop.querySelector('.ops-route-carry'),pickup=stop.querySelector('.ops-route-pickup'),items=[...stop.querySelectorAll('[data-route-item9249]')],known=new Set(items.map(x=>sid(x.dataset.line)));let c=routeLines9249(carry?.value).filter(x=>!known.has(x)),b=routeLines9249(pickup?.value).filter(x=>!known.has(x));for(const it of items){const line=sid(it.dataset.line);if(!line)continue;(it.dataset.direction==='pickup'?b:c).push(line)}if(carry)carry.value=[...new Set(c)].join('\n');if(pickup)pickup.value=[...new Set(b)].join('\n')}
 window.routeItemDirection9249=function(btn,dir){const item=btn?.closest?.('[data-route-item9249]'),stop=btn?.closest?.('.ops-route-stop');if(!item||!stop)return;item.dataset.direction=dir==='pickup'?'pickup':'carry';item.querySelectorAll('button[data-dir]').forEach(b=>b.className=b.dataset.dir===item.dataset.direction?'primary':'secondary');routeSyncDirections9249(stop)};
 window.routeLocationChanged9249=function(select){
- const stop=select?.closest?.('.ops-route-stop'),loc=routeLocations()[+select?.value],box=stop?.querySelector('.ops-route-assigned'),carry=stop?.querySelector('.ops-route-carry'),pickup=stop?.querySelector('.ops-route-pickup');if(!stop||!box||!loc)return;
- const data=routeAssignedProducts9249(loc),items=[...data.active,...data.planned],idx=+stop.dataset.i||0,saved=window.__opsRouteStops9249?.[idx],savedItems=Array.isArray(saved?.routeItems)?saved.routeItems:[];
+ const stop=select?.closest?.('.ops-route-stop'),selectedIndex=sid(select?.value);
+ const loc=selectedIndex===''?null:routeLocations()[Number(selectedIndex)];
+ const box=stop?.querySelector('.ops-route-assigned'),carry=stop?.querySelector('.ops-route-carry'),pickup=stop?.querySelector('.ops-route-pickup');
+ if(!stop||!box)return;
+ if(!loc){box.innerHTML='<div class="sub">Escolha a facção ou confecção para ver seus produtos.</div>';return}
+ const locationKey=sid(loc.type)+'|'+sid(loc.id),previous=stop.dataset.routeLocationKey9534||'';
+ // Ao mudar de Roseli para Luana, retirar somente as linhas AUTOGERADAS
+ // pela parada anterior. Os itens manuais permanecem.
+ if(previous&&previous!==locationKey){
+  const oldLines=new Set([...box.querySelectorAll('[data-route-item9249]')].map(x=>sid(x.dataset.line)).filter(Boolean));
+  if(carry)carry.value=routeLines9249(carry.value).filter(x=>!oldLines.has(x)).join('\n');
+  if(pickup)pickup.value=routeLines9249(pickup.value).filter(x=>!oldLines.has(x)).join('\n');
+ }
+ stop.dataset.routeLocationKey9534=locationKey;
+ const data=routeAssignedProducts9249(loc),items=[...data.active,...data.planned],idx=+stop.dataset.i||0,saved=window.__opsRouteStops9249?.[idx];
+ // Não reutilizar direções da facção do índice anterior se paradas mudaram.
+ const sameSaved=!!saved&&sid(saved.locationId)===sid(loc.id)&&sid(saved.type)===sid(loc.type);
+ const savedItems=sameSaved&&Array.isArray(saved.routeItems)?saved.routeItems:[];
  const carryExisting=new Set(routeLines9249(carry?.value)),pickupExisting=new Set(routeLines9249(pickup?.value));
  for(const x of items){const line=routeAssignedLine9249(x),sv=savedItems.find(y=>sid(y.key)===sid(x.key)||sid(y.line)===line);if(sv?.direction)x.direction=sv.direction;else if(pickupExisting.has(line))x.direction='pickup';else if(carryExisting.has(line))x.direction='carry'}
  box.innerHTML=items.length?'<div class="panel" style="padding:10px;background:#fff"><b>📦 O que fazer neste local</b><div class="sub">O sistema sugere <b>LEVAR</b> quando o produto foi atribuído mas ainda não foi enviado e <b>BUSCAR</b> quando já existe envio registrado. Você pode trocar pelo botão.</div>'+items.map(routeItemHtml9249).join('')+'</div>':'<div class="sub">Nenhum produto atribuído a este local agora. Use os campos abaixo para itens manuais.</div>';
@@ -237,19 +310,80 @@ window.routeLocationChanged9249=function(select){
 
 function openRouteEditor(r){
  window.__opsRouteStops9249=clone(r?.stops||[]);
- const body='<div class="grid"><div class="field"><label>Data</label><input id="opsRouteDate" type="date" value="'+escSafe(r?.date||today())+'"></div><div class="field"><label>Responsável / motorista</label><input id="opsRouteDriver" value="'+escSafe(r?.driver||'')+'"></div><div class="field"><label>Status</label><select id="opsRouteStatus"><option>Planejada</option><option>Em rota</option><option>Concluída</option></select></div></div><div class="field"><label>Anotações gerais</label><textarea id="opsRouteGeneral" rows="3">'+escSafe(r?.notes||'')+'</textarea></div><div id="opsRouteStops">'+(r?.stops||[]).map(routeStopHtml).join('')+'</div><button type="button" class="secondary" onclick="addRouteStop9249()">+ Adicionar parada</button><button class="primary modalSave">Salvar rota</button>';
+ // Uma única identidade para a rota durante a vida deste editor.
+ // Repetir clique ou aguardar POST lento NUNCA cria um segundo ID.
+ const draftId=sid(r?.id||('route-'+Date.now()+'-'+Math.floor(Math.random()*10000)));
+ const createdAt=r?.createdAt||new Date().toISOString();
+ let saveBusy=false,lastAttempt=null;
+ const body='<div class="grid"><div class="field"><label>Data</label><input id="opsRouteDate" type="date" value="'+escSafe(r?.date||today())+'"></div><div class="field"><label>Responsável / motorista</label><input id="opsRouteDriver" value="'+escSafe(r?.driver||'')+'"></div><div class="field"><label>Status</label><select id="opsRouteStatus"><option>Planejada</option><option>Em rota</option><option>Concluída</option></select></div></div><div class="field"><label>Anotações gerais</label><textarea id="opsRouteGeneral" rows="3">'+escSafe(r?.notes||'')+'</textarea></div><div id="opsRouteStops">'+(r?.stops||[]).map(routeStopHtml).join('')+'</div><button type="button" class="secondary" onclick="addRouteStop9249()">+ Adicionar parada</button>'+
+ '<div class="toolbar" style="margin-top:12px"><button type="button" class="secondary" id="opsRouteVerify9534">🔍 Verificar gravação na nuvem</button><button class="primary modalSave">Salvar rota</button></div>'+
+ '<div id="opsRouteCloudStatus9534" role="status" aria-live="polite" class="sub" style="margin-top:10px">A rota só será considerada salva depois da confirmação da nuvem.</div>';
+ async function finalizeIfConfirmed(attempt,reason){
+  let proof;
+  try{proof=await routeRemoteProof9534(attempt)}
+  catch(e){routeStatus9534('Não foi possível verificar a nuvem agora: '+sid(e?.message||e)+'. A edição continua aberta; não crie uma segunda rota.');return false}
+  if(proof.status==='confirmed'){
+   let current;
+   try{current=routeCollect9534(r,draftId,createdAt)}
+   catch(e){routeStatus9534('Registro encontrado na nuvem, mas há alterações não conferidas no editor. Revise as paradas antes de fechar.');return false}
+   if(routeFingerprint9534(current)!==routeFingerprint9534(attempt)){
+    routeStatus9534('A gravação anterior está na nuvem, mas você fez novas alterações depois dela. Estas alterações ainda não foram confirmadas.');return false
+   }
+   upsertLocal('routePlans',proof.data);closeModal();renderRoutes();
+   if(reason==='timeout')alert('✅ Rota confirmada na nuvem após a demora da resposta.');
+   return true;
+  }
+  routeStatus9534(proof.status==='different'?
+   'Já existe esta rota na nuvem, porém com conteúdo diferente (revisão '+proof.revision+'). Não substituir automaticamente. Confira as alterações.':
+   'A rota '+draftId+' ainda não está confirmada na nuvem. Seu formulário permanece aberto e a pendência de gravação não será apagada. Use Verificar gravação novamente antes de reenviar.');
+  return false;
+ }
  openModal(r?'Editar rota':'Nova rota',body,async()=>{
-   const stops=[];document.querySelectorAll('#opsRouteStops .ops-route-stop').forEach((el,i)=>{const loc=routeLocations()[+el.querySelector('.ops-route-loc')?.value];if(!loc)return;const lines=v=>sid(v).split(/\n+/).map(x=>x.trim()).filter(Boolean);const routeItems=[...el.querySelectorAll('[data-route-item9249]')].map(x=>({key:x.dataset.key||'',line:x.dataset.line||'',direction:x.dataset.direction==='pickup'?'pickup':'carry',source:x.dataset.source||'',productionId:x.dataset.productionId||'',orderId:x.dataset.orderId||'',productId:x.dataset.productId||''}));stops.push({order:i+1,type:loc.type,locationId:loc.id,name:loc.name,address:loc.address,phone:loc.phone,carry:lines(el.querySelector('.ops-route-carry')?.value),pickup:lines(el.querySelector('.ops-route-pickup')?.value),routeItems,notes:el.querySelector('.ops-route-note')?.value?.trim()||''})});
-   if(!stops.length)return alert('Adicione pelo menos uma parada.');
-   const row={...(r||{}),id:r?.id||('route-'+Date.now()),date:document.getElementById('opsRouteDate')?.value||today(),driver:document.getElementById('opsRouteDriver')?.value?.trim()||'',status:document.getElementById('opsRouteStatus')?.value||'Planejada',notes:document.getElementById('opsRouteGeneral')?.value?.trim()||'',stops,updatedAt:new Date().toISOString(),createdAt:r?.createdAt||new Date().toISOString()};
-   try{await saveRow('routePlans',row);closeModal();renderRoutes()}catch(e){alert('Não foi possível salvar a rota: '+(e?.message||e))}
+  if(saveBusy)return;
+  let row;
+  try{row=routeCollect9534(r,draftId,createdAt)}
+  catch(e){routeStatus9534(sid(e.message||e));return}
+  saveBusy=true;lastAttempt=clone(row);
+  const saveButton=document.querySelector('#modal .modalSave');
+  if(saveButton)saveButton.disabled=true;
+  routeStatus9534('Salvando a rota '+draftId+' e aguardando confirmação da nuvem…');
+  try{
+   await saveRow('routePlans',row);
+   await finalizeIfConfirmed(row,'post');
+  }catch(e){
+   const timeout=e?.code==='HLGB_CLOUD_TIMEOUT'||/timeout|abort|demorou demais/i.test(sid(e?.message||e));
+   if(timeout){
+    // O POST pode ter sido aplicado mesmo quando o Safari recebeu timeout.
+    const confirmed=await finalizeIfConfirmed(row,'timeout');
+    if(!confirmed)console.warn('[HLGB rota 95.34] POST sem prova final; preservar editor e WAL',e);
+   }else{
+    routeStatus9534('Erro ao salvar rota: '+sid(e?.message||e)+'. A edição está preservada. Verifique o servidor antes de tentar novamente.');
+   }
+  }finally{
+   saveBusy=false;
+   if(saveButton?.isConnected)saveButton.disabled=false;
+  }
  });
  const st=document.getElementById('opsRouteStatus');if(st&&r?.status)st.value=r.status;
+ const verifyButton=document.getElementById('opsRouteVerify9534');
+ if(verifyButton)verifyButton.onclick=async()=>{
+  if(saveBusy)return;
+  if(!lastAttempt){routeStatus9534('Primeiro tente salvar esta rota para obter um identificador de gravação.');return}
+  saveBusy=true;verifyButton.disabled=true;
+  try{await finalizeIfConfirmed(lastAttempt,'timeout')}
+  finally{saveBusy=false;if(verifyButton.isConnected)verifyButton.disabled=false}
+ };
  setTimeout(()=>{document.querySelectorAll('#opsRouteStops .ops-route-loc').forEach(sel=>window.routeLocationChanged9249?.(sel))},40);
 }
 window.newRoute9249=()=>openRouteEditor(null);
 window.editRoute9249=id=>{const r=arr('routePlans').find(x=>sid(x.id)===sid(id));if(r)openRouteEditor(r)};
-window.addRouteStop9249=function(){const host=document.getElementById('opsRouteStops');if(host){host.insertAdjacentHTML('beforeend',routeStopHtml({},host.children.length));const sel=host.lastElementChild?.querySelector('.ops-route-loc');if(sel)window.routeLocationChanged9249?.(sel)}};
+window.addRouteStop9249=function(){
+ const host=document.getElementById('opsRouteStops');
+ if(!host)return;
+ host.insertAdjacentHTML('beforeend',routeStopHtml({},host.children.length));
+ const sel=host.lastElementChild?.querySelector('.ops-route-loc');
+ if(sel)window.routeLocationChanged9249?.(sel);
+};
 window.deleteRoute9249=async function(id){const r=arr('routePlans').find(x=>sid(x.id)===sid(id));if(!r||!confirm('Excluir esta rota?'))return;try{await saveRow('routePlans',r,true);renderRoutes()}catch(e){alert('Não foi possível excluir: '+(e?.message||e))}};
 function printHtml(title,html,css){
  const w=window.open('','_blank');if(!w){alert('Permita pop-ups para imprimir.');return}
