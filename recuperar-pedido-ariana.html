@@ -1,0 +1,165 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="referrer" content="no-referrer">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src 'none'; connect-src 'none'; form-action 'none'; base-uri 'none'; object-src 'none'">
+<title>HLGB — localizar pedido 39 da Ariana no Safari</title>
+<style>
+:root{font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;background:#f4f6fa;color:#183047}
+*{box-sizing:border-box}body{margin:0;padding:20px 12px}main{max-width:800px;margin:0 auto;background:#fff;border:1px solid #dce4ed;padding:24px;border-radius:14px}h1{font-size:1.4rem;margin:0 0 10px}p,li{line-height:1.55}p{margin:11px 0}.notice{padding:12px;background:#fff8e9;border-left:4px solid #d79d29;border-radius:5px}button,.download{display:inline-block;border:0;background:#155eaa;color:white;padding:12px 17px;border-radius:8px;font:600 15px system-ui;cursor:pointer;text-decoration:none}button:disabled{opacity:.55;cursor:wait}.download[hidden]{display:none}#status{font-weight:600;white-space:pre-wrap;margin:14px 0}.muted{color:#506378;font-size:.92rem}#matches{padding-left:22px}li{margin-bottom:7px}a{color:#155eaa}code{overflow-wrap:anywhere}
+</style>
+</head>
+<body>
+<main>
+<h1>HLGB — resgatar o pedido #39 da Calcinha Ariana</h1>
+<p><b>Conferência:</b> cliente Click Sophia · 600 peças · entrega 10/11/2026.</p>
+<p class="notice"><b>Use no Safari onde o pedido foi criado.</b> Abra esta página em uma nova aba, mantendo a aba antiga do HLGB aberta. Não limpe cache, não saia da conta e não faça um novo cadastro. Esta página <b>não salva, restaura, exclui nem sincroniza</b> qualquer pedido.</p>
+<button id="find" type="button">🔎 Procurar o pedido no Safari</button>
+<p id="status" role="status" aria-live="polite">Busca ainda não executada.</p>
+<ol id="matches"></ol>
+<a class="download" id="download" hidden download>⬇️ Salvar cópia do pedido encontrado</a>
+<p class="muted" id="details"></p>
+<p>Se o pedido for localizado, salve o arquivo JSON e envie-o nesta conversa. O arquivo poderá conter dados de clientes; não o publique em redes sociais.</p>
+<p>Se não aparecer, use também a <a href="./resgatar-wal.html">exportação completa de pendências do Safari</a>, que preserva operações que possam não conter o pedido inteiro.</p>
+<p class="muted">Página de diagnóstico independente v95.26. Consultas locais apenas: localStorage e IndexedDB HLGB, sem rede, login, gravação ou modificação de dados. Ela ignora o antigo #39 de Fio Bianca.</p>
+</main>
+<script>
+(function(){
+'use strict';
+const target='1788960077143',button=document.getElementById('find');
+const status=document.getElementById('status'),list=document.getElementById('matches'),download=document.getElementById('download'),details=document.getElementById('details');
+const sid=v=>String(v==null?'':v);
+const matchName=s=>/calcinha\s+ariana/i.test(sid(s));
+const matchingGrade=o=>Array.isArray(o?.grade)&&o.grade.some(g=>sid(g?.productId)===target);
+const records=[],seenRecords=new Set(),errors=[],scanned=[];
+let objectCount=0,existingBlob='';
+function candidate(o,from){
+ if(!o||Array.isArray(o)||typeof o!=='object')return;
+ const number=sid(o.orderNumber||o.number||o.num||'').trim();
+ const qty=Number(o.qty||o.totalQty||o.quantity||0);
+ const hasAriana=matchingGrade(o)||matchName(o.items||o.product||o.productName||'');
+ if(!hasAriana)return;
+ // Exigir a identificação da folha de 10/11: nunca recuperar um pedido antigo apenas por conter o mesmo modelo.
+ if(number!=='39'&&!(qty===600&&/^2026-11-10/.test(sid(o.date||o.deliveryDate||o.delivery||''))))return;
+ const key=sid(o.id||o.__hlgbId||'')+'|'+number+'|'+sid(o.updatedAt||o.createdAt||'')+'|'+sid(from);
+ if(seenRecords.has(key))return;
+ seenRecords.add(key);
+ let data;
+ try{data=JSON.parse(JSON.stringify(o))}catch(_){return}
+ records.push({source:from,match: number==='39'?'pedido-39':'candidato-600',
+  id:sid(o.id||o.__hlgbId||''),orderNumber:number,qty,
+  client:sid(o.client||o.clientName||''),date:sid(o.date||o.deliveryDate||''),
+  gradeLines:Array.isArray(o.grade)?o.grade.length:0,
+  data});
+}
+function walk(value,from,depth,seen){
+ if(++objectCount>320000||depth>15||value===null||typeof value!=='object'||seen.has(value))return;
+ seen.add(value);
+ if(!Array.isArray(value))candidate(value,from);
+ if(Array.isArray(value)){for(let i=0;i<value.length;i++)walk(value[i],from+'['+i+']',depth+1,seen)}
+ else{
+  for(const [k,v] of Object.entries(value)){
+   if(/token|password|senha|secret|authorization|jwt|session|apikey|api_key|refresh_token/i.test(k))continue;
+   if(v&&typeof v==='object')walk(v,from+'.'+k,depth+1,seen);
+  }
+ }
+}
+function inspect(value,source){
+ objectCount=0;scanned.push(source);
+ try{walk(value,source,0,new WeakSet())}catch(e){errors.push(source+': '+sid(e.message||e))}
+}
+function local(){
+ try{
+  for(let i=0;i<localStorage.length;i++){
+   const key=localStorage.key(i)||'';
+   if(/token|password|senha|secret|authorization|jwt|session|apikey|api_key/i.test(key))continue;
+   let raw;try{raw=localStorage.getItem(key)}catch(e){errors.push('localStorage '+key+': '+sid(e.message));continue}
+   if(!raw||raw.length>40000000||(!raw.includes(target)&&!matchName(raw)))continue;
+   try{inspect(JSON.parse(raw),'localStorage:'+key)}catch(e){errors.push('JSON localStorage '+key+': '+sid(e.message||e))}
+  }
+ }catch(e){errors.push('Leitura do armazenamento local: '+sid(e.message||e))}
+}
+function inspectDb(name){
+ return new Promise(resolve=>{
+  if(typeof indexedDB==='undefined'){errors.push('IndexedDB indisponível');resolve();return}
+  let request,finished=false;
+  function end(){if(finished)return;finished=true;resolve()}
+  try{request=indexedDB.open(name)}catch(e){errors.push(name+': '+sid(e.message));end();return}
+  request.onupgradeneeded=()=>{try{request.transaction.abort()}catch(_){};end()};
+  request.onblocked=()=>{errors.push(name+': acesso temporariamente bloqueado');end()};
+  request.onerror=()=>{end()};
+  request.onsuccess=async()=>{
+   const db=request.result;
+   try{
+    for(const storeName of Array.from(db.objectStoreNames)){
+     if(!/entries|backups|records|snapshots|cache/i.test(storeName))continue;
+     await new Promise(done=>{
+      try{
+       const transaction=db.transaction(storeName,'readonly');
+       const req=transaction.objectStore(storeName).openCursor();
+       let n=0;
+       req.onsuccess=()=>{
+        const cursor=req.result;
+        if(!cursor||n++>=50000){done();return}
+        inspect(cursor.value,'IndexedDB:'+name+'/'+storeName+'#'+n);
+        cursor.continue();
+       };
+       req.onerror=()=>{errors.push(name+'/'+storeName+': falha na leitura');done()};
+       transaction.onerror=()=>done();
+       transaction.onabort=()=>done();
+      }catch(e){errors.push(name+'/'+storeName+': '+sid(e.message));done()}
+     });
+    }
+   }finally{db.close();end()}
+  };
+ })
+}
+async function allDbs(){
+ const known=['hlgb_durable_wal','hlgb_daily_safety_backups_v1'];
+ try{
+  if(typeof indexedDB.databases==='function'){
+   const extra=await indexedDB.databases();
+   for(const b of extra||[])if(/^hlgb[_-]/i.test(sid(b.name))&&!known.includes(b.name))known.push(b.name);
+  }
+ }catch(e){errors.push('Listagem de bases: '+sid(e.message||e))}
+ for(const name of known)await inspectDb(name);
+}
+function result(){
+ list.textContent='';
+ const ranked=records.slice().sort((a,b)=>(a.match==='pedido-39'?0:1)-(b.match==='pedido-39'?0:1));
+ for(const rec of ranked.slice(0,30)){
+  const li=document.createElement('li');
+  li.textContent=(rec.match==='pedido-39'?'Pedido #39 confirmado na cópia: ':'Candidato a conferir: ')+
+  (rec.client||'Cliente não informado')+' · '+(rec.qty||'?')+' peças · '+rec.gradeLines+
+  ' linhas de grade · origem '+rec.source;
+  list.appendChild(li);
+ }
+ if(records.length){
+  const payload={kind:'hlgb_ariana_39_readonly_recovery',version:'95.26',capturedAt:new Date().toISOString(),
+   warning:'Cópia SOMENTE leitura; não importar automaticamente, não substituir registros nem apagar WAL',
+   browser:navigator.userAgent,results:ranked,errors};
+  const blob=new Blob([JSON.stringify(payload,null,2)],{type:'application/json;charset=utf-8'});
+  if(existingBlob)URL.revokeObjectURL(existingBlob);
+  existingBlob=URL.createObjectURL(blob);
+  download.href=existingBlob;
+  download.download='HLGB-ARIANA-PEDIDO-39-SAFARI-'+payload.capturedAt.replace(/[:.]/g,'-')+'.json';
+  download.hidden=false;
+  status.textContent='✅ '+records.length+' cópia(s) candidata(s) encontrada(s). Clique em “Salvar cópia do pedido encontrado” e envie o JSON aqui. Nenhum pedido foi alterado.';
+ }else{
+  download.hidden=true;
+  status.textContent='⚠️ Nenhuma cópia do pedido #39 da Ariana foi localizada nas fontes verificadas. Isso não prova que o pedido foi apagado: ele ainda pode estar na aba antiga do Safari ou em outra cópia. Não limpe o navegador.';
+ }
+ details.textContent='Fontes lidas: '+scanned.length+' · avisos: '+errors.length+(errors.length?' ('+errors.slice(0,3).join(' / ')+')':'')+'.';
+}
+button.addEventListener('click',async()=>{
+ button.disabled=true;download.hidden=true;status.textContent='Procurando em cópias locais do Safari…';list.textContent='';
+ try{local();await allDbs();result()}
+ catch(e){status.textContent='Falha ao ler as cópias: '+sid(e.message||e)+'. Nenhum dado foi alterado.'}
+ finally{button.disabled=false}
+});
+})();
+</script>
+</body>
+</html>
