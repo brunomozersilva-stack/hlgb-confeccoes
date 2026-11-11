@@ -42,6 +42,8 @@ test('bot report opens with a dedicated visible download in '+kind,async()=>{
   await page.waitForFunction(()=>window.hlgbHourlyHealthPanel9541.status().latest!==null);
   assert.equal(await page.locator('#hlgbHourlyHealthPanel9541').count(),1);
   assert.equal(await page.locator('#hlgbHealthDownload9541').isDisabled(),false);
+  assert.equal(await page.locator('#hlgbHealthDownloadTop9544').count(),1);
+  assert.equal(await page.locator('#hlgbHealthRawLink9541').count(),0);
   assert.match(await page.locator('#hlgbHealthSummary9541').innerText(),/HLGB Audit Regression/);
   const event=page.waitForEvent('download');
   await page.click('#hlgbHealthDownload9541');
