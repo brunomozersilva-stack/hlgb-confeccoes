@@ -1,0 +1,52 @@
+name: HLGB Order Delivery Trace v95.39
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'release-order-delivery-trace-v9539.js'
+      - 'tests/order-delivery-trace-v9539.cjs'
+      - 'tests/order-delivery-trace-v9539-browser.cjs'
+      - 'app-stable3.html'
+      - '.github/workflows/order-delivery-trace-v9539.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'release-order-delivery-trace-v9539.js'
+      - 'tests/order-delivery-trace-v9539.cjs'
+      - 'app-stable3.html'
+      - '.github/workflows/order-delivery-trace-v9539.yml'
+permissions:
+  contents: read
+jobs:
+  targeted:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: node --check release-order-delivery-trace-v9539.js
+      - run: node --test tests/order-delivery-trace-v9539.cjs
+      - run: |
+          node -e "const fs=require('fs');if(!fs.readFileSync('app-stable3.html','utf8').includes('release-order-delivery-trace-v9539.js'))process.exit(1)"
+  browser:
+    runs-on: ubuntu-latest
+    timeout-minutes: 18
+    strategy:
+      fail-fast: false
+      matrix:
+        browser: [chromium, webkit]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install browser automation
+        run: |
+          npm install --no-save playwright@1.55.0
+          npx playwright install --with-deps ${{ matrix.browser }}
+      - name: Verify order delivery evidence in real browser engine
+        env:
+          HLGB_BROWSER: ${{ matrix.browser }}
+        run: node --test tests/order-delivery-trace-v9539-browser.cjs
