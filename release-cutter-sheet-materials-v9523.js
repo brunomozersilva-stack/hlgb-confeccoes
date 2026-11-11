@@ -344,10 +344,10 @@ function addActionButtons(){
    const root=document.getElementById(rootId);if(!root)continue;
    root.querySelectorAll('tbody tr').forEach(tr=>{
      if(tr.querySelector('.hlgbSheetMaterials9523'))return;
-     const c=byId('cuts',cutIdFromRow(tr));if(!c||!c.productId||!byId('orders',c.orderId))return;
+     const c=byId('cuts',cutIdFromRow(tr));if(!c||!byId('orders',c.orderId))return;
      const cell=tr.lastElementChild;if(!cell)return;
      const b=document.createElement('button');b.type='button';b.className='secondary hlgbSheetMaterials9523';
-     b.textContent='🖨️ Folha completa';b.onclick=()=>{try{printSheet(byId('orders',c.orderId),c)}catch(e){alert(sid(e.message||e))}};
+     b.textContent='🖨️ Folha completa';b.onclick=()=>wrapped(c.orderId,c.id);
      cell.appendChild(document.createTextNode(' '));cell.appendChild(b);
    });
  }
@@ -368,7 +368,19 @@ function wrapped(orderId,cutId){
   alert('Não foi possível localizar o pedido para imprimir.');return false;
  }
  try{
-  if(c&&c.productId)return printSheet(o,c);
+  const grades=Array.isArray(o.grade)?o.grade:[];
+  const pid=new Set(grades.filter(g=>qty(g?.qty)>0&&g?.productId).map(g=>sid(g.productId)));
+  const total=grades.reduce((sum,g)=>sum+qty(g?.qty),0);
+  const cutGrade=(Array.isArray(c?.actualCutGrade)&&c.actualCutGrade.length?c.actualCutGrade:
+   Array.isArray(c?.originalGrade)?c.originalGrade:[]);
+  const cutModels=new Set(cutGrade.filter(g=>qty(g?.qty)>0&&g?.productId).map(g=>sid(g.productId)));
+  // Cortes-pai podem manter productId do primeiro modelo mesmo quando
+  // representam o pedido inteiro; neste caso imprimir TODOS os modelos.
+  const parent=!!c&&pid.size>1&&(
+   sid(c.id)===sid(o.id)||cutModels.size>1||
+   (total>0&&qty(c.pieces)>=total)
+  );
+  if(c&&c.productId&&!parent)return printSheet(o,c);
   return printOrderSheets(o);
  }catch(e){console.warn('[HLGB '+V+']',e);alert(sid(e.message||e));return false}
 }
