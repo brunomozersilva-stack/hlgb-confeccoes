@@ -64,7 +64,7 @@ test('extra-pieces color columns follow grade; blank fields never invent extra 4
  for(const color of ['Preto','Branco','Rubi','Azul Marinho','Rosa','Vinho'])assert.ok(extra.includes(color),color);
  assert.ok(extra.includes('Outras'));
  assert.ok(extra.includes('Camisola Liliane'));
- assert.match(extra,/1200/); // six colors * four sizes * 50
+ assert.match(extra,/(?:1\.200|1200)/); // six colors * four sizes * 50
  assert.ok(!extra.includes('400')); // no fabricated extra pieces
  assert.equal((extra.match(/<tr/g)||[]).length,7); // 2 headings + primary + 4 blank rows
 });
