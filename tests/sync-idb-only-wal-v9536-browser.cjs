@@ -7,7 +7,8 @@ const fs=require('node:fs');
  const browser=await ({chromium,webkit})[kind].launch({headless:true});
  try{
   const page=await browser.newPage();
-  await page.goto('about:blank');
+  await page.route('http://hlgb.test/**',route=>route.fulfill({status:200,contentType:'text/html',body:'<!doctype html><html><body>Sync test</body></html>'}));
+  await page.goto('http://hlgb.test/');
   await page.evaluate(async()=>{
    const request=indexedDB.open('hlgb_durable_wal',1);
    await new Promise((resolve,reject)=>{
