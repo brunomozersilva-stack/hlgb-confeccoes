@@ -36,6 +36,7 @@ const fs=require('node:fs');
     return {rows:[],modules:['orders']};
    };
    window.hlgbApplyRecordRow=row=>{
+    if(row.deleted_at)return true; // Legacy Realtime code would remove a local row.
     return !window.hlgbRecordPendingIdentitySet9535().has(row.module+'::'+row.entity_id);
    };
   });
@@ -47,6 +48,7 @@ const fs=require('node:fs');
    await window.hlgbRecordLoadBundle({preserveLocal:false,since:null});
    return {probe,ids:[...ids],keys:[...keys],orders:window.db.orders,
     incomingAllowed:window.hlgbApplyRecordRow({module:'orders',entity_id:'safari-only'}),
+    deletionAllowed:window.hlgbApplyRecordRow({module:'orders',entity_id:'safari-only',deleted_at:'2026-11-11T10:05:00Z'}),
     readCount:window.__syncReads,status:api.status()};
   });
   assert.equal(proof.probe.count,2);
@@ -55,6 +57,7 @@ const fs=require('node:fs');
   assert.ok(proof.ids.includes('cuts::cut-safari'));
   assert.deepEqual(proof.orders,[{id:'safari-only',qty:100,client:'Teste local'}]);
   assert.equal(proof.incomingAllowed,false);
+  assert.equal(proof.deletionAllowed,false,'Unconfirmed Safari edit must not be removed by a remote tombstone');
   assert.equal(proof.readCount,1);
   // Confirm that the probe never deleted, modified, or acknowledged the test's WAL entries.
   const still=await page.evaluate(async()=>{
