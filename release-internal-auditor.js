@@ -825,10 +825,126 @@ function openAuditor(){
   try{window.hlgbHourlyHealthPanel9541?.onOpen?.()}catch(e){console.warn('[HLGB monitor horário] abertura',e)}
   loadRuns().then(()=>{const h=document.getElementById('hlgbAuditorHistory');if(h)h.innerHTML=historyHtml();const r=document.getElementById('hlgbAuditorResult');if(r){const row=latest();r.innerHTML=alertHtml9249(row)+renderRun(row)}}).catch(()=>{});
 }
-window.hlgbAuditorOpenBot9543=function(){
- const monitor=window.hlgbHourlyHealthPanel9541;
- if(monitor&&typeof monitor.openStandalone==='function')return monitor.openStandalone();
- alert('O módulo do Monitor de Saúde não foi carregado neste navegador. Atualize apenas a página (sem apagar dados) ou consulte os relatórios no GitHub Actions.');
+// v95.46: os links de download NUNCA dependem de o módulo opcional
+// estar carregado. Tenta recuperar o módulo com URL nova; se não conseguir,
+// consulta a API pública somente para leitura e oferece JSON local.
+let hlgbMonitorRecoveryPromise9546=null;
+window.hlgbAuditorOpenBot9543=async function(){
+ const ready=window.hlgbHourlyHealthPanel9541;
+ if(ready&&typeof ready.openStandalone==='function')return ready.openStandalone();
+ if(typeof window.openModal!=='function'){
+  alert('Não foi possível abrir a janela do relatório do bot. O sistema permanece intacto.');
+  return false;
+ }
+ const rootId='hlgbBotRecovery9546',reportId='hlgbBotRecoveryDownload9546',statusId='hlgbBotRecoveryStatus9546';
+ window.openModal('📊 Relatório do Bot HLGB',
+  '<section id="'+rootId+'" style="display:block!important;padding:12px;border:2px solid #602e80;border-radius:10px;background:#fff;">'+
+  '<div style="font-weight:800;color:#501b74;font-size:16px;">Baixar relatório do bot</div>'+
+  '<a id="'+reportId+'" href="#" download="HLGB-MONITOR-SAUDE-DIAGNOSTICO.json" '+
+  'style="display:block!important;background:#602e80;color:#fff!important;padding:12px;margin:10px 0;'+
+  'border-radius:8px;font-weight:800;text-decoration:none;">⬇️ Baixar diagnóstico (JSON)</a>'+
+  '<p id="'+statusId+'" style="font-size:13px;">Verificando carregamento do monitor…</p>'+
+  '</section><button type="button" class="secondary modalSave">Fechar</button>',()=>window.closeModal?.());
+ const root=document.getElementById(rootId);
+ if(!root)return false;
+ const status=root.querySelector('#'+statusId);
+ const link=root.querySelector('#'+reportId);
+ const failed=Array.isArray(window.__HLGB_BOOT_FAILED_FILES_9477)?
+  window.__HLGB_BOOT_FAILED_FILES_9477.filter(x=>String(x).includes('health-monitor')):[];
+ const now=()=>new Date().toISOString();
+ const errorReport=(message)=>({
+  kind:'hlgb-hourly-health-access-diagnostic',version:'95.46',
+  generatedAt:now(),repository:'brunomozersilva-stack/hlgb-confeccoes',
+  status:'not_verified',error:String(message||'Módulo não carregado'),
+  failedBootFiles:failed,liveCrossBrowserProof:false,
+  note:'Relatório local de diagnóstico. Não confirma a sincronização Safari ↔ Chrome.'
+ });
+ let previousURL=null;
+ function fillReport(data){
+  if(!link||!link.isConnected)return;
+  const url=URL.createObjectURL(new Blob([JSON.stringify(data,null,2)+'\n'],{type:'application/json;charset=utf-8'}));
+  link.href=url;
+  link.download='HLGB-MONITOR-SAUDE-'+now().replace(/[:.]/g,'-')+'.json';
+  if(previousURL)URL.revokeObjectURL(previousURL);
+  previousURL=url;
+ }
+ function statusText(message){if(status&&status.isConnected)status.textContent=message}
+ fillReport(errorReport('Arquivo do monitor não estava carregado quando o menu foi aberto.'));
+ try{
+  if(!hlgbMonitorRecoveryPromise9546){
+   hlgbMonitorRecoveryPromise9546=new Promise((resolve,reject)=>{
+    const script=document.createElement('script');
+    script.src='./release-health-monitor-panel-v9541.js?hlgb_recovery=95.46&ts='+Date.now();
+    script.async=true;
+    let settled=false;
+    const timer=setTimeout(()=>finish(Error('Tempo esgotado ao recuperar o módulo de relatório.')),12000);
+    function finish(err){
+     if(settled)return;settled=true;clearTimeout(timer);
+     script.onload=null;script.onerror=null;
+     if(err)reject(err);else resolve(true);
+    }
+    script.onload=()=>{
+     if(typeof window.hlgbHourlyHealthPanel9541?.openStandalone==='function')finish(null);
+     else finish(Error('O arquivo chegou, mas não ativou o Monitor de Saúde.'));
+    };
+    script.onerror=()=>finish(Error('Falha ao baixar o arquivo do Monitor de Saúde.'));
+    document.head.appendChild(script);
+   }).finally(()=>{hlgbMonitorRecoveryPromise9546=null});
+  }
+  await hlgbMonitorRecoveryPromise9546;
+  if(typeof window.hlgbHourlyHealthPanel9541?.openStandalone==='function'){
+   // Se a usuária já fechou a janela, não abrir uma janela tardia.
+   if(!root.isConnected)return false;
+   return window.hlgbHourlyHealthPanel9541.openStandalone();
+  }
+ }catch(e){
+  statusText('Recuperação não concluída. Consultando o relatório público de forma independente…');
+  const reason=String(e?.message||e);
+  try{
+   const repo='https://api.github.com/repos/brunomozersilva-stack/hlgb-confeccoes';
+   async function read(path){
+    const controller=typeof AbortController==='function'?new AbortController():null;
+    const timeout=setTimeout(()=>controller?.abort(),11000);
+    try{
+     const res=await fetch(repo+path,{method:'GET',cache:'no-store',credentials:'omit',
+      headers:{Accept:'application/vnd.github+json'},...(controller?{signal:controller.signal}:{})});
+     if(!res.ok)throw Error('GitHub API HTTP '+res.status);
+     return res.json();
+    }finally{clearTimeout(timeout)}
+   }
+   const [branch,actions]=await Promise.all([
+    read('/branches/main'),read('/actions/runs?branch=main&per_page=100')]);
+   const commit=String(branch?.commit?.sha||'');
+   const runs=Array.isArray(actions?.workflow_runs)?actions.workflow_runs:[];
+   const same=runs.filter(x=>x?.head_sha===commit);
+   const bots=runs.filter(x=>x?.name==='HLGB Hourly Health Monitor v95.38')
+     .sort((a,b)=>String(b.created_at).localeCompare(String(a.created_at)));
+   const latest= bots[0]||null;
+   const failedChecks=same.filter(x=>x.conclusion==='failure').map(x=>({
+    name:x.name,runId:x.id,status:x.status,conclusion:x.conclusion}));
+   const report={
+    kind:'hlgb-hourly-health-fallback-report',version:'95.46',
+    generatedAt:now(),repository:'brunomozersilva-stack/hlgb-confeccoes',
+    source:'GitHub Actions API pública, carregamento de contingência',
+    moduleError:reason,currentCommit:commit,
+    lastHourlyRun:latest?{
+     id:latest.id,createdAt:latest.created_at,conclusion:latest.conclusion,
+     commit:latest.head_sha,currentCommit:latest.head_sha===commit}:null,
+    ci:{failed:failedChecks.length,pending:same.filter(x=>x.status!=='completed').length,
+     failingWorkflows:failedChecks},
+    synchronization:{provedAcrossRealTwoSessions:false},
+    failedBootFiles:failed,
+    note:'Resumo público de contingência; não é o artefato bruto do bot.'
+   };
+   fillReport(report);
+   statusText('Resumo gerado. Clique no link roxo para salvar o JSON no computador, sem abrir o GitHub.');
+   return false;
+  }catch(networkError){
+   fillReport(errorReport(reason+' | '+String(networkError?.message||networkError)));
+   statusText('O GitHub não respondeu. Baixe o diagnóstico do erro pelo link roxo, sem sair desta página.');
+   return false;
+  }
+ }
  return false;
 };
 window.openHlgbAuditor=openAuditor;
