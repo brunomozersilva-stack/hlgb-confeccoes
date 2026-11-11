@@ -1,0 +1,55 @@
+name: HLGB Bot Direct Download v95.44
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'release-health-monitor-panel-v9541.js'
+      - 'tests/auditor-hourly-health-panel-v9541-browser.cjs'
+      - 'tests/monitor-bot-access-v9543-browser.cjs'
+      - 'tests/monitor-bot-direct-download-v9544-browser.cjs'
+      - '.github/workflows/bot-direct-download-v9544.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'release-health-monitor-panel-v9541.js'
+      - 'tests/auditor-hourly-health-panel-v9541-browser.cjs'
+      - 'tests/monitor-bot-access-v9543-browser.cjs'
+      - 'tests/monitor-bot-direct-download-v9544-browser.cjs'
+      - '.github/workflows/bot-direct-download-v9544.yml'
+permissions:
+  contents: read
+jobs:
+  node:
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: node --check release-health-monitor-panel-v9541.js
+      - run: node --test tests/auditor-hourly-health-panel-v9541.cjs
+      - run: node --test tests/monitor-bot-access-v9543.cjs
+  browser:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        browser: [chromium, webkit]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install Playwright browser
+        run: |
+          npm install --no-save playwright@1.55.0
+          npx playwright install --with-deps ${{ matrix.browser }}
+      - name: Test direct JSON and TXT downloads without GitHub redirect
+        env:
+          HLGB_BROWSER: ${{ matrix.browser }}
+        run: |
+          node --test tests/monitor-bot-direct-download-v9544-browser.cjs
+          node --test tests/auditor-hourly-health-panel-v9541-browser.cjs
+          node --test tests/monitor-bot-access-v9543-browser.cjs
