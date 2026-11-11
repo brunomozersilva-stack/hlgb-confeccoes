@@ -6,7 +6,7 @@
 (function(){
 'use strict';
 if(window.hlgbHourlyHealthPanel9541)return;
-const V='95.43',REPO='brunomozersilva-stack/hlgb-confeccoes';
+const V='95.44',REPO='brunomozersilva-stack/hlgb-confeccoes';
 const ROOT='https://api.github.com/repos/'+REPO;
 const WORKFLOW='HLGB Hourly Health Monitor v95.38';
 const MAX_AGE=5*60*1000;
@@ -134,22 +134,22 @@ function createPanel(){
  const intro=E('div','sub','Resultados reais do GitHub Actions. Não executa correções nem altera dados.');
  const summary=E('div','hlgb-health-body');
  summary.id='hlgbHealthSummary9541';summary.setAttribute('aria-live','polite');
- const controls=E('div','hlgb-auditor-actions');
+ const controls=E('div','hlgb-auditor-actions hlgb-health-download-controls');
+ controls.id='hlgbHealthDownloadControls9544';
  const refresh=E('button','secondary','🔄 Atualizar agora');
  refresh.type='button';refresh.id='hlgbHealthRefresh9541';
  refresh.addEventListener('click',()=>refreshNow());
- const download=E('button','secondary','📥 Baixar relatório (JSON)');
+ const download=E('button','primary','⬇️ BAIXAR RELATÓRIO DO BOT (JSON)');
  download.type='button';download.id='hlgbHealthDownload9541';
  download.addEventListener('click',()=>saveJSON());
+ const downloadTxt=E('button','secondary','⬇️ Baixar resumo (TXT)');
+ downloadTxt.type='button';downloadTxt.id='hlgbHealthDownloadTxt9544';
+ downloadTxt.addEventListener('click',()=>saveTXT());
  const copy=E('button','secondary','📋 Copiar resumo');
  copy.type='button';copy.id='hlgbHealthCopy9541';
  copy.addEventListener('click',()=>copySummary());
- const link=E('a','secondary','Abrir relatório bruto no GitHub');
- link.id='hlgbHealthRawLink9541';link.target='_blank';link.rel='noopener noreferrer';
- link.href='https://github.com/'+REPO+'/actions';
- link.style.cssText='display:inline-flex;align-items:center;padding:8px 12px;border:1px solid #ccc;border-radius:6px;text-decoration:none';
- controls.append(refresh,download,copy,link);
- const note=E('div','sub','O arquivo JSON é um resumo do monitor dentro do HLGB. O artifact completo continua na execução do GitHub.');
+ controls.append(download,downloadTxt,refresh,copy);
+ const note=E('div','sub','Os relatórios em JSON e TXT são baixados diretamente no computador, sem abrir outra página. O JSON reúne a última auditoria horária, testes, alertas, histórico e publicação.');
  panel.append(title,intro,controls,summary,note);
  actions.insertAdjacentElement('afterend',panel);
  return panel;
@@ -159,14 +159,12 @@ function paint(){
  if(!panel)return;
  const result=panel.querySelector('#hlgbHealthSummary9541');
  const d=panel.querySelector('#hlgbHealthDownload9541'),c=panel.querySelector('#hlgbHealthCopy9541');
- const raw=panel.querySelector('#hlgbHealthRawLink9541');
  const refresh=panel.querySelector('#hlgbHealthRefresh9541');
  if(refresh)refresh.disabled=!!busy;
  // O botão permanece disponível até quando a API falha: o usuário pode
  // baixar um diagnóstico da falha e enviá-lo ao suporte.
  if(d)d.disabled=false;
  if(c)c.disabled=!latest;
- if(raw)raw.href=latest?.lastHourlyRun?.link||'https://github.com/'+REPO+'/actions';
  if(!result)return;
  result.replaceChildren();
  if(!latest){
@@ -195,9 +193,8 @@ function paint(){
   const list=E('div','hlgb-health-failures');
   list.append(E('strong','','⚠️ Falhas identificadas nos testes do commit atual:'));
   for(const f of ci.failingWorkflows.slice(0,10)){
-   const a=E('a','',f.name);
-   a.href=f.url;a.target='_blank';a.rel='noopener noreferrer';
-   list.append(a);
+   const item=E('div','hlgb-health-failure-item',f.name);
+   list.append(item);
   }
   result.append(list);
  }else if(ci.completed===0){
@@ -207,8 +204,8 @@ function paint(){
   const hist=E('details','hlgb-health-history');
   hist.append(E('summary','','Histórico recente do monitor ('+latest.history.length+' execuções)'));
   for(const x of latest.history.slice(0,8)){
-   const link=E('a','',date(x.createdAt)+' · '+statusOf(x).label);
-   link.href=x.link;link.target='_blank';link.rel='noopener noreferrer';hist.append(link);
+   const row=E('div','hlgb-health-history-item',date(x.createdAt)+' · '+statusOf(x).label);
+   hist.append(row);
   }
   result.append(hist);
  }
@@ -230,6 +227,26 @@ function humanSummary(data){
  return lines.filter(Boolean).join('\n');
 }
 function report(){return latest?JSON.parse(JSON.stringify(latest)):null}
+function downloadLocalFile(filename,content,type){
+ // Sempre usa um blob local com atributo download; nunca navega a uma URL do GitHub.
+ const blob=new Blob([content],{type});
+ const url=URL.createObjectURL(blob),link=E('a');
+ link.href=url;link.download=filename;
+ document.body.appendChild(link);
+ try{link.click()}finally{
+  // No Safari o blob precisa sobreviver um pouco à ação de download.
+  setTimeout(()=>{URL.revokeObjectURL(url);link.remove()},3000);
+ }
+ return true;
+}
+function saveTXT(){
+ const text=latest?humanSummary(latest):
+ 'HLGB — MONITOR DE SAÚDE\nConsulta ainda não verificada.\n'+
+ (error?'Erro: '+error+'\n':'')+
+ 'Nenhuma informação de sincronização entre navegadores foi comprovada.';
+ const stamp=new Date().toISOString().replace(/[:.]/g,'-');
+ return downloadLocalFile('HLGB-MONITOR-SAUDE-'+stamp+'.txt',text+'\n','text/plain;charset=utf-8');
+}
 function saveJSON(){
  const data=report()||{
   kind:'hlgb-hourly-health-access-diagnostic',version:V,
@@ -238,13 +255,9 @@ function saveJSON(){
   noOperationalDataChanged:true,
   note:'A ausência de dados não significa que os testes passaram. Consulte o GitHub Actions.'
  };
- const blob=new Blob([JSON.stringify(data,null,2)],{type:'application/json;charset=utf-8'});
- const url=URL.createObjectURL(blob),link=E('a');
- link.href=url;
- link.download='HLGB-MONITOR-SAUDE-'+new Date().toISOString().replace(/[:.]/g,'-')+'.json';
- document.body.appendChild(link);link.click();
- setTimeout(()=>{URL.revokeObjectURL(url);link.remove()},1200);
- return true;
+ const stamp=new Date().toISOString().replace(/[:.]/g,'-');
+ return downloadLocalFile('HLGB-MONITOR-SAUDE-'+stamp+'.json',
+  JSON.stringify(data,null,2)+'\n','application/json;charset=utf-8');
 }
 async function copySummary(){
  const summary=humanSummary(latest);
@@ -268,8 +281,10 @@ function addStyle(){
  '.hlgb-health-body{margin:10px 0;min-height:30px}.hlgb-health-status{display:flex;align-items:center;flex-wrap:wrap;gap:8px;margin:8px 0}'+
  '.hlgb-health-metrics{display:grid;gap:6px;margin:10px 0}.hlgb-health-row{display:flex;justify-content:space-between;gap:16px;'+
  'border-bottom:1px solid #e5e2e7;padding:6px 0}.hlgb-health-row strong{text-align:right}'+
- '.hlgb-health-failures{margin:10px 0}.hlgb-health-failures a,.hlgb-health-history a{display:block;padding:5px 0;overflow-wrap:anywhere}'+
+ '.hlgb-health-failures{margin:10px 0}.hlgb-health-failure-item,.hlgb-health-history-item{display:block;padding:5px 0;overflow-wrap:anywhere}'+
  '.hlgb-health-warn{padding:7px 0;color:#9b5c10}.hlgb-health-history{margin:10px 0}'+
+ '.hlgb-health-download-controls{border:1px solid #ccb9dd;border-radius:8px;padding:8px;background:#f7f3fb}'+
+ '.hlgb-health-download-controls button.primary{font-weight:700;background:#672b91;color:#fff;border:1px solid #672b91;min-height:42px}'+
  '@media(max-width:640px){.hlgb-health-row{flex-direction:column;gap:2px}.hlgb-health-row strong{text-align:left}}';
  document.head.appendChild(st);
 }
@@ -285,13 +300,15 @@ function openStandalone(){
  }
  window.openModal('📊 Monitor de Saúde do HLGB',
   '<div class="sub">Bot de verificação horária. O relatório abaixo não altera pedidos nem pendências locais.</div>'+
-  '<div class="hlgb-auditor-actions" id="hlgbMonitorStandaloneActions9543"></div>'+
+  '<div class="hlgb-auditor-actions" id="hlgbMonitorStandaloneActions9543">'+
+  '<button type="button" class="primary" id="hlgbHealthDownloadTop9544" onclick="window.hlgbHourlyHealthPanel9541.download()">⬇️ BAIXAR RELATÓRIO DO BOT (JSON)</button>'+
+  '</div>'+
   '<button type="button" class="secondary modalSave">Fechar</button>',
   ()=>window.closeModal?.());
  return onOpen();
 }
 window.hlgbHourlyHealthPanel9541={
- version:V,onOpen,openStandalone,refresh:refreshNow,collect,report,download:saveJSON,copySummary,humanSummary,
+ version:V,onOpen,openStandalone,refresh:refreshNow,collect,report,download:saveJSON,downloadTXT:saveTXT,copySummary,humanSummary,
  status:()=>({busy:!!busy,lastFetchedAt:fetchedAt,error,latest:report()})
 };
 })();
