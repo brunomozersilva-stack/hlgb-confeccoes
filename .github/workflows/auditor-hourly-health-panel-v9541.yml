@@ -1,0 +1,55 @@
+name: HLGB Auditor Hourly Health UI v95.41
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'release-health-monitor-panel-v9541.js'
+      - 'release-internal-auditor.js'
+      - 'app-stable3.html'
+      - 'tests/auditor-hourly-health-panel-v9541.cjs'
+      - 'tests/auditor-hourly-health-panel-v9541-browser.cjs'
+      - '.github/workflows/auditor-hourly-health-panel-v9541.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'release-health-monitor-panel-v9541.js'
+      - 'release-internal-auditor.js'
+      - 'app-stable3.html'
+      - 'tests/auditor-hourly-health-panel-v9541.cjs'
+      - 'tests/auditor-hourly-health-panel-v9541-browser.cjs'
+      - '.github/workflows/auditor-hourly-health-panel-v9541.yml'
+permissions:
+  contents: read
+jobs:
+  unit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Check scripts and run public API unit tests
+        run: |
+          node --check release-health-monitor-panel-v9541.js
+          node --test tests/auditor-hourly-health-panel-v9541.cjs
+  browser:
+    runs-on: ubuntu-latest
+    timeout-minutes: 16
+    strategy:
+      fail-fast: false
+      matrix:
+        browser: [chromium, webkit]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install browser
+        run: |
+          npm install --no-save playwright@1.55.0
+          npx playwright install --with-deps ${{ matrix.browser }}
+      - name: Validate Auditor modal and report
+        env:
+          HLGB_BROWSER: ${{ matrix.browser }}
+        run: node --test tests/auditor-hourly-health-panel-v9541-browser.cjs
