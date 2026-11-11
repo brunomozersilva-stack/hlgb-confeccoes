@@ -1,0 +1,55 @@
+name: HLGB Monitor Bot Report Visible v95.43
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'release-health-monitor-panel-v9541.js'
+      - 'release-internal-auditor.js'
+      - 'tests/monitor-bot-access-v9543.cjs'
+      - 'tests/monitor-bot-access-v9543-browser.cjs'
+      - '.github/workflows/monitor-bot-access-v9543.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'release-health-monitor-panel-v9541.js'
+      - 'release-internal-auditor.js'
+      - 'tests/monitor-bot-access-v9543.cjs'
+      - 'tests/monitor-bot-access-v9543-browser.cjs'
+      - '.github/workflows/monitor-bot-access-v9543.yml'
+permissions:
+  contents: read
+jobs:
+  unit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Check scripts and report access tests
+        run: |
+          node --check release-health-monitor-panel-v9541.js
+          node --check release-internal-auditor.js
+          node --test tests/monitor-bot-access-v9543.cjs
+          node --test tests/auditor-hourly-health-panel-v9541.cjs
+  browser:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        browser: [chromium, webkit]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install browser
+        run: |
+          npm install --no-save playwright@1.55.0
+          npx playwright install --with-deps ${{ matrix.browser }}
+      - name: Validate visible access, download, and API failures
+        env:
+          HLGB_BROWSER: ${{ matrix.browser }}
+        run: node --test tests/monitor-bot-access-v9543-browser.cjs
