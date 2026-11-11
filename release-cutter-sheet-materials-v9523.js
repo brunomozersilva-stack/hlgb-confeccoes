@@ -117,6 +117,7 @@ function renderSheet(o,c){
  const plannedPieces=plannedGrade.reduce((sum,g)=>sum+qty(g.qty),0);
  const pieces=plannedPieces||grade.reduce((sum,g)=>sum+qty(g.qty),0);
  const materials=planMaterials(p,pieces);
+ const dense=extraColors(grade).length>=5?' dense-sheet':'';
  const when=sid(c.plannedCutDate||c.date||'').slice(0,10);
  const finalized=sid(c.status).toLowerCase()==='finalizado';
  const title=esc(p&&p.name||c.product||'Modelo');
@@ -188,6 +189,18 @@ function renderSheet(o,c){
  '@media print{body{width:100%;max-width:none;padding:0}.sheet{width:100%;max-width:none}'+
  '.tools{display:none}*{-webkit-print-color-adjust:exact;print-color-adjust:exact}'+
  'h2,table,tr,.meta,.summary-row,.signatures{break-inside:avoid;page-break-inside:avoid}}'+
+ '@media print{'+
+ '.sheet.dense-sheet .section-title{margin:5px 0 3px;padding:3px 6px}'+
+ '.sheet.dense-sheet .grade-row th,.sheet.dense-sheet .grade-row td{padding:1.5px 3px;height:16px}'+
+ '.sheet.dense-sheet .extra-summary table td{height:17px}'+
+ '.sheet.dense-sheet .materials-table th,.sheet.dense-sheet .materials-table td{padding:1.5px 3px}'+
+ '.sheet.dense-sheet .materials-table td{height:18px}'+
+ '.sheet.dense-sheet .weigh-table th,.sheet.dense-sheet .weigh-table td{padding:1.5px 3px}'+
+ '.sheet.dense-sheet .weigh-table td{height:20px}'+
+ '.sheet.dense-sheet .extras-table td{height:20px}'+
+ '.sheet.dense-sheet .signatures{margin-top:12px}'+
+ '.sheet.dense-sheet .note-line{height:15px}'+
+ '}' +
  '</style>';
  const mini='<div class="extra-summary"><div class="mini-head">Aproveitamento do corte<br><span class="tiny">(peças extras)</span></div>'+
   '<table><thead><tr><th>Peça extra</th><th>Qtd.</th></tr></thead><tbody>'+
@@ -196,7 +209,7 @@ function renderSheet(o,c){
    'Aproveitamento conferido','Peças extras registradas']
   .map(x=>'<span class="checkitem"><i class="box-check"></i>'+esc(x)+'</span>').join('');
  return '<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><title>HLGB — folha de grade do cortador</title>'+
- css+'</head><body><div class="tools"><button onclick="window.print()">Imprimir / salvar PDF</button></div><main class="sheet">'+
+ css+'</head><body><div class="tools"><button onclick="window.print()">Imprimir / salvar PDF</button></div><main class="sheet'+dense+'">'+
  '<div class="brandline"><div class="brand">HLGB<small>Confecções</small></div>'+
  '<div class="doc-title">FOLHA DE GRADE DO CORTADOR</div><div class="doc-ref">Nº ______</div></div>'+
  '<div class="meta">'+
