@@ -1,0 +1,49 @@
+name: HLGB Monitor Load Recovery v95.46
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'release-internal-auditor.js'
+      - 'tests/monitor-on-demand-recovery-v9546.cjs'
+      - 'tests/monitor-on-demand-recovery-v9546-browser.cjs'
+      - '.github/workflows/monitor-on-demand-recovery-v9546.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'release-internal-auditor.js'
+      - 'tests/monitor-on-demand-recovery-v9546.cjs'
+      - 'tests/monitor-on-demand-recovery-v9546-browser.cjs'
+      - '.github/workflows/monitor-on-demand-recovery-v9546.yml'
+permissions:
+  contents: read
+jobs:
+  unit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: node --check release-internal-auditor.js
+      - run: node --test tests/monitor-on-demand-recovery-v9546.cjs
+  browser:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        browser: [chromium, webkit]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install browser
+        run: |
+          npm install --no-save playwright@1.55.0
+          npx playwright install --with-deps ${{ matrix.browser }}
+      - name: Test missing monitor, recovery and fallback download
+        env:
+          HLGB_BROWSER: ${{ matrix.browser }}
+        run: node --test tests/monitor-on-demand-recovery-v9546-browser.cjs
