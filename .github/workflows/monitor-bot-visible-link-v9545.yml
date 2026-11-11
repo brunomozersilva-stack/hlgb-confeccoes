@@ -1,0 +1,50 @@
+name: HLGB Visible Report Download v95.45
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'release-health-monitor-panel-v9541.js'
+      - 'tests/monitor-bot-visible-link-v9545.cjs'
+      - 'tests/monitor-bot-visible-link-v9545-browser.cjs'
+      - '.github/workflows/monitor-bot-visible-link-v9545.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'release-health-monitor-panel-v9541.js'
+      - 'tests/monitor-bot-visible-link-v9545.cjs'
+      - 'tests/monitor-bot-visible-link-v9545-browser.cjs'
+      - '.github/workflows/monitor-bot-visible-link-v9545.yml'
+permissions:
+  contents: read
+jobs:
+  unit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: node --check release-health-monitor-panel-v9541.js
+      - run: node --test tests/monitor-bot-visible-link-v9545.cjs
+      - run: node --test tests/auditor-hourly-health-panel-v9541.cjs
+  browser:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        browser: [chromium, webkit]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install browser for actual app CSS
+        run: |
+          npm install --no-save playwright@1.55.0
+          npx playwright install --with-deps ${{ matrix.browser }}
+      - name: Verify actual link visibility and JSON/TXT download with hidden auditor buttons
+        env:
+          HLGB_BROWSER: ${{ matrix.browser }}
+        run: node --test tests/monitor-bot-visible-link-v9545-browser.cjs
