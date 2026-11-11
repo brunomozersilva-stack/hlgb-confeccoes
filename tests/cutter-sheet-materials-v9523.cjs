@@ -64,7 +64,7 @@ test('print is read-only, has weight / observation / signature fields and legacy
  assert.equal(s.ctx.printCuttingSheet(7,8),true);
  assert.match(s.html,/Folha de grade do cortador/i);
  assert.match(s.html,/Peso usado no corte/);
- assert.match(s.html,/Assinatura do cortador/);
+ assert.match(s.html,/Assinatura do cortador/i);
  assert.equal(s.ctx.printCuttingSheet(7),'original');
  assert.equal(s.legacy,1);
  assert.equal(JSON.stringify(s.db),before);

@@ -1,0 +1,57 @@
+name: HLGB Cutter Sheet A4 Complete v95.40
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'release-cutter-sheet-materials-v9523.js'
+      - 'tests/cutter-sheet-materials-v9523.cjs'
+      - 'tests/cutter-sheet-a4-v9540.cjs'
+      - 'tests/cutter-sheet-a4-v9540-browser.cjs'
+      - '.github/workflows/cutter-sheet-a4-v9540.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'release-cutter-sheet-materials-v9523.js'
+      - 'tests/cutter-sheet-materials-v9523.cjs'
+      - 'tests/cutter-sheet-a4-v9540.cjs'
+      - 'tests/cutter-sheet-a4-v9540-browser.cjs'
+      - '.github/workflows/cutter-sheet-a4-v9540.yml'
+permissions:
+  contents: read
+jobs:
+  unit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: JS syntax
+        run: node --check release-cutter-sheet-materials-v9523.js
+      - name: Old and new cut-sheet regressions
+        run: |
+          node --test tests/cutter-sheet-materials-v9523.cjs
+          node --test tests/cutter-sheet-a4-v9540.cjs
+  print:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install Chromium
+        run: |
+          npm install --no-save playwright@1.55.0
+          npx playwright install --with-deps chromium
+      - name: Verify one A4 page in 3- and 6-color cuts
+        run: node tests/cutter-sheet-a4-v9540-browser.cjs
+      - name: Save sample PDF and visual preview
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: hlgb-cutter-sheet-a4-${{ github.run_id }}
+          path: test-artifacts/
+          if-no-files-found: ignore
+          retention-days: 7
