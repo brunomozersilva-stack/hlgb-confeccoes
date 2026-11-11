@@ -762,6 +762,24 @@ function inject(){
       const b=document.createElement('button');b.id='hlgbAuditorNavBtn';b.type='button';b.innerHTML='🧪 Auditor / Testes';b.onclick=()=>openAuditor();diag.insertAdjacentElement('afterend',b);
     }
   }
+  // Acesso direto, visível no mesmo submenu do Auditor (sem abrir o
+  // Auditor Reparador e sem percorrer centenas de linhas do histórico).
+  if(nav&&!document.getElementById('hlgbBotReportNav9543')){
+    const anchor=document.getElementById('hlgbAuditorNavBtn')||document.getElementById('hlgbDiagnosticsNav');
+    if(anchor?.parentElement){
+      const b=document.createElement('button');b.id='hlgbBotReportNav9543';b.type='button';
+      b.textContent='📥 Relatório do Bot';b.onclick=()=>window.hlgbAuditorOpenBot9543();
+      anchor.insertAdjacentElement('afterend',b);
+    }
+  }
+  if(center&&!document.getElementById('hlgbBotReportTab9543')){
+    const tabs=center.querySelector('.hlgb-dg-tabs');
+    if(tabs){
+      const b=document.createElement('button');b.id='hlgbBotReportTab9543';b.type='button';
+      b.className='secondary';b.textContent='📥 Relatório do Bot';
+      b.onclick=()=>window.hlgbAuditorOpenBot9543();tabs.appendChild(b);
+    }
+  }
 }
 
 function actionableFindings9249(run){
@@ -803,10 +821,16 @@ function historyHtml(){
 function openAuditor(){
   inject();
   const last=latest();
-  openModal('🧪 Auditor / Testador HLGB','<div class="sub">Executa conferência interna <b>somente de leitura</b>. Não cria pedidos, não dá baixa e não altera produção ou financeiro.</div><div class="hlgb-auditor-actions"><button type="button" class="primary" onclick="hlgbAuditorRunVisualSweep()">👁️ Teste visual completo</button><button type="button" class="secondary" onclick="hlgbAuditorRunFull()">🧪 Testar sistema</button><button type="button" class="secondary" onclick="hlgbAuditorRunVisual()">Tela atual</button><button type="button" class="secondary" onclick="hlgbAuditorExportVisual()">📦 Exportar diagnóstico visual</button><button type="button" class="secondary" onclick="hlgbAuditorCopyLatest()">📋 Copiar última auditoria</button><button type="button" class="secondary" onclick="hlgbAuditorExportSync()">Sincronização</button><button type="button" class="secondary" onclick="hlgbAuditorCleanDerivedSync()">🧹 Limpar falsos positivos confirmados</button></div><div id="hlgbAuditorResult">'+renderRun(last)+'</div><div class="panel"><h3 style="margin-top:0">Histórico</h3><div id="hlgbAuditorHistory" class="hlgb-auditor-history">'+historyHtml()+'</div></div><button type="button" class="secondary modalSave">Fechar</button>',()=>closeModal());
+  openModal('🧪 Auditor / Testador HLGB','<div class="sub">Executa conferência interna <b>somente de leitura</b>. Não cria pedidos, não dá baixa e não altera produção ou financeiro.</div><div class="hlgb-auditor-actions"><button type="button" class="primary" onclick="hlgbAuditorOpenBot9543()">📥 Relatório do bot</button> <button type="button" class="primary" onclick="hlgbAuditorRunVisualSweep()">👁️ Teste visual completo</button><button type="button" class="secondary" onclick="hlgbAuditorRunFull()">🧪 Testar sistema</button><button type="button" class="secondary" onclick="hlgbAuditorRunVisual()">Tela atual</button><button type="button" class="secondary" onclick="hlgbAuditorExportVisual()">📦 Exportar diagnóstico visual</button><button type="button" class="secondary" onclick="hlgbAuditorCopyLatest()">📋 Copiar última auditoria</button><button type="button" class="secondary" onclick="hlgbAuditorExportSync()">Sincronização</button><button type="button" class="secondary" onclick="hlgbAuditorCleanDerivedSync()">🧹 Limpar falsos positivos confirmados</button></div><div id="hlgbAuditorResult">'+renderRun(last)+'</div><div class="panel"><h3 style="margin-top:0">Histórico</h3><div id="hlgbAuditorHistory" class="hlgb-auditor-history">'+historyHtml()+'</div></div><button type="button" class="secondary modalSave">Fechar</button>',()=>closeModal());
   try{window.hlgbHourlyHealthPanel9541?.onOpen?.()}catch(e){console.warn('[HLGB monitor horário] abertura',e)}
   loadRuns().then(()=>{const h=document.getElementById('hlgbAuditorHistory');if(h)h.innerHTML=historyHtml();const r=document.getElementById('hlgbAuditorResult');if(r){const row=latest();r.innerHTML=alertHtml9249(row)+renderRun(row)}}).catch(()=>{});
 }
+window.hlgbAuditorOpenBot9543=function(){
+ const monitor=window.hlgbHourlyHealthPanel9541;
+ if(monitor&&typeof monitor.openStandalone==='function')return monitor.openStandalone();
+ alert('O módulo do Monitor de Saúde não foi carregado neste navegador. Atualize apenas a página (sem apagar dados) ou consulte os relatórios no GitHub Actions.');
+ return false;
+};
 window.openHlgbAuditor=openAuditor;
 async function runUi(mode){
   const out=document.getElementById('hlgbAuditorResult');
