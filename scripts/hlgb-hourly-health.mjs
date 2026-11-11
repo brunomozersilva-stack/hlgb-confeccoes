@@ -57,6 +57,12 @@ async function github(path){
 }
 async function remote(){
  const state={status:'not_checked',publishedSha:null,publishedMatchesCommit:null,failedCI:[],completedCI:0};
+ // PRs run against a temporary merge SHA; they are not published yet.
+ // Do not announce a false deploy mismatch before merge.
+ if(process.env.GITHUB_EVENT_NAME==='pull_request'){
+  state.status='pr-preview';
+  return state;
+ }
  try{
   const [a,b]=await Promise.all([
    github('/repos/'+repo+'/actions/runs?event=dynamic&per_page=20'),
