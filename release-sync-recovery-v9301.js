@@ -2,7 +2,7 @@
    Realtime continua principal, mas a nuvem é confirmada periodicamente e ao abrir Pedidos. */
 (function(){
 'use strict';
-const V='95.35';
+const V='95.36';
 if(window.hlgbSyncRecovery9301?.version===V)return;
 
 const PENDING_KEY='hlgb_records_pending_v91';
@@ -36,8 +36,21 @@ function normalizedSyncFn(){try{if(typeof hlgbNormalizedSyncNow==='function')ret
 function loggedIn(){const login=document.getElementById('loginScreen'),app=document.getElementById('appShell');if(!app)return false;if(login){try{if(getComputedStyle(login).display!=='none')return false}catch(e){}}return true}
 function userEditing(){const modal=document.querySelector('#modal.show');if(modal)return true;const a=document.activeElement;if(a?.closest?.('#appShell')&&['productSearchName','productPriceMin','productPriceMax','factionChecklistSearch9198'].includes(a.id))return false;return !!(a&&/^(INPUT|TEXTAREA|SELECT)$/i.test(a.tagName)&&a.closest?.('#appShell'))}
 function recordPendingCount(){const p=read(PENDING_KEY,null);return Object.values(p?.modules||{}).reduce((n,x)=>n+(Array.isArray(x)?x.length:0),0)}
-function walPendingCount(){const w=read(WAL_KEY,null);return w?.entries&&typeof w.entries==='object'?Object.keys(w.entries).length:0}
-function pendingCounts(){return {records:recordPendingCount(),wal:walPendingCount()}}
+function walPendingCount(){
+ // O Safari pode manter 14 operações só no IndexedDB enquanto a cópia
+ // localStorage e a fila normalizada mostram zero. Contar a união por chave.
+ const w=read(WAL_KEY,null),keys=new Set(
+  w?.entries&&typeof w.entries==='object'?Object.keys(w.entries):[]);
+ try{for(const key of window.hlgbWalIdbGuard9536?.keys?.()||[])keys.add(String(key))}
+ catch(e){console.warn('[HLGB sync '+V+'] leitura do estado IndexedDB',e)}
+ return keys.size;
+}
+function pendingCounts(){
+ const guard=window.hlgbWalIdbGuard9536;
+ return {records:recordPendingCount(),wal:walPendingCount(),
+  indexedDbOnly:Number(guard?.status?.()?.indexedDbOnly)||0,
+  indexedDbVerified:guard?.status?.()?.readFailed!==true};
+}
 function totalPending(){const p=pendingCounts();return p.records+p.wal}
 function snapshotState(extra={}){const s={version:V,at:new Date().toISOString(),busy,lastFull,lastIncremental,lastReason,lastResult,realtime:realtimeState(),recordReady:ready(),online:navigator.onLine,pending:pendingCounts(),ioPolicy:{fullEveryMs:FULL_EVERY_MS,incrementalEveryMs:INCREMENTAL_EVERY_MS,maintenanceEveryMs:MAINTENANCE_EVERY_MS,minIncrementalMs:MIN_INCREMENTAL_MS,realtimeVerifyEveryMs:REALTIME_VERIFY_EVERY_MS,ordersFullVerifyMinMs:ORDERS_FULL_VERIFY_MIN_MS,overlapMs:OVERLAP_MS,skippedRealtime,flushOnlyRuns,lastCloudVerify,lastOrdersVerify},...extra};try{localStorage.setItem(STATE_KEY,JSON.stringify(s))}catch(e){}return s}
 function quarantineHistory(){const x=read(QUAR_KEY,[]);return Array.isArray(x)?x:[]}

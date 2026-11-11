@@ -1,0 +1,52 @@
+name: HLGB Safari Chrome IndexedDB WAL Guard v95.36
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'release-wal-idb-convergence-v9536.js'
+      - 'release-sync-recovery-v9301.js'
+      - 'app-stable3.html'
+      - 'tests/sync-idb-only-wal-v9536-browser.cjs'
+      - '.github/workflows/sync-idb-only-v9536.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'release-wal-idb-convergence-v9536.js'
+      - 'release-sync-recovery-v9301.js'
+      - 'app-stable3.html'
+      - 'tests/sync-idb-only-wal-v9536-browser.cjs'
+      - '.github/workflows/sync-idb-only-v9536.yml'
+permissions:
+  contents: read
+jobs:
+  syntax:
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '20'}
+      - name: Check syntax
+        run: |
+          node --check release-wal-idb-convergence-v9536.js
+          node --check release-sync-recovery-v9301.js
+          node --check tests/sync-idb-only-wal-v9536-browser.cjs
+  browser:
+    runs-on: ubuntu-latest
+    timeout-minutes: 18
+    strategy:
+      fail-fast: false
+      matrix:
+        browser: [chromium, webkit]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '20'}
+      - name: Install Playwright
+        run: |
+          npm install --no-save playwright@1.55.0
+          npx playwright install --with-deps ${{ matrix.browser }}
+      - name: Only-IDB pending and safe cloud merge regression
+        env:
+          HLGB_BROWSER: ${{ matrix.browser }}
+        run: node tests/sync-idb-only-wal-v9536-browser.cjs
