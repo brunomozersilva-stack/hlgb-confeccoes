@@ -72,3 +72,16 @@ test('one-model order without cutId gets same new format',()=>{
  assert.ok(f.printed.includes('Fio Duplo Penelope'));
  assert.equal(f.legacy,0);
 });
+
+test('order parent cut with first productId must still print ALL models',()=>{
+ const f=setup();
+ const total=f.order.grade.reduce((sum,x)=>sum+x.qty,0);
+ const parent={id:f.order.id,orderId:f.order.id,productId:f.ids[0],
+  product:'Pedido com varios modelos',pieces:total,originalGrade:f.order.grade,
+  status:'Planejado'};
+ f.db.cuts.push(parent);
+ assert.equal(f.ctx.printCuttingSheet(f.order.id,parent.id),true);
+ assert.equal((f.printed.match(/<main class="sheet[^"]*">/g)||[]).length,4);
+ assert.match(f.printed,/Fio Duplo Penelope/);
+ assert.equal(f.legacy,0);
+});
