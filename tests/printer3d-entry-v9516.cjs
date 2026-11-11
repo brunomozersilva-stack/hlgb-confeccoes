@@ -42,6 +42,7 @@ test('service worker intercepts legacy extensionless and .html navigations only'
 test('auditor checks 3D pages, all navigation links, and canonical entry',()=>{
  for(const id of ['printer3dHome9400','printer3dProducts9400','printer3dSales9400','printer3dCatalog9400','printer3dNav9400','p3HomeNav9400','p3ProductsNav9400','p3SalesNav9400','p3CatalogNav9400'])assert.ok(audit.includes(id),'missing '+id);
  assert.ok(audit.includes("'nav:printer3d'"));
- assert.ok(audit.includes("'module:printer3d'"));\n assert.ok(audit.includes("'guard:printer3d-nav'"));
+ assert.ok(audit.includes("'module:printer3d'"));
+ assert.ok(audit.includes("'guard:printer3d-nav'"));
  assert.ok(audit.includes("'route:canonical-entry'"));
 });
