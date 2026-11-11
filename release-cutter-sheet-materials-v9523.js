@@ -250,6 +250,80 @@ function renderSheet(o,c){
  '<div>Data: ____/____/______</div></div>'+
  '</main></body></html>';
 }
+// Impressão por pedido (sem cutId): sempre usar a MESMA folha nova.
+// Pedidos podem conter vários modelos no mesmo pedido (ex.: Fio Penélope).
+// Agrupar por productId para que cada modelo mantenha sua grade e ficha técnica.
+function sheetsForOrder(o){
+ const items=Array.isArray(o&&o.grade)?o.grade:[];
+ const groups=new Map();
+ for(const row of items){
+  const id=sid(row&&row.productId).trim();
+  if(!id||!row||qty(row.qty)<=0)continue;
+  if(!groups.has(id))groups.set(id,[]);
+  groups.get(id).push(row);
+ }
+ // Cortes antigos podem não ter grade no pedido. Consultar somente o estado
+ // local já carregado e jamais reativar registros excluídos na nuvem.
+ if(!groups.size){
+  for(const c of arr('cuts')){
+   if(sid(c?.orderId)!==sid(o?.id)||!c?.productId)continue;
+   const id=sid(c.productId),rows=Array.isArray(c.originalGrade)&&c.originalGrade.length
+    ?c.originalGrade:Array.isArray(c.actualCutGrade)&&c.actualCutGrade.length
+    ?c.actualCutGrade:[{productId:c.productId,color:c.color||'',size:c.size||'',qty:qty(c.pieces)}];
+   if(!groups.has(id))groups.set(id,[]);
+   for(const row of rows){
+    if(qty(row?.qty)<=0||row?.productId&&sid(row.productId)!==id)continue;
+    groups.get(id).push({...row,productId:c.productId});
+   }
+  }
+ }
+ const result=[];
+ for(const [id,grade] of groups){
+  if(!grade.length)continue;
+  const cut=arr('cuts').find(c=>sid(c?.orderId)===sid(o?.id)&&sid(c?.productId)===id);
+  const product=byId('products',id);
+  // Snapshot virtual de impressão: não modifica corte/pedido, não salva.
+  // Grade do pedido é a fonte quando existe (um corte antigo pode ter só
+  // uma cor/tamanho e imprimir somente aquele fragmento).
+  const planned=grade.map(x=>({...x,productId:x.productId||id}));
+  const printCut={
+   id:cut?.id||'PED-'+sid(o.id)+'-'+id,orderId:o.id,productId:id,
+   product:product?.name||cut?.product||'Modelo '+id,
+   plannedCutDate:cut?.plannedCutDate||o.date||'',
+   cutType:cut?.cutType||'',cutterId:cut?.cutterId||null,
+   cutter2Id:cut?.cutter2Id||null,cutter2Name:cut?.cutter2Name||'',
+   infesterName:cut?.infesterName||'',
+   // Não assumir "realmente cortada" quando a origem é a grade do pedido.
+   status:'Planejado',originalGrade:planned,actualCutGrade:[]
+  };
+  result.push({productId:id,grade:planned,cut:printCut});
+ }
+ return result;
+}
+function renderOrderSheets(o){
+ const sheets=sheetsForOrder(o);
+ if(!sheets.length)return null;
+ if(sheets.length===1)return renderSheet(o,sheets[0].cut);
+ const pages=sheets.map(x=>renderSheet(o,x.cut));
+ const style=pages[0].match(/<style>[\s\S]*?<\/style>/)?.[0]||'';
+ const sections=pages.map(html=>html.match(/<main class="sheet[^"]*">[\s\S]*?<\/main>/)?.[0]||'');
+ if(sections.some(x=>!x))throw Error('Não foi possível montar todas as folhas por modelo.');
+ return '<!doctype html><html lang="pt-BR"><head><meta charset="utf-8">'+
+  '<title>HLGB — folhas de grade por modelo do pedido #'+esc(orderNo(o))+'</title>'+
+  style+
+  '<style>@media print{.sheet + .sheet{break-before:page;page-break-before:always}}'+
+  '@media screen{.sheet + .sheet{margin-top:30px;border-top:2px dashed #aa88bb;padding-top:15px}}</style>'+
+  '</head><body><div class="tools"><button onclick="window.print()">Imprimir / salvar PDF</button></div>'+
+  sections.join('')+'</body></html>';
+}
+function printOrderSheets(o){
+ const html=renderOrderSheets(o);
+ if(!html){alert('Pedido sem modelo ou grade vinculada. Confira o cadastro do corte antes de imprimir.');return false}
+ const popup=window.open('','_blank');
+ if(!popup)throw Error('O navegador bloqueou a janela de impressão. Autorize pop-ups e tente novamente.');
+ popup.document.open();popup.document.write(html);popup.document.close();
+ popup.focus();return true;
+}
 function printSheet(o,c){
  const popup=window.open('','_blank');
  if(!popup)throw Error('O navegador bloqueou a janela de impressão. Autorize pop-ups e tente novamente.');
@@ -270,10 +344,10 @@ function addActionButtons(){
    const root=document.getElementById(rootId);if(!root)continue;
    root.querySelectorAll('tbody tr').forEach(tr=>{
      if(tr.querySelector('.hlgbSheetMaterials9523'))return;
-     const c=byId('cuts',cutIdFromRow(tr));if(!c||!c.productId||!byId('orders',c.orderId))return;
+     const c=byId('cuts',cutIdFromRow(tr));if(!c||!byId('orders',c.orderId))return;
      const cell=tr.lastElementChild;if(!cell)return;
      const b=document.createElement('button');b.type='button';b.className='secondary hlgbSheetMaterials9523';
-     b.textContent='🖨️ Folha completa';b.onclick=()=>{try{printSheet(byId('orders',c.orderId),c)}catch(e){alert(sid(e.message||e))}};
+     b.textContent='🖨️ Folha completa';b.onclick=()=>wrapped(c.orderId,c.id);
      cell.appendChild(document.createTextNode(' '));cell.appendChild(b);
    });
  }
@@ -290,14 +364,28 @@ const legacy=window.printCuttingSheet;
 function wrapped(orderId,cutId){
  const c=cutId!=null?byId('cuts',cutId):null;
  const o=c?byId('orders',c.orderId):byId('orders',orderId);
- if(!o||!c||!c.productId){
-   if(typeof legacy==='function')return legacy.apply(this,arguments);
-   alert('Não foi possível localizar um corte por modelo para imprimir.');return false;
+ if(!o){
+  alert('Não foi possível localizar o pedido para imprimir.');return false;
  }
- try{return printSheet(o,c)}catch(e){console.warn('[HLGB '+V+']',e);alert(sid(e.message||e));return false}
+ try{
+  const grades=Array.isArray(o.grade)?o.grade:[];
+  const pid=new Set(grades.filter(g=>qty(g?.qty)>0&&g?.productId).map(g=>sid(g.productId)));
+  const total=grades.reduce((sum,g)=>sum+qty(g?.qty),0);
+  const cutGrade=(Array.isArray(c?.actualCutGrade)&&c.actualCutGrade.length?c.actualCutGrade:
+   Array.isArray(c?.originalGrade)?c.originalGrade:[]);
+  const cutModels=new Set(cutGrade.filter(g=>qty(g?.qty)>0&&g?.productId).map(g=>sid(g.productId)));
+  // Cortes-pai podem manter productId do primeiro modelo mesmo quando
+  // representam o pedido inteiro; neste caso imprimir TODOS os modelos.
+  const parent=!!c&&pid.size>1&&(
+   sid(c.id)===sid(o.id)||cutModels.size>1||
+   (total>0&&qty(c.pieces)>=total)
+  );
+  if(c&&c.productId&&!parent)return printSheet(o,c);
+  return printOrderSheets(o);
+ }catch(e){console.warn('[HLGB '+V+']',e);alert(sid(e.message||e));return false}
 }
 wrapped.__hlgbCutterSheetV9523=true;
 if(typeof legacy==='function'&&!legacy.__hlgbCutterSheetV9523)window.printCuttingSheet=wrapped;
-window.hlgbCutterSheetV9523={gradeOf,planMaterials,gradeMatrix,renderSheet,printSheet,original:legacy,version:V};
+window.hlgbCutterSheetV9523={gradeOf,planMaterials,gradeMatrix,renderSheet,printSheet,sheetsForOrder,renderOrderSheets,printOrderSheets,original:legacy,version:V};
 console.info('[HLGB] '+V+' folha com ficha técnica e preenchimento manual ativa');
 })();

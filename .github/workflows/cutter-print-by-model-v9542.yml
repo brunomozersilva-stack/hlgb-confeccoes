@@ -1,0 +1,34 @@
+name: HLGB Cutter Print By Model v95.42
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'release-cutter-sheet-materials-v9523.js'
+      - 'tests/cutter-sheet-materials-v9523.cjs'
+      - 'tests/cutter-print-by-model-v9542.cjs'
+      - '.github/workflows/cutter-print-by-model-v9542.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'release-cutter-sheet-materials-v9523.js'
+      - 'tests/cutter-sheet-materials-v9523.cjs'
+      - 'tests/cutter-print-by-model-v9542.cjs'
+      - '.github/workflows/cutter-print-by-model-v9542.yml'
+permissions:
+  contents: read
+jobs:
+  regression:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: JS syntax
+        run: node --check release-cutter-sheet-materials-v9523.js
+      - name: Order-only and historical A4 regressions
+        run: |
+          node --test tests/cutter-sheet-materials-v9523.cjs
+          node --test tests/cutter-sheet-a4-v9540.cjs
+          node --test tests/cutter-print-by-model-v9542.cjs
