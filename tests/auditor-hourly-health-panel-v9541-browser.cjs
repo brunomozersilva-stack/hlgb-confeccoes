@@ -47,7 +47,8 @@ test('Auditor UI '+browserName+': hourly status, failure links, download and ref
   await page.click('#hlgbHealthRefresh9541');
   await page.waitForFunction(()=>window.healthTestCalls.length===4);
   assert.ok((await page.evaluate(()=>window.healthTestCalls)).every(x=>x.method==='GET'&&x.credentials==='omit'));
-  assert.equal(await page.locator('#hlgbHealthRawLink9541').getAttribute('href'),
-   'https://github.com/brunomozersilva-stack/hlgb-confeccoes/actions/runs/55');
+  assert.equal(await page.locator('#hlgbHealthRawLink9541').count(),0,'monitor must not redirect user to GitHub');
+  assert.equal(await page.locator('#hlgbHealthDownloadTxt9544').count(),1);
+  assert.equal(await page.locator('#hlgbHealthDownload9541').isDisabled(),false);
  }finally{await browser.close()}
 });
