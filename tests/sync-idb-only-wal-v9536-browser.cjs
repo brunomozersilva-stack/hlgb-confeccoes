@@ -67,7 +67,7 @@ const fs=require('node:fs');
    });db.close();return rows;
   });
   assert.equal(still.length,2);
-  assert.equal(still[0].data?.qty,100);
+  assert.equal(still.find(x=>x.key==='orders|safari-only')?.data?.qty,100);
   // A confirmed cleanup done by OTHER code must be observed on next probe,
   // without the guard itself writing anything.
   await page.evaluate(async()=>{
