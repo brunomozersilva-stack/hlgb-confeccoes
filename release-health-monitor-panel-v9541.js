@@ -6,7 +6,7 @@
 (function(){
 'use strict';
 if(window.hlgbHourlyHealthPanel9541)return;
-const V='95.41',REPO='brunomozersilva-stack/hlgb-confeccoes';
+const V='95.43',REPO='brunomozersilva-stack/hlgb-confeccoes';
 const ROOT='https://api.github.com/repos/'+REPO;
 const WORKFLOW='HLGB Hourly Health Monitor v95.38';
 const MAX_AGE=5*60*1000;
@@ -162,7 +162,9 @@ function paint(){
  const raw=panel.querySelector('#hlgbHealthRawLink9541');
  const refresh=panel.querySelector('#hlgbHealthRefresh9541');
  if(refresh)refresh.disabled=!!busy;
- if(d)d.disabled=!latest;
+ // O botão permanece disponível até quando a API falha: o usuário pode
+ // baixar um diagnóstico da falha e enviá-lo ao suporte.
+ if(d)d.disabled=false;
  if(c)c.disabled=!latest;
  if(raw)raw.href=latest?.lastHourlyRun?.link||'https://github.com/'+REPO+'/actions';
  if(!result)return;
@@ -229,7 +231,13 @@ function humanSummary(data){
 }
 function report(){return latest?JSON.parse(JSON.stringify(latest)):null}
 function saveJSON(){
- const data=report();if(!data){paint();return false}
+ const data=report()||{
+  kind:'hlgb-hourly-health-access-diagnostic',version:V,
+  generatedAt:new Date().toISOString(),repository:REPO,
+  status:'not_verified',error:error||'O bot ainda não retornou uma verificação nesta sessão.',
+  noOperationalDataChanged:true,
+  note:'A ausência de dados não significa que os testes passaram. Consulte o GitHub Actions.'
+ };
  const blob=new Blob([JSON.stringify(data,null,2)],{type:'application/json;charset=utf-8'});
  const url=URL.createObjectURL(blob),link=E('a');
  link.href=url;
@@ -267,8 +275,23 @@ function addStyle(){
 }
 const initialCreate=createPanel;
 createPanel=function(){addStyle();return initialCreate()};
+function openStandalone(){
+ // O relatório fica acessível com UM clique no menu, sem precisar entrar
+ // primeiro no Auditor Reparador e percorrer janelas longas.
+ if(typeof window.openModal!=='function'){
+  const msg='A janela do Monitor de Saúde não está disponível. Abra Auditor / Testes ou confira os relatórios no GitHub Actions.';
+  if(typeof window.alert==='function')window.alert(msg);
+  return false;
+ }
+ window.openModal('📊 Monitor de Saúde do HLGB',
+  '<div class="sub">Bot de verificação horária. O relatório abaixo não altera pedidos nem pendências locais.</div>'+
+  '<div class="hlgb-auditor-actions" id="hlgbMonitorStandaloneActions9543"></div>'+
+  '<button type="button" class="secondary modalSave">Fechar</button>',
+  ()=>window.closeModal?.());
+ return onOpen();
+}
 window.hlgbHourlyHealthPanel9541={
- version:V,onOpen,refresh:refreshNow,collect,report,copySummary,humanSummary,
+ version:V,onOpen,openStandalone,refresh:refreshNow,collect,report,download:saveJSON,copySummary,humanSummary,
  status:()=>({busy:!!busy,lastFetchedAt:fetchedAt,error,latest:report()})
 };
 })();
