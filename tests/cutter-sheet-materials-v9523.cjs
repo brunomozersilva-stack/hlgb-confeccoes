@@ -59,14 +59,15 @@ test('no technical sheet: material names, predicted weights and units remain bla
  assert.match(html,/Sem ficha técnica com materiais cadastrados/);
  assert.equal((html.match(/class="write"/g)||[]).length,18);
 });
-test('print is read-only, has weight / observation / signature fields and legacy order print remains',()=>{
+test('print is read-only, has weight / observation / signature fields and order-only print uses the new sheet',()=>{
  const s=setup(),before=JSON.stringify(s.db);
  assert.equal(s.ctx.printCuttingSheet(7,8),true);
  assert.match(s.html,/Folha de grade do cortador/i);
  assert.match(s.html,/Peso usado no corte/);
  assert.match(s.html,/Assinatura do cortador/i);
- assert.equal(s.ctx.printCuttingSheet(7),'original');
- assert.equal(s.legacy,1);
+ assert.equal(s.ctx.printCuttingSheet(7),true);
+ assert.match(s.html,/Folha de grade do cortador/i);
+ assert.equal(s.legacy,0,'order-level printing must not fall back to the old sheet');
  assert.equal(JSON.stringify(s.db),before);
  assert.equal(s.db.factionPayments[0].paid,true);
 });
