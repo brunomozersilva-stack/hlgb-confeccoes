@@ -100,6 +100,22 @@ function install(){
   window.hlgbRecordPendingIdentitySet9535=wrapped;
   installed=true;
  }
+ const apply=window.hlgbApplyRecordRow;
+ if(typeof apply==='function'&&!apply.__hlgbIdb9536){
+  const wrapped=function(row,...rest){
+   const key=sid(row?.module)+'::'+sid(row?.entity_id);
+   // Tombstone remoto concorrente não pode destruir a única cópia local
+   // ainda presente na WAL durável do Safari. Conciliação exige prova.
+   if(row?.deleted_at&&ids.has(key)){
+    state.protectedIncoming++;
+    return false;
+   }
+   return apply.call(this,row,...rest);
+  };
+  wrapped.__hlgbIdb9536=true;wrapped.__original=apply;
+  window.hlgbApplyRecordRow=wrapped;
+  installed=true;
+ }
  const load=window.hlgbRecordLoadBundle;
  if(typeof load==='function'&&!load.__hlgbIdb9536){
   const wrapped=async function(...args){
