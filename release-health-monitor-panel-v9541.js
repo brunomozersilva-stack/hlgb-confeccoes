@@ -6,7 +6,7 @@
 (function(){
 'use strict';
 if(window.hlgbHourlyHealthPanel9541)return;
-const V='95.44',REPO='brunomozersilva-stack/hlgb-confeccoes';
+const V='95.45',REPO='brunomozersilva-stack/hlgb-confeccoes';
 const ROOT='https://api.github.com/repos/'+REPO;
 const WORKFLOW='HLGB Hourly Health Monitor v95.38';
 const MAX_AGE=5*60*1000;
@@ -154,7 +154,74 @@ function createPanel(){
  actions.insertAdjacentElement('afterend',panel);
  return panel;
 }
+
+/* Link de download REAL e sempre visível no topo do modal.
+ * Diferentemente de botões, <a download> expõe um arquivo diretamente ao
+ * Safari e ao Chrome; fica FORA do grupo flex de ações do Auditor.
+ */
+function ensureVisibleDownloads9545(){
+ const root=document.getElementById('modalContent');
+ if(!root)return null;
+ let box=root.querySelector('#hlgbHealthPinnedDownloads9545');
+ if(box)return box;
+ box=E('div');
+ box.id='hlgbHealthPinnedDownloads9545';
+ box.setAttribute('aria-label','Baixar relatórios do Monitor de Saúde');
+ box.style.cssText='display:block!important;visibility:visible!important;opacity:1!important;'+
+  'position:sticky;top:0;z-index:2000;background:#fff;border:2px solid #5b257d;'+
+  'padding:12px;margin:12px 0;border-radius:10px;box-sizing:border-box;width:100%;';
+ const intro=E('div','', 'RELATÓRIO DO BOT — BAIXE AQUI');
+ intro.style.cssText='font-size:15px;font-weight:800;color:#3f155d;display:block!important;margin-bottom:8px;';
+ const link=E('a','', '⬇️ CLIQUE AQUI PARA BAIXAR O RELATÓRIO (JSON)');
+ link.id='hlgbHealthPinnedJson9545';
+ link.style.cssText='display:block!important;visibility:visible!important;opacity:1!important;'+
+  'background:#5b257d!important;color:#fff!important;text-decoration:none!important;'+
+  'font-size:15px!important;font-weight:800!important;line-height:1.4!important;'+
+  'padding:12px!important;margin:5px 0!important;border-radius:8px!important;'+
+  'white-space:normal!important;overflow-wrap:anywhere!important;cursor:pointer!important;';
+ const txt=E('a','','⬇️ Baixar resumo em texto (TXT)');
+ txt.id='hlgbHealthPinnedTxt9545';
+ txt.style.cssText='display:block!important;color:#451a6e!important;text-decoration:underline!important;'+
+  'font-size:14px!important;padding:7px 0!important;cursor:pointer!important;';
+ box.append(intro,link,txt);
+ const title=root.querySelector('h2');
+ if(title)title.insertAdjacentElement('afterend',box);
+ else root.prepend(box);
+ return box;
+}
+function prepareVisibleDownloads9545(){
+ const box=ensureVisibleDownloads9545();
+ if(!box)return;
+ const key=(latest?.generatedAt||'unverified')+'::'+error;
+ if(box.__hlgbReportKey===key)return;
+ const data=report()||{
+  kind:'hlgb-hourly-health-access-diagnostic',version:V,
+  generatedAt:new Date().toISOString(),repository:REPO,status:'not_verified',
+  error:error||'O bot ainda não retornou dados nesta sessão.',
+  note:'Nenhuma prova de sincronização entre dois navegadores foi realizada.'
+ };
+ const raw=JSON.stringify(data,null,2)+'\n';
+ const txt=latest?humanSummary(latest)+'\n':
+  'HLGB — Monitor de Saúde\nStatus: não verificado\n'+(error?'Erro: '+error+'\n':'');
+ const stamp=new Date().toISOString().replace(/[:.]/g,'-');
+ for(const entry of [
+  {id:'hlgbHealthPinnedJson9545',value:raw,mime:'application/json;charset=utf-8',ext:'json'},
+  {id:'hlgbHealthPinnedTxt9545',value:txt,mime:'text/plain;charset=utf-8',ext:'txt'}
+ ]){
+  const a=box.querySelector('#'+entry.id);
+  if(!a)continue;
+  const url=URL.createObjectURL(new Blob([entry.value],{type:entry.mime}));
+  const old=box['__hlgbOldUrl'+entry.ext];
+  box['__hlgbOldUrl'+entry.ext]=url;
+  a.href=url;
+  a.download='HLGB-MONITOR-SAUDE-'+stamp+'.'+entry.ext;
+  if(old)setTimeout(()=>URL.revokeObjectURL(old),20000);
+ }
+ box.__hlgbReportKey=key;
+}
+
 function paint(){
+ prepareVisibleDownloads9545();
  const panel=document.getElementById('hlgbHourlyHealthPanel9541');
  if(!panel)return;
  const result=panel.querySelector('#hlgbHealthSummary9541');
@@ -270,6 +337,7 @@ async function refreshNow(){
 function onOpen(){
  const panel=createPanel();
  if(!panel)return false;
+ prepareVisibleDownloads9545();
  paint();
  collect(false).catch(()=>paint());
  return true;
@@ -308,7 +376,7 @@ function openStandalone(){
  return onOpen();
 }
 window.hlgbHourlyHealthPanel9541={
- version:V,onOpen,openStandalone,refresh:refreshNow,collect,report,download:saveJSON,downloadTXT:saveTXT,copySummary,humanSummary,
+ version:V,onOpen,openStandalone,refresh:refreshNow,collect,report,download:saveJSON,downloadTXT:saveTXT,copySummary,humanSummary,visibleDownloads:prepareVisibleDownloads9545,
  status:()=>({busy:!!busy,lastFetchedAt:fetchedAt,error,latest:report()})
 };
 })();
