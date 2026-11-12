@@ -133,8 +133,18 @@ function status(){
   transportTrace:trace()?{outcome:trace().outcome,source:trace().source,clickObserved:trace().clickObserved,
     confirmation:trace().confirmation,attempts:trace().attempts}:null};
 }
+function improveControls(){
+ if(document.getElementById('hlgbHubTinyControls9567'))return;
+ const style=document.createElement('style');style.id='hlgbHubTinyControls9567';
+ style.textContent='#hubFinanceiro #hubLaunchType9222,#hubFinanceiro #hubLaunchStatus9222,'+
+  '#hubFinanceiro #hubSearchFlow9248,#hubFinanceiro #hubSearchStatus9248,'+
+  '#hubFinanceiro #hubSearchShowAll9248,#hubFinanceiro #hlgbHubPeriodMode'+
+  '{min-height:40px!important;min-width:44px;font-size:14px;padding:7px 9px}';
+ document.head?.appendChild(style);
+}
 document.addEventListener('click',onClick,true);
 document.addEventListener('click',onEditorClick,true);
+try{if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',improveControls,{once:true});else improveControls()}catch(_){};
 window.hlgbHubSaveProof9567={version:VERSION,submit,status,renderMessage,selectHubButton,readOnlyOutsideExistingSave:true};
 console.info('[HLGB] Hub v95.67: botão Salvar com confirmação rastreável e feedback sem duplicar RPC');
 })();
