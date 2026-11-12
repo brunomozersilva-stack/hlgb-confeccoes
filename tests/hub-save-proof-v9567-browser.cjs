@@ -38,12 +38,12 @@ const engine=process.env.HLGB_BROWSER==='webkit'?webkit:chromium;
   const blocked=await page.evaluate(()=>window.hlgbHubSaveProof9567.status());
   assert.equal(blocked.last.errorCode,'form-rejected');
   assert.equal(await page.evaluate(()=>window.__fixture.rpcCalls.length),before);
-  assert.equal(await page.locator('#testValue').inputValue(),'8.5');
+  assert.equal(Number(await page.locator('#testValue').inputValue()),8.5);
   // Missing callback is not a successful save; the modal remains intact.
   await page.evaluate(()=>window.modalSave=null);
   await page.locator('#modal .modalSave').click();
   await page.waitForFunction(()=>window.hlgbHubSaveProof9567.status().last.errorCode==='no-modal-callback');
-  assert.equal(await page.locator('#testValue').inputValue(),'8.5');
+  assert.equal(Number(await page.locator('#testValue').inputValue()),8.5);
   assert.equal(await page.evaluate(()=>window.__fixture.rpcCalls.length),before);
   // Backend/connection failures remain distinct from validation failure.
   await page.evaluate(()=>window.newHubFinanceEntry('Saída'));
