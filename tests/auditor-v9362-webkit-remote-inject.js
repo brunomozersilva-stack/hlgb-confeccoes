@@ -1,8 +1,21 @@
 const {webkit}=require('playwright');
+const fs=require('node:fs');
 (async()=>{
  const browser=await webkit.launch({headless:true});
  const page=await browser.newPage({viewport:{width:1280,height:900}});
  const errors=[];page.on('pageerror',e=>errors.push(String(e.message||e)));
+ // A injeção legada usa um commit fixo do GitHub raw. Em CI/WebKit essa rede
+ // pode falhar e causar timeout sem exercitar o Auditor. Intercepta APENAS
+ // este arquivo e fornece a cópia versionada do repositório do PR.
+ let pinnedLoads=0;
+ const historicalSource=fs.readFileSync('release-auditor-smart-v9360.js','utf8');
+ if(!/const V='93\\.63'/.test(historicalSource))throw new Error('fixture legada difere da v93.63');
+ await page.route('https://raw.githubusercontent.com/**/release-auditor-smart-v9360.js*',async route=>{
+  pinnedLoads++;
+  await route.fulfill({status:200,contentType:'application/javascript',
+   headers:{'access-control-allow-origin':'*','cache-control':'no-store'},
+   body:historicalSource});
+ });
  await page.goto('http://127.0.0.1:4173/app-stable3.html',{waitUntil:'domcontentloaded',timeout:60000});
  await page.waitForFunction(()=>!!document.getElementById('loginScreen')&&!!document.getElementById('appShell')&&window.HLGB_AUDITOR_SINGLE_ACTION_9429==='94.29',null,{timeout:60000});
  await page.evaluate(()=>{window.__HLGB_AUTH_READY=true;window.dispatchEvent(new Event('hlgb:authenticated'))});
@@ -12,7 +25,15 @@ const {webkit}=require('playwright');
  await page.evaluate(async()=>{
   const r=await fetch('/auditor-test-loader-v9362.js?fresh='+Date.now(),{cache:'no-store'});if(!r.ok)throw new Error('HTTP '+r.status+' no loader local');const src=await r.text();(0,eval)(src);
  });
- await page.waitForFunction(()=>window.HLGB_AUDITOR_TEST_LOADER_9362===true&&window.hlgbAuditorSmart?.version==='93.63'&&!!window.HLGB_AUDITOR_UI_COMPAT_9361,null,{timeout:30000});
+ await page.waitForFunction(()=>window.HLGB_AUDITOR_TEST_LOADER_9362===true&&window.hlgbAuditorSmart?.version==='93.63'&&!!window.HLGB_AUDITOR_UI_COMPAT_9361,null,{timeout:30000}).catch(async e=>{
+  const detail=await page.evaluate(()=>({
+   loader:window.HLGB_AUDITOR_TEST_LOADER_9362,smart:window.hlgbAuditorSmart?.version,
+   compat:window.HLGB_AUDITOR_UI_COMPAT_9361,base:!!window.hlgbInternalAuditor,
+   criticalError:(window.alertHistory||[]).slice(-2)
+  }));
+  throw new Error('Loader histórico não inicializou: '+JSON.stringify({detail,pinnedLoads,errors:errors.slice(-5)})+' · '+e.message);
+ });
+ if(pinnedLoads!==1)throw new Error('A injeção legada não utilizou a fixture local v93.63: '+pinnedLoads);
  const result=await page.evaluate(()=>({
   smart:window.HLGB_AUDITOR_SMART_9360===true,
   compat:window.HLGB_AUDITOR_UI_COMPAT_9361,
