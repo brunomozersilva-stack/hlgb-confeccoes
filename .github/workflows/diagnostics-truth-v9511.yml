@@ -20,7 +20,7 @@ permissions:
   contents: read
 jobs:
   logic:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@v4
@@ -31,7 +31,7 @@ jobs:
       - run: node --check release-internal-auditor.js
       - run: node tests/diagnostics-truth-v9511-auditor.cjs
   browser:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 18
     strategy:
       fail-fast: false
