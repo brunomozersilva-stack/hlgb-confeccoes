@@ -36,19 +36,25 @@ const {webkit}=require('playwright');
    };
    window.closeModal=()=>{};
   });
-  await page.evaluate(()=>{
-   window.__hlgbAuditorTestBaseline={
-    recordSave:window.hlgbRecordSaveWithRetry,
-    cloudRequest:window.cloudRequest,
-    setInterval:window.setInterval,
-    setTimeout:window.setTimeout
+  const initSafety=await page.evaluate(()=>{
+   const before={
+    save:window.hlgbRecordSaveWithRetry,
+    cloud:window.cloudRequest,
+    interval:window.setInterval,
+    timeout:window.setTimeout
    };
-  });
-  await page.evaluate(()=>{
    window.hlgbAuditorSingleAction9429.install();
    window.openHlgbAuditor();
    window.hlgbAuditorSingleUiReclaim9434A.heal('webkit-legacy-test-open');
+   return {
+    save:before.save===window.hlgbRecordSaveWithRetry,
+    cloud:before.cloud===window.cloudRequest,
+    interval:before.interval===window.setInterval,
+    timeout:before.timeout===window.setTimeout
+   };
   });
+  if(Object.values(initSafety).some(ok=>!ok))
+   throw new Error('A abertura do Auditor alterou funções críticas: '+JSON.stringify(initSafety));
   const dump=async label=>page.evaluate(label=>({
    label,smart:window.hlgbAuditorSmart?.version,
    newAuthority:window.hlgbAuditorSingleUiReclaim9434A?.status?.(),
@@ -78,7 +84,13 @@ const {webkit}=require('playwright');
    throw new Error('Esperado um único botão atual: '+JSON.stringify(visible));
   // Recreate a legacy button and run the older canonicalizer. The active
   // authority must heal the interface without changing cloud/save functions.
-  await page.evaluate(()=>{
+  const injectionSafety=await page.evaluate(()=>{
+   const before={
+    save:window.hlgbRecordSaveWithRetry,
+    cloud:window.cloudRequest,
+    interval:window.setInterval,
+    timeout:window.setTimeout
+   };
    const host=document.querySelector('#remoteInjectHost .hlgb-auditor-actions');
    if(!host)throw new Error('Nenhuma barra de ações do Auditor');
    host.insertAdjacentHTML('beforeend',
@@ -86,7 +98,15 @@ const {webkit}=require('playwright');
    window.hlgbAuditorSmart.enforceSimpleUi();
    window.hlgbAuditorSingleAction9429.canonicalize();
    window.hlgbAuditorSingleUiReclaim9434A.heal('webkit-after-legacy-injection');
+   return {
+    save:before.save===window.hlgbRecordSaveWithRetry,
+    cloud:before.cloud===window.cloudRequest,
+    interval:before.interval===window.setInterval,
+    timeout:before.timeout===window.setTimeout
+   };
   });
+  if(Object.values(injectionSafety).some(ok=>!ok))
+   throw new Error('Injeção legada alterou funções críticas: '+JSON.stringify(injectionSafety));
   await page.waitForFunction(()=>{
    const h=document.getElementById('remoteInjectHost');
    const b=h?.querySelector('#hlgbAuditorUnifiedRun9434A');
@@ -102,19 +122,8 @@ const {webkit}=require('playwright');
   const canonical=await page.evaluate(()=>window.hlgbAuditorSingleUiReclaim9434A.status());
   if(!canonical.buttonPresent||!canonical.apiReady||!canonical.observerActive)
    throw new Error('Proteção da ação única incompleta: '+JSON.stringify(canonical));
-  const unchanged=await page.evaluate(()=>{
-   const b=window.__hlgbAuditorTestBaseline;
-   return {
-    save:window.hlgbRecordSaveWithRetry===b.recordSave,
-    cloud:window.cloudRequest===b.cloudRequest,
-    interval:window.setInterval===b.setInterval,
-    timeout:window.setTimeout===b.setTimeout
-   };
-  });
-  if(Object.values(unchanged).some(ok=>!ok))
-   throw new Error('A injeção alterou funções críticas: '+JSON.stringify(unchanged));
   if(errors.some(x=>/auditor|9360|9361|9362|9429|9434/i.test(x)))
    throw new Error('Erro de runtime do Auditor: '+errors.join(' | '));
-  console.log('AUDITOR_CURRENT_CANONICAL_WEBKIT_OK',JSON.stringify({visible,canonical}));
+  console.log('AUDITOR_CURRENT_CANONICAL_WEBKIT_OK',JSON.stringify({visible,canonical,initSafety,injectionSafety}));
  }finally{await browser.close()}
 })().catch(e=>{console.error(e);process.exit(1)});
