@@ -254,7 +254,7 @@ function csvCell(v){let t=sid(v);if(/^[=+\-@\t\r]/.test(t))t="'"+t;return '"'+t.
 function exportCsv(){
  const rows=[['Origem','Nota','Cliente','Emissão','Vencimento','Situação','Total','Recebido','Saldo','Condição']];
  for(const n of exportRows())rows.push([n.source,n.number,n.client,n.issued,n.due,label(n,today())[0],
- (n.total/100).toFixed(2),(n.paid/100).toFixed(2),(n.balance/100).toFixed(2),n.terms]);
+ (n.total/100).toFixed(2).replace('.',','),(n.paid/100).toFixed(2).replace('.',','),(n.balance/100).toFixed(2).replace('.',','),n.terms]);
  const blob=new Blob(['\uFEFF'+rows.map(x=>x.map(csvCell).join(';')).join('\r\n')],{type:'text/csv;charset=utf-8'}),
  url=URL.createObjectURL(blob),a=document.createElement('a');
  a.href=url;a.download='HLGB-notas-'+today()+'.csv';document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1800);
