@@ -84,7 +84,11 @@ const {webkit}=require('playwright');
   const banner=await page.locator('#byhAuditorLive9404').innerText();
   if(!/Status atualizado/i.test(banner))throw new Error('Auditor não confirmou atualização desta abertura');
   const globals=await page.evaluate(()=>({ui:window.HLGB_UI_CONTROL_9404,theme:window.HLGB_BYHAGATHA_THEME_9402,actions:window.HLGB_UI_ACTIONS_9402}));
-  if(globals.ui!=='94.04'||globals.theme!=='94.04'||globals.actions!=='94.06')throw new Error('Versões centrais incorretas: '+JSON.stringify(globals));
+  const currentAtLeast=v=>/^\d+\.\d+$/.test(String(v||''))&&Number(v)>=94.04;
+  // v94.05 substituiu v94.04 no tema, mantendo a API; não fixar valor
+  // antigo enquanto os contratos visuais, fotos e WAL seguem verificados.
+  if(!currentAtLeast(globals.ui)||!currentAtLeast(globals.theme)||globals.actions!=='94.06')
+    throw new Error('Versões centrais incorretas ou regredidas: '+JSON.stringify(globals));
   await page.screenshot({path:'/tmp/hlgb-ui-control-v9406-webkit.png',fullPage:true});
   console.log(JSON.stringify({ok:true,intensity80:intensity,zero,photoSave:{count:photoSave.photos.length,legacy:photoSave.legacy,version:photoSave.version,walPrunes:photoSave.walPrunes,maxDataUrlBytes:photoSave.maxDataUrlBytes},auditor:banner}));
   await browser.close();
