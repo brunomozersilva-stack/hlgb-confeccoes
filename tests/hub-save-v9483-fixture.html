@@ -31,12 +31,17 @@ window.hlgb916HubForm=()=>'<div id="hlgb916HubForm"><input id="testDesc" value="
 window.hlgb916ReadHubForm=flow=>({flow,description:document.getElementById('testDesc').value,value:Number(document.getElementById('testValue').value),date:document.getElementById('testDate').value,category:'Matéria-prima',status:'Previsto',acceptedMethods:['Pix']});
 window.openModal=(_title,html,onSave)=>{
  const root=document.getElementById('modal');root.innerHTML=html;root.hidden=false;
- root.querySelector('.modalSave').addEventListener('click',()=>{Promise.resolve(onSave()).catch(err=>{window.__fixture.lastAlert=String(err)})});
+ window.modalSave=onSave;
+ // Legacy HLGB submitModal() dispatches a click without awaiting the promise.
+ // The v95.67 guard takes ownership of Hub-specific submissions before this
+ // generic bubble listener can call the same callback a second time.
 };
-window.closeModal=()=>{document.getElementById('modal').hidden=true;document.getElementById('modal').innerHTML=''};
+window.closeModal=()=>{document.getElementById('modal').hidden=true;document.getElementById('modal').innerHTML='';window.modalSave=null};
+document.addEventListener('click',e=>{if(e.target.matches('.modalSave'))window.modalSave?.()});
 window.alert=s=>{window.__fixture.lastAlert=String(s)};
 </script>
 <script src="../release-hub-editor-v9270.js"></script>
 <script src="../release-hub-primary-v9323.js"></script>
 <script src="../release-hub-delivery-v9324.js"></script>
+<script src="../release-hub-save-proof-v9567.js"></script>
 </body></html>
