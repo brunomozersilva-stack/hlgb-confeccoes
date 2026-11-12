@@ -48,8 +48,9 @@ test('finished model is hidden but material preview uses actual grade; faction t
  assert.doesNotMatch(t.elements.hlgbCutSplitPanel.innerHTML,/<b>Cueca<\/b>/);
  assert.match(t.elements.hlgbFactionOpsRows9520.innerHTML,/Graziano/);
  assert.match(t.elements.hlgbFactionOpsRows9520.innerHTML,/Cueca/);
- assert.match(t.elements.hlgbFactionOpsRows9520.innerHTML,/Trocar facção \/ preço/);
- assert.match(t.elements.hlgbFactionOpsRows9520.innerHTML,/Baixa de travetada/);
+ assert.match(t.elements.hlgbFactionOpsRows9520.innerHTML,/Trocar facção/);
+ assert.match(t.elements.hlgbFactionOpsRows9520.innerHTML,/Alterar preço/);
+ assert.match(t.elements.hlgbFactionOpsRows9520.innerHTML,/Travetada/);
  t.ctx.hlgbFactionOperations9520.openTransfer(301);
  assert.equal(t.openId,'301');
  const output=t.ctx.hlgbPostCutMaterialsPreview9519(1);
