@@ -52,7 +52,8 @@ assert(pack.diagnoses.find(x=>x.kind==='wal').safetyRule.includes('Nunca excluir
 assert(pack.diagnoses.find(x=>x.kind==='finance').safetyRule.includes('Não criar'));
 assert.equal(JSON.stringify(pack).includes('secret customer payment string'),false);
 assert.equal(JSON.stringify(pack).includes('1788606175817'),false);
-assert.equal(JSON.stringify(storage).includes('secret customer payment string'),false);
+assert.equal([...storage.values()].join('\n').includes('secret customer payment string'),false);
+assert.equal([...storage.values()].join('\n').includes('1788606175817'),false);
 current=base();current.run.runId='run-b';
 result=api.collect();
 assert.equal(result.ok,true);
