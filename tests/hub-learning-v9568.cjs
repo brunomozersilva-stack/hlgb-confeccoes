@@ -25,7 +25,7 @@ assert.equal(api.learn().repeated,true,'one observation per event');
 assert.equal(api.history().cases.length,1);
 trace={...trace,attemptId:2,attempts:2,source:'create-button',clickObserved:true,
  outcome:'confirmed',confirmation:'rpc-ack-and-readback',lastAt:'2026-11-12T22:03:00Z'};
-ui={last:{phase:'confirmed',traceOutcome:'confirmed',clickObserved:true,at:'2026-11-12T22:03:00Z'},clicks:1,confirmed:1,failed:0,blocked:0};
+ui={last:{phase:'confirmed',traceOutcome:'confirmed',traceAttempt:2,clickObserved:true,at:'2026-11-12T22:03:00Z'},clicks:1,confirmed:1,failed:0,blocked:0};
 assert.equal(api.learn().category,'ui-confirmed');
 assert.equal(api.recommendations().savingUiProved,true);
 assert.equal(api.recommendations().traceProof.rpcAck,true);
