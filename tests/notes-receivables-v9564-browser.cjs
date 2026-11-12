@@ -40,7 +40,7 @@ const engine=process.env.HLGB_BROWSER==='webkit'?webkit:chromium;
   // without depending on which whitespace the browser currency formatter emits.
   await page.waitForFunction(()=>{
    const note=window.hlgbNotesReceivables9564.allNotes().find(x=>x.id==='2');
-   const displayed=document.querySelector('#nr-table tbody tr')?.textContent?.replace(/\\s/g,' ');
+   const displayed=document.querySelector('#nr-table tbody tr')?.textContent?.replace(/\s/g,' ');
    return note?.credit===3000&&note?.balance===15000&&displayed?.includes('30,00');
   },null,{timeout:12000});
   await page.locator('#ar65-memo').fill('Cliente informou que fará o próximo pagamento sexta-feira.');
