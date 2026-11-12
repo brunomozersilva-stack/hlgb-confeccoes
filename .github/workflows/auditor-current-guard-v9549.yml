@@ -1,4 +1,4 @@
-name: HLGB Auditor Current Guard Regressions v95.52
+name: HLGB Auditor Current Guard Regressions v95.54
 on:
   pull_request:
     branches: [main]
@@ -6,6 +6,7 @@ on:
       - 'tests/audit-sync-confirmation-v9311.cjs'
       - 'tests/auditor-v9362-webkit-remote-inject.js'
       - 'tests/auditor-v9362-webkit.js'
+      - 'tests/ui-control-v9404-webkit.js'
       - 'tests/auditor-v9365-webkit.js'
       - 'tests/auditor-v9366-entry-webkit.js'
       - 'tests/auditor-authority-v9374-webkit.js'
@@ -54,6 +55,10 @@ jobs:
         run: node tests/auditor-v9365-webkit.js
       - name: Real Auditor menu click opens only current canonical action
         run: node tests/auditor-v9366-entry-webkit.js
+      - name: Legacy iframe opens current canonical Auditor only
+        run: node tests/auditor-v9362-webkit.js
+      - name: Appearance, product photo and confirmed-WAL UI contract
+        run: node tests/ui-control-v9404-webkit.js
       - name: Read-only authority map without retired visible button
         run: node tests/auditor-authority-v9374-webkit.js
       - name: Read-only boot analysis without retired visible button
