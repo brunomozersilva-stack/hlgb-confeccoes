@@ -35,7 +35,14 @@ const engine=process.env.HLGB_BROWSER==='webkit'?webkit:chromium;
   await page.locator('#ar65-reason').fill('Peças devolvidas');
   await page.locator('[data-ar65="return"]').click();
   await page.waitForFunction(()=>window.db.projectionInvoices.find(x=>x.id==='2')?.acertoReturnsV9565?.length===1);
-  await page.waitForFunction(()=>document.querySelector('#nr-table tbody tr')?.textContent?.includes('R$ 30,00'));
+  // Intl.NumberFormat may use a non-breaking space between R$ and amount.
+  // First verify the actual financial credit; then verify the displayed column
+  // without depending on which whitespace the browser currency formatter emits.
+  await page.waitForFunction(()=>{
+   const note=window.hlgbNotesReceivables9564.allNotes().find(x=>x.id==='2');
+   const displayed=document.querySelector('#nr-table tbody tr')?.textContent?.replace(/\\s/g,' ');
+   return note?.credit===3000&&note?.balance===15000&&displayed?.includes('30,00');
+  },null,{timeout:12000});
   await page.locator('#ar65-memo').fill('Cliente informou que fará o próximo pagamento sexta-feira.');
   await page.locator('[data-ar65="note"]').click();
   await page.waitForFunction(()=>window.db.projectionInvoices.find(x=>x.id==='2')?.acertoNotesV9565?.length===1);
