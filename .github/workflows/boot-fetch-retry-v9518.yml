@@ -18,7 +18,7 @@ permissions:
   contents: read
 jobs:
   logic:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@v4
@@ -26,7 +26,7 @@ jobs:
         with: {node-version: '20'}
       - run: node tests/boot-fetch-retry-v9518.cjs
   browser:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 20
     strategy:
       fail-fast: false
