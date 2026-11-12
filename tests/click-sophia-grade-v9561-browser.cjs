@@ -38,6 +38,8 @@ const engine=process.env.HLGB_BROWSER==='webkit'?webkit:chromium;
   assert(panel.includes('8 modelo(s) para cortar'),'unique model count must not double');
   assert.match(panel,/Cortes duplicados encontrados:.*Fio Jamile.*Short Doll Yza/s);
   assert.equal(await page.locator('#hlgbCutSplitPanel .hlgbAdjustSplitGradeBtn').count(),10);
+  assert.equal(await page.locator('#hlgbCutSplitPanel .hlgbAdjustSplitGradeBtn:disabled').count(),4,
+   'the two duplicated models must not allow editing either of their cuts');
   const before=await page.evaluate(()=>JSON.stringify(window.db));
   await page.evaluate(()=>window.hlgbFinishSplitCut('cut-5'));
   const after=await page.evaluate(()=>({db:JSON.stringify(window.db),alerts:window.__alerts,writes:window.__writes}));
