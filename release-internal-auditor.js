@@ -758,8 +758,14 @@ function inject(){
   const nav=document.getElementById('nav');
   if(nav&&!document.getElementById('hlgbAuditorNavBtn')){
     const diag=document.getElementById('hlgbDiagnosticsNav');
-    if(diag?.parentElement){
-      const b=document.createElement('button');b.id='hlgbAuditorNavBtn';b.type='button';b.innerHTML='🧪 Auditor / Testes';b.onclick=()=>openAuditor();diag.insertAdjacentElement('afterend',b);
+    // The diagnostics extension may not have created its menu item yet.
+    // The System submenu belongs to the core HTML and is a stable fallback.
+    const systemSubmenu=nav.querySelector('.nav-group:last-of-type .nav-submenu');
+    const host=diag?.parentElement||systemSubmenu;
+    if(host){
+      const b=document.createElement('button');b.id='hlgbAuditorNavBtn';b.type='button';b.innerHTML='🧪 Auditor / Testes';b.onclick=()=>openAuditor();
+      if(diag?.parentElement)diag.insertAdjacentElement('afterend',b);
+      else host.appendChild(b);
     }
   }
   // Acesso direto, visível no mesmo submenu do Auditor (sem abrir o
