@@ -41,12 +41,16 @@ test('finished model is hidden but material preview uses actual grade; faction t
  const t=mock();
  t.ctx.hlgbCutModelSplit.renderSplitPanel();
  t.ctx.hlgbFactionOperations9520.install();
+ // The current faction UI intentionally loads results only after a typed search.
+ t.elements.hlgbFactionOpsSearch9520.value='Cueca';
+ t.ctx.hlgbFactionOperations9520.render();
  assert.match(t.elements.hlgbCutSplitPanel.innerHTML,/Conjunto/);
  assert.doesNotMatch(t.elements.hlgbCutSplitPanel.innerHTML,/<b>Cueca<\/b>/);
  assert.match(t.elements.hlgbFactionOpsRows9520.innerHTML,/Graziano/);
  assert.match(t.elements.hlgbFactionOpsRows9520.innerHTML,/Cueca/);
- assert.match(t.elements.hlgbFactionOpsRows9520.innerHTML,/Trocar facção \/ preço/);
- assert.match(t.elements.hlgbFactionOpsRows9520.innerHTML,/Baixa de travetada/);
+ assert.match(t.elements.hlgbFactionOpsRows9520.innerHTML,/Trocar facção/);
+ assert.match(t.elements.hlgbFactionOpsRows9520.innerHTML,/Alterar preço/);
+ assert.match(t.elements.hlgbFactionOpsRows9520.innerHTML,/Travetada/);
  t.ctx.hlgbFactionOperations9520.openTransfer(301);
  assert.equal(t.openId,'301');
  const output=t.ctx.hlgbPostCutMaterialsPreview9519(1);
