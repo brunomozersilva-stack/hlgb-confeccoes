@@ -9,7 +9,7 @@ const fs=require('node:fs');
  // este arquivo e fornece a cópia versionada do repositório do PR.
  let pinnedLoads=0;
  const historicalSource=fs.readFileSync('release-auditor-smart-v9360.js','utf8');
- if(!/const V='93\\.63'/.test(historicalSource))throw new Error('fixture legada difere da v93.63');
+ if(!historicalSource.includes("const V='93.63'"))throw new Error('fixture legada difere da v93.63');
  await page.route('https://raw.githubusercontent.com/**/release-auditor-smart-v9360.js*',async route=>{
   pinnedLoads++;
   await route.fulfill({status:200,contentType:'application/javascript',
