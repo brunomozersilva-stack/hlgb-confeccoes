@@ -61,4 +61,13 @@ api.state.tab='paid';
 assert.equal(api.exportRows().length,1,'paid export follows active tab');
 assert.equal(JSON.stringify(db),before,'no business data or history modified');
 assert.equal(typeof sandbox.window.hlgbRecordSaveWithRetry,'undefined','no save dependency');
-console.log('PASS notas v95.64: tabs and totals, partials, due dates, customer and value filters, CSV subset, no writes');
+// Initial cloud renderer must not be wrapped repeatedly by scheduled installers.
+const initial=function(){return true};initial.__hlgbNotesLive9563=true;
+sandbox.window.renderOrderNotes=initial;
+api.install();
+const first=sandbox.window.renderOrderNotes;
+assert.equal(first.__hlgbNotesLive9563,true,'cloud sync marker preserved');
+api.install();api.install();
+assert.equal(sandbox.window.renderOrderNotes,first,'idempotent renderer install');
+assert.equal(JSON.stringify(db),before,'install does not change data');
+console.log('PASS notas v95.64: tabs and totals, partials, dates, value filters, no duplicate sums or wrapper loops');
