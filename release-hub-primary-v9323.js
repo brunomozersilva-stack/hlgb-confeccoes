@@ -6,6 +6,10 @@ const sid=v=>String(v??'');
 const clone=v=>{try{return structuredClone(v)}catch(e){try{return JSON.parse(JSON.stringify(v))}catch(_){return v}}};
 let installs=0,creates=0,toggles=0,localFirst=0,lastError='',lastAt='';
 let observer=null,observedPage=null,organizing=false,organizeQueued=false;
+// Proteção por lançamento: impedir que dois acionamentos rápidos revertam um pagamento confirmado.
+const statusSavingIds=new Set(),statusRecentlyConfirmed=new Map(),STATUS_REPEAT_GUARD_MS=8000;
+let statusRepeatBlocked=0;
+function pruneStatusGuard(now){for(const [id,last] of statusRecentlyConfirmed){if(now-last.at>30000)statusRecentlyConfirmed.delete(id)}}
 function data(){try{return typeof db!=='undefined'?db:window.db}catch(e){return window.db}}
 function hub(){const d=data();if(!d)return[];d.hubFinanceEntries=Array.isArray(d.hubFinanceEntries)?d.hubFinanceEntries:[];return d.hubFinanceEntries}
 function idOf(row){const v=row?.id??row?.__hlgbId;return v==null?'':sid(v)}
@@ -46,9 +50,33 @@ function newEntry(flow){
  setTimeout(()=>{try{toggleDate?.()}catch(e){}},20);return true
 }
 async function toggleEntry(id){
- const e=hub().find(x=>idOf(x)===sid(id));if(!e)return false;
- const next={...clone(e),status:e.status==='Realizado'?'Previsto':'Realizado',updatedAt:new Date().toISOString()};next.realizedAt=next.status==='Realizado'?(e.realizedAt||new Date().toISOString().slice(0,10)):'';
- try{const out=await saveLocalFirst(next,e);toggles++;refresh(next.date);return out}catch(err){lastError=sid(err?.message||err);console.error('[HLGB Hub '+V+'] status',err);alert('Não consegui confirmar esta mudança no servidor. O lançamento original foi mantido.\n\n'+lastError);return false}
+ const key=sid(id);if(!key)return false;
+ const now=Date.now();pruneStatusGuard(now);
+ // In-flight: uma segunda chamada nunca pode iniciar outra RPC sobre o mesmo lançamento.
+ if(statusSavingIds.has(key)){
+  statusRepeatBlocked++;status('⏳ A alteração de status ainda está sendo confirmada. Não clique novamente.','warn');return false;
+ }
+ // Após ACK+releitura, um toque repetido em segundos inverteria Realizado para Previsto.
+ // Para desfazer deliberadamente, é possível acionar novamente após a janela de segurança.
+ const recent=statusRecentlyConfirmed.get(key);
+ if(recent&&now-recent.at<STATUS_REPEAT_GUARD_MS){
+  statusRepeatBlocked++;
+  const seconds=Math.ceil((STATUS_REPEAT_GUARD_MS-(now-recent.at))/1000);
+  status('✅ '+recent.status+' confirmado na nuvem. Para inverter o status, aguarde '+seconds+' s.','warn');
+  return false;
+ }
+ const e=hub().find(x=>idOf(x)===key);if(!e)return false;
+ const next={...clone(e),status:e.status==='Realizado'?'Previsto':'Realizado',updatedAt:new Date().toISOString()};
+ next.realizedAt=next.status==='Realizado'?(e.realizedAt||new Date().toISOString().slice(0,10)):'';
+ statusSavingIds.add(key);
+ try{
+  const out=await saveLocalFirst(next,e);
+  statusRecentlyConfirmed.set(key,{at:Date.now(),status:next.status,revision:Number(out.revision)});
+  toggles++;refresh(next.date);return out;
+ }catch(err){
+  lastError=sid(err?.message||err);console.error('[HLGB Hub '+V+'] status',err);
+  alert('Não consegui confirmar esta mudança no servidor. O lançamento original foi mantido.\n\n'+lastError);return false;
+ }finally{statusSavingIds.delete(key)}
 }
 function quickEdit(id){
  if(window.hlgbHubEditor9270?.open)return window.hlgbHubEditor9270.open(id,{quick:true});
@@ -128,6 +156,7 @@ function state(){return {version:V,installs,creates,toggles,localFirst,lastError
 install();
 try{if(typeof hlgbAfterLogin==='function')hlgbAfterLogin(()=>scheduleOrganize(),0)}catch(e){}
 window.addEventListener('pageshow',scheduleOrganize);window.addEventListener('focus',scheduleOrganize);
-window.hlgbHubPrimary9323={version:V,install,state,saveLocalFirst,newEntry,toggleEntry,quickEdit,organize,scheduleOrganize};
+window.hlgbHubPrimary9323={version:V,install,state,saveLocalFirst,newEntry,toggleEntry,quickEdit,organize,scheduleOrganize,
+ statusGuard:()=>({inFlight:statusSavingIds.size,recentConfirmed:statusRecentlyConfirmed.size,repeatBlocked:statusRepeatBlocked,windowMs:STATUS_REPEAT_GUARD_MS})};
 console.info('[HLGB] v'+V+' Hub operacional ativo — vencimentos no topo e layout estabilizado sem reorganização tardia');
 })();
