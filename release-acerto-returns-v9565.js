@@ -133,7 +133,9 @@ async function saveAction(type,id,kind,input){
   }
   next.remaining=m.remaining/100;
   next.acertoCreditTotalV9565=m.credit/100;
-  next.status=m.status;
+  // Orders use "status" for the production stage. Never replace
+  // "Pedido finalizado" / "A cortar" with a financial status.
+  if(type==='projection')next.status=m.status;
   if(type==='order')next.paymentStatus=m.status;
   next.updatedAt=now;
   // Persist the canonical note/order first; on failure nothing local is changed.
