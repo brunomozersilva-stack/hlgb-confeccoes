@@ -19,6 +19,18 @@ window.hlgbCanonicalProjectionInvoices=()=>window.db.projectionInvoices;
 window.renderOrderNotes=function(){};
 window.hlgbViewNote9411=id=>window.__actions.push('view:'+id);
 window.hlgbDownloadNotePdf9411=id=>window.__actions.push('pdf:'+id);
-window.openProjectionAcerto9214=id=>window.__actions.push('pay:'+id);
+window.openProjectionAcerto9214=id=>window.__actions.push('legacy-pay:'+id);
+window.openModal=(title,html)=>{
+ document.getElementById('modal')?.remove();
+ const modal=document.createElement('div');modal.id='modal';modal.className='show';modal.setAttribute('aria-label',title);
+ modal.innerHTML=html;document.body.appendChild(modal);
+};
+window.closeModal=()=>document.getElementById('modal')?.remove();
+window.hlgbRecordSaveWithRetry=async(module,id,row)=>{
+ window.__writes++;
+ const arr=window.db[module];const index=arr.findIndex(x=>String(x.id)===String(id));
+ const fresh=JSON.parse(JSON.stringify(row));if(index>=0)arr[index]=fresh;else arr.push(fresh);
+ return {applied:true,data:fresh};
+};
 window.hlgbNotesLiveSync9563={refresh:async()=>{window.__cloudChecks++;return {ok:true}},status:()=>({lastAt:new Date().toISOString(),unverified:false})};
-</script><script src="../release-notes-receivables-v9564.js"></script></body></html>
+</script><script src="../release-notes-receivables-v9564.js"></script><script src="../release-acerto-returns-v9565.js"></script></body></html>
