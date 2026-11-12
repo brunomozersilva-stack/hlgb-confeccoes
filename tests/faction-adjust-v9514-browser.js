@@ -7,8 +7,10 @@ const engine=process.env.HLGB_BROWSER==='webkit'?webkit:chromium;
  const page=await browser.newPage({viewport:{width:390,height:844}});
  const errors=[];page.on('pageerror',e=>errors.push(e.message));
  await page.goto('http://127.0.0.1:4173/tests/faction-adjust-v9514-fixture.html',{waitUntil:'domcontentloaded'});
- await page.waitForFunction(()=>typeof window.hlgbFactionAdjust9514?.open==='function'&&!!document.querySelector('.hlgb-faction-adjust9514'),null,{timeout:12000});
- await page.locator('.hlgb-faction-adjust9514').click();
+ // The v95.14 legacy table button was intentionally removed by install().
+ // Exercise the supported API directly, rather than waiting for an obsolete button.
+ await page.waitForFunction(()=>typeof window.hlgbFactionAdjust9514?.open==='function',null,{timeout:12000});
+ await page.evaluate(()=>window.hlgbFactionAdjust9514.open('1'));
  await page.locator('#hlgbFactionAction9514').selectOption('transfer');
  await page.locator('#hlgbFactionTarget9514').selectOption('Facção Beta');
  await page.locator('#hlgbFactionQuantity9514').fill('30');

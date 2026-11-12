@@ -1,0 +1,50 @@
+<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>HLGB pagamento facção v95.66</title>
+<style>
+body{font-family:Arial,sans-serif;font-size:14px;background:#faf9fb;margin:12px;color:#28202a}
+.panel{padding:14px;margin:10px 0;border:1px solid #dcd5dd;border-radius:10px;background:#fff}
+.field{margin:7px 0}.field label{font-size:12px;display:block;font-weight:700;margin-bottom:5px}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:9px}
+input,textarea,select{padding:8px;width:100%;box-sizing:border-box;border:1px solid #c6b6c6;border-radius:6px;background:#fff}
+button{padding:8px;border:1px solid #d2bcd0;border-radius:6px;background:#fff;cursor:pointer}
+button.primary{background:#6f3454;color:#fff}
+.sub{font-size:12px;color:#626262}.toolbar{display:flex;gap:6px}
+#modal{position:relative;background:#fff;max-width:900px;max-height:95vh;overflow-y:auto;padding:18px;box-shadow:0 4px 22px #bbb;border-radius:12px;margin:8px auto}
+#modal h2{margin-top:0}
+#modal-container{position:fixed;inset:0;background:#30303955;z-index:100;overflow-y:auto;padding:8px}
+#factionPaymentTable{min-height:40px}
+</style></head><body>
+<div class="panel"><h1>Pagamentos de facções</h1>
+<button id="hlgbFactionManualPaymentBtn" type="button" onclick="window.__oldOpen++">➕ Pagamento avulso</button>
+<div id="factionPaymentTable"></div></div>
+<script>
+window.__oldOpen=0;window.__written=[];window.__renderCount=0;
+window.db={
+ factionMasters:[{id:'1',name:'Roseli',active:true},{id:'2',name:'Cris',active:true},{id:'3',name:'Ge',active:true}],
+ factions:[{id:'f1',name:'Graziano'}],productionLocations:[{name:'Corte interno'}],
+ products:[
+  {id:'p1',name:'Camisola Liliane',code:'CL21',factionCost:2.6,labor:3.4},
+  {id:'p2',name:'Doll Melânia',sku:'DM99',factionCost:0}
+ ],factionPayments:[],hubFinanceEntries:[]
+};
+window.hlgbWalIdbGuard9536={probe:async()=>true,ids:()=>[],status:()=>({readFailed:false})};
+window.hlgbRecordSaveWithRetry=async(module,id,record)=>{
+  window.__written.push({module,id});
+  const arr=window.db[module]|| (window.db[module]=[]);
+  const copy=JSON.parse(JSON.stringify(record));
+  const i=arr.findIndex(x=>String(x.id)===String(id));
+  if(i<0)arr.push(copy);else arr[i]=copy;
+  return {applied:true,data:copy};
+};
+window.renderFactionPayments=()=>{window.__renderCount++;};
+window.renderHubFinance=()=>{};
+window.openModal=(title,html,onSave)=>{
+ window.closeModal();
+ const container=document.createElement('div');container.id='modal-container';
+ container.innerHTML='<div id="modal"><h2>'+title+'</h2>'+html+'</div>';
+ document.body.appendChild(container);
+ document.querySelector('#modal .modalSave')?.addEventListener('click',onSave);
+};
+window.closeModal=()=>document.getElementById('modal-container')?.remove();
+</script>
+<script src="../release-faction-manual-payment-v9566.js"></script></body></html>
