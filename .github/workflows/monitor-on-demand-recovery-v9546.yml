@@ -18,7 +18,7 @@ permissions:
   contents: read
 jobs:
   unit:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 6
     steps:
       - uses: actions/checkout@v4
@@ -28,7 +28,7 @@ jobs:
       - run: node --check release-internal-auditor.js
       - run: node --test tests/monitor-on-demand-recovery-v9546.cjs
   browser:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 20
     strategy:
       fail-fast: false
