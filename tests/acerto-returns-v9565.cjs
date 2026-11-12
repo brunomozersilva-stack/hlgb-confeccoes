@@ -5,7 +5,7 @@ const loader=fs.readFileSync(path.join(__dirname,'..','app-stable3.html'),'utf8'
 assert(loader.includes("'release-acerto-returns-v9565.js'"),'register isolated returns module in boot list');
 const db={projectionInvoices:[{id:'n',client:'Click Sophia',value:1000,paid:200,remaining:800,
  paymentHistory:[{id:1,date:'2026-11-11',method:'PIX',value:200}],status:'Parcial'}],
- orders:[{id:'o',client:'Quesia',total:300,received:50,remaining:250,
+ orders:[{id:'o',client:'Quesia',status:'Pedido finalizado',total:300,received:50,remaining:250,
  paymentHistory:[{value:50,method:'PIX'}],noteReady:true}],
  finance:[{id:'f',type:'Receber',projectionInvoiceId:'n',paid:200,remaining:800,value:1000,status:'Pendente'},
   {id:'fo',type:'Receber',orderId:'o',paid:50,remaining:250,value:300,status:'Pendente'}]};
@@ -65,6 +65,7 @@ const amounts=()=>api.moneyState(db.projectionInvoices[0],'projection');
  await assert.rejects(()=>api.saveAction('projection','n','reversal',{entryId:entry.id,reason:'Duplicado'}),/já estornada/);
  await api.saveAction('order','o','return',{value:100,reason:'2 peças devolvidas',date:'2026-11-12'});
  assert.equal(api.moneyState(db.orders[0],'order').remaining,15000);
+ assert.equal(db.orders[0].status,'Pedido finalizado','acerto cannot change production workflow stage');
  assert.equal(db.finance[1].remaining,150);
  assert.equal(w.orderRemaining(db.orders[0]),150,'legacy order remaining respects credits');
  assert.equal(w.openAcerto.__hlgbAcertoReturns9565,true,'old cheque form must be wrapped and preserved');
