@@ -41,6 +41,9 @@ test('finished model is hidden but material preview uses actual grade; faction t
  const t=mock();
  t.ctx.hlgbCutModelSplit.renderSplitPanel();
  t.ctx.hlgbFactionOperations9520.install();
+ // The current faction UI intentionally loads results only after a typed search.
+ t.elements.hlgbFactionOpsSearch9520.value='Cueca';
+ t.ctx.hlgbFactionOperations9520.render();
  assert.match(t.elements.hlgbCutSplitPanel.innerHTML,/Conjunto/);
  assert.doesNotMatch(t.elements.hlgbCutSplitPanel.innerHTML,/<b>Cueca<\/b>/);
  assert.match(t.elements.hlgbFactionOpsRows9520.innerHTML,/Graziano/);
