@@ -36,12 +36,14 @@ const {webkit}=require('playwright');
    };
    window.closeModal=()=>{};
   });
-  const before=await page.evaluate(()=>({
-   recordSave:window.hlgbRecordSaveWithRetry,
-   cloudRequest:window.cloudRequest,
-   setInterval:window.setInterval,
-   setTimeout:window.setTimeout
-  }));
+  await page.evaluate(()=>{
+   window.__hlgbAuditorTestBaseline={
+    recordSave:window.hlgbRecordSaveWithRetry,
+    cloudRequest:window.cloudRequest,
+    setInterval:window.setInterval,
+    setTimeout:window.setTimeout
+   };
+  });
   await page.evaluate(()=>{
    window.hlgbAuditorSingleAction9429.install();
    window.openHlgbAuditor();
@@ -100,14 +102,17 @@ const {webkit}=require('playwright');
   const canonical=await page.evaluate(()=>window.hlgbAuditorSingleUiReclaim9434A.status());
   if(!canonical.buttonPresent||!canonical.apiReady||!canonical.observerActive)
    throw new Error('Proteção da ação única incompleta: '+JSON.stringify(canonical));
-  const unchanged=await page.evaluate(b=>({
-   save:window.hlgbRecordSaveWithRetry===window.__hlgbBaselineSave,
-   cloud:window.cloudRequest===window.__hlgbBaselineCloud,
-   interval:window.setInterval===window.__hlgbBaselineInterval,
-   timeout:window.setTimeout===window.__hlgbBaselineTimeout
-  }),{});
-  // Function identity checks are captured via an in-page, synchronous snapshot
-  // to avoid serializing functions over Playwright.
+  const unchanged=await page.evaluate(()=>{
+   const b=window.__hlgbAuditorTestBaseline;
+   return {
+    save:window.hlgbRecordSaveWithRetry===b.recordSave,
+    cloud:window.cloudRequest===b.cloudRequest,
+    interval:window.setInterval===b.setInterval,
+    timeout:window.setTimeout===b.setTimeout
+   };
+  });
+  if(Object.values(unchanged).some(ok=>!ok))
+   throw new Error('A injeção alterou funções críticas: '+JSON.stringify(unchanged));
   if(errors.some(x=>/auditor|9360|9361|9362|9429|9434/i.test(x)))
    throw new Error('Erro de runtime do Auditor: '+errors.join(' | '));
   console.log('AUDITOR_CURRENT_CANONICAL_WEBKIT_OK',JSON.stringify({visible,canonical}));
