@@ -16,6 +16,8 @@ const engine=process.env.HLGB_BROWSER==='webkit'?webkit:chromium;
    window.renderDestinationChecklists();
    window.renderFactionChecklists9198();
   });
+  await page.locator('#hlgbMaterialRevisions9522 details > summary').click();
+  await page.locator('#hlgbFactionMaterialRevisions9522 details > summary').click();
   await page.waitForSelector('#hlgbMaterialRevisions9522 button[data-material-revision9522]',{timeout:12000});
   await page.waitForSelector('#hlgbFactionMaterialRevisions9522 button[data-material-revision9522]',{timeout:12000});
   const first=await page.locator('#hlgbMaterialRevisions9522').innerText();
