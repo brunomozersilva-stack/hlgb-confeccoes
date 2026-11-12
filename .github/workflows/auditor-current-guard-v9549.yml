@@ -32,7 +32,7 @@ jobs:
       - name: WAL recovery preserves local edits on failed cloud confirmation
         run: node tests/audit-sync-confirmation-v9311.cjs
   webkit:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 17
     steps:
       - uses: actions/checkout@v4
