@@ -70,6 +70,33 @@ const amounts=()=>api.moneyState(db.projectionInvoices[0],'projection');
  assert.equal(w.orderRemaining(db.orders[0]),150,'legacy order remaining respects credits');
  assert.equal(w.openAcerto.__hlgbAcertoReturns9565,true,'old cheque form must be wrapped and preserved');
  assert.equal(w.openAcerto.__original instanceof Function,true);
+ // Regression: historical paid/received scalar with no detailed history
+ // must not disappear when the first detailed payment is registered.
+ const legacy={id:'legacy-invoice',client:'Antigo',value:1000,paid:200,remaining:800,paymentHistory:[]};
+ db.projectionInvoices.push(legacy);
+ db.finance.push({id:'fl',projectionInvoiceId:'legacy-invoice',type:'Receber',paid:200,remaining:800});
+ await api.saveAction('projection','legacy-invoice','payment',{value:100,date:'2026-11-12',method:'PIX'});
+ const migrated=db.projectionInvoices.find(x=>x.id==='legacy-invoice');
+ assert.equal(migrated.paid,300,'existing R$200 cash must survive first detailed R$100 payment');
+ assert.equal(migrated.remaining,700);
+ assert.equal(migrated.paymentHistory.length,2,'legacy baseline and new receipt, never double count');
+ assert.equal(migrated.paymentHistory[0].importedBaselineV9565,true);
+ assert.equal(migrated.paymentHistory[0].value,200);
+ // Fallback to a finance mirror only when the canonical scalar is absent.
+ db.projectionInvoices.push({id:'finance-only',value:500,remaining:450,paymentHistory:[]});
+ db.finance.push({id:'ff',projectionInvoiceId:'finance-only',type:'Receber',paid:50,remaining:450});
+ await api.saveAction('projection','finance-only','payment',{value:25,date:'2026-11-12',method:'PIX'});
+ assert.equal(db.projectionInvoices.find(x=>x.id==='finance-only').paid,75);
+ // Do not let financial settlements overwrite the manufacturing workflow.
+ db.orders.push({id:'old-order',status:'Pedido finalizado',total:300,received:50,remaining:250,paymentHistory:[]});
+ await api.saveAction('order','old-order','payment',{value:25,date:'2026-11-12',method:'PIX'});
+ assert.equal(db.orders.find(x=>x.id==='old-order').received,75);
+ assert.equal(db.orders.find(x=>x.id==='old-order').status,'Pedido finalizado');
+ // Fail closed if the WAL guard failed to load (even if caller sees no pendingSync).
+ delete w.hlgbWalIdbGuard9536;
+ const writeCount=writes.length;
+ await assert.rejects(()=>api.saveAction('projection','legacy-invoice','note',{text:'Sem proteção local não salvar'}),/Proteção de sincronização/);
+ assert.equal(writes.length,writeCount,'missing WAL guard cannot reach cloud write');
  assert(writes.every(x=>x.module==='projectionInvoices'||x.module==='finance'||x.module==='orders'));
  console.log('PASS acerto v95.65: cloud-confirmed returns, notes, overpayment guard, audit reversals, finance retry and original order receipt preserved.');
 })().catch(e=>{console.error(e);process.exitCode=1});
