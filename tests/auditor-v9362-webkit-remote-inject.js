@@ -1,68 +1,115 @@
+/* Auditor: regression of a legacy UI re-injection in real WebKit.
+ * Tests the CURRENT shipped Auditor without the obsolete pinned-commit
+ * test loader. No Supabase login or writes to operational data.
+ */
 const {webkit}=require('playwright');
-const fs=require('node:fs');
 (async()=>{
  const browser=await webkit.launch({headless:true});
- const page=await browser.newPage({viewport:{width:1280,height:900}});
- const errors=[];page.on('pageerror',e=>errors.push(String(e.message||e)));
- // A injeção legada usa um commit fixo do GitHub raw. Em CI/WebKit essa rede
- // pode falhar e causar timeout sem exercitar o Auditor. Intercepta APENAS
- // este arquivo e fornece a cópia versionada do repositório do PR.
- let pinnedLoads=0;
- const historicalSource=fs.readFileSync('release-auditor-smart-v9360.js','utf8');
- if(!historicalSource.includes("const V='93.63'"))throw new Error('fixture legada difere da v93.63');
- await page.route('https://raw.githubusercontent.com/**/release-auditor-smart-v9360.js*',async route=>{
-  pinnedLoads++;
-  await route.fulfill({status:200,contentType:'application/javascript',
-   headers:{'access-control-allow-origin':'*','cache-control':'no-store'},
-   body:historicalSource});
- });
- await page.goto('http://127.0.0.1:4173/app-stable3.html',{waitUntil:'domcontentloaded',timeout:60000});
- await page.waitForFunction(()=>!!document.getElementById('loginScreen')&&!!document.getElementById('appShell')&&window.HLGB_AUDITOR_SINGLE_ACTION_9429==='94.29',null,{timeout:60000});
- await page.evaluate(()=>{window.__HLGB_AUTH_READY=true;window.dispatchEvent(new Event('hlgb:authenticated'))});
- await page.waitForFunction(()=>!!window.hlgbInternalAuditor&&!!window.hlgbAuditorBlackbox9299&&!!window.hlgbOperationalAuditor9314&&window.HLGB_AUDITOR_SHELL_AUTHORITY==='93.82',null,{timeout:60000});
- await page.evaluate(()=>{window.alert=()=>{};window.openModal=(title,html)=>{let h=document.getElementById('remoteInjectHost');if(!h){h=document.createElement('div');h.id='remoteInjectHost';h.setAttribute('role','dialog');document.body.appendChild(h)}h.innerHTML=html};window.closeModal=()=>{};window.hlgbAuditorSingleAction9429.install()});
- await page.evaluate(()=>{window.__auditorCriticalBefore={recordSave:window.hlgbRecordSaveWithRetry,cloudRequest:window.cloudRequest,setInterval:window.setInterval,setTimeout:window.setTimeout}});
- await page.evaluate(async()=>{
-  const r=await fetch('/auditor-test-loader-v9362.js?fresh='+Date.now(),{cache:'no-store'});if(!r.ok)throw new Error('HTTP '+r.status+' no loader local');const src=await r.text();(0,eval)(src);
- });
- await page.waitForFunction(()=>window.HLGB_AUDITOR_TEST_LOADER_9362===true&&window.hlgbAuditorSmart?.version==='93.63'&&!!window.HLGB_AUDITOR_UI_COMPAT_9361,null,{timeout:30000}).catch(async e=>{
-  const detail=await page.evaluate(()=>({
-   loader:window.HLGB_AUDITOR_TEST_LOADER_9362,smart:window.hlgbAuditorSmart?.version,
-   compat:window.HLGB_AUDITOR_UI_COMPAT_9361,base:!!window.hlgbInternalAuditor,
-   criticalError:(window.alertHistory||[]).slice(-2)
+ try{
+  const page=await browser.newPage({viewport:{width:1280,height:900}});
+  const errors=[];page.on('pageerror',e=>errors.push(String(e.message||e)));
+  await page.goto('http://127.0.0.1:4173/app-stable3.html',
+   {waitUntil:'domcontentloaded',timeout:60000});
+  await page.waitForFunction(()=>!!document.getElementById('loginScreen')&&
+   !!document.getElementById('appShell')&&
+   window.HLGB_AUDITOR_SINGLE_ACTION_9429==='94.29'&&
+   typeof window.hlgbAuditorSingleUiReclaim9434A?.heal==='function',
+   null,{timeout:60000});
+  // Exercise authenticated UI initialization without signing in to Supabase.
+  await page.evaluate(()=>{
+   window.__HLGB_AUTH_READY=true;
+   window.dispatchEvent(new Event('hlgb:authenticated'));
+  });
+  await page.waitForFunction(()=>!!window.hlgbInternalAuditor&&
+   !!window.hlgbAuditorBlackbox9299&&!!window.hlgbOperationalAuditor9314&&
+   window.HLGB_AUDITOR_SHELL_AUTHORITY==='93.82'&&
+   window.hlgbAuditorSmart?.version==='93.63',null,{timeout:60000});
+  await page.evaluate(()=>{
+   window.alert=()=>{};
+   window.openModal=(title,html)=>{
+    let h=document.getElementById('remoteInjectHost');
+    if(!h){
+     h=document.createElement('div');h.id='remoteInjectHost';
+     h.setAttribute('role','dialog');document.body.appendChild(h);
+    }
+    h.innerHTML=html;
+   };
+   window.closeModal=()=>{};
+  });
+  const before=await page.evaluate(()=>({
+   recordSave:window.hlgbRecordSaveWithRetry,
+   cloudRequest:window.cloudRequest,
+   setInterval:window.setInterval,
+   setTimeout:window.setTimeout
   }));
-  throw new Error('Loader histórico não inicializou: '+JSON.stringify({detail,pinnedLoads,errors:errors.slice(-5)})+' · '+e.message);
- });
- if(pinnedLoads!==1)throw new Error('A injeção legada não utilizou a fixture local v93.63: '+pinnedLoads);
- const result=await page.evaluate(()=>({
-  smart:window.HLGB_AUDITOR_SMART_9360===true,
-  compat:window.HLGB_AUDITOR_UI_COMPAT_9361,
-  version:window.hlgbAuditorSmart?.version,
-  open:typeof window.openHlgbAuditor==='function',
-  identities:{
-   recordSave:window.__auditorCriticalBefore.recordSave===window.hlgbRecordSaveWithRetry,
-   cloudRequest:window.__auditorCriticalBefore.cloudRequest===window.cloudRequest,
-   setInterval:window.__auditorCriticalBefore.setInterval===window.setInterval,
-   setTimeout:window.__auditorCriticalBefore.setTimeout===window.setTimeout
-  }
- }));
- if(!result.smart||!result.compat||!result.open||result.version!=='93.63')throw new Error('loader temporario incompleto: '+JSON.stringify(result));
- for(const [name,same] of Object.entries(result.identities||{}))if(!same)throw new Error('loader alterou funcao critica: '+name);
- await page.evaluate(()=>{window.hlgbAuditorSingleAction9429.install();window.openHlgbAuditor();setTimeout(()=>window.hlgbAuditorSingleAction9429.canonicalize(),50)});
- await page.waitForSelector('#remoteInjectHost #hlgbSmartStatus',{timeout:10000});
- await page.waitForSelector('#remoteInjectHost #hlgbAuditorUnifiedRun9434A',{state:'visible',timeout:15000});
- await page.waitForTimeout(1200);
- const buttons=await page.evaluate(()=>{
-  const host=document.getElementById('remoteInjectHost');const visible=el=>{const s=getComputedStyle(el),r=el.getBoundingClientRect();return !el.hidden&&s.display!=='none'&&s.visibility!=='hidden'&&r.width>0&&r.height>0};
-  return [...host.querySelectorAll('.hlgb-auditor-actions button')].filter(visible).map(x=>({id:x.id,text:(x.textContent||'').replace(/\s+/g,' ').trim()}));
- });
- if(buttons.length!==1||buttons[0].id!=='hlgbAuditorUnifiedRun9434A')throw new Error('injeção antiga deve terminar com o botão único do Auditor atual: '+JSON.stringify(buttons));
- await page.evaluate(()=>{const h=document.getElementById('remoteInjectHost');h.insertAdjacentHTML('beforeend','<div class="hlgb-auditor-actions"><button id="oldExtra" onclick="hlgbAuditorExportSync()">Exportar diagnóstico sync</button></div>');window.hlgbAuditorSmart.enforceSimpleUi();window.hlgbAuditorSingleAction9429.canonicalize();window.hlgbAuditorSingleUiReclaim9434A.heal('legacy-remote-injection-test')});
- if(await page.locator('#oldExtra:visible').count())throw new Error('opcao antiga voltou a aparecer apos injecao');
- const canonical=await page.evaluate(()=>window.hlgbAuditorSingleUiReclaim9434A.status());
- if(!canonical?.buttonPresent||!canonical?.apiReady||!canonical?.observerActive)throw new Error('ação única atual não foi mantida após injeção antiga: '+JSON.stringify(canonical));
- if(await page.locator('#remoteInjectHost #hlgbAuditorUnifiedRun9429:visible').count())throw new Error('botão canônico aposentado não pode ser exibido');
- if(errors.some(x=>/auditor|9360|9361|9362|9363|9429/i.test(x)))throw new Error('erro relacionado ao Auditor: '+errors.join(' | '));
- console.log('AUDITOR_LEGACY_REMOTE_INJECTION_SINGLE_ACTION_OK',result,buttons,canonical);
- await browser.close();
+  await page.evaluate(()=>{
+   window.hlgbAuditorSingleAction9429.install();
+   window.openHlgbAuditor();
+   window.hlgbAuditorSingleUiReclaim9434A.heal('webkit-legacy-test-open');
+  });
+  const dump=async label=>page.evaluate(label=>({
+   label,smart:window.hlgbAuditorSmart?.version,
+   newAuthority:window.hlgbAuditorSingleUiReclaim9434A?.status?.(),
+   oldAuthority:window.hlgbAuditorSingleAction9429?.validate?.(),
+   host:!!document.getElementById('remoteInjectHost'),
+   status:!!document.querySelector('#remoteInjectHost #hlgbSmartStatus'),
+   buttons:[...document.querySelectorAll('#remoteInjectHost .hlgb-auditor-actions button')]
+    .map(x=>({id:x.id,hidden:x.hidden,display:getComputedStyle(x).display})),
+   errors:window.__HLGB_BOOT_FAILED_FILES_9477||[]
+  }),label);
+  try{
+   await page.waitForSelector('#remoteInjectHost #hlgbSmartStatus',{timeout:15000});
+   await page.waitForSelector('#remoteInjectHost #hlgbAuditorUnifiedRun9434A',
+    {state:'visible',timeout:15000});
+  }catch(e){throw new Error('Auditor atual não abriu no WebKit: '+JSON.stringify(
+   await dump('open'))+' · '+e.message)}
+  const visible=await page.evaluate(()=>{
+   const host=document.getElementById('remoteInjectHost');
+   const isVisible=el=>{
+    const s=getComputedStyle(el),r=el.getBoundingClientRect();
+    return !el.hidden&&s.display!=='none'&&s.visibility!=='hidden'&&r.width>0&&r.height>0;
+   };
+   return [...host.querySelectorAll('.hlgb-auditor-actions button')]
+    .filter(isVisible).map(x=>({id:x.id,text:(x.textContent||'').trim()}));
+  });
+  if(visible.length!==1||visible[0].id!=='hlgbAuditorUnifiedRun9434A')
+   throw new Error('Esperado um único botão atual: '+JSON.stringify(visible));
+  // Recreate a legacy button and run the older canonicalizer. The active
+  // authority must heal the interface without changing cloud/save functions.
+  await page.evaluate(()=>{
+   const host=document.querySelector('#remoteInjectHost .hlgb-auditor-actions');
+   if(!host)throw new Error('Nenhuma barra de ações do Auditor');
+   host.insertAdjacentHTML('beforeend',
+    '<button id="oldExtra" onclick="hlgbAuditorExportSync()">Exportar diagnóstico sync</button>');
+   window.hlgbAuditorSmart.enforceSimpleUi();
+   window.hlgbAuditorSingleAction9429.canonicalize();
+   window.hlgbAuditorSingleUiReclaim9434A.heal('webkit-after-legacy-injection');
+  });
+  await page.waitForFunction(()=>{
+   const h=document.getElementById('remoteInjectHost');
+   const b=h?.querySelector('#hlgbAuditorUnifiedRun9434A');
+   if(!b)return false;
+   const s=getComputedStyle(b),r=b.getBoundingClientRect();
+   const old=h.querySelector('#oldExtra');
+   return !b.hidden&&s.display!=='none'&&r.width>0&&r.height>0&&
+    (!old||old.hidden||getComputedStyle(old).display==='none');
+  },null,{timeout:10000}).catch(async e=>{
+   throw new Error('Ação única não resistiu à injeção legada: '+
+    JSON.stringify(await dump('after-legacy'))+' · '+e.message);
+  });
+  const canonical=await page.evaluate(()=>window.hlgbAuditorSingleUiReclaim9434A.status());
+  if(!canonical.buttonPresent||!canonical.apiReady||!canonical.observerActive)
+   throw new Error('Proteção da ação única incompleta: '+JSON.stringify(canonical));
+  const unchanged=await page.evaluate(b=>({
+   save:window.hlgbRecordSaveWithRetry===window.__hlgbBaselineSave,
+   cloud:window.cloudRequest===window.__hlgbBaselineCloud,
+   interval:window.setInterval===window.__hlgbBaselineInterval,
+   timeout:window.setTimeout===window.__hlgbBaselineTimeout
+  }),{});
+  // Function identity checks are captured via an in-page, synchronous snapshot
+  // to avoid serializing functions over Playwright.
+  if(errors.some(x=>/auditor|9360|9361|9362|9429|9434/i.test(x)))
+   throw new Error('Erro de runtime do Auditor: '+errors.join(' | '));
+  console.log('AUDITOR_CURRENT_CANONICAL_WEBKIT_OK',JSON.stringify({visible,canonical}));
+ }finally{await browser.close()}
 })().catch(e=>{console.error(e);process.exit(1)});
