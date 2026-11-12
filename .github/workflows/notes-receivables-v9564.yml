@@ -1,0 +1,54 @@
+name: HLGB Notas e Recebimentos v95.64
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'app-stable3.html'
+      - 'release-notes-receivables-v9564.js'
+      - 'tests/notes-receivables-v9564*'
+      - '.github/workflows/notes-receivables-v9564.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'app-stable3.html'
+      - 'release-notes-receivables-v9564.js'
+      - 'tests/notes-receivables-v9564*'
+      - '.github/workflows/notes-receivables-v9564.yml'
+permissions:
+  contents: read
+jobs:
+  logic:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - run: node --check release-notes-receivables-v9564.js
+      - run: node --check tests/notes-receivables-v9564.cjs
+      - run: node --test tests/notes-receivables-v9564.cjs
+  browser:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 18
+    strategy:
+      fail-fast: false
+      matrix:
+        browser: [chromium, webkit]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Instalar navegador e Playwright
+        run: |
+          npm install --no-save playwright@1.55.0
+          npx playwright install --with-deps ${{ matrix.browser }}
+      - name: Servir teste isolado
+        run: |
+          python3 -m http.server 4173 >/tmp/hlgb-notas-v9564.log 2>&1 &
+          sleep 2
+      - name: Testar notas no Chrome e WebKit
+        env:
+          HLGB_BROWSER: ${{ matrix.browser }}
+        run: node tests/notes-receivables-v9564-browser.cjs
