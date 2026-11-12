@@ -1,0 +1,36 @@
+name: HLGB CI Truthful Diagnostics v95.48
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'tests/monitor-bot-visible-link-v9545.cjs'
+      - 'tests/monitor-bot-access-v9543.cjs'
+      - 'tests/realtime-revision-guard-v9465.cjs'
+      - 'release-auditor-authority-map-v9374.js'
+      - '.github/workflows/printer3d-entry-v9516.yml'
+      - 'tests/ci-workflow-structure-v9548.cjs'
+      - '.github/workflows/ci-truthful-diagnostics-v9548.yml'
+  push:
+    branches: [main]
+permissions:
+  contents: read
+jobs:
+  regression:
+    runs-on: ubuntu-latest
+    timeout-minutes: 7
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Verify read-only health monitor tests
+        run: |
+          node --test tests/monitor-bot-access-v9543.cjs
+          node --test tests/monitor-bot-visible-link-v9545.cjs
+          node --test tests/auditor-hourly-health-panel-v9541.cjs
+      - name: Verify realtime local-pending protection (no Supabase write)
+        run: node tests/realtime-revision-guard-v9465.cjs
+      - name: Verify audit authority map remains read-only
+        run: node tests/auditor-authority-map-v9374.js
+      - name: Verify printer3D workflow structure
+        run: node tests/ci-workflow-structure-v9548.cjs

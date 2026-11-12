@@ -273,7 +273,7 @@ function decorate(){
  const parent=host.parentElement;
  // v95.04: the official Auditor deliberately hides every extra toolbar action
  // to keep a single 'Auditar e corrigir' button. Maintenance must live outside
- // .hlgb-auditor-actions, or its visibility is reverted by a MutationObserver.
+ // .hlgb-auditor-actions, or the official Auditor can hide the extra control again.
  let launcher=parent.querySelector('#hlgbHygieneLauncher9504');
  if(!launcher){
   launcher=document.createElement('div');

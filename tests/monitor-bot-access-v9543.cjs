@@ -23,6 +23,7 @@ test('standalone monitor does not need operational data or Supabase writes',()=>
 test('when GitHub API is unavailable, download still exports truthful failure diagnostic',()=>{
  assert.match(panel,/hlgb-hourly-health-access-diagnostic/);
  assert.match(panel,/status:'not_verified'/);
- assert.match(panel,/if\(d\)d.disabled=false/);
+ assert.match(panel,/if\(d\)d.disabled=!latest&&!error/);
+ assert.match(panel,/if\(!latest&&!error\)return false/);
  assert.doesNotThrow(()=>new vm.Script(panel));
 });
