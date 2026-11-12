@@ -114,7 +114,8 @@ async function saveRecord(module,record){
  if(typeof window.cloudEnsureFreshSession==='function')await window.cloudEnsureFreshSession(false);
  const out=await save(module,sid(record.id),JSON.parse(JSON.stringify(record)),false);
  if(!out||out.applied!==true)throw Error(out?.reason||'A nuvem não confirmou a gravação.');
- const next=out.data||record,collection=arr(module),i=collection.findIndex(x=>sid(x?.id)===sid(record.id));
+ const next=out.data||record,database=dbRef();if(!Array.isArray(database[module]))database[module]=[];
+ const collection=database[module],i=collection.findIndex(x=>sid(x?.id)===sid(record.id));
  if(i>=0)collection[i]=next;else collection.push(next);
  try{window.localSaveOnly?.()}catch(_){}
  return next;
@@ -132,6 +133,7 @@ async function persistDraft(input,receipt){
    id=draft?.groupId||makeId('faction-manual'),ts=new Date().toISOString();
   if(!draft)draft={groupId:id,createdAt:ts,receipt:null};
   if(receipt)draft.receipt=receipt;
+  if(!parsed.lines.every(x=>x.id))throw Error('Uma linha perdeu sua identificação. Reabra o formulário antes de salvar.');
   for(let i=0;i<parsed.lines.length;i++){
    const row=parsed.lines[i],existing=arr('factionPayments').find(x=>sid(x.id)===sid(row.id));
    const obj={...existing,id:row.id,source:'faction_manual_payment_v1',manual:true,
