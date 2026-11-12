@@ -35,26 +35,36 @@ const {webkit}=require('playwright');
  // O resultado base pode ficar vazio/oculto até uma análise ser acionada. O contrato real
  // é o botão de Arquitetura existir e o mapa ser renderizado depois do clique.
  await page.waitForSelector('#authority9374Host #hlgbAuditorResult',{state:'attached',timeout:10000});
- await page.waitForSelector('#authority9374Host #hlgbAuthorityBtn9374',{state:'visible',timeout:10000});
- await page.click('#authority9374Host #hlgbAuthorityBtn9374',{timeout:10000});
+ // O botão de arquitetura v93.74 continua no DOM, mas a UI canônica do
+ // Auditor o oculta de propósito. A prova do mapa usa sua API SOMENTE LEITURA.
+ const proof=await page.evaluate(()=>{
+   const btn=document.querySelector('#authority9374Host #hlgbAuthorityBtn9374');
+   if(btn&&!btn.hidden&&getComputedStyle(btn).display!=='none')
+    throw new Error('O botão antigo do mapa ficou indevidamente visível');
+   const before={save:window.hlgbRecordSaveWithRetry,cloud:window.cloudRequest,
+    open:window.openHlgbAuditor,interval:window.setInterval,timeout:window.setTimeout};
+   const report=window.hlgbAuditorAuthorityScan9374();
+   return {kind:report?.kind,refs:{
+    save:before.save===window.hlgbRecordSaveWithRetry,
+    cloud:before.cloud===window.cloudRequest,
+    open:before.open===window.openHlgbAuditor,
+    setInterval:before.interval===window.setInterval,
+    setTimeout:before.timeout===window.setTimeout
+   }};
+ });
+ if(proof.kind!=='hlgb_authority_map'||Object.values(proof.refs).some(v=>!v))
+  throw new Error('O mapa alterou autoridade ou função crítica: '+JSON.stringify(proof));
  await page.waitForSelector('#authority9374Host #hlgbAuthorityMap9374',{state:'visible',timeout:10000});
  const out=await page.evaluate(()=>{
    const r=window.hlgbAuditorAuthority9374.last||window.hlgbAuditorAuthority9374.scan();
-   const refs={
-     save:window.__authorityRefs.save===window.hlgbRecordSaveWithRetry,
-     cloud:window.__authorityRefs.cloud===window.cloudRequest,
-     open:window.__authorityRefs.open===window.openHlgbAuditor,
-     setInterval:window.__authorityRefs.setInterval===window.setInterval,
-     setTimeout:window.__authorityRefs.setTimeout===window.setTimeout
-   };
-   return {refs,kind:r.kind,version:r.version,families:(r.families||[]).map(x=>x.id),title:window.__authorityTitle||'',text:document.getElementById('hlgbAuthorityMap9374')?.textContent||''};
+   return {kind:r.kind,version:r.version,families:(r.families||[]).map(x=>x.id),title:window.__authorityTitle||'',text:document.getElementById('hlgbAuthorityMap9374')?.textContent||''};
  });
- for(const key of ['save','cloud','setInterval','setTimeout'])if(!out.refs[key])throw new Error('Mapa de autoridades alterou função crítica '+key+' refs='+JSON.stringify(out.refs));
+ for(const key of ['save','cloud','setInterval','setTimeout'])if(!proof.refs[key])throw new Error('Mapa de autoridades alterou função crítica '+key+' refs='+JSON.stringify(proof.refs));
  if(out.kind!=='hlgb_authority_map')throw new Error('Relatório de autoridade inválido: '+JSON.stringify(out));
  if(!/^\d+\.\d+$/.test(String(out.version||''))||Number(out.version)<93.74)throw new Error('Versão do mapa regrediu abaixo da base 93.74: '+JSON.stringify(out));
  for(const id of ['hub','production','sync','auditor'])if(!out.families.includes(id))throw new Error('Família ausente: '+id);
  if(!/Arquitetura \/ Versões \/ Autoridades/i.test(out.text))throw new Error('Painel de arquitetura não apareceu');
  if(errors.some(x=>/authority|9374|auditor/i.test(x)))throw new Error('Erro WebKit relacionado ao mapa de autoridades: '+errors.join(' | '));
- console.log('AUDITOR_AUTHORITY_WEBKIT_OK',{version:out.version,families:out.families,refs:out.refs});
+ console.log('AUDITOR_AUTHORITY_WEBKIT_OK',{version:out.version,families:out.families,refs:proof.refs});
  await browser.close();
 })().catch(e=>{console.error(e);process.exit(1)});

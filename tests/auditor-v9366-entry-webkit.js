@@ -18,7 +18,8 @@ const {webkit}=require('playwright');
   });
   await page.waitForFunction(()=>!!window.hlgbInternalAuditor&&
    !!window.hlgbAuditorBlackbox9299&&!!window.hlgbOperationalAuditor9314&&
-   !!document.getElementById('hlgbAuditorNavBtn'),null,{timeout:60000});
+   !!document.getElementById('hlgbAuditorNavBtn')&&
+   window.HLGB_AUDITOR_SHELL_AUTHORITY==='93.82',null,{timeout:60000});
   await page.evaluate(()=>{
    window.alert=()=>{};
    window.closeModal=()=>{};
@@ -33,11 +34,23 @@ const {webkit}=require('playwright');
   });
   await page.evaluate(()=>{
    const b=document.getElementById('hlgbAuditorNavBtn');
-   if(!b||typeof b.onclick!=='function')throw Error('Menu não abriu: onclick ausente');
-   b.onclick.call(b,new MouseEvent('click',{bubbles:true}));
-   window.hlgbAuditorSingleUiReclaim9434A.heal('webkit-menu-open');
+   if(!b||typeof window.hlgbAuditorShell9382?.open!=='function')
+    throw Error('Menu não pronto: autoridade do Auditor ausente');
+   // Clique real percorre o DOM e o listener capture do shell v93.82.
+   // Invocar b.onclick() isoladamente NÃO equivale a clicar no menu.
+   b.dispatchEvent(new MouseEvent('click',{bubbles:true,cancelable:true}));
+   window.hlgbAuditorSingleUiReclaim9434A.heal('webkit-real-menu-click');
   });
-  await page.waitForSelector('#entry9366Host #hlgbSmartStatus',{timeout:10000});
+  await page.waitForSelector('#entry9366Host #hlgbSmartStatus',{timeout:15000}).catch(async e=>{
+   const state=await page.evaluate(()=>({
+    shell:window.HLGB_AUDITOR_SHELL_AUTHORITY,
+    open:typeof window.openHlgbAuditor,
+    host:!!document.getElementById('entry9366Host'),
+    title:window.__entry9366Title||'',
+    modal:!!window.openModal,button:document.getElementById('hlgbAuditorNavBtn')?.outerHTML.slice(0,300)
+   }));
+   throw Error('Clique real não abriu janela: '+JSON.stringify(state)+' · '+e.message);
+  });
   await page.waitForSelector('#entry9366Host #hlgbAuditorUnifiedRun9434A',
    {state:'visible',timeout:15000});
   const buttons=await page.locator('#entry9366Host .hlgb-auditor-actions button:visible')
