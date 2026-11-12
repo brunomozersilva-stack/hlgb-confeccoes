@@ -6,8 +6,10 @@ on:
       - 'app-stable3.html'
       - 'release-notes-receivables-v9564.js'
       - 'release-acerto-returns-v9565.js'
+      - 'release-faction-manual-payment-v9566.js'
       - 'tests/notes-receivables-v9564*'
       - 'tests/acerto-returns-v9565.cjs'
+      - 'tests/faction-manual-v9566*'
       - '.github/workflows/notes-receivables-v9564.yml'
   push:
     branches: [main]
@@ -15,8 +17,10 @@ on:
       - 'app-stable3.html'
       - 'release-notes-receivables-v9564.js'
       - 'release-acerto-returns-v9565.js'
+      - 'release-faction-manual-payment-v9566.js'
       - 'tests/notes-receivables-v9564*'
       - 'tests/acerto-returns-v9565.cjs'
+      - 'tests/faction-manual-v9566*'
       - '.github/workflows/notes-receivables-v9564.yml'
 permissions:
   contents: read
@@ -34,6 +38,9 @@ jobs:
       - run: node --test tests/notes-receivables-v9564.cjs
       - run: node --check release-acerto-returns-v9565.js
       - run: node tests/acerto-returns-v9565.cjs
+      - run: node --check release-faction-manual-payment-v9566.js
+      - run: node --check tests/faction-manual-v9566.cjs
+      - run: node tests/faction-manual-v9566.cjs
   browser:
     runs-on: ubuntu-24.04
     timeout-minutes: 18
@@ -57,4 +64,6 @@ jobs:
       - name: Testar notas no Chrome e WebKit
         env:
           HLGB_BROWSER: ${{ matrix.browser }}
-        run: node tests/notes-receivables-v9564-browser.cjs
+        run: |
+          node tests/notes-receivables-v9564-browser.cjs
+          node tests/faction-manual-v9566-browser.cjs
