@@ -5,14 +5,18 @@ on:
     paths:
       - 'app-stable3.html'
       - 'release-notes-receivables-v9564.js'
+      - 'release-acerto-returns-v9565.js'
       - 'tests/notes-receivables-v9564*'
+      - 'tests/acerto-returns-v9565.cjs'
       - '.github/workflows/notes-receivables-v9564.yml'
   push:
     branches: [main]
     paths:
       - 'app-stable3.html'
       - 'release-notes-receivables-v9564.js'
+      - 'release-acerto-returns-v9565.js'
       - 'tests/notes-receivables-v9564*'
+      - 'tests/acerto-returns-v9565.cjs'
       - '.github/workflows/notes-receivables-v9564.yml'
 permissions:
   contents: read
@@ -28,6 +32,8 @@ jobs:
       - run: node --check release-notes-receivables-v9564.js
       - run: node --check tests/notes-receivables-v9564.cjs
       - run: node --test tests/notes-receivables-v9564.cjs
+      - run: node --check release-acerto-returns-v9565.js
+      - run: node tests/acerto-returns-v9565.cjs
   browser:
     runs-on: ubuntu-24.04
     timeout-minutes: 18
