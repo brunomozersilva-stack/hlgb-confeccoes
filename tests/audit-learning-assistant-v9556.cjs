@@ -3,8 +3,9 @@ const fs=require('node:fs');
 const vm=require('node:vm');
 const path=require('node:path');
 const script=fs.readFileSync(path.join(__dirname,'..','release-auditor-learning-assistant-v9556.js'),'utf8');
-const launcher=fs.readFileSync(path.join(__dirname,'..','app-stable3.html'),'utf8');
-assert.match(launcher,/release-auditor-learning-assistant-v9556\.js/);
+const loader=fs.readFileSync(path.join(__dirname,'..','release-auditor-autocorrect-v9448.js'),'utf8');
+assert.match(loader,/release-auditor-learning-assistant-v9556\.js/);
+assert.match(loader,/hlgb:authenticated/);
 const storage=new Map(),writes=[];
 const localStorage={
  getItem(k){return storage.has(k)?storage.get(k):null},
