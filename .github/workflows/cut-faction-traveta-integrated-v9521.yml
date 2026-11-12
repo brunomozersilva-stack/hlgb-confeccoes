@@ -10,6 +10,7 @@ on:
       - 'tests/cut-post-finish-queue-v9519.cjs'
       - 'tests/faction-operations-v9520.cjs'
       - 'tests/cut-faction-traveta-*'
+      - 'tests/click-sophia-grade-v9561-browser.cjs'
       - 'tests/faction-material-refresh-v9522.cjs'
       - '.github/workflows/cut-faction-traveta-integrated-v9521.yml'
   push:
@@ -19,6 +20,7 @@ on:
       - 'release-cut-model-split.js'
       - 'release-faction-operations-v9520.js'
       - 'tests/cut-faction-traveta-*'
+      - 'tests/click-sophia-grade-v9561-browser.cjs'
       - '.github/workflows/cut-faction-traveta-integrated-v9521.yml'
 permissions:
   contents: read
@@ -31,6 +33,8 @@ jobs:
       - uses: actions/setup-node@v4
         with: {node-version: '20'}
       - run: node --check release-cut-model-split.js
+      - run: node --check release-cut-model-grade-adjust.js
+      - run: node --check tests/click-sophia-grade-v9561-browser.cjs
       - run: node --check release-faction-safe-adjust-v9514.js
       - run: node --check release-faction-operations-v9520.js
       - run: node --check release-faction-material-refresh-v9522.js
@@ -59,7 +63,9 @@ jobs:
       - name: Chrome and Safari integrated smoke
         env:
           HLGB_BROWSER: ${{ matrix.browser }}
-        run: node tests/cut-faction-traveta-v9521-browser.cjs
+        run: |
+          node tests/cut-faction-traveta-v9521-browser.cjs
+          node tests/click-sophia-grade-v9561-browser.cjs
       - name: Verify Crystal and Melanie technical-sheet refresh on browser
         env:
           HLGB_BROWSER: ${{ matrix.browser }}
