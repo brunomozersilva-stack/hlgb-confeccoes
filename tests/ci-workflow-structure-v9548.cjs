@@ -1,0 +1,10 @@
+'use strict';
+const assert=require('node:assert/strict');
+const fs=require('node:fs');
+const yaml=fs.readFileSync('.github/workflows/printer3d-entry-v9516.yml','utf8');
+assert.ok(yaml.includes("      - 'release-internal-auditor.js'\n      - 'release-printer3d-nav-guard-v9516.js'"));
+assert.ok(yaml.includes('      - run: node --check release-internal-auditor.js\n      - run: node --check release-printer3d-nav-guard-v9516.js'));
+assert.ok(!yaml.includes('\\n      - '),'Workflow YAML must have real newlines, not literal \\n strings');
+assert.ok(yaml.includes('jobs:\n  logic:\n'));
+assert.ok(yaml.includes('  browser:\n'));
+console.log('PASS printer3d workflow syntax: jobs and steps have proper line breaks');
