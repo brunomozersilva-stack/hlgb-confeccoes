@@ -71,6 +71,14 @@ const engine=process.env.HLGB_BROWSER==='webkit'?webkit:chromium;
   await page.locator('#modal').waitFor({state:'detached'});
   assert.equal(await page.evaluate(()=>window.db.factionPayments.length),3);
   assert.equal(await page.evaluate(()=>window.db.hubFinanceEntries.length),1,'pending payment cannot appear as paid in Hub');
+  // A proof can also be attached after a manual payment has been recorded.
+  const attach=page.locator('#fm66-receipts .fm66-attach').first();
+  assert.equal(await attach.count(),1,'existing manual payment without PDF offers attachment');
+  await page.locator('#fm66-receipts .fm66-attach-input').first().setInputFiles({name:'comprovante-pendente.pdf',mimeType:'application/pdf',buffer:pdf});
+  await attach.click();
+  await page.waitForFunction(()=>window.db.factionPayments.some(p=>p.factionName==='Ge'&&p.receiptPdfV9566?.name==='comprovante-pendente.pdf'));
+  assert.equal(await page.evaluate(()=>window.db.factionPayments.find(x=>x.factionName==='Ge').status),'Pendente','adding a PDF cannot mark pending as paid');
+  assert.equal(await page.locator('#fm66-receipts .fm66-download').count(),2,'both proofs must remain downloadable');
   await page.setViewportSize({width:390,height:850});
   await page.locator('#hlgbFactionManualPaymentBtn').click();
   assert.equal(await page.locator('#fm66-faction').isVisible(),true);
