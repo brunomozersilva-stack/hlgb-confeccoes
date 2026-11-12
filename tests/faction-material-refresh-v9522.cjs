@@ -54,7 +54,7 @@ function setup({checked=false,pending=false,lostResponse=false}= {}){
  };
  const document={readyState:'loading',addEventListener(){},getElementById:()=>null};
  const ctx={console,Date,Number,String,Array,Map,Set,Math,JSON,Object,Promise,db,document,window:null,
- localStorage,indexedDB,cloudRequest,cloudEnsureFreshSession:async()=>true,__HLGB_AUTH_READY:true,
+ localStorage,indexedDB:idb,cloudRequest,cloudEnsureFreshSession:async()=>true,__HLGB_AUTH_READY:true,
  navigator:{onLine:true},hlgbRecordSnapshots:snap,hlgbRecordLastSeen:{materialChecklists:''},
  setTimeout(){return 0},localSaveOnly(){cacheWrites++},renderDestinationChecklists(){}};
  ctx.window=ctx;vm.createContext(ctx);vm.runInContext(source,ctx);
