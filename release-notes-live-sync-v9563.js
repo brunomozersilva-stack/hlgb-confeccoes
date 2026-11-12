@@ -74,6 +74,19 @@ function applyRows(rows,protectedIds){
  }
  return {applied,protected:protectedCount,newNotes};
 }
+// Targeted note reads are not a complete database delta. Keep the all-module
+// cursor unchanged, or unrelated orders/cuts can become invisible to later pulls.
+function applyWithoutAdvancingCursor(rows,protectedIds){
+ const hasGlobal=typeof hlgbRecordGlobalLastSeen!=='undefined';
+ const globalBefore=hasGlobal?hlgbRecordGlobalLastSeen:null;
+ const hasModules=typeof hlgbRecordLastSeen!=='undefined'&&hlgbRecordLastSeen;
+ const seenBefore=hasModules?Object.fromEntries(MODULES.map(m=>[m,hlgbRecordLastSeen[m]])):null;
+ try{return applyRows(rows,protectedIds)}
+ finally{
+  if(hasGlobal)hlgbRecordGlobalLastSeen=globalBefore;
+  if(hasModules)for(const m of MODULES)hlgbRecordLastSeen[m]=seenBefore[m];
+ }
+}
 function invoiceRows(){const d=data(),fn=window.hlgbCanonicalProjectionInvoices;
  try{const x=typeof fn==='function'?fn():d?.projectionInvoices;return Array.isArray(x)?x:[]}
  catch(_){return Array.isArray(d?.projectionInvoices)?d.projectionInvoices:[]}}
@@ -139,7 +152,7 @@ async function refresh(reason='manual',force=false){
   // Recheck after network wait so new edits performed during the request stay protected.
   await guardWal();const current=pendingIds();
   for(const x of before)current.add(x);
-  const out=applyRows(rows,current);
+  const out=applyWithoutAdvancingCursor(rows,current);
   state.serverRows=rows.length;state.applied=out.applied;state.protected=out.protected;
   state.newNotes=out.newNotes;state.lastAt=new Date().toISOString();state.checks++;
   state.unverified=false;lastCheck=Date.now();
@@ -162,7 +175,9 @@ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',
 window.addEventListener('hlgb:authenticated',()=>setTimeout(()=>refresh('login',true),1100));
 window.addEventListener('focus',()=>setTimeout(()=>refresh('focus',false),250));
 document.addEventListener('visibilitychange',()=>{if(!document.hidden)setTimeout(()=>refresh('visivel',false),280)});
-document.addEventListener('click',e=>{const btn=e.target?.closest?.('button');if(!btn)return;
+document.addEventListener('focusout',()=>{if(state.pendingVisual)setTimeout(()=>{if(!editing())redraw()},120)});
+document.addEventListener('click',e=>{if(state.pendingVisual)setTimeout(()=>{if(!editing())redraw()},150);
+ const btn=e.target?.closest?.('button');if(!btn)return;
  const t=sid(btn.textContent).toLowerCase();
  if(/notas|proje[cç][aã]o/.test(t))setTimeout(()=>refresh('abrir-notas',false),330);
 },true);
