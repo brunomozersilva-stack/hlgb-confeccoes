@@ -17,6 +17,7 @@ const assert=require('node:assert/strict');
   const panel=page.locator('#faccoes > #hlgbFactionOpsPanel9520');
   assert.equal(await panel.count(),1,'Panel must be visible directly in Facções (not hidden near the table)');
   assert.match(await panel.innerText(),/Trocar facção \/ alterar preço de um envio/);
+  await panel.locator('#hlgbFactionOpsDetails9531 > summary').click();
   await panel.locator('#hlgbFactionOpsSearch9520').fill('Cueca');
   assert.match(await panel.innerText(),/Cueca Boxer Emerson/);
   assert.match(await panel.innerText(),/R\$\s?1,25/);
