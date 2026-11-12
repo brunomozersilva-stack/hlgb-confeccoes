@@ -1025,7 +1025,7 @@ function boot(){
   if(document.getElementById('appShell')?.style.display==='block')setTimeout(()=>loadRuns(),500);
   reinjectNavAfterAuth();
 }
-window.addEventListener('hlgb:authenticated',reinjectNavAfterAuth);
+window.addEventListener?.('hlgb:authenticated',reinjectNavAfterAuth);
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',boot,{once:true});else boot();
 console.info('[HLGB] Auditor/Testador interno '+VERSION+' carregado');
 })();
