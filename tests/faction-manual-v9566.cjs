@@ -71,6 +71,11 @@ const before=JSON.stringify(db.products);
  assert.equal(db.factionPayments.length,2,'retry cannot duplicate lines');
  assert.equal(db.hubFinanceEntries.length,1,'retry cannot duplicate hub');
  assert.equal(api.receiptGroups().filter(x=>x.receipt).length,1);
+ await assert.rejects(()=>api.attachReceiptToGroup(first.groupId,file),/já possui comprovante/,'no silent overwrite of a previous receipt');
+ const pendingInput={...input,status:'Pendente',factionName:'Ge',lines:[{id:'pending-1',kind:'product',productId:21,quantity:2,unitPrice:1.7,priceOrigin:'manual'}]};
+ // Existing draft is kept during retry; a newly opened form creates a new group.
+ // Validate here that no price was invented for a product without factionCost.
+ assert.equal(api.validate(pendingInput).total,3.4);
  failId='traveta-1';
  await assert.rejects(()=>api.persistDraft(input,null),/1 linha\(s\)/,'partial save must report count');
  assert.equal(db.factionPayments.length,2);
