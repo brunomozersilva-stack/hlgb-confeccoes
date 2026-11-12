@@ -4,6 +4,10 @@ on:
     branches: [main]
     paths:
       - 'release-cutter-sheet-materials-v9523.js'
+      - 'release-cut-model-split.js'
+      - 'release-cut-model-grade-adjust.js'
+      - 'tests/audit-cyrlene-penelope-cut-v9559.cjs'
+      - 'tests/cyrlene-penelope-cutter-v9559-browser.cjs'
       - 'app-stable3.html'
       - 'tests/cutter-sheet-materials-v9523*'
       - '.github/workflows/cutter-sheet-materials-v9523.yml'
@@ -11,6 +15,10 @@ on:
     branches: [main]
     paths:
       - 'release-cutter-sheet-materials-v9523.js'
+      - 'release-cut-model-split.js'
+      - 'release-cut-model-grade-adjust.js'
+      - 'tests/audit-cyrlene-penelope-cut-v9559.cjs'
+      - 'tests/cyrlene-penelope-cutter-v9559-browser.cjs'
       - 'app-stable3.html'
       - 'tests/cutter-sheet-materials-v9523*'
       - '.github/workflows/cutter-sheet-materials-v9523.yml'
@@ -28,8 +36,13 @@ jobs:
         run: |
           node --check release-cutter-sheet-materials-v9523.js
           node --check tests/cutter-sheet-materials-v9523.cjs
+          node --check release-cut-model-split.js
+          node --check release-cut-model-grade-adjust.js
+          node --check tests/audit-cyrlene-penelope-cut-v9559.cjs
       - name: Validate grade, technical sheet, no-ficha and no-write tests
-        run: node --test tests/cutter-sheet-materials-v9523.cjs
+        run: |
+          node --test tests/cutter-sheet-materials-v9523.cjs
+          node --test tests/audit-cyrlene-penelope-cut-v9559.cjs
   browser:
     runs-on: ubuntu-latest
     timeout-minutes: 18
@@ -48,4 +61,6 @@ jobs:
       - name: Test printable sheet in browser with synthetic data
         env:
           HLGB_BROWSER: ${{ matrix.browser }}
-        run: node tests/cutter-sheet-materials-v9523-browser.cjs
+        run: |
+          node tests/cutter-sheet-materials-v9523-browser.cjs
+          node tests/cyrlene-penelope-cutter-v9559-browser.cjs
