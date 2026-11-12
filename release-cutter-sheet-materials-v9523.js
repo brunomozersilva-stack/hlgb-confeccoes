@@ -120,6 +120,11 @@ function renderSheet(o,c){
  const dense=extraColors(grade).length>=5?' dense-sheet':'';
  const when=sid(c.plannedCutDate||c.date||'').slice(0,10);
  const finalized=sid(c.status).toLowerCase()==='finalizado';
+ // The printed paper carries two fields to mark. Pre-mark only when a
+ // saved cutType is available; this rendering never modifies business data.
+ const cutType=sid(c.cutType||'').trim().toLocaleLowerCase('pt-BR');
+ const typeChoice='<span class="cut-type-check">'+(cutType==='interno'?'☑':'☐')+
+  ' Interno &nbsp; '+(cutType==='externo'?'☑':'☐')+' Externo</span>';
  const title=esc(p&&p.name||c.product||'Modelo');
  const cutterName=esc(cut&&cut.name||'_____________________');
  const cutter2Name=esc(cutter2&&cutter2.name||c.cutter2Name||'_____________________');
@@ -218,7 +223,7 @@ function renderSheet(o,c){
  '<div class="meta-field"><b>Cliente:</b> '+esc(o.client||'-')+'</div></div>'+
  '<div class="meta-column"><div class="meta-field"><b>Peças previstas:</b> '+fmt(pieces)+'</div>'+
  '<div class="meta-field"><b>Corte:</b> '+esc(c.id||'-')+'</div>'+
- '<div class="meta-field"><b>Tipo do corte:</b> '+esc(c.cutType||'___________')+'</div></div>'+
+ '<div class="meta-field"><b>Tipo do corte:</b> '+typeChoice+'</div></div>'+
  '<div class="meta-column"><div class="meta-field"><b>Data programada:</b> '+esc(when||'____/____/______')+'</div>'+
  '<div class="meta-field"><b>Status:</b> '+(finalized?'Finalizado':'Pendente / programado')+'</div>'+
  '<div class="meta-field"><b>Observação (geral):</b> ____________</div></div></div>'+
@@ -316,20 +321,53 @@ function renderOrderSheets(o){
   '</head><body><div class="tools"><button onclick="window.print()">Imprimir / salvar PDF</button></div>'+
   sections.join('')+'</body></html>';
 }
+// Safari may block a blank popup. Open a visible on-page preview instead,
+// without navigating away, erasing the page, or writing to any business data.
+function previewOnPage9523(html){
+ const body=document.body;
+ if(!body||typeof document.createElement!=='function'){
+  alert('Prévia de impressão indisponível. Verifique as permissões do navegador.');
+  return false;
+ }
+ document.getElementById('hlgbCutterSheetPreview9523')?.remove?.();
+ const overlay=document.createElement('div');
+ overlay.id='hlgbCutterSheetPreview9523';
+ overlay.setAttribute('role','dialog');
+ overlay.setAttribute('aria-label','Prévia da folha do cortador');
+ overlay.style.cssText='position:fixed;inset:0;z-index:110000;background:rgba(24,16,33,.78);padding:12px;display:flex;align-items:center;justify-content:center';
+ overlay.innerHTML='<div style="background:white;border-radius:10px;width:min(1050px,100%);height:min(95vh,100%);display:flex;flex-direction:column;overflow:hidden">'+
+  '<div style="padding:10px;display:flex;gap:8px;align-items:center;flex-wrap:wrap">'+
+  '<strong style="flex:1">Folha de corte — prévia para imprimir</strong>'+
+  '<button type="button" data-sheet-action="print">🖨️ Imprimir / salvar PDF</button>'+
+  '<button type="button" data-sheet-action="close">Fechar</button></div>'+
+  '<iframe title="Folha de grade para impressão" style="flex:1;border:0;width:100%;background:white"></iframe></div>';
+ body.appendChild(overlay);
+ const frame=overlay.querySelector('iframe');
+ frame.srcdoc=html;
+ overlay.querySelector('[data-sheet-action="print"]').onclick=()=>{
+  try{frame.contentWindow?.focus?.();frame.contentWindow?.print?.()}
+  catch(e){alert('Não foi possível imprimir. Verifique a permissão de impressão do navegador.')}
+ };
+ overlay.querySelector('[data-sheet-action="close"]').onclick=()=>overlay.remove();
+ return true;
+}
+function showPrintHtml9523(html){
+ let popup=null;
+ try{popup=typeof window.open==='function'?window.open('','_blank'):null}catch(e){popup=null}
+ if(popup){
+  try{
+   popup.document.open();popup.document.write(html);popup.document.close();
+   popup.focus?.();return true;
+  }catch(e){try{popup.close?.()}catch(_){}}
+ }
+ return previewOnPage9523(html);
+}
 function printOrderSheets(o){
  const html=renderOrderSheets(o);
  if(!html){alert('Pedido sem modelo ou grade vinculada. Confira o cadastro do corte antes de imprimir.');return false}
- const popup=window.open('','_blank');
- if(!popup)throw Error('O navegador bloqueou a janela de impressão. Autorize pop-ups e tente novamente.');
- popup.document.open();popup.document.write(html);popup.document.close();
- popup.focus();return true;
+ return showPrintHtml9523(html);
 }
-function printSheet(o,c){
- const popup=window.open('','_blank');
- if(!popup)throw Error('O navegador bloqueou a janela de impressão. Autorize pop-ups e tente novamente.');
- popup.document.open();popup.document.write(renderSheet(o,c));popup.document.close();
- popup.focus();return true;
-}
+function printSheet(o,c){return showPrintHtml9523(renderSheet(o,c))}
 // A ação nova fica disponível também nas linhas dos cortes tradicionais.
 function cutIdFromRow(tr){
  for(const b of tr.querySelectorAll('button[onclick]')){
@@ -385,7 +423,7 @@ function wrapped(orderId,cutId){
  }catch(e){console.warn('[HLGB '+V+']',e);alert(sid(e.message||e));return false}
 }
 wrapped.__hlgbCutterSheetV9523=true;
-if(typeof legacy==='function'&&!legacy.__hlgbCutterSheetV9523)window.printCuttingSheet=wrapped;
-window.hlgbCutterSheetV9523={gradeOf,planMaterials,gradeMatrix,renderSheet,printSheet,sheetsForOrder,renderOrderSheets,printOrderSheets,original:legacy,version:V};
+if(!legacy?.__hlgbCutterSheetV9523)window.printCuttingSheet=wrapped;
+window.hlgbCutterSheetV9523={gradeOf,planMaterials,gradeMatrix,renderSheet,printSheet,sheetsForOrder,renderOrderSheets,printOrderSheets,previewOnPage9523,original:legacy,version:V};
 console.info('[HLGB] '+V+' folha com ficha técnica e preenchimento manual ativa');
 })();
