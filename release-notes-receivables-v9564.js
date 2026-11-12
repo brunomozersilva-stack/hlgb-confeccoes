@@ -71,13 +71,13 @@ function allNotes(){
  return [...new Map(invoices.map(x=>[x.key,x])).values()];
 }
 function category(n,now=today()){
- if(n.balance<=1)return 'paid';
+ if(n.balance<=1)return n.credit>0?'compensated':'paid';
  if(!n.due)return 'unknown';
  return n.due<now?'overdue':n.due===now?'today':'upcoming';
 }
 function matchTab(n,tab,now){
  const k=category(n,now);
- return tab==='all'||(tab==='open'&&k!=='paid')||(tab==='paid'&&k==='paid')||
+ return tab==='all'||(tab==='open'&&n.balance>1)||(tab==='paid'&&k==='paid')||(tab==='compensated'&&k==='compensated')||
  (tab==='overdue'&&k==='overdue')||(tab==='upcoming'&&(k==='today'||k==='upcoming'));
 }
 function filterAll(rows){
@@ -101,21 +101,22 @@ function sortRows(rows){
  });
 }
 function calculate(rows,now=today()){
- const opened=rows.filter(x=>x.balance>1),paid=rows.filter(x=>x.balance<=1),
+ const opened=rows.filter(x=>x.balance>1),paid=rows.filter(x=>category(x,now)==='paid'),compensated=rows.filter(x=>category(x,now)==='compensated'),
  overdue=opened.filter(x=>category(x,now)==='overdue'),
  future=opened.filter(x=>['today','upcoming'].includes(category(x,now))),
  next7=future.filter(x=>days(x.due,now)<=7),
  todayRows=future.filter(x=>x.due===now),
  unknown=opened.filter(x=>!x.due);
  return {all:[rows.length,sum(rows,'total')],open:[opened.length,sum(opened,'balance')],
- paid:[paid.length,sum(paid,'total')],overdue:[overdue.length,sum(overdue,'balance')],
+ paid:[paid.length,sum(paid,'total')],compensated:[compensated.length,sum(compensated,'credit')],overdue:[overdue.length,sum(overdue,'balance')],
  upcoming:[future.length,sum(future,'balance')],next7:[next7.length,sum(next7,'balance')],
  today:[todayRows.length,sum(todayRows,'balance')],unknown:[unknown.length,sum(unknown,'balance')],
  received:[rows.filter(x=>x.paid>0).length,sum(rows,'paid')],credits:[rows.filter(x=>x.credit>0).length,sum(rows,'credit')]};
 }
 function label(n,now){
  const group=category(n,now),dist=days(n.due,now);
- if(group==='paid')return [n.credit>0?'Compensada por devolução':'Pago','ok'];
+ if(group==='paid')return ['Pago','ok'];
+ if(group==='compensated')return ['Compensada por devolução','ok'];
  if(group==='unknown')return ['Sem vencimento','warn'];
  if(group==='overdue')return ['Vencida há '+Math.abs(dist)+' dia(s)','bad'];
  if(group==='today')return ['Vence hoje','warn'];
@@ -226,13 +227,13 @@ function paint(){
  const now=today(),all=allNotes();clientOptions(root,all);
  const base=filterAll(all),tot=calculate(base,now);
  const filtered=sortRows(base.filter(x=>matchTab(x,state.tab,now)));
- const tabs=[['open','Em aberto'],['overdue','Vencidas'],['upcoming','A vencer'],['paid','Pagas'],['all','Todas']];
+ const tabs=[['open','Em aberto'],['overdue','Vencidas'],['upcoming','A vencer'],['paid','Pagas'],['compensated','Compensadas'],['all','Todas']];
  root.querySelector('#nr-stats').innerHTML=[['A receber','open'],['Recebido','received'],['Devoluções abatidas','credits'],['Vencidas','overdue'],['Vence hoje','today'],['Próximos 7 dias','next7'],['Sem vencimento','unknown']]
  .map(([label,key])=>'<div class="nr-stat"><small>'+label+'</small><strong>'+brl(tot[key][1])+'</strong><span class="sub">'+tot[key][0]+' nota(s)</span></div>').join('');
  root.querySelector('#nr-tabs').innerHTML=tabs.map(([key,label])=>
   '<button class="secondary" type="button" role="tab" data-action="tab" data-tab="'+key+'" aria-selected="'+(key===state.tab)+'">'+
   label+' ('+tot[key][0]+')<span style="display:block;font-size:12px">'+brl(tot[key][1])+'</span></button>').join('');
- const amount=state.tab==='paid'||state.tab==='all'?sum(filtered,'total'):sum(filtered,'balance');
+ const amount=state.tab==='compensated'?sum(filtered,'credit'):state.tab==='paid'||state.tab==='all'?sum(filtered,'total'):sum(filtered,'balance');
  root.querySelector('#nr-summary').innerHTML='<div class="nr-row"><b>'+filtered.length+' nota(s) · '+brl(amount)+'</b><span class="sub">Valores calculados sobre dados carregados. Pagamentos parciais deixam o saldo em aberto.</span></div>';
  const shown=filtered.slice(0,300);
  root.querySelector('#nr-table').innerHTML=shown.length?'<div class="nr-table"><table><thead><tr><th>Nota</th><th>Cliente</th><th>Emissão</th><th>Vencimento</th><th class="nr-money">Total</th><th class="nr-money">Recebido</th><th class="nr-money">Devoluções</th><th class="nr-money">Saldo</th><th>Situação</th><th>Ações</th></tr></thead><tbody>'+
