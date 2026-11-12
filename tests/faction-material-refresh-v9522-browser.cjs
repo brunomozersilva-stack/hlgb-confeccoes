@@ -29,7 +29,7 @@ const engine=process.env.HLGB_BROWSER==='webkit'?webkit:chromium;
   assert.match(faccoes,/Vanessa/);
   assert.match(first,/Short Doll Melanie/);
   assert.match(first,/0 linha\(s\) no envio \/ 4 na ficha/);
-  assert.match(first,/0 material\(is\) no envio \/ 6 na ficha/);
+  assert.match(first,/0 linha\(s\) no envio \/ 6 na ficha/);
   assert.equal(await page.evaluate(()=>window.__posts),0,'viewing old dispatch may not trigger write');
   // Old printing must be blocked until the updated checklist is reviewed.
   const unsafePrint=await page.evaluate(()=>{
