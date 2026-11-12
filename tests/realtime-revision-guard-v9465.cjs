@@ -4,10 +4,15 @@ const begin=app.indexOf('function hlgbApplyRecordRow(row){'),end=app.indexOf('fu
 assert(begin>=0&&end>begin,'record realtime applicator exists');
 assert(app.includes('if(!hlgbApplyRecordRow(row))return; // eco ou revisão antiga: não redesenhar'),'duplicate realtime event must not render');
 const db={products:[{id:'a',name:'Current'}]};
+const pendingIds=new Set();
 const base={data:{id:'a',name:'Current'},revision:5,updated_at:'2026-11-04T12:00:00Z',deleted_at:null};
 const snap={products:new Map([['a',base]])};
 const ctx={db,HLGB_RECORD_MODULES:['products'],hlgbRecordSnapshots:snap,hlgbRecordLastSeen:{products:base.updated_at},hlgbRecordGlobalLastSeen:base.updated_at,
- hlgbRecordId:(_module,x)=>String(x.id),hlgbRecordHydrateData:(_module,row)=>row.data,hlgbRecordClone:x=>JSON.parse(JSON.stringify(x)),Map,Array,Number,String,JSON,Object,console};
+ hlgbRecordId:(_module,x)=>String(x.id),hlgbRecordHydrateData:(_module,row)=>row.data,hlgbRecordClone:x=>JSON.parse(JSON.stringify(x)),
+ hlgbRecordPendingIdentitySet9535:()=>pendingIds,
+ hlgbRecordDataEqual:(a,b)=>JSON.stringify(a)===JSON.stringify(b),
+ Map,Array,Number,String,JSON,Object,console};
+ctx.window=ctx;
 vm.createContext(ctx);vm.runInContext(app.slice(begin,end),ctx);
 let old={module:'products',entity_id:'a',data:{id:'a',name:'STALE'},revision:4,updated_at:'2026-11-04T11:59:00Z',deleted_at:null};
 assert.equal(ctx.hlgbApplyRecordRow(old),false);
@@ -21,6 +26,13 @@ assert.equal(db.products[0].name,'Newest');
 assert.equal(ctx.hlgbApplyRecordRow(newer),false,'new echo should be ignored');
 assert.equal(ctx.hlgbApplyRecordRow(old),false,'out of order old revision still ignored');
 assert.equal(db.products[0].name,'Newest');
+// P0: evento mais novo nunca deve sobrescrever uma alteracao local pendente.
+pendingIds.add('products::a');
+const incoming={...newer,revision:7,updated_at:'2026-11-04T12:01:20Z',data:{id:'a',name:'remote-conflict'}};
+assert.equal(ctx.hlgbApplyRecordRow(incoming),false,'pending local edit is protected');
+assert.equal(db.products[0].name,'Newest','pending edit must not be overwritten');
+assert.equal(ctx.__HLGB_SYNC_PROTECTED_INCOMING_9535,1);
+pendingIds.delete('products::a');
 const deleted={...newer,revision:7,updated_at:'2026-11-04T12:02:00Z',deleted_at:'2026-11-04T12:02:00Z'};
 assert.equal(ctx.hlgbApplyRecordRow(deleted),true);
 assert.equal(db.products.length,0);
