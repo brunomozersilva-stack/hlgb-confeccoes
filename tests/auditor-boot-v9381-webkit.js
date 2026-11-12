@@ -4,7 +4,11 @@ const {webkit}=require('playwright');
  const page=await browser.newPage({viewport:{width:1280,height:900}});
  const errors=[];page.on('pageerror',e=>errors.push(String(e.message||e)));
  await page.goto('http://127.0.0.1:4173/app-stable3.html',{waitUntil:'domcontentloaded',timeout:60000});
- await page.waitForFunction(()=>!!document.getElementById('loginScreen')&&!!document.getElementById('appShell')&&window.HLGB_AUDITOR_BOOT_TIMELINE_9379==='93.79'&&window.HLGB_AUDITOR_CALL_TRACE_9380==='93.80'&&window.HLGB_AUDITOR_BOOT_ANALYSIS_9381==='93.81',null,{timeout:60000});
+ await page.waitForFunction(()=>!!document.getElementById('loginScreen')&&!!document.getElementById('appShell')&&
+  typeof window.hlgbBootTimeline9379?.snapshot==='function'&&
+  typeof window.hlgbAuditorCallTrace9380?.snapshot==='function'&&
+  typeof window.hlgbAuditorBootAnalysis9381?.analyze==='function'&&
+  typeof window.hlgbAuditorBootAnalysis9381?.render==='function',null,{timeout:60000});
  /* Este cenário testa exclusivamente o Auditor de boot. O comportamento do gate v94.07
     é coberto em login-3d-v9407-webkit.js; aqui simulamos que o usuário já confirmou Entrar. */
  await page.evaluate(()=>{
@@ -32,7 +36,13 @@ const {webkit}=require('playwright');
  });
  await page.waitForSelector('#hlgbAuditorNavBtn',{state:'visible',timeout:10000});
  const refs=await page.evaluate(()=>{window.__boot9381Refs={save:window.hlgbRecordSaveWithRetry,cloud:window.cloudRequest};return {timeline:window.hlgbBootTimeline9379.snapshot(),trace:window.hlgbAuditorCallTrace9380.snapshot(),analysis:window.hlgbAuditorBootAnalysis9381.analyze()}});
- if(refs.timeline?.version!=='93.79'||refs.trace?.version!=='93.80'||refs.analysis?.version!=='93.81')throw new Error('instrumentação incompleta '+JSON.stringify(refs));
+ // A análise Boot v93.81 foi evoluída (v94.45 em produção). Provar que o
+ // contrato não regrediu, sem exigir uma versão obsoleta.
+ const currentVersion=(value,min)=>/^\d+\.\d+$/.test(String(value||''))&&Number(value)>=min;
+ if(!currentVersion(refs.timeline?.version,93.79)||
+    !currentVersion(refs.trace?.version,93.80)||
+    !currentVersion(refs.analysis?.version,93.81))
+  throw new Error('instrumentação ausente ou regredida '+JSON.stringify(refs));
  if(!refs.timeline?.coverage||refs.timeline.coverage.preInstrumentationMeasured!==false)throw new Error('cobertura inicial não foi declarada conservadoramente');
  await page.click('#hlgbAuditorNavBtn',{timeout:10000});
  // O Auditor oficial oculta o botão secundário antigo para manter ação
@@ -54,7 +64,9 @@ const {webkit}=require('playwright');
    button:document.getElementById('hlgbBootAnalysisBtn9381')?.textContent||'',
    panel:document.getElementById('hlgbBootAnalysis9381')?.textContent||''
  }));
- if(out.report?.kind!=='hlgb_boot_analysis'||out.report?.version!=='93.81')throw new Error('relatório de boot inválido '+JSON.stringify(out.report));
+ if(out.report?.kind!=='hlgb_boot_analysis'||!currentVersion(out.report?.version,93.81)||
+    out.report.status==='unavailable')
+  throw new Error('Relatório de boot inválido ou sem evidência '+JSON.stringify(out.report));
  if(!proof.saveSame||!proof.cloudSame)throw new Error('diagnóstico de boot alterou função crítica');
  if(!/Boot \/ cargas/.test(out.button)||!/Boot \/ cargas \/ renders/.test(out.panel))throw new Error('interface real do boot não apareceu');
  if(errors.some(x=>/9381|boot analysis|auditor/i.test(x)))throw new Error('pageerror relacionado ao Auditor: '+errors.join(' | '));
