@@ -6,7 +6,7 @@
 (function(){
 'use strict';
 if(window.hlgbHourlyHealthPanel9541)return;
-const V='95.45',REPO='brunomozersilva-stack/hlgb-confeccoes';
+const V='95.47',REPO='brunomozersilva-stack/hlgb-confeccoes';
 const ROOT='https://api.github.com/repos/'+REPO;
 const WORKFLOW='HLGB Hourly Health Monitor v95.38';
 const MAX_AGE=5*60*1000;
@@ -170,9 +170,13 @@ function ensureVisibleDownloads9545(){
  box.style.cssText='display:block!important;visibility:visible!important;opacity:1!important;'+
   'position:sticky;top:0;z-index:2000;background:#fff;border:2px solid #5b257d;'+
   'padding:12px;margin:12px 0;border-radius:10px;box-sizing:border-box;width:100%;';
- const intro=E('div','', 'RELATÓRIO DO BOT — BAIXE AQUI');
+ const intro=E('div','', 'RELATÓRIO DO BOT');
  intro.style.cssText='font-size:15px;font-weight:800;color:#3f155d;display:block!important;margin-bottom:8px;';
- const link=E('a','', '⬇️ CLIQUE AQUI PARA BAIXAR O RELATÓRIO (JSON)');
+ const state=E('div','sub','Consultando os resultados do bot…');
+ state.id='hlgbHealthPinnedStatus9547';
+ state.style.cssText='font-size:13px;display:block!important;margin-bottom:8px;color:#5b257d';
+ state.setAttribute('role','status');
+ const link=E('a','', '⌛ CONSULTANDO RESULTADOS…');
  link.id='hlgbHealthPinnedJson9545';
  link.style.cssText='display:block!important;visibility:visible!important;opacity:1!important;'+
   'background:#5b257d!important;color:#fff!important;text-decoration:none!important;'+
@@ -183,7 +187,7 @@ function ensureVisibleDownloads9545(){
  txt.id='hlgbHealthPinnedTxt9545';
  txt.style.cssText='display:block!important;color:#451a6e!important;text-decoration:underline!important;'+
   'font-size:14px!important;padding:7px 0!important;cursor:pointer!important;';
- box.append(intro,link,txt);
+ box.append(intro,state,link,txt);
  const title=root.querySelector('h2');
  if(title)title.insertAdjacentElement('afterend',box);
  else root.prepend(box);
@@ -192,29 +196,58 @@ function ensureVisibleDownloads9545(){
 function prepareVisibleDownloads9545(){
  const box=ensureVisibleDownloads9545();
  if(!box)return;
- const key=(latest?.generatedAt||'unverified')+'::'+error;
+ const state=box.querySelector('#hlgbHealthPinnedStatus9547');
+ const json=box.querySelector('#hlgbHealthPinnedJson9545');
+ const txtLink=box.querySelector('#hlgbHealthPinnedTxt9545');
+ const available=!!latest||!!error;
+ // Quando a API ainda está em andamento NÃO criar um JSON "not_verified".
+ // O link nativo é habilitado somente depois que os resultados chegam ou
+ // uma falha de rede real foi confirmada.
+ if(!available){
+  if(state)state.textContent='Consultando o GitHub Actions… O arquivo ficará disponível após a resposta.';
+  for(const link of [json,txtLink]){
+   if(!link)continue;
+   link.removeAttribute('href');link.removeAttribute('download');
+   link.setAttribute('aria-disabled','true');
+   link.style.pointerEvents='none';
+  }
+  if(json)json.textContent='⌛ CONSULTANDO RESULTADOS DO BOT…';
+  if(txtLink)txtLink.textContent='Resumo TXT disponível após a consulta';
+  box.__hlgbReportKey='loading';
+  return;
+ }
+ const key=(latest?.generatedAt||'error')+'::'+error;
  if(box.__hlgbReportKey===key)return;
  const data=report()||{
   kind:'hlgb-hourly-health-access-diagnostic',version:V,
   generatedAt:new Date().toISOString(),repository:REPO,status:'not_verified',
-  error:error||'O bot ainda não retornou dados nesta sessão.',
-  note:'Nenhuma prova de sincronização entre dois navegadores foi realizada.'
+  error:error||'A consulta ao GitHub falhou; não há resultados confirmados.',
+  note:'Diagnóstico de falha, não um relatório aprovado; nenhuma prova de sincronização foi realizada.'
  };
+ if(latest&&error)data.refreshError=error;
  const raw=JSON.stringify(data,null,2)+'\n';
- const txt=latest?humanSummary(latest)+'\n':
-  'HLGB — Monitor de Saúde\nStatus: não verificado\n'+(error?'Erro: '+error+'\n':'');
+ const summary=latest?humanSummary(latest)+'\n'+(error?'Aviso de atualização: '+error+'\n':''):
+  'HLGB — Monitor de Saúde\nConsulta não verificada: '+error+'\n';
  const stamp=new Date().toISOString().replace(/[:.]/g,'-');
+ if(state)state.textContent=latest?
+  'Resultados consultados em '+date(latest.generatedAt)+'. O download inclui os alertas encontrados.':
+  'Falha na consulta: '+error+'. Baixe o diagnóstico para investigar.';
+ if(json)json.textContent=latest?'⬇️ CLIQUE AQUI PARA BAIXAR O RELATÓRIO DO BOT (JSON)':
+  '⬇️ BAIXAR DIAGNÓSTICO DA FALHA (JSON)';
+ if(txtLink)txtLink.textContent=latest?'⬇️ Baixar resumo (TXT)':'⬇️ Baixar erro da consulta (TXT)';
  for(const entry of [
-  {id:'hlgbHealthPinnedJson9545',value:raw,mime:'application/json;charset=utf-8',ext:'json'},
-  {id:'hlgbHealthPinnedTxt9545',value:txt,mime:'text/plain;charset=utf-8',ext:'txt'}
+  {link:json,value:raw,mime:'application/json;charset=utf-8',ext:'json'},
+  {link:txtLink,value:summary,mime:'text/plain;charset=utf-8',ext:'txt'}
  ]){
-  const a=box.querySelector('#'+entry.id);
+  const a=entry.link;
   if(!a)continue;
   const url=URL.createObjectURL(new Blob([entry.value],{type:entry.mime}));
   const old=box['__hlgbOldUrl'+entry.ext];
   box['__hlgbOldUrl'+entry.ext]=url;
   a.href=url;
   a.download='HLGB-MONITOR-SAUDE-'+stamp+'.'+entry.ext;
+  a.removeAttribute('aria-disabled');
+  a.style.pointerEvents='auto';
   if(old)setTimeout(()=>URL.revokeObjectURL(old),20000);
  }
  box.__hlgbReportKey=key;
@@ -230,7 +263,11 @@ function paint(){
  if(refresh)refresh.disabled=!!busy;
  // O botão permanece disponível até quando a API falha: o usuário pode
  // baixar um diagnóstico da falha e enviá-lo ao suporte.
- if(d)d.disabled=false;
+ if(d)d.disabled=!latest&&!error;
+ const t=panel.querySelector('#hlgbHealthDownloadTxt9544');
+ const top=document.getElementById('hlgbHealthDownloadTop9544');
+ if(t)t.disabled=!latest&&!error;
+ if(top)top.disabled=!latest&&!error;
  if(c)c.disabled=!latest;
  if(!result)return;
  result.replaceChildren();
@@ -307,6 +344,7 @@ function downloadLocalFile(filename,content,type){
  return true;
 }
 function saveTXT(){
+ if(!latest&&!error)return false;
  const text=latest?humanSummary(latest):
  'HLGB — MONITOR DE SAÚDE\nConsulta ainda não verificada.\n'+
  (error?'Erro: '+error+'\n':'')+
@@ -315,6 +353,7 @@ function saveTXT(){
  return downloadLocalFile('HLGB-MONITOR-SAUDE-'+stamp+'.txt',text+'\n','text/plain;charset=utf-8');
 }
 function saveJSON(){
+ if(!latest&&!error)return false;
  const data=report()||{
   kind:'hlgb-hourly-health-access-diagnostic',version:V,
   generatedAt:new Date().toISOString(),repository:REPO,
