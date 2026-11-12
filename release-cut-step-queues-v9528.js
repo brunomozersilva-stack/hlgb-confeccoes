@@ -22,7 +22,7 @@ function currentProduction(p){
 function pendingTrackingRow(r){
  const p=currentProduction(r?.p);
  // Sem produção materializada, permanece visível para investigação do corte.
- return !p||(isAwaiting(p)&&!pendingAssignedByCut(p));
+ return !p||isAwaiting(p);
 }
 function trackingSources(){
  const orders=arr('orders'),prod=arr('production'),rows=[];
@@ -53,21 +53,6 @@ function pendingAssignedByCut(c){
 function pendingProductionRows(){
  return arr('production').filter(p=>isAwaiting(p)&&!pendingAssignedByCut(p));
 }
-// The tracking view must use the live pending queue, not merely finalized-cut
-// history. Otherwise old/unassigned production rows disappear and fully
-// assigned siblings can be shown as pending. The view never changes db records.
-function waitingTrackingRows(){
- const cuts=arr('cuts'),orders=arr('orders');
- const pending=pendingProductionRows().map(p=>{
-  const c=cuts.find(x=>sid(x?.id)===sid(p.cutId))||
-   {id:p.cutId,orderId:p.orderId,productId:p.productId,pieces:p.planned,status:'Planejado'};
-  const o=orders.find(x=>sid(x?.id)===sid(p.orderId))||null;
-  return {c,o,p};
- });
- // A finished cut with no production row still requires human attention.
- const empty=trackingSources().filter(r=>!r.p);
- return [...pending,...empty];
-}
 let showAlreadyAssigned=false;
 const oldPending=window.hlgb916UnassignedProduction;
 window.hlgb916UnassignedProduction=pendingProductionRows;
@@ -84,11 +69,11 @@ if(typeof oldFilter==='function'&&!oldFilter.__hlgbStepQueue9528){
 }
 function updateTrackingTitle(){
  const panel=document.getElementById('cutTracking9173');if(!panel)return;
- const title=panel.querySelector('h2');if(title)title.textContent=showAlreadyAssigned?'🔎 Cortes finalizados — histórico':'📍 Produção aguardando destino';
+ const title=panel.querySelector('h2');if(title)title.textContent=showAlreadyAssigned?'🔎 Cortes finalizados — histórico':'📍 Cortes finalizados aguardando local';
  const caption=panel.querySelector('.toolbar .sub');
  if(caption)caption.textContent=showAlreadyAssigned?
   'Histórico de cortes finalizados, incluindo os que já têm local ou facção.':
-  'Itens com produção ainda sem local ou facção, mesmo quando há corte pendente. A confirmação do destino retira o item desta lista.';
+  'Somente cortes que ainda precisam de local. Ao salvar o destino, o modelo sai desta lista e segue para Produção.';
  let button=panel.querySelector('#hlgbStepQueueShowAssigned9528');
  if(!button){
   button=document.createElement('button');button.type='button';
@@ -111,7 +96,7 @@ if(typeof oldRender==='function'&&!oldRender.__hlgbStepQueue9528){
   // A rotina antiga limitava a 60 ANTES de filtrar atribuídos, fazendo
   // pendências antigas sumirem. Filtrar primeiro e limitar depois.
   const complete=trackingSources();
-  window.__cutTrackRows9173=(showAlreadyAssigned?complete:waitingTrackingRows()).slice(0,120);
+  window.__cutTrackRows9173=(showAlreadyAssigned?complete:complete.filter(pendingTrackingRow)).slice(0,120);
   try{window.filterCutTracking9173?.()}catch(e){console.warn('[HLGB '+V+'] atualizar cortes',e)}
   updateTrackingTitle();
   return out;
@@ -133,7 +118,7 @@ if(typeof oldQueue==='function'&&!oldQueue.__hlgbStepQueue9528){
  window.renderCutAssignmentQueue=wrapped;
 }
 window.hlgbCutStepQueues9528={version:V,hasDestination,assigned,isAwaiting,
- pendingTrackingRow,trackingSources,waitingTrackingRows,pendingAssignedByCut,pendingProductionRows,updateTrackingTitle,
+ pendingTrackingRow,trackingSources,pendingAssignedByCut,pendingProductionRows,updateTrackingTitle,
  showAssigned:()=>showAlreadyAssigned,originalPending:oldPending};
 try{if(typeof window.hlgbAfterLogin==='function')window.hlgbAfterLogin(()=>{
  try{window.renderCutAssignmentQueue?.();window.renderCutTracking9173?.()}catch(_){}
