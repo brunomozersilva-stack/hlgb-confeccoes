@@ -13,6 +13,8 @@ on:
     branches: [main]
     paths:
       - '.github/workflows/auditor-v9360-smoke.yml'
+      - 'release-internal-auditor.js'
+      - 'tests/auditor-boot-v9381-webkit.js'
   workflow_dispatch:
 jobs:
   smoke:
