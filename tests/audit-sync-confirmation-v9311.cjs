@@ -2,7 +2,7 @@ const fs=require('fs');
 const vm=require('vm');
 const assert=require('assert');
 const source=fs.readFileSync('release-sync-recovery-v9301.js','utf8');
-const version=source.match(/const V='(\\d+\\.\\d+)'/);
+const version=source.match(/const V='(\d+\.\d+)'/);
 assert(version,'recuperação precisa declarar versão do módulo');
 assert(Number(version[1])>=93.48,'recuperação não pode regredir abaixo da base v93.48');
 assert.doesNotMatch(source,/localStorage\.removeItem\(PENDING_KEY\)/,'recovery não pode apagar pending por idade');
