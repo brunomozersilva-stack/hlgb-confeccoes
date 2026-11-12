@@ -260,11 +260,22 @@ function exportCsv(){
  a.href=url;a.download='HLGB-notas-'+today()+'.csv';document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1800);
  return rows.length-1;
 }
+function hasPanelWrapper(fn){
+ const seen=new Set();let f=fn;
+ while(typeof f==='function'&&!seen.has(f)){
+  if(f.__hlgbReceivables9564)return true;
+  seen.add(f);f=f.__original||null;
+ }
+ return false;
+}
 function install(){
  ensure();paint();
  const old=window.renderOrderNotes;
- if(typeof old==='function'&&!old.__hlgbReceivables9564){
+ if(typeof old==='function'&&!hasPanelWrapper(old)){
   const wrapper=function(){const result=old.apply(this,arguments);setTimeout(paint,0);return result};
+  // Preserve the existing live-sync signature. Otherwise its delayed
+  // installer could wrap us repeatedly, causing nested redraw loops.
+  if(old.__hlgbNotesLive9563)wrapper.__hlgbNotesLive9563=true;
   wrapper.__hlgbReceivables9564=true;wrapper.__original=old;window.renderOrderNotes=wrapper;
  }
 }
