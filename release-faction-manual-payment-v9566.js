@@ -364,6 +364,13 @@ function renderReceipts(){
  if(!host){host=document.createElement('div');host.id='fm66-receipts';host.className='panel';
   host.style.cssText='margin-top:14px;padding:12px';anchor.insertAdjacentElement('afterend',host);}
  const groups=receiptGroups();
+ // Avoid replacing <input type=file> while the user selects a PDF. The app
+ // installs this plugin multiple times after login and can render the same
+ // receipts list while a Chromium file chooser has already returned.
+ const signature=JSON.stringify(groups.map(g=>[g.id,g.factionName,g.date,g.status,g.total,g.items,
+  g.receipt?.name||'',g.receipt?.size||0]));
+ if(host.dataset.fm66Signature===signature)return true;
+ host.dataset.fm66Signature=signature;
  host.innerHTML='<h3 style="margin-top:0">📎 Comprovantes de pagamentos avulsos</h3>'+
   '<div class="sub">Anexe um PDF novo ao criar um pagamento ou adicione depois em um lançamento existente. Tamanho máximo: 750 KB.</div>'+
   (groups.length?'<div style="overflow:auto"><table><thead><tr><th>Facção</th><th>Data</th><th>Valor</th><th>Comprovante</th></tr></thead><tbody>'+
