@@ -53,11 +53,20 @@ function orderView(o){
  mismatch:o.remaining!=null&&Math.abs(cent(o.remaining)-(total-paid))>1};
 }
 function allNotes(){
- const invoices=canonical().filter(x=>x&&x.id!=null&&!/cancelad|excluid/.test(norm(x.status))).map(projectionView);
+ const original=canonical().filter(x=>x&&x.id!=null&&!/cancelad|excluid/.test(norm(x.status)));
+ const invoices=original.map(projectionView);
+ // An order may also have a delivery invoice. Count the invoice, not the same
+ // sale twice as both a prepared order and a projection invoice.
+ const linkedOrders=new Set();
+ for(const n of original){
+  if(n.orderId!=null)linkedOrders.add(sid(n.orderId));
+  for(const i of Array.isArray(n.items)?n.items:[])if(i?.orderId!=null)linkedOrders.add(sid(i.orderId));
+ }
  const existing=new Set(list('invoices').filter(x=>x&&!/cancelad|excluid/.test(norm(x.status))).map(x=>sid(x.orderId)));
  for(const o of list('orders'))
-  if(o&&o.id!=null&&(o.invoiceReady===true||o.noteReady===true||existing.has(sid(o.id)))&&!/cancelad|excluid/.test(norm(o.status)))
-   invoices.push(orderView(o));
+  if(o&&o.id!=null&&!linkedOrders.has(sid(o.id))&&
+     (o.invoiceReady===true||o.noteReady===true||existing.has(sid(o.id)))&&
+     !/cancelad|excluid/.test(norm(o.status)))invoices.push(orderView(o));
  return [...new Map(invoices.map(x=>[x.key,x])).values()];
 }
 function category(n,now=today()){
