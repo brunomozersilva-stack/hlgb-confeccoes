@@ -84,7 +84,16 @@ async function submit(btn){
    state.confirmed++;put('confirmed','confirmed',{traceAttempt:after.attemptId,traceOutcome:after.outcome,clickObserved:true});
    return true;
   }
-  if(result===false){state.blocked++;put('blocked','blocked',{traceAttempt:after?.attemptId||0,traceOutcome:after?.outcome||'not-tested',errorCode:'form-rejected'});
+  if(result===false){
+   if(fresh&&after?.outcome==='failed'){
+    state.failed++;
+    put('failed','failed',{traceAttempt:after?.attemptId||0,traceOutcome:after?.outcome||'failed',
+     errorCode:after.errorCode||'unverified'});
+    renderMessage('O envio foi tentado, mas a nuvem não confirmou a gravação. O formulário foi preservado. Verifique o erro apresentado.');
+    return false;
+   }
+   state.blocked++;put('blocked','blocked',{traceAttempt:after?.attemptId||0,
+    traceOutcome:after?.outcome||'not-tested',errorCode:'form-rejected'});
    renderMessage('O formulário não foi enviado. Confira os campos obrigatórios e a mensagem de validação.');return false}
   state.failed++;put('unverified','unverified',{traceAttempt:after?.attemptId||0,traceOutcome:after?.outcome||'not-tested',errorCode:'no-ack-readback'});
   renderMessage('O retorno não comprovou o salvamento desta tentativa. Não foi informado sucesso. Confira o Auditor.');
