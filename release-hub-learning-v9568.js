@@ -30,7 +30,9 @@ const CATEGORY={
 };
 function classify(ui,trace){
  const u=ui?.last||{},t=trace||{};
- if(u.phase==='confirmed'&&u.clickObserved===true&&
+ if(u.phase==='click-received')return 'not-tested'; // UI intent is not an ACK.
+ if(u.phase==='confirmed'&&u.clickObserved===true&&t.clickObserved===true&&
+  Number(u.traceAttempt)>0&&Number(u.traceAttempt)===Number(t.attemptId)&&
   ['confirmed','already-saved'].includes(u.traceOutcome))return 'ui-confirmed';
  if(u.errorCode==='no-modal-callback')return 'callback-missing';
  if(u.errorCode==='form-rejected')return 'form-rejected';
