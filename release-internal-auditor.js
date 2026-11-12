@@ -1004,11 +1004,22 @@ window.hlgbAuditorCleanDerivedSync=async function(){
   }
 };
 window.hlgbInternalAuditor={VERSION,module:AUDIT_MODULE,buildRun,run,runVisualSweep,auditVisualSweep,downloadVisualDiagnostic,latest,report,auditFunctions,auditModules,auditDomStructure,auditVisualCurrent,auditSync,auditDataIntegrity,enrichWalAudit9506,loadRuns,saveRun,stableJson,cleanupTechnicalPending,redactDiagnostic,normalizedPendingDiagnostic,localWalDiagnostic,indexedDbWalDiagnostic,buildSyncDiagnostic,downloadSyncDiagnostic,classifiedDerivedPending,cleanClassifiedDerivedPending,runtimeErrors};
+function reinjectNavAfterAuth(){
+  // The navigation can arrive after the Auditor module (especially during Safari's
+  // async canonical boot). Do not depend on the legacy after-login callback alone.
+  // Finite, idempotent DOM rechecks only: no data operations or interval polling.
+  [0,250,1000,3000].forEach(ms=>setTimeout(()=>{
+    try{if(!document.getElementById('hlgbAuditorNavBtn'))inject()}
+    catch(e){console.warn('[HLGB auditor] menu pós-autenticação',e)}
+  },ms));
+}
 function boot(){
   detachTechnicalModule();cleanupTechnicalPending();inject();
   try{if(typeof hlgbAfterLogin==='function')hlgbAfterLogin(()=>{setTimeout(()=>{inject();loadRuns()},500)},0)}catch(e){}
   if(document.getElementById('appShell')?.style.display==='block')setTimeout(()=>loadRuns(),500);
+  reinjectNavAfterAuth();
 }
+window.addEventListener('hlgb:authenticated',reinjectNavAfterAuth);
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',boot,{once:true});else boot();
 console.info('[HLGB] Auditor/Testador interno '+VERSION+' carregado');
 })();
