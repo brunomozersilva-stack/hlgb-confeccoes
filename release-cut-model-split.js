@@ -181,8 +181,10 @@ function renderSplitPanel(){
  const orders=arr('orders').filter(o=>hasCompleteSplit(o));
  if(!orders.length){panel.innerHTML='<h2>✂️ Cortes separados por modelo</h2><div class="empty">Os pedidos com vários modelos serão desmembrados automaticamente quando entrarem no corte.</div>';return}
  const allChildren=orders.flatMap(o=>splitChildren(o.id)),completed=allChildren.filter(isFinal),pending=allChildren.filter(c=>!isFinal(c));
+ const pendingModelCount=new Set(pending.map(c=>sid(c.orderId)+'|'+sid(c.productId))).size;
+ const completedModelCount=new Set(completed.map(c=>sid(c.orderId)+'|'+sid(c.productId))).size;
  const visibleOrders=orders.filter(o=>showCompletedModels9519||splitChildren(o.id).some(c=>!isFinal(c)));
- let html='<div class="toolbar" style="justify-content:space-between;align-items:center;flex-wrap:wrap"><div><h2 style="margin:0">✂️ Cortes por modelo — pendentes</h2><div class="sub">'+pending.length+' modelo(s) para cortar · '+completed.length+' finalizado(s) preservado(s) no histórico</div></div>'+
+ let html='<div class="toolbar" style="justify-content:space-between;align-items:center;flex-wrap:wrap"><div><h2 style="margin:0">✂️ Cortes por modelo — pendentes</h2><div class="sub">'+pendingModelCount+' modelo(s) para cortar · '+completedModelCount+' finalizado(s) preservado(s) no histórico</div></div>'+
  (completed.length?'<button type="button" class="secondary" onclick="hlgbToggleCutCompleted9519()">'+(showCompletedModels9519?'Ocultar finalizados':'Mostrar '+completed.length+' finalizado(s)')+'</button>':'')+'</div>';
  if(!visibleOrders.length)html+='<div class="empty">Nenhum modelo aguardando corte. Use “Mostrar finalizados” para conferir o histórico.</div>';
  for(const o of visibleOrders){
