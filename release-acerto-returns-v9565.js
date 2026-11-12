@@ -50,7 +50,22 @@ function moneyState(row,type){
  const m=balance(row,type);
  return {...m,status:status(m)};
 }
+async function assertNoLocalPending(module,id){
+ const guard=window.hlgbWalIdbGuard9536;
+ if(guard?.probe){
+  try{await guard.probe()}catch(e){throw Error('Não foi possível conferir operações locais pendentes: '+sid(e?.message||e))}
+  if(guard.status?.()?.readFailed)throw Error('O WAL deste navegador não pôde ser lido. Registro preservado; não substituir dados.');
+ }
+ const identities=new Set();
+ for(const provider of [()=>guard?.ids?.(),()=>window.hlgbRecordPendingIdentitySet9535?.()]){
+  try{for(const identity of provider()||[])identities.add(sid(identity))}
+  catch(e){throw Error('Falha ao conferir pendências de gravação. Registro preservado: '+sid(e?.message||e))}
+ }
+ if(identities.has(module+'::'+sid(id))||identities.has(module+'|'+sid(id)))
+  throw Error('Existe alteração local pendente neste registro. Aguarde a sincronização antes de lançar o acerto.');
+}
 async function confirmedSave(module,id,next){
+ await assertNoLocalPending(module,id);
  const save=window.hlgbRecordSaveWithRetry;
  if(typeof save!=='function')throw Error('A gravação autenticada não está disponível. Nada foi registrado.');
  const out=await save(module,sid(id),copy(next),false);
