@@ -265,7 +265,7 @@ function paint(){
  // baixar um diagnóstico da falha e enviá-lo ao suporte.
  if(d)d.disabled=!latest&&!error;
  const t=panel.querySelector('#hlgbHealthDownloadTxt9544');
- const top=panel.querySelector('#hlgbHealthDownloadTop9544');
+ const top=document.getElementById('hlgbHealthDownloadTop9544');
  if(t)t.disabled=!latest&&!error;
  if(top)top.disabled=!latest&&!error;
  if(c)c.disabled=!latest;
