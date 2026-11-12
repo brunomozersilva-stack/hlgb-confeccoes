@@ -1,5 +1,5 @@
 'use strict';
-const assert=require('node:assert/strict'),{chromium,webkit}=require('playwright');
+const assert=require('node:assert/strict'),fs=require('node:fs/promises'),{chromium,webkit}=require('playwright');
 const engine=process.env.HLGB_BROWSER==='webkit'?webkit:chromium;
 (async()=>{
  const browser=await engine.launch({headless:true});
@@ -39,6 +39,9 @@ const engine=process.env.HLGB_BROWSER==='webkit'?webkit:chromium;
   await page.locator('[data-action="csv"]').click();
   const download=await downloadPromise;
   assert.match(download.suggestedFilename(),/^HLGB-notas-.*\.csv$/);
+  const csv=await fs.readFile(await download.path(),'utf8');
+  assert.match(csv,/;"200,00";/,'CSV must use decimal comma for Brazilian Excel');
+  assert.match(csv,/;"400,00";/,'second filtered amount must also have decimal comma');
   await page.locator('[data-action="cloud"]').click();
   const results=await page.evaluate(()=>({actions:window.__actions,cloud:window.__cloudChecks,writes:window.__writes}));
   assert.deepEqual(results.actions,['view:1','pdf:1','pay:2']);
