@@ -40,7 +40,7 @@ const {webkit}=require('playwright');
    actions.insertAdjacentHTML('beforeend','<button id="legacy1">Debug máximo</button>'+
     '<button id="legacy2">Caixa-preta completa</button>'+
     '<button id="legacy3">Exportar diagnóstico sync</button>');
-   window.hlgbAuditorSmart.enforceSimpleUi();
+   window.hlgbAuditorSmart?.enforceSimpleUi?.();
    window.hlgbAuditorSingleUiReclaim9434A.heal('webkit-after-legacy-controls');
    return {save:before.save===window.hlgbRecordSaveWithRetry,
     cloud:before.cloud===window.cloudRequest,
