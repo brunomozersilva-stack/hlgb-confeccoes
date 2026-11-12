@@ -1,0 +1,56 @@
+'use strict';
+const assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path'),vm=require('node:vm');
+const source=fs.readFileSync(path.join(__dirname,'..','release-hub-learning-v9568.js'),'utf8');
+const loader=fs.readFileSync(path.join(__dirname,'..','app-stable3.html'),'utf8');
+assert(loader.includes("'release-hub-learning-v9568.js'"),'load learning after save proof');
+const memory=new Map(),writes=[];
+const localStorage={getItem(k){return memory.get(k)||null},setItem(k,v){writes.push(k);memory.set(k,sString(v))}};
+const sString=v=>String(v);
+const data={hubFinanceEntries:[{id:'SECRET-RECORD-123',value:200000,description:'Pagamento privado da cliente X'}]};
+let trace={attemptId:1,attempts:1,outcome:'confirmed',source:'status-button',clickObserved:false,
+ confirmation:'rpc-ack-and-readback',readbackAt:'2026-11-12T22:01:00Z',ackAt:'2026-11-12T22:00:59Z',lastAt:'2026-11-12T22:01:00Z'};
+let ui={last:{phase:'not-tested',outcome:'not-tested',at:''},clicks:0,confirmed:0,failed:0,blocked:0};
+const window={__HLGB_AUTH_READY:true,__HLGB_TEST__:true,db:data,
+ addEventListener(){},hlgbHubSaveProof9567:{status:()=>ui},hlgbHubSaveTrace9483:{status:()=>trace}};
+const document={hidden:false,getElementById(){return null}};
+const context={window,document,localStorage,Date,console,JSON,Number,Intl,setInterval(){throw Error('No timers in test')},setTimeout(){throw Error('No timers in test')}};
+vm.createContext(context);vm.runInContext(source,context);
+const api=window.hlgbHubLearning9568;
+assert.equal(api.version,'95.68');
+let first=api.learn();
+assert.equal(first.category,'status-only','status button may never prove Save button');
+assert.equal(first.ok,true);
+assert.equal(api.recommendations().savingUiProved,false);
+assert.equal(api.learn().repeated,true,'one observation per event');
+assert.equal(api.history().cases.length,1);
+trace={...trace,attemptId:2,attempts:2,source:'create-button',clickObserved:true,
+ outcome:'confirmed',confirmation:'rpc-ack-and-readback',lastAt:'2026-11-12T22:03:00Z'};
+ui={last:{phase:'confirmed',traceOutcome:'confirmed',clickObserved:true,at:'2026-11-12T22:03:00Z'},clicks:1,confirmed:1,failed:0,blocked:0};
+assert.equal(api.learn().category,'ui-confirmed');
+assert.equal(api.recommendations().savingUiProved,true);
+assert.equal(api.recommendations().traceProof.rpcAck,true);
+assert.equal(api.learn().repeated,true);
+ui={...ui,last:{phase:'failed',traceOutcome:'failed',errorCode:'network',at:'2026-11-12T22:05:00Z'},failed:1};
+trace={...trace,attemptId:3,attempts:3,outcome:'failed',clickObserved:true,source:'create-button',
+  confirmation:'none',readbackAt:'',ackAt:'',lastAt:'2026-11-12T22:05:00Z'};
+assert.equal(api.learn().category,'network');
+assert.equal(api.recommendations().savingUiProved,false);
+assert.equal(api.recommendations().cases[0].code,'network','new failure is actionable');
+assert.equal(api.learn().repeated,true);
+trace={...trace,attemptId:4,attempts:4,lastAt:'2026-11-12T22:06:00Z'};
+ui={...ui,last:{phase:'failed',traceOutcome:'failed',errorCode:'network',at:'2026-11-12T22:06:00Z'},failed:2};
+assert.equal(api.learn().observations,2);
+assert.equal(api.recommendations().cases[0].observations,2);
+const pack=JSON.parse(JSON.stringify(api.packageJson()));
+assert.equal(pack.coverage.crossBrowser,'not-proved');
+assert.equal(pack.coverage.savingUi,'not-tested');
+assert.equal(JSON.stringify(pack).includes('SECRET-RECORD-123'),false);
+assert.equal(JSON.stringify(pack).includes('200000'),false);
+assert.equal(JSON.stringify(pack).includes('Pagamento privado'),false);
+assert.equal(JSON.stringify([...memory.values()]).includes('Pagamento privado'),false);
+assert.equal(JSON.stringify(data.hubFinanceEntries),JSON.stringify([{id:'SECRET-RECORD-123',value:200000,description:'Pagamento privado da cliente X'}]));
+window.__HLGB_AUTH_READY=false;
+assert.equal(api.learn().reason,'not-authenticated');
+assert.equal(api.download(),false);
+assert(writes.every(x=>x==='hlgb_hub_save_learning_v9568'),'learning cannot touch WAL or finance keys');
+console.log('PASS Hub learning v95.68: status-only is not Save, ACK/readback proof, recurrent network errors, privacy and no business writes.');
