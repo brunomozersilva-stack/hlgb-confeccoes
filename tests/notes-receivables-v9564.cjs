@@ -11,6 +11,7 @@ const db={
   {id:'c',client:'Cliente B',clientId:2,value:300,paid:0,remaining:300,dueDate:'2026-11-10',status:'Pendente'},
   {id:'d',client:'Cliente B',clientId:2,value:400,paid:0,remaining:400,dueDate:'2026-11-12',status:'Pendente'},
   {id:'e',client:'Cliente B',clientId:2,value:500,paid:0,remaining:500,dueDate:'',status:'Pendente'},
+  {id:'credit',client:'Cliente C',clientId:3,value:75,paid:0,remaining:0,dueDate:'2026-11-10',acertoReturnsV9565:[{value:75,reason:'Devolução'}],status:'Compensado por devolução'},
   {id:'shadow',migratedToNoteQueueV9223:true,client:'Sombras',value:9000,dueDate:'2026-11-10'},
   {id:'cancel',client:'Cancelada',value:9000,status:'Cancelado'}
  ],
@@ -28,7 +29,7 @@ vm.createContext(sandbox);vm.runInContext(code,sandbox,{filename:'release-notes-
 const api=sandbox.window.hlgbNotesReceivables9564;
 assert(api&&api.readOnly&&api.version==='95.64');
 const notes=api.allNotes(),now='2026-11-12';
-assert.equal(notes.length,6,'five real invoices plus one note-ready order');
+assert.equal(notes.length,7,'six real invoices plus one note-ready order, avoiding duplicated order');
 assert(!notes.some(x=>x.id==='shadow'||x.id==='cancel'||x.id==='o2'||x.id==='oLinked'),'exclude shadows, canceled notes, ordinary orders and orders already billed through projection');
 const b=notes.find(x=>x.id==='b');
 assert.equal(b.paid,2000,'payment history must win over stale paid field');
@@ -36,6 +37,8 @@ assert.equal(b.balance,18000);
 const t=api.calculate(notes,now);
 assert.deepEqual([...t.open],[5,198000]);
 assert.deepEqual([...t.paid],[1,10000]);
+assert.deepEqual([...t.compensated],[1,7500]);
+assert.deepEqual([...t.credits],[1,7500]);
 assert.deepEqual([...t.overdue],[1,30000]);
 assert.deepEqual([...t.today],[1,40000]);
 assert.deepEqual([...t.next7],[3,118000]);
@@ -45,6 +48,9 @@ assert.equal(api.category(notes.find(x=>x.id==='c'),now),'overdue');
 assert.equal(api.category(notes.find(x=>x.id==='d'),now),'today');
 assert.equal(api.category(notes.find(x=>x.id==='e'),now),'unknown');
 assert.equal(api.category(notes.find(x=>x.id==='a'),now),'paid','settled old note cannot be overdue');
+assert.equal(api.category(notes.find(x=>x.id==='credit'),now),'compensated','a credit-only note is NOT a cash payment');
+assert.equal(notes.filter(x=>api.matchTab(x,'paid',now)).length,1,'cash-only paid tab');
+assert.equal(notes.filter(x=>api.matchTab(x,'compensated',now)).length,1,'credit-only note goes to compensated tab');
 assert.equal(notes.filter(x=>api.matchTab(x,'upcoming',now)).length,3);
 api.state.client='id:1';
 assert.equal(api.filterAll(notes).length,2,'client filter');
