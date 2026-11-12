@@ -59,7 +59,9 @@ test('syntax and visible faction entry, with split-model button in Corte',()=>{
  assert.doesNotThrow(()=>new vm.Script(factionSource));
  assert.match(factionSource,/document\.getElementById\('faccoes'\)/);
  assert.match(factionSource,/panel\.parentElement!==page/);
- assert.match(splitSource,/hlgbShowWriteoffForSplit/);
+ // The retired per-split writeoff button must remain absent; use the validated operational flow.
+ assert.doesNotMatch(splitSource,/onclick="hlgbShowWriteoffForSplit/);
+ assert.match(splitSource,/hlgbOpenSplitGradeAdjust/);
 });
 test('split parent never doubles child cuts in operational list',()=>{
  const f=fixture();
