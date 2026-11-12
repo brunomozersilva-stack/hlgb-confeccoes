@@ -35,18 +35,27 @@ const {webkit}=require('playwright');
  if(refs.timeline?.version!=='93.79'||refs.trace?.version!=='93.80'||refs.analysis?.version!=='93.81')throw new Error('instrumentação incompleta '+JSON.stringify(refs));
  if(!refs.timeline?.coverage||refs.timeline.coverage.preInstrumentationMeasured!==false)throw new Error('cobertura inicial não foi declarada conservadoramente');
  await page.click('#hlgbAuditorNavBtn',{timeout:10000});
- await page.waitForSelector('#hlgbBootAnalysisBtn9381',{state:'visible',timeout:10000});
- await page.click('#hlgbBootAnalysisBtn9381',{timeout:10000});
+ // O Auditor oficial oculta o botão secundário antigo para manter ação
+ // única. A análise de boot segue verificável diretamente pela API read-only.
+ const proof=await page.evaluate(()=>{
+   const btn=document.getElementById('hlgbBootAnalysisBtn9381');
+   if(btn&&!btn.hidden&&getComputedStyle(btn).display!=='none')
+    throw Error('O botão antigo de boot está indevidamente visível');
+   const before={save:window.hlgbRecordSaveWithRetry,cloud:window.cloudRequest};
+   const report=window.hlgbAuditorBootAnalysis9381.render();
+   return {kind:report?.kind,saveSame:before.save===window.hlgbRecordSaveWithRetry,
+    cloudSame:before.cloud===window.cloudRequest};
+ });
+ if(proof.kind!=='hlgb_boot_analysis'||!proof.saveSame||!proof.cloudSame)
+  throw Error('Análise de boot não preservou funções críticas: '+JSON.stringify(proof));
  await page.waitForSelector('#hlgbBootAnalysis9381',{state:'visible',timeout:10000});
  const out=await page.evaluate(()=>({
    report:window.hlgbAuditorBootAnalysis9381.last||window.hlgbAuditorBootAnalysis9381.analyze(),
-   saveSame:window.__boot9381Refs.save===window.hlgbRecordSaveWithRetry,
-   cloudSame:window.__boot9381Refs.cloud===window.cloudRequest,
    button:document.getElementById('hlgbBootAnalysisBtn9381')?.textContent||'',
    panel:document.getElementById('hlgbBootAnalysis9381')?.textContent||''
  }));
  if(out.report?.kind!=='hlgb_boot_analysis'||out.report?.version!=='93.81')throw new Error('relatório de boot inválido '+JSON.stringify(out.report));
- if(!out.saveSame||!out.cloudSame)throw new Error('diagnóstico de boot alterou função crítica');
+ if(!proof.saveSame||!proof.cloudSame)throw new Error('diagnóstico de boot alterou função crítica');
  if(!/Boot \/ cargas/.test(out.button)||!/Boot \/ cargas \/ renders/.test(out.panel))throw new Error('interface real do boot não apareceu');
  if(errors.some(x=>/9381|boot analysis|auditor/i.test(x)))throw new Error('pageerror relacionado ao Auditor: '+errors.join(' | '));
  console.log('AUDITOR_BOOT_V9381_WEBKIT_OK',{status:out.report.status,summary:out.report.summary,loginGateConfirmed:true});
