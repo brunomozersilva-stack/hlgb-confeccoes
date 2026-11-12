@@ -6,7 +6,9 @@ test('native visible report links do not depend on Auditor button containers',()
  assert.match(source,/hlgbHealthPinnedDownloads9545/);
  assert.match(source,/hlgbHealthPinnedJson9545/);
  assert.match(source,/hlgbHealthPinnedTxt9545/);
- assert.match(source,/RELATÓRIO DO BOT — BAIXE AQUI/);
+ assert.match(source,/RELATÓRIO DO BOT/);
+ assert.match(source,/Consultando o GitHub Actions/);
+ assert.match(source,/link.removeAttribute\('href'\)/);
  assert.match(source,/display:block!important/);
  assert.match(source,/const title=root\.querySelector\('h2'\)/);
  assert.match(source,/title\.insertAdjacentElement\('afterend',box\)/);
