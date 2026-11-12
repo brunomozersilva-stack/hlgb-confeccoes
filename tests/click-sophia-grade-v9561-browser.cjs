@@ -35,7 +35,7 @@ const engine=process.env.HLGB_BROWSER==='webkit'?webkit:chromium;
   const panel=await page.locator('#hlgbCutSplitPanel').innerText();
   for(const name of ['Body Ritinha','Camisola Leticia','Camisola Marcia','Fio Bianca',
    'Fio Emily','Fio Jamile','Short Doll Yza','Tanga Nora'])assert(panel.includes(name));
-  assert.match(panel,/8 modelo\\(s\\) para cortar/);
+  assert(panel.includes('8 modelo(s) para cortar'),'unique model count must not double');
   assert.match(panel,/Cortes duplicados encontrados:.*Fio Jamile.*Short Doll Yza/s);
   assert.equal(await page.locator('#hlgbCutSplitPanel .hlgbAdjustSplitGradeBtn').count(),10);
   const before=await page.evaluate(()=>JSON.stringify(window.db));
