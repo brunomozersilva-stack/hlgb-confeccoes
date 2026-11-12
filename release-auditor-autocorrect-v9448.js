@@ -159,4 +159,23 @@ async function activate(reason='post-auth'){if(!authReady())return false;stamp()
 window.addEventListener?.('hlgb:authenticated',()=>setTimeout(()=>activate('authenticated-event'),0));
 window.hlgbAuditorAutoCorrect9448={version:V,state,run,prepare,ensureBase,ensureResidual,render,downloadReport,exportWalPayload:exportWalPayload9494,readWalIndexedDb:readWalIndexedDb9494,exportReport:()=>clone(state.lastReport),status:()=>({...state,authReady:authReady(),baseReady:baseReady(),residualReady:residualReady()})};
 stamp();if(authReady())setTimeout(()=>activate('loaded-after-auth'),0);console.info('[HLGB] v'+V+' Auditor pronto · prova residual de Produção antes da classificação');
+/* Optional v95.56 learning assistant. Loaded after login; a failure here must
+   never delay or interrupt the existing Auditor or any business operation. */
+function loadLearningAssistant9556(){
+ try{
+  if(!authReady()||window.HLGB_AUDITOR_LEARNING_ASSISTANT_9556==='95.56')return false;
+  if(document.querySelector?.('script[data-hlgb-learning-assistant-9556]'))return false;
+  const script=document.createElement('script');
+  script.src='./release-auditor-learning-assistant-v9556.js?fresh='+Date.now();
+  script.async=true;script.setAttribute('data-hlgb-learning-assistant-9556','1');
+  script.onerror=()=>console.warn('[HLGB] Assistente de aprendizado indisponível; Auditor principal preservado');
+  (document.head||document.documentElement).appendChild(script);
+  return true;
+ }catch(e){console.warn('[HLGB] Assistente de aprendizado opcional',e);return false}
+}
+if(!window.__HLGB_TEST__){
+ window.addEventListener?.('hlgb:authenticated',()=>setTimeout(loadLearningAssistant9556,1200));
+ if(authReady())setTimeout(loadLearningAssistant9556,1200);
+}
+
 })();
