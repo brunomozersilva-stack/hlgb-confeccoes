@@ -1,0 +1,34 @@
+<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><title>HLGB cross-browser notes fixture</title></head>
+<body><div class="page active" id="notas"><div id="orderNotesTable"><div class="v930ProjectionNotes">Nota antiga</div></div><div id="allOrderNotesTable"><div class="v930ProjectionNotes">Nota antiga</div></div></div>
+<script>
+window.__HLGB_AUTH_READY=true;window.cloudAccessToken='mock-session';
+window.__writes=0;window.__requests=[];window.__fail=false;window.__blocked='finance::blocked';
+window.hlgbRecordGlobalLastSeen='2026-11-12T10:00:00Z';window.hlgbRecordLastSeen={projectionInvoices:'2026-11-12T09:00:00Z',finance:'2026-11-12T09:30:00Z',noteQueue:'2026-11-12T09:45:00Z'};
+window.db={projectionInvoices:[{id:'old',client:'Leandro',issueDate:'2026-11-09',value:50,items:[]}],finance:[{id:'blocked',desc:'Pagamento local ainda não salvo',value:999}],noteQueue:[]};
+window.renderOrderNotes=()=>{};window.localSaveOnly=()=>{window.__writes++};
+window.hlgbCanonicalProjectionInvoices=()=>window.db.projectionInvoices;
+window.hlgbWalIdbGuard9536={
+ probe:async()=>({count:1}),ids:()=>new Set([window.__blocked]),status:()=>({readFailed:false})
+};
+window.hlgbRecordPendingIdentitySet9535=()=>new Set(['orders::pending','finance::blocked']);
+window.hlgbApplyRecordRow=row=>{
+ if(row.module==='projectionInvoices')return false; // normalized snapshot may already have this revision
+ const module=row.module,a=window.db[module],id=String(row.entity_id);
+ const pos=a.findIndex(x=>String(x.id??x.__hlgbId)===id);
+ const value=JSON.parse(JSON.stringify(row.data));
+ if(pos>=0)a[pos]=value;else a.push(value);window.hlgbRecordGlobalLastSeen=row.updated_at;window.hlgbRecordLastSeen[module]=row.updated_at;return true;
+};
+window.__remote={
+ projectionInvoices:[{module:'projectionInvoices',entity_id:'1794501067585703',revision:1,updated_at:'2026-11-12T16:31:08Z',deleted_at:null,data:{id:1794501067585703,client:'Quesia',issueDate:'2026-11-10',dueDate:'2026-11-12',value:10697.4,terms:'À vista',items:[{productName:'Conjunto Saia Paula',qty:293},{productName:'Body Helena',qty:183},{productName:'Doll Gatinho',qty:210}]}}],
+ finance:[{module:'finance',entity_id:'1794501067585704',revision:1,updated_at:'2026-11-12T16:31:09Z',deleted_at:null,data:{id:1794501067585704,clientName:'Quesia',value:10697.4,projectionInvoiceId:1794501067585703}},{module:'finance',entity_id:'blocked',revision:2,updated_at:'2026-11-12T16:31:09Z',deleted_at:null,data:{id:'blocked',value:2}}],
+ noteQueue:[]
+};
+window.cloudRequest=async(path,options)=>{
+ window.__requests.push({path,method:options.method});
+ if(window.__fail)throw Error('Rede indisponível');
+ const match=path.match(/module=eq\.(\w+)/);
+ return window.__remote[decodeURIComponent(match?.[1]||'')]||[];
+};
+</script>
+<script src="../release-notes-live-sync-v9563.js"></script>
+</body></html>

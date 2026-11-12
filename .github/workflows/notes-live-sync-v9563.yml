@@ -1,0 +1,54 @@
+name: HLGB Notes Cloud Visibility Chrome-Safari v95.63
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'release-notes-live-sync-v9563.js'
+      - 'app-stable3.html'
+      - 'tests/notes-live-sync-v9563-*'
+      - '.github/workflows/notes-live-sync-v9563.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'release-notes-live-sync-v9563.js'
+      - 'app-stable3.html'
+      - 'tests/notes-live-sync-v9563-*'
+      - '.github/workflows/notes-live-sync-v9563.yml'
+permissions:
+  contents: read
+jobs:
+  smoke:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - run: node --check release-notes-live-sync-v9563.js
+      - run: node --check tests/notes-live-sync-v9563-browser.cjs
+      - run: node -e "const fs=require('fs');if(!fs.readFileSync('app-stable3.html','utf8').includes('release-notes-live-sync-v9563.js'))process.exit(1)"
+  browser:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 18
+    strategy:
+      fail-fast: false
+      matrix:
+        browser: [chromium, webkit]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Install Playwright
+        run: |
+          npm install --no-save playwright@1.55.0
+          npx playwright install --with-deps ${{ matrix.browser }}
+      - name: Serve test fixture
+        run: |
+          python3 -m http.server 4173 >/tmp/hlgb-notes-v9563.log 2>&1 &
+          sleep 2
+      - name: Notes cross-browser test
+        env:
+          HLGB_BROWSER: ${{ matrix.browser }}
+        run: node tests/notes-live-sync-v9563-browser.cjs

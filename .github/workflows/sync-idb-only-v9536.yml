@@ -20,7 +20,7 @@ permissions:
   contents: read
 jobs:
   syntax:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 6
     steps:
       - uses: actions/checkout@v4
@@ -32,7 +32,7 @@ jobs:
           node --check release-sync-recovery-v9301.js
           node --check tests/sync-idb-only-wal-v9536-browser.cjs
   browser:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 18
     strategy:
       fail-fast: false
