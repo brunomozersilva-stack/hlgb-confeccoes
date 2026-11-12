@@ -91,6 +91,7 @@ function pdfDownload(receipt){
 }
 async function assertRecordNotPending(module,id){
  const guard=window.hlgbWalIdbGuard9536;
+ if(!guard?.probe||!guard?.ids)throw Error('Proteção de sincronização IndexedDB indisponível. Nenhum dado será substituído.');
  if(guard?.probe){
   try{await guard.probe()}catch(e){throw Error('Não foi possível conferir a fila local: '+sid(e.message||e))}
   if(guard.status?.()?.readFailed)throw Error('A fila local não pôde ser lida. Salvar bloqueado para proteger os dados.');
@@ -214,6 +215,13 @@ function addLine(kind='product'){
  host.insertAdjacentHTML('beforeend',rowHtml(kind));
  const row=host.lastElementChild;
  row.querySelector('.fm66-search').addEventListener('focus',()=>renderProductsFor(row,row.querySelector('.fm66-search').value));
+ row.querySelector('.fm66-search').addEventListener('keydown',e=>{
+  if(e.key==='Escape'){row.querySelector('.fm66-suggestions').style.display='none';return}
+  if(e.key==='Enter'){
+   const first=row.querySelector('.fm66-product-option');
+   if(first){e.preventDefault();first.click()}
+  }
+ });
  row.querySelector('.fm66-search').addEventListener('input',e=>{
   row.querySelector('.fm66-product-id').value='';
   row.querySelector('.fm66-hint').textContent='Selecione o produto listado para associar o valor de facção.';
@@ -305,6 +313,13 @@ function openForm(){
  if(faction){
   faction.addEventListener('focus',()=>renderFactionList(faction.value));
   faction.addEventListener('input',()=>renderFactionList(faction.value));
+  faction.addEventListener('keydown',e=>{
+   if(e.key==='Escape'){document.getElementById('fm66-faction-suggestions').style.display='none';return}
+   if(e.key==='Enter'){
+    const first=document.querySelector('#fm66-faction-suggestions [data-faction]');
+    if(first){e.preventDefault();first.click()}
+   }
+  });
   document.getElementById('fm66-faction-suggestions')?.addEventListener('click',e=>{
    const b=e.target.closest('button[data-faction]');if(!b)return;faction.value=b.dataset.faction;
    document.getElementById('fm66-faction-suggestions').style.display='none';
