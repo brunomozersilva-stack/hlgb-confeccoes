@@ -44,7 +44,11 @@ function identity(x,k){
  const id=str(r?.id||x?.recordId||x?.id||'');
  if(k==='finance'&&id){const m=id.match(/\d{6,}/);if(m)return m[0]}
  if(k==='production'&&id){const m=id.match(/\d{6,}/);if(m)return m[0]}
- return str(x?.code||x?.action||x?.title||x?.id||k).slice(0,120).replace(/\d{4,}/g,'#').toLowerCase();
+ // Record IDs and user-entered text must never become raw local fingerprints.
+ const raw=str(x?.code||x?.action||x?.title||k).toLowerCase().replace(/\b\d{3,}\b/g,'#').slice(0,140);
+ let h=2166136261;
+ for(let i=0;i<raw.length;i++){h^=raw.charCodeAt(i);h=Math.imul(h,16777619)}
+ return 'type-'+(h>>>0).toString(16);
 }
 function unresolvedChecks(report){
  const c=report?.finalAudit?.checks||[];
@@ -129,7 +133,7 @@ function render(){
   '<p class="sub">Sugere investigação e testes; não desenvolve nem aplica correções sozinho.</p>')+
   '<div style="margin-top:8px"><button type="button" class="secondary" id="hlgbLearningExport9556">⬇️ Pacote técnico para correção</button> '+
   '<button type="button" class="secondary" id="hlgbLearningToggle9556">'+(off?'Ativar assistente':'Desativar assistente')+'</button></div>';
- panel.querySelector('#hlgbLearningExport9556')?.addEventListener('click',()=>{if(!off){collect();download()}});
+ panel.querySelector('#hlgbLearningExport9556')?.addEventListener('click',()=>{if(!off)collect();download()});
  panel.querySelector('#hlgbLearningToggle9556')?.addEventListener('click',()=>setDisabled(!off));
  return true;
 }
