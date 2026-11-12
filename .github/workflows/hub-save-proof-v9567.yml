@@ -1,0 +1,65 @@
+name: HLGB Hub Save Proof and Auditor Learning v95.67
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'app-stable3.html'
+      - 'release-hub-save-proof-v9567.js'
+      - 'release-hub-learning-v9568.js'
+      - 'tests/hub-save-v9483-fixture.html'
+      - 'tests/hub-save-proof-v9567-browser.cjs'
+      - 'tests/hub-learning-v9568.cjs'
+      - '.github/workflows/hub-save-proof-v9567.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'app-stable3.html'
+      - 'release-hub-save-proof-v9567.js'
+      - 'release-hub-learning-v9568.js'
+      - 'tests/hub-save-v9483-fixture.html'
+      - 'tests/hub-save-proof-v9567-browser.cjs'
+      - 'tests/hub-learning-v9568.cjs'
+      - '.github/workflows/hub-save-proof-v9567.yml'
+permissions:
+  contents: read
+jobs:
+  safety:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - run: node --check release-hub-save-proof-v9567.js
+      - run: node --check release-hub-learning-v9568.js
+      - run: node --check tests/hub-save-proof-v9567-browser.cjs
+      - run: node --check tests/hub-learning-v9568.cjs
+      - run: node tests/hub-learning-v9568.cjs
+      - run: node tests/hub-save-ack-v9483.cjs
+  browser:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        browser: [chromium, webkit]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Instalar Playwright e navegador
+        run: |
+          npm install playwright@1.55.0 --no-save
+          npx playwright install --with-deps ${{ matrix.browser }}
+      - name: Servir testes de Hub
+        run: |
+          python3 -m http.server 4173 >/tmp/hlgb-hub-save-v9567.log 2>&1 &
+          sleep 2
+      - name: Testar clique de verdade, gravação confirmada e sem duplicidade
+        env:
+          HLGB_BROWSER: ${{ matrix.browser }}
+        run: |
+          node tests/hub-save-v9483-browser.js
+          node tests/hub-save-proof-v9567-browser.cjs
