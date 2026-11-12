@@ -42,7 +42,7 @@ jobs:
         run: |
           python3 -m http.server 4173 >/tmp/hlgb-auditor-webkit-9549.log 2>&1 &
           sleep 2
-      - name: Current Auditor iframe smoke and single visible action
-        run: node tests/auditor-v9362-webkit.js
-      - name: Legacy remote injection must preserve canonical v94.34a button
+      - name: Current Auditor single-action regression after legacy UI injection
         run: node tests/auditor-v9362-webkit-remote-inject.js
+      - name: Legacy v93.60 iframe smoke tolerates verified canonical takeover
+        run: node tests/auditor-v9362-webkit.js
