@@ -8,6 +8,7 @@ const engine=process.env.HLGB_BROWSER==='webkit'?webkit:chromium;
   const errors=[];page.on('pageerror',e=>errors.push(e.message));
   await page.goto('http://127.0.0.1:4173/tests/cut-faction-traveta-v9521-fixture.html',{waitUntil:'domcontentloaded',timeout:30000});
   await page.evaluate(()=>{window.hlgbCutModelSplit.renderSplitPanel();window.hlgbFactionOperations9520.install()});
+  await page.locator('#hlgbFactionOpsDetails9531 > summary').click();
   await page.locator('#hlgbFactionOpsSearch9520').fill('Cueca');
   await page.waitForSelector('#hlgbFactionOpsRows9520 button[data-hlgb-faction-action="transfer"]',{timeout:10000});
   let cutText=await page.locator('#hlgbCutSplitPanel').innerText();
