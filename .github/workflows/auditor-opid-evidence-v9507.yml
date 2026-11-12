@@ -30,7 +30,8 @@ jobs:
       - run: node tests/auditor-autocorrect-v9441-behavior.js
       - run: node tests/auditor-autocorrect-v9447-fast.js
   browser:
-    runs-on: ubuntu-latest
+    # Playwright 1.55 does not support the Ubuntu 26.04 image behind latest.
+    runs-on: ubuntu-24.04
     timeout-minutes: 18
     strategy:
       fail-fast: false

@@ -181,8 +181,10 @@ function issueAt(x){return ts(x?.lastSeenAt||x?.lastSeen||x?.updatedAt||x?.updat
 function protectedBusinessText(v){return /financeiro sem projeção|finance-projection-orphan|valor financeiro|preço|preco|quantidade|observaç|nota fiscal|associaç|vínculo|vinculo|decisão de negócio|decisao de negocio|business-difference/i.test(sid(v))}
 function technicalText(v){return /falha ao salvar|conflito protegido|sincron|\bsync\b|\bwal\b|\back\b|load failed|failed to fetch|network|timeout|fila|pending|duplicad|render|listener|cache|snapshot|tombstone|erro javascript|falha assíncrona|falha assincrona/i.test(sid(v))}
 function technicalIssue(x){const t=[x?.title,x?.detail,x?.description,x?.source,x?.sourceType,x?.category,x?.kind,x?.technical].map(sid).join(' ');return !protectedBusinessText(t)&&technicalText(t)}
-function recentTechnicalIssues(list=allIssues(),at=Date.now()){return list.filter(x=>openIssue(x)&&technicalIssue(x)&&Number.isFinite(issueAt(x))&&issueAt(x)>=at-RECENT_MS)}
-function historicalIssues(list=allIssues(),at=Date.now()){return list.filter(x=>openIssue(x)&&!(Number.isFinite(issueAt(x))&&issueAt(x)>=at-RECENT_MS))}
+// v95.70: data futura não pode ser tratada como falha recente; tolerar apenas pequeno desvio de relógio.
+function recentIssueTime9570(x,at){const seen=issueAt(x);return Number.isFinite(seen)&&seen>=at-RECENT_MS&&seen<=at+30000}
+function recentTechnicalIssues(list=allIssues(),at=Date.now()){return list.filter(x=>openIssue(x)&&technicalIssue(x)&&recentIssueTime9570(x,at))}
+function historicalIssues(list=allIssues(),at=Date.now()){return list.filter(x=>openIssue(x)&&!recentIssueTime9570(x,at))}
 function operationPending(audit){const p=audit?.operations?.pending||audit?.main?.operational?.pending||{};return {unique:+p.unique||0,records:+p.records||0,wal:+p.wal||0,totalCopies:+p.totalCopies||0}}
 function opStatus(audit,key){return sid(audit?.operations?.[key]?.status||'')}
 function operationalCoverage9474(audit){
