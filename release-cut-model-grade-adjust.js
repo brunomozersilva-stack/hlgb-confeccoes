@@ -22,6 +22,7 @@ function buildHorizontalEditor(grade,c){
 }
 async function openAdjust(id){
  const c=cuts().find(x=>sid(x?.id)===sid(id));if(!c||!c.modelSplitChildV1)return;
+ if(window.hlgbCutModelSplit?.competingModelCuts?.(c)?.length>1)return alert('Este modelo possui cortes duplicados. Confira os registros antes de ajustar a grade; nenhuma quantidade foi modificada.');
  if(String(c.status||'').toLowerCase()==='finalizado')return alert('Este modelo já foi finalizado. A grade continua disponível em “📐 Grade”, mas não pode mais ser alterada.');
  const grade=(Array.isArray(c.originalGrade)?c.originalGrade:[]).map(x=>({...x}));if(!grade.length)return alert('Este modelo não possui grade.');
  const editor=buildHorizontalEditor(grade,c);
