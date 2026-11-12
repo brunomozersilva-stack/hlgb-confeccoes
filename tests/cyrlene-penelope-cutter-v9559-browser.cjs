@@ -16,15 +16,18 @@ const {chromium,webkit}=require('playwright');
     ['P','M','G','GG'].map((size,j)=>({productId:penId,color,size,qty:penCounts[i][j]})));
    window.db={
     products:[{id:cyId,name:'Camisola Cyrlene',materials:[]},
+      {id:'another-model',name:'Camisola Outra',materials:[]},
       {id:penId,name:'Fio Duplo Penelope',materials:[{name:'Tule',qty:.5,unit:'m',calcMode:'consumption'}]}],
     materials:[],cutters:[{id:'w',name:'Wallace'}],
     orders:[
-     {id:'1793016171651',orderNumber:3,client:'Click Sophia',grade:cyGrade},
+     {id:'1793016171651',orderNumber:3,client:'Click Sophia',grade:[...cyGrade,{productId:'another-model',color:'Preto',size:'P',qty:40}]},
      {id:'1794426295127',orderNumber:46,client:'Click Sophia',grade:penGrade}
     ],
     cuts:[
      {id:'1793034494813143',orderId:'1793016171651',productId:cyId,modelSplitChildV1:true,
       product:'Camisola Cyrlene',status:'Planejado',cutterId:'w',pieces:1020,cutType:'Interno',originalGrade:cyGrade.map(x=>({...x}))},
+     {id:'1793034494000000',orderId:'1793016171651',productId:'another-model',modelSplitChildV1:true,
+      product:'Camisola Outra',status:'Finalizado',pieces:40,originalGrade:[{productId:'another-model',color:'Preto',size:'P',qty:40}]},
      {id:'1794426295128',orderId:'1794426295127',productId:penId,
       product:'Fio Duplo Penelope',status:'Planejado',pieces:340,originalGrade:[]}
     ]
