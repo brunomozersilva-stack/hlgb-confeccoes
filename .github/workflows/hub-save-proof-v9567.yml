@@ -5,20 +5,24 @@ on:
     paths:
       - 'app-stable3.html'
       - 'release-hub-save-proof-v9567.js'
+      - 'release-hub-primary-v9323.js'
       - 'release-hub-learning-v9568.js'
       - 'tests/hub-save-v9483-fixture.html'
       - 'tests/hub-save-proof-v9567-browser.cjs'
       - 'tests/hub-learning-v9568.cjs'
+      - 'tests/hub-status-repeat-guard-v9569.cjs'
       - '.github/workflows/hub-save-proof-v9567.yml'
   push:
     branches: [main]
     paths:
       - 'app-stable3.html'
       - 'release-hub-save-proof-v9567.js'
+      - 'release-hub-primary-v9323.js'
       - 'release-hub-learning-v9568.js'
       - 'tests/hub-save-v9483-fixture.html'
       - 'tests/hub-save-proof-v9567-browser.cjs'
       - 'tests/hub-learning-v9568.cjs'
+      - 'tests/hub-status-repeat-guard-v9569.cjs'
       - '.github/workflows/hub-save-proof-v9567.yml'
 permissions:
   contents: read
@@ -37,6 +41,9 @@ jobs:
       - run: node --check tests/hub-learning-v9568.cjs
       - run: node tests/hub-learning-v9568.cjs
       - run: node tests/hub-save-ack-v9483.cjs
+      - run: node --check release-hub-primary-v9323.js
+      - run: node --check tests/hub-status-repeat-guard-v9569.cjs
+      - run: node tests/hub-status-repeat-guard-v9569.cjs
   browser:
     runs-on: ubuntu-24.04
     timeout-minutes: 20
