@@ -1,0 +1,45 @@
+name: HLGB Auditor Current Guard Regressions v95.49
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'tests/audit-sync-confirmation-v9311.cjs'
+      - 'tests/auditor-v9362-webkit-remote-inject.js'
+      - '.github/workflows/auditor-current-guard-v9549.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'tests/audit-sync-confirmation-v9311.cjs'
+      - 'tests/auditor-v9362-webkit-remote-inject.js'
+      - '.github/workflows/auditor-current-guard-v9549.yml'
+permissions:
+  contents: read
+jobs:
+  recovery:
+    runs-on: ubuntu-latest
+    timeout-minutes: 7
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: WAL recovery preserves local edits on failed cloud confirmation
+        run: node tests/audit-sync-confirmation-v9311.cjs
+  webkit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 17
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install WebKit
+        run: |
+          npm install --no-save playwright@1.55.0
+          npx playwright install --with-deps webkit
+      - name: Serve the isolated HLGB frontend
+        run: |
+          python3 -m http.server 4173 >/tmp/hlgb-auditor-webkit-9549.log 2>&1 &
+          sleep 2
+      - name: Legacy remote injection must preserve canonical v94.34a button
+        run: node tests/auditor-v9362-webkit-remote-inject.js
