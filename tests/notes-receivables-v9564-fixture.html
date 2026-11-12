@@ -26,6 +26,8 @@ window.openModal=(title,html)=>{
  modal.innerHTML=html;document.body.appendChild(modal);
 };
 window.closeModal=()=>document.getElementById('modal')?.remove();
+// Simulated browser WAL is readable and has no pending local writes.
+window.hlgbWalIdbGuard9536={probe:async()=>({count:0}),ids:()=>new Set(),status:()=>({readFailed:false})};
 window.hlgbRecordSaveWithRetry=async(module,id,row)=>{
  window.__writes++;
  const arr=window.db[module];const index=arr.findIndex(x=>String(x.id)===String(id));
