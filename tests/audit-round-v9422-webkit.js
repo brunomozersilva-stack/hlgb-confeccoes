@@ -6,6 +6,13 @@ const {webkit}=require('playwright');
  await page.evaluate(()=>{document.documentElement.classList.add('hlgb-login-confirmed-9407');window.__HLGB_AUTH_READY=true;const l=document.getElementById('loginScreen');if(l)l.style.setProperty('display','none','important');const a=document.getElementById('appShell');if(a){a.style.setProperty('display','block','important');a.style.setProperty('visibility','visible','important');a.style.setProperty('opacity','1','important')}window.confirm=()=>true;window.alert=()=>{};});
  // Rota: atribuído sem envio => LEVAR; com envio => BUSCAR; override manual deve mover o item.
  await page.evaluate(()=>{const d=window.eval('db');d.factionMasters=[{id:'f1',name:'Vanessa'}];d.productionLocations=[];d.products=[{id:'p1',name:'Camisola Ana Melia'},{id:'p2',name:'Conjunto Enviado'}];d.orders=[{id:'o1',number:3,client:'Dell'},{id:'o2',number:4,client:'Dell'}];d.production=[{id:'pr1',orderId:'o1',productId:'p1',factionId:'f1',planned:350,done:0,stage:'Em produção'},{id:'pr2',orderId:'o2',productId:'p2',factionId:'f1',planned:100,done:0,stage:'Em produção',sentToFactionAt:'2026-10-27T10:00:00Z'}];d.capacityAssignments=[];window.newRoute9249();window.addRouteStop9249();});
+ // Desde v95.34, uma parada começa SEM facção selecionada para evitar
+ // herdar produtos de Roseli (ou do primeiro local). Escolhemos Vanessa
+ // explicitamente antes de testar sugestões LEVAR/BUSCAR e override.
+ await page.waitForSelector('.ops-route-loc',{state:'visible',timeout:10000});
+ const initialLocation=await page.locator('.ops-route-loc').first().inputValue();
+ if(initialLocation!=='')throw new Error('Rota pré-selecionou facção sem autorização: '+initialLocation);
+ await page.locator('.ops-route-loc').first().selectOption('0');
  await page.waitForSelector('.ops-route-item9422',{state:'visible',timeout:10000});
  let route=await page.evaluate(()=>({carry:document.querySelector('.ops-route-carry')?.value||'',pickup:document.querySelector('.ops-route-pickup')?.value||'',items:[...document.querySelectorAll('.ops-route-item9422')].map(x=>({line:x.dataset.line,dir:x.dataset.direction}))}));
  if(!/Camisola Ana Melia/.test(route.carry)||/Camisola Ana Melia/.test(route.pickup)||!/Conjunto Enviado/.test(route.pickup))throw new Error('Direção automática da rota incorreta: '+JSON.stringify(route));
