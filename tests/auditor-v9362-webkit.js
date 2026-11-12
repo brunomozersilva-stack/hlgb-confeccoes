@@ -5,7 +5,22 @@ const {webkit}=require('playwright');
  const errors=[];
  page.on('pageerror',e=>errors.push(String(e.message||e)));
  await page.goto('http://127.0.0.1:4173/teste-auditor-v9360.html',{waitUntil:'domcontentloaded',timeout:60000});
+ try {
  await page.waitForFunction(()=>document.querySelector('#state')?.textContent?.includes('Auditor v93.60/93.61 carregado'),null,{timeout:60000});
+ }catch(e){
+  const diagnostic=await page.evaluate(()=>{
+   const f=document.getElementById('app'),w=f?.contentWindow,d=f?.contentDocument;
+   return {harness:document.getElementById('state')?.textContent||'',
+    frameUrl:w?.location?.href||'',frameReady:d?.readyState||'',
+    login:!!d?.getElementById('loginScreen'),shell:!!d?.getElementById('appShell'),
+    internal:!!w?.hlgbInternalAuditor,blackbox:!!w?.hlgbAuditorBlackbox9299,
+    operational:!!w?.hlgbOperationalAuditor9314,
+    authReady:w?.__HLGB_AUTH_READY===true,
+    bootFailures:w?.__HLGB_BOOT_FAILED_FILES_9477||[],
+    body:(d?.body?.innerText||'').slice(0,250)};
+  });
+  throw new Error('Auditor v93.60 harness não concluiu: '+JSON.stringify({diagnostic,errors})+' · '+e.message);
+ }
  const frame=page.frames().find(f=>f!==page.mainFrame());
  if(!frame)throw new Error('iframe do sistema nao carregou');
  await frame.waitForFunction(()=>window.HLGB_AUDITOR_SMART_9360===true&&window.HLGB_AUDITOR_UI_COMPAT_9361,{timeout:30000});
