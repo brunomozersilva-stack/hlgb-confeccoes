@@ -169,6 +169,7 @@ async function refresh(reason='manual',force=false){
 function boot(){
  patchRenderer();decorate();repaint();
  [400,1400,3500].forEach(ms=>setTimeout(()=>{patchRenderer();decorate()},ms));
+ if(loggedIn())setTimeout(()=>refresh('boot-ready',true),650);
 }
 window.hlgbNotesLiveSync9563={version:V,refresh,repaint,patchRenderer,decorate,status:()=>({...state}),readOnly:true};
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',boot,{once:true});else boot();
