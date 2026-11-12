@@ -758,8 +758,14 @@ function inject(){
   const nav=document.getElementById('nav');
   if(nav&&!document.getElementById('hlgbAuditorNavBtn')){
     const diag=document.getElementById('hlgbDiagnosticsNav');
-    if(diag?.parentElement){
-      const b=document.createElement('button');b.id='hlgbAuditorNavBtn';b.type='button';b.innerHTML='🧪 Auditor / Testes';b.onclick=()=>openAuditor();diag.insertAdjacentElement('afterend',b);
+    // The diagnostics extension may not have created its menu item yet.
+    // The System submenu belongs to the core HTML and is a stable fallback.
+    const systemSubmenu=nav.querySelector('.nav-group:last-of-type .nav-submenu');
+    const host=diag?.parentElement||systemSubmenu;
+    if(host){
+      const b=document.createElement('button');b.id='hlgbAuditorNavBtn';b.type='button';b.innerHTML='🧪 Auditor / Testes';b.onclick=()=>openAuditor();
+      if(diag?.parentElement)diag.insertAdjacentElement('afterend',b);
+      else host.appendChild(b);
     }
   }
   // Acesso direto, visível no mesmo submenu do Auditor (sem abrir o
@@ -1004,11 +1010,22 @@ window.hlgbAuditorCleanDerivedSync=async function(){
   }
 };
 window.hlgbInternalAuditor={VERSION,module:AUDIT_MODULE,buildRun,run,runVisualSweep,auditVisualSweep,downloadVisualDiagnostic,latest,report,auditFunctions,auditModules,auditDomStructure,auditVisualCurrent,auditSync,auditDataIntegrity,enrichWalAudit9506,loadRuns,saveRun,stableJson,cleanupTechnicalPending,redactDiagnostic,normalizedPendingDiagnostic,localWalDiagnostic,indexedDbWalDiagnostic,buildSyncDiagnostic,downloadSyncDiagnostic,classifiedDerivedPending,cleanClassifiedDerivedPending,runtimeErrors};
+function reinjectNavAfterAuth(){
+  // The navigation can arrive after the Auditor module (especially during Safari's
+  // async canonical boot). Do not depend on the legacy after-login callback alone.
+  // Finite, idempotent DOM rechecks only: no data operations or interval polling.
+  [0,250,1000,3000].forEach(ms=>setTimeout(()=>{
+    try{if(!document.getElementById('hlgbAuditorNavBtn'))inject()}
+    catch(e){console.warn('[HLGB auditor] menu pós-autenticação',e)}
+  },ms));
+}
 function boot(){
   detachTechnicalModule();cleanupTechnicalPending();inject();
   try{if(typeof hlgbAfterLogin==='function')hlgbAfterLogin(()=>{setTimeout(()=>{inject();loadRuns()},500)},0)}catch(e){}
   if(document.getElementById('appShell')?.style.display==='block')setTimeout(()=>loadRuns(),500);
+  reinjectNavAfterAuth();
 }
+window.addEventListener?.('hlgb:authenticated',reinjectNavAfterAuth);
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',boot,{once:true});else boot();
 console.info('[HLGB] Auditor/Testador interno '+VERSION+' carregado');
 })();

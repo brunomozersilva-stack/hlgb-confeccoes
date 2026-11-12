@@ -20,7 +20,7 @@ permissions:
   contents: read
 jobs:
   unit:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 8
     steps:
       - uses: actions/checkout@v4
@@ -34,7 +34,7 @@ jobs:
           node --test tests/monitor-bot-access-v9543.cjs
           node --test tests/auditor-hourly-health-panel-v9541.cjs
   browser:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 20
     strategy:
       fail-fast: false
