@@ -11,7 +11,7 @@ const esc=x=>sid(x).replace(/[&<>"']/g,k=>({'&':'&amp;','<':'&lt;','>':'&gt;','"
 const copy=x=>JSON.parse(JSON.stringify(x));
 const rows=key=>{try{const x=typeof db!=='undefined'?db:window.db;return Array.isArray(x?.[key])?x[key]:[]}catch(e){return Array.isArray(window.db?.[key])?window.db[key]:[]}};
 const today=()=>{const x=new Date();return x.getFullYear()+'-'+String(x.getMonth()+1).padStart(2,'0')+'-'+String(x.getDate()).padStart(2,'0')};
-const validDay=x=>/^\d{4}-\d{2}-\d{2}$/.test(sid(x))&&!Number.isNaN(Date.parse(sid(x)+'T12:00:00'));
+const validDay=x=>{const v=sid(x);if(!/^\d{4}-\d{2}-\d{2}$/.test(v))return false;const d=new Date(v+'T12:00:00');return d.getFullYear()===+v.slice(0,4)&&d.getMonth()+1===+v.slice(5,7)&&d.getDate()===+v.slice(8,10)};
 const key=(type,id)=>type+':'+sid(id);
 const moduleFor=type=>type==='projection'?'projectionInvoices':'orders';
 const lookup=(type,id)=>rows(moduleFor(type)).find(x=>sid(x?.id)===sid(id))||null;
@@ -235,10 +235,62 @@ function patchOrderRemaining(){
  const w=function(o){return moneyState(o,'order').remaining/100};
  w.__original=old;w.__hlgbAcertoReturns9565=true;window.orderRemaining=w;
 }
+function decorateOrder(id){
+ const item=lookup('order',id),modal=document.getElementById('modal'),hist=document.getElementById('paymentHistoryBox');
+ if(!item||!modal||!hist)return false;
+ modal.querySelector('#hlgbOrderReturnExtra9565')?.remove();
+ const m=moneyState(item,'order'),saldo=document.getElementById('acertoRemaining');
+ if(saldo)saldo.textContent=brl(m.remaining);
+ // Keep the original cheque form and payment history; append only the new tasks.
+ const host=document.createElement('div');host.id='hlgbOrderReturnExtra9565';
+ host.className='panel';host.style.cssText='margin-top:14px;padding:12px';
+ const returnList=ret(item).map(e=>'<div class="sub">'+esc(e.date)+' · '+esc(e.reason)+' · '+brl(cent(e.value))+
+   (e.reversedAt?' (estornada)':'')+'</div>').join('');
+ const memoList=notes(item).map(e=>'<div class="sub">'+esc(e.date)+' · '+esc(e.text)+'</div>').join('');
+ host.innerHTML='<h3 style="margin-top:0">↩️ Devoluções e anotações</h3>'+
+  '<div class="cards"><div class="card"><small>Total abatido por devolução</small><strong>'+brl(m.credit)+'</strong></div>'+
+  '<div class="card"><small>Saldo após abatimentos</small><strong>'+brl(m.remaining)+'</strong></div></div>'+
+  '<div class="sub">Os abatimentos reduzem o saldo, mas não são recebimentos e não alteram estoque.</div>'+
+  '<div class="grid" style="margin:10px 0"><div class="field"><label>Valor da devolução (R$)</label>'+
+  '<input type="number" id="or65-value" min="0.01" step="0.01" max="'+(m.remaining/100)+'" placeholder="0,00"></div>'+
+  '<div class="field"><label>Data</label><input type="date" id="or65-date" value="'+today()+'"></div>'+
+  '<div class="field"><label>Motivo (obrigatório)</label><input id="or65-reason" maxlength="180" placeholder="Ex.: peças devolvidas"></div></div>'+
+  '<div class="field"><label>Detalhes</label><textarea id="or65-detail" rows="2" maxlength="1200" placeholder="Modelo, peças, motivo"></textarea></div>'+
+  '<button type="button" class="secondary" data-or65="return"'+(m.remaining<=1?' disabled':'')+'>Abater devolução</button>'+
+  (returnList?'<h4>Histórico de devoluções</h4>'+returnList:'')+
+  '<h4>📝 Anotações do acerto</h4>'+
+  '<div class="field"><label>Nova anotação</label><textarea id="or65-note" rows="2" maxlength="1600"></textarea></div>'+
+  '<button type="button" class="secondary" data-or65="note">Salvar anotação</button>'+
+  (memoList?'<h4>Anotações anteriores</h4>'+memoList:'')+
+  '<div role="status" id="or65-feedback"></div>'+
+  (state.financePending.length?'<button type="button" class="secondary" data-or65="retry">Reconciliar financeiro pendente</button>':'');
+ hist.insertAdjacentElement('afterend',host);
+ host.addEventListener('click',async e=>{
+  const b=e.target.closest('button[data-or65]');if(!b||b.disabled)return;
+  const kind=b.dataset.or65,get=x=>sid(document.getElementById(x)?.value);
+  const value=kind==='return'?{value:get('or65-value'),date:get('or65-date'),reason:get('or65-reason'),detail:get('or65-detail')}:
+   {text:get('or65-note')};
+  const f=host.querySelector('#or65-feedback');
+  b.disabled=true;if(f)f.textContent='Salvando na nuvem…';
+  try{
+   const result=kind==='retry'?await retryFinance('order',id):await saveAction('order',id,kind,value);
+   window.openAcerto(id);
+   const next=document.getElementById('or65-feedback');
+   if(next)next.textContent=result?.mirror?.ok===false?'Abatimento confirmado, mas lançamento financeiro pendente.':'✓ Registro confirmado na nuvem.';
+  }catch(err){b.disabled=false;if(f)f.textContent='⚠ '+sid(err?.message||err)}
+ });
+ return true;
+}
+function patchOrderAcerto(){
+ const old=window.openAcerto;
+ if(typeof old!=='function'||old.__hlgbAcertoReturns9565)return;
+ const w=function(id){const result=old.apply(this,arguments);decorateOrder(id);return result};
+ w.__hlgbAcertoReturns9565=true;w.__original=old;
+ window.openAcerto=w;
+}
 function install(){
  window.openProjectionAcerto9214=id=>render('projection',id);
- window.openAcerto=id=>render('order',id);
- patchRenderer();patchOrderRemaining();
+ patchRenderer();patchOrderRemaining();patchOrderAcerto();
 }
 window.hlgbAcertoReturns9565={version:V,balance,moneyState,credits,paid,lookup,saveAction,retryFinance,render,install,status:()=>copy(state)};
 install();[600,1600,3600].forEach(ms=>setTimeout(install,ms));
