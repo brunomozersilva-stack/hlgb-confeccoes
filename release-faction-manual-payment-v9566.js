@@ -322,12 +322,25 @@ function receiptGroups(){
  for(const r of arr('factionPayments')){
   if(!r?.manualGroupId||!r?.manual)continue;
   const id=sid(r.manualGroupId),cur=groups.get(id)||{id,factionName:r.factionName,date:r.paymentDate||r.scheduledPaymentDate,
-   status:r.status,receipt:null,total:0,items:0};
+   status:r.status,receipt:null,recordId:sid(r.id),total:0,items:0};
   cur.total+=Number(r.value)||0;cur.items++;
-  if(r.receiptPdfV9566?.base64)cur.receipt=r.receiptPdfV9566;
+  if(r.receiptPdfV9566?.base64){cur.receipt=r.receiptPdfV9566;cur.recordId=sid(r.id)}
   groups.set(id,cur);
  }
  return [...groups.values()].sort((a,b)=>sid(b.date).localeCompare(sid(a.date)));
+}
+async function attachReceiptToGroup(groupId,file){
+ const group=receiptGroups().find(x=>x.id===sid(groupId));
+ if(!group)throw Error('Pagamento avulso não encontrado.');
+ if(group.receipt)throw Error('Este grupo já possui comprovante. O arquivo anterior foi preservado.');
+ const original=arr('factionPayments').find(x=>sid(x.id)===group.recordId);
+ if(!original)throw Error('Lançamento vinculado não encontrado.');
+ const receipt=await readReceipt(file);
+ if(!receipt)throw Error('Escolha um comprovante PDF.');
+ const next={...original,receiptPdfV9566:receipt,updatedAt:new Date().toISOString()};
+ await saveRecord('factionPayments',next);
+ renderReceipts();
+ return receipt;
 }
 function renderReceipts(){
  const anchor=document.getElementById('factionPaymentTable');
@@ -335,16 +348,29 @@ function renderReceipts(){
  let host=document.getElementById('fm66-receipts');
  if(!host){host=document.createElement('div');host.id='fm66-receipts';host.className='panel';
   host.style.cssText='margin-top:14px;padding:12px';anchor.insertAdjacentElement('afterend',host);}
- const groups=receiptGroups(),attached=groups.filter(x=>x.receipt);
+ const groups=receiptGroups();
  host.innerHTML='<h3 style="margin-top:0">📎 Comprovantes de pagamentos avulsos</h3>'+
-  '<div class="sub">Os PDFs ficam vinculados ao lançamento e podem ser baixados novamente. Sem comprovante anexado não significa pagamento pendente.</div>'+
-  (attached.length?'<div style="overflow:auto"><table><thead><tr><th>Facção</th><th>Data</th><th>Valor</th><th>Comprovante</th></tr></thead><tbody>'+
-   attached.map(g=>'<tr><td>'+esc(g.factionName)+'</td><td>'+esc(g.date)+'</td><td>'+money(g.total)+'</td><td>'+
-    '<button type="button" class="secondary fm66-download" data-group-id="'+esc(g.id)+'">'+esc(g.receipt.name)+'</button></td></tr>').join('')+'</tbody></table></div>':
-   '<div class="empty">Nenhum PDF de pagamento avulso anexado ainda.</div>');
+  '<div class="sub">Anexe um PDF novo ao criar um pagamento ou adicione depois em um lançamento existente. Tamanho máximo: 750 KB.</div>'+
+  (groups.length?'<div style="overflow:auto"><table><thead><tr><th>Facção</th><th>Data</th><th>Valor</th><th>Comprovante</th></tr></thead><tbody>'+
+   groups.map(g=>'<tr><td>'+esc(g.factionName)+'</td><td>'+esc(g.date)+'</td><td>'+money(g.total)+'</td><td>'+
+    (g.receipt?'<button type="button" class="secondary fm66-download" data-group-id="'+esc(g.id)+'">'+esc(g.receipt.name)+'</button>':
+    '<div class="field" style="min-width:230px"><input type="file" class="fm66-attach-input" data-group-id="'+esc(g.id)+'" accept=".pdf,application/pdf">'+
+    '<button type="button" class="secondary fm66-attach" data-group-id="'+esc(g.id)+'">☁️ Salvar PDF</button></div>')+
+    '</td></tr>').join('')+'</tbody></table></div>':
+   '<div class="empty">Ainda não há pagamentos avulsos para anexar comprovantes.</div>')+
+  '<div id="fm66-receipt-feedback" role="status" class="sub"></div>';
  host.querySelectorAll('.fm66-download').forEach(b=>b.addEventListener('click',()=>{
   const group=receiptGroups().find(x=>x.id===b.dataset.groupId);
   if(group?.receipt)pdfDownload(group.receipt);
+ }));
+ host.querySelectorAll('.fm66-attach').forEach(b=>b.addEventListener('click',async()=>{
+  const input=[...host.querySelectorAll('.fm66-attach-input')].find(x=>x.dataset.groupId===b.dataset.groupId);
+  const feedback=host.querySelector('#fm66-receipt-feedback');
+  b.disabled=true;if(feedback)feedback.textContent='Salvando comprovante na nuvem…';
+  try{const receipt=await attachReceiptToGroup(b.dataset.groupId,input?.files?.[0]);
+   const next=document.getElementById('fm66-receipt-feedback');
+   if(next)next.textContent='✓ Comprovante '+receipt.name+' confirmado e vinculado ao pagamento.';
+  }catch(e){b.disabled=false;if(feedback)feedback.textContent='⚠ '+sid(e.message||e)}
  }));
  return true;
 }
@@ -365,7 +391,7 @@ document.addEventListener('click',e=>{
  e.preventDefault();e.stopImmediatePropagation();openForm();
 },true);
 window.hlgbFactionManual9566={version:V,openForm,searchFactions,searchProducts,factionDirectory,productDirectory,
- productPrice,validate,grandTotal,readReceipt,pdfIsValid,persistDraft,receiptGroups,renderReceipts,download:pdfDownload,install,
+ productPrice,validate,grandTotal,readReceipt,pdfIsValid,persistDraft,receiptGroups,attachReceiptToGroup,renderReceipts,download:pdfDownload,install,
  status:()=>({...state}),maxPdfBytes:MAX_PDF};
 install();
 [500,1700,3800].forEach(ms=>setTimeout(install,ms));
