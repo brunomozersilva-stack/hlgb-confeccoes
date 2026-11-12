@@ -75,8 +75,28 @@ const engine=process.env.HLGB_BROWSER==='webkit'?webkit:chromium;
   const attach=page.locator('#fm66-receipts .fm66-attach').first();
   assert.equal(await attach.count(),1,'existing manual payment without PDF offers attachment');
   await page.locator('#fm66-receipts .fm66-attach-input').first().setInputFiles({name:'comprovante-pendente.pdf',mimeType:'application/pdf',buffer:pdf});
+  // Post-login reinstallation used to redraw receipt rows and silently clear
+  // the browser's selected PDF before the user could click "Salvar PDF".
+  await page.evaluate(()=>{
+   window.hlgbFactionManual9566.install();
+   window.hlgbFactionManual9566.renderReceipts();
+   window.hlgbFactionManual9566.renderReceipts();
+  });
+  assert.equal(await page.locator('#fm66-receipts .fm66-attach-input').first().evaluate(el=>el.files?.[0]?.name),
+   'comprovante-pendente.pdf','repeated renders must preserve selected file');
   await attach.click();
-  await page.waitForFunction(()=>window.db.factionPayments.some(p=>p.factionName==='Ge'&&p.receiptPdfV9566?.name==='comprovante-pendente.pdf'));
+  try{
+   await page.waitForFunction(()=>window.db.factionPayments.some(p=>p.factionName==='Ge'&&p.receiptPdfV9566?.name==='comprovante-pendente.pdf'),
+    null,{timeout:12000});
+  }catch(error){
+   const details=await page.evaluate(()=>({
+    feedback:document.querySelector('#fm66-receipt-feedback')?.textContent,
+    groups:window.hlgbFactionManual9566.receiptGroups().map(g=>({name:g.factionName,id:g.id,proof:g.receipt?.name})),
+    files:[...document.querySelectorAll('#fm66-receipts .fm66-attach-input')].map(el=>({group:el.dataset.groupId,file:el.files?.[0]?.name})),
+    written:window.__written.slice(-3)
+   }));
+   throw new Error('PDF attachment not confirmed: '+JSON.stringify(details)+'; original='+error.message);
+  }
   assert.equal(await page.evaluate(()=>window.db.factionPayments.find(x=>x.factionName==='Ge').status),'Pendente','adding a PDF cannot mark pending as paid');
   assert.equal(await page.locator('#fm66-receipts .fm66-download').count(),2,'both proofs must remain downloadable');
   await page.setViewportSize({width:390,height:850});
