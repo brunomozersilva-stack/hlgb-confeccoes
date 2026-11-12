@@ -232,7 +232,7 @@ function prepareVisibleDownloads9545(){
  if(state)state.textContent=latest?
   'Resultados consultados em '+date(latest.generatedAt)+'. O download inclui os alertas encontrados.':
   'Falha na consulta: '+error+'. Baixe o diagnóstico para investigar.';
- if(json)json.textContent=latest?'⬇️ BAIXAR RELATÓRIO DO BOT (JSON)':
+ if(json)json.textContent=latest?'⬇️ CLIQUE AQUI PARA BAIXAR O RELATÓRIO DO BOT (JSON)':
   '⬇️ BAIXAR DIAGNÓSTICO DA FALHA (JSON)';
  if(txtLink)txtLink.textContent=latest?'⬇️ Baixar resumo (TXT)':'⬇️ Baixar erro da consulta (TXT)';
  for(const entry of [
