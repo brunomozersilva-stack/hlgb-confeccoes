@@ -7,7 +7,7 @@ assert(loader.includes("'release-notes-receivables-v9564.js'"),'entry must load 
 const db={
  projectionInvoices:[
   {id:'a',client:'Cliente A',clientId:1,value:100,paid:100,remaining:0,dueDate:'2026-11-11',status:'Pago'},
-  {id:'b',client:'Cliente A',clientId:1,value:200,paid:999,remaining:180,paymentHistory:[{value:20}],dueDate:'2026-11-13',status:'Pendente'},
+  {id:'b',client:'Cliente A',clientId:1,value:200,paid:999,remaining:180,paymentHistory:[{value:20}],items:[{orderId:'oLinked'}],dueDate:'2026-11-13',status:'Pendente'},
   {id:'c',client:'Cliente B',clientId:2,value:300,paid:0,remaining:300,dueDate:'2026-11-10',status:'Pendente'},
   {id:'d',client:'Cliente B',clientId:2,value:400,paid:0,remaining:400,dueDate:'2026-11-12',status:'Pendente'},
   {id:'e',client:'Cliente B',clientId:2,value:500,paid:0,remaining:500,dueDate:'',status:'Pendente'},
@@ -16,7 +16,8 @@ const db={
  ],
  finance:[{id:'f1',projectionInvoiceId:'b',paid:20}],
  orders:[{id:'o1',client:'Cliente C',clientId:3,noteReady:true,orderNumber:50,total:600,dueDate:'2026-11-19',paymentHistory:[]},
-         {id:'o2',client:'Cliente A',status:'Pedido finalizado',total:700,dueDate:'2026-11-11'}],
+         {id:'o2',client:'Cliente A',status:'Pedido finalizado',total:700,dueDate:'2026-11-11'},
+         {id:'oLinked',client:'Cliente A',noteReady:true,total:800,dueDate:'2026-11-12'}],
  invoices:[],noteQueue:[]
 };
 const before=JSON.stringify(db);
@@ -28,7 +29,7 @@ const api=sandbox.window.hlgbNotesReceivables9564;
 assert(api&&api.readOnly&&api.version==='95.64');
 const notes=api.allNotes(),now='2026-11-12';
 assert.equal(notes.length,6,'five real invoices plus one note-ready order');
-assert(!notes.some(x=>x.id==='shadow'||x.id==='cancel'||x.id==='o2'));
+assert(!notes.some(x=>x.id==='shadow'||x.id==='cancel'||x.id==='o2'||x.id==='oLinked'),'exclude shadows, canceled notes, ordinary orders and orders already billed through projection');
 const b=notes.find(x=>x.id==='b');
 assert.equal(b.paid,2000,'payment history must win over stale paid field');
 assert.equal(b.balance,18000);
