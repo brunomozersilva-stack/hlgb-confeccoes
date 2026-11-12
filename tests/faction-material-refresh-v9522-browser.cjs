@@ -39,7 +39,7 @@ const engine=process.env.HLGB_BROWSER==='webkit'?webkit:chromium;
   assert.ok(unsafePrint.alerts.some(v=>/desatualizado/i.test(v)),'stale print must warn');
   assert.equal(unsafePrint.legacy,'','outdated checklist must not be printed');
 
-  await page.locator('[data-material-revision9522="1794313232479"]').click();
+  await page.locator('#hlgbMaterialRevisions9522 [data-material-revision9522="1794313232479"]').click();
   await page.waitForSelector('#hlgbMaterialRefreshConfirm9522');
   const modal=await page.locator('#modal').innerText();
   assert.match(modal,/Romantic/);
@@ -54,7 +54,7 @@ const engine=process.env.HLGB_BROWSER==='webkit'?webkit:chromium;
    printed:document.getElementById('legacyPrint').textContent
   }));
   assert.equal(c.posts,1);assert.equal(c.len,4);assert.equal(c.kg,32);assert.equal(c.revision,2);
-  await page.locator('[data-material-revision9522="1794313367933"]').click();
+  await page.locator('#hlgbMaterialRevisions9522 [data-material-revision9522="1794313367933"]').click();
   await page.waitForSelector('#hlgbMaterialRefreshConfirm9522');
   assert.match(await page.locator('#modal').innerText(),/21,5/,'Melanie: 172 / 8 = 21.5 kg');
   await page.locator('#hlgbMaterialRefreshConfirm9522').click();
@@ -65,8 +65,8 @@ const engine=process.env.HLGB_BROWSER==='webkit'?webkit:chromium;
    payments:(db.factionPayments||[]).length}));
   assert.equal(data.posts,2);assert.equal(data.count,6);assert.equal(data.kg,21.5);assert.equal(data.payments,0);
   await page.evaluate(()=>{db.materialChecklists[0].materials[0].checked=true;db.materialChecklists[0].materials[0].qty=99;renderDestinationChecklists()});
-  await page.waitForSelector('[data-material-revision9522="1794313232479"]');
-  await page.locator('[data-material-revision9522="1794313232479"]').click();
+  await page.waitForSelector('#hlgbMaterialRevisions9522 [data-material-revision9522="1794313232479"]');
+  await page.locator('#hlgbMaterialRevisions9522 [data-material-revision9522="1794313232479"]').click();
   await page.waitForFunction(()=>document.getElementById('modal').textContent.includes('revisão manual'));
   assert.equal(await page.locator('#hlgbMaterialRefreshConfirm9522').count(),0,'checked materials must not be auto-rewritten');
   assert.equal(await page.evaluate(()=>window.__posts),2);
