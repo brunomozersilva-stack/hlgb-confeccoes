@@ -23,6 +23,12 @@ assert(api&&api.version==='95.65');
 const amounts=()=>api.moneyState(db.projectionInvoices[0],'projection');
 (async()=>{
  const initial=JSON.stringify(db);
+ let pending=['projectionInvoices::n'];
+ w.hlgbWalIdbGuard9536={probe:async()=>true,ids:()=>pending,status:()=>({readFailed:false})};
+ await assert.rejects(()=>api.saveAction('projection','n','return',{value:250,reason:'Pendente',date:'2026-11-12'}),/pendente/);
+ assert.equal(JSON.stringify(db),initial,'local WAL prevents writes');
+ assert.equal(writes.length,0,'no cloud write before WAL guard');
+ pending=[];
  failNext=true;
  await assert.rejects(()=>api.saveAction('projection','n','return',{value:250,reason:'Peças devolvidas',date:'2026-11-12'}),/Erro simulado/);
  assert.equal(JSON.stringify(db),initial,'no local mutation if the cloud rejects a return');
