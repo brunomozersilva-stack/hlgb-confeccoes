@@ -1,10 +1,11 @@
-name: HLGB Auditor Current Guard Regressions v95.49
+name: HLGB Auditor Current Guard Regressions v95.50
 on:
   pull_request:
     branches: [main]
     paths:
       - 'tests/audit-sync-confirmation-v9311.cjs'
       - 'tests/auditor-v9362-webkit-remote-inject.js'
+      - 'tests/auditor-v9362-webkit.js'
       - '.github/workflows/auditor-current-guard-v9549.yml'
   push:
     branches: [main]
@@ -41,5 +42,7 @@ jobs:
         run: |
           python3 -m http.server 4173 >/tmp/hlgb-auditor-webkit-9549.log 2>&1 &
           sleep 2
-      - name: Legacy remote injection must preserve canonical v94.34a button
+      - name: Current Auditor single-action regression after legacy UI injection
         run: node tests/auditor-v9362-webkit-remote-inject.js
+      - name: Legacy v93.60 iframe smoke tolerates verified canonical takeover
+        run: node tests/auditor-v9362-webkit.js

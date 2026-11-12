@@ -25,15 +25,26 @@ const {webkit}=require('playwright');
   window.openHlgbAuditor();
  });
  await frame.waitForSelector('#hlgbAuditorTestHost #hlgbSmartStatus',{timeout:10000});
- const visible=await frame.locator('#hlgbAuditorTestHost .hlgb-auditor-actions button:visible').allTextContents();
- const normalized=visible.map(x=>x.replace(/\s+/g,' ').trim());
- const core=['Testar sistema','Registrar problema','Histórico'];
- for(const label of core){
-  if(!normalized.some(x=>x.includes(label)))throw new Error('botao principal ausente: '+label+'; visiveis='+normalized.join(' | '));
+ const visible=await frame.locator('#hlgbAuditorTestHost .hlgb-auditor-actions button:visible').evaluateAll(
+  buttons=>buttons.map(x=>({id:x.id,text:(x.textContent||'').replace(/\s+/g,' ').trim()})));
+ const normalized=visible.map(x=>x.text);
+ // Esta página é um harness LEGADO v93.60. Conforme o momento do boot,
+ // a interface de teste antiga aparece primeiro e o controle canônico da
+ // aplicação pode assumir depois. Em ambos os modos exigimos todos os
+ // controles pertinentes e impedimos que ferramentas proibidas reapareçam.
+ const canonical=await frame.evaluate(()=>window.hlgbAuditorSingleUiReclaim9434A?.status?.()||null);
+ const current=visible.find(x=>x.id==='hlgbAuditorUnifiedRun9434A');
+ if(current){
+  if(visible.length!==1||!current.text.includes('Auditar e corrigir')||
+    !canonical?.buttonPresent||!canonical?.apiReady)
+   throw new Error('Botão canônico ativo não está isolado: '+JSON.stringify({visible,canonical}));
+ }else{
+  const required=['Testar sistema','Registrar problema','Histórico'];
+  for(const name of required){
+   if(!normalized.some(x=>x.includes(name)))
+    throw new Error('Harness legado sem controle esperado: '+name+'; visíveis='+normalized.join(' | '));
+  }
  }
- // Não usar whitelist fechada: o Auditor recebe módulos novos (multiusuário, inteligência,
- // expansão, WhatsApp etc.). O contrato é preservar os botões essenciais e impedir ações
- // legadas/proibidas de reaparecerem, sem quebrar o CI a cada extensão válida.
  const forbiddenVisible=['Teste visual completo','Exportar diagnóstico de sincronização','Blackbox do Auditor'];
  const forbiddenNow=normalized.filter(x=>forbiddenVisible.some(label=>x.includes(label)));
  if(forbiddenNow.length)throw new Error('acao legada/proibida apareceu no Auditor: '+forbiddenNow.join(' | '));
@@ -45,6 +56,6 @@ const {webkit}=require('playwright');
  const legacy=await frame.locator('#legacyVisual:visible,#legacySync:visible,#legacyBlackbox:visible').count();
  if(legacy)throw new Error('botoes legados dinamicos ainda visiveis: '+legacy);
  if(errors.some(x=>/auditor|9360|9361|9362|9363/i.test(x)))throw new Error('erro WebKit relacionado ao Auditor: '+errors.join(' | '));
- console.log('AUDITOR_V9363_WEBKIT_OK',meta,normalized);
+ console.log('AUDITOR_CURRENT_WEBKIT_OK',meta,visible,canonical);
  await browser.close();
 })().catch(e=>{console.error(e);process.exit(1)});
