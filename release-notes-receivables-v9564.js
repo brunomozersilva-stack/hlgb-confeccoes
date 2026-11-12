@@ -33,24 +33,25 @@ function projectionView(inv){
  let paid=history.length?history.reduce((s,p)=>s+cent(p.value),0):
   inv.paid!=null?cent(inv.paid):finance?.paid!=null?cent(finance.paid):
   inv.remaining!=null?Math.max(0,total-cent(inv.remaining)):0;
- paid=Math.min(total,paid);const balance=total-paid;
+ paid=Math.min(total,paid);const credit=Array.isArray(inv.acertoReturnsV9565)?inv.acertoReturnsV9565.reduce((sum,x)=>sum+(x?.reversedAt?0:cent(x?.value)),0):0;const balance=Math.max(0,total-paid-credit);
  return {type:'projection',id:sid(inv.id),key:'projection:'+sid(inv.id),
  number:sid(inv.externalNoteNumber||inv.noteNumber||inv.id),
  client:sid(inv.client||inv.clientName||'Sem cliente'),
  clientKey:inv.clientId!=null&&sid(inv.clientId)?'id:'+sid(inv.clientId):'name:'+norm(inv.client||inv.clientName||'Sem cliente'),
  issued:date(inv.issueDate||inv.date),due:date(inv.dueDate),
- total,paid,balance,terms:sid(inv.terms||inv.paymentTerms||'-'),source:'Nota de entrega',
+ total,paid,credit,balance,terms:sid(inv.terms||inv.paymentTerms||'-'),source:'Nota de entrega',
  mismatch:inv.remaining!=null&&Math.abs(cent(inv.remaining)-balance)>1};
 }
 function orderView(o){
  const total=cent(o.total),history=Array.isArray(o.paymentHistory)?o.paymentHistory:[];
  const paid=Math.min(total,history.length?history.reduce((s,p)=>s+cent(p.value),0):cent(o.received));
+ const credit=Array.isArray(o.acertoReturnsV9565)?o.acertoReturnsV9565.reduce((sum,x)=>sum+(x?.reversedAt?0:cent(x?.value)),0):0;
  return {type:'order',id:sid(o.id),key:'order:'+sid(o.id),number:sid(o.orderNumber||o.id),
  client:sid(o.client||'Sem cliente'),
  clientKey:o.clientId!=null&&sid(o.clientId)?'id:'+sid(o.clientId):'name:'+norm(o.client||'Sem cliente'),
- issued:date(o.invoiceDate||o.date),due:date(o.dueDate),total,paid,balance:total-paid,
+ issued:date(o.invoiceDate||o.date),due:date(o.dueDate),total,paid,credit,balance:Math.max(0,total-paid-credit),
  terms:sid(o.paymentTerms||'-'),source:'Pedido com nota pronta',
- mismatch:o.remaining!=null&&Math.abs(cent(o.remaining)-(total-paid))>1};
+ mismatch:o.remaining!=null&&Math.abs(cent(o.remaining)-Math.max(0,total-paid-credit))>1};
 }
 function allNotes(){
  const original=canonical().filter(x=>x&&x.id!=null&&!/cancelad|excluid/.test(norm(x.status)));
@@ -110,11 +111,11 @@ function calculate(rows,now=today()){
  paid:[paid.length,sum(paid,'total')],overdue:[overdue.length,sum(overdue,'balance')],
  upcoming:[future.length,sum(future,'balance')],next7:[next7.length,sum(next7,'balance')],
  today:[todayRows.length,sum(todayRows,'balance')],unknown:[unknown.length,sum(unknown,'balance')],
- received:[rows.filter(x=>x.paid>0).length,sum(rows,'paid')]};
+ received:[rows.filter(x=>x.paid>0).length,sum(rows,'paid')],credits:[rows.filter(x=>x.credit>0).length,sum(rows,'credit')]};
 }
 function label(n,now){
  const group=category(n,now),dist=days(n.due,now);
- if(group==='paid')return ['Pago','ok'];
+ if(group==='paid')return [n.credit>0?'Compensada por devolução':'Pago','ok'];
  if(group==='unknown')return ['Sem vencimento','warn'];
  if(group==='overdue')return ['Vencida há '+Math.abs(dist)+' dia(s)','bad'];
  if(group==='today')return ['Vence hoje','warn'];
@@ -226,7 +227,7 @@ function paint(){
  const base=filterAll(all),tot=calculate(base,now);
  const filtered=sortRows(base.filter(x=>matchTab(x,state.tab,now)));
  const tabs=[['open','Em aberto'],['overdue','Vencidas'],['upcoming','A vencer'],['paid','Pagas'],['all','Todas']];
- root.querySelector('#nr-stats').innerHTML=[['A receber','open'],['Recebido','received'],['Vencidas','overdue'],['Vence hoje','today'],['Próximos 7 dias','next7'],['Sem vencimento','unknown']]
+ root.querySelector('#nr-stats').innerHTML=[['A receber','open'],['Recebido','received'],['Devoluções abatidas','credits'],['Vencidas','overdue'],['Vence hoje','today'],['Próximos 7 dias','next7'],['Sem vencimento','unknown']]
  .map(([label,key])=>'<div class="nr-stat"><small>'+label+'</small><strong>'+brl(tot[key][1])+'</strong><span class="sub">'+tot[key][0]+' nota(s)</span></div>').join('');
  root.querySelector('#nr-tabs').innerHTML=tabs.map(([key,label])=>
   '<button class="secondary" type="button" role="tab" data-action="tab" data-tab="'+key+'" aria-selected="'+(key===state.tab)+'">'+
@@ -234,13 +235,13 @@ function paint(){
  const amount=state.tab==='paid'||state.tab==='all'?sum(filtered,'total'):sum(filtered,'balance');
  root.querySelector('#nr-summary').innerHTML='<div class="nr-row"><b>'+filtered.length+' nota(s) · '+brl(amount)+'</b><span class="sub">Valores calculados sobre dados carregados. Pagamentos parciais deixam o saldo em aberto.</span></div>';
  const shown=filtered.slice(0,300);
- root.querySelector('#nr-table').innerHTML=shown.length?'<div class="nr-table"><table><thead><tr><th>Nota</th><th>Cliente</th><th>Emissão</th><th>Vencimento</th><th class="nr-money">Total</th><th class="nr-money">Recebido</th><th class="nr-money">Saldo</th><th>Situação</th><th>Ações</th></tr></thead><tbody>'+
+ root.querySelector('#nr-table').innerHTML=shown.length?'<div class="nr-table"><table><thead><tr><th>Nota</th><th>Cliente</th><th>Emissão</th><th>Vencimento</th><th class="nr-money">Total</th><th class="nr-money">Recebido</th><th class="nr-money">Devoluções</th><th class="nr-money">Saldo</th><th>Situação</th><th>Ações</th></tr></thead><tbody>'+
  shown.map(n=>{const badge=label(n,now),partial=n.balance>1&&n.paid>0?' · Parcial':'';
  const actions=actionButton('view',n,n.type==='order'?'Ver pedido':'Ver')+
  (n.type==='projection'&&typeof window.hlgbDownloadNotePdf9411==='function'?actionButton('pdf',n,'PDF'):'')+
  (n.balance>1&&(n.type==='order'?typeof window.openAcerto==='function':typeof window.openProjectionAcerto9214==='function')?actionButton('pay',n,'Acerto'):'');
  return '<tr><td><b>#'+esc(n.number)+'</b><div class="sub">'+esc(n.source)+'</div></td><td>'+esc(n.client)+'</td><td>'+esc(n.issued?dateFmt(n.issued):'-')+'</td>'+
- '<td>'+esc(dateFmt(n.due))+'</td><td class="nr-money">'+brl(n.total)+'</td><td class="nr-money">'+brl(n.paid)+'</td><td class="nr-money">'+brl(n.balance)+'</td>'+
+ '<td>'+esc(dateFmt(n.due))+'</td><td class="nr-money">'+brl(n.total)+'</td><td class="nr-money">'+brl(n.paid)+'</td><td class="nr-money">'+brl(n.credit)+'</td><td class="nr-money">'+brl(n.balance)+'</td>'+
  '<td><span class="badge '+badge[1]+'">'+esc(badge[0]+partial)+'</span>'+(n.mismatch?'<div style="color:#a66300">⚠ Conferir saldo</div>':'')+'</td><td><div class="nr-actions">'+actions+'</div></td></tr>';
  }).join('')+'</tbody></table></div>':'<div class="empty" style="padding:14px">Nenhuma nota encontrada nos filtros.</div>';
  if(filtered.length>300)root.querySelector('#nr-table').insertAdjacentHTML('beforeend','<div class="sub">Exibindo 300 notas; CSV exporta todos os resultados filtrados.</div>');
@@ -252,9 +253,9 @@ function paint(){
 function exportRows(){return sortRows(filterAll(allNotes()).filter(x=>matchTab(x,state.tab,today())))}
 function csvCell(v){let t=sid(v);if(/^[=+\-@\t\r]/.test(t))t="'"+t;return '"'+t.replace(/"/g,'""')+'"'}
 function exportCsv(){
- const rows=[['Origem','Nota','Cliente','Emissão','Vencimento','Situação','Total','Recebido','Saldo','Condição']];
+ const rows=[['Origem','Nota','Cliente','Emissão','Vencimento','Situação','Total','Recebido','Devoluções','Saldo','Condição']];
  for(const n of exportRows())rows.push([n.source,n.number,n.client,n.issued,n.due,label(n,today())[0],
- (n.total/100).toFixed(2).replace('.',','),(n.paid/100).toFixed(2).replace('.',','),(n.balance/100).toFixed(2).replace('.',','),n.terms]);
+ (n.total/100).toFixed(2).replace('.',','),(n.paid/100).toFixed(2).replace('.',','),(n.credit/100).toFixed(2).replace('.',','),(n.balance/100).toFixed(2).replace('.',','),n.terms]);
  const blob=new Blob(['\uFEFF'+rows.map(x=>x.map(csvCell).join(';')).join('\r\n')],{type:'text/csv;charset=utf-8'}),
  url=URL.createObjectURL(blob),a=document.createElement('a');
  a.href=url;a.download='HLGB-notas-'+today()+'.csv';document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1800);
