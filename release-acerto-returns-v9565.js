@@ -21,7 +21,12 @@ const credits=x=>ret(x).reduce((s,e)=>s+(e?.reversedAt?0:cent(e?.value)),0);
 function paid(x,type){
  const hist=Array.isArray(x?.paymentHistory)?x.paymentHistory:[];
  if(hist.length)return hist.reduce((s,p)=>s+cent(p?.value),0);
- return cent(type==='projection'?(x?.paid??0):(x?.received??0));
+ const scalar=type==='projection'?x?.paid:x?.received;
+ if(scalar!=null)return cent(scalar);
+ // Some older notes store payment only in the finance mirror. For multiple
+ // mirrors take a single maximum, never sum duplicate mirror entries.
+ const mirrors=x?.id!=null?invoiceFinance(type,x.id):[];
+ return Math.max(0,...mirrors.map(f=>cent(f?.paid)));
 }
 function balance(x,type){
  const total=cent(type==='projection'?x?.value:x?.total);
@@ -52,6 +57,10 @@ function moneyState(row,type){
 }
 async function assertNoLocalPending(module,id){
  const guard=window.hlgbWalIdbGuard9536;
+ // The current browser has persistent Safari WAL work. Without the read-only
+ // guard loaded, writes cannot be considered safe even if other flags say zero.
+ if(typeof guard?.probe!=='function'||typeof guard?.ids!=='function')
+  throw Error('Proteção de sincronização local indisponível. Registro preservado; recarregue a página sem limpar dados.');
  if(guard?.probe){
   try{await guard.probe()}catch(e){throw Error('Não foi possível conferir operações locais pendentes: '+sid(e?.message||e))}
   if(guard.status?.()?.readFailed)throw Error('O WAL deste navegador não pôde ser lido. Registro preservado; não substituir dados.');
@@ -117,7 +126,17 @@ async function saveAction(type,id,kind,input){
     throw Error('O recebimento não pode ultrapassar o saldo de '+brl(old.remaining)+'.');
    if(!validDay(at))throw Error('Data de recebimento inválida.');
    const p={id:Date.now(),value:cent(value)/100,method,date:at,note:sid(input?.detail).trim().slice(0,1200)};
-   next.paymentHistory=[...(Array.isArray(next.paymentHistory)?next.paymentHistory:[]),p];
+   const previous=Array.isArray(next.paymentHistory)?next.paymentHistory:[];
+   // A legacy invoice may have received/paid>0 without any paymentHistory.
+   // Adding the first new receipt must never erase those previously received
+   // funds by making the new history the sole source of truth.
+   const baseline=previous.length===0&&old.cash>0?[{
+    id:'legacy-received-'+sid(id),value:old.cash/100,
+    method:'Recebimento anterior (dados de origem preservados)',
+    date:'',note:'Saldo recebido já existente antes do primeiro acerto detalhado',
+    importedBaselineV9565:true
+   }]:[];
+   next.paymentHistory=[...previous,...baseline,p];
   }else if(kind==='reversal'){
    const entry=ret(next).find(x=>sid(x?.id)===sid(input?.entryId));
    if(!entry||entry.reversedAt)throw Error('Devolução inexistente ou já estornada.');
