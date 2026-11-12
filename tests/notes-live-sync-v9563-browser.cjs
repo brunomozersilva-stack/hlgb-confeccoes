@@ -16,7 +16,7 @@ const browserType=process.env.HLGB_BROWSER==='webkit'?webkit:chromium;
   notesText:document.getElementById('orderNotesTable').innerText,
   allText:document.getElementById('allOrderNotesTable').innerText,
   writes:window.__writes,requests:window.__requests,
-  status:window.hlgbNotesLiveSync9563.status()
+  status:window.hlgbNotesLiveSync9563.status(),globalCursor:window.hlgbRecordGlobalLastSeen,perModuleCursor:window.hlgbRecordLastSeen
  }));
  assert(after.invoiceIds.includes('1794501067585703'),'remote invoice must reach Safari');
  assert(after.financeIds.includes('1794501067585704'),'corresponding finance record must be fetched');
@@ -29,6 +29,8 @@ const browserType=process.env.HLGB_BROWSER==='webkit'?webkit:chromium;
  assert(after.requests.every(x=>x.method==='GET'),'read-only note reconciliation');
  assert.equal(after.writes,1,'only local cache persisted');
  assert.equal(result.protected,1);
+ assert.equal(after.globalCursor,'2026-11-12T10:00:00Z','targeted note read cannot skip unrelated modules');
+ assert.equal(after.perModuleCursor.finance,'2026-11-12T09:30:00Z');
  await page.evaluate(()=>window.hlgbNotesLiveSync9563.refresh('test-repeat',true));
  const repeated=await page.evaluate(()=>({count:db.projectionInvoices.filter(x=>String(x.id)==='1794501067585703').length,writes:window.__writes}));
  assert.equal(repeated.count,1,'idempotent duplicate handling');
