@@ -155,6 +155,17 @@ async function persistDraft(input,receipt){
  try{
   const parsed=validate(input),date=parsed.date,paid=parsed.status==='Pago',
    id=draft?.groupId||makeId('faction-manual'),ts=new Date().toISOString();
+  if(paid&&(!parsed.method||date>stamp()))throw Error('Informe forma e data real do pagamento.');
+  const priorAdjustments=directAdjustmentsV9591(groupRows(id));
+  const inputAdjustments=validateDirectInputV9591(input.directAdjustmentsV9591||[],[]);
+  for(const entry of inputAdjustments){
+   const old=priorAdjustments.find(x=>sid(x.id)===sid(entry.id));
+   if(old&&(old.kind!==entry.kind||cents(old.amount)!==cents(entry.amount)||sid(old.reason)!==sid(entry.reason)))
+    throw Error('Ajuste já salvo com outros dados. Reabra o lançamento.');
+  }
+  const adjustments=[...priorAdjustments,...inputAdjustments.filter(x=>!priorAdjustments.some(y=>sid(y.id)===sid(x.id)))];
+  const net=validateNetV9591((cents(parsed.total)+sumDirectCentsV9591(adjustments))/100);
+  const allocations=paid?paidAllocationsV9590(parsed.lines,net):[];
   if(!draft)draft={groupId:id,createdAt:ts,receipt:null};
   if(receipt)draft.receipt=receipt;
   if(!parsed.lines.every(x=>x.id))throw Error('Uma linha perdeu sua identificação. Reabra o formulário antes de salvar.');
@@ -166,29 +177,31 @@ async function persistDraft(input,receipt){
     description:row.description,manualProductNameV9589:row.manualProductName,manualProductCategoryV9589:row.manualProductCategory,
     quantity:row.quantity,unitPrice:row.unitPrice,
     value:row.value,grossValueV9577:row.grossValue,travetaDiscountUnitV9577:row.travetaDiscountUnit,
-    travetaDiscountTotalV9577:row.travetaDiscountTotal,paidAmount:paid?row.value:0,paymentDate:paid?date:'',
+    travetaDiscountTotalV9577:row.travetaDiscountTotal,paidAmount:paid?allocations[i]:0,paymentDate:paid?date:'',
     scheduledPaymentDate:date,paymentMethod:parsed.method,
     paymentHistory:existing?.paymentHistory||[],discountAmount:row.travetaDiscountTotal,
     observation:(row.note||parsed.note||'Pagamento avulso de facção'),manualLineNoteV9566:row.note,
     priceOriginV9566:row.priceOrigin,updatedAt:ts,createdAt:existing?.createdAt||draft.createdAt};
-   if(i===0&&draft.receipt)obj.receiptPdfV9566=draft.receipt;
-   else delete obj.receiptPdfV9566;
+   if(i===0){obj.manualDirectAdjustmentsV9591=adjustments;if(draft.receipt)obj.receiptPdfV9566=draft.receipt}
+   else if(existing?.receiptPdfV9566)obj.receiptPdfV9566=existing.receiptPdfV9566;
    await saveRecord('factionPayments',obj);saved++;
   }
   // One financial entry for a paid group, with a stable ID across retries.
   if(paid&&date>='2026-10-05'){
    const hub={id:hubId(id),flow:'Saída',
     description:'Pagamento avulso de facção — '+parsed.factionName,
-    value:parsed.total,date,category:'Facções',subcategory:'Pagamento avulso',
+    value:net,date,category:'Facções',subcategory:'Pagamento avulso',
     person:parsed.factionName,status:'Realizado',acceptedMethods:parsed.method?[parsed.method]:[],
     paymentMethod:parsed.method,realizedAt:date,
-    note:(parsed.note?parsed.note+' · ':'')+parsed.lines.map(x=>x.description+' '+x.quantity+'x').join(', '),
+    note:((parsed.note?parsed.note+' · ':'')+parsed.lines.map(x=>x.description+' '+x.quantity+'x').join(', ')+
+     (adjustments.length?' · AJUSTES: '+adjustments.map(x=>(x.kind==='abater'?'-':'+')+
+      money(x.amount)+' ('+x.reason+')').join('; '):'')).slice(0,1500),
     sourceType:'faction_manual_payment',sourceId:id,createdAt:draft.createdAt,updatedAt:ts};
    const previous=arr('hubFinanceEntries').find(x=>sid(x?.id)===sid(hub.id));
    if(previous&&sid(previous.sourceId)!==id)throw Error('Conflito de identificação do financeiro; registro anterior preservado.');
    await saveRecord('hubFinanceEntries',hub);
   }
-  state.lastResult={groupId:id,total:parsed.total,lines:saved,paid,receipt:!!draft.receipt};
+  state.lastResult={groupId:id,total:net,lines:saved,paid,receipt:!!draft.receipt,adjustments:adjustments.length};
   return state.lastResult;
  }catch(e){state.lastError=(saved?'Foram confirmadas '+saved+' linha(s). Reabra o salvamento neste formulário para concluir sem duplicar. ':'')+sid(e?.message||e);throw Error(state.lastError)}
  finally{state.status=STATUS.idle}
@@ -545,8 +558,7 @@ async function markGroupPaid(groupId,date,method,receipt){
   if(condition==='Pago')throw Error('Este lançamento já consta como pago. Não é permitido pagar duas vezes.');
   if(!['Pendente','Revisar'].includes(condition))throw Error('Situação inconsistente; confira o pagamento antes da baixa.');
   if(rows.some(x=>!['pago','pendente'].includes(norm(x.status))))throw Error('Há uma linha em situação desconhecida; não registrar pagamento.');
-  const total=netGroupV9590(allRows);
-  if(total<=0)throw Error('O total após os acertos precisa ser maior que zero. Confira créditos e diferenças.');
+  const total=validateNetV9591(netGroupV9590(allRows));
   const allocations=paidAllocationsV9590(rows,total);
   const alreadyPaid=rows.filter(x=>norm(x.status)==='pago');
   if(alreadyPaid.some(x=>sid(x.paymentDate)!==date||sid(x.paymentMethod)!==method||
@@ -573,6 +585,9 @@ async function markGroupPaid(groupId,date,method,receipt){
    value:total,date,category:'Facções',subcategory:'Pagamento avulso',person:first.factionName,
    status:'Realizado',acceptedMethods:[method],paymentMethod:method,realizedAt:date,
    note:(rows.map(x=>sid(x.description)+' '+Number(x.quantity)+'x').join(', ')+
+     (directAdjustmentsV9591(allRows).length?' · AJUSTES DIRETOS: '+
+      directAdjustmentsV9591(allRows).map(x=>(x.kind==='abater'?'-':'+')+money(x.amount)+
+      ' ('+sid(x.reason)+')').join('; '):'')+
      (groupApplicationsV9590(allRows).length?' · ACERTOS: '+
       groupApplicationsV9590(allRows).map(a=>(a.kind==='a_mais'?'-':'+')+money(a.amount)+
       ' ('+sid(a.reason)+')').join('; '):'')).slice(0,1500),
