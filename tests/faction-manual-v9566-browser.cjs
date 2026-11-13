@@ -110,7 +110,7 @@ const engine=process.env.HLGB_BROWSER==='webkit'?webkit:chromium;
   await page.locator('#fm66-root').waitFor({state:'visible'});
   assert.equal(await page.locator('#fm66-faction').inputValue(),'Ge');
   assert.equal(await page.locator('.fm66-line').first().getAttribute('data-id'),rowId,'edit retains identity');
-  assert.equal(await page.locator('.fm66-line .fm66-remove').first().isDisabled(),true,'saved line is not deleted');
+  assert.equal(await page.locator('.fm66-line .fm66-remove').first().isEnabled(),true,'saved line can now be soft-canceled with a reason');
   await page.locator('.fm66-line .fm66-qty').first().fill('4');
   await page.locator('.fm66-line .fm66-discount').first().fill('0.10');
   await page.locator('#modal .modalSave').click();
@@ -220,6 +220,115 @@ const engine=process.env.HLGB_BROWSER==='webkit'?webkit:chromium;
   assert.equal(travetPaid.financial.length,1,'one Hub entry for standalone travetada');
   assert.equal(travetPaid.financial[0].value,24);
   assert.equal(await page.evaluate(()=>window.db.products.length),catalogueBefore);
+
+
+  // v95.90: removal with reason/undo and full PDF (no deletion in the DB).
+  await page.locator('#fm88-filter-status').selectOption('todos');
+  await page.locator('#hlgbFactionManualPaymentBtn').click();
+  await page.locator('#fm66-faction').fill('Roseli');
+  await page.locator('#fm66-faction-suggestions [data-faction="Roseli"]').click();
+  const correctionProduct=page.locator('.fm66-line').first();
+  await correctionProduct.locator('.fm66-search').fill('Camisola');
+  await correctionProduct.locator('[data-product-id="p1"]').click();
+  await correctionProduct.locator('.fm66-qty').fill('10');
+  await page.locator('#fm66-add-traveta').click();
+  const mistaken=page.locator('.fm66-line').nth(1);
+  await mistaken.locator('.fm66-qty').fill('10');
+  await mistaken.locator('.fm66-unit').fill('0.40');
+  await page.locator('#modal .modalSave').click();
+  await page.locator('#modal').waitFor({state:'detached'});
+  const rosPending=await page.evaluate(()=>window.db.factionPayments.filter(x=>x.factionName==='Roseli'&&x.status==='Pendente'));
+  assert.equal(rosPending.length,2);
+  const pendingGroup=rosPending[0].manualGroupId,wrongId=rosPending[1].id;
+  await page.locator('#fm66-receipts tr[data-fm88-row]').filter({hasText:'Roseli'}).filter({has:page.locator('.fm88-edit')}).locator('.fm88-edit').click();
+  await page.locator('#fm66-root').waitFor({state:'visible'});
+  page.once('dialog',dialog=>dialog.accept('Servico digitado por engano'));
+  await page.locator('.fm66-line').nth(1).locator('.fm66-remove').click();
+  assert.equal(await page.locator('.fm66-line').count(),1);
+  await page.locator('#fm90-removed-lines .fm90-undo').click();
+  assert.equal(await page.locator('.fm66-line').count(),2,'undo restores the original row before saving');
+  page.once('dialog',dialog=>dialog.accept('Servico digitado por engano'));
+  await page.locator('.fm66-line').nth(1).locator('.fm66-remove').click();
+  await page.locator('#modal .modalSave').click();
+  await page.locator('#modal').waitFor({state:'detached'});
+  const removed=await page.evaluate(id=>window.db.factionPayments.find(x=>x.id===id),wrongId);
+  assert.equal(removed.status,'Cancelado');
+  assert.equal(removed.value,4,'original amount remains intact for audit');
+  assert.equal(removed.manualCanceledV9590,true);
+  assert.equal(removed.manualCanceledReasonV9590,'Servico digitado por engano');
+  const activeDue=await page.evaluate(id=>window.hlgbFactionManual9566.receiptGroups().find(x=>x.id===id),pendingGroup);
+  assert.equal(activeDue.total,26,'canceled product is excluded from payment');
+  assert.equal(activeDue.items,1);
+  const pdfRows=page.locator('#fm66-receipts tr[data-fm88-row]').filter({hasText:'Roseli'}).filter({has:page.locator('.fm88-edit')});
+  const [report]=await Promise.all([page.waitForEvent('download'),pdfRows.locator('.fm90-summary-pdf').click()]);
+  const reportBuffer=await fs.readFile(await report.path());
+  assert.match(report.suggestedFilename(),/HLGB-Pagamento-Avulso/);
+  assert.equal(reportBuffer.toString('utf8',0,5),'%PDF-');
+  assert(reportBuffer.toString('latin1').includes('CANCELADA'),'PDF must list canceled products');
+  assert(reportBuffer.toString('latin1').includes('Servico digitado por engano'),'PDF must retain removal reason');
+  assert(reportBuffer.length>1300,'detailed PDF must be a real, substantial PDF');
+
+  // A correction of an actual paid group leaves the original Hub untouched,
+  // and is applied to a Pendente group of the same Roseli.
+  const paidSource=await page.evaluate(()=>window.db.factionPayments.find(x=>x.factionName==='Roseli'&&x.status==='Pago'));
+  const sourceGroup=paidSource.manualGroupId;
+  const previousHub=await page.evaluate(g=>window.db.hubFinanceEntries.find(x=>x.sourceId===g).value,sourceGroup);
+  const sourceRow=page.locator('#fm66-receipts tr[data-fm88-row]').filter({has:page.locator('.fm90-correct[data-group-id="'+sourceGroup+'"]')});
+  await sourceRow.locator('.fm90-correct').click();
+  await page.locator('#fm90-correction').waitFor({state:'visible'});
+  await page.locator('#fm90-kind').selectOption('a_mais');
+  await page.locator('#fm90-amount').fill('4');
+  await page.locator('#fm90-reason').fill('Pix original enviado quatro reais a mais');
+  await page.locator('#fm90-correction .modalSave').click();
+  await page.locator('#fm90-correction').waitFor({state:'detached'});
+  const sourceAfter=await page.evaluate(g=>{
+   const r=window.db.factionPayments.find(x=>x.manualGroupId===g&&x.manualCorrectionsV9590?.length);
+   return {events:r.manualCorrectionsV9590,hub:window.db.hubFinanceEntries.find(x=>x.sourceId===g).value};
+  },sourceGroup);
+  assert.equal(sourceAfter.events.length,1);
+  assert.equal(sourceAfter.events[0].amount,4);
+  assert.equal(sourceAfter.hub,previousHub,'original paid Hub entry is not rewritten');
+  await sourceRow.locator('summary').click();
+  await sourceRow.locator('.fm90-apply').click();
+  await page.locator('#fm90-apply').waitFor({state:'visible'});
+  await page.locator('#fm90-target').selectOption(pendingGroup);
+  await page.locator('#fm90-apply-amount').fill('4');
+  await page.locator('#fm90-apply .modalSave').click();
+  await page.locator('#fm90-apply').waitFor({state:'detached'});
+  const appliedDue=await page.evaluate(g=>window.hlgbFactionManual9566.receiptGroups().find(x=>x.id===g),pendingGroup);
+  assert.equal(appliedDue.nominal,26);
+  assert.equal(appliedDue.total,22,'paid-too-much credit reduces future payout');
+  assert.equal(appliedDue.applications.length,1);
+  assert.equal(await page.evaluate(g=>window.db.hubFinanceEntries.find(x=>x.sourceId===g).value,sourceGroup),previousHub);
+  const [adjustedPdf]=await Promise.all([
+   page.waitForEvent('download'),
+   page.locator('#fm66-receipts tr[data-fm88-row]').filter({hasText:'Roseli'}).filter({has:page.locator('.fm88-edit')}).locator('.fm90-summary-pdf').click()
+  ]);
+  const pdfBytes=await fs.readFile(await adjustedPdf.path());
+  assert(pdfBytes.toString('latin1').includes('ABATIMENTO'),'PDF should describe adjustment received');
+  await page.locator('#fm66-receipts tr[data-fm88-row]').filter({hasText:'Roseli'}).filter({has:page.locator('.fm88-edit')}).locator('.fm88-pay').click();
+  await page.locator('#fm88-pay-modal').waitFor({state:'visible'});
+  await page.locator('#fm88-paid-method').fill('Pix');
+  await page.locator('#fm88-pay-modal .modalSave').click();
+  await page.locator('#fm88-pay-modal').waitFor({state:'detached'});
+  const settled=await page.evaluate(g=>({
+   paid:window.db.factionPayments.filter(x=>x.manualGroupId===g&&x.status==='Pago').map(x=>x.paidAmount),
+   financial:window.db.hubFinanceEntries.filter(x=>x.sourceId===g).map(x=>x.value)
+  }),pendingGroup);
+  assert.equal(settled.financial.length,1);
+  assert.equal(settled.financial[0],22);
+  assert.equal(settled.paid.reduce((s,x)=>s+x,0),22);
+
+  await sourceRow.locator('.fm90-correct').click();
+  await page.locator('#fm90-correction').waitFor({state:'visible'});
+  await page.locator('#fm90-kind').selectOption('a_menos');
+  await page.locator('#fm90-amount').fill('3');
+  await page.locator('#fm90-reason').fill('Pix anterior ficou tres reais abaixo do combinado');
+  await page.locator('#fm90-correction .modalSave').click();
+  await page.locator('#fm90-correction').waitFor({state:'detached'});
+  const differences=await page.evaluate(g=>window.hlgbFactionManual9566.receiptGroups().find(x=>x.id===g),sourceGroup);
+  assert.equal(differences.corrections.length,2);
+  assert.equal(differences.adjustmentBalance,3,'underpayment remains due until compensated');
 
   await page.setViewportSize({width:390,height:850});
   await page.locator('#hlgbFactionManualPaymentBtn').click();

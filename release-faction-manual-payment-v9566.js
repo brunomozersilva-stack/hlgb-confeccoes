@@ -53,7 +53,7 @@ function validate(input){
  if(mode==='faccao'&&f.role!=='faccao')throw Error('Escolha uma facção de costura; para embaladeira ou travetador use a atividade correspondente.');
  if(!validDate(input.date))throw Error('Informe uma data válida.');
  if(!['Pago','Pendente'].includes(input.status))throw Error('Selecione o status.');
- if(!Array.isArray(input.lines)||!input.lines.length)throw Error('Adicione pelo menos um produto ou serviço.');
+ if(!Array.isArray(input.lines)||(!input.lines.length&&!input.allowEmptyV9590))throw Error('Adicione pelo menos um produto ou serviço.');
  const details=input.lines.map((x,i)=>{
   const qty=number(x.quantity),unit=number(x.unitPrice),kind=sid(x.kind||'product'),discount=number(x.travetaDiscountUnit||0);
   if(!Number.isInteger(qty)||qty<=0||qty>1000000)throw Error('Quantidade inválida na linha '+(i+1)+'.');
@@ -210,10 +210,13 @@ const cents=v=>Math.round((Number(v)||0)*100);
 function groupRows(groupId){
  return arr('factionPayments').filter(x=>x?.manual===true&&sid(x.manualGroupId)===sid(groupId));
 }
+function isCanceledV9590(row){return !!row?.manualCanceledV9590||norm(row?.status)==='cancelado'}
+function activeGroupRowsV9590(rows){return rows.filter(x=>!isCanceledV9590(x))}
 function groupState(rows){
- const statuses=new Set(rows.map(x=>norm(x.status)));
- return rows.length&&statuses.size===1&&statuses.has('pago')?'Pago':
-  rows.length&&statuses.size===1&&statuses.has('pendente')?'Pendente':'Revisar';
+ const active=activeGroupRowsV9590(rows),statuses=new Set(active.map(x=>norm(x.status)));
+ if(rows.length&&!active.length)return 'Cancelado';
+ return active.length&&statuses.size===1&&statuses.has('pago')?'Pago':
+  active.length&&statuses.size===1&&statuses.has('pendente')?'Pendente':'Revisar';
 }
 function assertGroup(groupId){
  const rows=groupRows(groupId);
@@ -242,25 +245,42 @@ async function preflightGroup(groupId,rows){
  if(hub&&sid(hub.sourceId)!==sid(groupId))throw Error('Registro financeiro vinculado a outro lançamento. Operação bloqueada.');
  return hub;
 }
-async function saveGroupEdits(groupId,input,receipt){
+async function saveGroupEdits(groupId,input,receipt,removalReasons=[]){
  if(state.status===STATUS.saving)throw Error('Já existe salvamento em andamento.');
- state.status=STATUS.saving;state.lastError='';let saved=0;
+ state.status=STATUS.saving;state.lastError='';let saved=0,canceled=0;
  try{
-  const rows=assertGroup(groupId);
-  if(groupState(rows)!=='Pendente')throw Error('Valores de pagamentos já pagos ou parcialmente pagos ficam bloqueados para preservar o financeiro.');
-  const parsed=validate(input);
-  if(parsed.status!=='Pendente')throw Error('Para dar baixa, utilize o botão “Marcar pago” no histórico de avulsos.');
+  const rows=assertGroup(groupId),active=activeGroupRowsV9590(rows);
+  if(groupState(rows)!=='Pendente')throw Error('Apenas lançamentos pendentes podem ter valores corrigidos ou removidos.');
+  const removing=new Map();
+  for(const entry of removalReasons||[]){
+   const id=sid(entry?.id),reason=sid(entry?.reason).trim();
+   if(!id||removing.has(id)||reason.length<5||reason.length>700)
+    throw Error('Informe um motivo de 5 a 700 caracteres para cada produto removido.');
+   removing.set(id,reason);
+  }
+  const parsed=validate({...input,allowEmptyV9590:true});
+  if(parsed.status!=='Pendente')throw Error('Para dar baixa, utilize o botão Marcar pago.');
   const ids=new Set(parsed.lines.map(x=>sid(x.id)));
-  if(ids.size!==parsed.lines.length||!rows.every(x=>ids.has(sid(x.id))))
-   throw Error('Não é permitido remover uma linha já salva. Mantenha-a no lançamento; corrija os valores sem apagar histórico.');
+  if(ids.size!==parsed.lines.length)throw Error('Linhas duplicadas na edição.');
+  const omitted=active.filter(x=>!ids.has(sid(x.id)));
+  if(omitted.some(x=>!removing.has(sid(x.id)))||
+     [...removing.keys()].some(id=>!omitted.some(x=>sid(x.id)===id)))
+   throw Error('Produto removido sem motivo ou identificação. Reabra a edição para conferir.');
+  if(parsed.lines.length===0&&!omitted.length)throw Error('Nenhum serviço ou produto informado.');
+  if(parsed.lines.length===0&&groupApplicationsV9590(rows).length)
+   throw Error('Este pagamento já recebeu um acerto de outro grupo. Não cancele todas as linhas sem conciliar o acerto.');
+  const appliedDelta=groupApplicationsV9590(rows).reduce((sum,x)=>sum+cents(signedApplicationV9590(x)),0);
+  if(parsed.lines.length&&cents(parsed.total)+appliedDelta<=0)
+   throw Error('O crédito a compensar é maior ou igual ao valor restante. Corrija o acerto antes de reduzir os produtos.');
   for(const x of parsed.lines){
    const any=arr('factionPayments').find(y=>sid(y.id)===sid(x.id));
-   if(any&&sid(any.manualGroupId)!==sid(groupId))throw Error('Linha já pertence a outro lançamento.');
+   if(any&&(sid(any.manualGroupId)!==sid(groupId)||isCanceledV9590(any)))
+    throw Error('Linha já cancelada ou pertencente a outro lançamento.');
   }
-  const existingProof=rows.find(x=>x.receiptPdfV9566?.base64);
-  if(receipt&&existingProof)throw Error('Já existe PDF neste lançamento. O comprovante anterior não será sobrescrito.');
+  if(receipt&&rows.some(x=>x.receiptPdfV9566?.base64))
+   throw Error('Já existe PDF no lançamento. O comprovante anterior não será sobrescrito.');
   const oldHub=await preflightGroup(groupId,rows);
-  if(oldHub)throw Error('Existe lançamento no Hub Financeiro para este grupo. Confira-o antes de corrigir valores.');
+  if(oldHub)throw Error('O Hub já possui uma saída deste grupo. Só é permitido remover produtos de pagamentos ainda pendentes.');
   const ts=new Date().toISOString(),existingById=new Map(rows.map(x=>[sid(x.id),x]));
   const editId=draft?.editAttemptId||makeId('faction-edit');
   if(draft)draft.editAttemptId=editId;
@@ -289,11 +309,182 @@ async function saveGroupEdits(groupId,input,receipt){
    const check=await remoteRecord('factionPayments',x.id);
    if(!remotelySame(next,check))throw Error('Edição da linha '+sid(x.id)+' não confirmada na releitura.');
   }
-  const result={groupId,total:parsed.total,lines:saved,edited:true};
+  // Remoção é CANCELAMENTO lógico: identificação, valor original, comprovantes
+  // e dados para auditoria continuam registrados na nuvem e no histórico.
+  for(const old of omitted){
+   const reason=removing.get(sid(old.id));
+   const history=Array.isArray(old.manualEditHistoryV9588)?old.manualEditHistoryV9588.slice(-19):[];
+   if(!history.some(x=>sid(x.id)===editId))
+    history.push({id:editId,at:ts,from:Number(old.value)||0,to:0,reason:'Produto cancelado: '+reason});
+   const next={...old,status:'Cancelado',manualCanceledV9590:true,
+    manualCanceledAtV9590:ts,manualCanceledReasonV9590:reason,manualEditHistoryV9588:history,
+    updatedAt:ts,paidAmount:0,paymentDate:''};
+   await saveRecord('factionPayments',next);canceled++;
+   const remote=await remoteRecord('factionPayments',old.id);
+   if(!remotelySame(next,remote)||!isCanceledV9590(remote)||sid(remote.manualCanceledReasonV9590)!==reason)
+    throw Error('Cancelamento da linha '+sid(old.id)+' não confirmado na nuvem.');
+  }
+  const result={groupId,total:parsed.total,lines:saved,canceled,edited:true};
   state.lastResult=result;renderReceipts();return result;
- }catch(e){state.lastError=(saved?'Edição parcialmente confirmada ('+saved+' linha(s)). Revise o histórico antes de tentar novamente. ':'')+sid(e.message||e);throw Error(state.lastError)}
+ }catch(e){
+  state.lastError=(saved||canceled?'Edição parcialmente confirmada ('+saved+' linha(s) e '+canceled+' cancelamento(s)). Confira antes de tentar novamente. ':'')+sid(e.message||e);
+  throw Error(state.lastError);
+ }finally{state.status=STATUS.idle}
+}
+
+/* v95.90 — reconciliação de diferença paga a mais/a menos.
+ * Nunca modifica o valor já registrado de um pagamento Pago.
+ * Eventos de acerto são salvos em um registro da própria facção, com
+ * identificador estável e confirmação via leitura remota.
+ * A compensação em outro pagamento pendente é registrada uma só vez no
+ * destino (a escrita de origem é apenas vinculação/auditoria). */
+function groupCorrectionsV9590(rows){
+ return rows.flatMap(r=>Array.isArray(r.manualCorrectionsV9590)?r.manualCorrectionsV9590:[]);
+}
+function groupApplicationsV9590(rows){
+ const found=new Map();
+ for(const r of rows)for(const app of Array.isArray(r.manualApplicationsV9590)?r.manualApplicationsV9590:[])
+  if(app?.id&&!found.has(sid(app.id)))found.set(sid(app.id),app);
+ return [...found.values()];
+}
+function signedApplicationV9590(app){return app.kind==='a_mais'?-Math.abs(Number(app.amount)||0):Math.abs(Number(app.amount)||0)}
+function signedCorrectionV9590(c){return c.kind==='a_mais'?-Math.abs(Number(c.amount)||0):Math.abs(Number(c.amount)||0)}
+function nominalGroupV9590(rows){
+ return Math.round(activeGroupRowsV9590(rows).reduce((s,r)=>s+cents(r.value),0))/100;
+}
+function netGroupV9590(rows){
+ return Math.round((cents(nominalGroupV9590(rows))+
+  groupApplicationsV9590(rows).reduce((s,x)=>s+cents(signedApplicationV9590(x)),0)))/100;
+}
+function appliedCorrectionCentsV9590(correctionId){
+ const seen=new Set();let sum=0;
+ for(const row of arr('factionPayments'))for(const x of Array.isArray(row.manualApplicationsV9590)?row.manualApplicationsV9590:[]){
+  if(sid(x.correctionId)!==sid(correctionId)||seen.has(sid(x.id)))continue;
+  seen.add(sid(x.id));sum+=cents(x.amount);
+ }
+ return sum;
+}
+function correctionRemainingV9590(correction){return Math.max(0,
+ (cents(correction.amount)-appliedCorrectionCentsV9590(correction.id))/100)}
+function paidAllocationsV9590(rows,total){
+ const allocations=rows.map(x=>cents(x.value)),difference=cents(total)-allocations.reduce((s,x)=>s+x,0);
+ if(!allocations.length)return [];
+ if(difference>=0)allocations[0]+=difference;
+ else{
+  let credit=-difference;
+  for(let i=0;i<allocations.length&&credit;i++){
+   const reduction=Math.min(allocations[i],credit);allocations[i]-=reduction;credit-=reduction;
+  }
+  if(credit)throw Error('O crédito de acerto supera o valor dos serviços. Corrija o abatimento.');
+ }
+ return allocations.map(x=>x/100);
+}
+async function registerCorrectionV9590(groupId,kind,amount,reason,correctionId=''){
+ if(state.status===STATUS.saving)throw Error('Outro salvamento de pagamento está em andamento.');
+ state.status=STATUS.saving;state.lastError='';
+ try{
+  const rows=assertGroup(groupId),active=activeGroupRowsV9590(rows),current=groupState(rows);
+  if(current!=='Pago')throw Error('Acertos de valores pagos a mais ou a menos exigem pagamento já concluído.');
+  if(!['a_mais','a_menos'].includes(kind))throw Error('Escolha se foi pago a mais ou a menos.');
+  const value=cents(number(amount))/100,why=sid(reason).trim();
+  if(!Number.isFinite(value)||value<=0||value>1000000)throw Error('Informe a diferença em reais (maior que zero).');
+  if(why.length<5||why.length>700)throw Error('Escreva o motivo do acerto (mínimo de 5 caracteres, máximo de 700).');
+  const id=sid(correctionId||makeId('fm90-acerto'));
+  const currentEvent=groupCorrectionsV9590(rows).find(x=>sid(x.id)===id);
+  if(currentEvent){
+   if(currentEvent.kind===kind&&cents(currentEvent.amount)===cents(value)&&sid(currentEvent.reason)===why)
+    return currentEvent;
+   throw Error('Já existe outro acerto com essa identificação.');
+  }
+  const hub=await preflightGroup(groupId,rows);
+  if(!hub||sid(hub.status)!=='Realizado'||sid(hub.sourceId)!==sid(groupId))
+   throw Error('O Hub Financeiro não confirmou este pagamento original. Acerto bloqueado.');
+  const anchor=active[0],ts=new Date().toISOString(),event={
+   id,sourceGroupId:sid(groupId),kind,amount:value,reason:why,
+   registeredAt:ts,registeredDate:stamp(),by:'ajuste-manual-v9590',
+   applications:[]};
+  const next={...anchor,manualCorrectionsV9590:[...(anchor.manualCorrectionsV9590||[]),event],updatedAt:ts};
+  await saveRecord('factionPayments',next);
+  const check=await remoteRecord('factionPayments',anchor.id);
+  if(!remotelySame(next,check)||!groupCorrectionsV9590([check]).some(x=>sid(x.id)===id))
+   throw Error('Acerto enviado, mas não confirmado na releitura. Não registre novamente antes de conferir.');
+  state.lastResult={groupId,correction:event};renderReceipts();return event;
+ }catch(e){state.lastError=sid(e.message||e);throw e}
  finally{state.status=STATUS.idle}
 }
+function matchingPendingGroupsV9590(sourceGroupId){
+ const source=assertGroup(sourceGroupId),first=activeGroupRowsV9590(source)[0];
+ return receiptGroups().filter(g=>g.id!==sid(sourceGroupId)&&g.status==='Pendente'&&
+  norm(g.factionName)===norm(first.factionName)&&
+  (first.factionMasterId==null||g.rows[0]?.factionMasterId==null||
+   sid(first.factionMasterId)===sid(g.rows[0].factionMasterId)));
+}
+async function applyCorrectionV9590(sourceGroupId,correctionId,targetGroupId,amount){
+ if(state.status===STATUS.saving)throw Error('Outra gravação de pagamento está em andamento.');
+ state.status=STATUS.saving;state.lastError='';let targetSaved=false;
+ try{
+  const source=assertGroup(sourceGroupId),target=assertGroup(targetGroupId);
+  if(groupState(source)!=='Pago'||groupState(target)!=='Pendente')
+   throw Error('A compensação exige um pagamento original pago e outro pagamento pendente.');
+  if(!matchingPendingGroupsV9590(sourceGroupId).some(x=>x.id===sid(targetGroupId)))
+   throw Error('Compense apenas em lançamento pendente da mesma facção ou embaladeira.');
+  const event=groupCorrectionsV9590(source).find(x=>sid(x.id)===sid(correctionId));
+  if(!event)throw Error('Acerto de origem não encontrado.');
+  const appliedId='fm90-app-'+sid(event.id)+'-'+sid(targetGroupId),oldApp=groupApplicationsV9590(target).find(x=>sid(x.id)===appliedId);
+  const value=cents(number(amount))/100;
+  if(!Number.isFinite(value)||value<=0)throw Error('Informe um valor de compensação maior que zero.');
+  if(oldApp&&cents(oldApp.amount)!==cents(value))
+   throw Error('Este acerto já foi aplicado ao pagamento escolhido com outro valor.');
+  const remaining=correctionRemainingV9590(event);
+  if(!oldApp&&cents(value)>cents(remaining))throw Error('A compensação ultrapassa o saldo do acerto.');
+  if(event.kind==='a_mais'&&!oldApp&&cents(value)>cents(netGroupV9590(target)))
+   throw Error('Crédito maior que o valor a pagar. Utilize compensação parcial ou outro lançamento.');
+  // Readback+WAL guard before any write. Target first: idempotent retries see
+  // the same applicationId and cannot multiply the effect.
+  await preflightGroup(sourceGroupId,source);await preflightGroup(targetGroupId,target);
+  const ts=new Date().toISOString();
+  if(!oldApp){
+   const anchor=activeGroupRowsV9590(target)[0],
+    app={id:appliedId,correctionId:sid(event.id),sourceGroupId:sid(sourceGroupId),
+     targetGroupId:sid(targetGroupId),kind:event.kind,amount:value,reason:event.reason,appliedAt:ts};
+   const next={...anchor,manualApplicationsV9590:[...(anchor.manualApplicationsV9590||[]),app],updatedAt:ts};
+   await saveRecord('factionPayments',next);targetSaved=true;
+   const check=await remoteRecord('factionPayments',anchor.id);
+   if(!remotelySame(next,check)||!groupApplicationsV9590([check]).some(x=>sid(x.id)===appliedId))
+    throw Error('O destino não confirmou a compensação. Confira antes de tentar novamente.');
+  }
+  const currentSource=groupRows(sourceGroupId),sourceAnchor=currentSource.find(x=>
+   (x.manualCorrectionsV9590||[]).some(y=>sid(y.id)===sid(event.id)));
+  if(!sourceAnchor)throw Error('Origem do acerto não encontrada para vincular compensação.');
+  const events=(sourceAnchor.manualCorrectionsV9590||[]).map(x=>{
+   if(sid(x.id)!==sid(event.id))return x;
+   const links=Array.isArray(x.applications)?x.applications:[];
+   if(links.some(y=>sid(y.id)===appliedId))return x;
+   return {...x,applications:[...links,{id:appliedId,targetGroupId:sid(targetGroupId),amount:value,at:ts}]};
+  });
+  if(!events.find(x=>sid(x.id)===sid(event.id))?.applications.some(x=>sid(x.id)===appliedId))
+   throw Error('Não foi possível estabelecer o vínculo do acerto.');
+  if(!(sourceAnchor.manualCorrectionsV9590||[]).some(x=>sid(x.id)===sid(event.id)&&
+       Array.isArray(x.applications)&&x.applications.some(y=>sid(y.id)===appliedId))){
+   await assertRecordNotPending('factionPayments',sourceAnchor.id);
+   const remoteSource=await remoteRecord('factionPayments',sourceAnchor.id);
+   if(!remotelySame(sourceAnchor,remoteSource))throw Error('A origem foi alterada por outra sessão. Compensação no destino preservada para revisão.');
+   const next={...sourceAnchor,manualCorrectionsV9590:events,updatedAt:ts};
+   await saveRecord('factionPayments',next);
+   const recheck=await remoteRecord('factionPayments',sourceAnchor.id);
+   if(!remotelySame(next,recheck)||!groupCorrectionsV9590([recheck]).some(x=>sid(x.id)===sid(event.id)&&
+      x.applications?.some(y=>sid(y.id)===appliedId)))
+    throw Error('Compensação no destino registrada, mas vínculo da origem não confirmado.');
+  }
+  const result={sourceGroupId,targetGroupId,correctionId:event.id,applied:value,
+   remaining:correctionRemainingV9590(event)};
+  state.lastResult=result;renderReceipts();return result;
+ }catch(e){
+  state.lastError=(targetSaved?'O valor foi registrado no pagamento pendente, mas a confirmação da origem não terminou. Não aplique em outro grupo antes de conferir. ':'')+sid(e.message||e);
+  throw Error(state.lastError);
+ }finally{state.status=STATUS.idle}
+}
+
 async function markGroupPaid(groupId,date,method,receipt){
  if(state.status===STATUS.saving)throw Error('Outra alteração de pagamento está em andamento.');
  state.status=STATUS.saving;state.lastError='';let confirmed=0,hubConfirmed=false;
@@ -301,16 +492,18 @@ async function markGroupPaid(groupId,date,method,receipt){
   if(!validDate(date)||date>stamp())throw Error('Informe a data real do pagamento, sem data futura.');
   method=sid(method).trim();
   if(!method)throw Error('Informe a forma de pagamento utilizada.');
-  const rows=assertGroup(groupId),condition=groupState(rows);
+  const allRows=assertGroup(groupId),rows=activeGroupRowsV9590(allRows),condition=groupState(allRows);
   if(condition==='Pago')throw Error('Este lançamento já consta como pago. Não é permitido pagar duas vezes.');
   if(!['Pendente','Revisar'].includes(condition))throw Error('Situação inconsistente; confira o pagamento antes da baixa.');
   if(rows.some(x=>!['pago','pendente'].includes(norm(x.status))))throw Error('Há uma linha em situação desconhecida; não registrar pagamento.');
-  const total=grandTotal(rows.map(x=>({value:Number(x.value)||0})));
-  if(total<=0)throw Error('Valor total precisa ser maior que zero.');
+  const total=netGroupV9590(allRows);
+  if(total<=0)throw Error('O total após os acertos precisa ser maior que zero. Confira créditos e diferenças.');
+  const allocations=paidAllocationsV9590(rows,total);
   const alreadyPaid=rows.filter(x=>norm(x.status)==='pago');
-  if(alreadyPaid.some(x=>sid(x.paymentDate)!==date||sid(x.paymentMethod)!==method||cents(x.paidAmount)!==cents(x.value)))
+  if(alreadyPaid.some(x=>sid(x.paymentDate)!==date||sid(x.paymentMethod)!==method||
+    cents(x.paidAmount)!==cents(allocations[rows.indexOf(x)])))
    throw Error('Parte deste pagamento já foi registrada com outros dados. Não duplicar; revisar histórico.');
-  const oldHub=await preflightGroup(groupId,rows);
+  const oldHub=await preflightGroup(groupId,allRows);
   if(oldHub&&(cents(oldHub.value)!==cents(total)||sid(oldHub.date)!==date||sid(oldHub.paymentMethod)!==method||sid(oldHub.status)!=='Realizado'))
    throw Error('Existe lançamento financeiro diferente para este grupo. Corrija a divergência antes de dar baixa.');
   if(!oldHub&&alreadyPaid.length)throw Error('Há linhas pagas sem confirmação do Hub. Baixa bloqueada.');
@@ -330,7 +523,10 @@ async function markGroupPaid(groupId,date,method,receipt){
    description:'Pagamento avulso de facção — '+sid(first.factionName),
    value:total,date,category:'Facções',subcategory:'Pagamento avulso',person:first.factionName,
    status:'Realizado',acceptedMethods:[method],paymentMethod:method,realizedAt:date,
-   note:rows.map(x=>sid(x.description)+' '+Number(x.quantity)+'x').join(', ').slice(0,1500),
+   note:(rows.map(x=>sid(x.description)+' '+Number(x.quantity)+'x').join(', ')+
+     (groupApplicationsV9590(allRows).length?' · ACERTOS: '+
+      groupApplicationsV9590(allRows).map(a=>(a.kind==='a_mais'?'-':'+')+money(a.amount)+
+      ' ('+sid(a.reason)+')').join('; '):'')).slice(0,1500),
    sourceType:'faction_manual_payment',sourceId:groupId,
    createdAt:oldHub?.createdAt||first.createdAt||ts,updatedAt:oldHub?.updatedAt||ts};
   if(!oldHub)await saveRecord('hubFinanceEntries',finance);
@@ -342,10 +538,11 @@ async function markGroupPaid(groupId,date,method,receipt){
   for(const row of rows){
    if(norm(row.status)==='pago')continue;
    const history=Array.isArray(row.paymentHistory)?row.paymentHistory.slice():[];
+   const paidForRow=allocations[rows.indexOf(row)];
    const transitionId='manual-paid-'+groupId;
    if(!history.some(x=>sid(x.id)===transitionId))
-    history.push({id:transitionId,date,amount:Number(row.value)||0,method,at:ts,source:'manual-payment-v9588'});
-   const next={...row,status:'Pago',paidAmount:Number(row.value)||0,paymentDate:date,
+    history.push({id:transitionId,date,amount:paidForRow,method,at:ts,source:'manual-payment-v9588'});
+   const next={...row,status:'Pago',paidAmount:paidForRow,paymentDate:date,
     paymentMethod:method,paymentHistory:history,manualPaidAtV9588:ts,updatedAt:ts};
    await saveRecord('factionPayments',next);
    const remote=await remoteRecord('factionPayments',row.id);
@@ -482,7 +679,16 @@ function addLine(kind='product',existingRow=null){
    recalc();
   });
  }
- row.querySelector('.fm66-remove').addEventListener('click',()=>{row.remove();recalc()});
+ row.querySelector('.fm66-remove').addEventListener('click',()=>{
+  if(existingRow){
+   const reason=window.prompt?.('Motivo para retirar este produto do pagamento (obrigatório):','');
+   if(reason==null)return;
+   if(sid(reason).trim().length<5){window.alert?.('Informe um motivo de pelo menos 5 caracteres.');return}
+   if(!draft||!Array.isArray(draft.removals)){window.alert?.('Reabra a edição antes de remover.');return}
+   draft.removals.push({id:sid(existingRow.id),reason:sid(reason).trim(),description:sid(existingRow.description)});
+   row.remove();renderRemovedLinesV9590();recalc();
+  }else{row.remove();recalc()}
+ });
  row.querySelectorAll('.fm66-qty,.fm66-unit,.fm66-discount').forEach(inp=>inp.addEventListener('input',()=>{
   if(inp.classList.contains('fm66-unit'))row.dataset.priceOrigin='manual';
   recalc();
@@ -508,7 +714,7 @@ function addLine(kind='product',existingRow=null){
    if(cat)cat.value=sid(existingRow.manualProductCategoryV9589||'outros');
   }
   const remove=row.querySelector('.fm66-remove');
-  if(remove){remove.disabled=true;remove.title='Linha já salva. Corrija valores sem excluir o histórico.';}
+  if(remove)remove.title='Remover este produto da cobrança, com motivo e preservação no histórico.';
  }else if(kind==='travetada'){
   const picked=factionDirectory().find(x=>norm(x.name)===norm(document.getElementById('fm66-faction')?.value));
   const master=arr('factionMasters').find(x=>sid(x.id)===sid(picked?.id));
@@ -519,6 +725,20 @@ function addLine(kind='product',existingRow=null){
   }
  }
  recalc();
+}
+function renderRemovedLinesV9590(){
+ const host=document.getElementById('fm90-removed-lines');if(!host)return;
+ const removed=draft?.removals||[];
+ host.innerHTML=removed.length?'<div class="sub" style="margin:5px 0"><b>Produtos retirados nesta edição</b> — serão cancelados quando salvar:</div>'+
+  removed.map((r,i)=>'<div class="panel" style="margin:4px 0;padding:8px"><b>'+esc(r.description)+'</b> · '+esc(r.reason)+
+   ' <button type="button" class="secondary fm90-undo" data-index="'+i+'">Desfazer</button></div>').join(''):'';
+ host.querySelectorAll('.fm90-undo').forEach(btn=>btn.addEventListener('click',()=>{
+  const i=Number(btn.dataset.index),item=draft?.removals?.splice(i,1)?.[0];
+  if(item){const original=groupRows(draft.groupId).find(x=>sid(x.id)===sid(item.id));
+   if(original)addLine(sid(original.manualKindV9566||'product'),original);
+   renderRemovedLinesV9590();
+  }
+ }));
 }
 function renderFactionList(q){
  const host=document.getElementById('fm66-faction-suggestions');if(!host)return;
@@ -559,7 +779,7 @@ function modalHtml(){
   '<button class="secondary" id="fm66-add-traveta" type="button">+ Travetada</button>'+
   '<button class="secondary" id="fm66-add-service" type="button">+ Outro serviço</button>'+ 
   '<button class="secondary" id="fm66-price-table" type="button">⚙️ Preços embalagem/travetada</button></div></div>'+
-  '<div id="fm66-lines"></div>'+
+  '<div id="fm66-lines"></div><div id="fm90-removed-lines" aria-live="polite"></div>'+
   '<div id="fm66-rates-inline" class="panel" style="padding:12px;margin:12px 0;display:none"><b>⚙️ Tabela de serviços</b>'+
   '<p class="sub">Valores aplicados nos próximos lançamentos. A travetada tem uma taxa própria; nenhuma nota antiga será modificada.</p>'+
   '<div class="grid" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:7px">'+
@@ -578,7 +798,7 @@ function openForm(groupId=''){
  const editing=!!sid(groupId),stored=editing?assertGroup(groupId):[];
  if(editing&&groupState(stored)!=='Pendente')throw Error('Apenas lançamentos pendentes podem ter valores editados. Pagamentos já baixados exigem conferência contábil.');
  draft=editing?{groupId:sid(groupId),createdAt:stored[0].createdAt||new Date().toISOString(),receipt:stored.find(x=>x.receiptPdfV9566)?.receiptPdfV9566||null,
-  editAttemptId:makeId('faction-edit')}:
+  removals:[],editAttemptId:makeId('faction-edit')}:
   {groupId:makeId('faction-manual'),createdAt:new Date().toISOString(),receipt:null};
  state.opened++;
  const open=window.openModal||openModal;
@@ -588,7 +808,7 @@ function openForm(groupId=''){
   if(feedback)feedback.textContent='Confirmando os registros na nuvem...';
   try{
    const input=formData(),file=document.getElementById('fm66-pdf')?.files?.[0],receipt=await readReceipt(file);
-   if(editing)await saveGroupEdits(groupId,input,receipt);else await persistDraft(input,receipt);
+   if(editing)await saveGroupEdits(groupId,input,receipt,draft?.removals||[]);else await persistDraft(input,receipt);
    if(typeof window.closeModal==='function')window.closeModal();else if(typeof closeModal==='function')closeModal();
    try{window.renderFactionPayments?.()}catch(_){}
    try{window.renderHubFinance?.()}catch(_){}
@@ -674,14 +894,14 @@ function openForm(groupId=''){
   document.getElementById('fm66-add-traveta').style.display=packaging?'none':'';
   document.getElementById('fm66-add-service').style.display=mode==='faccao'?'':'none';
   document.getElementById('fm66-add-embalagem').style.display=packaging?'':'none';
-  for(const row of stored)addLine(sid(row.manualKindV9566||'product'),row);
+  for(const row of activeGroupRowsV9590(stored))addLine(sid(row.manualKindV9566||'product'),row);
   if(draft.receipt){
    const summary=document.getElementById('fm66-pdf-summary');
    if(summary)summary.textContent='Comprovante existente: '+sid(draft.receipt.name)+'. Será preservado. Não envie outro PDF.';
    const file=document.getElementById('fm66-pdf');if(file)file.disabled=true;
   }
   const btn=document.querySelector('#fm66-root .modalSave');if(btn)btn.textContent='☁️ Salvar alterações';
-  const info=document.getElementById('fm66-feedback');if(info)info.textContent='Edite quantidade, preço, desconto, produtos, data ou observações. Linhas já salvas não podem ser removidas. Para pagar, utilize a baixa no histórico.';
+  const info=document.getElementById('fm66-feedback');if(info)info.textContent='Para retirar um produto lançado por engano, clique em Remover e informe o motivo. O registro será cancelado (não apagado) quando salvar. Você também pode desfazer a retirada antes de salvar.';
  }else addLine('product');
  return true;
 }
@@ -692,7 +912,8 @@ function receiptGroups(){
   const id=sid(r.manualGroupId),cur=groups.get(id)||{id,factionName:r.factionName,
    date:r.scheduledPaymentDate||'',paidDate:'',status:'Pendente',serviceMode:r.serviceModeV9577||'faccao',
    receipt:null,recordId:sid(r.id),total:0,items:0,rows:[],updatedAt:''};
-  cur.total+=Number(r.value)||0;cur.items++;cur.rows.push(r);
+  if(!isCanceledV9590(r)){cur.total+=Number(r.value)||0;cur.items++}
+  cur.rows.push(r);
   if(r.receiptPdfV9566?.base64){cur.receipt=r.receiptPdfV9566;cur.recordId=sid(r.id)}
   if(sid(r.updatedAt)>cur.updatedAt)cur.updatedAt=sid(r.updatedAt);
   groups.set(id,cur);
@@ -701,15 +922,173 @@ function receiptGroups(){
   group.status=groupState(group.rows);
   group.paidDate=group.status==='Pago'?sid(group.rows[0]?.paymentDate):'';
   group.date=group.paidDate||sid(group.rows[0]?.scheduledPaymentDate);
-  group.total=Math.round(group.total*100)/100;
+  group.nominal=Math.round(group.total*100)/100;
+  group.applications=groupApplicationsV9590(group.rows);
+  group.corrections=groupCorrectionsV9590(group.rows);
+  group.total=netGroupV9590(group.rows);
+  group.adjustmentBalance=group.corrections.reduce((sum,x)=>sum+
+   cents(x.kind==='a_mais'?-correctionRemainingV9590(x):correctionRemainingV9590(x)),0)/100;
  }
  return [...groups.values()].sort((a,b)=>sid(b.date).localeCompare(sid(a.date))||
   sid(b.updatedAt).localeCompare(sid(a.updatedAt)));
 }
+
+/* PDF detalhado: gerador local, sem CDN, sem baixar comprovantes dentro
+ * do resumo e sem qualquer mutação de dados. Fonte Courier/WinAnsi permite
+ * copiar o texto no PDF; suporta múltiplas páginas e observações extensas. */
+function pdfEncode1252V9590(str){
+ const fixes={'€':128,'‚':130,'ƒ':131,'„':132,'…':133,'†':134,'‡':135,'ˆ':136,'‰':137,
+  'Š':138,'‹':139,'Œ':140,'Ž':142,'‘':145,'’':146,'“':147,'”':148,'•':149,'–':150,
+  '—':151,'˜':152,'™':153,'š':154,'›':155,'œ':156,'ž':158,'Ÿ':159};
+ let out='';
+ for(const c of sid(str).replace(/[\r\n\t]/g,' ')){
+  const k=c.charCodeAt(0);out+=k<=255?c:(fixes[c]!=null?String.fromCharCode(fixes[c]):'?');
+ }
+ return out;
+}
+function pdfEscapeV9590(value){
+ return pdfEncode1252V9590(value).replace(/[\\()]/g,'\\function openPayModal(groupId){');
+}
+function pdfWrapV9590(value,max=93){
+ const result=[];
+ for(const paragraph of sid(value).split(/\r?\n/)){
+  let words=paragraph.trim().split(/\s+/).filter(Boolean);
+  if(!words.length){result.push('');continue}
+  let line='';
+  for(let word of words){
+   while(word.length>max){if(line){result.push(line);line=''}result.push(word.slice(0,max));word=word.slice(max)}
+   if(line&&line.length+1+word.length>max){result.push(line);line=word}
+   else line+=(line?' ':'')+word;
+  }
+  if(line)result.push(line);
+ }
+ return result;
+}
+function summaryLinesV9590(groupId){
+ const all=assertGroup(groupId),group=receiptGroups().find(g=>g.id===sid(groupId));
+ if(!group)throw Error('Pagamento avulso não encontrado para o relatório.');
+ const active=activeGroupRowsV9590(all),canceled=all.filter(isCanceledV9590),
+  apps=groupApplicationsV9590(all),corrections=groupCorrectionsV9590(all),
+  original=nominalGroupV9590(all),net=netGroupV9590(all),
+  paid=active.reduce((sum,x)=>sum+(Number(x.paidAmount)||0),0);
+ const f=money,v=x=>sid(x||'-'),date=()=>new Date().toLocaleString('pt-BR');
+ const out=['RESUMO DETALHADO DE PAGAMENTO AVULSO','HLGB CONFECCOES','Emitido: '+date(),
+  'Documento informativo: confira com o comprovante bancario e o Hub Financeiro.',
+  'IDENTIFICACAO',
+  'Lancamento: '+group.id,'Profissional / faccao: '+v(group.factionName),
+  'Atividade: '+(group.serviceMode==='embalagem'?'Embalagem':group.serviceMode==='travetada'?'Travetada':'Costura / faccao'),
+  'Status: '+group.status,'Data prevista / pagamento: '+v(group.date),
+  'Linhas ativas: '+active.length+' | Canceladas: '+canceled.length,
+  'VALORES',
+  'Soma dos servicos ativos: '+f(original),
+  'Compensacoes recebidas: '+apps.map(x=>(x.kind==='a_mais'?'-':'+')+f(x.amount)).join(' / ').slice(0,160),
+  'Total liquido previsto deste pagamento: '+f(net),
+  'Valor marcado como pago nas linhas: '+f(paid),
+  'Saldo deste pagamento: '+f(net-paid),
+  'PRODUTOS E SERVICOS (ATIVOS)'];
+ if(!active.length)out.push('Nenhum servico ativo.');
+ for(let i=0;i<active.length;i++){
+  const x=active[i];
+  out.push('Item '+(i+1)+': '+v(x.description));
+  out.push('  Quantidade: '+(Number(x.quantity)||0)+' | Unitario: '+f(x.unitPrice)+
+   ' | Bruto: '+f(x.grossValueV9577??Number(x.quantity)*Number(x.unitPrice)));
+  out.push('  Travetada descontada: '+f(x.travetaDiscountTotalV9577||0)+
+   ' | Liquido: '+f(x.value)+' | Pago atribuido: '+f(x.paidAmount));
+  out.push('  Modelo: '+v(x.manualProductNameV9589||x.productName||x.productId)+
+   ' | ID: '+v(x.productId||'avulso / sem cadastro'));
+  if(x.manualLineNoteV9566)out.push('  Observacao da linha: '+v(x.manualLineNoteV9566));
+  if(x.observation)out.push('  Observacao do pagamento: '+v(x.observation));
+  if(x.paymentDate)out.push('  Pago em: '+v(x.paymentDate)+' | Metodo: '+v(x.paymentMethod));
+ }
+ out.push('LINHAS RETIRADAS (HISTORICO PRESERVADO)');
+ if(!canceled.length)out.push('Nenhuma linha cancelada.');
+ for(const x of canceled){
+  out.push('CANCELADA: '+v(x.description)+' | '+(Number(x.quantity)||0)+' pecas | Valor original: '+f(x.value));
+  out.push('  Motivo: '+v(x.manualCanceledReasonV9590)+' | Data: '+v(x.manualCanceledAtV9590));
+ }
+ out.push('ACERTOS POR PAGAMENTO A MAIS / A MENOS');
+ if(!corrections.length)out.push('Nenhuma diferenca registrada neste pagamento.');
+ for(const x of corrections){
+  out.push((x.kind==='a_mais'?'PAGO A MAIS / CREDITO':'PAGO A MENOS / DIFERENCA')+
+   ' | Valor: '+f(x.amount)+' | Saldo ainda nao compensado: '+f(correctionRemainingV9590(x)));
+  out.push('  Registro: '+v(x.registeredAt)+' | ID: '+v(x.id));
+  out.push('  Motivo: '+v(x.reason));
+  for(const applied of x.applications||[])
+   out.push('  Compensacao em: '+v(applied.targetGroupId)+' | Valor: '+f(applied.amount));
+ }
+ out.push('COMPENSACOES APLICADAS A ESTE PAGAMENTO');
+ if(!apps.length)out.push('Nenhuma compensacao recebida de outro pagamento.');
+ for(const x of apps){
+  out.push((x.kind==='a_mais'?'ABATIMENTO':'COMPLEMENTO')+' '+f(x.amount)+
+   ' | Origem: '+v(x.sourceGroupId));
+  out.push('  Motivo: '+v(x.reason)+' | Data: '+v(x.appliedAt));
+ }
+ out.push('HISTORICO DE PAGAMENTO');
+ let histories=0;
+ for(const x of all)for(const p of x.paymentHistory||[]){
+  out.push(v(x.description)+' | '+v(p.date)+' | '+f(p.amount??p.value)+' | '+v(p.method));histories++;
+ }
+ if(!histories)out.push('Sem eventos de baixa registrados.');
+ out.push('HISTORICO DE EDICOES');
+ let edits=0;
+ for(const x of all)for(const p of x.manualEditHistoryV9588||[]){
+  out.push(v(x.description)+' | '+v(p.at)+' | '+v(p.reason)+' | '+f(p.from)+' -> '+f(p.to));edits++;
+ }
+ if(!edits)out.push('Nenhuma edicao anterior registrada.');
+ out.push('COMPROVANTES');
+ for(const x of all)if(x.receiptPdfV9566?.name)out.push(v(x.receiptPdfV9566.name)+
+  ' | '+v(x.receiptPdfV9566.addedAt)+' | '+v(x.receiptPdfV9566.size)+' bytes');
+ if(!all.some(x=>x.receiptPdfV9566?.name))out.push('Nenhum PDF comprovante anexado.');
+ out.push('FIM DO RESUMO','O PDF resume os registros carregados no navegador. Nao e comprovante de transferencia.');
+ return out.flatMap(line=>pdfWrapV9590(line,93));
+}
+function buildSummaryPdfV9590(groupId){
+ const lines=summaryLinesV9590(groupId),perPage=49,pages=[];
+ for(let i=0;i<lines.length;i+=perPage)pages.push(lines.slice(i,i+perPage));
+ if(!pages.length)pages.push([]);
+ const N=pages.length,objs=[],fontReg=3+2*N,fontBold=fontReg+1;
+ objs[1]='<< /Type /Catalog /Pages 2 0 R >>';
+ objs[2]='<< /Type /Pages /Kids [ '+pages.map((_,i)=>3+i*2+' 0 R').join(' ')+' ] /Count '+N+' >>';
+ pages.forEach((page,i)=>{
+  let stream='0.38 0.20 0.30 rg BT /FB 15 Tf 44 800 Td (HLGB - PAGAMENTO AVULSO) Tj ET\n0 0 0 rg\n';
+  stream+='0.40 0.40 0.40 RG 44 788 m 550 788 l S\n';
+  let y=765;
+  for(const line of page){
+   const bold=/^(RESUMO|HLGB CONFECCOES|IDENTIFICACAO|VALORES|PRODUTOS E SERVICOS|LINHAS RETIRADAS|ACERTOS POR|COMPENSACOES APLICADAS|HISTORICO DE|COMPROVANTES|FIM DO)/.test(line);
+   stream+='BT /'+(bold?'FB':'FR')+' '+(bold?9:8.8)+' Tf 44 '+y+' Td ('+pdfEscapeV9590(line)+') Tj ET\n';
+   y-=14;
+  }
+  stream+='0.38 0.20 0.30 rg BT /FR 8 Tf 44 35 Td ('+
+   pdfEscapeV9590('HLGB Confecções  |  Pagina '+(i+1)+'/'+N+'  |  Somente resumo informativo')+
+   ') Tj ET\n';
+  const p=3+i*2,content=p+1;
+  objs[p]='<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /FR '+
+   fontReg+' 0 R /FB '+fontBold+' 0 R >> >> /Contents '+content+' 0 R >>';
+  const bytes=pdfEncode1252V9590(stream);
+  objs[content]='<< /Length '+bytes.length+' >>\nstream\n'+bytes+'\nendstream';
+ });
+ objs[fontReg]='<< /Type /Font /Subtype /Type1 /BaseFont /Courier /Encoding /WinAnsiEncoding >>';
+ objs[fontBold]='<< /Type /Font /Subtype /Type1 /BaseFont /Courier-Bold /Encoding /WinAnsiEncoding >>';
+ let pdf='%PDF-1.4\n';const offsets=[0];
+ for(let i=1;i<objs.length;i++){offsets[i]=pdf.length;pdf+=i+' 0 obj\n'+objs[i]+'\nendobj\n'}
+ const xref=pdf.length;pdf+='xref\n0 '+objs.length+'\n0000000000 65535 f \n';
+ for(let i=1;i<objs.length;i++)pdf+=String(offsets[i]).padStart(10,'0')+' 00000 n \n';
+ pdf+='trailer\n<< /Size '+objs.length+' /Root 1 0 R >>\nstartxref\n'+xref+'\n%%EOF';
+ const bytes=new Uint8Array(pdf.length);for(let i=0;i<pdf.length;i++)bytes[i]=pdf.charCodeAt(i)&255;
+ return new Blob([bytes],{type:'application/pdf'});
+}
+function downloadSummaryPdfV9590(groupId){
+ const pdf=buildSummaryPdfV9590(groupId),url=URL.createObjectURL(pdf),link=document.createElement('a');
+ link.href=url;link.download='HLGB-Pagamento-Avulso-'+sid(groupId).replace(/[^a-zA-Z0-9_-]/g,'_')+'.pdf';
+ link.style.display='none';document.body.appendChild(link);link.click();link.remove();
+ setTimeout(()=>URL.revokeObjectURL(url),15000);
+ return {name:link.download,size:pdf.size,pages:null};
+}
+
 function openPayModal(groupId){
  const rows=assertGroup(groupId),status=groupState(rows);
  if(status==='Pago')throw Error('Este lançamento já está pago.');
- const total=grandTotal(rows.map(x=>({value:Number(x.value)||0})));
+ const total=netGroupV9590(rows);
  const priorHub=arr('hubFinanceEntries').find(x=>sid(x?.sourceId)===sid(groupId))||null;
  const paidLine=rows.find(x=>norm(x.status)==='pago')||null;
  const suggestedDate=paidLine?.paymentDate||priorHub?.date||stamp();
@@ -761,6 +1140,66 @@ async function attachReceiptToGroup(groupId,file){
  renderReceipts();
  return receipt;
 }
+
+function openCorrectionModalV9590(groupId){
+ const group=receiptGroups().find(g=>g.id===sid(groupId));
+ if(!group||group.status!=='Pago')throw Error('Acertos são registrados em pagamentos marcados como Pago.');
+ const open=window.openModal||((typeof openModal==='function')?openModal:null);
+ if(!open)throw Error('Janela de acerto indisponível.');
+ const attempt=makeId('fm90-acerto'),html='<div id="fm90-correction" class="panel" style="padding:12px">'+
+  '<p><b>'+esc(group.factionName)+'</b> · Pagamento original '+money(group.nominal)+'</p>'+
+  '<p class="sub">Um acerto não altera o pagamento realizado nem cria automaticamente uma transferência. O crédito ou diferença fica em aberto para compensar em outro pagamento pendente da mesma pessoa.</p>'+
+  '<div class="field"><label>Qual foi o erro?</label><select id="fm90-kind">'+
+  '<option value="a_mais">Paguei a mais — desconto no próximo pagamento</option>'+
+  '<option value="a_menos">Paguei a menos — acrescentar ao próximo pagamento</option></select></div>'+
+  '<div class="field"><label>Diferença em reais (R$)</label><input id="fm90-amount" type="number" step="0.01" min="0.01"></div>'+
+  '<div class="field"><label>Motivo / observação obrigatória</label><textarea id="fm90-reason" rows="3" maxlength="700" placeholder="Ex.: transferi R$ 20,00 a mais no Pix de 12/11"></textarea></div>'+
+  '<div id="fm90-feedback" role="status" class="sub"></div>'+
+  '<button class="primary modalSave" type="button">☁️ Registrar acerto na nuvem</button></div>';
+ open('Corrigir diferença de pagamento',html,async()=>{
+  const host=document.getElementById('fm90-correction'),btn=host?.querySelector('.modalSave'),
+   feedback=host?.querySelector('#fm90-feedback');
+  if(btn)btn.disabled=true;if(feedback)feedback.textContent='Conferindo pagamento original e registrando diferença…';
+  try{
+   await registerCorrectionV9590(groupId,host.querySelector('#fm90-kind')?.value,
+    host.querySelector('#fm90-amount')?.value,host.querySelector('#fm90-reason')?.value,attempt);
+   window.closeModal?.();renderReceipts();return true;
+  }catch(e){if(feedback)feedback.textContent='⚠ '+sid(e.message||e);if(btn)btn.disabled=false;return false}
+ });
+ return true;
+}
+function openApplyCorrectionModalV9590(groupId,correctionId){
+ const group=receiptGroups().find(g=>g.id===sid(groupId)),event=groupCorrectionsV9590(group?.rows||[]).find(x=>sid(x.id)===sid(correctionId));
+ if(!event)throw Error('Acerto não encontrado.');
+ const available=correctionRemainingV9590(event);
+ if(available<=0)throw Error('Este acerto já foi integralmente compensado.');
+ const targets=matchingPendingGroupsV9590(groupId);
+ if(!targets.length)throw Error('Não existe pagamento pendente da mesma pessoa. O crédito/diferença ficará em aberto para compensar depois.');
+ const open=window.openModal||((typeof openModal==='function')?openModal:null);
+ if(!open)throw Error('Janela de compensação indisponível.');
+ const choices=targets.map(g=>'<option value="'+esc(g.id)+'">'+esc(g.date||'Sem data')+' · '+
+  esc(g.factionName)+' · A pagar '+money(g.total)+'</option>').join('');
+ const html='<div id="fm90-apply" class="panel" style="padding:12px">'+
+  '<p><b>'+esc(event.kind==='a_mais'?'Abater crédito pago a mais':'Acrescentar diferença paga a menos')+'</b></p>'+
+  '<p>Saldo em aberto: <b>'+money(available)+'</b></p>'+
+  '<div class="field"><label>Pagamento pendente da mesma pessoa</label><select id="fm90-target">'+choices+'</select></div>'+
+  '<div class="field"><label>Quanto deseja compensar (R$)</label><input type="number" step="0.01" min="0.01" id="fm90-apply-amount" value="'+available.toFixed(2)+'"></div>'+
+  '<p class="sub">Você pode aplicar parte do valor. O restante continuará em aberto. Se for desconto, o valor a pagar não pode ficar negativo.</p>'+
+  '<div id="fm90-apply-feedback" role="status" class="sub"></div>'+
+  '<button class="primary modalSave" type="button">☁️ Confirmar compensação</button></div>';
+ open('Compensar acerto em pagamento pendente',html,async()=>{
+  const host=document.getElementById('fm90-apply'),btn=host?.querySelector('.modalSave'),
+   feedback=host?.querySelector('#fm90-apply-feedback');
+  if(btn)btn.disabled=true;if(feedback)feedback.textContent='Confirmando a compensação na nuvem…';
+  try{
+   await applyCorrectionV9590(groupId,correctionId,host.querySelector('#fm90-target')?.value,
+    host.querySelector('#fm90-apply-amount')?.value);
+   window.closeModal?.();renderReceipts();return true;
+  }catch(e){if(feedback)feedback.textContent='⚠ '+sid(e.message||e);if(btn)btn.disabled=false;return false}
+ });
+ return true;
+}
+
 function renderReceipts(){
  const anchor=document.getElementById('factionPaymentTable');if(!anchor)return false;
  let host=document.getElementById('fm66-receipts');
@@ -769,6 +1208,7 @@ function renderReceipts(){
  const groups=receiptGroups(),pending=groups.filter(g=>g.status==='Pendente'),
   paid=groups.filter(g=>g.status==='Pago'),review=groups.filter(g=>g.status==='Revisar');
  const signature=JSON.stringify(groups.map(g=>[g.id,g.factionName,g.date,g.status,g.total,g.items,g.updatedAt,
+  g.corrections?.map(x=>[x.id,x.amount,x.kind,x.reason,correctionRemainingV9590(x)]),g.applications?.map(x=>[x.id,x.amount]),
   g.receipt?.name||'',g.receipt?.size||0]));
  // Preserve file selection and focused filters when periodic refresh has not changed data.
  if(host.dataset.fm66Signature===signature)return true;
@@ -777,7 +1217,7 @@ function renderReceipts(){
  host.dataset.fm66Signature=signature;
  const sum=rows=>money(rows.reduce((total,x)=>total+x.total,0));
  host.innerHTML='<h3 style="margin:0 0 5px">Pagamentos avulsos — facções e embaladeiras</h3>'+
-  '<p class="sub">Edite os pendentes, marque como pago após transferir e confira PDFs e serviços. Pagamentos realizados têm os valores protegidos.</p>'+
+  '<p class="sub">Edite e remova produtos pendentes com motivo, registre acertos pagos a mais/a menos e baixe o PDF detalhado com histórico.</p>'+
   '<div class="cards" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(155px,1fr));gap:8px;margin:12px 0">'+
   '<div class="card"><small>A pagar · '+pending.length+' lançamento(s)</small><strong>'+sum(pending)+'</strong></div>'+
   '<div class="card"><small>Pagos · '+paid.length+' lançamento(s)</small><strong>'+sum(paid)+'</strong></div>'+
@@ -785,28 +1225,53 @@ function renderReceipts(){
   '<div class="toolbar" style="display:flex;flex-wrap:wrap;gap:8px;align-items:end;margin:10px 0">'+
   '<div class="field"><label>Buscar facção, produto ou serviço</label><input id="fm88-filter-name" autocomplete="off" placeholder="Pesquisar lançamento"></div>'+
   '<div class="field"><label>Situação</label><select id="fm88-filter-status"><option value="todos">Todos</option>'+
-  '<option>Pendente</option><option>Pago</option><option>Revisar</option></select></div></div>'+
+  '<option>Pendente</option><option>Pago</option><option>Revisar</option><option>Cancelado</option></select></div></div>'+
   (groups.length?'<div style="overflow-x:auto"><table style="width:100%"><thead><tr><th>Facção / serviço</th>'+
    '<th>Data</th><th>Situação</th><th>Valor</th><th>Itens</th><th>Comprovante</th><th>Ações</th></tr></thead><tbody>'+
    groups.map(g=>{
     const descriptions=g.rows.map(r=>sid(r.description||'')+' '+Number(r.quantity||0)+'x').join(' ');
+    const corrections=(g.corrections||[]).length?'<div style="margin-top:8px"><b>Acertos de pagamento</b>'+
+     g.corrections.map(x=>{
+      const remaining=correctionRemainingV9590(x);
+      return '<div style="border-top:1px solid #ddd;padding:7px 0">'+
+       '<b>'+esc(x.kind==='a_mais'?'Pago a mais / crédito':'Pago a menos / complemento')+'</b>'+
+       ' · '+money(x.amount)+' · <b>Em aberto: '+money(remaining)+'</b>'+
+       '<div class="sub">Motivo: '+esc(x.reason)+'</div>'+
+       (remaining>0&&g.status==='Pago'?'<button type="button" class="secondary fm90-apply" data-group-id="'+esc(g.id)+
+       '" data-event-id="'+esc(x.id)+'">↔ Compensar em pagamento pendente</button>':'')+
+       '</div>'
+     }).join('')+'</div>':'';
+    const apps=(g.applications||[]).length?'<div style="margin-top:7px"><b>Compensações neste pagamento</b>'+
+     g.applications.map(x=>'<div class="sub">'+esc(x.kind==='a_mais'?'Abatimento':'Complemento')+
+      ' '+money(x.amount)+' · Origem '+esc(x.sourceGroupId)+' · '+esc(x.reason)+'</div>').join('')+'</div>':'';
     const items='<details><summary>'+g.items+' item(ns) · Ver detalhes</summary>'+
      '<div style="min-width:180px">'+g.rows.map(r=>'<div style="border-bottom:1px solid #eee;padding:5px">'+
-      '<b>'+esc(r.description||'Serviço')+'</b><div class="sub">'+Number(r.quantity||0).toLocaleString('pt-BR')+
+      '<b>'+(isCanceledV9590(r)?'❌ [Cancelado] ':'')+esc(r.description||'Serviço')+'</b>'+
+      (isCanceledV9590(r)?'<div class="sub">Motivo: '+esc(r.manualCanceledReasonV9590||'Não informado')+'</div>':'')+
+      '<div class="sub">'+Number(r.quantity||0).toLocaleString('pt-BR')+
       ' × '+money(r.unitPrice)+' · desconto '+money(r.travetaDiscountTotalV9577)+'</div><b>'+
-      money(r.value)+'</b></div>').join('')+'</div></details>';
+      money(r.value)+'</b></div>').join('')+
+      corrections+apps+'</div></details>';
     const proof=g.receipt?'<button type="button" class="secondary fm66-download" data-group-id="'+esc(g.id)+'">'+esc(g.receipt.name)+'</button>':
      '<div class="field" style="min-width:170px"><input type="file" class="fm66-attach-input" data-group-id="'+esc(g.id)+'" accept=".pdf,application/pdf">'+
      '<button type="button" class="secondary fm66-attach" data-group-id="'+esc(g.id)+'">☁️ Salvar PDF</button></div>';
     const actions=g.status==='Pendente'?
      '<div style="display:flex;gap:6px;flex-wrap:wrap"><button type="button" class="secondary fm88-edit" data-group-id="'+esc(g.id)+'">✏️ Editar</button>'+
      '<button type="button" class="primary fm88-pay" data-group-id="'+esc(g.id)+'">✅ Marcar pago</button></div>':
-     g.status==='Pago'?'<span class="sub">Pago · valores protegidos</span>':
+     g.status==='Pago'?'<button type="button" class="secondary fm90-correct" data-group-id="'+esc(g.id)+'">⚖️ Acerto a mais / a menos</button>':
+     g.status==='Cancelado'?'<span class="sub">Cancelado · histórico preservado</span>':
      '<button type="button" class="secondary fm88-pay" data-group-id="'+esc(g.id)+'" title="Somente concluir uma baixa previamente iniciada após conferir o financeiro">⚠ Revisar / concluir baixa</button>';
     return '<tr data-fm88-row="1" data-status="'+esc(g.status)+'" data-search="'+esc(norm(g.factionName+' '+descriptions+' '+g.serviceMode))+'">'+
      '<td><b>'+esc(g.factionName)+'</b><div class="sub">'+esc(g.serviceMode==='embalagem'?'Embalagem':g.serviceMode==='travetada'?'Travetada':'Facção / Costura')+'</div></td>'+
-     '<td>'+esc(g.date||'Sem data')+'</td><td><b>'+esc(g.status)+'</b></td><td><b>'+money(g.total)+'</b></td>'+
-     '<td>'+items+'</td><td>'+proof+'</td><td>'+actions+'</td></tr>';
+     '<td>'+esc(g.date||'Sem data')+'</td><td><b>'+esc(g.status)+'</b></td>'+
+     '<td><b>'+money(g.total)+'</b>'+
+     (g.applications?.length?'<div class="sub">Serviços: '+money(g.nominal)+'<br>Acertos: '+
+       money(g.total-g.nominal)+'</div>':'')+
+     (g.adjustmentBalance?'<div class="sub">'+(g.adjustmentBalance<0?'Crédito a abater: ':'Diferença a pagar: ')+
+      money(Math.abs(g.adjustmentBalance))+'</div>':'')+'</td>'+
+     '<td>'+items+'</td><td>'+proof+'</td><td>'+actions+
+     '<button type="button" class="secondary fm90-summary-pdf" data-group-id="'+esc(g.id)+
+     '" style="display:block;margin-top:6px">📄 Baixar PDF detalhado</button></td></tr>';
    }).join('')+'</tbody></table></div>':'<div class="empty">Ainda não há pagamentos avulsos.</div>')+
   '<div id="fm66-receipt-feedback" role="status" class="sub" style="margin-top:8px"></div>';
  const input=host.querySelector('#fm88-filter-name'),filterStatus=host.querySelector('#fm88-filter-status');
@@ -824,6 +1289,17 @@ function renderReceipts(){
  }));
  host.querySelectorAll('.fm88-pay').forEach(b=>b.addEventListener('click',()=>{
   try{openPayModal(b.dataset.groupId)}catch(e){const x=feedback();if(x)x.textContent='⚠ '+sid(e.message||e)}
+ }));
+ host.querySelectorAll('.fm90-correct').forEach(b=>b.addEventListener('click',()=>{
+  try{openCorrectionModalV9590(b.dataset.groupId)}catch(e){const x=feedback();if(x)x.textContent='⚠ '+sid(e.message||e)}
+ }));
+ host.querySelectorAll('.fm90-apply').forEach(b=>b.addEventListener('click',()=>{
+  try{openApplyCorrectionModalV9590(b.dataset.groupId,b.dataset.eventId)}
+  catch(e){const x=feedback();if(x)x.textContent='⚠ '+sid(e.message||e)}
+ }));
+ host.querySelectorAll('.fm90-summary-pdf').forEach(b=>b.addEventListener('click',()=>{
+  try{downloadSummaryPdfV9590(b.dataset.groupId)}
+  catch(e){const x=feedback();if(x)x.textContent='⚠ Não foi possível gerar PDF: '+sid(e.message||e)}
  }));
  host.querySelectorAll('.fm66-download').forEach(b=>b.addEventListener('click',()=>{
   const group=receiptGroups().find(g=>g.id===b.dataset.groupId);if(group?.receipt)pdfDownload(group.receipt);
@@ -856,6 +1332,8 @@ document.addEventListener('click',e=>{
 },true);
 window.hlgbFactionManual9566={version:V,openForm,searchFactions,searchProducts,factionDirectory,productDirectory,
  productPrice,validate,grandTotal,readReceipt,pdfIsValid,persistDraft,receiptGroups,groupRows,groupState,saveGroupEdits,markGroupPaid,openPayModal,remoteRecord,attachReceiptToGroup,renderReceipts,download:pdfDownload,install,
+ registerCorrectionV9590,applyCorrectionV9590,matchingPendingGroupsV9590,groupCorrectionsV9590,groupApplicationsV9590,
+ correctionRemainingV9590,netGroupV9590,buildSummaryPdfV9590,summaryLinesV9590,downloadSummaryPdfV9590,
  status:()=>({...state}),maxPdfBytes:MAX_PDF};
 install();
 [500,1700,3800].forEach(ms=>setTimeout(install,ms));
