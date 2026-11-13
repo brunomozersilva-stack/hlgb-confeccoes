@@ -4,7 +4,7 @@
 (function(){
 'use strict';
 if(window.hlgbAcertoReturns9565)return;
-const V='95.76',busy=new Set(),state={lastError:'',lastSuccess:'',financePending:[],saveTrace:{phase:'not-tested',module:'',at:'',message:'',remoteReadback:false}};
+const V='95.65',busy=new Set(),state={lastError:'',lastSuccess:'',financePending:[],saveTrace:{phase:'not-tested',module:'',at:'',message:'',remoteReadback:false}};
 const sid=x=>String(x??''),q=x=>Math.max(0,Number(x)||0),cent=x=>Math.round(q(x)*100);
 const brl=x=>(x/100).toLocaleString('pt-BR',{style:'currency',currency:'BRL'});
 const esc=x=>sid(x).replace(/[&<>"']/g,k=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[k]));
