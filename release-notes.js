@@ -77,6 +77,49 @@ function ensureSelectAllButton(){
  }
  return true;
 }
+/* v95.87: recuperação exclusivamente visual quando os modelos desaparecem da
+   lista para a nota. Nunca cria nota, agenda data, confirma saldo ou toca na WAL. */
+function recoverProjectionNoteList9587(){
+ if(!canRenderProjection())return {ok:false,reason:'projection-not-visible'};
+ const fields=['projectionClientFilter','projectionProductFilter','projectionOrderFilter',
+  'projectionLocationFilter','projectionPriorityFilter','projectionStatusFilter',
+  'projectionMinValue','projectionMaxValue'];
+ // Não alterar seleção de notas, status financeiro ou dados de negócio.
+ for(const id of fields){const el=document.getElementById(id);if(el&&'value' in el)el.value=''}
+ try{if(typeof window.clearProjectionDetailFilters==='function')window.clearProjectionDetailFilters()}catch(e){console.warn('[HLGB notas v95.87] filtros',e)}
+ let periodApplied=false;
+ try{if(typeof window.setProjectionPeriod==='function'){window.setProjectionPeriod('all');periodApplied=true}}catch(e){console.warn('[HLGB notas v95.87] período',e)}
+ if(!periodApplied){
+  const start=document.getElementById('projectionStart'),end=document.getElementById('projectionEnd');
+  if(start)start.value='2000-01-01';if(end)end.value='2099-12-31';
+ }
+ try{window.renderProjection?.()}catch(e){console.warn('[HLGB notas v95.87] render',e);return {ok:false,reason:'render-error'}}
+ setTimeout(()=>{
+  const table=document.getElementById('projectionProductsTable'),count=table?.querySelectorAll?.('.projectionSelect')?.length||0;
+  const note=document.getElementById('hlgbProjectionRecoveryHint9587');
+  if(note&&count===0)note.textContent='Nenhum modelo programado apareceu. Vá à lista “Aguardando programação de entrega” e use “Definir datas” para os produtos que devem sair. Não cadastre pedido duplicado.';
+  else if(note)note.textContent='';
+ },180);
+ return {ok:true,period:'all',filtersCleared:true,businessWrites:0};
+}
+window.hlgbRecoverProjectionNoteList9587=recoverProjectionNoteList9587;
+function ensureProjectionRecovery9587(){
+ const table=document.getElementById('projectionProductsTable');if(!table)return false;
+ const toolbar=table.closest?.('.panel')?.querySelector?.('.toolbar');if(!toolbar)return false;
+ if(!document.getElementById('hlgbProjectionRecovery9587')){
+  const button=document.createElement('button');button.id='hlgbProjectionRecovery9587';button.type='button';
+  button.className='secondary';button.textContent='🔎 Recuperar lista para nota';
+  button.title='Limpar filtros e abrir todo o período; não altera pedidos nem emite nota.';
+  button.onclick=()=>recoverProjectionNoteList9587();
+  toolbar.appendChild(button);
+ }
+ if(!document.getElementById('hlgbProjectionRecoveryHint9587')){
+  const hint=document.createElement('div');hint.id='hlgbProjectionRecoveryHint9587';
+  hint.className='sub';hint.style.marginTop='6px';
+  toolbar.insertAdjacentElement('afterend',hint);
+ }
+ return true;
+}
 function decorateProjection(){
   try{
     const table=document.getElementById('projectionProductsTable');if(!table)return;
@@ -94,7 +137,7 @@ function decorateProjection(){
         if(z>=remaining&&remaining>0){selected.delete(sid(cb.value));cb.checked=false;cb.disabled=true;cb.title='Quantidade já reservada na fila de Notas';}
       }
     });
-    bindProjectionSelection();ensureSelectAllButton();
+    bindProjectionSelection();ensureSelectAllButton();ensureProjectionRecovery9587();
   }catch(e){console.warn('[HLGB notes '+V+'] decorate',e)}
 }
 function canRenderProjection(){
