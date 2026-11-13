@@ -191,7 +191,7 @@ function csvFor(plan,view='comprar'){
  }else{
   lines.push(['Material','Cor','Unidade','Necessário','Estoque conferido','Falta estimada','Unidade de compra','Comprar',
    'Custo previsto R$','Fornecedor','Situação']);
-  for(const r of plan.consolidated)lines.push([
+  for(const r of plan.consolidated.filter(x=>x.missing>1e-9))lines.push([
    r.name,r.color,r.unit,decimal(r.needed,5),r.stock.known?decimal(r.stock.amount,5):'A conferir',
    decimal(r.missing,5),r.purchase.unit,r.purchase.amount==null?'Conversão a conferir':decimal(r.purchase.amount,4),
    r.purchase.cost===null?'Preço a conferir':r.purchase.cost.toFixed(2).replace('.',','),
@@ -220,8 +220,10 @@ function summaryHtml(plan){
 }
 function consolidatedHtml(plan){
  if(!plan.consolidated.length)return '<div class="empty">Selecione modelos com fichas técnicas válidas.</div>';
+ const toBuy=plan.consolidated.filter(x=>x.missing>1e-9);
+ if(!toBuy.length)return '<div class="sub">O estoque cadastrado cobre todos os materiais calculados. Não há faltas nesta simulação.</div>';
  const head='<tr><th>Material</th><th>Necessário</th><th>Estoque cadastrado</th><th>Comprar</th><th>Custo da compra</th></tr>';
- const rs=plan.consolidated.map(r=>{
+ const rs=toBuy.map(r=>{
   const buy=r.purchase.amount==null?'Conferir conversão':decimal(r.purchase.amount,4)+' '+esc(r.purchase.unit);
   const extra=r.purchase.covered>r.missing+1e-9?' · embalagem cobre '+decimal(r.purchase.covered,4)+' '+esc(r.unit):'';
   return '<tr><td><b>'+esc(r.name)+'</b>'+(r.color?' · '+esc(r.color):'')+
