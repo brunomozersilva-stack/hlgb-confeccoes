@@ -31,7 +31,8 @@ jobs:
       - run: node --check release-internal-auditor.js
       - run: node tests/diagnostics-truth-v9511-auditor.cjs
   browser:
-    runs-on: ubuntu-latest
+    # Playwright 1.55 does not support ubuntu26.04 currently behind latest.
+    runs-on: ubuntu-24.04
     timeout-minutes: 18
     strategy:
       fail-fast: false

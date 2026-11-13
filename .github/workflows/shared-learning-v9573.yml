@@ -1,0 +1,40 @@
+name: HLGB Shared Auditor and Bot Learning v95.73
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'release-learning-cloud-v9573.js'
+      - 'release-internal-auditor.js'
+      - 'release-auditor-learning-assistant-v9556.js'
+      - 'release-hub-learning-v9568.js'
+      - 'app-stable3.html'
+      - 'tests/shared-learning-cloud-v9573.cjs'
+      - '.github/workflows/shared-learning-v9573.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'release-learning-cloud-v9573.js'
+      - 'release-internal-auditor.js'
+      - 'release-auditor-learning-assistant-v9556.js'
+      - 'release-hub-learning-v9568.js'
+      - 'app-stable3.html'
+      - 'tests/shared-learning-cloud-v9573.cjs'
+      - '.github/workflows/shared-learning-v9573.yml'
+permissions:
+  contents: read
+jobs:
+  learning:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 6
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '20'}
+      - run: node --check release-learning-cloud-v9573.js
+      - run: node --check release-auditor-learning-assistant-v9556.js
+      - run: node --check release-hub-learning-v9568.js
+      - run: node --check release-internal-auditor.js
+      - run: node tests/shared-learning-cloud-v9573.cjs
+      - run: node tests/audit-learning-assistant-v9556.cjs
+      - run: node tests/hub-learning-v9568.cjs
+      - run: node tests/boot-fetch-retry-v9518.cjs
