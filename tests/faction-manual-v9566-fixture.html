@@ -21,13 +21,14 @@ button.primary{background:#6f3454;color:#fff}
 window.__oldOpen=0;window.__written=[];window.__renderCount=0;
 window.__HLGB_AUTH_READY=true;
 window.db={
- factionMasters:[{id:'1',name:'Roseli',active:true},{id:'2',name:'Cris',active:true},{id:'3',name:'Ge',active:true},
+ factionMasters:[{id:'1',name:'Roseli',active:true,doesTraveta:false,travetaDeductionUnit:0.08},{id:'2',name:'Cris',active:true,doesTraveta:true,travetaDeductionUnit:0.08},{id:'3',name:'Ge',active:true},
  {id:'4',name:'Marina',active:true,factionRoleV9577:'embaladeira'},
  {id:'5',name:'Tania',active:true,factionRoleV9577:'travetador',travetaDeductionUnit:0.08}],
  factions:[{id:'f1',name:'Graziano'}],productionLocations:[{name:'Corte interno'}],
  products:[
   {id:'p1',name:'Camisola Liliane',code:'CL21',factionCost:2.6,labor:3.4},
-  {id:'p2',name:'Doll Melânia',sku:'DM99',factionCost:0}
+  {id:'p2',name:'Doll Melânia',sku:'DM99',factionCost:0},
+  {id:'p3',name:'Tanga Katerine',sku:'TK3',factionCost:1.50,travetadas:0,updatedAt:'2026-11-13T12:00:00Z'}
  ],factionPayments:[],hubFinanceEntries:[],factionSettings:[{id:'traveta',travetaUnitValue:0.05}]
 };
 window.hlgbWalIdbGuard9536={probe:async()=>true,ids:()=>[],status:()=>({readFailed:false})};
