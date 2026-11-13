@@ -720,6 +720,7 @@ function renderProductsFor(row,query){
  host.innerHTML=rs.map(p=>'<button type="button" class="fm66-product-option" data-product-id="'+esc(p.id)+
   '" role="option" style="display:block;width:100%;text-align:left;border:0;border-bottom:1px solid #eee;padding:8px;background:#fff;cursor:pointer">'+
   '<b>'+esc(p.name||'Produto')+'</b> <small>'+esc(p.code||p.sku||p.category||'')+'</small>'+
+   (row.dataset.kind==='travetada'?'<span class="sub" style="display:block">Ficha: '+pointsPerPieceV9592(p)+' travetada(s) por peça</span>':'')+
   '<span class="sub" style="display:block">'+(row.dataset.kind==='embalagem'?(window.hlgbFactionRates9577?.embalagem?.(p)!=null?'Embalagem: '+money(window.hlgbFactionRates9577.embalagem(p)):'Sem tarifa de embalagem; informar manualmente'):(productPrice(p)!=null?'Facção cadastrada: '+money(productPrice(p)):'Sem preço de facção cadastrado'))+'</span></button>').join('')+
   (!rs.length?'<div class="sub" style="padding:8px">Nenhum produto cadastrado encontrado para esta busca.</div>':'');
 }
@@ -856,12 +857,19 @@ function addLine(kind='product',existingRow=null){
   row.querySelector('.fm66-search').disabled=false;
   row.querySelector('.fm66-search').value=p.name||'';
   row.querySelector('.fm66-suggestions').style.display='none';
-  const packing=row.dataset.kind==='embalagem',price=packing?window.hlgbFactionRates9577?.embalagem?.(p):productPrice(p),unit=row.querySelector('.fm66-unit');
-  row.dataset.priceOrigin=price!=null?(packing?'tabela-embalagem':'ficha-tecnica'):'manual';
-  if(price!=null){unit.value=price.toFixed(2);row.querySelector('.fm66-hint').textContent=packing?'Tarifa de embalagem sugerida; você pode alterar.':'Valor da facção preenchido pela ficha. Você pode alterá-lo.'}
-  else{unit.value='';row.querySelector('.fm66-hint').textContent=packing?'Sem tarifa para este modelo. Informe o valor de embalagem.':'Sem valor de facção cadastrado. Informe manualmente abaixo.'}
-  const picked=factionDirectory().find(x=>norm(x.name)===norm(document.getElementById('fm66-faction')?.value));
-  const master=arr('factionMasters').find(x=>sid(x.id)===sid(picked?.id));
+  const packing=row.dataset.kind==='embalagem',traveta=row.dataset.kind==='travetada',
+   picked=factionDirectory().find(x=>norm(x.name)===norm(document.getElementById('fm66-faction')?.value)),
+   master=arr('factionMasters').find(x=>sid(x.id)===sid(picked?.id)),
+   price=packing?window.hlgbFactionRates9577?.embalagem?.(p):traveta?travetaUnitV9592(master):productPrice(p),
+   unit=row.querySelector('.fm66-unit');
+  row.dataset.priceOrigin=price!=null?(packing?'tabela-embalagem':traveta?'tabela-travetada':'ficha-tecnica'):'manual';
+  if(price!=null){unit.value=Number(price).toFixed(2);
+   row.querySelector('.fm66-hint').textContent=packing?'Tarifa de embalagem sugerida.':
+    traveta?'Tarifa por ponto de travetada sugerida. Peças × pontos/peça × tarifa.':
+    'Valor da facção preenchido pela ficha. Você pode alterar.'}
+  else{unit.value='';row.querySelector('.fm66-hint').textContent=packing?'Sem tarifa de embalagem. Informe manualmente.':
+   traveta?'Sem tarifa de travetada. Configure a tabela ou informe um valor por ponto.':
+   'Sem valor de facção cadastrado. Informe manualmente.'}
   const d=row.querySelector('.fm66-discount');
   if(d)refreshFactionDiscountV9592(row,true);
   recalc();
