@@ -81,13 +81,13 @@ async function confirmedSave(module,id,next){
  if(!out||out.applied!==true)throw Error(out?.reason||'A nuvem não confirmou a gravação.');
  return out.data||next;
 }
-async function mirrorFinance(type,id,record){
+async function mirrorFinance(type,id,record,syncTotal=false){
  const m=moneyState(record,type);
  const matches=invoiceFinance(type,id),failed=[];
  for(const old of matches){
   if(old?.id==null)continue;
   const next={...copy(old),paid:m.cash/100,remaining:m.remaining/100,
-   creditReturnsV9565:m.credit/100,status:m.status,updatedAt:new Date().toISOString()};
+   creditReturnsV9565:m.credit/100,status:m.status,updatedAt:new Date().toISOString(),...(syncTotal?{value:m.total/100}:{})};
   try{
    const saved=await confirmedSave('finance',old.id,next);
    const arr=rows('finance'),idx=arr.findIndex(x=>sid(x?.id)===sid(old.id));
@@ -105,7 +105,7 @@ async function saveAction(type,id,kind,input){
   const current=lookup(type,id);
   if(!current)throw Error('Nota ou pedido não encontrado. Nenhuma gravação feita.');
   if(current.id==null)throw Error('Registro sem identificação.');
-  if(!['return','note','payment','reversal'].includes(kind))throw Error('Operação inválida.');
+  if(!['return','note','payment','reversal','edit'].includes(kind))throw Error('Operação inválida.');
   const old=moneyState(current,type),next=copy(current),now=new Date().toISOString();
   if(old.overCredit)throw Error('O histórico possui abatimentos maiores que o saldo. Conferir antes de lançar.');
   if(kind==='return'){
@@ -137,6 +137,42 @@ async function saveAction(type,id,kind,input){
     importedBaselineV9565:true
    }]:[];
    next.paymentHistory=[...previous,...baseline,p];
+  }else if(kind==='edit'){
+   if(type!=='projection')throw Error('A edição dos dados da nota é exclusiva de notas de entrega.');
+   const at=sid(input?.date).trim(),due=sid(input?.dueDate).trim(),reason=sid(input?.reason).trim();
+   if(!validDay(at)||(due&&!validDay(due)))throw Error('Data da nota ou vencimento inválido.');
+   if(!reason||reason.length>180)throw Error('Informe o motivo da alteração (até 180 caracteres).');
+   const currentItems=Array.isArray(next.items)?next.items:[],changes=[];
+   const incoming=Array.isArray(input?.items)?input.items:[];
+   if(currentItems.length!==incoming.length)throw Error('A grade da nota mudou durante a edição. Reabra a nota.');
+   let itemSum=0;
+   const updatedItems=currentItems.map((item,i)=>{
+    const qty=Number(incoming[i]?.qty),unitPrice=Number(incoming[i]?.unitPrice);
+    if(!Number.isInteger(qty)||qty<1||qty>10000000||!Number.isFinite(unitPrice)||unitPrice<0||unitPrice>100000000)
+     throw Error('Quantidade ou preço unitário inválido no item '+(i+1)+'.');
+    const valueCents=Math.round(qty*cent(unitPrice)),updated={...item,qty,unitPrice:cent(unitPrice)/100,value:valueCents/100};
+    itemSum+=valueCents;
+    if(Number(item.qty)!==qty||cent(item.unitPrice)!==cent(unitPrice)||cent(item.value)!==valueCents)
+     changes.push('Item '+(i+1)+': '+sid(item.qty)+' peça(s), '+brl(cent(item.value))+' → '+qty+' peça(s), '+brl(valueCents));
+    return updated;
+   });
+   const total=Number(input?.value),valueCents=cent(total);
+   if(!Number.isFinite(total)||total<=0)throw Error('O valor da nota precisa ser positivo.');
+   if(updatedItems.length&&Math.abs(itemSum-valueCents)>1)
+    throw Error('O total precisa corresponder à soma dos itens. Ajuste quantidades ou preços unitários.');
+   if(valueCents<old.cash+old.credit)
+    throw Error('O valor não pode ser menor que o recebido e o abatido: '+brl(old.cash+old.credit)+'.');
+   if(sid(current.issueDate||current.date)!==at)changes.unshift('Data: '+sid(current.issueDate||current.date)+' → '+at);
+   if(sid(current.dueDate)!==due)changes.push('Vencimento: '+sid(current.dueDate||'sem data')+' → '+(due||'sem data'));
+   if(old.total!==valueCents)changes.push('Valor total: '+brl(old.total)+' → '+brl(valueCents));
+   if(!changes.length)throw Error('Nenhuma alteração foi feita na nota.');
+   const hist=Array.isArray(next.acertoEditHistoryV9572)?next.acertoEditHistoryV9572:[];
+   next.acertoEditHistoryV9572=[...hist,{id:sid(Date.now())+'-'+sid(Math.floor(Math.random()*1000000)),at:now,reason,changes,
+    before:{date:sid(current.issueDate||current.date),dueDate:sid(current.dueDate),value:old.total/100,
+     items:currentItems.map(x=>({qty:x.qty,unitPrice:x.unitPrice,value:x.value}))},
+    after:{date:at,dueDate:due,value:valueCents/100,
+     items:updatedItems.map(x=>({qty:x.qty,unitPrice:x.unitPrice,value:x.value}))}}].slice(-200);
+   next.date=at;next.issueDate=at;next.dueDate=due;next.value=valueCents/100;next.items=updatedItems;
   }else if(kind==='reversal'){
    const entry=ret(next).find(x=>sid(x?.id)===sid(input?.entryId));
    if(!entry||entry.reversedAt)throw Error('Devolução inexistente ou já estornada.');
@@ -161,7 +197,7 @@ async function saveAction(type,id,kind,input){
   const saved=await confirmedSave(moduleFor(type),id,next);
   updateLocal(type,id,saved);
   // Finance is a separate record. Do not pretend this is a distributed transaction.
-  const mirror=await mirrorFinance(type,id,saved);
+  const mirror=await mirrorFinance(type,id,saved,kind==='edit');
   state.lastSuccess=mirror.ok?'Acerto confirmado na nuvem.':'Acerto confirmado, mas o financeiro ainda precisa ser reconciliado.';
   refresh();
   return {ok:true,mirror,saved,summary:moneyState(saved,type)};
@@ -180,7 +216,8 @@ const history=(x,type)=>{
  ...cash.map(p=>({date:sid(p.date),kind:'Recebimento',value:cent(p.value),note:sid(p.method)+' · '+sid(p.note||'')})),
  ...ret(x).map(e=>({date:sid(e.date),kind:e.reversedAt?'Devolução estornada':'Devolução',value:cent(e.value),
     note:sid(e.reason||'')+(e.detail?' — '+sid(e.detail):'')+(e.reversedAt?' · Estornada: '+sid(e.reversalReason):''),entryId:sid(e.id),reversed:!!e.reversedAt})),
- ...notes(x).map(e=>({date:sid(e.date||e.createdAt).slice(0,10),kind:'Anotação',value:null,note:sid(e.text)}))
+ ...notes(x).map(e=>({date:sid(e.date||e.createdAt).slice(0,10),kind:'Anotação',value:null,note:sid(e.text)})),
+ ...(Array.isArray(x.acertoEditHistoryV9572)?x.acertoEditHistoryV9572:[]).map(e=>({date:sid(e.at).slice(0,10),kind:'Edição da nota',value:null,note:sid(e.reason)+' · '+(Array.isArray(e.changes)?e.changes.join(' | '):'')}))
  ];
  return {m,lines:lines.sort((a,b)=>b.date.localeCompare(a.date))};
 };
