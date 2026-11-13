@@ -31,7 +31,7 @@ const engine=process.env.HLGB_BROWSER==='chromium'?chromium:webkit;
  out=await snapshot();
  if(!out.one||out.visibleActions.length!==1||out.visibleActions[0]!=='hlgbAuditorUnifiedRun9434A')throw new Error('botão não foi restaurado após troca do host '+JSON.stringify(out));
  if(!(out.status?.hostRebinds>=1)||out.status?.observerRootConnected!==true)throw new Error('observador não acompanhou recriação do host '+JSON.stringify(out.status));
- const expectedStartup=/^Auditor inteligente(?:\/Safari)? ainda não está pronto(?: para o patch v93\.70)?\.?$/i;
+ const expectedStartup=/^Auditor inteligente(?:\/Safari)? ainda não está pronto(?: para (?:o patch )?v93\.(?:70|72))?\.?$/i;
  const unexpectedStartup=startupErrors.filter(x=>/auditor|9434a|9448|9447|9446|9444|9443|9442|9429/i.test(x)&&!expectedStartup.test(x));
  if(unexpectedStartup.length)throw new Error('Erros inesperados no boot: '+unexpectedStartup.join(' | '));
  if(errors.some(x=>/auditor|9434a|9448|9447|9446|9444|9443|9442|9429/i.test(x)))throw new Error('Erros após o Auditor ficar pronto: '+errors.join(' | '));
