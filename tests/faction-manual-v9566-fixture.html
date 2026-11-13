@@ -19,6 +19,7 @@ button.primary{background:#6f3454;color:#fff}
 <div id="factionPaymentTable"></div></div>
 <script>
 window.__oldOpen=0;window.__written=[];window.__renderCount=0;
+window.__HLGB_AUTH_READY=true;
 window.db={
  factionMasters:[{id:'1',name:'Roseli',active:true},{id:'2',name:'Cris',active:true},{id:'3',name:'Ge',active:true}],
  factions:[{id:'f1',name:'Graziano'}],productionLocations:[{name:'Corte interno'}],
@@ -35,6 +36,13 @@ window.hlgbRecordSaveWithRetry=async(module,id,record)=>{
   const i=arr.findIndex(x=>String(x.id)===String(id));
   if(i<0)arr.push(copy);else arr[i]=copy;
   return {applied:true,data:copy};
+};
+window.cloudRequest=async(path)=>{
+ const query=new URL(path,location.href).searchParams,
+  module=(query.get('module')||'').replace(/^eq\./,''),
+  id=(query.get('entity_id')||'').replace(/^eq\./,''),
+  row=(window.db[module]||[]).find(r=>String(r.id)===id);
+ return row?[{entity_id:id,data:JSON.parse(JSON.stringify(row)),deleted_at:null}]:[];
 };
 window.renderFactionPayments=()=>{window.__renderCount++;};
 window.renderHubFinance=()=>{};
