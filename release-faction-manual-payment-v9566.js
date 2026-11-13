@@ -369,7 +369,16 @@ function rowHtml(kind='product',id=makeId('fmpli')){
   '<div class="field" style="grid-column:span 2"><label>'+(prod?'Buscar produto (nome, código ou SKU)':'Vincular produto (opcional)')+'</label>'+
    '<input class="fm66-search" autocomplete="off" placeholder="Digite para localizar um modelo" aria-label="Pesquisar produto" aria-autocomplete="list" role="combobox">'+
    '<input class="fm66-product-id" type="hidden"><div class="fm66-suggestions" role="listbox" style="display:none;max-height:195px;overflow:auto;border:1px solid #ddd;border-radius:7px;background:#fff"></div>'+
-   '<div class="fm66-hint sub">'+(prod?'Selecione um produto da lista.':'Pode registrar o serviço mesmo sem vincular um modelo.')+'</div></div>'+
+   '<div class="fm66-hint sub">'+(prod?'Selecione um produto cadastrado ou marque Modelo não cadastrado.':'Vincule um modelo, informe um modelo avulso ou registre apenas travetada.')+'</div></div>'+
+   ((kind==='embalagem'||kind==='travetada')?'<div class="field" style="grid-column:1/-1">'+
+    '<label style="display:flex;gap:6px;align-items:center"><input class="fm66-unregistered" type="checkbox" style="width:auto"> Modelo não cadastrado (informar manualmente)</label>'+
+    '<div class="fm66-manual-fields" style="display:none;margin-top:6px">'+
+    '<label>Nome do modelo'+(kind==='embalagem'?' (obrigatório)':' (opcional)')+'</label>'+
+    '<input class="fm66-manual-name" maxlength="180" placeholder="Ex.: Camisola especial, Doll de amostra">'+
+    (kind==='embalagem'?'<label>Categoria para sugerir o preço de embalagem</label><select class="fm66-manual-category">'+
+     '<option value="outros">Outro / valor manual</option><option value="camisola">Camisola</option>'+
+     '<option value="doll">Short doll</option><option value="calcinha">Calcinha</option></select>':'')+
+    '</div></div>':'')+
   (kind==='service'?'<div class="field"><label>Descrição do serviço</label><input class="fm66-desc" maxlength="220" placeholder="Retrabalho, extra..."></div>':'')+
   '<div class="field"><label>Qtd.</label><input type="number" min="1" step="1" class="fm66-qty" value="1"></div>'+
   '<div class="field"><label>Valor unit. (R$)</label><input type="number" min="0.01" step="0.01" class="fm66-unit" placeholder="Informe o valor"></div>'+
@@ -393,6 +402,9 @@ function lineFromDom(row){
   quantity=row.querySelector('.fm66-qty')?.value,
   unitPrice=row.querySelector('.fm66-unit')?.value;
  return {id,kind,productId,quantity,unitPrice,description:row.querySelector('.fm66-desc')?.value||'',
+  unregistered:!!row.querySelector('.fm66-unregistered')?.checked,
+  manualProductName:row.querySelector('.fm66-manual-name')?.value||'',
+  manualProductCategory:row.querySelector('.fm66-manual-category')?.value||'outros',
   note:row.querySelector('.fm66-line-note')?.value||'',priceOrigin:row.dataset.priceOrigin||'',
   travetaDiscountUnit:row.querySelector('.fm66-discount')?.value||'0'};
 }
@@ -420,13 +432,16 @@ function addLine(kind='product',existingRow=null){
  });
  row.querySelector('.fm66-search').addEventListener('input',e=>{
   row.querySelector('.fm66-product-id').value='';
-  row.querySelector('.fm66-hint').textContent='Selecione o produto listado para associar o valor de facção.';
+  row.querySelector('.fm66-hint').textContent='Selecione o modelo cadastrado ou marque Modelo não cadastrado.';
   renderProductsFor(row,e.target.value);
  });
  row.querySelector('.fm66-suggestions').addEventListener('click',e=>{
   const option=e.target.closest('button[data-product-id]');if(!option)return;
   const p=productDirectory().find(x=>sid(x.id)===sid(option.dataset.productId));if(!p)return;
   row.querySelector('.fm66-product-id').value=sid(p.id);
+  const manualCheck=row.querySelector('.fm66-unregistered');
+  if(manualCheck){manualCheck.checked=false;row.querySelector('.fm66-manual-fields').style.display='none'}
+  row.querySelector('.fm66-search').disabled=false;
   row.querySelector('.fm66-search').value=p.name||'';
   row.querySelector('.fm66-suggestions').style.display='none';
   const packing=row.dataset.kind==='embalagem',price=packing?window.hlgbFactionRates9577?.embalagem?.(p):productPrice(p),unit=row.querySelector('.fm66-unit');
@@ -440,6 +455,33 @@ function addLine(kind='product',existingRow=null){
    Number(window.hlgbFactionRates9577.traveta(master)).toFixed(2):'0.00';
   recalc();
  });
+ const manualCheck=row.querySelector('.fm66-unregistered');
+ if(manualCheck){
+  const area=row.querySelector('.fm66-manual-fields'),name=row.querySelector('.fm66-manual-name'),
+   category=row.querySelector('.fm66-manual-category'),lookup=row.querySelector('.fm66-search'),unit=row.querySelector('.fm66-unit');
+  manualCheck.addEventListener('change',()=>{
+   area.style.display=manualCheck.checked?'block':'none';
+   lookup.disabled=manualCheck.checked;
+   if(manualCheck.checked){
+    row.querySelector('.fm66-product-id').value='';lookup.value='';
+    row.querySelector('.fm66-suggestions').style.display='none';
+    if(row.dataset.kind==='embalagem'){
+     unit.value='';
+     row.querySelector('.fm66-hint').textContent='Modelo avulso: informe nome, categoria e valor. Não será cadastrado no estoque.';
+    }else row.querySelector('.fm66-hint').textContent='Travetada: informe o modelo se desejar (opcional).';
+    row.dataset.priceOrigin='manual-avulso';
+   }
+   recalc();
+  });
+  name?.addEventListener('input',recalc);
+  category?.addEventListener('change',()=>{
+   if(!manualCheck.checked)return;
+   const price=category.value==='outros'?null:window.hlgbFactionRates9577?.embalagem?.({name:category.value});
+   unit.value=price==null?'':Number(price).toFixed(2);
+   row.dataset.priceOrigin=price==null?'manual-avulso':'tabela-embalagem-avulso';
+   recalc();
+  });
+ }
  row.querySelector('.fm66-remove').addEventListener('click',()=>{row.remove();recalc()});
  row.querySelectorAll('.fm66-qty,.fm66-unit,.fm66-discount').forEach(inp=>inp.addEventListener('input',()=>{
   if(inp.classList.contains('fm66-unit'))row.dataset.priceOrigin='manual';
@@ -450,14 +492,31 @@ function addLine(kind='product',existingRow=null){
   row.dataset.priceOrigin=sid(existingRow.priceOriginV9566||'manual');
   const p=productDirectory().find(x=>sid(x.id)===sid(existingRow.productId));
   row.querySelector('.fm66-product-id').value=sid(existingRow.productId||'');
-  row.querySelector('.fm66-search').value=p?.name||sid(existingRow.description||'');
+  row.querySelector('.fm66-search').value=p?.name||(!existingRow.manualProductNameV9589?sid(existingRow.description||''):'');
   if(kind==='service'&&row.querySelector('.fm66-desc'))row.querySelector('.fm66-desc').value=sid(existingRow.description);
   row.querySelector('.fm66-qty').value=sid(existingRow.quantity||1);
   row.querySelector('.fm66-unit').value=Number(existingRow.unitPrice||0).toFixed(2);
   row.querySelector('.fm66-discount').value=Number(existingRow.travetaDiscountUnitV9577||0).toFixed(2);
   row.querySelector('.fm66-line-note').value=sid(existingRow.manualLineNoteV9566||'');
+  if(existingRow.manualProductNameV9589&&row.querySelector('.fm66-unregistered')){
+   const check=row.querySelector('.fm66-unregistered'),area=row.querySelector('.fm66-manual-fields');
+   check.checked=true;area.style.display='block';
+   row.querySelector('.fm66-search').disabled=true;row.querySelector('.fm66-search').value='';
+   row.querySelector('.fm66-product-id').value='';
+   row.querySelector('.fm66-manual-name').value=sid(existingRow.manualProductNameV9589);
+   const cat=row.querySelector('.fm66-manual-category');
+   if(cat)cat.value=sid(existingRow.manualProductCategoryV9589||'outros');
+  }
   const remove=row.querySelector('.fm66-remove');
   if(remove){remove.disabled=true;remove.title='Linha já salva. Corrija valores sem excluir o histórico.';}
+ }else if(kind==='travetada'){
+  const picked=factionDirectory().find(x=>norm(x.name)===norm(document.getElementById('fm66-faction')?.value));
+  const master=arr('factionMasters').find(x=>sid(x.id)===sid(picked?.id));
+  const rate=window.hlgbFactionRates9577?.traveta?.(master);
+  if(rate!=null&&Number(rate)>0){
+   row.querySelector('.fm66-unit').value=Number(rate).toFixed(2);
+   row.dataset.priceOrigin='tabela-travetada';
+  }
  }
  recalc();
 }
