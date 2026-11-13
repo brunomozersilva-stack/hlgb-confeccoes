@@ -1245,6 +1245,10 @@ function summaryLinesV9590(groupId){
   out.push('Item '+(i+1)+': '+v(x.description));
   out.push('  Quantidade: '+(Number(x.quantity)||0)+' | Unitario: '+f(x.unitPrice)+
    ' | Bruto: '+f(x.grossValueV9577??Number(x.quantity)*Number(x.unitPrice)));
+  if(x.manualKindV9566==='travetada')
+   out.push('  Travetadas por peca: '+v(x.travetaPointsPerPieceV9592||1)+
+    ' | Total de pontos: '+(Number(x.quantity)||0)*(Number(x.travetaPointsPerPieceV9592)||1)+
+    ' | Tarifa por ponto: '+f(x.unitPrice));
   out.push('  Travetada descontada: '+f(x.travetaDiscountTotalV9577||0)+
    ' | Liquido: '+f(x.value)+' | Pago atribuido: '+f(x.paidAmount));
   out.push('  Modelo: '+v(x.manualProductNameV9589||x.productName||x.productId)+
@@ -1518,7 +1522,9 @@ function renderReceipts(){
       '<b>'+(isCanceledV9590(r)?'❌ [Cancelado] ':'')+esc(r.description||'Serviço')+'</b>'+
       (isCanceledV9590(r)?'<div class="sub">Motivo: '+esc(r.manualCanceledReasonV9590||'Não informado')+'</div>':'')+
       '<div class="sub">'+Number(r.quantity||0).toLocaleString('pt-BR')+
-      ' × '+money(r.unitPrice)+' · desconto '+money(r.travetaDiscountTotalV9577)+'</div><b>'+
+      ' × '+money(r.unitPrice)+
+      (r.manualKindV9566==='travetada'?' × '+(r.travetaPointsPerPieceV9592||1)+' travetadas/peça':'')+
+      ' · desconto '+money(r.travetaDiscountTotalV9577)+'</div><b>'+
       money(r.value)+'</b></div>').join('')+
       corrections+apps+'</div></details>';
     const proof=g.receipt?'<button type="button" class="secondary fm66-download" data-group-id="'+esc(g.id)+'">'+esc(g.receipt.name)+'</button>':
@@ -1606,7 +1612,8 @@ document.addEventListener('click',e=>{
  e.preventDefault();e.stopImmediatePropagation();openForm();
 },true);
 window.hlgbFactionManual9566={version:V,openForm,searchFactions,searchProducts,factionDirectory,productDirectory,
- productPrice,validate,grandTotal,readReceipt,pdfIsValid,persistDraft,receiptGroups,groupRows,groupState,saveGroupEdits,markGroupPaid,openPayModal,remoteRecord,attachReceiptToGroup,renderReceipts,download:pdfDownload,install,
+ productPrice,pointsPerPieceV9592,autoTravetaV9592,travetaUnitV9592,saveTravetaPointsV9592,
+  validate,grandTotal,readReceipt,pdfIsValid,persistDraft,receiptGroups,groupRows,groupState,saveGroupEdits,markGroupPaid,openPayModal,remoteRecord,attachReceiptToGroup,renderReceipts,download:pdfDownload,install,
  registerCorrectionV9590,applyCorrectionV9590,matchingPendingGroupsV9590,groupCorrectionsV9590,groupApplicationsV9590,
  correctionRemainingV9590,netGroupV9590,directAdjustmentsV9591,validateDirectInputV9591,buildSummaryPdfV9590,summaryLinesV9590,downloadSummaryPdfV9590,
  status:()=>({...state}),maxPdfBytes:MAX_PDF};
