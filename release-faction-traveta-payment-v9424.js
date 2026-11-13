@@ -109,7 +109,12 @@ function ensureTravetaFields(explicitFaction){
     else (document.querySelector('#modal .modal-content,#modal .modal-card,#modal .modalCard')||document.getElementById('modal'))?.appendChild(box);
     for(const id of ['mtraveta9424','mtravetaDiscount9424','mprice','msent']){
       const el=document.getElementById(id);if(!el||el.dataset.hlgbTraveta9424)return;
-      el.dataset.hlgbTraveta9424='1';el.addEventListener('input',refreshTravetaPreview);el.addEventListener('change',refreshTravetaPreview);
+      el.dataset.hlgbTraveta9424='1';
+      if(id==='mtravetaDiscount9424')el.addEventListener('input',()=>{
+       const parent=document.getElementById('hlgbFactionTravetaBox9424');
+       if(parent)parent.dataset.travetaManualV9592='1';
+      });
+      el.addEventListener('input',refreshTravetaPreview);el.addEventListener('change',refreshTravetaPreview);
     }
     state.formRepairs++;
   }
@@ -121,12 +126,19 @@ function alertValidation(code){
   if(code==='deduction'){alert('Informe um desconto da travetada por peça válido.');document.getElementById('mtravetaDiscount9424')?.focus();return}
   if(code==='deduction_gt_base'){alert('O desconto da travetada não pode ser maior que o valor da peça.');document.getElementById('mtravetaDiscount9424')?.focus();}
 }
-function snapshotPricing(f){if(!f||typeof f!=='object')return null;const keys=['price','baseUnitPrice','doesTraveta','travetaDeductionUnit','payableUnitPrice','payableTotal','travetaPricingVersion','travetaPricingUpdatedAt'];const out={};for(const k of keys)out[k]={has:Object.prototype.hasOwnProperty.call(f,k),value:f[k]};return out}
+function snapshotPricing(f){if(!f||typeof f!=='object')return null;const keys=['price','baseUnitPrice','doesTraveta','travetaDeductionUnit','payableUnitPrice','payableTotal',
+ 'travetaPricingVersion','travetaPricingUpdatedAt','travetaPointsPerPieceV9592','travetaPricePerPointV9592','travetaDiscountOriginV9592'];const out={};for(const k of keys)out[k]={has:Object.prototype.hasOwnProperty.call(f,k),value:f[k]};return out}
 function restorePricing(f,snap){if(!f||!snap)return;for(const [k,x] of Object.entries(snap)){if(x.has)f[k]=x.value;else delete f[k]}}
 function prepareTravetaSave(f){
   ensureTravetaFields(f);
   const decision=document.getElementById('mtraveta9424')?.value||'';
-  const baseEl=document.getElementById('mprice'),discountEl=document.getElementById('mtravetaDiscount9424');
+  const baseEl=document.getElementById('mprice'),discountEl=document.getElementById('mtravetaDiscount9424'),
+   box=document.getElementById('hlgbFactionTravetaBox9424');
+  const derived=deductionForModelV9592(f,masterFor(f));
+  if(decision==='nao'&&state.mode!=='edit'&&derived&&box?.dataset?.travetaManualV9592!=='1'&&discountEl){
+   discountEl.value=derived.unit.toFixed(2);
+   refreshTravetaPreview();
+  }
   const valid=validatePricing(baseEl?.value,decision,discountEl?.value);
   if(!valid.ok){alertValidation(valid.code);return {ok:false}}
   const sent=qty(document.getElementById('msent')?.value??f?.sent),total=valid.finalUnit*sent;
@@ -135,6 +147,11 @@ function prepareTravetaSave(f){
     f.baseUnitPrice=valid.base;
     f.doesTraveta=decision==='sim';
     f.travetaDeductionUnit=valid.deduction;
+    if(decision==='nao'&&derived){
+     f.travetaPointsPerPieceV9592=derived.points;
+     f.travetaPricePerPointV9592=derived.rate;
+     f.travetaDiscountOriginV9592=box?.dataset?.travetaManualV9592==='1'?'manual':'ficha-tecnica';
+    }
     f.payableUnitPrice=valid.finalUnit;
     f.payableTotal=total;
     f.travetaPricingVersion=V;
