@@ -4,7 +4,7 @@
 (function(){
 'use strict';
 if(window.hlgbAcertoReturns9565)return;
-const V='95.65',busy=new Set(),state={lastError:'',lastSuccess:'',financePending:[]};
+const V='95.65',busy=new Set(),state={lastError:'',lastSuccess:'',financePending:[],saveTrace:{phase:'not-tested',module:'',at:'',message:'',remoteReadback:false}};
 const sid=x=>String(x??''),q=x=>Math.max(0,Number(x)||0),cent=x=>Math.round(q(x)*100);
 const brl=x=>(x/100).toLocaleString('pt-BR',{style:'currency',currency:'BRL'});
 const esc=x=>sid(x).replace(/[&<>"']/g,k=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[k]));
@@ -74,12 +74,51 @@ async function assertNoLocalPending(module,id){
   throw Error('Existe alteração local pendente neste registro. Aguarde a sincronização antes de lançar o acerto.');
 }
 async function confirmedSave(module,id,next){
- await assertNoLocalPending(module,id);
- const save=window.hlgbRecordSaveWithRetry;
- if(typeof save!=='function')throw Error('A gravação autenticada não está disponível. Nada foi registrado.');
- const out=await save(module,sid(id),copy(next),false);
- if(!out||out.applied!==true)throw Error(out?.reason||'A nuvem não confirmou a gravação.');
- return out.data||next;
+ const set=(phase,message='',remoteReadback=false)=>{state.saveTrace={phase,module,at:new Date().toISOString(),message,remoteReadback};};
+ set('checking-wal');
+ try{
+  await assertNoLocalPending(module,id);
+  set('checking-session');
+  if(typeof window.cloudEnsureFreshSession==='function')await window.cloudEnsureFreshSession(false);
+  const save=window.hlgbRecordSaveWithRetry;
+  if(typeof save!=='function')throw Error('A gravação autenticada não está disponível. Nenhum dado foi alterado.');
+  set('sending');
+  const out=await save(module,sid(id),copy(next),false);
+  if(!out||out.applied!==true)throw Error(out?.reason||'A nuvem não confirmou a gravação.');
+  // The existing save transport owns retries and RPC revision checks.
+  // Re-read the authoritative row to catch silent ACK/UI contradictions.
+  if(typeof window.cloudRequest==='function'){
+   set('checking-readback','A gravação pode ter sido aplicada. Conferindo a mesma nota na nuvem.');
+   let rows;
+   try{rows=await window.cloudRequest('hlgb_records?select=entity_id,module,data,deleted_at&module=eq.'+
+    encodeURIComponent(module)+'&entity_id=eq.'+encodeURIComponent(sid(id))+'&limit=1',{method:'GET'})}
+   catch(e){set('unverified','Envio confirmado, mas a releitura falhou. Não envie novamente antes de conferir a nota.');
+    throw Error('A nuvem respondeu ao salvamento, mas não foi possível confirmar na releitura. Confira no outro navegador antes de tentar outra vez. '+sid(e?.message||e));}
+   const row=Array.isArray(rows)?rows[0]:null;
+   if(!row||row.deleted_at||sid(row.entity_id)!==sid(id)||sid(row.module)!==module){
+    set('unverified','A nota não apareceu na consulta remota. Não repetir antes de conferir.');
+    throw Error('Gravação sem prova completa na nuvem. Não repita o pagamento até conferir a nota.');
+   }
+   const a=row.data||{},expected=next||{};
+   // Match the financially relevant fields; do not mark a save as confirmed just
+   // because a generic RPC succeeded or another module was updated.
+   const fields=module==='finance'?['paid','remaining','value','status','creditReturnsV9565']:
+    ['value','total','paid','received','remaining','status','paymentStatus','paymentHistory',
+     'acertoReturnsV9565','acertoNotesV9565','acertoEditHistoryV9572','items','date','dueDate','issueDate'];
+   const canon=v=>{if(Array.isArray(v))return v.map(canon);if(v&&typeof v==='object')return Object.keys(v).sort().reduce((o,k)=>(o[k]=canon(v[k]),o),{});return v;};
+   for(const field of fields)if(JSON.stringify(canon(a[field]))!==JSON.stringify(canon(expected[field]))){
+    set('unverified','Campo '+field+' divergiu após releitura.');
+    throw Error('A gravação não ficou igual na nuvem (campo '+field+'). Não reenvie antes de conferir.');
+   }
+   set('confirmed','ACK e releitura da nota confirmados.',true);
+   return a;
+  }
+  set('ack-only','Transporte confirmou o salvamento; consulta independente indisponível.');
+  return out.data||next;
+ }catch(e){
+  if(state.saveTrace.phase!=='unverified')set('blocked',sid(e?.message||e));
+  throw e;
+ }
 }
 async function mirrorFinance(type,id,record,syncTotal=false){
  const m=moneyState(record,type);
@@ -274,6 +313,7 @@ function render(type,id){
  window.openModal(title,html,()=>false);
  const host=document.getElementById('hlgbAcertoReturn9565');
  if(!host)return true;
+ if(type==='projection')try{window.hlgbNoteReceipts9576?.show?.(id,host)}catch(e){console.warn('[HLGB PDF note]',e)}
  const preview=()=>{const raw=Number(host.querySelector('#ar65-return')?.value||0),value=Number.isFinite(raw)&&raw>=0?cent(raw):0;
   const target=host.querySelector('#ar65-return-preview');if(target)target.textContent='Nota '+brl(m.total)+' − recebimentos '+brl(m.cash)+' − devoluções anteriores '+brl(m.credit)+' − novo abatimento '+brl(value)+' = a cobrar '+brl(Math.max(0,m.remaining-value))+(value>m.remaining?' · ⚠ Valor acima do saldo':'');};
  const recalc=()=>{if(!itemList.length)return;let sum=0;host.querySelectorAll('[data-ar72-qty]').forEach(input=>{const i=Number(input.dataset.ar72Qty),qty=Number(input.value),unit=Number(host.querySelector('[data-ar72-unit="'+i+'"]')?.value||0);sum+=Math.round(qty*cent(unit));});
@@ -289,13 +329,13 @@ function render(type,id){
    kind==='note'?{text:g('ar65-memo')}:kind==='edit'?{date:g('ar72-date'),dueDate:g('ar72-due'),value:g('ar72-total'),reason:g('ar72-reason'),items:itemList.map((_,i)=>({qty:host.querySelector('[data-ar72-qty="'+i+'"]')?.value,unitPrice:host.querySelector('[data-ar72-unit="'+i+'"]')?.value}))}:kind==='reversal'?{entryId:b.dataset.returnReverse,reason:prompt('Motivo do estorno da devolução:')||''}:{};
   if(kind==='reversal'&&!input.reason)return;
   const feedback=host.querySelector('#ar65-feedback');
-  b.disabled=true;if(feedback)feedback.textContent='Salvando e aguardando confirmação da nuvem…';
+  b.disabled=true;if(feedback)feedback.textContent='Conferindo pendências locais, autorização e gravação na nuvem…';
   try{
    const result=kind==='retry'?await retryFinance(type,id):await saveAction(type,id,kind,input);
    render(type,id);
    const next=document.getElementById('ar65-feedback');
    if(next)next.textContent=result?.mirror?.ok===false?'Acerto salvo, mas falta sincronizar o lançamento financeiro.':kind==='retry'?'Financeiro atualizado.':'✓ Acerto confirmado na nuvem.';
-  }catch(err){if(feedback)feedback.textContent='⚠ '+sid(err?.message||err);b.disabled=false}
+  }catch(err){if(feedback)feedback.textContent='⚠ '+sid(err?.message||err)+' · Etapa: '+sid(state.saveTrace.phase);b.disabled=false}
  });
  return true;
 }
