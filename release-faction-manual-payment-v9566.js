@@ -389,9 +389,9 @@ function recalc(){
  });
  root.querySelector('#fm66-grand').textContent=money(total);
 }
-function addLine(kind='product'){
+function addLine(kind='product',existingRow=null){
  const host=document.getElementById('fm66-lines');if(!host)return;
- host.insertAdjacentHTML('beforeend',rowHtml(kind));
+ host.insertAdjacentHTML('beforeend',rowHtml(kind,existingRow?.id||makeId('fmpli')));
  const row=host.lastElementChild;
  row.querySelector('.fm66-search').addEventListener('focus',()=>renderProductsFor(row,row.querySelector('.fm66-search').value));
  row.querySelector('.fm66-search').addEventListener('keydown',e=>{
@@ -428,6 +428,20 @@ function addLine(kind='product'){
   if(inp.classList.contains('fm66-unit'))row.dataset.priceOrigin='manual';
   recalc();
  }));
+
+ if(existingRow){
+  row.dataset.priceOrigin=sid(existingRow.priceOriginV9566||'manual');
+  const p=productDirectory().find(x=>sid(x.id)===sid(existingRow.productId));
+  row.querySelector('.fm66-product-id').value=sid(existingRow.productId||'');
+  row.querySelector('.fm66-search').value=p?.name||sid(existingRow.description||'');
+  if(kind==='service'&&row.querySelector('.fm66-desc'))row.querySelector('.fm66-desc').value=sid(existingRow.description);
+  row.querySelector('.fm66-qty').value=sid(existingRow.quantity||1);
+  row.querySelector('.fm66-unit').value=Number(existingRow.unitPrice||0).toFixed(2);
+  row.querySelector('.fm66-discount').value=Number(existingRow.travetaDiscountUnitV9577||0).toFixed(2);
+  row.querySelector('.fm66-line-note').value=sid(existingRow.manualLineNoteV9566||'');
+  const remove=row.querySelector('.fm66-remove');
+  if(remove){remove.disabled=true;remove.title='Linha já salva. Corrija valores sem excluir o histórico.';}
+ }
  recalc();
 }
 function renderFactionList(q){
@@ -480,17 +494,22 @@ function modalHtml(){
   '<div style="margin:12px 0;font-size:18px;font-weight:700">Total: <span id="fm66-grand">R$ 0,00</span></div>'+
   '<div id="fm66-feedback" role="status" class="sub"></div><button type="button" class="primary modalSave">☁️ Salvar pagamento avulso</button></div>';
 }
-function openForm(){
+function openForm(groupId=''){
  if(typeof window.openModal!=='function'&&typeof openModal!=='function')return false;
- draft={groupId:makeId('faction-manual'),createdAt:new Date().toISOString(),receipt:null};state.opened++;
+ const editing=!!sid(groupId),stored=editing?assertGroup(groupId):[];
+ if(editing&&groupState(stored)!=='Pendente')throw Error('Apenas lançamentos pendentes podem ter valores editados. Pagamentos já baixados exigem conferência contábil.');
+ draft=editing?{groupId:sid(groupId),createdAt:stored[0].createdAt||new Date().toISOString(),receipt:stored.find(x=>x.receiptPdfV9566)?.receiptPdfV9566||null,
+  editAttemptId:makeId('faction-edit')}:
+  {groupId:makeId('faction-manual'),createdAt:new Date().toISOString(),receipt:null};
+ state.opened++;
  const open=window.openModal||openModal;
- open('Pagamento avulso — facção ou embalagem',modalHtml(),async()=>{
+ open(editing?'Editar pagamento avulso pendente':'Pagamento avulso — facção ou embalagem',modalHtml(),async()=>{
   const btn=document.querySelector('#fm66-root .modalSave'),feedback=document.getElementById('fm66-feedback');
   if(btn){btn.disabled=true;btn.textContent='☁️ Salvando…'}
   if(feedback)feedback.textContent='Confirmando os registros na nuvem...';
   try{
    const input=formData(),file=document.getElementById('fm66-pdf')?.files?.[0],receipt=await readReceipt(file);
-   await persistDraft(input,receipt);
+   if(editing)await saveGroupEdits(groupId,input,receipt);else await persistDraft(input,receipt);
    if(typeof window.closeModal==='function')window.closeModal();else if(typeof closeModal==='function')closeModal();
    try{window.renderFactionPayments?.()}catch(_){}
    try{window.renderHubFinance?.()}catch(_){}
@@ -498,7 +517,7 @@ function openForm(){
    return true;
   }catch(e){
    if(feedback)feedback.textContent='⚠ '+sid(e.message||e);
-   if(btn){btn.disabled=false;btn.textContent='☁️ Salvar pagamento avulso'}
+   if(btn){btn.disabled=false;btn.textContent=editing?'☁️ Salvar alterações':'☁️ Salvar pagamento avulso'}
    return false;
   }
  });
@@ -547,7 +566,30 @@ function openForm(){
  });
  document.getElementById('fm66-add-service')?.addEventListener('click',()=>addLine('service'));
  document.getElementById('fm66-pdf')?.addEventListener('change',receiptSummary);
- addLine('product');
+ if(editing){
+  const first=stored[0],mode=sid(first.serviceModeV9577||'faccao');
+  document.getElementById('fm66-mode').value=mode;
+  document.getElementById('fm66-mode').disabled=true;
+  document.getElementById('fm66-faction').value=sid(first.factionName);
+  document.getElementById('fm66-date').value=sid(first.scheduledPaymentDate||stamp());
+  document.getElementById('fm66-status').value='Pendente';
+  document.getElementById('fm66-status').disabled=true;
+  document.getElementById('fm66-method').value=sid(first.paymentMethod||'');
+  document.getElementById('fm66-note').value=sid(first.observation||'');
+  const packaging=mode==='embalagem';
+  document.getElementById('fm66-add-product').style.display=packaging?'none':'';
+  document.getElementById('fm66-add-traveta').style.display=packaging?'none':'';
+  document.getElementById('fm66-add-service').style.display=packaging?'none':'';
+  document.getElementById('fm66-add-embalagem').style.display=packaging?'':'none';
+  for(const row of stored)addLine(sid(row.manualKindV9566||'product'),row);
+  if(draft.receipt){
+   const summary=document.getElementById('fm66-pdf-summary');
+   if(summary)summary.textContent='Comprovante existente: '+sid(draft.receipt.name)+'. Será preservado. Não envie outro PDF.';
+   const file=document.getElementById('fm66-pdf');if(file)file.disabled=true;
+  }
+  const btn=document.querySelector('#fm66-root .modalSave');if(btn)btn.textContent='☁️ Salvar alterações';
+  const info=document.getElementById('fm66-feedback');if(info)info.textContent='Edite quantidade, preço, desconto, produtos, data ou observações. Linhas já salvas não podem ser removidas. Para pagar, utilize a baixa no histórico.';
+ }else addLine('product');
  return true;
 }
 function receiptGroups(){
