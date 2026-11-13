@@ -37,16 +37,20 @@ function searchRows(items,q,formatter,limit=35){
  const terms=norm(q).split(' ').filter(Boolean);
  return items.filter(x=>terms.every(t=>norm(formatter(x)).includes(t))).slice(0,limit);
 }
-function searchFactions(q,mode='faccao'){return searchRows(factionDirectory().filter(x=>mode==='embalagem'?x.role==='embaladeira':x.role!=='embaladeira'),q,x=>x.name,60)}
+function searchFactions(q,mode='faccao'){
+ const role=mode==='embalagem'?'embaladeira':mode==='travetada'?'travetador':'faccao';
+ return searchRows(factionDirectory().filter(x=>x.role===role),q,x=>x.name,60);
+}
 function searchProducts(q){return searchRows(productDirectory(),q,x=>[x.name,x.code,x.sku,x.category,x.reference].join(' '),50)}
 function grandTotal(lines){return +(lines.reduce((s,r)=>s+(r.value!=null?r.value:r.quantity*r.unitPrice),0)).toFixed(2)}
 function validDate(text){const s=sid(text);if(!/^\d{4}-\d{2}-\d{2}$/.test(s))return false;const d=new Date(s+'T12:00:00');return !Number.isNaN(d.getTime())&&d.getFullYear()===+s.slice(0,4)&&d.getMonth()===+s.slice(5,7)-1&&d.getDate()===+s.slice(8,10)}
 function validate(input){
  const mode=sid(input.serviceMode||'faccao'),choices=factionDirectory(),f=choices.find(x=>norm(x.name)===norm(input.factionName));
- if(!['faccao','embalagem'].includes(mode))throw Error('Atividade inválida.');
+ if(!['faccao','embalagem','travetada'].includes(mode))throw Error('Atividade inválida.');
  if(!f)throw Error('Selecione uma pessoa cadastrada em Cadastros → Facções.');
  if(mode==='embalagem'&&f.role!=='embaladeira')throw Error('Selecione uma embaladeira cadastrada, não uma facção de costura.');
- if(mode==='faccao'&&f.role==='embaladeira')throw Error('Embaladeira só pode ser selecionada na atividade Embalagem.');
+ if(mode==='travetada'&&f.role!=='travetador')throw Error('Selecione uma pessoa cadastrada com atividade principal Travetada.');
+ if(mode==='faccao'&&f.role!=='faccao')throw Error('Escolha uma facção de costura; para embaladeira ou travetador use a atividade correspondente.');
  if(!validDate(input.date))throw Error('Informe uma data válida.');
  if(!['Pago','Pendente'].includes(input.status))throw Error('Selecione o status.');
  if(!Array.isArray(input.lines)||!input.lines.length)throw Error('Adicione pelo menos um produto ou serviço.');
@@ -56,13 +60,24 @@ function validate(input){
   if(!Number.isFinite(unit)||unit<=0||unit>1000000)throw Error('Informe valor unitário maior que zero na linha '+(i+1)+'.');
   if(!Number.isFinite(discount)||discount<0||discount>unit)throw Error('Desconto da travetada não pode ultrapassar o valor da peça na linha '+(i+1)+'.');
   const p=productDirectory().find(p=>sid(p.id)===sid(x.productId));
-  if(['product','embalagem'].includes(kind)&&!p)throw Error('Escolha um produto cadastrado na linha '+(i+1)+'.');
+  const manual=!!x.unregistered,manualName=sid(x.manualProductName).trim(),
+   manualCategory=sid(x.manualProductCategory||'outros');
+  if(kind==='product'&&!p)throw Error('Escolha um produto cadastrado na linha '+(i+1)+'.');
+  if(kind==='embalagem'&&!p&&(!manual||manualName.length<2))throw Error('Para embalagem de produto não cadastrado, marque “Modelo não cadastrado” e informe o nome do modelo na linha '+(i+1)+'.');
+  if(manual&&kind==='embalagem'&&!['camisola','doll','calcinha','outros'].includes(manualCategory))
+   throw Error('Selecione uma categoria válida para o modelo avulso na linha '+(i+1)+'.');
   if(kind==='embalagem'&&mode!=='embalagem')throw Error('Embalagem só pode ser paga para uma embaladeira.');
   if(mode==='embalagem'&&kind!=='embalagem')throw Error('Na atividade Embalagem, inclua apenas linhas de embalagem.');
+  if(mode==='travetada'&&kind!=='travetada')throw Error('Na atividade Travetada, inclua apenas serviços de travetada.');
+  if(mode==='travetada'&&discount!==0)throw Error('O pagamento exclusivo de travetada não deve ter desconto de travetada.');
   if(!['product','travetada','service','embalagem'].includes(kind))throw Error('Tipo de serviço inválido.');
-  const description=kind==='product'?sid(p.name):kind==='embalagem'?'Embalagem — '+sid(p.name):kind==='travetada'?'Travetada'+(p?' — '+sid(p.name):''):sid(x.description).trim();
+  const displayName=p?.name||(manual?manualName:'');
+  const description=kind==='product'?sid(p.name):kind==='embalagem'?'Embalagem — '+displayName:
+   kind==='travetada'?'Travetada'+(displayName?' — '+displayName:''):sid(x.description).trim();
   if(!description)throw Error('Descreva o serviço na linha '+(i+1)+'.');
-  return {id:sid(x.id),kind,productId:p?.id??null,productName:p?.name||'',
+  return {id:sid(x.id),kind,productId:p?.id??null,productName:displayName.slice(0,180),
+    manualProductName:manual&&!p?manualName.slice(0,180):'',
+    manualProductCategory:manual&&!p?manualCategory:'',
     description:description.slice(0,220),quantity:qty,unitPrice:+unit.toFixed(2),
     grossValue:+(qty*unit).toFixed(2),travetaDiscountUnit:+discount.toFixed(2),
     travetaDiscountTotal:+(qty*discount).toFixed(2),value:+(qty*(unit-discount)).toFixed(2),
@@ -148,7 +163,8 @@ async function persistDraft(input,receipt){
    const obj={...existing,id:row.id,source:'faction_manual_payment_v1',manual:true,
     manualGroupId:id,manualKindV9566:row.kind,serviceModeV9577:parsed.serviceMode,factionMasterId:parsed.factionMasterId,
     status:parsed.status,factionName:parsed.factionName,productId:row.productId,
-    description:row.description,quantity:row.quantity,unitPrice:row.unitPrice,
+    description:row.description,manualProductNameV9589:row.manualProductName,manualProductCategoryV9589:row.manualProductCategory,
+    quantity:row.quantity,unitPrice:row.unitPrice,
     value:row.value,grossValueV9577:row.grossValue,travetaDiscountUnitV9577:row.travetaDiscountUnit,
     travetaDiscountTotalV9577:row.travetaDiscountTotal,paidAmount:paid?row.value:0,paymentDate:paid?date:'',
     scheduledPaymentDate:date,paymentMethod:parsed.method,
@@ -259,6 +275,7 @@ async function saveGroupEdits(groupId,input,receipt){
    const next={...old,id:x.id,source:'faction_manual_payment_v1',manual:true,manualGroupId:groupId,
     manualKindV9566:x.kind,serviceModeV9577:parsed.serviceMode,factionMasterId:parsed.factionMasterId,
     factionName:parsed.factionName,status:'Pendente',productId:x.productId,description:x.description,
+    manualProductNameV9589:x.manualProductName,manualProductCategoryV9589:x.manualProductCategory,
     quantity:x.quantity,unitPrice:x.unitPrice,value:x.value,grossValueV9577:x.grossValue,
     travetaDiscountUnitV9577:x.travetaDiscountUnit,travetaDiscountTotalV9577:x.travetaDiscountTotal,
     discountAmount:x.travetaDiscountTotal,paidAmount:0,paymentDate:'',
