@@ -58,6 +58,7 @@ function validate(input){
   const p=productDirectory().find(p=>sid(p.id)===sid(x.productId));
   if(['product','embalagem'].includes(kind)&&!p)throw Error('Escolha um produto cadastrado na linha '+(i+1)+'.');
   if(kind==='embalagem'&&mode!=='embalagem')throw Error('Embalagem só pode ser paga para uma embaladeira.');
+  if(mode==='embalagem'&&kind!=='embalagem')throw Error('Na atividade Embalagem, inclua apenas linhas de embalagem.');
   if(!['product','travetada','service','embalagem'].includes(kind))throw Error('Tipo de serviço inválido.');
   const description=kind==='product'?sid(p.name):kind==='embalagem'?'Embalagem — '+sid(p.name):kind==='travetada'?'Travetada'+(p?' — '+sid(p.name):''):sid(x.description).trim();
   if(!description)throw Error('Descreva o serviço na linha '+(i+1)+'.');
@@ -282,7 +283,7 @@ function receiptSummary(){
  host.textContent=file?'Selecionado: '+file.name+' ('+Math.ceil(file.size/1024)+' KB). Será armazenado com o pagamento.':'PDF opcional, até 750 KB. Não altera o status automaticamente.';
 }
 function modalHtml(){
- const today=stamp();
+ const today=stamp(),tariffs=window.hlgbFactionRates9577?.rates?.()||{embalagem:{camisola:.25,doll:.25,calcinha:.15},travetaUnit:null};
  return '<div id="fm66-root" style="max-width:100%;overflow-x:hidden">'+
   '<div class="sub">Selecione Facção de costura ou Embalagem. O preço da ficha/tabela aparece automaticamente e pode ser ajustado; a travetada descontada fica discriminada.</div>'+
   '<div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px;margin-top:12px">'+
@@ -299,6 +300,12 @@ function modalHtml(){
   '<button class="secondary" id="fm66-add-service" type="button">+ Outro serviço</button>'+ 
   '<button class="secondary" id="fm66-price-table" type="button">⚙️ Preços embalagem/travetada</button></div></div>'+
   '<div id="fm66-lines"></div>'+
+  '<div id="fm66-rates-inline" class="panel" style="padding:12px;margin:12px 0;display:none"><b>⚙️ Tabela de serviços</b>'+
+  '<p class="sub">Valores aplicados nos próximos lançamentos. A travetada tem uma taxa própria; nenhuma nota antiga será modificada.</p>'+
+  '<div class="grid" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:7px">'+
+  [['packCamisolaV9577','Camisola (R$/peça)',tariffs.embalagem.camisola],['packDollV9577','Doll (R$/peça)',tariffs.embalagem.doll],['packCalcinhaV9577','Calcinha (R$/peça)',tariffs.embalagem.calcinha],['travetaUnitValue','Travetada (R$/peça)',tariffs.travetaUnit]].map(([k,label,value])=>
+  '<div class="field"><label>'+esc(label)+'</label><input class="fm77-rate" data-rate="'+k+'" type="number" min="0" step="0.01" value="'+(value==null?'':Number(value).toFixed(2))+'"></div>').join('')+
+  '</div><button class="secondary" id="fm66-save-rates" type="button">☁️ Salvar tabela de preços</button><div id="fm66-rates-message" role="status" class="sub"></div></div>'+
   '<div class="field" style="margin-top:12px"><label>Observação geral</label><textarea id="fm66-note" rows="2" maxlength="1500" placeholder="Ex.: serviço extra ou acerto combinado"></textarea></div>'+
   '<div class="panel" style="margin-top:12px;padding:10px"><label for="fm66-pdf"><b>📎 Comprovante de pagamento (PDF)</b></label>'+
   '<input id="fm66-pdf" type="file" accept=".pdf,application/pdf">'+
@@ -347,7 +354,20 @@ function openForm(){
  document.getElementById('fm66-add-product')?.addEventListener('click',()=>addLine('product'));
  document.getElementById('fm66-add-traveta')?.addEventListener('click',()=>addLine('travetada'));
  document.getElementById('fm66-add-embalagem')?.addEventListener('click',()=>addLine('embalagem'));
- document.getElementById('fm66-price-table')?.addEventListener('click',()=>window.hlgbFactionRates9577?.open?.());
+ document.getElementById('fm66-price-table')?.addEventListener('click',()=>{
+  const el=document.getElementById('fm66-rates-inline');if(el)el.style.display=el.style.display==='none'?'block':'none';
+ });
+ document.getElementById('fm66-save-rates')?.addEventListener('click',async()=>{
+  const host=document.getElementById('fm66-rates-inline'),btn=host?.querySelector('#fm66-save-rates'),feedback=host?.querySelector('#fm66-rates-message');
+  if(!btn)return;btn.disabled=true;if(feedback)feedback.textContent='Salvando tabela no servidor…';
+  const data={};host.querySelectorAll('[data-rate]').forEach(x=>data[x.dataset.rate]=x.value);
+  try{
+   if(typeof window.hlgbFactionRates9577?.save!=='function')throw Error('Módulo de preços ainda não carregou.');
+   await window.hlgbFactionRates9577.save(data);
+   if(feedback)feedback.textContent='✓ Tabela de embalagem e travetada salva na nuvem.';
+  }catch(err){if(feedback)feedback.textContent='⚠ '+sid(err?.message||err)}
+  finally{btn.disabled=false}
+ });
  document.getElementById('fm66-mode')?.addEventListener('change',e=>{
   const mode=e.target.value,host=document.getElementById('fm66-lines');
   if(host)host.innerHTML='';
