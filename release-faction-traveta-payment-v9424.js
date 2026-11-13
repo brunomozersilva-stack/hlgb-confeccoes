@@ -42,8 +42,9 @@ function findFactionForModal(){
   return null;
 }
 function masterFor(f){
- if(!f)return null;
- const id=sid(f.factionMasterId||f.masterId||''),name=norm(f.name||f.factionName||'');
+ const id=sid(f?.factionMasterId||f?.masterId||''),
+  selectedName=document.getElementById?.('mname')?.value,
+  name=norm(state.mode!=='edit'&&selectedName?selectedName:(f?.name||f?.factionName||selectedName||''));
  return arr('factionMasters').find(x=>(id&&sid(x.id)===id)||(name&&norm(x.name)===name))||null;
 }
 function decisionOf(f){
@@ -52,7 +53,7 @@ function decisionOf(f){
  return typeof master?.doesTraveta==='boolean'?(master.doesTraveta?'sim':'nao'):'';
 }
 function productForTravetaV9592(f){
- const id=sid(f?.productId||'');
+ const id=sid(f?.productId||document.getElementById?.('mfproductid')?.value||'');
  return id?arr('products').find(p=>sid(p?.id)===id)||null:null;
 }
 function deductionForModelV9592(f,master){
@@ -81,7 +82,10 @@ function refreshTravetaPreview(){
 function ensureTravetaFields(explicitFaction){
   const price=document.getElementById('mprice'),name=document.getElementById('mname'),sent=document.getElementById('msent');
   if(!price||!name||!sent)return false;
-  const f=explicitFaction||findFactionForModal();
+  const f=explicitFaction||findFactionForModal()||{
+   name:document.getElementById('mname')?.value||'',
+   productId:document.getElementById('mfproductid')?.value||''
+  };
   let box=document.getElementById('hlgbFactionTravetaBox9424');
   if(!box){
     const master=masterFor(f),decision=decisionOf(f),derived=deductionForModelV9592(f,master),
@@ -107,6 +111,20 @@ function ensureTravetaFields(explicitFaction){
     const grid=anchor?.parentElement;
     if(grid?.parentElement)grid.insertAdjacentElement('afterend',box);
     else (document.querySelector('#modal .modal-content,#modal .modal-card,#modal .modalCard')||document.getElementById('modal'))?.appendChild(box);
+    const personPicker=document.getElementById('mname');
+    if(personPicker&&!personPicker.dataset.hlgbAutoPointsV9592){
+     personPicker.dataset.hlgbAutoPointsV9592='1';
+     personPicker.addEventListener('change',()=>{
+      const record={name:personPicker.value,productId:document.getElementById('mfproductid')?.value||f?.productId};
+      const choice=decisionOf(record),select=document.getElementById('mtraveta9424'),
+       deductionInput=document.getElementById('mtravetaDiscount9424'),
+       derived=deductionForModelV9592(record,masterFor(record));
+      if(select&&choice)select.value=choice;
+      if(choice==='nao'&&derived&&deductionInput&&box.dataset.travetaManualV9592!=='1')
+       deductionInput.value=derived.unit.toFixed(2);
+      refreshTravetaPreview();
+     });
+    }
     for(const id of ['mtraveta9424','mtravetaDiscount9424','mprice','msent']){
       const el=document.getElementById(id);if(!el||el.dataset.hlgbTraveta9424)return;
       el.dataset.hlgbTraveta9424='1';
@@ -134,7 +152,11 @@ function prepareTravetaSave(f){
   const decision=document.getElementById('mtraveta9424')?.value||'';
   const baseEl=document.getElementById('mprice'),discountEl=document.getElementById('mtravetaDiscount9424'),
    box=document.getElementById('hlgbFactionTravetaBox9424');
-  const derived=deductionForModelV9592(f,masterFor(f));
+  const selected={
+   ...f,name:state.mode!=='edit'?(document.getElementById('mname')?.value||f?.name):f?.name,
+   productId:f?.productId||document.getElementById('mfproductid')?.value
+  };
+  const derived=deductionForModelV9592(selected,masterFor(selected));
   if(decision==='nao'&&state.mode!=='edit'&&derived&&box?.dataset?.travetaManualV9592!=='1'&&discountEl){
    discountEl.value=derived.unit.toFixed(2);
    refreshTravetaPreview();
