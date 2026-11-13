@@ -66,7 +66,7 @@ assert.equal(alca.estimatedOnly,true);
 assert.equal(plan.totalKnown,385,'sum of 300 + 60 + 25');
 assert.equal(plan.unknownCost,0,'invalid BOM line excluded but flagged');
 assert(plan.hasUnknowns,'unknown stock and invalid BOM must prevent claiming final budget');
-assert(plan.warnings.some(x=>/Sem valor.*ficha incompleta/i.test(x)));
+assert(plan.warnings.some(x=>/Ficha incompleta: Sem valor/i.test(x)),'invalid line must be reported by actual warning format');
 assert.equal(plan.models[0].baseCostKnown,260);
 assert.equal(plan.models[1].baseCostKnown,196);
 assert.equal(plan.models[1].missingUnitPrices,0);
