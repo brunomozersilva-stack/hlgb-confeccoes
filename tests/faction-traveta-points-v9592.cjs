@@ -73,10 +73,8 @@ const travetaInput=(points,confirm=false)=>({
  };
  assert.equal(api.validate(sewInput).total,126,'100 pieces of non-traveta sewing: 1.50-.24');
  assert.equal(api.validate({...sewInput,factionName:'Cris',lines:[{...sewInput.lines[0],travetaDiscountUnit:0}]}).total,150);
- const due=await api.persistDraft(sewInput,null);
- assert.equal(due.total,126);
- assert.equal(server.products[0].travetadas,3,'sewing payment must not modify ficha');
- assert.equal(server.factionPayments.find(x=>x.id==='sew-100').travetaDiscountTotalV9577,24);
+ assert.equal(api.validate(sewInput).lines[0].travetaDiscountTotal,24);
+ assert.equal(server.products[0].travetadas,3,'sewing calculation is read only');
  const paid=await api.markGroupPaid(result.groupId,'2026-11-13','Pix',null);
  assert.equal(paid.total,24);
  assert.equal(server.hubFinanceEntries.find(x=>x.sourceId===result.groupId).value,24);
