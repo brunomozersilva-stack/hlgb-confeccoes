@@ -701,10 +701,15 @@ function rowHtml(kind='product',id=makeId('fmpli')){
      '<option value="doll">Short doll</option><option value="calcinha">Calcinha</option></select>':'')+
     '</div></div>':'')+
   (kind==='service'?'<div class="field"><label>Descrição do serviço</label><input class="fm66-desc" maxlength="220" placeholder="Retrabalho, extra..."></div>':'')+
-  '<div class="field"><label>Qtd.</label><input type="number" min="1" step="1" class="fm66-qty" value="1"></div>'+
-  '<div class="field"><label>Valor unit. (R$)</label><input type="number" min="0.01" step="0.01" class="fm66-unit" placeholder="Informe o valor"></div>'+
-  '<div class="field"><label>Desconto travetada/peça (R$)</label><input type="number" min="0" step="0.01" class="fm66-discount" value="0.00" aria-label="Descontar travetada"></div>'+ 
-  '<div class="field"><label>Total após desconto</label><input class="fm66-total" value="R$ 0,00" disabled></div></div>'+
+  '<div class="field"><label>'+(trav?'Peças travetadas':'Qtd. peças')+'</label><input type="number" min="1" step="1" class="fm66-qty" value="1"></div>'+
+  (trav?'<div class="field"><label>Travetadas por peça (ficha técnica)</label>'+
+  '<input type="number" min="1" max="100" step="1" class="fm92-points" value="1">'+
+  '<label style="display:flex;gap:5px;margin-top:5px"><input type="checkbox" class="fm92-save-points" style="width:auto">'+
+  'Confirmo atualizar a ficha técnica se o número for diferente do cadastro</label>'+
+  '<div class="sub fm92-point-hint">Vincule um modelo para consultar as travetadas cadastradas.</div></div>':'')+
+  '<div class="field"><label>'+(trav?'Valor por travetada (R$)':'Valor unit. (R$)')+'</label><input type="number" min="0.01" step="0.01" class="fm66-unit" placeholder="Informe o valor"></div>'+
+  (trav?'':'<div class="field"><label>Desconto travetada/peça (R$)</label><input type="number" min="0" step="0.01" class="fm66-discount" value="0.00" aria-label="Descontar travetada"></div>')+ 
+  '<div class="field"><label>'+(trav?'Total: peças × travetadas/peça × tarifa':'Total após desconto')+'</label><input class="fm66-total" value="R$ 0,00" disabled></div></div>'+
   '<div class="field"><label>Observação desta linha (opcional)</label><input class="fm66-line-note" maxlength="700" placeholder="Ex.: travetada de 300 peças"></div>'+
   '</div>';
 }
@@ -727,14 +732,18 @@ function lineFromDom(row){
   manualProductName:row.querySelector('.fm66-manual-name')?.value||'',
   manualProductCategory:row.querySelector('.fm66-manual-category')?.value||'outros',
   note:row.querySelector('.fm66-line-note')?.value||'',priceOrigin:row.dataset.priceOrigin||'',
-  travetaDiscountUnit:row.querySelector('.fm66-discount')?.value||'0'};
+  travetaDiscountUnit:row.querySelector('.fm66-discount')?.value||'0',
+   pointsPerPieceV9592:row.querySelector('.fm92-points')?.value,
+   confirmProductPointsV9592:!!row.querySelector('.fm92-save-points')?.checked};
 }
 function recalc(){
  const root=document.getElementById('fm66-root');if(!root)return;
  let total=0;
  root.querySelectorAll('.fm66-line').forEach(row=>{
   const x=lineFromDom(row),qty=number(x.quantity),unit=number(x.unitPrice),discount=number(x.travetaDiscountUnit),
-   sum=Number.isFinite(qty)&&Number.isFinite(unit)&&Number.isFinite(discount)&&qty>0&&unit>=discount&&discount>=0?qty*(unit-discount):0;
+   points=row.dataset.kind==='travetada'?number(x.pointsPerPieceV9592):1,
+   sum=Number.isFinite(qty)&&Number.isFinite(unit)&&Number.isFinite(discount)&&
+     Number.isInteger(points)&&points>0&&qty>0&&points*unit>=discount&&discount>=0?qty*(points*unit-discount):0;
   total+=sum;row.querySelector('.fm66-total').value=money(sum);
  });
  const stored=draft?.editing?directAdjustmentsV9591(groupRows(draft.groupId)):[];
@@ -782,6 +791,39 @@ function renderExistingDirectV9591(rows){
    '<b>'+money(x.amount)+'</b> · '+esc(x.reason)+' · '+esc(sid(x.createdAt).slice(0,10))+'</div>').join(''):'';
  recalc();
 }
+function syncPointHintV9592(row,p){
+ if(row.dataset.kind!=='travetada')return;
+ const field=row.querySelector('.fm92-points'),hint=row.querySelector('.fm92-point-hint'),check=row.querySelector('.fm92-save-points');
+ if(!field||!hint)return;
+ if(!p){hint.textContent='Sem modelo: cálculo avulso. Nenhuma ficha será alterada.';if(check)check.checked=false;return}
+ const stored=pointsPerPieceV9592(p),entered=number(field.value);
+ hint.textContent=stored===entered&&stored>0?'✓ Ficha: '+stored+' travetada(s) por peça.':
+  'Ficha atual: '+stored+' por peça. Informe a quantidade correta e confirme a atualização para este modelo.';
+}
+function refreshFactionDiscountV9592(row,force=false){
+ if(row?.dataset?.kind!=='product')return;
+ const p=productDirectory().find(x=>sid(x.id)===sid(row.querySelector('.fm66-product-id')?.value));
+ const picked=factionDirectory().find(x=>norm(x.name)===norm(document.getElementById('fm66-faction')?.value));
+ const master=arr('factionMasters').find(x=>sid(x.id)===sid(picked?.id));
+ const discount=row.querySelector('.fm66-discount'),unit=number(row.querySelector('.fm66-unit')?.value),hint=row.querySelector('.fm66-hint');
+ if(!p||!discount||(!force&&row.dataset.discountOriginV9592==='manual'))return;
+ const calc=autoTravetaV9592(p,master);
+ if(calc.applies&&calc.perPiece!=null&&calc.points>0&&calc.perPiece<=unit){
+  discount.value=calc.perPiece.toFixed(2);row.dataset.discountOriginV9592='automatic';
+  if(hint)hint.textContent='✓ NÃO traveta: '+calc.points+' × '+money(calc.rate)+' = '+
+    money(calc.perPiece)+' de desconto por peça.';
+ }else{
+  discount.value='0.00';row.dataset.discountOriginV9592='automatic';
+  if(hint)hint.textContent=master?.doesTraveta===false?
+   (!calc.points?'⚠ Ficha sem travetadas: cadastre antes do desconto.':
+    calc.rate==null?'⚠ Preço da travetada não cadastrado.':
+    '⚠ Desconto superior à mão de obra: confira preço/tarifa.'):
+   master?.doesTraveta===true?'Facção faz travetada: sem desconto.':
+    'Informe no cadastro da facção se faz travetada para desconto automático.';
+ }
+ recalc();
+}
+
 function addLine(kind='product',existingRow=null){
  const host=document.getElementById('fm66-lines');if(!host)return;
  host.insertAdjacentHTML('beforeend',rowHtml(kind,existingRow?.id||makeId('fmpli')));
