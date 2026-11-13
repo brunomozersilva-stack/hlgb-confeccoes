@@ -25,7 +25,7 @@ const STEPS=[
  {id:'embalagem',label:'Embalagem conferida'},
  {id:'entrega',label:'Pronto para entrega'}
 ];
-function productId(x){return sid(x?.productId||x?.product_id||'')}
+function recordProductId(x){return sid(x?.productId||x?.product_id||'')}
 function gradeFor(c){
  const a=Array.isArray(c?.actualCutGrade)&&c.actualCutGrade.length?c.actualCutGrade:
   Array.isArray(c?.cutGrade)&&c.cutGrade.length?c.cutGrade:
@@ -53,7 +53,7 @@ function timeline(productId,options={}){
    grade:items.map(x=>[x.color,x.size,num(x.qty||x.quantity)].filter(Boolean).join(' / ')).join(' · ')
   }));
  }
- for(const c of arr('cuts').filter(x=>productId(x)===pid&&!x.hiddenByModelSplitV1)){
+ for(const c of arr('cuts').filter(x=>recordProductId(x)===pid&&!x.hiddenByModelSplitV1)){
   const cutter=one('cutters',c.cutterId),grade=gradeFor(c);
   const people=[cutter?.name,c.cutterName,c.cutter2Name,c.infestadorName].filter(Boolean).map(sid);
   const date=c.finishedAt||c.date||c.createdAt||'';
@@ -68,14 +68,14 @@ function timeline(productId,options={}){
     details:{before:w.before||null,after:w.after||null,cutterId:sid(w.cutterId||c.cutterId)}});
   }
  }
- for(const p of arr('production').filter(x=>productId(x)===pid)){
+ for(const p of arr('production').filter(x=>recordProductId(x)===pid)){
   const place=one('productionLocations',p.productionLocationId);
   add(asEvent('producao','production',p,p.assignedAt||p.date||p.createdAt,'Produção / etapa '+sid(p.stage||'registrada'),{
    location:sid(place?.name||p.productionLocationName||''),quantityPlanned:num(p.planned),
    quantityProduced:num(p.done),color:sid(p.color),size:sid(p.size),cutId:sid(p.cutId),
    destinationType:p.factionId?'Facção':place?.name?'Unidade de produção':'Não informada'}));
  }
- for(const f of arr('factions').filter(x=>productId(x)===pid)){
+ for(const f of arr('factions').filter(x=>recordProductId(x)===pid)){
   const qty=num(f.sent||f.quantity),unit=num(f.payableUnitPrice??f.price),gross=num(f.baseUnitPrice??f.price);
   add(asEvent('faccao','factions',f,f.sentAt||f.date||f.createdAt,'Enviado à facção / prestador',{
    person:sid(f.name||f.factionName),quantitySent:qty,quantityDone:num(f.done),
@@ -85,7 +85,7 @@ function timeline(productId,options={}){
    receivedBy:sid(f.receivedBy||'')
   }));
  }
- for(const p of arr('factionPayments').filter(x=>productId(x)===pid)){
+ for(const p of arr('factionPayments').filter(x=>recordProductId(x)===pid)){
   add(asEvent('pagamento','factionPayments',p,p.paymentDate||p.date||p.createdAt,'Pagamento / lançamento de facção',{
    person:sid(p.factionName||p.name),quantity:num(p.quantity||p.pieces),
    amountBilled:num(p.value||p.total),amountPaid:num(p.paidAmount),
@@ -94,7 +94,7 @@ function timeline(productId,options={}){
    receiptPdfAttached:!!p.receiptPdfV9566,sourceKind:sid(p.manualKindV9566||'facção')
   }));
  }
- for(const c of arr('materialChecklists').filter(x=>productId(x)===pid)){
+ for(const c of arr('materialChecklists').filter(x=>recordProductId(x)===pid)){
   add(asEvent('checklist-material','materialChecklists',c,c.receivedAt||c.createdAt,'Checklist de materiais / destino',{
    destination:sid(c.destinationName),destinationType:sid(c.destinationType),receivedBy:sid(c.receivedBy),
    quantity:num(c.qty),grade:gradeFor({actualCutGrade:c.gradeV9198}),
