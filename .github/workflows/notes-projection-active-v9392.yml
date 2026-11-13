@@ -2,6 +2,11 @@ name: HLGB Projection Active Guard v93.92
 on:
   push:
     branches: [main]
+    paths:
+      - 'release-notes.js'
+      - 'tests/note-list-recovery-v9587.cjs'
+      - 'tests/notes-projection-active-guard-v9392.js'
+      - '.github/workflows/notes-projection-active-v9392.yml'
   pull_request:
     branches: [main]
     paths:
