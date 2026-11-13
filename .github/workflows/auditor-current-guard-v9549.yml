@@ -11,6 +11,10 @@ on:
       - 'tests/auditor-v9366-entry-webkit.js'
       - 'tests/auditor-authority-v9374-webkit.js'
       - 'tests/auditor-boot-v9381-webkit.js'
+      - 'release-auditor-autocorrect-v9447.js'
+      - 'release-auditor-autocorrect-v9448.js'
+      - 'tests/auditor-autocorrect-v9447-fast.js'
+      - 'tests/auditor-failure-truth-v9455.cjs'
       - '.github/workflows/auditor-current-guard-v9549.yml'
   push:
     branches: [main]
@@ -31,6 +35,12 @@ jobs:
           node-version: '22'
       - name: WAL recovery preserves local edits on failed cloud confirmation
         run: node tests/audit-sync-confirmation-v9311.cjs
+      - name: Auditor preflight propagates missing dependencies
+        run: |
+          node --check release-auditor-autocorrect-v9447.js
+          node --check release-auditor-autocorrect-v9448.js
+          node tests/auditor-autocorrect-v9447-fast.js
+          node tests/auditor-failure-truth-v9455.cjs
   webkit:
     runs-on: ubuntu-24.04
     timeout-minutes: 17
