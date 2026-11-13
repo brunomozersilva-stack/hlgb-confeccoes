@@ -58,7 +58,7 @@ const edit={serviceMode:'faccao',factionName:'Roseli',status:'Pendente',
  assert.deepEqual(db.factionPayments.filter(x=>x.manualGroupId==='group-edit').map(x=>x.id),['A-1','A-2']);
  assert.equal(api.receiptGroups().find(x=>x.id==='group-edit').status,'Pendente');
  await assert.rejects(()=>api.saveGroupEdits('group-edit',
-  {...edit,lines:[edit.lines[0]]},null),/remover uma linha/);
+  {...edit,lines:[edit.lines[0]]},null),/removido sem motivo/);
  pending=['factionPayments::A-1'];
  const before=writes.length;
  await assert.rejects(()=>api.markGroupPaid('group-edit','2026-11-13','Pix',null),/pendente/);
@@ -82,7 +82,7 @@ const edit={serviceMode:'faccao',factionName:'Roseli',status:'Pendente',
  const count=writes.length;
  await assert.rejects(()=>api.markGroupPaid('group-edit','2026-11-13','Pix',null),/já consta como pago/);
  assert.equal(writes.length,count,'cannot pay twice');
- await assert.rejects(()=>api.saveGroupEdits('group-edit',edit,null),/já pagos/,'paid value protection');
+ await assert.rejects(()=>api.saveGroupEdits('group-edit',edit,null),/Apenas lançamentos pendentes/,'paid value protection');
  // If first line succeeds but second fails after Hub, partial status must be
  // visible and retry must reuse same hub financial ID without extra transfer.
  failId='B-2';
