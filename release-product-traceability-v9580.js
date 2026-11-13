@@ -14,7 +14,7 @@ const arr=k=>{try{const db=typeof window.db==='object'?window.db:{};return Array
 const one=(module,id)=>arr(module).find(x=>sid(x?.id)===sid(id))||null;
 const auth=()=>window.__HLGB_AUTH_READY===true;
 const LIMIT=1000;
-const state={historyProduct:'',checkProduct:'',checkRound:'',lastError:'',lastSave:'',working:false,historyRenders:0,checkRenders:0};
+const state={historyProduct:'',checkProduct:'',checkRound:'',actor:'',lastError:'',lastSave:'',working:false,historyRenders:0,checkRenders:0};
 const STEPS=[
  {id:'ficha',label:'Ficha técnica conferida'},
  {id:'materiais',label:'Materiais separados e conferidos'},
@@ -45,7 +45,8 @@ function timeline(productId,options={}){
  const orders=arr('orders').filter(o=>Array.isArray(o.grade)?o.grade.some(g=>sid(g.productId)===pid):
   Array.isArray(o.items)&&o.items.some(g=>sid(g.productId)===pid));
  for(const o of orders){
-  const items=[...(Array.isArray(o.grade)?o.grade:[]),...(Array.isArray(o.items)?o.items:[])].filter(x=>sid(x.productId)===pid);
+  const original=Array.isArray(o.grade)&&o.grade.some(g=>sid(g.productId)===pid)?o.grade:Array.isArray(o.items)?o.items:[];
+  const items=original.filter(x=>sid(x.productId)===pid);
   const qty=items.reduce((sum,x)=>sum+num(x.qty||x.quantity||x.pieces),0);
   add(asEvent('pedido','orders',o,o.date||o.createdAt,'Pedido registrado',{
    client:sid(o.client||''),quantity:qty,orderNumber:sid(o.orderNumber||o.number||o.id),
@@ -266,7 +267,7 @@ function renderChecklist(){
  '<div class="grid" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:8px;margin:10px 0">'+
  '<div class="field"><label>Rodada / lote</label><select id="ptr80-round"><option value="">Selecione</option>'+
  rounds.map(r=>'<option value="'+esc(r.id)+'"'+(sid(r.id)===state.checkRound?' selected':'')+'>'+esc(r.name)+' ('+esc(r.orderId||'Geral')+')</option>').join('')+'</select></div>'+
- '<div class="field"><label>Responsável por esta alteração</label><input id="ptr80-actor" maxlength="100" placeholder="Nome de quem conferiu"></div>'+
+ '<div class="field"><label>Responsável por esta alteração</label><input id="ptr80-actor" maxlength="100" value="'+esc(state.actor)+'" placeholder="Nome de quem conferiu"></div>'+
  '</div><details class="panel" style="padding:10px;margin:10px 0"><summary><b>+ Criar checklist para novo lote</b></summary>'+
  '<div class="grid"><div class="field"><label>Nome do lote</label><input id="ptr80-new-name" maxlength="140" placeholder="Ex.: Pedido de 500 peças"></div>'+
  '<div class="field"><label>Associar a um pedido (opcional)</label><select id="ptr80-new-order">'+orderOptions(state.checkProduct)+'</select></div></div>'+
@@ -278,18 +279,19 @@ function renderChecklist(){
  '<details style="margin-top:10px"><summary><b>📚 Histórico de alterações deste checklist</b></summary>'+history+'</details></div>';
  const get=id=>host.querySelector('#'+id)?.value||'';
  const feedback=host.querySelector('#ptr80-feedback');
+ host.querySelector('#ptr80-actor')?.addEventListener('input',e=>{state.actor=e.target.value});
  host.querySelector('#ptr80-check-product')?.addEventListener('change',e=>{state.checkProduct=e.target.value;state.checkRound='';renderChecklist()});
  host.querySelector('#ptr80-round')?.addEventListener('change',e=>{state.checkRound=e.target.value;renderChecklist()});
  host.querySelector('#ptr80-new')?.addEventListener('click',async e=>{
   e.target.disabled=true;if(feedback)feedback.textContent='Criando rodada na nuvem…';
-  try{const result=await createRound(state.checkProduct,{name:get('ptr80-new-name'),orderId:get('ptr80-new-order'),actor:get('ptr80-actor')});
+  try{state.actor=get('ptr80-actor');const result=await createRound(state.checkProduct,{name:get('ptr80-new-name'),orderId:get('ptr80-new-order'),actor:state.actor});
    state.checkRound=sid(result.event.id);renderChecklist()}
   catch(err){if(feedback)feedback.textContent='⚠ '+sid(err?.message||err);e.target.disabled=false}
  });
  host.querySelectorAll('[data-ptr80-step]').forEach(input=>input.addEventListener('change',async e=>{
   const checked=e.target.checked;e.target.disabled=true;if(feedback)feedback.textContent='Confirmando etapa no servidor…';
-  try{await toggleStep(state.checkProduct,state.checkRound,e.target.dataset.ptr80Step,checked,
-    {actor:get('ptr80-actor'),note:get('ptr80-note')});renderChecklist()}
+  try{state.actor=get('ptr80-actor');await toggleStep(state.checkProduct,state.checkRound,e.target.dataset.ptr80Step,checked,
+    {actor:state.actor,note:get('ptr80-note')});renderChecklist()}
   catch(err){e.target.checked=!checked;e.target.disabled=false;if(feedback)feedback.textContent='⚠ '+sid(err?.message||err)}
  }));
  state.checkRenders++;return {count:rounds.length,roundId:state.checkRound,done};
