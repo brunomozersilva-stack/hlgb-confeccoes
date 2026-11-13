@@ -596,13 +596,60 @@ function receiptGroups(){
  const groups=new Map();
  for(const r of arr('factionPayments')){
   if(!r?.manualGroupId||!r?.manual)continue;
-  const id=sid(r.manualGroupId),cur=groups.get(id)||{id,factionName:r.factionName,date:r.paymentDate||r.scheduledPaymentDate,
-   status:r.status,receipt:null,recordId:sid(r.id),total:0,items:0};
-  cur.total+=Number(r.value)||0;cur.items++;
+  const id=sid(r.manualGroupId),cur=groups.get(id)||{id,factionName:r.factionName,
+   date:r.scheduledPaymentDate||'',paidDate:'',status:'Pendente',serviceMode:r.serviceModeV9577||'faccao',
+   receipt:null,recordId:sid(r.id),total:0,items:0,rows:[],updatedAt:''};
+  cur.total+=Number(r.value)||0;cur.items++;cur.rows.push(r);
   if(r.receiptPdfV9566?.base64){cur.receipt=r.receiptPdfV9566;cur.recordId=sid(r.id)}
+  if(sid(r.updatedAt)>cur.updatedAt)cur.updatedAt=sid(r.updatedAt);
   groups.set(id,cur);
  }
- return [...groups.values()].sort((a,b)=>sid(b.date).localeCompare(sid(a.date)));
+ for(const group of groups.values()){
+  group.status=groupState(group.rows);
+  group.paidDate=group.status==='Pago'?sid(group.rows[0]?.paymentDate):'';
+  group.date=group.paidDate||sid(group.rows[0]?.scheduledPaymentDate);
+  group.total=Math.round(group.total*100)/100;
+ }
+ return [...groups.values()].sort((a,b)=>sid(b.date).localeCompare(sid(a.date))||
+  sid(b.updatedAt).localeCompare(sid(a.updatedAt)));
+}
+function openPayModal(groupId){
+ const rows=assertGroup(groupId),status=groupState(rows);
+ if(status==='Pago')throw Error('Este lançamento já está pago.');
+ const total=grandTotal(rows.map(x=>({value:Number(x.value)||0})));
+ const group=receiptGroups().find(x=>x.id===sid(groupId));
+ if(!group)throw Error('Pagamento avulso não encontrado.');
+ const open=window.openModal||((typeof openModal==='function')?openModal:null);
+ if(!open)throw Error('Janela de pagamento indisponível.');
+ const html='<div id="fm88-pay-modal" class="panel" style="padding:12px">'+
+  '<p><b>'+esc(group.factionName)+'</b> · '+group.items+' serviço(s) · <b>'+money(total)+'</b></p>'+
+  '<p class="sub">A baixa gera uma única saída no Hub Financeiro para este grupo. É necessário confirmar a data real e o método. Nenhum pagamento será registrado automaticamente.</p>'+
+  (status==='Revisar'?'<p style="color:#934">⚠ Algumas linhas possuem situação divergente. Confirme os dados da baixa anterior antes de continuar.</p>':'')+
+  '<div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:8px">'+
+  '<div class="field"><label>Data em que foi pago</label><input type="date" id="fm88-paid-date" value="'+stamp()+'"></div>'+
+  '<div class="field"><label>Forma de pagamento</label><input id="fm88-paid-method" placeholder="Pix, dinheiro, transferência" value="'+esc(rows[0]?.paymentMethod||'')+'"></div></div>'+
+  (group.receipt?'<p class="sub">PDF existente: '+esc(group.receipt.name)+' — será preservado.</p>':
+   '<div class="field"><label>Comprovante PDF (opcional, máximo 750 KB)</label><input type="file" id="fm88-paid-pdf" accept=".pdf,application/pdf"></div>')+
+  '<div id="fm88-paid-feedback" role="status" class="sub"></div>'+
+  '<button type="button" class="primary modalSave">✅ Confirmar como pago</button></div>';
+ open('Dar baixa no pagamento avulso',html,async()=>{
+  const btn=document.querySelector('#fm88-pay-modal .modalSave'),feedback=document.getElementById('fm88-paid-feedback');
+  if(btn){btn.disabled=true;btn.textContent='☁️ Confirmando no Hub e nas facções…'}
+  if(feedback)feedback.textContent='Verificando a nuvem e as operações pendentes antes de confirmar…';
+  try{
+   const date=document.getElementById('fm88-paid-date')?.value||'',
+    method=document.getElementById('fm88-paid-method')?.value||'',
+    pdf=await readReceipt(document.getElementById('fm88-paid-pdf')?.files?.[0]);
+   await markGroupPaid(groupId,date,method,pdf);
+   window.closeModal?.();window.renderFactionPayments?.();window.renderHubFinance?.();
+   renderReceipts();return true;
+  }catch(e){
+   if(feedback)feedback.textContent='⚠ '+sid(e?.message||e);
+   if(btn){btn.disabled=false;btn.textContent='✅ Confirmar como pago'}
+   return false;
+  }
+ });
+ return true;
 }
 async function attachReceiptToGroup(groupId,file){
  const group=receiptGroups().find(x=>x.id===sid(groupId));
