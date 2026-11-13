@@ -42,5 +42,13 @@ vm.createContext(ctx);vm.runInContext(code,ctx);
  ok(out.unverified?.length===2,'histórico antigo não pode inflar não verificados');
  ok(out.historicalBacklog?.count===116,'histórico antigo deveria ser resumido, não reprocessado');
  ok(out.triage?.signal?.operationalQueue?.unique===0&&out.triage?.signal?.reportedPendingUnique===21&&out.triage?.signal?.pendingBusiness===21,'mismatch fila real x negócio não foi preservado na triagem');
+ // A falha de dependência deve expor o reparador que realmente faltou.
+ window.hlgbAuditorAutoCorrect9446.prepare=async()=>({ok:false,ready:false,
+  recordLearningIsolation:{saved:false},
+  basePreparation:{ok:false,ready:false,error:'Timeout aguardando reparadores reais: rapid-heal',missing:['rapid-heal']}});
+ const failedPrep=await window.hlgbAuditorAutoCorrect9447.prepare('test-failed-preparation');
+ ok(failedPrep.ok===false&&failedPrep.ready===false,'falha antiga não pode virar preparação aprovada');
+ ok(failedPrep.error.includes('rapid-heal'),'erro original deve chegar à v94.47');
+ ok(failedPrep.missing.includes('rapid-heal')&&failedPrep.missing.includes('record-learning-storage'),'listar tanto a dependência quanto o armazenamento de aprendizagem');
  console.log('AUDITOR_AUTOCORRECT_V9447_FAST_OK',JSON.stringify({passes:out.passes,needsCode:out.needsCode.length,businessBlocked:out.businessBlocked.length,historical:out.historicalBacklog.count,legacyRuns}));
 })().catch(e=>{console.error(e);process.exit(1)});
