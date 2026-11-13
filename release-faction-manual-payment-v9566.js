@@ -326,6 +326,160 @@ async function saveGroupEdits(groupId,input,receipt,removalReasons=[]){
   throw Error(state.lastError);
  }finally{state.status=STATUS.idle}
 }
+
+/* v95.90 — reconciliação de diferença paga a mais/a menos.
+ * Nunca modifica o valor já registrado de um pagamento Pago.
+ * Eventos de acerto são salvos em um registro da própria facção, com
+ * identificador estável e confirmação via leitura remota.
+ * A compensação em outro pagamento pendente é registrada uma só vez no
+ * destino (a escrita de origem é apenas vinculação/auditoria). */
+function groupCorrectionsV9590(rows){
+ return rows.flatMap(r=>Array.isArray(r.manualCorrectionsV9590)?r.manualCorrectionsV9590:[]);
+}
+function groupApplicationsV9590(rows){
+ const found=new Map();
+ for(const r of rows)for(const app of Array.isArray(r.manualApplicationsV9590)?r.manualApplicationsV9590:[])
+  if(app?.id&&!found.has(sid(app.id)))found.set(sid(app.id),app);
+ return [...found.values()];
+}
+function signedApplicationV9590(app){return app.kind==='a_mais'?-Math.abs(Number(app.amount)||0):Math.abs(Number(app.amount)||0)}
+function signedCorrectionV9590(c){return c.kind==='a_mais'?-Math.abs(Number(c.amount)||0):Math.abs(Number(c.amount)||0)}
+function nominalGroupV9590(rows){
+ return Math.round(activeGroupRowsV9590(rows).reduce((s,r)=>s+cents(r.value),0))/100;
+}
+function netGroupV9590(rows){
+ return Math.round((cents(nominalGroupV9590(rows))+
+  groupApplicationsV9590(rows).reduce((s,x)=>s+cents(signedApplicationV9590(x)),0)))/100;
+}
+function appliedCorrectionCentsV9590(correctionId){
+ const seen=new Set();let sum=0;
+ for(const row of arr('factionPayments'))for(const x of Array.isArray(row.manualApplicationsV9590)?row.manualApplicationsV9590:[]){
+  if(sid(x.correctionId)!==sid(correctionId)||seen.has(sid(x.id)))continue;
+  seen.add(sid(x.id));sum+=cents(x.amount);
+ }
+ return sum;
+}
+function correctionRemainingV9590(correction){return Math.max(0,
+ (cents(correction.amount)-appliedCorrectionCentsV9590(correction.id))/100)}
+function paidAllocationsV9590(rows,total){
+ const allocations=rows.map(x=>cents(x.value)),difference=cents(total)-allocations.reduce((s,x)=>s+x,0);
+ if(!allocations.length)return [];
+ if(difference>=0)allocations[0]+=difference;
+ else{
+  let credit=-difference;
+  for(let i=0;i<allocations.length&&credit;i++){
+   const reduction=Math.min(allocations[i],credit);allocations[i]-=reduction;credit-=reduction;
+  }
+  if(credit)throw Error('O crédito de acerto supera o valor dos serviços. Corrija o abatimento.');
+ }
+ return allocations.map(x=>x/100);
+}
+async function registerCorrectionV9590(groupId,kind,amount,reason,correctionId=''){
+ if(state.status===STATUS.saving)throw Error('Outro salvamento de pagamento está em andamento.');
+ state.status=STATUS.saving;state.lastError='';
+ try{
+  const rows=assertGroup(groupId),active=activeGroupRowsV9590(rows),current=groupState(rows);
+  if(current!=='Pago')throw Error('Acertos de valores pagos a mais ou a menos exigem pagamento já concluído.');
+  if(!['a_mais','a_menos'].includes(kind))throw Error('Escolha se foi pago a mais ou a menos.');
+  const value=cents(number(amount))/100,why=sid(reason).trim();
+  if(!Number.isFinite(value)||value<=0||value>1000000)throw Error('Informe a diferença em reais (maior que zero).');
+  if(why.length<5||why.length>700)throw Error('Escreva o motivo do acerto (mínimo de 5 caracteres, máximo de 700).');
+  const id=sid(correctionId||makeId('fm90-acerto'));
+  const currentEvent=groupCorrectionsV9590(rows).find(x=>sid(x.id)===id);
+  if(currentEvent){
+   if(currentEvent.kind===kind&&cents(currentEvent.amount)===cents(value)&&sid(currentEvent.reason)===why)
+    return currentEvent;
+   throw Error('Já existe outro acerto com essa identificação.');
+  }
+  const hub=await preflightGroup(groupId,rows);
+  if(!hub||sid(hub.status)!=='Realizado'||sid(hub.sourceId)!==sid(groupId))
+   throw Error('O Hub Financeiro não confirmou este pagamento original. Acerto bloqueado.');
+  const anchor=active[0],ts=new Date().toISOString(),event={
+   id,sourceGroupId:sid(groupId),kind,amount:value,reason:why,
+   registeredAt:ts,registeredDate:stamp(),by:'ajuste-manual-v9590',
+   applications:[]};
+  const next={...anchor,manualCorrectionsV9590:[...(anchor.manualCorrectionsV9590||[]),event],updatedAt:ts};
+  await saveRecord('factionPayments',next);
+  const check=await remoteRecord('factionPayments',anchor.id);
+  if(!remotelySame(next,check)||!groupCorrectionsV9590([check]).some(x=>sid(x.id)===id))
+   throw Error('Acerto enviado, mas não confirmado na releitura. Não registre novamente antes de conferir.');
+  state.lastResult={groupId,correction:event};renderReceipts();return event;
+ }catch(e){state.lastError=sid(e.message||e);throw e}
+ finally{state.status=STATUS.idle}
+}
+function matchingPendingGroupsV9590(sourceGroupId){
+ const source=assertGroup(sourceGroupId),first=activeGroupRowsV9590(source)[0];
+ return receiptGroups().filter(g=>g.id!==sid(sourceGroupId)&&g.status==='Pendente'&&
+  norm(g.factionName)===norm(first.factionName)&&
+  (first.factionMasterId==null||g.rows[0]?.factionMasterId==null||
+   sid(first.factionMasterId)===sid(g.rows[0].factionMasterId)));
+}
+async function applyCorrectionV9590(sourceGroupId,correctionId,targetGroupId,amount){
+ if(state.status===STATUS.saving)throw Error('Outra gravação de pagamento está em andamento.');
+ state.status=STATUS.saving;state.lastError='';let targetSaved=false;
+ try{
+  const source=assertGroup(sourceGroupId),target=assertGroup(targetGroupId);
+  if(groupState(source)!=='Pago'||groupState(target)!=='Pendente')
+   throw Error('A compensação exige um pagamento original pago e outro pagamento pendente.');
+  if(!matchingPendingGroupsV9590(sourceGroupId).some(x=>x.id===sid(targetGroupId)))
+   throw Error('Compense apenas em lançamento pendente da mesma facção ou embaladeira.');
+  const event=groupCorrectionsV9590(source).find(x=>sid(x.id)===sid(correctionId));
+  if(!event)throw Error('Acerto de origem não encontrado.');
+  const appliedId='fm90-app-'+sid(event.id)+'-'+sid(targetGroupId),oldApp=groupApplicationsV9590(target).find(x=>sid(x.id)===appliedId);
+  const value=cents(number(amount))/100;
+  if(!Number.isFinite(value)||value<=0)throw Error('Informe um valor de compensação maior que zero.');
+  if(oldApp&&cents(oldApp.amount)!==cents(value))
+   throw Error('Este acerto já foi aplicado ao pagamento escolhido com outro valor.');
+  const remaining=correctionRemainingV9590(event);
+  if(!oldApp&&cents(value)>cents(remaining))throw Error('A compensação ultrapassa o saldo do acerto.');
+  if(event.kind==='a_mais'&&!oldApp&&cents(value)>cents(netGroupV9590(target)))
+   throw Error('Crédito maior que o valor a pagar. Utilize compensação parcial ou outro lançamento.');
+  // Readback+WAL guard before any write. Target first: idempotent retries see
+  // the same applicationId and cannot multiply the effect.
+  await preflightGroup(sourceGroupId,source);await preflightGroup(targetGroupId,target);
+  const ts=new Date().toISOString();
+  if(!oldApp){
+   const anchor=activeGroupRowsV9590(target)[0],
+    app={id:appliedId,correctionId:sid(event.id),sourceGroupId:sid(sourceGroupId),
+     targetGroupId:sid(targetGroupId),kind:event.kind,amount:value,reason:event.reason,appliedAt:ts};
+   const next={...anchor,manualApplicationsV9590:[...(anchor.manualApplicationsV9590||[]),app],updatedAt:ts};
+   await saveRecord('factionPayments',next);targetSaved=true;
+   const check=await remoteRecord('factionPayments',anchor.id);
+   if(!remotelySame(next,check)||!groupApplicationsV9590([check]).some(x=>sid(x.id)===appliedId))
+    throw Error('O destino não confirmou a compensação. Confira antes de tentar novamente.');
+  }
+  const currentSource=groupRows(sourceGroupId),sourceAnchor=currentSource.find(x=>
+   (x.manualCorrectionsV9590||[]).some(y=>sid(y.id)===sid(event.id)));
+  if(!sourceAnchor)throw Error('Origem do acerto não encontrada para vincular compensação.');
+  const events=(sourceAnchor.manualCorrectionsV9590||[]).map(x=>{
+   if(sid(x.id)!==sid(event.id))return x;
+   const links=Array.isArray(x.applications)?x.applications:[];
+   if(links.some(y=>sid(y.id)===appliedId))return x;
+   return {...x,applications:[...links,{id:appliedId,targetGroupId:sid(targetGroupId),amount:value,at:ts}]};
+  });
+  if(!events.find(x=>sid(x.id)===sid(event.id))?.applications.some(x=>sid(x.id)===appliedId))
+   throw Error('Não foi possível estabelecer o vínculo do acerto.');
+  if(!(sourceAnchor.manualCorrectionsV9590||[]).some(x=>sid(x.id)===sid(event.id)&&
+       Array.isArray(x.applications)&&x.applications.some(y=>sid(y.id)===appliedId))){
+   await assertRecordNotPending('factionPayments',sourceAnchor.id);
+   const remoteSource=await remoteRecord('factionPayments',sourceAnchor.id);
+   if(!remotelySame(sourceAnchor,remoteSource))throw Error('A origem foi alterada por outra sessão. Compensação no destino preservada para revisão.');
+   const next={...sourceAnchor,manualCorrectionsV9590:events,updatedAt:ts};
+   await saveRecord('factionPayments',next);
+   const recheck=await remoteRecord('factionPayments',sourceAnchor.id);
+   if(!remotelySame(next,recheck)||!groupCorrectionsV9590([recheck]).some(x=>sid(x.id)===sid(event.id)&&
+      x.applications?.some(y=>sid(y.id)===appliedId)))
+    throw Error('Compensação no destino registrada, mas vínculo da origem não confirmado.');
+  }
+  const result={sourceGroupId,targetGroupId,correctionId:event.id,applied:value,
+   remaining:correctionRemainingV9590(event)};
+  state.lastResult=result;renderReceipts();return result;
+ }catch(e){
+  state.lastError=(targetSaved?'O valor foi registrado no pagamento pendente, mas a confirmação da origem não terminou. Não aplique em outro grupo antes de conferir. ':'')+sid(e.message||e);
+  throw Error(state.lastError);
+ }finally{state.status=STATUS.idle}
+}
+
 async function markGroupPaid(groupId,date,method,receipt){
  if(state.status===STATUS.saving)throw Error('Outra alteração de pagamento está em andamento.');
  state.status=STATUS.saving;state.lastError='';let confirmed=0,hubConfirmed=false;
