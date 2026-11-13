@@ -922,7 +922,12 @@ function receiptGroups(){
   group.status=groupState(group.rows);
   group.paidDate=group.status==='Pago'?sid(group.rows[0]?.paymentDate):'';
   group.date=group.paidDate||sid(group.rows[0]?.scheduledPaymentDate);
-  group.total=Math.round(group.total*100)/100;
+  group.nominal=Math.round(group.total*100)/100;
+  group.applications=groupApplicationsV9590(group.rows);
+  group.corrections=groupCorrectionsV9590(group.rows);
+  group.total=netGroupV9590(group.rows);
+  group.adjustmentBalance=group.corrections.reduce((sum,x)=>sum+
+   cents(x.kind==='a_mais'?-correctionRemainingV9590(x):correctionRemainingV9590(x)),0)/100;
  }
  return [...groups.values()].sort((a,b)=>sid(b.date).localeCompare(sid(a.date))||
   sid(b.updatedAt).localeCompare(sid(a.updatedAt)));
@@ -1203,6 +1208,7 @@ function renderReceipts(){
  const groups=receiptGroups(),pending=groups.filter(g=>g.status==='Pendente'),
   paid=groups.filter(g=>g.status==='Pago'),review=groups.filter(g=>g.status==='Revisar');
  const signature=JSON.stringify(groups.map(g=>[g.id,g.factionName,g.date,g.status,g.total,g.items,g.updatedAt,
+  g.corrections?.map(x=>[x.id,x.amount,x.kind,x.reason,correctionRemainingV9590(x)]),g.applications?.map(x=>[x.id,x.amount]),
   g.receipt?.name||'',g.receipt?.size||0]));
  // Preserve file selection and focused filters when periodic refresh has not changed data.
  if(host.dataset.fm66Signature===signature)return true;
@@ -1211,7 +1217,7 @@ function renderReceipts(){
  host.dataset.fm66Signature=signature;
  const sum=rows=>money(rows.reduce((total,x)=>total+x.total,0));
  host.innerHTML='<h3 style="margin:0 0 5px">Pagamentos avulsos — facções e embaladeiras</h3>'+
-  '<p class="sub">Edite os pendentes, marque como pago após transferir e confira PDFs e serviços. Pagamentos realizados têm os valores protegidos.</p>'+
+  '<p class="sub">Edite e remova produtos pendentes com motivo, registre acertos pagos a mais/a menos e baixe o PDF detalhado com histórico.</p>'+
   '<div class="cards" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(155px,1fr));gap:8px;margin:12px 0">'+
   '<div class="card"><small>A pagar · '+pending.length+' lançamento(s)</small><strong>'+sum(pending)+'</strong></div>'+
   '<div class="card"><small>Pagos · '+paid.length+' lançamento(s)</small><strong>'+sum(paid)+'</strong></div>'+
@@ -1219,25 +1225,40 @@ function renderReceipts(){
   '<div class="toolbar" style="display:flex;flex-wrap:wrap;gap:8px;align-items:end;margin:10px 0">'+
   '<div class="field"><label>Buscar facção, produto ou serviço</label><input id="fm88-filter-name" autocomplete="off" placeholder="Pesquisar lançamento"></div>'+
   '<div class="field"><label>Situação</label><select id="fm88-filter-status"><option value="todos">Todos</option>'+
-  '<option>Pendente</option><option>Pago</option><option>Revisar</option></select></div></div>'+
+  '<option>Pendente</option><option>Pago</option><option>Revisar</option><option>Cancelado</option></select></div></div>'+
   (groups.length?'<div style="overflow-x:auto"><table style="width:100%"><thead><tr><th>Facção / serviço</th>'+
    '<th>Data</th><th>Situação</th><th>Valor</th><th>Itens</th><th>Comprovante</th><th>Ações</th></tr></thead><tbody>'+
    groups.map(g=>{
     const descriptions=g.rows.map(r=>sid(r.description||'')+' '+Number(r.quantity||0)+'x').join(' ');
+    const corrections=(g.corrections||[]).length?'<div style="margin-top:8px"><b>Acertos de pagamento</b>'+
+     g.corrections.map(x=>{
+      const remaining=correctionRemainingV9590(x);
+      return '<div style="border-top:1px solid #ddd;padding:7px 0">'+
+       '<b>'+esc(x.kind==='a_mais'?'Pago a mais / crédito':'Pago a menos / complemento')+'</b>'+
+       ' · '+money(x.amount)+' · <b>Em aberto: '+money(remaining)+'</b>'+
+       '<div class="sub">Motivo: '+esc(x.reason)+'</div>'+
+       (remaining>0&&g.status==='Pago'?'<button type="button" class="secondary fm90-apply" data-group-id="'+esc(g.id)+
+       '" data-event-id="'+esc(x.id)+'">↔ Compensar em pagamento pendente</button>':'')+
+       '</div>'
+     }).join('')+'</div>':'';
+    const apps=(g.applications||[]).length?'<div style="margin-top:7px"><b>Compensações neste pagamento</b>'+
+     g.applications.map(x=>'<div class="sub">'+esc(x.kind==='a_mais'?'Abatimento':'Complemento')+
+      ' '+money(x.amount)+' · Origem '+esc(x.sourceGroupId)+' · '+esc(x.reason)+'</div>').join('')+'</div>':'';
     const items='<details><summary>'+g.items+' item(ns) · Ver detalhes</summary>'+
      '<div style="min-width:180px">'+g.rows.map(r=>'<div style="border-bottom:1px solid #eee;padding:5px">'+
       '<b>'+(isCanceledV9590(r)?'❌ [Cancelado] ':'')+esc(r.description||'Serviço')+'</b>'+
       (isCanceledV9590(r)?'<div class="sub">Motivo: '+esc(r.manualCanceledReasonV9590||'Não informado')+'</div>':'')+
       '<div class="sub">'+Number(r.quantity||0).toLocaleString('pt-BR')+
       ' × '+money(r.unitPrice)+' · desconto '+money(r.travetaDiscountTotalV9577)+'</div><b>'+
-      money(r.value)+'</b></div>').join('')+'</div></details>';
+      money(r.value)+'</b></div>').join('')+
+      corrections+apps+'</div></details>';
     const proof=g.receipt?'<button type="button" class="secondary fm66-download" data-group-id="'+esc(g.id)+'">'+esc(g.receipt.name)+'</button>':
      '<div class="field" style="min-width:170px"><input type="file" class="fm66-attach-input" data-group-id="'+esc(g.id)+'" accept=".pdf,application/pdf">'+
      '<button type="button" class="secondary fm66-attach" data-group-id="'+esc(g.id)+'">☁️ Salvar PDF</button></div>';
     const actions=g.status==='Pendente'?
      '<div style="display:flex;gap:6px;flex-wrap:wrap"><button type="button" class="secondary fm88-edit" data-group-id="'+esc(g.id)+'">✏️ Editar</button>'+
      '<button type="button" class="primary fm88-pay" data-group-id="'+esc(g.id)+'">✅ Marcar pago</button></div>':
-     g.status==='Pago'?'<span class="sub">Pago · valores protegidos</span>':
+     g.status==='Pago'?'<button type="button" class="secondary fm90-correct" data-group-id="'+esc(g.id)+'">⚖️ Acerto a mais / a menos</button>':
      g.status==='Cancelado'?'<span class="sub">Cancelado · histórico preservado</span>':
      '<button type="button" class="secondary fm88-pay" data-group-id="'+esc(g.id)+'" title="Somente concluir uma baixa previamente iniciada após conferir o financeiro">⚠ Revisar / concluir baixa</button>';
     return '<tr data-fm88-row="1" data-status="'+esc(g.status)+'" data-search="'+esc(norm(g.factionName+' '+descriptions+' '+g.serviceMode))+'">'+
