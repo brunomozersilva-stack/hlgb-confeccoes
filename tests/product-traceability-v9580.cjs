@@ -47,7 +47,8 @@ assert(events.some(x=>x.kind==='faccao'&&x.details.person==='Roseli'&&x.details.
 assert(events.some(x=>x.kind==='pagamento'&&x.details.amountPaid===405));
 assert(events.some(x=>x.kind==='checklist-material'&&x.details.receivedBy==='Fran'));
 assert.equal(events.find(x=>x.kind==='pedido').details.quantity,1000,'order grade and items cannot be double counted');
-assert(events.every(x=>x.orderId==='o1'));
+assert(events.filter(x=>x.kind!=='pagamento').every(x=>x.orderId==='o1'));
+assert(events.some(x=>x.kind==='pagamento'&&x.orderId===''),'do not invent an order link for an unlinked payment');
 assert.equal(api.timeline('p1',{orderId:'not-this'}).length,0);
 (async()=>{
  const initial=JSON.stringify(db);
