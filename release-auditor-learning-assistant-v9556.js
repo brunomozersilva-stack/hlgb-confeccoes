@@ -97,8 +97,9 @@ function collect(report){
  state.lastWriteOk=ok;state.lastProcessedAt=now;state.observedCases=cases.length;
  return {ok,runId:id,findings:state.current.length,observations:cases.length};
 }
+function sidSafeShared(x){return str(x).slice(0,180)}
 function pack(){
- const r=currentReport(),c=readCases();
+ const r=currentReport(),c=readCases(),shared=window.hlgbLearningCloud9573?.snapshot?.()||null;
  const f=r?.run?.runId===state.lastRunId?state.current:findings(r||{});
  const cases=c.cases.filter(x=>f.some(y=>y.fingerprint===x.fingerprint));
  const coverage=r?.operationalCoverage||{};
@@ -110,8 +111,9 @@ function pack(){
    observedRuns:cases.find(y=>y.fingerprint===x.fingerprint)?.observedRuns||0,
    recurrences:cases.find(y=>y.fingerprint===x.fingerprint)?.recurrences||0,
    investigate:SPECS[x.kind].investigate,tests:SPECS[x.kind].tests,safetyRule:SPECS[x.kind].rule})),
-  historicalCases:c.cases.length,
-  rules:['Sem reparos automáticos neste módulo','Sem acesso de escrita ao banco, à WAL ou ao GitHub','Histórico fica neste navegador; não há aprendizado central entre computadores','Diagnóstico não constitui prova de correção sem reteste']};
+  historicalCases:c.cases.length,serverCases:shared?.cases?.length||0,serverEvents:shared?.events||0,
+  serverLearningConfirmed:shared?.verifiedServer===true,serverLearningError:sidSafeShared(shared?.error),
+  rules:['Sem reparos automáticos neste módulo','Eventos técnicos compartilhados somente após confirmação no servidor; não gravar dados de negócio nem WAL','Histórico local continua como contingência quando estiver offline','Diagnóstico não constitui prova de correção sem reteste']};
 }
 function download(){
  if(!auth())return false;
@@ -126,11 +128,12 @@ function render(){
  const host=document.getElementById('hlgbAuditorResult');if(!host)return false;
  let panel=document.getElementById(PANEL_ID);
  if(!panel){panel=document.createElement('div');panel.id=PANEL_ID;panel.className='panel';host.appendChild(panel)}
- const off=disabled(),cases=readCases().cases,observed=state.current.length;
- panel.innerHTML='<b>🧠 Assistente de diagnóstico v'+VERSION+'</b><div class="sub">Módulo independente · histórico local · sem alterar dados</div>'+
+ const off=disabled(),cases=readCases().cases,observed=state.current.length,shared=window.hlgbLearningCloud9573?.snapshot?.()||{};
+ panel.innerHTML='<b>🧠 Assistente de diagnóstico v'+VERSION+'</b><div class="sub">Módulo independente · histórico local e memória compartilhada · sem alterar dados de negócio</div>'+
   (off?'<p class="sub">Desativado. Nenhuma nova ocorrência será aprendida.</p>':
   '<p class="sub">'+esc(observed)+' tipo(s) de problema na última auditoria consultada · '+esc(cases.length)+' tipo(s) no histórico.</p>'+
   '<p class="sub">Sugere investigação e testes; não desenvolve nem aplica correções sozinho.</p>')+
+  '<p class="sub">☁️ '+(shared.verifiedServer?'Servidor confirmado: '+(shared.cases?.length||0)+' assunto(s) conhecidos, '+(shared.events||0)+' eventos.':'Servidor ainda sem confirmação de leitura; histórico local preservado.')+'</p>'+
   '<div style="margin-top:8px"><button type="button" class="secondary" id="hlgbLearningExport9556">⬇️ Pacote técnico para correção</button> '+
   '<button type="button" class="secondary" id="hlgbLearningToggle9556">'+(off?'Ativar assistente':'Desativar assistente')+'</button></div>';
  panel.querySelector('#hlgbLearningExport9556')?.addEventListener('click',()=>{if(!off)collect();download()});
