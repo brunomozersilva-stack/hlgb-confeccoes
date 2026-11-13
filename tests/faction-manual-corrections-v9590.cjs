@@ -84,7 +84,7 @@ const edit={
  assert.equal(api.receiptGroups().find(x=>x.id==='soloGroup').status,'Cancelado');
  assert.equal(api.receiptGroups().find(x=>x.id==='soloGroup').total,0);
  await assert.rejects(()=>api.markGroupPaid('soloGroup','2026-11-13','Pix',null),/inconsistente/);
- await assert.rejects(()=>api.registerCorrectionV9590('source','a_mais',4,'curto','invalid-note'),/motivo/);
+ await assert.rejects(()=>api.registerCorrectionV9590('source','a_mais',4,'abc','invalid-note'),/motivo/);
  const credit=await api.registerCorrectionV9590('source','a_mais',15,'Pix enviado quinze reais a mais','credit-v9590');
  assert.equal(credit.amount,15);
  assert.equal(api.correctionRemainingV9590(credit),15);
