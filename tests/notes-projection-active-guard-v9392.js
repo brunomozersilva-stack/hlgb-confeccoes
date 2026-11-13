@@ -12,7 +12,7 @@ const document={
 const ctx={window:null,document,console,setTimeout:fn=>0,clearTimeout(){},getComputedStyle(){return{display:'block',visibility:'visible',opacity:'1'}},db:{orders:[],noteQueue:[]},hlgbRecordSnapshots:{},renderProjection(){baseCalls++;return 'ok'}};
 ctx.window=ctx;ctx.__HLGB_AUTH_READY=true;
 vm.createContext(ctx);vm.runInContext(src,ctx);
-assert.equal(ctx.HLGB_NOTE_QUEUE_RENDER_GUARD,'v7');
+assert.equal(ctx.HLGB_NOTE_QUEUE_RENDER_GUARD,'v8-selection-stable'); // guarda atual da seleção estável
 assert.equal(ctx.renderProjection(),false,'dashboard/fora da projeção não pode renderizar');
 assert.equal(baseCalls,0,'render base não deve executar fora da página ativa');
 active=true;

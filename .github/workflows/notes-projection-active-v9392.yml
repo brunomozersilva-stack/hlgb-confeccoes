@@ -1,11 +1,17 @@
 name: HLGB Projection Active Guard v93.92
 on:
   push:
-    branches: [fix/auditor-report-followup-20261021]
+    branches: [main]
+    paths:
+      - 'release-notes.js'
+      - 'tests/note-list-recovery-v9587.cjs'
+      - 'tests/notes-projection-active-guard-v9392.js'
+      - '.github/workflows/notes-projection-active-v9392.yml'
   pull_request:
     branches: [main]
     paths:
       - 'release-notes.js'
+      - 'tests/note-list-recovery-v9587.cjs'
       - 'tests/notes-projection-active-guard-v9392.js'
       - '.github/workflows/notes-projection-active-v9392.yml'
 jobs:
@@ -18,5 +24,9 @@ jobs:
           node-version: '20'
       - name: Sintaxe notes
         run: node --check release-notes.js
+      - name: Sintaxe do teste de recuperação
+        run: node --check tests/note-list-recovery-v9587.cjs
+      - name: Recuperação não modifica pedidos nem notas
+        run: node tests/note-list-recovery-v9587.cjs
       - name: Projeção só renderiza quando ativa
         run: node tests/notes-projection-active-guard-v9392.js
