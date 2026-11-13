@@ -330,6 +330,71 @@ const engine=process.env.HLGB_BROWSER==='webkit'?webkit:chromium;
   assert.equal(differences.corrections.length,2);
   assert.equal(differences.adjustmentBalance,3,'underpayment remains due until compensated');
 
+
+  // v95.91: new and edit avulso have explicit minus/plus adjustments,
+  // persisted in the group, included in the Hub and detailed PDF.
+  await page.locator('#fm88-filter-status').selectOption('todos');
+  await page.locator('#hlgbFactionManualPaymentBtn').click();
+  assert.equal(await page.locator('#fm91-add-minus').isVisible(),true);
+  assert.equal(await page.locator('#fm91-add-plus').isVisible(),true);
+  await page.locator('#fm66-faction').fill('Roseli');
+  await page.locator('#fm66-faction-suggestions [data-faction="Roseli"]').click();
+  await page.locator('.fm66-line .fm66-search').first().fill('Camisola');
+  await page.locator('.fm66-line [data-product-id="p1"]').first().click();
+  await page.locator('.fm66-line .fm66-qty').first().fill('10');
+  await page.locator('#fm91-add-minus').click();
+  await page.locator('.fm91-adjustment .fm91-value').first().fill('5');
+  await page.locator('.fm91-adjustment .fm91-reason').first().fill('Adiantamento de cinco reais');
+  await page.locator('#fm91-add-plus').click();
+  await page.locator('.fm91-adjustment .fm91-value').nth(1).fill('2');
+  await page.locator('.fm91-adjustment .fm91-reason').nth(1).fill('Servico extra de dois reais');
+  assert.match(await page.locator('#fm66-grand').innerText(),/23,00/);
+  await page.locator('#modal .modalSave').click();
+  await page.locator('#modal').waitFor({state:'detached'});
+  const adjustedGroup=await page.evaluate(()=>{
+    const rows=window.db.factionPayments.filter(x=>x.factionName==='Roseli'&&x.status==='Pendente');
+    return rows.map(x=>({id:x.id,groupId:x.manualGroupId,adj:x.manualDirectAdjustmentsV9591||[]}));
+  });
+  assert.equal(adjustedGroup.length,1);
+  assert.equal(adjustedGroup[0].adj.length,2);
+  const directGroupId=adjustedGroup[0].groupId;
+  const directRow=page.locator('#fm66-receipts tr[data-fm88-row]').filter({has:page.locator('.fm91-quick-adjust[data-group-id="'+directGroupId+'"]')});
+  assert.equal(await directRow.locator('.fm91-quick-adjust').count(),1);
+  await directRow.locator('.fm91-quick-adjust').click();
+  assert.equal(await page.locator('#fm91-direct-panel').isVisible(),true);
+  assert.match(await page.locator('#fm91-saved-adjustments').innerText(),/Adiantamento de cinco reais/);
+  await page.locator('#fm91-add-plus').click();
+  await page.locator('.fm91-adjustment .fm91-value').last().fill('1');
+  await page.locator('.fm91-adjustment .fm91-reason').last().fill('Reajuste confirmado na entrega');
+  assert.match(await page.locator('#fm66-grand').innerText(),/24,00/);
+  await page.locator('#modal .modalSave').click();
+  await page.locator('#modal').waitFor({state:'detached'});
+  const directAfter=await page.evaluate(id=>window.hlgbFactionManual9566.receiptGroups().find(x=>x.id===id),directGroupId);
+  assert.equal(directAfter.total,24);
+  assert.equal(directAfter.directAdjustments.length,3);
+  assert.equal(await directRow.locator('.fm88-pay').count(),1);
+  await directRow.locator('.fm88-pay').click();
+  await page.locator('#fm88-pay-modal').waitFor({state:'visible'});
+  assert.match(await page.locator('#fm88-pay-modal').innerText(),/Total líquido/);
+  await page.locator('#fm88-paid-method').fill('Pix');
+  await page.locator('#fm88-pay-modal .modalSave').click();
+  await page.locator('#fm88-pay-modal').waitFor({state:'detached'});
+  const directPaid=await page.evaluate(id=>{
+    const r=window.db.factionPayments.filter(x=>x.manualGroupId===id);
+    return {paid:r.reduce((sum,x)=>sum+Number(x.paidAmount||0),0),
+      hub:window.db.hubFinanceEntries.filter(x=>x.sourceId===id).map(x=>x.value)};
+  },directGroupId);
+  assert.deepEqual(directPaid.hub,[24],'Hub saves liquid value including minus and plus adjustments');
+  assert.equal(directPaid.paid,24);
+  const [directPdf]=await Promise.all([
+    page.waitForEvent('download'),
+    page.locator('#fm66-receipts tr[data-fm88-row]').filter({has:page.locator('.fm90-summary-pdf[data-group-id="'+directGroupId+'"]')})
+      .locator('.fm90-summary-pdf').click()
+  ]);
+  const directBuffer=await fs.readFile(await directPdf.path());
+  assert(directBuffer.toString('latin1').includes('AJUSTES DIRETOS NESTE PAGAMENTO'),'PDF contains inline adjustments');
+  assert(directBuffer.toString('latin1').includes('Adiantamento de cinco reais'),'PDF contains mandatory note');
+
   await page.setViewportSize({width:390,height:850});
   await page.locator('#hlgbFactionManualPaymentBtn').click();
   assert.equal(await page.locator('#fm66-faction').isVisible(),true);

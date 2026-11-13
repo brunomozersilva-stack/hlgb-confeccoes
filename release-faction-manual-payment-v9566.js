@@ -155,6 +155,17 @@ async function persistDraft(input,receipt){
  try{
   const parsed=validate(input),date=parsed.date,paid=parsed.status==='Pago',
    id=draft?.groupId||makeId('faction-manual'),ts=new Date().toISOString();
+  if(paid&&(!parsed.method||date>stamp()))throw Error('Informe forma e data real do pagamento.');
+  const priorAdjustments=directAdjustmentsV9591(groupRows(id));
+  const inputAdjustments=validateDirectInputV9591(input.directAdjustmentsV9591||[],[]);
+  for(const entry of inputAdjustments){
+   const old=priorAdjustments.find(x=>sid(x.id)===sid(entry.id));
+   if(old&&(old.kind!==entry.kind||cents(old.amount)!==cents(entry.amount)||sid(old.reason)!==sid(entry.reason)))
+    throw Error('Ajuste já salvo com outros dados. Reabra o lançamento.');
+  }
+  const adjustments=[...priorAdjustments,...inputAdjustments.filter(x=>!priorAdjustments.some(y=>sid(y.id)===sid(x.id)))];
+  const net=validateNetV9591((cents(parsed.total)+sumDirectCentsV9591(adjustments))/100);
+  const allocations=paid?paidAllocationsV9590(parsed.lines,net):[];
   if(!draft)draft={groupId:id,createdAt:ts,receipt:null};
   if(receipt)draft.receipt=receipt;
   if(!parsed.lines.every(x=>x.id))throw Error('Uma linha perdeu sua identificação. Reabra o formulário antes de salvar.');
@@ -166,29 +177,31 @@ async function persistDraft(input,receipt){
     description:row.description,manualProductNameV9589:row.manualProductName,manualProductCategoryV9589:row.manualProductCategory,
     quantity:row.quantity,unitPrice:row.unitPrice,
     value:row.value,grossValueV9577:row.grossValue,travetaDiscountUnitV9577:row.travetaDiscountUnit,
-    travetaDiscountTotalV9577:row.travetaDiscountTotal,paidAmount:paid?row.value:0,paymentDate:paid?date:'',
+    travetaDiscountTotalV9577:row.travetaDiscountTotal,paidAmount:paid?allocations[i]:0,paymentDate:paid?date:'',
     scheduledPaymentDate:date,paymentMethod:parsed.method,
     paymentHistory:existing?.paymentHistory||[],discountAmount:row.travetaDiscountTotal,
     observation:(row.note||parsed.note||'Pagamento avulso de facção'),manualLineNoteV9566:row.note,
     priceOriginV9566:row.priceOrigin,updatedAt:ts,createdAt:existing?.createdAt||draft.createdAt};
-   if(i===0&&draft.receipt)obj.receiptPdfV9566=draft.receipt;
-   else delete obj.receiptPdfV9566;
+   if(i===0){obj.manualDirectAdjustmentsV9591=adjustments;if(draft.receipt)obj.receiptPdfV9566=draft.receipt}
+   else if(existing?.receiptPdfV9566)obj.receiptPdfV9566=existing.receiptPdfV9566;
    await saveRecord('factionPayments',obj);saved++;
   }
   // One financial entry for a paid group, with a stable ID across retries.
   if(paid&&date>='2026-10-05'){
    const hub={id:hubId(id),flow:'Saída',
     description:'Pagamento avulso de facção — '+parsed.factionName,
-    value:parsed.total,date,category:'Facções',subcategory:'Pagamento avulso',
+    value:net,date,category:'Facções',subcategory:'Pagamento avulso',
     person:parsed.factionName,status:'Realizado',acceptedMethods:parsed.method?[parsed.method]:[],
     paymentMethod:parsed.method,realizedAt:date,
-    note:(parsed.note?parsed.note+' · ':'')+parsed.lines.map(x=>x.description+' '+x.quantity+'x').join(', '),
+    note:((parsed.note?parsed.note+' · ':'')+parsed.lines.map(x=>x.description+' '+x.quantity+'x').join(', ')+
+     (adjustments.length?' · AJUSTES: '+adjustments.map(x=>(x.kind==='abater'?'-':'+')+
+      money(x.amount)+' ('+x.reason+')').join('; '):'')).slice(0,1500),
     sourceType:'faction_manual_payment',sourceId:id,createdAt:draft.createdAt,updatedAt:ts};
    const previous=arr('hubFinanceEntries').find(x=>sid(x?.id)===sid(hub.id));
    if(previous&&sid(previous.sourceId)!==id)throw Error('Conflito de identificação do financeiro; registro anterior preservado.');
    await saveRecord('hubFinanceEntries',hub);
   }
-  state.lastResult={groupId:id,total:parsed.total,lines:saved,paid,receipt:!!draft.receipt};
+  state.lastResult={groupId:id,total:net,lines:saved,paid,receipt:!!draft.receipt,adjustments:adjustments.length};
   return state.lastResult;
  }catch(e){state.lastError=(saved?'Foram confirmadas '+saved+' linha(s). Reabra o salvamento neste formulário para concluir sem duplicar. ':'')+sid(e?.message||e);throw Error(state.lastError)}
  finally{state.status=STATUS.idle}
@@ -270,7 +283,9 @@ async function saveGroupEdits(groupId,input,receipt,removalReasons=[]){
   if(parsed.lines.length===0&&groupApplicationsV9590(rows).length)
    throw Error('Este pagamento já recebeu um acerto de outro grupo. Não cancele todas as linhas sem conciliar o acerto.');
   const appliedDelta=groupApplicationsV9590(rows).reduce((sum,x)=>sum+cents(signedApplicationV9590(x)),0);
-  if(parsed.lines.length&&cents(parsed.total)+appliedDelta<=0)
+  if(parsed.lines.length&&cents(parsed.total)+appliedDelta+
+     sumDirectCentsV9591(directAdjustmentsV9591(rows))+
+     sumDirectCentsV9591(validateDirectInputV9591(input.directAdjustmentsV9591||[],directAdjustmentsV9591(rows)))<=0)
    throw Error('O crédito a compensar é maior ou igual ao valor restante. Corrija o acerto antes de reduzir os produtos.');
   for(const x of parsed.lines){
    const any=arr('factionPayments').find(y=>sid(y.id)===sid(x.id));
@@ -279,8 +294,9 @@ async function saveGroupEdits(groupId,input,receipt,removalReasons=[]){
   }
   if(receipt&&rows.some(x=>x.receiptPdfV9566?.base64))
    throw Error('Já existe PDF no lançamento. O comprovante anterior não será sobrescrito.');
+  const newAdjustments=validateDirectInputV9591(input.directAdjustmentsV9591||[],directAdjustmentsV9591(rows));
   const oldHub=await preflightGroup(groupId,rows);
-  if(oldHub)throw Error('O Hub já possui uma saída deste grupo. Só é permitido remover produtos de pagamentos ainda pendentes.');
+  if(oldHub)throw Error('O Hub já possui uma saída deste grupo. Só é permitido alterar pagamentos ainda pendentes.');
   const ts=new Date().toISOString(),existingById=new Map(rows.map(x=>[sid(x.id),x]));
   const editId=draft?.editAttemptId||makeId('faction-edit');
   if(draft)draft.editAttemptId=editId;
@@ -324,7 +340,19 @@ async function saveGroupEdits(groupId,input,receipt,removalReasons=[]){
    if(!remotelySame(next,remote)||!isCanceledV9590(remote)||sid(remote.manualCanceledReasonV9590)!==reason)
     throw Error('Cancelamento da linha '+sid(old.id)+' não confirmado na nuvem.');
   }
-  const result={groupId,total:parsed.total,lines:saved,canceled,edited:true};
+  if(newAdjustments.length){
+   const stableId=sid(rows[0]?.id);
+   await assertRecordNotPending('factionPayments',stableId);
+   const base=arr('factionPayments').find(x=>sid(x.id)===stableId);
+   if(!base)throw Error('Registro principal não encontrado para armazenar ajustes.');
+   const current=directAdjustmentsV9591(groupRows(groupId));
+   const next={...base,manualDirectAdjustmentsV9591:[...current,...newAdjustments],updatedAt:new Date().toISOString()};
+   await saveRecord('factionPayments',next);saved++;
+   const check=await remoteRecord('factionPayments',stableId);
+   if(!remotelySame(next,check)||!newAdjustments.every(x=>directAdjustmentsV9591([check]).some(y=>sid(y.id)===sid(x.id))))
+    throw Error('O ajuste não foi confirmado na nuvem. Confira antes de tentar novamente.');
+  }
+  const result={groupId,total:netGroupV9590(groupRows(groupId)),lines:saved,canceled,adjustments:newAdjustments.length,edited:true};
   state.lastResult=result;renderReceipts();return result;
  }catch(e){
   state.lastError=(saved||canceled?'Edição parcialmente confirmada ('+saved+' linha(s) e '+canceled+' cancelamento(s)). Confira antes de tentar novamente. ':'')+sid(e.message||e);
@@ -352,9 +380,43 @@ function signedCorrectionV9590(c){return c.kind==='a_mais'?-Math.abs(Number(c.am
 function nominalGroupV9590(rows){
  return Math.round(activeGroupRowsV9590(rows).reduce((s,r)=>s+cents(r.value),0))/100;
 }
+/* v95.91: ajustes diretos na cobrança avulsa antes de pagar.
+ * Cada evento mantém ID, valor, tipo e observação. Não é um estorno
+ * retroativo do Hub nem um acerto de transferência já realizada. */
+function directAdjustmentsV9591(rows){
+ const map=new Map();
+ for(const row of rows)for(const item of Array.isArray(row?.manualDirectAdjustmentsV9591)?row.manualDirectAdjustmentsV9591:[])
+  if(item?.id&&!map.has(sid(item.id)))map.set(sid(item.id),item);
+ return [...map.values()];
+}
+function signedDirectV9591(item){return item.kind==='abater'?-Math.abs(Number(item.amount)||0):Math.abs(Number(item.amount)||0)}
+function sumDirectCentsV9591(items){return items.reduce((s,x)=>s+cents(signedDirectV9591(x)),0)}
+function validateDirectInputV9591(items,previous=[]){
+ if(!Array.isArray(items))throw Error('Ajustes do pagamento inválidos.');
+ if(items.length>25)throw Error('No máximo 25 ajustes por edição.');
+ const old=new Map(previous.map(x=>[sid(x.id),x])),seen=new Set();
+ return items.map((x,i)=>{
+  const id=sid(x.id),kind=sid(x.kind),reason=sid(x.reason).trim(),
+   amount=cents(number(x.amount))/100;
+  if(!id||seen.has(id))throw Error('Identificador duplicado no ajuste '+(i+1)+'.');
+  seen.add(id);
+  if(!['abater','acrescentar'].includes(kind))throw Error('Escolha Abater ou Acrescentar no ajuste '+(i+1)+'.');
+  if(!Number.isFinite(amount)||amount<=0||amount>1000000)throw Error('Informe valor maior que zero no ajuste '+(i+1)+'.');
+  if(reason.length<5||reason.length>700)throw Error('Informe motivo obrigatório (5 a 700 caracteres) no ajuste '+(i+1)+'.');
+  if(old.has(id))throw Error('Ajuste já salvo. Para corrigir, registre contrapartida com observação.');
+  return {id,kind,amount,reason,createdAt:new Date().toISOString(),source:'inline-payment-v9591'};
+ });
+}
+function validateNetV9591(total){
+ if(!Number.isFinite(total)||cents(total)<=0)throw Error('O total líquido deve ser maior que R$ 0,00 após os ajustes.');
+ if(cents(total)>100000000)throw Error('O total do pagamento excede o limite permitido.');
+ return total;
+}
+
 function netGroupV9590(rows){
  return Math.round((cents(nominalGroupV9590(rows))+
-  groupApplicationsV9590(rows).reduce((s,x)=>s+cents(signedApplicationV9590(x)),0)))/100;
+  groupApplicationsV9590(rows).reduce((s,x)=>s+cents(signedApplicationV9590(x)),0)+
+   sumDirectCentsV9591(directAdjustmentsV9591(rows))))/100;
 }
 function appliedCorrectionCentsV9590(correctionId){
  const seen=new Set();let sum=0;
@@ -496,8 +558,7 @@ async function markGroupPaid(groupId,date,method,receipt){
   if(condition==='Pago')throw Error('Este lançamento já consta como pago. Não é permitido pagar duas vezes.');
   if(!['Pendente','Revisar'].includes(condition))throw Error('Situação inconsistente; confira o pagamento antes da baixa.');
   if(rows.some(x=>!['pago','pendente'].includes(norm(x.status))))throw Error('Há uma linha em situação desconhecida; não registrar pagamento.');
-  const total=netGroupV9590(allRows);
-  if(total<=0)throw Error('O total após os acertos precisa ser maior que zero. Confira créditos e diferenças.');
+  const total=validateNetV9591(netGroupV9590(allRows));
   const allocations=paidAllocationsV9590(rows,total);
   const alreadyPaid=rows.filter(x=>norm(x.status)==='pago');
   if(alreadyPaid.some(x=>sid(x.paymentDate)!==date||sid(x.paymentMethod)!==method||
@@ -524,6 +585,9 @@ async function markGroupPaid(groupId,date,method,receipt){
    value:total,date,category:'Facções',subcategory:'Pagamento avulso',person:first.factionName,
    status:'Realizado',acceptedMethods:[method],paymentMethod:method,realizedAt:date,
    note:(rows.map(x=>sid(x.description)+' '+Number(x.quantity)+'x').join(', ')+
+     (directAdjustmentsV9591(allRows).length?' · AJUSTES DIRETOS: '+
+      directAdjustmentsV9591(allRows).map(x=>(x.kind==='abater'?'-':'+')+money(x.amount)+
+      ' ('+sid(x.reason)+')').join('; '):'')+
      (groupApplicationsV9590(allRows).length?' · ACERTOS: '+
       groupApplicationsV9590(allRows).map(a=>(a.kind==='a_mais'?'-':'+')+money(a.amount)+
       ' ('+sid(a.reason)+')').join('; '):'')).slice(0,1500),
@@ -613,7 +677,50 @@ function recalc(){
    sum=Number.isFinite(qty)&&Number.isFinite(unit)&&Number.isFinite(discount)&&qty>0&&unit>=discount&&discount>=0?qty*(unit-discount):0;
   total+=sum;row.querySelector('.fm66-total').value=money(sum);
  });
- root.querySelector('#fm66-grand').textContent=money(total);
+ const stored=draft?.editing?directAdjustmentsV9591(groupRows(draft.groupId)):[];
+ const planned=[...root.querySelectorAll('.fm91-adjustment')].map(el=>({
+  kind:el.querySelector('.fm91-kind')?.value,amount:el.querySelector('.fm91-value')?.value||0
+ }));
+ const oldApps=draft?.editing?groupApplicationsV9590(groupRows(draft.groupId)):[];
+ const signedExisting=sumDirectCentsV9591(stored),signedNew=sumDirectCentsV9591(planned);
+ const other=oldApps.reduce((x,item)=>x+cents(signedApplicationV9590(item)),0);
+ const net=(cents(total)+signedExisting+signedNew+other)/100;
+ const subtotal=root.querySelector('#fm91-subtotal'),minus=root.querySelector('#fm91-minus'),
+  plus=root.querySelector('#fm91-plus'),cross=root.querySelector('#fm91-previous'),warning=root.querySelector('#fm91-warning');
+ if(subtotal)subtotal.textContent=money(total);
+ if(minus)minus.textContent='− '+money([...stored,...planned].filter(x=>x.kind==='abater').reduce((t,x)=>t+Number(x.amount||0),0));
+ if(plus)plus.textContent='+ '+money([...stored,...planned].filter(x=>x.kind==='acrescentar').reduce((t,x)=>t+Number(x.amount||0),0));
+ if(cross)cross.textContent=money(other/100);
+ if(warning)warning.textContent=net<=0?'⚠ O total a pagar precisa ser maior que zero. Confira os abatimentos.':'';
+ root.querySelector('#fm66-grand').textContent=money(net);
+}
+function addDirectAdjustmentRowV9591(kind='abater'){
+ const host=document.getElementById('fm91-new-adjustments');if(!host)return;
+ const id=makeId('fm91-ajuste');
+ host.insertAdjacentHTML('beforeend','<div class="fm91-adjustment panel" data-id="'+esc(id)+'" style="padding:10px;margin:8px 0;border:1px solid #ddd;border-radius:8px">'+
+  '<div style="display:flex;justify-content:space-between;align-items:center;gap:6px"><b>Ajuste de valor</b>'+
+  '<button type="button" class="secondary fm91-remove">Remover ajuste não salvo</button></div>'+
+  '<div class="grid" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:8px">'+
+  '<div class="field"><label>Tipo</label><select class="fm91-kind">'+
+  '<option value="abater"'+(kind==='abater'?' selected':'')+'>➖ Abater do pagamento</option>'+
+  '<option value="acrescentar"'+(kind==='acrescentar'?' selected':'')+'>➕ Acrescentar ao pagamento</option>'+
+  '</select></div><div class="field"><label>Valor em R$</label>'+
+  '<input class="fm91-value" type="number" min="0.01" step="0.01" placeholder="0,00"></div></div>'+
+  '<div class="field"><label>Motivo / observação (obrigatório)</label>'+
+  '<textarea class="fm91-reason" rows="2" maxlength="700" placeholder="Ex.: valor adiantado anteriormente, diferença da semana ou pagamento complementar"></textarea></div></div>');
+ const el=host.lastElementChild;
+ el.querySelector('.fm91-remove').addEventListener('click',()=>{el.remove();recalc()});
+ el.querySelectorAll('input,select,textarea').forEach(input=>input.addEventListener('input',recalc));
+ recalc();
+}
+function renderExistingDirectV9591(rows){
+ const host=document.getElementById('fm91-saved-adjustments');if(!host)return;
+ const entries=directAdjustmentsV9591(rows);
+ host.innerHTML=entries.length?'<div class="sub" style="margin:9px 0 4px"><b>Ajustes já salvos (histórico protegido)</b></div>'+
+  entries.map(x=>'<div class="sub" style="border-bottom:1px solid #ddd;padding:5px 0">'+
+   (x.kind==='abater'?'➖ Abatimento ':'➕ Acréscimo ')+
+   '<b>'+money(x.amount)+'</b> · '+esc(x.reason)+' · '+esc(sid(x.createdAt).slice(0,10))+'</div>').join(''):'';
+ recalc();
 }
 function addLine(kind='product',existingRow=null){
  const host=document.getElementById('fm66-lines');if(!host)return;
@@ -756,7 +863,11 @@ function formData(){
  const root=document.getElementById('fm66-root');if(!root)throw Error('Formulário não carregado.');
  const get=id=>root.querySelector('#'+id)?.value||'';
  return {factionName:get('fm66-faction'),serviceMode:get('fm66-mode')||'faccao',date:get('fm66-date'),status:get('fm66-status'),
-  method:get('fm66-method'),note:get('fm66-note'),lines:[...root.querySelectorAll('.fm66-line')].map(lineFromDom)};
+  method:get('fm66-method'),note:get('fm66-note'),lines:[...root.querySelectorAll('.fm66-line')].map(lineFromDom),
+   directAdjustmentsV9591:[...root.querySelectorAll('.fm91-adjustment')].map(el=>({
+    id:sid(el.dataset.id),kind:el.querySelector('.fm91-kind')?.value||'',
+    amount:el.querySelector('.fm91-value')?.value||'',reason:el.querySelector('.fm91-reason')?.value||''
+   }))};
 }
 function receiptSummary(){
  const host=document.getElementById('fm66-pdf-summary'),file=document.getElementById('fm66-pdf')?.files?.[0];if(!host)return;
@@ -780,6 +891,16 @@ function modalHtml(){
   '<button class="secondary" id="fm66-add-service" type="button">+ Outro serviço</button>'+ 
   '<button class="secondary" id="fm66-price-table" type="button">⚙️ Preços embalagem/travetada</button></div></div>'+
   '<div id="fm66-lines"></div><div id="fm90-removed-lines" aria-live="polite"></div>'+
+   '<div id="fm91-direct-panel" class="panel" style="margin:12px 0;padding:12px;border:1px solid #d6b8cb;border-radius:10px">'+
+   '<b>➖ Abater / ➕ Acrescentar valor neste pagamento</b>'+
+   '<p class="sub" style="margin:6px 0">Ajuste manual direto no total do avulso, antes de pagar. Use para adiantamento, desconto, valor faltante ou diferença combinada. Cada ajuste precisa de motivo.</p>'+
+   '<div style="display:flex;gap:6px;flex-wrap:wrap;margin:8px 0">'+
+   '<button class="secondary" id="fm91-add-minus" type="button">➖ Abater valor</button>'+
+   '<button class="secondary" id="fm91-add-plus" type="button">➕ Acrescentar valor</button></div>'+
+   '<div id="fm91-saved-adjustments"></div><div id="fm91-new-adjustments"></div>'+
+   '<div class="sub" style="margin-top:8px">Produtos/serviços: <b id="fm91-subtotal">R$ 0,00</b> · Abatimentos: <b id="fm91-minus">R$ 0,00</b> · Acréscimos: <b id="fm91-plus">R$ 0,00</b></div>'+
+   '<div class="sub">Acertos anteriores já aplicados: <b id="fm91-previous">R$ 0,00</b></div>'+
+   '<div class="sub" id="fm91-warning" role="status"></div></div>'+
   '<div id="fm66-rates-inline" class="panel" style="padding:12px;margin:12px 0;display:none"><b>⚙️ Tabela de serviços</b>'+
   '<p class="sub">Valores aplicados nos próximos lançamentos. A travetada tem uma taxa própria; nenhuma nota antiga será modificada.</p>'+
   '<div class="grid" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:7px">'+
@@ -797,7 +918,7 @@ function openForm(groupId=''){
  if(typeof window.openModal!=='function'&&typeof openModal!=='function')return false;
  const editing=!!sid(groupId),stored=editing?assertGroup(groupId):[];
  if(editing&&groupState(stored)!=='Pendente')throw Error('Apenas lançamentos pendentes podem ter valores editados. Pagamentos já baixados exigem conferência contábil.');
- draft=editing?{groupId:sid(groupId),createdAt:stored[0].createdAt||new Date().toISOString(),receipt:stored.find(x=>x.receiptPdfV9566)?.receiptPdfV9566||null,
+ draft=editing?{groupId:sid(groupId),editing:true,createdAt:stored[0].createdAt||new Date().toISOString(),receipt:stored.find(x=>x.receiptPdfV9566)?.receiptPdfV9566||null,
   removals:[],editAttemptId:makeId('faction-edit')}:
   {groupId:makeId('faction-manual'),createdAt:new Date().toISOString(),receipt:null};
  state.opened++;
@@ -879,6 +1000,8 @@ function openForm(groupId=''){
  });
  document.getElementById('fm66-add-service')?.addEventListener('click',()=>addLine('service'));
  document.getElementById('fm66-pdf')?.addEventListener('change',receiptSummary);
+ document.getElementById('fm91-add-minus')?.addEventListener('click',()=>addDirectAdjustmentRowV9591('abater'));
+ document.getElementById('fm91-add-plus')?.addEventListener('click',()=>addDirectAdjustmentRowV9591('acrescentar'));
  if(editing){
   const first=stored[0],mode=sid(first.serviceModeV9577||'faccao');
   document.getElementById('fm66-mode').value=mode;
@@ -895,6 +1018,7 @@ function openForm(groupId=''){
   document.getElementById('fm66-add-service').style.display=mode==='faccao'?'':'none';
   document.getElementById('fm66-add-embalagem').style.display=packaging?'':'none';
   for(const row of activeGroupRowsV9590(stored))addLine(sid(row.manualKindV9566||'product'),row);
+   renderExistingDirectV9591(stored);
   if(draft.receipt){
    const summary=document.getElementById('fm66-pdf-summary');
    if(summary)summary.textContent='Comprovante existente: '+sid(draft.receipt.name)+'. Será preservado. Não envie outro PDF.';
@@ -925,6 +1049,7 @@ function receiptGroups(){
   group.nominal=Math.round(group.total*100)/100;
   group.applications=groupApplicationsV9590(group.rows);
   group.corrections=groupCorrectionsV9590(group.rows);
+  group.directAdjustments=directAdjustmentsV9591(group.rows);
   group.total=netGroupV9590(group.rows);
   group.adjustmentBalance=group.corrections.reduce((sum,x)=>sum+
    cents(x.kind==='a_mais'?-correctionRemainingV9590(x):correctionRemainingV9590(x)),0)/100;
@@ -947,7 +1072,7 @@ function pdfEncode1252V9590(str){
  return out;
 }
 function pdfEscapeV9590(value){
- return pdfEncode1252V9590(value).replace(/[\\()]/g,'\\function openPayModal(groupId){');
+ return pdfEncode1252V9590(value).replace(/[\\()]/g,c=>'\\'+c);
 }
 function pdfWrapV9590(value,max=93){
  const result=[];
@@ -982,6 +1107,8 @@ function summaryLinesV9590(groupId){
   'VALORES',
   'Soma dos servicos ativos: '+f(original),
   'Compensacoes recebidas: '+apps.map(x=>(x.kind==='a_mais'?'-':'+')+f(x.amount)).join(' / ').slice(0,160),
+  'Ajustes diretos (abatimentos/acrescimos): '+
+   directAdjustmentsV9591(all).map(x=>(x.kind==='abater'?'-':'+')+f(x.amount)).join(' / ').slice(0,160),
   'Total liquido previsto deste pagamento: '+f(net),
   'Valor marcado como pago nas linhas: '+f(paid),
   'Saldo deste pagamento: '+f(net-paid),
@@ -1005,6 +1132,14 @@ function summaryLinesV9590(groupId){
  for(const x of canceled){
   out.push('CANCELADA: '+v(x.description)+' | '+(Number(x.quantity)||0)+' pecas | Valor original: '+f(x.value));
   out.push('  Motivo: '+v(x.manualCanceledReasonV9590)+' | Data: '+v(x.manualCanceledAtV9590));
+ }
+ out.push('AJUSTES DIRETOS NESTE PAGAMENTO');
+ const inline=directAdjustmentsV9591(all);
+ if(!inline.length)out.push('Nenhum abatimento/acrescimo direto registrado.');
+ for(const adj of inline){
+  out.push((adj.kind==='abater'?'ABATIMENTO':'ACRESCIMO')+' '+f(adj.amount)+
+   ' | Identificacao: '+v(adj.id)+' | Data: '+v(adj.createdAt));
+  out.push('  Motivo / observacao: '+v(adj.reason));
  }
  out.push('ACERTOS POR PAGAMENTO A MAIS / A MENOS');
  if(!corrections.length)out.push('Nenhuma diferenca registrada neste pagamento.');
@@ -1099,7 +1234,10 @@ function openPayModal(groupId){
  if(!open)throw Error('Janela de pagamento indisponível.');
  const html='<div id="fm88-pay-modal" class="panel" style="padding:12px">'+
   '<p><b>'+esc(group.factionName)+'</b> · '+group.items+' serviço(s) · <b>'+money(total)+'</b></p>'+
-  '<p class="sub">A baixa gera uma única saída no Hub Financeiro para este grupo. É necessário confirmar a data real e o método. Nenhum pagamento será registrado automaticamente.</p>'+
+  '<p class="sub">A baixa registra o total já ajustado no Hub Financeiro. Para abater ou acrescentar agora, use o botão abaixo antes de confirmar. Nenhuma alteração será feita automaticamente.</p>'+
+   '<p class="sub">Serviços: '+money(group.nominal)+' · Ajustes diretos: '+money(sumDirectCentsV9591(group.directAdjustments||[])/100)+
+   ' · Total líquido: <b>'+money(total)+'</b></p>'+
+   '<button type="button" class="secondary" id="fm91-pay-adjust">➖ Abater / ➕ Acrescentar antes de pagar</button>'+
   (status==='Revisar'?'<p style="color:#934">⚠ Algumas linhas possuem situação divergente. Confirme os dados da baixa anterior antes de continuar.</p>':'')+
   '<div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:8px">'+
   '<div class="field"><label>Data em que foi pago</label><input type="date" id="fm88-paid-date" value="'+esc(suggestedDate)+'"></div>'+
@@ -1124,6 +1262,10 @@ function openPayModal(groupId){
    if(btn){btn.disabled=false;btn.textContent='✅ Confirmar como pago'}
    return false;
   }
+ });
+ document.getElementById('fm91-pay-adjust')?.addEventListener('click',()=>{
+  openForm(groupId);
+  document.getElementById('fm91-direct-panel')?.scrollIntoView?.({block:'center'});
  });
  return true;
 }
@@ -1209,6 +1351,7 @@ function renderReceipts(){
   paid=groups.filter(g=>g.status==='Pago'),review=groups.filter(g=>g.status==='Revisar');
  const signature=JSON.stringify(groups.map(g=>[g.id,g.factionName,g.date,g.status,g.total,g.items,g.updatedAt,
   g.corrections?.map(x=>[x.id,x.amount,x.kind,x.reason,correctionRemainingV9590(x)]),g.applications?.map(x=>[x.id,x.amount]),
+  g.directAdjustments?.map(x=>[x.id,x.kind,x.amount,x.reason]),
   g.receipt?.name||'',g.receipt?.size||0]));
  // Preserve file selection and focused filters when periodic refresh has not changed data.
  if(host.dataset.fm66Signature===signature)return true;
@@ -1257,6 +1400,7 @@ function renderReceipts(){
      '<button type="button" class="secondary fm66-attach" data-group-id="'+esc(g.id)+'">☁️ Salvar PDF</button></div>';
     const actions=g.status==='Pendente'?
      '<div style="display:flex;gap:6px;flex-wrap:wrap"><button type="button" class="secondary fm88-edit" data-group-id="'+esc(g.id)+'">✏️ Editar</button>'+
+     '<button type="button" class="secondary fm91-quick-adjust" data-group-id="'+esc(g.id)+'">➖ Abater / ➕ Acrescentar</button>'+
      '<button type="button" class="primary fm88-pay" data-group-id="'+esc(g.id)+'">✅ Marcar pago</button></div>':
      g.status==='Pago'?'<button type="button" class="secondary fm90-correct" data-group-id="'+esc(g.id)+'">⚖️ Acerto a mais / a menos</button>':
      g.status==='Cancelado'?'<span class="sub">Cancelado · histórico preservado</span>':
@@ -1265,6 +1409,7 @@ function renderReceipts(){
      '<td><b>'+esc(g.factionName)+'</b><div class="sub">'+esc(g.serviceMode==='embalagem'?'Embalagem':g.serviceMode==='travetada'?'Travetada':'Facção / Costura')+'</div></td>'+
      '<td>'+esc(g.date||'Sem data')+'</td><td><b>'+esc(g.status)+'</b></td>'+
      '<td><b>'+money(g.total)+'</b>'+
+     (g.directAdjustments?.length?'<div class="sub">Ajustes diretos: '+money(sumDirectCentsV9591(g.directAdjustments)/100)+'</div>':'')+
      (g.applications?.length?'<div class="sub">Serviços: '+money(g.nominal)+'<br>Acertos: '+
        money(g.total-g.nominal)+'</div>':'')+
      (g.adjustmentBalance?'<div class="sub">'+(g.adjustmentBalance<0?'Crédito a abater: ':'Diferença a pagar: ')+
@@ -1286,6 +1431,10 @@ function renderReceipts(){
  const feedback=()=>host.querySelector('#fm66-receipt-feedback');
  host.querySelectorAll('.fm88-edit').forEach(b=>b.addEventListener('click',()=>{
   try{openForm(b.dataset.groupId)}catch(e){const x=feedback();if(x)x.textContent='⚠ '+sid(e.message||e)}
+ }));
+ host.querySelectorAll('.fm91-quick-adjust').forEach(b=>b.addEventListener('click',()=>{
+  try{openForm(b.dataset.groupId);document.getElementById('fm91-direct-panel')?.scrollIntoView?.({block:'center'})}
+  catch(e){const x=feedback();if(x)x.textContent='⚠ '+sid(e.message||e)}
  }));
  host.querySelectorAll('.fm88-pay').forEach(b=>b.addEventListener('click',()=>{
   try{openPayModal(b.dataset.groupId)}catch(e){const x=feedback();if(x)x.textContent='⚠ '+sid(e.message||e)}
@@ -1333,7 +1482,7 @@ document.addEventListener('click',e=>{
 window.hlgbFactionManual9566={version:V,openForm,searchFactions,searchProducts,factionDirectory,productDirectory,
  productPrice,validate,grandTotal,readReceipt,pdfIsValid,persistDraft,receiptGroups,groupRows,groupState,saveGroupEdits,markGroupPaid,openPayModal,remoteRecord,attachReceiptToGroup,renderReceipts,download:pdfDownload,install,
  registerCorrectionV9590,applyCorrectionV9590,matchingPendingGroupsV9590,groupCorrectionsV9590,groupApplicationsV9590,
- correctionRemainingV9590,netGroupV9590,buildSummaryPdfV9590,summaryLinesV9590,downloadSummaryPdfV9590,
+ correctionRemainingV9590,netGroupV9590,directAdjustmentsV9591,validateDirectInputV9591,buildSummaryPdfV9590,summaryLinesV9590,downloadSummaryPdfV9590,
  status:()=>({...state}),maxPdfBytes:MAX_PDF};
 install();
 [500,1700,3800].forEach(ms=>setTimeout(install,ms));
