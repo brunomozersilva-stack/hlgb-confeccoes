@@ -1135,6 +1135,66 @@ async function attachReceiptToGroup(groupId,file){
  renderReceipts();
  return receipt;
 }
+
+function openCorrectionModalV9590(groupId){
+ const group=receiptGroups().find(g=>g.id===sid(groupId));
+ if(!group||group.status!=='Pago')throw Error('Acertos são registrados em pagamentos marcados como Pago.');
+ const open=window.openModal||((typeof openModal==='function')?openModal:null);
+ if(!open)throw Error('Janela de acerto indisponível.');
+ const attempt=makeId('fm90-acerto'),html='<div id="fm90-correction" class="panel" style="padding:12px">'+
+  '<p><b>'+esc(group.factionName)+'</b> · Pagamento original '+money(group.nominal)+'</p>'+
+  '<p class="sub">Um acerto não altera o pagamento realizado nem cria automaticamente uma transferência. O crédito ou diferença fica em aberto para compensar em outro pagamento pendente da mesma pessoa.</p>'+
+  '<div class="field"><label>Qual foi o erro?</label><select id="fm90-kind">'+
+  '<option value="a_mais">Paguei a mais — desconto no próximo pagamento</option>'+
+  '<option value="a_menos">Paguei a menos — acrescentar ao próximo pagamento</option></select></div>'+
+  '<div class="field"><label>Diferença em reais (R$)</label><input id="fm90-amount" type="number" step="0.01" min="0.01"></div>'+
+  '<div class="field"><label>Motivo / observação obrigatória</label><textarea id="fm90-reason" rows="3" maxlength="700" placeholder="Ex.: transferi R$ 20,00 a mais no Pix de 12/11"></textarea></div>'+
+  '<div id="fm90-feedback" role="status" class="sub"></div>'+
+  '<button class="primary modalSave" type="button">☁️ Registrar acerto na nuvem</button></div>';
+ open('Corrigir diferença de pagamento',html,async()=>{
+  const host=document.getElementById('fm90-correction'),btn=host?.querySelector('.modalSave'),
+   feedback=host?.querySelector('#fm90-feedback');
+  if(btn)btn.disabled=true;if(feedback)feedback.textContent='Conferindo pagamento original e registrando diferença…';
+  try{
+   await registerCorrectionV9590(groupId,host.querySelector('#fm90-kind')?.value,
+    host.querySelector('#fm90-amount')?.value,host.querySelector('#fm90-reason')?.value,attempt);
+   window.closeModal?.();renderReceipts();return true;
+  }catch(e){if(feedback)feedback.textContent='⚠ '+sid(e.message||e);if(btn)btn.disabled=false;return false}
+ });
+ return true;
+}
+function openApplyCorrectionModalV9590(groupId,correctionId){
+ const group=receiptGroups().find(g=>g.id===sid(groupId)),event=groupCorrectionsV9590(group?.rows||[]).find(x=>sid(x.id)===sid(correctionId));
+ if(!event)throw Error('Acerto não encontrado.');
+ const available=correctionRemainingV9590(event);
+ if(available<=0)throw Error('Este acerto já foi integralmente compensado.');
+ const targets=matchingPendingGroupsV9590(groupId);
+ if(!targets.length)throw Error('Não existe pagamento pendente da mesma pessoa. O crédito/diferença ficará em aberto para compensar depois.');
+ const open=window.openModal||((typeof openModal==='function')?openModal:null);
+ if(!open)throw Error('Janela de compensação indisponível.');
+ const choices=targets.map(g=>'<option value="'+esc(g.id)+'">'+esc(g.date||'Sem data')+' · '+
+  esc(g.factionName)+' · A pagar '+money(g.total)+'</option>').join('');
+ const html='<div id="fm90-apply" class="panel" style="padding:12px">'+
+  '<p><b>'+esc(event.kind==='a_mais'?'Abater crédito pago a mais':'Acrescentar diferença paga a menos')+'</b></p>'+
+  '<p>Saldo em aberto: <b>'+money(available)+'</b></p>'+
+  '<div class="field"><label>Pagamento pendente da mesma pessoa</label><select id="fm90-target">'+choices+'</select></div>'+
+  '<div class="field"><label>Quanto deseja compensar (R$)</label><input type="number" step="0.01" min="0.01" id="fm90-apply-amount" value="'+available.toFixed(2)+'"></div>'+
+  '<p class="sub">Você pode aplicar parte do valor. O restante continuará em aberto. Se for desconto, o valor a pagar não pode ficar negativo.</p>'+
+  '<div id="fm90-apply-feedback" role="status" class="sub"></div>'+
+  '<button class="primary modalSave" type="button">☁️ Confirmar compensação</button></div>';
+ open('Compensar acerto em pagamento pendente',html,async()=>{
+  const host=document.getElementById('fm90-apply'),btn=host?.querySelector('.modalSave'),
+   feedback=host?.querySelector('#fm90-apply-feedback');
+  if(btn)btn.disabled=true;if(feedback)feedback.textContent='Confirmando a compensação na nuvem…';
+  try{
+   await applyCorrectionV9590(groupId,correctionId,host.querySelector('#fm90-target')?.value,
+    host.querySelector('#fm90-apply-amount')?.value);
+   window.closeModal?.();renderReceipts();return true;
+  }catch(e){if(feedback)feedback.textContent='⚠ '+sid(e.message||e);if(btn)btn.disabled=false;return false}
+ });
+ return true;
+}
+
 function renderReceipts(){
  const anchor=document.getElementById('factionPaymentTable');if(!anchor)return false;
  let host=document.getElementById('fm66-receipts');
