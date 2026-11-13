@@ -9,6 +9,7 @@ on:
       - 'release-faction-manual-payment-v9566.js'
       - 'tests/notes-receivables-v9564*'
       - 'tests/acerto-returns-v9565.cjs'
+      - 'tests/acerto-edit-history-v9572.cjs'
       - 'tests/faction-manual-v9566*'
       - '.github/workflows/notes-receivables-v9564.yml'
   push:
@@ -20,6 +21,7 @@ on:
       - 'release-faction-manual-payment-v9566.js'
       - 'tests/notes-receivables-v9564*'
       - 'tests/acerto-returns-v9565.cjs'
+      - 'tests/acerto-edit-history-v9572.cjs'
       - 'tests/faction-manual-v9566*'
       - '.github/workflows/notes-receivables-v9564.yml'
 permissions:
@@ -38,6 +40,8 @@ jobs:
       - run: node --test tests/notes-receivables-v9564.cjs
       - run: node --check release-acerto-returns-v9565.js
       - run: node tests/acerto-returns-v9565.cjs
+      - run: node --check tests/acerto-edit-history-v9572.cjs
+      - run: node tests/acerto-edit-history-v9572.cjs
       - run: node --check release-faction-manual-payment-v9566.js
       - run: node --check tests/faction-manual-v9566.cjs
       - run: node tests/faction-manual-v9566.cjs
