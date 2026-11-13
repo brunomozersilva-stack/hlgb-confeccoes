@@ -70,7 +70,7 @@ const edit={serviceMode:'faccao',factionName:'Roseli',status:'Pendente',
  await assert.rejects(()=>api.markGroupPaid('group-edit','2026-11-13','Pix',null),/Outra sessão/);
  assert.equal(db.hubFinanceEntries.length,0);
  stale.updatedAt=db.factionPayments.find(x=>x.id==='A-2').updatedAt;
- await assert.rejects(()=>api.markGroupPaid('group-edit','2026-11-14','Pix',null),/data real/,'future date blocked if current day 13');
+ await assert.rejects(()=>api.markGroupPaid('group-edit','2999-11-14','Pix',null),/data real/,'future date blocked if current day 13');
  const paid=await api.markGroupPaid('group-edit','2026-11-13','Pix',null);
  assert.equal(paid.total,73);assert.equal(paid.hubConfirmed,true);
  assert.equal(db.hubFinanceEntries.length,1,'one Hub entry per group');
