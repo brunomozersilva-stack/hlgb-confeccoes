@@ -51,7 +51,7 @@ function timeline(productId,options={}){
   add(asEvent('pedido','orders',o,o.date||o.createdAt,'Pedido registrado',{
    client:sid(o.client||''),quantity:qty,orderNumber:sid(o.orderNumber||o.number||o.id),
    grade:items.map(x=>[x.color,x.size,num(x.qty||x.quantity)].filter(Boolean).join(' / ')).join(' · ')
-  }));
+  },sid(o.id)));
  }
  for(const c of arr('cuts').filter(x=>recordProductId(x)===pid&&!x.hiddenByModelSplitV1)){
   const cutter=one('cutters',c.cutterId),grade=gradeFor(c);
