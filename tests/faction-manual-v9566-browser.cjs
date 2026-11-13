@@ -289,6 +289,7 @@ const engine=process.env.HLGB_BROWSER==='webkit'?webkit:chromium;
   assert.equal(sourceAfter.events.length,1);
   assert.equal(sourceAfter.events[0].amount,4);
   assert.equal(sourceAfter.hub,previousHub,'original paid Hub entry is not rewritten');
+  await sourceRow.locator('summary').click();
   await sourceRow.locator('.fm90-apply').click();
   await page.locator('#fm90-apply').waitFor({state:'visible'});
   await page.locator('#fm90-target').selectOption(pendingGroup);
