@@ -18,7 +18,7 @@ const {webkit}=require('playwright');
    const app=document.getElementById('appShell');if(app)app.style.setProperty('display','block','important');
  });
  try{
-  await page.waitForFunction(()=>!!window.hlgbInternalAuditor&&!!window.hlgbAuditorProduction9369?.active&&!!document.getElementById('hlgbAuditorNavBtn'),null,{timeout:60000});
+  await page.waitForFunction(()=>!!window.hlgbInternalAuditor&&!!document.getElementById('hlgbAuditorNavBtn'),null,{timeout:60000});
  }catch(e){
   const diag=await page.evaluate(()=>({
    authReady:window.__HLGB_AUTH_READY===true,
@@ -32,6 +32,16 @@ const {webkit}=require('playwright');
   }));
   throw new Error('Auditor boot WebKit não concluiu pós-login: '+JSON.stringify(diag)+' · '+e.message+' · pageerrors='+errors.slice(-6).join(' | '));
  }
+ // v95.85: a análise de boot é somente leitura. O Auditor legado de Produção
+ // tem teste próprio (tests/production-v9372-webkit.js) e não pode bloquear
+ // indevidamente este teste. Sua falha de ativação permanece visível no log.
+ const productionState=await page.evaluate(()=>({
+  active:window.hlgbAuditorProduction9369?.active===true,
+  error:String(window.hlgbAuditorProduction9369?.error||''),
+  loading:window.HLGB_AUDITOR_PRODUCTION_9369_LOADING===true,
+  scriptPresent:[...document.querySelectorAll('script[src]')].some(s=>/release-auditor-production-v9369\\.js/.test(s.src))
+ }));
+ if(!productionState.active)console.warn('AUDITOR_LEGACY_PRODUCTION_NONBLOCKING_DIAGNOSTIC',JSON.stringify(productionState));
  /* A autoridade de gravação v93.06 é instalada de forma tardia após login.
     Espere esse estado antes de medir se o painel de boot altera funções críticas. */
  await page.waitForFunction(()=>{
