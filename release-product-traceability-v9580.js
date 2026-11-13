@@ -10,7 +10,8 @@ const sid=x=>String(x??''),num=x=>Math.max(0,Number(x)||0),stamp=()=>new Date().
 const esc=x=>sid(x).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;','\'':'&#39;'}[c]));
 const money=x=>Number(x||0).toLocaleString('pt-BR',{style:'currency',currency:'BRL'});
 const clone=x=>JSON.parse(JSON.stringify(x));
-const arr=k=>{try{const db=typeof window.db==='object'?window.db:{};return Array.isArray(db?.[k])?db[k]:[]}catch(_){return []}};
+const database=()=>{try{return typeof db!=='undefined'&&db&&typeof db==='object'?db:(window.db||{})}catch(_){return window.db||{}}};
+const arr=k=>{try{const model=database();return Array.isArray(model?.[k])?model[k]:[]}catch(_){return []}};
 const one=(module,id)=>arr(module).find(x=>sid(x?.id)===sid(id))||null;
 const auth=()=>window.__HLGB_AUTH_READY===true;
 const LIMIT=1000;
@@ -160,7 +161,7 @@ async function mutate(pid,task){
   const events=(verified.productChecklistsV9580||[]).flatMap(r=>[...(r.events||[]),...(r.id===event.id?[{id:r.id}]:[])]);
   if(!events.some(x=>sid(x.id)===sid(event.id)))
    throw Error('O evento do checklist não apareceu na releitura remota. Confira antes de reenviar.');
-  const db=window.db||{},products=Array.isArray(db.products)?db.products:[];
+  const current=database(),products=Array.isArray(current.products)?current.products:[];
   const idx=products.findIndex(x=>sid(x?.id)===pid);if(idx>=0)products[idx]=verified;
   try{window.localSaveOnly?.()}catch(_){}
   state.lastSave=stamp();return {ok:true,event,product:verified};
