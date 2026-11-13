@@ -617,6 +617,10 @@ function openPayModal(groupId){
  const rows=assertGroup(groupId),status=groupState(rows);
  if(status==='Pago')throw Error('Este lançamento já está pago.');
  const total=grandTotal(rows.map(x=>({value:Number(x.value)||0})));
+ const priorHub=arr('hubFinanceEntries').find(x=>sid(x?.sourceId)===sid(groupId))||null;
+ const paidLine=rows.find(x=>norm(x.status)==='pago')||null;
+ const suggestedDate=paidLine?.paymentDate||priorHub?.date||stamp();
+ const suggestedMethod=paidLine?.paymentMethod||priorHub?.paymentMethod||rows[0]?.paymentMethod||'';
  const group=receiptGroups().find(x=>x.id===sid(groupId));
  if(!group)throw Error('Pagamento avulso não encontrado.');
  const open=window.openModal||((typeof openModal==='function')?openModal:null);
@@ -626,8 +630,8 @@ function openPayModal(groupId){
   '<p class="sub">A baixa gera uma única saída no Hub Financeiro para este grupo. É necessário confirmar a data real e o método. Nenhum pagamento será registrado automaticamente.</p>'+
   (status==='Revisar'?'<p style="color:#934">⚠ Algumas linhas possuem situação divergente. Confirme os dados da baixa anterior antes de continuar.</p>':'')+
   '<div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:8px">'+
-  '<div class="field"><label>Data em que foi pago</label><input type="date" id="fm88-paid-date" value="'+stamp()+'"></div>'+
-  '<div class="field"><label>Forma de pagamento</label><input id="fm88-paid-method" placeholder="Pix, dinheiro, transferência" value="'+esc(rows[0]?.paymentMethod||'')+'"></div></div>'+
+  '<div class="field"><label>Data em que foi pago</label><input type="date" id="fm88-paid-date" value="'+esc(suggestedDate)+'"></div>'+
+  '<div class="field"><label>Forma de pagamento</label><input id="fm88-paid-method" placeholder="Pix, dinheiro, transferência" value="'+esc(suggestedMethod)+'"></div></div>'+
   (group.receipt?'<p class="sub">PDF existente: '+esc(group.receipt.name)+' — será preservado.</p>':
    '<div class="field"><label>Comprovante PDF (opcional, máximo 750 KB)</label><input type="file" id="fm88-paid-pdf" accept=".pdf,application/pdf"></div>')+
   '<div id="fm88-paid-feedback" role="status" class="sub"></div>'+
@@ -705,7 +709,7 @@ function renderReceipts(){
      '<div style="display:flex;gap:6px;flex-wrap:wrap"><button type="button" class="secondary fm88-edit" data-group-id="'+esc(g.id)+'">✏️ Editar</button>'+
      '<button type="button" class="primary fm88-pay" data-group-id="'+esc(g.id)+'">✅ Marcar pago</button></div>':
      g.status==='Pago'?'<span class="sub">Pago · valores protegidos</span>':
-     '<span class="sub" style="color:#934">⚠ Baixa parcial: conferir</span>';
+     '<button type="button" class="secondary fm88-pay" data-group-id="'+esc(g.id)+'" title="Somente concluir uma baixa previamente iniciada após conferir o financeiro">⚠ Revisar / concluir baixa</button>';
     return '<tr data-fm88-row="1" data-status="'+esc(g.status)+'" data-search="'+esc(norm(g.factionName+' '+descriptions+' '+g.serviceMode))+'">'+
      '<td><b>'+esc(g.factionName)+'</b><div class="sub">'+esc(g.serviceMode==='embalagem'?'Embalagem':'Facção / Costura')+'</div></td>'+
      '<td>'+esc(g.date||'Sem data')+'</td><td><b>'+esc(g.status)+'</b></td><td><b>'+money(g.total)+'</b></td>'+
