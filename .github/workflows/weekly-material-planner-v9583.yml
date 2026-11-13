@@ -1,0 +1,29 @@
+name: HLGB Planejamento Semanal de Materiais v95.83
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'app-stable3.html'
+      - 'release-weekly-material-planner-v9583.js'
+      - 'tests/weekly-material-planner-v9583.cjs'
+      - '.github/workflows/weekly-material-planner-v9583.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'app-stable3.html'
+      - 'release-weekly-material-planner-v9583.js'
+      - 'tests/weekly-material-planner-v9583.cjs'
+      - '.github/workflows/weekly-material-planner-v9583.yml'
+permissions: {contents: read}
+jobs:
+  weekly-materials:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - run: node --check release-weekly-material-planner-v9583.js
+      - run: node --check tests/weekly-material-planner-v9583.cjs
+      - run: node tests/weekly-material-planner-v9583.cjs
+      - run: node tests/cutter-sheet-materials-v9523.cjs
