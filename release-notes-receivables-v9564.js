@@ -204,6 +204,7 @@ function ensure(){
   if(action==='view'&&type==='order')window.viewOrderDetails?.(id);
   if(action==='pdf'&&type==='projection')window.hlgbDownloadNotePdf9411?.(id);
   if(action==='pay'&&type==='projection')window.openProjectionAcerto9214?.(id);
+  if(action==='edit'&&type==='projection')window.openProjectionAcerto9214?.(id);
   if(action==='pay'&&type==='order')window.openAcerto?.(id);
  });
  return root;
@@ -267,7 +268,7 @@ function paint(){
  shown.map(n=>{const badge=label(n,now),partial=n.balance>1&&n.paid>0?' · Parcial':'';
  const actions=actionButton('view',n,n.type==='order'?'Ver pedido':'Ver')+
  (n.type==='projection'&&typeof window.hlgbDownloadNotePdf9411==='function'?actionButton('pdf',n,'PDF'):'')+
- ((n.type==='order'?n.balance>1&&typeof window.openAcerto==='function':typeof window.openProjectionAcerto9214==='function')?actionButton('pay',n,n.balance>1?'Acerto':'Abrir / editar'):'');
+ (n.type==='order'?(n.balance>1&&typeof window.openAcerto==='function'?actionButton('pay',n,'Acerto'):''):(typeof window.openProjectionAcerto9214==='function'?actionButton(n.balance>1?'pay':'edit',n,n.balance>1?'Acerto':'Abrir / editar'):''));
  return '<tr><td><b>#'+esc(n.number)+'</b><div class="sub">'+esc(n.source)+'</div></td><td>'+esc(n.client)+'</td><td>'+esc(n.issued?dateFmt(n.issued):'-')+'</td>'+
  '<td>'+esc(dateFmt(n.due))+'</td><td class="nr-money">'+brl(n.total)+'</td><td class="nr-money">'+brl(n.paid)+'</td><td class="nr-money">'+brl(n.credit)+'</td><td class="nr-money">'+brl(n.balance)+'</td>'+
  '<td><span class="badge '+badge[1]+'">'+esc(badge[0]+partial)+'</span>'+(n.mismatch?'<div style="color:#a66300">⚠ Conferir saldo</div>':'')+'</td><td><div class="nr-actions">'+actions+'</div></td></tr>';
