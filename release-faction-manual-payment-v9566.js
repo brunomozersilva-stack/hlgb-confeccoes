@@ -270,7 +270,9 @@ async function saveGroupEdits(groupId,input,receipt,removalReasons=[]){
   if(parsed.lines.length===0&&groupApplicationsV9590(rows).length)
    throw Error('Este pagamento já recebeu um acerto de outro grupo. Não cancele todas as linhas sem conciliar o acerto.');
   const appliedDelta=groupApplicationsV9590(rows).reduce((sum,x)=>sum+cents(signedApplicationV9590(x)),0);
-  if(parsed.lines.length&&cents(parsed.total)+appliedDelta<=0)
+  if(parsed.lines.length&&cents(parsed.total)+appliedDelta+
+     sumDirectCentsV9591(directAdjustmentsV9591(rows))+
+     sumDirectCentsV9591(validateDirectInputV9591(input.directAdjustmentsV9591||[],directAdjustmentsV9591(rows)))<=0)
    throw Error('O crédito a compensar é maior ou igual ao valor restante. Corrija o acerto antes de reduzir os produtos.');
   for(const x of parsed.lines){
    const any=arr('factionPayments').find(y=>sid(y.id)===sid(x.id));
@@ -279,8 +281,9 @@ async function saveGroupEdits(groupId,input,receipt,removalReasons=[]){
   }
   if(receipt&&rows.some(x=>x.receiptPdfV9566?.base64))
    throw Error('Já existe PDF no lançamento. O comprovante anterior não será sobrescrito.');
+  const newAdjustments=validateDirectInputV9591(input.directAdjustmentsV9591||[],directAdjustmentsV9591(rows));
   const oldHub=await preflightGroup(groupId,rows);
-  if(oldHub)throw Error('O Hub já possui uma saída deste grupo. Só é permitido remover produtos de pagamentos ainda pendentes.');
+  if(oldHub)throw Error('O Hub já possui uma saída deste grupo. Só é permitido alterar pagamentos ainda pendentes.');
   const ts=new Date().toISOString(),existingById=new Map(rows.map(x=>[sid(x.id),x]));
   const editId=draft?.editAttemptId||makeId('faction-edit');
   if(draft)draft.editAttemptId=editId;
@@ -324,7 +327,19 @@ async function saveGroupEdits(groupId,input,receipt,removalReasons=[]){
    if(!remotelySame(next,remote)||!isCanceledV9590(remote)||sid(remote.manualCanceledReasonV9590)!==reason)
     throw Error('Cancelamento da linha '+sid(old.id)+' não confirmado na nuvem.');
   }
-  const result={groupId,total:parsed.total,lines:saved,canceled,edited:true};
+  if(newAdjustments.length){
+   const stableId=sid(rows[0]?.id);
+   await assertRecordNotPending('factionPayments',stableId);
+   const base=arr('factionPayments').find(x=>sid(x.id)===stableId);
+   if(!base)throw Error('Registro principal não encontrado para armazenar ajustes.');
+   const current=directAdjustmentsV9591(groupRows(groupId));
+   const next={...base,manualDirectAdjustmentsV9591:[...current,...newAdjustments],updatedAt:new Date().toISOString()};
+   await saveRecord('factionPayments',next);saved++;
+   const check=await remoteRecord('factionPayments',stableId);
+   if(!remotelySame(next,check)||!newAdjustments.every(x=>directAdjustmentsV9591([check]).some(y=>sid(y.id)===sid(x.id))))
+    throw Error('O ajuste não foi confirmado na nuvem. Confira antes de tentar novamente.');
+  }
+  const result={groupId,total:netGroupV9590(groupRows(groupId)),lines:saved,canceled,adjustments:newAdjustments.length,edited:true};
   state.lastResult=result;renderReceipts();return result;
  }catch(e){
   state.lastError=(saved||canceled?'Edição parcialmente confirmada ('+saved+' linha(s) e '+canceled+' cancelamento(s)). Confira antes de tentar novamente. ':'')+sid(e.message||e);
@@ -352,9 +367,43 @@ function signedCorrectionV9590(c){return c.kind==='a_mais'?-Math.abs(Number(c.am
 function nominalGroupV9590(rows){
  return Math.round(activeGroupRowsV9590(rows).reduce((s,r)=>s+cents(r.value),0))/100;
 }
+/* v95.91: ajustes diretos na cobrança avulsa antes de pagar.
+ * Cada evento mantém ID, valor, tipo e observação. Não é um estorno
+ * retroativo do Hub nem um acerto de transferência já realizada. */
+function directAdjustmentsV9591(rows){
+ const map=new Map();
+ for(const row of rows)for(const item of Array.isArray(row?.manualDirectAdjustmentsV9591)?row.manualDirectAdjustmentsV9591:[])
+  if(item?.id&&!map.has(sid(item.id)))map.set(sid(item.id),item);
+ return [...map.values()];
+}
+function signedDirectV9591(item){return item.kind==='abater'?-Math.abs(Number(item.amount)||0):Math.abs(Number(item.amount)||0)}
+function sumDirectCentsV9591(items){return items.reduce((s,x)=>s+cents(signedDirectV9591(x)),0)}
+function validateDirectInputV9591(items,previous=[]){
+ if(!Array.isArray(items))throw Error('Ajustes do pagamento inválidos.');
+ if(items.length>25)throw Error('No máximo 25 ajustes por edição.');
+ const old=new Map(previous.map(x=>[sid(x.id),x])),seen=new Set();
+ return items.map((x,i)=>{
+  const id=sid(x.id),kind=sid(x.kind),reason=sid(x.reason).trim(),
+   amount=cents(number(x.amount))/100;
+  if(!id||seen.has(id))throw Error('Identificador duplicado no ajuste '+(i+1)+'.');
+  seen.add(id);
+  if(!['abater','acrescentar'].includes(kind))throw Error('Escolha Abater ou Acrescentar no ajuste '+(i+1)+'.');
+  if(!Number.isFinite(amount)||amount<=0||amount>1000000)throw Error('Informe valor maior que zero no ajuste '+(i+1)+'.');
+  if(reason.length<5||reason.length>700)throw Error('Informe motivo obrigatório (5 a 700 caracteres) no ajuste '+(i+1)+'.');
+  if(old.has(id))throw Error('Ajuste já salvo. Para corrigir, registre contrapartida com observação.');
+  return {id,kind,amount,reason,createdAt:new Date().toISOString(),source:'inline-payment-v9591'};
+ });
+}
+function validateNetV9591(total){
+ if(!Number.isFinite(total)||cents(total)<=0)throw Error('O total líquido deve ser maior que R$ 0,00 após os ajustes.');
+ if(cents(total)>100000000)throw Error('O total do pagamento excede o limite permitido.');
+ return total;
+}
+
 function netGroupV9590(rows){
  return Math.round((cents(nominalGroupV9590(rows))+
-  groupApplicationsV9590(rows).reduce((s,x)=>s+cents(signedApplicationV9590(x)),0)))/100;
+  groupApplicationsV9590(rows).reduce((s,x)=>s+cents(signedApplicationV9590(x)),0)+
+   sumDirectCentsV9591(directAdjustmentsV9591(rows))))/100;
 }
 function appliedCorrectionCentsV9590(correctionId){
  const seen=new Set();let sum=0;
