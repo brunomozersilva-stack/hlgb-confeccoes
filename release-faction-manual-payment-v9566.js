@@ -177,6 +177,173 @@ async function persistDraft(input,receipt){
  }catch(e){state.lastError=(saved?'Foram confirmadas '+saved+' linha(s). Reabra o salvamento neste formulário para concluir sem duplicar. ':'')+sid(e?.message||e);throw Error(state.lastError)}
  finally{state.status=STATUS.idle}
 }
+
+/* v95.88 — administração de pagamentos avulsos já registrados.
+ * As linhas e seus IDs são preservados. Na baixa, primeiro confirma o Hub
+ * Financeiro (ID determinístico), depois cada linha, com readback remoto.
+ * Nenhuma ação é disparada pela renderização ou por mudanças de filtros. */
+async function remoteRecord(module,id){
+ if(window.__HLGB_AUTH_READY!==true)throw Error('É necessário estar autenticado para conferir o pagamento na nuvem.');
+ if(typeof window.cloudRequest!=='function')throw Error('Consulta autenticada da nuvem indisponível. Nenhuma alteração foi realizada.');
+ const path='hlgb_records?select=entity_id,data,deleted_at&module=eq.'+encodeURIComponent(module)+'&entity_id=eq.'+encodeURIComponent(sid(id))+'&limit=1';
+ const rows=await window.cloudRequest(path,{method:'GET'});
+ if(!Array.isArray(rows))throw Error('A nuvem não confirmou o registro '+module+'.');
+ return rows[0]&&!rows[0].deleted_at?rows[0].data||null:null;
+}
+const cents=v=>Math.round((Number(v)||0)*100);
+function groupRows(groupId){
+ return arr('factionPayments').filter(x=>x?.manual===true&&sid(x.manualGroupId)===sid(groupId));
+}
+function groupState(rows){
+ const statuses=new Set(rows.map(x=>norm(x.status)));
+ return rows.length&&statuses.size===1&&statuses.has('pago')?'Pago':
+  rows.length&&statuses.size===1&&statuses.has('pendente')?'Pendente':'Revisar';
+}
+function assertGroup(groupId){
+ const rows=groupRows(groupId);
+ if(!groupId||!rows.length)throw Error('Lançamento avulso não encontrado neste computador. Atualize a tela sem limpar dados.');
+ if(new Set(rows.map(x=>sid(x.id))).size!==rows.length)throw Error('Lançamento com linhas duplicadas. Revisão necessária.');
+ if(rows.some(x=>!x.id||!x.manual||sid(x.manualGroupId)!==sid(groupId)))throw Error('Grupo inconsistente. Alteração bloqueada.');
+ return rows;
+}
+function remotelySame(local,remote){
+ return !!remote&&sid(remote.id)===sid(local.id)&&
+  sid(remote.manualGroupId)===sid(local.manualGroupId)&&norm(remote.status)===norm(local.status)&&
+  cents(remote.value)===cents(local.value)&&cents(remote.paidAmount)===cents(local.paidAmount)&&
+  sid(remote.paymentDate)===sid(local.paymentDate)&&sid(remote.updatedAt)===sid(local.updatedAt)&&
+  Number(remote.quantity)===Number(local.quantity);
+}
+async function preflightGroup(groupId,rows){
+ for(const row of rows){
+  await assertRecordNotPending('factionPayments',row.id);
+  const remote=await remoteRecord('factionPayments',row.id);
+  if(!remotelySame(row,remote))throw Error('Outra sessão alterou ou não confirmou a linha '+sid(row.id)+'. Atualize o pagamento antes de editar ou pagar.');
+ }
+ await assertRecordNotPending('hubFinanceEntries',hubId(groupId));
+ const hub=await remoteRecord('hubFinanceEntries',hubId(groupId));
+ const localHub=arr('hubFinanceEntries').find(x=>sid(x.id)===sid(hubId(groupId)));
+ if(localHub&&!hub)throw Error('O Hub local e a nuvem divergem; não criar pagamento duplicado.');
+ if(hub&&sid(hub.sourceId)!==sid(groupId))throw Error('Registro financeiro vinculado a outro lançamento. Operação bloqueada.');
+ return hub;
+}
+async function saveGroupEdits(groupId,input,receipt){
+ if(state.status===STATUS.saving)throw Error('Já existe salvamento em andamento.');
+ state.status=STATUS.saving;state.lastError='';let saved=0;
+ try{
+  const rows=assertGroup(groupId);
+  if(groupState(rows)!=='Pendente')throw Error('Valores de pagamentos já pagos ou parcialmente pagos ficam bloqueados para preservar o financeiro.');
+  const parsed=validate(input);
+  if(parsed.status!=='Pendente')throw Error('Para dar baixa, utilize o botão “Marcar pago” no histórico de avulsos.');
+  const ids=new Set(parsed.lines.map(x=>sid(x.id)));
+  if(ids.size!==parsed.lines.length||!rows.every(x=>ids.has(sid(x.id))))
+   throw Error('Não é permitido remover uma linha já salva. Mantenha-a no lançamento; corrija os valores sem apagar histórico.');
+  for(const x of parsed.lines){
+   const any=arr('factionPayments').find(y=>sid(y.id)===sid(x.id));
+   if(any&&sid(any.manualGroupId)!==sid(groupId))throw Error('Linha já pertence a outro lançamento.');
+  }
+  const existingProof=rows.find(x=>x.receiptPdfV9566?.base64);
+  if(receipt&&existingProof)throw Error('Já existe PDF neste lançamento. O comprovante anterior não será sobrescrito.');
+  const oldHub=await preflightGroup(groupId,rows);
+  if(oldHub)throw Error('Existe lançamento no Hub Financeiro para este grupo. Confira-o antes de corrigir valores.');
+  const ts=new Date().toISOString(),existingById=new Map(rows.map(x=>[sid(x.id),x]));
+  const editId=draft?.editAttemptId||makeId('faction-edit');
+  if(draft)draft.editAttemptId=editId;
+  for(let i=0;i<parsed.lines.length;i++){
+   const x=parsed.lines[i],old=existingById.get(sid(x.id)),oldProof=old?.receiptPdfV9566||null;
+   const history=Array.isArray(old?.manualEditHistoryV9588)?old.manualEditHistoryV9588.slice(-19):[];
+   const altered=!old||cents(old.value)!==cents(x.value)||Number(old.quantity)!==x.quantity||
+    cents(old.unitPrice)!==cents(x.unitPrice)||cents(old.travetaDiscountUnitV9577)!==cents(x.travetaDiscountUnit)||
+    sid(old.productId)!==sid(x.productId)||sid(old.description)!==sid(x.description);
+   if(altered&&!history.some(h=>sid(h.id)===editId))
+    history.push({id:editId,at:ts,from:old?Number(old.value)||0:null,to:x.value,reason:'Edição manual do pagamento pendente'});
+   const next={...old,id:x.id,source:'faction_manual_payment_v1',manual:true,manualGroupId:groupId,
+    manualKindV9566:x.kind,serviceModeV9577:parsed.serviceMode,factionMasterId:parsed.factionMasterId,
+    factionName:parsed.factionName,status:'Pendente',productId:x.productId,description:x.description,
+    quantity:x.quantity,unitPrice:x.unitPrice,value:x.value,grossValueV9577:x.grossValue,
+    travetaDiscountUnitV9577:x.travetaDiscountUnit,travetaDiscountTotalV9577:x.travetaDiscountTotal,
+    discountAmount:x.travetaDiscountTotal,paidAmount:0,paymentDate:'',
+    scheduledPaymentDate:parsed.date,paymentMethod:parsed.method,
+    observation:x.note||parsed.note||'Pagamento avulso de facção',manualLineNoteV9566:x.note,
+    priceOriginV9566:x.priceOrigin,paymentHistory:old?.paymentHistory||[],
+    manualEditHistoryV9588:history,createdAt:old?.createdAt||rows[0].createdAt||ts,updatedAt:ts};
+   if(oldProof)next.receiptPdfV9566=oldProof;
+   else if(i===0&&receipt)next.receiptPdfV9566=receipt;
+   await saveRecord('factionPayments',next);saved++;
+   const check=await remoteRecord('factionPayments',x.id);
+   if(!remotelySame(next,check))throw Error('Edição da linha '+sid(x.id)+' não confirmada na releitura.');
+  }
+  const result={groupId,total:parsed.total,lines:saved,edited:true};
+  state.lastResult=result;renderReceipts();return result;
+ }catch(e){state.lastError=(saved?'Edição parcialmente confirmada ('+saved+' linha(s)). Revise o histórico antes de tentar novamente. ':'')+sid(e.message||e);throw Error(state.lastError)}
+ finally{state.status=STATUS.idle}
+}
+async function markGroupPaid(groupId,date,method,receipt){
+ if(state.status===STATUS.saving)throw Error('Outra alteração de pagamento está em andamento.');
+ state.status=STATUS.saving;state.lastError='';let confirmed=0,hubConfirmed=false;
+ try{
+  if(!validDate(date)||date>stamp())throw Error('Informe a data real do pagamento, sem data futura.');
+  method=sid(method).trim();
+  if(!method)throw Error('Informe a forma de pagamento utilizada.');
+  const rows=assertGroup(groupId),condition=groupState(rows);
+  if(condition==='Pago')throw Error('Este lançamento já consta como pago. Não é permitido pagar duas vezes.');
+  if(!['Pendente','Revisar'].includes(condition))throw Error('Situação inconsistente; confira o pagamento antes da baixa.');
+  if(rows.some(x=>!['pago','pendente'].includes(norm(x.status))))throw Error('Há uma linha em situação desconhecida; não registrar pagamento.');
+  const total=grandTotal(rows.map(x=>({value:Number(x.value)||0})));
+  if(total<=0)throw Error('Valor total precisa ser maior que zero.');
+  const alreadyPaid=rows.filter(x=>norm(x.status)==='pago');
+  if(alreadyPaid.some(x=>sid(x.paymentDate)!==date||sid(x.paymentMethod)!==method||cents(x.paidAmount)!==cents(x.value)))
+   throw Error('Parte deste pagamento já foi registrada com outros dados. Não duplicar; revisar histórico.');
+  const oldHub=await preflightGroup(groupId,rows);
+  if(oldHub&&(cents(oldHub.value)!==cents(total)||sid(oldHub.date)!==date||sid(oldHub.paymentMethod)!==method||sid(oldHub.status)!=='Realizado'))
+   throw Error('Existe lançamento financeiro diferente para este grupo. Corrija a divergência antes de dar baixa.');
+  if(!oldHub&&alreadyPaid.length)throw Error('Há linhas pagas sem confirmação do Hub. Baixa bloqueada.');
+  if(receipt&&rows.some(x=>x.receiptPdfV9566?.base64))throw Error('Comprovante já registrado. O PDF anterior será preservado.');
+  // Primeiro armazena o PDF em uma linha ainda pendente; isso NÃO confirma o pagamento.
+  if(receipt){
+   const target=rows.find(x=>norm(x.status)==='pendente');
+   if(!target)throw Error('Nenhuma linha pendente disponível para anexar o comprovante.');
+   const next={...target,receiptPdfV9566:receipt,updatedAt:new Date().toISOString()};
+   await saveRecord('factionPayments',next);
+   const proof=await remoteRecord('factionPayments',target.id);
+   if(!proof||proof.receiptPdfV9566?.base64!==receipt.base64)throw Error('PDF enviado sem confirmação remota. Nenhuma baixa financeira realizada.');
+   const i=rows.findIndex(x=>sid(x.id)===sid(target.id));rows[i]=next;
+  }
+  const ts=new Date().toISOString(),first=rows[0];
+  const finance={...(oldHub||{}),id:hubId(groupId),flow:'Saída',
+   description:'Pagamento avulso de facção — '+sid(first.factionName),
+   value:total,date,category:'Facções',subcategory:'Pagamento avulso',person:first.factionName,
+   status:'Realizado',acceptedMethods:[method],paymentMethod:method,realizedAt:date,
+   note:rows.map(x=>sid(x.description)+' '+Number(x.quantity)+'x').join(', ').slice(0,1500),
+   sourceType:'faction_manual_payment',sourceId:groupId,
+   createdAt:oldHub?.createdAt||first.createdAt||ts,updatedAt:oldHub?.updatedAt||ts};
+  if(!oldHub)await saveRecord('hubFinanceEntries',finance);
+  const verifiedHub=await remoteRecord('hubFinanceEntries',finance.id);
+  if(!verifiedHub||sid(verifiedHub.sourceId)!==sid(groupId)||cents(verifiedHub.value)!==cents(total)||
+   sid(verifiedHub.status)!=='Realizado'||sid(verifiedHub.date)!==date||sid(verifiedHub.paymentMethod)!==method)
+   throw Error('O Hub Financeiro não confirmou a saída. As linhas não foram marcadas como pagas.');
+  hubConfirmed=true;
+  for(const row of rows){
+   if(norm(row.status)==='pago')continue;
+   const history=Array.isArray(row.paymentHistory)?row.paymentHistory.slice():[];
+   const transitionId='manual-paid-'+groupId;
+   if(!history.some(x=>sid(x.id)===transitionId))
+    history.push({id:transitionId,date,amount:Number(row.value)||0,method,at:ts,source:'manual-payment-v9588'});
+   const next={...row,status:'Pago',paidAmount:Number(row.value)||0,paymentDate:date,
+    paymentMethod:method,paymentHistory:history,manualPaidAtV9588:ts,updatedAt:ts};
+   await saveRecord('factionPayments',next);
+   const remote=await remoteRecord('factionPayments',row.id);
+   if(!remotelySame(next,remote))throw Error('Baixa da linha '+sid(row.id)+' não comprovada na releitura.');
+   confirmed++;
+  }
+  const result={groupId,paid:true,date,method,total,hubConfirmed:true,lines:rows.length,confirmed};
+  state.lastResult=result;renderReceipts();return result;
+ }catch(e){
+  state.lastError=(hubConfirmed?'Hub confirmado, mas a baixa das linhas está incompleta. Verifique antes de reenviar. ':'')+
+   (confirmed?'Linhas confirmadas: '+confirmed+'. ':'')+sid(e.message||e);
+  throw Error(state.lastError);
+ }finally{state.status=STATUS.idle}
+}
+
 function rowHtml(kind='product',id=makeId('fmpli')){
  const prod=kind==='product'||kind==='embalagem',trav=kind==='travetada',label=kind==='embalagem'?'Embalagem':trav?'Travetada':prod?'Produto':'Serviço extra';
  return '<div class="fm66-line panel" data-id="'+esc(id)+'" data-kind="'+esc(kind)+'" style="margin:10px 0;padding:12px;border:1px solid #e2d4de">'+
