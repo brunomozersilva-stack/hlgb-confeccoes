@@ -63,15 +63,6 @@ const parsed=f.validate(service);
 assert.equal(parsed.total,285,'traveta subtracts 5 cents from each piece');
 assert.equal(parsed.lines[0].grossValue,290);assert.equal(parsed.lines[0].travetaDiscountTotal,5);
 (async()=>{
- const originalProducts=JSON.stringify(db.products);
- const avulso=await f.persistDraft(manualPack,null);
- assert.equal(avulso.total,20);
- assert.equal(db.factionPayments[0].productId,null);
- assert.equal(db.factionPayments[0].manualProductNameV9589,'Camisola especial não cadastrada');
- assert.equal(db.factionPayments[0].manualProductCategoryV9589,'camisola');
- assert.equal(JSON.stringify(db.products),originalProducts,'paying an unknown model must never create a catalog product');
- // Stable draft is shared within one modal. Reset its line ID before the distinct scenario
- // by using a different kind/ID and checking validation independently; the browser test exercises both saves.
  const p=await f.persistDraft(service,null);
  assert.equal(p.total,285);assert.equal(db.factionPayments[0].discountAmount,5);
  assert.equal(db.factionPayments[0].travetaDiscountUnitV9577,.05);
