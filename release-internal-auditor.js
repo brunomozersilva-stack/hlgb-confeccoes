@@ -318,9 +318,9 @@ async function loadRuns(){
   await cleanupTechnicalPending();
   if(typeof cloudRequest!=='function'||!cloudAccessToken)return false;
   try{
-    const rows=await cloudRequest('hlgb_records?select=module,entity_id,data,deleted_at,revision,updated_at,updated_by&module=eq.'+encodeURIComponent(AUDIT_MODULE)+'&order=updated_at.desc&limit=100',{method:'GET'});
+    const rows=await cloudRequest('hlgb_records?select=module,entity_id,data,deleted_at,revision,updated_at,updated_by&module=eq.'+encodeURIComponent(AUDIT_MODULE)+'&entity_id=not.like.learnv9573-*&order=updated_at.desc&limit=100',{method:'GET'});
     if(!Array.isArray(rows))return false;
-    auditRunsCache=rows.filter(r=>!r.deleted_at).map(r=>clone(r.data)).filter(Boolean);
+    auditRunsCache=rows.filter(r=>!r.deleted_at&&!sid(r.entity_id).startsWith('learnv9573-')).map(r=>clone(r.data)).filter(Boolean);
     return true;
   }catch(e){console.warn('[HLGB Auditor] carga',e);return false}
 }
