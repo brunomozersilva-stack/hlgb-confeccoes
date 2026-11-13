@@ -284,17 +284,20 @@ function receiptSummary(){
 function modalHtml(){
  const today=stamp();
  return '<div id="fm66-root" style="max-width:100%;overflow-x:hidden">'+
-  '<div class="sub">Escolha uma facção do cadastro e selecione os produtos pelo nome/código. Cada valor sugerido pode ser editado.</div>'+
+  '<div class="sub">Selecione Facção de costura ou Embalagem. O preço da ficha/tabela aparece automaticamente e pode ser ajustado; a travetada descontada fica discriminada.</div>'+
   '<div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px;margin-top:12px">'+
-  '<div class="field"><label>Facção</label><input id="fm66-faction" role="combobox" aria-label="Buscar facção" autocomplete="off" aria-autocomplete="list" placeholder="Digite o nome da facção">'+
+  '<div class="field"><label>Atividade</label><select id="fm66-mode"><option value="faccao">Facção / Costura</option><option value="embalagem">Embalagem</option></select></div>'+ 
+  '<div class="field"><label>Facção ou embaladeira</label><input id="fm66-faction" role="combobox" aria-label="Buscar facção ou embaladeira" autocomplete="off" aria-autocomplete="list" placeholder="Busque a pessoa cadastrada">'+
   '<div id="fm66-faction-suggestions" role="listbox" style="display:none;max-height:180px;overflow-y:auto;border:1px solid #ddd;border-radius:7px;background:white"></div></div>'+
   '<div class="field"><label>Data</label><input type="date" id="fm66-date" value="'+today+'"></div>'+
   '<div class="field"><label>Status</label><select id="fm66-status"><option>Pendente</option><option>Pago</option></select></div>'+
   '<div class="field"><label>Forma de pagamento</label><input id="fm66-method" placeholder="Pix, dinheiro, transferência"></div></div>'+
   '<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin:16px 0 6px"><b>Produtos / serviços</b>'+
-  '<div class="toolbar" style="display:flex;flex-wrap:wrap;gap:6px"><button class="secondary" id="fm66-add-product" type="button">+ Produto</button>'+
+  '<div class="toolbar" style="display:flex;flex-wrap:wrap;gap:6px"><button class="secondary" id="fm66-add-product" type="button">+ Produto</button>'+ 
+  '<button class="secondary" id="fm66-add-embalagem" type="button" style="display:none">+ Embalagem</button>'+
   '<button class="secondary" id="fm66-add-traveta" type="button">+ Travetada</button>'+
-  '<button class="secondary" id="fm66-add-service" type="button">+ Outro serviço</button></div></div>'+
+  '<button class="secondary" id="fm66-add-service" type="button">+ Outro serviço</button>'+ 
+  '<button class="secondary" id="fm66-price-table" type="button">⚙️ Preços embalagem/travetada</button></div></div>'+
   '<div id="fm66-lines"></div>'+
   '<div class="field" style="margin-top:12px"><label>Observação geral</label><textarea id="fm66-note" rows="2" maxlength="1500" placeholder="Ex.: serviço extra ou acerto combinado"></textarea></div>'+
   '<div class="panel" style="margin-top:12px;padding:10px"><label for="fm66-pdf"><b>📎 Comprovante de pagamento (PDF)</b></label>'+
@@ -307,7 +310,7 @@ function openForm(){
  if(typeof window.openModal!=='function'&&typeof openModal!=='function')return false;
  draft={groupId:makeId('faction-manual'),createdAt:new Date().toISOString(),receipt:null};state.opened++;
  const open=window.openModal||openModal;
- open('Pagamento avulso de facção',modalHtml(),async()=>{
+ open('Pagamento avulso — facção ou embalagem',modalHtml(),async()=>{
   const btn=document.querySelector('#fm66-root .modalSave'),feedback=document.getElementById('fm66-feedback');
   if(btn){btn.disabled=true;btn.textContent='☁️ Salvando…'}
   if(feedback)feedback.textContent='Confirmando os registros na nuvem...';
@@ -343,6 +346,18 @@ function openForm(){
  }
  document.getElementById('fm66-add-product')?.addEventListener('click',()=>addLine('product'));
  document.getElementById('fm66-add-traveta')?.addEventListener('click',()=>addLine('travetada'));
+ document.getElementById('fm66-add-embalagem')?.addEventListener('click',()=>addLine('embalagem'));
+ document.getElementById('fm66-price-table')?.addEventListener('click',()=>window.hlgbFactionRates9577?.open?.());
+ document.getElementById('fm66-mode')?.addEventListener('change',e=>{
+  const mode=e.target.value,host=document.getElementById('fm66-lines');
+  if(host)host.innerHTML='';
+  faction.value='';
+  document.getElementById('fm66-add-product').style.display=mode==='embalagem'?'none':'';
+  document.getElementById('fm66-add-traveta').style.display=mode==='embalagem'?'none':'';
+  document.getElementById('fm66-add-service').style.display=mode==='embalagem'?'none':'';
+  document.getElementById('fm66-add-embalagem').style.display=mode==='embalagem'?'':'none';
+  addLine(mode==='embalagem'?'embalagem':'product');
+ });
  document.getElementById('fm66-add-service')?.addEventListener('click',()=>addLine('service'));
  document.getElementById('fm66-pdf')?.addEventListener('change',receiptSummary);
  addLine('product');
