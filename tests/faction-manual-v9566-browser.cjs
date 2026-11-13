@@ -476,6 +476,35 @@ const engine=process.env.HLGB_BROWSER==='webkit'?webkit:chromium;
   // Avoid writing a third test payment just for checking the preview.
   await page.evaluate(()=>window.closeModal());
 
+
+  // The canonical "Enviar para facção" screen also reads the product/mother
+  // registration and discounts automatically, not just the avulso screen.
+  const standard=await page.evaluate(()=>{
+    const fixture=document.createElement('section');fixture.id='faction-standard-9592';
+    fixture.innerHTML='<div class="grid"><div class="field"><input id="mprice" value="1.50"></div></div>'+
+      '<select id="mname"><option>Roseli</option><option>Cris</option></select>'+
+      '<input id="mfproductid" value="p3"><input id="msent" value="100">';
+    document.body.appendChild(fixture);
+    const api=window.hlgbFactionTraveta9424;
+    api.state.mode='new';
+    api.ensureTravetaFields({productId:'p3',name:'Roseli'});
+    const first=api.prepareTravetaSave({productId:'p3',name:'Roseli',sent:100});
+    const deduction=document.getElementById('mtravetaDiscount9424').value;
+    const pointsText=document.getElementById('mtravetaModelPointV9592')?.textContent||'';
+    document.getElementById('mprice').value='1.50';
+    const select=document.getElementById('mname');select.value='Cris';
+    select.dispatchEvent(new Event('change',{bubbles:true}));
+    const self=api.prepareTravetaSave({productId:'p3',name:'Cris',sent:100});
+    return {first,discount:deduction,pointsText,self,
+      decision:document.getElementById('mtraveta9424').value};
+  });
+  assert.equal(standard.first.finalUnit,1.26,'canonical send deducts 3 × 0.08 from 1.50');
+  assert.equal(standard.first.total,126);
+  assert.equal(standard.discount,'0.24');
+  assert.match(standard.pointsText,/3 travetada/);
+  assert.equal(standard.self.finalUnit,1.5,'registered traveta=yes receives the full labor price');
+  assert.equal(standard.decision,'sim');
+
   await page.setViewportSize({width:390,height:850});
   await page.locator('#hlgbFactionManualPaymentBtn').click();
   assert.equal(await page.locator('#fm66-faction').isVisible(),true);
