@@ -41,7 +41,16 @@ function findFactionForModal(){
   if(state.mode==='edit'&&state.faction)return state.faction;
   return null;
 }
-function decisionOf(f){return typeof f?.doesTraveta==='boolean'?(f.doesTraveta?'sim':'nao'):''}
+function masterFor(f){
+ if(!f)return null;
+ const id=sid(f.factionMasterId||f.masterId||''),name=norm(f.name||f.factionName||'');
+ return arr('factionMasters').find(x=>(id&&sid(x.id)===id)||(name&&norm(x.name)===name))||null;
+}
+function decisionOf(f){
+ if(typeof f?.doesTraveta==='boolean')return f.doesTraveta?'sim':'nao';
+ const master=masterFor(f);
+ return typeof master?.doesTraveta==='boolean'?(master.doesTraveta?'sim':'nao'):'';
+}
 function setText(el,text){if(el&&el.textContent!==text)el.textContent=text}
 function setDisplay(el,value){if(el&&el.style.display!==value)el.style.display=value}
 
@@ -64,7 +73,7 @@ function ensureTravetaFields(explicitFaction){
   const f=explicitFaction||findFactionForModal();
   let box=document.getElementById('hlgbFactionTravetaBox9424');
   if(!box){
-    const decision=decisionOf(f),deduction=Math.max(0,finiteOrNull(f?.travetaDeductionUnit)??0);
+    const master=masterFor(f),decision=decisionOf(f),deduction=Math.max(0,finiteOrNull(f?.travetaDeductionUnit)??finiteOrNull(master?.travetaDeductionUnit)??finiteOrNull(window.hlgbFactionRates9577?.traveta?.(master))??0);
     const storedBase=finiteOrNull(f?.baseUnitPrice);
     if(storedBase!=null&&state.mode==='edit')price.value=storedBase.toFixed(2);
     box=document.createElement('div');box.id='hlgbFactionTravetaBox9424';box.className='panel';
