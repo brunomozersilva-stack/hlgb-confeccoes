@@ -23,7 +23,7 @@ const edit=(val,quantity=100,unit=10,reason='Conferência da nota')=>({date:'202
  await assert.rejects(()=>api.saveAction('projection','n1','edit',edit(1200,120)),/nuvem falhou/);
  assert.equal(JSON.stringify(db),initial,'unconfirmed edit must not mutate local state');
  fail=false;
- await assert.rejects(()=>api.saveAction('projection','n1','edit',edit(500,100,5)),/menor que o recebido|total precisa/);
+ await assert.rejects(()=>api.saveAction('projection','n1','edit',edit(100,100,1)),/menor que o recebido|total precisa/);
  await assert.rejects(()=>api.saveAction('projection','n1','edit',edit(1200,120,10,'')),/motivo/);
  await assert.rejects(()=>api.saveAction('projection','n1','edit',{...edit(1200,120),date:'2026-02-31'}),/Data da nota/);
  await assert.rejects(()=>api.saveAction('projection','n1','edit',edit(1100,120)),/soma dos itens/);
@@ -52,6 +52,6 @@ const edit=(val,quantity=100,unit=10,reason='Conferência da nota')=>({date:'202
  assert.match(code,/data-ar72-qty/,'quantity edit inputs must be inside the same note');
  assert.match(note,/Histórico completo por cliente/);
  assert.match(note,/data-action="week"/);
- assert.match(note,/n\.balance>1\?'Acerto':'Abrir \/ editar'/);
+ assert.match(note,/actionButton\(n\.balance>1\?'pay':'edit'/);
  console.log('PASS v95.72: invoice edit safe cloud readback, audit before/after, mirror total, live credits, paid navigation and week filters');
 })().catch(e=>{console.error(e);process.exitCode=1});
