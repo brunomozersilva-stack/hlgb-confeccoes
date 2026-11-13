@@ -76,6 +76,12 @@ assert(stockRoll.known);assert.equal(stockRoll.amount,150,'matching stock in rol
 const mismatched=api.stockFor({materialId:'x',name:'Fita',unit:'m',catalog:{}},[{item:'Fita',qty:2,unit:'kg'}]);
 assert.equal(mismatched.known,false,'do not subtract incompatible units');
 assert.equal(mismatched.amount,null);
+const uncoloredStock=api.stockFor({materialId:'x',name:'Renda',unit:'m',color:'Vermelho',catalog:{}},
+ [{materialId:'x',item:'Renda',qty:50,unit:'m'}]);
+assert.equal(uncoloredStock.known,false,'uncoloured stock cannot be subtracted from a colour-specific material');
+const matchingColor=api.stockFor({materialId:'x',name:'Renda',unit:'m',color:'Vermelho',catalog:{}},
+ [{materialId:'x',item:'Renda',qty:50,unit:'m',color:'Vermelho'}]);
+assert.equal(matchingColor.amount,50);
 const noConvert=api.buyTerms({unit:'m',catalog:{purchaseUnit:'rolo',allowFractionalPurchase:false,price:2}},120);
 assert.equal(noConvert.amount,null);assert.equal(noConvert.cost,null,'unknown package conversion cannot invent rolls or prices');
 const closedEvenIfModeBase=api.buyTerms({unit:'kg',catalog:{purchaseUnit:'rolo',purchaseMode:'kg',purchaseConversion:10,
