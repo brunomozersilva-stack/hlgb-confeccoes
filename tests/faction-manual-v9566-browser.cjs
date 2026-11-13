@@ -273,7 +273,7 @@ const engine=process.env.HLGB_BROWSER==='webkit'?webkit:chromium;
   const paidSource=await page.evaluate(()=>window.db.factionPayments.find(x=>x.factionName==='Roseli'&&x.status==='Pago'));
   const sourceGroup=paidSource.manualGroupId;
   const previousHub=await page.evaluate(g=>window.db.hubFinanceEntries.find(x=>x.sourceId===g).value,sourceGroup);
-  const sourceRow=page.locator('#fm66-receipts tr[data-fm88-row]').filter({hasText:'Roseli'}).filter({has:page.locator('.fm90-correct')});
+  const sourceRow=page.locator('#fm66-receipts tr[data-fm88-row]').filter({has:page.locator('.fm90-correct[data-group-id="'+sourceGroup+'"]')});
   await sourceRow.locator('.fm90-correct').click();
   await page.locator('#fm90-correction').waitFor({state:'visible'});
   await page.locator('#fm90-kind').selectOption('a_mais');
