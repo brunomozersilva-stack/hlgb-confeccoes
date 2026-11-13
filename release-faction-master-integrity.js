@@ -12,10 +12,31 @@ function catalogNames(ids,items){
  return (items||[]).filter(x=>wanted.has(sid(x?.id))).map(x=>x?.name).filter(Boolean).join(', ');
 }
 function checked(cls){try{return [...document.querySelectorAll(cls+':checked')].map(x=>{const v=x.value;return /^-?\d+(?:\.\d+)?$/.test(String(v))?+v:v})}catch(e){return []}}
+function extraForm(base={}){
+ const role=sid(base.factionRoleV9577||'faccao'),trav=base.doesTraveta===true?'sim':base.doesTraveta===false?'nao':'';
+ return '<div class="panel" style="padding:12px;margin:10px 0"><h3 style="margin:0 0 8px">🧵 Tipo de serviço e travetada</h3>'+
+ '<div class="grid"><div class="field"><label>Atividade principal</label><select id="mfServiceRoleV9577">'+
+ [['faccao','Facção de costura'],['embaladeira','Embaladeira'],['travetador','Travetada']].map(([v,t])=>'<option value="'+v+'"'+(role===v?' selected':'')+'>'+t+'</option>').join('')+'</select></div>'+
+ '<div class="field"><label>Faz travetada neste serviço?</label><select id="mfDoesTravetaV9577">'+
+ '<option value="">Ainda não informado</option><option value="sim"'+(trav==='sim'?' selected':'')+'>Sim</option><option value="nao"'+(trav==='nao'?' selected':'')+'>Não</option></select></div>'+
+ '<div class="field"><label>Desconto de travetada por peça (R$ · opcional)</label>'+
+ '<input type="number" min="0" step="0.01" id="mfTravetaUnitV9577" value="'+
+ (base.travetaDeductionUnit!=null?Number(base.travetaDeductionUnit).toFixed(2):'')+
+ '" placeholder="Usar tabela geral"></div></div>'+
+ '<p class="sub">Se não fizer travetada, os lançamentos poderão abater o valor cadastrado, sem alterar pagamentos antigos.</p></div>';
+}
 function readForm(base={}){
  const name=(document.getElementById('mfname')?.value||'').trim();if(!name)throw new Error('Informe o nome da facção.');
  const serviceTypeIds=checked('.mfServiceCheck'),machineIds=checked('.mfMachineCheck');
  const loc=document.getElementById('mflocation')?.value||'';
+ const roleInput=document.getElementById('mfServiceRoleV9577'),travInput=document.getElementById('mfDoesTravetaV9577'),travValue=document.getElementById('mfTravetaUnitV9577');
+ const role=roleInput?.value||sid(base.factionRoleV9577||'faccao');
+ if(!['faccao','embaladeira','travetador'].includes(role))throw new Error('Tipo de serviço inválido.');
+ const doesTraveta=travInput?.value==='sim'?true:travInput?.value==='nao'?false:(base.doesTraveta??null);
+ const custom=travValue?.value?.trim()||'';
+ if(custom!==''&&(!Number.isFinite(Number(custom))||Number(custom)<0||Number(custom)>1000))
+  throw new Error('Desconto por peça inválido.');
+ const travUnit=custom!==''?+Number(custom).toFixed(2):(travValue?null:(base.travetaDeductionUnit??null));
  return {...clone(base),
   name,
   address:(document.getElementById('mfaddress')?.value||'').trim(),
@@ -25,6 +46,7 @@ function readForm(base={}){
   serviceType:catalogNames(serviceTypeIds,db.serviceTypes||[]),
   machines:catalogNames(machineIds,db.machines||[]),
   productionLocationId:loc?(isNaN(+loc)?loc:+loc):null,
+  factionRoleV9577:role,doesTraveta,travetaDeductionUnit:travUnit,
   active:base?.active!==false,
   updatedAt:new Date().toISOString()
  };
@@ -62,7 +84,7 @@ function rerender(){try{window.renderFactions?.()}catch(e){}}
 
 window.newFactionMaster=function(){
  if(typeof openModal!=='function'||typeof factionMasterForm!=='function')return false;
- openModal('Nova facção',factionMasterForm({})+'<button type="button" class="primary modalSave">☁️ Salvar facção</button>',async()=>{
+ openModal('Nova facção',factionMasterForm({})+extraForm({})+'<button type="button" class="primary modalSave">☁️ Salvar facção</button>',async()=>{
   const btn=document.querySelector('#modal .modalSave');buttonBusy(btn,true,'☁️ Salvando facção…');
   try{
    const row=readForm({id:Date.now()+Math.floor(Math.random()*1000),active:true,createdAt:new Date().toISOString()});
@@ -76,7 +98,7 @@ window.newFactionMaster=function(){
 window.editFactionMaster=function(id){
  const base=find(id);if(!base)return false;
  if(typeof openModal!=='function'||typeof factionMasterForm!=='function')return false;
- openModal('Editar facção',factionMasterForm(base)+'<button type="button" class="primary modalSave">☁️ Salvar alterações</button>',async()=>{
+ openModal('Editar facção',factionMasterForm(base)+extraForm(base)+'<button type="button" class="primary modalSave">☁️ Salvar alterações</button>',async()=>{
   const btn=document.querySelector('#modal .modalSave');buttonBusy(btn,true,'☁️ Confirmando na nuvem…');
   try{
    const next=readForm(base);const saved=await saveConfirmed(next,false);
@@ -96,6 +118,7 @@ window.delFactionMaster=async function(id){
 };
 
 window.hlgbFactionMasterReadForm=readForm;
+window.hlgbFactionMasterExtra9577=extraForm;
 window.hlgbFactionMasterSaveConfirmed=saveConfirmed;
 window.HLGB_FACTION_MASTER_INTEGRITY_GUARD=V;
 console.info('[HLGB] cadastro de facções '+V+': PIX e alterações só fecham após confirmação da nuvem');

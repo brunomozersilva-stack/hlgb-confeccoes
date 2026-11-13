@@ -1,0 +1,39 @@
+name: HLGB Embalagem and Traveta v95.77
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'app-stable3.html'
+      - 'release-faction-master-integrity.js'
+      - 'release-faction-manual-payment-v9566.js'
+      - 'release-faction-traveta-payment-v9424.js'
+      - 'release-faction-service-rates-v9577.js'
+      - 'tests/embalagem-traveta-v9577.cjs'
+      - '.github/workflows/embalagem-traveta-v9577.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'app-stable3.html'
+      - 'release-faction-master-integrity.js'
+      - 'release-faction-manual-payment-v9566.js'
+      - 'release-faction-traveta-payment-v9424.js'
+      - 'release-faction-service-rates-v9577.js'
+      - 'tests/embalagem-traveta-v9577.cjs'
+      - '.github/workflows/embalagem-traveta-v9577.yml'
+permissions: {contents: read}
+jobs:
+  validation:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - run: node --check release-faction-service-rates-v9577.js
+      - run: node --check release-faction-master-integrity.js
+      - run: node --check release-faction-traveta-payment-v9424.js
+      - run: node --check release-faction-manual-payment-v9566.js
+      - run: node tests/faction-manual-v9566.cjs
+      - run: node tests/audit-faction-master-integrity-regression.cjs
+      - run: node tests/audit-faction-traveta-payment-v9424.cjs
+      - run: node tests/embalagem-traveta-v9577.cjs

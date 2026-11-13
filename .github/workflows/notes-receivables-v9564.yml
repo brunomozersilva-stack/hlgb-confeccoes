@@ -6,6 +6,8 @@ on:
       - 'app-stable3.html'
       - 'release-notes-receivables-v9564.js'
       - 'release-acerto-returns-v9565.js'
+      - 'release-note-receipts-v9576.js'
+      - 'tests/acerto-save-receipts-v9576.cjs'
       - 'release-faction-manual-payment-v9566.js'
       - 'tests/notes-receivables-v9564*'
       - 'tests/acerto-returns-v9565.cjs'
@@ -18,6 +20,8 @@ on:
       - 'app-stable3.html'
       - 'release-notes-receivables-v9564.js'
       - 'release-acerto-returns-v9565.js'
+      - 'release-note-receipts-v9576.js'
+      - 'tests/acerto-save-receipts-v9576.cjs'
       - 'release-faction-manual-payment-v9566.js'
       - 'tests/notes-receivables-v9564*'
       - 'tests/acerto-returns-v9565.cjs'
@@ -40,6 +44,8 @@ jobs:
       - run: node --test tests/notes-receivables-v9564.cjs
       - run: node --check release-acerto-returns-v9565.js
       - run: node tests/acerto-returns-v9565.cjs
+      - run: node --check release-note-receipts-v9576.js
+      - run: node tests/acerto-save-receipts-v9576.cjs
       - run: node --check tests/acerto-edit-history-v9572.cjs
       - run: node tests/acerto-edit-history-v9572.cjs
       - run: node --check release-faction-manual-payment-v9566.js
