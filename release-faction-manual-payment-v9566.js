@@ -1049,6 +1049,7 @@ function receiptGroups(){
   group.nominal=Math.round(group.total*100)/100;
   group.applications=groupApplicationsV9590(group.rows);
   group.corrections=groupCorrectionsV9590(group.rows);
+  group.directAdjustments=directAdjustmentsV9591(group.rows);
   group.total=netGroupV9590(group.rows);
   group.adjustmentBalance=group.corrections.reduce((sum,x)=>sum+
    cents(x.kind==='a_mais'?-correctionRemainingV9590(x):correctionRemainingV9590(x)),0)/100;
@@ -1071,7 +1072,7 @@ function pdfEncode1252V9590(str){
  return out;
 }
 function pdfEscapeV9590(value){
- return pdfEncode1252V9590(value).replace(/[\\()]/g,'\\function openPayModal(groupId){');
+ return pdfEncode1252V9590(value).replace(/[\\()]/g,c=>'\\'+c);
 }
 function pdfWrapV9590(value,max=93){
  const result=[];
@@ -1106,6 +1107,8 @@ function summaryLinesV9590(groupId){
   'VALORES',
   'Soma dos servicos ativos: '+f(original),
   'Compensacoes recebidas: '+apps.map(x=>(x.kind==='a_mais'?'-':'+')+f(x.amount)).join(' / ').slice(0,160),
+  'Ajustes diretos (abatimentos/acrescimos): '+
+   directAdjustmentsV9591(all).map(x=>(x.kind==='abater'?'-':'+')+f(x.amount)).join(' / ').slice(0,160),
   'Total liquido previsto deste pagamento: '+f(net),
   'Valor marcado como pago nas linhas: '+f(paid),
   'Saldo deste pagamento: '+f(net-paid),
@@ -1129,6 +1132,14 @@ function summaryLinesV9590(groupId){
  for(const x of canceled){
   out.push('CANCELADA: '+v(x.description)+' | '+(Number(x.quantity)||0)+' pecas | Valor original: '+f(x.value));
   out.push('  Motivo: '+v(x.manualCanceledReasonV9590)+' | Data: '+v(x.manualCanceledAtV9590));
+ }
+ out.push('AJUSTES DIRETOS NESTE PAGAMENTO');
+ const inline=directAdjustmentsV9591(all);
+ if(!inline.length)out.push('Nenhum abatimento/acrescimo direto registrado.');
+ for(const adj of inline){
+  out.push((adj.kind==='abater'?'ABATIMENTO':'ACRESCIMO')+' '+f(adj.amount)+
+   ' | Identificacao: '+v(adj.id)+' | Data: '+v(adj.createdAt));
+  out.push('  Motivo / observacao: '+v(adj.reason));
  }
  out.push('ACERTOS POR PAGAMENTO A MAIS / A MENOS');
  if(!corrections.length)out.push('Nenhuma diferenca registrada neste pagamento.');
@@ -1223,7 +1234,10 @@ function openPayModal(groupId){
  if(!open)throw Error('Janela de pagamento indisponível.');
  const html='<div id="fm88-pay-modal" class="panel" style="padding:12px">'+
   '<p><b>'+esc(group.factionName)+'</b> · '+group.items+' serviço(s) · <b>'+money(total)+'</b></p>'+
-  '<p class="sub">A baixa gera uma única saída no Hub Financeiro para este grupo. É necessário confirmar a data real e o método. Nenhum pagamento será registrado automaticamente.</p>'+
+  '<p class="sub">A baixa registra o total já ajustado no Hub Financeiro. Para abater ou acrescentar agora, use o botão abaixo antes de confirmar. Nenhuma alteração será feita automaticamente.</p>'+
+   '<p class="sub">Serviços: '+money(group.nominal)+' · Ajustes diretos: '+money(sumDirectCentsV9591(group.directAdjustments||[])/100)+
+   ' · Total líquido: <b>'+money(total)+'</b></p>'+
+   '<button type="button" class="secondary" id="fm91-pay-adjust">➖ Abater / ➕ Acrescentar antes de pagar</button>'+
   (status==='Revisar'?'<p style="color:#934">⚠ Algumas linhas possuem situação divergente. Confirme os dados da baixa anterior antes de continuar.</p>':'')+
   '<div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:8px">'+
   '<div class="field"><label>Data em que foi pago</label><input type="date" id="fm88-paid-date" value="'+esc(suggestedDate)+'"></div>'+
@@ -1248,6 +1262,10 @@ function openPayModal(groupId){
    if(btn){btn.disabled=false;btn.textContent='✅ Confirmar como pago'}
    return false;
   }
+ });
+ document.getElementById('fm91-pay-adjust')?.addEventListener('click',()=>{
+  openForm(groupId);
+  document.getElementById('fm91-direct-panel')?.scrollIntoView?.({block:'center'});
  });
  return true;
 }
@@ -1333,6 +1351,7 @@ function renderReceipts(){
   paid=groups.filter(g=>g.status==='Pago'),review=groups.filter(g=>g.status==='Revisar');
  const signature=JSON.stringify(groups.map(g=>[g.id,g.factionName,g.date,g.status,g.total,g.items,g.updatedAt,
   g.corrections?.map(x=>[x.id,x.amount,x.kind,x.reason,correctionRemainingV9590(x)]),g.applications?.map(x=>[x.id,x.amount]),
+  g.directAdjustments?.map(x=>[x.id,x.kind,x.amount,x.reason]),
   g.receipt?.name||'',g.receipt?.size||0]));
  // Preserve file selection and focused filters when periodic refresh has not changed data.
  if(host.dataset.fm66Signature===signature)return true;
@@ -1381,6 +1400,7 @@ function renderReceipts(){
      '<button type="button" class="secondary fm66-attach" data-group-id="'+esc(g.id)+'">☁️ Salvar PDF</button></div>';
     const actions=g.status==='Pendente'?
      '<div style="display:flex;gap:6px;flex-wrap:wrap"><button type="button" class="secondary fm88-edit" data-group-id="'+esc(g.id)+'">✏️ Editar</button>'+
+     '<button type="button" class="secondary fm91-quick-adjust" data-group-id="'+esc(g.id)+'">➖ Abater / ➕ Acrescentar</button>'+
      '<button type="button" class="primary fm88-pay" data-group-id="'+esc(g.id)+'">✅ Marcar pago</button></div>':
      g.status==='Pago'?'<button type="button" class="secondary fm90-correct" data-group-id="'+esc(g.id)+'">⚖️ Acerto a mais / a menos</button>':
      g.status==='Cancelado'?'<span class="sub">Cancelado · histórico preservado</span>':
@@ -1389,6 +1409,7 @@ function renderReceipts(){
      '<td><b>'+esc(g.factionName)+'</b><div class="sub">'+esc(g.serviceMode==='embalagem'?'Embalagem':g.serviceMode==='travetada'?'Travetada':'Facção / Costura')+'</div></td>'+
      '<td>'+esc(g.date||'Sem data')+'</td><td><b>'+esc(g.status)+'</b></td>'+
      '<td><b>'+money(g.total)+'</b>'+
+     (g.directAdjustments?.length?'<div class="sub">Ajustes diretos: '+money(sumDirectCentsV9591(g.directAdjustments)/100)+'</div>':'')+
      (g.applications?.length?'<div class="sub">Serviços: '+money(g.nominal)+'<br>Acertos: '+
        money(g.total-g.nominal)+'</div>':'')+
      (g.adjustmentBalance?'<div class="sub">'+(g.adjustmentBalance<0?'Crédito a abater: ':'Diferença a pagar: ')+
@@ -1410,6 +1431,10 @@ function renderReceipts(){
  const feedback=()=>host.querySelector('#fm66-receipt-feedback');
  host.querySelectorAll('.fm88-edit').forEach(b=>b.addEventListener('click',()=>{
   try{openForm(b.dataset.groupId)}catch(e){const x=feedback();if(x)x.textContent='⚠ '+sid(e.message||e)}
+ }));
+ host.querySelectorAll('.fm91-quick-adjust').forEach(b=>b.addEventListener('click',()=>{
+  try{openForm(b.dataset.groupId);document.getElementById('fm91-direct-panel')?.scrollIntoView?.({block:'center'})}
+  catch(e){const x=feedback();if(x)x.textContent='⚠ '+sid(e.message||e)}
  }));
  host.querySelectorAll('.fm88-pay').forEach(b=>b.addEventListener('click',()=>{
   try{openPayModal(b.dataset.groupId)}catch(e){const x=feedback();if(x)x.textContent='⚠ '+sid(e.message||e)}
@@ -1457,7 +1482,7 @@ document.addEventListener('click',e=>{
 window.hlgbFactionManual9566={version:V,openForm,searchFactions,searchProducts,factionDirectory,productDirectory,
  productPrice,validate,grandTotal,readReceipt,pdfIsValid,persistDraft,receiptGroups,groupRows,groupState,saveGroupEdits,markGroupPaid,openPayModal,remoteRecord,attachReceiptToGroup,renderReceipts,download:pdfDownload,install,
  registerCorrectionV9590,applyCorrectionV9590,matchingPendingGroupsV9590,groupCorrectionsV9590,groupApplicationsV9590,
- correctionRemainingV9590,netGroupV9590,buildSummaryPdfV9590,summaryLinesV9590,downloadSummaryPdfV9590,
+ correctionRemainingV9590,netGroupV9590,directAdjustmentsV9591,validateDirectInputV9591,buildSummaryPdfV9590,summaryLinesV9590,downloadSummaryPdfV9590,
  status:()=>({...state}),maxPdfBytes:MAX_PDF};
 install();
 [500,1700,3800].forEach(ms=>setTimeout(install,ms));
