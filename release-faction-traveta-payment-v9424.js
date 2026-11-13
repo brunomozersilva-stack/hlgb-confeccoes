@@ -51,6 +51,17 @@ function decisionOf(f){
  const master=masterFor(f);
  return typeof master?.doesTraveta==='boolean'?(master.doesTraveta?'sim':'nao'):'';
 }
+function productForTravetaV9592(f){
+ const id=sid(f?.productId||'');
+ return id?arr('products').find(p=>sid(p?.id)===id)||null:null;
+}
+function deductionForModelV9592(f,master){
+ const product=productForTravetaV9592(f),points=Number(product?.travetadas);
+ const rate=window.hlgbFactionRates9577?.traveta?.(master);
+ if(!product||!Number.isInteger(points)||points<=0||points>100||
+    rate==null||!Number.isFinite(Number(rate))||Number(rate)<0)return null;
+ return {model:product.name||'',points,rate:Number(rate),unit:+(points*Number(rate)).toFixed(2)};
+}
 function setText(el,text){if(el&&el.textContent!==text)el.textContent=text}
 function setDisplay(el,value){if(el&&el.style.display!==value)el.style.display=value}
 
@@ -73,7 +84,10 @@ function ensureTravetaFields(explicitFaction){
   const f=explicitFaction||findFactionForModal();
   let box=document.getElementById('hlgbFactionTravetaBox9424');
   if(!box){
-    const master=masterFor(f),decision=decisionOf(f),deduction=Math.max(0,finiteOrNull(f?.travetaDeductionUnit)??finiteOrNull(master?.travetaDeductionUnit)??finiteOrNull(window.hlgbFactionRates9577?.traveta?.(master))??0);
+    const master=masterFor(f),decision=decisionOf(f),derived=deductionForModelV9592(f,master),
+     legacy=Math.max(0,finiteOrNull(f?.travetaDeductionUnit)??finiteOrNull(master?.travetaDeductionUnit)??
+       finiteOrNull(window.hlgbFactionRates9577?.traveta?.(master))??0),
+     deduction=decision==='nao'&&derived&&state.mode!=='edit'?derived.unit:legacy;
     const storedBase=finiteOrNull(f?.baseUnitPrice);
     if(storedBase!=null&&state.mode==='edit')price.value=storedBase.toFixed(2);
     box=document.createElement('div');box.id='hlgbFactionTravetaBox9424';box.className='panel';
@@ -85,6 +99,9 @@ function ensureTravetaFields(explicitFaction){
         '<div class="field" id="mtravetaDiscountField9424" style="display:'+(decision==='nao'?'block':'none')+'"><label>Desconto da travetada por peça (R$)</label><input id="mtravetaDiscount9424" type="number" min="0" step="0.01" value="'+deduction.toFixed(2)+'"></div>'+
       '</div>'+
       '<div id="mtravetaHint9424" class="sub" style="margin-top:6px"></div>'+
+      (derived?'<div class="sub" id="mtravetaModelPointV9592">Ficha: '+derived.points+
+       ' travetada(s)/peça × '+money(derived.rate)+' = '+money(derived.unit)+' de desconto POR PEÇA para facção que não traveta.</div>':
+       '<div class="sub" id="mtravetaModelPointV9592">Se o modelo tiver travetadas na ficha técnica, a quantidade × tarifa será sugerida automaticamente. Sem ficha confirmada, confira manualmente.</div>')+
       '<div style="display:flex;gap:18px;flex-wrap:wrap;margin-top:10px"><div><b>Valor final por peça:</b> <span id="mtravetaFinalUnit9424">R$ 0,00</span></div><div><b>Total previsto:</b> <span id="mtravetaTotal9424">R$ 0,00</span></div></div>';
     const anchor=price.closest?.('.field')||price.parentElement;
     const grid=anchor?.parentElement;
