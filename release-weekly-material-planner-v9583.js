@@ -133,6 +133,9 @@ function calculate(selection=state.selected,data=dbRef()){
    const c=materials.find(x=>sid(x.id)===sid(m?.materialId))||null;
    const name=sid(m?.name||c?.name).trim(),unit=catalogUnit(m,c),per=pos(m?.qty),loss=nonneg(m?.loss??0);
    const mode=sid(m?.calcMode||'consumption'),validMode=mode==='yield'||mode==='consumption';
+   if(c?.unit&&m?.unit&&norm(c.unit)!==norm(m.unit)){
+    model.warnings.push('Unidade divergente para '+name+': ficha '+sid(m.unit)+' × cadastro '+sid(c.unit)+'. Corrija antes de comprar.');continue;
+   }
    if(!name||!unit||per===null||!validMode||loss===null){
     model.warnings.push('Ficha incompleta: '+(name||'material sem nome')+
       ' · quantidade, unidade, rendimento ou perda inválida');continue;
