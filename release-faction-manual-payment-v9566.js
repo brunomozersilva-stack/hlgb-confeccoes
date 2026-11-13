@@ -14,13 +14,13 @@ const arr=name=>Array.isArray(dbRef()[name])?dbRef()[name]:[];
 const makeId=prefix=>prefix+'-'+Date.now().toString(36)+'-'+Math.random().toString(36).slice(2,12);
 let draft=null;
 function factionDirectory(){
- const map=new Map(),add=(name,id,source)=>{
+ const map=new Map(),add=(name,id,source,role='faccao')=>{
   const text=sid(name).trim(),key=norm(text);
   if(!text||!key)return;
   const existing=map.get(key);
-  if(!existing||source==='Cadastro')map.set(key,{name:text,id:sid(id||''),source});
+  if(!existing||source==='Cadastro')map.set(key,{name:text,id:sid(id||''),source,role});
  };
- arr('factionMasters').filter(x=>x?.active!==false).forEach(f=>add(f.name,f.id,'Cadastro'));
+ arr('factionMasters').filter(x=>x?.active!==false).forEach(f=>add(f.name,f.id,'Cadastro',sid(f.factionRoleV9577||'faccao')));
  arr('factions').forEach(f=>add(f.name||f.factionName,f.factionMasterId||'','Produção'));
  arr('factionPayments').forEach(f=>add(f.factionName,'','Histórico'));
  return [...map.values()].sort((a,b)=>a.name.localeCompare(b.name,'pt-BR'));
@@ -37,30 +37,38 @@ function searchRows(items,q,formatter,limit=35){
  const terms=norm(q).split(' ').filter(Boolean);
  return items.filter(x=>terms.every(t=>norm(formatter(x)).includes(t))).slice(0,limit);
 }
-function searchFactions(q){return searchRows(factionDirectory(),q,x=>x.name,60)}
+function searchFactions(q,mode='faccao'){return searchRows(factionDirectory().filter(x=>mode==='embalagem'?x.role==='embaladeira':x.role!=='embaladeira'),q,x=>x.name,60)}
 function searchProducts(q){return searchRows(productDirectory(),q,x=>[x.name,x.code,x.sku,x.category,x.reference].join(' '),50)}
-function grandTotal(lines){return +(lines.reduce((s,r)=>s+r.quantity*r.unitPrice,0)).toFixed(2)}
+function grandTotal(lines){return +(lines.reduce((s,r)=>s+(r.value!=null?r.value:r.quantity*r.unitPrice),0)).toFixed(2)}
 function validDate(text){const s=sid(text);if(!/^\d{4}-\d{2}-\d{2}$/.test(s))return false;const d=new Date(s+'T12:00:00');return !Number.isNaN(d.getTime())&&d.getFullYear()===+s.slice(0,4)&&d.getMonth()===+s.slice(5,7)-1&&d.getDate()===+s.slice(8,10)}
 function validate(input){
- const choices=factionDirectory(),f=choices.find(x=>norm(x.name)===norm(input.factionName));
- if(!f)throw Error('Selecione uma facção cadastrada. Para uma nova, cadastre-a em Cadastros → Facções.');
+ const mode=sid(input.serviceMode||'faccao'),choices=factionDirectory(),f=choices.find(x=>norm(x.name)===norm(input.factionName));
+ if(!['faccao','embalagem'].includes(mode))throw Error('Atividade inválida.');
+ if(!f)throw Error('Selecione uma pessoa cadastrada em Cadastros → Facções.');
+ if(mode==='embalagem'&&f.role!=='embaladeira')throw Error('Selecione uma embaladeira cadastrada, não uma facção de costura.');
+ if(mode==='faccao'&&f.role==='embaladeira')throw Error('Embaladeira só pode ser selecionada na atividade Embalagem.');
  if(!validDate(input.date))throw Error('Informe uma data válida.');
  if(!['Pago','Pendente'].includes(input.status))throw Error('Selecione o status.');
  if(!Array.isArray(input.lines)||!input.lines.length)throw Error('Adicione pelo menos um produto ou serviço.');
  const details=input.lines.map((x,i)=>{
-  const qty=number(x.quantity),unit=number(x.unitPrice),kind=sid(x.kind||'product');
+  const qty=number(x.quantity),unit=number(x.unitPrice),kind=sid(x.kind||'product'),discount=number(x.travetaDiscountUnit||0);
   if(!Number.isInteger(qty)||qty<=0||qty>1000000)throw Error('Quantidade inválida na linha '+(i+1)+'.');
   if(!Number.isFinite(unit)||unit<=0||unit>1000000)throw Error('Informe valor unitário maior que zero na linha '+(i+1)+'.');
+  if(!Number.isFinite(discount)||discount<0||discount>unit)throw Error('Desconto da travetada não pode ultrapassar o valor da peça na linha '+(i+1)+'.');
   const p=productDirectory().find(p=>sid(p.id)===sid(x.productId));
-  if(kind==='product'&&!p)throw Error('Escolha um produto cadastrado na linha '+(i+1)+'.');
-  if(!['product','travetada','service'].includes(kind))throw Error('Tipo de serviço inválido.');
-  const description=kind==='product'?sid(p.name):kind==='travetada'?'Travetada'+(p?' — '+sid(p.name):''):sid(x.description).trim();
+  if(['product','embalagem'].includes(kind)&&!p)throw Error('Escolha um produto cadastrado na linha '+(i+1)+'.');
+  if(kind==='embalagem'&&mode!=='embalagem')throw Error('Embalagem só pode ser paga para uma embaladeira.');
+  if(mode==='embalagem'&&kind!=='embalagem')throw Error('Na atividade Embalagem, inclua apenas linhas de embalagem.');
+  if(!['product','travetada','service','embalagem'].includes(kind))throw Error('Tipo de serviço inválido.');
+  const description=kind==='product'?sid(p.name):kind==='embalagem'?'Embalagem — '+sid(p.name):kind==='travetada'?'Travetada'+(p?' — '+sid(p.name):''):sid(x.description).trim();
   if(!description)throw Error('Descreva o serviço na linha '+(i+1)+'.');
   return {id:sid(x.id),kind,productId:p?.id??null,productName:p?.name||'',
     description:description.slice(0,220),quantity:qty,unitPrice:+unit.toFixed(2),
-    value:+(qty*unit).toFixed(2),note:sid(x.note).slice(0,700),priceOrigin:sid(x.priceOrigin)};
+    grossValue:+(qty*unit).toFixed(2),travetaDiscountUnit:+discount.toFixed(2),
+    travetaDiscountTotal:+(qty*discount).toFixed(2),value:+(qty*(unit-discount)).toFixed(2),
+    note:sid(x.note).slice(0,700),priceOrigin:sid(x.priceOrigin)};
  });
- return {factionName:f.name,factionMasterId:f.id||null,date:input.date,status:input.status,
+ return {factionName:f.name,factionMasterId:f.id||null,serviceMode:mode,date:input.date,status:input.status,
   method:sid(input.method).trim().slice(0,120),note:sid(input.note).trim().slice(0,1500),
   lines:details,total:grandTotal(details)};
 }
@@ -138,12 +146,13 @@ async function persistDraft(input,receipt){
   for(let i=0;i<parsed.lines.length;i++){
    const row=parsed.lines[i],existing=arr('factionPayments').find(x=>sid(x.id)===sid(row.id));
    const obj={...existing,id:row.id,source:'faction_manual_payment_v1',manual:true,
-    manualGroupId:id,manualKindV9566:row.kind,factionMasterId:parsed.factionMasterId,
+    manualGroupId:id,manualKindV9566:row.kind,serviceModeV9577:parsed.serviceMode,factionMasterId:parsed.factionMasterId,
     status:parsed.status,factionName:parsed.factionName,productId:row.productId,
     description:row.description,quantity:row.quantity,unitPrice:row.unitPrice,
-    value:row.value,paidAmount:paid?row.value:0,paymentDate:paid?date:'',
+    value:row.value,grossValueV9577:row.grossValue,travetaDiscountUnitV9577:row.travetaDiscountUnit,
+    travetaDiscountTotalV9577:row.travetaDiscountTotal,paidAmount:paid?row.value:0,paymentDate:paid?date:'',
     scheduledPaymentDate:date,paymentMethod:parsed.method,
-    paymentHistory:existing?.paymentHistory||[],discountAmount:0,
+    paymentHistory:existing?.paymentHistory||[],discountAmount:row.travetaDiscountTotal,
     observation:(row.note||parsed.note||'Pagamento avulso de facção'),manualLineNoteV9566:row.note,
     priceOriginV9566:row.priceOrigin,updatedAt:ts,createdAt:existing?.createdAt||draft.createdAt};
    if(i===0&&draft.receipt)obj.receiptPdfV9566=draft.receipt;
@@ -169,7 +178,7 @@ async function persistDraft(input,receipt){
  finally{state.status=STATUS.idle}
 }
 function rowHtml(kind='product',id=makeId('fmpli')){
- const prod=kind==='product',trav=kind==='travetada',label=trav?'Travetada':prod?'Produto':'Serviço extra';
+ const prod=kind==='product'||kind==='embalagem',trav=kind==='travetada',label=kind==='embalagem'?'Embalagem':trav?'Travetada':prod?'Produto':'Serviço extra';
  return '<div class="fm66-line panel" data-id="'+esc(id)+'" data-kind="'+esc(kind)+'" style="margin:10px 0;padding:12px;border:1px solid #e2d4de">'+
   '<div style="display:flex;justify-content:space-between;align-items:center"><b>'+label+'</b><button type="button" class="secondary fm66-remove">Remover</button></div>'+
   '<div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(145px,1fr));gap:10px;margin:10px 0">'+
@@ -180,7 +189,8 @@ function rowHtml(kind='product',id=makeId('fmpli')){
   (kind==='service'?'<div class="field"><label>Descrição do serviço</label><input class="fm66-desc" maxlength="220" placeholder="Retrabalho, extra..."></div>':'')+
   '<div class="field"><label>Qtd.</label><input type="number" min="1" step="1" class="fm66-qty" value="1"></div>'+
   '<div class="field"><label>Valor unit. (R$)</label><input type="number" min="0.01" step="0.01" class="fm66-unit" placeholder="Informe o valor"></div>'+
-  '<div class="field"><label>Total</label><input class="fm66-total" value="R$ 0,00" disabled></div></div>'+
+  '<div class="field"><label>Desconto travetada/peça (R$)</label><input type="number" min="0" step="0.01" class="fm66-discount" value="0.00" aria-label="Descontar travetada"></div>'+ 
+  '<div class="field"><label>Total após desconto</label><input class="fm66-total" value="R$ 0,00" disabled></div></div>'+
   '<div class="field"><label>Observação desta linha (opcional)</label><input class="fm66-line-note" maxlength="700" placeholder="Ex.: travetada de 300 peças"></div>'+
   '</div>';
 }
@@ -191,7 +201,7 @@ function renderProductsFor(row,query){
  host.innerHTML=rs.map(p=>'<button type="button" class="fm66-product-option" data-product-id="'+esc(p.id)+
   '" role="option" style="display:block;width:100%;text-align:left;border:0;border-bottom:1px solid #eee;padding:8px;background:#fff;cursor:pointer">'+
   '<b>'+esc(p.name||'Produto')+'</b> <small>'+esc(p.code||p.sku||p.category||'')+'</small>'+
-  '<span class="sub" style="display:block">'+(productPrice(p)!=null?'Facção cadastrada: '+money(productPrice(p)):'Sem preço de facção cadastrado')+'</span></button>').join('')+
+  '<span class="sub" style="display:block">'+(row.dataset.kind==='embalagem'?(window.hlgbFactionRates9577?.embalagem?.(p)!=null?'Embalagem: '+money(window.hlgbFactionRates9577.embalagem(p)):'Sem tarifa de embalagem; informar manualmente'):(productPrice(p)!=null?'Facção cadastrada: '+money(productPrice(p)):'Sem preço de facção cadastrado'))+'</span></button>').join('')+
   (!rs.length?'<div class="sub" style="padding:8px">Nenhum produto cadastrado encontrado para esta busca.</div>':'');
 }
 function lineFromDom(row){
@@ -199,13 +209,15 @@ function lineFromDom(row){
   quantity=row.querySelector('.fm66-qty')?.value,
   unitPrice=row.querySelector('.fm66-unit')?.value;
  return {id,kind,productId,quantity,unitPrice,description:row.querySelector('.fm66-desc')?.value||'',
-  note:row.querySelector('.fm66-line-note')?.value||'',priceOrigin:row.dataset.priceOrigin||''};
+  note:row.querySelector('.fm66-line-note')?.value||'',priceOrigin:row.dataset.priceOrigin||'',
+  travetaDiscountUnit:row.querySelector('.fm66-discount')?.value||'0'};
 }
 function recalc(){
  const root=document.getElementById('fm66-root');if(!root)return;
  let total=0;
  root.querySelectorAll('.fm66-line').forEach(row=>{
-  const x=lineFromDom(row),qty=number(x.quantity),unit=number(x.unitPrice),sum=Number.isFinite(qty)&&Number.isFinite(unit)&&qty>0&&unit>=0?qty*unit:0;
+  const x=lineFromDom(row),qty=number(x.quantity),unit=number(x.unitPrice),discount=number(x.travetaDiscountUnit),
+   sum=Number.isFinite(qty)&&Number.isFinite(unit)&&Number.isFinite(discount)&&qty>0&&unit>=discount&&discount>=0?qty*(unit-discount):0;
   total+=sum;row.querySelector('.fm66-total').value=money(sum);
  });
  root.querySelector('#fm66-grand').textContent=money(total);
@@ -233,14 +245,19 @@ function addLine(kind='product'){
   row.querySelector('.fm66-product-id').value=sid(p.id);
   row.querySelector('.fm66-search').value=p.name||'';
   row.querySelector('.fm66-suggestions').style.display='none';
-  const price=productPrice(p),unit=row.querySelector('.fm66-unit');
-  row.dataset.priceOrigin=price!=null?'ficha-tecnica':'manual';
-  if(price!=null){unit.value=price.toFixed(2);row.querySelector('.fm66-hint').textContent='Valor da facção preenchido pela ficha. Você pode alterá-lo.'}
-  else{unit.value='';row.querySelector('.fm66-hint').textContent='Sem valor de facção cadastrado. Informe manualmente abaixo.'}
+  const packing=row.dataset.kind==='embalagem',price=packing?window.hlgbFactionRates9577?.embalagem?.(p):productPrice(p),unit=row.querySelector('.fm66-unit');
+  row.dataset.priceOrigin=price!=null?(packing?'tabela-embalagem':'ficha-tecnica'):'manual';
+  if(price!=null){unit.value=price.toFixed(2);row.querySelector('.fm66-hint').textContent=packing?'Tarifa de embalagem sugerida; você pode alterar.':'Valor da facção preenchido pela ficha. Você pode alterá-lo.'}
+  else{unit.value='';row.querySelector('.fm66-hint').textContent=packing?'Sem tarifa para este modelo. Informe o valor de embalagem.':'Sem valor de facção cadastrado. Informe manualmente abaixo.'}
+  const picked=factionDirectory().find(x=>norm(x.name)===norm(document.getElementById('fm66-faction')?.value));
+  const master=arr('factionMasters').find(x=>sid(x.id)===sid(picked?.id));
+  const d=row.querySelector('.fm66-discount');
+  if(d)d.value=!packing&&master?.doesTraveta===false&&window.hlgbFactionRates9577?.traveta?.(master)!=null?
+   Number(window.hlgbFactionRates9577.traveta(master)).toFixed(2):'0.00';
   recalc();
  });
  row.querySelector('.fm66-remove').addEventListener('click',()=>{row.remove();recalc()});
- row.querySelectorAll('.fm66-qty,.fm66-unit').forEach(inp=>inp.addEventListener('input',()=>{
+ row.querySelectorAll('.fm66-qty,.fm66-unit,.fm66-discount').forEach(inp=>inp.addEventListener('input',()=>{
   if(inp.classList.contains('fm66-unit'))row.dataset.priceOrigin='manual';
   recalc();
  }));
@@ -248,17 +265,17 @@ function addLine(kind='product'){
 }
 function renderFactionList(q){
  const host=document.getElementById('fm66-faction-suggestions');if(!host)return;
- const rows=searchFactions(q);
+ const mode=document.getElementById('fm66-mode')?.value||'faccao',rows=searchFactions(q,mode);
  host.style.display='block';
  host.innerHTML=rows.map(f=>'<button type="button" role="option" class="fm66-faction-option" data-faction="'+esc(f.name)+
   '" style="display:block;width:100%;text-align:left;background:white;border:0;border-bottom:1px solid #eee;padding:9px;cursor:pointer">'+
   '<b>'+esc(f.name)+'</b> <small>'+esc(f.source)+'</small></button>').join('')+
-  (!rows.length?'<div class="sub" style="padding:8px">Nenhuma facção encontrada. Cadastre em Cadastros → Facções.</div>':'');
+  (!rows.length?'<div class="sub" style="padding:8px">'+(mode==='embalagem'?'Nenhuma embaladeira cadastrada. Marque a atividade Embaladeira no cadastro de facções.':'Nenhuma facção encontrada. Cadastre em Cadastros → Facções.')+'</div>':'');
 }
 function formData(){
  const root=document.getElementById('fm66-root');if(!root)throw Error('Formulário não carregado.');
  const get=id=>root.querySelector('#'+id)?.value||'';
- return {factionName:get('fm66-faction'),date:get('fm66-date'),status:get('fm66-status'),
+ return {factionName:get('fm66-faction'),serviceMode:get('fm66-mode')||'faccao',date:get('fm66-date'),status:get('fm66-status'),
   method:get('fm66-method'),note:get('fm66-note'),lines:[...root.querySelectorAll('.fm66-line')].map(lineFromDom)};
 }
 function receiptSummary(){
@@ -266,20 +283,29 @@ function receiptSummary(){
  host.textContent=file?'Selecionado: '+file.name+' ('+Math.ceil(file.size/1024)+' KB). Será armazenado com o pagamento.':'PDF opcional, até 750 KB. Não altera o status automaticamente.';
 }
 function modalHtml(){
- const today=stamp();
+ const today=stamp(),tariffs=window.hlgbFactionRates9577?.rates?.()||{embalagem:{camisola:.25,doll:.25,calcinha:.15},travetaUnit:null};
  return '<div id="fm66-root" style="max-width:100%;overflow-x:hidden">'+
-  '<div class="sub">Escolha uma facção do cadastro e selecione os produtos pelo nome/código. Cada valor sugerido pode ser editado.</div>'+
+  '<div class="sub">Selecione Facção de costura ou Embalagem. O preço da ficha/tabela aparece automaticamente e pode ser ajustado; a travetada descontada fica discriminada.</div>'+
   '<div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px;margin-top:12px">'+
-  '<div class="field"><label>Facção</label><input id="fm66-faction" role="combobox" aria-label="Buscar facção" autocomplete="off" aria-autocomplete="list" placeholder="Digite o nome da facção">'+
+  '<div class="field"><label>Atividade</label><select id="fm66-mode"><option value="faccao">Facção / Costura</option><option value="embalagem">Embalagem</option></select></div>'+ 
+  '<div class="field"><label>Facção ou embaladeira</label><input id="fm66-faction" role="combobox" aria-label="Buscar facção ou embaladeira" autocomplete="off" aria-autocomplete="list" placeholder="Busque a pessoa cadastrada">'+
   '<div id="fm66-faction-suggestions" role="listbox" style="display:none;max-height:180px;overflow-y:auto;border:1px solid #ddd;border-radius:7px;background:white"></div></div>'+
   '<div class="field"><label>Data</label><input type="date" id="fm66-date" value="'+today+'"></div>'+
   '<div class="field"><label>Status</label><select id="fm66-status"><option>Pendente</option><option>Pago</option></select></div>'+
   '<div class="field"><label>Forma de pagamento</label><input id="fm66-method" placeholder="Pix, dinheiro, transferência"></div></div>'+
   '<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin:16px 0 6px"><b>Produtos / serviços</b>'+
-  '<div class="toolbar" style="display:flex;flex-wrap:wrap;gap:6px"><button class="secondary" id="fm66-add-product" type="button">+ Produto</button>'+
+  '<div class="toolbar" style="display:flex;flex-wrap:wrap;gap:6px"><button class="secondary" id="fm66-add-product" type="button">+ Produto</button>'+ 
+  '<button class="secondary" id="fm66-add-embalagem" type="button" style="display:none">+ Embalagem</button>'+
   '<button class="secondary" id="fm66-add-traveta" type="button">+ Travetada</button>'+
-  '<button class="secondary" id="fm66-add-service" type="button">+ Outro serviço</button></div></div>'+
+  '<button class="secondary" id="fm66-add-service" type="button">+ Outro serviço</button>'+ 
+  '<button class="secondary" id="fm66-price-table" type="button">⚙️ Preços embalagem/travetada</button></div></div>'+
   '<div id="fm66-lines"></div>'+
+  '<div id="fm66-rates-inline" class="panel" style="padding:12px;margin:12px 0;display:none"><b>⚙️ Tabela de serviços</b>'+
+  '<p class="sub">Valores aplicados nos próximos lançamentos. A travetada tem uma taxa própria; nenhuma nota antiga será modificada.</p>'+
+  '<div class="grid" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:7px">'+
+  [['packCamisolaV9577','Camisola (R$/peça)',tariffs.embalagem.camisola],['packDollV9577','Doll (R$/peça)',tariffs.embalagem.doll],['packCalcinhaV9577','Calcinha (R$/peça)',tariffs.embalagem.calcinha],['travetaUnitValue','Travetada (R$/peça)',tariffs.travetaUnit]].map(([k,label,value])=>
+  '<div class="field"><label>'+esc(label)+'</label><input class="fm77-rate" data-rate="'+k+'" type="number" min="0" step="0.01" value="'+(value==null?'':Number(value).toFixed(2))+'"></div>').join('')+
+  '</div><button class="secondary" id="fm66-save-rates" type="button">☁️ Salvar tabela de preços</button><div id="fm66-rates-message" role="status" class="sub"></div></div>'+
   '<div class="field" style="margin-top:12px"><label>Observação geral</label><textarea id="fm66-note" rows="2" maxlength="1500" placeholder="Ex.: serviço extra ou acerto combinado"></textarea></div>'+
   '<div class="panel" style="margin-top:12px;padding:10px"><label for="fm66-pdf"><b>📎 Comprovante de pagamento (PDF)</b></label>'+
   '<input id="fm66-pdf" type="file" accept=".pdf,application/pdf">'+
@@ -291,7 +317,7 @@ function openForm(){
  if(typeof window.openModal!=='function'&&typeof openModal!=='function')return false;
  draft={groupId:makeId('faction-manual'),createdAt:new Date().toISOString(),receipt:null};state.opened++;
  const open=window.openModal||openModal;
- open('Pagamento avulso de facção',modalHtml(),async()=>{
+ open('Pagamento avulso — facção ou embalagem',modalHtml(),async()=>{
   const btn=document.querySelector('#fm66-root .modalSave'),feedback=document.getElementById('fm66-feedback');
   if(btn){btn.disabled=true;btn.textContent='☁️ Salvando…'}
   if(feedback)feedback.textContent='Confirmando os registros na nuvem...';
@@ -327,6 +353,31 @@ function openForm(){
  }
  document.getElementById('fm66-add-product')?.addEventListener('click',()=>addLine('product'));
  document.getElementById('fm66-add-traveta')?.addEventListener('click',()=>addLine('travetada'));
+ document.getElementById('fm66-add-embalagem')?.addEventListener('click',()=>addLine('embalagem'));
+ document.getElementById('fm66-price-table')?.addEventListener('click',()=>{
+  const el=document.getElementById('fm66-rates-inline');if(el)el.style.display=el.style.display==='none'?'block':'none';
+ });
+ document.getElementById('fm66-save-rates')?.addEventListener('click',async()=>{
+  const host=document.getElementById('fm66-rates-inline'),btn=host?.querySelector('#fm66-save-rates'),feedback=host?.querySelector('#fm66-rates-message');
+  if(!btn)return;btn.disabled=true;if(feedback)feedback.textContent='Salvando tabela no servidor…';
+  const data={};host.querySelectorAll('[data-rate]').forEach(x=>data[x.dataset.rate]=x.value);
+  try{
+   if(typeof window.hlgbFactionRates9577?.save!=='function')throw Error('Módulo de preços ainda não carregou.');
+   await window.hlgbFactionRates9577.save(data);
+   if(feedback)feedback.textContent='✓ Tabela de embalagem e travetada salva na nuvem.';
+  }catch(err){if(feedback)feedback.textContent='⚠ '+sid(err?.message||err)}
+  finally{btn.disabled=false}
+ });
+ document.getElementById('fm66-mode')?.addEventListener('change',e=>{
+  const mode=e.target.value,host=document.getElementById('fm66-lines');
+  if(host)host.innerHTML='';
+  faction.value='';
+  document.getElementById('fm66-add-product').style.display=mode==='embalagem'?'none':'';
+  document.getElementById('fm66-add-traveta').style.display=mode==='embalagem'?'none':'';
+  document.getElementById('fm66-add-service').style.display=mode==='embalagem'?'none':'';
+  document.getElementById('fm66-add-embalagem').style.display=mode==='embalagem'?'':'none';
+  addLine(mode==='embalagem'?'embalagem':'product');
+ });
  document.getElementById('fm66-add-service')?.addEventListener('click',()=>addLine('service'));
  document.getElementById('fm66-pdf')?.addEventListener('change',receiptSummary);
  addLine('product');
