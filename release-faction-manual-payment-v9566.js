@@ -927,6 +927,159 @@ function receiptGroups(){
  return [...groups.values()].sort((a,b)=>sid(b.date).localeCompare(sid(a.date))||
   sid(b.updatedAt).localeCompare(sid(a.updatedAt)));
 }
+
+/* PDF detalhado: gerador local, sem CDN, sem baixar comprovantes dentro
+ * do resumo e sem qualquer mutação de dados. Fonte Courier/WinAnsi permite
+ * copiar o texto no PDF; suporta múltiplas páginas e observações extensas. */
+function pdfEncode1252V9590(str){
+ const fixes={'€':128,'‚':130,'ƒ':131,'„':132,'…':133,'†':134,'‡':135,'ˆ':136,'‰':137,
+  'Š':138,'‹':139,'Œ':140,'Ž':142,'‘':145,'’':146,'“':147,'”':148,'•':149,'–':150,
+  '—':151,'˜':152,'™':153,'š':154,'›':155,'œ':156,'ž':158,'Ÿ':159};
+ let out='';
+ for(const c of sid(str).replace(/[\r\n\t]/g,' ')){
+  const k=c.charCodeAt(0);out+=k<=255?c:(fixes[c]!=null?String.fromCharCode(fixes[c]):'?');
+ }
+ return out;
+}
+function pdfEscapeV9590(value){
+ return pdfEncode1252V9590(value).replace(/[\\()]/g,'\\function openPayModal(groupId){');
+}
+function pdfWrapV9590(value,max=93){
+ const result=[];
+ for(const paragraph of sid(value).split(/\r?\n/)){
+  let words=paragraph.trim().split(/\s+/).filter(Boolean);
+  if(!words.length){result.push('');continue}
+  let line='';
+  for(let word of words){
+   while(word.length>max){if(line){result.push(line);line=''}result.push(word.slice(0,max));word=word.slice(max)}
+   if(line&&line.length+1+word.length>max){result.push(line);line=word}
+   else line+=(line?' ':'')+word;
+  }
+  if(line)result.push(line);
+ }
+ return result;
+}
+function summaryLinesV9590(groupId){
+ const all=assertGroup(groupId),group=receiptGroups().find(g=>g.id===sid(groupId));
+ if(!group)throw Error('Pagamento avulso não encontrado para o relatório.');
+ const active=activeGroupRowsV9590(all),canceled=all.filter(isCanceledV9590),
+  apps=groupApplicationsV9590(all),corrections=groupCorrectionsV9590(all),
+  original=nominalGroupV9590(all),net=netGroupV9590(all),
+  paid=active.reduce((sum,x)=>sum+(Number(x.paidAmount)||0),0);
+ const f=money,v=x=>sid(x||'-'),date=()=>new Date().toLocaleString('pt-BR');
+ const out=['RESUMO DETALHADO DE PAGAMENTO AVULSO','HLGB CONFECCOES','Emitido: '+date(),
+  'Documento informativo: confira com o comprovante bancario e o Hub Financeiro.',
+  'IDENTIFICACAO',
+  'Lancamento: '+group.id,'Profissional / faccao: '+v(group.factionName),
+  'Atividade: '+(group.serviceMode==='embalagem'?'Embalagem':group.serviceMode==='travetada'?'Travetada':'Costura / faccao'),
+  'Status: '+group.status,'Data prevista / pagamento: '+v(group.date),
+  'Linhas ativas: '+active.length+' | Canceladas: '+canceled.length,
+  'VALORES',
+  'Soma dos servicos ativos: '+f(original),
+  'Compensacoes recebidas: '+apps.map(x=>(x.kind==='a_mais'?'-':'+')+f(x.amount)).join(' / ').slice(0,160),
+  'Total liquido previsto deste pagamento: '+f(net),
+  'Valor marcado como pago nas linhas: '+f(paid),
+  'Saldo deste pagamento: '+f(net-paid),
+  'PRODUTOS E SERVICOS (ATIVOS)'];
+ if(!active.length)out.push('Nenhum servico ativo.');
+ for(let i=0;i<active.length;i++){
+  const x=active[i];
+  out.push('Item '+(i+1)+': '+v(x.description));
+  out.push('  Quantidade: '+(Number(x.quantity)||0)+' | Unitario: '+f(x.unitPrice)+
+   ' | Bruto: '+f(x.grossValueV9577??Number(x.quantity)*Number(x.unitPrice)));
+  out.push('  Travetada descontada: '+f(x.travetaDiscountTotalV9577||0)+
+   ' | Liquido: '+f(x.value)+' | Pago atribuido: '+f(x.paidAmount));
+  out.push('  Modelo: '+v(x.manualProductNameV9589||x.productName||x.productId)+
+   ' | ID: '+v(x.productId||'avulso / sem cadastro'));
+  if(x.manualLineNoteV9566)out.push('  Observacao da linha: '+v(x.manualLineNoteV9566));
+  if(x.observation)out.push('  Observacao do pagamento: '+v(x.observation));
+  if(x.paymentDate)out.push('  Pago em: '+v(x.paymentDate)+' | Metodo: '+v(x.paymentMethod));
+ }
+ out.push('LINHAS RETIRADAS (HISTORICO PRESERVADO)');
+ if(!canceled.length)out.push('Nenhuma linha cancelada.');
+ for(const x of canceled){
+  out.push('CANCELADA: '+v(x.description)+' | '+(Number(x.quantity)||0)+' pecas | Valor original: '+f(x.value));
+  out.push('  Motivo: '+v(x.manualCanceledReasonV9590)+' | Data: '+v(x.manualCanceledAtV9590));
+ }
+ out.push('ACERTOS POR PAGAMENTO A MAIS / A MENOS');
+ if(!corrections.length)out.push('Nenhuma diferenca registrada neste pagamento.');
+ for(const x of corrections){
+  out.push((x.kind==='a_mais'?'PAGO A MAIS / CREDITO':'PAGO A MENOS / DIFERENCA')+
+   ' | Valor: '+f(x.amount)+' | Saldo ainda nao compensado: '+f(correctionRemainingV9590(x)));
+  out.push('  Registro: '+v(x.registeredAt)+' | ID: '+v(x.id));
+  out.push('  Motivo: '+v(x.reason));
+  for(const applied of x.applications||[])
+   out.push('  Compensacao em: '+v(applied.targetGroupId)+' | Valor: '+f(applied.amount));
+ }
+ out.push('COMPENSACOES APLICADAS A ESTE PAGAMENTO');
+ if(!apps.length)out.push('Nenhuma compensacao recebida de outro pagamento.');
+ for(const x of apps){
+  out.push((x.kind==='a_mais'?'ABATIMENTO':'COMPLEMENTO')+' '+f(x.amount)+
+   ' | Origem: '+v(x.sourceGroupId));
+  out.push('  Motivo: '+v(x.reason)+' | Data: '+v(x.appliedAt));
+ }
+ out.push('HISTORICO DE PAGAMENTO');
+ let histories=0;
+ for(const x of all)for(const p of x.paymentHistory||[]){
+  out.push(v(x.description)+' | '+v(p.date)+' | '+f(p.amount??p.value)+' | '+v(p.method));histories++;
+ }
+ if(!histories)out.push('Sem eventos de baixa registrados.');
+ out.push('HISTORICO DE EDICOES');
+ let edits=0;
+ for(const x of all)for(const p of x.manualEditHistoryV9588||[]){
+  out.push(v(x.description)+' | '+v(p.at)+' | '+v(p.reason)+' | '+f(p.from)+' -> '+f(p.to));edits++;
+ }
+ if(!edits)out.push('Nenhuma edicao anterior registrada.');
+ out.push('COMPROVANTES');
+ for(const x of all)if(x.receiptPdfV9566?.name)out.push(v(x.receiptPdfV9566.name)+
+  ' | '+v(x.receiptPdfV9566.addedAt)+' | '+v(x.receiptPdfV9566.size)+' bytes');
+ if(!all.some(x=>x.receiptPdfV9566?.name))out.push('Nenhum PDF comprovante anexado.');
+ out.push('FIM DO RESUMO','O PDF resume os registros carregados no navegador. Nao e comprovante de transferencia.');
+ return out.flatMap(line=>pdfWrapV9590(line,93));
+}
+function buildSummaryPdfV9590(groupId){
+ const lines=summaryLinesV9590(groupId),perPage=49,pages=[];
+ for(let i=0;i<lines.length;i+=perPage)pages.push(lines.slice(i,i+perPage));
+ if(!pages.length)pages.push([]);
+ const N=pages.length,objs=[],fontReg=3+2*N,fontBold=fontReg+1;
+ objs[1]='<< /Type /Catalog /Pages 2 0 R >>';
+ objs[2]='<< /Type /Pages /Kids [ '+pages.map((_,i)=>3+i*2+' 0 R').join(' ')+' ] /Count '+N+' >>';
+ pages.forEach((page,i)=>{
+  let stream='0.38 0.20 0.30 rg BT /FB 15 Tf 44 800 Td (HLGB - PAGAMENTO AVULSO) Tj ET\n0 0 0 rg\n';
+  stream+='0.40 0.40 0.40 RG 44 788 m 550 788 l S\n';
+  let y=765;
+  for(const line of page){
+   const bold=/^(RESUMO|HLGB CONFECCOES|IDENTIFICACAO|VALORES|PRODUTOS E SERVICOS|LINHAS RETIRADAS|ACERTOS POR|COMPENSACOES APLICADAS|HISTORICO DE|COMPROVANTES|FIM DO)/.test(line);
+   stream+='BT /'+(bold?'FB':'FR')+' '+(bold?9:8.8)+' Tf 44 '+y+' Td ('+pdfEscapeV9590(line)+') Tj ET\n';
+   y-=14;
+  }
+  stream+='0.38 0.20 0.30 rg BT /FR 8 Tf 44 35 Td ('+
+   pdfEscapeV9590('HLGB Confecções  |  Pagina '+(i+1)+'/'+N+'  |  Somente resumo informativo')+
+   ') Tj ET\n';
+  const p=3+i*2,content=p+1;
+  objs[p]='<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /FR '+
+   fontReg+' 0 R /FB '+fontBold+' 0 R >> >> /Contents '+content+' 0 R >>';
+  const bytes=pdfEncode1252V9590(stream);
+  objs[content]='<< /Length '+bytes.length+' >>\nstream\n'+bytes+'\nendstream';
+ });
+ objs[fontReg]='<< /Type /Font /Subtype /Type1 /BaseFont /Courier /Encoding /WinAnsiEncoding >>';
+ objs[fontBold]='<< /Type /Font /Subtype /Type1 /BaseFont /Courier-Bold /Encoding /WinAnsiEncoding >>';
+ let pdf='%PDF-1.4\n';const offsets=[0];
+ for(let i=1;i<objs.length;i++){offsets[i]=pdf.length;pdf+=i+' 0 obj\n'+objs[i]+'\nendobj\n'}
+ const xref=pdf.length;pdf+='xref\n0 '+objs.length+'\n0000000000 65535 f \n';
+ for(let i=1;i<objs.length;i++)pdf+=String(offsets[i]).padStart(10,'0')+' 00000 n \n';
+ pdf+='trailer\n<< /Size '+objs.length+' /Root 1 0 R >>\nstartxref\n'+xref+'\n%%EOF';
+ const bytes=new Uint8Array(pdf.length);for(let i=0;i<pdf.length;i++)bytes[i]=pdf.charCodeAt(i)&255;
+ return new Blob([bytes],{type:'application/pdf'});
+}
+function downloadSummaryPdfV9590(groupId){
+ const pdf=buildSummaryPdfV9590(groupId),url=URL.createObjectURL(pdf),link=document.createElement('a');
+ link.href=url;link.download='HLGB-Pagamento-Avulso-'+sid(groupId).replace(/[^a-zA-Z0-9_-]/g,'_')+'.pdf';
+ link.style.display='none';document.body.appendChild(link);link.click();link.remove();
+ setTimeout(()=>URL.revokeObjectURL(url),15000);
+ return {name:link.download,size:pdf.size,pages:null};
+}
+
 function openPayModal(groupId){
  const rows=assertGroup(groupId),status=groupState(rows);
  if(status==='Pago')throw Error('Este lançamento já está pago.');
