@@ -6,6 +6,7 @@ on:
       - 'app-stable3.html'
       - 'release-product-traceability-v9580.js'
       - 'tests/product-traceability-v9580.cjs'
+      - 'tests/product-work-events-v9581.cjs'
       - '.github/workflows/product-traceability-v9580.yml'
   push:
     branches: [main]
@@ -13,6 +14,7 @@ on:
       - 'app-stable3.html'
       - 'release-product-traceability-v9580.js'
       - 'tests/product-traceability-v9580.cjs'
+      - 'tests/product-work-events-v9581.cjs'
       - '.github/workflows/product-traceability-v9580.yml'
 permissions: {contents: read}
 jobs:
@@ -25,3 +27,4 @@ jobs:
         with: {node-version: '22'}
       - run: node --check release-product-traceability-v9580.js
       - run: node tests/product-traceability-v9580.cjs
+      - run: node tests/product-work-events-v9581.cjs
