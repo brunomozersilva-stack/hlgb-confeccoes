@@ -144,6 +144,83 @@ const engine=process.env.HLGB_BROWSER==='webkit'?webkit:chromium;
   await page.locator('#fm88-filter-status').selectOption('Pago');
   assert.equal(await page.locator('#fm66-receipts tr[data-fm88-row]:visible').count(),2);
 
+
+  // v95.89: an embaladeira can receive a product not registered in the catalog.
+  await page.locator('#fm88-filter-status').selectOption('todos');
+  const catalogueBefore=await page.evaluate(()=>window.db.products.length);
+  await page.locator('#hlgbFactionManualPaymentBtn').click();
+  await page.locator('#fm66-mode').selectOption('embalagem');
+  await page.locator('#fm66-faction').fill('Marina');
+  await page.locator('#fm66-faction-suggestions [data-faction="Marina"]').click();
+  assert.equal(await page.locator('.fm66-line').first().getAttribute('data-kind'),'embalagem');
+  await page.locator('.fm66-line .fm66-unregistered').first().check();
+  await page.locator('.fm66-line .fm66-manual-name').first().fill('Camisola amostra cliente');
+  await page.locator('.fm66-line .fm66-manual-category').first().selectOption('camisola');
+  assert.equal(await page.locator('.fm66-line .fm66-unit').first().inputValue(),'0.25');
+  await page.locator('.fm66-line .fm66-qty').first().fill('80');
+  assert.match(await page.locator('#fm66-grand').innerText(),/20,00/);
+  await page.locator('#modal .modalSave').click();
+  await page.locator('#modal').waitFor({state:'detached'});
+  const packer=await page.evaluate(()=>window.db.factionPayments.find(x=>x.factionName==='Marina'));
+  assert.equal(packer.manualProductNameV9589,'Camisola amostra cliente');
+  assert.equal(packer.manualProductCategoryV9589,'camisola');
+  assert.equal(packer.productId,null,'non-catalog product must have no fake product ID');
+  assert.equal(packer.status,'Pendente');
+  assert.equal(await page.evaluate(()=>window.db.products.length),catalogueBefore,'no invented catalog row');
+  const packerGroup=page.locator('#fm66-receipts tr[data-fm88-row]').filter({hasText:'Marina'});
+  await packerGroup.locator('.fm88-edit').click();
+  await page.locator('#fm66-root').waitFor({state:'visible'});
+  assert.equal(await page.locator('.fm66-line .fm66-unregistered').first().isChecked(),true);
+  assert.equal(await page.locator('.fm66-line .fm66-manual-name').first().inputValue(),'Camisola amostra cliente');
+  assert.equal(await page.locator('.fm66-line .fm66-manual-category').first().inputValue(),'camisola');
+  await page.locator('.fm66-line .fm66-qty').first().fill('90');
+  await page.locator('#modal .modalSave').click();
+  await page.locator('#modal').waitFor({state:'detached'});
+  const updatedPacker=await page.evaluate(id=>window.db.factionPayments.find(x=>x.id===id),packer.id);
+  assert.equal(updatedPacker.value,22.5,'corrected net packaging amount');
+  assert.equal(updatedPacker.productId,null);
+  assert.equal(updatedPacker.manualProductNameV9589,'Camisola amostra cliente');
+  assert.equal(await page.evaluate(()=>window.db.products.length),catalogueBefore);
+  await page.locator('#fm66-receipts tr[data-fm88-row]').filter({hasText:'Marina'}).locator('.fm88-pay').click();
+  await page.locator('#fm88-pay-modal').waitFor({state:'visible'});
+  await page.locator('#fm88-paid-method').fill('Pix');
+  await page.locator('#fm88-pay-modal .modalSave').click();
+  await page.locator('#fm88-pay-modal').waitFor({state:'detached'});
+  assert.equal(await page.evaluate(id=>window.db.factionPayments.find(x=>x.id===id).status,packer.id),'Pago');
+  assert.equal(await page.evaluate(g=>window.db.hubFinanceEntries.filter(x=>x.sourceId===g).length,packer.manualGroupId),1);
+
+  // A person who only does travetada is a distinct payee in the same ledger.
+  await page.locator('#hlgbFactionManualPaymentBtn').click();
+  await page.locator('#fm66-mode').selectOption('travetada');
+  await page.locator('#fm66-faction').fill('Tania');
+  await page.locator('#fm66-faction-suggestions [data-faction="Tania"]').click();
+  assert.equal(await page.locator('.fm66-line').first().getAttribute('data-kind'),'travetada');
+  assert.equal(await page.locator('.fm66-line .fm66-unit').first().inputValue(),'0.08','uses travetadora registered rate');
+  await page.locator('.fm66-line .fm66-qty').first().fill('300');
+  assert.match(await page.locator('#fm66-grand').innerText(),/24,00/);
+  await page.locator('#modal .modalSave').click();
+  await page.locator('#modal').waitFor({state:'detached'});
+  const travetadora=await page.evaluate(()=>window.db.factionPayments.find(x=>x.factionName==='Tania'));
+  assert.equal(travetadora.serviceModeV9577,'travetada');
+  assert.equal(travetadora.manualKindV9566,'travetada');
+  assert.equal(travetadora.status,'Pendente');
+  assert.equal(travetadora.productId,null,'travetada can be paid without any catalog product');
+  await page.locator('#fm66-receipts tr[data-fm88-row]').filter({hasText:'Tania'}).locator('.fm88-pay').click();
+  await page.locator('#fm88-pay-modal').waitFor({state:'visible'});
+  await page.locator('#fm88-paid-method').fill('Pix');
+  await page.locator('#fm88-pay-modal .modalSave').click();
+  await page.locator('#fm88-pay-modal').waitFor({state:'detached'});
+  const travetPaid=await page.evaluate(id=>{
+   const x=window.db.factionPayments.find(row=>row.id===id);
+   return {status:x.status,amount:x.paidAmount,
+    financial:window.db.hubFinanceEntries.filter(h=>h.sourceId===x.manualGroupId)};
+  },travetadora.id);
+  assert.equal(travetPaid.status,'Pago');
+  assert.equal(travetPaid.amount,24);
+  assert.equal(travetPaid.financial.length,1,'one Hub entry for standalone travetada');
+  assert.equal(travetPaid.financial[0].value,24);
+  assert.equal(await page.evaluate(()=>window.db.products.length),catalogueBefore);
+
   await page.setViewportSize({width:390,height:850});
   await page.locator('#hlgbFactionManualPaymentBtn').click();
   assert.equal(await page.locator('#fm66-faction').isVisible(),true);
