@@ -313,6 +313,7 @@ function render(type,id){
  window.openModal(title,html,()=>false);
  const host=document.getElementById('hlgbAcertoReturn9565');
  if(!host)return true;
+ if(type==='projection')try{window.hlgbNoteReceipts9576?.show?.(id,host)}catch(e){console.warn('[HLGB PDF note]',e)}
  const preview=()=>{const raw=Number(host.querySelector('#ar65-return')?.value||0),value=Number.isFinite(raw)&&raw>=0?cent(raw):0;
   const target=host.querySelector('#ar65-return-preview');if(target)target.textContent='Nota '+brl(m.total)+' − recebimentos '+brl(m.cash)+' − devoluções anteriores '+brl(m.credit)+' − novo abatimento '+brl(value)+' = a cobrar '+brl(Math.max(0,m.remaining-value))+(value>m.remaining?' · ⚠ Valor acima do saldo':'');};
  const recalc=()=>{if(!itemList.length)return;let sum=0;host.querySelectorAll('[data-ar72-qty]').forEach(input=>{const i=Number(input.dataset.ar72Qty),qty=Number(input.value),unit=Number(host.querySelector('[data-ar72-unit="'+i+'"]')?.value||0);sum+=Math.round(qty*cent(unit));});
