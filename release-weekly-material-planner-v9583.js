@@ -47,8 +47,10 @@ function saveDraft(){
 function catalogUnit(m,c){return sid(m?.unit||c?.unit||'').trim()}
 function keyFor(m,c,name,unit){return (c?.id!=null?'id:'+sid(c.id):'nome:'+norm(name))+'|un:'+norm(unit)+'|cor:'+norm(m?.color||'')}
 function supplyMatches(item,stocks){
- const byId=stocks.filter(s=>s?.materialId!=null&&sid(s.materialId)===sid(item.materialId));
- const byName=stocks.filter(s=>norm(s?.item||s?.name)===norm(item.name)&&(!item.color||!s.color||norm(s.color)===norm(item.color)));
+ // Never subtract uncoloured stock from multiple colour-specific requirements.
+ const sameColor=s=>!item.color||Boolean(s?.color&&norm(s.color)===norm(item.color));
+ const byId=stocks.filter(s=>s?.materialId!=null&&sid(s.materialId)===sid(item.materialId)&&sameColor(s));
+ const byName=stocks.filter(s=>norm(s?.item||s?.name)===norm(item.name)&&sameColor(s));
  return byId.length?byId:byName;
 }
 function stockFor(item,stocks){
