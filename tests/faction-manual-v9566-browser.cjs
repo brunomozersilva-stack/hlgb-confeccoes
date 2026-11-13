@@ -99,6 +99,51 @@ const engine=process.env.HLGB_BROWSER==='webkit'?webkit:chromium;
   }
   assert.equal(await page.evaluate(()=>window.db.factionPayments.find(x=>x.factionName==='Ge').status),'Pendente','adding a PDF cannot mark pending as paid');
   assert.equal(await page.locator('#fm66-receipts .fm66-download').count(),2,'both proofs must remain downloadable');
+
+  // v95.88: the existing pending group must reopen with the same line ID,
+  // allow a value correction and then post exactly one confirmed Hub payment.
+  const geRow=page.locator('#fm66-receipts tr[data-fm88-row]').filter({hasText:'Ge'});
+  assert.equal(await geRow.locator('.fm88-edit').count(),1);
+  const geGroup=await geRow.locator('.fm88-edit').getAttribute('data-group-id');
+  const rowId=await page.evaluate(g=>window.db.factionPayments.find(x=>x.manualGroupId===g).id,geGroup);
+  await geRow.locator('.fm88-edit').click();
+  await page.locator('#fm66-root').waitFor({state:'visible'});
+  assert.equal(await page.locator('#fm66-faction').inputValue(),'Ge');
+  assert.equal(await page.locator('.fm66-line').first().getAttribute('data-id'),rowId,'edit retains identity');
+  assert.equal(await page.locator('.fm66-line .fm66-remove').first().isDisabled(),true,'saved line is not deleted');
+  await page.locator('.fm66-line .fm66-qty').first().fill('4');
+  await page.locator('.fm66-line .fm66-discount').first().fill('0.10');
+  await page.locator('#modal .modalSave').click();
+  await page.locator('#modal').waitFor({state:'detached'});
+  const corrected=await page.evaluate(id=>window.db.factionPayments.find(x=>x.id===id),rowId);
+  assert.equal(corrected.value,6.4);
+  assert.equal(corrected.status,'Pendente');
+  assert.equal(corrected.receiptPdfV9566.name,'comprovante-pendente.pdf','edit cannot discard PDF');
+  assert.equal(await page.evaluate(()=>window.db.hubFinanceEntries.length),1,'edit cannot post a paid Hub');
+  const geRowAfter=page.locator('#fm66-receipts tr[data-fm88-row]').filter({hasText:'Ge'});
+  assert.equal(await geRowAfter.locator('.fm88-pay').count(),1);
+  await geRowAfter.locator('.fm88-pay').click();
+  await page.locator('#fm88-pay-modal').waitFor({state:'visible'});
+  await page.locator('#fm88-paid-date').fill('2026-11-13');
+  await page.locator('#fm88-paid-method').fill('Pix');
+  await page.locator('#fm88-pay-modal .modalSave').click();
+  await page.locator('#fm88-pay-modal').waitFor({state:'detached'});
+  const paid=await page.evaluate(id=>({
+    row:window.db.factionPayments.find(x=>x.id===id),
+    hub:window.db.hubFinanceEntries.find(x=>x.sourceId===window.db.factionPayments.find(p=>p.id===id).manualGroupId),
+    hubCount:window.db.hubFinanceEntries.length
+  }),rowId);
+  assert.equal(paid.row.status,'Pago');
+  assert.equal(paid.row.paidAmount,6.4);
+  assert.equal(paid.hub.value,6.4,'Hub receives corrected net value');
+  assert.equal(paid.hubCount,2,'one Hub entry for each of two groups');
+  assert.equal(await page.locator('#fm66-receipts tr[data-fm88-row]').filter({hasText:'Ge'}).locator('.fm88-pay').count(),0,'paid group cannot be paid twice');
+  assert.equal(await page.locator('#fm88-filter-status').count(),1);
+  await page.locator('#fm88-filter-status').selectOption('Pendente');
+  assert.equal(await page.locator('#fm66-receipts tr[data-fm88-row]:visible').count(),0);
+  await page.locator('#fm88-filter-status').selectOption('Pago');
+  assert.equal(await page.locator('#fm66-receipts tr[data-fm88-row]:visible').count(),2);
+
   await page.setViewportSize({width:390,height:850});
   await page.locator('#hlgbFactionManualPaymentBtn').click();
   assert.equal(await page.locator('#fm66-faction').isVisible(),true);
