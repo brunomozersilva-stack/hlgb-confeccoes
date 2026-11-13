@@ -1,0 +1,32 @@
+name: HLGB Acerto Confirmation and Receipts v95.76
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'app-stable3.html'
+      - 'release-acerto-returns-v9565.js'
+      - 'release-note-receipts-v9576.js'
+      - 'tests/acerto-save-receipts-v9576.cjs'
+      - '.github/workflows/acerto-save-receipts-v9576.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'app-stable3.html'
+      - 'release-acerto-returns-v9565.js'
+      - 'release-note-receipts-v9576.js'
+      - 'tests/acerto-save-receipts-v9576.cjs'
+      - '.github/workflows/acerto-save-receipts-v9576.yml'
+permissions: {contents: read}
+jobs:
+  checks:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - run: node --check release-note-receipts-v9576.js
+      - run: node --check release-acerto-returns-v9565.js
+      - run: node tests/acerto-returns-v9565.cjs
+      - run: node tests/acerto-edit-history-v9572.cjs
+      - run: node tests/acerto-save-receipts-v9576.cjs
