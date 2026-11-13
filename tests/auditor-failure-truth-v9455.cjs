@@ -23,5 +23,16 @@ vm.createContext(ctx);vm.runInContext(src,ctx);
  assert.equal(card['data-audit-completed'],'false');
  assert.equal(saved.auditCompleted,false);
  assert.equal(saved.failure.message.includes('Erro real do reparador'),true);
+ // Uma falha na preparação deve conservar a etapa e os nomes das dependências.
+ ctx.window.hlgbAuditorAutoCorrect9447.prepare=async()=>({ok:false,ready:false,
+  error:'Timeout aguardando reparadores reais: rapid-heal',missing:['rapid-heal']});
+ ctx.window.hlgbProductionResidual9448.reconcileAndInspect=async()=>{throw new Error('residual não deveria rodar')};
+ const blocked=await ctx.window.hlgbAuditorAutoCorrect9448.run({render:true});
+ assert.equal(blocked.auditCompleted,false);
+ assert.equal(blocked.failure.phase,'preparação v94.48');
+ assert.equal(blocked.failure.message,'Timeout aguardando reparadores reais: rapid-heal');
+ assert.equal(Array.from(blocked.failure.missing).join(','),'rapid-heal');
+ assert(html.includes('Dependências pendentes: rapid-heal'));
+ assert.equal(saved.failure.phase,'preparação v94.48');
  console.log('PASS Auditor failure is visible, documented and cannot masquerade as zero findings');
 })().catch(e=>{console.error(e);process.exitCode=1});
