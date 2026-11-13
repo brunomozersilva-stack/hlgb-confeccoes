@@ -28,7 +28,8 @@ jobs:
       - run: node --check release-internal-auditor.js
       - run: node --test tests/monitor-on-demand-recovery-v9546.cjs
   browser:
-    runs-on: ubuntu-latest
+    # Playwright 1.55 does not support the ubuntu-26.04 image currently behind latest.
+    runs-on: ubuntu-24.04
     timeout-minutes: 20
     strategy:
       fail-fast: false

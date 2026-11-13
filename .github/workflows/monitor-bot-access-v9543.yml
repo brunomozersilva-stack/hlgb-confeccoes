@@ -34,7 +34,8 @@ jobs:
           node --test tests/monitor-bot-access-v9543.cjs
           node --test tests/auditor-hourly-health-panel-v9541.cjs
   browser:
-    runs-on: ubuntu-latest
+    # Playwright 1.55 requires Ubuntu 24.04, not 26.04 behind ubuntu-latest.
+    runs-on: ubuntu-24.04
     timeout-minutes: 20
     strategy:
       fail-fast: false

@@ -81,7 +81,7 @@ function learn(){
  return {ok:write(stored),category:sample.category,observations:record.observations};
 }
 function recommendations(){
- const history=read(),currentSample=current(),unresolved=history.cases.filter(x=>x.priority>0)
+ const history=read(),currentSample=current(),shared=window.hlgbLearningCloud9573?.snapshot?.()||{},unresolved=history.cases.filter(x=>x.priority>0)
   .sort((a,b)=>b.priority-a.priority||b.observations-a.observations);
  const order=unresolved.slice(0,6).map(x=>({code:x.category,priority:x.priority,observations:x.observations,
   title:CATEGORY[x.category]?.title||'Falha',next:CATEGORY[x.category]?.next||'Investigar com evidências.'}));
@@ -93,11 +93,13 @@ function recommendations(){
   savingUiProved,liveCrossBrowserProof:false};
  return {version:V,category:currentSample.category,savingUiProved,
   historyCases:history.cases.length,observations:history.timeline.length,
+  sharedHistoryCases:shared.cases?.length||0,sharedEvents:shared.events||0,sharedConfirmed:shared.verifiedServer===true,
+  sharedFixes:(shared.cases||[]).flatMap(c=>(c.fixes||[]).map(f=>({category:c.category,reference:f.reference,status:f.status,description:f.description}))).slice(0,12),
   cases:order,traceProof,
   tests:['tests/hub-save-ack-v9483.cjs','tests/hub-save-v9483-browser.js',
    'tests/hub-save-proof-v9567-browser.cjs','tests/hub-learning-v9568.cjs'],
   rules:['Sem reparo automático em dados de produção','Não apagar IndexedDB nem WAL',
-   'Um clique sem ACK/readback não é confirmação','Histórico somente neste navegador']};
+   'Um clique sem ACK/readback não é confirmação','Histórico local de contingência e memória compartilhada por servidor com prova de leitura']};
 }
 function render(){
  if(!authorized())return false;
@@ -109,7 +111,8 @@ function render(){
  node.innerHTML='<h3 style="margin:0">🧠 Aprendizado de salvamento v'+V+'</h3>'+
   '<p class="sub">Aprende com clique, ACK e releitura; não é inteligência generativa nem altera o banco.</p>'+
   '<p><b>'+(ok?'✓ Clique de Salvar confirmado por prova remota nesta sessão':'⚠ Clique de Salvar ainda sem prova remota nesta sessão')+'</b></p>'+
-  '<p class="sub">'+esc(r.category)+' · '+r.observations+' observações úteis · '+r.historyCases+' padrões conhecidos</p>'+
+  '<p class="sub">'+esc(r.category)+' · '+r.observations+' observações locais úteis · '+r.historyCases+' padrões locais</p>'+
+  '<p class="sub">☁️ '+(r.sharedConfirmed?'Memória compartilhada confirmada · '+r.sharedEvents+' eventos · '+r.sharedHistoryCases+' categorias':'Memória compartilhada ainda sem leitura confirmada')+'</p>'+
   (cases?'<ul>'+cases+'</ul>':'<div class="sub">Sem ocorrências classificadas até agora.</div>')+
   '<button type="button" class="secondary" id="hlgbHubLearningExport9568">⬇️ Exportar diagnóstico do Hub (JSON)</button>';
  node.querySelector('#hlgbHubLearningExport9568')?.addEventListener('click',download);
