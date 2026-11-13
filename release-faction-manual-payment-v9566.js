@@ -177,6 +177,173 @@ async function persistDraft(input,receipt){
  }catch(e){state.lastError=(saved?'Foram confirmadas '+saved+' linha(s). Reabra o salvamento neste formulário para concluir sem duplicar. ':'')+sid(e?.message||e);throw Error(state.lastError)}
  finally{state.status=STATUS.idle}
 }
+
+/* v95.88 — administração de pagamentos avulsos já registrados.
+ * As linhas e seus IDs são preservados. Na baixa, primeiro confirma o Hub
+ * Financeiro (ID determinístico), depois cada linha, com readback remoto.
+ * Nenhuma ação é disparada pela renderização ou por mudanças de filtros. */
+async function remoteRecord(module,id){
+ if(window.__HLGB_AUTH_READY!==true)throw Error('É necessário estar autenticado para conferir o pagamento na nuvem.');
+ if(typeof window.cloudRequest!=='function')throw Error('Consulta autenticada da nuvem indisponível. Nenhuma alteração foi realizada.');
+ const path='hlgb_records?select=entity_id,data,deleted_at&module=eq.'+encodeURIComponent(module)+'&entity_id=eq.'+encodeURIComponent(sid(id))+'&limit=1';
+ const rows=await window.cloudRequest(path,{method:'GET'});
+ if(!Array.isArray(rows))throw Error('A nuvem não confirmou o registro '+module+'.');
+ return rows[0]&&!rows[0].deleted_at?rows[0].data||null:null;
+}
+const cents=v=>Math.round((Number(v)||0)*100);
+function groupRows(groupId){
+ return arr('factionPayments').filter(x=>x?.manual===true&&sid(x.manualGroupId)===sid(groupId));
+}
+function groupState(rows){
+ const statuses=new Set(rows.map(x=>norm(x.status)));
+ return rows.length&&statuses.size===1&&statuses.has('pago')?'Pago':
+  rows.length&&statuses.size===1&&statuses.has('pendente')?'Pendente':'Revisar';
+}
+function assertGroup(groupId){
+ const rows=groupRows(groupId);
+ if(!groupId||!rows.length)throw Error('Lançamento avulso não encontrado neste computador. Atualize a tela sem limpar dados.');
+ if(new Set(rows.map(x=>sid(x.id))).size!==rows.length)throw Error('Lançamento com linhas duplicadas. Revisão necessária.');
+ if(rows.some(x=>!x.id||!x.manual||sid(x.manualGroupId)!==sid(groupId)))throw Error('Grupo inconsistente. Alteração bloqueada.');
+ return rows;
+}
+function remotelySame(local,remote){
+ return !!remote&&sid(remote.id)===sid(local.id)&&
+  sid(remote.manualGroupId)===sid(local.manualGroupId)&&norm(remote.status)===norm(local.status)&&
+  cents(remote.value)===cents(local.value)&&cents(remote.paidAmount)===cents(local.paidAmount)&&
+  sid(remote.paymentDate)===sid(local.paymentDate)&&sid(remote.updatedAt)===sid(local.updatedAt)&&
+  Number(remote.quantity)===Number(local.quantity);
+}
+async function preflightGroup(groupId,rows){
+ for(const row of rows){
+  await assertRecordNotPending('factionPayments',row.id);
+  const remote=await remoteRecord('factionPayments',row.id);
+  if(!remotelySame(row,remote))throw Error('Outra sessão alterou ou não confirmou a linha '+sid(row.id)+'. Atualize o pagamento antes de editar ou pagar.');
+ }
+ await assertRecordNotPending('hubFinanceEntries',hubId(groupId));
+ const hub=await remoteRecord('hubFinanceEntries',hubId(groupId));
+ const localHub=arr('hubFinanceEntries').find(x=>sid(x.id)===sid(hubId(groupId)));
+ if(localHub&&!hub)throw Error('O Hub local e a nuvem divergem; não criar pagamento duplicado.');
+ if(hub&&sid(hub.sourceId)!==sid(groupId))throw Error('Registro financeiro vinculado a outro lançamento. Operação bloqueada.');
+ return hub;
+}
+async function saveGroupEdits(groupId,input,receipt){
+ if(state.status===STATUS.saving)throw Error('Já existe salvamento em andamento.');
+ state.status=STATUS.saving;state.lastError='';let saved=0;
+ try{
+  const rows=assertGroup(groupId);
+  if(groupState(rows)!=='Pendente')throw Error('Valores de pagamentos já pagos ou parcialmente pagos ficam bloqueados para preservar o financeiro.');
+  const parsed=validate(input);
+  if(parsed.status!=='Pendente')throw Error('Para dar baixa, utilize o botão “Marcar pago” no histórico de avulsos.');
+  const ids=new Set(parsed.lines.map(x=>sid(x.id)));
+  if(ids.size!==parsed.lines.length||!rows.every(x=>ids.has(sid(x.id))))
+   throw Error('Não é permitido remover uma linha já salva. Mantenha-a no lançamento; corrija os valores sem apagar histórico.');
+  for(const x of parsed.lines){
+   const any=arr('factionPayments').find(y=>sid(y.id)===sid(x.id));
+   if(any&&sid(any.manualGroupId)!==sid(groupId))throw Error('Linha já pertence a outro lançamento.');
+  }
+  const existingProof=rows.find(x=>x.receiptPdfV9566?.base64);
+  if(receipt&&existingProof)throw Error('Já existe PDF neste lançamento. O comprovante anterior não será sobrescrito.');
+  const oldHub=await preflightGroup(groupId,rows);
+  if(oldHub)throw Error('Existe lançamento no Hub Financeiro para este grupo. Confira-o antes de corrigir valores.');
+  const ts=new Date().toISOString(),existingById=new Map(rows.map(x=>[sid(x.id),x]));
+  const editId=draft?.editAttemptId||makeId('faction-edit');
+  if(draft)draft.editAttemptId=editId;
+  for(let i=0;i<parsed.lines.length;i++){
+   const x=parsed.lines[i],old=existingById.get(sid(x.id)),oldProof=old?.receiptPdfV9566||null;
+   const history=Array.isArray(old?.manualEditHistoryV9588)?old.manualEditHistoryV9588.slice(-19):[];
+   const altered=!old||cents(old.value)!==cents(x.value)||Number(old.quantity)!==x.quantity||
+    cents(old.unitPrice)!==cents(x.unitPrice)||cents(old.travetaDiscountUnitV9577)!==cents(x.travetaDiscountUnit)||
+    sid(old.productId)!==sid(x.productId)||sid(old.description)!==sid(x.description);
+   if(altered&&!history.some(h=>sid(h.id)===editId))
+    history.push({id:editId,at:ts,from:old?Number(old.value)||0:null,to:x.value,reason:'Edição manual do pagamento pendente'});
+   const next={...old,id:x.id,source:'faction_manual_payment_v1',manual:true,manualGroupId:groupId,
+    manualKindV9566:x.kind,serviceModeV9577:parsed.serviceMode,factionMasterId:parsed.factionMasterId,
+    factionName:parsed.factionName,status:'Pendente',productId:x.productId,description:x.description,
+    quantity:x.quantity,unitPrice:x.unitPrice,value:x.value,grossValueV9577:x.grossValue,
+    travetaDiscountUnitV9577:x.travetaDiscountUnit,travetaDiscountTotalV9577:x.travetaDiscountTotal,
+    discountAmount:x.travetaDiscountTotal,paidAmount:0,paymentDate:'',
+    scheduledPaymentDate:parsed.date,paymentMethod:parsed.method,
+    observation:x.note||parsed.note||'Pagamento avulso de facção',manualLineNoteV9566:x.note,
+    priceOriginV9566:x.priceOrigin,paymentHistory:old?.paymentHistory||[],
+    manualEditHistoryV9588:history,createdAt:old?.createdAt||rows[0].createdAt||ts,updatedAt:ts};
+   if(oldProof)next.receiptPdfV9566=oldProof;
+   else if(i===0&&receipt)next.receiptPdfV9566=receipt;
+   await saveRecord('factionPayments',next);saved++;
+   const check=await remoteRecord('factionPayments',x.id);
+   if(!remotelySame(next,check))throw Error('Edição da linha '+sid(x.id)+' não confirmada na releitura.');
+  }
+  const result={groupId,total:parsed.total,lines:saved,edited:true};
+  state.lastResult=result;renderReceipts();return result;
+ }catch(e){state.lastError=(saved?'Edição parcialmente confirmada ('+saved+' linha(s)). Revise o histórico antes de tentar novamente. ':'')+sid(e.message||e);throw Error(state.lastError)}
+ finally{state.status=STATUS.idle}
+}
+async function markGroupPaid(groupId,date,method,receipt){
+ if(state.status===STATUS.saving)throw Error('Outra alteração de pagamento está em andamento.');
+ state.status=STATUS.saving;state.lastError='';let confirmed=0,hubConfirmed=false;
+ try{
+  if(!validDate(date)||date>stamp())throw Error('Informe a data real do pagamento, sem data futura.');
+  method=sid(method).trim();
+  if(!method)throw Error('Informe a forma de pagamento utilizada.');
+  const rows=assertGroup(groupId),condition=groupState(rows);
+  if(condition==='Pago')throw Error('Este lançamento já consta como pago. Não é permitido pagar duas vezes.');
+  if(!['Pendente','Revisar'].includes(condition))throw Error('Situação inconsistente; confira o pagamento antes da baixa.');
+  if(rows.some(x=>!['pago','pendente'].includes(norm(x.status))))throw Error('Há uma linha em situação desconhecida; não registrar pagamento.');
+  const total=grandTotal(rows.map(x=>({value:Number(x.value)||0})));
+  if(total<=0)throw Error('Valor total precisa ser maior que zero.');
+  const alreadyPaid=rows.filter(x=>norm(x.status)==='pago');
+  if(alreadyPaid.some(x=>sid(x.paymentDate)!==date||sid(x.paymentMethod)!==method||cents(x.paidAmount)!==cents(x.value)))
+   throw Error('Parte deste pagamento já foi registrada com outros dados. Não duplicar; revisar histórico.');
+  const oldHub=await preflightGroup(groupId,rows);
+  if(oldHub&&(cents(oldHub.value)!==cents(total)||sid(oldHub.date)!==date||sid(oldHub.paymentMethod)!==method||sid(oldHub.status)!=='Realizado'))
+   throw Error('Existe lançamento financeiro diferente para este grupo. Corrija a divergência antes de dar baixa.');
+  if(!oldHub&&alreadyPaid.length)throw Error('Há linhas pagas sem confirmação do Hub. Baixa bloqueada.');
+  if(receipt&&rows.some(x=>x.receiptPdfV9566?.base64))throw Error('Comprovante já registrado. O PDF anterior será preservado.');
+  // Primeiro armazena o PDF em uma linha ainda pendente; isso NÃO confirma o pagamento.
+  if(receipt){
+   const target=rows.find(x=>norm(x.status)==='pendente');
+   if(!target)throw Error('Nenhuma linha pendente disponível para anexar o comprovante.');
+   const next={...target,receiptPdfV9566:receipt,updatedAt:new Date().toISOString()};
+   await saveRecord('factionPayments',next);
+   const proof=await remoteRecord('factionPayments',target.id);
+   if(!proof||proof.receiptPdfV9566?.base64!==receipt.base64)throw Error('PDF enviado sem confirmação remota. Nenhuma baixa financeira realizada.');
+   const i=rows.findIndex(x=>sid(x.id)===sid(target.id));rows[i]=next;
+  }
+  const ts=new Date().toISOString(),first=rows[0];
+  const finance={...(oldHub||{}),id:hubId(groupId),flow:'Saída',
+   description:'Pagamento avulso de facção — '+sid(first.factionName),
+   value:total,date,category:'Facções',subcategory:'Pagamento avulso',person:first.factionName,
+   status:'Realizado',acceptedMethods:[method],paymentMethod:method,realizedAt:date,
+   note:rows.map(x=>sid(x.description)+' '+Number(x.quantity)+'x').join(', ').slice(0,1500),
+   sourceType:'faction_manual_payment',sourceId:groupId,
+   createdAt:oldHub?.createdAt||first.createdAt||ts,updatedAt:oldHub?.updatedAt||ts};
+  if(!oldHub)await saveRecord('hubFinanceEntries',finance);
+  const verifiedHub=await remoteRecord('hubFinanceEntries',finance.id);
+  if(!verifiedHub||sid(verifiedHub.sourceId)!==sid(groupId)||cents(verifiedHub.value)!==cents(total)||
+   sid(verifiedHub.status)!=='Realizado'||sid(verifiedHub.date)!==date||sid(verifiedHub.paymentMethod)!==method)
+   throw Error('O Hub Financeiro não confirmou a saída. As linhas não foram marcadas como pagas.');
+  hubConfirmed=true;
+  for(const row of rows){
+   if(norm(row.status)==='pago')continue;
+   const history=Array.isArray(row.paymentHistory)?row.paymentHistory.slice():[];
+   const transitionId='manual-paid-'+groupId;
+   if(!history.some(x=>sid(x.id)===transitionId))
+    history.push({id:transitionId,date,amount:Number(row.value)||0,method,at:ts,source:'manual-payment-v9588'});
+   const next={...row,status:'Pago',paidAmount:Number(row.value)||0,paymentDate:date,
+    paymentMethod:method,paymentHistory:history,manualPaidAtV9588:ts,updatedAt:ts};
+   await saveRecord('factionPayments',next);
+   const remote=await remoteRecord('factionPayments',row.id);
+   if(!remotelySame(next,remote))throw Error('Baixa da linha '+sid(row.id)+' não comprovada na releitura.');
+   confirmed++;
+  }
+  const result={groupId,paid:true,date,method,total,hubConfirmed:true,lines:rows.length,confirmed};
+  state.lastResult=result;renderReceipts();return result;
+ }catch(e){
+  state.lastError=(hubConfirmed?'Hub confirmado, mas a baixa das linhas está incompleta. Verifique antes de reenviar. ':'')+
+   (confirmed?'Linhas confirmadas: '+confirmed+'. ':'')+sid(e.message||e);
+  throw Error(state.lastError);
+ }finally{state.status=STATUS.idle}
+}
+
 function rowHtml(kind='product',id=makeId('fmpli')){
  const prod=kind==='product'||kind==='embalagem',trav=kind==='travetada',label=kind==='embalagem'?'Embalagem':trav?'Travetada':prod?'Produto':'Serviço extra';
  return '<div class="fm66-line panel" data-id="'+esc(id)+'" data-kind="'+esc(kind)+'" style="margin:10px 0;padding:12px;border:1px solid #e2d4de">'+
@@ -222,9 +389,9 @@ function recalc(){
  });
  root.querySelector('#fm66-grand').textContent=money(total);
 }
-function addLine(kind='product'){
+function addLine(kind='product',existingRow=null){
  const host=document.getElementById('fm66-lines');if(!host)return;
- host.insertAdjacentHTML('beforeend',rowHtml(kind));
+ host.insertAdjacentHTML('beforeend',rowHtml(kind,existingRow?.id||makeId('fmpli')));
  const row=host.lastElementChild;
  row.querySelector('.fm66-search').addEventListener('focus',()=>renderProductsFor(row,row.querySelector('.fm66-search').value));
  row.querySelector('.fm66-search').addEventListener('keydown',e=>{
@@ -261,6 +428,20 @@ function addLine(kind='product'){
   if(inp.classList.contains('fm66-unit'))row.dataset.priceOrigin='manual';
   recalc();
  }));
+
+ if(existingRow){
+  row.dataset.priceOrigin=sid(existingRow.priceOriginV9566||'manual');
+  const p=productDirectory().find(x=>sid(x.id)===sid(existingRow.productId));
+  row.querySelector('.fm66-product-id').value=sid(existingRow.productId||'');
+  row.querySelector('.fm66-search').value=p?.name||sid(existingRow.description||'');
+  if(kind==='service'&&row.querySelector('.fm66-desc'))row.querySelector('.fm66-desc').value=sid(existingRow.description);
+  row.querySelector('.fm66-qty').value=sid(existingRow.quantity||1);
+  row.querySelector('.fm66-unit').value=Number(existingRow.unitPrice||0).toFixed(2);
+  row.querySelector('.fm66-discount').value=Number(existingRow.travetaDiscountUnitV9577||0).toFixed(2);
+  row.querySelector('.fm66-line-note').value=sid(existingRow.manualLineNoteV9566||'');
+  const remove=row.querySelector('.fm66-remove');
+  if(remove){remove.disabled=true;remove.title='Linha já salva. Corrija valores sem excluir o histórico.';}
+ }
  recalc();
 }
 function renderFactionList(q){
@@ -313,17 +494,22 @@ function modalHtml(){
   '<div style="margin:12px 0;font-size:18px;font-weight:700">Total: <span id="fm66-grand">R$ 0,00</span></div>'+
   '<div id="fm66-feedback" role="status" class="sub"></div><button type="button" class="primary modalSave">☁️ Salvar pagamento avulso</button></div>';
 }
-function openForm(){
+function openForm(groupId=''){
  if(typeof window.openModal!=='function'&&typeof openModal!=='function')return false;
- draft={groupId:makeId('faction-manual'),createdAt:new Date().toISOString(),receipt:null};state.opened++;
+ const editing=!!sid(groupId),stored=editing?assertGroup(groupId):[];
+ if(editing&&groupState(stored)!=='Pendente')throw Error('Apenas lançamentos pendentes podem ter valores editados. Pagamentos já baixados exigem conferência contábil.');
+ draft=editing?{groupId:sid(groupId),createdAt:stored[0].createdAt||new Date().toISOString(),receipt:stored.find(x=>x.receiptPdfV9566)?.receiptPdfV9566||null,
+  editAttemptId:makeId('faction-edit')}:
+  {groupId:makeId('faction-manual'),createdAt:new Date().toISOString(),receipt:null};
+ state.opened++;
  const open=window.openModal||openModal;
- open('Pagamento avulso — facção ou embalagem',modalHtml(),async()=>{
+ open(editing?'Editar pagamento avulso pendente':'Pagamento avulso — facção ou embalagem',modalHtml(),async()=>{
   const btn=document.querySelector('#fm66-root .modalSave'),feedback=document.getElementById('fm66-feedback');
   if(btn){btn.disabled=true;btn.textContent='☁️ Salvando…'}
   if(feedback)feedback.textContent='Confirmando os registros na nuvem...';
   try{
    const input=formData(),file=document.getElementById('fm66-pdf')?.files?.[0],receipt=await readReceipt(file);
-   await persistDraft(input,receipt);
+   if(editing)await saveGroupEdits(groupId,input,receipt);else await persistDraft(input,receipt);
    if(typeof window.closeModal==='function')window.closeModal();else if(typeof closeModal==='function')closeModal();
    try{window.renderFactionPayments?.()}catch(_){}
    try{window.renderHubFinance?.()}catch(_){}
@@ -331,7 +517,7 @@ function openForm(){
    return true;
   }catch(e){
    if(feedback)feedback.textContent='⚠ '+sid(e.message||e);
-   if(btn){btn.disabled=false;btn.textContent='☁️ Salvar pagamento avulso'}
+   if(btn){btn.disabled=false;btn.textContent=editing?'☁️ Salvar alterações':'☁️ Salvar pagamento avulso'}
    return false;
   }
  });
@@ -380,20 +566,94 @@ function openForm(){
  });
  document.getElementById('fm66-add-service')?.addEventListener('click',()=>addLine('service'));
  document.getElementById('fm66-pdf')?.addEventListener('change',receiptSummary);
- addLine('product');
+ if(editing){
+  const first=stored[0],mode=sid(first.serviceModeV9577||'faccao');
+  document.getElementById('fm66-mode').value=mode;
+  document.getElementById('fm66-mode').disabled=true;
+  document.getElementById('fm66-faction').value=sid(first.factionName);
+  document.getElementById('fm66-date').value=sid(first.scheduledPaymentDate||stamp());
+  document.getElementById('fm66-status').value='Pendente';
+  document.getElementById('fm66-status').disabled=true;
+  document.getElementById('fm66-method').value=sid(first.paymentMethod||'');
+  document.getElementById('fm66-note').value=sid(first.observation||'');
+  const packaging=mode==='embalagem';
+  document.getElementById('fm66-add-product').style.display=packaging?'none':'';
+  document.getElementById('fm66-add-traveta').style.display=packaging?'none':'';
+  document.getElementById('fm66-add-service').style.display=packaging?'none':'';
+  document.getElementById('fm66-add-embalagem').style.display=packaging?'':'none';
+  for(const row of stored)addLine(sid(row.manualKindV9566||'product'),row);
+  if(draft.receipt){
+   const summary=document.getElementById('fm66-pdf-summary');
+   if(summary)summary.textContent='Comprovante existente: '+sid(draft.receipt.name)+'. Será preservado. Não envie outro PDF.';
+   const file=document.getElementById('fm66-pdf');if(file)file.disabled=true;
+  }
+  const btn=document.querySelector('#fm66-root .modalSave');if(btn)btn.textContent='☁️ Salvar alterações';
+  const info=document.getElementById('fm66-feedback');if(info)info.textContent='Edite quantidade, preço, desconto, produtos, data ou observações. Linhas já salvas não podem ser removidas. Para pagar, utilize a baixa no histórico.';
+ }else addLine('product');
  return true;
 }
 function receiptGroups(){
  const groups=new Map();
  for(const r of arr('factionPayments')){
   if(!r?.manualGroupId||!r?.manual)continue;
-  const id=sid(r.manualGroupId),cur=groups.get(id)||{id,factionName:r.factionName,date:r.paymentDate||r.scheduledPaymentDate,
-   status:r.status,receipt:null,recordId:sid(r.id),total:0,items:0};
-  cur.total+=Number(r.value)||0;cur.items++;
+  const id=sid(r.manualGroupId),cur=groups.get(id)||{id,factionName:r.factionName,
+   date:r.scheduledPaymentDate||'',paidDate:'',status:'Pendente',serviceMode:r.serviceModeV9577||'faccao',
+   receipt:null,recordId:sid(r.id),total:0,items:0,rows:[],updatedAt:''};
+  cur.total+=Number(r.value)||0;cur.items++;cur.rows.push(r);
   if(r.receiptPdfV9566?.base64){cur.receipt=r.receiptPdfV9566;cur.recordId=sid(r.id)}
+  if(sid(r.updatedAt)>cur.updatedAt)cur.updatedAt=sid(r.updatedAt);
   groups.set(id,cur);
  }
- return [...groups.values()].sort((a,b)=>sid(b.date).localeCompare(sid(a.date)));
+ for(const group of groups.values()){
+  group.status=groupState(group.rows);
+  group.paidDate=group.status==='Pago'?sid(group.rows[0]?.paymentDate):'';
+  group.date=group.paidDate||sid(group.rows[0]?.scheduledPaymentDate);
+  group.total=Math.round(group.total*100)/100;
+ }
+ return [...groups.values()].sort((a,b)=>sid(b.date).localeCompare(sid(a.date))||
+  sid(b.updatedAt).localeCompare(sid(a.updatedAt)));
+}
+function openPayModal(groupId){
+ const rows=assertGroup(groupId),status=groupState(rows);
+ if(status==='Pago')throw Error('Este lançamento já está pago.');
+ const total=grandTotal(rows.map(x=>({value:Number(x.value)||0})));
+ const priorHub=arr('hubFinanceEntries').find(x=>sid(x?.sourceId)===sid(groupId))||null;
+ const paidLine=rows.find(x=>norm(x.status)==='pago')||null;
+ const suggestedDate=paidLine?.paymentDate||priorHub?.date||stamp();
+ const suggestedMethod=paidLine?.paymentMethod||priorHub?.paymentMethod||rows[0]?.paymentMethod||'';
+ const group=receiptGroups().find(x=>x.id===sid(groupId));
+ if(!group)throw Error('Pagamento avulso não encontrado.');
+ const open=window.openModal||((typeof openModal==='function')?openModal:null);
+ if(!open)throw Error('Janela de pagamento indisponível.');
+ const html='<div id="fm88-pay-modal" class="panel" style="padding:12px">'+
+  '<p><b>'+esc(group.factionName)+'</b> · '+group.items+' serviço(s) · <b>'+money(total)+'</b></p>'+
+  '<p class="sub">A baixa gera uma única saída no Hub Financeiro para este grupo. É necessário confirmar a data real e o método. Nenhum pagamento será registrado automaticamente.</p>'+
+  (status==='Revisar'?'<p style="color:#934">⚠ Algumas linhas possuem situação divergente. Confirme os dados da baixa anterior antes de continuar.</p>':'')+
+  '<div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:8px">'+
+  '<div class="field"><label>Data em que foi pago</label><input type="date" id="fm88-paid-date" value="'+esc(suggestedDate)+'"></div>'+
+  '<div class="field"><label>Forma de pagamento</label><input id="fm88-paid-method" placeholder="Pix, dinheiro, transferência" value="'+esc(suggestedMethod)+'"></div></div>'+
+  (group.receipt?'<p class="sub">PDF existente: '+esc(group.receipt.name)+' — será preservado.</p>':
+   '<div class="field"><label>Comprovante PDF (opcional, máximo 750 KB)</label><input type="file" id="fm88-paid-pdf" accept=".pdf,application/pdf"></div>')+
+  '<div id="fm88-paid-feedback" role="status" class="sub"></div>'+
+  '<button type="button" class="primary modalSave">✅ Confirmar como pago</button></div>';
+ open('Dar baixa no pagamento avulso',html,async()=>{
+  const btn=document.querySelector('#fm88-pay-modal .modalSave'),feedback=document.getElementById('fm88-paid-feedback');
+  if(btn){btn.disabled=true;btn.textContent='☁️ Confirmando no Hub e nas facções…'}
+  if(feedback)feedback.textContent='Verificando a nuvem e as operações pendentes antes de confirmar…';
+  try{
+   const date=document.getElementById('fm88-paid-date')?.value||'',
+    method=document.getElementById('fm88-paid-method')?.value||'',
+    pdf=await readReceipt(document.getElementById('fm88-paid-pdf')?.files?.[0]);
+   await markGroupPaid(groupId,date,method,pdf);
+   window.closeModal?.();window.renderFactionPayments?.();window.renderHubFinance?.();
+   renderReceipts();return true;
+  }catch(e){
+   if(feedback)feedback.textContent='⚠ '+sid(e?.message||e);
+   if(btn){btn.disabled=false;btn.textContent='✅ Confirmar como pago'}
+   return false;
+  }
+ });
+ return true;
 }
 async function attachReceiptToGroup(groupId,file){
  const group=receiptGroups().find(x=>x.id===sid(groupId));
@@ -409,41 +669,79 @@ async function attachReceiptToGroup(groupId,file){
  return receipt;
 }
 function renderReceipts(){
- const anchor=document.getElementById('factionPaymentTable');
- if(!anchor)return false;
+ const anchor=document.getElementById('factionPaymentTable');if(!anchor)return false;
  let host=document.getElementById('fm66-receipts');
  if(!host){host=document.createElement('div');host.id='fm66-receipts';host.className='panel';
-  host.style.cssText='margin-top:14px;padding:12px';anchor.insertAdjacentElement('afterend',host);}
- const groups=receiptGroups();
- // Avoid replacing <input type=file> while the user selects a PDF. The app
- // installs this plugin multiple times after login and can render the same
- // receipts list while a Chromium file chooser has already returned.
- const signature=JSON.stringify(groups.map(g=>[g.id,g.factionName,g.date,g.status,g.total,g.items,
+  host.style.cssText='margin-top:14px;padding:12px';anchor.insertAdjacentElement('afterend',host)}
+ const groups=receiptGroups(),pending=groups.filter(g=>g.status==='Pendente'),
+  paid=groups.filter(g=>g.status==='Pago'),review=groups.filter(g=>g.status==='Revisar');
+ const signature=JSON.stringify(groups.map(g=>[g.id,g.factionName,g.date,g.status,g.total,g.items,g.updatedAt,
   g.receipt?.name||'',g.receipt?.size||0]));
+ // Preserve file selection and focused filters when periodic refresh has not changed data.
  if(host.dataset.fm66Signature===signature)return true;
+ const previousFilter=host.querySelector('#fm88-filter-name')?.value||'',
+  previousStatus=host.querySelector('#fm88-filter-status')?.value||'todos';
  host.dataset.fm66Signature=signature;
- host.innerHTML='<h3 style="margin-top:0">📎 Comprovantes de pagamentos avulsos</h3>'+
-  '<div class="sub">Anexe um PDF novo ao criar um pagamento ou adicione depois em um lançamento existente. Tamanho máximo: 750 KB.</div>'+
-  (groups.length?'<div style="overflow:auto"><table><thead><tr><th>Facção</th><th>Data</th><th>Valor</th><th>Comprovante</th></tr></thead><tbody>'+
-   groups.map(g=>'<tr><td>'+esc(g.factionName)+'</td><td>'+esc(g.date)+'</td><td>'+money(g.total)+'</td><td>'+
-    (g.receipt?'<button type="button" class="secondary fm66-download" data-group-id="'+esc(g.id)+'">'+esc(g.receipt.name)+'</button>':
-    '<div class="field" style="min-width:230px"><input type="file" class="fm66-attach-input" data-group-id="'+esc(g.id)+'" accept=".pdf,application/pdf">'+
-    '<button type="button" class="secondary fm66-attach" data-group-id="'+esc(g.id)+'">☁️ Salvar PDF</button></div>')+
-    '</td></tr>').join('')+'</tbody></table></div>':
-   '<div class="empty">Ainda não há pagamentos avulsos para anexar comprovantes.</div>')+
-  '<div id="fm66-receipt-feedback" role="status" class="sub"></div>';
+ const sum=rows=>money(rows.reduce((total,x)=>total+x.total,0));
+ host.innerHTML='<h3 style="margin:0 0 5px">Pagamentos avulsos — facções e embaladeiras</h3>'+
+  '<p class="sub">Edite os pendentes, marque como pago após transferir e confira PDFs e serviços. Pagamentos realizados têm os valores protegidos.</p>'+
+  '<div class="cards" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(155px,1fr));gap:8px;margin:12px 0">'+
+  '<div class="card"><small>A pagar · '+pending.length+' lançamento(s)</small><strong>'+sum(pending)+'</strong></div>'+
+  '<div class="card"><small>Pagos · '+paid.length+' lançamento(s)</small><strong>'+sum(paid)+'</strong></div>'+
+  (review.length?'<div class="card"><small>Revisar · '+review.length+'</small><strong>'+sum(review)+'</strong></div>':'')+'</div>'+
+  '<div class="toolbar" style="display:flex;flex-wrap:wrap;gap:8px;align-items:end;margin:10px 0">'+
+  '<div class="field"><label>Buscar facção, produto ou serviço</label><input id="fm88-filter-name" autocomplete="off" placeholder="Pesquisar lançamento"></div>'+
+  '<div class="field"><label>Situação</label><select id="fm88-filter-status"><option value="todos">Todos</option>'+
+  '<option>Pendente</option><option>Pago</option><option>Revisar</option></select></div></div>'+
+  (groups.length?'<div style="overflow-x:auto"><table style="width:100%"><thead><tr><th>Facção / serviço</th>'+
+   '<th>Data</th><th>Situação</th><th>Valor</th><th>Itens</th><th>Comprovante</th><th>Ações</th></tr></thead><tbody>'+
+   groups.map(g=>{
+    const descriptions=g.rows.map(r=>sid(r.description||'')+' '+Number(r.quantity||0)+'x').join(' ');
+    const items='<details><summary>'+g.items+' item(ns) · Ver detalhes</summary>'+
+     '<div style="min-width:180px">'+g.rows.map(r=>'<div style="border-bottom:1px solid #eee;padding:5px">'+
+      '<b>'+esc(r.description||'Serviço')+'</b><div class="sub">'+Number(r.quantity||0).toLocaleString('pt-BR')+
+      ' × '+money(r.unitPrice)+' · desconto '+money(r.travetaDiscountTotalV9577)+'</div><b>'+
+      money(r.value)+'</b></div>').join('')+'</div></details>';
+    const proof=g.receipt?'<button type="button" class="secondary fm66-download" data-group-id="'+esc(g.id)+'">'+esc(g.receipt.name)+'</button>':
+     '<div class="field" style="min-width:170px"><input type="file" class="fm66-attach-input" data-group-id="'+esc(g.id)+'" accept=".pdf,application/pdf">'+
+     '<button type="button" class="secondary fm66-attach" data-group-id="'+esc(g.id)+'">☁️ Salvar PDF</button></div>';
+    const actions=g.status==='Pendente'?
+     '<div style="display:flex;gap:6px;flex-wrap:wrap"><button type="button" class="secondary fm88-edit" data-group-id="'+esc(g.id)+'">✏️ Editar</button>'+
+     '<button type="button" class="primary fm88-pay" data-group-id="'+esc(g.id)+'">✅ Marcar pago</button></div>':
+     g.status==='Pago'?'<span class="sub">Pago · valores protegidos</span>':
+     '<button type="button" class="secondary fm88-pay" data-group-id="'+esc(g.id)+'" title="Somente concluir uma baixa previamente iniciada após conferir o financeiro">⚠ Revisar / concluir baixa</button>';
+    return '<tr data-fm88-row="1" data-status="'+esc(g.status)+'" data-search="'+esc(norm(g.factionName+' '+descriptions+' '+g.serviceMode))+'">'+
+     '<td><b>'+esc(g.factionName)+'</b><div class="sub">'+esc(g.serviceMode==='embalagem'?'Embalagem':'Facção / Costura')+'</div></td>'+
+     '<td>'+esc(g.date||'Sem data')+'</td><td><b>'+esc(g.status)+'</b></td><td><b>'+money(g.total)+'</b></td>'+
+     '<td>'+items+'</td><td>'+proof+'</td><td>'+actions+'</td></tr>';
+   }).join('')+'</tbody></table></div>':'<div class="empty">Ainda não há pagamentos avulsos.</div>')+
+  '<div id="fm66-receipt-feedback" role="status" class="sub" style="margin-top:8px"></div>';
+ const input=host.querySelector('#fm88-filter-name'),filterStatus=host.querySelector('#fm88-filter-status');
+ if(input)input.value=previousFilter;if(filterStatus)filterStatus.value=previousStatus;
+ function filter(){
+  const term=norm(input?.value),status=filterStatus?.value||'todos';
+  host.querySelectorAll('[data-fm88-row]').forEach(row=>{
+   row.style.display=(!term||sid(row.dataset.search).includes(term))&&(status==='todos'||sid(row.dataset.status)===status)?'':'none';
+  });
+ }
+ input?.addEventListener('input',filter);filterStatus?.addEventListener('change',filter);filter();
+ const feedback=()=>host.querySelector('#fm66-receipt-feedback');
+ host.querySelectorAll('.fm88-edit').forEach(b=>b.addEventListener('click',()=>{
+  try{openForm(b.dataset.groupId)}catch(e){const x=feedback();if(x)x.textContent='⚠ '+sid(e.message||e)}
+ }));
+ host.querySelectorAll('.fm88-pay').forEach(b=>b.addEventListener('click',()=>{
+  try{openPayModal(b.dataset.groupId)}catch(e){const x=feedback();if(x)x.textContent='⚠ '+sid(e.message||e)}
+ }));
  host.querySelectorAll('.fm66-download').forEach(b=>b.addEventListener('click',()=>{
-  const group=receiptGroups().find(x=>x.id===b.dataset.groupId);
-  if(group?.receipt)pdfDownload(group.receipt);
+  const group=receiptGroups().find(g=>g.id===b.dataset.groupId);if(group?.receipt)pdfDownload(group.receipt);
  }));
  host.querySelectorAll('.fm66-attach').forEach(b=>b.addEventListener('click',async()=>{
-  const input=[...host.querySelectorAll('.fm66-attach-input')].find(x=>x.dataset.groupId===b.dataset.groupId);
-  const feedback=host.querySelector('#fm66-receipt-feedback');
-  b.disabled=true;if(feedback)feedback.textContent='Salvando comprovante na nuvem…';
-  try{const receipt=await attachReceiptToGroup(b.dataset.groupId,input?.files?.[0]);
+  const file=[...host.querySelectorAll('.fm66-attach-input')].find(x=>x.dataset.groupId===b.dataset.groupId)?.files?.[0];
+  b.disabled=true;const status=feedback();if(status)status.textContent='Enviando comprovante e confirmando na nuvem…';
+  try{const pdf=await attachReceiptToGroup(b.dataset.groupId,file);
    const next=document.getElementById('fm66-receipt-feedback');
-   if(next)next.textContent='✓ Comprovante '+receipt.name+' confirmado e vinculado ao pagamento.';
-  }catch(e){b.disabled=false;if(feedback)feedback.textContent='⚠ '+sid(e.message||e)}
+   if(next)next.textContent='✓ PDF '+pdf.name+' confirmado na nuvem.';
+  }catch(e){b.disabled=false;if(status)status.textContent='⚠ '+sid(e.message||e)}
  }));
  return true;
 }
@@ -464,7 +762,7 @@ document.addEventListener('click',e=>{
  e.preventDefault();e.stopImmediatePropagation();openForm();
 },true);
 window.hlgbFactionManual9566={version:V,openForm,searchFactions,searchProducts,factionDirectory,productDirectory,
- productPrice,validate,grandTotal,readReceipt,pdfIsValid,persistDraft,receiptGroups,attachReceiptToGroup,renderReceipts,download:pdfDownload,install,
+ productPrice,validate,grandTotal,readReceipt,pdfIsValid,persistDraft,receiptGroups,groupRows,groupState,saveGroupEdits,markGroupPaid,openPayModal,remoteRecord,attachReceiptToGroup,renderReceipts,download:pdfDownload,install,
  status:()=>({...state}),maxPdfBytes:MAX_PDF};
 install();
 [500,1700,3800].forEach(ms=>setTimeout(install,ms));
