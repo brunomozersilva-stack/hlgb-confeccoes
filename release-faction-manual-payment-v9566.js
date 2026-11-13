@@ -514,7 +514,16 @@ function addLine(kind='product',existingRow=null){
    recalc();
   });
  }
- row.querySelector('.fm66-remove').addEventListener('click',()=>{row.remove();recalc()});
+ row.querySelector('.fm66-remove').addEventListener('click',()=>{
+  if(existingRow){
+   const reason=window.prompt?.('Motivo para retirar este produto do pagamento (obrigatório):','');
+   if(reason==null)return;
+   if(sid(reason).trim().length<5){window.alert?.('Informe um motivo de pelo menos 5 caracteres.');return}
+   if(!draft||!Array.isArray(draft.removals)){window.alert?.('Reabra a edição antes de remover.');return}
+   draft.removals.push({id:sid(existingRow.id),reason:sid(reason).trim(),description:sid(existingRow.description)});
+   row.remove();renderRemovedLinesV9590();recalc();
+  }else{row.remove();recalc()}
+ });
  row.querySelectorAll('.fm66-qty,.fm66-unit,.fm66-discount').forEach(inp=>inp.addEventListener('input',()=>{
   if(inp.classList.contains('fm66-unit'))row.dataset.priceOrigin='manual';
   recalc();
@@ -540,7 +549,7 @@ function addLine(kind='product',existingRow=null){
    if(cat)cat.value=sid(existingRow.manualProductCategoryV9589||'outros');
   }
   const remove=row.querySelector('.fm66-remove');
-  if(remove){remove.disabled=true;remove.title='Linha já salva. Corrija valores sem excluir o histórico.';}
+  if(remove)remove.title='Remover este produto da cobrança, com motivo e preservação no histórico.';
  }else if(kind==='travetada'){
   const picked=factionDirectory().find(x=>norm(x.name)===norm(document.getElementById('fm66-faction')?.value));
   const master=arr('factionMasters').find(x=>sid(x.id)===sid(picked?.id));
@@ -551,6 +560,20 @@ function addLine(kind='product',existingRow=null){
   }
  }
  recalc();
+}
+function renderRemovedLinesV9590(){
+ const host=document.getElementById('fm90-removed-lines');if(!host)return;
+ const removed=draft?.removals||[];
+ host.innerHTML=removed.length?'<div class="sub" style="margin:5px 0"><b>Produtos retirados nesta edição</b> — serão cancelados quando salvar:</div>'+
+  removed.map((r,i)=>'<div class="panel" style="margin:4px 0;padding:8px"><b>'+esc(r.description)+'</b> · '+esc(r.reason)+
+   ' <button type="button" class="secondary fm90-undo" data-index="'+i+'">Desfazer</button></div>').join(''):'';
+ host.querySelectorAll('.fm90-undo').forEach(btn=>btn.addEventListener('click',()=>{
+  const i=Number(btn.dataset.index),item=draft?.removals?.splice(i,1)?.[0];
+  if(item){const original=groupRows(draft.groupId).find(x=>sid(x.id)===sid(item.id));
+   if(original)addLine(sid(original.manualKindV9566||'product'),original);
+   renderRemovedLinesV9590();
+  }
+ }));
 }
 function renderFactionList(q){
  const host=document.getElementById('fm66-faction-suggestions');if(!host)return;
@@ -591,7 +614,7 @@ function modalHtml(){
   '<button class="secondary" id="fm66-add-traveta" type="button">+ Travetada</button>'+
   '<button class="secondary" id="fm66-add-service" type="button">+ Outro serviço</button>'+ 
   '<button class="secondary" id="fm66-price-table" type="button">⚙️ Preços embalagem/travetada</button></div></div>'+
-  '<div id="fm66-lines"></div>'+
+  '<div id="fm66-lines"></div><div id="fm90-removed-lines" aria-live="polite"></div>'+
   '<div id="fm66-rates-inline" class="panel" style="padding:12px;margin:12px 0;display:none"><b>⚙️ Tabela de serviços</b>'+
   '<p class="sub">Valores aplicados nos próximos lançamentos. A travetada tem uma taxa própria; nenhuma nota antiga será modificada.</p>'+
   '<div class="grid" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:7px">'+
@@ -610,7 +633,7 @@ function openForm(groupId=''){
  const editing=!!sid(groupId),stored=editing?assertGroup(groupId):[];
  if(editing&&groupState(stored)!=='Pendente')throw Error('Apenas lançamentos pendentes podem ter valores editados. Pagamentos já baixados exigem conferência contábil.');
  draft=editing?{groupId:sid(groupId),createdAt:stored[0].createdAt||new Date().toISOString(),receipt:stored.find(x=>x.receiptPdfV9566)?.receiptPdfV9566||null,
-  editAttemptId:makeId('faction-edit')}:
+  removals:[],editAttemptId:makeId('faction-edit')}:
   {groupId:makeId('faction-manual'),createdAt:new Date().toISOString(),receipt:null};
  state.opened++;
  const open=window.openModal||openModal;
@@ -620,7 +643,7 @@ function openForm(groupId=''){
   if(feedback)feedback.textContent='Confirmando os registros na nuvem...';
   try{
    const input=formData(),file=document.getElementById('fm66-pdf')?.files?.[0],receipt=await readReceipt(file);
-   if(editing)await saveGroupEdits(groupId,input,receipt);else await persistDraft(input,receipt);
+   if(editing)await saveGroupEdits(groupId,input,receipt,draft?.removals||[]);else await persistDraft(input,receipt);
    if(typeof window.closeModal==='function')window.closeModal();else if(typeof closeModal==='function')closeModal();
    try{window.renderFactionPayments?.()}catch(_){}
    try{window.renderHubFinance?.()}catch(_){}
@@ -706,14 +729,14 @@ function openForm(groupId=''){
   document.getElementById('fm66-add-traveta').style.display=packaging?'none':'';
   document.getElementById('fm66-add-service').style.display=mode==='faccao'?'':'none';
   document.getElementById('fm66-add-embalagem').style.display=packaging?'':'none';
-  for(const row of stored)addLine(sid(row.manualKindV9566||'product'),row);
+  for(const row of activeGroupRowsV9590(stored))addLine(sid(row.manualKindV9566||'product'),row);
   if(draft.receipt){
    const summary=document.getElementById('fm66-pdf-summary');
    if(summary)summary.textContent='Comprovante existente: '+sid(draft.receipt.name)+'. Será preservado. Não envie outro PDF.';
    const file=document.getElementById('fm66-pdf');if(file)file.disabled=true;
   }
   const btn=document.querySelector('#fm66-root .modalSave');if(btn)btn.textContent='☁️ Salvar alterações';
-  const info=document.getElementById('fm66-feedback');if(info)info.textContent='Edite quantidade, preço, desconto, produtos, data ou observações. Linhas já salvas não podem ser removidas. Para pagar, utilize a baixa no histórico.';
+  const info=document.getElementById('fm66-feedback');if(info)info.textContent='Para retirar um produto lançado por engano, clique em Remover e informe o motivo. O registro será cancelado (não apagado) quando salvar. Você também pode desfazer a retirada antes de salvar.';
  }else addLine('product');
  return true;
 }
@@ -724,7 +747,8 @@ function receiptGroups(){
   const id=sid(r.manualGroupId),cur=groups.get(id)||{id,factionName:r.factionName,
    date:r.scheduledPaymentDate||'',paidDate:'',status:'Pendente',serviceMode:r.serviceModeV9577||'faccao',
    receipt:null,recordId:sid(r.id),total:0,items:0,rows:[],updatedAt:''};
-  cur.total+=Number(r.value)||0;cur.items++;cur.rows.push(r);
+  if(!isCanceledV9590(r)){cur.total+=Number(r.value)||0;cur.items++}
+  cur.rows.push(r);
   if(r.receiptPdfV9566?.base64){cur.receipt=r.receiptPdfV9566;cur.recordId=sid(r.id)}
   if(sid(r.updatedAt)>cur.updatedAt)cur.updatedAt=sid(r.updatedAt);
   groups.set(id,cur);
@@ -824,7 +848,9 @@ function renderReceipts(){
     const descriptions=g.rows.map(r=>sid(r.description||'')+' '+Number(r.quantity||0)+'x').join(' ');
     const items='<details><summary>'+g.items+' item(ns) · Ver detalhes</summary>'+
      '<div style="min-width:180px">'+g.rows.map(r=>'<div style="border-bottom:1px solid #eee;padding:5px">'+
-      '<b>'+esc(r.description||'Serviço')+'</b><div class="sub">'+Number(r.quantity||0).toLocaleString('pt-BR')+
+      '<b>'+(isCanceledV9590(r)?'❌ [Cancelado] ':'')+esc(r.description||'Serviço')+'</b>'+
+      (isCanceledV9590(r)?'<div class="sub">Motivo: '+esc(r.manualCanceledReasonV9590||'Não informado')+'</div>':'')+
+      '<div class="sub">'+Number(r.quantity||0).toLocaleString('pt-BR')+
       ' × '+money(r.unitPrice)+' · desconto '+money(r.travetaDiscountTotalV9577)+'</div><b>'+
       money(r.value)+'</b></div>').join('')+'</div></details>';
     const proof=g.receipt?'<button type="button" class="secondary fm66-download" data-group-id="'+esc(g.id)+'">'+esc(g.receipt.name)+'</button>':
@@ -834,6 +860,7 @@ function renderReceipts(){
      '<div style="display:flex;gap:6px;flex-wrap:wrap"><button type="button" class="secondary fm88-edit" data-group-id="'+esc(g.id)+'">✏️ Editar</button>'+
      '<button type="button" class="primary fm88-pay" data-group-id="'+esc(g.id)+'">✅ Marcar pago</button></div>':
      g.status==='Pago'?'<span class="sub">Pago · valores protegidos</span>':
+     g.status==='Cancelado'?'<span class="sub">Cancelado · histórico preservado</span>':
      '<button type="button" class="secondary fm88-pay" data-group-id="'+esc(g.id)+'" title="Somente concluir uma baixa previamente iniciada após conferir o financeiro">⚠ Revisar / concluir baixa</button>';
     return '<tr data-fm88-row="1" data-status="'+esc(g.status)+'" data-search="'+esc(norm(g.factionName+' '+descriptions+' '+g.serviceMode))+'">'+
      '<td><b>'+esc(g.factionName)+'</b><div class="sub">'+esc(g.serviceMode==='embalagem'?'Embalagem':g.serviceMode==='travetada'?'Travetada':'Facção / Costura')+'</div></td>'+
