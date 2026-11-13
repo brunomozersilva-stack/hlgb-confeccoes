@@ -1263,8 +1263,15 @@ function renderReceipts(){
      '<button type="button" class="secondary fm88-pay" data-group-id="'+esc(g.id)+'" title="Somente concluir uma baixa previamente iniciada após conferir o financeiro">⚠ Revisar / concluir baixa</button>';
     return '<tr data-fm88-row="1" data-status="'+esc(g.status)+'" data-search="'+esc(norm(g.factionName+' '+descriptions+' '+g.serviceMode))+'">'+
      '<td><b>'+esc(g.factionName)+'</b><div class="sub">'+esc(g.serviceMode==='embalagem'?'Embalagem':g.serviceMode==='travetada'?'Travetada':'Facção / Costura')+'</div></td>'+
-     '<td>'+esc(g.date||'Sem data')+'</td><td><b>'+esc(g.status)+'</b></td><td><b>'+money(g.total)+'</b></td>'+
-     '<td>'+items+'</td><td>'+proof+'</td><td>'+actions+'</td></tr>';
+     '<td>'+esc(g.date||'Sem data')+'</td><td><b>'+esc(g.status)+'</b></td>'+
+     '<td><b>'+money(g.total)+'</b>'+
+     (g.applications?.length?'<div class="sub">Serviços: '+money(g.nominal)+'<br>Acertos: '+
+       money(g.total-g.nominal)+'</div>':'')+
+     (g.adjustmentBalance?'<div class="sub">'+(g.adjustmentBalance<0?'Crédito a abater: ':'Diferença a pagar: ')+
+      money(Math.abs(g.adjustmentBalance))+'</div>':'')+'</td>'+
+     '<td>'+items+'</td><td>'+proof+'</td><td>'+actions+
+     '<button type="button" class="secondary fm90-summary-pdf" data-group-id="'+esc(g.id)+
+     '" style="display:block;margin-top:6px">📄 Baixar PDF detalhado</button></td></tr>';
    }).join('')+'</tbody></table></div>':'<div class="empty">Ainda não há pagamentos avulsos.</div>')+
   '<div id="fm66-receipt-feedback" role="status" class="sub" style="margin-top:8px"></div>';
  const input=host.querySelector('#fm88-filter-name'),filterStatus=host.querySelector('#fm88-filter-status');
@@ -1282,6 +1289,17 @@ function renderReceipts(){
  }));
  host.querySelectorAll('.fm88-pay').forEach(b=>b.addEventListener('click',()=>{
   try{openPayModal(b.dataset.groupId)}catch(e){const x=feedback();if(x)x.textContent='⚠ '+sid(e.message||e)}
+ }));
+ host.querySelectorAll('.fm90-correct').forEach(b=>b.addEventListener('click',()=>{
+  try{openCorrectionModalV9590(b.dataset.groupId)}catch(e){const x=feedback();if(x)x.textContent='⚠ '+sid(e.message||e)}
+ }));
+ host.querySelectorAll('.fm90-apply').forEach(b=>b.addEventListener('click',()=>{
+  try{openApplyCorrectionModalV9590(b.dataset.groupId,b.dataset.eventId)}
+  catch(e){const x=feedback();if(x)x.textContent='⚠ '+sid(e.message||e)}
+ }));
+ host.querySelectorAll('.fm90-summary-pdf').forEach(b=>b.addEventListener('click',()=>{
+  try{downloadSummaryPdfV9590(b.dataset.groupId)}
+  catch(e){const x=feedback();if(x)x.textContent='⚠ Não foi possível gerar PDF: '+sid(e.message||e)}
  }));
  host.querySelectorAll('.fm66-download').forEach(b=>b.addEventListener('click',()=>{
   const group=receiptGroups().find(g=>g.id===b.dataset.groupId);if(group?.receipt)pdfDownload(group.receipt);
@@ -1314,6 +1332,8 @@ document.addEventListener('click',e=>{
 },true);
 window.hlgbFactionManual9566={version:V,openForm,searchFactions,searchProducts,factionDirectory,productDirectory,
  productPrice,validate,grandTotal,readReceipt,pdfIsValid,persistDraft,receiptGroups,groupRows,groupState,saveGroupEdits,markGroupPaid,openPayModal,remoteRecord,attachReceiptToGroup,renderReceipts,download:pdfDownload,install,
+ registerCorrectionV9590,applyCorrectionV9590,matchingPendingGroupsV9590,groupCorrectionsV9590,groupApplicationsV9590,
+ correctionRemainingV9590,netGroupV9590,buildSummaryPdfV9590,summaryLinesV9590,downloadSummaryPdfV9590,
  status:()=>({...state}),maxPdfBytes:MAX_PDF};
 install();
 [500,1700,3800].forEach(ms=>setTimeout(install,ms));
