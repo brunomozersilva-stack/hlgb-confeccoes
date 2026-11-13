@@ -395,6 +395,116 @@ const engine=process.env.HLGB_BROWSER==='webkit'?webkit:chromium;
   assert(directBuffer.toString('latin1').includes('AJUSTES DIRETOS NESTE PAGAMENTO'),'PDF contains inline adjustments');
   assert(directBuffer.toString('latin1').includes('Adiantamento de cinco reais'),'PDF contains mandatory note');
 
+
+  // v95.92: travetadora receives number of PIECES × travetas/peça × unit rate,
+  // and explicit ficha confirmation updates the model's existing travetadas.
+  await page.locator('#fm88-filter-status').selectOption('todos');
+  await page.locator('#hlgbFactionManualPaymentBtn').click();
+  await page.locator('#fm66-mode').selectOption('travetada');
+  await page.locator('#fm66-faction').fill('Tania');
+  await page.locator('#fm66-faction-suggestions [data-faction="Tania"]').click();
+  const katerine=page.locator('.fm66-line').first();
+  await katerine.locator('.fm66-search').fill('TK3');
+  await katerine.locator('[data-product-id="p3"]').click();
+  assert.equal(await katerine.locator('.fm66-unit').inputValue(),'0.08','price must be per traveta (not ficha faction cost)');
+  assert.equal(await katerine.locator('.fm92-points').inputValue(),'1','unconfigured model requires user confirmation');
+  await katerine.locator('.fm92-points').fill('3');
+  await katerine.locator('.fm66-qty').fill('100');
+  assert.match(await page.locator('#fm66-grand').innerText(),/24,00/);
+  const beforeFichaWrites=await page.evaluate(()=>window.__written.filter(x=>x.module==='products').length);
+  await page.locator('#modal .modalSave').click();
+  assert.match(await page.locator('#fm66-feedback').innerText(),/Confirme a atualização/i);
+  assert.equal(await page.evaluate(()=>window.__written.filter(x=>x.module==='products').length),beforeFichaWrites,'no ficha change without confirmation');
+  await katerine.locator('.fm92-save-points').check();
+  await page.locator('#modal .modalSave').click();
+  await page.locator('#modal').waitFor({state:'detached'});
+  const savedKaterine=await page.evaluate(()=>({
+    product:window.db.products.find(x=>x.id==='p3'),
+    rows:window.db.factionPayments.filter(x=>x.factionName==='Tania'&&x.productId==='p3')
+  }));
+  assert.equal(savedKaterine.product.travetadas,3,'model technical sheet must be updated after confirmation');
+  assert.equal(savedKaterine.rows.length,1);
+  assert.equal(savedKaterine.rows[0].travetaPointsPerPieceV9592,3);
+  assert.equal(savedKaterine.rows[0].quantity,100);
+  assert.equal(savedKaterine.rows[0].unitPrice,.08);
+  assert.equal(savedKaterine.rows[0].value,24);
+  const rowKaterine=page.locator('#fm66-receipts tr[data-fm88-row]').filter({has:page.locator('.fm88-pay[data-group-id="'+savedKaterine.rows[0].manualGroupId+'"]')});
+  await rowKaterine.locator('.fm88-pay').click();
+  await page.locator('#fm88-paid-method').fill('Pix');
+  await page.locator('#fm88-pay-modal .modalSave').click();
+  await page.locator('#fm88-pay-modal').waitFor({state:'detached'});
+  assert.equal(await page.evaluate(g=>window.db.hubFinanceEntries.find(x=>x.sourceId===g)?.value,savedKaterine.rows[0].manualGroupId),24);
+  const [pdfKaterine]=await Promise.all([
+   page.waitForEvent('download'),
+   page.locator('#fm66-receipts tr[data-fm88-row]').filter({has:page.locator('.fm90-summary-pdf[data-group-id="'+savedKaterine.rows[0].manualGroupId+'"]')})
+    .locator('.fm90-summary-pdf').click()
+  ]);
+  const pdfRaw=(await fs.readFile(await pdfKaterine.path())).toString('latin1');
+  assert(pdfRaw.includes('Travetadas por peca: 3'),'PDF details points per piece');
+  assert(pdfRaw.includes('Total de pontos: 300'),'PDF details total performed points');
+
+  // The same ficha quantity automatically applies a THREE-point deduction
+  // to a sewing faction registered as not performing travetada.
+  await page.locator('#hlgbFactionManualPaymentBtn').click();
+  await page.locator('#fm66-faction').fill('Roseli');
+  await page.locator('#fm66-faction-suggestions [data-faction="Roseli"]').click();
+  const sewing=page.locator('.fm66-line').first();
+  await sewing.locator('.fm66-search').fill('TK3');
+  await sewing.locator('[data-product-id="p3"]').click();
+  assert.equal(await sewing.locator('.fm66-unit').inputValue(),'1.50');
+  assert.equal(await sewing.locator('.fm66-discount').inputValue(),'0.24','3 points × 0.08 per point');
+  await sewing.locator('.fm66-qty').fill('100');
+  assert.match(await page.locator('#fm66-grand').innerText(),/126,00/);
+  await page.locator('#modal .modalSave').click();
+  await page.locator('#modal').waitFor({state:'detached'});
+  const sewingRecord=await page.evaluate(()=>window.db.factionPayments.find(x=>x.factionName==='Roseli'&&x.productId==='p3'));
+  assert.equal(sewingRecord.value,126);
+  assert.equal(sewingRecord.travetaDiscountUnitV9577,.24);
+  assert.equal(sewingRecord.travetaDiscountTotalV9577,24);
+  assert.equal(await page.evaluate(()=>window.db.products.find(x=>x.id==='p3').factionCost),1.5);
+
+  // A faction with doesTraveta=true must NEVER receive that deduction.
+  await page.locator('#hlgbFactionManualPaymentBtn').click();
+  await page.locator('#fm66-faction').fill('Cris');
+  await page.locator('#fm66-faction-suggestions [data-faction="Cris"]').click();
+  const selfTraveta=page.locator('.fm66-line').first();
+  await selfTraveta.locator('.fm66-search').fill('TK3');
+  await selfTraveta.locator('[data-product-id="p3"]').click();
+  assert.equal(await selfTraveta.locator('.fm66-discount').inputValue(),'0.00');
+  await selfTraveta.locator('.fm66-qty').fill('100');
+  assert.match(await page.locator('#fm66-grand').innerText(),/150,00/);
+  // Avoid writing a third test payment just for checking the preview.
+  await page.evaluate(()=>window.closeModal());
+
+
+  // The canonical "Enviar para facção" screen also reads the product/mother
+  // registration and discounts automatically, not just the avulso screen.
+  const standard=await page.evaluate(()=>{
+    const fixture=document.createElement('section');fixture.id='faction-standard-9592';
+    fixture.innerHTML='<div class="grid"><div class="field"><input id="mprice" value="1.50"></div></div>'+
+      '<select id="mname"><option>Roseli</option><option>Cris</option></select>'+
+      '<input id="mfproductid" value="p3"><input id="msent" value="100">';
+    document.body.appendChild(fixture);
+    const api=window.hlgbFactionTraveta9424;
+    api.state.mode='new';
+    api.ensureTravetaFields({productId:'p3',name:'Roseli'});
+    const first=api.prepareTravetaSave({productId:'p3',name:'Roseli',sent:100});
+    const deduction=document.getElementById('mtravetaDiscount9424').value;
+    const pointsText=document.getElementById('mtravetaModelPointV9592')?.textContent||'';
+    document.getElementById('mprice').value='1.50';
+    const select=document.getElementById('mname');select.value='Cris';
+    select.dispatchEvent(new Event('change',{bubbles:true}));
+    const self=api.prepareTravetaSave({productId:'p3',name:'Cris',sent:100});
+    return {first,discount:deduction,pointsText,self,
+      decision:document.getElementById('mtraveta9424').value};
+  });
+  assert.equal(standard.first.finalUnit,1.26,'canonical send deducts 3 × 0.08 from 1.50');
+  assert.equal(standard.first.total,126);
+  assert.equal(standard.discount,'0.24');
+  assert.match(standard.pointsText,/3 travetada/);
+  assert.equal(standard.self.finalUnit,1.5,'registered traveta=yes receives the full labor price');
+  assert.equal(standard.decision,'sim');
+
   await page.setViewportSize({width:390,height:850});
   await page.locator('#hlgbFactionManualPaymentBtn').click();
   assert.equal(await page.locator('#fm66-faction').isVisible(),true);

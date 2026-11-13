@@ -29,6 +29,52 @@ function productDirectory(){
  return arr('products').filter(p=>p&&p.id!=null&&p.active!==false)
   .slice().sort((a,b)=>sid(a.name||'').localeCompare(sid(b.name||''),'pt-BR'));
 }
+// v95.92 — a ficha do modelo guarda travetadas POR PEÇA; tarifa por ponto.
+function pointsPerPieceV9592(p){const n=Number(p?.travetadas);return Number.isInteger(n)&&n>=0&&n<=100? n:0}
+function travetaUnitV9592(master){
+ const rate=window.hlgbFactionRates9577?.traveta?.(master);
+ return rate==null||!Number.isFinite(Number(rate))||Number(rate)<0?null:Number(rate);
+}
+function autoTravetaV9592(p,master){
+ const points=pointsPerPieceV9592(p),rate=travetaUnitV9592(master);
+ return {points,rate,perPiece:points>0&&rate!=null?Math.round(points*rate*100)/100:null,
+  applies:master?.doesTraveta===false,known:typeof master?.doesTraveta==='boolean'};
+}
+async function saveTravetaPointsV9592(p,points){
+ if(!p||!p.id)throw Error('Selecione um modelo cadastrado para gravar as travetadas na ficha técnica.');
+ if(!Number.isInteger(points)||points<=0||points>100)throw Error('Informe de 1 a 100 travetadas por peça.');
+ await assertRecordNotPending('products',p.id);
+ const current=await remoteRecord('products',p.id);
+ if(!current||sid(current.id)!==sid(p.id))throw Error('Modelo não encontrado na nuvem. Ficha não alterada.');
+ if(sid(current.updatedAt||'')!==sid(p.updatedAt||'')||pointsPerPieceV9592(current)!==pointsPerPieceV9592(p))
+  throw Error('A ficha técnica mudou em outro computador. Atualize antes de mudar travetadas.');
+ if(pointsPerPieceV9592(current)===points)return {changed:false,points};
+ const next={...current,travetadas:points,updatedAt:new Date().toISOString(),
+  travetaPointsUpdatedV9592:true};
+ await saveRecord('products',next);
+ const check=await remoteRecord('products',p.id);
+ if(!check||pointsPerPieceV9592(check)!==points||sid(check.updatedAt)!==sid(next.updatedAt))
+  throw Error('A ficha foi enviada, mas não confirmada na nuvem. Não repita antes de conferir.');
+ return {changed:true,points};
+}
+async function syncPointsFromPaymentV9592(lines){
+ const changes=new Map();
+ for(const line of lines){
+  if(line.kind!=='travetada'||!line.productId||!line.updateProductPointsV9592)continue;
+  const p=productDirectory().find(x=>sid(x.id)===sid(line.productId));
+  if(!p)throw Error('Modelo não encontrado ao salvar travetadas na ficha técnica.');
+  const points=Number(line.pointsPerPieceV9592);
+  if(changes.has(sid(p.id))&&changes.get(sid(p.id))!==points)
+   throw Error('O mesmo modelo recebeu quantidades diferentes de travetadas no mesmo pagamento.');
+  changes.set(sid(p.id),points);
+ }
+ for(const [id,points] of changes){
+  const p=productDirectory().find(x=>sid(x.id)===id);
+  await saveTravetaPointsV9592(p,points);
+ }
+ return changes.size;
+}
+
 function productPrice(p){
  const n=Number(p?.factionCost);
  return Number.isFinite(n)&&n>0?+n.toFixed(2):null;
@@ -71,6 +117,15 @@ function validate(input){
   if(mode==='travetada'&&kind!=='travetada')throw Error('Na atividade Travetada, inclua apenas serviços de travetada.');
   if(mode==='travetada'&&discount!==0)throw Error('O pagamento exclusivo de travetada não deve ter desconto de travetada.');
   if(!['product','travetada','service','embalagem'].includes(kind))throw Error('Tipo de serviço inválido.');
+  const points=kind==='travetada'?number(x.pointsPerPieceV9592??(p?pointsPerPieceV9592(p):1)):0;
+  if(kind==='travetada'&&(!Number.isInteger(points)||points<=0||points>100))
+   throw Error('Informe quantas travetadas existem por peça na linha '+(i+1)+'.');
+  const updateProductPointsV9592=kind==='travetada'&&!!p&&points!==pointsPerPieceV9592(p);
+  if(kind==='travetada'&&updateProductPointsV9592&&!x.confirmProductPointsV9592)
+   throw Error('Confirme a atualização das travetadas na ficha técnica do modelo '+sid(p.name)+'.');
+  const realPerPiece=kind==='travetada'?Math.round(points*unit*100)/100:unit;
+  const maxDiscount=kind==='travetada'?0:realPerPiece;
+  if(discount>maxDiscount)throw Error('Desconto superior ao valor da peça.');
   const displayName=p?.name||(manual?manualName:'');
   const description=kind==='product'?sid(p.name):kind==='embalagem'?'Embalagem — '+displayName:
    kind==='travetada'?'Travetada'+(displayName?' — '+displayName:''):sid(x.description).trim();
@@ -79,8 +134,9 @@ function validate(input){
     manualProductName:manual&&!p?manualName.slice(0,180):'',
     manualProductCategory:manual&&!p?manualCategory:'',
     description:description.slice(0,220),quantity:qty,unitPrice:+unit.toFixed(2),
-    grossValue:+(qty*unit).toFixed(2),travetaDiscountUnit:+discount.toFixed(2),
-    travetaDiscountTotal:+(qty*discount).toFixed(2),value:+(qty*(unit-discount)).toFixed(2),
+    pointsPerPieceV9592:points,updateProductPointsV9592,confirmProductPointsV9592:!!x.confirmProductPointsV9592,
+    grossValue:+(qty*realPerPiece).toFixed(2),travetaDiscountUnit:+discount.toFixed(2),
+    travetaDiscountTotal:+(qty*discount).toFixed(2),value:+(qty*(realPerPiece-discount)).toFixed(2),
     note:sid(x.note).slice(0,700),priceOrigin:sid(x.priceOrigin)};
  });
  return {factionName:f.name,factionMasterId:f.id||null,serviceMode:mode,date:input.date,status:input.status,
@@ -169,12 +225,14 @@ async function persistDraft(input,receipt){
   if(!draft)draft={groupId:id,createdAt:ts,receipt:null};
   if(receipt)draft.receipt=receipt;
   if(!parsed.lines.every(x=>x.id))throw Error('Uma linha perdeu sua identificação. Reabra o formulário antes de salvar.');
+  await syncPointsFromPaymentV9592(parsed.lines);
   for(let i=0;i<parsed.lines.length;i++){
    const row=parsed.lines[i],existing=arr('factionPayments').find(x=>sid(x.id)===sid(row.id));
    const obj={...existing,id:row.id,source:'faction_manual_payment_v1',manual:true,
     manualGroupId:id,manualKindV9566:row.kind,serviceModeV9577:parsed.serviceMode,factionMasterId:parsed.factionMasterId,
     status:parsed.status,factionName:parsed.factionName,productId:row.productId,
     description:row.description,manualProductNameV9589:row.manualProductName,manualProductCategoryV9589:row.manualProductCategory,
+    travetaPointsPerPieceV9592:row.kind==='travetada'?row.pointsPerPieceV9592:null,
     quantity:row.quantity,unitPrice:row.unitPrice,
     value:row.value,grossValueV9577:row.grossValue,travetaDiscountUnitV9577:row.travetaDiscountUnit,
     travetaDiscountTotalV9577:row.travetaDiscountTotal,paidAmount:paid?allocations[i]:0,paymentDate:paid?date:'',
@@ -297,6 +355,7 @@ async function saveGroupEdits(groupId,input,receipt,removalReasons=[]){
   const newAdjustments=validateDirectInputV9591(input.directAdjustmentsV9591||[],directAdjustmentsV9591(rows));
   const oldHub=await preflightGroup(groupId,rows);
   if(oldHub)throw Error('O Hub já possui uma saída deste grupo. Só é permitido alterar pagamentos ainda pendentes.');
+  await syncPointsFromPaymentV9592(parsed.lines);
   const ts=new Date().toISOString(),existingById=new Map(rows.map(x=>[sid(x.id),x]));
   const editId=draft?.editAttemptId||makeId('faction-edit');
   if(draft)draft.editAttemptId=editId;
@@ -312,6 +371,7 @@ async function saveGroupEdits(groupId,input,receipt,removalReasons=[]){
     manualKindV9566:x.kind,serviceModeV9577:parsed.serviceMode,factionMasterId:parsed.factionMasterId,
     factionName:parsed.factionName,status:'Pendente',productId:x.productId,description:x.description,
     manualProductNameV9589:x.manualProductName,manualProductCategoryV9589:x.manualProductCategory,
+    travetaPointsPerPieceV9592:x.kind==='travetada'?x.pointsPerPieceV9592:null,
     quantity:x.quantity,unitPrice:x.unitPrice,value:x.value,grossValueV9577:x.grossValue,
     travetaDiscountUnitV9577:x.travetaDiscountUnit,travetaDiscountTotalV9577:x.travetaDiscountTotal,
     discountAmount:x.travetaDiscountTotal,paidAmount:0,paymentDate:'',
@@ -641,10 +701,15 @@ function rowHtml(kind='product',id=makeId('fmpli')){
      '<option value="doll">Short doll</option><option value="calcinha">Calcinha</option></select>':'')+
     '</div></div>':'')+
   (kind==='service'?'<div class="field"><label>Descrição do serviço</label><input class="fm66-desc" maxlength="220" placeholder="Retrabalho, extra..."></div>':'')+
-  '<div class="field"><label>Qtd.</label><input type="number" min="1" step="1" class="fm66-qty" value="1"></div>'+
-  '<div class="field"><label>Valor unit. (R$)</label><input type="number" min="0.01" step="0.01" class="fm66-unit" placeholder="Informe o valor"></div>'+
-  '<div class="field"><label>Desconto travetada/peça (R$)</label><input type="number" min="0" step="0.01" class="fm66-discount" value="0.00" aria-label="Descontar travetada"></div>'+ 
-  '<div class="field"><label>Total após desconto</label><input class="fm66-total" value="R$ 0,00" disabled></div></div>'+
+  '<div class="field"><label>'+(trav?'Peças travetadas':'Qtd. peças')+'</label><input type="number" min="1" step="1" class="fm66-qty" value="1"></div>'+
+  (trav?'<div class="field"><label>Travetadas por peça (ficha técnica)</label>'+
+  '<input type="number" min="1" max="100" step="1" class="fm92-points" value="1">'+
+  '<label style="display:flex;gap:5px;margin-top:5px"><input type="checkbox" class="fm92-save-points" style="width:auto">'+
+  'Confirmo atualizar a ficha técnica se o número for diferente do cadastro</label>'+
+  '<div class="sub fm92-point-hint">Vincule um modelo para consultar as travetadas cadastradas.</div></div>':'')+
+  '<div class="field"><label>'+(trav?'Valor por travetada (R$)':'Valor unit. (R$)')+'</label><input type="number" min="0.01" step="0.01" class="fm66-unit" placeholder="Informe o valor"></div>'+
+  (trav?'':'<div class="field"><label>Desconto travetada/peça (R$)</label><input type="number" min="0" step="0.01" class="fm66-discount" value="0.00" aria-label="Descontar travetada"></div>')+ 
+  '<div class="field"><label>'+(trav?'Total: peças × travetadas/peça × tarifa':'Total após desconto')+'</label><input class="fm66-total" value="R$ 0,00" disabled></div></div>'+
   '<div class="field"><label>Observação desta linha (opcional)</label><input class="fm66-line-note" maxlength="700" placeholder="Ex.: travetada de 300 peças"></div>'+
   '</div>';
 }
@@ -655,6 +720,7 @@ function renderProductsFor(row,query){
  host.innerHTML=rs.map(p=>'<button type="button" class="fm66-product-option" data-product-id="'+esc(p.id)+
   '" role="option" style="display:block;width:100%;text-align:left;border:0;border-bottom:1px solid #eee;padding:8px;background:#fff;cursor:pointer">'+
   '<b>'+esc(p.name||'Produto')+'</b> <small>'+esc(p.code||p.sku||p.category||'')+'</small>'+
+   (row.dataset.kind==='travetada'?'<span class="sub" style="display:block">Ficha: '+pointsPerPieceV9592(p)+' travetada(s) por peça</span>':'')+
   '<span class="sub" style="display:block">'+(row.dataset.kind==='embalagem'?(window.hlgbFactionRates9577?.embalagem?.(p)!=null?'Embalagem: '+money(window.hlgbFactionRates9577.embalagem(p)):'Sem tarifa de embalagem; informar manualmente'):(productPrice(p)!=null?'Facção cadastrada: '+money(productPrice(p)):'Sem preço de facção cadastrado'))+'</span></button>').join('')+
   (!rs.length?'<div class="sub" style="padding:8px">Nenhum produto cadastrado encontrado para esta busca.</div>':'');
 }
@@ -667,14 +733,18 @@ function lineFromDom(row){
   manualProductName:row.querySelector('.fm66-manual-name')?.value||'',
   manualProductCategory:row.querySelector('.fm66-manual-category')?.value||'outros',
   note:row.querySelector('.fm66-line-note')?.value||'',priceOrigin:row.dataset.priceOrigin||'',
-  travetaDiscountUnit:row.querySelector('.fm66-discount')?.value||'0'};
+  travetaDiscountUnit:row.querySelector('.fm66-discount')?.value||'0',
+   pointsPerPieceV9592:row.querySelector('.fm92-points')?.value,
+   confirmProductPointsV9592:!!row.querySelector('.fm92-save-points')?.checked};
 }
 function recalc(){
  const root=document.getElementById('fm66-root');if(!root)return;
  let total=0;
  root.querySelectorAll('.fm66-line').forEach(row=>{
   const x=lineFromDom(row),qty=number(x.quantity),unit=number(x.unitPrice),discount=number(x.travetaDiscountUnit),
-   sum=Number.isFinite(qty)&&Number.isFinite(unit)&&Number.isFinite(discount)&&qty>0&&unit>=discount&&discount>=0?qty*(unit-discount):0;
+   points=row.dataset.kind==='travetada'?number(x.pointsPerPieceV9592):1,
+   sum=Number.isFinite(qty)&&Number.isFinite(unit)&&Number.isFinite(discount)&&
+     Number.isInteger(points)&&points>0&&qty>0&&points*unit>=discount&&discount>=0?qty*(points*unit-discount):0;
   total+=sum;row.querySelector('.fm66-total').value=money(sum);
  });
  const stored=draft?.editing?directAdjustmentsV9591(groupRows(draft.groupId)):[];
@@ -722,6 +792,39 @@ function renderExistingDirectV9591(rows){
    '<b>'+money(x.amount)+'</b> · '+esc(x.reason)+' · '+esc(sid(x.createdAt).slice(0,10))+'</div>').join(''):'';
  recalc();
 }
+function syncPointHintV9592(row,p){
+ if(row.dataset.kind!=='travetada')return;
+ const field=row.querySelector('.fm92-points'),hint=row.querySelector('.fm92-point-hint'),check=row.querySelector('.fm92-save-points');
+ if(!field||!hint)return;
+ if(!p){hint.textContent='Sem modelo: cálculo avulso. Nenhuma ficha será alterada.';if(check)check.checked=false;return}
+ const stored=pointsPerPieceV9592(p),entered=number(field.value);
+ hint.textContent=stored===entered&&stored>0?'✓ Ficha: '+stored+' travetada(s) por peça.':
+  'Ficha atual: '+stored+' por peça. Informe a quantidade correta e confirme a atualização para este modelo.';
+}
+function refreshFactionDiscountV9592(row,force=false){
+ if(row?.dataset?.kind!=='product')return;
+ const p=productDirectory().find(x=>sid(x.id)===sid(row.querySelector('.fm66-product-id')?.value));
+ const picked=factionDirectory().find(x=>norm(x.name)===norm(document.getElementById('fm66-faction')?.value));
+ const master=arr('factionMasters').find(x=>sid(x.id)===sid(picked?.id));
+ const discount=row.querySelector('.fm66-discount'),unit=number(row.querySelector('.fm66-unit')?.value),hint=row.querySelector('.fm66-hint');
+ if(!p||!discount||(!force&&row.dataset.discountOriginV9592==='manual'))return;
+ const calc=autoTravetaV9592(p,master);
+ if(calc.applies&&calc.perPiece!=null&&calc.points>0&&calc.perPiece<=unit){
+  discount.value=calc.perPiece.toFixed(2);row.dataset.discountOriginV9592='automatic';
+  if(hint)hint.textContent='✓ NÃO traveta: '+calc.points+' × '+money(calc.rate)+' = '+
+    money(calc.perPiece)+' de desconto por peça.';
+ }else{
+  discount.value='0.00';row.dataset.discountOriginV9592='automatic';
+  if(hint)hint.textContent=master?.doesTraveta===false?
+   (!calc.points?'⚠ Ficha sem travetadas: cadastre antes do desconto.':
+    calc.rate==null?'⚠ Preço da travetada não cadastrado.':
+    '⚠ Desconto superior à mão de obra: confira preço/tarifa.'):
+   master?.doesTraveta===true?'Facção faz travetada: sem desconto.':
+    'Informe no cadastro da facção se faz travetada para desconto automático.';
+ }
+ recalc();
+}
+
 function addLine(kind='product',existingRow=null){
  const host=document.getElementById('fm66-lines');if(!host)return;
  host.insertAdjacentHTML('beforeend',rowHtml(kind,existingRow?.id||makeId('fmpli')));
@@ -743,20 +846,32 @@ function addLine(kind='product',existingRow=null){
   const option=e.target.closest('button[data-product-id]');if(!option)return;
   const p=productDirectory().find(x=>sid(x.id)===sid(option.dataset.productId));if(!p)return;
   row.querySelector('.fm66-product-id').value=sid(p.id);
+  if(row.dataset.kind==='travetada'){
+   const points=row.querySelector('.fm92-points'),stored=pointsPerPieceV9592(p);
+   if(points)points.value=stored>0?String(stored):'1';
+   const check=row.querySelector('.fm92-save-points');if(check)check.checked=false;
+   syncPointHintV9592(row,p);
+  }
   const manualCheck=row.querySelector('.fm66-unregistered');
   if(manualCheck){manualCheck.checked=false;row.querySelector('.fm66-manual-fields').style.display='none'}
   row.querySelector('.fm66-search').disabled=false;
   row.querySelector('.fm66-search').value=p.name||'';
   row.querySelector('.fm66-suggestions').style.display='none';
-  const packing=row.dataset.kind==='embalagem',price=packing?window.hlgbFactionRates9577?.embalagem?.(p):productPrice(p),unit=row.querySelector('.fm66-unit');
-  row.dataset.priceOrigin=price!=null?(packing?'tabela-embalagem':'ficha-tecnica'):'manual';
-  if(price!=null){unit.value=price.toFixed(2);row.querySelector('.fm66-hint').textContent=packing?'Tarifa de embalagem sugerida; você pode alterar.':'Valor da facção preenchido pela ficha. Você pode alterá-lo.'}
-  else{unit.value='';row.querySelector('.fm66-hint').textContent=packing?'Sem tarifa para este modelo. Informe o valor de embalagem.':'Sem valor de facção cadastrado. Informe manualmente abaixo.'}
-  const picked=factionDirectory().find(x=>norm(x.name)===norm(document.getElementById('fm66-faction')?.value));
-  const master=arr('factionMasters').find(x=>sid(x.id)===sid(picked?.id));
+  const packing=row.dataset.kind==='embalagem',traveta=row.dataset.kind==='travetada',
+   picked=factionDirectory().find(x=>norm(x.name)===norm(document.getElementById('fm66-faction')?.value)),
+   master=arr('factionMasters').find(x=>sid(x.id)===sid(picked?.id)),
+   price=packing?window.hlgbFactionRates9577?.embalagem?.(p):traveta?travetaUnitV9592(master):productPrice(p),
+   unit=row.querySelector('.fm66-unit');
+  row.dataset.priceOrigin=price!=null?(packing?'tabela-embalagem':traveta?'tabela-travetada':'ficha-tecnica'):'manual';
+  if(price!=null){unit.value=Number(price).toFixed(2);
+   row.querySelector('.fm66-hint').textContent=packing?'Tarifa de embalagem sugerida.':
+    traveta?'Tarifa por ponto de travetada sugerida. Peças × pontos/peça × tarifa.':
+    'Valor da facção preenchido pela ficha. Você pode alterar.'}
+  else{unit.value='';row.querySelector('.fm66-hint').textContent=packing?'Sem tarifa de embalagem. Informe manualmente.':
+   traveta?'Sem tarifa de travetada. Configure a tabela ou informe um valor por ponto.':
+   'Sem valor de facção cadastrado. Informe manualmente.'}
   const d=row.querySelector('.fm66-discount');
-  if(d)d.value=!packing&&master?.doesTraveta===false&&window.hlgbFactionRates9577?.traveta?.(master)!=null?
-   Number(window.hlgbFactionRates9577.traveta(master)).toFixed(2):'0.00';
+  if(d)refreshFactionDiscountV9592(row,true);
   recalc();
  });
  const manualCheck=row.querySelector('.fm66-unregistered');
@@ -769,6 +884,10 @@ function addLine(kind='product',existingRow=null){
    if(manualCheck.checked){
     row.querySelector('.fm66-product-id').value='';lookup.value='';
     row.querySelector('.fm66-suggestions').style.display='none';
+    if(row.dataset.kind==='travetada'){
+     const points=row.querySelector('.fm92-points');if(points)points.value='1';
+     syncPointHintV9592(row,null);
+    }
     if(row.dataset.kind==='embalagem'){
      unit.value='';
      row.querySelector('.fm66-hint').textContent='Modelo avulso: informe nome, categoria e valor. Não será cadastrado no estoque.';
@@ -796,8 +915,13 @@ function addLine(kind='product',existingRow=null){
    row.remove();renderRemovedLinesV9590();recalc();
   }else{row.remove();recalc()}
  });
- row.querySelectorAll('.fm66-qty,.fm66-unit,.fm66-discount').forEach(inp=>inp.addEventListener('input',()=>{
+ row.querySelectorAll('.fm66-qty,.fm66-unit,.fm66-discount,.fm92-points').forEach(inp=>inp.addEventListener('input',()=>{
   if(inp.classList.contains('fm66-unit'))row.dataset.priceOrigin='manual';
+  if(inp.classList.contains('fm66-discount'))row.dataset.discountOriginV9592='manual';
+  if(inp.classList.contains('fm92-points')){
+   const p=productDirectory().find(x=>sid(x.id)===sid(row.querySelector('.fm66-product-id')?.value));
+   syncPointHintV9592(row,p);
+  }
   recalc();
  }));
 
@@ -809,7 +933,14 @@ function addLine(kind='product',existingRow=null){
   if(kind==='service'&&row.querySelector('.fm66-desc'))row.querySelector('.fm66-desc').value=sid(existingRow.description);
   row.querySelector('.fm66-qty').value=sid(existingRow.quantity||1);
   row.querySelector('.fm66-unit').value=Number(existingRow.unitPrice||0).toFixed(2);
-  row.querySelector('.fm66-discount').value=Number(existingRow.travetaDiscountUnitV9577||0).toFixed(2);
+  const discount=row.querySelector('.fm66-discount');
+  if(discount)discount.value=Number(existingRow.travetaDiscountUnitV9577||0).toFixed(2);
+  if(kind==='travetada'){
+   const points=row.querySelector('.fm92-points');
+   if(points)points.value=String(existingRow.travetaPointsPerPieceV9592||
+     (p&&pointsPerPieceV9592(p))||1);
+   syncPointHintV9592(row,p);
+  }else if(kind==='product')row.dataset.discountOriginV9592='manual';
   row.querySelector('.fm66-line-note').value=sid(existingRow.manualLineNoteV9566||'');
   if(existingRow.manualProductNameV9589&&row.querySelector('.fm66-unregistered')){
    const check=row.querySelector('.fm66-unregistered'),area=row.querySelector('.fm66-manual-fields');
@@ -830,6 +961,7 @@ function addLine(kind='product',existingRow=null){
    row.querySelector('.fm66-unit').value=Number(rate).toFixed(2);
    row.dataset.priceOrigin='tabela-travetada';
   }
+  syncPointHintV9592(row,null);
  }
  recalc();
 }
@@ -955,6 +1087,8 @@ function openForm(groupId=''){
   document.getElementById('fm66-faction-suggestions')?.addEventListener('click',e=>{
    const b=e.target.closest('button[data-faction]');if(!b)return;faction.value=b.dataset.faction;
    document.getElementById('fm66-faction-suggestions').style.display='none';
+   if(document.getElementById('fm66-mode')?.value==='faccao')
+    document.querySelectorAll('#fm66-lines .fm66-line[data-kind="product"]').forEach(row=>refreshFactionDiscountV9592(row,true));
    if(document.getElementById('fm66-mode')?.value==='travetada'){
     const person=factionDirectory().find(x=>norm(x.name)===norm(faction.value));
     const master=arr('factionMasters').find(x=>sid(x.id)===sid(person?.id));
@@ -1119,6 +1253,10 @@ function summaryLinesV9590(groupId){
   out.push('Item '+(i+1)+': '+v(x.description));
   out.push('  Quantidade: '+(Number(x.quantity)||0)+' | Unitario: '+f(x.unitPrice)+
    ' | Bruto: '+f(x.grossValueV9577??Number(x.quantity)*Number(x.unitPrice)));
+  if(x.manualKindV9566==='travetada')
+   out.push('  Travetadas por peca: '+v(x.travetaPointsPerPieceV9592||1)+
+    ' | Total de pontos: '+(Number(x.quantity)||0)*(Number(x.travetaPointsPerPieceV9592)||1)+
+    ' | Tarifa por ponto: '+f(x.unitPrice));
   out.push('  Travetada descontada: '+f(x.travetaDiscountTotalV9577||0)+
    ' | Liquido: '+f(x.value)+' | Pago atribuido: '+f(x.paidAmount));
   out.push('  Modelo: '+v(x.manualProductNameV9589||x.productName||x.productId)+
@@ -1392,7 +1530,9 @@ function renderReceipts(){
       '<b>'+(isCanceledV9590(r)?'❌ [Cancelado] ':'')+esc(r.description||'Serviço')+'</b>'+
       (isCanceledV9590(r)?'<div class="sub">Motivo: '+esc(r.manualCanceledReasonV9590||'Não informado')+'</div>':'')+
       '<div class="sub">'+Number(r.quantity||0).toLocaleString('pt-BR')+
-      ' × '+money(r.unitPrice)+' · desconto '+money(r.travetaDiscountTotalV9577)+'</div><b>'+
+      ' × '+money(r.unitPrice)+
+      (r.manualKindV9566==='travetada'?' × '+(r.travetaPointsPerPieceV9592||1)+' travetadas/peça':'')+
+      ' · desconto '+money(r.travetaDiscountTotalV9577)+'</div><b>'+
       money(r.value)+'</b></div>').join('')+
       corrections+apps+'</div></details>';
     const proof=g.receipt?'<button type="button" class="secondary fm66-download" data-group-id="'+esc(g.id)+'">'+esc(g.receipt.name)+'</button>':
@@ -1480,7 +1620,8 @@ document.addEventListener('click',e=>{
  e.preventDefault();e.stopImmediatePropagation();openForm();
 },true);
 window.hlgbFactionManual9566={version:V,openForm,searchFactions,searchProducts,factionDirectory,productDirectory,
- productPrice,validate,grandTotal,readReceipt,pdfIsValid,persistDraft,receiptGroups,groupRows,groupState,saveGroupEdits,markGroupPaid,openPayModal,remoteRecord,attachReceiptToGroup,renderReceipts,download:pdfDownload,install,
+ productPrice,pointsPerPieceV9592,autoTravetaV9592,travetaUnitV9592,saveTravetaPointsV9592,
+  validate,grandTotal,readReceipt,pdfIsValid,persistDraft,receiptGroups,groupRows,groupState,saveGroupEdits,markGroupPaid,openPayModal,remoteRecord,attachReceiptToGroup,renderReceipts,download:pdfDownload,install,
  registerCorrectionV9590,applyCorrectionV9590,matchingPendingGroupsV9590,groupCorrectionsV9590,groupApplicationsV9590,
  correctionRemainingV9590,netGroupV9590,directAdjustmentsV9591,validateDirectInputV9591,buildSummaryPdfV9590,summaryLinesV9590,downloadSummaryPdfV9590,
  status:()=>({...state}),maxPdfBytes:MAX_PDF};

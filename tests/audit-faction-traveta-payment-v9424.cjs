@@ -34,6 +34,16 @@ assert.strictEqual(p.base,10);assert.strictEqual(p.final,9.5,'faction.price prec
 const html=api.payHtml({id:21,factionId:2,productId:3,qty:100},false);
 for(const label of ['Valor base/peça','Travetada:','Desconto travetada/peça','Valor final/peça','Quantidade:','Total a receber:'])assert(html.includes(label),label+' ausente do checklist');
 
+context.db.products=[{id:3,name:'Tanga Katerine',travetadas:3}];
+context.db.factionMasters=[{id:50,name:'Roseli',doesTraveta:false,travetaDeductionUnit:0.08}];
+context.hlgbFactionRates9577={traveta:master=>master?.travetaDeductionUnit??.08};
+const points=api.deductionForModelV9592({productId:3,factionMasterId:50},context.db.factionMasters[0]);
+assert.strictEqual(points.points,3);
+assert.strictEqual(points.rate,.08);
+assert.strictEqual(points.unit,.24,'3 travetadas por peça × R$ 0,08 = R$ 0,24 de desconto');
+assert.equal(api.deductionForModelV9592({productId:999},context.db.factionMasters[0]),null,
+ 'unknown model cannot silently invent a traveta count');
+
 assert(src.includes('f.price=valid.finalUnit'),'valor final precisa alimentar faction.price');
 assert(src.includes("storedBase!=null&&state.mode==='edit'"),'edição precisa restaurar valor base e evitar desconto duplo');
 assert(!src.includes('new MutationObserver'),'v94.24 não pode usar observer amplo/recursivo');

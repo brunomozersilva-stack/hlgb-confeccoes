@@ -19,11 +19,11 @@ function extraForm(base={}){
  [['faccao','Facção de costura'],['embaladeira','Embaladeira'],['travetador','Travetada']].map(([v,t])=>'<option value="'+v+'"'+(role===v?' selected':'')+'>'+t+'</option>').join('')+'</select></div>'+
  '<div class="field"><label>Faz travetada neste serviço?</label><select id="mfDoesTravetaV9577">'+
  '<option value="">Ainda não informado</option><option value="sim"'+(trav==='sim'?' selected':'')+'>Sim</option><option value="nao"'+(trav==='nao'?' selected':'')+'>Não</option></select></div>'+
- '<div class="field"><label>Desconto de travetada por peça (R$ · opcional)</label>'+
+ '<div class="field"><label>Tarifa por travetada (R$ · opcional)</label>'+
  '<input type="number" min="0" step="0.01" id="mfTravetaUnitV9577" value="'+
  (base.travetaDeductionUnit!=null?Number(base.travetaDeductionUnit).toFixed(2):'')+
  '" placeholder="Usar tabela geral"></div></div>'+
- '<p class="sub">Se não fizer travetada, os lançamentos poderão abater o valor cadastrado, sem alterar pagamentos antigos.</p></div>';
+ '<p class="sub">Quando não faz travetada, o desconto será: travetadas por peça (ficha do modelo) × tarifa por travetada. Lançamentos antigos não serão alterados.</p></div>';
 }
 function readForm(base={}){
  const name=(document.getElementById('mfname')?.value||'').trim();if(!name)throw new Error('Informe o nome da facção.');

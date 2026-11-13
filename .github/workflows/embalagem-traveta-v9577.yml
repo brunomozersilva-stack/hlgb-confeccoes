@@ -12,6 +12,7 @@ on:
       - 'tests/faction-manual-management-v9588.cjs'
       - 'tests/faction-manual-corrections-v9590.cjs'
       - 'tests/faction-inline-adjustment-v9591.cjs'
+      - 'tests/faction-traveta-points-v9592.cjs'
       - 'tests/faction-manual-v9566-browser.cjs'
       - 'tests/faction-manual-v9566-fixture.html'
       - '.github/workflows/embalagem-traveta-v9577.yml'
@@ -27,6 +28,7 @@ on:
       - 'tests/faction-manual-management-v9588.cjs'
       - 'tests/faction-manual-corrections-v9590.cjs'
       - 'tests/faction-inline-adjustment-v9591.cjs'
+      - 'tests/faction-traveta-points-v9592.cjs'
       - 'tests/faction-manual-v9566-browser.cjs'
       - 'tests/faction-manual-v9566-fixture.html'
       - '.github/workflows/embalagem-traveta-v9577.yml'
@@ -46,10 +48,12 @@ jobs:
       - run: node --check tests/faction-manual-management-v9588.cjs
       - run: node --check tests/faction-manual-corrections-v9590.cjs
       - run: node --check tests/faction-inline-adjustment-v9591.cjs
+      - run: node --check tests/faction-traveta-points-v9592.cjs
       - run: node tests/faction-manual-v9566.cjs
       - run: node tests/faction-manual-management-v9588.cjs
       - run: node tests/faction-manual-corrections-v9590.cjs
       - run: node tests/faction-inline-adjustment-v9591.cjs
+      - run: node tests/faction-traveta-points-v9592.cjs
       - run: node tests/audit-faction-master-integrity-regression.cjs
       - run: node tests/audit-faction-traveta-payment-v9424.cjs
       - run: node tests/embalagem-traveta-v9577.cjs

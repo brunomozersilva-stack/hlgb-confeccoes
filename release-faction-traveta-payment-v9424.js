@@ -42,14 +42,26 @@ function findFactionForModal(){
   return null;
 }
 function masterFor(f){
- if(!f)return null;
- const id=sid(f.factionMasterId||f.masterId||''),name=norm(f.name||f.factionName||'');
+ const id=sid(f?.factionMasterId||f?.masterId||''),
+  selectedName=document.getElementById?.('mname')?.value,
+  name=norm(state.mode!=='edit'&&selectedName?selectedName:(f?.name||f?.factionName||selectedName||''));
  return arr('factionMasters').find(x=>(id&&sid(x.id)===id)||(name&&norm(x.name)===name))||null;
 }
 function decisionOf(f){
  if(typeof f?.doesTraveta==='boolean')return f.doesTraveta?'sim':'nao';
  const master=masterFor(f);
  return typeof master?.doesTraveta==='boolean'?(master.doesTraveta?'sim':'nao'):'';
+}
+function productForTravetaV9592(f){
+ const id=sid(f?.productId||document.getElementById?.('mfproductid')?.value||'');
+ return id?arr('products').find(p=>sid(p?.id)===id)||null:null;
+}
+function deductionForModelV9592(f,master){
+ const product=productForTravetaV9592(f),points=Number(product?.travetadas);
+ const rate=window.hlgbFactionRates9577?.traveta?.(master);
+ if(!product||!Number.isInteger(points)||points<=0||points>100||
+    rate==null||!Number.isFinite(Number(rate))||Number(rate)<0)return null;
+ return {model:product.name||'',points,rate:Number(rate),unit:+(points*Number(rate)).toFixed(2)};
 }
 function setText(el,text){if(el&&el.textContent!==text)el.textContent=text}
 function setDisplay(el,value){if(el&&el.style.display!==value)el.style.display=value}
@@ -70,10 +82,16 @@ function refreshTravetaPreview(){
 function ensureTravetaFields(explicitFaction){
   const price=document.getElementById('mprice'),name=document.getElementById('mname'),sent=document.getElementById('msent');
   if(!price||!name||!sent)return false;
-  const f=explicitFaction||findFactionForModal();
+  const f=explicitFaction||findFactionForModal()||{
+   name:document.getElementById('mname')?.value||'',
+   productId:document.getElementById('mfproductid')?.value||''
+  };
   let box=document.getElementById('hlgbFactionTravetaBox9424');
   if(!box){
-    const master=masterFor(f),decision=decisionOf(f),deduction=Math.max(0,finiteOrNull(f?.travetaDeductionUnit)??finiteOrNull(master?.travetaDeductionUnit)??finiteOrNull(window.hlgbFactionRates9577?.traveta?.(master))??0);
+    const master=masterFor(f),decision=decisionOf(f),derived=deductionForModelV9592(f,master),
+     legacy=Math.max(0,finiteOrNull(f?.travetaDeductionUnit)??finiteOrNull(master?.travetaDeductionUnit)??
+       finiteOrNull(window.hlgbFactionRates9577?.traveta?.(master))??0),
+     deduction=decision==='nao'&&derived&&state.mode!=='edit'?derived.unit:legacy;
     const storedBase=finiteOrNull(f?.baseUnitPrice);
     if(storedBase!=null&&state.mode==='edit')price.value=storedBase.toFixed(2);
     box=document.createElement('div');box.id='hlgbFactionTravetaBox9424';box.className='panel';
@@ -85,14 +103,36 @@ function ensureTravetaFields(explicitFaction){
         '<div class="field" id="mtravetaDiscountField9424" style="display:'+(decision==='nao'?'block':'none')+'"><label>Desconto da travetada por peça (R$)</label><input id="mtravetaDiscount9424" type="number" min="0" step="0.01" value="'+deduction.toFixed(2)+'"></div>'+
       '</div>'+
       '<div id="mtravetaHint9424" class="sub" style="margin-top:6px"></div>'+
+      (derived?'<div class="sub" id="mtravetaModelPointV9592">Ficha: '+derived.points+
+       ' travetada(s)/peça × '+money(derived.rate)+' = '+money(derived.unit)+' de desconto POR PEÇA para facção que não traveta.</div>':
+       '<div class="sub" id="mtravetaModelPointV9592">Se o modelo tiver travetadas na ficha técnica, a quantidade × tarifa será sugerida automaticamente. Sem ficha confirmada, confira manualmente.</div>')+
       '<div style="display:flex;gap:18px;flex-wrap:wrap;margin-top:10px"><div><b>Valor final por peça:</b> <span id="mtravetaFinalUnit9424">R$ 0,00</span></div><div><b>Total previsto:</b> <span id="mtravetaTotal9424">R$ 0,00</span></div></div>';
     const anchor=price.closest?.('.field')||price.parentElement;
     const grid=anchor?.parentElement;
     if(grid?.parentElement)grid.insertAdjacentElement('afterend',box);
     else (document.querySelector('#modal .modal-content,#modal .modal-card,#modal .modalCard')||document.getElementById('modal'))?.appendChild(box);
+    const personPicker=document.getElementById('mname');
+    if(personPicker&&!personPicker.dataset.hlgbAutoPointsV9592){
+     personPicker.dataset.hlgbAutoPointsV9592='1';
+     personPicker.addEventListener('change',()=>{
+      const record={name:personPicker.value,productId:document.getElementById('mfproductid')?.value||f?.productId};
+      const choice=decisionOf(record),select=document.getElementById('mtraveta9424'),
+       deductionInput=document.getElementById('mtravetaDiscount9424'),
+       derived=deductionForModelV9592(record,masterFor(record));
+      if(select&&choice)select.value=choice;
+      if(choice==='nao'&&derived&&deductionInput&&box.dataset.travetaManualV9592!=='1')
+       deductionInput.value=derived.unit.toFixed(2);
+      refreshTravetaPreview();
+     });
+    }
     for(const id of ['mtraveta9424','mtravetaDiscount9424','mprice','msent']){
       const el=document.getElementById(id);if(!el||el.dataset.hlgbTraveta9424)return;
-      el.dataset.hlgbTraveta9424='1';el.addEventListener('input',refreshTravetaPreview);el.addEventListener('change',refreshTravetaPreview);
+      el.dataset.hlgbTraveta9424='1';
+      if(id==='mtravetaDiscount9424')el.addEventListener('input',()=>{
+       const parent=document.getElementById('hlgbFactionTravetaBox9424');
+       if(parent)parent.dataset.travetaManualV9592='1';
+      });
+      el.addEventListener('input',refreshTravetaPreview);el.addEventListener('change',refreshTravetaPreview);
     }
     state.formRepairs++;
   }
@@ -104,12 +144,23 @@ function alertValidation(code){
   if(code==='deduction'){alert('Informe um desconto da travetada por peça válido.');document.getElementById('mtravetaDiscount9424')?.focus();return}
   if(code==='deduction_gt_base'){alert('O desconto da travetada não pode ser maior que o valor da peça.');document.getElementById('mtravetaDiscount9424')?.focus();}
 }
-function snapshotPricing(f){if(!f||typeof f!=='object')return null;const keys=['price','baseUnitPrice','doesTraveta','travetaDeductionUnit','payableUnitPrice','payableTotal','travetaPricingVersion','travetaPricingUpdatedAt'];const out={};for(const k of keys)out[k]={has:Object.prototype.hasOwnProperty.call(f,k),value:f[k]};return out}
+function snapshotPricing(f){if(!f||typeof f!=='object')return null;const keys=['price','baseUnitPrice','doesTraveta','travetaDeductionUnit','payableUnitPrice','payableTotal',
+ 'travetaPricingVersion','travetaPricingUpdatedAt','travetaPointsPerPieceV9592','travetaPricePerPointV9592','travetaDiscountOriginV9592'];const out={};for(const k of keys)out[k]={has:Object.prototype.hasOwnProperty.call(f,k),value:f[k]};return out}
 function restorePricing(f,snap){if(!f||!snap)return;for(const [k,x] of Object.entries(snap)){if(x.has)f[k]=x.value;else delete f[k]}}
 function prepareTravetaSave(f){
   ensureTravetaFields(f);
   const decision=document.getElementById('mtraveta9424')?.value||'';
-  const baseEl=document.getElementById('mprice'),discountEl=document.getElementById('mtravetaDiscount9424');
+  const baseEl=document.getElementById('mprice'),discountEl=document.getElementById('mtravetaDiscount9424'),
+   box=document.getElementById('hlgbFactionTravetaBox9424');
+  const selected={
+   ...f,name:state.mode!=='edit'?(document.getElementById('mname')?.value||f?.name):f?.name,
+   productId:f?.productId||document.getElementById('mfproductid')?.value
+  };
+  const derived=deductionForModelV9592(selected,masterFor(selected));
+  if(decision==='nao'&&state.mode!=='edit'&&derived&&box?.dataset?.travetaManualV9592!=='1'&&discountEl){
+   discountEl.value=derived.unit.toFixed(2);
+   refreshTravetaPreview();
+  }
   const valid=validatePricing(baseEl?.value,decision,discountEl?.value);
   if(!valid.ok){alertValidation(valid.code);return {ok:false}}
   const sent=qty(document.getElementById('msent')?.value??f?.sent),total=valid.finalUnit*sent;
@@ -118,6 +169,11 @@ function prepareTravetaSave(f){
     f.baseUnitPrice=valid.base;
     f.doesTraveta=decision==='sim';
     f.travetaDeductionUnit=valid.deduction;
+    if(decision==='nao'&&derived){
+     f.travetaPointsPerPieceV9592=derived.points;
+     f.travetaPricePerPointV9592=derived.rate;
+     f.travetaDiscountOriginV9592=box?.dataset?.travetaManualV9592==='1'?'manual':'ficha-tecnica';
+    }
     f.payableUnitPrice=valid.finalUnit;
     f.payableTotal=total;
     f.travetaPricingVersion=V;
@@ -210,7 +266,7 @@ function install(){
 function scheduleFormRepair(){setTimeout(()=>ensureTravetaFields(state.faction),0);setTimeout(()=>ensureTravetaFields(state.faction),100)}
 document.addEventListener?.('click',e=>{const b=e.target?.closest?.('button');if(!b)return;const t=norm(b.textContent),oc=sid(b.getAttribute?.('onclick'));if(t.includes('enviar para faccao')||t==='editar'||/newFaction|editFaction|hlgbOpenFactionModelSend/.test(oc))scheduleFormRepair()},true);
 
-window.hlgbFactionTraveta9424={version:V,calc,validatePricing,pricingForChecklist,payHtml,ensureTravetaFields,install,state};
+window.hlgbFactionTraveta9424={version:V,calc,validatePricing,pricingForChecklist,payHtml,ensureTravetaFields,deductionForModelV9592,prepareTravetaSave,install,state};
 install();setTimeout(install,350);setTimeout(install,1200);setTimeout(install,3500);
 try{if(typeof hlgbAfterLogin==='function')hlgbAfterLogin(()=>{setTimeout(install,200);setTimeout(install,900)},0)}catch(e){}
 console.info('[HLGB] v'+V+' travetada + valor unitário/total da facção ativos');
