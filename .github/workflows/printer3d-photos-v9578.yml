@@ -1,0 +1,26 @@
+name: HLGB Printer 3D Catalog Photos v95.78
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'release-business-expansion-v9400.js'
+      - 'tests/printer3d-photos-v9578.cjs'
+      - '.github/workflows/printer3d-photos-v9578.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'release-business-expansion-v9400.js'
+      - 'tests/printer3d-photos-v9578.cjs'
+      - '.github/workflows/printer3d-photos-v9578.yml'
+permissions: {contents: read}
+jobs:
+  photos:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 6
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - run: node --check release-business-expansion-v9400.js
+      - run: node tests/business-expansion-v9400.js
+      - run: node tests/printer3d-photos-v9578.cjs

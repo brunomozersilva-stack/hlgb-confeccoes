@@ -4,7 +4,7 @@
 'use strict';
 if(window.hlgbNotesReceivables9564)return;
 const ID='hlgbNotesReceivables9564',V='95.64';
-const state={tab:'open',client:'',search:'',min:'',max:'',basis:'total',from:'',to:'',sort:'due',lastCloud:'',draws:0};
+const state={tab:'open',client:'',search:'',min:'',max:'',basis:'total',dateBasis:'due',from:'',to:'',sort:'due',lastCloud:'',draws:0};
 const sid=x=>String(x??''),num=x=>Math.max(0,Number(x)||0),cent=x=>Math.round(num(x)*100);
 const norm=x=>sid(x).normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().trim();
 const esc=x=>sid(x).replace(/[&<>"']/g,k=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[k]));
@@ -80,6 +80,14 @@ function matchTab(n,tab,now){
  return tab==='all'||(tab==='open'&&n.balance>1)||(tab==='paid'&&k==='paid')||(tab==='compensated'&&k==='compensated')||
  (tab==='overdue'&&k==='overdue')||(tab==='upcoming'&&(k==='today'||k==='upcoming'));
 }
+function weekBounds(offset=0,at=today()){
+ const year=+at.slice(0,4),month=+at.slice(5,7)-1,day=+at.slice(8,10);
+ const start=new Date(year,month,day),weekday=(start.getDay()+6)%7;
+ start.setDate(start.getDate()-weekday+offset*7);
+ const end=new Date(start);end.setDate(end.getDate()+6);
+ const fmt=x=>x.getFullYear()+'-'+String(x.getMonth()+1).padStart(2,'0')+'-'+String(x.getDate()).padStart(2,'0');
+ return {from:fmt(start),to:fmt(end)};
+}
 function filterAll(rows){
  const needle=norm(state.search),min=state.min===''?null:cent(state.min),max=state.max===''?null:cent(state.max);
  return rows.filter(x=>{
@@ -87,8 +95,9 @@ function filterAll(rows){
   if(needle&&!norm(x.client+' '+x.number+' '+x.terms+' '+x.source).includes(needle))return false;
   const val=state.basis==='balance'?x.balance:x.total;
   if(min!==null&&val<min)return false;if(max!==null&&val>max)return false;
-  if(state.from&&(!x.due||x.due<state.from))return false;
-  if(state.to&&(!x.due||x.due>state.to))return false;
+  const period=state.dateBasis==='issued'?x.issued:x.due;
+  if(state.from&&(!period||period<state.from))return false;
+  if(state.to&&(!period||period>state.to))return false;
   return true;
  });
 }
@@ -157,15 +166,18 @@ function ensure(){
  '<div><label for="nr-basis">Filtrar valor por</label><select id="nr-basis"><option value="total">Valor total</option><option value="balance">Saldo a receber</option></select></div>'+
  '<div><label for="nr-min">Valor mínimo (R$)</label><input type="number" min="0" step="0.01" id="nr-min" placeholder="Sem mínimo"></div>'+
  '<div><label for="nr-max">Valor máximo (R$)</label><input type="number" min="0" step="0.01" id="nr-max" placeholder="Sem máximo"></div>'+
- '<div><label for="nr-from">Vencimento de</label><input type="date" id="nr-from"></div>'+
+ '<div><label for="nr-dateBasis">Pesquisar semana por</label><select id="nr-dateBasis"><option value="due">Vencimento</option><option value="issued">Data de emissão/entrega</option></select></div>'+ 
+ '<div><label for="nr-from">Período de</label><input type="date" id="nr-from"></div>'+
  '<div><label for="nr-to">Vencimento até</label><input type="date" id="nr-to"></div>'+
  '<div><label for="nr-sort">Ordenar por</label><select id="nr-sort"><option value="due">Vencimento</option><option value="client">Cliente</option><option value="balance">Maior saldo</option><option value="value">Maior nota</option></select></div></div>'+
- '<div class="nr-row"><div><button type="button" class="secondary" data-action="clear">Limpar filtros</button> '+
+ '<div class="nr-row"><div><button type="button" class="secondary" data-action="week" data-week="0">Esta semana</button> '+
+ '<button type="button" class="secondary" data-action="week" data-week="-1">Semana anterior</button> '+
+ '<button type="button" class="secondary" data-action="clear">Limpar filtros</button> '+
  '<button type="button" class="secondary" data-action="csv">⬇️ Exportar CSV</button></div>'+
  '<span class="sub" id="nr-sync" role="status"></span></div>'+
  '<div id="nr-summary"></div><div id="nr-table"></div><div id="nr-agenda"></div>';
  const title=page.querySelector('h1');if(title)title.insertAdjacentElement('afterend',root);else page.prepend(root);
- const fields={client:'client',search:'search',basis:'basis',min:'min',max:'max',from:'from',to:'to',sort:'sort'};
+ const fields={client:'client',search:'search',basis:'basis',min:'min',max:'max',dateBasis:'dateBasis',from:'from',to:'to',sort:'sort'};
  for(const [id,key] of Object.entries(fields)){
   const el=root.querySelector('#nr-'+id);el.addEventListener(['search','min','max'].includes(id)?'input':'change',()=>{state[key]=el.value;paint()});
  }
@@ -173,7 +185,9 @@ function ensure(){
   const b=e.target?.closest?.('button[data-action]');if(!b||!root.contains(b))return;
   const action=b.dataset.action;
   if(action==='tab'){state.tab=b.dataset.tab;paint();return}
-  if(action==='clear'){for(const key of Object.values(fields))state[key]=key==='basis'?'total':key==='sort'?'due':'';for(const [id,key] of Object.entries(fields))root.querySelector('#nr-'+id).value=state[key];paint();return}
+  if(action==='week'){const span=weekBounds(Number(b.dataset.week)||0);state.from=span.from;state.to=span.to;root.querySelector('#nr-from').value=state.from;root.querySelector('#nr-to').value=state.to;paint();return}
+  if(action==='history'){state.client=sid(b.dataset.client);state.tab='all';state.search='';state.from='';state.to='';root.querySelector('#nr-search').value='';root.querySelector('#nr-from').value='';root.querySelector('#nr-to').value='';root.querySelector('#nr-client').value=state.client;paint();return}
+  if(action==='clear'){for(const key of Object.values(fields))state[key]=key==='basis'?'total':key==='sort'?'due':key==='dateBasis'?'due':'';for(const [id,key] of Object.entries(fields))root.querySelector('#nr-'+id).value=state[key];paint();return}
   if(action==='csv'){exportCsv();return}
   if(action==='cloud'){
    const sync=window.hlgbNotesLiveSync9563;
@@ -190,6 +204,7 @@ function ensure(){
   if(action==='view'&&type==='order')window.viewOrderDetails?.(id);
   if(action==='pdf'&&type==='projection')window.hlgbDownloadNotePdf9411?.(id);
   if(action==='pay'&&type==='projection')window.openProjectionAcerto9214?.(id);
+  if(action==='edit'&&type==='projection')window.openProjectionAcerto9214?.(id);
   if(action==='pay'&&type==='order')window.openAcerto?.(id);
  });
  return root;
@@ -222,6 +237,19 @@ function byClient(rows){
  result.map(x=>'<tr><td>'+esc(x.name)+'</td><td>'+x.count+'</td><td class="nr-money">'+brl(x.balance)+'</td></tr>').join('')+'</tbody></table></div>':
  '<div class="empty">Nenhuma nota aberta nos filtros.</div>')+'</details>';
 }
+function clientHistory(all){
+ const groups=new Map();
+ for(const n of all){
+  const v=groups.get(n.clientKey)||{key:n.clientKey,name:n.client,notes:0,open:0,paid:0,balance:0};
+  v.notes++;v.balance+=n.balance;if(n.balance>1)v.open++;else v.paid++;groups.set(n.clientKey,v);
+ }
+ const values=[...groups.values()].sort((a,b)=>a.name.localeCompare(b.name,'pt-BR'));
+ return '<details style="margin-top:14px"><summary><b>📚 Histórico completo por cliente</b> · notas abertas e quitadas</summary>'+
+ '<p class="sub">Selecione um cliente para consultar suas notas, inclusive pagas, sem limitar a semana atual.</p>'+
+ (values.length?'<div class="nr-table"><table><thead><tr><th>Cliente</th><th>Notas</th><th>Em aberto</th><th>Quitadas</th><th class="nr-money">Saldo</th><th>Ações</th></tr></thead><tbody>'+
+ values.map(v=>'<tr><td>'+esc(v.name)+'</td><td>'+v.notes+'</td><td>'+v.open+'</td><td>'+v.paid+'</td><td class="nr-money">'+brl(v.balance)+'</td><td><button type="button" class="secondary" data-action="history" data-client="'+esc(v.key)+'">Ver histórico</button></td></tr>').join('')+'</tbody></table></div>':
+ '<div class="empty">Nenhum cliente com notas registradas.</div>')+'</details>';
+}
 function paint(){
  const root=ensure();if(!root)return false;
  const now=today(),all=allNotes();clientOptions(root,all);
@@ -240,13 +268,13 @@ function paint(){
  shown.map(n=>{const badge=label(n,now),partial=n.balance>1&&n.paid>0?' · Parcial':'';
  const actions=actionButton('view',n,n.type==='order'?'Ver pedido':'Ver')+
  (n.type==='projection'&&typeof window.hlgbDownloadNotePdf9411==='function'?actionButton('pdf',n,'PDF'):'')+
- (n.balance>1&&(n.type==='order'?typeof window.openAcerto==='function':typeof window.openProjectionAcerto9214==='function')?actionButton('pay',n,'Acerto'):'');
+ (n.type==='order'?(n.balance>1&&typeof window.openAcerto==='function'?actionButton('pay',n,'Acerto'):''):(typeof window.openProjectionAcerto9214==='function'?actionButton(n.balance>1?'pay':'edit',n,n.balance>1?'Acerto':'Abrir / editar'):''));
  return '<tr><td><b>#'+esc(n.number)+'</b><div class="sub">'+esc(n.source)+'</div></td><td>'+esc(n.client)+'</td><td>'+esc(n.issued?dateFmt(n.issued):'-')+'</td>'+
  '<td>'+esc(dateFmt(n.due))+'</td><td class="nr-money">'+brl(n.total)+'</td><td class="nr-money">'+brl(n.paid)+'</td><td class="nr-money">'+brl(n.credit)+'</td><td class="nr-money">'+brl(n.balance)+'</td>'+
  '<td><span class="badge '+badge[1]+'">'+esc(badge[0]+partial)+'</span>'+(n.mismatch?'<div style="color:#a66300">⚠ Conferir saldo</div>':'')+'</td><td><div class="nr-actions">'+actions+'</div></td></tr>';
  }).join('')+'</tbody></table></div>':'<div class="empty" style="padding:14px">Nenhuma nota encontrada nos filtros.</div>';
  if(filtered.length>300)root.querySelector('#nr-table').insertAdjacentHTML('beforeend','<div class="sub">Exibindo 300 notas; CSV exporta todos os resultados filtrados.</div>');
- root.querySelector('#nr-agenda').innerHTML=agenda(base,now)+byClient(base);
+ root.querySelector('#nr-agenda').innerHTML=agenda(base,now)+byClient(base)+clientHistory(all);
  const s=window.hlgbNotesLiveSync9563?.status?.();
  root.querySelector('#nr-sync').textContent=state.lastCloud||(s?.unverified?'⚠ Última leitura da nuvem sem confirmação.':s?.lastAt?'Nuvem conferida: '+new Date(s.lastAt).toLocaleString('pt-BR'):'Sem prova de atualização da nuvem nesta sessão.');
  state.draws++;return true;
