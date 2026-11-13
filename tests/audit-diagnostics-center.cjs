@@ -72,6 +72,19 @@ assert(!findings.some(x=>String(x.description||'').includes('c3')),'aggregate mu
 assert(findings.some(x=>x.code==='cut-legacy-unlinked'&&String(x.description).includes('c4')&&x.severity==='Média'),'manual legacy cut must be a warning, not a failure');
 assert(!findings.some(x=>x.code==='cut-legacy-unlinked'&&String(x.description).includes('Corte 1 ')),'confirmed historical OP-00126 cut must be ignored by diagnostics');
 assert(findings.some(x=>x.code==='cut-product-missing'&&String(x.description).includes('c5')),'single-product active cut without productId must remain a real error');
+const c5Finding=findings.find(x=>x.code==='cut-product-missing'&&String(x.description).includes('Corte c5 '));
+assert.equal(c5Finding.suggestedProductId,'p1','unique grade product should be shown as a candidate, without auto-filling it');
+assert.equal(c5Finding.suggestedProductKnownLocally,true,'candidate should be recognized when product exists');
+assert.equal(c5Finding.requiresHumanVerification,true,'candidate must require business verification');
+assert.equal(context.db.cuts.find(x=>x.id==='c5').productId,null,'diagnostic must not mutate the cut');
+context.db.orders.push({id:'o-adhoc',orderNumber:'103',isAdHoc:true,items:'Camisola avulsa',grade:[{productId:'p1',qty:7}]});
+context.db.cuts.push({id:'c-adhoc',orderId:'o-adhoc',productId:null,product:'Camisola avulsa'});
+const adHocFinding=api.scanSystem().find(x=>x.code==='cut-product-missing'&&String(x.description).includes('Corte c-adhoc '));
+assert(adHocFinding,'ad-hoc order with unique graded catalog product must not be silently ignored');
+assert.equal(adHocFinding.suggestedProductId,'p1');
+assert.equal(adHocFinding.severity,'Alta');
+assert.equal(context.db.cuts.find(x=>x.id==='c-adhoc').productId,null);
+context.db.orders.pop();context.db.cuts.pop();
 assert(findings.some(x=>x.code==='active-with-termination'),'scan must find active employee with termination date');
 assert(!findings.some(x=>String(x.description||'').includes('c2')&&x.code==='cut-order-missing'),'valid cut must not be reported as missing-order');
 
