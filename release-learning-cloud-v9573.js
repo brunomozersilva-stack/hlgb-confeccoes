@@ -14,12 +14,46 @@ const disabled=()=>{try{return localStorage.getItem(DISABLED)==='1'}catch(_){ret
 const safe=x=>sid(x).toLowerCase().replace(/[^a-z0-9:_-]/g,'-').slice(0,90);
 const hash=(s,seed)=>{let h=seed>>>0;for(let i=0;i<s.length;i++){h=Math.imul(h^s.charCodeAt(i),16777619)>>>0}return h.toString(16).padStart(8,'0')};
 const idFrom=s=>PREFIX+hash(s,2166136261)+'-'+hash(s,0x9e3779b9);
-const state={version:V,remote:[],lastFetch:'',lastPush:'',lastError:'',lastReadback:'',outboxCount:0,reading:false,publishing:false,lastResult:''};
+const state={version:V,remote:[],githubFixes:[],githubLoaded:false,githubLoading:false,githubError:'',lastFetch:'',lastPush:'',lastError:'',lastReadback:'',outboxCount:0,reading:false,publishing:false,lastResult:''};
 const knownFixes=[
  {ref:'PR #223',category:'hub-status',status:'code_merged',text:'Proteção contra acionamentos repetidos no status do Hub',commit:'87d6ee28'},
  {ref:'PR #224',category:'auditor-dates',status:'verified_fix',text:'Datas futuras deixam de contar como erros atuais no Auditor',commit:'87bbef52'},
  {ref:'PR #225',category:'production-wal',status:'code_merged',text:'WAL de Produção ignora diferenças apenas técnicas',commit:'7938c780'}
 ];
+function prCategory(title){
+ const x=sid(title).normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();
+ if(/auditor|monitor|aprend|bot|inteligenc/.test(x))return 'auditor';
+ if(/hub|finance|pagamento|acerto|nota|receb|fatura/.test(x))return 'finance';
+ if(/wal|sincron|safari|chrome|cloud|realtime/.test(x))return 'sync';
+ if(/produc|corte|facc|travet|grade|material/.test(x))return 'production';
+ if(/pedido|cliente/.test(x))return 'orders';
+ return 'general';
+}
+// O próprio GitHub guarda todos os PRs integrados, independentemente da máquina.
+// Ler o histórico público não cria eventos empresariais nem expõe títulos com dados de clientes.
+async function loadGithubFixes(){
+ if(state.githubLoaded||state.githubLoading||typeof fetch!=='function')return {ok:state.githubLoaded,count:state.githubFixes.length};
+ state.githubLoading=true;
+ try{
+  const out=[];
+  for(let page=1;page<=5;page++){
+   const url='https://api.github.com/repos/brunomozersilva-stack/hlgb-confeccoes/pulls?state=closed&sort=updated&direction=desc&per_page=100&page='+page;
+   const res=await fetch(url,{headers:{Accept:'application/vnd.github+json'}});
+   if(!res.ok)throw Error('GitHub HTTP '+res.status);
+   const list=await res.json();if(!Array.isArray(list))throw Error('Histórico de PR não confirmado');
+   for(const pr of list){
+    if(!pr?.merged_at||!Number.isInteger(pr.number))continue;
+    const ref='PR #'+pr.number,category=prCategory(pr.title||'');
+    out.push({reference:ref,status:'code_merged',category,description:'Alteração de '+category+' integrada no código',
+     mergedAt:sid(pr.merged_at),commit:sid(pr.merge_commit_sha).slice(0,12)});
+   }
+   if(list.length<100)break;
+  }
+  const seen=new Set();state.githubFixes=out.filter(x=>{if(seen.has(x.reference))return false;seen.add(x.reference);return true}).slice(0,500);
+  state.githubLoaded=true;state.githubError='';return {ok:true,count:state.githubFixes.length};
+ }catch(e){state.githubError=sid(e?.message||e).slice(0,150);return {ok:false,error:state.githubError}}
+ finally{state.githubLoading=false}
+}
 function event(source,category,kind,seed,evidence={},reference=''){
  const key=[source,category,kind,seed].map(sid).join('|');
  return {id:idFrom(key),kind:'technical_learning_event',version:V,source:safe(source),category:safe(category),
@@ -113,7 +147,13 @@ function snapshot(){
    c.fixes.push({reference:e.reference,status:e.eventKind,description:sid(e.evidence?.text||e.evidence?.method).slice(0,160)});
   c.lastAt=[c.lastAt,sid(e.occurredAt)].sort().slice(-1)[0];map.set(k,c);
  }
- return {cases:[...map.values()],events:state.remote.length,localPending:queueRead().length,verifiedServer:!!state.lastFetch,readAt:state.lastFetch,error:state.lastError};
+ for(const f of state.githubFixes){
+  const k=safe(f.category),c=map.get(k)||{category:k,events:0,observed:0,fixes:[],lastAt:''};
+  if(!c.fixes.some(x=>x.reference===f.reference))c.fixes.push({reference:f.reference,status:'code_merged',description:f.description});
+  c.lastAt=[c.lastAt,sid(f.mergedAt)].sort().slice(-1)[0];map.set(k,c);
+ }
+ return {cases:[...map.values()],events:state.remote.length,githubFixes:state.githubFixes.length,githubLoaded:state.githubLoaded,
+  githubError:state.githubError,localPending:queueRead().length,verifiedServer:!!state.lastFetch,readAt:state.lastFetch,error:state.lastError};
 }
 function render(){
  if(!auth())return false;
@@ -123,6 +163,7 @@ function render(){
  const d=snapshot(),fixes=d.cases.flatMap(x=>x.fixes.map(f=>({...f,category:x.category}))).slice(0,9);
  div.innerHTML='<h3>☁️ Memória compartilhada do Auditor e do bot</h3>'+
   '<div class="sub">Servidor HLGB · '+(d.verifiedServer?'Leitura autenticada confirmada':'Ainda sem confirmação de leitura')+' · '+d.events+' evento(s) · '+d.cases.length+' assunto(s)'+
+  (d.githubLoaded?' · '+d.githubFixes+' PRs integrados consultados no GitHub':' · histórico GitHub ainda não consultado')+
   (d.localPending?' · '+d.localPending+' evento(s) técnico(s) aguardando envio':'')+'</div>'+
   (fixes.length?'<ul>'+fixes.map(x=>'<li>'+esc(x.reference)+' · '+esc(x.description)+' · '+(x.status==='verified_fix'?'correção comprovada':'código integrado; reteste real ainda necessário')+'</li>').join('')+'</ul>':'<div class="sub">Nenhuma correção compartilhada carregada ainda.</div>')+
   (d.error?'<div class="sub" style="color:#934">⚠ '+esc(d.error)+'</div>':'')+
@@ -131,9 +172,10 @@ function render(){
 }
 async function tick(){
  if(!auth()||disabled()||state.publishing||state.reading)return;
+ if(!state.githubLoaded&&!state.githubLoading)loadGithubFixes().then(render).catch(()=>{});
  collect();await publish();if(!state.lastFetch)await refresh();render();
 }
-const api={version:V,collect,enqueue,refresh,publish,publishOne,snapshot,render,tick,status:()=>({...state,remoteCount:state.remote.length,outboxCount:queueRead().length,disabled:disabled()}),
+const api={version:V,collect,enqueue,refresh,publish,publishOne,loadGithubFixes,snapshot,render,tick,status:()=>({...state,remoteCount:state.remote.length,outboxCount:queueRead().length,disabled:disabled()}),
  disable:()=>{localStorage.setItem(DISABLED,'1');return true},enable:()=>{localStorage.removeItem(DISABLED);setTimeout(tick,100);return true}};
 window.hlgbLearningCloud9573=api;
 window.addEventListener?.('hlgb:authenticated',()=>setTimeout(tick,1500));
