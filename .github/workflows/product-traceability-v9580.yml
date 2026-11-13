@@ -7,6 +7,7 @@ on:
       - 'release-product-traceability-v9580.js'
       - 'tests/product-traceability-v9580.cjs'
       - 'tests/product-work-events-v9581.cjs'
+      - 'tests/product-global-db-v9582.cjs'
       - '.github/workflows/product-traceability-v9580.yml'
   push:
     branches: [main]
@@ -15,6 +16,7 @@ on:
       - 'release-product-traceability-v9580.js'
       - 'tests/product-traceability-v9580.cjs'
       - 'tests/product-work-events-v9581.cjs'
+      - 'tests/product-global-db-v9582.cjs'
       - '.github/workflows/product-traceability-v9580.yml'
 permissions: {contents: read}
 jobs:
@@ -28,3 +30,4 @@ jobs:
       - run: node --check release-product-traceability-v9580.js
       - run: node tests/product-traceability-v9580.cjs
       - run: node tests/product-work-events-v9581.cjs
+      - run: node tests/product-global-db-v9582.cjs
