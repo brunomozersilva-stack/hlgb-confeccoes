@@ -230,11 +230,24 @@ function render(type,id){
   h.lines.map(e=>'<tr><td>'+esc(e.date)+'</td><td>'+esc(e.kind)+'</td><td>'+(e.value==null?'-':brl(e.value))+'</td><td>'+esc(e.note)+'</td>'+
   '<td>'+(e.entryId&&!e.reversed?'<button type="button" class="secondary" data-return-reverse="'+esc(e.entryId)+'">Estornar</button>':'')+'</td></tr>').join('')+'</tbody></table></div>':
   '<div class="empty">Nenhum lançamento ou anotação registrado.</div>';
+ const itemList=Array.isArray(doc.items)?doc.items:[];
+ const editItems=type==='projection'?itemList.map((x,i)=>'<div class="grid" style="display:grid;grid-template-columns:2fr 1fr 1fr;gap:6px;align-items:end">'+
+  '<div class="field"><label>Produto</label><div>'+esc(x.productName||x.name||'Item '+(i+1))+'</div></div>'+
+  '<div class="field"><label>Quantidade</label><input data-ar72-qty="'+i+'" type="number" min="1" step="1" value="'+Number(x.qty||0)+'"></div>'+
+  '<div class="field"><label>Preço unitário (R$)</label><input data-ar72-unit="'+i+'" type="number" min="0" step="0.01" value="'+(Number(x.unitPrice)||0).toFixed(2)+'"></div></div>').join(''):'';
+ const editPanel=type==='projection'?'<details class="panel" style="padding:12px;margin:10px 0"><summary><b>✏️ Editar dados da nota</b></summary>'+
+  '<p class="sub">Altere aqui a nota original. Data, quantidade e preço ficam registrados no histórico.</p>'+
+  '<div class="grid" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px">'+
+  '<div class="field"><label>Data da nota</label><input id="ar72-date" type="date" value="'+esc(sid(doc.issueDate||doc.date||today()))+'"></div>'+
+  '<div class="field"><label>Vencimento</label><input id="ar72-due" type="date" value="'+esc(sid(doc.dueDate))+'"></div></div>'+
+  editItems+'<div class="field"><label>Valor total da nota (R$)</label><input id="ar72-total" type="number" min="0.01" step="0.01" value="'+(m.total/100).toFixed(2)+'"'+(itemList.length?' readonly':'')+'></div>'+
+  '<div class="field"><label>Motivo da alteração (obrigatório)</label><input id="ar72-reason" maxlength="180" placeholder="Ex.: conferir quantidade entregue"></div>'+
+  '<button type="button" class="primary" data-ar65="edit">Salvar alterações da nota</button></details>':'';
  const todayStr=today(),html='<div id="hlgbAcertoReturn9565" style="max-width:860px">'+
  '<div class="cards" style="margin-bottom:12px;display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:7px">'+
  [['Total original',m.total],['Recebido em dinheiro',m.cash],['Abatido por devolução',m.credit],['Saldo a cobrar',m.remaining]].map(([label,value])=>
  '<div class="card"><small>'+esc(label)+'</small><strong>'+brl(value)+'</strong></div>').join('')+'</div>'+
- '<p class="sub">Recebimento e devolução são registrados separadamente. Uma devolução <b>não entra como dinheiro recebido</b> nem altera o estoque automaticamente.</p>'+
+ '<p class="sub">Recebimento e devolução são registrados separadamente. Uma devolução <b>não entra como dinheiro recebido</b> nem altera o estoque automaticamente.</p>'+editPanel+
  '<div class="panel" style="padding:12px;margin:10px 0"><h3 style="margin-top:0">💰 Registrar pagamento</h3>'+
  '<div class="grid" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px">'+
  '<div class="field"><label>Valor recebido (R$)</label><input id="ar65-pay" type="number" min="0.01" step="0.01" max="'+(m.remaining/100)+'" value="'+(m.remaining/100).toFixed(2)+'"></div>'+
@@ -248,6 +261,7 @@ function render(type,id){
  '<div class="field"><label>Data da devolução</label><input id="ar65-returndate" type="date" value="'+todayStr+'"></div></div>'+
  '<div class="field"><label>Motivo da devolução (obrigatório)</label><input id="ar65-reason" maxlength="180" placeholder="Ex.: 3 peças devolvidas"></div>'+
  '<div class="field"><label>Detalhes / produtos devolvidos</label><textarea id="ar65-detail" rows="2" maxlength="1200" placeholder="Modelo, quantidades, motivo ou combinado com cliente"></textarea></div>'+
+ '<div class="sub" id="ar65-return-preview" role="status" style="margin:8px 0">Digite uma devolução para ver o novo saldo.</div>'+ 
  '<button type="button" class="secondary" data-ar65="return"'+(m.remaining<=1?' disabled':'')+'>Registrar abatimento</button></div>'+
  '<div class="panel" style="padding:12px;margin:10px 0"><h3 style="margin-top:0">📝 Anotações do acerto</h3>'+
  '<div class="field"><label>Anotação</label><textarea id="ar65-memo" rows="3" maxlength="1600" placeholder="Ex.: cliente informou que pagará o restante na sexta-feira"></textarea></div>'+
@@ -260,13 +274,19 @@ function render(type,id){
  window.openModal(title,html,()=>false);
  const host=document.getElementById('hlgbAcertoReturn9565');
  if(!host)return true;
+ const preview=()=>{const raw=Number(host.querySelector('#ar65-return')?.value||0),value=Number.isFinite(raw)&&raw>=0?cent(raw):0;
+  const target=host.querySelector('#ar65-return-preview');if(target)target.textContent='Nota '+brl(m.total)+' − recebimentos '+brl(m.cash)+' − devoluções anteriores '+brl(m.credit)+' − novo abatimento '+brl(value)+' = a cobrar '+brl(Math.max(0,m.remaining-value))+(value>m.remaining?' · ⚠ Valor acima do saldo':'');};
+ const recalc=()=>{if(!itemList.length)return;let sum=0;host.querySelectorAll('[data-ar72-qty]').forEach(input=>{const i=Number(input.dataset.ar72Qty),qty=Number(input.value),unit=Number(host.querySelector('[data-ar72-unit="'+i+'"]')?.value||0);sum+=Math.round(qty*cent(unit));});
+  const el=host.querySelector('#ar72-total');if(el)el.value=(sum/100).toFixed(2);};
+ host.addEventListener('input',e=>{if(e.target?.id==='ar65-return')preview();if(e.target?.matches?.('[data-ar72-qty],[data-ar72-unit]'))recalc();});
+ preview();
  host.addEventListener('click',async e=>{
   const b=e.target?.closest?.('[data-ar65],[data-return-reverse]');if(!b||b.disabled)return;
   const kind=b.hasAttribute('data-return-reverse')?'reversal':b.dataset.ar65;
   const g=x=>sid(document.getElementById(x)?.value);
   const input=kind==='payment'?{value:g('ar65-pay'),date:g('ar65-paydate'),method:g('ar65-method'),detail:g('ar65-paynote')}:
    kind==='return'?{value:g('ar65-return'),date:g('ar65-returndate'),reason:g('ar65-reason'),detail:g('ar65-detail')}:
-   kind==='note'?{text:g('ar65-memo')}:kind==='reversal'?{entryId:b.dataset.returnReverse,reason:prompt('Motivo do estorno da devolução:')||''}:{};
+   kind==='note'?{text:g('ar65-memo')}:kind==='edit'?{date:g('ar72-date'),dueDate:g('ar72-due'),value:g('ar72-total'),reason:g('ar72-reason'),items:itemList.map((_,i)=>({qty:host.querySelector('[data-ar72-qty="'+i+'"]')?.value,unitPrice:host.querySelector('[data-ar72-unit="'+i+'"]')?.value}))}:kind==='reversal'?{entryId:b.dataset.returnReverse,reason:prompt('Motivo do estorno da devolução:')||''}:{};
   if(kind==='reversal'&&!input.reason)return;
   const feedback=host.querySelector('#ar65-feedback');
   b.disabled=true;if(feedback)feedback.textContent='Salvando e aguardando confirmação da nuvem…';
@@ -289,6 +309,8 @@ function patchRenderer(){
     const row=b.closest('tr'),inv=lookup('projection',b.getAttribute('data-acerto9214'));
     if(!row||!inv)return;
     const m=moneyState(inv,'projection'),c=row.children;
+    // Apenas notas com saldo pendente aparecem na lista operacional; pagas ficam no Controle.
+    row.style.display=m.remaining<=1?'none':'';
     if(c.length>=9){
      c[5].textContent=brl(m.cash);
      c[6].textContent=brl(m.remaining);
