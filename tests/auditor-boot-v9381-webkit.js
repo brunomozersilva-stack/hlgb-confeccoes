@@ -12,11 +12,26 @@ const {webkit}=require('playwright');
  /* Este cenário testa exclusivamente o Auditor de boot. O comportamento do gate v94.07
     é coberto em login-3d-v9407-webkit.js; aqui simulamos que o usuário já confirmou Entrar. */
  await page.evaluate(()=>{
+   // A autenticação deve ser sinalizada antes da liberação visual do app.
+   window.__HLGB_AUTH_READY=true;window.dispatchEvent(new Event('hlgb:authenticated'));
    window.hlgbLoginConfirmGate9407?.confirm?.();
    const app=document.getElementById('appShell');if(app)app.style.setProperty('display','block','important');
-   window.__HLGB_AUTH_READY=true;window.dispatchEvent(new Event('hlgb:authenticated'));
  });
- await page.waitForFunction(()=>!!window.hlgbInternalAuditor&&!!window.hlgbAuditorProduction9369?.active&&!!document.getElementById('hlgbAuditorNavBtn'),null,{timeout:60000});
+ try{
+  await page.waitForFunction(()=>!!window.hlgbInternalAuditor&&!!window.hlgbAuditorProduction9369?.active&&!!document.getElementById('hlgbAuditorNavBtn'),null,{timeout:60000});
+ }catch(e){
+  const diag=await page.evaluate(()=>({
+   authReady:window.__HLGB_AUTH_READY===true,
+   loginConfirmed:window.__HLGB_LOGIN_CONFIRMED_9407===true,
+   auditorLoaded:!!window.hlgbInternalAuditor,
+   productionActive:!!window.hlgbAuditorProduction9369?.active,
+   navPresent:!!document.getElementById('hlgbAuditorNavBtn'),
+   bootAnalysisReady:typeof window.hlgbAuditorBootAnalysis9381?.analyze==='function',
+   gateRepairs:window.hlgbLoginConfirmGate9407?.repairReadiness?.()?.missing||[],
+   auditorScripts:[...document.querySelectorAll('script[src]')].filter(s=>/auditor|login-confirm/.test(s.src)).slice(-12).map(s=>s.src.split('/').pop()?.split('?')[0])
+  }));
+  throw new Error('Auditor boot WebKit não concluiu pós-login: '+JSON.stringify(diag)+' · '+e.message+' · pageerrors='+errors.slice(-6).join(' | '));
+ }
  /* A autoridade de gravação v93.06 é instalada de forma tardia após login.
     Espere esse estado antes de medir se o painel de boot altera funções críticas. */
  await page.waitForFunction(()=>{

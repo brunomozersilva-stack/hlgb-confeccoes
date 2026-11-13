@@ -316,9 +316,31 @@ function render(summary){
  const host=document.getElementById('hlgbAuditorResult');if(!host||!summary)return false;let c=document.getElementById(CARD_ID);if(!c){c=document.createElement('div');c.id=CARD_ID;c.className='panel';host.prepend(c)}
  c.innerHTML='<b>⚡ Auditor v94.47 · convergência rápida</b><div>'+esc(summary.passes||0)+' rodada(s) de reparo · '+esc(summary.stopReason||'')+'</div><div class="sub">Fila técnica viva: '+esc(summary.triage?.signal?.operationalQueue?.unique||0)+' · Precisa de código: '+esc(summary.needsCode?.length||0)+' · Decisão humana: '+esc(summary.businessBlocked?.length||0)+' · Histórico resumido: '+esc(summary.historicalBacklog?.count||0)+'</div>';return true;
 }
+/* v95.84: conservar a causa real das dependências antigas, sem acessar dados de negócio. */
+function preparationFailure9584(base){
+ let p=base,detail='',depth=0;const missing=[];
+ while(p&&typeof p==='object'&&depth++<8){
+  if(!detail&&p.error)detail=sid(p.error).slice(0,320);
+  if(Array.isArray(p.missing))for(const item of p.missing)if(item)missing.push(sid(item).slice(0,90));
+  if(p.recordLearningIsolation?.saved===false)missing.push('record-learning-storage');
+  if(p.learningMigration?.saved===false)missing.push('learning-migration-storage');
+  p=p.basePreparation;
+ }
+ const unique=[...new Set(missing)];
+ return {missing:unique,error:detail||('Preparação v94.46 não confirmada'+(unique.length?': '+unique.join(', '):'; sem causa detalhada'))};
+}
 async function prepare(reason='auditor-v9447'){
- if(!authReady())return {ok:false,ready:false,reason,error:'Autenticação ainda não está pronta',missing:['auth']};if(!(await ensureBase()))return {ok:false,ready:false,reason,error:'Autocorretor v94.46 indisponível',missing:['autocorrect-9446']};
- try{const p=await window.hlgbAuditorAutoCorrect9446?.prepare?.(reason+'-base');return {ok:p?.ok!==false,ready:p?.ready!==false,reason,baseVersion:BASE_V,basePreparation:clone(p),fastConvergence:true,at:nowIso()}}catch(e){return {ok:false,ready:false,reason,error:sid(e?.message||e),missing:['base-prepare']}}
+ if(!authReady())return {ok:false,ready:false,reason,error:'Autenticação ainda não está pronta',missing:['auth']};
+ if(!(await ensureBase()))return {ok:false,ready:false,reason,error:'Autocorretor v94.46 indisponível',missing:['autocorrect-9446']};
+ try{
+  const p=await window.hlgbAuditorAutoCorrect9446?.prepare?.(reason+'-base');
+  if(p?.ok!==true||p?.ready===false){
+   const failure=preparationFailure9584(p);
+   state.lastError=failure.error;
+   return {ok:false,ready:false,reason,baseVersion:BASE_V,basePreparation:clone(p),...failure,fastConvergence:true,at:nowIso()};
+  }
+  return {ok:true,ready:true,reason,baseVersion:BASE_V,basePreparation:clone(p),missing:[],fastConvergence:true,at:nowIso()};
+ }catch(e){state.lastError=sid(e?.message||e);return {ok:false,ready:false,reason,error:state.lastError,missing:['base-prepare']}}
 }
 async function run(opts={}){
  if(state.running||!authReady())return false;state.running=true;state.runs++;state.lastAt=nowIso();state.lastError='';stamp();
