@@ -104,10 +104,11 @@ function timeline(productId,options={}){
  const product=one('products',pid),rounds=Array.isArray(product?.productChecklistsV9580)?product.productChecklistsV9580:[];
  for(const round of rounds){
   for(const event of round.events||[]){
-   add({eventId:'checklist:'+sid(event.id),kind:'checklist-produto',source:'products',sourceId:pid,
+   add({eventId:'checklist:'+sid(event.id),kind:event.kind==='work'?'execucao':'checklist-produto',source:'products',sourceId:pid,
     date:sid(event.at),orderId:sid(round.orderId),label:sid(event.label||event.kind),
     details:{roundId:round.id,roundName:round.name,actor:sid(event.actor),checked:event.checked,
-     stepId:sid(event.stepId),note:sid(event.note)}});
+     stepId:sid(event.stepId),stage:sid(event.stage),quantity:event.quantity??null,grade:sid(event.grade),
+     destination:sid(event.destination),note:sid(event.note)}});
   }
  }
  return result.sort((a,b)=>normalizeDate(b.date).localeCompare(normalizeDate(a.date))||
@@ -192,6 +193,31 @@ async function toggleStep(pid,roundId,stepId,checked,input={}){
   round.events.push(event);return event;
  });
 }
+
+const WORK_STAGES=[
+ {id:'corte',label:'Corte executado'},
+ {id:'producao',label:'Produção executada'},
+ {id:'travetada',label:'Travetada executada'},
+ {id:'embalagem',label:'Embalagem executada'},
+ {id:'entrega',label:'Entrega / retirada'}
+];
+async function addWorkEvent(pid,roundId,input={}){
+ const actor=inputActor(input.actor),stage=sid(input.stage),item=WORK_STAGES.find(x=>x.id===stage);
+ if(!item)throw Error('Selecione uma etapa válida de execução.');
+ const quantity=Number(input.quantity);
+ if(!Number.isInteger(quantity)||quantity<=0||quantity>1000000)throw Error('Informe a quantidade de peças executadas (inteiro positivo).');
+ const grade=sid(input.grade).trim(),destination=sid(input.destination).trim(),note=sid(input.note).trim();
+ if(grade.length>1200||destination.length>140||note.length>500)throw Error('Descrição de execução excede o limite de caracteres.');
+ return mutate(sid(pid),rounds=>{
+  const round=rounds.find(x=>sid(x.id)===sid(roundId));if(!round)throw Error('Lote do checklist não encontrado.');
+  const ev={id:makeId('product-work'),kind:'work',stage,actor,quantity,grade,destination,note,
+   label:item.label,at:stamp()};
+  if(!Array.isArray(round.events))round.events=[];
+  round.events.push(ev);
+  return ev;
+ });
+}
+
 function selectProducts(current){
  return arr('products').filter(x=>x&&x.id!=null&&x.active!==false).slice()
   .sort((a,b)=>sid(a.name).localeCompare(sid(b.name),'pt-BR'))
@@ -219,6 +245,7 @@ function detail(d){
  if(d.actor)add('Responsável',d.actor);
  if(d.roundName)add('Lote',d.roundName);
  if(d.stepId)add('Etapa',d.stepId);
+ if(d.stage)add('Execução',d.stage);
  if(d.checked!=null)add('Situação',d.checked?'Marcado':'Desmarcado');
  if(d.note)add('Observação',d.note);
  if(d.weight?.totalKg!=null)add('Peso total',num(d.weight.totalKg)+' kg');
@@ -260,7 +287,8 @@ function renderChecklist(){
   '><span>'+esc(step.label)+'</span></label>').join(''):'<div class="empty">Crie uma rodada para começar o checklist deste modelo.</div>';
  const history=round?.events?.slice(-15).reverse().map(e=>'<div class="sub">'+esc(e.at)+' · '+esc(e.actor)+
   ' · '+esc(e.label)+(e.kind==='step'?' · '+(e.checked?'Marcado':'Desmarcado'):'')+
-  (e.note?' · '+esc(e.note):'')+'</div>').join('')||'Nenhuma alteração registrada.';
+  (e.quantity!=null?' · '+Number(e.quantity)+' peças':'')+(e.grade?' · Grade: '+esc(e.grade):'')+
+  (e.destination?' · Destino: '+esc(e.destination):'')+(e.note?' · '+esc(e.note):'')+'</div>').join('')||'Nenhuma alteração registrada.';
  host.innerHTML='<div class="panel"><h2 style="margin-top:0">✅ Checklist de produtos</h2>'+
  '<p class="sub">Por modelo e por lote ou pedido. Funciona para produção interna, facção, embalagem ou outro destino, com responsável e evento de cada marcação.</p>'+
  productPicker(state.checkProduct,'ptr80-check-product')+
@@ -274,6 +302,15 @@ function renderChecklist(){
  '<button id="ptr80-new" type="button" class="secondary">☁️ Criar rodada na nuvem</button></details>'+
  (round?'<h3>'+esc(round.name)+' · '+done+'/'+STEPS.length+' etapas concluídas</h3>':'')+
  '<div id="ptr80-steps">'+rows+'</div>'+
+ (round?'<details class="panel" id="ptr81-work" style="padding:12px;margin:12px 0"><summary><b>🧵 Registrar responsável e quantidade executada</b></summary>'+
+ '<p class="sub">Registra a execução real no histórico deste lote; não lança pagamentos nem altera a grade, o estoque ou o status da produção.</p>'+
+ '<div class="grid" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(165px,1fr));gap:8px">'+
+ '<div class="field"><label>Etapa executada</label><select id="ptr81-stage">'+WORK_STAGES.map(x=>'<option value="'+x.id+'">'+esc(x.label)+'</option>').join('')+'</select></div>'+
+ '<div class="field"><label>Quantidade feita (peças)</label><input type="number" min="1" step="1" id="ptr81-quantity" placeholder="Ex.: 600"></div>'+
+ '<div class="field"><label>Grade realizada</label><input id="ptr81-grade" maxlength="1200" placeholder="Ex.: Preto P 200 · M 400"></div>'+
+ '<div class="field"><label>Destinado / entregue a</label><input id="ptr81-destination" maxlength="140" placeholder="Ex.: Roseli ou estoque interno"></div></div>'+
+ '<div class="field"><label>Observações da execução</label><input id="ptr81-note" maxlength="500" placeholder="Ex.: corte conferido no setor"></div>'+
+ '<button id="ptr81-save" type="button" class="secondary">☁️ Registrar execução com responsável</button></details>':'')+
  '<div class="field"><label>Observação da alteração (opcional)</label><input id="ptr80-note" maxlength="500" placeholder="Ex.: 30 peças conferidas novamente"></div>'+
  '<div id="ptr80-feedback" class="sub" role="status"></div>'+
  '<details style="margin-top:10px"><summary><b>📚 Histórico de alterações deste checklist</b></summary>'+history+'</details></div>';
@@ -287,6 +324,16 @@ function renderChecklist(){
   try{state.actor=get('ptr80-actor');const result=await createRound(state.checkProduct,{name:get('ptr80-new-name'),orderId:get('ptr80-new-order'),actor:state.actor});
    state.checkRound=sid(result.event.id);renderChecklist()}
   catch(err){if(feedback)feedback.textContent='⚠ '+sid(err?.message||err);e.target.disabled=false}
+ });
+ host.querySelector('#ptr81-save')?.addEventListener('click',async e=>{
+  e.target.disabled=true;if(feedback)feedback.textContent='Registrando a execução no servidor…';
+  try{
+   state.actor=get('ptr80-actor');
+   await addWorkEvent(state.checkProduct,state.checkRound,{
+    actor:state.actor,stage:get('ptr81-stage'),quantity:get('ptr81-quantity'),
+    grade:get('ptr81-grade'),destination:get('ptr81-destination'),note:get('ptr81-note')});
+   renderChecklist();
+  }catch(err){if(feedback)feedback.textContent='⚠ '+sid(err?.message||err);e.target.disabled=false}
  });
  host.querySelectorAll('[data-ptr80-step]').forEach(input=>input.addEventListener('change',async e=>{
   const checked=e.target.checked;e.target.disabled=true;if(feedback)feedback.textContent='Confirmando etapa no servidor…';
@@ -326,7 +373,7 @@ function install(){
  }
  return true;
 }
-window.hlgbProductTraceability9580={version:V,STEPS,timeline,roundState,roundsFor,createRound,toggleStep,
+window.hlgbProductTraceability9580={version:V,STEPS,WORK_STAGES,timeline,roundState,roundsFor,createRound,toggleStep,addWorkEvent,
  remoteProduct,renderHistory,renderChecklist,install,status:()=>({...state})};
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',install,{once:true});else install();
 [500,1600,3300].forEach(ms=>setTimeout(install,ms));
