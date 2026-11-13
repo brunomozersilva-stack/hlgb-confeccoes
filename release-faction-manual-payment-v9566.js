@@ -53,7 +53,7 @@ function validate(input){
  if(mode==='faccao'&&f.role!=='faccao')throw Error('Escolha uma facção de costura; para embaladeira ou travetador use a atividade correspondente.');
  if(!validDate(input.date))throw Error('Informe uma data válida.');
  if(!['Pago','Pendente'].includes(input.status))throw Error('Selecione o status.');
- if(!Array.isArray(input.lines)||!input.lines.length)throw Error('Adicione pelo menos um produto ou serviço.');
+ if(!Array.isArray(input.lines)||(!input.lines.length&&!input.allowEmptyV9590))throw Error('Adicione pelo menos um produto ou serviço.');
  const details=input.lines.map((x,i)=>{
   const qty=number(x.quantity),unit=number(x.unitPrice),kind=sid(x.kind||'product'),discount=number(x.travetaDiscountUnit||0);
   if(!Number.isInteger(qty)||qty<=0||qty>1000000)throw Error('Quantidade inválida na linha '+(i+1)+'.');
@@ -210,10 +210,13 @@ const cents=v=>Math.round((Number(v)||0)*100);
 function groupRows(groupId){
  return arr('factionPayments').filter(x=>x?.manual===true&&sid(x.manualGroupId)===sid(groupId));
 }
+function isCanceledV9590(row){return !!row?.manualCanceledV9590||norm(row?.status)==='cancelado'}
+function activeGroupRowsV9590(rows){return rows.filter(x=>!isCanceledV9590(x))}
 function groupState(rows){
- const statuses=new Set(rows.map(x=>norm(x.status)));
- return rows.length&&statuses.size===1&&statuses.has('pago')?'Pago':
-  rows.length&&statuses.size===1&&statuses.has('pendente')?'Pendente':'Revisar';
+ const active=activeGroupRowsV9590(rows),statuses=new Set(active.map(x=>norm(x.status)));
+ if(rows.length&&!active.length)return 'Cancelado';
+ return active.length&&statuses.size===1&&statuses.has('pago')?'Pago':
+  active.length&&statuses.size===1&&statuses.has('pendente')?'Pendente':'Revisar';
 }
 function assertGroup(groupId){
  const rows=groupRows(groupId);
@@ -242,25 +245,37 @@ async function preflightGroup(groupId,rows){
  if(hub&&sid(hub.sourceId)!==sid(groupId))throw Error('Registro financeiro vinculado a outro lançamento. Operação bloqueada.');
  return hub;
 }
-async function saveGroupEdits(groupId,input,receipt){
+async function saveGroupEdits(groupId,input,receipt,removalReasons=[]){
  if(state.status===STATUS.saving)throw Error('Já existe salvamento em andamento.');
- state.status=STATUS.saving;state.lastError='';let saved=0;
+ state.status=STATUS.saving;state.lastError='';let saved=0,canceled=0;
  try{
-  const rows=assertGroup(groupId);
-  if(groupState(rows)!=='Pendente')throw Error('Valores de pagamentos já pagos ou parcialmente pagos ficam bloqueados para preservar o financeiro.');
-  const parsed=validate(input);
-  if(parsed.status!=='Pendente')throw Error('Para dar baixa, utilize o botão “Marcar pago” no histórico de avulsos.');
+  const rows=assertGroup(groupId),active=activeGroupRowsV9590(rows);
+  if(groupState(rows)!=='Pendente')throw Error('Apenas lançamentos pendentes podem ter valores corrigidos ou removidos.');
+  const removing=new Map();
+  for(const entry of removalReasons||[]){
+   const id=sid(entry?.id),reason=sid(entry?.reason).trim();
+   if(!id||removing.has(id)||reason.length<5||reason.length>700)
+    throw Error('Informe um motivo de 5 a 700 caracteres para cada produto removido.');
+   removing.set(id,reason);
+  }
+  const parsed=validate({...input,allowEmptyV9590:true});
+  if(parsed.status!=='Pendente')throw Error('Para dar baixa, utilize o botão Marcar pago.');
   const ids=new Set(parsed.lines.map(x=>sid(x.id)));
-  if(ids.size!==parsed.lines.length||!rows.every(x=>ids.has(sid(x.id))))
-   throw Error('Não é permitido remover uma linha já salva. Mantenha-a no lançamento; corrija os valores sem apagar histórico.');
+  if(ids.size!==parsed.lines.length)throw Error('Linhas duplicadas na edição.');
+  const omitted=active.filter(x=>!ids.has(sid(x.id)));
+  if(omitted.some(x=>!removing.has(sid(x.id)))||
+     [...removing.keys()].some(id=>!omitted.some(x=>sid(x.id)===id)))
+   throw Error('Produto removido sem motivo ou identificação. Reabra a edição para conferir.');
+  if(parsed.lines.length===0&&!omitted.length)throw Error('Nenhum serviço ou produto informado.');
   for(const x of parsed.lines){
    const any=arr('factionPayments').find(y=>sid(y.id)===sid(x.id));
-   if(any&&sid(any.manualGroupId)!==sid(groupId))throw Error('Linha já pertence a outro lançamento.');
+   if(any&&(sid(any.manualGroupId)!==sid(groupId)||isCanceledV9590(any)))
+    throw Error('Linha já cancelada ou pertencente a outro lançamento.');
   }
-  const existingProof=rows.find(x=>x.receiptPdfV9566?.base64);
-  if(receipt&&existingProof)throw Error('Já existe PDF neste lançamento. O comprovante anterior não será sobrescrito.');
+  if(receipt&&rows.some(x=>x.receiptPdfV9566?.base64))
+   throw Error('Já existe PDF no lançamento. O comprovante anterior não será sobrescrito.');
   const oldHub=await preflightGroup(groupId,rows);
-  if(oldHub)throw Error('Existe lançamento no Hub Financeiro para este grupo. Confira-o antes de corrigir valores.');
+  if(oldHub)throw Error('O Hub já possui uma saída deste grupo. Só é permitido remover produtos de pagamentos ainda pendentes.');
   const ts=new Date().toISOString(),existingById=new Map(rows.map(x=>[sid(x.id),x]));
   const editId=draft?.editAttemptId||makeId('faction-edit');
   if(draft)draft.editAttemptId=editId;
@@ -289,10 +304,27 @@ async function saveGroupEdits(groupId,input,receipt){
    const check=await remoteRecord('factionPayments',x.id);
    if(!remotelySame(next,check))throw Error('Edição da linha '+sid(x.id)+' não confirmada na releitura.');
   }
-  const result={groupId,total:parsed.total,lines:saved,edited:true};
+  // Remoção é CANCELAMENTO lógico: identificação, valor original, comprovantes
+  // e dados para auditoria continuam registrados na nuvem e no histórico.
+  for(const old of omitted){
+   const reason=removing.get(sid(old.id));
+   const history=Array.isArray(old.manualEditHistoryV9588)?old.manualEditHistoryV9588.slice(-19):[];
+   if(!history.some(x=>sid(x.id)===editId))
+    history.push({id:editId,at:ts,from:Number(old.value)||0,to:0,reason:'Produto cancelado: '+reason});
+   const next={...old,status:'Cancelado',manualCanceledV9590:true,
+    manualCanceledAtV9590:ts,manualCanceledReasonV9590:reason,manualEditHistoryV9588:history,
+    updatedAt:ts,paidAmount:0,paymentDate:''};
+   await saveRecord('factionPayments',next);canceled++;
+   const remote=await remoteRecord('factionPayments',old.id);
+   if(!remotelySame(next,remote)||!isCanceledV9590(remote)||sid(remote.manualCanceledReasonV9590)!==reason)
+    throw Error('Cancelamento da linha '+sid(old.id)+' não confirmado na nuvem.');
+  }
+  const result={groupId,total:parsed.total,lines:saved,canceled,edited:true};
   state.lastResult=result;renderReceipts();return result;
- }catch(e){state.lastError=(saved?'Edição parcialmente confirmada ('+saved+' linha(s)). Revise o histórico antes de tentar novamente. ':'')+sid(e.message||e);throw Error(state.lastError)}
- finally{state.status=STATUS.idle}
+ }catch(e){
+  state.lastError=(saved||canceled?'Edição parcialmente confirmada ('+saved+' linha(s) e '+canceled+' cancelamento(s)). Confira antes de tentar novamente. ':'')+sid(e.message||e);
+  throw Error(state.lastError);
+ }finally{state.status=STATUS.idle}
 }
 async function markGroupPaid(groupId,date,method,receipt){
  if(state.status===STATUS.saving)throw Error('Outra alteração de pagamento está em andamento.');
@@ -301,7 +333,7 @@ async function markGroupPaid(groupId,date,method,receipt){
   if(!validDate(date)||date>stamp())throw Error('Informe a data real do pagamento, sem data futura.');
   method=sid(method).trim();
   if(!method)throw Error('Informe a forma de pagamento utilizada.');
-  const rows=assertGroup(groupId),condition=groupState(rows);
+  const allRows=assertGroup(groupId),rows=activeGroupRowsV9590(allRows),condition=groupState(allRows);
   if(condition==='Pago')throw Error('Este lançamento já consta como pago. Não é permitido pagar duas vezes.');
   if(!['Pendente','Revisar'].includes(condition))throw Error('Situação inconsistente; confira o pagamento antes da baixa.');
   if(rows.some(x=>!['pago','pendente'].includes(norm(x.status))))throw Error('Há uma linha em situação desconhecida; não registrar pagamento.');
@@ -310,7 +342,7 @@ async function markGroupPaid(groupId,date,method,receipt){
   const alreadyPaid=rows.filter(x=>norm(x.status)==='pago');
   if(alreadyPaid.some(x=>sid(x.paymentDate)!==date||sid(x.paymentMethod)!==method||cents(x.paidAmount)!==cents(x.value)))
    throw Error('Parte deste pagamento já foi registrada com outros dados. Não duplicar; revisar histórico.');
-  const oldHub=await preflightGroup(groupId,rows);
+  const oldHub=await preflightGroup(groupId,allRows);
   if(oldHub&&(cents(oldHub.value)!==cents(total)||sid(oldHub.date)!==date||sid(oldHub.paymentMethod)!==method||sid(oldHub.status)!=='Realizado'))
    throw Error('Existe lançamento financeiro diferente para este grupo. Corrija a divergência antes de dar baixa.');
   if(!oldHub&&alreadyPaid.length)throw Error('Há linhas pagas sem confirmação do Hub. Baixa bloqueada.');
