@@ -665,41 +665,79 @@ async function attachReceiptToGroup(groupId,file){
  return receipt;
 }
 function renderReceipts(){
- const anchor=document.getElementById('factionPaymentTable');
- if(!anchor)return false;
+ const anchor=document.getElementById('factionPaymentTable');if(!anchor)return false;
  let host=document.getElementById('fm66-receipts');
  if(!host){host=document.createElement('div');host.id='fm66-receipts';host.className='panel';
-  host.style.cssText='margin-top:14px;padding:12px';anchor.insertAdjacentElement('afterend',host);}
- const groups=receiptGroups();
- // Avoid replacing <input type=file> while the user selects a PDF. The app
- // installs this plugin multiple times after login and can render the same
- // receipts list while a Chromium file chooser has already returned.
- const signature=JSON.stringify(groups.map(g=>[g.id,g.factionName,g.date,g.status,g.total,g.items,
+  host.style.cssText='margin-top:14px;padding:12px';anchor.insertAdjacentElement('afterend',host)}
+ const groups=receiptGroups(),pending=groups.filter(g=>g.status==='Pendente'),
+  paid=groups.filter(g=>g.status==='Pago'),review=groups.filter(g=>g.status==='Revisar');
+ const signature=JSON.stringify(groups.map(g=>[g.id,g.factionName,g.date,g.status,g.total,g.items,g.updatedAt,
   g.receipt?.name||'',g.receipt?.size||0]));
+ // Preserve file selection and focused filters when periodic refresh has not changed data.
  if(host.dataset.fm66Signature===signature)return true;
+ const previousFilter=host.querySelector('#fm88-filter-name')?.value||'',
+  previousStatus=host.querySelector('#fm88-filter-status')?.value||'todos';
  host.dataset.fm66Signature=signature;
- host.innerHTML='<h3 style="margin-top:0">📎 Comprovantes de pagamentos avulsos</h3>'+
-  '<div class="sub">Anexe um PDF novo ao criar um pagamento ou adicione depois em um lançamento existente. Tamanho máximo: 750 KB.</div>'+
-  (groups.length?'<div style="overflow:auto"><table><thead><tr><th>Facção</th><th>Data</th><th>Valor</th><th>Comprovante</th></tr></thead><tbody>'+
-   groups.map(g=>'<tr><td>'+esc(g.factionName)+'</td><td>'+esc(g.date)+'</td><td>'+money(g.total)+'</td><td>'+
-    (g.receipt?'<button type="button" class="secondary fm66-download" data-group-id="'+esc(g.id)+'">'+esc(g.receipt.name)+'</button>':
-    '<div class="field" style="min-width:230px"><input type="file" class="fm66-attach-input" data-group-id="'+esc(g.id)+'" accept=".pdf,application/pdf">'+
-    '<button type="button" class="secondary fm66-attach" data-group-id="'+esc(g.id)+'">☁️ Salvar PDF</button></div>')+
-    '</td></tr>').join('')+'</tbody></table></div>':
-   '<div class="empty">Ainda não há pagamentos avulsos para anexar comprovantes.</div>')+
-  '<div id="fm66-receipt-feedback" role="status" class="sub"></div>';
+ const sum=rows=>money(rows.reduce((total,x)=>total+x.total,0));
+ host.innerHTML='<h3 style="margin:0 0 5px">Pagamentos avulsos — facções e embaladeiras</h3>'+
+  '<p class="sub">Edite os pendentes, marque como pago após transferir e confira PDFs e serviços. Pagamentos realizados têm os valores protegidos.</p>'+
+  '<div class="cards" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(155px,1fr));gap:8px;margin:12px 0">'+
+  '<div class="card"><small>A pagar · '+pending.length+' lançamento(s)</small><strong>'+sum(pending)+'</strong></div>'+
+  '<div class="card"><small>Pagos · '+paid.length+' lançamento(s)</small><strong>'+sum(paid)+'</strong></div>'+
+  (review.length?'<div class="card"><small>Revisar · '+review.length+'</small><strong>'+sum(review)+'</strong></div>':'')+'</div>'+
+  '<div class="toolbar" style="display:flex;flex-wrap:wrap;gap:8px;align-items:end;margin:10px 0">'+
+  '<div class="field"><label>Buscar facção, produto ou serviço</label><input id="fm88-filter-name" autocomplete="off" placeholder="Pesquisar lançamento"></div>'+
+  '<div class="field"><label>Situação</label><select id="fm88-filter-status"><option value="todos">Todos</option>'+
+  '<option>Pendente</option><option>Pago</option><option>Revisar</option></select></div></div>'+
+  (groups.length?'<div style="overflow-x:auto"><table style="width:100%"><thead><tr><th>Facção / serviço</th>'+
+   '<th>Data</th><th>Situação</th><th>Valor</th><th>Itens</th><th>Comprovante</th><th>Ações</th></tr></thead><tbody>'+
+   groups.map(g=>{
+    const descriptions=g.rows.map(r=>sid(r.description||'')+' '+Number(r.quantity||0)+'x').join(' ');
+    const items='<details><summary>'+g.items+' item(ns) · Ver detalhes</summary>'+
+     '<div style="min-width:180px">'+g.rows.map(r=>'<div style="border-bottom:1px solid #eee;padding:5px">'+
+      '<b>'+esc(r.description||'Serviço')+'</b><div class="sub">'+Number(r.quantity||0).toLocaleString('pt-BR')+
+      ' × '+money(r.unitPrice)+' · desconto '+money(r.travetaDiscountTotalV9577)+'</div><b>'+
+      money(r.value)+'</b></div>').join('')+'</div></details>';
+    const proof=g.receipt?'<button type="button" class="secondary fm66-download" data-group-id="'+esc(g.id)+'">'+esc(g.receipt.name)+'</button>':
+     '<div class="field" style="min-width:170px"><input type="file" class="fm66-attach-input" data-group-id="'+esc(g.id)+'" accept=".pdf,application/pdf">'+
+     '<button type="button" class="secondary fm66-attach" data-group-id="'+esc(g.id)+'">☁️ Salvar PDF</button></div>';
+    const actions=g.status==='Pendente'?
+     '<div style="display:flex;gap:6px;flex-wrap:wrap"><button type="button" class="secondary fm88-edit" data-group-id="'+esc(g.id)+'">✏️ Editar</button>'+
+     '<button type="button" class="primary fm88-pay" data-group-id="'+esc(g.id)+'">✅ Marcar pago</button></div>':
+     g.status==='Pago'?'<span class="sub">Pago · valores protegidos</span>':
+     '<span class="sub" style="color:#934">⚠ Baixa parcial: conferir</span>';
+    return '<tr data-fm88-row="1" data-status="'+esc(g.status)+'" data-search="'+esc(norm(g.factionName+' '+descriptions+' '+g.serviceMode))+'">'+
+     '<td><b>'+esc(g.factionName)+'</b><div class="sub">'+esc(g.serviceMode==='embalagem'?'Embalagem':'Facção / Costura')+'</div></td>'+
+     '<td>'+esc(g.date||'Sem data')+'</td><td><b>'+esc(g.status)+'</b></td><td><b>'+money(g.total)+'</b></td>'+
+     '<td>'+items+'</td><td>'+proof+'</td><td>'+actions+'</td></tr>';
+   }).join('')+'</tbody></table></div>':'<div class="empty">Ainda não há pagamentos avulsos.</div>')+
+  '<div id="fm66-receipt-feedback" role="status" class="sub" style="margin-top:8px"></div>';
+ const input=host.querySelector('#fm88-filter-name'),filterStatus=host.querySelector('#fm88-filter-status');
+ if(input)input.value=previousFilter;if(filterStatus)filterStatus.value=previousStatus;
+ function filter(){
+  const term=norm(input?.value),status=filterStatus?.value||'todos';
+  host.querySelectorAll('[data-fm88-row]').forEach(row=>{
+   row.style.display=(!term||sid(row.dataset.search).includes(term))&&(status==='todos'||sid(row.dataset.status)===status)?'':'none';
+  });
+ }
+ input?.addEventListener('input',filter);filterStatus?.addEventListener('change',filter);filter();
+ const feedback=()=>host.querySelector('#fm66-receipt-feedback');
+ host.querySelectorAll('.fm88-edit').forEach(b=>b.addEventListener('click',()=>{
+  try{openForm(b.dataset.groupId)}catch(e){const x=feedback();if(x)x.textContent='⚠ '+sid(e.message||e)}
+ }));
+ host.querySelectorAll('.fm88-pay').forEach(b=>b.addEventListener('click',()=>{
+  try{openPayModal(b.dataset.groupId)}catch(e){const x=feedback();if(x)x.textContent='⚠ '+sid(e.message||e)}
+ }));
  host.querySelectorAll('.fm66-download').forEach(b=>b.addEventListener('click',()=>{
-  const group=receiptGroups().find(x=>x.id===b.dataset.groupId);
-  if(group?.receipt)pdfDownload(group.receipt);
+  const group=receiptGroups().find(g=>g.id===b.dataset.groupId);if(group?.receipt)pdfDownload(group.receipt);
  }));
  host.querySelectorAll('.fm66-attach').forEach(b=>b.addEventListener('click',async()=>{
-  const input=[...host.querySelectorAll('.fm66-attach-input')].find(x=>x.dataset.groupId===b.dataset.groupId);
-  const feedback=host.querySelector('#fm66-receipt-feedback');
-  b.disabled=true;if(feedback)feedback.textContent='Salvando comprovante na nuvem…';
-  try{const receipt=await attachReceiptToGroup(b.dataset.groupId,input?.files?.[0]);
+  const file=[...host.querySelectorAll('.fm66-attach-input')].find(x=>x.dataset.groupId===b.dataset.groupId)?.files?.[0];
+  b.disabled=true;const status=feedback();if(status)status.textContent='Enviando comprovante e confirmando na nuvem…';
+  try{const pdf=await attachReceiptToGroup(b.dataset.groupId,file);
    const next=document.getElementById('fm66-receipt-feedback');
-   if(next)next.textContent='✓ Comprovante '+receipt.name+' confirmado e vinculado ao pagamento.';
-  }catch(e){b.disabled=false;if(feedback)feedback.textContent='⚠ '+sid(e.message||e)}
+   if(next)next.textContent='✓ PDF '+pdf.name+' confirmado na nuvem.';
+  }catch(e){b.disabled=false;if(status)status.textContent='⚠ '+sid(e.message||e)}
  }));
  return true;
 }
@@ -720,7 +758,7 @@ document.addEventListener('click',e=>{
  e.preventDefault();e.stopImmediatePropagation();openForm();
 },true);
 window.hlgbFactionManual9566={version:V,openForm,searchFactions,searchProducts,factionDirectory,productDirectory,
- productPrice,validate,grandTotal,readReceipt,pdfIsValid,persistDraft,receiptGroups,attachReceiptToGroup,renderReceipts,download:pdfDownload,install,
+ productPrice,validate,grandTotal,readReceipt,pdfIsValid,persistDraft,receiptGroups,groupRows,groupState,saveGroupEdits,markGroupPaid,openPayModal,remoteRecord,attachReceiptToGroup,renderReceipts,download:pdfDownload,install,
  status:()=>({...state}),maxPdfBytes:MAX_PDF};
 install();
 [500,1700,3800].forEach(ms=>setTimeout(install,ms));
