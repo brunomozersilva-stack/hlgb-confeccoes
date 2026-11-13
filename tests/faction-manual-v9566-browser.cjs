@@ -259,10 +259,9 @@ const engine=process.env.HLGB_BROWSER==='webkit'?webkit:chromium;
   const activeDue=await page.evaluate(id=>window.hlgbFactionManual9566.receiptGroups().find(x=>x.id===id),pendingGroup);
   assert.equal(activeDue.total,26,'canceled product is excluded from payment');
   assert.equal(activeDue.items,1);
-  const pdfRows=page.locator('#fm66-receipts tr[data-fm88-row]').filter({hasText:'Roseli'});
-  const detailedDownload=page.waitForEvent('download');
-  await pdfRows.locator('.fm90-summary-pdf').click();
-  const report=await detailedDownload,reportBuffer=await fs.readFile(await report.path());
+  const pdfRows=page.locator('#fm66-receipts tr[data-fm88-row]').filter({hasText:'Roseli'}).filter({has:page.locator('.fm88-edit')});
+  const [report]=await Promise.all([page.waitForEvent('download'),pdfRows.locator('.fm90-summary-pdf').click()]);
+  const reportBuffer=await fs.readFile(await report.path());
   assert.match(report.suggestedFilename(),/HLGB-Pagamento-Avulso/);
   assert.equal(reportBuffer.toString('utf8',0,5),'%PDF-');
   assert(reportBuffer.toString('latin1').includes('CANCELADA'),'PDF must list canceled products');
@@ -301,9 +300,11 @@ const engine=process.env.HLGB_BROWSER==='webkit'?webkit:chromium;
   assert.equal(appliedDue.total,22,'paid-too-much credit reduces future payout');
   assert.equal(appliedDue.applications.length,1);
   assert.equal(await page.evaluate(g=>window.db.hubFinanceEntries.find(x=>x.sourceId===g).value,sourceGroup),previousHub);
-  const adjustedPdfWait=page.waitForEvent('download');
-  await page.locator('#fm66-receipts tr[data-fm88-row]').filter({hasText:'Roseli'}).filter({has:page.locator('.fm88-edit')}).locator('.fm90-summary-pdf').click();
-  const adjustedPdf=await adjustedPdfWait,pdfBytes=await fs.readFile(await adjustedPdf.path());
+  const [adjustedPdf]=await Promise.all([
+   page.waitForEvent('download'),
+   page.locator('#fm66-receipts tr[data-fm88-row]').filter({hasText:'Roseli'}).filter({has:page.locator('.fm88-edit')}).locator('.fm90-summary-pdf').click()
+  ]);
+  const pdfBytes=await fs.readFile(await adjustedPdf.path());
   assert(pdfBytes.toString('latin1').includes('ABATIMENTO'),'PDF should describe adjustment received');
   await page.locator('#fm66-receipts tr[data-fm88-row]').filter({hasText:'Roseli'}).filter({has:page.locator('.fm88-edit')}).locator('.fm88-pay').click();
   await page.locator('#fm88-pay-modal').waitFor({state:'visible'});
