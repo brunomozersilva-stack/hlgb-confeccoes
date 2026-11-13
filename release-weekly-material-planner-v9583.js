@@ -327,6 +327,11 @@ function install(){
   // Colocar no topo de Compras, sem modificar a lista existente de notas.
   parent.insertBefore(el,parent.firstChild);
  }
+ if(!document.getElementById('hlgbPlannerPrint9583')){
+  const style=document.createElement('style');style.id='hlgbPlannerPrint9583';
+  style.textContent='@media print { body *{visibility:hidden!important} #hlgbWeeklyPlanner9583,#hlgbWeeklyPlanner9583 *{visibility:visible!important} #hlgbWeeklyPlanner9583{position:absolute!important;left:0!important;top:0!important;width:100%!important;box-shadow:none!important;border:0!important;background:#fff!important;color:#000!important} #hlgbWeeklyPlanner9583 button,#hlgbWeeklyPlanner9583 input,#hlgbWeeklyPlanner9583 select{display:none!important} #hlgbWeeklyPlanner9583 details{display:block!important} #hlgbWeeklyPlanner9583 table{width:100%;border-collapse:collapse} #hlgbWeeklyPlanner9583 td,#hlgbWeeklyPlanner9583 th{border:1px solid #ccc;padding:5px} }';
+  document.head?.appendChild(style);
+ }
  const host=document.getElementById('hlgbWeeklyPlanner9583');
  if(host.dataset.rendered!==V)render();
  bind();
