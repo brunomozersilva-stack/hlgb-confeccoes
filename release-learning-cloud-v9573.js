@@ -173,7 +173,15 @@ function render(){
 async function tick(){
  if(!auth()||disabled()||state.publishing||state.reading)return;
  if(!state.githubLoaded&&!state.githubLoading)loadGithubFixes().then(render).catch(()=>{});
- collect();await publish();if(!state.lastFetch)await refresh();render();
+ try{collect()}catch(e){state.lastError='Coleta técnica local: '+sid(e?.message||e)}
+ try{await publish()}catch(e){state.lastError='Envio técnico: '+sid(e?.message||e)}
+ // Pull new corrections from OTHER computers even if this browser has no
+ // pending writes. A one-time fetch would not provide server-side learning.
+ const age=Date.now()-Date.parse(state.lastFetch||'');
+ if(!state.lastFetch||!Number.isFinite(age)||age>=60000){
+  try{await refresh()}catch(e){state.lastError='Leitura técnica: '+sid(e?.message||e)}
+ }
+ render();
 }
 const api={version:V,collect,enqueue,refresh,publish,publishOne,loadGithubFixes,snapshot,render,tick,status:()=>({...state,remoteCount:state.remote.length,outboxCount:queueRead().length,disabled:disabled()}),
  disable:()=>{localStorage.setItem(DISABLED,'1');return true},enable:()=>{localStorage.removeItem(DISABLED);setTimeout(tick,100);return true}};
