@@ -84,6 +84,11 @@ const matchingColor=api.stockFor({materialId:'x',name:'Renda',unit:'m',color:'Ve
 assert.equal(matchingColor.amount,50);
 const noConvert=api.buyTerms({unit:'m',catalog:{purchaseUnit:'rolo',allowFractionalPurchase:false,price:2}},120);
 assert.equal(noConvert.amount,null);assert.equal(noConvert.cost,null,'unknown package conversion cannot invent rolls or prices');
+const conflict=api.calculate([{productId:'bad',pieces:200}],{
+ products:[{id:'bad',name:'Modelo de risco',materials:[{materialId:'m1',name:'Romantic',unit:'m',qty:4,calcMode:'consumption'}]}],
+ materials,stock:[],suppliers:[]});
+assert.equal(conflict.consolidated.length,0,'conflicting fiche/catalog units must not produce false purchase');
+assert(conflict.warnings.some(x=>/Unidade divergente/.test(x)));
 const closedEvenIfModeBase=api.buyTerms({unit:'kg',catalog:{purchaseUnit:'rolo',purchaseMode:'kg',purchaseConversion:10,
  allowFractionalPurchase:false,price:40}},12);
 assert.equal(closedEvenIfModeBase.amount,2,'closed rolls override base purchaseMode when fractional prohibited');
