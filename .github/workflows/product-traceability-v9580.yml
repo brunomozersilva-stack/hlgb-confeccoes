@@ -1,0 +1,27 @@
+name: HLGB Product Traceability and Checklist v95.80
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'app-stable3.html'
+      - 'release-product-traceability-v9580.js'
+      - 'tests/product-traceability-v9580.cjs'
+      - '.github/workflows/product-traceability-v9580.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'app-stable3.html'
+      - 'release-product-traceability-v9580.js'
+      - 'tests/product-traceability-v9580.cjs'
+      - '.github/workflows/product-traceability-v9580.yml'
+permissions: {contents: read}
+jobs:
+  traceability:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 6
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - run: node --check release-product-traceability-v9580.js
+      - run: node tests/product-traceability-v9580.cjs
