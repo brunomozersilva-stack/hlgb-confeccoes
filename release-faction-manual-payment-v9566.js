@@ -845,6 +845,12 @@ function addLine(kind='product',existingRow=null){
   const option=e.target.closest('button[data-product-id]');if(!option)return;
   const p=productDirectory().find(x=>sid(x.id)===sid(option.dataset.productId));if(!p)return;
   row.querySelector('.fm66-product-id').value=sid(p.id);
+  if(row.dataset.kind==='travetada'){
+   const points=row.querySelector('.fm92-points'),stored=pointsPerPieceV9592(p);
+   if(points)points.value=stored>0?String(stored):'1';
+   const check=row.querySelector('.fm92-save-points');if(check)check.checked=false;
+   syncPointHintV9592(row,p);
+  }
   const manualCheck=row.querySelector('.fm66-unregistered');
   if(manualCheck){manualCheck.checked=false;row.querySelector('.fm66-manual-fields').style.display='none'}
   row.querySelector('.fm66-search').disabled=false;
@@ -857,8 +863,7 @@ function addLine(kind='product',existingRow=null){
   const picked=factionDirectory().find(x=>norm(x.name)===norm(document.getElementById('fm66-faction')?.value));
   const master=arr('factionMasters').find(x=>sid(x.id)===sid(picked?.id));
   const d=row.querySelector('.fm66-discount');
-  if(d)d.value=!packing&&master?.doesTraveta===false&&window.hlgbFactionRates9577?.traveta?.(master)!=null?
-   Number(window.hlgbFactionRates9577.traveta(master)).toFixed(2):'0.00';
+  if(d)refreshFactionDiscountV9592(row,true);
   recalc();
  });
  const manualCheck=row.querySelector('.fm66-unregistered');
@@ -871,6 +876,10 @@ function addLine(kind='product',existingRow=null){
    if(manualCheck.checked){
     row.querySelector('.fm66-product-id').value='';lookup.value='';
     row.querySelector('.fm66-suggestions').style.display='none';
+    if(row.dataset.kind==='travetada'){
+     const points=row.querySelector('.fm92-points');if(points)points.value='1';
+     syncPointHintV9592(row,null);
+    }
     if(row.dataset.kind==='embalagem'){
      unit.value='';
      row.querySelector('.fm66-hint').textContent='Modelo avulso: informe nome, categoria e valor. Não será cadastrado no estoque.';
@@ -898,8 +907,13 @@ function addLine(kind='product',existingRow=null){
    row.remove();renderRemovedLinesV9590();recalc();
   }else{row.remove();recalc()}
  });
- row.querySelectorAll('.fm66-qty,.fm66-unit,.fm66-discount').forEach(inp=>inp.addEventListener('input',()=>{
+ row.querySelectorAll('.fm66-qty,.fm66-unit,.fm66-discount,.fm92-points').forEach(inp=>inp.addEventListener('input',()=>{
   if(inp.classList.contains('fm66-unit'))row.dataset.priceOrigin='manual';
+  if(inp.classList.contains('fm66-discount'))row.dataset.discountOriginV9592='manual';
+  if(inp.classList.contains('fm92-points')){
+   const p=productDirectory().find(x=>sid(x.id)===sid(row.querySelector('.fm66-product-id')?.value));
+   syncPointHintV9592(row,p);
+  }
   recalc();
  }));
 
@@ -911,7 +925,14 @@ function addLine(kind='product',existingRow=null){
   if(kind==='service'&&row.querySelector('.fm66-desc'))row.querySelector('.fm66-desc').value=sid(existingRow.description);
   row.querySelector('.fm66-qty').value=sid(existingRow.quantity||1);
   row.querySelector('.fm66-unit').value=Number(existingRow.unitPrice||0).toFixed(2);
-  row.querySelector('.fm66-discount').value=Number(existingRow.travetaDiscountUnitV9577||0).toFixed(2);
+  const discount=row.querySelector('.fm66-discount');
+  if(discount)discount.value=Number(existingRow.travetaDiscountUnitV9577||0).toFixed(2);
+  if(kind==='travetada'){
+   const points=row.querySelector('.fm92-points');
+   if(points)points.value=String(existingRow.travetaPointsPerPieceV9592||
+     (p&&pointsPerPieceV9592(p))||1);
+   syncPointHintV9592(row,p);
+  }else if(kind==='product')row.dataset.discountOriginV9592='manual';
   row.querySelector('.fm66-line-note').value=sid(existingRow.manualLineNoteV9566||'');
   if(existingRow.manualProductNameV9589&&row.querySelector('.fm66-unregistered')){
    const check=row.querySelector('.fm66-unregistered'),area=row.querySelector('.fm66-manual-fields');
@@ -932,6 +953,7 @@ function addLine(kind='product',existingRow=null){
    row.querySelector('.fm66-unit').value=Number(rate).toFixed(2);
    row.dataset.priceOrigin='tabela-travetada';
   }
+  syncPointHintV9592(row,null);
  }
  recalc();
 }
@@ -1057,6 +1079,8 @@ function openForm(groupId=''){
   document.getElementById('fm66-faction-suggestions')?.addEventListener('click',e=>{
    const b=e.target.closest('button[data-faction]');if(!b)return;faction.value=b.dataset.faction;
    document.getElementById('fm66-faction-suggestions').style.display='none';
+   if(document.getElementById('fm66-mode')?.value==='faccao')
+    document.querySelectorAll('#fm66-lines .fm66-line[data-kind="product"]').forEach(row=>refreshFactionDiscountV9592(row,true));
    if(document.getElementById('fm66-mode')?.value==='travetada'){
     const person=factionDirectory().find(x=>norm(x.name)===norm(faction.value));
     const master=arr('factionMasters').find(x=>sid(x.id)===sid(person?.id));
