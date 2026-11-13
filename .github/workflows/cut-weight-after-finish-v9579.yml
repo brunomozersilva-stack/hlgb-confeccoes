@@ -1,0 +1,27 @@
+name: HLGB Post-Finished Cut Weight v95.79
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'app-stable3.html'
+      - 'release-cut-weight-v9579.js'
+      - 'tests/cut-weight-after-finish-v9579.cjs'
+      - '.github/workflows/cut-weight-after-finish-v9579.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'app-stable3.html'
+      - 'release-cut-weight-v9579.js'
+      - 'tests/cut-weight-after-finish-v9579.cjs'
+      - '.github/workflows/cut-weight-after-finish-v9579.yml'
+permissions: {contents: read}
+jobs:
+  cuts:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 6
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - run: node --check release-cut-weight-v9579.js
+      - run: node tests/cut-weight-after-finish-v9579.cjs
