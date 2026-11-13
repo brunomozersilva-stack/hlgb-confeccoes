@@ -138,6 +138,19 @@ function render(summary){const host=document.getElementById('hlgbAuditorResult')
   }finally{b.disabled=false}
  });
  return true}
+// v95.71: uma operação confirmada não significa registro corrigido se houve outro opId pendente.
+function flagUnstableProduction9571(out){
+ const findings=[...(out?.stillFailing||[]),...(out?.unverified||[]),...(out?.needsCode||[])];
+ const unresolved=new Set(findings.filter(x=>sid(x?.action)==='production-reconcile').map(x=>sid(x.id)));
+ if(!unresolved.size||!Array.isArray(out?.corrected))return out;
+ const partial=out.corrected.filter(x=>sid(x?.module)==='production'&&unresolved.has(sid(x?.id)));
+ if(!partial.length)return out;
+ out.corrected=out.corrected.filter(x=>!partial.includes(x));
+ out.partialCorrections=partial.map(x=>({...x,overallStatus:'record-still-pending',detail:'Operação remota confirmada; o registro continuou pendente no reteste.'}));
+ out.fixed=Math.max(0,(Number(out.fixed)||0)-partial.length);
+ out.recordConvergenceVerified=false;
+ return out;
+}
 async function run(opts={}){
  if(state.running||!authReady())return false;state.running=true;state.runs++;state.lastAt=nowIso();state.lastError='';stamp();
  try{
@@ -149,7 +162,7 @@ async function run(opts={}){
   const raw=await withResidualCandidateReasons(diag,()=>window.hlgbAuditorAutoCorrect9447.run({...opts,render:false,download:false,reason:(opts.reason||'v9448')+'-residual-proof'}));if(raw===false)throw new Error('Autocorretor v94.47 retornou false');
   // Uma falha da cadeia v94.47 vinha como objeto e era tratada como sucesso de 0 rodadas.
   if(raw?.executionFailed===true||/^Execução interrompida|^Execução não iniciada/i.test(sid(raw?.stopReason)))throw new Error('Etapa v94.47 falhou: '+sid(raw?.unverified?.[0]?.detail||raw?.failure?.message||window.hlgbAuditorAutoCorrect9447?.state?.lastError||raw?.stopReason));
-  const baseReport=clone(raw?.report||window.hlgbAuditorAutoCorrect9447.exportReport?.()||{});const out=clone(raw||{});delete out.report;out.version=V;out.runtimeVersion=V;out.productionResidual=clone(diag);out.dependencyPreparation=clone(prep);out.residualProof=true;out.productionOpIdChanges=clone(diag.opIdChanges||[]);out.hubSaveTrace=clone(window.hlgbHubSaveTrace9483?.status?.()||null);
+  const baseReport=clone(raw?.report||window.hlgbAuditorAutoCorrect9447.exportReport?.()||{});const out=clone(raw||{});delete out.report;out.version=V;out.runtimeVersion=V;out.productionResidual=clone(diag);out.dependencyPreparation=clone(prep);out.residualProof=true;out.productionOpIdChanges=clone(diag.opIdChanges||[]);out.hubSaveTrace=clone(window.hlgbHubSaveTrace9483?.status?.()||null);flagUnstableProduction9571(out);
   if((+diag?.technicalCopiesCleared||0)>0&&!(out.needsCode||[]).length){out.stopReason='Convergência rápida: '+diag.technicalCopiesCleared+' cópia(s) técnica(s) antiga(s) reconciliada(s); restam apenas decisões de negócio/histórico.'}
   const report=upgradeReport(baseReport,out,diag,prep);out.report=report;state.lastSummary=clone(out);if(opts.render!==false)render(out);if(opts.download===true)downloadReport(report);return out;
  }catch(e){state.lastError=sid(e?.message||e);const failure={phase:'preparação, diagnóstico residual ou cadeia de reparo',message:state.lastError||'Erro desconhecido'};const out={version:V,runtimeVersion:V,runId:'autocorrect-9448-blocked-'+Date.now(),at:nowIso(),silent:true,nonNavigating:true,passes:0,repairSkipped:true,residualProof:true,auditCompleted:false,executionFailed:true,stopReason:'EXECUÇÃO INTERROMPIDA — não auditado',failure,fixed:null,corrected:[],stillFailing:null,needsCode:null,businessBlocked:null,blocked:[],unverified:[{code:'auditor:interrupted',status:'fail',title:'Auditor não concluiu',detail:failure.message}],rounds:[],knownGaps:['Sincronização entre computadores não é comprovada por pendingSync: 0','Tela pulando requer medição visual em navegador real']};const report={kind:'hlgb_autocorrect_report',version:V,generatedAt:nowIso(),auditCompleted:false,executionFailed:true,run:clone(out),failure};state.lastReport=clone(report);try{localStorage.setItem(REPORT_KEY,JSON.stringify(report))}catch(_){}state.lastSummary=clone(out);if(opts.render!==false)render(out);return out}

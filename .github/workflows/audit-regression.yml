@@ -130,6 +130,12 @@ jobs:
       - name: Validate Production WAL opId stable in IDB fallback v94.84
         run: node tests/production-wal-opid-stability-v9484.cjs
 
+      - name: Validate Production scanDirty semantic equality v95.71
+        run: node tests/production-scan-dirty-v9571.cjs
+
+      - name: Validate Auditor does not inflate partial production fixes v95.71
+        run: node tests/auditor-production-partial-v9571.cjs
+
       - name: Validate Production residual blocks opId races v94.84
         run: node tests/production-residual-opid-race-v9484.cjs
 
