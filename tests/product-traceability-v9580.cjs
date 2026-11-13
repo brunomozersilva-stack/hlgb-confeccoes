@@ -88,7 +88,7 @@ assert.equal(api.timeline('p1',{orderId:'not-this'}).length,0);
  assert.equal(db.orders[0].status,o.status);
  assert.equal(db.cuts[0].status,'Finalizado');
  assert.equal(db.factionPayments[0].paidAmount,405);
- assert(api.timeline('p1').filter(x=>x.kind==='checklist-produto').length>=5);
+ assert.equal(api.timeline('p1').filter(x=>x.kind==='checklist-produto').length,4,'two creations and two genuine state changes; rejected duplicate is not an event');
  assert.match(src,/Checklist de produtos/);
  assert.match(src,/Rastreamento de produtos/);
  console.log('PASS v95.80: actual trace timeline, payment-vs-estimate truth, independent checklist rounds, audit events, ACK/readback, WAL guard and preservation');
