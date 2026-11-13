@@ -244,7 +244,7 @@ function install(){
 function scheduleFormRepair(){setTimeout(()=>ensureTravetaFields(state.faction),0);setTimeout(()=>ensureTravetaFields(state.faction),100)}
 document.addEventListener?.('click',e=>{const b=e.target?.closest?.('button');if(!b)return;const t=norm(b.textContent),oc=sid(b.getAttribute?.('onclick'));if(t.includes('enviar para faccao')||t==='editar'||/newFaction|editFaction|hlgbOpenFactionModelSend/.test(oc))scheduleFormRepair()},true);
 
-window.hlgbFactionTraveta9424={version:V,calc,validatePricing,pricingForChecklist,payHtml,ensureTravetaFields,install,state};
+window.hlgbFactionTraveta9424={version:V,calc,validatePricing,pricingForChecklist,payHtml,ensureTravetaFields,deductionForModelV9592,prepareTravetaSave,install,state};
 install();setTimeout(install,350);setTimeout(install,1200);setTimeout(install,3500);
 try{if(typeof hlgbAfterLogin==='function')hlgbAfterLogin(()=>{setTimeout(install,200);setTimeout(install,900)},0)}catch(e){}
 console.info('[HLGB] v'+V+' travetada + valor unitário/total da facção ativos');
