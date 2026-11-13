@@ -10,6 +10,8 @@ on:
       - 'release-faction-service-rates-v9577.js'
       - 'tests/embalagem-traveta-v9577.cjs'
       - 'tests/faction-manual-management-v9588.cjs'
+      - 'tests/faction-manual-v9566-browser.cjs'
+      - 'tests/faction-manual-v9566-fixture.html'
       - '.github/workflows/embalagem-traveta-v9577.yml'
   push:
     branches: [main]
@@ -21,6 +23,8 @@ on:
       - 'release-faction-service-rates-v9577.js'
       - 'tests/embalagem-traveta-v9577.cjs'
       - 'tests/faction-manual-management-v9588.cjs'
+      - 'tests/faction-manual-v9566-browser.cjs'
+      - 'tests/faction-manual-v9566-fixture.html'
       - '.github/workflows/embalagem-traveta-v9577.yml'
 permissions: {contents: read}
 jobs:
@@ -41,3 +45,26 @@ jobs:
       - run: node tests/audit-faction-master-integrity-regression.cjs
       - run: node tests/audit-faction-traveta-payment-v9424.cjs
       - run: node tests/embalagem-traveta-v9577.cjs
+  browser:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        browser: [chromium, webkit]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - name: Instalar Playwright
+        run: |
+          npm install --no-save playwright@1.55.0
+          npx playwright install --with-deps ${{ matrix.browser }}
+      - name: Servir fixture isolada
+        run: |
+          python3 -m http.server 4173 >/tmp/hlgb-faction-manual.log 2>&1 &
+          sleep 2
+      - name: Testar edição, baixa paga e PDF
+        env:
+          HLGB_BROWSER: ${{ matrix.browser }}
+        run: node tests/faction-manual-v9566-browser.cjs
