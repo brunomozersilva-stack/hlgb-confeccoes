@@ -102,6 +102,12 @@ const dangerous=api.calculate([{productId:'evil',pieces:1}],{
  products:[{id:'evil',name:'Teste',materials:[{name:'=HYPERLINK("x")',qty:1,unit:'un.',calcMode:'consumption',price:1}]}],
  materials:[],stock:[],suppliers:[]});
 assert(api.csvFor(dangerous).includes("'=HYPERLINK"),'CSV formula injection must be neutralized');
+const enough=api.calculate([{productId:'p1',pieces:1}],{
+ products:[{id:'p1',name:'Modelo',materials:[{materialId:'m2',name:'Fita 005',unit:'m',qty:2,calcMode:'consumption'}]}],
+ materials,stock:[{item:'Fita 005',qty:10,unit:'m'}],suppliers:[]});
+assert.equal(enough.consolidated.length,1,'technical view retains total material consumption');
+assert.equal(enough.consolidated[0].missing,0,'stock entirely covers model');
+assert(!api.csvFor(enough,'comprar').includes('"Fita 005"'),'buy list must omit fully stocked materials');
 assert.equal(JSON.stringify(db),dbOriginal,'planning must never modify products, stock or purchases');
 const repeated=api.calculate([{productId:'p1',pieces:40},{productId:'p1',pieces:60}]);
 assert.equal(repeated.models.length,1);assert.equal(repeated.totalPieces,100);
