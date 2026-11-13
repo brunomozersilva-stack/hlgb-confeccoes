@@ -267,6 +267,11 @@ async function saveGroupEdits(groupId,input,receipt,removalReasons=[]){
      [...removing.keys()].some(id=>!omitted.some(x=>sid(x.id)===id)))
    throw Error('Produto removido sem motivo ou identificação. Reabra a edição para conferir.');
   if(parsed.lines.length===0&&!omitted.length)throw Error('Nenhum serviço ou produto informado.');
+  if(parsed.lines.length===0&&groupApplicationsV9590(rows).length)
+   throw Error('Este pagamento já recebeu um acerto de outro grupo. Não cancele todas as linhas sem conciliar o acerto.');
+  const appliedDelta=groupApplicationsV9590(rows).reduce((sum,x)=>sum+cents(signedApplicationV9590(x)),0);
+  if(parsed.lines.length&&cents(parsed.total)+appliedDelta<=0)
+   throw Error('O crédito a compensar é maior ou igual ao valor restante. Corrija o acerto antes de reduzir os produtos.');
   for(const x of parsed.lines){
    const any=arr('factionPayments').find(y=>sid(y.id)===sid(x.id));
    if(any&&(sid(any.manualGroupId)!==sid(groupId)||isCanceledV9590(any)))
@@ -491,10 +496,12 @@ async function markGroupPaid(groupId,date,method,receipt){
   if(condition==='Pago')throw Error('Este lançamento já consta como pago. Não é permitido pagar duas vezes.');
   if(!['Pendente','Revisar'].includes(condition))throw Error('Situação inconsistente; confira o pagamento antes da baixa.');
   if(rows.some(x=>!['pago','pendente'].includes(norm(x.status))))throw Error('Há uma linha em situação desconhecida; não registrar pagamento.');
-  const total=grandTotal(rows.map(x=>({value:Number(x.value)||0})));
-  if(total<=0)throw Error('Valor total precisa ser maior que zero.');
+  const total=netGroupV9590(allRows);
+  if(total<=0)throw Error('O total após os acertos precisa ser maior que zero. Confira créditos e diferenças.');
+  const allocations=paidAllocationsV9590(rows,total);
   const alreadyPaid=rows.filter(x=>norm(x.status)==='pago');
-  if(alreadyPaid.some(x=>sid(x.paymentDate)!==date||sid(x.paymentMethod)!==method||cents(x.paidAmount)!==cents(x.value)))
+  if(alreadyPaid.some(x=>sid(x.paymentDate)!==date||sid(x.paymentMethod)!==method||
+    cents(x.paidAmount)!==cents(allocations[rows.indexOf(x)])))
    throw Error('Parte deste pagamento já foi registrada com outros dados. Não duplicar; revisar histórico.');
   const oldHub=await preflightGroup(groupId,allRows);
   if(oldHub&&(cents(oldHub.value)!==cents(total)||sid(oldHub.date)!==date||sid(oldHub.paymentMethod)!==method||sid(oldHub.status)!=='Realizado'))
@@ -516,7 +523,10 @@ async function markGroupPaid(groupId,date,method,receipt){
    description:'Pagamento avulso de facção — '+sid(first.factionName),
    value:total,date,category:'Facções',subcategory:'Pagamento avulso',person:first.factionName,
    status:'Realizado',acceptedMethods:[method],paymentMethod:method,realizedAt:date,
-   note:rows.map(x=>sid(x.description)+' '+Number(x.quantity)+'x').join(', ').slice(0,1500),
+   note:(rows.map(x=>sid(x.description)+' '+Number(x.quantity)+'x').join(', ')+
+     (groupApplicationsV9590(allRows).length?' · ACERTOS: '+
+      groupApplicationsV9590(allRows).map(a=>(a.kind==='a_mais'?'-':'+')+money(a.amount)+
+      ' ('+sid(a.reason)+')').join('; '):'')).slice(0,1500),
    sourceType:'faction_manual_payment',sourceId:groupId,
    createdAt:oldHub?.createdAt||first.createdAt||ts,updatedAt:oldHub?.updatedAt||ts};
   if(!oldHub)await saveRecord('hubFinanceEntries',finance);
@@ -528,10 +538,11 @@ async function markGroupPaid(groupId,date,method,receipt){
   for(const row of rows){
    if(norm(row.status)==='pago')continue;
    const history=Array.isArray(row.paymentHistory)?row.paymentHistory.slice():[];
+   const paidForRow=allocations[rows.indexOf(row)];
    const transitionId='manual-paid-'+groupId;
    if(!history.some(x=>sid(x.id)===transitionId))
-    history.push({id:transitionId,date,amount:Number(row.value)||0,method,at:ts,source:'manual-payment-v9588'});
-   const next={...row,status:'Pago',paidAmount:Number(row.value)||0,paymentDate:date,
+    history.push({id:transitionId,date,amount:paidForRow,method,at:ts,source:'manual-payment-v9588'});
+   const next={...row,status:'Pago',paidAmount:paidForRow,paymentDate:date,
     paymentMethod:method,paymentHistory:history,manualPaidAtV9588:ts,updatedAt:ts};
    await saveRecord('factionPayments',next);
    const remote=await remoteRecord('factionPayments',row.id);
@@ -919,7 +930,7 @@ function receiptGroups(){
 function openPayModal(groupId){
  const rows=assertGroup(groupId),status=groupState(rows);
  if(status==='Pago')throw Error('Este lançamento já está pago.');
- const total=grandTotal(rows.map(x=>({value:Number(x.value)||0})));
+ const total=netGroupV9590(rows);
  const priorHub=arr('hubFinanceEntries').find(x=>sid(x?.sourceId)===sid(groupId))||null;
  const paidLine=rows.find(x=>norm(x.status)==='pago')||null;
  const suggestedDate=paidLine?.paymentDate||priorHub?.date||stamp();
