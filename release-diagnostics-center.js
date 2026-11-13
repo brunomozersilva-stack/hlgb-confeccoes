@@ -497,7 +497,20 @@ function scanSystem(){
       out.push({severity:'Média',code:'cut-legacy-unlinked',title:'Corte legado sem vínculo de pedido/produto',description:'Corte '+sid(c.id)+' não possui orderId nem productId. Trate como histórico/manual se for intencional.',page:'corte',refs:[{module:'cuts',id:sid(c.id)}]});
       continue;
     }
-    out.push({severity:'Alta',code:'cut-product-missing',title:'Corte sem produto válido',description:'Corte '+sid(c.id)+' está ligado a um único produto, mas está sem productId válido.',page:'corte',refs:[{module:'cuts',id:sid(c.id)},{module:'orders',id:orderId}]});
+    // v95.86: orientar a correção sem modificar corte, grade ou pedido.
+    // Um pedido avulso também pode ter grade vinculada a um único produto real.
+    const candidate=represented.length===1?represented[0]:'';
+    const candidateKnown=!!candidate&&products.has(candidate);
+    const suffix=candidate
+      ?' A grade do pedido aponta para productId '+candidate+
+       (candidateKnown?' (presente no cadastro carregado).':' (cadastro ainda não confirmado nesta sessão).')+
+       ' Conferir a grade e a revisão antes de preencher o corte; nenhuma alteração automática.'
+      :' A grade não confirma uma identidade única de produto; não vincular automaticamente.';
+    out.push({severity:'Alta',code:'cut-product-missing',title:'Corte sem produto válido',
+      description:'Corte '+sid(c.id)+' está ligado a um único produto, mas está sem productId válido.'+suffix,
+      page:'corte',refs:[{module:'cuts',id:sid(c.id)},{module:'orders',id:orderId}],
+      suggestedProductId:candidate||null,suggestedProductKnownLocally:candidateKnown,
+      requiresHumanVerification:true});
   }
   for(const p of arr('production')){
     if(p?.orderId!=null&&!orders.has(sid(p.orderId)))out.push({severity:'Alta',code:'production-order-missing',title:'Produção sem pedido existente',description:'Produção '+sid(p.id)+' aponta para pedido '+sid(p.orderId)+' que não está ativo.',page:'producao',refs:[{module:'production',id:sid(p.id)}]});
