@@ -1468,7 +1468,7 @@ function buildSummaryPdfV9590(groupId){
   const extra=isPoints?' '+points+' travetadas por peça | Total de travetadas: '+formatQty(q*points):'';
   const note=r.manualLineNoteV9566?'Observação: '+sid(r.manualLineNoteV9566):'';
   const sublines=(extra?wrap(extra,256,7.6):[]).concat(note?wrap(note,256,7.6):[]);
-  const height=Math.max(22,names.length*11+8+sublines.length*10);
+  const height=Math.max(20,names.length*11+8+sublines.length*10);
   ensure(height,true);
   if(i%2===1)rect(left,y,width,height,'zebra');
   rule(left,y-height,right,y-height,'line',.3);
@@ -1506,14 +1506,14 @@ function buildSummaryPdfV9590(groupId){
   summaryRow('Valor registrado como pago',money(paid));
   summaryRow('Saldo deste acerto',money(net-paid));
  }
- if(cents(gross-traveta-nominal)>1||Math.abs(cents(net-(
+ if(Math.abs(cents(gross-traveta-nominal))>1||Math.abs(cents(net-(
   nominal+direct.reduce((s,x)=>s+(x.kind==='abater'?-1:1)*Number(x.amount),0)+
   apps.reduce((s,x)=>s+(x.kind==='a_mais'?-1:1)*Number(x.amount),0)
   )))>1||group.status==='Revisar'){
   multiNote('ATENÇÃO: valores ou situação em revisão. Confira o acerto no sistema antes de efetuar pagamento.');
  }
  if(direct.length||apps.length){
-  title('ABATIMENTOS, ACRÉSCIMOS E COMPENSAÇÕES');
+  if(direct.length+apps.length>1)title('ABATIMENTOS, ACRÉSCIMOS E COMPENSAÇÕES');
   for(const x of direct)
    multiNote((x.kind==='abater'?'Motivo do abatimento: ':'Motivo do acréscimo: ')+normal(x.reason));
   for(const x of apps)
@@ -1522,9 +1522,10 @@ function buildSummaryPdfV9590(groupId){
  const notes=[...new Set(all.map(x=>sid(x.observation||'').trim()).filter(Boolean))];
  for(const x of notes)multiNote('Observação registrada: '+x);
  if(canceled.length){
-  title('ITENS CANCELADOS - NÃO COBRAR');
+  if(canceled.length>1)title('ITENS CANCELADOS - NÃO COBRAR');
   for(const x of canceled)
-   multiNote(normal(x.description)+' - '+formatQty(x.quantity)+' peça(s) - '+
+   multiNote((canceled.length===1?'ITENS CANCELADOS - NÃO COBRAR: ':'')+
+    normal(x.description)+' - '+formatQty(x.quantity)+' peça(s) - '+
     money(x.value)+'. Motivo: '+normal(x.manualCanceledReasonV9590),true);
  }
  if(corrections.length){
