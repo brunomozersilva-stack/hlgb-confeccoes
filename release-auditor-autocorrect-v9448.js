@@ -130,6 +130,25 @@ async function exportWalPayload9494(){
  }finally{setTimeout(()=>URL.revokeObjectURL(url),20000)}
  return {ok:true,file,indexedDbCount:indexedDbEntries.length,localStorageCount:Object.keys(stored.entries||{}).length}
 }
+/* v95.95: evidencia rotas equivalentes da WAL local, sem alterar operações. */
+function summarizeRouteDuplicates9595(entries){
+ const signatures=new Map();let total=0;
+ const stable=v=>Array.isArray(v)?v.map(stable):v&&typeof v==='object'?Object.fromEntries(Object.keys(v).sort().map(k=>[k,stable(v[k])])):v;
+ for(const e of Array.isArray(entries)?entries:[]){
+  if(e?.module!=='routePlans'||e.deleted===true||!e.data||typeof e.data!=='object'||Array.isArray(e.data))continue;
+  const data={...e.data};delete data.id;delete data.createdAt;delete data.updatedAt;
+  const signature=JSON.stringify(stable(data)),id=sid(e.id||e.data.id);
+  if(!signature||!id)continue;
+  total++;
+  if(!signatures.has(signature))signatures.set(signature,[]);
+  signatures.get(signature).push({id,opId:sid(e.opId||'')});
+ }
+ const groups=[...signatures.values()].filter(g=>g.length>1).map(g=>({count:g.length,
+  additionalCopies:g.length-1,records:g.map(v=>({id:v.id,opId:v.opId}))})).sort((a,b)=>b.count-a.count);
+ return {status:'read-only',totalRouteOperations:total,distinctRouteContents:signatures.size,
+  duplicateCopies:groups.reduce((n,g)=>n+g.additionalCopies,0),groups,
+  warning:'Conteúdo equivalente não é ACK por opId e não autoriza remover a WAL. Conferir a rota canônica antes de qualquer reconciliação.'};
+}
 /* v95.93: consulta ampliada SOMENTE leitura: nenhuma escrita nem ACK.
    Não exporta dados de negócio; somente opId, status e nomes de campos. */
 async function reviewWalAll9593(onProgress){
@@ -137,6 +156,8 @@ async function reviewWalAll9593(onProgress){
  const verify=window.hlgbAuditorAutoCorrect9447?.verifyWalReadOnly9593;
  if(typeof verify!=='function')throw new Error('Verificador ampliado indisponível.');
  const result=await verify(60,onProgress);
+ try{result.routeDuplicateReview9595=summarizeRouteDuplicates9595(await readWalIndexedDb9494())}
+ catch(e){result.routeDuplicateReview9595={status:'unavailable',error:sid(e?.message||e),duplicateCopies:null,groups:[]}}
  state.lastWalReview9593=clone(result);
  return result;
 }
@@ -144,7 +165,8 @@ function walReviewText9593(r){
  return 'Conferidas '+Number(r?.checked||0)+' de '+Number(r?.total||0)+
   ' · Conteúdo igual (não é ACK): '+Number(r?.matched||0)+
   ' · Diferentes: '+Number(r?.different||0)+' · Ausentes: '+Number(r?.missing||0)+
-  ' · Sem prova: '+Number(r?.unverified||0)+' · Removidas: 0. Status: '+sid(r?.status||'desconhecido')+'.';
+  ' · Sem prova: '+Number(r?.unverified||0)+' · Removidas: 0. Status: '+sid(r?.status||'desconhecido')+'.'+
+   (Number(r?.routeDuplicateReview9595?.duplicateCopies)>0?' ATENÇÃO: '+Number(r.routeDuplicateReview9595.duplicateCopies)+' cópias adicionais de rotas equivalentes na WAL; não reenviar tudo sem conciliação.':'');
 }
 function downloadWalReview9593(result=state.lastWalReview9593){
  if(!result)throw new Error('Faça a conferência antes de baixar o resultado.');
@@ -155,7 +177,7 @@ function downloadWalReview9593(result=state.lastWalReview9593){
   items:(result.items||[]).map(x=>({module:x.module,id:x.id,opId:x.opId,status:x.status,
    revision:x.revision,remoteDeleted:x.remoteDeleted,
    differentFields:Array.isArray(x.differentFields)?x.differentFields:[]})),
-  errors:clone(result.errors||[])};
+  errors:clone(result.errors||[]),routeDuplicateReview9595:clone(result.routeDuplicateReview9595||null)};
  const blob=new Blob([JSON.stringify(payload,null,2)],{type:'application/json;charset=utf-8'}),url=URL.createObjectURL(blob);
  try{
   const a=document.createElement('a');a.href=url;a.download='HLGB-WAL-CONFERENCIA-SEM-ALTERAR-'+nowIso().replace(/[:.]/g,'-')+'.json';
@@ -239,7 +261,7 @@ async function run(opts={}){
 async function activate(reason='post-auth'){if(!authReady())return false;stamp();const p=await prepare(reason);return !!p.ok}
 window.addEventListener?.('hlgb:authenticated',()=>setTimeout(()=>activate('authenticated-event'),0));
 window.hlgbAuditorAutoCorrect9448={version:V,state,run,prepare,ensureBase,ensureResidual,render,downloadReport,exportWalPayload:exportWalPayload9494,readWalIndexedDb:readWalIndexedDb9494,
- reviewWalAll9593,downloadWalReview9593,exportReport:()=>clone(state.lastReport),status:()=>({...state,authReady:authReady(),baseReady:baseReady(),residualReady:residualReady()})};
+ reviewWalAll9593,downloadWalReview9593,summarizeRouteDuplicates9595,exportReport:()=>clone(state.lastReport),status:()=>({...state,authReady:authReady(),baseReady:baseReady(),residualReady:residualReady()})};
 stamp();if(authReady())setTimeout(()=>activate('loaded-after-auth'),0);console.info('[HLGB] v'+V+' Auditor pronto · prova residual de Produção antes da classificação');
 /* Optional v95.56 learning assistant. Loaded after login; a failure here must
    never delay or interrupt the existing Auditor or any business operation. */
