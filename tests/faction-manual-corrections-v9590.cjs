@@ -116,7 +116,7 @@ const edit={
   'remaining overpayment credit must be visible');
  const pdfAfter=Buffer.from(await api.buildSummaryPdfV9590('pending').arrayBuffer());
  assert(pdfAfter.toString('latin1').includes('Crédito de pagamento anterior'));
- assert(pdfAfter.toString('latin1').includes('Diferença de pagamento anterior'));
+ assert(pdfAfter.toString('latin1').includes('COMPLEMENTO de pagamento anterior'));
  assert(pdfAfter.toString('latin1').includes('Pix enviado'));
  const paid=await api.markGroupPaid('pending','2026-11-13','Pix',null);
  assert.equal(paid.total,72,'cash payout nets credit and underpayment');

@@ -57,7 +57,7 @@ test('simple PDF distinguishes gross, travetada, credit, direct adjustment, paid
  const raw=await strings(pdf);
  assert(raw.startsWith('%PDF-1.4'));
  assert(raw.includes('Helvetica-Bold'));
- assert(raw.includes('TOTAL LÍQUIDO DESTE ACERTO'));
+ assert(raw.includes('TOTAL LÍQUIDO A PAGAR'));
  assert(raw.includes('xref'));
  assert.equal(JSON.stringify(db),before,'PDF must not mutate original records');
 });
@@ -85,4 +85,45 @@ test('long batches split into real PDF pages and preserve footer',async()=>{
  assert(raw.includes('Documento informativo'));
  assert(raw.includes('Produto fictício para teste 79'));
  assert(raw.includes('%%EOF'));
+});
+
+
+test('Ana Lucia layout matches shareable one-page table with R$ 192 deduction and reason',async()=>{
+ const items=[
+  ['Calcinha Adriele',49,.15],['Calcinha Bruna',483,.15],['Calcinha Dalma',49,.15],
+  ['Calcinha Tammy',59,.15],['Calesson Tatiana',416,.15],
+  ['Camisola Ana Melia',30,.25],['Conjunto Paula',59,.25],
+  ['Cueca Boxer Leonardo',120,.15],['Cueca Fem Tabata',358,.15],
+  ['Short Doll Yza',125,.25],['Soutien Aline',362,.15],
+  ['Tanga Canelada',57,.15],['Tanga Katerine',654,.15],
+  ['Tanga Valentina',266,.15]
+ ];
+ const rows=items.map(([name,qty,price],i)=>{
+  const x=makeRow('ana-'+i,'ana','Embalagem — '+name,qty,price);
+  x.factionName='Ana Lucia';x.serviceModeV9577='embalagem';
+  x.observation='Foi Abatido 192 reais de um valor pago a mais da semana anterior';
+  return x;
+ });
+ rows[0].manualDirectAdjustmentsV9591=[{id:'ajuste-192',kind:'abater',
+  amount:192,reason:'Ultimo acerto foi pago a mais'}];
+ const canceled=makeRow('ana-canceled','ana','Embalagem — Tanga Valentina',386,.15,0,'Cancelado');
+ canceled.manualCanceledV9590=true;
+ canceled.manualCanceledReasonV9590='ja foi pago';
+ canceled.factionName='Ana Lucia';canceled.serviceModeV9577='embalagem';
+ rows.push(canceled);
+ const {api,db}=fixture(rows);
+ const initial=JSON.stringify(db);
+ const summary=api.summaryLinesV9590('ana').join('\n').replace(/\u00a0/g,' ');
+ assert(summary.includes('TOTAL LÍQUIDO DESTE ACERTO: R$ 292,45'));
+ const raw=await strings(api.buildSummaryPdfV9590('ana'));
+ assert(raw.includes('/Count 1 >>'), 'reference acerto with 14 models must fit one A4 page');
+ for(const phrase of ['HLGB CONFECÇÕES','PRODUTOS EMBALADOS','Modelo','Qtd.','Unid.','Valor',
+  '3.087','R$ 484,45','R$ 192,00','R$ 292,45',
+  'Motivo do abatimento:','Ultimo acerto foi pago a mais',
+  'TOTAL LÍQUIDO A PAGAR','ITENS CANCELADOS - NÃO COBRAR','ja foi pago',
+  'Este documento é um demonstrativo']){
+  assert(raw.includes(phrase),'PDF do exemplo de Ana Lucia não incluiu: '+phrase);
+ }
+ assert(!raw.includes('faction-manual-'),'never print internal technical IDs to payee');
+ assert.equal(JSON.stringify(db),initial,'PDF must never modify or save payment records');
 });

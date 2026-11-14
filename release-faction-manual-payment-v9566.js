@@ -1318,55 +1318,239 @@ function summaryLinesV9590(groupId){
  out.push('Resumo gerado dos registros desta sessão. Conferir com a nuvem e o Hub Financeiro.');
  return out.flatMap(line=>line.startsWith('§ ')?[line]:pdfWrapV9590(line,88));
 }
+/* v95.100: layout do acerto inspirado no demonstrativo entregue à Ana Lucia:
+ * cabeçalho limpo, grade Modelo / Qtd. / Unid. / Valor, resumo com motivo
+ * abaixo da grade, cancelamentos separados e paginação. Somente leitura.
+ * PDF puro, offline, sem fontes externas nem migrações de lançamentos. */
 function buildSummaryPdfV9590(groupId){
- const lines=summaryLinesV9590(groupId),pages=[];
- let page=[],used=0;
- function height(line){
-  if(line.startsWith('§ '))return 25;
-  if(/^(TOTAL LÍQUIDO|SALDO DESTE ACERTO|ATENÇÃO:)/.test(line))return 20;
-  return 15;
+ const all=assertGroup(groupId),group=receiptGroups().find(g=>g.id===sid(groupId));
+ if(!group)throw Error('Acerto avulso não encontrado para gerar PDF.');
+ const active=activeGroupRowsV9590(all),canceled=all.filter(isCanceledV9590);
+ const direct=directAdjustmentsV9591(all),apps=groupApplicationsV9590(all);
+ const corrections=groupCorrectionsV9590(all);
+ const nominal=nominalGroupV9590(all),net=netGroupV9590(all);
+ const paid=active.reduce((s,x)=>s+cents(x.paidAmount),0)/100;
+ const traveta=active.reduce((s,x)=>s+cents(x.travetaDiscountTotalV9577),0)/100;
+ const gross=active.reduce((s,x)=>s+cents(x.grossValueV9577!=null?
+   Number(x.grossValueV9577):Number(x.value)+Number(x.travetaDiscountTotalV9577||0)),0)/100;
+ const fmtDate=x=>{
+  const d=sid(x||'').match(/^(\d{4})-(\d{2})-(\d{2})/);
+  return d?d[3]+'/'+d[2]+'/'+d[1]:sid(x||'-');
+ };
+ const normal=x=>sid(x??'').trim()||'-';
+ const service=group.serviceMode==='embalagem'?'Embalagem':group.serviceMode==='travetada'?
+  'Travetada':'Costura / facção';
+ const subtitle=group.serviceMode==='embalagem'?'DEMONSTRATIVO DE ACERTO AVULSO DE EMBALAGEM':
+  group.serviceMode==='travetada'?'DEMONSTRATIVO DE ACERTO AVULSO DE TRAVETADA':
+  'DEMONSTRATIVO DE ACERTO AVULSO DE FACÇÃO';
+ const formatQty=n=>Number(n||0).toLocaleString('pt-BR');
+ const palette={
+  purple:'0.35 0.21 0.37', pale:'0.96 0.95 0.97', dark:'0.16 0.15 0.18',
+  muted:'0.39 0.38 0.42', white:'1 1 1', zebra:'0.99 0.98 0.99',
+  line:'0.87 0.85 0.88', alert:'0.65 0.18 0.10'
+ };
+ const left=50,right=545,width=right-left,bottom=77;
+ const pages=[];
+ let stream='',y=0,first=true;
+ const color=(c,stroke=false)=>{stream+=palette[c]+(stroke?' RG\n':' rg\n')};
+ function rect(x,top,w,h,shade){
+  color(shade);stream+=x+' '+(top-h)+' '+w+' '+h+' re f\n';
  }
- for(const line of lines){
-  const h=height(line);
-  if(page.length&&used+h>681){pages.push(page);page=[];used=0}
-  page.push({text:line,height:h});used+=h;
+ function rule(x1,y1,x2,y2,shade='line',weight=.5){
+  color(shade,true);stream+=weight+' w '+x1+' '+y1+' m '+x2+' '+y2+' l S\n';
  }
- if(page.length)pages.push(page);
- if(!pages.length)pages.push([]);
+ function textWidth(s,size){
+  let n=0;
+  for(const c of normal(s)){
+   if(/[il.,:;!|'\s]/.test(c))n+=.27;
+   else if(/[MW@#%]/.test(c))n+=.84;
+   else if(/[0-9]/.test(c))n+=.56;
+   else if(/[A-ZÁÀÂÃÉÊÍÓÔÕÚÇ]/.test(c))n+=.66;
+   else n+=.51;
+  }
+  return n*size;
+ }
+ function draw(s,x,baseline,size=9,weight='FR',shade='dark',align='left'){
+  const val=normal(s),px=align==='right'?x-textWidth(val,size):x;
+  color(shade);stream+='BT /'+weight+' '+size+' Tf 1 0 0 1 '+Math.round(px*100)/100+
+   ' '+Math.round(baseline*100)/100+' Tm ('+pdfEscapeV9590(val)+') Tj ET\n';
+ }
+ function wrap(s,maxWidth,fontSize=8.7){
+  const value=normal(s).replace(/\s+/g,' '),words=value.split(' '),lines=[];
+  let line='';
+  for(let word of words){
+   if(!word)continue;
+   if(line&&textWidth(line+' '+word,fontSize)>maxWidth){lines.push(line);line=''}
+   while(textWidth(word,fontSize)>maxWidth&&word.length>1){
+    let i=1;
+    while(i<word.length&&textWidth(word.slice(0,i+1),fontSize)<=maxWidth)i++;
+    if(line){lines.push(line);line=''}
+    lines.push(word.slice(0,i));word=word.slice(i);
+   }
+   if(word)line+=(line?' ':'')+word;
+  }
+  if(line)lines.push(line);
+  return lines.length?lines:['-'];
+ }
+ function nextPage(){
+  if(stream)pages.push(stream);
+  stream='';first=false;
+  draw('HLGB CONFECÇÕES',left,808,16,'FB','purple');
+  draw('ACERTO AVULSO - CONTINUAÇÃO',left,787,9,'FB','dark');
+  y=762;
+ }
+ function ensure(space,table=false){
+  if(y-space<bottom){
+   nextPage();
+   if(table)tableHead(true);
+  }
+ }
+ function title(s){
+  ensure(35);
+  draw(s,left+6,y,9.4,'FB','dark');
+  y-=22;
+ }
+ function tableHead(repeat=false){
+  if(repeat)draw('PRODUTOS E SERVIÇOS (continuação)',left+6,y,9.4,'FB','dark'),y-=22;
+  rect(left,y,width,23,'purple');
+  draw('Modelo',left+8,y-15,8.8,'FB','white');
+  draw('Qtd.',375,y-15,8.8,'FB','white','right');
+  draw('Unid.',452,y-15,8.8,'FB','white','right');
+  draw('Valor',537,y-15,8.8,'FB','white','right');
+  y-=23;
+ }
+ function paragraph(label,body,muted=false){
+  const prefix=label?label+': ':'',lines=wrap(prefix+normal(body),width-17,8.7);
+  ensure(lines.length*13+8);
+  for(const ln of lines){
+   draw(ln,left+8,y-10,8.7,'FR',muted?'muted':'dark');
+   y-=13;
+  }
+  y-=4;
+ }
+ function summaryRow(label,value,strong=false,fill=false){
+  ensure(26);
+  if(fill)rect(left,y,width,25,'pale');
+  else if(strong)rule(left,y,right,y,'purple',1.15);
+  draw(label,left+9,y-17,strong?9.9:9.1,strong?'FB':'FR','dark');
+  draw(value,right-9,y-17,strong?10.8:9.3,'FB',strong?'purple':'dark','right');
+  y-=25;
+ }
+ function multiNote(s,muted=false){
+  const lines=wrap(s,width-18,8.1);
+  ensure(lines.length*12+5);
+  for(const t of lines){
+   draw(t,left+8,y-9,8.1,'FR',muted?'muted':'dark');y-=12;
+  }
+  y-=5;
+ }
+ // Primeira página: mesma hierarquia visual do PDF Ana Lucia.
+ draw('HLGB CONFECÇÕES',left,807,16,'FB','purple');
+ draw(subtitle,left,787,9.5,'FB','dark');
+ rect(left,769,width,56,'pale');
+ draw('Profissional: '+normal(group.factionName),left+10,750,9.2,'FR','dark');
+ draw('Data do acerto: '+fmtDate(all[0]?.scheduledPaymentDate||group.date),
+  left+277,750,9.2,'FR','dark');
+ draw('Serviço: '+service,left+10,729,9.2,'FR','dark');
+ draw('Situação: '+normal(group.status),left+277,729,9.2,'FR','dark');
+ y=693;
+ title(group.serviceMode==='embalagem'?'PRODUTOS EMBALADOS':'PRODUTOS E SERVIÇOS');
+ tableHead();
+ let qtyTotal=0;
+ for(let i=0;i<active.length;i++){
+  const r=active[i],q=Number(r.quantity)||0,isPoints=r.manualKindV9566==='travetada';
+  const points=isPoints?(Number(r.travetaPointsPerPieceV9592)||1):1;
+  const displayQty=isPoints?q*points:q;
+  qtyTotal+=displayQty;
+  let model=normal(r.description||r.manualProductNameV9589||r.productName||'Serviço');
+  model=model.replace(/^Embalagem\s*[—–-]\s*/i,'');
+  const names=wrap(model,262,8.65);
+  const extra=isPoints?' '+points+' travetadas por peça | Total de travetadas: '+formatQty(q*points):'';
+  const note=r.manualLineNoteV9566?'Observação: '+sid(r.manualLineNoteV9566):'';
+  const sublines=(extra?wrap(extra,256,7.6):[]).concat(note?wrap(note,256,7.6):[]);
+  const height=Math.max(20,names.length*11+8+sublines.length*10);
+  ensure(height,true);
+  if(i%2===1)rect(left,y,width,height,'zebra');
+  rule(left,y-height,right,y-height,'line',.3);
+  for(let k=0;k<names.length;k++)
+   draw(names[k],left+8,y-14-k*11,8.65,'FR','dark');
+  for(let k=0;k<sublines.length;k++)
+   draw(sublines[k],left+12,y-14-names.length*11-k*10,7.6,'FR','muted');
+  draw(formatQty(displayQty),375,y-14,8.7,'FR','dark','right');
+  draw(money(r.unitPrice),452,y-14,8.7,'FR','dark','right');
+  draw(money(r.value),537,y-14,8.7,'FR','dark','right');
+  y-=height;
+ }
+ ensure(26,true);
+ rect(left,y,width,26,'pale');
+ draw('TOTAL DOS SERVIÇOS',left+8,y-17,8.9,'FB','dark');
+ draw(formatQty(qtyTotal),375,y-17,8.8,'FB','dark','right');
+ draw(money(nominal),537,y-17,9.2,'FB','purple','right');
+ y-=32;
+ title('RESUMO DO ACERTO');
+ if(cents(traveta)>0){
+  summaryRow('Valor bruto dos serviços',money(gross));
+  summaryRow('(-) Desconto de travetada','- '+money(traveta));
+ }
+ summaryRow('Total dos serviços',money(nominal));
+ for(const x of direct){
+  const previous=x.kind==='abater'&&/acerto.*(pago a mais|anterior)|ultimo acerto|último acerto/i.test(normal(x.reason));
+  const label=x.kind==='abater'?(previous?'(-) Abatimento do acerto anterior':'(-) Abatimento registrado'):'(+) Acréscimo registrado';
+  summaryRow(label,(x.kind==='abater'?'- ':'+ ')+money(x.amount));
+ }
+ for(const x of apps)
+  summaryRow(x.kind==='a_mais'?'(-) Crédito de pagamento anterior':'(+) COMPLEMENTO de pagamento anterior',
+   (x.kind==='a_mais'?'- ':'+ ')+money(x.amount));
+ summaryRow(group.status==='Pago'?'TOTAL LÍQUIDO DO ACERTO':'TOTAL LÍQUIDO A PAGAR',money(net),true,true);
+ if(group.status==='Pago'||cents(paid)>0){
+  summaryRow('Valor registrado como pago',money(paid));
+  summaryRow('Saldo deste acerto',money(net-paid));
+ }
+ if(Math.abs(cents(gross-traveta-nominal))>1||Math.abs(cents(net-(
+  nominal+direct.reduce((s,x)=>s+(x.kind==='abater'?-1:1)*Number(x.amount),0)+
+  apps.reduce((s,x)=>s+(x.kind==='a_mais'?-1:1)*Number(x.amount),0)
+  )))>1||group.status==='Revisar'){
+  multiNote('ATENÇÃO: valores ou situação em revisão. Confira o acerto no sistema antes de efetuar pagamento.');
+ }
+ if(direct.length||apps.length){
+  if(direct.length+apps.length>1)title('ABATIMENTOS, ACRÉSCIMOS E COMPENSAÇÕES');
+  for(const x of direct)
+   multiNote((x.kind==='abater'?'Motivo do abatimento: ':'Motivo do acréscimo: ')+normal(x.reason));
+  for(const x of apps)
+   multiNote((x.kind==='a_mais'?'Motivo do crédito anterior: ':'Motivo do complemento: ')+normal(x.reason));
+ }
+ const notes=[...new Set(all.map(x=>sid(x.observation||'').trim()).filter(Boolean))];
+ for(const x of notes)multiNote('Observação registrada: '+x);
+ if(canceled.length){
+  if(canceled.length>1)title('ITENS CANCELADOS - NÃO COBRAR');
+  for(const x of canceled)
+   multiNote((canceled.length===1?'ITENS CANCELADOS - NÃO COBRAR: ':'')+
+    normal(x.description)+' - '+formatQty(x.quantity)+' peça(s) - '+
+    money(x.value)+'. Motivo: '+normal(x.manualCanceledReasonV9590),true);
+ }
+ if(corrections.length){
+  title('DIFERENÇAS REGISTRADAS APÓS O PAGAMENTO');
+  multiNote('Estes acertos NÃO alteram novamente o valor original já pago.',true);
+  for(const x of corrections)
+   multiNote((x.kind==='a_mais'?'Pago a mais - crédito':'Pago a menos - diferença')+
+    ': '+money(x.amount)+'. Ainda a compensar: '+money(correctionRemainingV9590(x))+
+    '. Motivo: '+normal(x.reason));
+ }
+ const proofs=[...new Set(all.map(x=>x.receiptPdfV9566?.name).filter(Boolean))];
+ if(proofs.length)multiNote('Comprovante bancário anexado: '+proofs.join(', '),true);
+ multiNote('Este documento é um demonstrativo do acerto e não substitui o comprovante de transferência bancária.',true);
+ if(stream)pages.push(stream);
  const N=pages.length,objs=[],fontReg=3+2*N,fontBold=fontReg+1;
  objs[1]='<< /Type /Catalog /Pages 2 0 R >>';
- objs[2]='<< /Type /Pages /Kids [ '+pages.map((_,i)=>3+i*2+' 0 R').join(' ')+' ] /Count '+N+' >>';
- pages.forEach((items,i)=>{
-  let stream='0.28 0.16 0.35 rg 0 775 595 67 re f\n';
-  stream+='1 1 1 rg BT /FB 16 Tf 40 806 Td ('+
-   pdfEscapeV9590('HLGB | ACERTO DE FACÇÕES')+') Tj ET\n';
-  stream+='1 1 1 rg BT /FR 10 Tf 40 787 Td ('+
-   pdfEscapeV9590('Pagamento avulso - demonstrativo simples')+') Tj ET\n';
-  stream+='0 0 0 rg\n';
-  let y=749;
-  for(const item of items){
-   const line=item.text,section=line.startsWith('§ '),
-    total=/^(TOTAL LÍQUIDO|SALDO DESTE ACERTO)/.test(line),
-    warn=line.startsWith('ATENÇÃO:');
-   if(section){
-    stream+='0.94 0.92 0.96 rg 40 '+(y-6)+' 515 20 re f\n';
-    stream+='0.30 0.18 0.36 rg BT /FB 10 Tf 46 '+y+' Td ('+
-     pdfEscapeV9590(line.slice(2))+') Tj ET\n';
-   }else{
-    stream+=(total?'0.28 0.16 0.35 rg':warn?'0.65 0.20 0.10 rg':'0.13 0.13 0.15 rg')+
-     ' BT /'+(total||warn?'FB':'FR')+' '+(total?10.5:9.3)+' Tf 46 '+y+' Td ('+
-     pdfEscapeV9590(line)+') Tj ET\n';
-   }
-   y-=item.height;
-  }
-  stream+='0.78 0.75 0.80 RG 40 59 m 555 59 l S\n';
-  stream+='0.32 0.32 0.34 rg BT /FR 8 Tf 40 42 Td ('+
-   pdfEscapeV9590('Documento informativo | Referência '+sid(groupId).slice(0,42)+
-    ' | Página '+(i+1)+'/'+N)+') Tj ET\n';
-  const p=3+i*2,content=p+1;
+ objs[2]='<< /Type /Pages /Kids [ '+pages.map((_,i)=>(3+i*2)+' 0 R').join(' ')+' ] /Count '+N+' >>';
+ pages.forEach((body,i)=>{
+  let pdf=body;
+  pdf+='0.87 0.85 0.88 RG 0.5 w 50 61 m 545 61 l S\n';
+  pdf+='0.39 0.38 0.42 rg BT /FR 7.5 Tf 1 0 0 1 50 44 Tm ('+
+   pdfEscapeV9590('HLGB Confecções | Documento informativo | Página '+(i+1)+'/'+N)+') Tj ET\n';
+  const p=3+i*2,content=p+1,bytes=pdfEncode1252V9590(pdf);
   objs[p]='<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /FR '+
    fontReg+' 0 R /FB '+fontBold+' 0 R >> >> /Contents '+content+' 0 R >>';
-  const bytes=pdfEncode1252V9590(stream);
   objs[content]='<< /Length '+bytes.length+' >>\nstream\n'+bytes+'\nendstream';
  });
  objs[fontReg]='<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>';
