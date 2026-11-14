@@ -50,7 +50,7 @@ test('protótipo operacional: sem Supabase, rede, storage, APIs de gravação ou
  assert.equal(js.length,1,'deve existir um único script standalone');
  assert.doesNotThrow(()=>new vm.Script(js[0][1],{filename:'fluxos-operacionais.js'}));
  assert.match(html,/disabled>Salvar \(bloqueado\)/);
- assert.match(html,/Sem.*salvamento|Nenhuma operação é salva/);
+ assert.match(html,/nenhuma operação é salva/i);
  assert.match(overview,/href="\.\/fluxos-operacionais\.html"/);
 });
 
