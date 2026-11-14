@@ -1,0 +1,63 @@
+name: HLGB Evolucao - Laboratorio isolado
+on:
+  push:
+    branches:
+      - feature/evolucao-laboratorio-isolado-v1-20261114
+    paths:
+      - 'evolucao-lab/**'
+      - '.github/workflows/evolucao-lab-isolado.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  isolation:
+    name: Inventory and safety contract
+    runs-on: ubuntu-24.04
+    timeout-minutes: 6
+    steps:
+      - uses: actions/checkout@v4
+        with: {fetch-depth: 0}
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - name: Verify no existing HLGB files are changed
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin main --depth=1
+          BASE="$(git merge-base HEAD origin/main)"
+          git diff --name-status "$BASE" HEAD | tee /tmp/hlgb-evolucao-files.txt
+          if awk -F '\t' '($1 != "A") || ($2 !~ /^evolucao-lab\// && $2 != ".github/workflows/evolucao-lab-isolado.yml") {bad=1} END{exit !bad}' /tmp/hlgb-evolucao-files.txt; then
+            echo "::error::Arquivos atuais do HLGB foram alterados — isolamento violado."
+            exit 1
+          fi
+          echo "Apenas novos arquivos do laboratório. Produção preservada."
+      - name: Static contract, source references and mobile structure
+        run: node --test evolucao-lab/tests/standalone-contract.cjs
+  browser:
+    name: Mobile browsers (${{ matrix.browser }})
+    runs-on: ubuntu-24.04
+    timeout-minutes: 18
+    strategy:
+      fail-fast: false
+      matrix:
+        browser: [chromium, webkit]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - name: Install browser test dependency
+        run: |
+          npm install --no-save playwright@1.55.0
+          npx playwright install --with-deps ${{ matrix.browser }}
+      - name: Validate offline standalone on mobile and desktop
+        env:
+          HLGB_BROWSER: ${{ matrix.browser }}
+          HLGB_SCREENSHOT_DIR: /tmp/hlgb-evolucao-shots
+        run: node evolucao-lab/tests/visual-mobile.cjs
+      - name: Keep illustrative screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: laboratorio-isolado-${{ matrix.browser }}
+          path: /tmp/hlgb-evolucao-shots/*.png
+          if-no-files-found: ignore
