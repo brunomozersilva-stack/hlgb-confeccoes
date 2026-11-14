@@ -79,8 +79,8 @@ const travetaInput=(points,confirm=false)=>({
  assert.equal(paid.total,24);
  assert.equal(server.hubFinanceEntries.find(x=>x.sourceId===result.groupId).value,24);
  const pdf=Buffer.from(await api.buildSummaryPdfV9590(result.groupId).arrayBuffer()).toString('latin1');
- assert(pdf.includes('Travetadas por peca: 3'));
- assert(pdf.includes('Total de pontos: 300'));
+ assert(pdf.includes('3 travetadas por peça'));
+ assert(pdf.includes('Total de travetadas: 300'));
  assert.equal(server.products[0].travetadas,3);
  console.log('PASS v95.92: Katerine fixture 0→3 confirms ficha, multiplies pieces×points×price, WAL/stale guards, Roseli -0.24 and exact Hub/PDF.');
 })().catch(e=>{console.error(e);process.exitCode=1});

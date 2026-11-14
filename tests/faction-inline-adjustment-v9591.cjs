@@ -67,7 +67,7 @@ const adjust=(id,kind,amount,reason)=>({id,kind,amount,reason});
  assert.equal(cloud.factionPayments[0].manualDirectAdjustmentsV9591.length,3,'remote save is confirmed');
  const pdf=Buffer.from(await api.buildSummaryPdfV9590(group).arrayBuffer());
  assert(pdf.toString('utf8',0,5)==='%PDF-');
- assert(pdf.toString('latin1').includes('AJUSTES DIRETOS NESTE PAGAMENTO'));
+ assert(pdf.toString('latin1').includes('ABATIMENTOS, ACRÉSCIMOS E COMPENSAÇÕES'));
  assert(pdf.toString('latin1').includes('Adiantamento da semana'));
  assert(pdf.toString('latin1').includes('Complemento por servi'));
  assert.equal(db.hubFinanceEntries.length,0,'pdf and edit must not pay automatically');

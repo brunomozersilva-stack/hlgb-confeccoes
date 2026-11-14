@@ -262,9 +262,9 @@ const engine=process.env.HLGB_BROWSER==='webkit'?webkit:chromium;
   const pdfRows=page.locator('#fm66-receipts tr[data-fm88-row]').filter({hasText:'Roseli'}).filter({has:page.locator('.fm88-edit')});
   const [report]=await Promise.all([page.waitForEvent('download'),pdfRows.locator('.fm90-summary-pdf').click()]);
   const reportBuffer=await fs.readFile(await report.path());
-  assert.match(report.suggestedFilename(),/HLGB-Pagamento-Avulso/);
+  assert.match(report.suggestedFilename(),/HLGB-Acerto-Faccao-Avulso/);
   assert.equal(reportBuffer.toString('utf8',0,5),'%PDF-');
-  assert(reportBuffer.toString('latin1').includes('CANCELADA'),'PDF must list canceled products');
+  assert(reportBuffer.toString('latin1').includes('ITENS CANCELADOS'),'PDF must list canceled products');
   assert(reportBuffer.toString('latin1').includes('Servico digitado por engano'),'PDF must retain removal reason');
   assert(reportBuffer.length>1300,'detailed PDF must be a real, substantial PDF');
 
@@ -305,7 +305,7 @@ const engine=process.env.HLGB_BROWSER==='webkit'?webkit:chromium;
    page.locator('#fm66-receipts tr[data-fm88-row]').filter({hasText:'Roseli'}).filter({has:page.locator('.fm88-edit')}).locator('.fm90-summary-pdf').click()
   ]);
   const pdfBytes=await fs.readFile(await adjustedPdf.path());
-  assert(pdfBytes.toString('latin1').includes('ABATIMENTO'),'PDF should describe adjustment received');
+  assert(pdfBytes.toString('latin1').includes('Crédito de pagamento anterior'),'PDF should describe adjustment received');
   await page.locator('#fm66-receipts tr[data-fm88-row]').filter({hasText:'Roseli'}).filter({has:page.locator('.fm88-edit')}).locator('.fm88-pay').click();
   await page.locator('#fm88-pay-modal').waitFor({state:'visible'});
   await page.locator('#fm88-paid-method').fill('Pix');
@@ -392,7 +392,7 @@ const engine=process.env.HLGB_BROWSER==='webkit'?webkit:chromium;
       .locator('.fm90-summary-pdf').click()
   ]);
   const directBuffer=await fs.readFile(await directPdf.path());
-  assert(directBuffer.toString('latin1').includes('AJUSTES DIRETOS NESTE PAGAMENTO'),'PDF contains inline adjustments');
+  assert(directBuffer.toString('latin1').includes('ABATIMENTOS, ACRÉSCIMOS E COMPENSAÇÕES'),'PDF contains inline adjustments');
   assert(directBuffer.toString('latin1').includes('Adiantamento de cinco reais'),'PDF contains mandatory note');
 
 
@@ -440,8 +440,8 @@ const engine=process.env.HLGB_BROWSER==='webkit'?webkit:chromium;
     .locator('.fm90-summary-pdf').click()
   ]);
   const pdfRaw=(await fs.readFile(await pdfKaterine.path())).toString('latin1');
-  assert(pdfRaw.includes('Travetadas por peca: 3'),'PDF details points per piece');
-  assert(pdfRaw.includes('Total de pontos: 300'),'PDF details total performed points');
+  assert(pdfRaw.includes('3 travetadas por peça'),'PDF details points per piece');
+  assert(pdfRaw.includes('Total de travetadas: 300'),'PDF details total performed points');
 
   // The same ficha quantity automatically applies a THREE-point deduction
   // to a sewing faction registered as not performing travetada.
