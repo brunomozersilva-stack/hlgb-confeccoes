@@ -6,6 +6,9 @@ on:
       - 'release-auditor-autocorrect-v9447.js'
       - 'release-auditor-autocorrect-v9448.js'
       - 'tests/auditor-wal-readonly-proof-v9482.cjs'
+      - 'tests/auditor-wal-full-review-ui-v9593.cjs'
+      - 'release-hub-tombstone-online.js'
+      - 'tests/hub-preauth-guard-v9593.cjs'
       - '.github/workflows/auditor-wal-field-diff-v9498.yml'
   push:
     branches: [main]
@@ -13,6 +16,9 @@ on:
       - 'release-auditor-autocorrect-v9447.js'
       - 'release-auditor-autocorrect-v9448.js'
       - 'tests/auditor-wal-readonly-proof-v9482.cjs'
+      - 'tests/auditor-wal-full-review-ui-v9593.cjs'
+      - 'release-hub-tombstone-online.js'
+      - 'tests/hub-preauth-guard-v9593.cjs'
   workflow_dispatch:
 permissions:
   contents: read
@@ -28,3 +34,9 @@ jobs:
       - run: node --check release-auditor-autocorrect-v9448.js
       - run: node tests/auditor-wal-readonly-proof-v9482.cjs
       - run: node tests/auditor-wal-visible-proof-v9482.cjs
+      - run: node --check release-hub-tombstone-online.js
+      - run: node --check tests/auditor-wal-full-review-ui-v9593.cjs
+      - run: node --check tests/hub-preauth-guard-v9593.cjs
+      - run: node tests/auditor-wal-full-review-ui-v9593.cjs
+      - run: node tests/hub-preauth-guard-v9593.cjs
+      - run: node tests/audit-hub-tombstone-online-regression.cjs
