@@ -48,15 +48,22 @@ ul{padding-left:20px;line-height:1.7}.flow{display:flex;gap:7px;flex-wrap:wrap;a
 .phone-top{font-weight:800;padding:8px 8px 14px;border-bottom:1px solid var(--line)}
 .phone-item{background:white;border-radius:11px;border:1px solid var(--line);padding:13px;margin-top:10px}
 .phone-item strong{display:block;font-size:13px}.phone-item small{display:block;color:var(--muted);margin-top:4px}
+.dependency-stats{display:flex;gap:8px;flex-wrap:wrap;margin:10px 0}
+.dependency-card{border:1px solid var(--line);border-radius:11px;padding:12px;min-width:0}
+.dependency-card strong{display:block;font-size:13px}.dependency-card p{font-size:12px;color:var(--muted);overflow-wrap:anywhere}
+.dependency-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin:14px 0}
+.dependency-risk{border:1px solid var(--line);border-left:4px solid #95662d;border-radius:10px;padding:12px;margin-top:9px}
+.dependency-risk strong{font-size:13px}.dependency-risk p{font-size:12px;margin:5px 0;overflow-wrap:anywhere}
+@media(max-width:800px){.dependency-grid{grid-template-columns:1fr}}
 .bottom-nav{display:none}
 .status{border-left:4px solid #a895bf;background:var(--soft);padding:10px 13px;margin-top:14px;border-radius:8px;font-size:13px}
 @media(max-width:1060px){.two{grid-template-columns:1fr}.module-list{grid-template-columns:1fr}}
 @media(max-width:760px){
 .shell{display:block}aside{padding:13px 16px;gap:3px}.desktop-nav,.side-foot{display:none}.brand{font-size:20px}
 main{padding:22px 14px 92px}.top{display:block}.notice{max-width:none;margin-top:14px}.cards{grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}.cards .card:last-child{grid-column:1/-1}.card,.panel{padding:15px}.card b{font-size:26px}.item{align-items:start;flex-wrap:wrap}
-.bottom-nav{position:fixed;display:grid;grid-template-columns:repeat(5,1fr);bottom:0;left:0;right:0;z-index:10;background:white;border-top:1px solid var(--line);padding:7px 5px calc(7px + env(safe-area-inset-bottom));box-shadow:0 -3px 12px #2b273410}
+.bottom-nav{position:fixed;display:grid;grid-template-columns:repeat(6,1fr);bottom:0;left:0;right:0;z-index:10;background:white;border-top:1px solid var(--line);padding:7px 5px calc(7px + env(safe-area-inset-bottom));box-shadow:0 -3px 12px #2b273410}
 .bottom-nav button{background:transparent;border:0;border-radius:9px;color:#685c76;font-size:10px;padding:7px 1px;display:grid;justify-items:center;gap:3px;min-width:0}
-.bottom-nav button span{font-size:19px}.bottom-nav button[aria-current=page]{background:var(--soft);color:var(--primary);font-weight:800}
+.bottom-nav button span{font-size:18px}.bottom-nav button[aria-current=page]{background:var(--soft);color:var(--primary);font-weight:800}
 }
 @media(prefers-reduced-motion:reduce){*,*:before,*:after{animation:none!important;scroll-behavior:auto!important}}
 </style>
@@ -69,6 +76,7 @@ main{padding:22px 14px 92px}.top{display:block}.notice{max-width:none;margin-top
     <nav class="desktop-nav" aria-label="Áreas">
       <button class="nav-btn" data-tab="overview" aria-current="page">▦ Visão geral</button>
       <button class="nav-btn" data-tab="modules">▧ Módulos</button>
+      <button class="nav-btn" data-tab="dependencies">↗ Dependências</button>
       <button class="nav-btn" data-tab="laboratory">◇ Laboratório e mobile</button>
       <button class="nav-btn" data-tab="requests">✎ Solicitar melhoria</button>
       <button class="nav-btn" data-tab="quality">✓ Auditoria e critérios</button>
@@ -107,6 +115,25 @@ main{padding:22px 14px 92px}.top{display:block}.notice{max-width:none;margin-top
         <div class="form-row"><label for="module-group">Filtrar por área</label><select id="module-group" class="input"><option value="todos">Todas</option><option value="fundacao">Núcleo</option><option value="operacao">Operação</option><option value="financeiro">Financeiro</option><option value="analise">Análises</option><option value="supervisao">Auditor, Bot e Central</option></select></div>
         <p class="small muted" id="module-count" role="status"></p>
         <div id="module-list" class="module-list"></div>
+      </section>
+    </section>
+    <section class="page" data-page="dependencies" aria-label="Mapa de dependências" hidden>
+      <section class="panel">
+        <h2>Mapa de dependências dos módulos</h2>
+        <p class="small muted">Levantamento estático parcial. As relações observadas no código não comprovam funcionamento real; hipóteses estão identificadas como propostas a validar.</p>
+        <div class="section-note">As setas mostram quem depende de quem. Nenhum controle aqui consulta o banco ou executa gravações.</div>
+        <div class="form-row"><label for="dep-module">Módulo para investigar</label><select id="dep-module" class="input"></select></div>
+        <p id="dep-count" class="small muted" role="status"></p>
+        <div id="dep-stats" class="dependency-stats"></div>
+        <div class="dependency-grid">
+          <div><h3>O módulo depende de</h3><div id="dep-outgoing" class="list"></div></div>
+          <div><h3>Outros módulos que dependem dele</h3><div id="dep-incoming" class="list"></div></div>
+        </div>
+      </section>
+      <section class="panel" style="margin-top:15px">
+        <h2>Pontos de salvamento com maior risco</h2>
+        <p class="small muted">Riscos técnicos observados ou ainda em validação. Não são incidentes ativos, nem autorizam qualquer reparo automático.</p>
+        <div id="dep-write-risks"></div>
       </section>
     </section>
     <section class="page" data-page="laboratory" aria-label="Laboratório mobile" hidden>
@@ -161,6 +188,7 @@ main{padding:22px 14px 92px}.top{display:block}.notice{max-width:none;margin-top
 <nav class="bottom-nav" aria-label="Navegação mobile">
   <button data-tab="overview" aria-current="page"><span aria-hidden="true">⌂</span>Início</button>
   <button data-tab="modules"><span aria-hidden="true">▦</span>Módulos</button>
+  <button data-tab="dependencies"><span aria-hidden="true">↗</span>Mapa</button>
   <button data-tab="laboratory"><span aria-hidden="true">▯</span>Mobile</button>
   <button data-tab="requests"><span aria-hidden="true">＋</span>Melhorias</button>
   <button data-tab="quality"><span aria-hidden="true">✓</span>Auditor</button>
@@ -169,6 +197,7 @@ main{padding:22px 14px 92px}.top{display:block}.notice{max-width:none;margin-top
 (function(){
 "use strict";
 // Dados totalmente fictícios e apenas memória temporária da página. Sem rede, cookies ou storage.
+var depMap={"schema":"hlgb-evolucao-dependency-map-v1","baseline":"main@2440621468d8c4d8260effe32ea47eef478077c4","reviewedAt":"2026-11-14","method":"leitura estática parcial de arquivos versionados sem executar produção","status":"inventario-parcial-nao-validado-em-runtime","moduleIds":["nucleo","autenticacao","pedidos","produtos","corte","producao","separacao","faccoes","acertos","hub","folha","compras","estoque","relatorios","auditor","bot","central","impressora3d","cadastros"],"edges":[{"id":"dep-01","from":"acertos","to":"nucleo","operation":"escrita","status":"observado-no-codigo","evidence":{"file":"release-faction-manual-payment-v9566.js","line":192,"note":"saveRecord delega a gravação por registro"}},{"id":"dep-02","from":"acertos","to":"hub","operation":"escrita","status":"observado-no-codigo","evidence":{"file":"release-faction-manual-payment-v9566.js","line":260,"note":"Pagamento de grupo inclui entrada no Hub"}},{"id":"dep-03","from":"acertos","to":"produtos","operation":"escrita","status":"observado-no-codigo","evidence":{"file":"release-faction-manual-payment-v9566.js","line":54,"note":"Acerto pode atualizar pontos de travetada do produto"}},{"id":"dep-04","from":"faccoes","to":"nucleo","operation":"escrita","status":"observado-no-codigo","evidence":{"file":"release-faction-operations-v9520.js","line":242,"note":"Alteração operacional usa RPC remota"}},{"id":"dep-05","from":"corte","to":"nucleo","operation":"escrita","status":"observado-no-codigo","evidence":{"file":"release-cut-model-grade-adjust.js","line":32,"note":"Grade do corte é gravada na nuvem"}},{"id":"dep-06","from":"producao","to":"nucleo","operation":"escrita","status":"observado-no-codigo","evidence":{"file":"release-production-operations-v9385-core.js","line":77,"note":"Baixas e embalagens usam gravação canônica"}},{"id":"dep-07","from":"separacao","to":"nucleo","operation":"escrita","status":"observado-no-codigo","evidence":{"file":"release-separation-commit-v9319.js","line":43,"note":"Baixa de separação usa gravação por registro"}},{"id":"dep-08","from":"pedidos","to":"nucleo","operation":"leitura","status":"observado-no-codigo","evidence":{"file":"release-orders-cloud-visibility-v9537.js","line":70,"note":"Leitura independente dos pedidos confirmados na nuvem"}},{"id":"dep-09","from":"hub","to":"nucleo","operation":"delegacao","status":"observado-no-codigo","evidence":{"file":"release-hub-save-proof-v9567.js","line":78,"note":"Proteção do Hub delega ao fluxo de salvamento existente; autoridade final ainda precisa de mapeamento"}},{"id":"dep-10","from":"folha","to":"nucleo","operation":"delegacao","status":"observado-no-codigo","evidence":{"file":"release-payroll-reliable-save-guard-v9344.js","line":20,"note":"Guarda chama mecanismo local de persistência; origem canônica exige revisão"}},{"id":"dep-11","from":"relatorios","to":"financeiro","operation":"consulta","status":"proposto-a-validar","evidence":null},{"id":"dep-12","from":"relatorios","to":"producao","operation":"consulta","status":"proposto-a-validar","evidence":null},{"id":"dep-13","from":"relatorios","to":"acertos","operation":"consulta","status":"proposto-a-validar","evidence":null},{"id":"dep-14","from":"faccoes","to":"produtos","operation":"consulta","status":"proposto-a-validar","evidence":null},{"id":"dep-15","from":"corte","to":"produtos","operation":"consulta","status":"proposto-a-validar","evidence":null},{"id":"dep-16","from":"pedidos","to":"produtos","operation":"consulta","status":"proposto-a-validar","evidence":null},{"id":"dep-17","from":"compras","to":"estoque","operation":"consulta","status":"proposto-a-validar","evidence":null},{"id":"dep-18","from":"producao","to":"corte","operation":"consulta","status":"proposto-a-validar","evidence":null},{"id":"dep-19","from":"separacao","to":"corte","operation":"consulta","status":"proposto-a-validar","evidence":null},{"id":"dep-20","from":"bot","to":"auditor","operation":"observacao","status":"observado-no-codigo","evidence":{"file":"release-learning-cloud-v9573.js","line":68,"note":"Módulo de aprendizado coleta evidências do Auditor"}},{"id":"dep-21","from":"central","to":"auditor","operation":"observacao","status":"proposto-a-validar","evidence":null},{"id":"dep-22","from":"auditor","to":"nucleo","operation":"observacao","status":"proposto-a-validar","evidence":null},{"id":"dep-23","from":"impressora3d","to":"nucleo","operation":"leitura","status":"proposto-a-validar","evidence":null},{"id":"dep-24","from":"cadastros","to":"produtos","operation":"consulta","status":"proposto-a-validar","evidence":null},{"id":"dep-25","from":"estoque","to":"producao","operation":"consulta","status":"proposto-a-validar","evidence":null}],"writeRisks":[{"id":"write-1","module":"acertos","label":"Linhas de acerto e pagamento no Hub","priority":"P0","current":"Gravações por linha, além do registro do Hub; atomicidade integral do grupo não comprovada","proposal":"Transação única em RPC, idempotência por grupo e conciliação com extrato","evidence":{"file":"release-faction-manual-payment-v9566.js","line":245,"note":"Salva linhas em loop"},"followup":"Testar falhas entre linhas, replay e duas sessões"},{"id":"write-2","module":"faccoes","label":"Troca de facção / avanço de rota","priority":"P0","current":"Escrita por RPC, com guardas e readback","proposal":"Contrato único de transferência e preservação de histórico","evidence":{"file":"release-faction-operations-v9520.js","line":242,"note":"POST RPC"},"followup":"Validar em dois navegadores e lotes com várias facções"},{"id":"write-3","module":"corte","label":"Edição de grade do corte","priority":"P0","current":"Grava por registro; há atualização de cache local após ACK","proposal":"Versionamento de grade com bloqueio de alteração conflitante","evidence":{"file":"release-cut-model-grade-adjust.js","line":32,"note":"Salvar grade"},"followup":"Confirmar impacto em separação e materiais"},{"id":"write-4","module":"producao","label":"Baixas operacionais e embalagem","priority":"P0","current":"Grava por registro; operação em lote pode executar várias escritas","proposal":"Comandos idempotentes, status de cada lote e recuperação sem duplicar","evidence":{"file":"release-production-operations-v9385-core.js","line":82,"note":"Salvamentos em sequência"},"followup":"Injetar falhas de rede em ambiente isolado"},{"id":"write-5","module":"separacao","label":"Baixa parcial da separação","priority":"P0","current":"Grava dados de separação e pode atualizar pedido","proposal":"Operação única com critérios de commit e replay sem duplicidade","evidence":{"file":"release-separation-commit-v9319.js","line":58,"note":"Salvamento em orders"},"followup":"Testar corrida de salvamentos e grade por cor/tamanho"},{"id":"write-6","module":"hub","label":"Salvar no Hub Financeiro","priority":"P0","current":"Camada de verificação acompanha ação antiga de salvar; falta mapear autoridade de gravação final","proposal":"Unificar comando de gravação, ACK/releitura e pagamento","evidence":{"file":"release-hub-save-proof-v9567.js","line":78,"note":"Delegação à função de salvar"},"followup":"Rastrear implementação base e conflitos de wrappers"},{"id":"write-7","module":"folha","label":"Valores e passagens da folha","priority":"P0","current":"Existe guarda de salvamento e estado local; autoridade de escrita ainda não verificada neste levantamento","proposal":"Salvar por funcionário/competência com histórico e provas de reconciliação","evidence":{"file":"release-payroll-reliable-save-guard-v9344.js","line":20,"note":"Persistência local"},"followup":"Mapear funções centrais e percursos WAL"},{"id":"write-8","module":"compras","label":"Conferência de compras","priority":"P1","current":"O módulo intercepta savePurchaseFromForm para exigir conferentes","proposal":"Contrato de compras + estoque com reserva e controle de transação","evidence":{"file":"release-purchase-checkers.js","line":29,"note":"Wrapper do formulário de compras"},"followup":"Verificar atomicidade entre estoque e compra"}],"executionBoundaries":{"network":false,"database":false,"currentApp":false,"branchOnly":true,"approvalRequired":true},"notes":["O mapa identifica referências explícitas de código; relações de negócio não verificadas são propostas, não fatos.","Setas FROM → TO representam dependência de FROM em relação a TO; não indicam permissão de gravação de TO em FROM.","A existência de um arquivo ou chamada não prova que a função esteja operacional no navegador ou no backend.","Um módulo ser desativável exige contratos reais e regras de quiescência; controles aqui são somente simulação.","A arquitetura futura deverá impedir que a interface fiscalizada pelo Auditor execute reparos em dados de negócio."]};
 var groups=[
 ["Arquitetura, módulos e segurança",18],["Interface, formulários e mobile",22],
 ["Produtos e pesquisa",25],["Relatórios e PDFs",20],["Acertos e pagamentos",35],
@@ -200,7 +229,7 @@ var mods=[
 var simulated=new Set();
 var byId=function(id){return document.getElementById(id)};
 var clean=function(v){return String(v||"").normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLowerCase()};
-var names={overview:"Visão geral da Evolução",modules:"Inventário de módulos",laboratory:"Laboratório e prévia mobile",requests:"Solicitar melhoria",quality:"Auditor, Bot e Central"};
+var names={overview:"Visão geral da Evolução",modules:"Inventário de módulos",dependencies:"Mapa de dependências",laboratory:"Laboratório e prévia mobile",requests:"Solicitar melhoria",quality:"Auditor, Bot e Central"};
 function openTab(tab){
  if(!names[tab])return;
  document.querySelectorAll("[data-page]").forEach(function(p){p.hidden=p.getAttribute("data-page")!==tab});
@@ -210,6 +239,7 @@ function openTab(tab){
  });
  byId("page-title").textContent=names[tab];
  if(tab==="modules")renderModules();
+ if(tab==="dependencies")renderDependencies();
  window.scrollTo({top:0,behavior:"instant"});
 }
 function div(cls){var n=document.createElement("div");n.className=cls;return n}
@@ -221,6 +251,46 @@ function renderRoadmap(){
   a.append(name,detail);status.className="pill";status.textContent="Planejado";
   item.append(a,status);root.appendChild(item);
  });
+}
+function describeModule(id){var r=mods.find(function(m){return m[0]===id});return r?r[1]:id}
+function evidenceText(item){
+ if(!item.evidence)return "Relação proposta para validar no código e no funcionamento real";
+ return item.evidence.file+" · linha "+item.evidence.line+" · "+item.evidence.note;
+}
+function dependencyItem(edge,other){
+ var card=div("dependency-card"),head=div("module-head"),info=document.createElement("strong"),
+  badge=document.createElement("span"),note=document.createElement("p");
+ info.textContent=describeModule(other);badge.className="pill "+(edge.status==="observado-no-codigo"?"good":"warn");
+ badge.textContent=edge.status==="observado-no-codigo"?"Observado no código":"A validar";
+ note.textContent=edge.operation+" · "+evidenceText(edge);
+ head.append(info,badge);card.append(head,note);return card;
+}
+function renderDependencies(){
+ var root=byId("dep-module"),id=root.value||"acertos",outs=depMap.edges.filter(function(e){return e.from===id}),
+ ins=depMap.edges.filter(function(e){return e.to===id});
+ var a=byId("dep-outgoing"),b=byId("dep-incoming");a.replaceChildren();b.replaceChildren();
+ if(!outs.length){var none=div("section-note");none.textContent="Nenhuma ligação de saída mapeada. Isso não significa independência comprovada.";a.appendChild(none)}
+ else outs.forEach(function(e){a.appendChild(dependencyItem(e,e.to))});
+ if(!ins.length){var noneIn=div("section-note");noneIn.textContent="Nenhuma ligação de entrada mapeada. Ainda pode haver dependências não identificadas.";b.appendChild(noneIn)}
+ else ins.forEach(function(e){b.appendChild(dependencyItem(e,e.from))});
+ var risks=depMap.writeRisks.filter(function(r){return r.module===id}),host=byId("dep-write-risks");host.replaceChildren();
+ if(!risks.length){var fallback=div("section-note");fallback.textContent="Não há risco de salvamento detalhado nesta primeira amostra. Não significa que o módulo esteja livre de risco.";host.appendChild(fallback)}
+ else risks.forEach(function(r){
+  var card=div("dependency-risk"),title=document.createElement("strong"),current=document.createElement("p"),
+   proposal=document.createElement("p"),proof=document.createElement("p");
+  title.textContent=r.label+" · "+r.priority;
+  current.textContent="Hoje no código: "+r.current;
+  proposal.textContent="Evolução proposta: "+r.proposal;
+  proof.textContent="Evidência: "+evidenceText(r)+" · Próximo teste: "+r.followup;
+  card.append(title,current,proposal,proof);host.appendChild(card);
+ });
+ var stats=byId("dep-stats");stats.replaceChildren();
+ [["Dependências mapeadas",outs.length],["Dependem deste módulo",ins.length],["Riscos de gravação identificados",risks.length]].forEach(function(row){
+  var chip=document.createElement("span");chip.className="pill";chip.textContent=row[0]+": "+row[1];stats.appendChild(chip);
+ });
+ byId("dep-count").textContent="Total do inventário: "+depMap.edges.length+" ligações ("
+ +depMap.edges.filter(function(e){return e.status==="observado-no-codigo"}).length+
+ " observadas em código, demais a validar). Todas exigem homologação real.";
 }
 function renderModules(){
  var root=byId("module-list"),search=clean(byId("module-search").value),group=byId("module-group").value;
@@ -268,6 +338,7 @@ document.addEventListener("click",function(e){
  }
 });
 byId("module-search").addEventListener("input",renderModules);
+byId("dep-module").addEventListener("change",renderDependencies);
 byId("module-group").addEventListener("change",renderModules);
 byId("role").addEventListener("change",renderRole);
 byId("request-form").addEventListener("submit",function(e){
@@ -280,7 +351,9 @@ byId("request-form").addEventListener("submit",function(e){
 });
 var choices=byId("request-module");
 mods.forEach(function(m){var o=document.createElement("option");o.value=m[0];o.textContent=m[1];choices.appendChild(o)});
-renderRoadmap();renderModules();renderRole();openTab("overview");
+depMap.moduleIds.forEach(function(id){var o=document.createElement("option");o.value=id;o.textContent=describeModule(id);byId("dep-module").appendChild(o)});
+byId("dep-module").value="acertos";
+renderRoadmap();renderModules();renderDependencies();renderRole();openTab("overview");
 })();
 </script>
 </body>
