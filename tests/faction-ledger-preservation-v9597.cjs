@@ -33,6 +33,25 @@ test('boot loads integrity guard exactly once and before other optional modules'
  assert.equal(loader.split(name).length-1,1);
  assert(loader.trim().startsWith(name),'guard must run before any other optional module');
 });
+test('inline emergency protection also works when optional JS fails to load',()=>{
+ const match=router.match(/const hlgbInlineSafety9597=("(?:\\.|[^"\\])*");const inj=/);
+ assert(match,'inline fallback must run before optional script fetches');
+ const tag=JSON.parse(match[1]);
+ assert.match(tag,/^<script>/);
+ const js=tag.slice('<script>'.length,-'</script>'.length);
+ let writes=0;
+ const win={cleanupOrphanOrderRecords(){writes++;return {total:1}},
+  syncFactionPayments(){writes++;return true},
+  renderFactionPayments(){return win.syncFactionPayments()},
+  syncAllData(){return win.syncFactionPayments()}};
+ vm.runInNewContext(js,{window:win});
+ assert.equal(win.__HLGB_AUTOCLEANUP_BLOCKED_9597,true);
+ assert.equal(win.cleanupOrphanOrderRecords().blocked,true);
+ win.renderFactionPayments();win.syncAllData();
+ assert.equal(writes,0);
+ win.syncFactionPayments();
+ assert.equal(writes,1,'explicit derived payment action not disabled permanently');
+});
 test('render or automatic orphan cleanup cannot delete or persist facção records',()=>{
  const x=fixture();
  x.d.factionPayments.push({id:'p1',manualGroupId:'group1'});
