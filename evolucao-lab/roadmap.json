@@ -1,0 +1,482 @@
+{
+  "schema": "hlgb-evolucao-roadmap-v1",
+  "title": "Plano Mestre HLGB Evolução",
+  "baseline": "main@2440621468d8c4d8260effe32ea47eef478077c4",
+  "itemCount": 266,
+  "lastReviewed": "2026-11-14",
+  "status": "planejamento_sem_impacto_em_producao",
+  "invariant": "Todo item começa pendente e só vira concluído com validação técnica + funcional + aprovação explícita",
+  "stages": [
+    {
+      "id": "etapa-1",
+      "name": "Inventário técnico e protótipo isolado da aba Evolução",
+      "status": "em_andamento",
+      "releaseCriteria": "mapa de dependências validado; protótipo móvel e desktop; nenhuma alteração em main ou dados reais"
+    },
+    {
+      "id": "etapa-2",
+      "name": "Núcleo de confiabilidade e contratos modulares",
+      "status": "pendente"
+    },
+    {
+      "id": "etapa-3",
+      "name": "Padrão visual e de formulários, com mobile",
+      "status": "pendente"
+    },
+    {
+      "id": "etapa-4",
+      "name": "Produtos: pesquisa única e ficha técnica",
+      "status": "pendente"
+    },
+    {
+      "id": "etapa-5",
+      "name": "Relatórios e documentos profissionais",
+      "status": "pendente"
+    },
+    {
+      "id": "etapa-6",
+      "name": "Acertos, facções e financeiro transacional",
+      "status": "pendente"
+    },
+    {
+      "id": "etapa-7",
+      "name": "Central de erros, Auditor e Bot 2.0",
+      "status": "pendente"
+    },
+    {
+      "id": "etapa-8",
+      "name": "Pedidos, Corte, Produção, Separação, Estoque e Folha",
+      "status": "pendente"
+    },
+    {
+      "id": "etapa-9",
+      "name": "Comprador inteligente, QR Code e inovação",
+      "status": "pendente"
+    },
+    {
+      "id": "etapa-10",
+      "name": "Homologação e implantação sob autorização",
+      "status": "pendente"
+    }
+  ],
+  "groups": [
+    {
+      "id": "arquitetura",
+      "label": "Arquitetura, módulos e segurança",
+      "start": 1,
+      "end": 18,
+      "priority": "P0",
+      "items": 18,
+      "status": "pendente",
+      "completed": 0
+    },
+    {
+      "id": "experiencia",
+      "label": "Interface, navegação, formulários e mobile",
+      "start": 19,
+      "end": 40,
+      "priority": "P1",
+      "items": 22,
+      "status": "pendente",
+      "completed": 0
+    },
+    {
+      "id": "produtos",
+      "label": "Produtos, pesquisa e ficha técnica",
+      "start": 41,
+      "end": 65,
+      "priority": "P1",
+      "items": 25,
+      "status": "pendente",
+      "completed": 0
+    },
+    {
+      "id": "relatorios",
+      "label": "Relatórios e documentos",
+      "start": 66,
+      "end": 85,
+      "priority": "P1",
+      "items": 20,
+      "status": "pendente",
+      "completed": 0
+    },
+    {
+      "id": "acertos",
+      "label": "Acertos e pagamentos de facções",
+      "start": 86,
+      "end": 120,
+      "priority": "P0",
+      "items": 35,
+      "status": "pendente",
+      "completed": 0
+    },
+    {
+      "id": "faccoes",
+      "label": "Cadastro e acompanhamento das facções",
+      "start": 121,
+      "end": 134,
+      "priority": "P1",
+      "items": 14,
+      "status": "pendente",
+      "completed": 0
+    },
+    {
+      "id": "pedidos",
+      "label": "Pedidos, clientes e separação",
+      "start": 135,
+      "end": 150,
+      "priority": "P1",
+      "items": 16,
+      "status": "pendente",
+      "completed": 0
+    },
+    {
+      "id": "producao",
+      "label": "Corte, produção e PCP",
+      "start": 151,
+      "end": 170,
+      "priority": "P1",
+      "items": 20,
+      "status": "pendente",
+      "completed": 0
+    },
+    {
+      "id": "compras",
+      "label": "Matéria-prima, compras e estoque",
+      "start": 171,
+      "end": 186,
+      "priority": "P1",
+      "items": 16,
+      "status": "pendente",
+      "completed": 0
+    },
+    {
+      "id": "financeiro",
+      "label": "Financeiro, folha e gestão",
+      "start": 187,
+      "end": 202,
+      "priority": "P0",
+      "items": 16,
+      "status": "pendente",
+      "completed": 0
+    },
+    {
+      "id": "supervisao",
+      "label": "Auditor, Bot e Central de Erros",
+      "start": 203,
+      "end": 232,
+      "priority": "P0",
+      "items": 30,
+      "status": "pendente",
+      "completed": 0
+    },
+    {
+      "id": "evolucao",
+      "label": "Aba Evolução e processo de melhorias",
+      "start": 233,
+      "end": 250,
+      "priority": "P0",
+      "items": 18,
+      "status": "pendente",
+      "completed": 0
+    },
+    {
+      "id": "inovacao",
+      "label": "Inovações inteligentes",
+      "start": 251,
+      "end": 266,
+      "priority": "P2",
+      "items": 16,
+      "status": "pendente",
+      "completed": 0
+    }
+  ],
+  "modules": [
+    {
+      "id": "nucleo",
+      "name": "Núcleo de salvamento e sincronização",
+      "category": "fundacao",
+      "priority": "P0",
+      "risk": "critica",
+      "existing": "presenca_de_codigo_ou_tela_a_validar",
+      "evidence": [
+        "release-wal-single-authority-v9339.js",
+        "release-wal-idb-convergence-v9536.js",
+        "release-record-integrity.js"
+      ],
+      "activation": "somente_simulacao",
+      "realDataAccess": false,
+      "stage": "inventario_inicial"
+    },
+    {
+      "id": "autenticacao",
+      "name": "Login e permissões",
+      "category": "fundacao",
+      "priority": "P0",
+      "risk": "critica",
+      "existing": "presenca_de_codigo_ou_tela_a_validar",
+      "evidence": [
+        "release-login-confirm-gate-v9407.js"
+      ],
+      "activation": "somente_simulacao",
+      "realDataAccess": false,
+      "stage": "inventario_inicial"
+    },
+    {
+      "id": "pedidos",
+      "name": "Pedidos",
+      "category": "operacao",
+      "priority": "P1",
+      "risk": "alta",
+      "existing": "presenca_de_codigo_ou_tela_a_validar",
+      "evidence": [
+        "release-orders-cloud-visibility-v9537.js"
+      ],
+      "activation": "somente_simulacao",
+      "realDataAccess": false,
+      "stage": "inventario_inicial"
+    },
+    {
+      "id": "produtos",
+      "name": "Produtos e ficha técnica",
+      "category": "operacao",
+      "priority": "P1",
+      "risk": "media",
+      "existing": "presenca_de_codigo_ou_tela_a_validar",
+      "evidence": [
+        "release-products-search-v9452.js",
+        "release-product-catalog-v9419.js"
+      ],
+      "activation": "somente_simulacao",
+      "realDataAccess": false,
+      "stage": "inventario_inicial"
+    },
+    {
+      "id": "corte",
+      "name": "Corte",
+      "category": "operacao",
+      "priority": "P1",
+      "risk": "alta",
+      "existing": "presenca_de_codigo_ou_tela_a_validar",
+      "evidence": [
+        "release-cut-model-grade-adjust.js",
+        "release-cut-weight-v9579.js"
+      ],
+      "activation": "somente_simulacao",
+      "realDataAccess": false,
+      "stage": "inventario_inicial"
+    },
+    {
+      "id": "producao",
+      "name": "Produção e PCP",
+      "category": "operacao",
+      "priority": "P1",
+      "risk": "alta",
+      "existing": "presenca_de_codigo_ou_tela_a_validar",
+      "evidence": [
+        "release-production-operations-v9385-core.js"
+      ],
+      "activation": "somente_simulacao",
+      "realDataAccess": false,
+      "stage": "inventario_inicial"
+    },
+    {
+      "id": "separacao",
+      "name": "Separação e expedição",
+      "category": "operacao",
+      "priority": "P1",
+      "risk": "alta",
+      "existing": "presenca_de_codigo_ou_tela_a_validar",
+      "evidence": [
+        "release-separation-commit-v9319.js"
+      ],
+      "activation": "somente_simulacao",
+      "realDataAccess": false,
+      "stage": "inventario_inicial"
+    },
+    {
+      "id": "faccoes",
+      "name": "Facções e rotas",
+      "category": "operacao",
+      "priority": "P0",
+      "risk": "critica",
+      "existing": "presenca_de_codigo_ou_tela_a_validar",
+      "evidence": [
+        "release-faction-operations-v9520.js",
+        "release-faction-ledger-preservation-v9597.js"
+      ],
+      "activation": "somente_simulacao",
+      "realDataAccess": false,
+      "stage": "inventario_inicial"
+    },
+    {
+      "id": "acertos",
+      "name": "Acertos e pagamentos avulsos",
+      "category": "financeiro",
+      "priority": "P0",
+      "risk": "critica",
+      "existing": "presenca_de_codigo_ou_tela_a_validar",
+      "evidence": [
+        "release-faction-manual-payment-v9566.js",
+        "release-acerto-returns-v9565.js"
+      ],
+      "activation": "somente_simulacao",
+      "realDataAccess": false,
+      "stage": "inventario_inicial"
+    },
+    {
+      "id": "hub",
+      "name": "Hub Financeiro",
+      "category": "financeiro",
+      "priority": "P0",
+      "risk": "critica",
+      "existing": "presenca_de_codigo_ou_tela_a_validar",
+      "evidence": [
+        "release-hub-save-proof-v9567.js",
+        "release-hub-integrity.js"
+      ],
+      "activation": "somente_simulacao",
+      "realDataAccess": false,
+      "stage": "inventario_inicial"
+    },
+    {
+      "id": "folha",
+      "name": "Folha e provisões",
+      "category": "financeiro",
+      "priority": "P0",
+      "risk": "critica",
+      "existing": "presenca_de_codigo_ou_tela_a_validar",
+      "evidence": [
+        "release-payroll-reliable-save-guard-v9344.js"
+      ],
+      "activation": "somente_simulacao",
+      "realDataAccess": false,
+      "stage": "inventario_inicial"
+    },
+    {
+      "id": "compras",
+      "name": "Compras e fornecedores",
+      "category": "operacao",
+      "priority": "P1",
+      "risk": "alta",
+      "existing": "presenca_de_codigo_ou_tela_a_validar",
+      "evidence": [
+        "release-purchase-checkers.js",
+        "release-supplier-comparator-v9250.js"
+      ],
+      "activation": "somente_simulacao",
+      "realDataAccess": false,
+      "stage": "inventario_inicial"
+    },
+    {
+      "id": "estoque",
+      "name": "Estoque e materiais",
+      "category": "operacao",
+      "priority": "P1",
+      "risk": "alta",
+      "existing": "presenca_de_codigo_ou_tela_a_validar",
+      "evidence": [
+        "release-material-health-v9260.js"
+      ],
+      "activation": "somente_simulacao",
+      "realDataAccess": false,
+      "stage": "inventario_inicial"
+    },
+    {
+      "id": "relatorios",
+      "name": "Relatórios, PDF e análises",
+      "category": "analise",
+      "priority": "P1",
+      "risk": "media",
+      "existing": "presenca_de_codigo_ou_tela_a_validar",
+      "evidence": [
+        "release-reports-stability-v9438.js"
+      ],
+      "activation": "somente_simulacao",
+      "realDataAccess": false,
+      "stage": "inventario_inicial"
+    },
+    {
+      "id": "auditor",
+      "name": "Auditor e autocorreção",
+      "category": "supervisao",
+      "priority": "P0",
+      "risk": "alta",
+      "existing": "presenca_de_codigo_ou_tela_a_validar",
+      "evidence": [
+        "release-auditor-autocorrect-v9448.js",
+        "release-auditor-authority-map-v9374.js"
+      ],
+      "activation": "somente_simulacao",
+      "realDataAccess": false,
+      "stage": "inventario_inicial"
+    },
+    {
+      "id": "bot",
+      "name": "Assistente e aprendizado",
+      "category": "supervisao",
+      "priority": "P0",
+      "risk": "alta",
+      "existing": "presenca_de_codigo_ou_tela_a_validar",
+      "evidence": [
+        "release-auditor-learning-assistant-v9556.js",
+        "release-learning-cloud-v9573.js"
+      ],
+      "activation": "somente_simulacao",
+      "realDataAccess": false,
+      "stage": "inventario_inicial"
+    },
+    {
+      "id": "central",
+      "name": "Central de erros e saúde",
+      "category": "supervisao",
+      "priority": "P0",
+      "risk": "alta",
+      "existing": "presenca_de_codigo_ou_tela_a_validar",
+      "evidence": [
+        "release-health-monitor-panel-v9541.js"
+      ],
+      "activation": "somente_simulacao",
+      "realDataAccess": false,
+      "stage": "inventario_inicial"
+    },
+    {
+      "id": "impressora3d",
+      "name": "Impressora 3D",
+      "category": "operacao",
+      "priority": "P2",
+      "risk": "media",
+      "existing": "presenca_de_codigo_ou_tela_a_validar",
+      "evidence": [
+        "release-printer3d-cloud-hydration-v9517.js"
+      ],
+      "activation": "somente_simulacao",
+      "realDataAccess": false,
+      "stage": "inventario_inicial"
+    },
+    {
+      "id": "cadastros",
+      "name": "Clientes e cadastros gerais",
+      "category": "operacao",
+      "priority": "P1",
+      "risk": "media",
+      "existing": "presenca_de_codigo_ou_tela_a_validar",
+      "evidence": [],
+      "activation": "somente_simulacao",
+      "realDataAccess": false,
+      "stage": "inventario_inicial"
+    }
+  ],
+  "safety": {
+    "currentApplicationModified": false,
+    "mainModified": false,
+    "databaseReads": false,
+    "databaseWrites": false,
+    "externalRequests": false,
+    "localStorageWrites": false,
+    "sessionStorageWrites": false,
+    "serviceWorkers": false,
+    "branchOnly": true,
+    "requiresExplicitApprovalForRelease": true
+  }
+}
