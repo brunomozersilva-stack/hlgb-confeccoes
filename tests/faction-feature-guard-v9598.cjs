@@ -13,6 +13,7 @@ function fixture(withModule){
   get firstChild(){return this.children[0]||null}
   get nextSibling(){if(!this.parentElement)return null;const a=this.parentElement.children;return a[a.indexOf(this)+1]||null}
   get nextElementSibling(){return this.nextSibling}
+  contains(el){let x=el;while(x){if(x===this)return true;x=x.parentElement}return false}
   append(...nodes){nodes.forEach(n=>this.insertBefore(n,null))}
   insertBefore(node,ref){
    if(node.parentElement){const a=node.parentElement.children;a.splice(a.indexOf(node),1)}
