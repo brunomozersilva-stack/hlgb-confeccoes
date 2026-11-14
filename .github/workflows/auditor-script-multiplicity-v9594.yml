@@ -1,0 +1,30 @@
+name: HLGB Auditor Script Evidence v95.94
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'app-stable3.html'
+      - 'release-auditor-script-multiplicity-v9438.js'
+      - 'tests/auditor-script-multiplicity-v9594.cjs'
+      - '.github/workflows/auditor-script-multiplicity-v9594.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'app-stable3.html'
+      - 'release-auditor-script-multiplicity-v9438.js'
+      - 'tests/auditor-script-multiplicity-v9594.cjs'
+      - '.github/workflows/auditor-script-multiplicity-v9594.yml'
+permissions:
+  contents: read
+jobs:
+  verify-classification:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 7
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: node --check release-auditor-script-multiplicity-v9438.js
+      - run: node --check tests/auditor-script-multiplicity-v9594.cjs
+      - run: node --test tests/auditor-script-multiplicity-v9594.cjs
