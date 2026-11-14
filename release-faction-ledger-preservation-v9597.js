@@ -54,8 +54,8 @@ function summaryByGroup(rows){
  return [...groups.values()].sort((a,b)=>b.date.localeCompare(a.date)||a.name.localeCompare(b.name,'pt-BR'));
 }
 function renderProof(payments,factions){
- const host=document.getElementById(PANEL);if(!host)return;
- const body=host.querySelector('[data-remote-proof]'),label=host.querySelector('[data-proof-label]');
+ const host=document.getElementById(PANEL);
+ const body=host?.querySelector('[data-remote-proof]'),label=host?.querySelector('[data-proof-label]');
  const activePayments=payments.filter(x=>!x.deleted_at&&x.data),activeFactions=factions.filter(x=>!x.deleted_at&&x.data);
  const localPaymentIds=new Set(localRows('factionPayments').map(x=>sid(x?.id))),localFactionIds=new Set(localRows('factions').map(x=>sid(x?.id)));
  const missingPayments=activePayments.filter(x=>!localPaymentIds.has(sid(x.entity_id))).length;
