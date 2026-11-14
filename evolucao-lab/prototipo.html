@@ -240,7 +240,7 @@ function openTab(tab){
  byId("page-title").textContent=names[tab];
  if(tab==="modules")renderModules();
  if(tab==="dependencies")renderDependencies();
- window.scrollTo({top:0,behavior:"instant"});
+ window.scrollTo(0,0);
 }
 function div(cls){var n=document.createElement("div");n.className=cls;return n}
 function renderRoadmap(){
