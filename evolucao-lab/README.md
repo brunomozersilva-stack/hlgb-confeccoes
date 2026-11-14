@@ -14,19 +14,21 @@ Esta pasta é um **protótipo isolado**: não é uma tela incorporada ao HLGB em
 ## O que existe nesta primeira entrega
 
 1. `roadmap.json`: registro inicial de **266 itens** do plano mestre, divididos em 13 frentes; inventário inicial de **19 áreas/módulos** a validar.
-2. `prototipo.html`: interface standalone para desktop e mobile, incluindo:
+2. `mapa-dependencias.json`: **25 ligações** entre os módulos (11 encontradas em referências explícitas do código e 14 propostas a validar), incluindo **8 pontos de salvamento de maior risco** e referências a arquivos/linhas. Levantamento estático; não é auditoria funcional.
+3. `prototipo.html`: interface standalone para desktop e mobile, incluindo:
    - resumo das frentes e situação de homologação;
    - busca e filtro de módulos;
+   - mapa de dependências interativo no desktop e celular, evidências e riscos de gravação;
    - simulação de ativação/desativação (somente em memória; núcleo sensível protegido);
    - laboratório mobile por tipo de funcionário;
    - formulário de solicitação de melhoria **sem enviar e sem salvar**;
    - modelos fictícios de incidentes e critérios para Auditor/Bot 2.0.
-3. `tests/standalone-contract.cjs`: testes estáticos de isolamento, segurança, integridade da lista e responsividade.
+4. `tests/standalone-contract.cjs`: testes estáticos de isolamento, segurança, integridade da lista e responsividade.
 
 ## Observações e limitações
 
 - A existência de um arquivo no repositório não comprova que a função correspondente esteja homologada, com integração correta ou operacional em duas sessões.
-- As áreas estão em **inventário preliminar**; o mapa de responsáveis por gravação, telas e dependências ainda exige revisão detalhada.
+- As áreas estão em **inventário preliminar**; o mapa de responsáveis por gravação, telas e dependências ainda exige revisão detalhada. As 14 arestas com status `proposto-a-validar` são hipóteses, não fatos comprovados.
 - Os indicadores do protótipo são **demonstrativos**, não métricas de produção; incidentes exibidos são fictícios.
 - O protótipo não é um gerenciador real de módulos e não opera feature flags em produção.
 - O botão de solicitar melhoria não armazena solicitações, por design. O armazenamento só deverá ser implementado em ambiente de teste isolado, com permissões e autorização.
