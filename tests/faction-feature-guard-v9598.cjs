@@ -47,6 +47,22 @@ test('script is loaded once, after existing edit/receipt/correction implementati
  assert(files.indexOf('release-faction-feature-guard-v9598.js')>files.indexOf('release-faction-manual-payment-v9566.js'));
  assert(files.indexOf('release-faction-feature-guard-v9598.js')>files.indexOf('release-faction-ledger-preservation-v9597.js'));
 });
+test('other recently delivered isolated modules stay in boot (not silently removed)',()=>{
+ const modules=[
+  'release-faction-service-rates-v9577.js',
+  'release-note-receipts-v9576.js',
+  'release-acerto-returns-v9565.js',
+  'release-cut-weight-v9579.js',
+  'release-product-traceability-v9580.js',
+  'release-weekly-material-planner-v9583.js',
+  'release-printer3d-cloud-hydration-v9517.js',
+  'release-printer3d-module-recovery-v9596.js',
+  'release-faction-ledger-preservation-v9597.js'
+ ];
+ const list=loader.match(/const files=\[(.*?)\];/s)?.[1]||'';
+ for(const mod of modules)assert.equal(list.split("'"+mod+"'").length-1,1,
+  'recently delivered module was removed or duplicated: '+mod);
+});
 test('yesterday features remain in production module and cannot silently regress',()=>{
  for(const label of ['fm88-edit','fm88-pay','fm66-attach','fm66-download','fm90-summary-pdf',
  'fm90-correct','fm90-apply','fm91-quick-adjust','manualDirectAdjustmentsV9591',
