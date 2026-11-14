@@ -1381,7 +1381,7 @@ function buildSummaryPdfV9590(groupId){
 }
 function downloadSummaryPdfV9590(groupId){
  const pdf=buildSummaryPdfV9590(groupId),url=URL.createObjectURL(pdf),link=document.createElement('a');
- link.href=url;link.download='HLGB-Pagamento-Avulso-'+sid(groupId).replace(/[^a-zA-Z0-9_-]/g,'_')+'.pdf';
+ link.href=url;link.download='HLGB-Acerto-Faccao-Avulso-'+sid(groupId).replace(/[^a-zA-Z0-9_-]/g,'_')+'.pdf';
  link.style.display='none';document.body.appendChild(link);link.click();link.remove();
  setTimeout(()=>URL.revokeObjectURL(url),15000);
  return {name:link.download,size:pdf.size,pages:null};
@@ -1585,7 +1585,7 @@ function renderReceipts(){
       money(Math.abs(g.adjustmentBalance))+'</div>':'')+'</td>'+
      '<td>'+items+'</td><td>'+proof+'</td><td>'+actions+
      '<button type="button" class="secondary fm90-summary-pdf" data-group-id="'+esc(g.id)+
-     '" style="display:block;margin-top:6px">📄 Baixar PDF detalhado</button></td></tr>';
+     '" style="display:block;margin-top:6px">📄 PDF do acerto</button></td></tr>';
    }).join('')+'</tbody></table></div>':'<div class="empty">Ainda não há pagamentos avulsos.</div>')+
   '<div id="fm66-receipt-feedback" role="status" class="sub" style="margin-top:8px"></div>';
  const input=host.querySelector('#fm88-filter-name'),filterStatus=host.querySelector('#fm88-filter-status');
