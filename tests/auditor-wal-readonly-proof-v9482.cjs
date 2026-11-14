@@ -96,7 +96,8 @@ async function scenario(remote,available=true,idbRows=[sample],reviewAll=false){
  assert.equal(complete.out.walProof.unverified,14,'routine audit must show unverified remainder');
  assert.equal(complete.full.total,22);
  assert.equal(complete.full.checked,22,'explicit review checks all WAL operations');
- assert.equal(complete.full.missing,22,'remote-only route-1 does not match any of these IDs');
+ assert.equal(complete.full.missing,21,'21 route IDs are absent remotely');
+ assert.equal(complete.full.matched,1,'one matching route is NOT an acknowledged WAL operation');
  assert.equal(complete.full.unverified,0,'all operations covered by read-only query');
  assert.equal(complete.full.removed,0);
  assert.equal(complete.progress.length,22);
