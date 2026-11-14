@@ -149,7 +149,7 @@
     {
       "id": "dep-11",
       "from": "relatorios",
-      "to": "financeiro",
+      "to": "hub",
       "operation": "consulta",
       "status": "proposto-a-validar",
       "evidence": null
