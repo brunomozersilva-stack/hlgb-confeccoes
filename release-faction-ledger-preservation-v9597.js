@@ -40,6 +40,27 @@ function fixPaymentPeriod(){
  state.periodFixed=true;
  return true;
 }
+function guardPaymentRendering(){
+ const original=window.renderFactionPayments;
+ if(typeof original!=='function')return false;
+ if(original.__hlgbReadonlyRender9597)return true;
+ function guardedRender(){
+  // A tela deve apenas apresentar registros; sincronização derivada só deve
+  // acontecer em ações explícitas, nunca em render após carga parcial.
+  const previousSync=window.syncFactionPayments;
+  let suppressed=false;
+  if(typeof previousSync==='function'){
+   window.syncFactionPayments=function(){return false};
+   suppressed=true;
+  }
+  try{return original.apply(this,arguments)}
+  finally{if(suppressed)window.syncFactionPayments=previousSync}
+ }
+ guardedRender.__hlgbReadonlyRender9597=true;
+ guardedRender.__original=original;
+ window.renderFactionPayments=guardedRender;
+ return true;
+}
 function summaryByGroup(rows){
  const groups=new Map();
  for(const r of rows){
@@ -109,10 +130,10 @@ function panel(){
  return true;
 }
 function attach(){
- guardLegacyCleanup();fixPaymentPeriod();
+ guardLegacyCleanup();fixPaymentPeriod();guardPaymentRendering();
  panel();
 }
-window.hlgbFactionLedgerPreservation9597={version:V,status,readCloud,guardLegacyCleanup,fixPaymentPeriod,summaryByGroup};
+window.hlgbFactionLedgerPreservation9597={version:V,status,readCloud,guardLegacyCleanup,fixPaymentPeriod,guardPaymentRendering,summaryByGroup};
 attach();
 window.addEventListener?.('hlgb:authenticated',()=>setTimeout(attach,50));
 window.addEventListener?.('pageshow',()=>setTimeout(attach,100));
