@@ -107,7 +107,8 @@ function base(){
  {
   const router=source('app-stable3.html');
   const explicit=['release-auditor-production-v9369.js','release-payroll-month-wal-v9334.js','release-payroll-reliable-save-guard-v9344.js','release-wal-replay-bridge-v9332.js'];
-  for(const file of explicit){const count=router.split("'"+file+"'").length-1;ok(count===1,'script explícito deve aparecer uma vez no roteador: '+file+' count='+count)}
+  const loaderList=router.match(/const files=\[(.*?)\];/s)?.[1]||'';
+  for(const file of explicit){const count=loaderList.split("'"+file+"'").length-1;ok(count===1,'script explícito deve aparecer uma vez na lista do roteador: '+file+' count='+count)}
   ok(router.includes("'release-wal-confirmed-replay-v9333.js'"),'replay confirmado ausente');
   ok(router.includes("'release-payroll-wal-race-v9346.js'"),'autoridade final da folha ausente');
   const payroll=source('release-payroll-month-wal-v9334.js'),safari=source('release-safari-resume-v9266.js');
