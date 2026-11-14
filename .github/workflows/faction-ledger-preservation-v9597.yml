@@ -1,0 +1,31 @@
+name: HLGB Faction Ledger Integrity v95.97
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'app-stable3.html'
+      - 'release-faction-ledger-preservation-v9597.js'
+      - 'tests/faction-ledger-preservation-v9597.cjs'
+      - '.github/workflows/faction-ledger-preservation-v9597.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'app-stable3.html'
+      - 'release-faction-ledger-preservation-v9597.js'
+      - 'tests/faction-ledger-preservation-v9597.cjs'
+      - '.github/workflows/faction-ledger-preservation-v9597.yml'
+permissions:
+  contents: read
+jobs:
+  integrity:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - run: node --check release-faction-ledger-preservation-v9597.js
+      - run: node --test tests/faction-ledger-preservation-v9597.cjs
+      - run: node tests/auditor-script-multiplicity-v9594.cjs
+      - run: node tests/auditor-boot-dedupe-v9397.js
+      - run: node tests/audit-global-visual-stability.cjs
