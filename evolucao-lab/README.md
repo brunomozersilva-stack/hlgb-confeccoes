@@ -11,6 +11,16 @@ Esta pasta é um **protótipo isolado**: não é uma tela incorporada ao HLGB em
 - Mudanças futuras devem ser validadas por testes técnicos e pelos funcionários, com suporte a iPhone Safari e Android Chrome.
 - **Aprovação explícita** será necessária para integrar qualquer alteração na operação atual.
 
+## Etapa atual — contratos e fluxos operacionais (em preparação para testes)
+
+- `contratos-modulares.json`: proposta de 19 contratos de módulos, políticas de ativação e 7 portões de homologação, **não implementados no HLGB atual**.
+- `CONTRATOS-MODULARES.md`: desenho de salvamento por comando, transação única, concorrência, critérios mobile e fronteiras do Bot/Auditor.
+- `fluxos-operacionais.html`: **laboratório independente** de pesquisa de produtos, acertos e relatórios em layouts responsivos, com exemplos **inteiramente fictícios**, sem gravação.
+- `tests/fluxos-contract.cjs` e `tests/fluxos-mobile.cjs`: novos contratos e cenários para verificar pesquisa, cálculos fictícios, filtros, segurança e cinco tamanhos de tela em Chromium e WebKit.
+- Cada alteração na versão real continua proibida até validação completa e aprovação explícita.
+
+**Atenção:** os contratos e exemplos não comprovam funcionamento do backend. O botão Salvar foi intencionalmente desabilitado nos acertos para não sugerir gravação sem transação comprovada.
+
 ## O que existe nesta primeira entrega
 
 1. `roadmap.json`: registro inicial de **266 itens** do plano mestre, divididos em 13 frentes; inventário inicial de **19 áreas/módulos** a validar.
