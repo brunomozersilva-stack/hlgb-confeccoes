@@ -136,7 +136,7 @@ test('mapa HTML: a versão de dados embutida equivale à documentação e funcio
  assert.match(html,/function renderDependencies\(\)/);
  assert.match(html,/grid-template-columns:repeat\(6,1fr\)/);
  assert.match(html,/dependency-grid/);
- assert.match(html,/Sem.*grav|não executa gravações/);
+ assert.match(html,/Nenhum controle aqui consulta o banco ou executa gravações/);
 });
 
 test('controle mobile: navegação das seis áreas mantém todas as visualizações acessíveis',()=>{
