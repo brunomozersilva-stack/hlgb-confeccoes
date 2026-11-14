@@ -9,6 +9,7 @@ const root=path.resolve(dir,'..');
 const html=fs.readFileSync(path.join(dir,'prototipo.html'),'utf8');
 const roadmap=JSON.parse(fs.readFileSync(path.join(dir,'roadmap.json'),'utf8'));
 const readme=fs.readFileSync(path.join(dir,'README.md'),'utf8');
+const dependencies=JSON.parse(fs.readFileSync(path.join(dir,'mapa-dependencias.json'),'utf8'));
 
 test('inventário: 266 itens contínuos, sem números perdidos, e 19 módulos únicos',()=>{
  assert.equal(roadmap.itemCount,266);
@@ -91,4 +92,62 @@ test('controle protegido: núcleo financeiro não oferece desativação real e p
  assert.equal(roadmap.safety.currentApplicationModified,false);
  assert.equal(roadmap.safety.databaseWrites,false);
  assert.equal(roadmap.safety.requiresExplicitApprovalForRelease,true);
+});
+
+
+test('dependências: todas as arestas têm origem/destino conhecidos e evidências verificáveis',()=>{
+ const ids=new Set(roadmap.modules.map(m=>m.id));
+ assert.deepEqual([...dependencies.moduleIds].sort(),[...ids].sort());
+ assert.equal(dependencies.edges.length,25);
+ assert.equal(dependencies.writeRisks.length,8);
+ assert.equal(new Set(dependencies.edges.map(e=>e.id)).size,dependencies.edges.length);
+ for(const edge of dependencies.edges){
+  assert.ok(ids.has(edge.from),'origem inválida: '+edge.from);
+  assert.ok(ids.has(edge.to),'destino inválido: '+edge.to);
+  assert.notEqual(edge.from,edge.to,'autoreferência proibida no levantamento');
+  assert.ok(['observado-no-codigo','proposto-a-validar'].includes(edge.status));
+  if(edge.status==='observado-no-codigo'){
+   assert.ok(edge.evidence&&edge.evidence.file&&Number.isInteger(edge.evidence.line));
+   const lines=fs.readFileSync(path.join(root,edge.evidence.file),'utf8').split('\n');
+   assert.ok(lines[edge.evidence.line-1]?.trim(),'evidência ausente em '+edge.evidence.file+':'+edge.evidence.line);
+  } else {
+   assert.equal(edge.evidence,null,'hipótese não pode ser apresentada como evidência');
+  }
+ }
+ for(const item of dependencies.writeRisks){
+  assert.ok(ids.has(item.module));
+  assert.ok(item.followup);
+  assert.ok(['P0','P1','P2'].includes(item.priority));
+  const lines=fs.readFileSync(path.join(root,item.evidence.file),'utf8').split('\n');
+  assert.ok(lines[item.evidence.line-1]?.trim());
+ }
+});
+
+test('mapa HTML: a versão de dados embutida equivale à documentação e funciona sem rede',()=>{
+ const match=html.match(/var depMap=(\{[\s\S]*?\});\nvar groups=/);
+ assert.ok(match,'dados de dependências não incorporados ao protótipo');
+ const embedded=JSON.parse(match[1]);
+ assert.deepEqual(embedded,dependencies);
+ assert.match(html,/data-page="dependencies"/);
+ assert.match(html,/id="dep-module"/);
+ assert.match(html,/id="dep-outgoing"/);
+ assert.match(html,/id="dep-incoming"/);
+ assert.match(html,/id="dep-write-risks"/);
+ assert.match(html,/function renderDependencies\(\)/);
+ assert.match(html,/grid-template-columns:repeat\(6,1fr\)/);
+ assert.match(html,/dependency-grid/);
+ assert.match(html,/Sem.*grav|não executa gravações/);
+});
+
+test('controle mobile: navegação das seis áreas mantém todas as visualizações acessíveis',()=>{
+ for(const tab of ['overview','modules','dependencies','laboratory','requests','quality']){
+  const area=html.match(new RegExp('data-page="'+tab+'"','g'))||[];
+  const menu=html.match(new RegExp('data-tab="'+tab+'"','g'))||[];
+  assert.equal(area.length,1,'deve haver uma única seção '+tab);
+  assert.equal(menu.length,2,'deve haver menu lateral e mobile: '+tab);
+ }
+ assert.match(html,/@media\(max-width:760px\)/);
+ assert.match(html,/safe-area-inset-bottom/);
+ assert.match(html,/dep-outgoing/);
+ assert.match(html,/:focus-visible/);
 });
