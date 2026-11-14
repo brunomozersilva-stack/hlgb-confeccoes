@@ -1282,7 +1282,7 @@ function summaryLinesV9590(groupId){
    ' | Total: '+f(x.value));
   if(x.manualKindV9566==='travetada'){
    const points=Number(x.travetaPointsPerPieceV9592)||1;
-   out.push('   '+points+' travetada(s) por peça | Total de travetadas: '+(qty*points).toLocaleString('pt-BR'));
+   out.push('   '+points+' travetadas por peça | Total de travetadas: +(qty*points).toLocaleString('pt-BR'));
   }
   if(val(x.manualLineNoteV9566)!=='-')out.push('   Observação: '+val(x.manualLineNoteV9566));
  }
