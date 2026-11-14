@@ -32,7 +32,9 @@ jobs:
           fi
           echo "Apenas novos arquivos do laboratório. Produção preservada."
       - name: Static contract, source references and mobile structure
-        run: node --test evolucao-lab/tests/standalone-contract.cjs
+        run: |
+          node --test evolucao-lab/tests/standalone-contract.cjs
+          node --test evolucao-lab/tests/fluxos-contract.cjs
   browser:
     name: Mobile browsers (${{ matrix.browser }})
     runs-on: ubuntu-24.04
@@ -53,7 +55,9 @@ jobs:
         env:
           HLGB_BROWSER: ${{ matrix.browser }}
           HLGB_SCREENSHOT_DIR: /tmp/hlgb-evolucao-shots
-        run: node evolucao-lab/tests/visual-mobile.cjs
+        run: |
+          node evolucao-lab/tests/visual-mobile.cjs
+          node evolucao-lab/tests/fluxos-mobile.cjs
       - name: Keep illustrative screenshots
         if: always()
         uses: actions/upload-artifact@v4
