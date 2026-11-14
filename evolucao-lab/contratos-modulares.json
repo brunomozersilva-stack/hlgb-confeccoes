@@ -1,0 +1,447 @@
+{
+  "schema": "hlgb-evolucao-module-contracts-v1",
+  "baseline": "main@2440621468d8c4d8260effe32ea47eef478077c4",
+  "state": "propostas_de_arquitetura_nao_implementadas",
+  "createdAt": "2026-11-14",
+  "implementation": false,
+  "appliesToProduction": false,
+  "databaseAccess": false,
+  "principles": [
+    "As telas não escrevem diretamente tabelas; todo comando passa por um núcleo autenticado.",
+    "O núcleo de gravação, autenticação, controle de revisão e WAL é protegido e não pode ser desligado durante operações.",
+    "Desativar módulo opcional oculta a função, mas mantém consultas e registros históricos.",
+    "Toda gravação sensível tem chave de idempotência e confirmação de readback por estado de negócio.",
+    "Várias linhas de um acerto devem usar transação de banco única; a implementação ainda não existe.",
+    "Relatórios não devem causar mutações.",
+    "Auditor e Bot são observadores; produção não depende de seu funcionamento.",
+    "Cada módulo exige testes desktop e mobile, acessibilidade e validação em Safari/WebKit e Chrome.",
+    "Nenhum contrato autoriza alterações no main, banco ou aplicação sem aprovação explícita."
+  ],
+  "commands": {
+    "envelopeRequired": [
+      "commandId",
+      "moduleId",
+      "kind",
+      "actorId",
+      "expectedRevision",
+      "issuedAt",
+      "payloadSchemaVersion",
+      "payload"
+    ],
+    "lifeCycle": [
+      "draft",
+      "validated",
+      "submitted",
+      "acknowledged",
+      "readback_confirmed",
+      "conflicted",
+      "uncertain",
+      "rejected"
+    ],
+    "saveRules": {
+      "idempotencyKey": "commandId",
+      "atomic": true,
+      "optimisticLock": "expectedRevision",
+      "readback": "business-fields-with-revision",
+      "replayOnTimeout": "never_without_reconciliation",
+      "auditTrail": true
+    },
+    "safeDisable": {
+      "preconditions": [
+        "no_inflight_commands",
+        "no_unconfirmed_wal_of_module",
+        "allow_read_only_history"
+      ],
+      "failure": "block_disable_and_show_reason"
+    },
+    "botPermissions": [
+      "read_technical_events",
+      "propose_diagnostic",
+      "generate_test_in_isolation",
+      "prepare_pr_for_review"
+    ],
+    "auditorPermissions": [
+      "read_technical_events",
+      "inspect_consistency",
+      "publish_read_only_findings"
+    ]
+  },
+  "modules": [
+    {
+      "id": "nucleo",
+      "flagPolicy": "always_on",
+      "group": "central",
+      "dataDomain": "system",
+      "priority": "P0",
+      "operations": [
+        "record.write",
+        "record.read",
+        "wal.inspect",
+        "sync.reconcile"
+      ],
+      "safety": "A única autoridade transacional não pode ser desligada durante gravações; deve falhar fechado.",
+      "implementation": "planned",
+      "toggleImplemented": false,
+      "authorityVerified": false,
+      "mobileContract": "touch_first_responsive_accessible",
+      "dependenciesStatus": "provisional"
+    },
+    {
+      "id": "autenticacao",
+      "flagPolicy": "always_on",
+      "group": "central",
+      "dataDomain": "system",
+      "priority": "P0",
+      "operations": [
+        "auth.session",
+        "permission.check"
+      ],
+      "safety": "Tokens e regras de acesso são de domínio do núcleo.",
+      "implementation": "planned",
+      "toggleImplemented": false,
+      "authorityVerified": false,
+      "mobileContract": "touch_first_responsive_accessible",
+      "dependenciesStatus": "provisional"
+    },
+    {
+      "id": "pedidos",
+      "flagPolicy": "controlled",
+      "group": "operacao",
+      "dataDomain": "orders",
+      "priority": "P1",
+      "operations": [
+        "order.read",
+        "order.propose",
+        "order.commit"
+      ],
+      "safety": "Pedido usa núcleos de gravação e versão esperada.",
+      "implementation": "planned",
+      "toggleImplemented": false,
+      "authorityVerified": false,
+      "mobileContract": "touch_first_responsive_accessible",
+      "dependenciesStatus": "provisional"
+    },
+    {
+      "id": "produtos",
+      "flagPolicy": "controlled",
+      "group": "operacao",
+      "dataDomain": "products",
+      "priority": "P1",
+      "operations": [
+        "product.search",
+        "product.read",
+        "product.update"
+      ],
+      "safety": "Busca somente leitura; mudanças de ficha exigem versão.",
+      "implementation": "planned",
+      "toggleImplemented": false,
+      "authorityVerified": false,
+      "mobileContract": "touch_first_responsive_accessible",
+      "dependenciesStatus": "provisional"
+    },
+    {
+      "id": "corte",
+      "flagPolicy": "controlled",
+      "group": "operacao",
+      "dataDomain": "cuts",
+      "priority": "P0",
+      "operations": [
+        "cut.read",
+        "cut.grade.change",
+        "cut.confirm"
+      ],
+      "safety": "Alterações em grades não devem sobrescrever grade já usada em produção.",
+      "implementation": "planned",
+      "toggleImplemented": false,
+      "authorityVerified": false,
+      "mobileContract": "touch_first_responsive_accessible",
+      "dependenciesStatus": "provisional"
+    },
+    {
+      "id": "producao",
+      "flagPolicy": "controlled",
+      "group": "operacao",
+      "dataDomain": "production",
+      "priority": "P0",
+      "operations": [
+        "production.read",
+        "production.writeoff",
+        "packaging.confirm"
+      ],
+      "safety": "Lotes e baixas parciais exigem idempotência.",
+      "implementation": "planned",
+      "toggleImplemented": false,
+      "authorityVerified": false,
+      "mobileContract": "touch_first_responsive_accessible",
+      "dependenciesStatus": "provisional"
+    },
+    {
+      "id": "separacao",
+      "flagPolicy": "controlled",
+      "group": "operacao",
+      "dataDomain": "separations",
+      "priority": "P0",
+      "operations": [
+        "separation.read",
+        "separation.partial",
+        "separation.finish"
+      ],
+      "safety": "A atualização do pedido relacionada à separação exige consistência atômica.",
+      "implementation": "planned",
+      "toggleImplemented": false,
+      "authorityVerified": false,
+      "mobileContract": "touch_first_responsive_accessible",
+      "dependenciesStatus": "provisional"
+    },
+    {
+      "id": "faccoes",
+      "flagPolicy": "controlled",
+      "group": "operacao",
+      "dataDomain": "factions",
+      "priority": "P0",
+      "operations": [
+        "faction.read",
+        "faction.transfer",
+        "traveta.confirm"
+      ],
+      "safety": "Transferência exige origem/destino e histórico imutável.",
+      "implementation": "planned",
+      "toggleImplemented": false,
+      "authorityVerified": false,
+      "mobileContract": "touch_first_responsive_accessible",
+      "dependenciesStatus": "provisional"
+    },
+    {
+      "id": "acertos",
+      "flagPolicy": "controlled",
+      "group": "financeiro",
+      "dataDomain": "factionPayments",
+      "priority": "P0",
+      "operations": [
+        "settlement.draft",
+        "settlement.preview",
+        "settlement.commit",
+        "settlement.read"
+      ],
+      "safety": "Salvar grupo em uma transação; nenhum reenvio cego por falha de releitura.",
+      "implementation": "planned",
+      "toggleImplemented": false,
+      "authorityVerified": false,
+      "mobileContract": "touch_first_responsive_accessible",
+      "dependenciesStatus": "provisional"
+    },
+    {
+      "id": "hub",
+      "flagPolicy": "controlled",
+      "group": "financeiro",
+      "dataDomain": "hubFinanceEntries",
+      "priority": "P0",
+      "operations": [
+        "finance.read",
+        "finance.commit",
+        "finance.approve"
+      ],
+      "safety": "Lançamentos devem ser imutáveis com correções compensatórias quando aplicável.",
+      "implementation": "planned",
+      "toggleImplemented": false,
+      "authorityVerified": false,
+      "mobileContract": "touch_first_responsive_accessible",
+      "dependenciesStatus": "provisional"
+    },
+    {
+      "id": "folha",
+      "flagPolicy": "controlled",
+      "group": "financeiro",
+      "dataDomain": "payroll",
+      "priority": "P0",
+      "operations": [
+        "payroll.read",
+        "payroll.change",
+        "payroll.close"
+      ],
+      "safety": "Valor por competência exige controle de concorrência e permissão.",
+      "implementation": "planned",
+      "toggleImplemented": false,
+      "authorityVerified": false,
+      "mobileContract": "touch_first_responsive_accessible",
+      "dependenciesStatus": "provisional"
+    },
+    {
+      "id": "compras",
+      "flagPolicy": "controlled",
+      "group": "operacao",
+      "dataDomain": "purchases",
+      "priority": "P1",
+      "operations": [
+        "purchase.plan",
+        "purchase.commit",
+        "purchase.receive"
+      ],
+      "safety": "Recebimento e estoque devem se reconciliar.",
+      "implementation": "planned",
+      "toggleImplemented": false,
+      "authorityVerified": false,
+      "mobileContract": "touch_first_responsive_accessible",
+      "dependenciesStatus": "provisional"
+    },
+    {
+      "id": "estoque",
+      "flagPolicy": "controlled",
+      "group": "operacao",
+      "dataDomain": "materials",
+      "priority": "P1",
+      "operations": [
+        "stock.read",
+        "stock.reserve",
+        "stock.move",
+        "stock.count"
+      ],
+      "safety": "Movimentações de estoque exigem saldo auditável.",
+      "implementation": "planned",
+      "toggleImplemented": false,
+      "authorityVerified": false,
+      "mobileContract": "touch_first_responsive_accessible",
+      "dependenciesStatus": "provisional"
+    },
+    {
+      "id": "relatorios",
+      "flagPolicy": "optional",
+      "group": "analise",
+      "dataDomain": "read_models",
+      "priority": "P1",
+      "operations": [
+        "report.query",
+        "report.export"
+      ],
+      "safety": "Apenas leitura, jamais gravação de negócio.",
+      "implementation": "planned",
+      "toggleImplemented": false,
+      "authorityVerified": false,
+      "mobileContract": "touch_first_responsive_accessible",
+      "dependenciesStatus": "provisional"
+    },
+    {
+      "id": "auditor",
+      "flagPolicy": "optional",
+      "group": "supervisao",
+      "dataDomain": "systemAuditRuns",
+      "priority": "P0",
+      "operations": [
+        "audit.inspect",
+        "audit.evidence"
+      ],
+      "safety": "Observação independente: não pode executar correções de dados de negócio.",
+      "implementation": "planned",
+      "toggleImplemented": false,
+      "authorityVerified": false,
+      "mobileContract": "touch_first_responsive_accessible",
+      "dependenciesStatus": "provisional"
+    },
+    {
+      "id": "bot",
+      "flagPolicy": "optional",
+      "group": "supervisao",
+      "dataDomain": "technical_learning",
+      "priority": "P0",
+      "operations": [
+        "bot.investigate",
+        "bot.propose_pr"
+      ],
+      "safety": "IA sem permissões de gravação nos registros financeiros; PR mediante revisão.",
+      "implementation": "planned",
+      "toggleImplemented": false,
+      "authorityVerified": false,
+      "mobileContract": "touch_first_responsive_accessible",
+      "dependenciesStatus": "provisional"
+    },
+    {
+      "id": "central",
+      "flagPolicy": "optional",
+      "group": "supervisao",
+      "dataDomain": "systemIssues",
+      "priority": "P0",
+      "operations": [
+        "incident.read",
+        "incident.group",
+        "incident.annotate"
+      ],
+      "safety": "Central mostra fatos e incertezas; não cancela pagamentos.",
+      "implementation": "planned",
+      "toggleImplemented": false,
+      "authorityVerified": false,
+      "mobileContract": "touch_first_responsive_accessible",
+      "dependenciesStatus": "provisional"
+    },
+    {
+      "id": "impressora3d",
+      "flagPolicy": "optional",
+      "group": "operacao",
+      "dataDomain": "printer3d",
+      "priority": "P2",
+      "operations": [
+        "printer3d.catalog",
+        "printer3d.inventory"
+      ],
+      "safety": "Isolamento total do núcleo de fabricação de confecções.",
+      "implementation": "planned",
+      "toggleImplemented": false,
+      "authorityVerified": false,
+      "mobileContract": "touch_first_responsive_accessible",
+      "dependenciesStatus": "provisional"
+    },
+    {
+      "id": "cadastros",
+      "flagPolicy": "controlled",
+      "group": "operacao",
+      "dataDomain": "directories",
+      "priority": "P1",
+      "operations": [
+        "directory.read",
+        "directory.change"
+      ],
+      "safety": "Identidades estáveis para clientes, fornecedores e facções.",
+      "implementation": "planned",
+      "toggleImplemented": false,
+      "authorityVerified": false,
+      "mobileContract": "touch_first_responsive_accessible",
+      "dependenciesStatus": "provisional"
+    }
+  ],
+  "gates": [
+    {
+      "id": "G0",
+      "name": "Code inventory",
+      "requirement": "Entradas, escritores e dependências documentados"
+    },
+    {
+      "id": "G1",
+      "name": "Safety contract",
+      "requirement": "Sem gravações fora da autoridade; permissões e riscos revistos"
+    },
+    {
+      "id": "G2",
+      "name": "Contract tests",
+      "requirement": "Testes de unidade, integração, dados e regressões"
+    },
+    {
+      "id": "G3",
+      "name": "Mobile and UX",
+      "requirement": "Fluxos funcionam em WebKit, Chromium e telas 320/375/390/768/1280"
+    },
+    {
+      "id": "G4",
+      "name": "Concurrent sessions",
+      "requirement": "Se escreve dados, simular dois usuários e falhas de conexão"
+    },
+    {
+      "id": "G5",
+      "name": "Homologação",
+      "requirement": "Usuária e funcionário aprovam o fluxo"
+    },
+    {
+      "id": "G6",
+      "name": "Release",
+      "requirement": "Autorização explícita para mesclar/publicar"
+    }
+  ]
+}
