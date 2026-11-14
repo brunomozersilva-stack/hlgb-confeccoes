@@ -1223,125 +1223,154 @@ function pdfWrapV9590(value,max=93){
  }
  return result;
 }
+/* v95.99: PDF de acerto claro. A apresentação consulta dados existentes, não grava valores.
+ * Ajustes após pagamento (a mais / a menos) NÃO são somados outra vez à cobrança original. */
 function summaryLinesV9590(groupId){
  const all=assertGroup(groupId),group=receiptGroups().find(g=>g.id===sid(groupId));
- if(!group)throw Error('Pagamento avulso não encontrado para o relatório.');
- const active=activeGroupRowsV9590(all),canceled=all.filter(isCanceledV9590),
-  apps=groupApplicationsV9590(all),corrections=groupCorrectionsV9590(all),
-  original=nominalGroupV9590(all),net=netGroupV9590(all),
-  paid=active.reduce((sum,x)=>sum+(Number(x.paidAmount)||0),0);
- const f=money,v=x=>sid(x||'-'),date=()=>new Date().toLocaleString('pt-BR');
- const out=['RESUMO DETALHADO DE PAGAMENTO AVULSO','HLGB CONFECCOES','Emitido: '+date(),
-  'Documento informativo: confira com o comprovante bancario e o Hub Financeiro.',
-  'IDENTIFICACAO',
-  'Lancamento: '+group.id,'Profissional / faccao: '+v(group.factionName),
-  'Atividade: '+(group.serviceMode==='embalagem'?'Embalagem':group.serviceMode==='travetada'?'Travetada':'Costura / faccao'),
-  'Status: '+group.status,'Data prevista / pagamento: '+v(group.date),
-  'Linhas ativas: '+active.length+' | Canceladas: '+canceled.length,
-  'VALORES',
-  'Soma dos servicos ativos: '+f(original),
-  'Compensacoes recebidas: '+apps.map(x=>(x.kind==='a_mais'?'-':'+')+f(x.amount)).join(' / ').slice(0,160),
-  'Ajustes diretos (abatimentos/acrescimos): '+
-   directAdjustmentsV9591(all).map(x=>(x.kind==='abater'?'-':'+')+f(x.amount)).join(' / ').slice(0,160),
-  'Total liquido previsto deste pagamento: '+f(net),
-  'Valor marcado como pago nas linhas: '+f(paid),
-  'Saldo deste pagamento: '+f(net-paid),
-  'PRODUTOS E SERVICOS (ATIVOS)'];
- if(!active.length)out.push('Nenhum servico ativo.');
+ if(!group)throw Error('Pagamento avulso não encontrado para o PDF.');
+ const active=activeGroupRowsV9590(all),canceled=all.filter(isCanceledV9590);
+ const apps=groupApplicationsV9590(all),direct=directAdjustmentsV9591(all);
+ const corrections=groupCorrectionsV9590(all),f=money;
+ const val=x=>sid(x??'').trim()||'-';
+ const displayDate=x=>{
+  const s=val(x),m=s.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  return m?m[3]+'/'+m[2]+'/'+m[1]:s;
+ };
+ const centsGross=x=>cents(x.grossValueV9577!=null?Number(x.grossValueV9577):
+  (Number(x.value)||0)+(Number(x.travetaDiscountTotalV9577)||0));
+ const gross=active.reduce((s,x)=>s+centsGross(x),0)/100;
+ const traveta=active.reduce((s,x)=>s+cents(x.travetaDiscountTotalV9577),0)/100;
+ const nominal=nominalGroupV9590(all),net=netGroupV9590(all);
+ const lessDirect=direct.filter(x=>x.kind==='abater').reduce((s,x)=>s+cents(x.amount),0)/100;
+ const moreDirect=direct.filter(x=>x.kind==='acrescentar').reduce((s,x)=>s+cents(x.amount),0)/100;
+ const credit=apps.filter(x=>x.kind==='a_mais').reduce((s,x)=>s+cents(x.amount),0)/100;
+ const extra=apps.filter(x=>x.kind==='a_menos').reduce((s,x)=>s+cents(x.amount),0)/100;
+ const paid=active.reduce((s,x)=>s+cents(x.paidAmount),0)/100;
+ const service=group.serviceMode==='embalagem'?'Embalagem':
+  group.serviceMode==='travetada'?'Travetada':'Costura / facção';
+ const out=[
+  '§ IDENTIFICAÇÃO',
+  'Profissional / facção: '+val(group.factionName),
+  'Serviço: '+service+'    Situação: '+val(group.status),
+  'Data do lançamento: '+displayDate(all[0]?.scheduledPaymentDate||group.date),
+  ...(group.paidDate?['Pagamento registrado em: '+displayDate(group.paidDate)]:[]),
+  '§ RESUMO FINANCEIRO',
+  'Valor bruto dos serviços: '+f(gross),
+  '(-) Travetada descontada: '+f(traveta),
+  'Subtotal dos serviços: '+f(nominal),
+  '(-) Outros abatimentos: '+f(lessDirect),
+  '(+) Outros acréscimos: '+f(moreDirect),
+  '(-) Crédito de pagamento anterior: '+f(credit),
+  '(+) Diferença de pagamento anterior: '+f(extra),
+  'TOTAL LÍQUIDO DESTE ACERTO: '+f(net),
+  'Valor registrado como pago: '+f(paid),
+  'SALDO DESTE ACERTO: '+f(net-paid)
+ ];
+ if(Math.abs(cents(gross-traveta-nominal))>1)
+  out.push('ATENÇÃO: valores bruto, travetada e subtotal divergem. Conferir lançamentos.');
+ if(Math.abs(cents(net-(nominal-lessDirect+moreDirect-credit+extra)))>1)
+  out.push('ATENÇÃO: ajustes e total líquido não conferem. Não efetuar baixa sem revisar.');
+ if(group.status==='Revisar'||(group.status==='Pago'&&Math.abs(cents(net-paid))>1))
+  out.push('ATENÇÃO: situação e valor registrado como pago precisam de conferência no Hub.');
+ out.push('§ PRODUTOS E SERVIÇOS');
+ if(!active.length)out.push('Não há itens ativos neste acerto.');
  for(let i=0;i<active.length;i++){
-  const x=active[i];
-  out.push('Item '+(i+1)+': '+v(x.description));
-  out.push('  Quantidade: '+(Number(x.quantity)||0)+' | Unitario: '+f(x.unitPrice)+
-   ' | Bruto: '+f(x.grossValueV9577??Number(x.quantity)*Number(x.unitPrice)));
-  if(x.manualKindV9566==='travetada')
-   out.push('  Travetadas por peca: '+v(x.travetaPointsPerPieceV9592||1)+
-    ' | Total de pontos: '+(Number(x.quantity)||0)*(Number(x.travetaPointsPerPieceV9592)||1)+
-    ' | Tarifa por ponto: '+f(x.unitPrice));
-  out.push('  Travetada descontada: '+f(x.travetaDiscountTotalV9577||0)+
-   ' | Liquido: '+f(x.value)+' | Pago atribuido: '+f(x.paidAmount));
-  out.push('  Modelo: '+v(x.manualProductNameV9589||x.productName||x.productId)+
-   ' | ID: '+v(x.productId||'avulso / sem cadastro'));
-  if(x.manualLineNoteV9566)out.push('  Observacao da linha: '+v(x.manualLineNoteV9566));
-  if(x.observation)out.push('  Observacao do pagamento: '+v(x.observation));
-  if(x.paymentDate)out.push('  Pago em: '+v(x.paymentDate)+' | Metodo: '+v(x.paymentMethod));
+  const x=active[i],qty=Number(x.quantity)||0;
+  out.push((i+1)+'. '+val(x.description||x.manualProductNameV9589||'Serviço'));
+  out.push('   '+qty.toLocaleString('pt-BR')+' peça(s) x '+f(x.unitPrice)+
+   ' | Bruto: '+f(centsGross(x)/100)+' | Travetada: -'+f(x.travetaDiscountTotalV9577)+
+   ' | Total: '+f(x.value));
+  if(x.manualKindV9566==='travetada'){
+   const points=Number(x.travetaPointsPerPieceV9592)||1;
+   out.push('   '+points+' travetada(s) por peça | Total de travetadas: '+(qty*points).toLocaleString('pt-BR'));
+  }
+  if(val(x.manualLineNoteV9566)!=='-')out.push('   Observação: '+val(x.manualLineNoteV9566));
  }
- out.push('LINHAS RETIRADAS (HISTORICO PRESERVADO)');
- if(!canceled.length)out.push('Nenhuma linha cancelada.');
- for(const x of canceled){
-  out.push('CANCELADA: '+v(x.description)+' | '+(Number(x.quantity)||0)+' pecas | Valor original: '+f(x.value));
-  out.push('  Motivo: '+v(x.manualCanceledReasonV9590)+' | Data: '+v(x.manualCanceledAtV9590));
+ if(direct.length||apps.length){
+  out.push('§ ABATIMENTOS, ACRÉSCIMOS E COMPENSAÇÕES');
+  for(const x of direct)
+   out.push((x.kind==='abater'?'(-) Abatimento ':'(+) Acréscimo ')+f(x.amount)+' | Motivo: '+val(x.reason));
+  for(const x of apps)
+   out.push((x.kind==='a_mais'?'(-) Crédito anterior ':'(+) Diferença anterior ')+f(x.amount)+
+    ' | Motivo: '+val(x.reason));
  }
- out.push('AJUSTES DIRETOS NESTE PAGAMENTO');
- const inline=directAdjustmentsV9591(all);
- if(!inline.length)out.push('Nenhum abatimento/acrescimo direto registrado.');
- for(const adj of inline){
-  out.push((adj.kind==='abater'?'ABATIMENTO':'ACRESCIMO')+' '+f(adj.amount)+
-   ' | Identificacao: '+v(adj.id)+' | Data: '+v(adj.createdAt));
-  out.push('  Motivo / observacao: '+v(adj.reason));
+ if(corrections.length){
+  out.push('§ DIFERENÇAS REGISTRADAS APÓS O PAGAMENTO');
+  out.push('Estes acertos NÃO alteram novamente o valor original já pago.');
+  for(const x of corrections){
+   out.push((x.kind==='a_mais'?'Pago a mais - crédito: ':'Pago a menos - diferença: ')+f(x.amount));
+   out.push('   Ainda a compensar: '+f(correctionRemainingV9590(x))+
+    ' | Motivo: '+val(x.reason));
+  }
  }
- out.push('ACERTOS POR PAGAMENTO A MAIS / A MENOS');
- if(!corrections.length)out.push('Nenhuma diferenca registrada neste pagamento.');
- for(const x of corrections){
-  out.push((x.kind==='a_mais'?'PAGO A MAIS / CREDITO':'PAGO A MENOS / DIFERENCA')+
-   ' | Valor: '+f(x.amount)+' | Saldo ainda nao compensado: '+f(correctionRemainingV9590(x)));
-  out.push('  Registro: '+v(x.registeredAt)+' | ID: '+v(x.id));
-  out.push('  Motivo: '+v(x.reason));
-  for(const applied of x.applications||[])
-   out.push('  Compensacao em: '+v(applied.targetGroupId)+' | Valor: '+f(applied.amount));
+ if(canceled.length){
+  out.push('§ ITENS CANCELADOS - NÃO COBRAR');
+  for(const x of canceled){
+   out.push(val(x.description)+' | '+Number(x.quantity||0)+' peça(s) | Valor original: '+f(x.value));
+   out.push('   Motivo do cancelamento: '+val(x.manualCanceledReasonV9590));
+  }
  }
- out.push('COMPENSACOES APLICADAS A ESTE PAGAMENTO');
- if(!apps.length)out.push('Nenhuma compensacao recebida de outro pagamento.');
- for(const x of apps){
-  out.push((x.kind==='a_mais'?'ABATIMENTO':'COMPLEMENTO')+' '+f(x.amount)+
-   ' | Origem: '+v(x.sourceGroupId));
-  out.push('  Motivo: '+v(x.reason)+' | Data: '+v(x.appliedAt));
- }
- out.push('HISTORICO DE PAGAMENTO');
- let histories=0;
- for(const x of all)for(const p of x.paymentHistory||[]){
-  out.push(v(x.description)+' | '+v(p.date)+' | '+f(p.amount??p.value)+' | '+v(p.method));histories++;
- }
- if(!histories)out.push('Sem eventos de baixa registrados.');
- out.push('HISTORICO DE EDICOES');
- let edits=0;
- for(const x of all)for(const p of x.manualEditHistoryV9588||[]){
-  out.push(v(x.description)+' | '+v(p.at)+' | '+v(p.reason)+' | '+f(p.from)+' -> '+f(p.to));edits++;
- }
- if(!edits)out.push('Nenhuma edicao anterior registrada.');
- out.push('COMPROVANTES');
- for(const x of all)if(x.receiptPdfV9566?.name)out.push(v(x.receiptPdfV9566.name)+
-  ' | '+v(x.receiptPdfV9566.addedAt)+' | '+v(x.receiptPdfV9566.size)+' bytes');
- if(!all.some(x=>x.receiptPdfV9566?.name))out.push('Nenhum PDF comprovante anexado.');
- out.push('FIM DO RESUMO','O PDF resume os registros carregados no navegador. Nao e comprovante de transferencia.');
- return out.flatMap(line=>pdfWrapV9590(line,93));
+ out.push('§ COMPROVANTE E CONFERÊNCIA');
+ const proofs=[...new Set(all.map(x=>x.receiptPdfV9566?.name).filter(Boolean))];
+ out.push(proofs.length?'Comprovante bancário anexado: '+proofs.join(' | '):
+  'Comprovante bancário: nenhum PDF anexado.');
+ out.push('O PDF do acerto NÃO é comprovante de transferência bancária.');
+ out.push('Resumo gerado dos registros desta sessão. Conferir com a nuvem e o Hub Financeiro.');
+ return out.flatMap(line=>line.startsWith('§ ')?[line]:pdfWrapV9590(line,88));
 }
 function buildSummaryPdfV9590(groupId){
- const lines=summaryLinesV9590(groupId),perPage=49,pages=[];
- for(let i=0;i<lines.length;i+=perPage)pages.push(lines.slice(i,i+perPage));
+ const lines=summaryLinesV9590(groupId),pages=[];
+ let page=[],used=0;
+ function height(line){
+  if(line.startsWith('§ '))return 25;
+  if(/^(TOTAL LÍQUIDO|SALDO DESTE ACERTO|ATENÇÃO:)/.test(line))return 20;
+  return 15;
+ }
+ for(const line of lines){
+  const h=height(line);
+  if(page.length&&used+h>681){pages.push(page);page=[];used=0}
+  page.push({text:line,height:h});used+=h;
+ }
+ if(page.length)pages.push(page);
  if(!pages.length)pages.push([]);
  const N=pages.length,objs=[],fontReg=3+2*N,fontBold=fontReg+1;
  objs[1]='<< /Type /Catalog /Pages 2 0 R >>';
  objs[2]='<< /Type /Pages /Kids [ '+pages.map((_,i)=>3+i*2+' 0 R').join(' ')+' ] /Count '+N+' >>';
- pages.forEach((page,i)=>{
-  let stream='0.38 0.20 0.30 rg BT /FB 15 Tf 44 800 Td (HLGB - PAGAMENTO AVULSO) Tj ET\n0 0 0 rg\n';
-  stream+='0.40 0.40 0.40 RG 44 788 m 550 788 l S\n';
-  let y=765;
-  for(const line of page){
-   const bold=/^(RESUMO|HLGB CONFECCOES|IDENTIFICACAO|VALORES|PRODUTOS E SERVICOS|LINHAS RETIRADAS|ACERTOS POR|COMPENSACOES APLICADAS|HISTORICO DE|COMPROVANTES|FIM DO)/.test(line);
-   stream+='BT /'+(bold?'FB':'FR')+' '+(bold?9:8.8)+' Tf 44 '+y+' Td ('+pdfEscapeV9590(line)+') Tj ET\n';
-   y-=14;
+ pages.forEach((items,i)=>{
+  let stream='0.28 0.16 0.35 rg 0 775 595 67 re f\n';
+  stream+='1 1 1 rg BT /FB 16 Tf 40 806 Td ('+
+   pdfEscapeV9590('HLGB | ACERTO DE FACÇÕES')+') Tj ET\n';
+  stream+='1 1 1 rg BT /FR 10 Tf 40 787 Td ('+
+   pdfEscapeV9590('Pagamento avulso - demonstrativo simples')+') Tj ET\n';
+  stream+='0 0 0 rg\n';
+  let y=749;
+  for(const item of items){
+   const line=item.text,section=line.startsWith('§ '),
+    total=/^(TOTAL LÍQUIDO|SALDO DESTE ACERTO)/.test(line),
+    warn=line.startsWith('ATENÇÃO:');
+   if(section){
+    stream+='0.94 0.92 0.96 rg 40 '+(y-6)+' 515 20 re f\n';
+    stream+='0.30 0.18 0.36 rg BT /FB 10 Tf 46 '+y+' Td ('+
+     pdfEscapeV9590(line.slice(2))+') Tj ET\n';
+   }else{
+    stream+=(total?'0.28 0.16 0.35 rg':warn?'0.65 0.20 0.10 rg':'0.13 0.13 0.15 rg')+
+     ' BT /'+(total||warn?'FB':'FR')+' '+(total?10.5:9.3)+' Tf 46 '+y+' Td ('+
+     pdfEscapeV9590(line)+') Tj ET\n';
+   }
+   y-=item.height;
   }
-  stream+='0.38 0.20 0.30 rg BT /FR 8 Tf 44 35 Td ('+
-   pdfEscapeV9590('HLGB Confecções  |  Pagina '+(i+1)+'/'+N+'  |  Somente resumo informativo')+
-   ') Tj ET\n';
+  stream+='0.78 0.75 0.80 RG 40 59 m 555 59 l S\n';
+  stream+='0.32 0.32 0.34 rg BT /FR 8 Tf 40 42 Td ('+
+   pdfEscapeV9590('Documento informativo | Referência '+sid(groupId).slice(0,42)+
+    ' | Página '+(i+1)+'/'+N)+') Tj ET\n';
   const p=3+i*2,content=p+1;
   objs[p]='<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /FR '+
    fontReg+' 0 R /FB '+fontBold+' 0 R >> >> /Contents '+content+' 0 R >>';
   const bytes=pdfEncode1252V9590(stream);
   objs[content]='<< /Length '+bytes.length+' >>\nstream\n'+bytes+'\nendstream';
  });
- objs[fontReg]='<< /Type /Font /Subtype /Type1 /BaseFont /Courier /Encoding /WinAnsiEncoding >>';
- objs[fontBold]='<< /Type /Font /Subtype /Type1 /BaseFont /Courier-Bold /Encoding /WinAnsiEncoding >>';
+ objs[fontReg]='<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>';
+ objs[fontBold]='<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold /Encoding /WinAnsiEncoding >>';
  let pdf='%PDF-1.4\n';const offsets=[0];
  for(let i=1;i<objs.length;i++){offsets[i]=pdf.length;pdf+=i+' 0 obj\n'+objs[i]+'\nendobj\n'}
  const xref=pdf.length;pdf+='xref\n0 '+objs.length+'\n0000000000 65535 f \n';
