@@ -57,7 +57,7 @@ test('simple PDF distinguishes gross, travetada, credit, direct adjustment, paid
  const raw=await strings(pdf);
  assert(raw.startsWith('%PDF-1.4'));
  assert(raw.includes('Helvetica-Bold'));
- assert(raw.includes('TOTAL LÍQUIDO DESTE ACERTO'));
+ assert(raw.includes('TOTAL LÍQUIDO A PAGAR'));
  assert(raw.includes('xref'));
  assert.equal(JSON.stringify(db),before,'PDF must not mutate original records');
 });
