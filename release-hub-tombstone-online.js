@@ -32,11 +32,36 @@ function localIndex(module,id){
  }catch(e){return -1}
 }
 function persistLocal(){try{if(typeof localSaveOnly==='function')localSaveOnly()}catch(e){console.warn('[ByHagatha Hub '+V+'] persistência local',e)}}
+/* v95.93: nunca executar renderHubFinance durante o login. A limpeza de
+   tombstones confirmados segue intacta, mas o repaint aguarda a tela autenticada.
+   Não usa timers de polling nem executa saves adicionais. */
+let deferredHubRefresh9593=false;
+function hubVisible9593(){
+ if(window.__HLGB_AUTH_READY!==true)return false;
+ try{
+  const shell=document.getElementById('appShell');
+  if(shell){
+   if(shell.hidden||shell.getAttribute('aria-hidden')==='true')return false;
+   if(typeof window.getComputedStyle==='function'){
+    const style=window.getComputedStyle(shell);
+    if(style?.display==='none'||style?.visibility==='hidden')return false;
+   }
+  }
+ }catch(_){return false}
+ return true;
+}
 function refreshHub(){
+ if(!hubVisible9593()){deferredHubRefresh9593=true;return false}
+ deferredHubRefresh9593=false;
  try{window.renderHubFinance?.()}catch(_){}
  try{window.renderHubWeekly?.()}catch(_){}
  try{window.renderHubDue9185?.()}catch(_){}
  try{window.hlgbHubPeriodSummary?.render?.()}catch(_){}
+ return true;
+}
+function flushDeferredHub9593(){
+ if(deferredHubRefresh9593)return refreshHub();
+ return false;
 }
 function removeLocal(module,id,remember=true){
  try{
@@ -115,10 +140,14 @@ if(typeof original==='function'&&!original.__hlgbHubTombstoneOnlineV9410){
 }
 window.hlgbHubIsTombstoned9410=isTombstoned;
 window.hlgbHubReconcileTombstones9410=reconcile;
+window.hlgbHubBootRefresh9593={status:()=>({
+ deferred:deferredHubRefresh9593,ready:hubVisible9593()
+}),flush:flushDeferredHub9593};
 window.HLGB_HUB_TOMBSTONE_ONLINE_GUARD=V;
 setTimeout(reconcile,0);setTimeout(reconcile,600);setTimeout(reconcile,2000);
 try{if(typeof hlgbAfterLogin==='function')hlgbAfterLogin(()=>setTimeout(reconcile,120),0)}catch(e){}
-window.addEventListener('pageshow',()=>setTimeout(reconcile,80));
-window.addEventListener('focus',()=>setTimeout(reconcile,80));
+window.addEventListener('hlgb:authenticated',()=>setTimeout(flushDeferredHub9593,80));
+window.addEventListener('pageshow',()=>setTimeout(()=>{reconcile();flushDeferredHub9593()},80));
+window.addEventListener('focus',()=>setTimeout(()=>{reconcile();flushDeferredHub9593()},80));
 console.info('[ByHagatha] Hub '+V+' — exclusões confirmadas reconciliadas sem remover histórico da nuvem');
 })();

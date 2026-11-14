@@ -138,11 +138,15 @@ function walRowsReadOnly9482(){
   }catch(_){finish({status:'error',rows:[]})}
  });
 }
-async function walRemoteReadOnlyProof9482(max=8){
+async function walRemoteReadOnlyProof9482(max=8,notify){
  const idb=await walRowsReadOnly9482();
- const result={mode:'read-only',attempted:false,status:idb.status,checked:0,matched:0,different:0,missing:0,unverified:0,removed:0,items:[],errors:[]};
+ const result={mode:'read-only',attempted:false,status:idb.status,checked:0,matched:0,different:0,missing:0,unverified:0,removed:0,items:[],errors:[],
+  total:idb.rows?.length??null,checkedLimit:Math.min(60,Math.max(1,Number(max)||8))};
+ const onProgress=typeof notify==='function'?notify:null;
+ const progress=()=>{try{onProgress?.({done:result.checked,total:result.total,matched:result.matched,
+  different:result.different,missing:result.missing,unverified:result.unverified})}catch(_){}};
  if(idb.status!=='ok')return result;
- const ops=idb.rows.slice(0,Math.max(1,max));
+ const ops=idb.rows.slice(0,result.checkedLimit);
  if(!ops.length){result.status='empty';return result}
  result.unverified=Math.max(0,idb.rows.length-ops.length); // Restante não consultado também exige prova.
  if(!authReady()||navigator?.onLine===false||typeof window.cloudRequest!=='function'){result.status='cloud-api-unavailable';result.unverified=idb.rows.length;return result}
@@ -167,6 +171,7 @@ async function walRemoteReadOnlyProof9482(max=8){
    }
   }catch(e){row.status='error';result.unverified++;result.errors.push({module,id,opId,error:sid(e?.message||e).slice(0,220)})}
   result.checked++;result.items.push(row);
+  progress();
  }
  if(result.unverified)result.status='partially-unverified';
  else if(result.different||result.missing)result.status='not-confirmed';
@@ -388,6 +393,8 @@ async function run(opts={}){
 }
 async function activate(reason='post-auth'){if(!authReady())return false;stamp();const p=await prepare(reason);return !!p.ok}
 window.addEventListener?.('hlgb:authenticated',()=>setTimeout(()=>activate('authenticated-event'),0));
-window.hlgbAuditorAutoCorrect9447={version:V,state,run,prepare,triage,liveSignal,ensureBase,render,downloadReport,exportReport:()=>clone(state.lastReport),status:()=>({...state,authReady:authReady(),baseReady:baseReady(),lastTriage:clone(state.lastTriage)})};
+window.hlgbAuditorAutoCorrect9447={version:V,state,run,prepare,triage,liveSignal,ensureBase,render,downloadReport,
+ verifyWalReadOnly9593:(max=30,onProgress)=>walRemoteReadOnlyProof9482(max,onProgress),
+ exportReport:()=>clone(state.lastReport),status:()=>({...state,authReady:authReady(),baseReady:baseReady(),lastTriage:clone(state.lastTriage)})};
 stamp();if(authReady())setTimeout(()=>activate('loaded-after-auth'),0);console.info('[HLGB] v'+V+' Auditor pronto · convergência rápida · histórico e negócio fora do ciclo técnico');
 })();
