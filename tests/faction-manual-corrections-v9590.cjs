@@ -73,7 +73,7 @@ const edit={
  assert(pdf instanceof Blob,'real PDF Blob');
  const raw=Buffer.from(await pdf.arrayBuffer());
  assert.equal(raw.toString('utf8',0,5),'%PDF-');
- assert(raw.toString('latin1').includes('CANCELADA'));
+ assert(raw.toString('latin1').includes('ITENS CANCELADOS'));
  assert(raw.toString('latin1').includes('Produto lancado por engano')||
         raw.toString('latin1').includes('Produto lançado por engano'),'PDF embeds cancellation reason');
  assert(raw.toString('latin1').includes('xref'),'PDF must have object offsets/xref');
@@ -115,8 +115,8 @@ const edit={
  assert.equal(api.receiptGroups().find(x=>x.id==='source').adjustmentBalance,-5,
   'remaining overpayment credit must be visible');
  const pdfAfter=Buffer.from(await api.buildSummaryPdfV9590('pending').arrayBuffer());
- assert(pdfAfter.toString('latin1').includes('ABATIMENTO'));
- assert(pdfAfter.toString('latin1').includes('COMPLEMENTO'));
+ assert(pdfAfter.toString('latin1').includes('Crédito de pagamento anterior'));
+ assert(pdfAfter.toString('latin1').includes('Diferença de pagamento anterior'));
  assert(pdfAfter.toString('latin1').includes('Pix enviado'));
  const paid=await api.markGroupPaid('pending','2026-11-13','Pix',null);
  assert.equal(paid.total,72,'cash payout nets credit and underpayment');
