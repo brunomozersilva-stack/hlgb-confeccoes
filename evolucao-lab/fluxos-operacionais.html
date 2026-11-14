@@ -1,0 +1,189 @@
+<!doctype html>
+<html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>HLGB Evolução — Laboratório de fluxos</title>
+<style>
+:root{font-family:system-ui,-apple-system,"Segoe UI",sans-serif;color:#241d2f;background:#f5f3f8;--purple:#543975;--line:#e3dce9;--light:#f5f0fa;--muted:#655b70;--white:#fff}
+*{box-sizing:border-box}body{margin:0;padding:0 0 55px}button,input,select,textarea{font:inherit;color:inherit}button{cursor:pointer}button:disabled{opacity:.5;cursor:not-allowed}button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible,a:focus-visible{outline:3px solid #b58be8;outline-offset:2px}
+header{background:#292039;color:#fff;padding:17px clamp(14px,4vw,42px)}header .eyebrow{font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:#e3cdfa;font-weight:750}header h1{font-size:clamp(22px,3vw,31px);margin:5px 0 6px}header p{font-size:13px;color:#e1d5ed;margin:0;line-height:1.5}header a{color:#e3cdfa;font-size:12px}
+main{max-width:1250px;margin:auto;padding:22px clamp(12px,3vw,32px)}
+.banner{border:1px solid #e3c47e;background:#fff9eb;padding:11px 14px;border-radius:12px;color:#73511e;font-size:12px;font-weight:650;margin-bottom:16px;line-height:1.5}
+.tabs{display:flex;gap:7px;flex-wrap:wrap;margin-bottom:16px}.tabs button{border:1px solid #c7b7d8;border-radius:11px;background:#fff;padding:12px 16px;font-weight:750}.tabs button[aria-selected="true"]{background:var(--purple);color:#fff;border-color:var(--purple)}
+.panel{background:#fff;border:1px solid var(--line);border-radius:15px;padding:19px;min-width:0}.panel+.panel{margin-top:14px}.section[hidden]{display:none}.stack{display:grid;gap:14px}.columns{display:grid;grid-template-columns:minmax(0,1.5fr) minmax(290px,.9fr);gap:14px}h2{font-size:20px;line-height:1.25;margin:0 0 9px}h3{font-size:16px;margin:0 0 12px}p{line-height:1.5}.muted{color:var(--muted);font-size:13px}.filters{display:grid;grid-template-columns:minmax(0,2fr) repeat(2,minmax(0,1fr));gap:11px;align-items:end}
+.field{display:grid;gap:5px}.field label{font-size:13px;font-weight:750}.input{width:100%;min-width:0;min-height:44px;padding:10px 12px;border:1px solid #c4b8ce;border-radius:10px;background:#fff}
+.button{min-height:43px;padding:10px 13px;border:1px solid #baa7cb;background:white;color:#503569;border-radius:10px;font-weight:700}
+.button.primary{background:var(--purple);color:white;border-color:var(--purple)}
+.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:11px;margin-top:14px}
+.product{border:1px solid var(--line);border-radius:12px;padding:13px;display:grid;gap:8px;background:white}
+.product-head{display:flex;gap:10px;align-items:center}
+.thumb{flex:0 0 52px;height:54px;background:var(--light);border-radius:11px;display:flex;align-items:center;justify-content:center;font-size:24px}
+.product h3{margin:0;font-size:14px}.product .small{font-size:12px;color:var(--muted)}.product .detail{font-size:13px}.product .row{display:flex;justify-content:space-between;gap:8px;align-items:center;flex-wrap:wrap}
+.tag{background:var(--light);border-radius:100px;padding:5px 8px;font-size:11px;font-weight:700;color:#543975}.tag.warn{background:#fff1d2;color:#7a521e}
+label.checkbox{display:flex;gap:7px;align-items:center;min-height:32px;font-size:13px}
+.table-wrap{overflow-x:auto;border:1px solid var(--line);border-radius:11px}.table{width:100%;border-collapse:collapse;font-size:13px;min-width:580px}.table th,.table td{border-bottom:1px solid var(--line);text-align:left;padding:10px 9px;vertical-align:middle}.table th{background:#f7f4f9;color:var(--muted);font-size:12px}.table tr:last-child td{border-bottom:0}
+.table .input{min-height:39px;padding:8px 6px}.money{font-variant-numeric:tabular-nums;font-weight:750}.totals{display:grid;gap:8px}.total{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid var(--line);font-size:14px}.total.big{font-size:20px;color:var(--purple);font-weight:850;border-bottom:0}.status{font-size:12px;line-height:1.5;background:var(--light);border-radius:10px;padding:10px 12px;margin-top:10px}
+.warning{font-size:12px;line-height:1.5;color:#865019;background:#fff5e4;border-radius:9px;padding:10px 12px}
+.row-actions{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end}.danger{color:#8b2547}
+.label-mini{font-size:12px;font-weight:800;letter-spacing:.04em;color:#5b496b}
+.kpis{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}.kpi{background:#f6f2fb;border:1px solid #e4daef;border-radius:12px;padding:12px}.kpi b{display:block;font-size:22px}.kpi span{display:block;color:var(--muted);font-size:12px}
+.traces{display:grid;gap:9px}.trace{padding:11px 12px;background:#f6f2fb;border-radius:11px;border:1px solid #e7dced;font-size:13px}
+@media(max-width:850px){.columns{grid-template-columns:1fr}.filters{grid-template-columns:1fr 1fr}.filters>:first-child{grid-column:1/-1}}
+@media(max-width:580px){main{padding:12px 10px}.panel{padding:13px}.grid{grid-template-columns:1fr}.filters{grid-template-columns:1fr}.filters>:first-child{grid-column:auto}.tabs{display:grid;grid-template-columns:repeat(3,1fr);gap:5px}.tabs button{padding:11px 3px;font-size:12px;min-width:0}.kpis{grid-template-columns:1fr 1fr}.kpis>:last-child{grid-column:1/-1}.product{padding:12px}}
+@media print{header,.tabs,.banner,.noprint,.button{display:none!important}body{background:white}main{max-width:none;padding:0}.panel{box-shadow:none;border:0}.section:not([hidden]){display:block}.table-wrap{overflow:visible}.table{min-width:0}a{display:none}}
+</style></head><body>
+<header><div class="eyebrow">HLGB Evolução · Projeto independente</div><h1>Laboratório de telas operacionais</h1><p>Busca de produtos, acertos e relatórios com padrões de uso em desktop e celular.</p><a href="./prototipo.html">Voltar ao painel Evolução</a></header>
+<main>
+<div class="banner">AMBIENTE FICTÍCIO · Produtos, acertos e valores de demonstração. Nenhuma pesquisa consulta o banco real e nenhuma operação é salva. Não é uma nova versão publicada do HLGB.</div>
+<div class="tabs" role="tablist" aria-label="Fluxos em demonstração">
+<button role="tab" data-tab="search" id="tab-search" aria-selected="true" aria-controls="view-search">Produtos</button>
+<button role="tab" data-tab="settlement" id="tab-settlement" aria-selected="false" aria-controls="view-settlement">Acertos</button>
+<button role="tab" data-tab="reports" id="tab-reports" aria-selected="false" aria-controls="view-reports">Relatórios</button>
+</div>
+<section class="section" data-view="search" id="view-search" role="tabpanel" aria-labelledby="tab-search">
+ <div class="panel">
+ <h2>Pesquisa única de produtos</h2><p class="muted">Protótipo: uma só barra busca nomes, códigos, categorias, cores e tamanhos. O catálogo abaixo é fictício e limitado a exemplos locais.</p>
+ <div class="filters">
+  <div class="field"><label for="search-input">Pesquisar modelo, SKU, cor ou tamanho</label><input id="search-input" type="search" class="input" placeholder="Ex.: calcinha preto M" autocomplete="off"></div>
+  <div class="field"><label for="category">Categoria</label><select class="input" id="category"><option value="">Todas</option><option>Calcinha</option><option>Camisola</option><option>Conjunto</option><option>Short Doll</option></select></div>
+  <label class="checkbox"><input id="available" type="checkbox"> Somente com estoque</label>
+ </div>
+ <p class="muted" role="status" id="result-count" aria-live="polite"></p>
+ <div class="grid" id="product-results"></div>
+ </div>
+</section>
+<section class="section" data-view="settlement" id="view-settlement" role="tabpanel" aria-labelledby="tab-settlement" hidden>
+ <div class="columns">
+  <div class="panel">
+   <h2>Formulário de acerto 2.0</h2>
+   <p class="muted">Exemplo de edição em grade: quantidade, preço por serviço, abatimento e prévia. Valores não representam lançamentos existentes.</p>
+   <div class="filters">
+    <div class="field"><label for="faction">Facção (exemplo)</label><select id="faction" class="input"><option>Facção Exemplo A</option><option>Facção Exemplo B</option></select></div>
+    <div class="field"><label for="service-type">Serviço</label><select id="service-type" class="input"><option>Embalagem</option><option>Costura</option><option>Travetada</option></select></div>
+    <div class="field"><label for="payment-date">Competência demonstrativa</label><input id="payment-date" class="input" type="date" value="2026-11-14"></div>
+   </div>
+   <div class="table-wrap" style="margin-top:14px"><table class="table"><caption style="text-align:left;padding:10px;color:#625872;font-size:12px">Itens do acerto fictício</caption><thead><tr><th>Modelo</th><th>Qtd.</th><th>R$ / peça</th><th>Subtotal</th><th class="noprint">Ação</th></tr></thead><tbody id="settlement-lines"></tbody></table></div>
+   <div class="row-actions noprint" style="margin-top:11px">
+    <select id="new-item" class="input" aria-label="Modelo para adicionar" style="max-width:240px"></select>
+    <button class="button" id="add-line" type="button">+ Adicionar linha</button>
+   </div>
+   <div class="field" style="margin-top:12px"><label for="adjustment">Abatimento total (R$)</label><input id="adjustment" type="number" class="input" inputmode="decimal" min="0" step="0.01" value="0"></div>
+   <div class="field" style="margin-top:12px"><label for="reason">Motivo do abatimento</label><textarea id="reason" class="input" rows="2" placeholder="Obrigatório se houver abatimento"></textarea></div>
+   <div class="warning" style="margin-top:12px">A opção de salvar está intencionalmente desabilitada. O salvamento real só poderá ser criado após termos transações atômicas, revisão de concorrência, permissões e testes de duas sessões.</div>
+  </div>
+  <div class="panel"><h2>Prévia do acerto</h2>
+   <div class="label-mini" id="settlement-faction">Facção Exemplo A</div><div class="totals">
+    <div class="total"><span>Serviços</span><span id="settlement-gross" class="money">R$ 0,00</span></div>
+    <div class="total"><span>Abatimento</span><span id="settlement-discount" class="money">R$ 0,00</span></div>
+    <div class="total big"><span>Saldo</span><span id="settlement-total" class="money">R$ 0,00</span></div>
+   </div><p id="settlement-status" class="status" aria-live="polite">Rascunho visual, sem gravação.</p>
+   <div class="row-actions noprint"><button class="button" type="button" id="preview-acerto">Conferir cálculos</button><button class="button primary" disabled>Salvar (bloqueado)</button></div>
+  </div>
+ </div>
+</section>
+<section class="section" data-view="reports" id="view-reports" role="tabpanel" aria-labelledby="tab-reports" hidden>
+ <div class="panel">
+ <h2>Relatórios 2.0</h2><p class="muted">Prévia com filtros e detalhamento da origem dos totais — baseada apenas em valores inventados.</p>
+ <div class="filters">
+  <div class="field"><label for="report-search">Pesquisar modelo ou código</label><input id="report-search" type="search" class="input" placeholder="Ex.: modelo A"></div>
+  <div class="field"><label for="report-area">Área</label><select class="input" id="report-area"><option value="">Todas</option><option>Corte</option><option>Facções</option><option>Embalagem</option></select></div>
+  <div class="field"><label for="report-period">Período fictício</label><select class="input" id="report-period"><option value="">Todos</option><option value="1">Semana 1</option><option value="2">Semana 2</option></select></div>
+ </div>
+ <div class="kpis" style="margin:14px 0"><div class="kpi"><b id="report-qty">0</b><span>Peças no filtro</span></div><div class="kpi"><b id="report-value">R$ 0,00</b><span>Custo informado</span></div><div class="kpi"><b id="report-rows">0</b><span>Registros fictícios</span></div></div>
+ <div class="table-wrap"><table class="table"><thead><tr><th>Identificador</th><th>Setor</th><th>Modelo</th><th>Quantidade</th><th>Custo</th><th class="noprint">Origem</th></tr></thead><tbody id="report-lines"></tbody></table></div>
+ <div id="report-trace" class="status" role="status" aria-live="polite">Selecione Ver origem em um registro para conferir seu detalhamento fictício.</div>
+ <div class="row-actions noprint" style="margin-top:12px"><button type="button" class="button" id="report-print">Visualizar impressão</button></div>
+ </div>
+</section>
+</main>
+<script>
+(function(){"use strict";
+const products=[
+ {sku:"EX-001",name:"Calcinha Modelo A",category:"Calcinha",color:["Preto","Rubi"],size:["P","M","G"],stock:110,price:0.15,icon:"◈"},
+ {sku:"EX-002",name:"Camisola Modelo B",category:"Camisola",color:["Branco","Preto"],size:["M","G","GG"],stock:45,price:0.25,icon:"◉"},
+ {sku:"EX-003",name:"Conjunto Modelo C",category:"Conjunto",color:["Rubi"],size:["P","M"],stock:0,price:0.40,icon:"◆"},
+ {sku:"EX-004",name:"Short Doll Modelo D",category:"Short Doll",color:["Lilás","Preto"],size:["P","M","G"],stock:12,price:0.25,icon:"◇"},
+ {sku:"EX-005",name:"Calcinha Modelo E",category:"Calcinha",color:["Branco"],size:["G","GG"],stock:25,price:0.15,icon:"◈"},
+ {sku:"EX-006",name:"Conjunto Modelo F",category:"Conjunto",color:["Preto"],size:["M","G"],stock:0,price:0.35,icon:"◆"}
+];
+const reports=[
+ {id:"SIM-C001",area:"Corte",sku:"EX-001",qty:420,price:52,week:"1"},
+ {id:"SIM-F002",area:"Facções",sku:"EX-002",qty:80,price:24,week:"1"},
+ {id:"SIM-E003",area:"Embalagem",sku:"EX-003",qty:40,price:6,week:"2"},
+ {id:"SIM-C004",area:"Corte",sku:"EX-004",qty:150,price:19,week:"2"},
+ {id:"SIM-E005",area:"Embalagem",sku:"EX-005",qty:270,price:40.5,week:"1"}
+];
+const $=id=>document.getElementById(id);
+const fmt=n=>(Number(n)||0).toLocaleString("pt-BR",{style:"currency",currency:"BRL"});
+const norm=s=>String(s||"").normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLowerCase().trim();
+const numeric=v=>Math.max(0,Number(v)||0);
+function node(tag,cl,txt){const n=document.createElement(tag);if(cl)n.className=cl;if(txt!==undefined)n.textContent=txt;return n}
+function tab(name){document.querySelectorAll("[data-view]").forEach(x=>{x.hidden=x.dataset.view!==name});document.querySelectorAll("[data-tab]").forEach(x=>x.setAttribute("aria-selected",String(x.dataset.tab===name)))}
+document.querySelectorAll("[data-tab]").forEach(b=>b.addEventListener("click",()=>tab(b.dataset.tab)));
+function search(){
+ const terms=norm($("search-input").value).split(/\s+/).filter(Boolean),category=$("category").value,available=$("available").checked,root=$("product-results");root.replaceChildren();
+ const found=products.filter(p=>(!category||category===p.category)&&(!available||p.stock>0)&&terms.every(t=>norm([p.name,p.sku,p.category,...p.color,...p.size].join(" ")).includes(t)));
+ $("result-count").textContent=found.length+" de "+products.length+" produtos de demonstração encontrados";
+ if(!found.length){root.append(node("p","muted","Nenhum produto encontrado. Tente mudar os filtros."));return}
+ found.forEach(p=>{
+ const card=node("article","product"),hd=node("div","product-head"),thumb=node("div","thumb",p.icon),info=node("div",""),h=node("h3","",p.name),code=node("div","small",p.sku+" · "+p.category);
+ info.append(h,code);hd.append(thumb,info);
+ const detail=node("div","detail","Cores: "+p.color.join(", ")+" · Tamanhos: "+p.size.join(", "));
+ const foot=node("div","row"),tag=node("span","tag "+(p.stock===0?"warn":""),p.stock>0?"Estoque fictício: "+p.stock:"Sem estoque"),button=node("button","button","Ver exemplo de acerto");
+ button.type="button";button.addEventListener("click",()=>{ $("new-item").value=p.sku;tab("settlement");$("new-item").focus()});
+ foot.append(tag,button);card.append(hd,detail,foot);root.append(card);
+ });
+}
+["search-input","category","available"].forEach(id=>$(id).addEventListener(id==="search-input"?"input":"change",search));
+let lines=[{id:1,sku:"EX-001",qty:80,unit:0.15},{id:2,sku:"EX-002",qty:30,unit:0.25}],counter=2;
+const cents=n=>Math.round((Number(n)||0)*100);
+function moneyCents(n){return fmt(n/100)}
+function recalc(){
+ const gross=lines.reduce((t,x)=>t+Math.max(0,Math.round(numeric(x.qty)))*cents(x.unit),0),
+ discount=cents(numeric($("adjustment").value)),ok=discount<=gross&&(discount===0||$("reason").value.trim().length>0);
+ $("settlement-faction").textContent=$("faction").value+" · "+$("service-type").value;
+ $("settlement-gross").textContent=moneyCents(gross);
+ $("settlement-discount").textContent=moneyCents(discount);
+ $("settlement-total").textContent=moneyCents(Math.max(0,gross-discount));
+ $("settlement-status").textContent=!ok?"Conferência bloqueada: o abatimento precisa de motivo e não pode superar o total.":"Prévia coerente, mas ainda é apenas um exemplo visual. Nenhum dado foi salvo.";
+ $("settlement-status").dataset.valid=String(ok);
+}
+function renderLines(){
+ const root=$("settlement-lines");root.replaceChildren();
+ lines.forEach(line=>{
+ const p=products.find(p=>p.sku===line.sku),tr=node("tr"),cell=node("td","",p?p.name:line.sku);
+ const q=node("input","input"),u=node("input","input");
+ q.type="number";q.min="0";q.step="1";q.inputMode="numeric";q.value=line.qty;q.setAttribute("aria-label","Quantidade de "+(p?.name||line.sku));
+ u.type="number";u.min="0";u.step="0.01";u.inputMode="decimal";u.value=line.unit.toFixed(2);u.setAttribute("aria-label","Preço unitário de "+(p?.name||line.sku));
+ const qc=node("td"),uc=node("td"),subtotal=node("td","money");
+ const refresh=()=>{line.qty=Math.max(0,Math.round(numeric(q.value)));line.unit=numeric(u.value);subtotal.textContent=moneyCents(line.qty*cents(line.unit));recalc()};
+ q.addEventListener("input",refresh);u.addEventListener("input",refresh);
+ qc.append(q);uc.append(u);subtotal.textContent=moneyCents(line.qty*cents(line.unit));
+ const actions=node("td","noprint"),remove=node("button","button danger","Remover");
+ remove.type="button";remove.setAttribute("aria-label","Remover "+(p?.name||line.sku));remove.addEventListener("click",()=>{lines=lines.filter(x=>x.id!==line.id);renderLines()});actions.append(remove);tr.append(cell,qc,uc,subtotal,actions);root.append(tr);
+ });recalc();
+}
+function report(){
+ const q=norm($("report-search").value),area=$("report-area").value,week=$("report-period").value,records=reports.filter(x=>(!area||x.area===area)&&(!week||week===x.week)&&(!q||norm((products.find(p=>p.sku===x.sku)?.name||"")+" "+x.sku).includes(q)));
+ $("report-qty").textContent=records.reduce((n,x)=>n+x.qty,0).toLocaleString("pt-BR");
+ $("report-value").textContent=fmt(records.reduce((n,x)=>n+x.price,0));
+ $("report-rows").textContent=String(records.length);
+ const body=$("report-lines");body.replaceChildren();
+ for(const r of records){
+ const tr=node("tr");
+ [r.id,r.area,products.find(p=>p.sku===r.sku)?.name||r.sku,r.qty.toLocaleString("pt-BR"),fmt(r.price)].forEach(x=>tr.append(node("td","",x)));
+ const td=node("td","noprint"),btn=node("button","button","Ver origem");
+ btn.type="button";btn.addEventListener("click",()=>{$("report-trace").textContent="Registro fictício "+r.id+" · "+r.area+" · Semana "+r.week+" · "+r.qty+" peças · "+fmt(r.price)+". Nenhuma origem financeira real foi consultada."});
+ td.append(btn);tr.append(td);body.append(tr);
+ }
+ if(!records.length){const tr=node("tr"),td=node("td","muted","Nenhum registro de exemplo encontrado.");td.colSpan=6;tr.append(td);body.append(tr)}
+}
+["report-search","report-area","report-period"].forEach(id=>$(id).addEventListener(id==="report-search"?"input":"change",report));
+$("faction").addEventListener("change",recalc);$("service-type").addEventListener("change",recalc);
+$("adjustment").addEventListener("input",recalc);$("reason").addEventListener("input",recalc);
+$("preview-acerto").addEventListener("click",recalc);
+$("add-line").addEventListener("click",()=>{const p=products.find(p=>p.sku===$("new-item").value);if(!p)return;lines.push({id:++counter,sku:p.sku,qty:1,unit:p.price});renderLines()});
+$("report-print").addEventListener("click",()=>window.print());
+products.forEach(p=>{const o=node("option","",p.name);o.value=p.sku;$("new-item").append(o)});
+$("new-item").value=products[0].sku;
+search();renderLines();report();tab("search");
+})();
+</script></body></html>
