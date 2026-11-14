@@ -1,0 +1,1156 @@
+{
+  "schema": "hlgb-evolucao-legacy-blob-baseline-v1",
+  "base": "main",
+  "sha": "2440621468d8c4d8260effe32ea47eef478077c4",
+  "observed": "2026-11-14",
+  "purpose": "Registrar arquivos legados; divergência exige revisão manual de paridade e homologação.",
+  "important": "Hashes iguais não garantem funcionalidade; hashes diferentes não provam perda funcional, mas exigem revisão.",
+  "scope": "release scripts root e entradas de aplicação",
+  "files": [
+    {
+      "path": "app-stable3.html",
+      "blobSha": "76b21fcd8e653191ced443b69140068743bc5bb6",
+      "size": 23308
+    },
+    {
+      "path": "app9240.html",
+      "blobSha": "db896b5fbf85392be5711ae1c44b3bf245893be4",
+      "size": 1876542
+    },
+    {
+      "path": "hlgb-canonical-sw.js",
+      "blobSha": "f6799ef6b4dd460f12bb9f2b7dd3eb44169fc866",
+      "size": 1050
+    },
+    {
+      "path": "index.html",
+      "blobSha": "64ee8c502b2abac303be6628bf1c2bf800df99c3",
+      "size": 560
+    },
+    {
+      "path": "release-acerto-returns-v9565.js",
+      "blobSha": "27645529c405ff8f2fcbe892890e26c87ef26d49",
+      "size": 32110
+    },
+    {
+      "path": "release-ack-reconcile-v9435.js",
+      "blobSha": "8015087332bde2130980bfd6161b6f77a779f923",
+      "size": 7612
+    },
+    {
+      "path": "release-ack-reconcile-v9436.js",
+      "blobSha": "0e4ce1759a02595dbfda38d903e514b06a02cd0f",
+      "size": 7681
+    },
+    {
+      "path": "release-advance-sync-v9309.js",
+      "blobSha": "5e73c57e6af0d1d51d57a57e9313241eabb0db78",
+      "size": 5808
+    },
+    {
+      "path": "release-assistant-brain-v9265.js",
+      "blobSha": "024e45c23bcee8e716fb53b1afa3e85c8dbf946c",
+      "size": 15387
+    },
+    {
+      "path": "release-assistant-canonical-v9297.js",
+      "blobSha": "84f1a66b35a4a8210fd15977ddee990c817dbc68",
+      "size": 10218
+    },
+    {
+      "path": "release-assistant-draft-v9270.js",
+      "blobSha": "fa7039483d73fdbb882c8c3f73f2b2c09ef50011",
+      "size": 7739
+    },
+    {
+      "path": "release-assistant-fresh-query.js",
+      "blobSha": "3d1ebf2ec7c60872a326a26c7a37abbc36e23a8d",
+      "size": 13133
+    },
+    {
+      "path": "release-assistant-image-safety-v9432.js",
+      "blobSha": "e7dbc72fbba930519a8d84b95aceb959e231b55f",
+      "size": 5422
+    },
+    {
+      "path": "release-assistant-intent-router-v2.js",
+      "blobSha": "92b1dd1cd9c5926da2d93ca6d7dda68973c6a3fe",
+      "size": 8016
+    },
+    {
+      "path": "release-assistant-invoice-fresh.js",
+      "blobSha": "ec1877ac544ed38443b58b87d65818ee49ae36ce",
+      "size": 2289
+    },
+    {
+      "path": "release-assistant-invoice-v3.js",
+      "blobSha": "30b060ea6a80204df1943626d9ffc9c6bb98cf83",
+      "size": 7937
+    },
+    {
+      "path": "release-assistant-invoice.js",
+      "blobSha": "291045928f031172520b638ae506afacae3f5cce",
+      "size": 11172
+    },
+    {
+      "path": "release-assistant-mobile-v9250.js",
+      "blobSha": "b04aa5a7776ac3b6f1e53b3cc745dfa1b6ed8d18",
+      "size": 9905
+    },
+    {
+      "path": "release-assistant-order-import.js",
+      "blobSha": "5f909509ea859e74df31a94fc3610acdea360455",
+      "size": 12622
+    },
+    {
+      "path": "release-assistant-orders.js",
+      "blobSha": "d8227db0834c512b32f652d5867d5f55a4d5ef86",
+      "size": 10232
+    },
+    {
+      "path": "release-assistant-query.js",
+      "blobSha": "37e6c9b2031841d3112fb09e96261e12ada1c9db",
+      "size": 39887
+    },
+    {
+      "path": "release-assistant-server-v9266.js",
+      "blobSha": "26175522ebe806ee0703dde322df563195386dd1",
+      "size": 6374
+    },
+    {
+      "path": "release-assistant-studio-v9268.js",
+      "blobSha": "4126be34c80d77425e0e86aa17e278a53fb1cd0a",
+      "size": 13454
+    },
+    {
+      "path": "release-assistant-system-wide.js",
+      "blobSha": "71070bbc34ba1e558cd6894af809733f3cfe8298",
+      "size": 21209
+    },
+    {
+      "path": "release-assistant-ui-light-v9277.js",
+      "blobSha": "e146e93bfd2589302ce083231a5f0de61394b638",
+      "size": 4673
+    },
+    {
+      "path": "release-assistant-ui-v9267.js",
+      "blobSha": "bfa963320397d74d03fde333dba79cc3068a3cf0",
+      "size": 10478
+    },
+    {
+      "path": "release-assistant-ui-v9269.js",
+      "blobSha": "4a070ecff401b3361e643f1a9fff3b03836973bd",
+      "size": 515
+    },
+    {
+      "path": "release-assistant-voice-continuous.js",
+      "blobSha": "59885b7ee0ecdc287099fb7de8a705e778d980e0",
+      "size": 4926
+    },
+    {
+      "path": "release-assistant-voice.js",
+      "blobSha": "3f016c1a3e3a925d4f9d369e0a3e284ec154e567",
+      "size": 5090
+    },
+    {
+      "path": "release-auditor-authority-map-v9374.js",
+      "blobSha": "ff81f632841ae49bc2356cda044a923c29eaa25a",
+      "size": 29961
+    },
+    {
+      "path": "release-auditor-autocorrect-v9441.js",
+      "blobSha": "8f6425fab96817aed9b686b3a9d723f193d2c724",
+      "size": 34701
+    },
+    {
+      "path": "release-auditor-autocorrect-v9442.js",
+      "blobSha": "e256cbeecc698c848cc6943c21c9382b35fc99fd",
+      "size": 7869
+    },
+    {
+      "path": "release-auditor-autocorrect-v9443.js",
+      "blobSha": "dd40b5e5fbb6b65733d2a28583949a29b88414f0",
+      "size": 8402
+    },
+    {
+      "path": "release-auditor-autocorrect-v9444.js",
+      "blobSha": "f6c9e933063d002976f62c3f69ca3fc1cb161975",
+      "size": 10207
+    },
+    {
+      "path": "release-auditor-autocorrect-v9446.js",
+      "blobSha": "7dc0058cd2720cd83e2198a9386c6801ca101965",
+      "size": 10284
+    },
+    {
+      "path": "release-auditor-autocorrect-v9447.js",
+      "blobSha": "6156da6be70c34bedf044a3d5abc0656c777fb1b",
+      "size": 37250
+    },
+    {
+      "path": "release-auditor-autocorrect-v9448.js",
+      "blobSha": "6bba2d377be5b26884a8137adafc9b6a9d54c571",
+      "size": 28254
+    },
+    {
+      "path": "release-auditor-blackbox-v9299.js",
+      "blobSha": "38eff7ad5f12bc9e2fdc9b31786b964e5f6ed4f5",
+      "size": 12714
+    },
+    {
+      "path": "release-auditor-boot-analysis-v9381.js",
+      "blobSha": "def11f03a3f4f5fe0d206ad1a7f536168aa8689c",
+      "size": 12946
+    },
+    {
+      "path": "release-auditor-boot-timeline-v9379.js",
+      "blobSha": "a051a44d9aa6eae35f8b6737473d61ca2d668fba",
+      "size": 3463
+    },
+    {
+      "path": "release-auditor-build-marker-v9396.js",
+      "blobSha": "b625104d2c94f62c5828412e5b2ebbc8405d0e0a",
+      "size": 1442
+    },
+    {
+      "path": "release-auditor-business-v9401.js",
+      "blobSha": "abad2c0e209e715a953dbac915c4578a9111b160",
+      "size": 15429
+    },
+    {
+      "path": "release-auditor-button-stability-v9435.js",
+      "blobSha": "44354ee5d4a9142208e15ea1cb9e94d67586ecfc",
+      "size": 3867
+    },
+    {
+      "path": "release-auditor-call-trace-v9380.js",
+      "blobSha": "9a6ac75c7c6509ed7c57fc47781ac9be743197ea",
+      "size": 6184
+    },
+    {
+      "path": "release-auditor-daily-fidelity-v9428.js",
+      "blobSha": "298db1e33f268bf10c42e3eb92eadc7a94e50d72",
+      "size": 3935
+    },
+    {
+      "path": "release-auditor-finalize-v9439.js",
+      "blobSha": "ea07f53e3bb4d9224bc4039d9515ed41340bcdc4",
+      "size": 8514
+    },
+    {
+      "path": "release-auditor-hardening-v9399.js",
+      "blobSha": "4726c46bbb071991c437fb4618274686fb47a0dd",
+      "size": 13613
+    },
+    {
+      "path": "release-auditor-hub-reliability-v9315.js",
+      "blobSha": "de85658a873a75deb5846172b39412b881534f82",
+      "size": 11347
+    },
+    {
+      "path": "release-auditor-integrity-v9430.js",
+      "blobSha": "3c8ad049ab3faff626ce00fc9cfbcfb44ac2b34f",
+      "size": 4991
+    },
+    {
+      "path": "release-auditor-intelligence-v9396.js",
+      "blobSha": "43f9b135819662ded48da8587d51d96686aed6e0",
+      "size": 23259
+    },
+    {
+      "path": "release-auditor-learning-assistant-v9556.js",
+      "blobSha": "652d09f4eb966238e84f8432b39cb0111b1c7aa6",
+      "size": 12523
+    },
+    {
+      "path": "release-auditor-max-debug-v9292.js",
+      "blobSha": "aa6815bdc65f35f2a9df31ce4a5ba63709b3032c",
+      "size": 8510
+    },
+    {
+      "path": "release-auditor-operational-v9314.js",
+      "blobSha": "9e553616af02b7dae74c13bb1ef226b52115de27",
+      "size": 17511
+    },
+    {
+      "path": "release-auditor-production-v9369.js",
+      "blobSha": "cbad3b5c62aebae63b778eebbf469075483b9e9b",
+      "size": 20052
+    },
+    {
+      "path": "release-auditor-rapid-learning-v9437.js",
+      "blobSha": "33aadf259b7093942970a5abaec48825b41477ea",
+      "size": 17611
+    },
+    {
+      "path": "release-auditor-reliability-v9438.js",
+      "blobSha": "ec6bf970f78acd538cde1c6b08e147998f121fe3",
+      "size": 20632
+    },
+    {
+      "path": "release-auditor-render-signal-v9372.js",
+      "blobSha": "8e2c05ef77afee0593ad24bca6f0e2968843a2d9",
+      "size": 2152
+    },
+    {
+      "path": "release-auditor-repair-v9440.js",
+      "blobSha": "1d08680e45c7ec90c21fd5160c75e2cbd9fcc99d",
+      "size": 16150
+    },
+    {
+      "path": "release-auditor-restore-v9263.js",
+      "blobSha": "a89b786f65cfbcd5600f1c8f9ab08b23b5cdbd4a",
+      "size": 3958
+    },
+    {
+      "path": "release-auditor-runtime-fix-v9370.js",
+      "blobSha": "17de4123dd79d1aa62a47261db7c5df9da4c755a",
+      "size": 2509
+    },
+    {
+      "path": "release-auditor-safari-download-v9367.js",
+      "blobSha": "8b3d3212aaf9959a91af3e113519c83f25e73742",
+      "size": 2340
+    },
+    {
+      "path": "release-auditor-safari-download-v9368.js",
+      "blobSha": "8c50e0e7b3e2a6ae41b541cdbea1520aabe956e7",
+      "size": 13776
+    },
+    {
+      "path": "release-auditor-script-multiplicity-v9438.js",
+      "blobSha": "ea4d865fbeac9f1f05f753199c4355a53c776019",
+      "size": 7168
+    },
+    {
+      "path": "release-auditor-shell-v9382.js",
+      "blobSha": "469175ceb1e5f35f7087b2fe42fc2dbebd32a38b",
+      "size": 19836
+    },
+    {
+      "path": "release-auditor-single-action-v9426.js",
+      "blobSha": "bd1caa5d5c4b20a09417425a34252f91d93099e9",
+      "size": 8359
+    },
+    {
+      "path": "release-auditor-single-action-v9427.js",
+      "blobSha": "add783b85e077f9a25ab602a87c0a48268ba1adf",
+      "size": 14746
+    },
+    {
+      "path": "release-auditor-single-action-v9429.js",
+      "blobSha": "bb5a9cabbb3d0be5692c9fced65b905f8c69ed60",
+      "size": 17667
+    },
+    {
+      "path": "release-auditor-single-ui-reclaim-v9434a.js",
+      "blobSha": "750b1206e3d917faad1154ec8ea34a1d2fe5a34f",
+      "size": 11720
+    },
+    {
+      "path": "release-auditor-smart-v9360.js",
+      "blobSha": "d1a4a60005d330418a5d95b3b8f63eeedaee0bd8",
+      "size": 19308
+    },
+    {
+      "path": "release-auditor-ui-compat-v9361.js",
+      "blobSha": "645e1380b0b6415fcc81c0e0725b388483c9c3d6",
+      "size": 1066
+    },
+    {
+      "path": "release-batch-v9256.js",
+      "blobSha": "c60fd4e4e5cf04016ddd4132661519a0f6417dec",
+      "size": 18771
+    },
+    {
+      "path": "release-brand-theme-v9402.js",
+      "blobSha": "4db79e9a17f91fd252e20e4da2bc10863bb9c3c3",
+      "size": 16174
+    },
+    {
+      "path": "release-business-expansion-v9400.js",
+      "blobSha": "d67fd6005a136d6dd7989ed85a123c2304fbc9c4",
+      "size": 36952
+    },
+    {
+      "path": "release-capacity-integrity.js",
+      "blobSha": "5ef9c1c6413aa8bbfdf624fbefaba5ffcf9c566e",
+      "size": 4481
+    },
+    {
+      "path": "release-catalog-recovery-v9254.js",
+      "blobSha": "5b595eee048b9177dabc8f4d7edf5c6cb48df5a2",
+      "size": 7980
+    },
+    {
+      "path": "release-checklist-integrity.js",
+      "blobSha": "4cdcbf101a2ff2f67ec5275fb9167aef6d2fb4cb",
+      "size": 3516
+    },
+    {
+      "path": "release-critical-ui-v9255.js",
+      "blobSha": "fe5e1066d5fec2c8827e7d79cb8114641c2db888",
+      "size": 18756
+    },
+    {
+      "path": "release-current.js",
+      "blobSha": "c5bd034a15c652dea15a97d8fbcbb2d63c26d30f",
+      "size": 11946
+    },
+    {
+      "path": "release-cut-material-usage.js",
+      "blobSha": "ebd007c7474b66807258d7096eb749d2e3390ee4",
+      "size": 16562
+    },
+    {
+      "path": "release-cut-model-grade-adjust.js",
+      "blobSha": "c15badea922926b81f9ae423bc1a5f201733cd28",
+      "size": 7268
+    },
+    {
+      "path": "release-cut-model-split.js",
+      "blobSha": "5ea532882f341754cf1fa03d1e1a56691c41e621",
+      "size": 31476
+    },
+    {
+      "path": "release-cut-organization.js",
+      "blobSha": "fb1b1d01809bac8faa0e44fdfc0151e4f8aef621",
+      "size": 6430
+    },
+    {
+      "path": "release-cut-step-queues-v9528.js",
+      "blobSha": "ff4a9649aa04af4d35bd2d54ccea6777706d64df",
+      "size": 7077
+    },
+    {
+      "path": "release-cut-view.js",
+      "blobSha": "b1b2decfd5cecbc465ece364e4a5626d30788f13",
+      "size": 2020
+    },
+    {
+      "path": "release-cut-weight-v9579.js",
+      "blobSha": "091be2c3f15f8ccbe5175c284c90189b6c45513f",
+      "size": 8665
+    },
+    {
+      "path": "release-cutter-history-v9250.js",
+      "blobSha": "7e0bdf3b91b9db73e43702505195398cfb953ea0",
+      "size": 9025
+    },
+    {
+      "path": "release-cutter-planner.js",
+      "blobSha": "a7688c047d7a40b70f8e0489fb9ce4afb20e2b16",
+      "size": 13897
+    },
+    {
+      "path": "release-cutter-sheet-materials-v9523.js",
+      "blobSha": "0c78abd815aa0e61f66eb6802e14d05266369b6f",
+      "size": 27234
+    },
+    {
+      "path": "release-daily-safety.js",
+      "blobSha": "f473a2580c06241815d1af856dcfdbf185306ce2",
+      "size": 16536
+    },
+    {
+      "path": "release-diagnostic-faction-stability-v9423.js",
+      "blobSha": "82ff227ab07432f8f656dd0ae8dce87dc005bd5d",
+      "size": 13297
+    },
+    {
+      "path": "release-diagnostics-center.js",
+      "blobSha": "3c4221feaaee672cb0292eea731e7fe18842e1ab",
+      "size": 45669
+    },
+    {
+      "path": "release-diagnostics-maintenance-v9406.js",
+      "blobSha": "5a0d24b1b25fb8db7fbeb5cce3dac200c54de749",
+      "size": 8261
+    },
+    {
+      "path": "release-employee-purchases-v9250.js",
+      "blobSha": "ed9f66abb50add1cae4440fca8d2d54a00a475ac",
+      "size": 12342
+    },
+    {
+      "path": "release-faction-checklist-grade-standard.js",
+      "blobSha": "e19f0924b096ccfeaf97934678c276f0a56f4c2a",
+      "size": 7080
+    },
+    {
+      "path": "release-faction-feature-guard-v9598.js",
+      "blobSha": "b67425c1cb941f66a68f71265005c95ca070058f",
+      "size": 5907
+    },
+    {
+      "path": "release-faction-integrity.js",
+      "blobSha": "485ba213ca8b1616441a0c20bb7c38e45d10ac7b",
+      "size": 4232
+    },
+    {
+      "path": "release-faction-ledger-preservation-v9597.js",
+      "blobSha": "ce5dbb6a64992ea00ebc172d762bc075f60e1743",
+      "size": 10107
+    },
+    {
+      "path": "release-faction-manual-payment-v9566.js",
+      "blobSha": "6157e5975015cfcf2664f0cf92866c5e14c16270",
+      "size": 129724
+    },
+    {
+      "path": "release-faction-manual-payment.js",
+      "blobSha": "d584b2557f76d852e7af013085e9ed5c736e842c",
+      "size": 9074
+    },
+    {
+      "path": "release-faction-master-integrity.js",
+      "blobSha": "b6de8f16cf8a80d4ff58df799eba1055262d43b6",
+      "size": 8193
+    },
+    {
+      "path": "release-faction-material-refresh-v9522.js",
+      "blobSha": "d323e08d00bfabb4b0fbfb4c0fb12e33be42e807",
+      "size": 29779
+    },
+    {
+      "path": "release-faction-operations-v9520.js",
+      "blobSha": "b1e17e0cbb223388445e88ee0934170154bbaed0",
+      "size": 20491
+    },
+    {
+      "path": "release-faction-payments.js",
+      "blobSha": "c3225d19dc3beb6c4f41b0a780b109db549dd557",
+      "size": 8271
+    },
+    {
+      "path": "release-faction-safe-adjust-v9514.js",
+      "blobSha": "8fb44e289ce92e3c2d5a62d5dd0e24f413d7cfa8",
+      "size": 17246
+    },
+    {
+      "path": "release-faction-send-model-grade.js",
+      "blobSha": "8901853b6b3d2496b6d175fca894ae40c4ee1b9e",
+      "size": 10093
+    },
+    {
+      "path": "release-faction-service-rates-v9577.js",
+      "blobSha": "fd93f691f35b3e7857989b0270ce74ce0897604e",
+      "size": 5796
+    },
+    {
+      "path": "release-faction-traveta-payment-v9424.js",
+      "blobSha": "bd2dff363e0e25dae83f1a65175f60057ccb7d80",
+      "size": 20249
+    },
+    {
+      "path": "release-faction-ux-v9287.js",
+      "blobSha": "a9386679260af9da170e80095c7dc1d51ff14c22",
+      "size": 13635
+    },
+    {
+      "path": "release-finance-locations-v9251.js",
+      "blobSha": "753201c7825576e15e0f9df3d6d9f84d3518a97f",
+      "size": 18966
+    },
+    {
+      "path": "release-goals-stability-v9430.js",
+      "blobSha": "efe150ef74bf3241c2774bcb2eb1c5ec118872f8",
+      "size": 2733
+    },
+    {
+      "path": "release-health-monitor-panel-v9541.js",
+      "blobSha": "8677fb2570f69956cd5915a6371212c27676072e",
+      "size": 21736
+    },
+    {
+      "path": "release-hub-action-rescue-v9271.js",
+      "blobSha": "1ebe3c4eb5413a9cc2b5fb9f4a90cbfa2293267c",
+      "size": 3078
+    },
+    {
+      "path": "release-hub-delivery-v9324.js",
+      "blobSha": "29c5cb2650513c62a6fe6e113c76a098ebdac560",
+      "size": 12026
+    },
+    {
+      "path": "release-hub-editor-v9267.js",
+      "blobSha": "8e15b6100ec0dfb2a5a28ae4989b25144f7be10a",
+      "size": 4015
+    },
+    {
+      "path": "release-hub-editor-v9270.js",
+      "blobSha": "c962f7cffa661762c5eab4a12fb76ac1597cd3c8",
+      "size": 15166
+    },
+    {
+      "path": "release-hub-forensics-v9291.js",
+      "blobSha": "50704d7ea2382539fee475adf1bada1b11adab50",
+      "size": 12731
+    },
+    {
+      "path": "release-hub-integrity.js",
+      "blobSha": "be88b8d127b3940b51014a2df3601b2dbb77f0a8",
+      "size": 10966
+    },
+    {
+      "path": "release-hub-learning-v9568.js",
+      "blobSha": "8c51e078ad8a627bcef40be95c64bfa36c07ab5a",
+      "size": 10640
+    },
+    {
+      "path": "release-hub-live-refresh-v9289.js",
+      "blobSha": "adef8af934033f82986a3247ea6436269ef94da9",
+      "size": 5406
+    },
+    {
+      "path": "release-hub-master-v9258.js",
+      "blobSha": "d78258e45cecb4d21ca707780fb0f4e0f3b337ee",
+      "size": 2435
+    },
+    {
+      "path": "release-hub-payroll-paid-date-v9515.js",
+      "blobSha": "ee6ffe5467fd4ee10d6b99c7e4369fd43bacaace",
+      "size": 4840
+    },
+    {
+      "path": "release-hub-period-summary.js",
+      "blobSha": "bf17a2d43c711f4f1a720d4fb4350fbf5871d53a",
+      "size": 12450
+    },
+    {
+      "path": "release-hub-personal-integrity.js",
+      "blobSha": "d6a5b38ec1d0729d1b95fc56f56e57117b96bad4",
+      "size": 5480
+    },
+    {
+      "path": "release-hub-primary-v9323.js",
+      "blobSha": "55918b87022ec1e3162f95938027f3010b3606b2",
+      "size": 13077
+    },
+    {
+      "path": "release-hub-save-proof-v9567.js",
+      "blobSha": "740628ed76fb377b9d23f70bde3b065cfff997bf",
+      "size": 8077
+    },
+    {
+      "path": "release-hub-search.js",
+      "blobSha": "53bf368803fe1d94f2c7e455b8c7ae0146d3f00f",
+      "size": 11161
+    },
+    {
+      "path": "release-hub-tombstone-online.js",
+      "blobSha": "d37b8cf858e55f9e1aad1dde9b00d0596677a975",
+      "size": 7366
+    },
+    {
+      "path": "release-hub-week-unified-v9317.js",
+      "blobSha": "fdda40330ae8c35f3352767fef435b037f2c5df1",
+      "size": 5030
+    },
+    {
+      "path": "release-hub-week-v9253.js",
+      "blobSha": "d66e2fb12e3142092db8aed12754adfabacbf2f5",
+      "size": 8418
+    },
+    {
+      "path": "release-improvements-v9252.js",
+      "blobSha": "c4ffeb70116cbafe7f162a16efdfd4c42f533e15",
+      "size": 31499
+    },
+    {
+      "path": "release-interaction-lock-v9434.js",
+      "blobSha": "d5e44318e6821feeaf3d6050c65cee7fb247a239",
+      "size": 8201
+    },
+    {
+      "path": "release-internal-auditor.js",
+      "blobSha": "3c5909a76a3b860d802b3f141da1b08aba25deba",
+      "size": 65560
+    },
+    {
+      "path": "release-internal-visual-runner-v9329.js",
+      "blobSha": "75483b7d9e6f966c14211a290754f4716d7e778e",
+      "size": 26649
+    },
+    {
+      "path": "release-label-destination-v9310.js",
+      "blobSha": "722045f0ca2dcc8ec74babc99458bd6c52ad50a6",
+      "size": 6448
+    },
+    {
+      "path": "release-label-typography-v9308.js",
+      "blobSha": "02015166cbeb26d82c9c0438167271f32f5f6e7f",
+      "size": 4048
+    },
+    {
+      "path": "release-learning-cloud-v9573.js",
+      "blobSha": "85202bf6afb11c45cfaf9ce10260668e36ac12f9",
+      "size": 13615
+    },
+    {
+      "path": "release-limits.js",
+      "blobSha": "f970b4b0e4970e65c799932794573cf6d1768b83",
+      "size": 7472
+    },
+    {
+      "path": "release-login-3d-baseline-v9407.js",
+      "blobSha": "5e3b22ecc354157cfdcb2e18084f4120250a01bc",
+      "size": 8659
+    },
+    {
+      "path": "release-login-confirm-gate-v9407.js",
+      "blobSha": "bbb1b6aecd1de6a73491a2b6305a8516236e452e",
+      "size": 13318
+    },
+    {
+      "path": "release-material-health-v9260.js",
+      "blobSha": "1d040ea88d3a30fedb74e2efe4c76133f9b84c6f",
+      "size": 8972
+    },
+    {
+      "path": "release-material-tools.js",
+      "blobSha": "f463f007e516a6500ddbb65e10424ae5918e34ee",
+      "size": 19819
+    },
+    {
+      "path": "release-mobile-friendly-v9512.js",
+      "blobSha": "66427acc6381afa9d02418e0017673b0b98d5d15",
+      "size": 12615
+    },
+    {
+      "path": "release-night-ui-fixes.js",
+      "blobSha": "dda6ccf5b7964514656108415580e0c3e8e62625",
+      "size": 16656
+    },
+    {
+      "path": "release-note-document-v9412.js",
+      "blobSha": "5673d3069831d253f0fc735042da552e5bee55de",
+      "size": 12605
+    },
+    {
+      "path": "release-note-edit-v9414.js",
+      "blobSha": "c6d4346e68cd7e771b53a84f699828969d316af0",
+      "size": 15070
+    },
+    {
+      "path": "release-note-integrity.js",
+      "blobSha": "b17755752215583203e9903f684d6e2787cebd47",
+      "size": 42735
+    },
+    {
+      "path": "release-note-receipts-v9576.js",
+      "blobSha": "a4b563d2b4f6293cfa7f23a36fda677b8f7b36d0",
+      "size": 8599
+    },
+    {
+      "path": "release-notes-live-sync-v9563.js",
+      "blobSha": "1c457534d79bb3018a6c2fb3772cd9d29cf9d13f",
+      "size": 11571
+    },
+    {
+      "path": "release-notes-receivables-v9564.js",
+      "blobSha": "0b0fde5d82aa1721ee5e728cf5857f8f4f677b78",
+      "size": 25263
+    },
+    {
+      "path": "release-notes.js",
+      "blobSha": "94bf7137edf6c50cf1a54a31c4c36e256cd88b4e",
+      "size": 13741
+    },
+    {
+      "path": "release-operational-polish-v2.js",
+      "blobSha": "b224c80fadc62895a525be9155e5e5010155e714",
+      "size": 21668
+    },
+    {
+      "path": "release-operations-pack.js",
+      "blobSha": "29bf8a04bf2875a47dacc0445652865510b2d731",
+      "size": 95110
+    },
+    {
+      "path": "release-order-delivery-trace-v9539.js",
+      "blobSha": "65f201f8568a6d5fb9454d934e6563b63ab44283",
+      "size": 9768
+    },
+    {
+      "path": "release-orders-cloud-visibility-v9537.js",
+      "blobSha": "c93212044f3e5ca494e271c9a4d0301e3a59241e",
+      "size": 6700
+    },
+    {
+      "path": "release-packaging-assistant-stability-v9425.js",
+      "blobSha": "a79295fa5d390628bbf721130efe3b45df019f51",
+      "size": 13732
+    },
+    {
+      "path": "release-patch-v9257.js",
+      "blobSha": "a4042a5c2c8a3d9a447eab627d15bc0e146ecf40",
+      "size": 17116
+    },
+    {
+      "path": "release-payroll-integrity.js",
+      "blobSha": "19e47906bad396d79eeebe91bdf608a45aad14a9",
+      "size": 22952
+    },
+    {
+      "path": "release-payroll-layout-v9298.js",
+      "blobSha": "1ddbfa1916a7ae24ffe6cf0ae4ab120d7e50c056",
+      "size": 3684
+    },
+    {
+      "path": "release-payroll-month-wal-v9334.js",
+      "blobSha": "f999fb0394d663b71400eca26dafff7ad6515fd5",
+      "size": 8015
+    },
+    {
+      "path": "release-payroll-reliable-save-guard-v9344.js",
+      "blobSha": "e8c06edfddb70862cd87fb4aee57171391504175",
+      "size": 5884
+    },
+    {
+      "path": "release-payroll-save-stability-v9296.js",
+      "blobSha": "9a125f5cd33cab13eafc6a82288417e6d0b77b7c",
+      "size": 32822
+    },
+    {
+      "path": "release-payroll-snapshot-watch-v9354.js",
+      "blobSha": "5ab9bdd267766e8a2f88c2508133f4c2f3c9394c",
+      "size": 4405
+    },
+    {
+      "path": "release-payroll-stability-v9293.js",
+      "blobSha": "7fefc2ec721d100a0f164780f6c88f0f7bb6720e",
+      "size": 13812
+    },
+    {
+      "path": "release-payroll-termination-provisions.js",
+      "blobSha": "c9565554790fc1df3952d283e8300a14cccd741e",
+      "size": 8730
+    },
+    {
+      "path": "release-payroll-termination-stability-v9294.js",
+      "blobSha": "48933d0250182f98523c5bf9fbeae285fc374b3f",
+      "size": 14560
+    },
+    {
+      "path": "release-payroll-view-v9295.js",
+      "blobSha": "4d4a1933f59aae16e827086448f0cf41505ce106",
+      "size": 13980
+    },
+    {
+      "path": "release-payroll-wal-race-v9346.js",
+      "blobSha": "ed5895b1d4dbbe5616e53ab543eff11486a6e3e4",
+      "size": 21312
+    },
+    {
+      "path": "release-pricing.js",
+      "blobSha": "3dd628e537cff0b826f2906e371d59beff83ef64",
+      "size": 3604
+    },
+    {
+      "path": "release-printer3d-cloud-hydration-v9517.js",
+      "blobSha": "fb4ae0d2d23b2a7453c1d57c1a12845a80b8b6fd",
+      "size": 12017
+    },
+    {
+      "path": "release-printer3d-module-recovery-v9596.js",
+      "blobSha": "25ba85d466365322bee9775f486af02c36296a4e",
+      "size": 3087
+    },
+    {
+      "path": "release-printer3d-nav-guard-v9516.js",
+      "blobSha": "7845a9f9b60a930d4a8452f5c3816098a9925c54",
+      "size": 2653
+    },
+    {
+      "path": "release-printer3d-persistence-v9431.js",
+      "blobSha": "133571889a6026810ab6996dc7fce9bfff6efca2",
+      "size": 10717
+    },
+    {
+      "path": "release-product-catalog-v9419.js",
+      "blobSha": "011befa5023e2d477599eef6fec17c2383373771",
+      "size": 7353
+    },
+    {
+      "path": "release-product-traceability-v9580.js",
+      "blobSha": "93fc0513111d3f5a25d99c8f782df73b023b1c72",
+      "size": 28019
+    },
+    {
+      "path": "release-production-cut-reconcile-v9307.js",
+      "blobSha": "b5fad270105978896f36dd9ebcfae3eabca21b42",
+      "size": 16145
+    },
+    {
+      "path": "release-production-operations-v9378-preview.js",
+      "blobSha": "34f1af731c516ad34ba7c91c4866e96edf041931",
+      "size": 22005
+    },
+    {
+      "path": "release-production-operations-v9380-preview-patch.js",
+      "blobSha": "5fdb282d4591e9c270e5430c37c17de6027f8a94",
+      "size": 586
+    },
+    {
+      "path": "release-production-operations-v9385-core.js",
+      "blobSha": "afe20cd0fa854e8e1c8b4160df379e827f68b1d7",
+      "size": 26834
+    },
+    {
+      "path": "release-production-operations-v9386-finalize.js",
+      "blobSha": "a2b9a61e1f7af68f1bb5591d847b01766a0ccb10",
+      "size": 17276
+    },
+    {
+      "path": "release-production-postsave-v9439.js",
+      "blobSha": "4bb46e34be8fc9be873f21db99df74398aee8ecf",
+      "size": 2332
+    },
+    {
+      "path": "release-production-reconcile-v9439.js",
+      "blobSha": "7434300050065c1502b98401b6025a4ff448eec8",
+      "size": 16286
+    },
+    {
+      "path": "release-production-reconcile-v9443.js",
+      "blobSha": "7caa9789fd0c8e089037141ebc6c82d1e986a1aa",
+      "size": 4736
+    },
+    {
+      "path": "release-production-render-fix-v9330.js",
+      "blobSha": "a4875c78c5d7a0a8bb311a7017fb6e55ffab1f6d",
+      "size": 3830
+    },
+    {
+      "path": "release-production-residual-v9448.js",
+      "blobSha": "610b90aaf3fefbb13a4ecd1b4e12c38afe283b60",
+      "size": 8980
+    },
+    {
+      "path": "release-production-save-confirm-v9438.js",
+      "blobSha": "bbd8f1a2862800c8c2e35803813ebaea1ae44fad",
+      "size": 12350
+    },
+    {
+      "path": "release-production-writeoff-integrity-v9391.js",
+      "blobSha": "2b9ac1f9cf99b4313acd2d761e0ae74ccd1bb655",
+      "size": 17277
+    },
+    {
+      "path": "release-products-search-v9452.js",
+      "blobSha": "84bdf1d5c10fbd2ca3df666b9d56e43e392f7ad4",
+      "size": 2618
+    },
+    {
+      "path": "release-projection-delivery-integrity.js",
+      "blobSha": "c32ff10f83e5d78dc58569f96859b077910978e0",
+      "size": 4631
+    },
+    {
+      "path": "release-projection-team-view.js",
+      "blobSha": "cdc467e5b2ab99502272fbe37e76424087f04354",
+      "size": 14515
+    },
+    {
+      "path": "release-purchase-checkers.js",
+      "blobSha": "543654e13a3810e6a2879509ee115e949f883bec",
+      "size": 4454
+    },
+    {
+      "path": "release-purchase-note-import.js",
+      "blobSha": "2bcd2267a6fe9ed55fe21e938d48bf9f25ec133d",
+      "size": 12488
+    },
+    {
+      "path": "release-record-integrity.js",
+      "blobSha": "c763fbf74c2b3425bb15cafc17bb10ec3195c7e7",
+      "size": 19517
+    },
+    {
+      "path": "release-reports-stability-v9438.js",
+      "blobSha": "6ac3ead7b40125daff61387036c87293b7422302",
+      "size": 4158
+    },
+    {
+      "path": "release-runtime-performance-v9371.js",
+      "blobSha": "1a5e22d40bd0f91aa9b2559eb6951966a3a6d9fc",
+      "size": 3458
+    },
+    {
+      "path": "release-runtime-profiler-v9292.js",
+      "blobSha": "d1e0a057b97917649d4dc12c20360de395269803",
+      "size": 6789
+    },
+    {
+      "path": "release-runtime-recovery-v9326.js",
+      "blobSha": "129b8c4fa8d415919db95f4b666f66e131391b0f",
+      "size": 11640
+    },
+    {
+      "path": "release-safari-resume-v9266.js",
+      "blobSha": "4c0d4b831d11f0eee05677627c4f65038ba48ee7",
+      "size": 5543
+    },
+    {
+      "path": "release-safety-gate-v9264.js",
+      "blobSha": "1a36016ae5a43fbdda0375a11ec9c4caff9eba6d",
+      "size": 3640
+    },
+    {
+      "path": "release-safety-gate-v9265.js",
+      "blobSha": "eafd18e9e3d28dd89fab6eecb4460038c8d7d229",
+      "size": 3523
+    },
+    {
+      "path": "release-safety-gate-v9266.js",
+      "blobSha": "b67dbec6c3e8bc777238143394502692d672b065",
+      "size": 3523
+    },
+    {
+      "path": "release-safety-gate-v9267.js",
+      "blobSha": "19be26c2fee083e3405dbc03672b6ddf1ba7e3df",
+      "size": 3523
+    },
+    {
+      "path": "release-safety-gate-v9268.js",
+      "blobSha": "f54884cece154192d326d2311566880db418c8dc",
+      "size": 3600
+    },
+    {
+      "path": "release-safety-gate-v9269.js",
+      "blobSha": "360c419c29010881f63a0e7de79daf8bad00f83d",
+      "size": 6846
+    },
+    {
+      "path": "release-safety-gate-v9270.js",
+      "blobSha": "dd563dc4d01cc4b950ead32cfb80d781fdbfda96",
+      "size": 3450
+    },
+    {
+      "path": "release-save-actions-v9322.js",
+      "blobSha": "b02f6ffcd6304649507fdbeafa23285b75b582a7",
+      "size": 6103
+    },
+    {
+      "path": "release-save-transport-v9320.js",
+      "blobSha": "6cbbc56e77aa3c42555c64e22fc194968fda4bf6",
+      "size": 7046
+    },
+    {
+      "path": "release-separation-commit-v9319.js",
+      "blobSha": "a018c1a3e358d0726f997b6ff326e8333a6819e3",
+      "size": 17200
+    },
+    {
+      "path": "release-separation-cut-target-v9335.js",
+      "blobSha": "a6c0ac62b190eea4e2565b10eb4ba5c03c7e2e02",
+      "size": 4723
+    },
+    {
+      "path": "release-stage-flow-integrity-v9423.js",
+      "blobSha": "db4fa4895bd6f95ccd4145c2ce0137a87a48efb0",
+      "size": 14680
+    },
+    {
+      "path": "release-supplier-comparator-v9250.js",
+      "blobSha": "59c9016ce2d8c246c3dcef68dc8fe39d82f88295",
+      "size": 3651
+    },
+    {
+      "path": "release-supplier-debts-v9250.js",
+      "blobSha": "3d215fbaff91a3bb8c6a335605a5f529c1b8962e",
+      "size": 10430
+    },
+    {
+      "path": "release-sync-diagnostic-runtime-v9350.js",
+      "blobSha": "fd9cfbc09e55f13064e7052fb6499adf3a30a6df",
+      "size": 6922
+    },
+    {
+      "path": "release-sync-guard-v9306.js",
+      "blobSha": "c894f180ac3870654de367cd9b0dd54873b67d0e",
+      "size": 13768
+    },
+    {
+      "path": "release-sync-recovery-v9301.js",
+      "blobSha": "58020d7d3bdaaba3fdbc50c0096e3ae7d883d5f1",
+      "size": 18820
+    },
+    {
+      "path": "release-system-stability-v9301.js",
+      "blobSha": "9e531bc7d88e57f08005dc1f0ee2bbe44819509f",
+      "size": 6061
+    },
+    {
+      "path": "release-tab-resume-v9262.js",
+      "blobSha": "11d031285e03bad585df42e260b69444d516c820",
+      "size": 4709
+    },
+    {
+      "path": "release-trade-settlement-v9422.js",
+      "blobSha": "dca0ae03a9f82ffe591b1771a4afd62ff08e4328",
+      "size": 12646
+    },
+    {
+      "path": "release-ui-actions-v9402.js",
+      "blobSha": "39f859a2e0590020e1ee0a98ddd252d8fb12320d",
+      "size": 16034
+    },
+    {
+      "path": "release-ui-cleanup.js",
+      "blobSha": "afc204cba6922c9f94c074e1536b68182e16e178",
+      "size": 2687
+    },
+    {
+      "path": "release-ui-stability.js",
+      "blobSha": "88ef43d639b006307cb577ba46254dfc88bc5fa6",
+      "size": 15894
+    },
+    {
+      "path": "release-visual-test-launcher-v9331.js",
+      "blobSha": "659ac392613b42a595cf28eaf9f048ab59d6d0f1",
+      "size": 4725
+    },
+    {
+      "path": "release-visual-test-v9331.js",
+      "blobSha": "3eb06c96ca45c85033670839edbc4ab855223590",
+      "size": 10598
+    },
+    {
+      "path": "release-wal-confirmed-replay-v9333.js",
+      "blobSha": "13ce17d05f7465cc1485247cd15ac550cf3db192",
+      "size": 12136
+    },
+    {
+      "path": "release-wal-idb-convergence-v9536.js",
+      "blobSha": "88234ef78199c70f9eccc8746aeeee5f7e3662f5",
+      "size": 6093
+    },
+    {
+      "path": "release-wal-replay-bridge-v9332.js",
+      "blobSha": "a71cf08799ee2edbccb23b614d80ba9a5666f823",
+      "size": 7007
+    },
+    {
+      "path": "release-wal-single-authority-v9339.js",
+      "blobSha": "37e4cb0b46d12ca2f075a28e622276c48e5a25ad",
+      "size": 12082
+    },
+    {
+      "path": "release-wal-tombstone-pruner-v9509.js",
+      "blobSha": "0f7aa27602cc224ffff523aa40e67c6f2e3a3096",
+      "size": 7216
+    },
+    {
+      "path": "release-weekly-material-planner-v9583.js",
+      "blobSha": "5f8c526bdacd14f9a7ee0fb94841f73c1be800c2",
+      "size": 25421
+    },
+    {
+      "path": "release-whatsapp-pilot-v9250.js",
+      "blobSha": "a4d459eebd42b6f3864da3d3096fbf66831127cd",
+      "size": 13031
+    }
+  ]
+}
