@@ -1145,8 +1145,16 @@ function openForm(groupId=''){
    renderReceipts();
    return true;
   }catch(e){
-   if(feedback)feedback.textContent='⚠ '+sid(e.message||e);
-   if(btn){btn.disabled=false;btn.textContent=editing?'☁️ Salvar alterações':'☁️ Salvar pagamento avulso'}
+   const message=sid(e.message||e);
+   if(feedback)feedback.textContent='⚠ '+message;
+   // ACK inconclusivo ou conflito real: bloquear novo clique no MESMO envio.
+   // A pessoa pode conferir o registro na nuvem e reabrir uma nova edição.
+   const needsReview=editing&&/nuvem recebeu|nuvem devolveu valores diferentes|releitura ainda não confirmou|não coincidiram/i.test(message);
+   if(btn){
+    btn.disabled=needsReview;
+    btn.textContent=needsReview?'⚠ Confira na nuvem antes de tentar novamente':
+     editing?'☁️ Salvar alterações':'☁️ Salvar pagamento avulso';
+   }
    return false;
   }
  });
