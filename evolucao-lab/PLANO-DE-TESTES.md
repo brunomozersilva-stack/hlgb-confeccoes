@@ -2,6 +2,18 @@
 
 **Execução somente em branch isolada.** Não envolve alterações no banco, pagamentos, estoque, WAL ou arquivos já utilizados pelo HLGB.
 
+## Nova bateria — preservação de funções
+
+1. Verificar as **76 funções inicialmente catalogadas**, cada uma com módulo e arquivo correspondente.
+2. Confirmar que todas permanecem **não homologadas**, sem permissão de remoção.
+3. Comparar o hash exato dos **229 arquivos legados** ao commit-base (o teste falha se algum mudar).
+4. Conferir que a tela isolada `preservacao.html` não usa rede, Supabase, IndexedDB, localStorage ou outras APIs persistentes.
+5. Executar navegação, pesquisa por acerto, filtro por módulo, prioridade e seleção temporária para revisão.
+6. Validar em Chromium e WebKit nas larguras **320, 375, 390, 768 e 1280 pixels**.
+7. Reconfirmar que o `main` permanece inalterado, sem publicação ou migração de dados.
+
+**Não significa que 76 funcionalidades foram homologadas:** o teste confirma inventário e isolamento, não substituição real de comportamentos. A comparação antiga versus nova será uma etapa posterior com dados fictícios e aprovação humana.
+
 ## Escopo automatizado
 
 - Validar a lista de 266 melhorias, 19 áreas de módulo, 25 dependências e 8 pontos críticos.
