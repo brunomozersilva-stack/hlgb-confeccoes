@@ -1,0 +1,42 @@
+name: HLGB Facções - contrato de funcionalidades v95.98
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'app-stable3.html'
+      - 'release-faction-feature-guard-v9598.js'
+      - 'release-faction-manual-payment-v9566.js'
+      - 'tests/faction-feature-guard-v9598.cjs'
+      - '.github/workflows/faction-feature-contract-v9598.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'app-stable3.html'
+      - 'release-faction-feature-guard-v9598.js'
+      - 'release-faction-manual-payment-v9566.js'
+      - 'tests/faction-feature-guard-v9598.cjs'
+      - '.github/workflows/faction-feature-contract-v9598.yml'
+permissions:
+  contents: read
+jobs:
+  no-regression:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - name: Validate syntax
+        run: |
+          node --check release-faction-feature-guard-v9598.js
+          node --check release-faction-manual-payment-v9566.js
+      - name: Verify UI, safe recovery and previously delivered features
+        run: |
+          node --test tests/faction-feature-guard-v9598.cjs
+          node --test tests/faction-ledger-preservation-v9597.cjs
+          node tests/faction-manual-v9566.cjs
+          node tests/faction-manual-management-v9588.cjs
+          node tests/faction-manual-corrections-v9590.cjs
+          node tests/faction-inline-adjustment-v9591.cjs
+          node tests/faction-traveta-points-v9592.cjs
+          node tests/embalagem-traveta-v9577.cjs
