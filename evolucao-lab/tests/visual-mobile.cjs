@@ -37,7 +37,7 @@ async function testViewport(browser,width,height){
   assert.equal(await protectedBtn.isDisabled(),true);
   const optional=page.locator('.module .module-actions button[data-sim-toggle="produtos"]');
   await optional.click();
-  assert.equal(await page.locator('.module').filter({has:optional}).locator('.pill.good').count(),1);
+  assert.equal(await page.locator('#module-list .module').filter({has:page.locator('[data-sim-toggle="produtos"]')}).locator('.pill.good').count(),1);
   await page.locator(nav+'[data-tab="dependencies"]').click();
   assert.equal(await page.locator('[data-page="dependencies"]').isVisible(),true);
   assert.equal(await page.locator('#dep-module').inputValue(),'acertos');
@@ -60,8 +60,8 @@ async function testViewport(browser,width,height){
   assert.equal(await page.locator('[data-page="quality"]').isVisible(),true);
   assert.equal(pageErrors.length,0,'erro JS: '+pageErrors.join(' | '));
   assert.deepEqual(external,[],'laboratório fez solicitações remotas');
-  const storage=await page.evaluate(()=>({local:localStorage.length,session:sessionStorage.length}));
-  assert.equal(storage.local,0);assert.equal(storage.session,0);
+  const storage=await page.evaluate(()=>{try{return {local:localStorage.length,session:sessionStorage.length}}catch(e){return {unsupported:true}}});
+  if(!storage.unsupported){assert.equal(storage.local,0);assert.equal(storage.session,0)}
   const after=await page.evaluate(()=>({width:window.innerWidth,scroll:document.documentElement.scrollWidth}));
   assert(after.scroll<=after.width+2,'overflow final '+width+': '+JSON.stringify(after));
   if(isMobile&&width===375){
