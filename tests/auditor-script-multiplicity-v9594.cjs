@@ -42,7 +42,7 @@ function fixture({dom=[], requests=[]}={}) {
 }
 
 test('loader includes the diagnostic once, without reloading 3D persistence',()=>{
-  const list = loader.match(/const files=\[(.*?)\];const inj=/s)?.[1] || '';
+  const list = loader.match(/const files=\[(.*?)\];/s)?.[1] || '';
   const count = name => (list.match(new RegExp("'"+name.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')+"'","g"))||[]).length;
   assert.equal(count('release-auditor-script-multiplicity-v9438.js'),1);
   assert.equal(count('release-printer3d-persistence-v9431.js'),1);

@@ -1,0 +1,31 @@
+name: HLGB Safe 3D Boot Recovery and Payroll Dedupe v95.96
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'app-stable3.html'
+      - 'release-printer3d-module-recovery-v9596.js'
+      - 'tests/boot-printer3d-recover-payroll-dedupe-v9596.cjs'
+      - '.github/workflows/boot-printer3d-recover-payroll-dedupe-v9596.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'app-stable3.html'
+      - 'release-printer3d-module-recovery-v9596.js'
+      - 'tests/boot-printer3d-recover-payroll-dedupe-v9596.cjs'
+      - '.github/workflows/boot-printer3d-recover-payroll-dedupe-v9596.yml'
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - run: node --check release-printer3d-module-recovery-v9596.js
+      - run: node --check tests/boot-printer3d-recover-payroll-dedupe-v9596.cjs
+      - run: node --test tests/boot-printer3d-recover-payroll-dedupe-v9596.cjs
+      - run: node tests/printer3d-entry-v9516.cjs
+      - run: node --test tests/printer3d-cloud-hydration-v9517.cjs
