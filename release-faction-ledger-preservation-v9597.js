@@ -61,6 +61,24 @@ function guardPaymentRendering(){
  window.renderFactionPayments=guardedRender;
  return true;
 }
+function guardGeneralSync(){
+ const original=window.syncAllData;
+ if(typeof original!=='function')return false;
+ if(original.__hlgbNoImplicitPayment9597)return true;
+ function safeSync(){
+  // "Atualizar/sincronizar" não é uma autorização para criar um novo pagamento.
+  // A rotina legada pode ter a lista local incompleta e gerar ID duplicado.
+  const previousSync=window.syncFactionPayments;
+  let suppressed=false;
+  if(typeof previousSync==='function'){window.syncFactionPayments=function(){return false};suppressed=true}
+  try{return original.apply(this,arguments)}
+  finally{if(suppressed)window.syncFactionPayments=previousSync}
+ }
+ safeSync.__hlgbNoImplicitPayment9597=true;
+ safeSync.__original=original;
+ window.syncAllData=safeSync;
+ return true;
+}
 function summaryByGroup(rows){
  const groups=new Map();
  for(const r of rows){
@@ -130,10 +148,10 @@ function panel(){
  return true;
 }
 function attach(){
- guardLegacyCleanup();fixPaymentPeriod();guardPaymentRendering();
+ guardLegacyCleanup();fixPaymentPeriod();guardPaymentRendering();guardGeneralSync();
  panel();
 }
-window.hlgbFactionLedgerPreservation9597={version:V,status,readCloud,guardLegacyCleanup,fixPaymentPeriod,guardPaymentRendering,summaryByGroup};
+window.hlgbFactionLedgerPreservation9597={version:V,status,readCloud,guardLegacyCleanup,fixPaymentPeriod,guardPaymentRendering,guardGeneralSync,summaryByGroup};
 attach();
 window.addEventListener?.('hlgb:authenticated',()=>setTimeout(attach,50));
 window.addEventListener?.('pageshow',()=>setTimeout(attach,100));
