@@ -11,6 +11,19 @@ Esta pasta é um **protótipo isolado**: não é uma tela incorporada ao HLGB em
 - Mudanças futuras devem ser validadas por testes técnicos e pelos funcionários, com suporte a iPhone Safari e Android Chrome.
 - **Aprovação explícita** será necessária para integrar qualquer alteração na operação atual.
 
+## Etapa: preservação das funções antigas (preparação de homologação)
+
+**Objetivo:** evitar que a modernização remova recursos já entregues.
+
+- `paridade-funcional.json` registra **76 funcionalidades preliminares** distribuídas nas 19 áreas; cada uma inclui fonte de código, teste legado quando existe, prioridade e estado `nao_verificada`.
+- `arquivos-legados-baseline.json` registra o hash dos **229 arquivos fundamentais ou scripts `release-`** do commit-base, para detectar qualquer modificação não revisada.
+- `preservacao.html` é uma tela **independente, mobile-friendly e offline** para buscar e separar visualmente funções para revisão. Nenhuma marcação salva, homologa ou autoriza exclusão.
+- `tests/preservacao-contract.cjs` valida o inventário e o isolamento; `tests/baseline-legado.cjs` compara hashes; `tests/preservacao-mobile.cjs` cobre Chromium e WebKit em cinco larguras.
+
+**Limite:** inventariar 76 funções e proteger hashes de código **não demonstra** que todas as funções antigas estejam operacionais ou tenham equivalência em um módulo novo. É um bloqueio inicial contra exclusão involuntária, não uma certificação de paridade.
+
+A aprovação de substituição exige testes de funcionalidades antigas e novas lado a lado, integridade financeira e WAL, critérios de mobile, homologação humana e autorização explícita para a operação atual.
+
 ## Etapa atual — contratos e fluxos operacionais (em preparação para testes)
 
 - `contratos-modulares.json`: proposta de 19 contratos de módulos, políticas de ativação e 7 portões de homologação, **não implementados no HLGB atual**.
