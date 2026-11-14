@@ -153,6 +153,7 @@ function attach(){
 }
 window.hlgbFactionLedgerPreservation9597={version:V,status,readCloud,guardLegacyCleanup,fixPaymentPeriod,guardPaymentRendering,guardGeneralSync,summaryByGroup};
 attach();
+if(typeof window.hlgbAfterLogin==='function')window.hlgbAfterLogin(()=>attach(),100);
 window.addEventListener?.('hlgb:authenticated',()=>setTimeout(attach,50));
 window.addEventListener?.('pageshow',()=>setTimeout(attach,100));
 if(document.readyState==='loading')document.addEventListener?.('DOMContentLoaded',()=>setTimeout(attach,50),{once:true});
