@@ -8,6 +8,7 @@ on:
       - 'release-faction-manual-payment-v9566.js'
       - 'tests/faction-feature-guard-v9598.cjs'
       - 'tests/faction-clear-pdf-v9599.cjs'
+      - 'tests/faction-edit-readback-v95101.cjs'
       - '.github/workflows/faction-feature-contract-v9598.yml'
   push:
     branches: [main]
@@ -17,6 +18,7 @@ on:
       - 'release-faction-manual-payment-v9566.js'
       - 'tests/faction-feature-guard-v9598.cjs'
       - 'tests/faction-clear-pdf-v9599.cjs'
+      - 'tests/faction-edit-readback-v95101.cjs'
       - '.github/workflows/faction-feature-contract-v9598.yml'
 permissions:
   contents: read
@@ -36,6 +38,7 @@ jobs:
         run: |
           node --test tests/faction-feature-guard-v9598.cjs
           node --test tests/faction-clear-pdf-v9599.cjs
+          node --test tests/faction-edit-readback-v95101.cjs
           node --test tests/faction-ledger-preservation-v9597.cjs
           node tests/faction-manual-v9566.cjs
           node tests/faction-manual-management-v9588.cjs
