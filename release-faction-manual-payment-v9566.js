@@ -303,6 +303,71 @@ function remotelySame(local,remote){
   sid(remote.paymentDate)===sid(local.paymentDate)&&sid(remote.updatedAt)===sid(local.updatedAt)&&
   Number(remote.quantity)===Number(local.quantity);
 }
+/* v95.101 — prova de salvamento do acerto. O ACK da escrita NÃO é a prova
+ * da releitura. Evita reescrever linhas iguais e evita falsos alarmes por
+ * updatedAt normalizado ou leitura antiga. Nunca faz segundo POST automático. */
+const factionEditEvidenceV95101={checks:0,confirmed:0,delayed:0,unverified:0,conflicts:0,last:null,recent:[]};
+function registerEditEvidenceV95101(kind,module,id,description,attempts=0){
+ const event={kind,module,id:sid(id),description:sid(description).slice(0,160),attempts,at:new Date().toISOString()};
+ factionEditEvidenceV95101.checks++;
+ if(kind==='confirmed')factionEditEvidenceV95101.confirmed++;
+ if(kind==='delayed')factionEditEvidenceV95101.delayed++;
+ if(kind==='unverified')factionEditEvidenceV95101.unverified++;
+ if(kind==='conflict')factionEditEvidenceV95101.conflicts++;
+ factionEditEvidenceV95101.last=event;
+ factionEditEvidenceV95101.recent.push(event);
+ if(factionEditEvidenceV95101.recent.length>20)factionEditEvidenceV95101.recent.shift();
+ try{window.dispatchEvent?.(new CustomEvent('hlgb:faction-edit-evidence',{detail:{...event}}))}catch(_){}
+}
+function editEvidenceStatusV95101(){return {...factionEditEvidenceV95101,recent:factionEditEvidenceV95101.recent.slice()}}
+function compareEditBusinessV95101(a,b){
+ if(!a||!b)return false;
+ const labels=['id','manualGroupId','manualKindV9566','serviceModeV9577','factionMasterId',
+ 'factionName','status','productId','description','manualProductNameV9589','manualProductCategoryV9589',
+ 'scheduledPaymentDate','paymentMethod','observation','manualLineNoteV9566','priceOriginV9566','paymentDate'];
+ for(const k of labels)if(sid(a[k])!==sid(b[k]))return false;
+ const values=['quantity','unitPrice','value','grossValueV9577','travetaDiscountUnitV9577',
+  'travetaDiscountTotalV9577','discountAmount','paidAmount','travetaPointsPerPieceV9592'];
+ for(const k of values)if(cents(a[k])!==cents(b[k]))return false;
+ if(!!a.manualCanceledV9590!==!!b.manualCanceledV9590)return false;
+ if(sid(a.manualCanceledReasonV9590)!==sid(b.manualCanceledReasonV9590))return false;
+ const proof=r=>[sid(r?.receiptPdfV9566?.name),Number(r?.receiptPdfV9566?.size)||0,sid(r?.receiptPdfV9566?.base64)];
+ if(JSON.stringify(proof(a))!==JSON.stringify(proof(b)))return false;
+ const eventList=(record,key)=>JSON.stringify((Array.isArray(record[key])?record[key]:[]).map(e=>[
+  sid(e.id),sid(e.kind),cents(e.amount),sid(e.reason),sid(e.sourceGroupId),sid(e.targetGroupId)
+ ]).sort((x,y)=>sid(x[0]).localeCompare(sid(y[0]))));
+ for(const key of ['manualDirectAdjustmentsV9591','manualCorrectionsV9590','manualApplicationsV9590'])
+  if(eventList(a,key)!==eventList(b,key))return false;
+ return true;
+}
+async function confirmEditReadbackV95101(desired,ack){
+ const id=sid(desired.id),name=sid(desired.description||'Serviço');
+ // The save API may merge a conflicting version. Never treat a different
+ // business payload as success even when it reports applied:true.
+ if(!compareEditBusinessV95101(desired,ack)){
+  registerEditEvidenceV95101('conflict','factionPayments',id,name,0);
+  throw Error('A nuvem devolveu valores diferentes para '+name+'. A operação foi interrompida para não substituir outra edição. Confira a nuvem; não reenvie automaticamente.');
+ }
+ let last=null;
+ for(let attempt=1;attempt<=4;attempt++){
+  if(attempt>1)await new Promise(resolve=>setTimeout(resolve,[0,100,250,550][attempt-1]));
+  try{
+   last=await remoteRecord('factionPayments',id);
+   if(compareEditBusinessV95101(desired,last)){
+    registerEditEvidenceV95101(attempt===1?'confirmed':'delayed','factionPayments',id,name,attempt);
+    return last;
+   }
+  }catch(e){
+   if(attempt===4){
+    registerEditEvidenceV95101('unverified','factionPayments',id,name,attempt);
+    throw Error('A nuvem recebeu a alteração de '+name+', mas a consulta de confirmação falhou. Não clique em Salvar novamente antes de conferir o registro na nuvem. '+sid(e.message||e));
+   }
+  }
+ }
+ registerEditEvidenceV95101('unverified','factionPayments',id,name,4);
+ throw Error('A nuvem recebeu a alteração de '+name+', mas após quatro consultas os valores não coincidiram. Não repita o salvamento; confira o registro na nuvem e a fila local de sincronização.');
+}
+window.hlgbFactionSaveEvidence95101={status:editEvidenceStatusV95101};
 async function preflightGroup(groupId,rows){
  for(const row of rows){
   await assertRecordNotPending('factionPayments',row.id);
@@ -318,7 +383,7 @@ async function preflightGroup(groupId,rows){
 }
 async function saveGroupEdits(groupId,input,receipt,removalReasons=[]){
  if(state.status===STATUS.saving)throw Error('Já existe salvamento em andamento.');
- state.status=STATUS.saving;state.lastError='';let saved=0,canceled=0;
+ state.status=STATUS.saving;state.lastError='';let saved=0,canceled=0,accepted=0;
  try{
   const rows=assertGroup(groupId),active=activeGroupRowsV9590(rows);
   if(groupState(rows)!=='Pendente')throw Error('Apenas lançamentos pendentes podem ter valores corrigidos ou removidos.');
@@ -381,9 +446,10 @@ async function saveGroupEdits(groupId,input,receipt,removalReasons=[]){
     manualEditHistoryV9588:history,createdAt:old?.createdAt||rows[0].createdAt||ts,updatedAt:ts};
    if(oldProof)next.receiptPdfV9566=oldProof;
    else if(i===0&&receipt)next.receiptPdfV9566=receipt;
-   await saveRecord('factionPayments',next);saved++;
-   const check=await remoteRecord('factionPayments',x.id);
-   if(!remotelySame(next,check))throw Error('Edição da linha '+sid(x.id)+' não confirmada na releitura.');
+   // An unchanged line must never generate another revision or need another ACK.
+   if(old&&compareEditBusinessV95101(old,next))continue;
+   const acknowledged=await saveRecord('factionPayments',next);accepted++;
+   await confirmEditReadbackV95101(next,acknowledged);saved++;
   }
   // Remoção é CANCELAMENTO lógico: identificação, valor original, comprovantes
   // e dados para auditoria continuam registrados na nuvem e no histórico.
@@ -395,10 +461,11 @@ async function saveGroupEdits(groupId,input,receipt,removalReasons=[]){
    const next={...old,status:'Cancelado',manualCanceledV9590:true,
     manualCanceledAtV9590:ts,manualCanceledReasonV9590:reason,manualEditHistoryV9588:history,
     updatedAt:ts,paidAmount:0,paymentDate:''};
-   await saveRecord('factionPayments',next);canceled++;
-   const remote=await remoteRecord('factionPayments',old.id);
-   if(!remotelySame(next,remote)||!isCanceledV9590(remote)||sid(remote.manualCanceledReasonV9590)!==reason)
-    throw Error('Cancelamento da linha '+sid(old.id)+' não confirmado na nuvem.');
+   const acknowledged=await saveRecord('factionPayments',next);accepted++;
+   const remote=await confirmEditReadbackV95101(next,acknowledged);
+   if(!isCanceledV9590(remote)||sid(remote.manualCanceledReasonV9590)!==reason)
+    throw Error('Cancelamento de '+sid(old.description)+' não confirmado na nuvem.');
+   canceled++;
   }
   if(newAdjustments.length){
    const stableId=sid(rows[0]?.id);
@@ -407,15 +474,19 @@ async function saveGroupEdits(groupId,input,receipt,removalReasons=[]){
    if(!base)throw Error('Registro principal não encontrado para armazenar ajustes.');
    const current=directAdjustmentsV9591(groupRows(groupId));
    const next={...base,manualDirectAdjustmentsV9591:[...current,...newAdjustments],updatedAt:new Date().toISOString()};
-   await saveRecord('factionPayments',next);saved++;
-   const check=await remoteRecord('factionPayments',stableId);
-   if(!remotelySame(next,check)||!newAdjustments.every(x=>directAdjustmentsV9591([check]).some(y=>sid(y.id)===sid(x.id))))
-    throw Error('O ajuste não foi confirmado na nuvem. Confira antes de tentar novamente.');
+   const acknowledged=await saveRecord('factionPayments',next);accepted++;
+   const check=await confirmEditReadbackV95101(next,acknowledged);
+   if(!newAdjustments.every(x=>directAdjustmentsV9591([check]).some(y=>sid(y.id)===sid(x.id))))
+    throw Error('O ajuste foi recebido, mas o motivo ainda não foi confirmado. Confira na nuvem antes de reenviar.');
+   saved++;
   }
   const result={groupId,total:netGroupV9590(groupRows(groupId)),lines:saved,canceled,adjustments:newAdjustments.length,edited:true};
   state.lastResult=result;renderReceipts();return result;
  }catch(e){
-  state.lastError=(saved||canceled?'Edição parcialmente confirmada ('+saved+' linha(s) e '+canceled+' cancelamento(s)). Confira antes de tentar novamente. ':'')+sid(e.message||e);
+  state.lastError=(accepted>saved+canceled?
+   'A nuvem recebeu '+accepted+' alteração(ões), mas apenas '+(saved+canceled)+' foram comprovadas na releitura. NÃO reenvie automaticamente. ':
+   saved||canceled?'Edição interrompida após '+(saved+canceled)+' alteração(ões) confirmada(s). Confira antes de continuar. ':'')+
+   sid(e.message||e);
   throw Error(state.lastError);
  }finally{state.status=STATUS.idle}
 }
@@ -1837,7 +1908,7 @@ window.hlgbFactionManual9566={version:V,openForm,searchFactions,searchProducts,f
   validate,grandTotal,readReceipt,pdfIsValid,persistDraft,receiptGroups,groupRows,groupState,saveGroupEdits,markGroupPaid,openPayModal,remoteRecord,attachReceiptToGroup,renderReceipts,download:pdfDownload,install,
  registerCorrectionV9590,applyCorrectionV9590,matchingPendingGroupsV9590,groupCorrectionsV9590,groupApplicationsV9590,
  correctionRemainingV9590,netGroupV9590,directAdjustmentsV9591,validateDirectInputV9591,buildSummaryPdfV9590,summaryLinesV9590,downloadSummaryPdfV9590,
- status:()=>({...state}),maxPdfBytes:MAX_PDF};
+ status:()=>({...state}),editEvidenceStatusV95101,maxPdfBytes:MAX_PDF};
 install();
 [500,1700,3800].forEach(ms=>setTimeout(install,ms));
 try{window.hlgbAfterLogin?.(()=>setTimeout(install,500),0)}catch(_){}
