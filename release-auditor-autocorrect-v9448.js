@@ -75,7 +75,11 @@ function pendingEvidence9479(summary){
  const unstable=summary?.productionResidual?.opIdUnstable===true?'<p><b>Alerta: opId de Produção mudou entre leituras — limpeza bloqueada por segurança.</b></p>':'';
   const residual=candidates.length?'<p><b>Resíduos de Produção ('+candidates.length+')</b></p><ul>'+candidates.slice(0,20).map(x=>row(x.id||'registro',x.detail||x.classification||x.requires||'Sem classificação')).join('')+'</ul>':'';
  if(!findings&&!walInfo&&!residual&&!unstable)return '';
- return '<details style="margin-top:8px" open><summary><b>Detalhes das pendências e por que não foram corrigidas</b></summary>' +findings+walInfo+(walCount>0?'<div style="margin:8px 0"><button type="button" class="secondary" id="hlgbWalEvidenceExport9494">📦 Exportar cópia local da WAL (sem apagar)</button><div id="hlgbWalEvidenceExportStatus9494" class="sub" role="status">Cópia somente leitura. Contém dados da empresa; compartilhe apenas de forma privada.</div></div>':'')+unstable+residual+'<p class="sub">Não exclua WAL ou registros sem prova remota. O relatório JSON contém mais informações.</p></details>';
+ return '<details style="margin-top:8px" open><summary><b>Detalhes das pendências e por que não foram corrigidas</b></summary>' +findings+walInfo+(walCount>0?'<div style="margin:8px 0"><button type="button" class="secondary" id="hlgbWalEvidenceExport9494">📦 Exportar cópia local da WAL (sem apagar)</button>'+
+ '<button type="button" class="secondary" id="hlgbWalReview9593" style="margin-left:6px">🔎 Comparar TODAS as pendências com a nuvem (somente leitura)</button>'+
+ '<div id="hlgbWalEvidenceExportStatus9494" class="sub" role="status">Cópia somente leitura. Contém dados da empresa; compartilhe apenas de forma privada.</div>'+
+ '<div id="hlgbWalReviewStatus9593" class="sub" role="status" aria-live="polite">A comparação é opcional e não envia, não apaga nem dá baixa nas pendências.</div>'+
+ '<div id="hlgbWalReviewDetail9593"></div></div>':'')+unstable+residual+'<p class="sub">Não exclua WAL ou registros sem prova remota. O relatório JSON contém mais informações.</p></details>';
 }
 /* v94.94 — Safe local evidence export for unresolved WAL records.
    READ ONLY: no IndexedDB readwrite transactions, no WAL deletion, no RPC.
@@ -126,6 +130,39 @@ async function exportWalPayload9494(){
  }finally{setTimeout(()=>URL.revokeObjectURL(url),20000)}
  return {ok:true,file,indexedDbCount:indexedDbEntries.length,localStorageCount:Object.keys(stored.entries||{}).length}
 }
+/* v95.93: consulta ampliada SOMENTE leitura: nenhuma escrita nem ACK.
+   Não exporta dados de negócio; somente opId, status e nomes de campos. */
+async function reviewWalAll9593(onProgress){
+ if(!authReady())throw new Error('Entre no HLGB antes de conferir a WAL.');
+ const verify=window.hlgbAuditorAutoCorrect9447?.verifyWalReadOnly9593;
+ if(typeof verify!=='function')throw new Error('Verificador ampliado indisponível.');
+ const result=await verify(60,onProgress);
+ state.lastWalReview9593=clone(result);
+ return result;
+}
+function walReviewText9593(r){
+ return 'Conferidas '+Number(r?.checked||0)+' de '+Number(r?.total||0)+
+  ' · Conteúdo igual (não é ACK): '+Number(r?.matched||0)+
+  ' · Diferentes: '+Number(r?.different||0)+' · Ausentes: '+Number(r?.missing||0)+
+  ' · Sem prova: '+Number(r?.unverified||0)+' · Removidas: 0. Status: '+sid(r?.status||'desconhecido')+'.';
+}
+function downloadWalReview9593(result=state.lastWalReview9593){
+ if(!result)throw new Error('Faça a conferência antes de baixar o resultado.');
+ const payload={kind:'hlgb_wal_read_only_remote_review',version:'95.93',at:nowIso(),
+  explanation:'Comparação de conteúdo não constitui ACK de opId. Nenhuma operação removida.',
+  total:result.total,checked:result.checked,matched:result.matched,different:result.different,
+  missing:result.missing,unverified:result.unverified,removed:0,status:result.status,
+  items:(result.items||[]).map(x=>({module:x.module,id:x.id,opId:x.opId,status:x.status,
+   revision:x.revision,remoteDeleted:x.remoteDeleted,
+   differentFields:Array.isArray(x.differentFields)?x.differentFields:[]})),
+  errors:clone(result.errors||[])};
+ const blob=new Blob([JSON.stringify(payload,null,2)],{type:'application/json;charset=utf-8'}),url=URL.createObjectURL(blob);
+ try{
+  const a=document.createElement('a');a.href=url;a.download='HLGB-WAL-CONFERENCIA-SEM-ALTERAR-'+nowIso().replace(/[:.]/g,'-')+'.json';
+  document.body.appendChild(a);a.click();a.remove();
+ }finally{setTimeout(()=>URL.revokeObjectURL(url),15000)}
+ return true;
+}
 function render(summary){const host=document.getElementById('hlgbAuditorResult');if(!host||!summary)return false;let c=document.getElementById(CARD_ID);if(!c){c=document.createElement('div');c.id=CARD_ID;c.className='panel';host.prepend(c)}const d=summary.productionResidual||{},after=d.after||{},cleared=+d.technicalCopiesCleared||0,failed=summary.auditCompleted===false||summary.executionFailed===true; c.setAttribute('data-audit-completed',failed?'false':'true');c.innerHTML='<b>⚡ Auditor v94.48 · prova residual</b><div>'+esc(summary.passes||0)+' rodada(s) · '+esc(summary.stopReason||'')+'</div>'+(failed?'<div role="alert" style="font-weight:700;color:#ae2537;margin:7px 0">⛔ Auditor NÃO concluiu. A quantidade de bugs é desconhecida. Não é um resultado sem erros.</div><div>Motivo: '+esc(summary.failure?.message||state.lastError||'Falha técnica não identificada')+'</div><div>Etapa: '+esc(summary.failure?.phase||'execução')+'</div>'+(summary.failure?.missing?.length?'<div>Dependências pendentes: '+esc(summary.failure.missing.join(', '))+'</div>':''):'<div class="sub">Cópias técnicas limpas: '+esc(cleared)+' · Precisa de código: '+esc(summary.needsCode?.length||0)+' · Decisão humana: '+esc(summary.businessBlocked?.length||0)+' · Resíduos atuais: '+esc(after.candidateCount||0)+'</div>')+(summary.knownGaps?.length?'<div class="sub">Cobertura incompleta: '+summary.knownGaps.map(esc).join(' · ')+'</div>':'')+pendingEvidence9479(summary)+hubEvidence9483(summary);
  const b=c.querySelector?.('#hlgbWalEvidenceExport9494')||null;
  if(b)b.addEventListener('click',async()=>{
@@ -137,6 +174,33 @@ function render(summary){const host=document.getElementById('hlgbAuditorResult')
   }catch(e){
    if(output)output.textContent='❌ '+sid(e?.message||e)+'. Nenhuma operação foi removida.';
   }finally{b.disabled=false}
+ });
+ const review=c.querySelector?.('#hlgbWalReview9593')||null;
+ if(review)review.addEventListener('click',async()=>{
+  const label=c.querySelector('#hlgbWalReviewStatus9593'),
+   detail=c.querySelector('#hlgbWalReviewDetail9593');
+  review.disabled=true;
+  try{
+   if(label)label.textContent='Consultando os registros da nuvem em modo somente leitura…';
+   const result=await reviewWalAll9593(p=>{
+    if(label)label.textContent='Conferindo '+p.done+' de '+p.total+' operações — nenhuma alteração realizada…';
+   });
+   if(label)label.textContent=walReviewText9593(result);
+   if(detail){
+    detail.innerHTML='<details><summary>Ver resultado por operação ('+esc(result.items?.length||0)+')</summary>'+
+     '<ul>'+((result.items||[]).map(x=>'<li>'+esc(x.module)+' / '+esc(x.id)+
+       ' · opId '+esc(x.opId)+' · <b>'+esc(x.status)+'</b>'+
+       (x.revision!=null?' · revisão '+esc(x.revision):'')+
+       (x.differentFields?.length?' · Campos: '+x.differentFields.map(esc).join(', '):'')+'</li>').join(''))+
+     '</ul></details><button type="button" id="hlgbWalReviewDownload9593" class="secondary">'+
+     '📄 Baixar relatório da comparação (sem dados de negócio)</button>';
+    detail.querySelector('#hlgbWalReviewDownload9593')?.addEventListener('click',()=>{
+     try{downloadWalReview9593(result)}
+     catch(e){if(label)label.textContent='❌ '+sid(e.message||e)}
+    });
+   }
+  }catch(e){if(label)label.textContent='❌ '+sid(e?.message||e)+' · Nenhuma operação removida.'}
+  finally{review.disabled=false}
  });
  return true}
 // v95.71: uma operação confirmada não significa registro corrigido se houve outro opId pendente.
@@ -174,7 +238,8 @@ async function run(opts={}){
 }
 async function activate(reason='post-auth'){if(!authReady())return false;stamp();const p=await prepare(reason);return !!p.ok}
 window.addEventListener?.('hlgb:authenticated',()=>setTimeout(()=>activate('authenticated-event'),0));
-window.hlgbAuditorAutoCorrect9448={version:V,state,run,prepare,ensureBase,ensureResidual,render,downloadReport,exportWalPayload:exportWalPayload9494,readWalIndexedDb:readWalIndexedDb9494,exportReport:()=>clone(state.lastReport),status:()=>({...state,authReady:authReady(),baseReady:baseReady(),residualReady:residualReady()})};
+window.hlgbAuditorAutoCorrect9448={version:V,state,run,prepare,ensureBase,ensureResidual,render,downloadReport,exportWalPayload:exportWalPayload9494,readWalIndexedDb:readWalIndexedDb9494,
+ reviewWalAll9593,downloadWalReview9593,exportReport:()=>clone(state.lastReport),status:()=>({...state,authReady:authReady(),baseReady:baseReady(),residualReady:residualReady()})};
 stamp();if(authReady())setTimeout(()=>activate('loaded-after-auth'),0);console.info('[HLGB] v'+V+' Auditor pronto · prova residual de Produção antes da classificação');
 /* Optional v95.56 learning assistant. Loaded after login; a failure here must
    never delay or interrupt the existing Auditor or any business operation. */
