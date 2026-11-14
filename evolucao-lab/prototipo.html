@@ -1,0 +1,287 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light">
+<title>HLGB Evolução — Laboratório isolado</title>
+<style>
+:root{font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:#252033;background:#f5f5f9;--paper:#fff;--ink:#252033;--muted:#70697f;--line:#e5e3eb;--primary:#513874;--soft:#f2edf8;--good:#1f7452;--warn:#936113}
+*{box-sizing:border-box}body{margin:0;min-height:100vh}button,input,select,textarea{font:inherit}button{cursor:pointer}a{color:inherit}
+.skip{position:absolute;top:-90px;left:16px;background:white;padding:9px;z-index:20}.skip:focus{top:10px}
+.shell{display:grid;grid-template-columns:242px minmax(0,1fr);min-height:100vh}
+aside{background:#241e32;color:#fff;padding:25px 17px;display:flex;flex-direction:column;gap:20px}
+.brand{font-size:23px;font-weight:800;letter-spacing:-.7px}.brand span{color:#d2baf7}.subbrand{font-size:12px;line-height:1.5;color:#d0c7df}
+.desktop-nav{display:grid;gap:6px}
+.nav-btn{display:flex;align-items:center;gap:10px;width:100%;background:none;border:1px solid transparent;border-radius:10px;color:#e2daec;text-align:left;padding:12px}
+.nav-btn[aria-current=page]{background:#4d3b66;border-color:#806899;color:white;font-weight:700}
+.nav-btn:hover{background:#3c304e}.nav-btn:focus-visible,:focus-visible{outline:3px solid #c3a1fc;outline-offset:2px}
+.side-foot{font-size:12px;color:#cabfe0;border-top:1px solid #493e58;padding-top:16px;margin-top:auto;line-height:1.6}
+main{min-width:0;max-width:1400px;width:100%;margin:auto;padding:30px clamp(16px,4vw,48px) 70px}
+.top{display:flex;justify-content:space-between;align-items:start;gap:15px;margin-bottom:25px}
+.eyebrow{font-size:12px;color:var(--primary);letter-spacing:.08em;font-weight:800;text-transform:uppercase}
+h1{font-size:clamp(26px,3vw,34px);letter-spacing:-.8px;margin:7px 0 7px}h2{font-size:19px;margin:0 0 13px}h3{font-size:16px;margin:0 0 8px}
+p{line-height:1.6;margin:4px 0 12px}.muted{color:var(--muted)}.small{font-size:13px}
+.notice{border:1px solid #e2d1a8;border-radius:11px;background:#fff9e9;padding:11px 13px;font-size:13px;font-weight:650;color:#775017;max-width:270px}
+.cards{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px;margin-bottom:22px}
+.card,.panel{background:var(--paper);border:1px solid var(--line);border-radius:16px;padding:19px;box-shadow:0 2px 8px #27203306;min-width:0}
+.card b{font-size:32px;display:block;letter-spacing:-1px}.card span{display:block;font-size:13px;color:var(--muted);margin-top:3px}
+.two{display:grid;grid-template-columns:1.4fr 1fr;gap:15px}.stack{display:grid;gap:15px}
+.page[hidden]{display:none}.panel+.panel{margin-top:16px}
+.list{display:grid;gap:10px}.item{border:1px solid var(--line);border-radius:11px;padding:13px;display:flex;justify-content:space-between;gap:10px;align-items:center}
+.item strong{font-size:14px}.item .small{font-size:12px}
+.pill{display:inline-flex;align-items:center;border-radius:999px;padding:5px 9px;background:#eeeaf5;color:#55436b;font-size:11px;font-weight:750;white-space:nowrap}
+.pill.warn{background:#fff3da;color:#785017}.pill.good{background:#e6f5ed;color:var(--good)}
+.btn{border:1px solid #b5a8c5;background:white;color:var(--primary);border-radius:10px;padding:10px 13px;font-weight:700}
+.btn.primary{background:var(--primary);color:white;border-color:var(--primary)}.btn:disabled{opacity:.55;cursor:not-allowed}
+.input{border:1px solid #cfc9d8;border-radius:10px;width:100%;background:white;padding:11px;color:var(--ink)}
+.form-row{display:grid;gap:6px;margin:12px 0}label{font-weight:650;font-size:13px}
+.section-note{padding:12px 14px;background:var(--soft);border-radius:12px;font-size:13px;line-height:1.5;color:#4d3b66}
+.module-list{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin-top:15px}
+.module{border:1px solid var(--line);border-radius:12px;padding:15px;min-width:0}
+.module-head{display:flex;justify-content:space-between;align-items:start;gap:6px}.module p{font-size:12px;color:var(--muted)}
+.module-actions{margin-top:14px;display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.table-wrap{overflow:auto}.table{width:100%;border-collapse:collapse;font-size:13px}.table th,.table td{text-align:left;border-bottom:1px solid var(--line);padding:11px 9px}.table th{color:var(--muted);font-weight:650}
+ul{padding-left:20px;line-height:1.7}.flow{display:flex;gap:7px;flex-wrap:wrap;align-items:center}.flow span{background:var(--soft);padding:8px 10px;border-radius:9px;font-weight:700;font-size:12px}
+.phone{border:8px solid #2b2736;background:#f9f8fb;border-radius:30px;max-width:320px;width:100%;min-height:430px;padding:17px 11px;margin:10px auto;box-shadow:0 12px 30px #261d361a}
+.phone .notch{background:#2b2736;width:90px;height:10px;margin:-11px auto 18px;border-radius:0 0 10px 10px}
+.phone-top{font-weight:800;padding:8px 8px 14px;border-bottom:1px solid var(--line)}
+.phone-item{background:white;border-radius:11px;border:1px solid var(--line);padding:13px;margin-top:10px}
+.phone-item strong{display:block;font-size:13px}.phone-item small{display:block;color:var(--muted);margin-top:4px}
+.bottom-nav{display:none}
+.status{border-left:4px solid #a895bf;background:var(--soft);padding:10px 13px;margin-top:14px;border-radius:8px;font-size:13px}
+@media(max-width:1060px){.two{grid-template-columns:1fr}.module-list{grid-template-columns:1fr}}
+@media(max-width:760px){
+.shell{display:block}aside{padding:13px 16px;gap:3px}.desktop-nav,.side-foot{display:none}.brand{font-size:20px}
+main{padding:22px 14px 92px}.top{display:block}.notice{max-width:none;margin-top:14px}.cards{grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}.cards .card:last-child{grid-column:1/-1}.card,.panel{padding:15px}.card b{font-size:26px}.item{align-items:start;flex-wrap:wrap}
+.bottom-nav{position:fixed;display:grid;grid-template-columns:repeat(5,1fr);bottom:0;left:0;right:0;z-index:10;background:white;border-top:1px solid var(--line);padding:7px 5px calc(7px + env(safe-area-inset-bottom));box-shadow:0 -3px 12px #2b273410}
+.bottom-nav button{background:transparent;border:0;border-radius:9px;color:#685c76;font-size:10px;padding:7px 1px;display:grid;justify-items:center;gap:3px;min-width:0}
+.bottom-nav button span{font-size:19px}.bottom-nav button[aria-current=page]{background:var(--soft);color:var(--primary);font-weight:800}
+}
+@media(prefers-reduced-motion:reduce){*,*:before,*:after{animation:none!important;scroll-behavior:auto!important}}
+</style>
+</head>
+<body>
+<a class="skip" href="#main">Ir ao conteúdo</a>
+<div class="shell">
+  <aside aria-label="Navegação do laboratório">
+    <div><div class="brand">HLGB <span>Evolução</span></div><div class="subbrand">Laboratório de melhorias — versão independente</div></div>
+    <nav class="desktop-nav" aria-label="Áreas">
+      <button class="nav-btn" data-tab="overview" aria-current="page">▦ Visão geral</button>
+      <button class="nav-btn" data-tab="modules">▧ Módulos</button>
+      <button class="nav-btn" data-tab="laboratory">◇ Laboratório e mobile</button>
+      <button class="nav-btn" data-tab="requests">✎ Solicitar melhoria</button>
+      <button class="nav-btn" data-tab="quality">✓ Auditoria e critérios</button>
+    </nav>
+    <div class="side-foot">AMBIENTE ISOLADO · SEM INTEGRAÇÃO<br>Sem Supabase, sem login, sem armazenamento, sem alterações no HLGB atual.</div>
+  </aside>
+  <main id="main" tabindex="-1">
+    <header class="top">
+      <div><div class="eyebrow">Projeto experimental · Etapa 1</div><h1 id="page-title">Visão geral da Evolução</h1><p class="muted">Planejamos e testamos melhorias antes de levar qualquer mudança aos funcionários.</p></div>
+      <div class="notice">⚠️ Demonstração somente visual. Nenhum botão grava dados reais.</div>
+    </header>
+    <section class="page" data-page="overview" aria-label="Visão geral">
+      <div class="cards">
+        <div class="card"><b>19</b><span>áreas do HLGB em inventário inicial</span></div>
+        <div class="card"><b>266</b><span>melhorias no Plano Mestre</span></div>
+        <div class="card"><b>0</b><span>alterações liberadas para a produção</span></div>
+      </div>
+      <div class="two">
+        <section class="panel"><h2>Como vamos evoluir</h2>
+          <div class="flow" aria-label="Fluxo de liberação"><span>Planejar</span>→<span>Desenvolver</span>→<span>Testar</span>→<span>Homologar</span>→<span>Autorizar</span></div>
+          <p class="small muted" style="margin-top:14px">Cada melhoria será desenvolvida sem atingir o programa atual. A aprovação exigirá testes técnicos, testes com funcionários e autorização explícita para publicação.</p>
+          <div class="section-note">A atualização mobile faz parte de cada melhoria, desde os formulários de acerto até relatórios, pesquisas e cortes.</div>
+        </section>
+        <section class="panel"><h2>Regras de segurança</h2>
+          <ul class="small"><li>Nenhum pagamento, pedido ou estoque real é acessado.</li><li>Não existe salvamento automático neste protótipo.</li><li>O núcleo financeiro não poderá ser desligado durante uma operação.</li><li>Qualquer mudança de produção exigirá aprovação.</li></ul>
+        </section>
+      </div>
+      <section class="panel" style="margin-top:15px"><h2>Frentes de trabalho</h2><div id="roadmap-summary" class="list"></div></section>
+    </section>
+    <section class="page" data-page="modules" aria-label="Inventário de módulos" hidden>
+      <section class="panel">
+        <h2>Inventário e controle por módulo</h2>
+        <p class="muted small">Os módulos abaixo foram identificados como áreas de trabalho. A presença de código ainda não garante que o recurso esteja homologado.</p>
+        <div class="section-note">Os controles simulam ativação/desativação. Eles não alteram scripts, dados ou sessões.</div>
+        <div class="form-row"><label for="module-search">Pesquisar módulo</label><input id="module-search" class="input" type="search" placeholder="Ex.: corte, acerto, produtos" autocomplete="off"></div>
+        <div class="form-row"><label for="module-group">Filtrar por área</label><select id="module-group" class="input"><option value="todos">Todas</option><option value="fundacao">Núcleo</option><option value="operacao">Operação</option><option value="financeiro">Financeiro</option><option value="analise">Análises</option><option value="supervisao">Auditor, Bot e Central</option></select></div>
+        <p class="small muted" id="module-count" role="status"></p>
+        <div id="module-list" class="module-list"></div>
+      </section>
+    </section>
+    <section class="page" data-page="laboratory" aria-label="Laboratório mobile" hidden>
+      <div class="two">
+        <section class="panel"><h2>Prévia mobile por funcionário</h2>
+          <p class="small muted">Simulação visual para testar a praticidade das próximas telas. Sem acesso a cadastros reais.</p>
+          <div class="form-row"><label for="role">Escolher função</label><select class="input" id="role"><option value="embaladeira">Embaladeira</option><option value="cortador">Cortador</option><option value="faccao">Facção externa</option><option value="financeiro">Financeiro</option><option value="admin">Administradora</option></select></div>
+          <div class="section-note" id="role-explanation" aria-live="polite">A prévia muda de acordo com a função escolhida.</div>
+          <h3 style="margin-top:18px">Critérios mobile obrigatórios</h3>
+          <ul class="small"><li>Botões grandes e acessíveis ao toque.</li><li>Busca única e filtros simples.</li><li>Grade editável sem rolagem confusa.</li><li>Estados claros: rascunho, salvando e confirmado.</li><li>Safari iPhone e Chrome Android nos testes.</li></ul>
+        </section>
+        <section class="panel"><h2>Exemplo da tela no celular</h2>
+          <div class="phone" role="group" aria-label="Simulação de visualização mobile">
+            <div class="notch"></div><div class="phone-top">HLGB · <span id="phone-title">Embalagem</span></div>
+            <div id="phone-items"></div>
+          </div>
+        </section>
+      </div>
+    </section>
+    <section class="page" data-page="requests" aria-label="Solicitar melhoria" hidden>
+      <section class="panel" style="max-width:800px">
+        <h2>Solicitar melhoria — demonstração</h2>
+        <p class="small muted">Este formulário é apenas para experimentar como funcionará. Nada será enviado, salvo no navegador ou registrado no HLGB.</p>
+        <form id="request-form">
+          <div class="form-row"><label for="request-module">Módulo</label><select id="request-module" class="input" required></select></div>
+          <div class="form-row"><label for="request-title">O que você quer melhorar?</label><input id="request-title" class="input" maxlength="100" required placeholder="Ex.: Melhorar filtro de produtos no acerto"></div>
+          <div class="form-row"><label for="request-description">Qual problema essa melhoria resolve?</label><textarea id="request-description" class="input" rows="5" maxlength="1000" required placeholder="Descreva a dificuldade atual e como deseja que funcione..."></textarea></div>
+          <button class="btn primary" type="submit">Simular solicitação</button>
+          <div id="request-feedback" class="status" role="status">Nenhuma solicitação foi enviada.</div>
+        </form>
+      </section>
+    </section>
+    <section class="page" data-page="quality" aria-label="Auditoria e critérios" hidden>
+      <div class="two">
+        <section class="panel"><h2>Auditor 2.0 — proposta</h2>
+          <p class="small muted">Ao contrário do Auditor atual, a nova central deverá apresentar uma prova por operação, não apenas mensagens genéricas.</p>
+          <div class="item"><div><strong>Confirmação de gravação</strong><div class="small muted">ACK + releitura + revisão da nuvem</div></div><span class="pill">Planejado</span></div>
+          <div class="item"><div><strong>Concorrência em duas sessões</strong><div class="small muted">Safari e Chrome sem sobreposição silenciosa</div></div><span class="pill">Planejado</span></div>
+          <div class="item"><div><strong>Saúde por módulo</strong><div class="small muted">Identificação de falha e dependências</div></div><span class="pill">Planejado</span></div>
+          <div class="item"><div><strong>Bot com evidências</strong><div class="small muted">Investigar, reproduzir e propor PRs sob aprovação</div></div><span class="pill">Planejado</span></div>
+        </section>
+        <section class="panel"><h2>Central de erros — modelo fictício</h2>
+          <p class="small muted">Os incidentes abaixo são exemplos, não são leituras do sistema real.</p>
+          <div class="item"><div><strong>Salvamento com releitura atrasada</strong><div class="small muted">Módulo: Acertos · verificar versão e dados</div></div><span class="pill warn">Investigar</span></div>
+          <div class="item"><div><strong>Pesquisa limitada à página atual</strong><div class="small muted">Módulo: Produtos · ampliar consulta global</div></div><span class="pill">Melhoria</span></div>
+          <div class="item"><div><strong>Formulário pouco prático no celular</strong><div class="small muted">Módulo: Corte · homologar interface mobile</div></div><span class="pill">Melhoria</span></div>
+        </section>
+      </div>
+    </section>
+  </main>
+</div>
+<nav class="bottom-nav" aria-label="Navegação mobile">
+  <button data-tab="overview" aria-current="page"><span aria-hidden="true">⌂</span>Início</button>
+  <button data-tab="modules"><span aria-hidden="true">▦</span>Módulos</button>
+  <button data-tab="laboratory"><span aria-hidden="true">▯</span>Mobile</button>
+  <button data-tab="requests"><span aria-hidden="true">＋</span>Melhorias</button>
+  <button data-tab="quality"><span aria-hidden="true">✓</span>Auditor</button>
+</nav>
+<script>
+(function(){
+"use strict";
+// Dados totalmente fictícios e apenas memória temporária da página. Sem rede, cookies ou storage.
+var groups=[
+["Arquitetura, módulos e segurança",18],["Interface, formulários e mobile",22],
+["Produtos e pesquisa",25],["Relatórios e PDFs",20],["Acertos e pagamentos",35],
+["Facções",14],["Pedidos e separação",16],["Corte, produção e PCP",20],
+["Compras e estoque",16],["Financeiro e folha",16],
+["Auditor, Bot e Central",30],["Aba Evolução",18],["Inovações",16]
+];
+var mods=[
+["nucleo","Núcleo de salvamento e sincronização","fundacao","P0",true],
+["autenticacao","Login e permissões","fundacao","P0",true],
+["pedidos","Pedidos","operacao","P1",false],
+["produtos","Produtos e ficha técnica","operacao","P1",false],
+["corte","Corte","operacao","P1",false],
+["producao","Produção e PCP","operacao","P1",false],
+["separacao","Separação e expedição","operacao","P1",false],
+["faccoes","Facções e rotas","operacao","P0",true],
+["acertos","Acertos e pagamentos avulsos","financeiro","P0",true],
+["hub","Hub Financeiro","financeiro","P0",true],
+["folha","Folha e provisões","financeiro","P0",true],
+["compras","Compras e fornecedores","operacao","P1",false],
+["estoque","Estoque e materiais","operacao","P1",false],
+["relatorios","Relatórios, PDF e análises","analise","P1",false],
+["auditor","Auditor e autocorreção","supervisao","P0",false],
+["bot","Assistente e aprendizado","supervisao","P0",false],
+["central","Central de erros e saúde","supervisao","P0",false],
+["impressora3d","Impressora 3D","operacao","P2",false],
+["cadastros","Clientes e cadastros gerais","operacao","P1",false]
+];
+var simulated=new Set();
+var byId=function(id){return document.getElementById(id)};
+var clean=function(v){return String(v||"").normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLowerCase()};
+var names={overview:"Visão geral da Evolução",modules:"Inventário de módulos",laboratory:"Laboratório e prévia mobile",requests:"Solicitar melhoria",quality:"Auditor, Bot e Central"};
+function openTab(tab){
+ if(!names[tab])return;
+ document.querySelectorAll("[data-page]").forEach(function(p){p.hidden=p.getAttribute("data-page")!==tab});
+ document.querySelectorAll("[data-tab]").forEach(function(n){
+  if(n.getAttribute("data-tab")===tab)n.setAttribute("aria-current","page");
+  else n.removeAttribute("aria-current");
+ });
+ byId("page-title").textContent=names[tab];
+ if(tab==="modules")renderModules();
+ window.scrollTo({top:0,behavior:"instant"});
+}
+function div(cls){var n=document.createElement("div");n.className=cls;return n}
+function renderRoadmap(){
+ var root=byId("roadmap-summary");
+ groups.forEach(function(g,i){
+  var item=div("item"),a=div(""),name=document.createElement("strong"),detail=div("small muted"),status=document.createElement("span");
+  name.textContent=(i+1)+". "+g[0];detail.textContent=g[1]+" itens pendentes · qualidade e mobile fazem parte dos testes";
+  a.append(name,detail);status.className="pill";status.textContent="Planejado";
+  item.append(a,status);root.appendChild(item);
+ });
+}
+function renderModules(){
+ var root=byId("module-list"),search=clean(byId("module-search").value),group=byId("module-group").value;
+ root.replaceChildren();var shown=0;
+ mods.forEach(function(m){
+  if(search&&!clean(m[1]).includes(search))return;
+  if(group!=="todos"&&m[2]!==group)return;
+  shown++;var card=div("module"),head=div("module-head"),info=div(""),title=document.createElement("strong"),label=document.createElement("span");
+  title.textContent=m[1];label.className="pill";label.textContent=m[3];
+  info.append(title);head.append(info,label);
+  var desc=document.createElement("p");desc.textContent=m[4]?"Área crítica — não pode ser desligada durante operação financeira.":"Área mapeada — validação técnica e funcional ainda pendente.";
+  var acts=div("module-actions"),button=document.createElement("button"),state=document.createElement("span");
+  button.className="btn";button.type="button";button.dataset.simToggle=m[0];
+  button.textContent=m[4]?"Núcleo protegido":simulated.has(m[0])?"Desativar simulação":"Ativar simulação";
+  button.disabled=m[4];state.className="pill "+(simulated.has(m[0])?"good":"");
+  state.textContent=m[4]?"Protegido":simulated.has(m[0])?"Ligado (simulação)":"Não ativado";
+  acts.append(button,state);card.append(head,desc,acts);root.appendChild(card);
+ });
+ byId("module-count").textContent=shown+" de "+mods.length+" áreas no inventário";
+}
+var roleModels={
+ embaladeira:{label:"Embalagem",intro:"Ver lotes, conferir quantidades e preparar acertos sem mexer em outros setores.",items:[["Lotes do dia","Lista de modelos e quantidades"],["Conferir peças","Grade e totalizadores fáceis de tocar"],["Acertos","Consulta e comprovantes com situação clara"]]},
+ cortador:{label:"Corte",intro:"Acessar folhas de corte, grade e materiais diretamente no celular.",items:[["Ordem de corte","Modelos e quantidades"],["Grade por tamanho","Tabela horizontal adaptável"],["Material utilizado","Peso, sobra e conferência"]]},
+ faccao:{label:"Facção externa",intro:"Consultar os lotes recebidos, devolver quantidades e acompanhar prazos.",items:[["Lotes em aberto","Envios, prazo e material"],["Recebimento","Confirmar quantidades"],["Meus acertos","Visualização sem alterar financeiro"]]},
+ financeiro:{label:"Financeiro",intro:"Conferir registros por revisão, valores e comprovantes com proteção de duplicidade.",items:[["A conferir","Pendências e discrepâncias"],["Acertos","Resumo e histórico"],["Comprovantes","Documentos e aprovação"]]},
+ admin:{label:"Administração",intro:"Acompanhar módulos, equipe, produção, indicadores e aprovações.",items:[["Visão da fábrica","Pedidos, corte e produção"],["Aprovações","Operações sensíveis"],["Evolução","Testes e novidades antes de liberar"]]}
+};
+function renderRole(){
+ var r=roleModels[byId("role").value]||roleModels.embaladeira;
+ byId("phone-title").textContent=r.label;byId("role-explanation").textContent=r.intro;
+ var root=byId("phone-items");root.replaceChildren();
+ r.items.forEach(function(x){
+  var item=div("phone-item"),name=document.createElement("strong"),detail=document.createElement("small");
+  name.textContent=x[0];detail.textContent=x[1];item.append(name,detail);root.appendChild(item);
+ });
+}
+document.addEventListener("click",function(e){
+ var tab=e.target.closest("[data-tab]");
+ if(tab){openTab(tab.dataset.tab);return}
+ var btn=e.target.closest("[data-sim-toggle]");
+ if(btn){var id=btn.dataset.simToggle,entry=mods.find(function(x){return x[0]===id});
+  if(!entry||entry[4])return;
+  if(simulated.has(id))simulated.delete(id);else simulated.add(id);
+  renderModules();
+ }
+});
+byId("module-search").addEventListener("input",renderModules);
+byId("module-group").addEventListener("change",renderModules);
+byId("role").addEventListener("change",renderRole);
+byId("request-form").addEventListener("submit",function(e){
+ e.preventDefault();
+ var title=byId("request-title").value.trim();
+ var description=byId("request-description").value.trim();
+ if(!title||!description)return;
+ var info=byId("request-feedback");
+ info.textContent="Simulação concluída: '"+title+"'. A solicitação NÃO foi enviada nem salva. O recurso real exigirá autenticação, autorização e registro seguro.";
+});
+var choices=byId("request-module");
+mods.forEach(function(m){var o=document.createElement("option");o.value=m[0];o.textContent=m[1];choices.appendChild(o)});
+renderRoadmap();renderModules();renderRole();openTab("overview");
+})();
+</script>
+</body>
+</html>
