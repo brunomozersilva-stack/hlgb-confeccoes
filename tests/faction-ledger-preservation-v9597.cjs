@@ -12,6 +12,7 @@ function fixture({auth=true,payments=[],factions=[]}={}){
   return date?(!start||date>=start)&&(!end||date<=end):!start&&!end;
  };
  win.renderFactionPayments=function(){return win.syncFactionPayments()};
+ win.syncAllData=function(){writes.push('general-sync');win.syncFactionPayments();return true};
  win.cloudEnsureFreshSession=async()=>true;
  win.cloudRequest=async(path,options)=>{
   calls.push({path,method:options.method});
@@ -48,6 +49,17 @@ test('render or automatic orphan cleanup cannot delete or persist facção recor
  x.api.guardLegacyCleanup();x.api.guardPaymentRendering();
  x.win.renderFactionPayments();
  assert.deepEqual(x.writes,['implicit-payment-write'],'guards are idempotent');
+});
+test('general sync cannot synthesize faction payments from incomplete local data',()=>{
+ const x=fixture();
+ const out=x.win.syncAllData(false);
+ assert.equal(out,true);
+ assert.deepEqual(x.writes,['general-sync']);
+ x.api.guardGeneralSync();
+ x.win.syncAllData(true);
+ assert.deepEqual(x.writes,['general-sync','general-sync']);
+ x.win.syncFactionPayments();
+ assert.deepEqual(x.writes,['general-sync','general-sync','implicit-payment-write']);
 });
 test('manually scheduled pending payments remain visible under week or month filter',()=>{
  const x=fixture(),row={manual:true,status:'Pendente',scheduledPaymentDate:'2026-11-13'};
