@@ -315,6 +315,12 @@ function registerEditEvidenceV95101(kind,module,id,description,attempts=0){
  if(kind==='unverified')factionEditEvidenceV95101.unverified++;
  if(kind==='conflict')factionEditEvidenceV95101.conflicts++;
  factionEditEvidenceV95101.last=event;
+ const evidenceLabel=document.getElementById('fm101-save-proof');
+ if(evidenceLabel)evidenceLabel.textContent=kind==='confirmed'||kind==='delayed'?
+  '✓ Última linha editada confirmada na nuvem: '+sid(description).slice(0,95)+
+   (kind==='delayed'?' (a releitura precisou de '+attempts+' consultas).':''):
+  '⚠ Última edição exige conferência na nuvem: '+sid(description).slice(0,95)+
+   '. Nenhum reenvio automático foi feito.';
  factionEditEvidenceV95101.recent.push(event);
  if(factionEditEvidenceV95101.recent.length>20)factionEditEvidenceV95101.recent.shift();
  try{window.dispatchEvent?.(new CustomEvent('hlgb:faction-edit-evidence',{detail:{...event}}))}catch(_){}
@@ -1782,7 +1788,12 @@ function renderReceipts(){
  host.dataset.fm66Signature=signature;
  const sum=rows=>money(rows.reduce((total,x)=>total+x.total,0));
  host.innerHTML='<h3 style="margin:0 0 5px">Pagamentos avulsos — facções e embaladeiras</h3>'+
-  '<p class="sub">Edite e remova produtos pendentes com motivo, registre acertos pagos a mais/a menos e baixe o PDF detalhado com histórico.</p>'+
+  '<p class="sub">Edite e remova produtos pendentes com motivo, registre acertos pagos a mais/a menos e baixe o PDF detalhado com histórico.</p>'+ 
+  '<p class="sub" role="status" id="fm101-save-proof">'+(factionEditEvidenceV95101.last?
+   esc(factionEditEvidenceV95101.last.kind==='confirmed'||factionEditEvidenceV95101.last.kind==='delayed'?
+    '✓ Última linha editada confirmada na nuvem: '+factionEditEvidenceV95101.last.description:
+    '⚠ Edição necessita conferência na nuvem; nenhum reenvio automático foi feito.'):
+   'Edições pendentes são confirmadas pela releitura dos valores na nuvem. Nenhum reenvio automático.')+'</p>'+
   '<div class="cards" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(155px,1fr));gap:8px;margin:12px 0">'+
   '<div class="card"><small>A pagar · '+pending.length+' lançamento(s)</small><strong>'+sum(pending)+'</strong></div>'+
   '<div class="card"><small>Pagos · '+paid.length+' lançamento(s)</small><strong>'+sum(paid)+'</strong></div>'+
