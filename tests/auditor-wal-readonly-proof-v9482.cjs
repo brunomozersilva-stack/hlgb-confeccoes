@@ -3,7 +3,7 @@ const fs=require('node:fs'),vm=require('node:vm'),assert=require('node:assert/st
 const source=fs.readFileSync('release-auditor-autocorrect-v9447.js','utf8');
 const sample={key:'routePlans|route-1',module:'routePlans',id:'route-1',opId:'op-abc',
  data:{id:'route-1',driver:'Entregas',stops:[{id:'a'},{id:'b'}],updatedAt:'2026-11-04T10:00:00Z'}};
-async function scenario(remote,available=true,idbRows=[sample]){
+async function scenario(remote,available=true,idbRows=[sample],reviewAll=false){
  const transactionModes=[],requests=[],writes=[],events=[];
  const indexedDB={
   open(name){
@@ -43,7 +43,10 @@ async function scenario(remote,available=true,idbRows=[sample]){
   structuredClone,setTimeout:()=>1,clearTimeout:()=>{},queueMicrotask};
  vm.createContext(context);vm.runInContext(source,context);
  const out=await win.hlgbAuditorAutoCorrect9447.run({render:false,download:false});
- return {out,transactionModes,requests,writes};
+ const writesBeforeReview=writes.length,progress=[];
+ const full=reviewAll?await win.hlgbAuditorAutoCorrect9447.verifyWalReadOnly9593(60,
+  p=>progress.push({done:p.done,total:p.total})):null;
+ return {out,full,progress,fullReviewWrites:writes.length-writesBeforeReview,transactionModes,requests,writes};
 }
 (async()=>{
  const equal=await scenario({...sample.data,updatedAt:'2026-11-04T11:00:00Z'});
@@ -84,6 +87,24 @@ async function scenario(remote,available=true,idbRows=[sample]){
  assert.equal(extra.out.walProof.checked,8);
  assert.equal(extra.out.walProof.unverified>=2,true);
  assert.equal(extra.out.walProof.status,'partially-unverified');
+ const all22=Array.from({length:22},(_,i)=>({
+  ...sample,key:'routePlans|route-'+i,id:'route-'+i,opId:'op-'+i,
+  data:{...sample.data,id:'route-'+i}
+ }));
+ const complete=await scenario(sample.data,true,all22,true);
+ assert.equal(complete.out.walProof.checked,8,'routine audit remains limited');
+ assert.equal(complete.out.walProof.unverified,14,'routine audit must show unverified remainder');
+ assert.equal(complete.full.total,22);
+ assert.equal(complete.full.checked,22,'explicit review checks all WAL operations');
+ assert.equal(complete.full.missing,22,'remote-only route-1 does not match any of these IDs');
+ assert.equal(complete.full.unverified,0,'all operations covered by read-only query');
+ assert.equal(complete.full.removed,0);
+ assert.equal(complete.progress.length,22);
+ assert.equal(complete.progress.at(-1).done,22);
+ assert.equal(complete.fullReviewWrites,0,'read-only review never writes localStorage');
+ assert(complete.transactionModes.every(mode=>mode==='readonly'));
+ assert.equal(complete.requests.length,30,'eight automatic plus twenty-two explicitly requested GETs');
+ assert(complete.requests.every(x=>x.method==='GET'));
  const disconnected=await scenario(sample.data,false);
  assert.equal(disconnected.out.walProof.status,'cloud-api-unavailable');
  assert.equal(disconnected.out.walProof.attempted,false);
