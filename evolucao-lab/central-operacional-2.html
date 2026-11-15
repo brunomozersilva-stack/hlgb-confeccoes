@@ -178,7 +178,9 @@ function reset(){
   {id:'HUB-1038',source:'AC-1038',faction:'Ge',detail:'Doll Melanie',amount:calc(records[4]),origin:'initial',proof:'PDF 1038'},
   {id:'HUB-1036',source:'AC-1036',faction:'Fran',detail:'Camisola Ana Amélia',amount:calc(records[6]),origin:'initial',proof:'—'}
  ];audit=[{id:'INIT-1',message:'Ambiente demonstrativo carregado',time:now()}];route=[...factions];selected.clear();nextId=1043;sequence=0;
- render();notify('Exemplos restaurados. Nenhum dado foi salvo.',false);
+ $('acerto-search').value='';$('acerto-status').value='all';$('acerto-order').value='recent';
+ $('hub-search').value='';$('hub-period').value='all';$('hub-order').value='recent';
+ render();notify('Exemplos e filtros restaurados. Nenhum dado foi salvo.',false);
 }
 function notify(message,warning=false){const t=$('toast');t.textContent=message;t.hidden=false;t.style.background=warning?'#77472a':'#332444';clearTimeout(notify.timer);notify.timer=setTimeout(()=>t.hidden=true,3500)}
 function log(message){audit.unshift({id:'EV-'+(++sequence),message,time:now()})}
