@@ -2,6 +2,24 @@
 
 Esta pasta é um **protótipo isolado**: não é uma tela incorporada ao HLGB em produção.
 
+## Prévia operacional 2.0 (para avaliação de usabilidade)
+
+A nova tela `central-operacional-2.html` foi criada após a avaliação de que os protótipos anteriores eram básicos. Ela aproxima a experiência visual e funcional de uma central de trabalho diária:
+
+- Visão geral com indicadores calculados a partir de acertos fictícios e lista de prioridades.
+- Busca única por produto, facção ou ID, filtro por situação, ordenação e navegação contextual.
+- Criação e edição de acertos pendentes com preço unitário, travetada e ajuste justificado em **centavos inteiros**.
+- Seleção e confirmação de vários acertos para pagamento **simulado em lote**, atualizando simultaneamente o Hub fictício e o histórico de operações em memória.
+- Painel por facção, com pendências, valores e seleção para ver acertos vinculados.
+- Planejamento de rota reorganizável em tela, sem envio de rotas reais.
+- Hub com ligação por ID do acerto, filtro por origem, busca e exportação de CSV com dados fictícios.
+- Interface responsiva com cartões de acerto no celular, navegação inferior, diálogos de edição e confirmação.
+- Restaurar os dados fictícios restaura **também a busca, os filtros e a ordenação**.
+
+**IMPORTANTE:** é uma prévia de usabilidade que não contém as 266 melhorias completas nem substitui os 43 cenários críticos existentes. Não há gravação real, autenticação, comprovantes reais, WAL ou reconciliação entre aparelhos. Todas as operações reiniciam ao recarregar. Testes de funcionários e homologação funcional seguem pendentes. A versão atual em `main` permanece intocada.
+
+O pacote offline `HLGB-Evolucao-Previa.zip` inclui a Central 2.0 e as telas anteriores, com `index.html` como entrada.
+
 ## Garantias
 
 - Os arquivos da pasta **não são carregados** por `index.html`, `app-stable3.html` nem `app9240.html`.
