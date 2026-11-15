@@ -32,6 +32,15 @@ As restantes **68 funções não possuem demonstração específica equivalente*
 
 Estes são testes **demonstrativos e interativos** dos fluxos disponíveis, não homologação de registros, dados ou banco de produção. Os demais módulos continuam listados na Central de Testes com estado não implementado quando não houver demonstração real.
 
+## Serviços avulsos de embalagem e travetada (novidade da prévia)
+
+- Abra **Central Operacional 2.0 → Acertos e pagamentos → Novo acerto** e escolha **Embalagem**. A seleção passa a mostrar apenas embaladeiras fictícias, e o campo de preço apresenta um valor de exemplo quando o modelo está na pequena lista de testes.
+- **Exemplo numérico:** selecione Camisola Melina, 20 peças, sugestão fictícia de R$ 0,25, abatimento total de R$ 1,00 e motivo registrado. Resultado esperado: **R$ 4,00**. O preço pode ser editado manualmente e modelos novos podem ser digitados.
+- Simule o pagamento individual ou em lote. Na confirmação, selecione opcionalmente um **PDF criado para teste**, nunca um comprovante real. Só o nome do arquivo é associado ao lançamento fictício; a prévia não lê, guarda nem envia o conteúdo do PDF.
+- Em **Travetada**, a lista passa a mostrar apenas a travetadora demonstrativa. Com Calcinha Tammy, 10 peças e R$ 0,06 como preço de exemplo, o total é **R$ 0,60**.
+- Filtre por serviço e pesquise a embaladeira ou travetadora em Acertos. Em **Facções**, confira os quadros separados dos prestadores avulsos. No **Hub**, confira vínculo, valores, nome do PDF e exporte a evidência JSON.
+- Valores, modelos e prestadores são **exemplos sintéticos** para validar a interface; não representam a tabela de preços ou as pessoas cadastradas no HLGB.
+
 ## Como usar
 
 1. Extraia `HLGB-Evolucao-Previa.zip`, entre na pasta `HLGB-Evolucao-Previa` e abra o arquivo `index.html`.
