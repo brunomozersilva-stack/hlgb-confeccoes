@@ -21,7 +21,7 @@ fieldset{border:1px solid var(--line);border-radius:11px;padding:11px 12px;margi
 .result.error{background:#ffebe9;color:#8b2638}.btn{border:1px solid #c5b3d7;border-radius:10px;background:white;color:var(--purple);padding:10px 13px;min-height:44px;font-weight:700}.btn:disabled{opacity:.55;cursor:not-allowed}
 .pill{display:inline-block;background:#eee7f8;color:#574275;border-radius:999px;font-size:11px;padding:5px 9px;font-weight:750}
 @media(max-width:860px){.columns{grid-template-columns:1fr}}
-@media(max-width:560px){.grid{grid-template-columns:1fr}.full{grid-column:auto}.tabs{display:grid;grid-template-columns:1fr 1fr}.tabs button{font-size:12px;padding:10px 6px}main{padding:12px 10px 55px}.panel{padding:12px}}
+@media(max-width:560px){.input{font-size:16px}.grid{grid-template-columns:1fr}.full{grid-column:auto}.tabs{display:grid;grid-template-columns:1fr 1fr}.tabs button{font-size:12px;padding:10px 6px}main{padding:12px 10px 55px}.panel{padding:12px}}
 @media(prefers-reduced-motion:reduce){*,*:before,*:after{animation:none!important}}
 </style></head><body>
 <header><div style="font-size:11px;letter-spacing:.1em;color:#dfc7fa;font-weight:800">HLGB EVOLUÇÃO · SOMENTE SIMULAÇÃO</div>
@@ -234,7 +234,7 @@ fieldset{border:1px solid var(--line);border-radius:11px;padding:11px 12px;margi
   const next=moneyCents(input.nextPayment||0);
   if(next>total-cash-credit)fail('Recebimento parcial excede o saldo disponível.');
   const receivedCents=cash+next,remainingCents=total-receivedCents-credit;
-  const status=remainingCents>1?(receivedCents>0||credit>0?'Parcial':'Pendente'):(credit>0?'Compensado por devolução':'Pago');
+  const status=remainingCents===1?'Revisar centavo residual':remainingCents>1?(receivedCents>0||credit>0?'Parcial':'Pendente'):(credit>0?'Compensado por devolução':'Pago');
   return {totalCents:total,priorReceivedCents:cash,nextPaymentCents:next,receivedCents,creditCents:credit,remainingCents,status};
  }
  return Object.freeze({version:'demo-v1',moneyCents,previewLine,previewGroup,allocateLines,correctionRemaining,invoiceSummary});
