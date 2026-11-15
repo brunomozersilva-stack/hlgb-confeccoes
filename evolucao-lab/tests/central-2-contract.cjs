@@ -46,5 +46,9 @@ test('versão mobile, navegação acessível e cálculos monetários controlados
  assert.match(file,/:focus-visible/);
  assert.match(file,/Number\.isSafeInteger\(total\)/);
  assert.match(file,/discount>price/);
+ assert.match(file,/staffFor\(service\)/);
+ assert.match(file,/syntheticRates/);
+ assert.match(file,/file\.size>5\*1024\*1024/);
+ assert.match(file,/proof,service:r\.service/);
  assert.match(file,/qty\*\(price-discount\)\+extra/);
 });
