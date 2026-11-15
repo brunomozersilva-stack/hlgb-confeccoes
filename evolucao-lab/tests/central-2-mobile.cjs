@@ -85,6 +85,7 @@ async function run(browser,width){
   assert(evidence.historico.some(e=>/pago/i.test(e.message)));
   await nav('faccoes').click();
   assert.equal(await page.locator('#faction-cards .fac-card').count(),7);
+  assert.equal(await page.locator('#service-cards .fac-card').count(),3);
   const original=await page.locator('#route-list li').nth(5).innerText();
   assert.match(original,/Roseli/);
   await page.locator('button[data-move="5:-1"]').click();
