@@ -1,0 +1,280 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>HLGB Evolução — Pedidos, Corte, Produção e Separação</title>
+<style>
+:root{font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:#291f32;background:#f8f6fa;--ink:#2f233b;--purple:#5d3c7e;--line:#e4dbea;--muted:#665a70;--light:#f5effb}
+*{box-sizing:border-box}body{margin:0}a{color:inherit}button,input,select{font:inherit;color:inherit}button{cursor:pointer}button:disabled{opacity:.48;cursor:not-allowed}
+button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible{outline:3px solid #c69bec;outline-offset:2px}
+header{background:linear-gradient(130deg,#342442,#644584);color:white;padding:24px max(15px,calc((100% - 1190px)/2))}
+header a{color:#e8d5f7;font-size:12px}header h1{font-size:clamp(24px,3.6vw,35px);margin:8px 0}header p{font-size:13px;color:#eadff2;margin:0;line-height:1.55}
+main{max-width:1200px;margin:auto;padding:21px 18px 65px}.notice{background:#fff8e7;border:1px solid #e6cb91;padding:12px 15px;border-radius:12px;color:#695022;font-size:13px;line-height:1.5;margin-bottom:17px}
+.metrics{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:10px;margin-bottom:18px}.metric{border:1px solid var(--line);background:white;padding:15px;border-radius:12px;min-width:0}.metric span{display:block;color:var(--muted);font-size:12px}.metric strong{display:block;font-size:clamp(19px,2.3vw,29px);font-variant-numeric:tabular-nums;margin-top:4px}
+.tabs{display:flex;gap:7px;overflow-x:auto;padding-bottom:8px;margin-bottom:11px}.tabs button{white-space:nowrap;border:1px solid #d7c6e5;background:white;border-radius:10px;padding:11px 14px;font-weight:750;font-size:13px;min-height:44px}
+.tabs button[aria-current="page"]{background:var(--purple);color:#fff;border-color:var(--purple)}
+.panel{border:1px solid var(--line);background:#fff;border-radius:14px;padding:18px;margin-bottom:14px}.panel h2{font-size:21px;margin:0 0 7px}.panel p{font-size:13px;color:var(--muted);line-height:1.5;margin:5px 0 12px}
+.controls{display:flex;gap:12px;flex-wrap:wrap;align-items:end;margin:15px 0}.field{display:grid;gap:5px}.field label{font-size:12px;font-weight:800}.input{min-height:43px;padding:9px 10px;border:1px solid #c8bad2;border-radius:9px;background:white;min-width:0;width:100%}
+.controls .field:first-child{flex:1 1 230px}.controls .field:nth-child(2){flex:1 1 160px}
+.button{padding:10px 13px;border-radius:9px;background:white;border:1px solid #c6b2d8;color:var(--purple);min-height:42px;font-weight:750;font-size:12px}.button.primary{background:var(--purple);color:white;border-color:var(--purple)}
+.table-wrap{overflow-x:auto;border:1px solid var(--line);border-radius:10px}table{border-collapse:collapse;width:100%;min-width:850px;font-size:12px}th,td{padding:12px 9px;border-bottom:1px solid #efeaf3;text-align:left}th{background:#faf8fc;color:#6b6075;white-space:nowrap}tr:last-child td{border-bottom:0}td strong{font-size:13px}td small{display:block;color:var(--muted);margin-top:3px}
+.num{font-variant-numeric:tabular-nums;text-align:center;font-weight:750}.tag{display:inline-block;border-radius:100px;background:#f3eafb;color:#644286;padding:5px 7px;font-size:11px;font-weight:750}.tag.complete{background:#e6f4ee;color:#1e714d}
+.mobile-cards{display:none}.order{background:white;border:1px solid var(--line);border-radius:12px;padding:12px;margin:9px 0}.order header{padding:0;background:none;color:inherit}.order header strong{display:block;font-size:13px}.order header small{font-size:12px;color:var(--muted)}
+.stages{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:6px;text-align:center;margin:10px 0}.stages span{display:block;background:var(--light);padding:7px 3px;border-radius:7px;font-size:11px}.stages b{display:block;font-size:16px;margin-top:4px}
+.order .button{width:100%}.empty{padding:18px;color:var(--muted);text-align:center;font-size:13px}
+.status{font-size:12px;color:var(--muted)}.audit-list{display:grid;gap:9px}.audit-item{border:1px solid var(--line);padding:11px;border-radius:10px;font-size:12px;line-height:1.5}.audit-item strong{display:block}.audit-item small{color:var(--muted)}
+dialog{border:none;border-radius:14px;padding:0;box-shadow:0 20px 70px #2613323b;width:min(500px,calc(100% - 20px));max-height:calc(100vh - 20px);color:var(--ink)}
+dialog::backdrop{background:#24152bb2}.modal-head{padding:20px 20px 10px;border-bottom:1px solid var(--line)}.modal-head h2{font-size:19px;margin:0 0 8px}
+.modal-body{padding:16px 20px;display:grid;gap:12px;max-height:65vh;overflow:auto}.modal-foot{padding:13px 20px;background:#faf8fc;border-top:1px solid var(--line);display:flex;justify-content:flex-end;gap:9px}
+.preview{padding:12px;background:var(--light);border-radius:9px;font-size:14px;font-weight:750}.message{background:#f8e9ea;color:#9b3140;border-radius:7px;padding:8px;font-size:12px}.message[hidden]{display:none}
+.actions{display:flex;flex-wrap:wrap;gap:7px}.actions .button{flex:1 1 155px}
+@media(max-width:920px){.metrics{grid-template-columns:repeat(3,minmax(0,1fr))}.table-wrap{display:none}.mobile-cards{display:block}}
+@media(max-width:600px){main{padding:13px 10px 50px}.panel{padding:12px}.metrics{grid-template-columns:repeat(2,minmax(0,1fr));gap:7px}.metric{padding:11px}.tabs{gap:5px}.tabs button{font-size:11px;padding:9px 10px}.stages span{font-size:10px}.stages b{font-size:14px}.controls{display:grid;grid-template-columns:1fr}.controls .field:first-child,.controls .field:nth-child(2){flex:auto}.modal-head,.modal-body,.modal-foot{padding-left:13px;padding-right:13px}}
+</style>
+</head>
+<body>
+<header><a href="./entrada.html">← Voltar ao início da prévia</a><h1>Pedidos → Corte → Facções → Separação</h1><p>Uma operação conectada por modelo, cor e tamanho. Faça baixas parciais e confira os saldos em todos os setores, usando apenas dados inventados.</p></header>
+<main>
+<div class="notice"><b>Laboratório independente, sem conexão com o HLGB.</b> Os pedidos e funcionários são fictícios. Nada é enviado, salvo no banco ou sincronizado. Ao recarregar, todas as operações recomeçam. Não informe dados reais.</div>
+<div class="metrics" aria-label="Totais de peças">
+ <div class="metric"><span>Pedidas</span><strong id="metric-ordered">0</strong></div>
+ <div class="metric"><span>Cortadas</span><strong id="metric-cut">0</strong></div>
+ <div class="metric"><span>Enviadas às facções</span><strong id="metric-sent">0</strong></div>
+ <div class="metric"><span>Retornadas</span><strong id="metric-returned">0</strong></div>
+ <div class="metric"><span>Separadas</span><strong id="metric-separated">0</strong></div>
+</div>
+<nav class="tabs" aria-label="Módulos de produção">
+ <button type="button" data-stage="orders" aria-current="page">Pedidos</button>
+ <button type="button" data-stage="cut">Corte</button>
+ <button type="button" data-stage="send">Produção / Facções</button>
+ <button type="button" data-stage="return">Retornos</button>
+ <button type="button" data-stage="separate">Separação</button>
+ <button type="button" data-stage="audit">Auditoria</button>
+</nav>
+<section class="panel" aria-label="Área de operação">
+<div id="operation-view">
+<h2 id="stage-title">Pedidos</h2><p id="stage-detail">Consulte o pedido e sua grade, incluindo a separação por cor e tamanho.</p>
+<div class="controls">
+ <div class="field"><label for="search-order">Buscar pedido, modelo, cor ou tamanho</label><input id="search-order" class="input" type="search" placeholder="Ex.: PD-100 Melina Preto P" autocomplete="off"></div>
+ <div class="field"><label for="filter-progress">Situação da grade</label><select class="input" id="filter-progress"><option value="all">Todas</option><option value="open">Com saldo nesta etapa</option><option value="done">Etapa concluída</option></select></div>
+ <button type="button" class="button" id="clear-filters">Limpar filtros</button>
+</div>
+<p id="results-count" class="status" role="status" aria-live="polite"></p>
+<div class="table-wrap">
+<table aria-label="Grades e saldos fictícios"><thead><tr><th>Pedido e modelo</th><th>Cor / Tam.</th><th>Pedidas</th><th>Cortadas</th><th>Enviadas</th><th>Retornadas</th><th>Separadas</th><th>Disponível</th><th>Ação</th></tr></thead><tbody id="grade-body"></tbody></table></div>
+<div class="mobile-cards" id="grade-mobile"></div>
+</div>
+<div id="audit-view" hidden>
+<h2>Histórico de movimentações fictícias</h2><p>Eventos encadeados por pedido, cor e tamanho. Cada operação tem ID e revisão; nenhuma é apagada nesta sessão.</p>
+<div class="actions"><button class="button primary" type="button" id="download-evidence">↓ Baixar evidência JSON</button><button class="button" type="button" id="audit-reset">↺ Reiniciar exemplos</button></div>
+<p id="audit-status" class="status" role="status" aria-live="polite"></p>
+<div id="audit-list" class="audit-list"></div>
+</div>
+</section>
+<div class="panel"><h2>Regras de conferência</h2><p>Em cada variante, as peças separadas não podem superar as retornadas; as retornadas não podem superar as enviadas; as enviadas não podem superar as cortadas; as cortadas não podem superar as pedidas. O sistema demonstra essa conferência em todas as etapas, sem alterar nenhum pedido verdadeiro.</p>
+<div class="actions"><button type="button" id="reset-data" class="button">↺ Restaurar dados fictícios</button><button type="button" id="export-data" class="button primary">↓ Exportar teste em JSON</button></div></div>
+</main>
+<dialog id="movement-dialog" aria-labelledby="movement-title">
+<form id="movement-form" novalidate>
+<div class="modal-head"><h2 id="movement-title">Registrar movimentação fictícia</h2><p id="movement-context" class="status"></p></div>
+<div class="modal-body">
+<div class="field"><label for="movement-qty">Quantidade desta movimentação</label><input id="movement-qty" type="number" class="input" min="1" step="1" inputmode="numeric" required></div>
+<div class="field" id="operator-field"><label for="movement-operator">Responsável / facção de exemplo</label><select id="movement-operator" class="input"></select></div>
+<div class="field"><label for="movement-note">Observação (opcional)</label><input id="movement-note" class="input" maxlength="120" placeholder="Ex.: lote conferido"></div>
+<div class="preview" id="movement-preview">—</div>
+<div class="message" id="movement-error" role="status" aria-live="polite" hidden></div>
+</div>
+<div class="modal-foot"><button type="button" id="movement-cancel" class="button">Cancelar</button><button type="submit" id="movement-confirm" class="button primary">Confirmar no laboratório</button></div>
+</form>
+</dialog>
+<script>
+(function(){
+'use strict';
+const $=id=>document.getElementById(id);
+const stages={
+ orders:{title:'Pedidos e grades',detail:'Consulte o pedido completo e os saldos por cor e tamanho.',field:null,verb:'Consultar'},
+ cut:{title:'Corte por variante',detail:'Corte apenas peças ainda não cortadas. Informe o responsável pelo corte.',field:'cut',verb:'Registrar corte'},
+ send:{title:'Produção e envio às facções',detail:'Só envie peças previamente cortadas. O envio parcial é identificado por facção.',field:'sent',verb:'Enviar à facção'},
+ return:{title:'Retorno das facções',detail:'Confirme apenas peças já enviadas à facção responsável.',field:'returned',verb:'Confirmar retorno'},
+ separate:{title:'Separação e expedição',detail:'Faça a baixa parcial apenas das peças retornadas pela facção.',field:'separated',verb:'Separar peças'},
+ audit:{title:'Auditoria',detail:'Movimentações e verificações de integridade.',field:null,verb:''}
+};
+const actors={
+ cut:['Cortador Interno Demo A','Cortador Externo Demo B','Infestador Demo'],
+ send:['Roseli Demo','Fran Demo','Luana Demo'],
+ return:[],
+ separate:['Separador Demo A','Separador Demo B']
+};
+const examples=[
+ {id:'PD-100',model:'Camisola Melina',variants:[['Preto','P',20,0,0,0,0],['Preto','M',40,0,0,0,0],['Preto','G',40,0,0,0,0]]},
+ {id:'PD-101',model:'Calcinha Tammy',variants:[['Rubi','P',30,20,20,10,5],['Rubi','M',30,20,10,10,5],['Rubi','G',20,0,0,0,0]]},
+ {id:'PD-102',model:'Doll Crystal',variants:[['Preto','P',10,10,10,10,10],['Preto','M',20,20,20,20,20],['Preto','G',30,30,30,30,30]]},
+ {id:'PD-103',model:'Camisola Leidiane',variants:[['Rubi','P',30,30,30,20,0],['Rubi','M',50,50,40,30,0],['Rubi','G',20,20,0,0,0],['Preto','M',20,0,0,0,0],['Preto','G',30,0,0,0,0]]}
+];
+const captions={ordered:'Pedidas',cut:'Cortadas',sent:'Enviadas',returned:'Retornadas',separated:'Separadas'};
+let orders=[],movements=[],current='orders',nextMove=1,revision=0,pending=null;
+function seed(){
+ orders=examples.map(order=>({id:order.id,model:order.model,lines:order.variants.map((v,i)=>({
+  id:order.id+'-L'+(i+1),orderId:order.id,model:order.model,color:v[0],size:v[1],ordered:v[2],cut:v[3],sent:v[4],returned:v[5],separated:v[6],
+  faction:v[4]?'Roseli Demo':null,revision:0
+ }))}));
+ movements=[];nextMove=1;revision=0;pending=null;
+ $('search-order').value='';$('filter-progress').value='all';render();
+}
+function allLines(){return orders.flatMap(order=>order.lines)}
+function total(field){return allLines().reduce((sum,line)=>sum+line[field],0)}
+function remaining(line,stage){
+ if(stage==='cut')return line.ordered-line.cut;
+ if(stage==='send')return line.cut-line.sent;
+ if(stage==='return')return line.sent-line.returned;
+ if(stage==='separate')return line.returned-line.separated;
+ return line.ordered-line.separated;
+}
+function statusFor(line){return line.separated===line.ordered?'Concluída':line.separated>0?'Separação parcial':line.returned>0?'Retorno parcial':line.sent>0?'Em facção':line.cut>0?'Corte parcial':'A cortar'}
+function validLine(line){return Number.isSafeInteger(line.ordered)&&line.ordered>0&&
+ ['cut','sent','returned','separated'].every(key=>Number.isSafeInteger(line[key])&&line[key]>=0)&&
+ line.separated<=line.returned&&line.returned<=line.sent&&line.sent<=line.cut&&line.cut<=line.ordered}
+const norm=value=>String(value||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().trim();
+function el(tag,cls,text){const e=document.createElement(tag);if(cls)e.className=cls;if(text!==undefined)e.textContent=text;return e}
+function switchStage(stage){
+ if(!Object.hasOwn(stages,stage))return;
+ current=stage;
+ document.querySelectorAll('[data-stage]').forEach(b=>{b.dataset.stage===stage?b.setAttribute('aria-current','page'):b.removeAttribute('aria-current')});
+ $('audit-view').hidden=stage!=='audit';$('operation-view').hidden=stage==='audit';
+ if(stage==='audit')renderAudit();else render();
+}
+function render(){
+ for(const field of ['ordered','cut','sent','returned','separated'])$('metric-'+field).textContent=total(field).toLocaleString('pt-BR');
+ if(current==='audit'){renderAudit();return}
+ const stage=stages[current];
+ $('stage-title').textContent=stage.title;$('stage-detail').textContent=stage.detail;
+ const words=norm($('search-order').value).split(/\s+/).filter(Boolean),filter=$('filter-progress').value;
+ const rows=allLines().filter(line=>words.every(word=>norm([line.orderId,line.model,line.color,line.size].join(' ')).includes(word))&&
+ (filter==='all'||(filter==='open'?remaining(line,current)>0:remaining(line,current)===0)));
+ $('results-count').textContent=rows.length+' variante(s) de '+allLines().length+' · '+(current==='orders'?'Consulta apenas, nenhuma baixa efetuada':stage.verb+' somente no navegador');
+ const tb=$('grade-body'),mobile=$('grade-mobile');tb.replaceChildren();mobile.replaceChildren();
+ for(const line of rows){
+  const free=remaining(line,current),tr=el('tr');
+  const description=el('td');description.append(el('strong','',line.model),el('small','',line.orderId+' · '+statusFor(line)));
+  const variant=el('td','',line.color+' / '+line.size);
+  tr.append(description,variant);
+  for(const field of ['ordered','cut','sent','returned','separated'])tr.append(el('td','num',String(line[field])));
+  tr.append(el('td','num',String(free)));
+  const action=el('td');
+  if(stage.field){const button=el('button','button primary',stage.verb);button.type='button';button.dataset.line=line.id;button.dataset.action=current;button.disabled=free===0;action.append(button)}
+  else action.append(el('span','tag '+(line.ordered===line.separated?'complete':''),statusFor(line)));
+  tr.append(action);tb.append(tr);
+  const card=el('article','order'),hd=el('header'),name=el('strong','',line.model),detail=el('small','',line.orderId+' · '+line.color+' / '+line.size+' · '+statusFor(line));
+  hd.append(name,detail);card.append(hd);
+  const grid=el('div','stages');
+  for(const field of ['ordered','cut','sent','returned','separated']){
+   const span=el('span','',captions[field]);span.append(el('b','',String(line[field])));grid.append(span);
+  }
+  card.append(grid);
+  const footer=el('div','status','Disponível nesta etapa: '+free+' peças');card.append(footer);
+  if(stage.field){const button=el('button','button primary',stage.verb);button.type='button';button.dataset.line=line.id;button.dataset.action=current;button.disabled=free===0;card.append(button)}
+  mobile.append(card);
+ }
+ if(!rows.length){tb.append(el('tr'));const cell=el('td','empty','Nenhuma variante encontrada. Confira os filtros.');cell.colSpan=9;tb.lastChild.append(cell);mobile.append(el('div','empty','Nenhuma variante encontrada.'))}
+}
+function actorsFor(line,stage){if(stage==='return')return line.faction?[line.faction]:[];if(stage==='send'&&line.faction)return [line.faction];return actors[stage]||[]}
+function openMove(lineId,stage){
+ if(!['cut','send','return','separate'].includes(stage)||current!==stage)return;
+ const line=allLines().find(x=>x.id===lineId),available=line&&remaining(line,stage);
+ if(!line||!validLine(line)||!available)return;
+ pending={lineId,stage,lineRevision:line.revision,token:'OP-'+revision+'-'+lineId+'-'+stage};
+ $('movement-title').textContent=stages[stage].verb+' · '+line.orderId;
+ $('movement-context').textContent=line.model+' · '+line.color+'/'+line.size+' · disponíveis '+available+' peças';
+ $('movement-qty').value='';$('movement-qty').max=String(available);$('movement-note').value='';
+ const opt=$('movement-operator');opt.replaceChildren();
+ for(const name of actorsFor(line,stage)){const item=el('option','',name);item.value=name;opt.append(item)}
+ $('operator-field').hidden=stage==='return';
+ $('movement-error').hidden=true;updatePreview();
+ $('movement-dialog').showModal();
+}
+function validateMove(){
+ if(!pending)throw Error('Movimentação não iniciada.');
+ const line=allLines().find(x=>x.id===pending.lineId);
+ if(!line||!validLine(line)||line.revision!==pending.lineRevision)throw Error('A grade mudou desde a abertura. Reabra a conferência.');
+ if(movements.some(m=>m.token===pending.token))throw Error('Esta movimentação já foi confirmada.');
+ const available=remaining(line,pending.stage),qty=Number($('movement-qty').value);
+ if(!Number.isSafeInteger(qty)||qty<1||qty>available)throw Error('Informe de 1 a '+available+' peças, sem ultrapassar o saldo.');
+ const actor=pending.stage==='return'?line.faction:$('movement-operator').value;
+ if(!actor||!actorsFor(line,pending.stage).includes(actor))throw Error('Responsável ou facção não permitido.');
+ return {line,qty,actor,available,note:$('movement-note').value.trim().slice(0,120)};
+}
+function updatePreview(){
+ try{
+  const v=validateMove(),after=v.available-v.qty;
+  $('movement-preview').textContent=v.qty+' peça(s) · saldo após movimentação: '+after;
+  $('movement-error').hidden=true;$('movement-confirm').disabled=false;
+ }catch(e){
+  $('movement-preview').textContent='Confirmação pendente';$('movement-error').textContent=e.message;$('movement-error').hidden=false;$('movement-confirm').disabled=true;
+ }
+}
+function commitMove(event){
+ event.preventDefault();let v;
+ try{v=validateMove()}catch(e){$('movement-error').hidden=false;$('movement-error').textContent=e.message;return}
+ const work=pending;pending=null;
+ const before={ordered:v.line.ordered,cut:v.line.cut,sent:v.line.sent,returned:v.line.returned,separated:v.line.separated};
+ const key=stages[work.stage].field;
+ v.line[key]+=v.qty;
+ if(work.stage==='send'&&!v.line.faction)v.line.faction=v.actor;
+ if(!validLine(v.line)){v.line[key]-=v.qty;pending=work;$('movement-error').textContent='Inconsistência de quantidade. Nenhuma baixa efetuada.';$('movement-error').hidden=false;return}
+ v.line.revision++;revision++;
+ const after={ordered:v.line.ordered,cut:v.line.cut,sent:v.line.sent,returned:v.line.returned,separated:v.line.separated};
+ movements.push({id:'MOV-'+String(nextMove++).padStart(4,'0'),token:work.token,
+  orderId:v.line.orderId,lineId:v.line.id,model:v.line.model,color:v.line.color,size:v.line.size,
+  stage:work.stage,qty:v.qty,actor:v.actor,note:v.note,revision:v.line.revision,before,after});
+ $('movement-dialog').close();render();
+ $('results-count').textContent+=' · Confirmado: '+v.qty+' peças '+v.line.color+'/'+v.line.size+'.';
+}
+function checks(){
+ const lines=allLines();
+ return {gradeConsistente:lines.every(validLine),idsSemDuplicacao:new Set(movements.map(m=>m.id)).size===movements.length,
+  operacoesUnicas:new Set(movements.map(m=>m.token)).size===movements.length,
+  totaisConferem:['ordered','cut','sent','returned','separated'].every(f=>total(f)===lines.reduce((sum,line)=>sum+line[f],0)),
+  movimentosEmUnidadesInteiras:movements.every(m=>Number.isSafeInteger(m.qty)&&m.qty>0),
+  linhasSemPerda:lines.length===14};
+}
+function renderAudit(){
+ const a=$('audit-list');a.replaceChildren();
+ const integrity=checks();
+ $('audit-status').textContent=movements.length+' movimentação(ões) fictícia(s) · '+Object.values(integrity).filter(Boolean).length+'/'+Object.values(integrity).length+' verificações de integridade';
+ for(const move of [...movements].reverse()){
+  a.append(el('div','audit-item',''));
+  a.lastChild.append(el('strong','',move.id+' · '+move.orderId+' · '+stages[move.stage].verb+' · '+move.qty+' peças'),
+   el('small','',move.model+' · '+move.color+'/'+move.size+' · '+move.actor+' · revisão '+move.revision),
+   el('small','',move.note||'Sem observação'));
+ }
+ if(!movements.length)a.append(el('p','status','Ainda não há movimentações nesta sessão.'));
+}
+function exportEvidence(){
+ const report={schema:'hlgb-evolucao-fluxo-producao-v1',environment:'offline-demo',fictitious:true,
+  productionApproval:false,capturedAt:new Date().toISOString(),
+  orders:orders.map(o=>({id:o.id,model:o.model,lines:o.lines.map(l=>({...l}))})),
+  movements:movements.map(m=>({...m})),counts:Object.fromEntries(['ordered','cut','sent','returned','separated'].map(f=>[f,total(f)])),checks:checks()};
+ const blob=new Blob([JSON.stringify(report,null,2)],{type:'application/json'});
+ const href=URL.createObjectURL(blob),anchor=el('a');
+ anchor.href=href;anchor.download='HLGB-EVOLUCAO-FLUXO-PRODUCAO-FICTICIO.json';anchor.click();
+ setTimeout(()=>URL.revokeObjectURL(href),1200);
+ $('audit-status').textContent='Evidência de teste fictício exportada. Nenhum dado real acessado.';
+}
+document.querySelectorAll('[data-stage]').forEach(b=>b.addEventListener('click',()=>switchStage(b.dataset.stage)));
+$('search-order').addEventListener('input',render);
+$('filter-progress').addEventListener('change',render);
+$('clear-filters').addEventListener('click',()=>{$('search-order').value='';$('filter-progress').value='all';render()});
+document.addEventListener('click',e=>{const b=e.target.closest('button[data-action][data-line]');if(b)openMove(b.dataset.line,b.dataset.action)});
+$('movement-form').addEventListener('submit',commitMove);
+$('movement-qty').addEventListener('input',updatePreview);
+$('movement-operator').addEventListener('change',updatePreview);
+$('movement-cancel').addEventListener('click',()=>{$('movement-dialog').close();pending=null});
+$('movement-dialog').addEventListener('close',()=>{pending=null});
+$('download-evidence').addEventListener('click',exportEvidence);
+$('export-data').addEventListener('click',exportEvidence);
+$('reset-data').addEventListener('click',seed);
+$('audit-reset').addEventListener('click',seed);
+seed();switchStage('orders');
+})();
+</script>
+</body></html>
