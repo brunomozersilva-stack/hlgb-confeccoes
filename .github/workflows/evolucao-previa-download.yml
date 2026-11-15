@@ -35,8 +35,8 @@ jobs:
           root=Path('pacote/HLGB-Evolucao-Previa')
           for file in root.rglob('*.html'):
               source=file.read_text()
-              if file.name=='index.html':
-                  source=source.replace('href="./entrada.html"','href="./index.html"')
+              # No pacote offline a pagina inicial chama index.html, e não entrada.html.
+              source=source.replace('href="./entrada.html"','href="./index.html"')
               # Todos os links locais referenciados devem apontar para arquivos da própria prévia
               import re
               for link in re.findall(r'href="([^"]+)"',source):
