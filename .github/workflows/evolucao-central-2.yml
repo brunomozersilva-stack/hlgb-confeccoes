@@ -1,0 +1,52 @@
+name: HLGB Evolucao - Central Operacional 2.0
+on:
+  push:
+    branches:
+      - feature/evolucao-laboratorio-isolado-v1-20261114
+    paths:
+      - 'evolucao-lab/central-operacional-2.html'
+      - 'evolucao-lab/tests/central-2-contract.cjs'
+      - 'evolucao-lab/tests/central-2-mobile.cjs'
+      - '.github/workflows/evolucao-central-2.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  static:
+    name: Isolamento e contratos da interface
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - name: Run standalone functional contracts
+        run: node --test evolucao-lab/tests/central-2-contract.cjs
+  visual:
+    name: Interacoes mobile (${{ matrix.browser }})
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        browser: [chromium, webkit]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - name: Install browser test runtime
+        run: |
+          npm install --no-save playwright@1.55.0
+          npx playwright install --with-deps ${{ matrix.browser }}
+      - name: Verify full UI flow and no external calls
+        env:
+          HLGB_BROWSER: ${{ matrix.browser }}
+          HLGB_SCREENSHOT_DIR: /tmp/hlgb-central-2
+        run: node evolucao-lab/tests/central-2-mobile.cjs
+      - name: Save mobile preview
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: central-operacional-2-${{ matrix.browser }}
+          path: /tmp/hlgb-central-2/*.png
+          if-no-files-found: ignore
