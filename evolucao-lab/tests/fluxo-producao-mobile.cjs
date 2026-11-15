@@ -72,6 +72,8 @@ async function testFlow(browser,width){
   assert.equal(await page.locator('#cut-material-rows .cut-card').count(),2);
   assert.match(await page.locator('#cut-material-rows').innerText(),/Renda/);
   assert.match(await page.locator('#cut-stats').innerText(),/20,01/);
+  assert.match(await page.locator('#cut-stats').innerText(),/89,9%/);
+  assert.match(await page.locator('#cut-material-rows').innerText(),/aproveitamento/);
   assert.equal(await button('cut','PD-100-L1').isDisabled(),true,'same grade cannot be cut twice');
   await tab('send').click();
   await button('send','PD-100-L1').click();
