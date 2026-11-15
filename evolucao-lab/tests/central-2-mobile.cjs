@@ -176,6 +176,7 @@ async function run(browser,width){
   await page.locator('#correction-confirm').click();
   assert.match(await row('AC-1041').innerText(),/150,00/);
   await nav('hub').click();
+  await page.locator('#hub-period').selectOption('all');
   assert.equal(await page.locator('#hub-body tr').count(),6);
   assert.match(await page.locator('#hub-body').innerText(),/Compensação/);
   const [finalEvidence]=await Promise.all([page.waitForEvent('download'),page.locator('#hub-evidence').click()]);
