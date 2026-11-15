@@ -116,7 +116,7 @@ dialog::backdrop{background:#1c1326a6}.modal-head{padding:20px 21px 12px;border-
 </div>
 </section>
 <section class="section" data-section="hub" hidden>
-<div class="panel"><div class="panel-heading"><div><h2>Hub Financeiro</h2><p class="desc">Lançamentos criados pelos pagamentos simulados, vinculados à origem.</p></div><button class="btn small" id="hub-export" type="button">↓ Exportar CSV fictício</button></div>
+<div class="panel"><div class="panel-heading"><div><h2>Hub Financeiro</h2><p class="desc">Lançamentos criados pelos pagamentos simulados, vinculados à origem.</p></div><div class="tool" style="margin:0"><button class="btn small" id="hub-evidence" type="button">↓ Baixar evidência JSON</button><button class="btn small" id="hub-export" type="button">↓ Exportar CSV fictício</button></div></div>
 <div class="hub-summary"><span>Saídas registradas nesta demonstração</span><strong id="hub-total">—</strong><span class="muted" id="hub-count">—</span></div>
 <div class="toolbox"><div class="field"><label for="hub-search">Buscar lançamento</label><input id="hub-search" class="input" type="search" placeholder="Facção, descrição ou ID"></div>
 <div class="field"><label for="hub-period">Origem</label><select id="hub-period" class="input"><option value="all">Todos</option><option value="initial">Exemplos iniciais</option><option value="session">Criados na sessão</option></select></div><div class="field"><label for="hub-order">Ordenar</label><select id="hub-order" class="input"><option value="recent">Recentes primeiro</option><option value="amount">Maior valor</option></select></div></div>
@@ -383,6 +383,30 @@ function changeRoute(index,dir){
  const value=route[index];route[index]=route[next];route[next]=value;
  log('Rota reorganizada: '+route.join(' → '));renderFaccoes();renderOverview();notify('Rota atualizada apenas nesta simulação.');
 }
+function exportEvidence(){
+ // Evidência de testes exclusivamente sintética; sem captura de armazenamento, contas ou rede.
+ const rows=records.map(r=>({...r,totalCentavos:calc(r)}));
+ const report={
+  schema:'hlgb-evolucao-teste-operacional-v1',
+  environment:'offline-demo',
+  fictitious:true,
+  productionApproval:false,
+  capturedAt:new Date().toISOString(),
+  counts:{acertos:rows.length,pending:rows.filter(r=>r.status==='Pendente').length,paid:rows.filter(r=>r.status==='Pago').length,hub:hub.length},
+  acertos:rows,hub:hub.map(h=>({...h})),rota:[...route],
+  historico:audit.map(item=>({...item})),
+  checks:{
+   acertosPagosComLancamento:rows.filter(r=>r.status==='Pago').every(r=>hub.filter(h=>h.source===r.id).length===1),
+   hubSemDuplicacao:[...new Set(hub.map(h=>h.source))].length===hub.length,
+   valoresEmCentavosInteiros:rows.every(r=>Number.isSafeInteger(r.totalCentavos))&&hub.every(h=>Number.isSafeInteger(h.amount))
+  }
+ };
+ const blob=new Blob([JSON.stringify(report,null,2)],{type:'application/json'});
+ const href=URL.createObjectURL(blob),anchor=document.createElement('a');
+ anchor.href=href;anchor.download='HLGB-EVOLUCAO-TESTE-FICTICIO.json';anchor.click();
+ setTimeout(()=>URL.revokeObjectURL(href),1000);
+ notify('Evidência fictícia exportada. Envie o JSON para análise dos testes.');
+}
 function exportCsv(){
  const q=norm($('hub-search').value),period=$('hub-period').value;
  const rows=hub.filter(h=>(period==='all'||h.origin===period)&&(!q||norm([h.id,h.source,h.faction,h.detail].join(' ')).includes(q)));
@@ -420,6 +444,7 @@ $('modal-cancel').addEventListener('click',()=>$('record-dialog').close());
 $('record-form').addEventListener('submit',saveRecord);
 document.querySelectorAll('#record-form input,#record-form select').forEach(node=>node.addEventListener(node.tagName==='SELECT'?'change':'input',previewEdit));
 $('reset-demo').addEventListener('click',reset);
+$('hub-evidence').addEventListener('click',exportEvidence);
 $('hub-export').addEventListener('click',exportCsv);
 for(const f of factions){const o=el('option','',f);o.value=f;$('edit-faction').append(o)}
 reset();
