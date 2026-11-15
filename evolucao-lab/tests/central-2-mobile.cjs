@@ -92,6 +92,7 @@ async function run(browser,width){
   assert.match(await page.locator('#route-list li').nth(4).innerText(),/Roseli/);
   await page.locator('#faction-cards').getByRole('button',{name:'Ver acertos'}).first().click();
   assert.match(await page.locator('#page-title').innerText(),/Acertos/);
+  await page.locator('#acerto-search').fill('');
   // Um serviço avulso fictício de embalagem deve usar apenas embaladeiras e sugerir preço editável.
   await page.locator('#new-record').click();
   await page.locator('#edit-service').selectOption('Embalagem');
