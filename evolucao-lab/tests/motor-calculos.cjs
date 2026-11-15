@@ -117,6 +117,11 @@ test('saldo de recebimento nunca pode ser ultrapassado',()=>{
  fail(()=>E.invoiceSummary({total:'100',received:'110',nextPayment:'0'}),/ultrapassa/);
  fail(()=>E.invoiceSummary({total:'100',received:'1',nextPayment:'0',returns:[{id:'R',amount:'5',reason:''}]}),/motivo/);
 });
+test('um centavo residual é mostrado para revisão, não como pago silenciosamente',()=>{
+ const state=E.invoiceSummary({total:'100,00',received:'99,99',nextPayment:'0',returns:[]});
+ assert.equal(state.remainingCents,1);
+ assert.equal(state.status,'Revisar centavo residual');
+});
 test('interface contém motor idêntico ao de testes e não acessa banco ou persistência',()=>{
  const scripts=[...html.matchAll(/<script[^>]*>([\s\S]*?)<\/script>/gi)].map(x=>x[1].trim());
  assert.equal(scripts.length,2);
