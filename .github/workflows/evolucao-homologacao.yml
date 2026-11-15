@@ -1,0 +1,52 @@
+name: HLGB Evolucao - Testes funcionais por modulo
+on:
+  push:
+    branches:
+      - feature/evolucao-laboratorio-isolado-v1-20261114
+    paths:
+      - 'evolucao-lab/homologacao-modulos.html'
+      - 'evolucao-lab/tests/homologacao-contract.cjs'
+      - 'evolucao-lab/tests/homologacao-mobile.cjs'
+      - '.github/workflows/evolucao-homologacao.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  contracts:
+    name: Roteiros, preservacao e isolamento dos 19 modulos
+    runs-on: ubuntu-24.04
+    timeout-minutes: 9
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - name: Validate 76 legacy cases, 43 scenarios, no real API
+        run: node --test evolucao-lab/tests/homologacao-contract.cjs
+  browsers:
+    name: Catalogo e relatorio (${{ matrix.browser }})
+    runs-on: ubuntu-24.04
+    timeout-minutes: 17
+    strategy:
+      fail-fast: false
+      matrix:
+        browser: [chromium, webkit]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - name: Install automated browser test runtime
+        run: |
+          npm install --no-save playwright@1.55.0
+          npx playwright install --with-deps ${{ matrix.browser }}
+      - name: Test module selection, guided scenarios, export and import on mobile
+        env:
+          HLGB_BROWSER: ${{ matrix.browser }}
+          HLGB_SCREENSHOT_DIR: /tmp/hlgb-homologacao
+        run: node evolucao-lab/tests/homologacao-mobile.cjs
+      - name: Save sample screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: homologacao-modulos-${{ matrix.browser }}
+          path: /tmp/hlgb-homologacao/*.png
+          if-no-files-found: ignore
