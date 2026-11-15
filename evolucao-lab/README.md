@@ -2,6 +2,23 @@
 
 Esta pasta é um **protótipo isolado**: não é uma tela incorporada ao HLGB em produção.
 
+## Nova etapa — Laboratório de duas sessões e confirmação de gravação
+
+Os novos `sincronizacao-duas-sessoes-memoria.js` e `sincronizacao-duas-sessoes.html` simulam duas sessões independentes **dentro de uma única página**, conectadas a um objeto servidor que vive somente na memória. Não há autenticação, rede, Supabase nem gravação durável.
+
+As sessões A/B simulam alteração de um lançamento fictício do Hub, com:
+- Rascunho isolado e revisão vista por sessão. Leitura da outra sessão é sempre explícita; não se confunde o estado de uma página com confirmação de banco.
+- Fila em memória quando offline, sem reenvio automático ao reconectar.
+- IDs imutáveis por comando, servidor fictício idempotente e controle de revisão otimista.
+- Simulação de ACK perdido, perda anterior ao commit e falha de releitura.
+- Releitura de comando e evento antes do status `readback_confirmed`; resultado inconclusivo bloqueia novos salvamentos até conciliação.
+- Se ID não foi encontrado, reenvio somente manual **com o mesmo ID**; o teste de commit atrasado prova que o replay não cria evento duplicado.
+- Conflito mantém os valores já confirmados por outra sessão e não descarta o rascunho de quem estava offline; exige revisão antes de um novo comando.
+- CSV não é usado; é possível baixar um JSON de evidências **somente fictícias**.
+- Testes automatizados de invariantes, Chrome e WebKit com cinco tamanhos de viewport.
+
+**Limitação essencial:** essa prova é de um **algoritmo de laboratório**, não certificação de persistência real. O passo seguinte exige banco de homologação isolado, papéis/ACL, transações reais, concorrência, WAL persistente, desconexões e testes entre browsers/dispositivos reais. A branch principal e o banco de produção permanecem intocados.
+
 ## Nova etapa — Guardião de preservação e bloqueio de liberação (offline)
 
 A página `guardiao-preservacao.html` vincula o inventário real do repositório (**76 funções de 19 módulos**), a matriz de **43 critérios detalhados** e o plano de **266 melhorias**; identifica **30 funções P0** e permite navegar pelas referências de arquivos e testes legados.
