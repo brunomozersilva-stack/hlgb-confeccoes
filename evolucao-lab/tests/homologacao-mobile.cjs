@@ -55,16 +55,9 @@ async function validate(browser,width){
   assert.match(saved.notes,/banco depois/);
   const other=report.results.find(x=>x.caseId==='PAR-041');
   assert.equal(other.status,'missing');
-  await page.locator('#clear').click();
-  // Limpar exige confirmação explícita: aceitar na suíte isolada.
+  // O usuário confirma explicitamente a limpeza; nenhuma avaliação é apagada automaticamente.
   page.once('dialog',d=>d.accept());
-  // A caixa de confirmação só aparece se há resultados.
-  // Caso já tenha aparecido antes do handler, a assertiva abaixo revelará falha.
-  await page.waitForTimeout(40);
-  // Caso a confirmação anterior tenha sido descartada, clicar novamente.
-  if((await page.locator('#metric-reviewed').innerText()).trim()!=='0'){
-   page.once('dialog',d=>d.accept());await page.locator('#clear').click();
-  }
+  await page.locator('#clear').click();
   assert.equal((await page.locator('#metric-reviewed').innerText()).trim(),'0');
   await page.locator('#import-file').setInputFiles({name:'homologacao.json',mimeType:'application/json',buffer:Buffer.from(JSON.stringify(report))});
   await page.waitForFunction(()=>document.querySelector('#metric-reviewed').textContent==='2');

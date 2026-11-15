@@ -163,7 +163,11 @@ function addScriptedSteps(wrapper,x){
  const textarea=node('textarea','input notes');textarea.id='notes-'+x.id;textarea.maxLength=2000;
  textarea.placeholder='Ex.: o campo passagem não aparece ou a soma muda ao salvar (sem dados pessoais).';
  textarea.value=getResult(x.id).notes;
- textarea.addEventListener('change',()=>{setResult(x.id,{notes:textarea.value});note('Observação anotada nesta sessão. Baixe o JSON para conservar.')});
+ textarea.addEventListener('input',()=>{
+  const old=getResult(x.id);
+  state.set(x.id,{status:old.status,notes:textarea.value});
+ });
+ textarea.addEventListener('change',()=>{metrics();renderModules();note('Observação anotada nesta sessão. Baixe o JSON para conservar.')});
  field.append(label,textarea);
  const btnSave=btn('Guardar observação na sessão',()=>{
   setResult(x.id,{notes:textarea.value});
