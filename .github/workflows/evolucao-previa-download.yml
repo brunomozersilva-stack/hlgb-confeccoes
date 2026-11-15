@@ -1,0 +1,65 @@
+name: HLGB Evolucao - Pacote para abrir sem internet
+on:
+  push:
+    branches:
+      - feature/evolucao-laboratorio-isolado-v1-20261114
+    paths:
+      - 'evolucao-lab/entrada.html'
+      - 'evolucao-lab/permissoes/permissoes-mobile.html'
+      - '.github/workflows/evolucao-previa-download.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  package:
+    name: Gerar ZIP das demonstracoes estaticas
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - name: Montar pacote 100% offline e sem dados empresariais
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p pacote/HLGB-Evolucao-Previa/permissoes
+          cp evolucao-lab/entrada.html pacote/HLGB-Evolucao-Previa/index.html
+          for p in prototipo.html fluxos-operacionais.html acertos-simulador.html transacoes-simuladas.html preservacao.html paridade-critica.html; do
+            cp "evolucao-lab/$p" "pacote/HLGB-Evolucao-Previa/$p"
+          done
+          cp evolucao-lab/permissoes/permissoes-mobile.html pacote/HLGB-Evolucao-Previa/permissoes/permissoes-mobile.html
+          python3 - <<'PY'
+          from pathlib import Path
+          root=Path('pacote/HLGB-Evolucao-Previa')
+          for file in root.rglob('*.html'):
+              source=file.read_text()
+              if file.name=='index.html':
+                  source=source.replace('href="./entrada.html"','href="./index.html"')
+              # Todos os links locais referenciados devem apontar para arquivos da própria prévia
+              import re
+              for link in re.findall(r'href="([^"]+)"',source):
+                  if link.startswith('./') or link.startswith('../'):
+                      resolved=(file.parent/link).resolve()
+                      if resolved.suffix=='.html':
+                          assert resolved.is_file(),(file,link)
+              if 'integracao/' in str(file) or 'api/pay' in source or 'api/upload' in source:
+                  raise RuntimeError('Rota operacional não permitida no pacote: '+str(file))
+              file.write_text(source)
+          print('PASS: 8 documentos HTML de demonstração e referências locais verificadas')
+          PY
+          cat > pacote/LEIA-PRIMEIRO.txt <<'TXT'
+          HLGB EVOLUCAO - PREVIA EXPERIMENTAL
+          Extraia o ZIP, entre na pasta HLGB-Evolucao-Previa e abra index.html
+          no Chrome ou Safari (também funciona sem internet).
+          Todas as telas usam dados inventados. Não inserir dados reais.
+          Não é o HLGB em funcionamento e não possui gravação no banco.
+          TXT
+          cd pacote
+          zip -qr HLGB-Evolucao-Previa.zip HLGB-Evolucao-Previa LEIA-PRIMEIRO.txt
+          unzip -t HLGB-Evolucao-Previa.zip | tail -1
+          ls -lh HLGB-Evolucao-Previa.zip
+      - name: Disponibilizar pacote para baixar no GitHub
+        uses: actions/upload-artifact@v4
+        with:
+          name: HLGB-Evolucao-Previa-Offline
+          path: pacote/HLGB-Evolucao-Previa.zip
+          retention-days: 30
