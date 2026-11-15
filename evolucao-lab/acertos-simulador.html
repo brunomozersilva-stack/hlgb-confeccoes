@@ -1,0 +1,297 @@
+<!doctype html>
+<html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>HLGB Evolução — Simulador de Acertos</title>
+<style>
+:root{font:15px system-ui,-apple-system,"Segoe UI",sans-serif;color:#30283d;background:#f6f4f9;--purple:#573c7c;--line:#e5deed;--muted:#655c70;--soft:#f4effa}
+*{box-sizing:border-box}body{margin:0}button,input,select{font:inherit}button:focus-visible,input:focus-visible,select:focus-visible,a:focus-visible{outline:3px solid #bc92eb;outline-offset:2px}
+header{background:#2b223a;color:white;padding:18px clamp(14px,4vw,38px)}
+h1{font-size:clamp(23px,3vw,31px);margin:8px 0 6px}h2{font-size:20px;margin:0 0 12px}h3{font-size:15px;margin:0 0 11px}
+p{line-height:1.55;margin:7px 0 12px}header p{font-size:13px;color:#e2d6ec}header a{color:#e6d1ff;font-size:13px}
+main{max-width:1120px;margin:auto;padding:19px clamp(10px,3vw,26px) 50px}
+.notice{background:#fff8e6;border:1px solid #e6cb8c;color:#684b17;border-radius:12px;padding:12px 14px;font-size:13px;margin-bottom:14px}
+.tabs{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:14px}.tabs button{border:1px solid #beafd0;background:white;color:#4f3c66;border-radius:10px;min-height:44px;padding:10px 14px;font-weight:750}.tabs button[aria-selected=true]{background:var(--purple);color:white}
+.view[hidden]{display:none}.columns{display:grid;grid-template-columns:minmax(0,1.45fr) minmax(265px,.85fr);gap:13px}
+.panel{background:white;border:1px solid var(--line);border-radius:14px;padding:16px;min-width:0}
+fieldset{border:1px solid var(--line);border-radius:11px;padding:11px 12px;margin:13px 0}legend{font-size:13px;font-weight:800;padding:0 4px}
+.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:11px}
+.field{min-width:0}.field label{display:block;font-weight:650;font-size:12px;margin-bottom:5px}.input{background:white;border:1px solid #c9bfd5;border-radius:9px;width:100%;min-height:44px;padding:10px 11px;min-width:0;color:#30283d}
+.full{grid-column:1/-1}.muted{color:var(--muted);font-size:12px}.note{background:var(--soft);padding:11px 13px;border-radius:10px;font-size:12px;line-height:1.5}
+.summary{display:grid;gap:8px}.total{display:flex;justify-content:space-between;gap:11px;padding:7px 0;border-bottom:1px solid var(--line);font-size:13px}.total strong{font-variant-numeric:tabular-nums}.total.big{font-size:18px;color:var(--purple);font-weight:850;border-bottom:0}
+.result{margin:12px 0;padding:11px;border-radius:10px;background:#eaf5ef;color:#185d3b;font-size:12px;font-weight:650;line-height:1.55}
+.result.error{background:#ffebe9;color:#8b2638}.btn{border:1px solid #c5b3d7;border-radius:10px;background:white;color:var(--purple);padding:10px 13px;min-height:44px;font-weight:700}.btn:disabled{opacity:.55;cursor:not-allowed}
+.pill{display:inline-block;background:#eee7f8;color:#574275;border-radius:999px;font-size:11px;padding:5px 9px;font-weight:750}
+@media(max-width:860px){.columns{grid-template-columns:1fr}}
+@media(max-width:560px){.grid{grid-template-columns:1fr}.full{grid-column:auto}.tabs{display:grid;grid-template-columns:1fr 1fr}.tabs button{font-size:12px;padding:10px 6px}main{padding:12px 10px 55px}.panel{padding:12px}}
+@media(prefers-reduced-motion:reduce){*,*:before,*:after{animation:none!important}}
+</style></head><body>
+<header><div style="font-size:11px;letter-spacing:.1em;color:#dfc7fa;font-weight:800">HLGB EVOLUÇÃO · SOMENTE SIMULAÇÃO</div>
+<h1>Laboratório de cálculos de Acertos</h1><p>Conferência de linhas, travetadas, abatimentos, compensações e recebimentos parciais. Adaptado para celular.</p>
+<a href="./fluxos-operacionais.html">Voltar às telas operacionais</a></header>
+<main>
+<div class="notice"><b>Dados inteiramente fictícios.</b> Este simulador não tem acesso ao Supabase, não registra pagamentos, não altera estoque nem mantém histórico. Não equivale à homologação das regras antigas. O salvamento permanece bloqueado.</div>
+<nav class="tabs" role="tablist" aria-label="Tipos de simulação">
+<button id="tab-faccao" type="button" role="tab" aria-controls="view-faccao" aria-selected="true" data-tab="faccao">Acerto da facção</button>
+<button id="tab-nota" type="button" role="tab" aria-controls="view-nota" aria-selected="false" data-tab="nota">Recebimento parcial</button>
+</nav>
+<section class="view" id="view-faccao" role="tabpanel" aria-labelledby="tab-faccao">
+<div class="columns">
+<section class="panel"><h2>Acerto fictício · semana</h2>
+<p class="muted">Exemplo: 100 peças com desconto de travetada, outro serviço, abatimento com motivo e compensação de uma diferença de semana anterior.</p>
+<fieldset><legend>Linhas de serviços</legend><div class="grid">
+<div class="field"><label for="qty1">Peças da linha 1</label><input class="input" id="qty1" type="number" inputmode="numeric" min="1" step="1" value="100"></div>
+<div class="field"><label for="price1">Valor unitário (R$)</label><input class="input" id="price1" inputmode="decimal" value="0,30"></div>
+<div class="field"><label for="discount1">Desconto de travetada por peça (R$)</label><input class="input" id="discount1" inputmode="decimal" value="0,05"></div>
+<div class="field"><label for="qty2">Quantidade da linha 2</label><input class="input" id="qty2" type="number" inputmode="numeric" min="1" step="1" value="20"></div>
+<div class="field"><label for="price2">Preço da linha 2 (R$)</label><input class="input" id="price2" inputmode="decimal" value="0,20"></div>
+</div></fieldset>
+<fieldset><legend>Ajustes diretos do acerto</legend><div class="grid">
+<div class="field"><label for="abatimento">Abatimento (R$)</label><input id="abatimento" class="input" inputmode="decimal" value="2,00"></div>
+<div class="field"><label for="motivo">Motivo do abatimento</label><input id="motivo" class="input" value="Conferência de material"></div>
+<div class="field"><label for="acrescimo">Acréscimo (R$)</label><input id="acrescimo" class="input" inputmode="decimal" value="1,00"></div>
+<div class="field"><label for="motivo-plus">Motivo do acréscimo</label><input id="motivo-plus" class="input" value="Serviço adicional"></div>
+</div></fieldset>
+<fieldset><legend>Compensação de pagamento anterior</legend><div class="grid">
+<div class="field"><label for="difference">Diferença original (R$)</label><input id="difference" class="input" inputmode="decimal" value="5,00"></div>
+<div class="field"><label for="used">Valor já compensado (R$)</label><input id="used" class="input" inputmode="decimal" value="2,00"></div>
+<div class="field"><label for="apply">Aplicar neste acerto (R$)</label><input id="apply" class="input" inputmode="decimal" value="3,00"></div>
+<div class="field"><label for="kind">Tipo</label><select id="kind" class="input"><option value="a_mais">Pago a mais (descontar)</option><option value="a_menos">Pago a menos (acrescentar)</option></select></div>
+</div><p class="muted">Origem: pagamento já realizado. Destino: acerto pendente da mesma facção. Esses estados são fixos e fictícios neste exemplo.</p></fieldset>
+</section>
+<aside class="panel"><h2>Conferência do valor</h2><div class="summary">
+<div class="total"><span>Serviços (bruto)</span><strong id="gross">—</strong></div>
+<div class="total"><span>Desconto de travetada</span><strong id="traveta">—</strong></div>
+<div class="total"><span>Ajustes diretos</span><strong id="adjustments">—</strong></div>
+<div class="total"><span>Compensação de outra semana</span><strong id="cross">—</strong></div>
+<div class="total"><span>Saldo da diferença anterior</span><strong id="remaining">—</strong></div>
+<div class="total big"><span>Total a pagar</span><strong id="total">—</strong></div>
+</div><div id="group-result" class="result" role="status" aria-live="polite">Conferindo…</div>
+<p class="note">As parcelas por linha devem somar exatamente o total líquido. Esta demonstração não gera pagamento nem crédito real.</p>
+<button class="btn" type="button" disabled>Salvar pagamento (bloqueado)</button></aside>
+</div></section>
+<section class="view" id="view-nota" role="tabpanel" aria-labelledby="tab-nota" hidden>
+<div class="columns">
+<section class="panel"><h2>Nota ou pedido — recebimento parcial</h2><p class="muted">Fluxo independente do acerto de facção. Exemplo com valor já recebido e devolução que reduz apenas o saldo, nunca o valor recebido em caixa.</p>
+<div class="grid">
+<div class="field"><label for="inv-total">Total da nota (R$)</label><input id="inv-total" class="input" inputmode="decimal" value="100,00"></div>
+<div class="field"><label for="inv-paid">Já recebido (R$)</label><input id="inv-paid" class="input" inputmode="decimal" value="40,00"></div>
+<div class="field"><label for="inv-credit">Devolução/abatimento (R$)</label><input id="inv-credit" class="input" inputmode="decimal" value="10,00"></div>
+<div class="field"><label for="inv-reason">Motivo do abatimento</label><input id="inv-reason" class="input" value="Devolução de mercadoria"></div>
+<div class="field"><label for="inv-next">Novo recebimento parcial (R$)</label><input id="inv-next" class="input" inputmode="decimal" value="20,00"></div>
+<div class="field"><label for="inv-reversed">Devolução estornada?</label><select id="inv-reversed" class="input"><option value="no">Não</option><option value="yes">Sim, desconsiderar crédito</option></select></div>
+</div>
+<p class="note">Esta é uma simulação de cálculo. O recebimento real exigirá identificação da operação, forma de pagamento, data, histórico, autorização e confirmação na nuvem.</p>
+</section>
+<aside class="panel"><h2>Resumo da nota</h2><div class="summary">
+<div class="total"><span>Valor total</span><strong id="invoice-total">—</strong></div>
+<div class="total"><span>Recebido antes</span><strong id="invoice-before">—</strong></div>
+<div class="total"><span>Recebimento simulado</span><strong id="invoice-next">—</strong></div>
+<div class="total"><span>Crédito/devolução</span><strong id="invoice-credit">—</strong></div>
+<div class="total big"><span>Saldo a receber</span><strong id="invoice-remaining">—</strong></div>
+</div><p class="note">Situação: <strong id="invoice-status">—</strong></p>
+<div id="invoice-result" class="result" role="status" aria-live="polite">Conferindo…</div>
+<button class="btn" disabled type="button">Registrar recebimento (bloqueado)</button></aside>
+</div></section>
+</main>
+<script id="engine">
+/*
+ * HLGB Evolução — Motor de cálculo de demonstração v1.
+ * Funções puras, sem banco, rede, WAL, storage ou efeitos em pagamentos.
+ * Não é implementação de salvamento transacional nem homologação de paridade.
+ */
+(function(root, factory){
+ 'use strict';
+ const api=factory();
+ if(typeof module==='object'&&module.exports)module.exports=api;
+ else if(root)root.HLGBEvolucaoCalculosV1=api;
+})(typeof window!=='undefined'?window:null,function(){
+ 'use strict';
+ const MAX=100000000;
+ function fail(msg){throw new Error(msg)}
+ function moneyCents(value){
+  if(typeof value!=='string'&&typeof value!=='number')fail('Informe um valor monetário.');
+  let s=String(value).trim().replace(/^R\$\s*/i,'');
+  if(!/^\d+(?:[,.]\d{1,2})?$/.test(s))fail('Valor monetário inválido. Use até duas casas decimais.');
+  const parts=s.replace(',','.').split('.');
+  const c=Number(parts[0])*100+Number((parts[1]||'').padEnd(2,'0'));
+  if(!Number.isSafeInteger(c)||c>MAX)fail('Valor fora do limite desta simulação.');
+  return c;
+ }
+ function quantity(value){
+  const n=Number(value);
+  if(!Number.isSafeInteger(n)||n<1||n>1000000)fail('Quantidade deve ser um inteiro positivo até 1.000.000.');
+  return n;
+ }
+ function validReason(text,minimum=5,maximum=700){
+  const s=String(text||'').trim();
+  if(s.length<minimum||s.length>maximum)fail('Informe motivo de '+minimum+' a '+maximum+' caracteres.');
+  return s;
+ }
+ function positiveCents(value){
+  const c=moneyCents(value);
+  if(!c)fail('Informe valor maior que zero.');
+  return c;
+ }
+ function sumCents(values){
+  return values.reduce(function(a,b){const n=a+b;if(!Number.isSafeInteger(n)||n>MAX*10)fail('Soma fora do limite.');return n},0);
+ }
+ function previewLine(line){
+  if(!line||typeof line!=='object')fail('Linha de serviço inválida.');
+  const kind=String(line.kind||'product');
+  if(!['product','embalagem','travetada','service'].includes(kind))fail('Tipo de serviço inválido.');
+  const qty=quantity(line.quantity);
+  const unit=positiveCents(line.unitPrice);
+  const points=kind==='travetada'?quantity(line.pointsPerPiece):1;
+  if(points>100)fail('Máximo de 100 travetadas por peça.');
+  const perPiece=unit*points;
+  const discount=moneyCents(line.travetaDiscountUnit??0);
+  if(kind==='travetada'&&discount!==0)fail('Serviço exclusivo de travetada não aceita desconto de travetada.');
+  if(discount>perPiece)fail('Desconto de travetada maior que o valor da peça.');
+  const gross=qty*perPiece,discountTotal=qty*discount,net=gross-discountTotal;
+  if(!Number.isSafeInteger(gross)||gross>MAX)fail('Linha excede o limite permitido.');
+  return {kind,qty,points,unitCents:unit,grossCents:gross,travetaDiscountCents:discountTotal,netCents:net};
+ }
+ function previewGroup(input){
+  if(!input||!Array.isArray(input.lines)||input.lines.length===0)fail('Inclua ao menos uma linha no acerto.');
+  if(input.lines.length>1000)fail('Muitas linhas no acerto demonstrativo.');
+  const lineResults=input.lines.map(previewLine),grossCents=sumCents(lineResults.map(x=>x.grossCents));
+  const travetaDiscountCents=sumCents(lineResults.map(x=>x.travetaDiscountCents));
+  let beforeCents=grossCents-travetaDiscountCents;
+  const adjustments=Array.isArray(input.adjustments)?input.adjustments:[];
+  if(adjustments.length>25)fail('No máximo 25 ajustes diretos por edição.');
+  const ids=new Set();
+  let directCents=0;
+  adjustments.forEach(function(a){
+   const id=String(a.id||'').trim(),kind=String(a.kind||'');
+   if(!id||ids.has(id))fail('Identificador de ajuste ausente ou repetido.');
+   ids.add(id);
+   if(!['abater','acrescentar'].includes(kind))fail('Escolha Abater ou Acrescentar.');
+   validReason(a.reason);
+   const v=positiveCents(a.amount);
+   directCents+=kind==='abater'?-v:v;
+  });
+  const applications=Array.isArray(input.applications)?input.applications:[];
+  const appliedIds=new Set();
+  let crossCents=0;
+  applications.forEach(function(a){
+   const id=String(a.id||'').trim();
+   if(!id||appliedIds.has(id))fail('Compensação repetida ou sem identificação.');
+   appliedIds.add(id);
+   if(a.sourceStatus!=='Pago'||a.targetStatus!=='Pendente')fail('Compensação exige origem paga e destino pendente.');
+   if(!a.sourceFactionId||!a.targetFactionId||String(a.sourceFactionId)!==String(a.targetFactionId))
+    fail('Compensação apenas para a mesma facção cadastrada.');
+   if(!['a_mais','a_menos'].includes(a.kind))fail('Tipo de compensação inválido.');
+   const value=positiveCents(a.amount),available=moneyCents(a.available);
+   if(value>available)fail('Compensação superior ao saldo da diferença de origem.');
+   crossCents+=a.kind==='a_mais'?-value:value;
+  });
+  const netCents=beforeCents+directCents+crossCents;
+  if(!Number.isSafeInteger(netCents)||netCents<=0||netCents>MAX)
+   fail('Total líquido deve ser maior que zero e não ultrapassar o limite.');
+  const allocations=allocateLines(lineResults.map(x=>x.netCents),netCents);
+  return {lines:lineResults,grossCents,travetaDiscountCents,beforeCents,
+   directCents,crossCents,netCents,allocationsCents:allocations};
+ }
+ function allocateLines(amounts,targetCents){
+  const rows=amounts.slice(),subtotal=sumCents(rows);
+  let difference=targetCents-subtotal;
+  if(difference>=0){rows[0]+=difference}
+  else{
+   let credit=-difference;
+   for(let i=0;i<rows.length&&credit;i++){
+    const portion=Math.min(rows[i],credit);rows[i]-=portion;credit-=portion;
+   }
+   if(credit)fail('Crédito excede as linhas de serviço.');
+  }
+  if(sumCents(rows)!==targetCents)fail('Rateio não conciliado.');
+  return rows;
+ }
+ function correctionRemaining(input){
+  const amount=positiveCents(input.amount);
+  const ids=new Set();
+  const applied=sumCents((Array.isArray(input.applications)?input.applications:[]).map(function(a){
+   const id=String(a.id||'');
+   if(!id||ids.has(id))fail('Aplicação duplicada ou sem ID.');
+   ids.add(id);
+   return positiveCents(a.amount);
+  }));
+  if(applied>amount)fail('Compensações ultrapassam o valor original.');
+  return {originalCents:amount,appliedCents:applied,remainingCents:amount-applied};
+ }
+ function invoiceSummary(input){
+  if(!input)fail('Acerto de nota inválido.');
+  const total=positiveCents(input.total),cash=moneyCents(input.received||0);
+  const events=Array.isArray(input.returns)?input.returns:[];
+  const eventIds=new Set();
+  let credit=0;
+  for(const e of events){
+   if(!e.id||eventIds.has(String(e.id)))fail('Devolução duplicada ou sem ID.');
+   eventIds.add(String(e.id));validReason(e.reason,1,180);
+   if(e.reversedAt)continue;
+   credit+=positiveCents(e.amount);
+  }
+  if(cash>total)fail('Recebimento acumulado ultrapassa o valor da nota.');
+  if(cash+credit>total)fail('Abatimentos ultrapassam o saldo após recebimentos.');
+  const next=moneyCents(input.nextPayment||0);
+  if(next>total-cash-credit)fail('Recebimento parcial excede o saldo disponível.');
+  const receivedCents=cash+next,remainingCents=total-receivedCents-credit;
+  const status=remainingCents>1?(receivedCents>0||credit>0?'Parcial':'Pendente'):(credit>0?'Compensado por devolução':'Pago');
+  return {totalCents:total,priorReceivedCents:cash,nextPaymentCents:next,receivedCents,creditCents:credit,remainingCents,status};
+ }
+ return Object.freeze({version:'demo-v1',moneyCents,previewLine,previewGroup,allocateLines,correctionRemaining,invoiceSummary});
+});
+</script>
+<script id="interface">
+(function(){
+"use strict";
+const E=window.HLGBEvolucaoCalculosV1,$=id=>document.getElementById(id);
+const fmt=c=>(c/100).toLocaleString('pt-BR',{style:'currency',currency:'BRL'});
+const signed=c=>(c<0?'− ':'+ ')+fmt(Math.abs(c));
+function present(id,message,error){const n=$(id);n.classList.toggle('error',!!error);n.textContent=message}
+function renderGroup(){
+ try{
+  const correction=E.correctionRemaining({amount:$("difference").value,applications: E.moneyCents($("used").value)===0?[]:[{id:"USED-EXAMPLE",amount:$("used").value}]});
+  const applied=E.moneyCents($("apply").value);
+  const result=E.previewGroup({
+   lines:[{kind:"product",quantity:$("qty1").value,unitPrice:$("price1").value,travetaDiscountUnit:$("discount1").value},
+    {kind:"embalagem",quantity:$("qty2").value,unitPrice:$("price2").value}],
+   adjustments:[{id:"ADJ-ABATE",kind:"abater",amount:$("abatimento").value,reason:$("motivo").value},
+    {id:"ADJ-PLUS",kind:"acrescentar",amount:$("acrescimo").value,reason:$("motivo-plus").value}],
+   applications:applied===0?[]:[{id:"APPLY-EXAMPLE",kind:$("kind").value,amount:$("apply").value,available:String(correction.remainingCents/100),sourceStatus:"Pago",targetStatus:"Pendente",sourceFactionId:"EXAMPLE-F",targetFactionId:"EXAMPLE-F"}]
+  });
+  $("gross").textContent=fmt(result.grossCents);$("traveta").textContent=signed(-result.travetaDiscountCents);
+  $("adjustments").textContent=signed(result.directCents);$("cross").textContent=signed(result.crossCents);
+  $("remaining").textContent=fmt(correction.remainingCents);
+  $("total").textContent=fmt(result.netCents);
+  present("group-result","Prévia coerente: "+result.allocationsCents.length+" linhas; rateio de "+fmt(result.allocationsCents.reduce((x,y)=>x+y,0))+". Nenhum dado foi salvo.",false);
+ }catch(error){
+  ["gross","traveta","adjustments","cross","remaining","total"].forEach(id=>$(id).textContent="—");
+  present("group-result",error.message+". Nenhuma operação foi realizada.",true);
+ }
+}
+function renderInvoice(){
+ try{
+  const summary=E.invoiceSummary({total:$("inv-total").value,received:$("inv-paid").value,nextPayment:$("inv-next").value,
+   returns:[{id:"RETURN-EXAMPLE",reason:$("inv-reason").value,amount:$("inv-credit").value,
+   reversedAt:$("inv-reversed").value==="yes"?"SIMULACAO":null}]});
+  $("invoice-total").textContent=fmt(summary.totalCents);
+  $("invoice-before").textContent=fmt(summary.priorReceivedCents);
+  $("invoice-next").textContent=fmt(summary.nextPaymentCents);
+  $("invoice-credit").textContent=fmt(summary.creditCents);
+  $("invoice-remaining").textContent=fmt(summary.remainingCents);
+  $("invoice-status").textContent=summary.status;
+  present("invoice-result","Conferência correta. O valor recebido anteriormente foi preservado na simulação. Nenhum lançamento foi gravado.",false);
+ }catch(error){
+  ["invoice-total","invoice-before","invoice-next","invoice-credit","invoice-remaining","invoice-status"].forEach(id=>$(id).textContent="—");
+  present("invoice-result",error.message+". Não houve gravação.",true);
+ }
+}
+document.querySelectorAll('[data-tab]').forEach(b=>b.addEventListener('click',function(){
+ const id=b.dataset.tab;
+ document.querySelectorAll('[data-tab]').forEach(x=>x.setAttribute('aria-selected',String(x.dataset.tab===id)));
+ document.querySelectorAll('.view').forEach(x=>x.hidden=x.id!=='view-'+id);
+}));
+["qty1","price1","discount1","qty2","price2","abatimento","motivo","acrescimo","motivo-plus","difference","used","apply","kind"].forEach(id=>$(id).addEventListener("input",renderGroup));
+["inv-total","inv-paid","inv-credit","inv-reason","inv-next","inv-reversed"].forEach(id=>$(id).addEventListener("input",renderInvoice));
+renderGroup();renderInvoice();
+})();
+</script></body></html>
