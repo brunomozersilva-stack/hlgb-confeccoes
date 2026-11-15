@@ -21,6 +21,20 @@ A página `homologacao-modulos.html` organiza 76 funcionalidades antigas identif
 
 As restantes **68 funções não possuem demonstração específica equivalente**. Elas já podem ser registradas como pendências, mas **não podem ser aprovadas no formulário como se estivessem implementadas**.
 
+## Novo teste: escolher vários modelos e calcular compras semanais
+
+Abra **Ficha técnica e materiais da semana** no índice, ou diretamente a página `planejador-materiais.html`.
+
+1. O exemplo inicial planeja **100 Camisolas Melina (20 P, 40 M, 40 G)** e **30 Calcinhas Tammy M**. O total deve mostrar **2 modelos, 130 peças, R$ 612,68 de consumo previsto e R$ 534,00 de compras sugeridas**. Todos esses valores são inventados para demonstrar o funcionamento.
+2. Na lista de compras, confira os materiais: **9.051 g de tule** necessários, estoque fictício **200 g**, sugestão de compra **9.000 g**; **5.249 g de renda**, estoque **500 g**, comprar **5.000 g**; **9.950 cm de elástico**, estoque **3.000 cm**, comprar **7.000 cm**; **130 etiquetas**, estoque **75**, comprar **100** pelo lote mínimo.
+3. Acrescente **Conjunto Paula G, 10 peças**; depois acrescente mais 5. Deve aparecer **uma única linha de Conjunto Paula G, com 15 peças**. Edite a linha para 12 peças, remova-a e confirme que o plano retorna para 130 peças.
+4. Em **Fichas técnicas**, escolha **Calcinha Tammy, M, Renda**. Altere o consumo de **42 g para 52 g por peça**. A renda necessária deve subir para **5.573 g**, a sugestão de compra de renda para **5.500 g** e o valor geral de compras para **R$ 555,00**.
+5. Em **Materiais / estoque**, altere a renda para **R$ 50,00/kg**, estoque fictício **6.000 g**, perda **10%** e lote **1.000 g**. A renda necessária passa a **5.676 g**, sem necessidade de comprar renda. O valor geral sugerido de compras passa para **R$ 324,00**.
+6. Na aba **Por modelo**, examine a necessidade de cada insumo, a grade e o custo previsto. Os custos atribuídos a cada modelo devem fechar exatamente com o custo consolidado, mesmo quando centavos são arredondados.
+7. Baixe a lista em **CSV** e o relatório **JSON**. O JSON deve incluir `plan`, `bom`, `materials`, `perModel`, `byMaterial`, `summary` e verificações de consistência em `checks`. Clique em **Restaurar simulação** e confirme que o estado inicial é reconstituído.
+
+**Não é uma lista de compras real:** as fichas técnicas, coeficientes por tamanho, preços, percentuais de perdas e saldos de estoque são apenas exemplos. Ainda falta cadastrar os insumos verdadeiros e seus fornecedores, conectar estoques e pedidos num banco exclusivo de homologação e validar conversões, lotes, devoluções, impostos, fretes e permissões.
+
 ## Novidade: folha de corte, materiais e aproveitamento
 
 Na demonstração **Pedidos → Corte → Produção → Separação**, entre em **Corte**, localize a variante fictícia **PD-100 / Camisola Melina / Preto / P** e registre 20 peças. No diálogo da ficha de corte:
