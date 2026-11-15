@@ -32,20 +32,20 @@ jobs:
                       for key,value in attrs:
                           if key=='href':self.links.append(value)
           links=Links();links.feed(page)
-          assert len(links.links)==11, links.links
+          assert len(links.links)==12, links.links
           for url in links.links:
               assert url.startswith('./') and re.fullmatch(r'[A-Za-z0-9_./-]+\.html',url),url
               assert '..' not in url,url
               assert Path('evolucao-lab',url).is_file(),url
               assert 'integracao' not in url,url
-          print('PASS: 11 links estáticos, todos os arquivos presentes, nenhum servidor local exposto')
+          print('PASS: 12 links estáticos, todos os arquivos presentes, nenhum servidor local exposto')
           PY
       - name: Verificar entrega HTTPS pela URL publica de desenvolvimento
         shell: bash
         run: |
           set -euo pipefail
           root="https://raw.githack.com/brunomozersilva-stack/hlgb-confeccoes/feature/evolucao-laboratorio-isolado-v1-20261114/evolucao-lab"
-          for page in entrada.html homologacao-modulos.html central-operacional-2.html fluxo-producao-integrado.html planejador-materiais.html fluxos-operacionais.html acertos-simulador.html transacoes-simuladas.html permissoes/permissoes-mobile.html preservacao.html paridade-critica.html prototipo.html; do
+          for page in entrada.html guardiao-preservacao.html homologacao-modulos.html central-operacional-2.html fluxo-producao-integrado.html planejador-materiais.html fluxos-operacionais.html acertos-simulador.html transacoes-simuladas.html permissoes/permissoes-mobile.html preservacao.html paridade-critica.html prototipo.html; do
             echo "Verificando $page"
             curl -fSL --retry 5 --retry-delay 5 --connect-timeout 15 --max-time 45 --output /tmp/hlgb-preview.html --dump-header /tmp/hlgb-preview-headers.txt "$root/$page"
             grep -Eiq '^content-type: text/html' /tmp/hlgb-preview-headers.txt || { echo "::error::Content-Type incorreto para $page"; cat /tmp/hlgb-preview-headers.txt; exit 1; }
