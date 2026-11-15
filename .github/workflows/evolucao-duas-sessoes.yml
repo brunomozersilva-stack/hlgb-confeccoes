@@ -1,0 +1,54 @@
+name: HLGB Evolucao - Duas Sessoes e Salvamento
+on:
+  push:
+    branches:
+      - feature/evolucao-laboratorio-isolado-v1-20261114
+    paths:
+      - 'evolucao-lab/sincronizacao-duas-sessoes-memoria.js'
+      - 'evolucao-lab/sincronizacao-duas-sessoes.html'
+      - 'evolucao-lab/tests/sincronizacao-duas-sessoes-*.cjs'
+      - '.github/workflows/evolucao-duas-sessoes.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  contract:
+    name: Invariantes, idempotencia e conflitos
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Provar ID estavel, releitura e rascunho preservado
+        run: node --test evolucao-lab/tests/sincronizacao-duas-sessoes-contract.cjs
+  browser:
+    name: Duas sessoes offline e mobile (${{ matrix.browser }})
+    runs-on: ubuntu-24.04
+    timeout-minutes: 18
+    strategy:
+      fail-fast: false
+      matrix:
+        browser: [chromium, webkit]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Instalar navegador isolado de teste
+        run: |
+          npm install --no-save playwright@1.55.0
+          npx playwright install --with-deps ${{ matrix.browser }}
+      - name: Testar fila, conflito, ACK e releitura em 5 larguras
+        env:
+          HLGB_BROWSER: ${{ matrix.browser }}
+          HLGB_SCREENSHOT_DIR: /tmp/hlgb-duas-sessoes
+        run: node evolucao-lab/tests/sincronizacao-duas-sessoes-mobile.cjs
+      - name: Anexar capturas para conferencia visual
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: evolucao-duas-sessoes-${{ matrix.browser }}
+          path: /tmp/hlgb-duas-sessoes/*.png
+          if-no-files-found: ignore
