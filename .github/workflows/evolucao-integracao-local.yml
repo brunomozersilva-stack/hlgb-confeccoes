@@ -1,0 +1,95 @@
+name: HLGB Evolucao - Homologacao local ponta a ponta
+on:
+  push:
+    branches:
+      - feature/evolucao-laboratorio-isolado-v1-20261114
+    paths:
+      - 'evolucao-lab/integracao/**'
+      - 'evolucao-lab/tests/integracao-browser.cjs'
+      - '.github/workflows/evolucao-integracao-local.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  static:
+    name: JS e limites de seguranca
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - name: JavaScript syntax
+        run: |
+          node --check evolucao-lab/integracao/server.cjs
+          node --check evolucao-lab/integracao/client.js
+          node --check evolucao-lab/tests/integracao-browser.cjs
+      - name: Garantir ausencia de endpoints Supabase na integracao
+        shell: bash
+        run: |
+          if grep -En 'supabase\.co|service_role|SUPABASE_URL|SUPABASE_KEY|fetch\(.*https://' evolucao-lab/integracao/server.cjs evolucao-lab/integracao/client.js; then
+            echo "::error::Referencia a host/credencial remotos no servidor de laboratorio."
+            exit 1
+          fi
+          echo 'Somente localhost; sem endpoints de producao.'
+  browser:
+    name: PDF e acesso ponta a ponta (${{ matrix.browser }})
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        browser: [chromium, webkit]
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_DB: hlgb_permissoes_lab
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: ci_somente_laboratorio
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d hlgb_permissoes_lab"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      PGHOST: 127.0.0.1
+      PGPORT: 5432
+      PGUSER: postgres
+      PGDATABASE: hlgb_permissoes_lab
+      PGPASSWORD: ci_somente_laboratorio
+      HLGB_AUTH_LAB_URL: postgres://postgres:ci_somente_laboratorio@127.0.0.1:5432/hlgb_permissoes_lab
+      HLGB_BROWSER: ${{ matrix.browser }}
+      HLGB_SCREENSHOT_DIR: /tmp/hlgb-evolucao-e2e
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - name: PostgreSQL client local
+        run: |
+          if ! command -v psql >/dev/null; then
+            sudo apt-get update -qq
+            sudo apt-get install -y postgresql-client
+          fi
+      - name: Confirmar que PostgreSQL e descartavel
+        run: |
+          set -euo pipefail
+          test "$(psql -tAc 'SELECT current_database()')" = 'hlgb_permissoes_lab'
+      - name: Criar usuarios, regras e fixtures locais
+        run: |
+          psql -v ON_ERROR_STOP=1 -f evolucao-lab/permissoes/01-laboratorio-seguro.sql
+          psql -v ON_ERROR_STOP=1 -f evolucao-lab/integracao/01-readback-local.sql
+      - name: Instalacao das dependencias de teste com versoes fixas
+        run: |
+          npm install --no-save pg@8.16.3 playwright@1.55.0
+          npx playwright install --with-deps ${{ matrix.browser }}
+      - name: Exercitar login, PDF real de teste, permissao e pagamento
+        run: node --test evolucao-lab/tests/integracao-browser.cjs
+      - name: Capturas do laboratorio
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: homologacao-local-${{ matrix.browser }}
+          path: /tmp/hlgb-evolucao-e2e/*.png
+          if-no-files-found: ignore
