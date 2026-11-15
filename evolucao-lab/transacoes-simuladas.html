@@ -1,0 +1,276 @@
+<!doctype html><html lang="pt-BR">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>HLGB Evolução — Laboratório de transações</title>
+<style>
+:root{font:15px system-ui,-apple-system,"Segoe UI",sans-serif;color:#2d2438;background:#f6f4fa;--purple:#533879;--line:#e5dfed;--muted:#6e647b}
+*{box-sizing:border-box}body{margin:0}button,select{font:inherit}button{cursor:pointer}button:disabled{opacity:.48;cursor:not-allowed}button:focus-visible,select:focus-visible,a:focus-visible{outline:3px solid #ae88d5;outline-offset:2px}
+header{background:#2b2238;color:white;padding:18px clamp(12px,4vw,40px)}header h1{font-size:clamp(24px,3vw,31px);margin:6px 0}header p{font-size:13px;color:#e2d7ee;line-height:1.55}header a{color:#e3c7fa}
+main{max-width:1160px;padding:20px clamp(10px,3vw,30px) 70px;margin:auto}
+.notice{background:#fff7e7;color:#78521f;border:1px solid #e5ca9e;border-radius:12px;padding:12px 14px;font-size:13px;line-height:1.55;margin-bottom:14px}
+.grid{display:grid;grid-template-columns:minmax(0,1.2fr) minmax(0,1fr);gap:14px}
+.panel{background:#fff;border:1px solid var(--line);border-radius:15px;padding:18px;min-width:0}
+h2{font-size:19px;margin:0 0 11px}h3{font-size:15px;margin:14px 0 9px}
+.p{font-size:13px;line-height:1.55;color:var(--muted)}
+.caption{font-size:12px;color:var(--muted)}
+.actions{display:flex;flex-wrap:wrap;gap:9px;margin:13px 0}
+.btn{padding:11px 13px;border:1px solid #bbaacf;color:#4d306e;background:white;border-radius:10px;min-height:44px;font-weight:700}
+.btn.primary{background:var(--purple);color:white;border-color:var(--purple)}
+.label{font-size:12px;font-weight:750;display:block;margin:9px 0 6px}
+select{width:100%;min-height:44px;background:white;border:1px solid #c7bbd6;border-radius:10px;padding:10px 12px;color:inherit}
+.status{border-radius:11px;padding:12px 14px;background:#edf6ef;color:#206144;font-size:13px;line-height:1.55;font-weight:650;margin-top:12px}
+.status.warn{background:#fff0da;color:#855516}.status.error{background:#ffeded;color:#902c42}
+.table{width:100%;border-collapse:collapse;font-size:13px}.table th,.table td{padding:9px 6px;border-bottom:1px solid var(--line);text-align:left}.table td:last-child{text-align:right;font-weight:700}
+.pill{display:inline-block;border-radius:999px;padding:4px 8px;background:#efeaf7;color:#5f4376;font-weight:750;font-size:11px}
+.trace{padding:10px 11px;border:1px solid var(--line);border-radius:10px;font-size:12px;margin:8px 0;overflow-wrap:anywhere}
+footer{font-size:12px;color:var(--muted);line-height:1.55;margin-top:14px}
+@media(max-width:790px){.grid{grid-template-columns:1fr}}
+@media(max-width:600px){main{padding:12px 9px 60px}.panel{padding:13px}.actions{display:grid;grid-template-columns:1fr 1fr}.actions .wide{grid-column:1/-1}.btn{font-size:13px;padding:10px 7px}select{font-size:16px}}
+@media(max-width:360px){.actions{grid-template-columns:1fr}.actions .wide{grid-column:auto}}
+</style></head>
+<body>
+<header><div style="font-size:11px;letter-spacing:.1em;color:#dfd0fa;font-weight:800">HLGB EVOLUÇÃO · PROTÓTIPO OFFLINE</div>
+<h1>Segurança do salvamento de Acertos</h1>
+<p>Experimente a mesma operação com falha de conexão, revisão desatualizada e tentativa duplicada — sem acessar seu banco de dados.</p>
+<a href="./acertos-simulador.html">Voltar ao simulador de cálculos</a></header>
+<main>
+<div class="notice"><b>Simulação isolada.</b> Os acertos, o Hub e os comprovantes desta página são inteiramente fictícios. Nenhum pagamento real é enviado, salvo ou alterado. O estado existe apenas enquanto a página está aberta.</div>
+<div class="grid">
+<section class="panel">
+<h2>Experimente um salvamento</h2>
+<p class="p">Primeiro aplique uma compensação de R$ 3,00 de semana anterior. Depois registre o pagamento do acerto fictício. Você também pode provocar uma falha de resposta ou um conflito.</p>
+<label class="label" for="failure">Cenário de falha</label>
+<select id="failure"><option value="">Operação normal</option><option value="before_commit">Falha antes de confirmar</option><option value="after_commit_before_ack">Resposta perdida após confirmar</option></select>
+<div class="actions">
+<button class="btn" type="button" id="compensate">Aplicar compensação</button>
+<button class="btn primary" type="button" id="pay">Simular pagamento</button>
+<button class="btn" type="button" id="conflict">Simular revisão antiga</button>
+<button class="btn" type="button" id="reconcile" disabled>Conferir operação inconclusiva</button>
+<button class="btn wide" type="button" id="reset">Reiniciar dados fictícios</button>
+</div>
+<div id="operation-status" class="status" role="status" aria-live="polite">Pronto para simular. Nenhum dado real foi consultado.</div>
+<h3>Por que isso importa?</h3>
+<p class="p">Se o servidor confirmou um pagamento, mas a resposta não chegou ao navegador, não podemos repetir a cobrança. A próxima ação precisa ser consultar o identificador da operação e conferir os registros antes de liberar qualquer botão.</p>
+</section>
+<section class="panel">
+<h2>Acertos e Hub fictícios</h2>
+<table class="table"><tbody>
+<tr><th scope="row">Origem já paga</th><td id="source-status">—</td></tr>
+<tr><th scope="row">Saldo de diferença disponível</th><td id="credit-remaining">—</td></tr>
+<tr><th scope="row">Revisão da origem</th><td id="source-revision">—</td></tr>
+<tr><th scope="row">Acerto da semana</th><td id="target-status">—</td></tr>
+<tr><th scope="row">Total do acerto</th><td id="target-total">—</td></tr>
+<tr><th scope="row">Revisão do acerto</th><td id="target-revision">—</td></tr>
+<tr><th scope="row">Saídas registradas no Hub</th><td id="hub-count">—</td></tr>
+<tr><th scope="row">Comprovantes preservados</th><td id="receipts-count">—</td></tr>
+<tr><th scope="row">Eventos de auditoria</th><td id="events-count">—</td></tr>
+</tbody></table>
+<h3>Histórico simulado</h3>
+<div id="history" aria-live="polite"></div>
+</section>
+</div>
+<footer>Esta demonstração não substitui uma transação real no PostgreSQL. Para integração futura serão necessários autenticação, RLS, proteção de concorrência no banco, WAL reconciliado, cópias de segurança e homologação de funcionários. Nenhuma função antiga será removida sem autorização.</footer>
+</main>
+<script id="engine">
+/* HLGB Evolução · simulador transacional em memória (NÃO grava no HLGB) */
+(function(root,factory){'use strict';const api=factory();if(typeof module==='object'&&module.exports)module.exports=api;else if(root)root.HLGBTxLabV1=api;})(typeof window!=='undefined'?window:null,function(){
+'use strict';
+const cp=x=>JSON.parse(JSON.stringify(x));
+const err=(code,message)=>({status:code,message});
+function fixture(){
+return {groups:{
+ "AC-099":{id:"AC-099",factionId:"FAC-FICTICIA",status:"Pago",revision:7,
+  lines:[{id:"L-OLD",valueCents:5000,status:"Pago",paidCents:5000,paymentHistory:[{id:"H-OLD",cents:5000}]}],
+  adjustments:[],applications:[],corrections:[{id:"CORR-099",kind:"a_mais",amountCents:500,applications:[{id:"APP-ANTERIOR",targetGroupId:"AC-098",cents:200}]}],
+  receipts:[{id:"PDF-ANTERIOR",name:"comprovante-antigo.pdf",mime:"application/pdf",size:1024}],history:[{kind:"pago",id:"H-OLD"}]},
+ "AC-101":{id:"AC-101",factionId:"FAC-FICTICIA",status:"Pendente",revision:3,
+  lines:[{id:"L-1",valueCents:2500,status:"Pendente",paidCents:0,paymentHistory:[]},
+         {id:"L-2",valueCents:400,status:"Pendente",paidCents:0,paymentHistory:[]}],
+  adjustments:[{id:"AJ-1",kind:"abater",cents:100,reason:"Ajuste fictício"}],
+  applications:[],corrections:[],receipts:[],history:[]}
+ },hub:[{id:"HUB-AC-099",sourceGroupId:"AC-099",valueCents:5000,status:"Realizado"}],events:[],commands:{}};
+}
+function total(g){
+ let value=g.lines.reduce((a,b)=>a+b.valueCents,0);
+ for(const x of g.adjustments)value+=x.kind==='abater'?-x.cents:x.cents;
+ for(const x of g.applications)value+=x.kind==='a_mais'?-x.cents:x.cents;
+ return value;
+}
+function validateEnvelope(c){
+ if(!c||typeof c!=='object'||Array.isArray(c))throw Error('Comando inválido.');
+ if(!/^[A-Za-z0-9_-]{3,90}$/.test(String(c.commandId||'')))throw Error('Identificador de operação inválido.');
+ if(c.moduleId!=='acertos'||!['compensate','pay'].includes(c.kind))throw Error('Operação não permitida.');
+ if(!/^[A-Za-z0-9_-]{3,90}$/.test(String(c.actorId||'')))throw Error('Responsável fictício inválido.');
+ if(c.payloadSchemaVersion!==1||!c.payload||typeof c.payload!=='object')throw Error('Formato do comando inválido.');
+}
+function receipt(r){
+ if(!r)return null;
+ if(!/^[A-Za-z0-9_-]{3,90}$/.test(String(r.id||''))||r.mime!=='application/pdf'||!/\.pdf$/i.test(String(r.name||''))||
+    !Number.isSafeInteger(r.size)||r.size<=0||r.size>10*1024*1024)
+   throw Error('Metadados do PDF inválidos. Nenhum arquivo foi enviado.');
+ return {id:r.id,name:String(r.name).slice(0,120),mime:r.mime,size:r.size};
+}
+function createLab(){
+ let state=fixture();
+ function snapshot(){return cp(state)}
+ function reconcile(commandId){
+  const cmd=state.commands[commandId];
+  if(!cmd)return {status:"not_found",message:"Não existe confirmação deste ID. Não reenviar automaticamente."};
+  const ev=state.events.find(x=>x.commandId===commandId);
+  return ev&&cmd.status==='committed'
+   ?{status:"readback_confirmed",commandId,revision:cmd.revision,eventId:ev.eventId,kind:cmd.kind}
+   :{status:"uncertain",message:"Falta evidência suficiente. Não reenviar."};
+ }
+ function submit(command,opts={}){
+  let key;
+  try{
+   validateEnvelope(command);key=command.commandId;
+   const hash=JSON.stringify(command);
+   if(state.commands[key]){
+    const saved=state.commands[key];
+    if(saved.hash!==hash)return err("rejected","Mesmo ID com conteúdo diferente. Operação bloqueada.");
+    return {status:"already_committed",commandId:key,revision:saved.revision,eventId:saved.eventId};
+   }
+   const p=command.payload,group=state.groups[p.groupId];
+   if(!group)return err("rejected","Acerto fictício não encontrado.");
+   if(!Number.isSafeInteger(command.expectedRevision)||command.expectedRevision!==group.revision)
+    return err("conflict","A revisão do acerto mudou. Releia antes de continuar.");
+   const next=cp(state),target=next.groups[p.groupId];
+   if(command.kind==='compensate'){
+    const source=next.groups[p.sourceGroupId];
+    if(!source||source.id===target.id)return err("rejected","Origem da compensação inválida.");
+    if(!Number.isSafeInteger(p.expectedSourceRevision)||p.expectedSourceRevision!==source.revision)
+      return err("conflict","A revisão da origem mudou. Atualização necessária.");
+    if(source.status!=='Pago'||target.status!=='Pendente'||source.factionId!==target.factionId)
+      return err("rejected","Origem paga, destino pendente e facção igual são obrigatórios.");
+    const correction=source.corrections.find(x=>x.id===p.correctionId);
+    if(!correction)return err("rejected","Correção não encontrada.");
+    if(!Number.isSafeInteger(p.cents)||p.cents<=0||p.cents>100000000)
+      return err("rejected","Valor inválido para compensação.");
+    const appId="APP-"+source.id+"-"+correction.id+"-"+target.id;
+    if(correction.applications.some(x=>x.id===appId)||target.applications.some(x=>x.id===appId))
+      return err("rejected","Correção já aplicada neste destino. Não duplicar.");
+    const used=correction.applications.reduce((sum,x)=>sum+x.cents,0);
+    if(used+p.cents>correction.amountCents)return err("rejected","Compensação supera o saldo da origem.");
+    if(correction.kind==='a_mais'&&p.cents>=total(target))
+      return err("rejected","Compensação deixaria o acerto sem saldo positivo.");
+    const app={id:appId,sourceGroupId:source.id,correctionId:correction.id,targetGroupId:target.id,kind:correction.kind,cents:p.cents};
+    correction.applications.push({id:app.id,targetGroupId:target.id,cents:p.cents});
+    target.applications.push(app);
+    source.revision++;target.revision++;
+    source.history.push({kind:"compensation_source",commandId:key,applicationId:app.id});
+    target.history.push({kind:"compensation_target",commandId:key,applicationId:app.id});
+   }else{
+    if(target.status!=='Pendente')return err("rejected","Acerto já pago ou não elegível.");
+    if(next.hub.some(x=>x.sourceGroupId===target.id))
+      return err("rejected","Já existe lançamento correspondente no Hub.");
+    if(!/^\d{4}-\d{2}-\d{2}$/.test(String(p.date||''))||!["PIX","Transferência","Dinheiro"].includes(p.method))
+      return err("rejected","Data ou forma de pagamento inválida.");
+    const [yy,mm,dd]=p.date.split('-').map(Number),dt=new Date(Date.UTC(yy,mm-1,dd));
+    if(dt.getUTCFullYear()!==yy||dt.getUTCMonth()!==mm-1||dt.getUTCDate()!==dd)
+      return err("rejected","Data real inválida.");
+    const value=total(target);
+    if(!Number.isSafeInteger(value)||value<=0)return err("rejected","Total inválido.");
+    let diff=value-target.lines.reduce((a,x)=>a+x.valueCents,0);
+    const allocated=target.lines.map(x=>x.valueCents);
+    if(diff>=0)allocated[0]+=diff;else{
+      let left=-diff;
+      for(let i=0;i<allocated.length&&left;i++){let taken=Math.min(allocated[i],left);allocated[i]-=taken;left-=taken;}
+      if(left)return err("rejected","Saldo não permite rateio consistente.");
+    }
+    if(allocated.reduce((a,b)=>a+b,0)!==value)return err("rejected","Rateio inconsistente.");
+    const proof=receipt(p.receipt);
+    if(proof){
+      if(target.receipts.some(x=>x.id===proof.id))return err("rejected","Comprovante já anexado.");
+      target.receipts.push(proof);
+    }
+    for(let i=0;i<target.lines.length;i++){
+      const line=target.lines[i];
+      line.status="Pago";line.paidCents=allocated[i];
+      line.paymentHistory.push({id:"PAID-"+target.id+"-"+line.id,cents:allocated[i],date:p.date,method:p.method});
+    }
+    target.status="Pago";target.revision++;
+    target.history.push({kind:"paid",commandId:key,amountCents:value,method:p.method,date:p.date,receiptId:proof?.id||null});
+    next.hub.push({id:"HUB-"+target.id,sourceGroupId:target.id,status:"Realizado",valueCents:value,date:p.date,method:p.method});
+   }
+   if(opts.failureAt==='before_commit')return err("rejected","Falha fictícia antes da transação: nada foi modificado.");
+   const eventId="EVENT-"+key,revision=target.revision;
+   next.events.push({eventId,commandId:key,kind:command.kind,groupId:target.id,actorId:command.actorId});
+   next.commands[key]={hash,kind:command.kind,status:"committed",revision,eventId};
+   state=next; // única troca de estado: nenhuma linha ou Hub fica parcialmente atualizado
+   if(opts.failureAt==='after_commit_before_ack')
+    return {status:"uncertain",commandId:key,message:"Gravação simulada ocorreu, mas o retorno foi perdido. Reconciliar antes de qualquer nova ação."};
+   return {status:"readback_confirmed",commandId:key,revision,eventId};
+  }catch(e){return err("rejected",String(e.message||e))}
+ }
+ return Object.freeze({snapshot,submit,reconcile});
+}
+return Object.freeze({createLab,fixture,total});
+});
+</script>
+<script id="screen">
+(function(){
+'use strict';
+const $=id=>document.getElementById(id),money=c=>(c/100).toLocaleString('pt-BR',{style:'currency',currency:'BRL'});
+let lab=window.HLGBTxLabV1.createLab(),number=0,unresolved=null;
+function action(kind,fault){
+ const data=lab.snapshot(),target=data.groups['AC-101'],source=data.groups['AC-099'],commandId='EX-'+(++number);
+ return {commandId,moduleId:'acertos',kind,actorId:'USUARIO-FICTICIO',expectedRevision:target.revision,
+ payloadSchemaVersion:1,payload:kind==='compensate'?
+ {groupId:target.id,sourceGroupId:source.id,expectedSourceRevision:source.revision,correctionId:'CORR-099',cents:300}:
+ {groupId:target.id,date:'2026-11-14',method:'PIX',
+  receipt:{id:'PDF-EX-'+number,name:'comprovante-ficticio.pdf',mime:'application/pdf',size:2000}}};
+}
+function render(){
+ const x=lab.snapshot(),source=x.groups['AC-099'],target=x.groups['AC-101'],corr=source.corrections[0];
+ const used=corr.applications.reduce((sum,a)=>sum+a.cents,0);
+ $('source-status').textContent=source.status;
+ $('credit-remaining').textContent=money(corr.amountCents-used);
+ $('source-revision').textContent=String(source.revision);
+ $('target-status').textContent=target.status;
+ $('target-total').textContent=money(window.HLGBTxLabV1.total(target));
+ $('target-revision').textContent=String(target.revision);
+ $('hub-count').textContent=String(x.hub.length);
+ $('receipts-count').textContent=String(source.receipts.length+target.receipts.length);
+ $('events-count').textContent=String(x.events.length);
+ $('history').replaceChildren();
+ if(!x.events.length){const info=document.createElement('p');info.className='p';info.textContent='Nenhuma transação simulada nesta sessão.';$('history').append(info)}
+ else for(const e of x.events){const row=document.createElement('div');row.className='trace';row.textContent=e.kind==='compensate'?'Compensação atômica confirmada: '+e.commandId:'Pagamento completo + Hub: '+e.commandId;$('history').append(row)}
+ $('reconcile').disabled=!unresolved;
+ $('compensate').disabled=!!unresolved||target.status!=='Pendente'||target.applications.length>0;
+ $('pay').disabled=!!unresolved||target.status!=='Pendente';
+ $('conflict').disabled=!!unresolved;
+}
+function status(result){
+ const box=$('operation-status'),isUnknown=result.status==='uncertain';
+ box.className='status'+(isUnknown?' warn':result.status==='rejected'||result.status==='conflict'?' error':'');
+ box.textContent=result.status+': '+(result.message||'Operação fictícia verificada. Revisão '+(result.revision??'—')+'.');
+ render();
+}
+function execute(kind){
+ if(unresolved)return;
+ const cmd=action(kind);
+ const fault=$('failure').value;
+ const result=lab.submit(cmd,fault?{failureAt:fault}:{});
+ if(result.status==='uncertain')unresolved=cmd.commandId;
+ status(result);
+}
+$('compensate').addEventListener('click',()=>execute('compensate'));
+$('pay').addEventListener('click',()=>execute('pay'));
+$('conflict').addEventListener('click',()=>{
+ const cmd=action('compensate');cmd.expectedRevision=0;
+ status(lab.submit(cmd));
+});
+$('reconcile').addEventListener('click',()=>{
+ if(!unresolved)return;
+ const result=lab.reconcile(unresolved);
+ if(result.status==='readback_confirmed')unresolved=null;
+ status(result);
+});
+$('reset').addEventListener('click',()=>{
+ lab=window.HLGBTxLabV1.createLab();unresolved=null;number=0;
+ status({status:'reiniciado',message:'Somente dados fictícios reiniciados. Nenhum dado real foi alterado.'});
+});
+render();
+})();
+</script>
+</body></html>

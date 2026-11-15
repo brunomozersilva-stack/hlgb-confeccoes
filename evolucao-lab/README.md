@@ -11,6 +11,13 @@ Esta pasta é um **protótipo isolado**: não é uma tela incorporada ao HLGB em
 - Mudanças futuras devem ser validadas por testes técnicos e pelos funcionários, com suporte a iPhone Safari e Android Chrome.
 - **Aprovação explícita** será necessária para integrar qualquer alteração na operação atual.
 
+## Etapa atual — Transações fictícias em memória (sem banco)
+
+- `simulador-transacao-memoria.js`: operação atômica de demonstração, idempotência, revisão esperada, histórico, PDF fictício e conciliação após perda de resposta.
+- `transacoes-simuladas.html`: visualização mobile de resultados confirmados, conflitos e falhas, sem salvar ou usar dados reais.
+- `TRANSACOES-SIMULADAS.md`: exemplos, limitações e exigências para futura implementação em um banco de teste isolado.
+- Os arquivos desta etapa **não** implementam RPC real, alteração de `factionPayments`, pagamentos ou feature flags operacionais.
+
 ## Etapa atual — Simulador de cálculos de acertos e recebimentos
 
 - `motor-calculos-demonstracao.js`: motor de cálculo puro, com validação por centavos e proteção de compensações, sem qualquer gravação.
