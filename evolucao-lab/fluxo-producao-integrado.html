@@ -28,8 +28,13 @@ dialog::backdrop{background:#24152bb2}.modal-head{padding:20px 20px 10px;border-
 .modal-body{padding:16px 20px;display:grid;gap:12px;max-height:65vh;overflow:auto}.modal-foot{padding:13px 20px;background:#faf8fc;border-top:1px solid var(--line);display:flex;justify-content:flex-end;gap:9px}
 .preview{padding:12px;background:var(--light);border-radius:9px;font-size:14px;font-weight:750}.message{background:#f8e9ea;color:#9b3140;border-radius:7px;padding:8px;font-size:12px}.message[hidden]{display:none}
 .actions{display:flex;flex-wrap:wrap;gap:7px}.actions .button{flex:1 1 155px}
+.cut-fields{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;border:1px solid var(--line);padding:13px;border-radius:10px;background:#faf8fc}
+.cut-fields[hidden]{display:none}.cut-fields .wide{grid-column:1/-1}.cut-materials[hidden]{display:none}
+.cut-stats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:9px;margin-bottom:12px}
+.cut-stats article{background:var(--light);padding:11px;border-radius:10px;font-size:12px}.cut-stats strong{font-size:17px;display:block;margin-top:4px}
+.cut-card{border:1px solid var(--line);border-radius:10px;padding:11px;margin-top:9px;font-size:12px;line-height:1.6}
 @media(max-width:920px){.metrics{grid-template-columns:repeat(3,minmax(0,1fr))}.table-wrap{display:none}.mobile-cards{display:block}}
-@media(max-width:600px){main{padding:13px 10px 50px}.panel{padding:12px}.metrics{grid-template-columns:repeat(2,minmax(0,1fr));gap:7px}.metric{padding:11px}.tabs{gap:5px}.tabs button{font-size:11px;padding:9px 10px}.stages span{font-size:10px}.stages b{font-size:14px}.controls{display:grid;grid-template-columns:1fr}.controls .field:first-child,.controls .field:nth-child(2){flex:auto}.modal-head,.modal-body,.modal-foot{padding-left:13px;padding-right:13px}}
+@media(max-width:600px){main{padding:13px 10px 50px}.panel{padding:12px}.metrics{grid-template-columns:repeat(2,minmax(0,1fr));gap:7px}.cut-fields,.cut-stats{grid-template-columns:1fr 1fr}.metric{padding:11px}.tabs{gap:5px}.tabs button{font-size:11px;padding:9px 10px}.stages span{font-size:10px}.stages b{font-size:14px}.controls{display:grid;grid-template-columns:1fr}.controls .field:first-child,.controls .field:nth-child(2){flex:auto}.modal-head,.modal-body,.modal-foot{padding-left:13px;padding-right:13px}}
 </style>
 </head>
 <body>
@@ -63,6 +68,12 @@ dialog::backdrop{background:#24152bb2}.modal-head{padding:20px 20px 10px;border-
 <div class="table-wrap">
 <table aria-label="Grades e saldos fictícios"><thead><tr><th>Pedido e modelo</th><th>Cor / Tam.</th><th>Pedidas</th><th>Cortadas</th><th>Enviadas</th><th>Retornadas</th><th>Separadas</th><th>Disponível</th><th>Ação</th></tr></thead><tbody id="grade-body"></tbody></table></div>
 <div class="mobile-cards" id="grade-mobile"></div>
+<div class="cut-materials" id="cut-materials" hidden>
+ <h2 style="margin-top:20px">Folhas de corte desta sessão</h2>
+ <p>Resumo de materiais por tipo e por modelo, limitado às movimentações fictícias registradas agora. Cortes existentes nos exemplos iniciais não têm fichas de peso.</p>
+ <div class="cut-stats" id="cut-stats" aria-label="Indicadores de matéria-prima"></div>
+ <div id="cut-material-rows" class="audit-list"></div>
+</div>
 </div>
 <div id="audit-view" hidden>
 <h2>Histórico de movimentações fictícias</h2><p>Eventos encadeados por pedido, cor e tamanho. Cada operação tem ID e revisão; nenhuma é apagada nesta sessão.</p>
@@ -80,6 +91,20 @@ dialog::backdrop{background:#24152bb2}.modal-head{padding:20px 20px 10px;border-
 <div class="modal-body">
 <div class="field"><label for="movement-qty">Quantidade desta movimentação</label><input id="movement-qty" type="number" class="input" min="1" step="1" inputmode="numeric" required></div>
 <div class="field" id="operator-field"><label for="movement-operator">Responsável / facção de exemplo</label><select id="movement-operator" class="input"></select></div>
+<div class="cut-fields" id="cut-fields" hidden>
+ <div class="field wide"><label for="movement-material">Material consumido no corte</label><select class="input" id="movement-material">
+  <option value="tule">Tule · custo sintético R$ 18/kg</option>
+  <option value="renda">Renda · custo sintético R$ 42/kg</option>
+  <option value="malha">Malha · custo sintético R$ 28/kg</option>
+ </select></div>
+ <div class="field"><label for="movement-weight-total">Peso disponibilizado (gramas)</label><input id="movement-weight-total" class="input" inputmode="numeric" type="number" min="1" max="1000000" step="1" placeholder="Ex.: 500"></div>
+ <div class="field"><label for="movement-weight-used">Peso utilizado (gramas)</label><input id="movement-weight-used" class="input" inputmode="numeric" type="number" min="1" max="1000000" step="1" placeholder="Ex.: 420"></div>
+ <div class="field"><label for="movement-weight-waste">Resíduo / lixo (gramas)</label><input id="movement-weight-waste" class="input" inputmode="numeric" type="number" min="0" max="1000000" step="1" placeholder="Ex.: 50"></div>
+ <div class="field"><label for="movement-spreader">Infestador (fictício)</label><select id="movement-spreader" class="input"><option>Infestador Demo A</option><option>Infestador Demo B</option></select></div>
+ <div class="field"><label for="movement-reviewer-one">Conferência 1 (identificação fictícia)</label><select id="movement-reviewer-one" class="input"><option>Conferente Demo A</option><option>Conferente Demo B</option><option>Conferente Demo C</option></select></div>
+ <div class="field"><label for="movement-reviewer-two">Conferência 2 (identificação fictícia)</label><select id="movement-reviewer-two" class="input"><option>Conferente Demo B</option><option>Conferente Demo A</option><option>Conferente Demo C</option></select></div>
+ <div class="wide status">Essas duas conferências são campos de teste; não são assinaturas digitais. O peso total deve cobrir material utilizado e resíduos; a diferença é a sobra não consumida.</div>
+</div>
 <div class="field"><label for="movement-note">Observação (opcional)</label><input id="movement-note" class="input" maxlength="120" placeholder="Ex.: lote conferido"></div>
 <div class="preview" id="movement-preview">—</div>
 <div class="message" id="movement-error" role="status" aria-live="polite" hidden></div>
@@ -100,7 +125,7 @@ const stages={
  audit:{title:'Auditoria',detail:'Movimentações e verificações de integridade.',field:null,verb:''}
 };
 const actors={
- cut:['Cortador Interno Demo A','Cortador Externo Demo B','Infestador Demo'],
+ cut:['Cortador Interno Demo A','Cortador Externo Demo B'],
  send:['Roseli Demo','Fran Demo','Luana Demo'],
  return:[],
  separate:['Separador Demo A','Separador Demo B']
@@ -112,6 +137,37 @@ const examples=[
  {id:'PD-103',model:'Camisola Leidiane',variants:[['Rubi','P',30,30,30,20,0],['Rubi','M',50,50,40,30,0],['Rubi','G',20,20,0,0,0],['Preto','M',20,0,0,0,0],['Preto','G',30,0,0,0,0]]}
 ];
 const captions={ordered:'Pedidas',cut:'Cortadas',sent:'Enviadas',returned:'Retornadas',separated:'Separadas'};
+const materials={tule:{label:'Tule',costCentKg:1800},renda:{label:'Renda',costCentKg:4200},malha:{label:'Malha',costCentKg:2800}};
+const formatMoney=n=>(n/100).toLocaleString('pt-BR',{style:'currency',currency:'BRL'});
+function cutMaterialSummary(){
+ const cuts=movements.filter(m=>m.stage==='cut'&&m.cutSheet);
+ const sums={gross:0,used:0,waste:0,leftover:0,cost:0,pieces:0};
+ const groups=new Map();
+ for(const m of cuts){
+  const sheet=m.cutSheet,material=materials[sheet.material];
+  sums.gross+=sheet.totalGrams;sums.used+=sheet.usedGrams;sums.waste+=sheet.wasteGrams;
+  sums.leftover+=sheet.leftoverGrams;sums.cost+=sheet.estimatedCostCents;sums.pieces+=m.qty;
+  const key=m.model+'|'+sheet.material,group=groups.get(key)||{model:m.model,material:sheet.material,label:material.label,pieces:0,gross:0,used:0,waste:0,leftover:0,cost:0};
+  group.pieces+=m.qty;group.gross+=sheet.totalGrams;group.used+=sheet.usedGrams;group.waste+=sheet.wasteGrams;group.leftover+=sheet.leftoverGrams;group.cost+=sheet.estimatedCostCents;
+  groups.set(key,group);
+ }
+ return {totals:sums,groups:[...groups.values()].sort((a,b)=>a.model.localeCompare(b.model,'pt-BR'))};
+}
+function renderCutSummary(){
+ const host=$('cut-materials');host.hidden=current!=='cut';if(host.hidden)return;
+ const {totals,groups}=cutMaterialSummary(),stats=$('cut-stats'),rows=$('cut-material-rows');
+ stats.replaceChildren();rows.replaceChildren();
+ for(const [label,value] of [['Peso liberado',totals.gross+' g'],['Utilizado',totals.used+' g'],['Lixo / resíduo',totals.waste+' g'],['Sobra',totals.leftover+' g'],['Custo estimado',formatMoney(totals.cost)],['Peças nesta sessão',String(totals.pieces)]]){
+  const card=el('article','');card.append(el('span','',label),el('strong','',value));stats.append(card);
+ }
+ for(const group of groups){
+  const card=el('div','cut-card');
+  card.append(el('strong','',group.model+' · '+group.label+' · '+group.pieces+' peças'),
+    el('div','',group.gross+' g disponibilizados · '+group.used+' g utilizados · '+group.waste+' g resíduo · '+group.leftover+' g sobra · '+formatMoney(group.cost)+' estimados'));
+  rows.append(card);
+ }
+ if(!groups.length)rows.append(el('p','status','Nenhuma ficha de corte criada nesta sessão.'));
+}
 let orders=[],movements=[],current='orders',nextMove=1,revision=0,pending=null;
 function seed(){
  orders=examples.map(order=>({id:order.id,model:order.model,lines:order.variants.map((v,i)=>({
@@ -147,6 +203,7 @@ function render(){
  for(const field of ['ordered','cut','sent','returned','separated'])$('metric-'+field).textContent=total(field).toLocaleString('pt-BR');
  if(current==='audit'){renderAudit();return}
  const stage=stages[current];
+ renderCutSummary();
  $('stage-title').textContent=stage.title;$('stage-detail').textContent=stage.detail;
  const words=norm($('search-order').value).split(/\s+/).filter(Boolean),filter=$('filter-progress').value;
  const rows=allLines().filter(line=>words.every(word=>/^(p|m|g|gg|xg|exg)$/.test(word)?norm(line.size)===word:norm([line.orderId,line.model,line.color].join(' ')).includes(word))&&
@@ -189,8 +246,31 @@ function openMove(lineId,stage){
  const opt=$('movement-operator');opt.replaceChildren();
  for(const name of actorsFor(line,stage)){const item=el('option','',name);item.value=name;opt.append(item)}
  $('operator-field').hidden=stage==='return';
+ $('cut-fields').hidden=stage!=='cut';
+ for(const id of ['movement-weight-total','movement-weight-used','movement-weight-waste'])$(id).value='';
+ $('movement-material').value='tule';$('movement-spreader').value='Infestador Demo A';
+ $('movement-reviewer-one').value='Conferente Demo A';$('movement-reviewer-two').value='Conferente Demo B';
  $('movement-error').hidden=true;updatePreview();
  $('movement-dialog').showModal();
+}
+function cutDetails(){
+ const grams=id=>{
+  const raw=$(id).value.trim(),value=Number(raw);
+  if(!/^\d+$/.test(raw)||!Number.isSafeInteger(value)||value>1000000)throw Error('Informe pesos inteiros em gramas, até 1.000.000.');
+  return value;
+ };
+ const material=$('movement-material').value;
+ if(!Object.hasOwn(materials,material))throw Error('Material não reconhecido.');
+ const totalGrams=grams('movement-weight-total'),usedGrams=grams('movement-weight-used'),wasteGrams=grams('movement-weight-waste');
+ if(totalGrams<=0||usedGrams<=0)throw Error('Peso disponibilizado e utilizado precisam ser maiores que zero.');
+ if(usedGrams+wasteGrams>totalGrams)throw Error('Peso utilizado e lixo não podem superar o peso disponibilizado.');
+ const reviewerOne=$('movement-reviewer-one').value,reviewerTwo=$('movement-reviewer-two').value;
+ if(!reviewerOne||!reviewerTwo||reviewerOne===reviewerTwo)throw Error('São necessárias duas conferências fictícias distintas.');
+ const spreader=$('movement-spreader').value;
+ if(!['Infestador Demo A','Infestador Demo B'].includes(spreader))throw Error('Infestador inválido.');
+ const estimatedCostCents=Math.round((usedGrams+wasteGrams)*materials[material].costCentKg/1000);
+ return {material,materialLabel:materials[material].label,totalGrams,usedGrams,wasteGrams,
+  leftoverGrams:totalGrams-usedGrams-wasteGrams,estimatedCostCents,spreader,reviewerOne,reviewerTwo};
 }
 function validateMove(){
  if(!pending)throw Error('Movimentação não iniciada.');
@@ -201,12 +281,14 @@ function validateMove(){
  if(!Number.isSafeInteger(qty)||qty<1||qty>available)throw Error('Informe de 1 a '+available+' peças, sem ultrapassar o saldo.');
  const actor=pending.stage==='return'?line.faction:$('movement-operator').value;
  if(!actor||!actorsFor(line,pending.stage).includes(actor))throw Error('Responsável ou facção não permitido.');
- return {line,qty,actor,available,note:$('movement-note').value.trim().slice(0,120)};
+ return {line,qty,actor,available,note:$('movement-note').value.trim().slice(0,120),
+  cutSheet:pending.stage==='cut'?cutDetails():null};
 }
 function updatePreview(){
  try{
   const v=validateMove(),after=v.available-v.qty;
-  $('movement-preview').textContent=v.qty+' peça(s) · saldo após movimentação: '+after;
+  $('movement-preview').textContent=v.qty+' peça(s) · saldo após movimentação: '+after+
+  (v.cutSheet?' · '+v.cutSheet.materialLabel+' '+v.cutSheet.usedGrams+' g usados, '+v.cutSheet.wasteGrams+' g lixo, '+v.cutSheet.leftoverGrams+' g sobra · '+formatMoney(v.cutSheet.estimatedCostCents)+' estimados':'');
   $('movement-error').hidden=true;$('movement-confirm').disabled=false;
  }catch(e){
   $('movement-preview').textContent='Confirmação pendente';$('movement-error').textContent=e.message;$('movement-error').hidden=false;$('movement-confirm').disabled=true;
@@ -225,7 +307,7 @@ function commitMove(event){
  const after={ordered:v.line.ordered,cut:v.line.cut,sent:v.line.sent,returned:v.line.returned,separated:v.line.separated};
  movements.push({id:'MOV-'+String(nextMove++).padStart(4,'0'),token:work.token,
   orderId:v.line.orderId,lineId:v.line.id,model:v.line.model,color:v.line.color,size:v.line.size,
-  stage:work.stage,qty:v.qty,actor:v.actor,note:v.note,revision:v.line.revision,before,after});
+  stage:work.stage,qty:v.qty,actor:v.actor,note:v.note,cutSheet:v.cutSheet,revision:v.line.revision,before,after});
  $('movement-dialog').close();render();
  $('results-count').textContent+=' · Confirmado: '+v.qty+' peças '+v.line.color+'/'+v.line.size+'.';
 }
@@ -235,7 +317,11 @@ function checks(){
   operacoesUnicas:new Set(movements.map(m=>m.token)).size===movements.length,
   totaisConferem:['ordered','cut','sent','returned','separated'].every(f=>total(f)===lines.reduce((sum,line)=>sum+line[f],0)),
   movimentosEmUnidadesInteiras:movements.every(m=>Number.isSafeInteger(m.qty)&&m.qty>0),
-  linhasSemPerda:lines.length===14};
+  linhasSemPerda:lines.length===14,
+  folhasDeCorteComDados:movements.filter(m=>m.stage==='cut').every(m=>m.cutSheet&&Object.hasOwn(materials,m.cutSheet.material)&&m.cutSheet.spreader&&m.cutSheet.reviewerOne&&m.cutSheet.reviewerTwo),
+  pesosConservados:movements.filter(m=>m.stage==='cut').every(m=>{const s=m.cutSheet;return s&&Number.isSafeInteger(s.totalGrams)&&Number.isSafeInteger(s.usedGrams)&&Number.isSafeInteger(s.wasteGrams)&&s.totalGrams===s.usedGrams+s.wasteGrams+s.leftoverGrams}),
+  conferenciasDistintas:movements.filter(m=>m.stage==='cut').every(m=>m.cutSheet&&m.cutSheet.reviewerOne!==m.cutSheet.reviewerTwo)
+ };
 }
 function renderAudit(){
  const a=$('audit-list');a.replaceChildren();
@@ -246,6 +332,11 @@ function renderAudit(){
   a.lastChild.append(el('strong','',move.id+' · '+move.orderId+' · '+stages[move.stage].verb+' · '+move.qty+' peças'),
    el('small','',move.model+' · '+move.color+'/'+move.size+' · '+move.actor+' · revisão '+move.revision),
    el('small','',move.note||'Sem observação'));
+  if(move.cutSheet){
+   const s=move.cutSheet;
+   a.lastChild.append(el('small','',s.materialLabel+' · '+s.usedGrams+' g utilizados · '+s.wasteGrams+' g lixo · '+s.leftoverGrams+' g sobra · '+formatMoney(s.estimatedCostCents)),
+    el('small','',s.spreader+' · '+s.reviewerOne+' / '+s.reviewerTwo));
+  }
  }
  if(!movements.length)a.append(el('p','status','Ainda não há movimentações nesta sessão.'));
 }
@@ -253,7 +344,7 @@ function exportEvidence(){
  const report={schema:'hlgb-evolucao-fluxo-producao-v1',environment:'offline-demo',fictitious:true,
   productionApproval:false,capturedAt:new Date().toISOString(),
   orders:orders.map(o=>({id:o.id,model:o.model,lines:o.lines.map(l=>({...l}))})),
-  movements:movements.map(m=>({...m})),counts:Object.fromEntries(['ordered','cut','sent','returned','separated'].map(f=>[f,total(f)])),checks:checks()};
+  movements:movements.map(m=>({...m})),materialSummary:cutMaterialSummary(),counts:Object.fromEntries(['ordered','cut','sent','returned','separated'].map(f=>[f,total(f)])),checks:checks()};
  const blob=new Blob([JSON.stringify(report,null,2)],{type:'application/json'});
  const href=URL.createObjectURL(blob),anchor=el('a');
  anchor.href=href;anchor.download='HLGB-EVOLUCAO-FLUXO-PRODUCAO-FICTICIO.json';anchor.click();
@@ -268,6 +359,9 @@ document.addEventListener('click',e=>{const b=e.target.closest('button[data-acti
 $('movement-form').addEventListener('submit',commitMove);
 $('movement-qty').addEventListener('input',updatePreview);
 $('movement-operator').addEventListener('change',updatePreview);
+for(const id of ['movement-material','movement-weight-total','movement-weight-used','movement-weight-waste','movement-spreader','movement-reviewer-one','movement-reviewer-two']){
+ $(id).addEventListener(id.startsWith('movement-weight')?'input':'change',updatePreview);
+}
 $('movement-cancel').addEventListener('click',()=>{$('movement-dialog').close();pending=null});
 $('movement-dialog').addEventListener('close',()=>{pending=null});
 $('download-evidence').addEventListener('click',exportEvidence);
