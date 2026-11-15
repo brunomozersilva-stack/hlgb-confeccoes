@@ -165,7 +165,7 @@ function compute(){
   const qty=int(row.qty,1,100000,'Peças');plannedPieces+=qty;
   if(plannedPieces>500000)throw Error('Planejamento excede o máximo fictício de 500.000 peças.');
   let model=byModel.get(row.model);
-  if(!model){model={id:row.model,name:modelName(row.model),pieces:0,variants:[],raw:{},needed:{},cost:0};byModel.set(row.model,model);}
+  if(!model){model={id:row.model,name:modelName(row.model),pieces:0,variants:[],raw:{},needed:{},costByMaterial:{},cost:0};byModel.set(row.model,model);}
   model.pieces+=qty;model.variants.push({size:row.size,qty});
   for(const [matId,unit] of Object.entries(bom[row.model]?.[row.size]||{})){
    if(!materialById(matId))throw Error('Material inválido na ficha.');
@@ -183,7 +183,6 @@ function compute(){
    const needed=ceilDiv(raw*(100+m.waste),100);
    if(!Number.isSafeInteger(needed)||needed>1000000000)throw Error('Consumo previsto muito alto.');
    model.needed[matId]=needed;
-   model.cost+=ceilDiv(needed*m.price,m.factor);
    m.raw+=raw;m.needed+=needed;
   }
  }
@@ -195,6 +194,18 @@ function compute(){
   m.consumptionCost=ceilDiv(m.needed*m.price,m.factor);
   if(m.toBuy>1000000000||!Number.isSafeInteger(m.toBuy))throw Error('Quantidade de compra acima do limite.');
   consumptionCost+=m.consumptionCost;purchaseCost+=m.purchaseCost;
+ }
+ // Rateio determinístico dos centavos: os custos por modelo somam exatamente
+ // o custo consolidado por matéria-prima, sem inflar o resultado por arredondar cada linha.
+ for(const m of summary.values()){
+  const affected=[...byModel.values()].filter(model=>(model.needed[m.id]||0)>0);
+  let assigned=0;
+  affected.forEach((model,index)=>{
+   const amount=index===affected.length-1?m.consumptionCost-assigned:
+    Math.floor(model.needed[m.id]*m.price/m.factor);
+   model.costByMaterial[m.id]=amount;model.cost+=amount;assigned+=amount;
+  });
+  if(assigned!==m.consumptionCost)throw Error('Divergência de custo rateado.');
  }
  if(!Number.isSafeInteger(consumptionCost)||!Number.isSafeInteger(purchaseCost))throw Error('Custo excede limite numérico.');
  return {byModel:[...byModel.values()],materials:[...summary.values()],pieces:plannedPieces,modelCount:byModel.size,consumptionCost,purchaseCost};
@@ -256,7 +267,7 @@ function renderModels(result){
   const wrap=el('div','group');wrap.append(el('h3','',model.name+' · '+model.pieces+' peças'),el('p','',model.variants.map(v=>v.size+': '+v.qty).join(' · ')));
   let detailCost=0;
   for(const [id,needed] of Object.entries(model.needed)){
-   const m=materialById(id),cents=ceilDiv(needed*m.price,m.factor);
+   const m=materialById(id),cents=model.costByMaterial[id];
    detailCost+=cents;
    const row=el('div','row');row.append(el('span','',m.name+' · '+qtyLabel(needed,m)+' (com perda '+m.waste+'%)'),el('strong','',money(cents)));wrap.append(row);
   }
@@ -370,7 +381,9 @@ function report(){
    quantitiesInteger:plan.every(r=>Number.isSafeInteger(r.qty)&&r.qty>0),
    purchasesCoverShortages:result.materials.every(m=>m.toBuy>=m.shortage&&(m.toBuy===0||m.toBuy%m.pack===0)),
    noNegativeShortages:result.materials.every(m=>m.shortage>=0),
-   totalNeededMatchesModels:result.materials.every(m=>m.needed===result.byModel.reduce((sum,model)=>sum+(model.needed[m.id]||0),0))}};
+   totalNeededMatchesModels:result.materials.every(m=>m.needed===result.byModel.reduce((sum,model)=>sum+(model.needed[m.id]||0),0)),
+   modelCostsMatchConsolidated:result.byModel.reduce((sum,model)=>sum+model.cost,0)===result.consumptionCost,
+   materialCostsMatchModels:result.materials.every(m=>m.consumptionCost===result.byModel.reduce((sum,model)=>sum+(model.costByMaterial[m.id]||0),0))}};
 }
 function download(text,filename,type){
  const blob=new Blob([text],{type}),href=URL.createObjectURL(blob),a=el('a');
