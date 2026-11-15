@@ -254,8 +254,8 @@ function renderGroup(){
   const result=E.previewGroup({
    lines:[{kind:"product",quantity:$("qty1").value,unitPrice:$("price1").value,travetaDiscountUnit:$("discount1").value},
     {kind:"embalagem",quantity:$("qty2").value,unitPrice:$("price2").value}],
-   adjustments:[{id:"ADJ-ABATE",kind:"abater",amount:$("abatimento").value,reason:$("motivo").value},
-    {id:"ADJ-PLUS",kind:"acrescentar",amount:$("acrescimo").value,reason:$("motivo-plus").value}],
+   adjustments:[E.moneyCents($("abatimento").value)>0?{id:"ADJ-ABATE",kind:"abater",amount:$("abatimento").value,reason:$("motivo").value}:null,
+    E.moneyCents($("acrescimo").value)>0?{id:"ADJ-PLUS",kind:"acrescentar",amount:$("acrescimo").value,reason:$("motivo-plus").value}:null].filter(Boolean),
    applications:applied===0?[]:[{id:"APPLY-EXAMPLE",kind:$("kind").value,amount:$("apply").value,available:String(correction.remainingCents/100),sourceStatus:"Pago",targetStatus:"Pendente",sourceFactionId:"EXAMPLE-F",targetFactionId:"EXAMPLE-F"}]
   });
   $("gross").textContent=fmt(result.grossCents);$("traveta").textContent=signed(-result.travetaDiscountCents);
@@ -271,8 +271,8 @@ function renderGroup(){
 function renderInvoice(){
  try{
   const summary=E.invoiceSummary({total:$("inv-total").value,received:$("inv-paid").value,nextPayment:$("inv-next").value,
-   returns:[{id:"RETURN-EXAMPLE",reason:$("inv-reason").value,amount:$("inv-credit").value,
-   reversedAt:$("inv-reversed").value==="yes"?"SIMULACAO":null}]});
+   returns:E.moneyCents($("inv-credit").value)>0?[{id:"RETURN-EXAMPLE",reason:$("inv-reason").value,amount:$("inv-credit").value,
+   reversedAt:$("inv-reversed").value==="yes"?"SIMULACAO":null}]:[]});
   $("invoice-total").textContent=fmt(summary.totalCents);
   $("invoice-before").textContent=fmt(summary.priorReceivedCents);
   $("invoice-next").textContent=fmt(summary.nextPaymentCents);
