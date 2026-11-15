@@ -24,7 +24,7 @@ test('as quatro áreas têm UI, busca e ações realmente ligadas a eventos',()=
  }
  for(const id of ['acerto-search','acerto-status','acerto-order','acertos-body',
   'acertos-mobile','bulk-pay','edit-qty','edit-price','edit-discount',
-  'edit-extra','edit-faction','edit-reason','hub-body','hub-mobile',
+  'edit-extra','edit-faction','edit-service','edit-reason','acerto-service','pay-proof','hub-body','hub-mobile',
   'hub-search','hub-export','hub-evidence','route-list','record-dialog','pay-dialog']){
   assert.ok(file.includes('id="'+id+'"'),'Campo ausente: '+id);
  }
