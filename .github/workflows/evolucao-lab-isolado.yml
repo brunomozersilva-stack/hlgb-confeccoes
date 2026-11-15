@@ -38,6 +38,7 @@ jobs:
           node --test evolucao-lab/tests/preservacao-contract.cjs
           node --test evolucao-lab/tests/baseline-legado.cjs
           node --test evolucao-lab/tests/paridade-critica-contract.cjs
+          node --test evolucao-lab/tests/motor-calculos.cjs
   browser:
     name: Mobile browsers (${{ matrix.browser }})
     runs-on: ubuntu-24.04
@@ -63,6 +64,7 @@ jobs:
           node evolucao-lab/tests/fluxos-mobile.cjs
           node evolucao-lab/tests/preservacao-mobile.cjs
           node evolucao-lab/tests/paridade-critica-mobile.cjs
+          node evolucao-lab/tests/acertos-simulador-mobile.cjs
       - name: Keep illustrative screenshots
         if: always()
         uses: actions/upload-artifact@v4
