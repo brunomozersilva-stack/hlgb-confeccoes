@@ -1,0 +1,408 @@
+<!doctype html>
+<html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>HLGB Evolução — Ficha técnica e compras semanais</title>
+<style>
+:root{font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:#2b2135;background:#f8f6fa;--purple:#5b397d;--line:#e5ddec;--muted:#645a70;--light:#f5effb}
+*{box-sizing:border-box}body{margin:0}button,input,select{font:inherit;color:inherit}button{cursor:pointer}button:disabled{opacity:.5;cursor:not-allowed}a{color:inherit}
+button:focus-visible,input:focus-visible,select:focus-visible,a:focus-visible{outline:3px solid #c09be9;outline-offset:3px}
+header{background:linear-gradient(125deg,#30213f,#664785);color:#fff;padding:23px max(16px,calc((100% - 1150px)/2))}
+header a{color:#e4d3f3;font-size:12px}header h1{font-size:clamp(24px,4vw,36px);margin:9px 0 5px;line-height:1.2}
+header p{font-size:13px;color:#ecdef5;max-width:760px;line-height:1.55;margin:0}
+main{max-width:1180px;margin:auto;padding:20px 16px 65px}
+.notice{border:1px solid #e4c88e;background:#fff9e9;color:#6b4d21;padding:13px 15px;border-radius:12px;font-size:13px;line-height:1.5;margin-bottom:15px}
+.metrics{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:9px;margin:15px 0}
+.metric{padding:14px;border:1px solid var(--line);background:#fff;border-radius:12px;min-width:0}
+.metric span{display:block;font-size:12px;color:var(--muted)}.metric strong{display:block;font-size:clamp(18px,2.4vw,28px);margin-top:7px;font-variant-numeric:tabular-nums;overflow-wrap:anywhere}
+.tabs{display:flex;gap:7px;overflow-x:auto;padding:1px 1px 10px}.tabs button{white-space:nowrap;min-height:44px;padding:10px 13px;border-radius:10px;background:#fff;border:1px solid #d8c6e7;font-size:12px;font-weight:750}
+.tabs button[aria-current=page]{background:var(--purple);color:#fff;border-color:var(--purple)}
+.panel{border:1px solid var(--line);background:#fff;border-radius:14px;padding:18px;margin-top:8px}.panel[hidden]{display:none}.panel h2{font-size:21px;margin:0 0 7px}.panel h3{font-size:16px;margin:17px 0 8px}.panel p{font-size:13px;line-height:1.5;color:var(--muted);margin:0 0 14px}
+.fields{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;align-items:end;margin:14px 0}
+.fields.material-fields{grid-template-columns:repeat(3,minmax(0,1fr))}.fields.bom-fields{grid-template-columns:repeat(4,minmax(0,1fr))}
+.field{display:grid;gap:5px;min-width:0}.field label{font-size:12px;font-weight:750}.input{min-height:43px;width:100%;border:1px solid #c8b7d6;padding:9px 10px;border-radius:9px;background:#fff;min-width:0}
+.button{border-radius:9px;padding:9px 13px;min-height:43px;border:1px solid #bdabd1;background:#fff;color:var(--purple);font-size:12px;font-weight:750}
+.button.primary{background:var(--purple);color:#fff;border-color:var(--purple)}.button.danger{color:#993a50;border-color:#e6b6bf}
+.actions{display:flex;flex-wrap:wrap;gap:7px;align-items:center;margin:14px 0}.actions .button{flex:0 1 auto}
+.table-wrap{overflow-x:auto;border:1px solid var(--line);border-radius:10px}table{width:100%;border-collapse:collapse;min-width:760px;font-size:12px}
+th,td{padding:10px 9px;border-bottom:1px solid #ece6f1;text-align:left;vertical-align:middle}th{background:#f8f5fb;color:#655971;font-size:11px;white-space:nowrap}tbody tr:last-child td{border:0}
+td strong{font-size:12px}.num{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}.small{font-size:11px;color:var(--muted)}
+.card-list{display:none}.item-card{border:1px solid var(--line);padding:13px;border-radius:11px;margin:10px 0}
+.item-card h3{font-size:14px;margin:0 0 7px}.item-card p{font-size:12px;margin:4px 0}.item-card .label{font-size:11px;color:var(--muted)}.item-card .row{display:flex;gap:8px;flex-wrap:wrap;justify-content:space-between;align-items:center;margin-top:9px}
+.item-card .button{min-height:38px}.item-card input{max-width:120px}
+.tag{display:inline-block;border-radius:999px;background:var(--light);padding:5px 9px;color:#674188;font-weight:700;font-size:11px}
+.tag.warn{background:#fff1d8;color:#8b5926}.tag.ok{background:#e6f3ee;color:#21704d}
+.status{font-size:12px!important;color:var(--muted);margin:10px 0!important;line-height:1.5}
+.status.error{color:#9a2e42!important}.group{border:1px solid var(--line);padding:15px;border-radius:12px;margin:12px 0}.group h3{margin:0 0 9px}
+.group .row{display:flex;justify-content:space-between;gap:10px;align-items:center;border-top:1px solid var(--line);padding:8px 0;font-size:12px}.group .row:first-of-type{border:0}
+.summary{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}.summary>div{background:var(--light);padding:12px;border-radius:10px;font-size:12px}
+.summary strong{display:block;font-size:18px;margin-top:5px}.empty{padding:14px;border-radius:9px;background:#faf9fb;color:var(--muted);font-size:12px}
+details{border:1px solid var(--line);border-radius:9px;margin-top:12px;padding:11px;font-size:12px}summary{cursor:pointer;font-weight:750}
+@media(max-width:940px){.fields,.fields.bom-fields{grid-template-columns:repeat(2,minmax(0,1fr))}.fields.material-fields{grid-template-columns:repeat(2,minmax(0,1fr))}.metrics{grid-template-columns:repeat(2,minmax(0,1fr))}.table-wrap{display:none}.card-list{display:block}}
+@media(max-width:590px){main{padding:12px 10px 45px}.panel{padding:13px}.fields,.fields.material-fields,.fields.bom-fields{grid-template-columns:1fr}.metrics{gap:7px}.metric{padding:11px}.tabs button{padding:9px 10px}.summary{grid-template-columns:1fr}.actions .button{flex:1 1 140px}}
+@media print{header,.tabs,.notice,.actions,.fields,.button,.noprint{display:none!important}body{background:#fff}main{max-width:none;padding:0}.panel{border:0}.table-wrap{display:block;overflow:visible}.card-list{display:none}.panel:not([hidden]){display:block}table{min-width:0}}
+</style></head>
+<body>
+<header><a href="./entrada.html">← Voltar ao laboratório</a><h1>Ficha técnica e planejamento de compras</h1>
+<p>Selecione vários modelos e tamanhos, informe as peças e confira quanto material será necessário, o que falta comprar e os custos estimados.</p></header>
+<main>
+<div class="notice"><strong>Simulação 100% isolada.</strong> As fichas, estoques e preços abaixo são inventados para testar cálculos. Não são dados da sua confecção. Nenhuma compra é enviada, nenhum pedido é criado e nada é salvo ao recarregar. Não insira informações reais.</div>
+<div class="metrics">
+<div class="metric"><span>Modelos selecionados</span><strong id="metric-models">0</strong></div>
+<div class="metric"><span>Peças planejadas</span><strong id="metric-pieces">0</strong></div>
+<div class="metric"><span>Custo de consumo previsto</span><strong id="metric-consumption">R$ 0,00</strong></div>
+<div class="metric"><span>Valor da compra sugerida</span><strong id="metric-purchase">R$ 0,00</strong></div>
+</div>
+<nav class="tabs" aria-label="Áreas do planejador">
+<button type="button" data-tab="plan" aria-current="page">Planejamento semanal</button>
+<button type="button" data-tab="models">Por modelo</button>
+<button type="button" data-tab="bom">Fichas técnicas</button>
+<button type="button" data-tab="materials">Materiais / estoque</button>
+</nav>
+<section id="panel-plan" class="panel">
+<h2>Montar produção da semana</h2><p>Combine diferentes produtos e tamanhos. Uma variante repetida é somada automaticamente; todos os totais mudam ao editar ou retirar uma linha.</p>
+<form id="plan-form" class="fields" novalidate>
+<div class="field"><label for="plan-model">Modelo</label><select id="plan-model" class="input"></select></div>
+<div class="field"><label for="plan-size">Tamanho</label><select id="plan-size" class="input"><option>P</option><option>M</option><option>G</option></select></div>
+<div class="field"><label for="plan-qty">Quantidade</label><input id="plan-qty" class="input" type="number" min="1" max="100000" step="1" inputmode="numeric" value="10"></div>
+<button type="submit" class="button primary">Adicionar ao plano</button>
+</form>
+<p id="plan-message" class="status" role="status" aria-live="polite"></p>
+<div class="table-wrap"><table><thead><tr><th>Modelo</th><th>Tamanho</th><th>Quantidade</th><th>Custo estimado da variante</th><th>Ação</th></tr></thead><tbody id="plan-rows"></tbody></table></div>
+<div class="card-list" id="plan-cards"></div>
+<h3>Lista consolidada de compras</h3><p>Necessidade com perdas previstas menos estoque fictício. Se faltar material, a compra é arredondada ao múltiplo mínimo configurado. O valor da compra não é o mesmo que o custo de consumo.</p>
+<div class="table-wrap"><table><thead><tr><th>Material</th><th>Necessário</th><th>Estoque</th><th>Falta</th><th>Sugestão de compra</th><th>Valor da compra</th></tr></thead><tbody id="purchase-rows"></tbody></table></div>
+<div class="card-list" id="purchase-cards"></div>
+<div class="summary" id="purchase-summary"></div>
+<div class="actions"><button type="button" class="button primary" id="download-csv">↓ Lista de compras CSV</button>
+<button type="button" class="button" id="download-json">↓ Relatório JSON completo</button>
+<button type="button" class="button" id="reset-demo">↺ Restaurar simulação</button></div>
+</section>
+<section id="panel-models" class="panel" hidden>
+<h2>Materiais por modelo e tamanho</h2><p>Compare a necessidade estimada de cada produto. Perda é aplicada por modelo/material após reunir suas variantes, evitando diferenças entre o subtotal e o consolidado.</p>
+<div id="model-breakdown"></div>
+</section>
+<section id="panel-bom" class="panel" hidden>
+<h2>Editar consumo da ficha técnica</h2><p>Os valores por peça estão na unidade-base do material: gramas (g), centímetros (cm) ou unidades (un). Uma alteração refaz imediatamente o planejamento, somente nesta página.</p>
+<form id="bom-form" class="fields bom-fields" novalidate>
+<div class="field"><label for="bom-model">Modelo</label><select id="bom-model" class="input"></select></div>
+<div class="field"><label for="bom-size">Tamanho</label><select id="bom-size" class="input"><option>P</option><option>M</option><option>G</option></select></div>
+<div class="field"><label for="bom-material">Matéria-prima</label><select id="bom-material" class="input"></select></div>
+<div class="field"><label for="bom-qty">Consumo por peça (g, cm ou un)</label><input id="bom-qty" type="number" min="0" max="1000000" step="1" inputmode="numeric" class="input" value="0"></div>
+<button type="submit" class="button primary">Atualizar ficha de exemplo</button>
+</form>
+<p class="status" id="bom-message" role="status" aria-live="polite">Use consumo zero para retirar o material desta combinação.</p>
+<div id="bom-overview"></div>
+</section>
+<section id="panel-materials" class="panel" hidden>
+<h2>Configurar materiais e estoque fictício</h2><p>Altere custo por unidade comercial, estoque em unidade-base, desperdício previsto e lote mínimo de compra. Nenhuma alteração modifica o almoxarifado real.</p>
+<form id="materials-form" class="fields material-fields" novalidate>
+<div class="field"><label for="material-id">Material</label><select id="material-id" class="input"></select></div>
+<div class="field"><label for="material-price">Preço (R$ por unidade comercial)</label><input id="material-price" class="input" inputmode="decimal"></div>
+<div class="field"><label for="material-stock">Estoque fictício (unidade-base)</label><input id="material-stock" class="input" inputmode="numeric" type="number" step="1" min="0"></div>
+<div class="field"><label for="material-waste">Perda prevista (%)</label><input id="material-waste" class="input" inputmode="numeric" type="number" step="1" min="0" max="50"></div>
+<div class="field"><label for="material-pack">Lote de compra (unidade-base)</label><input id="material-pack" class="input" inputmode="numeric" type="number" step="1" min="1"></div>
+<button type="submit" class="button primary">Aplicar na simulação</button>
+</form>
+<p id="material-message" role="status" aria-live="polite" class="status"></p>
+<div id="material-overview"></div>
+</section>
+<details><summary>Como são calculados os valores?</summary>
+<p class="status">A ficha técnica contém consumo inteiro por peça em gramas, centímetros ou unidades. O total por modelo é a soma da grade multiplicada pelo consumo. Perda prevista: teto(quantidade bruta × (100 + perda%) / 100). Compra: máximo(0, necessário − estoque), arredondado ao próximo lote mínimo. Custo de consumo: teto(necessário × preço em centavos / fator comercial). Valor de compra: teto(quantidade sugerida × preço em centavos / fator comercial). Os custos não incluem impostos, frete, descontos ou crédito de sobra.</p></details>
+</main>
+<script>
+(function(){
+'use strict';
+const $=id=>document.getElementById(id);
+const baseMaterials=[
+ {id:'tule',name:'Tule',base:'g',commercial:'kg',factor:1000,price:1800,stock:200,waste:5,pack:500},
+ {id:'renda',name:'Renda',base:'g',commercial:'kg',factor:1000,price:4200,stock:500,waste:8,pack:500},
+ {id:'malha',name:'Malha',base:'g',commercial:'kg',factor:1000,price:2800,stock:1000,waste:5,pack:500},
+ {id:'elastico',name:'Elástico',base:'cm',commercial:'m',factor:100,price:220,stock:3000,waste:3,pack:1000},
+ {id:'vies',name:'Viés',base:'cm',commercial:'m',factor:100,price:150,stock:1200,waste:4,pack:1000},
+ {id:'fecho',name:'Fecho',base:'un',commercial:'un',factor:1,price:25,stock:20,waste:0,pack:10},
+ {id:'etiqueta',name:'Etiqueta',base:'un',commercial:'un',factor:1,price:8,stock:75,waste:0,pack:100}
+];
+const models=[
+ {id:'melina',name:'Camisola Melina'},
+ {id:'crystal',name:'Doll Crystal'},
+ {id:'tammy',name:'Calcinha Tammy'},
+ {id:'paula',name:'Conjunto Paula'}
+];
+const defaultBom={
+ melina:{P:{tule:75,renda:30,elastico:70,etiqueta:1},M:{tule:83,renda:35,elastico:75,etiqueta:1},G:{tule:95,renda:40,elastico:85,etiqueta:1}},
+ crystal:{P:{malha:160,renda:40,elastico:90,vies:65,etiqueta:1},M:{malha:180,renda:45,elastico:100,vies:70,etiqueta:1},G:{malha:205,renda:50,elastico:110,vies:75,etiqueta:1}},
+ tammy:{P:{renda:35,elastico:55,etiqueta:1},M:{renda:42,elastico:62,etiqueta:1},G:{renda:50,elastico:70,etiqueta:1}},
+ paula:{P:{renda:85,malha:65,elastico:150,fecho:1,etiqueta:1},M:{renda:95,malha:70,elastico:165,fecho:1,etiqueta:1},G:{renda:110,malha:78,elastico:180,fecho:1,etiqueta:1}}
+};
+const initialPlan=[{model:'melina',size:'P',qty:20},{model:'melina',size:'M',qty:40},{model:'melina',size:'G',qty:40},{model:'tammy',size:'M',qty:30}];
+let plan=[],bom={},materials=[],active='plan';
+const clone=x=>JSON.parse(JSON.stringify(x));
+const money=n=>(n/100).toLocaleString('pt-BR',{style:'currency',currency:'BRL'});
+const int=(raw,min,max,name)=>{
+ const value=String(raw).trim();
+ if(!/^(0|[1-9]\d*)$/.test(value))throw Error(name+': informe um número inteiro.');
+ const parsed=Number(value);
+ if(!Number.isSafeInteger(parsed)||parsed<min||parsed>max)throw Error(name+': permitido de '+min+' a '+max+'.');
+ return parsed;
+};
+function parseMoney(raw){
+ const value=String(raw).trim();
+ if(!/^(0|[1-9]\d*)([.,]\d{1,2})?$/.test(value))throw Error('Preço inválido. Use até duas casas decimais.');
+ const parts=value.replace(',','.').split('.');
+ const cents=Number(parts[0])*100+Number((parts[1]||'').padEnd(2,'0'));
+ if(!Number.isSafeInteger(cents)||cents<1||cents>10000000)throw Error('Preço deve ser maior que zero e até R$ 100.000,00.');
+ return cents;
+}
+function el(tag,cls,text){const node=document.createElement(tag);if(cls)node.className=cls;if(text!==undefined)node.textContent=String(text);return node;}
+function modelName(id){return models.find(m=>m.id===id)?.name||id}
+function materialById(id){return materials.find(m=>m.id===id)}
+function qtyLabel(q,m){return q.toLocaleString('pt-BR')+' '+m.base}
+function ceilDiv(a,b){if(!Number.isSafeInteger(a)||a<0||!Number.isSafeInteger(b)||b<=0)throw Error('Quantidade fora do limite de cálculo.');return Math.ceil(a/b)}
+function compute(){
+ const byModel=new Map();
+ let plannedPieces=0;
+ for(const row of plan){
+  if(!models.some(m=>m.id===row.model)||!['P','M','G'].includes(row.size))throw Error('Modelo/tamanho inválido.');
+  const qty=int(row.qty,1,100000,'Peças');plannedPieces+=qty;
+  if(plannedPieces>500000)throw Error('Planejamento excede o máximo fictício de 500.000 peças.');
+  let model=byModel.get(row.model);
+  if(!model){model={id:row.model,name:modelName(row.model),pieces:0,variants:[],raw:{},needed:{},cost:0};byModel.set(row.model,model);}
+  model.pieces+=qty;model.variants.push({size:row.size,qty});
+  for(const [matId,unit] of Object.entries(bom[row.model]?.[row.size]||{})){
+   if(!materialById(matId))throw Error('Material inválido na ficha.');
+   const units=int(unit,0,1000000,'Consumo');
+   const subtotal=qty*units;
+   if(!Number.isSafeInteger(subtotal)||subtotal>1000000000)throw Error('Consumo excede o limite.');
+   model.raw[matId]=(model.raw[matId]||0)+subtotal;
+   if(model.raw[matId]>1000000000)throw Error('Modelo excede limite de consumo.');
+  }
+ }
+ const summary=new Map(materials.map(m=>[m.id,{...m,raw:0,needed:0,shortage:0,toBuy:0,purchaseCost:0,consumptionCost:0}]));
+ for(const model of byModel.values()){
+  for(const [matId,raw] of Object.entries(model.raw)){
+   const m=summary.get(matId);
+   const needed=ceilDiv(raw*(100+m.waste),100);
+   if(!Number.isSafeInteger(needed)||needed>1000000000)throw Error('Consumo previsto muito alto.');
+   model.needed[matId]=needed;
+   model.cost+=ceilDiv(needed*m.price,m.factor);
+   m.raw+=raw;m.needed+=needed;
+  }
+ }
+ let consumptionCost=0,purchaseCost=0;
+ for(const m of summary.values()){
+  m.shortage=Math.max(0,m.needed-m.stock);
+  m.toBuy=m.shortage?ceilDiv(m.shortage,m.pack)*m.pack:0;
+  m.purchaseCost=ceilDiv(m.toBuy*m.price,m.factor);
+  m.consumptionCost=ceilDiv(m.needed*m.price,m.factor);
+  if(m.toBuy>1000000000||!Number.isSafeInteger(m.toBuy))throw Error('Quantidade de compra acima do limite.');
+  consumptionCost+=m.consumptionCost;purchaseCost+=m.purchaseCost;
+ }
+ if(!Number.isSafeInteger(consumptionCost)||!Number.isSafeInteger(purchaseCost))throw Error('Custo excede limite numérico.');
+ return {byModel:[...byModel.values()],materials:[...summary.values()],pieces:plannedPieces,modelCount:byModel.size,consumptionCost,purchaseCost};
+}
+function notify(id,text,failed=false){const node=$(id);node.textContent=text;node.classList.toggle('error',failed)}
+function selectOptions(id,items){const node=$(id);node.replaceChildren();for(const [value,name] of items){const opt=el('option','',name);opt.value=value;node.append(opt)}}
+function switchTab(tab){
+ if(!['plan','models','bom','materials'].includes(tab))return;
+ active=tab;
+ document.querySelectorAll('[data-tab]').forEach(b=>b.dataset.tab===tab?b.setAttribute('aria-current','page'):b.removeAttribute('aria-current'));
+ for(const name of ['plan','models','bom','materials'])$('panel-'+name).hidden=name!==tab;
+ render();
+}
+function sumVariant(row){
+ const model={...row},totalByMaterial={};
+ for(const [mat,qty] of Object.entries(bom[row.model]?.[row.size]||{})){
+  totalByMaterial[mat]=row.qty*qty;
+ }
+ let cost=0;
+ for(const [id,raw] of Object.entries(totalByMaterial)){
+  const m=materialById(id);cost+=ceilDiv(ceilDiv(raw*(100+m.waste),100)*m.price,m.factor);
+ }
+ return cost;
+}
+function renderPlan(){
+ const body=$('plan-rows'),cards=$('plan-cards');body.replaceChildren();cards.replaceChildren();
+ for(const row of plan){
+  const key=row.model+'|'+row.size;
+  const tr=el('tr'),modelCell=el('td','',modelName(row.model)),sizeCell=el('td','',row.size);
+  const qtyCell=el('td'),field=el('input','input');field.type='number';field.min='1';field.max='100000';field.step='1';field.inputMode='numeric';field.value=String(row.qty);field.setAttribute('aria-label','Peças '+modelName(row.model)+' '+row.size);field.style.width='104px';
+  field.dataset.edit=key;qtyCell.append(field);
+  const costCell=el('td','num',money(sumVariant(row)));
+  const actions=el('td'),remove=el('button','button danger','Retirar');remove.type='button';remove.dataset.remove=key;actions.append(remove);
+  tr.append(modelCell,sizeCell,qtyCell,costCell,actions);body.append(tr);
+  const card=el('article','item-card');card.append(el('h3','',modelName(row.model)+' · '+row.size),el('p','',money(sumVariant(row))+' custo de consumo aproximado'));
+  const control=el('div','row'),label=el('label','label','Peças'),mobileInput=el('input','input');mobileInput.type='number';mobileInput.min='1';mobileInput.max='100000';mobileInput.step='1';mobileInput.value=String(row.qty);mobileInput.dataset.edit=key;mobileInput.setAttribute('aria-label','Peças '+modelName(row.model)+' '+row.size);
+  const mobileRemove=el('button','button danger','Retirar');mobileRemove.type='button';mobileRemove.dataset.remove=key;control.append(label,mobileInput,mobileRemove);card.append(control);cards.append(card);
+ }
+ if(!plan.length){body.append(el('tr'));const cell=el('td','', 'Nenhum produto selecionado.');cell.colSpan=5;body.lastChild.append(cell);cards.append(el('div','empty','Adicione um modelo para iniciar.'))}
+}
+function renderPurchases(result){
+ const body=$('purchase-rows'),cards=$('purchase-cards');body.replaceChildren();cards.replaceChildren();
+ const req=result.materials.filter(m=>m.needed>0);
+ for(const m of req){
+  const tdValues=[m.name,qtyLabel(m.needed,m),qtyLabel(m.stock,m),qtyLabel(m.shortage,m),qtyLabel(m.toBuy,m),money(m.purchaseCost)];
+  const tr=el('tr');for(const [i,val] of tdValues.entries())tr.append(el('td',i>0?'num':'',val));body.append(tr);
+  const card=el('article','item-card');card.append(el('h3','',m.name),el('p','', 'Precisa: '+qtyLabel(m.needed,m)+' · Estoque fictício: '+qtyLabel(m.stock,m)),el('p','', 'Falta: '+qtyLabel(m.shortage,m)));
+  const line=el('div','row');line.append(el('strong','', 'Comprar '+qtyLabel(m.toBuy,m)),el('strong','',money(m.purchaseCost)));card.append(line);cards.append(card);
+ }
+ if(!req.length){const tr=el('tr'),cell=el('td','', 'Nenhum material necessário.');cell.colSpan=6;tr.append(cell);body.append(tr);cards.append(el('div','empty','Nenhum material necessário.'))}
+ const host=$('purchase-summary');host.replaceChildren();
+ for(const [name,value] of [['Peças no planejamento',result.pieces.toLocaleString('pt-BR')],['Custo do consumo estimado',money(result.consumptionCost)],['Compra sugerida, considerando estoque',money(result.purchaseCost)]]){
+  const div=el('div');div.append(el('span','',name),el('strong','',value));host.append(div);
+ }
+}
+function renderModels(result){
+ const host=$('model-breakdown');host.replaceChildren();
+ for(const model of result.byModel){
+  const wrap=el('div','group');wrap.append(el('h3','',model.name+' · '+model.pieces+' peças'),el('p','',model.variants.map(v=>v.size+': '+v.qty).join(' · ')));
+  let detailCost=0;
+  for(const [id,needed] of Object.entries(model.needed)){
+   const m=materialById(id),cents=ceilDiv(needed*m.price,m.factor);
+   detailCost+=cents;
+   const row=el('div','row');row.append(el('span','',m.name+' · '+qtyLabel(needed,m)+' (com perda '+m.waste+'%)'),el('strong','',money(cents)));wrap.append(row);
+  }
+  const total=el('div','row');total.append(el('strong','', 'Custo de consumo do modelo'),el('strong','',money(detailCost)));wrap.append(total);host.append(wrap);
+ }
+ if(!result.byModel.length)host.append(el('p','empty','Selecione algum modelo no Planejamento semanal.'));
+}
+function loadBom(){
+ $('bom-qty').value=String(bom[$('bom-model').value]?.[$('bom-size').value]?.[$('bom-material').value]||0);
+ const material=materialById($('bom-material').value);
+ if(material)notify('bom-message','Consumo por peça em '+material.base+'. Zero retira este insumo da ficha de exemplo.');
+}
+function renderBom(){
+ const host=$('bom-overview');host.replaceChildren();
+ for(const model of models){
+  const wrap=el('div','group');wrap.append(el('h3','',model.name));
+  for(const size of ['P','M','G']){
+   const pieces=Object.entries(bom[model.id][size]).filter(([,q])=>q>0).map(([id,q])=>materialById(id).name+': '+q+' '+materialById(id).base);
+   const row=el('div','row');row.append(el('strong','',size),el('span','',pieces.join(' · ')||'Sem insumos'));wrap.append(row);
+  }
+  host.append(wrap);
+ }
+}
+function loadMaterial(){
+ const m=materialById($('material-id').value);if(!m)return;
+ $('material-price').value=(m.price/100).toFixed(2).replace('.',',');
+ $('material-stock').value=String(m.stock);$('material-waste').value=String(m.waste);$('material-pack').value=String(m.pack);
+ notify('material-message',m.name+' · estoque e lote em '+m.base+' · preço por '+m.commercial+'.');
+}
+function renderMaterials(){
+ const host=$('material-overview');host.replaceChildren();
+ for(const m of materials){
+  const item=el('div','group');item.append(el('h3','',m.name));
+  const row=el('div','row');row.append(el('span','',money(m.price)+' / '+m.commercial+' · perda '+m.waste+'%'),el('strong','',qtyLabel(m.stock,m)+' em estoque fictício'));item.append(row);
+  const another=el('div','row');another.append(el('span','', 'Lote de compra fictício'),el('strong','',qtyLabel(m.pack,m)));item.append(another);host.append(item);
+ }
+}
+function render(){
+ const result=compute();
+ $('metric-models').textContent=String(result.modelCount);
+ $('metric-pieces').textContent=result.pieces.toLocaleString('pt-BR');
+ $('metric-consumption').textContent=money(result.consumptionCost);
+ $('metric-purchase').textContent=money(result.purchaseCost);
+ renderPlan();renderPurchases(result);renderModels(result);renderBom();renderMaterials();
+ return result;
+}
+function reset(){
+ plan=clone(initialPlan);bom=clone(defaultBom);materials=clone(baseMaterials);
+ $('plan-model').value='melina';$('plan-size').value='P';$('plan-qty').value='10';
+ $('bom-model').value='melina';$('bom-size').value='P';$('bom-material').value='tule';
+ $('material-id').value='tule';loadBom();loadMaterial();
+ notify('plan-message','Exemplos restaurados: 100 Camisolas Melina e 30 Calcinhas Tammy.');
+ render();
+}
+function addPlan(event){
+ event.preventDefault();
+ try{
+  const model=$('plan-model').value,size=$('plan-size').value,qty=int($('plan-qty').value,1,100000,'Quantidade');
+  if(!models.some(m=>m.id===model)||!['P','M','G'].includes(size))throw Error('Modelo/tamanho não reconhecido.');
+  const newPlan=clone(plan),found=newPlan.find(r=>r.model===model&&r.size===size);
+  if(found){if(found.qty+qty>100000)throw Error('Limite por variante excedido.');found.qty+=qty}
+  else newPlan.push({model,size,qty});
+  const before=plan;plan=newPlan;try{compute()}catch(e){plan=before;throw e}
+  render();notify('plan-message',modelName(model)+' '+size+': '+qty+' peça(s) adicionadas à simulação.');
+ }catch(e){notify('plan-message',e.message,true)}
+}
+function changeQty(key,raw){
+ try{
+  const qty=int(raw,1,100000,'Quantidade'),next=clone(plan);
+  const found=next.find(r=>r.model+'|'+r.size===key);
+  if(!found)throw Error('Linha não localizada.');found.qty=qty;
+  const old=plan;plan=next;try{compute()}catch(e){plan=old;throw e}
+  render();notify('plan-message','Quantidade da grade atualizada somente nesta sessão.');
+ }catch(e){render();notify('plan-message',e.message,true)}
+}
+function removePlan(key){
+ plan=plan.filter(r=>r.model+'|'+r.size!==key);render();
+ notify('plan-message','Variante retirada da simulação.');
+}
+function updateBom(event){
+ event.preventDefault();
+ try{
+  const model=$('bom-model').value,size=$('bom-size').value,id=$('bom-material').value;
+  if(!bom[model]?.[size]||!materialById(id))throw Error('Ficha ou matéria-prima inválida.');
+  const qty=int($('bom-qty').value,0,1000000,'Consumo da ficha');
+  const previous=bom[model][size][id],exists=Object.hasOwn(bom[model][size],id);
+  if(qty)bom[model][size][id]=qty;else delete bom[model][size][id];
+  try{compute()}catch(e){if(exists)bom[model][size][id]=previous;else delete bom[model][size][id];throw e}
+  render();loadBom();notify('bom-message','Ficha fictícia atualizada: '+modelName(model)+' '+size+', '+(qty||0)+' '+materialById(id).base+' por peça.');
+ }catch(e){notify('bom-message',e.message,true)}
+}
+function updateMaterial(event){
+ event.preventDefault();
+ try{
+  const id=$('material-id').value,m=materialById(id);if(!m)throw Error('Material não reconhecido.');
+  const next={...m,price:parseMoney($('material-price').value),stock:int($('material-stock').value,0,1000000000,'Estoque'),
+   waste:int($('material-waste').value,0,50,'Perda'),pack:int($('material-pack').value,1,1000000000,'Lote de compra')};
+  const index=materials.findIndex(item=>item.id===id),old=materials[index];
+  materials[index]=next;try{compute()}catch(e){materials[index]=old;throw e}
+  render();loadMaterial();notify('material-message',m.name+': custo, estoque, perda e lote fictícios atualizados.');
+ }catch(e){notify('material-message',e.message,true)}
+}
+function report(){
+ const result=compute();
+ return {schema:'hlgb-evolucao-planejamento-compras-v1',environment:'offline-demo',fictitious:true,productionApproval:false,
+  savedToDatabase:false,capturedAt:new Date().toISOString(),
+  plan:clone(plan),bom:clone(bom),materials:clone(materials),
+  summary:{models:result.modelCount,pieces:result.pieces,consumptionCostCents:result.consumptionCost,purchaseCostCents:result.purchaseCost},
+  perModel:result.byModel,byMaterial:result.materials,
+  checks:{uniqueVariants:new Set(plan.map(r=>r.model+'|'+r.size)).size===plan.length,
+   quantitiesInteger:plan.every(r=>Number.isSafeInteger(r.qty)&&r.qty>0),
+   purchasesCoverShortages:result.materials.every(m=>m.toBuy>=m.shortage&&(m.toBuy===0||m.toBuy%m.pack===0)),
+   noNegativeShortages:result.materials.every(m=>m.shortage>=0),
+   totalNeededMatchesModels:result.materials.every(m=>m.needed===result.byModel.reduce((sum,model)=>sum+(model.needed[m.id]||0),0))}};
+}
+function download(text,filename,type){
+ const blob=new Blob([text],{type}),href=URL.createObjectURL(blob),a=el('a');
+ a.href=href;a.download=filename;a.click();setTimeout(()=>URL.revokeObjectURL(href),1500);
+}
+function exportJson(){download(JSON.stringify(report(),null,2),'HLGB-EVOLUCAO-PLANEJAMENTO-FICTICIO.json','application/json');notify('plan-message','Relatório JSON fictício exportado.');}
+function csvCell(value){
+ let text=String(value);
+ if(/^[=+\-@\t\r]/.test(text))text="'"+text;
+ return '"'+text.replace(/"/g,'""')+'"';
+}
+function exportCsv(){
+ const data=compute(),cols=[['Material','Necessário (base)','Estoque (base)','Falta (base)','Comprar (base)','Unidade-base','Unidade comercial','Valor compra centavos']];
+ for(const m of data.materials.filter(m=>m.needed>0))
+  cols.push([m.name,m.needed,m.stock,m.shortage,m.toBuy,m.base,m.commercial,m.purchaseCost]);
+ const csv='\uFEFF'+cols.map(row=>row.map(csvCell).join(';')).join('\r\n');
+ download(csv,'HLGB-EVOLUCAO-LISTA-COMPRAS-FICTICIA.csv','text/csv;charset=utf-8');
+ notify('plan-message','Lista de compras fictícia exportada em CSV.');
+}
+for(const id of ['plan-model','bom-model'])selectOptions(id,models.map(m=>[m.id,m.name]));
+for(const id of ['bom-material','material-id'])selectOptions(id,baseMaterials.map(m=>[m.id,m.name+' ('+m.base+')']));
+document.querySelectorAll('[data-tab]').forEach(b=>b.addEventListener('click',()=>switchTab(b.dataset.tab)));
+$('plan-form').addEventListener('submit',addPlan);
+document.addEventListener('change',e=>{if(e.target.dataset.edit)changeQty(e.target.dataset.edit,e.target.value)});
+document.addEventListener('click',e=>{const b=e.target.closest('button[data-remove]');if(b)removePlan(b.dataset.remove)});
+$('bom-form').addEventListener('submit',updateBom);
+for(const id of ['bom-model','bom-size','bom-material'])$(id).addEventListener('change',loadBom);
+$('materials-form').addEventListener('submit',updateMaterial);
+$('material-id').addEventListener('change',loadMaterial);
+$('reset-demo').addEventListener('click',reset);
+$('download-json').addEventListener('click',exportJson);
+$('download-csv').addEventListener('click',exportCsv);
+reset();switchTab('plan');
+})();
+</script></body></html>
