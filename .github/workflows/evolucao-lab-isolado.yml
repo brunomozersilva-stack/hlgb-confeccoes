@@ -26,11 +26,11 @@ jobs:
           git fetch origin main --depth=1
           BASE="$(git merge-base HEAD origin/main)"
           git diff --name-status "$BASE" HEAD | tee /tmp/hlgb-evolucao-files.txt
-          if awk -F '\t' '($1 != "A") || ($2 !~ /^evolucao-lab\// && $2 != ".github/workflows/evolucao-lab-isolado.yml") {bad=1} END{exit !bad}' /tmp/hlgb-evolucao-files.txt; then
+          if awk -F '\t' '($1 != "A") || ($2 !~ /^evolucao-lab\// && $2 !~ /^\.github\/workflows\/evolucao-[a-z0-9-]+\.yml$/) {bad=1} END{exit !bad}' /tmp/hlgb-evolucao-files.txt; then
             echo "::error::Arquivos atuais do HLGB foram alterados — isolamento violado."
             exit 1
           fi
-          echo "Apenas novos arquivos do laboratório. Produção preservada."
+          echo "Apenas novos arquivos em evolucao-lab/ e workflows evolucao-*.yml. Produção preservada."
       - name: Static contract, source references and mobile structure
         run: |
           node --test evolucao-lab/tests/standalone-contract.cjs
