@@ -11,6 +11,14 @@ Esta pasta é um **protótipo isolado**: não é uma tela incorporada ao HLGB em
 - Mudanças futuras devem ser validadas por testes técnicos e pelos funcionários, com suporte a iPhone Safari e Android Chrome.
 - **Aprovação explícita** será necessária para integrar qualquer alteração na operação atual.
 
+## Etapa atual — Simulador de cálculos de acertos e recebimentos
+
+- `motor-calculos-demonstracao.js`: motor de cálculo puro, com validação por centavos e proteção de compensações, sem qualquer gravação.
+- `acertos-simulador.html`: laboratório **offline e mobile** para dois fluxos diferentes: acertos de facções e recebimentos parciais de notas/pedidos.
+- `tests/motor-calculos.cjs` e `tests/acertos-simulador-mobile.cjs`: cenários monetários, rejeições de valores inválidos, isolamentos e cinco larguras em Chromium/WebKit.
+- `SIMULADOR-ACERTOS.md`: matemática, limites, exemplos e diferenças com o código antigo a decidir antes de uma eventual integração.
+- A simulação não cria pagamentos, não grava comprovantes, não consulta o banco e não marca nenhuma função como homologada.
+
 ## Etapa: preservação das funções antigas (preparação de homologação)
 
 **Objetivo:** evitar que a modernização remova recursos já entregues.
