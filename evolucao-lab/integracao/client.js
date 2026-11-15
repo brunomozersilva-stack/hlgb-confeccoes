@@ -16,8 +16,10 @@
   const el=$(id),status=data.status||'erro';
   const fail=data.httpStatus>=400||['denied','rejected','conflict','error','not_found'].includes(status);
   el.className='status'+(fail?' fail':status==='uncertain'?' warn':' ok');
-  el.textContent=status+': '+(data.message||data.reason||(
-   data.revision?'Revisão '+data.revision+'. ':''))+(data.amountCents?' Total do teste: R$ '+(Number(data.amountCents)/100).toFixed(2).replace('.',',')+'.':'');
+  el.textContent=status+': '+(data.message||data.reason||data.label||(
+   data.revision?'Revisão '+data.revision+'. ':''))+
+   (data.state?' Situação: '+data.state+'.':'')+
+   (data.amountCents?' Total do teste: R$ '+(Number(data.amountCents)/100).toFixed(2).replace('.',',')+'.':'');
  }
  function controls(){
   const canPay=!!role&&['finA','finB','other'].includes(role)&&!unresolved;

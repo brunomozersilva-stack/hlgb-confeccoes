@@ -151,10 +151,10 @@ test('usuários sem sessão, revogados ou de setores sem permissão não pagam n
  for(const role of ['viewer','operation','inactive']){
   const ctx=await context(role);
   const u=await upload(ctx,'REC-NEG-'+role);
-  assert.equal(u.data.status,'error'===u.data.status?'error':u.data.status); // explicitly inspect HTTP below
-  assert(u.http===403||u.http===500);
+  assert.equal(u.data.status,'denied');
+  assert.equal(u.http,403);
   const p=await pay(ctx,'CMD-DENY-'+role);
-  assert(p.http===403||p.http===500);
+  assert.equal(p.http,403);
   await ctx.close();
  }
  const count=await row('SELECT count(*)::int AS n FROM evolucao_access_lab.hub_entries');assert.equal(count.n,0);

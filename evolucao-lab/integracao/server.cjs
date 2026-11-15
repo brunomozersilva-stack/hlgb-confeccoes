@@ -64,9 +64,14 @@ async function rpc(actor,functionName,params){
  const args=params.map((_,i)=>'$'+(i+1)).join(',');
  const typeCast=functionName==='stage_receipt'?'$1,$2,$3,$4::bigint,$5':
   functionName==='pay_group'?'$1,$2,$3::integer,$4,$5':args;
- const result=await database(actor,client=>client.query(
-  'SELECT evolucao_access_lab.'+functionName+'('+typeCast+') AS result',params));
- return result.rows[0].result;
+ try{
+  const result=await database(actor,client=>client.query(
+   'SELECT evolucao_access_lab.'+functionName+'('+typeCast+') AS result',params));
+  return result.rows[0].result;
+ }catch(e){
+  if(e.code==='42501')return {status:'denied',message:'O perfil não tem permissão para esta operação.'};
+  throw e;
+ }
 }
 async function startServer(){
  if(process.env.PGDATABASE!==DB_NAME)throw Error('Serviço bloqueado fora de hlgb_permissoes_lab');
