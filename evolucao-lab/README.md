@@ -11,6 +11,15 @@ Esta pasta é um **protótipo isolado**: não é uma tela incorporada ao HLGB em
 - Mudanças futuras devem ser validadas por testes técnicos e pelos funcionários, com suporte a iPhone Safari e Android Chrome.
 - **Aprovação explícita** será necessária para integrar qualquer alteração na operação atual.
 
+## Etapa atual — Controle de acesso e PDFs (laboratório PostgreSQL descartável)
+
+- `permissoes/01-laboratorio-seguro.sql`: apenas banco temporário `hlgb_permissoes_lab`, funções privadas, papéis fictícios, isolamento por empresa, RLS e pagamentos idempotentes.
+- `permissoes/02-reset-fixtures.sql`: casos sintéticos restaurados antes de cada teste, sem dados reais.
+- `permissoes/permissoes-mobile.html`: prévia offline dos papéis Financeiro, Operação e Consulta, com perfis desativados e outras empresas.
+- `tests/permissoes-postgres.cjs` e `tests/permissoes-mobile.cjs`: concorrência, revogação de acesso, bloqueio de empresa diferente e validação em Chrome/WebKit.
+- `permissoes/README.md`: limites indispensáveis sobre identidade, JWT, `SECURITY DEFINER`, comprovantes e Storage.
+- **Importante:** os registros de PDF são apenas metadados declarados; nenhuma mídia real é manipulada. O modelo de `session_user` deste laboratório não pode ser transplantado para o Supabase sem reengenharia de autenticação.
+
 ## Etapa atual — Transações fictícias em memória (sem banco)
 
 - `simulador-transacao-memoria.js`: operação atômica de demonstração, idempotência, revisão esperada, histórico, PDF fictício e conciliação após perda de resposta.
