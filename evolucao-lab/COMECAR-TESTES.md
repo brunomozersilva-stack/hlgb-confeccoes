@@ -32,6 +32,14 @@ As restantes **68 funções não possuem demonstração específica equivalente*
 
 Estes são testes **demonstrativos e interativos** dos fluxos disponíveis, não homologação de registros, dados ou banco de produção. Os demais módulos continuam listados na Central de Testes com estado não implementado quando não houver demonstração real.
 
+## Novo teste: devolução de peças e compensação financeira sem apagar lançamentos
+
+1. Na **Central Operacional 2.0 → Acertos**, localize a **Calcinha Tammy (AC-1039)**, que começa com **350 peças**. Clique em **Devolver peças**, indique **20 peças** e um motivo com pelo menos cinco caracteres. O acerto deve permanecer pendente com **330 peças** e **R$ 79,20**. Não é permitido devolver todas as peças nem deixar um total negativo nesse fluxo. Clique em **Histórico** para conferir antes/depois e o motivo.
+2. Edite e pague o **Doll Crystal (AC-1041)** como no teste anterior, chegando a **R$ 150,00**. Depois clique **Corrigir pago**, informe **R$ 25,00** e um motivo. O acerto e pagamento originais devem permanecer com **R$ 150,00**. No Hub, deverá existir uma **nova compensação de −R$ 25,00**, vinculada ao mesmo ID, com saldo líquido **R$ 125,00** para esse acerto.
+3. Tente corrigir mais de **R$ 125,00**: a confirmação deverá ser bloqueada. Ajustes posteriores são separados, limitados pelo saldo e não alteram a linha original.
+4. Clique em **Histórico** para ver criação/edição/pagamento/correção, sem excluir eventos. No **Hub**, baixe o JSON de evidência e confirme as listas `historicoPorAcerto`, `hub` e os indicadores de integridade.
+5. **Limite da prévia:** não há movimentação real de dinheiro, nota de crédito, baixa de estoque, cancelamento integral nem gravação durável. As regras futuras de devolução total e estorno real exigem um fluxo adicional de aprovação e conciliação no banco isolado.
+
 ## Serviços avulsos de embalagem e travetada (novidade da prévia)
 
 - Abra **Central Operacional 2.0 → Acertos e pagamentos → Novo acerto** e escolha **Embalagem**. A seleção passa a mostrar apenas embaladeiras fictícias, e o campo de preço apresenta um valor de exemplo quando o modelo está na pequena lista de testes.
