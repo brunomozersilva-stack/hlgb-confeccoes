@@ -21,6 +21,18 @@ A página `homologacao-modulos.html` organiza 76 funcionalidades antigas identif
 
 As restantes **68 funções não possuem demonstração específica equivalente**. Elas já podem ser registradas como pendências, mas **não podem ser aprovadas no formulário como se estivessem implementadas**.
 
+## Novidade: folha de corte, materiais e aproveitamento
+
+Na demonstração **Pedidos → Corte → Produção → Separação**, entre em **Corte**, localize a variante fictícia **PD-100 / Camisola Melina / Preto / P** e registre 20 peças. No diálogo da ficha de corte:
+
+- Escolha o tipo de cortador **Interno** ou **Externo** e confirme que o prestador fictício muda junto. O **infestador** e as duas pessoas responsáveis pela conferência também são selecionados.
+- Escolha **Tule** (valor sintético de R$ 18/kg); peso disponibilizado **500 g**; peso utilizado **420 g**; lixo / resíduo **50 g**. O sistema deve calcular **30 g de sobra** e **R$ 8,46** de custo aproximado para os 470 g consumidos.
+- Tente registrar 470 g usados e 50 g de lixo contra 500 g disponibilizados: deve bloquear. Experimente escolher a mesma pessoa para as duas conferências: deve bloquear.
+- Depois de registrar, a área **Folhas de corte desta sessão** deve mostrar os totais e o agrupamento por modelo/material, com os 20 itens cortados. Em **Auditoria**, veja cortador, infestador, conferentes, peso e custo.
+- Exporte o JSON e confira o objeto `materialSummary`, os detalhes em `movements[0].cutSheet` e as verificações `pesosConservados`, `folhasDeCorteComDados` e `conferenciasDistintas`.
+
+**Limitações importantes:** não há ficha técnica real de consumo por peça, estoque físico, compra de matéria-prima, assinatura eletrônica nem contabilização de custos no financeiro. Os três preços por kg são inventados para validar interface e cálculos. A inclusão de pessoas no formulário identifica apenas personagens fictícios, não constitui assinatura válida.
+
 ## Teste integrado de Pedidos → Corte → Facções → Retorno → Separação
 
 A página **fluxo-producao-integrado.html** permite executar, na mesma sessão, cinco movimentos fictícios vinculados à **mesma grade por cor e tamanho**. Ela é uma prévia adicional e **não altera** os 8 exercícios de homologação já catalogados; ainda falta avaliar equivalência com as rotinas legadas.
