@@ -1,0 +1,52 @@
+name: HLGB Evolucao - Planejador Materiais
+on:
+  push:
+    branches:
+      - feature/evolucao-laboratorio-isolado-v1-20261114
+    paths:
+      - 'evolucao-lab/planejador-materiais.html'
+      - 'evolucao-lab/tests/planejador-contract.cjs'
+      - 'evolucao-lab/tests/planejador-mobile.cjs'
+      - '.github/workflows/evolucao-planejador-materiais.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  static:
+    name: Integridade, calculos e isolamento
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - name: Verificar contratos de seguranca
+        run: node --test evolucao-lab/tests/planejador-contract.cjs
+  browser:
+    name: Testes operacionais (${{ matrix.browser }})
+    runs-on: ubuntu-24.04
+    timeout-minutes: 18
+    strategy:
+      fail-fast: false
+      matrix:
+        browser: [chromium, webkit]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - name: Instalar navegadores de teste
+        run: |
+          npm install --no-save playwright@1.55.0
+          npx playwright install --with-deps ${{ matrix.browser }}
+      - name: Validar cálculos e navegação, sem acesso a rede
+        env:
+          HLGB_BROWSER: ${{ matrix.browser }}
+          HLGB_SCREENSHOT_DIR: /tmp/hlgb-planejador
+        run: node evolucao-lab/tests/planejador-mobile.cjs
+      - name: Guardar captura da versão mobile
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: planejador-materiais-${{ matrix.browser }}
+          path: /tmp/hlgb-planejador/*.png
+          if-no-files-found: ignore
