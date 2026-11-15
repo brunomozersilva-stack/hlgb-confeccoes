@@ -2,6 +2,19 @@
 
 Esta pasta é um **protótipo isolado**: não é uma tela incorporada ao HLGB em produção.
 
+## Nova etapa — Ficha de corte e aproveitamento de materiais (simulação)
+
+A página independente `fluxo-producao-integrado.html` liga as variantes fictícias de Pedidos → Corte → Facções → Retorno → Separação. A etapa de Corte exige:
+
+- **Cortador interno ou externo** e identificação de infestador com personagens fictícios.
+- **Material** (tule, renda ou malha) e pesos inteiros em gramas: disponibilizado, utilizado, resíduo e sobra calculada; rejeita quantidades acima do disponibilizado.
+- **Duas conferências distintas**, apenas como campos de teste (não são assinaturas eletrônicas).
+- **Custo estimado** por peso consumido (utilizado + resíduo), com valores por kg inventados; resumo da sessão por modelo e material; indicador de aproveitamento sobre a massa consumida.
+- Registro das informações no histórico da movimentação fictícia, com versão da grade, IDs únicos, proteção contra reexecução da mesma transição e exportação JSON.
+- Testes automáticos em Chromium e WebKit, cinco larguras e dois cortes (interno + externo), usando materiais diferentes.
+
+**Escopo limitado:** não utiliza tabela real de preços, ficha técnica de insumos, estoque, produção, contas a pagar, assinatura de funcionários ou banco. O resumo não inclui os cortes pré-carregados no exemplo, porque eles não possuem informações de peso. Todos os registros se perdem ao atualizar o navegador.
+
 ## Prévia operacional 2.0 (para avaliação de usabilidade)
 
 A nova tela `central-operacional-2.html` foi criada após a avaliação de que os protótipos anteriores eram básicos. Ela aproxima a experiência visual e funcional de uma central de trabalho diária:
