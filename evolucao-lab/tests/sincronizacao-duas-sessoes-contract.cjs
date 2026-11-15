@@ -1,0 +1,128 @@
+'use strict';
+const test=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path'),vm=require('node:vm');
+const engine=require('../sincronizacao-duas-sessoes-memoria.js');
+const engineSource=fs.readFileSync(path.join(__dirname,'../sincronizacao-duas-sessoes-memoria.js'),'utf8');
+const page=fs.readFileSync(path.join(__dirname,'../sincronizacao-duas-sessoes.html'),'utf8');
+const checks=lab=>assert(Object.values(lab.checks()).every(Boolean),JSON.stringify(lab.checks()));
+test('revisão inicial e duas sessões independentes sem rede nem storage',()=>{
+ const lab=engine.createLab(),state=lab.snapshot();
+ assert.equal(state.server.record.revision,1);assert.equal(state.server.record.amountCents,10000);
+ assert.deepEqual(Object.keys(state.clients),['A','B']);
+ assert.equal(state.clients.A.seenRevision,1);assert.equal(state.clients.B.seenRevision,1);
+ assert.equal(state.server.events.length,0);checks(lab);
+ assert.match(page,/As sessões A e B representam dois operadores fictícios/);
+ for(const bad of [/\bfetch\s*\(/,/\bWebSocket\b/,/\bindexedDB\b/,
+  /\blocalStorage\b/,/\bsessionStorage\b/,/\bsupabase\b/i,/\bserviceWorker\b/,
+  /https?:\/\//i])assert(!bad.test(engineSource+page),'API externa proibida: '+bad);
+ const scripts=[...page.matchAll(/<script(?:\s[^>]*)?>([\s\S]*?)<\/script>/gi)];
+ assert.equal(scripts.length,1);assert.doesNotThrow(()=>new vm.Script(scripts[0][1]));
+ assert.doesNotThrow(()=>new vm.Script(engineSource));
+});
+test('salvar e reler cria um evento e não atualiza outra sessão sem consulta',()=>{
+ const lab=engine.createLab();
+ assert.equal(lab.edit('A',12000).status,'draft');
+ const r=lab.submit('A');assert.equal(r.status,'readback_confirmed');
+ assert.equal(r.revision,2);assert.equal(lab.inspectServer().events.length,1);
+ assert.equal(lab.snapshot().clients.B.seenCents,10000);
+ assert.equal(lab.refresh('B').status,'refreshed');
+ assert.equal(lab.snapshot().clients.B.seenCents,12000);
+ assert.equal(lab.inspectServer().record.amountCents,12000);checks(lab);
+});
+test('ACK perdido mantém pendência até releitura — não exibe salvo no envio',()=>{
+ const lab=engine.createLab();lab.edit('A',12500);
+ const result=lab.submit('A',{failureAt:'after_commit_before_ack'});
+ assert.equal(result.status,'uncertain');
+ assert.equal(lab.snapshot().server.events.length,1);
+ assert.equal(lab.snapshot().clients.A.seenCents,10000);
+ assert.equal(lab.deliver('A').status,'blocked');
+ assert.equal(lab.submit('A').status,'blocked');
+ const p=lab.snapshot().clients.A.pending.command.commandId;
+ const ack=lab.reconcile('A');assert.equal(ack.status,'readback_confirmed');assert.equal(ack.commandId,p);
+ assert.equal(lab.snapshot().clients.A.seenCents,12500);
+ assert.equal(lab.snapshot().server.events.length,1);checks(lab);
+});
+test('ACK recebido com falha de readback nunca equivale a confirmação',()=>{
+ const lab=engine.createLab();lab.edit('A',14500);
+ assert.equal(lab.submit('A',{failureAt:'readback_failure'}).status,'uncertain');
+ assert.equal(lab.snapshot().clients.A.seenRevision,1);
+ assert.equal(lab.reconcile('A',{readbackUnavailable:true}).status,'uncertain');
+ assert.equal(lab.snapshot().clients.A.seenRevision,1);
+ assert.equal(lab.reconcile('A').status,'readback_confirmed');
+ assert.equal(lab.snapshot().clients.A.seenRevision,2);checks(lab);
+});
+test('comando desconhecido exige reenvio explícito com o mesmo ID',()=>{
+ const lab=engine.createLab();lab.edit('A',13000);
+ assert.equal(lab.submit('A',{failureAt:'before_commit'}).status,'uncertain');
+ assert.equal(lab.inspectServer().events.length,0);
+ assert.equal(lab.reconcile('A').status,'not_found');
+ const old=lab.snapshot().clients.A.pending.command.commandId;
+ assert.equal(lab.submit('A').status,'blocked');
+ assert.equal(lab.retrySameId('A').status,'readback_confirmed');
+ assert.equal(lab.inspectServer().events.length,1);
+ assert.equal(lab.inspectServer().events[0].commandId,old);checks(lab);
+});
+test('commit atrasado entre leitura not_found e retry não duplica lançamento',()=>{
+ const lab=engine.createLab();lab.edit('A',14000);
+ lab.submit('A',{failureAt:'before_commit'});
+ assert.equal(lab.reconcile('A').status,'not_found');
+ assert.equal(lab.simulateDelayedServerCommit('A').status,'committed');
+ assert.equal(lab.inspectServer().events.length,1);
+ const retry=lab.retrySameId('A');
+ assert.equal(retry.status,'readback_confirmed');
+ assert.equal(lab.inspectServer().events.length,1);
+ assert.equal(lab.snapshot().server.record.revision,2);checks(lab);
+});
+test('duas sessões: offline na A, B grava, conflito preserva o rascunho A',()=>{
+ const lab=engine.createLab();
+ assert.equal(lab.setOnline('A',false).status,'offline');
+ lab.edit('A',11000);
+ assert.equal(lab.submit('A').status,'queued');
+ assert.equal(lab.inspectServer().events.length,0);
+ lab.edit('B',15000);
+ assert.equal(lab.submit('B').status,'readback_confirmed');
+ assert.equal(lab.inspectServer().record.amountCents,15000);
+ assert.equal(lab.setOnline('A',true).status,'online');
+ const conflict=lab.deliver('A');assert.equal(conflict.status,'conflict');
+ assert.equal(lab.inspectServer().events.length,1);
+ assert.equal(lab.snapshot().clients.A.draftCents,11000);
+ assert.equal(lab.snapshot().clients.A.pending.status,'conflict');
+ assert.equal(lab.submit('A').status,'blocked');
+ assert.equal(lab.refresh('A').status,'blocked');
+ const reviewed=lab.reviewConflict('A');
+ assert.equal(reviewed.status,'review_required');
+ assert.equal(reviewed.draftPreserved,11000);
+ assert.equal(lab.snapshot().clients.A.seenRevision,2);
+ assert.equal(lab.snapshot().clients.A.seenCents,15000);
+ assert.equal(lab.snapshot().clients.A.draftCents,11000);
+ assert.equal(lab.refresh('A').status,'blocked_unsaved');
+ assert.equal(lab.submit('A').status,'readback_confirmed');
+ assert.equal(lab.inspectServer().events.length,2);
+ assert.equal(lab.inspectServer().record.amountCents,11000);
+ assert.equal(lab.snapshot().clients.B.seenCents,15000);
+ assert.equal(lab.refresh('B').status,'refreshed');
+ assert.equal(lab.snapshot().clients.B.seenCents,11000);checks(lab);
+});
+test('respostas offline não apagam rascunhos nem fazem commit',()=>{
+ const lab=engine.createLab();
+ lab.setOnline('B',false);lab.edit('B',8000);
+ assert.equal(lab.submit('B').status,'queued');
+ assert.equal(lab.deliver('B').status,'offline');
+ assert.equal(lab.reconcile('B').status,'offline');
+ assert.equal(lab.retrySameId('B').status,'blocked');
+ assert.equal(lab.snapshot().clients.B.draftCents,8000);
+ assert.equal(lab.inspectServer().events.length,0);
+ lab.setOnline('B',true);
+ assert.equal(lab.deliver('B').status,'readback_confirmed');checks(lab);
+});
+test('bloqueia valores fora do intervalo e rascunho não é apagado por refresh',()=>{
+ const lab=engine.createLab();
+ for(const val of [-5,0,99,1000001,2.5,NaN])assert.notEqual(lab.edit('A',val).status,'draft');
+ assert.equal(lab.edit('A',9900).status,'draft');
+ assert.equal(lab.refresh('A').status,'blocked_unsaved');
+ assert.equal(lab.snapshot().clients.A.draftCents,9900);
+ assert.equal(lab.submit('A').status,'readback_confirmed');
+ const copy=lab.snapshot();copy.server.record.amountCents=1;
+ assert.equal(lab.inspectServer().record.amountCents,9900,'snapshot entregue por cópia');
+ lab.reset();assert.equal(lab.inspectServer().record.amountCents,10000);
+ assert.equal(lab.inspectServer().events.length,0);checks(lab);
+});
