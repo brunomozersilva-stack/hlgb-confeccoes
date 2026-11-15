@@ -176,9 +176,16 @@ function createLab(){
   log('refresh',id,'Leitura da versão fictícia mais recente.',{revision:c.seenRevision});
   return {status:'refreshed',revision:c.seenRevision,amountCents:c.seenCents};
  }
+ function simulateDelayedServerCommit(id){
+  const c=session(id);
+  if(!c.pending||c.pending.status!=='not_found')return failure('blocked','Só é possível simular atraso de um comando não encontrado na releitura.');
+  const result=serverCommit(c.pending.command);
+  log('delayed_commit',id,'Comando fictício aplicado após uma leitura anterior sem registro.',{commandId:c.pending.command.commandId});
+  return result;
+ }
  function reset(){state=initial();return {status:'reset',message:'A simulação foi reiniciada; dados fictícios apenas.'}}
  function inspectServer(){return copy(state.server)}
- return {snapshot:getState,checks:getChecks,edit,setOnline,submit,deliver,reconcile,retrySameId,reviewConflict,refresh,reset,inspectServer};
+ return {snapshot:getState,checks:getChecks,edit,setOnline,submit,deliver,reconcile,retrySameId,reviewConflict,refresh,reset,inspectServer,simulateDelayedServerCommit};
 }
 return {createLab};
 });
