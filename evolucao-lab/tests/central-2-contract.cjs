@@ -25,12 +25,15 @@ test('as quatro áreas têm UI, busca e ações realmente ligadas a eventos',()=
  for(const id of ['acerto-search','acerto-status','acerto-order','acertos-body',
   'acertos-mobile','bulk-pay','edit-qty','edit-price','edit-discount',
   'edit-extra','edit-faction','edit-reason','hub-body','hub-mobile',
-  'hub-search','hub-export','route-list','record-dialog','pay-dialog']){
+  'hub-search','hub-export','hub-evidence','route-list','record-dialog','pay-dialog']){
   assert.ok(file.includes('id="'+id+'"'),'Campo ausente: '+id);
  }
  assert.match(file,/addEventListener\('submit',saveRecord\)/);
  assert.match(file,/addEventListener\('click',confirmPay\)/);
  assert.match(file,/addEventListener\('click',exportCsv\)/);
+ assert.match(file,/addEventListener\('click',exportEvidence\)/);
+ assert.match(file,/schema:'hlgb-evolucao-teste-operacional-v1'/);
+ assert.match(file,/productionApproval:false/);
  assert.match(file,/\.status!=='Pendente'/);
  assert.match(file,/used\.has\(x\.source\)/);
 });
