@@ -1,0 +1,86 @@
+<!doctype html><html lang="pt-BR"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>HLGB Evolução — Homologação local de Acertos</title>
+<style>
+:root{font-family:system-ui,-apple-system,"Segoe UI",sans-serif;color:#29233a;background:#f6f4f9;--dark:#302342;--purple:#573976;--border:#e6e0ec;--muted:#6d6375}
+*{box-sizing:border-box}body{margin:0;padding-bottom:50px}button,input,select{font:inherit;color:inherit}button{cursor:pointer}button:disabled{cursor:not-allowed;opacity:.45}
+:focus-visible{outline:3px solid #ae85db;outline-offset:2px}
+header{background:#2e223d;color:#fff;padding:20px clamp(14px,3vw,42px)}header small{letter-spacing:.12em;color:#e6d5f5;font-weight:750}header h1{font-size:clamp(24px,4vw,33px);margin:6px 0}header p{color:#e0d7e9;max-width:680px;font-size:13px;line-height:1.6;margin:0}
+main{max-width:1150px;margin:auto;padding:19px clamp(10px,3vw,30px)}
+.notice{background:#fff8e7;border:1px solid #e4cc95;border-radius:11px;padding:13px 14px;font-size:13px;color:#74521a;line-height:1.55;margin-bottom:15px}
+.grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:13px}
+.panel{background:#fff;border:1px solid var(--border);border-radius:14px;padding:18px;min-width:0}
+h2{font-size:19px;margin:0 0 10px}h3{font-size:15px;margin:14px 0 8px}
+.label{display:block;font-size:13px;font-weight:730;margin:12px 0 5px}.input{width:100%;min-width:0;min-height:46px;border:1px solid #c7bad5;border-radius:9px;padding:10px 12px;background:#fff}
+.actions{display:flex;gap:9px;flex-wrap:wrap;margin-top:14px}
+.btn{background:#fff;border:1px solid #ad96c5;border-radius:9px;min-height:45px;padding:10px 14px;font-weight:740;color:#553774}
+.btn.primary{background:#563979;color:#fff;border-color:#563979}
+.helper{font-size:12px;color:var(--muted);line-height:1.55}.status{background:#f4eff9;border-radius:10px;padding:11px 13px;margin-top:12px;font-size:13px;line-height:1.55;overflow-wrap:anywhere}
+.status.fail{background:#fff0f0;color:#862d41}.status.ok{background:#eaf5ed;color:#235e40}.status.warn{background:#fff1d8;color:#77541b}
+.tag{font-size:12px;border-radius:999px;background:#f0eaf7;color:#59406c;display:inline-block;font-weight:730;padding:5px 9px;margin:4px 0}
+.section{margin-bottom:13px}.hidden{display:none!important}
+hr{border:0;border-top:1px solid var(--border);margin:15px 0}
+a{color:#57347b}.tiny{font-size:11px;opacity:.9}
+@media(max-width:830px){.grid{grid-template-columns:1fr}}
+@media(max-width:560px){main{padding:12px 9px}.panel{padding:13px}.actions{display:grid;grid-template-columns:1fr 1fr}.actions>.wide{grid-column:1/-1}.btn{padding:10px 8px;font-size:13px}.input{font-size:16px}}
+@media(max-width:340px){.actions{grid-template-columns:1fr}.actions>.wide{grid-column:auto}}
+</style></head><body>
+<header><small>HLGB EVOLUÇÃO · LOCALHOST · NÃO É APLICATIVO REAL</small>
+<h1>Homologação de acesso e comprovantes</h1>
+<p>Protótipo executado somente no computador de testes, ligado a um PostgreSQL descartável. Você pode testar o envio real de um PDF de exemplo sem tocar nos dados da confecção.</p>
+</header><main>
+<div class="notice"><strong>Ambiente fictício.</strong> Os usuários e PINs abaixo são públicos apenas para a demonstração. Não correspondem ao login HLGB nem a um sistema de autenticação pronto. Não envie comprovantes reais. O servidor só aceita conexões locais.</div>
+<div class="grid">
+<section class="panel"><h2>1. Entrar com usuário fictício</h2>
+<form id="login-form">
+<label class="label" for="role">Perfil</label>
+<select class="input" id="role">
+<option value="finA">Financeiro · Empresa A</option><option value="finB">Segundo financeiro · Empresa A</option>
+<option value="other">Financeiro · Empresa B</option><option value="viewer">Consulta · Empresa A</option>
+<option value="operation">Operação · Empresa A</option><option value="inactive">Funcionário desativado</option>
+</select>
+<label class="label" for="pin">PIN fictício</label>
+<input class="input" id="pin" type="password" autocomplete="off" required value="demo-fin-a">
+<p class="helper">Este PIN existe apenas no código do laboratório. Para cada perfil use o PIN de teste correspondente.</p>
+<div class="actions"><button class="btn primary" id="login" type="submit">Entrar no laboratório</button>
+<button class="btn" id="logout" type="button">Sair</button></div></form>
+<div class="status" id="session-status" aria-live="polite" role="status">Nenhuma sessão fictícia ativa.</div>
+<hr>
+<h2>2. Consultar acerto</h2>
+<label class="label" for="group">Acerto de teste</label>
+<select class="input" id="group">
+<option value="AC-TESTE-A">AC-TESTE-A · Empresa A · R$ 25,00</option>
+<option value="AC-TESTE-B">AC-TESTE-B · Empresa B · R$ 9,00</option>
+</select>
+<div class="actions"><button id="load" type="button" class="btn">Consultar acerto</button></div>
+<div class="status" id="group-status" aria-live="polite" role="status">Ainda não consultado.</div>
+</section>
+<section class="panel"><h2>3. Anexar comprovante PDF fictício</h2>
+<p class="helper">O navegador envia o conteúdo do arquivo ao servidor local. O hash é calculado novamente no servidor e o arquivo fica em uma pasta temporária privada. Tamanho máximo neste laboratório: 512 KiB.</p>
+<label class="label" for="upload-id">Identificador do comprovante</label>
+<input class="input" id="upload-id" value="REC-DEMO-001">
+<label class="label" for="file">Arquivo PDF de teste</label>
+<input class="input" id="file" type="file" accept="application/pdf,.pdf">
+<div class="actions"><button class="btn" id="upload" type="button">Enviar PDF de teste</button></div>
+<div class="status" id="upload-status" role="status" aria-live="polite">Nenhum arquivo enviado.</div>
+<a id="receipt-link" class="hidden" href="#" download="comprovante-demonstracao.pdf">Conferir PDF armazenado</a>
+<hr>
+<h2>4. Registrar pagamento de demonstração</h2>
+<label class="label" for="command-id">Identificador do comando</label>
+<input class="input" id="command-id" value="CMD-PAG-001">
+<label class="label" for="revision">Revisão do acerto</label>
+<input class="input" id="revision" inputmode="numeric" type="number" min="1" step="1" value="3">
+<label class="label" for="method">Forma de pagamento</label>
+<select class="input" id="method"><option>PIX</option><option>Transferência</option><option>Dinheiro</option></select>
+<label class="label" for="receipt-reference">ID do PDF a anexar</label>
+<input class="input" id="receipt-reference" placeholder="Opcional: REC-DEMO-001">
+<label class="helper" for="lost-ack"><input type="checkbox" id="lost-ack"> Simular perda da resposta depois de confirmar</label>
+<div class="actions">
+<button class="btn primary" id="pay" type="button">Registrar no banco de teste</button>
+<button class="btn" id="reconcile" type="button" disabled>Conferir comando</button>
+</div>
+<div class="status" id="pay-status" role="status" aria-live="polite">Nenhuma operação solicitada.</div>
+</section>
+</div>
+<p class="helper">Os registros ficam somente no PostgreSQL temporário de testes. Uma homologação real ainda exigirá Supabase Auth, RLS revisado, Storage privado, verificação robusta de arquivos, testes Safari ↔ Chrome com WAL e aprovação expressa.</p>
+</main><script src="/app.js" defer></script></body></html>
