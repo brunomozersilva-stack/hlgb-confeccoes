@@ -2,6 +2,20 @@
 
 Esta pasta é um **protótipo isolado**: não é uma tela incorporada ao HLGB em produção.
 
+## Nova etapa — Planejamento semanal de matéria-prima e compras (simulação)
+
+O arquivo independente `planejador-materiais.html` reúne quatro áreas interativas: plano semanal por modelo/tamanho; necessidade e custo por modelo; edição da ficha técnica de consumo; e configuração fictícia de materiais, preços, estoque, perda e lote mínimo. Os exemplos são Camisola Melina, Doll Crystal, Calcinha Tammy e Conjunto Paula, com insumos sintéticos em **gramas, centímetros e unidades**.
+
+- Consolidar variantes repetidas, editar quantidades e remover modelos; validar limites e quantidades inteiras.
+- Consumo por modelo a partir da grade de tamanhos. Perdas configuráveis aplicadas após somar as variantes dentro de cada modelo.
+- Custo de consumo e valor de compra deliberadamente separados. A compra é o que falta após estoque e arredondamento ao lote mínimo, não todo o material consumido.
+- Rateio de centavos de consumo por modelo, de forma que os subtotais conciliem exatamente com o consolidado por insumo.
+- Exportar a lista fictícia de compras em CSV e o planejamento completo em JSON, incluindo indicadores de consistência.
+- HTML autossuficiente, sem rede, Supabase, login, armazenamento persistente ou alterações no HLGB. Reinicia ao atualizar.
+- Testes automatizados de segurança e no Chromium/WebKit em cinco larguras, incluindo alterações de ficha, preço e estoque.
+
+**Limites:** nenhum dado ou custo real do ERP é lido. O laboratório não possui controle de fornecedores, impostos, frete, descontos, aproveitamento de sobras, conversão real entre metros/quilos/rolos, previsões com ficha técnica validada nem ordens de compra. Uma aprovação de uso real requer migração e conferência dos cadastros no banco separado de homologação.
+
 ## Nova etapa — Ficha de corte e aproveitamento de materiais (simulação)
 
 A página independente `fluxo-producao-integrado.html` liga as variantes fictícias de Pedidos → Corte → Facções → Retorno → Separação. A etapa de Corte exige:
