@@ -1,0 +1,99 @@
+<!doctype html><html lang="pt-BR">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>HLGB Evolução — Permissões por funcionário</title>
+<style>
+:root{font:15px system-ui,-apple-system,"Segoe UI",sans-serif;background:#f6f4fa;color:#292136;--ink:#352448;--muted:#6d6278;--line:#e2dceb;--purple:#523477}
+*{box-sizing:border-box}body{margin:0}button,select{font:inherit;color:inherit}
+:focus-visible{outline:3px solid #b48adb;outline-offset:2px}
+header{background:#292138;color:white;padding:19px clamp(13px,4vw,42px)}h1{font-size:clamp(22px,4vw,32px);margin:6px 0}
+header p{color:#e6daef;font-size:13px;line-height:1.5}header a{color:#ecd6ff}
+main{max-width:1120px;padding:17px clamp(10px,3vw,30px) 50px;margin:auto}
+.notice{border:1px solid #dfc891;background:#fff9e9;color:#72501a;padding:12px 14px;border-radius:12px;line-height:1.5;font-size:13px;margin-bottom:15px}
+.grid{display:grid;grid-template-columns:minmax(0,.75fr) minmax(0,1.25fr);gap:14px}
+.panel{background:#fff;border:1px solid var(--line);padding:18px;border-radius:14px;min-width:0}
+h2{font-size:19px;margin:0 0 10px}h3{font-size:15px;margin:12px 0 8px}
+label{display:block;font-weight:750;font-size:13px;margin:0 0 6px}
+select{width:100%;padding:10px 12px;min-height:46px;font-size:16px;border:1px solid #c8bbd3;border-radius:10px;background:white}
+.status{padding:11px 13px;background:#f3edf9;border-radius:10px;margin-top:12px;font-size:13px;line-height:1.5}
+.item{border:1px solid var(--line);border-radius:11px;padding:11px;margin-bottom:9px}
+.item-header{display:flex;gap:9px;justify-content:space-between;align-items:center;flex-wrap:wrap}
+.item strong{font-size:14px}.item p{color:var(--muted);font-size:12px;line-height:1.5;margin:5px 0 0}
+.pill{font-size:11px;font-weight:750;padding:5px 8px;border-radius:999px;background:#eaf6ee;color:#24643c}
+.pill.deny{background:#ffefed;color:#963749}
+.action{border:1px solid #bda8d5;border-radius:9px;background:white;padding:10px 12px;min-height:44px;font-weight:750;color:var(--purple);cursor:pointer}
+.action:disabled{opacity:.42;cursor:not-allowed}
+.note{font-size:12px;line-height:1.6;color:var(--muted)}
+@media(max-width:770px){.grid{grid-template-columns:1fr}}
+@media(max-width:500px){main{padding:11px 9px 55px}.panel{padding:12px}.item-header{align-items:flex-start}}
+</style>
+</head><body>
+<header><div style="font-size:11px;letter-spacing:.12em;font-weight:750;color:#dac5f4">HLGB EVOLUÇÃO · DEMONSTRAÇÃO OFFLINE</div>
+<h1>Permissões por funcionário</h1><p>Compare o acesso do Financeiro, da Operação e de quem apenas consulta, antes de integrar qualquer nova função ao HLGB.</p>
+<a href="./transacoes-simuladas.html">Voltar ao laboratório de pagamentos</a>
+</header><main>
+<div class="notice"><strong>Atenção:</strong> esta tela é uma visualização fictícia e não autentica ninguém. A permissão verdadeira deve ser verificada no servidor. Nenhum usuário, pagamento ou arquivo real é consultado ou modificado.</div>
+<div class="grid">
+<section class="panel"><h2>Escolha um perfil de demonstração</h2>
+<label for="role">Funcionário fictício</label>
+<select id="role">
+<option value="finA">Financeiro · Empresa A</option>
+<option value="finB">Segundo financeiro · Empresa A</option>
+<option value="viewer">Consulta · Empresa A</option>
+<option value="operation">Operação · Empresa A</option>
+<option value="finOther">Financeiro · Outra empresa</option>
+<option value="inactive">Funcionário desativado</option>
+<option value="anon">Sem login</option>
+</select>
+<div id="role-summary" class="status" role="status" aria-live="polite"></div>
+<p class="note">Os nomes e empresas são fictícios. A tela não grava a sua seleção e não habilita permissões no programa atual.</p>
+<h3>Proteção obrigatória para a integração</h3>
+<p class="note">Além de ocultar botões, o banco precisa negar operações sem autorização, impedir acesso entre empresas, validar sessão ativa e controlar o reenvio de pagamentos. O histórico antigo não pode ser apagado.</p>
+</section>
+<section class="panel"><h2>O que esse perfil pode fazer?</h2>
+<div id="operations"></div>
+<div id="action-result" class="status" role="status" aria-live="polite">Nenhuma operação executada. Esta página apenas demonstra decisões de acesso.</div>
+</section>
+</div>
+</main>
+<script>
+(function(){
+'use strict';
+const roles={
+ finA:{name:'Financeiro · Empresa A',company:'Empresa A',active:true,finance:true,view:true},
+ finB:{name:'Segundo financeiro · Empresa A',company:'Empresa A',active:true,finance:true,view:true},
+ viewer:{name:'Consulta · Empresa A',company:'Empresa A',active:true,finance:false,view:true},
+ operation:{name:'Operação · Empresa A',company:'Empresa A',active:true,finance:false,view:true},
+ finOther:{name:'Financeiro · Outra empresa',company:'Empresa B',active:true,finance:true,view:false},
+ inactive:{name:'Funcionário desativado',company:'Empresa A',active:false,finance:false,view:false},
+ anon:{name:'Sem login',company:'—',active:false,finance:false,view:false}
+};
+const actions=[
+ {id:'view',name:'Consultar acerto da Empresa A',description:'Consulta limitada à empresa autorizada',gate:'view'},
+ {id:'payment',name:'Registrar pagamento do acerto',description:'Somente Financeiro autorizado e ativo',gate:'finance'},
+ {id:'receipt',name:'Preparar comprovante PDF',description:'Exige Financeiro ativo; conteúdo não é enviado nesta tela',gate:'finance'},
+ {id:'other',name:'Consultar acerto de outra empresa',description:'Bloqueado para todos os perfis desta simulação',gate:'never'}
+];
+const $=id=>document.getElementById(id);
+function allowed(r,gate){return r.active&&(gate==='finance'?r.finance:gate==='view'?r.view:false)}
+function render(){
+ const key=$('role').value,r=roles[key],root=$('operations');root.replaceChildren();
+ $('role-summary').textContent=r.name+' · '+r.company+' · '+(r.active?'Perfil ativo (fictício)':'Acesso indisponível')+'.';
+ $('action-result').textContent='Esta é apenas uma prévia visual. Nenhuma transação foi realizada.';
+ for(const a of actions){
+  const item=document.createElement('section');item.className='item';
+  const head=document.createElement('div');head.className='item-header';
+  const label=document.createElement('strong');label.textContent=a.name;
+  const pass=allowed(r,a.gate),pill=document.createElement('span');pill.className='pill'+(pass?'':' deny');
+  pill.textContent=pass?'Permitido no exemplo':'Bloqueado no exemplo';
+  head.append(label,pill);
+  const desc=document.createElement('p');desc.textContent=a.description;
+  const button=document.createElement('button');button.type='button';button.className='action';button.disabled=!pass;
+  button.textContent='Visualizar decisão';button.addEventListener('click',function(){
+   $('action-result').textContent=pass?'Ação '+a.name+' permitida apenas nesta demonstração. O banco real não foi acessado.':'Bloqueado.';
+  });
+  item.append(head,desc,button);root.append(item);
+ }
+}
+$('role').addEventListener('change',render);render();
+})();
+</script></body></html>
