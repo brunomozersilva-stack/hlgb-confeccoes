@@ -79,6 +79,7 @@ test('login fictício e aplicação HTTPS de escopo apenas local, sem requisiç�
  await page.goto(app.url);
  await page.locator('#login').click();
  await page.waitForFunction(()=>document.querySelector('#session-status').textContent.includes('ok:'));
+ await page.waitForFunction(()=>document.querySelector('#group-status').textContent.startsWith('ok:'));
  assert.match(await page.locator('#group-status').textContent(),/ok/);
  assert.match(await page.locator('#session-status').textContent(),/Financeiro/);
  assert.deepEqual(remote,[]);
@@ -129,6 +130,7 @@ test('interface mobile exercita login, escolha do arquivo e pagamento fictício'
  assert.equal(await page.locator('#receipt-reference').inputValue(),'REC-DEMO-001');
  await page.locator('#pay').click();
  await page.waitForFunction(()=>document.querySelector('#pay-status').textContent.includes('readback_confirmed'));
+ await page.waitForFunction(()=>document.querySelector('#group-status').textContent.includes('Situação: Pago'));
  assert.match(await page.locator('#group-status').textContent(),/Pago/);
  const link=await page.locator('#receipt-link').getAttribute('href');
  assert.equal(link,'/api/receipts/REC-DEMO-001');
@@ -242,7 +244,10 @@ test('o mesmo formulário não ultrapassa a tela em cinco tamanhos de celular e 
   const pageErrors=[];page.on('pageerror',e=>pageErrors.push(e.message));
   await page.goto(app.url);
   assert.equal(await page.locator('h1').count(),1);
-  const view=await page.evaluate(()=>({inner:innerWidth,scroll:document.documentElement.scrollWidth}));
+  const view=await page.evaluate(()=>({
+   inner:innerWidth,scroll:document.documentElement.scrollWidth,
+   offenders:[...document.querySelectorAll('body *')].map(e=>({tag:e.tagName,id:e.id,right:Math.round(e.getBoundingClientRect().right)})).filter(x=>x.right>innerWidth+2).slice(0,8)
+  }));
   assert(view.scroll<=view.inner+2,'Largura '+width+' teve rolagem horizontal: '+JSON.stringify(view));
   await page.locator('#login').click();
   await page.waitForFunction(()=>document.querySelector('#session-status').textContent.startsWith('ok:'));
