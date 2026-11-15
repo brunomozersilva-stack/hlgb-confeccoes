@@ -5,6 +5,7 @@ on:
       - feature/evolucao-laboratorio-isolado-v1-20261114
     paths:
       - 'evolucao-lab/entrada.html'
+      - 'evolucao-lab/central-operacional-2.html'
       - 'evolucao-lab/permissoes/permissoes-mobile.html'
       - '.github/workflows/evolucao-previa-download.yml'
   workflow_dispatch:
@@ -23,7 +24,7 @@ jobs:
           set -euo pipefail
           mkdir -p pacote/HLGB-Evolucao-Previa/permissoes
           cp evolucao-lab/entrada.html pacote/HLGB-Evolucao-Previa/index.html
-          for p in prototipo.html fluxos-operacionais.html acertos-simulador.html transacoes-simuladas.html preservacao.html paridade-critica.html; do
+          for p in central-operacional-2.html prototipo.html fluxos-operacionais.html acertos-simulador.html transacoes-simuladas.html preservacao.html paridade-critica.html; do
             cp "evolucao-lab/$p" "pacote/HLGB-Evolucao-Previa/$p"
           done
           cp evolucao-lab/permissoes/permissoes-mobile.html pacote/HLGB-Evolucao-Previa/permissoes/permissoes-mobile.html
@@ -44,7 +45,7 @@ jobs:
               if 'integracao/' in str(file) or 'api/pay' in source or 'api/upload' in source:
                   raise RuntimeError('Rota operacional não permitida no pacote: '+str(file))
               file.write_text(source)
-          print('PASS: 8 documentos HTML de demonstração e referências locais verificadas')
+          print('PASS: 9 documentos HTML de demonstração e referências locais verificadas')
           PY
           cat > pacote/LEIA-PRIMEIRO.txt <<'TXT'
           HLGB EVOLUCAO - PREVIA EXPERIMENTAL
