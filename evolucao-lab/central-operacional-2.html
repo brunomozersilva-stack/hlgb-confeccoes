@@ -115,6 +115,7 @@ dialog::backdrop{background:#1c1326a6}.modal-head{padding:20px 21px 12px;border-
 <div class="panel"><h2>Planejador de rota</h2><p class="desc">Organize a sequência de visitas. Use as setas para mudar a ordem; não envia uma rota real.</p>
 <ol class="route-list" id="route-list"></ol><div class="tip"><b>Melhoria prevista:</b> conectar etapas de saída, chegada e retorno, com alerta de lote sem confirmação. Neste exemplo só a ordenação é simulada.</div></div>
 </div>
+<div class="panel" style="margin-top:14px"><div class="panel-heading"><div><h2>Prestadores de serviços avulsos</h2><p class="desc">Embaladeiras e travetadoras demonstrativas, separadas das facções de costura. Consulte os lançamentos vinculados a cada uma.</p></div></div><div class="faction-grid" id="service-cards"></div></div>
 </section>
 <section class="section" data-section="hub" hidden>
 <div class="panel"><div class="panel-heading"><div><h2>Hub Financeiro</h2><p class="desc">Lançamentos criados pelos pagamentos simulados, vinculados à origem.</p></div><div class="tool" style="margin:0"><button class="btn small" id="hub-evidence" type="button">↓ Baixar evidência JSON</button><button class="btn small" id="hub-export" type="button">↓ Exportar CSV fictício</button></div></div>
@@ -286,6 +287,16 @@ function renderFaccoes(){
   head.append(n,el('span','badge '+(pending.length?'pending':'paid'),pending.length?'Em andamento':'Sem pendências'));
   c.append(head,el('div','big',fmt(pending.reduce((a,r)=>a+calc(r),0))),el('p','',pending.length+' acerto(s) pendente(s) · '+own.reduce((a,r)=>a+r.qty,0)+' peças no exemplo'));
   const bottom=el('div','fac-bottom'),b=rowButton('Ver acertos','faction',name);bottom.append(el('span','muted','Equipe fictícia'),b);c.append(bottom);cards.append(c);
+ }
+ const serviceCards=$('service-cards');serviceCards.replaceChildren();
+ for(const [service,staff] of Object.entries(exampleWorkers)){
+  for(const name of staff){
+   const own=records.filter(r=>r.faction===name&&r.service===service),pending=own.filter(r=>r.status==='Pendente');
+   const card=el('article','fac-card');
+   card.append(el('div','muted',service),el('h3','',name),el('div','big',fmt(pending.reduce((a,r)=>a+calc(r),0))),
+     el('p','',own.length+' serviço(s) na demonstração · '+pending.length+' pendente(s)'));
+   card.append(rowButton('Consultar serviços','faction',name));serviceCards.append(card);
+  }
  }
  const routeBox=$('route-list');routeBox.replaceChildren();
  route.forEach((name,index)=>{
