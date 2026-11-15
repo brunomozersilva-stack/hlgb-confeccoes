@@ -101,7 +101,7 @@ const pins=Object.freeze({A:'demo-session-a',B:'demo-session-b'});
 function fromCookie(cookie){
  return String(cookie||'').split(';').map(x=>x.trim()).find(x=>x.startsWith('hlgb_sync_lab='))?.slice('hlgb_sync_lab='.length)||'';
 }
-async function startServer(){
+async function startServer(port=0){
  mustBeIsolated();
  const test=await database(async c=>(await c.query('SELECT current_database() AS name')).rows[0].name);
  if(test!==DB)throw Error('Banco não autorizado.');
@@ -167,7 +167,7 @@ async function startServer(){
    send(404,{status:'not_found',message:'Rota local não existe.'});
   }catch(e){send(e.httpStatus||500,{status:'error',message:e.httpStatus?e.message:'Falha interna no laboratório.'})}
  });
- await new Promise((resolve,reject)=>{server.once('error',reject);server.listen(0,'127.0.0.1',resolve)});
+ await new Promise((resolve,reject)=>{server.once('error',reject);server.listen(port,'127.0.0.1',resolve)});
  return {url:'http://127.0.0.1:'+server.address().port,close:()=>new Promise((resolve,reject)=>server.close(e=>e?reject(e):resolve())),server};
 }
 module.exports={startServer,commit,getCommand,getRecord,mustBeIsolated};
