@@ -39,7 +39,7 @@ table{border-collapse:collapse;width:100%;font-size:12px;text-align:left}th{colo
 .badge{display:inline-flex;align-items:center;gap:5px;padding:4px 8px;border-radius:999px;font-size:11px;font-weight:750;white-space:nowrap;background:#f3ecfa;color:#593b75}
 .badge.pending{background:#fff3da;color:#9e6618}.badge.paid{background:#eaf5ef;color:#19734d}.badge.info{background:#f0ecf8;color:#6a4783}
 .row-actions{display:flex;gap:5px;justify-content:flex-end;flex-wrap:wrap}.check{width:17px;height:17px;accent-color:#6a408e;cursor:pointer}
-.mobile-list{display:none}.mobile-card{border:1px solid var(--line);border-radius:12px;padding:13px;margin:9px 0;background:white}.mobile-card .line{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:5px 0}.mobile-card strong{font-size:14px}.mobile-card .info{font-size:12px;color:var(--muted)}.mobile-card .buttons{display:flex;gap:8px;margin-top:12px}.mobile-card .buttons button{flex:1}
+.mobile-list{display:none}.mobile-card{border:1px solid var(--line);border-radius:12px;padding:13px;margin:9px 0;background:white}.mobile-card .line{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:5px 0}.mobile-card strong{font-size:14px}.mobile-card .info{font-size:12px;color:var(--muted)}.mobile-card .buttons{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}.mobile-card .buttons button{flex:1 1 42%}
 .bulk{display:flex;gap:10px;align-items:center;flex-wrap:wrap;padding:12px;background:#f8f4fb;border:1px solid #e9deef;border-radius:10px;margin-top:12px;font-size:12px;font-weight:700}.bulk[hidden]{display:none}.bulk .push{margin-left:auto}
 .timeline{display:grid;gap:0}.event{border-left:2px solid #dfd2e9;padding:0 0 17px 17px;margin-left:6px;position:relative}.event:before{content:"";position:absolute;width:9px;height:9px;background:#976cba;border:2px solid white;box-shadow:0 0 0 1px #e5d5f0;border-radius:50%;left:-6px;top:4px}.event:last-child{padding-bottom:2px}.event strong{display:block;font-size:12px}.event small{color:var(--muted);font-size:11px}
 .tip{background:#f6f0fb;border-radius:12px;padding:13px;margin-top:16px;font-size:12px;color:#64477c}
@@ -80,7 +80,7 @@ dialog::backdrop{background:#1c1326a6}.modal-head{padding:20px 21px 12px;border-
 <div class="heading"><div><div class="eyebrow">Nova experiência operacional</div><h1 id="page-title">Seu dia em um só lugar</h1><p id="page-description">O que precisa da sua atenção, as facções em produção e os acertos que aguardam pagamento.</p></div><div class="heading-actions"><button class="btn" type="button" id="reset-demo">↺ Reiniciar exemplo</button><button class="btn primary" type="button" id="new-record">+ Novo acerto</button></div></div>
 <div class="metrics">
 <div class="metric"><div class="label">Acertos pendentes</div><strong id="metric-pending">—</strong><div class="detail" id="metric-pending-detail">Aguardando conferência</div><span class="deco">▦</span></div>
-<div class="metric"><div class="label">Pagamentos simulados</div><strong id="metric-paid">—</strong><div class="detail">Inclui os exemplos já pagos</div><span class="deco">↗</span></div>
+<div class="metric"><div class="label">Pagamentos líquidos simulados</div><strong id="metric-paid">—</strong><div class="detail">Inclui os exemplos já pagos</div><span class="deco">↗</span></div>
 <div class="metric"><div class="label">Facções com trabalho</div><strong id="metric-factions">—</strong><div class="detail">Modelos aguardando acerto</div><span class="deco">♧</span></div>
 <div class="metric"><div class="label">Lançamentos no Hub</div><strong id="metric-hub">—</strong><div class="detail">Registros demonstrativos</div><span class="deco">⇆</span></div>
 </div>
@@ -119,7 +119,7 @@ dialog::backdrop{background:#1c1326a6}.modal-head{padding:20px 21px 12px;border-
 </section>
 <section class="section" data-section="hub" hidden>
 <div class="panel"><div class="panel-heading"><div><h2>Hub Financeiro</h2><p class="desc">Lançamentos criados pelos pagamentos simulados, vinculados à origem.</p></div><div class="tool" style="margin:0"><button class="btn small" id="hub-evidence" type="button">↓ Baixar evidência JSON</button><button class="btn small" id="hub-export" type="button">↓ Exportar CSV fictício</button></div></div>
-<div class="hub-summary"><span>Saídas registradas nesta demonstração</span><strong id="hub-total">—</strong><span class="muted" id="hub-count">—</span></div>
+<div class="hub-summary"><span>Saídas líquidas desta demonstração (abatidas correções)</span><strong id="hub-total">—</strong><span class="muted" id="hub-count">—</span></div>
 <div class="toolbox"><div class="field"><label for="hub-search">Buscar lançamento</label><input id="hub-search" class="input" type="search" placeholder="Facção, descrição ou ID"></div>
 <div class="field"><label for="hub-period">Origem</label><select id="hub-period" class="input"><option value="all">Todos</option><option value="initial">Exemplos iniciais</option><option value="session">Criados na sessão</option></select></div><div class="field"><label for="hub-order">Ordenar</label><select id="hub-order" class="input"><option value="recent">Recentes primeiro</option><option value="amount">Maior valor</option></select></div></div>
 <div class="table-scroll"><table><thead><tr><th>ID / Origem</th><th>Facção</th><th>Descrição</th><th>Valor</th><th>Status</th><th>Comprovante</th></tr></thead><tbody id="hub-body"></tbody></table></div><div class="mobile-list" id="hub-mobile"></div>
@@ -149,6 +149,30 @@ dialog::backdrop{background:#1c1326a6}.modal-head{padding:20px 21px 12px;border-
 </div>
 <div class="modal-foot"><button class="btn" type="button" id="modal-cancel">Cancelar</button><button class="btn primary" id="modal-save" type="submit">Aplicar na simulação</button></div>
 </form></dialog>
+<dialog id="return-dialog" aria-labelledby="return-title">
+<form id="return-form" novalidate>
+<div class="modal-head"><div class="eyebrow">Devolução anterior ao pagamento · apenas simulação</div><h2 id="return-title">Devolver peças do acerto</h2><p id="return-context" class="muted"></p></div>
+<div class="modal-body"><div class="field"><label for="return-qty">Peças devolvidas</label><input id="return-qty" class="input" type="number" min="1" step="1" inputmode="numeric" required></div>
+<div class="field" style="margin-top:10px"><label for="return-reason">Motivo da devolução</label><input id="return-reason" class="input" maxlength="180" required placeholder="Descreva a conferência das peças"></div>
+<div class="preview-total"><span>Novo total previsto</span><strong id="return-preview">—</strong></div>
+<p class="muted" role="status" aria-live="polite" id="return-feedback">A devolução reduz apenas peças ainda não pagas e conserva um histórico.</p></div>
+<div class="modal-foot"><button type="button" class="btn" id="return-cancel">Voltar</button><button type="submit" class="btn primary" id="return-confirm">Aplicar na simulação</button></div>
+</form></dialog>
+<dialog id="correction-dialog" aria-labelledby="correction-title">
+<form id="correction-form" novalidate>
+<div class="modal-head"><div class="eyebrow">Correção posterior ao pagamento · apenas simulação</div><h2 id="correction-title">Registrar ajuste compensatório</h2><p id="correction-context" class="muted"></p></div>
+<div class="modal-body"><p class="muted">Não modifica nem exclui o pagamento original. Cria uma linha negativa de compensação vinculada ao acerto no Hub.</p>
+<div class="field"><label for="correction-amount">Valor da compensação (R$)</label><input id="correction-amount" class="input" inputmode="decimal" required placeholder="0,00"></div>
+<div class="field" style="margin-top:10px"><label for="correction-reason">Motivo / conferência</label><input id="correction-reason" class="input" maxlength="180" required></div>
+<div class="preview-total"><span>Saldo após compensação</span><strong id="correction-preview">—</strong></div>
+<p id="correction-feedback" class="muted" role="status" aria-live="polite">Informe o valor e o motivo.</p></div>
+<div class="modal-foot"><button type="button" class="btn" id="correction-cancel">Voltar</button><button type="submit" class="btn primary" id="correction-confirm">Registrar correção simulada</button></div>
+</form></dialog>
+<dialog id="history-dialog" aria-labelledby="history-title">
+<div class="modal-head"><div class="eyebrow">Rastreabilidade da sessão fictícia</div><h2 id="history-title">Histórico do acerto</h2><p id="history-subtitle" class="muted"></p></div>
+<div class="modal-body"><div id="history-list" class="timeline"></div><div class="tip">Este histórico desaparece ao recarregar a prévia; para preservar a análise, baixe a evidência JSON antes.</div></div>
+<div class="modal-foot"><button type="button" class="btn primary" id="history-close">Fechar</button></div>
+</dialog>
 <dialog id="pay-dialog" aria-labelledby="pay-title">
 <div class="modal-head"><div class="eyebrow">Confirmação de demonstração</div><h2 id="pay-title">Simular fechamento</h2></div>
 <div class="modal-body"><p id="pay-message">Confirme os itens.</p><div class="preview-total"><span>Total do fechamento</span><strong id="pay-total">—</strong></div>
@@ -180,18 +204,29 @@ const seed=[
  {id:'AC-1036',model:'Camisola Ana Amélia',faction:'Fran',qty:90,price:120,discount:0,extra:0,status:'Pago',date:'12/11',reason:''},
  {id:'AC-1035',model:'Cueca Feminina Tábata',faction:'Roseli',qty:150,price:42,discount:0,extra:0,status:'Pendente',date:'12/11',reason:''}
 ];
-let records=[],hub=[],audit=[],route=[],selected=new Set(),view='overview',editId=null,payIds=[],nextId=1043,sequence=0;
+let records=[],hub=[],audit=[],route=[],history={},selected=new Set(),view='overview',editId=null,payIds=[],returnId=null,correctionId=null,correctionKey=null,nextId=1043,sequence=0;
 const fmt=n=>(n/100).toLocaleString('pt-BR',{style:'currency',currency:'BRL'});
 const now=()=>new Date().toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'});
 const calc=r=>r.qty*(r.price-r.discount)+r.extra;
 const norm=t=>String(t||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();
 const el=(tag,cls,text)=>{const e=document.createElement(tag);if(cls)e.className=cls;if(text!==undefined)e.textContent=text;return e};
 const isValidId=id=>records.some(r=>r.id===id);
+const snapshot=r=>({model:r.model,service:r.service||'Costura',faction:r.faction,qty:r.qty,price:r.price,discount:r.discount,extra:r.extra,status:r.status,total:calc(r)});
+function addHistory(id,event,details,before,after){
+ if(!history[id])history[id]=[];
+ history[id].push({event,details,time:now(),before:before||null,after:after||null});
+}
+function baseHubEntry(h){return h.type!=='correcao'}
+function creditedFor(id){return hub.filter(h=>h.source===id&&!baseHubEntry(h)).reduce((total,h)=>total-h.amount,0)}
+function remainingCredit(r){return calc(r)-creditedFor(r.id)}
+
 function reset(){
  records=seed.map(r=>({...r}));hub=[
   {id:'HUB-1038',source:'AC-1038',faction:'Ge',detail:'Doll Melanie',amount:calc(records[4]),origin:'initial',proof:'PDF 1038'},
   {id:'HUB-1036',source:'AC-1036',faction:'Fran',detail:'Camisola Ana Amélia',amount:calc(records[6]),origin:'initial',proof:'—'}
  ];audit=[{id:'INIT-1',message:'Ambiente demonstrativo carregado',time:now()}];route=[...factions];selected.clear();nextId=1043;sequence=0;
+ history={};for(const record of records)addHistory(record.id,'Exemplo inicial','Acerto fictício carregado para demonstração',null,snapshot(record));
+ returnId=null;correctionId=null;correctionKey=null;
  $('acerto-search').value='';$('acerto-service').value='all';$('acerto-status').value='all';$('acerto-order').value='recent';
  $('hub-search').value='';$('hub-period').value='all';$('hub-order').value='recent';
  render();notify('Exemplos e filtros restaurados. Nenhum dado foi salvo.',false);
@@ -219,7 +254,7 @@ function renderMetrics(){
  const pending=records.filter(r=>r.status==='Pendente'),paid=records.filter(r=>r.status==='Pago');
  $('metric-pending').textContent=fmt(pending.reduce((sum,r)=>sum+calc(r),0));
  $('metric-pending-detail').textContent=pending.length+' acertos aguardando conferência';
- $('metric-paid').textContent=fmt(paid.reduce((sum,r)=>sum+calc(r),0));
+ $('metric-paid').textContent=fmt(hub.reduce((sum,h)=>sum+h.amount,0));
  $('metric-factions').textContent=String(new Set(pending.map(r=>r.faction)).size);
  $('metric-hub').textContent=String(hub.length);
 }
@@ -259,7 +294,9 @@ function renderAcertos(){
   const c2=el('td','',r.faction),c3=el('td','',String(r.qty)),c4=el('td','',fmt(r.price)),c5=el('td','',fmt(r.extra-r.qty*r.discount)),c6=el('td','money',fmt(calc(r)));
   const c7=el('td');c7.append(badge);const c8=el('td'),actions=el('div','row-actions');
   actions.append(rowButton(pending?'Editar':'Detalhes','edit',r.id));
-  if(pending)actions.append(rowButton('Pagar','pay',r.id));c8.append(actions);
+  if(pending){actions.append(rowButton('Devolver peças','return',r.id));actions.append(rowButton('Pagar','pay',r.id))}
+  else actions.append(rowButton('Corrigir pago','correction',r.id));
+  actions.append(rowButton('Histórico','history',r.id));c8.append(actions);
   tr.append(c0,c1,c2,c3,c4,c5,c6,c7,c8);body.append(tr);
   const card=el('article','mobile-card'),head=el('div','line'),left=el('div'),t=el('strong','',r.model);
   left.append(t,el('div','info',r.id+' · '+r.faction+' · '+r.qty+' peças · '+(r.service||'Costura')));head.append(left,el('span','badge '+(pending?'pending':'paid'),r.status));
@@ -268,7 +305,9 @@ function renderAcertos(){
   mcheck.type='checkbox';mcheck.dataset.select=r.id;mcheck.checked=selected.has(r.id);mcheck.disabled=!pending;
   mcheck.setAttribute('aria-label','Selecionar '+r.id);mlabel.append(mcheck,document.createTextNode(' Selecionar'));
   actionsMobile.append(mlabel,rowButton(pending?'Editar':'Detalhes','edit',r.id));
-  if(pending)actionsMobile.append(rowButton('Pagar','pay',r.id));
+  if(pending){actionsMobile.append(rowButton('Devolver peças','return',r.id));actionsMobile.append(rowButton('Pagar','pay',r.id))}
+  else actionsMobile.append(rowButton('Corrigir pago','correction',r.id));
+  actionsMobile.append(rowButton('Histórico','history',r.id));
   card.append(head,second,actionsMobile);mobile.append(card);
  }
  if(!rows.length)mobile.append(el('div','empty','Nenhum acerto encontrado. Experimente outra busca ou filtro.'));
@@ -314,11 +353,12 @@ function renderHub(){
  const body=$('hub-body'),mobile=$('hub-mobile');body.replaceChildren();mobile.replaceChildren();
  for(const h of rows){
   const tr=el('tr');
-  for(const val of [h.id,h.faction,h.detail,fmt(h.amount),'Realizado',h.proof])tr.append(el('td','',val));
+  for(const val of [h.id,h.faction,h.detail+(h.type==='correcao'?' · Correção: '+h.reason:''),fmt(h.amount),h.type==='correcao'?'Compensação':'Realizado',h.proof])tr.append(el('td','',val));
   body.append(tr);
   const card=el('article','mobile-card'),head=el('div','line');
   head.append(el('strong','',h.faction),el('strong','',fmt(h.amount)));card.append(head,el('div','info',h.id+' · '+h.detail+' · '+h.source));
-  card.append(el('div','line'));card.lastChild.append(el('span','badge paid','Realizado'),el('span','muted','Comprovante: '+h.proof));
+  card.append(el('div','line'));card.lastChild.append(el('span','badge '+(h.type==='correcao'?'pending':'paid'),h.type==='correcao'?'Compensação':'Realizado'),el('span','muted','Comprovante: '+h.proof));
+  if(h.type==='correcao')card.append(el('div','muted','Motivo: '+h.reason));
   mobile.append(card);
  }
  if(!rows.length)mobile.append(el('div','empty','Nenhum lançamento nesta pesquisa.'));
@@ -396,9 +436,89 @@ function saveRecord(e){
  if(before&&before.status!=='Pendente'){notify('Acerto pago não pode ser alterado.',true);return}
  const saved={id:before?.id||'AC-'+nextId++,model:v.model,service:v.service,faction:v.faction,qty:v.qty,price:v.price,discount:v.discount,
   extra:v.extra,reason:v.reason,date:'15/11',status:'Pendente'};
- if(before){Object.assign(before,saved);log('Acerto '+saved.id+' revisado · '+saved.faction)}
- else{records.unshift(saved);log('Novo acerto '+saved.id+' incluído na simulação')}
+ if(before){const prior=snapshot(before);Object.assign(before,saved);addHistory(saved.id,'Edição antes do pagamento',v.reason||'Edição da ficha do acerto',prior,snapshot(before));log('Acerto '+saved.id+' revisado · '+saved.faction)}
+ else{records.unshift(saved);addHistory(saved.id,'Criação de acerto fictício','Acerto incluído para teste',null,snapshot(saved));log('Novo acerto '+saved.id+' incluído na simulação')}
  $('record-dialog').close();render();switchView('acertos');notify('Acerto atualizado somente nesta demonstração.');
+}
+function openReturn(id){
+ const r=records.find(item=>item.id===id);
+ if(!r||r.status!=='Pendente')return notify('Devolução de peças disponível somente para acertos pendentes.',true);
+ if(r.qty<=1)return notify('Não é possível zerar o acerto aqui; cancelamento completo exige fluxo próprio.',true);
+ returnId=id;$('return-qty').value='';$('return-reason').value='';
+ $('return-qty').max=String(r.qty-1);
+ $('return-context').textContent=r.id+' · '+r.model+' · '+r.qty+' peças · '+fmt(calc(r));
+ previewReturn();$('return-dialog').showModal();
+}
+function returnValues(){
+ const r=records.find(item=>item.id===returnId),qty=Number($('return-qty').value),reason=$('return-reason').value.trim();
+ if(!r||r.status!=='Pendente')throw Error('Acerto não está mais pendente.');
+ if(!Number.isSafeInteger(qty)||qty<1||qty>=r.qty)throw Error('Devolução deve ter entre 1 e '+(r.qty-1)+' peças.');
+ if(reason.length<5)throw Error('Informe um motivo com pelo menos cinco caracteres.');
+ const updated={...r,qty:r.qty-qty};
+ if(calc(updated)<=0)throw Error('O saldo do acerto deve continuar positivo. Confira ajustes adicionais.');
+ return {r,qty,reason,updated};
+}
+function previewReturn(){
+ try{const v=returnValues();$('return-preview').textContent=fmt(calc(v.updated));$('return-feedback').textContent='De '+v.r.qty+' para '+v.updated.qty+' peças; sem excluir o original do histórico.';$('return-confirm').disabled=false}
+ catch(e){$('return-preview').textContent='—';$('return-feedback').textContent=e.message;$('return-confirm').disabled=true}
+}
+function confirmReturn(event){
+ event.preventDefault();let v;try{v=returnValues()}catch(e){return notify(e.message,true)}
+ const prior=snapshot(v.r);v.r.qty=v.updated.qty;
+ addHistory(v.r.id,'Devolução de peças',v.qty+' peça(s) devolvida(s). Motivo: '+v.reason,prior,snapshot(v.r));
+ log('Devolução '+v.r.id+' · '+v.qty+' peças · '+v.reason);
+ returnId=null;$('return-dialog').close();render();
+ notify('Devolução simulada, com histórico preservado.');
+}
+function openCorrection(id){
+ const r=records.find(item=>item.id===id);
+ if(!r||r.status!=='Pago')return notify('Somente acertos pagos permitem compensação.',true);
+ const remaining=remainingCredit(r);
+ if(remaining<=0)return notify('Pagamento original já está totalmente compensado.',true);
+ correctionId=id;
+ correctionKey='COR-'+id+'-'+(hub.filter(h=>h.source===id&&h.type==='correcao').length+1);
+ $('correction-amount').value='';$('correction-reason').value='';
+ $('correction-context').textContent=r.id+' · '+r.model+' · pago '+fmt(calc(r))+' · disponível para compensar '+fmt(remaining);
+ previewCorrection();$('correction-dialog').showModal();
+}
+function correctionValues(){
+ const r=records.find(item=>item.id===correctionId);
+ if(!r||r.status!=='Pago')throw Error('Acerto inválido ou ainda não pago.');
+ if(hub.some(h=>h.operationKey===correctionKey))throw Error('Esta operação de ajuste já foi registrada.');
+ const amount=monetary($('correction-amount').value);
+ if(amount<=0||amount>remainingCredit(r))throw Error('Valor deve ser maior que zero e não superar '+fmt(remainingCredit(r))+'.');
+ const reason=$('correction-reason').value.trim();
+ if(reason.length<5)throw Error('Informe um motivo com pelo menos cinco caracteres.');
+ return {r,amount,reason};
+}
+function previewCorrection(){
+ try{const v=correctionValues();$('correction-preview').textContent=fmt(remainingCredit(v.r)-v.amount);$('correction-feedback').textContent='Pagamento original preservado; compensação vinculada ao Hub.';$('correction-confirm').disabled=false}
+ catch(e){$('correction-preview').textContent='—';$('correction-feedback').textContent=e.message;$('correction-confirm').disabled=true}
+}
+function confirmCorrection(event){
+ event.preventDefault();let v;try{v=correctionValues()}catch(e){return notify(e.message,true)}
+ const key=correctionKey;
+ if(hub.some(h=>h.operationKey===key))return notify('Correção já registrada: operação duplicada impedida.',true);
+ hub.push({id:'HUB-'+key,source:v.r.id,faction:v.r.faction,detail:v.r.model,service:v.r.service||'Costura',
+  amount:-v.amount,origin:'session',proof:'Não anexado',type:'correcao',operationKey:key,reason:v.reason});
+ addHistory(v.r.id,'Compensação após pagamento','Crédito de '+fmt(v.amount)+' · '+v.reason,snapshot(v.r),snapshot(v.r));
+ log('Correção '+v.r.id+' · -'+fmt(v.amount)+' · '+v.reason);
+ correctionId=null;correctionKey=null;$('correction-dialog').close();render();
+ notify('Compensação fictícia registrada sem modificar o pagamento original.');
+}
+function openHistory(id){
+ const r=records.find(item=>item.id===id);if(!r)return;
+ $('history-subtitle').textContent=id+' · '+r.model+' · '+r.status+' · '+fmt(calc(r));
+ const list=$('history-list');list.replaceChildren();
+ for(const event of [...(history[id]||[])].reverse()){
+  const line=el('div','event');
+  line.append(el('strong','',event.event),el('small','',event.time+' · '+event.details));
+  if(event.before&&event.after){
+    line.append(el('small','','Antes: '+event.before.qty+' peças / '+fmt(event.before.total)+' · Depois: '+event.after.qty+' peças / '+fmt(event.after.total)));
+  }
+  list.append(line);
+ }
+ $('history-dialog').showModal();
 }
 function openPay(ids){
  const valid=[...new Set(ids)].filter(isValidId);
@@ -426,7 +546,10 @@ function confirmPay(){
  }
  // Uma única atualização atômica de dados fictícios em memória, sem rede.
  const used=new Set(hub.map(h=>h.source));if(entries.some(x=>used.has(x.source))){notify('Pagamento duplicado impedido.',true);return}
- for(const r of touched)r.status='Pago';
+ for(const r of touched){
+  const prior=snapshot(r);r.status='Pago';
+  addHistory(r.id,'Pagamento simulado','Pagamento de '+fmt(calc(r))+' · '+proof,prior,snapshot(r));
+ }
  hub.push(...entries);
  log(touched.length+' acerto(s) pago(s) em lote: '+fmt(entries.reduce((a,x)=>a+x.amount,0)));
  selected.clear();payIds=[];$('pay-dialog').close();$('pay-proof').value='';render();notify('Pagamento simulado e vinculado ao Hub. Nenhum valor real foi movimentado.');
@@ -446,11 +569,13 @@ function exportEvidence(){
   productionApproval:false,
   capturedAt:new Date().toISOString(),
   counts:{acertos:rows.length,pending:rows.filter(r=>r.status==='Pendente').length,paid:rows.filter(r=>r.status==='Pago').length,hub:hub.length},
-  acertos:rows,hub:hub.map(h=>({...h})),rota:[...route],
+  acertos:rows,hub:hub.map(h=>({...h})),rota:[...route],historicoPorAcerto:structuredClone(history),
   historico:audit.map(item=>({...item})),
   checks:{
-   acertosPagosComLancamento:rows.filter(r=>r.status==='Pago').every(r=>hub.filter(h=>h.source===r.id).length===1),
-   hubSemDuplicacao:[...new Set(hub.map(h=>h.source))].length===hub.length,
+   acertosPagosComLancamento:rows.filter(r=>r.status==='Pago').every(r=>hub.filter(h=>h.source===r.id&&baseHubEntry(h)).length===1),
+   hubSemDuplicacao:[...new Set(hub.map(h=>h.id))].length===hub.length,
+   pagamentosOriginaisSemDuplicacao:[...new Set(hub.filter(baseHubEntry).map(h=>h.source))].length===hub.filter(baseHubEntry).length,
+   compensacoesDentroDoSaldo:rows.filter(r=>r.status==='Pago').every(r=>remainingCredit(r)>=0),
    valoresEmCentavosInteiros:rows.every(r=>Number.isSafeInteger(r.totalCentavos))&&hub.every(h=>Number.isSafeInteger(h.amount))
   }
  };
@@ -481,6 +606,9 @@ document.addEventListener('click',e=>{
  const b=e.target.closest('button');
  if(!b)return;
  if(b.dataset.edit){editRecord(b.dataset.edit);return}
+ if(b.dataset.return){openReturn(b.dataset.return);return}
+ if(b.dataset.correction){openCorrection(b.dataset.correction);return}
+ if(b.dataset.history){openHistory(b.dataset.history);return}
  if(b.dataset.pay){openPay([b.dataset.pay]);return}
  if(b.dataset.faction){
   $('acerto-search').value=b.dataset.faction;$('acerto-status').value='all';switchView('acertos');return
@@ -492,6 +620,15 @@ $('bulk-clear').addEventListener('click',()=>{selected.clear();renderAcertos()})
 $('bulk-pay').addEventListener('click',()=>openPay([...selected]));
 $('pay-cancel').addEventListener('click',()=>$('pay-dialog').close());
 $('pay-confirm').addEventListener('click',confirmPay);
+$('return-cancel').addEventListener('click',()=>$('return-dialog').close());
+$('return-form').addEventListener('submit',confirmReturn);
+$('return-qty').addEventListener('input',previewReturn);
+$('return-reason').addEventListener('input',previewReturn);
+$('correction-cancel').addEventListener('click',()=>$('correction-dialog').close());
+$('correction-form').addEventListener('submit',confirmCorrection);
+$('correction-amount').addEventListener('input',previewCorrection);
+$('correction-reason').addEventListener('input',previewCorrection);
+$('history-close').addEventListener('click',()=>$('history-dialog').close());
 $('new-record').addEventListener('click',()=>editRecord());
 $('modal-cancel').addEventListener('click',()=>$('record-dialog').close());
 $('record-form').addEventListener('submit',saveRecord);
