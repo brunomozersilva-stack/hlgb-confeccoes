@@ -92,6 +92,7 @@ dialog::backdrop{background:#24152bb2}.modal-head{padding:20px 20px 10px;border-
 <div class="field"><label for="movement-qty">Quantidade desta movimentação</label><input id="movement-qty" type="number" class="input" min="1" step="1" inputmode="numeric" required></div>
 <div class="field" id="operator-field"><label for="movement-operator">Responsável / facção de exemplo</label><select id="movement-operator" class="input"></select></div>
 <div class="cut-fields" id="cut-fields" hidden>
+ <div class="field wide"><label for="movement-cutter-type">Tipo de cortador</label><select class="input" id="movement-cutter-type"><option value="interno">Interno</option><option value="externo">Externo</option></select></div>
  <div class="field wide"><label for="movement-material">Material consumido no corte</label><select class="input" id="movement-material">
   <option value="tule">Tule · custo sintético R$ 18/kg</option>
   <option value="renda">Renda · custo sintético R$ 42/kg</option>
@@ -234,7 +235,19 @@ function render(){
  }
  if(!rows.length){tb.append(el('tr'));const cell=el('td','empty','Nenhuma variante encontrada. Confira os filtros.');cell.colSpan=9;tb.lastChild.append(cell);mobile.append(el('div','empty','Nenhuma variante encontrada.'))}
 }
-function actorsFor(line,stage){if(stage==='return')return line.faction?[line.faction]:[];if(stage==='send'&&line.faction)return [line.faction];return actors[stage]||[]}
+function actorsFor(line,stage){
+ if(stage==='return')return line.faction?[line.faction]:[];
+ if(stage==='send'&&line.faction)return [line.faction];
+ if(stage==='cut')return $('movement-cutter-type').value==='externo'?['Cortador Externo Demo B']:['Cortador Interno Demo A'];
+ return actors[stage]||[];
+}
+function refreshCutOperator(){
+ if(!pending||pending.stage!=='cut')return;
+ const line=allLines().find(l=>l.id===pending.lineId);
+ const field=$('movement-operator');field.replaceChildren();
+ for(const name of actorsFor(line,'cut')){const option=el('option','',name);option.value=name;field.append(option)}
+ updatePreview();
+}
 function openMove(lineId,stage){
  if(!['cut','send','return','separate'].includes(stage)||current!==stage)return;
  const line=allLines().find(x=>x.id===lineId),available=line&&remaining(line,stage);
@@ -243,6 +256,7 @@ function openMove(lineId,stage){
  $('movement-title').textContent=stages[stage].verb+' · '+line.orderId;
  $('movement-context').textContent=line.model+' · '+line.color+'/'+line.size+' · disponíveis '+available+' peças';
  $('movement-qty').value='';$('movement-qty').max=String(available);$('movement-note').value='';
+ $('movement-cutter-type').value='interno';
  const opt=$('movement-operator');opt.replaceChildren();
  for(const name of actorsFor(line,stage)){const item=el('option','',name);item.value=name;opt.append(item)}
  $('operator-field').hidden=stage==='return';
@@ -253,7 +267,7 @@ function openMove(lineId,stage){
  $('movement-error').hidden=true;updatePreview();
  $('movement-dialog').showModal();
 }
-function cutDetails(){
+function cutDetails(actor){
  const grams=id=>{
   const raw=$(id).value.trim(),value=Number(raw);
   if(!/^\d+$/.test(raw)||!Number.isSafeInteger(value)||value>1000000)throw Error('Informe pesos inteiros em gramas, até 1.000.000.');
@@ -268,9 +282,13 @@ function cutDetails(){
  if(!reviewerOne||!reviewerTwo||reviewerOne===reviewerTwo)throw Error('São necessárias duas conferências fictícias distintas.');
  const spreader=$('movement-spreader').value;
  if(!['Infestador Demo A','Infestador Demo B'].includes(spreader))throw Error('Infestador inválido.');
+ const cutterType=$('movement-cutter-type').value;
+ if(!['interno','externo'].includes(cutterType)||
+   (cutterType==='interno'&&!actor.startsWith('Cortador Interno'))||
+   (cutterType==='externo'&&!actor.startsWith('Cortador Externo')))throw Error('Tipo de cortador não corresponde ao responsável.');
  const estimatedCostCents=Math.round((usedGrams+wasteGrams)*materials[material].costCentKg/1000);
  return {material,materialLabel:materials[material].label,totalGrams,usedGrams,wasteGrams,
-  leftoverGrams:totalGrams-usedGrams-wasteGrams,estimatedCostCents,spreader,reviewerOne,reviewerTwo};
+  leftoverGrams:totalGrams-usedGrams-wasteGrams,estimatedCostCents,spreader,cutterType,reviewerOne,reviewerTwo};
 }
 function validateMove(){
  if(!pending)throw Error('Movimentação não iniciada.');
@@ -282,7 +300,7 @@ function validateMove(){
  const actor=pending.stage==='return'?line.faction:$('movement-operator').value;
  if(!actor||!actorsFor(line,pending.stage).includes(actor))throw Error('Responsável ou facção não permitido.');
  return {line,qty,actor,available,note:$('movement-note').value.trim().slice(0,120),
-  cutSheet:pending.stage==='cut'?cutDetails():null};
+  cutSheet:pending.stage==='cut'?cutDetails(actor):null};
 }
 function updatePreview(){
  try{
@@ -334,7 +352,7 @@ function renderAudit(){
    el('small','',move.note||'Sem observação'));
   if(move.cutSheet){
    const s=move.cutSheet;
-   a.lastChild.append(el('small','',s.materialLabel+' · '+s.usedGrams+' g utilizados · '+s.wasteGrams+' g lixo · '+s.leftoverGrams+' g sobra · '+formatMoney(s.estimatedCostCents)),
+   a.lastChild.append(el('small','',s.materialLabel+' · cortador '+s.cutterType+' · '+s.usedGrams+' g utilizados · '+s.wasteGrams+' g lixo · '+s.leftoverGrams+' g sobra · '+formatMoney(s.estimatedCostCents)),
     el('small','',s.spreader+' · '+s.reviewerOne+' / '+s.reviewerTwo));
   }
  }
@@ -359,6 +377,7 @@ document.addEventListener('click',e=>{const b=e.target.closest('button[data-acti
 $('movement-form').addEventListener('submit',commitMove);
 $('movement-qty').addEventListener('input',updatePreview);
 $('movement-operator').addEventListener('change',updatePreview);
+$('movement-cutter-type').addEventListener('change',refreshCutOperator);
 for(const id of ['movement-material','movement-weight-total','movement-weight-used','movement-weight-waste','movement-spreader','movement-reviewer-one','movement-reviewer-two']){
  $(id).addEventListener(id.startsWith('movement-weight')?'input':'change',updatePreview);
 }
