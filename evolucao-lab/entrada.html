@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#39254f">
+<title>HLGB Evolução | Prévia para avaliação</title>
+<style>
+:root{font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:#2d2540;background:#f8f6fb;--purple:#533471;--muted:#655c72;--line:#e4ddeb}
+*{box-sizing:border-box}body{margin:0}a{color:inherit}a:focus-visible{outline:3px solid #b98be3;outline-offset:4px}
+header{background:linear-gradient(130deg,#332046,#62407e);color:#fff;padding:29px max(18px,calc((100% - 1110px)/2)) 35px}
+.eyebrow{font-size:11px;letter-spacing:.15em;font-weight:800;color:#dfc7ee}
+h1{font-size:clamp(27px,4.7vw,43px);line-height:1.16;letter-spacing:-.02em;margin:13px 0 12px}header p{color:#e7deef;line-height:1.55;max-width:690px;margin:0 0 17px}
+.pill{display:inline-flex;align-items:center;gap:8px;border:1px solid #bd9dcf;color:#f4e8fc;border-radius:999px;padding:7px 11px;font-size:12px;font-weight:650}
+main{max-width:1150px;margin:auto;padding:22px 20px 55px}.warning{padding:15px 17px;border:1px solid #dfc792;background:#fff9e9;border-radius:13px;color:#674b1b;font-size:13px;line-height:1.6;margin-bottom:24px}
+h2{font-size:21px;margin:25px 0 6px}p.sub{font-size:13px;color:var(--muted);line-height:1.55;margin:0 0 17px}
+.cards{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:13px}
+.card{background:#fff;border:1px solid var(--line);border-radius:15px;padding:19px;text-decoration:none;display:flex;flex-direction:column;min-width:0;min-height:202px;transition:transform .13s,border-color .13s,box-shadow .13s}
+.card:hover{border-color:#b79aca;box-shadow:0 7px 25px #50377617;transform:translateY(-2px)}
+.number{display:inline-flex;align-items:center;justify-content:center;background:#f0e8f7;color:#60427e;width:36px;height:36px;border-radius:11px;font-size:14px;font-weight:850}
+.card h3{font-size:17px;line-height:1.3;margin:12px 0 6px;overflow-wrap:anywhere}.card p{font-size:13px;line-height:1.52;color:var(--muted);margin:0 0 14px}
+.card .go{margin-top:auto;color:#583676;font-size:13px;font-weight:750}
+.info{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:22px}
+.info>div{border-radius:13px;background:#fff;border:1px solid var(--line);padding:16px;font-size:13px;line-height:1.6;color:var(--muted)}
+.info strong{display:block;color:#302040;margin-bottom:5px}
+footer{margin-top:24px;font-size:12px;color:#777080;line-height:1.5}
+@media(max-width:880px){.cards{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:560px){header{padding:25px 18px 29px}main{padding:14px 12px 40px}.cards,.info{grid-template-columns:1fr}.card{min-height:0;padding:16px}.card p{margin-bottom:18px}.warning{padding:12px}}
+@media(prefers-reduced-motion:reduce){.card{transition:none}.card:hover{transform:none}}
+</style>
+</head>
+<body>
+<header>
+<div class="eyebrow">HLGB CONFECÇÕES · LABORATÓRIO EVOLUÇÃO</div>
+<h1>Prévia para você testar</h1>
+<p>Experimente as melhorias da nova interface pelo computador ou celular, antes de qualquer integração com o HLGB utilizado pelos funcionários.</p>
+<span class="pill">● Ambiente experimental · dados fictícios</span>
+</header>
+<main>
+<div class="warning"><strong>Esta não é a versão de produção.</strong> Tudo aqui é demonstrativo. As páginas não acessam seu Supabase, não alteram lançamentos, não salvam pagamentos e não enviam comprovantes. Nunca coloque dados reais da empresa nesta prévia.</div>
+<h2>Comece pelas principais telas</h2>
+<p class="sub">Toque em uma opção para abrir o protótipo interativo. Use os exemplos que já aparecem nas telas.</p>
+<section class="cards" aria-label="Telas para testar">
+<a class="card" href="./fluxos-operacionais.html"><span class="number">01</span><h3>Acertos, produtos e relatórios</h3><p>Veja como ficaram as operações do dia a dia: pesquise produtos, simule um acerto e filtre relatórios.</p><span class="go">Abrir demonstração →</span></a>
+<a class="card" href="./acertos-simulador.html"><span class="number">02</span><h3>Calculadora de Acertos</h3><p>Experimente travetadas, abatimentos, acréscimos, compensações e recebimentos parciais com valores fictícios.</p><span class="go">Testar cálculos →</span></a>
+<a class="card" href="./transacoes-simuladas.html"><span class="number">03</span><h3>Segurança do salvamento</h3><p>Simule um pagamento, uma falha de conexão, conflitos e a conferência de uma gravação inconclusiva.</p><span class="go">Simular salvamento →</span></a>
+<a class="card" href="./permissoes/permissoes-mobile.html"><span class="number">04</span><h3>Permissões dos funcionários</h3><p>Compare o que cada perfil pode visualizar e quais ações permanecem bloqueadas no exemplo.</p><span class="go">Comparar acessos →</span></a>
+<a class="card" href="./preservacao.html"><span class="number">05</span><h3>Preservação das funções</h3><p>Consulte 76 funcionalidades identificadas que precisam ser conferidas antes de qualquer substituição.</p><span class="go">Conferir inventário →</span></a>
+<a class="card" href="./paridade-critica.html"><span class="number">06</span><h3>Comparação antigo × novo</h3><p>Acompanhe 43 cenários de Acertos, Facções e Hub com as exigências para a nova versão.</p><span class="go">Ver comparações →</span></a>
+<a class="card" href="./prototipo.html"><span class="number">07</span><h3>Painel geral da Evolução</h3><p>Navegue pelos módulos do projeto, riscos, melhorias e pelo planejamento completo.</p><span class="go">Abrir painel →</span></a>
+</section>
+<div class="info">
+<div><strong>O que pode avaliar agora</strong> Aparência, facilidade de uso, organização, pesquisas, cálculos demonstrativos e navegação no celular.</div>
+<div><strong>O que ainda depende da homologação</strong> Login real, envio de PDFs, gravações no banco, integração dos módulos, sincronização Safari/Chrome e funcionalidades completas.</div>
+</div>
+<footer>Prévia pública de desenvolvimento, disponibilizada a partir dos arquivos estáticos da branch isolada. Nenhum arquivo do programa principal é publicado por esta página.</footer>
+</main>
+</body></html>
