@@ -2,6 +2,18 @@
 
 Esta pasta é um **protótipo isolado**: não é uma tela incorporada ao HLGB em produção.
 
+## Nova etapa — Guardião de preservação e bloqueio de liberação (offline)
+
+A página `guardiao-preservacao.html` vincula o inventário real do repositório (**76 funções de 19 módulos**), a matriz de **43 critérios detalhados** e o plano de **266 melhorias**; identifica **30 funções P0** e permite navegar pelas referências de arquivos e testes legados.
+
+- Busca, filtros por módulo, prioridade e demonstração; links para os 8 exercícios parciais.
+- Importação validada do relatório exportado pela Central de Homologação, com separação clara entre **funcionou na prévia** e **paridade funcional comprovada**.
+- Exportações de pendências em CSV/JSON com 76 bloqueios obrigatórios, mesmo que 8 demonstrações tenham passado.
+- Testes automatizados verificam dados embutidos versus inventários de origem e existência de todas as fontes e referências de teste; o teste de baseline confere hash de **229 arquivos antigos**.
+- Browser tests em Chromium/WebKit, incluindo telas estreitas, importação malformada e bloqueio de liberações indevidas.
+
+O Guardião **não publica**, **não aprova**, **não conecta bancos** e não autentica aprovações. A liberação segue bloqueada em 0/76 funções até que haja implementação equivalente, provas funcionais, integridade, validação mobile, testes em duas sessões e autorização explícita. A CI aprovada confirma apenas integridade e correto funcionamento da trava demonstrativa.
+
 ## Nova etapa — Planejamento semanal de matéria-prima e compras (simulação)
 
 O arquivo independente `planejador-materiais.html` reúne quatro áreas interativas: plano semanal por modelo/tamanho; necessidade e custo por modelo; edição da ficha técnica de consumo; e configuração fictícia de materiais, preços, estoque, perda e lote mínimo. Os exemplos são Camisola Melina, Doll Crystal, Calcinha Tammy e Conjunto Paula, com insumos sintéticos em **gramas, centímetros e unidades**.
