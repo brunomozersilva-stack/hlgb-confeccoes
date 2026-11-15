@@ -144,6 +144,61 @@ async function run(browser,width){
   assert.match(await row('AC-1045').innerText(),/Travetadora Demo A/);
   await page.locator('#acerto-service').selectOption('all');
 
+  // Devoluções em acerto pendente mantêm o lançamento e registram quantidade anterior.
+  const returnButton=width<=670?card('AC-1039').locator('button[data-return]'):row('AC-1039').locator('button[data-return]');
+  await returnButton.click();
+  assert.match(await page.locator('#return-context').innerText(),/350 peças/);
+  await page.locator('#return-qty').fill('350');
+  await page.locator('#return-reason').fill('Devolução demonstrativa conferida');
+  assert.equal(await page.locator('#return-confirm').isDisabled(),true);
+  await page.locator('#return-qty').fill('20');
+  assert.match(await page.locator('#return-preview').innerText(),/79,20/);
+  await page.locator('#return-confirm').click();
+  assert.match(await row('AC-1039').innerText(),/330/);
+  assert.match(await row('AC-1039').innerText(),/79,20/);
+  const pendingHistory=width<=670?card('AC-1039').locator('button[data-history]'):row('AC-1039').locator('button[data-history]');
+  await pendingHistory.click();
+  assert.match(await page.locator('#history-list').innerText(),/Devolução de peças/);
+  assert.match(await page.locator('#history-list').innerText(),/Antes: 350 peças/);
+  await page.locator('#history-close').click();
+
+  // Um acerto já pago não pode ser editado nem ter o pagamento original sobrescrito.
+  const paid=width<=670?card('AC-1041'):row('AC-1041');
+  await paid.locator('button[data-edit]').click();
+  assert.equal(await page.locator('#modal-save').isHidden(),true);
+  await page.locator('#modal-cancel').click();
+  await paid.locator('button[data-correction]').click();
+  await page.locator('#correction-amount').fill('151,00');
+  await page.locator('#correction-reason').fill('Devolução financeira fictícia');
+  assert.equal(await page.locator('#correction-confirm').isDisabled(),true);
+  await page.locator('#correction-amount').fill('25,00');
+  assert.match(await page.locator('#correction-preview').innerText(),/125,00/);
+  await page.locator('#correction-confirm').click();
+  assert.match(await row('AC-1041').innerText(),/150,00/);
+  await nav('hub').click();
+  assert.equal(await page.locator('#hub-body tr').count(),6);
+  assert.match(await page.locator('#hub-body').innerText(),/Compensação/);
+  const [finalEvidence]=await Promise.all([page.waitForEvent('download'),page.locator('#hub-evidence').click()]);
+  const finalReport=JSON.parse(fs.readFileSync(await finalEvidence.path(),'utf8'));
+  const originalPayment=finalReport.hub.find(h=>h.source==='AC-1041'&&h.type!=='correcao');
+  const correction=finalReport.hub.find(h=>h.source==='AC-1041'&&h.type==='correcao');
+  assert.equal(originalPayment.amount,15000);
+  assert.equal(correction.amount,-2500);
+  assert.equal(correction.operationKey,'COR-AC-1041-1');
+  assert.equal(finalReport.checks.hubSemDuplicacao,true);
+  assert.equal(finalReport.checks.pagamentosOriginaisSemDuplicacao,true);
+  assert.equal(finalReport.checks.acertosPagosComLancamento,true);
+  assert.equal(finalReport.checks.compensacoesDentroDoSaldo,true);
+  assert.equal(finalReport.historicoPorAcerto['AC-1039'].at(-1).event,'Devolução de peças');
+  assert.equal(finalReport.historicoPorAcerto['AC-1041'].at(-1).event,'Compensação após pagamento');
+  assert.equal(finalReport.acertos.find(x=>x.id==='AC-1039').qty,330);
+  await nav('acertos').click();
+  const corrected=width<=670?card('AC-1041'):row('AC-1041');
+  await corrected.locator('button[data-history]').click();
+  assert.match(await page.locator('#history-list').innerText(),/Compensação após pagamento/);
+  assert.match(await page.locator('#history-list').innerText(),/Pagamento simulado/);
+  await page.locator('#history-close').click();
+
   await page.locator('#reset-demo').click();
   assert.equal(await page.locator('#acertos-body tr').count(),8);
   assert.equal((await page.locator('#metric-hub').innerText()).trim(),'2');
@@ -155,7 +210,7 @@ async function run(browser,width){
    fs.mkdirSync(out,{recursive:true});
    await page.screenshot({path:path.join(out,'central-operacional-2-'+browserType.name()+'-375.png'),fullPage:true});
   }
-  console.log('PASS Central 2.0 '+browserType.name()+' '+width+'px · edição, busca, lote, Hub, CSV, rotas, mobile');
+  console.log('PASS Central 2.0 '+browserType.name()+' '+width+'px · edição, avulsos, devolução, compensação, histórico, Hub e mobile');
  }finally{await page.close()}
 }
 (async()=>{
