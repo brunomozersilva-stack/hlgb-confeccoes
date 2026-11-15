@@ -38,6 +38,7 @@ jobs:
           python3 - <<'PY'
           from pathlib import Path
           root=Path('pacote/HLGB-Evolucao-Previa')
+          import re
           for file in root.rglob('*.html'):
               source=file.read_text()
               # No pacote offline a pagina inicial chama index.html, e não entrada.html.
