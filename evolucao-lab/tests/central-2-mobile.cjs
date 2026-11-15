@@ -91,6 +91,57 @@ async function run(browser,width){
   assert.match(await page.locator('#route-list li').nth(4).innerText(),/Roseli/);
   await page.locator('#faction-cards').getByRole('button',{name:'Ver acertos'}).first().click();
   assert.match(await page.locator('#page-title').innerText(),/Acertos/);
+  // Um serviço avulso fictício de embalagem deve usar apenas embaladeiras e sugerir preço editável.
+  await page.locator('#new-record').click();
+  await page.locator('#edit-service').selectOption('Embalagem');
+  assert.equal(await page.locator('#edit-faction option').count(),2);
+  assert.equal(await page.locator('#edit-faction').inputValue(),'Embaladeira Demo A');
+  assert.equal(await page.locator('#edit-discount').isDisabled(),true);
+  await page.locator('#edit-model').fill('Camisola Melina');
+  await page.locator('#edit-model').press('Tab');
+  assert.equal(await page.locator('#edit-price').inputValue(),'0,25');
+  await page.locator('#edit-qty').fill('20');
+  assert.match(await page.locator('#edit-preview').innerText(),/5,00/);
+  await page.locator('#edit-extra').fill('-1,00');
+  await page.locator('#edit-reason').fill('Teste de embalagem fictício');
+  assert.match(await page.locator('#edit-preview').innerText(),/4,00/);
+  await page.locator('#modal-save').click();
+  await page.locator('#acerto-service').selectOption('Embalagem');
+  assert.equal(await page.locator('#acertos-body tr').count(),1);
+  assert.match(await row('AC-1044').innerText(),/Embaladeira Demo A/);
+  await page.locator('#acerto-service').selectOption('all');
+
+  const avulsoPay=width<=670?card('AC-1044').locator('button[data-pay]'):row('AC-1044').locator('button[data-pay]');
+  await avulsoPay.click();
+  await page.locator('#pay-proof').setInputFiles({name:'comprovante-ficticio.pdf',mimeType:'application/pdf',buffer:Buffer.from('%PDF-1.4\\n%%EOF\\n')});
+  await page.locator('#pay-confirm').click();
+  assert.equal((await page.locator('#metric-hub').innerText()).trim(),'5');
+  assert.match(await row('AC-1044').innerText(),/Pago/);
+  await nav('hub').click();
+  assert.match(await page.locator('#hub-body').innerText(),/PDF fictício: comprovante-ficticio.pdf/);
+  const [extraEvidence]=await Promise.all([page.waitForEvent('download'),page.locator('#hub-evidence').click()]);
+  const avulsoReport=JSON.parse(fs.readFileSync(await extraEvidence.path(),'utf8'));
+  assert.equal(avulsoReport.counts.hub,5);
+  assert.equal(avulsoReport.checks.acertosPagosComLancamento,true);
+  assert.equal(avulsoReport.hub.find(h=>h.source==='AC-1044').service,'Embalagem');
+
+  // Uma travetadora fictícia aparece somente para o serviço de travetada.
+  await nav('acertos').click();
+  await page.locator('#new-record').click();
+  await page.locator('#edit-service').selectOption('Travetada');
+  assert.equal(await page.locator('#edit-faction option').count(),1);
+  assert.equal(await page.locator('#edit-faction').inputValue(),'Travetadora Demo A');
+  await page.locator('#edit-model').fill('Calcinha Tammy');
+  await page.locator('#edit-model').press('Tab');
+  assert.equal(await page.locator('#edit-price').inputValue(),'0,06');
+  await page.locator('#edit-qty').fill('10');
+  assert.match(await page.locator('#edit-preview').innerText(),/0,60/);
+  await page.locator('#modal-save').click();
+  await page.locator('#acerto-service').selectOption('Travetada');
+  assert.equal(await page.locator('#acertos-body tr').count(),1);
+  assert.match(await row('AC-1045').innerText(),/Travetadora Demo A/);
+  await page.locator('#acerto-service').selectOption('all');
+
   await page.locator('#reset-demo').click();
   assert.equal(await page.locator('#acertos-body tr').count(),8);
   assert.equal((await page.locator('#metric-hub').innerText()).trim(),'2');
