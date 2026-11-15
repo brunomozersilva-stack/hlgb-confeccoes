@@ -32,6 +32,12 @@ async function testFlow(browser,width){
   assert.equal(await page.locator('#movement-confirm').isDisabled(),true,'cannot overcut');
   await page.locator('#movement-qty').fill('20');
   assert.equal(await page.locator('#movement-confirm').isDisabled(),true,'cut requires material worksheet');
+  assert.equal(await page.locator('#movement-cutter-type').inputValue(),'interno');
+  assert.equal(await page.locator('#movement-operator').inputValue(),'Cortador Interno Demo A');
+  await page.locator('#movement-cutter-type').selectOption('externo');
+  assert.equal(await page.locator('#movement-operator').inputValue(),'Cortador Externo Demo B');
+  await page.locator('#movement-cutter-type').selectOption('interno');
+  assert.equal(await page.locator('#movement-operator').inputValue(),'Cortador Interno Demo A');
   await page.locator('#movement-material').selectOption('tule');
   await page.locator('#movement-weight-total').fill('500');
   await page.locator('#movement-weight-used').fill('470');
@@ -93,6 +99,7 @@ async function testFlow(browser,width){
   assert.equal(report.materialSummary.groups.length,1);
   assert.equal(report.materialSummary.groups[0].model,'Camisola Melina');
   assert.equal(report.movements[0].cutSheet.material,'tule');
+  assert.equal(report.movements[0].cutSheet.cutterType,'interno');
   assert.equal(report.movements[0].cutSheet.spreader,'Infestador Demo A');
   assert.equal(report.movements[0].cutSheet.reviewerOne,'Conferente Demo A');
   assert.equal(report.movements[0].cutSheet.reviewerTwo,'Conferente Demo B');
