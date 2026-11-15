@@ -24,7 +24,7 @@ test('as quatro áreas têm UI, busca e ações realmente ligadas a eventos',()=
  }
  for(const id of ['acerto-search','acerto-status','acerto-order','acertos-body',
   'acertos-mobile','bulk-pay','edit-qty','edit-price','edit-discount',
-  'edit-extra','edit-faction','edit-service','edit-reason','acerto-service','pay-proof','hub-body','hub-mobile',
+  'edit-extra','edit-faction','edit-service','edit-reason','acerto-service','pay-proof','return-dialog','return-form','return-qty','return-reason','correction-dialog','correction-form','correction-amount','correction-reason','history-dialog','history-list','hub-body','hub-mobile',
   'hub-search','hub-export','hub-evidence','route-list','record-dialog','pay-dialog']){
   assert.ok(file.includes('id="'+id+'"'),'Campo ausente: '+id);
  }
@@ -32,6 +32,11 @@ test('as quatro áreas têm UI, busca e ações realmente ligadas a eventos',()=
  assert.match(file,/addEventListener\('click',confirmPay\)/);
  assert.match(file,/addEventListener\('click',exportCsv\)/);
  assert.match(file,/addEventListener\('click',exportEvidence\)/);
+ assert.match(file,/addEventListener\('submit',confirmReturn\)/);
+ assert.match(file,/addEventListener\('submit',confirmCorrection\)/);
+ assert.match(file,/remainingCredit\(r\)/);
+ assert.match(file,/hubSemDuplicacao/);
+ assert.match(file,/historicoPorAcerto/);
  assert.match(file,/schema:'hlgb-evolucao-teste-operacional-v1'/);
  assert.match(file,/productionApproval:false/);
  assert.match(file,/\.status!=='Pendente'/);
