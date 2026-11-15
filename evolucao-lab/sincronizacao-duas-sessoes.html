@@ -1,0 +1,279 @@
+<!doctype html><html lang="pt-BR"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>HLGB Evolução — Duas sessões e salvamento confiável</title>
+<style>
+:root{font-family:system-ui,-apple-system,"Segoe UI",sans-serif;color:#32263c;background:#f7f5fa;--deep:#2c1d3e;--purple:#634187;--line:#e4dce9;--muted:#64596f}
+*{box-sizing:border-box}body{margin:0}input,select,button{font:inherit;color:inherit}button{cursor:pointer}button:disabled{opacity:.45;cursor:not-allowed}button:focus-visible,input:focus-visible,select:focus-visible,a:focus-visible{outline:3px solid #c9a1e8;outline-offset:2px}
+header{padding:22px max(15px,calc((100% - 1160px)/2));background:linear-gradient(115deg,#30203f,#644482);color:white}
+header a{font-size:12px;color:#e7d5f5}header h1{font-size:clamp(24px,4.2vw,34px);margin:9px 0 7px;line-height:1.2}
+header p{max-width:860px;font-size:13px;color:#e6d7f1;line-height:1.6;margin:0}
+main{max-width:1190px;margin:auto;padding:18px 15px 65px}.notice{background:#fff7e7;border:1px solid #e2c792;border-radius:12px;padding:14px;font-size:12px;line-height:1.65;color:#684b20;margin:0 0 15px}
+.metrics{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin:0 0 16px}
+.metric{background:#fff;border:1px solid var(--line);border-radius:12px;padding:13px;min-width:0}.metric span{display:block;font-size:11px;color:var(--muted)}.metric strong{display:block;font-size:clamp(18px,2.7vw,27px);margin-top:5px;overflow-wrap:anywhere}
+.sessions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;align-items:start}.panel{background:#fff;border:1px solid var(--line);border-radius:14px;padding:17px;min-width:0;margin:0 0 13px}
+.panel h2{font-size:18px;margin:0 0 7px}.panel h3{font-size:14px;margin:15px 0 8px}.panel p{font-size:12px;line-height:1.55;color:var(--muted);margin:0 0 11px}
+.heading{display:flex;align-items:start;justify-content:space-between;gap:10px;margin-bottom:11px}
+.status-pill{font-size:11px;font-weight:800;border-radius:999px;background:#e9f3ed;color:#216645;padding:5px 10px;white-space:nowrap}
+.status-pill.off{background:#fff0dc;color:#8e591b}
+.field{display:grid;gap:5px;margin:10px 0}.field label{font-size:12px;font-weight:750}
+.input{width:100%;min-height:43px;border:1px solid #c9b6d9;background:#fff;border-radius:9px;padding:9px 11px}
+.stats{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:7px;margin:10px 0}
+.stat{background:#f8f4fc;border-radius:9px;padding:10px;font-size:11px;color:#5e506d}
+.stat strong{display:block;font-size:16px;color:#3b284f;margin-top:5px}
+.actions{display:flex;flex-wrap:wrap;gap:7px;margin:10px 0}.actions button{flex:1 1 145px}
+.button{border:1px solid #c4afd5;color:var(--purple);border-radius:9px;background:#fff;min-height:43px;padding:10px 12px;font-size:12px;font-weight:800;text-align:center}
+.button.primary{background:var(--purple);color:#fff;border-color:var(--purple)}.button.warn{color:#8d5121;border-color:#e9c291}
+.message{padding:10px 12px;background:#f4f0fa;border-radius:10px;color:#4d3865;font-size:12px;line-height:1.55;min-height:47px;overflow-wrap:anywhere}
+.message.uncertain{background:#fff0da;color:#7d541c}.message.error{background:#fff0ef;color:#922e47}.message.ok{background:#e9f6ed;color:#226947}
+.scenarios{display:flex;flex-wrap:wrap;gap:7px}.scenarios button{flex:1 1 190px}
+.events{display:grid;gap:8px;max-height:350px;overflow:auto}.event{border:1px solid var(--line);padding:10px;border-radius:10px;font-size:12px;line-height:1.45}
+.event span{display:block;font-size:11px;color:var(--muted)}.event strong{font-size:12px}
+.checks{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:7px}
+.check{background:#f8f4fb;border-radius:8px;padding:8px 10px;font-size:11px}.check b{display:block;color:#2e7556}
+.hint{font-size:11px;color:var(--muted);line-height:1.55}
+@media(max-width:800px){.sessions{grid-template-columns:1fr}.metrics{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:430px){main{padding:10px 9px 45px}.panel{padding:12px}.stat strong{font-size:14px}.checks{grid-template-columns:1fr}.actions button{flex:1 1 100%}}
+</style></head>
+<body>
+<header><a href="./entrada.html">← Voltar à prévia</a><h1>Salvamento confiável e duas sessões</h1>
+<p>Simule dois operadores editando o mesmo lançamento do Hub Financeiro, com desconexão, fila de envio, conflito de revisão, perda do ACK e releitura do histórico antes de mostrar “salvo”.</p></header>
+<main>
+<div class="notice"><strong>Laboratório independente e sem banco.</strong> As sessões A e B representam dois operadores fictícios dentro desta página. Elas não são dois navegadores reais e não testam a sincronização Safari ↔ Chrome de produção. O “servidor” é apenas memória JavaScript; nada é enviado, armazenado ou recuperado depois que a página é fechada. Não coloque dados reais.</div>
+<section class="metrics" aria-label="Estado do servidor fictício">
+<div class="metric"><span>Valor no servidor fictício</span><strong id="server-amount">R$ 100,00</strong></div>
+<div class="metric"><span>Revisão do servidor</span><strong id="server-revision">1</strong></div>
+<div class="metric"><span>Operações aplicadas</span><strong id="server-events">0</strong></div>
+<div class="metric"><span>Operações ainda pendentes</span><strong id="pending-count">0</strong></div>
+</section>
+<section class="panel">
+<h2>Cenários guiados</h2><p>Estes botões reiniciam a simulação e executam somente ações fictícias; servem para você acompanhar os estados antes de testar manualmente.</p>
+<div class="scenarios">
+<button type="button" class="button" data-scenario="success">1. Salvar e reler</button>
+<button type="button" class="button warn" data-scenario="lostack">2. ACK perdido</button>
+<button type="button" class="button warn" data-scenario="conflict">3. Offline × conflito</button>
+<button type="button" class="button" data-scenario="notfound">4. Sem registro na releitura</button>
+<button type="button" class="button" data-scenario="readback">5. Falha de releitura</button>
+</div>
+<p class="hint" id="scenario-note" role="status" aria-live="polite">Experimente o primeiro cenário ou altere as sessões manualmente.</p>
+</section>
+<section class="sessions" aria-label="Sessões simuladas">
+<article class="panel" id="session-A">
+<div class="heading"><div><h2>Sessão A</h2><p>Operador fictício no computador A</p></div><span class="status-pill" id="online-A">Conectada</span></div>
+<div class="stats">
+<div class="stat">Versão vista nesta sessão<strong id="seen-rev-A">1</strong></div>
+<div class="stat">Último valor visto<strong id="seen-value-A">R$ 100,00</strong></div>
+<div class="stat">Rascunho local<strong id="draft-A">R$ 100,00</strong></div>
+<div class="stat">Comando pendente<strong id="pending-A">Nenhum</strong></div>
+</div>
+<div class="field"><label for="value-A">Valor do lançamento fictício (R$)</label><input class="input" id="value-A" inputmode="decimal" value="100,00"></div>
+<div class="field"><label for="fault-A">Simular falha ao enviar</label><select class="input" id="fault-A">
+<option value="none">Sem falha</option><option value="before_commit">Conexão cai antes da gravação</option>
+<option value="after_commit_before_ack">Servidor grava, mas ACK se perde</option>
+<option value="readback_failure">ACK recebido, releitura indisponível</option></select></div>
+<div class="actions">
+<button type="button" class="button primary" data-id="A" data-action="save">Salvar com confirmação</button>
+<button type="button" class="button" data-id="A" data-action="toggle">Desconectar</button>
+<button type="button" class="button" data-id="A" data-action="deliver">Transmitir fila</button>
+<button type="button" class="button" data-id="A" data-action="reconcile">Reconciliar por ID</button>
+<button type="button" class="button warn" data-id="A" data-action="retry">Reenviar mesmo ID</button>
+<button type="button" class="button warn" data-id="A" data-action="review">Reavaliar conflito</button>
+<button type="button" class="button" data-id="A" data-action="refresh">Ler versão atual</button>
+</div>
+<div class="message" id="message-A" role="status" aria-live="polite">Sem alterações. Nenhum comando enviado.</div>
+</article>
+<article class="panel" id="session-B">
+<div class="heading"><div><h2>Sessão B</h2><p>Operador fictício no computador B</p></div><span class="status-pill" id="online-B">Conectada</span></div>
+<div class="stats">
+<div class="stat">Versão vista nesta sessão<strong id="seen-rev-B">1</strong></div>
+<div class="stat">Último valor visto<strong id="seen-value-B">R$ 100,00</strong></div>
+<div class="stat">Rascunho local<strong id="draft-B">R$ 100,00</strong></div>
+<div class="stat">Comando pendente<strong id="pending-B">Nenhum</strong></div>
+</div>
+<div class="field"><label for="value-B">Valor do lançamento fictício (R$)</label><input class="input" id="value-B" inputmode="decimal" value="100,00"></div>
+<div class="field"><label for="fault-B">Simular falha ao enviar</label><select class="input" id="fault-B">
+<option value="none">Sem falha</option><option value="before_commit">Conexão cai antes da gravação</option>
+<option value="after_commit_before_ack">Servidor grava, mas ACK se perde</option>
+<option value="readback_failure">ACK recebido, releitura indisponível</option></select></div>
+<div class="actions">
+<button type="button" class="button primary" data-id="B" data-action="save">Salvar com confirmação</button>
+<button type="button" class="button" data-id="B" data-action="toggle">Desconectar</button>
+<button type="button" class="button" data-id="B" data-action="deliver">Transmitir fila</button>
+<button type="button" class="button" data-id="B" data-action="reconcile">Reconciliar por ID</button>
+<button type="button" class="button warn" data-id="B" data-action="retry">Reenviar mesmo ID</button>
+<button type="button" class="button warn" data-id="B" data-action="review">Reavaliar conflito</button>
+<button type="button" class="button" data-id="B" data-action="refresh">Ler versão atual</button>
+</div>
+<div class="message" id="message-B" role="status" aria-live="polite">Sem alterações. Nenhum comando enviado.</div>
+</article>
+</section>
+<section class="panel">
+<h2>Conferência das transações</h2>
+<p>O evento só é considerado confirmado depois de uma releitura consistente por ID e revisão. Se a resposta for inconclusiva, o comando mantém a mesma identidade e o sistema não envia outro automaticamente.</p>
+<div id="integrity-checks" class="checks"></div>
+<div class="actions">
+<button type="button" class="button primary" id="export-evidence">↓ Exportar evidências JSON</button>
+<button type="button" class="button" id="reset-all">↺ Restaurar dados fictícios</button>
+</div>
+<p class="hint">A exportação contém apenas IDs, valores e históricos inventados. Comprovantes, contas, folhas e pagamentos reais não são consultados.</p>
+<h3>Histórico desta simulação</h3><div id="event-log" class="events"></div>
+</section>
+</main>
+<script src="./sincronizacao-duas-sessoes-memoria.js"></script>
+<script>
+(function(){
+'use strict';
+const $=id=>document.getElementById(id),money=cents=>(cents/100).toLocaleString('pt-BR',{style:'currency',currency:'BRL'});
+const lab=window.HLGBTwoSessionsLab.createLab();
+const lastMessage={A:null,B:null};
+function parseMoney(raw){
+ const v=String(raw).trim();
+ if(!/^(0|[1-9]\d*)([,.]\d{1,2})?$/.test(v))throw Error('Digite um valor válido como 120,00, com até duas casas.');
+ const parts=v.replace(',','.').split('.');
+ const cents=Number(parts[0])*100+Number((parts[1]||'').padEnd(2,'0'));
+ if(!Number.isSafeInteger(cents)||cents<100||cents>1000000)throw Error('Permitido entre R$ 1,00 e R$ 10.000,00.');
+ return cents;
+}
+function note(id,result){
+ const status=result?.status||'rejected';
+ const label={
+  readback_confirmed:'Salvo e confirmado por releitura do evento',
+  queued:'Na fila de memória; ainda NÃO foi salvo',
+  uncertain:'Inconclusivo: não é seguro afirmar que salvou',
+  not_found:'ID não encontrado: reenvio apenas manual, preservando o ID',
+  conflict:'CONFLITO: outra sessão alterou este valor; seu rascunho foi mantido',
+  review_required:'Revisão atual consultada. Confira o valor e decida se deseja salvar de novo.',
+  refreshed:'Versão mais recente consultada',
+  offline:'Desconectado: sem confirmação',
+  blocked_unsaved:'A leitura foi bloqueada para não perder seu rascunho',
+  blocked:'Ação bloqueada; confira a operação pendente',
+  rejected:'Não gravado',
+  draft:'Rascunho editado localmente',
+  online:'Sessão conectada',
+  already_applied:'Comando já aplicado; confira a releitura',
+  reset:'Dados fictícios restaurados'
+ };
+ lastMessage[id]={status,text:(label[status]||status)+'. '+(result?.message||'')+
+  (result?.commandId?' ID: '+result.commandId+'.':'')+
+  (result?.revision?' Revisão: '+result.revision+'.':'')};
+}
+function render(resetValues=false){
+ const state=lab.snapshot(),server=state.server;
+ $('server-amount').textContent=money(server.record.amountCents);
+ $('server-revision').textContent=String(server.record.revision);
+ $('server-events').textContent=String(server.events.length);
+ $('pending-count').textContent=String(Object.values(state.clients).filter(c=>!!c.pending).length);
+ for(const id of ['A','B']){
+  const c=state.clients[id],p=c.pending,online=$('online-'+id);
+  online.textContent=c.online?'Conectada':'Desconectada';
+  online.className='status-pill'+(c.online?'':' off');
+  $('seen-rev-'+id).textContent=String(c.seenRevision);
+  $('seen-value-'+id).textContent=money(c.seenCents);
+  $('draft-'+id).textContent=money(c.draftCents);
+  $('pending-'+id).textContent=p?(p.command.commandId+' · '+p.status):'Nenhum';
+  if(resetValues||document.activeElement!==$('value-'+id))$('value-'+id).value=(c.draftCents/100).toFixed(2).replace('.',',');
+  const msg=$('message-'+id),item=lastMessage[id];
+  if(item){
+   msg.className='message'+(['conflict','rejected','blocked','blocked_unsaved'].includes(item.status)?' error':
+    ['queued','uncertain','not_found','offline'].includes(item.status)?' uncertain':
+    item.status==='readback_confirmed'?' ok':'');
+   msg.textContent=item.text;
+  }else{msg.className='message';msg.textContent='Sem alterações. Nenhum comando enviado.'}
+  document.querySelectorAll('button[data-id="'+id+'"]').forEach(btn=>{
+   const action=btn.dataset.action;
+   btn.disabled=(action==='save'&&!!p)||(action==='deliver'&&(!c.online||!p||p.status!=='queued'))||
+    (action==='reconcile'&&(!c.online||!p||p.status==='conflict'))||
+    (action==='retry'&&(!c.online||p?.status!=='not_found'))||
+    (action==='review'&&(!c.online||p?.status!=='conflict'))||
+    (action==='refresh'&&(!c.online||!!p));
+   if(action==='toggle')btn.textContent=c.online?'Desconectar':'Reconectar';
+  });
+ }
+ const checks=lab.checks(),host=$('integrity-checks');host.replaceChildren();
+ for(const [key,value] of Object.entries(checks)){
+  const item=document.createElement('div');item.className='check';
+  const b=document.createElement('b');b.textContent=value?'✓ Conforme':'✕ Inconsistente';
+  const text=document.createElement('span');text.textContent=key.replace(/([A-Z])/g,' $1');
+  item.append(b,text);host.append(item);
+ }
+ const logs=$('event-log');logs.replaceChildren();
+ for(const event of [...state.events].reverse().slice(0,40)){
+  const item=document.createElement('div');item.className='event';
+  const title=document.createElement('strong');title.textContent='#'+event.sequence+' · Sessão '+event.client+' · '+event.type;
+  const desc=document.createElement('span');desc.textContent=event.message;
+  item.append(title,desc);logs.append(item);
+ }
+ if(!state.events.length){const p=document.createElement('p');p.className='hint';p.textContent='Nenhuma movimentação nesta sessão.';logs.append(p)}
+}
+function submit(id){
+ let cents;try{cents=parseMoney($('value-'+id).value)}catch(e){return {status:'rejected',message:e.message}}
+ const c=lab.snapshot().clients[id];
+ if(c.pending)return {status:'blocked',message:'Há operação pendente.'};
+ const edited=lab.edit(id,cents);if(edited.status!=='draft')return edited;
+ const failureAt=$('fault-'+id).value;
+ return lab.submit(id,{failureAt});
+}
+function act(id,action){
+ let result;
+ switch(action){
+ case 'save':result=submit(id);break;
+ case 'toggle':result=lab.setOnline(id,!lab.snapshot().clients[id].online);break;
+ case 'deliver':result=lab.deliver(id,{failureAt:$('fault-'+id).value});break;
+ case 'reconcile':result=lab.reconcile(id);break;
+ case 'retry':result=lab.retrySameId(id,{failureAt:$('fault-'+id).value});break;
+ case 'review':result=lab.reviewConflict(id);break;
+ case 'refresh':result=lab.refresh(id);break;
+ default:return;
+ }
+ note(id,result);
+ render(true);
+}
+function example(which){
+ lab.reset();lastMessage.A=null;lastMessage.B=null;
+ $('fault-A').value='none';$('fault-B').value='none';
+ let text='';
+ if(which==='success'){
+  lab.edit('A',12000);note('A',lab.submit('A'));
+  note('B',lab.refresh('B'));
+  text='A confirmou R$ 120,00 por releitura. A sessão B só viu a revisão 2 após consultar explicitamente a versão mais recente.';
+ }else if(which==='lostack'){
+  lab.edit('A',12500);note('A',lab.submit('A',{failureAt:'after_commit_before_ack'}));
+  text='A transmitiu a alteração, o servidor fictício aplicou e o ACK foi perdido. O resultado da sessão A continua inconclusivo até clicar em Reconciliar por ID. Novo envio é bloqueado.';
+ }else if(which==='conflict'){
+  lab.setOnline('A',false);lab.edit('A',11000);note('A',lab.submit('A'));
+  lab.edit('B',15000);note('B',lab.submit('B'));
+  lab.setOnline('A',true);note('A',lab.deliver('A'));
+  text='A criou um comando offline sobre a revisão 1; B gravou R$ 150,00 (revisão 2). O envio atrasado de A foi rejeitado por conflito, sem sobrescrever B. Use Reavaliar conflito para preservar o rascunho de A.';
+ }else if(which==='notfound'){
+  lab.edit('A',13000);note('A',lab.submit('A',{failureAt:'before_commit'}));
+  note('A',lab.reconcile('A'));
+  text='O servidor fictício não recebeu o comando. Após releitura, o resultado é ID não encontrado. Apenas o botão Reenviar mesmo ID pode transmiti-lo; não cria nova identidade.';
+ }else if(which==='readback'){
+  lab.edit('A',14500);note('A',lab.submit('A',{failureAt:'readback_failure'}));
+  text='O servidor fictício alterou o lançamento, mas a releitura falhou. O ACK sozinho não é usado como prova; clique em Reconciliar por ID.';
+ }
+ $('scenario-note').textContent=text;
+ render(true);
+}
+document.addEventListener('click',event=>{
+ const action=event.target.closest('button[data-action]');
+ if(action)act(action.dataset.id,action.dataset.action);
+ const scenario=event.target.closest('button[data-scenario]');
+ if(scenario)example(scenario.dataset.scenario);
+});
+$('reset-all').addEventListener('click',()=>{
+ lab.reset();lastMessage.A=null;lastMessage.B=null;$('fault-A').value='none';$('fault-B').value='none';
+ $('scenario-note').textContent='Exemplos reiniciados. Use somente dados fictícios.';render(true);
+});
+$('export-evidence').addEventListener('click',()=>{
+ const snapshot=lab.snapshot();
+ const report={schema:'hlgb-evolucao-duas-sessoes-v1',environment:'in-memory-offline',fictitious:true,
+  productionApproval:false,realBrowserSyncTested:false,capturedAt:new Date().toISOString(),
+  state:snapshot,checks:lab.checks()};
+ const blob=new Blob([JSON.stringify(report,null,2)],{type:'application/json'});
+ const url=URL.createObjectURL(blob),anchor=document.createElement('a');
+ anchor.href=url;anchor.download='HLGB-EVOLUCAO-DUAS-SESSOES-FICTICIO.json';anchor.click();
+ setTimeout(()=>URL.revokeObjectURL(url),1300);
+});
+render(true);
+})();
+</script></body></html>
