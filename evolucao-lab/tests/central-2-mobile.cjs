@@ -1,0 +1,97 @@
+'use strict';
+const assert=require('node:assert/strict');
+const fs=require('node:fs'),path=require('node:path'),{pathToFileURL}=require('node:url');
+const {chromium,webkit}=require('playwright');
+const browserType=process.env.HLGB_BROWSER==='webkit'?webkit:chromium;
+const pageURL=pathToFileURL(path.resolve(__dirname,'../central-operacional-2.html')).href;
+const out=process.env.HLGB_SCREENSHOT_DIR||'/tmp';
+async function run(browser,width){
+ const page=await browser.newPage({viewport:{width,height:860},deviceScaleFactor:1,acceptDownloads:true});
+ const errors=[],requests=[];
+ page.on('pageerror',e=>errors.push(String(e.message||e)));
+ page.on('request',r=>{if(/^https?:/i.test(r.url()))requests.push(r.url())});
+ const nav=key=>page.locator(width<=670?'#mobile-nav [data-view="'+key+'"]':'#sidebar-nav [data-view="'+key+'"]');
+ const row=(id)=>page.locator('#acertos-body tr').filter({hasText:id});
+ const card=(id)=>page.locator('#acertos-mobile .mobile-card').filter({hasText:id});
+ async function choose(id){
+  if(width<=670)await card(id).locator('input[type="checkbox"]').check();
+  else await row(id).locator('input[type="checkbox"]').check();
+ }
+ try{
+  await page.goto(pageURL,{waitUntil:'load'});
+  assert.match(await page.locator('#page-title').innerText(),/Seu dia/);
+  assert.equal((await page.locator('#metric-hub').innerText()).trim(),'2');
+  assert.equal(await page.locator('#overview-tasks .mobile-card').count(),5);
+  await nav('acertos').click();
+  assert.equal(await page.locator('#acertos-body tr').count(),8);
+  await page.locator('#acerto-search').fill('Roseli');
+  assert.equal(await page.locator('#acertos-body tr').count(),2);
+  await page.locator('#acerto-search').fill('');
+  await page.locator('#acerto-status').selectOption('Pendente');
+  assert.equal(await page.locator('#acertos-body tr').count(),6);
+  await page.locator('#acerto-status').selectOption('all');
+  const editButton=width<=670?card('AC-1041').locator('button[data-edit]'):row('AC-1041').locator('button[data-edit]');
+  await editButton.click();
+  assert.equal(await page.locator('#record-dialog').evaluate(e=>e.open),true);
+  await page.locator('#edit-qty').fill('200');
+  await page.locator('#edit-price').fill('0,80');
+  await page.locator('#edit-discount').fill('0,05');
+  assert.match(await page.locator('#edit-preview').innerText(),/150,00/);
+  await page.locator('#modal-save').click();
+  assert.equal(await page.locator('#record-dialog').evaluate(e=>e.open),false);
+  assert.match(await row('AC-1041').innerText(),/150,00/);
+  await page.locator('#new-record').click();
+  await page.locator('#edit-model').fill('Conjunto Paula');
+  await page.locator('#edit-faction').selectOption('Fran');
+  await page.locator('#edit-qty').fill('40');
+  await page.locator('#edit-price').fill('0,50');
+  await page.locator('#edit-discount').fill('0,05');
+  await page.locator('#edit-extra').fill('-1,00');
+  await page.locator('#edit-reason').fill('Conferência de peças');
+  assert.match(await page.locator('#edit-preview').innerText(),/17,00/);
+  await page.locator('#modal-save').click();
+  assert.match(await row('AC-1043').innerText(),/17,00/);
+  await choose('AC-1042');await choose('AC-1041');
+  assert.match(await page.locator('#bulk-count').innerText(),/2 selecionado/);
+  await page.locator('#bulk-pay').click();
+  assert.match(await page.locator('#pay-message').innerText(),/2 acerto/);
+  assert.match(await page.locator('#pay-total').innerText(),/250,80/);
+  await page.locator('#pay-confirm').click();
+  assert.equal((await page.locator('#metric-hub').innerText()).trim(),'4');
+  assert.match(await row('AC-1042').innerText(),/Pago/);
+  assert.match(await row('AC-1041').innerText(),/Pago/);
+  await nav('hub').click();
+  assert.equal(await page.locator('#hub-body tr').count(),4);
+  await page.locator('#hub-period').selectOption('session');
+  assert.equal(await page.locator('#hub-body tr').count(),2);
+  await page.locator('#hub-search').fill('1041');
+  assert.equal(await page.locator('#hub-body tr').count(),1);
+  await page.locator('#hub-search').fill('');
+  const [download]=await Promise.all([page.waitForEvent('download'),page.locator('#hub-export').click()]);
+  assert.match(download.suggestedFilename(),/hub-ficticio-evolucao\.csv/);
+  await nav('faccoes').click();
+  assert.equal(await page.locator('#faction-cards .fac-card').count(),7);
+  const original=await page.locator('#route-list li').nth(5).innerText();
+  assert.match(original,/Roseli/);
+  await page.locator('button[data-move="5:-1"]').click();
+  assert.match(await page.locator('#route-list li').nth(4).innerText(),/Roseli/);
+  await page.locator('#faction-cards').getByRole('button',{name:'Ver acertos'}).first().click();
+  assert.match(await page.locator('#page-title').innerText(),/Acertos/);
+  await page.locator('#reset-demo').click();
+  assert.equal(await page.locator('#acertos-body tr').count(),8);
+  assert.equal((await page.locator('#metric-hub').innerText()).trim(),'2');
+  const dims=await page.evaluate(()=>({width:innerWidth,scroll:document.documentElement.scrollWidth}));
+  assert(dims.scroll<=dims.width+2,'overflow '+width+' '+JSON.stringify(dims));
+  assert.deepEqual(errors,[],'browser errors');
+  assert.deepEqual(requests,[],'no external calls');
+  if(width===375){
+   fs.mkdirSync(out,{recursive:true});
+   await page.screenshot({path:path.join(out,'central-operacional-2-'+browserType.name()+'-375.png'),fullPage:true});
+  }
+  console.log('PASS Central 2.0 '+browserType.name()+' '+width+'px · edição, busca, lote, Hub, CSV, rotas, mobile');
+ }finally{await page.close()}
+}
+(async()=>{
+ const browser=await browserType.launch({headless:true});
+ try{for(const w of [320,375,390,768,1280])await run(browser,w)}finally{await browser.close()}
+})().catch(e=>{console.error(e);process.exitCode=1});
