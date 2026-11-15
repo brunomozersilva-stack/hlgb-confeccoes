@@ -21,6 +21,21 @@ A página `homologacao-modulos.html` organiza 76 funcionalidades antigas identif
 
 As restantes **68 funções não possuem demonstração específica equivalente**. Elas já podem ser registradas como pendências, mas **não podem ser aprovadas no formulário como se estivessem implementadas**.
 
+## Novo teste: Guardião de Preservação — não liberar módulos com funções perdidas
+
+Na página inicial da prévia, abra **Guardião de Preservação** (`guardiao-preservacao.html`).
+
+1. Confira **76 funções, 19 módulos, 30 funções P0 e 43 critérios detalhados**, com **0/76** homologados para implantação. O painel não representa uma análise de banco real.
+2. Filtre **P0** para encontrar salvamento, sincronização, devolução, folha, Hub e outras áreas críticas. Use a busca para localizar `PAR-045` (salvar no Hub) e `PAR-030` (histórico de facções).
+3. Entre no módulo **Acertos e pagamentos avulsos** e expanda os critérios de cada função. É possível consultar as referências antigas e o roteiro de conferência desktop/mobile sem editar o programa.
+4. Filtre as demonstrações. São **8 parciais** e **68 sem demonstração mapeada**. Clicar em uma demonstração abre o simulador separado.
+5. Na **Central de Testes — 76 funções**, marque resultados usando apenas dados fictícios e exporte o JSON; volte ao Guardião e use **Importar testes da Central**. O painel mostra a avaliação da prévia, mas mantém o indicador de liberação em **0/76**.
+6. Exporte **Pendências CSV** ou **Bloqueios JSON** para analisar os gargalos. O campo `publicationBlocked` do JSON permanece `true`; `releaseApproved` é `false` e há 76 motivos de bloqueio.
+7. Teste um relatório incompatível ou com `passed` em funções sem demo: a importação deve ser rejeitada. Mesmo 8 demonstrações com resultado positivo não autorizam produção.
+8. Para garantir que nenhum arquivo original sumiu no código, consulte os testes automatizados de **229 arquivos legados (hash congelado)** e do **Guardião** nas ações do GitHub.
+
+**Escopo real:** é um painel de auditoria **estático/offline**, não homologação do sistema novo. A referência de uma função ou teste antigo não demonstra que ela existe no novo ERP. A liberação não pode ocorrer apenas importando um relatório; depende de trabalho técnico e aprovação formal posterior.
+
 ## Novo teste: escolher vários modelos e calcular compras semanais
 
 Abra **Ficha técnica e materiais da semana** no índice, ou diretamente a página `planejador-materiais.html`.
