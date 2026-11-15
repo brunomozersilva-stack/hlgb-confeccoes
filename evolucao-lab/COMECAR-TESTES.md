@@ -21,6 +21,24 @@ A página `homologacao-modulos.html` organiza 76 funcionalidades antigas identif
 
 As restantes **68 funções não possuem demonstração específica equivalente**. Elas já podem ser registradas como pendências, mas **não podem ser aprovadas no formulário como se estivessem implementadas**.
 
+## Novo teste: salvamento confiável com duas sessões fictícias
+
+Abra **Duas Sessões e Reconciliação** na entrada ou `sincronizacao-duas-sessoes.html`.
+
+**ATENÇÃO:** as sessões A/B estão dentro do **mesmo navegador**, conectadas somente a um **servidor fictício em memória**. Esse exercício não prova sincronização entre dois computadores reais nem funcionamento da nuvem.
+
+1. **Salvar e reler:** clique no cenário 1. O servidor fictício deve mostrar **R$ 120,00**, revisão **2**, um evento e zero pendências. A sessão B só muda quando lê a versão mais recente.
+2. **ACK perdido:** clique no cenário 2. O servidor tem R$ 125,00 e um evento, mas a sessão A ainda exibe a versão anterior e o resultado **inconclusivo**. Não é possível salvar de novo enquanto estiver pendente. Clique em **Reconciliar por ID**: deve confirmar a operação sem duplicar o lançamento.
+3. **Conflito offline:** clique no cenário 3. A fila de A foi criada com R$ 110,00 na versão 1; B gravou R$ 150,00 na versão 2; o envio atrasado de A recebeu **conflito**. Use **Reavaliar conflito**: o rascunho de A continua com R$ 110,00, enquanto a versão vista indica R$ 150,00. Se quiser confirmar a alteração, clique em **Salvar com confirmação** novamente; somente esse novo comando chega à revisão 3.
+4. **Comando não encontrado:** cenário 4. A perda antes do commit gera resultado inconclusivo; a releitura marca ID **não encontrado**. Somente um clique explícito em **Reenviar mesmo ID** permite transmitir; o identificador e a revisão originais permanecem iguais.
+5. **Releitura com falha:** cenário 5. O ACK foi recebido, mas não serve como comprovante sozinho. Clique em **Reconciliar por ID** antes de tratar o lançamento como salvo.
+6. **Teste manual offline:** clique em restaurar, desconecte A, digite R$ 180,00 e clique em salvar. O servidor continua com R$ 100,00 até clicar em **Reconectar** e **Transmitir fila**. A sessão B permanece na versão anterior até **Ler versão atual**.
+7. **Baixar evidências:** o JSON apresenta comandos, eventos, revisões, indicadores de integridade e os campos `productionApproval:false` e `realBrowserSyncTested:false`. Não existe escrita real.
+
+Nos testes unitários existe também o cenário de **commit atrasado entre a leitura “não encontrado” e o reenvio**. A reexecução pelo mesmo ID não duplica o evento no servidor fictício.
+
+**Ainda pendente no HLGB real:** executar essa arquitetura num servidor isolado com autenticação, controle transacional de dados, autorização, persistência e WAL em disco; testar realmente duas sessões Safari/Chrome, cortes de conexão e reconciliação de registros existentes; realizar auditoria de segurança e homologação por usuário antes de integrar.
+
 ## Novo teste: Guardião de Preservação — não liberar módulos com funções perdidas
 
 Na página inicial da prévia, abra **Guardião de Preservação** (`guardiao-preservacao.html`).
