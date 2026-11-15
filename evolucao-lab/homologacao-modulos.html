@@ -70,7 +70,7 @@ main{max-width:1360px;margin:auto;padding:17px 16px 60px}.alert{padding:13px 15p
 </div>
 <p class="legend" id="result-count" role="status" aria-live="polite"></p>
 <div id="cases"></div>
-<div class="prompt">**Como testar:** abra uma função, siga o roteiro e experimente a demonstração quando disponível. Anote o resultado. Quando terminar uma sessão, baixe o JSON. Você pode importar esse relatório depois ou enviá-lo aqui para eu tratar os problemas.</div>
+<div class="prompt"><strong>Como testar:</strong> abra uma função, siga o roteiro e experimente a demonstração quando disponível. Anote o resultado. Quando terminar uma sessão, baixe o JSON. Você pode importar esse relatório depois ou enviá-lo aqui para eu tratar os problemas.</div>
 </section>
 </div>
 </main><div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
@@ -98,7 +98,7 @@ function setResult(id,patch){
  if(next.status==='passed'&&!byId.get(id)?.demo)throw Error('Não é possível aprovar na prévia uma função sem demonstração.');
  if(next.status==='not_started'&&next.notes==='')state.delete(id);
  else state.set(id,next);
- refresh();
+ renderAll();
 }
 function renderModules(){
  const root=$('module-nav');root.replaceChildren();
