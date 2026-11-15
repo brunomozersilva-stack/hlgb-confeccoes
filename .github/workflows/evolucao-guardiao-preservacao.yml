@@ -1,0 +1,58 @@
+name: HLGB Evolucao - Guardiao de Preservacao
+on:
+  push:
+    branches:
+      - feature/evolucao-laboratorio-isolado-v1-20261114
+    paths:
+      - 'evolucao-lab/guardiao-preservacao.html'
+      - 'evolucao-lab/paridade-funcional.json'
+      - 'evolucao-lab/paridade-critica-detalhada.json'
+      - 'evolucao-lab/roadmap.json'
+      - 'evolucao-lab/tests/guardiao-preservacao-*.cjs'
+      - '.github/workflows/evolucao-guardiao-preservacao.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  contracts:
+    name: Integridade das 76 referencias e bloqueio de publicacao
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Verificar os 229 arquivos legados sem mudar o código atual
+        run: node --test evolucao-lab/tests/baseline-legado.cjs
+      - name: Conferir o inventario de 76 funcoes, os 43 criterios e a trava de liberacao
+        run: node --test evolucao-lab/tests/guardiao-preservacao-contract.cjs
+  browser:
+    name: Guardiao desktop e mobile (${{ matrix.browser }})
+    runs-on: ubuntu-24.04
+    timeout-minutes: 18
+    strategy:
+      fail-fast: false
+      matrix:
+        browser: [chromium, webkit]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Preparar navegador
+        run: |
+          npm install --no-save playwright@1.55.0
+          npx playwright install --with-deps ${{ matrix.browser }}
+      - name: Verificar 5 larguras, importacao e bloqueio de liberacao
+        env:
+          HLGB_BROWSER: ${{ matrix.browser }}
+          HLGB_SCREENSHOT_DIR: /tmp/hlgb-guardiao
+        run: node evolucao-lab/tests/guardiao-preservacao-mobile.cjs
+      - name: Guardar captura de teste
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: guardiao-preservacao-${{ matrix.browser }}
+          path: /tmp/hlgb-guardiao/*.png
+          if-no-files-found: ignore
