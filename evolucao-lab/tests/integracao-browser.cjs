@@ -236,6 +236,29 @@ test('duas sessões reais no navegador não criam pagamentos duplicados',async()
  assert.equal(count.n,1);
  await Promise.all([a.close(),b.close()]);
 });
+test('o mesmo formulário não ultrapassa a tela em cinco tamanhos de celular e desktop',async()=>{
+ for(const width of [320,375,390,768,1280]){
+  const ctx=await browser.newContext({viewport:{width,height:820}}),page=await ctx.newPage();
+  const pageErrors=[];page.on('pageerror',e=>pageErrors.push(e.message));
+  await page.goto(app.url);
+  assert.equal(await page.locator('h1').count(),1);
+  const view=await page.evaluate(()=>({inner:innerWidth,scroll:document.documentElement.scrollWidth}));
+  assert(view.scroll<=view.inner+2,'Largura '+width+' teve rolagem horizontal: '+JSON.stringify(view));
+  await page.locator('#login').click();
+  await page.waitForFunction(()=>document.querySelector('#session-status').textContent.startsWith('ok:'));
+  assert.deepEqual(pageErrors,[]);
+  await ctx.close();
+ }
+});
+test('arquivo físico adulterado não passa na recuperação de integridade',async()=>{
+ const ctx=await context();
+ assert.equal((await upload(ctx)).data.status,'staged');
+ await fs.writeFile(path.join(app.storage,'REC-PDF-001.pdf'),Buffer.from('%PDF-1.4\nConteudo adulterado\n%%EOF\n'));
+ const got=await request(ctx,'GET','/api/receipts/REC-PDF-001');
+ assert.equal(got.status(),409);
+ assert.equal((await got.json()).status,'rejected');
+ await ctx.close();
+});
 test('desativar funcionário impede operação apesar de sessão existente',async()=>{
  const ctx=await context('finA');
  const before=await serverResult(ctx,'GET','/api/groups/AC-TESTE-A');
