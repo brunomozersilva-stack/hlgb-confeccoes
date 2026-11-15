@@ -99,6 +99,7 @@ dialog::backdrop{background:#1c1326a6}.modal-head{padding:20px 21px 12px;border-
 <div class="panel-heading"><div><h2>Acertos de facções</h2><p class="desc">Busca única por produto, facção ou ID. Edição por linha, fechamento individual ou em lote.</p></div><span class="badge info">Modo simulação · sem gravar</span></div>
 <div class="toolbox">
 <div class="field"><label for="acerto-search">Pesquisar</label><input id="acerto-search" class="input search" type="search" placeholder="Facção, produto, acerto ou modelo" autocomplete="off"></div>
+<div class="field"><label for="acerto-service">Serviço</label><select id="acerto-service" class="input"><option value="all">Todos os serviços</option><option value="Costura">Costura</option><option value="Embalagem">Embalagem</option><option value="Travetada">Travetada</option><option value="Outro">Outro</option></select></div>
 <div class="field"><label for="acerto-status">Situação</label><select id="acerto-status" class="input"><option value="all">Todas</option><option value="Pendente">Pendente</option><option value="Pago">Pago</option></select></div>
 <div class="field"><label for="acerto-order">Ordenar</label><select id="acerto-order" class="input"><option value="recent">Mais recentes</option><option value="faction">Facção A–Z</option><option value="amount">Maior valor</option></select></div>
 </div>
@@ -132,8 +133,10 @@ dialog::backdrop{background:#1c1326a6}.modal-head{padding:20px 21px 12px;border-
 <div class="modal-head"><div class="eyebrow">Editor de demonstração</div><h2 id="modal-title">Novo acerto</h2><p class="muted" id="modal-caption">Exemplo local, sem gravação na nuvem</p></div>
 <div class="modal-body">
 <div class="form-grid">
-<div class="field"><label for="edit-model">Modelo / produto</label><input class="input" id="edit-model" required maxlength="70" placeholder="Ex.: Camisola Melina"></div>
-<div class="field"><label for="edit-faction">Facção</label><select class="input" id="edit-faction" required></select></div>
+<div class="field full"><label for="edit-service">Tipo de serviço</label><select class="input" id="edit-service"><option value="Costura">Costura</option><option value="Embalagem">Embalagem</option><option value="Travetada">Travetada</option><option value="Outro">Outro serviço</option></select></div>
+<div class="field"><label for="edit-model">Modelo / produto</label><input class="input" id="edit-model" list="fictitious-models" required maxlength="70" placeholder="Busque ou digite o modelo"><datalist id="fictitious-models"><option value="Camisola Melina"></option><option value="Doll Crystal"></option><option value="Calcinha Tammy"></option><option value="Cueca Leandro"></option><option value="Camisola Ana Amélia"></option></datalist></div>
+<div class="field"><label for="edit-faction" id="edit-faction-label">Facção</label><select class="input" id="edit-faction" required></select></div>
+<div class="field full"><small class="muted" id="price-hint">Os preços são apenas exemplos fictícios. Você pode substituí-los.</small></div>
 <div class="field"><label for="edit-qty">Quantidade de peças</label><input class="input" id="edit-qty" type="number" min="1" max="100000" step="1" required inputmode="numeric"></div>
 <div class="field"><label for="edit-price">Preço unitário (R$)</label><input class="input" id="edit-price" required inputmode="decimal" placeholder="0,30"></div>
 <div class="field"><label for="edit-discount">Desconto de travetada por peça (R$)</label><input class="input" id="edit-discount" inputmode="decimal" placeholder="0,00"></div>
@@ -147,7 +150,9 @@ dialog::backdrop{background:#1c1326a6}.modal-head{padding:20px 21px 12px;border-
 </form></dialog>
 <dialog id="pay-dialog" aria-labelledby="pay-title">
 <div class="modal-head"><div class="eyebrow">Confirmação de demonstração</div><h2 id="pay-title">Simular fechamento</h2></div>
-<div class="modal-body"><p id="pay-message">Confirme os itens.</p><div class="preview-total"><span>Total do fechamento</span><strong id="pay-total">—</strong></div><p class="muted">A operação vai adicionar lançamentos fictícios ao Hub nesta sessão. Nenhum pagamento real será feito.</p></div>
+<div class="modal-body"><p id="pay-message">Confirme os itens.</p><div class="preview-total"><span>Total do fechamento</span><strong id="pay-total">—</strong></div>
+<div class="field" style="margin-top:16px"><label for="pay-proof">Comprovante PDF (opcional, apenas arquivo fictício)</label><input class="input" type="file" id="pay-proof" accept=".pdf,application/pdf"><small class="muted">Apenas o nome do arquivo é exibido no Hub. Conteúdo não é lido, enviado ou armazenado. Máximo 5 MB.</small></div>
+<p class="muted">A operação vai adicionar lançamentos fictícios ao Hub nesta sessão. Nenhum pagamento real será feito.</p></div>
 <div class="modal-foot"><button class="btn" id="pay-cancel" type="button">Voltar</button><button class="btn primary" id="pay-confirm" type="button">Confirmar simulação</button></div>
 </dialog>
 <div class="toast" role="status" aria-live="polite" id="toast" hidden></div>
@@ -156,6 +161,14 @@ dialog::backdrop{background:#1c1326a6}.modal-head{padding:20px 21px 12px;border-
 'use strict';
 const $=id=>document.getElementById(id);
 const factions=['Graziano','Luana','Ge','Vanessa','Cris','Roseli','Fran'];
+const exampleWorkers={Embalagem:['Embaladeira Demo A','Embaladeira Demo B'],Travetada:['Travetadora Demo A']};
+const syntheticRates=[
+ {model:'Camisola Melina',Costura:150,Embalagem:25},
+ {model:'Doll Crystal',Costura:72,Embalagem:25},
+ {model:'Calcinha Tammy',Costura:28,Embalagem:15,Travetada:6},
+ {model:'Cueca Leandro',Costura:42,Embalagem:25},
+ {model:'Camisola Ana Amélia',Costura:120,Embalagem:25}
+];
 const seed=[
  {id:'AC-1042',model:'Cueca Leandro',faction:'Graziano',qty:240,price:42,discount:0,extra:0,status:'Pendente',date:'15/11',reason:''},
  {id:'AC-1041',model:'Doll Crystal',faction:'Roseli',qty:180,price:72,discount:5,extra:0,status:'Pendente',date:'15/11',reason:''},
@@ -178,7 +191,7 @@ function reset(){
   {id:'HUB-1038',source:'AC-1038',faction:'Ge',detail:'Doll Melanie',amount:calc(records[4]),origin:'initial',proof:'PDF 1038'},
   {id:'HUB-1036',source:'AC-1036',faction:'Fran',detail:'Camisola Ana Amélia',amount:calc(records[6]),origin:'initial',proof:'—'}
  ];audit=[{id:'INIT-1',message:'Ambiente demonstrativo carregado',time:now()}];route=[...factions];selected.clear();nextId=1043;sequence=0;
- $('acerto-search').value='';$('acerto-status').value='all';$('acerto-order').value='recent';
+ $('acerto-search').value='';$('acerto-service').value='all';$('acerto-status').value='all';$('acerto-order').value='recent';
  $('hub-search').value='';$('hub-period').value='all';$('hub-order').value='recent';
  render();notify('Exemplos e filtros restaurados. Nenhum dado foi salvo.',false);
 }
@@ -213,7 +226,7 @@ function renderOverview(){
  const host=$('overview-tasks');host.replaceChildren();
  const pending=records.filter(r=>r.status==='Pendente').sort((a,b)=>calc(b)-calc(a));
  for(const r of pending.slice(0,5)){
-  const wrap=el('div','mobile-card'),top=el('div','line'),title=el('div'),name=el('strong','',r.model),detail=el('div','info',r.id+' · '+r.faction+' · '+r.qty+' peças'),amount=el('strong','',fmt(calc(r)));
+  const wrap=el('div','mobile-card'),top=el('div','line'),title=el('div'),name=el('strong','',r.model),detail=el('div','info',r.id+' · '+r.faction+' · '+r.qty+' peças · '+(r.service||'Costura')),amount=el('strong','',fmt(calc(r)));
   title.append(name,detail);top.append(title,amount);
   const controls=el('div','buttons'),button=el('button','btn small','Conferir acerto');button.type='button';button.dataset.edit=r.id;
   controls.append(button);wrap.append(top,controls);host.append(wrap);
@@ -223,9 +236,9 @@ function renderOverview(){
  for(const a of audit.slice(0,6)){const e=el('div','event');e.append(el('strong','',a.message),el('small','',a.time+' · sessão fictícia'));trace.append(e)}
 }
 function visibleRecords(){
- const q=norm($('acerto-search').value),status=$('acerto-status').value,order=$('acerto-order').value;
- let out=records.filter(r=>(status==='all'||r.status===status)&&
- (!q||norm([r.id,r.model,r.faction].join(' ')).includes(q)));
+ const q=norm($('acerto-search').value),status=$('acerto-status').value,service=$('acerto-service').value,order=$('acerto-order').value;
+ let out=records.filter(r=>(status==='all'||r.status===status)&&(service==='all'||(r.service||'Costura')===service)&&
+ (!q||norm([r.id,r.model,r.faction,r.service||'Costura'].join(' ')).includes(q)));
  if(order==='faction')out.sort((a,b)=>a.faction.localeCompare(b.faction,'pt-BR'));
  else if(order==='amount')out.sort((a,b)=>calc(b)-calc(a));
  else out.sort((a,b)=>Number(b.id.split('-')[1])-Number(a.id.split('-')[1]));
@@ -241,14 +254,14 @@ function renderAcertos(){
   const tr=el('tr'),pending=r.status==='Pendente',badge=el('span','badge '+(pending?'pending':'paid'),r.status);
   const tick=el('input','check');tick.type='checkbox';tick.dataset.select=r.id;tick.checked=selected.has(r.id);tick.disabled=!pending;tick.setAttribute('aria-label','Selecionar '+r.id);
   const c0=el('td');c0.append(tick);
-  const c1=el('td');c1.append(el('div','cell-title',r.model),el('small','',r.id+' · '+r.date));
+  const c1=el('td');c1.append(el('div','cell-title',r.model),el('small','',r.id+' · '+r.date+' · '+(r.service||'Costura')));
   const c2=el('td','',r.faction),c3=el('td','',String(r.qty)),c4=el('td','',fmt(r.price)),c5=el('td','',fmt(r.extra-r.qty*r.discount)),c6=el('td','money',fmt(calc(r)));
   const c7=el('td');c7.append(badge);const c8=el('td'),actions=el('div','row-actions');
   actions.append(rowButton(pending?'Editar':'Detalhes','edit',r.id));
   if(pending)actions.append(rowButton('Pagar','pay',r.id));c8.append(actions);
   tr.append(c0,c1,c2,c3,c4,c5,c6,c7,c8);body.append(tr);
   const card=el('article','mobile-card'),head=el('div','line'),left=el('div'),t=el('strong','',r.model);
-  left.append(t,el('div','info',r.id+' · '+r.faction+' · '+r.qty+' peças'));head.append(left,el('span','badge '+(pending?'pending':'paid'),r.status));
+  left.append(t,el('div','info',r.id+' · '+r.faction+' · '+r.qty+' peças · '+(r.service||'Costura')));head.append(left,el('span','badge '+(pending?'pending':'paid'),r.status));
   const second=el('div','line');second.append(el('span','muted','Total · '+fmt(r.price)+' por peça'),el('strong','',fmt(calc(r))));
   const actionsMobile=el('div','buttons'),mlabel=el('label','muted'),mcheck=el('input','check');
   mcheck.type='checkbox';mcheck.dataset.select=r.id;mcheck.checked=selected.has(r.id);mcheck.disabled=!pending;
@@ -312,6 +325,10 @@ function monetary(text,allowNegative=false){
 }
 function evaluateForm(){
  const qty=Number($('edit-qty').value),price=monetary($('edit-price').value),discount=monetary($('edit-discount').value),extra=monetary($('edit-extra').value,true);
+ const service=$('edit-service').value;
+ if(!['Costura','Embalagem','Travetada','Outro'].includes(service))throw Error('Selecione um tipo de serviço válido.');
+ if(!staffFor(service).includes($('edit-faction').value))throw Error('Selecione o prestador correto para o serviço.');
+ if(service!=='Costura'&&discount!==0)throw Error('O desconto de travetada por peça é exclusivo da costura neste exemplo.');
  if(!Number.isSafeInteger(qty)||qty<1||qty>100000)throw Error('Quantidade deve ser um inteiro entre 1 e 100.000.');
  if(price<=0)throw Error('Informe um preço unitário maior que zero.');
  if(discount>price)throw Error('Desconto de travetada não pode superar o preço unitário.');
@@ -319,7 +336,22 @@ function evaluateForm(){
  const total=qty*(price-discount)+extra;
  if(!Number.isSafeInteger(total)||total<=0||total>100000000)throw Error('O valor final precisa ser positivo e dentro do limite.');
  const model=$('edit-model').value.trim();if(model.length<3)throw Error('Informe o nome do produto.');
- return {model,faction:$('edit-faction').value,qty,price,discount,extra,reason:$('edit-reason').value.trim(),total};
+ return {model,service,faction:$('edit-faction').value,qty,price,discount,extra,reason:$('edit-reason').value.trim(),total};
+}
+function staffFor(service){return exampleWorkers[service]||factions}
+function fillStaffOptions(service,preferred){
+ const list=staffFor(service),field=$('edit-faction');
+ field.replaceChildren();
+ for(const name of list){const opt=document.createElement('option');opt.value=name;opt.textContent=name;field.append(opt)}
+ field.value=list.includes(preferred)?preferred:list[0];
+ $('edit-faction-label').textContent=service==='Embalagem'?'Embaladeira':service==='Travetada'?'Travetadora':'Facção / prestador';
+ $('edit-discount').disabled=service!=='Costura'||$('edit-service').disabled;
+}
+function suggestRate(autofill){
+ const match=syntheticRates.find(x=>norm(x.model)===norm($('edit-model').value));
+ const service=$('edit-service').value,price=match&&match[service];
+ $('price-hint').textContent=price===undefined?'Modelo sem preço fictício cadastrado: informe o valor manualmente.':'Preço sugerido apenas na prévia: '+fmt(price)+' por peça. Você pode alterar.';
+ if(autofill)$('edit-price').value=price===undefined?'':(price/100).toFixed(2).replace('.',',');
 }
 function previewEdit(){
  try{$('edit-preview').textContent=fmt(evaluateForm().total);$('edit-feedback').textContent='Prévia válida. Nenhum dado foi salvo.';$('edit-feedback').style.color='#25744e';$('modal-save').disabled=false}
@@ -329,9 +361,11 @@ function editRecord(id){
  editId=id||null;
  const r=id?records.find(x=>x.id===id):null;if(id&&!r)return;
  $('modal-title').textContent=r?(r.status==='Pago'?'Detalhes do pagamento':'Editar '+r.id):'Novo acerto';
+ $('edit-service').value=r?.service||'Costura';
+ fillStaffOptions($('edit-service').value,r?.faction);
  $('modal-caption').textContent=r?'Linha '+r.id+' · '+(r.status==='Pago'?'bloqueada para edição':'editável na simulação'):'Exemplo local, sem gravação na nuvem';
  for(const [field,value] of [
-  ['edit-model',r?.model||''],['edit-faction',r?.faction||factions[0]],
+  ['edit-model',r?.model||''],
   ['edit-qty',r?.qty||''],['edit-price',r?(r.price/100).toFixed(2).replace('.',','):''],
   ['edit-discount',r?(r.discount/100).toFixed(2).replace('.',','):'0,00'],
   ['edit-extra',r?(r.extra/100).toFixed(2).replace('.',','):'0,00'],
@@ -339,6 +373,8 @@ function editRecord(id){
  const locked=r?.status==='Pago';
  document.querySelectorAll('#record-form input,#record-form select').forEach(x=>x.disabled=!!locked);
  $('modal-save').hidden=!!locked;
+ fillStaffOptions($('edit-service').value,r?.faction);
+ suggestRate(!r);
  previewEdit();
  $('record-dialog').showModal();
 }
@@ -347,7 +383,7 @@ function saveRecord(e){
  let v;try{v=evaluateForm()}catch(e){notify(e.message,true);return}
  const before=editId?records.find(x=>x.id===editId):null;
  if(before&&before.status!=='Pendente'){notify('Acerto pago não pode ser alterado.',true);return}
- const saved={id:before?.id||'AC-'+nextId++,model:v.model,faction:v.faction,qty:v.qty,price:v.price,discount:v.discount,
+ const saved={id:before?.id||'AC-'+nextId++,model:v.model,service:v.service,faction:v.faction,qty:v.qty,price:v.price,discount:v.discount,
   extra:v.extra,reason:v.reason,date:'15/11',status:'Pendente'};
  if(before){Object.assign(before,saved);log('Acerto '+saved.id+' revisado · '+saved.faction)}
  else{records.unshift(saved);log('Novo acerto '+saved.id+' incluído na simulação')}
@@ -361,22 +397,28 @@ function openPay(ids){
  const amount=records.filter(r=>valid.includes(r.id)).reduce((a,r)=>a+calc(r),0);
  $('pay-message').textContent=valid.length+' acerto(s) · '+records.filter(r=>valid.includes(r.id)).map(r=>r.id).join(', ');
  $('pay-total').textContent=fmt(amount);
+ $('pay-proof').value='';
  $('pay-dialog').showModal();
 }
 function confirmPay(){
  if(payIds.some(id=>records.find(r=>r.id===id)?.status!=='Pendente')){
   $('pay-dialog').close();notify('Conflito: um dos acertos já foi pago. Nenhuma operação realizada.',true);return
  }
+ const file=$('pay-proof').files[0];
+ if(file&&(!/\.pdf$/i.test(file.name)||file.size>5*1024*1024||file.size===0)){
+  notify('Utilize apenas um PDF fictício de até 5 MB, ou deixe sem comprovante.',true);return;
+ }
+ const proof=file?'PDF fictício: '+file.name.replace(/[\\/\r\n<>]/g,'').slice(0,80):'Não anexado';
  const touched=records.filter(r=>payIds.includes(r.id)),entries=[];
  for(const r of touched){const sum=calc(r);if(sum<=0){notify('Valor inválido. Nenhum acerto pago.',true);return}
- entries.push({id:'HUB-'+r.id.replace('AC-',''),source:r.id,faction:r.faction,detail:r.model,amount:sum,origin:'session',proof:'Não anexado'});
+ entries.push({id:'HUB-'+r.id.replace('AC-',''),source:r.id,faction:r.faction,detail:r.model,amount:sum,origin:'session',proof,service:r.service||'Costura'});
  }
  // Uma única atualização atômica de dados fictícios em memória, sem rede.
  const used=new Set(hub.map(h=>h.source));if(entries.some(x=>used.has(x.source))){notify('Pagamento duplicado impedido.',true);return}
  for(const r of touched)r.status='Pago';
  hub.push(...entries);
  log(touched.length+' acerto(s) pago(s) em lote: '+fmt(entries.reduce((a,x)=>a+x.amount,0)));
- selected.clear();payIds=[];$('pay-dialog').close();render();notify('Pagamento simulado e vinculado ao Hub. Nenhum valor real foi movimentado.');
+ selected.clear();payIds=[];$('pay-dialog').close();$('pay-proof').value='';render();notify('Pagamento simulado e vinculado ao Hub. Nenhum valor real foi movimentado.');
 }
 function changeRoute(index,dir){
  const next=index+dir;if(next<0||next>=route.length)return;
@@ -419,7 +461,7 @@ function exportCsv(){
  log('CSV fictício do Hub exportado');renderOverview();notify('CSV demonstrativo exportado, sem dados reais.');
 }
 document.querySelectorAll('[data-view]').forEach(b=>b.addEventListener('click',()=>switchView(b.dataset.view)));
-document.querySelectorAll('#acerto-search,#acerto-status,#acerto-order').forEach(node=>node.addEventListener(node.tagName==='INPUT'?'input':'change',renderAcertos));
+document.querySelectorAll('#acerto-search,#acerto-service,#acerto-status,#acerto-order').forEach(node=>node.addEventListener(node.tagName==='INPUT'?'input':'change',renderAcertos));
 document.querySelectorAll('#hub-search,#hub-period,#hub-order').forEach(node=>node.addEventListener(node.tagName==='INPUT'?'input':'change',renderHub));
 document.addEventListener('change',e=>{
  if(e.target.dataset.select)toggle(e.target.dataset.select,e.target.checked);
@@ -443,10 +485,16 @@ $('new-record').addEventListener('click',()=>editRecord());
 $('modal-cancel').addEventListener('click',()=>$('record-dialog').close());
 $('record-form').addEventListener('submit',saveRecord);
 document.querySelectorAll('#record-form input,#record-form select').forEach(node=>node.addEventListener(node.tagName==='SELECT'?'change':'input',previewEdit));
+$('edit-service').addEventListener('change',()=>{
+ fillStaffOptions($('edit-service').value);
+ $('edit-discount').value='0,00';
+ suggestRate(true);previewEdit();
+});
+$('edit-model').addEventListener('change',()=>{suggestRate(true);previewEdit()});
 $('reset-demo').addEventListener('click',reset);
 $('hub-evidence').addEventListener('click',exportEvidence);
 $('hub-export').addEventListener('click',exportCsv);
-for(const f of factions){const o=el('option','',f);o.value=f;$('edit-faction').append(o)}
+fillStaffOptions('Costura');
 reset();
 })();
 </script>
