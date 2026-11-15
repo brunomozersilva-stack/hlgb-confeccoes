@@ -139,7 +139,7 @@
   const next=moneyCents(input.nextPayment||0);
   if(next>total-cash-credit)fail('Recebimento parcial excede o saldo disponível.');
   const receivedCents=cash+next,remainingCents=total-receivedCents-credit;
-  const status=remainingCents>1?(receivedCents>0||credit>0?'Parcial':'Pendente'):(credit>0?'Compensado por devolução':'Pago');
+  const status=remainingCents===1?'Revisar centavo residual':remainingCents>1?(receivedCents>0||credit>0?'Parcial':'Pendente'):(credit>0?'Compensado por devolução':'Pago');
   return {totalCents:total,priorReceivedCents:cash,nextPaymentCents:next,receivedCents,creditCents:credit,remainingCents,status};
  }
  return Object.freeze({version:'demo-v1',moneyCents,previewLine,previewGroup,allocateLines,correctionRemaining,invoiceSummary});
