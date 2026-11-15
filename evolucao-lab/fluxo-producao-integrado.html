@@ -149,7 +149,7 @@ function render(){
  const stage=stages[current];
  $('stage-title').textContent=stage.title;$('stage-detail').textContent=stage.detail;
  const words=norm($('search-order').value).split(/\s+/).filter(Boolean),filter=$('filter-progress').value;
- const rows=allLines().filter(line=>words.every(word=>norm([line.orderId,line.model,line.color,line.size].join(' ')).includes(word))&&
+ const rows=allLines().filter(line=>words.every(word=>/^(p|m|g|gg|xg|exg)$/.test(word)?norm(line.size)===word:norm([line.orderId,line.model,line.color].join(' ')).includes(word))&&
  (filter==='all'||(filter==='open'?remaining(line,current)>0:remaining(line,current)===0)));
  $('results-count').textContent=rows.length+' variante(s) de '+allLines().length+' · '+(current==='orders'?'Consulta apenas, nenhuma baixa efetuada':stage.verb+' somente no navegador');
  const tb=$('grade-body'),mobile=$('grade-mobile');tb.replaceChildren();mobile.replaceChildren();
