@@ -40,6 +40,7 @@ test('as quatro áreas têm UI, busca e ações realmente ligadas a eventos',()=
  assert.match(file,/schema:'hlgb-evolucao-teste-operacional-v1'/);
  assert.match(file,/productionApproval:false/);
  assert.match(file,/\.status!=='Pendente'/);
+ assert.match(file,/button\[hidden\]\{display:none!important\}/);
  assert.match(file,/used\.has\(x\.source\)/);
 });
 test('versão mobile, navegação acessível e cálculos monetários controlados',()=>{
