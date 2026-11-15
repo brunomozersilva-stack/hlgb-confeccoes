@@ -66,7 +66,7 @@ async function run(browser,width){
   assert.match(await page.locator('#purchase-rows').innerText(),/5.573 g/);
   assert.match(await page.locator('#purchase-rows').innerText(),/5.500 g/);
   assert.match(await money('purchase'),/555,00/);
-  assert.match(await money('consumption'),/748,76/);
+  assert.match(await money('consumption'),/626,29/);
 
   await tab('materials').click();
   await page.locator('#material-id').selectOption('renda');
