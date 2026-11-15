@@ -15,7 +15,7 @@ test('revisão inicial e duas sessões independentes sem rede nem storage',()=>{
   /\blocalStorage\b/,/\bsessionStorage\b/,/\bsupabase\b/i,/\bserviceWorker\b/,
   /https?:\/\//i])assert(!bad.test(engineSource+page),'API externa proibida: '+bad);
  const scripts=[...page.matchAll(/<script(?:\s[^>]*)?>([\s\S]*?)<\/script>/gi)];
- assert.equal(scripts.length,1);assert.doesNotThrow(()=>new vm.Script(scripts[0][1]));
+ assert.equal(scripts.length,2,'script local do motor e script inline da UI');assert.doesNotThrow(()=>new vm.Script(scripts[1][1]));
  assert.doesNotThrow(()=>new vm.Script(engineSource));
 });
 test('salvar e reler cria um evento e não atualiza outra sessão sem consulta',()=>{
