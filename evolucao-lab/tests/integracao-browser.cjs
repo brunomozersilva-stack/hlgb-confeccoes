@@ -246,7 +246,12 @@ test('o mesmo formulário não ultrapassa a tela em cinco tamanhos de celular e 
   assert.equal(await page.locator('h1').count(),1);
   const view=await page.evaluate(()=>({
    inner:innerWidth,scroll:document.documentElement.scrollWidth,
-   offenders:[...document.querySelectorAll('body *')].map(e=>({tag:e.tagName,id:e.id,right:Math.round(e.getBoundingClientRect().right)})).filter(x=>x.right>innerWidth+2).slice(0,8)
+   rootClient:document.documentElement.clientWidth,bodyScroll:document.body.scrollWidth,
+   bodyRight:Math.round(document.body.getBoundingClientRect().right),
+   offenders:[...document.querySelectorAll('body,body *')].map(e=>({
+     tag:e.tagName,id:e.id,right:Math.round(e.getBoundingClientRect().right),
+     scroll:e.scrollWidth,client:e.clientWidth
+   })).filter(x=>x.right>innerWidth+2||x.scroll>x.client+2).slice(0,12)
   }));
   assert(view.scroll<=view.inner+2,'Largura '+width+' teve rolagem horizontal: '+JSON.stringify(view));
   await page.locator('#login').click();
