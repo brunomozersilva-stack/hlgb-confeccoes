@@ -71,7 +71,7 @@ test('proteção de compensações: mesma facção, situação e identificador �
  fail(()=>E.previewGroup(g),/superior ao saldo/);
 });
 test('não aceita total líquido zero ou negativo',()=>{
- const g=group();g.adjustments=[{id:'D',kind:'abater',amount:'28,00',reason:'Ajuste demonstrativo'}];
+ const g=group();g.adjustments=[{id:'D',kind:'abater',amount:'29,00',reason:'Ajuste demonstrativo'}];
  g.applications=[];
  fail(()=>E.previewGroup(g),/maior que zero/);
 });
