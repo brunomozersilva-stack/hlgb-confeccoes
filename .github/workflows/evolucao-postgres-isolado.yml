@@ -1,0 +1,63 @@
+name: HLGB Evolucao - PostgreSQL descartavel
+on:
+  push:
+    branches:
+      - feature/evolucao-laboratorio-isolado-v1-20261114
+    paths:
+      - 'evolucao-lab/postgres/**'
+      - 'evolucao-lab/tests/postgres-integration.cjs'
+      - '.github/workflows/evolucao-postgres-isolado.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  postgres-lab:
+    name: Atomicidade e concorrencia em banco temporario
+    runs-on: ubuntu-24.04
+    timeout-minutes: 14
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_DB: hlgb_evolucao_lab
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: somente_teste_local_2026
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d hlgb_evolucao_lab"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      PGHOST: 127.0.0.1
+      PGPORT: 5432
+      PGUSER: postgres
+      PGDATABASE: hlgb_evolucao_lab
+      PGPASSWORD: somente_teste_local_2026
+      HLGB_LAB_DATABASE_URL: postgres://postgres:somente_teste_local_2026@127.0.0.1:5432/hlgb_evolucao_lab
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - name: Install PostgreSQL client (if needed)
+        run: |
+          if ! command -v psql >/dev/null 2>&1; then
+            sudo apt-get update -qq
+            sudo apt-get install -y postgresql-client
+          fi
+      - name: Verify isolated connection before executing SQL
+        shell: bash
+        run: |
+          set -euo pipefail
+          ACTUAL="$(psql -tAc 'select current_database()')"
+          test "$ACTUAL" = "hlgb_evolucao_lab"
+          echo "Conectado ao banco temporario: hlgb_evolucao_lab"
+      - name: Create private schema and fixtures ONLY in disposable PostgreSQL
+        run: |
+          psql -v ON_ERROR_STOP=1 -f evolucao-lab/postgres/01-schema-local.sql
+          psql -v ON_ERROR_STOP=1 -f evolucao-lab/postgres/02-fixtures-local.sql
+      - name: Install pinned local test client
+        run: npm install --no-save pg@8.16.3
+      - name: Run real SQL concurrency, rollback and access tests
+        run: node --test evolucao-lab/tests/postgres-integration.cjs
