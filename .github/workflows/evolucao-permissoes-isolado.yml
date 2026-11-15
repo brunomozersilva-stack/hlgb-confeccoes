@@ -1,0 +1,87 @@
+name: HLGB Evolucao - Permissoes e comprovantes isolados
+on:
+  push:
+    branches:
+      - feature/evolucao-laboratorio-isolado-v1-20261114
+    paths:
+      - 'evolucao-lab/permissoes/**'
+      - 'evolucao-lab/tests/permissoes-postgres.cjs'
+      - 'evolucao-lab/tests/permissoes-mobile.cjs'
+      - '.github/workflows/evolucao-permissoes-isolado.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  database:
+    name: Papeis e transacoes em Postgres temporario
+    runs-on: ubuntu-24.04
+    timeout-minutes: 14
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_DB: hlgb_permissoes_lab
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: ci_somente_laboratorio
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d hlgb_permissoes_lab"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      PGHOST: 127.0.0.1
+      PGPORT: 5432
+      PGUSER: postgres
+      PGDATABASE: hlgb_permissoes_lab
+      PGPASSWORD: ci_somente_laboratorio
+      HLGB_AUTH_LAB_URL: postgres://postgres:ci_somente_laboratorio@127.0.0.1:5432/hlgb_permissoes_lab
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - name: Install local PostgreSQL client
+        run: |
+          if ! command -v psql >/dev/null; then
+            sudo apt-get update -qq
+            sudo apt-get install -y postgresql-client
+          fi
+      - name: Confirm disposable database is not HLGB
+        run: |
+          set -euo pipefail
+          test "$(psql -tAc 'select current_database()')" = 'hlgb_permissoes_lab'
+      - name: Build PRIVATE lab schema and fictional users
+        run: psql -v ON_ERROR_STOP=1 -f evolucao-lab/permissoes/01-laboratorio-seguro.sql
+      - name: Install pinned SQL client
+        run: npm install --no-save pg@8.16.3
+      - name: Test role separation, tenancy, revocation, PDF metadata and concurrency
+        run: node --test evolucao-lab/tests/permissoes-postgres.cjs
+  mobile:
+    name: Chrome and Safari engine (${{ matrix.browser }})
+    runs-on: ubuntu-24.04
+    timeout-minutes: 18
+    strategy:
+      fail-fast: false
+      matrix:
+        browser: [chromium, webkit]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - name: Install UI-only browser test tools
+        run: |
+          npm install --no-save playwright@1.55.0
+          npx playwright install --with-deps ${{ matrix.browser }}
+      - name: Verify role-based mobile preview uses no network
+        env:
+          HLGB_BROWSER: ${{ matrix.browser }}
+          HLGB_SCREENSHOT_DIR: /tmp/hlgb-evolucao-perfis
+        run: node evolucao-lab/tests/permissoes-mobile.cjs
+      - name: Save illustrative screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: perfis-ficticios-${{ matrix.browser }}
+          path: /tmp/hlgb-evolucao-perfis/*.png
+          if-no-files-found: ignore
