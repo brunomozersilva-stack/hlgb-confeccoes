@@ -1,0 +1,52 @@
+name: HLGB Evolucao - Fluxo Integrado Producao
+on:
+  push:
+    branches:
+      - feature/evolucao-laboratorio-isolado-v1-20261114
+    paths:
+      - 'evolucao-lab/fluxo-producao-integrado.html'
+      - 'evolucao-lab/tests/fluxo-producao-contract.cjs'
+      - 'evolucao-lab/tests/fluxo-producao-mobile.cjs'
+      - '.github/workflows/evolucao-fluxo-producao.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  contract:
+    name: Contratos e isolamento
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - name: Verify standalone contract
+        run: node --test evolucao-lab/tests/fluxo-producao-contract.cjs
+  browser:
+    name: Fluxo completo (${{ matrix.browser }})
+    runs-on: ubuntu-24.04
+    timeout-minutes: 18
+    strategy:
+      fail-fast: false
+      matrix:
+        browser: [chromium, webkit]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - name: Install browser
+        run: |
+          npm install --no-save playwright@1.55.0
+          npx playwright install --with-deps ${{ matrix.browser }}
+      - name: Verify grade and partial transitions without network
+        env:
+          HLGB_BROWSER: ${{ matrix.browser }}
+          HLGB_SCREENSHOT_DIR: /tmp/hlgb-producao
+        run: node evolucao-lab/tests/fluxo-producao-mobile.cjs
+      - name: Preserve screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: fluxo-producao-${{ matrix.browser }}
+          path: /tmp/hlgb-producao/*.png
+          if-no-files-found: ignore
