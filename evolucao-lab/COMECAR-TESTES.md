@@ -21,6 +21,21 @@ A página `homologacao-modulos.html` organiza 76 funcionalidades antigas identif
 
 As restantes **68 funções não possuem demonstração específica equivalente**. Elas já podem ser registradas como pendências, mas **não podem ser aprovadas no formulário como se estivessem implementadas**.
 
+## Teste integrado de Pedidos → Corte → Facções → Retorno → Separação
+
+A página **fluxo-producao-integrado.html** permite executar, na mesma sessão, cinco movimentos fictícios vinculados à **mesma grade por cor e tamanho**. Ela é uma prévia adicional e **não altera** os 8 exercícios de homologação já catalogados; ainda falta avaliar equivalência com as rotinas legadas.
+
+1. No índice, abra **Pedidos → Corte → Produção → Separação**. O total inicial fictício é de **390 peças pedidas, 200 cortadas, 160 enviadas às facções, 130 retornadas e 70 separadas**, somando as quatro encomendas de exemplo.
+2. Em **Pedidos**, busque **Camisola Leidiane Preto M**. Somente uma variante deve aparecer, sem misturar com a cor Rubi. Limpe os filtros.
+3. Em **Produção / Facções**, tente enviar **PD-100 / Camisola Melina / Preto P** antes do corte. O botão deverá permanecer bloqueado.
+4. Em **Corte**, selecione **PD-100 / Preto P**, tente registrar 21 peças (deve bloquear) e depois confirme **20 peças**. Total cortado: **220**.
+5. Em **Produção / Facções**, envie essas 20 peças à **Fran Demo**. Total enviado: **180**.
+6. Em **Retornos**, a mesma grade aceitará retorno de no máximo 20 peças pela mesma facção. Registre **18**. Total retornado: **148**.
+7. Em **Separação**, confirme **10 peças**, depois **8 peças**. O saldo a separar dessa variante deve virar zero, e o total separado da demonstração deve chegar a **88**. Uma terceira baixa da mesma variante deve ficar indisponível.
+8. Entre em **Auditoria** e baixe o JSON. Confira **5 movimentos, 4 pedidos, 14 variantes**, todos os indicadores `checks` verdadeiros e histórico de envio e retorno pela facção que você selecionou. Utilize **Reiniciar exemplos** para restaurar a sessão.
+
+**Limite:** a movimentação não representa pedidos reais nem altera corte, estoque, facções, pagamentos ou separação no banco. Este laboratório não grava em nuvem; serve para validar regras e interface antes de criar integração segura em um banco exclusivo de homologação.
+
 ## Primeiro ciclo completo para conferir de ponta a ponta
 
 1. Abra **Central Operacional 2.0** a partir do índice. Entre em **Acertos** e edite `AC-1041` (Doll Crystal, facção Roseli): quantidade 200, preço 0,80 e travetada 0,05. Confira o total previsto de **R$ 150,00**.
