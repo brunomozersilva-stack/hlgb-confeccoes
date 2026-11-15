@@ -140,6 +140,7 @@ const examples=[
 const captions={ordered:'Pedidas',cut:'Cortadas',sent:'Enviadas',returned:'Retornadas',separated:'Separadas'};
 const materials={tule:{label:'Tule',costCentKg:1800},renda:{label:'Renda',costCentKg:4200},malha:{label:'Malha',costCentKg:2800}};
 const formatMoney=n=>(n/100).toLocaleString('pt-BR',{style:'currency',currency:'BRL'});
+const yieldPercent=(used,waste)=>used+waste>0?(100*used/(used+waste)).toLocaleString('pt-BR',{minimumFractionDigits:1,maximumFractionDigits:1})+'%':'—';
 function cutMaterialSummary(){
  const cuts=movements.filter(m=>m.stage==='cut'&&m.cutSheet);
  const sums={gross:0,used:0,waste:0,leftover:0,cost:0,pieces:0};
@@ -158,13 +159,13 @@ function renderCutSummary(){
  const host=$('cut-materials');host.hidden=current!=='cut';if(host.hidden)return;
  const {totals,groups}=cutMaterialSummary(),stats=$('cut-stats'),rows=$('cut-material-rows');
  stats.replaceChildren();rows.replaceChildren();
- for(const [label,value] of [['Peso liberado',totals.gross+' g'],['Utilizado',totals.used+' g'],['Lixo / resíduo',totals.waste+' g'],['Sobra',totals.leftover+' g'],['Custo estimado',formatMoney(totals.cost)],['Peças nesta sessão',String(totals.pieces)]]){
+ for(const [label,value] of [['Peso liberado',totals.gross+' g'],['Utilizado',totals.used+' g'],['Lixo / resíduo',totals.waste+' g'],['Sobra',totals.leftover+' g'],['Custo estimado',formatMoney(totals.cost)],['Peças nesta sessão',String(totals.pieces)],['Aproveitamento do consumido',yieldPercent(totals.used,totals.waste)]]){
   const card=el('article','');card.append(el('span','',label),el('strong','',value));stats.append(card);
  }
  for(const group of groups){
   const card=el('div','cut-card');
   card.append(el('strong','',group.model+' · '+group.label+' · '+group.pieces+' peças'),
-    el('div','',group.gross+' g disponibilizados · '+group.used+' g utilizados · '+group.waste+' g resíduo · '+group.leftover+' g sobra · '+formatMoney(group.cost)+' estimados'));
+    el('div','',group.gross+' g disponibilizados · '+group.used+' g utilizados · '+group.waste+' g resíduo · '+group.leftover+' g sobra · '+formatMoney(group.cost)+' estimados · '+yieldPercent(group.used,group.waste)+' de aproveitamento'));
   rows.append(card);
  }
  if(!groups.length)rows.append(el('p','status','Nenhuma ficha de corte criada nesta sessão.'));
