@@ -57,6 +57,21 @@ async function testFlow(browser,width){
   assert.match(await page.locator('#cut-stats').innerText(),/8,46/);
   assert.match(await page.locator('#cut-material-rows').innerText(),/Camisola Melina.*Tule/);
   assert.equal((await page.locator('#metric-cut').innerText()).trim(),'220');
+  // Segundo corte separado: cortador externo, renda e resíduos conferidos.
+  await button('cut','PD-100-L2').click();
+  await page.locator('#movement-cutter-type').selectOption('externo');
+  assert.equal(await page.locator('#movement-operator').inputValue(),'Cortador Externo Demo B');
+  await page.locator('#movement-material').selectOption('renda');
+  await page.locator('#movement-qty').fill('10');
+  await page.locator('#movement-weight-total').fill('300');
+  await page.locator('#movement-weight-used').fill('250');
+  await page.locator('#movement-weight-waste').fill('25');
+  assert.match(await page.locator('#movement-preview').innerText(),/11,55/);
+  await page.locator('#movement-confirm').click();
+  assert.equal((await page.locator('#metric-cut').innerText()).trim(),'230');
+  assert.equal(await page.locator('#cut-material-rows .cut-card').count(),2);
+  assert.match(await page.locator('#cut-material-rows').innerText(),/Renda/);
+  assert.match(await page.locator('#cut-stats').innerText(),/20,01/);
   assert.equal(await button('cut','PD-100-L1').isDisabled(),true,'same grade cannot be cut twice');
   await tab('send').click();
   await button('send','PD-100-L1').click();
@@ -87,29 +102,32 @@ async function testFlow(browser,width){
   assert.equal(await button('separate','PD-100-L1').isDisabled(),true,'cannot separate returned twice');
   assert.equal((await page.locator('#metric-separated').innerText()).trim(),'88');
   await tab('audit').click();
-  assert.equal(await page.locator('#audit-list .audit-item').count(),5);
+  assert.equal(await page.locator('#audit-list .audit-item').count(),6);
   assert.match(await page.locator('#audit-status').innerText(),/9\/9 verificações/);
   const [download]=await Promise.all([page.waitForEvent('download'),page.locator('#download-evidence').click()]);
   const report=JSON.parse(fs.readFileSync(await download.path(),'utf8'));
   assert.equal(report.schema,'hlgb-evolucao-fluxo-producao-v1');
   assert.equal(report.environment,'offline-demo');
   assert.equal(report.fictitious,true);assert.equal(report.productionApproval,false);
-  assert.equal(report.orders.length,4);assert.equal(report.movements.length,5);
-  assert.deepEqual(report.materialSummary.totals,{gross:500,used:420,waste:50,leftover:30,cost:846,pieces:20});
-  assert.equal(report.materialSummary.groups.length,1);
+  assert.equal(report.orders.length,4);assert.equal(report.movements.length,6);
+  assert.deepEqual(report.materialSummary.totals,{gross:800,used:670,waste:75,leftover:55,cost:2001,pieces:30});
+  assert.equal(report.materialSummary.groups.length,2);
   assert.equal(report.materialSummary.groups[0].model,'Camisola Melina');
   assert.equal(report.movements[0].cutSheet.material,'tule');
   assert.equal(report.movements[0].cutSheet.cutterType,'interno');
   assert.equal(report.movements[0].cutSheet.spreader,'Infestador Demo A');
   assert.equal(report.movements[0].cutSheet.reviewerOne,'Conferente Demo A');
   assert.equal(report.movements[0].cutSheet.reviewerTwo,'Conferente Demo B');
-  assert.deepEqual(report.counts,{ordered:390,cut:220,sent:180,returned:148,separated:88});
+  assert.equal(report.movements[1].cutSheet.material,'renda');
+  assert.equal(report.movements[1].cutSheet.cutterType,'externo');
+  assert.equal(report.movements[1].cutSheet.estimatedCostCents,1155);
+  assert.deepEqual(report.counts,{ordered:390,cut:230,sent:180,returned:148,separated:88});
   assert(Object.values(report.checks).every(Boolean),JSON.stringify(report.checks));
   const order=report.orders.find(x=>x.id==='PD-100');
   assert.deepEqual([order.lines[0].ordered,order.lines[0].cut,order.lines[0].sent,order.lines[0].returned,order.lines[0].separated],[20,20,20,18,18]);
   assert.equal(order.lines[0].faction,'Fran Demo');
-  assert.deepEqual(report.movements.map(x=>x.stage),['cut','send','return','separate','separate']);
-  assert.equal(new Set(report.movements.map(x=>x.id)).size,5);
+  assert.deepEqual(report.movements.map(x=>x.stage),['cut','cut','send','return','separate','separate']);
+  assert.equal(new Set(report.movements.map(x=>x.id)).size,6);
   await page.locator('#audit-reset').click();
   assert.equal((await page.locator('#metric-cut').innerText()).trim(),'200');
   assert.equal((await page.locator('#metric-separated').innerText()).trim(),'70');
@@ -119,7 +137,7 @@ async function testFlow(browser,width){
   assert.deepEqual(errors,[],'no uncaught JavaScript errors');
   assert.deepEqual(requests,[],'offline only');
   if(width===375){fs.mkdirSync(screenshots,{recursive:true});await page.screenshot({path:path.join(screenshots,'producao-'+engine.name()+'-'+width+'.png'),fullPage:true})}
-  console.log('PASS fluxo 5 etapas '+engine.name()+' '+width+'px: grade, bloqueios, auditoria, reset e sem rede');
+  console.log('PASS fluxo integrado '+engine.name()+' '+width+'px: duas fichas de corte, 2 materiais, 6 movimentos, bloqueios, auditoria e reset');
  }finally{await page.close()}
 }
 (async()=>{const b=await engine.launch({headless:true});try{for(const w of [320,375,390,768,1280])await testFlow(b,w)}finally{await b.close()}})().catch(e=>{console.error(e);process.exitCode=1});
