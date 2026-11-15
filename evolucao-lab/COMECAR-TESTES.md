@@ -21,6 +21,17 @@ A página `homologacao-modulos.html` organiza 76 funcionalidades antigas identif
 
 As restantes **68 funções não possuem demonstração específica equivalente**. Elas já podem ser registradas como pendências, mas **não podem ser aprovadas no formulário como se estivessem implementadas**.
 
+## Primeiro ciclo completo para conferir de ponta a ponta
+
+1. Abra **Central Operacional 2.0** a partir do índice. Entre em **Acertos** e edite `AC-1041` (Doll Crystal, facção Roseli): quantidade 200, preço 0,80 e travetada 0,05. Confira o total previsto de **R$ 150,00**.
+2. Crie outro acerto fictício para Fran com 40 peças, preço 0,50, travetada 0,05 e abatimento total de 1,00, justificando a alteração. Confira **R$ 17,00**.
+3. Selecione **AC-1041** e **AC-1042**, simule o pagamento em lote e confira o total **R$ 250,80**, sem clicar no programa operacional.
+4. Abra **Hub Financeiro**, filtre **Criados na sessão** e procure `1041`. Verifique que existe apenas uma saída vinculada ao acerto e que o valor foi mantido.
+5. Clique em **Baixar evidência JSON** no Hub e envie o arquivo no chat. Ele inclui todos os acertos fictícios, lançamentos, rota, histórico e indicadores simples de integridade, sem dados da empresa.
+6. Entre em **Facções**, mude a posição de Roseli na rota e confirme a sequência. Em seguida, use **Restaurar dados fictícios** para reiniciar.
+
+Estes são testes **demonstrativos e interativos** dos fluxos disponíveis, não homologação de registros, dados ou banco de produção. Os demais módulos continuam listados na Central de Testes com estado não implementado quando não houver demonstração real.
+
 ## Como usar
 
 1. Extraia `HLGB-Evolucao-Previa.zip`, entre na pasta `HLGB-Evolucao-Previa` e abra o arquivo `index.html`.
