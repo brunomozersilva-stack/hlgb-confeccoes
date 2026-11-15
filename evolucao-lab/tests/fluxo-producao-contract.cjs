@@ -15,11 +15,14 @@ test('fluxo encadeado e conferencias de integridade por variante',()=>{
   assert.match(html,new RegExp('data-stage="'+stage+'"'));
  for(const id of ['grade-body','grade-mobile','movement-dialog','movement-qty','movement-operator',
  'metric-ordered','metric-cut','metric-sent','metric-returned','metric-separated','audit-list',
- 'download-evidence','export-data','reset-data','results-count','search-order','filter-progress'])
+ 'download-evidence','export-data','reset-data','results-count','search-order','filter-progress',
+ 'cut-materials','cut-stats','cut-material-rows','cut-fields','movement-material','movement-weight-total',
+ 'movement-weight-used','movement-weight-waste','movement-spreader','movement-reviewer-one','movement-reviewer-two'])
   assert.match(html,new RegExp('id="'+id+'"'),'missing '+id);
  for(const feature of ['function validateMove','function validLine','function commitMove','function exportEvidence',
  'operacoesUnicas','linhasSemPerda','gradeConsistente','movimentosEmUnidadesInteiras',
- 'line.revision!==pending.lineRevision'])
+ 'line.revision!==pending.lineRevision','function cutDetails','function cutMaterialSummary',
+ 'folhasDeCorteComDados','pesosConservados','conferenciasDistintas'])
   assert.ok(html.includes(feature),'missing '+feature);
  assert.match(html,/@media\(max-width:600px\)/);assert.match(html,/aria-live="polite"/);assert.match(html,/:focus-visible/);
 });
