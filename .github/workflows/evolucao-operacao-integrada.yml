@@ -7,6 +7,7 @@ on:
       - 'evolucao-lab/operacao-integrada.html'
       - 'evolucao-lab/operacao-integrada-core.js'
       - 'evolucao-lab/operacao-integrada-ui.js'
+      - 'evolucao-lab/modulos/**'
       - 'evolucao-lab/tests/operacao-integrada-*.cjs'
       - '.github/workflows/evolucao-operacao-integrada.yml'
   workflow_dispatch:
@@ -23,7 +24,7 @@ jobs:
         with:
           node-version: '22'
       - name: Conferir integridade de pedidos, corte, faccoes, contas e folha
-        run: node --test evolucao-lab/tests/operacao-integrada-contract.cjs
+        run: node --test evolucao-lab/tests/operacao-integrada-contract.cjs evolucao-lab/tests/observabilidade-v2-contract.cjs
   browser:
     name: Operacao integrada e mobile (${{ matrix.browser }})
     runs-on: ubuntu-24.04
