@@ -98,6 +98,74 @@ function guidedJourney(s){
  '<button type="button" class="btn" data-goto="acertos">Abrir Acertos</button></div></div>'+
  '<p class="caption">Depois do teste, atualize a página, confira os mesmos IDs e exporte JSON/CSV. A atualização e a conferência humana não são marcadas automaticamente como concluídas.</p>';
 }
+
+/* Painéis observáveis como plug-in independente; erro ou desativação retorna às telas legadas. */
+function observerResult(s){
+ try{
+  const reg=window.HLGBLabModules;
+  const r=reg&&reg.call('observabilidade','analyze',s);
+  return r&&r.ok?r.data:null;
+ }catch(error){return null}
+}
+function observationPanels(s,area){
+ const o=observerResult(s);
+ if(!o)return null;
+ const f=o.findings,metric=[
+  ['Eventos históricos',str(o.summary.events)],
+  ['Ocorrências em aberto',str(o.summary.openIncidents)],
+  ['Alertas críticos',str(o.summary.bySeverity.critica)],
+  ['Revisão do documento',str(o.summary.lastRevision)]
+ ];
+ const summary=panel('Observabilidade 2.0 · dados locais de teste',
+  '<p>Diagnóstico independente por módulo, sem autocorreção ou gravação. Não comprova ausência de bugs no HLGB real.</p>'+
+  table(['Indicador','Resultado'],metric));
+ if(area==='auditor'){
+  return summary+panel('Inconsistências e origem provável',
+   '<p><strong>'+str(f.length)+' alertas</strong> · '+str(o.status)+
+   '. Cada linha indica o registro, a regra verificável e a orientação sem executar alterações.</p>'+
+   table(['Gravidade','Regra','Módulo','Registro','Evidência','Próxima conferência'],
+    f.slice(0,100).map(x=>[str(x.severity),str(x.code),str(x.module),
+    str(x.recordId),str(x.message)+'<div class="caption">'+str(x.evidence)+'</div>',str(x.action)]))+
+   (f.length>100?'<p class="caption">Exibidos 100 alertas; exporte JSON para todos os detalhes.</p>':'')+
+   '<p class="caption">Sem alertas significa apenas que as regras cobertas não encontraram divergência.</p>',true)+
+   panel('Cobertura e limitações',
+    table(['Conferência','Escopo'],[
+     ['Identificadores e eventos','Duplicidade de IDs, comandos e revisão'],
+     ['Pedidos e financeiro','Conta a receber correspondente'],
+     ['Compras e estoque','Entrada única e título de fornecedor'],
+     ['Corte e materiais','Baixa única por folha concluída'],
+     ['Acertos e compensações','Valor/status, pagamento original, referência e novo título'],
+     ['Saúde do HLGB real','Não verificada (sem Supabase ou autenticação)']
+    ]),true);
+ }
+ if(area==='bot'){
+  return summary+panel('Assistente de triagem orientado por evidências',
+   '<p>Em vez de mensagens genéricas, cada orientação informa o motivo, a quantidade de registros envolvidos e o módulo para conferir. Repetições são agrupadas por regra; <strong>não é IA autônoma</strong> e nenhuma correção é executada.</p>'+
+   (o.recommendations.length?o.recommendations.map(x=>
+    '<div class="journey-step"><div><strong>'+str(x.priority.toUpperCase())+
+    ' · '+str(x.code)+'</strong><p class="caption">'+str(x.why)+
+    ' · '+str(x.evidence)+'</p><p>'+str(x.action)+'</p></div>'+
+    '<button class="btn" type="button" data-goto="'+str(x.module)+'">Conferir módulo</button></div>'
+   ).join(''):'<div class="success">Nenhuma recomendação nas regras locais cobertas.</div>'),true)+
+   panel('Aprendizado verificável do histórico (não autônomo)',
+    table(['Operação','Vezes registrada'],o.repeatedOperations.map(x=>
+     [str(x.type),str(x.count)]))+
+    '<p class="caption">Contagens por tipo de evento; não inferem causas nem alteram código.</p>',true);
+ }
+ if(area==='relatorios'){
+  return summary+panel('Histórico completo de operações fictícias',
+   '<p>'+str(o.summary.historyExported)+' eventos registrados. Exiba as últimas 150 linhas na tela e exporte o histórico completo em CSV/JSON. Eventos anteriores não são apagados por este módulo.</p>'+
+   '<div class="field"><label for="history-search">Pesquisar comando, revisão, módulo, pessoa ou descrição</label>'+
+   '<input class="input" type="search" id="history-search" data-filter-for="audit-history-table" placeholder="Ex.: finance.pay, ACE-0001"></div>'+
+   '<div id="audit-history-table">'+table(['Revisão','Comando','Área','Operação','Operador','Descrição'],
+    o.history.slice(0,150).map(x=>[str(x.revision),str(x.commandId),
+     str(x.module),str(x.type),str(x.actor),str(x.description)]))+'</div>'+
+   '<div class="actions"><button type="button" class="btn primary" id="export-observer-csv">Exportar auditoria completa CSV</button></div>',true)+
+   panel('Atividade por módulo',
+    table(['Módulo','Ações registradas'],o.moduleActivity.map(x=>[str(x.module),str(x.count)])),true);
+ }
+ return null;
+}
 function moduleHtml(s){
  const o=orderOptions(s),openPlans=(s.cutPlans||[]).filter(p=>p.status==='aberto'),
   planOptions=selector(openPlans,p=>p.id+' · '+p.orderId+' · '+sum(p.grade)+' peças'),
@@ -109,7 +177,13 @@ function moduleHtml(s){
  finance=selector(s.finance.filter(x=>x.status==='aberto'),x=>x.id+' · '+fmt(x.amountCents)+' · '+x.description),
  employees=selector(s.employees,x=>x.name),incidents=selector(s.errors.filter(x=>x.status==='aberto'),x=>x.id+' · '+x.message);
  switch(active){
- case 'nucleo':return panel('Roteiro guiado do fluxo integrado',guidedJourney(s),true)+
+ case 'nucleo':return panel('Módulos opcionais com desativação segura',
+ (window.HLGBLabModules?table(['Módulo','Versão','Ativo','Falhas isoladas'],window.HLGBLabModules.list().map(x=>[
+ str(x.id),str(x.version),x.enabled?'Sim':'Não',str(x.failures)])):
+ '<p>Registro modular indisponível; funções legadas permanecem acessíveis.</p>')+
+ '<div class="actions"><button type="button" class="btn" data-toggle-observer="true">Alternar Observabilidade 2.0 (apenas nesta aba)</button></div>'+
+ '<p class="caption">Uma falha no módulo de diagnóstico não bloqueia pedidos, acertos, títulos ou qualquer função anterior. Flag apenas em memória desta aba.</p>',true)+
+ panel('Roteiro guiado do fluxo integrado',guidedJourney(s),true)+
  panel('Como testar o fluxo completo',refDocs(s)+
  '<ol class="tips"><li>Em <b>Pedidos</b>, crie uma encomenda P/M/G.</li><li>Em <b>Corte</b>, corte algumas peças; o material será consumido.</li>'+
  '<li>Em <b>Facções</b>, envie as peças cortadas e registre retorno parcial.</li><li>Em <b>Acertos</b>, verifique o título criado; em <b>Separação</b>, dê baixa e despache.</li>'+
@@ -384,6 +458,7 @@ function moduleHtml(s){
  panel('Movimentação de material',table(['ID','Tipo','Material','Variação','Origem'],s.stockLedger.map(x=>[
  str(x.id),str(x.type),str(ref(s.materials,x.materialId)?.name),(x.deltaGrams>0?'+':'')+x.deltaGrams+'g',str(x.sourceId)])),true);
  case 'relatorios':{
+ const advanced=observationPanels(s,'relatorios');if(advanced)return advanced;
  const t=api.totals(s);
  return panel('Indicadores vinculados',table(['Indicador','Valor'],Object.entries(t).map(([k,v])=>[
  str(k),k.includes('Payables')||k.includes('Receivables')||k==='passage'||k==='salaryCash'?fmt(v):str(v)])))+
@@ -392,6 +467,7 @@ function moduleHtml(s){
  panel('Pedidos × Financeiro',orderTable(s)+financeTable(s),true);
  }
  case 'auditor':{
+ const advanced=observationPanels(s,'auditor');if(advanced)return advanced;
  const check=api.inspect(s),issues=check.problems;
  return panel('Diagnóstico determinístico',
  (check.ok?'<div class="success">Sem inconsistências nas regras simuladas.</div>':
@@ -402,11 +478,13 @@ function moduleHtml(s){
  ['Provas de duas sessões empresariais','Não realizadas']]))+
  panel('Limites do auditor','<p>O diagnóstico não aplica autocorreção. Sem banco empresarial, não há prova de saúde do sistema atual, monitoramento remoto ou aprendizagem automática.</p>');
  }
- case 'bot':return panel('Recomendações baseadas em regras fixas',
+ case 'bot':{
+ const advanced=observationPanels(s,'bot');if(advanced)return advanced;
+ return panel('Recomendações baseadas em regras fixas',
  '<p>O assistente apenas lê indicadores locais para sugerir o próximo passo. Não usa IA treinada, não aprende, não faz ações sozinho.</p>'+
  '<ol class="tips">'+api.tips(s).map(x=>'<li>'+escape(x)+'</li>').join('')+'</ol>')+
  panel('Ações rápidas','<div class="actions"><button class="btn" data-goto="pedidos">Pedidos</button>'+
- '<button class="btn" data-goto="faccoes">Facções</button><button class="btn" data-goto="hub">Hub</button></div>');
+ '<button class="btn" data-goto="faccoes">Facções</button><button class="btn" data-goto="hub">Hub</button></div>');}
  case 'central':return panel('Registrar e acompanhar ocorrência',
  form('error.add','Nova falha fictícia',[field('message','Descrição do problema')],'Registrar ocorrência')+
  form('error.resolve','Encerrar ocorrência fictícia',[field('id','Ocorrência em aberto','select','',incidents)],'Encerrar ocorrência'))+
@@ -579,6 +657,7 @@ function exportReport(){
  if(!doc)return;const report={schema:'hlgb-evolucao-operacao-integrada-report-v1',environment:'indexeddb-local-fictitious',
   productionApproval:false,parityApproved:false,modulesVisited:19,exportedAt:new Date().toISOString(),
   journey:api.journey(doc,journeyOrderId),
+  observability:observerResult(doc),
   checks:api.inspect(doc),totals:api.totals(doc),data:doc};
  download('HLGB-EVOLUCAO-OPERACAO-INTEGRADA-FICTICIA.json',JSON.stringify(report,null,2),'application/json');
 }
@@ -591,6 +670,16 @@ function exportCsv(){
  ...(doc.settlementCompensations||[]).map(x=>['Compensação',x.id,x.settlementId+' · '+x.reference,x.status,x.deltaCents]),
  ...doc.purchaseOrders.map(x=>['Compra',x.id,ref(doc.materials,x.materialId)?.name||'',x.received?'Recebido':'Pendente',x.qtyGrams])];
  download('HLGB-EVOLUCAO-OPERACAO-INTEGRADA-FICTICIA.csv','\uFEFF'+rows.map(r=>r.map(safeCell).join(';')).join('\r\n'),'text/csv;charset=utf-8');
+}
+function exportObserverCsv(){
+ const report=doc&&observerResult(doc);
+ if(!report){status('Observabilidade indisponível ou desativada; exporte o JSON básico.','error');return}
+ const rows=[['Tipo','Módulo','Revisão/ID','Regra/Operação','Gravidade','Descrição'],
+  ...report.findings.map(x=>['Alerta',x.module,x.recordId,x.code,x.severity,x.message+' · '+x.action]),
+  ...report.history.map(x=>['Evento',x.module,x.revision,x.type,'',x.commandId+' · '+x.description])];
+ download('HLGB-LAB-OBSERVABILIDADE-V2-FICTICIA.csv',
+  '\uFEFF'+rows.map(row=>row.map(safeCell).join(';')).join('\r\n'),'text/csv;charset=utf-8');
+ status('Histórico fictício e alertas exportados sem alterações no documento.');
 }
 function renderCutSheet(planId){
  const plan=(doc.cutPlans||[]).find(p=>p.id===planId);
@@ -767,6 +856,16 @@ document.addEventListener('change',event=>{
  }
 });
 document.addEventListener('click',e=>{
+ if(e.target.closest('#export-observer-csv')){exportObserverCsv();return}
+ if(e.target.closest('[data-toggle-observer]')){
+  const registry=window.HLGBLabModules;
+  const observer=registry?.list().find(x=>x.id==='observabilidade');
+  if(observer){registry.setEnabled('observabilidade',!observer.enabled);draw();
+   status('Módulo Observabilidade 2.0 '+(!observer.enabled?'desativado':'ativado')+
+    ' somente nesta aba. Funções anteriores continuam disponíveis.');}
+  else status('Módulo opcional indisponível. Sistema legado preservado.','error');
+  return;
+ }
  if(e.target.closest('#settlement-clear-filters')){
   Object.assign(settlementFilters,{query:'',status:'todos',faction:'todas',service:'todos',compensation:'todos'});
   applySettlementFilters();return;
