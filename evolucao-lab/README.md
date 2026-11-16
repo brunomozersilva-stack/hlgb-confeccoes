@@ -2,6 +2,16 @@
 
 Esta pasta é um **protótipo isolado**: não é uma tela incorporada ao HLGB em produção.
 
+## Nova etapa — Compensação de pagamento fictício já quitado
+
+A Operação Integrada inclui o comando `settlement.compensate`, que exige um **acerto original pago**, valor de diferença em centavos (positivo ou negativo), referência única por acerto e justificativa obrigatória. A referência é comparada sem diferenciar maiúsculas, minúsculas ou espaços ao redor.
+
+O original **permanece completamente inalterado**: valor, quantidade, status, facção e título já quitado. O sistema cria um registro separado `CMP-0001`, com o ID do acerto original, valor anterior, referência, motivo e ID de comando. Uma diferença positiva cria um **novo título fictício a pagar**; diferença negativa cria um **novo título fictício a receber**. O Hub pode marcar o novo título como quitado, atualizando o status da compensação sem modificar o pagamento anterior. Não há pagamento ou transferência bancária real.
+
+A tela mostra as compensações separadamente e oferece **Conferência PDF**, uma página A4 gerada para imprimir ou salvar como PDF pelo navegador, com links entre acerto original, título pago, diferença e novo título. JSON e CSV incluem os registros. **O PDF de conferência NÃO é um comprovante bancário anexado nem um documento fiscal.** O sistema de anexos seguros e a prova de pagamento real permanecem pendentes.
+
+Regras testadas: mesmo ID de comando não pode ser reaplicado; mesma referência não pode ser duplicada para um acerto, mesmo em outra caixa; acerto não pago não aceita compensação; diferença zero, excesso de limite e motivo vazio são rejeitados; integridade exige relação 1:1 entre compensação e novo título; versões antigas do laboratório sem esse campo continuam acessíveis sem resetar dados.
+
 ## Nova etapa — Facções, Acertos e Hub com serviço de embalagem fictício
 
 A prévia `operacao-integrada.html#acertos` agora permite testar:
@@ -99,7 +109,7 @@ A página `guardiao-preservacao.html` vincula o inventário real do repositório
 
 - Busca, filtros por módulo, prioridade e demonstração; links para os 8 exercícios parciais.
 - Importação validada do relatório exportado pela Central de Homologação, com separação clara entre **funcionou na prévia** e **paridade funcional comprovada**.
-- Exportações de pendências em CSV/JSON com 76 bloqueios obrigatórios, mesmo que 48 demonstrações tenham passado.
+- Exportações de pendências em CSV/JSON com 76 bloqueios obrigatórios, mesmo que 49 demonstrações tenham passado.
 - Testes automatizados verificam dados embutidos versus inventários de origem e existência de todas as fontes e referências de teste; o teste de baseline confere hash de **229 arquivos antigos**.
 - Browser tests em Chromium/WebKit, incluindo telas estreitas, importação malformada e bloqueio de liberações indevidas.
 
