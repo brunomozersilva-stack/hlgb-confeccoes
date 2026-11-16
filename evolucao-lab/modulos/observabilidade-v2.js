@@ -44,8 +44,27 @@
    code,severity,module,recordId:String(record??''),message,action,
    evidence:String(evidence??'')
   });
-  const one=(items,sourceId,kind)=>items.filter(x=>x.sourceId===sourceId&&
-   (!kind||x.kind===kind));
+  // Índices locais evitam percorrer todo o Hub para cada pedido/acerto.
+  const groupBy=(list,key)=>{
+   const result=new Map();
+   for(const item of list){
+    const k=key(item);
+    if(!result.has(k))result.set(k,[]);
+    result.get(k).push(item);
+   }
+   return result;
+  };
+  const billsBySource=groupBy(finance,x=>x.sourceId);
+  const movementsBySource=groupBy(ledger,x=>x.sourceId);
+  const movementsByPlan=groupBy(ledger,x=>x.cutPlanId);
+  const compensationBySettlement=groupBy(comps,x=>x.settlementId);
+  const orderByProduct=groupBy(orders,x=>x.productId);
+  const settlementByFaction=groupBy(settlements,x=>x.factionId);
+  const compensationByFaction=groupBy(comps,x=>x.factionId);
+  const one=(items,sourceId,kind)=>{
+   const local=items===finance?(billsBySource.get(sourceId)||[]):items.filter(x=>x.sourceId===sourceId);
+   return kind?local.filter(x=>x.kind===kind):local;
+  };
   const cents=x=>Number.isSafeInteger(x)&&x>=0;
   // Inventário histórico e unicidade: critérios de bloqueio antes de promover qualquer versão.
   const all=[...orders,...cutPlans,...purchases,...settlements,...comps,
@@ -84,7 +103,7 @@
   }
   // Recebimento e duplo lançamento de compras.
   for(const p of purchases.filter(x=>x.received)){
-   const movements=ledger.filter(x=>x.sourceId===p.id&&x.type==='compra');
+   const movements=(movementsBySource.get(p.id)||[]).filter(x=>x.type==='compra');
    const bills=one(finance,p.id,'pagar');
    const expected=Math.ceil(Number(p.qtyGrams)*Number(p.priceCentsKg)/1000);
    if(movements.length!==1||movements[0]?.deltaGrams!==p.qtyGrams)
@@ -97,7 +116,7 @@
      'Conferir título vinculado, sem recriar pagamento.',p.id);
   }
   for(const plan of cutPlans.filter(x=>x.status==='concluido')){
-   const movements=ledger.filter(x=>x.cutPlanId===plan.id);
+   const movements=movementsByPlan.get(plan.id)||[];
    if(movements.length!==1||movements[0]?.deltaGrams!==-(plan.usefulGrams+plan.scrapGrams))
     push('CORTE_ESTOQUE','alta','corte',plan.id,
      'Folha concluída não corresponde a uma única baixa de material.',
@@ -176,12 +195,16 @@
   for(const h of history)activity.set(h.module,(activity.get(h.module)||0)+1);
   const eventTypes=new Map();
   for(const h of history)eventTypes.set(h.type,(eventTypes.get(h.type)||0)+1);
-  const recommendations=[];
+  const recommendationCounts=new Map();
+  for(const f of findings)recommendationCounts.set(f.code,(recommendationCounts.get(f.code)||0)+1);
+  const recommendations=[],seenRecommendations=new Set();
   for(const f of findings){
-   if(recommendations.some(x=>x.code===f.code&&x.module===f.module))continue;
+   const key=f.code+'|'+f.module;
+   if(seenRecommendations.has(key))continue;
+   seenRecommendations.add(key);
    recommendations.push({code:f.code,priority:f.severity,module:f.module,
     action:f.action,why:f.message,
-    evidence:findings.filter(x=>x.code===f.code).length+' ocorrência(s) · '+f.recordId,
+    evidence:recommendationCounts.get(f.code)+' ocorrência(s) · '+f.recordId,
     mode:'orientacao_sem_execucao'});
   }
   const pendingReturn=orders.filter(o=>o.allocated>o.returned).length,
@@ -200,7 +223,7 @@
   }
   // Relatórios analíticos sem confundir valor previsto com recebimento efetivo.
   const modelSummary=arr(source,'products').map(product=>{
-   const associated=orders.filter(o=>o.productId===product.id);
+   const associated=orderByProduct.get(product.id)||[];
    const total=fn=>associated.reduce((n,o)=>n+fn(o),0);
    const grade=o=>Object.values(o.grade||{}).reduce((n,v)=>n+Number(v||0),0);
    const cut=o=>Object.values(o.cut||{}).reduce((n,v)=>n+Number(v||0),0);
@@ -210,8 +233,8 @@
     plannedReceivablesCents:total(o=>grade(o)*Number(o.priceCents||0))};
   }).sort((a,b)=>b.ordered-a.ordered||a.name.localeCompare(b.name));
   const factionSummary=arr(source,'factions').map(faction=>{
-   const ss=settlements.filter(x=>x.factionId===faction.id);
-   const fs=comps.filter(x=>x.factionId===faction.id);
+   const ss=settlementByFaction.get(faction.id)||[];
+   const fs=compensationByFaction.get(faction.id)||[];
    return {factionId:faction.id,name:String(faction.name||''),
     settlements:ss.length,pieces:ss.reduce((n,x)=>n+Number(x.qty||0),0),
     totalSettlementsCents:ss.reduce((n,x)=>n+Number(x.amountCents||0),0),
@@ -229,7 +252,7 @@
    ...(Array.isArray(x.returns)?x.returns:[]).map(h=>({
     settlementId:x.id,event:'devolucao_pecas',commandId:String(h.commandId||''),
     beforeCents:h.beforeCents,afterCents:h.afterCents,reason:String(h.reason||'')})),
-   ...comps.filter(c=>c.settlementId===x.id).map(c=>({
+   ...(compensationBySettlement.get(x.id)||[]).map(c=>({
     settlementId:x.id,event:'compensacao_separada',commandId:String(c.commandId||''),
     beforeCents:c.originalAmountCents,afterCents:c.originalAmountCents,
     reason:String(c.reference||'')+' · '+String(c.reason||'')+
