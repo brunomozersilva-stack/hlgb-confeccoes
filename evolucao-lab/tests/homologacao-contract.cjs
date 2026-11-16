@@ -21,7 +21,7 @@ test('central de homologação cobre 76 funções, 19 módulos, 43 critérios e 
 });
 test('demonstrações são explicitamente parciais e referências existem localmente',()=>{
  const available=catalog.cases.filter(x=>x.demo);
- assert.equal(available.length,48);
+ assert.equal(available.length,49);
  assert.ok(available.every(x=>master.modules.some(m=>m.id===x.moduleId)));
  for(const x of catalog.cases){
   assert.ok(fs.existsSync(path.resolve(root,'../'+x.source)),'legado sem fonte '+x.source);
