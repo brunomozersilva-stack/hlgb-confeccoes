@@ -6,7 +6,7 @@
 
 A página `homologacao-modulos.html` organiza 76 funcionalidades antigas identificadas em 19 módulos, associadas a 43 critérios de paridade mais detalhados. Para cada função, mostra fonte legada, teste existente, roteiro esperado, disponibilidade da demonstração e resultado selecionável.
 
-**Exemplos da lista original de exercícios parciais (agora são 48, incluindo Folha, Corte, Acertos e Operação Integrada):**
+**Exemplos da lista original de exercícios parciais (agora são 49, incluindo Folha, Corte, Acertos, compensações e Operação Integrada):**
 
 | ID | Módulo | Exercício |
 |---|---|---|
@@ -19,7 +19,22 @@ A página `homologacao-modulos.html` organiza 76 funcionalidades antigas identif
 | PAR-044 | Acertos | Seleção e fechamento fictício em lote |
 | PAR-047 | Hub | Buscar, filtrar e exportar lançamento fictício |
 
-As restantes **28 funções não possuem demonstração específica equivalente**. Elas já podem ser registradas como pendências, mas **não podem ser aprovadas no formulário como se estivessem implementadas**.
+As restantes **27 funções não possuem demonstração específica equivalente**. Elas já podem ser registradas como pendências, mas **não podem ser aprovadas no formulário como se estivessem implementadas**.
+
+## NOVO — Compensação de um acerto fictício já pago (sem apagar pagamentos)
+
+Abra a Operação Integrada em `operacao-integrada.html#acertos` pela prévia HTTPS. Use apenas dados inventados.
+
+1. Em **Acertos**, cadastre serviço de embalagem avulsa para uma Calcinha Tammy: 100 peças × R$ 0,15 = **R$ 15,00**. Pode testar travetada como desconto adicional, se desejar.
+2. Entre no **Hub**, localize o título a pagar do acerto e marque **Quitado ficticiamente**. Volte a Acertos: o acerto original deve estar **pago**.
+3. Em **Compensação separada de acertos pagos**, selecione esse acerto, lance **-R$ 2,00**, referência `AJ-TESTE-001` e motivo "Diferença na conferência". O Hub deverá criar um novo título **a receber** de R$ 2,00.
+4. Registre uma segunda compensação com **+R$ 1,00**, referência `AJ-TESTE-002`, que criará título separado **a pagar** de R$ 1,00.
+5. Confira a situação: o título original de R$ 15,00 e seu status **pago** não foram modificados. As duas compensações ficam em registros `CMP-...` com referências únicas.
+6. Tente lançar outra correção no mesmo acerto usando `AJ-TESTE-001`. Deve ser bloqueado, inclusive com diferença de maiúsculas/minúsculas.
+7. Clique em **Conferência PDF** de uma compensação. No diálogo de impressão, selecione imprimir ou "Salvar como PDF". Verifique acerto original, título novo, referência e diferença. **Não é comprovante bancário.**
+8. Marque um dos títulos de compensação como pago ficticiamente no Hub. Apenas essa compensação deve mudar de situação. Atualize a página e confira que todas as informações persistiram neste navegador. Exporte o JSON/CSV para registrar a prova.
+
+**Ainda não disponível:** anexar comprovante PDF bancário à produção, corrigir pagamentos reais com contabilização ou compensações legais, fechamento fiscal, múltiplas contas bancárias, conciliação externa e sincronização entre computadores.
 
 ## NOVO — Como testar Facções, Acertos e Hub integrados
 
@@ -127,7 +142,7 @@ Na página inicial da prévia, abra **Guardião de Preservação** (`guardiao-pr
 4. Filtre as demonstrações. São **8 parciais** e **68 sem demonstração mapeada**. Clicar em uma demonstração abre o simulador separado.
 5. Na **Central de Testes — 76 funções**, marque resultados usando apenas dados fictícios e exporte o JSON; volte ao Guardião e use **Importar testes da Central**. O painel mostra a avaliação da prévia, mas mantém o indicador de liberação em **0/76**.
 6. Exporte **Pendências CSV** ou **Bloqueios JSON** para analisar os gargalos. O campo `publicationBlocked` do JSON permanece `true`; `releaseApproved` é `false` e há 76 motivos de bloqueio.
-7. Teste um relatório incompatível ou com `passed` em funções sem demo: a importação deve ser rejeitada. Mesmo 48 demonstrações com resultado positivo não autorizam produção.
+7. Teste um relatório incompatível ou com `passed` em funções sem demo: a importação deve ser rejeitada. Mesmo 49 demonstrações com resultado positivo não autorizam produção.
 8. Para garantir que nenhum arquivo original sumiu no código, consulte os testes automatizados de **229 arquivos legados (hash congelado)** e do **Guardião** nas ações do GitHub.
 
 **Escopo real:** é um painel de auditoria **estático/offline**, não homologação do sistema novo. A referência de uma função ou teste antigo não demonstra que ela existe no novo ERP. A liberação não pode ocorrer apenas importando um relatório; depende de trabalho técnico e aprovação formal posterior.
