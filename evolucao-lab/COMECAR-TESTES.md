@@ -21,6 +21,21 @@ A página `homologacao-modulos.html` organiza 76 funcionalidades antigas identif
 
 As restantes **27 funções não possuem demonstração específica equivalente**. Elas já podem ser registradas como pendências, mas **não podem ser aprovadas no formulário como se estivessem implementadas**.
 
+## NOVO — Dividir um pedido entre facções sem misturar retornos
+
+Use o laboratório apenas com dados fictícios. Abra a Operação Integrada:
+
+1. Em **Pedidos**, crie um pedido fictício de 20 peças e, em **Corte**, registre pelo menos 18 peças cortadas. Na guia **Facções**, use **Distribuir um pedido entre múltiplas facções**.
+2. Envie 8 peças à Oficina Exemplo A e 10 peças à Oficina Exemplo B. Confira que o pedido mostra **18 peças enviadas**, mas os envios aparecem separados, com seus próprios IDs `ALO-...`.
+3. No formulário **Registrar retorno da facção correta**, selecione o envio da Oficina A e devolva 5 peças; depois selecione o envio da Oficina B e devolva 6. O laboratório deve gerar dois acertos `ACE-...`, cada um com facção, preço e título próprios.
+4. Tente devolver mais peças do que o saldo de apenas uma facção, mesmo que a outra ainda tenha peças: o comando deve ser recusado, sem alteração de revisão ou quantidades.
+5. Em **Acertos**, faça devolução parcial de 2 peças do acerto da Oficina B **antes de quitar**. Confira que apenas o retorno da Oficina B e seu título diminuíram, sem afetar o saldo da Oficina A.
+6. No **Hub**, quite ficticiamente um dos acertos. Volte à tela de Acertos e tente outra devolução nesse acerto: o pagamento anterior deve permanecer intacto e a devolução ser bloqueada.
+7. Em **Relatórios**, consulte a distribuição por pedido/facção, os IDs dos acertos vinculados, as peças pendentes e o CSV/JSON. No **Auditor**, a soma por facção precisa bater com o pedido.
+8. Confira que o **envio e retorno simples anteriores continuam funcionando** para pedidos com uma única facção; não aproveite a rotina simples em pedidos divididos.
+
+**O que o teste não prova:** saldos ou sincronização empresariais, custos oficiais da facção, permissões remotas, grades por cor/tamanho na facção e comprovantes bancários. Nenhum lançamento real é acessado.
+
 ## NOVO — Fechamento de pagamentos em lote com proteção contra duplicidade
 
 Abra a **Operação Integrada** com dados exclusivamente fictícios. Faça um teste transversal com Facções, Acertos e Hub.
