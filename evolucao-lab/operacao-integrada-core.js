@@ -25,7 +25,7 @@
     {id:'FAC-0002',name:'Oficina Exemplo B',unitCents:600,traveta:false}],
    employees:[{id:'FUN-0001',name:'Ana Simulada',salaryCents:200000,passageCents:12000,extrasCents:0,discountCents:0},
     {id:'FUN-0002',name:'Bianca Modelo',salaryCents:180000,passageCents:8000,extrasCents:0,discountCents:3000}],
-   orders:[],cutPlans:[],purchaseOrders:[],settlements:[],finance:[],stockLedger:[],errors:[],
+   orders:[],cutPlans:[],purchaseOrders:[],settlements:[],finance:[],stockLedger:[],factionTransfers:[],errors:[],
    prints:[{id:'IMP-0001',name:'Chaveiro articulado fictício',grams:28,priceCents:490,stock:12}],
    log:[],role:'supervisor',flags:{autoCorrections:false},revisionProof:'seed'};
  }
@@ -69,10 +69,24 @@
      problems.push(o.id+': reserva de corte '+sz+' acima da grade');
    }
   }
+  for(const settlement of s.settlements){
+   const linked=s.finance.filter(x=>x.sourceId===settlement.id&&x.kind==='pagar');
+   if(linked.length!==1||linked[0].amountCents!==settlement.amountCents||
+      (linked[0].status==='pago')!==(settlement.status==='pago')||
+      !Number.isSafeInteger(settlement.amountCents)||settlement.amountCents<=0)
+    problems.push(settlement.id+': acerto e título financeiro divergentes');
+   if(settlement.productId&&!s.products.some(x=>x.id===settlement.productId))
+    problems.push(settlement.id+': produto do acerto não localizado');
+  }
+  for(const move of (s.factionTransfers||[])){
+   if(!s.orders.some(x=>x.id===move.orderId)||!s.factions.some(x=>x.id===move.fromFactionId)||
+      !s.factions.some(x=>x.id===move.toFactionId)||move.fromFactionId===move.toFactionId)
+    problems.push(move.id+': troca de facção inválida');
+  }
   if(s.materials.some(m=>m.stockGrams<0))problems.push('Estoque de material negativo');
   if(s.finance.some(e=>e.amountCents<=0))problems.push('Lançamento financeiro não positivo');
   if(new Set(s.log.map(e=>e.commandId)).size!==s.log.length)problems.push('Identificador de comando duplicado');
-  const allIds=[...s.orders,...(s.cutPlans||[]),...s.purchaseOrders,...s.settlements,...s.finance,...s.clients,...s.suppliers,
+  const allIds=[...s.orders,...(s.cutPlans||[]),...(s.factionTransfers||[]),...s.purchaseOrders,...s.settlements,...s.finance,...s.clients,...s.suppliers,
    ...s.materials,...s.products,...s.factions,...s.employees,...s.prints].map(x=>x.id);
   if(new Set(allIds).size!==allIds.length)problems.push('IDs de registro duplicados');
   return {ok:!problems.length,problems,orderCount:s.orders.length,unpaid:s.finance.filter(f=>f.status==='aberto').length,
@@ -112,6 +126,7 @@
   if(previous.log.some(x=>x.commandId===uid))throw Error('Comando já registrado. Não duplicar.');
   const s=clone(previous),p=command.payload||{},kind=command.type;
   if(!Array.isArray(s.cutPlans))s.cutPlans=[]; // migração segura apenas do documento fictício anterior
+  if(!Array.isArray(s.factionTransfers))s.factionTransfers=[];
   const num=(field,min=0,max=1000000)=>int(p[field],field,min,max);
   let result;
   switch(kind){
@@ -120,6 +135,32 @@
   case 'faction.add':{
    const obj={id:next(s,'FAC'),name:name(p.name,'Facção'),unitCents:num('unitCents',1,100000),traveta:p.traveta===true};
    s.factions.push(obj);result=obj.id;break}
+  case 'faction.rate.set':{
+   const fac=get(s,'factions',p.factionId,'Facção'),product=get(s,'products',p.productId,'Produto');
+   const price=num('unitCents',1,100000),reason=name(p.reason,'Justificativa');
+   if(!fac.productRates)fac.productRates={};
+   const old=fac.productRates[product.id]??fac.unitCents;
+   fac.productRates[product.id]=price;
+   result=fac.name+' · '+product.name+' · '+old+' → '+price+' centavos · '+reason+
+    ' (somente próximos retornos)';break}
+  case 'faction.traveta.set':{
+   const fac=get(s,'factions',p.factionId,'Facção'),reason=name(p.reason,'Justificativa');
+   if(typeof p.traveta!=='boolean')throw Error('Selecione se a facção faz travetada.');
+   const previous=fac.traveta;fac.traveta=p.traveta;
+   result=fac.name+' · travetada '+String(previous)+' → '+String(fac.traveta)+
+    ' · '+reason+' (sem mudar acertos anteriores)';break}
+  case 'faction.reassign':{
+   const order=get(s,'orders',p.orderId,'Pedido'),newFac=get(s,'factions',p.factionId,'Nova facção');
+   const reason=name(p.reason,'Motivo da troca');
+   if(!order.factionId||order.allocated<=0)throw Error('Somente pedido já enviado pode trocar de facção.');
+   if(order.factionId===newFac.id)throw Error('Escolha uma facção diferente da atual.');
+   if(order.returned>0||s.settlements.some(a=>a.orderId===order.id))
+    throw Error('Troca bloqueada após retorno/acerto. A operação anterior não pode ser sobrescrita.');
+   const oldId=order.factionId;
+   order.factionId=newFac.id;
+   s.factionTransfers.push({id:next(s,'TRO'),orderId:order.id,fromFactionId:oldId,
+    toFactionId:newFac.id,qty:order.allocated,reason,commandId:uid});
+   result=order.id+' · '+oldId+' → '+newFac.id+' · '+order.allocated+' peças · '+reason;break}
   case 'material.add':{
    const obj={id:next(s,'MAT'),name:name(p.name,'Material'),stockGrams:0,priceCentsKg:num('priceCentsKg',1,1000000)};
    s.materials.push(obj);result=obj.id;break}
@@ -242,14 +283,34 @@
    const o=get(s,'orders',p.orderId,'Pedido'),qty=num('qty',1,10000);
    if(!o.factionId||o.returned+qty>o.allocated)throw Error('Retorno excede o que foi enviado para a facção.');
    o.returned+=qty;
-   const fac=get(s,'factions',o.factionId);
-   const unit=fac.unitCents-(fac.traveta?0:Math.min(fac.unitCents,50));
-   const settlement={id:next(s,'ACE'),orderId:o.id,factionId:fac.id,qty,unitCents:unit,
+   const fac=get(s,'factions',o.factionId),product=get(s,'products',o.productId);
+   const listUnit=fac.productRates?.[product.id]??fac.unitCents;
+   const travetaDiscount=fac.traveta?0:Math.min(listUnit,50);
+   const unit=listUnit-travetaDiscount;
+   if(unit<=0)throw Error('Preço líquido da facção deve ser positivo.');
+   const settlement={id:next(s,'ACE'),orderId:o.id,factionId:fac.id,productId:product.id,
+    kind:'retorno',serviceType:'costura',qty,listUnitCents:listUnit,
+    travetaCents:travetaDiscount,unitCents:unit,
     adjustmentCents:0,amountCents:qty*unit,description:'Retorno fictício',status:'aberto'};
    s.settlements.push(settlement);
    s.finance.push({id:next(s,'FIN'),kind:'pagar',sourceId:settlement.id,
     description:'Acerto fictício '+settlement.id,amountCents:settlement.amountCents,status:'aberto'});
    result=settlement.id;break}
+  case 'settlement.add':{
+   const fac=get(s,'factions',p.factionId,'Facção'),product=get(s,'products',p.productId,'Produto');
+   if(!['costura','embalagem'].includes(p.serviceType))throw Error('Selecione costura ou embalagem.');
+   const qty=num('qty',1,100000),listUnit=num('unitCents',1,100000),
+     traveta=num('travetaCents',0,100000),reason=name(p.reason,'Descrição do serviço');
+   if(traveta>=listUnit)throw Error('Desconto por travetada não pode zerar ou superar o valor por peça.');
+   const netUnit=listUnit-traveta;
+   const obj={id:next(s,'ACE'),orderId:null,factionId:fac.id,productId:product.id,
+    kind:'avulso',serviceType:p.serviceType,qty,listUnitCents:listUnit,
+    travetaCents:traveta,unitCents:netUnit,adjustmentCents:0,
+    amountCents:qty*netUnit,description:reason,status:'aberto'};
+   s.settlements.push(obj);
+   s.finance.push({id:next(s,'FIN'),kind:'pagar',sourceId:obj.id,
+    description:'Serviço '+obj.serviceType+' · '+obj.id,amountCents:obj.amountCents,status:'aberto'});
+   result=obj.id+' · '+obj.serviceType+' · '+obj.qty+' × '+netUnit+' centavos';break}
   case 'order.separate':{
    const o=get(s,'orders',p.orderId,'Pedido'),qty=num('qty',1,10000);
    if(o.separated+qty>o.returned)throw Error('Separação excede o retorno da facção.');
@@ -261,16 +322,25 @@
   case 'settlement.adjust':{
    const x=get(s,'settlements',p.id,'Acerto');
    if(x.status!=='aberto')throw Error('Acerto pago não pode ser alterado nesta prévia.');
+   const bill=get(s,'finance',s.finance.find(f=>f.sourceId===x.id)?.id,'Conta vinculada');
+   if(bill.status!=='aberto')throw Error('O título está quitado: ajuste direto bloqueado.');
    const delta=int(p.adjustmentCents,'Ajuste',-1000000,1000000);
    const amount=x.qty*x.unitCents+delta;
    if(amount<=0)throw Error('Acerto não pode ter valor zerado ou negativo.');
+   const before=x.amountCents;
    x.adjustmentCents=delta;x.amountCents=amount;
-   get(s,'finance',s.finance.find(f=>f.sourceId===x.id)?.id,'Conta vinculada').amountCents=amount;
-   result=x.id;break}
+   if(!Array.isArray(x.history))x.history=[];
+   x.history.push({commandId:uid,beforeCents:before,afterCents:amount,
+    reason:typeof p.reason==='string'&&p.reason.trim()?name(p.reason,'Motivo'):'Ajuste fictício demonstrativo'});
+   bill.amountCents=amount;
+   result=x.id+' · '+before+' → '+amount+' centavos';break}
   case 'finance.pay':{
    const entry=get(s,'finance',p.id,'Lançamento');
    if(entry.status!=='aberto')throw Error('Lançamento já conferido, evitar pagamento repetido.');
-   entry.status='pago';entry.paidDate='2026-11-16';result=entry.id;break}
+   entry.status='pago';entry.paidDate='2026-11-16';
+   const acerto=s.settlements.find(a=>a.id===entry.sourceId);
+   if(acerto)acerto.status='pago';
+   result=entry.id;break}
   case 'finance.add':{
    if(!['pagar','receber'].includes(p.kind))throw Error('Tipo de lançamento inválido.');
    const entry={id:next(s,'FIN'),kind:p.kind,description:name(p.description,'Descrição'),
