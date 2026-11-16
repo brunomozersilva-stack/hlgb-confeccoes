@@ -30,7 +30,7 @@
     {id:'FAC-0002',name:'Oficina Exemplo B',unitCents:600,traveta:false}],
    employees:[{id:'FUN-0001',name:'Ana Simulada',salaryCents:200000,passageCents:12000,extrasCents:0,discountCents:0},
     {id:'FUN-0002',name:'Bianca Modelo',salaryCents:180000,passageCents:8000,extrasCents:0,discountCents:3000}],
-   orders:[],cutPlans:[],purchaseOrders:[],settlements:[],settlementCompensations:[],paymentBatches:[],finance:[],stockLedger:[],factionTransfers:[],factionAssignments:[],errors:[],
+   orders:[],cutPlans:[],purchaseOrders:[],settlements:[],settlementCompensations:[],paymentBatches:[],finance:[],stockLedger:[],factionTransfers:[],factionAssignments:[],factionPartialTransfers:[],errors:[],
    prints:[{id:'IMP-0001',name:'Chaveiro articulado fictício',grams:28,priceCents:490,stock:12}],
    log:[],role:'supervisor',flags:{autoCorrections:false},revisionProof:'seed'};
  }
@@ -137,7 +137,7 @@
   if(s.materials.some(m=>m.stockGrams<0))problems.push('Estoque de material negativo');
   if(s.finance.some(e=>e.amountCents<=0))problems.push('Lançamento financeiro não positivo');
   if(new Set(s.log.map(e=>e.commandId)).size!==s.log.length)problems.push('Identificador de comando duplicado');
-  const allIds=[...s.orders,...(s.cutPlans||[]),...(s.factionTransfers||[]),...(s.factionAssignments||[]),...(s.settlementCompensations||[]),...batches,...s.purchaseOrders,...s.settlements,...s.finance,...s.clients,...s.suppliers,
+  const allIds=[...s.orders,...(s.cutPlans||[]),...(s.factionTransfers||[]),...(s.factionAssignments||[]),...(s.factionPartialTransfers||[]),...(s.settlementCompensations||[]),...batches,...s.purchaseOrders,...s.settlements,...s.finance,...s.clients,...s.suppliers,
    ...s.materials,...s.products,...s.factions,...s.employees,...s.prints].map(x=>x.id);
   if(new Set(allIds).size!==allIds.length)problems.push('IDs de registro duplicados');
   return {ok:!problems.length,problems,orderCount:s.orders.length,unpaid:s.finance.filter(f=>f.status==='aberto').length,
@@ -256,6 +256,7 @@
   const s=clone(previous),p=command.payload||{},kind=command.type;
   if(!Array.isArray(s.cutPlans))s.cutPlans=[]; // migração segura apenas do documento fictício anterior
   if(!Array.isArray(s.factionTransfers))s.factionTransfers=[];
+  if(!Array.isArray(s.factionPartialTransfers))s.factionPartialTransfers=[];
   if(!Array.isArray(s.settlementCompensations))s.settlementCompensations=[];
   if(!Array.isArray(s.paymentBatches))s.paymentBatches=[];
   const num=(field,min=0,max=1000000)=>int(p[field],field,min,max);
@@ -441,6 +442,10 @@
   case 'faction.multi.allocate':{
    if(!routing)throw Error('Módulo de distribuição por facção indisponível.');
    result=routing.allocation(s,p,{next,int,uid});break}
+  case 'faction.multi.transfer':{
+   if(!routing||typeof routing.transfer!=='function')
+    throw Error('Módulo de transferência entre facções indisponível. Nenhum saldo alterado.');
+   result=routing.transfer(s,p,{next,int,uid});break}
   case 'faction.multi.return':{
    if(!routing)throw Error('Módulo de retorno por facção indisponível.');
    result=routing.ret(s,p,{next,int,uid});break}
