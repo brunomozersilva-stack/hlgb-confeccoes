@@ -24,7 +24,7 @@ const modules=[
  ['cadastros','Clientes e cadastros','Cadastros de clientes, fornecedores e insumos vinculados aos módulos.']
 ];
 const ids=new Map(modules.map((m,i)=>[m[0],i]));
-let active='nucleo',db=null,doc=null,busy=false;
+let active=ids.has(window.location.hash.slice(1))?window.location.hash.slice(1):'nucleo',db=null,doc=null,busy=false;
 const escape=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const str=x=>escape(String(x??''));
 const fmt=api.money;
@@ -498,13 +498,17 @@ document.addEventListener('click',e=>{
  const print=e.target.closest('button[data-print-plan]');
  if(print){try{renderCutSheet(print.dataset.printPlan);window.print()}catch(error){status(error.message,'error')}return}
  const mod=e.target.closest('button[data-module]');
- if(mod){active=mod.dataset.module;draw();window.scrollTo(0,0);return}
+ if(mod){active=mod.dataset.module;window.location.hash=active;draw();window.scrollTo(0,0);return}
  const goto=e.target.closest('button[data-goto]');
- if(goto){active=goto.dataset.goto;draw();window.scrollTo(0,0)}
+ if(goto){active=goto.dataset.goto;window.location.hash=active;draw();window.scrollTo(0,0)}
 });
 document.addEventListener('submit',e=>{
  const form=e.target.closest('form[data-command]');if(!form)return;
  e.preventDefault();submit(form,form.dataset.command);
+});
+window.addEventListener('hashchange',()=>{
+ const next=window.location.hash.slice(1);
+ if(ids.has(next)&&doc&&next!==active){active=next;draw()}
 });
 $('export-json').addEventListener('click',exportReport);
 $('export-csv').addEventListener('click',exportCsv);
