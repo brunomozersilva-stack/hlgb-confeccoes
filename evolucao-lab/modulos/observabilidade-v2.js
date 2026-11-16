@@ -198,6 +198,43 @@
    if(count>0)recommendations.push({code,priority:'informativa',module,
     action,why,evidence:count+' registro(s)',mode:'orientacao_sem_execucao'});
   }
+  // Relatórios analíticos sem confundir valor previsto com recebimento efetivo.
+  const modelSummary=arr(source,'products').map(product=>{
+   const associated=orders.filter(o=>o.productId===product.id);
+   const total=fn=>associated.reduce((n,o)=>n+fn(o),0);
+   const grade=o=>Object.values(o.grade||{}).reduce((n,v)=>n+Number(v||0),0);
+   const cut=o=>Object.values(o.cut||{}).reduce((n,v)=>n+Number(v||0),0);
+   return {productId:product.id,sku:String(product.sku||''),name:String(product.name||''),
+    orders:associated.length,ordered:total(grade),cut:total(cut),
+    returned:total(o=>Number(o.returned||0)),shipped:total(o=>Number(o.shipped||0)),
+    plannedReceivablesCents:total(o=>grade(o)*Number(o.priceCents||0))};
+  }).sort((a,b)=>b.ordered-a.ordered||a.name.localeCompare(b.name));
+  const factionSummary=arr(source,'factions').map(faction=>{
+   const ss=settlements.filter(x=>x.factionId===faction.id);
+   const fs=comps.filter(x=>x.factionId===faction.id);
+   return {factionId:faction.id,name:String(faction.name||''),
+    settlements:ss.length,pieces:ss.reduce((n,x)=>n+Number(x.qty||0),0),
+    totalSettlementsCents:ss.reduce((n,x)=>n+Number(x.amountCents||0),0),
+    paidSettlementsCents:ss.filter(x=>x.status==='pago')
+     .reduce((n,x)=>n+Number(x.amountCents||0),0),
+    openSettlementsCents:ss.filter(x=>x.status==='aberto')
+     .reduce((n,x)=>n+Number(x.amountCents||0),0),
+    compensationNetCents:fs.reduce((n,x)=>n+Number(x.deltaCents||0),0)};
+  }).sort((a,b)=>b.totalSettlementsCents-a.totalSettlementsCents||a.name.localeCompare(b.name));
+  // Linha do tempo do acerto com versões anteriores de valor e devoluções preservadas.
+  const settlementHistory=settlements.flatMap(x=>[
+   ...(Array.isArray(x.history)?x.history:[]).map(h=>({
+    settlementId:x.id,event:'alteracao_valor',commandId:String(h.commandId||''),
+    beforeCents:h.beforeCents,afterCents:h.afterCents,reason:String(h.reason||'')})),
+   ...(Array.isArray(x.returns)?x.returns:[]).map(h=>({
+    settlementId:x.id,event:'devolucao_pecas',commandId:String(h.commandId||''),
+    beforeCents:h.beforeCents,afterCents:h.afterCents,reason:String(h.reason||'')})),
+   ...comps.filter(c=>c.settlementId===x.id).map(c=>({
+    settlementId:x.id,event:'compensacao_separada',commandId:String(c.commandId||''),
+    beforeCents:c.originalAmountCents,afterCents:c.originalAmountCents,
+    reason:String(c.reference||'')+' · '+String(c.reason||'')+
+     ' · diferença '+String(c.deltaCents)+' centavos'}))
+  ]);
   const bySeverity={critica:0,alta:0,media:0,informativa:0};
   for(const f of findings)bySeverity[f.severity]++;
   const summary={
@@ -214,7 +251,8 @@
   return {schema:'hlgb-lab-observabilidade-v2',version:'2.0.0',productionApproval:false,
    status:findings.some(x=>x.severity==='critica')?'investigar_critico':
     findings.length?'investigar':'sem_alertas_nas_regras_cobertas',
-   summary,findings,recommendations,history,moduleActivity,repeatedOperations};
+   summary,findings,recommendations,history,moduleActivity,repeatedOperations,
+   modelSummary,factionSummary,settlementHistory};
  }
  return Object.freeze({id:'observabilidade',version:'2.0.0',analyze});
 });
