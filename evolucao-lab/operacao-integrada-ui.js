@@ -32,9 +32,14 @@ const fmt=api.money;
 const nr=c=>(c/100).toFixed(2).replace('.',',');
 const sum=g=>Object.values(g).reduce((a,b)=>a+b,0);
 function options(items,selected=null){return items.map(([value,label])=>'<option value="'+escape(value)+'"'+(selected===value?' selected':'')+'>'+escape(label)+'</option>').join('')}
+let selectFieldSerial=0;
 function field(name,label,kind='text',value='',list=null){
  let input;
- if(kind==='select')input='<select class="input" name="'+name+'" required>'+options(list||[])+'</select>';
+ if(kind==='select'){
+  const id='lab-select-'+(++selectFieldSerial);
+  return '<div class="field"><label for="'+id+'">'+escape(label)+'</label>'+
+   '<select id="'+id+'" class="input" name="'+name+'" required>'+options(list||[])+'</select></div>';
+ }
  else if(kind==='checkbox')input='<input name="'+name+'" type="checkbox" value="true">';
  else input='<input class="input" name="'+name+'" type="'+(kind==='int'?'number':'text')+'"'+(kind==='int'?' min="0" step="1" inputmode="numeric"':kind==='money'?' inputmode="decimal"':'')+' value="'+escape(value)+'" required maxlength="96">';
  return '<div class="field"><label>'+escape(label)+input+'</label></div>';
