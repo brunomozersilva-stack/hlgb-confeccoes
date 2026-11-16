@@ -21,6 +21,21 @@ A página `homologacao-modulos.html` organiza 76 funcionalidades antigas identif
 
 As restantes **68 funções não possuem demonstração específica equivalente**. Elas já podem ser registradas como pendências, mas **não podem ser aprovadas no formulário como se estivessem implementadas**.
 
+## Testar agora: Folha 2.0 com edição e passagem por funcionário
+
+Acesse **Folha 2.0 — passagem e salvamento** na entrada ou abra `folha-homologacao.html`. O laboratório usa **cinco funcionários inventados** e **competência 11/2026 fictícia**. Não funciona com a folha de produção.
+
+1. Confira o resumo inicial: **5 funcionários**, salários líquidos simulados **R$ 10.280,00**, passagens **R$ 550,00** e custo com provisões ilustrativas **R$ 12.793,88**. Os valores não incluem encargos legais.
+2. Pesquise **Bianca Teste**. Clique em **Editar** e mude a passagem de **R$ 80,00 para R$ 140,00**. O resumo das passagens deve passar a **R$ 610,00**, e o custo demonstrativo a **R$ 12.853,88**.
+3. Clique em **Salvar e conferir**. A mensagem só pode indicar sucesso depois da leitura do registro no IndexedDB. Atualize a página e confira se **Bianca Teste continua com R$ 140,00**.
+4. Alterne a ordenação **Nome alfabético** e **Por confecção**. Os números e o funcionário selecionado não podem mudar indevidamente após salvar.
+5. No mesmo navegador, abra uma segunda aba na mesma URL. Na segunda aba altere o salário de **Ana Exemplo** e salve. Na primeira aba tente mudar novamente a passagem de **Bianca Teste**. Deve surgir **conflito**, sem perder o rascunho nem substituir a atualização da outra aba. Use **Reavaliar conflito**, confira e salve novamente se desejar.
+6. Em **Cenário de teste**, escolha **Simular leitura da confirmação indisponível**. Altere a passagem de **Carlos Simulado** e salve. A tela deve dizer **inconclusivo** e impedir outra gravação até você clicar em **Conferir última gravação**.
+7. Use **Baixar relatório JSON** ou **Baixar resumo CSV** para avaliar os cálculos. No JSON, `productionApproval` permanece `false` e `environment` é `browser-indexeddb-only`. A restauração dos valores de exemplo exige confirmação e registra a ação no histórico.
+
+**O que essa prévia ainda NÃO testa:** CPF, funcionários reais, passagens da sua folha, cálculo de FGTS/INSS/IRRF, fechamento bancário, Hub, pagamentos reais, permissões empresariais e sincronização entre computadores. A persistência é **somente naquele navegador**, não no Supabase. É um exercício funcional inicial, não uma folha contábil.
+
+
 ## Nova prova técnica: sincronização com PostgreSQL descartável e dois navegadores
 
 O workflow de GitHub Actions **HLGB Evolucao - Sync Persistente em PostgreSQL Descartavel** utiliza dois navegadores separados contra um servidor de testes em localhost e banco temporário. É um teste automatizado que **não disponibiliza uma URL pública de banco**.
