@@ -374,6 +374,9 @@ function moduleHtml(s){
  const pendingAssignments=selector(rows.filter(x=>x.qtySent>x.qtyReturned),
   x=>x.id+' · '+x.orderId+' · '+(ref(s.factions,x.factionId)?.name||'—')+
   ' · '+(x.qtySent-x.qtyReturned)+' peças aguardando');
+ const transferable=selector(rows.filter(x=>x.qtySent>1&&x.qtySent>x.qtyReturned),
+  x=>x.id+' · '+x.orderId+' · '+(ref(s.factions,x.factionId)?.name||'—')+
+  ' · '+(x.qtySent-x.qtyReturned)+' peças disponíveis');
  return panel('Cadastro e regras por facção',
  form('faction.add','Cadastrar facção fictícia',[
   field('name','Nome da facção'),field('unitCents','Preço padrão por peça (R$)','money','6,00'),
@@ -411,6 +414,13 @@ function moduleHtml(s){
   field('factionId','Facção que receberá o lote','select','',factions),
   field('qty','Peças desse envio','int','2')
  ],'Alocar peças sem sobrescrever outros destinos')+
+ form('faction.multi.transfer','Transferir parte das peças ainda não retornadas',[
+  field('fromAssignmentId','Envio da facção de origem','select','',transferable),
+  field('toFactionId','Facção de destino','select','',factions),
+  field('qty','Peças para transferir','int','1'),
+  field('reason','Justificativa obrigatória','text','Redistribuição de saldo pendente fictício')
+ ],'Registrar transferência parcial com histórico')+
+ '<p class="caption">A transferência não altera acertos anteriores nem aumenta o total enviado do pedido. Não permite esvaziar completamente a origem nesta rotina parcial.</p>'+
  form('faction.multi.return','Registrar retorno da facção correta',[
   field('assignmentId','Envio específico e saldo a retornar','select','',pendingAssignments),
   field('qty','Quantidade que retornou','int','1')
@@ -423,6 +433,15 @@ function moduleHtml(s){
    str(x.qtySent),str(x.qtyReturned),str(x.qtySent-x.qtyReturned),
    str(x.origin||'legado-local')]))+
  '<p class="caption">As peças devolvidas antes do pagamento ajustam o saldo da facção original, sem afetar as outras. Não é um extrato da base real.</p>',true)+
+ panel('Histórico permanente de transferências parciais entre facções',
+ table(['ID','Pedido','De','Para','Peças','Antes → depois (origem)','Antes → depois (destino)','Justificativa'],
+  (s.factionPartialTransfers||[]).map(m=>[
+   str(m.id),str(m.orderId),
+   str(ref(s.factions,m.fromFactionId)?.name||m.fromFactionId),
+   str(ref(s.factions,m.toFactionId)?.name||m.toFactionId),
+   str(m.qty),str(m.fromBefore)+' → '+str(m.fromAfter),
+   str(m.toBefore)+' → '+str(m.toAfter),str(m.reason)]))+
+ '<p class="caption">Somente o saldo pendente muda de responsável; a trilha de cada transferência fica vinculada ao comando que a criou.</p>',true)+
  panel('Lista de facções e preços',
  '<div class="field"><label for="faction-search">Buscar facção</label>'+
  '<input id="faction-search" class="input" data-filter-for="faction-table" type="search" placeholder="Nome, modelo, preço..."></div>'+
