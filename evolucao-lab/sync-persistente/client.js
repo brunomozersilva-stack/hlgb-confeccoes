@@ -28,7 +28,7 @@
    });
   }finally{db.close()}
  }
- const putCommand=cmd=>tx('commands','readwrite',store=>store.put(cmd));
+ const putCommand=entry=>tx('commands','readwrite',store=>store.put({commandId:entry.command.commandId,...entry}));
  const getCommands=()=>tx('commands','readonly',store=>store.getAll());
  const delCommand=id=>tx('commands','readwrite',store=>store.delete(id));
  const putDraft=(id,amount)=>tx('drafts','readwrite',store=>store.put({actor:id,amount}));
