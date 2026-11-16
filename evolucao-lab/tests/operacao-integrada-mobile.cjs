@@ -108,6 +108,10 @@ async function run(browser,width,url){
   assert.equal(report.modulesVisited,19);
   assert.equal(report.checks.ok,true);
   assert.equal(report.data.orders.length,1);
+  assert.equal(report.journey.orderId,'PED-0001');
+  assert.equal(report.journey.total,8);
+  assert.equal(report.journey.productionApproval,false);
+  assert.equal(report.journey.completed,7,'sem compra do material da Melina');
   const order=report.data.orders[0];
   assert.deepEqual(order.grade,{P:8,M:12,G:0,GG:0});
   assert.deepEqual(order.cut,{P:8,M:12,G:0,GG:0});
@@ -275,6 +279,43 @@ async function run(browser,width,url){
    assert.equal(evidence.data.finance.find(x=>x.sourceId==='CMP-0001').amountCents,200);
    assert.equal(evidence.totals.compensatedNet,-100);
    assert.equal(evidence.checks.ok,true);
+   // Roteiro de homologação do MESMO pedido. Não aproveitar compras de outros materiais.
+   await module(page,'nucleo');
+   await page.locator('#journey-order').selectOption('PED-0002');
+   assert.match(await page.locator('#journey-progress').innerText(),/5 de 8 etapas/);
+   assert.equal(await page.locator('[data-step-id="compras"]').getAttribute('data-completed'),'true');
+   assert.equal(await page.locator('[data-step-id="expedicao"]').getAttribute('data-completed'),'false');
+   await page.locator('#journey-order').selectOption('PED-0001');
+   assert.match(await page.locator('#journey-progress').innerText(),/7 de 8 etapas/);
+   assert.equal(await page.locator('[data-step-id="compras"]').getAttribute('data-completed'),'false');
+   assert.equal(await page.locator('[data-step-id="hub"]').getAttribute('data-completed'),'true');
+   const queryRevision=await revision(page);
+   await page.locator('[data-step-id="compras"] button[data-goto="compras"]').click();
+   assert.match(await page.locator('#module-title').innerText(),/Compras/);
+   await module(page,'nucleo');
+   assert.equal(await page.locator('#journey-order').inputValue(),'PED-0001');
+   assert.equal(await revision(page),queryRevision,'navegar e consultar não gera pagamentos nem gravacões');
+   // Concluir a única etapa ausente: compra do material correspondente ao pedido 1.
+   await module(page,'compras');
+   await put(page,'purchase.add',{supplierId:'FOR-0001',materialId:'MAT-0001',
+    qtyGrams:'1500',checkerOne:'Conferente Um',checkerTwo:'Conferente Dois'});
+   await put(page,'purchase.receive',{id:'COM-0002'});
+   await module(page,'nucleo');
+   await page.locator('#journey-order').selectOption('PED-0001');
+   assert.match(await page.locator('#journey-progress').innerText(),/8 de 8 etapas/);
+   assert.equal(await page.locator('#journey-steps [data-completed="false"]').count(),0);
+   const afterJourney=await revision(page);
+   const [journeyDownload]=await Promise.all([page.waitForEvent('download'),page.locator('#export-json').click()]);
+   const journeyReport=JSON.parse(fs.readFileSync(await journeyDownload.path(),'utf8'));
+   assert.equal(journeyReport.journey.completed,8);
+   assert.equal(journeyReport.journey.orderId,'PED-0001');
+   assert.equal(journeyReport.productionApproval,false);
+   assert.equal(await revision(page),afterJourney,'exportação não efetua gravação');
+   await page.reload();
+   await page.waitForFunction(rev=>document.querySelector('#top-revision')?.textContent.includes('Revisão local '+rev),afterJourney);
+   await module(page,'nucleo');
+   await page.locator('#journey-order').selectOption('PED-0001');
+   assert.match(await page.locator('#journey-progress').innerText(),/8 de 8 etapas/);
   }
   const d=await page.evaluate(()=>({width:innerWidth,scroll:document.documentElement.scrollWidth}));
   assert(d.scroll<=d.width+2,'overflow '+width+'px '+JSON.stringify(d));
