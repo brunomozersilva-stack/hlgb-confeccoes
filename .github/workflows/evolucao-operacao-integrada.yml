@@ -10,6 +10,7 @@ on:
       - 'evolucao-lab/modulos/**'
       - 'evolucao-lab/tests/operacao-integrada-*.cjs'
       - 'evolucao-lab/tests/observabilidade-v2-contract.cjs'
+      - 'evolucao-lab/tests/pagamento-lote-contract.cjs'
       - '.github/workflows/evolucao-operacao-integrada.yml'
   workflow_dispatch:
 permissions:
@@ -25,7 +26,7 @@ jobs:
         with:
           node-version: '22'
       - name: Conferir integridade de pedidos, corte, faccoes, contas e folha
-        run: node --test evolucao-lab/tests/operacao-integrada-contract.cjs evolucao-lab/tests/observabilidade-v2-contract.cjs
+        run: node --test evolucao-lab/tests/operacao-integrada-contract.cjs evolucao-lab/tests/observabilidade-v2-contract.cjs evolucao-lab/tests/pagamento-lote-contract.cjs
   browser:
     name: Operacao integrada e mobile (${{ matrix.browser }})
     runs-on: ubuntu-24.04
