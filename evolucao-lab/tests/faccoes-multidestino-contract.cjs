@@ -154,9 +154,117 @@ test('validação rejeita duplicidade, saldo negativo, erro de retorno e histór
  }
  assert.equal(core.inspect(s).ok,true);
 });
+
+test('transferência parcial muda custódia pendente sem reescrever pagamento original',()=>{
+ let s=createOrder(18);
+ s=cmd(s,'faction.multi.allocate',{orderId:'PED-0001',factionId:'FAC-0001',qty:8}).state;
+ s=cmd(s,'faction.multi.allocate',{orderId:'PED-0001',factionId:'FAC-0002',qty:8}).state;
+ s=cmd(s,'faction.multi.return',{assignmentId:'ALO-0001',qty:3}).state;
+ const firstBill=s.finance.find(x=>x.sourceId==='ACE-0001').id;
+ s=cmd(s,'finance.pay',{id:firstBill}).state;
+ const paidAcerto=JSON.stringify(s.settlements[0]),
+  paidTitle=JSON.stringify(s.finance.find(x=>x.id===firstBill));
+ const rev=s.revision;
+ s=cmd(s,'faction.multi.transfer',{fromAssignmentId:'ALO-0001',
+  toFactionId:'FAC-0002',qty:4,
+  reason:'Redistribuir apenas peças pendentes da oficina A'},'TRANS-PARCIAL-001').state;
+ assert.equal(s.revision,rev+1);
+ assert.equal(s.log.at(-1).type,'faction.multi.transfer');
+ assert.equal(s.factionPartialTransfers.length,1);
+ const m=s.factionPartialTransfers[0];
+ assert.deepEqual([m.id,m.fromAssignmentId,m.toAssignmentId,m.qty],
+  ['TRP-0001','ALO-0001','ALO-0002',4]);
+ assert.deepEqual([m.fromBefore,m.fromAfter,m.toBefore,m.toAfter],[8,4,8,12]);
+ assert.equal(m.commandId,'TRANS-PARCIAL-001');
+ assert.deepEqual(s.factionAssignments.map(x=>x.qtySent),[4,12]);
+ assert.equal(s.orders[0].allocated,16,'transferência não cria novo envio nem duplica corte');
+ assert.equal(s.orders[0].returned,3);
+ assert.equal(JSON.stringify(s.settlements[0]),paidAcerto);
+ assert.equal(JSON.stringify(s.finance.find(x=>x.id===firstBill)),paidTitle);
+ s=cmd(s,'faction.multi.return',{assignmentId:'ALO-0002',qty:5}).state;
+ assert.equal(s.settlements[1].factionId,'FAC-0002');
+ assert.equal(s.settlements[1].qty,5);
+ assert.equal(s.settlements[1].unitCents,550);
+ assert.equal(s.factionAssignments[0].qtyReturned,3);
+ assert.equal(s.factionAssignments[1].qtyReturned,5);
+ assert.equal(s.orders[0].returned,8);
+ assert.equal(core.inspect(s).ok,true);
+ const audit=observer.analyze(s);
+ assert.equal(audit.summary.partialFactionTransfers,1);
+ assert.equal(audit.summary.piecesTransferred,4);
+ assert.equal(audit.factionTransferHistory[0].commandId,'TRANS-PARCIAL-001');
+ assert.equal(audit.findings.length,0);
+});
+test('transferir para nova facção cria apenas um novo destino e mantém total do pedido',()=>{
+ let s=createOrder(12);
+ s=cmd(s,'faction.multi.allocate',{orderId:'PED-0001',factionId:'FAC-0001',qty:9}).state;
+ s=cmd(s,'faction.add',{name:'Facção fictícia C',unitCents:650,traveta:true}).state;
+ const previous=JSON.stringify(s);
+ s=cmd(s,'faction.multi.transfer',{fromAssignmentId:'ALO-0001',
+  toFactionId:'FAC-0003',qty:4,reason:'Transferir saldo para nova oficina'}).state;
+ assert.equal(s.factionAssignments.length,2);
+ assert.deepEqual(s.factionAssignments.map(x=>x.qtySent),[5,4]);
+ assert.equal(s.orders[0].allocated,9);
+ assert.equal(s.factionPartialTransfers.length,1);
+ s=cmd(s,'faction.multi.return',{assignmentId:'ALO-0002',qty:2}).state;
+ assert.equal(s.settlements[0].factionId,'FAC-0003');
+ assert.equal(s.settlements[0].amountCents,2*650);
+ assert.equal(s.finance.find(x=>x.sourceId==='ACE-0001').amountCents,2*650);
+ assert.equal(core.inspect(s).ok,true);
+ assert.notEqual(JSON.stringify(s),previous);
+});
+test('transferência parcial inválida é atômica e não altera títulos/saldos',()=>{
+ let s=createOrder(9);
+ s=cmd(s,'faction.multi.allocate',{orderId:'PED-0001',factionId:'FAC-0001',qty:6}).state;
+ s=cmd(s,'faction.multi.return',{assignmentId:'ALO-0001',qty:4}).state;
+ const cases=[
+  [{fromAssignmentId:'ALO-0001',toFactionId:'FAC-0002',qty:3,
+    reason:'Tentativa excede pendente'},/excede o saldo/],
+  [{fromAssignmentId:'ALO-0001',toFactionId:'FAC-0001',qty:1,
+    reason:'Mesmo destino'},/diferente da origem/],
+  [{fromAssignmentId:'ALO-9999',toFactionId:'FAC-0002',qty:1,
+    reason:'Origem desconhecida'},/não encontrado/],
+  [{fromAssignmentId:'ALO-0001',toFactionId:'FAC-0002',qty:1,reason:''},
+   /Justificativa/],
+  [{fromAssignmentId:'ALO-0001',toFactionId:'FAC-0002',qty:0,
+    reason:'Zero inválido'},/Quantidade transferida/]
+ ];
+ const snapshot=JSON.stringify(s);
+ for(const [payload,pattern] of cases){
+  assert.throws(()=>cmd(s,'faction.multi.transfer',payload),pattern);
+  assert.equal(JSON.stringify(s),snapshot);
+ }
+ const full=createOrder(6);
+ const old=cmd(full,'faction.multi.allocate',{orderId:'PED-0001',factionId:'FAC-0001',qty:6}).state;
+ const before=JSON.stringify(old);
+ assert.throws(()=>cmd(old,'faction.multi.transfer',{fromAssignmentId:'ALO-0001',
+  toFactionId:'FAC-0002',qty:6,reason:'Esvaziar a origem'}),/Transferência integral/);
+ assert.equal(JSON.stringify(old),before);
+});
+test('Auditor bloqueia dados de transferência adulterados e comando duplicado',()=>{
+ let s=createOrder(10);
+ s=cmd(s,'faction.multi.allocate',{orderId:'PED-0001',factionId:'FAC-0001',qty:8}).state;
+ s=cmd(s,'faction.multi.transfer',{fromAssignmentId:'ALO-0001',
+  toFactionId:'FAC-0002',qty:3,reason:'Transferir sem duplicar'}).state;
+ for(const mutate of [
+  x=>{x.factionPartialTransfers[0].fromBefore+=1},
+  x=>{x.factionPartialTransfers[0].toFactionId='FAC-0001'},
+  x=>{x.factionPartialTransfers[0].commandId='COMANDO-AUSENTE'},
+  x=>{x.factionPartialTransfers.push({...x.factionPartialTransfers[0]})}
+ ]){
+  const broken=structuredClone(s);
+  mutate(broken);
+  const original=JSON.stringify(broken);
+  assert.equal(core.inspect(broken).ok,false);
+  assert.ok(observer.analyze(broken).findings.some(x=>
+   x.code==='FACCAO_TRANSFERENCIA_DIVERGENTE'),'Auditor deve apontar origem precisa');
+  assert.equal(JSON.stringify(broken),original,'Auditor é somente leitura');
+ }
+ assert.equal(observer.analyze(s).findings.length,0);
+});
 test('módulo multi-facção não tem rede, nem storage, nem escrita fora da transação',()=>{
  const file=fs.readFileSync(path.join(__dirname,'../modulos/faccoes-multidestino-v1.js'),'utf8');
- assert.equal(routing.version,'1.0.0');
+ assert.equal(routing.version,'1.1.0');
  for(const re of [/\bfetch\s*\(/,/\bXMLHttpRequest\b/,/\bWebSocket\b/,
   /\blocalStorage\b/,/\bindexedDB\b/,/\bsupabase\b/i,/https?:\/\//,
   /window\.location/,/\bdocument\.cookie/])
