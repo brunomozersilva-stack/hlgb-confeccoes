@@ -286,3 +286,46 @@ test('validação de avulso e tarifa rejeita erros sem criar pagamentos ou corro
  }
  assert.equal(core.inspect(ctx.state).ok,true);
 });
+
+
+test('devolução parcial do retorno mantém acerto e baixa no Hub sem violar peças separadas',()=>{
+ const ctx=setup(),orderId=run(ctx,'order.add',{clientId:'CLI-0001',productId:'PRO-0001',grade:graded()});
+ run(ctx,'cut.record',{orderId,size:'P',qty:10});
+ run(ctx,'faction.allocate',{orderId,factionId:'FAC-0002',qty:10});
+ const id=run(ctx,'faction.return',{orderId,qty:10});
+ run(ctx,'order.separate',{orderId,qty:8});
+ const old=JSON.stringify(ctx.state),rev=ctx.state.revision;
+ assert.throws(()=>core.apply(ctx.state,{type:'settlement.pieces.return',
+  payload:{id,qty:3,reason:'Peças devolvidas'},commandId:'OP-FAIL-RETURN',
+  expectedRevision:rev,actor:'CI'}),/saldo não separado/);
+ assert.equal(JSON.stringify(ctx.state),old);
+ run(ctx,'settlement.pieces.return',{id,qty:2,reason:'Duas peças reenviadas à facção'});
+ const x=ctx.state.settlements.find(x=>x.id===id),bill=ctx.state.finance.find(f=>f.sourceId===id);
+ assert.equal(ctx.state.orders[0].returned,8);
+ assert.equal(ctx.state.orders[0].separated,8);
+ assert.equal(x.qty,8);
+ assert.equal(x.amountCents,8*550);
+ assert.equal(bill.amountCents,x.amountCents);
+ assert.equal(x.returns.length,1);
+ assert.equal(x.returns[0].beforeQty,10);
+ assert.equal(x.returns[0].afterQty,8);
+ assert.match(x.returns[0].reason,/reenviadas/);
+ assert.equal(core.inspect(ctx.state).ok,true);
+ run(ctx,'finance.pay',{id:bill.id});
+ assert.throws(()=>core.apply(ctx.state,{type:'settlement.pieces.return',
+  payload:{id,qty:1,reason:'Tentativa após pagar'},commandId:'OP-PAGO-RETURN',
+  expectedRevision:ctx.state.revision,actor:'CI'}),/após pagamento/);
+});
+test('devolução parcial em embalagem avulsa não altera a grade dos pedidos',()=>{
+ const ctx=setup(),id=run(ctx,'settlement.add',{
+  serviceType:'embalagem',factionId:'FAC-0001',productId:'PRO-0002',
+  qty:100,unitCents:15,travetaCents:5,reason:'Embaladeira fictícia'});
+ run(ctx,'settlement.pieces.return',{id,qty:20,reason:'Devolução de embalagens'});
+ const x=ctx.state.settlements[0],bill=ctx.state.finance.find(f=>f.sourceId===id);
+ assert.equal(x.qty,80);
+ assert.equal(x.amountCents,800);
+ assert.equal(bill.amountCents,800);
+ assert.equal(ctx.state.orders.length,0);
+ assert.equal(x.returns.length,1);
+ assert.equal(core.inspect(ctx.state).ok,true);
+});
