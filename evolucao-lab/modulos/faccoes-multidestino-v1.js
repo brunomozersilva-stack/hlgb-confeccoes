@@ -46,6 +46,45 @@
   if(!order.factionId)order.factionId=fac.id; // facção principal preservada para UI/rotina antiga.
   return row.id+' · '+order.id+' → '+fac.name+' · +'+qty+' peças';
  }
+ function transfer(s,p,ctx){
+  // Transferência física apenas do saldo AINDA NÃO RETORNADO.
+  // Histórico de acertos/baixas anteriores nunca é transferido ao novo destino.
+  ensure(s,ctx.next);
+  if(!Array.isArray(s.factionPartialTransfers))s.factionPartialTransfers=[];
+  const from=byId(s.factionAssignments,p.fromAssignmentId);
+  if(!from)throw Error('Envio de origem não encontrado. Confira o pedido e a facção.');
+  const order=byId(s.orders,from.orderId);
+  const target=byId(s.factions,p.toFactionId);
+  if(!order||!target)throw Error('Pedido ou facção de destino não localizado.');
+  if(from.factionId===target.id)throw Error('Selecione uma facção de destino diferente da origem.');
+  const qty=ctx.int(p.qty,'Quantidade transferida',1,10000);
+  const available=from.qtySent-from.qtyReturned;
+  if(qty>available)throw Error('Transferência excede o saldo não retornado da facção de origem.');
+  if(from.qtySent-qty<1)
+   throw Error('Transferência integral deste envio não disponível neste fluxo parcial; mantenha pelo menos uma peça atribuída ou use a troca simples antes de retornos.');
+  const reason=String(p.reason??'').trim();
+  if(!reason||reason.length>95)throw Error('Justificativa de transferência obrigatória (até 95 caracteres).');
+  let to=s.factionAssignments.find(a=>a.orderId===order.id&&a.factionId===target.id);
+  if(!to){
+   to={id:ctx.next(s,'ALO'),orderId:order.id,factionId:target.id,
+    qtySent:0,qtyReturned:0,origin:'transferencia-parcial',
+    createdCommandId:ctx.uid};
+   s.factionAssignments.push(to);
+  }
+  const fromBefore=from.qtySent,toBefore=to.qtySent;
+  from.qtySent-=qty;
+  to.qtySent+=qty;
+  // Não modificar order.allocated, order.returned, acertos ou títulos.
+  const move={id:ctx.next(s,'TRP'),orderId:order.id,
+   fromAssignmentId:from.id,toAssignmentId:to.id,
+   fromFactionId:from.factionId,toFactionId:to.factionId,
+   qty,reason,commandId:ctx.uid,
+   fromBefore,fromAfter:from.qtySent,toBefore,toAfter:to.qtySent,
+   kind:'transferencia_parcial_pendente'};
+  s.factionPartialTransfers.push(move);
+  return move.id+' · '+order.id+' · '+qty+' peças · '+from.factionId+
+   ' → '+to.factionId+' (sem alterar acertos anteriores)';
+ }
  function ret(s,p,ctx){
   ensure(s,ctx.next);
   const a=byId(s.factionAssignments,p.assignmentId);
@@ -130,6 +169,25 @@
     issues.push(String(a.id)+': envio por facção duplicado ou inválido');
    ids.add(a.id);pairs.add(pair);
   }
+  const transferIds=new Set();
+  for(const move of (s.factionPartialTransfers||[])){
+   const from=byId(assignments,move.fromAssignmentId);
+   const to=byId(assignments,move.toAssignmentId);
+   if(!move.id||transferIds.has(move.id)||!from||!to||
+      from.id===to.id||from.orderId!==move.orderId||to.orderId!==move.orderId||
+      from.factionId!==move.fromFactionId||to.factionId!==move.toFactionId||
+      from.factionId===to.factionId||
+      !Number.isSafeInteger(move.qty)||move.qty<1||
+      !Number.isSafeInteger(move.fromBefore)||!Number.isSafeInteger(move.fromAfter)||
+      !Number.isSafeInteger(move.toBefore)||!Number.isSafeInteger(move.toAfter)||
+      move.fromBefore-move.fromAfter!==move.qty||
+      move.toAfter-move.toBefore!==move.qty||
+      move.fromAfter<1||move.toBefore<0||
+      !move.reason||!move.commandId||
+      !s.log.some(e=>e.commandId===move.commandId&&e.type==='faction.multi.transfer'))
+    issues.push(String(move.id)+': histórico de transferência parcial sem origem/destino ou saldo válido');
+   transferIds.add(move.id);
+  }
   for(const order of s.orders){
    const rows=forOrder(s,order.id);
    if(rows.reduce((n,a)=>n+a.qtySent,0)!==order.allocated||
@@ -152,7 +210,7 @@
   }
   return issues;
  }
- return Object.freeze({version:'1.0.0',ensure,forOrder,allocation,ret,
+ return Object.freeze({version:'1.1.0',ensure,forOrder,allocation,transfer,ret,
   canLegacyReturn,recordLegacyAllocation,recordLegacyReturn,
   reassignLegacy,reverseReturn,inspect});
 });
