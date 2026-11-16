@@ -1,0 +1,53 @@
+name: HLGB Evolucao - Folha de Homologacao
+on:
+  push:
+    branches:
+      - feature/evolucao-laboratorio-isolado-v1-20261114
+    paths:
+      - 'evolucao-lab/folha-homologacao.html'
+      - 'evolucao-lab/tests/folha-homologacao-*.cjs'
+      - '.github/workflows/evolucao-folha-homologacao.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  contracts:
+    name: Contrato da folha ficticia e sem banco real
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Validar folha e ausencia de acessos externos
+        run: node --test evolucao-lab/tests/folha-homologacao-contract.cjs
+  browsers:
+    name: Folha, duas abas e 5 telas (${{ matrix.browser }})
+    runs-on: ubuntu-24.04
+    timeout-minutes: 18
+    strategy:
+      fail-fast: false
+      matrix:
+        browser: [chromium, webkit]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Instalar navegador isolado
+        run: |
+          npm install --no-save playwright@1.55.0
+          npx playwright install --with-deps ${{ matrix.browser }}
+      - name: Editar passagem, conferir totais, IndexedDB, conflito e PDF inexistente
+        env:
+          HLGB_BROWSER: ${{ matrix.browser }}
+          HLGB_SCREENSHOT_DIR: /tmp/hlgb-folha
+        run: node evolucao-lab/tests/folha-homologacao-mobile.cjs
+      - name: Anexar comprovacao visual de mobile
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: evolucao-folha-${{ matrix.browser }}
+          path: /tmp/hlgb-folha/*.png
+          if-no-files-found: ignore
