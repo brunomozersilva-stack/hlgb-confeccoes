@@ -1,9 +1,12 @@
 /* HLGB Evolução · operações integradas exclusivamente fictícias; nenhuma rede ou dado empresarial. */
 (function(root,factory){
- 'use strict';const api=factory();
+ 'use strict';
+ const batch=typeof module==='object'&&module.exports?
+  require('./modulos/pagamento-lote-v1.js'):(root&&root.HLGBLabPaymentBatchV1);
+ const api=factory(batch);
  if(typeof module==='object'&&module.exports)module.exports=api;
  else if(root)root.HLGBOperationalLab=api;
-})(typeof window!=='undefined'?window:null,function(){
+})(typeof window!=='undefined'?window:null,function(batch){
  'use strict';
  const clone=x=>JSON.parse(JSON.stringify(x)),sizes=['P','M','G','GG'];
  const makeGrade=()=>({P:0,M:0,G:0,GG:0});
@@ -25,7 +28,7 @@
     {id:'FAC-0002',name:'Oficina Exemplo B',unitCents:600,traveta:false}],
    employees:[{id:'FUN-0001',name:'Ana Simulada',salaryCents:200000,passageCents:12000,extrasCents:0,discountCents:0},
     {id:'FUN-0002',name:'Bianca Modelo',salaryCents:180000,passageCents:8000,extrasCents:0,discountCents:3000}],
-   orders:[],cutPlans:[],purchaseOrders:[],settlements:[],settlementCompensations:[],finance:[],stockLedger:[],factionTransfers:[],errors:[],
+   orders:[],cutPlans:[],purchaseOrders:[],settlements:[],settlementCompensations:[],paymentBatches:[],finance:[],stockLedger:[],factionTransfers:[],errors:[],
    prints:[{id:'IMP-0001',name:'Chaveiro articulado fictício',grams:28,priceCents:490,stock:12}],
    log:[],role:'supervisor',flags:{autoCorrections:false},revisionProof:'seed'};
  }
@@ -93,6 +96,33 @@
       linked[0].amountCents!==Math.abs(cmp.deltaCents)||linked[0].status!==cmp.status)
     problems.push(cmp.id+': compensação e título vinculado inconsistentes');
   }
+  const batches=Array.isArray(s.paymentBatches)?s.paymentBatches:[];
+  const usedTitles=new Set(),usedRefs=new Set();
+  for(const b of batches){
+   const key=typeof b.reference==='string'?b.reference.trim().toLocaleUpperCase('pt-BR'):'';
+   if(!key||usedRefs.has(key))problems.push(String(b.id)+': referência de lote duplicada ou inválida');
+   usedRefs.add(key);
+   if(!Array.isArray(b.items)||b.items.length<2||b.items.length>50||
+    b.count!==b.items.length||b.kind!=='pagamento_ficticio_lote'||
+    b.status!=='pago'||!b.reason||!b.commandId||!s.log.some(e=>e.commandId===b.commandId))
+    problems.push(String(b.id)+': metadados de pagamento em lote inconsistentes');
+   let total=0;
+   for(const item of Array.isArray(b.items)?b.items:[]){
+    const bill=s.finance.find(x=>x.id===item.financeId);
+    const src=item.sourceType==='acerto'?s.settlements.find(x=>x.id===item.sourceId):
+     item.sourceType==='compensacao'?comps.find(x=>x.id===item.sourceId):null;
+    if(usedTitles.has(item.financeId)||!bill||!src||bill.sourceId!==item.sourceId||
+      bill.kind!=='pagar'||bill.status!=='pago'||src.status!=='pago'||
+      item.factionId!==src.factionId||bill.amountCents!==item.amountCents||
+      (item.sourceType==='acerto'&&src.amountCents!==item.amountCents)||
+      (item.sourceType==='compensacao'&&src.deltaCents!==item.amountCents))
+     problems.push(String(b.id)+': item ou vínculo de pagamento duplicado/inconsistente '+String(item.financeId));
+    usedTitles.add(item.financeId);
+    total+=item.amountCents;
+   }
+   if(!Number.isSafeInteger(total)||b.totalCents!==total||total<=0)
+    problems.push(String(b.id)+': valor do lote divergente');
+  }
   const keys=comps.map(x=>x.settlementId+'|'+x.reference.trim().toLocaleUpperCase('pt-BR'));
   if(new Set(keys).size!==keys.length)problems.push('Referência de compensação duplicada para o mesmo acerto');
   for(const move of (s.factionTransfers||[])){
@@ -103,7 +133,7 @@
   if(s.materials.some(m=>m.stockGrams<0))problems.push('Estoque de material negativo');
   if(s.finance.some(e=>e.amountCents<=0))problems.push('Lançamento financeiro não positivo');
   if(new Set(s.log.map(e=>e.commandId)).size!==s.log.length)problems.push('Identificador de comando duplicado');
-  const allIds=[...s.orders,...(s.cutPlans||[]),...(s.factionTransfers||[]),...(s.settlementCompensations||[]),...s.purchaseOrders,...s.settlements,...s.finance,...s.clients,...s.suppliers,
+  const allIds=[...s.orders,...(s.cutPlans||[]),...(s.factionTransfers||[]),...(s.settlementCompensations||[]),...batches,...s.purchaseOrders,...s.settlements,...s.finance,...s.clients,...s.suppliers,
    ...s.materials,...s.products,...s.factions,...s.employees,...s.prints].map(x=>x.id);
   if(new Set(allIds).size!==allIds.length)problems.push('IDs de registro duplicados');
   return {ok:!problems.length,problems,orderCount:s.orders.length,unpaid:s.finance.filter(f=>f.status==='aberto').length,
@@ -115,7 +145,9 @@
  function totals(s){
   const pay=s.finance.filter(x=>x.kind==='pagar'),recv=s.finance.filter(x=>x.kind==='receber');
   const comps=Array.isArray(s.settlementCompensations)?s.settlementCompensations:[];
-  return {compensations:comps.length,
+  const batches=Array.isArray(s.paymentBatches)?s.paymentBatches:[];
+  return {paymentBatches:batches.length,batchedPayablesCents:batches.reduce((n,x)=>n+x.totalCents,0),
+   compensations:comps.length,
    compensatedNet:comps.reduce((a,c)=>a+c.deltaCents,0),
    compensationsOpen:comps.filter(c=>c.status==='aberto').length,
    orders:s.orders.length,pieces:s.orders.reduce((a,o)=>a+sum(o.grade),0),
@@ -221,6 +253,7 @@
   if(!Array.isArray(s.cutPlans))s.cutPlans=[]; // migração segura apenas do documento fictício anterior
   if(!Array.isArray(s.factionTransfers))s.factionTransfers=[];
   if(!Array.isArray(s.settlementCompensations))s.settlementCompensations=[];
+  if(!Array.isArray(s.paymentBatches))s.paymentBatches=[];
   const num=(field,min=0,max=1000000)=>int(p[field],field,min,max);
   let result;
   switch(kind){
@@ -472,6 +505,10 @@
     reason:typeof p.reason==='string'&&p.reason.trim()?name(p.reason,'Motivo'):'Ajuste fictício demonstrativo'});
    bill.amountCents=amount;
    result=x.id+' · '+before+' → '+amount+' centavos';break}
+  case 'finance.batch.pay':{
+   if(!batch||typeof batch.execute!=='function')
+    throw Error('Módulo obrigatório de pagamentos em lote indisponível; nenhuma baixa aplicada.');
+   result=batch.execute(s,p,{next,uid});break}
   case 'finance.pay':{
    const entry=get(s,'finance',p.id,'Lançamento');
    if(entry.status!=='aberto')throw Error('Lançamento já conferido, evitar pagamento repetido.');
