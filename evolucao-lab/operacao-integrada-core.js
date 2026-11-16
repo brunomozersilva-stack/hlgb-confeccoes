@@ -310,7 +310,7 @@
    s.settlements.push(obj);
    s.finance.push({id:next(s,'FIN'),kind:'pagar',sourceId:obj.id,
     description:'Serviço '+obj.serviceType+' · '+obj.id,amountCents:obj.amountCents,status:'aberto'});
-   result=obj.id+' · '+obj.serviceType+' · '+obj.qty+' × '+netUnit+' centavos';break}
+   result=obj.id;break}
   case 'order.separate':{
    const o=get(s,'orders',p.orderId,'Pedido'),qty=num('qty',1,10000);
    if(o.separated+qty>o.returned)throw Error('Separação excede o retorno da facção.');
