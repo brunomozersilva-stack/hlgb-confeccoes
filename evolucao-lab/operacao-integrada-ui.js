@@ -223,6 +223,14 @@ function observationPanels(s,area){
       str(x.id),str(x.orderId),str(x.productName),str(x.factionName),
       str(x.qtySent),str(x.qtyReturned),str(x.qtyOpen),
       x.settlementIds.map(str).join(' · ')||'—'])),true)+
+   panel('Rastro de transferências entre facções · antes e depois',
+    '<p>'+str(o.summary.partialFactionTransfers)+' transferência(s), '+
+    str(o.summary.piecesTransferred)+' peça(s) redistribuídas. O histórico de acertos anteriores não é regravado.</p>'+
+    table(['Transferência','Pedido','Origem → destino','Peças','Origem antes/depois','Destino antes/depois','Motivo'],
+     o.factionTransferHistory.map(t=>[
+      str(t.id),str(t.orderId),str(t.fromName)+' → '+str(t.toName),
+      str(t.qty),str(t.fromBefore)+' → '+str(t.fromAfter),
+      str(t.toBefore)+' → '+str(t.toAfter),str(t.reason)])),true)+
    panel('Acertos e pagamentos por facção',
     '<p>Os valores quitados são somente confirmações fictícias. Correções pós-pagamento aparecem à parte.</p>'+
     table(['Facção','Acertos','Peças','Total','Pago fictício','Em aberto','Compensações líquidas'],
@@ -799,6 +807,9 @@ function exportCsv(){
  ...doc.finance.map(x=>['Financeiro',x.id,x.description,x.status,x.amountCents]),
  ...(doc.settlementCompensations||[]).map(x=>['Compensação',x.id,x.settlementId+' · '+x.reference,x.status,x.deltaCents]),
  ...doc.purchaseOrders.map(x=>['Compra',x.id,ref(doc.materials,x.materialId)?.name||'',x.received?'Recebido':'Pendente',x.qtyGrams]),
+ ...(doc.factionPartialTransfers||[]).map(t=>['Transferência parcial',t.id,
+  t.orderId+' · '+t.fromFactionId+' → '+t.toFactionId+' · '+t.reason,
+  t.commandId,t.qty]),
  ...(doc.paymentBatches||[]).map(x=>['Pagamento em lote',x.id,x.reference+' · '+x.reason,x.status,x.totalCents]),
  ...(doc.paymentBatches||[]).flatMap(x=>x.items.map(i=>
   ['Título quitado no lote',i.financeId,x.id+' · '+i.sourceId,i.sourceType,i.amountCents]))];
@@ -820,6 +831,11 @@ function exportObserverCsv(){
    x.orderId,x.factionName,x.productName+' · enviadas '+x.qtySent+
     ' · retornadas '+x.qtyReturned+' · pendentes '+x.qtyOpen+
     ' · acertos '+x.settlementIds.join(' / ')]),
+  ...report.factionTransferHistory.map(t=>
+   ['Transferência parcial','faccoes',t.id,t.orderId,t.fromName+' → '+t.toName,
+    t.qty+' peças · origem '+t.fromBefore+' → '+t.fromAfter+
+    ' · destino '+t.toBefore+' → '+t.toAfter+' · '+t.reason+
+    ' · comando '+t.commandId]),
   ...report.paymentBatchHistory.map(b=>['Fechamento em lote','hub',b.id,
    b.reference,b.status,b.reason+' · '+b.count+' títulos · '+b.totalCents+' centavos']),
   ...report.paymentBatchHistory.flatMap(b=>b.items.map(i=>
