@@ -3,6 +3,7 @@ const test=require('node:test'),assert=require('node:assert/strict'),
  fs=require('node:fs'),path=require('node:path');
 const core=require('../operacao-integrada-core.js');
 const batch=require('../modulos/pagamento-lote-v1.js');
+const observer=require('../modulos/observabilidade-v2.js');
 let number=1;
 function command(state,type,payload={},id){
  const result=core.apply(state,{type,payload,actor:'Controle LAB',
@@ -45,6 +46,13 @@ test('quitação em lote: 2 acertos, total exato, uma transação, uma revisão 
  assert.equal(core.inspect(state).ok,true);
  assert.equal(core.totals(state).paymentBatches,1);
  assert.equal(core.totals(state).batchedPayablesCents,7700);
+ const audit=observer.analyze(state);
+ assert.equal(audit.summary.paymentBatches,1);
+ assert.equal(audit.summary.batchedPayablesCents,7700);
+ assert.equal(audit.paymentBatchHistory.length,1);
+ assert.equal(audit.paymentBatchHistory[0].items.length,2);
+ assert.equal(audit.history[0].type,'finance.batch.pay');
+ assert.equal(audit.findings.length,0);
  assert.equal(JSON.stringify(s),snapshot,'snapshot antigo preservado integralmente');
 });
 test('fechamento inválido é 100% atômico, sem status pago e sem alteração de revisão',()=>{
@@ -138,11 +146,13 @@ test('o Auditor reconhece lote adulterado e nenhum lote pode esconder duplicaç�
  tampered.paymentBatches[0].items[0].amountCents-=1;
  assert.equal(core.inspect(tampered).ok,false);
  assert.match(core.inspect(tampered).problems.join(' '),/lote|pagamento/i);
+ assert.ok(observer.analyze(tampered).findings.some(x=>x.code==='LOTE_VINCULO'));
  assert.equal(JSON.stringify(done),baseline,'auditoria não altera original');
  const duplicate=structuredClone(done);
  duplicate.paymentBatches.push({...duplicate.paymentBatches[0],id:'PAG-9999',reference:'NOVO-LOTE'});
  assert.equal(core.inspect(duplicate).ok,false);
  assert.match(core.inspect(duplicate).problems.join(' '),/duplicado|lote/);
+ assert.ok(observer.analyze(duplicate).findings.some(x=>x.code==='LOTE_VINCULO'));
 });
 test('retrocompatibilidade: documentos sem paymentBatches mantêm pagamentos unitários',()=>{
  let s=core.initial();delete s.paymentBatches;
