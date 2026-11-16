@@ -162,7 +162,26 @@ function observationPanels(s,area){
      str(x.module),str(x.type),str(x.actor),str(x.description)]))+'</div>'+
    '<div class="actions"><button type="button" class="btn primary" id="export-observer-csv">Exportar auditoria completa CSV</button></div>',true)+
    panel('Atividade por módulo',
-    table(['Módulo','Ações registradas'],o.moduleActivity.map(x=>[str(x.module),str(x.count)])),true);
+    table(['Módulo','Ações registradas'],o.moduleActivity.map(x=>[str(x.module),str(x.count)])),true)+
+   panel('Produção e pedidos por modelo',
+    '<p>Quantidades do fluxo e <strong>valor previsto</strong> das encomendas, que não representa dinheiro recebido.</p>'+
+    table(['Modelo','Pedidos','Pedidas','Cortadas','Retornadas','Expedidas','Valor previsto'],
+     o.modelSummary.map(x=>[str(x.name)+' · '+str(x.sku),str(x.orders),
+      str(x.ordered),str(x.cut),str(x.returned),str(x.shipped),
+      fmt(x.plannedReceivablesCents)])),true)+
+   panel('Acertos e pagamentos por facção',
+    '<p>Os valores quitados são somente confirmações fictícias. Correções pós-pagamento aparecem à parte.</p>'+
+    table(['Facção','Acertos','Peças','Total','Pago fictício','Em aberto','Compensações líquidas'],
+     o.factionSummary.map(x=>[str(x.name),str(x.settlements),str(x.pieces),
+      fmt(x.totalSettlementsCents),fmt(x.paidSettlementsCents),
+      fmt(x.openSettlementsCents),(x.compensationNetCents<0?'−':x.compensationNetCents>0?'+':'')+
+       fmt(Math.abs(x.compensationNetCents))])),true)+
+   panel('Histórico de acertos: antes, depois e justificativas',
+    table(['Acerto','Evento','ID do comando','Antes','Depois','Justificativa'],
+     o.settlementHistory.slice().reverse().slice(0,120).map(x=>[
+      str(x.settlementId),str(x.event),str(x.commandId),fmt(x.beforeCents),
+      fmt(x.afterCents),str(x.reason)]))+
+    (o.settlementHistory.length>120?'<p class="caption">Mostrados 120 eventos; o JSON preserva o histórico completo.</p>':''),true);
  }
  return null;
 }
@@ -676,7 +695,13 @@ function exportObserverCsv(){
  if(!report){status('Observabilidade indisponível ou desativada; exporte o JSON básico.','error');return}
  const rows=[['Tipo','Módulo','Revisão/ID','Regra/Operação','Gravidade','Descrição'],
   ...report.findings.map(x=>['Alerta',x.module,x.recordId,x.code,x.severity,x.message+' · '+x.action]),
-  ...report.history.map(x=>['Evento',x.module,x.revision,x.type,'',x.commandId+' · '+x.description])];
+  ...report.history.map(x=>['Evento',x.module,x.revision,x.type,'',x.commandId+' · '+x.description]),
+  ...report.settlementHistory.map(x=>['Histórico do acerto','acertos',x.settlementId,
+   x.event,'',x.commandId+' · antes '+x.beforeCents+' depois '+x.afterCents+' · '+x.reason]),
+  ...report.modelSummary.map(x=>['Resumo por modelo','produtos',x.productId,
+   x.sku,'',x.name+' · pedidas '+x.ordered+' · cortadas '+x.cut+' · expedidas '+x.shipped]),
+  ...report.factionSummary.map(x=>['Resumo por facção','faccoes',x.factionId,
+   x.name,'',x.settlements+' acertos · pago '+x.paidSettlementsCents])];
  download('HLGB-LAB-OBSERVABILIDADE-V2-FICTICIA.csv',
   '\uFEFF'+rows.map(row=>row.map(safeCell).join(';')).join('\r\n'),'text/csv;charset=utf-8');
  status('Histórico fictício e alertas exportados sem alterações no documento.');
