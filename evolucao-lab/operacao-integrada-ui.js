@@ -89,7 +89,8 @@ function financialBatchPanel(s){
   '<p id="finance-batch-summary" class="caption" role="status">Nenhum título selecionado.</p>'+
   '<div class="fields">'+field('reference','Referência única do fechamento','text','LOTE-TESTE-001')+
   field('reason','Justificativa do fechamento','text','Conferência coletiva fictícia')+'</div>'+
-  '<div class="actions"><button class="btn primary" type="submit">Conferir e quitar lote fictício</button></div></form>'+
+  '<div class="actions"><button class="btn" type="button" id="preview-finance-batch">Validar sem pagar</button>'+
+  '<button class="btn primary" type="submit">Conferir e quitar lote fictício</button></div></form>'+
   '<p class="caption">Pagamento somente demonstrativo: sem banco real, PIX, comprovante fiscal ou liquidação externa. O pagamento unitário anterior continua disponível.</p>',true)+
  panel('Histórico de lotes sem reescrever acertos',
   table(['Lote','Referência','Títulos','Total','Situação','Motivo','IDs vinculados'],
@@ -733,7 +734,10 @@ function exportCsv(){
  ref(doc.products,x.productId)?.name||'', 'Enviadas: '+x.shipped,sum(x.grade)]),
  ...doc.finance.map(x=>['Financeiro',x.id,x.description,x.status,x.amountCents]),
  ...(doc.settlementCompensations||[]).map(x=>['Compensação',x.id,x.settlementId+' · '+x.reference,x.status,x.deltaCents]),
- ...doc.purchaseOrders.map(x=>['Compra',x.id,ref(doc.materials,x.materialId)?.name||'',x.received?'Recebido':'Pendente',x.qtyGrams])];
+ ...doc.purchaseOrders.map(x=>['Compra',x.id,ref(doc.materials,x.materialId)?.name||'',x.received?'Recebido':'Pendente',x.qtyGrams]),
+ ...(doc.paymentBatches||[]).map(x=>['Pagamento em lote',x.id,x.reference+' · '+x.reason,x.status,x.totalCents]),
+ ...(doc.paymentBatches||[]).flatMap(x=>x.items.map(i=>
+  ['Título quitado no lote',i.financeId,x.id+' · '+i.sourceId,i.sourceType,i.amountCents]))];
  download('HLGB-EVOLUCAO-OPERACAO-INTEGRADA-FICTICIA.csv','\uFEFF'+rows.map(r=>r.map(safeCell).join(';')).join('\r\n'),'text/csv;charset=utf-8');
 }
 function exportObserverCsv(){
@@ -930,6 +934,17 @@ document.addEventListener('change',event=>{
  }
 });
 document.addEventListener('click',e=>{
+ if(e.target.closest('#preview-finance-batch')){
+  const form=$('finance-batch-form');
+  try{
+   const payload=parseData('finance.batch.pay',form),fn=window.HLGBLabPaymentBatchV1?.preview;
+   if(typeof fn!=='function')throw Error('Validador de lote indisponível.');
+   const result=fn(doc,payload);
+   status('Prévia validada: '+result.count+' título(s), '+fmt(result.totalCents)+
+    ', referência '+result.reference+'. Nenhuma baixa executada.');
+  }catch(error){status(error.message,'error')}
+  return;
+ }
  if(e.target.closest('#export-observer-csv')){exportObserverCsv();return}
  if(e.target.closest('[data-toggle-observer]')){
   const registry=window.HLGBLabModules;
