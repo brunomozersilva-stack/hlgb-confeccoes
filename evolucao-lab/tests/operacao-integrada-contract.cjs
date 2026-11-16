@@ -126,3 +126,80 @@ test('revisões e command IDs impedem replay; resultado não muta o estado anter
   commandId:'OP-DEMO-OUTRO',expectedRevision:1,actor:'Teste'}),/CONFLITO/);
  assert.deepEqual(core.inspect(r.state).problems,[]);
 });
+
+test('grade editável muda conta a receber e protege cortes e reservas preexistentes',()=>{
+ const ctx=setup();
+ const id=run(ctx,'order.add',{clientId:'CLI-0001',productId:'PRO-0001',grade:graded(10,10)});
+ assert.equal(ctx.state.finance[0].amountCents,20*3990);
+ run(ctx,'order.grade.update',{orderId:id,grade:{P:12,M:8,G:0,GG:0}});
+ assert.deepEqual(ctx.state.orders[0].grade,{P:12,M:8,G:0,GG:0});
+ run(ctx,'cut.record',{orderId:id,size:'P',qty:4});
+ const sheet=run(ctx,'cut.plan',{orderId:id,grade:{P:3,M:4,G:0,GG:0},
+  workMode:'interno',cutterOne:'Ana Exemplo',cutterTwo:'Beto Exemplo',spreader:'Cris Teste'});
+ assert.match(sheet,/^COR-/);
+ assert.throws(()=>core.apply(ctx.state,{type:'order.grade.update',
+  payload:{orderId:id,grade:{P:6,M:8,G:0,GG:0}},
+  expectedRevision:ctx.state.revision,commandId:'OP-INVALID-1',actor:'Teste'}),/não pode reduzir/i);
+ run(ctx,'order.grade.update',{orderId:id,grade:{P:9,M:8,G:0,GG:0}});
+ assert.equal(ctx.state.finance[0].amountCents,17*3990);
+ assert.throws(()=>core.apply(ctx.state,{type:'cut.record',payload:{orderId:id,size:'M',qty:5},
+  expectedRevision:ctx.state.revision,commandId:'OP-INVALID-2',actor:'Teste'}),/reservadas|disponível/);
+ run(ctx,'finance.pay',{id:ctx.state.finance[0].id});
+ assert.throws(()=>core.apply(ctx.state,{type:'order.grade.update',
+  payload:{orderId:id,grade:{P:10,M:8,G:0,GG:0}},
+  expectedRevision:ctx.state.revision,commandId:'OP-INVALID-3',actor:'Teste'}),/título pago/);
+ assert.equal(core.inspect(ctx.state).ok,true);
+});
+test('duas folhas de corte: lotes, edição, dupla conferência, peso útil + lixo, baixa única e impressão auditável',()=>{
+ const ctx=setup(),orderId=run(ctx,'order.add',{clientId:'CLI-0001',productId:'PRO-0001',grade:graded(10,10)});
+ const first=run(ctx,'cut.plan',{orderId,grade:{P:4,M:4,G:0,GG:0},
+  workMode:'interno',cutterOne:'Ana Cortadora',cutterTwo:'Beto Cortador',spreader:'Carla Enfestadora'});
+ const second=run(ctx,'cut.plan',{orderId,grade:{P:3,M:3,G:0,GG:0},
+  workMode:'externo',cutterOne:'Dina Corte',cutterTwo:'Eva Corte',spreader:'Fabi Enfesto'});
+ assert.equal(ctx.state.materials[0].stockGrams,16000,'planejar não baixa estoque');
+ assert.equal(ctx.state.orders[0].cut.P,0,'planejar não executa o corte');
+ run(ctx,'cut.plan.update',{id:second,grade:{P:5,M:4,G:0,GG:0},
+  workMode:'externo',cutterOne:'Dina Corte',cutterTwo:'Eva Corte',spreader:'Fabi Enfesto'});
+ assert.equal(ctx.state.cutPlans[1].theoreticalGrams,9*120);
+ assert.throws(()=>core.apply(ctx.state,{type:'cut.plan',
+  payload:{orderId,grade:{P:2,M:0,G:0,GG:0},
+   workMode:'interno',cutterOne:'João',cutterTwo:'José',spreader:'Juca'},
+  commandId:'OP-INVALID-4',expectedRevision:ctx.state.revision,actor:'CI'}),/excede/);
+ assert.throws(()=>core.apply(ctx.state,{type:'cut.plan.complete',
+  payload:{id:first,usefulGrams:960,scrapGrams:200,signatureOne:'Pessoa Incorreta',signatureTwo:'Beto Cortador'},
+  commandId:'OP-INVALID-5',expectedRevision:ctx.state.revision,actor:'CI'}),/conferências/);
+ run(ctx,'cut.plan.complete',{id:first,usefulGrams:960,scrapGrams:200,
+  signatureOne:'Ana Cortadora',signatureTwo:'Beto Cortador'});
+ assert.equal(ctx.state.materials[0].stockGrams,14840);
+ assert.equal(ctx.state.cutPlans[0].status,'concluido');
+ assert.equal(ctx.state.orders[0].cut.P,4);
+ assert.equal(ctx.state.orders[0].cut.M,4);
+ assert.throws(()=>core.apply(ctx.state,{type:'cut.plan.complete',
+  payload:{id:first,usefulGrams:960,scrapGrams:0,signatureOne:'Ana Cortadora',signatureTwo:'Beto Cortador'},
+  commandId:'OP-INVALID-6',expectedRevision:ctx.state.revision,actor:'CI'}),/já foi concluída/);
+ run(ctx,'cut.plan.complete',{id:second,usefulGrams:1080,scrapGrams:80,
+  signatureOne:'Dina Corte',signatureTwo:'Eva Corte'});
+ assert.equal(ctx.state.materials[0].stockGrams,13680);
+ assert.deepEqual(ctx.state.orders[0].cut,{P:9,M:8,G:0,GG:0});
+ assert.equal(ctx.state.stockLedger.filter(x=>x.type==='corte-planejado').length,2);
+ assert.equal(ctx.state.stockLedger.reduce((n,x)=>n+x.deltaGrams,0),-2320);
+ assert.equal(core.inspect(ctx.state).ok,true);
+ const cloneCtx=structuredClone(ctx.state);
+ assert.equal(cloneCtx.cutPlans[1].signatureOne,'Dina Corte');
+ assert.equal(cloneCtx.cutPlans[1].scrapGrams,80);
+});
+test('cancelar folha aberta libera reserva sem apagar rastreabilidade ou consumir estoque',()=>{
+ const ctx=setup(),orderId=run(ctx,'order.add',{clientId:'CLI-0001',productId:'PRO-0001',grade:graded(4,2)});
+ const id=run(ctx,'cut.plan',{orderId,grade:{P:4,M:2,G:0,GG:0},
+  workMode:'interno',cutterOne:'Ana',cutterTwo:'Beto',spreader:'Carla'});
+ assert.throws(()=>core.apply(ctx.state,{type:'cut.record',
+  payload:{orderId,size:'P',qty:1},commandId:'OP-RESERVED',actor:'CI',
+  expectedRevision:ctx.state.revision}),/disponível/);
+ run(ctx,'cut.plan.cancel',{id});
+ assert.equal(ctx.state.cutPlans[0].status,'cancelado');
+ assert.equal(ctx.state.materials[0].stockGrams,16000);
+ run(ctx,'cut.record',{orderId,size:'P',qty:4});
+ assert.equal(ctx.state.orders[0].cut.P,4);
+ assert.equal(ctx.state.cutPlans[0].cancelledCommandId.startsWith('OP-DEMO'),true);
+ assert.equal(core.inspect(ctx.state).ok,true);
+});
