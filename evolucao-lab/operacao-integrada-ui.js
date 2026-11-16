@@ -244,6 +244,13 @@ function moduleHtml(s){
   field('reason','Descrição / justificativa','text','Embalagem fictícia')
  ],'Gerar acerto e título a pagar')+
  '<p>O tipo <strong>Embalagem</strong> usa valor por peça independente da mão de obra de costura. As sugestões de R$ 0,25 para camisola/doll e R$ 0,15 para calcinha são exemplos editáveis, não preços confirmados da empresa.</p>')+
+ panel('Devolver peças com motivo e histórico',
+ form('settlement.pieces.return','Devolução parcial sem apagar o acerto',[
+  field('id','Acerto em aberto','select','',open),
+  field('qty','Quantidade devolvida','int','1'),
+  field('reason','Justificativa obrigatória','text','Peças devolvidas na conferência fictícia')
+ ],'Registrar devolução e recalcular Hub')+
+ '<p>Somente antes do pagamento. O pedido não pode ficar com retorno abaixo das peças já separadas. A operação mantém o acerto original, o histórico de quantidade anterior e a nova quantia no Hub.</p>')+
  panel('Ajustar apenas acerto em aberto',
  form('settlement.adjust','Abatimento ou acréscimo rastreado',[
   field('id','Acerto ainda não pago','select','',open),
@@ -267,6 +274,11 @@ function moduleHtml(s){
  '<h3>Alterações de valores</h3>'+
  table(['Acerto','Evento','Antes','Depois','Motivo'],s.settlements.flatMap(x=>
   (x.history||[]).map(e=>[str(x.id),str(e.commandId),fmt(e.beforeCents),fmt(e.afterCents),str(e.reason)])
+  ))+
+ '<h3>Devoluções de peças</h3>'+
+ table(['Acerto','Comando','Devolvidas','Antes','Depois','Motivo'],s.settlements.flatMap(x=>
+  (x.returns||[]).map(ev=>[str(x.id),str(ev.commandId),str(ev.qty),
+   str(ev.beforeQty)+' pç / '+fmt(ev.beforeCents),str(ev.afterQty)+' pç / '+fmt(ev.afterCents),str(ev.reason)])
   )),true);
  }
  case 'hub':return panel('Lançamento do Hub fictício',
