@@ -70,7 +70,7 @@ A página `guardiao-preservacao.html` vincula o inventário real do repositório
 
 - Busca, filtros por módulo, prioridade e demonstração; links para os 8 exercícios parciais.
 - Importação validada do relatório exportado pela Central de Homologação, com separação clara entre **funcionou na prévia** e **paridade funcional comprovada**.
-- Exportações de pendências em CSV/JSON com 76 bloqueios obrigatórios, mesmo que 8 demonstrações tenham passado.
+- Exportações de pendências em CSV/JSON com 76 bloqueios obrigatórios, mesmo que 41 demonstrações tenham passado.
 - Testes automatizados verificam dados embutidos versus inventários de origem e existência de todas as fontes e referências de teste; o teste de baseline confere hash de **229 arquivos antigos**.
 - Browser tests em Chromium/WebKit, incluindo telas estreitas, importação malformada e bloqueio de liberações indevidas.
 
