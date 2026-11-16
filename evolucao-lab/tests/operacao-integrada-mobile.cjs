@@ -459,6 +459,51 @@ async function run(browser,width,url){
    await module(page,'faccoes');
    assert.match(await page.locator('#module-content').innerText(),/PED-0003/);
    assert.equal(await revision(page),manyRevision);
+   const transferForm=page.locator('form[data-command="faction.multi.transfer"]');
+   assert.equal(await transferForm.count(),1);
+   await transferForm.locator('[name="fromAssignmentId"]').selectOption(entryB);
+   await transferForm.locator('[name="toFactionId"]').selectOption('FAC-0001');
+   await transferForm.locator('[name="qty"]').fill('6');
+   await transferForm.locator('[name="reason"]').fill('Tentativa de transferir acima do saldo pendente');
+   await transferForm.locator('button[type="submit"]').click();
+   await page.waitForFunction(()=>document.querySelector('#flash')?.textContent.includes('Transferência excede'));
+   assert.equal(await revision(page),manyRevision,'transferência inválida não gera revisão');
+   await put(page,'faction.multi.transfer',{fromAssignmentId:entryB,
+    toFactionId:'FAC-0001',qty:'2',
+    reason:'Redistribuição apenas do saldo não retornado'});
+   const afterTransfer=await revision(page);
+   await put(page,'faction.multi.return',{assignmentId:entryA,qty:'1'});
+   const [transferDownload]=await Promise.all([page.waitForEvent('download'),
+    page.locator('#export-json').click()]);
+   const transferReport=JSON.parse(fs.readFileSync(await transferDownload.path(),'utf8'));
+   const move=transferReport.data.factionPartialTransfers[0];
+   assert.equal(move.orderId,'PED-0003');
+   assert.equal(move.fromAssignmentId,entryB);
+   assert.equal(move.toAssignmentId,entryA);
+   assert.deepEqual([move.fromBefore,move.fromAfter,move.toBefore,move.toAfter],[7,5,5,7]);
+   assert.equal(move.qty,2);
+   assert.equal(transferReport.data.orders.find(x=>x.id==='PED-0003').allocated,12);
+   assert.equal(transferReport.data.orders.find(x=>x.id==='PED-0003').returned,7);
+   assert.deepEqual(transferReport.data.factionAssignments
+    .filter(x=>x.orderId==='PED-0003').map(x=>[x.qtySent,x.qtyReturned]),[[7,5],[5,2]]);
+   assert.equal(transferReport.data.settlements.find(x=>x.id==='ACE-0005').qty,2);
+   assert.equal(transferReport.data.settlements.find(x=>x.id==='ACE-0006').qty,4);
+   assert.equal(transferReport.observability.summary.partialFactionTransfers,1);
+   assert.equal(transferReport.observability.summary.piecesTransferred,2);
+   assert.equal(transferReport.observability.findings.length,0);
+   assert.equal(transferReport.checks.ok,true);
+   assert.equal(transferReport.productionApproval,false);
+   await module(page,'relatorios');
+   assert.match(await page.locator('#module-content').innerText(),/Rastro de transferências/);
+   assert.match(await page.locator('#module-content').innerText(),/TRP-0001/);
+   const [transferCsv]=await Promise.all([page.waitForEvent('download'),
+    page.locator('#export-observer-csv').click()]);
+   assert.match(fs.readFileSync(await transferCsv.path(),'utf8'),/TRP-0001/);
+   await page.reload();
+   await page.waitForFunction(rev=>document.querySelector('#top-revision')?.textContent.includes('Revisão local '+rev),
+    afterTransfer+1);
+   await module(page,'faccoes');
+   assert.match(await page.locator('#module-content').innerText(),/TRP-0001/);
   }
   const d=await page.evaluate(()=>({width:innerWidth,scroll:document.documentElement.scrollWidth}));
   if(d.scroll>d.width+2){
