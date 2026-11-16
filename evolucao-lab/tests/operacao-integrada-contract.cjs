@@ -329,3 +329,76 @@ test('devolução parcial em embalagem avulsa não altera a grade dos pedidos',(
  assert.equal(x.returns.length,1);
  assert.equal(core.inspect(ctx.state).ok,true);
 });
+
+
+test('compensação pós-pagamento cria novo título sem modificar acerto e pagamento original',()=>{
+ const ctx=setup(),id=run(ctx,'settlement.add',{
+  serviceType:'embalagem',factionId:'FAC-0001',productId:'PRO-0002',
+  qty:100,unitCents:25,travetaCents:5,reason:'Embalagem 100 fictícia'});
+ const originalBill=ctx.state.finance.find(x=>x.sourceId===id).id;
+ run(ctx,'finance.pay',{id:originalBill});
+ const oldAmount=ctx.state.settlements.find(x=>x.id===id).amountCents;
+ const oldInvoice=structuredClone(ctx.state.finance.find(x=>x.id===originalBill));
+ const credit=run(ctx,'settlement.compensate',{id,deltaCents:-500,
+  reference:'AJUSTE-001',reason:'Devolução de pagamento fictícia'});
+ const debit=run(ctx,'settlement.compensate',{id,deltaCents:250,
+  reference:'AJUSTE-002',reason:'Diferença de costura fictícia'});
+ assert.equal(credit,'CMP-0001 · receber · -500 centavos (original preservado)');
+ assert.equal(debit,'CMP-0002 · pagar · 250 centavos (original preservado)');
+ assert.equal(ctx.state.settlements.find(x=>x.id===id).amountCents,oldAmount);
+ assert.deepEqual(ctx.state.finance.find(x=>x.id===originalBill),oldInvoice);
+ assert.equal(ctx.state.settlementCompensations.length,2);
+ assert.deepEqual(ctx.state.finance.filter(x=>x.sourceId.startsWith('CMP-')).map(x=>[x.sourceId,x.kind,x.amountCents,x.status]),
+  [['CMP-0001','receber',500,'aberto'],['CMP-0002','pagar',250,'aberto']]);
+ assert.equal(core.totals(ctx.state).compensatedNet,-250);
+ assert.equal(core.totals(ctx.state).compensations,2);
+ assert.equal(core.totals(ctx.state).compensationsOpen,2);
+ assert.equal(core.inspect(ctx.state).ok,true);
+ const title=ctx.state.finance.find(x=>x.sourceId==='CMP-0001').id;
+ run(ctx,'finance.pay',{id:title});
+ assert.equal(ctx.state.settlementCompensations[0].status,'pago');
+ assert.equal(ctx.state.settlementCompensations[1].status,'aberto');
+ assert.equal(core.totals(ctx.state).compensationsOpen,1);
+ assert.deepEqual(ctx.state.finance.find(x=>x.id===originalBill),oldInvoice);
+ assert.equal(core.inspect(ctx.state).ok,true);
+});
+test('referência única e revisão bloqueiam correções duplicadas sem mutação',()=>{
+ const ctx=setup();
+ const id=run(ctx,'settlement.add',{serviceType:'embalagem',factionId:'FAC-0001',
+  productId:'PRO-0002',qty:20,unitCents:25,travetaCents:0,reason:'Embalagem teste'});
+ const initial=ctx.state.revision;
+ assert.throws(()=>core.apply(ctx.state,{type:'settlement.compensate',
+  payload:{id,deltaCents:100,reference:'PRÉ-001',reason:'Antes de pagar'},
+  commandId:'OP-INVALID-CMP-1',expectedRevision:initial,actor:'CI'}),/após pagamento/);
+ run(ctx,'finance.pay',{id:ctx.state.finance.find(x=>x.sourceId===id).id});
+ const cmp=run(ctx,'settlement.compensate',{id,deltaCents:100,reference:' PRÉ-001 ',
+  reason:'Diferenca ficticia'});
+ assert.equal(cmp.startsWith('CMP-'),true);
+ const before=JSON.stringify(ctx.state);
+ for(const [i,payload] of [
+  {id,deltaCents:100,reference:'pré-001',reason:'Repetir'},
+  {id,deltaCents:0,reference:'outro',reason:'Zero'},
+  {id,deltaCents:-100,reference:'outro',reason:''},
+  {id,deltaCents:10000001,reference:'outro',reason:'Fora do limite'},
+  {id:'ACE-9999',deltaCents:100,reference:'outro',reason:'Acerto não existe'}
+ ].entries()){
+  assert.throws(()=>core.apply(ctx.state,{
+   type:'settlement.compensate',payload,expectedRevision:ctx.state.revision,
+   commandId:'OP-INVALID-CMP-'+(i+2),actor:'CI'}));
+  assert.equal(JSON.stringify(ctx.state),before);
+ }
+ assert.throws(()=>core.apply(ctx.state,{type:'settlement.compensate',
+  payload:{id,deltaCents:100,reference:'PRÉ-002',reason:'Concorrência'},
+  commandId:'OP-OLD-REV',expectedRevision:ctx.state.revision-1,actor:'CI'}),/CONFLITO/);
+ assert.equal(core.inspect(ctx.state).ok,true);
+});
+test('documento prévio sem campo de compensações continua funcional e não perde dados',()=>{
+ const previous=core.initial();
+ delete previous.settlementCompensations;
+ assert.equal(core.inspect(previous).ok,true);
+ const result=core.apply(previous,{type:'client.add',payload:{name:'Cliente Migrado'},
+  commandId:'OP-OLD-DOC',expectedRevision:1,actor:'CI'});
+ assert.deepEqual(result.state.settlementCompensations,[]);
+ assert.equal(result.state.clients.length,3);
+ assert.equal(core.inspect(result.state).ok,true);
+});
