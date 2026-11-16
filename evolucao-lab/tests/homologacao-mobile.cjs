@@ -13,13 +13,13 @@ async function validate(browser,width){
  try{
   await page.goto(fileUrl,{waitUntil:'load'});
   assert.equal((await page.locator('#metric-total').innerText()).trim(),'76');
-  assert.equal((await page.locator('#metric-demos').innerText()).trim(),'48');
+  assert.equal((await page.locator('#metric-demos').innerText()).trim(),'49');
   assert.equal(await page.locator('#module-nav .module').count(),20);
   assert.equal(await page.locator('#cases .case').count(),76);
   await page.locator('#module-nav button').filter({hasText:'Acertos e pagamentos avulsos'}).click();
   assert.equal(await page.locator('#cases .case').count(),10);
   await page.locator('#scope').selectOption('demo');
-  assert.equal(await page.locator('#cases .case').count(),8);
+  assert.equal(await page.locator('#cases .case').count(),9);
   await page.locator('#scope').selectOption('all');
   await page.locator('#search').fill('comprovantes');
   assert((await page.locator('#cases .case').count())>=1);
@@ -37,7 +37,7 @@ async function validate(browser,width){
   await note.blur();
   await guide.locator('select.status-select').selectOption('passed');
   assert.equal((await page.locator('#metric-reviewed').innerText()).trim(),'1');
-  const missing=page.locator('#cases .case').filter({hasText:'PAR-041'});
+  const missing=page.locator('#cases .case').filter({hasText:'PAR-042'});
   await missing.locator('select.status-select').selectOption('missing');
   assert.equal((await page.locator('#metric-issues').innerText()).trim(),'1');
   const forbidden=await missing.locator('select.status-select option[value="passed"]').count();
@@ -53,7 +53,7 @@ async function validate(browser,width){
   const saved=report.results.find(x=>x.caseId==='PAR-035');
   assert.equal(saved.status,'passed');
   assert.match(saved.notes,/banco depois/);
-  const other=report.results.find(x=>x.caseId==='PAR-041');
+  const other=report.results.find(x=>x.caseId==='PAR-042');
   assert.equal(other.status,'missing');
   // O usuário confirma explicitamente a limpeza; nenhuma avaliação é apagada automaticamente.
   page.once('dialog',d=>d.accept());
