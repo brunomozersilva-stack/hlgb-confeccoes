@@ -69,7 +69,10 @@ function financeTable(s){
 function refDocs(s){return '<div class="flow"><span>Pedido</span>→<span>Corte</span>→<span>Facção</span>→<span>Retorno</span>→<span>Acerto</span>→<span>Separação</span>→<span>Expedição</span>→<span>Financeiro</span></div>'+
  '<p>Todos os passos alteram o mesmo estado fictício, guardado no IndexedDB deste navegador. Cada operação tem revisão e histórico.</p>'}
 function moduleHtml(s){
- const o=orderOptions(s),materials=selector(s.materials,m=>m.name+' · '+m.stockGrams+'g'),clients=selector(s.clients,x=>x.name),
+ const o=orderOptions(s),openPlans=(s.cutPlans||[]).filter(p=>p.status==='aberto'),
+  planOptions=selector(openPlans,p=>p.id+' · '+p.orderId+' · '+sum(p.grade)+' peças'),
+  defaultOrder=s.orders[0],defaultPlan=openPlans[0],
+  materials=selector(s.materials,m=>m.name+' · '+m.stockGrams+'g'),clients=selector(s.clients,x=>x.name),
  products=selector(s.products,x=>x.name+' · '+x.sku),factions=selector(s.factions,x=>x.name+' · '+fmt(x.unitCents)+'/peça'),
  suppliers=selector(s.suppliers,x=>x.name),settlements=selector(s.settlements,x=>x.id+' · '+fmt(x.amountCents)+' · '+x.status),
  purchases=selector(s.purchaseOrders.filter(x=>!x.received),x=>x.id+' · '+x.qtyGrams+'g'),
@@ -102,12 +105,66 @@ function moduleHtml(s){
  panel('Referência dos materiais','<p>Este ensaio utiliza um material principal por modelo. A ficha técnica real terá múltiplos componentes, grade, perdas e tamanhos.</p>')+
  panel('Modelos cadastrados',table(['SKU','Modelo','Material','Consumo','Preço'],s.products.map(x=>[
  str(x.sku),str(x.name),str(ref(s.materials,x.materialId)?.name),str(x.gramsPerUnit)+'g',fmt(x.priceCents)])),true);
- case 'corte':return panel('Baixar corte por tamanho',
- form('cut.record','Registrar corte parcial',[field('orderId','Pedido','select','',o),
- field('size','Tamanho','select','',api.sizes.map(x=>[x,x])),field('qty','Peças cortadas','int','5')],'Registrar corte e consumir material'))+
- panel('Conferência do corte','<p>Consumo = peças × gramas da ficha técnica. Bloqueia quantidade superior à grade e estoque negativo. Material usado gera movimento auditável.</p>'+
- '<div class="actions"><button class="btn" type="button" data-goto="estoque">Ver estoque →</button></div>')+
- panel('Grade prevista × cortada',orderTable(s),true);
+ case 'corte':{
+  const gradeFields=(g)=>api.sizes.map(z=>field(z,'Quantidade '+z,'int',g?.[z]||0));
+  const planned=(s.cutPlans||[]),done=planned.filter(x=>x.status==='concluido');
+  const rows=planned.map(p=>[
+   str(p.id)+'<div class="caption">'+str(p.orderId)+'</div>',
+   api.sizes.map(z=>z+': '+p.grade[z]).join(' / '),
+   str(p.workMode)+'<div class="caption">'+str(p.cutterOne)+' / '+str(p.cutterTwo)+' / '+str(p.spreader)+'</div>',
+   str(p.theoreticalGrams)+' g',
+   p.status==='concluido'?str(p.usefulGrams)+' g útil + '+str(p.scrapGrams)+' g lixo':'—',
+   '<span class="chip '+(p.status==='aberto'?'wait':'')+'">'+str(p.status)+'</span>',
+   '<button type="button" class="btn" data-print-plan="'+str(p.id)+'">Imprimir folha</button>'
+  ]);
+  return panel('Grade editável do pedido',
+   form('order.grade.update','Ajustar quantidades por tamanho',[
+    field('orderId','Pedido','select','',o),...gradeFields(defaultOrder?.grade)
+   ],'Salvar grade e conferir valor do pedido')+
+   '<p>O pedido não pode ser reduzido abaixo de cortes já executados nem das quantidades reservadas. O título a receber é recalculado apenas quando está aberto.</p>')+
+  panel('Lotes de corte e equipe',
+   form('cut.plan','Nova folha de corte',[
+    field('orderId','Pedido','select','',o),...gradeFields(api.makeGrade()),
+    field('workMode','Origem do serviço','select','',[['interno','Interno'],['externo','Externo']]),
+    field('cutterOne','Cortador 1','text','Ana Cortadora'),
+    field('cutterTwo','Cortador 2','text','Beto Cortador'),
+    field('spreader','Enfestador','text','Carla Enfestadora')
+   ],'Planejar lote')+
+   '<p>Crie várias folhas para dividir a grade de um pedido. Uma folha aberta reserva quantidades, mas não consome material até a conclusão.</p>')+
+  panel('Modificar ou cancelar folha em aberto',
+   form('cut.plan.update','Alterar equipe e grade do lote',[
+    field('id','Folha aberta','select','',planOptions),...gradeFields(defaultPlan?.grade),
+    field('workMode','Origem do serviço','select','',[['interno','Interno'],['externo','Externo']]),
+    field('cutterOne','Cortador 1','text',defaultPlan?.cutterOne||'Ana Cortadora'),
+    field('cutterTwo','Cortador 2','text',defaultPlan?.cutterTwo||'Beto Cortador'),
+    field('spreader','Enfestador','text',defaultPlan?.spreader||'Carla Enfestadora')
+   ],'Atualizar planejamento')+
+   form('cut.plan.cancel','Cancelar folha sem apagar histórico',[
+    field('id','Folha aberta','select','',planOptions)
+   ],'Cancelar folha aberta'))+
+  panel('Conferir peso e concluir o corte',
+   form('cut.plan.complete','Baixa auditada com duas conferências',[
+    field('id','Folha em aberto','select','',planOptions),
+    field('usefulGrams','Peso útil utilizado (g)','int',defaultPlan?.theoreticalGrams||0),
+    field('scrapGrams','Peso do lixo/desperdício (g)','int',0),
+    field('signatureOne','Conferência digitada do cortador 1','text',''),
+    field('signatureTwo','Conferência digitada do cortador 2','text','')
+   ],'Concluir lote e baixar estoque')+
+   '<p>O sistema desconta <b>peso útil + lixo</b>. As duas conferências digitadas devem coincidir com os nomes dos cortadores, mas não representam assinatura legal.</p>')+
+  panel('Corte simplificado — função preservada',
+   form('cut.record','Corte avulso por tamanho',[
+    field('orderId','Pedido','select','',o),
+    field('size','Tamanho','select','',api.sizes.map(z=>[z,z])),
+    field('qty','Quantidade','int','5')
+   ],'Baixar corte manual')+
+   '<p>Para preservar o exercício anterior, esta baixa continua disponível. Não consome peças reservadas por folhas abertas.</p>')+
+  panel('Quantidade de pedidos e corte',orderTable(s),true)+
+  panel('Folhas e indicadores de peso',
+   table(['Folha','Grade','Equipe','Peso teórico','Baixa real','Status','Impressão'],rows)+
+   '<div class="flow"><span>Peso útil: '+str(done.reduce((a,p)=>a+p.usefulGrams,0))+' g</span>'+
+   '<span>Lixo: '+str(done.reduce((a,p)=>a+p.scrapGrams,0))+' g</span></div>'+
+   '<p>Imprimir folha abre o diálogo de impressão do navegador para gerar papel ou salvar como PDF. Somente informações fictícias.</p>',true);
+ }
  case 'producao':return panel('Acompanhamento PCP',refDocs(s)+
  '<p>Envio e retorno são registrados na guia <b>Facções</b>; não são permitidas baixas que excedam etapas anteriores.</p>'+
  table(['Pedido','Cortadas','Enviadas','Retornadas','Pendentes retorno'],s.orders.map(x=>[
@@ -260,7 +317,7 @@ function parseCents(value,signed=false){
  if(!Number.isSafeInteger(val))throw Error('Valor monetário inválido.');
  return val;
 }
-const NUM=['qty','gramsPerUnit','qtyGrams','grams','stock','P','M','G','GG'];
+const NUM=['qty','gramsPerUnit','qtyGrams','grams','stock','P','M','G','GG','usefulGrams','scrapGrams'];
 const SIGNED=['deltaGrams'];
 const PRICES=['priceCents','unitCents','priceCentsKg','amountCents','salaryCents','passageCents','extrasCents','discountCents'];
 function parseData(type,form){
@@ -273,7 +330,7 @@ function parseData(type,form){
   else if(k==='traveta')p[k]=v==='true';
   else p[k]=String(v);
  }
- if(type==='order.add'){
+ if(['order.add','order.grade.update','cut.plan','cut.plan.update'].includes(type)){
   p.grade={};for(const sz of api.sizes){p.grade[sz]=p[sz];delete p[sz]}
  }
  return p;
@@ -314,7 +371,9 @@ async function read(){
  });
 }
 async function submit(form,type){
- if(busy||!doc)return;busy=true;
+ if(busy||!doc)return;
+ if(type==='cut.plan.cancel'&&!confirm('Cancelar somente a folha aberta, preservando o histórico?'))return;
+ busy=true;
  const button=form.querySelector('button[type=submit]');if(button)button.disabled=true;
  try{
   const payload=parseData(type,form),expectedRevision=doc.revision,
