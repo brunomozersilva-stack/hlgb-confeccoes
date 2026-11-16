@@ -9,6 +9,9 @@ on:
       - 'evolucao-lab/fluxo-producao-integrado.html'
       - 'evolucao-lab/planejador-materiais.html'
       - 'evolucao-lab/folha-homologacao.html'
+      - 'evolucao-lab/operacao-integrada.html'
+      - 'evolucao-lab/operacao-integrada-core.js'
+      - 'evolucao-lab/operacao-integrada-ui.js'
       - 'evolucao-lab/guardiao-preservacao.html'
       - 'evolucao-lab/sincronizacao-duas-sessoes.html'
       - 'evolucao-lab/sincronizacao-duas-sessoes-memoria.js'
@@ -31,11 +34,13 @@ jobs:
           set -euo pipefail
           mkdir -p pacote/HLGB-Evolucao-Previa/permissoes
           cp evolucao-lab/entrada.html pacote/HLGB-Evolucao-Previa/index.html
-          for p in folha-homologacao.html sincronizacao-duas-sessoes.html guardiao-preservacao.html homologacao-modulos.html central-operacional-2.html fluxo-producao-integrado.html planejador-materiais.html prototipo.html fluxos-operacionais.html acertos-simulador.html transacoes-simuladas.html preservacao.html paridade-critica.html; do
+          for p in operacao-integrada.html folha-homologacao.html sincronizacao-duas-sessoes.html guardiao-preservacao.html homologacao-modulos.html central-operacional-2.html fluxo-producao-integrado.html planejador-materiais.html prototipo.html fluxos-operacionais.html acertos-simulador.html transacoes-simuladas.html preservacao.html paridade-critica.html; do
             cp "evolucao-lab/$p" "pacote/HLGB-Evolucao-Previa/$p"
           done
           cp evolucao-lab/permissoes/permissoes-mobile.html pacote/HLGB-Evolucao-Previa/permissoes/permissoes-mobile.html
           cp evolucao-lab/sincronizacao-duas-sessoes-memoria.js pacote/HLGB-Evolucao-Previa/sincronizacao-duas-sessoes-memoria.js
+          cp evolucao-lab/operacao-integrada-core.js pacote/HLGB-Evolucao-Previa/operacao-integrada-core.js
+          cp evolucao-lab/operacao-integrada-ui.js pacote/HLGB-Evolucao-Previa/operacao-integrada-ui.js
           python3 - <<'PY'
           from pathlib import Path
           root=Path('pacote/HLGB-Evolucao-Previa')
@@ -58,7 +63,7 @@ jobs:
               if 'integracao/' in str(file) or 'api/pay' in source or 'api/upload' in source:
                   raise RuntimeError('Rota operacional não permitida no pacote: '+str(file))
               file.write_text(source)
-          print('PASS: 15 documentos HTML de demonstração e referências locais verificadas')
+          print('PASS: 16 documentos HTML de demonstração e referências locais verificadas')
           PY
           cat > pacote/LEIA-PRIMEIRO.txt <<'TXT'
           HLGB EVOLUCAO - PREVIA EXPERIMENTAL
