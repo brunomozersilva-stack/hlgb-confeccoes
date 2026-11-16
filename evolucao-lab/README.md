@@ -2,6 +2,16 @@
 
 Esta pasta é um **protótipo isolado**: não é uma tela incorporada ao HLGB em produção.
 
+## Nova etapa — Transferência parcial rastreável entre facções
+
+O comando `faction.multi.transfer` permite **redistribuir apenas peças ainda pendentes** de uma facção para outra no mesmo pedido, inclusive depois que outras peças já retornaram ou tiveram acerto quitado. A transferência é uma única operação transacional de laboratório: diminui a quantidade sob responsabilidade da oficina de origem e aumenta a da oficina de destino **sem incrementar o total de peças alocadas ao pedido, sem gerar acerto ou financeiro e sem reescrever retornos/pagamentos anteriores**.
+
+Cada movimento recebe `TRP-...`, IDs de ambos os envios `ALO-...`, IDs das facções, quantidade, justificativa, ID de comando e saldo antes/depois de ambos os destinos. A origem mantém pelo menos uma peça atribuída nesta primeira versão de **transferência parcial**; transferência integral sem retorno continua na rotina anterior, quando aplicável. Os comandos existentes `faction.allocate`, `faction.return`, `faction.multi.allocate`, `faction.multi.return` e `faction.reassign` foram preservados.
+
+O Auditor 2.0 detecta ID duplicado, referência a outro pedido, origem/destino incorretos, incoerência de quantidades e comando de transferência inexistente. **Relatórios** exibem remessas parciais com antes/depois e permitem exportar CSV/JSON completos. O CI testa a proteção de pagamento original, bloqueio de excedentes, atomicidade, novas facções, compatibilidade, navegador mobile e histórico após recarga.
+
+**Ainda pendente:** por tamanho/cor e por lote físico, remessa real entre oficinas, impressão de comprovantes de transferência, identificação de operador/autorização, controle de desperdício e sincronização Supabase/Safari↔Chrome real. O laboratório não é uma implantação empresarial.
+
 ## Nova etapa — Distribuição de um pedido por várias facções, sem perder o retorno simples
 
 O módulo `modulos/faccoes-multidestino-v1.js` permite que um pedido cortado seja dividido em **envios para facções diferentes**, com saldo de peças enviadas, retornadas e pendentes **por destino**. A função anterior `faction.allocate` e o retorno antigo `faction.return` continuam disponíveis para pedidos de facção única. Para pedidos divididos, os novos comandos `faction.multi.allocate` e `faction.multi.return` exigem selecionar o envio/ID correto, evitando lançar o retorno na facção errada.
@@ -10,7 +20,7 @@ Cada retorno cria seu **próprio acerto e título a pagar**, congelando preço e
 
 O estado local guarda `factionAssignments` com IDs `ALO-...`, pedido, facção, quantidade enviada, retornada e origem. Documentos anteriores sem esse campo continuam válidos: na primeira operação de facção necessária, o núcleo cria um espelho local do saldo existente **no clone transacional**, sem apagar pedidos, acertos ou históricos. O Auditor verifica separadamente as somas por pedido/facção, o vínculo do acerto com o envio e duplicidades. Os relatórios mostram os envios e saldos pendentes e podem exportar os IDs e quantidades.
 
-**Limites:** este é um exercício isolado. Ainda não permite roteirização com tempos reais, transferências parciais entre facções depois de devolução, remessas físicas/comprovantes, assinaturas, gestão de peças por cor/tamanho em cada facção ou sincronização Supabase de múltiplos computadores. Não substitui os pagamentos e alocações do HLGB atual.
+**Limites:** este é um exercício isolado. Ainda não permite roteirização com tempos reais, remessas físicas/comprovantes, assinaturas, gestão de peças por cor/tamanho em cada facção ou sincronização Supabase de múltiplos computadores. Não substitui os pagamentos e alocações do HLGB atual.
 
 ## Nova etapa — Fechamento de Facções e Acertos em lote (isolado, com uma transação)
 
