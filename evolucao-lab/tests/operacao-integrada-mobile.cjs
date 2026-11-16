@@ -211,6 +211,17 @@ async function run(browser,width,url){
    await put(page,'finance.pay',{id:compensationTitle});
    await module(page,'acertos');
    assert.match(await page.locator('#module-content').innerText(),/AJ-EMBALAGEM-001/);
+   await page.evaluate(()=>{window.print=()=>{document.body.dataset.compPrintProof='true'}});
+   await page.locator('button[data-print-comp="CMP-0001"]').click();
+   assert.equal(await page.locator('body').getAttribute('data-comp-print-proof'),'true');
+   assert.match(await page.locator('#cut-print').innerText(),/Conferência de Compensação FICTÍCIA/);
+   assert.match(await page.locator('#cut-print').innerText(),/AJ-EMBALAGEM-001/);
+   assert.match(await page.locator('#cut-print').innerText(),/ACE-0004/);
+   const [csvComp]=await Promise.all([page.waitForEvent('download'),page.locator('#export-csv').click()]);
+   const textCsv=fs.readFileSync(await csvComp.path(),'utf8');
+   assert.match(textCsv,/Compensação/);
+   assert.match(textCsv,/CMP-0001/);
+   assert.match(textCsv,/CMP-0002/);
    const [dl]=await Promise.all([page.waitForEvent('download'),page.locator('#export-json').click()]);
    const evidence=JSON.parse(fs.readFileSync(await dl.path(),'utf8'));
    assert.equal(evidence.data.orders.length,2);
