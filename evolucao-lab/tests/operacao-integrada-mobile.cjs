@@ -469,6 +469,15 @@ async function run(browser,width,url){
      text:(el.textContent||'').trim().slice(0,80)};
    }).filter(x=>x.right>innerWidth+2).sort((a,b)=>b.right-a.right).slice(0,18));
    console.log('DEBUG_OVERFLOW_'+width,JSON.stringify(offenders));
+   const blocks=await page.evaluate(()=>[...document.querySelectorAll(
+    'html,body,.frame,.side,.nav,.workspace,.topbar,main,.tiles,.panel,.fields,.field,.table-wrap,.flow,.log,#module-content,#audit-trail')]
+    .map(el=>{const r=el.getBoundingClientRect(),c=getComputedStyle(el);
+     return {tag:el.tagName,cls:String(el.className||'').slice(0,45),id:el.id,
+      width:Math.round(r.width),right:Math.round(r.right),scroll:el.scrollWidth,
+      client:el.clientWidth,overflow:c.overflowX,text:(el.textContent||'').trim().slice(0,38)};})
+    .filter(x=>x.width>innerWidth+1||x.scroll>x.client+5)
+    .sort((a,b)=>(b.width-a.width)||(b.scroll-b.client)-(a.scroll-a.client)).slice(0,40));
+   console.log('DEBUG_BLOCKS_'+width,JSON.stringify(blocks));
   }
   assert(d.scroll<=d.width+2,'overflow '+width+'px '+JSON.stringify(d));
   assert.deepEqual(errors,[],'erros JS');
