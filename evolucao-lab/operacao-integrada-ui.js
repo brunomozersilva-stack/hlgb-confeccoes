@@ -67,6 +67,46 @@ function financeTable(s){
  return table(['Título','Tipo','Descrição','Valor','Estado'],s.finance.map(f=>[str(f.id),str(f.kind),
  str(f.description),fmt(f.amountCents),'<span class="chip '+(f.status==='aberto'?'wait':'')+'">'+str(f.status)+'</span>']));
 }
+
+function financialBatchPanel(s){
+ const comps=s.settlementCompensations||[],batches=s.paymentBatches||[];
+ const open=s.finance.filter(t=>t.kind==='pagar'&&t.status==='aberto').map(t=>{
+  const settlement=s.settlements.find(x=>x.id===t.sourceId);
+  const compensation=comps.find(x=>x.id===t.sourceId);
+  const src=settlement||compensation;
+  if(!src||src.status!=='aberto'||(settlement&&settlement.amountCents!==t.amountCents)||
+   (compensation&&compensation.deltaCents!==t.amountCents))return null;
+  return {title:t,source:src,faction:ref(s.factions,src.factionId)?.name||'—'};
+ }).filter(Boolean);
+ const checks=open.map(({title,source,faction})=>
+  '<label class="batch-choice"><input type="checkbox" name="financeIds" value="'+str(title.id)+'" data-batch-cents="'+title.amountCents+'">'+
+  '<span><strong>'+str(title.id)+'</strong> · '+str(source.id)+' · '+str(faction)+
+  ' · '+fmt(title.amountCents)+'</span></label>').join('');
+ return panel('Fechamento em lote · Facções e Acertos fictícios',
+  '<p>Selecione de 2 a 50 títulos a pagar de acertos ou compensações. Antes da baixa, o núcleo confere todos os vínculos e valores. <strong>Se um falhar, o lote inteiro será recusado</strong>, sem pagamento parcial.</p>'+
+  '<form data-command="finance.batch.pay" id="finance-batch-form">'+
+  '<div class="batch-choices">'+(checks||'<div class="empty">Nenhum acerto elegível aberto para o lote.</div>')+'</div>'+
+  '<p id="finance-batch-summary" class="caption" role="status">Nenhum título selecionado.</p>'+
+  '<div class="fields">'+field('reference','Referência única do fechamento','text','LOTE-TESTE-001')+
+  field('reason','Justificativa do fechamento','text','Conferência coletiva fictícia')+'</div>'+
+  '<div class="actions"><button class="btn primary" type="submit">Conferir e quitar lote fictício</button></div></form>'+
+  '<p class="caption">Pagamento somente demonstrativo: sem banco real, PIX, comprovante fiscal ou liquidação externa. O pagamento unitário anterior continua disponível.</p>',true)+
+ panel('Histórico de lotes sem reescrever acertos',
+  table(['Lote','Referência','Títulos','Total','Situação','Motivo','IDs vinculados'],
+   batches.map(b=>[str(b.id),str(b.reference),str(b.count),
+    fmt(b.totalCents),str(b.status),str(b.reason),
+    (b.items||[]).map(i=>str(i.financeId)+' ('+str(i.sourceId)+')').join(' · ')]))+
+  '<p class="caption">Lotes são imutáveis no laboratório; comprovantes e autenticação ainda estão pendentes.</p>',true);
+}
+function updateBatchPreview(){
+ const form=document.querySelector('#finance-batch-form');
+ if(!form||!doc)return;
+ const selected=[...form.querySelectorAll('[name="financeIds"]:checked')];
+ const total=selected.reduce((n,x)=>n+Number(x.dataset.batchCents||0),0);
+ const summary=$('finance-batch-summary');
+ if(summary)summary.textContent=selected.length+' título(s) selecionado(s) · '+fmt(total)+
+  ' · conferência final do núcleo obrigatória (somente dados fictícios)';
+}
 function refDocs(s){return '<div class="flow"><span>Pedido</span>→<span>Corte</span>→<span>Facção</span>→<span>Retorno</span>→<span>Acerto</span>→<span>Separação</span>→<span>Expedição</span>→<span>Financeiro</span></div>'+
  '<p>Todos os passos alteram o mesmo estado fictício, guardado no IndexedDB deste navegador. Cada operação tem revisão e histórico.</p>'}
 function guidedJourney(s){
@@ -443,6 +483,7 @@ function moduleHtml(s){
  field('amountCents','Valor em R$','money','100,00')],'Cadastrar título')+
  form('finance.pay','Confirmar lançamento',[field('id','Título aberto','select','',finance)],'Marcar como quitado ficticiamente')+
  '<p class="caption">Esta ação não movimenta dinheiro. Confirme apenas valores fictícios.</p>')+
+ financialBatchPanel(s)+
  panel('Conferência financeira','<p>Pedidos geram contas a receber; retornos, acertos a pagar. Compensações de acertos pagos criam títulos separados a pagar ou receber, sem alterar o pagamento original. Nenhuma operação movimenta dinheiro real.</p>')+
  panel('Contas do laboratório',financeTable(s),true);
  case 'folha':return panel('Editar salário e passagem por pessoa',
@@ -568,6 +609,11 @@ const NUM=['qty','gramsPerUnit','qtyGrams','grams','stock','P','M','G','GG','use
 const SIGNED=['deltaGrams'];
 const PRICES=['priceCents','unitCents','travetaCents','priceCentsKg','amountCents','salaryCents','passageCents','extrasCents','discountCents'];
 function parseData(type,form){
+ if(type==='finance.batch.pay'){
+  const ids=[...form.querySelectorAll('input[name="financeIds"]:checked')].map(x=>x.value);
+  return {financeIds:ids,reference:String(form.elements.namedItem('reference')?.value||''),
+   reason:String(form.elements.namedItem('reason')?.value||'')};
+ }
  const raw=Object.fromEntries(new FormData(form).entries()),p={};
  for(const [k,v] of Object.entries(raw)){
   if(NUM.includes(k))p[k]=Number(v);
@@ -850,6 +896,9 @@ function renderCompensationSheet(compId){
  return $('cut-print').textContent;
 }
 document.addEventListener('change',event=>{
+ if(event.target.matches('#finance-batch-form [name="financeIds"]')){
+  updateBatchPreview();return;
+ }
  if(event.target.id==='journey-order'){
   journeyOrderId=event.target.value;draw();return;
  }
