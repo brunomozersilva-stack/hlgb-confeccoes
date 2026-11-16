@@ -25,7 +25,7 @@
     {id:'FAC-0002',name:'Oficina Exemplo B',unitCents:600,traveta:false}],
    employees:[{id:'FUN-0001',name:'Ana Simulada',salaryCents:200000,passageCents:12000,extrasCents:0,discountCents:0},
     {id:'FUN-0002',name:'Bianca Modelo',salaryCents:180000,passageCents:8000,extrasCents:0,discountCents:3000}],
-   orders:[],purchaseOrders:[],settlements:[],finance:[],stockLedger:[],errors:[],
+   orders:[],cutPlans:[],purchaseOrders:[],settlements:[],finance:[],stockLedger:[],errors:[],
    prints:[{id:'IMP-0001',name:'Chaveiro articulado fictício',grams:28,priceCents:490,stock:12}],
    log:[],role:'supervisor',flags:{autoCorrections:false},revisionProof:'seed'};
  }
@@ -45,10 +45,34 @@
     problems.push(o.id+': baixa operacional sem quantidade anterior');
    if(o.allocated>0&&!o.factionId)problems.push(o.id+': facção não identificada');
   }
+  const plans=Array.isArray(s.cutPlans)?s.cutPlans:[];
+  for(const plan of plans){
+   const o=s.orders.find(x=>x.id===plan.orderId),product=o&&s.products.find(x=>x.id===o.productId);
+   if(!o||!product||!gradeValid(plan.grade)||sum(plan.grade)<1)problems.push(plan.id+': folha ou grade inválida');
+   if(!['aberto','concluido','cancelado'].includes(plan.status))problems.push(plan.id+': status inválido');
+   if(o&&product&&plan.theoreticalGrams!==sum(plan.grade)*product.gramsPerUnit)
+    problems.push(plan.id+': peso teórico incompatível com a ficha');
+   if(!['interno','externo'].includes(plan.workMode)||!plan.cutterOne||!plan.cutterTwo||!plan.spreader)
+    problems.push(plan.id+': equipe de corte incompleta');
+   if(plan.status==='concluido'){
+    const tx=s.stockLedger.filter(x=>x.cutPlanId===plan.id&&x.type==='corte-planejado');
+    if(tx.length!==1||tx[0].deltaGrams!==-(plan.usefulGrams+plan.scrapGrams)||
+      !plan.signatureOne||!plan.signatureTwo||plan.usefulGrams<plan.theoreticalGrams||plan.scrapGrams<0)
+     problems.push(plan.id+': peso, assinatura ou movimento de estoque sem conferência');
+   }else if(s.stockLedger.some(x=>x.cutPlanId===plan.id))
+    problems.push(plan.id+': folha não concluída com movimento de estoque');
+  }
+  for(const o of s.orders){
+   const open=plans.filter(x=>x.orderId===o.id&&x.status==='aberto');
+   for(const sz of sizes){
+    if(o.cut[sz]+open.reduce((n,x)=>n+x.grade[sz],0)>o.grade[sz])
+     problems.push(o.id+': reserva de corte '+sz+' acima da grade');
+   }
+  }
   if(s.materials.some(m=>m.stockGrams<0))problems.push('Estoque de material negativo');
   if(s.finance.some(e=>e.amountCents<=0))problems.push('Lançamento financeiro não positivo');
   if(new Set(s.log.map(e=>e.commandId)).size!==s.log.length)problems.push('Identificador de comando duplicado');
-  const allIds=[...s.orders,...s.purchaseOrders,...s.settlements,...s.finance,...s.clients,...s.suppliers,
+  const allIds=[...s.orders,...(s.cutPlans||[]),...s.purchaseOrders,...s.settlements,...s.finance,...s.clients,...s.suppliers,
    ...s.materials,...s.products,...s.factions,...s.employees,...s.prints].map(x=>x.id);
   if(new Set(allIds).size!==allIds.length)problems.push('IDs de registro duplicados');
   return {ok:!problems.length,problems,orderCount:s.orders.length,unpaid:s.finance.filter(f=>f.status==='aberto').length,
@@ -87,6 +111,7 @@
   const uid=name(command.commandId,'ID do comando');
   if(previous.log.some(x=>x.commandId===uid))throw Error('Comando já registrado. Não duplicar.');
   const s=clone(previous),p=command.payload||{},kind=command.type;
+  if(!Array.isArray(s.cutPlans))s.cutPlans=[]; // migração segura apenas do documento fictício anterior
   const num=(field,min=0,max=1000000)=>int(p[field],field,min,max);
   let result;
   switch(kind){
@@ -114,10 +139,93 @@
    const f={id:next(s,'FIN'),kind:'receber',sourceId:o.id,description:'Pedido fictício '+o.id,
     amountCents:sum(g)*o.priceCents,status:'aberto'};
    s.finance.push(f);result=o.id;break}
+  case 'order.grade.update':{
+   const o=get(s,'orders',p.orderId,'Pedido'),g=p.grade;
+   if(!gradeValid(g)||sum(g)<1||sum(g)>30000)throw Error('Grade inválida.');
+   const title=s.finance.find(f=>f.sourceId===o.id&&f.kind==='receber');
+   if(!title||title.status!=='aberto')throw Error('Pedido com título pago ou não encontrado não pode mudar de grade.');
+   for(const sz of sizes){
+    const reserved=s.cutPlans.filter(x=>x.orderId===o.id&&x.status==='aberto')
+      .reduce((n,x)=>n+x.grade[sz],0);
+    if(g[sz]<o.cut[sz]+reserved)
+     throw Error('Não pode reduzir '+sz+' abaixo do corte já feito e das folhas abertas.');
+   }
+   o.grade=clone(g);
+   title.amountCents=sum(g)*o.priceCents;
+   result=o.id+' · grade alterada com título a receber reconciliado';break}
+  case 'cut.plan':{
+   const o=get(s,'orders',p.orderId,'Pedido'),g=p.grade;
+   if(!gradeValid(g)||sum(g)<1||sum(g)>10000)throw Error('Grade planejada inválida.');
+   for(const sz of sizes){
+    const reserved=s.cutPlans.filter(x=>x.orderId===o.id&&x.status==='aberto')
+     .reduce((n,x)=>n+x.grade[sz],0);
+    if(o.cut[sz]+reserved+g[sz]>o.grade[sz])
+     throw Error('Quantidade planejada excede a grade disponível em '+sz+'.');
+   }
+   const product=get(s,'products',o.productId),mat=get(s,'materials',product.materialId);
+   if(!['interno','externo'].includes(p.workMode))throw Error('Escolha corte interno ou externo.');
+   const cutterOne=name(p.cutterOne,'Cortador 1'),cutterTwo=name(p.cutterTwo,'Cortador 2'),
+     spreader=name(p.spreader,'Enfestador');
+   if(cutterOne.toLocaleLowerCase('pt-BR')===cutterTwo.toLocaleLowerCase('pt-BR'))
+    throw Error('Cortadores 1 e 2 precisam ser pessoas diferentes.');
+   const obj={id:next(s,'COR'),orderId:o.id,grade:clone(g),workMode:p.workMode,
+    cutterOne,cutterTwo,spreader,materialId:mat.id,theoreticalGrams:sum(g)*product.gramsPerUnit,
+    status:'aberto',usefulGrams:null,scrapGrams:null,signatureOne:null,signatureTwo:null,
+    createdCommandId:uid,completedCommandId:null};
+   s.cutPlans.push(obj);result=obj.id;break}
+  case 'cut.plan.update':{
+   const plan=get(s,'cutPlans',p.id,'Folha de corte');
+   if(plan.status!=='aberto')throw Error('Apenas folha aberta pode ser editada; histórico preservado.');
+   if(!gradeValid(p.grade)||sum(p.grade)<1||sum(p.grade)>10000)throw Error('Grade da folha inválida.');
+   const o=get(s,'orders',plan.orderId);
+   for(const sz of sizes){
+    const other=s.cutPlans.filter(x=>x.orderId===o.id&&x.id!==plan.id&&x.status==='aberto')
+     .reduce((n,x)=>n+x.grade[sz],0);
+    if(o.cut[sz]+other+p.grade[sz]>o.grade[sz])throw Error('Folha alterada excede saldo do tamanho '+sz+'.');
+   }
+   if(!['interno','externo'].includes(p.workMode))throw Error('Escolha corte interno ou externo.');
+   const a=name(p.cutterOne,'Cortador 1'),b=name(p.cutterTwo,'Cortador 2');
+   if(a.toLocaleLowerCase('pt-BR')===b.toLocaleLowerCase('pt-BR'))throw Error('Cortadores diferentes são obrigatórios.');
+   Object.assign(plan,{grade:clone(p.grade),workMode:p.workMode,cutterOne:a,cutterTwo:b,
+    spreader:name(p.spreader,'Enfestador'),
+    theoreticalGrams:sum(p.grade)*get(s,'products',o.productId).gramsPerUnit});
+   result=plan.id+' · planejamento alterado sem perder histórico';break}
+  case 'cut.plan.cancel':{
+   const plan=get(s,'cutPlans',p.id,'Folha de corte');
+   if(plan.status!=='aberto')throw Error('Somente folha aberta pode ser cancelada.');
+   plan.status='cancelado';plan.cancelledCommandId=uid;
+   result=plan.id+' · cancelada sem baixar estoque';break}
+  case 'cut.plan.complete':{
+   const plan=get(s,'cutPlans',p.id,'Folha de corte');
+   if(plan.status!=='aberto')throw Error('A folha já foi concluída ou cancelada. Não repetir baixa.');
+   const o=get(s,'orders',plan.orderId,'Pedido'),product=get(s,'products',o.productId);
+   const material=get(s,'materials',plan.materialId,'Material');
+   if(product.materialId!==material.id)throw Error('Material da folha não corresponde à ficha atual.');
+   const useful=num('usefulGrams',1,1000000),scrap=num('scrapGrams',0,1000000);
+   if(useful<plan.theoreticalGrams)throw Error('Peso útil não pode ser inferior ao consumo teórico do lote.');
+   if(useful+scrap>material.stockGrams)throw Error('Peso total (útil + desperdício) excede o estoque disponível.');
+   const signOne=name(p.signatureOne,'Conferência do cortador 1'),
+     signTwo=name(p.signatureTwo,'Conferência do cortador 2');
+   if(signOne.toLocaleLowerCase('pt-BR')!==plan.cutterOne.toLocaleLowerCase('pt-BR')||
+      signTwo.toLocaleLowerCase('pt-BR')!==plan.cutterTwo.toLocaleLowerCase('pt-BR'))
+    throw Error('As duas conferências digitadas precisam corresponder aos cortadores do planejamento.');
+   for(const sz of sizes)if(o.cut[sz]+plan.grade[sz]>o.grade[sz])
+    throw Error('Grade mudou; corte não pode exceder o pedido '+sz+'.');
+   for(const sz of sizes)o.cut[sz]+=plan.grade[sz];
+   material.stockGrams-=useful+scrap;
+   s.stockLedger.push({id:next(s,'MOV'),materialId:material.id,deltaGrams:-(useful+scrap),
+    usefulGrams:useful,scrapGrams:scrap,cutPlanId:plan.id,sourceId:o.id,
+    type:'corte-planejado',commandId:uid});
+   Object.assign(plan,{status:'concluido',usefulGrams:useful,scrapGrams:scrap,
+    signatureOne:signOne,signatureTwo:signTwo,completedCommandId:uid});
+   result=plan.id+' · '+sum(plan.grade)+' peças · usado '+useful+'g · lixo '+scrap+'g';break}
   case 'cut.record':{
    const o=get(s,'orders',p.orderId,'Pedido'),sz=p.size,q=num('qty',1,10000);
    if(!sizes.includes(sz))throw Error('Tamanho inválido.');
-   if(o.cut[sz]+q>o.grade[sz])throw Error('Corte excede a grade encomendada.');
+   const reserved=s.cutPlans.filter(x=>x.orderId===o.id&&x.status==='aberto')
+    .reduce((n,x)=>n+x.grade[sz],0);
+   if(o.cut[sz]+reserved+q>o.grade[sz])
+    throw Error('Corte excede a grade disponível (incluindo folhas planejadas).');
    const product=get(s,'products',o.productId),material=get(s,'materials',product.materialId);
    const cost=q*product.gramsPerUnit;
    if(cost>material.stockGrams)throw Error('Estoque insuficiente de '+material.name+'. Use Compras ou ajuste de estoque.');
