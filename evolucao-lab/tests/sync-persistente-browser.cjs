@@ -26,7 +26,20 @@ async function newSession(actor,width=390){
  const ctx=await browser.newContext({viewport:{width,height:850},acceptDownloads:true});
  const page=await ctx.newPage();await login(page,actor);return {ctx,page};
 }
-async function waitStatus(page,fragment){await page.waitForFunction(text=>document.querySelector('#operation-status')?.textContent.includes(text),fragment)}
+async function waitStatus(page,fragment){
+ try{await page.waitForFunction(text=>document.querySelector('#operation-status')?.textContent.includes(text),fragment,{timeout:8000})}
+ catch(error){
+  const state=await page.evaluate(()=>({
+   status:document.querySelector('#operation-status')?.textContent,
+   pending:document.querySelector('#wal-status')?.textContent,
+   server:document.querySelector('#server-rev')?.textContent,
+   role:document.querySelector('#who')?.textContent,
+   loginHidden:document.querySelector('#login')?.hidden,
+   draft:document.querySelector('#draft')?.value
+  }));
+  throw Error('Esperado "'+fragment+'" mas a interface mostrou '+JSON.stringify(state)+'; '+error.message);
+ }
+}
 const submit=async(page,value)=>{
  await page.locator('#draft').fill(value);
  await page.locator('#save').click();
@@ -182,7 +195,12 @@ test('bloqueia Host indevido, Origem de escrita ausente e login errado',async()=
  const invalid=await fetch(base+'/api/login',{method:'POST',headers,
   body:JSON.stringify({actor:'A',pin:'incorrecto'})});
  assert.equal(invalid.status,401);
- const hostBad=await fetch(base+'/api/health',{headers:{host:'malicioso.example'}});
- assert.equal(hostBad.status,403);
+ const http=require('node:http');
+ const hostBad=await new Promise((resolve,reject)=>{
+  const r=http.request(base+'/api/health',{headers:{host:'malicioso.example'}},res=>{
+   res.resume();res.on('end',()=>resolve(res.statusCode));
+  });r.on('error',reject);r.end();
+ });
+ assert.equal(hostBad,403);
  assert.equal((await record()).events.length,0);
 });
