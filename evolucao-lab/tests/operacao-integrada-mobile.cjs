@@ -461,6 +461,15 @@ async function run(browser,width,url){
    assert.equal(await revision(page),manyRevision);
   }
   const d=await page.evaluate(()=>({width:innerWidth,scroll:document.documentElement.scrollWidth}));
+  if(d.scroll>d.width+2){
+   const offenders=await page.evaluate(()=>[...document.querySelectorAll('body *')].map(el=>{
+    const rect=el.getBoundingClientRect();
+    return {tag:el.tagName,id:el.id,cls:String(el.className||'').slice(0,80),
+     right:Math.round(rect.right),width:Math.round(rect.width),
+     text:(el.textContent||'').trim().slice(0,80)};
+   }).filter(x=>x.right>innerWidth+2).sort((a,b)=>b.right-a.right).slice(0,18));
+   console.log('DEBUG_OVERFLOW_'+width,JSON.stringify(offenders));
+  }
   assert(d.scroll<=d.width+2,'overflow '+width+'px '+JSON.stringify(d));
   assert.deepEqual(errors,[],'erros JS');
   assert.deepEqual(remote,[],'nenhuma requisição externa');
