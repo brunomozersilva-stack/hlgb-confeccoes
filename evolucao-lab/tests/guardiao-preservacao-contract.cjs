@@ -38,7 +38,7 @@ test('guardião congela fonte de todos os 76 itens e 43 critérios sem alegar ho
   assert.deepEqual({name:sc.name,caseId:sc.caseId,risk:sc.risk,acceptance:sc.acceptance,mobileAcceptance:sc.mobileAcceptance},
   {name:old.name,caseId:old.parityCaseId,risk:old.risk,acceptance:old.acceptance,mobileAcceptance:old.mobileAcceptance});
  }
- assert.equal(inventory.cases.filter(x=>x.demo).length,41);
+ assert.equal(inventory.cases.filter(x=>x.demo).length,47);
 });
 test('bloqueio nao depende de sucesso em demo nem de importar relatório não assinado',()=>{
  for(const phrase of ["publicationBlocked:true","releaseApproved:false","authorizedByUser:false",
