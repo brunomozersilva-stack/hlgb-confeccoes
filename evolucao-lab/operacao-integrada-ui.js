@@ -861,7 +861,7 @@ document.addEventListener('click',e=>{
   const registry=window.HLGBLabModules;
   const observer=registry?.list().find(x=>x.id==='observabilidade');
   if(observer){registry.setEnabled('observabilidade',!observer.enabled);draw();
-   status('Módulo Observabilidade 2.0 '+(!observer.enabled?'desativado':'ativado')+
+   status('Módulo Observabilidade 2.0 '+(!observer.enabled?'ativado':'desativado')+
     ' somente nesta aba. Funções anteriores continuam disponíveis.');}
   else status('Módulo opcional indisponível. Sistema legado preservado.','error');
   return;
