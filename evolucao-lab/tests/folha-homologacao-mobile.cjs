@@ -131,7 +131,15 @@ async function run(browser,width,base){
   assert.match(clean(await p.locator('#metric-passage').innerText()),/550,00/);
   assert.equal((await p.locator('#revision-label').innerText()).includes('6'),true);
   const bounds=await p.evaluate(()=>({width:innerWidth,scroll:document.documentElement.scrollWidth}));
-  assert(bounds.scroll<=bounds.width+2,'horizontal overflow '+width+': '+JSON.stringify(bounds));
+  if(bounds.scroll>bounds.width+2){
+   const offenders=await p.evaluate(()=>[...document.querySelectorAll('body *')].filter(el=>{
+    const b=el.getBoundingClientRect(),st=getComputedStyle(el);
+    return b.width>1&&b.right>innerWidth+2&&st.display!=='none'&&st.visibility!=='hidden';
+   }).slice(0,20).map(el=>({tag:el.tagName,id:el.id,cls:el.className,
+     text:(el.textContent||'').trim().slice(0,90),
+     right:Math.round(el.getBoundingClientRect().right),width:Math.round(el.getBoundingClientRect().width)})));
+   throw Error('horizontal overflow '+width+': '+JSON.stringify(bounds)+' OFFENDERS '+JSON.stringify(offenders));
+  }
   assert.deepEqual(errors,[],'No browser script failures');
   assert.deepEqual(unexpected,[],'No unexpected network activity');
   if(width===375){fs.mkdirSync(screenshotDir,{recursive:true});await p.screenshot({path:path.join(screenshotDir,'folha-homologacao-'+engine.name()+'-'+width+'.png'),fullPage:true})}
