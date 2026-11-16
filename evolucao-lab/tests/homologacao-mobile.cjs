@@ -13,13 +13,13 @@ async function validate(browser,width){
  try{
   await page.goto(fileUrl,{waitUntil:'load'});
   assert.equal((await page.locator('#metric-total').innerText()).trim(),'76');
-  assert.equal((await page.locator('#metric-demos').innerText()).trim(),'12');
+  assert.equal((await page.locator('#metric-demos').innerText()).trim(),'41');
   assert.equal(await page.locator('#module-nav .module').count(),20);
   assert.equal(await page.locator('#cases .case').count(),76);
   await page.locator('#module-nav button').filter({hasText:'Acertos e pagamentos avulsos'}).click();
   assert.equal(await page.locator('#cases .case').count(),10);
   await page.locator('#scope').selectOption('demo');
-  assert.equal(await page.locator('#cases .case').count(),5);
+  assert.equal(await page.locator('#cases .case').count(),7);
   await page.locator('#scope').selectOption('all');
   await page.locator('#search').fill('comprovantes');
   assert((await page.locator('#cases .case').count())>=1);
