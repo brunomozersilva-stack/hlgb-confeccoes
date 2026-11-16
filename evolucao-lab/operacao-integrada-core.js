@@ -12,7 +12,7 @@
  const count=(s,prefix)=>(s.ids[prefix]||0)+1;
  const next=(s,prefix)=>{s.ids[prefix]=count(s,prefix);return prefix+'-'+String(s.ids[prefix]).padStart(4,'0')};
  function initial(){
-  return {schema:'hlgb-evolucao-operacao-ficticia-v1',revision:1,period:'2026-11',ids:{},
+  return {schema:'hlgb-evolucao-operacao-ficticia-v1',revision:1,period:'2026-11',ids:{CLI:2,FOR:2,MAT:3,PRO:3,FAC:2,FUN:2,IMP:1},
    clients:[{id:'CLI-0001',name:'Loja Exemplo Centro'},{id:'CLI-0002',name:'Cliente Simulado Online'}],
    suppliers:[{id:'FOR-0001',name:'Tecidos Fictícios'},{id:'FOR-0002',name:'Aviamentos Modelo'}],
    materials:[{id:'MAT-0001',name:'Malha (g)',stockGrams:16000,priceCentsKg:2800},
