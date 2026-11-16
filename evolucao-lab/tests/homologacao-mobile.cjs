@@ -19,7 +19,7 @@ async function validate(browser,width){
   await page.locator('#module-nav button').filter({hasText:'Acertos e pagamentos avulsos'}).click();
   assert.equal(await page.locator('#cases .case').count(),10);
   await page.locator('#scope').selectOption('demo');
-  assert.equal(await page.locator('#cases .case').count(),7);
+  assert.equal(await page.locator('#cases .case').count(),8);
   await page.locator('#scope').selectOption('all');
   await page.locator('#search').fill('comprovantes');
   assert((await page.locator('#cases .case').count())>=1);
