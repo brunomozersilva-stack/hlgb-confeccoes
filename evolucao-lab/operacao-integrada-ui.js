@@ -217,6 +217,12 @@ function observationPanels(s,area){
       fmt(x.totalSettlementsCents),fmt(x.paidSettlementsCents),
       fmt(x.openSettlementsCents),(x.compensationNetCents<0?'−':x.compensationNetCents>0?'+':'')+
        fmt(Math.abs(x.compensationNetCents))])),true)+
+   panel('Fechamentos coletivos por referência',
+    '<p>Lotes de títulos de Acertos/Facções e compensações; verifique separadamente cada origem e sem reescrever valores quitados.</p>'+
+    table(['Lote','Referência','Motivo','Quantidade','Total fictício','Títulos vinculados'],
+     o.paymentBatchHistory.map(b=>[
+      str(b.id),str(b.reference),str(b.reason),str(b.count),fmt(b.totalCents),
+      b.items.map(i=>str(i.financeId)+' · '+str(i.sourceId)).join(' | ')])),true)+
    panel('Histórico de acertos: antes, depois e justificativas',
     table(['Acerto','Evento','ID do comando','Antes','Depois','Justificativa'],
      o.settlementHistory.slice().reverse().slice(0,120).map(x=>[
@@ -751,7 +757,12 @@ function exportObserverCsv(){
   ...report.modelSummary.map(x=>['Resumo por modelo','produtos',x.productId,
    x.sku,'',x.name+' · pedidas '+x.ordered+' · cortadas '+x.cut+' · expedidas '+x.shipped]),
   ...report.factionSummary.map(x=>['Resumo por facção','faccoes',x.factionId,
-   x.name,'',x.settlements+' acertos · pago '+x.paidSettlementsCents])];
+   x.name,'',x.settlements+' acertos · pago '+x.paidSettlementsCents]),
+  ...report.paymentBatchHistory.map(b=>['Fechamento em lote','hub',b.id,
+   b.reference,b.status,b.reason+' · '+b.count+' títulos · '+b.totalCents+' centavos']),
+  ...report.paymentBatchHistory.flatMap(b=>b.items.map(i=>
+   ['Título vinculado ao lote','hub',i.financeId,b.id,i.sourceType,
+    i.sourceId+' · '+i.amountCents+' centavos']))];
  download('HLGB-LAB-OBSERVABILIDADE-V2-FICTICIA.csv',
   '\uFEFF'+rows.map(row=>row.map(safeCell).join(';')).join('\r\n'),'text/csv;charset=utf-8');
  status('Histórico fictício e alertas exportados sem alterações no documento.');
