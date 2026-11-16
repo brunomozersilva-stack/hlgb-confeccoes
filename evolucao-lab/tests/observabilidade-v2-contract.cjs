@@ -138,6 +138,33 @@ test('retrocompatibilidade: documentos locais antigos não exigem reset nem novo
  assert.equal(before(s),copy);
  assert.throws(()=>observer.analyze({schema:'producao'}),/não compatível/);
 });
+test('eficiência: auditoria de 2.000 pedidos e 5.000 eventos com índices, sem perder histórico',()=>{
+ const s=core.initial();
+ for(let i=1;i<=2000;i++){
+  const id='PED-V-'+String(i).padStart(5,'0');
+  s.orders.push({id,clientId:'CLI-0001',productId:'PRO-0001',
+   grade:{P:2,M:0,G:0,GG:0},cut:{P:0,M:0,G:0,GG:0},
+   allocated:0,returned:0,separated:0,shipped:0,factionId:null,
+   priceCents:3990,issued:false});
+  s.finance.push({id:'FIN-V-'+String(i).padStart(5,'0'),sourceId:id,
+   kind:'receber',amountCents:7980,status:'aberto'});
+ }
+ for(let i=1;i<=5000;i++)s.log.push({
+  commandId:'VOLUME-'+i,revision:i+1,actor:'Teste volumétrico',
+  type:'order.add',description:'Operação simulada '+i
+ });
+ s.revision=5001;
+ const snapshot=JSON.stringify(s);
+ const start=performance.now();
+ const result=observer.analyze(s),elapsed=performance.now()-start;
+ assert.ok(elapsed<3500,'observação local demorou '+elapsed.toFixed(0)+' ms');
+ assert.equal(result.summary.orders,2000);
+ assert.equal(result.summary.events,5000);
+ assert.equal(result.history.length,5000);
+ assert.equal(result.modelSummary.find(x=>x.productId==='PRO-0001').ordered,4000);
+ assert.equal(result.findings.length,0);
+ assert.equal(JSON.stringify(s),snapshot,'o relatório volumétrico preserva o snapshot');
+});
 test('módulos são independentes, sem APIs externas ou exclusão de dados',()=>{
  const scripts=['../modulos/registro-v1.js','../modulos/observabilidade-v2.js']
   .map(p=>fs.readFileSync(path.join(__dirname,p),'utf8'));
