@@ -213,6 +213,34 @@ async function run(browser,width,url){
    await put(page,'finance.pay',{id:compensationTitle});
    await module(page,'acertos');
    assert.match(await page.locator('#module-content').innerText(),/AJ-EMBALAGEM-001/);
+   // Busca e filtros combinados em dados fictícios, sem regravar saldos.
+   const filteredRevision=await revision(page);
+   await page.locator('#settlement-status').selectOption('aberto');
+   assert.equal(await page.locator('#settlement-compensation-table tbody tr:visible').count(),0);
+   await page.locator('#settlement-status').selectOption('todos');
+   await page.locator('#settlement-faction').selectOption('FAC-0002');
+   await page.locator('#settlement-service').selectOption('embalagem');
+   assert.equal(await page.locator('#settlement-table tbody tr:visible').count(),1);
+   assert.equal(await page.locator('#settlement-compensation-table tbody tr:visible').count(),2);
+   await page.locator('#settlement-compensation').selectOption('pago');
+   assert.equal(await page.locator('#settlement-compensation-table tbody tr:visible').count(),1);
+   assert.match(await page.locator('#settlement-compensation-table tbody tr:visible').innerText(),/CMP-0001/);
+   await page.locator('#settlement-search').fill('aj-embalagem-002');
+   assert.equal(await page.locator('#settlement-table tbody tr:visible').count(),1,'busca referência localiza acerto original');
+   assert.equal(await page.locator('#settlement-compensation-table tbody tr:visible').count(),0);
+   await page.locator('#settlement-compensation').selectOption('todos');
+   assert.equal(await page.locator('#settlement-compensation-table tbody tr:visible').count(),1);
+   assert.match(await page.locator('#settlement-query-summary').innerText(),/1 de 4 acertos/);
+   // A seleção local sobrevive a uma mudança de módulo.
+   await module(page,'hub');
+   await module(page,'acertos');
+   assert.equal(await page.locator('#settlement-search').inputValue(),'aj-embalagem-002');
+   assert.equal(await page.locator('#settlement-table tbody tr:visible').count(),1);
+   await page.locator('#settlement-clear-filters').click();
+   assert.equal(await page.locator('#settlement-search').inputValue(),'');
+   assert.equal(await page.locator('#settlement-table tbody tr:visible').count(),4);
+   assert.equal(await page.locator('#settlement-compensation-table tbody tr:visible').count(),2);
+   assert.equal(await revision(page),filteredRevision,'consultas não alteram lançamentos nem revisão');
    await page.evaluate(()=>{window.print=()=>{document.body.dataset.compPrintProof='true'}});
    await page.locator('button[data-print-comp="CMP-0001"]').click();
    assert.equal(await page.locator('body').getAttribute('data-comp-print-proof'),'true');
