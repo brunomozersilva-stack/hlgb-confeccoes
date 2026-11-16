@@ -2,6 +2,21 @@
 
 Esta pasta é um **protótipo isolado**: não é uma tela incorporada ao HLGB em produção.
 
+## Nova etapa — Duas sessões reais e PostgreSQL persistente somente no CI
+
+O diretório `sync-persistente/` acrescenta a prova de concorrência e durabilidade em **PostgreSQL 16 real e descartável**, separada da página estática de sincronização. O workflow `evolucao-sync-persistente.yml` cria um banco temporário `hlgb_sync_persist_lab` em cada browser (Chromium e WebKit), abre um servidor HTTP **somente no 127.0.0.1** e executa os testes de ponta a ponta em **dois contextos de navegador separados**.
+
+- Transação e revisões no banco, IDs idempotentes, auditoria, conflito e resposta perdida após commit.
+- WAL **IndexedDB no navegador de laboratório**, escrito antes do POST e preservado após reload.
+- Interrupção de rede, releitura por ID, reenvio manual com o mesmo identificador e prevenção de duplicidade.
+- Reinício do servidor em localhost mantendo o banco descartável; comando e evento sobrevivem ao processo.
+- Bloqueios por nome de banco, host e origem; schema privado e acessos públicos revogados.
+- Capturas e relatório fictício anexados à execução da CI.
+
+A página interativa de persistência real **não é pública**, pois depende do servidor e do banco descartáveis. A demonstração estática anterior continua acessível na central. Consulte `sync-persistente/README.md` para os limites e o procedimento manual seguro.
+
+**Ainda não é uma correção ou aprovação de sincronização do HLGB**: faltam sessão/Auth da empresa, WAL legado, ACL/RLS de usuários reais, migração, testes entre dispositivos reais, autorizações de liberação e prova de não perda de dados no esquema existente.
+
 ## Nova etapa — Laboratório de duas sessões e confirmação de gravação
 
 Os novos `sincronizacao-duas-sessoes-memoria.js` e `sincronizacao-duas-sessoes.html` simulam duas sessões independentes **dentro de uma única página**, conectadas a um objeto servidor que vive somente na memória. Não há autenticação, rede, Supabase nem gravação durável.
