@@ -32,13 +32,13 @@ jobs:
                       for key,value in attrs:
                           if key=='href':self.links.append(value)
           links=Links();links.feed(page)
-          assert len(links.links)==15, links.links
+          assert len(links.links)==16, links.links
           for url in links.links:
               assert url.startswith('./') and re.fullmatch(r'[A-Za-z0-9_./-]+\.html',url),url
               assert '..' not in url,url
               assert Path('evolucao-lab',url).is_file(),url
               assert 'integracao' not in url,url
-          print('PASS: 15 links estáticos, todos os arquivos presentes, nenhum servidor local exposto')
+          print('PASS: 16 links estáticos, todos os arquivos presentes, nenhum servidor local exposto')
           PY
       - name: Verificar entrega HTTPS pela URL publica de desenvolvimento
         shell: bash
