@@ -2,6 +2,12 @@
 
 Esta pasta é um **protótipo isolado**: não é uma tela incorporada ao HLGB em produção.
 
+## Nova etapa — Jornada guiada entre oito etapas do mesmo pedido (somente leitura)
+
+Na área **Salvamento e sincronização / Núcleo** de `operacao-integrada.html`, existe o painel **Roteiro guiado do fluxo integrado**. Se houver mais de um pedido fictício, escolha qual acompanhar. A jornada exige relações com o mesmo pedido (e com o mesmo material da ficha técnica) e verifica: compra recebida com movimento de estoque e título; pedido/conta a receber; corte com consumo; envio para facção; retorno com acerto e conta a pagar; separação; expedição; e quitação fictícia do acerto no Hub. Existe uma etapa extra, **opcional**, de compensação após pagamento.
+
+Os indicadores são derivados do documento IndexedDB já existente, sem criar tabelas, eventos ou pagamentos e sem incrementar a revisão ao consultar. Um acerto de outro pedido ou uma compra de material diferente **não** contam como conclusão. Se valor e status dos títulos vinculados divergirem, o passo financeiro não aparece concluído. Cada etapa possui um botão para abrir o módulo correspondente. O relatório JSON inclui `journey`, com a seleção e as oito situações. Atualizar, importar provas e comparar com Safari/Chrome são conferências manuais e não são certificadas automaticamente. Este roteiro não homologa o ERP empresarial.
+
 ## Nova etapa — Compensação de pagamento fictício já quitado
 
 A Operação Integrada inclui o comando `settlement.compensate`, que exige um **acerto original pago**, valor de diferença em centavos (positivo ou negativo), referência única por acerto e justificativa obrigatória. A referência é comparada sem diferenciar maiúsculas, minúsculas ou espaços ao redor.
@@ -31,7 +37,7 @@ A prévia `operacao-integrada.html#acertos` agora permite testar:
 - **Pesquisa de facções e acertos:** filtro pelo nome e serviço em tabelas locais. Ainda falta busca global do banco de produção e anexação privada de PDFs.
 - Testes de cálculo, integridade, trava pós-pagamento, identidade do acerto, revisões, Chrome e Safari/WebKit.
 
-**Nada disso acessa o banco de produção, movimenta dinheiro, gera comprovante oficial ou substitui os serviços financeiros da empresa.** A edição/compensação de acertos já pagos, anexação de PDF, lotes de serviços, múltiplas facções no mesmo pedido e permissões empresariais continuam pendentes.
+**Nada disso acessa o banco de produção, movimenta dinheiro, gera comprovante oficial ou substitui os serviços financeiros da empresa.** No laboratório existe compensação fictícia pós-pagamento; ainda dependem de homologação real a contabilização de correções, anexos privados de PDF bancário, lotes de serviços, múltiplas facções no mesmo pedido e permissões empresariais.
 
 ## Nova etapa — Corte Avançado com folhas por lote (fictício)
 
