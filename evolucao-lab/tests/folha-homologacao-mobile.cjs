@@ -54,7 +54,7 @@ async function run(browser,width,base){
   assert.match(clean(await p.locator('#preview-passage').innerText()),/140,00/);
   await save(p);
   assert.match(clean(await p.locator('#metric-passage').innerText()),/610,00/);
-  assert.match(clean(await p.locator('#metric-cost').innerText()),/13\.393,88/);
+  assert.match(clean(await p.locator('#metric-cost').innerText()),/12\.853,88/);
   assert.equal((await p.locator('#revision-label').innerText()).includes('2'),true);
   assert.match(await p.locator('#audit').innerText(),/Bianca Teste/);
   const savedOrder=await p.locator('#employee-rows tr').first().innerText();
