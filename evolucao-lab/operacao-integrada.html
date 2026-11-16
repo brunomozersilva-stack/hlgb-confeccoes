@@ -27,7 +27,7 @@ main{padding:20px;max-width:1380px;margin:auto}
 .panel.wide{grid-column:1/-1}.fields{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
 .field{display:grid;grid-template-columns:minmax(0,1fr);gap:4px;min-width:0}.field label{display:block;min-width:0;max-width:100%;font-size:11px;font-weight:800;color:#4b3b59}
 .input{border:1px solid #cbbbd8;background:#fff;border-radius:8px;min-height:42px;padding:9px;width:100%;min-width:0;max-width:100%}
-select.input{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+select.input{display:block;width:100%;max-width:100%;min-width:0;min-inline-size:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;-webkit-appearance:none;appearance:none;padding-right:30px;background-image:linear-gradient(45deg,transparent 50%,#654087 50%),linear-gradient(135deg,#654087 50%,transparent 50%);background-repeat:no-repeat;background-size:6px 6px,6px 6px;background-position:calc(100% - 18px) 53%,calc(100% - 12px) 53%}
 .actions{display:flex;gap:8px;flex-wrap:wrap;margin:11px 0 0}.btn{border:1px solid #c3b3d2;border-radius:9px;background:#fff;color:#614381;min-height:41px;padding:9px 12px;font-size:12px;font-weight:800;text-align:center}
 .btn.primary{background:#644084;color:#fff;border-color:#644084}.btn.danger{color:#97405a;border-color:#ddb6c3}
 .btn:hover{filter:brightness(.96)}.btn.link{display:inline-flex;align-items:center;text-decoration:none}
