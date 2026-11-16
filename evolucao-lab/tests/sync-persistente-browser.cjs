@@ -26,7 +26,7 @@ async function newSession(actor,width=390){
  const ctx=await browser.newContext({viewport:{width,height:850},acceptDownloads:true});
  const page=await ctx.newPage();await login(page,actor);return {ctx,page};
 }
-async function waitStatus(page,fragment){await page.locator('#operation-status').getByText(fragment,{exact:false}).waitFor()}
+async function waitStatus(page,fragment){await page.waitForFunction(text=>document.querySelector('#operation-status')?.textContent.includes(text),fragment)}
 const submit=async(page,value)=>{
  await page.locator('#draft').fill(value);
  await page.locator('#save').click();
@@ -49,8 +49,8 @@ test('PostgreSQL privado: tabelas reais apenas no banco descartável, sem GRANT 
  const tables=(await query("SELECT relname,relrowsecurity,relforcerowsecurity FROM pg_class JOIN pg_namespace n ON n.oid=relnamespace WHERE n.nspname='sync_lab' AND relkind='r' ORDER BY relname")).rows;
  assert.equal(tables.length,3);
  assert(tables.every(t=>t.relrowsecurity&&t.relforcerowsecurity));
- const publicGrant=(await query("SELECT has_schema_privilege('public','sync_lab','USAGE') AS public_usage")).rows[0];
- assert.equal(publicGrant.public_usage,false);
+ const publicGrant=(await query("SELECT count(*)::int AS n FROM pg_namespace n CROSS JOIN LATERAL aclexplode(n.nspacl) a WHERE n.nspname='sync_lab' AND a.grantee=0")).rows[0];
+ assert.equal(publicGrant.n,0);
  assert.equal((await record()).record.amountCents,10000);
 });
 test('duas sessões separadas: conflito otimista preserva rascunho e permite revisão',async()=>{
