@@ -20,7 +20,7 @@ main{max-width:1180px;margin:auto;padding:16px 14px 60px}
 .panel p{font-size:12px;line-height:1.55;color:var(--muted);margin:4px 0 12px}
 .controls{display:grid;grid-template-columns:minmax(0,1.4fr) minmax(110px,.8fr) minmax(120px,1fr);gap:9px;margin:12px 0}
 .field{display:grid;gap:5px;min-width:0}.field label{font-weight:750;font-size:12px}
-.input{border:1px solid #c6b8d3;border-radius:9px;min-height:43px;padding:10px 11px;background:#fff;width:100%;min-width:0}
+.input{border:1px solid #c6b8d3;border-radius:9px;min-height:43px;padding:10px 11px;background:#fff;width:100%;min-width:0;max-width:100%}select.input{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .actions{display:flex;flex-wrap:wrap;gap:8px;margin:13px 0}.actions button{flex:1 1 140px}
 .button{border:1px solid #c1abd3;color:var(--purple);background:#fff;border-radius:9px;min-height:43px;padding:10px 12px;font-size:12px;font-weight:800}
 .button.primary{background:var(--purple);color:white;border-color:var(--purple)}
@@ -101,7 +101,7 @@ td .button{min-height:33px;padding:6px 10px}.mobile-cards{display:none}
 <button id="refresh" type="button" class="button">Recarregar dados salvos</button>
 </div>
 </form>
-<div class="field"><label for="failure">Cenário de teste</label><select class="input" id="failure"><option value="none">Salvamento normal</option><option value="lost-readback">Simular leitura da confirmação indisponível</option></select></div>
+<div class="field"><label for="failure">Cenário de teste</label><select class="input" id="failure"><option value="none">Salvamento normal</option><option value="lost-readback">Falha de releitura</option></select></div>
 <div id="save-status" class="message" role="status" aria-live="polite">Preparando o banco fictício deste navegador.</div>
 <p id="revision-label" class="hint">Revisão: —</p>
 </section>
