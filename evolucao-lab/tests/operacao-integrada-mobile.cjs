@@ -169,7 +169,6 @@ async function run(browser,width,url){
    await put(page,'faction.return',{orderId:'PED-0002',qty:'3'});
    const snap=await revision(page);
    const transfer=page.locator('form[data-command="faction.reassign"]');
-   await transfer.locator('[name="orderId"]').selectOption('PED-0002').catch(()=>{});
    // O pedido não aparece mais na lista de transferência por já ter retornado.
    assert.equal(await transfer.locator('[name="orderId"] option[value="PED-0002"]').count(),0);
    assert.equal(await revision(page),snap);
