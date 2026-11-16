@@ -21,6 +21,20 @@ A página `homologacao-modulos.html` organiza 76 funcionalidades antigas identif
 
 As restantes **27 funções não possuem demonstração específica equivalente**. Elas já podem ser registradas como pendências, mas **não podem ser aprovadas no formulário como se estivessem implementadas**.
 
+## NOVO — Transferência parcial e histórico de quem está com as peças
+
+Na **Operação Integrada fictícia**, entre em **Facções** e siga este roteiro:
+
+1. Crie um pedido com 18 peças cortadas e envie 8 peças à oficina A e 8 à oficina B usando a distribuição múltipla.
+2. Registre o retorno de 3 peças da oficina A, criando um acerto. Faça a quitação fictícia deste título pelo Hub. Confira o ID e valor.
+3. Volte a **Facções → Transferir parte das peças ainda não retornadas**, selecione o envio da oficina A (`ALO-...`), escolha oficina B e informe **4 peças** e justificativa. A origem passa de 8 para 4 atribuídas; o destino de 8 para 12. O pedido continua com **16 peças alocadas**, e o acerto das 3 peças já retornadas deve manter a facção, o preço e o pagamento originais.
+4. Tente enviar 6 peças da oficina A (só restam 1 pendente) ou escolher a mesma facção como destino. A operação deve ser recusada, sem mudar a revisão local ou os pagamentos.
+5. Registre um novo retorno de 5 peças da oficina B. Ele deve gerar **novo acerto e novo título financeiro**, com a facção e valores da oficina B, não modificando o antigo.
+6. Confira em **Facções → Histórico permanente de transferências parciais** o `TRP-...`, motivo e quantidades antes/depois; em **Relatórios**, a rastreabilidade e CSV; e no **Auditor**, a ausência de alertas somente nas regras locais verificadas.
+7. Recarregue a página e confira se `data.factionPartialTransfers` continua no JSON, vinculada ao mesmo comando e às mesmas facções. Isto verifica apenas persistência local fictícia.
+
+**Limite:** ainda não há grade P/M/G/GG e cores **por facção**; quantidade distribuída é global por pedido. Não execute nada com pedidos ou pagamentos reais.
+
 ## NOVO — Dividir um pedido entre facções sem misturar retornos
 
 Use o laboratório apenas com dados fictícios. Abra a Operação Integrada:
