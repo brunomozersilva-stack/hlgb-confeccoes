@@ -3,10 +3,12 @@
  'use strict';
  const batch=typeof module==='object'&&module.exports?
   require('./modulos/pagamento-lote-v1.js'):(root&&root.HLGBLabPaymentBatchV1);
- const api=factory(batch);
+ const routing=typeof module==='object'&&module.exports?
+  require('./modulos/faccoes-multidestino-v1.js'):(root&&root.HLGBLabFactionRoutingV1);
+ const api=factory(batch,routing);
  if(typeof module==='object'&&module.exports)module.exports=api;
  else if(root)root.HLGBOperationalLab=api;
-})(typeof window!=='undefined'?window:null,function(batch){
+})(typeof window!=='undefined'?window:null,function(batch,routing){
  'use strict';
  const clone=x=>JSON.parse(JSON.stringify(x)),sizes=['P','M','G','GG'];
  const makeGrade=()=>({P:0,M:0,G:0,GG:0});
@@ -28,7 +30,7 @@
     {id:'FAC-0002',name:'Oficina Exemplo B',unitCents:600,traveta:false}],
    employees:[{id:'FUN-0001',name:'Ana Simulada',salaryCents:200000,passageCents:12000,extrasCents:0,discountCents:0},
     {id:'FUN-0002',name:'Bianca Modelo',salaryCents:180000,passageCents:8000,extrasCents:0,discountCents:3000}],
-   orders:[],cutPlans:[],purchaseOrders:[],settlements:[],settlementCompensations:[],paymentBatches:[],finance:[],stockLedger:[],factionTransfers:[],errors:[],
+   orders:[],cutPlans:[],purchaseOrders:[],settlements:[],settlementCompensations:[],paymentBatches:[],finance:[],stockLedger:[],factionTransfers:[],factionAssignments:[],errors:[],
    prints:[{id:'IMP-0001',name:'Chaveiro articulado fictício',grams:28,priceCents:490,stock:12}],
    log:[],role:'supervisor',flags:{autoCorrections:false},revisionProof:'seed'};
  }
@@ -125,6 +127,8 @@
   }
   const keys=comps.map(x=>x.settlementId+'|'+x.reference.trim().toLocaleUpperCase('pt-BR'));
   if(new Set(keys).size!==keys.length)problems.push('Referência de compensação duplicada para o mesmo acerto');
+  if(routing&&typeof routing.inspect==='function')
+   problems.push(...routing.inspect(s));
   for(const move of (s.factionTransfers||[])){
    if(!s.orders.some(x=>x.id===move.orderId)||!s.factions.some(x=>x.id===move.fromFactionId)||
       !s.factions.some(x=>x.id===move.toFactionId)||move.fromFactionId===move.toFactionId)
@@ -133,7 +137,7 @@
   if(s.materials.some(m=>m.stockGrams<0))problems.push('Estoque de material negativo');
   if(s.finance.some(e=>e.amountCents<=0))problems.push('Lançamento financeiro não positivo');
   if(new Set(s.log.map(e=>e.commandId)).size!==s.log.length)problems.push('Identificador de comando duplicado');
-  const allIds=[...s.orders,...(s.cutPlans||[]),...(s.factionTransfers||[]),...(s.settlementCompensations||[]),...batches,...s.purchaseOrders,...s.settlements,...s.finance,...s.clients,...s.suppliers,
+  const allIds=[...s.orders,...(s.cutPlans||[]),...(s.factionTransfers||[]),...(s.factionAssignments||[]),...(s.settlementCompensations||[]),...batches,...s.purchaseOrders,...s.settlements,...s.finance,...s.clients,...s.suppliers,
    ...s.materials,...s.products,...s.factions,...s.employees,...s.prints].map(x=>x.id);
   if(new Set(allIds).size!==allIds.length)problems.push('IDs de registro duplicados');
   return {ok:!problems.length,problems,orderCount:s.orders.length,unpaid:s.finance.filter(f=>f.status==='aberto').length,
@@ -277,6 +281,8 @@
    result=fac.name+' · travetada '+String(previous)+' → '+String(fac.traveta)+
     ' · '+reason+' (sem mudar acertos anteriores)';break}
   case 'faction.reassign':{
+   if(!routing)throw Error('Módulo de distribuição de facções indisponível.');
+   routing.ensure(s,next);
    const order=get(s,'orders',p.orderId,'Pedido'),newFac=get(s,'factions',p.factionId,'Nova facção');
    const reason=name(p.reason,'Motivo da troca');
    if(!order.factionId||order.allocated<=0)throw Error('Somente pedido já enviado pode trocar de facção.');
@@ -284,6 +290,7 @@
    if(order.returned>0||s.settlements.some(a=>a.orderId===order.id))
     throw Error('Troca bloqueada após retorno/acerto. A operação anterior não pode ser sobrescrita.');
    const oldId=order.factionId;
+   routing.reassignLegacy(s,order,newFac.id);
    order.factionId=newFac.id;
    s.factionTransfers.push({id:next(s,'TRO'),orderId:order.id,fromFactionId:oldId,
     toFactionId:newFac.id,qty:order.allocated,reason,commandId:uid});
@@ -401,13 +408,20 @@
    s.stockLedger.push({id:next(s,'MOV'),materialId:material.id,deltaGrams:-cost,sourceId:o.id,type:'corte',commandId:uid});
    result=o.id+' / '+sz+' / '+q+' peças';break}
   case 'faction.allocate':{
+   if(!routing)throw Error('Módulo de distribuição de facções indisponível.');
+   routing.ensure(s,next);
    const o=get(s,'orders',p.orderId,'Pedido'),fac=get(s,'factions',p.factionId,'Facção'),qty=num('qty',1,10000);
    const q=quantities(o);
    if(q.allocated+qty>q.cut)throw Error('Envio excede a quantidade cortada.');
    if(o.factionId&&o.factionId!==fac.id)throw Error('Esta simulação aceita uma facção por pedido; não sobrescrever destino.');
-   o.factionId=fac.id;o.allocated+=qty;result=o.id+' → '+fac.name;break}
+   o.factionId=fac.id;o.allocated+=qty;
+   routing.recordLegacyAllocation(s,o,fac,qty,{next,uid});
+   result=o.id+' → '+fac.name;break}
   case 'faction.return':{
+   if(!routing)throw Error('Módulo de distribuição de facções indisponível.');
+   routing.ensure(s,next);
    const o=get(s,'orders',p.orderId,'Pedido'),qty=num('qty',1,10000);
+   routing.canLegacyReturn(s,o);
    if(!o.factionId||o.returned+qty>o.allocated)throw Error('Retorno excede o que foi enviado para a facção.');
    o.returned+=qty;
    const fac=get(s,'factions',o.factionId),product=get(s,'products',o.productId);
@@ -415,7 +429,8 @@
    const travetaDiscount=fac.traveta?0:Math.min(listUnit,50);
    const unit=listUnit-travetaDiscount;
    if(unit<=0)throw Error('Preço líquido da facção deve ser positivo.');
-   const settlement={id:next(s,'ACE'),orderId:o.id,factionId:fac.id,productId:product.id,
+   const assignmentId=routing.recordLegacyReturn(s,o,qty);
+   const settlement={id:next(s,'ACE'),orderId:o.id,assignmentId,factionId:fac.id,productId:product.id,
     kind:'retorno',serviceType:'costura',qty,listUnitCents:listUnit,
     travetaCents:travetaDiscount,unitCents:unit,
     adjustmentCents:0,amountCents:qty*unit,description:'Retorno fictício',status:'aberto'};
@@ -423,6 +438,12 @@
    s.finance.push({id:next(s,'FIN'),kind:'pagar',sourceId:settlement.id,
     description:'Acerto fictício '+settlement.id,amountCents:settlement.amountCents,status:'aberto'});
    result=settlement.id;break}
+  case 'faction.multi.allocate':{
+   if(!routing)throw Error('Módulo de distribuição por facção indisponível.');
+   result=routing.allocation(s,p,{next,int,uid});break}
+  case 'faction.multi.return':{
+   if(!routing)throw Error('Módulo de retorno por facção indisponível.');
+   result=routing.ret(s,p,{next,int,uid});break}
   case 'settlement.add':{
    const fac=get(s,'factions',p.factionId,'Facção'),product=get(s,'products',p.productId,'Produto');
    if(!['costura','embalagem'].includes(p.serviceType))throw Error('Selecione costura ou embalagem.');
@@ -447,6 +468,8 @@
    if(o.shipped+qty>o.separated)throw Error('Expedição excede a quantidade separada.');
    o.shipped+=qty;result=o.id;break}
   case 'settlement.pieces.return':{
+   if(!routing)throw Error('Módulo de distribuição de facções indisponível.');
+   routing.ensure(s,next);
    const x=get(s,'settlements',p.id,'Acerto');
    if(x.status!=='aberto')throw Error('Não é permitido devolver peças após pagamento.');
    const bill=get(s,'finance',s.finance.find(y=>y.sourceId===x.id&&y.kind==='pagar')?.id,'Título a pagar');
@@ -459,6 +482,7 @@
     const order=get(s,'orders',x.orderId,'Pedido associado');
     if(order.returned-qty<order.separated)throw Error('Devolução excede o saldo não separado deste pedido.');
     order.returned-=qty;
+    routing.reverseReturn(s,x,qty);
    }
    const before=x.amountCents,oldQty=x.qty;
    x.qty=newQty;x.amountCents=newAmount;
