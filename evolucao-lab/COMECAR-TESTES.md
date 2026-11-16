@@ -21,6 +21,19 @@ A página `homologacao-modulos.html` organiza 76 funcionalidades antigas identif
 
 As restantes **27 funções não possuem demonstração específica equivalente**. Elas já podem ser registradas como pendências, mas **não podem ser aprovadas no formulário como se estivessem implementadas**.
 
+## NOVO — Auditor, Bot e relatórios 2.0 (plugues reversíveis)
+
+Na Operação Integrada fictícia:
+
+1. Abra **Auditor e autocorreção**. Verifique os indicadores e a lista de regras; cada divergência deve mostrar gravidade, código, registro e orientação, não um texto genérico.
+2. Abra **Assistente e aprendizado**. Confira as ações recomendadas, o motivo e o módulo de destino. O Bot não aplica correções e não finge ser uma IA autônoma.
+3. Entre em **Relatórios e análises**. Consulte histórico completo (busque `finance.pay`), visão por modelo, acertos por facção e antes/depois de acertos fictícios. Use **Exportar auditoria completa CSV** para obter tudo, sem perda de histórico por causa da paginação.
+4. Entre em **Salvamento e sincronização** e use **Alternar Observabilidade 2.0**. Auditor, Bot e Relatórios devem retornar às apresentações anteriores. Volte e reative; a versão nova deve reaparecer. Nenhuma alternância modifica a revisão ou os dados locais.
+5. Confira novamente o JSON. A seção `observability` reúne alertas, recomendações, resumos e histórico apenas quando o módulo estiver ativado.
+6. Na Central de Testes por Módulo, registre o que de fato funcionou e o que permanece incompleto, sem converter demonstração fictícia em aprovação da produção.
+
+**Limite:** só analisa operações inventadas no mesmo navegador. Não tem monitoramento do Supabase real, manutenção remota, autocorreção financeira, reparo de código nem comparação de desempenho entre versões. Isso será feito em homologação isolada, com aprovação para uso real posterior.
+
 ## NOVO — Roteiro guiado de oito etapas por pedido
 
 Na Operação Integrada abra **Salvamento e sincronização** (primeira área da barra lateral). O painel **Roteiro guiado do fluxo integrado** acompanha um pedido fictício por vez.
