@@ -6,7 +6,7 @@
 
 A página `homologacao-modulos.html` organiza 76 funcionalidades antigas identificadas em 19 módulos, associadas a 43 critérios de paridade mais detalhados. Para cada função, mostra fonte legada, teste existente, roteiro esperado, disponibilidade da demonstração e resultado selecionável.
 
-**Exemplos da lista original de exercícios parciais (agora são 41, incluindo a Folha e a Operação Integrada):**
+**Exemplos da lista original de exercícios parciais (agora são 47, incluindo a Folha, Operação Integrada e seis testes novos de Corte):**
 
 | ID | Módulo | Exercício |
 |---|---|---|
@@ -19,7 +19,21 @@ A página `homologacao-modulos.html` organiza 76 funcionalidades antigas identif
 | PAR-044 | Acertos | Seleção e fechamento fictício em lote |
 | PAR-047 | Hub | Buscar, filtrar e exportar lançamento fictício |
 
-As restantes **35 funções não possuem demonstração específica equivalente**. Elas já podem ser registradas como pendências, mas **não podem ser aprovadas no formulário como se estivessem implementadas**.
+As restantes **29 funções não possuem demonstração específica equivalente**. Elas já podem ser registradas como pendências, mas **não podem ser aprovadas no formulário como se estivessem implementadas**.
+
+## NOVO — Como testar o Corte Avançado por lote
+
+Abra diretamente `operacao-integrada.html#corte` ou o botão **Corte Avançado** da entrada. Se ainda não existir pedido fictício, vá a Pedidos e crie uma Camisola Melina com grade **10 P, 10 M, 0 G, 0 GG**.
+
+1. **Editar grade:** teste alterar M para 12 e salvar. Confira o novo valor no título a receber do Hub. Volte a M=10. A edição deve ser bloqueada caso tentasse reduzir abaixo do que já foi cortado ou reservado.
+2. **Planejar:** no Corte, crie uma folha `COR-0001` com 4 P e 4 M, cortador 1 "Ana Cortadora", cortador 2 "Beto Cortador", enfestador "Carla Enfestadora" e equipe interna. Planeje outra folha com 3 P e 3 M, equipe externa. O estoque não deve mudar neste momento.
+3. **Alterar um lote aberto:** use "Modificar ou cancelar folha" na segunda folha. Troque para 5 P e 4 M. A grade do pedido deve continuar dentro do limite. O peso teórico acompanha as novas quantidades.
+4. **Concluir a primeira folha:** informe peso útil **960 g**, lixo **100 g**, conferência digitada "Ana Cortadora" e "Beto Cortador". Deve debitar **1.060 g** do estoque de malha, atualizar o corte em 4 P e 4 M, e impedir a mesma baixa novamente.
+5. **Imprimir:** na tabela de folhas clique **Imprimir folha**. Confira nomes dos cortadores, enfestador, origem interna/externa, grade, peso teórico, peso útil, lixo e status. Você pode imprimir em papel ou usar "Salvar em PDF" do navegador.
+6. **Testes de proteção:** tente usar a mesma pessoa nos dois campos de cortador, ultrapassar a grade reservada, concluir com peso útil inferior ao teórico ou consumo acima do estoque. Nenhuma dessas tentativas deve alterar o banco fictício.
+7. **Recarregar:** atualize a página e abra Corte. A folha concluída e o histórico devem permanecer no IndexedDB local. Exporte o relatório JSON para registrar os testes.
+
+Esses valores, nomes e assinaturas digitadas são **inventados**. Não são uma folha oficial da confecção, não assinam legalmente documentos e não acessam o Supabase nem os pedidos reais. O laboratório ainda não atende todas as rotinas de Corte em produção.
 
 ## NOVO — Teste operacional integrado dos 19 módulos na mesma tela
 
@@ -98,7 +112,7 @@ Na página inicial da prévia, abra **Guardião de Preservação** (`guardiao-pr
 4. Filtre as demonstrações. São **8 parciais** e **68 sem demonstração mapeada**. Clicar em uma demonstração abre o simulador separado.
 5. Na **Central de Testes — 76 funções**, marque resultados usando apenas dados fictícios e exporte o JSON; volte ao Guardião e use **Importar testes da Central**. O painel mostra a avaliação da prévia, mas mantém o indicador de liberação em **0/76**.
 6. Exporte **Pendências CSV** ou **Bloqueios JSON** para analisar os gargalos. O campo `publicationBlocked` do JSON permanece `true`; `releaseApproved` é `false` e há 76 motivos de bloqueio.
-7. Teste um relatório incompatível ou com `passed` em funções sem demo: a importação deve ser rejeitada. Mesmo 41 demonstrações com resultado positivo não autorizam produção.
+7. Teste um relatório incompatível ou com `passed` em funções sem demo: a importação deve ser rejeitada. Mesmo 47 demonstrações com resultado positivo não autorizam produção.
 8. Para garantir que nenhum arquivo original sumiu no código, consulte os testes automatizados de **229 arquivos legados (hash congelado)** e do **Guardião** nas ações do GitHub.
 
 **Escopo real:** é um painel de auditoria **estático/offline**, não homologação do sistema novo. A referência de uma função ou teste antigo não demonstra que ela existe no novo ERP. A liberação não pode ocorrer apenas importando um relatório; depende de trabalho técnico e aprovação formal posterior.
