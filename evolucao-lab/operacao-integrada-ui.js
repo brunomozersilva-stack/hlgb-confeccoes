@@ -24,7 +24,7 @@ const modules=[
  ['cadastros','Clientes e cadastros','Cadastros de clientes, fornecedores e insumos vinculados aos módulos.']
 ];
 const ids=new Map(modules.map((m,i)=>[m[0],i]));
-let active=ids.has(window.location.hash.slice(1))?window.location.hash.slice(1):'nucleo',db=null,doc=null,busy=false;
+let active=ids.has(window.location.hash.slice(1))?window.location.hash.slice(1):'nucleo',db=null,doc=null,busy=false,journeyOrderId=null;
 const settlementFilters={query:'',status:'todos',faction:'todas',service:'todos',compensation:'todos'};
 const escape=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const str=x=>escape(String(x??''));
@@ -69,6 +69,35 @@ function financeTable(s){
 }
 function refDocs(s){return '<div class="flow"><span>Pedido</span>→<span>Corte</span>→<span>Facção</span>→<span>Retorno</span>→<span>Acerto</span>→<span>Separação</span>→<span>Expedição</span>→<span>Financeiro</span></div>'+
  '<p>Todos os passos alteram o mesmo estado fictício, guardado no IndexedDB deste navegador. Cada operação tem revisão e histórico.</p>'}
+function guidedJourney(s){
+ if(!s.orders.some(x=>x.id===journeyOrderId))journeyOrderId=s.orders[s.orders.length-1]?.id||null;
+ const guide=api.journey(s,journeyOrderId);
+ const choice=s.orders.length?'<div class="field"><label for="journey-order">Pedido fictício acompanhado</label>'+
+  '<select class="input" id="journey-order">'+
+  options(s.orders.map(o=>[o.id,o.id+' · '+(ref(s.products,o.productId)?.name||'Modelo')]),guide.orderId)+
+  '</select></div>':'<p>Comece em Compras para testar o recebimento de material; depois cadastre um pedido fictício.</p>';
+ const rows=guide.steps.map((step,i)=>
+  '<li class="journey-step" data-step-id="'+str(step.id)+'" data-completed="'+String(step.completed)+'">'+
+  '<div><strong>'+(i+1)+'. '+str(step.title)+'</strong>'+
+  '<p class="caption">'+str(step.detail)+'</p></div>'+
+  '<div class="journey-actions"><span class="chip '+(step.completed?'':'wait')+'">'+
+  (step.completed?'Evidência local':'Pendente')+'</span>'+
+  '<button type="button" class="btn" data-goto="'+str(step.module)+'">'+
+  (step.completed?'Conferir':'Testar')+'</button></div></li>').join('');
+ const optional=guide.optional;
+ return '<p><strong>Jornada por pedido, sem lançamentos automáticos.</strong> Os indicadores são calculados a partir do IndexedDB fictício e não comprovam o sistema de produção. A compra deve se referir ao material do pedido escolhido.</p>'+
+ choice+
+ '<p id="journey-progress" class="caption" role="status" aria-live="polite"><strong>'+
+ guide.completed+' de '+guide.total+' etapas com evidência local</strong> · Pedido '+
+ str(guide.orderId||'a cadastrar')+'</p>'+
+ '<ol class="journey-list" id="journey-steps">'+rows+'</ol>'+
+ '<div class="journey-step" data-step-id="compensacao" data-completed="'+String(optional.completed)+'">'+
+ '<div><strong>Etapa opcional: '+str(optional.title)+'</strong><p class="caption">'+str(optional.detail)+'</p></div>'+
+ '<div class="journey-actions"><span class="chip '+(optional.completed?'':'wait')+'">'+
+ (optional.completed?'Evidência local':'Não realizada')+'</span>'+
+ '<button type="button" class="btn" data-goto="acertos">Abrir Acertos</button></div></div>'+
+ '<p class="caption">Depois do teste, atualize a página, confira os mesmos IDs e exporte JSON/CSV. A atualização e a conferência humana não são marcadas automaticamente como concluídas.</p>';
+}
 function moduleHtml(s){
  const o=orderOptions(s),openPlans=(s.cutPlans||[]).filter(p=>p.status==='aberto'),
   planOptions=selector(openPlans,p=>p.id+' · '+p.orderId+' · '+sum(p.grade)+' peças'),
@@ -80,7 +109,8 @@ function moduleHtml(s){
  finance=selector(s.finance.filter(x=>x.status==='aberto'),x=>x.id+' · '+fmt(x.amountCents)+' · '+x.description),
  employees=selector(s.employees,x=>x.name),incidents=selector(s.errors.filter(x=>x.status==='aberto'),x=>x.id+' · '+x.message);
  switch(active){
- case 'nucleo':return panel('Como testar o fluxo completo',refDocs(s)+
+ case 'nucleo':return panel('Roteiro guiado do fluxo integrado',guidedJourney(s),true)+
+ panel('Como testar o fluxo completo',refDocs(s)+
  '<ol class="tips"><li>Em <b>Pedidos</b>, crie uma encomenda P/M/G.</li><li>Em <b>Corte</b>, corte algumas peças; o material será consumido.</li>'+
  '<li>Em <b>Facções</b>, envie as peças cortadas e registre retorno parcial.</li><li>Em <b>Acertos</b>, verifique o título criado; em <b>Separação</b>, dê baixa e despache.</li>'+
  '<li>Em <b>Hub Financeiro</b>, confira a conta a receber do pedido e a conta a pagar do acerto.</li><li>Atualize a página e volte aos módulos. Os registros devem permanecer.</li></ol>',true)+
@@ -548,6 +578,7 @@ function download(name,content,type){
 function exportReport(){
  if(!doc)return;const report={schema:'hlgb-evolucao-operacao-integrada-report-v1',environment:'indexeddb-local-fictitious',
   productionApproval:false,parityApproved:false,modulesVisited:19,exportedAt:new Date().toISOString(),
+  journey:api.journey(doc,journeyOrderId),
   checks:api.inspect(doc),totals:api.totals(doc),data:doc};
  download('HLGB-EVOLUCAO-OPERACAO-INTEGRADA-FICTICIA.json',JSON.stringify(report,null,2),'application/json');
 }
@@ -705,6 +736,9 @@ function renderCompensationSheet(compId){
  return $('cut-print').textContent;
 }
 document.addEventListener('change',event=>{
+ if(event.target.id==='journey-order'){
+  journeyOrderId=event.target.value;draw();return;
+ }
  if(event.target.matches('[data-settlement-filter]')){
   settlementFilters[event.target.dataset.settlementFilter]=event.target.value;
   applySettlementFilters();return;
