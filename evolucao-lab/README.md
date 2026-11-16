@@ -2,6 +2,21 @@
 
 Esta pasta é um **protótipo isolado**: não é uma tela incorporada ao HLGB em produção.
 
+## Nova etapa — Folha 2.0 para teste manual em navegador
+
+O arquivo `folha-homologacao.html` oferece uma folha **com cinco identidades e valores totalmente inventados**. A interface está disponível na prévia pública e no ZIP offline, usando IndexedDB **local do navegador** como armazenamento experimental. Não há acesso ao banco da confecção.
+
+- Seleção de funcionário, busca, filtro por confecção e ordenação alfabética/por confecção que permanece estável após salvar.
+- Edição individual dos campos salário-base, passagem, extras e descontos; validação de valores inteiros em centavos.
+- Separação explícita de salário líquido, passagem, desembolso e provisões ilustrativas (13º e férias), sem simular impostos ou cálculos legais.
+- Gravação local com revisão esperada, histórico por comando e **confirmação por releitura**; proteção contra conflito entre abas que compartilham IndexedDB.
+- Falha simulada de confirmação bloqueia novas operações até a releitura por ID; conflitos preservam o rascunho para revisão.
+- Restauração somente com confirmação do usuário e evento no histórico; download de CSV e JSON fictícios.
+- Testes com Chrome e Safari/WebKit em cinco larguras, duas abas, reload, conflito, valores inválidos e exportação.
+
+**Importante:** testar a folha fictícia não equivale a homologar as quatro funções legadas de Folha. Falta mapear todos os casos reais de passagem, fechamento, períodos, provisões, pagamento pelo Hub e integração com o servidor de homologação, sem tocar no principal.
+
+
 ## Nova etapa — Duas sessões reais e PostgreSQL persistente somente no CI
 
 O diretório `sync-persistente/` acrescenta a prova de concorrência e durabilidade em **PostgreSQL 16 real e descartável**, separada da página estática de sincronização. O workflow `evolucao-sync-persistente.yml` cria um banco temporário `hlgb_sync_persist_lab` em cada browser (Chromium e WebKit), abre um servidor HTTP **somente no 127.0.0.1** e executa os testes de ponta a ponta em **dois contextos de navegador separados**.
