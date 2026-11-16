@@ -292,14 +292,16 @@ function moduleHtml(s){
    str(ev.beforeQty)+' pç / '+fmt(ev.beforeCents),str(ev.afterQty)+' pç / '+fmt(ev.afterCents),str(ev.reason)])
   ))+
  '<h3>Compensações após pagamento (sem alterar título original)</h3>'+
- table(['Compensação','Acerto pago','Referência','Diferença','Novo título','Situação','Justificativa'],
+ table(['Compensação','Acerto pago','Referência','Diferença','Novo título','Situação','Justificativa','Imprimir'],
  compensations.map(c=>[
   str(c.id),str(c.settlementId),str(c.reference),
   (c.deltaCents>0?'+':'−')+fmt(Math.abs(c.deltaCents)),
   str(c.kind)+' · '+fmt(Math.abs(c.deltaCents)),
   '<span class="chip '+(c.status==='aberto'?'wait':'')+'">'+str(c.status)+'</span>',
-  str(c.reason)
- ])),true);
+  str(c.reason),
+  '<button type="button" class="btn" data-print-comp="'+str(c.id)+'">Conferência PDF</button>'
+ ]))+
+ '<p class="caption">Conferência PDF abre a impressão do navegador. O arquivo gerado não comprova uma transferência bancária real.</p>',true);
  }
  case 'hub':return panel('Lançamento do Hub fictício',
  form('finance.add','Novo título',[field('description','Descrição'),field('kind','Tipo','select','',[['pagar','Pagar'],['receber','Receber']]),
@@ -602,6 +604,37 @@ document.addEventListener('input',event=>{
   row.hidden=!text.includes(term);
  }
 });
+function renderCompensationSheet(compId){
+ const comp=(doc.settlementCompensations||[]).find(x=>x.id===compId);
+ if(!comp)throw Error('Compensação não encontrada no documento fictício.');
+ const original=doc.settlements.find(x=>x.id===comp.settlementId);
+ const originalTitle=doc.finance.find(x=>x.id===comp.originalFinanceId);
+ const newTitle=doc.finance.find(x=>x.sourceId===comp.id);
+ const faction=doc.factions.find(x=>x.id===comp.factionId);
+ if(!original||!originalTitle||!newTitle)throw Error('Vínculos da compensação incompletos.');
+ const html='<h1>HLGB Evolução · Conferência de Compensação FICTÍCIA</h1>'+
+  '<p><strong>Competência de teste:</strong> '+escape(doc.period)+
+  ' · <strong>Revisão local:</strong> '+doc.revision+'</p>'+
+  '<p><strong>Facção:</strong> '+escape(faction?.name||'—')+
+  ' · <strong>Acerto original:</strong> '+escape(original.id)+'</p>'+
+  '<h2>Pagamento original preservado</h2>'+
+  '<table><thead><tr><th>Acerto</th><th>Título original</th><th>Valor</th><th>Status</th></tr></thead>'+
+  '<tbody><tr><td>'+escape(original.id)+'</td><td>'+escape(originalTitle.id)+'</td>'+
+  '<td>'+fmt(original.amountCents)+'</td><td>'+escape(originalTitle.status)+'</td></tr></tbody></table>'+
+  '<h2>Correção criada como novo lançamento</h2>'+
+  '<table><tbody>'+
+  '<tr><th>Compensação</th><td>'+escape(comp.id)+'</td></tr>'+
+  '<tr><th>Referência única</th><td>'+escape(comp.reference)+'</td></tr>'+
+  '<tr><th>Justificativa</th><td>'+escape(comp.reason)+'</td></tr>'+
+  '<tr><th>Diferença</th><td>'+(comp.deltaCents>0?'+':'−')+fmt(Math.abs(comp.deltaCents))+'</td></tr>'+
+  '<tr><th>Novo título</th><td>'+escape(newTitle.id)+' · '+escape(newTitle.kind)+
+  ' · '+fmt(newTitle.amountCents)+'</td></tr>'+
+  '<tr><th>Situação</th><td>'+escape(newTitle.status)+'</td></tr>'+
+  '<tr><th>Comando registrado</th><td>'+escape(comp.commandId)+'</td></tr></tbody></table>'+
+  '<p class="print-note">DOCUMENTO DE TESTE — dados inventados. Não é comprovante de pagamento bancário, assinatura legal, documento fiscal ou prova de conciliação com a empresa. A impressão ou PDF não envia arquivos ao servidor.</p>';
+ $('cut-print').innerHTML=html;
+ return $('cut-print').textContent;
+}
 document.addEventListener('change',event=>{
  const form=event.target.closest('form[data-command]');
  if(!form)return;
@@ -627,6 +660,8 @@ document.addEventListener('change',event=>{
  }
 });
 document.addEventListener('click',e=>{
+ const comp=e.target.closest('button[data-print-comp]');
+ if(comp){try{renderCompensationSheet(comp.dataset.printComp);window.print()}catch(error){status(error.message,'error')}return}
  const print=e.target.closest('button[data-print-plan]');
  if(print){try{renderCutSheet(print.dataset.printPlan);window.print()}catch(error){status(error.message,'error')}return}
  const mod=e.target.closest('button[data-module]');
