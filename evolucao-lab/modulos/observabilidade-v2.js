@@ -38,7 +38,7 @@
    purchases=arr(source,'purchaseOrders'),materials=arr(source,'materials'),
    settlements=arr(source,'settlements'),comps=arr(source,'settlementCompensations'),
    finance=arr(source,'finance'),ledger=arr(source,'stockLedger'),
-   errors=arr(source,'errors'),events=arr(source,'log');
+   errors=arr(source,'errors'),events=arr(source,'log'),batches=arr(source,'paymentBatches');
   const findings=[];
   const push=(code,severity,module,record,message,action,evidence)=>findings.push({
    code,severity,module,recordId:String(record??''),message,action,
@@ -61,6 +61,7 @@
   const orderByProduct=groupBy(orders,x=>x.productId);
   const settlementByFaction=groupBy(settlements,x=>x.factionId);
   const compensationByFaction=groupBy(comps,x=>x.factionId);
+  const findFinance=id=>finance.find(f=>f.id===id);
   const one=(items,sourceId,kind)=>{
    const local=items===finance?(billsBySource.get(sourceId)||[]):items.filter(x=>x.sourceId===sourceId);
    return kind?local.filter(x=>x.kind===kind):local;
@@ -130,6 +131,39 @@
     push('ACERTO_FINANCEIRO','critica','acertos',a.id,
      'Acerto e título a pagar não conciliados (valor ou situação).',
      'Não efetuar nova baixa; comparar acerto, título original e histórico.',a.id);
+  }
+  const batchRefs=new Set(),batchTitleIds=new Set();
+  for(const batch of batches){
+   const reference=normalize(batch.reference);
+   if(!reference||batchRefs.has(reference))
+    push('LOTE_REFERENCIA','critica','hub',batch.id,
+     'Referência do fechamento em lote inválida ou duplicada.',
+     'Localizar o lote anterior pelo ID antes de repetir qualquer baixa.',batch.reference);
+   batchRefs.add(reference);
+   const items=Array.isArray(batch.items)?batch.items:[];
+   let total=0;
+   for(const item of items){
+    const bill=findFinance(item.financeId);
+    const src=item.sourceType==='acerto'?byId(settlements,item.sourceId):
+     item.sourceType==='compensacao'?byId(comps,item.sourceId):null;
+    if(batchTitleIds.has(item.financeId)||!bill||!src||bill.sourceId!==item.sourceId||
+      bill.status!=='pago'||src.status!=='pago'||bill.kind!=='pagar'||
+      bill.amountCents!==item.amountCents||item.factionId!==src.factionId||
+      (item.sourceType==='acerto'&&src.amountCents!==item.amountCents)||
+      (item.sourceType==='compensacao'&&src.deltaCents!==item.amountCents))
+     push('LOTE_VINCULO','critica','hub',batch.id,
+      'Item de lote duplicado ou sem acerto, compensação e título conciliados.',
+      'Não repetir a quitação; conferir cada origem e o título antes de qualquer correção.',
+      item.financeId);
+    batchTitleIds.add(item.financeId);
+    total+=Number(item.amountCents||0);
+   }
+   if(items.length<2||batch.count!==items.length||batch.totalCents!==total||
+      !Number.isSafeInteger(total)||total<=0||batch.status!=='pago')
+    push('LOTE_TOTAL','alta','hub',batch.id,
+     'Valor, situação ou quantidade do lote incompatíveis com seus itens.',
+     'Conferir os títulos originais e os valores detalhados sem apagar lançamentos.',
+     batch.totalCents);
   }
   const refs=new Set();
   for(const c of comps){
@@ -264,6 +298,7 @@
    findings:findings.length,bySeverity,events:events.length,openIncidents:openErrors.length,
    orders:orders.length,settlements:settlements.length,compensations:comps.length,
    titles:finance.length,openTitles:unpaid,stockMovements:ledger.length,
+   paymentBatches:batches.length,batchedPayablesCents:batches.reduce((n,b)=>n+Number(b.totalCents||0),0),
    lastRevision:source.revision,historyExported:history.length,
    coverage:'regras locais parciais; nenhuma garantia de ausência de bugs'
   };
@@ -275,7 +310,10 @@
    status:findings.some(x=>x.severity==='critica')?'investigar_critico':
     findings.length?'investigar':'sem_alertas_nas_regras_cobertas',
    summary,findings,recommendations,history,moduleActivity,repeatedOperations,
-   modelSummary,factionSummary,settlementHistory};
+   modelSummary,factionSummary,settlementHistory,
+   paymentBatchHistory:batches.map(b=>({id:b.id,reference:b.reference,
+    reason:b.reason,count:b.count,totalCents:b.totalCents,status:b.status,
+    items:(b.items||[]).map(i=>({...i}))}))};
  }
  return Object.freeze({id:'observabilidade',version:'2.0.0',analyze});
 });
