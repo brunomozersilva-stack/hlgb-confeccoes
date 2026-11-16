@@ -203,3 +203,86 @@ test('cancelar folha aberta libera reserva sem apagar rastreabilidade ou consumi
  assert.equal(ctx.state.cutPlans[0].cancelledCommandId.startsWith('OP-DEMO'),true);
  assert.equal(core.inspect(ctx.state).ok,true);
 });
+
+
+test('troca de facção antes do retorno registra origem/destino e impede sobrescrever acerto',()=>{
+ const ctx=setup(),orderId=run(ctx,'order.add',{clientId:'CLI-0001',productId:'PRO-0001',grade:graded()});
+ run(ctx,'cut.record',{orderId,size:'P',qty:10});
+ run(ctx,'faction.allocate',{orderId,factionId:'FAC-0001',qty:8});
+ const transfer=run(ctx,'faction.reassign',{orderId,factionId:'FAC-0002',reason:'Entrega redirecionada fictícia'});
+ assert.equal(ctx.state.orders[0].factionId,'FAC-0002');
+ assert.equal(ctx.state.factionTransfers.length,1);
+ assert.equal(ctx.state.factionTransfers[0].id,'TRO-0001');
+ assert.equal(ctx.state.factionTransfers[0].fromFactionId,'FAC-0001');
+ assert.equal(ctx.state.factionTransfers[0].toFactionId,'FAC-0002');
+ assert.match(transfer,/FAC-0001 → FAC-0002/);
+ const acerto=run(ctx,'faction.return',{orderId,qty:5});
+ assert.equal(ctx.state.settlements.find(x=>x.id===acerto).factionId,'FAC-0002');
+ const before=JSON.stringify(ctx.state);
+ assert.throws(()=>core.apply(ctx.state,{type:'faction.reassign',
+  payload:{orderId,factionId:'FAC-0001',reason:'Tentativa indevida'},
+  expectedRevision:ctx.state.revision,commandId:'OP-FAIL-TRANSFER',actor:'Teste'}),/bloqueada após retorno/);
+ assert.equal(JSON.stringify(ctx.state),before,'o histórico e a facção não podem desaparecer');
+});
+test('preço por produto e travetada só alteram retornos futuros, sem recalcular acertos antigos',()=>{
+ const ctx=setup(),orderId=run(ctx,'order.add',{clientId:'CLI-0001',productId:'PRO-0001',grade:graded()});
+ run(ctx,'cut.record',{orderId,size:'P',qty:10});
+ run(ctx,'faction.allocate',{orderId,factionId:'FAC-0002',qty:10});
+ run(ctx,'faction.rate.set',{factionId:'FAC-0002',productId:'PRO-0001',unitCents:700,
+  reason:'Valor específico do modelo'});
+ let id=run(ctx,'faction.return',{orderId,qty:5});
+ assert.equal(ctx.state.settlements.find(x=>x.id===id).unitCents,650);
+ assert.equal(ctx.state.settlements.find(x=>x.id===id).amountCents,3250);
+ run(ctx,'faction.traveta.set',{factionId:'FAC-0002',traveta:true,reason:'Cadastrou travetada'});
+ const second=run(ctx,'faction.return',{orderId,qty:3});
+ assert.equal(ctx.state.settlements.find(x=>x.id===second).unitCents,700);
+ assert.equal(ctx.state.settlements.find(x=>x.id===second).amountCents,2100);
+ assert.equal(ctx.state.settlements.find(x=>x.id===id).amountCents,3250,'retorno anterior congelado');
+ assert.equal(ctx.state.finance.find(x=>x.sourceId===id).amountCents,3250);
+ assert.equal(ctx.state.finance.find(x=>x.sourceId===second).amountCents,2100);
+ assert.equal(core.inspect(ctx.state).ok,true);
+});
+test('embalagem avulsa e desconto por travetada reconciliam acerto-Hub, inclusive após pagamento',()=>{
+ const ctx=setup();
+ const id=run(ctx,'settlement.add',{factionId:'FAC-0001',productId:'PRO-0002',serviceType:'embalagem',
+  qty:100,unitCents:25,travetaCents:5,reason:'Embalagem exemplo com desconto'});
+ const acerto=ctx.state.settlements.find(x=>x.id===id);
+ const conta=ctx.state.finance.find(x=>x.sourceId===id);
+ assert.equal(acerto.kind,'avulso');assert.equal(acerto.serviceType,'embalagem');
+ assert.equal(acerto.unitCents,20);assert.equal(acerto.amountCents,2000);
+ assert.equal(conta.amountCents,2000);assert.equal(conta.status,'aberto');
+ run(ctx,'settlement.adjust',{id,adjustmentCents:100,reason:'Conferência de embalagem'});
+ assert.equal(acerto.amountCents,2000,'a referência antiga da transação é imutável');
+ const current=ctx.state.settlements.find(x=>x.id===id);
+ assert.equal(current.amountCents,2100);
+ assert.equal(current.history.length,1);
+ assert.equal(current.history[0].beforeCents,2000);
+ assert.equal(current.history[0].afterCents,2100);
+ assert.equal(ctx.state.finance.find(x=>x.sourceId===id).amountCents,2100);
+ run(ctx,'finance.pay',{id:ctx.state.finance.find(x=>x.sourceId===id).id});
+ assert.equal(ctx.state.settlements.find(x=>x.id===id).status,'pago');
+ assert.equal(ctx.state.finance.find(x=>x.sourceId===id).status,'pago');
+ const snapshot=JSON.stringify(ctx.state);
+ assert.throws(()=>core.apply(ctx.state,{type:'settlement.adjust',
+  payload:{id,adjustmentCents:300,reason:'Após pagar'},commandId:'OP-PAGO-IMPOSSIVEL',
+  expectedRevision:ctx.state.revision,actor:'CI'}),/Acerto pago/);
+ assert.equal(JSON.stringify(ctx.state),snapshot);
+ assert.equal(core.inspect(ctx.state).ok,true);
+});
+test('validação de avulso e tarifa rejeita erros sem criar pagamentos ou corromper valores',()=>{
+ const ctx=setup();
+ const base={factionId:'FAC-0001',productId:'PRO-0002',serviceType:'embalagem',
+  qty:10,unitCents:25,travetaCents:0,reason:'Serviço de teste'};
+ const mistakes=[
+  {travetaCents:25},{unitCents:0},{qty:0},{serviceType:'pagamento'},{factionId:'FAC-9999'},
+  {reason:''}
+ ];
+ for(const [i,part] of mistakes.entries()){
+  assert.throws(()=>core.apply(ctx.state,{type:'settlement.add',payload:{...base,...part},
+   commandId:'OP-INVALIDO-'+i,actor:'CI',expectedRevision:ctx.state.revision}));
+  assert.equal(ctx.state.settlements.length,0);
+  assert.equal(ctx.state.finance.length,0);
+  assert.equal(ctx.state.revision,1);
+ }
+ assert.equal(core.inspect(ctx.state).ok,true);
+});
