@@ -436,7 +436,67 @@ function exportCsv(){
  ...doc.purchaseOrders.map(x=>['Compra',x.id,ref(doc.materials,x.materialId)?.name||'',x.received?'Recebido':'Pendente',x.qtyGrams])];
  download('HLGB-EVOLUCAO-OPERACAO-INTEGRADA-FICTICIA.csv','\uFEFF'+rows.map(r=>r.map(safeCell).join(';')).join('\r\n'),'text/csv;charset=utf-8');
 }
+function renderCutSheet(planId){
+ const plan=(doc.cutPlans||[]).find(p=>p.id===planId);
+ if(!plan)throw Error('Folha não localizada nesta revisão.');
+ const order=doc.orders.find(o=>o.id===plan.orderId);
+ const product=doc.products.find(p=>p.id===order?.productId);
+ const material=doc.materials.find(m=>m.id===plan.materialId);
+ const client=doc.clients.find(c=>c.id===order?.clientId);
+ const grades=api.sizes.map(sz=>'<tr><td>'+escape(sz)+'</td><td>'+plan.grade[sz]+'</td></tr>').join('');
+ const status=plan.status==='concluido'?'Concluído e auditado':
+  plan.status==='cancelado'?'Cancelado — não utilizar':'Aberto — ainda sem baixa';
+ const box=$('cut-print');
+ box.innerHTML='<h1>HLGB Evolução · Folha de Corte FICTÍCIA</h1>'+
+  '<p><strong>Folha:</strong> '+escape(plan.id)+' · <strong>Pedido:</strong> '+escape(plan.orderId)+
+  ' · <strong>Competência de teste:</strong> '+escape(doc.period)+'</p>'+
+  '<p><strong>Cliente:</strong> '+escape(client?.name||'')+' · <strong>Modelo:</strong> '+escape(product?.name||'')+
+  ' · <strong>SKU:</strong> '+escape(product?.sku||'')+'</p>'+
+  '<p><strong>Material:</strong> '+escape(material?.name||'')+
+  ' · <strong>Execução:</strong> '+(plan.workMode==='interno'?'Interna':'Externa')+
+  ' · <strong>Estado:</strong> '+status+'</p>'+
+  '<h2>Grade deste lote</h2><table><thead><tr><th>Tamanho</th><th>Peças</th></tr></thead><tbody>'+grades+
+  '<tr><th>Total de peças</th><th>'+sum(plan.grade)+'</th></tr></tbody></table>'+
+  '<h2>Pesos conferidos</h2><table><tbody><tr><td>Peso útil teórico</td><td>'+plan.theoreticalGrams+' g</td></tr>'+
+  '<tr><td>Peso útil confirmado</td><td>'+(plan.usefulGrams??'Não concluído')+' g</td></tr>'+
+  '<tr><td>Desperdício / lixo</td><td>'+(plan.scrapGrams??'Não concluído')+' g</td></tr>'+
+  '<tr><td>Peso total debitado do estoque</td><td>'+(
+   plan.status==='concluido'?plan.usefulGrams+plan.scrapGrams+' g':'Ainda sem baixa')+
+  '</td></tr></tbody></table>'+
+  '<p><strong>Cortador 1:</strong> '+escape(plan.cutterOne)+'</p>'+
+  '<p><strong>Cortador 2:</strong> '+escape(plan.cutterTwo)+'</p>'+
+  '<p><strong>Enfestador:</strong> '+escape(plan.spreader)+'</p>'+
+  '<div class="signature"><div>Conferência digitada 1: '+escape(plan.signatureOne||'Pendente')+
+  '</div><div>Conferência digitada 2: '+escape(plan.signatureTwo||'Pendente')+'</div></div>'+
+  '<p class="print-note">DOCUMENTO DEMONSTRATIVO — não é ordem de produção válida, assinatura eletrônica legal, ou comprovante de estoque. Não contém dados da empresa.</p>';
+ return box.textContent;
+}
+document.addEventListener('change',event=>{
+ const form=event.target.closest('form[data-command]');
+ if(!form)return;
+ const type=form.dataset.command;
+ const selected=event.target.name;
+ if(type==='order.grade.update'&&selected==='orderId'){
+  const order=doc.orders.find(o=>o.id===event.target.value);if(!order)return;
+  for(const sz of api.sizes)form.elements.namedItem(sz).value=order.grade[sz];
+ }
+ if(type==='cut.plan.update'&&selected==='id'){
+  const plan=(doc.cutPlans||[]).find(p=>p.id===event.target.value);if(!plan)return;
+  for(const sz of api.sizes)form.elements.namedItem(sz).value=plan.grade[sz];
+  for(const key of ['workMode','cutterOne','cutterTwo','spreader'])
+   form.elements.namedItem(key).value=plan[key];
+ }
+ if(type==='cut.plan.complete'&&selected==='id'){
+  const plan=(doc.cutPlans||[]).find(p=>p.id===event.target.value);if(!plan)return;
+  form.elements.namedItem('usefulGrams').value=plan.theoreticalGrams;
+  form.elements.namedItem('scrapGrams').value=0;
+  form.elements.namedItem('signatureOne').value='';
+  form.elements.namedItem('signatureTwo').value='';
+ }
+});
 document.addEventListener('click',e=>{
+ const print=e.target.closest('button[data-print-plan]');
+ if(print){try{renderCutSheet(print.dataset.printPlan);window.print()}catch(error){status(error.message,'error')}return}
  const mod=e.target.closest('button[data-module]');
  if(mod){active=mod.dataset.module;draw();window.scrollTo(0,0);return}
  const goto=e.target.closest('button[data-goto]');
