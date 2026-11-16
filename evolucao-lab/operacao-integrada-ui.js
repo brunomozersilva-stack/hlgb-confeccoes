@@ -179,23 +179,96 @@ function moduleHtml(s){
  panel('Validação da etapa','<p>Separação só pode usar quantidade já retornada. O despacho não pode ser maior que a separação registrada. Cada ação gera evento local.</p>')+
  panel('Saldo a separar e expedir',table(['Pedido','Retornado','Separado','Despachado'],s.orders.map(x=>[
  str(x.id),str(x.returned),str(x.separated),str(x.shipped)])),true);
- case 'faccoes':return panel('Cadastro e produção externa',
- form('faction.add','Cadastrar facção',[field('name','Nome fictício'),field('unitCents','Valor por peça (R$)','money','6,00'),
- field('traveta','Traveta a peça','select','',[['true','Sim'],['false','Não']])],'Cadastrar facção')+
- form('faction.allocate','Enviar peças cortadas',[field('orderId','Pedido','select','',o),
- field('factionId','Facção','select','',factions),field('qty','Quantidade a enviar','int','5')],'Alocar à facção')+
- form('faction.return','Registrar retorno parcial',[field('orderId','Pedido','select','',o),
- field('qty','Quantidade devolvida','int','3')],'Confirmar retorno'))+
- panel('Facções e travetada',table(['Facção','Preço/peça','Traveta'],s.factions.map(x=>[
- str(x.name),fmt(x.unitCents),x.traveta?'Sim':'Não']))+
- '<p class="caption">Quando a facção não traveta, a simulação desconta R$ 0,50 por peça (limitado ao preço unitário). O valor real ainda precisa ser homologado.</p>')+
- panel('Transferências e retornos',orderTable(s),true);
- case 'acertos':return panel('Acertos gerados por retornos',
- form('settlement.adjust','Ajustar acerto aberto',[field('id','Acerto','select','',settlements),
- field('adjustmentCents','Acréscimo/abatimento (R$)','signed-money','0,00')],'Recalcular acerto')+
- '<p>Ao registrar retorno de facção, cria-se um acerto e título a pagar, usando o valor cadastrado e a simulação de travetada.</p>')+
- panel('Histórico de acertos',table(['Acerto','Pedido','Facção','Quantidade','Ajuste','Valor'],s.settlements.map(x=>[
- str(x.id),str(x.orderId),str(ref(s.factions,x.factionId)?.name),str(x.qty),fmt(x.adjustmentCents),fmt(x.amountCents)])),true);
+ case 'faccoes':{
+ const pendingTransfer=selector(s.orders.filter(x=>x.allocated>0&&x.returned===0),
+  x=>x.id+' · '+(ref(s.factions,x.factionId)?.name||'—')+' · '+x.allocated+' peças');
+ return panel('Cadastro e regras por facção',
+ form('faction.add','Cadastrar facção fictícia',[
+  field('name','Nome da facção'),field('unitCents','Preço padrão por peça (R$)','money','6,00'),
+  field('traveta','Faz travetada?','select','',[['true','Sim'],['false','Não']])
+ ],'Cadastrar facção')+
+ form('faction.rate.set','Definir preço específico por modelo',[
+  field('factionId','Facção','select','',factions),
+  field('productId','Modelo','select','',products),
+  field('unitCents','Preço bruto por peça (R$)','money','6,00'),
+  field('reason','Motivo da alteração','text','Preço específico fictício')
+ ],'Salvar preço para próximos retornos')+
+ form('faction.traveta.set','Alterar regra de travetada',[
+  field('factionId','Facção','select','',factions),
+  field('traveta','Faz travetada?','select','',[['true','Sim'],['false','Não']]),
+  field('reason','Motivo','text','Nova regra para retornos futuros')
+ ],'Salvar regra futura')+
+ '<p>Preços e travetada alterados só valem para novos retornos. Acertos existentes mantêm os valores que tinham quando foram criados.</p>')+
+ panel('Envio, troca controlada e retorno',
+ form('faction.allocate','Enviar peças cortadas',[
+  field('orderId','Pedido','select','',o),field('factionId','Facção','select','',factions),
+  field('qty','Quantidade a enviar','int','5')
+ ],'Enviar peças')+
+ form('faction.reassign','Transferir antes do primeiro retorno',[
+  field('orderId','Pedido já enviado, sem retorno','select','',pendingTransfer),
+  field('factionId','Nova facção','select','',factions),
+  field('reason','Motivo obrigatório','text','Troca de facção no teste')
+ ],'Registrar transferência com histórico')+
+ form('faction.return','Registrar retorno parcial',[
+  field('orderId','Pedido','select','',o),field('qty','Quantidade devolvida','int','3')
+ ],'Confirmar retorno e gerar acerto')+
+ '<p>A troca fica bloqueada se já existir retorno/acerto. Ela é um exemplo de transferência total antes do primeiro retorno, não uma redistribuição avançada entre várias facções.</p>')+
+ panel('Lista de facções e preços',
+ '<div class="field"><label for="faction-search">Buscar facção</label>'+
+ '<input id="faction-search" class="input" data-filter-for="faction-table" type="search" placeholder="Nome, modelo, preço..."></div>'+
+ '<div id="faction-table">'+table(['Facção','Preço padrão','Travetada','Preços por modelo'],s.factions.map(x=>[
+  str(x.name),fmt(x.unitCents),x.traveta?'Sim':'Não',
+  Object.entries(x.productRates||{}).map(([productId,cents])=>
+    str(ref(s.products,productId)?.name||productId)+': '+fmt(cents)).join(' · ')||'Padrão'
+ ]))+'</div>'+
+ '<p class="caption">A prévia usa, quando aplicável, um desconto ilustrativo de R$ 0,50/peça para facções que não travetam. Configure preço específico e confira o valor líquido no acerto. Não representa a tabela oficial.</p>')+
+ panel('Pedidos, transferências e rastreabilidade',
+ orderTable(s)+
+ '<h3>Trocas registradas</h3>'+
+ table(['ID','Pedido','De','Para','Peças','Motivo'],(s.factionTransfers||[]).map(x=>[
+ str(x.id),str(x.orderId),str(ref(s.factions,x.fromFactionId)?.name),
+ str(ref(s.factions,x.toFactionId)?.name),str(x.qty),str(x.reason)
+ ])),true);
+ }
+ case 'acertos':{
+ const open=selector(s.settlements.filter(x=>x.status==='aberto'),
+  x=>x.id+' · '+fmt(x.amountCents)+' · '+(ref(s.factions,x.factionId)?.name||'—'));
+ return panel('Serviços avulsos e embalagem',
+ form('settlement.add','Novo acerto avulso fictício',[
+  field('serviceType','Tipo de serviço','select','',[['costura','Costura avulsa'],['embalagem','Embalagem']]),
+  field('factionId','Facção / embaladeira','select','',factions),
+  field('productId','Modelo','select','',products),
+  field('qty','Quantidade','int','20'),
+  field('unitCents','Preço por peça (R$)','money','0,25'),
+  field('travetaCents','Desconto de travetada por peça (R$)','money','0,00'),
+  field('reason','Descrição / justificativa','text','Embalagem fictícia')
+ ],'Gerar acerto e título a pagar')+
+ '<p>O tipo <strong>Embalagem</strong> usa valor por peça independente da mão de obra de costura. As sugestões de R$ 0,25 para camisola/doll e R$ 0,15 para calcinha são exemplos editáveis, não preços confirmados da empresa.</p>')+
+ panel('Ajustar apenas acerto em aberto',
+ form('settlement.adjust','Abatimento ou acréscimo rastreado',[
+  field('id','Acerto ainda não pago','select','',open),
+  field('adjustmentCents','Ajuste total (R$), aceita negativo','signed-money','0,00'),
+  field('reason','Motivo','text','Conferência do valor fictício')
+ ],'Salvar ajuste e reconciliar Hub')+
+ '<p>Se o título vinculado já estiver quitado, não é permitido alterar o pagamento original. A correção pós-pagamento exigirá uma rotina separada de compensação.</p>')+
+ panel('Pesquisar acertos e histórico',
+ '<div class="field"><label for="settlement-search">Pesquisar acerto, facção ou serviço</label>'+
+ '<input id="settlement-search" class="input" type="search" data-filter-for="settlement-table" placeholder="Filtrar toda a lista local"></div>'+
+ '<div id="settlement-table">'+table(
+ ['Acerto','Facção / serviço','Modelo','Peças','Bruto/peça','Travetada/peça','Ajuste total','Total','Situação'],
+ s.settlements.map(x=>[
+  str(x.id)+'<div class="caption">'+str(x.orderId||'Avulso')+'</div>',
+  str(ref(s.factions,x.factionId)?.name)+'<div class="caption">'+str(x.serviceType||'costura')+'</div>',
+  str(ref(s.products,x.productId)?.name||ref(s.products,ref(s.orders,x.orderId)?.productId)?.name||'—'),
+  str(x.qty),fmt(x.listUnitCents??x.unitCents),fmt(x.travetaCents||0),
+  fmt(x.adjustmentCents),fmt(x.amountCents),
+  '<span class="chip '+(x.status==='aberto'?'wait':'')+'">'+str(x.status)+'</span>'
+ ]))+'</div>'+
+ '<h3>Alterações de valores</h3>'+
+ table(['Acerto','Evento','Antes','Depois','Motivo'],s.settlements.flatMap(x=>
+  (x.history||[]).map(e=>[str(x.id),str(e.commandId),fmt(e.beforeCents),fmt(e.afterCents),str(e.reason)])
+  )),true);
+ }
  case 'hub':return panel('Lançamento do Hub fictício',
  form('finance.add','Novo título',[field('description','Descrição'),field('kind','Tipo','select','',[['pagar','Pagar'],['receber','Receber']]),
  field('amountCents','Valor em R$','money','100,00')],'Cadastrar título')+
@@ -471,11 +544,37 @@ function renderCutSheet(planId){
   '<p class="print-note">DOCUMENTO DEMONSTRATIVO — não é ordem de produção válida, assinatura eletrônica legal, ou comprovante de estoque. Não contém dados da empresa.</p>';
  return box.textContent;
 }
+function suggestServicePrice(form){
+ const service=form.elements.namedItem('serviceType')?.value;
+ const price=form.elements.namedItem('unitCents');
+ if(!price)return;
+ const productId=form.elements.namedItem('productId')?.value;
+ const product=doc.products.find(p=>p.id===productId);
+ if(service==='embalagem'){
+  const n=(product?.name||'').toLocaleLowerCase('pt-BR');
+  price.value=n.includes('calcinha')?'0,15':'0,25';
+ }else{
+  const fac=doc.factions.find(f=>f.id===form.elements.namedItem('factionId')?.value);
+  price.value=nr(fac?.productRates?.[productId]??fac?.unitCents??0);
+ }
+}
+document.addEventListener('input',event=>{
+ const filter=event.target.closest('input[data-filter-for]');
+ if(!filter)return;
+ const target=$(filter.dataset.filterFor);
+ if(!target)return;
+ const term=filter.value.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLocaleLowerCase('pt-BR');
+ for(const row of target.querySelectorAll('tbody tr')){
+  const text=row.textContent.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLocaleLowerCase('pt-BR');
+  row.hidden=!text.includes(term);
+ }
+});
 document.addEventListener('change',event=>{
  const form=event.target.closest('form[data-command]');
  if(!form)return;
  const type=form.dataset.command;
  const selected=event.target.name;
+ if(type==='settlement.add'&&['serviceType','productId','factionId'].includes(selected))suggestServicePrice(form);
  if(type==='order.grade.update'&&selected==='orderId'){
   const order=doc.orders.find(o=>o.id===event.target.value);if(!order)return;
   for(const sz of api.sizes)form.elements.namedItem(sz).value=order.grade[sz];
