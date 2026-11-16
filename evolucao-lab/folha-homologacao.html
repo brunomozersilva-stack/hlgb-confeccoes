@@ -1,0 +1,443 @@
+<!doctype html>
+<html lang="pt-BR">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>HLGB Evolução — Folha e provisões (homologação fictícia)</title>
+<style>
+:root{font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:#30243b;background:#f8f6fa;--purple:#603b82;--line:#e3dce9;--muted:#675c73;--bg:#f4edf9}
+*{box-sizing:border-box}body{margin:0}button,input,select{font:inherit;color:inherit}button{cursor:pointer}button:disabled{opacity:.5;cursor:not-allowed}a{color:inherit}
+:focus-visible{outline:3px solid #bb92df;outline-offset:3px}
+header{padding:25px max(16px,calc((100% - 1150px)/2));background:linear-gradient(115deg,#302040,#634580);color:#fff}
+header a{font-size:12px;color:#e7d8f1}header h1{font-size:clamp(25px,4vw,34px);margin:9px 0 6px;line-height:1.2}
+header p{color:#ebdef4;font-size:13px;line-height:1.6;max-width:750px;margin:0}
+main{max-width:1180px;margin:auto;padding:16px 14px 60px}
+.warning{background:#fff8e8;border:1px solid #e7c98b;border-radius:12px;padding:13px 16px;font-size:13px;color:#70501f;line-height:1.55}
+.metrics{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:9px;margin:15px 0}
+.metric{border:1px solid var(--line);border-radius:12px;padding:14px;background:#fff;min-width:0}
+.metric span{display:block;font-size:11px;color:var(--muted)}.metric strong{display:block;font-size:clamp(18px,2.6vw,28px);margin-top:6px;overflow-wrap:anywhere}
+.columns{display:grid;grid-template-columns:minmax(0,1.5fr) minmax(290px,1fr);gap:12px;align-items:start}
+.panel{background:#fff;border:1px solid var(--line);border-radius:13px;padding:17px;min-width:0;margin-bottom:13px}
+.panel h2{font-size:20px;margin:0 0 5px}.panel h3{font-size:15px;margin:15px 0 7px}
+.panel p{font-size:12px;line-height:1.55;color:var(--muted);margin:4px 0 12px}
+.controls{display:grid;grid-template-columns:minmax(0,1.4fr) minmax(110px,.8fr) minmax(120px,1fr);gap:9px;margin:12px 0}
+.field{display:grid;gap:5px;min-width:0}.field label{font-weight:750;font-size:12px}
+.input{border:1px solid #c6b8d3;border-radius:9px;min-height:43px;padding:10px 11px;background:#fff;width:100%;min-width:0}
+.actions{display:flex;flex-wrap:wrap;gap:8px;margin:13px 0}.actions button{flex:1 1 140px}
+.button{border:1px solid #c1abd3;color:var(--purple);background:#fff;border-radius:9px;min-height:43px;padding:10px 12px;font-size:12px;font-weight:800}
+.button.primary{background:var(--purple);color:white;border-color:var(--purple)}
+.button.danger{color:#91415b;border-color:#dbb1c0}
+.table-wrap{overflow:auto;border:1px solid var(--line);border-radius:9px}
+table{border-collapse:collapse;width:100%;min-width:650px;font-size:12px}th,td{padding:9px 8px;border-bottom:1px solid #eee8f1;text-align:left;vertical-align:middle}
+th{background:#faf8fc;font-size:11px;color:#6b5876}tbody tr:last-child td{border-bottom:0}.num{text-align:right;white-space:nowrap;font-variant-numeric:tabular-nums}
+td .button{min-height:33px;padding:6px 10px}.mobile-cards{display:none}
+.emp-card{border:1px solid var(--line);border-radius:11px;padding:12px;margin:9px 0}.emp-card .row{display:flex;align-items:center;justify-content:space-between;gap:9px;flex-wrap:wrap}.emp-card h3{margin:0 0 5px;font-size:14px}
+.emp-card .small{font-size:11px;color:var(--muted)}.emp-card .values{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:9px 0}.emp-card .values>div{background:#f8f4fb;padding:9px;border-radius:8px;font-size:11px;color:var(--muted)}
+.emp-card .values strong{display:block;font-size:13px;color:#392845;margin-top:3px}
+.form-fields{display:grid;grid-template-columns:1fr 1fr;gap:10px}.form-fields .field{min-width:0}
+.hint{font-size:11px!important;color:var(--muted)!important;line-height:1.6!important}
+.tag{border-radius:999px;font-size:11px;padding:4px 8px;background:#f1eafb;color:#603b82;display:inline-block;font-weight:800}
+.message{border-radius:10px;padding:11px;font-size:12px;line-height:1.6;background:#f3eff7;color:#563e67;margin:13px 0;overflow-wrap:anywhere}
+.message.ok{background:#e7f4eb;color:#256340}.message.warn{background:#fff0da;color:#81571d}.message.error{background:#ffeded;color:#9b324a}
+.audit{display:grid;gap:7px;max-height:300px;overflow:auto}.audit div{border:1px solid var(--line);border-radius:8px;padding:10px;font-size:11px;line-height:1.6}
+.summary{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}.summary div{padding:10px;background:#f8f4fb;border-radius:9px;font-size:11px;color:var(--muted)}
+.summary strong{display:block;font-size:14px;color:#342242;margin-top:5px}
+.empty{padding:17px;background:#faf9fb;border-radius:9px;font-size:12px;color:var(--muted)}
+@media(max-width:920px){.columns{grid-template-columns:1fr}.metric{padding:11px}}
+@media(max-width:710px){.table-wrap{display:none}.mobile-cards{display:block}.metrics{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:490px){main{padding:10px 9px 45px}.panel{padding:13px}.controls,.form-fields{grid-template-columns:1fr}.summary{grid-template-columns:1fr}.metric strong{font-size:20px}}
+</style></head>
+<body>
+<header><a href="./entrada.html">← Voltar à central de testes</a>
+<h1>Folha de Pagamentos e Provisões 2.0</h1>
+<p>Experimente editar a passagem de cada funcionário, conferir as somas, ordenar a folha, salvar com prova de releitura e recuperar os dados fictícios após atualizar a página.</p></header>
+<main>
+<div class="warning"><strong>Somente demonstração.</strong> Os cinco funcionários, os valores e a competência são totalmente fictícios. O salvamento é feito no IndexedDB deste navegador, sem conexão com o Supabase. O simulador não calcula impostos, descontos legais, FGTS, INSS ou direitos trabalhistas, e não substitui uma folha contábil.</div>
+<div class="metrics" aria-label="Resumo da folha fictícia">
+<div class="metric"><span>Funcionários na simulação</span><strong id="metric-people">5</strong></div>
+<div class="metric"><span>Salários líquidos simulados</span><strong id="metric-net">R$ 0,00</strong></div>
+<div class="metric"><span>Passagens individuais somadas</span><strong id="metric-passage">R$ 0,00</strong></div>
+<div class="metric"><span>Desembolso + provisões fictícias</span><strong id="metric-cost">R$ 0,00</strong></div>
+</div>
+<div class="columns">
+<section class="panel">
+<h2>Folha · Novembro de 2026</h2>
+<p>Pesquise por funcionário e alterne entre ordenação alfabética e agrupamento por confecção. Os lançamentos não mudam de ordem ao salvar.</p>
+<div class="controls">
+<div class="field"><label for="search">Buscar funcionário</label><input id="search" class="input" type="search" placeholder="Pesquisar nome ou código"></div>
+<div class="field"><label for="sector-filter">Confecção</label><select id="sector-filter" class="input"><option value="all">Todas</option><option>Interna</option><option>Externa</option><option>Administrativo</option></select></div>
+<div class="field"><label for="order">Ordenar</label><select id="order" class="input"><option value="alpha">Nome alfabético</option><option value="sector">Por confecção</option></select></div>
+</div>
+<div class="table-wrap"><table><thead><tr><th>Funcionário</th><th>Confecção</th><th class="num">Líquido</th><th class="num">Passagem</th><th class="num">Desembolso</th><th>Ação</th></tr></thead><tbody id="employee-rows"></tbody></table></div>
+<div id="employee-cards" class="mobile-cards"></div>
+<div id="list-empty" class="empty" hidden>Nenhum funcionário corresponde à pesquisa.</div>
+<div class="actions">
+<button id="export-json" type="button" class="button">↓ Baixar relatório JSON</button>
+<button id="export-csv" type="button" class="button">↓ Baixar resumo CSV</button>
+<button id="reset" type="button" class="button danger">↺ Restaurar exemplo fictício</button>
+</div>
+<p class="hint">O navegador guarda esta demonstração localmente; outra máquina ou navegador não verá suas alterações. A exportação é apenas um arquivo de exemplo, não um pagamento.</p>
+</section>
+<div>
+<section class="panel">
+<h2>Editar por funcionário</h2>
+<p>Selecione <strong>Editar</strong> na lista para abrir uma pessoa. A passagem é independente e entra na soma do custo, sem alterar o salário líquido.</p>
+<div id="person-heading" class="tag">Selecione um funcionário</div>
+<form id="employee-form" novalidate>
+<div class="form-fields" style="margin-top:13px">
+<div class="field"><label for="salary">Salário-base (R$)</label><input class="input" id="salary" inputmode="decimal" autocomplete="off"></div>
+<div class="field"><label for="passage">Passagem individual (R$)</label><input class="input" id="passage" inputmode="decimal" autocomplete="off"></div>
+<div class="field"><label for="extras">Extras fictícios (R$)</label><input class="input" id="extras" inputmode="decimal" autocomplete="off"></div>
+<div class="field"><label for="discounts">Descontos fictícios (R$)</label><input class="input" id="discounts" inputmode="decimal" autocomplete="off"></div>
+</div>
+<div class="summary" style="margin-top:10px">
+<div>Líquido calculado<strong id="preview-net">—</strong></div>
+<div>Passagem<strong id="preview-passage">—</strong></div>
+<div>Desembolso<strong id="preview-cash">—</strong></div>
+</div>
+<p class="hint">O valor da passagem integra o total do desembolso do empregador, não o salário líquido. O comportamento definitivo depende das regras da folha real.</p>
+<div class="actions">
+<button id="save" type="submit" class="button primary">Salvar e conferir</button>
+<button id="reconcile" type="button" class="button">Conferir última gravação</button>
+<button id="review" type="button" class="button">Reavaliar conflito</button>
+<button id="refresh" type="button" class="button">Recarregar dados salvos</button>
+</div>
+</form>
+<div class="field"><label for="failure">Cenário de teste</label><select class="input" id="failure"><option value="none">Salvamento normal</option><option value="lost-readback">Simular leitura da confirmação indisponível</option></select></div>
+<div id="save-status" class="message" role="status" aria-live="polite">Preparando o banco fictício deste navegador.</div>
+<p id="revision-label" class="hint">Revisão: —</p>
+</section>
+<section class="panel">
+<h2>Provisões e auditoria</h2><p>As provisões são percentuais ilustrativos sobre o salário-base. Não representam cálculo legal da folha.</p>
+<div class="summary" id="provision-summary"></div>
+<h3>Últimas alterações gravadas</h3><div id="audit" class="audit"></div>
+</section>
+</div>
+</div>
+</main>
+<script>
+(function(){
+'use strict';
+const $=id=>document.getElementById(id);
+const DB_NAME='HLGB_EVOLUCAO_FOLHA_DEMO_V1';
+const KEY='folha_ficticia';
+const fmt=n=>(n/100).toLocaleString('pt-BR',{style:'currency',currency:'BRL'});
+const raw=n=>(n/100).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});
+const clone=v=>JSON.parse(JSON.stringify(v));
+const numericFields=['salary','passage','extras','discounts'];
+const employees=[
+ {id:'FIC-001',name:'Ana Exemplo',sector:'Interna',salary:200000,passage:12000,extras:10000,discounts:4000},
+ {id:'FIC-002',name:'Bianca Teste',sector:'Externa',salary:180000,passage:8000,extras:0,discounts:5000},
+ {id:'FIC-003',name:'Carlos Simulado',sector:'Interna',salary:160000,passage:15000,extras:20000,discounts:0},
+ {id:'FIC-004',name:'Daniela Modelo',sector:'Administrativo',salary:220000,passage:0,extras:0,discounts:8000},
+ {id:'FIC-005',name:'Evelyn Exemplo',sector:'Externa',salary:250000,passage:20000,extras:15000,discounts:10000}
+];
+const initial=()=>({id:KEY,schema:'hlgb-evolucao-folha-ficticia-v1',revision:1,period:'2026-11',
+ employees:clone(employees),history:[],productionApproval:false,environment:'browser-only-demo'});
+const net=e=>e.salary+e.extras-e.discounts;
+const cash=e=>net(e)+e.passage;
+const provision=e=>Math.round(e.salary/12)+Math.round(e.salary/9);
+const totals=rows=>rows.reduce((a,e)=>{
+ a.net+=net(e);a.passage+=e.passage;a.cash+=cash(e);a.provision+=provision(e);return a
+},{net:0,passage:0,cash:0,provision:0});
+const inputCents=text=>{
+ const s=String(text).trim();
+ if(!/^(?:0|[1-9]\d*|[1-9]\d{0,2}(?:\.\d{3})+)(?:,\d{1,2})?$/.test(s))
+  throw Error('Informe um valor em reais, como 120,00, sem R$.');
+ const pieces=s.split(',');
+ const i=Number(pieces[0].replace(/\./g,'')),fraction=Number((pieces[1]||'').padEnd(2,'0')||0);
+ const val=i*100+fraction;
+ if(!Number.isSafeInteger(val)||val<0||val>10000000)throw Error('Valor fora do limite fictício de R$ 100.000,00.');
+ return val;
+};
+function check(e){
+ if(!e||typeof e!=='object'||!/^FIC-00[1-5]$/.test(e.id)||typeof e.name!=='string'||typeof e.sector!=='string')throw Error('Identidade fictícia inválida.');
+ for(const k of numericFields)if(!Number.isSafeInteger(e[k])||e[k]<0||e[k]>10000000)throw Error('Campo '+k+' inválido.');
+ if(e.salary<100)throw Error('Salário fictício precisa ser positivo.');
+ if(e.discounts>e.salary+e.extras)throw Error('Descontos superiores aos valores previstos.');
+ if(!Number.isSafeInteger(net(e))||!Number.isSafeInteger(cash(e)))throw Error('Soma fictícia inválida.');
+ return true;
+}
+function validate(doc){
+ if(!doc||doc.schema!=='hlgb-evolucao-folha-ficticia-v1'||doc.productionApproval!==false||
+  !Number.isSafeInteger(doc.revision)||doc.revision<1||doc.employees?.length!==5||
+  !Array.isArray(doc.history)||doc.history.length>500||new Set(doc.employees.map(e=>e.id)).size!==5)
+  throw Error('Arquivo local inconsistente. Não sobrescreva sem conferir o relatório.');
+ doc.employees.forEach(check);return doc;
+}
+function problem(message,code){const e=Error(message);e.code=code;return e}
+let db,doc,selectedId='FIC-001',pending=null,conflict=false,busy=false,failed=false;
+function status(text,type=''){const el=$('save-status');el.className='message'+(type?' '+type:'');el.textContent=text}
+function openDb(){
+ return new Promise((resolve,reject)=>{
+  if(!('indexedDB' in window)){reject(Error('IndexedDB indisponível neste navegador.'));return}
+  const request=indexedDB.open(DB_NAME,1);
+  request.onupgradeneeded=()=>{const d=request.result;if(!d.objectStoreNames.contains('docs'))d.createObjectStore('docs',{keyPath:'id'})};
+  request.onerror=()=>reject(request.error||Error('IndexedDB indisponível.'));
+  request.onblocked=()=>reject(Error('Banco local bloqueado por outra aba.'));
+  request.onsuccess=()=>resolve(request.result);
+ });
+}
+function getSaved(){
+ return new Promise((resolve,reject)=>{
+  const tx=db.transaction('docs','readonly'),request=tx.objectStore('docs').get(KEY);
+  request.onerror=()=>reject(request.error);request.onsuccess=()=>{
+   try{resolve(validate(request.result))}catch(e){reject(e)}
+  };
+ });
+}
+function transaction(mutator){
+ return new Promise((resolve,reject)=>{
+  const tx=db.transaction('docs','readwrite');
+  let fail,stored;
+  const req=tx.objectStore('docs').get(KEY);
+  req.onsuccess=()=>{
+   try{
+    const current=req.result;
+    const updated=mutator(current?validate(current):null);
+    if(updated){stored=updated;tx.objectStore('docs').put(updated)}
+   }catch(e){fail=e;tx.abort()}
+  };
+  req.onerror=()=>{fail=req.error};
+  tx.oncomplete=()=>resolve(stored);
+  tx.onabort=()=>reject(fail||tx.error||Error('Gravação cancelada.'));
+  tx.onerror=()=>{if(!fail)fail=tx.error};
+ });
+}
+function editable(e){return numericFields.reduce((p,k)=>(p[k]=e[k],p),{})}
+function formValues(){
+ const copy={id:selectedId,name:'Fictício',sector:'Interna'};
+ for(const field of numericFields)copy[field]=inputCents($(field).value);
+ check(copy);return editable(copy);
+}
+function same(a,b){return numericFields.every(k=>a[k]===b[k])}
+function employee(id){return doc?.employees.find(e=>e.id===id)}
+function currentDirty(){
+ try{return employee(selectedId)&&!same(formValues(),employee(selectedId))}
+ catch{return true}
+}
+function fill(id){
+ selectedId=id;
+ const person=employee(id);if(!person)return;
+ $('person-heading').textContent=person.name+' · '+person.id+' · '+person.sector;
+ for(const key of numericFields)$(key).value=raw(person[key]);
+ preview();controls();
+}
+function preview(){
+ try{
+  const values={...employee(selectedId),...formValues()};
+  $('preview-net').textContent=fmt(net(values));
+  $('preview-passage').textContent=fmt(values.passage);
+  $('preview-cash').textContent=fmt(cash(values));
+ }catch{
+  for(const key of ['preview-net','preview-passage','preview-cash'])$(key).textContent='Verifique os valores';
+ }
+}
+function sortPeople(list){
+ const mode=$('order').value;
+ return [...list].sort((a,b)=>mode==='sector'?
+  a.sector.localeCompare(b.sector,'pt-BR')||a.name.localeCompare(b.name,'pt-BR'):
+  a.name.localeCompare(b.name,'pt-BR'));
+}
+function make(tag,cls,text){
+ const n=document.createElement(tag);
+ if(cls)n.className=cls;if(text!==undefined)n.textContent=String(text);return n;
+}
+function controls(){
+ $('save').disabled=busy||!!pending||conflict||failed||!doc;
+ $('reconcile').disabled=busy||!pending;
+ $('review').disabled=busy||!conflict;
+ $('refresh').disabled=busy||!!pending||conflict||failed;
+ $('revision-label').textContent='Revisão local: '+(doc?.revision||'—')+' · '+(pending?'Verificação de gravação pendente':conflict?'Conflito precisa de revisão':failed?'Erro de acesso ao IndexedDB':'dados fictícios');
+}
+function render(){
+ if(!doc)return;
+ const sums=totals(doc.employees);
+ $('metric-people').textContent=String(doc.employees.length);
+ $('metric-net').textContent=fmt(sums.net);
+ $('metric-passage').textContent=fmt(sums.passage);
+ $('metric-cost').textContent=fmt(sums.cash+sums.provision);
+ const rows=$('employee-rows'),cards=$('employee-cards');
+ rows.replaceChildren();cards.replaceChildren();
+ const query=$('search').value.trim().normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();
+ const list=sortPeople(doc.employees.filter(e=>($('sector-filter').value==='all'||e.sector===$('sector-filter').value)&&
+  (e.name.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().includes(query)||e.id.toLowerCase().includes(query))));
+ $('list-empty').hidden=list.length>0;
+ for(const e of list){
+  const tr=make('tr'),cell=(txt,cls='')=>make('td',cls,txt);
+  const name=make('td');name.append(make('strong','',e.name),make('div','hint',e.id));
+  const button=make('button','button','Editar');button.type='button';button.dataset.employee=e.id;
+  const action=make('td');action.append(button);
+  tr.append(name,cell(e.sector),cell(fmt(net(e)),'num'),cell(fmt(e.passage),'num'),cell(fmt(cash(e)),'num'),action);
+  rows.append(tr);
+  const card=make('article','emp-card');card.append(make('h3','',e.name),make('div','small',e.sector+' · '+e.id));
+  const values=make('div','values');
+  for(const [label,value] of [['Líquido',net(e)],['Passagem',e.passage],['Desembolso',cash(e)]]){
+   const div=make('div','');div.append(make('span','',label),make('strong','',fmt(value)));values.append(div)
+  }
+  const mobileButton=make('button','button','Editar este funcionário');
+  mobileButton.type='button';mobileButton.dataset.employee=e.id;
+  card.append(values,mobileButton);cards.append(card);
+ }
+ const host=$('provision-summary');host.replaceChildren();
+ for(const [label,value] of [['13º ilustrativo',doc.employees.reduce((sum,e)=>sum+Math.round(e.salary/12),0)],
+  ['Férias ilustrativas',doc.employees.reduce((sum,e)=>sum+Math.round(e.salary/9),0)],
+  ['Provisões totais',sums.provision]]){
+  const div=make('div');div.append(make('span','',label),make('strong','',fmt(value)));host.append(div);
+ }
+ const audit=$('audit');audit.replaceChildren();
+ for(const ev of [...doc.history].reverse().slice(0,15)){
+  const item=make('div');item.append(make('strong','',ev.kind==='reset'?'Restauração da demonstração':ev.employeeName+' · '+ev.employeeId),
+   make('div','', 'Revisão '+ev.revision+' · '+(ev.kind==='reset'?'Valores fictícios restaurados.':
+    'Passagem '+fmt(ev.before.passage)+' → '+fmt(ev.after.passage))),
+   make('div','hint','ID da operação: '+ev.commandId));audit.append(item);
+ }
+ if(!doc.history.length)audit.append(make('div','', 'Sem alterações gravadas. Edite um funcionário e confira aqui.'));
+ controls();
+}
+async function choose(id){
+ if(busy||pending||conflict||failed){status('Finalize a gravação ou reavalie o conflito antes de mudar de funcionário.','warn');return}
+ if(currentDirty()&&!confirm('Existem mudanças não salvas. Deseja descartá-las para trocar de funcionário?'))return;
+ fill(id);status('Editando '+employee(id).name+'. Nenhuma alteração foi salva ainda.');preview();
+}
+function makeEvent(kind,commandId,current,next,employeeId){
+ const e=current.employees.find(x=>x.id===employeeId);
+ return {kind,commandId,employeeId,employeeName:e?.name||'—',revision:next.revision,
+  before:e?editable(e):null,after:employeeId?editable(next.employees.find(x=>x.id===employeeId)):null};
+}
+async function doSave(event){
+ event.preventDefault();
+ if(busy||pending||conflict||failed||!doc)return;
+ let desired;
+ try{desired=formValues()}catch(e){status(e.message,'error');return}
+ const old=employee(selectedId);
+ if(same(desired,old)){status('Nenhuma diferença neste funcionário.','warn');return}
+ busy=true;controls();
+ const commandId='FOLHA-DEMO-'+crypto.randomUUID(),expected=doc.revision,id=selectedId;
+ pending={commandId,desired,employeeId:id,expectedRevision:expected};
+ try{
+  await transaction(current=>{
+   if(!current)throw problem('Documento fictício não encontrado.','INVALID');
+   if(current.revision!==expected)throw problem('Outra aba alterou a folha.','CONFLICT');
+   const next=clone(current),target=next.employees.find(e=>e.id===id);
+   if(!target)throw problem('Funcionário fictício não localizado.','INVALID');
+   Object.assign(target,desired);check(target);
+   next.revision=current.revision+1;
+   next.history.push(makeEvent('update',commandId,current,next,id));
+   if(next.history.length>500)next.history=next.history.slice(-500);
+   return next;
+  });
+  if($('failure').value==='lost-readback'){
+   status('A gravação pode ter ocorrido, mas a confirmação foi interrompida. Não salve novamente: clique em Conferir última gravação.','warn');
+  }else await reconcileSave();
+ }catch(e){
+  pending=null;
+  if(e.code==='CONFLICT'){
+   conflict=true;
+   status('Conflito detectado: outra aba gravou antes. Seu rascunho foi preservado. Clique em Reavaliar conflito.','error');
+  }else status('Sem prova de salvamento: '+e.message+'. O formulário permanece aberto.','error');
+ }finally{busy=false;controls()}
+}
+async function reconcileSave(){
+ if(!pending)return;
+ const saved=await getSaved();
+ const ev=saved.history.find(h=>h.commandId===pending.commandId);
+ const real=saved.employees.find(e=>e.id===pending.employeeId);
+ if(!ev||!real||!same(editable(real),pending.desired)){
+  status('Confirmação INCONCLUSIVA: a operação não corresponde ao documento relido. Nenhuma segunda gravação foi feita.','error');return;
+ }
+ doc=saved;pending=null;conflict=false;render();fill(selectedId);
+ status('Salvo e confirmado por releitura do IndexedDB · revisão '+doc.revision+' · operação '+ev.commandId+'.','ok');
+}
+async function reconcile(){
+ if(!pending||busy)return;busy=true;controls();
+ try{await reconcileSave()}catch(e){status('Releitura indisponível. Não repita o salvamento: '+e.message,'warn')}
+ finally{busy=false;controls()}
+}
+async function review(){
+ if(!conflict||busy)return;busy=true;
+ const typed={};for(const key of numericFields)typed[key]=$(key).value;
+ try{
+  doc=await getSaved();conflict=false;render();
+  for(const key of numericFields)$(key).value=typed[key];
+  preview();
+  status('Base atualizada para revisão '+doc.revision+'. Seu rascunho foi preservado. Confira os valores antes de salvar de novo.','warn');
+ }catch(e){status('Não foi possível comparar revisões: '+e.message,'error')}
+ finally{busy=false;controls()}
+}
+async function refresh(){
+ if(busy||pending||conflict||failed)return;
+ if(currentDirty()&&!confirm('Existe um rascunho não salvo. Descartar e ler o armazenamento?'))return;
+ busy=true;
+ try{doc=await getSaved();render();fill(selectedId);status('Dados fictícios lidos do IndexedDB · revisão '+doc.revision+'.','ok')}
+ catch(e){status(e.message,'error')}
+ finally{busy=false;controls()}
+}
+async function reset(){
+ if(busy||pending||conflict||failed)return;
+ if(!confirm('Restaurar os valores fictícios de todos os funcionários? Esta ação será registrada no histórico local.'))return;
+ busy=true;
+ try{
+  const previous=doc.revision,commandId='FOLHA-DEMO-'+crypto.randomUUID();
+  await transaction(current=>{
+   if(!current||current.revision!==previous)throw problem('Outra aba alterou a folha. Atualize antes de restaurar.','CONFLICT');
+   const next=initial();next.revision=current.revision+1;
+   next.history=[...current.history,{kind:'reset',commandId,revision:next.revision,employeeId:null,
+    employeeName:null,before:null,after:null}].slice(-500);
+   return next;
+  });
+  const read=await getSaved();
+  if(!read.history.some(e=>e.commandId===commandId))throw Error('Restauração sem prova de releitura.');
+  doc=read;selectedId='FIC-001';render();fill(selectedId);status('Exemplo restaurado e confirmado · revisão '+doc.revision+'.','ok');
+ }catch(e){status(e.message,'error');if(e.code==='CONFLICT')conflict=true}
+ finally{busy=false;controls()}
+}
+function download(text,name,type){
+ const blob=new Blob([text],{type}),url=URL.createObjectURL(blob),a=make('a');
+ a.href=url;a.download=name;document.body.append(a);a.click();a.remove();
+ setTimeout(()=>URL.revokeObjectURL(url),1500);
+}
+function csvCell(v){let s=String(v);if(/^[=+\-@\t\r]/.test(s))s="'"+s;return '"'+s.replace(/"/g,'""')+'"'}
+function exportData(kind){
+ if(!doc)return;
+ const sums=totals(doc.employees);
+ if(kind==='json'){
+  const report={schema:'hlgb-evolucao-folha-demo-report-v1',environment:'browser-indexeddb-only',productionApproval:false,
+   baseline:'synthetic',capturedAt:new Date().toISOString(),data:clone(doc),
+   totals:{...sums,cost:sums.cash+sums.provision},checks:{
+    uniqueIds:new Set(doc.employees.map(e=>e.id)).size===doc.employees.length,
+    passageIncludedInCash:sums.cash===sums.net+sums.passage,
+    allValuesValid:doc.employees.every(check),
+    revisionMatchesHistory:doc.history.length===0||doc.history[doc.history.length-1].revision===doc.revision
+   }};
+  download(JSON.stringify(report,null,2),'HLGB-EVOLUCAO-FOLHA-FICTICIA.json','application/json');
+ }else{
+  const lines=[['Funcionário fictício','Código','Confecção','Salário-base centavos','Extras centavos','Descontos centavos','Passagem centavos','Líquido centavos','Desembolso centavos']];
+  for(const e of sortPeople(doc.employees))lines.push([e.name,e.id,e.sector,e.salary,e.extras,e.discounts,e.passage,net(e),cash(e)]);
+  download('\uFEFF'+lines.map(row=>row.map(csvCell).join(';')).join('\r\n'),'HLGB-EVOLUCAO-FOLHA-FICTICIA.csv','text/csv;charset=utf-8');
+ }
+}
+$('search').addEventListener('input',render);
+$('sector-filter').addEventListener('change',render);
+$('order').addEventListener('change',render);
+document.addEventListener('click',ev=>{
+ const b=ev.target.closest('button[data-employee]');if(b)choose(b.dataset.employee);
+});
+$('employee-form').addEventListener('submit',doSave);
+for(const key of numericFields)$(key).addEventListener('input',preview);
+$('reconcile').addEventListener('click',reconcile);
+$('review').addEventListener('click',review);
+$('refresh').addEventListener('click',refresh);
+$('reset').addEventListener('click',reset);
+$('export-json').addEventListener('click',()=>exportData('json'));
+$('export-csv').addEventListener('click',()=>exportData('csv'));
+(async()=>{
+ try{
+  db=await openDb();
+  await transaction(current=>current?null:initial());
+  doc=await getSaved();
+  render();fill(selectedId);
+  status('Dados fictícios carregados do IndexedDB · revisão '+doc.revision+'.','ok');
+ }catch(e){failed=true;status('Falha no armazenamento local: '+e.message+'. Não é seguro afirmar que dados foram salvos.','error');controls()}
+})();
+})();
+</script>
+</body></html>
