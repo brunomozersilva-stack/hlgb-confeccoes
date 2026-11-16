@@ -24,9 +24,9 @@ async function validate(browser,width){
   assert.equal(await page.locator('#cases .item').count(),30);
   await page.locator('#filter-risk').selectOption('all');
   await page.locator('#filter-demo').selectOption('with');
-  assert.equal(await page.locator('#cases .item').count(),8);
+  assert.equal(await page.locator('#cases .item').count(),12);
   await page.locator('#filter-demo').selectOption('without');
-  assert.equal(await page.locator('#cases .item').count(),68);
+  assert.equal(await page.locator('#cases .item').count(),64);
   await page.locator('#filter-demo').selectOption('all');
   await page.locator('#search').fill('PAR-045');
   assert.equal(await page.locator('#cases .item').count(),1);
@@ -49,10 +49,10 @@ async function validate(browser,width){
   assert.equal((await page.locator('#metric-approved').innerText()).trim(),'0/76');
   await page.locator('#import-file').setInputFiles({name:'avaliacoes.json',mimeType:'application/json',buffer:Buffer.from(JSON.stringify(createReport(false)))});
   await page.waitForFunction(()=>document.querySelector('#import-status').textContent.includes('Importadas'));
-  assert.match(await page.locator('#import-status').innerText(),/Importadas 9 avaliações/);
+  assert.match(await page.locator('#import-status').innerText(),/Importadas 13 avaliações/);
   assert.match(await page.locator('#import-status').innerText(),/BLOQUEADA/);
   await page.locator('#filter-demo').selectOption('with');
-  assert.equal(await page.locator('#cases .item').count(),8);
+  assert.equal(await page.locator('#cases .item').count(),12);
   assert.match(await page.locator('#cases .item').first().innerText(),/Sua avaliação da prévia importada: passed/);
   await page.locator('#filter-demo').selectOption('all');
   const [jsonDownload]=await Promise.all([page.waitForEvent('download'),page.locator('#export-json').click()]);
@@ -67,11 +67,11 @@ async function validate(browser,width){
   assert.equal(report.counts.priorityP0,30);
   assert.equal(report.counts.scenarios,43);
   assert.equal(report.counts.scenarioP0,27);
-  assert.equal(report.counts.partialDemos,8);
+  assert.equal(report.counts.partialDemos,12);
   assert.equal(report.counts.fullParityApproved,0);
   assert.equal(report.counts.roadmapTotal,266);
   assert.equal(report.counts.roadmapHomologated,0);
-  assert.equal(report.counts.previewEvaluations,9);
+  assert.equal(report.counts.previewEvaluations,13);
   assert.equal(report.blockers.length,76);
   assert(report.blockers.every(x=>x.requiredGates.length===8));
   const [csvDownload]=await Promise.all([page.waitForEvent('download'),page.locator('#export-csv').click()]);
