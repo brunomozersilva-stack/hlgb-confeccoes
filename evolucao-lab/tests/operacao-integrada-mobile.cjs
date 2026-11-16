@@ -65,6 +65,7 @@ async function run(browser,width,url){
   await page.locator('[data-toggle-observer]').click();
   await module(page,'auditor');
   assert.match(await page.locator('#module-content').innerText(),/Observabilidade 2.0/);
+  await module(page,'nucleo');
   assert.match(await page.locator('#module-title').innerText(),/Salvamento/);
   await module(page,'pedidos');
   await put(page,'order.add',{clientId:'CLI-0001',productId:'PRO-0001',P:'8',M:'12',G:'0',GG:'0'});
