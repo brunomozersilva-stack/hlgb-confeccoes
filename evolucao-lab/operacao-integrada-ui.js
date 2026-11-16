@@ -210,6 +210,14 @@ function observationPanels(s,area){
      o.modelSummary.map(x=>[str(x.name)+' · '+str(x.sku),str(x.orders),
       str(x.ordered),str(x.cut),str(x.returned),str(x.shipped),
       fmt(x.plannedReceivablesCents)])),true)+
+   panel('Distribuição e retorno por facção em cada pedido',
+    '<p>'+str(o.summary.distributedOrders)+' pedido(s) dividido(s) entre várias facções · '+
+    str(o.summary.openFactionPieces)+' peça(s) ainda não retornadas nos envios. Dados fictícios com rastreio por envio.</p>'+
+    table(['Envio','Pedido','Produto','Facção','Enviadas','Retornadas','Pendentes','Acertos vinculados'],
+     o.factionDispatches.map(x=>[
+      str(x.id),str(x.orderId),str(x.productName),str(x.factionName),
+      str(x.qtySent),str(x.qtyReturned),str(x.qtyOpen),
+      x.settlementIds.map(str).join(' · ')||'—'])),true)+
    panel('Acertos e pagamentos por facção',
     '<p>Os valores quitados são somente confirmações fictícias. Correções pós-pagamento aparecem à parte.</p>'+
     table(['Facção','Acertos','Peças','Total','Pago fictício','Em aberto','Compensações líquidas'],
@@ -784,6 +792,10 @@ function exportObserverCsv(){
    x.sku,'',x.name+' · pedidas '+x.ordered+' · cortadas '+x.cut+' · expedidas '+x.shipped]),
   ...report.factionSummary.map(x=>['Resumo por facção','faccoes',x.factionId,
    x.name,'',x.settlements+' acertos · pago '+x.paidSettlementsCents]),
+  ...report.factionDispatches.map(x=>['Envio para facção','faccoes',x.id,
+   x.orderId,x.factionName,x.productName+' · enviadas '+x.qtySent+
+    ' · retornadas '+x.qtyReturned+' · pendentes '+x.qtyOpen+
+    ' · acertos '+x.settlementIds.join(' / ')]),
   ...report.paymentBatchHistory.map(b=>['Fechamento em lote','hub',b.id,
    b.reference,b.status,b.reason+' · '+b.count+' títulos · '+b.totalCents+' centavos']),
   ...report.paymentBatchHistory.flatMap(b=>b.items.map(i=>
