@@ -25,6 +25,7 @@ const modules=[
 ];
 const ids=new Map(modules.map((m,i)=>[m[0],i]));
 let active=ids.has(window.location.hash.slice(1))?window.location.hash.slice(1):'nucleo',db=null,doc=null,busy=false;
+const settlementFilters={query:'',status:'todos',faction:'todas',service:'todos',compensation:'todos'};
 const escape=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const str=x=>escape(String(x??''));
 const fmt=api.money;
@@ -270,8 +271,19 @@ function moduleHtml(s){
  ],'Criar compensação separada e título novo')+
  '<p><strong>O pagamento original não muda.</strong> Uma diferença positiva gera título fictício a pagar; negativa gera título fictício a receber. A mesma referência não pode ser usada duas vezes no mesmo acerto. É apenas uma demonstração de compensação, não devolução bancária automática nem documento fiscal.</p>')+
  panel('Pesquisar acertos e histórico',
- '<div class="field"><label for="settlement-search">Pesquisar acerto, facção ou serviço</label>'+
- '<input id="settlement-search" class="input" type="search" data-filter-for="settlement-table" placeholder="Filtrar toda a lista local"></div>'+
+ '<div class="fields" id="settlement-filters">'+
+ '<div class="field"><label for="settlement-search">Busca única: acerto, modelo, facção, referência ou motivo</label>'+
+ '<input id="settlement-search" class="input" type="search" placeholder="Ex.: ACE-0004, embalagem, AJ-TESTE"></div>'+
+ '<div class="field"><label for="settlement-status">Situação do acerto</label><select class="input" id="settlement-status" data-settlement-filter="status">'+
+ options([['todos','Todos'],['aberto','Em aberto'],['pago','Pago']])+'</select></div>'+
+ '<div class="field"><label for="settlement-faction">Facção ou embaladeira</label><select class="input" id="settlement-faction" data-settlement-filter="faction">'+
+ options([['todas','Todas'],...s.factions.map(x=>[x.id,x.name])])+'</select></div>'+
+ '<div class="field"><label for="settlement-service">Tipo de serviço</label><select class="input" id="settlement-service" data-settlement-filter="service">'+
+ options([['todos','Todos'],['costura','Costura'],['embalagem','Embalagem']])+'</select></div>'+
+ '<div class="field"><label for="settlement-compensation">Situação das compensações</label><select class="input" id="settlement-compensation" data-settlement-filter="compensation">'+
+ options([['todos','Todas'],['aberto','Em aberto'],['pago','Quitadas']])+'</select></div></div>'+
+ '<div class="actions"><button type="button" class="btn" id="settlement-clear-filters">Limpar filtros</button></div>'+
+ '<p class="caption" role="status" aria-live="polite" id="settlement-query-summary">Calculando a consulta local...</p>'+
  '<div id="settlement-table">'+table(
  ['Acerto','Facção / serviço','Modelo','Peças','Bruto/peça','Travetada/peça','Ajuste total','Total','Situação'],
  s.settlements.map(x=>[
@@ -291,7 +303,7 @@ function moduleHtml(s){
   (x.returns||[]).map(ev=>[str(x.id),str(ev.commandId),str(ev.qty),
    str(ev.beforeQty)+' pç / '+fmt(ev.beforeCents),str(ev.afterQty)+' pç / '+fmt(ev.afterCents),str(ev.reason)])
   ))+
- '<h3>Compensações após pagamento (sem alterar título original)</h3>'+
+ '<h3>Compensações após pagamento (sem alterar título original)</h3><div id="settlement-compensation-table">'+
  table(['Compensação','Acerto pago','Referência','Diferença','Novo título','Situação','Justificativa','Imprimir'],
  compensations.map(c=>[
   str(c.id),str(c.settlementId),str(c.reference),
@@ -300,7 +312,7 @@ function moduleHtml(s){
   '<span class="chip '+(c.status==='aberto'?'wait':'')+'">'+str(c.status)+'</span>',
   str(c.reason),
   '<button type="button" class="btn" data-print-comp="'+str(c.id)+'">Conferência PDF</button>'
- ]))+
+ ]))+'</div>'+
  '<p class="caption">Conferência PDF abre a impressão do navegador. O arquivo gerado não comprova uma transferência bancária real.</p>',true);
  }
  case 'hub':return panel('Lançamento do Hub fictício',
@@ -407,6 +419,7 @@ function draw(){
  ['Títulos a pagar abertos',fmt(t.openPayables)]];
  $('global-metrics').innerHTML=metrics.map(([label,value])=>'<div class="metric"><span>'+escape(label)+'</span><strong>'+escape(value)+'</strong></div>').join('');
  $('module-content').innerHTML=moduleHtml(doc);
+ if(active==='acertos')applySettlementFilters();
  $('audit-trail').innerHTML=doc.log.length?doc.log.slice().reverse().slice(0,28).map(e=>
  '<div class="log-item"><strong>'+escape(e.type)+' · '+escape(e.commandId)+'</strong>'+
  'Revisão '+e.revision+' · '+escape(e.description)+'</div>').join(''):
@@ -597,7 +610,59 @@ function suggestServicePrice(form){
   price.value=nr(fac?.productRates?.[productId]??fac?.unitCents??0);
  }
 }
+function applySettlementFilters(){
+ if(active!=='acertos'||!doc||!$('settlement-filters'))return;
+ const f=settlementFilters;
+ const normal=v=>String(v??'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLocaleLowerCase('pt-BR');
+ const text=normal(f.query.trim());
+ $('settlement-search').value=f.query;
+ for(const [id,key] of [['settlement-status','status'],['settlement-faction','faction'],
+   ['settlement-service','service'],['settlement-compensation','compensation']]){
+  const el=$(id);
+  if(el&&[...el.options].some(o=>o.value===f[key]))el.value=f[key];
+ }
+ const matchesBase=x=>(f.status==='todos'||x.status===f.status)&&
+  (f.faction==='todas'||x.factionId===f.faction)&&
+  (f.service==='todos'||(x.serviceType||'costura')===f.service);
+ const settlementText=x=>{
+  const parts=[x.id,x.orderId,x.serviceType,x.status,x.reason,
+   ref(doc.factions,x.factionId)?.name,ref(doc.products,x.productId)?.name,
+   ref(doc.products,ref(doc.orders,x.orderId)?.productId)?.name,
+   ...(x.history||[]).flatMap(h=>[h.reason,h.commandId]),
+   ...(x.returns||[]).flatMap(h=>[h.reason,h.commandId])];
+  return normal(parts.join(' '));
+ };
+ const compensationText=c=>normal([c.id,c.settlementId,c.reference,c.reason,c.kind,c.status,
+  doc.finance.find(x=>x.sourceId===c.id)?.id,
+  ref(doc.factions,c.factionId)?.name].join(' '));
+ const comps=doc.settlementCompensations||[];
+ const settlements=doc.settlements||[];
+ const matchSettlement=x=>matchesBase(x)&&(!text||settlementText(x).includes(text)||
+  comps.some(c=>c.settlementId===x.id&&compensationText(c).includes(text)));
+ const visibleSet=settlements.map(matchSettlement);
+ const visibleComp=comps.map(c=>{
+  const original=settlements.find(x=>x.id===c.settlementId);
+  return !!original&&matchesBase(original)&&
+   (f.compensation==='todos'||c.status===f.compensation)&&
+   (!text||compensationText(c).includes(text)||settlementText(original).includes(text));
+ });
+ for(const [id,flags] of [['settlement-table',visibleSet],['settlement-compensation-table',visibleComp]]){
+  const rows=$(id)?.querySelectorAll('tbody tr')||[];
+  rows.forEach((row,i)=>{row.hidden=!flags[i]});
+ }
+ const shown=settlements.filter((_,i)=>visibleSet[i]);
+ const shownComp=comps.filter((_,i)=>visibleComp[i]);
+ const settlementValue=shown.reduce((total,x)=>total+x.amountCents,0);
+ const compValue=shownComp.reduce((total,x)=>total+x.deltaCents,0);
+ $('settlement-query-summary').textContent=shown.length+' de '+settlements.length+
+  ' acertos · total '+fmt(settlementValue)+' · '+shownComp.length+' de '+comps.length+
+  ' compensações · diferença líquida '+(compValue>0?'+':compValue<0?'−':'')+fmt(Math.abs(compValue))+
+  ' (valores fictícios; filtro local, sem alterar lançamentos)';
+}
 document.addEventListener('input',event=>{
+ if(event.target.id==='settlement-search'){
+  settlementFilters.query=event.target.value;applySettlementFilters();return;
+ }
  const filter=event.target.closest('input[data-filter-for]');
  if(!filter)return;
  const target=$(filter.dataset.filterFor);
@@ -640,6 +705,10 @@ function renderCompensationSheet(compId){
  return $('cut-print').textContent;
 }
 document.addEventListener('change',event=>{
+ if(event.target.matches('[data-settlement-filter]')){
+  settlementFilters[event.target.dataset.settlementFilter]=event.target.value;
+  applySettlementFilters();return;
+ }
  const form=event.target.closest('form[data-command]');
  if(!form)return;
  const type=form.dataset.command;
@@ -664,6 +733,10 @@ document.addEventListener('change',event=>{
  }
 });
 document.addEventListener('click',e=>{
+ if(e.target.closest('#settlement-clear-filters')){
+  Object.assign(settlementFilters,{query:'',status:'todos',faction:'todas',service:'todos',compensation:'todos'});
+  applySettlementFilters();return;
+ }
  const comp=e.target.closest('button[data-print-comp]');
  if(comp){try{renderCompensationSheet(comp.dataset.printComp);window.print()}catch(error){status(error.message,'error')}return}
  const print=e.target.closest('button[data-print-plan]');
