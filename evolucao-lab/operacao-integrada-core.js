@@ -25,7 +25,7 @@
     {id:'FAC-0002',name:'Oficina Exemplo B',unitCents:600,traveta:false}],
    employees:[{id:'FUN-0001',name:'Ana Simulada',salaryCents:200000,passageCents:12000,extrasCents:0,discountCents:0},
     {id:'FUN-0002',name:'Bianca Modelo',salaryCents:180000,passageCents:8000,extrasCents:0,discountCents:3000}],
-   orders:[],cutPlans:[],purchaseOrders:[],settlements:[],finance:[],stockLedger:[],factionTransfers:[],errors:[],
+   orders:[],cutPlans:[],purchaseOrders:[],settlements:[],settlementCompensations:[],finance:[],stockLedger:[],factionTransfers:[],errors:[],
    prints:[{id:'IMP-0001',name:'Chaveiro articulado fictício',grams:28,priceCents:490,stock:12}],
    log:[],role:'supervisor',flags:{autoCorrections:false},revisionProof:'seed'};
  }
@@ -80,6 +80,21 @@
    if(settlement.productId&&!s.products.some(x=>x.id===settlement.productId))
     problems.push(settlement.id+': produto do acerto não localizado');
   }
+  const comps=Array.isArray(s.settlementCompensations)?s.settlementCompensations:[];
+  for(const cmp of comps){
+   const original=s.settlements.find(x=>x.id===cmp.settlementId);
+   const originalBill=s.finance.find(x=>x.sourceId===cmp.settlementId&&x.kind==='pagar');
+   const linked=s.finance.filter(x=>x.sourceId===cmp.id);
+   const expectedKind=cmp.deltaCents>0?'pagar':'receber';
+   if(!original||original.status!=='pago'||!originalBill||originalBill.status!=='pago'||
+      !Number.isSafeInteger(cmp.deltaCents)||cmp.deltaCents===0||
+      !cmp.reference||!cmp.reason||!['aberto','pago'].includes(cmp.status)||
+      linked.length!==1||linked[0].kind!==expectedKind||
+      linked[0].amountCents!==Math.abs(cmp.deltaCents)||linked[0].status!==cmp.status)
+    problems.push(cmp.id+': compensação e título vinculado inconsistentes');
+  }
+  const keys=comps.map(x=>x.settlementId+'|'+x.reference.trim().toLocaleUpperCase('pt-BR'));
+  if(new Set(keys).size!==keys.length)problems.push('Referência de compensação duplicada para o mesmo acerto');
   for(const move of (s.factionTransfers||[])){
    if(!s.orders.some(x=>x.id===move.orderId)||!s.factions.some(x=>x.id===move.fromFactionId)||
       !s.factions.some(x=>x.id===move.toFactionId)||move.fromFactionId===move.toFactionId)
@@ -88,7 +103,7 @@
   if(s.materials.some(m=>m.stockGrams<0))problems.push('Estoque de material negativo');
   if(s.finance.some(e=>e.amountCents<=0))problems.push('Lançamento financeiro não positivo');
   if(new Set(s.log.map(e=>e.commandId)).size!==s.log.length)problems.push('Identificador de comando duplicado');
-  const allIds=[...s.orders,...(s.cutPlans||[]),...(s.factionTransfers||[]),...s.purchaseOrders,...s.settlements,...s.finance,...s.clients,...s.suppliers,
+  const allIds=[...s.orders,...(s.cutPlans||[]),...(s.factionTransfers||[]),...(s.settlementCompensations||[]),...s.purchaseOrders,...s.settlements,...s.finance,...s.clients,...s.suppliers,
    ...s.materials,...s.products,...s.factions,...s.employees,...s.prints].map(x=>x.id);
   if(new Set(allIds).size!==allIds.length)problems.push('IDs de registro duplicados');
   return {ok:!problems.length,problems,orderCount:s.orders.length,unpaid:s.finance.filter(f=>f.status==='aberto').length,
@@ -99,7 +114,11 @@
  }
  function totals(s){
   const pay=s.finance.filter(x=>x.kind==='pagar'),recv=s.finance.filter(x=>x.kind==='receber');
-  return {orders:s.orders.length,pieces:s.orders.reduce((a,o)=>a+sum(o.grade),0),
+  const comps=Array.isArray(s.settlementCompensations)?s.settlementCompensations:[];
+  return {compensations:comps.length,
+   compensatedNet:comps.reduce((a,c)=>a+c.deltaCents,0),
+   compensationsOpen:comps.filter(c=>c.status==='aberto').length,
+   orders:s.orders.length,pieces:s.orders.reduce((a,o)=>a+sum(o.grade),0),
    cut:s.orders.reduce((a,o)=>a+sum(o.cut),0),
    returned:s.orders.reduce((a,o)=>a+o.returned,0),
    shipped:s.orders.reduce((a,o)=>a+o.shipped,0),
@@ -129,6 +148,7 @@
   const s=clone(previous),p=command.payload||{},kind=command.type;
   if(!Array.isArray(s.cutPlans))s.cutPlans=[]; // migração segura apenas do documento fictício anterior
   if(!Array.isArray(s.factionTransfers))s.factionTransfers=[];
+  if(!Array.isArray(s.settlementCompensations))s.settlementCompensations=[];
   const num=(field,min=0,max=1000000)=>int(p[field],field,min,max);
   let result;
   switch(kind){
@@ -342,6 +362,29 @@
     beforeCents:before,afterCents:newAmount});
    bill.amountCents=newAmount;
    result=x.id+' · '+oldQty+' → '+newQty+' peças · '+reason;break}
+  case 'settlement.compensate':{
+   const original=get(s,'settlements',p.id,'Acerto original'),reason=name(p.reason,'Motivo da compensação'),
+    reference=name(p.reference,'Referência única da correção').toLocaleUpperCase('pt-BR');
+   if(original.status!=='pago')throw Error('Compensação separada só pode ser registrada após pagamento do acerto.');
+   const originalBill=s.finance.find(y=>y.sourceId===original.id&&y.kind==='pagar');
+   if(!originalBill||originalBill.status!=='pago'||originalBill.amountCents!==original.amountCents)
+    throw Error('Pagamento original não está confirmado e conciliado.');
+   const delta=int(p.deltaCents,'Valor da compensação',-10000000,10000000);
+   if(delta===0)throw Error('Compensação precisa ser positiva ou negativa.');
+   if(s.settlementCompensations.some(x=>x.settlementId===original.id&&
+      x.reference.trim().toLocaleUpperCase('pt-BR')===reference))
+    throw Error('Referência de compensação já utilizada neste acerto. Confira o histórico para evitar duplicidade.');
+   const id=next(s,'CMP'),kind=delta>0?'pagar':'receber';
+   const comp={id,settlementId:original.id,factionId:original.factionId,
+    reference,reason,deltaCents:delta,kind,status:'aberto',
+    originalAmountCents:original.amountCents,originalFinanceId:originalBill.id,
+    commandId:uid};
+   s.settlementCompensations.push(comp);
+   const bill={id:next(s,'FIN'),kind,sourceId:comp.id,
+    description:'Compensação fictícia '+comp.id+' do acerto '+original.id,
+    amountCents:Math.abs(delta),status:'aberto'};
+   s.finance.push(bill);
+   result=comp.id+' · '+kind+' · '+delta+' centavos (original preservado)';break}
   case 'settlement.adjust':{
    const x=get(s,'settlements',p.id,'Acerto');
    if(x.status!=='aberto')throw Error('Acerto pago não pode ser alterado nesta prévia.');
@@ -363,6 +406,8 @@
    entry.status='pago';entry.paidDate='2026-11-16';
    const acerto=s.settlements.find(a=>a.id===entry.sourceId);
    if(acerto)acerto.status='pago';
+   const compensation=s.settlementCompensations.find(c=>c.id===entry.sourceId);
+   if(compensation)compensation.status='pago';
    result=entry.id;break}
   case 'finance.add':{
    if(!['pagar','receber'].includes(p.kind))throw Error('Tipo de lançamento inválido.');
