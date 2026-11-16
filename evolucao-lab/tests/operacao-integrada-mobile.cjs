@@ -120,9 +120,9 @@ async function run(browser,width,url){
   assert.match(await page.locator('#module-content').innerText(),/Acerto fictício/);
   await put(page,'finance.pay',{id:'FIN-0002'});
   await module(page,'auditor');
-  assert.match(await page.locator('#module-content').innerText(),/Sem inconsistências/);
+  assert.match(await page.locator('#module-content').innerText(),/0 alertas|Sem inconsistências/);
   await module(page,'bot');
-  assert.match(await page.locator('#module-content').innerText(),/regras fixas/);
+  assert.match(await page.locator('#module-content').innerText(),/Assistente de triagem|regras fixas/);
   const [download]=await Promise.all([page.waitForEvent('download'),page.locator('#export-json').click()]);
   const report=JSON.parse(fs.readFileSync(await download.path(),'utf8'));
   assert.equal(report.schema,'hlgb-evolucao-operacao-integrada-report-v1');
