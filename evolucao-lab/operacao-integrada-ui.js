@@ -253,9 +253,10 @@ function parseCents(value,signed=false){
  let raw=String(value).trim();
  if(signed&&raw.startsWith('-'))return -parseCents(raw.slice(1),false);
  if(signed&&raw.startsWith('+'))raw=raw.slice(1);
- if(!/^(0|[1-9]\d*)([,.]\d{1,2})?$/.test(raw))throw Error('Informe reais com até duas casas decimais, ex.: 12,50.');
- const parts=raw.replace(',','.').split('.');
- const val=Number(parts[0])*100+Number((parts[1]||'').padEnd(2,'0'));
+ if(!/^(?:0|[1-9]\d*|[1-9]\d{0,2}(?:\.\d{3})+)(?:,\d{1,2})?$/.test(raw))
+  throw Error('Informe reais com até duas casas decimais, ex.: 2.000,00.');
+ const parts=raw.split(',');
+ const val=Number(parts[0].replace(/\./g,''))*100+Number((parts[1]||'').padEnd(2,'0'));
  if(!Number.isSafeInteger(val))throw Error('Valor monetário inválido.');
  return val;
 }
