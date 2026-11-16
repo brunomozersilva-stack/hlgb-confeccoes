@@ -6,7 +6,7 @@
 
 A página `homologacao-modulos.html` organiza 76 funcionalidades antigas identificadas em 19 módulos, associadas a 43 critérios de paridade mais detalhados. Para cada função, mostra fonte legada, teste existente, roteiro esperado, disponibilidade da demonstração e resultado selecionável.
 
-**Oito exercícios parciais interativos disponíveis neste pacote:**
+**Exemplos da lista original de exercícios parciais (agora são 41, incluindo a Folha e a Operação Integrada):**
 
 | ID | Módulo | Exercício |
 |---|---|---|
@@ -19,7 +19,7 @@ A página `homologacao-modulos.html` organiza 76 funcionalidades antigas identif
 | PAR-044 | Acertos | Seleção e fechamento fictício em lote |
 | PAR-047 | Hub | Buscar, filtrar e exportar lançamento fictício |
 
-As restantes **68 funções não possuem demonstração específica equivalente**. Elas já podem ser registradas como pendências, mas **não podem ser aprovadas no formulário como se estivessem implementadas**.
+As restantes **35 funções não possuem demonstração específica equivalente**. Elas já podem ser registradas como pendências, mas **não podem ser aprovadas no formulário como se estivessem implementadas**.
 
 ## NOVO — Teste operacional integrado dos 19 módulos na mesma tela
 
@@ -98,7 +98,7 @@ Na página inicial da prévia, abra **Guardião de Preservação** (`guardiao-pr
 4. Filtre as demonstrações. São **8 parciais** e **68 sem demonstração mapeada**. Clicar em uma demonstração abre o simulador separado.
 5. Na **Central de Testes — 76 funções**, marque resultados usando apenas dados fictícios e exporte o JSON; volte ao Guardião e use **Importar testes da Central**. O painel mostra a avaliação da prévia, mas mantém o indicador de liberação em **0/76**.
 6. Exporte **Pendências CSV** ou **Bloqueios JSON** para analisar os gargalos. O campo `publicationBlocked` do JSON permanece `true`; `releaseApproved` é `false` e há 76 motivos de bloqueio.
-7. Teste um relatório incompatível ou com `passed` em funções sem demo: a importação deve ser rejeitada. Mesmo 8 demonstrações com resultado positivo não autorizam produção.
+7. Teste um relatório incompatível ou com `passed` em funções sem demo: a importação deve ser rejeitada. Mesmo 41 demonstrações com resultado positivo não autorizam produção.
 8. Para garantir que nenhum arquivo original sumiu no código, consulte os testes automatizados de **229 arquivos legados (hash congelado)** e do **Guardião** nas ações do GitHub.
 
 **Escopo real:** é um painel de auditoria **estático/offline**, não homologação do sistema novo. A referência de uma função ou teste antigo não demonstra que ela existe no novo ERP. A liberação não pode ocorrer apenas importando um relatório; depende de trabalho técnico e aprovação formal posterior.
