@@ -47,7 +47,7 @@ async function run(browser,width,url){
   await module(page,'pedidos');
   await put(page,'order.add',{clientId:'CLI-0001',productId:'PRO-0001',P:'8',M:'12',G:'0',GG:'0'});
   assert.match(await page.locator('#module-content').innerText(),/PED-0001/);
-  assert.match(await page.locator('#module-content').innerText(),/20 pç|20/);
+  assert.match(await page.locator('#global-metrics').innerText(),/Peças pedidas\s+20/);
   await module(page,'corte');
   await put(page,'cut.record',{orderId:'PED-0001',size:'P',qty:'6'});
   await put(page,'cut.record',{orderId:'PED-0001',size:'M',qty:'10'});
