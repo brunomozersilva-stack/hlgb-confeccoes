@@ -199,6 +199,8 @@ async function run(browser,width,url){
    assert.match(await page.locator('#module-content').innerText(),/CMP-0002/);
    const beforeComp=await revision(page);
    const duplicate=page.locator('form[data-command="settlement.compensate"]');
+   assert.equal(await duplicate.locator('[name="id"]').inputValue(),'ACE-0004','manter destino do acerto após salvar');
+   await duplicate.locator('[name="id"]').selectOption('ACE-0004');
    await duplicate.locator('[name="reference"]').fill('aj-embalagem-001');
    await duplicate.locator('[name="deltaCents"]').fill('3,00');
    await duplicate.locator('button[type=submit]').click();
