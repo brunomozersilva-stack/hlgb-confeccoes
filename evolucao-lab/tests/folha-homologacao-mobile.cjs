@@ -138,7 +138,21 @@ async function run(browser,width,base){
    }).slice(0,20).map(el=>({tag:el.tagName,id:el.id,cls:el.className,
      text:(el.textContent||'').trim().slice(0,90),
      right:Math.round(el.getBoundingClientRect().right),width:Math.round(el.getBoundingClientRect().width)})));
-   throw Error('horizontal overflow '+width+': '+JSON.stringify(bounds)+' OFFENDERS '+JSON.stringify(offenders));
+   const overflowDetails=await p.evaluate(()=>{
+    const x0=window.scrollX;
+    window.scrollTo(999,0);
+    const x1=window.scrollX;
+    window.scrollTo(0,0);
+    const root=document.documentElement,body=document.body;
+    const candidates=[...document.querySelectorAll('*')].filter(el=>{
+      const style=getComputedStyle(el);
+      return (el.scrollWidth>el.clientWidth+3)&&style.display!=='none'&&el.clientWidth>0;
+    }).slice(0,15).map(el=>({tag:el.tagName,id:el.id,cls:el.className,
+      cw:el.clientWidth,sw:el.scrollWidth,scroll:getComputedStyle(el).overflowX}));
+    return {root:{client:root.clientWidth,scroll:root.scrollWidth,overflow:getComputedStyle(root).overflowX},
+      body:{client:body.clientWidth,scroll:body.scrollWidth},x0,x1,candidates};
+   });
+   throw Error('horizontal overflow '+width+': '+JSON.stringify(bounds)+' OFFENDERS '+JSON.stringify(offenders)+' DETAILS '+JSON.stringify(overflowDetails));
   }
   assert.deepEqual(errors,[],'No browser script failures');
   assert.deepEqual(unexpected,[],'No unexpected network activity');
