@@ -12,6 +12,7 @@ on:
       - 'evolucao-lab/operacao-integrada.html'
       - 'evolucao-lab/operacao-integrada-core.js'
       - 'evolucao-lab/operacao-integrada-ui.js'
+      - 'evolucao-lab/modulos/**'
       - 'evolucao-lab/guardiao-preservacao.html'
       - 'evolucao-lab/sincronizacao-duas-sessoes.html'
       - 'evolucao-lab/sincronizacao-duas-sessoes-memoria.js'
@@ -41,6 +42,7 @@ jobs:
           cp evolucao-lab/sincronizacao-duas-sessoes-memoria.js pacote/HLGB-Evolucao-Previa/sincronizacao-duas-sessoes-memoria.js
           cp evolucao-lab/operacao-integrada-core.js pacote/HLGB-Evolucao-Previa/operacao-integrada-core.js
           cp evolucao-lab/operacao-integrada-ui.js pacote/HLGB-Evolucao-Previa/operacao-integrada-ui.js
+          cp -R evolucao-lab/modulos pacote/HLGB-Evolucao-Previa/modulos
           python3 - <<'PY'
           from pathlib import Path
           root=Path('pacote/HLGB-Evolucao-Previa')
