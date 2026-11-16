@@ -21,6 +21,17 @@ A página `homologacao-modulos.html` organiza 76 funcionalidades antigas identif
 
 As restantes **68 funções não possuem demonstração específica equivalente**. Elas já podem ser registradas como pendências, mas **não podem ser aprovadas no formulário como se estivessem implementadas**.
 
+## Nova prova técnica: sincronização com PostgreSQL descartável e dois navegadores
+
+O workflow de GitHub Actions **HLGB Evolucao - Sync Persistente em PostgreSQL Descartavel** utiliza dois navegadores separados contra um servidor de testes em localhost e banco temporário. É um teste automatizado que **não disponibiliza uma URL pública de banco**.
+
+Os testes verificam: duas sessões com revisões concorrentes; salvamento e releitura por ID; WAL IndexedDB após atualizar a página; perda de conexão antes do envio e reenvio manual; ACK perdido depois de commit; reinício do servidor sem perder o lançamento fictício; concorrência no PostgreSQL e tentativas de reutilização indevida do mesmo ID.
+
+O relatório de evidências fica nos anexos da execução do GitHub Actions. O usuário pode continuar testando os estados da interface em `sincronizacao-duas-sessoes.html`, que é apenas a versão fictícia offline.
+
+**Limites:** não há cópia do banco de produção, integração com as tabelas HLGB, sessão corporativa, dados reais ou autorização de implantação. Essa prova não confirma ainda a sincronização verdadeira do sistema.
+
+
 ## Novo teste: salvamento confiável com duas sessões fictícias
 
 Abra **Duas Sessões e Reconciliação** na entrada ou `sincronizacao-duas-sessoes.html`.
