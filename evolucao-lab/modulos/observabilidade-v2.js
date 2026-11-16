@@ -55,13 +55,14 @@
    return result;
   };
   const billsBySource=groupBy(finance,x=>x.sourceId);
+  const billsById=new Map(finance.map(x=>[x.id,x]));
   const movementsBySource=groupBy(ledger,x=>x.sourceId);
   const movementsByPlan=groupBy(ledger,x=>x.cutPlanId);
   const compensationBySettlement=groupBy(comps,x=>x.settlementId);
   const orderByProduct=groupBy(orders,x=>x.productId);
   const settlementByFaction=groupBy(settlements,x=>x.factionId);
   const compensationByFaction=groupBy(comps,x=>x.factionId);
-  const findFinance=id=>finance.find(f=>f.id===id);
+  const findFinance=id=>billsById.get(id);
   const one=(items,sourceId,kind)=>{
    const local=items===finance?(billsBySource.get(sourceId)||[]):items.filter(x=>x.sourceId===sourceId);
    return kind?local.filter(x=>x.kind===kind):local;
