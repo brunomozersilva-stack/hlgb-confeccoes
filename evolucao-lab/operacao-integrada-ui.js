@@ -404,7 +404,7 @@ function parseCents(value,signed=false){
 }
 const NUM=['qty','gramsPerUnit','qtyGrams','grams','stock','P','M','G','GG','usefulGrams','scrapGrams'];
 const SIGNED=['deltaGrams'];
-const PRICES=['priceCents','unitCents','priceCentsKg','amountCents','salaryCents','passageCents','extrasCents','discountCents'];
+const PRICES=['priceCents','unitCents','travetaCents','priceCentsKg','amountCents','salaryCents','passageCents','extrasCents','discountCents'];
 function parseData(type,form){
  const raw=Object.fromEntries(new FormData(form).entries()),p={};
  for(const [k,v] of Object.entries(raw)){
