@@ -406,6 +406,59 @@ async function run(browser,width,url){
    await module(page,'hub');
    assert.match(await page.locator('#module-content').innerText(),/LOTE-DEMO-2026-001/);
    assert.equal(await revision(page),postRev);
+
+   // Pedido 3 dividido entre duas facções, retorno individual e devolução rastreada.
+   await module(page,'pedidos');
+   await put(page,'order.add',{clientId:'CLI-0001',productId:'PRO-0003',
+    P:'14',M:'0',G:'0',GG:'0'});
+   await module(page,'corte');
+   await put(page,'cut.record',{orderId:'PED-0003',size:'P',qty:'14'});
+   await module(page,'faccoes');
+   await put(page,'faction.multi.allocate',{
+    orderId:'PED-0003',factionId:'FAC-0001',qty:'5'});
+   await put(page,'faction.multi.allocate',{
+    orderId:'PED-0003',factionId:'FAC-0002',qty:'7'});
+   assert.match(await page.locator('#module-content').innerText(),/Distribuição por pedido e facção/);
+   const entryA=await page.locator(
+    'form[data-command="faction.multi.return"] [name="assignmentId"] option')
+    .filter({hasText:'PED-0003 · Oficina Exemplo A'}).getAttribute('value');
+   const entryB=await page.locator(
+    'form[data-command="faction.multi.return"] [name="assignmentId"] option')
+    .filter({hasText:'PED-0003 · Oficina Exemplo B'}).getAttribute('value');
+   assert.match(entryA,/^ALO-/);
+   assert.match(entryB,/^ALO-/);
+   assert.notEqual(entryA,entryB);
+   assert.equal(await page.locator('form[data-command="faction.return"] option[value="PED-0003"]').count(),0,
+    'retorno simples não deve atribuir facção errada a pedido dividido');
+   await put(page,'faction.multi.return',{assignmentId:entryB,qty:'3'});
+   await put(page,'faction.multi.return',{assignmentId:entryA,qty:'4'});
+   await module(page,'acertos');
+   await put(page,'settlement.pieces.return',{id:'ACE-0005',qty:'1',
+    reason:'Uma peça da facção B devolvida em teste'});
+   const [manyDownload]=await Promise.all([page.waitForEvent('download'),page.locator('#export-json').click()]);
+   const many=JSON.parse(fs.readFileSync(await manyDownload.path(),'utf8'));
+   const entries=many.data.factionAssignments.filter(x=>x.orderId==='PED-0003');
+   assert.equal(entries.length,2);
+   assert.deepEqual(entries.map(x=>x.qtySent),[5,7]);
+   assert.deepEqual(entries.map(x=>x.qtyReturned),[4,2]);
+   assert.equal(many.data.orders.find(x=>x.id==='PED-0003').allocated,12);
+   assert.equal(many.data.orders.find(x=>x.id==='PED-0003').returned,6);
+   const newest=many.data.settlements.filter(x=>x.orderId==='PED-0003');
+   assert.equal(newest.length,2);
+   assert.deepEqual(newest.map(x=>x.factionId),['FAC-0002','FAC-0001']);
+   assert.deepEqual(newest.map(x=>x.qty),[2,4]);
+   assert.deepEqual(newest.map(x=>x.assignmentId),[entryB,entryA]);
+   assert.equal(many.checks.ok,true);
+   assert.equal(many.productionApproval,false);
+   await module(page,'faccoes');
+   assert.match(await page.locator('#module-content').innerText(),/ALO-/);
+   const manyRevision=await revision(page);
+   await page.reload();
+   await page.waitForFunction(rev=>
+    document.querySelector('#top-revision')?.textContent.includes('Revisão local '+rev),manyRevision);
+   await module(page,'faccoes');
+   assert.match(await page.locator('#module-content').innerText(),/PED-0003/);
+   assert.equal(await revision(page),manyRevision);
   }
   const d=await page.evaluate(()=>({width:innerWidth,scroll:document.documentElement.scrollWidth}));
   assert(d.scroll<=d.width+2,'overflow '+width+'px '+JSON.stringify(d));
