@@ -21,7 +21,7 @@ test('central de homologação cobre 76 funções, 19 módulos, 43 critérios e 
 });
 test('demonstrações são explicitamente parciais e referências existem localmente',()=>{
  const available=catalog.cases.filter(x=>x.demo);
- assert.equal(available.length,47);
+ assert.equal(available.length,48);
  assert.ok(available.every(x=>master.modules.some(m=>m.id===x.moduleId)));
  for(const x of catalog.cases){
   assert.ok(fs.existsSync(path.resolve(root,'../'+x.source)),'legado sem fonte '+x.source);
@@ -30,7 +30,7 @@ test('demonstrações são explicitamente parciais e referências existem localm
    assert.match(x.demo.scope,/sem |não |simula|fictíci|ilustrativ|local|parcial/i,x.id);
    assert.ok(x.demo.steps.length>=3,x.id);
    assert.ok(x.demo.expected.length>35,x.id);
-   assert.ok(/^[\w-]+\.html(?:#corte)?$/.test(x.demo.path),x.id);
+   assert.ok(/^[\w-]+\.html(?:#(?:corte|acertos))?$/.test(x.demo.path),x.id);
    assert.ok(fs.existsSync(path.join(root,x.demo.path.split('#')[0])),x.id);
   }
  }
