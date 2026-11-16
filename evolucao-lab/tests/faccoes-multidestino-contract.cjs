@@ -3,6 +3,7 @@ const test=require('node:test'),assert=require('node:assert/strict'),
  fs=require('node:fs'),path=require('node:path');
 const core=require('../operacao-integrada-core.js');
 const routing=require('../modulos/faccoes-multidestino-v1.js');
+const observer=require('../modulos/observabilidade-v2.js');
 let n=1;
 function cmd(s,type,payload,customId){
  const output=core.apply(s,{type,payload,actor:'Homologação fictícia',
@@ -47,6 +48,12 @@ test('duas facções no mesmo pedido, saldos independentes, retornos e acertos p
  assert.equal(s.factionAssignments[1].qtyReturned,6);
  assert.equal(s.finance.filter(x=>x.kind==='pagar').length,2);
  assert.equal(core.inspect(s).ok,true);
+ const report=observer.analyze(s);
+ assert.equal(report.summary.distributedOrders,1);
+ assert.equal(report.summary.factionDispatches,2);
+ assert.equal(report.summary.openFactionPieces,7);
+ assert.equal(report.factionDispatches.length,2);
+ assert.equal(report.findings.length,0);
  old=JSON.stringify(s);
  assert.throws(()=>cmd(s,'faction.return',{orderId:'PED-0001',qty:1}),/várias facções/);
  assert.equal(JSON.stringify(s),old,'rotina antiga não mistura retornos');
@@ -142,6 +149,8 @@ test('validação rejeita duplicidade, saldo negativo, erro de retorno e histór
  ]){
   const bad=structuredClone(s);corruption(bad);
   assert.equal(core.inspect(bad).ok,false);
+  assert.ok(observer.analyze(bad).findings.some(x=>x.code.startsWith('FACCAO_')),
+   'Auditor deve apontar facção/saldo específico');
  }
  assert.equal(core.inspect(s).ok,true);
 });
