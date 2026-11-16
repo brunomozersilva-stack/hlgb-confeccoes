@@ -191,6 +191,26 @@ async function run(browser,width,url){
    const row=page.locator('#settlement-table tbody tr').filter({hasText:'ACE-0004'});
    assert.match(await row.innerText(),/pago/i);
    assert.match(await row.innerText(),/10,00/);
+   await put(page,'settlement.compensate',{id:'ACE-0004',deltaCents:'-2,00',
+    reference:'AJ-EMBALAGEM-001',reason:'Crédito simulado para recuperar diferença'});
+   await put(page,'settlement.compensate',{id:'ACE-0004',deltaCents:'1,00',
+    reference:'AJ-EMBALAGEM-002',reason:'Débito complementar fictício'});
+   assert.match(await page.locator('#module-content').innerText(),/CMP-0001/);
+   assert.match(await page.locator('#module-content').innerText(),/CMP-0002/);
+   const beforeComp=await revision(page);
+   const duplicate=page.locator('form[data-command="settlement.compensate"]');
+   await duplicate.locator('[name="reference"]').fill('aj-embalagem-001');
+   await duplicate.locator('[name="deltaCents"]').fill('3,00');
+   await duplicate.locator('button[type=submit]').click();
+   await page.waitForFunction(()=>document.querySelector('#flash')?.textContent.includes('Referência de compensação já utilizada'));
+   assert.equal(await revision(page),beforeComp);
+   await module(page,'hub');
+   const compensationTitle=await page.locator('form[data-command="finance.pay"] select[name="id"] option')
+    .filter({hasText:'CMP-0001'}).getAttribute('value');
+   assert.match(compensationTitle,/^FIN-/);
+   await put(page,'finance.pay',{id:compensationTitle});
+   await module(page,'acertos');
+   assert.match(await page.locator('#module-content').innerText(),/AJ-EMBALAGEM-001/);
    const [dl]=await Promise.all([page.waitForEvent('download'),page.locator('#export-json').click()]);
    const evidence=JSON.parse(fs.readFileSync(await dl.path(),'utf8'));
    assert.equal(evidence.data.orders.length,2);
@@ -204,6 +224,15 @@ async function run(browser,width,url){
    assert.equal(evidence.data.settlements.find(x=>x.id==='ACE-0004').status,'pago');
    assert.equal(evidence.data.finance.find(x=>x.sourceId==='ACE-0004').amountCents,1000);
    assert.equal(evidence.data.finance.find(x=>x.sourceId==='ACE-0004').status,'pago');
+   assert.equal(evidence.data.settlementCompensations.length,2);
+   assert.equal(evidence.data.settlementCompensations[0].deltaCents,-200);
+   assert.equal(evidence.data.settlementCompensations[0].status,'pago');
+   assert.equal(evidence.data.settlementCompensations[1].deltaCents,100);
+   assert.equal(evidence.data.settlementCompensations[1].status,'aberto');
+   assert.equal(evidence.data.finance.find(x=>x.sourceId==='CMP-0001').kind,'receber');
+   assert.equal(evidence.data.finance.find(x=>x.sourceId==='CMP-0002').kind,'pagar');
+   assert.equal(evidence.data.finance.find(x=>x.sourceId==='CMP-0001').amountCents,200);
+   assert.equal(evidence.totals.compensatedNet,-100);
    assert.equal(evidence.checks.ok,true);
   }
   const d=await page.evaluate(()=>({width:innerWidth,scroll:document.documentElement.scrollWidth}));
