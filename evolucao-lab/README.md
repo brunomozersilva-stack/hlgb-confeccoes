@@ -2,6 +2,21 @@
 
 Esta pasta é um **protótipo isolado**: não é uma tela incorporada ao HLGB em produção.
 
+## Nova etapa — Prévia Operacional Integrada (19 áreas em uma tela)
+
+Os arquivos `operacao-integrada.html`, `operacao-integrada-core.js` e `operacao-integrada-ui.js` criam uma **prévia isolada** para que o usuário teste múltiplos módulos interligados com os mesmos dados fictícios.
+
+As 19 áreas correspondem às categorias do inventário: Núcleo, Login/Permissões, Pedidos, Produtos/Ficha, Corte, PCP/Produção, Separação, Facções, Acertos, Hub, Folha, Compras, Estoque, Relatórios, Auditor, Bot, Central, Impressora 3D e Cadastros. **Uma área navegável não significa paridade comprovada da função antiga.** Os módulos de login, bot, auditor e saúde são apenas demonstrativos de apresentação/regras.
+
+Operações implementadas no núcleo experimental: cadastros de clientes/fornecedores/materiais/produtos/facções; pedidos por grade P/M/G/GG; corte parcial por tamanho e consumo de matéria-prima; alocação e retorno de facções; acerto automático com travetada ilustrativa e ajuste rastreado; separação e expedição parcial; títulos fictícios no Hub com confirmação única; compras recebidas uma vez com duas conferências e entrada de estoque; ajustes de estoque com justificativa; passagem individual na folha; itens 3D; ocorrências; auditoria e relatórios.
+
+Garantias do ensaio: sem rede, sem login ou pagamento real, sem Supabase de produção, sem dados reais. As operações usam uma transação por mudança no IndexedDB local, revisão esperada, eventos com IDs exclusivos, validações de quantidades e **releitura antes de exibir "salvo"**. Um conflito entre duas abas não sobrescreve silenciosamente a revisão mais recente. O download JSON/CSV é somente fictício; não existem PDFs ou uploads.
+
+Testes em CI: invariantes do motor e fluxo de interface em Chromium/WebKit em larguras 320/375/390/768/1280, exportação, reload, erros e concorrência entre duas abas. A documentação detalhada está em `COMECAR-TESTES.md`.
+
+**Limites:** exige trabalho adicional para integrar verdadeiramente os 19 módulos com banco de homologação, autenticação e papéis, serviços financeiros, armazenamento de comprovantes, folha real, importações de notas e pedidos, grade detalhada, auditor de produção e comparação das 76 funções do inventário. Não liberar para substituir o sistema principal.
+
+
 ## Nova etapa — Folha 2.0 para teste manual em navegador
 
 O arquivo `folha-homologacao.html` oferece uma folha **com cinco identidades e valores totalmente inventados**. A interface está disponível na prévia pública e no ZIP offline, usando IndexedDB **local do navegador** como armazenamento experimental. Não há acesso ao banco da confecção.
