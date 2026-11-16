@@ -2,6 +2,21 @@
 
 Esta pasta é um **protótipo isolado**: não é uma tela incorporada ao HLGB em produção.
 
+## Nova etapa — Facções, Acertos e Hub com serviço de embalagem fictício
+
+A prévia `operacao-integrada.html#acertos` agora permite testar:
+
+- **Preço por produto e facção:** tarifa específica por modelo, mantendo os acertos existentes com valores congelados; novos retornos recebem a tarifa vigente.
+- **Travetada:** alteração por facção apenas para serviços futuros; desconto ilustrativo quando não traveta continua explícito.
+- **Transferência antes do retorno:** pode trocar a facção de um pedido já alocado **somente enquanto não houver retorno/acerto**, exigindo motivo e histórico de origem/destino. Troca após retorno é bloqueada, para não reescrever a origem dos lançamentos.
+- **Serviços avulsos:** costura ou embalagem cadastrada por quantidade, modelo, facção/embaladeira, preço unitário e desconto unitário de travetada. Exemplos editáveis de R$ 0,25 para camisola/doll e R$ 0,15 para calcinha. A regra real ainda será configurável.
+- **Devolução parcial com justificativa:** conserva os valores e quantidades anteriores no histórico, reduz o título vinculado e o retorno do pedido quando aplicável. Bloqueia quantidade maior que a disponível para separação ou devolução após pagamento.
+- **Acerto e Hub conciliados:** ajustes em acertos abertos alteram o título vinculado, com motivo e antes/depois. Após marcar o título fictício como pago, o acerto também fica pago e não permite edição ou baixa duplicada.
+- **Pesquisa de facções e acertos:** filtro pelo nome e serviço em tabelas locais. Ainda falta busca global do banco de produção e anexação privada de PDFs.
+- Testes de cálculo, integridade, trava pós-pagamento, identidade do acerto, revisões, Chrome e Safari/WebKit.
+
+**Nada disso acessa o banco de produção, movimenta dinheiro, gera comprovante oficial ou substitui os serviços financeiros da empresa.** A edição/compensação de acertos já pagos, anexação de PDF, lotes de serviços, múltiplas facções no mesmo pedido e permissões empresariais continuam pendentes.
+
 ## Nova etapa — Corte Avançado com folhas por lote (fictício)
 
 A área **Corte** de `operacao-integrada.html#corte` ganhou regras e formulários conectados aos pedidos e estoque do próprio laboratório. Os cadastros e lançamentos anteriores do IndexedDB são mantidos.
@@ -84,7 +99,7 @@ A página `guardiao-preservacao.html` vincula o inventário real do repositório
 
 - Busca, filtros por módulo, prioridade e demonstração; links para os 8 exercícios parciais.
 - Importação validada do relatório exportado pela Central de Homologação, com separação clara entre **funcionou na prévia** e **paridade funcional comprovada**.
-- Exportações de pendências em CSV/JSON com 76 bloqueios obrigatórios, mesmo que 47 demonstrações tenham passado.
+- Exportações de pendências em CSV/JSON com 76 bloqueios obrigatórios, mesmo que 48 demonstrações tenham passado.
 - Testes automatizados verificam dados embutidos versus inventários de origem e existência de todas as fontes e referências de teste; o teste de baseline confere hash de **229 arquivos antigos**.
 - Browser tests em Chromium/WebKit, incluindo telas estreitas, importação malformada e bloqueio de liberações indevidas.
 
