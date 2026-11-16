@@ -58,6 +58,20 @@ async function run(browser,width,url){
   await invalid.locator('button[type=submit]').click();
   await page.waitForFunction(()=>document.querySelector('#flash')?.textContent.includes('excede'));
   assert.equal(await revision(page),rev,'corte excedente não grava');
+  await put(page,'cut.plan',{orderId:'PED-0001',P:'2',M:'2',G:'0',GG:'0',workMode:'interno',
+   cutterOne:'Ana Cortadora',cutterTwo:'Beto Cortador',spreader:'Carla Enfestadora'});
+  assert.match(await page.locator('#module-content').innerText(),/COR-0001/);
+  await put(page,'cut.plan.update',{id:'COR-0001',P:'2',M:'2',G:'0',GG:'0',workMode:'externo',
+   cutterOne:'Ana Cortadora',cutterTwo:'Beto Cortador',spreader:'Carla Enfestadora'});
+  await put(page,'cut.plan.complete',{id:'COR-0001',usefulGrams:'480',scrapGrams:'35',
+   signatureOne:'Ana Cortadora',signatureTwo:'Beto Cortador'});
+  assert.match(await page.locator('#module-content').innerText(),/480 g útil \+ 35 g lixo/);
+  await page.evaluate(()=>{window.print=()=>{document.body.dataset.printProof='true'}});
+  await page.locator('button[data-print-plan="COR-0001"]').click();
+  assert.equal(await page.locator('body').getAttribute('data-print-proof'),'true');
+  assert.match(await page.locator('#cut-print').innerText(),/Folha de Corte FICTÍCIA/);
+  assert.match(await page.locator('#cut-print').innerText(),/Carla Enfestadora/);
+  assert.match(await page.locator('#cut-print').innerText(),/35 g/);
   await module(page,'faccoes');
   await put(page,'faction.allocate',{orderId:'PED-0001',factionId:'FAC-0002',qty:'12'});
   await put(page,'faction.return',{orderId:'PED-0001',qty:'9'});
@@ -96,10 +110,14 @@ async function run(browser,width,url){
   assert.equal(report.data.orders.length,1);
   const order=report.data.orders[0];
   assert.deepEqual(order.grade,{P:8,M:12,G:0,GG:0});
-  assert.deepEqual(order.cut,{P:6,M:10,G:0,GG:0});
+  assert.deepEqual(order.cut,{P:8,M:12,G:0,GG:0});
+  assert.equal(report.data.cutPlans.length,1);
+  assert.equal(report.data.cutPlans[0].status,'concluido');
+  assert.equal(report.data.cutPlans[0].workMode,'externo');
+  assert.equal(report.data.cutPlans[0].scrapGrams,35);
   assert.equal(order.allocated,12);assert.equal(order.returned,9);
   assert.equal(order.separated,7);assert.equal(order.shipped,5);
-  assert.equal(report.data.materials.find(x=>x.id==='MAT-0001').stockGrams,16000-16*120);
+  assert.equal(report.data.materials.find(x=>x.id==='MAT-0001').stockGrams,16000-20*120-35);
   assert.equal(report.data.materials.find(x=>x.id==='MAT-0002').stockGrams,10000);
   assert.equal(report.data.settlements[0].amountCents,9*550+100);
   assert.equal(report.data.finance.find(x=>x.sourceId==='ACE-0001').status,'pago');
