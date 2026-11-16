@@ -12,6 +12,12 @@ A tela mostra as compensações separadamente e oferece **Conferência PDF**, um
 
 Regras testadas: mesmo ID de comando não pode ser reaplicado; mesma referência não pode ser duplicada para um acerto, mesmo em outra caixa; acerto não pago não aceita compensação; diferença zero, excesso de limite e motivo vazio são rejeitados; integridade exige relação 1:1 entre compensação e novo título; versões antigas do laboratório sem esse campo continuam acessíveis sem resetar dados.
 
+## Nova etapa — Consulta combinada de acertos e compensações (somente leitura)
+
+A página `operacao-integrada.html#acertos` oferece busca única por ID do acerto, modelo, facção, referência e motivo das compensações; filtros combináveis por situação do acerto, facção/embaladeira, tipo de serviço e situação da compensação. Mostra contagem e valor total dos acertos encontrados, além da diferença líquida das compensações visíveis. Há um botão para limpar filtros, que não exclui qualquer registro.
+
+As escolhas da consulta são preservadas quando se navega entre módulos e ao salvar novos dados fictícios. Pesquisar por uma referência de compensação também localiza o acerto pago de origem. A filtragem **não faz gravação, não oculta dados do arquivo JSON/CSV exportado e não equivale à pesquisa no Supabase do HLGB real**. Os filtros são locais à aba de teste.
+
 ## Nova etapa — Facções, Acertos e Hub com serviço de embalagem fictício
 
 A prévia `operacao-integrada.html#acertos` agora permite testar:
