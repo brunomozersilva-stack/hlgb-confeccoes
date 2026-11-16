@@ -21,6 +21,21 @@ A página `homologacao-modulos.html` organiza 76 funcionalidades antigas identif
 
 As restantes **27 funções não possuem demonstração específica equivalente**. Elas já podem ser registradas como pendências, mas **não podem ser aprovadas no formulário como se estivessem implementadas**.
 
+## NOVO — Fechamento de pagamentos em lote com proteção contra duplicidade
+
+Abra a **Operação Integrada** com dados exclusivamente fictícios. Faça um teste transversal com Facções, Acertos e Hub.
+
+1. Em Pedidos/Corte/Facções, faça dois pedidos e registre pelo menos **dois retornos**, gerando dois acertos e duas contas a pagar no Hub. Alternativamente, crie dois serviços de embalagem avulsos na área Acertos, para gerar duas contas abertas.
+2. No **Hub Financeiro**, procure **Fechamento em lote**, marque os dois títulos. A tela deverá somar o valor das escolhas, sem alterar o estado de nenhum título.
+3. Informe `LOTE-TESTE-001` na referência e explique o motivo. Clique em **Validar sem pagar**; confira a mensagem com quantidade, total e referência e certifique-se de que a revisão não mudou.
+4. Clique em **Conferir e quitar lote fictício**. O programa deve salvar um único `PAG-...`; os dois títulos e os acertos deverão estar pagos apenas no ambiente inventado, com **uma única revisão e um único evento**.
+5. Atualize a página e confira o lote no Hub. Exporte JSON e verifique `data.paymentBatches[0].items`; cada item traz ID do título, origem, facção e valor. No relatório do Auditor, confirme o vínculo dos acertos e no CSV, a referência e os itens.
+6. Tente repetir o fechamento, inclusive com a mesma referência. O título quitado não poderá ser selecionado novamente. O teste automático também cobre repetição de comando, referência usada em outro lote, título inexistente e divergência de valores.
+7. Teste uma **compensação positiva** de um acerto pago junto com outro acerto aberto, em lote separado. O acerto original e seu título pago devem permanecer intactos.
+8. Confirme que o botão antigo de **Marcar como quitado ficticiamente** por um único título permanece disponível.
+
+**Importante:** nada é liquidado em banco. Não use acertos ou pagamentos reais no laboratório. O funcionamento no laboratório não é prova de sincronização entre computadores.
+
 ## NOVO — Auditor, Bot e relatórios 2.0 (plugues reversíveis)
 
 Na Operação Integrada fictícia:
