@@ -36,6 +36,18 @@ Abra a Operação Integrada em `operacao-integrada.html#acertos` pela prévia HT
 
 **Ainda não disponível:** anexar comprovante PDF bancário à produção, corrigir pagamentos reais com contabilização ou compensações legais, fechamento fiscal, múltiplas contas bancárias, conciliação externa e sincronização entre computadores.
 
+## NOVO — Consultar acertos e compensações sem modificar lançamentos
+
+Na Operação Integrada, abra **Acertos e pagamentos avulsos**, após realizar o exercício de compensação.
+
+1. Pesquise pelo código do acerto, nome fictício da facção, modelo, serviço ou referência de compensação. A pesquisa por referência também mostra o acerto original.
+2. Combine os filtros **Situação do acerto**, **Facção/embaladeira** e **Tipo de serviço**; confirme a quantidade de resultados e a soma fictícia exibida.
+3. Filtre compensações **Em aberto** ou **Quitadas** e verifique que os títulos continuam vinculados ao acerto pago original.
+4. Navegue ao Hub e volte. Os filtros de consulta devem permanecer selecionados. Use **Limpar filtros** para voltar a ver todos os registros.
+5. Exporte o JSON e recarregue. Os valores e eventos devem permanecer idênticos; filtrar não altera a revisão do documento nem os títulos.
+
+**Limitação:** esses filtros não buscam dados reais, não pagam títulos e não são uma prova da consulta multiusuário de produção.
+
 ## NOVO — Como testar Facções, Acertos e Hub integrados
 
 Abra `operacao-integrada.html#acertos`. Todo o exercício usa modelos, pessoas e valores inventados; não há pagamentos efetivos.
