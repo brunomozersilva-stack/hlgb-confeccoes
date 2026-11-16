@@ -44,6 +44,8 @@
    if(!(q.ordered>=q.cut&&q.cut>=q.allocated&&q.allocated>=q.returned&&q.returned>=q.separated&&q.separated>=q.shipped))
     problems.push(o.id+': baixa operacional sem quantidade anterior');
    if(o.allocated>0&&!o.factionId)problems.push(o.id+': facção não identificada');
+   const linkedReturned=s.settlements.filter(a=>a.orderId===o.id).reduce((n,a)=>n+a.qty,0);
+   if(linkedReturned!==o.returned)problems.push(o.id+': soma dos acertos não corresponde ao retorno');
   }
   const plans=Array.isArray(s.cutPlans)?s.cutPlans:[];
   for(const plan of plans){
@@ -319,6 +321,27 @@
    const o=get(s,'orders',p.orderId,'Pedido'),qty=num('qty',1,10000);
    if(o.shipped+qty>o.separated)throw Error('Expedição excede a quantidade separada.');
    o.shipped+=qty;result=o.id;break}
+  case 'settlement.pieces.return':{
+   const x=get(s,'settlements',p.id,'Acerto');
+   if(x.status!=='aberto')throw Error('Não é permitido devolver peças após pagamento.');
+   const bill=get(s,'finance',s.finance.find(y=>y.sourceId===x.id&&y.kind==='pagar')?.id,'Título a pagar');
+   if(bill.status!=='aberto')throw Error('Título já pago impede devolução direta.');
+   const qty=num('qty',1,100000),reason=name(p.reason,'Motivo da devolução');
+   if(qty>=x.qty)throw Error('Devolução integral não permitida neste fluxo; registre uma correção formal.');
+   const newQty=x.qty-qty,newAmount=newQty*x.unitCents+x.adjustmentCents;
+   if(newAmount<=0)throw Error('Devolução deixaria acerto sem valor positivo.');
+   if(x.orderId){
+    const order=get(s,'orders',x.orderId,'Pedido associado');
+    if(order.returned-qty<order.separated)throw Error('Devolução excede o saldo não separado deste pedido.');
+    order.returned-=qty;
+   }
+   const before=x.amountCents,oldQty=x.qty;
+   x.qty=newQty;x.amountCents=newAmount;
+   if(!Array.isArray(x.returns))x.returns=[];
+   x.returns.push({commandId:uid,qty,reason,beforeQty:oldQty,afterQty:newQty,
+    beforeCents:before,afterCents:newAmount});
+   bill.amountCents=newAmount;
+   result=x.id+' · '+oldQty+' → '+newQty+' peças · '+reason;break}
   case 'settlement.adjust':{
    const x=get(s,'settlements',p.id,'Acerto');
    if(x.status!=='aberto')throw Error('Acerto pago não pode ser alterado nesta prévia.');
