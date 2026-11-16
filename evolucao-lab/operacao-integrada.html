@@ -51,6 +51,10 @@ tr:last-child td{border-bottom:0}tr[hidden]{display:none!important}.num{text-ali
 .journey-step[data-completed="true"]{border-color:#c4decf;background:#f8fcf9}
 .journey-step strong{font-size:12px}.journey-step .caption{margin:4px 0 0;max-width:650px}
 .journey-actions{display:flex;align-items:center;flex-wrap:wrap;gap:8px;justify-content:flex-end}
+.batch-choices{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin:12px 0;max-height:260px;overflow:auto}
+.batch-choice{display:flex;align-items:flex-start;gap:8px;padding:11px;border:1px solid var(--line);border-radius:9px;font-size:12px;background:#faf9fc;cursor:pointer;min-width:0}
+.batch-choice input{width:18px;height:18px;flex-shrink:0;accent-color:var(--purple)}
+@media(max-width:710px){.batch-choices{grid-template-columns:1fr}}
 @media(max-width:710px){.journey-step{align-items:flex-start;flex-direction:column}.journey-actions{justify-content:flex-start}}
 
 @media(max-width:980px){.frame{grid-template-columns:185px minmax(0,1fr)}.tiles{grid-template-columns:1fr}.metrics{grid-template-columns:repeat(2,minmax(0,1fr))}}
@@ -92,6 +96,7 @@ tr:last-child td{border-bottom:0}tr[hidden]{display:none!important}.num{text-ali
 <p class="caption">Esta página oferece um primeiro ensaio transversal dos 19 módulos. Não é homologação das 76 funções antigas. As rotinas de pagamento, impostos, autenticação, documentos fiscais, auditor automático e sincronização empresarial permanecem pendentes.</p>
 </main></div></div>
 <section id="cut-print" aria-label="Folha de corte fictícia para impressão"></section>
+<script src="./modulos/pagamento-lote-v1.js"></script>
 <script src="./operacao-integrada-core.js"></script>
 <script src="./modulos/registro-v1.js"></script>
 <script src="./modulos/observabilidade-v2.js"></script>
