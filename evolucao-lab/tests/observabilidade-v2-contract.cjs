@@ -53,6 +53,20 @@ test('observador lê histórico e liga pedido, corte, compra, acerto e compensa�
  assert.equal(audit.history[0].revision,s.revision);
  assert.equal(audit.moduleActivity.some(x=>x.module==='hub'),true);
  assert.equal(audit.productionApproval,false);
+ const model=audit.modelSummary.find(x=>x.productId==='PRO-0001');
+ assert.equal(model.orders,1);
+ assert.equal(model.ordered,5);
+ assert.equal(model.cut,5);
+ assert.equal(model.returned,5);
+ assert.equal(model.plannedReceivablesCents,5*3990);
+ const faction=audit.factionSummary.find(x=>x.factionId==='FAC-0001');
+ assert.equal(faction.totalSettlementsCents,5*550);
+ assert.equal(faction.paidSettlementsCents,5*550);
+ assert.equal(faction.compensationNetCents,-100);
+ assert.equal(audit.settlementHistory.length,1);
+ assert.equal(audit.settlementHistory[0].event,'compensacao_separada');
+ assert.equal(audit.settlementHistory[0].beforeCents,audit.settlementHistory[0].afterCents,
+  'original pago não pode ser reescrito para registrar compensação');
  assert.equal(audit.summary.coverage.includes('nenhuma garantia'),true);
  assert.equal(before(s),previous,'o Auditor não modifica os dados');
  assert.equal(JSON.stringify(s.settlements[0]),originalPaid);
@@ -118,6 +132,9 @@ test('retrocompatibilidade: documentos locais antigos não exigem reset nem novo
  const audit=observer.analyze(s);
  assert.equal(audit.findings.length,0);
  assert.equal(audit.summary.compensations,0);
+ assert.equal(audit.modelSummary.length,3);
+ assert.equal(audit.factionSummary.length,2);
+ assert.equal(audit.settlementHistory.length,0);
  assert.equal(before(s),copy);
  assert.throws(()=>observer.analyze({schema:'producao'}),/não compatível/);
 });
