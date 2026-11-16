@@ -2,6 +2,20 @@
 
 Esta pasta é um **protótipo isolado**: não é uma tela incorporada ao HLGB em produção.
 
+## Nova etapa — Corte Avançado com folhas por lote (fictício)
+
+A área **Corte** de `operacao-integrada.html#corte` ganhou regras e formulários conectados aos pedidos e estoque do próprio laboratório. Os cadastros e lançamentos anteriores do IndexedDB são mantidos.
+
+- Edição da grade P/M/G/GG com proteção contra redução abaixo do corte efetuado e das folhas abertas. Se houver título a receber aberto, o valor também acompanha a quantidade editada.
+- Planejamento de múltiplos lotes por pedido, com reserva de peças por tamanho, equipe **interna ou externa**, dois cortadores distintos e um enfestador. A folha aberta não baixa o estoque.
+- Alteração de lotes não concluídos e cancelamento registrado no histórico, sem excluir lançamentos.
+- Conclusão do lote com duas **conferências digitadas** correspondentes aos cortadores, peso útil e peso de lixo/desperdício. O estoque é baixado de forma atômica pelo peso útil + desperdício; nenhuma folha pode ser concluída duas vezes.
+- Aba de resumo por lote, status, peso previsto/real e impressão A4 do navegador. O usuário pode usar "Salvar em PDF" na interface de impressão. **Não é assinatura legal, nem um PDF fiscal produzido automaticamente.**
+- Baixa manual por tamanho preservada, impedida de consumir quantidade já reservada em outra folha aberta.
+- Testes automatizados de grade, reserva, excesso, assinatura, estoque, auditoria, impressão e salvamento local no Chrome e Safari/WebKit.
+
+**Ainda pendente:** cores, múltiplos materiais por modelo e consumo variável por tamanho, fichas técnicas completas, balança conectada, identidade legal do signatário, planejamento multi-facções, folha de corte oficial, integração do banco empresarial e homologação com pedidos reais. Essas seis novas rotinas são provas **parciais**, não seis funções antigas completamente preservadas.
+
 ## Nova etapa — Prévia Operacional Integrada (19 áreas em uma tela)
 
 Os arquivos `operacao-integrada.html`, `operacao-integrada-core.js` e `operacao-integrada-ui.js` criam uma **prévia isolada** para que o usuário teste múltiplos módulos interligados com os mesmos dados fictícios.
@@ -10,7 +24,7 @@ As 19 áreas correspondem às categorias do inventário: Núcleo, Login/Permiss�
 
 Operações implementadas no núcleo experimental: cadastros de clientes/fornecedores/materiais/produtos/facções; pedidos por grade P/M/G/GG; corte parcial por tamanho e consumo de matéria-prima; alocação e retorno de facções; acerto automático com travetada ilustrativa e ajuste rastreado; separação e expedição parcial; títulos fictícios no Hub com confirmação única; compras recebidas uma vez com duas conferências e entrada de estoque; ajustes de estoque com justificativa; passagem individual na folha; itens 3D; ocorrências; auditoria e relatórios.
 
-Garantias do ensaio: sem rede, sem login ou pagamento real, sem Supabase de produção, sem dados reais. As operações usam uma transação por mudança no IndexedDB local, revisão esperada, eventos com IDs exclusivos, validações de quantidades e **releitura antes de exibir "salvo"**. Um conflito entre duas abas não sobrescreve silenciosamente a revisão mais recente. O download JSON/CSV é somente fictício; não existem PDFs ou uploads.
+Garantias do ensaio: sem rede, sem login ou pagamento real, sem Supabase de produção, sem dados reais. As operações usam uma transação por mudança no IndexedDB local, revisão esperada, eventos com IDs exclusivos, validações de quantidades e **releitura antes de exibir "salvo"**. Um conflito entre duas abas não sobrescreve silenciosamente a revisão mais recente. O download JSON/CSV é somente fictício; não há geração automática de PDF oficial nem uploads.
 
 Testes em CI: invariantes do motor e fluxo de interface em Chromium/WebKit em larguras 320/375/390/768/1280, exportação, reload, erros e concorrência entre duas abas. A documentação detalhada está em `COMECAR-TESTES.md`.
 
@@ -70,7 +84,7 @@ A página `guardiao-preservacao.html` vincula o inventário real do repositório
 
 - Busca, filtros por módulo, prioridade e demonstração; links para os 8 exercícios parciais.
 - Importação validada do relatório exportado pela Central de Homologação, com separação clara entre **funcionou na prévia** e **paridade funcional comprovada**.
-- Exportações de pendências em CSV/JSON com 76 bloqueios obrigatórios, mesmo que 41 demonstrações tenham passado.
+- Exportações de pendências em CSV/JSON com 76 bloqueios obrigatórios, mesmo que 47 demonstrações tenham passado.
 - Testes automatizados verificam dados embutidos versus inventários de origem e existência de todas as fontes e referências de teste; o teste de baseline confere hash de **229 arquivos antigos**.
 - Browser tests em Chromium/WebKit, incluindo telas estreitas, importação malformada e bloqueio de liberações indevidas.
 
