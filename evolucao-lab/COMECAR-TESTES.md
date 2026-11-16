@@ -6,7 +6,7 @@
 
 A página `homologacao-modulos.html` organiza 76 funcionalidades antigas identificadas em 19 módulos, associadas a 43 critérios de paridade mais detalhados. Para cada função, mostra fonte legada, teste existente, roteiro esperado, disponibilidade da demonstração e resultado selecionável.
 
-**Exemplos da lista original de exercícios parciais (agora são 47, incluindo a Folha, Operação Integrada e seis testes novos de Corte):**
+**Exemplos da lista original de exercícios parciais (agora são 48, incluindo Folha, Corte, Acertos e Operação Integrada):**
 
 | ID | Módulo | Exercício |
 |---|---|---|
@@ -19,7 +19,22 @@ A página `homologacao-modulos.html` organiza 76 funcionalidades antigas identif
 | PAR-044 | Acertos | Seleção e fechamento fictício em lote |
 | PAR-047 | Hub | Buscar, filtrar e exportar lançamento fictício |
 
-As restantes **29 funções não possuem demonstração específica equivalente**. Elas já podem ser registradas como pendências, mas **não podem ser aprovadas no formulário como se estivessem implementadas**.
+As restantes **28 funções não possuem demonstração específica equivalente**. Elas já podem ser registradas como pendências, mas **não podem ser aprovadas no formulário como se estivessem implementadas**.
+
+## NOVO — Como testar Facções, Acertos e Hub integrados
+
+Abra `operacao-integrada.html#acertos`. Todo o exercício usa modelos, pessoas e valores inventados; não há pagamentos efetivos.
+
+1. Em **Pedidos**, crie uma Calcinha Tammy de 10 P. Faça o corte das 10 peças na área Corte.
+2. Em **Facções**, envie 8 peças à Oficina Exemplo A. Cadastre preço específico de R$ 3,00 para a Tammy na Oficina Exemplo B; registre a transferência do pedido para a Oficina B, com justificativa, **antes do retorno**.
+3. Registre retorno de 5 peças na Oficina B. Como ela não traveta, o valor por peça será R$ 2,50 (R$ 3,00 − R$ 0,50 ilustrativos), total do acerto **R$ 12,50**.
+4. Ative a travetada da Oficina B, com motivo; devolva outras 3 peças pelo formulário **Registrar retorno parcial** em Facções. O segundo acerto deve usar **R$ 3,00/peça**, sem recalcular o primeiro.
+5. Em **Acertos**, abra **Novo acerto avulso**, escolha Embalagem da Calcinha Tammy e informe 100 peças a R$ 0,15 com R$ 0,05 de desconto por peça. Total **R$ 10,00**, vinculado a uma conta a pagar fictícia.
+6. Use **Devolução parcial** de 10 peças com justificativa. O acerto avulso deve passar a 90 peças e **R$ 9,00**, mantendo o histórico anterior. Acrescente depois R$ 1,00 no ajuste, totalizando **R$ 10,00** novamente.
+7. No **Hub**, localize esse título e marque-o como pago apenas ficticiamente. O acerto deve aparecer como pago e novos ajustes, retornos ou devoluções diretas devem ser bloqueados.
+8. Confira o histórico, use a busca de facções/acertos, atualize a página e exporte o JSON para provar as quantidades e valores.
+
+**Limites importantes:** a troca de facção só funciona para transferência total antes do primeiro retorno; não há compensação de título pago nem comprovantes PDF anexados. Os valores de embalagem e travetada são apenas exemplos. Um teste bem-sucedido não autoriza integrar essas rotinas ao HLGB real.
 
 ## NOVO — Como testar o Corte Avançado por lote
 
@@ -112,7 +127,7 @@ Na página inicial da prévia, abra **Guardião de Preservação** (`guardiao-pr
 4. Filtre as demonstrações. São **8 parciais** e **68 sem demonstração mapeada**. Clicar em uma demonstração abre o simulador separado.
 5. Na **Central de Testes — 76 funções**, marque resultados usando apenas dados fictícios e exporte o JSON; volte ao Guardião e use **Importar testes da Central**. O painel mostra a avaliação da prévia, mas mantém o indicador de liberação em **0/76**.
 6. Exporte **Pendências CSV** ou **Bloqueios JSON** para analisar os gargalos. O campo `publicationBlocked` do JSON permanece `true`; `releaseApproved` é `false` e há 76 motivos de bloqueio.
-7. Teste um relatório incompatível ou com `passed` em funções sem demo: a importação deve ser rejeitada. Mesmo 47 demonstrações com resultado positivo não autorizam produção.
+7. Teste um relatório incompatível ou com `passed` em funções sem demo: a importação deve ser rejeitada. Mesmo 48 demonstrações com resultado positivo não autorizam produção.
 8. Para garantir que nenhum arquivo original sumiu no código, consulte os testes automatizados de **229 arquivos legados (hash congelado)** e do **Guardião** nas ações do GitHub.
 
 **Escopo real:** é um painel de auditoria **estático/offline**, não homologação do sistema novo. A referência de uma função ou teste antigo não demonstra que ela existe no novo ERP. A liberação não pode ocorrer apenas importando um relatório; depende de trabalho técnico e aprovação formal posterior.
