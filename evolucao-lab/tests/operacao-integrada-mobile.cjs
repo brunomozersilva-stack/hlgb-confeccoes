@@ -146,6 +146,59 @@ async function run(browser,width,url){
    await page.locator('#refresh').click();
    await page.waitForFunction(rev=>document.querySelector('#top-revision')?.textContent.includes('Revisão local '+rev),expectedRev+1);
    await tab.close();
+   // Teste completo no navegador: outra encomenda fictícia, transferência antes do retorno,
+   // preço por modelo, travetada futura, embalagem avulsa e reconciliação no Hub.
+   await module(page,'pedidos');
+   await put(page,'order.add',{clientId:'CLI-0002',productId:'PRO-0002',P:'10',M:'0',G:'0',GG:'0'});
+   await module(page,'corte');
+   await put(page,'cut.record',{orderId:'PED-0002',size:'P',qty:'10'});
+   await module(page,'faccoes');
+   await put(page,'faction.allocate',{orderId:'PED-0002',factionId:'FAC-0001',qty:'8'});
+   await put(page,'faction.rate.set',{factionId:'FAC-0002',productId:'PRO-0002',
+    unitCents:'3,00',reason:'Preço específico por modelo'});
+   await put(page,'faction.reassign',{orderId:'PED-0002',factionId:'FAC-0002',
+    reason:'Troca autorizada antes do retorno fictício'});
+   assert.match(await page.locator('#module-content').innerText(),/TRO-0001/);
+   const filter=page.locator('#faction-search');
+   await filter.fill('OFICINA EXEMPLO B');
+   assert.equal(await page.locator('#faction-table tbody tr:visible').count(),1);
+   await filter.fill('');
+   await put(page,'faction.return',{orderId:'PED-0002',qty:'5'});
+   await put(page,'faction.traveta.set',{factionId:'FAC-0002',traveta:'true',
+    reason:'Agora a facção traveta futuros retornos'});
+   await put(page,'faction.return',{orderId:'PED-0002',qty:'3'});
+   const snap=await revision(page);
+   const transfer=page.locator('form[data-command="faction.reassign"]');
+   await transfer.locator('[name="orderId"]').selectOption('PED-0002').catch(()=>{});
+   // O pedido não aparece mais na lista de transferência por já ter retornado.
+   assert.equal(await transfer.locator('[name="orderId"] option[value="PED-0002"]').count(),0);
+   assert.equal(await revision(page),snap);
+   await module(page,'acertos');
+   await put(page,'settlement.add',{serviceType:'embalagem',factionId:'FAC-0002',
+    productId:'PRO-0002',qty:'100',unitCents:'0,15',travetaCents:'0,05',
+    reason:'Embalagem fictícia calcinha'});
+   await put(page,'settlement.adjust',{id:'ACE-0004',adjustmentCents:'1,00',
+    reason:'Conferência do valor da embalagem'});
+   await page.locator('#settlement-search').fill('embalagem');
+   assert((await page.locator('#settlement-table tbody tr:visible').count())>=1);
+   await module(page,'hub');
+   await put(page,'finance.pay',{id:'FIN-0007'});
+   await module(page,'acertos');
+   const row=page.locator('#settlement-table tbody tr').filter({hasText:'ACE-0004'});
+   assert.match(await row.innerText(),/pago/i);
+   assert.match(await row.innerText(),/11,00/);
+   const [dl]=await Promise.all([page.waitForEvent('download'),page.locator('#export-json').click()]);
+   const evidence=JSON.parse(fs.readFileSync(await dl.path(),'utf8'));
+   assert.equal(evidence.data.orders.length,2);
+   assert.equal(evidence.data.factionTransfers.length,1);
+   assert.equal(evidence.data.settlements.length,4);
+   assert.equal(evidence.data.settlements.find(x=>x.id==='ACE-0002').unitCents,250);
+   assert.equal(evidence.data.settlements.find(x=>x.id==='ACE-0003').unitCents,300);
+   assert.equal(evidence.data.settlements.find(x=>x.id==='ACE-0004').amountCents,1100);
+   assert.equal(evidence.data.settlements.find(x=>x.id==='ACE-0004').status,'pago');
+   assert.equal(evidence.data.finance.find(x=>x.id==='FIN-0007').amountCents,1100);
+   assert.equal(evidence.data.finance.find(x=>x.id==='FIN-0007').status,'pago');
+   assert.equal(evidence.checks.ok,true);
   }
   const d=await page.evaluate(()=>({width:innerWidth,scroll:document.documentElement.scrollWidth}));
   assert(d.scroll<=d.width+2,'overflow '+width+'px '+JSON.stringify(d));
