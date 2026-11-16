@@ -90,7 +90,7 @@ test('duas sessões separadas: conflito otimista preserva rascunho e permite rev
   await a.page.locator('#refresh').click();
   await waitStatus(a.page,'Leitura atualizada');
   assert.equal((await a.page.locator('#seen-rev').innerText()).trim(),'3');
-  assert.equal((await a.page.locator('#seen-amount').innerText()).trim(),'R$ 150,00');
+  assert.match((await a.page.locator('#seen-amount').innerText()).replace(/\s+/g,' '),/^R\$ 150,00$/);
   const result=await query('SELECT count(*)::int AS n, count(DISTINCT command_id)::int AS distinct_commands FROM sync_lab.events');
   assert.deepEqual(result.rows[0],{n:2,distinct_commands:2});
  }finally{await a.ctx.close();await b.ctx.close()}
