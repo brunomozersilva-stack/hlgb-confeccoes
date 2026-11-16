@@ -2,6 +2,16 @@
 
 Esta pasta é um **protótipo isolado**: não é uma tela incorporada ao HLGB em produção.
 
+## Nova etapa — Fechamento de Facções e Acertos em lote (isolado, com uma transação)
+
+O módulo `modulos/pagamento-lote-v1.js` implementa a **regra de fechamento coletivo de títulos a pagar de acertos e compensações**, independente da camada visual. Na área Hub Financeiro, selecione entre **2 e 50 títulos fictícios**, confira o valor de seleção, preencha uma **referência única** e justificativa e clique em **Validar sem pagar**. Essa pré-validação não altera dados nem revisão; a confirmação só acontece ao clicar em **Conferir e quitar lote fictício**.
+
+O núcleo `operacao-integrada-core.js` permanece a **única autoridade transacional**. O comando `finance.batch.pay` valida todos os IDs, títulos abertos, origens, tipos, valores, duplicidades e referência antes de modificar um clone do documento. Se qualquer item falhar, **nenhum título do lote é quitado**. Quando tudo confere, salva um registro `PAG-...` com referência, motivo, total em centavos, quantidade, ID do comando e vínculos `FIN ↔ ACE/CMP`, além de **um único evento e uma única revisão**. A releitura do IndexedDB continua obrigatória para confirmar o resultado.
+
+O comando legado `finance.pay` não foi removido. Acertos antigos, compensações anteriores, pagamentos anteriores e contas a receber **não são alterados** pela nova função; correção após pagamento continua em título separado. O Auditor 2.0 passa a detectar referências duplicadas, itens desconciliados, valores adulterados ou títulos repetidos em lotes. Os relatórios e CSV/JSON incluem histórico e itens de lote. Os testes exercitam concorrência, referência duplicada, item já pago, falha total atômica, compatibilidade de documentos antigos e navegadores Chromium/WebKit.
+
+**Limitação obrigatória:** não faz transferência bancária, não anexa PDF bancário, não acessa Supabase nem confirma dinheiro real; não substitui a rotina empresarial do HLGB. Para fechar em lote em produção ainda faltam banco transacional, permissões, comprovantes, conciliação remota, testes com dois computadores e aprovação explícita.
+
 ## Direção obrigatória — evolução substancial, não cópia
 
 O objetivo prioritário é entregar um ERP claramente melhor que o HLGB atual: mais eficiência, estabilidade, Auditor com provas, Bot e Assistente úteis, maior rastreabilidade, relatórios, interface moderna, crescimento por módulos e **preservação integral de todas as funções antigas**. O documento [NORTE-ARQUITETURA.md](NORTE-ARQUITETURA.md) define os critérios de aceite e as restrições. **Zero bugs** é meta de qualidade medida por testes e incidentes, não garantia irrestrita.
