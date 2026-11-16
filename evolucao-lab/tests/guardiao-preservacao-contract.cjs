@@ -30,7 +30,7 @@ test('guardião congela fonte de todos os 76 itens e 43 critérios sem alegar ho
   assert.equal(c.demo?.path||null,newDemo?.path||null,c.id);
   assert.ok(fs.existsSync(path.join(root,c.source)),c.id+' fonte ausente '+c.source);
   if(c.existingTest)assert.ok(fs.existsSync(path.join(root,c.existingTest)),c.id+' teste antigo ausente '+c.existingTest);
-  if(c.demo)assert.ok(fs.existsSync(path.join(root,'evolucao-lab',c.demo.path)),c.id+' demo ausente');
+  if(c.demo)assert.ok(fs.existsSync(path.join(root,'evolucao-lab',c.demo.path.split('#')[0])),c.id+' demo ausente');
  }
  for(const sc of inventory.scenarios){
   const old=detailed.scenarios.find(x=>x.id===sc.id);
