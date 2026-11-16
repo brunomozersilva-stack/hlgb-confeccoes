@@ -13,7 +13,7 @@ async function validate(browser,width){
  try{
   await page.goto(fileUrl,{waitUntil:'load'});
   assert.equal((await page.locator('#metric-total').innerText()).trim(),'76');
-  assert.equal((await page.locator('#metric-demos').innerText()).trim(),'47');
+  assert.equal((await page.locator('#metric-demos').innerText()).trim(),'48');
   assert.equal(await page.locator('#module-nav .module').count(),20);
   assert.equal(await page.locator('#cases .case').count(),76);
   await page.locator('#module-nav button').filter({hasText:'Acertos e pagamentos avulsos'}).click();
