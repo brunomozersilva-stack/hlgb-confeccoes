@@ -21,6 +21,19 @@ A página `homologacao-modulos.html` organiza 76 funcionalidades antigas identif
 
 As restantes **27 funções não possuem demonstração específica equivalente**. Elas já podem ser registradas como pendências, mas **não podem ser aprovadas no formulário como se estivessem implementadas**.
 
+## NOVO — Roteiro guiado de oito etapas por pedido
+
+Na Operação Integrada abra **Salvamento e sincronização** (primeira área da barra lateral). O painel **Roteiro guiado do fluxo integrado** acompanha um pedido fictício por vez.
+
+1. Entre em **Compras**, registre recebimento de material compatível com o modelo que testará (por exemplo, Malha para a Camisola Melina), com dois conferentes diferentes; confirme o movimento no Estoque e a conta fictícia no Hub.
+2. Entre em **Pedidos**, crie um pedido da Camisola Melina com uma grade P/M. Se houver vários pedidos, selecione o ID do pedido no painel de roteiro.
+3. Use os botões **Testar** do roteiro para cortar com consumo de material, enviar para uma facção, registrar retorno, separar e expedir peças, sempre respeitando os saldos.
+4. No **Hub**, quite ficticiamente o título do acerto gerado pelo retorno (não o título de outro pedido). Volte à primeira área e confira as **8 de 8 etapas com evidência local** quando todas as condições estiverem satisfeitas.
+5. Se quiser conferir uma correção pós-pagamento, lance uma compensação com justificativa e referência única na área **Acertos**. A nona conferência é **opcional** e não impede concluir 8/8.
+6. Navegue entre módulos, atualize a página e escolha o pedido novamente. Confira que os IDs, títulos e o total de etapas permanecem. Exporte JSON/CSV e, no JSON, verifique a seção `journey`.
+
+**Atenção:** não marque funções empresariais como homologadas apenas pelo resultado 8/8. O painel confirma somente relações locais fictícias; não testa sincronização real, permissões de funcionários, transferência bancária, notas fiscais ou PDF de comprovante.
+
 ## NOVO — Compensação de um acerto fictício já pago (sem apagar pagamentos)
 
 Abra a Operação Integrada em `operacao-integrada.html#acertos` pela prévia HTTPS. Use apenas dados inventados.
@@ -61,7 +74,7 @@ Abra `operacao-integrada.html#acertos`. Todo o exercício usa modelos, pessoas e
 7. No **Hub**, localize esse título e marque-o como pago apenas ficticiamente. O acerto deve aparecer como pago e novos ajustes, retornos ou devoluções diretas devem ser bloqueados.
 8. Confira o histórico, use a busca de facções/acertos, atualize a página e exporte o JSON para provar as quantidades e valores.
 
-**Limites importantes:** a troca de facção só funciona para transferência total antes do primeiro retorno; não há compensação de título pago nem comprovantes PDF anexados. Os valores de embalagem e travetada são apenas exemplos. Um teste bem-sucedido não autoriza integrar essas rotinas ao HLGB real.
+**Limites importantes:** a troca de facção só funciona para transferência total antes do primeiro retorno; a compensação de título pago é apenas fictícia, sem comprovantes PDF bancários anexados. Os valores de embalagem e travetada são apenas exemplos. Um teste bem-sucedido não autoriza integrar essas rotinas ao HLGB real.
 
 ## NOVO — Como testar o Corte Avançado por lote
 
