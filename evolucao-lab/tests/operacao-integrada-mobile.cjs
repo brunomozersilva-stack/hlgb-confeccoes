@@ -5,6 +5,7 @@ const browserType=process.env.HLGB_BROWSER==='webkit'?webkit:chromium;
 const root=path.resolve(__dirname,'..'),shots=process.env.HLGB_SCREENSHOT_DIR||'/tmp/hlgb-operacao-integrada';
 const routes={'/':'operacao-integrada.html',
  '/modulos/registro-v1.js':'modulos/registro-v1.js',
+ '/modulos/pagamento-lote-v1.js':'modulos/pagamento-lote-v1.js',
  '/modulos/observabilidade-v2.js':'modulos/observabilidade-v2.js',
  '/operacao-integrada-core.js':'operacao-integrada-core.js',
  '/operacao-integrada-ui.js':'operacao-integrada-ui.js','/folha-homologacao.html':'folha-homologacao.html'};
