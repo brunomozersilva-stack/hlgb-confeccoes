@@ -21,6 +21,29 @@ A página `homologacao-modulos.html` organiza 76 funcionalidades antigas identif
 
 As restantes **68 funções não possuem demonstração específica equivalente**. Elas já podem ser registradas como pendências, mas **não podem ser aprovadas no formulário como se estivessem implementadas**.
 
+## NOVO — Teste operacional integrado dos 19 módulos na mesma tela
+
+Abra `operacao-integrada.html` na página inicial (ou dentro do ZIP offline). Não exige login, pois contém somente dados inventados. A navegação tem 19 áreas, com comandos reais **somente sobre o banco fictício IndexedDB daquele navegador**.
+
+**Roteiro essencial de ponta a ponta:**
+
+1. Em **Pedidos**, crie um pedido da Camisola Melina para Loja Exemplo Centro: P=8, M=12, G=0, GG=0. A encomenda gera 20 peças e um título a receber de **R$ 798,00**.
+2. Em **Corte**, selecione o pedido, registre P=6 e M=10 (em duas ações). O estoque de malha deve cair de 16.000 g para **14.080 g**. Experimente cortar mais 9 P: deve ser rejeitado porque supera a grade do pedido.
+3. Em **Facções e rotas**, selecione Oficina Exemplo B, envie 12 peças cortadas e registre 9 peças retornadas. A facção não traveta; o simulador aplica desconto ilustrativo de R$ 0,50/peça, gerando um acerto de **R$ 49,50**.
+4. Em **Acertos**, escolha o acerto `ACE-0001`, acrescente **R$ 1,00** e salve. O lançamento associado do Hub deve passar a **R$ 50,50**.
+5. Em **Separação e expedição**, separe 7 peças retornadas e depois despache 5. É obrigatório bloquear tentativa de separar acima de 9 ou despachar acima de 7.
+6. Em **Compras**, cadastre uma compra de 2.000 g de renda com dois conferentes diferentes e receba. O estoque de renda passa de 8.000 g para **10.000 g** e gera título a pagar. Tentar receber a mesma compra novamente é bloqueado.
+7. Em **Folha**, altere a passagem fictícia de Ana Simulada para R$ 250,00, sem misturar com salário-base. Em **Impressora 3D**, cadastre um item inventado.
+8. Em **Hub Financeiro**, confira títulos do pedido e do acerto, e marque um título fictício como quitado. O mesmo título não pode ser quitado duas vezes.
+9. Em **Relatórios** e **Auditor**, confira os totais e o histórico. Clique em **Exportar evidências JSON** e salve a prova. Esse arquivo indica `productionApproval:false` e `parityApproved:false`.
+10. Atualize a página e confirme que pedidos, cortes, facções, acertos, compra, folha e histórico continuam no **mesmo navegador**. Em outra aba do mesmo perfil, altere um lançamento; tentar salvar um rascunho aberto com revisão antiga deve dar **CONFLITO**.
+11. Explore também **Produtos e ficha técnica**, **Estoque**, **Cadastros**, **Central de erros**, **Bot**, **Login e permissões** e **Núcleo**, registrando sugestões e funções ausentes na Central de Testes por Módulo.
+
+**Escopo:** as 19 áreas são navegáveis, com rotinas parciais de cadastro e operações relacionadas. Não há implementação equivalente de todas as 76 funções do legado; não existe envio de PDF, cálculo legal da folha, impressão de etiquetas, RLS, login real, nem sincronização entre computadores. O botão "quitar" é simulado e não movimenta dinheiro.
+
+**Importante sobre persistência:** o IndexedDB pode depender do navegador e da forma de abertura do arquivo. Para testar gravação e recarga, prefira a prévia HTTPS no Chrome ou Safari. No ZIP aberto diretamente por `file://`, restrições do navegador podem limitar armazenamento local; não use a prévia como base de dados empresarial.
+
+
 ## Testar agora: Folha 2.0 com edição e passagem por funcionário
 
 Acesse **Folha 2.0 — passagem e salvamento** na entrada ou abra `folha-homologacao.html`. O laboratório usa **cinco funcionários inventados** e **competência 11/2026 fictícia**. Não funciona com a folha de produção.
