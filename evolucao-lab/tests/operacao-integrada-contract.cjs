@@ -33,7 +33,7 @@ test('19 navegações integradas, scripts locais e isolamento dos dados',()=>{
  assert.match(page,/não executam pagamentos/);
  assert.match(page,/não sincronizam entre computadores/);
  for(const source of [domain,ui])assert.doesNotThrow(()=>new vm.Script(source));
- assert.equal([...ui.matchAll(/case '(?:[^']+)':return panel/g)].length>=15,true);
+ assert.equal([...ui.matchAll(/case '(?:nucleo|autenticacao|pedidos|produtos|corte|producao|separacao|faccoes|acertos|hub|folha|compras|estoque|relatorios|auditor|bot|central|impressora3d|cadastros)':/g)].length,19);
  for(const bad of [/\bfetch\s*\(/,/\bXMLHttpRequest\b/,/\bWebSocket\b/,
  /https?:\/\//,/\bsupabase\.co\b/i,/\blocalStorage\b/,/\bsessionStorage\b/]){
   assert.equal(bad.test(page+ui+domain),false,'API externa proibida: '+bad);
