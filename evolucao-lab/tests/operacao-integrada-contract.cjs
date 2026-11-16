@@ -392,6 +392,56 @@ test('referência única e revisão bloqueiam correções duplicadas sem mutaç�
   commandId:'OP-OLD-REV',expectedRevision:ctx.state.revision-1,actor:'CI'}),/CONFLITO/);
  assert.equal(core.inspect(ctx.state).ok,true);
 });
+
+test('jornada integrada por pedido concilia compra, corte, facção, acerto, expedição e Hub sem gravar ao consultar',()=>{
+ const ctx=setup(),initial=JSON.stringify(ctx.state);
+ let guide=core.journey(ctx.state);
+ assert.equal(guide.total,8);
+ assert.equal(guide.completed,0);
+ assert.equal(guide.orderId,null);
+ assert.equal(JSON.stringify(ctx.state),initial,'consulta não altera estado');
+ const purchase=run(ctx,'purchase.add',{supplierId:'FOR-0001',materialId:'MAT-0001',
+  qtyGrams:2000,checkerOne:'Conferente Alfa',checkerTwo:'Conferente Beta'});
+ run(ctx,'purchase.receive',{id:purchase});
+ assert.equal(core.journey(ctx.state).completed,1);
+ const orderId=run(ctx,'order.add',{clientId:'CLI-0001',productId:'PRO-0001',
+  grade:{P:8,M:4,G:0,GG:0}});
+ guide=core.journey(ctx.state,orderId);
+ assert.equal(guide.completed,2);
+ assert.equal(guide.materialId,'MAT-0001');
+ run(ctx,'cut.record',{orderId,size:'P',qty:8});
+ run(ctx,'cut.record',{orderId,size:'M',qty:4});
+ run(ctx,'faction.allocate',{orderId,factionId:'FAC-0001',qty:10});
+ const settlement=run(ctx,'faction.return',{orderId,qty:7});
+ run(ctx,'order.separate',{orderId,qty:5});
+ run(ctx,'order.ship',{orderId,qty:4});
+ const title=ctx.state.finance.find(f=>f.sourceId===settlement).id;
+ run(ctx,'finance.pay',{id:title});
+ guide=core.journey(ctx.state,orderId);
+ assert.equal(guide.completed,8);
+ assert.equal(guide.optional.completed,false);
+ assert.equal(guide.steps.every(x=>x.completed),true);
+ const snapshot=JSON.stringify(ctx.state),revision=ctx.state.revision;
+ assert.deepEqual(core.journey(ctx.state,orderId),guide);
+ assert.equal(JSON.stringify(ctx.state),snapshot,'consulta da jornada não altera histórico ou valores');
+ assert.equal(ctx.state.revision,revision);
+ run(ctx,'settlement.compensate',{id:settlement,deltaCents:-100,
+  reference:'COMP-JORNADA-TESTE',reason:'Diferença fictícia após pagamento'});
+ assert.equal(core.journey(ctx.state,orderId).optional.completed,true);
+ const another=run(ctx,'order.add',{clientId:'CLI-0002',productId:'PRO-0002',
+  grade:{P:2,M:0,G:0,GG:0}});
+ const otherGuide=core.journey(ctx.state,another);
+ assert.equal(otherGuide.completed,1,'não confundir compras e registros do outro pedido');
+ assert.equal(otherGuide.steps[0].completed,false,'compra de malha não comprova renda');
+ assert.equal(otherGuide.steps[4].completed,false,'acerto anterior não comprova retorno do novo pedido');
+ assert.equal(core.journey(ctx.state,orderId).completed,8,'pedido anterior continua comprovado');
+ const damaged=JSON.parse(JSON.stringify(ctx.state));
+ damaged.finance.find(f=>f.sourceId===settlement).amountCents+=1;
+ assert.equal(core.journey(damaged,orderId).steps.find(x=>x.id==='acertos').completed,false,
+  'vínculo financeiro divergente não pode ser apresentado como concluído');
+ assert.equal(core.journey(damaged,orderId).steps.find(x=>x.id==='hub').completed,false);
+ assert.equal(core.inspect(ctx.state).ok,true);
+});
 test('documento prévio sem campo de compensações continua funcional e não perde dados',()=>{
  const previous=core.initial();
  delete previous.settlementCompensations;
