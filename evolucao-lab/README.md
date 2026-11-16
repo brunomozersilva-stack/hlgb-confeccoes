@@ -2,6 +2,19 @@
 
 Esta pasta é um **protótipo isolado**: não é uma tela incorporada ao HLGB em produção.
 
+## Direção obrigatória — evolução substancial, não cópia
+
+O objetivo prioritário é entregar um ERP claramente melhor que o HLGB atual: mais eficiência, estabilidade, Auditor com provas, Bot e Assistente úteis, maior rastreabilidade, relatórios, interface moderna, crescimento por módulos e **preservação integral de todas as funções antigas**. O documento [NORTE-ARQUITETURA.md](NORTE-ARQUITETURA.md) define os critérios de aceite e as restrições. **Zero bugs** é meta de qualidade medida por testes e incidentes, não garantia irrestrita.
+
+## Nova etapa — Auditor, Bot e relatórios em módulo independente
+
+- `modulos/registro-v1.js`: registro por ID/versão, flag reversível para habilitar/desabilitar, isolamento de exceções. Desabilitar Observabilidade 2.0 restaura as apresentações anteriores de Auditor, Bot e Relatórios **sem alterar lançamentos**.
+- `modulos/observabilidade-v2.js`: auditoria somente leitura das relações Pedido ↔ título a receber, compra ↔ entrada e fornecedor, corte ↔ baixa de material, Acerto ↔ título a pagar, compensações ↔ título separado, IDs/histórico e ocorrências recorrentes. Cada alerta aponta regra, gravidade, módulo, ID e orientação. Não corrige automaticamente.
+- Bot demonstrativo melhorado: agrupa ocorrências reincidentes, prioriza alertas e orienta qual módulo conferir. **Ainda não é aprendizado autônomo nem um modelo de IA treinado com os erros da confecção.**
+- Relatórios demonstrativos: atividade por módulo; linha do tempo completa de eventos; resumo de pedidos/cortes/retornos/expedição por modelo; acertos e compensações por facção; antes/depois e motivos de correções de acertos; CSV específico da auditoria. As 150 linhas visíveis são limite de tela, não de exportação.
+- Todas as funções anteriores permanecem disponíveis; esta é a **primeira extração modular real no laboratório**, não a conclusão da modularização dos 19 módulos. A avaliação de RLS, bancos reais, anexos bancários, Safari/Chrome autenticados e paridade integral ainda é pendente.
+
+
 ## Nova etapa — Jornada guiada entre oito etapas do mesmo pedido (somente leitura)
 
 Na área **Salvamento e sincronização / Núcleo** de `operacao-integrada.html`, existe o painel **Roteiro guiado do fluxo integrado**. Se houver mais de um pedido fictício, escolha qual acompanhar. A jornada exige relações com o mesmo pedido (e com o mesmo material da ficha técnica) e verifica: compra recebida com movimento de estoque e título; pedido/conta a receber; corte com consumo; envio para facção; retorno com acerto e conta a pagar; separação; expedição; e quitação fictícia do acerto no Hub. Existe uma etapa extra, **opcional**, de compensação após pagamento.
