@@ -176,6 +176,8 @@ async function run(browser,width,url){
    await put(page,'settlement.add',{serviceType:'embalagem',factionId:'FAC-0002',
     productId:'PRO-0002',qty:'100',unitCents:'0,15',travetaCents:'0,05',
     reason:'Embalagem fictícia calcinha'});
+   await put(page,'settlement.pieces.return',{id:'ACE-0004',qty:'10',
+    reason:'Dez embalagens devolvidas no teste'});
    await put(page,'settlement.adjust',{id:'ACE-0004',adjustmentCents:'1,00',
     reason:'Conferência do valor da embalagem'});
    await page.locator('#settlement-search').fill('embalagem');
@@ -185,7 +187,7 @@ async function run(browser,width,url){
    await module(page,'acertos');
    const row=page.locator('#settlement-table tbody tr').filter({hasText:'ACE-0004'});
    assert.match(await row.innerText(),/pago/i);
-   assert.match(await row.innerText(),/11,00/);
+   assert.match(await row.innerText(),/10,00/);
    const [dl]=await Promise.all([page.waitForEvent('download'),page.locator('#export-json').click()]);
    const evidence=JSON.parse(fs.readFileSync(await dl.path(),'utf8'));
    assert.equal(evidence.data.orders.length,2);
@@ -193,9 +195,11 @@ async function run(browser,width,url){
    assert.equal(evidence.data.settlements.length,4);
    assert.equal(evidence.data.settlements.find(x=>x.id==='ACE-0002').unitCents,250);
    assert.equal(evidence.data.settlements.find(x=>x.id==='ACE-0003').unitCents,300);
-   assert.equal(evidence.data.settlements.find(x=>x.id==='ACE-0004').amountCents,1100);
+   assert.equal(evidence.data.settlements.find(x=>x.id==='ACE-0004').amountCents,1000);
+   assert.equal(evidence.data.settlements.find(x=>x.id==='ACE-0004').qty,90);
+   assert.equal(evidence.data.settlements.find(x=>x.id==='ACE-0004').returns.length,1);
    assert.equal(evidence.data.settlements.find(x=>x.id==='ACE-0004').status,'pago');
-   assert.equal(evidence.data.finance.find(x=>x.id==='FIN-0007').amountCents,1100);
+   assert.equal(evidence.data.finance.find(x=>x.id==='FIN-0007').amountCents,1000);
    assert.equal(evidence.data.finance.find(x=>x.id==='FIN-0007').status,'pago');
    assert.equal(evidence.checks.ok,true);
   }
