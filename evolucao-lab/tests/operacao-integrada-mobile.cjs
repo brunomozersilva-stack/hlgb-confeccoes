@@ -183,7 +183,10 @@ async function run(browser,width,url){
    await page.locator('#settlement-search').fill('embalagem');
    assert((await page.locator('#settlement-table tbody tr:visible').count())>=1);
    await module(page,'hub');
-   await put(page,'finance.pay',{id:'FIN-0007'});
+   const linkedTitleId=await page.locator('form[data-command="finance.pay"] select[name="id"] option')
+    .filter({hasText:'ACE-0004'}).getAttribute('value');
+   assert.match(linkedTitleId,/^FIN-/);
+   await put(page,'finance.pay',{id:linkedTitleId});
    await module(page,'acertos');
    const row=page.locator('#settlement-table tbody tr').filter({hasText:'ACE-0004'});
    assert.match(await row.innerText(),/pago/i);
@@ -199,8 +202,8 @@ async function run(browser,width,url){
    assert.equal(evidence.data.settlements.find(x=>x.id==='ACE-0004').qty,90);
    assert.equal(evidence.data.settlements.find(x=>x.id==='ACE-0004').returns.length,1);
    assert.equal(evidence.data.settlements.find(x=>x.id==='ACE-0004').status,'pago');
-   assert.equal(evidence.data.finance.find(x=>x.id==='FIN-0007').amountCents,1000);
-   assert.equal(evidence.data.finance.find(x=>x.id==='FIN-0007').status,'pago');
+   assert.equal(evidence.data.finance.find(x=>x.sourceId==='ACE-0004').amountCents,1000);
+   assert.equal(evidence.data.finance.find(x=>x.sourceId==='ACE-0004').status,'pago');
    assert.equal(evidence.checks.ok,true);
   }
   const d=await page.evaluate(()=>({width:innerWidth,scroll:document.documentElement.scrollWidth}));
