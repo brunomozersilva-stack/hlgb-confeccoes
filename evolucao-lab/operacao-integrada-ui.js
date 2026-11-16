@@ -492,6 +492,10 @@ async function submit(form,type){
   const integrity=api.inspect(saved);
   if(!integrity.ok)throw Error('Gravação sem integridade comprovada: '+integrity.problems.join('; '));
   doc=saved;draw();
+  if(type==='settlement.compensate'&&payload.id){
+   const el=document.querySelector('form[data-command="settlement.compensate"] [name="id"]');
+   if(el&&[...el.options].some(opt=>opt.value===payload.id))el.value=payload.id;
+  }
   status('Salvo e confirmado por releitura local · '+tx.result+' · revisão '+saved.revision+'.');
  }catch(e){
   status(e.message,'error');
