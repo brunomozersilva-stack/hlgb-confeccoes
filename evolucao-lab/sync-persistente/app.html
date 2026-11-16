@@ -1,0 +1,71 @@
+<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>HLGB Evolução · Homologação local de sincronização</title>
+<style>
+:root{font:14px/1.5 system-ui,-apple-system,"Segoe UI",sans-serif;background:#f7f5fa;color:#33243c;--purple:#563978;--line:#e5ddeb;--secondary:#655971}
+*{box-sizing:border-box}body{margin:0}button,input,select{font:inherit;color:inherit}button{cursor:pointer}button:disabled{opacity:.45;cursor:not-allowed}
+:focus-visible{outline:3px solid #b88cdb;outline-offset:3px}
+header{background:linear-gradient(110deg,#2f203f,#634581);color:#fff;padding:22px max(16px,calc((100% - 1050px)/2))}
+header h1{font-size:clamp(23px,4vw,33px);margin:5px 0 8px}header p{font-size:13px;color:#ecdef5;margin:0;max-width:760px}
+main{max-width:1100px;margin:auto;padding:18px 14px 60px}.notice{border:1px solid #e2c692;background:#fff8e8;color:#6d4f25;font-size:13px;padding:13px 16px;line-height:1.6;border-radius:12px;margin:0 0 15px}
+.panels{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:13px}
+.panel{background:#fff;border:1px solid var(--line);border-radius:14px;padding:17px;margin-bottom:12px;min-width:0}
+.panel h2{font-size:19px;margin:0 0 10px}.panel p{font-size:13px;color:var(--secondary);margin:0 0 10px}
+.form{display:grid;gap:10px}.field{display:grid;gap:5px}.field label{font-size:12px;font-weight:750}.input{width:100%;border:1px solid #c9b8d6;border-radius:9px;padding:9px 12px;min-height:45px}
+.action{border:1px solid #bfa9d2;color:var(--purple);background:#fff;border-radius:9px;padding:10px 13px;font-weight:800;font-size:12px;min-height:44px}
+.action.primary{background:var(--purple);color:white;border-color:var(--purple)}
+.actions{display:flex;flex-wrap:wrap;gap:8px}.actions .action{flex:1 1 150px}
+.metrics{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin:10px 0}
+.metric{border-radius:9px;background:#f6f1fa;padding:11px;min-width:0}.metric span{display:block;color:var(--secondary);font-size:11px}.metric strong{display:block;font-size:19px;margin-top:5px;overflow-wrap:anywhere}
+.status{font-size:12px;line-height:1.5;background:#f3eff8;padding:11px;border-radius:9px;white-space:pre-line;overflow-wrap:anywhere}
+.status.warn{background:#fff0d8;color:#79511e}.status.error{background:#ffeded;color:#892e43}.status.ok{background:#eaf5ee;color:#276346}
+.history{display:grid;gap:8px;max-height:310px;overflow:auto}.event{border:1px solid var(--line);border-radius:9px;padding:10px;font-size:12px;line-height:1.55}
+.event small{display:block;color:var(--secondary)}
+#lab[hidden],#login[hidden]{display:none}
+@media(max-width:780px){.panels{grid-template-columns:1fr}}@media(max-width:400px){main{padding:11px 9px 40px}.panel{padding:12px}.metrics{gap:6px}.metric strong{font-size:16px}}
+</style></head><body>
+<header><h1>Sincronização com PostgreSQL descartável</h1><p>Teste local em duas janelas ou navegadores: salvamento por ID, concorrência, desconexão, fila IndexedDB, releitura e sobrevivência ao reinício do servidor.</p></header>
+<main>
+<div class="notice"><strong>Somente homologação local, não é o HLGB real.</strong> O servidor responde exclusivamente em <code>127.0.0.1</code> e só aceita o banco temporário <code>hlgb_sync_persist_lab</code>. Os usuários e valores são inventados. Nunca use dados ou senhas reais. O aplicativo não é publicado na internet.</div>
+<section class="panel" id="login"><h2>Acessar com sessão fictícia</h2><p>Abra uma janela A e outra B (ou dois contextos de navegador). Use apenas os PINs públicos de demonstração.</p>
+<form class="form" id="login-form"><div class="field"><label for="role">Sessão</label><select id="role" class="input"><option value="A">Operador A · fictício</option><option value="B">Operador B · fictício</option></select></div>
+<div class="field"><label for="pin">PIN de exemplo</label><input id="pin" class="input" value="demo-session-a"></div>
+<button type="submit" class="action primary">Entrar no laboratório</button></form>
+</section>
+<div id="lab" hidden>
+<div class="panels">
+<section class="panel">
+<h2>Minha sessão: <span id="who">—</span></h2>
+<div class="metrics">
+<div class="metric"><span>Valor visto neste navegador</span><strong id="seen-amount">—</strong></div>
+<div class="metric"><span>Revisão vista</span><strong id="seen-rev">—</strong></div>
+<div class="metric"><span>Rascunho local</span><strong id="draft-display">—</strong></div>
+<div class="metric"><span>WAL neste navegador</span><strong id="wal-status">Vazio</strong></div>
+</div>
+<div class="field"><label for="draft">Novo valor (R$)</label><input id="draft" class="input" inputmode="decimal" value="100,00"></div>
+<label for="lostack"><input id="lostack" type="checkbox"> Simular commit realizado, mas ACK perdido</label>
+<div class="actions" style="margin:12px 0">
+<button id="save" type="button" class="action primary">Salvar com confirmação</button>
+<button id="reconcile" type="button" class="action">Conferir comando por ID</button>
+<button id="retry" type="button" class="action">Reenviar o mesmo ID</button>
+<button id="review" type="button" class="action">Reavaliar conflito</button>
+<button id="refresh" type="button" class="action">Atualizar leitura</button>
+<button id="reload-wal" type="button" class="action">Recuperar WAL do navegador</button>
+</div>
+<div class="status" role="status" aria-live="polite" id="operation-status">Aguardando login.</div>
+<p style="margin-top:8px">O rascunho e o comando pendente ficam no IndexedDB **deste navegador**. Não há envio automático ao reconectar ou recarregar.</p>
+</section>
+<section class="panel">
+<h2>Servidor e banco de homologação</h2>
+<div class="metrics">
+<div class="metric"><span>Valor no PostgreSQL</span><strong id="server-amount">—</strong></div>
+<div class="metric"><span>Revisão no PostgreSQL</span><strong id="server-rev">—</strong></div>
+<div class="metric"><span>Eventos gravados</span><strong id="event-count">0</strong></div>
+<div class="metric"><span>Banco</span><strong style="font-size:13px">descartável</strong></div>
+</div>
+<h2 style="margin-top:15px">Eventos confirmados no banco</h2><div id="events" class="history"></div>
+<button type="button" class="action" id="server-read" style="margin-top:10px">Recarregar a leitura do servidor</button>
+<p style="margin-top:14px">Esta prova usa duas sessões reais do navegador conectadas a uma única instância PostgreSQL temporária. O banco de homologação é destruído depois do teste automatizado.</p>
+</section>
+</div>
+</div>
+</main><script src="/app.js"></script></body></html>
