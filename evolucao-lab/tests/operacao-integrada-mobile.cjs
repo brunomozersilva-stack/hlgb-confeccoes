@@ -3,7 +3,10 @@ const assert=require('node:assert/strict'),http=require('node:http'),fs=require(
 const {chromium,webkit}=require('playwright');
 const browserType=process.env.HLGB_BROWSER==='webkit'?webkit:chromium;
 const root=path.resolve(__dirname,'..'),shots=process.env.HLGB_SCREENSHOT_DIR||'/tmp/hlgb-operacao-integrada';
-const routes={'/':'operacao-integrada.html','/operacao-integrada-core.js':'operacao-integrada-core.js',
+const routes={'/':'operacao-integrada.html',
+ '/modulos/registro-v1.js':'modulos/registro-v1.js',
+ '/modulos/observabilidade-v2.js':'modulos/observabilidade-v2.js',
+ '/operacao-integrada-core.js':'operacao-integrada-core.js',
  '/operacao-integrada-ui.js':'operacao-integrada-ui.js','/folha-homologacao.html':'folha-homologacao.html'};
 const server=http.createServer((req,res)=>{
  const file=routes[req.url];
@@ -43,6 +46,25 @@ async function run(browser,width,url){
   await page.goto(url);
   await page.waitForFunction(()=>document.querySelector('#top-revision')?.textContent.includes('Revisão local 1'));
   assert.equal(await page.locator('[data-module]').count(),19);
+  await module(page,'auditor');
+  assert.match(await page.locator('#module-content').innerText(),/Observabilidade 2.0/);
+  await module(page,'bot');
+  assert.match(await page.locator('#module-content').innerText(),/Assistente de triagem/);
+  await module(page,'relatorios');
+  assert.match(await page.locator('#module-content').innerText(),/Histórico completo/);
+  await module(page,'nucleo');
+  // Desativar o plugin não apaga as funções antigas nem interrompe cadastro e pagamento.
+  await page.locator('[data-toggle-observer]').click();
+  await module(page,'auditor');
+  assert.match(await page.locator('#module-content').innerText(),/Diagnóstico determinístico/);
+  await module(page,'bot');
+  assert.match(await page.locator('#module-content').innerText(),/Recomendações baseadas em regras fixas/);
+  await module(page,'relatorios');
+  assert.match(await page.locator('#module-content').innerText(),/Indicadores vinculados/);
+  await module(page,'nucleo');
+  await page.locator('[data-toggle-observer]').click();
+  await module(page,'auditor');
+  assert.match(await page.locator('#module-content').innerText(),/Observabilidade 2.0/);
   assert.match(await page.locator('#module-title').innerText(),/Salvamento/);
   await module(page,'pedidos');
   await put(page,'order.add',{clientId:'CLI-0001',productId:'PRO-0001',P:'8',M:'12',G:'0',GG:'0'});
@@ -104,6 +126,9 @@ async function run(browser,width,url){
   const report=JSON.parse(fs.readFileSync(await download.path(),'utf8'));
   assert.equal(report.schema,'hlgb-evolucao-operacao-integrada-report-v1');
   assert.equal(report.productionApproval,false);
+  assert.equal(report.observability.schema,'hlgb-lab-observabilidade-v2');
+  assert.equal(report.observability.summary.events,report.data.log.length);
+  assert.equal(report.observability.productionApproval,false);
   assert.equal(report.parityApproved,false);
   assert.equal(report.modulesVisited,19);
   assert.equal(report.checks.ok,true);
@@ -256,6 +281,20 @@ async function run(browser,width,url){
    assert.match(textCsv,/Compensação/);
    assert.match(textCsv,/CMP-0001/);
    assert.match(textCsv,/CMP-0002/);
+   await module(page,'relatorios');
+   const historySearch=page.locator('#history-search');
+   await historySearch.fill('settlement.compensate');
+   assert.equal(await page.locator('#audit-history-table tbody tr:visible').count(),2);
+   await historySearch.fill('');
+   const [observerCsv]=await Promise.all([page.waitForEvent('download'),
+    page.locator('#export-observer-csv').click()]);
+   const historyCsv=fs.readFileSync(await observerCsv.path(),'utf8');
+   assert.match(historyCsv,/settlement.compensate/);
+   assert.match(historyCsv,/finance.pay/);
+   await module(page,'auditor');
+   assert.match(await page.locator('#module-content').innerText(),/Observabilidade 2.0/);
+   await module(page,'bot');
+   assert.match(await page.locator('#module-content').innerText(),/Assistente de triagem/);
    const [dl]=await Promise.all([page.waitForEvent('download'),page.locator('#export-json').click()]);
    const evidence=JSON.parse(fs.readFileSync(await dl.path(),'utf8'));
    assert.equal(evidence.data.orders.length,2);
