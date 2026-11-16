@@ -1,0 +1,92 @@
+name: HLGB Evolucao - Sync Persistente em PostgreSQL Descartavel
+on:
+  push:
+    branches:
+      - feature/evolucao-laboratorio-isolado-v1-20261114
+    paths:
+      - 'evolucao-lab/sync-persistente/**'
+      - 'evolucao-lab/tests/sync-persistente-browser.cjs'
+      - '.github/workflows/evolucao-sync-persistente.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  static:
+    name: Seguranca de conexao e sintaxe local
+    runs-on: ubuntu-24.04
+    timeout-minutes: 6
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - name: Checar que nao ha endpoints/segredos remotos e que JS compila
+        run: |
+          node --check evolucao-lab/sync-persistente/server.cjs
+          node --check evolucao-lab/sync-persistente/client.js
+          node --check evolucao-lab/tests/sync-persistente-browser.cjs
+          if grep -Ein 'supabase\.co|service_role|SUPABASE_URL|SUPABASE_KEY|https?://[^127]' evolucao-lab/sync-persistente/{server.cjs,client.js,app.html}; then
+            echo "::error::Referencia remota nao autorizada no laboratorio."
+            exit 1
+          fi
+          grep -q "PGDATABASE!==DB" evolucao-lab/sync-persistente/server.cjs
+          grep -q "PGHOST!=='127.0.0.1'" evolucao-lab/sync-persistente/server.cjs
+  postgres-browser:
+    name: Banco temporario mais browser (${{ matrix.browser }})
+    runs-on: ubuntu-24.04
+    timeout-minutes: 22
+    strategy:
+      fail-fast: false
+      matrix:
+        browser: [chromium, webkit]
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_DB: hlgb_sync_persist_lab
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: somente_ci_local_sem_dados_reais
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d hlgb_sync_persist_lab"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      PGHOST: 127.0.0.1
+      PGPORT: '5432'
+      PGUSER: postgres
+      PGDATABASE: hlgb_sync_persist_lab
+      PGPASSWORD: somente_ci_local_sem_dados_reais
+      HLGB_BROWSER: ${{ matrix.browser }}
+      HLGB_SCREENSHOT_DIR: /tmp/hlgb-sync-persistente
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - name: Instalar cliente PostgreSQL se necessario
+        run: |
+          if ! command -v psql >/dev/null; then
+            sudo apt-get update -qq
+            sudo apt-get install -y postgresql-client
+          fi
+      - name: Comprovar DB descartavel ANTES de executar o SQL
+        run: |
+          set -euo pipefail
+          test "$(psql -tAc 'SELECT current_database()')" = "hlgb_sync_persist_lab"
+          test "$PGHOST" = "127.0.0.1"
+      - name: Criar apenas schema privado de simulacao
+        run: psql -v ON_ERROR_STOP=1 -f evolucao-lab/sync-persistente/01-schema-local.sql
+      - name: Instalar clientes locais com versoes fixas
+        run: |
+          npm install --no-save pg@8.16.3 playwright@1.55.0
+          npx playwright install --with-deps ${{ matrix.browser }}
+      - name: Testar browser em duas sessoes, banco, WAL, falhas e restart
+        run: node --test evolucao-lab/tests/sync-persistente-browser.cjs
+      - name: Anexar imagens e evidencias ficticias
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: sync-persistente-${{ matrix.browser }}
+          path: /tmp/hlgb-sync-persistente/*
+          if-no-files-found: ignore
