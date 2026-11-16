@@ -38,7 +38,8 @@
    purchases=arr(source,'purchaseOrders'),materials=arr(source,'materials'),
    settlements=arr(source,'settlements'),comps=arr(source,'settlementCompensations'),
    finance=arr(source,'finance'),ledger=arr(source,'stockLedger'),
-   errors=arr(source,'errors'),events=arr(source,'log'),batches=arr(source,'paymentBatches');
+   errors=arr(source,'errors'),events=arr(source,'log'),batches=arr(source,'paymentBatches'),
+   assignments=arr(source,'factionAssignments');
   const findings=[];
   const push=(code,severity,module,record,message,action,evidence)=>findings.push({
    code,severity,module,recordId:String(record??''),message,action,
@@ -62,6 +63,8 @@
   const orderByProduct=groupBy(orders,x=>x.productId);
   const settlementByFaction=groupBy(settlements,x=>x.factionId);
   const compensationByFaction=groupBy(comps,x=>x.factionId);
+  const assignmentsByOrder=groupBy(assignments,x=>x.orderId);
+  const settlementByAssignment=groupBy(settlements,x=>x.assignmentId);
   const findFinance=id=>billsById.get(id);
   const one=(items,sourceId,kind)=>{
    const local=items===finance?(billsBySource.get(sourceId)||[]):items.filter(x=>x.sourceId===sourceId);
@@ -132,6 +135,46 @@
     push('ACERTO_FINANCEIRO','critica','acertos',a.id,
      'Acerto e título a pagar não conciliados (valor ou situação).',
      'Não efetuar nova baixa; comparar acerto, título original e histórico.',a.id);
+  }
+  // Auditoria por facção: detectar distribuição duplicada e retornos
+  // contabilizados na facção errada sem alterar um único lançamento.
+  if(Array.isArray(source.factionAssignments)){
+   const assignPairs=new Set(),assignIds=new Set();
+   for(const entry of assignments){
+    const key=entry.orderId+'|'+entry.factionId,order=byId(orders,entry.orderId);
+    if(!entry.id||assignIds.has(entry.id)||assignPairs.has(key)||!order||
+       !byId(arr(source,'factions'),entry.factionId)||
+       !Number.isSafeInteger(entry.qtySent)||entry.qtySent<1||
+       !Number.isSafeInteger(entry.qtyReturned)||entry.qtyReturned<0||
+       entry.qtyReturned>entry.qtySent)
+     push('FACCAO_ENVIO_INVALIDO','critica','faccoes',entry.id,
+      'Envio sem facção/pedido, com ID repetido ou quantidade inválida.',
+      'Conferir ID do lote, pedido, facção e notas anteriores; não criar envio compensatório.',key);
+    assignPairs.add(key);assignIds.add(entry.id);
+    const returned=settlements.filter(x=>x.orderId===entry.orderId&&
+     x.factionId===entry.factionId).reduce((n,x)=>n+Number(x.qty||0),0);
+    if(returned!==entry.qtyReturned)
+     push('FACCAO_RETORNO_DIVERGENTE','alta','faccoes',entry.id,
+      'Quantidade devolvida pela facção não coincide com os acertos vinculados.',
+      'Comparar retornos, devoluções e títulos dessa facção antes de qualquer baixa.',
+      'acertos '+returned+' / saldo '+entry.qtyReturned);
+    for(const a of settlementByAssignment.get(entry.id)||[]){
+     if(a.orderId!==entry.orderId||a.factionId!==entry.factionId)
+      push('FACCAO_ACERTO_TROCADO','critica','acertos',a.id,
+       'Acerto aponta para um envio de outra facção ou pedido.',
+       'Bloquear compensação automática; conferir IDs originais e auditoria.',
+       entry.id);
+    }
+   }
+   for(const o of orders){
+    const rows=assignmentsByOrder.get(o.id)||[];
+    if(rows.reduce((n,x)=>n+x.qtySent,0)!==o.allocated||
+      rows.reduce((n,x)=>n+x.qtyReturned,0)!==o.returned)
+     push('FACCAO_SALDO_PEDIDO','alta','faccoes',o.id,
+      'Soma dos envios/retornos por facção não coincide com o pedido.',
+      'Comparar grade cortada, envios e retornos de cada facção sem zerar saldo.',
+      o.id);
+   }
   }
   const batchRefs=new Set(),batchTitleIds=new Set();
   for(const batch of batches){
@@ -242,6 +285,19 @@
     evidence:recommendationCounts.get(f.code)+' ocorrência(s) · '+f.recordId,
     mode:'orientacao_sem_execucao'});
   }
+  const factionDispatches=assignments.map(a=>{
+   const order=byId(orders,a.orderId),faction=byId(arr(source,'factions'),a.factionId);
+   const product=byId(arr(source,'products'),order?.productId);
+   return {id:a.id,orderId:a.orderId,factionId:a.factionId,
+    factionName:String(faction?.name||a.factionId),
+    productName:String(product?.name||'—'),
+    qtySent:a.qtySent,qtyReturned:a.qtyReturned,qtyOpen:a.qtySent-a.qtyReturned,
+    settlementIds:settlements.filter(x=>x.orderId===a.orderId&&
+     x.factionId===a.factionId).map(x=>x.id),
+    origin:String(a.origin||'legado-local')};
+  }).sort((a,b)=>a.orderId.localeCompare(b.orderId)||a.factionName.localeCompare(b.factionName));
+  const distributedOrders=orders.filter(o=>(assignmentsByOrder.get(o.id)||[]).length>1).length;
+  const openFactionPieces=assignments.reduce((n,a)=>n+a.qtySent-a.qtyReturned,0);
   const pendingReturn=orders.filter(o=>o.allocated>o.returned).length,
    pendingShipment=orders.filter(o=>o.separated>o.shipped).length,
    unpaid=finance.filter(x=>x.status==='aberto').length;
@@ -300,6 +356,7 @@
    orders:orders.length,settlements:settlements.length,compensations:comps.length,
    titles:finance.length,openTitles:unpaid,stockMovements:ledger.length,
    paymentBatches:batches.length,batchedPayablesCents:batches.reduce((n,b)=>n+Number(b.totalCents||0),0),
+   factionDispatches:assignments.length,distributedOrders,openFactionPieces,
    lastRevision:source.revision,historyExported:history.length,
    coverage:'regras locais parciais; nenhuma garantia de ausência de bugs'
   };
@@ -311,7 +368,7 @@
    status:findings.some(x=>x.severity==='critica')?'investigar_critico':
     findings.length?'investigar':'sem_alertas_nas_regras_cobertas',
    summary,findings,recommendations,history,moduleActivity,repeatedOperations,
-   modelSummary,factionSummary,settlementHistory,
+   modelSummary,factionSummary,settlementHistory,factionDispatches,
    paymentBatchHistory:batches.map(b=>({id:b.id,reference:b.reference,
     reason:b.reason,count:b.count,totalCents:b.totalCents,status:b.status,
     items:(b.items||[]).map(i=>({...i}))}))};
