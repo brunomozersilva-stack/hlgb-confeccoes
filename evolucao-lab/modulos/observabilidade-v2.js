@@ -39,7 +39,8 @@
    settlements=arr(source,'settlements'),comps=arr(source,'settlementCompensations'),
    finance=arr(source,'finance'),ledger=arr(source,'stockLedger'),
    errors=arr(source,'errors'),events=arr(source,'log'),batches=arr(source,'paymentBatches'),
-   assignments=arr(source,'factionAssignments');
+   assignments=arr(source,'factionAssignments'),
+   partialTransfers=arr(source,'factionPartialTransfers');
   const findings=[];
   const push=(code,severity,module,record,message,action,evidence)=>findings.push({
    code,severity,module,recordId:String(record??''),message,action,
@@ -176,6 +177,28 @@
       o.id);
    }
   }
+  // Rastros de transferência de saldo pendente: conferir snapshots antes/depois.
+  const seenPartialMoves=new Set();
+  for(const move of partialTransfers){
+   const from=byId(assignments,move.fromAssignmentId);
+   const to=byId(assignments,move.toAssignmentId);
+   const event=events.find(x=>x.commandId===move.commandId&&x.type==='faction.multi.transfer');
+   const valid=!!(move.id&&!seenPartialMoves.has(move.id)&&
+    from&&to&&event&&from.orderId===move.orderId&&
+    to.orderId===move.orderId&&from.id!==to.id&&
+    from.factionId===move.fromFactionId&&to.factionId===move.toFactionId&&
+    from.factionId!==to.factionId&&Number.isSafeInteger(move.qty)&&move.qty>0&&
+    Number.isSafeInteger(move.fromBefore)&&Number.isSafeInteger(move.fromAfter)&&
+    Number.isSafeInteger(move.toBefore)&&Number.isSafeInteger(move.toAfter)&&
+    move.fromBefore-move.fromAfter===move.qty&&
+    move.toAfter-move.toBefore===move.qty&&move.fromAfter>=1&&move.toBefore>=0&&
+    typeof move.reason==='string'&&move.reason.trim());
+   if(!valid)push('FACCAO_TRANSFERENCIA_DIVERGENTE','critica','faccoes',move.id,
+    'Transferência parcial sem origem, destino ou histórico de quantidades conciliados.',
+    'Conferir IDs, comprovante da remessa e comando; não repetir transferência automaticamente.',
+    move.orderId);
+   if(move.id)seenPartialMoves.add(move.id);
+  }
   const batchRefs=new Set(),batchTitleIds=new Set();
   for(const batch of batches){
    const reference=normalize(batch.reference);
@@ -296,6 +319,16 @@
      x.factionId===a.factionId).map(x=>x.id),
     origin:String(a.origin||'legado-local')};
   }).sort((a,b)=>a.orderId.localeCompare(b.orderId)||a.factionName.localeCompare(b.factionName));
+  const factionTransferHistory=partialTransfers.map(m=>({
+   id:m.id,orderId:m.orderId,fromAssignmentId:m.fromAssignmentId,
+   toAssignmentId:m.toAssignmentId,
+   fromFactionId:m.fromFactionId,toFactionId:m.toFactionId,
+   fromName:String(byId(arr(source,'factions'),m.fromFactionId)?.name||m.fromFactionId),
+   toName:String(byId(arr(source,'factions'),m.toFactionId)?.name||m.toFactionId),
+   qty:m.qty,fromBefore:m.fromBefore,fromAfter:m.fromAfter,
+   toBefore:m.toBefore,toAfter:m.toAfter,
+   commandId:m.commandId,reason:String(m.reason||'')
+  }));
   const distributedOrders=orders.filter(o=>(assignmentsByOrder.get(o.id)||[]).length>1).length;
   const openFactionPieces=assignments.reduce((n,a)=>n+a.qtySent-a.qtyReturned,0);
   const pendingReturn=orders.filter(o=>o.allocated>o.returned).length,
@@ -357,6 +390,8 @@
    titles:finance.length,openTitles:unpaid,stockMovements:ledger.length,
    paymentBatches:batches.length,batchedPayablesCents:batches.reduce((n,b)=>n+Number(b.totalCents||0),0),
    factionDispatches:assignments.length,distributedOrders,openFactionPieces,
+   partialFactionTransfers:partialTransfers.length,
+   piecesTransferred:partialTransfers.reduce((n,m)=>n+Number(m.qty||0),0),
    lastRevision:source.revision,historyExported:history.length,
    coverage:'regras locais parciais; nenhuma garantia de ausência de bugs'
   };
@@ -368,7 +403,7 @@
    status:findings.some(x=>x.severity==='critica')?'investigar_critico':
     findings.length?'investigar':'sem_alertas_nas_regras_cobertas',
    summary,findings,recommendations,history,moduleActivity,repeatedOperations,
-   modelSummary,factionSummary,settlementHistory,factionDispatches,
+   modelSummary,factionSummary,settlementHistory,factionDispatches,factionTransferHistory,
    paymentBatchHistory:batches.map(b=>({id:b.id,reference:b.reference,
     reason:b.reason,count:b.count,totalCents:b.totalCents,status:b.status,
     items:(b.items||[]).map(i=>({...i}))}))};
