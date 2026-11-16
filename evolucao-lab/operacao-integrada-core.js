@@ -127,6 +127,78 @@
    passage:s.employees.reduce((a,e)=>a+e.passageCents,0),
    salaryCash:s.employees.reduce((a,e)=>a+e.salaryCents+e.extrasCents-e.discountCents+e.passageCents,0)};
  }
+ function journey(s,selectedOrderId=null){
+  // Conciliação SOMENTE LEITURA da jornada de um pedido fictício.
+  // Não transfere valores, não altera revisão nem marca homologação empresarial.
+  const order=s.orders.find(x=>x.id===selectedOrderId)||
+   (!selectedOrderId?s.orders[s.orders.length-1]:null);
+  const product=order&&s.products.find(x=>x.id===order.productId);
+  const materialId=product?.materialId||null;
+  const purchases=s.purchaseOrders.filter(x=>x.received&&(!materialId||x.materialId===materialId));
+  const validPurchase=purchases.find(x=>{
+   const moves=s.stockLedger.filter(m=>m.sourceId===x.id&&m.type==='compra');
+   const titles=s.finance.filter(t=>t.sourceId===x.id&&t.kind==='pagar');
+   return moves.length===1&&moves[0].deltaGrams===x.qtyGrams&&
+    titles.length===1&&titles[0].amountCents===totalCost(x.qtyGrams,x.priceCentsKg);
+  });
+  const ordered=order?sum(order.grade):0;
+  const orderTitle=order&&s.finance.filter(x=>x.sourceId===order.id&&x.kind==='receber');
+  const hasOrder=!!order&&orderTitle.length===1&&
+   orderTitle[0].amountCents===ordered*order.priceCents;
+  const cutMoves=order?s.stockLedger.filter(x=>x.sourceId===order.id&&
+   (x.type==='corte'||x.type==='corte-planejado')):[];
+  const hasCut=!!order&&sum(order.cut)>0&&cutMoves.length>0&&
+   cutMoves.every(m=>m.deltaGrams<0);
+  const hasAllocation=!!order&&hasCut&&order.allocated>0&&
+   order.allocated<=sum(order.cut)&&s.factions.some(f=>f.id===order.factionId);
+  const settlements=order?s.settlements.filter(x=>x.orderId===order.id):[];
+  const validSettlements=settlements.length>0&&settlements.every(x=>{
+   const bills=s.finance.filter(f=>f.sourceId===x.id&&f.kind==='pagar');
+   return bills.length===1&&bills[0].amountCents===x.amountCents&&
+    bills[0].status===x.status;
+  });
+  const hasReturn=!!order&&hasAllocation&&order.returned>0&&
+   settlements.reduce((a,x)=>a+x.qty,0)===order.returned&&validSettlements;
+  const hasSeparation=!!order&&hasReturn&&order.separated>0&&
+   order.separated<=order.returned;
+  const hasShipment=!!order&&hasSeparation&&order.shipped>0&&
+   order.shipped<=order.separated;
+  const paid=settlements.filter(x=>x.status==='pago'&&s.finance.some(f=>
+   f.sourceId===x.id&&f.kind==='pagar'&&f.status==='pago'&&
+   f.amountCents===x.amountCents));
+  const hasPayment=hasReturn&&paid.length>0;
+  const compensations=(s.settlementCompensations||[]).filter(c=>
+   settlements.some(x=>x.id===c.settlementId));
+  const hasCompensation=hasPayment&&compensations.some(c=>{
+   const bill=s.finance.filter(f=>f.sourceId===c.id);
+   return bill.length===1&&bill[0].kind===(c.deltaCents>0?'pagar':'receber')&&
+    bill[0].amountCents===Math.abs(c.deltaCents)&&bill[0].status===c.status;
+  });
+  const step=(id,title,module,completed,detail)=>({id,title,module,completed:!!completed,detail});
+  const steps=[
+   step('compras','Compra recebida com entrada no estoque','compras',!!validPurchase,
+    'Compra do material do pedido, movimento de estoque e conta do fornecedor conciliados'),
+   step('pedidos','Pedido e conta a receber','pedidos',hasOrder,
+    'Grade de tamanhos e título a receber vinculados pelo mesmo ID'),
+   step('corte','Corte com consumo de material','corte',hasCut,
+    'Quantidade cortada e movimentação negativa de estoque registrada'),
+   step('faccoes','Envio para facção','faccoes',hasAllocation,
+    'Peças enviadas não ultrapassam o corte e a facção é identificada'),
+   step('acertos','Retorno, acerto e conta a pagar','acertos',hasReturn,
+    'Quantidade retornada conciliada com os acertos e títulos financeiros'),
+   step('separacao','Separação das peças retornadas','separacao',hasSeparation,
+    'Separação registrada sem superar o retorno'),
+   step('expedicao','Expedição do pedido','separacao',hasShipment,
+    'Expedição registrada sem superar o que foi separado'),
+   step('hub','Pagamento fictício do acerto no Hub','hub',hasPayment,
+    'Acerto e título original permanecem vinculados e quitados')
+  ];
+  const optional=step('compensacao','Compensação pós-pagamento (opcional)','acertos',
+   hasCompensation,'Se necessária, a correção gera título separado sem reescrever o original');
+  return {orderId:order?.id||null,materialId,completed:steps.filter(x=>x.completed).length,
+   total:steps.length,steps,optional,scope:'indexeddb-local-fictitious',
+   productionApproval:false};
+ }
  function tips(s){
   const res=[];
   const h=inspect(s);
@@ -466,5 +538,5 @@
   if(!condition.ok)throw Error('Integridade não aprovada: '+condition.problems.join('; '));
   return {state:s,result,checks:condition};
  }
- return {initial,apply,inspect,totals,tips,quantities,makeGrade,gradeValid,sizes,money};
+ return {initial,apply,inspect,totals,tips,journey,quantities,makeGrade,gradeValid,sizes,money};
 });
