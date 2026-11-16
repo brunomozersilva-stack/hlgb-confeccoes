@@ -9,6 +9,7 @@ on:
       - 'evolucao-lab/operacao-integrada-ui.js'
       - 'evolucao-lab/modulos/**'
       - 'evolucao-lab/tests/operacao-integrada-*.cjs'
+      - 'evolucao-lab/tests/observabilidade-v2-contract.cjs'
       - '.github/workflows/evolucao-operacao-integrada.yml'
   workflow_dispatch:
 permissions:
