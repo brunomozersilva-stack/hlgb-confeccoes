@@ -233,6 +233,9 @@ function moduleHtml(s){
  case 'acertos':{
  const open=selector(s.settlements.filter(x=>x.status==='aberto'),
   x=>x.id+' · '+fmt(x.amountCents)+' · '+(ref(s.factions,x.factionId)?.name||'—'));
+ const paid=selector(s.settlements.filter(x=>x.status==='pago'),
+  x=>x.id+' · Pago '+fmt(x.amountCents)+' · '+(ref(s.factions,x.factionId)?.name||'—'));
+ const compensations=s.settlementCompensations||[];
  return panel('Serviços avulsos e embalagem',
  form('settlement.add','Novo acerto avulso fictício',[
   field('serviceType','Tipo de serviço','select','',[['costura','Costura avulsa'],['embalagem','Embalagem']]),
@@ -258,6 +261,14 @@ function moduleHtml(s){
   field('reason','Motivo','text','Conferência do valor fictício')
  ],'Salvar ajuste e reconciliar Hub')+
  '<p>Se o título vinculado já estiver quitado, não é permitido alterar o pagamento original. A correção pós-pagamento exigirá uma rotina separada de compensação.</p>')+
+ panel('Compensação separada de acertos pagos',
+ form('settlement.compensate','Corrigir sem reescrever pagamento anterior',[
+  field('id','Acerto original já pago','select','',paid),
+  field('deltaCents','Diferença em R$ (positiva = pagar; negativa = receber)','signed-money','1,00'),
+  field('reference','Referência única para evitar duplicidade','text','CORRECAO-TESTE-001'),
+  field('reason','Justificativa obrigatória','text','Compensação fictícia após conferência')
+ ],'Criar compensação separada e título novo')+
+ '<p><strong>O pagamento original não muda.</strong> Uma diferença positiva gera título fictício a pagar; negativa gera título fictício a receber. A mesma referência não pode ser usada duas vezes no mesmo acerto. É apenas uma demonstração de compensação, não devolução bancária automática nem documento fiscal.</p>')+
  panel('Pesquisar acertos e histórico',
  '<div class="field"><label for="settlement-search">Pesquisar acerto, facção ou serviço</label>'+
  '<input id="settlement-search" class="input" type="search" data-filter-for="settlement-table" placeholder="Filtrar toda a lista local"></div>'+
@@ -279,14 +290,23 @@ function moduleHtml(s){
  table(['Acerto','Comando','Devolvidas','Antes','Depois','Motivo'],s.settlements.flatMap(x=>
   (x.returns||[]).map(ev=>[str(x.id),str(ev.commandId),str(ev.qty),
    str(ev.beforeQty)+' pç / '+fmt(ev.beforeCents),str(ev.afterQty)+' pç / '+fmt(ev.afterCents),str(ev.reason)])
-  )),true);
+  ))+
+ '<h3>Compensações após pagamento (sem alterar título original)</h3>'+
+ table(['Compensação','Acerto pago','Referência','Diferença','Novo título','Situação','Justificativa'],
+ compensations.map(c=>[
+  str(c.id),str(c.settlementId),str(c.reference),
+  (c.deltaCents>0?'+':'−')+fmt(Math.abs(c.deltaCents)),
+  str(c.kind)+' · '+fmt(Math.abs(c.deltaCents)),
+  '<span class="chip '+(c.status==='aberto'?'wait':'')+'">'+str(c.status)+'</span>',
+  str(c.reason)
+ ])),true);
  }
  case 'hub':return panel('Lançamento do Hub fictício',
  form('finance.add','Novo título',[field('description','Descrição'),field('kind','Tipo','select','',[['pagar','Pagar'],['receber','Receber']]),
  field('amountCents','Valor em R$','money','100,00')],'Cadastrar título')+
  form('finance.pay','Confirmar lançamento',[field('id','Título aberto','select','',finance)],'Marcar como quitado ficticiamente')+
  '<p class="caption">Esta ação não movimenta dinheiro. Confirme apenas valores fictícios.</p>')+
- panel('Conferência financeira','<p>Os pedidos geram contas a receber. Retornos geram acertos a pagar. Recebimento de compra gera outro título a pagar.</p>')+
+ panel('Conferência financeira','<p>Pedidos geram contas a receber; retornos, acertos a pagar. Compensações de acertos pagos criam títulos separados a pagar ou receber, sem alterar o pagamento original. Nenhuma operação movimenta dinheiro real.</p>')+
  panel('Contas do laboratório',financeTable(s),true);
  case 'folha':return panel('Editar salário e passagem por pessoa',
  form('payroll.update','Alterar registro da folha',[field('id','Funcionário','select','',employees),
@@ -411,7 +431,7 @@ function parseData(type,form){
   if(NUM.includes(k))p[k]=Number(v);
   else if(SIGNED.includes(k)){if(!/^[+-]?\d+$/.test(v))throw Error('Ajuste em gramas inválido.');p[k]=Number(v)}
   else if(PRICES.includes(k))p[k]=parseCents(v);
-  else if(k==='adjustmentCents')p[k]=parseCents(v,true);
+  else if(k==='adjustmentCents'||k==='deltaCents')p[k]=parseCents(v,true);
   else if(k==='traveta')p[k]=v==='true';
   else p[k]=String(v);
  }
@@ -518,6 +538,7 @@ function exportCsv(){
  const rows=[['Tipo','ID','Descrição','Status','Quantidade/valor'],...doc.orders.map(x=>['Pedido',x.id,
  ref(doc.products,x.productId)?.name||'', 'Enviadas: '+x.shipped,sum(x.grade)]),
  ...doc.finance.map(x=>['Financeiro',x.id,x.description,x.status,x.amountCents]),
+ ...(doc.settlementCompensations||[]).map(x=>['Compensação',x.id,x.settlementId+' · '+x.reference,x.status,x.deltaCents]),
  ...doc.purchaseOrders.map(x=>['Compra',x.id,ref(doc.materials,x.materialId)?.name||'',x.received?'Recebido':'Pendente',x.qtyGrams])];
  download('HLGB-EVOLUCAO-OPERACAO-INTEGRADA-FICTICIA.csv','\uFEFF'+rows.map(r=>r.map(safeCell).join(';')).join('\r\n'),'text/csv;charset=utf-8');
 }
