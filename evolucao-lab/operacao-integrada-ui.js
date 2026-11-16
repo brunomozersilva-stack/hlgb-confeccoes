@@ -351,8 +351,16 @@ function moduleHtml(s){
  panel('Saldo a separar e expedir',table(['Pedido','Retornado','Separado','Despachado'],s.orders.map(x=>[
  str(x.id),str(x.returned),str(x.separated),str(x.shipped)])),true);
  case 'faccoes':{
- const pendingTransfer=selector(s.orders.filter(x=>x.allocated>0&&x.returned===0),
+ const rows=s.factionAssignments||[];
+ const pendingTransfer=selector(s.orders.filter(x=>x.allocated>0&&x.returned===0&&
+  rows.filter(a=>a.orderId===x.id).length<=1),
   x=>x.id+' · '+(ref(s.factions,x.factionId)?.name||'—')+' · '+x.allocated+' peças');
+ const pendingSimple=selector(s.orders.filter(x=>x.allocated>x.returned&&
+  rows.filter(a=>a.orderId===x.id).length<=1),
+  x=>x.id+' · '+(ref(s.factions,x.factionId)?.name||'—')+' · '+(x.allocated-x.returned)+' peças');
+ const pendingAssignments=selector(rows.filter(x=>x.qtySent>x.qtyReturned),
+  x=>x.id+' · '+x.orderId+' · '+(ref(s.factions,x.factionId)?.name||'—')+
+  ' · '+(x.qtySent-x.qtyReturned)+' peças aguardando');
  return panel('Cadastro e regras por facção',
  form('faction.add','Cadastrar facção fictícia',[
   field('name','Nome da facção'),field('unitCents','Preço padrão por peça (R$)','money','6,00'),
@@ -381,9 +389,27 @@ function moduleHtml(s){
   field('reason','Motivo obrigatório','text','Troca de facção no teste')
  ],'Registrar transferência com histórico')+
  form('faction.return','Registrar retorno parcial',[
-  field('orderId','Pedido','select','',o),field('qty','Quantidade devolvida','int','3')
+  field('orderId','Pedido','select','',pendingSimple),field('qty','Quantidade devolvida','int','3')
  ],'Confirmar retorno e gerar acerto')+
  '<p>A troca fica bloqueada se já existir retorno/acerto. Ela é um exemplo de transferência total antes do primeiro retorno, não uma redistribuição avançada entre várias facções.</p>')+
+ panel('Distribuir um pedido entre múltiplas facções',
+ form('faction.multi.allocate','Enviar lote parcial a uma facção',[
+  field('orderId','Pedido com peças cortadas','select','',o),
+  field('factionId','Facção que receberá o lote','select','',factions),
+  field('qty','Peças desse envio','int','2')
+ ],'Alocar peças sem sobrescrever outros destinos')+
+ form('faction.multi.return','Registrar retorno da facção correta',[
+  field('assignmentId','Envio específico e saldo a retornar','select','',pendingAssignments),
+  field('qty','Quantidade que retornou','int','1')
+ ],'Registrar retorno e gerar acerto dessa facção')+
+ '<p class="caption">As quantidades de cada facção são independentes. O envio antigo continua disponível para pedidos com destino único. Para pedidos divididos, use o retorno pelo envio específico; assim o acerto e o título financeiro mostram a facção correta.</p>',true)+
+ panel('Distribuição por pedido e facção — rastreabilidade',
+ table(['Envio','Pedido','Facção','Peças enviadas','Retornadas','Faltam retornar','Origem'],
+  rows.map(x=>[str(x.id),str(x.orderId),
+   str(ref(s.factions,x.factionId)?.name||x.factionId),
+   str(x.qtySent),str(x.qtyReturned),str(x.qtySent-x.qtyReturned),
+   str(x.origin||'legado-local')]))+
+ '<p class="caption">As peças devolvidas antes do pagamento ajustam o saldo da facção original, sem afetar as outras. Não é um extrato da base real.</p>',true)+
  panel('Lista de facções e preços',
  '<div class="field"><label for="faction-search">Buscar facção</label>'+
  '<input id="faction-search" class="input" data-filter-for="faction-table" type="search" placeholder="Nome, modelo, preço..."></div>'+
