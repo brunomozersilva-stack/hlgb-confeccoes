@@ -1,0 +1,55 @@
+name: HLGB Evolucao - Operacao Integrada de 19 Modulos
+on:
+  push:
+    branches:
+      - feature/evolucao-laboratorio-isolado-v1-20261114
+    paths:
+      - 'evolucao-lab/operacao-integrada.html'
+      - 'evolucao-lab/operacao-integrada-core.js'
+      - 'evolucao-lab/operacao-integrada-ui.js'
+      - 'evolucao-lab/tests/operacao-integrada-*.cjs'
+      - '.github/workflows/evolucao-operacao-integrada.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  contracts:
+    name: Invariantes de 19 modulos e nenhuma rede
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Conferir integridade de pedidos, corte, faccoes, contas e folha
+        run: node --test evolucao-lab/tests/operacao-integrada-contract.cjs
+  browser:
+    name: Operacao integrada e mobile (${{ matrix.browser }})
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        browser: [chromium, webkit]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Preparar navegador isolado
+        run: |
+          npm install --no-save playwright@1.55.0
+          npx playwright install --with-deps ${{ matrix.browser }}
+      - name: Percorrer fluxo real de interface de 19 modulos em 5 larguras
+        env:
+          HLGB_BROWSER: ${{ matrix.browser }}
+          HLGB_SCREENSHOT_DIR: /tmp/hlgb-operacao
+        run: node evolucao-lab/tests/operacao-integrada-mobile.cjs
+      - name: Guardar captura mobile ficticia
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: hlgb-operacao-integrada-${{ matrix.browser }}
+          path: /tmp/hlgb-operacao/*.png
+          if-no-files-found: ignore
