@@ -255,6 +255,50 @@
       'Conferir retorno, envio e título antes de alterar pagamento.',o.id);
    }
   }
+  // Confere fichas de planejamento sem executar compra ou movimentar materiais.
+  const colors=arr(source,'colorCatalog'),recipeRules=arr(source,'materialRecipeRules'),
+   planLines=arr(source,'materialPlanLines'),productCatalog=arr(source,'products'),
+   validSizes=new Set(['P','M','G','GG']),seenColors=new Set(),seenRules=new Set(),
+   seenPlanLines=new Set(),knownColors=new Set(colors.map(x=>normalize(x.name)));
+  for(const c of colors){
+   const normalized=normalize(c.name);
+   if(!normalized||seenColors.has(normalized))
+    push('PALETA_COR_DUPLICADA','alta','produtos',c.id,
+     'Cor cadastrada sem nome ou repetida na paleta central.',
+     'Unificar a opção exibida sem alterar cores já usadas em pedidos.',c.name);
+   seenColors.add(normalized);
+  }
+  for(const r of recipeRules){
+   const k=[r.productId,r.materialId,normalize(r.color),r.size].join('|');
+   if(r.active&&seenRules.has(k))
+    push('RECEITA_DUPLICADA','alta','produtos',r.id,
+     'Há duas regras de consumo ativas para o mesmo modelo, material, cor e tamanho.',
+     'Comparar versões e desativar somente a regra incorreta mediante conferência.',k);
+   if(r.active)seenRules.add(k);
+   if(!byId(productCatalog,r.productId)||!byId(materials,r.materialId)||
+     !(r.color==='*'||knownColors.has(normalize(r.color)))||
+     !(r.size==='*'||validSizes.has(r.size))||
+     !Number.isSafeInteger(r.gramsPerUnit)||r.gramsPerUnit<1||r.gramsPerUnit>5000||
+     !r.reason||!events.some(e=>e.commandId===r.createdCommandId&&e.type==='material.recipe.set'))
+    push('RECEITA_INCONSISTENTE','critica','produtos',r.id,
+     'Regra de materiais sem origem, variação, produto ou consumo verificável.',
+     'Bloquear a compra baseada na simulação e conferir a receita do modelo.',r.id);
+  }
+  for(const p of planLines){
+   const k=[p.productId,normalize(p.color),p.size].join('|');
+   if(p.active&&seenPlanLines.has(k))
+    push('PLANO_DUPLICADO','alta','compras',p.id,
+     'Modelo, cor e tamanho aparecem em duas linhas ativas; o consumo pode duplicar.',
+     'Conferir linhas antes de interpretar a quantidade total.',k);
+   if(p.active)seenPlanLines.add(k);
+   if(!byId(productCatalog,p.productId)||!knownColors.has(normalize(p.color))||
+     !validSizes.has(p.size)||!Number.isSafeInteger(p.qty)||p.qty<1||p.qty>10000||
+     !events.some(e=>e.commandId===p.createdCommandId&&e.type==='materials.plan.add')||
+     (!p.active&&!events.some(e=>e.commandId===p.cancelCommandId&&e.type==='materials.plan.archive')))
+    push('PLANO_INCONSISTENTE','critica','compras',p.id,
+     'Cenário de produção sem modelo, cor, quantidade ou histórico conciliado.',
+     'Conferir documento original e corrigir a linha sem alterar estoque real.',p.id);
+  }
   // Rastros de transferência de saldo pendente: conferir snapshots antes/depois.
   const seenPartialMoves=new Set();
   for(const move of partialTransfers){
@@ -482,6 +526,9 @@
    gradePiecesOpen:gradeInventory.reduce((n,x)=>n+Number(x.open||0),0),
    partialFactionTransfers:partialTransfers.length,
    piecesTransferred:partialTransfers.reduce((n,m)=>n+Number(m.qty||0),0),
+   centralColors:colors.length,materialRecipeRules:recipeRules.length,
+   activePlanLines:planLines.filter(x=>x.active).length,
+   planPieces:planLines.filter(x=>x.active).reduce((n,x)=>n+Number(x.qty||0),0),
    lastRevision:source.revision,historyExported:history.length,
    coverage:'regras locais parciais; nenhuma garantia de ausência de bugs'
   };
