@@ -196,6 +196,11 @@ function materialsPlanningPanels(s){
   result=materialPlannerResult(s);
  return panel('Planejador semanal de produção — várias peças e vários modelos',
   '<p>Monte um cenário fictício com a quantidade de cada modelo, cor e tamanho. Cada linha pode ser arquivada, mas o histórico é preservado. O cálculo <strong>não cria compra, não reserva material e não baixa estoque</strong>.</p>'+
+  form('materials.plan.grade.add','Adicionar a grade P/M/G/GG de uma vez',[
+   field('productId','Modelo','select','',products),
+   field('color','Cor','select','',colors),
+   ...api.sizes.map(sz=>field(sz,'Quantidade '+sz,'int',sz==='M'?'20':'0'))
+  ],'Adicionar todos os tamanhos em uma única operação')+
   form('materials.plan.add','Adicionar uma quantidade ao cenário',[
    field('productId','Modelo','select','',products),
    field('color','Cor','select','',colors),
@@ -864,7 +869,7 @@ function parseData(type,form){
   else if(k==='traveta')p[k]=v==='true';
   else p[k]=String(v);
  }
- if(['order.add','order.grade.update','cut.plan','cut.plan.update','order.color.grade.set'].includes(type)){
+ if(['order.add','order.grade.update','cut.plan','cut.plan.update','order.color.grade.set','materials.plan.grade.add'].includes(type)){
   p.grade={};for(const sz of api.sizes){p.grade[sz]=p[sz];delete p[sz]}
  }
  return p;
