@@ -296,6 +296,7 @@ function observationPanels(s,area){
      ['Pedidos e financeiro','Conta a receber correspondente'],
      ['Compras e estoque','Entrada única e título de fornecedor'],
      ['Corte e materiais','Baixa única por folha concluída'],
+     ['Corte BOM com múltiplos materiais','Baixa por material, lote, desperdício, versão e dupla conferência'],
      ['Acertos e compensações','Valor/status, pagamento original, referência e novo título'],
      ['Grade por cor e tamanho','Pedido ↔ corte por tamanho ↔ oficina ↔ retorno ↔ acerto'],
      ['Saúde do HLGB real','Não verificada (sem Supabase ou autenticação)']
@@ -332,6 +333,18 @@ function observationPanels(s,area){
      o.modelSummary.map(x=>[str(x.name)+' · '+str(x.sku),str(x.orders),
       str(x.ordered),str(x.cut),str(x.returned),str(x.shipped),
       fmt(x.plannedReceivablesCents)])),true)+
+   panel('Corte BOM: materiais, custo teórico e desperdício conferidos',
+    '<p>'+str(o.summary.bomCuts)+' lote(s) com baixa fictícia · '+
+    str(o.summary.bomUsefulGrams)+' g úteis · '+str(o.summary.bomScrapGrams)+
+    ' g de lixo. Cada componente possui um movimento de estoque vinculado ao lote.</p>'+
+    table(['Lote','Pedido','Cor','Tamanho','Peças','Útil + lixo (g)','Custo teórico'],
+     o.bomCutHistory.map(c=>[
+      str(c.id),str(c.orderId),str(c.color),str(c.size),str(c.qty),
+      str(c.totalGrams),fmt(c.estimatedCostCents)]))+
+    table(['Lote','Insumo','Útil (g)','Lixo (g)','Movimentado (g)','Versão da receita'],
+     o.bomCutHistory.flatMap(c=>c.materials.map(m=>[
+      str(c.id),str(m.materialName),str(m.requiredGrams),
+      str(m.scrapGrams),str(m.totalGrams),str(m.ruleId)]))),true)+
    panel('Grade por cor e tamanho — pedidos classificados',
     '<p>'+str(o.summary.ordersWithColorGrade)+' pedido(s) com cores e tamanhos · '+
     str(o.summary.gradePiecesOpen)+' peça(s) pendentes nas facções. Cada tamanho precisa bater com o pedido e com o corte.</p>'+
@@ -1032,6 +1045,12 @@ function exportCsv(){
  ...(doc.factionAssignments||[]).flatMap(a=>(a.gradeLines||[]).map(g=>
   ['Peças por facção/cor',a.id,a.orderId+' · '+a.factionId+
    ' · '+g.color+' '+g.size,'Enviadas '+g.sent,g.returned])),
+ ...(doc.bomCutRuns||[]).map(c=>['Corte BOM concluído',c.id,
+  c.orderId+' · '+c.color+' '+c.size+' · '+c.qty+' pç',
+  c.commandId,c.totalGrams]),
+ ...(doc.bomCutRuns||[]).flatMap(c=>c.materials.map(m=>[
+  'Material do corte BOM',c.id,m.materialId+' · '+m.ruleId,
+  'Útil '+m.requiredGrams+'g · Lixo '+m.scrapGrams+'g',m.totalGrams])),
  ...(doc.colorCatalog||[]).map(c=>['Paleta de cores',c.id,c.name,c.origin,'']),
  ...(doc.materialRecipeRules||[]).map(r=>['Receita de planejamento',r.id,
   r.productId+' · '+r.materialId+' · '+r.color+' '+r.size,
@@ -1084,6 +1103,13 @@ function exportObserverCsv(){
    ['Grade do pedido','pedidos',o.orderId,c.color,
     o.ready?'Completa':'Incompleta',
     api.sizes.map(sz=>sz+': '+c.sizes[sz]).join(' · ')])),
+  ...report.bomCutHistory.map(c=>['Corte BOM','corte',c.id,c.orderId,
+   c.color+' '+c.size,c.qty+' peças · '+c.totalGrams+'g · '+
+    c.estimatedCostCents+' centavos · comando '+c.commandId]),
+  ...report.bomCutHistory.flatMap(c=>c.materials.map(m=>[
+   'Consumo e lixo BOM','estoque',c.id,m.materialId,m.ruleId,
+   'Útil '+m.requiredGrams+'g · lixo '+m.scrapGrams+
+    'g · baixa '+m.totalGrams+'g'])),
   ...report.gradeInventory.map(g=>['Saldo por cor e tamanho','faccoes',g.assignmentId,
    g.orderId,g.factionName,g.color+' '+g.size+' · enviado '+g.sent+
     ' · retornado '+g.returned+' · pendente '+g.open+
