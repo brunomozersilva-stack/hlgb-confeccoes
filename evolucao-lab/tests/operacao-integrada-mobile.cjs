@@ -10,6 +10,7 @@ const routes={'/':'operacao-integrada.html',
  '/modulos/grade-faccoes-v1.js':'modulos/grade-faccoes-v1.js',
  '/modulos/planejamento-materiais-v1.js':'modulos/planejamento-materiais-v1.js',
  '/modulos/corte-bom-v1.js':'modulos/corte-bom-v1.js',
+ '/modulos/requisicoes-compras-v1.js':'modulos/requisicoes-compras-v1.js',
  '/modulos/observabilidade-v2.js':'modulos/observabilidade-v2.js',
  '/operacao-integrada-core.js':'operacao-integrada-core.js',
  '/operacao-integrada-ui.js':'operacao-integrada-ui.js','/folha-homologacao.html':'folha-homologacao.html'};
