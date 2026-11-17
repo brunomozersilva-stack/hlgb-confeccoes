@@ -36,7 +36,8 @@
    throw Error('Documento do laboratório não compatível com o observador.');
   const orders=arr(source,'orders'),cutPlans=arr(source,'cutPlans'),
    bomCuts=arr(source,'bomCutRuns'),
-   purchases=arr(source,'purchaseOrders'),materials=arr(source,'materials'),
+   purchases=arr(source,'purchaseOrders'),requests=arr(source,'purchaseRequests'),
+   materials=arr(source,'materials'),
    settlements=arr(source,'settlements'),comps=arr(source,'settlementCompensations'),
    finance=arr(source,'finance'),ledger=arr(source,'stockLedger'),
    errors=arr(source,'errors'),events=arr(source,'log'),batches=arr(source,'paymentBatches'),
@@ -107,6 +108,73 @@
     push('PEDIDO_TITULO','alta','pedidos',o.id,
      'Conta a receber ausente, repetida ou divergente do pedido.',
      'Conferir grade, preço e título no Hub; não gerar título automático.',o.id);
+  }
+  // Requisições: diagnosticar trajetória e compras órfãs sem criar correção.
+  const activeRequests=new Set(),seenReqs=new Set();
+  for(const req of requests){
+   const linked=purchases.filter(p=>p.purchaseRequestId===req.id);
+   const origin=events.some(e=>e.commandId===req.createdCommandId&&
+    e.type==='purchase.request.create');
+   if(!req.id||seenReqs.has(req.id)||!byId(materials,req.materialId)||
+      !['rascunho','aprovada','emitida','recebida','cancelada'].includes(req.status)||
+      !Number.isSafeInteger(req.qtyGrams)||req.qtyGrams<1||
+      !Number.isSafeInteger(req.requiredGrams)||req.requiredGrams<1||
+      !Number.isSafeInteger(req.availableGrams)||req.availableGrams<0||
+      req.qtyGrams!==req.requiredGrams-req.availableGrams||
+      !Number.isSafeInteger(req.priceCentsKg)||req.priceCentsKg<1||
+      req.estimatedCents!==Math.ceil(req.qtyGrams*req.priceCentsKg/1000)||
+      !req.requester||!req.reason||!origin)
+    push('REQUISICAO_ORIGEM','critica','compras',req.id,
+     'Requisição sem base de cálculo, evento ou preço original conciliado.',
+     'Conferir planejamento, estoque de origem e revisão antes de aprovar.',req.materialId);
+   seenReqs.add(req.id);
+   if(['rascunho','aprovada','emitida'].includes(req.status)){
+    if(activeRequests.has(req.materialId))
+     push('REQUISICAO_DUPLICADA','critica','compras',req.id,
+      'Há requisições ativas duplicadas para o mesmo material.',
+      'Bloquear nova emissão e conferir a primeira solicitação.',req.materialId);
+    activeRequests.add(req.materialId);
+   }
+   if(['aprovada','emitida','recebida'].includes(req.status)&&
+     (!req.approver||normalize(req.approver)===normalize(req.requester)||
+      !events.some(e=>e.commandId===req.approvedCommandId&&
+       e.type==='purchase.request.approve')))
+    push('REQUISICAO_APROVACAO','critica','compras',req.id,
+     'Aprovação sem evento verificável ou separação entre solicitante e aprovador.',
+     'Reconciliar identidade e evidência; aprovação digitada não é permissão real.',req.id);
+   if(['emitida','recebida'].includes(req.status)){
+    const purchase=linked[0];
+    if(linked.length!==1||!purchase||purchase.id!==req.purchaseId||
+      purchase.materialId!==req.materialId||purchase.qtyGrams!==req.qtyGrams||
+      purchase.priceCentsKg!==req.priceCentsKg||
+      !events.some(e=>e.commandId===req.issuedCommandId&&
+       e.type==='purchase.request.issue'))
+     push('REQUISICAO_COMPRA','critica','compras',req.id,
+      'Compra emitida não corresponde a uma requisição aprovada.',
+      'Conferir ID da compra, material, quantidade, preço e comando.',req.purchaseId);
+    if(req.status==='recebida'&&(!purchase?.received||
+      !events.some(e=>e.commandId===req.receiptCommandId&&e.type==='purchase.receive')||
+      ledger.filter(m=>m.sourceId===req.purchaseId&&m.type==='compra').length!==1||
+      one(finance,req.purchaseId,'pagar').length!==1))
+     push('REQUISICAO_RECEBIMENTO','critica','compras',req.id,
+      'Recebimento da requisição não conciliado com estoque ou Hub.',
+      'Comparar movimento e título da compra antes de qualquer nova entrada.',req.purchaseId);
+   }else if(linked.length>0||req.purchaseId)
+    push('REQUISICAO_VINCULO_INDEVIDO','critica','compras',req.id,
+     'Compra vinculada a solicitação que ainda não foi emitida.',
+     'Bloquear recebimento e conferir histórico da requisição.',req.id);
+   if(req.status==='cancelada'&&
+     (!req.cancelReason||!events.some(e=>e.commandId===req.cancelCommandId&&
+       e.type==='purchase.request.cancel')))
+    push('REQUISICAO_CANCELAMENTO','alta','compras',req.id,
+     'Requisição cancelada sem justificativa ou evento conciliado.',
+     'Conferir cancelamento e manter o registro histórico.',req.id);
+  }
+  for(const po of purchases.filter(x=>x.purchaseRequestId)){
+   if(!requests.some(x=>x.id===po.purchaseRequestId))
+    push('REQUISICAO_COMPRA_ORFA','critica','compras',po.id,
+     'Compra sem requisição de origem localizada.',
+     'Conferir o registro original antes de receber.',po.purchaseRequestId);
   }
   // Recebimento e duplo lançamento de compras.
   for(const p of purchases.filter(x=>x.received)){
@@ -498,6 +566,18 @@
     evidence:recommendationCounts.get(f.code)+' ocorrência(s) · '+f.recordId,
     mode:'orientacao_sem_execucao'});
   }
+  const purchaseRequestHistory=requests.map(r=>({
+   id:r.id,materialId:r.materialId,
+   materialName:String(byId(materials,r.materialId)?.name||r.materialId),
+   qtyGrams:r.qtyGrams,requiredGrams:r.requiredGrams,
+   availableGrams:r.availableGrams,estimatedCents:r.estimatedCents,
+   status:r.status,requester:r.requester,approver:r.approver||null,
+   purchaseId:r.purchaseId||null,createdCommandId:r.createdCommandId,
+   approvedCommandId:r.approvedCommandId,
+   issuedCommandId:r.issuedCommandId,
+   receiptCommandId:r.receiptCommandId,
+   cancelCommandId:r.cancelCommandId
+  }));
   const bomCutHistory=bomCuts.map(c=>({
    id:c.id,orderId:c.orderId,color:c.color,size:c.size,qty:c.qty,
    cutterOne:c.cutterOne,cutterTwo:c.cutterTwo,spreader:c.spreader,
@@ -602,6 +682,9 @@
    gradePiecesOpen:gradeInventory.reduce((n,x)=>n+Number(x.open||0),0),
    partialFactionTransfers:partialTransfers.length,
    piecesTransferred:partialTransfers.reduce((n,m)=>n+Number(m.qty||0),0),
+   purchaseRequests:requests.length,
+   pendingPurchaseRequests:requests.filter(x=>['rascunho','aprovada','emitida'].includes(x.status)).length,
+   receivedPurchaseRequests:requests.filter(x=>x.status==='recebida').length,
    bomCuts:bomCuts.length,
    bomUsefulGrams:bomCuts.reduce((n,c)=>n+(c.materials||[]).reduce((a,m)=>a+Number(m.requiredGrams||0),0),0),
    bomScrapGrams:bomCuts.reduce((n,c)=>n+(c.materials||[]).reduce((a,m)=>a+Number(m.scrapGrams||0),0),0),
@@ -620,7 +703,7 @@
     findings.length?'investigar':'sem_alertas_nas_regras_cobertas',
    summary,findings,recommendations,history,moduleActivity,repeatedOperations,
    modelSummary,factionSummary,settlementHistory,factionDispatches,factionTransferHistory,
-   colorGradeSummary,gradeInventory,bomCutHistory,
+   colorGradeSummary,gradeInventory,bomCutHistory,purchaseRequestHistory,
    paymentBatchHistory:batches.map(b=>({id:b.id,reference:b.reference,
     reason:b.reason,count:b.count,totalCents:b.totalCents,status:b.status,
     items:(b.items||[]).map(i=>({...i}))}))};
