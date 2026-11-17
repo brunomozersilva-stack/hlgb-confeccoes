@@ -2,6 +2,18 @@
 
 Esta pasta é um **protótipo isolado**: não é uma tela incorporada ao HLGB em produção.
 
+## Nova etapa — Corte BOM multi-material com baixa transacional fictícia
+
+O módulo **`modulos/corte-bom-v1.js`** conecta a ficha técnica de vários componentes à execução de um **novo tipo de corte do laboratório**, sem substituir as folhas e baixas tradicionais. Ele permite escolher pedido com grade por cor completa, cor, tamanho, quantidade, equipe (dois cortadores + enfestador), corte interno/externo, desperdício *por material*, motivo e duas conferências digitadas.
+
+A ação **Prévia de materiais e estoque** consulta a receita ativa e mostra consumo útil, lixo e saldo após o possível corte para todos os insumos, **sem escrever nada**. O comando explícito **`cut.bom.execute`** valida primeiro todas as condições (cor/tamanho disponível, quantidade total, estoque simultâneo de todos os componentes, equipe e conferências). Somente depois desconta os materiais no clone local com **um movimento `MOV` por insumo**, registra um único lote **`BOM-...`** com a versão e os consumos congelados, e aumenta as peças cortadas daquela grade em uma revisão. O documento fica em uma transação IndexedDB única, comprovada por releitura.
+
+**Bloqueio antifalhas:** se um pedido já tem corte pela rotina anterior, ele não aceita corte BOM. Depois do primeiro lote BOM, o mesmo pedido não pode lançar folha ou baixa da rotina tradicional. Folhas tradicionais abertas também impedem trocar o modo sem resolvê-las. Não há dupla baixa, corte acima da cor ou do tamanho ou diminuição parcial de apenas um material quando outro está insuficiente. Uma mudança futura de receita não recalcula nem altera cortes BOM concluídos.
+
+A tela de Corte mostra lotes, insumos, consumo útil, lixo, custo **teórico** e IDs de comando. O Auditor 2.0 cruza lotes, revisões, assinaturas digitadas, grade por tamanho, insumos e cada movimento `MOV`; os Relatórios e o CSV exportam o vínculo. Este teste **não é uma baixa de estoque do HLGB real**, não produz aprovação contábil, não autentica cortadores e não acessa Supabase. A assinatura digitada é apenas conferência de laboratório, sem validade de assinatura eletrônica.
+
+**Pendências reais:** detalhamento do corte por cor no estoque físico, conversão de peso/metro/unidade, enfesto por camada, rendimento e perda por material, estorno formal auditado, aprovação e assinatura autenticada, consumos efetivos por máquina, pedidos de compra com fornecedor e sincronização empresarial.
+
 ## Nova etapa — Paleta única, ficha de consumo por cor/tamanho e compras consolidadas (LAB)
 
 O módulo opcional `modulos/planejamento-materiais-v1.js` cria três recursos independentes da execução do Corte:
