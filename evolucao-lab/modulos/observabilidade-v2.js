@@ -110,13 +110,13 @@
      'Conferir grade, preço e título no Hub; não gerar título automático.',o.id);
   }
   // Requisições: diagnosticar trajetória e compras órfãs sem criar correção.
-  const activeRequests=new Set(),seenReqs=new Set();
+  const activeRequests=new Set(),seenReqs=new Set(),seenIssueCancelRefs=new Set();
   for(const req of requests){
    const linked=purchases.filter(p=>p.purchaseRequestId===req.id);
    const origin=events.some(e=>e.commandId===req.createdCommandId&&
     e.type==='purchase.request.create');
    if(!req.id||seenReqs.has(req.id)||!byId(materials,req.materialId)||
-      !['rascunho','aprovada','emitida','recebida','cancelada'].includes(req.status)||
+      !['rascunho','aprovada','emitida','recebida','cancelada','emissao_cancelada'].includes(req.status)||
       !Number.isSafeInteger(req.qtyGrams)||req.qtyGrams<1||
       !Number.isSafeInteger(req.requiredGrams)||req.requiredGrams<1||
       !Number.isSafeInteger(req.availableGrams)||req.availableGrams<0||
@@ -135,24 +135,50 @@
       'Bloquear nova emissão e conferir a primeira solicitação.',req.materialId);
     activeRequests.add(req.materialId);
    }
-   if(['aprovada','emitida','recebida'].includes(req.status)&&
+   if(['aprovada','emitida','recebida','emissao_cancelada'].includes(req.status)&&
      (!req.approver||normalize(req.approver)===normalize(req.requester)||
       !events.some(e=>e.commandId===req.approvedCommandId&&
        e.type==='purchase.request.approve')))
     push('REQUISICAO_APROVACAO','critica','compras',req.id,
      'Aprovação sem evento verificável ou separação entre solicitante e aprovador.',
      'Reconciliar identidade e evidência; aprovação digitada não é permissão real.',req.id);
-   if(['emitida','recebida'].includes(req.status)){
+   if(['emitida','recebida','emissao_cancelada'].includes(req.status)){
     const purchase=linked[0];
     if(linked.length!==1||!purchase||purchase.id!==req.purchaseId||
       purchase.materialId!==req.materialId||purchase.qtyGrams!==req.qtyGrams||
       purchase.priceCentsKg!==req.priceCentsKg||
+      (req.status!=='emissao_cancelada'&&purchase.cancelled===true)||
       !events.some(e=>e.commandId===req.issuedCommandId&&
        e.type==='purchase.request.issue'))
      push('REQUISICAO_COMPRA','critica','compras',req.id,
       'Compra emitida não corresponde a uma requisição aprovada.',
       'Conferir ID da compra, material, quantidade, preço e comando.',req.purchaseId);
-    if(req.status==='recebida'&&(!purchase?.received||
+    if(req.status==='emissao_cancelada'){
+    const po=linked[0],ref=String(req.cancelIssueReference||'').trim().toLocaleUpperCase('pt-BR');
+    if(!ref||seenIssueCancelRefs.has(ref))
+     push('REQUISICAO_CANCEL_REFERENCIA','critica','compras',req.id,
+      'Cancelamento emitido com referência vazia ou repetida.',
+      'Conferir protocolo e não repetir o cancelamento.',ref);
+    seenIssueCancelRefs.add(ref);
+    if(!po||po.cancelled!==true||po.received||
+      req.cancelIssueReference!==po.cancelReference||
+      req.cancelIssueReason!==po.cancelReason||
+      req.cancelIssueCommandId!==po.cancelCommandId||
+      req.cancelledBy!==po.cancelledBy||
+      req.cancelReviewedBy!==po.cancelReviewedBy||
+      !req.cancelIssueReason||!req.cancelledBy||!req.cancelReviewedBy||
+      normalize(req.cancelledBy)===normalize(req.cancelReviewedBy)||
+      normalize(req.cancelReviewedBy)===normalize(req.requester)||
+      !events.some(e=>e.commandId===req.cancelIssueCommandId&&
+       e.type==='purchase.request.cancelIssued')||
+      req.receiptCommandId||
+      ledger.some(m=>m.sourceId===req.purchaseId)||
+      finance.some(t=>t.sourceId===req.purchaseId))
+     push('REQUISICAO_CANCEL_EMITIDA','critica','compras',req.id,
+      'Compra cancelada com vínculo, dupla conferência, estoque ou título inconsistente.',
+      'Não dar entrada, estornar ou reativar sem processo formal validado.',req.purchaseId);
+   }
+   if(req.status==='recebida'&&(!purchase?.received||
       !events.some(e=>e.commandId===req.receiptCommandId&&e.type==='purchase.receive')||
       ledger.filter(m=>m.sourceId===req.purchaseId&&m.type==='compra').length!==1||
       one(finance,req.purchaseId,'pagar').length!==1))
@@ -171,6 +197,17 @@
      'Conferir cancelamento e manter o registro histórico.',req.id);
   }
   for(const po of purchases.filter(x=>x.purchaseRequestId)){
+   if(po.cancelled===true&&!requests.some(x=>x.id===po.purchaseRequestId&&
+       x.status==='emissao_cancelada'))
+    push('REQUISICAO_CANCEL_COMPRA','critica','compras',po.id,
+     'Compra cancelada sem requisição cancelada vinculada.',
+     'Conferir o cancelamento original; não dar entrada no estoque.',po.purchaseRequestId);
+   if(po.cancelled===true&&(po.received||
+     ledger.some(m=>m.sourceId===po.id)||
+     finance.some(t=>t.sourceId===po.id)))
+    push('REQUISICAO_CANCEL_COM_MOVIMENTO','critica','compras',po.id,
+     'Compra cancelada possui movimento de estoque ou título financeiro.',
+     'Suspender recebimentos e conferir provas sem apagar registros.',po.id);
    if(!requests.some(x=>x.id===po.purchaseRequestId))
     push('REQUISICAO_COMPRA_ORFA','critica','compras',po.id,
      'Compra sem requisição de origem localizada.',
@@ -572,7 +609,11 @@
    qtyGrams:r.qtyGrams,requiredGrams:r.requiredGrams,
    availableGrams:r.availableGrams,estimatedCents:r.estimatedCents,
    status:r.status,requester:r.requester,approver:r.approver||null,
-   purchaseId:r.purchaseId||null,createdCommandId:r.createdCommandId,
+   purchaseId:r.purchaseId||null,
+   cancelIssueReference:r.cancelIssueReference||null,
+   cancelIssueCommandId:r.cancelIssueCommandId||null,
+   cancelledBy:r.cancelledBy||null,cancelReviewedBy:r.cancelReviewedBy||null,
+   createdCommandId:r.createdCommandId,
    approvedCommandId:r.approvedCommandId,
    issuedCommandId:r.issuedCommandId,
    receiptCommandId:r.receiptCommandId,
@@ -685,6 +726,7 @@
    purchaseRequests:requests.length,
    pendingPurchaseRequests:requests.filter(x=>['rascunho','aprovada','emitida'].includes(x.status)).length,
    receivedPurchaseRequests:requests.filter(x=>x.status==='recebida').length,
+   cancelledIssuedPurchases:requests.filter(x=>x.status==='emissao_cancelada').length,
    bomCuts:bomCuts.length,
    bomUsefulGrams:bomCuts.reduce((n,c)=>n+(c.materials||[]).reduce((a,m)=>a+Number(m.requiredGrams||0),0),0),
    bomScrapGrams:bomCuts.reduce((n,c)=>n+(c.materials||[]).reduce((a,m)=>a+Number(m.scrapGrams||0),0),0),
