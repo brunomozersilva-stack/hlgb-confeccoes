@@ -130,7 +130,7 @@ test('cortadores e desperdício inválidos não criam qualquer baixa',()=>{
  for(const [payload,re] of [
   [p({signatureOne:'Outra pessoa'}),/conferências/],
   [p({cutterTwo:'Ana Cortadora'}),/diferentes/],
-  [p({scrapByMaterial:{'MAT-0003':5}}),/não faz parte da ficha/],
+  [p({scrapByMaterial:{'MAT-0003':5}}),/não faz parte desta ficha/],
   [p({scrapByMaterial:{'MAT-0001':-1}}),/inteiro/],
   [p({qty:0}),/Quantidade de peças/],
   [p({color:'Azul'}),/Cadastre a cor/],
