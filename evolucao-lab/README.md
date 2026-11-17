@@ -1,5 +1,13 @@
 # HLGB Evolução — Laboratório independente (Etapa 1)
 
+## Nova etapa — Pesquisa global (LAB)
+
+A barra **Localizar no HLGB** pesquisa o documento fictício atual por nome, SKU, IDs, situação e vínculos entre produtos, pedidos, cortes (inclusive concluídos), facções, acertos, títulos, lotes, comprovantes, compras, materiais e históricos. Pesquisa sem diferenciar maiúsculas e acentos, combina termos, prioriza identificadores exatos e apresenta filtro de área e páginas de 15 resultados. O índice não inclui conteúdo binário de PDF.
+
+Exercício: cadastre um pedido de Camisola Melina, registre seu corte, aloque, retorne as peças, separe e despache. Busque Melina e filtre Cortes. O corte concluído continua visível, e o pedido mostra os saldos de cada etapa. Clique Localizar registro: abre a área relacionada e exibe ID, situação e resumo; quando a tabela contém o mesmo ID, destaca a linha. Na área Acertos, um resultado de acerto também preenche o filtro exato. Nenhuma pesquisa altera a revisão ou aciona lançamentos. Busca e estado são locais; uma nova revisão confirmada reconstrói o índice. A pesquisa não substitui histórico remoto nem garante encontrar lançamentos ainda não sincronizados em outro computador.
+
+Testes: `tests/pesquisa-global-contract.cjs` (9 cenários, incluindo 20 mil modelos fictícios) e automação do corte concluído na suíte de interface Chromium/WebKit. Não foi publicado na produção.
+
 ## Nova etapa — Comprovantes PDF de pagamentos (LAB)
 
 No **Hub Financeiro**, a rotina `finance.receipt.attach` permite anexar PDF fictício a um título **a pagar já quitado** ou a um fechamento PAG. Títulos quitados por lote apontam exclusivamente para o comprovante do lote. O PDF, seu vínculo, código CPV, valor vinculado, motivo, versão e evento são gravados no mesmo documento transacional IndexedDB. Um novo arquivo para o mesmo pagamento cria versão seguinte e mantém o conteúdo da versão anterior. O sistema recusa conteúdo idêntico em outro anexo, versão desatualizada, arquivo fora dos limites ou título não quitado. Nenhum destes comandos movimenta dinheiro.
