@@ -99,7 +99,7 @@ test('bloqueio contra requisição dupla e aprovação pela mesma pessoa, sem mu
  let s=base();
  s=cmd(s,'purchase.request.create',create);
  const snapshot=JSON.stringify(s);
- assert.throws(()=>cmd(s,'purchase.request.create',create),/já existe requisição ativa/);
+ assert.throws(()=>cmd(s,'purchase.request.create',create),/Já existe requisição ativa/);
  assert.throws(()=>cmd(s,'purchase.request.approve',{...approval,approver:' compradora a '}),
   /pessoas diferentes/);
  assert.throws(()=>cmd(s,'purchase.request.issue',issue),/Apenas requisição aprovada/);
