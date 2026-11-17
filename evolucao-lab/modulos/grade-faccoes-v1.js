@@ -14,7 +14,7 @@
  const normalize=x=>String(x||'').trim().toLocaleLowerCase('pt-BR');
  const colorName=raw=>{
   const color=String(raw||'').trim().replace(/\s+/g,' ');
-  if(color.length<2||color.length>40||!^[\p{L}\p{N} .-]+$/u.test(color))
+  if(color.length<2||color.length>40||!/^[\p{L}\p{N} .-]+$/u.test(color))
    throw Error('Cor inválida: use nome de 2 a 40 caracteres, sem símbolos.');
   return color;
  };
