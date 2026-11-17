@@ -69,10 +69,58 @@ function orderTable(s){
  }));
 }
 function financeTable(s){
- return table(['Título','Tipo','Descrição','Valor','Estado'],s.finance.map(f=>[str(f.id),str(f.kind),
- str(f.description),fmt(f.amountCents),'<span class="chip '+(f.status==='aberto'?'wait':'')+'">'+str(f.status)+'</span>']));
+ return table(['Título','Tipo','Descrição','Valor','Estado','Comprovante'],s.finance.map(f=>[str(f.id),str(f.kind),
+ str(f.description),fmt(f.amountCents),'<span class="chip '+(f.status==='aberto'?'wait':'')+'">'+str(f.status)+'</span>',receiptSummary(s,f.id)]));
 }
 
+function receiptPanel(s){
+ const service=window.HLGBLabPaymentBatchV1;
+ if(!service?.receiptTargets)return panel('Comprovantes','<p>Módulo indisponível.</p>',true);
+ const metadata=service.receiptMetadata(s),targets=service.receiptTargets(s);
+ const choices=targets.map(t=>{const bill=ref(s.finance,t.targetId),lot=ref(s.paymentBatches||[],t.targetId);
+  return [t.targetId,t.targetId+' · '+(lot?.factionNameSnapshot||lot?.reference||bill?.description||'Pagamento')+' · '+fmt(t.amountCents)]});
+ return panel('Comprovantes PDF de teste — títulos e fechamentos',
+  '<p><strong>Use somente arquivo inteiramente fictício.</strong> O PDF fica neste navegador, não comprova pagamento bancário e não integra exportações gerais. Limite: 256 KiB por PDF e 2 MiB no total.</p>'+
+  (choices.length?
+  '<form data-command="finance.receipt.attach"><h3>Anexar ou substituir comprovante sem apagar versões</h3><div class="fields">'+
+   field('targetId','Título ou fechamento já quitado','select','',choices)+
+   '<div class="field"><label>PDF de exercício<input class="input" type="file" name="receiptFile" accept=".pdf,application/pdf" required></label></div>'+
+   field('reason','Motivo / identificação da conferência','text','')+
+   '<div class="field"><label><input type="checkbox" name="fictitious" required> Confirmo que o PDF não contém dados reais.</label></div>'+
+   '</div><p id="receipt-current" class="caption" role="status"></p>'+
+   '<button type="submit" class="btn primary">Salvar comprovante fictício</button></form>':
+   '<p>Nenhum pagamento a pagar foi quitado neste exercício.</p>')+
+   table(['Comprovante','Pagamento','Valor vinculado','Arquivo / tamanho','Versão','Motivo','Consultar'],
+    metadata.slice().reverse().map(r=>[str(r.id),str(r.targetId)+' · '+str(r.financeIds.join(', ')),fmt(r.amountCents),
+     str(r.fileName)+' · '+Math.ceil(r.size/1024)+' KiB',
+     str(r.version)+' · '+(r.current?'Atual':'Anterior'),str(r.reason),
+     '<button class="btn" type="button" data-receipt-download="'+str(r.id)+'">Baixar PDF</button>'])),true);
+}
+function receiptSummary(s,financeId){
+ const service=window.HLGBLabPaymentBatchV1;
+ if(!service?.receiptMetadata)return '—';
+ const lot=(s.paymentBatches||[]).find(b=>b.items?.some(i=>i.financeId===financeId));
+ const r=service.receiptMetadata(s).find(x=>x.targetId===(lot?.id||financeId)&&x.current);
+ return r?'<button type="button" class="btn" data-receipt-download="'+str(r.id)+'">'+str(r.id)+' · v'+str(r.version)+'</button>':'—';
+}
+function updateReceiptTarget(form){
+ const targetId=form.elements.namedItem('targetId')?.value;
+ const latest=window.HLGBLabPaymentBatchV1.receiptMetadata(doc).find(x=>x.targetId===targetId&&x.current);
+ const el=$('receipt-current');
+ if(el)el.textContent=latest?'Atual: '+latest.fileName+' · v'+latest.version+'. A nova versão preservará a anterior.':'Ainda não há comprovante para este pagamento.';
+}
+async function readReceiptPayload(form){
+ const file=form.elements.namedItem('receiptFile')?.files?.[0],service=window.HLGBLabPaymentBatchV1;
+ if(!form.elements.namedItem('fictitious')?.checked)throw Error('Confirme que o arquivo é fictício.');
+ if(!file||file.size>service.MAX_PDF)throw Error('Selecione um PDF fictício de até 256 KiB.');
+ if(file.type&&file.type!=='application/pdf')throw Error('Formato aceito: PDF.');
+ const targetId=form.elements.namedItem('targetId')?.value;
+ const previousId=service.receiptMetadata(doc).find(x=>x.targetId===targetId&&x.current)?.id||null;
+ const reason=form.elements.namedItem('reason')?.value;
+ const bytes=new Uint8Array(await file.arrayBuffer());
+ let content='';for(let i=0;i<bytes.length;i+=8192)content+=String.fromCharCode(...bytes.slice(i,i+8192));
+ return {targetId,previousId,fileName:file.name,contentBase64:btoa(content),reason,fictitious:true};
+}
 function financialBatchPanel(s){
  const comps=s.settlementCompensations||[],batches=s.paymentBatches||[];
  const groups=window.HLGBLabPaymentBatchV1?.groups?.(s)||[];
@@ -130,7 +178,7 @@ function financialBatchPanel(s){
    batches.map(b=>[str(b.id)+(b.scope==='faccao'?' · '+str(b.factionNameSnapshot):''),str(b.reference),str(b.count),
     fmt(b.totalCents),str(b.status),str(b.reason),
     (b.items||[]).map(i=>str(i.financeId)+' ('+str(i.sourceId)+')').join(' · ')]))+
-  '<p class="caption">Lotes são imutáveis no laboratório; comprovantes e autenticação ainda estão pendentes.</p>',true);
+  '<p class="caption">Lotes são imutáveis no laboratório; comprovantes fictícios são anexados separadamente. Autenticação real permanece pendente.</p>',true);
 }
 function updateBatchPreview(){
  const form=document.querySelector('#finance-batch-form');
@@ -893,7 +941,7 @@ function moduleHtml(s){
  field('amountCents','Valor em R$','money','100,00')],'Cadastrar título')+
  form('finance.pay','Confirmar lançamento',[field('id','Título aberto','select','',finance)],'Marcar como quitado ficticiamente')+
  '<p class="caption">Esta ação não movimenta dinheiro. Confirme apenas valores fictícios.</p>')+
- financialBatchPanel(s)+
+ financialBatchPanel(s)+receiptPanel(s)+
  panel('Conferência financeira','<p>Pedidos geram contas a receber; retornos, acertos a pagar. Compensações de acertos pagos criam títulos separados a pagar ou receber, sem alterar o pagamento original. Nenhuma operação movimenta dinheiro real.</p>')+
  panel('Contas do laboratório',financeTable(s),true);
  case 'folha':return panel('Editar salário e passagem por pessoa',
@@ -1050,6 +1098,7 @@ function draw(){
  $('module-content').innerHTML=moduleHtml(doc);
  if(active==='acertos'){applySettlementFilters();const f=document.querySelector('form[data-command="settlement.revise"]');if(f)fillSettlementRevision(f);}
  if(active==='faccoes'){const f=document.querySelector('form[data-command="faction.assignment.rate.set"]');if(f)fillAssignmentRate(f);}
+ if(active==='hub'){const f=document.querySelector('form[data-command="finance.receipt.attach"]');if(f)updateReceiptTarget(f);}
  $('audit-trail').innerHTML=doc.log.length?doc.log.slice().reverse().slice(0,28).map(e=>
  '<div class="log-item"><strong>'+escape(e.type)+' · '+escape(e.commandId)+'</strong>'+
  'Revisão '+e.revision+' · '+escape(e.description)+'</div>').join(''):
@@ -1146,7 +1195,8 @@ async function submit(form,type){
  busy=true;
  const button=form.querySelector('button[type=submit]');if(button)button.disabled=true;
  try{
-  const payload=parseData(type,form),expectedRevision=doc.revision,
+  const expectedRevision=doc.revision;
+  const payload=type==='finance.receipt.attach'?await readReceiptPayload(form):parseData(type,form),
    id='OP-DEMO-'+crypto.randomUUID(),actor='Operador fictício';
   const tx=await transact(previous=>api.apply(previous,{type,payload,commandId:id,actor,expectedRevision}));
   const saved=await read();
@@ -1200,7 +1250,7 @@ function exportReport(){
   productionApproval:false,parityApproved:false,modulesVisited:19,exportedAt:new Date().toISOString(),
   journey:api.journey(doc,journeyOrderId),
   observability:observerResult(doc),materialPlanning:materialPlannerResult(doc),
-  checks:api.inspect(doc),totals:api.totals(doc),data:doc};
+  checks:api.inspect(doc),totals:api.totals(doc),data:{...doc,paymentReceipts:window.HLGBLabPaymentBatchV1.receiptMetadata(doc)},receiptBinaryExported:false};
  download('HLGB-EVOLUCAO-OPERACAO-INTEGRADA-FICTICIA.json',JSON.stringify(report,null,2),'application/json');
 }
 function safeCell(x){let s=String(x??'');if(/^[=+\-@\t\r]/.test(s))s="'"+s;return '"'+s.replace(/"/g,'""')+'"'}
@@ -1209,6 +1259,7 @@ function exportCsv(){
  const rows=[['Tipo','ID','Descrição','Status','Quantidade/valor'],...doc.orders.map(x=>['Pedido',x.id,
  ref(doc.products,x.productId)?.name||'', 'Enviadas: '+x.shipped,sum(x.grade)]),
  ...doc.finance.map(x=>['Financeiro',x.id,x.description,x.status,x.amountCents]),
+ ...window.HLGBLabPaymentBatchV1.receiptMetadata(doc).map(x=>['Comprovante fictício',x.id,x.targetId+' · versão '+x.version,x.current?'Atual':'Anterior',x.amountCents]),
  ...(doc.settlementCompensations||[]).map(x=>['Compensação',x.id,x.settlementId+' · '+x.reference,x.status,x.deltaCents]),
  ...(doc.purchaseReturns||[]).map(x=>['Devolução integral',x.id,
   x.purchaseId+' · '+x.reference+' · '+x.reason,x.status,x.qtyGrams]),
@@ -1512,6 +1563,7 @@ document.addEventListener('change',event=>{
  const type=form.dataset.command;
  const selected=event.target.name;
  if(type==='settlement.add'&&['serviceType','productId','factionId'].includes(selected))suggestServicePrice(form);
+ if(type==='finance.receipt.attach'&&selected==='targetId')updateReceiptTarget(form);
  if(type==='settlement.revise'&&selected==='id')fillSettlementRevision(form);
  if(type==='faction.assignment.rate.set'&&selected==='assignmentId')fillAssignmentRate(form);
  if(type==='settlement.revise'&&['unitCents','travetaCents','factionId'].includes(selected))previewSettlementRevision(form);
@@ -1534,6 +1586,18 @@ document.addEventListener('change',event=>{
  }
 });
 document.addEventListener('click',e=>{
+ const receiptButton=e.target.closest('[data-receipt-download]');
+ if(receiptButton){
+  try{
+   const r=(doc?.paymentReceipts||[]).find(x=>x.id===receiptButton.dataset.receiptDownload);
+   if(!r)throw Error('Comprovante não encontrado na cópia local.');
+   const service=window.HLGBLabPaymentBatchV1,file=service.decodePdf(r.contentBase64);
+   if(file.size!==r.size||file.checksum!==r.checksum)throw Error('Arquivo divergente; não baixar.');
+   download(r.id+'-FICTICIO-'+r.fileName,file.bytes,'application/pdf');
+   status('Download local solicitado · '+r.id+' · versão '+r.version+'.');
+  }catch(error){status(error.message,'error')}
+  return;
+ }
  if(e.target.closest('#preview-bom-cut')){
   const form=document.querySelector('form[data-command="cut.bom.execute"]');
   try{
