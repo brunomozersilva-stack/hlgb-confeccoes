@@ -35,6 +35,7 @@
   if(!source||typeof source!=='object'||source.schema!=='hlgb-evolucao-operacao-ficticia-v1')
    throw Error('Documento do laboratório não compatível com o observador.');
   const orders=arr(source,'orders'),cutPlans=arr(source,'cutPlans'),
+   bomCuts=arr(source,'bomCutRuns'),
    purchases=arr(source,'purchaseOrders'),materials=arr(source,'materials'),
    settlements=arr(source,'settlements'),comps=arr(source,'settlementCompensations'),
    finance=arr(source,'finance'),ledger=arr(source,'stockLedger'),
@@ -127,6 +128,73 @@
     push('CORTE_ESTOQUE','alta','corte',plan.id,
      'Folha concluída não corresponde a uma única baixa de material.',
      'Conferir pesos útil/lixo e a movimentação; não repetir baixa.',plan.id);
+  }
+  // Corte multimatéria: a trilha garante exatamente uma baixa por insumo.
+  const seenBomIds=new Set();
+  for(const lot of bomCuts){
+   const order=byId(orders,lot.orderId),
+    moves=ledger.filter(m=>m.bomCutId===lot.id);
+   const variants=order?.colorGrades||[];
+   if(!lot.id||seenBomIds.has(lot.id)||!order||
+      !variants.some(x=>x.color===lot.color)||!['P','M','G','GG'].includes(lot.size)||
+      !Number.isSafeInteger(lot.qty)||lot.qty<1||
+      !Array.isArray(lot.materials)||lot.materials.length<1||
+      moves.length!==lot.materials?.length||!lot.reason||
+      !events.some(e=>e.commandId===lot.commandId&&e.type==='cut.bom.execute')||
+      !lot.signatureOne||!lot.signatureTwo||
+      String(lot.cutterOne||'').toLocaleUpperCase('pt-BR')!==
+       String(lot.signatureOne||'').toLocaleUpperCase('pt-BR')||
+      String(lot.cutterTwo||'').toLocaleUpperCase('pt-BR')!==
+       String(lot.signatureTwo||'').toLocaleUpperCase('pt-BR'))
+    push('CORTE_BOM_ORIGEM','critica','corte',lot.id,
+     'Lote BOM sem pedido, grade, evento ou dupla conferência válida.',
+     'Conferir lote, corte físico e assinaturas antes de qualquer correção.',lot.orderId);
+   seenBomIds.add(lot.id);
+   const used=new Set();
+   for(const line of lot.materials||[]){
+    const transactions=moves.filter(m=>m.materialId===line.materialId);
+    if(used.has(line.materialId)||!byId(materials,line.materialId)||
+      !line.ruleId||!Number.isSafeInteger(line.gramsPerUnit)||line.gramsPerUnit<1||
+      !Number.isSafeInteger(line.requiredGrams)||
+      line.requiredGrams!==lot.qty*line.gramsPerUnit||
+      !Number.isSafeInteger(line.scrapGrams)||line.scrapGrams<0||
+      line.totalGrams!==line.requiredGrams+line.scrapGrams||
+      !Number.isSafeInteger(line.priceCentsKg)||line.priceCentsKg<1||
+      line.theoreticalCostCents!==Math.ceil(line.totalGrams*line.priceCentsKg/1000)||
+      transactions.length!==1||transactions[0]?.type!=='corte-bom'||
+      transactions[0]?.commandId!==lot.commandId||
+      transactions[0]?.sourceId!==lot.orderId||
+      transactions[0]?.deltaGrams!==-line.totalGrams||
+      transactions[0]?.usefulGrams!==line.requiredGrams||
+      transactions[0]?.scrapGrams!==line.scrapGrams)
+     push('CORTE_BOM_ESTOQUE','critica','corte',lot.id,
+      'Baixa ausente, duplicada ou divergente do consumo útil e do desperdício.',
+      'Conferir cada movimento MOV com o lote BOM e saldo físico; não repetir baixa.',
+      line.materialId);
+    used.add(line.materialId);
+   }
+   if(lot.totalGrams!==(lot.materials||[]).reduce((n,x)=>n+Number(x.totalGrams||0),0)||
+      lot.estimatedCostCents!==(lot.materials||[]).reduce((n,x)=>n+Number(x.theoreticalCostCents||0),0))
+    push('CORTE_BOM_TOTAIS','critica','corte',lot.id,
+     'Somatório de peso ou custo do lote diverge dos materiais.',
+     'Conferir versões congeladas e movimentos, sem recalcular lotes antigos.',lot.id);
+  }
+  for(const order of orders){
+   const items=bomCuts.filter(x=>x.orderId===order.id);
+   if(!items.length)continue;
+   for(const size of ['P','M','G','GG']){
+    const done=items.filter(x=>x.size===size).reduce((n,x)=>n+Number(x.qty||0),0);
+    if(done!==order.cut[size])
+     push('CORTE_BOM_PEDIDO','critica','corte',order.id,
+      'Quantidades da grade cortada divergem dos lotes BOM para '+size+'.',
+      'Conferir lote por cor/tamanho e bloquear baixa duplicada.',size);
+   }
+  }
+  for(const mov of ledger.filter(x=>x.type==='corte-bom')){
+   if(!bomCuts.some(lot=>lot.id===mov.bomCutId&&lot.orderId===mov.sourceId))
+    push('CORTE_BOM_MOVIMENTO_ORFAO','critica','estoque',mov.id,
+     'Movimento sem lote BOM de origem ou pedido correspondente.',
+     'Conferir documento e saldo antes de qualquer estorno.',mov.bomCutId);
   }
   // Acerto quitado é imutável. Correção deve ser um novo título.
   for(const a of settlements){
@@ -430,6 +498,14 @@
     evidence:recommendationCounts.get(f.code)+' ocorrência(s) · '+f.recordId,
     mode:'orientacao_sem_execucao'});
   }
+  const bomCutHistory=bomCuts.map(c=>({
+   id:c.id,orderId:c.orderId,color:c.color,size:c.size,qty:c.qty,
+   cutterOne:c.cutterOne,cutterTwo:c.cutterTwo,spreader:c.spreader,
+   commandId:c.commandId,totalGrams:c.totalGrams,
+   estimatedCostCents:c.estimatedCostCents,
+   materials:(c.materials||[]).map(m=>({...m,
+    materialName:String(byId(materials,m.materialId)?.name||m.materialId)}))
+  }));
   const factionDispatches=assignments.map(a=>{
    const order=byId(orders,a.orderId),faction=byId(arr(source,'factions'),a.factionId);
    const product=byId(arr(source,'products'),order?.productId);
@@ -526,6 +602,9 @@
    gradePiecesOpen:gradeInventory.reduce((n,x)=>n+Number(x.open||0),0),
    partialFactionTransfers:partialTransfers.length,
    piecesTransferred:partialTransfers.reduce((n,m)=>n+Number(m.qty||0),0),
+   bomCuts:bomCuts.length,
+   bomUsefulGrams:bomCuts.reduce((n,c)=>n+(c.materials||[]).reduce((a,m)=>a+Number(m.requiredGrams||0),0),0),
+   bomScrapGrams:bomCuts.reduce((n,c)=>n+(c.materials||[]).reduce((a,m)=>a+Number(m.scrapGrams||0),0),0),
    centralColors:colors.length,materialRecipeRules:recipeRules.length,
    activePlanLines:planLines.filter(x=>x.active).length,
    planPieces:planLines.filter(x=>x.active).reduce((n,x)=>n+Number(x.qty||0),0),
@@ -541,7 +620,7 @@
     findings.length?'investigar':'sem_alertas_nas_regras_cobertas',
    summary,findings,recommendations,history,moduleActivity,repeatedOperations,
    modelSummary,factionSummary,settlementHistory,factionDispatches,factionTransferHistory,
-   colorGradeSummary,gradeInventory,
+   colorGradeSummary,gradeInventory,bomCutHistory,
    paymentBatchHistory:batches.map(b=>({id:b.id,reference:b.reference,
     reason:b.reason,count:b.count,totalCents:b.totalCents,status:b.status,
     items:(b.items||[]).map(i=>({...i}))}))};
