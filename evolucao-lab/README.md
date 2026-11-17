@@ -1,5 +1,11 @@
 # HLGB Evolução — Laboratório independente (Etapa 1)
 
+## Nova etapa — Devolução integral de compra já recebida (LAB)
+
+A prévia de Compras passa a distinguir dois documentos diferentes: **cancelamento formal de emissão antes do recebimento** e **devolução integral após recebimento**. O comando `purchase.return.full` valida REQ/COM, comprovante de entrada, saldo disponível e título original a pagar ainda aberto; exige referência exclusiva, motivo, responsável e conferente independentes. Cria novo documento `DEV-...`, movimentação de estoque negativa `MOV-...` e crédito a receber `FIN-...`. A compra, sua entrada e o título originais permanecem registrados e com valores intactos. O Auditor 2.0 verifica os vínculos, repetições e inconsistências, e o relatório/CSV registram o protocolo.
+
+A operação continua **exclusivamente fictícia e local**, sem acesso ao Supabase, PIX ou finanças reais. Compras avulsas sem requisição, créditos envolvendo título já pago, devolução parcial, estoque consumido e compensação bancária não são resolvidos por esse fluxo. Nomes digitados não representam identidade autenticada. A suíte específica tem 11 cenários de regressão e testes Chromium/WebKit mobile/desktop. A aprovação funcional e equivalência às 76 rotinas catalogadas continuam pendentes; nenhum arquivo do HLGB em produção deve ser alterado ou promovido sem autorização.
+
 Esta pasta é um **protótipo isolado**: não é uma tela incorporada ao HLGB em produção.
 
 ## Nova etapa — Cancelamento formal de compra emitida, sem estornar saldos (LAB)
