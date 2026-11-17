@@ -27,10 +27,10 @@ Somente na **Operação Integrada fictícia**:
 
 1. Abra **Produtos e ficha técnica** e confirme a paleta (Preto, Branco, Rubi). Cadastre `Azul-marinho`; tentar `azul-MARINHO` novamente deve gerar aviso sem alterar a revisão. No painel **Facções**, a cor estará disponível para seleção nos novos pedidos.
 2. Em **Produtos**, crie uma regra de consumo para **Camisola Melina / Malha / Preto / P** de **125 g por peça** e justifique. Crie outra receita **Camisola Melina / Renda / Todas as cores / Todos os tamanhos** de **15 g por peça**. Esta renda é considerada *componente adicional na previsão*.
-3. Em **Compras e fornecedores → Planejador semanal**, adicione 100 unidades de Camisola Melina / Preto / P e 200 de Calcinha Tammy / Rubi / M.
+3. Em **Compras e fornecedores → Planejador semanal**, adicione 100 unidades de Camisola Melina / Preto / P e 200 de Calcinha Tammy / Rubi / M. Também existe um formulário **Adicionar a grade P/M/G/GG de uma vez**, para registrar todas as quantidades de um modelo e cor em uma só revisão.
 4. O total teórico deve ser **300 peças**, com **12.500 g de Malha** e **10.500 g de Renda** (1.500 g de renda da Melina + 9.000 g da Tammy). O faltante depende do saldo fictício do material no momento do teste.
 5. Exporte JSON e confirme `materialPlanning.stockWritten=false` e `purchaseCreated=false`. Nenhum movimento novo de estoque nem compra deve surgir por causa da simulação.
-6. Em **Relatórios**, confira a lista de material faltante e o valor estimado; exporte o CSV e procure **Necessidade de material**.
+6. Em **Relatórios**, confira a lista de material faltante e o valor estimado; exporte o CSV e procure **Necessidade de material**. Em **Compras**, use **Baixar lista exclusiva de materiais CSV** para gerar um arquivo específico com saldo, faltante, custo e detalhe por modelo/cor/tamanho.
 7. De volta a Compras, arquive a linha de Melina com uma justificativa. O histórico de linha arquivada deve permanecer, e o cálculo deve ser atualizado para **200 peças Tammy**. O estoque e os pagamentos anteriores não podem mudar.
 8. Em **Produtos**, faça uma segunda versão da receita de renda da Melina. A versão antiga deve ficar registrada como **Substituída**, nunca excluída. Confira as revisões e o Auditor.
 9. Recarregue a página, verifique que os cadastros e as linhas do cenário permaneceram localmente e que o relatório ainda calcula a previsão corretamente.
