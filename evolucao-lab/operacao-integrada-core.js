@@ -7,10 +7,12 @@
   require('./modulos/faccoes-multidestino-v1.js'):(root&&root.HLGBLabFactionRoutingV1);
  const factionGrade=typeof module==='object'&&module.exports?
   require('./modulos/grade-faccoes-v1.js'):(root&&root.HLGBLabFactionGradeV1);
- const api=factory(batch,routing,factionGrade);
+ const planner=typeof module==='object'&&module.exports?
+  require('./modulos/planejamento-materiais-v1.js'):(root&&root.HLGBLabMaterialsPlannerV1);
+ const api=factory(batch,routing,factionGrade,planner);
  if(typeof module==='object'&&module.exports)module.exports=api;
  else if(root)root.HLGBOperationalLab=api;
-})(typeof window!=='undefined'?window:null,function(batch,routing,factionGrade){
+})(typeof window!=='undefined'?window:null,function(batch,routing,factionGrade,planner){
  'use strict';
  const clone=x=>JSON.parse(JSON.stringify(x)),sizes=['P','M','G','GG'];
  const makeGrade=()=>({P:0,M:0,G:0,GG:0});
@@ -32,6 +34,7 @@
     {id:'FAC-0002',name:'Oficina Exemplo B',unitCents:600,traveta:false}],
    employees:[{id:'FUN-0001',name:'Ana Simulada',salaryCents:200000,passageCents:12000,extrasCents:0,discountCents:0},
     {id:'FUN-0002',name:'Bianca Modelo',salaryCents:180000,passageCents:8000,extrasCents:0,discountCents:3000}],
+   colorCatalog:planner?planner.seed():[],materialRecipeRules:[],materialPlanLines:[],
    orders:[],cutPlans:[],purchaseOrders:[],settlements:[],settlementCompensations:[],paymentBatches:[],finance:[],stockLedger:[],factionTransfers:[],factionAssignments:[],factionPartialTransfers:[],errors:[],
    prints:[{id:'IMP-0001',name:'Chaveiro articulado fictício',grams:28,priceCents:490,stock:12}],
    log:[],role:'supervisor',flags:{autoCorrections:false},revisionProof:'seed'};
@@ -133,6 +136,8 @@
    problems.push(...routing.inspect(s));
   if(factionGrade&&typeof factionGrade.inspect==='function')
    problems.push(...factionGrade.inspect(s));
+  if(planner&&typeof planner.inspect==='function')
+   problems.push(...planner.inspect(s));
   for(const move of (s.factionTransfers||[])){
    if(!s.orders.some(x=>x.id===move.orderId)||!s.factions.some(x=>x.id===move.fromFactionId)||
       !s.factions.some(x=>x.id===move.toFactionId)||move.fromFactionId===move.toFactionId)
@@ -141,7 +146,7 @@
   if(s.materials.some(m=>m.stockGrams<0))problems.push('Estoque de material negativo');
   if(s.finance.some(e=>e.amountCents<=0))problems.push('Lançamento financeiro não positivo');
   if(new Set(s.log.map(e=>e.commandId)).size!==s.log.length)problems.push('Identificador de comando duplicado');
-  const allIds=[...s.orders,...(s.cutPlans||[]),...(s.factionTransfers||[]),...(s.factionAssignments||[]),...(s.factionPartialTransfers||[]),...(s.settlementCompensations||[]),...batches,...s.purchaseOrders,...s.settlements,...s.finance,...s.clients,...s.suppliers,
+  const allIds=[...s.orders,...(s.cutPlans||[]),...(s.factionTransfers||[]),...(s.colorCatalog||[]),...(s.materialRecipeRules||[]),...(s.materialPlanLines||[]),...(s.factionAssignments||[]),...(s.factionPartialTransfers||[]),...(s.settlementCompensations||[]),...batches,...s.purchaseOrders,...s.settlements,...s.finance,...s.clients,...s.suppliers,
    ...s.materials,...s.products,...s.factions,...s.employees,...s.prints].map(x=>x.id);
   if(new Set(allIds).size!==allIds.length)problems.push('IDs de registro duplicados');
   return {ok:!problems.length,problems,orderCount:s.orders.length,unpaid:s.finance.filter(f=>f.status==='aberto').length,
@@ -263,6 +268,8 @@
   if(!Array.isArray(s.factionPartialTransfers))s.factionPartialTransfers=[];
   if(!Array.isArray(s.settlementCompensations))s.settlementCompensations=[];
   if(!Array.isArray(s.paymentBatches))s.paymentBatches=[];
+  if(!planner)throw Error('Módulo de planejamento indisponível. Nenhuma gravação executada.');
+  planner.ensure?.(s);
   const num=(field,min=0,max=1000000)=>int(p[field],field,min,max);
   let result;
   switch(kind){
@@ -302,6 +309,14 @@
    s.factionTransfers.push({id:next(s,'TRO'),orderId:order.id,fromFactionId:oldId,
     toFactionId:newFac.id,qty:order.allocated,reason,commandId:uid});
    result=order.id+' · '+oldId+' → '+newFac.id+' · '+order.allocated+' peças · '+reason;break}
+  case 'color.catalog.add':{
+   result=planner.registerColor(s,p,{next,uid});break}
+  case 'material.recipe.set':{
+   result=planner.setRecipe(s,p,{next,uid});break}
+  case 'materials.plan.add':{
+   result=planner.lineAdd(s,p,{next,uid});break}
+  case 'materials.plan.archive':{
+   result=planner.lineCancel(s,p,{next,uid});break}
   case 'material.add':{
    const obj={id:next(s,'MAT'),name:name(p.name,'Material'),stockGrams:0,priceCentsKg:num('priceCentsKg',1,1000000)};
    s.materials.push(obj);result=obj.id;break}
