@@ -36,6 +36,7 @@ select.input{display:block;width:100%;max-width:100%;min-width:0;min-inline-size
 .table-wrap{overflow:auto;border:1px solid var(--line);border-radius:9px}table{width:100%;border-collapse:collapse;font-size:12px;min-width:480px}
 th,td{padding:9px;border-bottom:1px solid #eee9f1;text-align:left;vertical-align:top}th{font-size:11px;color:var(--muted);background:#f9f7fb}
 tr:last-child td{border-bottom:0}tr[hidden]{display:none!important}.num{text-align:right;white-space:nowrap;font-variant-numeric:tabular-nums}
+.search-controls{display:grid;grid-template-columns:minmax(0,2fr) minmax(0,1fr);gap:10px}.search-result{display:flex;justify-content:space-between;gap:10px;align-items:center;border-bottom:1px solid var(--line);padding:10px 0}.search-result>div{min-width:0}.search-result p{margin:3px 0}.search-result button{flex-shrink:0}.search-detail{border:1px solid var(--line);border-radius:9px;padding:12px;margin-top:10px;background:#faf8fc}.search-hit{outline:2px solid var(--purple);outline-offset:-2px}@media(max-width:710px){.search-controls{grid-template-columns:1fr}.search-result{align-items:stretch;flex-direction:column}}
 .caption{font-size:11px;color:var(--muted);margin-top:7px}.log{max-height:300px;overflow:auto;display:grid;gap:5px}
 .log-item{padding:8px 10px;border:1px solid var(--line);border-radius:8px;font-size:11px}.log-item strong{display:block}
 .chip{padding:3px 7px;border-radius:20px;background:#e7f2eb;color:#2d7250;font-weight:800;font-size:10px;white-space:nowrap}
@@ -87,6 +88,7 @@ tr:last-child td{border-bottom:0}tr[hidden]{display:none!important}.num{text-ali
 <main>
 <div class="warning"><strong>Prévia funcional, não ERP de produção.</strong> Os cadastros, pedidos, estoque, acertos e contas aqui são exclusivamente inventados. As operações ficam no IndexedDB deste navegador, compartilhadas entre abas do mesmo perfil; não sincronizam entre computadores e não executam pagamentos, notas fiscais ou gravações no Supabase. PDF de comprovante é somente um anexo de exercício local. Não digite informações reais nem carregue documentos bancários reais.</div>
 <div id="flash" role="status" aria-live="polite"></div>
+<section class="panel global-search" aria-label="Pesquisa global"><h2>Localizar no HLGB</h2><div class="search-controls"><div class="field"><label for="global-search-query">Buscar modelo, SKU, pedido, corte, facção ou pagamento</label><input class="input" id="global-search-query" type="search" maxlength="150" placeholder="Ex.: Melina, corte concluído, PED-0001"></div><div class="field"><label for="global-search-module">Área</label><select class="input" id="global-search-module"><option value="todos">Todas as áreas</option></select></div></div><div id="global-search-results" aria-live="polite"></div><div id="global-search-detail" hidden></div></section>
 <div class="headline"><div><h1 id="module-title">Operação integrada</h1><p id="module-description">Cadastro, pedido, corte, facção, retorno, expedição e financeiro com o mesmo conjunto de dados fictícios.</p></div>
 <div class="actions"><button id="export-json" type="button" class="btn">Exportar evidências JSON</button><button id="export-csv" type="button" class="btn">Exportar resumo CSV</button></div></div>
 <div class="metrics" id="global-metrics"></div>
@@ -106,4 +108,5 @@ tr:last-child td{border-bottom:0}tr[hidden]{display:none!important}.num{text-ali
 <script src="./operacao-integrada-core.js"></script>
 <script src="./modulos/registro-v1.js"></script>
 <script src="./modulos/observabilidade-v2.js"></script>
+<script src="./modulos/pesquisa-global-v1.js"></script>
 <script src="./operacao-integrada-ui.js"></script></body></html>
