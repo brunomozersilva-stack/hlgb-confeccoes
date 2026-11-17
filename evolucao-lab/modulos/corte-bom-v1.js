@@ -156,7 +156,7 @@
    const matIds=new Set();
    for(const component of run.materials||[]){
     const mov=moves.filter(x=>x.materialId===component.materialId);
-    if(matIds.has(component.materialId)||!byId(s.materials,component.materialId)||
+    if(matIds.has(component.materialId)||!component.ruleId||!byId(s.materials,component.materialId)||
      !Number.isSafeInteger(component.gramsPerUnit)||component.gramsPerUnit<1||
      !Number.isSafeInteger(component.requiredGrams)||
      component.requiredGrams!==run.qty*component.gramsPerUnit||
