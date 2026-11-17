@@ -83,8 +83,16 @@ function financialBatchPanel(s){
    '<form data-command="finance.faction.close" class="faction-close-form">'+
    '<input type="hidden" name="factionId" value="'+str(g.factionId)+'">'+
    g.financeIds.map(id=>'<input type="hidden" name="financeIds" value="'+str(id)+'">').join('')+
-   '<p class="caption">Composição: '+g.financeIds.map(str).join(' · ')+
-   '. A conferência inclui TODOS os acertos abertos desta pessoa.</p>'+
+   '<p class="caption">Composição completa da facção, com cada acerto individual preservado.</p>'+
+   table(['Título','Acerto / modelo','Serviço','Valor'],g.financeIds.map(id=>{
+    const title=s.finance.find(x=>x.id===id),
+     settlement=s.settlements.find(x=>x.id===title?.sourceId),
+     comp=comps.find(x=>x.id===title?.sourceId),
+     original=comp?s.settlements.find(x=>x.id===comp.settlementId):settlement,
+     product=ref(s.products,original?.productId||ref(s.orders,original?.orderId)?.productId);
+    return [str(id),str((settlement?.id||comp?.id||'—')+' · '+(product?.name||'Modelo não cadastrado')),
+     str(comp?'Compensação':original?.serviceType||'costura'),fmt(title.amountCents)];
+   }))+
    '<div class="fields">'+
    field('reference','Referência única do fechamento','text','FAC-'+g.factionId+'-001')+
    field('reason','Motivo da conferência','text','Acerto consolidado fictício da facção')+'</div>'+
@@ -1198,7 +1206,9 @@ function exportCsv(){
  ...(doc.factionPartialTransfers||[]).map(t=>['Transferência parcial',t.id,
   t.orderId+' · '+t.fromFactionId+' → '+t.toFactionId+' · '+t.reason,
   t.commandId,t.qty]),
- ...(doc.paymentBatches||[]).map(x=>['Pagamento em lote',x.id,x.reference+' · '+x.reason,x.status,x.totalCents]),
+ ...(doc.paymentBatches||[]).map(x=>['Pagamento em lote',x.id,
+  (x.scope==='faccao'?'Facção '+x.factionNameSnapshot+' · ':'')+x.reference+' · '+x.reason,
+  x.status,x.totalCents]),
  ...(doc.paymentBatches||[]).flatMap(x=>x.items.map(i=>
   ['Título quitado no lote',i.financeId,x.id+' · '+i.sourceId,i.sourceType,i.amountCents]))];
  download('HLGB-EVOLUCAO-OPERACAO-INTEGRADA-FICTICIA.csv','\uFEFF'+rows.map(r=>r.map(safeCell).join(';')).join('\r\n'),'text/csv;charset=utf-8');
