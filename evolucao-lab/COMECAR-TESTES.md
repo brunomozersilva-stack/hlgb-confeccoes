@@ -1,5 +1,17 @@
 # HLGB Evolução — Como começar a testar os módulos
 
+## NOVO — Acerto automático de uma facção com vários lançamentos
+
+1. Na **Operação Integrada**, abra **Acertos** e cadastre dois serviços de embalagem fictícios para a mesma facção **Oficina Exemplo A**, com 8 e 6 peças a R$ 1,00 por peça, desconto zero. Cadastre ainda um serviço para a Oficina Exemplo B para testar o isolamento. Esses acertos não pagam dinheiro real.
+2. Abra **Hub Financeiro → Fechamento automático por facção**. Deve aparecer uma proposta para a Oficina Exemplo A, com **2 títulos e R$ 14,00**. Os documentos individuais devem mostrar modelo, serviço e valor. A Oficina Exemplo B não deve ser incluída.
+3. Clique em **Validar total sem pagar** e confira que a revisão local permanece igual. Digite a referência \`FAC-TESTE-001\`, justifique e confirme **Fechar todos os acertos desta pessoa**.
+4. O sistema deve criar **um lote PAG**, registrar um único comando e uma única revisão, marcar os dois ACE e os dois títulos como pagos e conservar todo o histórico. O acerto da outra facção deve permanecer aberto.
+5. Reabra o Hub e o Auditor 2.0, confira o fechamento, referência, IDs e ausência de alertas nas regras verificadas. Baixe o JSON e CSV. Atualize o navegador e confirme que o fechamento foi preservado no IndexedDB fictício.
+6. Em outro conjunto de testes, crie um novo acerto para a mesma facção **depois da prévia**. Tentar confirmar a lista antiga deve bloquear a baixa integralmente, exigindo nova conferência. Uma alteração indevida de preço ou tentativa de incluir título de outra facção também bloqueia tudo.
+7. Teste separadamente a baixa unitária e o lote manual antigo, que continuam disponíveis. Nunca use comprovantes nem valores empresariais no laboratório.
+
+**Limite:** fechamento automático exige de 2 a 50 títulos e não substitui conciliação bancária, regras fiscais, autenticação real ou pagamentos. O ambiente não acessa Supabase nem dois computadores reais. Uma proposta visual não é autorização de pagamento.
+
 ## NOVO — Devolução integral de compra já recebida (somente laboratório)
 
 A versão de teste agora possui o comando `purchase.return.full`, separado de `purchase.request.cancelIssued`. **Não é possível cancelar diretamente uma compra recebida.** Este fluxo só trabalha com materiais inventados e um documento de compra que veio de requisição aprovada, foi recebido e ainda tem título a pagar **aberto**.
