@@ -551,6 +551,23 @@ function financeControlPanels(s){
  '<p>Conferência manual de valor, não integra banco, não paga novamente e não comprova transferência.</p>');
 }
 
+
+let pcpFilter='todos',pcpDate='2026-11-17';
+function pcpPanels(s){
+ const service=window.HLGBLabPCPV1;if(!service)return '';
+ const filters='<div class="fields"><div class="field"><label>Data de referência<input type="date" class="input" id="pcp-date" value="'+str(pcpDate)+'"></label></div><div class="field"><label>Filtrar situação<select class="input" id="pcp-filter">'+options(['todos','Atrasado','Risco de atraso','No prazo estimado','Sem prazo','Expedido'].map(x=>[x,x]),pcpFilter)+'</select></label></div></div>';
+ let r;try{r=service.report(s,{asOf:pcpDate})}catch(e){return panel('PCP avançado',filters+'<div class="error">'+str(e.message)+'</div>',true);}
+ const m=[['Peças a expedir',r.remaining],['Pedidos atrasados',r.late],['Risco de atraso',r.risk],['Gargalo estimado',r.bottleneck||'Sem carga']];
+ const pending=selector(s.orders.filter(o=>o.shipped<sum(o.grade)),o=>o.id+' · '+(ref(s.products,o.productId)?.name||o.productId));
+ return panel('PCP avançado · planejamento da produção',filters+'<div class="metrics">'+m.map(([k,v])=>'<div class="metric"><span>'+str(k)+'</span><strong>'+str(v)+'</strong></div>').join('')+'</div><p>Estimativa conservadora em dias corridos, com capacidade diária global e fila por prioridade e prazo. Soma as etapas em sequência; não representa promessa de entrega, feriados, jornada ou paralelismo real. Capacidades iniciais são fictícias e editáveis.</p><button class="btn" type="button" id="pcp-export">Exportar planejamento CSV</button>',true)+
+ panel('Programar pedido e prazo',
+ form('pcp.plan','Definir prioridade e prazo',[field('orderId','Pedido','select','',pending),'<div class="field"><label>Prazo combinado<input class="input" type="date" name="dueDate" value="2026-11-30" required></label></div>',field('priority','Prioridade','select','',[['normal','Normal'],['urgente','Urgente'],['alta','Alta'],['baixa','Baixa']]),field('reason','Justificativa','text','Planejamento fictício')],'Salvar planejamento'))+
+ panel('Capacidade diária prevista',form('pcp.capacity','Peças por dia (capacidade total)',[...service.stages.map(k=>field(k,service.labels[k],'int',String(r.capacity[k]))),field('reason','Justificativa','text','Ajuste de capacidade fictícia')],'Salvar capacidades'))+
+ panel('Mapa de carga e gargalos',table(['Etapa','Fila atual','Trabalho futuro total','Capacidade/dia','Dias estimados de carga'],r.loads.map(x=>[str(x.label),str(x.queue),str(x.required),str(x.capacity),str(x.days)]))+'<p>A fila atual distribui cada peça uma única vez; trabalho futuro conta todas as operações ainda necessárias.</p>',true)+
+ panel('Pedidos por prioridade e prazo',table(['Pedido / modelo','Cliente','Prioridade','Prazo','Previsão','A expedir','Situação'],r.rows.filter(x=>pcpFilter==='todos'||x.status===pcpFilter).map(x=>[str(x.id)+' · '+str(x.model),str(x.client),str(x.priority),str(x.due||'Sem prazo'),str(x.estimated||'—'),str(x.remaining),str(x.status)])),true)+
+ panel('Acompanhamento de facções',table(['Facção','Enviadas','Retornadas','Pendentes','% retorno acumulado','Pedidos'],r.factions.map(x=>[str(x.name),str(x.sent),str(x.returned),str(x.pending),x.returnPercent===null?'—':str(x.returnPercent)+'%',str(x.orders)]))+'<p>Volume acumulado e taxa de retorno, não produtividade por hora: tempos de execução ainda não registrados.</p>',true);
+}
+
 function moduleHtml(s){
  const o=orderOptions(s),openPlans=(s.cutPlans||[]).filter(p=>p.status==='aberto'),
   planOptions=selector(openPlans,p=>p.id+' · '+p.orderId+' · '+sum(p.grade)+' peças'),
@@ -656,7 +673,7 @@ function moduleHtml(s){
    '<span>Lixo: '+str(done.reduce((a,p)=>a+p.scrapGrams,0))+' g</span></div>'+
    '<p>Imprimir folha abre o diálogo de impressão do navegador para gerar papel ou salvar como PDF. Somente informações fictícias.</p>',true);
  }
- case 'producao':return panel('Acompanhamento PCP',refDocs(s)+
+ case 'producao':return pcpPanels(s)+panel('Acompanhamento PCP',refDocs(s)+
  '<p>Envio e retorno são registrados na guia <b>Facções</b>; não são permitidas baixas que excedam etapas anteriores.</p>'+
  table(['Pedido','Cortadas','Enviadas','Retornadas','Pendentes retorno'],s.orders.map(x=>[
  str(x.id),str(sum(x.cut)),str(x.allocated),str(x.returned),str(x.allocated-x.returned)])))+
@@ -1182,7 +1199,7 @@ function parseCents(value,signed=false){
  if(!Number.isSafeInteger(val))throw Error('Valor monetário inválido.');
  return val;
 }
-const NUM=['qty','gramsPerUnit','qtyGrams','grams','stock','P','M','G','GG','usefulGrams','scrapGrams'];
+const NUM=['corte','envio','costura','separacao','expedicao','qty','gramsPerUnit','qtyGrams','grams','stock','P','M','G','GG','usefulGrams','scrapGrams'];
 const SIGNED=['deltaGrams'];
 const PRICES=['priceCents','unitCents','travetaCents','priceCentsKg','amountCents','salaryCents','passageCents','extrasCents','discountCents'];
 function parseData(type,form){
@@ -1617,6 +1634,8 @@ function renderCompensationSheet(compId){
  return $('cut-print').textContent;
 }
 document.addEventListener('change',event=>{
+ if(event.target.id==='pcp-date'){pcpDate=event.target.value;draw();return;}
+ if(event.target.id==='pcp-filter'){pcpFilter=event.target.value;draw();return;}
  if(event.target.matches('[data-fin-filter]')){financeFilters[event.target.dataset.finFilter]=event.target.value;draw();return;}
  if(event.target.matches('#finance-batch-form [name="financeIds"]')){
   updateBatchPreview();return;
@@ -1656,6 +1675,7 @@ document.addEventListener('change',event=>{
  }
 });
 document.addEventListener('click',e=>{
+ if(e.target.closest('#pcp-export')){try{const r=window.HLGBLabPCPV1.report(doc,{asOf:pcpDate});const rows=[['Pedido','Modelo','Cliente','Prioridade','Prazo','Previsão','A expedir','Situação'],...r.rows.filter(x=>pcpFilter==='todos'||x.status===pcpFilter).map(x=>[x.id,x.model,x.client,x.priority,x.due||'',x.estimated||'',x.remaining,x.status])];download('HLGB-PCP-FICTICIO.csv','\uFEFF'+rows.map(x=>x.map(safeCell).join(';')).join('\r\n'),'text/csv;charset=utf-8');}catch(err){status(err.message,'error')}return;}
  if(e.target.closest('#finance-report-export')){try{const r=window.HLGBLabFinanceV1.report(doc,financeFilters);const rows=[['Título','Descrição','Categoria','Tipo','Valor centavos','Data','Estado','Conferência'],...r.rows.map(x=>[x.id,x.description,x.category,x.kind,x.amountCents,x.date||'Sem data',x.status,x.reconciliation])];download('HLGB-HUB-FICTICIO.csv','\uFEFF'+rows.map(x=>x.map(safeCell).join(';')).join('\r\n'),'text/csv;charset=utf-8');}catch(err){status(err.message,'error')}return;}
  const searchOpen=e.target.closest('[data-search-open]');if(searchOpen){openGlobalResult(Number(searchOpen.dataset.searchOpen));return}
  const searchPage=e.target.closest('[data-search-page]');if(searchPage){searchState.page+=Number(searchPage.dataset.searchPage);renderGlobalSearch();return}

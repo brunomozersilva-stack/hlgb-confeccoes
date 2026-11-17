@@ -15,6 +15,7 @@ const routes={'/':'operacao-integrada.html',
  '/modulos/observabilidade-v2.js':'modulos/observabilidade-v2.js',
  '/modulos/pesquisa-global-v1.js':'modulos/pesquisa-global-v1.js',
  '/modulos/hub-financeiro-v1.js':'modulos/hub-financeiro-v1.js',
+ '/modulos/pcp-v1.js':'modulos/pcp-v1.js',
  '/operacao-integrada-core.js':'operacao-integrada-core.js',
  '/operacao-integrada-ui.js':'operacao-integrada-ui.js','/folha-homologacao.html':'folha-homologacao.html'};
 const server=http.createServer((req,res)=>{
@@ -80,6 +81,11 @@ async function run(browser,width,url){
   await put(page,'order.add',{clientId:'CLI-0001',productId:'PRO-0001',P:'8',M:'12',G:'0',GG:'0'});
   assert.match(await page.locator('#module-content').innerText(),/PED-0001/);
   assert.match(await page.locator('#global-metrics').innerText(),/Peças pedidas\s+20/);
+  await module(page,'producao');
+  assert.match(await page.locator('#module-content').innerText(),/PCP avançado/);
+  await put(page,'pcp.plan',{orderId:'PED-0001',dueDate:'2026-11-30',priority:'alta',reason:'Teste PCP'});
+  await put(page,'pcp.capacity',{corte:'200',envio:'300',costura:'150',separacao:'300',expedicao:'300',reason:'Teste capacidade'});
+  assert.match(await page.locator('#module-content').innerText(),/2026-11-30/);
   await module(page,'corte');
   await put(page,'cut.record',{orderId:'PED-0001',size:'P',qty:'6'});
   await put(page,'cut.record',{orderId:'PED-0001',size:'M',qty:'10'});

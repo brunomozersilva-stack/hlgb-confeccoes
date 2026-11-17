@@ -15,10 +15,11 @@
   require('./modulos/requisicoes-compras-v1.js'):(root&&root.HLGBLabPurchaseRequestsV1);
  const purchaseReturns=typeof module==='object'&&module.exports?
   require('./modulos/devolucoes-compras-v1.js'):(root&&root.HLGBLabPurchaseReturnsV1);
- const api=factory(batch,routing,factionGrade,planner,bomCut,requests,purchaseReturns);
+ const pcp=typeof module==='object'&&module.exports?require('./modulos/pcp-v1.js'):(root&&root.HLGBLabPCPV1);
+ const api=factory(batch,routing,factionGrade,planner,bomCut,requests,purchaseReturns,pcp);
  if(typeof module==='object'&&module.exports)module.exports=api;
  else if(root)root.HLGBOperationalLab=api;
-})(typeof window!=='undefined'?window:null,function(batch,routing,factionGrade,planner,bomCut,requests,purchaseReturns){
+})(typeof window!=='undefined'?window:null,function(batch,routing,factionGrade,planner,bomCut,requests,purchaseReturns,pcp){
  'use strict';
  const clone=x=>JSON.parse(JSON.stringify(x)),sizes=['P','M','G','GG'];
  const makeGrade=()=>({P:0,M:0,G:0,GG:0});
@@ -53,6 +54,7 @@
  const totalCost=(q,price)=>Math.ceil(q*price/1000);
  function inspect(s){
   const problems=[];
+  if(pcp)problems.push(...pcp.inspect(s));
   for(const o of s.orders){
    const q=quantities(o);
    if(!gradeValid(o.grade)||!gradeValid(o.cut)||sizes.some(sz=>o.cut[sz]>o.grade[sz]))
@@ -361,6 +363,20 @@
    const obj={id:next(s,'PRO'),sku,name:name(p.name,'Modelo'),materialId:mat.id,
     gramsPerUnit:num('gramsPerUnit',1,5000),priceCents:num('priceCents',100,1000000)};
    s.products.push(obj);result=obj.id;break}
+  case 'pcp.plan':{
+   if(!pcp)throw Error('PCP indisponível.');
+   const o=get(s,'orders',p.orderId,'Pedido');
+   if(o.shipped>=sum(o.grade))throw Error('Pedido expedido não pode ser replanejado.');
+   if(!pcp.valid(p.dueDate)||!['urgente','alta','normal','baixa'].includes(p.priority))throw Error('Prazo ou prioridade inválidos.');
+   const reason=name(p.reason,'Justificativa'),before=o.pcp?clone(o.pcp):null;
+   o.pcp={dueDate:p.dueDate,priority:p.priority,reason,commandId:uid};
+   result=o.id+' · '+(before?before.dueDate+' / '+before.priority:'sem planejamento')+' → '+p.dueDate+' / '+p.priority+' · '+reason;break}
+  case 'pcp.capacity':{
+   if(!pcp)throw Error('PCP indisponível.');
+   const cap=Object.fromEntries(pcp.stages.map(k=>[k,num(k,1,100000)]));
+   if(!pcp.capacityOK(cap))throw Error('Capacidade inválida.');
+   const old=s.pcpCapacity||pcp.defaults,reason=name(p.reason,'Justificativa');
+   s.pcpCapacity=cap;result=pcp.stages.map(k=>k+': '+old[k]+' → '+cap[k]).join(' · ')+' · '+reason;break}
   case 'order.add':{
    const client=get(s,'clients',p.clientId,'Cliente'),product=get(s,'products',p.productId,'Produto');
    const g=p.grade;if(!gradeValid(g)||sum(g)<1||sum(g)>30000)throw Error('Grade inválida, informe quantidade P/M/G/GG.');
