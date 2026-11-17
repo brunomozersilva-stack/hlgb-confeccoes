@@ -78,8 +78,9 @@ test('preço na grade do pedido zero não anula preço válido da ficha',()=>{
 test('confirmação não apaga valor digitado manualmente e não bloqueia nota válida',()=>{
  const f=factionFixture();f.window.registerFactionDelivery935(38);f.window.updateFactionSale940();
  f.input.value='17.90';
- f.listeners.input({target:{...f.input,closest:()=>f.modal}}); // modal edit simulated below
- f.modal.dataset.hlgbPriceUserEdited='1';
+ f.input.closest=()=>f.modal;
+ f.listeners.input({target:f.input});
+ assert.equal(f.modal.dataset.hlgbPriceUserEdited,'1','input manual reconhecido');
  let prevented=false;
  f.listeners.click({target:{closest:()=>({
   classList:{contains:x=>x==='modalSave'},textContent:'Confirmar entrega integrada',
