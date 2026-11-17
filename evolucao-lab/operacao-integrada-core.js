@@ -119,6 +119,11 @@
     b.count!==b.items.length||b.kind!=='pagamento_ficticio_lote'||
     b.status!=='pago'||!b.reason||!b.commandId||!s.log.some(e=>e.commandId===b.commandId))
     problems.push(String(b.id)+': metadados de pagamento em lote inconsistentes');
+   if(b.scope==='faccao'&&(
+     !s.factions.some(f=>f.id===b.factionId)||!b.factionNameSnapshot||
+     b.items.some(i=>i.factionId!==b.factionId)||
+     !s.log.some(e=>e.commandId===b.commandId&&e.type==='finance.faction.close')))
+    problems.push(String(b.id)+': lote de facção mistura prestadores ou perdeu prova de comando');
    let total=0;
    for(const item of Array.isArray(b.items)?b.items:[]){
     const bill=s.finance.find(x=>x.id===item.financeId);
@@ -613,6 +618,10 @@
     reason:typeof p.reason==='string'&&p.reason.trim()?name(p.reason,'Motivo'):'Ajuste fictício demonstrativo'});
    bill.amountCents=amount;
    result=x.id+' · '+before+' → '+amount+' centavos';break}
+  case 'finance.faction.close':{
+   if(!batch||typeof batch.executeFaction!=='function')
+    throw Error('Módulo de fechamento por facção indisponível.');
+   result=batch.executeFaction(s,p,{next,uid});break}
   case 'finance.batch.pay':{
    if(!batch||typeof batch.execute!=='function')
     throw Error('Módulo obrigatório de pagamentos em lote indisponível; nenhuma baixa aplicada.');
