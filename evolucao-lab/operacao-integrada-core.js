@@ -121,7 +121,7 @@
     problems.push(String(b.id)+': metadados de pagamento em lote inconsistentes');
    if(b.scope==='faccao'&&(
      !s.factions.some(f=>f.id===b.factionId)||!b.factionNameSnapshot||
-     b.items.some(i=>i.factionId!==b.factionId)||
+     (Array.isArray(b.items)?b.items:[]).some(i=>i.factionId!==b.factionId)||
      !s.log.some(e=>e.commandId===b.commandId&&e.type==='finance.faction.close')))
     problems.push(String(b.id)+': lote de facção mistura prestadores ou perdeu prova de comando');
    let total=0;
