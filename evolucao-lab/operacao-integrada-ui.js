@@ -230,6 +230,7 @@ function materialsPlanningPanels(s){
     str(x.materialName),str(x.gramsPerUnit),str(x.requiredGrams),
     str(x.ruleId==='ficha-basica'?'Ficha básica':x.ruleId)])):
   '<p>Planejador indisponível nesta versão de testes.</p>')+
+  '<div class="actions"><button type="button" class="btn" id="export-shopping-csv">Baixar lista exclusiva de materiais CSV</button></div>'+
   '<p class="caption">A comparação considera uma nova produção hipotética e os saldos atuais do laboratório. Não desconta material de pedidos futuros já existentes nem calcula perdas por cor; confira o estoque físico, desperdício, unidade e preços antes de uma compra real.</p>',true);
 }
 function observationPanels(s,area){
@@ -1002,6 +1003,26 @@ function exportCsv(){
   ['Título quitado no lote',i.financeId,x.id+' · '+i.sourceId,i.sourceType,i.amountCents]))];
  download('HLGB-EVOLUCAO-OPERACAO-INTEGRADA-FICTICIA.csv','\uFEFF'+rows.map(r=>r.map(safeCell).join(';')).join('\r\n'),'text/csv;charset=utf-8');
 }
+function exportShoppingCsv(){
+ if(!doc)return;
+ const forecast=materialPlannerResult(doc);
+ if(!forecast||forecast.error){status('Lista de materiais não disponível: revise a ficha técnica.','error');return}
+ const rows=[
+  ['LISTA DE MATERIAIS — PLANEJAMENTO FICTÍCIO, SEM COMPRA EFETIVA'],
+  ['Material','Necessidade (g)','Saldo simulado (g)','Falta comprar (g)','Preço/kg (R$)','Custo da falta (R$)'],
+  ...forecast.materials.map(x=>[x.name,x.requiredGrams,x.availableGrams,x.missingGrams,
+   nr(x.priceCentsKg),nr(x.purchaseCents)]),
+  [],
+  ['DETALHAMENTO POR MODELO, COR E TAMANHO'],
+  ['Modelo','SKU','Cor','Tamanho','Peças','Material','Gramas/peça','Necessidade (g)','Versão da receita'],
+  ...forecast.detail.map(x=>[x.productName,x.sku,x.color,x.size,x.qty,
+   x.materialName,x.gramsPerUnit,x.requiredGrams,x.ruleId])
+ ];
+ download('HLGB-LAB-LISTA-MATERIAIS-FICTICIA.csv',
+  '\uFEFF'+rows.map(row=>row.map(safeCell).join(';')).join('\r\n'),
+  'text/csv;charset=utf-8');
+ status('Lista de materiais fictícia exportada. Não foi criada compra nem reserva.');
+}
 function exportObserverCsv(){
  const report=doc&&observerResult(doc);
  if(!report){status('Observabilidade indisponível ou desativada; exporte o JSON básico.','error');return}
@@ -1218,6 +1239,7 @@ document.addEventListener('change',event=>{
  }
 });
 document.addEventListener('click',e=>{
+ if(e.target.closest('#export-shopping-csv')){exportShoppingCsv();return}
  if(e.target.closest('#preview-finance-batch')){
   const form=$('finance-batch-form');
   try{
