@@ -633,6 +633,8 @@
    result=requests.issue(s,p,{next,uid},planner);break}
   case 'purchase.request.cancel':{
    result=requests.cancel(s,p,{next,uid});break}
+  case 'purchase.request.cancelIssued':{
+   result=requests.cancelIssued(s,p,{next,uid});break}
   case 'purchase.add':{
    const material=get(s,'materials',p.materialId,'Material'),supplier=get(s,'suppliers',p.supplierId,'Fornecedor');
    const obj={id:next(s,'COM'),materialId:material.id,supplierId:supplier.id,
@@ -642,6 +644,8 @@
    s.purchaseOrders.push(obj);result=obj.id;break}
   case 'purchase.receive':{
    const obj=get(s,'purchaseOrders',p.id,'Compra');
+   if(obj.cancelled===true)
+    throw Error('Compra formalmente cancelada: recebimento e baixa de estoque bloqueados.');
    if(obj.received)throw Error('Compra já recebida. Estoque não será duplicado.');
    obj.received=true;
    const material=get(s,'materials',obj.materialId);
