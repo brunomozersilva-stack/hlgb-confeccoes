@@ -21,6 +21,21 @@ A página `homologacao-modulos.html` organiza 76 funcionalidades antigas identif
 
 As restantes **27 funções não possuem demonstração específica equivalente**. Elas já podem ser registradas como pendências, mas **não podem ser aprovadas no formulário como se estivessem implementadas**.
 
+## NOVO — Solicitação de compra com revisão, aprovação e recebimento conciliados
+
+Na prévia **Operação Integrada**, sem dados empresariais:
+
+1. Entre em **Compras** e registre na programação semanal **200 calcinhas Tammy (Preto, P)**. A ficha básica de 45 g/peça calcula **9.000 g de renda**; se o saldo fictício for 8.000 g, o faltante será **1.000 g**. Confira antes que a simulação não cria compra nem baixa.
+2. No painel **Requisições de compra**, escolha **Renda**, informe solicitante e justificativa e crie o **rascunho**. Confira o `REQ-...`, quantidade, preço/kg, base de cálculo e status. Não deve existir `COM` nem `FIN` novo.
+3. Tente criar outra requisição para Renda; o material com requisição ativa não deve aparecer como opção, e uma repetição de comando deve ser recusada.
+4. Acesse **Aprovar**, tente utilizar o mesmo nome da pessoa solicitante e confira que a validação recusa. Informe outro responsável com justificativa; a requisição passa a **aprovada**, sem compra nem estoque novo.
+5. Em **Emitir compra**, escolha a requisição aprovada, fornecedor, duas pessoas diferentes para conferência e justificativa. O sistema registra uma `COM-...` com o mesmo material, quantidade e preço da requisição, mas deixa **recebida=false**. Não deve haver entrada no estoque ou título financeiro.
+6. Em **Receber compra**, selecione a `COM-...` e confirme. A requisição passa a **recebida**, o estoque aumenta exatamente o peso da compra, cria apenas **um** movimento de compra e um título a pagar no Hub. O comando de recebimento não pode ser repetido.
+7. Confira em **Relatórios** o histórico da requisição/compra, os IDs e a exportação CSV e JSON. Em **Auditor**, os vínculos precisam estar conciliados. Recarregue a página e confira a permanência da compra e do recebimento.
+8. Faça um segundo teste em outro documento fictício: crie requisição e **altere a programação de modelos, o consumo da ficha ou o estoque antes da aprovação/emissão**. A requisição deve ficar desatualizada; cancele com motivo e faça uma nova. Uma requisição ainda não emitida pode ser cancelada, preservando seu histórico.
+
+**Não há aprovação real autenticada:** as pessoas e o fornecedor são inventados; nunca execute este roteiro com dados ou dinheiro empresarial. A nova requisição não tem relação com as compras antigas sem vínculo de solicitação.
+
 ## NOVO — Cortar usando vários materiais sem dar baixa duplicada
 
 Na **Operação Integrada**, use apenas dados fictícios:
