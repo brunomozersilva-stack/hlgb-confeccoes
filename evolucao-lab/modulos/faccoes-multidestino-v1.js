@@ -85,6 +85,74 @@
   return move.id+' · '+order.id+' · '+qty+' peças · '+from.factionId+
    ' → '+to.factionId+' (sem alterar acertos anteriores)';
  }
+ // A tarifa negociada pertence ao envio ALO, não ao cadastro geral.
+ function resolveRate(row,fac,product){
+  const agreement=row?.rateAgreementHistory?.at(-1);
+  if(agreement?.mode==='negociado'){
+   if(agreement.factionId!==fac.id||agreement.productId!==product.id||
+      !Number.isSafeInteger(agreement.gross)||!Number.isSafeInteger(agreement.discount)||
+      agreement.gross<=agreement.discount||agreement.discount<0)
+    throw Error('Tarifa do envio divergente da facção/modelo. Conferir antes do retorno.');
+   return {gross:agreement.gross,traveta:agreement.discount,
+    unit:agreement.gross-agreement.discount,agreementCommandId:agreement.commandId};
+  }
+  const gross=fac.productRates?.[product.id]??fac.unitCents,
+   traveta=fac.traveta?0:Math.min(gross,50);
+  return {gross,traveta,unit:gross-traveta,agreementCommandId:null};
+ }
+ function setAssignmentRate(s,p,ctx){
+  const row=byId(ensure(s,ctx.next),p.assignmentId),
+   order=row&&byId(s.orders,row.orderId),
+   fac=row&&byId(s.factions,row.factionId),
+   product=order&&byId(s.products,order.productId);
+  if(!row||!fac||!product||row.qtySent<=row.qtyReturned)
+   throw Error('Escolha um envio com peças pendentes de retorno.');
+  const gross=ctx.int(p.unitCents,'Valor bruto por peça',1,100000),
+   discount=ctx.int(p.travetaCents,'Desconto por peça',0,100000);
+  if(discount>=gross)throw Error('Preço líquido por peça precisa ser positivo.');
+  const reason=String(p.reason??'').trim();
+  if(!reason||reason.length>95)throw Error('Justificativa obrigatória (até 95 caracteres).');
+  const before=resolveRate(row,fac,product);
+  if(!Array.isArray(row.rateAgreementHistory))row.rateAgreementHistory=[];
+  row.rateAgreementHistory.push({mode:'negociado',commandId:ctx.uid,
+   factionId:fac.id,productId:product.id,gross,discount,reason,
+   pendingQty:row.qtySent-row.qtyReturned,beforeGross:before.gross,beforeDiscount:before.traveta});
+  return row.id+' · '+fac.name+' · '+before.gross+' → '+gross+
+   ' centavos brutos · apenas próximos retornos';
+ }
+ function inspectAssignmentRates(s){
+  const problems=[],seen=new Set(),entries=new Map();
+  for(const row of (s.factionAssignments||[])){
+   const history=Array.isArray(row.rateAgreementHistory)?row.rateAgreementHistory:[];
+   for(const h of history){
+    const event=s.log.find(e=>e.commandId===h.commandId);
+    if(!h.commandId||seen.has(h.commandId)||!event||
+       !['negociado','reset'].includes(h.mode)||!h.reason||
+       h.mode==='negociado'&&(event.type!=='faction.assignment.rate.set'||
+       !byId(s.factions,h.factionId)||!byId(s.products,h.productId)||
+       !Number.isSafeInteger(h.gross)||!Number.isSafeInteger(h.discount)||
+       h.gross<=h.discount||h.discount<0||!Number.isSafeInteger(h.pendingQty)||h.pendingQty<1)||
+       h.mode==='reset'&&(event.type!=='faction.reassign'||!byId(s.factions,h.factionId)))
+     problems.push(row.id+': histórico da tarifa do envio inconsistente');
+    seen.add(h.commandId);
+    if(h.mode==='negociado')entries.set(h.commandId,{h,row});
+   }
+   const last=history.at(-1);
+   if(last&&last.factionId!==row.factionId)
+    problems.push(row.id+': tarifa ativa pertence a outra facção');
+  }
+  for(const x of s.settlements.filter(x=>x.rateAgreementCommandId)){
+   const ref=entries.get(x.rateAgreementCommandId);
+   const original=x.rateHistory?.[0]?.before||x;
+   if(!ref||ref.row.id!==x.assignmentId||ref.h.factionId!==x.factionId||
+      ref.h.productId!==x.productId||ref.h.gross!==(original.listUnitCents??original.unitCents)||
+      ref.h.discount!==(original.travetaCents||0))
+    problems.push(x.id+': tarifa aplicada no retorno não confere com acordo histórico');
+  }
+  for(const event of s.log.filter(e=>e.type==='faction.assignment.rate.set'))
+   if(!seen.has(event.commandId))problems.push(event.commandId+': acordo de tarifa sem histórico');
+  return problems;
+ }
  function ret(s,p,ctx){
   ensure(s,ctx.next);
   const a=byId(s.factionAssignments,p.assignmentId);
@@ -98,9 +166,7 @@
    throw Error('Retorno excede o total enviado para o pedido.');
   const product=byId(s.products,order.productId);
   if(!product)throw Error('Produto do pedido não encontrado.');
-  const gross=fac.productRates?.[product.id]??fac.unitCents;
-  const traveta=fac.traveta?0:Math.min(gross,50);
-  const unit=gross-traveta;
+  const {gross,traveta,unit,agreementCommandId}=resolveRate(a,fac,product);
   if(!Number.isSafeInteger(unit)||unit<=0)
    throw Error('Preço líquido por peça não pode ser nulo ou negativo.');
   const amount=qty*unit;
@@ -110,7 +176,8 @@
   s.settlements.push({id,orderId:order.id,assignmentId:a.id,
    factionId:fac.id,productId:product.id,kind:'retorno',serviceType:'costura',
    qty,listUnitCents:gross,travetaCents:traveta,unitCents:unit,
-   adjustmentCents:0,amountCents:amount,description:'Retorno por facção fictício',status:'aberto'});
+   adjustmentCents:0,amountCents:amount,description:'Retorno por facção fictício',status:'aberto',
+   ...(agreementCommandId?{rateAgreementCommandId:agreementCommandId}:{})});
   s.finance.push({id:ctx.next(s,'FIN'),kind:'pagar',sourceId:id,
    description:'Acerto fictício '+id,amountCents:amount,status:'aberto'});
   a.qtyReturned+=qty;
@@ -140,12 +207,18 @@
   row.qtyReturned+=qty;
   return row.id;
  }
- function reassignLegacy(s,order,newFactionId){
+ function reassignLegacy(s,order,newFactionId,ctx){
   const rows=forOrder(s,order.id);
   if(rows.length!==1)throw Error('Transferência simples bloqueada: pedido já dividido entre facções.');
   if(rows[0].qtyReturned!==0)
    throw Error('Troca de facção bloqueada após qualquer retorno.');
-  rows[0].factionId=newFactionId;
+  const row=rows[0];
+  if(Array.isArray(row.rateAgreementHistory)&&row.rateAgreementHistory.length){
+   if(!ctx?.uid)throw Error('Troca com tarifa negociada requer prova de comando.');
+   row.rateAgreementHistory.push({mode:'reset',commandId:ctx.uid,factionId:newFactionId,
+    reason:ctx.reason||'Troca de facção — usar tarifa do novo destino'});
+  }
+  row.factionId=newFactionId;
  }
  function reverseReturn(s,settlement,qty){
   if(!settlement.orderId)return;
@@ -291,5 +364,5 @@
  }
  return Object.freeze({version:'1.1.0',ensure,forOrder,allocation,transfer,ret,
   canLegacyReturn,recordLegacyAllocation,recordLegacyReturn,
-  reassignLegacy,reverseReturn,inspect,reviseSettlement,inspectRateHistory});
+  reassignLegacy,reverseReturn,inspect,reviseSettlement,inspectRateHistory,resolveRate,setAssignmentRate,inspectAssignmentRates});
 });
