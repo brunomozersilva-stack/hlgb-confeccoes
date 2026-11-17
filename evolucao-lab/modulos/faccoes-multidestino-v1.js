@@ -184,7 +184,7 @@
       move.toAfter-move.toBefore!==move.qty||
       move.fromAfter<1||move.toBefore<0||
       !move.reason||!move.commandId||
-      !s.log.some(e=>e.commandId===move.commandId&&e.type==='faction.multi.transfer'))
+      !s.log.some(e=>e.commandId===move.commandId&&['faction.multi.transfer','faction.grade.transfer'].includes(e.type)))
     issues.push(String(move.id)+': histórico de transferência parcial sem origem/destino ou saldo válido');
    transferIds.add(move.id);
   }
