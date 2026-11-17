@@ -791,22 +791,24 @@ async function run(browser,width,url){
    const issuedReq=issued.data.purchaseRequests[0];
    assert.equal(issuedReq.status,'emitida');
    assert.equal(issuedReq.qtyGrams,needed.missingGrams);
-   assert.equal(issuedReq.purchaseId,'COM-0002');
+   const issuedPurchaseId=issuedReq.purchaseId;
+   assert.ok(/^COM-\d+$/.test(issuedPurchaseId));
+   assert.equal(issuedPurchaseId,issued.data.purchaseOrders.at(-1).id);
    assert.equal(issued.data.purchaseOrders.length,countPurchases+1);
    assert.equal(issued.data.purchaseOrders.at(-1).purchaseRequestId,'REQ-0001');
    assert.equal(issued.data.purchaseOrders.at(-1).received,false);
    assert.equal(issued.data.materials.find(x=>x.id==='MAT-0002').stockGrams,currentRenda);
    assert.equal(issued.data.finance.length,countFinance);
    const revBeforeReceipt=await revision(page);
-   await put(page,'purchase.receive',{id:'COM-0002'});
+   await put(page,'purchase.receive',{id:issuedPurchaseId});
    const [receiptFile]=await Promise.all([page.waitForEvent('download'),
     page.locator('#export-json').click()]);
    const received=JSON.parse(fs.readFileSync(await receiptFile.path(),'utf8'));
    assert.equal(received.data.purchaseRequests[0].status,'recebida');
    assert.equal(received.data.materials.find(x=>x.id==='MAT-0002').stockGrams,
     currentRenda+needed.missingGrams);
-   assert.equal(received.data.stockLedger.filter(x=>x.sourceId==='COM-0002').length,1);
-   assert.equal(received.data.finance.filter(x=>x.sourceId==='COM-0002').length,1);
+   assert.equal(received.data.stockLedger.filter(x=>x.sourceId===issuedPurchaseId).length,1);
+   assert.equal(received.data.finance.filter(x=>x.sourceId===issuedPurchaseId).length,1);
    assert.equal(received.data.finance.length,countFinance+1);
    assert.equal(received.observability.summary.receivedPurchaseRequests,1);
    assert.equal(received.observability.findings.length,0);
