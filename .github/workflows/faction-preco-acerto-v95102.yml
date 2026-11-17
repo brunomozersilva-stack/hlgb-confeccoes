@@ -8,6 +8,7 @@ on:
       - 'release-faction-acerto-consolidated-v95102.js'
       - 'app-stable3.html'
       - 'tests/faction-preco-acerto-unificado-v95102.cjs'
+      - 'tests/faction-preco-acerto-v95102-browser.cjs'
       - '.github/workflows/faction-preco-acerto-v95102.yml'
   workflow_dispatch:
 
@@ -41,3 +42,27 @@ jobs:
           node tests/faction-edit-readback-v95101.cjs
           node tests/faction-ledger-preservation-v9597.cjs
           node tests/audit-faction-payment-guard.cjs
+
+  navegadores:
+    name: Acerto avulso no ${{ matrix.browser }} mobile
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        browser: [chromium, webkit]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Instalar navegador
+        run: |
+          npm install --no-save playwright@1.55.0
+          npx playwright install --with-deps ${{ matrix.browser }}
+      - name: Homologar cadastro avulso e acerto consolidado no mobile
+        env:
+          HLGB_BROWSER: ${{ matrix.browser }}
+        run: |
+          python3 -m http.server 4173 --bind 127.0.0.1 >/tmp/hlgb-browser.log 2>&1 &
+          node tests/faction-preco-acerto-v95102-browser.cjs
