@@ -16,15 +16,63 @@ function priceFor(f,clientId){
   }
   const c=clientFor(cid),cp=q(c?.prices?.[pid]);if(cp>0)return cp;
   const p=productFor(f),pp=p?.clientPrices||{};const pv=q(pp[cid]??pp[o?.client||f.client||'']);if(pv>0)return pv;
-  return q(p?.price);
+  return q(p?.price)||q(window.hlgbNotePriceReconcile95103?.effective?.(cid,pid));
 }
 function modal(){return document.querySelector('#modal .modalbox')||[...document.querySelectorAll('.modalbox')].reverse().find(x=>{try{return getComputedStyle(x).display!=='none'}catch(e){return true}})||null}
 function priceInput(m){return [...(m?.querySelectorAll('.field')||[])].find(x=>norm(x.querySelector('label')?.textContent).includes('valor de venda por peca'))?.querySelector('input')||null}
-function apply(id,clientId){const f=faction(id),m=modal();if(!f||!m)return false;m.dataset.hlgbFactionId=String(id);const input=priceInput(m);if(!input)return false;const cid=clientId||m.querySelector('#fdClient940')?.value||orderFor(f)?.clientId||'',p=priceFor(f,cid);input.value=p.toFixed(2);input.dataset.hlgbExactFaction=String(id);let help=input.parentElement?.querySelector('.hlgb-price-help');if(!help){help=document.createElement('div');help.className='sub hlgb-price-help';input.parentElement?.appendChild(help)}if(help)help.textContent=p>0?'Preço vinculado ao produto/pedido correto.':'Preço não cadastrado para este produto/cliente — informe antes de confirmar.';return true}
+function apply(id,clientId){
+ const f=faction(id),m=modal();if(!f||!m)return false;
+ if(m.dataset.hlgbFactionId!==String(id)){m.dataset.hlgbPriceUserEdited='0';m.dataset.hlgbFactionId=String(id)}
+ const input=priceInput(m);if(!input)return false;
+ const cid=clientId||m.querySelector('#fdClient940')?.value||orderFor(f)?.clientId||'',p=priceFor(f,cid);
+ // O clique em Confirmar NÃO pode sobrescrever o preço que o usuário digitou.
+ if(m.dataset.hlgbPriceUserEdited!=='1')input.value=p.toFixed(2);
+ input.dataset.hlgbExactFaction=String(id);
+ let help=input.parentElement?.querySelector('.hlgb-price-help');
+ if(!help){help=document.createElement('div');help.className='sub hlgb-price-help';input.parentElement?.appendChild(help)}
+ if(help)help.textContent=m.dataset.hlgbPriceUserEdited==='1'?'Preço informado manualmente para esta entrega.':
+  p>0?'Preço identificado no produto, contrato ou cadastro confirmado.':
+  'Preço não disponível nesta sessão. Conferir cadastro na nuvem ou informar o valor antes de confirmar.';
+ return true;
+}
 const original=window.registerFactionDelivery935;
-if(typeof original==='function')window.registerFactionDelivery935=function(id){const r=original.apply(this,arguments);[0,30,120,300].forEach(ms=>setTimeout(()=>apply(id),ms));return r};
-window.updateFactionSale940=function(){const m=modal(),id=m?.dataset?.hlgbFactionId,cid=m?.querySelector('#fdClient940')?.value||'';if(id)apply(id,cid)};
-document.addEventListener('click',function(e){const b=e.target?.closest?.('button');if(!b||(!b.classList.contains('modalSave')&&!norm(b.textContent).includes('confirmar entrega integrada')))return;const m=b.closest('.modalbox'),id=m?.dataset?.hlgbFactionId;if(!id)return;apply(id,m.querySelector('#fdClient940')?.value||'');const mode=m.querySelector('#fdMode940')?.value||'expected',input=priceInput(m);if(mode!=='stock'&&q(input?.value)<=0){e.preventDefault();e.stopImmediatePropagation();alert('Este produto não tem preço de venda cadastrado para o cliente. Informe o valor correto antes de confirmar a entrega.');input?.focus()}},true);
+async function checkCloudPrice(id){
+ const f=faction(id),m=modal(),pid=String(f?.productId||'');
+ const api=window.hlgbNotePriceReconcile95103;
+ if(!f||!pid||!api?.verify)return;
+ // Somente leitura. Não regrava pedido, produto nem preço de cliente.
+ if(priceFor(f,m?.querySelector('#fdClient940')?.value)>0)return;
+ try{await api.verify(pid);if(modal()?.dataset.hlgbFactionId===String(id))apply(id)}
+ catch(e){console.warn('[HLGB preço nota] Não foi possível conferir preço remoto:',e?.message||e)}
+}
+if(typeof original==='function')window.registerFactionDelivery935=function(id){
+ const r=original.apply(this,arguments);
+ [0,30,120,300].forEach(ms=>setTimeout(()=>apply(id),ms));
+ setTimeout(()=>{checkCloudPrice(id)},90);
+ return r;
+};
+window.updateFactionSale940=function(){
+ const m=modal(),id=m?.dataset?.hlgbFactionId,cid=m?.querySelector('#fdClient940')?.value||'';
+ if(m)m.dataset.hlgbPriceUserEdited='0';
+ if(id){apply(id,cid);if(priceFor(faction(id),cid)<=0)checkCloudPrice(id)}
+};
+document.addEventListener('input',function(e){
+ const m=e.target?.closest?.('.modalbox');if(m&&e.target===priceInput(m))m.dataset.hlgbPriceUserEdited='1';
+},true);
+document.addEventListener('click',function(e){
+ const b=e.target?.closest?.('button');
+ if(!b||(!b.classList.contains('modalSave')&&!norm(b.textContent).includes('confirmar entrega integrada')))return;
+ const m=b.closest('.modalbox'),id=m?.dataset?.hlgbFactionId;if(!id)return;
+ const mode=m.querySelector('#fdMode940')?.value||'expected',input=priceInput(m);
+ if(mode==='stock')return;
+ // Respeitar valor manual; só sugerir preço se o campo estiver vazio.
+ if(q(input?.value)<=0&&m.dataset.hlgbPriceUserEdited!=='1')apply(id,m.querySelector('#fdClient940')?.value||'');
+ if(q(input?.value)<=0){
+  e.preventDefault();e.stopImmediatePropagation();
+  alert('A entrega para Notas exige preço de venda positivo. O cadastro pode estar desatualizado neste navegador; confira a sincronização ou informe o preço correto da peça. Nada foi gravado.');
+  input?.focus();
+ }
+},true);
 window.hlgbFactionPriceFor=priceFor;
-window.HLGB_PRICING_MODULE='exact-faction-v2';console.info('[HLGB] preço da entrega preso ao ID exato da facção');
+window.HLGB_PRICING_MODULE='exact-faction-v95.103';console.info('[HLGB] preço da entrega preso ao ID exato da facção');
 })();

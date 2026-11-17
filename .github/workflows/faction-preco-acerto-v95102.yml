@@ -1,0 +1,82 @@
+name: HLGB Facções - preço avulso e acerto por pessoa v95.102
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'release-faction-manual-payment-v9566.js'
+      - 'release-faction-acerto-consolidated-v95102.js'
+      - 'release-faction-payee-settlement-v95104.js'
+      - 'tests/faction-payee-settlement-v95104.cjs'
+      - 'release-pricing.js'
+      - 'release-note-price-reconcile-v95103.js'
+      - 'tests/note-price-reconcile-v95103.cjs'
+      - 'app-stable3.html'
+      - 'tests/faction-preco-acerto-unificado-v95102.cjs'
+      - 'tests/faction-preco-acerto-v95102-browser.cjs'
+      - '.github/workflows/faction-preco-acerto-v95102.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  integridade:
+    name: Regressões de acertos de facção sem dados reais
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Conferir JavaScript e a carga no app real
+        run: |
+          node --check release-faction-manual-payment-v9566.js
+          node --check release-faction-acerto-consolidated-v95102.js
+          node --check release-faction-payee-settlement-v95104.js
+          node --check tests/faction-payee-settlement-v95104.cjs
+          node --check release-pricing.js
+          node --check release-note-price-reconcile-v95103.js
+          node --check tests/note-price-reconcile-v95103.cjs
+          node --check tests/faction-preco-acerto-unificado-v95102.cjs
+      - name: Trocar facção no acerto e registrar já pago com proteção do Hub
+        run: node --test tests/faction-payee-settlement-v95104.cjs
+      - name: Peça sem preço de venda e acerto normal + avulso
+        run: node --test tests/faction-preco-acerto-unificado-v95102.cjs
+      - name: Nota — preço da Paula atualizado na nuvem sem alterar pedido
+        run: node --test tests/note-price-reconcile-v95103.cjs
+      - name: Preservar pagamento avulso, PDF e operações antigas
+        run: |
+          node tests/faction-manual-v9566.cjs
+          node tests/faction-manual-management-v9588.cjs
+          node tests/faction-manual-corrections-v9590.cjs
+          node tests/faction-inline-adjustment-v9591.cjs
+          node tests/faction-traveta-points-v9592.cjs
+          node tests/faction-edit-readback-v95101.cjs
+          node tests/faction-ledger-preservation-v9597.cjs
+          node tests/audit-faction-payment-guard.cjs
+
+  navegadores:
+    name: Acerto avulso no ${{ matrix.browser }} mobile
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        browser: [chromium, webkit]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Instalar navegador
+        run: |
+          npm install --no-save playwright@1.55.0
+          npx playwright install --with-deps ${{ matrix.browser }}
+      - name: Homologar cadastro avulso e acerto consolidado no mobile
+        env:
+          HLGB_BROWSER: ${{ matrix.browser }}
+        run: |
+          python3 -m http.server 4173 --bind 127.0.0.1 >/tmp/hlgb-browser.log 2>&1 &
+          node tests/faction-preco-acerto-v95102-browser.cjs
