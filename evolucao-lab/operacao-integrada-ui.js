@@ -154,6 +154,42 @@ function observerResult(s){
  }catch(error){return null}
 }
 
+
+function bomCutPanels(s){
+ const eligible=s.orders.filter(o=>Array.isArray(o.colorGrades)&&o.colorGrades.length&&
+  (Object.values(o.cut).every(n=>n===0)||(s.bomCutRuns||[]).some(r=>r.orderId===o.id)));
+ const colors=[...new Set(eligible.flatMap(o=>o.colorGrades.map(x=>x.color)))];
+ const cuts=s.bomCutRuns||[];
+ return panel('Corte BOM · vários materiais por cor/tamanho, somente laboratório',
+  '<p>Antes de cortar, complete a grade por cor em Facções. A prévia é somente leitura. A conclusão desconta todos os materiais juntos, sem misturar com o Corte antigo.</p>'+
+  form('cut.bom.execute','Conferir e concluir lote multimatéria',[
+   field('orderId','Pedido ainda sem corte tradicional','select','',
+    selector(eligible,o=>o.id+' · '+(ref(s.products,o.productId)?.name||'Modelo'))),
+   field('color','Cor','select','',colors.map(c=>[c,c])),
+   field('size','Tamanho','select','',api.sizes.map(z=>[z,z])),
+   field('qty','Peças para cortar','int','1'),
+   field('workMode','Origem do corte','select','',[['interno','Interno'],['externo','Externo']]),
+   field('cutterOne','Cortador 1','text','Ana Cortadora'),
+   field('cutterTwo','Cortador 2','text','Beto Cortador'),
+   field('spreader','Enfestador','text','Carla Enfestadora'),
+   ...s.materials.map(m=>field('waste_'+m.id,'Lixo de '+m.name+' (g)','int','0')),
+   field('signatureOne','Conferência do cortador 1','text','Ana Cortadora'),
+   field('signatureTwo','Conferência do cortador 2','text','Beto Cortador'),
+   field('reason','Observação obrigatória','text','Corte BOM fictício')
+  ],'Concluir e baixar estoque fictício')+
+  '<div class="actions"><button class="btn" type="button" id="preview-bom-cut">Prévia de materiais e estoque (sem baixa)</button></div>'+
+  '<p class="caption">Informe desperdício somente para materiais usados na ficha da variação. Conferências digitadas não equivalem a assinatura legal.</p>',true)+
+ panel('Histórico de corte BOM — por cor e material',
+  table(['Lote','Pedido','Cor','Tamanho','Qtd','Materiais','Total (g)','Comando'],
+   cuts.map(x=>[str(x.id),str(x.orderId),str(x.color),str(x.size),
+    str(x.qty),str(x.materials.length),str(x.totalGrams),str(x.commandId)]))+
+  '<h3>Baixas auditáveis por material</h3>'+
+  table(['Lote','Material','Útil (g)','Desperdício (g)','Total (g)','Regra congelada','Custo estimado'],
+   cuts.flatMap(x=>x.materials.map(m=>[str(x.id),
+    str(ref(s.materials,m.materialId)?.name||m.materialId),
+    str(m.requiredGrams),str(m.scrapGrams),str(m.totalGrams),
+    str(m.ruleId),fmt(m.theoreticalCostCents)]))),true);
+}
 function materialPlannerResult(s){
  try{return window.HLGBLabMaterialsPlannerV1?.preview(s)||null}
  catch(error){return {error:String(error.message||error)}}
@@ -402,7 +438,7 @@ function moduleHtml(s){
    '<span class="chip '+(p.status==='aberto'?'wait':'')+'">'+str(p.status)+'</span>',
    '<button type="button" class="btn" data-print-plan="'+str(p.id)+'">Imprimir folha</button>'
   ]);
-  return panel('Grade editável do pedido',
+  return bomCutPanels(s)+panel('Grade editável do pedido',
    form('order.grade.update','Ajustar quantidades por tamanho',[
     field('orderId','Pedido','select','',o),...gradeFields(defaultOrder?.grade)
    ],'Salvar grade e conferir valor do pedido')+
@@ -863,12 +899,21 @@ function parseData(type,form){
  }
  const raw=Object.fromEntries(new FormData(form).entries()),p={};
  for(const [k,v] of Object.entries(raw)){
-  if(NUM.includes(k))p[k]=Number(v);
+  if(NUM.includes(k)||k.startsWith('waste_'))p[k]=Number(v);
   else if(SIGNED.includes(k)){if(!/^[+-]?\d+$/.test(v))throw Error('Ajuste em gramas inválido.');p[k]=Number(v)}
   else if(PRICES.includes(k))p[k]=parseCents(v);
   else if(k==='adjustmentCents'||k==='deltaCents')p[k]=parseCents(v,true);
   else if(k==='traveta')p[k]=v==='true';
   else p[k]=String(v);
+ }
+ if(type==='cut.bom.execute'){
+  p.scrapByMaterial={};
+  for(const name of Object.keys(p)){
+   if(name.startsWith('waste_')){
+    p.scrapByMaterial[name.slice(6)]=p[name];
+    delete p[name];
+   }
+  }
  }
  if(['order.add','order.grade.update','cut.plan','cut.plan.update','order.color.grade.set','materials.plan.grade.add'].includes(type)){
   p.grade={};for(const sz of api.sizes){p.grade[sz]=p[sz];delete p[sz]}
@@ -1239,6 +1284,21 @@ document.addEventListener('change',event=>{
  }
 });
 document.addEventListener('click',e=>{
+ if(e.target.closest('#preview-bom-cut')){
+  const form=document.querySelector('form[data-command="cut.bom.execute"]');
+  try{
+   if(!form)throw Error('Formulário de Corte BOM indisponível.');
+   const payload=parseData('cut.bom.execute',form);
+   const pre=window.HLGBLabBomCutV1?.preview(doc,payload,window.HLGBLabMaterialsPlannerV1);
+   if(!pre)throw Error('Simulador BOM indisponível.');
+   status((pre.canExecute?'Prévia validada: ':'Falta estoque: ')+
+    pre.qty+' peça(s) '+pre.color+' '+pre.size+' · '+
+    pre.materials.map(x=>x.materialName+' '+x.totalGrams+
+     'g (após '+x.afterGrams+'g)').join(' · ')+
+    '. Nenhuma baixa executada.',pre.canExecute?'success':'error');
+  }catch(error){status(error.message,'error')}
+  return;
+ }
  if(e.target.closest('#export-shopping-csv')){exportShoppingCsv();return}
  if(e.target.closest('#preview-finance-batch')){
   const form=$('finance-batch-form');
