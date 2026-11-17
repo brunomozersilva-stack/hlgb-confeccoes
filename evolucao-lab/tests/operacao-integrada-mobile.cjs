@@ -816,7 +816,7 @@ async function run(browser,width,url){
    const revAfterReceipt=await revision(page);
    const receiveAgain=page.locator('form[data-command="purchase.receive"]');
    // O recebimento não deve voltar a ser opção depois da primeira baixa.
-   assert.equal(await receiveAgain.locator('[name="id"] option[value="COM-0002"]').count(),0);
+   assert.equal(await receiveAgain.locator('[name="id"] option[value="'+issuedPurchaseId+'"]').count(),0);
    await module(page,'relatorios');
    assert.match(await page.locator('#module-content').innerText(),/Histórico de requisições/);
    const [reqCsv]=await Promise.all([page.waitForEvent('download'),
