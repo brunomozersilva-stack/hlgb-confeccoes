@@ -21,6 +21,21 @@ A página `homologacao-modulos.html` organiza 76 funcionalidades antigas identif
 
 As restantes **27 funções não possuem demonstração específica equivalente**. Elas já podem ser registradas como pendências, mas **não podem ser aprovadas no formulário como se estivessem implementadas**.
 
+## NOVO — Testar grade por cor e tamanho em várias facções
+
+Na prévia fictícia `operacao-integrada.html`, abra **Facções**. Cadastre antes um pedido com grade 4 P e 2 M e registre no Corte 4 P e 2 M.
+
+1. No painel **Grade por cor e tamanho**, cadastre a cor **Preto** com 3 P e 1 M. Confira a indicação de grade incompleta. Em seguida cadastre **Rubi** com 1 P e 1 M; a soma fica 4 P e 2 M e a grade passa a estar completa.
+2. Use **Enviar peças identificadas por cor/tamanho** e envie 3 Preto P e 1 Preto M à Oficina A; envie 1 Rubi P à Oficina B. O total enviado deve ser **5 peças**, embora o pedido tenha 6. Tente enviar uma quarta Preto P: o programa deve rejeitar sem alterar a revisão.
+3. Em **Retornar peças com identificação exata**, devolva 2 Preto P da Oficina A e 1 Rubi P da Oficina B. Tentar voltar 2 Rubi P da mesma oficina deve ser recusado.
+4. Em **Transferir saldo identificado**, transfira apenas 1 Preto P ainda pendente da Oficina A para a B. A Oficina A continua responsável por seu Preto M e pelas peças Preto P já devolvidas. O pedido continua com **5 peças alocadas**.
+5. Devolva o Preto P transferido pela Oficina B. Deve gerar um novo acerto com facção B, cor Preto e tamanho P, sem alterar valores dos acertos anteriores.
+6. Em **Acertos**, use a **Devolução detalhada** de 1 Preto P do primeiro acerto antes do pagamento; confira as quantidades por cor/tamanho, valor do título, motivo e histórico. Depois de quitar, a devolução direta deve ser bloqueada.
+7. Confira em **Relatórios** a tabela de saldo por oficina, cor e tamanho e exporte o CSV e o JSON. O **Auditor** precisa apontar qualquer saldo ou classificação divergente. Recarregue e confirme a persistência local.
+8. Abra outro pedido antigo **sem cores cadastradas**: os envios e retornos simples devem continuar funcionando, sem migração inventada.
+
+**Este roteiro valida somente transações fictícias no navegador; não verifica banco de produção, estoque físico ou sincronização entre computadores.** A homologação completa do HLGB antigo e novo continua pendente.
+
 ## NOVO — Transferência parcial e histórico de quem está com as peças
 
 Na **Operação Integrada fictícia**, entre em **Facções** e siga este roteiro:
