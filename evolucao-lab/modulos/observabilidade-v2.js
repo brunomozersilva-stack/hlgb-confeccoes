@@ -293,7 +293,7 @@
    if(p.active)seenPlanLines.add(k);
    if(!byId(productCatalog,p.productId)||!knownColors.has(normalize(p.color))||
      !validSizes.has(p.size)||!Number.isSafeInteger(p.qty)||p.qty<1||p.qty>10000||
-     !events.some(e=>e.commandId===p.createdCommandId&&e.type==='materials.plan.add')||
+     !events.some(e=>e.commandId===p.createdCommandId&&['materials.plan.add','materials.plan.grade.add'].includes(e.type))||
      (!p.active&&!events.some(e=>e.commandId===p.cancelCommandId&&e.type==='materials.plan.archive')))
     push('PLANO_INCONSISTENTE','critica','compras',p.id,
      'Cenário de produção sem modelo, cor, quantidade ou histórico conciliado.',
