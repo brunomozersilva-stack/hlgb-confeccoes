@@ -102,14 +102,15 @@
       linked.length!==1||linked[0].id!==ret.creditFinanceId||
       linked[0].kind!=='receber'||linked[0].amountCents!==ret.amountCents||
       linked[0].relatedPurchaseId!==ret.purchaseId||
-      !['aberto','pago'].includes(linked[0].status))
+      !['aberto','pago'].includes(linked[0].status)||
+      ret.status!==(linked[0].status==='pago'?'credito_recebido':'credito_pendente'))
     problems.push(String(ret.id)+': devolução sem movimento de estoque ou crédito conciliado');
    if(!ret.commandId||!s.log.some(e=>e.commandId===ret.commandId&&
       e.type==='purchase.return.full')||!ret.reason||!ret.returnedBy||
       !ret.reviewedBy||norm(ret.returnedBy)===norm(ret.reviewedBy)||
       norm(ret.returnedBy)===norm(req?.requester)||
       norm(ret.reviewedBy)===norm(req?.requester)||
-      ret.status!=='credito_pendente')
+      !['credito_pendente','credito_recebido'].includes(ret.status))
     problems.push(String(ret.id)+': conferência dupla, status ou evento ausente');
   }
   for(const po of s.purchaseOrders){
