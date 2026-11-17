@@ -37,6 +37,7 @@
   const orders=arr(source,'orders'),cutPlans=arr(source,'cutPlans'),
    bomCuts=arr(source,'bomCutRuns'),
    purchases=arr(source,'purchaseOrders'),requests=arr(source,'purchaseRequests'),
+   purchaseReturns=arr(source,'purchaseReturns'),
    materials=arr(source,'materials'),
    settlements=arr(source,'settlements'),comps=arr(source,'settlementCompensations'),
    finance=arr(source,'finance'),ledger=arr(source,'stockLedger'),
@@ -75,7 +76,7 @@
   };
   const cents=x=>Number.isSafeInteger(x)&&x>=0;
   // Inventário histórico e unicidade: critérios de bloqueio antes de promover qualquer versão.
-  const all=[...orders,...cutPlans,...purchases,...settlements,...comps,
+  const all=[...orders,...cutPlans,...purchases,...purchaseReturns,...settlements,...comps,
    ...finance,...materials,...arr(source,'factions'),...arr(source,'products'),
    ...arr(source,'clients'),...arr(source,'suppliers'),...arr(source,'employees'),
    ...arr(source,'prints')];
@@ -213,6 +214,57 @@
      'Compra sem requisição de origem localizada.',
      'Conferir o registro original antes de receber.',po.purchaseRequestId);
   }
+  // Devoluções: auditor independente e exclusivamente readonly.
+  const returnRefs=new Set(),returnPurchases=new Set();
+  for(const ret of purchaseReturns){
+   const po=byId(purchases,ret.purchaseId),req=po&&byId(requests,po.purchaseRequestId),
+    original=findFinance(ret.originalFinanceId),move=movementsBySource.get(ret.id)||[],
+    credit=one(finance,ret.id),reference=normalize(ret.reference);
+   if(!reference||returnRefs.has(reference)||returnPurchases.has(ret.purchaseId))
+    push('DEVOLUCAO_REFERENCIA_DUPLA','critica','compras',ret.id,
+     'Referência ou compra repetida em devoluções de material.',
+     'Bloquear novos documentos e conferir histórico da compra.',ret.reference);
+   returnRefs.add(reference);returnPurchases.add(ret.purchaseId);
+   if(!po||!req||!po.received||po.cancelled||req.status!=='recebida'||
+      po.returnId!==ret.id||req.returnId!==ret.id||
+      ret.requestId!==req.id||ret.materialId!==po.materialId||
+      ret.supplierId!==po.supplierId||ret.qtyGrams!==po.qtyGrams)
+    push('DEVOLUCAO_ORIGEM','critica','compras',ret.id,
+     'Devolução sem compra recebida e requisição original conciliadas.',
+     'Consultar COM/REQ e preservar entrada e pagamento originais.',ret.purchaseId);
+   if(move.length!==1||move[0].type!=='devolucao_compra'||
+      move[0].id!==ret.stockMovementId||
+      move[0].materialId!==ret.materialId||move[0].deltaGrams!==-ret.qtyGrams||
+      move[0].commandId!==ret.commandId)
+    push('DEVOLUCAO_ESTOQUE','critica','estoque',ret.id,
+     'Devolução sem saída única e equivalente no estoque.',
+     'Bloquear repetição e conferir MOV ligado ao protocolo.',ret.stockMovementId);
+   if(!original||original.kind!=='pagar'||original.sourceId!==ret.purchaseId||
+      original.amountCents!==ret.amountCents||
+      credit.length!==1||credit[0].id!==ret.creditFinanceId||
+      credit[0].kind!=='receber'||credit[0].amountCents!==ret.amountCents||
+      credit[0].status!==(ret.status==='credito_recebido'?'pago':'aberto'))
+    push('DEVOLUCAO_CREDITO','critica','hub',ret.id,
+     'Crédito da devolução não corresponde ao título e valor originais.',
+     'Conferir origem, crédito e status sem reescrever títulos.',ret.creditFinanceId);
+   if(!ret.reason||!ret.returnedBy||!ret.reviewedBy||
+      normalize(ret.returnedBy)===normalize(ret.reviewedBy)||
+      normalize(ret.reviewedBy)===normalize(req?.requester)||
+      !events.some(e=>e.commandId===ret.commandId&&e.type==='purchase.return.full'))
+    push('DEVOLUCAO_CONFERENCIA','alta','compras',ret.id,
+     'Devolução sem justificativa, dupla conferência ou evento.',
+     'Exigir responsável independente e rever documento.',ret.commandId);
+  }
+  for(const m of ledger.filter(x=>x.type==='devolucao_compra'))
+   if(!purchaseReturns.some(r=>r.id===m.sourceId&&r.stockMovementId===m.id))
+    push('DEVOLUCAO_MOVIMENTO_ORFAO','critica','estoque',m.id,
+     'Saída de devolução sem documento correspondente.',
+     'Impedir baixas repetidas e conferir vínculo.',m.sourceId);
+  for(const title of finance.filter(x=>x.relatedPurchaseId))
+   if(!purchaseReturns.some(r=>r.id===title.sourceId&&r.creditFinanceId===title.id))
+    push('DEVOLUCAO_TITULO_ORFAO','critica','hub',title.id,
+     'Crédito de devolução sem documento de origem.',
+     'Verificar compra e fornecedor antes de liquidar.',title.sourceId);
   // Recebimento e duplo lançamento de compras.
   for(const p of purchases.filter(x=>x.received)){
    const movements=(movementsBySource.get(p.id)||[]).filter(x=>x.type==='compra');
@@ -727,6 +779,9 @@
    pendingPurchaseRequests:requests.filter(x=>['rascunho','aprovada','emitida'].includes(x.status)).length,
    receivedPurchaseRequests:requests.filter(x=>x.status==='recebida').length,
    cancelledIssuedPurchases:requests.filter(x=>x.status==='emissao_cancelada').length,
+   purchaseReturns:purchaseReturns.length,
+   returnGrams:purchaseReturns.reduce((sum,x)=>sum+Number(x.qtyGrams||0),0),
+   returnCreditsOpenCents:purchaseReturns.filter(x=>x.status==='credito_pendente').reduce((sum,x)=>sum+Number(x.amountCents||0),0),
    bomCuts:bomCuts.length,
    bomUsefulGrams:bomCuts.reduce((n,c)=>n+(c.materials||[]).reduce((a,m)=>a+Number(m.requiredGrams||0),0),0),
    bomScrapGrams:bomCuts.reduce((n,c)=>n+(c.materials||[]).reduce((a,m)=>a+Number(m.scrapGrams||0),0),0),
