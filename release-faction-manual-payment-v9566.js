@@ -108,7 +108,8 @@ function validate(input){
   const p=productDirectory().find(p=>sid(p.id)===sid(x.productId));
   const manual=!!x.unregistered,manualName=sid(x.manualProductName).trim(),
    manualCategory=sid(x.manualProductCategory||'outros');
-  if(kind==='product'&&!p)throw Error('Escolha um produto cadastrado na linha '+(i+1)+'.');
+  if(kind==='product'&&!p&&(!manual||manualName.length<2))
+   throw Error('Selecione um produto cadastrado ou marque Modelo não cadastrado e informe o nome da peça na linha '+(i+1)+'.');
   if(kind==='embalagem'&&!p&&(!manual||manualName.length<2))throw Error('Para embalagem de produto não cadastrado, marque “Modelo não cadastrado” e informe o nome do modelo na linha '+(i+1)+'.');
   if(manual&&kind==='embalagem'&&!['camisola','doll','calcinha','outros'].includes(manualCategory))
    throw Error('Selecione uma categoria válida para o modelo avulso na linha '+(i+1)+'.');
@@ -127,7 +128,7 @@ function validate(input){
   const maxDiscount=kind==='travetada'?0:realPerPiece;
   if(discount>maxDiscount)throw Error('Desconto superior ao valor da peça.');
   const displayName=p?.name||(manual?manualName:'');
-  const description=kind==='product'?sid(p.name):kind==='embalagem'?'Embalagem — '+displayName:
+  const description=kind==='product'?sid(p?.name||manualName):kind==='embalagem'?'Embalagem — '+displayName:
    kind==='travetada'?'Travetada'+(displayName?' — '+displayName:''):sid(x.description).trim();
   if(!description)throw Error('Descreva o serviço na linha '+(i+1)+'.');
   return {id:sid(x.id),kind,productId:p?.id??null,productName:displayName.slice(0,180),
@@ -768,10 +769,10 @@ function rowHtml(kind='product',id=makeId('fmpli')){
    '<input class="fm66-search" autocomplete="off" placeholder="Digite para localizar um modelo" aria-label="Pesquisar produto" aria-autocomplete="list" role="combobox">'+
    '<input class="fm66-product-id" type="hidden"><div class="fm66-suggestions" role="listbox" style="display:none;max-height:195px;overflow:auto;border:1px solid #ddd;border-radius:7px;background:#fff"></div>'+
    '<div class="fm66-hint sub">'+(prod?'Selecione um produto cadastrado ou marque Modelo não cadastrado.':'Vincule um modelo, informe um modelo avulso ou registre apenas travetada.')+'</div></div>'+
-   ((kind==='embalagem'||kind==='travetada')?'<div class="field" style="grid-column:1/-1">'+
+   ((kind==='product'||kind==='embalagem'||kind==='travetada')?'<div class="field" style="grid-column:1/-1">'+
     '<label style="display:flex;gap:6px;align-items:center"><input class="fm66-unregistered" type="checkbox" style="width:auto"> Modelo não cadastrado (informar manualmente)</label>'+
     '<div class="fm66-manual-fields" style="display:none;margin-top:6px">'+
-    '<label>Nome do modelo'+(kind==='embalagem'?' (obrigatório)':' (opcional)')+'</label>'+
+    '<label>Nome do modelo'+(kind==='product'||kind==='embalagem'?' (obrigatório)':' (opcional)')+'</label>'+
     '<input class="fm66-manual-name" maxlength="180" placeholder="Ex.: Camisola especial, Doll de amostra">'+
     (kind==='embalagem'?'<label>Categoria para sugerir o preço de embalagem</label><select class="fm66-manual-category">'+
      '<option value="outros">Outro / valor manual</option><option value="camisola">Camisola</option>'+
@@ -968,6 +969,9 @@ function addLine(kind='product',existingRow=null){
     if(row.dataset.kind==='embalagem'){
      unit.value='';
      row.querySelector('.fm66-hint').textContent='Modelo avulso: informe nome, categoria e valor. Não será cadastrado no estoque.';
+    }else if(row.dataset.kind==='product'){
+     unit.value='';
+     row.querySelector('.fm66-hint').textContent='Modelo avulso para pagamento da facção: informe o nome da peça e o valor da mão de obra. Não exige preço de venda ao cliente e não cadastra estoque ou nota.';
     }else row.querySelector('.fm66-hint').textContent='Travetada: informe o modelo se desejar (opcional).';
     row.dataset.priceOrigin='manual-avulso';
    }
@@ -1085,7 +1089,7 @@ function receiptSummary(){
 function modalHtml(){
  const today=stamp(),tariffs=window.hlgbFactionRates9577?.rates?.()||{embalagem:{camisola:.25,doll:.25,calcinha:.15},travetaUnit:null};
  return '<div id="fm66-root" style="max-width:100%;overflow-x:hidden">'+
-  '<div class="sub">Escolha Facção, Embalagem ou Travetada. Modelos não cadastrados podem ser informados na embalagem sem criar produtos no estoque.</div>'+
+  '<div class="sub">Escolha Facção, Embalagem ou Travetada. Para pagar mão de obra de uma peça ainda não cadastrada, clique + Produto e marque Modelo não cadastrado; informe nome, quantidade e valor da facção, sem exigir preço de venda ao cliente. A peça avulsa não cria nota nem entra no catálogo/estoque.</div>'+
   '<div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px;margin-top:12px">'+
   '<div class="field"><label>Atividade</label><select id="fm66-mode"><option value="faccao">Facção / Costura</option><option value="embalagem">Embalagem</option><option value="travetada">Travetada (serviço exclusivo)</option></select></div>'+ 
   '<div class="field"><label>Facção, embaladeira ou travetador</label><input id="fm66-faction" role="combobox" aria-label="Buscar facção ou embaladeira" autocomplete="off" aria-autocomplete="list" placeholder="Busque a pessoa cadastrada">'+
