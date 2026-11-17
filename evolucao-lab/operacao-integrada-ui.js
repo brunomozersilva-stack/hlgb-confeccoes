@@ -621,6 +621,19 @@ function botV3Panels(s){
  panel('Histórico de aprendizado',table(['Comando','Revisão operacional','Ocorrências'],r.history.slice().reverse().map(x=>[str(x.commandId),str(x.operationalRevision),str(x.findings)]))+table(['Ocorrência','Resultado','Evidência'],r.feedbackHistory.slice().reverse().map(x=>[str(x.key),str(x.outcome),str(x.note)])),true);
 }
 
+
+const assistantFilters={topic:'prioridades',question:'',reference:'',from:'2026-11-01',to:'2026-11-30',asOf:'2026-11-17',stockLimitGrams:5000};
+let assistantRequested=false;
+function assistantAsk(s){return window.HLGBLabAssistantV3?.ask(s,{audit:window.HLGBLabAuditorV3,bot:window.HLGBLabBotV3,finance:window.HLGBLabFinanceV1,pcp:window.HLGBLabPCPV1,management:window.HLGBLabManagementV1},assistantFilters);}
+function assistantPanels(s){
+ const svc=window.HLGBLabAssistantV3;if(!svc)return panel('Assistente HLGB 3.0','<p>Consulta indisponível.</p>',true);
+ const input=(k,label,type='text')=>'<div class="field"><label>'+str(label)+'<input class="input" type="'+type+'" data-assistant-filter="'+k+'" value="'+str(assistantFilters[k])+'"></label></div>';
+ const fields='<div class="fields"><div class="field"><label>Consulta<select class="input" data-assistant-filter="topic">'+options([['auto','Interpretar pergunta'],...svc.topics.map(x=>[x[0],x[1]])],assistantFilters.topic)+'</select></label></div>'+input('question','Pergunta curta (modo interpretar)')+input('reference','ID ou nome do modelo')+input('from','De','date')+input('to','Até','date')+input('asOf','Data de referência','date')+input('stockLimitGrams','Limite de estoque em gramas','number')+'</div>';
+ let response='<p>Escolha uma consulta ou escreva uma pergunta curta. Clique em consultar para ler a revisão local atual.</p>';
+ if(assistantRequested){try{const r=assistantAsk(s);response='<p>Revisão '+str(r.revision)+' · '+str(r.status)+' · somente leitura</p><div class="metrics">'+r.summary.map(x=>'<div class="metric"><span>'+str(x.label)+'</span><strong>'+str(x.value)+'</strong></div>').join('')+'</div>'+r.warnings.map(x=>'<p class="caption">'+str(x)+'</p>').join('')+table(['Registro','Descrição','Evidência / resultado','Origem'],r.rows.slice(0,100).map(x=>[str(x.id),str(x.label),str(x.detail),ids.has(x.module)?'<button class="btn" type="button" data-goto="'+str(x.module)+'">'+str(x.module)+'</button>':str(x.module)]))+'<p>Fontes: '+str(r.sources.join(', '))+' · '+str(r.rows.length)+' registros; até 100 exibidos. Exportação inclui todos.</p><button type="button" class="btn" id="assistant-export">Exportar resposta JSON</button>';}catch(e){response='<div class="error">'+str(e.message)+'</div>';}}
+ return panel('Assistente HLGB 3.0 · consultas de gestão',fields+'<div class="actions"><button type="button" class="btn primary" id="assistant-query">Consultar dados</button></div><p>Consultas determinísticas na base fictícia, sem IA generativa, sem execução de comandos e sem acesso ao banco real. Perguntas desconhecidas não recebem respostas inventadas.</p>'+response,true);
+}
+
 function moduleHtml(s){
  const o=orderOptions(s),openPlans=(s.cutPlans||[]).filter(p=>p.status==='aberto'),
   planOptions=selector(openPlans,p=>p.id+' · '+p.orderId+' · '+sum(p.grade)+' peças'),
@@ -633,7 +646,7 @@ function moduleHtml(s){
  finance=selector(s.finance.filter(x=>x.status==='aberto'),x=>x.id+' · '+fmt(x.amountCents)+' · '+x.description),
  employees=selector(s.employees,x=>x.name),incidents=selector(s.errors.filter(x=>x.status==='aberto'),x=>x.id+' · '+x.message);
  switch(active){
- case 'nucleo':return panel('Módulos opcionais com desativação segura',
+ case 'nucleo':return panel('Assistente HLGB 3.0','<p>Consulte prioridades, produção, financeiro, estoque e auditoria com evidências.</p><button type="button" class="btn" data-goto="bot">Abrir Assistente</button>')+panel('Módulos opcionais com desativação segura',
  (window.HLGBLabModules?table(['Módulo','Versão','Ativo','Falhas isoladas'],window.HLGBLabModules.list().map(x=>[
  str(x.id),str(x.version),x.enabled?'Sim':'Não',str(x.failures)])):
  '<p>Registro modular indisponível; funções legadas permanecem acessíveis.</p>')+
@@ -1142,8 +1155,8 @@ function moduleHtml(s){
  panel('Limites do auditor','<p>O diagnóstico não aplica autocorreção. Sem banco empresarial, não há prova de saúde do sistema atual, monitoramento remoto ou aprendizagem automática.</p>');
  }
  case 'bot':{
- const advanced=observationPanels(s,'bot');if(advanced)return botV3Panels(s)+advanced;
- return botV3Panels(s)+panel('Recomendações baseadas em regras fixas',
+ const advanced=observationPanels(s,'bot');if(advanced)return assistantPanels(s)+botV3Panels(s)+advanced;
+ return assistantPanels(s)+botV3Panels(s)+panel('Recomendações baseadas em regras fixas',
  '<p>O assistente apenas lê indicadores locais para sugerir o próximo passo. Não usa IA treinada, não aprende, não faz ações sozinho.</p>'+
  '<ol class="tips">'+api.tips(s).map(x=>'<li>'+escape(x)+'</li>').join('')+'</ol>')+
  panel('Ações rápidas','<div class="actions"><button class="btn" data-goto="pedidos">Pedidos</button>'+
@@ -1687,6 +1700,7 @@ function renderCompensationSheet(compId){
  return $('cut-print').textContent;
 }
 document.addEventListener('change',event=>{
+ if(event.target.matches('[data-assistant-filter]')){const k=event.target.dataset.assistantFilter;assistantFilters[k]=k==='stockLimitGrams'?Number(event.target.value):event.target.value;assistantRequested=false;return;}
  if(event.target.id==='audit-v3-filter'){auditFilter=event.target.value;draw();return;}
  if(event.target.matches('[data-mgmt-filter]')){managementFilters[event.target.dataset.mgmtFilter]=event.target.value;managementFilters.page=1;draw();return;}
  if(event.target.id==='pcp-date'){pcpDate=event.target.value;draw();return;}
@@ -1730,6 +1744,8 @@ document.addEventListener('change',event=>{
  }
 });
 document.addEventListener('click',e=>{
+ if(e.target.closest('#assistant-query')){assistantRequested=true;draw();return;}
+ if(e.target.closest('#assistant-export')){if(!assistantRequested){status('Faça uma nova consulta antes de exportar.','error');return;}try{download('HLGB-ASSISTENTE-V3-FICTICIO.json',JSON.stringify(assistantAsk(doc),null,2),'application/json');}catch(err){status(err.message,'error');}return;}
  if(e.target.closest('#bot-v3-export')){const r=botV3(doc);if(!r){status('Aprendizado indisponível.','error');return;}download('HLGB-BOT-V3-FICTICIO.json',JSON.stringify(r,null,2),'application/json');return;}
  if(e.target.closest('#audit-v3-run')){draw();status('Diagnóstico local reexecutado. Confira as regras e evidências.');return;}
  if(e.target.closest('#audit-v3-export')){const r=auditorV3(doc);if(!r){status('Diagnóstico indisponível.','error');return;}download('HLGB-AUDITOR-V3-FICTICIO.json',JSON.stringify(r,null,2),'application/json');return;}

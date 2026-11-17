@@ -19,6 +19,7 @@ const routes={'/':'operacao-integrada.html',
  '/modulos/relatorios-gerenciais-v1.js':'modulos/relatorios-gerenciais-v1.js',
  '/modulos/auditor-v3.js':'modulos/auditor-v3.js',
  '/modulos/bot-v3.js':'modulos/bot-v3.js',
+ '/modulos/assistente-v3.js':'modulos/assistente-v3.js',
  '/operacao-integrada-core.js':'operacao-integrada-core.js',
  '/operacao-integrada-ui.js':'operacao-integrada-ui.js','/folha-homologacao.html':'folha-homologacao.html'};
 const server=http.createServer((req,res)=>{
@@ -64,6 +65,9 @@ async function run(browser,width,url){
   await module(page,'bot');
   assert.match(await page.locator('#module-content').innerText(),/Assistente de triagem/);
   assert.match(await page.locator('#module-content').innerText(),/Bot 3.0/);
+  assert.match(await page.locator('#module-content').innerText(),/Assistente HLGB 3.0/);
+  await page.locator('#assistant-query').click();
+  assert.match(await page.locator('#module-content').innerText(),/somente leitura/);
   await module(page,'relatorios');
   assert.match(await page.locator('#module-content').innerText(),/Histórico completo/);
   assert.match(await page.locator('#module-content').innerText(),/Central de Relatórios Gerenciais/);
