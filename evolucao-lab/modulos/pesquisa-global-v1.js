@@ -32,12 +32,13 @@
    rows.push({key,type,module,id,title:String(title||id),status:String(status||'Cadastro'),detail:String(detail||''),orderId:orderId||null,haystack:norm(text),titleKey:norm(title),idKey:norm(id),skuKey:type==='produto'?norm(terms[0]):''});
   };
   for(const p of arr(s,'products'))add('produto','produtos',p.id,p.name,'Cadastro',p.sku+' · '+name('materials',p.materialId),[p.sku,...materialInfo(p.materialId)]);
+  const assignmentsFor=new Map();for(const a of arr(s,'factionAssignments')){const list=assignmentsFor.get(a.orderId)||[];list.push(a);assignmentsFor.set(a.orderId,list)}
   const cutsFor=new Map();for(const x of arr(s,'cutPlans')){const list=cutsFor.get(x.orderId)||[];list.push(x.id);cutsFor.set(x.orderId,list)}
   for(const o of arr(s,'orders')){
    const ordered=sum(o.grade),cut=sum(o.cut),sent=Number(o.allocated)||0,ret=Number(o.returned)||0,sep=Number(o.separated)||0,ship=Number(o.shipped)||0;
    const stage=ship>=ordered&&ordered>0?'Expedido':ship>0?'Expedição parcial':sep>0?'Separação':ret>0?'Retorno / acerto':sent>0?'Na facção':cut>=ordered&&ordered>0?'Corte concluído':cut>0?'Corte parcial':'Aguardando corte';
    const detail=ordered+' pedidas · '+cut+' cortadas · '+Math.max(0,sent-ret)+' na facção · '+ret+' retornadas · '+sep+' separadas · '+ship+' expedidas';
-   add('pedido','pedidos',o.id,name('products',o.productId),stage,detail,[...orderInfo(o.id),...(cutsFor.get(o.id)||[]),...arr(s,'factionAssignments').filter(a=>a.orderId===o.id).map(a=>name('factions',a.factionId))],o.id);
+   add('pedido','pedidos',o.id,name('products',o.productId),stage,detail,[...orderInfo(o.id),...(cutsFor.get(o.id)||[]),...(assignmentsFor.get(o.id)||[]).map(a=>name('factions',a.factionId))],o.id);
    if(cut>0)add('corte-resumo','corte',o.id,'Corte · '+name('products',o.productId),cut>=ordered?'Concluído':'Parcial',cut+' de '+ordered+' peças cortadas · '+stage,[...orderInfo(o.id),'finalizado cortado corte'],o.id);
   }
   for(const x of arr(s,'cutPlans'))add('folha','corte',x.id,'Folha · '+name('products',get('orders',x.orderId)?.productId),x.status,sum(x.grade)+' peças · '+x.orderId,[...orderInfo(x.orderId),x.cutterOne,x.cutterTwo,x.spreader,x.workMode],x.orderId);
@@ -66,8 +67,8 @@
   const matches=[];
   for(const row of index){
    if(module!=='todos'&&row.module!==module)continue;
-   if(!tokens.length||!tokens.every(t=>row.haystack.includes(t)))continue;
-   const score=(row.idKey===q?1000:0)+(row.skuKey===q?900:0)+(row.titleKey===q?200:0)+(row.titleKey.startsWith(q)?100:0)+(row.haystack.includes(q)?30:0)+(row.type==='pedido'?8:row.type==='produto'?5:0);
+   if(tokens.length&&!tokens.every(t=>row.haystack.includes(t)))continue;
+   const score=(row.idKey===q?1000:0)+(q&&row.skuKey===q?900:0)+(row.titleKey===q?200:0)+(row.titleKey.startsWith(q)?100:0)+(row.haystack.includes(q)?30:0)+(row.type==='produto'?15:row.type==='pedido'?8:0);
    matches.push({row,score});
   }
   matches.sort((a,b)=>b.score-a.score||a.row.id.localeCompare(b.row.id,'pt-BR',{numeric:true})||a.row.type.localeCompare(b.row.type));
