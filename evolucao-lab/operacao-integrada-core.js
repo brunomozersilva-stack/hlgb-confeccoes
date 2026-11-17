@@ -16,10 +16,11 @@
  const purchaseReturns=typeof module==='object'&&module.exports?
   require('./modulos/devolucoes-compras-v1.js'):(root&&root.HLGBLabPurchaseReturnsV1);
  const pcp=typeof module==='object'&&module.exports?require('./modulos/pcp-v1.js'):(root&&root.HLGBLabPCPV1);
- const api=factory(batch,routing,factionGrade,planner,bomCut,requests,purchaseReturns,pcp);
+ const management=typeof module==='object'&&module.exports?require('./modulos/relatorios-gerenciais-v1.js'):(root&&root.HLGBLabManagementV1);
+ const api=factory(batch,routing,factionGrade,planner,bomCut,requests,purchaseReturns,pcp,management);
  if(typeof module==='object'&&module.exports)module.exports=api;
  else if(root)root.HLGBOperationalLab=api;
-})(typeof window!=='undefined'?window:null,function(batch,routing,factionGrade,planner,bomCut,requests,purchaseReturns,pcp){
+})(typeof window!=='undefined'?window:null,function(batch,routing,factionGrade,planner,bomCut,requests,purchaseReturns,pcp,management){
  'use strict';
  const clone=x=>JSON.parse(JSON.stringify(x)),sizes=['P','M','G','GG'];
  const makeGrade=()=>({P:0,M:0,G:0,GG:0});
@@ -752,7 +753,7 @@
   s.revision++;
   s.revisionProof=uid;
   s.log.push({commandId:uid,revision:s.revision,actor:name(command.actor||'Operador fictício','Operador'),
-   type:kind,description:String(result)});
+   type:kind,description:String(result),...(management?management.capture(previous,s,command.recordedAt):{})});
   const condition=inspect(s);
   if(!condition.ok)throw Error('Integridade não aprovada: '+condition.problems.join('; '));
   return {state:s,result,checks:condition};

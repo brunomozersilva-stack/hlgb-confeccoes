@@ -568,6 +568,30 @@ function pcpPanels(s){
  panel('Acompanhamento de facções',table(['Facção','Enviadas','Retornadas','Pendentes','% retorno acumulado','Pedidos'],r.factions.map(x=>[str(x.name),str(x.sent),str(x.returned),str(x.pending),x.returnPercent===null?'—':str(x.returnPercent)+'%',str(x.orders)]))+'<p>Volume acumulado e taxa de retorno, não produtividade por hora: tempos de execução ainda não registrados.</p>',true);
 }
 
+
+const managementFilters={from:'2026-11-01',to:'2026-11-30',module:'todos',query:'',page:1};
+function managementPanels(s){
+ const svc=window.HLGBLabManagementV1,finance=window.HLGBLabFinanceV1;if(!svc||!finance)return '';
+ const filters='<div class="fields"><div class="field"><label>De<input class="input" type="date" data-mgmt-filter="from" value="'+str(managementFilters.from)+'"></label></div><div class="field"><label>Até<input class="input" type="date" data-mgmt-filter="to" value="'+str(managementFilters.to)+'"></label></div><div class="field"><label>Módulo (histórico)<select class="input" data-mgmt-filter="module">'+options([['todos','Todos'],...modules.map(m=>[m[0],m[1]])],managementFilters.module)+'</select></label></div><div class="field"><label>Buscar no histórico<input class="input" type="search" data-mgmt-filter="query" value="'+str(managementFilters.query)+'" placeholder="ID, operador, operação"></label></div></div>';
+ let r,p,f,fp;try{r=svc.report(s,managementFilters);p=svc.report(s,svc.previousPeriod(r.from,r.to));f=finance.report(s,{from:r.from,to:r.to});fp=finance.report(s,{from:p.from,to:p.to});}catch(e){return panel('Central gerencial',filters+'<div class="error">'+str(e.message)+'</div>',true);}
+ const kpis=[['Peças cortadas (líquido)',r.totals.cut],['Peças retornadas (líquido)',r.totals.returned],['Peças expedidas (líquido)',r.totals.shipped],['Movimento financeiro realizado',fmt(f.actual.net)]];
+ const captions={ordered:'Pedidas',cut:'Cortadas',allocated:'Enviadas',returned:'Retornadas',separated:'Separadas',shipped:'Expedidas'};
+ const compare=svc.fields.map(k=>[captions[k],str(r.totals[k]),str(p.totals[k]),str(r.totals[k]-p.totals[k])]);
+ const hist=table(['Revisão','Data UTC','Módulo','Comando','Operador','Descrição'],r.history.map(x=>[str(x.revision),str(x.date||'Sem data'),str(x.module),str(x.commandId)+' · '+str(x.type),str(x.actor),str(x.description)]));
+ return panel('Central de Relatórios Gerenciais · 2.0',filters+'<div class="metrics">'+kpis.map(([k,v])=>'<div class="metric"><span>'+str(k)+'</span><strong>'+str(v)+'</strong></div>').join('')+'</div><p>Período por registro UTC desta prévia. Quantidades são movimentos líquidos, incluindo devoluções e correções; não são saldos acumulados. '+str(r.undated)+' evento(s) sem data e '+str(r.withoutMetrics)+' sem métricas detalhadas não são reconstruídos nem usados como prova de produção por período. Financeiro usa a data de baixa do título, não a data do evento. Os filtros de módulo e texto se aplicam somente ao histórico.</p><div class="actions"><button type="button" class="btn" id="mgmt-export">Exportar relatório gerencial CSV</button><button type="button" class="btn" id="mgmt-json">Exportar relatório gerencial JSON</button></div>',true)+
+ panel('Comparativo com período anterior de mesma duração', '<p>'+str(p.from)+' a '+str(p.to)+' · '+str(p.datedEvents)+' eventos datados anteriores. Sem dados não implica ausência de produção.</p>'+table(['Indicador','Período atual','Período anterior','Diferença'],[...compare,['Recebido',fmt(f.actual.receber),fmt(fp.actual.receber),fmt(f.actual.receber-fp.actual.receber)],['Pago',fmt(f.actual.pagar),fmt(fp.actual.pagar),fmt(f.actual.pagar-fp.actual.pagar)]]),true)+
+ panel('Produção por dia',table(['Data','Eventos',...svc.fields.map(k=>captions[k])],r.days.map(x=>[str(x.date),str(x.events),...svc.fields.map(k=>str(x[k]))])),true)+
+ panel('Produção por modelo no período',table(['Modelo',...svc.fields.map(k=>captions[k])],r.models.map(x=>[str(x.name),...svc.fields.map(k=>str(x[k]))])),true)+
+ panel('Estoque movimentado no período',table(['Material','Entradas (g)','Saídas (g)','Variação (g)'],r.materials.map(x=>[str(x.name),str(x.inGrams),str(x.outGrams),str(x.inGrams-x.outGrams)]))+'<p>Não é custo contábil: preços históricos e rateios ainda não foram homologados.</p>',true)+
+ panel('Histórico pesquisável · '+r.historyCount+' eventos',hist+'<div class="actions"><button type="button" class="btn" data-mgmt-page="-1" '+(r.page===1?'disabled':'')+'>Anterior</button><span>Página '+r.page+' de '+r.pages+'</span><button type="button" class="btn" data-mgmt-page="1" '+(r.page===r.pages?'disabled':'')+'>Próxima</button></div><p>Eventos sem data continuam pesquisáveis e aparecem identificados. Exportação inclui todas as páginas do filtro.</p>',true);
+}
+function exportManagement(json){
+ const svc=window.HLGBLabManagementV1;try{const r=svc.report(doc,managementFilters),prev=svc.report(doc,svc.previousPeriod(r.from,r.to)),fin=window.HLGBLabFinanceV1.report(doc,{from:r.from,to:r.to}),finPrev=window.HLGBLabFinanceV1.report(doc,{from:prev.from,to:prev.to});
+ if(json){download('HLGB-RELATORIO-GERENCIAL-FICTICIO.json',JSON.stringify({environment:'ficticio',revision:doc.revision,current:r,previous:prev,finance:fin,previousFinance:finPrev},null,2),'application/json');return;}
+ const rows=[['Tipo','Data/ID','Descrição','Pedidas','Cortadas','Enviadas','Retornadas','Separadas','Expedidas','Entradas g','Saídas g','Recebido centavos','Pago centavos'],['Total',r.from+' a '+r.to,'Período atual',...svc.fields.map(k=>r.totals[k]),'','',fin.actual.receber,fin.actual.pagar],['Total',prev.from+' a '+prev.to,'Período anterior',...svc.fields.map(k=>prev.totals[k]),'','',finPrev.actual.receber,finPrev.actual.pagar],...r.days.map(x=>['Dia',x.date,'Eventos: '+x.events,...svc.fields.map(k=>x[k])]),...r.models.map(x=>['Modelo',x.productId,x.name,...svc.fields.map(k=>x[k])]),...r.materials.map(x=>['Material',x.materialId,x.name,'','','','','','',x.inGrams,x.outGrams]),...r.historyAll.map(x=>['Histórico',x.date||'Sem data',x.commandId+' · '+x.type+' · '+x.actor+' · '+x.description])];
+ download('HLGB-RELATORIO-GERENCIAL-FICTICIO.csv','\uFEFF'+rows.map(x=>x.map(safeCell).join(';')).join('\r\n'),'text/csv;charset=utf-8');}catch(e){status(e.message,'error');}
+}
+
 function moduleHtml(s){
  const o=orderOptions(s),openPlans=(s.cutPlans||[]).filter(p=>p.status==='aberto'),
   planOptions=selector(openPlans,p=>p.id+' · '+p.orderId+' · '+sum(p.grade)+' peças'),
@@ -1068,9 +1092,9 @@ function moduleHtml(s){
     str(ref(s.materials,x.materialId)?.name||x.materialId),
     str(x.qtyGrams)+' g',fmt(x.amountCents),str(x.reference),str(x.reason)
    ])),true);
- const advanced=observationPanels(s,'relatorios');if(advanced)return advanced+planPanel+requestReport+returnsReport;
+ const advanced=observationPanels(s,'relatorios');if(advanced)return managementPanels(s)+advanced+planPanel+requestReport+returnsReport;
  const t=api.totals(s);
- return panel('Indicadores vinculados',table(['Indicador','Valor'],Object.entries(t).map(([k,v])=>[
+ return managementPanels(s)+panel('Indicadores vinculados',table(['Indicador','Valor'],Object.entries(t).map(([k,v])=>[
  str(k),k.includes('Payables')||k.includes('Receivables')||k==='passage'||k==='salaryCash'?fmt(v):str(v)])))+
  panel('Como auditar o relatório','<p>Compare pedidos, corte, retorno, expedição e Hub. Exporte o JSON e confira que cada evento tem ID e revisão.</p>'+
  '<div class="actions"><button class="btn" type="button" data-goto="auditor">Executar integridade</button></div>')+
@@ -1281,7 +1305,7 @@ async function submit(form,type){
   const expectedRevision=doc.revision;
   const payload=type==='finance.receipt.attach'?await readReceiptPayload(form):parseData(type,form),
    id='OP-DEMO-'+crypto.randomUUID(),actor='Operador fictício';
-  const tx=await transact(previous=>api.apply(previous,{type,payload,commandId:id,actor,expectedRevision}));
+  const tx=await transact(previous=>api.apply(previous,{type,payload,commandId:id,actor,expectedRevision,recordedAt:new Date().toISOString()}));
   const saved=await read();
   if(!saved||saved.revision!==expectedRevision+1||!saved.log.some(x=>x.commandId===id))
    throw Error('Gravação inconclusiva: não foi encontrada na releitura. Não repetir sem conferir.');
@@ -1634,6 +1658,7 @@ function renderCompensationSheet(compId){
  return $('cut-print').textContent;
 }
 document.addEventListener('change',event=>{
+ if(event.target.matches('[data-mgmt-filter]')){managementFilters[event.target.dataset.mgmtFilter]=event.target.value;managementFilters.page=1;draw();return;}
  if(event.target.id==='pcp-date'){pcpDate=event.target.value;draw();return;}
  if(event.target.id==='pcp-filter'){pcpFilter=event.target.value;draw();return;}
  if(event.target.matches('[data-fin-filter]')){financeFilters[event.target.dataset.finFilter]=event.target.value;draw();return;}
@@ -1675,6 +1700,9 @@ document.addEventListener('change',event=>{
  }
 });
 document.addEventListener('click',e=>{
+ if(e.target.closest('#mgmt-export')){exportManagement(false);return;}
+ if(e.target.closest('#mgmt-json')){exportManagement(true);return;}
+ const mgmtPage=e.target.closest('[data-mgmt-page]');if(mgmtPage){managementFilters.page=Math.max(1,managementFilters.page+Number(mgmtPage.dataset.mgmtPage));draw();return;}
  if(e.target.closest('#pcp-export')){try{const r=window.HLGBLabPCPV1.report(doc,{asOf:pcpDate});const rows=[['Pedido','Modelo','Cliente','Prioridade','Prazo','Previsão','A expedir','Situação'],...r.rows.filter(x=>pcpFilter==='todos'||x.status===pcpFilter).map(x=>[x.id,x.model,x.client,x.priority,x.due||'',x.estimated||'',x.remaining,x.status])];download('HLGB-PCP-FICTICIO.csv','\uFEFF'+rows.map(x=>x.map(safeCell).join(';')).join('\r\n'),'text/csv;charset=utf-8');}catch(err){status(err.message,'error')}return;}
  if(e.target.closest('#finance-report-export')){try{const r=window.HLGBLabFinanceV1.report(doc,financeFilters);const rows=[['Título','Descrição','Categoria','Tipo','Valor centavos','Data','Estado','Conferência'],...r.rows.map(x=>[x.id,x.description,x.category,x.kind,x.amountCents,x.date||'Sem data',x.status,x.reconciliation])];download('HLGB-HUB-FICTICIO.csv','\uFEFF'+rows.map(x=>x.map(safeCell).join(';')).join('\r\n'),'text/csv;charset=utf-8');}catch(err){status(err.message,'error')}return;}
  const searchOpen=e.target.closest('[data-search-open]');if(searchOpen){openGlobalResult(Number(searchOpen.dataset.searchOpen));return}
