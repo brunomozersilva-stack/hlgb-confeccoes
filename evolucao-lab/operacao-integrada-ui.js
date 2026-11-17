@@ -181,6 +181,7 @@ function observationPanels(s,area){
      ['Compras e estoque','Entrada única e título de fornecedor'],
      ['Corte e materiais','Baixa única por folha concluída'],
      ['Acertos e compensações','Valor/status, pagamento original, referência e novo título'],
+     ['Grade por cor e tamanho','Pedido ↔ corte por tamanho ↔ oficina ↔ retorno ↔ acerto'],
      ['Saúde do HLGB real','Não verificada (sem Supabase ou autenticação)']
     ]),true);
  }
@@ -215,6 +216,18 @@ function observationPanels(s,area){
      o.modelSummary.map(x=>[str(x.name)+' · '+str(x.sku),str(x.orders),
       str(x.ordered),str(x.cut),str(x.returned),str(x.shipped),
       fmt(x.plannedReceivablesCents)])),true)+
+   panel('Grade por cor e tamanho — pedidos classificados',
+    '<p>'+str(o.summary.ordersWithColorGrade)+' pedido(s) com cores e tamanhos · '+
+    str(o.summary.gradePiecesOpen)+' peça(s) pendentes nas facções. Cada tamanho precisa bater com o pedido e com o corte.</p>'+
+    table(['Pedido','Cor','P','M','G','GG','Situação'],
+     o.colorGradeSummary.flatMap(o=>o.byColor.map(g=>[
+      str(o.orderId),str(g.color),...api.sizes.map(sz=>str(g.sizes[sz])),
+      o.ready?'Grade completa':'Faltam cores/tamanhos']))),true)+
+   panel('Saldo real por facção, cor e tamanho (laboratório)',
+    table(['Pedido','Envio','Oficina','Cor','Tamanho','Enviadas','Retornadas','Pendentes','Acertos'],
+     o.gradeInventory.map(g=>[str(g.orderId),str(g.assignmentId),
+      str(g.factionName),str(g.color),str(g.size),str(g.sent),
+      str(g.returned),str(g.open),g.settlementIds.map(str).join(' · ')||'—'])),true)+
    panel('Distribuição e retorno por facção em cada pedido',
     '<p>'+str(o.summary.distributedOrders)+' pedido(s) dividido(s) entre várias facções · '+
     str(o.summary.openFactionPieces)+' peça(s) ainda não retornadas nos envios. Dados fictícios com rastreio por envio.</p>'+
@@ -878,6 +891,12 @@ function exportCsv(){
  ...doc.finance.map(x=>['Financeiro',x.id,x.description,x.status,x.amountCents]),
  ...(doc.settlementCompensations||[]).map(x=>['Compensação',x.id,x.settlementId+' · '+x.reference,x.status,x.deltaCents]),
  ...doc.purchaseOrders.map(x=>['Compra',x.id,ref(doc.materials,x.materialId)?.name||'',x.received?'Recebido':'Pendente',x.qtyGrams]),
+ ...doc.orders.flatMap(o=>(o.colorGrades||[]).map(c=>
+  ['Grade por cor',o.id,c.color,'P/M/G/GG',
+   api.sizes.map(sz=>sz+': '+c.grade[sz]).join(' · ')])),
+ ...(doc.factionAssignments||[]).flatMap(a=>(a.gradeLines||[]).map(g=>
+  ['Peças por facção/cor',a.id,a.orderId+' · '+a.factionId+
+   ' · '+g.color+' '+g.size,'Enviadas '+g.sent,g.returned])),
  ...(doc.factionPartialTransfers||[]).map(t=>['Transferência parcial',t.id,
   t.orderId+' · '+t.fromFactionId+' → '+t.toFactionId+' · '+t.reason,
   t.commandId,t.qty]),
@@ -898,6 +917,14 @@ function exportObserverCsv(){
    x.sku,'',x.name+' · pedidas '+x.ordered+' · cortadas '+x.cut+' · expedidas '+x.shipped]),
   ...report.factionSummary.map(x=>['Resumo por facção','faccoes',x.factionId,
    x.name,'',x.settlements+' acertos · pago '+x.paidSettlementsCents]),
+  ...report.colorGradeSummary.flatMap(o=>o.byColor.map(c=>
+   ['Grade do pedido','pedidos',o.orderId,c.color,
+    o.ready?'Completa':'Incompleta',
+    api.sizes.map(sz=>sz+': '+c.sizes[sz]).join(' · ')])),
+  ...report.gradeInventory.map(g=>['Saldo por cor e tamanho','faccoes',g.assignmentId,
+   g.orderId,g.factionName,g.color+' '+g.size+' · enviado '+g.sent+
+    ' · retornado '+g.returned+' · pendente '+g.open+
+    ' · acertos '+g.settlementIds.join(' / ')]),
   ...report.factionDispatches.map(x=>['Envio para facção','faccoes',x.id,
    x.orderId,x.factionName,x.productName+' · enviadas '+x.qtySent+
     ' · retornadas '+x.qtyReturned+' · pendentes '+x.qtyOpen+
