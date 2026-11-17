@@ -64,7 +64,7 @@ function factionFixture(){
  createElement:()=>({className:'',textContent:''})};
  const window={registerFactionDelivery935:()=>true,
  hlgbNotePriceReconcile95103:{effective:()=>15.9,verify:async()=>({price:15.9})}};
- const ctx={window,db,document:doc,console,setTimeout:()=>0,alert:msg=>alerts.push(msg),Number,Math,String};
+ const ctx={window,db,document:doc,console,setTimeout:fn=>{fn();return 0},alert:msg=>alerts.push(msg),Number,Math,String};
  vm.createContext(ctx);vm.runInContext(factionJs,ctx);
  return {window,db,modal,input,listeners,alerts};
 }
