@@ -112,6 +112,24 @@ async function run(browser,width,url){
   await module(page,'separacao');
   await put(page,'order.separate',{orderId:'PED-0001',qty:'7'});
   await put(page,'order.ship',{orderId:'PED-0001',qty:'5'});
+  const searchRev=await revision(page);
+  await page.locator('#global-search-query').fill('MELÍNA');
+  await page.locator('#global-search-module').selectOption('corte');
+  assert.match(await page.locator('#global-search-results').innerText(),/Concluído/);
+  const completedCut=page.locator('#global-search-results .search-result').filter({hasText:'20 de 20 peças cortadas'});
+  assert.equal(await completedCut.count(),1);
+  await completedCut.locator('button').click();
+  assert.match(await page.locator('#global-search-detail').innerText(),/PED-0001/);
+  assert.equal(await page.locator('[data-module="corte"]').getAttribute('aria-current'),'page');
+  await page.locator('#global-search-module').selectOption('acertos');
+  await page.locator('#global-search-query').fill('ACE-0001');
+  await page.locator('#global-search-results [data-search-open]').first().click();
+  assert.equal(await page.locator('[data-module="acertos"]').getAttribute('aria-current'),'page');
+  assert.equal(await page.locator('#settlement-search').inputValue(),'ACE-0001');
+  assert.equal(await revision(page),searchRev,'pesquisa e localização não escrevem');
+  await page.locator('#global-search-query').fill('');
+  await page.locator('#global-search-module').selectOption('todos');
+  await page.locator('#settlement-clear-filters').click();
   await module(page,'compras');
   await put(page,'purchase.add',{supplierId:'FOR-0001',materialId:'MAT-0002',qtyGrams:'2000',
    checkerOne:'Pessoa A',checkerTwo:'Pessoa B'});
