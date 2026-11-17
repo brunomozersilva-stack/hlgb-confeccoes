@@ -623,7 +623,8 @@ async function run(browser,width,url){
    assert.equal(draft.materialPlanning.pieces,300);
    assert.equal(draft.materialPlanning.materials.find(x=>x.materialId==='MAT-0001').requiredGrams,12500);
    assert.equal(draft.materialPlanning.materials.find(x=>x.materialId==='MAT-0002').requiredGrams,10500);
-   assert.equal(draft.data.stockLedger.length,transferReport.data.stockLedger.length);
+   assert.equal(draft.data.stockLedger.length,gradedReport.data.stockLedger.length,
+    'paleta e planejamento não criam baixas de material');
    assert.equal(draft.data.purchaseOrders.length,transferReport.data.purchaseOrders.length);
    assert.equal(draft.checks.ok,true);
    await module(page,'relatorios');
