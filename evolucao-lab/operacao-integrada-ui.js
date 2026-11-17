@@ -224,6 +224,52 @@ function materialRecipePanels(s){
     str(r.gramsPerUnit),r.active?'Atual':'Substituída',str(r.reason)]))+
   '<p class="caption">Nunca altera silenciosamente o estoque nem as folhas de corte concluídas. O consumo efetivo do Corte permanece na rotina antiga até homologação posterior.</p>',true);
 }
+
+function requestPanels(s){
+ const mod=window.HLGBLabPurchaseRequestsV1,planner=window.HLGBLabMaterialsPlannerV1;
+ let result,error='';
+ try{result=mod?.preview(s,planner)}catch(e){error=String(e.message||e)}
+ const requests=s.purchaseRequests||[],drafts=requests.filter(x=>x.status==='rascunho'),
+  approved=requests.filter(x=>x.status==='aprovada'),
+  cancelable=requests.filter(x=>['rascunho','aprovada'].includes(x.status)),
+  choices=(items)=>selector(items,x=>x.id+' · '+
+   (ref(s.materials,x.materialId)?.name||x.materialId)+' · '+x.qtyGrams+'g · '+x.status),
+  missing=result?.pendingMaterials||[],
+  materials=missing.map(m=>[m.materialId,m.name+' · falta '+m.missingGrams+
+   'g · custo '+fmt(m.purchaseCents)]);
+ return panel('Requisições de compra · origem e aprovação antes de emitir',
+  '<p>O déficit vem do planejamento semanal de produção. Criar requisição apenas registra um rascunho. Aprovação por outra pessoa e emissão são etapas separadas; <b>nenhuma etapa baixa estoque ou gera título financeiro</b>. Só o recebimento da compra faz isso.</p>'+
+  (error?'<p class="caption">Previsão indisponível: '+str(error)+'</p>':'')+
+  form('purchase.request.create','1. Solicitar material faltante',[
+   field('materialId','Material com déficit no cenário','select','',materials),
+   field('requester','Solicitante fictício','text','Comprador Exemplo'),
+   field('reason','Necessidade da produção','text','Reposição para a programação semanal fictícia')
+  ],'Criar rascunho da requisição')+
+  form('purchase.request.approve','2. Aprovar com responsável diferente',[
+   field('id','Requisição em rascunho','select','',choices(drafts)),
+   field('approver','Responsável pela aprovação','text','Supervisora Exemplo'),
+   field('reason','Motivo da aprovação','text','Quantidade e necessidade conferidas no laboratório')
+  ],'Aprovar requisição fictícia')+
+  form('purchase.request.issue','3. Emitir compra após aprovação',[
+   field('id','Requisição aprovada','select','',choices(approved)),
+   field('supplierId','Fornecedor da compra','select','',selector(s.suppliers,x=>x.name)),
+   field('checkerOne','Conferente 1','text','Aline Teste'),
+   field('checkerTwo','Conferente 2','text','Beto Exemplo'),
+   field('reason','Observação de emissão','text','Compra fictícia autorizada no laboratório')
+  ],'Emitir compra sem receber estoque')+
+  form('purchase.request.cancel','Cancelar rascunho ou requisição aprovada',[
+   field('id','Requisição não emitida','select','',choices(cancelable)),
+   field('reason','Justificativa para cancelamento','text','Revisão de programação ou estoque')
+  ],'Cancelar e manter histórico')+
+  '<p class="caption">Se o planejamento, receita ou saldo mudar, a aprovação/emissão é bloqueada: cancele e gere uma requisição nova. A aprovação digitada <b>não equivale a permissão empresarial autenticada</b>. Compras já emitidas não podem ser canceladas por este formulário.</p>',true)+
+ panel('Histórico de requisições e compras vinculadas',
+  table(['Requisição','Insumo','Necessidade (g)','Saldo na origem (g)','Falta (g)',
+   'Valor estimado','Solicitante / aprovador','Situação','Compra'],
+   requests.map(x=>[str(x.id),str(ref(s.materials,x.materialId)?.name||x.materialId),
+    str(x.requiredGrams),str(x.availableGrams),str(x.qtyGrams),fmt(x.estimatedCents),
+    str(x.requester)+' / '+str(x.approver||'—'),str(x.status),str(x.purchaseId||'—')]))+
+  '<p class="caption">Rascunhos, aprovações, cancelamentos, emissões e recebimentos mantêm seus IDs e eventos; exporte JSON/CSV para conferência.</p>',true);
+}
 function materialsPlanningPanels(s){
  const catalog=(s.colorCatalog||window.HLGBLabMaterialsPlannerV1?.seed?.()||[]),
   colors=catalog.map(x=>[x.name,x.name]),
@@ -786,17 +832,18 @@ function moduleHtml(s){
  panel('Saldos da folha fictícia',table(['Funcionário','Base','Passagem','Extras','Descontos','Desembolso'],s.employees.map(e=>[
  str(e.name),fmt(e.salaryCents),fmt(e.passageCents),fmt(e.extrasCents),fmt(e.discountCents),
  fmt(e.salaryCents+e.extrasCents-e.discountCents+e.passageCents)])),true);
- case 'compras':return materialsPlanningPanels(s)+panel('Compra com dupla conferência',
+ case 'compras':return materialsPlanningPanels(s)+requestPanels(s)+panel('Compra com dupla conferência',
  form('purchase.add','Planejar compra',[field('supplierId','Fornecedor','select','',suppliers),
  field('materialId','Material','select','',materials),
  field('qtyGrams','Quantidade (g)','int','3000'),
  field('checkerOne','Conferente 1','text','Aline Teste'),
  field('checkerTwo','Conferente 2','text','Beto Exemplo')],'Registrar compra')+
  form('purchase.receive','Receber compra',[field('id','Compra pendente','select','',purchases)],'Conferir e dar entrada no estoque'))+
- panel('Controle de compras','<p>O recebimento atualiza o estoque e cria uma única conta a pagar. Não é possível receber duas vezes o mesmo pedido de compras.</p>')+
+ panel('Controle de compras','<p>O recebimento atualiza o estoque e cria uma única conta a pagar. Não é possível receber duas vezes o mesmo pedido de compras. Compras avulsas antigas continuam disponíveis e não são transformadas em requisições sem autorização.</p>')+
  panel('Compras do laboratório',table(['Compra','Fornecedor','Material','Quantidade','Conferentes','Status'],s.purchaseOrders.map(x=>[
  str(x.id),str(ref(s.suppliers,x.supplierId)?.name),str(ref(s.materials,x.materialId)?.name),
- str(x.qtyGrams)+'g',str(x.checkerOne)+' / '+str(x.checkerTwo),x.received?'Recebida':'Pendente'])),true);
+ str(x.qtyGrams)+'g',str(x.checkerOne)+' / '+str(x.checkerTwo),
+  (x.received?'Recebida':'Pendente')+(x.purchaseRequestId?' · '+str(x.purchaseRequestId):'') ])),true);
  case 'estoque':return panel('Ajuste controlado de materiais',
  form('stock.adjust','Ajustar saldo',[field('materialId','Material','select','',materials),
  field('deltaGrams','Entrada/saída em gramas (ex.: -500)','signed-int','500'),
@@ -1038,7 +1085,11 @@ function exportCsv(){
  ref(doc.products,x.productId)?.name||'', 'Enviadas: '+x.shipped,sum(x.grade)]),
  ...doc.finance.map(x=>['Financeiro',x.id,x.description,x.status,x.amountCents]),
  ...(doc.settlementCompensations||[]).map(x=>['Compensação',x.id,x.settlementId+' · '+x.reference,x.status,x.deltaCents]),
- ...doc.purchaseOrders.map(x=>['Compra',x.id,ref(doc.materials,x.materialId)?.name||'',x.received?'Recebido':'Pendente',x.qtyGrams]),
+ ...doc.purchaseOrders.map(x=>['Compra',x.id,ref(doc.materials,x.materialId)?.name||'',
+  (x.received?'Recebido':'Pendente')+(x.purchaseRequestId?' · '+x.purchaseRequestId:''),x.qtyGrams]),
+ ...(doc.purchaseRequests||[]).map(x=>['Requisição',x.id,
+  (ref(doc.materials,x.materialId)?.name||x.materialId)+' · '+x.reason,
+  x.status+' · '+(x.purchaseId||'sem compra'),x.qtyGrams]),
  ...doc.orders.flatMap(o=>(o.colorGrades||[]).map(c=>
   ['Grade por cor',o.id,c.color,'P/M/G/GG',
    api.sizes.map(sz=>sz+': '+c.grade[sz]).join(' · ')])),
