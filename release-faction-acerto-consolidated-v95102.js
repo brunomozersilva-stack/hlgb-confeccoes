@@ -44,8 +44,10 @@
    const label=sid(name),n=norm(label),known=perName.get(n)||new Set();
    const id=sid(masterId);
    const ambiguous=known.size>1||id&&known.size&&(!known.has(id));
-   const key=ambiguous?(id?'master:'+id:'ambiguous:'+n):'person:'+n;
-   return {key,name:label,ambiguous:!!ambiguous,masterId:id||null};
+   const key=ambiguous?(id?'master:'+id:'ambiguous:'+n):
+    known.size===1?'master:'+([...known][0]):'person:'+n;
+   return {key,name:label,ambiguous:!!ambiguous,
+    masterId:id||(!ambiguous&&known.size===1?[...known][0]:null)};
   }
   function append(p,entry){
    if(!p?.name||!Number.isSafeInteger(entry.amountCents)||entry.amountCents<=0)
@@ -54,6 +56,7 @@
     identityAmbiguous:p.ambiguous,totalCents:0,manualCents:0,regularCents:0,
     entries:[],groupIds:[],paymentIds:[],dates:[]};
    old.identityAmbiguous=old.identityAmbiguous||p.ambiguous;
+   if(!old.masterId&&p.masterId)old.masterId=p.masterId;
    old.totalCents+=entry.amountCents;
    if(entry.kind==='avulso')old.manualCents+=entry.amountCents;else old.regularCents+=entry.amountCents;
    old.entries.push(entry);
@@ -71,7 +74,10 @@
    for(const row of unique)manualRowIds.add(sid(row.id));
    if(!gid||seenManual.has(gid)){errors.push('grupo-avulso-duplicado-ou-sem-id');continue}
    seenManual.add(gid);
-   if(!active(g.status))continue;
+   if(!active(g.status)){
+    if(norm(g.status)==='revisar')errors.push('grupo-avulso-requer-revisao:'+gid);
+    continue;
+   }
    if(!unique.some(x=>!canceled(x))||unique.some(x=>sid(x.manualGroupId)!==gid)){
     errors.push('grupo-avulso-sem-evidencia:'+gid);continue;
    }
