@@ -13,10 +13,12 @@
   require('./modulos/corte-bom-v1.js'):(root&&root.HLGBLabBomCutV1);
  const requests=typeof module==='object'&&module.exports?
   require('./modulos/requisicoes-compras-v1.js'):(root&&root.HLGBLabPurchaseRequestsV1);
- const api=factory(batch,routing,factionGrade,planner,bomCut,requests);
+ const purchaseReturns=typeof module==='object'&&module.exports?
+  require('./modulos/devolucoes-compras-v1.js'):(root&&root.HLGBLabPurchaseReturnsV1);
+ const api=factory(batch,routing,factionGrade,planner,bomCut,requests,purchaseReturns);
  if(typeof module==='object'&&module.exports)module.exports=api;
  else if(root)root.HLGBOperationalLab=api;
-})(typeof window!=='undefined'?window:null,function(batch,routing,factionGrade,planner,bomCut,requests){
+})(typeof window!=='undefined'?window:null,function(batch,routing,factionGrade,planner,bomCut,requests,purchaseReturns){
  'use strict';
  const clone=x=>JSON.parse(JSON.stringify(x)),sizes=['P','M','G','GG'];
  const makeGrade=()=>({P:0,M:0,G:0,GG:0});
@@ -39,7 +41,7 @@
    employees:[{id:'FUN-0001',name:'Ana Simulada',salaryCents:200000,passageCents:12000,extrasCents:0,discountCents:0},
     {id:'FUN-0002',name:'Bianca Modelo',salaryCents:180000,passageCents:8000,extrasCents:0,discountCents:3000}],
    colorCatalog:planner?planner.seed():[],materialRecipeRules:[],materialPlanLines:[],
-   bomCutRuns:[],orders:[],cutPlans:[],purchaseRequests:[],purchaseOrders:[],settlements:[],settlementCompensations:[],paymentBatches:[],finance:[],stockLedger:[],factionTransfers:[],factionAssignments:[],factionPartialTransfers:[],errors:[],
+   bomCutRuns:[],orders:[],cutPlans:[],purchaseRequests:[],purchaseOrders:[],purchaseReturns:[],settlements:[],settlementCompensations:[],paymentBatches:[],finance:[],stockLedger:[],factionTransfers:[],factionAssignments:[],factionPartialTransfers:[],errors:[],
    prints:[{id:'IMP-0001',name:'Chaveiro articulado fictício',grams:28,priceCents:490,stock:12}],
    log:[],role:'supervisor',flags:{autoCorrections:false},revisionProof:'seed'};
  }
@@ -146,6 +148,8 @@
    problems.push(...bomCut.inspect(s));
   if(requests&&typeof requests.inspect==='function')
    problems.push(...requests.inspect(s));
+  if(purchaseReturns&&typeof purchaseReturns.inspect==='function')
+   problems.push(...purchaseReturns.inspect(s));
   for(const move of (s.factionTransfers||[])){
    if(!s.orders.some(x=>x.id===move.orderId)||!s.factions.some(x=>x.id===move.fromFactionId)||
       !s.factions.some(x=>x.id===move.toFactionId)||move.fromFactionId===move.toFactionId)
@@ -154,7 +158,7 @@
   if(s.materials.some(m=>m.stockGrams<0))problems.push('Estoque de material negativo');
   if(s.finance.some(e=>e.amountCents<=0))problems.push('Lançamento financeiro não positivo');
   if(new Set(s.log.map(e=>e.commandId)).size!==s.log.length)problems.push('Identificador de comando duplicado');
-  const allIds=[...s.orders,...(s.bomCutRuns||[]),...(s.purchaseRequests||[]),...(s.cutPlans||[]),...(s.factionTransfers||[]),...(s.colorCatalog||[]),...(s.materialRecipeRules||[]),...(s.materialPlanLines||[]),...(s.factionAssignments||[]),...(s.factionPartialTransfers||[]),...(s.settlementCompensations||[]),...batches,...s.purchaseOrders,...s.settlements,...s.finance,...s.clients,...s.suppliers,
+  const allIds=[...s.orders,...(s.bomCutRuns||[]),...(s.purchaseRequests||[]),...(s.purchaseReturns||[]),...(s.cutPlans||[]),...(s.factionTransfers||[]),...(s.colorCatalog||[]),...(s.materialRecipeRules||[]),...(s.materialPlanLines||[]),...(s.factionAssignments||[]),...(s.factionPartialTransfers||[]),...(s.settlementCompensations||[]),...batches,...s.purchaseOrders,...s.settlements,...s.finance,...s.clients,...s.suppliers,
    ...s.materials,...s.products,...s.factions,...s.employees,...s.prints].map(x=>x.id);
   if(new Set(allIds).size!==allIds.length)problems.push('IDs de registro duplicados');
   return {ok:!problems.length,problems,orderCount:s.orders.length,unpaid:s.finance.filter(f=>f.status==='aberto').length,
@@ -275,6 +279,8 @@
   if(!Array.isArray(s.bomCutRuns))s.bomCutRuns=[];
   if(!requests)throw Error('Módulo de requisições indisponível; nenhuma operação aplicada.');
   requests.ensure(s);
+  if(!purchaseReturns)throw Error('Módulo de devoluções de compras indisponível; nenhuma operação aplicada.');
+  purchaseReturns.ensure(s);
   if(!Array.isArray(s.factionTransfers))s.factionTransfers=[];
   if(!Array.isArray(s.factionPartialTransfers))s.factionPartialTransfers=[];
   if(!Array.isArray(s.settlementCompensations))s.settlementCompensations=[];
@@ -635,6 +641,8 @@
    result=requests.cancel(s,p,{next,uid});break}
   case 'purchase.request.cancelIssued':{
    result=requests.cancelIssued(s,p,{next,uid});break}
+  case 'purchase.return.full':{
+   result=purchaseReturns.full(s,p,{next,uid});break}
   case 'purchase.add':{
    const material=get(s,'materials',p.materialId,'Material'),supplier=get(s,'suppliers',p.supplierId,'Fornecedor');
    const obj={id:next(s,'COM'),materialId:material.id,supplierId:supplier.id,
