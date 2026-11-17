@@ -1,5 +1,15 @@
 # HLGB Evolução — Laboratório independente (Etapa 1)
 
+## Nova etapa — Fechamento automático por facção no Hub (LAB)
+
+A aba **Hub Financeiro** do laboratório agora apresenta **Fechamento automático por facção** antes da seleção manual antiga. Quando uma oficina/embaladeira possui **2 a 50 títulos a pagar em aberto**, todos os acertos e compensações positivas pendentes daquela mesma facção entram na proposta automática, com número de títulos, valores individuais, modelo, serviço e total em centavos. Não mistura fornecedores/facções distintos.
+
+O botão **Validar total sem pagar** executa prévia readonly, sem alterar revisão, dinheiro ou IndexedDB. A confirmação **Fechar todos os acertos desta pessoa** executa um único comando \`finance.faction.close\` no núcleo transacional. O módulo recarrega a lista canônica no próprio momento da confirmação, compara com os IDs da prévia e bloqueia se houver item novo, removido, divergência entre acerto/Hub, título já pago, lote anterior ou seleção incompleta. O fechamento cria **um PAG** com protocolo e prova do nome/ID da facção, enquanto preserva **cada ACE/CMP e FIN original**, com seu valor, quantidade, modelo, travetada e histórico. Não cria um segundo pagamento para os mesmos documentos.
+
+A seleção manual de múltiplas facções (\`finance.batch.pay\`) e a baixa unitária (\`finance.pay\`) foram preservadas para os casos em que forem apropriadas. Em ambos os modos, nunca há PIX, TED ou pagamento real. O Auditor 2.0 distingue lotes por pessoa, detecta mistura de facções, confirma os vínculos e inclui os fechamentos em seus relatórios; CSV e JSON preservam as provas. Em testes: **11 casos dedicados de lógica**, automação mobile/desktop Chromium/WebKit e regressões de pagamento, observabilidade e compras.
+
+**Pendências para tornar operacional:** autorização autenticada da pessoa que paga, anexo privado do comprovante, confirmação remota por RPC/releitura, reconciliação bancária, regras para lotes acima de 50 títulos, testes entre computadores reais e homologação de paridade das 76 funções. Nenhuma mudança em \`main\` ou no Supabase de produção está autorizada nesta etapa.
+
 ## Nova etapa — Devolução integral de compra já recebida (LAB)
 
 A prévia de Compras passa a distinguir dois documentos diferentes: **cancelamento formal de emissão antes do recebimento** e **devolução integral após recebimento**. O comando `purchase.return.full` valida REQ/COM, comprovante de entrada, saldo disponível e título original a pagar ainda aberto; exige referência exclusiva, motivo, responsável e conferente independentes. Cria novo documento `DEV-...`, movimentação de estoque negativa `MOV-...` e crédito a receber `FIN-...`. A compra, sua entrada e o título originais permanecem registrados e com valores intactos. O Auditor 2.0 verifica os vínculos, repetições e inconsistências, e o relatório/CSV registram o protocolo.
