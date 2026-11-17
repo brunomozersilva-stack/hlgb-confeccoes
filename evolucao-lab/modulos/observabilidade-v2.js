@@ -555,6 +555,14 @@
      'Localizar o lote anterior pelo ID antes de repetir qualquer baixa.',batch.reference);
    batchRefs.add(reference);
    const items=Array.isArray(batch.items)?batch.items:[];
+   if(batch.scope==='faccao'&&(
+      !byId(arr(source,'factions'),batch.factionId)||
+      !batch.factionNameSnapshot||
+      items.some(i=>i.factionId!==batch.factionId)||
+      !events.some(e=>e.commandId===batch.commandId&&e.type==='finance.faction.close')))
+    push('LOTE_FACCAO_DIVERGENTE','critica','hub',batch.id,
+     'Fechamento por pessoa com título de outra facção ou origem não comprovada.',
+     'Conferir acertos e IDs sem repetir pagamento.',batch.factionId);
    let total=0;
    for(const item of items){
     const bill=findFinance(item.financeId);
@@ -769,6 +777,8 @@
    orders:orders.length,settlements:settlements.length,compensations:comps.length,
    titles:finance.length,openTitles:unpaid,stockMovements:ledger.length,
    paymentBatches:batches.length,batchedPayablesCents:batches.reduce((n,b)=>n+Number(b.totalCents||0),0),
+   factionClosures:batches.filter(b=>b.scope==='faccao').length,
+   factionClosureCents:batches.filter(b=>b.scope==='faccao').reduce((n,b)=>n+Number(b.totalCents||0),0),
    factionDispatches:assignments.length,distributedOrders,openFactionPieces,
    ordersWithColorGrade:colorOrders.length,
    gradeItems:gradeInventory.length,
@@ -802,6 +812,8 @@
    modelSummary,factionSummary,settlementHistory,factionDispatches,factionTransferHistory,
    colorGradeSummary,gradeInventory,bomCutHistory,purchaseRequestHistory,
    paymentBatchHistory:batches.map(b=>({id:b.id,reference:b.reference,
+    scope:b.scope||'manual',factionId:b.factionId||null,
+    factionNameSnapshot:b.factionNameSnapshot||null,
     reason:b.reason,count:b.count,totalCents:b.totalCents,status:b.status,
     items:(b.items||[]).map(i=>({...i}))}))};
  }
