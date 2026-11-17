@@ -114,6 +114,25 @@ test('revisão antiga bloqueia reenvio mesmo com um comando novo',()=>{
   actor:'CI',commandId:'OLD-REV',expectedRevision:s.revision-1}),/CONFLITO/);
  assert.equal(s.paymentBatches.length,0);
 });
+test('compensação positiva entra no mesmo fechamento sem alterar acerto original pago',()=>{
+ let s=seed(),first=s.finance.find(x=>x.sourceId==='ACE-0001');
+ s=exec(s,'finance.pay',{id:first.id});
+ const original=JSON.stringify(s.settlements.find(x=>x.id==='ACE-0001')),
+  originalBill=JSON.stringify(s.finance.find(x=>x.id===first.id));
+ s=exec(s,'settlement.compensate',{id:'ACE-0001',deltaCents:150,
+  reference:'COMP-ADICIONAL',reason:'Diferença de serviço fictício'});
+ const g=batch.groups(s)[0];
+ assert.equal(g.count,2);
+ assert.equal(g.totalCents,750,'6 peças R$ 6,00 + diferença R$ 1,50');
+ const closed=exec(s,'finance.faction.close',input(g,'FECHA-COMP-001'));
+ assert.equal(closed.paymentBatches[0].items.some(i=>i.sourceType==='compensacao'),true);
+ assert.equal(closed.settlementCompensations[0].status,'pago');
+ assert.equal(closed.settlements[1].status,'pago');
+ assert.equal(JSON.stringify(closed.settlements.find(x=>x.id==='ACE-0001')),original);
+ assert.equal(JSON.stringify(closed.finance.find(x=>x.id===first.id)),originalBill);
+ assert.equal(core.inspect(closed).ok,true);
+ assert.deepEqual(obs.analyze(closed).findings,[]);
+});
 test('módulo isolado sem rede e sem tocar arquivos atuais',()=>{
  const js=fs.readFileSync(path.join(__dirname,'../modulos/pagamento-lote-v1.js'),'utf8'),
  ui=fs.readFileSync(path.join(__dirname,'../operacao-integrada-ui.js'),'utf8'),
