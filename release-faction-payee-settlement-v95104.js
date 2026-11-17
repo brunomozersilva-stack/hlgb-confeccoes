@@ -311,9 +311,25 @@ function delegate(e){
   }
  }catch(err){alert('Não foi possível abrir a ação: '+sid(err?.message||err))}
 }
+function protectLegacyActions(){
+ for(const name of ['reopenFactionPayment','deleteFactionPayment']){
+  const previous=root[name];if(typeof previous!=='function'||previous.__hlgbPayeeGuard95104)continue;
+  const wrapped=function(id){
+   const p=payment(id);
+   if(p&&(p.previouslyPaidV95104||p.payeeTransferV95104)){
+    alert('Este pagamento contém histórico protegido de facção ou de quitação anterior. ' +
+      'Não é permitido reabrir ou excluir apagando o histórico; use a correção auditada do acerto.');
+    return false;
+   }
+   return previous.apply(this,arguments);
+  };
+  wrapped.__hlgbPayeeGuard95104=true;wrapped.__original=previous;root[name]=wrapped;
+ }
+}
 function install(){
  if(typeof document==='undefined')return false;
- document.addEventListener('click',delegate);
+ protectLegacyActions();
+ if(!document.__hlgbPayeeClick95104){document.addEventListener('click',delegate);document.__hlgbPayeeClick95104=true}
  const old=root.renderFactionPayments;
  if(typeof old==='function'&&!old.__hlgbPayeeDecorate95104){
   const wrapper=function(){const out=old.apply(this,arguments);setTimeout(decorate,0);return out};
@@ -325,8 +341,8 @@ root.hlgbFactionPayeeSettlement95104={version:V,changePayee,markPreviouslyPaid,o
  install,decorate,status:()=>({...state}),_test:{active,compare,hubCheck}};
 if(typeof document!=='undefined'){
  install();
- try{root.hlgbAfterLogin?.(()=>setTimeout(decorate,350),0)}catch(_){}
- root.addEventListener?.('hlgb:authenticated',()=>setTimeout(decorate,250));
+ try{root.hlgbAfterLogin?.(()=>setTimeout(install,350),0)}catch(_){}
+ root.addEventListener?.('hlgb:authenticated',()=>setTimeout(install,250));
 }
 console.info('[HLGB] v'+V+' troca de recebedor + já pago com comprovacao sem segunda saida no Hub');
 })(typeof window!=='undefined'?window:null);
