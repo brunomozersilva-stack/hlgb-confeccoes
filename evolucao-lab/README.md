@@ -2,6 +2,18 @@
 
 Esta pasta é um **protótipo isolado**: não é uma tela incorporada ao HLGB em produção.
 
+## Nova etapa — Grade por cor e tamanho em cada facção (opt-in no laboratório)
+
+O módulo `modulos/grade-faccoes-v1.js` acrescenta uma camada de rastreamento **por cor e P/M/G/GG** sem mudar os modelos, pagamentos, estoques e pedidos históricos não classificados. No painel Facções, o operador cadastra uma linha por cor informando quantas peças da grade do pedido pertencem a cada tamanho; antes de distribuir as peças, as somas das cores precisam corresponder **exatamente** às quantidades do pedido por tamanho. A classificação é opcional, mas só pode ser criada antes do primeiro envio, para evitar inventar cores de lançamentos antigos.
+
+A distribuição detalhada permite escolher **pedido, oficina, cor, tamanho e quantidade**, validando simultaneamente a quantidade cadastrada para aquela cor/tamanho, o corte efetivamente realizado para o tamanho e o total geral alocado. Cada envio mantém `gradeLines` com `sent` e `returned`; retornos só podem usar cor/tamanho com saldo disponível e geram acertos `ACE-...` próprios com facção, cor e tamanho congelados, vinculados ao Hub. Transferências detalhadas alteram exclusivamente o saldo pendente da cor/tamanho escolhido entre os envios `ALO-...`, preservando acertos e pagamentos anteriores; os movimentos `TRP-...` registram origem/destino, justificativa e identificação da grade.
+
+Devoluções de peças antes da quitação usam o comando separado `settlement.grade.pieces.return`, que ajusta acerto, Hub, saldo da facção e detalhamento por cor/tamanho em uma única operação. **Após pagamento, só a compensação separada é permitida**, sem reescrever o original. As operações genéricas antigas continuam disponíveis **para pedidos não classificados**; em pedidos classificados ficam bloqueadas para evitar saldos sem identificação. Documentos anteriores sem `colorGrades` ou `gradeLines` continuam válidos, sem zerar nem migrar de modo inventado.
+
+O Auditor e os relatórios comparam os detalhes de cor e tamanho com o pedido, o corte, os envios, retornos, transferências e acertos. Exportações CSV/JSON incluem os saldos e os registros originais. A bateria CI exige testes de integridade e operação de navegador em Chromium/WebKit.
+
+**Ainda não concluído:** ficha técnica de consumo por cor, distribuição detalhada por lote físico/rolo, paleta central e variações do produto, leitor de etiquetas, assinaturas de facções, autenticação real, sincronização entre computadores, histórico de alterações empresariais e homologação integral da paridade das 76 funções. Os cadastros de cores são exclusivamente **inventados no laboratório**, não dados do HLGB oficial.
+
 ## Nova etapa — Transferência parcial rastreável entre facções
 
 O comando `faction.multi.transfer` permite **redistribuir apenas peças ainda pendentes** de uma facção para outra no mesmo pedido, inclusive depois que outras peças já retornaram ou tiveram acerto quitado. A transferência é uma única operação transacional de laboratório: diminui a quantidade sob responsabilidade da oficina de origem e aumenta a da oficina de destino **sem incrementar o total de peças alocadas ao pedido, sem gerar acerto ou financeiro e sem reescrever retornos/pagamentos anteriores**.
