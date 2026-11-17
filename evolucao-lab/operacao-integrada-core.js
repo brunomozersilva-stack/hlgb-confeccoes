@@ -315,6 +315,8 @@
    result=planner.setRecipe(s,p,{next,uid});break}
   case 'materials.plan.add':{
    result=planner.lineAdd(s,p,{next,uid});break}
+  case 'materials.plan.grade.add':{
+   result=planner.gradeAdd(s,p,{next,uid});break}
   case 'materials.plan.archive':{
    result=planner.lineCancel(s,p,{next,uid});break}
   case 'material.add':{
