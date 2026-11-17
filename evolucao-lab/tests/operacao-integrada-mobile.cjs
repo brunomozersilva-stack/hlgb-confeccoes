@@ -505,6 +505,92 @@ async function run(browser,width,url){
     afterTransfer+1);
    await module(page,'faccoes');
    assert.match(await page.locator('#module-content').innerText(),/TRP-0001/);
+
+   // Homologação no navegador: grade por cor/tamanho, oficina, transferência e acerto.
+   await module(page,'pedidos');
+   await put(page,'order.add',{clientId:'CLI-0001',productId:'PRO-0003',
+    P:'4',M:'2',G:'0',GG:'0'});
+   await module(page,'corte');
+   await put(page,'cut.record',{orderId:'PED-0004',size:'P',qty:'4'});
+   await put(page,'cut.record',{orderId:'PED-0004',size:'M',qty:'2'});
+   await module(page,'faccoes');
+   await put(page,'order.color.grade.set',{orderId:'PED-0004',color:'Preto',
+    P:'3',M:'1',G:'0',GG:'0'});
+   assert.match(await page.locator('#module-content').innerText(),/Incompleta/);
+   await put(page,'order.color.grade.set',{orderId:'PED-0004',color:'Rubi',
+    P:'1',M:'1',G:'0',GG:'0'});
+   assert.match(await page.locator('#module-content').innerText(),/Completa para alocar/);
+   const noGradeRevision=await revision(page);
+   // O formulário antigo nunca pode sobrescrever a classificação.
+   assert.equal(await page.locator('form[data-command="faction.allocate"] option[value="PED-0004"]').count(),0);
+   assert.equal(await page.locator('form[data-command="faction.multi.allocate"] option[value="PED-0004"]').count(),0);
+   const rows=page.locator('form[data-command="faction.grade.allocate"]');
+   assert.equal(await rows.count(),1);
+   await rows.locator('[name="orderId"]').selectOption('PED-0004');
+   await rows.locator('[name="factionId"]').selectOption('FAC-0001');
+   await rows.locator('[name="color"]').selectOption('Preto');
+   await rows.locator('[name="size"]').selectOption('P');
+   await rows.locator('[name="qty"]').fill('4');
+   await rows.locator('button[type=submit]').click();
+   await page.waitForFunction(()=>document.querySelector('#flash')?.textContent.includes('excede a quantidade prevista'));
+   assert.equal(await revision(page),noGradeRevision,'excedente por cor não grava');
+   await put(page,'faction.grade.allocate',{orderId:'PED-0004',factionId:'FAC-0001',
+    color:'Preto',size:'P',qty:'3'});
+   await put(page,'faction.grade.allocate',{orderId:'PED-0004',factionId:'FAC-0001',
+    color:'Preto',size:'M',qty:'1'});
+   await put(page,'faction.grade.allocate',{orderId:'PED-0004',factionId:'FAC-0002',
+    color:'Rubi',size:'P',qty:'1'});
+   const [gradedIdsDownload]=await Promise.all([page.waitForEvent('download'),
+    page.locator('#export-json').click()]);
+   const gradedInitial=JSON.parse(fs.readFileSync(await gradedIdsDownload.path(),'utf8'));
+   const gradedAssignments=gradedInitial.data.factionAssignments.filter(x=>x.orderId==='PED-0004');
+   assert.equal(gradedAssignments.length,2);
+   const a=gradedAssignments.find(x=>x.factionId==='FAC-0001');
+   const b=gradedAssignments.find(x=>x.factionId==='FAC-0002');
+   assert.ok(a&&b);
+   await put(page,'faction.grade.return',{assignmentId:a.id,color:'Preto',size:'P',qty:'2'});
+   await put(page,'faction.grade.return',{assignmentId:b.id,color:'Rubi',size:'P',qty:'1'});
+   await put(page,'faction.grade.transfer',{fromAssignmentId:a.id,toFactionId:'FAC-0002',
+    color:'Preto',size:'P',qty:'1',reason:'Transferência fictícia por grade'});
+   await put(page,'faction.grade.return',{assignmentId:b.id,color:'Preto',size:'P',qty:'1'});
+   const [beforeReturnDL]=await Promise.all([page.waitForEvent('download'),
+    page.locator('#export-json').click()]);
+   const beforeReturn=JSON.parse(fs.readFileSync(await beforeReturnDL.path(),'utf8'));
+   const acertosGrade=beforeReturn.data.settlements.filter(x=>x.orderId==='PED-0004');
+   assert.deepEqual(acertosGrade.map(x=>[x.color,x.size,x.qty]),
+    [['Preto','P',2],['Rubi','P',1],['Preto','P',1]]);
+   assert.equal(acertosGrade[0].factionId,'FAC-0001');
+   assert.equal(acertosGrade[2].factionId,'FAC-0002');
+   await module(page,'acertos');
+   await put(page,'settlement.grade.pieces.return',{id:acertosGrade[0].id,qty:'1',
+    reason:'Peça preta P devolvida da facção A'});
+   await module(page,'relatorios');
+   assert.match(await page.locator('#module-content').innerText(),/Grade por cor e tamanho/);
+   assert.match(await page.locator('#module-content').innerText(),/Saldo real por facção/);
+   const [gradeJson]=await Promise.all([page.waitForEvent('download'),page.locator('#export-json').click()]);
+   const gradedReport=JSON.parse(fs.readFileSync(await gradeJson.path(),'utf8'));
+   const savedGraded=gradedReport.data.orders.find(x=>x.id==='PED-0004');
+   assert.deepEqual(savedGraded.colorGrades.map(x=>[x.color,x.grade.P,x.grade.M]),
+    [['Preto',3,1],['Rubi',1,1]]);
+   assert.equal(savedGraded.allocated,5);
+   assert.equal(savedGraded.returned,3);
+   assert.equal(gradedReport.observability.summary.ordersWithColorGrade,1);
+   assert.equal(gradedReport.observability.summary.gradePiecesOpen,2);
+   assert.equal(gradedReport.observability.findings.length,0);
+   assert.equal(gradedReport.data.factionPartialTransfers.at(-1).gradeTracked,true);
+   assert.equal(gradedReport.data.settlements.find(x=>x.id===acertosGrade[0].id).qty,1);
+   assert.equal(gradedReport.checks.ok,true);
+   const [gradeCsv]=await Promise.all([page.waitForEvent('download'),
+    page.locator('#export-observer-csv').click()]);
+   assert.match(fs.readFileSync(await gradeCsv.path(),'utf8'),/Saldo por cor e tamanho/);
+   await page.reload();
+   const afterGradeRevision=gradedReport.data.revision;
+   await page.waitForFunction(rev=>
+    document.querySelector('#top-revision')?.textContent.includes('Revisão local '+rev),
+    afterGradeRevision);
+   await module(page,'faccoes');
+   assert.match(await page.locator('#module-content').innerText(),/Preto/);
+   assert.equal(await revision(page),afterGradeRevision);
   }
   const d=await page.evaluate(()=>({width:innerWidth,scroll:document.documentElement.scrollWidth}));
   if(d.scroll>d.width+2){
