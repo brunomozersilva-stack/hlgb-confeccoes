@@ -647,6 +647,36 @@ async function run(browser,width,url){
    await module(page,'compras');
    assert.match(await page.locator('#module-content').innerText(),/PLN-0001/);
    assert.equal(await revision(page),archived.data.revision);
+
+   // A grade semanal inteira deve virar duas linhas em UM evento, sem compras/baixas.
+   const beforeBatchGrade=await revision(page);
+   await put(page,'materials.plan.grade.add',{productId:'PRO-0001',color:'Azul-marinho',
+    P:'20',M:'30',G:'0',GG:'0'});
+   assert.equal(await revision(page),beforeBatchGrade+1);
+   const [completeListCsv]=await Promise.all([page.waitForEvent('download'),
+    page.locator('#export-shopping-csv').click()]);
+   const csvOnly=fs.readFileSync(await completeListCsv.path(),'utf8');
+   assert.match(csvOnly,/LISTA DE MATERIAIS/);
+   assert.match(csvOnly,/DETALHAMENTO POR MODELO/);
+   assert.match(csvOnly,/Azul-marinho/);
+   const [afterBatchFile]=await Promise.all([page.waitForEvent('download'),
+    page.locator('#export-json').click()]);
+   const afterBatchPlan=JSON.parse(fs.readFileSync(await afterBatchFile.path(),'utf8'));
+   assert.equal(afterBatchPlan.materialPlanning.pieces,250);
+   assert.deepEqual(afterBatchPlan.data.materialPlanLines.slice(-2).map(x=>[x.size,x.qty]),
+    [['P',20],['M',30]]);
+   assert.equal(afterBatchPlan.data.log.at(-1).type,'materials.plan.grade.add');
+   assert.equal(afterBatchPlan.data.materialPlanLines.at(-1).createdCommandId,
+    afterBatchPlan.data.materialPlanLines.at(-2).createdCommandId);
+   assert.equal(afterBatchPlan.data.stockLedger.length,draft.data.stockLedger.length);
+   assert.equal(afterBatchPlan.data.purchaseOrders.length,draft.data.purchaseOrders.length);
+   assert.equal(afterBatchPlan.checks.ok,true);
+   assert.equal(afterBatchPlan.observability.findings.length,0);
+   await page.reload();
+   await page.waitForFunction(rev=>document.querySelector('#top-revision')?.textContent.includes('Revisão local '+rev),
+    afterBatchPlan.data.revision);
+   await module(page,'compras');
+   assert.match(await page.locator('#module-content').innerText(),/Azul-marinho/);
   }
   const d=await page.evaluate(()=>({width:innerWidth,scroll:document.documentElement.scrollWidth}));
   if(d.scroll>d.width+2){
