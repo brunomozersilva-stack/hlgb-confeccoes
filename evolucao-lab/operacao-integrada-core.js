@@ -5,10 +5,12 @@
   require('./modulos/pagamento-lote-v1.js'):(root&&root.HLGBLabPaymentBatchV1);
  const routing=typeof module==='object'&&module.exports?
   require('./modulos/faccoes-multidestino-v1.js'):(root&&root.HLGBLabFactionRoutingV1);
- const api=factory(batch,routing);
+ const factionGrade=typeof module==='object'&&module.exports?
+  require('./modulos/grade-faccoes-v1.js'):(root&&root.HLGBLabFactionGradeV1);
+ const api=factory(batch,routing,factionGrade);
  if(typeof module==='object'&&module.exports)module.exports=api;
  else if(root)root.HLGBOperationalLab=api;
-})(typeof window!=='undefined'?window:null,function(batch,routing){
+})(typeof window!=='undefined'?window:null,function(batch,routing,factionGrade){
  'use strict';
  const clone=x=>JSON.parse(JSON.stringify(x)),sizes=['P','M','G','GG'];
  const makeGrade=()=>({P:0,M:0,G:0,GG:0});
@@ -129,6 +131,8 @@
   if(new Set(keys).size!==keys.length)problems.push('Referência de compensação duplicada para o mesmo acerto');
   if(routing&&typeof routing.inspect==='function')
    problems.push(...routing.inspect(s));
+  if(factionGrade&&typeof factionGrade.inspect==='function')
+   problems.push(...factionGrade.inspect(s));
   for(const move of (s.factionTransfers||[])){
    if(!s.orders.some(x=>x.id===move.orderId)||!s.factions.some(x=>x.id===move.fromFactionId)||
       !s.factions.some(x=>x.id===move.toFactionId)||move.fromFactionId===move.toFactionId)
@@ -285,6 +289,8 @@
    if(!routing)throw Error('Módulo de distribuição de facções indisponível.');
    routing.ensure(s,next);
    const order=get(s,'orders',p.orderId,'Pedido'),newFac=get(s,'factions',p.factionId,'Nova facção');
+   if(factionGrade?.hasGrade(order))
+    throw Error('Pedido classificado por cor/tamanho: use apenas a distribuição detalhada.');
    const reason=name(p.reason,'Motivo da troca');
    if(!order.factionId||order.allocated<=0)throw Error('Somente pedido já enviado pode trocar de facção.');
    if(order.factionId===newFac.id)throw Error('Escolha uma facção diferente da atual.');
@@ -315,8 +321,13 @@
    const f={id:next(s,'FIN'),kind:'receber',sourceId:o.id,description:'Pedido fictício '+o.id,
     amountCents:sum(g)*o.priceCents,status:'aberto'};
    s.finance.push(f);result=o.id;break}
+  case 'order.color.grade.set':{
+   if(!factionGrade)throw Error('Módulo de cores indisponível.');
+   result=factionGrade.setColor(s,p,{int,uid});break}
   case 'order.grade.update':{
    const o=get(s,'orders',p.orderId,'Pedido'),g=p.grade;
+   if(factionGrade?.hasGrade(o))
+    throw Error('Pedido já tem cores cadastradas. Remova as cores primeiro para alterar a grade geral.');
    if(!gradeValid(g)||sum(g)<1||sum(g)>30000)throw Error('Grade inválida.');
    const title=s.finance.find(f=>f.sourceId===o.id&&f.kind==='receber');
    if(!title||title.status!=='aberto')throw Error('Pedido com título pago ou não encontrado não pode mudar de grade.');
@@ -412,6 +423,8 @@
    if(!routing)throw Error('Módulo de distribuição de facções indisponível.');
    routing.ensure(s,next);
    const o=get(s,'orders',p.orderId,'Pedido'),fac=get(s,'factions',p.factionId,'Facção'),qty=num('qty',1,10000);
+   if(factionGrade?.hasGrade(o))
+    throw Error('Pedido com grade de cores: use Envio por cor/tamanho.');
    const q=quantities(o);
    if(q.allocated+qty>q.cut)throw Error('Envio excede a quantidade cortada.');
    if(o.factionId&&o.factionId!==fac.id)throw Error('Esta simulação aceita uma facção por pedido; não sobrescrever destino.');
@@ -422,6 +435,8 @@
    if(!routing)throw Error('Módulo de distribuição de facções indisponível.');
    routing.ensure(s,next);
    const o=get(s,'orders',p.orderId,'Pedido'),qty=num('qty',1,10000);
+   if(factionGrade?.hasGrade(o))
+    throw Error('Pedido com grade de cores: retorne por cor/tamanho.');
    routing.canLegacyReturn(s,o);
    if(!o.factionId||o.returned+qty>o.allocated)throw Error('Retorno excede o que foi enviado para a facção.');
    o.returned+=qty;
@@ -441,14 +456,34 @@
    result=settlement.id;break}
   case 'faction.multi.allocate':{
    if(!routing)throw Error('Módulo de distribuição por facção indisponível.');
+   if(factionGrade?.hasGrade(get(s,'orders',p.orderId,'Pedido')))
+    throw Error('Pedido com grade de cores: envie por cor/tamanho.');
    result=routing.allocation(s,p,{next,int,uid});break}
   case 'faction.multi.transfer':{
    if(!routing||typeof routing.transfer!=='function')
     throw Error('Módulo de transferência entre facções indisponível. Nenhum saldo alterado.');
+   const from=s.factionAssignments?.find(x=>x.id===p.fromAssignmentId);
+   if(from&&factionGrade?.hasGrade(get(s,'orders',from.orderId,'Pedido')))
+    throw Error('Envio classificado: transfira por cor/tamanho.');
    result=routing.transfer(s,p,{next,int,uid});break}
   case 'faction.multi.return':{
    if(!routing)throw Error('Módulo de retorno por facção indisponível.');
+   const row=s.factionAssignments?.find(x=>x.id===p.assignmentId);
+   if(row&&factionGrade?.hasGrade(get(s,'orders',row.orderId,'Pedido')))
+    throw Error('Envio classificado: retorne por cor/tamanho.');
    result=routing.ret(s,p,{next,int,uid});break}
+  case 'faction.grade.allocate':{
+   if(!routing||!factionGrade)throw Error('Módulo de grade por facção indisponível.');
+   result=factionGrade.allocate(s,p,{next,int,uid},routing);break}
+  case 'faction.grade.return':{
+   if(!routing||!factionGrade)throw Error('Módulo de retorno de grade indisponível.');
+   result=factionGrade.ret(s,p,{next,int,uid},routing);break}
+  case 'faction.grade.transfer':{
+   if(!routing||!factionGrade)throw Error('Módulo de transferência de grade indisponível.');
+   result=factionGrade.transfer(s,p,{next,int,uid},routing);break}
+  case 'settlement.grade.pieces.return':{
+   if(!routing||!factionGrade)throw Error('Módulo de devolução de grade indisponível.');
+   result=factionGrade.reverse(s,p,{next,int,uid},routing);break}
   case 'settlement.add':{
    const fac=get(s,'factions',p.factionId,'Facção'),product=get(s,'products',p.productId,'Produto');
    if(!['costura','embalagem'].includes(p.serviceType))throw Error('Selecione costura ou embalagem.');
@@ -476,6 +511,7 @@
    if(!routing)throw Error('Módulo de distribuição de facções indisponível.');
    routing.ensure(s,next);
    const x=get(s,'settlements',p.id,'Acerto');
+   if(x.gradeTracked)throw Error('Acerto rastreado por cor/tamanho: use Devolução detalhada.');
    if(x.status!=='aberto')throw Error('Não é permitido devolver peças após pagamento.');
    const bill=get(s,'finance',s.finance.find(y=>y.sourceId===x.id&&y.kind==='pagar')?.id,'Título a pagar');
    if(bill.status!=='aberto')throw Error('Título já pago impede devolução direta.');
