@@ -145,6 +145,8 @@
   if(new Set(keys).size!==keys.length)problems.push('Referência de compensação duplicada para o mesmo acerto');
   if(routing&&typeof routing.inspect==='function')
    problems.push(...routing.inspect(s));
+  if(routing&&typeof routing.inspectRateHistory==='function')
+   problems.push(...routing.inspectRateHistory(s));
   if(factionGrade&&typeof factionGrade.inspect==='function')
    problems.push(...factionGrade.inspect(s));
   if(planner&&typeof planner.inspect==='function')
@@ -603,6 +605,9 @@
     amountCents:Math.abs(delta),status:'aberto'};
    s.finance.push(bill);
    result=comp.id+' · '+kind+' · '+delta+' centavos (original preservado)';break}
+  case 'settlement.revise':{
+   if(!routing||typeof routing.reviseSettlement!=='function')throw Error('Correção de acertos indisponível.');
+   result=routing.reviseSettlement(s,p,{int,uid});break}
   case 'settlement.adjust':{
    const x=get(s,'settlements',p.id,'Acerto');
    if(x.status!=='aberto')throw Error('Acerto pago não pode ser alterado nesta prévia.');
