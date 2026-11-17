@@ -156,6 +156,83 @@
    throw Error('Devolução não confere com o retorno da facção original.');
   match.qtyReturned-=qty;
  }
+ // Corrige um acerto em aberto sem recriar seu título nem mover peças.
+ function reviseSettlement(s,p,ctx){
+  const x=byId(s.settlements,p.id);
+  if(!x||x.status!=='aberto')throw Error('Somente acerto em aberto pode ser corrigido.');
+  const titles=s.finance.filter(t=>t.sourceId===x.id);
+  const bill=titles[0];
+  if(titles.length!==1||bill.kind!=='pagar'||bill.status!=='aberto'||
+     bill.amountCents!==x.amountCents||
+     (s.paymentBatches||[]).some(b=>b.items?.some(i=>i.financeId===bill.id))||
+     (s.settlementCompensations||[]).some(c=>c.settlementId===x.id))
+   throw Error('Título divergente ou pagamento anterior encontrado. Não corrigir diretamente.');
+  const oldFaction=byId(s.factions,x.factionId);
+  const target=byId(s.factions,p.factionId||x.factionId);
+  if(!target||!oldFaction)throw Error('Facção ou embaladeira não localizada.');
+  if(target.id!==x.factionId&&(x.kind!=='avulso'||x.orderId||x.assignmentId||x.gradeTracked))
+   throw Error('Acerto vinculado a retorno físico: use a rotina de transferência, não troque a facção do acerto.');
+  const gross=ctx.int(p.unitCents,'Valor bruto por peça',1,100000),
+   discount=ctx.int(p.travetaCents,'Desconto por peça',0,100000);
+  if(discount>=gross)throw Error('A travetada não pode zerar ou superar a mão de obra.');
+  const reason=String(p.reason??'').trim();
+  if(!reason||reason.length>95)throw Error('Justificativa obrigatória (até 95 caracteres).');
+  const snapshot=()=>({factionId:x.factionId,listUnitCents:x.listUnitCents??x.unitCents,
+   travetaCents:x.travetaCents||0,unitCents:x.unitCents,qty:x.qty,
+   adjustmentCents:x.adjustmentCents||0,amountCents:x.amountCents});
+  const before=snapshot(),after={...before,factionId:target.id,listUnitCents:gross,
+   travetaCents:discount,unitCents:gross-discount,
+   amountCents:x.qty*(gross-discount)+(x.adjustmentCents||0)};
+  if(!Number.isSafeInteger(after.amountCents)||after.amountCents<=0)
+   throw Error('O novo total precisa ser positivo e válido.');
+  if(before.factionId===after.factionId&&before.listUnitCents===gross&&
+     before.travetaCents===discount)throw Error('Nenhuma alteração informada.');
+  if(!validRateSnapshot(before))throw Error('Acerto original sem cálculo conciliado; conferir antes de corrigir.');
+  x.factionId=after.factionId;x.listUnitCents=gross;x.travetaCents=discount;
+  x.unitCents=after.unitCents;x.amountCents=after.amountCents;
+  bill.amountCents=after.amountCents;
+  if(!Array.isArray(x.rateHistory))x.rateHistory=[];
+  x.rateHistory.push({commandId:ctx.uid,financeId:bill.id,reason,
+   before,after,fromFactionName:oldFaction.name,toFactionName:target.name});
+  return x.id+' · '+oldFaction.name+' → '+target.name+' · '+before.amountCents+
+   ' → '+after.amountCents+' centavos · título '+bill.id;
+ }
+ function validRateSnapshot(x){
+  return !!x&&typeof x.factionId==='string'&&
+   Number.isSafeInteger(x.qty)&&x.qty>0&&
+   Number.isSafeInteger(x.listUnitCents)&&x.listUnitCents>0&&
+   Number.isSafeInteger(x.travetaCents)&&x.travetaCents>=0&&
+   x.listUnitCents-x.travetaCents===x.unitCents&&x.unitCents>0&&
+   Number.isSafeInteger(x.unitCents)&&Number.isSafeInteger(x.adjustmentCents)&&
+   Number.isSafeInteger(x.amountCents)&&x.amountCents>0&&
+   x.qty*x.unitCents+x.adjustmentCents===x.amountCents;
+ }
+ function inspectRateHistory(s){
+  const problems=[],seen=new Set();
+  for(const x of s.settlements){
+   const history=Array.isArray(x.rateHistory)?x.rateHistory:[];
+   const bill=s.finance.find(t=>t.sourceId===x.id&&t.kind==='pagar');
+   let prior=null;
+   for(const h of history){
+    const b=h.before,a=h.after;
+    const event=s.log.find(e=>e.commandId===h.commandId&&e.type==='settlement.revise');
+    if(!event||seen.has(h.commandId)||!h.reason||!h.fromFactionName||!h.toFactionName||
+       h.financeId!==bill?.id||!validRateSnapshot(b)||!validRateSnapshot(a)||
+       !byId(s.factions,b?.factionId)||!byId(s.factions,a?.factionId)||
+       b.qty!==a.qty||b.adjustmentCents!==a.adjustmentCents||
+       (b.factionId!==a.factionId&&(x.kind!=='avulso'||x.orderId||x.assignmentId))||
+       (prior&&(prior.factionId!==b.factionId||prior.listUnitCents!==b.listUnitCents||
+         prior.travetaCents!==b.travetaCents)))
+     problems.push(x.id+': histórico de correção de facção/mão de obra divergente');
+    seen.add(h.commandId);prior=a;
+   }
+   if(prior&&(prior.factionId!==x.factionId||prior.listUnitCents!==x.listUnitCents||
+      prior.travetaCents!==x.travetaCents||prior.unitCents!==x.unitCents||
+      x.amountCents!==x.qty*x.unitCents+(x.adjustmentCents||0)))
+    problems.push(x.id+': valores atuais sem correspondência com última correção');
+  }
+  return problems;
+ }
  function inspect(s){
   const issues=[],assignments=Array.isArray(s.factionAssignments)?s.factionAssignments:null;
   if(!assignments)return issues; // versão anterior do laboratório é válida sem reset.
@@ -212,5 +289,5 @@
  }
  return Object.freeze({version:'1.1.0',ensure,forOrder,allocation,transfer,ret,
   canLegacyReturn,recordLegacyAllocation,recordLegacyReturn,
-  reassignLegacy,reverseReturn,inspect});
+  reassignLegacy,reverseReturn,inspect,reviseSettlement,inspectRateHistory});
 });
