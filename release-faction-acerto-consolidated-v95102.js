@@ -28,6 +28,18 @@
   for(const m of masters.filter(x=>x?.active!==false&&sid(x.name)&&validId(x.id))){
    const n=norm(m.name),set=perName.get(n)||new Set();set.add(sid(m.id));perName.set(n,set);
   }
+  // Nomes homônimos não podem receber o mesmo acerto por coincidência visual.
+  for(const p of payments.filter(x=>x&&sid(x.factionMasterId)&&sid(x.factionName))){
+   const n=norm(p.factionName),ids=perName.get(n)||new Set();
+   ids.add(sid(p.factionMasterId));perName.set(n,ids);
+  }
+  for(const g of manualGroups){
+   for(const p of Array.isArray(g?.rows)?g.rows:[]){
+    if(!sid(p?.factionMasterId)||!sid(p?.factionName))continue;
+    const n=norm(p.factionName),ids=perName.get(n)||new Set();
+    ids.add(sid(p.factionMasterId));perName.set(n,ids);
+   }
+  }
   function owner(name,masterId){
    const label=sid(name),n=norm(label),known=perName.get(n)||new Set();
    const id=sid(masterId);
@@ -60,7 +72,7 @@
    if(!gid||seenManual.has(gid)){errors.push('grupo-avulso-duplicado-ou-sem-id');continue}
    seenManual.add(gid);
    if(!active(g.status))continue;
-   if(!unique.length||unique.some(x=>sid(x.manualGroupId)!==gid)){
+   if(!unique.some(x=>!canceled(x))||unique.some(x=>sid(x.manualGroupId)!==gid)){
     errors.push('grupo-avulso-sem-evidencia:'+gid);continue;
    }
    if(unique.some(x=>!canceled(x)&&norm(x.status)!=='pendente')){
@@ -118,6 +130,7 @@
   let host=document.getElementById('hlgb-unified-acertos-v95102');
   if(!host){host=document.createElement('section');host.id='hlgb-unified-acertos-v95102';
    host.className='panel';host.style.cssText='margin:12px 0;padding:12px';
+   signature='';
    const manual=document.getElementById('fm66-receipts');
    if(manual)manual.insertAdjacentElement('beforebegin',host);
    else anchor.insertAdjacentElement('afterend',host);
