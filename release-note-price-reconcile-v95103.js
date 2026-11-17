@@ -50,13 +50,16 @@ function selectedProducts(){
   const oid=value.slice(0,separator),key=value.slice(separator+2);
   const order=orders.find(o=>sid(o?.id)===oid);
   if(!order)continue;
-  const items=typeof root.projectionItemsForOrder==='function'?root.projectionItemsForOrder(order):[];
-  const item=(items||[]).find(x=>sid(x?.key)===key);
-  const pid=sid(item?.productId),cid=sid(order.clientId);
-  if(!pid){out.push({pid:'',name:sid(item?.name||key),cid});continue}
+  // Não chamar projectionItemsForOrder aqui: o legado pode inicializar
+  // o.projectionItems durante uma simples leitura e sujar um pedido local.
+  const grade=Array.isArray(order.grade)?order.grade:[];
+  const pid=grade.some(x=>sid(x?.productId)===key)?key:
+   sid(order?.projectionItems?.[key]?.productId||order?.productId||'');
+  const cid=sid(order.clientId),name=sid(product(pid)?.name||order.items||key);
+  if(!pid){out.push({pid:'',name,cid});continue}
   const token=cid+'::'+pid;
   if(seen.has(token))continue;seen.add(token);
-  out.push({pid,cid,name:sid(item?.name||product(pid)?.name||pid)});
+  out.push({pid,cid,name});
  }
  return out;
 }
