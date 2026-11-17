@@ -125,8 +125,42 @@
   r.cancelCommandId=ctx.uid;
   return r.id+' · cancelada com histórico preservado';
  }
+ function cancelIssued(s,p,ctx){
+  ensure(s);
+  const r=byId(s.purchaseRequests,p.id);
+  if(!r||r.status!=='emitida')
+   throw Error('Somente requisição emitida e ainda não recebida admite cancelamento formal.');
+  const purchases=s.purchaseOrders.filter(x=>x.purchaseRequestId===r.id);
+  const po=purchases[0];
+  if(purchases.length!==1||!po||po.id!==r.purchaseId||po.cancelled===true)
+   throw Error('Compra vinculada não conciliada ou já cancelada; não alterar o histórico.');
+  if(po.received||r.receiptCommandId||
+    s.stockLedger.some(x=>x.sourceId===po.id)||
+    s.finance.some(x=>x.sourceId===po.id))
+   throw Error('Compra já possui recebimento, estoque ou título: cancelamento direto bloqueado.');
+  const cancelledBy=text(p.cancelledBy,'Responsável pelo cancelamento fictício'),
+    reviewedBy=text(p.reviewedBy,'Conferente independente'),
+    reference=text(p.reference,'Referência única do cancelamento').toLocaleUpperCase('pt-BR'),
+    reason=text(p.reason,'Justificativa formal do cancelamento');
+  if(norm(cancelledBy)===norm(reviewedBy)||
+     norm(reviewedBy)===norm(r.requester))
+   throw Error('Conferência independente deve ser diferente do responsável e do solicitante.');
+  if(s.purchaseRequests.some(x=>x.cancelIssueReference&&
+     norm(x.cancelIssueReference)===reference))
+   throw Error('Referência de cancelamento já registrada. Evite cancelar duas vezes.');
+  // Uma única transação sobre o clone: mantém o pedido COM, valor, fornecedor e
+  // aprovador anteriores; não remove compras nem escreve estoque/Hub.
+  r.status='emissao_cancelada';
+  r.cancelIssueCommandId=ctx.uid;r.cancelIssueReference=reference;
+  r.cancelIssueReason=reason;r.cancelledBy=cancelledBy;r.cancelReviewedBy=reviewedBy;
+  po.cancelled=true;po.cancelCommandId=ctx.uid;po.cancelReference=reference;
+  po.cancelReason=reason;po.cancelledBy=cancelledBy;po.cancelReviewedBy=reviewedBy;
+  return r.id+' · compra '+po.id+' cancelada na simulação · sem baixa, estorno ou título';
+ }
  function receive(s,purchase,ctx){
   ensure(s);
+  if(purchase.cancelled===true)
+   throw Error('Compra cancelada não pode ser recebida ou reativada.');
   if(!purchase.purchaseRequestId)return;
   const r=byId(s.purchaseRequests,purchase.purchaseRequestId);
   if(!r||r.status!=='emitida'||r.purchaseId!==purchase.id||r.receiptCommandId)
@@ -138,14 +172,16 @@
   r.status='recebida';r.receiptCommandId=ctx.uid;
  }
  function inspect(s){
-  const problems=[],rs=s.purchaseRequests||[],seen=new Set(),pending=new Set();
+  const problems=[],rs=s.purchaseRequests||[],seen=new Set(),
+   pending=new Set(),cancelRefs=new Set();
   for(const r of rs){
    const purchase=s.purchaseOrders.filter(x=>x.purchaseRequestId===r.id);
    const event=type=>s.log.some(x=>x.commandId===r[type+'CommandId']&&
     x.type==='purchase.request.'+({created:'create',approved:'approve',
      issued:'issue',cancel:'cancel',receipt:'receive'}[type]||type));
    const existsCommand=(id,type)=>s.log.some(x=>x.commandId===id&&x.type===type);
-   const legal=['rascunho','aprovada','emitida','recebida','cancelada'].includes(r.status);
+   const legal=['rascunho','aprovada','emitida','recebida','cancelada',
+    'emissao_cancelada'].includes(r.status);
    if(!r.id||seen.has(r.id)||!legal||!byId(s.materials,r.materialId)||
      !Number.isSafeInteger(r.requiredGrams)||r.requiredGrams<1||
      !Number.isSafeInteger(r.availableGrams)||r.availableGrams<0||
@@ -165,20 +201,39 @@
      problems.push(String(r.id)+': requisições ativas duplicadas do material');
     pending.add(r.materialId);
    }
-   if(['aprovada','emitida','recebida'].includes(r.status)){
+   if(['aprovada','emitida','recebida','emissao_cancelada'].includes(r.status)){
     if(!r.approver||norm(r.approver)===norm(r.requester)||!r.approvalReason||
       !existsCommand(r.approvedCommandId,'purchase.request.approve'))
      problems.push(String(r.id)+': aprovação sem conferência separada ou evento');
    }
-   if(['emitida','recebida'].includes(r.status)){
+   if(['emitida','recebida','emissao_cancelada'].includes(r.status)){
     const po=purchase[0];
     if(purchase.length!==1||!po||r.purchaseId!==po.id||
       r.materialId!==po.materialId||r.qtyGrams!==po.qtyGrams||
       r.priceCentsKg!==po.priceCentsKg||r.supplierId!==po.supplierId||
-      !r.issueReason||!existsCommand(r.issuedCommandId,'purchase.request.issue'))
+      !r.issueReason||!existsCommand(r.issuedCommandId,'purchase.request.issue')||
+      (r.status!=='emissao_cancelada'&&po.cancelled===true))
      problems.push(String(r.id)+': compra emitida divergente da requisição');
    }else if(purchase.length||r.purchaseId)
     problems.push(String(r.id)+': compra vinculada a requisição não emitida');
+   if(r.status==='emissao_cancelada'){
+    const po=purchase[0],ref=norm(r.cancelIssueReference);
+    if(!ref||cancelRefs.has(ref))problems.push(String(r.id)+': referência de cancelamento duplicada');
+    cancelRefs.add(ref);
+    if(!po||po.cancelled!==true||po.received||
+      r.cancelIssueCommandId!==po.cancelCommandId||
+      r.cancelIssueReference!==po.cancelReference||
+      r.cancelIssueReason!==po.cancelReason||
+      r.cancelledBy!==po.cancelledBy||r.cancelReviewedBy!==po.cancelReviewedBy||
+      !r.cancelIssueReason||!r.cancelledBy||!r.cancelReviewedBy||
+      norm(r.cancelledBy)===norm(r.cancelReviewedBy)||
+      norm(r.cancelReviewedBy)===norm(r.requester)||
+      !existsCommand(r.cancelIssueCommandId,'purchase.request.cancelIssued')||
+      s.stockLedger.some(x=>x.sourceId===r.purchaseId)||
+      s.finance.some(x=>x.sourceId===r.purchaseId)||
+      r.receiptCommandId)
+     problems.push(String(r.id)+': cancelamento de compra sem conferência ou com baixa indevida');
+   }
    if(r.status==='emitida'&&
      (purchase[0]?.received||r.receiptCommandId))
     problems.push(String(r.id)+': requisição emitida marcada como recebida indevidamente');
@@ -194,11 +249,18 @@
     problems.push(String(r.id)+': cancelamento sem motivo ou evento');
   }
   for(const po of s.purchaseOrders){
-   if(po.purchaseRequestId&&!rs.some(x=>x.id===po.purchaseRequestId))
+   const r=rs.find(x=>x.id===po.purchaseRequestId);
+   if(po.purchaseRequestId&&!r)
     problems.push(String(po.id)+': compra órfã de requisição');
+   if(po.cancelled===true&&(!r||r.status!=='emissao_cancelada'))
+    problems.push(String(po.id)+': compra cancelada sem requisição cancelada conciliada');
+   if(po.cancelled===true&&(po.received||
+     s.stockLedger.some(x=>x.sourceId===po.id)||
+     s.finance.some(x=>x.sourceId===po.id)))
+    problems.push(String(po.id)+': compra cancelada já possui movimentação ou título');
   }
   return problems;
  }
  return Object.freeze({version:'1.0.0',ensure,source,preview,create,approve,issue,
-  cancel,receive,inspect});
+  cancel,cancelIssued,receive,inspect});
 });
