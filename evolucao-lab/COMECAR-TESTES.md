@@ -21,6 +21,22 @@ A página `homologacao-modulos.html` organiza 76 funcionalidades antigas identif
 
 As restantes **27 funções não possuem demonstração específica equivalente**. Elas já podem ser registradas como pendências, mas **não podem ser aprovadas no formulário como se estivessem implementadas**.
 
+## NOVO — Cortar usando vários materiais sem dar baixa duplicada
+
+Na **Operação Integrada**, use apenas dados fictícios:
+
+1. Abra **Produtos**, confira a ficha de **Camisola Melina**, e cadastre uma regra de **Malha / Preto / P = 125 g** e uma de **Renda / todas as cores / todos os tamanhos = 15 g**. Essas regras são da previsão e passam a ser consideradas pelo novo Corte BOM quando escolhido explicitamente.
+2. Crie em **Pedidos** uma nova encomenda de Camisola Melina com **5 P** e nenhum outro tamanho. **Antes do corte**, em Facções, cadastre **Preto: 3 P** e **Rubi: 2 P**. Não execute o Corte simples neste pedido.
+3. Na aba **Corte → Corte BOM**, selecione o pedido, **Preto/P**, **2 peças**, e informe **25 g de desperdício em Malha** e **5 g em Renda**. Confirme nomes distintos dos dois cortadores, enfestador, conferências iguais aos cortadores e motivo.
+4. Clique **Prévia de materiais e estoque (sem baixa)**. O resultado esperado é **250 g úteis de Malha + 25 g de lixo** e **30 g úteis de Renda + 5 g de lixo**, totalizando **310 g de materiais**. A revisão e o estoque não podem mudar na prévia.
+5. Tente preencher a conferência do segundo cortador com outro nome: a operação deve ser recusada sem desconto nem nova revisão. Corrija o nome e conclua o Corte BOM. Devem aparecer um lote `BOM-...` e **dois movimentos `MOV-...`**, um para cada material.
+6. Tente usar o **Corte simplificado** no mesmo pedido: deve ser bloqueado para impedir segunda baixa. Também tente cortar 2 peças adicionais Preto/P, quando só resta 1 nessa cor: a operação deve ser recusada.
+7. Em **Relatórios**, confira **Corte BOM: materiais, custo teórico e desperdício conferidos**, exporte o CSV e o JSON e encontre o mesmo lote, insumos, assinatura fictícia e movimentos. Em **Auditor**, as regras simuladas não devem apontar divergências.
+8. Recarregue a página e confira o histórico do lote. Altere a receita para novos cortes: o corte antigo deve continuar com a versão e os pesos registrados.
+9. Teste um cenário de material insuficiente em **outro pedido fictício**. A baixa não pode descontar a malha se a renda estiver em falta. Confira que o total cortado, estoque, contas e número de revisão não mudaram.
+
+**Limite:** isto não comprova o estoque ou o corte do HLGB em produção. Não há estorno formal, autenticação de funcionários, aprovação empresarial nem sincronização entre computadores nesta prévia.
+
 ## NOVO — Paleta reutilizável e previsão de materiais para a produção semanal
 
 Somente na **Operação Integrada fictícia**:
