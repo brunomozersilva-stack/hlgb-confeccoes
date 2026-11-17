@@ -707,7 +707,7 @@ async function run(browser,width,url){
    await page.waitForFunction(()=>document.querySelector('#flash')?.textContent.includes('conferências devem coincidir'));
    assert.equal(await revision(page),beforeBom);
    await put(page,'cut.bom.execute',{orderId:'PED-0005',color:'Preto',
-    size:'P',qty:'2',waste_MAT-0001:'25',waste_MAT-0002:'5',
+    size:'P',qty:'2','waste_MAT-0001':'25','waste_MAT-0002':'5',
     signatureTwo:'Beto Cortador'});
    const [bomReportFile]=await Promise.all([page.waitForEvent('download'),
     page.locator('#export-json').click()]);
