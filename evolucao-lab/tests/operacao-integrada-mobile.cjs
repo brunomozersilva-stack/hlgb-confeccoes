@@ -14,6 +14,7 @@ const routes={'/':'operacao-integrada.html',
  '/modulos/devolucoes-compras-v1.js':'modulos/devolucoes-compras-v1.js',
  '/modulos/observabilidade-v2.js':'modulos/observabilidade-v2.js',
  '/modulos/pesquisa-global-v1.js':'modulos/pesquisa-global-v1.js',
+ '/modulos/hub-financeiro-v1.js':'modulos/hub-financeiro-v1.js',
  '/operacao-integrada-core.js':'operacao-integrada-core.js',
  '/operacao-integrada-ui.js':'operacao-integrada-ui.js','/folha-homologacao.html':'folha-homologacao.html'};
 const server=http.createServer((req,res)=>{
@@ -144,6 +145,7 @@ async function run(browser,width,url){
   await put(page,'error.resolve',{id:'ERR-0001'});
   await module(page,'hub');
   assert.match(await page.locator('#module-content').innerText(),/Acerto fictício/);
+  assert.match(await page.locator('#module-content').innerText(),/Hub Financeiro 2.0/);
   await put(page,'finance.pay',{id:'FIN-0002'});
   await module(page,'auditor');
   assert.match(await page.locator('#module-content').innerText(),/0 alertas|Sem inconsistências/);
