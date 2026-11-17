@@ -152,7 +152,7 @@
  const alphabet='ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
  function decodePdf(encoded){
   if(typeof encoded!=='string'||encoded.length>Math.ceil(MAX_PDF/3)*4||
-    !/^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/.test(encoded))
+    encoded.length%4!==0||!/^[A-Za-z0-9+/]*={0,2}$/.test(encoded)||encoded.startsWith('='))
    throw Error('Conteúdo PDF inválido ou acima de 256 KiB.');
   const output=new Uint8Array(encoded.length/4*3-(encoded.endsWith('==')?2:encoded.endsWith('=')?1:0));
   let k=0;
