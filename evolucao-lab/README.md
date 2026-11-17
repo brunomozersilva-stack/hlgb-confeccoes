@@ -1,5 +1,14 @@
 # HLGB Evolução — Laboratório independente (Etapa 1)
 
+
+## Nova etapa — Correções de acertos e tarifa negociada por envio (LAB)
+
+Na aba **Acertos**, o formulário `settlement.revise` carrega a facção, o preço bruto e a travetada do acerto original, calcula o novo total em centavos e exige motivo. Pode mudar facção de serviço avulso, mas não reatribui retorno físico vinculado a pedido. Mantém o mesmo ACE e FIN, quantidade, ajuste anterior e todos os eventos. Acertos pagos só aceitam compensação separada, como antes.
+
+Na aba **Facções**, `faction.assignment.rate.set` define um preço bruto e desconto específicos do envio ALO, enquanto há peças pendentes. O acordo vale para os próximos retornos daquele envio, inclusive por grade de cor/tamanho ou múltiplos destinos; não altera a tabela de preços geral ou acertos já criados. Transferências de saldo usam a tarifa específica que existir no destino (não herdam a da origem). A troca integral antes de retorno encerra a tarifa antiga, conserva o evento e usa a tarifa do novo destino.
+
+Auditor 2.0 compara história, cálculo, vínculo financeiro, comando, modelo e responsável; identifica também acordo de tarifa adulterado ou desaparecido. A demonstração continua exclusivamente local/fictícia. Testes: 14 cenários de contrato em `tests/correcao-acerto-contract.cjs` e automação de interface em `tests/correcao-acerto-mobile.cjs` (Chromium/WebKit, 390 e 1280 px). Sem autorização de publicação ou acesso ao banco de produção.
+
 ## Nova etapa — Fechamento automático por facção no Hub (LAB)
 
 A aba **Hub Financeiro** do laboratório agora apresenta **Fechamento automático por facção** antes da seleção manual antiga. Quando uma oficina/embaladeira possui **2 a 50 títulos a pagar em aberto**, todos os acertos e compensações positivas pendentes daquela mesma facção entram na proposta automática, com número de títulos, valores individuais, modelo, serviço e total em centavos. Não mistura fornecedores/facções distintos.
