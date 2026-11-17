@@ -587,6 +587,44 @@
      'Conferir os títulos originais e os valores detalhados sem apagar lançamentos.',
      batch.totalCents);
   }
+  // Tarifas negociadas: os retornos guardam a versão original da negociação.
+  const agreementCommands=new Map(),agreementEvents=new Set();
+  for(const row of assignments){
+   const rates=Array.isArray(row.rateAgreementHistory)?row.rateAgreementHistory:[];
+   for(const rate of rates){
+    const event=events.find(e=>e.commandId===rate.commandId),
+     valid=rate.mode==='negociado'?
+      event?.type==='faction.assignment.rate.set'&&Number.isSafeInteger(rate.gross)&&
+       Number.isSafeInteger(rate.discount)&&rate.gross>rate.discount&&rate.discount>=0&&
+       Number.isSafeInteger(rate.pendingQty)&&rate.pendingQty>0&&
+       !!byId(arr(source,'products'),rate.productId):
+      rate.mode==='reset'&&event?.type==='faction.reassign';
+    if(!valid||!rate.reason||!byId(arr(source,'factions'),rate.factionId)||
+       agreementEvents.has(rate.commandId))
+     push('TARIFA_ENVIO_HISTORICO','critica','faccoes',row.id,
+      'Acordo de mão de obra sem evento, preço ou facção válida.',
+      'Conferir negociação antes de aceitar retorno.',rate.commandId);
+    agreementEvents.add(rate.commandId);
+    if(rate.mode==='negociado')agreementCommands.set(rate.commandId,{row,rate});
+   }
+   if(rates.length&&rates.at(-1).factionId!==row.factionId)
+    push('TARIFA_ENVIO_DESTINO','critica','faccoes',row.id,
+     'Tarifa pertence à facção anterior.','Conferir transferência e negociação.',row.factionId);
+  }
+  for(const x of settlements.filter(x=>x.rateAgreementCommandId)){
+   const linked=agreementCommands.get(x.rateAgreementCommandId),
+    original=x.rateHistory?.[0]?.before||x;
+   if(!linked||linked.row.id!==x.assignmentId||linked.rate.factionId!==x.factionId||
+      linked.rate.productId!==x.productId||linked.rate.gross!==(original.listUnitCents??original.unitCents)||
+      linked.rate.discount!==(original.travetaCents||0))
+    push('TARIFA_ENVIO_RETORNO','critica','acertos',x.id,
+     'Preço efetivo do retorno diverge do acordo registrado.',
+     'Verificar a tarifa original, não o cadastro atual.',x.rateAgreementCommandId);
+  }
+  for(const e of events.filter(x=>x.type==='faction.assignment.rate.set'))
+   if(!agreementEvents.has(e.commandId))
+    push('TARIFA_ENVIO_SEM_HISTORICO','critica','faccoes',e.commandId,
+     'Negociação sem histórico correspondente.','Recuperar evidência sem inventar preço.',e.description);
   // Conferência independente de correções em acertos, sem alterar dados.
   const revisionCommands=new Set();
   const validRate=x=>!!x&&Number.isSafeInteger(x.qty)&&x.qty>0&&
@@ -825,6 +863,8 @@
    paymentBatches:batches.length,batchedPayablesCents:batches.reduce((n,b)=>n+Number(b.totalCents||0),0),
    factionClosures:batches.filter(b=>b.scope==='faccao').length,
    factionClosureCents:batches.filter(b=>b.scope==='faccao').reduce((n,b)=>n+Number(b.totalCents||0),0),
+   negotiatedAssignmentRates:agreementCommands.size,
+   settlementCorrections:revisionCommands.size,
    factionDispatches:assignments.length,distributedOrders,openFactionPieces,
    ordersWithColorGrade:colorOrders.length,
    gradeItems:gradeInventory.length,
