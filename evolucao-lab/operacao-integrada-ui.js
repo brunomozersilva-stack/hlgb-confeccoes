@@ -861,13 +861,21 @@ function moduleHtml(s){
   table(['Material','Previsto (g)','Faltante (g)','Valor da compra sugerida'],
    planning.materials.map(m=>[str(m.name),str(m.requiredGrams),str(m.missingGrams),
     fmt(m.purchaseCents)])),true):'';
- const advanced=observationPanels(s,'relatorios');if(advanced)return advanced+planPanel;
+ const requestReport=panel('Histórico de requisições, aprovações e compras vinculadas',
+  '<p>Solicitações locais fictícias. A aprovação exige um nome diferente do solicitante; não representa login nem permissão empresarial.</p>'+
+  table(['Requisição','Material','Falta na criação (g)','Valor estimado',
+   'Solicitante','Aprovador','Status','Compra vinculada'],
+   (s.purchaseRequests||[]).map(r=>[
+    str(r.id),str(ref(s.materials,r.materialId)?.name||r.materialId),
+    str(r.qtyGrams),fmt(r.estimatedCents),str(r.requester),
+    str(r.approver||'—'),str(r.status),str(r.purchaseId||'—')])),true);
+ const advanced=observationPanels(s,'relatorios');if(advanced)return advanced+planPanel+requestReport;
  const t=api.totals(s);
  return panel('Indicadores vinculados',table(['Indicador','Valor'],Object.entries(t).map(([k,v])=>[
  str(k),k.includes('Payables')||k.includes('Receivables')||k==='passage'||k==='salaryCash'?fmt(v):str(v)])))+
  panel('Como auditar o relatório','<p>Compare pedidos, corte, retorno, expedição e Hub. Exporte o JSON e confira que cada evento tem ID e revisão.</p>'+
  '<div class="actions"><button class="btn" type="button" data-goto="auditor">Executar integridade</button></div>')+
- panel('Pedidos × Financeiro',orderTable(s)+financeTable(s),true);
+ panel('Pedidos × Financeiro',orderTable(s)+financeTable(s),true)+requestReport;
  }
  case 'auditor':{
  const advanced=observationPanels(s,'auditor');if(advanced)return advanced;
@@ -1154,6 +1162,10 @@ function exportObserverCsv(){
    ['Grade do pedido','pedidos',o.orderId,c.color,
     o.ready?'Completa':'Incompleta',
     api.sizes.map(sz=>sz+': '+c.sizes[sz]).join(' · ')])),
+  ...report.purchaseRequestHistory.map(r=>[
+   'Requisição de compra','compras',r.id,r.materialName,r.status,
+   r.qtyGrams+'g · '+r.estimatedCents+' centavos · compra '+(r.purchaseId||'—')+
+    ' · solicitante '+r.requester+' · aprovador '+(r.approver||'—')]),
   ...report.bomCutHistory.map(c=>['Corte BOM','corte',c.id,c.orderId,
    c.color+' '+c.size,c.qty+' peças · '+c.totalGrams+'g · '+
     c.estimatedCostCents+' centavos · comando '+c.commandId]),
