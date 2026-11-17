@@ -12,6 +12,7 @@ const factionRoutingSource=fs.readFileSync(path.join(dir,'modulos/faccoes-multid
 const factionGradeSource=fs.readFileSync(path.join(dir,'modulos/grade-faccoes-v1.js'),'utf8');
 const plannerSource=fs.readFileSync(path.join(dir,'modulos/planejamento-materiais-v1.js'),'utf8');
 const bomCutSource=fs.readFileSync(path.join(dir,'modulos/corte-bom-v1.js'),'utf8');
+const requestsSource=fs.readFileSync(path.join(dir,'modulos/requisicoes-compras-v1.js'),'utf8');
 function run(ctx,type,payload={},id){
  const commandId=id||'OP-DEMO-000'+String(ctx.counter++);
  const answer=core.apply(ctx.state,{type,payload,actor:'Teste CI fictício',commandId,expectedRevision:ctx.state.revision});
@@ -35,15 +36,15 @@ test('19 navegações integradas, scripts locais e isolamento dos dados',()=>{
  assert.equal(core.inspect(core.initial()).ok,true);
  assert.equal(core.initial().schema,'hlgb-evolucao-operacao-ficticia-v1');
  const paths=[...page.matchAll(/<script\s+src="([^"]+)"/g)].map(m=>m[1]);
- assert.deepEqual(paths,['./modulos/pagamento-lote-v1.js','./modulos/faccoes-multidestino-v1.js','./modulos/grade-faccoes-v1.js','./modulos/planejamento-materiais-v1.js','./modulos/corte-bom-v1.js','./operacao-integrada-core.js','./modulos/registro-v1.js','./modulos/observabilidade-v2.js','./operacao-integrada-ui.js']);
+ assert.deepEqual(paths,['./modulos/pagamento-lote-v1.js','./modulos/faccoes-multidestino-v1.js','./modulos/grade-faccoes-v1.js','./modulos/planejamento-materiais-v1.js','./modulos/corte-bom-v1.js','./modulos/requisicoes-compras-v1.js','./operacao-integrada-core.js','./modulos/registro-v1.js','./modulos/observabilidade-v2.js','./operacao-integrada-ui.js']);
  assert.match(page,/19 áreas para explorar/);
  assert.match(page,/não executam pagamentos/);
  assert.match(page,/não sincronizam entre computadores/);
- for(const source of [domain,ui,registrySource,observerSource,batchSource,factionRoutingSource,factionGradeSource,plannerSource,bomCutSource])assert.doesNotThrow(()=>new vm.Script(source));
+ for(const source of [domain,ui,registrySource,observerSource,batchSource,factionRoutingSource,factionGradeSource,plannerSource,bomCutSource,requestsSource])assert.doesNotThrow(()=>new vm.Script(source));
  assert.equal([...ui.matchAll(/case '(?:nucleo|autenticacao|pedidos|produtos|corte|producao|separacao|faccoes|acertos|hub|folha|compras|estoque|relatorios|auditor|bot|central|impressora3d|cadastros)':/g)].length,19);
  for(const bad of [/\bfetch\s*\(/,/\bXMLHttpRequest\b/,/\bWebSocket\b/,
  /https?:\/\//,/\bsupabase\.co\b/i,/\blocalStorage\b/,/\bsessionStorage\b/]){
-  assert.equal(bad.test(page+ui+domain+registrySource+observerSource+batchSource+factionRoutingSource+factionGradeSource+plannerSource+bomCutSource),false,'API externa proibida: '+bad);
+  assert.equal(bad.test(page+ui+domain+registrySource+observerSource+batchSource+factionRoutingSource+factionGradeSource+plannerSource+bomCutSource+requestsSource),false,'API externa proibida: '+bad);
  }
 });
 test('pedido -> corte por grade -> facção -> retorno -> acerto -> separação -> expedição com totais reconciliados',()=>{
