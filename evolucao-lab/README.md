@@ -2,6 +2,19 @@
 
 Esta pasta é um **protótipo isolado**: não é uma tela incorporada ao HLGB em produção.
 
+## Nova etapa — Requisições de compra baseadas na falta de material (LAB)
+
+O módulo `modulos/requisicoes-compras-v1.js` cria um fluxo **separado de planejamento e execução**, ainda sem autorização empresarial real:
+
+1. **Criar rascunho:** em Compras, selecione apenas um material com falta calculada pelo planejador semanal. O sistema congela material, quantidade necessária/estoque disponível, déficit em gramas, preço por kg, custo estimado e IDs das linhas/regras de consumo que fundamentam o cálculo. Nenhuma compra, baixa de estoque ou título financeiro é criado.
+2. **Aprovar separadamente:** é necessário informar outro nome de responsável, diferente do solicitante, e justificativa. Antes de aprovar, o laboratório recalcula a necessidade: alteração de receita, cenário de produção, saldo ou preço impede usar uma requisição obsoleta. Deve ser cancelada com motivo e criada novamente.
+3. **Emitir compra fictícia:** somente após aprovação, escolhendo fornecedor, dois conferentes diferentes e justificativa. O comando `purchase.request.issue` cria **uma** compra `COM-...` vinculada a `REQ-...`, com material, quantidade e preço congelados. Essa etapa não dá entrada no estoque nem gera conta a pagar.
+4. **Receber explicitamente:** apenas pela rotina existente `purchase.receive`, protegida contra duplicidade. O estoque recebe **uma** entrada `MOV-...`; o Hub recebe **um** título `FIN-...`; a requisição muda para `recebida` na **mesma transação local**. Uma requisição emitida não pode ser cancelada por esta função simplificada; será necessário fluxo de cancelamento formal numa etapa futura.
+
+Há proteção contra duas requisições ativas para o mesmo material, alterações posteriores à base de cálculo, emissão repetida, aprovador igual ao solicitante e compras desvinculadas. Os formulários e relatórios mostram histórico e status, IDs e custo original. O Auditor 2.0 analisa origem, aprovação, quantidade/preço, compra, entrada de estoque e título; CSV/JSON preservam todas as evidências. **Compras avulsas anteriores continuam disponíveis e inalteradas.**
+
+**Limitações explícitas:** nomes digitados NÃO são autenticação, autorização empresarial nem assinatura eletrônica; não existe pedido ao fornecedor, integração fiscal, orçamento, reserva de estoque, previsão de entrega, taxa de imposto ou cancelamento da compra emitida. Isto é um laboratório fictício, não publica nem modifica produção.
+
 ## Nova etapa — Corte BOM multi-material com baixa transacional fictícia
 
 O módulo **`modulos/corte-bom-v1.js`** conecta a ficha técnica de vários componentes à execução de um **novo tipo de corte do laboratório**, sem substituir as folhas e baixas tradicionais. Ele permite escolher pedido com grade por cor completa, cor, tamanho, quantidade, equipe (dois cortadores + enfestador), corte interno/externo, desperdício *por material*, motivo e duas conferências digitadas.
