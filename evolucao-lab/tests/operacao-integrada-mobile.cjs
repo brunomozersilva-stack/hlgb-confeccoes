@@ -762,8 +762,8 @@ async function run(browser,width,url){
    await put(page,'purchase.request.create',{materialId:'MAT-0002',
     requester:'Compradora Fictícia',reason:'Falta de renda para a semana'});
    const oneRevision=await revision(page);
-   const duplicate=page.locator('form[data-command="purchase.request.create"]');
-   assert.equal(await duplicate.locator('[name="materialId"] option[value="MAT-0002"]').count(),0,
+   const requestCreateForm=page.locator('form[data-command="purchase.request.create"]');
+   assert.equal(await requestCreateForm.locator('[name="materialId"] option[value="MAT-0002"]').count(),0,
     'material com requisição ativa não deve ser oferecido para nova compra');
    assert.equal(await revision(page),oneRevision);
    const badApproval=page.locator('form[data-command="purchase.request.approve"]');
