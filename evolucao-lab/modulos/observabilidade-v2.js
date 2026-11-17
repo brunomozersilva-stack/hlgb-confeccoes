@@ -587,6 +587,46 @@
      'Conferir os títulos originais e os valores detalhados sem apagar lançamentos.',
      batch.totalCents);
   }
+  // Conferência independente de correções em acertos, sem alterar dados.
+  const revisionCommands=new Set();
+  const validRate=x=>!!x&&Number.isSafeInteger(x.qty)&&x.qty>0&&
+   Number.isSafeInteger(x.listUnitCents)&&x.listUnitCents>0&&
+   Number.isSafeInteger(x.travetaCents)&&x.travetaCents>=0&&
+   Number.isSafeInteger(x.unitCents)&&x.unitCents>0&&
+   x.listUnitCents-x.travetaCents===x.unitCents&&
+   Number.isSafeInteger(x.adjustmentCents)&&Number.isSafeInteger(x.amountCents)&&
+   x.amountCents>0&&x.qty*x.unitCents+x.adjustmentCents===x.amountCents;
+  for(const x of settlements){
+   const history=Array.isArray(x.rateHistory)?x.rateHistory:[];
+   let prior=null;
+   for(const h of history){
+    const b=h.before,a=h.after,bill=one(finance,x.id,'pagar');
+    if(!h.reason||!h.fromFactionName||!h.toFactionName||
+       revisionCommands.has(h.commandId)||
+       !events.some(e=>e.commandId===h.commandId&&e.type==='settlement.revise')||
+       bill.length!==1||bill[0].id!==h.financeId||!validRate(b)||!validRate(a)||
+       !byId(arr(source,'factions'),b?.factionId)||!byId(arr(source,'factions'),a?.factionId)||
+       b.qty!==a.qty||b.adjustmentCents!==a.adjustmentCents||
+       (b.factionId!==a.factionId&&(x.kind!=='avulso'||x.orderId||x.assignmentId))||
+       (prior&&(prior.factionId!==b.factionId||prior.listUnitCents!==b.listUnitCents||
+        prior.travetaCents!==b.travetaCents)))
+     push('ACERTO_REVISAO_DIVERGENTE','critica','acertos',x.id,
+      'Correção de facção/mão de obra sem histórico, cálculo ou título conciliado.',
+      'Conferir eventos e valores anteriores; não repetir pagamento.',h.commandId);
+    revisionCommands.add(h.commandId);prior=a;
+   }
+   if(prior&&(prior.factionId!==x.factionId||prior.listUnitCents!==x.listUnitCents||
+      prior.travetaCents!==x.travetaCents||prior.unitCents!==x.unitCents||
+      x.amountCents!==x.qty*x.unitCents+(x.adjustmentCents||0)))
+    push('ACERTO_REVISAO_ATUAL','critica','acertos',x.id,
+     'Preço ou facção atual sem correspondência com a última correção.',
+     'Consultar a revisão e título original antes de fechar o acerto.',x.id);
+  }
+  for(const e of events.filter(x=>x.type==='settlement.revise'))
+   if(!revisionCommands.has(e.commandId))
+    push('ACERTO_REVISAO_SEM_HISTORICO','critica','acertos',e.commandId,
+     'Evento de correção sem registro correspondente.',
+     'Recuperar evidência original; não inventar valor ou destinatário.',e.description);
   const refs=new Set();
   for(const c of comps){
    const original=byId(settlements,c.settlementId),
@@ -758,6 +798,12 @@
   }).sort((a,b)=>b.totalSettlementsCents-a.totalSettlementsCents||a.name.localeCompare(b.name));
   // Linha do tempo do acerto com versões anteriores de valor e devoluções preservadas.
   const settlementHistory=settlements.flatMap(x=>[
+   ...(Array.isArray(x.rateHistory)?x.rateHistory:[]).map(h=>({
+    settlementId:x.id,event:'correcao_faccao_mao_obra',commandId:String(h.commandId||''),
+    beforeCents:h.before?.amountCents||0,afterCents:h.after?.amountCents||0,
+    reason:String(h.fromFactionName||'')+' → '+String(h.toFactionName||'')+
+     ' · bruto '+String(h.before?.listUnitCents)+' → '+String(h.after?.listUnitCents)+
+     ' centavos · '+String(h.reason||'')})),
    ...(Array.isArray(x.history)?x.history:[]).map(h=>({
     settlementId:x.id,event:'alteracao_valor',commandId:String(h.commandId||''),
     beforeCents:h.beforeCents,afterCents:h.afterCents,reason:String(h.reason||'')})),
