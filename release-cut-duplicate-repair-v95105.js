@@ -62,7 +62,23 @@ function validate(keep,duplicate,p){
 async function assertWal(ids){
  const wal=window.hlgbWalIdbGuard9536;
  if(typeof wal?.probe!=='function'||typeof wal?.ids!=='function')throw Error('Proteção IndexedDB/WAL indisponível; nada será arquivado.');
- await wal.probe();
+ if(wal.supportsCustomTimeout!==true)throw Error('Atualização da leitura segura do IndexedDB não carregou. Atualize o HLGB sem limpar os dados.');
+ try{
+  // Verificação dirigida: mantém o timeout de 8s nas telas comuns, mas permite
+  // até 32s quando a pessoa solicita recuperação dos duplicados.
+  try{await wal.probe({timeoutMs:32000})}
+  catch(e){
+   // Pode ter aproveitado uma leitura automática já em andamento no modo 8s.
+   // Uma única nova leitura estendida, sempre readonly e sem apagar a WAL.
+   if(!/Leitura do IndexedDB excedeu 8 segundos/i.test(sid(e?.message||e)))throw e;
+   await wal.probe({timeoutMs:32000});
+  }
+ }catch(e){
+  const msg=sid(e?.message||e);
+  if(/Leitura do IndexedDB excedeu|IndexedDB bloqueado por outra aba/i.test(msg))
+   throw Error('A leitura segura do IndexedDB continua indisponível. Feche as outras abas do HLGB neste navegador e atualize esta página SEM limpar cache nem dados. Os cortes foram preservados. Detalhe: '+msg);
+  throw e;
+ }
  if(wal.status?.()?.readFailed)throw Error('Não foi possível verificar a fila local do Safari. Nada será arquivado.');
  const pending=new Set([...(wal.ids()||[]),...(window.hlgbRecordPendingIdentitySet9535?.()||[])].map(sid));
  for(const id of ids)if(pending.has('cuts::'+id)||pending.has('cuts|'+id))
