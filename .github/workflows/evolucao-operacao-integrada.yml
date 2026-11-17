@@ -14,6 +14,7 @@ on:
       - 'evolucao-lab/tests/faccoes-multidestino-contract.cjs'
       - 'evolucao-lab/tests/grade-faccoes-contract.cjs'
       - 'evolucao-lab/tests/planejamento-materiais-contract.cjs'
+      - 'evolucao-lab/tests/corte-bom-contract.cjs'
       - '.github/workflows/evolucao-operacao-integrada.yml'
   workflow_dispatch:
 permissions:
@@ -29,7 +30,7 @@ jobs:
         with:
           node-version: '22'
       - name: Conferir integridade de pedidos, corte, faccoes, contas e folha
-        run: node --test evolucao-lab/tests/operacao-integrada-contract.cjs evolucao-lab/tests/observabilidade-v2-contract.cjs evolucao-lab/tests/pagamento-lote-contract.cjs evolucao-lab/tests/faccoes-multidestino-contract.cjs evolucao-lab/tests/grade-faccoes-contract.cjs evolucao-lab/tests/planejamento-materiais-contract.cjs
+        run: node --test evolucao-lab/tests/operacao-integrada-contract.cjs evolucao-lab/tests/observabilidade-v2-contract.cjs evolucao-lab/tests/pagamento-lote-contract.cjs evolucao-lab/tests/faccoes-multidestino-contract.cjs evolucao-lab/tests/grade-faccoes-contract.cjs evolucao-lab/tests/planejamento-materiais-contract.cjs evolucao-lab/tests/corte-bom-contract.cjs
   browser:
     name: Operacao integrada e mobile (${{ matrix.browser }})
     runs-on: ubuntu-24.04
