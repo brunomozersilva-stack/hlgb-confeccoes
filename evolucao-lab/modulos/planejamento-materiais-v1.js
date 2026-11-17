@@ -30,7 +30,10 @@
  const seed=()=>baseColors.map((name,i)=>({id:'CLR-'+String(i+1).padStart(4,'0'),
   name,origin:'paleta-ficticia',createdCommandId:null}));
  function ensure(s){
-  if(!Array.isArray(s.colorCatalog))s.colorCatalog=seed();
+  if(!Array.isArray(s.colorCatalog)){
+   s.colorCatalog=seed();
+   s.ids.CLR=Math.max(s.ids.CLR||0,3);
+  }
   if(!Array.isArray(s.materialRecipeRules))s.materialRecipeRules=[];
   if(!Array.isArray(s.materialPlanLines))s.materialPlanLines=[];
  }
@@ -193,6 +196,6 @@
   }
   return issues;
  }
- return Object.freeze({version:'1.0.0',seed,palette,registerColor,setRecipe,lineAdd,
+ return Object.freeze({version:'1.0.0',seed,ensure,palette,registerColor,setRecipe,lineAdd,
   lineCancel,preview,inspect});
 });
