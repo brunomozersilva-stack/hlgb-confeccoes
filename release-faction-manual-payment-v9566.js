@@ -341,9 +341,10 @@ function compareEditBusinessV95101(a,b){
  const proof=r=>[sid(r?.receiptPdfV9566?.name),Number(r?.receiptPdfV9566?.size)||0,sid(r?.receiptPdfV9566?.base64)];
  if(JSON.stringify(proof(a))!==JSON.stringify(proof(b)))return false;
  const eventList=(record,key)=>JSON.stringify((Array.isArray(record[key])?record[key]:[]).map(e=>[
-  sid(e.id),sid(e.kind),cents(e.amount),sid(e.reason),sid(e.sourceGroupId),sid(e.targetGroupId)
+  sid(e.id),sid(e.kind),cents(e.amount),sid(e.reason),sid(e.sourceGroupId),sid(e.targetGroupId),
+  sid(e.fromName),sid(e.toName),sid(e.fromMasterId),sid(e.toMasterId)
  ]).sort((x,y)=>sid(x[0]).localeCompare(sid(y[0]))));
- for(const key of ['manualDirectAdjustmentsV9591','manualCorrectionsV9590','manualApplicationsV9590'])
+ for(const key of ['manualDirectAdjustmentsV9591','manualCorrectionsV9590','manualApplicationsV9590','payeeTransferHistoryV95104'])
   if(eventList(a,key)!==eventList(b,key))return false;
  return true;
 }
@@ -429,8 +430,12 @@ async function saveGroupEdits(groupId,input,receipt,removalReasons=[]){
   if(oldHub)throw Error('O Hub já possui uma saída deste grupo. Só é permitido alterar pagamentos ainda pendentes.');
   const existingById=new Map(rows.map(x=>[sid(x.id),x]));
   const payeeChangedRows=parsed.lines.filter(x=>{const old=existingById.get(sid(x.id));return !!old&&norm(old.factionName)!==norm(parsed.factionName)});
-  if(payeeChangedRows.length&&sid(parsed.note).trim().length<6)
-   throw Error('Para trocar a facção que recebe o acerto avulso, informe o motivo com pelo menos 6 caracteres.');
+  if(payeeChangedRows.length&&(
+     sid(parsed.note).trim().length<6||payeeChangedRows.some(x=>{
+      const prior=existingById.get(sid(x.id));
+      return norm(parsed.note)===norm(prior?.observation);
+     })))
+   throw Error('Para trocar a facção do acerto avulso, escreva uma observação NOVA explicando a transferência (mínimo 6 caracteres).');
   await syncPointsFromPaymentV9592(parsed.lines);
   const ts=new Date().toISOString();
   const editId=draft?.editAttemptId||makeId('faction-edit');
