@@ -17,6 +17,7 @@ const routes={'/':'operacao-integrada.html',
  '/modulos/hub-financeiro-v1.js':'modulos/hub-financeiro-v1.js',
  '/modulos/pcp-v1.js':'modulos/pcp-v1.js',
  '/modulos/relatorios-gerenciais-v1.js':'modulos/relatorios-gerenciais-v1.js',
+ '/modulos/auditor-v3.js':'modulos/auditor-v3.js',
  '/operacao-integrada-core.js':'operacao-integrada-core.js',
  '/operacao-integrada-ui.js':'operacao-integrada-ui.js','/folha-homologacao.html':'folha-homologacao.html'};
 const server=http.createServer((req,res)=>{
@@ -64,6 +65,10 @@ async function run(browser,width,url){
   await module(page,'relatorios');
   assert.match(await page.locator('#module-content').innerText(),/Histórico completo/);
   assert.match(await page.locator('#module-content').innerText(),/Central de Relatórios Gerenciais/);
+  await module(page,'auditor');
+  assert.match(await page.locator('#module-content').innerText(),/Auditor 3.0/);
+  await page.locator('#audit-v3-run').click();
+  await module(page,'relatorios');
   await module(page,'nucleo');
   // Desativar o plugin não apaga as funções antigas nem interrompe cadastro e pagamento.
   await page.locator('[data-toggle-observer]').click();

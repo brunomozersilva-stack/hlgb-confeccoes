@@ -592,6 +592,21 @@ function exportManagement(json){
  download('HLGB-RELATORIO-GERENCIAL-FICTICIO.csv','\uFEFF'+rows.map(x=>x.map(safeCell).join(';')).join('\r\n'),'text/csv;charset=utf-8');}catch(e){status(e.message,'error');}
 }
 
+
+let auditFilter='todos';
+function auditorV3(s){try{return window.HLGBLabAuditorV3?.analyze(s)||null;}catch(e){return null;}}
+function auditV3Panels(s){
+ const r=auditorV3(s);if(!r)return panel('Auditor 3.0','<div class="error">Diagnóstico indisponível. Nenhuma aprovação pode ser inferida.</div>',true);
+ const active=selector(r.findings.filter(x=>x.code!=='AUDITOR_REGRA_FALHOU'),x=>x.key+' · '+x.message);
+ const ready=selector(r.previously.filter(x=>x.state==='aguarda_verificacao'&&r.checks.find(c=>c.id===x.checkId)?.status==='conforme'),x=>x.key);
+ const rows=r.findings.filter(x=>auditFilter==='todos'||x.severity===auditFilter);
+ return panel('Auditor 3.0 · diagnóstico e prevenção', '<div class="metrics">'+[['Críticas',r.bySeverity.critica],['Altas',r.bySeverity.alta],['Regras avaliadas',r.checks.length],['Estado',r.status==='sem_alertas_nas_regras_cobertas'?'Sem alertas nas regras cobertas':r.status==='cobertura_parcial'?'Cobertura parcial':'Investigar']].map(([k,v])=>'<div class="metric"><span>'+str(k)+'</span><strong>'+str(v)+'</strong></div>').join('')+'</div><p>Revisão '+str(r.revision)+' · '+str(r.legacyEvents)+' eventos sem métricas · '+str(r.undatedEvents)+' sem data. Avalia somente a cópia local fictícia; não verifica disponibilidade do servidor, não corrige automaticamente nem aprova produção.</p><div class="actions"><button type="button" class="btn" id="audit-v3-run">Reexecutar diagnóstico local</button><button type="button" class="btn" id="audit-v3-export">Exportar evidência JSON</button></div>',true)+
+ panel('Cobertura por regra',table(['Regra','Resultado','Ocorrências'],r.checks.map(x=>[str(x.label),str(x.status),str(x.findings)])),true)+
+ panel('Ocorrências verificáveis','<div class="field"><label>Gravidade<select class="input" id="audit-v3-filter">'+options([['todos','Todas'],['critica','Crítica'],['alta','Alta'],['media','Média'],['informativa','Informativa']],auditFilter)+'</select></label></div>'+table(['Gravidade / regra','Registro','Evidência','Orientação','Investigação'],rows.map(x=>[str(x.severity)+' · '+str(x.code),str(x.recordId),str(x.message)+'<div class="caption">'+str(x.evidence)+'</div>',str(x.action)+(ids.has(x.module)?'<div class="actions"><button class="btn" type="button" data-goto="'+str(x.module)+'">Abrir módulo</button></div>':''),x.review?str(x.review.note)+' · revisão '+str(x.review.revision):'Não registrada'])),true)+
+ panel('Investigar ocorrência sem ocultar alerta',form('audit.review','Registrar evidência da investigação',[field('key','Ocorrência ativa','select','',active),field('status','Ação','select','',[['investigado','Registrar investigação']]),field('note','Evidência / observação','text','Conferência fictícia')],'Registrar investigação')+'<p>Registrar uma nota nunca elimina a ocorrência ativa.</p>')+
+ panel('Confirmar resolução somente após rechecagem',form('audit.review','Registrar verificação',[field('key','Ocorrência ausente com regra conforme','select','',ready),field('status','Ação','select','',[['verificado','Confirmar verificação']]),field('note','Evidência da rechecagem','text','Regra reexecutada')],'Confirmar verificação')+table(['Ocorrência anterior','Situação','Última evidência'],r.previously.map(x=>[str(x.key),str(x.state),str(x.note)])));
+}
+
 function moduleHtml(s){
  const o=orderOptions(s),openPlans=(s.cutPlans||[]).filter(p=>p.status==='aberto'),
   planOptions=selector(openPlans,p=>p.id+' · '+p.orderId+' · '+sum(p.grade)+' peças'),
@@ -1101,7 +1116,7 @@ function moduleHtml(s){
  panel('Pedidos × Financeiro',orderTable(s)+financeTable(s),true)+requestReport+returnsReport;
  }
  case 'auditor':{
- const advanced=observationPanels(s,'auditor');if(advanced)return advanced;
+ const advanced=observationPanels(s,'auditor');if(advanced)return auditV3Panels(s)+advanced;
  const check=api.inspect(s),issues=check.problems;
  return panel('Diagnóstico determinístico',
  (check.ok?'<div class="success">Sem inconsistências nas regras simuladas.</div>':
@@ -1119,7 +1134,7 @@ function moduleHtml(s){
  '<ol class="tips">'+api.tips(s).map(x=>'<li>'+escape(x)+'</li>').join('')+'</ol>')+
  panel('Ações rápidas','<div class="actions"><button class="btn" data-goto="pedidos">Pedidos</button>'+
  '<button class="btn" data-goto="faccoes">Facções</button><button class="btn" data-goto="hub">Hub</button></div>');}
- case 'central':return panel('Registrar e acompanhar ocorrência',
+ case 'central':return panel('Auditor 3.0 e ocorrências','<p>Confira as verificações automáticas e as evidências sem encerrar alertas ativos.</p><button class="btn" type="button" data-goto="auditor">Abrir Auditor 3.0</button>')+panel('Registrar e acompanhar ocorrência',
  form('error.add','Nova falha fictícia',[field('message','Descrição do problema')],'Registrar ocorrência')+
  form('error.resolve','Encerrar ocorrência fictícia',[field('id','Ocorrência em aberto','select','',incidents)],'Encerrar ocorrência'))+
  panel('Saúde do laboratório','<p>O monitor avalia apenas este estado local. Não consulta GitHub Actions, logs de produção ou integrações externas.</p>')+
@@ -1356,7 +1371,7 @@ function exportReport(){
  if(!doc)return;const report={schema:'hlgb-evolucao-operacao-integrada-report-v1',environment:'indexeddb-local-fictitious',
   productionApproval:false,parityApproved:false,modulesVisited:19,exportedAt:new Date().toISOString(),
   journey:api.journey(doc,journeyOrderId),
-  observability:observerResult(doc),materialPlanning:materialPlannerResult(doc),
+  observability:observerResult(doc),auditorV3:auditorV3(doc),materialPlanning:materialPlannerResult(doc),
   checks:api.inspect(doc),totals:api.totals(doc),data:{...doc,paymentReceipts:window.HLGBLabPaymentBatchV1.receiptMetadata(doc)},receiptBinaryExported:false};
  download('HLGB-EVOLUCAO-OPERACAO-INTEGRADA-FICTICIA.json',JSON.stringify(report,null,2),'application/json');
 }
@@ -1658,6 +1673,7 @@ function renderCompensationSheet(compId){
  return $('cut-print').textContent;
 }
 document.addEventListener('change',event=>{
+ if(event.target.id==='audit-v3-filter'){auditFilter=event.target.value;draw();return;}
  if(event.target.matches('[data-mgmt-filter]')){managementFilters[event.target.dataset.mgmtFilter]=event.target.value;managementFilters.page=1;draw();return;}
  if(event.target.id==='pcp-date'){pcpDate=event.target.value;draw();return;}
  if(event.target.id==='pcp-filter'){pcpFilter=event.target.value;draw();return;}
@@ -1700,6 +1716,8 @@ document.addEventListener('change',event=>{
  }
 });
 document.addEventListener('click',e=>{
+ if(e.target.closest('#audit-v3-run')){draw();status('Diagnóstico local reexecutado. Confira as regras e evidências.');return;}
+ if(e.target.closest('#audit-v3-export')){const r=auditorV3(doc);if(!r){status('Diagnóstico indisponível.','error');return;}download('HLGB-AUDITOR-V3-FICTICIO.json',JSON.stringify(r,null,2),'application/json');return;}
  if(e.target.closest('#mgmt-export')){exportManagement(false);return;}
  if(e.target.closest('#mgmt-json')){exportManagement(true);return;}
  const mgmtPage=e.target.closest('[data-mgmt-page]');if(mgmtPage){managementFilters.page=Math.max(1,managementFilters.page+Number(mgmtPage.dataset.mgmtPage));draw();return;}
