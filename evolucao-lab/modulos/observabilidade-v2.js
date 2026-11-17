@@ -602,7 +602,7 @@
      'Compensação sem título novo único, sinal ou situação conciliados.',
      'Conferir o título separado e sua situação; evitar quitação repetida.',c.id);
   }
-  const sourceIds=new Set([...orders,...purchases,...settlements,...comps].map(x=>x.id));
+  const sourceIds=new Set([...orders,...purchases,...purchaseReturns,...settlements,...comps].map(x=>x.id));
   for(const bill of finance){
    if(bill.sourceId!=null&&!sourceIds.has(bill.sourceId))
     push('TITULO_ORFAO','alta','hub',bill.id,
