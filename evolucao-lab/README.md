@@ -2,6 +2,18 @@
 
 Esta pasta é um **protótipo isolado**: não é uma tela incorporada ao HLGB em produção.
 
+## Nova etapa — Cancelamento formal de compra emitida, sem estornar saldos (LAB)
+
+O novo comando `purchase.request.cancelIssued` atende uma pendência do fluxo de requisições: permite cancelar **somente compras fictícias emitidas e ainda não recebidas**. A ação solicita referência única de cancelamento, responsável, conferente diferente do responsável e do solicitante, e justificativa obrigatória. Uma mesma referência não pode ser reutilizada.
+
+O comando **não exclui** a requisição `REQ-...` nem a compra `COM-...`. Mantém material, quantidades, fornecedor, preços e dados da emissão original. Registra em ambos o mesmo comando, motivo, referência e dupla conferência, mudando o status da requisição para `emissao_cancelada` e marcando `COM.cancelled=true`.
+
+**Condições para cancelar:** a compra não pode estar recebida, nem ter movimentos de estoque, títulos financeiros ou vínculo de recebimento. Se qualquer condição falhar, a operação é rejeitada **sem modificar o documento**. A compra cancelada deixa de aparecer no seletor de recebimento e o comando `purchase.receive` também bloqueia diretamente o ID. Não há estorno automático, título negativo, movimentação negativa, alteração de estoque ou reativação silenciosa.
+
+O cancelamento libera a criação de **uma nova requisição** se ainda existir falta no planejamento, mas não reemite a compra antiga. O Auditor verifica o mesmo comando e referência dos dois documentos, impedimentos de estoque/financeiro, origem da aprovação e unicidade. Relatórios e CSV/JSON preservam os históricos e a referência.
+
+**Limitação:** o cancelamento **não comunica fornecedor real**, não cancela nota fiscal ou documento bancário, não autentica empregados, nem vale como autorização empresarial. Recebimento já confirmado não admite cancelamento direto e exigirá uma futura rotina formal de devolução/estorno com conferência física. Os documentos antigos continuam compatíveis.
+
 ## Nova etapa — Requisições de compra baseadas na falta de material (LAB)
 
 O módulo `modulos/requisicoes-compras-v1.js` cria um fluxo **separado de planejamento e execução**, ainda sem autorização empresarial real:
