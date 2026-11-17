@@ -231,6 +231,8 @@
       x.amountCents!==x.qty*x.unitCents+(x.adjustmentCents||0)))
     problems.push(x.id+': valores atuais sem correspondência com última correção');
   }
+  for(const e of s.log.filter(x=>x.type==='settlement.revise'))
+   if(!seen.has(e.commandId))problems.push('Correção '+e.commandId+': evento sem histórico de acerto');
   return problems;
  }
  function inspect(s){
