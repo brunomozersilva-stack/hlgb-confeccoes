@@ -17,7 +17,9 @@ function keyOf(entry){
  }
  return module&&id&&/^[A-Za-z][A-Za-z0-9]*$/.test(module)?module+'::'+id:null;
 }
-function scan(){
+function scan(options={}){
+ const requested=Number(options?.timeoutMs);
+ const timeoutMs=Number.isFinite(requested)&&requested>0?Math.min(45000,Math.max(8000,requested)):8000;
  return new Promise((resolve,reject)=>{
   if(typeof indexedDB==='undefined'){state.unsupported=true;resolve({ids:new Set(),keys:new Set(),count:0});return}
   let request,db=null,done=false,missing=false,watchdog;
@@ -26,7 +28,7 @@ function scan(){
    try{db?.close()}catch(_){}
    if(error)reject(error);else resolve(value);
   };
-  watchdog=setTimeout(()=>finish(new Error('Leitura do IndexedDB excedeu 8 segundos')),8000);
+  watchdog=setTimeout(()=>finish(new Error('Leitura do IndexedDB excedeu '+Math.round(timeoutMs/1000)+' segundos')),timeoutMs);
   try{request=indexedDB.open(NAME)}
   catch(e){finish(e);return}
   request.onblocked=()=>finish(new Error('IndexedDB bloqueado por outra aba'));
@@ -66,11 +68,11 @@ function scan(){
   };
  });
 }
-async function probe(){
+async function probe(options={}){
  if(inflight)return inflight;
  inflight=(async()=>{
   try{
-   const result=await scan();
+   const result=await scan(options);
    ids=result.ids;rawKeys=result.keys;state.entryCount=result.count;
    state.readFailed=false;state.lastError='';state.probes++;
    state.lastProbeAt=new Date().toISOString();
@@ -135,7 +137,7 @@ function install(){
  return installed;
 }
 window.hlgbWalIdbGuard9536={
- version:VERSION,probe,status,ids:()=>new Set(ids),keys:()=>new Set(rawKeys),
+ version:VERSION,probe,supportsCustomTimeout:true,status,ids:()=>new Set(ids),keys:()=>new Set(rawKeys),
  pendingCount:()=>rawKeys.size,install
 };
 install();
