@@ -41,7 +41,7 @@
    employees:[{id:'FUN-0001',name:'Ana Simulada',salaryCents:200000,passageCents:12000,extrasCents:0,discountCents:0},
     {id:'FUN-0002',name:'Bianca Modelo',salaryCents:180000,passageCents:8000,extrasCents:0,discountCents:3000}],
    colorCatalog:planner?planner.seed():[],materialRecipeRules:[],materialPlanLines:[],
-   bomCutRuns:[],orders:[],cutPlans:[],purchaseRequests:[],purchaseOrders:[],purchaseReturns:[],settlements:[],settlementCompensations:[],paymentBatches:[],finance:[],stockLedger:[],factionTransfers:[],factionAssignments:[],factionPartialTransfers:[],errors:[],
+   bomCutRuns:[],orders:[],cutPlans:[],purchaseRequests:[],purchaseOrders:[],purchaseReturns:[],settlements:[],settlementCompensations:[],paymentBatches:[],paymentReceipts:[],finance:[],stockLedger:[],factionTransfers:[],factionAssignments:[],factionPartialTransfers:[],errors:[],
    prints:[{id:'IMP-0001',name:'Chaveiro articulado fictício',grams:28,priceCents:490,stock:12}],
    log:[],role:'supervisor',flags:{autoCorrections:false},revisionProof:'seed'};
  }
@@ -141,6 +141,7 @@
    if(!Number.isSafeInteger(total)||b.totalCents!==total||total<=0)
     problems.push(String(b.id)+': valor do lote divergente');
   }
+  if(batch?.inspectReceipts)problems.push(...batch.inspectReceipts(s));
   const keys=comps.map(x=>x.settlementId+'|'+x.reference.trim().toLocaleUpperCase('pt-BR'));
   if(new Set(keys).size!==keys.length)problems.push('Referência de compensação duplicada para o mesmo acerto');
   if(routing&&typeof routing.inspect==='function')
@@ -294,6 +295,7 @@
   if(!Array.isArray(s.factionPartialTransfers))s.factionPartialTransfers=[];
   if(!Array.isArray(s.settlementCompensations))s.settlementCompensations=[];
   if(!Array.isArray(s.paymentBatches))s.paymentBatches=[];
+  if(!Array.isArray(s.paymentReceipts))s.paymentReceipts=[];
   if(!planner)throw Error('Módulo de planejamento indisponível. Nenhuma gravação executada.');
   planner.ensure?.(s);
   const num=(field,min=0,max=1000000)=>int(p[field],field,min,max);
@@ -628,6 +630,9 @@
     reason:typeof p.reason==='string'&&p.reason.trim()?name(p.reason,'Motivo'):'Ajuste fictício demonstrativo'});
    bill.amountCents=amount;
    result=x.id+' · '+before+' → '+amount+' centavos';break}
+  case 'finance.receipt.attach':{
+   if(!batch?.attachReceipt)throw Error('Módulo de comprovantes indisponível.');
+   result=batch.attachReceipt(s,p,{next,uid});break}
   case 'finance.faction.close':{
    if(!batch||typeof batch.executeFaction!=='function')
     throw Error('Módulo de fechamento por facção indisponível.');
