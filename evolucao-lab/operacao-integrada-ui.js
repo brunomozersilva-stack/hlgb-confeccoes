@@ -75,6 +75,23 @@ function financeTable(s){
 
 function financialBatchPanel(s){
  const comps=s.settlementCompensations||[],batches=s.paymentBatches||[];
+ const groups=window.HLGBLabPaymentBatchV1?.groups?.(s)||[];
+ const groupForms=groups.map(g=>
+  '<div class="panel"><h3>'+str(g.name)+' · '+str(g.count)+' título(s)'+
+  (g.ready?' · '+fmt(g.totalCents):' · bloqueado')+'</h3>'+
+  (g.ready?
+   '<form data-command="finance.faction.close" class="faction-close-form">'+
+   '<input type="hidden" name="factionId" value="'+str(g.factionId)+'">'+
+   g.financeIds.map(id=>'<input type="hidden" name="financeIds" value="'+str(id)+'">').join('')+
+   '<p class="caption">Composição: '+g.financeIds.map(str).join(' · ')+
+   '. A conferência inclui TODOS os acertos abertos desta pessoa.</p>'+
+   '<div class="fields">'+
+   field('reference','Referência única do fechamento','text','FAC-'+g.factionId+'-001')+
+   field('reason','Motivo da conferência','text','Acerto consolidado fictício da facção')+'</div>'+
+   '<div class="actions"><button class="btn" type="button" data-preview-faction="true">Validar total sem pagar</button>'+
+   '<button class="btn primary" type="submit">Fechar todos os acertos desta pessoa</button></div></form>':
+   '<p class="error">'+str(g.error)+'</p>')+'</div>').join('');
+
  const open=s.finance.filter(t=>t.kind==='pagar'&&t.status==='aberto').map(t=>{
   const settlement=s.settlements.find(x=>x.id===t.sourceId);
   const compensation=comps.find(x=>x.id===t.sourceId);
@@ -87,7 +104,10 @@ function financialBatchPanel(s){
   '<label class="batch-choice"><input type="checkbox" name="financeIds" value="'+str(title.id)+'" data-batch-cents="'+title.amountCents+'">'+
   '<span><strong>'+str(title.id)+'</strong> · '+str(source.id)+' · '+str(faction)+
   ' · '+fmt(title.amountCents)+'</span></label>').join('');
- return panel('Fechamento em lote · Facções e Acertos fictícios',
+ return panel('Fechamento automático por facção · sem misturar pessoas',
+  '<p>Ao haver pelo menos 2 acertos/diferenças a pagar para a mesma pessoa, o HLGB reúne todos automaticamente. A confirmação gera uma única referência PAG, preservando cada acerto e seu título originais. Se algum item estiver divergente, NADA será pago.</p>'+
+  (groupForms||'<div class="empty">Nenhuma facção tem dois ou mais acertos abertos para consolidar.</div>'),true)+
+ panel('Fechamento manual de títulos · Facções e Acertos fictícios',
   '<p>Selecione de 2 a 50 títulos a pagar de acertos ou compensações. Antes da baixa, o núcleo confere todos os vínculos e valores. <strong>Se um falhar, o lote inteiro será recusado</strong>, sem pagamento parcial.</p>'+
   '<form data-command="finance.batch.pay" id="finance-batch-form">'+
   '<div class="batch-choices">'+(checks||'<div class="empty">Nenhum acerto elegível aberto para o lote.</div>')+'</div>'+
@@ -99,7 +119,7 @@ function financialBatchPanel(s){
   '<p class="caption">Pagamento somente demonstrativo: sem banco real, PIX, comprovante fiscal ou liquidação externa. O pagamento unitário anterior continua disponível.</p>',true)+
  panel('Histórico de lotes sem reescrever acertos',
   table(['Lote','Referência','Títulos','Total','Situação','Motivo','IDs vinculados'],
-   batches.map(b=>[str(b.id),str(b.reference),str(b.count),
+   batches.map(b=>[str(b.id)+(b.scope==='faccao'?' · '+str(b.factionNameSnapshot):''),str(b.reference),str(b.count),
     fmt(b.totalCents),str(b.status),str(b.reason),
     (b.items||[]).map(i=>str(i.financeId)+' ('+str(i.sourceId)+')').join(' · ')]))+
   '<p class="caption">Lotes são imutáveis no laboratório; comprovantes e autenticação ainda estão pendentes.</p>',true);
@@ -1007,6 +1027,12 @@ const NUM=['qty','gramsPerUnit','qtyGrams','grams','stock','P','M','G','GG','use
 const SIGNED=['deltaGrams'];
 const PRICES=['priceCents','unitCents','travetaCents','priceCentsKg','amountCents','salaryCents','passageCents','extrasCents','discountCents'];
 function parseData(type,form){
+ if(type==='finance.faction.close'){
+  return {factionId:String(form.querySelector('[name="factionId"]')?.value||''),
+   financeIds:[...form.querySelectorAll('input[name="financeIds"]')].map(x=>x.value),
+   reference:String(form.querySelector('[name="reference"]')?.value||''),
+   reason:String(form.querySelector('[name="reason"]')?.value||'')};
+ }
  if(type==='finance.batch.pay'){
   const ids=[...form.querySelectorAll('input[name="financeIds"]:checked')].map(x=>x.value);
   return {financeIds:ids,reference:String(form.elements.namedItem('reference')?.value||''),
@@ -1448,6 +1474,17 @@ document.addEventListener('click',e=>{
    const result=fn(doc,payload);
    status('Prévia validada: '+result.count+' título(s), '+fmt(result.totalCents)+
     ', referência '+result.reference+'. Nenhuma baixa executada.');
+  }catch(error){status(error.message,'error')}
+  return;
+ }
+ if(e.target.closest('[data-preview-faction]')){
+  const form=e.target.closest('form[data-command="finance.faction.close"]');
+  try{
+   if(!form)throw Error('Formulário de fechamento da facção indisponível.');
+   const input=parseData('finance.faction.close',form);
+   const result=window.HLGBLabPaymentBatchV1.previewFaction(doc,input);
+   status('Prévia de '+result.factionName+': '+result.count+' título(s), '+fmt(result.totalCents)+
+    '. Referência '+result.reference+'. Nenhum pagamento lançado.');
   }catch(error){status(error.message,'error')}
   return;
  }
