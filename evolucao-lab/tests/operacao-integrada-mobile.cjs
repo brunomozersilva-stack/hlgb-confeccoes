@@ -8,6 +8,7 @@ const routes={'/':'operacao-integrada.html',
  '/modulos/pagamento-lote-v1.js':'modulos/pagamento-lote-v1.js',
  '/modulos/faccoes-multidestino-v1.js':'modulos/faccoes-multidestino-v1.js',
  '/modulos/grade-faccoes-v1.js':'modulos/grade-faccoes-v1.js',
+ '/modulos/planejamento-materiais-v1.js':'modulos/planejamento-materiais-v1.js',
  '/modulos/observabilidade-v2.js':'modulos/observabilidade-v2.js',
  '/operacao-integrada-core.js':'operacao-integrada-core.js',
  '/operacao-integrada-ui.js':'operacao-integrada-ui.js','/folha-homologacao.html':'folha-homologacao.html'};
