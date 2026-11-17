@@ -1,0 +1,55 @@
+name: HLGB Evolucao - Fechamento por Faccao
+on:
+  push:
+    branches:
+      - feature/evolucao-laboratorio-isolado-v1-20261114
+    paths:
+      - 'evolucao-lab/modulos/pagamento-lote-v1.js'
+      - 'evolucao-lab/modulos/observabilidade-v2.js'
+      - 'evolucao-lab/operacao-integrada-core.js'
+      - 'evolucao-lab/operacao-integrada-ui.js'
+      - 'evolucao-lab/tests/fechamento-faccao-*'
+      - '.github/workflows/evolucao-fechamento-faccao.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  contracts:
+    name: Integridade, pagamento e regressao
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - name: Confirmar fechamento por faccao e paridade dos modulos
+        run: |
+          node --check evolucao-lab/modulos/pagamento-lote-v1.js
+          node --check evolucao-lab/operacao-integrada-core.js
+          node --check evolucao-lab/operacao-integrada-ui.js
+          node --check evolucao-lab/modulos/observabilidade-v2.js
+          node --test evolucao-lab/tests/fechamento-faccao-contract.cjs
+          node --test evolucao-lab/tests/pagamento-lote-contract.cjs
+          node --test evolucao-lab/tests/operacao-integrada-contract.cjs
+          node --test evolucao-lab/tests/observabilidade-v2-contract.cjs
+          node --test evolucao-lab/tests/devolucoes-compras-contract.cjs
+  browsers:
+    name: Fechamento e releitura (${{ matrix.browser }})
+    runs-on: ubuntu-24.04
+    timeout-minutes: 18
+    strategy:
+      fail-fast: false
+      matrix:
+        browser: [chromium, webkit]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - name: Instalar navegadores de teste
+        run: |
+          npm install --no-save playwright@1.55.0
+          npx playwright install --with-deps ${{ matrix.browser }}
+      - name: Confirmar faccao unica e persistencia local no mobile e desktop
+        env:
+          HLGB_BROWSER: ${{ matrix.browser }}
+        run: node evolucao-lab/tests/fechamento-faccao-mobile.cjs
