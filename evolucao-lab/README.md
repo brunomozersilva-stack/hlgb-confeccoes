@@ -2,6 +2,20 @@
 
 Esta pasta é um **protótipo isolado**: não é uma tela incorporada ao HLGB em produção.
 
+## Nova etapa — Paleta única, ficha de consumo por cor/tamanho e compras consolidadas (LAB)
+
+O módulo opcional `modulos/planejamento-materiais-v1.js` cria três recursos independentes da execução do Corte:
+
+1. **Paleta central de cores:** Preto, Branco e Rubi são apenas exemplos fictícios; outros nomes podem ser cadastrados uma vez e reutilizados como opção no formulário de grade dos pedidos, no cadastro das receitas e na previsão. O catálogo rejeita repetição com diferenças apenas de maiúsculas/minúsculas. Documentos locais antigos, sem catálogo, recebem esses exemplos somente no **clone da próxima transação**, com IDs únicos e preservação dos lançamentos existentes. Nenhuma cor usada em pedido antigo é renomeada.
+2. **Receitas de materiais por modelo/variação:** consumo de cada componente, em gramas por peça, pode ser definido para todas as cores/tamanhos ou combinações específicas. A regra mais específica prevalece. Para o material principal, a previsão substitui o consumo básico apenas no cálculo; componentes adicionais como renda ou tule são somados. Uma nova regra preserva a versão e o motivo anteriores, que ficam marcados como substituídos; ela não reescreve corte, acerto ou pagamento já realizado.
+3. **Planejamento semanal de compras:** selecione quantidades para vários modelos, cores e tamanhos, até 100 linhas ativas. O sistema gera a lista agregada de gramas por material e por modelo, compara com o **saldo fictício atual**, calcula o faltante e estima os custos a partir do preço/kg cadastrado. Linhas arquivadas são mantidas no histórico, e todas as revisões são validadas antes de gravar. A prévia pode ser consultada por JSON e CSV e aparece também nos Relatórios.
+
+**Isolamento essencial:** o cenário representa uma **nova produção hipotética**, NÃO a produção já em curso. Não existe reserva, baixa, compra automática, previsão de entrega nem integração com fornecedor. O Corte segue utilizando o consumo principal original da ficha e mantém as baixas e movimentos anteriores. Por isso, a estimativa pode não corresponder ao consumo real de uma peça, à perda no enfesto ou às variações do estoque físico. Conferir antes de qualquer compra real.
+
+O núcleo `core.apply` continua sendo **o único escritor** dos rascunhos e dos cadastros fictícios. O módulo de cálculo é puro e não possui rede nem armazenamento próprio. O Auditor 2.0 detecta nomes de cores repetidos, receita inválida/duplicada, modelo ou material ausente e linhas de produção repetidas. Os testes automáticos abrangem cálculo multi-modelo, custos, falta de material, receitas sobrepostas, histórico, atomicidade, migração segura, navegador Chrome e Safari/WebKit.
+
+**A fazer para aprovação real:** ficha técnica completa por insumo e operação, unidade e rendimento por peça, perdas por material, vários materiais por cor/grade usados efetivamente no Corte, reservas de estoque, geração de compras com aprovação, autenticação, sincronização entre máquinas e homologação do inventário das 76 funções antigas. Não publicar sem autorização.
+
 ## Nova etapa — Grade por cor e tamanho em cada facção (opt-in no laboratório)
 
 O módulo `modulos/grade-faccoes-v1.js` acrescenta uma camada de rastreamento **por cor e P/M/G/GG** sem mudar os modelos, pagamentos, estoques e pedidos históricos não classificados. No painel Facções, o operador cadastra uma linha por cor informando quantas peças da grade do pedido pertencem a cada tamanho; antes de distribuir as peças, as somas das cores precisam corresponder **exatamente** às quantidades do pedido por tamanho. A classificação é opcional, mas só pode ser criada antes do primeiro envio, para evitar inventar cores de lançamentos antigos.
