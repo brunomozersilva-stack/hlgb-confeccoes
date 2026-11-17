@@ -1,5 +1,16 @@
 # HLGB Evolução — Como começar a testar os módulos
 
+## NOVO — Comprovante de um fechamento de acertos
+
+1. Com dados exclusivamente fictícios, crie dois acertos de uma oficina na área Acertos. No Hub, feche ambos juntos. Confirme o código PAG, o total e os títulos associados.
+2. Em **Comprovantes PDF de teste**, escolha o PAG. Use apenas um pequeno PDF criado para exercício que não contenha informações reais, de até 256 KiB e nome simples como teste-1.pdf. Informe o motivo e confirme a declaração de arquivo fictício. Salve.
+3. Confira o CPV e teste o botão de download. Abra os Acertos: ambos os itens do lote devem apontar para o mesmo comprovante. O fechamento, valores e IDs FIN permanecem iguais.
+4. Substitua por outro PDF de exercício com conteúdo diferente. Veja a versão 2 como Atual, e a versão 1 como Anterior. Consulte ambas. Tentar enviar o mesmo conteúdo novamente deve ser bloqueado.
+5. Busque o nome do arquivo em Comprovantes. Atualize a página e confira que os dois arquivos permanecem naquele navegador. Exporte as evidências: os relatórios apresentam somente metadados, não os PDFs.
+6. Confira o Auditor, sem alertas de vínculo nas regras verificadas. Teste também um título unitário quitado. Títulos ainda abertos e títulos que pertencem a lote não são elegíveis individualmente.
+
+Não carregue comprovantes bancários reais neste laboratório. Os anexos são locais, não têm acesso autenticado de produção e não são copiados para outros computadores. A exportação de evidências não é backup dos anexos.
+
 ## NOVO — Acerto automático de uma facção com vários lançamentos
 
 1. Na **Operação Integrada**, abra **Acertos** e cadastre dois serviços de embalagem fictícios para a mesma facção **Oficina Exemplo A**, com 8 e 6 peças a R$ 1,00 por peça, desconto zero. Cadastre ainda um serviço para a Oficina Exemplo B para testar o isolamento. Esses acertos não pagam dinheiro real.
