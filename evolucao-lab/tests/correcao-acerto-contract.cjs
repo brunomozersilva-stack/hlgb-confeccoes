@@ -109,3 +109,60 @@ test('revisão antiga e comando repetido não podem duplicar correção',()=>{
   commandId:x.log.at(-1).commandId,actor:'Teste',expectedRevision:x.revision}),/já registrado/);
  assert.equal(JSON.stringify(x),snap);
 });
+
+function allocated(grade=false,multi=false){
+ let s=core.initial();s=run(s,'order.add',{clientId:'CLI-0001',productId:'PRO-0001',grade:{P:10,M:0,G:0,GG:0}});
+ s=run(s,'cut.record',{orderId:'PED-0001',size:'P',qty:10});
+ if(grade)s=run(s,'order.color.grade.set',{orderId:'PED-0001',color:'Preto',grade:{P:10,M:0,G:0,GG:0}});
+ return run(s,grade?'faction.grade.allocate':multi?'faction.multi.allocate':'faction.allocate',{
+  orderId:'PED-0001',factionId:'FAC-0001',qty:10,color:'Preto',size:'P'});
+}
+const setRate=(s,p={})=>run(s,'faction.assignment.rate.set',{assignmentId:'ALO-0001',
+ unitCents:700,travetaCents:100,reason:'Preço negociado para o saldo',...p});
+test('negociação de envio após retorno parcial preserva pagamento anterior e cadastro',()=>{
+ let s=allocated();s=run(s,'faction.return',{orderId:'PED-0001',qty:4});
+ const old=structuredClone(s.settlements[0]),fac=structuredClone(s.factions);
+ s=setRate(s);
+ assert.deepEqual(s.factions,fac);assert.deepEqual(s.settlements[0],old);
+ assert.equal(s.factionAssignments[0].rateAgreementHistory[0].pendingQty,6);
+ s=run(s,'faction.return',{orderId:'PED-0001',qty:6});
+ assert.equal(s.settlements[1].amountCents,3600);
+ assert.equal(s.settlements[1].rateAgreementCommandId,s.factionAssignments[0].rateAgreementHistory[0].commandId);
+ assert.deepEqual(s.settlements[0],old);
+ assert.equal(core.inspect(s).ok,true);
+ assert.throws(()=>setRate(s),/pendentes/);
+});
+test('retorno multidestino respeita tarifa do próprio envio e mantém correção posterior auditável',()=>{
+ let s=setRate(allocated(false,true));
+ s=run(s,'faction.multi.return',{assignmentId:'ALO-0001',qty:3});
+ assert.equal(s.settlements[0].amountCents,1800);
+ s=revise(s,{factionId:'FAC-0001',unitCents:800,travetaCents:100});
+ assert.equal(s.settlements[0].amountCents,2100);
+ assert.equal(core.inspect(s).ok,true);
+ const bad=structuredClone(s);bad.factionAssignments[0].rateAgreementHistory[0].gross+=1;
+ assert.equal(core.inspect(bad).ok,false);
+});
+test('preço negociado é aplicado no retorno por cor e tamanho',()=>{
+ let s=setRate(allocated(true));
+ s=run(s,'faction.grade.return',{assignmentId:'ALO-0001',color:'Preto',size:'P',qty:3});
+ assert.equal(s.settlements[0].amountCents,1800);assert.equal(s.settlements[0].color,'Preto');
+ assert.equal(core.inspect(s).ok,true);
+});
+test('troca integral para outra facção encerra o acordo antigo sem apagar o histórico',()=>{
+ let s=setRate(allocated());
+ s=run(s,'faction.reassign',{orderId:'PED-0001',factionId:'FAC-0002',reason:'Troca antes do retorno'});
+ assert.equal(s.factionAssignments[0].rateAgreementHistory.length,2);
+ assert.equal(s.factionAssignments[0].rateAgreementHistory[1].mode,'reset');
+ s=run(s,'faction.return',{orderId:'PED-0001',qty:10});
+ assert.equal(s.settlements[0].amountCents,5500);assert.equal(s.settlements[0].factionId,'FAC-0002');
+ assert.equal(s.settlements[0].rateAgreementCommandId,undefined);
+ assert.equal(core.inspect(s).ok,true);
+});
+test('tarifa de envio não migra automaticamente para outra facção no saldo transferido',()=>{
+ let s=setRate(allocated(false,true));
+ s=run(s,'faction.multi.transfer',{fromAssignmentId:'ALO-0001',toFactionId:'FAC-0002',qty:5,reason:'Redistribuição'});
+ s=run(s,'faction.multi.return',{assignmentId:'ALO-0002',qty:5});
+ s=run(s,'faction.multi.return',{assignmentId:'ALO-0001',qty:5});
+ assert.equal(s.settlements[0].amountCents,2750);assert.equal(s.settlements[1].amountCents,3000);
+ assert.equal(core.inspect(s).ok,true);
+});
