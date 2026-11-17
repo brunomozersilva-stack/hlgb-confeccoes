@@ -779,7 +779,17 @@ function moduleHtml(s){
   field('reason','Descrição / justificativa','text','Embalagem fictícia')
  ],'Gerar acerto e título a pagar')+
  '<p>O tipo <strong>Embalagem</strong> usa valor por peça independente da mão de obra de costura. As sugestões de R$ 0,25 para camisola/doll e R$ 0,15 para calcinha são exemplos editáveis, não preços confirmados da empresa.</p>')+
- panel('Devolver peças com motivo e histórico',
+ panel('Corrigir facção e mão de obra de acerto em aberto',
+   form('settlement.revise','Alterar sem criar outro pagamento',[
+    field('id','Acerto em aberto','select','',allOpen),
+    field('factionId','Facção / embaladeira do acerto','select','',factions),
+    field('unitCents','Preço bruto por peça (R$)','money','0,00'),
+    field('travetaCents','Desconto de travetada por peça (R$)','money','0,00'),
+    field('reason','Justificativa da correção','text','')
+   ],'Salvar correção e atualizar o mesmo título')+
+   '<p id="settlement-revise-preview" class="caption" role="status"></p>'+
+   '<p>Em serviço avulso, pode corrigir a pessoa e o preço. Em retorno vinculado ao pedido, o preço pode ser corrigido, mas a facção física não pode ser trocada aqui. O título existente é atualizado, nunca duplicado. Acertos pagos exigem compensação separada.</p>',true)+
+  panel('Devolver peças com motivo e histórico',
  form('settlement.pieces.return','Devolução parcial sem apagar o acerto',[
   field('id','Acerto em aberto','select','',open),
   field('qty','Quantidade devolvida','int','1'),
@@ -836,7 +846,15 @@ function moduleHtml(s){
  table(['Acerto','Evento','Antes','Depois','Motivo'],s.settlements.flatMap(x=>
   (x.history||[]).map(e=>[str(x.id),str(e.commandId),fmt(e.beforeCents),fmt(e.afterCents),str(e.reason)])
   ))+
- '<h3>Devoluções de peças</h3>'+
+ '<h3>Histórico de correções de facção e mão de obra</h3>'+
+  table(['Acerto / título','Facção anterior → nova','Preço bruto anterior → novo','Travetada anterior → nova','Total anterior → novo','Motivo'],
+   s.settlements.flatMap(x=>(x.rateHistory||[]).map(h=>[
+    str(x.id)+' · '+str(h.financeId),str(h.fromFactionName)+' → '+str(h.toFactionName),
+    fmt(h.before.listUnitCents)+' → '+fmt(h.after.listUnitCents),
+    fmt(h.before.travetaCents)+' → '+fmt(h.after.travetaCents),
+    fmt(h.before.amountCents)+' → '+fmt(h.after.amountCents),str(h.reason)
+   ])))+
+  '<h3>Devoluções de peças</h3>'+
  table(['Acerto','Comando','Devolvidas','Antes','Depois','Motivo'],s.settlements.flatMap(x=>
   (x.returns||[]).map(ev=>[str(x.id),str(ev.commandId),str(ev.qty),
    str(ev.beforeQty)+' pç / '+fmt(ev.beforeCents),str(ev.afterQty)+' pç / '+fmt(ev.afterCents),str(ev.reason)])
@@ -1013,7 +1031,7 @@ function draw(){
  ['Títulos a pagar abertos',fmt(t.openPayables)]];
  $('global-metrics').innerHTML=metrics.map(([label,value])=>'<div class="metric"><span>'+escape(label)+'</span><strong>'+escape(value)+'</strong></div>').join('');
  $('module-content').innerHTML=moduleHtml(doc);
- if(active==='acertos')applySettlementFilters();
+ if(active==='acertos'){applySettlementFilters();const f=document.querySelector('form[data-command="settlement.revise"]');if(f)fillSettlementRevision(f);}
  $('audit-trail').innerHTML=doc.log.length?doc.log.slice().reverse().slice(0,28).map(e=>
  '<div class="log-item"><strong>'+escape(e.type)+' · '+escape(e.commandId)+'</strong>'+
  'Revisão '+e.revision+' · '+escape(e.description)+'</div>').join(''):
@@ -1331,6 +1349,29 @@ function suggestServicePrice(form){
   price.value=nr(fac?.productRates?.[productId]??fac?.unitCents??0);
  }
 }
+function fillSettlementRevision(form){
+ const x=doc?.settlements.find(a=>a.id===form.elements.namedItem('id')?.value);
+ if(!x)return;
+ form.elements.namedItem('factionId').value=x.factionId;
+ form.elements.namedItem('unitCents').value=nr(x.listUnitCents??x.unitCents);
+ form.elements.namedItem('travetaCents').value=nr(x.travetaCents||0);
+ const only=x.kind!=='avulso'||!!x.orderId||!!x.assignmentId||!!x.gradeTracked;
+ for(const option of form.elements.namedItem('factionId').options)
+  option.disabled=only&&option.value!==x.factionId;
+ previewSettlementRevision(form);
+}
+function previewSettlementRevision(form){
+ const el=$('settlement-revise-preview'),x=doc?.settlements.find(a=>a.id===form.elements.namedItem('id')?.value);
+ if(!el||!x)return;
+ try{
+  const gross=parseCents(form.elements.namedItem('unitCents').value),
+   discount=parseCents(form.elements.namedItem('travetaCents').value),
+   total=x.qty*(gross-discount)+(x.adjustmentCents||0);
+  el.textContent=gross>discount&&total>0?
+   x.qty+' peças · total atual '+fmt(x.amountCents)+' → novo total '+fmt(total)+' · mantém ajuste de '+fmt(x.adjustmentCents||0):
+   'Informe valores válidos: o líquido e o total precisam ser positivos.';
+ }catch(_){el.textContent='Informe preço e desconto válidos.'}
+}
 function applySettlementFilters(){
  if(active!=='acertos'||!doc||!$('settlement-filters'))return;
  const f=settlementFilters;
@@ -1350,6 +1391,7 @@ function applySettlementFilters(){
    ref(doc.factions,x.factionId)?.name,ref(doc.products,x.productId)?.name,
    ref(doc.products,ref(doc.orders,x.orderId)?.productId)?.name,
    ...(x.history||[]).flatMap(h=>[h.reason,h.commandId]),
+   ...(x.rateHistory||[]).flatMap(h=>[h.reason,h.commandId,h.fromFactionName,h.toFactionName,h.financeId]),
    ...(x.returns||[]).flatMap(h=>[h.reason,h.commandId])];
   return normal(parts.join(' '));
  };
@@ -1441,6 +1483,8 @@ document.addEventListener('change',event=>{
  const type=form.dataset.command;
  const selected=event.target.name;
  if(type==='settlement.add'&&['serviceType','productId','factionId'].includes(selected))suggestServicePrice(form);
+ if(type==='settlement.revise'&&selected==='id')fillSettlementRevision(form);
+ if(type==='settlement.revise'&&['unitCents','travetaCents','factionId'].includes(selected))previewSettlementRevision(form);
  if(type==='order.grade.update'&&selected==='orderId'){
   const order=doc.orders.find(o=>o.id===event.target.value);if(!order)return;
   for(const sz of api.sizes)form.elements.namedItem(sz).value=order.grade[sz];
