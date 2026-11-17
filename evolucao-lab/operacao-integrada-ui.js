@@ -844,7 +844,13 @@ function moduleHtml(s){
  panel('Saldos da folha fictícia',table(['Funcionário','Base','Passagem','Extras','Descontos','Desembolso'],s.employees.map(e=>[
  str(e.name),fmt(e.salaryCents),fmt(e.passageCents),fmt(e.extrasCents),fmt(e.discountCents),
  fmt(e.salaryCents+e.extrasCents-e.discountCents+e.passageCents)])),true);
- case 'compras':return materialsPlanningPanels(s)+requestPanels(s)+panel('Compra com dupla conferência',
+ case 'compras':{
+ const devolucoes=(s.purchaseReturns||[]),elegiveis=s.purchaseOrders.filter(x=>
+  x.received&&!x.cancelled&&!x.returnId&&x.purchaseRequestId&&
+  s.purchaseRequests.some(r=>r.id===x.purchaseRequestId&&r.status==='recebida')&&
+  s.finance.some(f=>f.sourceId===x.id&&f.kind==='pagar'&&f.status==='aberto')&&
+  s.materials.some(m=>m.id===x.materialId&&m.stockGrams>=x.qtyGrams));
+ return materialsPlanningPanels(s)+requestPanels(s)+panel('Compra com dupla conferência',
  form('purchase.add','Planejar compra',[field('supplierId','Fornecedor','select','',suppliers),
  field('materialId','Material','select','',materials),
  field('qtyGrams','Quantidade (g)','int','3000'),
@@ -852,11 +858,32 @@ function moduleHtml(s){
  field('checkerTwo','Conferente 2','text','Beto Exemplo')],'Registrar compra')+
  form('purchase.receive','Receber compra',[field('id','Compra pendente','select','',purchases)],'Conferir e dar entrada no estoque'))+
  panel('Controle de compras','<p>O recebimento atualiza o estoque e cria uma única conta a pagar. Não é possível receber duas vezes o mesmo pedido de compras. Compras avulsas antigas continuam disponíveis e não são transformadas em requisições sem autorização.</p>')+
+ panel('Devolução integral após recebimento — fluxo formal de teste',
+  '<p>Uma compra recebida não pode ser simplesmente cancelada. Nesta prévia, a devolução integral exige estoque disponível, documento original e título a pagar aberto. Ela cria uma saída separada de estoque e um crédito a receber do fornecedor, sem apagar a entrada e o título originais. Devolução parcial e compras já pagas continuam bloqueadas.</p>'+
+  form('purchase.return.full','Registrar devolução total de uma compra recebida',[
+   field('id','Compra recebida e apta à devolução','select','',selector(elegiveis,x=>
+    x.id+' · '+str(ref(s.materials,x.materialId)?.name||x.materialId)+
+    ' · '+x.qtyGrams+'g · '+fmt(Math.ceil(x.qtyGrams*x.priceCentsKg/1000)))),
+   field('reference','Referência única do protocolo','text','DEV-EXEMPLO-001'),
+   field('returnedBy','Responsável fictício pela devolução','text','Almoxarife Exemplo'),
+   field('reviewedBy','Conferente independente','text','Supervisora Exemplo'),
+   field('reason','Justificativa documentada','text','Material recebido com divergência na inspeção fictícia')
+  ],'Registrar devolução com novo crédito')+
+  '<p class="caption">Não libera movimentação bancária, Nota Fiscal, aprovação autenticada ou devolução física real. Se o estoque já foi consumido, a operação é recusada sem nenhum estorno.</p>',true)+
+ panel('Histórico de devoluções e créditos fictícios',
+  table(['Devolução','Compra original','Material','Quantidade devolvida','Crédito','Referência','Conferência','Situação'],
+   devolucoes.map(x=>[
+    str(x.id),str(x.purchaseId),str(ref(s.materials,x.materialId)?.name||x.materialId),
+    str(x.qtyGrams)+' g',fmt(x.amountCents),str(x.reference),
+    str(x.returnedBy)+' / '+str(x.reviewedBy),str(x.status)+' · '+str(x.creditFinanceId)
+   ]))+
+  '<p class="caption">Os movimentos de estoque, a conta original e o crédito de devolução continuam nos relatórios e no JSON de evidências.</p>',true)+
  panel('Compras do laboratório',table(['Compra','Fornecedor','Material','Quantidade','Conferentes','Status'],s.purchaseOrders.map(x=>[
  str(x.id),str(ref(s.suppliers,x.supplierId)?.name),str(ref(s.materials,x.materialId)?.name),
  str(x.qtyGrams)+'g',str(x.checkerOne)+' / '+str(x.checkerTwo),
-  (x.cancelled?'Cancelada':x.received?'Recebida':'Pendente')+
+  (x.cancelled?'Cancelada':x.returnId?'Devolvida integralmente':x.received?'Recebida':'Pendente')+
   (x.purchaseRequestId?' · '+str(x.purchaseRequestId):'') ])),true);
+ }
  case 'estoque':return panel('Ajuste controlado de materiais',
  form('stock.adjust','Ajustar saldo',[field('materialId','Material','select','',materials),
  field('deltaGrams','Entrada/saída em gramas (ex.: -500)','signed-int','500'),
@@ -882,13 +909,20 @@ function moduleHtml(s){
     str(r.id),str(ref(s.materials,r.materialId)?.name||r.materialId),
     str(r.qtyGrams),fmt(r.estimatedCents),str(r.requester),
     str(r.approver||'—'),str(r.status),str(r.purchaseId||'—')])),true);
- const advanced=observationPanels(s,'relatorios');if(advanced)return advanced+planPanel+requestReport;
+ const returnsReport=panel('Devoluções formais de compras recebidas',
+  table(['Documento','Compra','Fornecedor','Material','Devolvido','Crédito a receber','Protocolo','Motivo'],
+   (s.purchaseReturns||[]).map(x=>[
+    str(x.id),str(x.purchaseId),str(ref(s.suppliers,x.supplierId)?.name||x.supplierId),
+    str(ref(s.materials,x.materialId)?.name||x.materialId),
+    str(x.qtyGrams)+' g',fmt(x.amountCents),str(x.reference),str(x.reason)
+   ])),true);
+ const advanced=observationPanels(s,'relatorios');if(advanced)return advanced+planPanel+requestReport+returnsReport;
  const t=api.totals(s);
  return panel('Indicadores vinculados',table(['Indicador','Valor'],Object.entries(t).map(([k,v])=>[
  str(k),k.includes('Payables')||k.includes('Receivables')||k==='passage'||k==='salaryCash'?fmt(v):str(v)])))+
  panel('Como auditar o relatório','<p>Compare pedidos, corte, retorno, expedição e Hub. Exporte o JSON e confira que cada evento tem ID e revisão.</p>'+
  '<div class="actions"><button class="btn" type="button" data-goto="auditor">Executar integridade</button></div>')+
- panel('Pedidos × Financeiro',orderTable(s)+financeTable(s),true)+requestReport;
+ panel('Pedidos × Financeiro',orderTable(s)+financeTable(s),true)+requestReport+returnsReport;
  }
  case 'auditor':{
  const advanced=observationPanels(s,'auditor');if(advanced)return advanced;
@@ -1106,6 +1140,8 @@ function exportCsv(){
  ref(doc.products,x.productId)?.name||'', 'Enviadas: '+x.shipped,sum(x.grade)]),
  ...doc.finance.map(x=>['Financeiro',x.id,x.description,x.status,x.amountCents]),
  ...(doc.settlementCompensations||[]).map(x=>['Compensação',x.id,x.settlementId+' · '+x.reference,x.status,x.deltaCents]),
+ ...(doc.purchaseReturns||[]).map(x=>['Devolução integral',x.id,
+  x.purchaseId+' · '+x.reference+' · '+x.reason,x.status,x.qtyGrams]),
  ...doc.purchaseOrders.map(x=>['Compra',x.id,ref(doc.materials,x.materialId)?.name||'',
   (x.cancelled?'Cancelada':x.received?'Recebido':'Pendente')+
    (x.purchaseRequestId?' · '+x.purchaseRequestId:''),x.qtyGrams]),
