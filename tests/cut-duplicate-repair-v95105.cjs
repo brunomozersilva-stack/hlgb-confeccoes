@@ -13,11 +13,16 @@ function create(opts={}){
     ...(keep&&product==='Fio Jamile'?{materialUsage:[{name:'poliamida'},{name:'renda'},{name:'malha'}],
       materialUsageRecordedAt:'2026-11-17T16:51:18Z'}:{})}
  }]));
- const copy=x=>JSON.parse(JSON.stringify(x)),db={cuts:[...records.values()].map(r=>copy(r.data))},writes=[];
+ const copy=x=>JSON.parse(JSON.stringify(x)),db={cuts:[...records.values()].map(r=>copy(r.data))},writes=[],probes=[];
  const window={db,__HLGB_AUTH_READY:opts.unauth!==true,alert:()=>{},confirm:()=>opts.confirm!==false,
    cloudRequest:async path=>{
     const id=decodeURIComponent(path).match(/entity_id=eq\.([^&]+)/)?.[1];return records.has(id)?[copy(records.get(id))]:[];
-   },hlgbWalIdbGuard9536:{probe:async()=>{},ids:()=>new Set(opts.wal||[]),status:()=>({readFailed:false})},
+   },hlgbWalIdbGuard9536:{supportsCustomTimeout:opts.legacyGuard!==true,
+    probe:async options=>{
+      probes.push(options);
+      if(probes.length<=(opts.shortTimeouts||0))throw Error('Leitura do IndexedDB excedeu 8 segundos');
+      if(opts.longTimeout)throw Error('Leitura do IndexedDB excedeu 32 segundos');
+    },ids:()=>new Set(opts.wal||[]),status:()=>({readFailed:false})},
    hlgbRecordPendingIdentitySet9535:()=>new Set([]),
    hlgbRecordSaveWithRetry:async(module,id,data,deleted)=>{
     if(opts.fail&&writes.length===0)throw Error('indisponível');
@@ -28,7 +33,7 @@ function create(opts={}){
  const document={addEventListener:()=>{},getElementById:()=>null};
  const context={window,document,db,console,setTimeout:()=>0,Date,Error,JSON,Number,String,Array,Set,Promise,encodeURIComponent};
  vm.createContext(context);vm.runInContext(source,context);
- return {api:window.hlgbCutDuplicateRepair95105,window,db,records,writes};
+ return {api:window.hlgbCutDuplicateRepair95105,window,db,records,writes,probes};
 }
 test('arquiva só os dois duplicados e preserva os materiais da Jamile',async()=>{
  const f=create(),r=await f.api.execute();
@@ -62,4 +67,27 @@ test('loader injeta módulo após proteção de integridade de registros',()=>{
  const html=fs.readFileSync(path.join(__dirname,'..','app-stable3.html'),'utf8');
  const a=html.indexOf("'release-record-integrity.js'"),b=html.indexOf("'release-cut-duplicate-repair-v95105.js'");
  assert.ok(a>=0&&b>a);
+});
+
+test('timeout de 8 segundos permite uma única recuperação de leitura readonly a 32s',async()=>{
+ const f=create({shortTimeouts:1});const result=await f.api.execute();
+ assert.equal(result.ok,true);assert.equal(result.archived,2);
+ assert.equal(f.probes.length,3,'leitura inicial 8s em andamento e nova leitura extendida na confirmação');
+ for(const x of f.probes)assert.equal(x.timeoutMs,32000);
+});
+test('IndexedDB ainda bloqueado após tentativa estendida nunca exclui cortes',async()=>{
+ const f=create({shortTimeouts:1,longTimeout:true});
+ await assert.rejects(f.api.execute(),/Feche as outras abas do HLGB/);
+ assert.equal(f.writes.length,0);assert.equal(f.db.cuts.length,4);
+});
+test('proteção de WAL antiga impede exclusão sem atualização completa',async()=>{
+ const f=create({legacyGuard:true});await assert.rejects(f.api.execute(),/Atualização da leitura segura/);
+ assert.equal(f.probes.length,0);assert.equal(f.writes.length,0);
+});
+test('guard v95.36 aceita apenas timeout opcional e limita até 45 segundos',()=>{
+ const src=fs.readFileSync(path.join(__dirname,'..','release-wal-idb-convergence-v9536.js'),'utf8');
+ assert.match(src,/supportsCustomTimeout:true/);
+ assert.match(src,/Math\.min\(45000,Math\.max\(8000,requested\)\)/);
+ assert.match(src,/async function probe\(options=\{\}\)/);
+ assert.match(src,/const result=await scan\(options\)/);
 });
