@@ -18,6 +18,7 @@ const routes={'/':'operacao-integrada.html',
  '/modulos/pcp-v1.js':'modulos/pcp-v1.js',
  '/modulos/relatorios-gerenciais-v1.js':'modulos/relatorios-gerenciais-v1.js',
  '/modulos/auditor-v3.js':'modulos/auditor-v3.js',
+ '/modulos/bot-v3.js':'modulos/bot-v3.js',
  '/operacao-integrada-core.js':'operacao-integrada-core.js',
  '/operacao-integrada-ui.js':'operacao-integrada-ui.js','/folha-homologacao.html':'folha-homologacao.html'};
 const server=http.createServer((req,res)=>{
@@ -62,6 +63,7 @@ async function run(browser,width,url){
   assert.match(await page.locator('#module-content').innerText(),/Observabilidade 2.0/);
   await module(page,'bot');
   assert.match(await page.locator('#module-content').innerText(),/Assistente de triagem/);
+  assert.match(await page.locator('#module-content').innerText(),/Bot 3.0/);
   await module(page,'relatorios');
   assert.match(await page.locator('#module-content').innerText(),/Histórico completo/);
   assert.match(await page.locator('#module-content').innerText(),/Central de Relatórios Gerenciais/);

@@ -607,6 +607,20 @@ function auditV3Panels(s){
  panel('Confirmar resolução somente após rechecagem',form('audit.review','Registrar verificação',[field('key','Ocorrência ausente com regra conforme','select','',ready),field('status','Ação','select','',[['verificado','Confirmar verificação']]),field('note','Evidência da rechecagem','text','Regra reexecutada')],'Confirmar verificação')+table(['Ocorrência anterior','Situação','Última evidência'],r.previously.map(x=>[str(x.key),str(x.state),str(x.note)])));
 }
 
+
+function botV3(s){try{const a=auditorV3(s);return a?window.HLGBLabBotV3?.analyze(s,a)||null:null;}catch(e){return null;}}
+function botV3Panels(s){
+ const r=botV3(s);if(!r)return panel('Bot 3.0','<div class="error">Aprendizado indisponível. Confira o Auditor.</div>',true);
+ const active=r.active,choices=active.filter(x=>x.observationId).map(x=>[x.key,x.key+' · '+x.message]),first=active.find(x=>x.observationId);
+ const obs=(s.botObservations||[]).slice().reverse().map(x=>[x.commandId,'Revisão '+x.operationalRevision+' · '+x.findings.length+' ocorrências']);
+ return panel('Bot 3.0 · aprendizado baseado em evidências','<div class="metrics">'+[['Observações registradas',r.observations],['Erros persistentes',r.persistent],['Regras recorrentes',r.recurring.length],['Feedback útil',r.outcomes.util]].map(([k,v])=>'<div class="metric"><span>'+str(k)+'</span><strong>'+str(v)+'</strong></div>').join('')+'</div><p>Aprende por comparação de observações de revisões operacionais distintas. A prioridade começa pela gravidade do Auditor, depois pela persistência comprovada. Não é treinamento de IA; não executa pagamentos, alterações nem reparos. Feedback não encerra alertas.</p>'+(r.integrity.length?'<div class="error">'+str(r.integrity.join('; '))+'</div>':'')+(r.canObserve?form('bot.observe','Registrar diagnóstico desta revisão',[],'Registrar observação'):'<p>Nova observação indisponível: mesma revisão operacional, integridade ou diagnóstico incompleto.</p>')+'<div class="actions"><button type="button" class="btn" id="bot-v3-export">Exportar aprendizado JSON</button></div>',true)+
+ panel('Fila de recomendações por gravidade e recorrência',table(['Regra / registro','Prioridade','Observações','Evidências / orientação','Feedback'],active.map(x=>[str(x.key),str(x.severity)+' · '+str(x.priorityReason),str(x.observations),str(x.evidence)+'<div class="caption">'+str(x.action)+'</div>'+(ids.has(x.module)?'<button class="btn" type="button" data-goto="'+str(x.module)+'">Conferir módulo</button>':''),str(x.feedback?.outcome||'Sem feedback')])),true)+
+ panel('Registrar resultado da recomendação',form('bot.feedback','Avaliar orientação documentada',[field('observationId','Observação que contém a ocorrência','select','',obs),field('key','Ocorrência','select','',choices),field('outcome','Resultado','select','',[['investigando','Investigando'],['util','Útil'],['nao_util','Não útil']]),field('note','Evidência / motivo','text','Conferência fictícia')],'Registrar feedback')+'<p>Escolha uma observação que contenha a ocorrência. O sistema valida o vínculo.</p>')+
+ panel('Padrões recorrentes',table(['Regra','Observações distintas','Ocorrências ativas'],r.recurring.map(x=>[str(x.code),str(x.observations),str(x.active)]))+table(['Ocorrência manual','Registros','Abertos'],r.incidentPatterns.map(x=>[str(x.message),str(x.count),str(x.open)])),true)+
+ panel('Ocorrências não detectadas atualmente',table(['Registro','Última observação','Estado'],r.inactive.map(x=>[str(x.key),str(x.last),x.verified?'Verificado pelo Auditor':'Ausente agora; resolução não comprovada'])),true)+
+ panel('Histórico de aprendizado',table(['Comando','Revisão operacional','Ocorrências'],r.history.slice().reverse().map(x=>[str(x.commandId),str(x.operationalRevision),str(x.findings)]))+table(['Ocorrência','Resultado','Evidência'],r.feedbackHistory.slice().reverse().map(x=>[str(x.key),str(x.outcome),str(x.note)])),true);
+}
+
 function moduleHtml(s){
  const o=orderOptions(s),openPlans=(s.cutPlans||[]).filter(p=>p.status==='aberto'),
   planOptions=selector(openPlans,p=>p.id+' · '+p.orderId+' · '+sum(p.grade)+' peças'),
@@ -1128,8 +1142,8 @@ function moduleHtml(s){
  panel('Limites do auditor','<p>O diagnóstico não aplica autocorreção. Sem banco empresarial, não há prova de saúde do sistema atual, monitoramento remoto ou aprendizagem automática.</p>');
  }
  case 'bot':{
- const advanced=observationPanels(s,'bot');if(advanced)return advanced;
- return panel('Recomendações baseadas em regras fixas',
+ const advanced=observationPanels(s,'bot');if(advanced)return botV3Panels(s)+advanced;
+ return botV3Panels(s)+panel('Recomendações baseadas em regras fixas',
  '<p>O assistente apenas lê indicadores locais para sugerir o próximo passo. Não usa IA treinada, não aprende, não faz ações sozinho.</p>'+
  '<ol class="tips">'+api.tips(s).map(x=>'<li>'+escape(x)+'</li>').join('')+'</ol>')+
  panel('Ações rápidas','<div class="actions"><button class="btn" data-goto="pedidos">Pedidos</button>'+
@@ -1371,7 +1385,7 @@ function exportReport(){
  if(!doc)return;const report={schema:'hlgb-evolucao-operacao-integrada-report-v1',environment:'indexeddb-local-fictitious',
   productionApproval:false,parityApproved:false,modulesVisited:19,exportedAt:new Date().toISOString(),
   journey:api.journey(doc,journeyOrderId),
-  observability:observerResult(doc),auditorV3:auditorV3(doc),materialPlanning:materialPlannerResult(doc),
+  observability:observerResult(doc),auditorV3:auditorV3(doc),botV3:botV3(doc),materialPlanning:materialPlannerResult(doc),
   checks:api.inspect(doc),totals:api.totals(doc),data:{...doc,paymentReceipts:window.HLGBLabPaymentBatchV1.receiptMetadata(doc)},receiptBinaryExported:false};
  download('HLGB-EVOLUCAO-OPERACAO-INTEGRADA-FICTICIA.json',JSON.stringify(report,null,2),'application/json');
 }
@@ -1716,6 +1730,7 @@ document.addEventListener('change',event=>{
  }
 });
 document.addEventListener('click',e=>{
+ if(e.target.closest('#bot-v3-export')){const r=botV3(doc);if(!r){status('Aprendizado indisponível.','error');return;}download('HLGB-BOT-V3-FICTICIO.json',JSON.stringify(r,null,2),'application/json');return;}
  if(e.target.closest('#audit-v3-run')){draw();status('Diagnóstico local reexecutado. Confira as regras e evidências.');return;}
  if(e.target.closest('#audit-v3-export')){const r=auditorV3(doc);if(!r){status('Diagnóstico indisponível.','error');return;}download('HLGB-AUDITOR-V3-FICTICIO.json',JSON.stringify(r,null,2),'application/json');return;}
  if(e.target.closest('#mgmt-export')){exportManagement(false);return;}
