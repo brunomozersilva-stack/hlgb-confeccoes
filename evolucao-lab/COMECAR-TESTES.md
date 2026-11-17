@@ -21,6 +21,22 @@ A página `homologacao-modulos.html` organiza 76 funcionalidades antigas identif
 
 As restantes **27 funções não possuem demonstração específica equivalente**. Elas já podem ser registradas como pendências, mas **não podem ser aprovadas no formulário como se estivessem implementadas**.
 
+## NOVO — Paleta reutilizável e previsão de materiais para a produção semanal
+
+Somente na **Operação Integrada fictícia**:
+
+1. Abra **Produtos e ficha técnica** e confirme a paleta (Preto, Branco, Rubi). Cadastre `Azul-marinho`; tentar `azul-MARINHO` novamente deve gerar aviso sem alterar a revisão. No painel **Facções**, a cor estará disponível para seleção nos novos pedidos.
+2. Em **Produtos**, crie uma regra de consumo para **Camisola Melina / Malha / Preto / P** de **125 g por peça** e justifique. Crie outra receita **Camisola Melina / Renda / Todas as cores / Todos os tamanhos** de **15 g por peça**. Esta renda é considerada *componente adicional na previsão*.
+3. Em **Compras e fornecedores → Planejador semanal**, adicione 100 unidades de Camisola Melina / Preto / P e 200 de Calcinha Tammy / Rubi / M.
+4. O total teórico deve ser **300 peças**, com **12.500 g de Malha** e **10.500 g de Renda** (1.500 g de renda da Melina + 9.000 g da Tammy). O faltante depende do saldo fictício do material no momento do teste.
+5. Exporte JSON e confirme `materialPlanning.stockWritten=false` e `purchaseCreated=false`. Nenhum movimento novo de estoque nem compra deve surgir por causa da simulação.
+6. Em **Relatórios**, confira a lista de material faltante e o valor estimado; exporte o CSV e procure **Necessidade de material**.
+7. De volta a Compras, arquive a linha de Melina com uma justificativa. O histórico de linha arquivada deve permanecer, e o cálculo deve ser atualizado para **200 peças Tammy**. O estoque e os pagamentos anteriores não podem mudar.
+8. Em **Produtos**, faça uma segunda versão da receita de renda da Melina. A versão antiga deve ficar registrada como **Substituída**, nunca excluída. Confira as revisões e o Auditor.
+9. Recarregue a página, verifique que os cadastros e as linhas do cenário permaneceram localmente e que o relatório ainda calcula a previsão corretamente.
+
+**Atenção:** o estoque do laboratório é fictício. O total é uma projeção de produção nova, não uma compra oficial, não representa desperdício ou consumo do Corte já executado e não confirma paridade integral com o HLGB de produção.
+
 ## NOVO — Testar grade por cor e tamanho em várias facções
 
 Na prévia fictícia `operacao-integrada.html`, abra **Facções**. Cadastre antes um pedido com grade 4 P e 2 M e registre no Corte 4 P e 2 M.
