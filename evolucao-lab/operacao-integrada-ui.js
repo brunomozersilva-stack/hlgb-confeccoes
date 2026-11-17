@@ -153,6 +153,80 @@ function observerResult(s){
   return r&&r.ok?r.data:null;
  }catch(error){return null}
 }
+
+function materialPlannerResult(s){
+ try{return window.HLGBLabMaterialsPlannerV1?.preview(s)||null}
+ catch(error){return {error:String(error.message||error)}}
+}
+function materialRecipePanels(s){
+ const catalog=(s.colorCatalog||window.HLGBLabMaterialsPlannerV1?.seed?.()||[]),
+   colorChoices=[['*','Todas as cores'],...catalog.map(x=>[x.name,x.name])],
+   sizeChoices=[['*','Todos os tamanhos'],...api.sizes.map(sz=>[sz,sz])],
+   materials=selector(s.materials,x=>x.name),products=selector(s.products,x=>x.name);
+ const recipes=s.materialRecipeRules||[];
+ return panel('Paleta central de cores — reaproveitar no pedido e na produção',
+  '<p>Cadastre cada cor uma única vez. O cadastro não renomeia cores usadas em pedidos anteriores.</p>'+
+  form('color.catalog.add','Incluir cor reutilizável',[
+   field('name','Nome único da cor','text','Azul-marinho')
+  ],'Cadastrar nova cor')+
+  table(['Código','Cor','Origem'],catalog.map(x=>[
+   str(x.id),str(x.name),str(x.origin)])),true)+
+ panel('Ficha técnica de materiais por modelo, cor e tamanho',
+  '<p>Defina consumo específico em gramas por peça. Para o material principal, a regra substitui <strong>apenas na previsão</strong> o consumo básico; materiais adicionais, como renda ou tule, são somados ao principal. Regras mais específicas prevalecem sobre regras gerais.</p>'+
+  form('material.recipe.set','Nova versão da receita de planejamento',[
+   field('productId','Modelo','select','',products),
+   field('materialId','Material ou aviamento','select','',materials),
+   field('color','Cor aplicável','select','',colorChoices),
+   field('size','Tamanho aplicável','select','',sizeChoices),
+   field('gramsPerUnit','Consumo deste componente por peça (g)','int','15'),
+   field('reason','Justificativa da receita','text','Estimativa fictícia aprovada para previsão')
+  ],'Registrar regra sem alterar corte')+
+  table(['Versão','Modelo','Material','Cor','Tamanho','g/peça','Situação','Motivo'],
+   recipes.map(r=>[str(r.id),str(ref(s.products,r.productId)?.name||r.productId),
+    str(ref(s.materials,r.materialId)?.name||r.materialId),
+    str(r.color==='*'?'Todas':r.color),str(r.size==='*'?'Todos':r.size),
+    str(r.gramsPerUnit),r.active?'Atual':'Substituída',str(r.reason)]))+
+  '<p class="caption">Nunca altera silenciosamente o estoque nem as folhas de corte concluídas. O consumo efetivo do Corte permanece na rotina antiga até homologação posterior.</p>',true);
+}
+function materialsPlanningPanels(s){
+ const catalog=(s.colorCatalog||window.HLGBLabMaterialsPlannerV1?.seed?.()||[]),
+  colors=catalog.map(x=>[x.name,x.name]),
+  products=selector(s.products,x=>x.name+' · '+x.sku),
+  current=(s.materialPlanLines||[]),active=current.filter(x=>x.active),
+  result=materialPlannerResult(s);
+ return panel('Planejador semanal de produção — várias peças e vários modelos',
+  '<p>Monte um cenário fictício com a quantidade de cada modelo, cor e tamanho. Cada linha pode ser arquivada, mas o histórico é preservado. O cálculo <strong>não cria compra, não reserva material e não baixa estoque</strong>.</p>'+
+  form('materials.plan.add','Adicionar uma quantidade ao cenário',[
+   field('productId','Modelo','select','',products),
+   field('color','Cor','select','',colors),
+   field('size','Tamanho','select','',api.sizes.map(sz=>[sz,sz])),
+   field('qty','Quantidade prevista de peças','int','50')
+  ],'Adicionar ao planejamento')+
+  form('materials.plan.archive','Arquivar linha sem excluir o histórico',[
+   field('id','Linha ativa','select','',
+    selector(active,x=>x.id+' · '+ref(s.products,x.productId)?.name+' · '+x.color+' '+x.size+' · '+x.qty+' peças')),
+   field('reason','Motivo da alteração','text','Replanejamento da produção fictícia')
+  ],'Arquivar linha e manter registro')+
+  table(['Linha','Modelo','Cor','Tamanho','Peças','Situação'],
+   current.map(x=>[str(x.id),str(ref(s.products,x.productId)?.name||x.productId),
+    str(x.color),str(x.size),str(x.qty),x.active?'No cenário':'Arquivada'])),true)+
+ panel('Lista consolidada de materiais e compra sugerida',
+  result?.error?'<p class="error">'+str(result.error)+'</p>':
+  (result?'<p>'+str(result.lines)+' linha(s), '+str(result.pieces)+' peça(s) planejadas · custo teórico '+fmt(result.estimatedCostCents)+' · compra faltante estimada '+fmt(result.missingCostCents)+'.</p>'+
+  table(['Material','Necessidade (g)','Saldo fictício (g)','Falta comprar (g)','Custo teórico','Valor estimado da falta'],
+   result.materials.map(x=>[str(x.name),str(x.requiredGrams),str(x.availableGrams),
+    str(x.missingGrams),fmt(x.costCents),fmt(x.purchaseCents)]))+
+  '<h3>Resumo por modelo</h3>'+
+  table(['Modelo','Peças','Linhas','Material total (g)'],result.products.map(x=>[
+   str(x.name)+' · '+str(x.sku),str(x.pieces),str(x.lines),str(x.requiredGrams)]))+
+  '<h3>Detalhes da receita por cor e tamanho</h3>'+
+  table(['Modelo','Cor','Tamanho','Qtd','Material','g/peça','Total (g)','Regra utilizada'],
+   result.detail.map(x=>[str(x.productName),str(x.color),str(x.size),str(x.qty),
+    str(x.materialName),str(x.gramsPerUnit),str(x.requiredGrams),
+    str(x.ruleId==='ficha-basica'?'Ficha básica':x.ruleId)])):
+  '<p>Planejador indisponível nesta versão de testes.</p>')+
+  '<p class="caption">A comparação considera uma nova produção hipotética e os saldos atuais do laboratório. Não desconta material de pedidos futuros já existentes nem calcula perdas por cor; confira o estoque físico, desperdício, unidade e preços antes de uma compra real.</p>',true);
+}
 function observationPanels(s,area){
  const o=observerResult(s);
  if(!o)return null;
@@ -302,12 +376,12 @@ function moduleHtml(s){
  panel('Fluxo e integridade',refDocs(s)+
  '<p>O pedido já gera uma conta fictícia a receber. Corte, produção e separação precisam respeitar a grade.</p>')+
  panel('Pedidos e seus saldos',orderTable(s),true);
- case 'produtos':return panel('Ficha técnica básica e SKU',
+ case 'produtos':return materialRecipePanels(s)+panel('Ficha técnica básica e SKU',
  form('product.add','Cadastrar modelo',[field('name','Nome do modelo'),field('sku','SKU único'),
  field('materialId','Material principal','select','',materials),
  field('gramsPerUnit','Consumo por unidade (g)','int','80'),
  field('priceCents','Preço de venda R$','money','39,90')],'Cadastrar modelo'))+
- panel('Referência dos materiais','<p>Este ensaio utiliza um material principal por modelo. A ficha técnica real terá múltiplos componentes, grade, perdas e tamanhos.</p>')+
+ panel('Referência dos materiais','<p>O corte fictício continua utilizando o consumo principal registrado ao cadastrar o modelo. A nova receita detalhada é usada somente na previsão de materiais, sem alterar baixas antigas.</p>')+
  panel('Modelos cadastrados',table(['SKU','Modelo','Material','Consumo','Preço'],s.products.map(x=>[
  str(x.sku),str(x.name),str(ref(s.materials,x.materialId)?.name),str(x.gramsPerUnit)+'g',fmt(x.priceCents)])),true);
  case 'corte':{
@@ -389,7 +463,10 @@ function moduleHtml(s){
  const unclassified=selector(s.orders.filter(x=>!x.colorGrades?.length),
   x=>x.id+' · '+(ref(s.products,x.productId)?.name||'Modelo')+' · '+sum(x.grade)+' peças');
  const classified=s.orders.filter(x=>x.colorGrades?.length);
- const colorOptions=[...new Set(classified.flatMap(x=>x.colorGrades.map(g=>g.color)))].map(x=>[x,x]);
+ const colorOptions=[...new Set([
+  ...(s.colorCatalog||window.HLGBLabMaterialsPlannerV1?.seed?.()||[]).map(x=>x.name),
+  ...classified.flatMap(x=>x.colorGrades.map(g=>g.color))
+ ])].map(x=>[x,x]);
  const sizeOptions=api.sizes.map(x=>[x,x]);
  const colorAssignmentOptions=selector(rows.filter(x=>classified.some(o=>o.id===x.orderId)),
   x=>x.id+' · '+x.orderId+' · '+(ref(s.factions,x.factionId)?.name||'—')+
@@ -442,7 +519,7 @@ function moduleHtml(s){
   field('orderId','Pedido sem envios','select','',
    selector(s.orders.filter(x=>x.allocated===0),
     x=>x.id+' · '+(ref(s.products,x.productId)?.name||'Modelo'))),
-  field('color','Nome da cor','text','Preto'),
+  field('color','Cor cadastrada','select','',colorOptions),
   ...api.sizes.map(sz=>field(sz,sz+' — peças desta cor','int','0'))
  ],'Salvar quantidades da cor')+
  '<p class="caption">Cadastre uma linha para cada cor, usando P, M, G e GG. A soma de todas as cores deve corresponder à grade total do pedido antes de enviar. Digitar tudo zero remove uma cor já cadastrada, enquanto não houver envios. A grade geral do pedido permanece preservada.</p>'+
@@ -654,7 +731,7 @@ function moduleHtml(s){
  panel('Saldos da folha fictícia',table(['Funcionário','Base','Passagem','Extras','Descontos','Desembolso'],s.employees.map(e=>[
  str(e.name),fmt(e.salaryCents),fmt(e.passageCents),fmt(e.extrasCents),fmt(e.discountCents),
  fmt(e.salaryCents+e.extrasCents-e.discountCents+e.passageCents)])),true);
- case 'compras':return panel('Compra com dupla conferência',
+ case 'compras':return materialsPlanningPanels(s)+panel('Compra com dupla conferência',
  form('purchase.add','Planejar compra',[field('supplierId','Fornecedor','select','',suppliers),
  field('materialId','Material','select','',materials),
  field('qtyGrams','Quantidade (g)','int','3000'),
@@ -675,7 +752,14 @@ function moduleHtml(s){
  panel('Movimentação de material',table(['ID','Tipo','Material','Variação','Origem'],s.stockLedger.map(x=>[
  str(x.id),str(x.type),str(ref(s.materials,x.materialId)?.name),(x.deltaGrams>0?'+':'')+x.deltaGrams+'g',str(x.sourceId)])),true);
  case 'relatorios':{
- const advanced=observationPanels(s,'relatorios');if(advanced)return advanced;
+ const planning=materialPlannerResult(s);
+ const planPanel=planning&&!planning.error?panel('Planejamento teórico de compras por material',
+  '<p>'+str(planning.pieces)+' peça(s) simuladas, '+fmt(planning.missingCostCents)+
+  ' de falta estimada, sem compras ou baixas automáticas.</p>'+
+  table(['Material','Previsto (g)','Faltante (g)','Valor da compra sugerida'],
+   planning.materials.map(m=>[str(m.name),str(m.requiredGrams),str(m.missingGrams),
+    fmt(m.purchaseCents)])),true):'';
+ const advanced=observationPanels(s,'relatorios');if(advanced)return advanced+planPanel;
  const t=api.totals(s);
  return panel('Indicadores vinculados',table(['Indicador','Valor'],Object.entries(t).map(([k,v])=>[
  str(k),k.includes('Payables')||k.includes('Receivables')||k==='passage'||k==='salaryCash'?fmt(v):str(v)])))+
@@ -879,7 +963,7 @@ function exportReport(){
  if(!doc)return;const report={schema:'hlgb-evolucao-operacao-integrada-report-v1',environment:'indexeddb-local-fictitious',
   productionApproval:false,parityApproved:false,modulesVisited:19,exportedAt:new Date().toISOString(),
   journey:api.journey(doc,journeyOrderId),
-  observability:observerResult(doc),
+  observability:observerResult(doc),materialPlanning:materialPlannerResult(doc),
   checks:api.inspect(doc),totals:api.totals(doc),data:doc};
  download('HLGB-EVOLUCAO-OPERACAO-INTEGRADA-FICTICIA.json',JSON.stringify(report,null,2),'application/json');
 }
@@ -897,6 +981,14 @@ function exportCsv(){
  ...(doc.factionAssignments||[]).flatMap(a=>(a.gradeLines||[]).map(g=>
   ['Peças por facção/cor',a.id,a.orderId+' · '+a.factionId+
    ' · '+g.color+' '+g.size,'Enviadas '+g.sent,g.returned])),
+ ...(doc.colorCatalog||[]).map(c=>['Paleta de cores',c.id,c.name,c.origin,'']),
+ ...(doc.materialRecipeRules||[]).map(r=>['Receita de planejamento',r.id,
+  r.productId+' · '+r.materialId+' · '+r.color+' '+r.size,
+  r.active?'Atual':'Substituída',r.gramsPerUnit]),
+ ...(doc.materialPlanLines||[]).map(l=>['Cenário de produção',l.id,
+  l.productId+' · '+l.color+' '+l.size,l.active?'Ativo':'Arquivado',l.qty]),
+ ...(materialPlannerResult(doc)?.materials||[]).map(m=>['Necessidade de material',m.materialId,
+  m.name+' · faltam '+m.missingGrams+' g','Previsto',m.requiredGrams]),
  ...(doc.factionPartialTransfers||[]).map(t=>['Transferência parcial',t.id,
   t.orderId+' · '+t.fromFactionId+' → '+t.toFactionId+' · '+t.reason,
   t.commandId,t.qty]),
