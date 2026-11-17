@@ -21,6 +21,22 @@ A página `homologacao-modulos.html` organiza 76 funcionalidades antigas identif
 
 As restantes **27 funções não possuem demonstração específica equivalente**. Elas já podem ser registradas como pendências, mas **não podem ser aprovadas no formulário como se estivessem implementadas**.
 
+## NOVO — Cancelar uma compra emitida sem tocar no estoque nem no Hub
+
+No laboratório da **Operação Integrada**, somente com dados fictícios:
+
+1. Em **Compras**, programe uma quantidade de modelo/cor/tamanho cujo consumo de material seja maior que o saldo disponível (por exemplo, 300 Camisola Melina P).
+2. Faça uma nova **requisição REQ**, aprovação por outro responsável e **emissão da compra COM**, mas **não receba** o material.
+3. Exporte o JSON para conferir quantidades, material, fornecedor, preço, status `emitida`, entrada de estoque e títulos financeiros antes do cancelamento.
+4. No painel **Cancelar formalmente compra emitida ainda não recebida**, escolha a requisição, informe referência única (exemplo `CANCEL-EXEMPLO-001`), nome de responsável, nome diferente do conferente e motivo. Se os dois nomes forem iguais, o sistema deve rejeitar sem atualizar revisão.
+5. Confirme. A requisição deve mostrar status **`emissao_cancelada`** e continuar vinculada à mesma compra. A compra deve permanecer registrada como **Cancelada**; o material, a quantidade, preço/kg e fornecedor originais devem permanecer idênticos.
+6. Verifique no JSON que o **estoque, o histórico de movimentações e os títulos do Hub não mudaram**. O comando de cancelamento deve constar no histórico de ambos os registros, com a mesma referência e justificativa.
+7. Em **Receber compra**, a COM cancelada não deve aparecer. A tentativa direta de receber esse ID deve falhar sem movimentar estoque ou gerar conta. Não se pode cancelar a mesma emissão novamente.
+8. Confira o **Auditor**, Relatórios, CSV e recarga da página. O histórico do cancelamento deve permanecer.
+9. Em outro cenário fictício, **receba uma compra antes de tentar cancelar**. A tentativa deverá ser bloqueada, pois essa situação exige um fluxo formal de devolução e reconciliação, ainda não implantado. Uma nova requisição para a falta que continuar existindo deve ter ID novo, sem apagar a COM cancelada.
+
+**Atenção:** os nomes e aprovações digitados não são identidades autenticadas, e o cancelamento não avisa fornecedor real, não cancela NF nem movimenta dinheiro. Não teste no HLGB em produção.
+
 ## NOVO — Solicitação de compra com revisão, aprovação e recebimento conciliados
 
 Na prévia **Operação Integrada**, sem dados empresariais:
