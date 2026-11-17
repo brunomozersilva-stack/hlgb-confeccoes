@@ -90,11 +90,12 @@ function receiptPanel(s){
    '</div><p id="receipt-current" class="caption" role="status"></p>'+
    '<button type="submit" class="btn primary">Salvar comprovante fictício</button></form>':
    '<p>Nenhum pagamento a pagar foi quitado neste exercício.</p>')+
-   table(['Comprovante','Pagamento','Valor vinculado','Arquivo / tamanho','Versão','Motivo','Consultar'],
+   '<div class="field"><label>Buscar comprovantes<input class="input" type="search" data-filter-for="payment-receipt-history" placeholder="CPV, FIN, PAG ou nome do arquivo"></label></div>'+
+ '<div id="payment-receipt-history">'+table(['Comprovante','Pagamento','Valor vinculado','Arquivo / tamanho','Versão','Motivo','Consultar'],
     metadata.slice().reverse().map(r=>[str(r.id),str(r.targetId)+' · '+str(r.financeIds.join(', ')),fmt(r.amountCents),
      str(r.fileName)+' · '+Math.ceil(r.size/1024)+' KiB',
      str(r.version)+' · '+(r.current?'Atual':'Anterior'),str(r.reason),
-     '<button class="btn" type="button" data-receipt-download="'+str(r.id)+'">Baixar PDF</button>'])),true);
+     '<button class="btn" type="button" data-receipt-download="'+str(r.id)+'">Baixar PDF</button>']))+'</div>',true);
 }
 function receiptSummary(s,financeId){
  const service=window.HLGBLabPaymentBatchV1;
@@ -898,14 +899,15 @@ function moduleHtml(s){
  '<div class="actions"><button type="button" class="btn" id="settlement-clear-filters">Limpar filtros</button></div>'+
  '<p class="caption" role="status" aria-live="polite" id="settlement-query-summary">Calculando a consulta local...</p>'+
  '<div id="settlement-table">'+table(
- ['Acerto','Facção / serviço','Modelo','Peças','Bruto/peça','Travetada/peça','Ajuste total','Total','Situação'],
+ ['Acerto','Facção / serviço','Modelo','Peças','Bruto/peça','Travetada/peça','Ajuste total','Total','Situação','Comprovante'],
  s.settlements.map(x=>[
   str(x.id)+'<div class="caption">'+str(x.orderId||'Avulso')+'</div>',
   str(ref(s.factions,x.factionId)?.name)+'<div class="caption">'+str(x.serviceType||'costura')+'</div>',
   str(ref(s.products,x.productId)?.name||ref(s.products,ref(s.orders,x.orderId)?.productId)?.name||'—'),
   str(x.qty),fmt(x.listUnitCents??x.unitCents),fmt(x.travetaCents||0),
   fmt(x.adjustmentCents),fmt(x.amountCents),
-  '<span class="chip '+(x.status==='aberto'?'wait':'')+'">'+str(x.status)+'</span>'
+  '<span class="chip '+(x.status==='aberto'?'wait':'')+'">'+str(x.status)+'</span>',
+  receiptSummary(s,s.finance.find(f=>f.sourceId===x.id&&f.kind==='pagar')?.id)
  ]))+'</div>'+
  '<h3>Alterações de valores</h3>'+
  table(['Acerto','Evento','Antes','Depois','Motivo'],s.settlements.flatMap(x=>
@@ -1326,7 +1328,8 @@ function exportObserverCsv(){
  const rows=[['Tipo','Módulo','Revisão/ID','Regra/Operação','Gravidade','Descrição'],
   ...report.findings.map(x=>['Alerta',x.module,x.recordId,x.code,x.severity,x.message+' · '+x.action]),
   ...report.history.map(x=>['Evento',x.module,x.revision,x.type,'',x.commandId+' · '+x.description]),
-  ...report.settlementHistory.map(x=>['Histórico do acerto','acertos',x.settlementId,
+  ...(report.paymentReceiptHistory||[]).map(x=>['Comprovante fictício','hub',x.id,x.targetId,x.current?'Atual':'Anterior','Versão '+x.version+' · '+x.fileName+' · '+x.amountCents+' centavos']),
+   ...report.settlementHistory.map(x=>['Histórico do acerto','acertos',x.settlementId,
    x.event,'',x.commandId+' · antes '+x.beforeCents+' depois '+x.afterCents+' · '+x.reason]),
   ...report.modelSummary.map(x=>['Resumo por modelo','produtos',x.productId,
    x.sku,'',x.name+' · pedidas '+x.ordered+' · cortadas '+x.cut+' · expedidas '+x.shipped]),
@@ -1472,7 +1475,8 @@ function applySettlementFilters(){
    ref(doc.products,ref(doc.orders,x.orderId)?.productId)?.name,
    ...(x.history||[]).flatMap(h=>[h.reason,h.commandId]),
    ...(x.rateHistory||[]).flatMap(h=>[h.reason,h.commandId,h.fromFactionName,h.toFactionName,h.financeId]),
-   ...(x.returns||[]).flatMap(h=>[h.reason,h.commandId])];
+   ...(x.returns||[]).flatMap(h=>[h.reason,h.commandId]),
+    ...window.HLGBLabPaymentBatchV1.receiptMetadata(doc).filter(r=>r.financeIds.includes(doc.finance.find(f=>f.sourceId===x.id&&f.kind==='pagar')?.id)).flatMap(r=>[r.id,r.fileName,r.targetId,r.reason])];
   return normal(parts.join(' '));
  };
  const compensationText=c=>normal([c.id,c.settlementId,c.reference,c.reason,c.kind,c.status,
