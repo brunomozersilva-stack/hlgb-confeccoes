@@ -34,6 +34,10 @@
    s.colorCatalog=seed();
    s.ids.CLR=Math.max(s.ids.CLR||0,3);
   }
+  s.ids.CLR=Math.max(s.ids.CLR||0,...s.colorCatalog.map(x=>{
+   const m=/^CLR-(\d+)$/.exec(x.id||'');
+   return m?Number(m[1]):0;
+  }));
   if(!Array.isArray(s.materialRecipeRules))s.materialRecipeRules=[];
   if(!Array.isArray(s.materialPlanLines))s.materialPlanLines=[];
  }
@@ -91,6 +95,35 @@
   s.materialPlanLines.push(item);
   return item.id+' · '+product.name+' · '+item.color+' '+item.size+' · '+qty+
    ' peças (sem baixar estoque)';
+ }
+ function gradeAdd(s,p,ctx){
+  ensure(s);
+  const product=byId(s.products,p.productId);
+  if(!product)throw Error('Modelo para o planejamento não localizado.');
+  const entry=palette(s).find(x=>key(x.name)===key(p.color));
+  if(!entry)throw Error('Selecione uma cor da paleta cadastrada.');
+  if(!p.grade||typeof p.grade!=='object')throw Error('Grade de planejamento ausente.');
+  const portions=sizes.map(size=>({size,qty:safe(p.grade[size],0,10000,
+   'Quantidade planejada '+size)})).filter(x=>x.qty>0);
+  if(!portions.length)throw Error('Informe pelo menos uma peça na grade planejada.');
+  if(s.materialPlanLines.filter(x=>x.active).length+portions.length>100)
+   throw Error('Limite de 100 linhas ativas; arquive as linhas anteriores.');
+  for(const x of portions){
+   if(s.materialPlanLines.some(item=>item.active&&item.productId===product.id&&
+      key(item.color)===key(entry.name)&&item.size===x.size))
+    throw Error('Modelo/cor/tamanho já existe no planejamento: '+product.name+
+     ' · '+entry.name+' '+x.size);
+  }
+  // Validação de TODAS as linhas acontece antes da primeira inclusão no clone.
+  const ids=[];
+  for(const x of portions){
+   const item={id:ctx.next(s,'PLN'),productId:product.id,color:entry.name,
+    size:x.size,qty:x.qty,active:true,createdCommandId:ctx.uid};
+   s.materialPlanLines.push(item);ids.push(item.id);
+  }
+  return ids.join(', ')+' · '+product.name+' '+entry.name+' · '+
+   portions.reduce((n,x)=>n+x.qty,0)+' peças em '+portions.length+
+   ' tamanho(s) · sem movimentar estoque';
  }
  function lineCancel(s,p,ctx){
   ensure(s);const item=byId(s.materialPlanLines,p.id);
@@ -190,12 +223,12 @@
    if(!byId(s.products,x.productId)||!catalog.some(c=>key(c.name)===key(x.color))||
     !sizes.includes(x.size)||!Number.isSafeInteger(x.qty)||x.qty<1||x.qty>10000||
     typeof x.active!=='boolean'||
-    !s.log.some(e=>e.commandId===x.createdCommandId&&e.type==='materials.plan.add')||
+    !s.log.some(e=>e.commandId===x.createdCommandId&&['materials.plan.add','materials.plan.grade.add'].includes(e.type))||
     (!x.active&&!s.log.some(e=>e.commandId===x.cancelCommandId&&e.type==='materials.plan.archive')))
     issues.push(String(x.id)+': linha de planejamento sem origem ou valor válido');
   }
   return issues;
  }
- return Object.freeze({version:'1.0.0',seed,ensure,palette,registerColor,setRecipe,lineAdd,
+ return Object.freeze({version:'1.0.0',seed,ensure,palette,registerColor,setRecipe,lineAdd,gradeAdd,
   lineCancel,preview,inspect});
 });
