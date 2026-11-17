@@ -1,5 +1,13 @@
 # HLGB Evolução — Laboratório independente (Etapa 1)
 
+## Nova etapa — Comprovantes PDF de pagamentos (LAB)
+
+No **Hub Financeiro**, a rotina `finance.receipt.attach` permite anexar PDF fictício a um título **a pagar já quitado** ou a um fechamento PAG. Títulos quitados por lote apontam exclusivamente para o comprovante do lote. O PDF, seu vínculo, código CPV, valor vinculado, motivo, versão e evento são gravados no mesmo documento transacional IndexedDB. Um novo arquivo para o mesmo pagamento cria versão seguinte e mantém o conteúdo da versão anterior. O sistema recusa conteúdo idêntico em outro anexo, versão desatualizada, arquivo fora dos limites ou título não quitado. Nenhum destes comandos movimenta dinheiro.
+
+A lista do Hub pesquisa IDs de comprovante, título, fechamento e nome do arquivo, e os acertos relacionados mostram a versão corrente. O download utiliza os bytes locais conferidos por tamanho e checksum (não criptográfico). A validação do arquivo verifica apenas estrutura básica PDF e tamanho, não autenticidade bancária, assinatura digital, conteúdo ou malware. Esta prévia não abre PDFs dentro da aplicação. Exportações CSV e JSON incluem metadados, não bytes. O Auditor aponta recibos sem vínculo/evento e inconsistências de versão; o núcleo também verifica o conteúdo e os limites.
+
+**Somente dados inventados, sem arquivo real, sem upload, sem Supabase e sem compartilhamento entre dispositivos.** Limite de laboratório de 256 KiB por PDF, 2 MiB somados e 40 anexos. Os arquivos ficam no IndexedDB sem criptografia própria. Para produção faltam armazenamento privado, RLS e autorização, validação real de arquivos, prova criptográfica, proteção e backup remoto, e homologação de sincronização. Testes: `tests/comprovantes-contract.cjs` (9 cenários) e `tests/comprovantes-mobile.cjs` (upload, busca, download, versões, recarga e exportação sem bytes).
+
 
 ## Nova etapa — Correções de acertos e tarifa negociada por envio (LAB)
 
