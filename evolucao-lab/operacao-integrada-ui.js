@@ -373,16 +373,24 @@ function moduleHtml(s){
  str(x.id),str(x.returned),str(x.separated),str(x.shipped)])),true);
  case 'faccoes':{
  const rows=s.factionAssignments||[];
- const pendingTransfer=selector(s.orders.filter(x=>x.allocated>0&&x.returned===0&&
+ const unclassified=selector(s.orders.filter(x=>!x.colorGrades?.length),
+  x=>x.id+' · '+(ref(s.products,x.productId)?.name||'Modelo')+' · '+sum(x.grade)+' peças');
+ const classified=s.orders.filter(x=>x.colorGrades?.length);
+ const colorOptions=[...new Set(classified.flatMap(x=>x.colorGrades.map(g=>g.color)))].map(x=>[x,x]);
+ const sizeOptions=api.sizes.map(x=>[x,x]);
+ const colorAssignmentOptions=selector(rows.filter(x=>classified.some(o=>o.id===x.orderId)),
+  x=>x.id+' · '+x.orderId+' · '+(ref(s.factions,x.factionId)?.name||'—')+
+   ' · '+(x.qtySent-x.qtyReturned)+' peças pendentes');
+ const pendingTransfer=selector(s.orders.filter(x=>!x.colorGrades?.length&&x.allocated>0&&x.returned===0&&
   rows.filter(a=>a.orderId===x.id).length<=1),
   x=>x.id+' · '+(ref(s.factions,x.factionId)?.name||'—')+' · '+x.allocated+' peças');
- const pendingSimple=selector(s.orders.filter(x=>x.allocated>x.returned&&
+ const pendingSimple=selector(s.orders.filter(x=>!x.colorGrades?.length&&x.allocated>x.returned&&
   rows.filter(a=>a.orderId===x.id).length<=1),
   x=>x.id+' · '+(ref(s.factions,x.factionId)?.name||'—')+' · '+(x.allocated-x.returned)+' peças');
- const pendingAssignments=selector(rows.filter(x=>x.qtySent>x.qtyReturned),
+ const pendingAssignments=selector(rows.filter(x=>!classified.some(o=>o.id===x.orderId)&&x.qtySent>x.qtyReturned),
   x=>x.id+' · '+x.orderId+' · '+(ref(s.factions,x.factionId)?.name||'—')+
   ' · '+(x.qtySent-x.qtyReturned)+' peças aguardando');
- const transferable=selector(rows.filter(x=>x.qtySent>1&&x.qtySent>x.qtyReturned),
+ const transferable=selector(rows.filter(x=>!classified.some(o=>o.id===x.orderId)&&x.qtySent>1&&x.qtySent>x.qtyReturned),
   x=>x.id+' · '+x.orderId+' · '+(ref(s.factions,x.factionId)?.name||'—')+
   ' · '+(x.qtySent-x.qtyReturned)+' peças disponíveis');
  return panel('Cadastro e regras por facção',
@@ -404,7 +412,7 @@ function moduleHtml(s){
  '<p>Preços e travetada alterados só valem para novos retornos. Acertos existentes mantêm os valores que tinham quando foram criados.</p>')+
  panel('Envio, troca controlada e retorno',
  form('faction.allocate','Enviar peças cortadas',[
-  field('orderId','Pedido','select','',o),field('factionId','Facção','select','',factions),
+  field('orderId','Pedido','select','',unclassified),field('factionId','Facção','select','',factions),
   field('qty','Quantidade a enviar','int','5')
  ],'Enviar peças')+
  form('faction.reassign','Transferir antes do primeiro retorno',[
@@ -416,9 +424,61 @@ function moduleHtml(s){
   field('orderId','Pedido','select','',pendingSimple),field('qty','Quantidade devolvida','int','3')
  ],'Confirmar retorno e gerar acerto')+
  '<p>A troca fica bloqueada se já existir retorno/acerto. Ela é um exemplo de transferência total antes do primeiro retorno, não uma redistribuição avançada entre várias facções.</p>')+
+ panel('Grade por cor e tamanho — cada facção recebe a quantidade certa',
+ form('order.color.grade.set','Cadastrar ou corrigir uma cor antes do primeiro envio',[
+  field('orderId','Pedido sem envios','select','',
+   selector(s.orders.filter(x=>x.allocated===0),
+    x=>x.id+' · '+(ref(s.products,x.productId)?.name||'Modelo'))),
+  field('color','Nome da cor','text','Preto'),
+  ...api.sizes.map(sz=>field(sz,sz+' — peças desta cor','int','0'))
+ ],'Salvar quantidades da cor')+
+ '<p class="caption">Cadastre uma linha para cada cor, usando P, M, G e GG. A soma de todas as cores deve corresponder à grade total do pedido antes de enviar. Digitar tudo zero remove uma cor já cadastrada, enquanto não houver envios. A grade geral do pedido permanece preservada.</p>'+
+ table(['Pedido','Cor','P','M','G','GG','Total'],
+  classified.flatMap(o=>o.colorGrades.map(g=>[str(o.id),str(g.color),
+   ...api.sizes.map(sz=>str(g.grade[sz])),str(sum(g.grade))])))+
+ '<h3>Conferência antes de alocar</h3>'+
+ table(['Pedido','Situação','Falta P','Falta M','Falta G','Falta GG'],
+  classified.map(o=>{
+   const totals=Object.fromEntries(api.sizes.map(sz=>[sz,
+    o.grade[sz]-o.colorGrades.reduce((n,g)=>n+g.grade[sz],0)]));
+   const complete=api.sizes.every(sz=>totals[sz]===0);
+   return [str(o.id),complete?'Completa para alocar':'Incompleta — finalize as cores',
+    ...api.sizes.map(sz=>str(totals[sz]))];
+  })),true)+
+ panel('Distribuição, retornos e transferências por cor/tamanho',
+ form('faction.grade.allocate','Enviar peças identificadas por cor/tamanho',[
+  field('orderId','Pedido com cores cadastradas','select','',
+   selector(classified,x=>x.id+' · '+(ref(s.products,x.productId)?.name||'Modelo'))),
+  field('factionId','Facção de destino','select','',factions),
+  field('color','Cor','select','',colorOptions),
+  field('size','Tamanho','select','',sizeOptions),
+  field('qty','Quantidade a enviar','int','1')
+ ],'Enviar peças da grade')+
+ form('faction.grade.return','Retornar peças com identificação exata',[
+  field('assignmentId','Envio da facção','select','',colorAssignmentOptions),
+  field('color','Cor retornada','select','',colorOptions),
+  field('size','Tamanho retornado','select','',sizeOptions),
+  field('qty','Quantidade retornada','int','1')
+ ],'Gerar acerto da cor/tamanho')+
+ form('faction.grade.transfer','Transferir saldo identificado para outra facção',[
+  field('fromAssignmentId','Envio de origem','select','',colorAssignmentOptions),
+  field('toFactionId','Facção que receberá','select','',factions),
+  field('color','Cor','select','',colorOptions),
+  field('size','Tamanho','select','',sizeOptions),
+  field('qty','Quantidade a transferir','int','1'),
+  field('reason','Justificativa','text','Redistribuição fictícia da grade')
+ ],'Transferir com histórico por cor/tamanho')+
+ '<p class="caption">Se uma facção recebeu 3 peças pretas M, ela não poderá devolver 4 peças pretas M nem substituir por outra cor. Valores de acertos já pagos continuam imutáveis. Os formulários simples anteriores não deixam enviar pedidos já classificados por cor.</p>'+
+ '<h3>Saldo por oficina, cor e tamanho</h3>'+
+ table(['Envio','Pedido','Facção','Cor','Tamanho','Enviadas','Retornadas','Pendentes'],
+  rows.flatMap(row=>(row.gradeLines||[]).map(line=>[
+   str(row.id),str(row.orderId),
+   str(ref(s.factions,row.factionId)?.name||row.factionId),
+   str(line.color),str(line.size),str(line.sent),str(line.returned),
+   str(line.sent-line.returned)]))),true)+
  panel('Distribuir um pedido entre múltiplas facções',
  form('faction.multi.allocate','Enviar lote parcial a uma facção',[
-  field('orderId','Pedido com peças cortadas','select','',o),
+  field('orderId','Pedido com peças cortadas','select','',unclassified),
   field('factionId','Facção que receberá o lote','select','',factions),
   field('qty','Peças desse envio','int','2')
  ],'Alocar peças sem sobrescrever outros destinos')+
@@ -468,7 +528,11 @@ function moduleHtml(s){
  ])),true);
  }
  case 'acertos':{
- const open=selector(s.settlements.filter(x=>x.status==='aberto'),
+ const open=selector(s.settlements.filter(x=>x.status==='aberto'&&!x.gradeTracked),
+  x=>x.id+' · '+fmt(x.amountCents)+' · '+(ref(s.factions,x.factionId)?.name||'—'));
+ const trackedOpen=selector(s.settlements.filter(x=>x.status==='aberto'&&x.gradeTracked&&x.qty>1),
+  x=>x.id+' · '+x.color+' '+x.size+' · '+fmt(x.amountCents));
+ const allOpen=selector(s.settlements.filter(x=>x.status==='aberto'),
   x=>x.id+' · '+fmt(x.amountCents)+' · '+(ref(s.factions,x.factionId)?.name||'—'));
  const paid=selector(s.settlements.filter(x=>x.status==='pago'),
   x=>x.id+' · Pago '+fmt(x.amountCents)+' · '+(ref(s.factions,x.factionId)?.name||'—'));
@@ -491,9 +555,16 @@ function moduleHtml(s){
   field('reason','Justificativa obrigatória','text','Peças devolvidas na conferência fictícia')
  ],'Registrar devolução e recalcular Hub')+
  '<p>Somente antes do pagamento. O pedido não pode ficar com retorno abaixo das peças já separadas. A operação mantém o acerto original, o histórico de quantidade anterior e a nova quantia no Hub.</p>')+
+ panel('Devolução detalhada antes de pagar — conserva a grade',
+ form('settlement.grade.pieces.return','Devolver peças de um acerto com cor/tamanho',[
+  field('id','Acerto identificado em aberto','select','',trackedOpen),
+  field('qty','Peças devolvidas desta cor/tamanho','int','1'),
+  field('reason','Justificativa obrigatória','text','Correção da grade antes da quitação')
+ ],'Atualizar acerto, saldo da facção e Hub')+
+ '<p class="caption">A devolução só pode usar o mesmo tamanho e cor do acerto. Acertos pagos são protegidos.</p>',true)+
  panel('Ajustar apenas acerto em aberto',
  form('settlement.adjust','Abatimento ou acréscimo rastreado',[
-  field('id','Acerto ainda não pago','select','',open),
+  field('id','Acerto ainda não pago','select','',allOpen),
   field('adjustmentCents','Ajuste total (R$), aceita negativo','signed-money','0,00'),
   field('reason','Motivo','text','Conferência do valor fictício')
  ],'Salvar ajuste e reconciliar Hub')+
@@ -696,7 +767,7 @@ function parseData(type,form){
   else if(k==='traveta')p[k]=v==='true';
   else p[k]=String(v);
  }
- if(['order.add','order.grade.update','cut.plan','cut.plan.update'].includes(type)){
+ if(['order.add','order.grade.update','cut.plan','cut.plan.update','order.color.grade.set'].includes(type)){
   p.grade={};for(const sz of api.sizes){p.grade[sz]=p[sz];delete p[sz]}
  }
  return p;
