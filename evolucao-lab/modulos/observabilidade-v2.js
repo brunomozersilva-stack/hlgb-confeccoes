@@ -182,7 +182,7 @@
   for(const move of partialTransfers){
    const from=byId(assignments,move.fromAssignmentId);
    const to=byId(assignments,move.toAssignmentId);
-   const event=events.find(x=>x.commandId===move.commandId&&x.type==='faction.multi.transfer');
+   const event=events.find(x=>x.commandId===move.commandId&&['faction.multi.transfer','faction.grade.transfer'].includes(x.type));
    const valid=!!(move.id&&!seenPartialMoves.has(move.id)&&
     from&&to&&event&&from.orderId===move.orderId&&
     to.orderId===move.orderId&&from.id!==to.id&&
