@@ -1,0 +1,56 @@
+name: HLGB Evolucao - Devolucoes de compras isoladas
+on:
+  push:
+    branches:
+      - feature/evolucao-laboratorio-isolado-v1-20261114
+    paths:
+      - 'evolucao-lab/modulos/devolucoes-compras-v1.js'
+      - 'evolucao-lab/modulos/observabilidade-v2.js'
+      - 'evolucao-lab/operacao-integrada-core.js'
+      - 'evolucao-lab/operacao-integrada-ui.js'
+      - 'evolucao-lab/operacao-integrada.html'
+      - 'evolucao-lab/tests/devolucoes-compras-*'
+      - '.github/workflows/evolucao-devolucoes-compras.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  contracts:
+    name: Devolucao, auditor e regressao de compras
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - name: Teste deterministico e paridade de compra
+        run: |
+          node --check evolucao-lab/modulos/devolucoes-compras-v1.js
+          node --check evolucao-lab/operacao-integrada-core.js
+          node --check evolucao-lab/operacao-integrada-ui.js
+          node --check evolucao-lab/modulos/observabilidade-v2.js
+          node --test evolucao-lab/tests/devolucoes-compras-contract.cjs
+          node --test evolucao-lab/tests/requisicoes-compras-contract.cjs
+          node --test evolucao-lab/tests/cancelamento-compra-contract.cjs
+          node --test evolucao-lab/tests/operacao-integrada-contract.cjs
+          node --test evolucao-lab/tests/observabilidade-v2-contract.cjs
+  browsers:
+    name: Devolucao com persistencia local (${{ matrix.browser }})
+    runs-on: ubuntu-24.04
+    timeout-minutes: 18
+    strategy:
+      fail-fast: false
+      matrix:
+        browser: [chromium, webkit]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - name: Instalar navegador para teste offline
+        run: |
+          npm install --no-save playwright@1.55.0
+          npx playwright install --with-deps ${{ matrix.browser }}
+      - name: Testar devolucao e Auditor em 390 e 1280 px
+        env:
+          HLGB_BROWSER: ${{ matrix.browser }}
+        run: node evolucao-lab/tests/devolucoes-compras-mobile.cjs
