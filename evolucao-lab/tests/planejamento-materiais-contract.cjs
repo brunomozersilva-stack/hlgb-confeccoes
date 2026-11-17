@@ -2,6 +2,7 @@
 const test=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path');
 const core=require('../operacao-integrada-core.js');
 const planner=require('../modulos/planejamento-materiais-v1.js');
+const observer=require('../modulos/observabilidade-v2.js');
 let n=1;
 const apply=(s,type,payload={},id)=>core.apply(s,{type,payload,
  actor:'Testes fictícios',commandId:id||'MAT-TEST-'+String(n++).padStart(5,'0'),
@@ -66,6 +67,8 @@ test('receita por cor/tamanho substitui base e soma aviamento sem alterar corte 
  assert.equal(s.finance.length,0);
  assert.equal(JSON.stringify(s),before,'previsão não escreve no documento');
  assert.equal(core.inspect(s).ok,true);
+ assert.equal(observer.analyze(s).findings.length,0);
+ assert.equal(observer.analyze(s).summary.planPieces,400);
 });
 test('versões de receita e arquivamento mantêm histórico e recalculam faltas',()=>{
  let s=configure(),old=JSON.stringify(s),refBefore=planner.preview(s);
@@ -154,6 +157,10 @@ test('Auditor detecta alteração de consumo e linhas duplicadas sem destruir do
   const invalid=structuredClone(s);mutate(invalid);
   const copy=JSON.stringify(invalid);
   assert.equal(core.inspect(invalid).ok,false);
+  assert.equal(observer.analyze(invalid).findings.some(x=>
+   ['PALETA_COR_DUPLICADA','RECEITA_INCONSISTENTE','PLANO_DUPLICADO',
+    'PLANO_INCONSISTENTE'].includes(x.code)),true,
+   'Auditor deve reconhecer plano ou receita adulterados');
   assert.equal(JSON.stringify(invalid),copy);
  }
  assert.equal(JSON.stringify(s),original);
