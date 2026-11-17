@@ -1081,6 +1081,48 @@ function moduleHtml(s){
  default:return panel('Área de demonstração ainda não selecionada',blank);
  }
 }
+const searchState={page:1,selected:null,snapshot:null,index:[],results:[]};
+function renderGlobalSearch(){
+ const service=window.HLGBLabGlobalSearchV1,host=$('global-search-results'),input=$('global-search-query'),filter=$('global-search-module');
+ if(!host||!input||!filter||!doc)return;
+ if(!service){host.textContent='Pesquisa global temporariamente indisponível. Os módulos continuam acessíveis.';return}
+ try{
+  if(searchState.snapshot!==doc){searchState.index=service.build(doc);searchState.snapshot=doc}
+  if(filter.options.length===1)for(const [id,label] of Object.entries(service.labels))filter.add(new Option(label,id));
+  if(!input.value.trim()){host.innerHTML='<p class="caption">Digite um termo ou código para localizar registros, inclusive finalizados.</p>';searchState.results=[];return}
+  const r=service.search(searchState.index,input.value,{module:filter.value,page:searchState.page,limit:15});
+  if(r.page>Math.max(1,Math.ceil(r.total/r.limit))){searchState.page=1;renderGlobalSearch();return}
+  searchState.results=r.items;
+  host.innerHTML='<p class="caption" id="global-search-count">'+r.total+' resultado(s) · somente leitura · revisão '+doc.revision+'</p>'+
+  (r.items.length?r.items.map((x,i)=>'<div class="search-result"><div><strong>'+str(x.title)+'</strong>'+
+    '<p>'+str(x.id)+' · '+str(service.labels[x.module])+' · '+str(x.status)+'</p><p>'+str(x.detail)+'</p></div>'+
+    '<button class="btn" type="button" data-search-open="'+i+'">Localizar registro</button></div>').join(''):'<p>Nenhum registro encontrado nesta área.</p>')+
+  (r.total>r.limit?'<div class="actions"><button type="button" class="btn" data-search-page="-1" '+(r.page===1?'disabled':'')+'>Anterior</button><span>Página '+r.page+' de '+Math.ceil(r.total/r.limit)+'</span><button type="button" class="btn" data-search-page="1" '+(r.page*r.limit>=r.total?'disabled':'')+'>Próxima</button></div>':'');
+ }catch(e){host.textContent='Não foi possível consultar a busca. Os módulos originais continuam disponíveis.'}
+}
+function openGlobalResult(index){
+ const result=searchState.results[index];
+ if(!result||!ids.has(result.module)||busy)return;
+ searchState.selected=result.key;
+ if(result.orderId)journeyOrderId=result.orderId;
+ active=result.module;window.location.hash=active;
+ if(active==='acertos'){Object.assign(settlementFilters,{query:result.type==='acerto'?result.id:'',status:'todos',faction:'todas',service:'todos',compensation:'todos'})}
+ draw();renderGlobalDetail();
+}
+function renderGlobalDetail(){
+ const el=$('global-search-detail');if(!el)return;
+ const row=searchState.index.find(x=>x.key===searchState.selected);
+ if(!row){el.hidden=true;el.innerHTML='';return}
+ el.hidden=false;el.className='search-detail';
+ el.innerHTML='<h3>'+str(row.title)+' · '+str(row.id)+'</h3><p>'+str(row.status)+' · '+str(row.detail)+'</p>'+
+  (row.orderId?'<p>Pedido vinculado: '+str(row.orderId)+'</p>':'')+
+  '<p class="caption">Área aberta: '+str(window.HLGBLabGlobalSearchV1.labels[row.module])+'. Nenhum lançamento alterado.</p>'+
+  '<button type="button" class="btn" id="global-search-close">Fechar localização</button>';
+ // Destacar somente célula que contenha o ID exato; não selecionar formulários nem gravar.
+ const candidates=[...$('module-content').querySelectorAll('tbody tr')];
+ const target=candidates.find(tr=>[...tr.querySelectorAll('td')].some(td=>td.textContent.trim().split(/\s+|·/)[0]===row.id)&&!tr.hidden);
+ if(target){target.classList.add('search-hit');target.scrollIntoView({block:'nearest'});}
+}
 function drawNav(){
  const host=$('module-nav');host.replaceChildren();
  modules.forEach((m,i)=>{
@@ -1105,7 +1147,7 @@ function draw(){
  '<div class="log-item"><strong>'+escape(e.type)+' · '+escape(e.commandId)+'</strong>'+
  'Revisão '+e.revision+' · '+escape(e.description)+'</div>').join(''):
  '<div class="empty">Sem operações na demonstração. Cadastre um pedido para iniciar.</div>';
- drawNav();
+ drawNav();renderGlobalSearch();renderGlobalDetail();
 }
 function parseCents(value,signed=false){
  let raw=String(value).trim();
@@ -1507,6 +1549,7 @@ function applySettlementFilters(){
   ' (valores fictícios; filtro local, sem alterar lançamentos)';
 }
 document.addEventListener('input',event=>{
+ if(event.target.id==='global-search-query'){searchState.page=1;searchState.selected=null;renderGlobalSearch();renderGlobalDetail();return;}
  if(event.target.id==='settlement-search'){
   settlementFilters.query=event.target.value;applySettlementFilters();return;
  }
@@ -1590,6 +1633,10 @@ document.addEventListener('change',event=>{
  }
 });
 document.addEventListener('click',e=>{
+ const searchOpen=e.target.closest('[data-search-open]');if(searchOpen){openGlobalResult(Number(searchOpen.dataset.searchOpen));return}
+ const searchPage=e.target.closest('[data-search-page]');if(searchPage){searchState.page+=Number(searchPage.dataset.searchPage);renderGlobalSearch();return}
+ if(e.target.closest('#global-search-close')){searchState.selected=null;renderGlobalDetail();$('module-content').querySelectorAll('.search-hit').forEach(x=>x.classList.remove('search-hit'));return}
+
  const receiptButton=e.target.closest('[data-receipt-download]');
  if(receiptButton){
   try{
@@ -1659,9 +1706,9 @@ document.addEventListener('click',e=>{
  const print=e.target.closest('button[data-print-plan]');
  if(print){try{renderCutSheet(print.dataset.printPlan);window.print()}catch(error){status(error.message,'error')}return}
  const mod=e.target.closest('button[data-module]');
- if(mod){active=mod.dataset.module;window.location.hash=active;draw();window.scrollTo(0,0);return}
+ if(mod){searchState.selected=null;active=mod.dataset.module;window.location.hash=active;draw();window.scrollTo(0,0);return}
  const goto=e.target.closest('button[data-goto]');
- if(goto){active=goto.dataset.goto;window.location.hash=active;draw();window.scrollTo(0,0)}
+ if(goto){searchState.selected=null;active=goto.dataset.goto;window.location.hash=active;draw();window.scrollTo(0,0)}
 });
 document.addEventListener('submit',e=>{
  const form=e.target.closest('form[data-command]');if(!form)return;
@@ -1669,8 +1716,9 @@ document.addEventListener('submit',e=>{
 });
 window.addEventListener('hashchange',()=>{
  const next=window.location.hash.slice(1);
- if(ids.has(next)&&doc&&next!==active){active=next;draw()}
+ if(ids.has(next)&&doc&&next!==active){searchState.selected=null;active=next;draw()}
 });
+$('global-search-module').addEventListener('change',()=>{searchState.page=1;searchState.selected=null;renderGlobalSearch();renderGlobalDetail()});
 $('export-json').addEventListener('click',exportReport);
 $('export-csv').addEventListener('click',exportCsv);
 $('refresh').addEventListener('click',reload);
