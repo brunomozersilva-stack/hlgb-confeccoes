@@ -299,6 +299,7 @@
   if(!planner)throw Error('Módulo de planejamento indisponível. Nenhuma gravação executada.');
   planner.ensure?.(s);
   const num=(field,min=0,max=1000000)=>int(p[field],field,min,max);
+  const financeDate=v=>{if(typeof v!=='string'||!/^\d{4}-\d{2}-\d{2}$/.test(v)||!Number.isFinite(Date.parse(v+'T00:00:00Z'))||new Date(v+'T00:00:00Z').toISOString().slice(0,10)!==v)throw Error('Data financeira inválida.');return v;};
   let result;
   switch(kind){
   case 'client.add':{const obj={id:next(s,'CLI'),name:name(p.name,'Nome do cliente')};s.clients.push(obj);result=obj.id;break}
@@ -644,7 +645,7 @@
   case 'finance.pay':{
    const entry=get(s,'finance',p.id,'Lançamento');
    if(entry.status!=='aberto')throw Error('Lançamento já conferido, evitar pagamento repetido.');
-   entry.status='pago';entry.paidDate='2026-11-16';
+   entry.status='pago';entry.paidDate=financeDate(p.paidDate||'2026-11-16');
    const acerto=s.settlements.find(a=>a.id===entry.sourceId);
    if(acerto)acerto.status='pago';
    const compensation=s.settlementCompensations.find(c=>c.id===entry.sourceId);
@@ -656,7 +657,23 @@
    if(!['pagar','receber'].includes(p.kind))throw Error('Tipo de lançamento inválido.');
    const entry={id:next(s,'FIN'),kind:p.kind,description:name(p.description,'Descrição'),
     amountCents:num('amountCents',1,100000000),status:'aberto',sourceId:null};
+   if(p.dueDate)entry.dueDate=financeDate(p.dueDate);
+   if(p.category){if(!["Vendas","Facções","Compras","Folha","Aluguel","Impostos","Transporte","Outras despesas","Outras receitas","Compensações","Devoluções"].includes(p.category))throw Error('Categoria inválida.');entry.category=p.category;}
    s.finance.push(entry);result=entry.id;break}
+  case 'finance.schedule':{
+   const entry=get(s,'finance',p.id,'Lançamento');
+   if(entry.status!=='aberto')throw Error('Somente título aberto pode receber vencimento.');
+   const old=entry.dueDate||'sem data';entry.dueDate=financeDate(p.dueDate);
+   result=entry.id+' · '+old+' → '+entry.dueDate+' · '+name(p.reason,'Motivo');break}
+  case 'finance.reconcile':{
+   const entry=get(s,'finance',p.id,'Lançamento');
+   if(entry.status!=='pago'||entry.reconciliation)throw Error('Título não quitado ou já conferido.');
+   const amount=num('amountCents',1,100000000);
+   if(amount!==entry.amountCents)throw Error('Valor do extrato diverge do título; nenhuma conferência registrada.');
+   const reference=name(p.reference,'Referência do extrato').trim().toUpperCase();
+   if(s.finance.some(x=>x.reconciliation?.reference===reference))throw Error('Referência de conferência já utilizada.');
+   entry.reconciliation={amountCents:amount,reference,date:financeDate(p.reconcileDate),commandId:uid};
+   result=entry.id+' · conferência manual fictícia · '+reference;break}
   case 'purchase.request.create':{
    result=requests.create(s,p,{next,uid},planner);break}
   case 'purchase.request.approve':{

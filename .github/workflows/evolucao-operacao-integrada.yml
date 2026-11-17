@@ -20,6 +20,7 @@ on:
       - 'evolucao-lab/tests/correcao-acerto-*.cjs'
       - 'evolucao-lab/tests/comprovantes-*.cjs'
       - 'evolucao-lab/tests/pesquisa-global-contract.cjs'
+      - 'evolucao-lab/tests/hub-financeiro-contract.cjs'
       - 'evolucao-lab/tests/devolucoes-compras-contract.cjs'
       - 'evolucao-lab/tests/fechamento-faccao-contract.cjs'
       - '.github/workflows/evolucao-operacao-integrada.yml'
@@ -37,7 +38,7 @@ jobs:
         with:
           node-version: '22'
       - name: Conferir integridade de pedidos, corte, faccoes, contas e folha
-        run: node --test evolucao-lab/tests/operacao-integrada-contract.cjs evolucao-lab/tests/observabilidade-v2-contract.cjs evolucao-lab/tests/pagamento-lote-contract.cjs evolucao-lab/tests/faccoes-multidestino-contract.cjs evolucao-lab/tests/grade-faccoes-contract.cjs evolucao-lab/tests/planejamento-materiais-contract.cjs evolucao-lab/tests/corte-bom-contract.cjs evolucao-lab/tests/requisicoes-compras-contract.cjs evolucao-lab/tests/cancelamento-compra-contract.cjs evolucao-lab/tests/devolucoes-compras-contract.cjs evolucao-lab/tests/fechamento-faccao-contract.cjs evolucao-lab/tests/correcao-acerto-contract.cjs evolucao-lab/tests/comprovantes-contract.cjs evolucao-lab/tests/pesquisa-global-contract.cjs
+        run: node --test evolucao-lab/tests/operacao-integrada-contract.cjs evolucao-lab/tests/observabilidade-v2-contract.cjs evolucao-lab/tests/pagamento-lote-contract.cjs evolucao-lab/tests/faccoes-multidestino-contract.cjs evolucao-lab/tests/grade-faccoes-contract.cjs evolucao-lab/tests/planejamento-materiais-contract.cjs evolucao-lab/tests/corte-bom-contract.cjs evolucao-lab/tests/requisicoes-compras-contract.cjs evolucao-lab/tests/cancelamento-compra-contract.cjs evolucao-lab/tests/devolucoes-compras-contract.cjs evolucao-lab/tests/fechamento-faccao-contract.cjs evolucao-lab/tests/correcao-acerto-contract.cjs evolucao-lab/tests/comprovantes-contract.cjs evolucao-lab/tests/pesquisa-global-contract.cjs evolucao-lab/tests/hub-financeiro-contract.cjs
   browser:
     name: Operacao integrada e mobile (${{ matrix.browser }})
     runs-on: ubuntu-24.04

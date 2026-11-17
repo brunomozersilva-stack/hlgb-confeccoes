@@ -529,6 +529,3248 @@ function observationPanels(s,area){
  }
  return null;
 }
+
+const financeFilters={from:'2026-11-01',to:'2026-12-31',category:'todos'};
+function financeAnalytics(s){
+ const service=window.HLGBLabFinanceV1;
+ if(!service)return panel('Hub analítico','<p>Módulo indisponível.</p>',true);
+ const filter='<div class="fields"><div class="field"><label>De<input class="input" type="date" data-fin-filter="from" value="'+str(financeFilters.from)+'"></label></div><div class="field"><label>Até<input class="input" type="date" data-fin-filter="to" value="'+str(financeFilters.to)+'"></label></div><div class="field"><label>Categoria<select class="input" data-fin-filter="category">'+options([['todos','Todas'],...service.categories.map(x=>[x,x]),['Vínculo não identificado','Vínculo não identificado']],financeFilters.category)+'</select></label></div></div>';
+ let r;try{r=service.report(s,financeFilters)}catch(e){return panel('Hub analítico',filter+'<div class="error">'+str(e.message)+'</div>',true)}
+ const metrics=[['Entradas realizadas',r.actual.receber],['Saídas realizadas',r.actual.pagar],['A receber no período',r.forecast.receber],['A pagar no período',r.forecast.pagar],['Movimento líquido realizado',r.actual.net],['Movimento líquido projetado',r.projectedNet],['Vencidos a pagar (total)',r.overdue.pagar],['Vencidos a receber (total)',r.overdue.receber]];
+ return panel('Hub Financeiro 2.0 · visão gerencial',filter+'<div class="metrics">'+metrics.map(([k,v])=>'<div class="metric"><span>'+str(k)+'</span><strong>'+fmt(v)+'</strong></div>').join('')+'</div><p>Movimento líquido não é saldo bancário: saldo inicial não informado. Referência fictícia: 17/11/2026. Títulos sem data: '+fmt(r.undated.pagar)+' a pagar / '+fmt(r.undated.receber)+' a receber, fora dos totais datados.</p><p>Contas abertas em todos os períodos: '+fmt(r.open.pagar)+' a pagar / '+fmt(r.open.receber)+' a receber.</p>'+ (r.issues.length?'<div class="error">'+str(r.issues.join('; '))+'</div>':'')+'<button type="button" id="finance-report-export" class="btn">Exportar relatório filtrado CSV</button>',true)+
+ panel('Fluxo de caixa por dia',table(['Data','Entradas realizadas','Saídas realizadas','Entradas previstas','Saídas previstas','Líquido previsto + realizado'],r.days.map(x=>[str(x.date),fmt(x.actual.receber),fmt(x.actual.pagar),fmt(x.forecast.receber),fmt(x.forecast.pagar),fmt(x.actual.net+x.forecast.net)])),true)+
+ panel('Despesas e receitas por categoria',table(['Categoria','Recebido','Pago','A receber','A pagar'],r.categories.map(x=>[str(x.category),fmt(x.actual.receber),fmt(x.actual.pagar),fmt(x.forecast.receber),fmt(x.forecast.pagar)])),true)+
+ panel('Relatório filtrado e conferência',table(['Título / descrição','Categoria','Data','Tipo','Valor','Estado','Conferência'],r.rows.map(x=>[str(x.id)+' · '+str(x.description),str(x.category),str(x.date||'Sem data'),str(x.kind),fmt(x.amountCents),str(x.status),str(x.reconciliation)])),true);
+}
+function financeControlPanels(s){
+ const dated=(id,label)=>'<div class="field"><label>'+str(label)+'<input class="input" type="date" name="'+id+'" value="2026-11-17" required></label></div>';
+ const open=selector(s.finance.filter(x=>x.status==='aberto'),x=>x.id+' · '+x.description+' · '+fmt(x.amountCents));
+ const paid=selector(s.finance.filter(x=>x.status==='pago'&&!x.reconciliation),x=>x.id+' · '+x.description+' · '+fmt(x.amountCents));
+ return panel('Programar vencimento e conciliar manualmente',
+ form('finance.schedule','Definir ou corrigir vencimento',[field('id','Título aberto','select','',open),dated('dueDate','Vencimento'),field('reason','Motivo','text','Programação fictícia')],'Salvar vencimento')+
+ form('finance.reconcile','Conferir título quitado com extrato fictício',[field('id','Título pago sem conferência','select','',paid),field('reference','Referência única do extrato','text','EXT-TESTE-001'),field('amountCents','Valor do extrato R
+ const o=orderOptions(s),openPlans=(s.cutPlans||[]).filter(p=>p.status==='aberto'),
+  planOptions=selector(openPlans,p=>p.id+' · '+p.orderId+' · '+sum(p.grade)+' peças'),
+  defaultOrder=s.orders[0],defaultPlan=openPlans[0],
+  materials=selector(s.materials,m=>m.name+' · '+m.stockGrams+'g'),clients=selector(s.clients,x=>x.name),
+ products=selector(s.products,x=>x.name+' · '+x.sku),factions=selector(s.factions,x=>x.name+' · '+fmt(x.unitCents)+'/peça'),
+ suppliers=selector(s.suppliers,x=>x.name),settlements=selector(s.settlements,x=>x.id+' · '+fmt(x.amountCents)+' · '+x.status),
+ purchases=selector(s.purchaseOrders.filter(x=>!x.received&&!x.cancelled),
+  x=>x.id+' · '+x.qtyGrams+'g'),
+ finance=selector(s.finance.filter(x=>x.status==='aberto'),x=>x.id+' · '+fmt(x.amountCents)+' · '+x.description),
+ employees=selector(s.employees,x=>x.name),incidents=selector(s.errors.filter(x=>x.status==='aberto'),x=>x.id+' · '+x.message);
+ switch(active){
+ case 'nucleo':return panel('Módulos opcionais com desativação segura',
+ (window.HLGBLabModules?table(['Módulo','Versão','Ativo','Falhas isoladas'],window.HLGBLabModules.list().map(x=>[
+ str(x.id),str(x.version),x.enabled?'Sim':'Não',str(x.failures)])):
+ '<p>Registro modular indisponível; funções legadas permanecem acessíveis.</p>')+
+ '<div class="actions"><button type="button" class="btn" data-toggle-observer="true">Alternar Observabilidade 2.0 (apenas nesta aba)</button></div>'+
+ '<p class="caption">Uma falha no módulo de diagnóstico não bloqueia pedidos, acertos, títulos ou qualquer função anterior. Flag apenas em memória desta aba.</p>',true)+
+ panel('Roteiro guiado do fluxo integrado',guidedJourney(s),true)+
+ panel('Como testar o fluxo completo',refDocs(s)+
+ '<ol class="tips"><li>Em <b>Pedidos</b>, crie uma encomenda P/M/G.</li><li>Em <b>Corte</b>, corte algumas peças; o material será consumido.</li>'+
+ '<li>Em <b>Facções</b>, envie as peças cortadas e registre retorno parcial.</li><li>Em <b>Acertos</b>, verifique o título criado; em <b>Separação</b>, dê baixa e despache.</li>'+
+ '<li>Em <b>Hub Financeiro</b>, confira a conta a receber do pedido e a conta a pagar do acerto.</li><li>Atualize a página e volte aos módulos. Os registros devem permanecer.</li></ol>',true)+
+ panel('Saúde do documento',table(['Regra','Resultado'],Object.entries(api.inspect(s)).filter(([k,v])=>typeof v!=='object').map(([k,v])=>[str(k),str(v)])))+
+ panel('Confiabilidade e limites','<p><b>O que funciona aqui:</b> transação local IndexedDB, revisão para evitar sobrescrita por outra aba, confirmação por releitura do comando, auditoria e validações de quantidade.</p>'+
+ '<p><b>O que falta:</b> sincronização entre computadores, login real, WAL remoto, RLS empresarial, PDF e pagamentos efetivos. Use o simulador de duas sessões do laboratório para testes de falhas mais amplos.</p>');
+ case 'autenticacao':return panel('Papéis de referência — não é login de verdade',
+ '<p>Estas são propostas de organização para o futuro controle de permissões. <strong>Não há autenticação neste laboratório</strong>; todas as ações são apenas exercícios locais.</p>'+
+ table(['Perfil','Escopo proposto','Validação real'],[['Supervisor','Cadastros, aprovações e relatórios','Pendente'],['Produção','Pedidos, corte, facções e separação','Pendente'],
+ ['Financeiro','Acertos, Hub, compras e comprovantes','Pendente'],['Consulta','Visualização sem alterar','Pendente']]),true);
+ case 'pedidos':return panel('Incluir pedido com grade',
+ form('order.add','Novo pedido fictício',[
+ field('clientId','Cliente','select','',clients),field('productId','Modelo','select','',products),
+ ...api.sizes.map(z=>field(z,'Quantidade '+z,'int',z==='M'?10:0))],'Cadastrar pedido'))+
+ panel('Fluxo e integridade',refDocs(s)+
+ '<p>O pedido já gera uma conta fictícia a receber. Corte, produção e separação precisam respeitar a grade.</p>')+
+ panel('Pedidos e seus saldos',orderTable(s),true);
+ case 'produtos':return materialRecipePanels(s)+panel('Ficha técnica básica e SKU',
+ form('product.add','Cadastrar modelo',[field('name','Nome do modelo'),field('sku','SKU único'),
+ field('materialId','Material principal','select','',materials),
+ field('gramsPerUnit','Consumo por unidade (g)','int','80'),
+ field('priceCents','Preço de venda R$','money','39,90')],'Cadastrar modelo'))+
+ panel('Referência dos materiais','<p>O corte fictício continua utilizando o consumo principal registrado ao cadastrar o modelo. A nova receita detalhada é usada somente na previsão de materiais, sem alterar baixas antigas.</p>')+
+ panel('Modelos cadastrados',table(['SKU','Modelo','Material','Consumo','Preço'],s.products.map(x=>[
+ str(x.sku),str(x.name),str(ref(s.materials,x.materialId)?.name),str(x.gramsPerUnit)+'g',fmt(x.priceCents)])),true);
+ case 'corte':{
+  const gradeFields=(g)=>api.sizes.map(z=>field(z,'Quantidade '+z,'int',g?.[z]||0));
+  const planned=(s.cutPlans||[]),done=planned.filter(x=>x.status==='concluido');
+  const rows=planned.map(p=>[
+   str(p.id)+'<div class="caption">'+str(p.orderId)+'</div>',
+   api.sizes.map(z=>z+': '+p.grade[z]).join(' / '),
+   str(p.workMode)+'<div class="caption">'+str(p.cutterOne)+' / '+str(p.cutterTwo)+' / '+str(p.spreader)+'</div>',
+   str(p.theoreticalGrams)+' g',
+   p.status==='concluido'?str(p.usefulGrams)+' g útil + '+str(p.scrapGrams)+' g lixo':'—',
+   '<span class="chip '+(p.status==='aberto'?'wait':'')+'">'+str(p.status)+'</span>',
+   '<button type="button" class="btn" data-print-plan="'+str(p.id)+'">Imprimir folha</button>'
+  ]);
+  return bomCutPanels(s)+panel('Grade editável do pedido',
+   form('order.grade.update','Ajustar quantidades por tamanho',[
+    field('orderId','Pedido','select','',o),...gradeFields(defaultOrder?.grade)
+   ],'Salvar grade e conferir valor do pedido')+
+   '<p>O pedido não pode ser reduzido abaixo de cortes já executados nem das quantidades reservadas. O título a receber é recalculado apenas quando está aberto.</p>')+
+  panel('Lotes de corte e equipe',
+   form('cut.plan','Nova folha de corte',[
+    field('orderId','Pedido','select','',o),...gradeFields(api.makeGrade()),
+    field('workMode','Origem do serviço','select','',[['interno','Interno'],['externo','Externo']]),
+    field('cutterOne','Cortador 1','text','Ana Cortadora'),
+    field('cutterTwo','Cortador 2','text','Beto Cortador'),
+    field('spreader','Enfestador','text','Carla Enfestadora')
+   ],'Planejar lote')+
+   '<p>Crie várias folhas para dividir a grade de um pedido. Uma folha aberta reserva quantidades, mas não consome material até a conclusão.</p>')+
+  panel('Modificar ou cancelar folha em aberto',
+   form('cut.plan.update','Alterar equipe e grade do lote',[
+    field('id','Folha aberta','select','',planOptions),...gradeFields(defaultPlan?.grade),
+    field('workMode','Origem do serviço','select','',[['interno','Interno'],['externo','Externo']]),
+    field('cutterOne','Cortador 1','text',defaultPlan?.cutterOne||'Ana Cortadora'),
+    field('cutterTwo','Cortador 2','text',defaultPlan?.cutterTwo||'Beto Cortador'),
+    field('spreader','Enfestador','text',defaultPlan?.spreader||'Carla Enfestadora')
+   ],'Atualizar planejamento')+
+   form('cut.plan.cancel','Cancelar folha sem apagar histórico',[
+    field('id','Folha aberta','select','',planOptions)
+   ],'Cancelar folha aberta'))+
+  panel('Conferir peso e concluir o corte',
+   form('cut.plan.complete','Baixa auditada com duas conferências',[
+    field('id','Folha em aberto','select','',planOptions),
+    field('usefulGrams','Peso útil utilizado (g)','int',defaultPlan?.theoreticalGrams||0),
+    field('scrapGrams','Peso do lixo/desperdício (g)','int',0),
+    field('signatureOne','Conferência digitada do cortador 1','text',''),
+    field('signatureTwo','Conferência digitada do cortador 2','text','')
+   ],'Concluir lote e baixar estoque')+
+   '<p>O sistema desconta <b>peso útil + lixo</b>. As duas conferências digitadas devem coincidir com os nomes dos cortadores, mas não representam assinatura legal.</p>')+
+  panel('Corte simplificado — função preservada',
+   form('cut.record','Corte avulso por tamanho',[
+    field('orderId','Pedido','select','',o),
+    field('size','Tamanho','select','',api.sizes.map(z=>[z,z])),
+    field('qty','Quantidade','int','5')
+   ],'Baixar corte manual')+
+   '<p>Para preservar o exercício anterior, esta baixa continua disponível. Não consome peças reservadas por folhas abertas.</p>')+
+  panel('Quantidade de pedidos e corte',orderTable(s),true)+
+  panel('Folhas e indicadores de peso',
+   table(['Folha','Grade','Equipe','Peso teórico','Baixa real','Status','Impressão'],rows)+
+   '<div class="flow"><span>Peso útil: '+str(done.reduce((a,p)=>a+p.usefulGrams,0))+' g</span>'+
+   '<span>Lixo: '+str(done.reduce((a,p)=>a+p.scrapGrams,0))+' g</span></div>'+
+   '<p>Imprimir folha abre o diálogo de impressão do navegador para gerar papel ou salvar como PDF. Somente informações fictícias.</p>',true);
+ }
+ case 'producao':return panel('Acompanhamento PCP',refDocs(s)+
+ '<p>Envio e retorno são registrados na guia <b>Facções</b>; não são permitidas baixas que excedam etapas anteriores.</p>'+
+ table(['Pedido','Cortadas','Enviadas','Retornadas','Pendentes retorno'],s.orders.map(x=>[
+ str(x.id),str(sum(x.cut)),str(x.allocated),str(x.returned),str(x.allocated-x.returned)])))+
+ panel('Próximas operações','<div class="actions"><button class="btn primary" type="button" data-goto="faccoes">Gerenciar facções</button>'+
+ '<button class="btn" type="button" data-goto="separacao">Separação</button></div>');
+ case 'separacao':return panel('Baixa de separação / expedição',
+ form('order.separate','Separar parcialmente',[field('orderId','Pedido','select','',o),
+ field('qty','Quantidade para separar','int','5')],'Confirmar separação')+
+ form('order.ship','Expedir peças separadas',[field('orderId','Pedido','select','',o),
+ field('qty','Peças expedidas','int','5')],'Registrar despacho'))+
+ panel('Validação da etapa','<p>Separação só pode usar quantidade já retornada. O despacho não pode ser maior que a separação registrada. Cada ação gera evento local.</p>')+
+ panel('Saldo a separar e expedir',table(['Pedido','Retornado','Separado','Despachado'],s.orders.map(x=>[
+ str(x.id),str(x.returned),str(x.separated),str(x.shipped)])),true);
+ case 'faccoes':{
+ const rows=s.factionAssignments||[];
+ const unclassified=selector(s.orders.filter(x=>!x.colorGrades?.length),
+  x=>x.id+' · '+(ref(s.products,x.productId)?.name||'Modelo')+' · '+sum(x.grade)+' peças');
+ const classified=s.orders.filter(x=>x.colorGrades?.length);
+ const colorOptions=[...new Set([
+  ...(s.colorCatalog||window.HLGBLabMaterialsPlannerV1?.seed?.()||[]).map(x=>x.name),
+  ...classified.flatMap(x=>x.colorGrades.map(g=>g.color))
+ ])].map(x=>[x,x]);
+ const sizeOptions=api.sizes.map(x=>[x,x]);
+ const colorAssignmentOptions=selector(rows.filter(x=>classified.some(o=>o.id===x.orderId)),
+  x=>x.id+' · '+x.orderId+' · '+(ref(s.factions,x.factionId)?.name||'—')+
+   ' · '+(x.qtySent-x.qtyReturned)+' peças pendentes');
+ const pendingTransfer=selector(s.orders.filter(x=>!x.colorGrades?.length&&x.allocated>0&&x.returned===0&&
+  rows.filter(a=>a.orderId===x.id).length<=1),
+  x=>x.id+' · '+(ref(s.factions,x.factionId)?.name||'—')+' · '+x.allocated+' peças');
+ const pendingSimple=selector(s.orders.filter(x=>!x.colorGrades?.length&&x.allocated>x.returned&&
+  rows.filter(a=>a.orderId===x.id).length<=1),
+  x=>x.id+' · '+(ref(s.factions,x.factionId)?.name||'—')+' · '+(x.allocated-x.returned)+' peças');
+ const pendingAssignments=selector(rows.filter(x=>!classified.some(o=>o.id===x.orderId)&&x.qtySent>x.qtyReturned),
+  x=>x.id+' · '+x.orderId+' · '+(ref(s.factions,x.factionId)?.name||'—')+
+  ' · '+(x.qtySent-x.qtyReturned)+' peças aguardando');
+ const transferable=selector(rows.filter(x=>!classified.some(o=>o.id===x.orderId)&&x.qtySent>1&&x.qtySent>x.qtyReturned),
+  x=>x.id+' · '+x.orderId+' · '+(ref(s.factions,x.factionId)?.name||'—')+
+  ' · '+(x.qtySent-x.qtyReturned)+' peças disponíveis');
+ return panel('Preço específico das peças que já estão na facção',
+   form('faction.assignment.rate.set','Negociar mão de obra por envio pendente',[
+    field('assignmentId','Envio / pedido / facção','select','',selector(rows.filter(x=>x.qtySent>x.qtyReturned),x=>
+      x.id+' · '+x.orderId+' · '+(ref(s.factions,x.factionId)?.name||'—')+
+      ' · '+(x.qtySent-x.qtyReturned)+' pendentes')),
+    field('unitCents','Preço bruto por peça (R$)','money','0,00'),
+    field('travetaCents','Desconto de travetada por peça (R$)','money','0,00'),
+    field('reason','Justificativa da negociação','text','')
+   ],'Salvar tarifa deste envio')+
+   '<p id="assignment-rate-preview" class="caption" role="status"></p>'+
+   '<p>A tarifa vale apenas para os próximos retornos deste envio, incluindo devoluções e retornos por cor/tamanho. Não altera o preço geral do modelo nem os acertos existentes. A troca integral de facção desativa o acordo da origem, conservando o histórico.</p>'+
+   table(['Envio','Facção','Bruto/peça','Travetada/peça','Peças pendentes na negociação','Justificativa'],
+    rows.flatMap(x=>(x.rateAgreementHistory||[]).map(h=>[
+     str(x.id),str(ref(s.factions,h.factionId)?.name||h.factionId),
+     h.mode==='reset'?'Acordo encerrado':fmt(h.gross),h.mode==='reset'?'—':fmt(h.discount),
+     str(h.pendingQty??'—'),str(h.reason)
+    ]))),true)+
+  panel('Cadastro e regras por facção',
+ form('faction.add','Cadastrar facção fictícia',[
+  field('name','Nome da facção'),field('unitCents','Preço padrão por peça (R$)','money','6,00'),
+  field('traveta','Faz travetada?','select','',[['true','Sim'],['false','Não']])
+ ],'Cadastrar facção')+
+ form('faction.rate.set','Definir preço específico por modelo',[
+  field('factionId','Facção','select','',factions),
+  field('productId','Modelo','select','',products),
+  field('unitCents','Preço bruto por peça (R$)','money','6,00'),
+  field('reason','Motivo da alteração','text','Preço específico fictício')
+ ],'Salvar preço para próximos retornos')+
+ form('faction.traveta.set','Alterar regra de travetada',[
+  field('factionId','Facção','select','',factions),
+  field('traveta','Faz travetada?','select','',[['true','Sim'],['false','Não']]),
+  field('reason','Motivo','text','Nova regra para retornos futuros')
+ ],'Salvar regra futura')+
+ '<p>Preços e travetada alterados só valem para novos retornos. Acertos existentes mantêm os valores que tinham quando foram criados.</p>')+
+ panel('Envio, troca controlada e retorno',
+ form('faction.allocate','Enviar peças cortadas',[
+  field('orderId','Pedido','select','',unclassified),field('factionId','Facção','select','',factions),
+  field('qty','Quantidade a enviar','int','5')
+ ],'Enviar peças')+
+ form('faction.reassign','Transferir antes do primeiro retorno',[
+  field('orderId','Pedido já enviado, sem retorno','select','',pendingTransfer),
+  field('factionId','Nova facção','select','',factions),
+  field('reason','Motivo obrigatório','text','Troca de facção no teste')
+ ],'Registrar transferência com histórico')+
+ form('faction.return','Registrar retorno parcial',[
+  field('orderId','Pedido','select','',pendingSimple),field('qty','Quantidade devolvida','int','3')
+ ],'Confirmar retorno e gerar acerto')+
+ '<p>A troca fica bloqueada se já existir retorno/acerto. Ela é um exemplo de transferência total antes do primeiro retorno, não uma redistribuição avançada entre várias facções.</p>')+
+ panel('Grade por cor e tamanho — cada facção recebe a quantidade certa',
+ form('order.color.grade.set','Cadastrar ou corrigir uma cor antes do primeiro envio',[
+  field('orderId','Pedido sem envios','select','',
+   selector(s.orders.filter(x=>x.allocated===0),
+    x=>x.id+' · '+(ref(s.products,x.productId)?.name||'Modelo'))),
+  field('color','Cor cadastrada','select','',colorOptions),
+  ...api.sizes.map(sz=>field(sz,sz+' — peças desta cor','int','0'))
+ ],'Salvar quantidades da cor')+
+ '<p class="caption">Cadastre uma linha para cada cor, usando P, M, G e GG. A soma de todas as cores deve corresponder à grade total do pedido antes de enviar. Digitar tudo zero remove uma cor já cadastrada, enquanto não houver envios. A grade geral do pedido permanece preservada.</p>'+
+ table(['Pedido','Cor','P','M','G','GG','Total'],
+  classified.flatMap(o=>o.colorGrades.map(g=>[str(o.id),str(g.color),
+   ...api.sizes.map(sz=>str(g.grade[sz])),str(sum(g.grade))])))+
+ '<h3>Conferência antes de alocar</h3>'+
+ table(['Pedido','Situação','Falta P','Falta M','Falta G','Falta GG'],
+  classified.map(o=>{
+   const totals=Object.fromEntries(api.sizes.map(sz=>[sz,
+    o.grade[sz]-o.colorGrades.reduce((n,g)=>n+g.grade[sz],0)]));
+   const complete=api.sizes.every(sz=>totals[sz]===0);
+   return [str(o.id),complete?'Completa para alocar':'Incompleta — finalize as cores',
+    ...api.sizes.map(sz=>str(totals[sz]))];
+  })),true)+
+ panel('Distribuição, retornos e transferências por cor/tamanho',
+ form('faction.grade.allocate','Enviar peças identificadas por cor/tamanho',[
+  field('orderId','Pedido com cores cadastradas','select','',
+   selector(classified,x=>x.id+' · '+(ref(s.products,x.productId)?.name||'Modelo'))),
+  field('factionId','Facção de destino','select','',factions),
+  field('color','Cor','select','',colorOptions),
+  field('size','Tamanho','select','',sizeOptions),
+  field('qty','Quantidade a enviar','int','1')
+ ],'Enviar peças da grade')+
+ form('faction.grade.return','Retornar peças com identificação exata',[
+  field('assignmentId','Envio da facção','select','',colorAssignmentOptions),
+  field('color','Cor retornada','select','',colorOptions),
+  field('size','Tamanho retornado','select','',sizeOptions),
+  field('qty','Quantidade retornada','int','1')
+ ],'Gerar acerto da cor/tamanho')+
+ form('faction.grade.transfer','Transferir saldo identificado para outra facção',[
+  field('fromAssignmentId','Envio de origem','select','',colorAssignmentOptions),
+  field('toFactionId','Facção que receberá','select','',factions),
+  field('color','Cor','select','',colorOptions),
+  field('size','Tamanho','select','',sizeOptions),
+  field('qty','Quantidade a transferir','int','1'),
+  field('reason','Justificativa','text','Redistribuição fictícia da grade')
+ ],'Transferir com histórico por cor/tamanho')+
+ '<p class="caption">Se uma facção recebeu 3 peças pretas M, ela não poderá devolver 4 peças pretas M nem substituir por outra cor. Valores de acertos já pagos continuam imutáveis. Os formulários simples anteriores não deixam enviar pedidos já classificados por cor.</p>'+
+ '<h3>Saldo por oficina, cor e tamanho</h3>'+
+ table(['Envio','Pedido','Facção','Cor','Tamanho','Enviadas','Retornadas','Pendentes'],
+  rows.flatMap(row=>(row.gradeLines||[]).map(line=>[
+   str(row.id),str(row.orderId),
+   str(ref(s.factions,row.factionId)?.name||row.factionId),
+   str(line.color),str(line.size),str(line.sent),str(line.returned),
+   str(line.sent-line.returned)]))),true)+
+ panel('Distribuir um pedido entre múltiplas facções',
+ form('faction.multi.allocate','Enviar lote parcial a uma facção',[
+  field('orderId','Pedido com peças cortadas','select','',unclassified),
+  field('factionId','Facção que receberá o lote','select','',factions),
+  field('qty','Peças desse envio','int','2')
+ ],'Alocar peças sem sobrescrever outros destinos')+
+ form('faction.multi.transfer','Transferir parte das peças ainda não retornadas',[
+  field('fromAssignmentId','Envio da facção de origem','select','',transferable),
+  field('toFactionId','Facção de destino','select','',factions),
+  field('qty','Peças para transferir','int','1'),
+  field('reason','Justificativa obrigatória','text','Redistribuição de saldo pendente fictício')
+ ],'Registrar transferência parcial com histórico')+
+ '<p class="caption">A transferência não altera acertos anteriores nem aumenta o total enviado do pedido. Não permite esvaziar completamente a origem nesta rotina parcial.</p>'+
+ form('faction.multi.return','Registrar retorno da facção correta',[
+  field('assignmentId','Envio específico e saldo a retornar','select','',pendingAssignments),
+  field('qty','Quantidade que retornou','int','1')
+ ],'Registrar retorno e gerar acerto dessa facção')+
+ '<p class="caption">As quantidades de cada facção são independentes. O envio antigo continua disponível para pedidos com destino único. Para pedidos divididos, use o retorno pelo envio específico; assim o acerto e o título financeiro mostram a facção correta.</p>',true)+
+ panel('Distribuição por pedido e facção — rastreabilidade',
+ table(['Envio','Pedido','Facção','Peças enviadas','Retornadas','Faltam retornar','Origem'],
+  rows.map(x=>[str(x.id),str(x.orderId),
+   str(ref(s.factions,x.factionId)?.name||x.factionId),
+   str(x.qtySent),str(x.qtyReturned),str(x.qtySent-x.qtyReturned),
+   str(x.origin||'legado-local')]))+
+ '<p class="caption">As peças devolvidas antes do pagamento ajustam o saldo da facção original, sem afetar as outras. Não é um extrato da base real.</p>',true)+
+ panel('Histórico permanente de transferências parciais entre facções',
+ table(['ID','Pedido','De','Para','Peças','Antes → depois (origem)','Antes → depois (destino)','Justificativa'],
+  (s.factionPartialTransfers||[]).map(m=>[
+   str(m.id),str(m.orderId),
+   str(ref(s.factions,m.fromFactionId)?.name||m.fromFactionId),
+   str(ref(s.factions,m.toFactionId)?.name||m.toFactionId),
+   str(m.qty),str(m.fromBefore)+' → '+str(m.fromAfter),
+   str(m.toBefore)+' → '+str(m.toAfter),str(m.reason)]))+
+ '<p class="caption">Somente o saldo pendente muda de responsável; a trilha de cada transferência fica vinculada ao comando que a criou.</p>',true)+
+ panel('Lista de facções e preços',
+ '<div class="field"><label for="faction-search">Buscar facção</label>'+
+ '<input id="faction-search" class="input" data-filter-for="faction-table" type="search" placeholder="Nome, modelo, preço..."></div>'+
+ '<div id="faction-table">'+table(['Facção','Preço padrão','Travetada','Preços por modelo'],s.factions.map(x=>[
+  str(x.name),fmt(x.unitCents),x.traveta?'Sim':'Não',
+  Object.entries(x.productRates||{}).map(([productId,cents])=>
+    str(ref(s.products,productId)?.name||productId)+': '+fmt(cents)).join(' · ')||'Padrão'
+ ]))+'</div>'+
+ '<p class="caption">A prévia usa, quando aplicável, um desconto ilustrativo de R$ 0,50/peça para facções que não travetam. Configure preço específico e confira o valor líquido no acerto. Não representa a tabela oficial.</p>')+
+ panel('Pedidos, transferências e rastreabilidade',
+ orderTable(s)+
+ '<h3>Trocas registradas</h3>'+
+ table(['ID','Pedido','De','Para','Peças','Motivo'],(s.factionTransfers||[]).map(x=>[
+ str(x.id),str(x.orderId),str(ref(s.factions,x.fromFactionId)?.name),
+ str(ref(s.factions,x.toFactionId)?.name),str(x.qty),str(x.reason)
+ ])),true);
+ }
+ case 'acertos':{
+ const open=selector(s.settlements.filter(x=>x.status==='aberto'&&!x.gradeTracked),
+  x=>x.id+' · '+fmt(x.amountCents)+' · '+(ref(s.factions,x.factionId)?.name||'—'));
+ const trackedOpen=selector(s.settlements.filter(x=>x.status==='aberto'&&x.gradeTracked&&x.qty>1),
+  x=>x.id+' · '+x.color+' '+x.size+' · '+fmt(x.amountCents));
+ const allOpen=selector(s.settlements.filter(x=>x.status==='aberto'),
+  x=>x.id+' · '+fmt(x.amountCents)+' · '+(ref(s.factions,x.factionId)?.name||'—'));
+ const paid=selector(s.settlements.filter(x=>x.status==='pago'),
+  x=>x.id+' · Pago '+fmt(x.amountCents)+' · '+(ref(s.factions,x.factionId)?.name||'—'));
+ const compensations=s.settlementCompensations||[];
+ return panel('Serviços avulsos e embalagem',
+ form('settlement.add','Novo acerto avulso fictício',[
+  field('serviceType','Tipo de serviço','select','',[['costura','Costura avulsa'],['embalagem','Embalagem']]),
+  field('factionId','Facção / embaladeira','select','',factions),
+  field('productId','Modelo','select','',products),
+  field('qty','Quantidade','int','20'),
+  field('unitCents','Preço por peça (R$)','money','0,25'),
+  field('travetaCents','Desconto de travetada por peça (R$)','money','0,00'),
+  field('reason','Descrição / justificativa','text','Embalagem fictícia')
+ ],'Gerar acerto e título a pagar')+
+ '<p>O tipo <strong>Embalagem</strong> usa valor por peça independente da mão de obra de costura. As sugestões de R$ 0,25 para camisola/doll e R$ 0,15 para calcinha são exemplos editáveis, não preços confirmados da empresa.</p>')+
+ panel('Corrigir facção e mão de obra de acerto em aberto',
+   form('settlement.revise','Alterar sem criar outro pagamento',[
+    field('id','Acerto em aberto','select','',allOpen),
+    field('factionId','Facção / embaladeira do acerto','select','',factions),
+    field('unitCents','Preço bruto por peça (R$)','money','0,00'),
+    field('travetaCents','Desconto de travetada por peça (R$)','money','0,00'),
+    field('reason','Justificativa da correção','text','')
+   ],'Salvar correção e atualizar o mesmo título')+
+   '<p id="settlement-revise-preview" class="caption" role="status"></p>'+
+   '<p>Em serviço avulso, pode corrigir a pessoa e o preço. Em retorno vinculado ao pedido, o preço pode ser corrigido, mas a facção física não pode ser trocada aqui. O título existente é atualizado, nunca duplicado. Acertos pagos exigem compensação separada.</p>',true)+
+  panel('Devolver peças com motivo e histórico',
+ form('settlement.pieces.return','Devolução parcial sem apagar o acerto',[
+  field('id','Acerto em aberto','select','',open),
+  field('qty','Quantidade devolvida','int','1'),
+  field('reason','Justificativa obrigatória','text','Peças devolvidas na conferência fictícia')
+ ],'Registrar devolução e recalcular Hub')+
+ '<p>Somente antes do pagamento. O pedido não pode ficar com retorno abaixo das peças já separadas. A operação mantém o acerto original, o histórico de quantidade anterior e a nova quantia no Hub.</p>')+
+ panel('Devolução detalhada antes de pagar — conserva a grade',
+ form('settlement.grade.pieces.return','Devolver peças de um acerto com cor/tamanho',[
+  field('id','Acerto identificado em aberto','select','',trackedOpen),
+  field('qty','Peças devolvidas desta cor/tamanho','int','1'),
+  field('reason','Justificativa obrigatória','text','Correção da grade antes da quitação')
+ ],'Atualizar acerto, saldo da facção e Hub')+
+ '<p class="caption">A devolução só pode usar o mesmo tamanho e cor do acerto. Acertos pagos são protegidos.</p>',true)+
+ panel('Ajustar apenas acerto em aberto',
+ form('settlement.adjust','Abatimento ou acréscimo rastreado',[
+  field('id','Acerto ainda não pago','select','',allOpen),
+  field('adjustmentCents','Ajuste total (R$), aceita negativo','signed-money','0,00'),
+  field('reason','Motivo','text','Conferência do valor fictício')
+ ],'Salvar ajuste e reconciliar Hub')+
+ '<p>Se o título vinculado já estiver quitado, não é permitido alterar o pagamento original. A correção pós-pagamento exigirá uma rotina separada de compensação.</p>')+
+ panel('Compensação separada de acertos pagos',
+ form('settlement.compensate','Corrigir sem reescrever pagamento anterior',[
+  field('id','Acerto original já pago','select','',paid),
+  field('deltaCents','Diferença em R$ (positiva = pagar; negativa = receber)','signed-money','1,00'),
+  field('reference','Referência única para evitar duplicidade','text','CORRECAO-TESTE-001'),
+  field('reason','Justificativa obrigatória','text','Compensação fictícia após conferência')
+ ],'Criar compensação separada e título novo')+
+ '<p><strong>O pagamento original não muda.</strong> Uma diferença positiva gera título fictício a pagar; negativa gera título fictício a receber. A mesma referência não pode ser usada duas vezes no mesmo acerto. É apenas uma demonstração de compensação, não devolução bancária automática nem documento fiscal.</p>')+
+ panel('Pesquisar acertos e histórico',
+ '<div class="fields" id="settlement-filters">'+
+ '<div class="field"><label for="settlement-search">Busca única: acerto, modelo, facção, referência ou motivo</label>'+
+ '<input id="settlement-search" class="input" type="search" placeholder="Ex.: ACE-0004, embalagem, AJ-TESTE"></div>'+
+ '<div class="field"><label for="settlement-status">Situação do acerto</label><select class="input" id="settlement-status" data-settlement-filter="status">'+
+ options([['todos','Todos'],['aberto','Em aberto'],['pago','Pago']])+'</select></div>'+
+ '<div class="field"><label for="settlement-faction">Facção ou embaladeira</label><select class="input" id="settlement-faction" data-settlement-filter="faction">'+
+ options([['todas','Todas'],...s.factions.map(x=>[x.id,x.name])])+'</select></div>'+
+ '<div class="field"><label for="settlement-service">Tipo de serviço</label><select class="input" id="settlement-service" data-settlement-filter="service">'+
+ options([['todos','Todos'],['costura','Costura'],['embalagem','Embalagem']])+'</select></div>'+
+ '<div class="field"><label for="settlement-compensation">Situação das compensações</label><select class="input" id="settlement-compensation" data-settlement-filter="compensation">'+
+ options([['todos','Todas'],['aberto','Em aberto'],['pago','Quitadas']])+'</select></div></div>'+
+ '<div class="actions"><button type="button" class="btn" id="settlement-clear-filters">Limpar filtros</button></div>'+
+ '<p class="caption" role="status" aria-live="polite" id="settlement-query-summary">Calculando a consulta local...</p>'+
+ '<div id="settlement-table">'+table(
+ ['Acerto','Facção / serviço','Modelo','Peças','Bruto/peça','Travetada/peça','Ajuste total','Total','Situação','Comprovante'],
+ s.settlements.map(x=>[
+  str(x.id)+'<div class="caption">'+str(x.orderId||'Avulso')+'</div>',
+  str(ref(s.factions,x.factionId)?.name)+'<div class="caption">'+str(x.serviceType||'costura')+'</div>',
+  str(ref(s.products,x.productId)?.name||ref(s.products,ref(s.orders,x.orderId)?.productId)?.name||'—'),
+  str(x.qty),fmt(x.listUnitCents??x.unitCents),fmt(x.travetaCents||0),
+  fmt(x.adjustmentCents),fmt(x.amountCents),
+  '<span class="chip '+(x.status==='aberto'?'wait':'')+'">'+str(x.status)+'</span>',
+  receiptSummary(s,s.finance.find(f=>f.sourceId===x.id&&f.kind==='pagar')?.id)
+ ]))+'</div>'+
+ '<h3>Alterações de valores</h3>'+
+ table(['Acerto','Evento','Antes','Depois','Motivo'],s.settlements.flatMap(x=>
+  (x.history||[]).map(e=>[str(x.id),str(e.commandId),fmt(e.beforeCents),fmt(e.afterCents),str(e.reason)])
+  ))+
+ '<h3>Histórico de correções de facção e mão de obra</h3>'+
+  table(['Acerto / título','Facção anterior → nova','Preço bruto anterior → novo','Travetada anterior → nova','Total anterior → novo','Motivo'],
+   s.settlements.flatMap(x=>(x.rateHistory||[]).map(h=>[
+    str(x.id)+' · '+str(h.financeId),str(h.fromFactionName)+' → '+str(h.toFactionName),
+    fmt(h.before.listUnitCents)+' → '+fmt(h.after.listUnitCents),
+    fmt(h.before.travetaCents)+' → '+fmt(h.after.travetaCents),
+    fmt(h.before.amountCents)+' → '+fmt(h.after.amountCents),str(h.reason)
+   ])))+
+  '<h3>Devoluções de peças</h3>'+
+ table(['Acerto','Comando','Devolvidas','Antes','Depois','Motivo'],s.settlements.flatMap(x=>
+  (x.returns||[]).map(ev=>[str(x.id),str(ev.commandId),str(ev.qty),
+   str(ev.beforeQty)+' pç / '+fmt(ev.beforeCents),str(ev.afterQty)+' pç / '+fmt(ev.afterCents),str(ev.reason)])
+  ))+
+ '<h3>Compensações após pagamento (sem alterar título original)</h3><div id="settlement-compensation-table">'+
+ table(['Compensação','Acerto pago','Referência','Diferença','Novo título','Situação','Justificativa','Imprimir'],
+ compensations.map(c=>[
+  str(c.id),str(c.settlementId),str(c.reference),
+  (c.deltaCents>0?'+':'−')+fmt(Math.abs(c.deltaCents)),
+  str(c.kind)+' · '+fmt(Math.abs(c.deltaCents)),
+  '<span class="chip '+(c.status==='aberto'?'wait':'')+'">'+str(c.status)+'</span>',
+  str(c.reason),
+  '<button type="button" class="btn" data-print-comp="'+str(c.id)+'">Conferência PDF</button>'
+ ]))+'</div>'+
+ '<p class="caption">Conferência PDF abre a impressão do navegador. O arquivo gerado não comprova uma transferência bancária real.</p>',true);
+ }
+ case 'hub':return financeAnalytics(s)+panel('Lançamento do Hub fictício',
+ form('finance.add','Novo título',[field('description','Descrição'),field('kind','Tipo','select','',[['pagar','Pagar'],['receber','Receber']]),
+ field('amountCents','Valor em R
+ form('finance.pay','Confirmar lançamento',[field('id','Título aberto','select','',finance),'<div class="field"><label>Data da baixa<input class="input" type="date" name="paidDate" value="2026-11-16" required></label></div>'],'Marcar como quitado ficticiamente')+
+ '<p class="caption">Esta ação não movimenta dinheiro. Confirme apenas valores fictícios.</p>')+
+ financeControlPanels(s)+financialBatchPanel(s)+receiptPanel(s)+
+ panel('Conferência financeira','<p>Pedidos geram contas a receber; retornos, acertos a pagar. Compensações de acertos pagos criam títulos separados a pagar ou receber, sem alterar o pagamento original. Nenhuma operação movimenta dinheiro real.</p>')+
+ panel('Contas do laboratório',financeTable(s),true);
+ case 'folha':return panel('Editar salário e passagem por pessoa',
+ form('payroll.update','Alterar registro da folha',[field('id','Funcionário','select','',employees),
+ field('salaryCents','Salário-base R$','money','2000,00'),
+ field('passageCents','Passagem R$','money','120,00'),
+ field('extrasCents','Extras R$','money','0,00'),
+ field('discountCents','Descontos R$','money','0,00')],'Salvar valores individuais'))+
+ panel('Não é cálculo trabalhista','<p>A passagem entra no desembolso separado do salário. Não calcula encargos, FGTS, INSS ou rescisão real. A Folha 2.0 separada possui testes adicionais de ordenação e conflitos.</p>'+
+ '<a href="./folha-homologacao.html" class="btn link">Abrir Folha 2.0 detalhada</a>')+
+ panel('Saldos da folha fictícia',table(['Funcionário','Base','Passagem','Extras','Descontos','Desembolso'],s.employees.map(e=>[
+ str(e.name),fmt(e.salaryCents),fmt(e.passageCents),fmt(e.extrasCents),fmt(e.discountCents),
+ fmt(e.salaryCents+e.extrasCents-e.discountCents+e.passageCents)])),true);
+ case 'compras':{
+ const devolucoes=(s.purchaseReturns||[]),elegiveis=s.purchaseOrders.filter(x=>
+  x.received&&!x.cancelled&&!x.returnId&&x.purchaseRequestId&&
+  s.purchaseRequests.some(r=>r.id===x.purchaseRequestId&&r.status==='recebida')&&
+  s.finance.some(f=>f.sourceId===x.id&&f.kind==='pagar'&&f.status==='aberto')&&
+  s.materials.some(m=>m.id===x.materialId&&m.stockGrams>=x.qtyGrams));
+ return materialsPlanningPanels(s)+requestPanels(s)+panel('Compra com dupla conferência',
+ form('purchase.add','Planejar compra',[field('supplierId','Fornecedor','select','',suppliers),
+ field('materialId','Material','select','',materials),
+ field('qtyGrams','Quantidade (g)','int','3000'),
+ field('checkerOne','Conferente 1','text','Aline Teste'),
+ field('checkerTwo','Conferente 2','text','Beto Exemplo')],'Registrar compra')+
+ form('purchase.receive','Receber compra',[field('id','Compra pendente','select','',purchases)],'Conferir e dar entrada no estoque'))+
+ panel('Controle de compras','<p>O recebimento atualiza o estoque e cria uma única conta a pagar. Não é possível receber duas vezes o mesmo pedido de compras. Compras avulsas antigas continuam disponíveis e não são transformadas em requisições sem autorização.</p>')+
+ panel('Devolução integral após recebimento — fluxo formal de teste',
+  '<p>Uma compra recebida não pode ser simplesmente cancelada. Nesta prévia, a devolução integral exige estoque disponível, documento original e título a pagar aberto. Ela cria uma saída separada de estoque e um crédito a receber do fornecedor, sem apagar a entrada e o título originais. Devolução parcial e compras já pagas continuam bloqueadas.</p>'+
+  form('purchase.return.full','Registrar devolução total de uma compra recebida',[
+   field('id','Compra recebida e apta à devolução','select','',selector(elegiveis,x=>
+    x.id+' · '+str(ref(s.materials,x.materialId)?.name||x.materialId)+
+    ' · '+x.qtyGrams+'g · '+fmt(Math.ceil(x.qtyGrams*x.priceCentsKg/1000)))),
+   field('reference','Referência única do protocolo','text','DEV-EXEMPLO-001'),
+   field('returnedBy','Responsável fictício pela devolução','text','Almoxarife Exemplo'),
+   field('reviewedBy','Conferente independente','text','Supervisora Exemplo'),
+   field('reason','Justificativa documentada','text','Material recebido com divergência na inspeção fictícia')
+  ],'Registrar devolução com novo crédito')+
+  '<p class="caption">Não libera movimentação bancária, Nota Fiscal, aprovação autenticada ou devolução física real. Se o estoque já foi consumido, a operação é recusada sem nenhum estorno.</p>',true)+
+ panel('Histórico de devoluções e créditos fictícios',
+  table(['Devolução','Compra original','Material','Quantidade devolvida','Crédito','Referência','Conferência','Situação'],
+   devolucoes.map(x=>[
+    str(x.id),str(x.purchaseId),str(ref(s.materials,x.materialId)?.name||x.materialId),
+    str(x.qtyGrams)+' g',fmt(x.amountCents),str(x.reference),
+    str(x.returnedBy)+' / '+str(x.reviewedBy),str(x.status)+' · '+str(x.creditFinanceId)
+   ]))+
+  '<p class="caption">Os movimentos de estoque, a conta original e o crédito de devolução continuam nos relatórios e no JSON de evidências.</p>',true)+
+ panel('Compras do laboratório',table(['Compra','Fornecedor','Material','Quantidade','Conferentes','Status'],s.purchaseOrders.map(x=>[
+ str(x.id),str(ref(s.suppliers,x.supplierId)?.name),str(ref(s.materials,x.materialId)?.name),
+ str(x.qtyGrams)+'g',str(x.checkerOne)+' / '+str(x.checkerTwo),
+  (x.cancelled?'Cancelada':x.returnId?'Devolvida integralmente':x.received?'Recebida':'Pendente')+
+  (x.purchaseRequestId?' · '+str(x.purchaseRequestId):'') ])),true);
+ }
+ case 'estoque':return panel('Ajuste controlado de materiais',
+ form('stock.adjust','Ajustar saldo',[field('materialId','Material','select','',materials),
+ field('deltaGrams','Entrada/saída em gramas (ex.: -500)','signed-int','500'),
+ field('note','Justificativa','text','Conferência fictícia')],'Registrar ajuste')+
+ '<p>Bloqueia saldo negativo. O ajuste exige justificativa e ID de evento.</p>')+
+ panel('Saldos disponíveis',table(['Material','Saldo (g)','Custo/kg'],s.materials.map(x=>[
+ str(x.name),str(x.stockGrams),fmt(x.priceCentsKg)])))+
+ panel('Movimentação de material',table(['ID','Tipo','Material','Variação','Origem'],s.stockLedger.map(x=>[
+ str(x.id),str(x.type),str(ref(s.materials,x.materialId)?.name),(x.deltaGrams>0?'+':'')+x.deltaGrams+'g',str(x.sourceId)])),true);
+ case 'relatorios':{
+ const planning=materialPlannerResult(s);
+ const planPanel=planning&&!planning.error?panel('Planejamento teórico de compras por material',
+  '<p>'+str(planning.pieces)+' peça(s) simuladas, '+fmt(planning.missingCostCents)+
+  ' de falta estimada, sem compras ou baixas automáticas.</p>'+
+  table(['Material','Previsto (g)','Faltante (g)','Valor da compra sugerida'],
+   planning.materials.map(m=>[str(m.name),str(m.requiredGrams),str(m.missingGrams),
+    fmt(m.purchaseCents)])),true):'';
+ const requestReport=panel('Histórico de requisições, aprovações e compras vinculadas',
+  '<p>Solicitações locais fictícias. A aprovação exige um nome diferente do solicitante; não representa login nem permissão empresarial.</p>'+
+  table(['Requisição','Material','Falta na criação (g)','Valor estimado',
+   'Solicitante','Aprovador','Status','Compra vinculada'],
+   (s.purchaseRequests||[]).map(r=>[
+    str(r.id),str(ref(s.materials,r.materialId)?.name||r.materialId),
+    str(r.qtyGrams),fmt(r.estimatedCents),str(r.requester),
+    str(r.approver||'—'),str(r.status),str(r.purchaseId||'—')])),true);
+ const returnsReport=panel('Devoluções formais de compras recebidas',
+  table(['Documento','Compra','Fornecedor','Material','Devolvido','Crédito a receber','Protocolo','Motivo'],
+   (s.purchaseReturns||[]).map(x=>[
+    str(x.id),str(x.purchaseId),str(ref(s.suppliers,x.supplierId)?.name||x.supplierId),
+    str(ref(s.materials,x.materialId)?.name||x.materialId),
+    str(x.qtyGrams)+' g',fmt(x.amountCents),str(x.reference),str(x.reason)
+   ])),true);
+ const advanced=observationPanels(s,'relatorios');if(advanced)return advanced+planPanel+requestReport+returnsReport;
+ const t=api.totals(s);
+ return panel('Indicadores vinculados',table(['Indicador','Valor'],Object.entries(t).map(([k,v])=>[
+ str(k),k.includes('Payables')||k.includes('Receivables')||k==='passage'||k==='salaryCash'?fmt(v):str(v)])))+
+ panel('Como auditar o relatório','<p>Compare pedidos, corte, retorno, expedição e Hub. Exporte o JSON e confira que cada evento tem ID e revisão.</p>'+
+ '<div class="actions"><button class="btn" type="button" data-goto="auditor">Executar integridade</button></div>')+
+ panel('Pedidos × Financeiro',orderTable(s)+financeTable(s),true)+requestReport+returnsReport;
+ }
+ case 'auditor':{
+ const advanced=observationPanels(s,'auditor');if(advanced)return advanced;
+ const check=api.inspect(s),issues=check.problems;
+ return panel('Diagnóstico determinístico',
+ (check.ok?'<div class="success">Sem inconsistências nas regras simuladas.</div>':
+ '<div class="error">Inconsistências detectadas: '+escape(issues.join('; '))+'</div>')+
+ table(['Verificação','Estado'],[['Quantidade cortada ≤ pedida',check.ok?'Conforme':'Verificar'],
+ ['Estoque nunca negativo',s.materials.every(x=>x.stockGrams>=0)?'Conforme':'Falha'],
+ ['IDs dos eventos únicos',new Set(s.log.map(x=>x.commandId)).size===s.log.length?'Conforme':'Falha'],
+ ['Provas de duas sessões empresariais','Não realizadas']]))+
+ panel('Limites do auditor','<p>O diagnóstico não aplica autocorreção. Sem banco empresarial, não há prova de saúde do sistema atual, monitoramento remoto ou aprendizagem automática.</p>');
+ }
+ case 'bot':{
+ const advanced=observationPanels(s,'bot');if(advanced)return advanced;
+ return panel('Recomendações baseadas em regras fixas',
+ '<p>O assistente apenas lê indicadores locais para sugerir o próximo passo. Não usa IA treinada, não aprende, não faz ações sozinho.</p>'+
+ '<ol class="tips">'+api.tips(s).map(x=>'<li>'+escape(x)+'</li>').join('')+'</ol>')+
+ panel('Ações rápidas','<div class="actions"><button class="btn" data-goto="pedidos">Pedidos</button>'+
+ '<button class="btn" data-goto="faccoes">Facções</button><button class="btn" data-goto="hub">Hub</button></div>');}
+ case 'central':return panel('Registrar e acompanhar ocorrência',
+ form('error.add','Nova falha fictícia',[field('message','Descrição do problema')],'Registrar ocorrência')+
+ form('error.resolve','Encerrar ocorrência fictícia',[field('id','Ocorrência em aberto','select','',incidents)],'Encerrar ocorrência'))+
+ panel('Saúde do laboratório','<p>O monitor avalia apenas este estado local. Não consulta GitHub Actions, logs de produção ou integrações externas.</p>')+
+ panel('Ocorrências',table(['ID','Descrição','Estado'],s.errors.map(x=>[
+ str(x.id),str(x.message),str(x.status)])),true);
+ case 'impressora3d':return panel('Catálogo 3D fictício',
+ form('print.add','Novo item de impressão 3D',[field('name','Produto 3D'),
+ field('grams','Filamento por unidade (g)','int','35'),field('priceCents','Preço (R$)','money','12,90'),
+ field('stock','Estoque de peças','int','3')],'Cadastrar item 3D'))+
+ panel('Estoque 3D fictício',table(['Item','Gramas/unidade','Valor','Estoque'],s.prints.map(x=>[
+ str(x.name),str(x.grams)+'g',fmt(x.priceCents),str(x.stock)])),true);
+ case 'cadastros':return panel('Clientes e fornecedores',
+ form('client.add','Novo cliente fictício',[field('name','Nome do cliente')],'Cadastrar cliente')+
+ form('supplier.add','Novo fornecedor fictício',[field('name','Nome do fornecedor')],'Cadastrar fornecedor')+
+ form('material.add','Novo material fictício',[field('name','Nome do material'),
+ field('priceCentsKg','Custo por kg (R$)','money','28,00')],'Cadastrar material'))+
+ panel('Cadastros ativos',table(['Tipo','ID','Descrição'],[
+ ...s.clients.map(x=>['Cliente',str(x.id),str(x.name)]),
+ ...s.suppliers.map(x=>['Fornecedor',str(x.id),str(x.name)]),
+ ...s.materials.map(x=>['Material',str(x.id),str(x.name)]),
+ ...s.factions.map(x=>['Facção',str(x.id),str(x.name)])]),true);
+ default:return panel('Área de demonstração ainda não selecionada',blank);
+ }
+}
+const searchState={page:1,selected:null,snapshot:null,index:[],results:[]};
+function renderGlobalSearch(){
+ const service=window.HLGBLabGlobalSearchV1,host=$('global-search-results'),input=$('global-search-query'),filter=$('global-search-module');
+ if(!host||!input||!filter||!doc)return;
+ if(!service){host.textContent='Pesquisa global temporariamente indisponível. Os módulos continuam acessíveis.';return}
+ try{
+  if(searchState.snapshot!==doc){searchState.index=service.build(doc);searchState.snapshot=doc}
+  if(filter.options.length===1)for(const [id,label] of Object.entries(service.labels))filter.add(new Option(label,id));
+  if(!input.value.trim()){host.innerHTML='<p class="caption">Digite um termo ou código para localizar registros, inclusive finalizados.</p>';searchState.results=[];return}
+  const r=service.search(searchState.index,input.value,{module:filter.value,page:searchState.page,limit:15});
+  if(r.page>Math.max(1,Math.ceil(r.total/r.limit))){searchState.page=1;renderGlobalSearch();return}
+  searchState.results=r.items;
+  host.innerHTML='<p class="caption" id="global-search-count">'+r.total+' resultado(s) · somente leitura · revisão '+doc.revision+'</p>'+
+  (r.items.length?r.items.map((x,i)=>'<div class="search-result"><div><strong>'+str(x.title)+'</strong>'+
+    '<p>'+str(x.id)+' · '+str(service.labels[x.module])+' · '+str(x.status)+'</p><p>'+str(x.detail)+'</p></div>'+
+    '<button class="btn" type="button" data-search-open="'+i+'">Localizar registro</button></div>').join(''):'<p>Nenhum registro encontrado nesta área.</p>')+
+  (r.total>r.limit?'<div class="actions"><button type="button" class="btn" data-search-page="-1" '+(r.page===1?'disabled':'')+'>Anterior</button><span>Página '+r.page+' de '+Math.ceil(r.total/r.limit)+'</span><button type="button" class="btn" data-search-page="1" '+(r.page*r.limit>=r.total?'disabled':'')+'>Próxima</button></div>':'');
+ }catch(e){host.textContent='Não foi possível consultar a busca. Os módulos originais continuam disponíveis.'}
+}
+function openGlobalResult(index){
+ const result=searchState.results[index];
+ if(!result||!ids.has(result.module)||busy)return;
+ searchState.selected=result.key;
+ if(result.orderId)journeyOrderId=result.orderId;
+ active=result.module;window.location.hash=active;
+ if(active==='acertos'){Object.assign(settlementFilters,{query:result.type==='acerto'?result.id:'',status:'todos',faction:'todas',service:'todos',compensation:'todos'})}
+ draw();renderGlobalDetail();
+}
+function renderGlobalDetail(){
+ const el=$('global-search-detail');if(!el)return;
+ const row=searchState.index.find(x=>x.key===searchState.selected);
+ if(!row){el.hidden=true;el.innerHTML='';return}
+ el.hidden=false;el.className='search-detail';
+ el.innerHTML='<h3>'+str(row.title)+' · '+str(row.id)+'</h3><p>'+str(row.status)+' · '+str(row.detail)+'</p>'+
+  (row.orderId?'<p>Pedido vinculado: '+str(row.orderId)+'</p>':'')+
+  '<p class="caption">Área aberta: '+str(window.HLGBLabGlobalSearchV1.labels[row.module])+'. Nenhum lançamento alterado.</p>'+
+  '<button type="button" class="btn" id="global-search-close">Fechar localização</button>';
+ // Destacar somente célula que contenha o ID exato; não selecionar formulários nem gravar.
+ const candidates=[...$('module-content').querySelectorAll('tbody tr')];
+ const target=candidates.find(tr=>[...tr.querySelectorAll('td')].some(td=>td.textContent.trim().split(/\s+|·/)[0]===row.id)&&!tr.hidden);
+ if(target){target.classList.add('search-hit');target.scrollIntoView({block:'nearest'});}
+}
+function drawNav(){
+ const host=$('module-nav');host.replaceChildren();
+ modules.forEach((m,i)=>{
+  const b=document.createElement('button');b.type='button';b.dataset.module=m[0];b.setAttribute('aria-current',active===m[0]?'page':'false');
+  const num=document.createElement('span');num.className='n';num.textContent=String(i+1).padStart(2,'0');
+  b.append(num,document.createTextNode(m[1]));host.append(b);
+ });
+}
+function draw(){
+ if(!doc)return;
+ const mod=modules[ids.get(active)];$('module-title').textContent=mod[1];$('module-description').textContent=mod[2];
+ $('top-revision').textContent='Revisão local '+doc.revision+' · '+doc.log.length+' evento(s) · Sem banco de produção';
+ const t=api.totals(doc),metrics=[
+ ['Pedidos fictícios',String(t.orders)],['Peças pedidas',String(t.pieces)],['Peças cortadas',String(t.cut)],
+ ['Títulos a pagar abertos',fmt(t.openPayables)]];
+ $('global-metrics').innerHTML=metrics.map(([label,value])=>'<div class="metric"><span>'+escape(label)+'</span><strong>'+escape(value)+'</strong></div>').join('');
+ $('module-content').innerHTML=moduleHtml(doc);
+ if(active==='acertos'){applySettlementFilters();const f=document.querySelector('form[data-command="settlement.revise"]');if(f)fillSettlementRevision(f);}
+ if(active==='faccoes'){const f=document.querySelector('form[data-command="faction.assignment.rate.set"]');if(f)fillAssignmentRate(f);}
+ if(active==='hub'){const f=document.querySelector('form[data-command="finance.receipt.attach"]');if(f)updateReceiptTarget(f);}
+ $('audit-trail').innerHTML=doc.log.length?doc.log.slice().reverse().slice(0,28).map(e=>
+ '<div class="log-item"><strong>'+escape(e.type)+' · '+escape(e.commandId)+'</strong>'+
+ 'Revisão '+e.revision+' · '+escape(e.description)+'</div>').join(''):
+ '<div class="empty">Sem operações na demonstração. Cadastre um pedido para iniciar.</div>';
+ drawNav();renderGlobalSearch();renderGlobalDetail();
+}
+function parseCents(value,signed=false){
+ let raw=String(value).trim();
+ if(signed&&raw.startsWith('-'))return -parseCents(raw.slice(1),false);
+ if(signed&&raw.startsWith('+'))raw=raw.slice(1);
+ if(!/^(?:0|[1-9]\d*|[1-9]\d{0,2}(?:\.\d{3})+)(?:,\d{1,2})?$/.test(raw))
+  throw Error('Informe reais com até duas casas decimais, ex.: 2.000,00.');
+ const parts=raw.split(',');
+ const val=Number(parts[0].replace(/\./g,''))*100+Number((parts[1]||'').padEnd(2,'0'));
+ if(!Number.isSafeInteger(val))throw Error('Valor monetário inválido.');
+ return val;
+}
+const NUM=['qty','gramsPerUnit','qtyGrams','grams','stock','P','M','G','GG','usefulGrams','scrapGrams'];
+const SIGNED=['deltaGrams'];
+const PRICES=['priceCents','unitCents','travetaCents','priceCentsKg','amountCents','salaryCents','passageCents','extrasCents','discountCents'];
+function parseData(type,form){
+ if(type==='finance.faction.close'){
+  return {factionId:String(form.querySelector('[name="factionId"]')?.value||''),
+   financeIds:[...form.querySelectorAll('input[name="financeIds"]')].map(x=>x.value),
+   reference:String(form.querySelector('[name="reference"]')?.value||''),
+   reason:String(form.querySelector('[name="reason"]')?.value||'')};
+ }
+ if(type==='finance.batch.pay'){
+  const ids=[...form.querySelectorAll('input[name="financeIds"]:checked')].map(x=>x.value);
+  return {financeIds:ids,reference:String(form.elements.namedItem('reference')?.value||''),
+   reason:String(form.elements.namedItem('reason')?.value||'')};
+ }
+ const raw=Object.fromEntries(new FormData(form).entries()),p={};
+ for(const [k,v] of Object.entries(raw)){
+  if(NUM.includes(k)||k.startsWith('waste_'))p[k]=Number(v);
+  else if(SIGNED.includes(k)){if(!/^[+-]?\d+$/.test(v))throw Error('Ajuste em gramas inválido.');p[k]=Number(v)}
+  else if(PRICES.includes(k))p[k]=parseCents(v);
+  else if(k==='adjustmentCents'||k==='deltaCents')p[k]=parseCents(v,true);
+  else if(k==='traveta')p[k]=v==='true';
+  else p[k]=String(v);
+ }
+ if(type==='cut.bom.execute'){
+  p.scrapByMaterial={};
+  for(const name of Object.keys(p)){
+   if(name.startsWith('waste_')){
+    p.scrapByMaterial[name.slice(6)]=p[name];
+    delete p[name];
+   }
+  }
+ }
+ if(['order.add','order.grade.update','cut.plan','cut.plan.update','order.color.grade.set','materials.plan.grade.add'].includes(type)){
+  p.grade={};for(const sz of api.sizes){p.grade[sz]=p[sz];delete p[sz]}
+ }
+ return p;
+}
+const DB='HLGB_EVOLUCAO_OPERACAO_INTEGRADA_FICTICIA_V1',STORE='documentos',KEY='operacao-ficticia';
+function openDB(){
+ return new Promise((resolve,reject)=>{
+  const request=indexedDB.open(DB,1);
+  request.onupgradeneeded=()=>{if(!request.result.objectStoreNames.contains(STORE))
+   request.result.createObjectStore(STORE,{keyPath:'key'})};
+  request.onerror=()=>reject(request.error||Error('IndexedDB indisponível.'));
+  request.onblocked=()=>reject(Error('Armazenamento bloqueado por outra aba.'));
+  request.onsuccess=()=>resolve(request.result);
+ });
+}
+async function transact(edit){
+ return new Promise((resolve,reject)=>{
+  const tx=db.transaction(STORE,'readwrite'),store=tx.objectStore(STORE),get=store.get(KEY);
+  let output=null,err=null;
+  get.onsuccess=()=>{
+   try{const previous=get.result?.data||api.initial();
+    output=edit(previous);
+    if(output?.state)store.put({key:KEY,data:output.state});
+    else if(!get.result)store.put({key:KEY,data:previous});
+   }catch(e){err=e;tx.abort()}
+  };
+  get.onerror=()=>{err=get.error};
+  tx.oncomplete=()=>resolve(output);
+  tx.onabort=()=>reject(err||tx.error||Error('Transação local abortada.'));
+  tx.onerror=()=>{if(!err)err=tx.error};
+ });
+}
+async function read(){
+ return new Promise((resolve,reject)=>{
+  const tx=db.transaction(STORE,'readonly'),request=tx.objectStore(STORE).get(KEY);
+  request.onsuccess=()=>resolve(request.result?.data||null);
+  request.onerror=()=>reject(request.error||Error('Falha na releitura.'));
+ });
+}
+async function submit(form,type){
+ if(busy||!doc)return;
+ if(type==='cut.plan.cancel'&&!confirm('Cancelar somente a folha aberta, preservando o histórico?'))return;
+ busy=true;
+ const button=form.querySelector('button[type=submit]');if(button)button.disabled=true;
+ try{
+  const expectedRevision=doc.revision;
+  const payload=type==='finance.receipt.attach'?await readReceiptPayload(form):parseData(type,form),
+   id='OP-DEMO-'+crypto.randomUUID(),actor='Operador fictício';
+  const tx=await transact(previous=>api.apply(previous,{type,payload,commandId:id,actor,expectedRevision}));
+  const saved=await read();
+  if(!saved||saved.revision!==expectedRevision+1||!saved.log.some(x=>x.commandId===id))
+   throw Error('Gravação inconclusiva: não foi encontrada na releitura. Não repetir sem conferir.');
+  const integrity=api.inspect(saved);
+  if(!integrity.ok)throw Error('Gravação sem integridade comprovada: '+integrity.problems.join('; '));
+  doc=saved;draw();
+  if(type==='settlement.compensate'&&payload.id){
+   const el=document.querySelector('form[data-command="settlement.compensate"] [name="id"]');
+   if(el&&[...el.options].some(opt=>opt.value===payload.id))el.value=payload.id;
+  }
+  status('Salvo e confirmado por releitura local · '+tx.result+' · revisão '+saved.revision+'.');
+ }catch(e){
+  status(e.message,'error');
+  // Não redesenhar o formulário em erro. O rascunho permanece visível.
+ }finally{busy=false;if(button&&button.isConnected)button.disabled=false}
+}
+async function reload(){
+ if(busy)return;busy=true;
+ try{
+  const latest=await read();if(!latest)throw Error('Documento local não encontrado.');
+  const checked=api.inspect(latest);
+  if(!checked.ok)throw Error('Integridade do documento local não aprovada: '+checked.problems.join('; '));
+  doc=latest;draw();status('Documento fictício relido do IndexedDB · revisão '+doc.revision+'.');
+ }catch(e){status(e.message,'error')}finally{busy=false}
+}
+async function reset(){
+ if(busy||!confirm('Restaurar APENAS os cadastros e lançamentos fictícios deste navegador? Todos os exercícios desta prévia serão reiniciados.'))return;
+ busy=true;
+ try{
+  const revised=await transact(current=>{
+   if(current.revision!==doc.revision)throw Error('CONFLITO: outra aba alterou a prévia. Recarregue primeiro.');
+   const next=api.initial();next.revision=current.revision+1;
+   const id='OP-DEMO-'+crypto.randomUUID();
+   next.revisionProof=id;next.log=[{commandId:id,revision:next.revision,type:'demo.reset',
+    actor:'Operador fictício',description:'Dados fictícios restaurados com confirmação'}];
+   return {state:next,result:'reset'};
+  });
+  const saved=await read();if(!saved.log.some(e=>e.commandId===revised.state.revisionProof))throw Error('Restauração não confirmada.');
+  doc=saved;active='nucleo';draw();status('Exemplo fictício restaurado. Nenhum dado empresarial foi afetado.');
+ }catch(e){status(e.message,'error')}finally{busy=false}
+}
+function download(name,content,type){
+ const blob=new Blob([content],{type}),url=URL.createObjectURL(blob),a=document.createElement('a');
+ a.href=url;a.download=name;document.body.append(a);a.click();a.remove();
+ setTimeout(()=>URL.revokeObjectURL(url),1400);
+}
+function exportReport(){
+ if(!doc)return;const report={schema:'hlgb-evolucao-operacao-integrada-report-v1',environment:'indexeddb-local-fictitious',
+  productionApproval:false,parityApproved:false,modulesVisited:19,exportedAt:new Date().toISOString(),
+  journey:api.journey(doc,journeyOrderId),
+  observability:observerResult(doc),materialPlanning:materialPlannerResult(doc),
+  checks:api.inspect(doc),totals:api.totals(doc),data:{...doc,paymentReceipts:window.HLGBLabPaymentBatchV1.receiptMetadata(doc)},receiptBinaryExported:false};
+ download('HLGB-EVOLUCAO-OPERACAO-INTEGRADA-FICTICIA.json',JSON.stringify(report,null,2),'application/json');
+}
+function safeCell(x){let s=String(x??'');if(/^[=+\-@\t\r]/.test(s))s="'"+s;return '"'+s.replace(/"/g,'""')+'"'}
+function exportCsv(){
+ if(!doc)return;
+ const rows=[['Tipo','ID','Descrição','Status','Quantidade/valor'],...doc.orders.map(x=>['Pedido',x.id,
+ ref(doc.products,x.productId)?.name||'', 'Enviadas: '+x.shipped,sum(x.grade)]),
+ ...doc.finance.map(x=>['Financeiro',x.id,x.description,x.status,x.amountCents]),
+ ...window.HLGBLabPaymentBatchV1.receiptMetadata(doc).map(x=>['Comprovante fictício',x.id,x.targetId+' · versão '+x.version,x.current?'Atual':'Anterior',x.amountCents]),
+ ...(doc.settlementCompensations||[]).map(x=>['Compensação',x.id,x.settlementId+' · '+x.reference,x.status,x.deltaCents]),
+ ...(doc.purchaseReturns||[]).map(x=>['Devolução integral',x.id,
+  x.purchaseId+' · '+x.reference+' · '+x.reason,x.status,x.qtyGrams]),
+ ...doc.purchaseOrders.map(x=>['Compra',x.id,ref(doc.materials,x.materialId)?.name||'',
+  (x.cancelled?'Cancelada':x.received?'Recebido':'Pendente')+
+   (x.purchaseRequestId?' · '+x.purchaseRequestId:''),x.qtyGrams]),
+ ...(doc.purchaseRequests||[]).map(x=>['Requisição',x.id,
+  (ref(doc.materials,x.materialId)?.name||x.materialId)+' · '+x.reason,
+  x.status+' · '+(x.purchaseId||'sem compra')+
+   (x.cancelIssueReference?' · cancelamento '+x.cancelIssueReference:''),x.qtyGrams]),
+ ...doc.orders.flatMap(o=>(o.colorGrades||[]).map(c=>
+  ['Grade por cor',o.id,c.color,'P/M/G/GG',
+   api.sizes.map(sz=>sz+': '+c.grade[sz]).join(' · ')])),
+ ...(doc.factionAssignments||[]).flatMap(a=>(a.gradeLines||[]).map(g=>
+  ['Peças por facção/cor',a.id,a.orderId+' · '+a.factionId+
+   ' · '+g.color+' '+g.size,'Enviadas '+g.sent,g.returned])),
+ ...(doc.bomCutRuns||[]).map(c=>['Corte BOM concluído',c.id,
+  c.orderId+' · '+c.color+' '+c.size+' · '+c.qty+' pç',
+  c.commandId,c.totalGrams]),
+ ...(doc.bomCutRuns||[]).flatMap(c=>c.materials.map(m=>[
+  'Material do corte BOM',c.id,m.materialId+' · '+m.ruleId,
+  'Útil '+m.requiredGrams+'g · Lixo '+m.scrapGrams+'g',m.totalGrams])),
+ ...(doc.colorCatalog||[]).map(c=>['Paleta de cores',c.id,c.name,c.origin,'']),
+ ...(doc.materialRecipeRules||[]).map(r=>['Receita de planejamento',r.id,
+  r.productId+' · '+r.materialId+' · '+r.color+' '+r.size,
+  r.active?'Atual':'Substituída',r.gramsPerUnit]),
+ ...(doc.materialPlanLines||[]).map(l=>['Cenário de produção',l.id,
+  l.productId+' · '+l.color+' '+l.size,l.active?'Ativo':'Arquivado',l.qty]),
+ ...(materialPlannerResult(doc)?.materials||[]).map(m=>['Necessidade de material',m.materialId,
+  m.name+' · faltam '+m.missingGrams+' g','Previsto',m.requiredGrams]),
+ ...(doc.factionPartialTransfers||[]).map(t=>['Transferência parcial',t.id,
+  t.orderId+' · '+t.fromFactionId+' → '+t.toFactionId+' · '+t.reason,
+  t.commandId,t.qty]),
+ ...(doc.paymentBatches||[]).map(x=>['Pagamento em lote',x.id,
+  (x.scope==='faccao'?'Facção '+x.factionNameSnapshot+' · ':'')+x.reference+' · '+x.reason,
+  x.status,x.totalCents]),
+ ...(doc.paymentBatches||[]).flatMap(x=>x.items.map(i=>
+  ['Título quitado no lote',i.financeId,x.id+' · '+i.sourceId,i.sourceType,i.amountCents]))];
+ download('HLGB-EVOLUCAO-OPERACAO-INTEGRADA-FICTICIA.csv','\uFEFF'+rows.map(r=>r.map(safeCell).join(';')).join('\r\n'),'text/csv;charset=utf-8');
+}
+function exportShoppingCsv(){
+ if(!doc)return;
+ const forecast=materialPlannerResult(doc);
+ if(!forecast||forecast.error){status('Lista de materiais não disponível: revise a ficha técnica.','error');return}
+ const rows=[
+  ['LISTA DE MATERIAIS — PLANEJAMENTO FICTÍCIO, SEM COMPRA EFETIVA'],
+  ['Material','Necessidade (g)','Saldo simulado (g)','Falta comprar (g)','Preço/kg (R$)','Custo da falta (R$)'],
+  ...forecast.materials.map(x=>[x.name,x.requiredGrams,x.availableGrams,x.missingGrams,
+   nr(x.priceCentsKg),nr(x.purchaseCents)]),
+  [],
+  ['DETALHAMENTO POR MODELO, COR E TAMANHO'],
+  ['Modelo','SKU','Cor','Tamanho','Peças','Material','Gramas/peça','Necessidade (g)','Versão da receita'],
+  ...forecast.detail.map(x=>[x.productName,x.sku,x.color,x.size,x.qty,
+   x.materialName,x.gramsPerUnit,x.requiredGrams,x.ruleId])
+ ];
+ download('HLGB-LAB-LISTA-MATERIAIS-FICTICIA.csv',
+  '\uFEFF'+rows.map(row=>row.map(safeCell).join(';')).join('\r\n'),
+  'text/csv;charset=utf-8');
+ status('Lista de materiais fictícia exportada. Não foi criada compra nem reserva.');
+}
+function exportObserverCsv(){
+ const report=doc&&observerResult(doc);
+ if(!report){status('Observabilidade indisponível ou desativada; exporte o JSON básico.','error');return}
+ const rows=[['Tipo','Módulo','Revisão/ID','Regra/Operação','Gravidade','Descrição'],
+  ...report.findings.map(x=>['Alerta',x.module,x.recordId,x.code,x.severity,x.message+' · '+x.action]),
+  ...report.history.map(x=>['Evento',x.module,x.revision,x.type,'',x.commandId+' · '+x.description]),
+  ...(report.paymentReceiptHistory||[]).map(x=>['Comprovante fictício','hub',x.id,x.targetId,x.current?'Atual':'Anterior','Versão '+x.version+' · '+x.fileName+' · '+x.amountCents+' centavos']),
+   ...report.settlementHistory.map(x=>['Histórico do acerto','acertos',x.settlementId,
+   x.event,'',x.commandId+' · antes '+x.beforeCents+' depois '+x.afterCents+' · '+x.reason]),
+  ...report.modelSummary.map(x=>['Resumo por modelo','produtos',x.productId,
+   x.sku,'',x.name+' · pedidas '+x.ordered+' · cortadas '+x.cut+' · expedidas '+x.shipped]),
+  ...report.factionSummary.map(x=>['Resumo por facção','faccoes',x.factionId,
+   x.name,'',x.settlements+' acertos · pago '+x.paidSettlementsCents]),
+  ...report.colorGradeSummary.flatMap(o=>o.byColor.map(c=>
+   ['Grade do pedido','pedidos',o.orderId,c.color,
+    o.ready?'Completa':'Incompleta',
+    api.sizes.map(sz=>sz+': '+c.sizes[sz]).join(' · ')])),
+  ...report.purchaseRequestHistory.map(r=>[
+   'Requisição de compra','compras',r.id,r.materialName,r.status,
+   r.qtyGrams+'g · '+r.estimatedCents+' centavos · compra '+(r.purchaseId||'—')+
+    ' · solicitante '+r.requester+' · aprovador '+(r.approver||'—')]),
+  ...report.bomCutHistory.map(c=>['Corte BOM','corte',c.id,c.orderId,
+   c.color+' '+c.size,c.qty+' peças · '+c.totalGrams+'g · '+
+    c.estimatedCostCents+' centavos · comando '+c.commandId]),
+  ...report.bomCutHistory.flatMap(c=>c.materials.map(m=>[
+   'Consumo e lixo BOM','estoque',c.id,m.materialId,m.ruleId,
+   'Útil '+m.requiredGrams+'g · lixo '+m.scrapGrams+
+    'g · baixa '+m.totalGrams+'g'])),
+  ...report.gradeInventory.map(g=>['Saldo por cor e tamanho','faccoes',g.assignmentId,
+   g.orderId,g.factionName,g.color+' '+g.size+' · enviado '+g.sent+
+    ' · retornado '+g.returned+' · pendente '+g.open+
+    ' · acertos '+g.settlementIds.join(' / ')]),
+  ...report.factionDispatches.map(x=>['Envio para facção','faccoes',x.id,
+   x.orderId,x.factionName,x.productName+' · enviadas '+x.qtySent+
+    ' · retornadas '+x.qtyReturned+' · pendentes '+x.qtyOpen+
+    ' · acertos '+x.settlementIds.join(' / ')]),
+  ...report.factionTransferHistory.map(t=>
+   ['Transferência parcial','faccoes',t.id,t.orderId,t.fromName+' → '+t.toName,
+    t.qty+' peças · origem '+t.fromBefore+' → '+t.fromAfter+
+    ' · destino '+t.toBefore+' → '+t.toAfter+' · '+t.reason+
+    ' · comando '+t.commandId]),
+  ...report.paymentBatchHistory.map(b=>['Fechamento em lote','hub',b.id,
+   b.reference,b.status,b.reason+' · '+b.count+' títulos · '+b.totalCents+' centavos']),
+  ...report.paymentBatchHistory.flatMap(b=>b.items.map(i=>
+   ['Título vinculado ao lote','hub',i.financeId,b.id,i.sourceType,
+    i.sourceId+' · '+i.amountCents+' centavos']))];
+ download('HLGB-LAB-OBSERVABILIDADE-V2-FICTICIA.csv',
+  '\uFEFF'+rows.map(row=>row.map(safeCell).join(';')).join('\r\n'),'text/csv;charset=utf-8');
+ status('Histórico fictício e alertas exportados sem alterações no documento.');
+}
+function renderCutSheet(planId){
+ const plan=(doc.cutPlans||[]).find(p=>p.id===planId);
+ if(!plan)throw Error('Folha não localizada nesta revisão.');
+ const order=doc.orders.find(o=>o.id===plan.orderId);
+ const product=doc.products.find(p=>p.id===order?.productId);
+ const material=doc.materials.find(m=>m.id===plan.materialId);
+ const client=doc.clients.find(c=>c.id===order?.clientId);
+ const grades=api.sizes.map(sz=>'<tr><td>'+escape(sz)+'</td><td>'+plan.grade[sz]+'</td></tr>').join('');
+ const status=plan.status==='concluido'?'Concluído e auditado':
+  plan.status==='cancelado'?'Cancelado — não utilizar':'Aberto — ainda sem baixa';
+ const box=$('cut-print');
+ box.innerHTML='<h1>HLGB Evolução · Folha de Corte FICTÍCIA</h1>'+
+  '<p><strong>Folha:</strong> '+escape(plan.id)+' · <strong>Pedido:</strong> '+escape(plan.orderId)+
+  ' · <strong>Competência de teste:</strong> '+escape(doc.period)+'</p>'+
+  '<p><strong>Cliente:</strong> '+escape(client?.name||'')+' · <strong>Modelo:</strong> '+escape(product?.name||'')+
+  ' · <strong>SKU:</strong> '+escape(product?.sku||'')+'</p>'+
+  '<p><strong>Material:</strong> '+escape(material?.name||'')+
+  ' · <strong>Execução:</strong> '+(plan.workMode==='interno'?'Interna':'Externa')+
+  ' · <strong>Estado:</strong> '+status+'</p>'+
+  '<h2>Grade deste lote</h2><table><thead><tr><th>Tamanho</th><th>Peças</th></tr></thead><tbody>'+grades+
+  '<tr><th>Total de peças</th><th>'+sum(plan.grade)+'</th></tr></tbody></table>'+
+  '<h2>Pesos conferidos</h2><table><tbody><tr><td>Peso útil teórico</td><td>'+plan.theoreticalGrams+' g</td></tr>'+
+  '<tr><td>Peso útil confirmado</td><td>'+(plan.usefulGrams??'Não concluído')+' g</td></tr>'+
+  '<tr><td>Desperdício / lixo</td><td>'+(plan.scrapGrams??'Não concluído')+' g</td></tr>'+
+  '<tr><td>Peso total debitado do estoque</td><td>'+(
+   plan.status==='concluido'?plan.usefulGrams+plan.scrapGrams+' g':'Ainda sem baixa')+
+  '</td></tr></tbody></table>'+
+  '<p><strong>Cortador 1:</strong> '+escape(plan.cutterOne)+'</p>'+
+  '<p><strong>Cortador 2:</strong> '+escape(plan.cutterTwo)+'</p>'+
+  '<p><strong>Enfestador:</strong> '+escape(plan.spreader)+'</p>'+
+  '<div class="signature"><div>Conferência digitada 1: '+escape(plan.signatureOne||'Pendente')+
+  '</div><div>Conferência digitada 2: '+escape(plan.signatureTwo||'Pendente')+'</div></div>'+
+  '<p class="print-note">DOCUMENTO DEMONSTRATIVO — não é ordem de produção válida, assinatura eletrônica legal, ou comprovante de estoque. Não contém dados da empresa.</p>';
+ return box.textContent;
+}
+function suggestServicePrice(form){
+ const service=form.elements.namedItem('serviceType')?.value;
+ const price=form.elements.namedItem('unitCents');
+ if(!price)return;
+ const productId=form.elements.namedItem('productId')?.value;
+ const product=doc.products.find(p=>p.id===productId);
+ if(service==='embalagem'){
+  const n=(product?.name||'').toLocaleLowerCase('pt-BR');
+  price.value=n.includes('calcinha')?'0,15':'0,25';
+ }else{
+  const fac=doc.factions.find(f=>f.id===form.elements.namedItem('factionId')?.value);
+  price.value=nr(fac?.productRates?.[productId]??fac?.unitCents??0);
+ }
+}
+function fillAssignmentRate(form){
+ const row=doc?.factionAssignments?.find(x=>x.id===form.elements.namedItem('assignmentId')?.value);
+ const order=row&&ref(doc.orders,row.orderId),fac=row&&ref(doc.factions,row.factionId),
+  product=order&&ref(doc.products,order.productId);
+ if(!row||!fac||!product)return;
+ const rate=window.HLGBLabFactionRoutingV1.resolveRate(row,fac,product);
+ form.elements.namedItem('unitCents').value=nr(rate.gross);
+ form.elements.namedItem('travetaCents').value=nr(rate.traveta);
+ const preview=$('assignment-rate-preview');
+ if(preview)preview.textContent=(row.qtySent-row.qtyReturned)+' peças pendentes · tarifa líquida atual '+fmt(rate.unit)+' por peça.';
+}
+function fillSettlementRevision(form){
+ const x=doc?.settlements.find(a=>a.id===form.elements.namedItem('id')?.value);
+ if(!x)return;
+ form.elements.namedItem('factionId').value=x.factionId;
+ form.elements.namedItem('unitCents').value=nr(x.listUnitCents??x.unitCents);
+ form.elements.namedItem('travetaCents').value=nr(x.travetaCents||0);
+ const only=x.kind!=='avulso'||!!x.orderId||!!x.assignmentId||!!x.gradeTracked;
+ for(const option of form.elements.namedItem('factionId').options)
+  option.disabled=only&&option.value!==x.factionId;
+ previewSettlementRevision(form);
+}
+function previewSettlementRevision(form){
+ const el=$('settlement-revise-preview'),x=doc?.settlements.find(a=>a.id===form.elements.namedItem('id')?.value);
+ if(!el||!x)return;
+ try{
+  const gross=parseCents(form.elements.namedItem('unitCents').value),
+   discount=parseCents(form.elements.namedItem('travetaCents').value),
+   total=x.qty*(gross-discount)+(x.adjustmentCents||0);
+  el.textContent=gross>discount&&total>0?
+   x.qty+' peças · total atual '+fmt(x.amountCents)+' → novo total '+fmt(total)+' · mantém ajuste de '+fmt(x.adjustmentCents||0):
+   'Informe valores válidos: o líquido e o total precisam ser positivos.';
+ }catch(_){el.textContent='Informe preço e desconto válidos.'}
+}
+function applySettlementFilters(){
+ if(active!=='acertos'||!doc||!$('settlement-filters'))return;
+ const f=settlementFilters;
+ const normal=v=>String(v??'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLocaleLowerCase('pt-BR');
+ const text=normal(f.query.trim());
+ $('settlement-search').value=f.query;
+ for(const [id,key] of [['settlement-status','status'],['settlement-faction','faction'],
+   ['settlement-service','service'],['settlement-compensation','compensation']]){
+  const el=$(id);
+  if(el&&[...el.options].some(o=>o.value===f[key]))el.value=f[key];
+ }
+ const matchesBase=x=>(f.status==='todos'||x.status===f.status)&&
+  (f.faction==='todas'||x.factionId===f.faction)&&
+  (f.service==='todos'||(x.serviceType||'costura')===f.service);
+ const settlementText=x=>{
+  const parts=[x.id,x.orderId,x.serviceType,x.status,x.reason,
+   ref(doc.factions,x.factionId)?.name,ref(doc.products,x.productId)?.name,
+   ref(doc.products,ref(doc.orders,x.orderId)?.productId)?.name,
+   ...(x.history||[]).flatMap(h=>[h.reason,h.commandId]),
+   ...(x.rateHistory||[]).flatMap(h=>[h.reason,h.commandId,h.fromFactionName,h.toFactionName,h.financeId]),
+   ...(x.returns||[]).flatMap(h=>[h.reason,h.commandId]),
+    ...window.HLGBLabPaymentBatchV1.receiptMetadata(doc).filter(r=>r.financeIds.includes(doc.finance.find(f=>f.sourceId===x.id&&f.kind==='pagar')?.id)).flatMap(r=>[r.id,r.fileName,r.targetId,r.reason])];
+  return normal(parts.join(' '));
+ };
+ const compensationText=c=>normal([c.id,c.settlementId,c.reference,c.reason,c.kind,c.status,
+  doc.finance.find(x=>x.sourceId===c.id)?.id,
+  ref(doc.factions,c.factionId)?.name].join(' '));
+ const comps=doc.settlementCompensations||[];
+ const settlements=doc.settlements||[];
+ const matchSettlement=x=>matchesBase(x)&&(!text||settlementText(x).includes(text)||
+  comps.some(c=>c.settlementId===x.id&&compensationText(c).includes(text)));
+ const visibleSet=settlements.map(matchSettlement);
+ const visibleComp=comps.map(c=>{
+  const original=settlements.find(x=>x.id===c.settlementId);
+  return !!original&&matchesBase(original)&&
+   (f.compensation==='todos'||c.status===f.compensation)&&
+   (!text||compensationText(c).includes(text)||settlementText(original).includes(text));
+ });
+ for(const [id,flags] of [['settlement-table',visibleSet],['settlement-compensation-table',visibleComp]]){
+  const rows=$(id)?.querySelectorAll('tbody tr')||[];
+  rows.forEach((row,i)=>{row.hidden=!flags[i]});
+ }
+ const shown=settlements.filter((_,i)=>visibleSet[i]);
+ const shownComp=comps.filter((_,i)=>visibleComp[i]);
+ const settlementValue=shown.reduce((total,x)=>total+x.amountCents,0);
+ const compValue=shownComp.reduce((total,x)=>total+x.deltaCents,0);
+ $('settlement-query-summary').textContent=shown.length+' de '+settlements.length+
+  ' acertos · total '+fmt(settlementValue)+' · '+shownComp.length+' de '+comps.length+
+  ' compensações · diferença líquida '+(compValue>0?'+':compValue<0?'−':'')+fmt(Math.abs(compValue))+
+  ' (valores fictícios; filtro local, sem alterar lançamentos)';
+}
+document.addEventListener('input',event=>{
+ if(event.target.id==='global-search-query'){searchState.page=1;searchState.selected=null;renderGlobalSearch();renderGlobalDetail();return;}
+ if(event.target.id==='settlement-search'){
+  settlementFilters.query=event.target.value;applySettlementFilters();return;
+ }
+ const filter=event.target.closest('input[data-filter-for]');
+ if(!filter)return;
+ const target=$(filter.dataset.filterFor);
+ if(!target)return;
+ const term=filter.value.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLocaleLowerCase('pt-BR');
+ for(const row of target.querySelectorAll('tbody tr')){
+  const text=row.textContent.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLocaleLowerCase('pt-BR');
+  row.hidden=!text.includes(term);
+ }
+});
+function renderCompensationSheet(compId){
+ const comp=(doc.settlementCompensations||[]).find(x=>x.id===compId);
+ if(!comp)throw Error('Compensação não encontrada no documento fictício.');
+ const original=doc.settlements.find(x=>x.id===comp.settlementId);
+ const originalTitle=doc.finance.find(x=>x.id===comp.originalFinanceId);
+ const newTitle=doc.finance.find(x=>x.sourceId===comp.id);
+ const faction=doc.factions.find(x=>x.id===comp.factionId);
+ if(!original||!originalTitle||!newTitle)throw Error('Vínculos da compensação incompletos.');
+ const html='<h1>HLGB Evolução · Conferência de Compensação FICTÍCIA</h1>'+
+  '<p><strong>Competência de teste:</strong> '+escape(doc.period)+
+  ' · <strong>Revisão local:</strong> '+doc.revision+'</p>'+
+  '<p><strong>Facção:</strong> '+escape(faction?.name||'—')+
+  ' · <strong>Acerto original:</strong> '+escape(original.id)+'</p>'+
+  '<h2>Pagamento original preservado</h2>'+
+  '<table><thead><tr><th>Acerto</th><th>Título original</th><th>Valor</th><th>Status</th></tr></thead>'+
+  '<tbody><tr><td>'+escape(original.id)+'</td><td>'+escape(originalTitle.id)+'</td>'+
+  '<td>'+fmt(original.amountCents)+'</td><td>'+escape(originalTitle.status)+'</td></tr></tbody></table>'+
+  '<h2>Correção criada como novo lançamento</h2>'+
+  '<table><tbody>'+
+  '<tr><th>Compensação</th><td>'+escape(comp.id)+'</td></tr>'+
+  '<tr><th>Referência única</th><td>'+escape(comp.reference)+'</td></tr>'+
+  '<tr><th>Justificativa</th><td>'+escape(comp.reason)+'</td></tr>'+
+  '<tr><th>Diferença</th><td>'+(comp.deltaCents>0?'+':'−')+fmt(Math.abs(comp.deltaCents))+'</td></tr>'+
+  '<tr><th>Novo título</th><td>'+escape(newTitle.id)+' · '+escape(newTitle.kind)+
+  ' · '+fmt(newTitle.amountCents)+'</td></tr>'+
+  '<tr><th>Situação</th><td>'+escape(newTitle.status)+'</td></tr>'+
+  '<tr><th>Comando registrado</th><td>'+escape(comp.commandId)+'</td></tr></tbody></table>'+
+  '<p class="print-note">DOCUMENTO DE TESTE — dados inventados. Não é comprovante de pagamento bancário, assinatura legal, documento fiscal ou prova de conciliação com a empresa. A impressão ou PDF não envia arquivos ao servidor.</p>';
+ $('cut-print').innerHTML=html;
+ return $('cut-print').textContent;
+}
+document.addEventListener('change',event=>{
+ if(event.target.matches('[data-fin-filter]')){financeFilters[event.target.dataset.finFilter]=event.target.value;draw();return;}
+ if(event.target.matches('#finance-batch-form [name="financeIds"]')){
+  updateBatchPreview();return;
+ }
+ if(event.target.id==='journey-order'){
+  journeyOrderId=event.target.value;draw();return;
+ }
+ if(event.target.matches('[data-settlement-filter]')){
+  settlementFilters[event.target.dataset.settlementFilter]=event.target.value;
+  applySettlementFilters();return;
+ }
+ const form=event.target.closest('form[data-command]');
+ if(!form)return;
+ const type=form.dataset.command;
+ const selected=event.target.name;
+ if(type==='settlement.add'&&['serviceType','productId','factionId'].includes(selected))suggestServicePrice(form);
+ if(type==='finance.receipt.attach'&&selected==='targetId')updateReceiptTarget(form);
+ if(type==='settlement.revise'&&selected==='id')fillSettlementRevision(form);
+ if(type==='faction.assignment.rate.set'&&selected==='assignmentId')fillAssignmentRate(form);
+ if(type==='settlement.revise'&&['unitCents','travetaCents','factionId'].includes(selected))previewSettlementRevision(form);
+ if(type==='order.grade.update'&&selected==='orderId'){
+  const order=doc.orders.find(o=>o.id===event.target.value);if(!order)return;
+  for(const sz of api.sizes)form.elements.namedItem(sz).value=order.grade[sz];
+ }
+ if(type==='cut.plan.update'&&selected==='id'){
+  const plan=(doc.cutPlans||[]).find(p=>p.id===event.target.value);if(!plan)return;
+  for(const sz of api.sizes)form.elements.namedItem(sz).value=plan.grade[sz];
+  for(const key of ['workMode','cutterOne','cutterTwo','spreader'])
+   form.elements.namedItem(key).value=plan[key];
+ }
+ if(type==='cut.plan.complete'&&selected==='id'){
+  const plan=(doc.cutPlans||[]).find(p=>p.id===event.target.value);if(!plan)return;
+  form.elements.namedItem('usefulGrams').value=plan.theoreticalGrams;
+  form.elements.namedItem('scrapGrams').value=0;
+  form.elements.namedItem('signatureOne').value='';
+  form.elements.namedItem('signatureTwo').value='';
+ }
+});
+document.addEventListener('click',e=>{
+ if(e.target.closest('#finance-report-export')){try{const r=window.HLGBLabFinanceV1.report(doc,financeFilters);const rows=[['Título','Descrição','Categoria','Tipo','Valor centavos','Data','Estado','Conferência'],...r.rows.map(x=>[x.id,x.description,x.category,x.kind,x.amountCents,x.date||'Sem data',x.status,x.reconciliation])];download('HLGB-HUB-FICTICIO.csv','\uFEFF'+rows.map(x=>x.map(safeCell).join(';')).join('\r\n'),'text/csv;charset=utf-8');}catch(err){status(err.message,'error')}return;}
+ const searchOpen=e.target.closest('[data-search-open]');if(searchOpen){openGlobalResult(Number(searchOpen.dataset.searchOpen));return}
+ const searchPage=e.target.closest('[data-search-page]');if(searchPage){searchState.page+=Number(searchPage.dataset.searchPage);renderGlobalSearch();return}
+ if(e.target.closest('#global-search-close')){searchState.selected=null;renderGlobalDetail();$('module-content').querySelectorAll('.search-hit').forEach(x=>x.classList.remove('search-hit'));return}
+
+ const receiptButton=e.target.closest('[data-receipt-download]');
+ if(receiptButton){
+  try{
+   const r=(doc?.paymentReceipts||[]).find(x=>x.id===receiptButton.dataset.receiptDownload);
+   if(!r)throw Error('Comprovante não encontrado na cópia local.');
+   const service=window.HLGBLabPaymentBatchV1,file=service.decodePdf(r.contentBase64);
+   if(file.size!==r.size||file.checksum!==r.checksum)throw Error('Arquivo divergente; não baixar.');
+   download(r.id+'-FICTICIO-'+r.fileName,file.bytes,'application/pdf');
+   status('Download local solicitado · '+r.id+' · versão '+r.version+'.');
+  }catch(error){status(error.message,'error')}
+  return;
+ }
+ if(e.target.closest('#preview-bom-cut')){
+  const form=document.querySelector('form[data-command="cut.bom.execute"]');
+  try{
+   if(!form)throw Error('Formulário de Corte BOM indisponível.');
+   const payload=parseData('cut.bom.execute',form);
+   const pre=window.HLGBLabBomCutV1?.preview(doc,payload,window.HLGBLabMaterialsPlannerV1);
+   if(!pre)throw Error('Simulador BOM indisponível.');
+   status((pre.canExecute?'Prévia validada: ':'Falta estoque: ')+
+    pre.qty+' peça(s) '+pre.color+' '+pre.size+' · '+
+    pre.materials.map(x=>x.materialName+' '+x.totalGrams+
+     'g (após '+x.afterGrams+'g)').join(' · ')+
+    '. Nenhuma baixa executada.',pre.canExecute?'success':'error');
+  }catch(error){status(error.message,'error')}
+  return;
+ }
+ if(e.target.closest('#export-shopping-csv')){exportShoppingCsv();return}
+ if(e.target.closest('#preview-finance-batch')){
+  const form=$('finance-batch-form');
+  try{
+   const payload=parseData('finance.batch.pay',form),fn=window.HLGBLabPaymentBatchV1?.preview;
+   if(typeof fn!=='function')throw Error('Validador de lote indisponível.');
+   const result=fn(doc,payload);
+   status('Prévia validada: '+result.count+' título(s), '+fmt(result.totalCents)+
+    ', referência '+result.reference+'. Nenhuma baixa executada.');
+  }catch(error){status(error.message,'error')}
+  return;
+ }
+ if(e.target.closest('[data-preview-faction]')){
+  const form=e.target.closest('form[data-command="finance.faction.close"]');
+  try{
+   if(!form)throw Error('Formulário de fechamento da facção indisponível.');
+   const input=parseData('finance.faction.close',form);
+   const result=window.HLGBLabPaymentBatchV1.previewFaction(doc,input);
+   status('Prévia de '+result.factionName+': '+result.count+' título(s), '+fmt(result.totalCents)+
+    '. Referência '+result.reference+'. Nenhum pagamento lançado.');
+  }catch(error){status(error.message,'error')}
+  return;
+ }
+ if(e.target.closest('#export-observer-csv')){exportObserverCsv();return}
+ if(e.target.closest('[data-toggle-observer]')){
+  const registry=window.HLGBLabModules;
+  const observer=registry?.list().find(x=>x.id==='observabilidade');
+  if(observer){registry.setEnabled('observabilidade',!observer.enabled);draw();
+   status('Módulo Observabilidade 2.0 '+(!observer.enabled?'ativado':'desativado')+
+    ' somente nesta aba. Funções anteriores continuam disponíveis.');}
+  else status('Módulo opcional indisponível. Sistema legado preservado.','error');
+  return;
+ }
+ if(e.target.closest('#settlement-clear-filters')){
+  Object.assign(settlementFilters,{query:'',status:'todos',faction:'todas',service:'todos',compensation:'todos'});
+  applySettlementFilters();return;
+ }
+ const comp=e.target.closest('button[data-print-comp]');
+ if(comp){try{renderCompensationSheet(comp.dataset.printComp);window.print()}catch(error){status(error.message,'error')}return}
+ const print=e.target.closest('button[data-print-plan]');
+ if(print){try{renderCutSheet(print.dataset.printPlan);window.print()}catch(error){status(error.message,'error')}return}
+ const mod=e.target.closest('button[data-module]');
+ if(mod){searchState.selected=null;active=mod.dataset.module;window.location.hash=active;draw();window.scrollTo(0,0);return}
+ const goto=e.target.closest('button[data-goto]');
+ if(goto){searchState.selected=null;active=goto.dataset.goto;window.location.hash=active;draw();window.scrollTo(0,0)}
+});
+document.addEventListener('submit',e=>{
+ const form=e.target.closest('form[data-command]');if(!form)return;
+ e.preventDefault();submit(form,form.dataset.command);
+});
+window.addEventListener('hashchange',()=>{
+ const next=window.location.hash.slice(1);
+ if(ids.has(next)&&doc&&next!==active){searchState.selected=null;active=next;draw()}
+});
+$('global-search-module').addEventListener('change',()=>{searchState.page=1;searchState.selected=null;renderGlobalSearch();renderGlobalDetail()});
+$('export-json').addEventListener('click',exportReport);
+$('export-csv').addEventListener('click',exportCsv);
+$('refresh').addEventListener('click',reload);
+$('reset').addEventListener('click',reset);
+(async()=>{
+ try{
+  db=await openDB();
+  await transact(()=>null);
+  doc=await read();
+  if(!doc)throw Error('Não foi possível iniciar a base fictícia.');
+  if(!api.inspect(doc).ok)throw Error('Documento inicial inconsistente.');
+  draw();status('Prévia iniciada. Faça suas operações com dados fictícios e confira as revisões.','success');
+ }catch(err){
+  status('Não foi possível abrir o armazenamento de teste neste navegador: '+err.message+
+   '. Experimente pelo Chrome ou por uma URL HTTPS. Nenhum dado real foi acessado.','error');
+ }
+})();
+})();
+,'money','100,00'),dated('reconcileDate','Data de conferência')],'Conferir valor')+
+ '<p>Conferência manual de valor, não integra banco, não paga novamente e não comprova transferência.</p>');
+}
+
+function moduleHtml(s){
+ const o=orderOptions(s),openPlans=(s.cutPlans||[]).filter(p=>p.status==='aberto'),
+  planOptions=selector(openPlans,p=>p.id+' · '+p.orderId+' · '+sum(p.grade)+' peças'),
+  defaultOrder=s.orders[0],defaultPlan=openPlans[0],
+  materials=selector(s.materials,m=>m.name+' · '+m.stockGrams+'g'),clients=selector(s.clients,x=>x.name),
+ products=selector(s.products,x=>x.name+' · '+x.sku),factions=selector(s.factions,x=>x.name+' · '+fmt(x.unitCents)+'/peça'),
+ suppliers=selector(s.suppliers,x=>x.name),settlements=selector(s.settlements,x=>x.id+' · '+fmt(x.amountCents)+' · '+x.status),
+ purchases=selector(s.purchaseOrders.filter(x=>!x.received&&!x.cancelled),
+  x=>x.id+' · '+x.qtyGrams+'g'),
+ finance=selector(s.finance.filter(x=>x.status==='aberto'),x=>x.id+' · '+fmt(x.amountCents)+' · '+x.description),
+ employees=selector(s.employees,x=>x.name),incidents=selector(s.errors.filter(x=>x.status==='aberto'),x=>x.id+' · '+x.message);
+ switch(active){
+ case 'nucleo':return panel('Módulos opcionais com desativação segura',
+ (window.HLGBLabModules?table(['Módulo','Versão','Ativo','Falhas isoladas'],window.HLGBLabModules.list().map(x=>[
+ str(x.id),str(x.version),x.enabled?'Sim':'Não',str(x.failures)])):
+ '<p>Registro modular indisponível; funções legadas permanecem acessíveis.</p>')+
+ '<div class="actions"><button type="button" class="btn" data-toggle-observer="true">Alternar Observabilidade 2.0 (apenas nesta aba)</button></div>'+
+ '<p class="caption">Uma falha no módulo de diagnóstico não bloqueia pedidos, acertos, títulos ou qualquer função anterior. Flag apenas em memória desta aba.</p>',true)+
+ panel('Roteiro guiado do fluxo integrado',guidedJourney(s),true)+
+ panel('Como testar o fluxo completo',refDocs(s)+
+ '<ol class="tips"><li>Em <b>Pedidos</b>, crie uma encomenda P/M/G.</li><li>Em <b>Corte</b>, corte algumas peças; o material será consumido.</li>'+
+ '<li>Em <b>Facções</b>, envie as peças cortadas e registre retorno parcial.</li><li>Em <b>Acertos</b>, verifique o título criado; em <b>Separação</b>, dê baixa e despache.</li>'+
+ '<li>Em <b>Hub Financeiro</b>, confira a conta a receber do pedido e a conta a pagar do acerto.</li><li>Atualize a página e volte aos módulos. Os registros devem permanecer.</li></ol>',true)+
+ panel('Saúde do documento',table(['Regra','Resultado'],Object.entries(api.inspect(s)).filter(([k,v])=>typeof v!=='object').map(([k,v])=>[str(k),str(v)])))+
+ panel('Confiabilidade e limites','<p><b>O que funciona aqui:</b> transação local IndexedDB, revisão para evitar sobrescrita por outra aba, confirmação por releitura do comando, auditoria e validações de quantidade.</p>'+
+ '<p><b>O que falta:</b> sincronização entre computadores, login real, WAL remoto, RLS empresarial, PDF e pagamentos efetivos. Use o simulador de duas sessões do laboratório para testes de falhas mais amplos.</p>');
+ case 'autenticacao':return panel('Papéis de referência — não é login de verdade',
+ '<p>Estas são propostas de organização para o futuro controle de permissões. <strong>Não há autenticação neste laboratório</strong>; todas as ações são apenas exercícios locais.</p>'+
+ table(['Perfil','Escopo proposto','Validação real'],[['Supervisor','Cadastros, aprovações e relatórios','Pendente'],['Produção','Pedidos, corte, facções e separação','Pendente'],
+ ['Financeiro','Acertos, Hub, compras e comprovantes','Pendente'],['Consulta','Visualização sem alterar','Pendente']]),true);
+ case 'pedidos':return panel('Incluir pedido com grade',
+ form('order.add','Novo pedido fictício',[
+ field('clientId','Cliente','select','',clients),field('productId','Modelo','select','',products),
+ ...api.sizes.map(z=>field(z,'Quantidade '+z,'int',z==='M'?10:0))],'Cadastrar pedido'))+
+ panel('Fluxo e integridade',refDocs(s)+
+ '<p>O pedido já gera uma conta fictícia a receber. Corte, produção e separação precisam respeitar a grade.</p>')+
+ panel('Pedidos e seus saldos',orderTable(s),true);
+ case 'produtos':return materialRecipePanels(s)+panel('Ficha técnica básica e SKU',
+ form('product.add','Cadastrar modelo',[field('name','Nome do modelo'),field('sku','SKU único'),
+ field('materialId','Material principal','select','',materials),
+ field('gramsPerUnit','Consumo por unidade (g)','int','80'),
+ field('priceCents','Preço de venda R$','money','39,90')],'Cadastrar modelo'))+
+ panel('Referência dos materiais','<p>O corte fictício continua utilizando o consumo principal registrado ao cadastrar o modelo. A nova receita detalhada é usada somente na previsão de materiais, sem alterar baixas antigas.</p>')+
+ panel('Modelos cadastrados',table(['SKU','Modelo','Material','Consumo','Preço'],s.products.map(x=>[
+ str(x.sku),str(x.name),str(ref(s.materials,x.materialId)?.name),str(x.gramsPerUnit)+'g',fmt(x.priceCents)])),true);
+ case 'corte':{
+  const gradeFields=(g)=>api.sizes.map(z=>field(z,'Quantidade '+z,'int',g?.[z]||0));
+  const planned=(s.cutPlans||[]),done=planned.filter(x=>x.status==='concluido');
+  const rows=planned.map(p=>[
+   str(p.id)+'<div class="caption">'+str(p.orderId)+'</div>',
+   api.sizes.map(z=>z+': '+p.grade[z]).join(' / '),
+   str(p.workMode)+'<div class="caption">'+str(p.cutterOne)+' / '+str(p.cutterTwo)+' / '+str(p.spreader)+'</div>',
+   str(p.theoreticalGrams)+' g',
+   p.status==='concluido'?str(p.usefulGrams)+' g útil + '+str(p.scrapGrams)+' g lixo':'—',
+   '<span class="chip '+(p.status==='aberto'?'wait':'')+'">'+str(p.status)+'</span>',
+   '<button type="button" class="btn" data-print-plan="'+str(p.id)+'">Imprimir folha</button>'
+  ]);
+  return bomCutPanels(s)+panel('Grade editável do pedido',
+   form('order.grade.update','Ajustar quantidades por tamanho',[
+    field('orderId','Pedido','select','',o),...gradeFields(defaultOrder?.grade)
+   ],'Salvar grade e conferir valor do pedido')+
+   '<p>O pedido não pode ser reduzido abaixo de cortes já executados nem das quantidades reservadas. O título a receber é recalculado apenas quando está aberto.</p>')+
+  panel('Lotes de corte e equipe',
+   form('cut.plan','Nova folha de corte',[
+    field('orderId','Pedido','select','',o),...gradeFields(api.makeGrade()),
+    field('workMode','Origem do serviço','select','',[['interno','Interno'],['externo','Externo']]),
+    field('cutterOne','Cortador 1','text','Ana Cortadora'),
+    field('cutterTwo','Cortador 2','text','Beto Cortador'),
+    field('spreader','Enfestador','text','Carla Enfestadora')
+   ],'Planejar lote')+
+   '<p>Crie várias folhas para dividir a grade de um pedido. Uma folha aberta reserva quantidades, mas não consome material até a conclusão.</p>')+
+  panel('Modificar ou cancelar folha em aberto',
+   form('cut.plan.update','Alterar equipe e grade do lote',[
+    field('id','Folha aberta','select','',planOptions),...gradeFields(defaultPlan?.grade),
+    field('workMode','Origem do serviço','select','',[['interno','Interno'],['externo','Externo']]),
+    field('cutterOne','Cortador 1','text',defaultPlan?.cutterOne||'Ana Cortadora'),
+    field('cutterTwo','Cortador 2','text',defaultPlan?.cutterTwo||'Beto Cortador'),
+    field('spreader','Enfestador','text',defaultPlan?.spreader||'Carla Enfestadora')
+   ],'Atualizar planejamento')+
+   form('cut.plan.cancel','Cancelar folha sem apagar histórico',[
+    field('id','Folha aberta','select','',planOptions)
+   ],'Cancelar folha aberta'))+
+  panel('Conferir peso e concluir o corte',
+   form('cut.plan.complete','Baixa auditada com duas conferências',[
+    field('id','Folha em aberto','select','',planOptions),
+    field('usefulGrams','Peso útil utilizado (g)','int',defaultPlan?.theoreticalGrams||0),
+    field('scrapGrams','Peso do lixo/desperdício (g)','int',0),
+    field('signatureOne','Conferência digitada do cortador 1','text',''),
+    field('signatureTwo','Conferência digitada do cortador 2','text','')
+   ],'Concluir lote e baixar estoque')+
+   '<p>O sistema desconta <b>peso útil + lixo</b>. As duas conferências digitadas devem coincidir com os nomes dos cortadores, mas não representam assinatura legal.</p>')+
+  panel('Corte simplificado — função preservada',
+   form('cut.record','Corte avulso por tamanho',[
+    field('orderId','Pedido','select','',o),
+    field('size','Tamanho','select','',api.sizes.map(z=>[z,z])),
+    field('qty','Quantidade','int','5')
+   ],'Baixar corte manual')+
+   '<p>Para preservar o exercício anterior, esta baixa continua disponível. Não consome peças reservadas por folhas abertas.</p>')+
+  panel('Quantidade de pedidos e corte',orderTable(s),true)+
+  panel('Folhas e indicadores de peso',
+   table(['Folha','Grade','Equipe','Peso teórico','Baixa real','Status','Impressão'],rows)+
+   '<div class="flow"><span>Peso útil: '+str(done.reduce((a,p)=>a+p.usefulGrams,0))+' g</span>'+
+   '<span>Lixo: '+str(done.reduce((a,p)=>a+p.scrapGrams,0))+' g</span></div>'+
+   '<p>Imprimir folha abre o diálogo de impressão do navegador para gerar papel ou salvar como PDF. Somente informações fictícias.</p>',true);
+ }
+ case 'producao':return panel('Acompanhamento PCP',refDocs(s)+
+ '<p>Envio e retorno são registrados na guia <b>Facções</b>; não são permitidas baixas que excedam etapas anteriores.</p>'+
+ table(['Pedido','Cortadas','Enviadas','Retornadas','Pendentes retorno'],s.orders.map(x=>[
+ str(x.id),str(sum(x.cut)),str(x.allocated),str(x.returned),str(x.allocated-x.returned)])))+
+ panel('Próximas operações','<div class="actions"><button class="btn primary" type="button" data-goto="faccoes">Gerenciar facções</button>'+
+ '<button class="btn" type="button" data-goto="separacao">Separação</button></div>');
+ case 'separacao':return panel('Baixa de separação / expedição',
+ form('order.separate','Separar parcialmente',[field('orderId','Pedido','select','',o),
+ field('qty','Quantidade para separar','int','5')],'Confirmar separação')+
+ form('order.ship','Expedir peças separadas',[field('orderId','Pedido','select','',o),
+ field('qty','Peças expedidas','int','5')],'Registrar despacho'))+
+ panel('Validação da etapa','<p>Separação só pode usar quantidade já retornada. O despacho não pode ser maior que a separação registrada. Cada ação gera evento local.</p>')+
+ panel('Saldo a separar e expedir',table(['Pedido','Retornado','Separado','Despachado'],s.orders.map(x=>[
+ str(x.id),str(x.returned),str(x.separated),str(x.shipped)])),true);
+ case 'faccoes':{
+ const rows=s.factionAssignments||[];
+ const unclassified=selector(s.orders.filter(x=>!x.colorGrades?.length),
+  x=>x.id+' · '+(ref(s.products,x.productId)?.name||'Modelo')+' · '+sum(x.grade)+' peças');
+ const classified=s.orders.filter(x=>x.colorGrades?.length);
+ const colorOptions=[...new Set([
+  ...(s.colorCatalog||window.HLGBLabMaterialsPlannerV1?.seed?.()||[]).map(x=>x.name),
+  ...classified.flatMap(x=>x.colorGrades.map(g=>g.color))
+ ])].map(x=>[x,x]);
+ const sizeOptions=api.sizes.map(x=>[x,x]);
+ const colorAssignmentOptions=selector(rows.filter(x=>classified.some(o=>o.id===x.orderId)),
+  x=>x.id+' · '+x.orderId+' · '+(ref(s.factions,x.factionId)?.name||'—')+
+   ' · '+(x.qtySent-x.qtyReturned)+' peças pendentes');
+ const pendingTransfer=selector(s.orders.filter(x=>!x.colorGrades?.length&&x.allocated>0&&x.returned===0&&
+  rows.filter(a=>a.orderId===x.id).length<=1),
+  x=>x.id+' · '+(ref(s.factions,x.factionId)?.name||'—')+' · '+x.allocated+' peças');
+ const pendingSimple=selector(s.orders.filter(x=>!x.colorGrades?.length&&x.allocated>x.returned&&
+  rows.filter(a=>a.orderId===x.id).length<=1),
+  x=>x.id+' · '+(ref(s.factions,x.factionId)?.name||'—')+' · '+(x.allocated-x.returned)+' peças');
+ const pendingAssignments=selector(rows.filter(x=>!classified.some(o=>o.id===x.orderId)&&x.qtySent>x.qtyReturned),
+  x=>x.id+' · '+x.orderId+' · '+(ref(s.factions,x.factionId)?.name||'—')+
+  ' · '+(x.qtySent-x.qtyReturned)+' peças aguardando');
+ const transferable=selector(rows.filter(x=>!classified.some(o=>o.id===x.orderId)&&x.qtySent>1&&x.qtySent>x.qtyReturned),
+  x=>x.id+' · '+x.orderId+' · '+(ref(s.factions,x.factionId)?.name||'—')+
+  ' · '+(x.qtySent-x.qtyReturned)+' peças disponíveis');
+ return panel('Preço específico das peças que já estão na facção',
+   form('faction.assignment.rate.set','Negociar mão de obra por envio pendente',[
+    field('assignmentId','Envio / pedido / facção','select','',selector(rows.filter(x=>x.qtySent>x.qtyReturned),x=>
+      x.id+' · '+x.orderId+' · '+(ref(s.factions,x.factionId)?.name||'—')+
+      ' · '+(x.qtySent-x.qtyReturned)+' pendentes')),
+    field('unitCents','Preço bruto por peça (R$)','money','0,00'),
+    field('travetaCents','Desconto de travetada por peça (R$)','money','0,00'),
+    field('reason','Justificativa da negociação','text','')
+   ],'Salvar tarifa deste envio')+
+   '<p id="assignment-rate-preview" class="caption" role="status"></p>'+
+   '<p>A tarifa vale apenas para os próximos retornos deste envio, incluindo devoluções e retornos por cor/tamanho. Não altera o preço geral do modelo nem os acertos existentes. A troca integral de facção desativa o acordo da origem, conservando o histórico.</p>'+
+   table(['Envio','Facção','Bruto/peça','Travetada/peça','Peças pendentes na negociação','Justificativa'],
+    rows.flatMap(x=>(x.rateAgreementHistory||[]).map(h=>[
+     str(x.id),str(ref(s.factions,h.factionId)?.name||h.factionId),
+     h.mode==='reset'?'Acordo encerrado':fmt(h.gross),h.mode==='reset'?'—':fmt(h.discount),
+     str(h.pendingQty??'—'),str(h.reason)
+    ]))),true)+
+  panel('Cadastro e regras por facção',
+ form('faction.add','Cadastrar facção fictícia',[
+  field('name','Nome da facção'),field('unitCents','Preço padrão por peça (R$)','money','6,00'),
+  field('traveta','Faz travetada?','select','',[['true','Sim'],['false','Não']])
+ ],'Cadastrar facção')+
+ form('faction.rate.set','Definir preço específico por modelo',[
+  field('factionId','Facção','select','',factions),
+  field('productId','Modelo','select','',products),
+  field('unitCents','Preço bruto por peça (R$)','money','6,00'),
+  field('reason','Motivo da alteração','text','Preço específico fictício')
+ ],'Salvar preço para próximos retornos')+
+ form('faction.traveta.set','Alterar regra de travetada',[
+  field('factionId','Facção','select','',factions),
+  field('traveta','Faz travetada?','select','',[['true','Sim'],['false','Não']]),
+  field('reason','Motivo','text','Nova regra para retornos futuros')
+ ],'Salvar regra futura')+
+ '<p>Preços e travetada alterados só valem para novos retornos. Acertos existentes mantêm os valores que tinham quando foram criados.</p>')+
+ panel('Envio, troca controlada e retorno',
+ form('faction.allocate','Enviar peças cortadas',[
+  field('orderId','Pedido','select','',unclassified),field('factionId','Facção','select','',factions),
+  field('qty','Quantidade a enviar','int','5')
+ ],'Enviar peças')+
+ form('faction.reassign','Transferir antes do primeiro retorno',[
+  field('orderId','Pedido já enviado, sem retorno','select','',pendingTransfer),
+  field('factionId','Nova facção','select','',factions),
+  field('reason','Motivo obrigatório','text','Troca de facção no teste')
+ ],'Registrar transferência com histórico')+
+ form('faction.return','Registrar retorno parcial',[
+  field('orderId','Pedido','select','',pendingSimple),field('qty','Quantidade devolvida','int','3')
+ ],'Confirmar retorno e gerar acerto')+
+ '<p>A troca fica bloqueada se já existir retorno/acerto. Ela é um exemplo de transferência total antes do primeiro retorno, não uma redistribuição avançada entre várias facções.</p>')+
+ panel('Grade por cor e tamanho — cada facção recebe a quantidade certa',
+ form('order.color.grade.set','Cadastrar ou corrigir uma cor antes do primeiro envio',[
+  field('orderId','Pedido sem envios','select','',
+   selector(s.orders.filter(x=>x.allocated===0),
+    x=>x.id+' · '+(ref(s.products,x.productId)?.name||'Modelo'))),
+  field('color','Cor cadastrada','select','',colorOptions),
+  ...api.sizes.map(sz=>field(sz,sz+' — peças desta cor','int','0'))
+ ],'Salvar quantidades da cor')+
+ '<p class="caption">Cadastre uma linha para cada cor, usando P, M, G e GG. A soma de todas as cores deve corresponder à grade total do pedido antes de enviar. Digitar tudo zero remove uma cor já cadastrada, enquanto não houver envios. A grade geral do pedido permanece preservada.</p>'+
+ table(['Pedido','Cor','P','M','G','GG','Total'],
+  classified.flatMap(o=>o.colorGrades.map(g=>[str(o.id),str(g.color),
+   ...api.sizes.map(sz=>str(g.grade[sz])),str(sum(g.grade))])))+
+ '<h3>Conferência antes de alocar</h3>'+
+ table(['Pedido','Situação','Falta P','Falta M','Falta G','Falta GG'],
+  classified.map(o=>{
+   const totals=Object.fromEntries(api.sizes.map(sz=>[sz,
+    o.grade[sz]-o.colorGrades.reduce((n,g)=>n+g.grade[sz],0)]));
+   const complete=api.sizes.every(sz=>totals[sz]===0);
+   return [str(o.id),complete?'Completa para alocar':'Incompleta — finalize as cores',
+    ...api.sizes.map(sz=>str(totals[sz]))];
+  })),true)+
+ panel('Distribuição, retornos e transferências por cor/tamanho',
+ form('faction.grade.allocate','Enviar peças identificadas por cor/tamanho',[
+  field('orderId','Pedido com cores cadastradas','select','',
+   selector(classified,x=>x.id+' · '+(ref(s.products,x.productId)?.name||'Modelo'))),
+  field('factionId','Facção de destino','select','',factions),
+  field('color','Cor','select','',colorOptions),
+  field('size','Tamanho','select','',sizeOptions),
+  field('qty','Quantidade a enviar','int','1')
+ ],'Enviar peças da grade')+
+ form('faction.grade.return','Retornar peças com identificação exata',[
+  field('assignmentId','Envio da facção','select','',colorAssignmentOptions),
+  field('color','Cor retornada','select','',colorOptions),
+  field('size','Tamanho retornado','select','',sizeOptions),
+  field('qty','Quantidade retornada','int','1')
+ ],'Gerar acerto da cor/tamanho')+
+ form('faction.grade.transfer','Transferir saldo identificado para outra facção',[
+  field('fromAssignmentId','Envio de origem','select','',colorAssignmentOptions),
+  field('toFactionId','Facção que receberá','select','',factions),
+  field('color','Cor','select','',colorOptions),
+  field('size','Tamanho','select','',sizeOptions),
+  field('qty','Quantidade a transferir','int','1'),
+  field('reason','Justificativa','text','Redistribuição fictícia da grade')
+ ],'Transferir com histórico por cor/tamanho')+
+ '<p class="caption">Se uma facção recebeu 3 peças pretas M, ela não poderá devolver 4 peças pretas M nem substituir por outra cor. Valores de acertos já pagos continuam imutáveis. Os formulários simples anteriores não deixam enviar pedidos já classificados por cor.</p>'+
+ '<h3>Saldo por oficina, cor e tamanho</h3>'+
+ table(['Envio','Pedido','Facção','Cor','Tamanho','Enviadas','Retornadas','Pendentes'],
+  rows.flatMap(row=>(row.gradeLines||[]).map(line=>[
+   str(row.id),str(row.orderId),
+   str(ref(s.factions,row.factionId)?.name||row.factionId),
+   str(line.color),str(line.size),str(line.sent),str(line.returned),
+   str(line.sent-line.returned)]))),true)+
+ panel('Distribuir um pedido entre múltiplas facções',
+ form('faction.multi.allocate','Enviar lote parcial a uma facção',[
+  field('orderId','Pedido com peças cortadas','select','',unclassified),
+  field('factionId','Facção que receberá o lote','select','',factions),
+  field('qty','Peças desse envio','int','2')
+ ],'Alocar peças sem sobrescrever outros destinos')+
+ form('faction.multi.transfer','Transferir parte das peças ainda não retornadas',[
+  field('fromAssignmentId','Envio da facção de origem','select','',transferable),
+  field('toFactionId','Facção de destino','select','',factions),
+  field('qty','Peças para transferir','int','1'),
+  field('reason','Justificativa obrigatória','text','Redistribuição de saldo pendente fictício')
+ ],'Registrar transferência parcial com histórico')+
+ '<p class="caption">A transferência não altera acertos anteriores nem aumenta o total enviado do pedido. Não permite esvaziar completamente a origem nesta rotina parcial.</p>'+
+ form('faction.multi.return','Registrar retorno da facção correta',[
+  field('assignmentId','Envio específico e saldo a retornar','select','',pendingAssignments),
+  field('qty','Quantidade que retornou','int','1')
+ ],'Registrar retorno e gerar acerto dessa facção')+
+ '<p class="caption">As quantidades de cada facção são independentes. O envio antigo continua disponível para pedidos com destino único. Para pedidos divididos, use o retorno pelo envio específico; assim o acerto e o título financeiro mostram a facção correta.</p>',true)+
+ panel('Distribuição por pedido e facção — rastreabilidade',
+ table(['Envio','Pedido','Facção','Peças enviadas','Retornadas','Faltam retornar','Origem'],
+  rows.map(x=>[str(x.id),str(x.orderId),
+   str(ref(s.factions,x.factionId)?.name||x.factionId),
+   str(x.qtySent),str(x.qtyReturned),str(x.qtySent-x.qtyReturned),
+   str(x.origin||'legado-local')]))+
+ '<p class="caption">As peças devolvidas antes do pagamento ajustam o saldo da facção original, sem afetar as outras. Não é um extrato da base real.</p>',true)+
+ panel('Histórico permanente de transferências parciais entre facções',
+ table(['ID','Pedido','De','Para','Peças','Antes → depois (origem)','Antes → depois (destino)','Justificativa'],
+  (s.factionPartialTransfers||[]).map(m=>[
+   str(m.id),str(m.orderId),
+   str(ref(s.factions,m.fromFactionId)?.name||m.fromFactionId),
+   str(ref(s.factions,m.toFactionId)?.name||m.toFactionId),
+   str(m.qty),str(m.fromBefore)+' → '+str(m.fromAfter),
+   str(m.toBefore)+' → '+str(m.toAfter),str(m.reason)]))+
+ '<p class="caption">Somente o saldo pendente muda de responsável; a trilha de cada transferência fica vinculada ao comando que a criou.</p>',true)+
+ panel('Lista de facções e preços',
+ '<div class="field"><label for="faction-search">Buscar facção</label>'+
+ '<input id="faction-search" class="input" data-filter-for="faction-table" type="search" placeholder="Nome, modelo, preço..."></div>'+
+ '<div id="faction-table">'+table(['Facção','Preço padrão','Travetada','Preços por modelo'],s.factions.map(x=>[
+  str(x.name),fmt(x.unitCents),x.traveta?'Sim':'Não',
+  Object.entries(x.productRates||{}).map(([productId,cents])=>
+    str(ref(s.products,productId)?.name||productId)+': '+fmt(cents)).join(' · ')||'Padrão'
+ ]))+'</div>'+
+ '<p class="caption">A prévia usa, quando aplicável, um desconto ilustrativo de R$ 0,50/peça para facções que não travetam. Configure preço específico e confira o valor líquido no acerto. Não representa a tabela oficial.</p>')+
+ panel('Pedidos, transferências e rastreabilidade',
+ orderTable(s)+
+ '<h3>Trocas registradas</h3>'+
+ table(['ID','Pedido','De','Para','Peças','Motivo'],(s.factionTransfers||[]).map(x=>[
+ str(x.id),str(x.orderId),str(ref(s.factions,x.fromFactionId)?.name),
+ str(ref(s.factions,x.toFactionId)?.name),str(x.qty),str(x.reason)
+ ])),true);
+ }
+ case 'acertos':{
+ const open=selector(s.settlements.filter(x=>x.status==='aberto'&&!x.gradeTracked),
+  x=>x.id+' · '+fmt(x.amountCents)+' · '+(ref(s.factions,x.factionId)?.name||'—'));
+ const trackedOpen=selector(s.settlements.filter(x=>x.status==='aberto'&&x.gradeTracked&&x.qty>1),
+  x=>x.id+' · '+x.color+' '+x.size+' · '+fmt(x.amountCents));
+ const allOpen=selector(s.settlements.filter(x=>x.status==='aberto'),
+  x=>x.id+' · '+fmt(x.amountCents)+' · '+(ref(s.factions,x.factionId)?.name||'—'));
+ const paid=selector(s.settlements.filter(x=>x.status==='pago'),
+  x=>x.id+' · Pago '+fmt(x.amountCents)+' · '+(ref(s.factions,x.factionId)?.name||'—'));
+ const compensations=s.settlementCompensations||[];
+ return panel('Serviços avulsos e embalagem',
+ form('settlement.add','Novo acerto avulso fictício',[
+  field('serviceType','Tipo de serviço','select','',[['costura','Costura avulsa'],['embalagem','Embalagem']]),
+  field('factionId','Facção / embaladeira','select','',factions),
+  field('productId','Modelo','select','',products),
+  field('qty','Quantidade','int','20'),
+  field('unitCents','Preço por peça (R$)','money','0,25'),
+  field('travetaCents','Desconto de travetada por peça (R$)','money','0,00'),
+  field('reason','Descrição / justificativa','text','Embalagem fictícia')
+ ],'Gerar acerto e título a pagar')+
+ '<p>O tipo <strong>Embalagem</strong> usa valor por peça independente da mão de obra de costura. As sugestões de R$ 0,25 para camisola/doll e R$ 0,15 para calcinha são exemplos editáveis, não preços confirmados da empresa.</p>')+
+ panel('Corrigir facção e mão de obra de acerto em aberto',
+   form('settlement.revise','Alterar sem criar outro pagamento',[
+    field('id','Acerto em aberto','select','',allOpen),
+    field('factionId','Facção / embaladeira do acerto','select','',factions),
+    field('unitCents','Preço bruto por peça (R$)','money','0,00'),
+    field('travetaCents','Desconto de travetada por peça (R$)','money','0,00'),
+    field('reason','Justificativa da correção','text','')
+   ],'Salvar correção e atualizar o mesmo título')+
+   '<p id="settlement-revise-preview" class="caption" role="status"></p>'+
+   '<p>Em serviço avulso, pode corrigir a pessoa e o preço. Em retorno vinculado ao pedido, o preço pode ser corrigido, mas a facção física não pode ser trocada aqui. O título existente é atualizado, nunca duplicado. Acertos pagos exigem compensação separada.</p>',true)+
+  panel('Devolver peças com motivo e histórico',
+ form('settlement.pieces.return','Devolução parcial sem apagar o acerto',[
+  field('id','Acerto em aberto','select','',open),
+  field('qty','Quantidade devolvida','int','1'),
+  field('reason','Justificativa obrigatória','text','Peças devolvidas na conferência fictícia')
+ ],'Registrar devolução e recalcular Hub')+
+ '<p>Somente antes do pagamento. O pedido não pode ficar com retorno abaixo das peças já separadas. A operação mantém o acerto original, o histórico de quantidade anterior e a nova quantia no Hub.</p>')+
+ panel('Devolução detalhada antes de pagar — conserva a grade',
+ form('settlement.grade.pieces.return','Devolver peças de um acerto com cor/tamanho',[
+  field('id','Acerto identificado em aberto','select','',trackedOpen),
+  field('qty','Peças devolvidas desta cor/tamanho','int','1'),
+  field('reason','Justificativa obrigatória','text','Correção da grade antes da quitação')
+ ],'Atualizar acerto, saldo da facção e Hub')+
+ '<p class="caption">A devolução só pode usar o mesmo tamanho e cor do acerto. Acertos pagos são protegidos.</p>',true)+
+ panel('Ajustar apenas acerto em aberto',
+ form('settlement.adjust','Abatimento ou acréscimo rastreado',[
+  field('id','Acerto ainda não pago','select','',allOpen),
+  field('adjustmentCents','Ajuste total (R$), aceita negativo','signed-money','0,00'),
+  field('reason','Motivo','text','Conferência do valor fictício')
+ ],'Salvar ajuste e reconciliar Hub')+
+ '<p>Se o título vinculado já estiver quitado, não é permitido alterar o pagamento original. A correção pós-pagamento exigirá uma rotina separada de compensação.</p>')+
+ panel('Compensação separada de acertos pagos',
+ form('settlement.compensate','Corrigir sem reescrever pagamento anterior',[
+  field('id','Acerto original já pago','select','',paid),
+  field('deltaCents','Diferença em R$ (positiva = pagar; negativa = receber)','signed-money','1,00'),
+  field('reference','Referência única para evitar duplicidade','text','CORRECAO-TESTE-001'),
+  field('reason','Justificativa obrigatória','text','Compensação fictícia após conferência')
+ ],'Criar compensação separada e título novo')+
+ '<p><strong>O pagamento original não muda.</strong> Uma diferença positiva gera título fictício a pagar; negativa gera título fictício a receber. A mesma referência não pode ser usada duas vezes no mesmo acerto. É apenas uma demonstração de compensação, não devolução bancária automática nem documento fiscal.</p>')+
+ panel('Pesquisar acertos e histórico',
+ '<div class="fields" id="settlement-filters">'+
+ '<div class="field"><label for="settlement-search">Busca única: acerto, modelo, facção, referência ou motivo</label>'+
+ '<input id="settlement-search" class="input" type="search" placeholder="Ex.: ACE-0004, embalagem, AJ-TESTE"></div>'+
+ '<div class="field"><label for="settlement-status">Situação do acerto</label><select class="input" id="settlement-status" data-settlement-filter="status">'+
+ options([['todos','Todos'],['aberto','Em aberto'],['pago','Pago']])+'</select></div>'+
+ '<div class="field"><label for="settlement-faction">Facção ou embaladeira</label><select class="input" id="settlement-faction" data-settlement-filter="faction">'+
+ options([['todas','Todas'],...s.factions.map(x=>[x.id,x.name])])+'</select></div>'+
+ '<div class="field"><label for="settlement-service">Tipo de serviço</label><select class="input" id="settlement-service" data-settlement-filter="service">'+
+ options([['todos','Todos'],['costura','Costura'],['embalagem','Embalagem']])+'</select></div>'+
+ '<div class="field"><label for="settlement-compensation">Situação das compensações</label><select class="input" id="settlement-compensation" data-settlement-filter="compensation">'+
+ options([['todos','Todas'],['aberto','Em aberto'],['pago','Quitadas']])+'</select></div></div>'+
+ '<div class="actions"><button type="button" class="btn" id="settlement-clear-filters">Limpar filtros</button></div>'+
+ '<p class="caption" role="status" aria-live="polite" id="settlement-query-summary">Calculando a consulta local...</p>'+
+ '<div id="settlement-table">'+table(
+ ['Acerto','Facção / serviço','Modelo','Peças','Bruto/peça','Travetada/peça','Ajuste total','Total','Situação','Comprovante'],
+ s.settlements.map(x=>[
+  str(x.id)+'<div class="caption">'+str(x.orderId||'Avulso')+'</div>',
+  str(ref(s.factions,x.factionId)?.name)+'<div class="caption">'+str(x.serviceType||'costura')+'</div>',
+  str(ref(s.products,x.productId)?.name||ref(s.products,ref(s.orders,x.orderId)?.productId)?.name||'—'),
+  str(x.qty),fmt(x.listUnitCents??x.unitCents),fmt(x.travetaCents||0),
+  fmt(x.adjustmentCents),fmt(x.amountCents),
+  '<span class="chip '+(x.status==='aberto'?'wait':'')+'">'+str(x.status)+'</span>',
+  receiptSummary(s,s.finance.find(f=>f.sourceId===x.id&&f.kind==='pagar')?.id)
+ ]))+'</div>'+
+ '<h3>Alterações de valores</h3>'+
+ table(['Acerto','Evento','Antes','Depois','Motivo'],s.settlements.flatMap(x=>
+  (x.history||[]).map(e=>[str(x.id),str(e.commandId),fmt(e.beforeCents),fmt(e.afterCents),str(e.reason)])
+  ))+
+ '<h3>Histórico de correções de facção e mão de obra</h3>'+
+  table(['Acerto / título','Facção anterior → nova','Preço bruto anterior → novo','Travetada anterior → nova','Total anterior → novo','Motivo'],
+   s.settlements.flatMap(x=>(x.rateHistory||[]).map(h=>[
+    str(x.id)+' · '+str(h.financeId),str(h.fromFactionName)+' → '+str(h.toFactionName),
+    fmt(h.before.listUnitCents)+' → '+fmt(h.after.listUnitCents),
+    fmt(h.before.travetaCents)+' → '+fmt(h.after.travetaCents),
+    fmt(h.before.amountCents)+' → '+fmt(h.after.amountCents),str(h.reason)
+   ])))+
+  '<h3>Devoluções de peças</h3>'+
+ table(['Acerto','Comando','Devolvidas','Antes','Depois','Motivo'],s.settlements.flatMap(x=>
+  (x.returns||[]).map(ev=>[str(x.id),str(ev.commandId),str(ev.qty),
+   str(ev.beforeQty)+' pç / '+fmt(ev.beforeCents),str(ev.afterQty)+' pç / '+fmt(ev.afterCents),str(ev.reason)])
+  ))+
+ '<h3>Compensações após pagamento (sem alterar título original)</h3><div id="settlement-compensation-table">'+
+ table(['Compensação','Acerto pago','Referência','Diferença','Novo título','Situação','Justificativa','Imprimir'],
+ compensations.map(c=>[
+  str(c.id),str(c.settlementId),str(c.reference),
+  (c.deltaCents>0?'+':'−')+fmt(Math.abs(c.deltaCents)),
+  str(c.kind)+' · '+fmt(Math.abs(c.deltaCents)),
+  '<span class="chip '+(c.status==='aberto'?'wait':'')+'">'+str(c.status)+'</span>',
+  str(c.reason),
+  '<button type="button" class="btn" data-print-comp="'+str(c.id)+'">Conferência PDF</button>'
+ ]))+'</div>'+
+ '<p class="caption">Conferência PDF abre a impressão do navegador. O arquivo gerado não comprova uma transferência bancária real.</p>',true);
+ }
+ case 'hub':return panel('Lançamento do Hub fictício',
+ form('finance.add','Novo título',[field('description','Descrição'),field('kind','Tipo','select','',[['pagar','Pagar'],['receber','Receber']]),
+ field('amountCents','Valor em R$','money','100,00')],'Cadastrar título')+
+ form('finance.pay','Confirmar lançamento',[field('id','Título aberto','select','',finance)],'Marcar como quitado ficticiamente')+
+ '<p class="caption">Esta ação não movimenta dinheiro. Confirme apenas valores fictícios.</p>')+
+ financialBatchPanel(s)+receiptPanel(s)+
+ panel('Conferência financeira','<p>Pedidos geram contas a receber; retornos, acertos a pagar. Compensações de acertos pagos criam títulos separados a pagar ou receber, sem alterar o pagamento original. Nenhuma operação movimenta dinheiro real.</p>')+
+ panel('Contas do laboratório',financeTable(s),true);
+ case 'folha':return panel('Editar salário e passagem por pessoa',
+ form('payroll.update','Alterar registro da folha',[field('id','Funcionário','select','',employees),
+ field('salaryCents','Salário-base R$','money','2000,00'),
+ field('passageCents','Passagem R$','money','120,00'),
+ field('extrasCents','Extras R$','money','0,00'),
+ field('discountCents','Descontos R$','money','0,00')],'Salvar valores individuais'))+
+ panel('Não é cálculo trabalhista','<p>A passagem entra no desembolso separado do salário. Não calcula encargos, FGTS, INSS ou rescisão real. A Folha 2.0 separada possui testes adicionais de ordenação e conflitos.</p>'+
+ '<a href="./folha-homologacao.html" class="btn link">Abrir Folha 2.0 detalhada</a>')+
+ panel('Saldos da folha fictícia',table(['Funcionário','Base','Passagem','Extras','Descontos','Desembolso'],s.employees.map(e=>[
+ str(e.name),fmt(e.salaryCents),fmt(e.passageCents),fmt(e.extrasCents),fmt(e.discountCents),
+ fmt(e.salaryCents+e.extrasCents-e.discountCents+e.passageCents)])),true);
+ case 'compras':{
+ const devolucoes=(s.purchaseReturns||[]),elegiveis=s.purchaseOrders.filter(x=>
+  x.received&&!x.cancelled&&!x.returnId&&x.purchaseRequestId&&
+  s.purchaseRequests.some(r=>r.id===x.purchaseRequestId&&r.status==='recebida')&&
+  s.finance.some(f=>f.sourceId===x.id&&f.kind==='pagar'&&f.status==='aberto')&&
+  s.materials.some(m=>m.id===x.materialId&&m.stockGrams>=x.qtyGrams));
+ return materialsPlanningPanels(s)+requestPanels(s)+panel('Compra com dupla conferência',
+ form('purchase.add','Planejar compra',[field('supplierId','Fornecedor','select','',suppliers),
+ field('materialId','Material','select','',materials),
+ field('qtyGrams','Quantidade (g)','int','3000'),
+ field('checkerOne','Conferente 1','text','Aline Teste'),
+ field('checkerTwo','Conferente 2','text','Beto Exemplo')],'Registrar compra')+
+ form('purchase.receive','Receber compra',[field('id','Compra pendente','select','',purchases)],'Conferir e dar entrada no estoque'))+
+ panel('Controle de compras','<p>O recebimento atualiza o estoque e cria uma única conta a pagar. Não é possível receber duas vezes o mesmo pedido de compras. Compras avulsas antigas continuam disponíveis e não são transformadas em requisições sem autorização.</p>')+
+ panel('Devolução integral após recebimento — fluxo formal de teste',
+  '<p>Uma compra recebida não pode ser simplesmente cancelada. Nesta prévia, a devolução integral exige estoque disponível, documento original e título a pagar aberto. Ela cria uma saída separada de estoque e um crédito a receber do fornecedor, sem apagar a entrada e o título originais. Devolução parcial e compras já pagas continuam bloqueadas.</p>'+
+  form('purchase.return.full','Registrar devolução total de uma compra recebida',[
+   field('id','Compra recebida e apta à devolução','select','',selector(elegiveis,x=>
+    x.id+' · '+str(ref(s.materials,x.materialId)?.name||x.materialId)+
+    ' · '+x.qtyGrams+'g · '+fmt(Math.ceil(x.qtyGrams*x.priceCentsKg/1000)))),
+   field('reference','Referência única do protocolo','text','DEV-EXEMPLO-001'),
+   field('returnedBy','Responsável fictício pela devolução','text','Almoxarife Exemplo'),
+   field('reviewedBy','Conferente independente','text','Supervisora Exemplo'),
+   field('reason','Justificativa documentada','text','Material recebido com divergência na inspeção fictícia')
+  ],'Registrar devolução com novo crédito')+
+  '<p class="caption">Não libera movimentação bancária, Nota Fiscal, aprovação autenticada ou devolução física real. Se o estoque já foi consumido, a operação é recusada sem nenhum estorno.</p>',true)+
+ panel('Histórico de devoluções e créditos fictícios',
+  table(['Devolução','Compra original','Material','Quantidade devolvida','Crédito','Referência','Conferência','Situação'],
+   devolucoes.map(x=>[
+    str(x.id),str(x.purchaseId),str(ref(s.materials,x.materialId)?.name||x.materialId),
+    str(x.qtyGrams)+' g',fmt(x.amountCents),str(x.reference),
+    str(x.returnedBy)+' / '+str(x.reviewedBy),str(x.status)+' · '+str(x.creditFinanceId)
+   ]))+
+  '<p class="caption">Os movimentos de estoque, a conta original e o crédito de devolução continuam nos relatórios e no JSON de evidências.</p>',true)+
+ panel('Compras do laboratório',table(['Compra','Fornecedor','Material','Quantidade','Conferentes','Status'],s.purchaseOrders.map(x=>[
+ str(x.id),str(ref(s.suppliers,x.supplierId)?.name),str(ref(s.materials,x.materialId)?.name),
+ str(x.qtyGrams)+'g',str(x.checkerOne)+' / '+str(x.checkerTwo),
+  (x.cancelled?'Cancelada':x.returnId?'Devolvida integralmente':x.received?'Recebida':'Pendente')+
+  (x.purchaseRequestId?' · '+str(x.purchaseRequestId):'') ])),true);
+ }
+ case 'estoque':return panel('Ajuste controlado de materiais',
+ form('stock.adjust','Ajustar saldo',[field('materialId','Material','select','',materials),
+ field('deltaGrams','Entrada/saída em gramas (ex.: -500)','signed-int','500'),
+ field('note','Justificativa','text','Conferência fictícia')],'Registrar ajuste')+
+ '<p>Bloqueia saldo negativo. O ajuste exige justificativa e ID de evento.</p>')+
+ panel('Saldos disponíveis',table(['Material','Saldo (g)','Custo/kg'],s.materials.map(x=>[
+ str(x.name),str(x.stockGrams),fmt(x.priceCentsKg)])))+
+ panel('Movimentação de material',table(['ID','Tipo','Material','Variação','Origem'],s.stockLedger.map(x=>[
+ str(x.id),str(x.type),str(ref(s.materials,x.materialId)?.name),(x.deltaGrams>0?'+':'')+x.deltaGrams+'g',str(x.sourceId)])),true);
+ case 'relatorios':{
+ const planning=materialPlannerResult(s);
+ const planPanel=planning&&!planning.error?panel('Planejamento teórico de compras por material',
+  '<p>'+str(planning.pieces)+' peça(s) simuladas, '+fmt(planning.missingCostCents)+
+  ' de falta estimada, sem compras ou baixas automáticas.</p>'+
+  table(['Material','Previsto (g)','Faltante (g)','Valor da compra sugerida'],
+   planning.materials.map(m=>[str(m.name),str(m.requiredGrams),str(m.missingGrams),
+    fmt(m.purchaseCents)])),true):'';
+ const requestReport=panel('Histórico de requisições, aprovações e compras vinculadas',
+  '<p>Solicitações locais fictícias. A aprovação exige um nome diferente do solicitante; não representa login nem permissão empresarial.</p>'+
+  table(['Requisição','Material','Falta na criação (g)','Valor estimado',
+   'Solicitante','Aprovador','Status','Compra vinculada'],
+   (s.purchaseRequests||[]).map(r=>[
+    str(r.id),str(ref(s.materials,r.materialId)?.name||r.materialId),
+    str(r.qtyGrams),fmt(r.estimatedCents),str(r.requester),
+    str(r.approver||'—'),str(r.status),str(r.purchaseId||'—')])),true);
+ const returnsReport=panel('Devoluções formais de compras recebidas',
+  table(['Documento','Compra','Fornecedor','Material','Devolvido','Crédito a receber','Protocolo','Motivo'],
+   (s.purchaseReturns||[]).map(x=>[
+    str(x.id),str(x.purchaseId),str(ref(s.suppliers,x.supplierId)?.name||x.supplierId),
+    str(ref(s.materials,x.materialId)?.name||x.materialId),
+    str(x.qtyGrams)+' g',fmt(x.amountCents),str(x.reference),str(x.reason)
+   ])),true);
+ const advanced=observationPanels(s,'relatorios');if(advanced)return advanced+planPanel+requestReport+returnsReport;
+ const t=api.totals(s);
+ return panel('Indicadores vinculados',table(['Indicador','Valor'],Object.entries(t).map(([k,v])=>[
+ str(k),k.includes('Payables')||k.includes('Receivables')||k==='passage'||k==='salaryCash'?fmt(v):str(v)])))+
+ panel('Como auditar o relatório','<p>Compare pedidos, corte, retorno, expedição e Hub. Exporte o JSON e confira que cada evento tem ID e revisão.</p>'+
+ '<div class="actions"><button class="btn" type="button" data-goto="auditor">Executar integridade</button></div>')+
+ panel('Pedidos × Financeiro',orderTable(s)+financeTable(s),true)+requestReport+returnsReport;
+ }
+ case 'auditor':{
+ const advanced=observationPanels(s,'auditor');if(advanced)return advanced;
+ const check=api.inspect(s),issues=check.problems;
+ return panel('Diagnóstico determinístico',
+ (check.ok?'<div class="success">Sem inconsistências nas regras simuladas.</div>':
+ '<div class="error">Inconsistências detectadas: '+escape(issues.join('; '))+'</div>')+
+ table(['Verificação','Estado'],[['Quantidade cortada ≤ pedida',check.ok?'Conforme':'Verificar'],
+ ['Estoque nunca negativo',s.materials.every(x=>x.stockGrams>=0)?'Conforme':'Falha'],
+ ['IDs dos eventos únicos',new Set(s.log.map(x=>x.commandId)).size===s.log.length?'Conforme':'Falha'],
+ ['Provas de duas sessões empresariais','Não realizadas']]))+
+ panel('Limites do auditor','<p>O diagnóstico não aplica autocorreção. Sem banco empresarial, não há prova de saúde do sistema atual, monitoramento remoto ou aprendizagem automática.</p>');
+ }
+ case 'bot':{
+ const advanced=observationPanels(s,'bot');if(advanced)return advanced;
+ return panel('Recomendações baseadas em regras fixas',
+ '<p>O assistente apenas lê indicadores locais para sugerir o próximo passo. Não usa IA treinada, não aprende, não faz ações sozinho.</p>'+
+ '<ol class="tips">'+api.tips(s).map(x=>'<li>'+escape(x)+'</li>').join('')+'</ol>')+
+ panel('Ações rápidas','<div class="actions"><button class="btn" data-goto="pedidos">Pedidos</button>'+
+ '<button class="btn" data-goto="faccoes">Facções</button><button class="btn" data-goto="hub">Hub</button></div>');}
+ case 'central':return panel('Registrar e acompanhar ocorrência',
+ form('error.add','Nova falha fictícia',[field('message','Descrição do problema')],'Registrar ocorrência')+
+ form('error.resolve','Encerrar ocorrência fictícia',[field('id','Ocorrência em aberto','select','',incidents)],'Encerrar ocorrência'))+
+ panel('Saúde do laboratório','<p>O monitor avalia apenas este estado local. Não consulta GitHub Actions, logs de produção ou integrações externas.</p>')+
+ panel('Ocorrências',table(['ID','Descrição','Estado'],s.errors.map(x=>[
+ str(x.id),str(x.message),str(x.status)])),true);
+ case 'impressora3d':return panel('Catálogo 3D fictício',
+ form('print.add','Novo item de impressão 3D',[field('name','Produto 3D'),
+ field('grams','Filamento por unidade (g)','int','35'),field('priceCents','Preço (R$)','money','12,90'),
+ field('stock','Estoque de peças','int','3')],'Cadastrar item 3D'))+
+ panel('Estoque 3D fictício',table(['Item','Gramas/unidade','Valor','Estoque'],s.prints.map(x=>[
+ str(x.name),str(x.grams)+'g',fmt(x.priceCents),str(x.stock)])),true);
+ case 'cadastros':return panel('Clientes e fornecedores',
+ form('client.add','Novo cliente fictício',[field('name','Nome do cliente')],'Cadastrar cliente')+
+ form('supplier.add','Novo fornecedor fictício',[field('name','Nome do fornecedor')],'Cadastrar fornecedor')+
+ form('material.add','Novo material fictício',[field('name','Nome do material'),
+ field('priceCentsKg','Custo por kg (R$)','money','28,00')],'Cadastrar material'))+
+ panel('Cadastros ativos',table(['Tipo','ID','Descrição'],[
+ ...s.clients.map(x=>['Cliente',str(x.id),str(x.name)]),
+ ...s.suppliers.map(x=>['Fornecedor',str(x.id),str(x.name)]),
+ ...s.materials.map(x=>['Material',str(x.id),str(x.name)]),
+ ...s.factions.map(x=>['Facção',str(x.id),str(x.name)])]),true);
+ default:return panel('Área de demonstração ainda não selecionada',blank);
+ }
+}
+const searchState={page:1,selected:null,snapshot:null,index:[],results:[]};
+function renderGlobalSearch(){
+ const service=window.HLGBLabGlobalSearchV1,host=$('global-search-results'),input=$('global-search-query'),filter=$('global-search-module');
+ if(!host||!input||!filter||!doc)return;
+ if(!service){host.textContent='Pesquisa global temporariamente indisponível. Os módulos continuam acessíveis.';return}
+ try{
+  if(searchState.snapshot!==doc){searchState.index=service.build(doc);searchState.snapshot=doc}
+  if(filter.options.length===1)for(const [id,label] of Object.entries(service.labels))filter.add(new Option(label,id));
+  if(!input.value.trim()){host.innerHTML='<p class="caption">Digite um termo ou código para localizar registros, inclusive finalizados.</p>';searchState.results=[];return}
+  const r=service.search(searchState.index,input.value,{module:filter.value,page:searchState.page,limit:15});
+  if(r.page>Math.max(1,Math.ceil(r.total/r.limit))){searchState.page=1;renderGlobalSearch();return}
+  searchState.results=r.items;
+  host.innerHTML='<p class="caption" id="global-search-count">'+r.total+' resultado(s) · somente leitura · revisão '+doc.revision+'</p>'+
+  (r.items.length?r.items.map((x,i)=>'<div class="search-result"><div><strong>'+str(x.title)+'</strong>'+
+    '<p>'+str(x.id)+' · '+str(service.labels[x.module])+' · '+str(x.status)+'</p><p>'+str(x.detail)+'</p></div>'+
+    '<button class="btn" type="button" data-search-open="'+i+'">Localizar registro</button></div>').join(''):'<p>Nenhum registro encontrado nesta área.</p>')+
+  (r.total>r.limit?'<div class="actions"><button type="button" class="btn" data-search-page="-1" '+(r.page===1?'disabled':'')+'>Anterior</button><span>Página '+r.page+' de '+Math.ceil(r.total/r.limit)+'</span><button type="button" class="btn" data-search-page="1" '+(r.page*r.limit>=r.total?'disabled':'')+'>Próxima</button></div>':'');
+ }catch(e){host.textContent='Não foi possível consultar a busca. Os módulos originais continuam disponíveis.'}
+}
+function openGlobalResult(index){
+ const result=searchState.results[index];
+ if(!result||!ids.has(result.module)||busy)return;
+ searchState.selected=result.key;
+ if(result.orderId)journeyOrderId=result.orderId;
+ active=result.module;window.location.hash=active;
+ if(active==='acertos'){Object.assign(settlementFilters,{query:result.type==='acerto'?result.id:'',status:'todos',faction:'todas',service:'todos',compensation:'todos'})}
+ draw();renderGlobalDetail();
+}
+function renderGlobalDetail(){
+ const el=$('global-search-detail');if(!el)return;
+ const row=searchState.index.find(x=>x.key===searchState.selected);
+ if(!row){el.hidden=true;el.innerHTML='';return}
+ el.hidden=false;el.className='search-detail';
+ el.innerHTML='<h3>'+str(row.title)+' · '+str(row.id)+'</h3><p>'+str(row.status)+' · '+str(row.detail)+'</p>'+
+  (row.orderId?'<p>Pedido vinculado: '+str(row.orderId)+'</p>':'')+
+  '<p class="caption">Área aberta: '+str(window.HLGBLabGlobalSearchV1.labels[row.module])+'. Nenhum lançamento alterado.</p>'+
+  '<button type="button" class="btn" id="global-search-close">Fechar localização</button>';
+ // Destacar somente célula que contenha o ID exato; não selecionar formulários nem gravar.
+ const candidates=[...$('module-content').querySelectorAll('tbody tr')];
+ const target=candidates.find(tr=>[...tr.querySelectorAll('td')].some(td=>td.textContent.trim().split(/\s+|·/)[0]===row.id)&&!tr.hidden);
+ if(target){target.classList.add('search-hit');target.scrollIntoView({block:'nearest'});}
+}
+function drawNav(){
+ const host=$('module-nav');host.replaceChildren();
+ modules.forEach((m,i)=>{
+  const b=document.createElement('button');b.type='button';b.dataset.module=m[0];b.setAttribute('aria-current',active===m[0]?'page':'false');
+  const num=document.createElement('span');num.className='n';num.textContent=String(i+1).padStart(2,'0');
+  b.append(num,document.createTextNode(m[1]));host.append(b);
+ });
+}
+function draw(){
+ if(!doc)return;
+ const mod=modules[ids.get(active)];$('module-title').textContent=mod[1];$('module-description').textContent=mod[2];
+ $('top-revision').textContent='Revisão local '+doc.revision+' · '+doc.log.length+' evento(s) · Sem banco de produção';
+ const t=api.totals(doc),metrics=[
+ ['Pedidos fictícios',String(t.orders)],['Peças pedidas',String(t.pieces)],['Peças cortadas',String(t.cut)],
+ ['Títulos a pagar abertos',fmt(t.openPayables)]];
+ $('global-metrics').innerHTML=metrics.map(([label,value])=>'<div class="metric"><span>'+escape(label)+'</span><strong>'+escape(value)+'</strong></div>').join('');
+ $('module-content').innerHTML=moduleHtml(doc);
+ if(active==='acertos'){applySettlementFilters();const f=document.querySelector('form[data-command="settlement.revise"]');if(f)fillSettlementRevision(f);}
+ if(active==='faccoes'){const f=document.querySelector('form[data-command="faction.assignment.rate.set"]');if(f)fillAssignmentRate(f);}
+ if(active==='hub'){const f=document.querySelector('form[data-command="finance.receipt.attach"]');if(f)updateReceiptTarget(f);}
+ $('audit-trail').innerHTML=doc.log.length?doc.log.slice().reverse().slice(0,28).map(e=>
+ '<div class="log-item"><strong>'+escape(e.type)+' · '+escape(e.commandId)+'</strong>'+
+ 'Revisão '+e.revision+' · '+escape(e.description)+'</div>').join(''):
+ '<div class="empty">Sem operações na demonstração. Cadastre um pedido para iniciar.</div>';
+ drawNav();renderGlobalSearch();renderGlobalDetail();
+}
+function parseCents(value,signed=false){
+ let raw=String(value).trim();
+ if(signed&&raw.startsWith('-'))return -parseCents(raw.slice(1),false);
+ if(signed&&raw.startsWith('+'))raw=raw.slice(1);
+ if(!/^(?:0|[1-9]\d*|[1-9]\d{0,2}(?:\.\d{3})+)(?:,\d{1,2})?$/.test(raw))
+  throw Error('Informe reais com até duas casas decimais, ex.: 2.000,00.');
+ const parts=raw.split(',');
+ const val=Number(parts[0].replace(/\./g,''))*100+Number((parts[1]||'').padEnd(2,'0'));
+ if(!Number.isSafeInteger(val))throw Error('Valor monetário inválido.');
+ return val;
+}
+const NUM=['qty','gramsPerUnit','qtyGrams','grams','stock','P','M','G','GG','usefulGrams','scrapGrams'];
+const SIGNED=['deltaGrams'];
+const PRICES=['priceCents','unitCents','travetaCents','priceCentsKg','amountCents','salaryCents','passageCents','extrasCents','discountCents'];
+function parseData(type,form){
+ if(type==='finance.faction.close'){
+  return {factionId:String(form.querySelector('[name="factionId"]')?.value||''),
+   financeIds:[...form.querySelectorAll('input[name="financeIds"]')].map(x=>x.value),
+   reference:String(form.querySelector('[name="reference"]')?.value||''),
+   reason:String(form.querySelector('[name="reason"]')?.value||'')};
+ }
+ if(type==='finance.batch.pay'){
+  const ids=[...form.querySelectorAll('input[name="financeIds"]:checked')].map(x=>x.value);
+  return {financeIds:ids,reference:String(form.elements.namedItem('reference')?.value||''),
+   reason:String(form.elements.namedItem('reason')?.value||'')};
+ }
+ const raw=Object.fromEntries(new FormData(form).entries()),p={};
+ for(const [k,v] of Object.entries(raw)){
+  if(NUM.includes(k)||k.startsWith('waste_'))p[k]=Number(v);
+  else if(SIGNED.includes(k)){if(!/^[+-]?\d+$/.test(v))throw Error('Ajuste em gramas inválido.');p[k]=Number(v)}
+  else if(PRICES.includes(k))p[k]=parseCents(v);
+  else if(k==='adjustmentCents'||k==='deltaCents')p[k]=parseCents(v,true);
+  else if(k==='traveta')p[k]=v==='true';
+  else p[k]=String(v);
+ }
+ if(type==='cut.bom.execute'){
+  p.scrapByMaterial={};
+  for(const name of Object.keys(p)){
+   if(name.startsWith('waste_')){
+    p.scrapByMaterial[name.slice(6)]=p[name];
+    delete p[name];
+   }
+  }
+ }
+ if(['order.add','order.grade.update','cut.plan','cut.plan.update','order.color.grade.set','materials.plan.grade.add'].includes(type)){
+  p.grade={};for(const sz of api.sizes){p.grade[sz]=p[sz];delete p[sz]}
+ }
+ return p;
+}
+const DB='HLGB_EVOLUCAO_OPERACAO_INTEGRADA_FICTICIA_V1',STORE='documentos',KEY='operacao-ficticia';
+function openDB(){
+ return new Promise((resolve,reject)=>{
+  const request=indexedDB.open(DB,1);
+  request.onupgradeneeded=()=>{if(!request.result.objectStoreNames.contains(STORE))
+   request.result.createObjectStore(STORE,{keyPath:'key'})};
+  request.onerror=()=>reject(request.error||Error('IndexedDB indisponível.'));
+  request.onblocked=()=>reject(Error('Armazenamento bloqueado por outra aba.'));
+  request.onsuccess=()=>resolve(request.result);
+ });
+}
+async function transact(edit){
+ return new Promise((resolve,reject)=>{
+  const tx=db.transaction(STORE,'readwrite'),store=tx.objectStore(STORE),get=store.get(KEY);
+  let output=null,err=null;
+  get.onsuccess=()=>{
+   try{const previous=get.result?.data||api.initial();
+    output=edit(previous);
+    if(output?.state)store.put({key:KEY,data:output.state});
+    else if(!get.result)store.put({key:KEY,data:previous});
+   }catch(e){err=e;tx.abort()}
+  };
+  get.onerror=()=>{err=get.error};
+  tx.oncomplete=()=>resolve(output);
+  tx.onabort=()=>reject(err||tx.error||Error('Transação local abortada.'));
+  tx.onerror=()=>{if(!err)err=tx.error};
+ });
+}
+async function read(){
+ return new Promise((resolve,reject)=>{
+  const tx=db.transaction(STORE,'readonly'),request=tx.objectStore(STORE).get(KEY);
+  request.onsuccess=()=>resolve(request.result?.data||null);
+  request.onerror=()=>reject(request.error||Error('Falha na releitura.'));
+ });
+}
+async function submit(form,type){
+ if(busy||!doc)return;
+ if(type==='cut.plan.cancel'&&!confirm('Cancelar somente a folha aberta, preservando o histórico?'))return;
+ busy=true;
+ const button=form.querySelector('button[type=submit]');if(button)button.disabled=true;
+ try{
+  const expectedRevision=doc.revision;
+  const payload=type==='finance.receipt.attach'?await readReceiptPayload(form):parseData(type,form),
+   id='OP-DEMO-'+crypto.randomUUID(),actor='Operador fictício';
+  const tx=await transact(previous=>api.apply(previous,{type,payload,commandId:id,actor,expectedRevision}));
+  const saved=await read();
+  if(!saved||saved.revision!==expectedRevision+1||!saved.log.some(x=>x.commandId===id))
+   throw Error('Gravação inconclusiva: não foi encontrada na releitura. Não repetir sem conferir.');
+  const integrity=api.inspect(saved);
+  if(!integrity.ok)throw Error('Gravação sem integridade comprovada: '+integrity.problems.join('; '));
+  doc=saved;draw();
+  if(type==='settlement.compensate'&&payload.id){
+   const el=document.querySelector('form[data-command="settlement.compensate"] [name="id"]');
+   if(el&&[...el.options].some(opt=>opt.value===payload.id))el.value=payload.id;
+  }
+  status('Salvo e confirmado por releitura local · '+tx.result+' · revisão '+saved.revision+'.');
+ }catch(e){
+  status(e.message,'error');
+  // Não redesenhar o formulário em erro. O rascunho permanece visível.
+ }finally{busy=false;if(button&&button.isConnected)button.disabled=false}
+}
+async function reload(){
+ if(busy)return;busy=true;
+ try{
+  const latest=await read();if(!latest)throw Error('Documento local não encontrado.');
+  const checked=api.inspect(latest);
+  if(!checked.ok)throw Error('Integridade do documento local não aprovada: '+checked.problems.join('; '));
+  doc=latest;draw();status('Documento fictício relido do IndexedDB · revisão '+doc.revision+'.');
+ }catch(e){status(e.message,'error')}finally{busy=false}
+}
+async function reset(){
+ if(busy||!confirm('Restaurar APENAS os cadastros e lançamentos fictícios deste navegador? Todos os exercícios desta prévia serão reiniciados.'))return;
+ busy=true;
+ try{
+  const revised=await transact(current=>{
+   if(current.revision!==doc.revision)throw Error('CONFLITO: outra aba alterou a prévia. Recarregue primeiro.');
+   const next=api.initial();next.revision=current.revision+1;
+   const id='OP-DEMO-'+crypto.randomUUID();
+   next.revisionProof=id;next.log=[{commandId:id,revision:next.revision,type:'demo.reset',
+    actor:'Operador fictício',description:'Dados fictícios restaurados com confirmação'}];
+   return {state:next,result:'reset'};
+  });
+  const saved=await read();if(!saved.log.some(e=>e.commandId===revised.state.revisionProof))throw Error('Restauração não confirmada.');
+  doc=saved;active='nucleo';draw();status('Exemplo fictício restaurado. Nenhum dado empresarial foi afetado.');
+ }catch(e){status(e.message,'error')}finally{busy=false}
+}
+function download(name,content,type){
+ const blob=new Blob([content],{type}),url=URL.createObjectURL(blob),a=document.createElement('a');
+ a.href=url;a.download=name;document.body.append(a);a.click();a.remove();
+ setTimeout(()=>URL.revokeObjectURL(url),1400);
+}
+function exportReport(){
+ if(!doc)return;const report={schema:'hlgb-evolucao-operacao-integrada-report-v1',environment:'indexeddb-local-fictitious',
+  productionApproval:false,parityApproved:false,modulesVisited:19,exportedAt:new Date().toISOString(),
+  journey:api.journey(doc,journeyOrderId),
+  observability:observerResult(doc),materialPlanning:materialPlannerResult(doc),
+  checks:api.inspect(doc),totals:api.totals(doc),data:{...doc,paymentReceipts:window.HLGBLabPaymentBatchV1.receiptMetadata(doc)},receiptBinaryExported:false};
+ download('HLGB-EVOLUCAO-OPERACAO-INTEGRADA-FICTICIA.json',JSON.stringify(report,null,2),'application/json');
+}
+function safeCell(x){let s=String(x??'');if(/^[=+\-@\t\r]/.test(s))s="'"+s;return '"'+s.replace(/"/g,'""')+'"'}
+function exportCsv(){
+ if(!doc)return;
+ const rows=[['Tipo','ID','Descrição','Status','Quantidade/valor'],...doc.orders.map(x=>['Pedido',x.id,
+ ref(doc.products,x.productId)?.name||'', 'Enviadas: '+x.shipped,sum(x.grade)]),
+ ...doc.finance.map(x=>['Financeiro',x.id,x.description,x.status,x.amountCents]),
+ ...window.HLGBLabPaymentBatchV1.receiptMetadata(doc).map(x=>['Comprovante fictício',x.id,x.targetId+' · versão '+x.version,x.current?'Atual':'Anterior',x.amountCents]),
+ ...(doc.settlementCompensations||[]).map(x=>['Compensação',x.id,x.settlementId+' · '+x.reference,x.status,x.deltaCents]),
+ ...(doc.purchaseReturns||[]).map(x=>['Devolução integral',x.id,
+  x.purchaseId+' · '+x.reference+' · '+x.reason,x.status,x.qtyGrams]),
+ ...doc.purchaseOrders.map(x=>['Compra',x.id,ref(doc.materials,x.materialId)?.name||'',
+  (x.cancelled?'Cancelada':x.received?'Recebido':'Pendente')+
+   (x.purchaseRequestId?' · '+x.purchaseRequestId:''),x.qtyGrams]),
+ ...(doc.purchaseRequests||[]).map(x=>['Requisição',x.id,
+  (ref(doc.materials,x.materialId)?.name||x.materialId)+' · '+x.reason,
+  x.status+' · '+(x.purchaseId||'sem compra')+
+   (x.cancelIssueReference?' · cancelamento '+x.cancelIssueReference:''),x.qtyGrams]),
+ ...doc.orders.flatMap(o=>(o.colorGrades||[]).map(c=>
+  ['Grade por cor',o.id,c.color,'P/M/G/GG',
+   api.sizes.map(sz=>sz+': '+c.grade[sz]).join(' · ')])),
+ ...(doc.factionAssignments||[]).flatMap(a=>(a.gradeLines||[]).map(g=>
+  ['Peças por facção/cor',a.id,a.orderId+' · '+a.factionId+
+   ' · '+g.color+' '+g.size,'Enviadas '+g.sent,g.returned])),
+ ...(doc.bomCutRuns||[]).map(c=>['Corte BOM concluído',c.id,
+  c.orderId+' · '+c.color+' '+c.size+' · '+c.qty+' pç',
+  c.commandId,c.totalGrams]),
+ ...(doc.bomCutRuns||[]).flatMap(c=>c.materials.map(m=>[
+  'Material do corte BOM',c.id,m.materialId+' · '+m.ruleId,
+  'Útil '+m.requiredGrams+'g · Lixo '+m.scrapGrams+'g',m.totalGrams])),
+ ...(doc.colorCatalog||[]).map(c=>['Paleta de cores',c.id,c.name,c.origin,'']),
+ ...(doc.materialRecipeRules||[]).map(r=>['Receita de planejamento',r.id,
+  r.productId+' · '+r.materialId+' · '+r.color+' '+r.size,
+  r.active?'Atual':'Substituída',r.gramsPerUnit]),
+ ...(doc.materialPlanLines||[]).map(l=>['Cenário de produção',l.id,
+  l.productId+' · '+l.color+' '+l.size,l.active?'Ativo':'Arquivado',l.qty]),
+ ...(materialPlannerResult(doc)?.materials||[]).map(m=>['Necessidade de material',m.materialId,
+  m.name+' · faltam '+m.missingGrams+' g','Previsto',m.requiredGrams]),
+ ...(doc.factionPartialTransfers||[]).map(t=>['Transferência parcial',t.id,
+  t.orderId+' · '+t.fromFactionId+' → '+t.toFactionId+' · '+t.reason,
+  t.commandId,t.qty]),
+ ...(doc.paymentBatches||[]).map(x=>['Pagamento em lote',x.id,
+  (x.scope==='faccao'?'Facção '+x.factionNameSnapshot+' · ':'')+x.reference+' · '+x.reason,
+  x.status,x.totalCents]),
+ ...(doc.paymentBatches||[]).flatMap(x=>x.items.map(i=>
+  ['Título quitado no lote',i.financeId,x.id+' · '+i.sourceId,i.sourceType,i.amountCents]))];
+ download('HLGB-EVOLUCAO-OPERACAO-INTEGRADA-FICTICIA.csv','\uFEFF'+rows.map(r=>r.map(safeCell).join(';')).join('\r\n'),'text/csv;charset=utf-8');
+}
+function exportShoppingCsv(){
+ if(!doc)return;
+ const forecast=materialPlannerResult(doc);
+ if(!forecast||forecast.error){status('Lista de materiais não disponível: revise a ficha técnica.','error');return}
+ const rows=[
+  ['LISTA DE MATERIAIS — PLANEJAMENTO FICTÍCIO, SEM COMPRA EFETIVA'],
+  ['Material','Necessidade (g)','Saldo simulado (g)','Falta comprar (g)','Preço/kg (R$)','Custo da falta (R$)'],
+  ...forecast.materials.map(x=>[x.name,x.requiredGrams,x.availableGrams,x.missingGrams,
+   nr(x.priceCentsKg),nr(x.purchaseCents)]),
+  [],
+  ['DETALHAMENTO POR MODELO, COR E TAMANHO'],
+  ['Modelo','SKU','Cor','Tamanho','Peças','Material','Gramas/peça','Necessidade (g)','Versão da receita'],
+  ...forecast.detail.map(x=>[x.productName,x.sku,x.color,x.size,x.qty,
+   x.materialName,x.gramsPerUnit,x.requiredGrams,x.ruleId])
+ ];
+ download('HLGB-LAB-LISTA-MATERIAIS-FICTICIA.csv',
+  '\uFEFF'+rows.map(row=>row.map(safeCell).join(';')).join('\r\n'),
+  'text/csv;charset=utf-8');
+ status('Lista de materiais fictícia exportada. Não foi criada compra nem reserva.');
+}
+function exportObserverCsv(){
+ const report=doc&&observerResult(doc);
+ if(!report){status('Observabilidade indisponível ou desativada; exporte o JSON básico.','error');return}
+ const rows=[['Tipo','Módulo','Revisão/ID','Regra/Operação','Gravidade','Descrição'],
+  ...report.findings.map(x=>['Alerta',x.module,x.recordId,x.code,x.severity,x.message+' · '+x.action]),
+  ...report.history.map(x=>['Evento',x.module,x.revision,x.type,'',x.commandId+' · '+x.description]),
+  ...(report.paymentReceiptHistory||[]).map(x=>['Comprovante fictício','hub',x.id,x.targetId,x.current?'Atual':'Anterior','Versão '+x.version+' · '+x.fileName+' · '+x.amountCents+' centavos']),
+   ...report.settlementHistory.map(x=>['Histórico do acerto','acertos',x.settlementId,
+   x.event,'',x.commandId+' · antes '+x.beforeCents+' depois '+x.afterCents+' · '+x.reason]),
+  ...report.modelSummary.map(x=>['Resumo por modelo','produtos',x.productId,
+   x.sku,'',x.name+' · pedidas '+x.ordered+' · cortadas '+x.cut+' · expedidas '+x.shipped]),
+  ...report.factionSummary.map(x=>['Resumo por facção','faccoes',x.factionId,
+   x.name,'',x.settlements+' acertos · pago '+x.paidSettlementsCents]),
+  ...report.colorGradeSummary.flatMap(o=>o.byColor.map(c=>
+   ['Grade do pedido','pedidos',o.orderId,c.color,
+    o.ready?'Completa':'Incompleta',
+    api.sizes.map(sz=>sz+': '+c.sizes[sz]).join(' · ')])),
+  ...report.purchaseRequestHistory.map(r=>[
+   'Requisição de compra','compras',r.id,r.materialName,r.status,
+   r.qtyGrams+'g · '+r.estimatedCents+' centavos · compra '+(r.purchaseId||'—')+
+    ' · solicitante '+r.requester+' · aprovador '+(r.approver||'—')]),
+  ...report.bomCutHistory.map(c=>['Corte BOM','corte',c.id,c.orderId,
+   c.color+' '+c.size,c.qty+' peças · '+c.totalGrams+'g · '+
+    c.estimatedCostCents+' centavos · comando '+c.commandId]),
+  ...report.bomCutHistory.flatMap(c=>c.materials.map(m=>[
+   'Consumo e lixo BOM','estoque',c.id,m.materialId,m.ruleId,
+   'Útil '+m.requiredGrams+'g · lixo '+m.scrapGrams+
+    'g · baixa '+m.totalGrams+'g'])),
+  ...report.gradeInventory.map(g=>['Saldo por cor e tamanho','faccoes',g.assignmentId,
+   g.orderId,g.factionName,g.color+' '+g.size+' · enviado '+g.sent+
+    ' · retornado '+g.returned+' · pendente '+g.open+
+    ' · acertos '+g.settlementIds.join(' / ')]),
+  ...report.factionDispatches.map(x=>['Envio para facção','faccoes',x.id,
+   x.orderId,x.factionName,x.productName+' · enviadas '+x.qtySent+
+    ' · retornadas '+x.qtyReturned+' · pendentes '+x.qtyOpen+
+    ' · acertos '+x.settlementIds.join(' / ')]),
+  ...report.factionTransferHistory.map(t=>
+   ['Transferência parcial','faccoes',t.id,t.orderId,t.fromName+' → '+t.toName,
+    t.qty+' peças · origem '+t.fromBefore+' → '+t.fromAfter+
+    ' · destino '+t.toBefore+' → '+t.toAfter+' · '+t.reason+
+    ' · comando '+t.commandId]),
+  ...report.paymentBatchHistory.map(b=>['Fechamento em lote','hub',b.id,
+   b.reference,b.status,b.reason+' · '+b.count+' títulos · '+b.totalCents+' centavos']),
+  ...report.paymentBatchHistory.flatMap(b=>b.items.map(i=>
+   ['Título vinculado ao lote','hub',i.financeId,b.id,i.sourceType,
+    i.sourceId+' · '+i.amountCents+' centavos']))];
+ download('HLGB-LAB-OBSERVABILIDADE-V2-FICTICIA.csv',
+  '\uFEFF'+rows.map(row=>row.map(safeCell).join(';')).join('\r\n'),'text/csv;charset=utf-8');
+ status('Histórico fictício e alertas exportados sem alterações no documento.');
+}
+function renderCutSheet(planId){
+ const plan=(doc.cutPlans||[]).find(p=>p.id===planId);
+ if(!plan)throw Error('Folha não localizada nesta revisão.');
+ const order=doc.orders.find(o=>o.id===plan.orderId);
+ const product=doc.products.find(p=>p.id===order?.productId);
+ const material=doc.materials.find(m=>m.id===plan.materialId);
+ const client=doc.clients.find(c=>c.id===order?.clientId);
+ const grades=api.sizes.map(sz=>'<tr><td>'+escape(sz)+'</td><td>'+plan.grade[sz]+'</td></tr>').join('');
+ const status=plan.status==='concluido'?'Concluído e auditado':
+  plan.status==='cancelado'?'Cancelado — não utilizar':'Aberto — ainda sem baixa';
+ const box=$('cut-print');
+ box.innerHTML='<h1>HLGB Evolução · Folha de Corte FICTÍCIA</h1>'+
+  '<p><strong>Folha:</strong> '+escape(plan.id)+' · <strong>Pedido:</strong> '+escape(plan.orderId)+
+  ' · <strong>Competência de teste:</strong> '+escape(doc.period)+'</p>'+
+  '<p><strong>Cliente:</strong> '+escape(client?.name||'')+' · <strong>Modelo:</strong> '+escape(product?.name||'')+
+  ' · <strong>SKU:</strong> '+escape(product?.sku||'')+'</p>'+
+  '<p><strong>Material:</strong> '+escape(material?.name||'')+
+  ' · <strong>Execução:</strong> '+(plan.workMode==='interno'?'Interna':'Externa')+
+  ' · <strong>Estado:</strong> '+status+'</p>'+
+  '<h2>Grade deste lote</h2><table><thead><tr><th>Tamanho</th><th>Peças</th></tr></thead><tbody>'+grades+
+  '<tr><th>Total de peças</th><th>'+sum(plan.grade)+'</th></tr></tbody></table>'+
+  '<h2>Pesos conferidos</h2><table><tbody><tr><td>Peso útil teórico</td><td>'+plan.theoreticalGrams+' g</td></tr>'+
+  '<tr><td>Peso útil confirmado</td><td>'+(plan.usefulGrams??'Não concluído')+' g</td></tr>'+
+  '<tr><td>Desperdício / lixo</td><td>'+(plan.scrapGrams??'Não concluído')+' g</td></tr>'+
+  '<tr><td>Peso total debitado do estoque</td><td>'+(
+   plan.status==='concluido'?plan.usefulGrams+plan.scrapGrams+' g':'Ainda sem baixa')+
+  '</td></tr></tbody></table>'+
+  '<p><strong>Cortador 1:</strong> '+escape(plan.cutterOne)+'</p>'+
+  '<p><strong>Cortador 2:</strong> '+escape(plan.cutterTwo)+'</p>'+
+  '<p><strong>Enfestador:</strong> '+escape(plan.spreader)+'</p>'+
+  '<div class="signature"><div>Conferência digitada 1: '+escape(plan.signatureOne||'Pendente')+
+  '</div><div>Conferência digitada 2: '+escape(plan.signatureTwo||'Pendente')+'</div></div>'+
+  '<p class="print-note">DOCUMENTO DEMONSTRATIVO — não é ordem de produção válida, assinatura eletrônica legal, ou comprovante de estoque. Não contém dados da empresa.</p>';
+ return box.textContent;
+}
+function suggestServicePrice(form){
+ const service=form.elements.namedItem('serviceType')?.value;
+ const price=form.elements.namedItem('unitCents');
+ if(!price)return;
+ const productId=form.elements.namedItem('productId')?.value;
+ const product=doc.products.find(p=>p.id===productId);
+ if(service==='embalagem'){
+  const n=(product?.name||'').toLocaleLowerCase('pt-BR');
+  price.value=n.includes('calcinha')?'0,15':'0,25';
+ }else{
+  const fac=doc.factions.find(f=>f.id===form.elements.namedItem('factionId')?.value);
+  price.value=nr(fac?.productRates?.[productId]??fac?.unitCents??0);
+ }
+}
+function fillAssignmentRate(form){
+ const row=doc?.factionAssignments?.find(x=>x.id===form.elements.namedItem('assignmentId')?.value);
+ const order=row&&ref(doc.orders,row.orderId),fac=row&&ref(doc.factions,row.factionId),
+  product=order&&ref(doc.products,order.productId);
+ if(!row||!fac||!product)return;
+ const rate=window.HLGBLabFactionRoutingV1.resolveRate(row,fac,product);
+ form.elements.namedItem('unitCents').value=nr(rate.gross);
+ form.elements.namedItem('travetaCents').value=nr(rate.traveta);
+ const preview=$('assignment-rate-preview');
+ if(preview)preview.textContent=(row.qtySent-row.qtyReturned)+' peças pendentes · tarifa líquida atual '+fmt(rate.unit)+' por peça.';
+}
+function fillSettlementRevision(form){
+ const x=doc?.settlements.find(a=>a.id===form.elements.namedItem('id')?.value);
+ if(!x)return;
+ form.elements.namedItem('factionId').value=x.factionId;
+ form.elements.namedItem('unitCents').value=nr(x.listUnitCents??x.unitCents);
+ form.elements.namedItem('travetaCents').value=nr(x.travetaCents||0);
+ const only=x.kind!=='avulso'||!!x.orderId||!!x.assignmentId||!!x.gradeTracked;
+ for(const option of form.elements.namedItem('factionId').options)
+  option.disabled=only&&option.value!==x.factionId;
+ previewSettlementRevision(form);
+}
+function previewSettlementRevision(form){
+ const el=$('settlement-revise-preview'),x=doc?.settlements.find(a=>a.id===form.elements.namedItem('id')?.value);
+ if(!el||!x)return;
+ try{
+  const gross=parseCents(form.elements.namedItem('unitCents').value),
+   discount=parseCents(form.elements.namedItem('travetaCents').value),
+   total=x.qty*(gross-discount)+(x.adjustmentCents||0);
+  el.textContent=gross>discount&&total>0?
+   x.qty+' peças · total atual '+fmt(x.amountCents)+' → novo total '+fmt(total)+' · mantém ajuste de '+fmt(x.adjustmentCents||0):
+   'Informe valores válidos: o líquido e o total precisam ser positivos.';
+ }catch(_){el.textContent='Informe preço e desconto válidos.'}
+}
+function applySettlementFilters(){
+ if(active!=='acertos'||!doc||!$('settlement-filters'))return;
+ const f=settlementFilters;
+ const normal=v=>String(v??'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLocaleLowerCase('pt-BR');
+ const text=normal(f.query.trim());
+ $('settlement-search').value=f.query;
+ for(const [id,key] of [['settlement-status','status'],['settlement-faction','faction'],
+   ['settlement-service','service'],['settlement-compensation','compensation']]){
+  const el=$(id);
+  if(el&&[...el.options].some(o=>o.value===f[key]))el.value=f[key];
+ }
+ const matchesBase=x=>(f.status==='todos'||x.status===f.status)&&
+  (f.faction==='todas'||x.factionId===f.faction)&&
+  (f.service==='todos'||(x.serviceType||'costura')===f.service);
+ const settlementText=x=>{
+  const parts=[x.id,x.orderId,x.serviceType,x.status,x.reason,
+   ref(doc.factions,x.factionId)?.name,ref(doc.products,x.productId)?.name,
+   ref(doc.products,ref(doc.orders,x.orderId)?.productId)?.name,
+   ...(x.history||[]).flatMap(h=>[h.reason,h.commandId]),
+   ...(x.rateHistory||[]).flatMap(h=>[h.reason,h.commandId,h.fromFactionName,h.toFactionName,h.financeId]),
+   ...(x.returns||[]).flatMap(h=>[h.reason,h.commandId]),
+    ...window.HLGBLabPaymentBatchV1.receiptMetadata(doc).filter(r=>r.financeIds.includes(doc.finance.find(f=>f.sourceId===x.id&&f.kind==='pagar')?.id)).flatMap(r=>[r.id,r.fileName,r.targetId,r.reason])];
+  return normal(parts.join(' '));
+ };
+ const compensationText=c=>normal([c.id,c.settlementId,c.reference,c.reason,c.kind,c.status,
+  doc.finance.find(x=>x.sourceId===c.id)?.id,
+  ref(doc.factions,c.factionId)?.name].join(' '));
+ const comps=doc.settlementCompensations||[];
+ const settlements=doc.settlements||[];
+ const matchSettlement=x=>matchesBase(x)&&(!text||settlementText(x).includes(text)||
+  comps.some(c=>c.settlementId===x.id&&compensationText(c).includes(text)));
+ const visibleSet=settlements.map(matchSettlement);
+ const visibleComp=comps.map(c=>{
+  const original=settlements.find(x=>x.id===c.settlementId);
+  return !!original&&matchesBase(original)&&
+   (f.compensation==='todos'||c.status===f.compensation)&&
+   (!text||compensationText(c).includes(text)||settlementText(original).includes(text));
+ });
+ for(const [id,flags] of [['settlement-table',visibleSet],['settlement-compensation-table',visibleComp]]){
+  const rows=$(id)?.querySelectorAll('tbody tr')||[];
+  rows.forEach((row,i)=>{row.hidden=!flags[i]});
+ }
+ const shown=settlements.filter((_,i)=>visibleSet[i]);
+ const shownComp=comps.filter((_,i)=>visibleComp[i]);
+ const settlementValue=shown.reduce((total,x)=>total+x.amountCents,0);
+ const compValue=shownComp.reduce((total,x)=>total+x.deltaCents,0);
+ $('settlement-query-summary').textContent=shown.length+' de '+settlements.length+
+  ' acertos · total '+fmt(settlementValue)+' · '+shownComp.length+' de '+comps.length+
+  ' compensações · diferença líquida '+(compValue>0?'+':compValue<0?'−':'')+fmt(Math.abs(compValue))+
+  ' (valores fictícios; filtro local, sem alterar lançamentos)';
+}
+document.addEventListener('input',event=>{
+ if(event.target.id==='global-search-query'){searchState.page=1;searchState.selected=null;renderGlobalSearch();renderGlobalDetail();return;}
+ if(event.target.id==='settlement-search'){
+  settlementFilters.query=event.target.value;applySettlementFilters();return;
+ }
+ const filter=event.target.closest('input[data-filter-for]');
+ if(!filter)return;
+ const target=$(filter.dataset.filterFor);
+ if(!target)return;
+ const term=filter.value.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLocaleLowerCase('pt-BR');
+ for(const row of target.querySelectorAll('tbody tr')){
+  const text=row.textContent.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLocaleLowerCase('pt-BR');
+  row.hidden=!text.includes(term);
+ }
+});
+function renderCompensationSheet(compId){
+ const comp=(doc.settlementCompensations||[]).find(x=>x.id===compId);
+ if(!comp)throw Error('Compensação não encontrada no documento fictício.');
+ const original=doc.settlements.find(x=>x.id===comp.settlementId);
+ const originalTitle=doc.finance.find(x=>x.id===comp.originalFinanceId);
+ const newTitle=doc.finance.find(x=>x.sourceId===comp.id);
+ const faction=doc.factions.find(x=>x.id===comp.factionId);
+ if(!original||!originalTitle||!newTitle)throw Error('Vínculos da compensação incompletos.');
+ const html='<h1>HLGB Evolução · Conferência de Compensação FICTÍCIA</h1>'+
+  '<p><strong>Competência de teste:</strong> '+escape(doc.period)+
+  ' · <strong>Revisão local:</strong> '+doc.revision+'</p>'+
+  '<p><strong>Facção:</strong> '+escape(faction?.name||'—')+
+  ' · <strong>Acerto original:</strong> '+escape(original.id)+'</p>'+
+  '<h2>Pagamento original preservado</h2>'+
+  '<table><thead><tr><th>Acerto</th><th>Título original</th><th>Valor</th><th>Status</th></tr></thead>'+
+  '<tbody><tr><td>'+escape(original.id)+'</td><td>'+escape(originalTitle.id)+'</td>'+
+  '<td>'+fmt(original.amountCents)+'</td><td>'+escape(originalTitle.status)+'</td></tr></tbody></table>'+
+  '<h2>Correção criada como novo lançamento</h2>'+
+  '<table><tbody>'+
+  '<tr><th>Compensação</th><td>'+escape(comp.id)+'</td></tr>'+
+  '<tr><th>Referência única</th><td>'+escape(comp.reference)+'</td></tr>'+
+  '<tr><th>Justificativa</th><td>'+escape(comp.reason)+'</td></tr>'+
+  '<tr><th>Diferença</th><td>'+(comp.deltaCents>0?'+':'−')+fmt(Math.abs(comp.deltaCents))+'</td></tr>'+
+  '<tr><th>Novo título</th><td>'+escape(newTitle.id)+' · '+escape(newTitle.kind)+
+  ' · '+fmt(newTitle.amountCents)+'</td></tr>'+
+  '<tr><th>Situação</th><td>'+escape(newTitle.status)+'</td></tr>'+
+  '<tr><th>Comando registrado</th><td>'+escape(comp.commandId)+'</td></tr></tbody></table>'+
+  '<p class="print-note">DOCUMENTO DE TESTE — dados inventados. Não é comprovante de pagamento bancário, assinatura legal, documento fiscal ou prova de conciliação com a empresa. A impressão ou PDF não envia arquivos ao servidor.</p>';
+ $('cut-print').innerHTML=html;
+ return $('cut-print').textContent;
+}
+document.addEventListener('change',event=>{
+ if(event.target.matches('#finance-batch-form [name="financeIds"]')){
+  updateBatchPreview();return;
+ }
+ if(event.target.id==='journey-order'){
+  journeyOrderId=event.target.value;draw();return;
+ }
+ if(event.target.matches('[data-settlement-filter]')){
+  settlementFilters[event.target.dataset.settlementFilter]=event.target.value;
+  applySettlementFilters();return;
+ }
+ const form=event.target.closest('form[data-command]');
+ if(!form)return;
+ const type=form.dataset.command;
+ const selected=event.target.name;
+ if(type==='settlement.add'&&['serviceType','productId','factionId'].includes(selected))suggestServicePrice(form);
+ if(type==='finance.receipt.attach'&&selected==='targetId')updateReceiptTarget(form);
+ if(type==='settlement.revise'&&selected==='id')fillSettlementRevision(form);
+ if(type==='faction.assignment.rate.set'&&selected==='assignmentId')fillAssignmentRate(form);
+ if(type==='settlement.revise'&&['unitCents','travetaCents','factionId'].includes(selected))previewSettlementRevision(form);
+ if(type==='order.grade.update'&&selected==='orderId'){
+  const order=doc.orders.find(o=>o.id===event.target.value);if(!order)return;
+  for(const sz of api.sizes)form.elements.namedItem(sz).value=order.grade[sz];
+ }
+ if(type==='cut.plan.update'&&selected==='id'){
+  const plan=(doc.cutPlans||[]).find(p=>p.id===event.target.value);if(!plan)return;
+  for(const sz of api.sizes)form.elements.namedItem(sz).value=plan.grade[sz];
+  for(const key of ['workMode','cutterOne','cutterTwo','spreader'])
+   form.elements.namedItem(key).value=plan[key];
+ }
+ if(type==='cut.plan.complete'&&selected==='id'){
+  const plan=(doc.cutPlans||[]).find(p=>p.id===event.target.value);if(!plan)return;
+  form.elements.namedItem('usefulGrams').value=plan.theoreticalGrams;
+  form.elements.namedItem('scrapGrams').value=0;
+  form.elements.namedItem('signatureOne').value='';
+  form.elements.namedItem('signatureTwo').value='';
+ }
+});
+document.addEventListener('click',e=>{
+ const searchOpen=e.target.closest('[data-search-open]');if(searchOpen){openGlobalResult(Number(searchOpen.dataset.searchOpen));return}
+ const searchPage=e.target.closest('[data-search-page]');if(searchPage){searchState.page+=Number(searchPage.dataset.searchPage);renderGlobalSearch();return}
+ if(e.target.closest('#global-search-close')){searchState.selected=null;renderGlobalDetail();$('module-content').querySelectorAll('.search-hit').forEach(x=>x.classList.remove('search-hit'));return}
+
+ const receiptButton=e.target.closest('[data-receipt-download]');
+ if(receiptButton){
+  try{
+   const r=(doc?.paymentReceipts||[]).find(x=>x.id===receiptButton.dataset.receiptDownload);
+   if(!r)throw Error('Comprovante não encontrado na cópia local.');
+   const service=window.HLGBLabPaymentBatchV1,file=service.decodePdf(r.contentBase64);
+   if(file.size!==r.size||file.checksum!==r.checksum)throw Error('Arquivo divergente; não baixar.');
+   download(r.id+'-FICTICIO-'+r.fileName,file.bytes,'application/pdf');
+   status('Download local solicitado · '+r.id+' · versão '+r.version+'.');
+  }catch(error){status(error.message,'error')}
+  return;
+ }
+ if(e.target.closest('#preview-bom-cut')){
+  const form=document.querySelector('form[data-command="cut.bom.execute"]');
+  try{
+   if(!form)throw Error('Formulário de Corte BOM indisponível.');
+   const payload=parseData('cut.bom.execute',form);
+   const pre=window.HLGBLabBomCutV1?.preview(doc,payload,window.HLGBLabMaterialsPlannerV1);
+   if(!pre)throw Error('Simulador BOM indisponível.');
+   status((pre.canExecute?'Prévia validada: ':'Falta estoque: ')+
+    pre.qty+' peça(s) '+pre.color+' '+pre.size+' · '+
+    pre.materials.map(x=>x.materialName+' '+x.totalGrams+
+     'g (após '+x.afterGrams+'g)').join(' · ')+
+    '. Nenhuma baixa executada.',pre.canExecute?'success':'error');
+  }catch(error){status(error.message,'error')}
+  return;
+ }
+ if(e.target.closest('#export-shopping-csv')){exportShoppingCsv();return}
+ if(e.target.closest('#preview-finance-batch')){
+  const form=$('finance-batch-form');
+  try{
+   const payload=parseData('finance.batch.pay',form),fn=window.HLGBLabPaymentBatchV1?.preview;
+   if(typeof fn!=='function')throw Error('Validador de lote indisponível.');
+   const result=fn(doc,payload);
+   status('Prévia validada: '+result.count+' título(s), '+fmt(result.totalCents)+
+    ', referência '+result.reference+'. Nenhuma baixa executada.');
+  }catch(error){status(error.message,'error')}
+  return;
+ }
+ if(e.target.closest('[data-preview-faction]')){
+  const form=e.target.closest('form[data-command="finance.faction.close"]');
+  try{
+   if(!form)throw Error('Formulário de fechamento da facção indisponível.');
+   const input=parseData('finance.faction.close',form);
+   const result=window.HLGBLabPaymentBatchV1.previewFaction(doc,input);
+   status('Prévia de '+result.factionName+': '+result.count+' título(s), '+fmt(result.totalCents)+
+    '. Referência '+result.reference+'. Nenhum pagamento lançado.');
+  }catch(error){status(error.message,'error')}
+  return;
+ }
+ if(e.target.closest('#export-observer-csv')){exportObserverCsv();return}
+ if(e.target.closest('[data-toggle-observer]')){
+  const registry=window.HLGBLabModules;
+  const observer=registry?.list().find(x=>x.id==='observabilidade');
+  if(observer){registry.setEnabled('observabilidade',!observer.enabled);draw();
+   status('Módulo Observabilidade 2.0 '+(!observer.enabled?'ativado':'desativado')+
+    ' somente nesta aba. Funções anteriores continuam disponíveis.');}
+  else status('Módulo opcional indisponível. Sistema legado preservado.','error');
+  return;
+ }
+ if(e.target.closest('#settlement-clear-filters')){
+  Object.assign(settlementFilters,{query:'',status:'todos',faction:'todas',service:'todos',compensation:'todos'});
+  applySettlementFilters();return;
+ }
+ const comp=e.target.closest('button[data-print-comp]');
+ if(comp){try{renderCompensationSheet(comp.dataset.printComp);window.print()}catch(error){status(error.message,'error')}return}
+ const print=e.target.closest('button[data-print-plan]');
+ if(print){try{renderCutSheet(print.dataset.printPlan);window.print()}catch(error){status(error.message,'error')}return}
+ const mod=e.target.closest('button[data-module]');
+ if(mod){searchState.selected=null;active=mod.dataset.module;window.location.hash=active;draw();window.scrollTo(0,0);return}
+ const goto=e.target.closest('button[data-goto]');
+ if(goto){searchState.selected=null;active=goto.dataset.goto;window.location.hash=active;draw();window.scrollTo(0,0)}
+});
+document.addEventListener('submit',e=>{
+ const form=e.target.closest('form[data-command]');if(!form)return;
+ e.preventDefault();submit(form,form.dataset.command);
+});
+window.addEventListener('hashchange',()=>{
+ const next=window.location.hash.slice(1);
+ if(ids.has(next)&&doc&&next!==active){searchState.selected=null;active=next;draw()}
+});
+$('global-search-module').addEventListener('change',()=>{searchState.page=1;searchState.selected=null;renderGlobalSearch();renderGlobalDetail()});
+$('export-json').addEventListener('click',exportReport);
+$('export-csv').addEventListener('click',exportCsv);
+$('refresh').addEventListener('click',reload);
+$('reset').addEventListener('click',reset);
+(async()=>{
+ try{
+  db=await openDB();
+  await transact(()=>null);
+  doc=await read();
+  if(!doc)throw Error('Não foi possível iniciar a base fictícia.');
+  if(!api.inspect(doc).ok)throw Error('Documento inicial inconsistente.');
+  draw();status('Prévia iniciada. Faça suas operações com dados fictícios e confira as revisões.','success');
+ }catch(err){
+  status('Não foi possível abrir o armazenamento de teste neste navegador: '+err.message+
+   '. Experimente pelo Chrome ou por uma URL HTTPS. Nenhum dado real foi acessado.','error');
+ }
+})();
+})();
+,'money','100,00'),field('category','Categoria','select','',window.HLGBLabFinanceV1.categories.map(x=>[x,x])), '<div class="field"><label>Vencimento (opcional)<input class="input" type="date" name="dueDate"></label></div>'],'Cadastrar título')+
+ form('finance.pay','Confirmar lançamento',[field('id','Título aberto','select','',finance)],'Marcar como quitado ficticiamente')+
+ '<p class="caption">Esta ação não movimenta dinheiro. Confirme apenas valores fictícios.</p>')+
+ financialBatchPanel(s)+receiptPanel(s)+
+ panel('Conferência financeira','<p>Pedidos geram contas a receber; retornos, acertos a pagar. Compensações de acertos pagos criam títulos separados a pagar ou receber, sem alterar o pagamento original. Nenhuma operação movimenta dinheiro real.</p>')+
+ panel('Contas do laboratório',financeTable(s),true);
+ case 'folha':return panel('Editar salário e passagem por pessoa',
+ form('payroll.update','Alterar registro da folha',[field('id','Funcionário','select','',employees),
+ field('salaryCents','Salário-base R$','money','2000,00'),
+ field('passageCents','Passagem R$','money','120,00'),
+ field('extrasCents','Extras R$','money','0,00'),
+ field('discountCents','Descontos R$','money','0,00')],'Salvar valores individuais'))+
+ panel('Não é cálculo trabalhista','<p>A passagem entra no desembolso separado do salário. Não calcula encargos, FGTS, INSS ou rescisão real. A Folha 2.0 separada possui testes adicionais de ordenação e conflitos.</p>'+
+ '<a href="./folha-homologacao.html" class="btn link">Abrir Folha 2.0 detalhada</a>')+
+ panel('Saldos da folha fictícia',table(['Funcionário','Base','Passagem','Extras','Descontos','Desembolso'],s.employees.map(e=>[
+ str(e.name),fmt(e.salaryCents),fmt(e.passageCents),fmt(e.extrasCents),fmt(e.discountCents),
+ fmt(e.salaryCents+e.extrasCents-e.discountCents+e.passageCents)])),true);
+ case 'compras':{
+ const devolucoes=(s.purchaseReturns||[]),elegiveis=s.purchaseOrders.filter(x=>
+  x.received&&!x.cancelled&&!x.returnId&&x.purchaseRequestId&&
+  s.purchaseRequests.some(r=>r.id===x.purchaseRequestId&&r.status==='recebida')&&
+  s.finance.some(f=>f.sourceId===x.id&&f.kind==='pagar'&&f.status==='aberto')&&
+  s.materials.some(m=>m.id===x.materialId&&m.stockGrams>=x.qtyGrams));
+ return materialsPlanningPanels(s)+requestPanels(s)+panel('Compra com dupla conferência',
+ form('purchase.add','Planejar compra',[field('supplierId','Fornecedor','select','',suppliers),
+ field('materialId','Material','select','',materials),
+ field('qtyGrams','Quantidade (g)','int','3000'),
+ field('checkerOne','Conferente 1','text','Aline Teste'),
+ field('checkerTwo','Conferente 2','text','Beto Exemplo')],'Registrar compra')+
+ form('purchase.receive','Receber compra',[field('id','Compra pendente','select','',purchases)],'Conferir e dar entrada no estoque'))+
+ panel('Controle de compras','<p>O recebimento atualiza o estoque e cria uma única conta a pagar. Não é possível receber duas vezes o mesmo pedido de compras. Compras avulsas antigas continuam disponíveis e não são transformadas em requisições sem autorização.</p>')+
+ panel('Devolução integral após recebimento — fluxo formal de teste',
+  '<p>Uma compra recebida não pode ser simplesmente cancelada. Nesta prévia, a devolução integral exige estoque disponível, documento original e título a pagar aberto. Ela cria uma saída separada de estoque e um crédito a receber do fornecedor, sem apagar a entrada e o título originais. Devolução parcial e compras já pagas continuam bloqueadas.</p>'+
+  form('purchase.return.full','Registrar devolução total de uma compra recebida',[
+   field('id','Compra recebida e apta à devolução','select','',selector(elegiveis,x=>
+    x.id+' · '+str(ref(s.materials,x.materialId)?.name||x.materialId)+
+    ' · '+x.qtyGrams+'g · '+fmt(Math.ceil(x.qtyGrams*x.priceCentsKg/1000)))),
+   field('reference','Referência única do protocolo','text','DEV-EXEMPLO-001'),
+   field('returnedBy','Responsável fictício pela devolução','text','Almoxarife Exemplo'),
+   field('reviewedBy','Conferente independente','text','Supervisora Exemplo'),
+   field('reason','Justificativa documentada','text','Material recebido com divergência na inspeção fictícia')
+  ],'Registrar devolução com novo crédito')+
+  '<p class="caption">Não libera movimentação bancária, Nota Fiscal, aprovação autenticada ou devolução física real. Se o estoque já foi consumido, a operação é recusada sem nenhum estorno.</p>',true)+
+ panel('Histórico de devoluções e créditos fictícios',
+  table(['Devolução','Compra original','Material','Quantidade devolvida','Crédito','Referência','Conferência','Situação'],
+   devolucoes.map(x=>[
+    str(x.id),str(x.purchaseId),str(ref(s.materials,x.materialId)?.name||x.materialId),
+    str(x.qtyGrams)+' g',fmt(x.amountCents),str(x.reference),
+    str(x.returnedBy)+' / '+str(x.reviewedBy),str(x.status)+' · '+str(x.creditFinanceId)
+   ]))+
+  '<p class="caption">Os movimentos de estoque, a conta original e o crédito de devolução continuam nos relatórios e no JSON de evidências.</p>',true)+
+ panel('Compras do laboratório',table(['Compra','Fornecedor','Material','Quantidade','Conferentes','Status'],s.purchaseOrders.map(x=>[
+ str(x.id),str(ref(s.suppliers,x.supplierId)?.name),str(ref(s.materials,x.materialId)?.name),
+ str(x.qtyGrams)+'g',str(x.checkerOne)+' / '+str(x.checkerTwo),
+  (x.cancelled?'Cancelada':x.returnId?'Devolvida integralmente':x.received?'Recebida':'Pendente')+
+  (x.purchaseRequestId?' · '+str(x.purchaseRequestId):'') ])),true);
+ }
+ case 'estoque':return panel('Ajuste controlado de materiais',
+ form('stock.adjust','Ajustar saldo',[field('materialId','Material','select','',materials),
+ field('deltaGrams','Entrada/saída em gramas (ex.: -500)','signed-int','500'),
+ field('note','Justificativa','text','Conferência fictícia')],'Registrar ajuste')+
+ '<p>Bloqueia saldo negativo. O ajuste exige justificativa e ID de evento.</p>')+
+ panel('Saldos disponíveis',table(['Material','Saldo (g)','Custo/kg'],s.materials.map(x=>[
+ str(x.name),str(x.stockGrams),fmt(x.priceCentsKg)])))+
+ panel('Movimentação de material',table(['ID','Tipo','Material','Variação','Origem'],s.stockLedger.map(x=>[
+ str(x.id),str(x.type),str(ref(s.materials,x.materialId)?.name),(x.deltaGrams>0?'+':'')+x.deltaGrams+'g',str(x.sourceId)])),true);
+ case 'relatorios':{
+ const planning=materialPlannerResult(s);
+ const planPanel=planning&&!planning.error?panel('Planejamento teórico de compras por material',
+  '<p>'+str(planning.pieces)+' peça(s) simuladas, '+fmt(planning.missingCostCents)+
+  ' de falta estimada, sem compras ou baixas automáticas.</p>'+
+  table(['Material','Previsto (g)','Faltante (g)','Valor da compra sugerida'],
+   planning.materials.map(m=>[str(m.name),str(m.requiredGrams),str(m.missingGrams),
+    fmt(m.purchaseCents)])),true):'';
+ const requestReport=panel('Histórico de requisições, aprovações e compras vinculadas',
+  '<p>Solicitações locais fictícias. A aprovação exige um nome diferente do solicitante; não representa login nem permissão empresarial.</p>'+
+  table(['Requisição','Material','Falta na criação (g)','Valor estimado',
+   'Solicitante','Aprovador','Status','Compra vinculada'],
+   (s.purchaseRequests||[]).map(r=>[
+    str(r.id),str(ref(s.materials,r.materialId)?.name||r.materialId),
+    str(r.qtyGrams),fmt(r.estimatedCents),str(r.requester),
+    str(r.approver||'—'),str(r.status),str(r.purchaseId||'—')])),true);
+ const returnsReport=panel('Devoluções formais de compras recebidas',
+  table(['Documento','Compra','Fornecedor','Material','Devolvido','Crédito a receber','Protocolo','Motivo'],
+   (s.purchaseReturns||[]).map(x=>[
+    str(x.id),str(x.purchaseId),str(ref(s.suppliers,x.supplierId)?.name||x.supplierId),
+    str(ref(s.materials,x.materialId)?.name||x.materialId),
+    str(x.qtyGrams)+' g',fmt(x.amountCents),str(x.reference),str(x.reason)
+   ])),true);
+ const advanced=observationPanels(s,'relatorios');if(advanced)return advanced+planPanel+requestReport+returnsReport;
+ const t=api.totals(s);
+ return panel('Indicadores vinculados',table(['Indicador','Valor'],Object.entries(t).map(([k,v])=>[
+ str(k),k.includes('Payables')||k.includes('Receivables')||k==='passage'||k==='salaryCash'?fmt(v):str(v)])))+
+ panel('Como auditar o relatório','<p>Compare pedidos, corte, retorno, expedição e Hub. Exporte o JSON e confira que cada evento tem ID e revisão.</p>'+
+ '<div class="actions"><button class="btn" type="button" data-goto="auditor">Executar integridade</button></div>')+
+ panel('Pedidos × Financeiro',orderTable(s)+financeTable(s),true)+requestReport+returnsReport;
+ }
+ case 'auditor':{
+ const advanced=observationPanels(s,'auditor');if(advanced)return advanced;
+ const check=api.inspect(s),issues=check.problems;
+ return panel('Diagnóstico determinístico',
+ (check.ok?'<div class="success">Sem inconsistências nas regras simuladas.</div>':
+ '<div class="error">Inconsistências detectadas: '+escape(issues.join('; '))+'</div>')+
+ table(['Verificação','Estado'],[['Quantidade cortada ≤ pedida',check.ok?'Conforme':'Verificar'],
+ ['Estoque nunca negativo',s.materials.every(x=>x.stockGrams>=0)?'Conforme':'Falha'],
+ ['IDs dos eventos únicos',new Set(s.log.map(x=>x.commandId)).size===s.log.length?'Conforme':'Falha'],
+ ['Provas de duas sessões empresariais','Não realizadas']]))+
+ panel('Limites do auditor','<p>O diagnóstico não aplica autocorreção. Sem banco empresarial, não há prova de saúde do sistema atual, monitoramento remoto ou aprendizagem automática.</p>');
+ }
+ case 'bot':{
+ const advanced=observationPanels(s,'bot');if(advanced)return advanced;
+ return panel('Recomendações baseadas em regras fixas',
+ '<p>O assistente apenas lê indicadores locais para sugerir o próximo passo. Não usa IA treinada, não aprende, não faz ações sozinho.</p>'+
+ '<ol class="tips">'+api.tips(s).map(x=>'<li>'+escape(x)+'</li>').join('')+'</ol>')+
+ panel('Ações rápidas','<div class="actions"><button class="btn" data-goto="pedidos">Pedidos</button>'+
+ '<button class="btn" data-goto="faccoes">Facções</button><button class="btn" data-goto="hub">Hub</button></div>');}
+ case 'central':return panel('Registrar e acompanhar ocorrência',
+ form('error.add','Nova falha fictícia',[field('message','Descrição do problema')],'Registrar ocorrência')+
+ form('error.resolve','Encerrar ocorrência fictícia',[field('id','Ocorrência em aberto','select','',incidents)],'Encerrar ocorrência'))+
+ panel('Saúde do laboratório','<p>O monitor avalia apenas este estado local. Não consulta GitHub Actions, logs de produção ou integrações externas.</p>')+
+ panel('Ocorrências',table(['ID','Descrição','Estado'],s.errors.map(x=>[
+ str(x.id),str(x.message),str(x.status)])),true);
+ case 'impressora3d':return panel('Catálogo 3D fictício',
+ form('print.add','Novo item de impressão 3D',[field('name','Produto 3D'),
+ field('grams','Filamento por unidade (g)','int','35'),field('priceCents','Preço (R$)','money','12,90'),
+ field('stock','Estoque de peças','int','3')],'Cadastrar item 3D'))+
+ panel('Estoque 3D fictício',table(['Item','Gramas/unidade','Valor','Estoque'],s.prints.map(x=>[
+ str(x.name),str(x.grams)+'g',fmt(x.priceCents),str(x.stock)])),true);
+ case 'cadastros':return panel('Clientes e fornecedores',
+ form('client.add','Novo cliente fictício',[field('name','Nome do cliente')],'Cadastrar cliente')+
+ form('supplier.add','Novo fornecedor fictício',[field('name','Nome do fornecedor')],'Cadastrar fornecedor')+
+ form('material.add','Novo material fictício',[field('name','Nome do material'),
+ field('priceCentsKg','Custo por kg (R$)','money','28,00')],'Cadastrar material'))+
+ panel('Cadastros ativos',table(['Tipo','ID','Descrição'],[
+ ...s.clients.map(x=>['Cliente',str(x.id),str(x.name)]),
+ ...s.suppliers.map(x=>['Fornecedor',str(x.id),str(x.name)]),
+ ...s.materials.map(x=>['Material',str(x.id),str(x.name)]),
+ ...s.factions.map(x=>['Facção',str(x.id),str(x.name)])]),true);
+ default:return panel('Área de demonstração ainda não selecionada',blank);
+ }
+}
+const searchState={page:1,selected:null,snapshot:null,index:[],results:[]};
+function renderGlobalSearch(){
+ const service=window.HLGBLabGlobalSearchV1,host=$('global-search-results'),input=$('global-search-query'),filter=$('global-search-module');
+ if(!host||!input||!filter||!doc)return;
+ if(!service){host.textContent='Pesquisa global temporariamente indisponível. Os módulos continuam acessíveis.';return}
+ try{
+  if(searchState.snapshot!==doc){searchState.index=service.build(doc);searchState.snapshot=doc}
+  if(filter.options.length===1)for(const [id,label] of Object.entries(service.labels))filter.add(new Option(label,id));
+  if(!input.value.trim()){host.innerHTML='<p class="caption">Digite um termo ou código para localizar registros, inclusive finalizados.</p>';searchState.results=[];return}
+  const r=service.search(searchState.index,input.value,{module:filter.value,page:searchState.page,limit:15});
+  if(r.page>Math.max(1,Math.ceil(r.total/r.limit))){searchState.page=1;renderGlobalSearch();return}
+  searchState.results=r.items;
+  host.innerHTML='<p class="caption" id="global-search-count">'+r.total+' resultado(s) · somente leitura · revisão '+doc.revision+'</p>'+
+  (r.items.length?r.items.map((x,i)=>'<div class="search-result"><div><strong>'+str(x.title)+'</strong>'+
+    '<p>'+str(x.id)+' · '+str(service.labels[x.module])+' · '+str(x.status)+'</p><p>'+str(x.detail)+'</p></div>'+
+    '<button class="btn" type="button" data-search-open="'+i+'">Localizar registro</button></div>').join(''):'<p>Nenhum registro encontrado nesta área.</p>')+
+  (r.total>r.limit?'<div class="actions"><button type="button" class="btn" data-search-page="-1" '+(r.page===1?'disabled':'')+'>Anterior</button><span>Página '+r.page+' de '+Math.ceil(r.total/r.limit)+'</span><button type="button" class="btn" data-search-page="1" '+(r.page*r.limit>=r.total?'disabled':'')+'>Próxima</button></div>':'');
+ }catch(e){host.textContent='Não foi possível consultar a busca. Os módulos originais continuam disponíveis.'}
+}
+function openGlobalResult(index){
+ const result=searchState.results[index];
+ if(!result||!ids.has(result.module)||busy)return;
+ searchState.selected=result.key;
+ if(result.orderId)journeyOrderId=result.orderId;
+ active=result.module;window.location.hash=active;
+ if(active==='acertos'){Object.assign(settlementFilters,{query:result.type==='acerto'?result.id:'',status:'todos',faction:'todas',service:'todos',compensation:'todos'})}
+ draw();renderGlobalDetail();
+}
+function renderGlobalDetail(){
+ const el=$('global-search-detail');if(!el)return;
+ const row=searchState.index.find(x=>x.key===searchState.selected);
+ if(!row){el.hidden=true;el.innerHTML='';return}
+ el.hidden=false;el.className='search-detail';
+ el.innerHTML='<h3>'+str(row.title)+' · '+str(row.id)+'</h3><p>'+str(row.status)+' · '+str(row.detail)+'</p>'+
+  (row.orderId?'<p>Pedido vinculado: '+str(row.orderId)+'</p>':'')+
+  '<p class="caption">Área aberta: '+str(window.HLGBLabGlobalSearchV1.labels[row.module])+'. Nenhum lançamento alterado.</p>'+
+  '<button type="button" class="btn" id="global-search-close">Fechar localização</button>';
+ // Destacar somente célula que contenha o ID exato; não selecionar formulários nem gravar.
+ const candidates=[...$('module-content').querySelectorAll('tbody tr')];
+ const target=candidates.find(tr=>[...tr.querySelectorAll('td')].some(td=>td.textContent.trim().split(/\s+|·/)[0]===row.id)&&!tr.hidden);
+ if(target){target.classList.add('search-hit');target.scrollIntoView({block:'nearest'});}
+}
+function drawNav(){
+ const host=$('module-nav');host.replaceChildren();
+ modules.forEach((m,i)=>{
+  const b=document.createElement('button');b.type='button';b.dataset.module=m[0];b.setAttribute('aria-current',active===m[0]?'page':'false');
+  const num=document.createElement('span');num.className='n';num.textContent=String(i+1).padStart(2,'0');
+  b.append(num,document.createTextNode(m[1]));host.append(b);
+ });
+}
+function draw(){
+ if(!doc)return;
+ const mod=modules[ids.get(active)];$('module-title').textContent=mod[1];$('module-description').textContent=mod[2];
+ $('top-revision').textContent='Revisão local '+doc.revision+' · '+doc.log.length+' evento(s) · Sem banco de produção';
+ const t=api.totals(doc),metrics=[
+ ['Pedidos fictícios',String(t.orders)],['Peças pedidas',String(t.pieces)],['Peças cortadas',String(t.cut)],
+ ['Títulos a pagar abertos',fmt(t.openPayables)]];
+ $('global-metrics').innerHTML=metrics.map(([label,value])=>'<div class="metric"><span>'+escape(label)+'</span><strong>'+escape(value)+'</strong></div>').join('');
+ $('module-content').innerHTML=moduleHtml(doc);
+ if(active==='acertos'){applySettlementFilters();const f=document.querySelector('form[data-command="settlement.revise"]');if(f)fillSettlementRevision(f);}
+ if(active==='faccoes'){const f=document.querySelector('form[data-command="faction.assignment.rate.set"]');if(f)fillAssignmentRate(f);}
+ if(active==='hub'){const f=document.querySelector('form[data-command="finance.receipt.attach"]');if(f)updateReceiptTarget(f);}
+ $('audit-trail').innerHTML=doc.log.length?doc.log.slice().reverse().slice(0,28).map(e=>
+ '<div class="log-item"><strong>'+escape(e.type)+' · '+escape(e.commandId)+'</strong>'+
+ 'Revisão '+e.revision+' · '+escape(e.description)+'</div>').join(''):
+ '<div class="empty">Sem operações na demonstração. Cadastre um pedido para iniciar.</div>';
+ drawNav();renderGlobalSearch();renderGlobalDetail();
+}
+function parseCents(value,signed=false){
+ let raw=String(value).trim();
+ if(signed&&raw.startsWith('-'))return -parseCents(raw.slice(1),false);
+ if(signed&&raw.startsWith('+'))raw=raw.slice(1);
+ if(!/^(?:0|[1-9]\d*|[1-9]\d{0,2}(?:\.\d{3})+)(?:,\d{1,2})?$/.test(raw))
+  throw Error('Informe reais com até duas casas decimais, ex.: 2.000,00.');
+ const parts=raw.split(',');
+ const val=Number(parts[0].replace(/\./g,''))*100+Number((parts[1]||'').padEnd(2,'0'));
+ if(!Number.isSafeInteger(val))throw Error('Valor monetário inválido.');
+ return val;
+}
+const NUM=['qty','gramsPerUnit','qtyGrams','grams','stock','P','M','G','GG','usefulGrams','scrapGrams'];
+const SIGNED=['deltaGrams'];
+const PRICES=['priceCents','unitCents','travetaCents','priceCentsKg','amountCents','salaryCents','passageCents','extrasCents','discountCents'];
+function parseData(type,form){
+ if(type==='finance.faction.close'){
+  return {factionId:String(form.querySelector('[name="factionId"]')?.value||''),
+   financeIds:[...form.querySelectorAll('input[name="financeIds"]')].map(x=>x.value),
+   reference:String(form.querySelector('[name="reference"]')?.value||''),
+   reason:String(form.querySelector('[name="reason"]')?.value||'')};
+ }
+ if(type==='finance.batch.pay'){
+  const ids=[...form.querySelectorAll('input[name="financeIds"]:checked')].map(x=>x.value);
+  return {financeIds:ids,reference:String(form.elements.namedItem('reference')?.value||''),
+   reason:String(form.elements.namedItem('reason')?.value||'')};
+ }
+ const raw=Object.fromEntries(new FormData(form).entries()),p={};
+ for(const [k,v] of Object.entries(raw)){
+  if(NUM.includes(k)||k.startsWith('waste_'))p[k]=Number(v);
+  else if(SIGNED.includes(k)){if(!/^[+-]?\d+$/.test(v))throw Error('Ajuste em gramas inválido.');p[k]=Number(v)}
+  else if(PRICES.includes(k))p[k]=parseCents(v);
+  else if(k==='adjustmentCents'||k==='deltaCents')p[k]=parseCents(v,true);
+  else if(k==='traveta')p[k]=v==='true';
+  else p[k]=String(v);
+ }
+ if(type==='cut.bom.execute'){
+  p.scrapByMaterial={};
+  for(const name of Object.keys(p)){
+   if(name.startsWith('waste_')){
+    p.scrapByMaterial[name.slice(6)]=p[name];
+    delete p[name];
+   }
+  }
+ }
+ if(['order.add','order.grade.update','cut.plan','cut.plan.update','order.color.grade.set','materials.plan.grade.add'].includes(type)){
+  p.grade={};for(const sz of api.sizes){p.grade[sz]=p[sz];delete p[sz]}
+ }
+ return p;
+}
+const DB='HLGB_EVOLUCAO_OPERACAO_INTEGRADA_FICTICIA_V1',STORE='documentos',KEY='operacao-ficticia';
+function openDB(){
+ return new Promise((resolve,reject)=>{
+  const request=indexedDB.open(DB,1);
+  request.onupgradeneeded=()=>{if(!request.result.objectStoreNames.contains(STORE))
+   request.result.createObjectStore(STORE,{keyPath:'key'})};
+  request.onerror=()=>reject(request.error||Error('IndexedDB indisponível.'));
+  request.onblocked=()=>reject(Error('Armazenamento bloqueado por outra aba.'));
+  request.onsuccess=()=>resolve(request.result);
+ });
+}
+async function transact(edit){
+ return new Promise((resolve,reject)=>{
+  const tx=db.transaction(STORE,'readwrite'),store=tx.objectStore(STORE),get=store.get(KEY);
+  let output=null,err=null;
+  get.onsuccess=()=>{
+   try{const previous=get.result?.data||api.initial();
+    output=edit(previous);
+    if(output?.state)store.put({key:KEY,data:output.state});
+    else if(!get.result)store.put({key:KEY,data:previous});
+   }catch(e){err=e;tx.abort()}
+  };
+  get.onerror=()=>{err=get.error};
+  tx.oncomplete=()=>resolve(output);
+  tx.onabort=()=>reject(err||tx.error||Error('Transação local abortada.'));
+  tx.onerror=()=>{if(!err)err=tx.error};
+ });
+}
+async function read(){
+ return new Promise((resolve,reject)=>{
+  const tx=db.transaction(STORE,'readonly'),request=tx.objectStore(STORE).get(KEY);
+  request.onsuccess=()=>resolve(request.result?.data||null);
+  request.onerror=()=>reject(request.error||Error('Falha na releitura.'));
+ });
+}
+async function submit(form,type){
+ if(busy||!doc)return;
+ if(type==='cut.plan.cancel'&&!confirm('Cancelar somente a folha aberta, preservando o histórico?'))return;
+ busy=true;
+ const button=form.querySelector('button[type=submit]');if(button)button.disabled=true;
+ try{
+  const expectedRevision=doc.revision;
+  const payload=type==='finance.receipt.attach'?await readReceiptPayload(form):parseData(type,form),
+   id='OP-DEMO-'+crypto.randomUUID(),actor='Operador fictício';
+  const tx=await transact(previous=>api.apply(previous,{type,payload,commandId:id,actor,expectedRevision}));
+  const saved=await read();
+  if(!saved||saved.revision!==expectedRevision+1||!saved.log.some(x=>x.commandId===id))
+   throw Error('Gravação inconclusiva: não foi encontrada na releitura. Não repetir sem conferir.');
+  const integrity=api.inspect(saved);
+  if(!integrity.ok)throw Error('Gravação sem integridade comprovada: '+integrity.problems.join('; '));
+  doc=saved;draw();
+  if(type==='settlement.compensate'&&payload.id){
+   const el=document.querySelector('form[data-command="settlement.compensate"] [name="id"]');
+   if(el&&[...el.options].some(opt=>opt.value===payload.id))el.value=payload.id;
+  }
+  status('Salvo e confirmado por releitura local · '+tx.result+' · revisão '+saved.revision+'.');
+ }catch(e){
+  status(e.message,'error');
+  // Não redesenhar o formulário em erro. O rascunho permanece visível.
+ }finally{busy=false;if(button&&button.isConnected)button.disabled=false}
+}
+async function reload(){
+ if(busy)return;busy=true;
+ try{
+  const latest=await read();if(!latest)throw Error('Documento local não encontrado.');
+  const checked=api.inspect(latest);
+  if(!checked.ok)throw Error('Integridade do documento local não aprovada: '+checked.problems.join('; '));
+  doc=latest;draw();status('Documento fictício relido do IndexedDB · revisão '+doc.revision+'.');
+ }catch(e){status(e.message,'error')}finally{busy=false}
+}
+async function reset(){
+ if(busy||!confirm('Restaurar APENAS os cadastros e lançamentos fictícios deste navegador? Todos os exercícios desta prévia serão reiniciados.'))return;
+ busy=true;
+ try{
+  const revised=await transact(current=>{
+   if(current.revision!==doc.revision)throw Error('CONFLITO: outra aba alterou a prévia. Recarregue primeiro.');
+   const next=api.initial();next.revision=current.revision+1;
+   const id='OP-DEMO-'+crypto.randomUUID();
+   next.revisionProof=id;next.log=[{commandId:id,revision:next.revision,type:'demo.reset',
+    actor:'Operador fictício',description:'Dados fictícios restaurados com confirmação'}];
+   return {state:next,result:'reset'};
+  });
+  const saved=await read();if(!saved.log.some(e=>e.commandId===revised.state.revisionProof))throw Error('Restauração não confirmada.');
+  doc=saved;active='nucleo';draw();status('Exemplo fictício restaurado. Nenhum dado empresarial foi afetado.');
+ }catch(e){status(e.message,'error')}finally{busy=false}
+}
+function download(name,content,type){
+ const blob=new Blob([content],{type}),url=URL.createObjectURL(blob),a=document.createElement('a');
+ a.href=url;a.download=name;document.body.append(a);a.click();a.remove();
+ setTimeout(()=>URL.revokeObjectURL(url),1400);
+}
+function exportReport(){
+ if(!doc)return;const report={schema:'hlgb-evolucao-operacao-integrada-report-v1',environment:'indexeddb-local-fictitious',
+  productionApproval:false,parityApproved:false,modulesVisited:19,exportedAt:new Date().toISOString(),
+  journey:api.journey(doc,journeyOrderId),
+  observability:observerResult(doc),materialPlanning:materialPlannerResult(doc),
+  checks:api.inspect(doc),totals:api.totals(doc),data:{...doc,paymentReceipts:window.HLGBLabPaymentBatchV1.receiptMetadata(doc)},receiptBinaryExported:false};
+ download('HLGB-EVOLUCAO-OPERACAO-INTEGRADA-FICTICIA.json',JSON.stringify(report,null,2),'application/json');
+}
+function safeCell(x){let s=String(x??'');if(/^[=+\-@\t\r]/.test(s))s="'"+s;return '"'+s.replace(/"/g,'""')+'"'}
+function exportCsv(){
+ if(!doc)return;
+ const rows=[['Tipo','ID','Descrição','Status','Quantidade/valor'],...doc.orders.map(x=>['Pedido',x.id,
+ ref(doc.products,x.productId)?.name||'', 'Enviadas: '+x.shipped,sum(x.grade)]),
+ ...doc.finance.map(x=>['Financeiro',x.id,x.description,x.status,x.amountCents]),
+ ...window.HLGBLabPaymentBatchV1.receiptMetadata(doc).map(x=>['Comprovante fictício',x.id,x.targetId+' · versão '+x.version,x.current?'Atual':'Anterior',x.amountCents]),
+ ...(doc.settlementCompensations||[]).map(x=>['Compensação',x.id,x.settlementId+' · '+x.reference,x.status,x.deltaCents]),
+ ...(doc.purchaseReturns||[]).map(x=>['Devolução integral',x.id,
+  x.purchaseId+' · '+x.reference+' · '+x.reason,x.status,x.qtyGrams]),
+ ...doc.purchaseOrders.map(x=>['Compra',x.id,ref(doc.materials,x.materialId)?.name||'',
+  (x.cancelled?'Cancelada':x.received?'Recebido':'Pendente')+
+   (x.purchaseRequestId?' · '+x.purchaseRequestId:''),x.qtyGrams]),
+ ...(doc.purchaseRequests||[]).map(x=>['Requisição',x.id,
+  (ref(doc.materials,x.materialId)?.name||x.materialId)+' · '+x.reason,
+  x.status+' · '+(x.purchaseId||'sem compra')+
+   (x.cancelIssueReference?' · cancelamento '+x.cancelIssueReference:''),x.qtyGrams]),
+ ...doc.orders.flatMap(o=>(o.colorGrades||[]).map(c=>
+  ['Grade por cor',o.id,c.color,'P/M/G/GG',
+   api.sizes.map(sz=>sz+': '+c.grade[sz]).join(' · ')])),
+ ...(doc.factionAssignments||[]).flatMap(a=>(a.gradeLines||[]).map(g=>
+  ['Peças por facção/cor',a.id,a.orderId+' · '+a.factionId+
+   ' · '+g.color+' '+g.size,'Enviadas '+g.sent,g.returned])),
+ ...(doc.bomCutRuns||[]).map(c=>['Corte BOM concluído',c.id,
+  c.orderId+' · '+c.color+' '+c.size+' · '+c.qty+' pç',
+  c.commandId,c.totalGrams]),
+ ...(doc.bomCutRuns||[]).flatMap(c=>c.materials.map(m=>[
+  'Material do corte BOM',c.id,m.materialId+' · '+m.ruleId,
+  'Útil '+m.requiredGrams+'g · Lixo '+m.scrapGrams+'g',m.totalGrams])),
+ ...(doc.colorCatalog||[]).map(c=>['Paleta de cores',c.id,c.name,c.origin,'']),
+ ...(doc.materialRecipeRules||[]).map(r=>['Receita de planejamento',r.id,
+  r.productId+' · '+r.materialId+' · '+r.color+' '+r.size,
+  r.active?'Atual':'Substituída',r.gramsPerUnit]),
+ ...(doc.materialPlanLines||[]).map(l=>['Cenário de produção',l.id,
+  l.productId+' · '+l.color+' '+l.size,l.active?'Ativo':'Arquivado',l.qty]),
+ ...(materialPlannerResult(doc)?.materials||[]).map(m=>['Necessidade de material',m.materialId,
+  m.name+' · faltam '+m.missingGrams+' g','Previsto',m.requiredGrams]),
+ ...(doc.factionPartialTransfers||[]).map(t=>['Transferência parcial',t.id,
+  t.orderId+' · '+t.fromFactionId+' → '+t.toFactionId+' · '+t.reason,
+  t.commandId,t.qty]),
+ ...(doc.paymentBatches||[]).map(x=>['Pagamento em lote',x.id,
+  (x.scope==='faccao'?'Facção '+x.factionNameSnapshot+' · ':'')+x.reference+' · '+x.reason,
+  x.status,x.totalCents]),
+ ...(doc.paymentBatches||[]).flatMap(x=>x.items.map(i=>
+  ['Título quitado no lote',i.financeId,x.id+' · '+i.sourceId,i.sourceType,i.amountCents]))];
+ download('HLGB-EVOLUCAO-OPERACAO-INTEGRADA-FICTICIA.csv','\uFEFF'+rows.map(r=>r.map(safeCell).join(';')).join('\r\n'),'text/csv;charset=utf-8');
+}
+function exportShoppingCsv(){
+ if(!doc)return;
+ const forecast=materialPlannerResult(doc);
+ if(!forecast||forecast.error){status('Lista de materiais não disponível: revise a ficha técnica.','error');return}
+ const rows=[
+  ['LISTA DE MATERIAIS — PLANEJAMENTO FICTÍCIO, SEM COMPRA EFETIVA'],
+  ['Material','Necessidade (g)','Saldo simulado (g)','Falta comprar (g)','Preço/kg (R$)','Custo da falta (R$)'],
+  ...forecast.materials.map(x=>[x.name,x.requiredGrams,x.availableGrams,x.missingGrams,
+   nr(x.priceCentsKg),nr(x.purchaseCents)]),
+  [],
+  ['DETALHAMENTO POR MODELO, COR E TAMANHO'],
+  ['Modelo','SKU','Cor','Tamanho','Peças','Material','Gramas/peça','Necessidade (g)','Versão da receita'],
+  ...forecast.detail.map(x=>[x.productName,x.sku,x.color,x.size,x.qty,
+   x.materialName,x.gramsPerUnit,x.requiredGrams,x.ruleId])
+ ];
+ download('HLGB-LAB-LISTA-MATERIAIS-FICTICIA.csv',
+  '\uFEFF'+rows.map(row=>row.map(safeCell).join(';')).join('\r\n'),
+  'text/csv;charset=utf-8');
+ status('Lista de materiais fictícia exportada. Não foi criada compra nem reserva.');
+}
+function exportObserverCsv(){
+ const report=doc&&observerResult(doc);
+ if(!report){status('Observabilidade indisponível ou desativada; exporte o JSON básico.','error');return}
+ const rows=[['Tipo','Módulo','Revisão/ID','Regra/Operação','Gravidade','Descrição'],
+  ...report.findings.map(x=>['Alerta',x.module,x.recordId,x.code,x.severity,x.message+' · '+x.action]),
+  ...report.history.map(x=>['Evento',x.module,x.revision,x.type,'',x.commandId+' · '+x.description]),
+  ...(report.paymentReceiptHistory||[]).map(x=>['Comprovante fictício','hub',x.id,x.targetId,x.current?'Atual':'Anterior','Versão '+x.version+' · '+x.fileName+' · '+x.amountCents+' centavos']),
+   ...report.settlementHistory.map(x=>['Histórico do acerto','acertos',x.settlementId,
+   x.event,'',x.commandId+' · antes '+x.beforeCents+' depois '+x.afterCents+' · '+x.reason]),
+  ...report.modelSummary.map(x=>['Resumo por modelo','produtos',x.productId,
+   x.sku,'',x.name+' · pedidas '+x.ordered+' · cortadas '+x.cut+' · expedidas '+x.shipped]),
+  ...report.factionSummary.map(x=>['Resumo por facção','faccoes',x.factionId,
+   x.name,'',x.settlements+' acertos · pago '+x.paidSettlementsCents]),
+  ...report.colorGradeSummary.flatMap(o=>o.byColor.map(c=>
+   ['Grade do pedido','pedidos',o.orderId,c.color,
+    o.ready?'Completa':'Incompleta',
+    api.sizes.map(sz=>sz+': '+c.sizes[sz]).join(' · ')])),
+  ...report.purchaseRequestHistory.map(r=>[
+   'Requisição de compra','compras',r.id,r.materialName,r.status,
+   r.qtyGrams+'g · '+r.estimatedCents+' centavos · compra '+(r.purchaseId||'—')+
+    ' · solicitante '+r.requester+' · aprovador '+(r.approver||'—')]),
+  ...report.bomCutHistory.map(c=>['Corte BOM','corte',c.id,c.orderId,
+   c.color+' '+c.size,c.qty+' peças · '+c.totalGrams+'g · '+
+    c.estimatedCostCents+' centavos · comando '+c.commandId]),
+  ...report.bomCutHistory.flatMap(c=>c.materials.map(m=>[
+   'Consumo e lixo BOM','estoque',c.id,m.materialId,m.ruleId,
+   'Útil '+m.requiredGrams+'g · lixo '+m.scrapGrams+
+    'g · baixa '+m.totalGrams+'g'])),
+  ...report.gradeInventory.map(g=>['Saldo por cor e tamanho','faccoes',g.assignmentId,
+   g.orderId,g.factionName,g.color+' '+g.size+' · enviado '+g.sent+
+    ' · retornado '+g.returned+' · pendente '+g.open+
+    ' · acertos '+g.settlementIds.join(' / ')]),
+  ...report.factionDispatches.map(x=>['Envio para facção','faccoes',x.id,
+   x.orderId,x.factionName,x.productName+' · enviadas '+x.qtySent+
+    ' · retornadas '+x.qtyReturned+' · pendentes '+x.qtyOpen+
+    ' · acertos '+x.settlementIds.join(' / ')]),
+  ...report.factionTransferHistory.map(t=>
+   ['Transferência parcial','faccoes',t.id,t.orderId,t.fromName+' → '+t.toName,
+    t.qty+' peças · origem '+t.fromBefore+' → '+t.fromAfter+
+    ' · destino '+t.toBefore+' → '+t.toAfter+' · '+t.reason+
+    ' · comando '+t.commandId]),
+  ...report.paymentBatchHistory.map(b=>['Fechamento em lote','hub',b.id,
+   b.reference,b.status,b.reason+' · '+b.count+' títulos · '+b.totalCents+' centavos']),
+  ...report.paymentBatchHistory.flatMap(b=>b.items.map(i=>
+   ['Título vinculado ao lote','hub',i.financeId,b.id,i.sourceType,
+    i.sourceId+' · '+i.amountCents+' centavos']))];
+ download('HLGB-LAB-OBSERVABILIDADE-V2-FICTICIA.csv',
+  '\uFEFF'+rows.map(row=>row.map(safeCell).join(';')).join('\r\n'),'text/csv;charset=utf-8');
+ status('Histórico fictício e alertas exportados sem alterações no documento.');
+}
+function renderCutSheet(planId){
+ const plan=(doc.cutPlans||[]).find(p=>p.id===planId);
+ if(!plan)throw Error('Folha não localizada nesta revisão.');
+ const order=doc.orders.find(o=>o.id===plan.orderId);
+ const product=doc.products.find(p=>p.id===order?.productId);
+ const material=doc.materials.find(m=>m.id===plan.materialId);
+ const client=doc.clients.find(c=>c.id===order?.clientId);
+ const grades=api.sizes.map(sz=>'<tr><td>'+escape(sz)+'</td><td>'+plan.grade[sz]+'</td></tr>').join('');
+ const status=plan.status==='concluido'?'Concluído e auditado':
+  plan.status==='cancelado'?'Cancelado — não utilizar':'Aberto — ainda sem baixa';
+ const box=$('cut-print');
+ box.innerHTML='<h1>HLGB Evolução · Folha de Corte FICTÍCIA</h1>'+
+  '<p><strong>Folha:</strong> '+escape(plan.id)+' · <strong>Pedido:</strong> '+escape(plan.orderId)+
+  ' · <strong>Competência de teste:</strong> '+escape(doc.period)+'</p>'+
+  '<p><strong>Cliente:</strong> '+escape(client?.name||'')+' · <strong>Modelo:</strong> '+escape(product?.name||'')+
+  ' · <strong>SKU:</strong> '+escape(product?.sku||'')+'</p>'+
+  '<p><strong>Material:</strong> '+escape(material?.name||'')+
+  ' · <strong>Execução:</strong> '+(plan.workMode==='interno'?'Interna':'Externa')+
+  ' · <strong>Estado:</strong> '+status+'</p>'+
+  '<h2>Grade deste lote</h2><table><thead><tr><th>Tamanho</th><th>Peças</th></tr></thead><tbody>'+grades+
+  '<tr><th>Total de peças</th><th>'+sum(plan.grade)+'</th></tr></tbody></table>'+
+  '<h2>Pesos conferidos</h2><table><tbody><tr><td>Peso útil teórico</td><td>'+plan.theoreticalGrams+' g</td></tr>'+
+  '<tr><td>Peso útil confirmado</td><td>'+(plan.usefulGrams??'Não concluído')+' g</td></tr>'+
+  '<tr><td>Desperdício / lixo</td><td>'+(plan.scrapGrams??'Não concluído')+' g</td></tr>'+
+  '<tr><td>Peso total debitado do estoque</td><td>'+(
+   plan.status==='concluido'?plan.usefulGrams+plan.scrapGrams+' g':'Ainda sem baixa')+
+  '</td></tr></tbody></table>'+
+  '<p><strong>Cortador 1:</strong> '+escape(plan.cutterOne)+'</p>'+
+  '<p><strong>Cortador 2:</strong> '+escape(plan.cutterTwo)+'</p>'+
+  '<p><strong>Enfestador:</strong> '+escape(plan.spreader)+'</p>'+
+  '<div class="signature"><div>Conferência digitada 1: '+escape(plan.signatureOne||'Pendente')+
+  '</div><div>Conferência digitada 2: '+escape(plan.signatureTwo||'Pendente')+'</div></div>'+
+  '<p class="print-note">DOCUMENTO DEMONSTRATIVO — não é ordem de produção válida, assinatura eletrônica legal, ou comprovante de estoque. Não contém dados da empresa.</p>';
+ return box.textContent;
+}
+function suggestServicePrice(form){
+ const service=form.elements.namedItem('serviceType')?.value;
+ const price=form.elements.namedItem('unitCents');
+ if(!price)return;
+ const productId=form.elements.namedItem('productId')?.value;
+ const product=doc.products.find(p=>p.id===productId);
+ if(service==='embalagem'){
+  const n=(product?.name||'').toLocaleLowerCase('pt-BR');
+  price.value=n.includes('calcinha')?'0,15':'0,25';
+ }else{
+  const fac=doc.factions.find(f=>f.id===form.elements.namedItem('factionId')?.value);
+  price.value=nr(fac?.productRates?.[productId]??fac?.unitCents??0);
+ }
+}
+function fillAssignmentRate(form){
+ const row=doc?.factionAssignments?.find(x=>x.id===form.elements.namedItem('assignmentId')?.value);
+ const order=row&&ref(doc.orders,row.orderId),fac=row&&ref(doc.factions,row.factionId),
+  product=order&&ref(doc.products,order.productId);
+ if(!row||!fac||!product)return;
+ const rate=window.HLGBLabFactionRoutingV1.resolveRate(row,fac,product);
+ form.elements.namedItem('unitCents').value=nr(rate.gross);
+ form.elements.namedItem('travetaCents').value=nr(rate.traveta);
+ const preview=$('assignment-rate-preview');
+ if(preview)preview.textContent=(row.qtySent-row.qtyReturned)+' peças pendentes · tarifa líquida atual '+fmt(rate.unit)+' por peça.';
+}
+function fillSettlementRevision(form){
+ const x=doc?.settlements.find(a=>a.id===form.elements.namedItem('id')?.value);
+ if(!x)return;
+ form.elements.namedItem('factionId').value=x.factionId;
+ form.elements.namedItem('unitCents').value=nr(x.listUnitCents??x.unitCents);
+ form.elements.namedItem('travetaCents').value=nr(x.travetaCents||0);
+ const only=x.kind!=='avulso'||!!x.orderId||!!x.assignmentId||!!x.gradeTracked;
+ for(const option of form.elements.namedItem('factionId').options)
+  option.disabled=only&&option.value!==x.factionId;
+ previewSettlementRevision(form);
+}
+function previewSettlementRevision(form){
+ const el=$('settlement-revise-preview'),x=doc?.settlements.find(a=>a.id===form.elements.namedItem('id')?.value);
+ if(!el||!x)return;
+ try{
+  const gross=parseCents(form.elements.namedItem('unitCents').value),
+   discount=parseCents(form.elements.namedItem('travetaCents').value),
+   total=x.qty*(gross-discount)+(x.adjustmentCents||0);
+  el.textContent=gross>discount&&total>0?
+   x.qty+' peças · total atual '+fmt(x.amountCents)+' → novo total '+fmt(total)+' · mantém ajuste de '+fmt(x.adjustmentCents||0):
+   'Informe valores válidos: o líquido e o total precisam ser positivos.';
+ }catch(_){el.textContent='Informe preço e desconto válidos.'}
+}
+function applySettlementFilters(){
+ if(active!=='acertos'||!doc||!$('settlement-filters'))return;
+ const f=settlementFilters;
+ const normal=v=>String(v??'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLocaleLowerCase('pt-BR');
+ const text=normal(f.query.trim());
+ $('settlement-search').value=f.query;
+ for(const [id,key] of [['settlement-status','status'],['settlement-faction','faction'],
+   ['settlement-service','service'],['settlement-compensation','compensation']]){
+  const el=$(id);
+  if(el&&[...el.options].some(o=>o.value===f[key]))el.value=f[key];
+ }
+ const matchesBase=x=>(f.status==='todos'||x.status===f.status)&&
+  (f.faction==='todas'||x.factionId===f.faction)&&
+  (f.service==='todos'||(x.serviceType||'costura')===f.service);
+ const settlementText=x=>{
+  const parts=[x.id,x.orderId,x.serviceType,x.status,x.reason,
+   ref(doc.factions,x.factionId)?.name,ref(doc.products,x.productId)?.name,
+   ref(doc.products,ref(doc.orders,x.orderId)?.productId)?.name,
+   ...(x.history||[]).flatMap(h=>[h.reason,h.commandId]),
+   ...(x.rateHistory||[]).flatMap(h=>[h.reason,h.commandId,h.fromFactionName,h.toFactionName,h.financeId]),
+   ...(x.returns||[]).flatMap(h=>[h.reason,h.commandId]),
+    ...window.HLGBLabPaymentBatchV1.receiptMetadata(doc).filter(r=>r.financeIds.includes(doc.finance.find(f=>f.sourceId===x.id&&f.kind==='pagar')?.id)).flatMap(r=>[r.id,r.fileName,r.targetId,r.reason])];
+  return normal(parts.join(' '));
+ };
+ const compensationText=c=>normal([c.id,c.settlementId,c.reference,c.reason,c.kind,c.status,
+  doc.finance.find(x=>x.sourceId===c.id)?.id,
+  ref(doc.factions,c.factionId)?.name].join(' '));
+ const comps=doc.settlementCompensations||[];
+ const settlements=doc.settlements||[];
+ const matchSettlement=x=>matchesBase(x)&&(!text||settlementText(x).includes(text)||
+  comps.some(c=>c.settlementId===x.id&&compensationText(c).includes(text)));
+ const visibleSet=settlements.map(matchSettlement);
+ const visibleComp=comps.map(c=>{
+  const original=settlements.find(x=>x.id===c.settlementId);
+  return !!original&&matchesBase(original)&&
+   (f.compensation==='todos'||c.status===f.compensation)&&
+   (!text||compensationText(c).includes(text)||settlementText(original).includes(text));
+ });
+ for(const [id,flags] of [['settlement-table',visibleSet],['settlement-compensation-table',visibleComp]]){
+  const rows=$(id)?.querySelectorAll('tbody tr')||[];
+  rows.forEach((row,i)=>{row.hidden=!flags[i]});
+ }
+ const shown=settlements.filter((_,i)=>visibleSet[i]);
+ const shownComp=comps.filter((_,i)=>visibleComp[i]);
+ const settlementValue=shown.reduce((total,x)=>total+x.amountCents,0);
+ const compValue=shownComp.reduce((total,x)=>total+x.deltaCents,0);
+ $('settlement-query-summary').textContent=shown.length+' de '+settlements.length+
+  ' acertos · total '+fmt(settlementValue)+' · '+shownComp.length+' de '+comps.length+
+  ' compensações · diferença líquida '+(compValue>0?'+':compValue<0?'−':'')+fmt(Math.abs(compValue))+
+  ' (valores fictícios; filtro local, sem alterar lançamentos)';
+}
+document.addEventListener('input',event=>{
+ if(event.target.id==='global-search-query'){searchState.page=1;searchState.selected=null;renderGlobalSearch();renderGlobalDetail();return;}
+ if(event.target.id==='settlement-search'){
+  settlementFilters.query=event.target.value;applySettlementFilters();return;
+ }
+ const filter=event.target.closest('input[data-filter-for]');
+ if(!filter)return;
+ const target=$(filter.dataset.filterFor);
+ if(!target)return;
+ const term=filter.value.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLocaleLowerCase('pt-BR');
+ for(const row of target.querySelectorAll('tbody tr')){
+  const text=row.textContent.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLocaleLowerCase('pt-BR');
+  row.hidden=!text.includes(term);
+ }
+});
+function renderCompensationSheet(compId){
+ const comp=(doc.settlementCompensations||[]).find(x=>x.id===compId);
+ if(!comp)throw Error('Compensação não encontrada no documento fictício.');
+ const original=doc.settlements.find(x=>x.id===comp.settlementId);
+ const originalTitle=doc.finance.find(x=>x.id===comp.originalFinanceId);
+ const newTitle=doc.finance.find(x=>x.sourceId===comp.id);
+ const faction=doc.factions.find(x=>x.id===comp.factionId);
+ if(!original||!originalTitle||!newTitle)throw Error('Vínculos da compensação incompletos.');
+ const html='<h1>HLGB Evolução · Conferência de Compensação FICTÍCIA</h1>'+
+  '<p><strong>Competência de teste:</strong> '+escape(doc.period)+
+  ' · <strong>Revisão local:</strong> '+doc.revision+'</p>'+
+  '<p><strong>Facção:</strong> '+escape(faction?.name||'—')+
+  ' · <strong>Acerto original:</strong> '+escape(original.id)+'</p>'+
+  '<h2>Pagamento original preservado</h2>'+
+  '<table><thead><tr><th>Acerto</th><th>Título original</th><th>Valor</th><th>Status</th></tr></thead>'+
+  '<tbody><tr><td>'+escape(original.id)+'</td><td>'+escape(originalTitle.id)+'</td>'+
+  '<td>'+fmt(original.amountCents)+'</td><td>'+escape(originalTitle.status)+'</td></tr></tbody></table>'+
+  '<h2>Correção criada como novo lançamento</h2>'+
+  '<table><tbody>'+
+  '<tr><th>Compensação</th><td>'+escape(comp.id)+'</td></tr>'+
+  '<tr><th>Referência única</th><td>'+escape(comp.reference)+'</td></tr>'+
+  '<tr><th>Justificativa</th><td>'+escape(comp.reason)+'</td></tr>'+
+  '<tr><th>Diferença</th><td>'+(comp.deltaCents>0?'+':'−')+fmt(Math.abs(comp.deltaCents))+'</td></tr>'+
+  '<tr><th>Novo título</th><td>'+escape(newTitle.id)+' · '+escape(newTitle.kind)+
+  ' · '+fmt(newTitle.amountCents)+'</td></tr>'+
+  '<tr><th>Situação</th><td>'+escape(newTitle.status)+'</td></tr>'+
+  '<tr><th>Comando registrado</th><td>'+escape(comp.commandId)+'</td></tr></tbody></table>'+
+  '<p class="print-note">DOCUMENTO DE TESTE — dados inventados. Não é comprovante de pagamento bancário, assinatura legal, documento fiscal ou prova de conciliação com a empresa. A impressão ou PDF não envia arquivos ao servidor.</p>';
+ $('cut-print').innerHTML=html;
+ return $('cut-print').textContent;
+}
+document.addEventListener('change',event=>{
+ if(event.target.matches('#finance-batch-form [name="financeIds"]')){
+  updateBatchPreview();return;
+ }
+ if(event.target.id==='journey-order'){
+  journeyOrderId=event.target.value;draw();return;
+ }
+ if(event.target.matches('[data-settlement-filter]')){
+  settlementFilters[event.target.dataset.settlementFilter]=event.target.value;
+  applySettlementFilters();return;
+ }
+ const form=event.target.closest('form[data-command]');
+ if(!form)return;
+ const type=form.dataset.command;
+ const selected=event.target.name;
+ if(type==='settlement.add'&&['serviceType','productId','factionId'].includes(selected))suggestServicePrice(form);
+ if(type==='finance.receipt.attach'&&selected==='targetId')updateReceiptTarget(form);
+ if(type==='settlement.revise'&&selected==='id')fillSettlementRevision(form);
+ if(type==='faction.assignment.rate.set'&&selected==='assignmentId')fillAssignmentRate(form);
+ if(type==='settlement.revise'&&['unitCents','travetaCents','factionId'].includes(selected))previewSettlementRevision(form);
+ if(type==='order.grade.update'&&selected==='orderId'){
+  const order=doc.orders.find(o=>o.id===event.target.value);if(!order)return;
+  for(const sz of api.sizes)form.elements.namedItem(sz).value=order.grade[sz];
+ }
+ if(type==='cut.plan.update'&&selected==='id'){
+  const plan=(doc.cutPlans||[]).find(p=>p.id===event.target.value);if(!plan)return;
+  for(const sz of api.sizes)form.elements.namedItem(sz).value=plan.grade[sz];
+  for(const key of ['workMode','cutterOne','cutterTwo','spreader'])
+   form.elements.namedItem(key).value=plan[key];
+ }
+ if(type==='cut.plan.complete'&&selected==='id'){
+  const plan=(doc.cutPlans||[]).find(p=>p.id===event.target.value);if(!plan)return;
+  form.elements.namedItem('usefulGrams').value=plan.theoreticalGrams;
+  form.elements.namedItem('scrapGrams').value=0;
+  form.elements.namedItem('signatureOne').value='';
+  form.elements.namedItem('signatureTwo').value='';
+ }
+});
+document.addEventListener('click',e=>{
+ const searchOpen=e.target.closest('[data-search-open]');if(searchOpen){openGlobalResult(Number(searchOpen.dataset.searchOpen));return}
+ const searchPage=e.target.closest('[data-search-page]');if(searchPage){searchState.page+=Number(searchPage.dataset.searchPage);renderGlobalSearch();return}
+ if(e.target.closest('#global-search-close')){searchState.selected=null;renderGlobalDetail();$('module-content').querySelectorAll('.search-hit').forEach(x=>x.classList.remove('search-hit'));return}
+
+ const receiptButton=e.target.closest('[data-receipt-download]');
+ if(receiptButton){
+  try{
+   const r=(doc?.paymentReceipts||[]).find(x=>x.id===receiptButton.dataset.receiptDownload);
+   if(!r)throw Error('Comprovante não encontrado na cópia local.');
+   const service=window.HLGBLabPaymentBatchV1,file=service.decodePdf(r.contentBase64);
+   if(file.size!==r.size||file.checksum!==r.checksum)throw Error('Arquivo divergente; não baixar.');
+   download(r.id+'-FICTICIO-'+r.fileName,file.bytes,'application/pdf');
+   status('Download local solicitado · '+r.id+' · versão '+r.version+'.');
+  }catch(error){status(error.message,'error')}
+  return;
+ }
+ if(e.target.closest('#preview-bom-cut')){
+  const form=document.querySelector('form[data-command="cut.bom.execute"]');
+  try{
+   if(!form)throw Error('Formulário de Corte BOM indisponível.');
+   const payload=parseData('cut.bom.execute',form);
+   const pre=window.HLGBLabBomCutV1?.preview(doc,payload,window.HLGBLabMaterialsPlannerV1);
+   if(!pre)throw Error('Simulador BOM indisponível.');
+   status((pre.canExecute?'Prévia validada: ':'Falta estoque: ')+
+    pre.qty+' peça(s) '+pre.color+' '+pre.size+' · '+
+    pre.materials.map(x=>x.materialName+' '+x.totalGrams+
+     'g (após '+x.afterGrams+'g)').join(' · ')+
+    '. Nenhuma baixa executada.',pre.canExecute?'success':'error');
+  }catch(error){status(error.message,'error')}
+  return;
+ }
+ if(e.target.closest('#export-shopping-csv')){exportShoppingCsv();return}
+ if(e.target.closest('#preview-finance-batch')){
+  const form=$('finance-batch-form');
+  try{
+   const payload=parseData('finance.batch.pay',form),fn=window.HLGBLabPaymentBatchV1?.preview;
+   if(typeof fn!=='function')throw Error('Validador de lote indisponível.');
+   const result=fn(doc,payload);
+   status('Prévia validada: '+result.count+' título(s), '+fmt(result.totalCents)+
+    ', referência '+result.reference+'. Nenhuma baixa executada.');
+  }catch(error){status(error.message,'error')}
+  return;
+ }
+ if(e.target.closest('[data-preview-faction]')){
+  const form=e.target.closest('form[data-command="finance.faction.close"]');
+  try{
+   if(!form)throw Error('Formulário de fechamento da facção indisponível.');
+   const input=parseData('finance.faction.close',form);
+   const result=window.HLGBLabPaymentBatchV1.previewFaction(doc,input);
+   status('Prévia de '+result.factionName+': '+result.count+' título(s), '+fmt(result.totalCents)+
+    '. Referência '+result.reference+'. Nenhum pagamento lançado.');
+  }catch(error){status(error.message,'error')}
+  return;
+ }
+ if(e.target.closest('#export-observer-csv')){exportObserverCsv();return}
+ if(e.target.closest('[data-toggle-observer]')){
+  const registry=window.HLGBLabModules;
+  const observer=registry?.list().find(x=>x.id==='observabilidade');
+  if(observer){registry.setEnabled('observabilidade',!observer.enabled);draw();
+   status('Módulo Observabilidade 2.0 '+(!observer.enabled?'ativado':'desativado')+
+    ' somente nesta aba. Funções anteriores continuam disponíveis.');}
+  else status('Módulo opcional indisponível. Sistema legado preservado.','error');
+  return;
+ }
+ if(e.target.closest('#settlement-clear-filters')){
+  Object.assign(settlementFilters,{query:'',status:'todos',faction:'todas',service:'todos',compensation:'todos'});
+  applySettlementFilters();return;
+ }
+ const comp=e.target.closest('button[data-print-comp]');
+ if(comp){try{renderCompensationSheet(comp.dataset.printComp);window.print()}catch(error){status(error.message,'error')}return}
+ const print=e.target.closest('button[data-print-plan]');
+ if(print){try{renderCutSheet(print.dataset.printPlan);window.print()}catch(error){status(error.message,'error')}return}
+ const mod=e.target.closest('button[data-module]');
+ if(mod){searchState.selected=null;active=mod.dataset.module;window.location.hash=active;draw();window.scrollTo(0,0);return}
+ const goto=e.target.closest('button[data-goto]');
+ if(goto){searchState.selected=null;active=goto.dataset.goto;window.location.hash=active;draw();window.scrollTo(0,0)}
+});
+document.addEventListener('submit',e=>{
+ const form=e.target.closest('form[data-command]');if(!form)return;
+ e.preventDefault();submit(form,form.dataset.command);
+});
+window.addEventListener('hashchange',()=>{
+ const next=window.location.hash.slice(1);
+ if(ids.has(next)&&doc&&next!==active){searchState.selected=null;active=next;draw()}
+});
+$('global-search-module').addEventListener('change',()=>{searchState.page=1;searchState.selected=null;renderGlobalSearch();renderGlobalDetail()});
+$('export-json').addEventListener('click',exportReport);
+$('export-csv').addEventListener('click',exportCsv);
+$('refresh').addEventListener('click',reload);
+$('reset').addEventListener('click',reset);
+(async()=>{
+ try{
+  db=await openDB();
+  await transact(()=>null);
+  doc=await read();
+  if(!doc)throw Error('Não foi possível iniciar a base fictícia.');
+  if(!api.inspect(doc).ok)throw Error('Documento inicial inconsistente.');
+  draw();status('Prévia iniciada. Faça suas operações com dados fictícios e confira as revisões.','success');
+ }catch(err){
+  status('Não foi possível abrir o armazenamento de teste neste navegador: '+err.message+
+   '. Experimente pelo Chrome ou por uma URL HTTPS. Nenhum dado real foi acessado.','error');
+ }
+})();
+})();
+,'money','100,00'),dated('reconcileDate','Data de conferência')],'Conferir valor')+
+ '<p>Conferência manual de valor, não integra banco, não paga novamente e não comprova transferência.</p>');
+}
+
 function moduleHtml(s){
  const o=orderOptions(s),openPlans=(s.cutPlans||[]).filter(p=>p.status==='aberto'),
   planOptions=selector(openPlans,p=>p.id+' · '+p.orderId+' · '+sum(p.grade)+' peças'),
