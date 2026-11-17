@@ -177,6 +177,84 @@
       o.id);
    }
   }
+  // Conciliar grade por cor e tamanho com pedido, corte, facção e acertos.
+  // Somente leitura, inclusive quando algum registro malformado precisar ser diagnosticado.
+  const gradeSizes=['P','M','G','GG'],colorOrders=orders.filter(o=>Array.isArray(o.colorGrades)&&o.colorGrades.length);
+  const gradeInventory=[];
+  for(const o of colorOrders){
+   const rows=assignmentsByOrder.get(o.id)||[],names=new Set(),
+    totals=Object.fromEntries(gradeSizes.map(sz=>[sz,0]));
+   for(const c of o.colorGrades){
+    const normalized=normalize(c.color);
+    if(!normalized||names.has(normalized)||gradeSizes.some(sz=>
+      !Number.isSafeInteger(c.grade?.[sz])||c.grade[sz]<0))
+     push('GRADE_COR_CADASTRO','alta','faccoes',o.id,
+      'Cor duplicada ou quantidades inválidas no cadastro do pedido.',
+      'Conferir P/M/G/GG e nomes das cores antes de enviar peças.',c.color);
+    names.add(normalized);
+    for(const sz of gradeSizes)totals[sz]+=Number(c.grade?.[sz]||0);
+   }
+   if(gradeSizes.some(sz=>totals[sz]>o.grade[sz]||
+       o.allocated>0&&totals[sz]!==o.grade[sz]))
+    push('GRADE_TOTAL_PEDIDO','critica','pedidos',o.id,
+     'Total por cor e tamanho não corresponde ao pedido já distribuído ou ultrapassa a grade.',
+     'Reconciliar cadastro de cores com o pedido e corte, sem apagar movimentações.',o.id);
+   const gradeBySize=Object.fromEntries(gradeSizes.map(sz=>[sz,0]));
+   for(const row of rows){
+    const lines=Array.isArray(row.gradeLines)?row.gradeLines:[];
+    if(!Array.isArray(row.gradeLines))
+     push('GRADE_ENVIO_SEM_DETALHE','alta','faccoes',row.id,
+      'Envio do pedido classificado está sem grade por cor e tamanho.',
+      'Conferir a origem da remessa e não preencher automaticamente com cor inventada.',o.id);
+    let sent=0,returned=0;
+    const rowKeys=new Set();
+    for(const l of lines){
+     const key=normalize(l.color)+'|'+l.size;
+     const config=o.colorGrades.find(x=>normalize(x.color)===normalize(l.color));
+     if(rowKeys.has(key)||!config||!gradeSizes.includes(l.size)||
+       !Number.isSafeInteger(l.sent)||l.sent<1||!Number.isSafeInteger(l.returned)||
+       l.returned<0||l.returned>l.sent)
+      push('GRADE_LINHA_INVALIDA','critica','faccoes',row.id,
+       'Cor/tamanho duplicado, desconhecido ou com quantidade impossível.',
+       'Conferir o envio físico e as grades antes de qualquer retorno.',key);
+     rowKeys.add(key);
+     sent+=Number(l.sent||0);returned+=Number(l.returned||0);
+     if(gradeSizes.includes(l.size))gradeBySize[l.size]+=Number(l.sent||0);
+     gradeInventory.push({orderId:o.id,assignmentId:row.id,factionId:row.factionId,
+      factionName:String(byId(arr(source,'factions'),row.factionId)?.name||row.factionId),
+      color:String(l.color||''),size:String(l.size||''),
+      sent:l.sent,returned:l.returned,open:l.sent-l.returned,
+      settlementIds:(settlementByAssignment.get(row.id)||[])
+       .filter(x=>x.color===l.color&&x.size===l.size).map(x=>x.id)});
+    }
+    if(sent!==row.qtySent||returned!==row.qtyReturned)
+     push('GRADE_SALDO_ENVIO','critica','faccoes',row.id,
+      'Detalhe por cor/tamanho não coincide com as quantidades gerais do envio.',
+      'Comparar grades, peças retornadas e títulos, sem reprocessar baixa.',o.id);
+   }
+   for(const sz of gradeSizes){
+    if(gradeBySize[sz]>o.cut[sz])
+     push('GRADE_EXCEDE_CORTE','critica','corte',o.id,
+      'Peças classificadas enviadas ultrapassam o corte registrado em '+sz+'.',
+      'Conferir folhas e distribuição por tamanho antes de movimentar peças.',sz);
+   }
+   for(const c of o.colorGrades)for(const sz of gradeSizes){
+    const sent=gradeInventory.filter(g=>g.orderId===o.id&&
+     normalize(g.color)===normalize(c.color)&&g.size===sz)
+     .reduce((n,g)=>n+Number(g.sent||0),0);
+    if(sent>c.grade[sz])
+     push('GRADE_EXCEDE_COR','critica','faccoes',o.id,
+      'Distribuição ultrapassa a quantidade registrada para '+c.color+' '+sz+'.',
+      'Reconciliar facções por cor/tamanho sem fazer envios duplicados.',sz);
+   }
+   for(const a of settlements.filter(x=>x.orderId===o.id)){
+    if(!a.gradeTracked||!o.colorGrades.some(x=>normalize(x.color)===normalize(a.color))||
+      !gradeSizes.includes(a.size))
+     push('GRADE_ACERTO_INDEFINIDO','critica','acertos',a.id,
+      'Acerto de pedido classificado está sem vínculo seguro de cor/tamanho.',
+      'Conferir retorno, envio e título antes de alterar pagamento.',o.id);
+   }
+  }
   // Rastros de transferência de saldo pendente: conferir snapshots antes/depois.
   const seenPartialMoves=new Set();
   for(const move of partialTransfers){
@@ -329,6 +407,15 @@
    toBefore:m.toBefore,toAfter:m.toAfter,
    commandId:m.commandId,reason:String(m.reason||'')
   }));
+  const colorGradeSummary=colorOrders.map(o=>{
+   const byColor=o.colorGrades.map(g=>({color:g.color,
+    sizes:Object.fromEntries(gradeSizes.map(sz=>[sz,g.grade[sz]]))}));
+   const pending=Object.fromEntries(gradeSizes.map(sz=>[sz,
+    o.grade[sz]-o.colorGrades.reduce((n,c)=>n+Number(c.grade?.[sz]||0),0)]));
+   return {orderId:o.id,productId:o.productId,byColor,pending,
+    ready:gradeSizes.every(sz=>pending[sz]===0),allocated:o.allocated,
+    returned:o.returned};
+  });
   const distributedOrders=orders.filter(o=>(assignmentsByOrder.get(o.id)||[]).length>1).length;
   const openFactionPieces=assignments.reduce((n,a)=>n+a.qtySent-a.qtyReturned,0);
   const pendingReturn=orders.filter(o=>o.allocated>o.returned).length,
@@ -390,6 +477,9 @@
    titles:finance.length,openTitles:unpaid,stockMovements:ledger.length,
    paymentBatches:batches.length,batchedPayablesCents:batches.reduce((n,b)=>n+Number(b.totalCents||0),0),
    factionDispatches:assignments.length,distributedOrders,openFactionPieces,
+   ordersWithColorGrade:colorOrders.length,
+   gradeItems:gradeInventory.length,
+   gradePiecesOpen:gradeInventory.reduce((n,x)=>n+Number(x.open||0),0),
    partialFactionTransfers:partialTransfers.length,
    piecesTransferred:partialTransfers.reduce((n,m)=>n+Number(m.qty||0),0),
    lastRevision:source.revision,historyExported:history.length,
@@ -404,6 +494,7 @@
     findings.length?'investigar':'sem_alertas_nas_regras_cobertas',
    summary,findings,recommendations,history,moduleActivity,repeatedOperations,
    modelSummary,factionSummary,settlementHistory,factionDispatches,factionTransferHistory,
+   colorGradeSummary,gradeInventory,
    paymentBatchHistory:batches.map(b=>({id:b.id,reference:b.reference,
     reason:b.reason,count:b.count,totalCents:b.totalCents,status:b.status,
     items:(b.items||[]).map(i=>({...i}))}))};
