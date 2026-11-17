@@ -147,6 +147,8 @@
    problems.push(...routing.inspect(s));
   if(routing&&typeof routing.inspectRateHistory==='function')
    problems.push(...routing.inspectRateHistory(s));
+  if(routing&&typeof routing.inspectAssignmentRates==='function')
+   problems.push(...routing.inspectAssignmentRates(s));
   if(factionGrade&&typeof factionGrade.inspect==='function')
    problems.push(...factionGrade.inspect(s));
   if(planner&&typeof planner.inspect==='function')
@@ -316,6 +318,9 @@
    const previous=fac.traveta;fac.traveta=p.traveta;
    result=fac.name+' · travetada '+String(previous)+' → '+String(fac.traveta)+
     ' · '+reason+' (sem mudar acertos anteriores)';break}
+  case 'faction.assignment.rate.set':{
+   if(!routing?.setAssignmentRate)throw Error('Módulo de tarifa por envio indisponível.');
+   result=routing.setAssignmentRate(s,p,{int,next,uid});break}
   case 'faction.reassign':{
    if(!routing)throw Error('Módulo de distribuição de facções indisponível.');
    routing.ensure(s,next);
@@ -328,7 +333,7 @@
    if(order.returned>0||s.settlements.some(a=>a.orderId===order.id))
     throw Error('Troca bloqueada após retorno/acerto. A operação anterior não pode ser sobrescrita.');
    const oldId=order.factionId;
-   routing.reassignLegacy(s,order,newFac.id);
+   routing.reassignLegacy(s,order,newFac.id,{uid,reason});
    order.factionId=newFac.id;
    s.factionTransfers.push({id:next(s,'TRO'),orderId:order.id,fromFactionId:oldId,
     toFactionId:newFac.id,qty:order.allocated,reason,commandId:uid});
@@ -491,15 +496,15 @@
    if(!o.factionId||o.returned+qty>o.allocated)throw Error('Retorno excede o que foi enviado para a facção.');
    o.returned+=qty;
    const fac=get(s,'factions',o.factionId),product=get(s,'products',o.productId);
-   const listUnit=fac.productRates?.[product.id]??fac.unitCents;
-   const travetaDiscount=fac.traveta?0:Math.min(listUnit,50);
-   const unit=listUnit-travetaDiscount;
+   const rate=routing.resolveRate(routing.canLegacyReturn(s,o),fac,product);
+   const listUnit=rate.gross,travetaDiscount=rate.traveta,unit=rate.unit;
    if(unit<=0)throw Error('Preço líquido da facção deve ser positivo.');
    const assignmentId=routing.recordLegacyReturn(s,o,qty);
    const settlement={id:next(s,'ACE'),orderId:o.id,assignmentId,factionId:fac.id,productId:product.id,
     kind:'retorno',serviceType:'costura',qty,listUnitCents:listUnit,
     travetaCents:travetaDiscount,unitCents:unit,
-    adjustmentCents:0,amountCents:qty*unit,description:'Retorno fictício',status:'aberto'};
+    adjustmentCents:0,amountCents:qty*unit,description:'Retorno fictício',status:'aberto',
+    ...(rate.agreementCommandId?{rateAgreementCommandId:rate.agreementCommandId}:{})};
    s.settlements.push(settlement);
    s.finance.push({id:next(s,'FIN'),kind:'pagar',sourceId:settlement.id,
     description:'Acerto fictício '+settlement.id,amountCents:settlement.amountCents,status:'aberto'});
