@@ -165,6 +165,30 @@ test('Auditor detecta alteração de consumo e linhas duplicadas sem destruir do
  }
  assert.equal(JSON.stringify(s),original);
 });
+test('lançar grade semanal P/M/G/GG em uma única revisão com todas as regras verificadas',()=>{
+ let s=core.initial();
+ const before=s.revision,logBefore=s.log.length;
+ s=apply(s,'materials.plan.grade.add',{productId:'PRO-0001',color:'Rubi',
+  grade:{P:15,M:25,G:5,GG:0}},'PLANO-GRADE-SEMANA');
+ assert.equal(s.revision,before+1,'uma revisão para três tamanhos');
+ assert.equal(s.log.length,logBefore+1,'um comando para três linhas');
+ assert.equal(s.log.at(-1).type,'materials.plan.grade.add');
+ assert.equal(s.materialPlanLines.length,3);
+ assert.deepEqual(s.materialPlanLines.map(x=>[x.size,x.qty]),[['P',15],['M',25],['G',5]]);
+ assert.ok(s.materialPlanLines.every(x=>x.createdCommandId==='PLANO-GRADE-SEMANA'));
+ assert.equal(planner.preview(s).pieces,45);
+ assert.equal(planner.preview(s).requiredGrams,45*120);
+ assert.equal(core.inspect(s).ok,true);
+ assert.equal(observer.analyze(s).findings.length,0);
+ const copy=JSON.stringify(s);
+ for(const payload of [
+  {productId:'PRO-0001',color:'Rubi',grade:{P:1,M:0,G:0,GG:0}},
+  {productId:'PRO-0001',color:'Preto',grade:{P:0,M:0,G:0,GG:0}}
+ ]){
+  assert.throws(()=>apply(s,'materials.plan.grade.add',payload),/já existe|pelo menos uma peça/);
+  assert.equal(JSON.stringify(s),copy,'nenhuma linha ou revisão parcial');
+ }
+});
 test('módulo puro sem rede, navegador ou armazenamento próprio',()=>{
  const src=fs.readFileSync(path.join(__dirname,'../modulos/planejamento-materiais-v1.js'),'utf8');
  assert.equal(planner.version,'1.0.0');
