@@ -9,10 +9,12 @@
   require('./modulos/grade-faccoes-v1.js'):(root&&root.HLGBLabFactionGradeV1);
  const planner=typeof module==='object'&&module.exports?
   require('./modulos/planejamento-materiais-v1.js'):(root&&root.HLGBLabMaterialsPlannerV1);
- const api=factory(batch,routing,factionGrade,planner);
+ const bomCut=typeof module==='object'&&module.exports?
+  require('./modulos/corte-bom-v1.js'):(root&&root.HLGBLabBomCutV1);
+ const api=factory(batch,routing,factionGrade,planner,bomCut);
  if(typeof module==='object'&&module.exports)module.exports=api;
  else if(root)root.HLGBOperationalLab=api;
-})(typeof window!=='undefined'?window:null,function(batch,routing,factionGrade,planner){
+})(typeof window!=='undefined'?window:null,function(batch,routing,factionGrade,planner,bomCut){
  'use strict';
  const clone=x=>JSON.parse(JSON.stringify(x)),sizes=['P','M','G','GG'];
  const makeGrade=()=>({P:0,M:0,G:0,GG:0});
@@ -35,7 +37,7 @@
    employees:[{id:'FUN-0001',name:'Ana Simulada',salaryCents:200000,passageCents:12000,extrasCents:0,discountCents:0},
     {id:'FUN-0002',name:'Bianca Modelo',salaryCents:180000,passageCents:8000,extrasCents:0,discountCents:3000}],
    colorCatalog:planner?planner.seed():[],materialRecipeRules:[],materialPlanLines:[],
-   orders:[],cutPlans:[],purchaseOrders:[],settlements:[],settlementCompensations:[],paymentBatches:[],finance:[],stockLedger:[],factionTransfers:[],factionAssignments:[],factionPartialTransfers:[],errors:[],
+   bomCutRuns:[],orders:[],cutPlans:[],purchaseOrders:[],settlements:[],settlementCompensations:[],paymentBatches:[],finance:[],stockLedger:[],factionTransfers:[],factionAssignments:[],factionPartialTransfers:[],errors:[],
    prints:[{id:'IMP-0001',name:'Chaveiro articulado fictício',grams:28,priceCents:490,stock:12}],
    log:[],role:'supervisor',flags:{autoCorrections:false},revisionProof:'seed'};
  }
@@ -138,6 +140,8 @@
    problems.push(...factionGrade.inspect(s));
   if(planner&&typeof planner.inspect==='function')
    problems.push(...planner.inspect(s));
+  if(bomCut&&typeof bomCut.inspect==='function')
+   problems.push(...bomCut.inspect(s));
   for(const move of (s.factionTransfers||[])){
    if(!s.orders.some(x=>x.id===move.orderId)||!s.factions.some(x=>x.id===move.fromFactionId)||
       !s.factions.some(x=>x.id===move.toFactionId)||move.fromFactionId===move.toFactionId)
@@ -146,7 +150,7 @@
   if(s.materials.some(m=>m.stockGrams<0))problems.push('Estoque de material negativo');
   if(s.finance.some(e=>e.amountCents<=0))problems.push('Lançamento financeiro não positivo');
   if(new Set(s.log.map(e=>e.commandId)).size!==s.log.length)problems.push('Identificador de comando duplicado');
-  const allIds=[...s.orders,...(s.cutPlans||[]),...(s.factionTransfers||[]),...(s.colorCatalog||[]),...(s.materialRecipeRules||[]),...(s.materialPlanLines||[]),...(s.factionAssignments||[]),...(s.factionPartialTransfers||[]),...(s.settlementCompensations||[]),...batches,...s.purchaseOrders,...s.settlements,...s.finance,...s.clients,...s.suppliers,
+  const allIds=[...s.orders,...(s.bomCutRuns||[]),...(s.cutPlans||[]),...(s.factionTransfers||[]),...(s.colorCatalog||[]),...(s.materialRecipeRules||[]),...(s.materialPlanLines||[]),...(s.factionAssignments||[]),...(s.factionPartialTransfers||[]),...(s.settlementCompensations||[]),...batches,...s.purchaseOrders,...s.settlements,...s.finance,...s.clients,...s.suppliers,
    ...s.materials,...s.products,...s.factions,...s.employees,...s.prints].map(x=>x.id);
   if(new Set(allIds).size!==allIds.length)problems.push('IDs de registro duplicados');
   return {ok:!problems.length,problems,orderCount:s.orders.length,unpaid:s.finance.filter(f=>f.status==='aberto').length,
@@ -264,6 +268,7 @@
   if(previous.log.some(x=>x.commandId===uid))throw Error('Comando já registrado. Não duplicar.');
   const s=clone(previous),p=command.payload||{},kind=command.type;
   if(!Array.isArray(s.cutPlans))s.cutPlans=[]; // migração segura apenas do documento fictício anterior
+  if(!Array.isArray(s.bomCutRuns))s.bomCutRuns=[];
   if(!Array.isArray(s.factionTransfers))s.factionTransfers=[];
   if(!Array.isArray(s.factionPartialTransfers))s.factionPartialTransfers=[];
   if(!Array.isArray(s.settlementCompensations))s.settlementCompensations=[];
@@ -357,8 +362,13 @@
    o.grade=clone(g);
    title.amountCents=sum(g)*o.priceCents;
    result=o.id+' · grade alterada com título a receber reconciliado';break}
+  case 'cut.bom.execute':{
+   if(!bomCut||!planner)throw Error('Módulo de Corte BOM indisponível; nenhuma baixa realizada.');
+   result=bomCut.execute(s,p,{next,uid},planner);break}
   case 'cut.plan':{
    const o=get(s,'orders',p.orderId,'Pedido'),g=p.grade;
+   if(s.bomCutRuns.some(x=>x.orderId===o.id))
+    throw Error('Pedido iniciado com Corte BOM: não misture folhas tradicionais.');
    if(!gradeValid(g)||sum(g)<1||sum(g)>10000)throw Error('Grade planejada inválida.');
    for(const sz of sizes){
     const reserved=s.cutPlans.filter(x=>x.orderId===o.id&&x.status==='aberto')
@@ -401,6 +411,8 @@
    result=plan.id+' · cancelada sem baixar estoque';break}
   case 'cut.plan.complete':{
    const plan=get(s,'cutPlans',p.id,'Folha de corte');
+   if(s.bomCutRuns.some(x=>x.orderId===plan.orderId))
+    throw Error('Pedido iniciado com Corte BOM: não misture baixas tradicionais.');
    if(plan.status!=='aberto')throw Error('A folha já foi concluída ou cancelada. Não repetir baixa.');
    const o=get(s,'orders',plan.orderId,'Pedido'),product=get(s,'products',o.productId);
    const material=get(s,'materials',plan.materialId,'Material');
@@ -425,6 +437,8 @@
    result=plan.id+' · '+sum(plan.grade)+' peças · usado '+useful+'g · lixo '+scrap+'g';break}
   case 'cut.record':{
    const o=get(s,'orders',p.orderId,'Pedido'),sz=p.size,q=num('qty',1,10000);
+   if(s.bomCutRuns.some(x=>x.orderId===o.id))
+    throw Error('Pedido iniciado com Corte BOM: não repita corte pela rotina simplificada.');
    if(!sizes.includes(sz))throw Error('Tamanho inválido.');
    const reserved=s.cutPlans.filter(x=>x.orderId===o.id&&x.status==='aberto')
     .reduce((n,x)=>n+x.grade[sz],0);
