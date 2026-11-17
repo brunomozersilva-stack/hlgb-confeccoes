@@ -83,5 +83,69 @@
   return id+' · '+r.items.length+' títulos · '+r.totalCents+
    ' centavos · '+r.reference+' (quitação apenas fictícia)';
  }
- return Object.freeze({version:'1.0.0',validate,preview,execute});
+
+ // Somente no laboratório: todos os acertos abertos da mesma facção em uma baixa.
+ function collect(s,factionId){
+  if(!find(s.factions||[],factionId))throw Error('Facção não cadastrada.');
+  const sources=[
+   ...s.settlements.filter(x=>x.factionId===factionId&&x.status==='aberto'),
+   ...(s.settlementCompensations||[]).filter(x=>
+    x.factionId===factionId&&x.status==='aberto'&&x.deltaCents>0)
+  ];
+  if(sources.length<2||sources.length>50)
+   throw Error('É necessário ter entre 2 e 50 acertos/diferenças da mesma facção.');
+  const ids=sources.map(src=>{
+   const bills=s.finance.filter(f=>f.sourceId===src.id&&f.kind==='pagar');
+   if(bills.length!==1||bills[0].status!=='aberto'||
+      bills[0].amountCents!==(src.amountCents??src.deltaCents)||
+      !Number.isSafeInteger(bills[0].amountCents)||bills[0].amountCents<=0||
+      (s.paymentBatches||[]).some(b=>b.items?.some(i=>i.financeId===bills[0].id)))
+    throw Error('Acerto '+src.id+' e título do Hub divergentes. Não fechar parcialmente.');
+   return bills[0].id;
+  }).sort();
+  if(new Set(ids).size!==ids.length)throw Error('Título duplicado no fechamento.');
+  return ids;
+ }
+ function groups(s){
+  return (s.factions||[]).flatMap(f=>{
+   const n=s.settlements.filter(x=>x.factionId===f.id&&x.status==='aberto').length+
+    (s.settlementCompensations||[]).filter(x=>x.factionId===f.id&&
+      x.status==='aberto'&&x.deltaCents>0).length;
+   if(n<2)return [];
+   try{
+    const ids=collect(s,f.id);
+    return [{factionId:f.id,name:f.name,count:ids.length,financeIds:ids,
+     totalCents:ids.reduce((a,id)=>a+find(s.finance,id).amountCents,0),ready:true}];
+   }catch(e){return [{factionId:f.id,name:f.name,count:n,ready:false,
+    totalCents:null,error:String(e.message||e)}]}
+  });
+ }
+ function scoped(s,p){
+  const factionId=String(p?.factionId||'').trim();
+  const ids=collect(s,factionId),submitted=p.financeIds;
+  if(!Array.isArray(submitted)||submitted.length!==ids.length||
+     new Set(submitted).size!==ids.length||
+     submitted.slice().sort().some((id,i)=>id!==ids[i]))
+   throw Error('A lista da facção mudou ou está incompleta. Recarregue antes da baixa.');
+  const checked=validate(s,{financeIds:ids,reference:p.reference,reason:p.reason});
+  if(checked.items.some(i=>i.factionId!==factionId))
+   throw Error('Há um acerto de outra facção no fechamento. Não pagar.');
+  return {factionId,ids,checked};
+ }
+ function previewFaction(s,p){
+  const x=scoped(s,p);
+  return {factionId:x.factionId,factionName:find(s.factions,x.factionId).name,
+   reference:x.checked.reference,count:x.ids.length,totalCents:x.checked.totalCents,
+   financeIds:x.ids,items:x.checked.items.map(i=>({...i})),
+   scope:'laboratorio-ficticio',realPayment:false};
+ }
+ function executeFaction(s,p,ctx){
+  const x=scoped(s,p),name=find(s.factions,x.factionId).name;
+  const result=execute(s,{financeIds:x.ids,reference:p.reference,reason:p.reason},ctx);
+  const record=s.paymentBatches[s.paymentBatches.length-1];
+  record.scope='faccao';record.factionId=x.factionId;record.factionNameSnapshot=name;
+  return 'Fechamento da facção '+name+' · '+result;
+ }
+ return Object.freeze({version:'1.1.0',validate,preview,execute,
+  groups,previewFaction,executeFaction});
 });
