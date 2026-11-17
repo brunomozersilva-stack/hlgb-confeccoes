@@ -146,7 +146,7 @@ test('Auditor do core detecta movimentos faltantes e duplicados sem repará-los'
  ]){
   const bad=structuredClone(good),before=JSON.stringify(good);
   mutate(bad);
-  assert.equal(core.inspect(bad).ok,false,JSON.stringify(mutate).slice(0,80));
+  assert.equal(core.inspect(bad).ok,false,String(mutate).slice(0,80));
   assert.equal(JSON.stringify(good),before,'não modificar documento bom');
  }
 });
