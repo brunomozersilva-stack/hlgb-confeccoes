@@ -830,6 +830,73 @@ async function run(browser,width,url){
    assert.match(await page.locator('#module-content').innerText(),/REQ-0001/);
    assert.match(await page.locator('#module-content').innerText(),/recebida/);
    assert.equal(await revision(page),revAfterReceipt);
+
+   // Nova requisição de Malha: a compra será emitida e cancelada antes do recebimento.
+   await put(page,'materials.plan.add',{productId:'PRO-0001',
+    color:'Azul-marinho',size:'G',qty:'300'});
+   await put(page,'purchase.request.create',{materialId:'MAT-0001',
+    requester:'Solicitante Teste',reason:'Repor malha para produção fictícia'});
+   await put(page,'purchase.request.approve',{id:'REQ-0002',
+    approver:'Supervisora Teste',reason:'Déficit de malha conferido'});
+   await put(page,'purchase.request.issue',{id:'REQ-0002',supplierId:'FOR-0002',
+    checkerOne:'Equipe Um',checkerTwo:'Equipe Dois',
+    reason:'Compra emitida sem recebimento para testar cancelamento'});
+   const [issuedCancellationFile]=await Promise.all([page.waitForEvent('download'),
+    page.locator('#export-json').click()]);
+   const beforeCancel=JSON.parse(fs.readFileSync(await issuedCancellationFile.path(),'utf8'));
+   const reqToCancel=beforeCancel.data.purchaseRequests.find(x=>x.id==='REQ-0002');
+   assert.equal(reqToCancel.status,'emitida');
+   const purchaseToCancel=reqToCancel.purchaseId;
+   assert.equal(beforeCancel.data.purchaseOrders.find(x=>x.id===purchaseToCancel).received,false);
+   const snapshotStock=JSON.stringify(beforeCancel.data.materials);
+   const snapshotLedger=JSON.stringify(beforeCancel.data.stockLedger);
+   const snapshotFinance=JSON.stringify(beforeCancel.data.finance);
+   const cancelRevision=await revision(page);
+   const cancelForm=page.locator('form[data-command="purchase.request.cancelIssued"]');
+   assert.equal(await cancelForm.count(),1);
+   await cancelForm.locator('[name="id"]').selectOption('REQ-0002');
+   await cancelForm.locator('[name="cancelledBy"]').fill('Conferente Mesmo');
+   await cancelForm.locator('[name="reviewedBy"]').fill('Conferente Mesmo');
+   await cancelForm.locator('button[type=submit]').click();
+   await page.waitForFunction(()=>document.querySelector('#flash')?.textContent.includes('Conferência independente'));
+   assert.equal(await revision(page),cancelRevision,'mesma pessoa não cancela');
+   await put(page,'purchase.request.cancelIssued',{id:'REQ-0002',
+    reference:'CANCEL-MALHA-002',cancelledBy:'Auxiliar Exemplo',
+    reviewedBy:'Gerente Exemplo',
+    reason:'Fornecedor não poderá atender a compra do exercício'});
+   const [cancelledDoc]=await Promise.all([page.waitForEvent('download'),
+    page.locator('#export-json').click()]);
+   const cancelled=JSON.parse(fs.readFileSync(await cancelledDoc.path(),'utf8'));
+   const cancelledReq=cancelled.data.purchaseRequests.find(x=>x.id==='REQ-0002');
+   const cancelledPo=cancelled.data.purchaseOrders.find(x=>x.id===purchaseToCancel);
+   assert.equal(cancelledReq.status,'emissao_cancelada');
+   assert.equal(cancelledReq.cancelIssueReference,'CANCEL-MALHA-002');
+   assert.equal(cancelledPo.cancelled,true);
+   assert.equal(cancelledPo.received,false);
+   assert.equal(cancelledPo.cancelReference,'CANCEL-MALHA-002');
+   assert.equal(JSON.stringify(cancelled.data.materials),snapshotStock);
+   assert.equal(JSON.stringify(cancelled.data.stockLedger),snapshotLedger);
+   assert.equal(JSON.stringify(cancelled.data.finance),snapshotFinance);
+   assert.equal(cancelled.observability.summary.cancelledIssuedPurchases,1);
+   assert.equal(cancelled.observability.findings.length,0);
+   assert.equal(cancelled.checks.ok,true);
+   const disabledPurchase=page.locator('form[data-command="purchase.receive"]');
+   assert.equal(await disabledPurchase.locator('[name="id"] option[value="'+purchaseToCancel+'"]').count(),0,
+    'compra cancelada não pode voltar para recebimento');
+   await module(page,'relatorios');
+   assert.match(await page.locator('#module-content').innerText(),/emissao_cancelada/);
+   const [cancelCsv]=await Promise.all([page.waitForEvent('download'),
+    page.locator('#export-csv').click()]);
+   assert.match(fs.readFileSync(await cancelCsv.path(),'utf8'),/CANCEL-MALHA-002/);
+   const cancelledRevision=cancelled.data.revision;
+   await page.reload();
+   await page.waitForFunction(rev=>
+    document.querySelector('#top-revision')?.textContent.includes('Revisão local '+rev),
+    cancelledRevision);
+   await module(page,'compras');
+   assert.match(await page.locator('#module-content').innerText(),/CANCEL-MALHA-002/);
+   assert.match(await page.locator('#module-content').innerText(),/Cancelada/);
+   assert.equal(await revision(page),cancelledRevision);
   }
   const d=await page.evaluate(()=>({width:innerWidth,scroll:document.documentElement.scrollWidth}));
   if(d.scroll>d.width+2){
