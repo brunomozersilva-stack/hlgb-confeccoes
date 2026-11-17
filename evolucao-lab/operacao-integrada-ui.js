@@ -597,8 +597,8 @@ let auditFilter='todos';
 function auditorV3(s){try{return window.HLGBLabAuditorV3?.analyze(s)||null;}catch(e){return null;}}
 function auditV3Panels(s){
  const r=auditorV3(s);if(!r)return panel('Auditor 3.0','<div class="error">Diagnóstico indisponível. Nenhuma aprovação pode ser inferida.</div>',true);
- const active=selector(r.findings.filter(x=>x.code!=='AUDITOR_REGRA_FALHOU'),x=>x.key+' · '+x.message);
- const ready=selector(r.previously.filter(x=>x.state==='aguarda_verificacao'&&r.checks.find(c=>c.id===x.checkId)?.status==='conforme'),x=>x.key);
+ const active=r.findings.filter(x=>x.code!=='AUDITOR_REGRA_FALHOU').map(x=>[x.key,x.key+' · '+x.message]);
+ const ready=r.previously.filter(x=>x.state==='aguarda_verificacao'&&r.checks.find(c=>c.id===x.checkId)?.status==='conforme').map(x=>[x.key,x.key]);
  const rows=r.findings.filter(x=>auditFilter==='todos'||x.severity===auditFilter);
  return panel('Auditor 3.0 · diagnóstico e prevenção', '<div class="metrics">'+[['Críticas',r.bySeverity.critica],['Altas',r.bySeverity.alta],['Regras avaliadas',r.checks.length],['Estado',r.status==='sem_alertas_nas_regras_cobertas'?'Sem alertas nas regras cobertas':r.status==='cobertura_parcial'?'Cobertura parcial':'Investigar']].map(([k,v])=>'<div class="metric"><span>'+str(k)+'</span><strong>'+str(v)+'</strong></div>').join('')+'</div><p>Revisão '+str(r.revision)+' · '+str(r.legacyEvents)+' eventos sem métricas · '+str(r.undatedEvents)+' sem data. Avalia somente a cópia local fictícia; não verifica disponibilidade do servidor, não corrige automaticamente nem aprova produção.</p><div class="actions"><button type="button" class="btn" id="audit-v3-run">Reexecutar diagnóstico local</button><button type="button" class="btn" id="audit-v3-export">Exportar evidência JSON</button></div>',true)+
  panel('Cobertura por regra',table(['Regra','Resultado','Ocorrências'],r.checks.map(x=>[str(x.label),str(x.status),str(x.findings)])),true)+
@@ -1118,7 +1118,7 @@ function moduleHtml(s){
  case 'auditor':{
  const advanced=observationPanels(s,'auditor');if(advanced)return auditV3Panels(s)+advanced;
  const check=api.inspect(s),issues=check.problems;
- return panel('Diagnóstico determinístico',
+ return auditV3Panels(s)+panel('Diagnóstico determinístico',
  (check.ok?'<div class="success">Sem inconsistências nas regras simuladas.</div>':
  '<div class="error">Inconsistências detectadas: '+escape(issues.join('; '))+'</div>')+
  table(['Verificação','Estado'],[['Quantidade cortada ≤ pedida',check.ok?'Conforme':'Verificar'],
