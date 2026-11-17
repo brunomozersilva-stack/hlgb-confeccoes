@@ -634,6 +634,20 @@ function assistantPanels(s){
  return panel('Assistente HLGB 3.0 · consultas de gestão',fields+'<div class="actions"><button type="button" class="btn primary" id="assistant-query">Consultar dados</button></div><p>Consultas determinísticas na base fictícia, sem IA generativa, sem execução de comandos e sem acesso ao banco real. Perguntas desconhecidas não recebem respostas inventadas.</p>'+response,true);
 }
 
+
+function costsResult(s){return window.HLGBLabCostsV1?.report(s);}
+function costsPanels(s){
+ let r;try{r=costsResult(s);if(!r)throw Error('Módulo indisponível');}catch(e){return panel('Custos e rentabilidade','<div class="error">'+str(e.message)+'</div>',true);}
+ const val=x=>x===null?'Não apurado':fmt(x),g=t=>table(['Grupo','Pedidos','Peças','Receita contratada','Custos conhecidos','Pedidos com resultado parcial','Diferença parcial (só estes pedidos)'],t.map(x=>[str(x.name),str(x.orders),str(x.pieces),fmt(x.revenue),fmt(x.knownCost),str(x.complete),x.complete?fmt(x.partialDifference):'Não apurado']));
+ const available=r.manual.filter(x=>x.remaining>0).map(x=>[x.id,x.id+' · '+x.description+' · saldo '+fmt(x.remaining)]);
+ return panel('Custos e rentabilidade · controle gerencial','<p>Valores acumulados por pedido, não DRE nem lucro líquido. Materiais são valorados pelo preço de referência registrado no corte (não custo médio contábil). Mão de obra usa acertos e compensações vinculados, pagos ou não. Não soma novamente o título financeiro do acerto. Receita contratada não significa recebimento. Margem parcial somente para pedido expedido, com consumo valorado e retorno integral; despesas não vinculadas, impostos e outros custos podem faltar.</p><div class="metrics">'+[['Receita contratada',fmt(r.totals.revenue)],['Custos conhecidos',fmt(r.totals.knownCost)],['Material sem preço histórico',r.totals.unknownGrams+' g'],['Despesas manuais não rateadas',fmt(r.totals.unallocated)]].map(([k,v])=>'<div class="metric"><span>'+str(k)+'</span><strong>'+str(v)+'</strong></div>').join('')+'</div><button type="button" class="btn" id="cost-export">Exportar custos e evidências JSON</button>',true)+
+ panel('Custos por pedido',table(['Pedido / modelo','Expedidas / pedidas','Receita','Material de referência','Mão de obra','Rateio','Custo conhecido','Diferença parcial','Margem parcial','Base atual de material / peça'],r.rows.map(x=>[str(x.id)+' · '+str(x.model),str(x.shipped)+' / '+str(x.pieces),fmt(x.revenue),fmt(x.referenceCents)+(x.unknownGrams?' · '+str(x.unknownGrams)+' g sem preço':''),fmt(x.labor),fmt(x.overhead),fmt(x.knownCost),val(x.difference),x.partialMarginPercent===null?'Não apurada':str(x.partialMarginPercent)+'%',val(x.theoreticalMaterial)]))+'<p>Base atual de material por peça usa somente a ficha simples, não substitui BOM completo nem histórico.</p>',true)+
+ panel('Custo agrupado por modelo',g(r.models),true)+panel('Custo agrupado por cliente',g(r.clients),true)+
+ panel('Consumo e desperdício por pedido',table(['Pedido','Desperdício medido (g)','Consumo sem medição de desperdício (g)','Material sem preço (g)'],r.rows.map(x=>[str(x.id),str(x.wasteGrams),str(x.unknownWasteGrams),str(x.unknownGrams)])),true)+
+ panel('Rateio de despesas manuais',form('cost.allocate','Vincular parte do título ao pedido',[field('financeId','Despesa com saldo','select','',available),field('orderId','Pedido','select','',orderOptions(s)),field('amountCents','Valor deste rateio','money','10,00'),field('reason','Critério / justificativa','text','Rateio fictício')],'Registrar rateio')+'<p>Não gera pagamento nem outro título. Limita a soma de rateios ao valor original. Compras e acertos já vinculados não são elegíveis.</p>'+table(['Título','Categoria','Valor','Rateado','Saldo'],r.manual.map(x=>[str(x.id)+' · '+str(x.description),str(x.category),fmt(x.total),fmt(x.allocated),fmt(x.remaining)])),true)+
+ panel('Serviços avulsos sem pedido',table(['Acerto','Modelo','Serviço','Valor com ajustes'],r.loose.map(x=>[str(x.id),str(x.model),str(x.service),fmt(x.amountCents)]))+'<p>Total não apropriado: '+fmt(r.totals.looseCost)+'. Não é distribuído automaticamente entre pedidos.</p>',true);
+}
+
 function moduleHtml(s){
  const o=orderOptions(s),openPlans=(s.cutPlans||[]).filter(p=>p.status==='aberto'),
   planOptions=selector(openPlans,p=>p.id+' · '+p.orderId+' · '+sum(p.grade)+' peças'),
@@ -1134,9 +1148,9 @@ function moduleHtml(s){
     str(ref(s.materials,x.materialId)?.name||x.materialId),
     str(x.qtyGrams)+' g',fmt(x.amountCents),str(x.reference),str(x.reason)
    ])),true);
- const advanced=observationPanels(s,'relatorios');if(advanced)return managementPanels(s)+advanced+planPanel+requestReport+returnsReport;
+ const advanced=observationPanels(s,'relatorios');if(advanced)return costsPanels(s)+managementPanels(s)+advanced+planPanel+requestReport+returnsReport;
  const t=api.totals(s);
- return managementPanels(s)+panel('Indicadores vinculados',table(['Indicador','Valor'],Object.entries(t).map(([k,v])=>[
+ return costsPanels(s)+managementPanels(s)+panel('Indicadores vinculados',table(['Indicador','Valor'],Object.entries(t).map(([k,v])=>[
  str(k),k.includes('Payables')||k.includes('Receivables')||k==='passage'||k==='salaryCash'?fmt(v):str(v)])))+
  panel('Como auditar o relatório','<p>Compare pedidos, corte, retorno, expedição e Hub. Exporte o JSON e confira que cada evento tem ID e revisão.</p>'+
  '<div class="actions"><button class="btn" type="button" data-goto="auditor">Executar integridade</button></div>')+
@@ -1744,6 +1758,7 @@ document.addEventListener('change',event=>{
  }
 });
 document.addEventListener('click',e=>{
+ if(e.target.closest('#cost-export')){try{download('HLGB-CUSTOS-FICTICIO.json',JSON.stringify(costsResult(doc),null,2),'application/json');}catch(err){status(err.message,'error');}return;}
  if(e.target.closest('#assistant-query')){assistantRequested=true;draw();return;}
  if(e.target.closest('#assistant-export')){if(!assistantRequested){status('Faça uma nova consulta antes de exportar.','error');return;}try{download('HLGB-ASSISTENTE-V3-FICTICIO.json',JSON.stringify(assistantAsk(doc),null,2),'application/json');}catch(err){status(err.message,'error');}return;}
  if(e.target.closest('#bot-v3-export')){const r=botV3(doc);if(!r){status('Aprendizado indisponível.','error');return;}download('HLGB-BOT-V3-FICTICIO.json',JSON.stringify(r,null,2),'application/json');return;}

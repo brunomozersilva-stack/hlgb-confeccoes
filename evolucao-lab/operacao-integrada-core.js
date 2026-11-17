@@ -19,10 +19,11 @@
  const management=typeof module==='object'&&module.exports?require('./modulos/relatorios-gerenciais-v1.js'):(root&&root.HLGBLabManagementV1);
  const auditor=typeof module==='object'&&module.exports?require('./modulos/auditor-v3.js'):(root&&root.HLGBLabAuditorV3);
  const bot=typeof module==='object'&&module.exports?require('./modulos/bot-v3.js'):(root&&root.HLGBLabBotV3);
- const api=factory(batch,routing,factionGrade,planner,bomCut,requests,purchaseReturns,pcp,management,auditor,bot);
+ const costs=typeof module==='object'&&module.exports?require('./modulos/custos-v1.js'):(root&&root.HLGBLabCostsV1);
+ const api=factory(batch,routing,factionGrade,planner,bomCut,requests,purchaseReturns,pcp,management,auditor,bot,costs);
  if(typeof module==='object'&&module.exports)module.exports=api;
  else if(root)root.HLGBOperationalLab=api;
-})(typeof window!=='undefined'?window:null,function(batch,routing,factionGrade,planner,bomCut,requests,purchaseReturns,pcp,management,auditor,bot){
+})(typeof window!=='undefined'?window:null,function(batch,routing,factionGrade,planner,bomCut,requests,purchaseReturns,pcp,management,auditor,bot,costs){
  'use strict';
  const clone=x=>JSON.parse(JSON.stringify(x)),sizes=['P','M','G','GG'];
  const makeGrade=()=>({P:0,M:0,G:0,GG:0});
@@ -57,6 +58,7 @@
  const totalCost=(q,price)=>Math.ceil(q*price/1000);
  function inspect(s){
   const problems=[];
+  if(costs)problems.push(...costs.inspect(s));
   if(bot)problems.push(...bot.inspect(s));
   if(pcp)problems.push(...pcp.inspect(s));
   for(const o of s.orders){
@@ -744,6 +746,9 @@
    const obj={id:next(s,'IMP'),name:name(p.name,'Produto 3D'),
     grams:num('grams',1,1000),priceCents:num('priceCents',100,1000000),stock:num('stock',0,100000)};
    s.prints.push(obj);result=obj.id;break}
+  case 'cost.allocate':{
+   if(!costs)throw Error('Módulo de custos indisponível.');
+   result=costs.allocate(s,{financeId:name(p.financeId,'Título'),orderId:name(p.orderId,'Pedido'),amountCents:num('amountCents',1,100000000),reason:name(p.reason,'Justificativa')},uid);break}
   case 'bot.observe':{
    if(!bot||!auditor)throw Error('Bot ou auditor indisponível.');
    result=bot.observe(s,auditor.analyze(s),uid);break}
@@ -762,6 +767,7 @@
    err.status='resolvido';result=err.id;break}
   default:throw Error('Operação ainda não implementada neste laboratório: '+kind);
   }
+  if(costs)costs.capture(previous,s,uid);
   s.revision++;
   s.revisionProof=uid;
   s.log.push({commandId:uid,revision:s.revision,actor:name(command.actor||'Operador fictício','Operador'),

@@ -20,6 +20,7 @@ const routes={'/':'operacao-integrada.html',
  '/modulos/auditor-v3.js':'modulos/auditor-v3.js',
  '/modulos/bot-v3.js':'modulos/bot-v3.js',
  '/modulos/assistente-v3.js':'modulos/assistente-v3.js',
+ '/modulos/custos-v1.js':'modulos/custos-v1.js',
  '/operacao-integrada-core.js':'operacao-integrada-core.js',
  '/operacao-integrada-ui.js':'operacao-integrada-ui.js','/folha-homologacao.html':'folha-homologacao.html'};
 const server=http.createServer((req,res)=>{
@@ -71,6 +72,7 @@ async function run(browser,width,url){
   await module(page,'relatorios');
   assert.match(await page.locator('#module-content').innerText(),/Histórico completo/);
   assert.match(await page.locator('#module-content').innerText(),/Central de Relatórios Gerenciais/);
+  assert.match(await page.locator('#module-content').innerText(),/Custos e rentabilidade/);
   await module(page,'auditor');
   assert.match(await page.locator('#module-content').innerText(),/Auditor 3.0/);
   await page.locator('#audit-v3-run').click();
