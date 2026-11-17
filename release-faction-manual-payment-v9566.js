@@ -109,7 +109,7 @@ function validate(input){
   const manual=!!x.unregistered,manualName=sid(x.manualProductName).trim(),
    manualCategory=sid(x.manualProductCategory||'outros');
   if(kind==='product'&&!p&&(!manual||manualName.length<2))
-   throw Error('Selecione um produto cadastrado ou marque Modelo não cadastrado e informe o nome da peça na linha '+(i+1)+'.');
+   throw Error('Escolha um produto cadastrado ou marque Modelo não cadastrado e informe o nome da peça na linha '+(i+1)+'.');
   if(kind==='embalagem'&&!p&&(!manual||manualName.length<2))throw Error('Para embalagem de produto não cadastrado, marque “Modelo não cadastrado” e informe o nome do modelo na linha '+(i+1)+'.');
   if(manual&&kind==='embalagem'&&!['camisola','doll','calcinha','outros'].includes(manualCategory))
    throw Error('Selecione uma categoria válida para o modelo avulso na linha '+(i+1)+'.');
