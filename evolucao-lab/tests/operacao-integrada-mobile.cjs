@@ -678,6 +678,74 @@ async function run(browser,width,url){
     afterBatchPlan.data.revision);
    await module(page,'compras');
    assert.match(await page.locator('#module-content').innerText(),/Azul-marinho/);
+
+   // Ficha avançada de Corte BOM: 2 matérias, 1 transação, desperdício e dupla conferência.
+   await module(page,'pedidos');
+   await put(page,'order.add',{clientId:'CLI-0001',productId:'PRO-0001',
+    P:'5',M:'0',G:'0',GG:'0'});
+   await module(page,'faccoes');
+   await put(page,'order.color.grade.set',{orderId:'PED-0005',color:'Preto',
+    P:'3',M:'0',G:'0',GG:'0'});
+   await put(page,'order.color.grade.set',{orderId:'PED-0005',color:'Rubi',
+    P:'2',M:'0',G:'0',GG:'0'});
+   await module(page,'corte');
+   const formBom=page.locator('form[data-command="cut.bom.execute"]');
+   assert.equal(await formBom.count(),1);
+   await formBom.locator('[name="orderId"]').selectOption('PED-0005');
+   await formBom.locator('[name="color"]').selectOption('Preto');
+   await formBom.locator('[name="size"]').selectOption('P');
+   await formBom.locator('[name="qty"]').fill('2');
+   await formBom.locator('[name="waste_MAT-0001"]').fill('25');
+   await formBom.locator('[name="waste_MAT-0002"]').fill('5');
+   const beforeBom=await revision(page);
+   await page.locator('#preview-bom-cut').click();
+   assert.match(await page.locator('#flash').innerText(),/Prévia validada/);
+   assert.match(await page.locator('#flash').innerText(),/Nenhuma baixa executada/);
+   assert.equal(await revision(page),beforeBom);
+   await formBom.locator('[name="signatureTwo"]').fill('Nome errado');
+   await formBom.locator('button[type=submit]').click();
+   await page.waitForFunction(()=>document.querySelector('#flash')?.textContent.includes('conferências devem coincidir'));
+   assert.equal(await revision(page),beforeBom);
+   await put(page,'cut.bom.execute',{orderId:'PED-0005',color:'Preto',
+    size:'P',qty:'2',waste_MAT-0001:'25',waste_MAT-0002:'5',
+    signatureTwo:'Beto Cortador'});
+   const [bomReportFile]=await Promise.all([page.waitForEvent('download'),
+    page.locator('#export-json').click()]);
+   const reportBom=JSON.parse(fs.readFileSync(await bomReportFile.path(),'utf8'));
+   const lot=reportBom.data.bomCutRuns[0];
+   assert.equal(lot.id,'BOM-0001');
+   assert.equal(lot.orderId,'PED-0005');
+   assert.equal(lot.color,'Preto');
+   assert.equal(lot.qty,2);
+   assert.deepEqual(lot.materials.map(x=>[x.materialId,x.requiredGrams,x.scrapGrams]),
+    [['MAT-0001',250,25],['MAT-0002',30,5]]);
+   assert.equal(reportBom.data.stockLedger.filter(x=>x.bomCutId==='BOM-0001').length,2);
+   assert.equal(reportBom.data.orders.find(x=>x.id==='PED-0005').cut.P,2);
+   assert.equal(reportBom.observability.summary.bomCuts,1);
+   assert.equal(reportBom.observability.summary.bomUsefulGrams,280);
+   assert.equal(reportBom.observability.summary.bomScrapGrams,30);
+   assert.equal(reportBom.observability.findings.length,0);
+   assert.equal(reportBom.checks.ok,true);
+   assert.equal(reportBom.data.finance.find(x=>x.sourceId==='PED-0005').status,'aberto');
+   const afterBom=await revision(page);
+   const legacyForm=page.locator('form[data-command="cut.record"]');
+   await legacyForm.locator('[name="orderId"]').selectOption('PED-0005');
+   await legacyForm.locator('[name="size"]').selectOption('P');
+   await legacyForm.locator('[name="qty"]').fill('1');
+   await legacyForm.locator('button[type=submit]').click();
+   await page.waitForFunction(()=>document.querySelector('#flash')?.textContent.includes('não repita corte'));
+   assert.equal(await revision(page),afterBom,'Corte antigo não permite duplicar consumo BOM');
+   await module(page,'relatorios');
+   assert.match(await page.locator('#module-content').innerText(),/Corte BOM: materiais/);
+   const [bomCsv]=await Promise.all([page.waitForEvent('download'),
+    page.locator('#export-observer-csv').click()]);
+   assert.match(fs.readFileSync(await bomCsv.path(),'utf8'),/Consumo e lixo BOM/);
+   await page.reload();
+   await page.waitForFunction(rev=>document.querySelector('#top-revision')?.textContent.includes('Revisão local '+rev),
+    afterBom);
+   await module(page,'corte');
+   assert.match(await page.locator('#module-content').innerText(),/BOM-0001/);
+   assert.equal(await revision(page),afterBom);
   }
   const d=await page.evaluate(()=>({width:innerWidth,scroll:document.documentElement.scrollWidth}));
   if(d.scroll>d.width+2){
