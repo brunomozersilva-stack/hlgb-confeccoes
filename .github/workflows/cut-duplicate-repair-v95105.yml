@@ -1,0 +1,32 @@
+name: HLGB Pedido 49 - correção segura de cortes v95.105
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'release-cut-duplicate-repair-v95105.js'
+      - 'app-stable3.html'
+      - 'tests/cut-duplicate-repair-v95105.cjs'
+      - '.github/workflows/cut-duplicate-repair-v95105.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'release-cut-duplicate-repair-v95105.js'
+      - 'app-stable3.html'
+      - 'tests/cut-duplicate-repair-v95105.cjs'
+      - '.github/workflows/cut-duplicate-repair-v95105.yml'
+permissions:
+  contents: read
+jobs:
+  guarded-cut-recovery:
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Check syntax and run isolated database-mock regression
+        run: |
+          node --check release-cut-duplicate-repair-v95105.js
+          node --check tests/cut-duplicate-repair-v95105.cjs
+          node --test tests/cut-duplicate-repair-v95105.cjs
