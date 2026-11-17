@@ -141,6 +141,8 @@ test('retorno multidestino respeita tarifa do próprio envio e mantém correçã
  assert.equal(core.inspect(s).ok,true);
  const bad=structuredClone(s);bad.factionAssignments[0].rateAgreementHistory[0].gross+=1;
  assert.equal(core.inspect(bad).ok,false);
+ assert.ok(obs.analyze(bad).findings.some(f=>f.code==='TARIFA_ENVIO_RETORNO'));
+ assert.deepEqual(obs.analyze(s).findings,[]);
 });
 test('preço negociado é aplicado no retorno por cor e tamanho',()=>{
  let s=setRate(allocated(true));
