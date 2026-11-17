@@ -159,5 +159,5 @@ test('Proteção do sync legado e ações visíveis no acerto mantidas no carreg
  assert.match(acerto,/data-already-paid104-id/);
  assert.match(acerto,/data-manual-payee104-group/);
  assert.match(manual,/payeeTransferHistoryV95104/);
- assert.match(manual,/Para trocar a facção que recebe/);
+ assert.match(manual,/Para trocar a facção do acerto avulso/);
 });
