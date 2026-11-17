@@ -592,6 +592,60 @@ async function run(browser,width,url){
    await module(page,'faccoes');
    assert.match(await page.locator('#module-content').innerText(),/Preto/);
    assert.equal(await revision(page),afterGradeRevision);
+
+   // Paleta central, regra por variante e lista de materiais sem baixa de estoque.
+   await module(page,'produtos');
+   assert.match(await page.locator('#module-content').innerText(),/Paleta central de cores/);
+   await put(page,'color.catalog.add',{name:'Azul-marinho'});
+   const afterColor=await revision(page);
+   const duplicated=page.locator('form[data-command="color.catalog.add"]');
+   await duplicated.locator('[name="name"]').fill(' azul-MARINHO ');
+   await duplicated.locator('button[type=submit]').click();
+   await page.waitForFunction(()=>document.querySelector('#flash')?.textContent.includes('Cor já cadastrada'));
+   assert.equal(await revision(page),afterColor,'cor duplicada não cria revisão');
+   await put(page,'material.recipe.set',{productId:'PRO-0001',materialId:'MAT-0001',
+    color:'Preto',size:'P',gramsPerUnit:'125',reason:'Malha específica Preto P fictícia'});
+   await put(page,'material.recipe.set',{productId:'PRO-0001',materialId:'MAT-0002',
+    color:'*',size:'*',gramsPerUnit:'15',reason:'Aviamento adicional no planejamento'});
+   await module(page,'compras');
+   assert.match(await page.locator('#module-content').innerText(),/Planejador semanal de produção/);
+   await put(page,'materials.plan.add',{productId:'PRO-0001',color:'Preto',size:'P',qty:'100'});
+   await put(page,'materials.plan.add',{productId:'PRO-0002',color:'Rubi',size:'M',qty:'200'});
+   const [draftFile]=await Promise.all([page.waitForEvent('download'),
+    page.locator('#export-json').click()]);
+   const draft=JSON.parse(fs.readFileSync(await draftFile.path(),'utf8'));
+   assert.equal(draft.data.colorCatalog.at(-1).name,'Azul-marinho');
+   assert.equal(draft.data.colorCatalog.at(-1).id,'CLR-0004');
+   assert.equal(draft.data.materialRecipeRules.length,2);
+   assert.equal(draft.data.materialPlanLines.length,2);
+   assert.equal(draft.materialPlanning.stockWritten,false);
+   assert.equal(draft.materialPlanning.purchaseCreated,false);
+   assert.equal(draft.materialPlanning.pieces,300);
+   assert.equal(draft.materialPlanning.materials.find(x=>x.materialId==='MAT-0001').requiredGrams,12500);
+   assert.equal(draft.materialPlanning.materials.find(x=>x.materialId==='MAT-0002').requiredGrams,10500);
+   assert.equal(draft.data.stockLedger.length,transferReport.data.stockLedger.length);
+   assert.equal(draft.data.purchaseOrders.length,transferReport.data.purchaseOrders.length);
+   assert.equal(draft.checks.ok,true);
+   await module(page,'relatorios');
+   assert.match(await page.locator('#module-content').innerText(),/Planejamento teórico de compras/);
+   const [draftCsv]=await Promise.all([page.waitForEvent('download'),
+    page.locator('#export-csv').click()]);
+   assert.match(fs.readFileSync(await draftCsv.path(),'utf8'),/Necessidade de material/);
+   await module(page,'compras');
+   await put(page,'materials.plan.archive',{id:'PLN-0001',
+    reason:'Revisão fictícia do programa de corte'});
+   const [archivedFile]=await Promise.all([page.waitForEvent('download'),
+    page.locator('#export-json').click()]);
+   const archived=JSON.parse(fs.readFileSync(await archivedFile.path(),'utf8'));
+   assert.equal(archived.data.materialPlanLines[0].active,false);
+   assert.equal(archived.materialPlanning.pieces,200);
+   assert.equal(archived.materialPlanning.materials.find(x=>x.materialId==='MAT-0001'),undefined);
+   await page.reload();
+   await page.waitForFunction(rev=>document.querySelector('#top-revision')?.textContent.includes('Revisão local '+rev),
+    archived.data.revision);
+   await module(page,'compras');
+   assert.match(await page.locator('#module-content').innerText(),/PLN-0001/);
+   assert.equal(await revision(page),archived.data.revision);
   }
   const d=await page.evaluate(()=>({width:innerWidth,scroll:document.documentElement.scrollWidth}));
   if(d.scroll>d.width+2){
