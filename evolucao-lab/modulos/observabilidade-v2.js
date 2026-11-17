@@ -688,6 +688,38 @@
      'Compensação sem título novo único, sinal ou situação conciliados.',
      'Conferir o título separado e sua situação; evitar quitação repetida.',c.id);
   }
+  // Comprovantes: conferir vínculo com quitação, versões e presença dos bytes.
+  // O núcleo também valida assinatura, codificação, checksum e limites dos PDFs.
+  const paymentReceipts=arr(source,'paymentReceipts'),receiptIds=new Set(),
+   receiptCommands=new Set(),receiptContents=new Set(),currentReceipts=new Map();
+  for(const r of paymentReceipts){
+   const batch=byId(batches,r.targetId),bill=byId(finance,r.targetId),
+    prev=currentReceipts.get(r.targetId);
+   const wanted=batch?batch.items?.map(i=>i.financeId).slice().sort():[r.targetId],
+    amount=batch?batch.totalCents:bill?.amountCents;
+   if(!r.id||receiptIds.has(r.id)||receiptCommands.has(r.commandId)||
+      !r.reason||r.fictitious!==true||!r.fileName||!Number.isSafeInteger(r.size)||r.size<=0||
+      typeof r.contentBase64!=='string'||!r.contentBase64||
+      receiptContents.has(r.contentBase64)||
+      r.version!==(prev?.version||0)+1||r.previousId!==(prev?.id||null)||
+      !events.some(e=>e.commandId===r.commandId&&e.type==='finance.receipt.attach'))
+    push('COMPROVANTE_HISTORICO','critica','hub',r.id,
+     'Comprovante com arquivo, versão, conteúdo ou evento ausente/duplicado.',
+     'Conferir histórico; não duplicar pagamento.',r.targetId);
+   if((batch?batch.status!=='pago'||r.kind!=='lote':
+       !bill||bill.status!=='pago'||bill.kind!=='pagar'||r.kind!=='titulo'||
+       batches.some(b=>b.items?.some(i=>i.financeId===r.targetId)))||
+      r.amountCents!==amount||JSON.stringify(r.financeIds)!==JSON.stringify(wanted))
+    push('COMPROVANTE_VINCULO','critica','hub',r.id,
+     'PDF associado a título ou lote diferente da quitação original.',
+     'Conferir documento e referência antes de utilizar.',r.targetId);
+   receiptIds.add(r.id);receiptCommands.add(r.commandId);receiptContents.add(r.contentBase64);
+   currentReceipts.set(r.targetId,r);
+  }
+  for(const e of events.filter(e=>e.type==='finance.receipt.attach'))
+   if(!receiptCommands.has(e.commandId))
+    push('COMPROVANTE_AUSENTE','critica','hub',e.commandId,
+     'Evento de anexo sem comprovante correspondente.','Recuperar evidência sem repetir pagamento.',e.description);
   const sourceIds=new Set([...orders,...purchases,...purchaseReturns,...settlements,...comps].map(x=>x.id));
   for(const bill of finance){
    if(bill.sourceId!=null&&!sourceIds.has(bill.sourceId))
@@ -865,6 +897,7 @@
    factionClosureCents:batches.filter(b=>b.scope==='faccao').reduce((n,b)=>n+Number(b.totalCents||0),0),
    negotiatedAssignmentRates:agreementCommands.size,
    settlementCorrections:revisionCommands.size,
+   paymentReceipts:paymentReceipts.length,paymentsWithReceipt:currentReceipts.size,
    factionDispatches:assignments.length,distributedOrders,openFactionPieces,
    ordersWithColorGrade:colorOrders.length,
    gradeItems:gradeInventory.length,
@@ -897,6 +930,7 @@
    summary,findings,recommendations,history,moduleActivity,repeatedOperations,
    modelSummary,factionSummary,settlementHistory,factionDispatches,factionTransferHistory,
    colorGradeSummary,gradeInventory,bomCutHistory,purchaseRequestHistory,
+   paymentReceiptHistory:paymentReceipts.map(({contentBase64,...r})=>({...r,current:currentReceipts.get(r.targetId)?.id===r.id})),
    paymentBatchHistory:batches.map(b=>({id:b.id,reference:b.reference,
     scope:b.scope||'manual',factionId:b.factionId||null,
     factionNameSnapshot:b.factionNameSnapshot||null,
