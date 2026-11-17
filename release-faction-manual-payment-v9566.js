@@ -1794,7 +1794,7 @@ function renderReceipts(){
   g.directAdjustments?.map(x=>[x.id,x.kind,x.amount,x.reason]),
   g.receipt?.name||'',g.receipt?.size||0]));
  // Preserve file selection and focused filters when periodic refresh has not changed data.
- if(host.dataset.fm66Signature===signature)return true;
+ if(host.dataset.fm66Signature===signature){try{window.hlgbFactionAcertoUnified95102?.render?.()}catch(e){console.warn('[HLGB acerto visual]',e)}return true}
  const previousFilter=host.querySelector('#fm88-filter-name')?.value||'',
   previousStatus=host.querySelector('#fm88-filter-status')?.value||'todos';
  host.dataset.fm66Signature=signature;
@@ -1908,6 +1908,7 @@ function renderReceipts(){
    if(next)next.textContent='✓ PDF '+pdf.name+' confirmado na nuvem.';
   }catch(e){b.disabled=false;if(status)status.textContent='⚠ '+sid(e.message||e)}
  }));
+ try{window.hlgbFactionAcertoUnified95102?.render?.()}catch(e){console.warn('[HLGB acerto visual]',e)}
  return true;
 }
 function hasWrapper(fn){let f=fn;const seen=new Set();while(typeof f==='function'&&!seen.has(f)){
