@@ -763,10 +763,9 @@ async function run(browser,width,url){
     requester:'Compradora Fictícia',reason:'Falta de renda para a semana'});
    const oneRevision=await revision(page);
    const duplicate=page.locator('form[data-command="purchase.request.create"]');
-   await duplicate.locator('button[type=submit]').click();
-   await page.waitForFunction(()=>document.querySelector('#flash')?.textContent.includes('Já existe requisição ativa')||
-    document.querySelector('#flash')?.textContent.includes('escolha um cadastro'));
-   assert.equal(await revision(page),oneRevision,'requisição duplicada não registra evento');
+   assert.equal(await duplicate.locator('[name="materialId"] option[value="MAT-0002"]').count(),0,
+    'material com requisição ativa não deve ser oferecido para nova compra');
+   assert.equal(await revision(page),oneRevision);
    const badApproval=page.locator('form[data-command="purchase.request.approve"]');
    await badApproval.locator('[name="approver"]').fill('Compradora Fictícia');
    await badApproval.locator('button[type=submit]').click();
