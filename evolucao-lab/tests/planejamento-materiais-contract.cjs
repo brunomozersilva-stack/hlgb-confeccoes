@@ -50,7 +50,7 @@ test('receita por cor/tamanho substitui base e soma aviamento sem alterar corte 
  assert.equal(p.estimatedCostCents,121940);
  assert.equal(p.missingCostCents,43540);
  assert.deepEqual(p.products.map(x=>[x.productId,x.pieces,x.requiredGrams]),
-  [['PRO-0001',200,28200],['PRO-0002',200,9000]]);
+  [['PRO-0002',200,9000],['PRO-0001',200,28200]],'lista em ordem alfabética de modelo');
  const m=p.materials.find(x=>x.materialId==='MAT-0001'),
   r=p.materials.find(x=>x.materialId==='MAT-0002');
  assert.deepEqual([m.requiredGrams,m.availableGrams,m.missingGrams,m.costCents,m.purchaseCents],
@@ -96,7 +96,7 @@ test('nenhum item errado entra no cenário nem altera a revisão ou documentos a
  const attempts=[
   ['materials.plan.add',{productId:'PRO-0001',color:'Preto',size:'P',qty:1},/já existe/],
   ['materials.plan.add',{productId:'PRO-0001',color:'Azul',size:'P',qty:1},/paleta/],
-  ['materials.plan.add',{productId:'PRO-0001',color:'Preto',size:'Z',qty:1},/tamanho/],
+  ['materials.plan.add',{productId:'PRO-0001',color:'Preto',size:'Z',qty:1},/P, M, G ou GG/],
   ['materials.plan.add',{productId:'PRO-0001',color:'Preto',size:'GG',qty:0},/Quantidade/],
   ['material.recipe.set',{productId:'PRO-0001',materialId:'MAT-9999',
    color:'*',size:'*',gramsPerUnit:12,reason:'Erro'},/Material/],
