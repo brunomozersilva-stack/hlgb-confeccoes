@@ -172,5 +172,5 @@ test('módulo financeiro separado do UI sem rede, delete ou integração produti
  for(const re of [/\bfetch\s*\(/,/\bXMLHttpRequest\b/,/\bWebSocket\b/,
   /\blocalStorage\b/,/\bindexedDB\b/,/\bsupabase\b/i,/https?:\/\//,
   /\bdelete\b.*\bfrom\b/i])assert.equal(re.test(src),false,String(re));
- assert.equal(batch.version,'1.0.0');
+ assert.equal(batch.version,'1.1.0');
 });
