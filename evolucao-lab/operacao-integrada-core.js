@@ -625,6 +625,8 @@
    if(acerto)acerto.status='pago';
    const compensation=s.settlementCompensations.find(c=>c.id===entry.sourceId);
    if(compensation)compensation.status='pago';
+   const purchaseReturn=(s.purchaseReturns||[]).find(x=>x.id===entry.sourceId);
+   if(purchaseReturn)purchaseReturn.status='credito_recebido';
    result=entry.id;break}
   case 'finance.add':{
    if(!['pagar','receber'].includes(p.kind))throw Error('Tipo de lançamento inválido.');
