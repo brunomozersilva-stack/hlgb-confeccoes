@@ -232,6 +232,8 @@ function requestPanels(s){
  const requests=s.purchaseRequests||[],drafts=requests.filter(x=>x.status==='rascunho'),
   approved=requests.filter(x=>x.status==='aprovada'),
   cancelable=requests.filter(x=>['rascunho','aprovada'].includes(x.status)),
+  issuedNotReceived=requests.filter(x=>x.status==='emitida'&&
+   s.purchaseOrders.some(p=>p.id===x.purchaseId&&!p.received&&!p.cancelled)),
   choices=(items)=>selector(items,x=>x.id+' · '+
    (ref(s.materials,x.materialId)?.name||x.materialId)+' · '+x.qtyGrams+'g · '+x.status),
   missing=result?.pendingMaterials||[],
@@ -261,13 +263,22 @@ function requestPanels(s){
    field('id','Requisição não emitida','select','',choices(cancelable)),
    field('reason','Justificativa para cancelamento','text','Revisão de programação ou estoque')
   ],'Cancelar e manter histórico')+
-  '<p class="caption">Se o planejamento, receita ou saldo mudar, a aprovação/emissão é bloqueada: cancele e gere uma requisição nova. A aprovação digitada <b>não equivale a permissão empresarial autenticada</b>. Compras já emitidas não podem ser canceladas por este formulário.</p>',true)+
+  form('purchase.request.cancelIssued','Cancelar formalmente compra emitida ainda não recebida',[
+   field('id','Requisição emitida','select','',choices(issuedNotReceived)),
+   field('reference','Referência única do cancelamento','text','CANCEL-EXEMPLO-001'),
+   field('cancelledBy','Responsável fictício','text','Compradora Exemplo'),
+   field('reviewedBy','Conferente independente','text','Supervisora Exemplo'),
+   field('reason','Motivo formal da desistência','text','Fornecedor e produção reprogramados na simulação')
+  ],'Cancelar emissão sem apagar a compra')+
+  '<p class="caption">A requisição emitida só pode ser cancelada se não houver recebimento, entrada de material nem título financeiro. A compra é conservada como cancelada e deixa de aparecer no formulário de recebimento. Nomes digitados não comprovam identidade nem comunicação ao fornecedor.</p>',true)+
  panel('Histórico de requisições e compras vinculadas',
   table(['Requisição','Insumo','Necessidade (g)','Saldo na origem (g)','Falta (g)',
    'Valor estimado','Solicitante / aprovador','Situação','Compra'],
    requests.map(x=>[str(x.id),str(ref(s.materials,x.materialId)?.name||x.materialId),
     str(x.requiredGrams),str(x.availableGrams),str(x.qtyGrams),fmt(x.estimatedCents),
-    str(x.requester)+' / '+str(x.approver||'—'),str(x.status),str(x.purchaseId||'—')]))+
+    str(x.requester)+' / '+str(x.approver||'—'),str(x.status),
+    str(x.purchaseId||'—')+
+    (x.cancelIssueReference?' · ref. '+str(x.cancelIssueReference):'')]))+
   '<p class="caption">Rascunhos, aprovações, cancelamentos, emissões e recebimentos mantêm seus IDs e eventos; exporte JSON/CSV para conferência.</p>',true);
 }
 function materialsPlanningPanels(s){
@@ -448,7 +459,8 @@ function moduleHtml(s){
   materials=selector(s.materials,m=>m.name+' · '+m.stockGrams+'g'),clients=selector(s.clients,x=>x.name),
  products=selector(s.products,x=>x.name+' · '+x.sku),factions=selector(s.factions,x=>x.name+' · '+fmt(x.unitCents)+'/peça'),
  suppliers=selector(s.suppliers,x=>x.name),settlements=selector(s.settlements,x=>x.id+' · '+fmt(x.amountCents)+' · '+x.status),
- purchases=selector(s.purchaseOrders.filter(x=>!x.received),x=>x.id+' · '+x.qtyGrams+'g'),
+ purchases=selector(s.purchaseOrders.filter(x=>!x.received&&!x.cancelled),
+  x=>x.id+' · '+x.qtyGrams+'g'),
  finance=selector(s.finance.filter(x=>x.status==='aberto'),x=>x.id+' · '+fmt(x.amountCents)+' · '+x.description),
  employees=selector(s.employees,x=>x.name),incidents=selector(s.errors.filter(x=>x.status==='aberto'),x=>x.id+' · '+x.message);
  switch(active){
@@ -843,7 +855,8 @@ function moduleHtml(s){
  panel('Compras do laboratório',table(['Compra','Fornecedor','Material','Quantidade','Conferentes','Status'],s.purchaseOrders.map(x=>[
  str(x.id),str(ref(s.suppliers,x.supplierId)?.name),str(ref(s.materials,x.materialId)?.name),
  str(x.qtyGrams)+'g',str(x.checkerOne)+' / '+str(x.checkerTwo),
-  (x.received?'Recebida':'Pendente')+(x.purchaseRequestId?' · '+str(x.purchaseRequestId):'') ])),true);
+  (x.cancelled?'Cancelada':x.received?'Recebida':'Pendente')+
+  (x.purchaseRequestId?' · '+str(x.purchaseRequestId):'') ])),true);
  case 'estoque':return panel('Ajuste controlado de materiais',
  form('stock.adjust','Ajustar saldo',[field('materialId','Material','select','',materials),
  field('deltaGrams','Entrada/saída em gramas (ex.: -500)','signed-int','500'),
@@ -1094,10 +1107,12 @@ function exportCsv(){
  ...doc.finance.map(x=>['Financeiro',x.id,x.description,x.status,x.amountCents]),
  ...(doc.settlementCompensations||[]).map(x=>['Compensação',x.id,x.settlementId+' · '+x.reference,x.status,x.deltaCents]),
  ...doc.purchaseOrders.map(x=>['Compra',x.id,ref(doc.materials,x.materialId)?.name||'',
-  (x.received?'Recebido':'Pendente')+(x.purchaseRequestId?' · '+x.purchaseRequestId:''),x.qtyGrams]),
+  (x.cancelled?'Cancelada':x.received?'Recebido':'Pendente')+
+   (x.purchaseRequestId?' · '+x.purchaseRequestId:''),x.qtyGrams]),
  ...(doc.purchaseRequests||[]).map(x=>['Requisição',x.id,
   (ref(doc.materials,x.materialId)?.name||x.materialId)+' · '+x.reason,
-  x.status+' · '+(x.purchaseId||'sem compra'),x.qtyGrams]),
+  x.status+' · '+(x.purchaseId||'sem compra')+
+   (x.cancelIssueReference?' · cancelamento '+x.cancelIssueReference:''),x.qtyGrams]),
  ...doc.orders.flatMap(o=>(o.colorGrades||[]).map(c=>
   ['Grade por cor',o.id,c.color,'P/M/G/GG',
    api.sizes.map(sz=>sz+': '+c.grade[sz]).join(' · ')])),
