@@ -6,6 +6,8 @@ on:
     paths:
       - 'release-faction-manual-payment-v9566.js'
       - 'release-faction-acerto-consolidated-v95102.js'
+      - 'release-faction-payee-settlement-v95104.js'
+      - 'tests/faction-payee-settlement-v95104.cjs'
       - 'release-pricing.js'
       - 'release-note-price-reconcile-v95103.js'
       - 'tests/note-price-reconcile-v95103.cjs'
@@ -32,10 +34,14 @@ jobs:
         run: |
           node --check release-faction-manual-payment-v9566.js
           node --check release-faction-acerto-consolidated-v95102.js
+          node --check release-faction-payee-settlement-v95104.js
+          node --check tests/faction-payee-settlement-v95104.cjs
           node --check release-pricing.js
           node --check release-note-price-reconcile-v95103.js
           node --check tests/note-price-reconcile-v95103.cjs
           node --check tests/faction-preco-acerto-unificado-v95102.cjs
+      - name: Trocar facção no acerto e registrar já pago com proteção do Hub
+        run: node --test tests/faction-payee-settlement-v95104.cjs
       - name: Peça sem preço de venda e acerto normal + avulso
         run: node --test tests/faction-preco-acerto-unificado-v95102.cjs
       - name: Nota — preço da Paula atualizado na nuvem sem alterar pedido
