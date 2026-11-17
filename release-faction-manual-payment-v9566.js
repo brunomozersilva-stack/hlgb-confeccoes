@@ -427,8 +427,12 @@ async function saveGroupEdits(groupId,input,receipt,removalReasons=[]){
   const newAdjustments=validateDirectInputV9591(input.directAdjustmentsV9591||[],directAdjustmentsV9591(rows));
   const oldHub=await preflightGroup(groupId,rows);
   if(oldHub)throw Error('O Hub já possui uma saída deste grupo. Só é permitido alterar pagamentos ainda pendentes.');
+  const existingById=new Map(rows.map(x=>[sid(x.id),x]));
+  const payeeChangedRows=parsed.lines.filter(x=>{const old=existingById.get(sid(x.id));return !!old&&norm(old.factionName)!==norm(parsed.factionName)});
+  if(payeeChangedRows.length&&sid(parsed.note).trim().length<6)
+   throw Error('Para trocar a facção que recebe o acerto avulso, informe o motivo com pelo menos 6 caracteres.');
   await syncPointsFromPaymentV9592(parsed.lines);
-  const ts=new Date().toISOString(),existingById=new Map(rows.map(x=>[sid(x.id),x]));
+  const ts=new Date().toISOString();
   const editId=draft?.editAttemptId||makeId('faction-edit');
   if(draft)draft.editAttemptId=editId;
   for(let i=0;i<parsed.lines.length;i++){
@@ -439,7 +443,15 @@ async function saveGroupEdits(groupId,input,receipt,removalReasons=[]){
     sid(old.productId)!==sid(x.productId)||sid(old.description)!==sid(x.description);
    if(altered&&!history.some(h=>sid(h.id)===editId))
     history.push({id:editId,at:ts,from:old?Number(old.value)||0:null,to:x.value,reason:'Edição manual do pagamento pendente'});
+   const payeeChanged=!!old&&norm(old.factionName)!==norm(parsed.factionName);
+   const previousPayeeHistory=Array.isArray(old?.payeeTransferHistoryV95104)?old.payeeTransferHistoryV95104:[];
+   const payeeEventId='payee-manual-'+sid(editId)+'-'+sid(x.id);
+   const payeeHistory=payeeChanged&&!previousPayeeHistory.some(h=>sid(h.id)===payeeEventId)?
+    [...previousPayeeHistory,{id:payeeEventId,at:ts,fromName:sid(old.factionName),
+      toName:parsed.factionName,fromMasterId:sid(old.factionMasterId)||null,
+      toMasterId:sid(parsed.factionMasterId)||null,reason:sid(parsed.note).trim()}]:previousPayeeHistory;
    const next={...old,id:x.id,source:'faction_manual_payment_v1',manual:true,manualGroupId:groupId,
+    payeeTransferHistoryV95104:payeeHistory,
     manualKindV9566:x.kind,serviceModeV9577:parsed.serviceMode,factionMasterId:parsed.factionMasterId,
     factionName:parsed.factionName,status:'Pendente',productId:x.productId,description:x.description,
     manualProductNameV9589:x.manualProductName,manualProductCategoryV9589:x.manualProductCategory,
