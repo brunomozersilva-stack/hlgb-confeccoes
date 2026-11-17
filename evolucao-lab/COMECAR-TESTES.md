@@ -1,5 +1,21 @@
 # HLGB Evolução — Como começar a testar os módulos
 
+## NOVO — Devolução integral de compra já recebida (somente laboratório)
+
+A versão de teste agora possui o comando `purchase.return.full`, separado de `purchase.request.cancelIssued`. **Não é possível cancelar diretamente uma compra recebida.** Este fluxo só trabalha com materiais inventados e um documento de compra que veio de requisição aprovada, foi recebido e ainda tem título a pagar **aberto**.
+
+1. Abra a prévia **Operação Integrada → Compras**. No planejador fictício, programe **200 Calcinha Tammy Rubi/P**. O cenário parte de **8.000 g de renda** e prevê **9.000 g**, portanto falta **1.000 g**.
+2. Crie a REQ-0001 para Renda, aprove com responsável diferente, emita a COM-0001 com fornecedor e duas pessoas diferentes e depois clique em **Receber compra**. O saldo sobe a **9.000 g**, entra uma movimentação positiva de 1.000 g e aparece um título original a pagar de **R$ 42,00**.
+3. No painel **Devolução integral após recebimento**, selecione a COM-0001, preencha uma referência exclusiva como `DEV-TESTE-001`, o responsável, um conferente diferente e o motivo. Confirme.
+4. Confira o documento `DEV-0001`: a compra e a REQ continuam marcadas como recebidas. Surgem uma segunda movimentação **negativa de 1.000 g**, levando o saldo de volta aos **8.000 g**, e **um novo crédito a receber de R$ 42,00**, sem excluir ou reescrever o título original do fornecedor.
+5. Confira **Estoque, Hub, Relatórios e Auditor**. O Auditor deve identificar o crédito por sua origem e não confundi-lo com título órfão. Baixe JSON/CSV e confira IDs de REQ, COM, DEV, MOV, FIN, referência e justificativa.
+6. Tente devolver a mesma COM outra vez: a ação deve bloquear. Experimente em novo documento fictício uma compra já paga, falta de estoque, conferentes iguais ou material consumido; não poderá surgir outro crédito nem saída indevida.
+7. Atualize a página: o documento de devolução deve permanecer no IndexedDB local da prévia. Também é possível testar a baixa demonstrativa do crédito separadamente em **Hub**, mantendo inalterado o título original.
+
+**Limites da etapa:** somente **devolução total** de compra com REQ e título original ainda aberto, com **estoque integralmente disponível**. Não há devolução parcial, cancelamento fiscal, NF de devolução, pagamento externo, identificação autenticada ou conferência de retorno físico ao fornecedor. Os nomes digitados são apenas demonstrações. O crédito novo **não liquida automaticamente** a dívida original; a compensação financeira real exigirá regras específicas e aprovação humana.
+
+**Evidência:** `tests/devolucoes-compras-contract.cjs` cobre 11 cenários; `tests/devolucoes-compras-mobile.cjs` percorre o fluxo em Chromium e WebKit, com 390 px e 1280 px, inclusive recarga de IndexedDB. Workflow `evolucao-devolucoes-compras.yml`. Esta execução não comprova paridade com o HLGB atual nem autorização para publicar.
+
 **Situação:** central de avaliação manual independente, não homologação ou instalação no sistema em produção.
 
 ## O que é possível fazer agora
