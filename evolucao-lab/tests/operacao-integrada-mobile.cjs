@@ -747,6 +747,88 @@ async function run(browser,width,url){
    await module(page,'corte');
    assert.match(await page.locator('#module-content').innerText(),/BOM-0001/);
    assert.equal(await revision(page),afterBom);
+
+   // Requisições: demanda real do cenário, aprovação separada e compra sem baixa.
+   await module(page,'compras');
+   await put(page,'materials.plan.add',{productId:'PRO-0002',color:'Branco',size:'G',qty:'200'});
+   const [forecastFile]=await Promise.all([page.waitForEvent('download'),
+    page.locator('#export-json').click()]);
+   const scenario=JSON.parse(fs.readFileSync(await forecastFile.path(),'utf8'));
+   const needed=scenario.materialPlanning.materials.find(x=>x.materialId==='MAT-0002');
+   assert.ok(needed.missingGrams>0,'cenário deve exigir compra de renda');
+   const currentRenda=scenario.data.materials.find(x=>x.id==='MAT-0002').stockGrams;
+   const countPurchases=scenario.data.purchaseOrders.length;
+   const countFinance=scenario.data.finance.length;
+   await put(page,'purchase.request.create',{materialId:'MAT-0002',
+    requester:'Compradora Fictícia',reason:'Falta de renda para a semana'});
+   const oneRevision=await revision(page);
+   const duplicate=page.locator('form[data-command="purchase.request.create"]');
+   await duplicate.locator('button[type=submit]').click();
+   await page.waitForFunction(()=>document.querySelector('#flash')?.textContent.includes('Já existe requisição ativa')||
+    document.querySelector('#flash')?.textContent.includes('escolha um cadastro'));
+   assert.equal(await revision(page),oneRevision,'requisição duplicada não registra evento');
+   const badApproval=page.locator('form[data-command="purchase.request.approve"]');
+   await badApproval.locator('[name="approver"]').fill('Compradora Fictícia');
+   await badApproval.locator('button[type=submit]').click();
+   await page.waitForFunction(()=>document.querySelector('#flash')?.textContent.includes('pessoas diferentes'));
+   assert.equal(await revision(page),oneRevision);
+   await put(page,'purchase.request.approve',{id:'REQ-0001',
+    approver:'Supervisora Fictícia',
+    reason:'Conferência do planejamento e do saldo disponível'});
+   const afterApprovalRev=await revision(page);
+   const [approvedFile]=await Promise.all([page.waitForEvent('download'),
+    page.locator('#export-json').click()]);
+   const approved=JSON.parse(fs.readFileSync(await approvedFile.path(),'utf8'));
+   assert.equal(approved.data.purchaseRequests[0].status,'aprovada');
+   assert.equal(approved.data.purchaseOrders.length,countPurchases);
+   assert.equal(approved.data.finance.length,countFinance);
+   assert.equal(approved.data.materials.find(x=>x.id==='MAT-0002').stockGrams,currentRenda);
+   await put(page,'purchase.request.issue',{id:'REQ-0001',supplierId:'FOR-0001',
+    checkerOne:'Aline Confere',checkerTwo:'Beto Confere',
+    reason:'Ordem fictícia baseada na requisição aprovada'});
+   const [issuedFile]=await Promise.all([page.waitForEvent('download'),
+    page.locator('#export-json').click()]);
+   const issued=JSON.parse(fs.readFileSync(await issuedFile.path(),'utf8'));
+   const issuedReq=issued.data.purchaseRequests[0];
+   assert.equal(issuedReq.status,'emitida');
+   assert.equal(issuedReq.qtyGrams,needed.missingGrams);
+   assert.equal(issuedReq.purchaseId,'COM-0002');
+   assert.equal(issued.data.purchaseOrders.length,countPurchases+1);
+   assert.equal(issued.data.purchaseOrders.at(-1).purchaseRequestId,'REQ-0001');
+   assert.equal(issued.data.purchaseOrders.at(-1).received,false);
+   assert.equal(issued.data.materials.find(x=>x.id==='MAT-0002').stockGrams,currentRenda);
+   assert.equal(issued.data.finance.length,countFinance);
+   const revBeforeReceipt=await revision(page);
+   await put(page,'purchase.receive',{id:'COM-0002'});
+   const [receiptFile]=await Promise.all([page.waitForEvent('download'),
+    page.locator('#export-json').click()]);
+   const received=JSON.parse(fs.readFileSync(await receiptFile.path(),'utf8'));
+   assert.equal(received.data.purchaseRequests[0].status,'recebida');
+   assert.equal(received.data.materials.find(x=>x.id==='MAT-0002').stockGrams,
+    currentRenda+needed.missingGrams);
+   assert.equal(received.data.stockLedger.filter(x=>x.sourceId==='COM-0002').length,1);
+   assert.equal(received.data.finance.filter(x=>x.sourceId==='COM-0002').length,1);
+   assert.equal(received.data.finance.length,countFinance+1);
+   assert.equal(received.observability.summary.receivedPurchaseRequests,1);
+   assert.equal(received.observability.findings.length,0);
+   assert.equal(received.checks.ok,true);
+   const revAfterReceipt=await revision(page);
+   const receiveAgain=page.locator('form[data-command="purchase.receive"]');
+   // O recebimento não deve voltar a ser opção depois da primeira baixa.
+   assert.equal(await receiveAgain.locator('[name="id"] option[value="COM-0002"]').count(),0);
+   await module(page,'relatorios');
+   assert.match(await page.locator('#module-content').innerText(),/Histórico de requisições/);
+   const [reqCsv]=await Promise.all([page.waitForEvent('download'),
+    page.locator('#export-csv').click()]);
+   assert.match(fs.readFileSync(await reqCsv.path(),'utf8'),/Requisição/);
+   await page.reload();
+   await page.waitForFunction(rev=>
+    document.querySelector('#top-revision')?.textContent.includes('Revisão local '+rev),
+    revAfterReceipt);
+   await module(page,'compras');
+   assert.match(await page.locator('#module-content').innerText(),/REQ-0001/);
+   assert.match(await page.locator('#module-content').innerText(),/recebida/);
+   assert.equal(await revision(page),revAfterReceipt);
   }
   const d=await page.evaluate(()=>({width:innerWidth,scroll:document.documentElement.scrollWidth}));
   if(d.scroll>d.width+2){
