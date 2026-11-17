@@ -624,7 +624,24 @@ function moduleHtml(s){
  const transferable=selector(rows.filter(x=>!classified.some(o=>o.id===x.orderId)&&x.qtySent>1&&x.qtySent>x.qtyReturned),
   x=>x.id+' · '+x.orderId+' · '+(ref(s.factions,x.factionId)?.name||'—')+
   ' · '+(x.qtySent-x.qtyReturned)+' peças disponíveis');
- return panel('Cadastro e regras por facção',
+ return panel('Preço específico das peças que já estão na facção',
+   form('faction.assignment.rate.set','Negociar mão de obra por envio pendente',[
+    field('assignmentId','Envio / pedido / facção','select','',selector(rows.filter(x=>x.qtySent>x.qtyReturned),x=>
+      x.id+' · '+x.orderId+' · '+(ref(s.factions,x.factionId)?.name||'—')+
+      ' · '+(x.qtySent-x.qtyReturned)+' pendentes')),
+    field('unitCents','Preço bruto por peça (R$)','money','0,00'),
+    field('travetaCents','Desconto de travetada por peça (R$)','money','0,00'),
+    field('reason','Justificativa da negociação','text','')
+   ],'Salvar tarifa deste envio')+
+   '<p id="assignment-rate-preview" class="caption" role="status"></p>'+
+   '<p>A tarifa vale apenas para os próximos retornos deste envio, incluindo devoluções e retornos por cor/tamanho. Não altera o preço geral do modelo nem os acertos existentes. A troca integral de facção desativa o acordo da origem, conservando o histórico.</p>'+
+   table(['Envio','Facção','Bruto/peça','Travetada/peça','Peças pendentes na negociação','Justificativa'],
+    rows.flatMap(x=>(x.rateAgreementHistory||[]).map(h=>[
+     str(x.id),str(ref(s.factions,h.factionId)?.name||h.factionId),
+     h.mode==='reset'?'Acordo encerrado':fmt(h.gross),h.mode==='reset'?'—':fmt(h.discount),
+     str(h.pendingQty??'—'),str(h.reason)
+    ]))),true)+
+  panel('Cadastro e regras por facção',
  form('faction.add','Cadastrar facção fictícia',[
   field('name','Nome da facção'),field('unitCents','Preço padrão por peça (R$)','money','6,00'),
   field('traveta','Faz travetada?','select','',[['true','Sim'],['false','Não']])
@@ -1032,6 +1049,7 @@ function draw(){
  $('global-metrics').innerHTML=metrics.map(([label,value])=>'<div class="metric"><span>'+escape(label)+'</span><strong>'+escape(value)+'</strong></div>').join('');
  $('module-content').innerHTML=moduleHtml(doc);
  if(active==='acertos'){applySettlementFilters();const f=document.querySelector('form[data-command="settlement.revise"]');if(f)fillSettlementRevision(f);}
+ if(active==='faccoes'){const f=document.querySelector('form[data-command="faction.assignment.rate.set"]');if(f)fillAssignmentRate(f);}
  $('audit-trail').innerHTML=doc.log.length?doc.log.slice().reverse().slice(0,28).map(e=>
  '<div class="log-item"><strong>'+escape(e.type)+' · '+escape(e.commandId)+'</strong>'+
  'Revisão '+e.revision+' · '+escape(e.description)+'</div>').join(''):
@@ -1349,6 +1367,17 @@ function suggestServicePrice(form){
   price.value=nr(fac?.productRates?.[productId]??fac?.unitCents??0);
  }
 }
+function fillAssignmentRate(form){
+ const row=doc?.factionAssignments?.find(x=>x.id===form.elements.namedItem('assignmentId')?.value);
+ const order=row&&ref(doc.orders,row.orderId),fac=row&&ref(doc.factions,row.factionId),
+  product=order&&ref(doc.products,order.productId);
+ if(!row||!fac||!product)return;
+ const rate=window.HLGBLabFactionRoutingV1.resolveRate(row,fac,product);
+ form.elements.namedItem('unitCents').value=nr(rate.gross);
+ form.elements.namedItem('travetaCents').value=nr(rate.traveta);
+ const preview=$('assignment-rate-preview');
+ if(preview)preview.textContent=(row.qtySent-row.qtyReturned)+' peças pendentes · tarifa líquida atual '+fmt(rate.unit)+' por peça.';
+}
 function fillSettlementRevision(form){
  const x=doc?.settlements.find(a=>a.id===form.elements.namedItem('id')?.value);
  if(!x)return;
@@ -1484,6 +1513,7 @@ document.addEventListener('change',event=>{
  const selected=event.target.name;
  if(type==='settlement.add'&&['serviceType','productId','factionId'].includes(selected))suggestServicePrice(form);
  if(type==='settlement.revise'&&selected==='id')fillSettlementRevision(form);
+ if(type==='faction.assignment.rate.set'&&selected==='assignmentId')fillAssignmentRate(form);
  if(type==='settlement.revise'&&['unitCents','travetaCents','factionId'].includes(selected))previewSettlementRevision(form);
  if(type==='order.grade.update'&&selected==='orderId'){
   const order=doc.orders.find(o=>o.id===event.target.value);if(!order)return;
