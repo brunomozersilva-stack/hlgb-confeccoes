@@ -158,7 +158,7 @@
       g.entries.map(e=>'<div style="padding:5px;border-bottom:1px solid #ddd">'+
        esc(e.kind==='avulso'?'Avulso':'Normal')+' · '+esc(e.label)+' · '+
        esc(e.date||'Sem data')+' · '+money(e.amountCents)+'<br><small>'+
-       esc(e.groupId||e.paymentId||'')+'</small></div>').join('')+
+       esc(e.groupId||e.paymentId||'')+'</small>'+       (e.kind==='normal'?        ' <button type="button" class="secondary" data-payee104-id="'+esc(e.paymentId)+'">↔ Trocar facção</button>'+        ' <button type="button" class="secondary" data-already-paid104-id="'+esc(e.paymentId)+'">✓ Já estava pago</button>':        ' <button type="button" class="secondary" data-manual-payee104-group="'+esc(e.groupId)+'">↔ Trocar facção avulsa</button>')+       '</div>').join('')+
       '</details></td></tr>').join('')+'</tbody></table></div>':
     '<div class="sub">Nenhum acerto pendente nos dados disponíveis neste computador.</div>')+
    '<p class="sub">A conferência da mesma pessoa usa o cadastro e o nome normalizado. Se houver homônimos ou pagamento parcial, revise os registros antes de pagar. Para registrar uma única saída bancária, será necessário homologar uma transação financeira unificada com confirmação remota; as baixas atuais continuam separadas e protegidas.</p>';
