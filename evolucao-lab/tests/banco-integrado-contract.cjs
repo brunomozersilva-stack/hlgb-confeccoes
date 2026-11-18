@@ -88,16 +88,20 @@ test('leitura de produção exclui salários, Folha, títulos, preços e trilha 
  const limited=productionView.project(source,B);
  assert.equal(limited.schema,'hlgb-evolucao-operacao-producao-ficticia-v1');
  assert.equal(limited.revision,full.revision);
- assert.deepEqual(Object.keys(limited).sort(),['schema','readScope','revision','clients','products','factions','orders','cutPlans','factionAssignments'].sort());
+ assert.deepEqual(Object.keys(limited).sort(),['schema','readScope','revision','clients','products','materials','factions','orders','cutPlans','factionAssignments'].sort());
  assert.equal(Array.isArray(limited.factionAssignments),true);
  assert.equal(limited.factionAssignments.length,full.factionAssignments.length);
  for(const assignment of limited.factionAssignments)
   assert.deepEqual(Object.keys(assignment).sort(),['id','orderId','factionId','qtySent','qtyReturned'].sort(),
    'Envio expõe somente saldos e IDs operacionais de facções');
- assert.deepEqual(Object.keys(limited.products[0]).sort(),['id','sku','name'].sort());
+ assert.deepEqual(Object.keys(limited.products[0]).sort(),['id','sku','name','gramsPerUnit'].sort());
+ assert.deepEqual(Object.keys(limited.materials[0]).sort(),['id','name','stockGrams'].sort());
+ assert.deepEqual(Object.keys(limited.cutPlans[0]||{}).sort(),[].sort(),'Sem folhas neste fixture, mas a lista é explícita');
  assert.deepEqual(Object.keys(limited.factions[0]).sort(),['id','name'].sort());
+ assert.equal(Object.hasOwn(productionView.project(source,'Operador C fictício'),'materials'),false,'Corte simplificado não recebe estoque completo');
+ assert.deepEqual(Object.keys(productionView.project(source,'Operador C fictício').products[0]).sort(),['id','sku','name'].sort());
  assert.equal(limited.orders.length,full.orders.length);
- for(const term of ['SEGREDO-FOLHA-X9','SEGREDO-FINANCEIRO-X9','SEGREDO-AUDITORIA-X9','9999999','salaryCents','amountCents','paymentBatches'])
+ for(const term of ['SEGREDO-FOLHA-X9','SEGREDO-FINANCEIRO-X9','SEGREDO-AUDITORIA-X9','9999999','salaryCents','amountCents','priceCentsKg','priceCents','paymentBatches'])
   assert.equal(JSON.stringify(limited).includes(term),false,'Não pode vazar '+term);
  assert.throws(()=>productionView.project(source,A),/autorização/);
  assert.throws(()=>productionView.project({...source,orders:null},B),/Lista operacional/);

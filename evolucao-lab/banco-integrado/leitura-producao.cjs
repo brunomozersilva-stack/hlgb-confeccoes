@@ -5,10 +5,11 @@
 const {profile}=require('./permissoes-lab.cjs');
 const fields={
  clients:['id','name'],
- products:['id','sku','name'],
+ products:['id','sku','name','gramsPerUnit'],
+ materials:['id','name','stockGrams'],
  factions:['id','name'],
  orders:['id','clientId','productId','grade','cut','allocated','returned','separated','shipped','factionId'],
- cutPlans:['id','orderId','grade','status'],
+ cutPlans:['id','orderId','grade','status','workMode','cutterOne','cutterTwo','spreader','materialId','theoreticalGrams','usefulGrams','scrapGrams'],
  factionAssignments:['id','orderId','factionId','qtySent','qtyReturned']
 };
 function scalar(value){
@@ -35,7 +36,7 @@ function projectRow(row,columns){
  }
  return projected;
 }
-const cutFields={products:fields.products,orders:['id','productId','grade','cut'],cutPlans:fields.cutPlans};
+const cutFields={products:['id','sku','name'],orders:['id','productId','grade','cut'],cutPlans:['id','orderId','grade','status']};
 function project(state,actor){
  if(profile(actor)?.id!=='demo-production')throw Error('Perfil sem autorização para a visão de produção');
  if(!state||state.schema!=='hlgb-evolucao-operacao-ficticia-v1'||!Number.isSafeInteger(state.revision))throw Error('Documento do laboratório inválido');

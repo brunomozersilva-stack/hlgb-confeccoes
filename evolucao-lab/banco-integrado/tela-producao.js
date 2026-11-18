@@ -73,6 +73,50 @@
    if(label)label.textContent='Saldo pendente de retorno: '+available+' peça(s).';
   }
  }
+ // Planejamento de corte fictício: previsão de peso, jamais geometria real de moldes.
+ function plannedGrade(form){
+  return Object.fromEntries(sizes.map(sz=>[sz,Number(form.elements.namedItem(sz).value)]));
+ }
+ function cutPlanPreview(){
+  if(!view)return;
+  const form=document.querySelector('form[data-command="cut.plan"]');
+  const order=view.orders.find(o=>o.id===form.elements.namedItem('orderId').value);
+  const product=view.products.find(p=>p.id===order?.productId),grams=product?.gramsPerUnit;
+  const material=view.materials?.find(m=>m.id===product?.materialId);
+  const grade=plannedGrade(form),qty=sum(grade),left=sizes.map(sz=>sz+': '+remaining(order,sz)).join(' · ');
+  const used=Number.isSafeInteger(grams)&&grams>0?qty*grams:null;
+  const notice=byId('cut-plan-preview');
+  if(!order||!product||used===null){
+   notice.textContent='Selecione um pedido e uma ficha técnica válida.';return;
+  }
+  notice.textContent='Saldo livre por tamanho: '+left+'. '+qty+' peça(s) · consumo teórico '+used+' g. '+
+    (material?'Estoque de '+material.name+': '+material.stockGrams+' g. ':'')+
+    'Planejamento NÃO reserva fisicamente o estoque.';
+ }
+ function openPlan(){return view?.cutPlans.find(x=>x.id===document.querySelector('form[data-command="cut.plan.complete"] [name=id]').value);}
+ function cutCompletePreview(){
+  if(!view)return;
+  const plan=openPlan(),form=document.querySelector('form[data-command="cut.plan.complete"]');
+  const useful=Number(form.elements.namedItem('usefulGrams').value),scrap=Number(form.elements.namedItem('scrapGrams').value);
+  const material=view.materials?.find(m=>m.id===plan?.materialId);
+  const forecast=byId('cut-complete-preview'),eff=byId('cut-efficiency');
+  if(!plan){forecast.textContent='Nenhuma folha de corte aberta.';eff.textContent='Aproveitamento de peso: —';return;}
+  forecast.textContent='Folha '+plan.id+': '+sum(plan.grade)+' peça(s) · mínimo útil '+plan.theoreticalGrams+
+    ' g · material '+(material?.name||plan.materialId)+'. Conferentes previstos: '+plan.cutterOne+' e '+plan.cutterTwo+'.';
+  const total=useful+scrap;
+  eff.textContent=Number.isSafeInteger(useful)&&useful>0&&Number.isSafeInteger(scrap)&&scrap>=0&&total>0?
+    'Aproveitamento de peso estimado após lançamento: '+(100*useful/total).toFixed(1)+'% · consumo '+total+' g'+
+    (material?' / estoque disponível '+material.stockGrams+' g.':'.'):
+    'Informe pesos válidos para calcular o aproveitamento.';
+ }
+ function cutPlanningOptions(){
+  if(!view)return;
+  const plans=view.cutPlans.filter(x=>x.status==='aberto');
+  const format=p=>p.id+' · '+p.orderId+' · '+sum(p.grade)+' peça(s)';
+  options(document.querySelector('form[data-command="cut.plan.complete"] [name=id]'),plans,format);
+  options(document.querySelector('form[data-command="cut.plan.cancel"] [name=id]'),plans,format);
+  cutPlanPreview();cutCompletePreview();
+ }
  function stageRemaining(order,type){
   if(!order)return 0;
   if(type==='order.separate')return Math.max(0,order.returned-order.separated);
@@ -100,7 +144,7 @@
   const clients=view.clients||[],products=view.products,factions=view.factions||[],orders=view.orders;
   options(document.querySelector('form[data-command="order.add"] [name=clientId]'),clients,x=>x.name);
   options(document.querySelector('form[data-command="order.add"] [name=productId]'),products,x=>x.name+' · '+x.sku);
-  for(const form of document.querySelectorAll('form[data-command="cut.record"],form[data-command="faction.allocate"],form[data-command="faction.return"],form[data-command="faction.multi.allocate"],form[data-command="order.separate"],form[data-command="order.ship"]')){
+  for(const form of document.querySelectorAll('form[data-command="cut.record"],form[data-command="cut.plan"],form[data-command="faction.allocate"],form[data-command="faction.return"],form[data-command="faction.multi.allocate"],form[data-command="order.separate"],form[data-command="order.ship"]')){
    options(form.elements.namedItem('orderId'),orders,x=>x.id+' · '+(products.find(p=>p.id===x.productId)?.name||'Modelo'));
   }
   options(document.querySelector('form[data-command="faction.allocate"] [name=factionId]'),factions,x=>x.name);
@@ -111,6 +155,7 @@
   options(document.querySelector('form[data-command="faction.multi.transfer"] [name=fromAssignmentId]'),assignments.filter(x=>transferAvailable(x)>0),textForAssignment);
   options(document.querySelector('form[data-command="faction.multi.return"] [name=assignmentId]'),assignments.filter(x=>assignmentPending(x)>0),textForAssignment);
   chooseAvailableCut();
+  cutPlanningOptions();
   stageBalances();
   assignmentBalances();
   const tbody=byId('orders');tbody.replaceChildren();
@@ -128,6 +173,19 @@
    }
    assignmentBody.append(tr);
   }
+  const plansBody=byId('cut-plans');plansBody.replaceChildren();
+  for(const plan of view.cutPlans){
+   const tr=document.createElement('tr'),used=plan.usefulGrams,scrap=plan.scrapGrams;
+   const values=[plan.id,plan.orderId,sum(plan.grade),plan.status,plan.cutterOne&&plan.cutterTwo?
+      plan.cutterOne+' / '+plan.cutterTwo+' / '+plan.spreader:'—',
+     view.materials?.find(m=>m.id===plan.materialId)?.name||plan.materialId||'—',
+     plan.theoreticalGrams??'—',used??'—',scrap??'—',
+     Number.isSafeInteger(used)&&Number.isSafeInteger(scrap)&&used+scrap>0?
+      (100*used/(used+scrap)).toFixed(1)+'%':'—'];
+   for(const value of values){const td=document.createElement('td');td.textContent=String(value);tr.append(td);}
+   plansBody.append(tr);
+  }
+  byId('cut-plans-section').hidden=!remote.info().permissions?.allowedCommands.includes('cut.plan');
   updatePending();
  }
  // Somente leitura: não repete comandos, não toca nos rascunhos ou no WAL.
@@ -162,6 +220,42 @@
    const grade=Object.fromEntries(sizes.map(k=>[k,Number(values[k])]));
    if(sizes.some(k=>!Number.isSafeInteger(grade[k])||grade[k]<0)||sum(grade)<1||sum(grade)>30000)throw Error('Informe uma grade válida entre 1 e 30000 peças.');
    return {clientId:values.clientId,productId:values.productId,grade};
+  }
+  if(type==='cut.plan'){
+   const grade=plannedGrade(form),order=view.orders.find(x=>x.id===values.orderId);
+   const cutterOne=String(values.cutterOne||'').trim(),cutterTwo=String(values.cutterTwo||'').trim(),
+    spreader=String(values.spreader||'').trim();
+   if(!order)throw Error('Pedido não encontrado na revisão do laboratório.');
+   if(sizes.some(sz=>!Number.isSafeInteger(grade[sz])||grade[sz]<0||grade[sz]>10000)||sum(grade)<1||sum(grade)>10000)
+    throw Error('Grade da folha deve ter entre 1 e 10000 peças.');
+   for(const sz of sizes)if(grade[sz]>remaining(order,sz))throw Error('Folha excede saldo livre no tamanho '+sz+'. Nenhum comando enviado.');
+   if(!['interno','externo'].includes(values.workMode))throw Error('Informe modalidade de corte válida.');
+   if(!cutterOne||!cutterTwo||!spreader||[cutterOne,cutterTwo,spreader].some(x=>x.length>95))
+    throw Error('Informe dois cortadores e um enfestador (até 95 caracteres).');
+   if(cutterOne.toLocaleLowerCase('pt-BR')===cutterTwo.toLocaleLowerCase('pt-BR'))
+    throw Error('Cortadores precisam ser diferentes.');
+   return {orderId:order.id,grade,workMode:values.workMode,cutterOne,cutterTwo,spreader};
+  }
+  if(type==='cut.plan.cancel'){
+   const plan=view.cutPlans.find(x=>x.id===values.id&&x.status==='aberto');
+   if(!plan)throw Error('Somente folha aberta pode ser cancelada.');
+   return {id:plan.id};
+  }
+  if(type==='cut.plan.complete'){
+   const plan=view.cutPlans.find(x=>x.id===values.id&&x.status==='aberto');
+   if(!plan)throw Error('Somente folha aberta pode ser concluída.');
+   const usefulGrams=Number(values.usefulGrams),scrapGrams=Number(values.scrapGrams);
+   const signatureOne=String(values.signatureOne||'').trim(),signatureTwo=String(values.signatureTwo||'').trim(),
+    material=view.materials?.find(m=>m.id===plan.materialId);
+   if(!Number.isSafeInteger(usefulGrams)||usefulGrams<plan.theoreticalGrams||usefulGrams>1000000||
+      !Number.isSafeInteger(scrapGrams)||scrapGrams<0||scrapGrams>1000000)
+    throw Error('Peso útil não pode ficar abaixo do consumo teórico. Confira pesos inteiros e desperdício.');
+   if(!material||usefulGrams+scrapGrams>material.stockGrams)
+    throw Error('Consumo excede estoque disponível para esta folha. Nenhum comando enviado.');
+   if(signatureOne.toLocaleLowerCase('pt-BR')!==plan.cutterOne.toLocaleLowerCase('pt-BR')||
+      signatureTwo.toLocaleLowerCase('pt-BR')!==plan.cutterTwo.toLocaleLowerCase('pt-BR'))
+    throw Error('As duas conferências precisam corresponder aos cortadores planejados.');
+   return {id:plan.id,usefulGrams,scrapGrams,signatureOne,signatureTwo};
   }
   const qty=Number(values.qty);
   if(!Number.isSafeInteger(qty)||qty<1||qty>10000)throw Error('Quantidade inválida.');
@@ -238,6 +332,12 @@
    for(const f of document.querySelectorAll('form[data-command]'))f.addEventListener('submit',onSubmit);
    const cutForm=document.querySelector('form[data-command="cut.record"]');
    for(const name of ['orderId','size'])cutForm.elements.namedItem(name).addEventListener('change',chooseAvailableCut);
+   const planForm=document.querySelector('form[data-command="cut.plan"]');
+   planForm.addEventListener('input',cutPlanPreview);
+   planForm.addEventListener('change',cutPlanPreview);
+   const completeForm=document.querySelector('form[data-command="cut.plan.complete"]');
+   completeForm.addEventListener('input',cutCompletePreview);
+   completeForm.addEventListener('change',cutCompletePreview);
    for(const type of ['order.separate','order.ship'])
     document.querySelector('form[data-command="'+type+'"] [name=orderId]').addEventListener('change',stageBalances);
    document.querySelector('form[data-command="faction.multi.transfer"] [name=fromAssignmentId]').addEventListener('change',assignmentBalances);

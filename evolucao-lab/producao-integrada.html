@@ -34,6 +34,32 @@ small{color:#6b6072}@media(max-width:430px){.grade{grid-template-columns:repeat(
 <label>Quantidades por tamanho</label><div class="grade"><label>P<input name="P" type="number" value="1" min="0" max="30000" required></label><label>M<input name="M" type="number" value="0" min="0" max="30000" required></label><label>G<input name="G" type="number" value="0" min="0" max="30000" required></label><label>GG<input name="GG" type="number" value="0" min="0" max="30000" required></label></div>
 <div class="actions"><button type="submit">Registrar pedido</button></div></form></section>
 <section><h2>Registrar corte</h2><form data-command="cut.record"><label>Pedido<select name="orderId" required></select></label><label>Tamanho<select name="size"><option>P</option><option>M</option><option>G</option><option>GG</option></select></label><label>Quantidade<input name="qty" type="number" min="1" max="10000" value="1" required></label><div class="actions"><button type="submit">Registrar corte</button></div></form></section>
+<section><h2>Planejar folha de corte</h2><form data-command="cut.plan">
+<label>Pedido<select name="orderId" required></select></label>
+<label>Grade a planejar</label>
+<div class="grade"><label>P<input name="P" type="number" value="1" min="0" max="10000" required></label><label>M<input name="M" type="number" value="0" min="0" max="10000" required></label><label>G<input name="G" type="number" value="0" min="0" max="10000" required></label><label>GG<input name="GG" type="number" value="0" min="0" max="10000" required></label></div>
+<p class="balance" id="cut-plan-preview" aria-live="polite">Selecione um pedido para simular o material.</p>
+<label>Modalidade<select name="workMode"><option value="interno">Corte interno</option><option value="externo">Corte externo</option></select></label>
+<label>Cortador 1<input name="cutterOne" maxlength="95" required placeholder="Nome de teste"></label>
+<label>Cortador 2<input name="cutterTwo" maxlength="95" required placeholder="Nome diferente do primeiro"></label>
+<label>Enfestador<input name="spreader" maxlength="95" required placeholder="Nome de teste"></label>
+<div class="actions"><button type="submit">Criar folha planejada</button></div>
+</form></section>
+<section><h2>Concluir folha de corte</h2><form data-command="cut.plan.complete">
+<label>Folha aberta<select name="id" required></select></label>
+<p class="balance" id="cut-complete-preview">Confira consumo e assinaturas antes da baixa.</p>
+<label>Peso útil usado (g)<input name="usefulGrams" type="number" min="1" max="1000000" required value="1"></label>
+<label>Desperdício / lixo (g)<input name="scrapGrams" type="number" min="0" max="1000000" required value="0"></label>
+<p class="balance" id="cut-efficiency">Aproveitamento de peso após conferência: —</p>
+<label>Conferência cortador 1<input name="signatureOne" maxlength="95" required></label>
+<label>Conferência cortador 2<input name="signatureTwo" maxlength="95" required></label>
+<div class="actions"><button type="submit">Concluir e dar baixa do material</button></div>
+</form></section>
+<section><h2>Cancelar folha ainda aberta</h2><form data-command="cut.plan.cancel">
+<label>Folha aberta<select name="id" required></select></label>
+<p class="balance">O cancelamento não baixa o estoque; fica registrado no histórico do laboratório.</p>
+<div class="actions"><button type="submit">Cancelar somente folha aberta</button></div>
+</form></section>
 <section><h2>Enviar para facção</h2><form data-command="faction.allocate"><label>Pedido<select name="orderId" required></select></label><label>Facção<select name="factionId" required></select></label><label>Quantidade<input name="qty" type="number" min="1" max="10000" value="1" required></label><div class="actions"><button type="submit">Registrar envio</button></div></form></section>
 <section><h2>Registrar retorno</h2><form data-command="faction.return"><label>Pedido<select name="orderId" required></select></label><label>Quantidade<input name="qty" type="number" min="1" max="10000" value="1" required></label><div class="actions"><button type="submit">Registrar retorno</button></div></form></section>
 <section><h2>Distribuir entre facções</h2>
@@ -63,6 +89,9 @@ small{color:#6b6072}@media(max-width:430px){.grade{grid-template-columns:repeat(
 <section><h2>Expedir pedido</h2><form data-command="order.ship"><label>Pedido<select name="orderId" required></select></label><p class="balance" data-balance="order.ship">Saldo separado não expedido: —</p><label>Quantidade para expedir<input name="qty" type="number" min="1" max="10000" value="1" required></label><div class="actions"><button type="submit">Confirmar expedição</button></div></form></section>
 </div>
 <section><h2>Pedidos e etapas operacionais</h2><small>Somente dados de produção; nenhum valor financeiro.</small><div class="table"><table><thead><tr><th>Pedido</th><th>Modelo</th><th>Quantidade</th><th>Cortado</th><th>Enviado</th><th>Retornado</th><th>Pronto para separar</th><th>Separado</th><th>Pronto para expedir</th><th>Expedido</th></tr></thead><tbody id="orders"></tbody></table></div></section>
+<section id="cut-plans-section"><h2>Folhas de corte e consumo</h2>
+<small>Estimativa teórica é calculada pela ficha técnica fictícia. Aproveitamento de peso não é encaixe automático de moldes.</small>
+<div class="table"><table><thead><tr><th>Folha</th><th>Pedido</th><th>Peças</th><th>Status</th><th>Equipe</th><th>Material</th><th>Teórico (g)</th><th>Útil (g)</th><th>Lixo (g)</th><th>Aproveitamento</th></tr></thead><tbody id="cut-plans"></tbody></table></div></section>
 <section><h2>Envios por facção</h2><small>Saldos exclusivamente operacionais. Preços, valores dos acertos e títulos financeiros não são exibidos.</small>
 <div class="table"><table><thead><tr><th>Envio</th><th>Pedido</th><th>Facção</th><th>Enviado</th><th>Retornado</th><th>Pendente</th></tr></thead><tbody id="assignments"></tbody></table></div></section>
 <p><small>Prévia restrita do laboratório. Outras operações de produção serão incorporadas após os testes de autorização. Nenhum acesso ao HLGB em produção.</small></p>
