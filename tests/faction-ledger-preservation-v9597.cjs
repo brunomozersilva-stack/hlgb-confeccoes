@@ -1,3 +1,4 @@
+const legacyLoaderView=require('./hlgb-loader-test-view-v9600.cjs');
 'use strict';
 const test=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('node:vm');
 const source=fs.readFileSync('release-faction-ledger-preservation-v9597.js','utf8');
@@ -28,7 +29,7 @@ function fixture({auth=true,payments=[],factions=[]}={}){
  return {win,d,writes,calls,api:win.hlgbFactionLedgerPreservation9597};
 }
 test('boot loads integrity guard exactly once and before other optional modules',()=>{
- const loader=router.match(/const files=\[(.*?)\];/s)?.[1]||'';
+ const loader=legacyLoaderView(router);
  const name="'release-faction-ledger-preservation-v9597.js'";
  assert.equal(loader.split(name).length-1,1);
  assert(loader.trim().startsWith(name),'guard must run before any other optional module');
