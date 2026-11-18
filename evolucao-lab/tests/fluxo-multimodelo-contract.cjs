@@ -118,6 +118,27 @@ test('Auditor detecta adulteração de retorno, facção e grade preservando nú
  assert.equal(c.s.cutPlans.length,0);
  assert.equal(c.s.finance.length,0);
 });
+test('Auditoria detecta adulteração de motivo em transferência, preço e conferência',()=>{
+ const c=fixture(),lot=finishAndAllocate(c);
+ c.run('multi.flow.return',{id:lot,lines:lines(['Rubi','P',20]),reason:'20 peças originais'});
+ c.run('multi.flow.transfer',{id:lot,factionId:'FAC-0002',unitCents:600,
+  reason:'Transferência com justificativa'});
+ c.run('multi.flow.rate',{id:lot,unitCents:625,reason:'Renegociação documentada'});
+ c.run('multi.flow.return',{id:lot,lines:lines(['Rubi','M',10]),reason:'Retorno final parcial'});
+ c.run('multi.flow.review',{id:'MFR-0001',reviewer:'Fiscal QA',reason:'Acerto conferido'});
+ for(const mutate of [
+  s=>{s.multiFlowLots[0].changes[0].reason='Motivo diferente'},
+  s=>{s.multiFlowLots[0].changes[1].toUnitCents=999},
+  s=>{s.multiFlowLots[0].returns[0].review.reason='Conferência forjada'},
+  s=>{s.multiFlowLots[0].returns[0].review.reviewer='Pessoa alterada'}
+ ]){
+  const copy=JSON.parse(JSON.stringify(c.s));mutate(copy);
+  assert.equal(core.inspect(copy).ok,false);
+ }
+ assert.equal(core.inspect(c.s).ok,true);
+ assert.equal(flow.acertos(c.s).find(x=>x.factionId==='FAC-0001').totalCents,11000);
+ assert.equal(flow.acertos(c.s).find(x=>x.factionId==='FAC-0002').totalCents,6250);
+});
 test('Fila de trabalho apresenta apenas etapas possíveis por variação e abre o módulo correto',()=>{
  const c=fixture(),view=require('../modulos/fluxo-multimodelo-ui-v1.js');
  let pending=view.queue(c.s,flow);
