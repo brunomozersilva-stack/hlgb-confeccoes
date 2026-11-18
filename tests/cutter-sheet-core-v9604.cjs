@@ -46,7 +46,10 @@ test('carregador mantém 156 scripts originais e posiciona dois cores opcionais 
  const end=loader.indexOf(';const files=moduleGroups.flatMap(group=>group.files)',start);
  assert.ok(start>=0&&end>start);
  const files=JSON.parse(loader.slice(start+anchor.length,end)).flatMap(group=>group.files);
- assert.equal(files.length,158);assert.equal(new Set(files).size,158);
+ const manifest=JSON.parse(fs.readFileSync(path.join(root,'hlgb-modules/ownership-v9600.json'),'utf8'));
+ assert.equal(files.length,manifest.releaseScripts.length);
+ assert.deepEqual(files,manifest.releaseScripts);
+ assert.equal(new Set(files).size,files.length);
  for(const [addon,dependent] of [
   ['hlgb-modules/corte/grade-modelo-v9602.js','release-cutter-planner.js'],
   ['hlgb-modules/corte/folha-grade-materiais-v9604.js','release-cutter-sheet-materials-v9523.js']

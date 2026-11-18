@@ -1,7 +1,7 @@
 name: HLGB Cutter Sheet Pure Core v96.04
 on:
   pull_request:
-    branches: [main, refactor/live-cutter-grade-stacked-v9603]
+    branches: [main, refactor/live-cutter-grade-stacked-v9603 , refactor/live-cutter-sheet-core-v9604]
     paths:
       - 'app-stable3.html'
       - 'release-cutter-sheet-materials-v9523.js'

@@ -10,16 +10,17 @@ function extract(){
  return JSON.parse(source.slice(start+anchor.length,end));
 }
 const groups=extract(),files=groups.flatMap(x=>x.files);
-test('156 scripts comerciais e 2 cores puros aprovados preservam ordem exata',()=>{
- const addons=['hlgb-modules/corte/grade-modelo-v9602.js','hlgb-modules/corte/folha-grade-materiais-v9604.js'];
- assert.equal(files.length,158);assert.equal(groups.length,16);
+test('156 scripts comerciais e 3 cores puros aprovados preservam ordem exata',()=>{
+ const addons=['hlgb-modules/corte/grade-modelo-v9602.js','hlgb-modules/corte/folha-grade-materiais-v9604.js','hlgb-modules/corte/peso-core-v9605.js'];
+ assert.equal(files.length,159);assert.equal(groups.length,16);
  assert.equal(manifest.preExtractionScripts.length,156,'156 scripts anteriores preservados');
- assert.deepEqual(manifest.approvedNewScripts,addons,'somente dois scripts novos explicitamente autorizados');
+ assert.deepEqual(manifest.approvedNewScripts,addons,'somente três scripts novos explicitamente autorizados');
  const legacy=files.filter(x=>!addons.includes(x));
  assert.deepEqual(legacy,manifest.preExtractionScripts,'ordem original e todos os 156 arquivos preservados');
  for(const a of addons)assert.equal(files.filter(x=>x===a).length,1,'sem duplicação: '+a);
  assert.equal(files.indexOf(addons[0])+1,files.indexOf('release-cutter-planner.js'));
  assert.equal(files.indexOf(addons[1])+1,files.indexOf('release-cutter-sheet-materials-v9523.js'));
+ assert.equal(files.indexOf(addons[2])+1,files.indexOf('release-cut-weight-v9579.js'));
  assert.deepEqual(files,manifest.releaseScripts,'carregamento corresponde exatamente ao catálogo');
  assert.equal(new Set(files).size,files.length,'sem duplicados');
  assert.deepEqual(groups.map(x=>x.id),[...new Set(groups.map(x=>x.id))]);
@@ -52,12 +53,12 @@ test('módulos críticos permanecem ordenados para evitar alterações de autori
  assert.ok(idx('release-faction-feature-guard-v9598.js')===files.length-1);
 });
 
-test('11 fontes críticas: duas mudanças documentadas, todas as demais idênticas',()=>{
+test('12 fontes críticas: três mudanças documentadas, todas as demais idênticas',()=>{
  const crypto=require('node:crypto');
  const critical=manifest.criticalFileBlobs||{};
- assert.equal(Object.keys(critical).length,11);
+ assert.equal(Object.keys(critical).length,12);
  const changes=manifest.extractionChanges||{},baseline=manifest.baselineCriticalFileBlobs||{};
- const changed=['release-cutter-planner.js','release-cutter-sheet-materials-v9523.js'];
+ const changed=['release-cutter-planner.js','release-cutter-sheet-materials-v9523.js','release-cut-weight-v9579.js'];
  assert.deepEqual(Object.keys(changes).sort(),changed.sort());
  assert.deepEqual(Object.keys(baseline).sort(),Object.keys(critical).sort());
  for(const file of changed){

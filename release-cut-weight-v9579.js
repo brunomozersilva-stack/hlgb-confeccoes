@@ -4,18 +4,42 @@
 (function(){
 'use strict';
 if(window.hlgbCutWeight9579)return;
-const V='95.79',busy=new Set(),state={lastError:'',lastSuccess:'',attempts:0,confirmed:0};
+const V='95.79',busy=new Set(),uncertainWeightDrafts=new Map(),state={lastError:'',lastSuccess:'',attempts:0,confirmed:0,recovered:0};
+const weightCore9605=window.HLGB_CUT_WEIGHT_CORE_9605||null;
 const sid=x=>String(x??''),num=x=>Number(sid(x).replace(',','.')),money=x=>Number(x||0).toLocaleString('pt-BR',{maximumFractionDigits:3});
 const esc=x=>sid(x).replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;','\'':'&#39;'}[m]));
 const dbRef=()=>{try{return typeof db!=='undefined'?db:window.db}catch(_){return window.db||{}}};
 const cut=id=>(dbRef()?.cuts||[]).find(x=>sid(x?.id)===sid(id))||null;
 function validate(input){
+ if(weightCore9605?.validate)return weightCore9605.validate(input);
  const total=num(input?.totalKg),used=num(input?.usedKg||0),waste=num(input?.wasteKg||0),note=sid(input?.note).trim();
  if(!Number.isFinite(total)||total<=0||total>20000)throw Error('Informe o peso total do corte em kg (maior que zero).');
  for(const [name,value] of [['usado',used],['refugo',waste]])if(!Number.isFinite(value)||value<0||value>20000)throw Error('Peso '+name+' inválido.');
  if(used>total+.001||waste>total+.001)throw Error('Peso usado/refugo não pode ser maior que o peso total.');
  if(note.length>300)throw Error('Observação com até 300 caracteres.');
  return {totalKg:+total.toFixed(3),usedKg:+used.toFixed(3),wasteKg:+waste.toFixed(3),note};
+}
+function weightCanonical(value,root){
+ if(Array.isArray(value))return value.map(x=>weightCanonical(x,false));
+ if(value&&typeof value==='object'){
+  const out={};
+  for(const key of Object.keys(value).sort()){
+   if(root&&(key==='updatedAt'||key==='updated_at'))continue;
+   out[key]=weightCanonical(value[key],false);
+  }
+  return out;
+ }
+ return value;
+}
+function sameWeightCut(a,b){
+ return weightCore9605?.sameCut?weightCore9605.sameCut(a,b):
+ !!(a&&b&&JSON.stringify(weightCanonical(a,true))===JSON.stringify(weightCanonical(b,true)));
+}
+function confirmWeightLocally(id,row){
+ const rows=dbRef().cuts,i=rows.findIndex(x=>sid(x?.id)===sid(id));
+ if(i>=0)rows[i]=row;
+ try{window.localSaveOnly?.()}catch(_){}
+ try{window.renderCuts?.();window.renderCutterHistory9250?.()}catch(_){}
 }
 async function safe(id){
  if(window.__HLGB_AUTH_READY!==true)throw Error('Entre no HLGB para salvar o peso.');
@@ -32,31 +56,52 @@ async function remote(id){
  return Array.isArray(rows)&&rows[0]&&!rows[0].deleted_at?rows[0].data:null;
 }
 async function save(id,input){
- if(busy.has(sid(id)))throw Error('Gravação de peso em andamento.');
- busy.add(sid(id));state.attempts++;state.lastError='';
+ const key=sid(id);
+ if(busy.has(key))throw Error('Gravação de peso em andamento.');
+ busy.add(key);state.attempts++;state.lastError='';
  try{
-  const c=cut(id);if(!c)throw Error('Corte não encontrado. Nada foi alterado.');
-  const payload=validate(input);await safe(sid(id));
-  const now=new Date().toISOString(),eventId='cutweight-'+Date.now().toString(36)+'-'+Math.random().toString(36).slice(2,9);
-  const previous=c.cutWeightV9579||null,history=Array.isArray(c.cutWeightEventsV9579)?c.cutWeightEventsV9579:[];
-  const event={id:eventId,at:now,kind:'cut_weight_recorded',before:previous,after:payload,cutStatusAtTime:sid(c.status),
-   cutterId:c.cutterId??null};
-  const next={...JSON.parse(JSON.stringify(c)),cutWeightV9579:payload,cutWeightEventsV9579:[...history,event],updatedAt:now};
+  const c=cut(key);if(!c)throw Error('Corte não encontrado. Nada foi alterado.');
+  const payload=validate(input);
+  await safe(key); // Primeira checagem: autenticação e WAL local íntegro.
+  let draft=uncertainWeightDrafts.get(key)||null;
+  if(draft&&JSON.stringify(payload)!==JSON.stringify(draft.payload))
+   throw Error('Existe uma pesagem sem confirmação. Mantenha exatamente os mesmos valores para verificar antes de fazer outra pesagem.');
+  // A leitura ANTES da gravação impede sobrescrever um evento salvo por outra sessão
+  // ou por um envio cujo ACK foi perdido, mesmo depois de reabrir a página.
+  const before=await remote(key);
+  if(!before)throw Error('Não foi possível conferir o corte na nuvem. Nada será reenviado sem releitura.');
+  if(draft){
+   if(sameWeightCut(before,draft.next)){
+    confirmWeightLocally(key,before);
+    uncertainWeightDrafts.delete(key);
+    state.confirmed++;state.recovered++;
+    state.lastSuccess='Pesagem anterior recuperada na nuvem, sem duplicar lançamento.';
+    return {ok:true,recovered:true,cut:before,event:draft.event};
+   }
+   if(!sameWeightCut(before,draft.before))
+    throw Error('O corte remoto mudou após uma gravação incerta. Nenhuma pesagem foi reenviada. Confira o histórico antes de continuar.');
+  }else{
+   if(!sameWeightCut(before,c))
+    throw Error('A versão do corte mudou na nuvem. Atualize o histórico antes de salvar; nada foi sobrescrito.');
+   const now=new Date().toISOString(),eventId='cutweight-'+Date.now().toString(36)+'-'+Math.random().toString(36).slice(2,9);
+   const previous=c.cutWeightV9579||null,history=Array.isArray(c.cutWeightEventsV9579)?c.cutWeightEventsV9579:[];
+   const event={id:eventId,at:now,kind:'cut_weight_recorded',before:previous,after:payload,cutStatusAtTime:sid(c.status),
+    cutterId:c.cutterId??null};
+   const next={...JSON.parse(JSON.stringify(c)),cutWeightV9579:payload,cutWeightEventsV9579:[...history,event],updatedAt:now};
+   draft={payload,before:JSON.parse(JSON.stringify(c)),next,event};
+   uncertainWeightDrafts.set(key,draft);
+  }
   if(typeof window.hlgbRecordSaveWithRetry!=='function')throw Error('Transporte do servidor não disponível.');
-  const out=await window.hlgbRecordSaveWithRetry('cuts',sid(id),next,false);
-  if(!out||out.applied!==true)throw Error(out?.reason||'A nuvem não confirmou o peso.');
-  const verified=await remote(id);
-  if(!verified||!(verified.cutWeightEventsV9579||[]).some(x=>x.id===eventId)||
-    JSON.stringify(verified.cutWeightV9579)!==JSON.stringify(payload))
-   throw Error('A nuvem não comprovou o peso gravado. Confira antes de reenviar.');
-  if(sid(verified.status)!==sid(c.status)||sid(verified.finishedAt)!==sid(c.finishedAt))
-   throw Error('O status de corte mudou durante o salvamento; consulte o histórico antes de reenviar.');
-  const rows=dbRef().cuts,i=rows.findIndex(x=>sid(x.id)===sid(id));if(i>=0)rows[i]=verified;
-  try{window.localSaveOnly?.()}catch(_){}
+  const out=await window.hlgbRecordSaveWithRetry('cuts',key,draft.next,false);
+  if(!out||out.applied!==true)throw Error(out?.reason||'A nuvem não confirmou o peso. Verifique antes de reenviar.');
+  const verified=await remote(key);
+  if(!sameWeightCut(verified,draft.next))
+   throw Error('A releitura não confirmou a pesagem e seu histórico completo. Verifique a nuvem antes de reenviar.');
+  confirmWeightLocally(key,verified);
+  uncertainWeightDrafts.delete(key);
   state.confirmed++;state.lastSuccess='Peso do corte registrado e confirmado no servidor.';
-  try{window.renderCuts?.();window.renderCutterHistory9250?.()}catch(_){}
-  return {ok:true,cut:verified,event};
- }catch(e){state.lastError=sid(e?.message||e);throw e}finally{busy.delete(sid(id))}
+  return {ok:true,cut:verified,event:draft.event};
+ }catch(e){state.lastError=sid(e?.message||e);throw e}finally{busy.delete(key)}
 }
 function show(id){
  const c=cut(id);if(!c)return false;
@@ -108,7 +153,7 @@ function wrapper(name){
  w.__original=fn;w.__hlgbWeight9579=true;window[name]=w;
 }
 function install(){wrapper('renderCuts');wrapper('renderDailyCuts');decorate()}
-window.hlgbCutWeight9579={version:V,cut,validate,save,remote,show,decorate,install,status:()=>({...state})};
+window.hlgbCutWeight9579={version:V,cut,validate,save,remote,show,decorate,install,status:()=>({...state,pendingWeightDrafts:uncertainWeightDrafts.size})};
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',install,{once:true});else install();
 [500,1600].forEach(ms=>setTimeout(install,ms));
 window.addEventListener?.('hlgb:authenticated',()=>setTimeout(install,450));

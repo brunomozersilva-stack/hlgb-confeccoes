@@ -14,6 +14,7 @@
     "release-limits.js",
     "release-cut-organization.js",
     "release-cut-material-usage.js",
+    "hlgb-modules/corte/peso-core-v9605.js",
     "release-cut-weight-v9579.js",
     "release-cut-model-split.js",
     "release-cut-model-grade-adjust.js",
@@ -205,6 +206,7 @@
     "corte-cortadores": [
       "release-cut-organization.js",
       "release-cut-material-usage.js",
+      "hlgb-modules/corte/peso-core-v9605.js",
       "release-cut-weight-v9579.js",
       "release-cut-model-split.js",
       "release-cut-model-grade-adjust.js",
@@ -363,7 +365,8 @@
     "release-faction-manual-payment-v9566.js": "2af968249fcf4d06a832b2563f04c251bf259948",
     "release-pricing.js": "91c44c12915a4d4988f5465d50fc64d35b4c9e06",
     "release-hub-save-proof-v9567.js": "740628ed76fb377b9d23f70bde3b065cfff997bf",
-    "release-cutter-sheet-materials-v9523.js": "8ced81c24eb1ac3185102e242ebbd59c67381169"
+    "release-cutter-sheet-materials-v9523.js": "8ced81c24eb1ac3185102e242ebbd59c67381169",
+    "release-cut-weight-v9579.js": "6ae0ebb61fd818925345f3c6b2d1c0942dcde49b"
   },
   "preExtractionScripts": [
     "release-faction-ledger-preservation-v9597.js",
@@ -534,11 +537,13 @@
     "release-faction-manual-payment-v9566.js": "2af968249fcf4d06a832b2563f04c251bf259948",
     "release-pricing.js": "91c44c12915a4d4988f5465d50fc64d35b4c9e06",
     "release-hub-save-proof-v9567.js": "740628ed76fb377b9d23f70bde3b065cfff997bf",
-    "release-cutter-sheet-materials-v9523.js": "0c78abd815aa0e61f66eb6802e14d05266369b6f"
+    "release-cutter-sheet-materials-v9523.js": "0c78abd815aa0e61f66eb6802e14d05266369b6f",
+    "release-cut-weight-v9579.js": "091be2c3f15f8ccbe5175c284c90189b6c45513f"
   },
   "approvedNewScripts": [
     "hlgb-modules/corte/grade-modelo-v9602.js",
-    "hlgb-modules/corte/folha-grade-materiais-v9604.js"
+    "hlgb-modules/corte/folha-grade-materiais-v9604.js",
+    "hlgb-modules/corte/peso-core-v9605.js"
   ],
   "extractionChanges": {
     "release-cutter-planner.js": {
@@ -550,6 +555,11 @@
       "before": "0c78abd815aa0e61f66eb6802e14d05266369b6f",
       "after": "8ced81c24eb1ac3185102e242ebbd59c67381169",
       "reason": "extração pura de seleção de grade e previsão de materiais da folha impressa, mantendo fallback"
+    },
+    "release-cut-weight-v9579.js": {
+      "before": "091be2c3f15f8ccbe5175c284c90189b6c45513f",
+      "after": "6ae0ebb61fd818925345f3c6b2d1c0942dcde49b",
+      "reason": "validação de peso pura com fallback e recuperação por releitura remota sem evento duplicado"
     }
   }
 }

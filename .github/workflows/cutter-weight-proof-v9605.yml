@@ -1,0 +1,41 @@
+name: HLGB Cutter Weight ACK Proof v96.05
+on:
+  pull_request:
+    branches: [main, refactor/live-cutter-sheet-core-v9604]
+    paths:
+      - 'app-stable3.html'
+      - 'release-cut-weight-v9579.js'
+      - 'hlgb-modules/corte/peso-core-v9605.js'
+      - 'hlgb-modules/ownership-v9600.json'
+      - 'tests/cutter-weight-ack-core-v9605.cjs'
+      - 'tests/cut-weight-after-finish-v9579.cjs'
+      - '.github/workflows/cutter-weight-proof-v9605.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'app-stable3.html'
+      - 'release-cut-weight-v9579.js'
+      - 'hlgb-modules/corte/peso-core-v9605.js'
+      - 'hlgb-modules/ownership-v9600.json'
+      - 'tests/cutter-weight-ack-core-v9605.cjs'
+      - 'tests/cut-weight-after-finish-v9579.cjs'
+      - '.github/workflows/cutter-weight-proof-v9605.yml'
+permissions: {contents: read}
+jobs:
+  weight-proof:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - name: Validate syntax and no duplicated weight events
+        run: |
+          node --check release-cut-weight-v9579.js
+          node --check hlgb-modules/corte/peso-core-v9605.js
+          node --test tests/cutter-weight-ack-core-v9605.cjs
+          node tests/cut-weight-after-finish-v9579.cjs
+          node --test tests/hlgb-module-boundaries-v9600.cjs
+          node --test tests/cutter-grade-pure-v9602.cjs
+          node --test tests/cutter-sheet-core-v9604.cjs
+          node --test tests/cutter-stacked-save-proof-v9603.cjs

@@ -3,7 +3,7 @@ const {test}=require('node:test'),assert=require('node:assert/strict'),fs=requir
 const root=path.resolve(__dirname,'..');
 const cat=require('../hlgb-modules/module-test-catalog-v9601.json');
 const owner=require('../hlgb-modules/ownership-v9600.json').ownership;
-test('Catálogo: oito áreas, 40 provas reais, caminhos restritos a tests/',()=>{
+test('Catálogo: oito áreas, 41 provas reais, caminhos restritos a tests/',()=>{
  assert.equal(Object.keys(cat.packs).length,8);
  let count=0;
  for(const [area,files] of Object.entries(cat.packs)){
@@ -16,7 +16,7 @@ test('Catálogo: oito áreas, 40 provas reais, caminhos restritos a tests/',()=>
    count++;
   }
  }
- assert.equal(count,40);
+ assert.equal(count,41);
 });
 test('Risco: correção em Cortador implica teste de WAL, monólito obriga regressão total',()=>{
  assert.ok(cat.dependencies['corte-cortadores'].includes('sincronizacao-wal'));
