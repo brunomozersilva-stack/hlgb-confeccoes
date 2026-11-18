@@ -300,6 +300,7 @@
   const form=event.currentTarget,type=form.dataset.command;
   try{
    const input=payload(form);
+   if(type==='cut.plan.cancel'&&!window.confirm('Cancelar a folha aberta '+input.id+'? Nenhum material será baixado, mas o cancelamento ficará registrado.'))return;
    busy=true;updatePending();
    const current=await remote.revision();
    if(current!==view.revision){serverRevision=current;updatePending();message('O servidor mudou para a revisão '+current+'. Confira a nova situação antes de gravar. Nenhum comando foi enviado.','error');return;}
