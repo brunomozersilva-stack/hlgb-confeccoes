@@ -41,6 +41,8 @@ async function exercise(browser,url,width){
   await save(page,'settlement.add',{serviceType:'embalagem',factionId:fac,productId:'PRO-0001',
    qty,unitCents:'1,00',travetaCents:'0,00',reason:'Conferência de serviço fictício'});
  }
+ assert.match(await page.locator('#module-content').innerText(),/Extrato consolidado por prestador/);
+ assert.equal(await page.locator('form[data-command="finance.faction.close"]').count(),1);
  await open(page,'hub');
  const form=page.locator('form[data-command="finance.faction.close"]');
  assert.equal(await form.count(),1,'um fechamento consolidado para a facção com 2 acertos');
@@ -53,6 +55,8 @@ async function exercise(browser,url,width){
  assert.match(await page.locator('#flash').innerText(),/14,00/);
  await form.locator('[name="reference"]').fill('FECHA-A-01');
  await form.locator('[name="reason"]').fill('Conferência de dois acertos da mesma facção');
+ await form.locator('[name="paidDate"]').fill('2026-11-17');
+ page.once('dialog',d=>d.accept());
  await form.locator('button[type="submit"]').click();
  try{await page.waitForFunction(value=>
   Number((document.querySelector('#top-revision')?.textContent||'').match(/Revisão local (\d+)/)?.[1]||0)===value+1,
