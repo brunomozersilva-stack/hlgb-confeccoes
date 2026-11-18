@@ -72,11 +72,12 @@
    status,notes:text(p.notes||'','Observações gerais',800),
    stops:validateStops(s,p.stops)};
  }
+ function fingerprint(x){return JSON.stringify({date:x.date,driver:x.driver,status:x.status,notes:x.notes,stops:x.stops});}
  function create(s,p,{next,uid}){
   ensure(s);const validated=payload(s,p);
   const id=next(s,'ROT');
   s.routePlans.push({id,...validated,createdCommandId:uid,lastCommandId:uid,
-   history:[{type:'criada',commandId:uid,revision:s.revision+1}]});
+   history:[{type:'criada',commandId:uid,revision:s.revision+1,afterFingerprint:fingerprint(validated)}]});
   return id+' · '+validated.stops.length+' parada(s) · LEVAR/BUSCAR fictícios';
  }
  function revise(s,p,{uid}){
@@ -87,16 +88,20 @@
   const before={date:row.date,driver:row.driver,status:row.status,notes:row.notes,stops:clone(row.stops)};
   if(JSON.stringify(before)===JSON.stringify(validated))error('Nenhuma mudança a salvar na rota.');
   const reason=text(p.reason,'Motivo da edição',300,true);
+  const beforeFingerprint=fingerprint(before);
   Object.assign(row,validated,{lastCommandId:uid});
-  row.history.push({type:'revisada',commandId:uid,revision:s.revision+1,before,reason});
+  row.history.push({type:'revisada',commandId:uid,revision:s.revision+1,before,reason,beforeFingerprint,
+   afterFingerprint:fingerprint(row)});
   return row.id+' · rota revisada com histórico (apenas laboratório)';
  }
  function cancel(s,p,{uid}){
   ensure(s);const row=s.routePlans.find(x=>x.id===p.id);
   if(!row||row.status==='cancelada'||row.status==='finalizada')error('Somente uma rota aberta pode ser cancelada.');
   const reason=text(p.reason,'Motivo do cancelamento',300,true);
+  const beforeFingerprint=fingerprint(row);
   row.status='cancelada';row.lastCommandId=uid;
-  row.history.push({type:'cancelada',commandId:uid,revision:s.revision+1,reason});
+  row.history.push({type:'cancelada',commandId:uid,revision:s.revision+1,reason,beforeFingerprint,
+   afterFingerprint:fingerprint(row)});
   return row.id+' · cancelada sem apagar as paradas anteriores';
  }
  function inspect(s){
@@ -115,17 +120,21 @@
     if(!Array.isArray(route.history)||!route.history.length||route.history[0].type!=='criada'||
       route.history[0].commandId!==route.createdCommandId)error('Histórico de criação inválido');
     const log=s.log||[],historyCommands=new Set();
-    let revision=0;
+    let revision=0,priorFingerprint=null;
     for(const h of route.history){
      const entry=log.find(x=>x.commandId===h.commandId);
      if(historyCommands.has(h.commandId)||!entry||entry.revision!==h.revision||
       h.revision<=revision||!['route.plan','route.revise','route.cancel'].includes(entry.type))
       error('Histórico de rota sem prova na revisão global');
-     if(h.type==='revisada'&&(!h.reason||!h.before))error('Revisão sem justificativa ou estado anterior');
+     if(h.type==='revisada'&&(!h.reason||!h.before||fingerprint(h.before)!==h.beforeFingerprint))error('Revisão sem justificativa ou estado anterior íntegro');
      if(h.type==='cancelada'&&!h.reason)error('Cancelamento sem justificativa');
+     if(typeof h.afterFingerprint!=='string'||!h.afterFingerprint||
+       (priorFingerprint!==null&&h.beforeFingerprint!==priorFingerprint))error('Histórico de rota sem cadeia de estados');
+     priorFingerprint=h.afterFingerprint;
      revision=h.revision;historyCommands.add(h.commandId);
     }
     if(route.history.at(-1).commandId!==route.lastCommandId)error('Última edição sem referência');
+    if(fingerprint(route)!==priorFingerprint)error('Rota alterada fora de um comando válido');
     if(route.status==='cancelada'&&route.history.at(-1).type!=='cancelada')
      error('Cancelamento sem evento');
    }catch(e){issues.push(String(route?.id||'Rota')+': '+e.message)}
