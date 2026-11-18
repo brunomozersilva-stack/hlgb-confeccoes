@@ -1,7 +1,12 @@
 'use strict';
 const assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('node:vm');
 const src=fs.readFileSync('release-cut-weight-v9579.js','utf8'),boot=fs.readFileSync('app-stable3.html','utf8');
-assert(boot.includes("'release-cut-weight-v9579.js'"));
+function releaseScripts(){
+ const anchor='const moduleGroups=',start=boot.indexOf(anchor),end=boot.indexOf(';const files=moduleGroups.flatMap(group=>group.files)',start);
+ assert(start>=0&&end>start,'carregador modular deve expor grupos JSON');
+ return JSON.parse(boot.slice(start+anchor.length,end)).flatMap(g=>g.files);
+}
+assert(releaseScripts().includes('release-cut-weight-v9579.js'));
 let pending=false,fail=false,allowRead=true,remoteRow={id:'cut1',productId:'p1',orderId:'o1',pieces:1000,
  cutterId:'c1',status:'Finalizado',finishedAt:'2026-11-12T15:00:00Z',actualCutGrade:[{size:'P',qty:200}]};
 const db={cuts:[JSON.parse(JSON.stringify(remoteRow))]},deep=x=>JSON.parse(JSON.stringify(x));
