@@ -1,0 +1,29 @@
+name: HLGB hotfix - preço somente na entrega para Notas
+on:
+  pull_request:
+    paths:
+      - release-pricing.js
+      - tests/pricing-cut-grade-modal-scope-v95106.cjs
+      - .github/workflows/pricing-cut-grade-modal-scope-v95106.yml
+  push:
+    branches:
+      - main
+    paths:
+      - release-pricing.js
+      - tests/pricing-cut-grade-modal-scope-v95106.cjs
+      - .github/workflows/pricing-cut-grade-modal-scope-v95106.yml
+  workflow_dispatch:
+jobs:
+  regression:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Confirmar preço de Notas e isolamento do editor de corte
+        run: |
+          node --check release-pricing.js
+          node --test tests/pricing-cut-grade-modal-scope-v95106.cjs tests/note-price-reconcile-v95103.cjs
