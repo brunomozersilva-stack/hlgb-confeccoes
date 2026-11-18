@@ -157,3 +157,31 @@ test('desativação de funcionário no banco bloqueia gravações e registra tri
   await assert.rejects(()=>client.query('DELETE FROM hlgb_integrado_lab.lab_access_events WHERE false'),/permission denied/);
  }finally{await client.end();}
 });
+
+test('rate limit persistente e auditoria dos PINs fictícios sem gravar senha',async()=>{
+ // Executar por último: bloqueia novas tentativas do perfil B somente neste banco descartável.
+ const code='B',validPin='demo-integrado-b';
+ assert.equal((await db.authenticateDemo(code,validPin)).status,'ok');
+ const failures=await Promise.all(Array.from({length:5},()=>db.authenticateDemo(code,'pin-errado-demonstrativo')));
+ assert.equal(failures.filter(x=>x.status==='rejected').length,5,'A mesma conta sofre 5 falhas serializadas');
+ assert.equal((await db.authenticateDemo(code,validPin)).status,'locked','Senha correta não ignora bloqueio');
+ assert.equal((await db.authenticateDemo('A','demo-integrado-a')).status,'ok','Bloqueio de B não bloqueia A');
+ assert.equal((await db.authenticateDemo('C','demo-integrado-c')).status,'inactive','Conta já desativada não reabre por senha');
+ assert.equal((await db.authenticateDemo('desconhecido','invalido')).status,'rejected','Códigos desconhecidos ficam em uma única faixa');
+ const events=await db.listLoginEvents(A);
+ assert.equal(Array.isArray(events),true);
+ assert.equal(events[0].code,'unknown');
+ assert.equal(events.filter(x=>x.code==='B'&&x.outcome==='invalid').length,5);
+ assert.equal(events.some(x=>x.code==='B'&&x.outcome==='locked'),true);
+ assert.equal(events.some(x=>x.code==='C'&&x.outcome==='inactive'),true);
+ const dump=JSON.stringify(events);
+ assert.equal(dump.includes('demo-integrado'),false);
+ assert.equal(dump.includes('pin-errado'),false);
+ assert.equal(await db.listLoginEvents(B),null);
+ const {Client}=require('pg'),c=new Client();await c.connect();
+ try{
+  const entry=(await c.query("SELECT code,failed_count,locked_until>clock_timestamp() AS locked FROM hlgb_integrado_lab.lab_login_attempts WHERE code='B'")).rows[0];
+  assert.equal(entry.failed_count,5);assert.equal(entry.locked,true);
+  await assert.rejects(()=>c.query('DELETE FROM hlgb_integrado_lab.lab_login_events WHERE false'),/permission denied/);
+ }finally{await c.end();}
+});

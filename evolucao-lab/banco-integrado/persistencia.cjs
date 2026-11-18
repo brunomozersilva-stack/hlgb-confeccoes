@@ -1,6 +1,6 @@
 'use strict';
 // Adaptador de persistência integral, exclusivamente localhost/CI. Não é API pública.
-const {Client}=require('pg'),crypto=require('node:crypto'),core=require('../operacao-integrada-core.js'),permissions=require('./permissoes-lab.cjs');
+const {Client}=require('pg'),crypto=require('node:crypto'),core=require('../operacao-integrada-core.js'),permissions=require('./permissoes-lab.cjs'),identities=require('./identidades-lab.cjs');
 const DB='hlgb_integrado_lab',MARK='HLGB-EVOLUCAO-FICTICIO-LOCAL-V1',ID='operacao-ficticia';
 function guard(env=process.env){if(env.PGDATABASE!==DB||env.PGHOST!=='127.0.0.1'||!/^\d+$/.test(env.PGPORT||'')||env.PGUSER!=='hlgb_lab_runner'||!env.PGPASSWORD)throw Error('Conexão recusada: somente banco local descartável.');}
 function canonical(v){if(v===null||typeof v==='string'||typeof v==='boolean'||typeof v==='number'&&Number.isFinite(v))return JSON.stringify(v);
@@ -42,6 +42,47 @@ async function deactivateEmployee(employeeId,actor){
    await c.query("INSERT INTO hlgb_integrado_lab.lab_access_events(admin_actor,target_employee_id,operation) VALUES($1,$2,'deactivate')",[actor,employeeId]);
    await c.query('COMMIT');return {status:'disabled',employeeId};
   }catch(e){await c.query('ROLLBACK').catch(()=>{});throw e;}
+ });
+}
+// Limite compartilhado entre processos locais: contador e bloqueio sob SELECT FOR UPDATE.
+async function authenticateDemo(code,pin){
+ const bucket=identities.lookup(code)?code:'unknown';
+ const employee=identities.authenticate(code,pin);
+ return withDb(async c=>{
+  await c.query('BEGIN');
+  try{
+   const row=(await c.query('SELECT failed_count,locked_until FROM hlgb_integrado_lab.lab_login_attempts WHERE code=$1 FOR UPDATE',[bucket])).rows[0];
+   if(!row)throw Error('Contador de laboratório inexistente');
+   const now=new Date();
+   let status='rejected',outcome='invalid';
+   if(row.locked_until&&new Date(row.locked_until)>now){
+    status='locked';outcome='locked';
+   }else if(employee){
+    // Trava compartilhada com a desativação para impedir login após revogação.
+    if(await lockActive(c,employee.actor)){
+     await c.query('UPDATE hlgb_integrado_lab.lab_login_attempts SET failed_count=0,locked_until=NULL,last_attempt_at=clock_timestamp() WHERE code=$1',[bucket]);
+     status='ok';outcome='success';
+    }else{
+     status='inactive';outcome='inactive';
+    }
+   }else{
+    const count=row.locked_until&&new Date(row.locked_until)<=now?1:Math.min(5,Number(row.failed_count)+1);
+    await c.query("UPDATE hlgb_integrado_lab.lab_login_attempts SET failed_count=$2,locked_until=CASE WHEN $2>=5 THEN clock_timestamp()+interval '15 minutes' ELSE NULL END,last_attempt_at=clock_timestamp() WHERE code=$1",[bucket,count]);
+   }
+   await c.query('INSERT INTO hlgb_integrado_lab.lab_login_events(code,outcome) VALUES($1,$2)',[bucket,outcome]);
+   await c.query('COMMIT');
+   return status==='ok'?{status,employee}:{status};
+  }catch(e){await c.query('ROLLBACK').catch(()=>{});throw e;}
+ });
+}
+async function listLoginEvents(actor){
+ if(permissions.profile(actor)?.id!=='demo-admin')return null;
+ return withDb(async c=>{
+  const p=permissions.profile(actor);
+  const admin=(await c.query('SELECT active FROM hlgb_integrado_lab.lab_accounts WHERE employee_id=$1 AND actor=$2',[p.employeeId,actor])).rows[0];
+  if(admin?.active!==true)return null;
+  const rows=(await c.query('SELECT code,outcome,created_at FROM hlgb_integrado_lab.lab_login_events ORDER BY id DESC LIMIT 30')).rows;
+  return rows.map(x=>({code:x.code,outcome:x.outcome,at:x.created_at.toISOString()}));
  });
 }
 async function listLabEmployees(actor){
@@ -111,4 +152,4 @@ async function cancel(cmd,actor){
  await c.query('INSERT INTO hlgb_integrado_lab.cancellations(command_id,actor,fingerprint) VALUES($1,$2,$3)',[cmd.commandId,actor,fingerprint]);
  await c.query('COMMIT');return {status:'cancelled',commandId:cmd.commandId};
  }catch(e){await c.query('ROLLBACK').catch(()=>{});throw e;}});}
-module.exports={guard,canonical,validate,initialize,state,revision,commit,readback,cancel,verifyChain,ledgerMatches,activeEmployee,deactivateEmployee,listLabEmployees};
+module.exports={guard,canonical,validate,initialize,state,revision,commit,readback,cancel,verifyChain,ledgerMatches,activeEmployee,deactivateEmployee,listLabEmployees,authenticateDemo,listLoginEvents};

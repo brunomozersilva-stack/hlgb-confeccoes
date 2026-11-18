@@ -9,7 +9,7 @@ const modules=/^modulos\/[a-z0-9-]+\.js$/;
 const login=csrf=>'<html lang="pt-BR"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>HLGB · acesso fictício</title><h1>HLGB Evolução — laboratório local</h1><p>Apenas perfis e dados inventados. Não use credenciais reais.</p><form method="post" action="/login"><input type="hidden" name="csrf" value="'+csrf+'"><label>Funcionário fictício <select name="actor">'+identities.choices().map(x=>'<option value="'+x.code+'">'+x.label+'</option>').join('')+'</select></label><label> PIN fictício <input name="pin" type="password" required></label><button>Entrar</button></form></html>';
 async function body(req){let size=0,chunks=[];for await(const chunk of req){size+=chunk.length;if(size>2*1024*1024)throw Error('Corpo excede limite');chunks.push(chunk);}return Buffer.concat(chunks).toString('utf8');}
 async function start(port=0){
- db.guard();await db.initialize();const sessions=new Map(),loginTokens=new Map(),failedLogins=new Map();
+ db.guard();await db.initialize();const sessions=new Map(),loginTokens=new Map();
  const server=http.createServer(async(req,res)=>{
  const base='http://127.0.0.1:'+server.address().port,headers={'cache-control':'no-store','x-content-type-options':'nosniff','referrer-policy':'no-referrer','content-security-policy':"default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self'; img-src 'self' data: blob:; object-src 'none'; frame-ancestors 'none'; form-action 'self'"};
  const send=(code,data,extra={})=>{res.writeHead(code,{...headers,'content-type':'application/json;charset=utf-8',...extra});res.end(JSON.stringify(data));};
@@ -23,17 +23,11 @@ async function start(port=0){
  const csrfError=!csrf?'missing_form_token':!cookie?'missing_cookie':csrf!==cookie?'cookie_mismatch':!loginTokens.has(csrf)?'nonce_unknown':loginTokens.get(csrf)<Date.now()?'expired_nonce':null;
  if(csrfError){send(403,{status:'denied',code:csrfError});return;}
  loginTokens.delete(csrf);
- const id=identities.lookup(key),bucket=id?key:'unknown',previous=failedLogins.get(bucket),now=Date.now();
- if(previous?.lockedUntil>now){send(429,{status:'denied',code:'temporarily_locked'});return;}
- const employee=identities.authenticate(key,form.get('pin'));
- if(!employee){
-  const priorCount=previous?.lockedUntil>0&&previous.lockedUntil<=now?0:previous?.count||0;
-  const count=priorCount+1;
-  failedLogins.set(bucket,count>=5?{count,lockedUntil:now+15*60000}:{count,lockedUntil:0});
-  send(401,{status:'denied'});return;
- }
- if(!(await db.activeEmployee(employee.employeeId,employee.actor))){send(403,{status:'denied',code:'account_inactive'});return;}
- failedLogins.delete(bucket);
+ const outcome=await db.authenticateDemo(key,form.get('pin'));
+ if(outcome.status==='locked'){send(429,{status:'denied',code:'temporarily_locked'});return;}
+ if(outcome.status==='inactive'){send(403,{status:'denied',code:'account_inactive'});return;}
+ if(outcome.status!=='ok'){send(401,{status:'denied'});return;}
+ const employee=outcome.employee;
  const token=crypto.randomBytes(32).toString('hex');sessions.set(token,{actor:employee.actor,employeeId:employee.employeeId,expires:Date.now()+3600000});
  const landing=permissions.profile(employee.actor)?.id==='demo-admin'?'/':'/producao-integrada.html';
  res.writeHead(303,{...headers,location:landing, 'set-cookie':'hlgb_integrado_demo='+token+'; Path=/; HttpOnly; SameSite=Strict; Max-Age=3600'});res.end();return;}
@@ -44,6 +38,12 @@ async function start(port=0){
  if(method==='POST'&&route==='/api/logout'){
  sessions.delete(token);
  send(200,{status:'ok'},{'set-cookie':'hlgb_integrado_demo=; Path=/; HttpOnly; SameSite=Strict; Max-Age=0'});return;
+ }
+ if(method==='GET'&&route==='/api/admin/login-events'){
+  if(permissions.profile(actor)?.id!=='demo-admin'){send(403,{status:'denied'});return;}
+  const events=await db.listLoginEvents(actor);
+  if(!events){send(403,{status:'denied'});return;}
+  send(200,{status:'ok',events});return;
  }
  if(method==='GET'&&route==='/api/admin/accounts'){
   if(permissions.profile(actor)?.id!=='demo-admin'){send(403,{status:'denied'});return;}

@@ -64,8 +64,23 @@ CREATE TABLE hlgb_integrado_lab.lab_access_events (
  operation text NOT NULL CHECK(operation='deactivate'),
  created_at timestamptz NOT NULL DEFAULT clock_timestamp()
 );
+-- Bloqueio de tentativas e auditoria de logins em PostgreSQL descartável.
+-- Os códigos são FICTÍCIOS e não representam pessoas reais.
+CREATE TABLE hlgb_integrado_lab.lab_login_attempts (
+ code text PRIMARY KEY CHECK (code IN ('A','B','C','unknown')),
+ failed_count integer NOT NULL DEFAULT 0 CHECK (failed_count BETWEEN 0 AND 5),
+ locked_until timestamptz,
+ last_attempt_at timestamptz
+);
+INSERT INTO hlgb_integrado_lab.lab_login_attempts(code) VALUES ('A'),('B'),('C'),('unknown');
+CREATE TABLE hlgb_integrado_lab.lab_login_events (
+ id bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+ code text NOT NULL CHECK (code IN ('A','B','C','unknown')),
+ outcome text NOT NULL CHECK (outcome IN ('success','invalid','locked','inactive')),
+ created_at timestamptz NOT NULL DEFAULT clock_timestamp()
+);
 DO $rls$ DECLARE t text; BEGIN
- FOREACH t IN ARRAY ARRAY['environment','documents','commands','events','cancellations','lab_accounts','lab_access_events'] LOOP
+ FOREACH t IN ARRAY ARRAY['environment','documents','commands','events','cancellations','lab_accounts','lab_access_events','lab_login_attempts','lab_login_events'] LOOP
   EXECUTE format('ALTER TABLE hlgb_integrado_lab.%I ENABLE ROW LEVEL SECURITY',t);
   EXECUTE format('ALTER TABLE hlgb_integrado_lab.%I FORCE ROW LEVEL SECURITY',t);
  END LOOP;
@@ -83,16 +98,21 @@ GRANT UPDATE(revision,state) ON hlgb_integrado_lab.documents TO hlgb_lab_runtime
 GRANT UPDATE(active,updated_at) ON hlgb_integrado_lab.lab_accounts TO hlgb_lab_runtime;
 GRANT INSERT ON hlgb_integrado_lab.lab_access_events TO hlgb_lab_runtime;
 GRANT USAGE ON SEQUENCE hlgb_integrado_lab.lab_access_events_id_seq TO hlgb_lab_runtime;
+GRANT UPDATE(failed_count,locked_until,last_attempt_at) ON hlgb_integrado_lab.lab_login_attempts TO hlgb_lab_runtime;
+GRANT INSERT ON hlgb_integrado_lab.lab_login_events TO hlgb_lab_runtime;
+GRANT USAGE ON SEQUENCE hlgb_integrado_lab.lab_login_events_id_seq TO hlgb_lab_runtime;
 DO $pol$ DECLARE t text; BEGIN
- FOREACH t IN ARRAY ARRAY['environment','documents','commands','events','cancellations','lab_accounts','lab_access_events'] LOOP
+ FOREACH t IN ARRAY ARRAY['environment','documents','commands','events','cancellations','lab_accounts','lab_access_events','lab_login_attempts','lab_login_events'] LOOP
   EXECUTE format('CREATE POLICY runtime_read ON hlgb_integrado_lab.%I FOR SELECT TO hlgb_lab_runtime USING (true)',t);
  END LOOP;
- FOREACH t IN ARRAY ARRAY['documents','commands','events','cancellations','lab_access_events'] LOOP
+ FOREACH t IN ARRAY ARRAY['documents','commands','events','cancellations','lab_access_events','lab_login_events'] LOOP
   EXECUTE format('CREATE POLICY runtime_insert ON hlgb_integrado_lab.%I FOR INSERT TO hlgb_lab_runtime WITH CHECK (true)',t);
  END LOOP;
 END $pol$;
 CREATE POLICY runtime_update ON hlgb_integrado_lab.documents FOR UPDATE TO hlgb_lab_runtime USING (id='operacao-ficticia') WITH CHECK (id='operacao-ficticia');
 CREATE POLICY runtime_update_account ON hlgb_integrado_lab.lab_accounts FOR UPDATE TO hlgb_lab_runtime USING (employee_id IN ('LAB-FUN-002','LAB-FUN-003')) WITH CHECK (employee_id IN ('LAB-FUN-002','LAB-FUN-003') AND active=false);
+CREATE POLICY runtime_login_attempts_update ON hlgb_integrado_lab.lab_login_attempts FOR UPDATE TO hlgb_lab_runtime USING (true) WITH CHECK (failed_count BETWEEN 0 AND 5);
+-- Eventos de tentativas, comandos e cancelamentos são append-only. Sem DDL no runtime.
 -- Sem UPDATE/DELETE de comandos, eventos ou cancelamentos; sem privilégios de DDL.
 -- Este papel de serviço de testes não representa autorização por funcionário empresarial.
 COMMIT;
