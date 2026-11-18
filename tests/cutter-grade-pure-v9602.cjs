@@ -56,7 +56,9 @@ test('O módulo carrega antes da programação e NÃO altera a base de dados',()
  const p=scripts.indexOf(addon),q=scripts.indexOf('release-cutter-planner.js');
  assert.ok(p>=0&&q===p+1,'O módulo de grade deve carregar imediatamente antes do Cortador');
  assert.equal(scripts.filter(x=>x===addon).length,1,'Carregar apenas uma vez');
- assert.equal(scripts.length,157,'Todos os scripts comerciais antigos e o novo módulo devem permanecer');
+ const manifest=JSON.parse(fs.readFileSync(path.join(root,'hlgb-modules/ownership-v9600.json'),'utf8'));
+ assert.equal(scripts.length,manifest.releaseScripts.length,'A quantidade deve acompanhar exatamente o catálogo modular');
+ assert.equal(JSON.stringify(scripts),JSON.stringify(manifest.releaseScripts),'A ordem também deve ser idêntica');
  const code=fs.readFileSync(path.join(root,addon),'utf8');
  for(const prohibited of ['cloudRequest','indexedDB','localStorage','hlgbRecordSaveWithRetry','fetch('])
   assert.equal(code.includes(prohibited),false,'Módulo não executa operações externas: '+prohibited);
