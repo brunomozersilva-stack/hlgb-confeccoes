@@ -122,15 +122,24 @@
  function assignmentSnapshot(row){
   return Object.fromEntries(assignmentFields.map(k=>[k,clone(row[k])]));
  }
+ function assignmentFingerprint(row){
+  return fingerprint({fields:assignmentSnapshot(row),label:row.labelSnapshot});
+ }
  function assign(s,p,{next,uid}){
   ensure(s);
-  const valid=baseAssignment(s,p),id=next(s,'EBA');
+  const valid=baseAssignment(s,p);
+  if(s.packerAssignmentsLab.some(x=>x.status!=='cancelado'&&x.packerId===valid.packerId&&
+   x.clientId===valid.clientId&&x.productId===valid.productId&&
+   norm(x.size)===norm(valid.size)&&norm(x.color)===norm(valid.color)&&
+   x.date===valid.date&&x.qty===valid.qty))
+   fail('Tarefa semelhante já existe para a mesma embaladeira e data. Confira antes de duplicar.');
+  const id=next(s,'EBA');
   const row={id,...valid,doneQty:0,status:'aguardando',
    labelSnapshot:labelSnapshot(s,valid.clientId,valid.productId),
    createdCommandId:uid,lastCommandId:uid,
    history:[]};
   row.history.push({type:'created',commandId:uid,revision:s.revision+1,
-   afterFingerprint:fingerprint(assignmentSnapshot(row)),doneAfter:0});
+   afterFingerprint:assignmentFingerprint(row),doneAfter:0});
   s.packerAssignmentsLab.push(row);
   return id+' · '+valid.qty+' peças atribuídas somente no laboratório';
  }
@@ -148,7 +157,7 @@
   row.labelSnapshot=labelSnapshot(s,valid.clientId,valid.productId);
   row.status=statusOf(row);row.lastCommandId=uid;
   row.history.push({type:'revised',commandId:uid,revision:s.revision+1,
-   before,doneBefore:row.doneQty,afterFingerprint:after,doneAfter:row.doneQty,reason});
+   before,doneBefore:row.doneQty,afterFingerprint:assignmentFingerprint(row),doneAfter:row.doneQty,reason});
   return row.id+' · atribuição revisada sem apagar a anterior';
  }
  function progress(s,p,{uid}){
@@ -164,7 +173,7 @@
   row.doneQty=done;row.status=statusOf(row);row.lastCommandId=uid;
   row.history.push({type:done<before?'corrected':'progressed',commandId:uid,
    revision:s.revision+1,doneBefore:before,doneAfter:done,
-   afterFingerprint:fingerprint(assignmentSnapshot(row)),reason});
+   afterFingerprint:assignmentFingerprint(row),reason});
   return row.id+' · '+done+' de '+row.qty+' peças prontas ('+row.status+')';
  }
  function cancelAssignment(s,p,{uid}){
@@ -175,7 +184,7 @@
   const reason=txt(p.reason,'Motivo do cancelamento',200);
   row.status='cancelado';row.lastCommandId=uid;
   row.history.push({type:'cancelled',commandId:uid,revision:s.revision+1,
-   afterFingerprint:fingerprint(assignmentSnapshot(row)),reason,doneAfter:0});
+   afterFingerprint:assignmentFingerprint(row),reason,doneAfter:0});
   return row.id+' · cancelada preservando o histórico';
  }
  function inspect(s){
@@ -236,9 +245,15 @@
       fail('Tarefa com operação sem prova global');
      prev=e.revision;
     }
-    if(fingerprint(assignmentSnapshot(row))!==row.history.at(-1).afterFingerprint)
+    if(assignmentFingerprint(row)!==row.history.at(-1).afterFingerprint)
      fail('Tarefa alterada fora da revisão');
     if(row.history.at(-1).doneAfter!==row.doneQty)fail('Quantidade pronta sem prova');
+    const steps=row.history.filter(x=>x.type==='progressed'||x.type==='corrected');
+    for(const event of steps){if(!Number.isSafeInteger(event.doneBefore)||!Number.isSafeInteger(event.doneAfter)||
+     event.doneBefore<0||event.doneAfter<0||
+     (event.type==='progressed'&&event.doneAfter<=event.doneBefore)||
+     (event.type==='corrected'&&event.doneAfter>=event.doneBefore))
+      fail('Movimento de embalagem incoerente com o histórico');}
    }catch(e){issues.push(String(row?.id||'EBA')+': '+e.message)}
   }
   return issues;
