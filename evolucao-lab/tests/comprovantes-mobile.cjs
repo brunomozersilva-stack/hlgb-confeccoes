@@ -43,8 +43,11 @@ async function exercise(browser,url,width){
  const close=page.locator('form[data-command="finance.faction.close"]');
  await close.locator('[name="reference"]').fill('PAG-PDF-TESTE');
  await close.locator('[name="reason"]').fill('Fechamento fictício');
- const before=await rev(page);await close.locator('button[type="submit"]').click();
- await page.waitForFunction(value=>Number((document.querySelector('#top-revision')?.textContent||'').match(/Revisão local (\d+)/)?.[1])===value+1,before);
+ const before=await rev(page);
+ page.once('dialog',dialog=>dialog.accept());
+ await close.locator('button[type="submit"]').click();
+ try{await page.waitForFunction(value=>Number((document.querySelector('#top-revision')?.textContent||'').match(/Revisão local (\d+)/)?.[1])===value+1,before,{timeout:10000});}
+ catch(err){throw Error('Fechamento não gravou: '+await page.locator('#flash').innerText());}
  const makePdf=n=>Buffer.from('%PDF-1.4\n% EXERCICIO SEM DADOS REAIS '+n+'\n1 0 obj\n<< /Type /Catalog >>\nendobj\n%%EOF\n');
  async function attach(n){
   const form=page.locator('form[data-command="finance.receipt.attach"]'),r=await rev(page);
