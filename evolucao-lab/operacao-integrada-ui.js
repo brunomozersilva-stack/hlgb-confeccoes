@@ -141,6 +141,100 @@ function fillOrderColorEdit(){
  if(hint)hint.textContent=row?'Cor existente carregada: '+row.color+' · '+sum(row.grade)+' peças. Alterar e salvar mantém o histórico do pedido.':
   'Cor ainda não cadastrada neste pedido. Informe as quantidades para incluí-la.';
 }
+
+const multiBaseSizes=['PP','P','M','G','GG','XG','G1'];
+function multiSizes(form){
+ return [...form.querySelectorAll('[data-multi-size]')].map(x=>x.dataset.multiSize);
+}
+function multiColumns(sizes){
+ return 'minmax(125px,2fr) repeat('+sizes.length+',minmax(58px,1fr)) minmax(88px,100px)';
+}
+function multiColorRow(sizes,color='Preto',amount=0){
+ return '<div data-multi-color-row class="multi-matrix-line" style="grid-template-columns:'+multiColumns(sizes)+'">'+
+ '<label>Cor<input class="input" name="color" maxlength="40" required value="'+escape(color)+'"></label>'+
+ sizes.map(size=>'<label>'+escape(size)+'<input class="input" name="size_'+escape(size)+'" type="number" min="0" max="10000" inputmode="numeric" step="1" required value="'+(size==='M'?amount:0)+'"></label>').join('')+
+ '<div><button type="button" class="btn" data-remove-multi-color aria-label="Remover linha de cor">Remover cor</button></div></div>';
+}
+function multiModelCard(products,sizes,index){
+ const modelOptions=options(selector(products,x=>x.name+' · '+x.sku),products[Math.min(index,products.length-1)]?.id||null);
+ return '<section class="multi-model-card" data-multi-model><h4>Modelo '+(index+1)+'</h4>'+
+ '<div class="fields"><div class="field"><label>Produto cadastrado<select name="productId" class="input" required>'+modelOptions+'</select></label></div></div>'+
+ '<div class="multi-matrix-scroll"><div class="multi-matrix-line multi-matrix-header" data-multi-col-head style="grid-template-columns:'+multiColumns(sizes)+'">'+
+ '<span>Cor</span>'+sizes.map(size=>'<span>'+escape(size)+'</span>').join('')+'<span>Ação</span></div>'+
+ '<div data-multi-colors>'+multiColorRow(sizes,index===0?'Preto':'Rubi',index===0?10:5)+'</div></div>'+
+ '<div class="actions"><button type="button" class="btn" data-add-multi-color>+ Nova cor</button>'+
+ '<button type="button" class="btn" data-remove-multi-model>Remover modelo</button></div></section>';
+}
+function multiOrderPanel(s){
+ const sizeList=multiBaseSizes,existing=s.multiOrders||[],clients=selector(s.clients,x=>x.name);
+ const summaries=table(['Pedido','Cliente','Modelos','Cores','Peças','Valor ilustrativo','Condição'],
+  existing.map(o=>[str(o.id),str(ref(s.clients,o.clientId)?.name||o.clientId),str(o.totals.models),
+   str(o.totals.colors),str(o.totals.pieces),fmt(o.totals.amountCents),'<strong>Preparação — não integrado ao Corte</strong>']));
+ return panel('Vários modelos no mesmo pedido — preparação segura',
+  '<p><b>Teste de estrutura, não lançamento comercial:</b> este formulário guarda os modelos em um único pedido fictício. Ainda NÃO gera financeiro, corte, facções nem expedição. O cadastro anterior continua disponível abaixo.</p>'+
+  '<form id="multi-order-form" data-command="order.multi.create">'+
+  '<div class="fields">'+field('clientId','Cliente','select','',clients)+'</div>'+
+  '<div data-multi-size-head style="display:none">'+sizeList.map(size=>'<span data-multi-size="'+escape(size)+'"></span>').join('')+'</div>'+
+  '<div id="multi-model-list">'+multiModelCard(s.products,sizeList,0)+'</div>'+
+  '<div class="actions"><button type="button" class="btn" data-add-multi-model>+ Adicionar outro modelo</button></div>'+
+  '<div class="fields"><label>Outro tamanho (ex.: G2, 36, Único)<input class="input" id="multi-new-size" maxlength="12" placeholder="G2"></label></div>'+
+  '<div class="actions"><button type="button" class="btn" data-add-multi-size>+ Acrescentar tamanho a todas as grades</button></div>'+
+  '<p class="caption">Todos os modelos compartilham os tamanhos selecionados. Uma cor pode ter zero em alguns tamanhos, mas não pode ficar inteiramente zerada.</p>'+
+  '<p class="multi-order-summary" id="multi-order-preview" aria-live="polite">Calculando quantidades...</p>'+
+  '<div class="actions"><button type="submit" class="btn primary">Salvar pedido multimodelo fictício</button></div></form>'+
+  '<h3>Pedidos multimodelo em preparação</h3>'+summaries+
+  '<p class="caption">Os IDs e os totais ficam no histórico do laboratório, mas nenhum pedido desta lista pode ser baixado ou enviado para uma facção até a homologação da integração.</p>',true);
+}
+function multiOrderInput(form){
+ const sizes=multiSizes(form),models=[...form.querySelectorAll('[data-multi-model]')];
+ if(!models.length||models.length>20)throw Error('Informe entre 1 e 20 modelos.');
+ const items=models.map((model,index)=>{
+  const productId=model.querySelector('[name=productId]').value;
+  const lines=[...model.querySelectorAll('[data-multi-color-row]')];
+  if(!lines.length||lines.length>30)throw Error('Informe as cores do modelo '+(index+1));
+  return {productId,colors:lines.map(line=>{
+   const color=line.querySelector('[name=color]').value,grade={};
+   for(const size of sizes){
+    const input=line.querySelector('[name="size_'+size+'"]');
+    const raw=input?.value??'';
+    if(!/^\d+$/.test(raw))throw Error('Quantidade inválida na cor '+color+' / '+size);
+    grade[size]=Number(raw);
+   }
+   return {color,grade};
+  })};
+ });
+ return {clientId:form.elements.namedItem('clientId').value,sizes,items};
+}
+function multiOrderPreview(){
+ const form=document.getElementById('multi-order-form'),summary=document.getElementById('multi-order-preview');
+ if(!form||!summary||!doc)return;
+ try{
+  const payload=multiOrderInput(form),p=window.HLGBLabMultiOrdersV1.prepare(doc,payload);
+  summary.dataset.valid='true';
+  summary.textContent=p.totals.models+' modelo(s) · '+p.totals.colors+' cores · '+p.totals.pieces+' peças. '+
+   p.sizes.map(size=>size+': '+p.totals.bySize[size]).join(' · ')+
+   ' · valor ilustrativo '+fmt(p.totals.amountCents)+
+   '. Apenas preparo: NÃO registra contas, corte ou saída.';
+ }catch(e){summary.dataset.valid='false';summary.textContent='Confira a matriz: '+e.message;}
+}
+function multiAfterSizeAdded(form,size){
+ const holder=form.querySelector('[data-multi-size-head]');
+ const span=document.createElement('span');span.dataset.multiSize=size;holder.append(span);
+ for(const model of form.querySelectorAll('[data-multi-model]')){
+  const header=model.querySelector('[data-multi-col-head]');
+  const title=document.createElement('span');title.textContent=size;
+  header.insertBefore(title,header.lastElementChild);
+  for(const line of model.querySelectorAll('[data-multi-color-row]')){
+   const label=document.createElement('label');label.textContent=size;
+   const input=document.createElement('input');input.type='number';input.min='0';input.max='10000';input.step='1';
+   input.inputMode='numeric';input.required=true;input.name='size_'+size;input.value='0';input.className='input';
+   label.append(input);line.insertBefore(label,line.lastElementChild);
+  }
+ }
+ const columns=multiColumns(multiSizes(form));
+ form.querySelectorAll('.multi-matrix-line').forEach(node=>node.style.gridTemplateColumns=columns);
+}
+
 function orderTable(s){
  return table(['Pedido / modelo','Cliente','Grade e corte','Fluxo','Recebimento'],s.orders.map(o=>{
  const q=api.quantities(o);
@@ -1000,7 +1094,7 @@ function moduleHtml(s){
  table(['Perfil','Escopo proposto','Situação empresarial'],[['Supervisor','Cadastros, aprovações e relatórios','Pendente'],['Produção','Pedidos, corte, facções e separação','Pendente'],
  ['Financeiro','Acertos, Hub, compras e comprovantes','Pendente'],['Consulta','Visualização sem alterar','Pendente']]),true);
  case 'pedidos':return importOrdersPanel(s)+panel('Grade por cor e tamanho no próprio Pedido',colorMatrixCreateForm(s),true)+
- orderColorGradePanel(s)+panel('Incluir pedido com grade — modo antigo sem cores',
+ orderColorGradePanel(s)+multiOrderPanel(s)+panel('Incluir pedido com grade — modo antigo sem cores',
  form('order.add','Novo pedido fictício',[
  field('clientId','Cliente','select','',clients),field('productId','Modelo','select','',products),
  ...api.sizes.map(z=>field(z,'Quantidade '+z,'int',z==='M'?10:0))],'Cadastrar pedido'))+
@@ -1587,7 +1681,7 @@ function draw(){
  ['Pedidos fictícios',String(t.orders)],['Peças pedidas',String(t.pieces)],['Peças cortadas',String(t.cut)],
  ['Títulos a pagar abertos',fmt(t.openPayables)]];
  $('global-metrics').innerHTML=metrics.map(([label,value])=>'<div class="metric"><span>'+escape(label)+'</span><strong>'+escape(value)+'</strong></div>').join('');
- try{$('module-content').innerHTML=remotePanel()+moduleHtml(doc);visitedModules.add(active);if(active==='pedidos'){updateColorMatrixPreview();fillOrderColorEdit();}}catch(e){$('module-content').innerHTML=remotePanel()+panel('Não foi possível exibir esta área','<div class="error">'+str(e.message)+'</div><p>Os dados não foram modificados. Abra outro módulo, exporte as evidências ou tente recarregar.</p><button type="button" class="btn" data-goto="auditor">Abrir Auditor</button>',true);}
+ try{$('module-content').innerHTML=remotePanel()+moduleHtml(doc);visitedModules.add(active);if(active==='pedidos'){updateColorMatrixPreview();fillOrderColorEdit();multiOrderPreview();}}catch(e){$('module-content').innerHTML=remotePanel()+panel('Não foi possível exibir esta área','<div class="error">'+str(e.message)+'</div><p>Os dados não foram modificados. Abra outro módulo, exporte as evidências ou tente recarregar.</p><button type="button" class="btn" data-goto="auditor">Abrir Auditor</button>',true);}
  if(remoteLab){const allowed=new Set(remoteLab.info().permissions?.allowedCommands||[]);
  for(const f of document.querySelectorAll('#module-content form[data-command]')){if(allowed.has(f.dataset.command))continue;for(const button of f.querySelectorAll('button[type="submit"]')){button.disabled=true;button.title='Ação não autorizada para o perfil fictício';}const notice=document.createElement('p');notice.className='caption';notice.textContent='Permissão de escrita restrita a outro perfil. Não use dados reais.';f.append(notice);}}
  if(active==='acertos'){refreshServicePreview();applySettlementFilters();const f=document.querySelector('form[data-command="settlement.revise"]');if(f)fillSettlementRevision(f);}
@@ -1614,6 +1708,7 @@ const NUM=['actualGrams','points','revision','corte','envio','costura','separaca
 const SIGNED=['deltaGrams'];
 const PRICES=['freightCents','camisola','doll','calcinha','outros','pointCents','priceCents','unitCents','travetaCents','priceCentsKg','amountCents','salaryCents','passageCents','extrasCents','discountCents'];
 function parseData(type,form){
+ if(type==='order.multi.create')return multiOrderInput(form);
  if(type==='order.add.with.colors'){
   const p=readColorMatrix(form);
   return {clientId:p.clientId,productId:p.productId,colorGrades:p.colorGrades};
@@ -2167,6 +2262,44 @@ document.addEventListener('change',event=>{
  }
 });
 document.addEventListener('click',async e=>{
+ const multiForm=e.target.closest('#multi-order-form');
+ if(multiForm){
+  const addItem=e.target.closest('[data-add-multi-model]');
+  if(addItem){
+   const list=document.getElementById('multi-model-list'),count=list.querySelectorAll('[data-multi-model]').length;
+   if(count>=20){status('Limite de 20 modelos fictícios.','error');return;}
+   list.insertAdjacentHTML('beforeend',multiModelCard(doc.products,multiSizes(multiForm),count));
+   multiOrderPreview();return;
+  }
+  const removeItem=e.target.closest('[data-remove-multi-model]');
+  if(removeItem){
+   if(multiForm.querySelectorAll('[data-multi-model]').length<=1){status('Pedido precisa de um modelo.','error');return;}
+   removeItem.closest('[data-multi-model]').remove();multiOrderPreview();return;
+  }
+  const addColor=e.target.closest('[data-add-multi-color]');
+  if(addColor){
+   const card=addColor.closest('[data-multi-model]'),body=card.querySelector('[data-multi-colors]');
+   if(body.querySelectorAll('[data-multi-color-row]').length>=30){status('Limite de 30 cores por modelo.','error');return;}
+   body.insertAdjacentHTML('beforeend',multiColorRow(multiSizes(multiForm),'',0));
+   multiOrderPreview();return;
+  }
+  const removeColor=e.target.closest('[data-remove-multi-color]');
+  if(removeColor){
+   const body=removeColor.closest('[data-multi-colors]');
+   if(body.querySelectorAll('[data-multi-color-row]').length<=1){status('Cada modelo precisa ter uma cor.','error');return;}
+   removeColor.closest('[data-multi-color-row]').remove();multiOrderPreview();return;
+  }
+  const addSize=e.target.closest('[data-add-multi-size]');
+  if(addSize){
+   const input=document.getElementById('multi-new-size'),value=input.value.trim().replace(/\s+/g,' ');
+   const sizes=multiSizes(multiForm);
+   if(sizes.length>=16){status('Limite de 16 tamanhos neste pedido fictício.','error');return;}
+   if(!value||value.length>12||!/^[\p{L}\p{N} .-]+$/u.test(value)||sizes.some(x=>x.toLocaleLowerCase('pt-BR')===value.toLocaleLowerCase('pt-BR'))){
+    status('Tamanho repetido ou inválido; use letras/números e até 12 caracteres.','error');return;
+   }
+   multiAfterSizeAdded(multiForm,value);input.value='';multiOrderPreview();return;
+  }
+ }
  if(e.target.closest('[data-add-color-row]')){
   const holder=$('order-color-rows');
   if(holder?.querySelectorAll('[data-color-row]').length>=30){status('Limite de 30 cores por pedido fictício.','error');return;}
@@ -2289,9 +2422,10 @@ document.addEventListener('click',async e=>{
  const goto=e.target.closest('button[data-goto]');
  if(goto){searchState.selected=null;active=goto.dataset.goto;window.location.hash=active;draw();window.scrollTo(0,0)}
 });
-document.addEventListener('input',e=>{if(e.target.closest('#order-color-matrix-form'))updateColorMatrixPreview();});
+document.addEventListener('input',e=>{if(e.target.closest('#order-color-matrix-form'))updateColorMatrixPreview();if(e.target.closest('#multi-order-form'))multiOrderPreview();});
 document.addEventListener('change',e=>{
  if(e.target.closest('#order-color-matrix-form'))updateColorMatrixPreview();
+ if(e.target.closest('#multi-order-form'))multiOrderPreview();
  const editing=e.target.closest('form[data-command="order.color.grade.set"]');
  if(editing&&active==='pedidos'&&['orderId','color'].includes(e.target.name))fillOrderColorEdit();
 });
