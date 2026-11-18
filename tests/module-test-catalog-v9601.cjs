@@ -3,8 +3,9 @@ const {test}=require('node:test'),assert=require('node:assert/strict'),fs=requir
 const root=path.resolve(__dirname,'..');
 const cat=require('../hlgb-modules/module-test-catalog-v9601.json');
 const owner=require('../hlgb-modules/ownership-v9600.json').ownership;
-test('Catálogo: oito áreas, 40 provas reais, caminhos restritos a tests/',()=>{
- assert.equal(Object.keys(cat.packs).length,8);
+test('Catálogo do HLGB ao vivo: 14 áreas, 64 entradas em pacotes de regressão',()=>{
+ assert.equal(Object.keys(cat.packs).length,14);
+ assert.deepEqual(new Set(Object.keys(cat.packs)),new Set(Object.keys(owner)),'nenhuma área da main pode ficar sem testes de domínio');
  let count=0;
  for(const [area,files] of Object.entries(cat.packs)){
   assert.ok(Object.hasOwn(owner,area),'área sem responsável: '+area);
@@ -16,7 +17,7 @@ test('Catálogo: oito áreas, 40 provas reais, caminhos restritos a tests/',()=>
    count++;
   }
  }
- assert.equal(count,40);
+ assert.equal(count,64);
 });
 test('Risco: correção em Cortador implica teste de WAL, monólito obriga regressão total',()=>{
  assert.ok(cat.dependencies['corte-cortadores'].includes('sincronizacao-wal'));
@@ -26,7 +27,7 @@ test('Risco: correção em Cortador implica teste de WAL, monólito obriga regre
  assert.equal(a.status,0);assert.deepEqual(JSON.parse(a.stdout),{highRisk:false,packs:['corte-cortadores','sincronizacao-wal']});
  const b=command('--impact','app9240.html');
  assert.equal(b.status,0);assert.equal(JSON.parse(b.stdout).highRisk,true);
- assert.equal(JSON.parse(b.stdout).packs.length,8);
+ assert.equal(JSON.parse(b.stdout).packs.length,14);
  const c=command('--impact','release-faction-manual-payment-v9566.js');
  assert.equal(c.status,0);
  for(const s of ['faccoes-acertos','financeiro-hub-notas','sincronizacao-wal'])assert.ok(JSON.parse(c.stdout).packs.includes(s));
@@ -53,7 +54,7 @@ test('Alterações desconhecidas ou no loader não podem pular domínios; stdin 
  const command=(...args)=>cp.spawnSync(process.execPath,['hlgb-modules/run-module-tests-v9601.cjs',...args],{cwd:root,encoding:'utf8'});
  for(const file of ['hlgb-modules/corte/grade-modelo-v9602.js','release-novo-sem-catalogo.js','tests/arquivo-novo.cjs']){
   const r=command('--impact',file);assert.equal(r.status,0,file);
-  const result=JSON.parse(r.stdout);assert.equal(result.highRisk,true,file);assert.equal(result.packs.length,8,file);
+  const result=JSON.parse(r.stdout);assert.equal(result.highRisk,true,file);assert.equal(result.packs.length,14,file);
  }
  const fromStdin=cp.spawnSync(process.execPath,['hlgb-modules/run-module-tests-v9601.cjs','--impact-stdin'],{
   cwd:root,encoding:'utf8',input:'release-cutter-planner.js\0release-faction-manual-payment-v9566.js\0'
@@ -69,4 +70,29 @@ test('Seleção manual respeita dependências transitivas',()=>{
  assert.equal(r.status,0,r.stderr);
  const actual=JSON.parse(r.stdout).packs;
  for(const area of ['pedidos-projecao','corte-cortadores','sincronizacao-wal'])assert.ok(actual.includes(area),area);
+});
+
+test('Infraestrutura, WAL e interface têm alto risco, não podem rodar apenas um pacote',()=>{
+ const command=(...args)=>cp.spawnSync(process.execPath,['hlgb-modules/run-module-tests-v9601.cjs',...args],{cwd:root,encoding:'utf8'});
+ for(const file of ['release-current.js','release-save-transport-v9320.js','release-night-ui-fixes.js']){
+  const r=command('--impact',file);assert.equal(r.status,0,r.stderr);
+  const out=JSON.parse(r.stdout);
+  assert.equal(out.highRisk,true,'risco deve ser alto: '+file);
+  assert.equal(out.packs.length,14,'todas as áreas devem rodar: '+file);
+ }
+});
+test('Dependências cruzadas de Produção, Compras, IA e Impressora 3D incluem seus módulos principais',()=>{
+ const command=(...args)=>cp.spawnSync(process.execPath,['hlgb-modules/run-module-tests-v9601.cjs',...args],{cwd:root,encoding:'utf8'});
+ const cases=[
+  ['release-separation-commit-v9319.js',['producao-separacao','pedidos-projecao','corte-cortadores','sincronizacao-wal']],
+  ['release-purchase-checkers.js',['compras-estoque','financeiro-hub-notas','sincronizacao-wal']],
+  ['release-assistant-query.js',['assistente-ia','pedidos-projecao','financeiro-hub-notas','sincronizacao-wal']],
+  ['release-printer3d-persistence-v9431.js',['impressora-3d','base-infraestrutura','sincronizacao-wal']]
+ ];
+ for(const [file,needed] of cases){
+  const r=command('--impact',file);assert.equal(r.status,0,r.stderr);
+  const out=JSON.parse(r.stdout);
+  assert.equal(out.highRisk,false,'impacto específico deve continuar selecionável: '+file);
+  for(const area of needed)assert.ok(out.packs.includes(area),area+' ausente após alterar '+file);
+ }
 });
