@@ -118,6 +118,26 @@ test('Auditor detecta adulteração de retorno, facção e grade preservando nú
  assert.equal(c.s.cutPlans.length,0);
  assert.equal(c.s.finance.length,0);
 });
+test('Fila de trabalho apresenta apenas etapas possíveis por variação e abre o módulo correto',()=>{
+ const c=fixture(),view=require('../modulos/fluxo-multimodelo-ui-v1.js');
+ let pending=view.queue(c.s,flow);
+ assert.equal(pending.filter(x=>x.stage==='Corte pendente').reduce((n,x)=>n+x.qty,0),130);
+ assert.equal(pending.filter(x=>x.to==='faccoes').length,0,'Sem corte concluído não libera facção');
+ finishAndAllocate(c);
+ pending=view.queue(c.s,flow);
+ assert.equal(pending.filter(x=>x.stage==='Corte pendente').reduce((n,x)=>n+x.qty,0),50);
+ assert.equal(pending.filter(x=>x.stage==='Corte concluído para enviar à facção').length,0,
+  'Lote já alocado não pode ser enviado de novo');
+ c.run('multi.flow.return',{id:'MFL-0001',lines:lines(['Rubi','P',30]),reason:'Retorno para separação'});
+ pending=view.queue(c.s,flow);
+ assert.equal(pending.filter(x=>x.stage==='Retorno disponível para separar').reduce((n,x)=>n+x.qty,0),30);
+ assert.equal(pending.filter(x=>x.stage==='Acerto fictício a conferir').length,1);
+ const html=view.queuePanel(c.s,flow);
+ assert.match(html,/data-goto="separacao"/);
+ assert.match(html,/data-goto="acertos"/);
+ assert.match(html,/MFR-0001/);
+ assert.doesNotMatch(html,/Aberto no servidor|Aprovado para produção/);
+});
 test('Interface multimodelo independente mantém formulários antigos e não usa rede',()=>{
  const ui=fs.readFileSync(path.join(root,'operacao-integrada-ui.js'),'utf8'),
   html=fs.readFileSync(path.join(root,'operacao-integrada.html'),'utf8'),
@@ -129,6 +149,7 @@ test('Interface multimodelo independente mantém formulários antigos e não usa
  assert.match(ui,/multiFlowLabPart\(s,'faction'\)/);
  assert.match(ui,/multiFlowLabPart\(s,'separacao'\)/);
  assert.match(ui,/multiFlowLabPart\(s,'acerto'\)/);
+ assert.match(ui,/multiFlowLabPart\(s,'fila'\)/);
  assert.match(ui,/order\.separate/);
  assert.match(ui,/faction\.return/);
  assert.match(ui,/multi\.flow\.allocate/);
