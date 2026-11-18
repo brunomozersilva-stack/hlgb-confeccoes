@@ -92,9 +92,9 @@ function draw(){
   for(const [value,name] of reviewStatuses){const op=elem('option','',name);op.value=value;selectNode.append(op);}
   selectNode.value=result[key];labelNode.append(selectNode);check.append(labelNode);
  }
- const noteLabel=elem('label','full','Observação (somente dados fictícios)'),note=elem('textarea','input');
- note.maxLength=500;note.placeholder='O que aconteceu no teste? Código de erro, sem dados pessoais.';note.value=result.note;
- note.dataset.reviewId=c.id;note.dataset.reviewField='note';noteLabel.append(note);check.append(noteLabel);
+ const noteLabel=elem('label','full','Observação (somente dados fictícios)'),reviewNote=elem('textarea','input');
+ reviewNote.maxLength=500;reviewNote.placeholder='O que aconteceu no teste? Código de erro, sem dados pessoais.';reviewNote.value=result.note;
+ reviewNote.dataset.reviewId=c.id;reviewNote.dataset.reviewField='note';noteLabel.append(reviewNote);check.append(noteLabel);
  card.append(check);
  const details=elem("details","details"),summary=elem("summary","","Conferências necessárias e origem da informação");
  const txt=elem("p","","Teste antigo, teste novo, comparação antes/depois, integridade dos dados, mobile, autorização explícita. Nenhum desses itens foi homologado para este cenário.");
