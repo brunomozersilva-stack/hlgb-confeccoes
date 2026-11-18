@@ -169,9 +169,9 @@ function multiOrderPanel(s){
  const sizeList=multiBaseSizes,existing=s.multiOrders||[],clients=selector(s.clients,x=>x.name);
  const summaries=table(['Pedido','Cliente','Modelos','Cores','Peças','Valor ilustrativo','Condição'],
   existing.map(o=>[str(o.id),str(ref(s.clients,o.clientId)?.name||o.clientId),str(o.totals.models),
-   str(o.totals.colors),str(o.totals.pieces),fmt(o.totals.amountCents),'<strong>Preparação — não integrado ao Corte</strong>']));
+   str(o.totals.colors),str(o.totals.pieces),fmt(o.totals.amountCents),'<strong>Preparação · corte em laboratório separado</strong>']));
  return panel('Vários modelos no mesmo pedido — preparação segura',
-  '<p><b>Teste de estrutura, não lançamento comercial:</b> este formulário guarda os modelos em um único pedido fictício. Ainda NÃO gera financeiro, corte, facções nem expedição. O cadastro anterior continua disponível abaixo.</p>'+
+  '<p><b>Teste de estrutura, não lançamento comercial:</b> este formulário guarda os modelos em um único pedido fictício. Ainda NÃO gera financeiro, baixa de estoque, facções nem expedição. A programação de corte existe como ensaio independente na guia Corte. O cadastro anterior continua disponível abaixo.</p>'+
   '<form id="multi-order-form" data-command="order.multi.create">'+
   '<div class="fields">'+field('clientId','Cliente','select','',clients)+'</div>'+
   '<div data-multi-size-head style="display:none">'+sizeList.map(size=>'<span data-multi-size="'+escape(size)+'"></span>').join('')+'</div>'+
@@ -235,6 +235,63 @@ function multiAfterSizeAdded(form,size){
  form.querySelectorAll('.multi-matrix-line').forEach(node=>node.style.gridTemplateColumns=columns);
 }
 
+
+function multiCutEditor(s,order,item,plan=null){
+ const v=window.HLGBLabMultiCutsV1;
+ const available=v.balance(s,order.id,item.id,plan?.id||null).filter(x=>x.qty>0);
+ const old=new Map((plan?.lines||[]).map(x=>[x.color+'|'+x.size,x.qty]));
+ const matrix=available.map(x=>'<label class="field">'+escape(x.color)+' / '+escape(x.size)+
+  ' · saldo '+x.remaining+' de '+x.qty+
+  '<input class="input" data-mcut-qty data-mcut-color="'+escape(x.color)+'" data-mcut-size="'+escape(x.size)+
+  '" type="number" min="0" max="'+x.remaining+'" step="1" inputmode="numeric" value="'+(old.get(x.color+'|'+x.size)||0)+'"></label>').join('');
+ const priority=plan?.priority||'normal';
+ return '<form data-command="'+(plan?'multi.cut.revise':'multi.cut.plan')+'">'+
+  '<h3>'+(plan?'Revisar '+str(plan.id):'Nova programação '+str(item.name))+'</h3>'+
+  '<input type="hidden" name="'+(plan?'id':'orderId')+'" value="'+escape(plan?plan.id:order.id)+'">'+
+  (plan?'':'<input type="hidden" name="itemId" value="'+escape(item.id)+'">')+
+  '<div class="fields">'+
+  '<div class="field"><label>Data do corte<input class="input" type="date" name="scheduledDate" required value="'+escape(plan?.scheduledDate||new Date().toISOString().slice(0,10))+'"></label></div>'+
+  '<div class="field"><label>Prioridade<select class="input" name="priority">'+options([['normal','Normal'],['urgente','Urgente'],['alta','Alta'],['baixa','Baixa']],priority)+'</select></label></div>'+
+  field('cutterOne','Cortador 1','text',plan?.cutterOne||'Cortador fictício A')+
+  field('cutterTwo','Cortador 2','text',plan?.cutterTwo||'Cortador fictício B')+
+  field('spreader','Infestador','text',plan?.spreader||'Infestador fictício')+
+  (plan?field('reason','Motivo da revisão','text','Reprogramação fictícia'):'')+'</div>'+
+  '<p class="caption">Quantidades de um único modelo. Zeros não entram no lote. Nenhuma baixa física ou lançamento financeiro.</p>'+
+  '<div class="fields">'+matrix+'</div>'+
+  '<button type="submit" class="btn primary">'+(plan?'Salvar alteração':'Programar este modelo')+'</button></form>';
+}
+function multiCutPanel(s){
+ const orders=s.multiOrders||[],plans=s.multiCutPlans||[],v=window.HLGBLabMultiCutsV1;
+ if(!v)return panel('Corte multimodelo','<p>Motor de laboratório indisponível. Gravações bloqueadas.</p>',true);
+ const forms=orders.flatMap(o=>o.items.map(item=>{
+  const free=v.balance(s,o.id,item.id).reduce((n,x)=>n+Math.max(0,x.remaining),0);
+  return '<details class="panel"><summary>'+str(o.id)+' · '+str(item.name)+' ('+str(item.id)+') — '+free+' peças disponíveis</summary>'+
+   (free?multiCutEditor(s,o,item):'<p>Saldo totalmente reservado ou concluído. Confira folhas anteriores.</p>')+'</details>';
+ })).join('');
+ const history=table(['Folha','Modelo','Grade por cor/tamanho','Total','Data','Status','Eventos'],plans.map(p=>{
+  const o=orders.find(x=>x.id===p.orderId),item=o?.items.find(x=>x.id===p.itemId);
+  return [str(p.id),str(p.orderId)+' / '+str(item?.name||p.itemId),
+   p.lines.map(x=>str(x.color)+' '+str(x.size)+': '+x.qty).join(' · '),str(p.qty),
+   str(p.scheduledDate)+' · '+str(p.priority),str(p.status),str(p.history.length)];
+ }));
+ const open=plans.filter(x=>x.status==='aberto');
+ const editing=open.map(p=>{
+  const o=orders.find(x=>x.id===p.orderId),item=o?.items.find(x=>x.id===p.itemId);
+  return o&&item?'<details class="panel"><summary>Alterar grade e equipe '+str(p.id)+'</summary>'+multiCutEditor(s,o,item,p)+'</details>':'';
+ }).join('');
+ const choice=selector(open,x=>x.id+' · '+x.qty+' peças');
+ const actions=open.length?form('multi.cut.complete','Concluir ensaio de corte (sem estoque)',[
+  field('id','Folha','select','',choice),
+  field('checkerOne','Conferente 1','text','Conferente fictício A'),
+  field('checkerTwo','Conferente 2','text','Conferente fictício B')
+ ],'Concluir teste')+form('multi.cut.cancel','Cancelar folha com histórico',[
+  field('id','Folha','select','',choice),field('reason','Motivo','text','Reprogramação fictícia')
+ ],'Cancelar folha'):'<p>Nenhuma folha aberta para concluir ou cancelar.</p>';
+ return panel('Corte multimodelo · programação por modelo/cor/tamanho',
+  '<p>Somente homologação. Os modelos têm saldos independentes, inclusive em PP, XG ou G2. Conclusão não gera estoque, facções, acertos ou financeiro; a folha A4 completa será tratada em outra etapa.</p>'+
+  (orders.length?forms:'<p>Primeiro cadastre um pedido multimodelo na guia Pedidos.</p>')+
+  '<h3>Programações realizadas</h3>'+history+editing+actions,true);
+}
 function orderTable(s){
  return table(['Pedido / modelo','Cliente','Grade e corte','Fluxo','Recebimento'],s.orders.map(o=>{
  const q=api.quantities(o);
@@ -1121,7 +1178,7 @@ function moduleHtml(s){
    '<span class="chip '+(p.status==='aberto'?'wait':'')+'">'+str(p.status)+'</span>',
    '<button type="button" class="btn" data-print-plan="'+str(p.id)+'">Imprimir folha</button>'
   ]);
-  return cutSplitPanel(s)+bomCutPanels(s)+panel('Grade editável do pedido',
+  return multiCutPanel(s)+cutSplitPanel(s)+bomCutPanels(s)+panel('Grade editável do pedido',
    form('order.grade.update','Ajustar quantidades por tamanho',[
     field('orderId','Pedido','select','',o),...gradeFields(defaultOrder?.grade)
    ],'Salvar grade e conferir valor do pedido')+
@@ -1709,6 +1766,17 @@ const SIGNED=['deltaGrams'];
 const PRICES=['freightCents','camisola','doll','calcinha','outros','pointCents','priceCents','unitCents','travetaCents','priceCentsKg','amountCents','salaryCents','passageCents','extrasCents','discountCents'];
 function parseData(type,form){
  if(type==='order.multi.create')return multiOrderInput(form);
+ if(type==='multi.cut.plan'||type==='multi.cut.revise'){
+  const data=new FormData(form),lines=[];
+  for(const input of form.querySelectorAll('[data-mcut-qty]')){
+   const raw=input.value.trim();
+   if(!/^(0|[1-9]\\d*)$/.test(raw))throw Error('Quantidade inválida em '+input.dataset.mcutColor+' / '+input.dataset.mcutSize);
+   const qty=Number(raw);if(!Number.isSafeInteger(qty)||qty>Number(input.max))throw Error('Quantidade maior que o saldo disponível.');
+   if(qty)lines.push({color:input.dataset.mcutColor,size:input.dataset.mcutSize,qty});
+  }
+  if(!lines.length)throw Error('Selecione pelo menos uma peça para programar.');
+  return {...Object.fromEntries(data.entries()),lines};
+ }
  if(type==='order.add.with.colors'){
   const p=readColorMatrix(form);
   return {clientId:p.clientId,productId:p.productId,colorGrades:p.colorGrades};
@@ -1843,6 +1911,7 @@ async function submit(form,type){
  if(type==='finance.faction.close'&&!confirm('Confirmar somente a baixa fictícia de todos os títulos e o total conferido deste prestador?'))return;
  if(type==='recovery.repair'&&!confirm('Aplicar exclusivamente o reparo de metadado simulado?'))return;
  if(type==='cut.plan.cancel'&&!confirm('Cancelar somente a folha aberta, preservando o histórico?'))return;
+ if(type==='multi.cut.cancel'&&!confirm('Cancelar somente esta folha de ensaio, mantendo todo o histórico?'))return;
  if(type==='order.color.grade.set'&&active==='pedidos'&&form.elements.namedItem('removeColor')?.checked&&
     !confirm('Remover esta cor do pedido? Esta operação registra o histórico e não altera a grade geral.'))return;
  busy=true;
@@ -1941,6 +2010,7 @@ function exportCsv(){
  ...(doc.factionAssignments||[]).flatMap(a=>(a.gradeLines||[]).map(g=>
   ['Peças por facção/cor',a.id,a.orderId+' · '+a.factionId+
    ' · '+g.color+' '+g.size,'Enviadas '+g.sent,g.returned])),
+ ...(doc.multiCutPlans||[]).flatMap(c=>c.lines.map(l=>['Corte multimodelo fictício',c.id,c.orderId+' / '+c.itemId+' · '+l.color+' '+l.size,c.status,l.qty])),
  ...(doc.bomCutRuns||[]).map(c=>['Corte BOM concluído',c.id,
   c.orderId+' · '+c.color+' '+c.size+' · '+c.qty+' pç',
   c.commandId,c.totalGrams]),
