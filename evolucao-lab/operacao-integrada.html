@@ -162,10 +162,11 @@ textarea.input{resize:vertical;min-height:110px;font-family:inherit;line-height:
 }
 
 @media print{
+ @page{size:A4;margin:7mm}
  #cut-print .mc-label-batch{font:10px/1.2 Arial,Helvetica,sans-serif;color:#111}
  #cut-print .mc-label-page{display:grid;grid-template-columns:repeat(var(--mc-label-cols),var(--mc-label-w));grid-auto-rows:var(--mc-label-h);
   column-gap:var(--mc-label-gap);row-gap:var(--mc-label-gap);align-content:start;justify-content:start;
-  break-after:page;page-break-after:always;max-width:100%;height:270mm}
+  break-after:page;page-break-after:always;max-width:100%;height:280mm}
  #cut-print .mc-label-page:last-child{break-after:auto;page-break-after:auto}
  #cut-print .mc-label-card{border:.3mm solid #333;display:flex;flex-direction:column;justify-content:center;
   padding:2.5mm;overflow:hidden;min-width:0;box-sizing:border-box;break-inside:avoid}
