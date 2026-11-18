@@ -1,7 +1,7 @@
 name: HLGB Domain Smoke Tests v96.01
 on:
   pull_request:
-    branches: [main]
+    branches: [main, refactor/live-module-boundaries-v9600]
     paths:
       - 'release-*.js'
       - 'app-stable3.html'
@@ -16,7 +16,7 @@ on:
         required: true
         default: 'corte-cortadores'
         type: choice
-        options: [corte-cortadores, pedidos-projecao, faccoes-acertos, financeiro-hub-notas, folha-pessoal, utilidades-etiquetas, sincronizacao-wal, auditor-monitor]
+        options: [corte-cortadores, pedidos-projecao, faccoes-acertos, financeiro-hub-notas, folha-pessoal, utilidades-etiquetas, sincronizacao-wal, auditor-monitor, base-infraestrutura, producao-separacao, compras-estoque, assistente-ia, impressora-3d, interface-mobile]
 permissions: {contents: read}
 jobs:
   module-smoke:
