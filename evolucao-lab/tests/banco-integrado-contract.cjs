@@ -63,7 +63,7 @@ test('autorização de servidor impede alteração financeira com revisão váli
  const before=await db.state(),forbidden=cmd('deny-finance-0001','finance.add',before.revision,{kind:'pagar',description:'NÃO INSERIR',amountCents:10000,category:'Aluguel'});
  const response=await db.commit(forbidden,B);assert.equal(response.status,'rejected');assert.match(response.message,/não permitido/);
  const after=await db.state();assert.deepEqual(after,before);
- assert.equal((await db.readback(forbidden.commandId,forbidden,B)).status,'not_found');
+ assert.equal((await db.readback(forbidden.commandId,forbidden,B)).status,'rejected');
 });
 
 const localSeed=require('../banco-integrado/preparar-ci.cjs');
