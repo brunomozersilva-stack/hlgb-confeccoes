@@ -43,3 +43,14 @@ test('módulos críticos permanecem ordenados para evitar alterações de autori
  assert.ok(idx('release-wal-confirmed-replay-v9333.js')>idx('release-wal-replay-bridge-v9332.js'));
  assert.ok(idx('release-faction-feature-guard-v9598.js')===files.length-1);
 });
+
+test('arquivo legado e dez fontes críticas mantêm o SHA exato da revisão comercial anterior',()=>{
+ const crypto=require('node:crypto');
+ const critical=manifest.criticalFileBlobs||{};
+ assert.equal(Object.keys(critical).length,10);
+ for(const [file,sha] of Object.entries(critical)){
+  const bytes=fs.readFileSync(path.join(root,file));
+  const calculated=crypto.createHash('sha1').update(Buffer.from('blob '+bytes.length+'\0')).update(bytes).digest('hex');
+  assert.equal(calculated,sha,'Arquivo alterado durante modularização sem aprovação: '+file);
+ }
+});
