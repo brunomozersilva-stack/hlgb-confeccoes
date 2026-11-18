@@ -1,0 +1,20 @@
+<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>HLGB Evolução — acessos fictícios</title>
+<style>
+:root{font:15px/1.45 system-ui,sans-serif;color:#302538;background:#f7f5fa}*{box-sizing:border-box}body{margin:0}
+header{background:#342445;color:#fff;padding:20px clamp(16px,5vw,56px)}h1{font-size:22px;margin:0}header p{margin:4px 0;color:#ebe0ef}
+main{max-width:980px;margin:auto;padding:16px}.note{border-left:4px solid #ae7e23;background:#fff4dd;padding:14px;border-radius:8px}
+.panel{background:white;border:1px solid #e6dfe9;padding:18px;border-radius:12px;margin:15px 0;box-shadow:0 2px 8px #4334510b}
+h2{font-size:18px;margin:0 0 10px}.tablewrap{overflow-x:auto}table{width:100%;border-collapse:collapse}th,td{padding:12px;text-align:left;border-bottom:1px solid #ece6f0}th{font-size:12px;letter-spacing:.03em}
+button,.back{display:inline-flex;align-items:center;justify-content:center;min-height:40px;padding:8px 14px;border-radius:8px;border:1px solid #8f7ca2;color:white;background:#50316c;cursor:pointer;font:inherit}
+button:disabled{opacity:.55;cursor:not-allowed}.back{text-decoration:none;background:#fff;color:#50316c}.actions{display:flex;gap:10px;flex-wrap:wrap}
+#notice{min-height:24px;font-weight:650}#notice.error{color:#a12530}#notice.success{color:#246740}small{color:#746b7a}td:last-child{text-align:right}
+@media(max-width:550px){table{font-size:13px}th,td{padding:9px}main{padding:10px}.panel{padding:12px}}
+</style></head><body>
+<header><h1>HLGB Evolução · Acessos</h1><p>Painel administrativo do laboratório descartável</p></header>
+<main><p class="note"><strong>Somente dados de teste.</strong> Funcionários, PINs e IDs abaixo são inventados. Desativar um perfil invalida as sessões abertas e bloqueia novas operações neste banco fictício. Não há reativação nesta demonstração. Não use para funcionários reais.</p>
+<div class="actions"><a class="back" href="./operacao-integrada.html">Voltar ao laboratório</a><button type="button" id="refresh">Conferir contas no PostgreSQL</button></div>
+<p id="notice" role="status" aria-live="polite">Conferindo...</p>
+<section class="panel"><h2>Contas fictícias</h2><div class="tablewrap"><table><thead><tr><th>Identificação</th><th>Perfil</th><th>Situação</th><th>Ação</th></tr></thead><tbody id="accounts-body"></tbody></table></div></section>
+<p><small>Esta função é exclusiva da sessão de Administração. MFA, provedor de identidade, permissões empresariais e servidor hospedado continuam pendentes.</small></p>
+</main><script src="./admin-acessos.js"></script></body></html>
