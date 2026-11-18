@@ -111,3 +111,6 @@ Antes da liberação, **cada uma das 19 áreas mais Utilidades** será revista n
 2. **Folha do cortador por modelo e cor**, cinco seções e três assinaturas, programar dia/cortador independente, correção segura de grade, pesagem posterior sem reabrir ou sobrescrever
 3. **Utilidades completas**, com Rotas LEVAR/BUSCAR, Etiquetas A4, etiquetas de embalagem, regularização e gerenciamento de embaladeiras; validar que roteamento nunca depende de preço comercial
 4. **Paridade transversal** em Acertos, Hub, Folha, sincronização/backup, relatórios, auditoria e segurança real
+
+### Pedido multimodelo fictício — construção sem risco de misturar saldos
+`order.multi.create` usa `multiOrders` com múltiplos itens e cores, tamanhos configuráveis e totalização no mesmo commit. A coleção não é convertida para `orders` (modelo único) e não gera título financeiro, movimentação de estoque ou envios. Portanto, é preparação de paridade **não aprovada**; mantém LEG-001/002/003 abertas até integrar corte, facções, separação, notas e histórico por item.
