@@ -74,6 +74,8 @@
   const template=by(s.labelTemplatesLab,p.id);
   if(!template||!template.active)fail('Modelo de etiqueta inexistente ou inativo.');
   const fields=templateFields(s,p);
+  if(fields.clientId!==template.clientId||fields.productId!==template.productId)
+   fail('Cliente e modelo são a identidade da etiqueta; arquive e crie outra referência, sem perder vínculos antigos.');
   if(s.labelTemplatesLab.some(x=>x.id!==template.id&&x.active&&x.clientId===fields.clientId&&x.productId===fields.productId))
    fail('Já existe etiqueta ativa para o mesmo cliente e produto.');
   const before=Object.fromEntries(Object.keys(fields).map(k=>[k,template[k]]));
@@ -150,6 +152,9 @@
    fail('Somente tarefa de embalagem aguardando/parcial pode ser editada.');
   const valid=baseAssignment(s,p);
   if(valid.qty<row.doneQty)fail('Nova quantidade não pode ser inferior ao já registrado como pronto.');
+  if(row.doneQty>0&&(row.clientId!==valid.clientId||row.productId!==valid.productId||
+    norm(row.size)!==norm(valid.size)||norm(row.color)!==norm(valid.color)))
+   fail('Peças já concluídas impedem trocar cliente, modelo, cor ou tamanho; regularize em fluxo separado.');
   const before=assignmentSnapshot(row),after=fingerprint(valid),oldLabel=clone(row.labelSnapshot);
   if(fingerprint(before)===after)fail('Nenhuma alteração na atribuição.');
   const reason=txt(p.reason,'Motivo da edição',200);
