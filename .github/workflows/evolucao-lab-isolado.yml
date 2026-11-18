@@ -35,6 +35,13 @@ jobs:
         run: |
           node --test evolucao-lab/tests/standalone-contract.cjs
           node --test evolucao-lab/tests/auditoria-paridade-gate.cjs
+          # Testes do legado: validar o comportamento que NÃO pode desaparecer.
+          node --test tests/audit-cut-grade-matrix-v9421.cjs
+          node --test tests/audit-cutter-planner-regression.cjs
+          node --test tests/audit-cut-model-grade-adjust-regression.cjs
+          node --test tests/audit-cut-material-usage-regression.cjs
+          node --test tests/cutter-sheet-materials-v9523.cjs
+          node --test tests/cut-weight-after-finish-v9579.cjs
           node --test evolucao-lab/tests/entrada-primeiros-testes.cjs
           node --test evolucao-lab/tests/fluxos-contract.cjs
           node --test evolucao-lab/tests/preservacao-contract.cjs
