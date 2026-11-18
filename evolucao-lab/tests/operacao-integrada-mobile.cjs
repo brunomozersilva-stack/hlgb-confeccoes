@@ -72,6 +72,33 @@ async function run(browser,width,url){
   await page.waitForFunction(()=>document.querySelector('#top-revision')?.textContent.includes('Revisão local 1'));
   assert.equal(await page.locator('[data-module]').count(),20);
   const all=await page.locator('[data-module]').evaluateAll(nodes=>nodes.map(x=>x.dataset.module));for(const id of all)await module(page,id);
+  // Utilidades: fluxo LEVAR/BUSCAR mobile e desktop, sem chamada de rede.
+  await module(page,'utilidades');
+  const routeForm=page.locator('#route-editor-form');
+  await routeForm.locator('[name="driver"]').fill('Motorista de teste');
+  await routeForm.locator('[name="notes"]').fill('Rota fictícia sem preço de venda');
+  await routeForm.locator('[data-route-loc]').first().selectOption('faccao:FAC-0001');
+  await routeForm.locator('[data-route-carry]').first().fill('Pedido fictício 123 · 40 peças');
+  await routeForm.locator('[data-route-pickup]').first().fill('Retorno fictício · 10 peças');
+  await page.locator('#route-stop-add').click();
+  assert.equal(await page.locator('[data-route-stop]').count(),2);
+  const other=page.locator('[data-route-stop]').nth(1);
+  await other.locator('[data-route-loc]').selectOption('confeccao:HLGB-LAB');
+  await other.locator('[data-route-carry]').fill('Levar comprovante fictício');
+  await put(page,'route.plan');
+  assert.match(await page.locator('#module-content').innerText(),/ROT-0001/);
+  await page.locator('[data-route-edit="ROT-0001"]').click();
+  await page.locator('#route-editor-form [name="notes"]').fill('Revisada sem apagar histórico');
+  await put(page,'route.revise');
+  assert.match(await page.locator('#module-content').innerText(),/1 alteração/);
+  await page.evaluate(()=>{window.print=()=>{document.body.dataset.routePrinted='yes'};});
+  await page.locator('[data-print-route="ROT-0001"]').click();
+  assert.equal(await page.locator('body').getAttribute('data-route-printed'),'yes');
+  assert.equal(await page.locator('#cut-print .mc-route-page').count(),3,'Resumo + um checklist por parada');
+  assert.match(await page.locator('#cut-print').innerText(),/LEVAR/);
+  assert.match(await page.locator('#cut-print').innerText(),/BUSCAR/);
+  await module(page,'nucleo');
+
   if(width<=710){await page.locator('#mobile-module').selectOption('pedidos');assert.equal(await page.locator('[data-module="pedidos"]').getAttribute('aria-current'),'page');}
   await module(page,'auditor');
   assert.match(await page.locator('#module-content').innerText(),/Observabilidade 2.0/);
