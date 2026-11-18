@@ -768,6 +768,28 @@ function photoPanel(s){
  table(['Foto','Produto','Versão','Motivo'],svc.photoMetadata(s).map(x=>[str(x.id),str(ref(s.prints,x.productId)?.name),x.current?'Atual':'Anterior',str(x.reason)]))+'<p>Fotos de laboratório comprimidas, histórico preservado; imagens reais exigirão armazenamento privado.</p>',true);
 }
 
+
+let payrollMonth='2026-11',payrollDraft={period:'2026-11',dueDate:'2026-12-05',employeeId:'todos'},payrollPreview=null,importDraft='',importResult=null;
+function payrollIntegratedPanel(s){
+ const service=window.HLGBLabPayrollOrdersV1,r=service.payrollReport(s,payrollMonth),staff=selector(s.employees,e=>e.name).sort((a,b)=>a[1].localeCompare(b[1],'pt-BR'));
+ return panel('Folha por competência · integrada ao Hub','<div class="field"><label>Competência consultada<input class="input" type="month" id="payroll-month" value="'+str(payrollMonth)+'"></label></div><button class="btn" id="payroll-show" type="button">Consultar competência</button>'+
+ '<div class="metrics">'+[['Líquido',r.netCents],['Passagem',r.passageCents],['Desembolso',r.cashCents],['Pendente',r.openCents],['Pago',r.paidCents],['Provisões estimadas',r.provisionsCents]].map(([k,v])=>'<div class="metric"><span>'+str(k)+'</span><strong>'+fmt(v)+'</strong></div>').join('')+'</div>'+
+ '<div class="fields"><div class="field"><label>Competência da criação<input class="input" type="month" id="payroll-new-period" value="'+str(payrollDraft.period)+'"></label></div><div class="field"><label>Vencimento<input class="input" type="date" id="payroll-new-due" value="'+str(payrollDraft.dueDate)+'"></label></div><div class="field"><label>Funcionário<select class="input" id="payroll-new-person">'+options([['todos','Todos sem folha nesta competência'],...staff],payrollDraft.employeeId)+'</select></label></div></div><button class="btn" type="button" id="payroll-preview">Conferir folha</button>'+
+ (payrollPreview&&payrollPreview.revision===s.revision?table(['Funcionário','Líquido','Passagem','Total'],payrollPreview.rows.map(x=>[str(x.employeeName),fmt(x.amounts.netCents),fmt(x.amounts.passageCents),fmt(x.amounts.cashCents)]))+
+ form('payroll.period.create','Confirmar títulos da competência',['<input type="hidden" name="period" value="'+str(payrollDraft.period)+'"><input type="hidden" name="dueDate" value="'+str(payrollDraft.dueDate)+'"><input type="hidden" name="employeeId" value="'+str(payrollDraft.employeeId)+'"><input type="hidden" name="signature" value="'+str(payrollPreview.signature)+'">',field('reason','Motivo','text','Folha de teste')],'Gerar títulos no Hub'):'')+
+ table(['Funcionário','Salário','Passagem','Despesa total','Situação','Data / título'],r.rows.map(x=>[str(x.employeeName),fmt(x.amounts.salaryCents),fmt(x.amounts.passageCents),fmt(x.amounts.cashCents),str(x.status),str(x.paidDate||x.dueDate)+' · '+str(x.financeId)]))+
+ form('payroll.period.revise','Atualizar folha aberta pelos valores individuais atuais',[field('id','Folha em aberto','select','',selector(r.rows.filter(x=>x.status==='aberto'),x=>x.employeeName+' · '+x.id)),field('reason','Justificativa','text','Conferência')],'Recalcular título aberto')+
+ '<p>O pagamento no Hub atualiza a folha correspondente. Valores já pagos não mudam; passagem integra o desembolso, não o salário líquido. Provisões meramente ilustrativas, sem encargos, tributos ou cálculo trabalhista legal.</p>',true);
+}
+function importOrdersPanel(s){
+ const preview=importResult?.revision===s.revision?importResult:null;
+ return panel('Importação assistida de pedidos em lote','<p>Cole CSV separado por ponto e vírgula, com referências únicas, ID de cliente e SKU cadastrado. Até 50 linhas, sem correspondência por nome aproximado. Nenhum pedido criado na prévia.</p><div class="field"><label>CSV de pedidos<textarea class="input" id="order-import-raw" rows="6" placeholder="referencia;cliente_id;sku;P;M;G;GG">'+str(importDraft)+'</textarea></label></div><div class="actions"><button class="btn" type="button" id="order-import-preview">Conferir CSV</button><button class="btn" type="button" id="order-import-template">Baixar modelo CSV</button></div>'+
+ (preview?table(['Referência','Cliente','Modelo','Peças','Valor'],preview.rows.map(x=>[str(x.reference),str(x.clientName),str(x.productName),str(x.qty),fmt(x.totalCents)]))+
+ form('order.import.batch','Confirmar todos os pedidos da prévia',['<input type="hidden" name="raw" value="'+str(importDraft)+'"><input type="hidden" name="signature" value="'+str(preview.signature)+'">',field('reason','Justificativa','text','Importação de teste')],'Importar '+preview.rows.length+' pedidos'):'')+
+ table(['Lote','Pedidos','Total'],(s.orderImports||[]).map(x=>[str(x.id),str(x.items.map(y=>y.reference+' → '+y.orderId).join(' · ')),fmt(x.totalCents)]))+
+ '<p>Importação atômica: se uma linha estiver inválida, nenhuma entra. Referência importada não pode ser repetida.</p>',true);
+}
+
 function moduleHtml(s){
  const o=orderOptions(s),openPlans=(s.cutPlans||[]).filter(p=>p.status==='aberto'),
   planOptions=selector(openPlans,p=>p.id+' · '+p.orderId+' · '+sum(p.grade)+' peças'),
@@ -798,7 +820,7 @@ function moduleHtml(s){
  '<p>Estas são propostas de organização para o futuro controle de permissões. <strong>Não há autenticação neste laboratório</strong>; todas as ações são apenas exercícios locais.</p>'+
  table(['Perfil','Escopo proposto','Validação real'],[['Supervisor','Cadastros, aprovações e relatórios','Pendente'],['Produção','Pedidos, corte, facções e separação','Pendente'],
  ['Financeiro','Acertos, Hub, compras e comprovantes','Pendente'],['Consulta','Visualização sem alterar','Pendente']]),true);
- case 'pedidos':return panel('Incluir pedido com grade',
+ case 'pedidos':return importOrdersPanel(s)+panel('Incluir pedido com grade',
  form('order.add','Novo pedido fictício',[
  field('clientId','Cliente','select','',clients),field('productId','Modelo','select','',products),
  ...api.sizes.map(z=>field(z,'Quantidade '+z,'int',z==='M'?10:0))],'Cadastrar pedido'))+
@@ -1185,7 +1207,7 @@ function moduleHtml(s){
  financeRevisionPanels(s)+financeControlPanels(s)+financialBatchPanel(s)+receiptPanel(s)+
  panel('Conferência financeira','<p>Pedidos geram contas a receber; retornos, acertos a pagar. Compensações de acertos pagos criam títulos separados a pagar ou receber, sem alterar o pagamento original. Nenhuma operação movimenta dinheiro real.</p>')+
  panel('Contas do laboratório',financeTable(s),true);
- case 'folha':return panel('Editar salário e passagem por pessoa',
+ case 'folha':return payrollIntegratedPanel(s)+panel('Editar salário e passagem por pessoa',
  form('payroll.update','Alterar registro da folha',[field('id','Funcionário','select','',employees),
  field('salaryCents','Salário-base R$','money','2000,00'),
  field('passageCents','Passagem R$','money','120,00'),
@@ -1403,6 +1425,8 @@ const NUM=['actualGrams','points','revision','corte','envio','costura','separaca
 const SIGNED=['deltaGrams'];
 const PRICES=['freightCents','camisola','doll','calcinha','outros','pointCents','priceCents','unitCents','travetaCents','priceCentsKg','amountCents','salaryCents','passageCents','extrasCents','discountCents'];
 function parseData(type,form){
+ if(type==='order.import.batch'){if(!importResult||importResult.revision!==doc.revision||$('order-import-raw').value!==importDraft)throw Error('CSV mudou. Gere nova prévia.');return {raw:importDraft,signature:importResult.signature,reason:String(form.elements.namedItem('reason').value)};}
+ if(type==='payroll.period.create'){if(!payrollPreview||payrollPreview.revision!==doc.revision||$('payroll-new-period').value!==payrollDraft.period||$('payroll-new-due').value!==payrollDraft.dueDate||$('payroll-new-person').value!==payrollDraft.employeeId)throw Error('Folha mudou. Gere nova prévia.');return {...payrollDraft,signature:payrollPreview.signature,reason:String(form.elements.namedItem('reason').value)};}
  if(type==='finance.faction.close'){
   return {factionId:String(form.querySelector('[name="factionId"]')?.value||''),
    financeIds:[...form.querySelectorAll('input[name="financeIds"]')].map(x=>x.value),
@@ -1475,6 +1499,7 @@ async function read(){
 }
 async function submit(form,type){
  if(busy||!doc)return;
+ if(['payroll.period.create','order.import.batch'].includes(type)&&!confirm('Confirmar a prévia e criar os registros fictícios?'))return;
  if(type==='finance.faction.close'&&!confirm('Confirmar somente a baixa fictícia de todos os títulos e o total conferido deste prestador?'))return;
  if(type==='recovery.repair'&&!confirm('Aplicar exclusivamente o reparo de metadado simulado?'))return;
  if(type==='cut.plan.cancel'&&!confirm('Cancelar somente a folha aberta, preservando o histórico?'))return;
@@ -1903,6 +1928,10 @@ document.addEventListener('click',async e=>{
  if(e.target.closest('#remote-discard')){if(confirm('Descartar somente a intenção local revisada, sem excluir registros do servidor?'))await remoteAction(()=>remoteLab.discard());return;}
  if(e.target.closest('#recovery-check')){if(remoteLab){await remoteAction(()=>remoteLab.reconcile());return;}if(busy)return;busy=true;try{recoveryIntents=await intentRead();const latest=await read();if(latest&&api.inspect(latest).ok)doc=latest;draw();status('Intenções locais relidas · '+recoveryIntents.length+' pendentes.');}catch(err){status(err.message,'error');}finally{busy=false;}return;}
  if(e.target.closest('#recovery-export')){try{download('HLGB-RECUPERACAO-FICTICIO.json',JSON.stringify({plan:recoveryPlan,intents:recoveryIntents.map(x=>({...x,diagnosis:window.HLGBLabRecoveryV1.classify(doc,x,api.inspect)})),history:doc.repairHistory||[]},null,2),'application/json');}catch(err){status(err.message,'error');}return;}
+ if(e.target.closest('#payroll-show')){payrollMonth=$('payroll-month').value;try{window.HLGBLabPayrollOrdersV1.payrollReport(doc,payrollMonth);draw();}catch(err){payrollMonth='2026-11';status(err.message,'error');}return;}
+ if(e.target.closest('#payroll-preview')){payrollDraft={period:$('payroll-new-period').value,dueDate:$('payroll-new-due').value,employeeId:$('payroll-new-person').value};try{payrollPreview={...window.HLGBLabPayrollOrdersV1.payrollPreview(doc,payrollDraft),revision:doc.revision};draw();status('Prévia da folha, nenhuma conta criada.');}catch(err){status(err.message,'error');}return;}
+ if(e.target.closest('#order-import-preview')){importDraft=$('order-import-raw').value;try{importResult={...window.HLGBLabPayrollOrdersV1.importPreview(doc,importDraft),revision:doc.revision};draw();status('Prévia conferida, nenhum pedido criado.');}catch(err){importResult=null;status(err.message,'error');}return;}
+ if(e.target.closest('#order-import-template')){download('HLGB-MODELO-PEDIDOS-FICTICIO.csv','referencia;cliente_id;sku;P;M;G;GG\nREF-001;CLI-0001;DEMO-MELINA;10;20;0;0','text/csv;charset=utf-8');return;}
  if(e.target.closest('#quote-compare')){quoteQuery={materialId:$('quote-material').value,qtyGrams:Number($('quote-qty').value),asOf:$('quote-date').value};draw();return;}
  if(e.target.closest('#faction-material-export')){const rows=[['Checklist','Envio','Material','Previsto (g)','Conferido (g)','Diferença (g)'],...(doc.factionMaterialChecklists||[]).flatMap(c=>c.materials.map(m=>{const x=(doc.factionMaterialChecks||[]).filter(y=>y.checklistId===c.id&&y.materialId===m.materialId).at(-1);return [c.id,c.assignmentId,m.name,m.grams,x?.actualGrams??'Não conferido',x?.differenceGrams??''];}))];download('HLGB-MATERIAIS-FACCOES-FICTICIO.csv','\uFEFF'+rows.map(r=>r.map(safeCell).join(';')).join('\r\n'),'text/csv;charset=utf-8');return;}
  if(e.target.closest('#grouped-export')){try{download('HLGB-ACERTOS-CONSOLIDADOS-FICTICIOS.json',JSON.stringify(window.HLGBLabPaymentBatchV1.groupedAccounts(doc),null,2),'application/json');}catch(err){status(err.message,'error');}return;}

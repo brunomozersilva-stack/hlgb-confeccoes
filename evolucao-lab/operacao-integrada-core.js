@@ -23,10 +23,11 @@
  const recovery=typeof module==='object'&&module.exports?require('./modulos/recuperacao-v1.js'):(root&&root.HLGBLabRecoveryV1);
  const services=typeof module==='object'&&module.exports?require('./modulos/servicos-faccao-v1.js'):(root&&root.HLGBLabServicesV1);
  const complements=typeof module==='object'&&module.exports?require('./modulos/complementos-v1.js'):(root&&root.HLGBLabComplementsV1);
- const api=factory(batch,routing,factionGrade,planner,bomCut,requests,purchaseReturns,pcp,management,auditor,bot,costs,recovery,services,complements);
+ const payrollOrders=typeof module==='object'&&module.exports?require('./modulos/folha-pedidos-v1.js'):(root&&root.HLGBLabPayrollOrdersV1);
+ const api=factory(batch,routing,factionGrade,planner,bomCut,requests,purchaseReturns,pcp,management,auditor,bot,costs,recovery,services,complements,payrollOrders);
  if(typeof module==='object'&&module.exports)module.exports=api;
  else if(root)root.HLGBOperationalLab=api;
-})(typeof window!=='undefined'?window:null,function(batch,routing,factionGrade,planner,bomCut,requests,purchaseReturns,pcp,management,auditor,bot,costs,recovery,services,complements){
+})(typeof window!=='undefined'?window:null,function(batch,routing,factionGrade,planner,bomCut,requests,purchaseReturns,pcp,management,auditor,bot,costs,recovery,services,complements,payrollOrders){
  'use strict';
  const clone=x=>JSON.parse(JSON.stringify(x)),sizes=['P','M','G','GG'];
  const makeGrade=()=>({P:0,M:0,G:0,GG:0});
@@ -61,6 +62,7 @@
  const totalCost=(q,price)=>Math.ceil(q*price/1000);
  function inspect(s){
   const problems=[];
+  if(payrollOrders)problems.push(...payrollOrders.inspect(s));
   if(complements)problems.push(...complements.inspect(s));
   if(services)problems.push(...services.inspect(s));
   if(costs)problems.push(...costs.inspect(s));
@@ -297,6 +299,16 @@
   if(!res.length)res.push('Nenhuma pendência nas regras deste laboratório fictício');
   return res;
  }
+ function createOrder(s,p){
+   const client=get(s,'clients',p.clientId,'Cliente'),product=get(s,'products',p.productId,'Produto');
+   const g=p.grade;if(!gradeValid(g)||sum(g)<1||sum(g)>30000)throw Error('Grade inválida, informe quantidade P/M/G/GG.');
+   const o={id:next(s,'PED'),clientId:client.id,productId:product.id,grade:clone(g),cut:makeGrade(),
+    allocated:0,returned:0,separated:0,shipped:0,factionId:null,priceCents:product.priceCents,issued:false};
+   s.orders.push(o);
+   const f={id:next(s,'FIN'),kind:'receber',sourceId:o.id,description:'Pedido fictício '+o.id,
+    amountCents:sum(g)*o.priceCents,status:'aberto'};
+   s.finance.push(f);return o.id;}
+
  function apply(previous,command){
   if(!previous||previous.schema!=='hlgb-evolucao-operacao-ficticia-v1')throw Error('Documento de laboratório inválido.');
   if(!command||typeof command!=='object'||!command.type)throw Error('Ação inválida.');
@@ -405,15 +417,8 @@
    if(!pcp.capacityOK(cap))throw Error('Capacidade inválida.');
    const old=s.pcpCapacity||pcp.defaults,reason=name(p.reason,'Justificativa');
    s.pcpCapacity=cap;result=pcp.stages.map(k=>k+': '+old[k]+' → '+cap[k]).join(' · ')+' · '+reason;break}
-  case 'order.add':{
-   const client=get(s,'clients',p.clientId,'Cliente'),product=get(s,'products',p.productId,'Produto');
-   const g=p.grade;if(!gradeValid(g)||sum(g)<1||sum(g)>30000)throw Error('Grade inválida, informe quantidade P/M/G/GG.');
-   const o={id:next(s,'PED'),clientId:client.id,productId:product.id,grade:clone(g),cut:makeGrade(),
-    allocated:0,returned:0,separated:0,shipped:0,factionId:null,priceCents:product.priceCents,issued:false};
-   s.orders.push(o);
-   const f={id:next(s,'FIN'),kind:'receber',sourceId:o.id,description:'Pedido fictício '+o.id,
-    amountCents:sum(g)*o.priceCents,status:'aberto'};
-   s.finance.push(f);result=o.id;break}
+  case 'order.add':{result=createOrder(s,p);break}
+  case 'order.import.batch':{if(!payrollOrders)throw Error('Importação indisponível.');result=payrollOrders.importOrders(s,p,{next,uid,createOrder});break}
   case 'order.color.grade.set':{
    if(!factionGrade)throw Error('Módulo de cores indisponível.');
    result=factionGrade.setColor(s,p,{int,uid});break}
@@ -692,6 +697,7 @@
    const entry=get(s,'finance',p.id,'Lançamento');
    if(entry.status!=='aberto')throw Error('Lançamento já conferido, evitar pagamento repetido.');
    entry.status='pago';entry.paidDate=financeDate(p.paidDate||'2026-11-16');
+   if(payrollOrders)payrollOrders.payrollPaid(s,entry);
    const acerto=s.settlements.find(a=>a.id===entry.sourceId);
    if(acerto)acerto.status='pago';
    const compensation=s.settlementCompensations.find(c=>c.id===entry.sourceId);
@@ -724,6 +730,7 @@
   case 'finance.schedule':{
    const entry=get(s,'finance',p.id,'Lançamento');
    if(entry.status!=='aberto')throw Error('Somente título aberto pode receber vencimento.');
+   if((s.payrollPeriods||[]).some(x=>x.id===entry.sourceId))throw Error('Vencimento da folha por competência requer rotina própria.');
    const old=entry.dueDate||'sem data';entry.dueDate=financeDate(p.dueDate);
    result=entry.id+' · '+old+' → '+entry.dueDate+' · '+name(p.reason,'Motivo');break}
   case 'finance.reconcile':{
@@ -776,6 +783,8 @@
    s.stockLedger.push({id:next(s,'MOV'),materialId:material.id,deltaGrams:delta,sourceId:'AJUSTE-DEMO',
     type:'ajuste',commandId:uid,note:name(p.note,'Justificativa')});
    result=material.id;break}
+  case 'payroll.period.create':{if(!payrollOrders)throw Error('Folha indisponível.');result=payrollOrders.payrollCreate(s,p,{next,uid});break}
+  case 'payroll.period.revise':{if(!payrollOrders)throw Error('Folha indisponível.');result=payrollOrders.payrollRevise(s,p,{uid});break}
   case 'payroll.update':{
    const e=get(s,'employees',p.id,'Funcionário fictício');
    for(const k of ['salaryCents','passageCents','extrasCents','discountCents'])e[k]=num(k,0,10000000);

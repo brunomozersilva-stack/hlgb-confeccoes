@@ -2,7 +2,7 @@
 (function(root,factory){const api=factory();if(typeof module==='object'&&module.exports)module.exports=api;if(root)root.HLGBLabFinanceV1=api;})(typeof window!=='undefined'?window:null,function factory(){
  const valid=v=>typeof v==='string'&&/^\d{4}-\d{2}-\d{2}$/.test(v)&&Number.isFinite(Date.parse(v+'T00:00:00Z'))&&new Date(v+'T00:00:00Z').toISOString().slice(0,10)===v;
  const categories=['Vendas','Facções','Compras','Folha','Aluguel','Impostos','Transporte','Outras despesas','Outras receitas','Compensações','Devoluções'];
- const classify=(f,s)=>{if(!f.sourceId)return categories.includes(f.category)?f.category:(f.kind==='pagar'?'Outras despesas':'Outras receitas');for(const [k,c] of [['orders','Vendas'],['settlements','Facções'],['purchaseOrders','Compras'],['settlementCompensations','Compensações'],['purchaseReturns','Devoluções']])if((s[k]||[]).some(x=>x.id===f.sourceId))return c;return 'Vínculo não identificado';};
+ const classify=(f,s)=>{if(!f.sourceId)return categories.includes(f.category)?f.category:(f.kind==='pagar'?'Outras despesas':'Outras receitas');for(const [k,c] of [['orders','Vendas'],['settlements','Facções'],['purchaseOrders','Compras'],['settlementCompensations','Compensações'],['purchaseReturns','Devoluções'],['payrollPeriods','Folha']])if((s[k]||[]).some(x=>x.id===f.sourceId))return c;return 'Vínculo não identificado';};
  const empty=()=>({receber:0,pagar:0,net:0,count:0});
  const add=(a,r)=>{a[r.kind]+=r.amountCents;a.net=a.receber-a.pagar;a.count++;if(![a.receber,a.pagar,a.net].every(Number.isSafeInteger))throw Error('Total excede limite seguro');};
  function report(s,{from='2026-11-01',to='2026-12-31',asOf='2026-11-17',category='todos'}={}){
