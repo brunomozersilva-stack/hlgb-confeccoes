@@ -91,3 +91,23 @@ Este relatório fecha a inspeção estática inicial dos pontos mais urgentes e 
 ## Evolução depois da auditoria — pedido por cor/tamanho
 **Implementação inicial na branch isolada:** novo formulário `order.add.with.colors` dentro de Pedidos, com matriz horizontal editável (cores × P/M/G/GG), linhas de cores adicionáveis/removíveis, conferência de totais e criação atômica de pedido e título financeiro. O modo anterior `order.add` continua acessível e a edição de `order.color.grade.set` foi incorporada à tela Pedidos, sem apagar a rotina já disponível em Facções. A regra de cores foi reutilizada da facção existente, sem criar outra versão independente.
 **Atenção:** isso reduz a lacuna visual do cadastro de cor/tamanho **somente em pedidos de um modelo e quatro tamanhos fixos**. **LEG-001, LEG-002 e LEG-003 continuam NÃO aprovados** até incluir pedidos com modelos múltiplos, tamanhos variáveis, edição e migração do legado. Nenhuma equivalência integral foi declarada.
+
+
+## Segunda verificação obrigatória: não confundir presença com paridade
+Antes da liberação, **cada uma das 19 áreas mais Utilidades** será revista novamente contra a última versão da `main`, incluindo funções incluídas após o primeiro inventário. A revisão deve comparar:
+1. **Entradas:** todos os campos, opções e tamanhos, cores/modelos, regras de obrigatoriedade, valores padrão, cadastros auxiliares e atalhos
+2. **Saídas:** impressão A4, PDF, etiquetas, relatórios, pesquisa/filtros, cálculos, telas mobile e fluxos de clique
+3. **Regras:** corte e facções parciais, devolução, baixa/edição de acerto, restrições financeiras corretas, idempotência, tempos de confirmação e histórico
+4. **Integridade:** IDs legados, referências cruzadas, backup, WAL, duas sessões, reconciliação por registro, versionamento e rollback executado com dados fictícios/anônimos
+5. **Aprovação:** caso a caso por quem usa diariamente; sem homologação, nenhuma substituição silenciosa.
+
+### Desenvolvimento verificável nesta revisão (sem declarar paridade aprovada)
+- **Dentro de Pedidos:** novo formulário `order.add.with.colors`, matriz cor × P/M/G/GG e totalização automática; criação de pedido, grade por cor e único título numa transação; bloqueio de cores duplicadas, linhas inválidas e excesso. Modo `order.add` antigo e edição `order.color.grade.set` permanecem
+- **Compatibilidade histórica (somente leitura):** `modulos/order-grade-legacy-v2.js` preserva todas as linhas originais `{productId,color,size,qty}`, inclusive várias peças num pedido, tamanhos PP/XG/G1 etc, linhas repetidas e metadados não reconhecidos. `restore` reproduz o documento idêntico; divergências invalidam a prévia. Nenhum dado comercial foi lido ou convertido.
+- **Limite explícito:** a tela de criação operacional segue sendo de um modelo por pedido e quatro tamanhos; este adaptador **não** torna o sistema multi-modelo e não salva importações reais. `LEG-001`, `LEG-002`, `LEG-003` seguem P0 abertas até implementação, teste de migração e aceite.
+
+### Próximo pacote obrigatório
+1. **Modelo de pedido multi-item** reutilizando o adaptador somente leitura, identificadores de item estáveis, cores/tamanhos dinâmicos e totais por modelo com revisão de histórico; sem modificar os IDs legados
+2. **Folha do cortador por modelo e cor**, cinco seções e três assinaturas, programar dia/cortador independente, correção segura de grade, pesagem posterior sem reabrir ou sobrescrever
+3. **Utilidades completas**, com Rotas LEVAR/BUSCAR, Etiquetas A4, etiquetas de embalagem, regularização e gerenciamento de embaladeiras; validar que roteamento nunca depende de preço comercial
+4. **Paridade transversal** em Acertos, Hub, Folha, sincronização/backup, relatórios, auditoria e segurança real
