@@ -21,10 +21,11 @@ const modules=[
  ['bot','Assistente e aprendizado','Alertas gerados por regras verificáveis, sem IA autônoma nem mutação dos dados.'],
  ['central','Central de erros e saúde','Registro, acompanhamento e encerramento manual de ocorrências fictícias.'],
  ['impressora3d','Impressora 3D','Cadastro fictício de produtos 3D com preço, filamento e quantidade pronta.'],
- ['cadastros','Clientes e cadastros','Cadastros de clientes, fornecedores e insumos vinculados aos módulos.']
+ ['cadastros','Clientes e cadastros','Cadastros de clientes, fornecedores e insumos vinculados aos módulos.'],
+ ['utilidades','Utilidades · Rotas e Etiquetas','Rota LEVAR/BUSCAR no laboratório; etiquetas e regularização dependem de paridade com o legado.']
 ];
 const ids=new Map(modules.map((m,i)=>[m[0],i])),visitedModules=new Set();
-let active=ids.has(window.location.hash.slice(1))?window.location.hash.slice(1):'nucleo',db=null,doc=null,busy=false,journeyOrderId=null;
+let active=ids.has(window.location.hash.slice(1))?window.location.hash.slice(1):'nucleo',db=null,doc=null,busy=false,journeyOrderId=null,routeDraft=null;
 const settlementFilters={query:'',status:'todos',faction:'todas',service:'todos',compensation:'todos'};
 const escape=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const str=x=>escape(String(x??''));
@@ -302,6 +303,94 @@ function multiCutPanel(s){
   (orders.length?forms:'<p>Primeiro cadastre um pedido multimodelo na guia Pedidos.</p>')+
   '<h3>Programações realizadas</h3>'+history+editing+actions+weightForm,true);
 }
+function routeStopFormHtml(s,stop=null){
+ const selected=stop?.type==='faccao'?'faccao:'+stop.locationId:stop?.type==='confeccao'?'confeccao:HLGB-LAB':'';
+ const places=[['','Escolha a facção ou confecção — obrigatório'],...s.factions.map(f=>['faccao:'+f.id,'Facção · '+f.name]),
+  ['confeccao:HLGB-LAB','HLGB Confecções — local fictício']];
+ return '<fieldset class="panel" data-route-stop><legend>Parada</legend>'+
+  '<div class="field"><label>Destino<select class="input" data-route-loc required>'+
+  places.map(([v,label])=>'<option value="'+escape(v)+'"'+(selected===v?' selected':'')+'>'+escape(label)+'</option>').join('')+
+  '</select></label></div><div class="fields">'+
+  '<div class="field"><label>LEVAR — um item por linha<textarea class="input" data-route-carry rows="4" placeholder="Ex.: Pedido PDM-0001 · Camisola Melina · 40 peças">'+escape((stop?.carry||[]).join('\n'))+'</textarea></label></div>'+
+  '<div class="field"><label>BUSCAR — um item por linha<textarea class="input" data-route-pickup rows="4" placeholder="Ex.: 30 peças retornadas, a conferir">'+escape((stop?.pickup||[]).join('\n'))+'</textarea></label></div>'+
+  '</div><div class="field"><label>Observações da parada<input class="input" data-route-notes maxlength="300" value="'+escape(stop?.notes||'')+'"></label></div>'+
+  '<button type="button" class="btn" data-route-stop-remove>Remover esta parada</button></fieldset>';
+}
+function routePanel(s){
+ const service=window.HLGBLabRoutesV1;
+ if(!service)return panel('Rotas LEVAR/BUSCAR','Módulo não carregado; nenhuma gravação autorizada.',true);
+ const r=routeDraft&&s.routePlans.find(x=>x.id===routeDraft.id)||null;
+ const plan=r||null;
+ const data=plan?plan:{date:new Date().toISOString().slice(0,10),driver:'',status:'planejada',notes:'',stops:[null]};
+ const mode=plan?'route.revise':'route.plan';
+ const statuses=[['planejada','Planejada'],['em_rota','Em rota (fictícia)'],['finalizada','Finalizada (fictícia)']];
+ const editor='<form id="route-editor-form" data-command="'+mode+'">'+
+  '<h3>'+(plan?'Editar rota '+str(plan.id):'Montar nova rota')+'</h3>'+
+  (plan?'<input type="hidden" name="id" value="'+escape(plan.id)+'">':'')+
+  '<div class="fields">'+
+  '<div class="field"><label>Data<input class="input" type="date" name="date" value="'+escape(data.date)+'" required></label></div>'+
+  field('driver','Responsável / motorista','text',data.driver)+
+  field('status','Etapa','select',data.status,statuses)+
+  field('notes','Observações gerais','text',data.notes)+
+  (plan?field('reason','Motivo da edição','text','Atualização fictícia da rota'):'')+
+  '</div><h3>Paradas na ordem de execução</h3><div id="route-stop-forms">'+
+  (data.stops.length?data.stops:[null]).map(x=>routeStopFormHtml(s,x)).join('')+'</div>'+
+  '<div class="actions"><button type="button" class="btn" id="route-stop-add">+ Adicionar parada</button>'+
+  '<button class="btn primary" type="submit">'+(plan?'Salvar revisão':'Salvar rota fictícia')+'</button>'+
+  (plan?'<button class="btn" id="route-new" type="button">Nova rota</button>':'')+'</div>'+
+  '<p class="caption">O destino deve ser escolhido em cada parada; não há seleção automática da primeira facção. Salva apenas no laboratório e exige releitura confirmada.</p></form>';
+ const hist=table(['Data','Rota','Responsável','Paradas','Status','Ações'],
+  service.rows(s).map(x=>[str(x.date),str(x.id),str(x.driver),str(x.stops.length),
+   str(x.status)+(x.history.length>1?' · '+(x.history.length-1)+' alteração(ões)':''),
+   '<button type="button" class="btn" data-route-edit="'+escape(x.id)+'">Editar</button> '+
+   '<button type="button" class="btn" data-print-route="'+escape(x.id)+'">Imprimir checklists</button>']));
+ const open=service.rows(s).filter(x=>!['finalizada','cancelada'].includes(x.status));
+ const cancel=open.length?form('route.cancel','Cancelar rota com justificativa',[
+   field('id','Rota','select','',open.map(x=>[x.id,x.id+' · '+x.date+' · '+x.driver])),
+   field('reason','Motivo','text','Reprogramação fictícia')
+ ],'Cancelar mantendo histórico'):'<p>Sem rotas abertas para cancelar.</p>';
+ return panel('Utilidades · Rotas LEVAR/BUSCAR (homologação isolada)',
+ '<p>Rota de teste com várias paradas, itens para levar e buscar, revisão sem perda do histórico e impressão A4 de resumo e checklists. A releitura em outro computador ainda NÃO está comprovada.</p>'+
+ editor+'<h3>Histórico de rotas</h3>'+hist+cancel,true)+
+ panel('Outras Utilidades · ainda não homologadas',
+ '<p><b>Etiquetas A4 (10/18/21 por folha), volumes, modelos de etiqueta de embalagem, embaladeira e regularização histórica</b> permanecem pendentes. Não foram substituídos por telas simplificadas.</p>'+
+ '<button type="button" class="btn" data-goto="separacao">Ver Separação fictícia</button>',true);
+}
+function routeInput(form){
+ const stops=[...form.querySelectorAll('[data-route-stop]')].map(el=>{
+  const raw=el.querySelector('[data-route-loc]').value;
+  if(!raw)throw Error('Escolha a facção ou confecção de cada parada, antes de salvar.');
+  const idx=raw.indexOf(':'),type=raw.slice(0,idx),locationId=raw.slice(idx+1);
+  const list=selector=>el.querySelector(selector).value.split(/\r?\n/).map(x=>x.trim()).filter(Boolean);
+  return {type,locationId,carry:list('[data-route-carry]'),pickup:list('[data-route-pickup]'),
+   notes:el.querySelector('[data-route-notes]').value};
+ });
+ const payload={date:form.elements.namedItem('date').value,driver:form.elements.namedItem('driver').value,
+  status:form.elements.namedItem('status').value,notes:form.elements.namedItem('notes').value,stops};
+ const id=form.elements.namedItem('id'),reason=form.elements.namedItem('reason');
+ if(id)payload.id=id.value;
+ if(reason)payload.reason=reason.value;
+ return payload;
+}
+function renderRouteSheet(id){
+ const plan=(doc.routePlans||[]).find(x=>x.id===id);
+ if(!plan)throw Error('Rota de teste não encontrada; não imprimir.');
+ const heading='<h1>HLGB EVOLUÇÃO · ROTA FICTÍCIA LEVAR/BUSCAR</h1><p><b>ID:</b> '+str(plan.id)+' · <b>Data:</b> '+str(plan.date)+
+ ' · <b>Responsável:</b> '+str(plan.driver)+' · <b>Estado:</b> '+str(plan.status)+'</p>'+
+ '<p class="print-note">DOCUMENTO FICTÍCIO — não é comprovante de entrega, baixa de estoque ou confirmação de servidor.</p>';
+ const summary='<section class="mc-route-page">'+heading+'<h2>Resumo de todas as paradas</h2>'+
+ '<table><thead><tr><th>#</th><th>Local</th><th>LEVAR</th><th>BUSCAR</th><th>Conf.</th></tr></thead><tbody>'+
+ plan.stops.map((x,i)=>'<tr><td>'+(i+1)+'</td><td>'+str(x.name)+'</td><td>'+x.carry.map(str).join('; ')+'</td>'+
+ '<td>'+x.pickup.map(str).join('; ')+'</td><td>☐</td></tr>').join('')+'</tbody></table></section>';
+ const pages=plan.stops.map((x,i)=>'<section class="mc-route-page">'+heading+
+  '<h2>CHECKLIST '+(i+1)+' · '+str(x.name)+'</h2>'+
+  '<h2>LEVAR</h2>'+(x.carry.length?x.carry.map(t=>'<p>☐ '+str(t)+'</p>').join(''):'<p>☐ Sem itens</p>')+
+  '<h2>BUSCAR</h2>'+(x.pickup.length?x.pickup.map(t=>'<p>☐ '+str(t)+'</p>').join(''):'<p>☐ Sem itens</p>')+
+  '<h2>Observações</h2><p>'+str(x.notes||'Sem observações')+'</p><p>Conferido por: _________________________ &nbsp; Horário: ____:____</p></section>').join('');
+ $('cut-print').innerHTML='<article class="mc-route">'+summary+pages+'</article>';
+ return $('cut-print').textContent;
+}
+
 function orderTable(s){
  return table(['Pedido / modelo','Cliente','Grade e corte','Fluxo','Recebimento'],s.orders.map(o=>{
  const q=api.quantities(o);
@@ -1670,6 +1759,7 @@ function moduleHtml(s){
  field('stock','Estoque de peças','int','3')],'Cadastrar item 3D'))+
  panel('Estoque 3D fictício',table(['Item','Gramas/unidade','Valor','Estoque'],s.prints.map(x=>[
  str(x.name),str(x.grams)+'g',fmt(x.priceCents),str(x.stock)])),true);
+ case 'utilidades':return routePanel(s);
  case 'cadastros':return panel('Clientes e fornecedores',
  form('client.add','Novo cliente fictício',[field('name','Nome do cliente')],'Cadastrar cliente')+
  form('supplier.add','Novo fornecedor fictício',[field('name','Nome do fornecedor')],'Cadastrar fornecedor')+
@@ -1725,7 +1815,7 @@ function renderGlobalDetail(){
  const target=candidates.find(tr=>[...tr.querySelectorAll('td')].some(td=>td.textContent.trim().split(/\s+|·/)[0]===row.id)&&!tr.hidden);
  if(target){target.classList.add('search-hit');target.scrollIntoView({block:'nearest'});}
 }
-const navigationGroups=[["Operação",["pedidos","produtos","corte","producao","faccoes","separacao"]],["Administração",["acertos","hub","folha","compras","estoque","cadastros"]],["Gestão",["relatorios","bot","impressora3d"]],["Sistema",["nucleo","autenticacao","auditor","central"]]];
+const navigationGroups=[["Operação",["pedidos","produtos","corte","producao","faccoes","separacao"]],["Administração",["acertos","hub","folha","compras","estoque","cadastros"]],["Gestão",["relatorios","bot","impressora3d","utilidades"]],["Sistema",["nucleo","autenticacao","auditor","central"]]];
 function drawNav(){
  const host=$('module-nav'),focused=document.activeElement?.dataset?.module;host.replaceChildren();
  for(const [label,keys] of navigationGroups){
@@ -1775,6 +1865,7 @@ const NUM=['totalGrams','usedGrams','wasteGrams','actualGrams','points','revisio
 const SIGNED=['deltaGrams'];
 const PRICES=['freightCents','camisola','doll','calcinha','outros','pointCents','priceCents','unitCents','travetaCents','priceCentsKg','amountCents','salaryCents','passageCents','extrasCents','discountCents'];
 function parseData(type,form){
+ if(type==='route.plan'||type==='route.revise')return routeInput(form);
  if(type==='order.multi.create')return multiOrderInput(form);
  if(type==='multi.cut.plan'||type==='multi.cut.revise'){
   const data=new FormData(form),lines=[];
@@ -1922,6 +2013,7 @@ async function submit(form,type){
  if(type==='recovery.repair'&&!confirm('Aplicar exclusivamente o reparo de metadado simulado?'))return;
  if(type==='cut.plan.cancel'&&!confirm('Cancelar somente a folha aberta, preservando o histórico?'))return;
  if(type==='multi.cut.cancel'&&!confirm('Cancelar somente esta folha de ensaio, mantendo todo o histórico?'))return;
+ if(type==='route.cancel'&&!confirm('Cancelar esta rota fictícia mantendo o histórico de todas as paradas?'))return;
  if(type==='order.color.grade.set'&&active==='pedidos'&&form.elements.namedItem('removeColor')?.checked&&
     !confirm('Remover esta cor do pedido? Esta operação registra o histórico e não altera a grade geral.'))return;
  busy=true;
@@ -1933,7 +2025,7 @@ async function submit(form,type){
    const payload=type==='finance.receipt.attach'?await readReceiptPayload(form):type==='print.photo.attach'?await readPrintPhoto(form):type==='purchase.invoice.pdf'?await readInvoicePdf(form):parseData(type,form);
    const result=await remoteLab.submit(type,payload,expectedRevision);
    if(result.status!=='confirmed'){const banner=document.querySelector('#remote-check');if(banner){banner.closest('section').outerHTML=remotePanel();}throw Error('Servidor: '+result.status+' · '+(result.message||'Revise a intenção sem repetir.'));}
-   doc=result.state;if(type==='settlement.service.group'){serviceGroupDraft=null;serviceGroupResult=null;}draw();status('Salvo e confirmado no PostgreSQL · '+result.result+' · revisão '+doc.revision+'.');return;
+   doc=result.state;if(type==='settlement.service.group'){serviceGroupDraft=null;serviceGroupResult=null;}if(type.startsWith('route.'))routeDraft=null;draw();status('Salvo e confirmado no PostgreSQL · '+result.result+' · revisão '+doc.revision+'.');return;
   }
   const payload=type==='finance.receipt.attach'?await readReceiptPayload(form):type==='print.photo.attach'?await readPrintPhoto(form):type==='purchase.invoice.pdf'?await readInvoicePdf(form):parseData(type,form),
    id='OP-DEMO-'+crypto.randomUUID(),actor='Operador fictício';
@@ -1944,7 +2036,7 @@ async function submit(form,type){
    throw Error('Gravação inconclusiva: não foi encontrada na releitura. Não repetir sem conferir.');
   const integrity=api.inspect(saved);
   if(!integrity.ok)throw Error('Gravação sem integridade comprovada: '+integrity.problems.join('; '));
-  doc=saved;if(type==='settlement.service.group'){serviceGroupDraft=null;serviceGroupResult=null;}try{await archiveIntent(intent.commandId);recoveryIntents=await intentRead();}catch(ignore){}draw();
+  doc=saved;if(type==='settlement.service.group'){serviceGroupDraft=null;serviceGroupResult=null;}if(type.startsWith('route.'))routeDraft=null;try{await archiveIntent(intent.commandId);recoveryIntents=await intentRead();}catch(ignore){}draw();
   if(type==='settlement.compensate'&&payload.id){
    const el=document.querySelector('form[data-command="settlement.compensate"] [name="id"]');
    if(el&&[...el.options].some(opt=>opt.value===payload.id))el.value=payload.id;
@@ -2502,6 +2594,11 @@ document.addEventListener('click',async e=>{
   Object.assign(settlementFilters,{query:'',status:'todos',faction:'todas',service:'todos',compensation:'todos'});
   applySettlementFilters();return;
  }
+ if(e.target.closest('#route-stop-add')){const host=$('route-stop-forms');if(host&&host.children.length<30)host.insertAdjacentHTML('beforeend',routeStopFormHtml(doc));return;}
+ const rmStop=e.target.closest('[data-route-stop-remove]');if(rmStop){const host=$('route-stop-forms');if(host&&host.children.length>1)rmStop.closest('[data-route-stop]').remove();else status('Uma rota precisa manter ao menos uma parada.','error');return;}
+ const editRoute=e.target.closest('[data-route-edit]');if(editRoute){const r=(doc.routePlans||[]).find(x=>x.id===editRoute.dataset.routeEdit);if(r&&r.status!=='cancelada'){routeDraft=r;active='utilidades';draw();}return;}
+ if(e.target.closest('#route-new')){routeDraft=null;draw();return;}
+ const routePrint=e.target.closest('[data-print-route]');if(routePrint){try{renderRouteSheet(routePrint.dataset.printRoute);window.print()}catch(error){status(error.message,'error')}return;}
  const comp=e.target.closest('button[data-print-comp]');
  if(comp){try{renderCompensationSheet(comp.dataset.printComp);window.print()}catch(error){status(error.message,'error')}return}
  const printMulti=e.target.closest('button[data-print-multi]');
