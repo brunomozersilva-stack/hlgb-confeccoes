@@ -26,6 +26,7 @@ const modules=[
 ];
 const ids=new Map(modules.map((m,i)=>[m[0],i])),visitedModules=new Set();
 let active=ids.has(window.location.hash.slice(1))?window.location.hash.slice(1):'nucleo',db=null,doc=null,busy=false,journeyOrderId=null,routeDraft=null;
+let labelDraft=[{name:'',model:'',size:'',pieceQty:0,volumes:0,copies:1,date:new Date().toISOString().slice(0,10)}],labelLayout='10';
 const settlementFilters={query:'',status:'todos',faction:'todas',service:'todos',compensation:'todos'};
 const escape=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const str=x=>escape(String(x??''));
@@ -303,6 +304,41 @@ function multiCutPanel(s){
   (orders.length?forms:'<p>Primeiro cadastre um pedido multimodelo na guia Pedidos.</p>')+
   '<h3>Programações realizadas</h3>'+history+editing+actions+weightForm,true);
 }
+function labelRowHtml(row,index){
+ const line=(title,part,value,kind='text')=>'<div class="field"><label>'+escape(title)+'<input class="input" data-label="'+part+'" type="'+kind+'"'+
+  (kind==='number'?' min="0" max="100000" step="1"':'')+' value="'+escape(value)+'"></label></div>';
+ return '<div class="panel" data-label-row><h3>Modelo / etiqueta '+(index+1)+'</h3><div class="fields">'+
+  line('Nome / local','name',row.name)+line('Modelo','model',row.model)+line('Tamanho','size',row.size)+
+  line('Peças informadas','pieceQty',row.pieceQty,'number')+line('Volumes — 0 para cópias simples','volumes',row.volumes,'number')+
+  line('Cópias (ignorado se tiver volumes)','copies',row.copies,'number')+line('Data','date',row.date,'date')+
+  '</div><button type="button" class="btn" data-label-remove="'+index+'">Remover modelo</button></div>';
+}
+function labelPanel(){
+ if(!window.HLGBLabLabelsV1)return panel('Etiquetas A4','Gerador de etiquetas indisponível.',true);
+ const rows=labelDraft.map(labelRowHtml).join('');
+ const layouts=[['10','Grande · 10 por folha'],['18','Média · 18 por folha'],['21','Pequena · 21 por folha']];
+ return panel('Utilidades · Etiquetas A4 com vários modelos',
+  '<p>Monte um lote com vários modelos. Informando cinco volumes, o gerador cria automaticamente <b>1 de 5, 2 de 5, 3 de 5, 4 de 5 e 5 de 5</b>. A última folha conserva os espaços vazios para alinhamento. Prévia fictícia, sem gravação no HLGB comercial.</p>'+
+  '<div class="field"><label>Formato A4<select class="input" id="label-layout">'+options(layouts,labelLayout)+'</select></label></div>'+
+  '<div id="label-editor-rows">'+rows+'</div><div class="actions">'+
+  '<button type="button" class="btn" id="label-add">+ Adicionar modelo</button>'+
+  '<button type="button" class="btn" id="label-preview">Conferir total</button>'+
+  '<button type="button" class="btn primary" id="label-print">Imprimir todas as etiquetas</button></div>'+
+  '<p id="label-batch-preview" class="caption" role="status">Escolha os modelos e confira a quantidade antes de imprimir.</p>',true);
+}
+function labelCapture(){
+ const n=x=>{const v=String(x??'').trim();if(!/^(0|[1-9]\d*)$/.test(v))throw Error('Quantidades de etiqueta devem ser inteiros sem sinal.');return Number(v)};
+ return [...document.querySelectorAll('[data-label-row]')].map(el=>{
+  const v=k=>el.querySelector('[data-label="'+k+'"]')?.value||'';
+  return {name:v('name'),model:v('model'),size:v('size'),pieceQty:n(v('pieceQty')),
+   volumes:n(v('volumes')),copies:n(v('copies')),date:v('date')};
+ });
+}
+function labelBatch(){
+ if(!window.HLGBLabLabelsV1)throw Error('Gerador de etiquetas indisponível.');
+ return window.HLGBLabLabelsV1.plan(labelCapture(),$('label-layout').value);
+}
+
 function routeStopFormHtml(s,stop=null){
  const selected=stop?.type==='faccao'?'faccao:'+stop.locationId:stop?.type==='confeccao'?'confeccao:HLGB-LAB':'';
  const places=[['','Escolha a facção ou confecção — obrigatório'],...s.factions.map(f=>['faccao:'+f.id,'Facção · '+f.name]),
@@ -351,9 +387,9 @@ function routePanel(s){
  ],'Cancelar mantendo histórico'):'<p>Sem rotas abertas para cancelar.</p>';
  return panel('Utilidades · Rotas LEVAR/BUSCAR (homologação isolada)',
  '<p>Rota de teste com várias paradas, itens para levar e buscar, revisão sem perda do histórico e impressão A4 de resumo e checklists. A releitura em outro computador ainda NÃO está comprovada.</p>'+
- editor+'<h3>Histórico de rotas</h3>'+hist+cancel,true)+
+ editor+'<h3>Histórico de rotas</h3>'+hist+cancel,true)+labelPanel()+
  panel('Outras Utilidades · ainda não homologadas',
- '<p><b>Etiquetas A4 (10/18/21 por folha), volumes, modelos de etiqueta de embalagem, embaladeira e regularização histórica</b> permanecem pendentes. Não foram substituídos por telas simplificadas.</p>'+
+ '<p><b>Modelos de etiqueta de embalagem, embaladeira e regularização histórica</b> permanecem pendentes. As etiquetas A4 acima são um ensaio visual, ainda sem aprovação da equipe.</p>'+
  '<button type="button" class="btn" data-goto="separacao">Ver Separação fictícia</button>',true);
 }
 function routeInput(form){
@@ -2593,6 +2629,22 @@ document.addEventListener('click',async e=>{
  if(e.target.closest('#settlement-clear-filters')){
   Object.assign(settlementFilters,{query:'',status:'todos',faction:'todas',service:'todos',compensation:'todos'});
   applySettlementFilters();return;
+ }
+ const labelAdd=e.target.closest('#label-add'),labelRemove=e.target.closest('[data-label-remove]');
+ if(labelAdd||labelRemove){
+  try{labelDraft=labelCapture();labelLayout=$('label-layout').value;
+   if(labelRemove){if(labelDraft.length===1)throw Error('Mantenha ao menos um modelo na impressão.');labelDraft.splice(Number(labelRemove.dataset.labelRemove),1);}
+   else if(labelDraft.length<100)labelDraft.push({name:'',model:'',size:'',pieceQty:0,volumes:0,copies:1,date:new Date().toISOString().slice(0,10)});
+   draw();
+  }catch(error){status(error.message,'error')}return;
+ }
+ if(e.target.closest('#label-preview')||e.target.closest('#label-print')){
+  try{const batch=labelBatch();labelLayout=batch.layout;labelDraft=batch.definitions;
+   const summary=batch.total+' etiqueta(s) · '+batch.modelCount+' modelo(s) · '+batch.pages.length+
+    ' folha(s) A4 · '+batch.per+' por folha · '+batch.emptyCells+' espaço(s) vazio(s) na última folha.';
+   if(e.target.closest('#label-preview'))$('label-batch-preview').textContent=summary;
+   else{$('cut-print').innerHTML=window.HLGBLabLabelsV1.render(batch);window.print();status('Lote fictício preparado: '+summary);}
+  }catch(error){status(error.message,'error')}return;
  }
  if(e.target.closest('#route-stop-add')){const host=$('route-stop-forms');if(host&&host.children.length<30)host.insertAdjacentHTML('beforeend',routeStopFormHtml(doc));return;}
  const rmStop=e.target.closest('[data-route-stop-remove]');if(rmStop){const host=$('route-stop-forms');if(host&&host.children.length>1)rmStop.closest('[data-route-stop]').remove();else status('Uma rota precisa manter ao menos uma parada.','error');return;}
