@@ -38,5 +38,5 @@ assert.equal(p(context.db.factions[1]),15.5,'client product price must be fallba
 assert.equal(p(context.db.factions[2]),17.5,'product clientPrices must be next fallback');
 assert.equal(p(context.db.factions[3]),4.1,'product default must be last positive fallback');
 assert.equal(p(context.db.factions[4]),0,'zero-priced exact product must remain zero and never borrow another product price');
-assert.equal(context.window.HLGB_PRICING_MODULE,'exact-faction-v2');
+assert.equal(context.window.HLGB_PRICING_MODULE,'exact-faction-v95.107-delivery-button-only');
 console.log('PASS pricing: exact product price priority preserved; zero-price product cannot borrow another product price.');
