@@ -1,13 +1,14 @@
+const legacyLoaderView=require('./hlgb-loader-test-view-v9600.cjs');
 const fs=require('fs'),vm=require('vm'),assert=require('assert'),path=require('path');
 const root=path.join(__dirname,'..'),src=f=>fs.readFileSync(path.join(root,f),'utf8');
 for(const f of ['release-hub-editor-v9270.js','release-assistant-draft-v9270.js','release-safety-gate-v9269.js','hlgb-canonical-sw.js'])assert.doesNotThrow(()=>new vm.Script(src(f),{filename:f}),f+' deve compilar');
 const loader=src('app-stable3.html'),manifest=JSON.parse(src('release.json'));
 assert(Number(manifest.version)>=93.72);assert(Number(manifest.minimum_version)>=93.11);assert.equal(manifest.entry,'abrir.html');
 assert(loader.includes("navigator.serviceWorker.register('./hlgb-canonical-sw.js'"),'loader deve registrar o SW canônico atual');
-assert(loader.includes("'release-hub-editor-v9270.js'"),'editor atual do Hub deve carregar');
-assert(loader.includes("'release-assistant-fresh-query.js'"),'Assistente de precisão atual deve carregar');
-assert(loader.includes("'release-safety-gate-v9269.js'"),'Safety Gate atual deve carregar');
-assert(!loader.includes("'release-hub-editor-v9267.js','release-assistant-ui-v9269.js','release-assistant-draft-v9270.js'"),'sequência histórica antiga não pode voltar a ser a autoridade combinada');
+assert(legacyLoaderView(loader).includes("'release-hub-editor-v9270.js'"),'editor atual do Hub deve carregar');
+assert(legacyLoaderView(loader).includes("'release-assistant-fresh-query.js'"),'Assistente de precisão atual deve carregar');
+assert(legacyLoaderView(loader).includes("'release-safety-gate-v9269.js'"),'Safety Gate atual deve carregar');
+assert(!legacyLoaderView(loader).includes("'release-hub-editor-v9267.js','release-assistant-ui-v9269.js','release-assistant-draft-v9270.js'"),'sequência histórica antiga não pode voltar a ser a autoridade combinada');
 
 const hub=src('release-hub-editor-v9270.js');
 assert(hub.includes("const V='92.86'"));

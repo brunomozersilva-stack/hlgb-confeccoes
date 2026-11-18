@@ -1,3 +1,4 @@
+const legacyLoaderView=require('./hlgb-loader-test-view-v9600.cjs');
 const fs=require('fs'),vm=require('vm'),assert=require('assert');
 const src=fs.readFileSync('release-save-transport-v9320.js','utf8');
 const loader=fs.readFileSync('app-stable3.html','utf8');
@@ -7,7 +8,7 @@ assert(src.includes("const V='93.20'"),'v93.20 save transport missing');
 assert(src.includes("e.code='HLGB_CLOUD_TIMEOUT'"),'timeout must have a diagnostic code');
 assert(src.includes('controller.abort()'),'stalled transport must be actively aborted');
 assert(src.includes('signal:controller.signal'),'AbortSignal must reach the original cloudRequest');
-assert(loader.includes("'release-save-transport-v9320.js'"),'loader does not include v93.20');
+assert(legacyLoaderView(loader).includes("'release-save-transport-v9320.js'"),'loader does not include v93.20');
 assert(loader.indexOf('release-save-transport-v9320.js')<loader.indexOf('release-record-integrity.js'),'transport watchdog must load before record save wrappers');
 assert(Number(manifest.version)>=93.20,'canonical manifest must publish v93.20 or newer');
 
