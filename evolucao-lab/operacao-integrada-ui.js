@@ -687,7 +687,7 @@ function recoveryPanels(s){
  recoveryPlan=plan;
  const repairForm=plan.status==='ready'?form('recovery.repair','Aplicar somente reparo simulado de metadado',[field('before','Prova anterior','text',plan.before),field('expected','Prova derivada da trilha','text',plan.expected),field('revision','Revisão simulada','int',String(plan.revision)),field('reason','Justificativa','text','Conferência de trilha')],'Confirmar reparo'):'';
  return panel('Recuperação segura · autocorreção limitada','<p>Simulação de metadado de revisão: '+str(plan.status)+'. Nunca altera pedidos, estoque, pagamentos ou valores para resolver um diagnóstico. Sem reenvio automático de comandos.</p>'+table(['Antes','Prova esperada','Revisão'],[[str(plan.before),str(plan.expected),str(plan.revision)]])+plan.blocked.map(x=>'<p>'+str(x)+'</p>').join('')+repairForm+'<div class="actions"><button type="button" class="btn" id="recovery-check">Reler intenções locais</button><button type="button" class="btn" id="recovery-export">Exportar diagnóstico JSON</button></div>',true)+
- panel('Intenções pendentes de confirmação',table(['Comando','Operação','Revisão esperada','Diagnóstico'],recoveryIntents.map(x=>[str(x.commandId),str(x.type),str(x.expectedRevision),str(svc.classify(s,x,api.inspect).message)]))+'<p>Intenções gravadas antes da operação, sem dados de pagamento ou conteúdo do formulário. Não representam fila de envio; ausência de prova não autoriza repetir.</p>',true)+
+ panel('Intenções pendentes de confirmação',table(['Comando','Operação','Revisão esperada','Diagnóstico','Ação'],recoveryIntents.map(x=>[str(x.commandId),str(x.type),str(x.expectedRevision),str(svc.classify(s,x,api.inspect).message),!remoteLab&&svc.review(s,x,api.inspect).allowed?'<button type="button" class="btn" data-intent-review="'+str(x.commandId)+'">Arquivar após revisar</button>':'—']))+'<p>Intenções novas gravadas junto com o documento na mesma transação local; intenções antigas podem exigir revisão. Não contêm dados de pagamento ou conteúdo do formulário. Não representam fila de envio; ausência de prova não autoriza repetir.</p>',true)+
  panel('Histórico de reparos autorizados',table(['Comando','Antes','Prova conferida','Motivo'],(s.repairHistory||[]).map(x=>[str(x.commandId),str(x.before),str(x.expected),str(x.reason)])),true);
 }
 function intentWrite(intent,remove=false){
@@ -1574,31 +1574,62 @@ function parseData(type,form){
 const DB='HLGB_EVOLUCAO_OPERACAO_INTEGRADA_FICTICIA_V1',STORE='documentos',KEY='operacao-ficticia';
 function openDB(){
  return new Promise((resolve,reject)=>{
-  const request=indexedDB.open(DB,1);
+  const request=indexedDB.open(DB,2);
   request.onupgradeneeded=()=>{if(!request.result.objectStoreNames.contains(STORE))
    request.result.createObjectStore(STORE,{keyPath:'key'})};
   request.onerror=()=>reject(request.error||Error('IndexedDB indisponível.'));
   request.onblocked=()=>reject(Error('Armazenamento bloqueado por outra aba.'));
-  request.onsuccess=()=>resolve(request.result);
+  request.onsuccess=()=>{const connection=request.result;connection.onversionchange=()=>{connection.close();status('Nova versão da homologação disponível. Feche as outras abas e recarregue.','error');};resolve(connection);};
  });
 }
-async function transact(edit){
+async function transact(edit,{intent=null,requireClear=false}={}){
  return new Promise((resolve,reject)=>{
   const tx=db.transaction(STORE,'readwrite'),store=tx.objectStore(STORE),get=store.get(KEY);
   let output=null,err=null;
+  const fail=e=>{err=e;try{tx.abort();}catch(ignore){}};
   get.onsuccess=()=>{
-   try{const previous=get.result?.data||api.initial();
-    output=edit(previous);
-    if(output?.state)store.put({key:KEY,data:output.state});
-    else if(!get.result)store.put({key:KEY,data:previous});
-   }catch(e){err=e;tx.abort()}
+   const previous=get.result?.data||api.initial();
+   const execute=()=>{
+    try{
+     output=edit(previous);
+     if(output?.state){
+      if(intent){
+       const e=output.state.log.find(x=>x.commandId===intent.commandId);
+       if(!e||e.revision!==intent.expectedRevision+1||e.type!==intent.type||e.actor!==intent.actor)throw Error('Intenção não corresponde à gravação.');
+       store.add({key:'intent:'+intent.commandId,intent});
+      }
+      store.put({key:KEY,data:output.state});
+     }else if(!get.result)store.put({key:KEY,data:previous});
+    }catch(e){fail(e);}
+   };
+   if(intent||requireClear){const requests=store.getAll(IDBKeyRange.bound('intent:','intent:\uffff'));requests.onsuccess=()=>{
+    try{for(const item of requests.result){const p=item.intent,verdict=window.HLGBLabRecoveryV1.review(previous,p,api.inspect);
+     if(!verdict.allowed||verdict.resolution!=='confirmed')throw Error('Existe intenção anterior sem confirmação. Confira no Auditor antes de repetir.');
+     store.put({key:'intent-history:'+p.commandId,intent:p,resolution:'confirmed',reviewedAt:new Date().toISOString(),reviewedRevision:previous.revision});
+     store.delete(item.key);
+    }execute();}catch(e){fail(e);}
+   };requests.onerror=()=>{err=requests.error;};}
+   else execute();
   };
-  get.onerror=()=>{err=get.error};
+  get.onerror=()=>{err=get.error;};
   tx.oncomplete=()=>resolve(output);
   tx.onabort=()=>reject(err||tx.error||Error('Transação local abortada.'));
-  tx.onerror=()=>{if(!err)err=tx.error};
+  tx.onerror=()=>{if(!err)err=tx.error;};
  });
 }
+function archiveIntent(commandId,explicitLegacy=false){
+ return new Promise((resolve,reject)=>{
+ const tx=db.transaction(STORE,'readwrite'),store=tx.objectStore(STORE),get=store.get(KEY);let err=null;
+ get.onsuccess=()=>{const current=get.result?.data,req=store.get('intent:'+commandId);
+ req.onsuccess=()=>{try{const item=req.result;if(!item)throw Error('Intenção já revisada em outra aba.');
+ const v=window.HLGBLabRecoveryV1.review(current,item.intent,api.inspect);
+ if(!v.allowed||v.resolution==='legacy_absent'&&!explicitLegacy)throw Error(v.message);
+ store.put({key:'intent-history:'+commandId,intent:item.intent,resolution:v.resolution,reviewedAt:new Date().toISOString(),reviewedRevision:current.revision});store.delete(item.key);
+ }catch(e){err=e;tx.abort();}};};
+ tx.oncomplete=()=>resolve();tx.onabort=()=>reject(err||tx.error||Error('Revisão da intenção abortada.'));tx.onerror=()=>{if(!err)err=tx.error;};
+ });
+}
+function intentHistory(){return new Promise((resolve,reject)=>{const tx=db.transaction(STORE,'readonly'),req=tx.objectStore(STORE).getAll(IDBKeyRange.bound('intent-history:','intent-history:\uffff'));req.onsuccess=()=>resolve(req.result);req.onerror=()=>reject(req.error);});}
 async function read(){
  return new Promise((resolve,reject)=>{
   const tx=db.transaction(STORE,'readonly'),request=tx.objectStore(STORE).get(KEY);
@@ -1623,20 +1654,16 @@ async function submit(form,type){
    if(result.status!=='confirmed'){const banner=document.querySelector('#remote-check');if(banner){banner.closest('section').outerHTML=remotePanel();}throw Error('Servidor: '+result.status+' · '+(result.message||'Revise a intenção sem repetir.'));}
    doc=result.state;if(type==='settlement.service.group'){serviceGroupDraft=null;serviceGroupResult=null;}draw();status('Salvo e confirmado no PostgreSQL · '+result.result+' · revisão '+doc.revision+'.');return;
   }
-  const pending=await intentRead();
-  if(pending.length){const current=await read(),svc=window.HLGBLabRecoveryV1;for(const item of pending){const verdict=svc.classify(current,item,api.inspect);if(verdict.status==='confirmed'){await intentWrite(item,true);}else{recoveryIntents=pending;throw Error('Existe intenção anterior sem confirmação. Abra Auditor > Recuperação segura, releia e exporte a evidência antes de repetir.');}}}
   const payload=type==='finance.receipt.attach'?await readReceiptPayload(form):type==='print.photo.attach'?await readPrintPhoto(form):type==='purchase.invoice.pdf'?await readInvoicePdf(form):parseData(type,form),
    id='OP-DEMO-'+crypto.randomUUID(),actor='Operador fictício';
-  const intent={commandId:id,type,expectedRevision,recordedAt:new Date().toISOString()};
-  await intentWrite(intent);
-  let tx;try{tx=await transact(previous=>api.apply(previous,{type,payload,commandId:id,actor,expectedRevision,recordedAt:intent.recordedAt}));}
-  catch(e){try{await intentWrite(intent,true);}catch(ignore){}throw e;}
+  const intent={commandId:id,type,expectedRevision,actor,atomicVersion:2,recordedAt:new Date().toISOString()};
+  const tx=await transact(previous=>api.apply(previous,{type,payload,commandId:id,actor,expectedRevision,recordedAt:intent.recordedAt}),{intent});
   const saved=await read();
   if(!saved||saved.revision<expectedRevision+1||!saved.log.some(x=>x.commandId===id&&x.revision===expectedRevision+1&&x.type===type&&x.actor===actor))
    throw Error('Gravação inconclusiva: não foi encontrada na releitura. Não repetir sem conferir.');
   const integrity=api.inspect(saved);
   if(!integrity.ok)throw Error('Gravação sem integridade comprovada: '+integrity.problems.join('; '));
-  doc=saved;if(type==='settlement.service.group'){serviceGroupDraft=null;serviceGroupResult=null;}try{await intentWrite(intent,true);recoveryIntents=await intentRead();}catch(ignore){}draw();
+  doc=saved;if(type==='settlement.service.group'){serviceGroupDraft=null;serviceGroupResult=null;}try{await archiveIntent(intent.commandId);recoveryIntents=await intentRead();}catch(ignore){}draw();
   if(type==='settlement.compensate'&&payload.id){
    const el=document.querySelector('form[data-command="settlement.compensate"] [name="id"]');
    if(el&&[...el.options].some(opt=>opt.value===payload.id))el.value=payload.id;
@@ -1671,7 +1698,7 @@ async function reset(){
    next.revisionProof=id;next.log=[{commandId:id,revision:next.revision,type:'demo.reset',
     actor:'Operador fictício',description:'Dados fictícios restaurados com confirmação'}];
    return {state:next,result:'reset'};
-  });
+  },{requireClear:true});
   const saved=await read();if(!saved.log.some(e=>e.commandId===revised.state.revisionProof))throw Error('Restauração não confirmada.');
   doc=saved;recoveryIntents=await intentRead();active='nucleo';draw();status('Exemplo fictício restaurado. Nenhum dado empresarial foi afetado.');
  }catch(e){status(e.message,'error')}finally{busy=false}
@@ -2037,7 +2064,8 @@ document.addEventListener('click',async e=>{
  if(e.target.closest('#remote-retry')){await remoteAction(()=>remoteLab.retry());return;}
  if(e.target.closest('#remote-discard')){if(confirm('Descartar somente a intenção local revisada, sem excluir registros do servidor?'))await remoteAction(()=>remoteLab.discard());return;}
  if(e.target.closest('#recovery-check')){if(remoteLab){await remoteAction(()=>remoteLab.reconcile());return;}if(busy)return;busy=true;try{recoveryIntents=await intentRead();const latest=await read();if(latest&&api.inspect(latest).ok)doc=latest;draw();status('Intenções locais relidas · '+recoveryIntents.length+' pendentes.');}catch(err){status(err.message,'error');}finally{busy=false;}return;}
- if(e.target.closest('#recovery-export')){try{download('HLGB-RECUPERACAO-FICTICIO.json',JSON.stringify({plan:recoveryPlan,intents:recoveryIntents.map(x=>({...x,diagnosis:window.HLGBLabRecoveryV1.classify(doc,x,api.inspect)})),history:doc.repairHistory||[]},null,2),'application/json');}catch(err){status(err.message,'error');}return;}
+ const intentReview=e.target.closest('[data-intent-review]');if(intentReview&&!remoteLab&&!busy){if(!confirm('Feche as outras abas antigas. Confirmar arquivamento apenas da intenção revisada, sem excluir nenhum registro de negócio e sem reenviar?'))return;busy=true;try{await archiveIntent(intentReview.dataset.intentReview,true);recoveryIntents=await intentRead();doc=await read();draw();status('Intenção arquivada com histórico. Nenhum lançamento reenviado.');}catch(err){status(err.message,'error');}finally{busy=false;}return;}
+ if(e.target.closest('#recovery-export')){try{download('HLGB-RECUPERACAO-FICTICIO.json',JSON.stringify({plan:recoveryPlan,intents:recoveryIntents.map(x=>({...x,diagnosis:window.HLGBLabRecoveryV1.classify(doc,x,api.inspect)})),history:doc.repairHistory||[],intentHistory:remoteLab?[]:await intentHistory()},null,2),'application/json');}catch(err){status(err.message,'error');}return;}
  if(e.target.closest('#monitor-run')){await runMonitor('manual');return;}
  if(e.target.closest('#monitor-export')){download('HLGB-MONITOR-FICTICIO.json',JSON.stringify({schema:'hlgb-monitor-sessao-v1',runs:monitorRuns,productionApproval:false},null,2),'application/json');return;}
  if(e.target.closest('#assisted-preview')){assistedDraft=readAssistedDraft();try{assistedPreview={...window.HLGBLabOperationsV2.assistantPreview(doc,assistedDraft,window.HLGBLabPayrollOrdersV1),revision:doc.revision};draw();status('Prévia do pedido, nada gravado.');}catch(err){assistedPreview=null;status(err.message,'error');}return;}

@@ -27,5 +27,11 @@
  if(ev)return ev.type===intent.type&&ev.revision===intent.expectedRevision+1?{status:'confirmed',revision:ev.revision,message:'Comando encontrado e confirmado na trilha local. Não repetir.'}:{status:'blocked',message:'Comando encontrado com prova divergente.'};
  if(s.revision===intent.expectedRevision)return {status:'not_found_same_revision',message:'Comando não encontrado nesta revisão. Verifique a intenção original; não reenviar automaticamente.'};
  return {status:'unknown',message:'Revisão mudou sem prova do comando; investigar antes de repetir.'};}
- return {chain,simulate,repair,classify};
+ function review(s,intent,inspect){
+ const verdict=classify(s,intent,inspect);
+ if(verdict.status==='confirmed')return {allowed:true,resolution:'confirmed',message:'Registro encontrado; arquivar apenas a intenção.'};
+ if(verdict.status==='not_found_same_revision'&&!intent.atomicVersion)return {allowed:true,resolution:'legacy_absent',message:'Intenção antiga sem gravação na revisão esperada. Exige confirmação explícita e todas as outras abas fechadas.'};
+ return {allowed:false,resolution:'investigate',message:verdict.message};
+ }
+ return {chain,simulate,repair,classify,review};
 });
