@@ -268,17 +268,27 @@ function multiCutPanel(s){
   return '<details class="panel"><summary>'+str(o.id)+' · '+str(item.name)+' ('+str(item.id)+') — '+free+' peças disponíveis</summary>'+
    (free?multiCutEditor(s,o,item):'<p>Saldo totalmente reservado ou concluído. Confira folhas anteriores.</p>')+'</details>';
  })).join('');
- const history=table(['Folha','Modelo','Grade por cor/tamanho','Total','Data','Status','Eventos'],plans.map(p=>{
+ const history=table(['Folha','Modelo','Grade por cor/tamanho','Total','Data','Status','Eventos','Impressão'],plans.map(p=>{
   const o=orders.find(x=>x.id===p.orderId),item=o?.items.find(x=>x.id===p.itemId);
   return [str(p.id),str(p.orderId)+' / '+str(item?.name||p.itemId),
    p.lines.map(x=>str(x.color)+' '+str(x.size)+': '+x.qty).join(' · '),str(p.qty),
-   str(p.scheduledDate)+' · '+str(p.priority),str(p.status),str(p.history.length)];
+   str(p.scheduledDate)+' · '+str(p.priority),str(p.status),str(p.history.length)+((p.weightEvents||[]).length?' · '+p.weightEvents.length+' pesagem(ns)':''),
+   '<button type="button" class="btn" data-print-multi="'+escape(p.id)+'">Folha A4 deste modelo</button>'];
  }));
  const open=plans.filter(x=>x.status==='aberto');
  const editing=open.map(p=>{
   const o=orders.find(x=>x.id===p.orderId),item=o?.items.find(x=>x.id===p.itemId);
   return o&&item?'<details class="panel"><summary>Alterar grade e equipe '+str(p.id)+'</summary>'+multiCutEditor(s,o,item,p)+'</details>':'';
  }).join('');
+ const finished=plans.filter(x=>x.status==='concluido');
+ const weightForm=finished.length?form('multi.cut.weight.record','Pesagem após conclusão · histórico sem reabrir Corte',[
+  field('id','Corte concluído','select','',selector(finished,x=>x.id+' · '+x.orderId+' / '+x.itemId)),
+  field('totalGrams','Peso total recebido (g)','int','1000'),
+  field('usedGrams','Peso útil cortado (g)','int','800'),
+  field('wasteGrams','Lixo / retalho (g)','int','200'),
+  field('checker','Responsável pela pesagem','text','Conferente fictício A'),
+  field('reason','Motivo / conferência','text','Primeira conferência fictícia')
+ ],'Registrar pesagem fictícia'):'<p>Pesagem posterior disponível após concluir uma programação.</p>';
  const choice=selector(open,x=>x.id+' · '+x.qty+' peças');
  const actions=open.length?form('multi.cut.complete','Concluir ensaio de corte (sem estoque)',[
   field('id','Folha','select','',choice),
@@ -288,9 +298,9 @@ function multiCutPanel(s){
   field('id','Folha','select','',choice),field('reason','Motivo','text','Reprogramação fictícia')
  ],'Cancelar folha'):'<p>Nenhuma folha aberta para concluir ou cancelar.</p>';
  return panel('Corte multimodelo · programação por modelo/cor/tamanho',
-  '<p>Somente homologação. Os modelos têm saldos independentes, inclusive em PP, XG ou G2. Conclusão não gera estoque, facções, acertos ou financeiro; a folha A4 completa será tratada em outra etapa.</p>'+
+  '<p>Somente homologação. Os modelos têm saldos independentes, inclusive em PP, XG ou G2. Cada folha A4 apresenta cinco seções e assinaturas físicas em branco; pesagens posteriores são registradas em histórico. Nada disso movimenta estoque, facções, acertos ou financeiro.</p>'+ 
   (orders.length?forms:'<p>Primeiro cadastre um pedido multimodelo na guia Pedidos.</p>')+
-  '<h3>Programações realizadas</h3>'+history+editing+actions,true);
+  '<h3>Programações realizadas</h3>'+history+editing+actions+weightForm,true);
 }
 function orderTable(s){
  return table(['Pedido / modelo','Cliente','Grade e corte','Fluxo','Recebimento'],s.orders.map(o=>{
@@ -1761,7 +1771,7 @@ function parseCents(value,signed=false){
  if(!Number.isSafeInteger(val))throw Error('Valor monetário inválido.');
  return val;
 }
-const NUM=['actualGrams','points','revision','corte','envio','costura','separacao','expedicao','qty','gramsPerUnit','qtyGrams','grams','stock','P','M','G','GG','usefulGrams','scrapGrams'];
+const NUM=['totalGrams','usedGrams','wasteGrams','actualGrams','points','revision','corte','envio','costura','separacao','expedicao','qty','gramsPerUnit','qtyGrams','grams','stock','P','M','G','GG','usefulGrams','scrapGrams'];
 const SIGNED=['deltaGrams'];
 const PRICES=['freightCents','camisola','doll','calcinha','outros','pointCents','priceCents','unitCents','travetaCents','priceCentsKg','amountCents','salaryCents','passageCents','extrasCents','discountCents'];
 function parseData(type,form){
@@ -2011,6 +2021,7 @@ function exportCsv(){
   ['Peças por facção/cor',a.id,a.orderId+' · '+a.factionId+
    ' · '+g.color+' '+g.size,'Enviadas '+g.sent,g.returned])),
  ...(doc.multiCutPlans||[]).flatMap(c=>c.lines.map(l=>['Corte multimodelo fictício',c.id,c.orderId+' / '+c.itemId+' · '+l.color+' '+l.size,c.status,l.qty])),
+ ...(doc.multiCutPlans||[]).flatMap(c=>(c.weightEvents||[]).map(w=>['Peso posterior fictício',c.id,'Total '+w.totalGrams+' g · útil '+w.usedGrams+' g · lixo '+w.wasteGrams+' g',w.commandId,w.revision])),
  ...(doc.bomCutRuns||[]).map(c=>['Corte BOM concluído',c.id,
   c.orderId+' · '+c.color+' '+c.size+' · '+c.qty+' pç',
   c.commandId,c.totalGrams]),
@@ -2104,6 +2115,14 @@ function exportObserverCsv(){
  download('HLGB-LAB-OBSERVABILIDADE-V2-FICTICIA.csv',
   '\uFEFF'+rows.map(row=>row.map(safeCell).join(';')).join('\r\n'),'text/csv;charset=utf-8');
  status('Histórico fictício e alertas exportados sem alterações no documento.');
+}
+function renderMultiCutSheet(planId){
+ const service=window.HLGBLabMultiCutSheetV1;
+ if(!service)throw Error('A folha de corte A4 está indisponível. Confira o carregamento do módulo.');
+ const preview=service.preview(doc,planId);
+ if(!preview.sampleOnly||preview.stockWritten)throw Error('A folha deixou de ser isolada. Não imprimir.');
+ $('cut-print').innerHTML=service.render(doc,planId);
+ return $('cut-print').textContent;
 }
 function renderCutSheet(planId){
  const plan=(doc.cutPlans||[]).find(p=>p.id===planId);
@@ -2485,6 +2504,8 @@ document.addEventListener('click',async e=>{
  }
  const comp=e.target.closest('button[data-print-comp]');
  if(comp){try{renderCompensationSheet(comp.dataset.printComp);window.print()}catch(error){status(error.message,'error')}return}
+ const printMulti=e.target.closest('button[data-print-multi]');
+ if(printMulti){try{renderMultiCutSheet(printMulti.dataset.printMulti);window.print()}catch(error){status(error.message,'error')}return}
  const print=e.target.closest('button[data-print-plan]');
  if(print){try{renderCutSheet(print.dataset.printPlan);window.print()}catch(error){status(error.message,'error')}return}
  const mod=e.target.closest('button[data-module]');
