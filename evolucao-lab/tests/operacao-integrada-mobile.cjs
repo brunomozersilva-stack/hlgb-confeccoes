@@ -34,7 +34,7 @@ const server=http.createServer((req,res)=>{
  if(!file){res.writeHead(404);res.end();return}
  const data=fs.readFileSync(path.join(root,file));
  res.writeHead(200,{'content-type':file.endsWith('.html')?'text/html;charset=utf-8':'text/javascript;charset=utf-8',
-  'content-security-policy':"default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'none'; object-src 'none'",
+  'content-security-policy':"default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'none'; img-src 'self' data: blob:; object-src 'none'",
   'cache-control':'no-store'});
  res.end(data);
 });

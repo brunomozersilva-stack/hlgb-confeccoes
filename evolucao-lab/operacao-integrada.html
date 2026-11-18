@@ -62,6 +62,28 @@ tr:last-child td{border-bottom:0}tr[hidden]{display:none!important}.num{text-ali
 @media(max-width:710px){.frame{display:block}.side{padding:10px;position:relative}.logo{padding:2px 6px 8px}.nav{display:flex;overflow-x:auto;gap:6px;padding-bottom:5px}.nav button{white-space:nowrap;flex:none;border:1px solid #6f517f}.subhead{display:none}.side a{display:none}.topbar{padding:11px}.topbar .small{max-width:240px}main{padding:12px}.panel{padding:12px}.metric{padding:11px}}
 @media(max-width:410px){.fields{grid-template-columns:minmax(0,1fr)}.metrics{gap:7px}.metric{padding:9px}.metric strong{font-size:17px}.btn{width:100%}}
 
+
+/* Evolução visual: navegação agrupada, formulários legíveis e controles touch. */
+:root{font-size:15px;--line:#e5deed;--muted:#62586c;background:#f7f5fa}
+.frame{grid-template-columns:248px minmax(0,1fr)}
+.side{position:sticky;top:0;align-self:start;max-height:100vh;overflow-y:auto;padding:18px 13px}
+.nav{gap:12px}.nav-group{display:grid;gap:3px;min-width:0}.nav-label{font-size:10px;font-weight:850;letter-spacing:.08em;text-transform:uppercase;color:#d3c2e1;padding:9px 9px 3px}
+.nav button{font-size:13px;padding:10px;line-height:1.25;min-height:42px}
+.nav .n{font-size:11px;font-variant-numeric:tabular-nums}.nav button[aria-current="page"]{box-shadow:inset 3px 0 #e6c8ff}
+.mobile-switch{display:none}.topbar{position:sticky;top:0;z-index:4;box-shadow:0 2px 8px #3021380a;padding:14px 24px}
+main{padding:24px;max-width:1560px}.headline h1{letter-spacing:-.025em}.headline p{font-size:13px}
+.panel{border-radius:14px;padding:18px;box-shadow:0 2px 8px #30213808}.panel h2{font-size:18px;line-height:1.35}.panel h3{font-size:14px;line-height:1.4}
+.panel p{font-size:13px}.panel form+form{border-top:1px solid var(--line);padding-top:14px;margin-top:15px}
+.field label{font-size:12px}.input{min-height:44px;font-size:14px}.btn{min-height:44px;font-size:13px}.metric span{font-size:12px}
+.table-wrap{max-width:100%;overscroll-behavior-x:contain}.table-wrap th{white-space:nowrap}table{font-size:13px}tbody tr:nth-child(even){background:#fcfaff}tbody tr:hover{background:#f4eff8}
+details.panel{padding:13px}details.panel summary{cursor:pointer;min-height:38px;padding:7px 0;font-size:14px}
+textarea.input{resize:vertical;min-height:110px;font-family:inherit;line-height:1.45}
+[hidden]{display:none!important}
+@media(max-width:980px){.frame{grid-template-columns:205px minmax(0,1fr)}main{padding:17px}.panel{padding:14px}.topbar{padding:12px 15px}}
+@media(max-width:710px){.frame{display:block}.side{position:relative;max-height:none;overflow:visible;padding:12px 10px}.mobile-switch{display:grid;gap:4px;margin:6px 0 8px}.mobile-switch label{font-size:12px;color:#e7d9ed}.mobile-switch select{color:#33263f}.nav{display:flex;gap:8px;overflow-x:auto;scrollbar-width:thin}.nav-group{display:flex;gap:6px;align-items:center;flex:none}.nav-label{display:none}.nav button{white-space:nowrap;font-size:12px}.topbar{position:relative;padding:10px 12px}main{padding:12px}.panel{padding:13px}.panel h2{font-size:17px}.fields{grid-template-columns:repeat(2,minmax(0,1fr))}.input{font-size:16px}.field label{font-size:12px}.metric strong{font-size:18px}.global-search h2{font-size:16px}}
+@media(max-width:410px){.fields{grid-template-columns:minmax(0,1fr)}.metric strong{font-size:17px}.panel{padding:12px}.actions .btn{width:100%}}
+@media(prefers-reduced-motion:reduce){*{scroll-behavior:auto!important;transition:none!important}}
+
 @media screen{#cut-print{display:none}}
 @media print{
  @page{size:A4;margin:14mm}
@@ -79,15 +101,15 @@ tr:last-child td{border-bottom:0}tr[hidden]{display:none!important}.num{text-ali
 </style></head>
 <body><div class="frame">
 <aside class="side"><div class="logo"><span>HLGB</span>Evolução · Lab</div>
-<nav class="nav" id="module-nav" aria-label="Navegação dos 19 módulos"></nav>
+<div class="mobile-switch"><label for="mobile-module">Ir para módulo</label><select id="mobile-module" class="input"></select></div><nav class="nav" id="module-nav" aria-label="Navegação dos 19 módulos"></nav>
 <div class="banner">Teste operacional isolado. Nenhuma operação é enviada ao HLGB real.</div>
 <a href="./entrada.html">← Voltar às outras prévias</a></aside>
 <div class="workspace">
 <div class="topbar"><div><b>Operação integrada · Novembro/2026</b><div class="small" id="top-revision">Iniciando demonstração...</div></div>
-<div class="pills"><span class="pill">19 áreas para explorar</span><span class="pill">Banco fictício no navegador</span></div></div>
+<div class="pills"><span class="pill">19 áreas para explorar</span><span class="pill" id="environment-mode">Iniciando armazenamento de teste</span></div></div>
 <main>
-<div class="warning"><strong>Prévia funcional, não ERP de produção.</strong> Os cadastros, pedidos, estoque, acertos e contas aqui são exclusivamente inventados. As operações ficam no IndexedDB deste navegador, compartilhadas entre abas do mesmo perfil; não sincronizam entre computadores e não executam pagamentos, notas fiscais ou gravações no Supabase. PDF de comprovante é somente um anexo de exercício local. Não digite informações reais nem carregue documentos bancários reais.</div>
-<div id="flash" role="status" aria-live="polite"></div>
+<div class="warning" id="environment-warning"><strong>Prévia funcional, não ERP de produção.</strong> Os cadastros, pedidos, estoque, acertos e contas aqui são exclusivamente inventados. As operações ficam no IndexedDB deste navegador, compartilhadas entre abas do mesmo perfil; não sincronizam entre computadores e não executam pagamentos, notas fiscais ou gravações no Supabase. PDF de comprovante é somente um anexo de exercício local. Não digite informações reais nem carregue documentos bancários reais.</div>
+<div id="shared-revision-notice" class="warning" role="status" aria-live="polite" hidden></div><div id="flash" role="status" aria-live="polite"></div>
 <section class="panel global-search" aria-label="Pesquisa global"><h2>Localizar no HLGB</h2><div class="search-controls"><div class="field"><label for="global-search-query">Buscar modelo, SKU, pedido, corte, facção ou pagamento</label><input class="input" id="global-search-query" type="search" maxlength="150" placeholder="Ex.: Melina, corte concluído, PED-0001"></div><div class="field"><label for="global-search-module">Área</label><select class="input" id="global-search-module"><option value="todos">Todas as áreas</option></select></div></div><div id="global-search-results" aria-live="polite"></div><div id="global-search-detail" hidden></div></section>
 <div class="headline"><div><h1 id="module-title">Operação integrada</h1><p id="module-description">Cadastro, pedido, corte, facção, retorno, expedição e financeiro com o mesmo conjunto de dados fictícios.</p></div>
 <div class="actions"><button id="export-json" type="button" class="btn">Exportar evidências JSON</button><button id="export-csv" type="button" class="btn">Exportar resumo CSV</button></div></div>

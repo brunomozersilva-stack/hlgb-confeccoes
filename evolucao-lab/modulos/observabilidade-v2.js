@@ -720,7 +720,7 @@
    if(!receiptCommands.has(e.commandId))
     push('COMPROVANTE_AUSENTE','critica','hub',e.commandId,
      'Evento de anexo sem comprovante correspondente.','Recuperar evidência sem repetir pagamento.',e.description);
-  const sourceIds=new Set([...orders,...purchases,...purchaseReturns,...settlements,...comps,...(s.payrollPeriods||[])].map(x=>x.id));
+  const sourceIds=new Set([...orders,...purchases,...purchaseReturns,...settlements,...comps,...arr(source,'payrollPeriods')].map(x=>x.id));
   for(const bill of finance){
    if(bill.sourceId!=null&&!sourceIds.has(bill.sourceId))
     push('TITULO_ORFAO','alta','hub',bill.id,

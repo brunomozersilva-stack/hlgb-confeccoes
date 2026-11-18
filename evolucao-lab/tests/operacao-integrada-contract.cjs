@@ -475,3 +475,5 @@ test('documento prévio sem campo de compensações continua funcional e não pe
  assert.equal(result.state.clients.length,3);
  assert.equal(core.inspect(result.state).ok,true);
 });
+
+test('interface: modo de armazenamento explícito, navegação agrupada, revisão compartilhada sem sobrescrever rascunho',()=>{assert.match(page,/id="mobile-module"/);assert.match(page,/id="environment-mode"/);assert.match(page,/id="shared-revision-notice"/);assert.match(ui,/function checkSharedRevision\(/);assert.match(ui,/saved\.revision<expectedRevision\+1/);assert.match(ui,/x\.revision===expectedRevision\+1&&x\.type===type&&x\.actor===actor/);assert.match(ui,/options\(list\|\|\[\],value===''\?null:String\(value\)\)/);});

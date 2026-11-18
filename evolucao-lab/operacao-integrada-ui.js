@@ -38,7 +38,7 @@ function field(name,label,kind='text',value='',list=null){
  if(kind==='select'){
   const id='lab-select-'+(++selectFieldSerial);
   return '<div class="field"><label for="'+id+'">'+escape(label)+'</label>'+
-   '<select id="'+id+'" class="input" name="'+name+'" required>'+options(list||[])+'</select></div>';
+   '<select id="'+id+'" class="input" name="'+name+'" required>'+options(list||[],value===''?null:String(value))+'</select></div>';
  }
  else if(kind==='checkbox')input='<input name="'+name+'" type="checkbox" value="true">';
  else input='<input class="input" name="'+name+'" type="'+(kind==='int'?'number':'text')+'"'+(kind==='int'?' min="0" step="1" inputmode="numeric"':kind==='money'?' inputmode="decimal"':'')+' value="'+escape(value)+'" required maxlength="96">';
@@ -699,6 +699,21 @@ function intentRead(){
 
 
 const remoteLab=window.HLGBRemoteLab||null;
+
+let syncNoticeTimer=null,syncNoticeChecking=false,syncNoticeRevision=null;
+async function checkSharedRevision(){
+ if(!remoteLab||!doc||busy||syncNoticeChecking||document.hidden)return;
+ syncNoticeChecking=true;const notice=$('shared-revision-notice');
+ try{
+  const state=await remoteLab.state();
+  if(state.revision>doc.revision){syncNoticeRevision=state.revision;notice.hidden=false;notice.textContent='Há alterações confirmadas por outra sessão (revisão '+state.revision+'). Confira e atualize antes de salvar. Seus campos atuais ainda não foram alterados.';}
+  else if(state.revision===doc.revision){syncNoticeRevision=null;notice.hidden=true;notice.textContent='';}
+  else{notice.hidden=false;notice.textContent='O servidor apresentou revisão anterior à tela. Confira a sincronização; não repita lançamentos.';}
+ }catch(e){notice.hidden=false;notice.textContent='Releitura do servidor indisponível. A tela não foi alterada; confira a conexão e o WAL.';}
+ finally{syncNoticeChecking=false;}
+}
+function startSharedNotice(){if(!remoteLab||syncNoticeTimer!==null)return;syncNoticeTimer=setInterval(()=>{void checkSharedRevision();},15000);window.addEventListener('focus',()=>{void checkSharedRevision();});}
+
 function remotePanel(){
  if(!remoteLab)return '';
  const v=remoteLab.info(),q=v.pending;
@@ -706,7 +721,7 @@ function remotePanel(){
 }
 async function remoteAction(action){
  if(busy||!remoteLab)return;busy=true;
- try{const r=await action();if(r.state){doc=r.state;draw();}else{const banner=document.querySelector('#remote-check');if(banner)banner.closest('section').outerHTML=remotePanel();}status(r.status==='confirmed'?'Salvo e confirmado no PostgreSQL · '+str(r.result):'Sincronização: '+r.status+(r.message?' · '+r.message:''),r.status==='confirmed'?'success':'');}
+ try{const r=await action();if(r.state){doc=r.state;draw();void checkSharedRevision();}else{const banner=document.querySelector('#remote-check');if(banner)banner.closest('section').outerHTML=remotePanel();}status(r.status==='confirmed'?'Salvo e confirmado no PostgreSQL · '+str(r.result):'Sincronização: '+r.status+(r.message?' · '+r.message:''),r.status==='confirmed'?'success':'');}
  catch(e){status(e.message+' · Confira servidor / WAL antes de repetir.','error');}
  finally{busy=false;}
 }
@@ -1448,23 +1463,30 @@ function renderGlobalDetail(){
  const target=candidates.find(tr=>[...tr.querySelectorAll('td')].some(td=>td.textContent.trim().split(/\s+|·/)[0]===row.id)&&!tr.hidden);
  if(target){target.classList.add('search-hit');target.scrollIntoView({block:'nearest'});}
 }
+const navigationGroups=[["Operação",["pedidos","produtos","corte","producao","faccoes","separacao"]],["Administração",["acertos","hub","folha","compras","estoque","cadastros"]],["Gestão",["relatorios","bot","impressora3d"]],["Sistema",["nucleo","autenticacao","auditor","central"]]];
 function drawNav(){
- const host=$('module-nav');host.replaceChildren();
- modules.forEach((m,i)=>{
-  const b=document.createElement('button');b.type='button';b.dataset.module=m[0];b.setAttribute('aria-current',active===m[0]?'page':'false');
-  const num=document.createElement('span');num.className='n';num.textContent=String(i+1).padStart(2,'0');
-  b.append(num,document.createTextNode(m[1]));host.append(b);
- });
+ const host=$('module-nav'),focused=document.activeElement?.dataset?.module;host.replaceChildren();
+ for(const [label,keys] of navigationGroups){
+  const group=document.createElement('div');group.className='nav-group';const title=document.createElement('div');title.className='nav-label';title.textContent=label;group.append(title);
+  for(const key of keys){const i=ids.get(key),m=modules[i];
+   const b=document.createElement('button');b.type='button';b.dataset.module=key;b.setAttribute('aria-current',active===key?'page':'false');
+   const num=document.createElement('span');num.className='n';num.textContent=String(i+1).padStart(2,'0');
+   b.append(num,document.createTextNode(m[1]));group.append(b);}
+  host.append(group);}
+ if(focused){const target=host.querySelector('[data-module="'+focused+'"]');target?.focus({preventScroll:true});}
+ const choice=$('mobile-module');if(choice){if(!choice.options.length){for(const [label,keys] of navigationGroups){const g=document.createElement('optgroup');g.label=label;for(const key of keys){const o=document.createElement('option');o.value=key;o.textContent=modules[ids.get(key)][1];g.append(o);}choice.append(g);}}choice.value=active;}
 }
 function draw(){
  if(!doc)return;
  const mod=modules[ids.get(active)];$('module-title').textContent=mod[1];$('module-description').textContent=mod[2];
  $('top-revision').textContent=(remoteLab?'Revisão servidor ':'Revisão local ')+doc.revision+' · '+doc.log.length+' evento(s) · Sem banco de produção';
+ $('environment-mode').textContent=remoteLab?'PostgreSQL de teste · compartilhado':'Banco fictício neste navegador';
+ $('environment-warning').textContent=remoteLab?'Homologação local compartilhada em PostgreSQL. Não use dados reais. Não há integração com Supabase, pagamentos ou emissão fiscal.':'Homologação no IndexedDB deste navegador. Abas do mesmo perfil compartilham dados; computadores distintos não. Não use dados ou documentos reais.';
  const t=api.totals(doc),metrics=[
  ['Pedidos fictícios',String(t.orders)],['Peças pedidas',String(t.pieces)],['Peças cortadas',String(t.cut)],
  ['Títulos a pagar abertos',fmt(t.openPayables)]];
  $('global-metrics').innerHTML=metrics.map(([label,value])=>'<div class="metric"><span>'+escape(label)+'</span><strong>'+escape(value)+'</strong></div>').join('');
- $('module-content').innerHTML=remotePanel()+moduleHtml(doc);
+ try{$('module-content').innerHTML=remotePanel()+moduleHtml(doc);}catch(e){$('module-content').innerHTML=remotePanel()+panel('Não foi possível exibir esta área','<div class="error">'+str(e.message)+'</div><p>Os dados não foram modificados. Abra outro módulo, exporte as evidências ou tente recarregar.</p><button type="button" class="btn" data-goto="auditor">Abrir Auditor</button>',true);}
  if(active==='acertos'){refreshServicePreview();applySettlementFilters();const f=document.querySelector('form[data-command="settlement.revise"]');if(f)fillSettlementRevision(f);}
  if(active==='faccoes'){const f=document.querySelector('form[data-command="faction.assignment.rate.set"]');if(f)fillAssignmentRate(f);}
  if(active==='hub'){const f=document.querySelector('form[data-command="finance.receipt.attach"]');if(f)updateReceiptTarget(f);const g=document.querySelector('form[data-command="finance.revise"]');if(g)fillFinanceRevision(g);}
@@ -1574,6 +1596,7 @@ async function submit(form,type){
  try{
   const expectedRevision=doc.revision;
   if(remoteLab){
+   if(syncNoticeRevision!==null&&syncNoticeRevision>expectedRevision)throw Error('Há revisão nova no servidor. Confira as alterações antes de enviar outra operação.');
    const payload=type==='finance.receipt.attach'?await readReceiptPayload(form):type==='print.photo.attach'?await readPrintPhoto(form):type==='purchase.invoice.pdf'?await readInvoicePdf(form):parseData(type,form);
    const result=await remoteLab.submit(type,payload,expectedRevision);
    if(result.status!=='confirmed'){const banner=document.querySelector('#remote-check');if(banner){banner.closest('section').outerHTML=remotePanel();}throw Error('Servidor: '+result.status+' · '+(result.message||'Revise a intenção sem repetir.'));}
@@ -1588,7 +1611,7 @@ async function submit(form,type){
   let tx;try{tx=await transact(previous=>api.apply(previous,{type,payload,commandId:id,actor,expectedRevision,recordedAt:intent.recordedAt}));}
   catch(e){try{await intentWrite(intent,true);}catch(ignore){}throw e;}
   const saved=await read();
-  if(!saved||saved.revision!==expectedRevision+1||!saved.log.some(x=>x.commandId===id))
+  if(!saved||saved.revision<expectedRevision+1||!saved.log.some(x=>x.commandId===id&&x.revision===expectedRevision+1&&x.type===type&&x.actor===actor))
    throw Error('Gravação inconclusiva: não foi encontrada na releitura. Não repetir sem conferir.');
   const integrity=api.inspect(saved);
   if(!integrity.ok)throw Error('Gravação sem integridade comprovada: '+integrity.problems.join('; '));
@@ -2102,6 +2125,7 @@ window.addEventListener('hashchange',()=>{
  const next=window.location.hash.slice(1);
  if(ids.has(next)&&doc&&next!==active){searchState.selected=null;active=next;draw()}
 });
+$('mobile-module').addEventListener('change',()=>{const key=$('mobile-module').value;if(ids.has(key)){searchState.selected=null;active=key;window.location.hash=key;draw();window.scrollTo(0,0);}});
 $('global-search-module').addEventListener('change',()=>{searchState.page=1;searchState.selected=null;renderGlobalSearch();renderGlobalDetail()});
 $('export-json').addEventListener('click',exportReport);
 $('export-csv').addEventListener('click',exportCsv);
@@ -2109,7 +2133,7 @@ $('refresh').addEventListener('click',reload);
 $('reset').addEventListener('click',reset);
 (async()=>{
  try{
-  if(remoteLab){doc=await remoteLab.init();$('reset').disabled=true;draw();startMonitor();status('Laboratório compartilhado iniciado · banco fictício.','success');return;}
+  if(remoteLab){doc=await remoteLab.init();$('reset').disabled=true;draw();startMonitor();startSharedNotice();status('Laboratório compartilhado iniciado · banco fictício.','success');return;}
   db=await openDB();
   await transact(()=>null);
   doc=await read();

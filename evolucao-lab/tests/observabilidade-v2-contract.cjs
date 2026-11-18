@@ -175,3 +175,5 @@ test('módulos são independentes, sem APIs externas ou exclusão de dados',()=>
    assert.equal(bad.test(src),false,'Módulo não pode conter '+bad);
  }
 });
+
+test('observador reconhece folha integrada ao Hub sem lançar erro de origem órfã',()=>{let s=core.initial();const p={period:'2026-11',dueDate:'2026-12-05',employeeId:'todos',reason:'Folha fictícia'};const q=require('../modulos/folha-pedidos-v1.js').payrollPreview(s,p);s=apply(s,'payroll.period.create',{...p,signature:q.signature},'PAY-TEST');const r=observer.analyze(s);assert.equal(s.finance.length,2);assert.ok(!r.findings.some(f=>s.finance.some(t=>t.id===f.recordId)&&/origem/i.test(f.message)));});
