@@ -17,6 +17,7 @@
     "release-cut-weight-v9579.js",
     "release-cut-model-split.js",
     "release-cut-model-grade-adjust.js",
+    "hlgb-modules/corte/folha-grade-materiais-v9604.js",
     "release-cutter-sheet-materials-v9523.js",
     "release-record-integrity.js",
     "release-cut-duplicate-repair-v95105.js",
@@ -207,6 +208,7 @@
       "release-cut-weight-v9579.js",
       "release-cut-model-split.js",
       "release-cut-model-grade-adjust.js",
+      "hlgb-modules/corte/folha-grade-materiais-v9604.js",
       "release-cutter-sheet-materials-v9523.js",
       "release-cut-duplicate-repair-v95105.js",
       "release-cutter-planner.js",
@@ -360,7 +362,8 @@
     "release-payroll-save-stability-v9296.js": "9a125f5cd33cab13eafc6a82288417e6d0b77b7c",
     "release-faction-manual-payment-v9566.js": "2af968249fcf4d06a832b2563f04c251bf259948",
     "release-pricing.js": "91c44c12915a4d4988f5465d50fc64d35b4c9e06",
-    "release-hub-save-proof-v9567.js": "740628ed76fb377b9d23f70bde3b065cfff997bf"
+    "release-hub-save-proof-v9567.js": "740628ed76fb377b9d23f70bde3b065cfff997bf",
+    "release-cutter-sheet-materials-v9523.js": "8ced81c24eb1ac3185102e242ebbd59c67381169"
   },
   "preExtractionScripts": [
     "release-faction-ledger-preservation-v9597.js",
@@ -530,16 +533,23 @@
     "release-payroll-save-stability-v9296.js": "9a125f5cd33cab13eafc6a82288417e6d0b77b7c",
     "release-faction-manual-payment-v9566.js": "2af968249fcf4d06a832b2563f04c251bf259948",
     "release-pricing.js": "91c44c12915a4d4988f5465d50fc64d35b4c9e06",
-    "release-hub-save-proof-v9567.js": "740628ed76fb377b9d23f70bde3b065cfff997bf"
+    "release-hub-save-proof-v9567.js": "740628ed76fb377b9d23f70bde3b065cfff997bf",
+    "release-cutter-sheet-materials-v9523.js": "0c78abd815aa0e61f66eb6802e14d05266369b6f"
   },
   "approvedNewScripts": [
-    "hlgb-modules/corte/grade-modelo-v9602.js"
+    "hlgb-modules/corte/grade-modelo-v9602.js",
+    "hlgb-modules/corte/folha-grade-materiais-v9604.js"
   ],
   "extractionChanges": {
     "release-cutter-planner.js": {
       "before": "a56f2c79df19ebb1cd86544a13976a97538d6a4e",
       "after": "8822c338ebd926dbcfd7c555433089802d02bc30",
       "reason": "extração de três cálculos puros com fallback, sem alteração da persistência"
+    },
+    "release-cutter-sheet-materials-v9523.js": {
+      "before": "0c78abd815aa0e61f66eb6802e14d05266369b6f",
+      "after": "8ced81c24eb1ac3185102e242ebbd59c67381169",
+      "reason": "extração pura de seleção de grade e previsão de materiais da folha impressa, mantendo fallback"
     }
   }
 }
