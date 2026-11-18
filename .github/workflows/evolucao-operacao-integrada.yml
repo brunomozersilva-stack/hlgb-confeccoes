@@ -16,6 +16,7 @@ on:
       - 'evolucao-lab/tests/planejamento-materiais-contract.cjs'
       - 'evolucao-lab/tests/corte-bom-contract.cjs'
       - 'evolucao-lab/tests/corte-multimodelo-contract.cjs'
+      - 'evolucao-lab/tests/corte-multimodelo-mobile.cjs'
       - 'evolucao-lab/tests/requisicoes-compras-contract.cjs'
       - 'evolucao-lab/tests/cancelamento-compra-contract.cjs'
       - 'evolucao-lab/tests/correcao-acerto-*.cjs'
@@ -85,6 +86,7 @@ jobs:
           HLGB_SCREENSHOT_DIR: /tmp/hlgb-operacao
         run: |
           node evolucao-lab/tests/operacao-integrada-mobile.cjs
+          node evolucao-lab/tests/corte-multimodelo-mobile.cjs
           node evolucao-lab/tests/correcao-acerto-mobile.cjs
           node evolucao-lab/tests/comprovantes-mobile.cjs
           node evolucao-lab/tests/lote-amplo-mobile.cjs
