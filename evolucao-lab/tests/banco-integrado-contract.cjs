@@ -88,7 +88,12 @@ test('leitura de produção exclui salários, Folha, títulos, preços e trilha 
  const limited=productionView.project(source,B);
  assert.equal(limited.schema,'hlgb-evolucao-operacao-producao-ficticia-v1');
  assert.equal(limited.revision,full.revision);
- assert.deepEqual(Object.keys(limited).sort(),['schema','readScope','revision','clients','products','factions','orders','cutPlans'].sort());
+ assert.deepEqual(Object.keys(limited).sort(),['schema','readScope','revision','clients','products','factions','orders','cutPlans','factionAssignments'].sort());
+ assert.equal(Array.isArray(limited.factionAssignments),true);
+ assert.equal(limited.factionAssignments.length,full.factionAssignments.length);
+ for(const assignment of limited.factionAssignments)
+  assert.deepEqual(Object.keys(assignment).sort(),['id','orderId','factionId','qtySent','qtyReturned'].sort(),
+   'Envio expõe somente saldos e IDs operacionais de facções');
  assert.deepEqual(Object.keys(limited.products[0]).sort(),['id','sku','name'].sort());
  assert.deepEqual(Object.keys(limited.factions[0]).sort(),['id','name'].sort());
  assert.equal(limited.orders.length,full.orders.length);
