@@ -28,7 +28,7 @@
  const rule=eligible[0];if(!rule)throw Error('Consumo não cadastrado para '+material.name+' · '+part.color+' '+part.size+'.');
  rows.push({materialId,materialName:material.name,color:part.color,size:part.size,qty:part.qty,ruleId:rule.id,gramsPerUnit:rule.gramsPerUnit,grams:part.qty*rule.gramsPerUnit});}}
  const materials=[...new Set(rows.map(x=>x.materialId))].map(id=>({materialId:id,name:by(s.materials,id).name,grams:rows.filter(x=>x.materialId===id).reduce((v,x)=>v+x.grams,0)}));
- const signature=JSON.stringify([a.id,a.factionId,p.id,pending,rows.map(x=>[x.materialId,x.color,x.size,x.qty,x.ruleId,x.gramsPerUnit]).sort((x,y)=>JSON.stringify(x).localeCompare(JSON.stringify(y)))]);
+ const signature=JSON.stringify([a.id,a.factionId,p.id,pending,rows.map(x=>[x.materialId,x.color,x.size,x.qty,x.ruleId,x.gramsPerUnit]).sort((x,y)=>JSON.stringify(x)<JSON.stringify(y)?-1:JSON.stringify(x)>JSON.stringify(y)?1:0)]);
  return {assignmentId:a.id,orderId:o.id,factionId:a.factionId,productId:p.id,pending,rows,materials,signature,stockWritten:false};}
  function checklist(s,p,ctx){const q=materialPreview(s,p.assignmentId);if(p.signature!==q.signature)throw Error('Envio ou ficha mudou; revise os materiais antes de confirmar.');
  const all=s.factionMaterialChecklists||(s.factionMaterialChecklists=[]),old=all.filter(x=>x.assignmentId===q.assignmentId).at(-1);
