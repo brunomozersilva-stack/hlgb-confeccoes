@@ -212,17 +212,21 @@
       fail('Histórico/versionamento da etiqueta inválido');
     if(t.history.at(-1).commandId!==t.updatedCommandId)fail('Última edição da etiqueta sem comando');
     if(t.active!==true&&t.history.at(-1).type!=='archived')fail('Arquivo de etiqueta sem evento');
-    let prev=0;for(const e of t.history){
+    let prev=0,priorData=null;for(const e of t.history){
      const v=log.get(e.commandId);
      if(!v||v.revision!==e.revision||e.revision<=prev||!{
       created:'label.template.add',edited:'label.template.edit',archived:'label.template.archive'
      }[e.type]||v.type!=={created:'label.template.add',edited:'label.template.edit',archived:'label.template.archive'}[e.type])
       fail('Evento da etiqueta sem origem ou fora de ordem');
+     if(e.type==='edited'&&(!e.before||fingerprint(e.before)!==priorData))
+      fail('Etiqueta editada sem histórico anterior compatível');
+     if(e.type==='archived'&&e.afterFingerprint!=='archived')fail('Evento de arquivo inválido');
+     if(e.type!=='archived')priorData=e.afterFingerprint;
      prev=e.revision;
     }
     const actual=Object.fromEntries(['clientId','clientName','productId','productName','sku',
       'cnpj','productUrl','fileName','fieldsNote'].map(k=>[k,t[k]]));
-    if(t.active&&fingerprint(actual)!==t.history.at(-1).afterFingerprint)fail('Etiqueta alterada fora do histórico');
+    if(fingerprint(actual)!==priorData)fail('Etiqueta alterada fora do histórico, inclusive se arquivada');
    }catch(e){issues.push(String(t?.id||'ETM')+': '+e.message)}
   }
   for(const row of s.packerAssignmentsLab){
@@ -244,12 +248,20 @@
       (snap.productId&&snap.productId!==row.productId)||snap.version>tmpl.version)
       fail('Etiqueta vinculada ao cliente/modelo incorreto');
     }
-    let prev=0;for(const e of row.history){
+    let prev=0,priorFingerprint=null,priorDone=0;for(const e of row.history){
      const event=log.get(e.commandId);
      if(!event||event.revision!==e.revision||e.revision<=prev||
       event.type!=={created:'packer.assign',revised:'packer.revise',
       progressed:'packer.progress',corrected:'packer.progress',cancelled:'packer.cancel'}[e.type])
       fail('Tarefa com operação sem prova global');
+     if(e.type==='revised'&&(!e.before||
+        fingerprint({fields:e.before,label:e.labelBefore})!==priorFingerprint))
+       fail('Revisão da embalagem não corresponde ao estado anterior');
+     if(e.type!=='created'&&e.type!=='cancelled'&&e.doneBefore!==priorDone)
+       fail('Progressão/correção sem quantidade anterior coerente');
+     if(e.type==='created'&&e.doneAfter!==0)fail('Embalagem iniciada com peça concluída');
+     if(!Number.isSafeInteger(e.doneAfter)||e.doneAfter<0)fail('Histórico de quantidade inválido');
+     priorDone=e.doneAfter;priorFingerprint=e.afterFingerprint;
      prev=e.revision;
     }
     if(assignmentFingerprint(row)!==row.history.at(-1).afterFingerprint)
