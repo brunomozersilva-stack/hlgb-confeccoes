@@ -21,3 +21,9 @@ A criação do esquema usa o administrador exclusivamente no PostgreSQL descart�
 
 ### Login de laboratório fictício
 O POST do formulário usa nonce CSRF de uso único, cookie HttpOnly SameSite=Strict sem depender de Origin/Referer (que navegadores podem omitir em formulários). O token é guardado em memória no servidor e só pode ser usado uma vez, sem exigir o cabeçalho `Origin` de navegadores que não o enviam. O POST JSON autenticado exige cabeçalho customizado e tipo application/json; nunca é login empresarial ou publicação pública. Os PINs em código são apenas de teste local. 
+
+## Perfis de escrita demonstrativos (não liberar)
+- Operador A: todos os comandos inventariados explicitamente (falha fechada para novos comandos desconhecidos).
+- Operador B: operações de pedidos, corte, facções e embalagem; proibidos os comandos financeiros, Folha e ajustes administrativos.
+- A política é conferida no servidor e desabilita botões na interface apenas como auxílio. Burlar a interface não libera comandos.
+- **Limitação crítica:** o endpoint `/api/state` ainda entrega snapshot completo a ambos os perfis fictícios; **NÃO existe segregação de leitura nem autorização empresarial por registro ou funcionário**. Não utilizar dados reais e não hospedar esta implementação como serviço público.

@@ -13,6 +13,21 @@ test('interface completa em duas sessões, conflito, WAL e confirmação indepen
  catch(err){const html=await page.locator('body').innerText().catch(()=>'sem corpo');const session=await page.request.get(url+'/api/session').then(r=>({status:r.status(),body:r.text()})).catch(e=>({error:e.message}));throw Error('Falha login '+actor+'; url='+page.url()+'; tela='+html.slice(0,1600)+'; session='+JSON.stringify(session)+'; JS='+JSON.stringify(errors)+'; HTTP='+JSON.stringify(bad));}
  }
  await login(a,'A');await login(b,'B');
+ const sessionB=await b.request.get(url+'/api/session').then(x=>x.json());
+ assert.equal(sessionB.permissions.id,'demo-production');
+ assert.equal(sessionB.permissions.productionApproval,false);
+ assert.equal(sessionB.permissions.allowedCommands.includes('finance.pay'),false);
+ await b.locator('[data-module=hub]').click();
+ const forbiddenForm=b.locator('form[data-command="finance.add"] button[type=submit]');
+ assert.equal(await forbiddenForm.isDisabled(),true,'Interface deve desabilitar ação financeira fictícia');
+ const beforeDenied=await db.state();
+ const denied=await b.evaluate(async r=>{
+ const response=await fetch('/api/commands',{method:'POST',credentials:'same-origin',headers:{'content-type':'application/json','x-hlgb-integrado':'1'},body:JSON.stringify({commandId:'LAB-NO-FINANCE-B',type:'finance.add',expectedRevision:r,payload:{kind:'pagar',description:'Não autorizar',amountCents:1000,category:'Aluguel'}})});
+ return {code:response.status,payload:await response.json()};
+ },beforeDenied.revision);
+ assert.equal(denied.payload.status,'rejected');
+ assert.deepEqual(await db.state(),beforeDenied,'Operador B não pode contornar tela por requisição direta');
+
  for(const page of [a,b])await page.locator('[data-module=pedidos]').click();
  const form=page=>page.locator('form[data-command="order.add"]');
  await form(a).locator('button[type=submit]').click();await a.waitForFunction(()=>document.querySelector('#top-revision').textContent.includes('Revisão servidor 2'));

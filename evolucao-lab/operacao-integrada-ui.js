@@ -714,7 +714,7 @@ function startSharedNotice(){if(!remoteLab||syncNoticeTimer!==null)return;syncNo
 function remotePanel(){
  if(!remoteLab)return '';
  const v=remoteLab.info(),q=v.pending;
- return panel('Sincronização integrada · laboratório remoto','<p>'+str(v.actor||'Sessão fictícia')+' · PostgreSQL descartável. Nenhum dado real. '+(q?'Comando pendente: '+str(q.command.commandId)+' · '+str(q.stage):'Sem comando pendente nesta sessão.')+'</p><div class="actions"><button type="button" class="btn" id="remote-check">Conferir servidor / WAL</button><button type="button" class="btn" id="remote-retry" '+(q?.stage==='not_found'?'':'disabled')+'>Reenviar mesmo ID</button><button type="button" class="btn" id="remote-discard" '+(q&&['not_found','conflict','rejected'].includes(q.stage)?'':'disabled')+'>Descartar intenção após revisão</button></div>',true);
+ return panel('Sincronização integrada · laboratório remoto','<p>'+str(v.actor||'Sessão fictícia')+' · '+str(v.permissions?.label||'Perfil não identificado')+' · PostgreSQL descartável. Nenhum dado real. <strong>Permissões de escrita demonstrativas; leitura do snapshot não segmentada.</strong> '+(q?'Comando pendente: '+str(q.command.commandId)+' · '+str(q.stage):'Sem comando pendente nesta sessão.')+'</p><div class="actions"><button type="button" class="btn" id="remote-check">Conferir servidor / WAL</button><button type="button" class="btn" id="remote-retry" '+(q?.stage==='not_found'?'':'disabled')+'>Reenviar mesmo ID</button><button type="button" class="btn" id="remote-discard" '+(q&&['not_found','conflict','rejected'].includes(q.stage)?'':'disabled')+'>Descartar intenção após revisão</button></div>',true);
 }
 async function remoteAction(action){
  if(busy||!remoteLab)return;busy=true;
@@ -1504,6 +1504,8 @@ function draw(){
  ['Títulos a pagar abertos',fmt(t.openPayables)]];
  $('global-metrics').innerHTML=metrics.map(([label,value])=>'<div class="metric"><span>'+escape(label)+'</span><strong>'+escape(value)+'</strong></div>').join('');
  try{$('module-content').innerHTML=remotePanel()+moduleHtml(doc);visitedModules.add(active);}catch(e){$('module-content').innerHTML=remotePanel()+panel('Não foi possível exibir esta área','<div class="error">'+str(e.message)+'</div><p>Os dados não foram modificados. Abra outro módulo, exporte as evidências ou tente recarregar.</p><button type="button" class="btn" data-goto="auditor">Abrir Auditor</button>',true);}
+ if(remoteLab){const allowed=new Set(remoteLab.info().permissions?.allowedCommands||[]);
+ for(const f of document.querySelectorAll('#module-content form[data-command]')){if(allowed.has(f.dataset.command))continue;for(const button of f.querySelectorAll('button[type="submit"]')){button.disabled=true;button.title='Ação não autorizada para o perfil fictício';}const notice=document.createElement('p');notice.className='caption';notice.textContent='Permissão de escrita restrita a outro perfil. Não use dados reais.';f.append(notice);}}
  if(active==='acertos'){refreshServicePreview();applySettlementFilters();const f=document.querySelector('form[data-command="settlement.revise"]');if(f)fillSettlementRevision(f);}
  if(active==='faccoes'){const f=document.querySelector('form[data-command="faction.assignment.rate.set"]');if(f)fillAssignmentRate(f);}
  if(active==='hub'){const f=document.querySelector('form[data-command="finance.receipt.attach"]');if(f)updateReceiptTarget(f);const g=document.querySelector('form[data-command="finance.revise"]');if(g)fillFinanceRevision(g);}

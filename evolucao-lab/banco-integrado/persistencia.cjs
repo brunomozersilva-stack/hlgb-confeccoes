@@ -1,6 +1,6 @@
 'use strict';
 // Adaptador de persistência integral, exclusivamente localhost/CI. Não é API pública.
-const {Client}=require('pg'),crypto=require('node:crypto'),core=require('../operacao-integrada-core.js');
+const {Client}=require('pg'),crypto=require('node:crypto'),core=require('../operacao-integrada-core.js'),permissions=require('./permissoes-lab.cjs');
 const DB='hlgb_integrado_lab',MARK='HLGB-EVOLUCAO-FICTICIO-LOCAL-V1',ID='operacao-ficticia';
 function guard(env=process.env){if(env.PGDATABASE!==DB||env.PGHOST!=='127.0.0.1'||!/^\d+$/.test(env.PGPORT||'')||env.PGUSER!=='hlgb_lab_runner'||!env.PGPASSWORD)throw Error('Conexão recusada: somente banco local descartável.');}
 function canonical(v){if(v===null||typeof v==='string'||typeof v==='boolean'||typeof v==='number'&&Number.isFinite(v))return JSON.stringify(v);
@@ -25,7 +25,7 @@ async function verifyLedger(c,current){
 }
 async function state(){return withDb(async c=>{await c.query('BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY');try{const current=verifyDocument((await c.query('SELECT revision,state FROM hlgb_integrado_lab.documents WHERE id=$1',[ID])).rows[0]);await verifyLedger(c,current);await c.query('COMMIT');return current;}catch(e){await c.query('ROLLBACK').catch(()=>{});throw e;}});}
 async function revision(){return withDb(async c=>{const row=(await c.query('SELECT revision FROM hlgb_integrado_lab.documents WHERE id=$1',[ID])).rows[0],n=Number(row?.revision);if(!Number.isSafeInteger(n)||n<1)throw Error('Revisão indisponível.');return n;});}
-async function commit(cmd,actor){let fingerprint;try{fingerprint=validate(cmd,actor);}catch(e){return {status:'rejected',message:e.message};}
+async function commit(cmd,actor){let fingerprint;try{fingerprint=validate(cmd,actor);if(!permissions.can(actor,cmd.type))throw Error('Comando não permitido para o perfil fictício.');}catch(e){return {status:'rejected',message:e.message};}
  return withDb(async c=>{await c.query('BEGIN');try{
  const current=verifyDocument((await c.query('SELECT revision,state FROM hlgb_integrado_lab.documents WHERE id=$1 FOR UPDATE',[ID])).rows[0]);
  await verifyLedger(c,current);

@@ -49,3 +49,18 @@ test('papel de serviço sem poderes de administrador, DDL ou exclusão de histó
  await assert.rejects(()=>c.query("DELETE FROM hlgb_integrado_lab.events WHERE false"),/permission denied/);
  }finally{await c.end();}
 });
+
+const permissions=require('../banco-integrado/permissoes-lab.cjs');
+test('política de escrita fictícia recusa novos comandos fora da lista e o financeiro para operador de produção',()=>{
+ assert.equal(permissions.can(B,'order.add'),true);assert.equal(permissions.can(B,'faction.allocate'),true);
+ for(const t of ['finance.pay','finance.add','finance.revise','payroll.period.create','payroll.update','settlement.service.group','finance.faction.close','unknown.new','demo.reset'])assert.equal(permissions.can(B,t),false,t);
+ assert.equal(permissions.can(A,'finance.pay'),true);assert.equal(permissions.can('Inválido','order.add'),false);
+ assert.deepEqual(new Set(permissions.publicProfile(B).allowedCommands).size,permissions.publicProfile(B).allowedCommands.length);
+ assert.equal(permissions.publicProfile(B).readScope,'snapshot_completo_ficticio_sem_isolamento_de_leitura');
+});
+test('autorização de servidor impede alteração financeira com revisão válida, sem criar evento nem título',async()=>{
+ const before=await db.state(),forbidden=cmd('deny-finance-0001','finance.add',before.revision,{kind:'pagar',description:'NÃO INSERIR',amountCents:10000,category:'Aluguel'});
+ const response=await db.commit(forbidden,B);assert.equal(response.status,'rejected');assert.match(response.message,/não permitido/);
+ const after=await db.state();assert.deepEqual(after,before);
+ assert.equal((await db.readback(forbidden.commandId,forbidden,B)).status,'not_found');
+});
