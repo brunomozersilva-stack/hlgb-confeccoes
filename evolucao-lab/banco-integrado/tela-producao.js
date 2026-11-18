@@ -23,6 +23,24 @@
    const button=form.querySelector('button[type=submit]');if(button)button.disabled=busy||!!pending||!permitted;
   }
  }
+ function remaining(order,size){
+  if(!order)return 0;
+  const reserved=(view?.cutPlans||[]).filter(p=>p.orderId===order.id&&p.status==='aberto').reduce((n,p)=>n+(p.grade[size]||0),0);
+  return Math.max(0,(order.grade[size]||0)-(order.cut[size]||0)-reserved);
+ }
+ function chooseAvailableCut(){
+  const form=document.querySelector('form[data-command="cut.record"]');
+  if(!form||!view)return;
+  const order=view.orders.find(o=>o.id===form.elements.namedItem('orderId').value);
+  const sizeSelect=form.elements.namedItem('size');
+  if(order&&remaining(order,sizeSelect.value)===0){
+   const available=sizes.find(size=>remaining(order,size)>0);
+   if(available)sizeSelect.value=available;
+  }
+  const available=remaining(order,sizeSelect.value),quantity=form.elements.namedItem('qty');
+  quantity.max=String(Math.max(1,Math.min(10000,available)));
+  if(!Number.isSafeInteger(Number(quantity.value))||Number(quantity.value)>available||Number(quantity.value)<1)quantity.value='1';
+ }
  function render(next){
   if(next.schema!=='hlgb-evolucao-operacao-producao-ficticia-v1'||next.readScope!==remote.info().permissions?.readScope)throw Error('Projeção não autorizada');
   view=next;byId('top-revision').textContent='Revisão do PostgreSQL de teste: '+view.revision+' · '+remote.info().permissions.label+' ('+remote.info().permissions.employeeId+') · leitura limitada';
@@ -33,6 +51,7 @@
    options(form.elements.namedItem('orderId'),orders,x=>x.id+' · '+(products.find(p=>p.id===x.productId)?.name||'Modelo'));
   }
   options(document.querySelector('form[data-command="faction.allocate"] [name=factionId]'),factions,x=>x.name);
+  chooseAvailableCut();
   const tbody=byId('orders');tbody.replaceChildren();
   for(const o of orders){
    const row=document.createElement('tr');
@@ -92,6 +111,8 @@
    const state=await remote.init();
    if(remote.info().permissions?.id!=='demo-production')throw Error('Não é uma sessão de produção');
    for(const f of document.querySelectorAll('form[data-command]'))f.addEventListener('submit',onSubmit);
+   const cutForm=document.querySelector('form[data-command="cut.record"]');
+   for(const name of ['orderId','size'])cutForm.elements.namedItem(name).addEventListener('change',chooseAvailableCut);
    byId('remote-check').addEventListener('click',()=>void action('check'));
    byId('remote-retry').addEventListener('click',()=>void action('retry'));
    byId('remote-discard').addEventListener('click',()=>void action('discard'));

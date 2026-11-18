@@ -85,11 +85,18 @@ test('interface completa em duas sessões, conflito, WAL e confirmação indepen
  },prior.revision);
  assert.equal(forbiddenCut.status,'rejected');
  assert.deepEqual(await db.state(),prior,'Corte não pode criar pedido mesmo via API');
+ const selectedSize=await cutter.locator('form[data-command="cut.record"] [name=size]').inputValue();
+ assert.equal(selectedSize,'M','A tela deve escolher automaticamente o tamanho ainda disponível no pedido');
  await cutter.locator('form[data-command="cut.record"] button[type=submit]').click();
- await cutter.waitForFunction(()=>document.querySelector('#top-revision').textContent.includes('teste: 5'));
+ try{await cutter.waitForFunction(()=>document.querySelector('#top-revision').textContent.includes('teste: 5'),null,{timeout:16000});}
+ catch(e){
+  const banner=await cutter.locator('#message').innerText();
+  const fresh=await db.state();
+  throw Error('Falha no corte: '+banner+'; revisão '+fresh.revision+'; grade '+JSON.stringify(fresh.orders[0]?.grade)+'; cortado '+JSON.stringify(fresh.orders[0]?.cut));
+ }
  const afterCut=await db.state();
  assert.equal(afterCut.log.at(-1).actor,'Operador C fictício');
- assert.equal(afterCut.orders[0].cut.P,1);
+ assert.equal(afterCut.orders[0].cut.M,1);
  await cutter.locator('#logout-demo').click();
  await cutter.waitForURL('**/login');
  assert.equal(await cutter.request.get(url+'/api/session').then(r=>r.status()),401,'Logout invalida cookie e sessão');
