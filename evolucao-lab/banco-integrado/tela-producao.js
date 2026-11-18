@@ -2,7 +2,18 @@
 (function(){
  'use strict';
  const remote=window.HLGBRemoteLab,byId=id=>document.getElementById(id);
- let view=null,busy=false;
+ let view=null,busy=false,serverRevision=null,checking=false;
+ const changed=()=>!!view&&Number.isSafeInteger(serverRevision)&&serverRevision>view.revision;
+ function syncWarning(){
+  const notice=byId('shared-revision-notice'),button=byId('sync-refresh');
+  const stale=changed();
+  notice.hidden=!stale;
+  button.hidden=!stale;
+  button.disabled=busy||!stale;
+  if(stale)notice.textContent='Outro computador ou aba alterou o banco para a revisão '+serverRevision+
+    '. Os campos em edição foram preservados. Confira os dados antes de salvar.';
+  else notice.textContent='';
+ }
  const sizes=['P','M','G','GG'],sum=g=>sizes.reduce((n,k)=>n+(g?.[k]||0),0);
  function message(value,kind=''){const m=byId('message');m.textContent=value;m.className=kind;}
  function options(select,rows,format){
@@ -20,8 +31,10 @@
    const permitted=allowed.includes(form.dataset.command);
    form.parentElement.hidden=!permitted;
    form.parentElement.style.display=permitted?'':'none';
-   const button=form.querySelector('button[type=submit]');if(button)button.disabled=busy||!!pending||!permitted;
+   const button=form.querySelector('button[type=submit]');
+   if(button)button.disabled=busy||!!pending||!permitted||changed();
   }
+  syncWarning();
  }
  function remaining(order,size){
   if(!order)return 0;
@@ -43,7 +56,9 @@
  }
  function render(next){
   if(next.schema!=='hlgb-evolucao-operacao-producao-ficticia-v1'||next.readScope!==remote.info().permissions?.readScope)throw Error('Projeção não autorizada');
-  view=next;byId('top-revision').textContent='Revisão do PostgreSQL de teste: '+view.revision+' · '+remote.info().permissions.label+' ('+remote.info().permissions.employeeId+') · leitura limitada';
+  view=next;
+  serverRevision=Math.max(serverRevision||0,view.revision);
+  byId('top-revision').textContent='Revisão do PostgreSQL de teste: '+view.revision+' · '+remote.info().permissions.label+' ('+remote.info().permissions.employeeId+') · leitura limitada';
   const clients=view.clients||[],products=view.products,factions=view.factions||[],orders=view.orders;
   options(document.querySelector('form[data-command="order.add"] [name=clientId]'),clients,x=>x.name);
   options(document.querySelector('form[data-command="order.add"] [name=productId]'),products,x=>x.name+' · '+x.sku);
@@ -60,6 +75,32 @@
    tbody.append(row);
   }
   updatePending();
+ }
+ // Somente leitura: não repete comandos, não toca nos rascunhos ou no WAL.
+ async function checkSharedRevision(){
+  if(!view||checking||busy)return;
+  checking=true;
+  try{
+   const current=await remote.revision();
+   if(current>serverRevision||serverRevision===null)serverRevision=current;
+   if(current<view.revision)message('Revisão do servidor regrediu. Pare os lançamentos e confira o ambiente.','error');
+   updatePending();
+  }catch(e){
+   message('Não foi possível verificar mudanças de outros computadores: '+e.message,'error');
+  }finally{checking=false;}
+ }
+ async function refreshShared(){
+  if(busy)return;
+  busy=true;updatePending();
+  try{
+   const pending=await remote.load();
+   if(pending){message('Há uma operação pendente: confira o WAL antes de atualizar. Nenhum rascunho foi apagado.','error');return;}
+   const current=await remote.state();
+   render(current);
+   if(changed())message('Uma nova revisão apareceu durante a leitura. Confira novamente antes de gravar.','error');
+   else message('Dados compartilhados atualizados. Seus campos de formulário foram mantidos.','success');
+  }catch(e){message('Atualização sem confirmação: '+e.message,'error');}
+  finally{busy=false;updatePending();}
  }
  function payload(form){
   const type=form.dataset.command,values=Object.fromEntries(new FormData(form).entries());
@@ -78,12 +119,13 @@
  async function onSubmit(event){
   event.preventDefault();
   if(busy||!view||remote.info().pending)return;
+  if(changed()){message('Há uma revisão nova de outro computador. Confira os dados antes de salvar; nenhuma operação foi enviada.','error');return;}
   const form=event.currentTarget,type=form.dataset.command;
   try{
    const input=payload(form);
    busy=true;updatePending();
    const current=await remote.revision();
-   if(current!==view.revision){message('O servidor mudou para a revisão '+current+'. Confira a nova situação antes de gravar.','error');return;}
+   if(current!==view.revision){serverRevision=current;updatePending();message('O servidor mudou para a revisão '+current+'. Confira a nova situação antes de gravar. Nenhum comando foi enviado.','error');return;}
    const result=await remote.submit(type,input,view.revision);
    if(result.status!=='confirmed'){message('Registro sem confirmação: '+result.status+'. Confira o WAL antes de repetir.','error');return;}
    render(result.state);message('Operação '+type+' salva e confirmada. '+result.result,'success');
@@ -114,10 +156,15 @@
    const cutForm=document.querySelector('form[data-command="cut.record"]');
    for(const name of ['orderId','size'])cutForm.elements.namedItem(name).addEventListener('change',chooseAvailableCut);
    byId('remote-check').addEventListener('click',()=>void action('check'));
+   byId('sync-refresh').addEventListener('click',()=>void refreshShared());
+   window.addEventListener('focus',()=>void checkSharedRevision());
+   document.addEventListener('visibilitychange',()=>{if(!document.hidden)void checkSharedRevision();});
+   setInterval(()=>{if(!document.hidden)void checkSharedRevision();},15000);
    byId('remote-retry').addEventListener('click',()=>void action('retry'));
    byId('remote-discard').addEventListener('click',()=>void action('discard'));
    byId('logout-demo').addEventListener('click',()=>{if(!busy)void remote.logout().catch(e=>message('Não foi possível encerrar a sessão: '+e.message,'error'));});
    render(state);message('Somente cadastros e operações produtivas fictícias estão visíveis.','success');
+   void checkSharedRevision();
   }catch(e){message('Acesso de produção indisponível: '+e.message,'error');for(const b of document.querySelectorAll('button'))b.disabled=true;}
  }
  void start();

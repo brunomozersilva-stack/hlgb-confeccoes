@@ -50,3 +50,6 @@ O banco guarda eventos append-only `lab_login_events` de sucesso, falha, bloquei
 
 ### Validação em duas instâncias locais
 O contrato de CI inicia dois servidores HTTP locais independentes que compartilham o mesmo PostgreSQL fictício, erra cinco vezes o PIN A no primeiro e confere que o segundo recusa o PIN correto durante o bloqueio. O painel `/acessos-lab.html` mostra uma tabela das 30 tentativas fictícias recentes, sem segredos. O código jamais pode ser publicado como autenticação de produção: contas e PINs continuam ilustrativos e sessões HTTP ainda ficam em memória por instância.
+
+### Sincronização de telas restritas — etapa 5
+A tela `/producao-integrada.html` consulta a revisão do PostgreSQL a cada 15 segundos, ao receber foco ou ao voltar à aba. Quando outra sessão altera o banco, avisa a revisão nova, bloqueia os botões de gravação e disponibiliza `Conferir e atualizar dados compartilhados`. Essa checagem é exclusivamente de leitura; jamais reaplica comandos ou apaga o WAL. Quantidades digitadas são preservadas ao conferir outra revisão. Se existir operação pendente, a atualização exige primeiro a conferência de WAL; se a revisão mudar na verificação imediatamente anterior ao envio, o comando não é criado. Os mesmos fluxos são cobertos por testes de Chromium e WebKit/Safari entre as sessões A e B.

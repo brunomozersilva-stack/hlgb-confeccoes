@@ -15,6 +15,7 @@ button{border:0;padding:9px 16px;cursor:pointer;background:#583273;color:white}b
 button:disabled{opacity:.55;cursor:not-allowed}.actions{display:flex;flex-wrap:wrap;gap:9px;margin-top:14px}
 .grade{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}.grade label{margin:0}.grade input{min-width:0}
 .table{width:100%;overflow-x:auto}table{width:100%;border-collapse:collapse;font-size:13px}th,td{padding:10px;border-bottom:1px solid #ece6f0;text-align:left;white-space:nowrap}
+[hidden]{display:none!important}#shared-revision-notice{font-weight:650}
 #message{min-height:26px;font-weight:650}#message.error{color:#a0232a}#message.success{color:#246642}
 small{color:#6b6072}@media(max-width:430px){.grade{grid-template-columns:repeat(2,minmax(0,1fr))}}
 </style></head><body>
@@ -23,7 +24,8 @@ small{color:#6b6072}@media(max-width:430px){.grade{grid-template-columns:repeat(
 <p class="notice">Esta é a visão operacional restrita. Salários, Folha, contas, pagamentos, preços e histórico financeiro não são disponibilizados a este perfil. Não use dados reais. A autorização ainda é demonstrativa, não empresarial.</p>
 <div id="message" role="status" aria-live="polite"></div>
 <section><h2>Conexão e segurança</h2><p id="top-revision">Conectando...</p><p id="pending-state"></p>
-<div class="actions"><button class="secondary" type="button" id="remote-check">Conferir servidor / WAL</button><button class="secondary" type="button" id="logout-demo">Sair da sessão fictícia</button><button class="secondary" type="button" id="remote-retry" disabled>Reenviar mesmo ID após prova de ausência</button><button class="secondary" type="button" id="remote-discard" disabled>Descartar intenção conferida</button></div>
+<p id="shared-revision-notice" class="notice" role="status" aria-live="polite" hidden></p>
+<div class="actions"><button class="secondary" type="button" id="sync-refresh" hidden>Conferir e atualizar dados compartilhados</button><button class="secondary" type="button" id="remote-check">Conferir servidor / WAL</button><button class="secondary" type="button" id="logout-demo">Sair da sessão fictícia</button><button class="secondary" type="button" id="remote-retry" disabled>Reenviar mesmo ID após prova de ausência</button><button class="secondary" type="button" id="remote-discard" disabled>Descartar intenção conferida</button></div>
 </section>
 <div class="grid">
 <section><h2>Novo pedido fictício</h2><form data-command="order.add">

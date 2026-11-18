@@ -39,6 +39,18 @@ test('interface completa em duas sessões, conflito, WAL e confirmação indepen
  for(const page of [a,b])await page.locator('[data-module=pedidos]').click();
  const form=page=>page.locator('form[data-command="order.add"]');
  await form(a).locator('button[type=submit]').click();await a.waitForFunction(()=>document.querySelector('#top-revision').textContent.includes('Revisão servidor 2'));
+ // Produção detecta alteração externa sem apagar quantidade preenchida ou reexecutar comando.
+ const productionGrade=operator.locator('form[data-command="order.add"] [name=M]');
+ await productionGrade.fill('4');
+ await operator.evaluate(()=>window.dispatchEvent(new Event('focus')));
+ await operator.waitForFunction(()=>!document.querySelector('#shared-revision-notice').hidden&&document.querySelector('#shared-revision-notice').textContent.includes('revisão 2'));
+ assert.equal(await productionGrade.inputValue(),'4','A detecção de outro computador não pode apagar o rascunho');
+ assert.equal(await operator.locator('form[data-command="order.add"] button[type=submit]').isDisabled(),true,'Revisão antiga deve bloquear novo salvamento');
+ assert.equal((await db.state()).revision,2,'Conferência de sincronização nunca grava comando');
+ await operator.locator('#sync-refresh').click();
+ await operator.waitForFunction(()=>document.querySelector('#top-revision').textContent.includes('teste: 2')&&document.querySelector('#shared-revision-notice').hidden);
+ assert.equal(await productionGrade.inputValue(),'4','A atualização preserva a grade que estava sendo digitada');
+ assert.equal(await operator.locator('form[data-command="order.add"] button[type=submit]').isEnabled(),true);
  await form(b).locator('button[type=submit]').click();await b.waitForFunction(()=>document.body.innerText.includes('Servidor: conflict'));
  assert.equal((await db.state()).orders.length,1);
  // O rascunho permanece até a revisão manual. Releitura não repete o lançamento.
@@ -54,8 +66,12 @@ test('interface completa em duas sessões, conflito, WAL e confirmação indepen
  assert.equal(await a.locator('form[data-command="order.add"] [name=P]').inputValue(),'7');
  await a.locator('#remote-check').click();await a.waitForFunction(()=>document.querySelector('#top-revision').textContent.includes('Revisão servidor 3'));
  // Operador B permanece operacional na visão mínima, mesmo sem ler o documento integral.
- await operator.locator('#remote-check').click();
- await operator.waitForFunction(()=>document.querySelector('#top-revision').textContent.includes('teste: 3'));
+ // Segunda alteração externa: formulário ainda não pode enviar enquanto não reler.
+ await operator.evaluate(()=>window.dispatchEvent(new Event('focus')));
+ await operator.waitForFunction(()=>!document.querySelector('#shared-revision-notice').hidden&&document.querySelector('#shared-revision-notice').textContent.includes('revisão 3'));
+ assert.equal(await productionGrade.inputValue(),'4');
+ await operator.locator('#sync-refresh').click();
+ await operator.waitForFunction(()=>document.querySelector('#top-revision').textContent.includes('teste: 3')&&document.querySelector('#shared-revision-notice').hidden);
  await operator.locator('form[data-command="order.add"] button[type=submit]').click();
  await operator.waitForFunction(()=>document.querySelector('#top-revision').textContent.includes('teste: 4'));
  assert.equal((await db.state()).orders.length,3);
