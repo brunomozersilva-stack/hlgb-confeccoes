@@ -1,0 +1,20 @@
+name: HLGB Evolucao - Contrato de Migracao
+on:
+  push:
+    branches:
+      - feature/evolucao-laboratorio-isolado-v1-20261114
+    paths:
+      - 'evolucao-lab/migracao/**'
+      - 'evolucao-lab/tests/migracao-contract.cjs'
+      - '.github/workflows/evolucao-migracao.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  contract:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - run: node --test evolucao-lab/tests/migracao-contract.cjs
