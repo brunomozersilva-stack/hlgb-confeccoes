@@ -49,7 +49,7 @@
  if(s.serviceRates){const a=s.serviceRates;try{for(const k of Object.keys(defaults))n(a[k],0,100000);}catch(e){problems.push('Tabela de serviços inválida');}check('Tabela',a.commandId,'service.rates.set');}
  for(const f of s.factions)if(f.serviceRole){if(!roles.includes(f.serviceRole))problems.push(f.id+': papel inválido');check(f.id,f.serviceProfileCommandId,'service.profile.set');}
  for(const p of s.products)if(p.servicePointsCommandId){if(!categories.includes(p.serviceCategory)||!Number.isSafeInteger(p.travetaPoints)||p.travetaPoints<0||p.travetaPoints>100)problems.push(p.id+': pontos inválidos');check(p.id,p.servicePointsCommandId,'service.points.set');}
- for(const a of s.settlements)if(a.serviceQuote){const q=a.serviceQuote;check(a.id,q.commandId,'settlement.service.add');if(q.service!==a.serviceType||q.productId!==a.productId||q.gross-q.discount<=0||q.amount!==q.qty*(q.gross-q.discount)||q.service==='travetada'&&q.gross!==q.pointCount*q.pointRate||q.service==='costura'&&q.discount!==(q.pointCount||0)*(q.pointRate||0))problems.push(a.id+': cálculo original divergente');}
+ for(const a of s.settlements)if(a.serviceQuote){const q=a.serviceQuote;check(a.id,q.commandId,a.packagingLotId?'packaging.complete':'settlement.service.add');if(q.service!==a.serviceType||q.productId!==a.productId||q.gross-q.discount<=0||q.amount!==q.qty*(q.gross-q.discount)||q.service==='travetada'&&q.gross!==q.pointCount*q.pointRate||q.service==='costura'&&q.discount!==(q.pointCount||0)*(q.pointRate||0))problems.push(a.id+': cálculo original divergente');}
  return problems;}
  return {roles,categories,defaults,rates,cat,allows,profile,setRates,points,quote,create,inspect};
 });

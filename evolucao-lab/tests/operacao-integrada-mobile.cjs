@@ -25,6 +25,7 @@ const routes={'/':'operacao-integrada.html',
  '/modulos/servicos-faccao-v1.js':'modulos/servicos-faccao-v1.js',
  '/modulos/complementos-v1.js':'modulos/complementos-v1.js',
  '/modulos/folha-pedidos-v1.js':'modulos/folha-pedidos-v1.js',
+ '/modulos/operacoes-v2.js':'modulos/operacoes-v2.js',
  '/operacao-integrada-core.js':'operacao-integrada-core.js',
  '/operacao-integrada-ui.js':'operacao-integrada-ui.js','/folha-homologacao.html':'folha-homologacao.html'};
 const server=http.createServer((req,res)=>{

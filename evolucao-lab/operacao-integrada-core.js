@@ -24,10 +24,11 @@
  const services=typeof module==='object'&&module.exports?require('./modulos/servicos-faccao-v1.js'):(root&&root.HLGBLabServicesV1);
  const complements=typeof module==='object'&&module.exports?require('./modulos/complementos-v1.js'):(root&&root.HLGBLabComplementsV1);
  const payrollOrders=typeof module==='object'&&module.exports?require('./modulos/folha-pedidos-v1.js'):(root&&root.HLGBLabPayrollOrdersV1);
- const api=factory(batch,routing,factionGrade,planner,bomCut,requests,purchaseReturns,pcp,management,auditor,bot,costs,recovery,services,complements,payrollOrders);
+ const operationsV2=typeof module==='object'&&module.exports?require('./modulos/operacoes-v2.js'):(root&&root.HLGBLabOperationsV2);
+ const api=factory(batch,routing,factionGrade,planner,bomCut,requests,purchaseReturns,pcp,management,auditor,bot,costs,recovery,services,complements,payrollOrders,operationsV2);
  if(typeof module==='object'&&module.exports)module.exports=api;
  else if(root)root.HLGBOperationalLab=api;
-})(typeof window!=='undefined'?window:null,function(batch,routing,factionGrade,planner,bomCut,requests,purchaseReturns,pcp,management,auditor,bot,costs,recovery,services,complements,payrollOrders){
+})(typeof window!=='undefined'?window:null,function(batch,routing,factionGrade,planner,bomCut,requests,purchaseReturns,pcp,management,auditor,bot,costs,recovery,services,complements,payrollOrders,operationsV2){
  'use strict';
  const clone=x=>JSON.parse(JSON.stringify(x)),sizes=['P','M','G','GG'];
  const makeGrade=()=>({P:0,M:0,G:0,GG:0});
@@ -62,6 +63,7 @@
  const totalCost=(q,price)=>Math.ceil(q*price/1000);
  function inspect(s){
   const problems=[];
+  if(operationsV2)problems.push(...operationsV2.inspect(s,batch));
   if(payrollOrders)problems.push(...payrollOrders.inspect(s));
   if(complements)problems.push(...complements.inspect(s));
   if(services)problems.push(...services.inspect(s));
@@ -441,6 +443,13 @@
   case 'cut.bom.execute':{
    if(!bomCut||!planner)throw Error('Módulo de Corte BOM indisponível; nenhuma baixa realizada.');
    result=bomCut.execute(s,p,{next,uid},planner);break}
+  case 'cut.plan.split':{if(!operationsV2)throw Error('Divisão indisponível.');result=operationsV2.split(s,p,{next,uid});break}
+  case 'packaging.assign':{if(!operationsV2)throw Error('Embalagem indisponível.');result=operationsV2.packagingAssign(s,p,{next,uid},services);break}
+  case 'packaging.complete':{if(!operationsV2)throw Error('Embalagem indisponível.');result=operationsV2.packagingFinish(s,p,{next,uid},services);break}
+  case 'packaging.cancel':{if(!operationsV2)throw Error('Embalagem indisponível.');result=operationsV2.packagingCancel(s,p,{next,uid});break}
+  case 'assistant.order.create':{if(!operationsV2)throw Error('Pedido assistido indisponível.');result=operationsV2.assistantCreate(s,p,{next,uid,createOrder},payrollOrders);break}
+  case 'purchase.invoice.import':{if(!operationsV2)throw Error('Notas indisponíveis.');result=operationsV2.invoiceCreate(s,p,{next,uid});break}
+  case 'purchase.invoice.pdf':{if(!operationsV2)throw Error('PDF indisponível.');result=operationsV2.invoiceAttach(s,p,{next,uid},batch);break}
   case 'cut.plan':{
    const o=get(s,'orders',p.orderId,'Pedido'),g=p.grade;
    if(s.bomCutRuns.some(x=>x.orderId===o.id))
@@ -611,6 +620,7 @@
   case 'order.separate':{
    const o=get(s,'orders',p.orderId,'Pedido'),qty=num('qty',1,10000);
    if(o.separated+qty>o.returned)throw Error('Separação excede o retorno da facção.');
+   if(operationsV2)operationsV2.guardSeparation(s,o,qty);
    o.separated+=qty;result=o.id;break}
   case 'order.ship':{
    const o=get(s,'orders',p.orderId,'Pedido'),qty=num('qty',1,10000);
@@ -620,6 +630,7 @@
    if(!routing)throw Error('Módulo de distribuição de facções indisponível.');
    routing.ensure(s,next);
    const x=get(s,'settlements',p.id,'Acerto');
+   if(x.packagingLotId)throw Error('Acerto de embalagem vinculado: não modificar quantidade por este fluxo.');
    if(x.gradeTracked)throw Error('Acerto rastreado por cor/tamanho: use Devolução detalhada.');
    if(x.status!=='aberto')throw Error('Não é permitido devolver peças após pagamento.');
    const bill=get(s,'finance',s.finance.find(y=>y.sourceId===x.id&&y.kind==='pagar')?.id,'Título a pagar');
@@ -669,6 +680,7 @@
    result=routing.reviseSettlement(s,p,{int,uid});break}
   case 'settlement.adjust':{
    const x=get(s,'settlements',p.id,'Acerto');
+   if(x.packagingLotId)throw Error('Acerto de embalagem vinculado: preserve a origem.');
    if(x.status!=='aberto')throw Error('Acerto pago não pode ser alterado nesta prévia.');
    const bill=get(s,'finance',s.finance.find(f=>f.sourceId===x.id)?.id,'Conta vinculada');
    if(bill.status!=='aberto')throw Error('O título está quitado: ajuste direto bloqueado.');

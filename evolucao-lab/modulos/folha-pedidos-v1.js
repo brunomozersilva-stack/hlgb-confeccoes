@@ -47,7 +47,7 @@
  if(keys.has(key)||!month(x.period)||!validDay(x.dueDate)||!by(s.employees,x.employeeId)||!matches(amounts(x.amounts),x.amounts)||events.get(x.commandId)?.type!=='payroll.period.create'||bills.length!==1||bills[0].id!==x.financeId||bills[0].kind!=='pagar'||bills[0].amountCents!==x.amounts.cashCents||bills[0].status!==x.status||bills[0].dueDate!==x.dueDate||x.status==='pago'&&(!validDay(x.paidDate)||bills[0].paidDate!==x.paidDate))throw Error('Folha/título divergente.');
  for(const h of x.history||[])if(events.get(h.commandId)?.type!=='payroll.period.revise'||!matches(amounts(h.before),h.before)||!matches(amounts(h.after),h.after))throw Error('Histórico de folha inválido.');
  }catch(e){issues.push(x.id+': '+e.message);}keys.add(key);}
- for(const im of s.orderImports||[]){if(events.get(im.commandId)?.type!=='order.import.batch'||!Array.isArray(im.items)||im.totalCents!==sum((im.items||[]).map(x=>x.totalCents)))issues.push(im.id+': importação sem prova');
+ for(const im of s.orderImports||[]){if(!['order.import.batch','assistant.order.create'].includes(events.get(im.commandId)?.type)||!Array.isArray(im.items)||im.totalCents!==sum((im.items||[]).map(x=>x.totalCents)))issues.push(im.id+': importação sem prova');
  for(const x of im.items||[]){const o=by(s.orders,x.orderId);if(refs.has(x.reference)||orderIds.has(x.orderId)||!o||o.productId!==x.productId||o.clientId!==x.clientId||x.qty!==sum(Object.values(x.grade))||x.qty*x.priceCents!==x.totalCents)issues.push(im.id+': vínculo importado inválido');refs.add(x.reference);orderIds.add(x.orderId);}}
  return issues;}
  return {amounts,payrollPreview,payrollCreate,payrollRevise,payrollPaid,payrollReport,parseImport,importPreview,importOrders,inspect};
