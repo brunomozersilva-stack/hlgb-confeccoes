@@ -42,4 +42,4 @@ jobs:
         if: github.event_name == 'workflow_dispatch'
         env:
           TARGET: ${{ inputs.module }}
-        run: node hlgb-modules/run-module-tests-v9601.cjs "$TARGET"
+        run: node hlgb-modules/run-module-tests-v9601.cjs --with-deps "$TARGET"
