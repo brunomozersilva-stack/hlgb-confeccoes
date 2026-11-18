@@ -62,8 +62,12 @@ for(const useCore of [false,true]){
   assert.equal(h.writes.length,1);
   assert.equal(h.db.cuts.length,1);
   assert.equal(h.api.diagnostic().pendingDraftCount,0);
-  assert.equal(h.api.modelRows().length,1,'outro modelo continua programável');
-  assert.equal(h.api.modelRows()[0].productId,'66');
+  const rows=h.api.modelRows();
+  assert.equal(rows.length,2,'modelo programado continua visível até a finalização');
+  const other=rows.find(x=>x.productId==='66');
+  assert.ok(other,'outro modelo continua programável');
+  assert.equal(other.pieces,3);
+  assert.equal(other.cut,null,'programar um modelo não movimenta o corte do outro');
   assert.equal(h.remote.size,1);
  });
  test(mode+': perda de ACK após persistência não pode duplicar o corte',async()=>{
