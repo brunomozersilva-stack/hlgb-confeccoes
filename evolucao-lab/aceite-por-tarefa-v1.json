@@ -362,5 +362,6 @@
       "operatorApproval": null,
       "approvedAt": null
     }
-  ]
+  ],
+  "ownerExplicitApproval": false
 }
