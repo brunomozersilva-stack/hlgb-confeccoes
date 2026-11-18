@@ -27,3 +27,6 @@ O POST do formulário usa nonce CSRF de uso único, cookie HttpOnly SameSite=Str
 - Operador B: operações de pedidos, corte, facções e embalagem; proibidos os comandos financeiros, Folha e ajustes administrativos.
 - A política é conferida no servidor e desabilita botões na interface apenas como auxílio. Burlar a interface não libera comandos.
 - **Limitação crítica:** o endpoint `/api/state` ainda entrega snapshot completo a ambos os perfis fictícios; **NÃO existe segregação de leitura nem autorização empresarial por registro ou funcionário**. Não utilizar dados reais e não hospedar esta implementação como serviço público.
+
+### Inicialização de testes sem dependência de psql no navegador
+A matriz de navegadores prepara o banco de CI com `preparar-ci.cjs` usando Node/pg, eliminando a instalação desnecessária de `postgresql-client`. O preparador exige explicitamente `GITHUB_ACTIONS=true`, `CI=true`, endereço loopback, banco e credenciais fictícias de CI, e valida o marcador SQL. Não iniciar em servidores ou bancos reais.

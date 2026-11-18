@@ -90,12 +90,11 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with: {node-version: '22'}
-      - run: |
-          if ! command -v psql >/dev/null; then sudo apt-get update -qq && sudo apt-get install -y postgresql-client; fi
-          test "$(psql -tAc 'SELECT current_database()')" = "hlgb_integrado_lab"
-          psql -v ON_ERROR_STOP=1 -f evolucao-lab/banco-integrado/01-schema-local.sql
-          export PGUSER=hlgb_lab_runner PGPASSWORD=somente_ci_runtime_integrado
+      - name: Preparar Postgres de CI sem cliente externo e testar os dois operadores
+        run: |
           npm install --no-save pg@8.16.3 playwright@1.55.0
+          node evolucao-lab/banco-integrado/preparar-ci.cjs
+          export PGUSER=hlgb_lab_runner PGPASSWORD=somente_ci_runtime_integrado
           npx playwright install --with-deps ${{ matrix.browser }}
           node --check evolucao-lab/banco-integrado/servidor.cjs
           node --check evolucao-lab/banco-integrado/cliente.js

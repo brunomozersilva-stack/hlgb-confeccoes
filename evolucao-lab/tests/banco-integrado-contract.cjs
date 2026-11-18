@@ -64,3 +64,12 @@ test('autorização de servidor impede alteração financeira com revisão váli
  const after=await db.state();assert.deepEqual(after,before);
  assert.equal((await db.readback(forbidden.commandId,forbidden,B)).status,'not_found');
 });
+
+const localSeed=require('../banco-integrado/preparar-ci.cjs');
+test('preparo de banco recusa execução fora de ambiente CI, em Supabase e com usuário runtime',()=>{
+ const fixture={CI:'true',GITHUB_ACTIONS:'true',PGHOST:'127.0.0.1',PGDATABASE:'hlgb_integrado_lab',PGPORT:'5432',PGUSER:'postgres',PGPASSWORD:'somente_ci_ficticio_integrado'};
+ assert.doesNotThrow(()=>localSeed.guard(fixture));
+ for(const change of [{CI:'false'},{PGHOST:'db.example.com'},{PGDATABASE:'postgres'},{PGUSER:'hlgb_lab_runner'},{PGPASSWORD:'wrong'}])assert.throws(()=>localSeed.guard({...fixture,...change}),/proibida/);
+ assert.match(localSeed.schema(),/CREATE SCHEMA hlgb_integrado_lab/);
+ assert.doesNotMatch(localSeed.schema(),/^\\set /m);
+});
