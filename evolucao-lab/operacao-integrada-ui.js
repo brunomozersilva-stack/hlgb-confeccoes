@@ -1395,6 +1395,7 @@ function multiFlowLabPart(s,part){
  if(part==='faction')return ui.factionPanel(s,model);
  if(part==='separacao')return ui.separationPanel(s,model);
  if(part==='acerto')return ui.acertoPanel(s,model);
+ if(part==='fila')return ui.queuePanel(s,model);
  return '';
 }
 function moduleHtml(s){
@@ -1409,7 +1410,7 @@ function moduleHtml(s){
  finance=selector(s.finance.filter(x=>x.status==='aberto'),x=>x.id+' · '+fmt(x.amountCents)+' · '+x.description),
  employees=selector(s.employees,x=>x.name),incidents=selector(s.errors.filter(x=>x.status==='aberto'),x=>x.id+' · '+x.message);
  switch(active){
- case 'nucleo':return panel('Assistente HLGB 3.0','<p>Consulte prioridades, produção, financeiro, estoque e auditoria com evidências.</p><button type="button" class="btn" data-goto="bot">Abrir Assistente</button>')+panel('Módulos opcionais com desativação segura',
+ case 'nucleo':return multiFlowLabPart(s,'fila')+panel('Assistente HLGB 3.0','<p>Consulte prioridades, produção, financeiro, estoque e auditoria com evidências.</p><button type="button" class="btn" data-goto="bot">Abrir Assistente</button>')+panel('Módulos opcionais com desativação segura',
  (window.HLGBLabModules?table(['Módulo','Versão','Ativo','Falhas isoladas'],window.HLGBLabModules.list().map(x=>[
  str(x.id),str(x.version),x.enabled?'Sim':'Não',str(x.failures)])):
  '<p>Registro modular indisponível; funções legadas permanecem acessíveis.</p>')+
