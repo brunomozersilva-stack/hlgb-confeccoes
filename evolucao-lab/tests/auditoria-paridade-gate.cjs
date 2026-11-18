@@ -24,9 +24,12 @@ test('fontes antigas permanecem na main como referência e novo não é equivale
  assert.match(source,/const clone=x=>JSON\.parse\(JSON\.stringify\(x\)\),sizes=\['P','M','G','GG'\]/);
  assert.match(source,/function createOrder\(s,p\)\{/);
  assert.match(source,/productId:product\.id,grade:clone\(g\)/);
- assert.match(ui,/case 'pedidos':return importOrdersPanel\(s\)\+panel\('Incluir pedido com grade'/);
+ assert.match(ui,/case 'pedidos':return importOrdersPanel\(s\)\+panel\('Grade por cor e tamanho no próprio Pedido'/);
+ assert.match(ui,/form\('order.add','Novo pedido fictício'/,'Modo antigo sem cor deve continuar disponível');
+ assert.match(ui,/function colorMatrixCreateForm\(/,'Matriz por cor/tamanho retornou a Pedidos no laboratório');
+ assert.match(ui,/function orderColorGradePanel\(/,'Correção de cores está em Pedidos');
  assert.match(ui,/case 'faccoes':/);
- assert.ok(ui.indexOf("case 'faccoes':")<ui.indexOf("form('order.color.grade.set'"),'cores ainda residem na aba de Facções');
+ assert.ok(ui.includes("form('order.color.grade.set'"),'Rotina anterior de cor deve continuar em Facções');
  assert.ok(!ui.includes("case 'utilidades':"),'Utilidades não foi integrada');
  assert.ok(!source.includes("case 'route.create'"),'Rotas não estão no núcleo');
  assert.match(fs.readFileSync(path.join(legacy,'release-operations-pack.js'),'utf8'),/function renderUtilities\(/);
