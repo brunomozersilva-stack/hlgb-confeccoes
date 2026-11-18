@@ -167,8 +167,12 @@
     if(plan.qty!==sum(plan.lines))error('Total do lote divergente');
     if(plan.weightEvents!==undefined){
      if(!Array.isArray(plan.weightEvents)||plan.weightEvents.length>200)error('Histórico de peso inválido');
-     const commands=new Set();
+     const commands=new Set();let lastRevision=0;
      for(const w of plan.weightEvents){
+      const proof=(s.log||[]).find(x=>x.commandId===w.commandId);
+      if(!proof||proof.type!=='multi.cut.weight.record'||proof.revision!==w.revision||w.revision<=lastRevision)
+       error('Pesagem sem trilha global correspondente ou fora de ordem');
+      lastRevision=w.revision;
       if(plan.status!=='concluido'||!w.commandId||commands.has(w.commandId)||w.cutId!==plan.id||
        !Number.isSafeInteger(w.revision)||w.revision<2||w.revision>s.revision||
        !Number.isSafeInteger(w.totalGrams)||w.totalGrams<1||w.totalGrams>20000000||
