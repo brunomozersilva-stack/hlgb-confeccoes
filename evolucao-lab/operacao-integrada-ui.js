@@ -26,7 +26,7 @@ const modules=[
 ];
 const ids=new Map(modules.map((m,i)=>[m[0],i])),visitedModules=new Set();
 let active=ids.has(window.location.hash.slice(1))?window.location.hash.slice(1):'nucleo',db=null,doc=null,busy=false,journeyOrderId=null,routeDraft=null;
-let labelDraft=[{name:'',model:'',size:'',pieceQty:0,volumes:0,copies:1,date:new Date().toISOString().slice(0,10)}],labelLayout='10',templateEditId=null,packerEditId=null;
+let labelDraft=[{name:'',model:'',size:'',pieceQty:0,volumes:0,copies:1,date:new Date().toISOString().slice(0,10)}],labelLayout='10',templateEditId=null,packerEditId=null,templatePreviewId=null,packerPreviewId=null;
 const settlementFilters={query:'',status:'todos',faction:'todas',service:'todos',compensation:'todos'};
 const escape=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const str=x=>escape(String(x??''));
@@ -350,6 +350,7 @@ function labelTemplatesPanel(s){
  const service=window.HLGBLabPackersV1;
  if(!service)return panel('Etiquetas por cliente','Módulo de etiquetas personalizadas não carregado.',true);
  const templates=s.labelTemplatesLab||[],active=templates.filter(x=>x.active);
+ const preview=templates.find(x=>x.id===templatePreviewId);
  const edit=templateEditId&&active.find(x=>x.id===templateEditId);
  const clients=selector(s.clients,x=>x.name),products=[['','Padrão deste cliente — todos os modelos'],...selector(s.products,x=>x.name+' · '+x.sku)];
  const fields=[
@@ -367,13 +368,20 @@ function labelTemplatesPanel(s){
  const rows=table(['Código','Cliente','Modelo','SKU','Arquivo referenciado','Versão','Estado','Ações'],
   templates.map(t=>[str(t.id),str(t.clientName),str(t.productName||'Padrão do cliente'),
    str(t.sku||'—'),str(t.fileName||'Não enviado'),str(t.version),t.active?'Ativo':'Arquivado',
-   t.active?'<button type="button" class="btn" data-template-edit="'+escape(t.id)+'">Editar</button>':'Histórico preservado']));
+   '<button type="button" class="btn" data-template-preview="'+escape(t.id)+'">Conferir dados</button> '+
+   (t.active?'<button type="button" class="btn" data-template-edit="'+escape(t.id)+'">Editar</button>':'Histórico preservado')]));
  return panel('Utilidades · Modelos de etiqueta por cliente/produto',
   '<p>O cliente pode ter uma etiqueta padrão e uma específica por produto. Uma tarefa já enviada guarda a versão aplicada, mesmo após alteração ou arquivamento. <b>Cadastro de referência do arquivo</b>: o envio e a prévia visual de PDF/imagem ainda precisam ser integrados e testados.</p>'+
   form(edit?'label.template.edit':'label.template.add',edit?'Editar etiqueta '+str(edit.id):'Cadastrar modelo de etiqueta',fields,
   edit?'Salvar nova versão':'Cadastrar etiqueta fictícia')+
   (edit?'<button type="button" class="btn" id="template-new">Novo modelo</button>':'')+
   '<h3>Modelos e versões</h3>'+rows+
+  (preview?'<div class="panel"><h3>Conferência de '+str(preview.id)+' · versão '+str(preview.version)+'</h3>'+
+   '<p><b>Cliente:</b> '+str(preview.clientName)+' · <b>Modelo:</b> '+str(preview.productName||'Padrão do cliente')+'</p>'+
+   '<p><b>SKU:</b> '+str(preview.sku||'—')+' · <b>CNPJ:</b> '+str(preview.cnpj||'—')+'</p>'+
+   '<p><b>URL informada:</b> '+str(preview.productUrl||'—')+' · <b>Arquivo apenas referenciado:</b> '+str(preview.fileName||'—')+'</p>'+
+   '<p><b>Campos:</b> '+str(preview.fieldsNote||'—')+' · <b>Alterações:</b> '+str(preview.history.length)+'</p>'+
+   '<p>Prévia dos dados, não uma imagem/PDF de etiqueta nem comprovante de impressão.</p></div>':'')+
   (active.length?form('label.template.archive','Arquivar sem perder etiquetas já atribuídas',[
     field('id','Modelo ativo','select','',selector(active,x=>x.clientName+' · '+(x.productName||'Padrão'))),
     field('reason','Motivo','text','Substituição de referência fictícia')
@@ -383,6 +391,7 @@ function packerAssignmentsPanel(s){
  const service=window.HLGBLabPackersV1;
  if(!service)return panel('Embaladeira','Módulo de embaladeira indisponível.',true);
  const report=service.dashboard(s),rows=s.packerAssignmentsLab||[];
+ const assignmentPreview=rows.find(x=>x.id===packerPreviewId);
  const editing=packerEditId&&rows.find(x=>x.id===packerEditId&&['aguardando','parcial'].includes(x.status));
  const clients=selector(s.clients,x=>x.name),products=selector(s.products,x=>x.name),people=selector(s.employees,x=>x.name);
  const base=[
@@ -406,7 +415,8 @@ function packerAssignmentsPanel(s){
   str(x.status==='cancelado'?0:x.qty-x.doneQty),
   x.labelSnapshot?str(x.labelSnapshot.id)+' v'+str(x.labelSnapshot.version)+' · '+str(x.labelSnapshot.fileName||'sem arquivo'):'Sem modelo de etiqueta',
   str(x.status)+(x.history.length>1?' · '+(x.history.length-1)+' mov.':''),
-  pending.some(y=>y.id===x.id)?'<button type="button" class="btn" data-packer-edit="'+escape(x.id)+'">Editar</button>':'Histórico preservado'
+  '<button type="button" class="btn" data-packer-preview="'+escape(x.id)+'">Conferir etiqueta</button> '+
+   (pending.some(y=>y.id===x.id)?'<button type="button" class="btn" data-packer-edit="'+escape(x.id)+'">Editar</button>':'Histórico preservado')
  ]));
  const workerRows=table(['Embaladeira','Atribuídas','Prontas','Pendentes'],
   report.byPacker.map(x=>[str(x.name),str(x.assigned),str(x.ready),str(x.pending)]));
@@ -423,10 +433,20 @@ function packerAssignmentsPanel(s){
    field('reason','Motivo / conferência','text','Conferência fictícia'),
    field('correction','Correção para menos (exige justificativa)','checkbox')
   ],'Registrar conferência'):'')+
-  (pending.length?form('packer.cancel','Cancelar tarefa sem peças prontas',[
+  (pending.some(x=>x.doneQty===0)?form('packer.cancel','Cancelar tarefa sem peças prontas',[
    field('id','Tarefa sem conclusão','select','',selector(pending.filter(x=>x.doneQty===0),x=>x.id)),
    field('reason','Motivo','text','Reprogramação fictícia')
   ],'Cancelar sem apagar histórico'):'')+
+  (assignmentPreview?'<div class="panel"><h3>Conferir etiqueta da tarefa '+str(assignmentPreview.id)+'</h3>'+
+    '<p><b>Cliente:</b> '+str(assignmentPreview.clientName)+' · <b>Modelo:</b> '+str(assignmentPreview.productName)+
+    ' · <b>Cor:</b> '+str(assignmentPreview.color||'—')+' · <b>Tamanho:</b> '+str(assignmentPreview.size)+'</p>'+
+    '<p><b>Peças:</b> '+str(assignmentPreview.qty)+' · <b>Etiquetas:</b> '+str(assignmentPreview.labelQty)+
+    ' · <b>Concluídas:</b> '+str(assignmentPreview.doneQty)+'</p>'+
+    (assignmentPreview.labelSnapshot?'<p><b>Etiqueta utilizada:</b> '+str(assignmentPreview.labelSnapshot.id)+
+      ' versão '+str(assignmentPreview.labelSnapshot.version)+' · SKU '+str(assignmentPreview.labelSnapshot.sku)+
+      ' · CNPJ '+str(assignmentPreview.labelSnapshot.cnpj||'—')+' · Arquivo referenciado '+
+      str(assignmentPreview.labelSnapshot.fileName||'—')+'</p>':'<p><b>ATENÇÃO:</b> cliente/produto sem etiqueta cadastrada na atribuição.</p>')+
+    '<p>Histórico preservado: '+str(assignmentPreview.history.length)+' evento(s). Esta conferência não imprime arquivo nem dá baixa.</p></div>':'')+
   '<h3>Fila por embaladeira</h3>'+workerRows+
   '<h3>Itens e histórico</h3>'+rowTable,true);
 }
@@ -2731,6 +2751,8 @@ document.addEventListener('click',async e=>{
    draw();
   }catch(error){status(error.message,'error')}return;
  }
+ const previewTemplate=e.target.closest('[data-template-preview]');if(previewTemplate){templatePreviewId=previewTemplate.dataset.templatePreview;draw();return;}
+ const previewPacker=e.target.closest('[data-packer-preview]');if(previewPacker){packerPreviewId=previewPacker.dataset.packerPreview;draw();return;}
  const editTemplate=e.target.closest('[data-template-edit]');
  if(editTemplate){templateEditId=editTemplate.dataset.templateEdit;draw();return;}
  if(e.target.closest('#template-new')){templateEditId=null;draw();return;}
