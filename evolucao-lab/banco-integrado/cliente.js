@@ -10,13 +10,32 @@
  async function claim(command){const entry={actor,command,stage:'pending'};await tx('readwrite',(s,set,t)=>{const g=s.get(actor);g.onsuccess=()=>{if(g.result){t.abort();return;}s.add(entry);set(entry);};});pending=entry;return entry;}
  async function stage(entry,value){await tx('readwrite',(s,set,t)=>{const g=s.get(actor);g.onsuccess=()=>{if(g.result?.command.commandId!==entry.command.commandId){t.abort();return;}s.put({...entry,stage:value});};});pending={...entry,stage:value};}
  async function clear(entry){await tx('readwrite',(s,set,t)=>{const g=s.get(actor);g.onsuccess=()=>{if(g.result?.command.commandId!==entry.command.commandId){t.abort();return;}s.delete(actor);};});pending=null;}
- async function state(){const r=await request('/api/state');if(r.status!=='ok'||r.state?.schema!=='hlgb-evolucao-operacao-ficticia-v1'||!window.HLGBOperationalLab.inspect(r.state).ok)throw Error('Estado remoto inválido');return r.state;}
+ async function state(){
+ const production=permissions?.id==='demo-production',r=await request(production?'/api/production-state':'/api/state');
+ if(r.status!=='ok')throw Error('Estado remoto inválido');
+ if(production){
+  const v=r.state;
+  if(v?.schema!=='hlgb-evolucao-operacao-producao-ficticia-v1'||v.readScope!=='production_only_ficticio'||!Number.isSafeInteger(v.revision)||
+   !['clients','products','factions','orders','cutPlans'].every(k=>Array.isArray(v[k]))||
+   ['finance','employees','log','payroll','settlements','paymentBatches','suppliers'].some(k=>Object.hasOwn(v,k)))
+    throw Error('Visão de produção fora do contrato de isolamento');
+  return v;
+ }
+ if(r.state?.schema!=='hlgb-evolucao-operacao-ficticia-v1'||!window.HLGBOperationalLab.inspect(r.state).ok)throw Error('Snapshot administrativo inválido');
+ return r.state;
+}
  async function revision(){const v=await request('/api/revision');if(v.status!=='ok'||!Number.isSafeInteger(v.revision)||v.revision<1)throw Error('Revisão remota inválida');return v.revision;}
  async function init(){const s=await request('/api/session');if(s.environment!=='HLGB-INTEGRADO-FICTICIO')throw Error('Ambiente proibido');actor=s.actor;permissions=s.permissions;if(!Array.isArray(permissions?.allowedCommands)||permissions.productionApproval!==false)throw Error('Permissões fictícias inválidas');db=await open();pending=await load();return state();}
  async function prove(entry){const r=await request('/api/proof','POST',entry.command);
  if(r.status==='readback_confirmed'){
- const latest=await state(),ev=latest.log.find(x=>x.commandId===entry.command.commandId);
- if(!ev||r.revision!==entry.command.expectedRevision+1||ev.type!==entry.command.type||ev.actor!==actor||ev.revision!==r.revision||latest.revision<r.revision)throw Error('Prova não corresponde ao comando local');
+ const latest=await state();
+ if(r.revision!==entry.command.expectedRevision+1||latest.revision<r.revision)throw Error('Prova não corresponde à revisão do comando local');
+ if(permissions?.id!=='demo-production'){
+  const ev=latest.log.find(x=>x.commandId===entry.command.commandId);
+  if(!ev||ev.type!==entry.command.type||ev.actor!==actor||ev.revision!==r.revision)throw Error('Prova não corresponde ao comando local');
+ }
+ // Para produção, /api/proof comprova no servidor fingerprint + ator + evento,
+ // e a visão restrita apenas confirma a revisão; nunca revelar o log completo.
  await clear(entry);return {status:'confirmed',state:latest,result:r.result};}
  if(r.status==='cancelled'){await clear(entry);return {status:'discarded',state:await state()};}
  if(r.status==='not_found'){await stage(entry,'not_found');return {status:'not_found'};}
