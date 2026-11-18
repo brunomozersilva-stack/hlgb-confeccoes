@@ -33,6 +33,7 @@ const routes={'/':'operacao-integrada.html',
  '/modulos/rotas-utilidades-v1.js':'modulos/rotas-utilidades-v1.js',
  '/modulos/etiquetas-a4-v1.js':'modulos/etiquetas-a4-v1.js',
  '/modulos/embalagem-etiquetas-v1.js':'modulos/embalagem-etiquetas-v1.js',
+ '/modulos/regularizacao-historica-preview-v1.js':'modulos/regularizacao-historica-preview-v1.js',
  '/operacao-integrada-core.js':'operacao-integrada-core.js',
  '/operacao-integrada-ui.js':'operacao-integrada-ui.js','/folha-homologacao.html':'folha-homologacao.html'};
 const server=http.createServer((req,res)=>{
@@ -132,6 +133,12 @@ async function run(browser,width,url){
   assert.match(await page.locator('#module-content').innerText(),/ETM-0001/);
   await page.locator('[data-template-preview="ETM-0001"]').click();
   assert.match(await page.locator('#module-content').innerText(),/SKU-CLIENTE-001/);
+  const revisionBeforeHistory=await revision(page);
+  await page.locator('#historical-raw').fill('cliente;modelo;quantidade;data;referencia;status\nCLI-0001;PRO-0001;120;2026-11-15;HIST-001;A conferir\nCliente inexistente;PRO-0002;3;2026-11-15;HIST-002;A conferir');
+  await page.locator('#historical-preview').click();
+  assert.match(await page.locator('#module-content').innerText(),/Regularização histórica/);
+  assert.match(await page.locator('#module-content').innerText(),/Cliente sem correspondência/);
+  assert.equal(await revision(page),revisionBeforeHistory,'Prévia histórica não deve salvar nada');
   await module(page,'separacao');
   const assign=page.locator('form[data-command="packer.assign"]');
   await assign.locator('[name="size"]').fill('G2');
