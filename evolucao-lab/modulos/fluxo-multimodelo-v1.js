@@ -123,10 +123,11 @@
   if(type==='transfer'&&factionId===fromFactionId)fail('Selecione outra facção.');
   if(type==='price'&&unitCents===fromUnitCents)fail('O valor da mão de obra não mudou.');
   lot.factionId=factionId;lot.unitCents=unitCents;
-  lot.changes.push({type,commandId:uid,revision:s.revision+1,
+  const change={type,commandId:uid,revision:s.revision+1,
    fromFactionId,fromUnitCents,toFactionId:factionId,toUnitCents:unitCents,
    pending:remaining,lines:[...pending.values()].filter(x=>x.remaining>0)
-     .map(x=>({color:x.color,size:x.size,qty:x.remaining})),reason});
+     .map(x=>({color:x.color,size:x.size,qty:x.remaining})),reason};
+  lot.changes.push({...change,immutableFingerprint:fingerprint(change)});
   return lot.id+' · '+remaining+' peças pendentes: '+fromFactionId+' → '+factionId+
    ' · '+unitCents+' centavos por peça (retornos antigos preservados)';
  }
@@ -153,8 +154,9 @@
   const entry=(s.multiFlowLots||[]).flatMap(x=>x.returns||[]).find(x=>x.id===p.id);
   if(!entry||entry.review)fail('Acerto fictício inexistente ou já conferido.');
   const reviewer=note(p.reviewer,'Conferente'),reason=note(p.reason);
-  entry.review={commandId:uid,revision:s.revision+1,reviewer,reason,
+  const review={commandId:uid,revision:s.revision+1,reviewer,reason,
    amountCents:entry.amountCents,factionId:entry.factionId};
+  entry.review={...review,immutableFingerprint:fingerprint(review)};
   return entry.id+' · acerto de '+entry.factionId+' CONFERIDO, sem quitação financeira';
  }
  function moveByOrder(s,p,{next,uid},type){
@@ -224,6 +226,11 @@
        !e.reason)fail('Revisão da facção ou mão de obra inválida');
       const pending=lineLimits(lot.lines,done);
       const expected=[...pending.values()].reduce((n,x)=>n+x.remaining,0);
+      const immutableChange={type:e.type,commandId:e.commandId,revision:e.revision,
+       fromFactionId:e.fromFactionId,fromUnitCents:e.fromUnitCents,toFactionId:e.toFactionId,
+       toUnitCents:e.toUnitCents,pending:e.pending,lines:e.lines,reason:e.reason};
+      if(e.immutableFingerprint!==fingerprint(immutableChange))
+       fail('Histórico da facção/mão de obra foi alterado fora do comando');
       if(e.pending!==expected||expected<1)fail('Histórico de saldo da transferência inválido');
       const remain=[...pending.values()].filter(x=>x.remaining>0)
         .map(x=>({color:x.color,size:x.size,qty:x.remaining}));
@@ -241,8 +248,12 @@
       done.push(e.lines);
       if(e.review){
        eventProof(e.review,'multi.flow.review');
+       const immutableReview={commandId:e.review.commandId,revision:e.review.revision,
+        reviewer:e.review.reviewer,reason:e.review.reason,amountCents:e.review.amountCents,
+        factionId:e.review.factionId};
        if(e.review.revision<=e.revision||e.review.amountCents!==e.amountCents||
-          e.review.factionId!==e.factionId||!e.review.reviewer||!e.review.reason)
+          e.review.factionId!==e.factionId||!e.review.reviewer||!e.review.reason||
+          e.review.immutableFingerprint!==fingerprint(immutableReview))
         fail('Conferência de acerto fictício inconsistente');
       }
      }
