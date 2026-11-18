@@ -19,6 +19,9 @@ test('interface completa em duas sessões, conflito, WAL e confirmação indepen
  await form(b).locator('button[type=submit]').click();await b.waitForFunction(()=>document.body.innerText.includes('Comando pendente'));
  await b.unroute('**/api/commands');await b.reload();await b.locator('#remote-check').waitFor();await b.locator('#remote-check').click();await b.waitForFunction(()=>document.querySelector('#top-revision').textContent.includes('Revisão servidor 3'));
  assert.equal((await db.state()).orders.length,2);
+ await a.locator('form[data-command="order.add"] [name=P]').fill('7');
+ await a.waitForFunction(()=>!document.querySelector('#shared-revision-notice').hidden&&document.querySelector('#shared-revision-notice').textContent.includes('revisão 3'),null,{timeout:25000});
+ assert.equal(await a.locator('form[data-command="order.add"] [name=P]').inputValue(),'7');
  await a.locator('#remote-check').click();await a.waitForFunction(()=>document.querySelector('#top-revision').textContent.includes('Revisão servidor 3'));
  }finally{await browser.close();await new Promise(resolve=>server.close(resolve));}
 });

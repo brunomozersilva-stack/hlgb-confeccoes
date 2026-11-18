@@ -23,6 +23,7 @@ async function start(port=0){
  const token=String(req.headers.cookie||'').split(';').map(x=>x.trim()).find(x=>x.startsWith('hlgb_integrado_demo='))?.slice('hlgb_integrado_demo='.length),session=sessions.get(token),actor=session?.expires>Date.now()?session.actor:null;
  if(!actor){if(route.startsWith('/api/'))send(401,{status:'denied',message:'Sessão fictícia expirada'});else{res.writeHead(303,{...headers,location:'/login'});res.end();}return;}
  if(method==='GET'&&route==='/api/session'){send(200,{status:'ok',environment:'HLGB-INTEGRADO-FICTICIO',actor});return;}
+ if(method==='GET'&&route==='/api/revision'){send(200,{status:'ok',revision:await db.revision()});return;}
  if(method==='GET'&&route==='/api/state'){send(200,{status:'ok',state:await db.state()});return;}
  if(method==='GET'&&route.startsWith('/api/commands/')){const result=await db.readback(route.slice('/api/commands/'.length));send(200,result);return;}
  if(method==='POST'&&route==='/api/cancel'){send(200,await db.cancel(JSON.parse(await body(req)),actor));return;}

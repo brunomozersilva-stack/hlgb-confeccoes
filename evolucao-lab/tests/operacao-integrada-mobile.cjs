@@ -188,7 +188,7 @@ async function run(browser,width,url){
   assert.equal(report.observability.summary.events,report.data.log.length);
   assert.equal(report.observability.productionApproval,false);
   assert.equal(report.parityApproved,false);
-  assert.equal(report.modulesVisited,19);
+  assert.equal(report.modulesAvailable,19);assert.equal(report.modulesVisited,report.visitedModuleIds.length);assert.ok(report.modulesVisited>0&&report.modulesVisited<=19);
   assert.equal(report.checks.ok,true);
   assert.equal(report.data.orders.length,1);
   assert.equal(report.journey.orderId,'PED-0001');

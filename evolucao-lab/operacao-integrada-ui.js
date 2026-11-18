@@ -23,7 +23,7 @@ const modules=[
  ['impressora3d','Impressora 3D','Cadastro fictício de produtos 3D com preço, filamento e quantidade pronta.'],
  ['cadastros','Clientes e cadastros','Cadastros de clientes, fornecedores e insumos vinculados aos módulos.']
 ];
-const ids=new Map(modules.map((m,i)=>[m[0],i]));
+const ids=new Map(modules.map((m,i)=>[m[0],i])),visitedModules=new Set();
 let active=ids.has(window.location.hash.slice(1))?window.location.hash.slice(1):'nucleo',db=null,doc=null,busy=false,journeyOrderId=null;
 const settlementFilters={query:'',status:'todos',faction:'todas',service:'todos',compensation:'todos'};
 const escape=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -694,7 +694,7 @@ function intentWrite(intent,remove=false){
  return new Promise((resolve,reject)=>{const tx=db.transaction(STORE,'readwrite'),store=tx.objectStore(STORE),key='intent:'+intent.commandId;if(remove)store.delete(key);else store.put({key,intent});tx.oncomplete=()=>resolve();tx.onabort=()=>reject(tx.error||Error('Registro de intenção não confirmado.'));tx.onerror=()=>reject(tx.error||Error('Falha no registro de intenção.'));});
 }
 function intentRead(){
- return new Promise((resolve,reject)=>{const tx=db.transaction(STORE,'readonly'),req=tx.objectStore(STORE).getAll();req.onsuccess=()=>resolve(req.result.filter(x=>String(x.key).startsWith('intent:')&&x.intent).map(x=>x.intent));req.onerror=()=>reject(req.error||Error('Falha ao reler intenções.'));});
+ return new Promise((resolve,reject)=>{const tx=db.transaction(STORE,'readonly'),req=tx.objectStore(STORE).getAll(IDBKeyRange.bound('intent:','intent:\uffff'));req.onsuccess=()=>resolve(req.result.filter(x=>String(x.key).startsWith('intent:')&&x.intent).map(x=>x.intent));req.onerror=()=>reject(req.error||Error('Falha ao reler intenções.'));});
 }
 
 
@@ -705,9 +705,9 @@ async function checkSharedRevision(){
  if(!remoteLab||!doc||busy||syncNoticeChecking||document.hidden)return;
  syncNoticeChecking=true;const notice=$('shared-revision-notice');
  try{
-  const state=await remoteLab.state();
-  if(state.revision>doc.revision){syncNoticeRevision=state.revision;notice.hidden=false;notice.textContent='Há alterações confirmadas por outra sessão (revisão '+state.revision+'). Confira e atualize antes de salvar. Seus campos atuais ainda não foram alterados.';}
-  else if(state.revision===doc.revision){syncNoticeRevision=null;notice.hidden=true;notice.textContent='';}
+  const revision=await remoteLab.revision();
+  if(revision>doc.revision){syncNoticeRevision=revision;notice.hidden=false;notice.textContent='Há alterações confirmadas por outra sessão (revisão '+revision+'). Confira e atualize antes de salvar. Seus campos atuais ainda não foram alterados.';}
+  else if(revision===doc.revision){syncNoticeRevision=null;notice.hidden=true;notice.textContent='';}
   else{notice.hidden=false;notice.textContent='O servidor apresentou revisão anterior à tela. Confira a sincronização; não repita lançamentos.';}
  }catch(e){notice.hidden=false;notice.textContent='Releitura do servidor indisponível. A tela não foi alterada; confira a conexão e o WAL.';}
  finally{syncNoticeChecking=false;}
@@ -721,9 +721,9 @@ function remotePanel(){
 }
 async function remoteAction(action){
  if(busy||!remoteLab)return;busy=true;
- try{const r=await action();if(r.state){doc=r.state;draw();void checkSharedRevision();}else{const banner=document.querySelector('#remote-check');if(banner)banner.closest('section').outerHTML=remotePanel();}status(r.status==='confirmed'?'Salvo e confirmado no PostgreSQL · '+str(r.result):'Sincronização: '+r.status+(r.message?' · '+r.message:''),r.status==='confirmed'?'success':'');}
+ try{const r=await action();if(r.state){doc=r.state;draw();}else{const banner=document.querySelector('#remote-check');if(banner)banner.closest('section').outerHTML=remotePanel();}status(r.status==='confirmed'?'Salvo e confirmado no PostgreSQL · '+str(r.result):'Sincronização: '+r.status+(r.message?' · '+r.message:''),r.status==='confirmed'?'success':'');}
  catch(e){status(e.message+' · Confira servidor / WAL antes de repetir.','error');}
- finally{busy=false;}
+ finally{busy=false;void checkSharedRevision();}
 }
 
 
@@ -1486,7 +1486,7 @@ function draw(){
  ['Pedidos fictícios',String(t.orders)],['Peças pedidas',String(t.pieces)],['Peças cortadas',String(t.cut)],
  ['Títulos a pagar abertos',fmt(t.openPayables)]];
  $('global-metrics').innerHTML=metrics.map(([label,value])=>'<div class="metric"><span>'+escape(label)+'</span><strong>'+escape(value)+'</strong></div>').join('');
- try{$('module-content').innerHTML=remotePanel()+moduleHtml(doc);}catch(e){$('module-content').innerHTML=remotePanel()+panel('Não foi possível exibir esta área','<div class="error">'+str(e.message)+'</div><p>Os dados não foram modificados. Abra outro módulo, exporte as evidências ou tente recarregar.</p><button type="button" class="btn" data-goto="auditor">Abrir Auditor</button>',true);}
+ try{$('module-content').innerHTML=remotePanel()+moduleHtml(doc);visitedModules.add(active);}catch(e){$('module-content').innerHTML=remotePanel()+panel('Não foi possível exibir esta área','<div class="error">'+str(e.message)+'</div><p>Os dados não foram modificados. Abra outro módulo, exporte as evidências ou tente recarregar.</p><button type="button" class="btn" data-goto="auditor">Abrir Auditor</button>',true);}
  if(active==='acertos'){refreshServicePreview();applySettlementFilters();const f=document.querySelector('form[data-command="settlement.revise"]');if(f)fillSettlementRevision(f);}
  if(active==='faccoes'){const f=document.querySelector('form[data-command="faction.assignment.rate.set"]');if(f)fillAssignmentRate(f);}
  if(active==='hub'){const f=document.querySelector('form[data-command="finance.receipt.attach"]');if(f)updateReceiptTarget(f);const g=document.querySelector('form[data-command="finance.revise"]');if(g)fillFinanceRevision(g);}
@@ -1661,8 +1661,8 @@ function download(name,content,type){
  setTimeout(()=>URL.revokeObjectURL(url),1400);
 }
 function exportReport(){
- if(!doc)return;const report={schema:'hlgb-evolucao-operacao-integrada-report-v1',environment:'indexeddb-local-fictitious',
-  productionApproval:false,parityApproved:false,modulesVisited:19,exportedAt:new Date().toISOString(),
+ if(!doc)return;const report={schema:'hlgb-evolucao-operacao-integrada-report-v1',environment:remoteLab?'postgres-local-fictitious':'indexeddb-local-fictitious',
+  productionApproval:false,parityApproved:false,modulesAvailable:modules.length,modulesVisited:visitedModules.size,visitedModuleIds:[...visitedModules],exportedAt:new Date().toISOString(),
   journey:api.journey(doc,journeyOrderId),
   observability:observerResult(doc),auditorV3:auditorV3(doc),botV3:botV3(doc),materialPlanning:materialPlannerResult(doc),
   checks:api.inspect(doc),totals:api.totals(doc),data:{...doc,invoicePdfs:window.HLGBLabOperationsV2.pdfMetadata(doc),printPhotos:window.HLGBLabComplementsV1.photoMetadata(doc),paymentReceipts:window.HLGBLabPaymentBatchV1.receiptMetadata(doc)},receiptBinaryExported:false};

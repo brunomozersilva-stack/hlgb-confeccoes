@@ -12,8 +12,10 @@ function validate(cmd,actor){if(!cmd||Object.keys(cmd).sort().join(',')!=='comma
 async function withDb(fn){guard();const c=new Client({host:'127.0.0.1',port:Number(process.env.PGPORT),database:DB,user:process.env.PGUSER,password:process.env.PGPASSWORD,ssl:false,connectionTimeoutMillis:4000,statement_timeout:10000});
  await c.connect();try{const res=(await c.query('SELECT current_database() AS db, marker FROM hlgb_integrado_lab.environment WHERE singleton')).rows[0];if(res?.db!==DB||res.marker!==MARK)throw Error('Marcador do ambiente inválido.');return await fn(c);}finally{await c.end();}}
 async function initialize(){return withDb(async c=>{const seed=core.initial();await c.query('INSERT INTO hlgb_integrado_lab.documents(id,revision,state) VALUES($1,1,$2::jsonb) ON CONFLICT(id) DO NOTHING',[ID,JSON.stringify(seed)]);return state();});}
-function verifyDocument(row){if(!row||Number(row.revision)!==row.state?.revision||row.state.revisionProof!==(row.state.log.at(-1)?.commandId||'seed')||!core.inspect(row.state).ok)throw Error('Snapshot inconsistente; nenhuma alteração autorizada.');return row.state;}
+function verifyChain(state){if(!state||!Number.isSafeInteger(state.revision)||state.revision<1||!Array.isArray(state.log)||state.log.length!==state.revision-1)return false;const seen=new Set();for(let i=0;i<state.log.length;i++){let e=state.log[i];if(!e||e.revision!==i+2||typeof e.commandId!=='string'||!e.commandId||seen.has(e.commandId)||e.type==='demo.reset'||!['Operador A fictício','Operador B fictício'].includes(e.actor))return false;seen.add(e.commandId);}return state.revisionProof===(state.log.at(-1)?.commandId||'seed');}
+function verifyDocument(row){if(!row||Number(row.revision)!==row.state?.revision||!verifyChain(row.state)||!core.inspect(row.state).ok)throw Error('Snapshot inconsistente; nenhuma alteração autorizada.');return row.state;}
 async function state(){return withDb(async c=>verifyDocument((await c.query('SELECT revision,state FROM hlgb_integrado_lab.documents WHERE id=$1',[ID])).rows[0]));}
+async function revision(){return withDb(async c=>{const row=(await c.query('SELECT revision FROM hlgb_integrado_lab.documents WHERE id=$1',[ID])).rows[0],n=Number(row?.revision);if(!Number.isSafeInteger(n)||n<1)throw Error('Revisão indisponível.');return n;});}
 async function commit(cmd,actor){let fingerprint;try{fingerprint=validate(cmd,actor);}catch(e){return {status:'rejected',message:e.message};}
  return withDb(async c=>{await c.query('BEGIN');try{
  const current=verifyDocument((await c.query('SELECT revision,state FROM hlgb_integrado_lab.documents WHERE id=$1 FOR UPDATE',[ID])).rows[0]);
@@ -50,4 +52,4 @@ async function cancel(cmd,actor){
  await c.query('INSERT INTO hlgb_integrado_lab.cancellations(command_id,actor,fingerprint) VALUES($1,$2,$3)',[cmd.commandId,actor,fingerprint]);
  await c.query('COMMIT');return {status:'cancelled',commandId:cmd.commandId};
  }catch(e){await c.query('ROLLBACK').catch(()=>{});throw e;}});}
-module.exports={guard,canonical,validate,initialize,state,commit,readback,cancel};
+module.exports={guard,canonical,validate,initialize,state,revision,commit,readback,cancel,verifyChain};
