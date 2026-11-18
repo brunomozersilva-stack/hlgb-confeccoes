@@ -31,6 +31,16 @@ function impact(changed){
  }
  return {highRisk:false,packs:available.filter(x=>affected.has(x))};
 }
+function expandPacks(areas){
+ const selected=new Set();
+ const visit=area=>{
+  if(!packs[area]||selected.has(area))return;
+  selected.add(area);
+  for(const dep of catalog.dependencies[area]||[])visit(dep);
+ };
+ for(const area of areas)visit(area);
+ return available.filter(area=>selected.has(area));
+}
 function changedFromStdin(){
  // git diff --name-only -z guarantees lossless file boundaries.
  return fs.readFileSync(0,'utf8').split('\0').filter(Boolean);
@@ -46,8 +56,13 @@ if(args[0]==='--impact'){
 if(args[0]==='--impact-stdin'){
  console.log(JSON.stringify(impact(changedFromStdin()),null,2));process.exit(0);
 }
+if(args[0]==='--dependencies'){
+ if(args.length!==2||!available.includes(args[1])){console.error('Módulo inválido');process.exit(2);}
+ console.log(JSON.stringify({packs:expandPacks([args[1]])},null,2));process.exit(0);
+}
 const targets=args[0]==='--run-changed-stdin'
  ?impact(changedFromStdin()).packs
+ :args[0]==='--with-deps'?expandPacks(args.slice(1))
  :args[0]==='--all'?available:[...new Set(args)];
 if(!targets.length||targets.some(area=>!available.includes(area))){
  console.error('Use --list, --impact, --all ou um módulo: '+available.join(', '));
