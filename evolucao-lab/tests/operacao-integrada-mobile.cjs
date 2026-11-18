@@ -1010,10 +1010,60 @@ async function runRecovery(browser,url){
  }finally{await ctx.close();}
 }
 
+async function runColorMatrix(browser,url,width){
+ const ctx=await browser.newContext({viewport:{width,height:820},acceptDownloads:true});
+ const page=await ctx.newPage(),errors=[];
+ page.on('pageerror',e=>errors.push(e.message));
+ try{
+  await page.goto(url);
+  await page.waitForFunction(()=>document.querySelector('#top-revision')?.textContent.includes('Revisão local 1'));
+  await module(page,'pedidos');
+  const form=page.locator('form[data-command="order.add.with.colors"]');
+  assert.equal(await form.count(),1,'Matriz horizontal deve estar em Pedidos');
+  assert.equal(await form.locator('[data-color-row]').count(),1);
+  await form.locator('[data-color-row]').first().locator('[name=P]').fill('2');
+  await form.locator('[data-color-row]').first().locator('[name=M]').fill('4');
+  await form.locator('[data-color-row]').first().locator('[name=G]').fill('0');
+  await form.locator('[data-color-row]').first().locator('[name=GG]').fill('0');
+  await form.locator('[data-add-color-row]').click();
+  assert.equal(await form.locator('[data-color-row]').count(),2);
+  const ruby=form.locator('[data-color-row]').nth(1);
+  await ruby.locator('[name=color]').fill('Rubi');
+  await ruby.locator('[name=P]').fill('1');
+  await ruby.locator('[name=M]').fill('3');
+  await ruby.locator('[name=G]').fill('1');
+  await ruby.locator('[name=GG]').fill('0');
+  assert.match(await form.locator('#order-color-total').innerText(),/Total: 11 peças/);
+  assert.match(await form.locator('#order-color-total').innerText(),/P: 3.*M: 7.*G: 1/);
+  await form.locator('button[type=submit]').click();
+  await page.waitForFunction(()=>document.querySelector('#top-revision')?.textContent.includes('Revisão local 2'));
+  assert.match(await page.locator('#flash').innerText(),/Salvo e confirmado por releitura/);
+  const reportDownload=page.waitForEvent('download');
+  await page.locator('#export-json').click();
+  const report=JSON.parse(fs.readFileSync(await (await reportDownload).path(),'utf8'));
+  const newOrder=report.data.orders.find(x=>x.id==='PED-0001');
+  assert.deepEqual(newOrder.grade,{P:3,M:7,G:1,GG:0});
+  assert.deepEqual(newOrder.colorGrades.map(x=>x.color),['Preto','Rubi']);
+  assert.equal(report.data.finance.filter(x=>x.sourceId===newOrder.id).length,1);
+  assert.equal(report.data.log.filter(x=>x.type==='order.add.with.colors').length,1);
+  assert.equal(await page.locator('form[data-command="order.add"]').count(),1,'Modo antigo preservado');
+  assert.equal(await page.locator('form[data-command="order.color.grade.set"]').count(),1,'Edição acessível em Pedidos');
+  const bad=form.locator('[data-color-row]').first();
+  await form.locator('[data-add-color-row]').click();
+  await bad.locator('[name=color]').fill('Preto');
+  await form.locator('[data-color-row]').nth(1).locator('[name=color]').fill('PRETO');
+  await form.locator('button[type=submit]').click();
+  assert.equal(await revision(page),2,'Cor duplicada não gera pedido nem nova revisão');
+  assert.match(await page.locator('#flash').innerText(),/cores diferentes|Cor vazia, duplicada/);
+  assert.equal(errors.length,0,'Sem exceções na interface: '+errors.join('; '));
+  console.log('PASS grade por cor na tela Pedidos, '+width+'px, '+browserType.name());
+ }finally{await ctx.close();}
+}
+
 (async()=>{
  await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));
  const url='http://127.0.0.1:'+server.address().port+'/';
  const browser=await browserType.launch({headless:true});
- try{await runRecovery(browser,url);for(const width of [320,375,390,768,1280])await run(browser,width,url)}
+ try{await runRecovery(browser,url);for(const width of [390,1280])await runColorMatrix(browser,url,width);for(const width of [320,375,390,768,1280])await run(browser,width,url)}
  finally{await browser.close();await new Promise(resolve=>server.close(resolve))}
 })().catch(e=>{console.error(e);process.exitCode=1});
