@@ -18,8 +18,8 @@ async function start(port=0){
  if(route==='/login'&&method==='GET'){const csrf=crypto.randomBytes(24).toString('hex');loginTokens.set(csrf,Date.now()+300000);res.writeHead(200,{...headers,'content-type':'text/html;charset=utf-8','set-cookie':'hlgb_login_csrf='+csrf+'; Path=/login; HttpOnly; SameSite=Strict; Max-Age=300'});res.end(login(csrf));return;}
  if(route==='/login'&&method==='POST'){
  const form=new URLSearchParams(await body(req)),key=form.get('actor'),csrf=form.get('csrf'),cookie=String(req.headers.cookie||'').split(';').map(x=>x.trim()).find(x=>x.startsWith('hlgb_login_csrf='))?.slice('hlgb_login_csrf='.length);
- const ref=req.headers.referer||'',fromSelf=(()=>{try{const u=new URL(ref);return u.origin===base&&u.pathname==='/login';}catch(e){return false;}})();
- if(!csrf||csrf!==cookie||!loginTokens.has(csrf)||loginTokens.get(csrf)<Date.now()||!fromSelf||req.headers.origin&&req.headers.origin!==base){send(403,{status:'denied'});return;}
+ const origin=req.headers.origin||null,fromSelf=!origin||origin===base;
+ if(!csrf||csrf!==cookie||!loginTokens.has(csrf)||loginTokens.get(csrf)<Date.now()||!fromSelf){send(403,{status:'denied'});return;}
  loginTokens.delete(csrf);
  if(!Object.hasOwn(pins,key)||pins[key]!==form.get('pin')){send(401,{status:'denied'});return;}
  const token=crypto.randomBytes(32).toString('hex');sessions.set(token,{actor:actors[key],expires:Date.now()+3600000});
