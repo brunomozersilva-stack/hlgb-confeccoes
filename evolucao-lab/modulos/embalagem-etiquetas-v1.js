@@ -150,14 +150,16 @@
    fail('Somente tarefa de embalagem aguardando/parcial pode ser editada.');
   const valid=baseAssignment(s,p);
   if(valid.qty<row.doneQty)fail('Nova quantidade não pode ser inferior ao já registrado como pronto.');
-  const before=assignmentSnapshot(row),after=fingerprint(valid);
+  const before=assignmentSnapshot(row),after=fingerprint(valid),oldLabel=clone(row.labelSnapshot);
   if(fingerprint(before)===after)fail('Nenhuma alteração na atribuição.');
   const reason=txt(p.reason,'Motivo da edição',200);
+  const changedDestination=row.clientId!==valid.clientId||row.productId!==valid.productId;
   Object.assign(row,valid);
-  row.labelSnapshot=labelSnapshot(s,valid.clientId,valid.productId);
+  // Uma alteração de quantidade/funcionária nunca troca silenciosamente a versão da etiqueta.
+  if(changedDestination)row.labelSnapshot=labelSnapshot(s,valid.clientId,valid.productId);
   row.status=statusOf(row);row.lastCommandId=uid;
   row.history.push({type:'revised',commandId:uid,revision:s.revision+1,
-   before,doneBefore:row.doneQty,afterFingerprint:assignmentFingerprint(row),doneAfter:row.doneQty,reason});
+   before,labelBefore:oldLabel,doneBefore:row.doneQty,afterFingerprint:assignmentFingerprint(row),doneAfter:row.doneQty,reason});
   return row.id+' · atribuição revisada sem apagar a anterior';
  }
  function progress(s,p,{uid}){
