@@ -129,3 +129,22 @@ Antes da liberação, **cada uma das 19 áreas mais Utilidades** será revista n
 **Limites e bloqueio:** uma conclusão fictícia não debita materiais, não gera ficha BOM, não libera facção, não cria acerto ou título financeiro; os `multiCutPlans` não são `cutPlans` legados e não são migrados automaticamente. O impresso A4 completo, pesos posteriores append-only, assinaturas físicas, operações de produção/embalagem e migração reversível continuam pendentes. Os IDs LEG-001/003/004/005/006/007/008/017/019 **permanecem sem aceite de paridade**. Testes automáticos não substituem a conferência visual da equipe.
 
 **Regra inviolável:** NÃO fazer merge em `main`, NÃO importar dados reais e NÃO declarar paridade global até o inventário e as provas da segunda revisão. O marco de aprovação para produção permanece `false`.
+
+
+## Quarta evolução isolada — folha A4 de Corte multimodelo e pesagem posterior (18/11/2026)
+
+**Estado:** implementação no laboratório; validação de navegadores/CI e aceite operacional ainda pendentes. `approvedForProduction = false`.
+
+1. Novo módulo `modulos/folha-corte-multimodelo-v1.js` gera somente HTML para impressão A4 da folha `PCM`, incluindo **pedido, modelo, SKU, cliente, data, equipe** e **cinco seções**: (1) grade horizontal por cor/tamanho com totais, (2) matérias-primas com previsão ilustrativa da ficha, (3) pesagem e aproveitamento, (4) peças extras para preenchimento manual, (5) conferências, observações e **três campos de assinatura física**.
+2. O renderizador localiza pedido e modelo pelo `orderId + itemId + productId`, não junta modelos do mesmo pedido. Quantidades da folha são comparadas com as linhas do plano. Tamanhos como PP, G2 e XG são exibidos sem limitar o modelo às quatro colunas do legado do laboratório.
+3. O cálculo de materiais é **somente previsão** com ficha básica e regras ativas por cor/tamanho. Não faz baixa no estoque; consumos que não possuem regra específica não devem ser apresentados como medição real. O registro de peso agregado, quando existir, é identificado como valor histórico e **não equivale à pesagem por material conferida**.
+4. Comando `multi.cut.weight.record`: somente após concluir uma programação; total/útil/lixo em gramas inteiros, conferente e justificativa obrigatórios; impede total zero, excesso de lixo/útil, duplicação idêntica. Preserva eventos anteriores e o status/grade do corte; o Auditor exige vínculo entre cada evento e seu comando global com revisão crescente.
+5. Na tela de Corte: botão **Folha A4 deste modelo**, formulário de pesagem posterior e exportação dos eventos para CSV. Scripts do navegador e testes de contratos receberam os novos módulos; Chrome e Safari são alvos do CI, ainda não considerados aprovados sem resultado verde.
+
+**Lacunas pendentes (não declarar paridade):**
+- A4 é **ensaio visual**, sem prova de que imprime uma única página para grades extremas; etiquetas/QR, paginação e assinaturas físicas devem ser validadas presencialmente.
+- Pesagem atual é agregada; a baixa real por tipo de material, atribuição de estoque por lote, conferência de sobras, registro formal de peças extras e posterior regularização **não estão integrados**.
+- Corte multimodelo ainda não alimenta Facções, Produção, Separação, Acertos ou Financeiro. Utilidades/Rotas/Etiquetas/Embalagem e migração reversível permanecem pendentes.
+- Nada publicado em `main`, nenhum registro do HLGB comercial migrado, nenhum teste de produção realizado.
+
+**Próxima frente:** comparar a folha A4 e todos os cálculos com amostras anonimizadas da folha v95.23; depois recuperar **Utilidades** e preparar integrações por item, com a mesma proteção contra dupla baixa e perda de histórico.
