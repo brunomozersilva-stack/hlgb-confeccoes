@@ -1,0 +1,373 @@
+{
+  "schema": "hlgb-gate-preservacao-v3",
+  "at": "2026-11-18",
+  "productionBaseline": "6542a62c27fa08f9c6b3f8223808fa5ccbe68a18",
+  "labBaseline": "eb4c2e8cc91ad8c04776853fafc2386d66e36bb9",
+  "approvedForProduction": false,
+  "coverage": "primeira_etapa_pente_fino_nao_exaustiva",
+  "preliminary76Approved": 0,
+  "checkedScopes": 19,
+  "items": [
+    {
+      "id": "LEG-001",
+      "area": "pedidos",
+      "name": "Pedido com múltiplos modelos",
+      "status": "gap_confirmado",
+      "priority": "P0",
+      "old": "release-cutter-planner.js:modelRows",
+      "new": "evolucao-lab/operacao-integrada-core.js:createOrder",
+      "approved": false,
+      "requires": [
+        "paridade_visual",
+        "paridade_comportamental",
+        "integridade_dados",
+        "webkit_chromium_mobile",
+        "teste_two_sessions",
+        "rollback",
+        "aceite_explicito"
+      ]
+    },
+    {
+      "id": "LEG-002",
+      "area": "pedidos",
+      "name": "Grade cor x tamanho na própria tela Pedidos",
+      "status": "gap_confirmado",
+      "priority": "P0",
+      "old": "release-cutter-sheet-materials-v9523.js:gradeMatrix",
+      "new": "evolucao-lab/operacao-integrada-ui.js:case pedidos/faccoes",
+      "approved": false,
+      "requires": [
+        "paridade_visual",
+        "paridade_comportamental",
+        "integridade_dados",
+        "webkit_chromium_mobile",
+        "teste_two_sessions",
+        "rollback",
+        "aceite_explicito"
+      ]
+    },
+    {
+      "id": "LEG-003",
+      "area": "pedidos",
+      "name": "Tamanhos variáveis do cadastro",
+      "status": "gap_confirmado",
+      "priority": "P0",
+      "old": "release-cutter-sheet-materials-v9523.js:gradeMatrix",
+      "new": "evolucao-lab/operacao-integrada-core.js:sizes",
+      "approved": false,
+      "requires": [
+        "paridade_visual",
+        "paridade_comportamental",
+        "integridade_dados",
+        "webkit_chromium_mobile",
+        "teste_two_sessions",
+        "rollback",
+        "aceite_explicito"
+      ]
+    },
+    {
+      "id": "LEG-004",
+      "area": "corte",
+      "name": "Grade horizontal editável por modelo/cor",
+      "status": "gap_confirmado",
+      "priority": "P0",
+      "old": "release-cut-model-grade-adjust.js:buildHorizontalEditor",
+      "new": "evolucao-lab/operacao-integrada-ui.js:case corte",
+      "approved": false,
+      "requires": [
+        "paridade_visual",
+        "paridade_comportamental",
+        "integridade_dados",
+        "webkit_chromium_mobile",
+        "teste_two_sessions",
+        "rollback",
+        "aceite_explicito"
+      ]
+    },
+    {
+      "id": "LEG-005",
+      "area": "corte",
+      "name": "Programação e corte por modelo no mesmo pedido",
+      "status": "gap_confirmado",
+      "priority": "P0",
+      "old": "release-cutter-planner.js:modelRows",
+      "new": "evolucao-lab/operacao-integrada-core.js:cut.plan",
+      "approved": false,
+      "requires": [
+        "paridade_visual",
+        "paridade_comportamental",
+        "integridade_dados",
+        "webkit_chromium_mobile",
+        "teste_two_sessions",
+        "rollback",
+        "aceite_explicito"
+      ]
+    },
+    {
+      "id": "LEG-006",
+      "area": "corte",
+      "name": "Folha A4 completa do cortador com 5 seções e 3 assinaturas",
+      "status": "gap_confirmado",
+      "priority": "P0",
+      "old": "release-cutter-sheet-materials-v9523.js:renderSheet",
+      "new": "evolucao-lab/operacao-integrada-ui.js:renderCutSheet",
+      "approved": false,
+      "requires": [
+        "paridade_visual",
+        "paridade_comportamental",
+        "integridade_dados",
+        "webkit_chromium_mobile",
+        "teste_two_sessions",
+        "rollback",
+        "aceite_explicito"
+      ]
+    },
+    {
+      "id": "LEG-007",
+      "area": "corte",
+      "name": "Agenda de cortes por modelo",
+      "status": "gap_confirmado",
+      "priority": "P1",
+      "old": "release-cutter-planner.js:selectModel",
+      "new": "evolucao-lab/operacao-integrada-ui.js:case corte",
+      "approved": false,
+      "requires": [
+        "paridade_visual",
+        "paridade_comportamental",
+        "integridade_dados",
+        "webkit_chromium_mobile",
+        "teste_two_sessions",
+        "rollback",
+        "aceite_explicito"
+      ]
+    },
+    {
+      "id": "LEG-008",
+      "area": "corte",
+      "name": "Peso posterior append-only por corte concluído",
+      "status": "gap_confirmado",
+      "priority": "P0",
+      "old": "release-cut-weight-v9579.js",
+      "new": "evolucao-lab/operacao-integrada-core.js:cut.plan.complete",
+      "approved": false,
+      "requires": [
+        "paridade_visual",
+        "paridade_comportamental",
+        "integridade_dados",
+        "webkit_chromium_mobile",
+        "teste_two_sessions",
+        "rollback",
+        "aceite_explicito"
+      ]
+    },
+    {
+      "id": "LEG-009",
+      "area": "corte",
+      "name": "Rendimento por material, peças extras, médias históricas",
+      "status": "parcial_nao_homologado",
+      "priority": "P1",
+      "old": "release-cut-material-usage.js",
+      "new": "evolucao-lab/modulos/corte-bom-v1.js",
+      "approved": false,
+      "requires": [
+        "paridade_visual",
+        "paridade_comportamental",
+        "integridade_dados",
+        "webkit_chromium_mobile",
+        "teste_two_sessions",
+        "rollback",
+        "aceite_explicito"
+      ]
+    },
+    {
+      "id": "LEG-010",
+      "area": "utilidades",
+      "name": "Menu Utilidades",
+      "status": "gap_confirmado",
+      "priority": "P0",
+      "old": "release-operations-pack.js:ensureNav",
+      "new": "evolucao-lab/operacao-integrada-ui.js:cases",
+      "approved": false,
+      "requires": [
+        "paridade_visual",
+        "paridade_comportamental",
+        "integridade_dados",
+        "webkit_chromium_mobile",
+        "teste_two_sessions",
+        "rollback",
+        "aceite_explicito"
+      ]
+    },
+    {
+      "id": "LEG-011",
+      "area": "utilidades",
+      "name": "Rotas LEVAR/BUSCAR e prova de gravação",
+      "status": "gap_confirmado",
+      "priority": "P0",
+      "old": "release-operations-pack.js:routeRemoteProof9534",
+      "new": "evolucao-lab/operacao-integrada-core.js:no-route",
+      "approved": false,
+      "requires": [
+        "paridade_visual",
+        "paridade_comportamental",
+        "integridade_dados",
+        "webkit_chromium_mobile",
+        "teste_two_sessions",
+        "rollback",
+        "aceite_explicito"
+      ]
+    },
+    {
+      "id": "LEG-012",
+      "area": "utilidades",
+      "name": "Etiquetas A4, volumes, 10/18/21",
+      "status": "gap_confirmado",
+      "priority": "P1",
+      "old": "release-operations-pack.js:renderLabels",
+      "new": "evolucao-lab/operacao-integrada-ui.js:no-labels",
+      "approved": false,
+      "requires": [
+        "paridade_visual",
+        "paridade_comportamental",
+        "integridade_dados",
+        "webkit_chromium_mobile",
+        "teste_two_sessions",
+        "rollback",
+        "aceite_explicito"
+      ]
+    },
+    {
+      "id": "LEG-013",
+      "area": "utilidades",
+      "name": "Etiquetas de embalagem/PDF por cliente",
+      "status": "gap_confirmado",
+      "priority": "P1",
+      "old": "release-operations-pack.js:renderLabelTemplates",
+      "new": "evolucao-lab/operacao-integrada-ui.js:no-labels",
+      "approved": false,
+      "requires": [
+        "paridade_visual",
+        "paridade_comportamental",
+        "integridade_dados",
+        "webkit_chromium_mobile",
+        "teste_two_sessions",
+        "rollback",
+        "aceite_explicito"
+      ]
+    },
+    {
+      "id": "LEG-014",
+      "area": "embalagem",
+      "name": "Atribuir produção por embaladeira",
+      "status": "gap_confirmado",
+      "priority": "P1",
+      "old": "release-operations-pack.js:renderPackaging",
+      "new": "evolucao-lab/modulos/operacoes-v2.js:packagingAssign",
+      "approved": false,
+      "requires": [
+        "paridade_visual",
+        "paridade_comportamental",
+        "integridade_dados",
+        "webkit_chromium_mobile",
+        "teste_two_sessions",
+        "rollback",
+        "aceite_explicito"
+      ]
+    },
+    {
+      "id": "LEG-015",
+      "area": "utilidades",
+      "name": "Regularização histórica",
+      "status": "gap_confirmado",
+      "priority": "P0",
+      "old": "release-operations-pack.js:renderHistorical",
+      "new": "evolucao-lab/operacao-integrada-ui.js:no-regularizacao",
+      "approved": false,
+      "requires": [
+        "paridade_visual",
+        "paridade_comportamental",
+        "integridade_dados",
+        "webkit_chromium_mobile",
+        "teste_two_sessions",
+        "rollback",
+        "aceite_explicito"
+      ]
+    },
+    {
+      "id": "LEG-016",
+      "area": "corte",
+      "name": "BOM multimatéria integrado à grade e ao impresso",
+      "status": "parcial_nao_homologado",
+      "priority": "P1",
+      "old": "release-cut-material-usage.js",
+      "new": "evolucao-lab/modulos/corte-bom-v1.js",
+      "approved": false,
+      "requires": [
+        "paridade_visual",
+        "paridade_comportamental",
+        "integridade_dados",
+        "webkit_chromium_mobile",
+        "teste_two_sessions",
+        "rollback",
+        "aceite_explicito"
+      ]
+    },
+    {
+      "id": "LEG-017",
+      "area": "faccoes",
+      "name": "Saldos e acertos sem perder histórico real",
+      "status": "nao_verificado",
+      "priority": "P0",
+      "old": "release-faction-manual-payment-v9566.js",
+      "new": "evolucao-lab/operacao-integrada-core.js",
+      "approved": false,
+      "requires": [
+        "paridade_visual",
+        "paridade_comportamental",
+        "integridade_dados",
+        "webkit_chromium_mobile",
+        "teste_two_sessions",
+        "rollback",
+        "aceite_explicito"
+      ]
+    },
+    {
+      "id": "LEG-018",
+      "area": "transversal",
+      "name": "Hub/folha/estoque/compras e relatórios equivalentes",
+      "status": "nao_verificado",
+      "priority": "P0",
+      "old": "release-hub-save-proof-v9567.js",
+      "new": "evolucao-lab/operacao-integrada-ui.js",
+      "approved": false,
+      "requires": [
+        "paridade_visual",
+        "paridade_comportamental",
+        "integridade_dados",
+        "webkit_chromium_mobile",
+        "teste_two_sessions",
+        "rollback",
+        "aceite_explicito"
+      ]
+    },
+    {
+      "id": "LEG-019",
+      "area": "transversal",
+      "name": "Auditor, Bot, WAL e migração com reversão",
+      "status": "nao_verificado",
+      "priority": "P0",
+      "old": "release-internal-auditor.js",
+      "new": "evolucao-lab/operacao-integrada-core.js",
+      "approved": false,
+      "requires": [
+        "paridade_visual",
+        "paridade_comportamental",
+        "integridade_dados",
+        "webkit_chromium_mobile",
+        "teste_two_sessions",
+        "rollback",
+        "aceite_explicito"
+      ]
+    }
+  ]
+}
