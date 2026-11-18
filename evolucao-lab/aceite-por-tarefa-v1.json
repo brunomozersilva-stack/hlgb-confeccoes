@@ -1,0 +1,366 @@
+{
+  "schema": "hlgb-evolucao-aceite-por-tarefa-v1",
+  "version": "2026-11-18",
+  "approvedForProduction": false,
+  "minimumCoverage": "Todas as tarefas atuais identificadas, não apenas estes 17 contratos prioritários",
+  "statusValues": [
+    "pendente",
+    "preservada",
+    "melhorada"
+  ],
+  "requiredEvidence": [
+    "fonteLegada",
+    "evidenciaComportamental",
+    "provaServidor",
+    "provaDuasSessoes",
+    "provaSafariChromeMobile",
+    "provaIntegridade",
+    "aprovacaoEquipe"
+  ],
+  "allLegacyTasksInventoried": false,
+  "oldSystemStillInUse": true,
+  "serverMigrationApproved": false,
+  "rollbackTestApproved": false,
+  "tasks": [
+    {
+      "id": "ACE-001",
+      "module": "pedidos",
+      "title": "Pedido multimodelo e grade flexível",
+      "expectedImprovement": "Preservar pedido antigo e incluir dois modelos por cor e tamanho",
+      "status": "pendente",
+      "improvementConfirmed": false,
+      "evidence": {
+        "fonteLegada": null,
+        "evidenciaComportamental": null,
+        "provaServidor": null,
+        "provaDuasSessoes": null,
+        "provaSafariChromeMobile": null,
+        "provaIntegridade": null,
+        "aprovacaoEquipe": null
+      },
+      "improvementEvidence": null,
+      "operatorApproval": null,
+      "approvedAt": null
+    },
+    {
+      "id": "ACE-002",
+      "module": "corte",
+      "title": "Corte parcial, A4 e pesagem posterior",
+      "expectedImprovement": "Reconciliar grade, materiais, lixo e assinaturas",
+      "status": "pendente",
+      "improvementConfirmed": false,
+      "evidence": {
+        "fonteLegada": null,
+        "evidenciaComportamental": null,
+        "provaServidor": null,
+        "provaDuasSessoes": null,
+        "provaSafariChromeMobile": null,
+        "provaIntegridade": null,
+        "aprovacaoEquipe": null
+      },
+      "improvementEvidence": null,
+      "operatorApproval": null,
+      "approvedAt": null
+    },
+    {
+      "id": "ACE-003",
+      "module": "faccoes",
+      "title": "Troca de facção e mão de obra",
+      "expectedImprovement": "Registrar beneficiário e preço corretos sem perder o histórico",
+      "status": "pendente",
+      "improvementConfirmed": false,
+      "evidence": {
+        "fonteLegada": null,
+        "evidenciaComportamental": null,
+        "provaServidor": null,
+        "provaDuasSessoes": null,
+        "provaSafariChromeMobile": null,
+        "provaIntegridade": null,
+        "aprovacaoEquipe": null
+      },
+      "improvementEvidence": null,
+      "operatorApproval": null,
+      "approvedAt": null
+    },
+    {
+      "id": "ACE-004",
+      "module": "separacao",
+      "title": "Baixa parcial por variação",
+      "expectedImprovement": "Mostrar a cortar, cortado a separar e separado por célula",
+      "status": "pendente",
+      "improvementConfirmed": false,
+      "evidence": {
+        "fonteLegada": null,
+        "evidenciaComportamental": null,
+        "provaServidor": null,
+        "provaDuasSessoes": null,
+        "provaSafariChromeMobile": null,
+        "provaIntegridade": null,
+        "aprovacaoEquipe": null
+      },
+      "improvementEvidence": null,
+      "operatorApproval": null,
+      "approvedAt": null
+    },
+    {
+      "id": "ACE-005",
+      "module": "acertos",
+      "title": "Avulsos e consolidação por pessoa",
+      "expectedImprovement": "Aceitar avulso sem preço comercial e impedir pagamento duplo",
+      "status": "pendente",
+      "improvementConfirmed": false,
+      "evidence": {
+        "fonteLegada": null,
+        "evidenciaComportamental": null,
+        "provaServidor": null,
+        "provaDuasSessoes": null,
+        "provaSafariChromeMobile": null,
+        "provaIntegridade": null,
+        "aprovacaoEquipe": null
+      },
+      "improvementEvidence": null,
+      "operatorApproval": null,
+      "approvedAt": null
+    },
+    {
+      "id": "ACE-006",
+      "module": "folha",
+      "title": "Passagem individual e ordem por confecção",
+      "expectedImprovement": "Preservar total, edição posterior e posição na lista",
+      "status": "pendente",
+      "improvementConfirmed": false,
+      "evidence": {
+        "fonteLegada": null,
+        "evidenciaComportamental": null,
+        "provaServidor": null,
+        "provaDuasSessoes": null,
+        "provaSafariChromeMobile": null,
+        "provaIntegridade": null,
+        "aprovacaoEquipe": null
+      },
+      "improvementEvidence": null,
+      "operatorApproval": null,
+      "approvedAt": null
+    },
+    {
+      "id": "ACE-007",
+      "module": "folha",
+      "title": "Alterações por funcionário com histórico",
+      "expectedImprovement": "Comprovar valores antes/depois em sessão distinta",
+      "status": "pendente",
+      "improvementConfirmed": false,
+      "evidence": {
+        "fonteLegada": null,
+        "evidenciaComportamental": null,
+        "provaServidor": null,
+        "provaDuasSessoes": null,
+        "provaSafariChromeMobile": null,
+        "provaIntegridade": null,
+        "aprovacaoEquipe": null
+      },
+      "improvementEvidence": null,
+      "operatorApproval": null,
+      "approvedAt": null
+    },
+    {
+      "id": "ACE-008",
+      "module": "hub",
+      "title": "Gravação e releitura de despesa",
+      "expectedImprovement": "Impedir duplicidade e mostrar estado da sincronização",
+      "status": "pendente",
+      "improvementConfirmed": false,
+      "evidence": {
+        "fonteLegada": null,
+        "evidenciaComportamental": null,
+        "provaServidor": null,
+        "provaDuasSessoes": null,
+        "provaSafariChromeMobile": null,
+        "provaIntegridade": null,
+        "aprovacaoEquipe": null
+      },
+      "improvementEvidence": null,
+      "operatorApproval": null,
+      "approvedAt": null
+    },
+    {
+      "id": "ACE-009",
+      "module": "nucleo",
+      "title": "Safari/Chrome, WAL e conflito de edição",
+      "expectedImprovement": "Recuperar intenção local e preservar as duas versões",
+      "status": "pendente",
+      "improvementConfirmed": false,
+      "evidence": {
+        "fonteLegada": null,
+        "evidenciaComportamental": null,
+        "provaServidor": null,
+        "provaDuasSessoes": null,
+        "provaSafariChromeMobile": null,
+        "provaIntegridade": null,
+        "aprovacaoEquipe": null
+      },
+      "improvementEvidence": null,
+      "operatorApproval": null,
+      "approvedAt": null
+    },
+    {
+      "id": "ACE-010",
+      "module": "utilidades",
+      "title": "Rotas LEVAR/BUSCAR",
+      "expectedImprovement": "Paradas explícitas, impressão e prova remota",
+      "status": "pendente",
+      "improvementConfirmed": false,
+      "evidence": {
+        "fonteLegada": null,
+        "evidenciaComportamental": null,
+        "provaServidor": null,
+        "provaDuasSessoes": null,
+        "provaSafariChromeMobile": null,
+        "provaIntegridade": null,
+        "aprovacaoEquipe": null
+      },
+      "improvementEvidence": null,
+      "operatorApproval": null,
+      "approvedAt": null
+    },
+    {
+      "id": "ACE-011",
+      "module": "utilidades",
+      "title": "Etiquetas A4 e volumes",
+      "expectedImprovement": "Folhas 10/18/21 e modelo por lote",
+      "status": "pendente",
+      "improvementConfirmed": false,
+      "evidence": {
+        "fonteLegada": null,
+        "evidenciaComportamental": null,
+        "provaServidor": null,
+        "provaDuasSessoes": null,
+        "provaSafariChromeMobile": null,
+        "provaIntegridade": null,
+        "aprovacaoEquipe": null
+      },
+      "improvementEvidence": null,
+      "operatorApproval": null,
+      "approvedAt": null
+    },
+    {
+      "id": "ACE-012",
+      "module": "separacao",
+      "title": "Embalagem por colaboradora",
+      "expectedImprovement": "Fila individual e etiquetas corretas",
+      "status": "pendente",
+      "improvementConfirmed": false,
+      "evidence": {
+        "fonteLegada": null,
+        "evidenciaComportamental": null,
+        "provaServidor": null,
+        "provaDuasSessoes": null,
+        "provaSafariChromeMobile": null,
+        "provaIntegridade": null,
+        "aprovacaoEquipe": null
+      },
+      "improvementEvidence": null,
+      "operatorApproval": null,
+      "approvedAt": null
+    },
+    {
+      "id": "ACE-013",
+      "module": "utilidades",
+      "title": "Regularização histórica",
+      "expectedImprovement": "Ensaio reversível e registros antigos preservados",
+      "status": "pendente",
+      "improvementConfirmed": false,
+      "evidence": {
+        "fonteLegada": null,
+        "evidenciaComportamental": null,
+        "provaServidor": null,
+        "provaDuasSessoes": null,
+        "provaSafariChromeMobile": null,
+        "provaIntegridade": null,
+        "aprovacaoEquipe": null
+      },
+      "improvementEvidence": null,
+      "operatorApproval": null,
+      "approvedAt": null
+    },
+    {
+      "id": "ACE-014",
+      "module": "auditor",
+      "title": "Auditor e assistente rastreáveis",
+      "expectedImprovement": "Mostrar ID, evento, data e falha com prova de origem",
+      "status": "pendente",
+      "improvementConfirmed": false,
+      "evidence": {
+        "fonteLegada": null,
+        "evidenciaComportamental": null,
+        "provaServidor": null,
+        "provaDuasSessoes": null,
+        "provaSafariChromeMobile": null,
+        "provaIntegridade": null,
+        "aprovacaoEquipe": null
+      },
+      "improvementEvidence": null,
+      "operatorApproval": null,
+      "approvedAt": null
+    },
+    {
+      "id": "ACE-015",
+      "module": "producao",
+      "title": "Fila de execução por setor",
+      "expectedImprovement": "Liberar apenas material e etapa disponíveis",
+      "status": "pendente",
+      "improvementConfirmed": false,
+      "evidence": {
+        "fonteLegada": null,
+        "evidenciaComportamental": null,
+        "provaServidor": null,
+        "provaDuasSessoes": null,
+        "provaSafariChromeMobile": null,
+        "provaIntegridade": null,
+        "aprovacaoEquipe": null
+      },
+      "improvementEvidence": null,
+      "operatorApproval": null,
+      "approvedAt": null
+    },
+    {
+      "id": "ACE-016",
+      "module": "central",
+      "title": "Atenção da gestão com exceções",
+      "expectedImprovement": "Alertas abrem exatamente o registro pendente",
+      "status": "pendente",
+      "improvementConfirmed": false,
+      "evidence": {
+        "fonteLegada": null,
+        "evidenciaComportamental": null,
+        "provaServidor": null,
+        "provaDuasSessoes": null,
+        "provaSafariChromeMobile": null,
+        "provaIntegridade": null,
+        "aprovacaoEquipe": null
+      },
+      "improvementEvidence": null,
+      "operatorApproval": null,
+      "approvedAt": null
+    },
+    {
+      "id": "ACE-017",
+      "module": "nucleo",
+      "title": "Migração e rollback",
+      "expectedImprovement": "Reconciliação linha a linha e pendências WAL",
+      "status": "pendente",
+      "improvementConfirmed": false,
+      "evidence": {
+        "fonteLegada": null,
+        "evidenciaComportamental": null,
+        "provaServidor": null,
+        "provaDuasSessoes": null,
+        "provaSafariChromeMobile": null,
+        "provaIntegridade": null,
+        "aprovacaoEquipe": null
+      },
+      "improvementEvidence": null,
+      "operatorApproval": null,
+      "approvedAt": null
+    }
+  ]
+}
