@@ -16,7 +16,9 @@ jobs:
       - uses: actions/setup-node@v4
         with: {node-version: '22'}
       - name: Verify all 156 legacy scripts plus one approved core and ownership
-        run: node --test tests/hlgb-module-boundaries-v9600.cjs
+        run: |
+          node --test tests/hlgb-module-boundaries-v9600.cjs
+          node --test tests/hlgb-loader-legacy-contract-v9600.cjs
       - name: Legacy module smoke suite without data writes
         run: |
           node tests/audit-cutter-planner-regression.cjs
