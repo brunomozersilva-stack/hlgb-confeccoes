@@ -331,7 +331,7 @@ function routePanel(s){
   '<div class="field"><label>Data<input class="input" type="date" name="date" value="'+escape(data.date)+'" required></label></div>'+
   field('driver','Responsável / motorista','text',data.driver)+
   field('status','Etapa','select',data.status,statuses)+
-  field('notes','Observações gerais','text',data.notes)+
+  '<div class="field"><label>Observações gerais<input class="input" name="notes" maxlength="800" value="'+escape(data.notes)+'"></label></div>'+
   (plan?field('reason','Motivo da edição','text','Atualização fictícia da rota'):'')+
   '</div><h3>Paradas na ordem de execução</h3><div id="route-stop-forms">'+
   (data.stops.length?data.stops:[null]).map(x=>routeStopFormHtml(s,x)).join('')+'</div>'+
