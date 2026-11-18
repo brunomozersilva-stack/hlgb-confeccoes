@@ -85,6 +85,11 @@ test('leitura de produção exclui salários, Folha, títulos, preços e trilha 
  source.products[0].priceCents=9999999;
  source.factions[0].unitCents=9999999;
  source.log.push({commandId:'LAB-PRIVATE',description:'SEGREDO-AUDITORIA-X9'});
+ source.materials[0].priceCentsKg=9999999;
+ source.cutPlans.push({id:'COR-TEST',orderId:'PED-TEST',grade:{P:1,M:0,G:0,GG:0},status:'aberto',workMode:'interno',
+  cutterOne:'Cortador Um Fictício',cutterTwo:'Cortador Dois Fictício',spreader:'Enfestador Fictício',
+  materialId:'MAT-0001',theoreticalGrams:120,usefulGrams:null,scrapGrams:null,
+  signatureOne:'SEGREDO-ASSINATURA-X9',completedCommandId:'SEGREDO-COMANDO-X9'});
  const limited=productionView.project(source,B);
  assert.equal(limited.schema,'hlgb-evolucao-operacao-producao-ficticia-v1');
  assert.equal(limited.revision,full.revision);
@@ -94,14 +99,15 @@ test('leitura de produção exclui salários, Folha, títulos, preços e trilha 
  for(const assignment of limited.factionAssignments)
   assert.deepEqual(Object.keys(assignment).sort(),['id','orderId','factionId','qtySent','qtyReturned'].sort(),
    'Envio expõe somente saldos e IDs operacionais de facções');
- assert.deepEqual(Object.keys(limited.products[0]).sort(),['id','sku','name','gramsPerUnit'].sort());
+ assert.deepEqual(Object.keys(limited.products[0]).sort(),['id','sku','name','materialId','gramsPerUnit'].sort());
  assert.deepEqual(Object.keys(limited.materials[0]).sort(),['id','name','stockGrams'].sort());
- assert.deepEqual(Object.keys(limited.cutPlans[0]||{}).sort(),[].sort(),'Sem folhas neste fixture, mas a lista é explícita');
+ assert.deepEqual(Object.keys(limited.cutPlans.at(-1)).sort(),['id','orderId','grade','status','workMode','cutterOne','cutterTwo','spreader','materialId','theoreticalGrams','usefulGrams','scrapGrams'].sort(),'Projeção de corte deve ter somente campos operacionais');
  assert.deepEqual(Object.keys(limited.factions[0]).sort(),['id','name'].sort());
  assert.equal(Object.hasOwn(productionView.project(source,'Operador C fictício'),'materials'),false,'Corte simplificado não recebe estoque completo');
  assert.deepEqual(Object.keys(productionView.project(source,'Operador C fictício').products[0]).sort(),['id','sku','name'].sort());
+ assert.deepEqual(Object.keys(productionView.project(source,'Operador C fictício').cutPlans.at(-1)).sort(),['id','orderId','grade','status'].sort());
  assert.equal(limited.orders.length,full.orders.length);
- for(const term of ['SEGREDO-FOLHA-X9','SEGREDO-FINANCEIRO-X9','SEGREDO-AUDITORIA-X9','9999999','salaryCents','amountCents','priceCentsKg','priceCents','paymentBatches'])
+ for(const term of ['SEGREDO-FOLHA-X9','SEGREDO-FINANCEIRO-X9','SEGREDO-AUDITORIA-X9','9999999','salaryCents','amountCents','priceCentsKg','priceCents','paymentBatches','SEGREDO-ASSINATURA-X9','SEGREDO-COMANDO-X9'])
   assert.equal(JSON.stringify(limited).includes(term),false,'Não pode vazar '+term);
  assert.throws(()=>productionView.project(source,A),/autorização/);
  assert.throws(()=>productionView.project({...source,orders:null},B),/Lista operacional/);
