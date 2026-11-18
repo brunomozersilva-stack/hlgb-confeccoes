@@ -1770,7 +1770,7 @@ function parseData(type,form){
   const data=new FormData(form),lines=[];
   for(const input of form.querySelectorAll('[data-mcut-qty]')){
    const raw=input.value.trim();
-   if(!/^(0|[1-9]\\d*)$/.test(raw))throw Error('Quantidade inválida em '+input.dataset.mcutColor+' / '+input.dataset.mcutSize);
+   if(!/^(0|[1-9]\d*)$/.test(raw))throw Error('Quantidade inválida em '+input.dataset.mcutColor+' / '+input.dataset.mcutSize);
    const qty=Number(raw);if(!Number.isSafeInteger(qty)||qty>Number(input.max))throw Error('Quantidade maior que o saldo disponível.');
    if(qty)lines.push({color:input.dataset.mcutColor,size:input.dataset.mcutSize,qty});
   }
