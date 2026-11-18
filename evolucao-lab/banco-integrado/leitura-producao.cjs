@@ -5,7 +5,7 @@
 const {profile}=require('./permissoes-lab.cjs');
 const fields={
  clients:['id','name'],
- products:['id','sku','name','gramsPerUnit'],
+ products:['id','sku','name','materialId','gramsPerUnit'],
  materials:['id','name','stockGrams'],
  factions:['id','name'],
  orders:['id','clientId','productId','grade','cut','allocated','returned','separated','shipped','factionId'],
