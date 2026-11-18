@@ -64,3 +64,12 @@ test('matriz exibe provas parciais sem permitir aprovar ou gravar dados',()=>{
  assert.deepEqual(visible,expected);assert.equal(index.approval,false);assert.equal(index.scenarios.every(x=>x.humanApproval==='pendente'),true);
  assert.match(html,/id="kpi-proof"/);assert.match(html,/Ainda não homologado/);
 });
+
+test('conferência manual na tela não é homologação formal, não grava e permite exportar offline',()=>{
+ assert.match(html,/id="review-export"/);
+ assert.match(html,/function reviewPayload\(\)/);
+ assert.match(html,/productionApproval:false,approvedForRemoval:false/);
+ assert.match(html,/new Blob\(\[contents\]/);
+ assert.match(html,/reviewResults=new Map\(\)/);
+ assert.match(html,/sem_banco/);
+});

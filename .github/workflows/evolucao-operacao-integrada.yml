@@ -37,6 +37,7 @@ on:
       - 'evolucao-lab/paridade-critica-evidencias-v1.json'
       - 'evolucao-lab/paridade-critica.html'
       - 'evolucao-lab/tests/paridade-critica-contract.cjs'
+      - 'evolucao-lab/tests/paridade-critica-mobile.cjs'
       - 'evolucao-lab/tests/monitor-contract.cjs'
       - 'evolucao-lab/tests/lote-amplo-mobile.cjs'
       - 'evolucao-lab/tests/devolucoes-compras-contract.cjs'
@@ -86,6 +87,7 @@ jobs:
           node evolucao-lab/tests/correcao-acerto-mobile.cjs
           node evolucao-lab/tests/comprovantes-mobile.cjs
           node evolucao-lab/tests/lote-amplo-mobile.cjs
+          node evolucao-lab/tests/paridade-critica-mobile.cjs
       - name: Guardar captura mobile ficticia
         if: always()
         uses: actions/upload-artifact@v4
