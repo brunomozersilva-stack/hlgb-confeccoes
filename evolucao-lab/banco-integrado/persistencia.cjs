@@ -44,7 +44,7 @@ async function commit(cmd,actor){let fingerprint;try{fingerprint=validate(cmd,ac
  await c.query('COMMIT');return {status:'committed',commandId:cmd.commandId,revision,result:next.result};
  }catch(e){await c.query('ROLLBACK').catch(()=>{});throw e;}});}
 async function readback(commandId,expected=null,actor=null){
- let fingerprint=null;if(expected!==null){try{if(expected.commandId!==commandId)throw Error('ID divergente');fingerprint=validate(expected,actor);}catch(e){return {status:'rejected'};}}if(typeof commandId!=='string'||!/^LAB-[a-zA-Z0-9_-]{4,90}$/.test(commandId))return {status:'rejected'};
+ let fingerprint=null;if(expected!==null){try{if(expected.commandId!==commandId)throw Error('ID divergente');fingerprint=validate(expected,actor);if(!permissions.can(actor,expected.type))throw Error('Prova não autorizada para este perfil');}catch(e){return {status:'rejected'};}}if(typeof commandId!=='string'||!/^LAB-[a-zA-Z0-9_-]{4,90}$/.test(commandId))return {status:'rejected'};
  return withDb(async c=>{await c.query('BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY');try{
  const row=(await c.query('SELECT c.revision,c.kind,c.actor,c.result,c.fingerprint,e.event FROM hlgb_integrado_lab.commands c JOIN hlgb_integrado_lab.events e USING(command_id,document_id,revision) WHERE c.command_id=$1',[commandId])).rows[0];
  const current=verifyDocument((await c.query('SELECT revision,state FROM hlgb_integrado_lab.documents WHERE id=$1',[ID])).rows[0]);
@@ -55,7 +55,7 @@ async function readback(commandId,expected=null,actor=null){
  await c.query('COMMIT');return proof?{status:'readback_confirmed',commandId,revision:Number(row.revision),latestRevision:current.revision,result:row.result}:{status:'uncertain',commandId};
  }catch(e){await c.query('ROLLBACK').catch(()=>{});throw e;}});}
 async function cancel(cmd,actor){
- let fingerprint;try{fingerprint=validate(cmd,actor);}catch(e){return {status:'rejected',message:e.message};}
+ let fingerprint;try{fingerprint=validate(cmd,actor);if(!permissions.can(actor,cmd.type))throw Error('Cancelamento não autorizado para este perfil.');}catch(e){return {status:'rejected',message:e.message};}
  return withDb(async c=>{await c.query('BEGIN');try{
  const current=verifyDocument((await c.query('SELECT revision,state FROM hlgb_integrado_lab.documents WHERE id=$1 FOR UPDATE',[ID])).rows[0]);await verifyLedger(c,current);
  const old=(await c.query('SELECT fingerprint FROM hlgb_integrado_lab.commands WHERE command_id=$1',[cmd.commandId])).rows[0];
