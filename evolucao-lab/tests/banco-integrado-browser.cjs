@@ -28,6 +28,8 @@ test('interface completa em duas sessões, conflito, WAL e confirmação indepen
  assert.equal(Object.hasOwn(projected.state,'finance'),false);
  assert.equal(Object.hasOwn(projected.state,'log'),false);
  assert.equal(Object.hasOwn(projected.state.products[0],'priceCents'),false);
+ assert.equal(Array.isArray(projected.state.factionAssignments),true,'Envios operacionais devem vir na projeção restrita');
+ assert.equal(await operator.locator('form[data-command="faction.multi.transfer"]').isVisible(),true);
  const beforeDenied=await db.state();
  const denied=await operator.evaluate(async r=>{
  const response=await fetch('/api/commands',{method:'POST',credentials:'same-origin',headers:{'content-type':'application/json','x-hlgb-integrado':'1'},body:JSON.stringify({commandId:'LAB-NO-FINANCE-B',type:'finance.add',expectedRevision:r,payload:{kind:'pagar',description:'Não autorizar',amountCents:1000,category:'Aluguel'}})});
@@ -90,6 +92,8 @@ test('interface completa em duas sessões, conflito, WAL e confirmação indepen
  const cutView=await cutter.request.get(url+'/api/production-state').then(r=>r.json());
  assert.deepEqual(Object.keys(cutView.state).sort(),['schema','readScope','revision','products','orders','cutPlans'].sort());
  assert.equal(Object.hasOwn(cutView.state.orders[0],'clientId'),false);
+ assert.equal(Object.hasOwn(cutView.state,'factionAssignments'),false,'Corte não recebe histórico de envios por facção');
+ assert.equal(await cutter.locator('form[data-command="faction.multi.transfer"]').isHidden(),true);
  assert.equal(await cutter.locator('form[data-command="order.add"]').isHidden(),true);
  assert.equal(await cutter.locator('form[data-command="faction.allocate"]').isHidden(),true);
  assert.equal(await cutter.locator('form[data-command="cut.record"]').isVisible(),true);
@@ -153,6 +157,70 @@ test('interface completa em duas sessões, conflito, WAL e confirmação indepen
   assert.equal((await operator.locator('#message').innerText()).includes('excede o saldo'),true);
   assert.deepEqual(await db.state(),beforeInvalid,'Nenhuma gravação excedente para '+command);
  }
+ // Ensaio de distribuição múltipla com duas facções e transferência parcial sem alterar acertos anteriores.
+ // Iniciar pedido de 5 peças totalmente separado dos pedidos anteriores.
+ const originalFinance=progressed.finance.length,originalSettlements=progressed.settlements.length;
+ const newOrderForm=operator.locator('form[data-command="order.add"]');
+ await newOrderForm.locator('[name=P]').fill('5');
+ await newOrderForm.locator('[name=M]').fill('0');
+ await newOrderForm.locator('button[type=submit]').click();
+ await operator.waitForFunction(()=>document.querySelector('#top-revision').textContent.includes('teste: 10'));
+ const multiOrder=(await db.state()).orders.at(-1).id;
+ const cutForMulti=operator.locator('form[data-command="cut.record"]');
+ await cutForMulti.locator('[name=orderId]').selectOption(multiOrder);
+ await cutForMulti.locator('[name=size]').selectOption('P');
+ await cutForMulti.locator('[name=qty]').fill('5');
+ await cutForMulti.locator('button[type=submit]').click();
+ await operator.waitForFunction(()=>document.querySelector('#top-revision').textContent.includes('teste: 11'));
+ const facs=(await db.state()).factions.map(x=>x.id);
+ for(const [factionId,qty,revision] of [[facs[0],4,12],[facs[1],1,13]]){
+  const form=operator.locator('form[data-command="faction.multi.allocate"]');
+  await form.locator('[name=orderId]').selectOption(multiOrder);
+  await form.locator('[name=factionId]').selectOption(factionId);
+  await form.locator('[name=qty]').fill(String(qty));
+  await form.locator('button[type=submit]').click();
+  await operator.waitForFunction(n=>document.querySelector('#top-revision').textContent.includes('teste: '+n),revision);
+ }
+ const beforeTransfer=await db.state();
+ const rows=beforeTransfer.factionAssignments.filter(x=>x.orderId===multiOrder);
+ assert.equal(rows.length,2);
+ const from=rows.find(x=>x.factionId===facs[0]),to=rows.find(x=>x.factionId===facs[1]);
+ assert.equal(from.qtySent,4);assert.equal(to.qtySent,1);
+ // Testar bloqueio local por destino igual, sem sequer criar comando nem alterar a revisão.
+ const transferForm=operator.locator('form[data-command="faction.multi.transfer"]');
+ await transferForm.locator('[name=fromAssignmentId]').selectOption(from.id);
+ await transferForm.locator('[name=toFactionId]').selectOption(facs[0]);
+ await transferForm.locator('[name=qty]').fill('2');
+ await transferForm.locator('[name=reason]').fill('Transferência fictícia para balancear produção');
+ await transferForm.locator('button[type=submit]').click();
+ assert.match(await operator.locator('#message').innerText(),/facção diferente da origem/);
+ assert.deepEqual(await db.state(),beforeTransfer,'Transferência inválida não toca banco nem acertos');
+ await transferForm.locator('[name=toFactionId]').selectOption(facs[1]);
+ await transferForm.locator('button[type=submit]').click();
+ await operator.waitForFunction(()=>document.querySelector('#top-revision').textContent.includes('teste: 14'));
+ const moved=await db.state(),movedRows=moved.factionAssignments.filter(x=>x.orderId===multiOrder);
+ assert.equal(movedRows.find(x=>x.id===from.id).qtySent,2);
+ assert.equal(movedRows.find(x=>x.id===to.id).qtySent,3);
+ assert.equal(moved.orders.find(x=>x.id===multiOrder).allocated,5,'Transferência não gera segundo envio');
+ assert.equal(moved.finance.length,originalFinance,'Transferência não cria título financeiro');
+ assert.equal(moved.settlements.length,originalSettlements,'Transferência não cria acerto');
+ assert.equal(moved.factionPartialTransfers.at(-1).reason,'Transferência fictícia para balancear produção');
+ const returnForm=operator.locator('form[data-command="faction.multi.return"]');
+ await returnForm.locator('[name=assignmentId]').selectOption(to.id);
+ await returnForm.locator('[name=qty]').fill('2');
+ await returnForm.locator('button[type=submit]').click();
+ await operator.waitForFunction(()=>document.querySelector('#top-revision').textContent.includes('teste: 15'));
+ const returned=await db.state(),lastSettlement=returned.settlements.at(-1);
+ assert.equal(lastSettlement.assignmentId,to.id,'Retorno paga apenas facção que recebeu a peça');
+ assert.equal(lastSettlement.factionId,facs[1]);
+ assert.equal(lastSettlement.qty,2);
+ assert.equal(returned.finance.filter(f=>f.sourceId===lastSettlement.id).length,1,'Título único por retorno');
+ assert.equal((await db.state()).orders.find(o=>o.id===multiOrder).returned,2);
+ const restrictedMulti=await operator.request.get(url+'/api/production-state').then(r=>r.json());
+ assert.equal(restrictedMulti.state.factionAssignments.filter(x=>x.orderId===multiOrder).length,2);
+ for(const row of restrictedMulti.state.factionAssignments)assert.deepEqual(Object.keys(row).sort(),['id','orderId','factionId','qtySent','qtyReturned'].sort());
+ for(const key of ['settlements','finance','employees','log','paymentBatches','factionPartialTransfers'])
+  assert.equal(Object.hasOwn(restrictedMulti.state,key),false,'Sem acesso ao dado '+key);
  await cutter.locator('#logout-demo').click();
  await cutter.waitForURL('**/login');
  assert.equal(await cutter.request.get(url+'/api/session').then(r=>r.status()),401,'Logout invalida cookie e sessão');

@@ -54,6 +54,25 @@
   quantity.max=String(Math.max(1,Math.min(10000,available)));
   if(!Number.isSafeInteger(Number(quantity.value))||Number(quantity.value)>available||Number(quantity.value)<1)quantity.value='1';
  }
+ function assignmentPending(row){return row?Math.max(0,row.qtySent-row.qtyReturned):0;}
+ function transferAvailable(row){return row?Math.max(0,Math.min(assignmentPending(row),row.qtySent-1)):0;}
+ function assignmentBalances(){
+  if(!view)return;
+  const from=document.querySelector('form[data-command="faction.multi.transfer"]');
+  const returning=document.querySelector('form[data-command="faction.multi.return"]');
+  if(from){
+   const selected=view.factionAssignments?.find(x=>x.id===from.elements.namedItem('fromAssignmentId').value);
+   const available=transferAvailable(selected),qty=from.elements.namedItem('qty'),label=from.parentElement.querySelector('[data-balance="faction.multi.transfer"]');
+   qty.max=String(Math.max(1,Math.min(10000,available)));
+   if(label)label.textContent='Saldo transferível: '+available+' peça(s) (preservando ao menos 1 na origem).';
+  }
+  if(returning){
+   const selected=view.factionAssignments?.find(x=>x.id===returning.elements.namedItem('assignmentId').value);
+   const available=assignmentPending(selected),qty=returning.elements.namedItem('qty'),label=returning.parentElement.querySelector('[data-balance="faction.multi.return"]');
+   qty.max=String(Math.max(1,Math.min(10000,available)));
+   if(label)label.textContent='Saldo pendente de retorno: '+available+' peça(s).';
+  }
+ }
  function stageRemaining(order,type){
   if(!order)return 0;
   if(type==='order.separate')return Math.max(0,order.returned-order.separated);
@@ -81,18 +100,33 @@
   const clients=view.clients||[],products=view.products,factions=view.factions||[],orders=view.orders;
   options(document.querySelector('form[data-command="order.add"] [name=clientId]'),clients,x=>x.name);
   options(document.querySelector('form[data-command="order.add"] [name=productId]'),products,x=>x.name+' · '+x.sku);
-  for(const form of document.querySelectorAll('form[data-command="cut.record"],form[data-command="faction.allocate"],form[data-command="faction.return"],form[data-command="order.separate"],form[data-command="order.ship"]')){
+  for(const form of document.querySelectorAll('form[data-command="cut.record"],form[data-command="faction.allocate"],form[data-command="faction.return"],form[data-command="faction.multi.allocate"],form[data-command="order.separate"],form[data-command="order.ship"]')){
    options(form.elements.namedItem('orderId'),orders,x=>x.id+' · '+(products.find(p=>p.id===x.productId)?.name||'Modelo'));
   }
   options(document.querySelector('form[data-command="faction.allocate"] [name=factionId]'),factions,x=>x.name);
+  options(document.querySelector('form[data-command="faction.multi.allocate"] [name=factionId]'),factions,x=>x.name);
+  options(document.querySelector('form[data-command="faction.multi.transfer"] [name=toFactionId]'),factions,x=>x.name);
+  const assignments=view.factionAssignments||[];
+  const textForAssignment=x=>x.id+' · '+x.orderId+' / '+(factions.find(f=>f.id===x.factionId)?.name||x.factionId)+' · pendentes '+assignmentPending(x);
+  options(document.querySelector('form[data-command="faction.multi.transfer"] [name=fromAssignmentId]'),assignments.filter(x=>transferAvailable(x)>0),textForAssignment);
+  options(document.querySelector('form[data-command="faction.multi.return"] [name=assignmentId]'),assignments.filter(x=>assignmentPending(x)>0),textForAssignment);
   chooseAvailableCut();
   stageBalances();
+  assignmentBalances();
   const tbody=byId('orders');tbody.replaceChildren();
   for(const o of orders){
    const row=document.createElement('tr');
    const values=[o.id,products.find(x=>x.id===o.productId)?.name||o.productId,sum(o.grade),sum(o.cut),o.allocated??'—',o.returned??'—',Math.max(0,(o.returned||0)-(o.separated||0)),o.separated??'—',Math.max(0,(o.separated||0)-(o.shipped||0)),o.shipped??'—'];
    for(const value of values){const td=document.createElement('td');td.textContent=String(value);row.append(td);}
    tbody.append(row);
+  }
+  const assignmentBody=byId('assignments');assignmentBody.replaceChildren();
+  for(const a of view.factionAssignments||[]){
+   const tr=document.createElement('tr');
+   for(const value of [a.id,a.orderId,factions.find(f=>f.id===a.factionId)?.name||a.factionId,a.qtySent,a.qtyReturned,assignmentPending(a)]){
+    const td=document.createElement('td');td.textContent=String(value);tr.append(td);
+   }
+   assignmentBody.append(tr);
   }
   updatePending();
  }
@@ -134,6 +168,29 @@
   if(type==='cut.record')return {orderId:values.orderId,size:values.size,qty};
   if(type==='faction.allocate')return {orderId:values.orderId,factionId:values.factionId,qty};
   if(type==='faction.return')return {orderId:values.orderId,qty};
+  if(type==='faction.multi.allocate'){
+   const order=view.orders.find(x=>x.id===values.orderId),faction=view.factions?.find(x=>x.id===values.factionId);
+   if(!order||!faction)throw Error('Pedido ou facção inexistente nesta revisão.');
+   const remaining=sum(order.cut)-order.allocated;
+   if(qty>remaining)throw Error('Envio excede o saldo cortado ainda não distribuído ('+remaining+'). Nenhum comando enviado.');
+   return {orderId:order.id,factionId:faction.id,qty};
+  }
+  if(type==='faction.multi.transfer'){
+   const row=view.factionAssignments?.find(x=>x.id===values.fromAssignmentId),
+    target=view.factions?.find(x=>x.id===values.toFactionId),
+    reason=String(values.reason||'').trim();
+   if(!row||!target)throw Error('Origem ou facção de destino indisponível.');
+   if(row.factionId===target.id)throw Error('Escolha facção diferente da origem.');
+   if(!reason||reason.length>95)throw Error('Justificativa obrigatória de até 95 caracteres.');
+   if(qty>transferAvailable(row))throw Error('Transferência excede o saldo parcial disponível ('+transferAvailable(row)+'). Nenhum comando enviado.');
+   return {fromAssignmentId:row.id,toFactionId:target.id,qty,reason};
+  }
+  if(type==='faction.multi.return'){
+   const row=view.factionAssignments?.find(x=>x.id===values.assignmentId);
+   if(!row)throw Error('Selecione um envio de facção disponível.');
+   if(qty>assignmentPending(row))throw Error('Retorno excede o saldo deste envio ('+assignmentPending(row)+'). Nenhum comando enviado.');
+   return {assignmentId:row.id,qty};
+  }
   if(type==='order.separate'||type==='order.ship'){
    const order=view?.orders.find(o=>o.id===values.orderId);
    if(!order)throw Error('Pedido não localizado nesta revisão de teste.');
@@ -183,6 +240,8 @@
    for(const name of ['orderId','size'])cutForm.elements.namedItem(name).addEventListener('change',chooseAvailableCut);
    for(const type of ['order.separate','order.ship'])
     document.querySelector('form[data-command="'+type+'"] [name=orderId]').addEventListener('change',stageBalances);
+   document.querySelector('form[data-command="faction.multi.transfer"] [name=fromAssignmentId]').addEventListener('change',assignmentBalances);
+   document.querySelector('form[data-command="faction.multi.return"] [name=assignmentId]').addEventListener('change',assignmentBalances);
    byId('remote-check').addEventListener('click',()=>void action('check'));
    byId('sync-refresh').addEventListener('click',()=>void refreshShared());
    window.addEventListener('focus',()=>void checkSharedRevision());

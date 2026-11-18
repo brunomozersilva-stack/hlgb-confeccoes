@@ -18,8 +18,8 @@
   if(v?.schema!=='hlgb-evolucao-operacao-producao-ficticia-v1'||v.readScope!==permissions.readScope||
    !['production_only_ficticio','production_cut_only_ficticio'].includes(v.readScope)||!Number.isSafeInteger(v.revision)||
    !['products','orders','cutPlans'].every(k=>Array.isArray(v[k]))||
-   (v.readScope==='production_only_ficticio'&&!['clients','factions'].every(k=>Array.isArray(v[k])))||
-   (v.readScope==='production_cut_only_ficticio'&&['clients','factions'].some(k=>Object.hasOwn(v,k)))||
+   (v.readScope==='production_only_ficticio'&&!['clients','factions','factionAssignments'].every(k=>Array.isArray(v[k])))||
+   (v.readScope==='production_cut_only_ficticio'&&['clients','factions','factionAssignments'].some(k=>Object.hasOwn(v,k)))||
    ['finance','employees','log','payroll','settlements','paymentBatches','suppliers'].some(k=>Object.hasOwn(v,k)))
     throw Error('Visão de produção fora do contrato de isolamento');
   return v;

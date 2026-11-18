@@ -8,7 +8,8 @@ const fields={
  products:['id','sku','name'],
  factions:['id','name'],
  orders:['id','clientId','productId','grade','cut','allocated','returned','separated','shipped','factionId'],
- cutPlans:['id','orderId','grade','status']
+ cutPlans:['id','orderId','grade','status'],
+ factionAssignments:['id','orderId','factionId','qtySent','qtyReturned']
 };
 function scalar(value){
  if(value===null||typeof value==='string'||typeof value==='boolean'||typeof value==='number'&&Number.isFinite(value))return value;
