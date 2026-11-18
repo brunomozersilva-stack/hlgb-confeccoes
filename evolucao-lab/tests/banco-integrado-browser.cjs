@@ -125,5 +125,17 @@ test('interface completa em duas sessões, conflito, WAL e confirmação indepen
  await cutter.locator('[name=pin]').fill('demo-integrado-c');
  await cutter.locator('button').click();
  assert.equal(await cutter.request.get(url+'/api/session').then(r=>r.status()),401,'Login não reativa conta desativada');
+ assert.equal(await operator.request.get(url+'/api/admin/accounts').then(r=>r.status()),403);
+ assert.equal(await operator.request.get(url+'/acessos-lab.html').then(r=>r.status()),403);
+ await a.goto(url+'/acessos-lab.html');
+ await a.locator('#accounts-body tr').first().waitFor();
+ await a.waitForFunction(()=>document.querySelectorAll('#accounts-body tr').length===3);
+ const listing=await a.locator('#accounts-body').innerText();
+ assert.equal(listing.includes('LAB-FUN-003')&&listing.includes('Desativada'),true,'Conta revogada deve aparecer');
+ assert.equal(await a.getByRole('button',{name:'Desativar LAB-FUN-001'}).count(),0,'Admin não pode desativar a própria conta');
+ a.once('dialog',d=>d.accept());
+ await a.getByRole('button',{name:'Desativar LAB-FUN-002'}).click();
+ await a.waitForFunction(()=>document.querySelector('#notice').textContent.includes('LAB-FUN-002 desativado'));
+ assert.equal(await operator.request.get(url+'/api/session').then(r=>r.status()),401,'Desativação pela interface invalida sessão do outro operador');
  }finally{await browser.close();await new Promise(resolve=>server.close(resolve));}
 });
