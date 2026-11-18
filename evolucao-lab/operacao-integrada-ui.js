@@ -1378,18 +1378,20 @@ async function submit(form,type){
  const button=form.querySelector('button[type=submit]');if(button)button.disabled=true;
  try{
   const expectedRevision=doc.revision;
+  const pending=await intentRead();
+  if(pending.length){const current=await read(),svc=window.HLGBLabRecoveryV1;for(const item of pending){const verdict=svc.classify(current,item,api.inspect);if(verdict.status==='confirmed'){await intentWrite(item,true);}else{recoveryIntents=pending;throw Error('Existe intenção anterior sem confirmação. Abra Auditor > Recuperação segura, releia e exporte a evidência antes de repetir.');}}}
   const payload=type==='finance.receipt.attach'?await readReceiptPayload(form):parseData(type,form),
    id='OP-DEMO-'+crypto.randomUUID(),actor='Operador fictício';
   const intent={commandId:id,type,expectedRevision,recordedAt:new Date().toISOString()};
   await intentWrite(intent);
   let tx;try{tx=await transact(previous=>api.apply(previous,{type,payload,commandId:id,actor,expectedRevision,recordedAt:intent.recordedAt}));}
-  catch(e){try{const latest=await read();if(latest&&latest.revision===expectedRevision&&!latest.log.some(x=>x.commandId===id))await intentWrite(intent,true);}catch(ignore){}throw e;}
+  catch(e){try{await intentWrite(intent,true);}catch(ignore){}throw e;}
   const saved=await read();
   if(!saved||saved.revision!==expectedRevision+1||!saved.log.some(x=>x.commandId===id))
    throw Error('Gravação inconclusiva: não foi encontrada na releitura. Não repetir sem conferir.');
   const integrity=api.inspect(saved);
   if(!integrity.ok)throw Error('Gravação sem integridade comprovada: '+integrity.problems.join('; '));
-  doc=saved;try{await intentWrite(intent,true);}catch(ignore){}draw();
+  doc=saved;try{await intentWrite(intent,true);recoveryIntents=await intentRead();}catch(ignore){}draw();
   if(type==='settlement.compensate'&&payload.id){
    const el=document.querySelector('form[data-command="settlement.compensate"] [name="id"]');
    if(el&&[...el.options].some(opt=>opt.value===payload.id))el.value=payload.id;
@@ -1406,13 +1408,14 @@ async function reload(){
   const latest=await read();if(!latest)throw Error('Documento local não encontrado.');
   const checked=api.inspect(latest);
   if(!checked.ok)throw Error('Integridade do documento local não aprovada: '+checked.problems.join('; '));
-  doc=latest;draw();status('Documento fictício relido do IndexedDB · revisão '+doc.revision+'.');
+  doc=latest;try{recoveryIntents=await intentRead();}catch(ignore){}draw();status('Documento fictício relido do IndexedDB · revisão '+doc.revision+'.');
  }catch(e){status(e.message,'error')}finally{busy=false}
 }
 async function reset(){
  if(busy||!confirm('Restaurar APENAS os cadastros e lançamentos fictícios deste navegador? Todos os exercícios desta prévia serão reiniciados.'))return;
  busy=true;
  try{
+  if((await intentRead()).length)throw Error('Existem intenções pendentes. Não restaurar o exercício antes da conferência.');
   const revised=await transact(current=>{
    if(current.revision!==doc.revision)throw Error('CONFLITO: outra aba alterou a prévia. Recarregue primeiro.');
    const next=api.initial();next.revision=current.revision+1;
@@ -1422,7 +1425,7 @@ async function reset(){
    return {state:next,result:'reset'};
   });
   const saved=await read();if(!saved.log.some(e=>e.commandId===revised.state.revisionProof))throw Error('Restauração não confirmada.');
-  doc=saved;active='nucleo';draw();status('Exemplo fictício restaurado. Nenhum dado empresarial foi afetado.');
+  doc=saved;recoveryIntents=await intentRead();active='nucleo';draw();status('Exemplo fictício restaurado. Nenhum dado empresarial foi afetado.');
  }catch(e){status(e.message,'error')}finally{busy=false}
 }
 function download(name,content,type){
@@ -1779,7 +1782,7 @@ document.addEventListener('change',event=>{
   form.elements.namedItem('signatureTwo').value='';
  }
 });
-document.addEventListener('click',e=>{
+document.addEventListener('click',async e=>{
  if(e.target.closest('#recovery-check')){if(busy)return;busy=true;try{recoveryIntents=await intentRead();const latest=await read();if(latest&&api.inspect(latest).ok)doc=latest;draw();status('Intenções locais relidas · '+recoveryIntents.length+' pendentes.');}catch(err){status(err.message,'error');}finally{busy=false;}return;}
  if(e.target.closest('#recovery-export')){try{download('HLGB-RECUPERACAO-FICTICIO.json',JSON.stringify({plan:recoveryPlan,intents:recoveryIntents.map(x=>({...x,diagnosis:window.HLGBLabRecoveryV1.classify(doc,x,api.inspect)})),history:doc.repairHistory||[]},null,2),'application/json');}catch(err){status(err.message,'error');}return;}
  if(e.target.closest('#cost-export')){try{download('HLGB-CUSTOS-FICTICIO.json',JSON.stringify(costsResult(doc),null,2),'application/json');}catch(err){status(err.message,'error');}return;}
@@ -1890,6 +1893,7 @@ $('reset').addEventListener('click',reset);
   doc=await read();
   if(!doc)throw Error('Não foi possível iniciar a base fictícia.');
   if(!api.inspect(doc).ok)throw Error('Documento inicial inconsistente.');
+  recoveryIntents=await intentRead();
   draw();status('Prévia iniciada. Faça suas operações com dados fictícios e confira as revisões.','success');
  }catch(err){
   status('Não foi possível abrir o armazenamento de teste neste navegador: '+err.message+
