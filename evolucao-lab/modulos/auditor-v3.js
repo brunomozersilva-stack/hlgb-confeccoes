@@ -14,8 +14,9 @@
  const add=(code,severity,module,id,message,evidence,action)=>{const key=code+'|'+String(id);if(keys.has(key))return;keys.add(key);findings.push({key,code,severity,module,recordId:String(id),message,evidence:String(evidence),action});};
  const run=(id,label,test)=>{const before=findings.length;try{const coverage=test();const count=findings.length-before;checks.push({id,label,status:count?'falha':coverage==='partial'?'parcial':'conforme',findings:count});}catch(e){checks.push({id,label,status:'erro_de_verificacao',findings:0});add('AUDITOR_REGRA_FALHOU','alta','auditor',id,'Verificação não concluída.',e.message,'Revisar a regra e não interpretar ausência de alertas como aprovação.');}};
  run('revision','Sequência de revisões e prova de salvamento',()=>{
- if(s.revision!==events.length+1)add('REVISAO_CONTAGEM','critica','nucleo','documento','Revisão não corresponde ao número de eventos.',s.revision+' / '+events.length,'Comparar snapshot e trilha; não repetir gravações.');
- const seen=new Set();events.forEach((e,i)=>{if(!e.commandId||seen.has(e.commandId)||e.revision!==i+2)add('EVENTO_SEQUENCIA','critica','nucleo',e.commandId||i,'Evento duplicado, ausente ou fora da sequência.',e.revision+' / esperado '+(i+2),'Conferir histórico e idempotência.');seen.add(e.commandId);});
+ const base=events[0]?.type==='demo.reset'&&Number.isSafeInteger(events[0].revision)&&events[0].revision>=2?events[0].revision-1:1;
+ if(s.revision!==events.length+base)add('REVISAO_CONTAGEM','critica','nucleo','documento','Revisão não corresponde ao número de eventos.',s.revision+' / '+events.length,'Comparar snapshot e trilha; não repetir gravações.');
+ const seen=new Set();events.forEach((e,i)=>{if(!e.commandId||seen.has(e.commandId)||e.revision!==base+i+1)add('EVENTO_SEQUENCIA','critica','nucleo',e.commandId||i,'Evento duplicado, ausente ou fora da sequência.',e.revision+' / esperado '+(base+i+1),'Conferir histórico e idempotência.');seen.add(e.commandId);});
  if(s.revisionProof!==(events.at(-1)?.commandId||'seed'))add('REVISAO_PROVA','critica','nucleo','documento','Prova de revisão não corresponde ao último comando.',s.revisionProof,'Comparar releitura e última operação.');
  });
  run('finance','Valores, datas e conciliação financeira',()=>{

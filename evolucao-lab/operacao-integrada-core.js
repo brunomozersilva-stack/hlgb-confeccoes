@@ -20,10 +20,11 @@
  const auditor=typeof module==='object'&&module.exports?require('./modulos/auditor-v3.js'):(root&&root.HLGBLabAuditorV3);
  const bot=typeof module==='object'&&module.exports?require('./modulos/bot-v3.js'):(root&&root.HLGBLabBotV3);
  const costs=typeof module==='object'&&module.exports?require('./modulos/custos-v1.js'):(root&&root.HLGBLabCostsV1);
- const api=factory(batch,routing,factionGrade,planner,bomCut,requests,purchaseReturns,pcp,management,auditor,bot,costs);
+ const recovery=typeof module==='object'&&module.exports?require('./modulos/recuperacao-v1.js'):(root&&root.HLGBLabRecoveryV1);
+ const api=factory(batch,routing,factionGrade,planner,bomCut,requests,purchaseReturns,pcp,management,auditor,bot,costs,recovery);
  if(typeof module==='object'&&module.exports)module.exports=api;
  else if(root)root.HLGBOperationalLab=api;
-})(typeof window!=='undefined'?window:null,function(batch,routing,factionGrade,planner,bomCut,requests,purchaseReturns,pcp,management,auditor,bot,costs){
+})(typeof window!=='undefined'?window:null,function(batch,routing,factionGrade,planner,bomCut,requests,purchaseReturns,pcp,management,auditor,bot,costs,recovery){
  'use strict';
  const clone=x=>JSON.parse(JSON.stringify(x)),sizes=['P','M','G','GG'];
  const makeGrade=()=>({P:0,M:0,G:0,GG:0});
@@ -746,6 +747,9 @@
    const obj={id:next(s,'IMP'),name:name(p.name,'Produto 3D'),
     grams:num('grams',1,1000),priceCents:num('priceCents',100,1000000),stock:num('stock',0,100000)};
    s.prints.push(obj);result=obj.id;break}
+  case 'recovery.repair':{
+   if(!recovery||!auditor)throw Error('Recuperação indisponível.');
+   result=recovery.repair(s,{before:p.before,expected:p.expected,revision:num('revision',1,100000000),reason:name(p.reason,'Justificativa')},{uid,inspect,audit:auditor.analyze});break}
   case 'cost.allocate':{
    if(!costs)throw Error('Módulo de custos indisponível.');
    result=costs.allocate(s,{financeId:name(p.financeId,'Título'),orderId:name(p.orderId,'Pedido'),amountCents:num('amountCents',1,100000000),reason:name(p.reason,'Justificativa')},uid);break}

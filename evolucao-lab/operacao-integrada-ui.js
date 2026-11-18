@@ -648,6 +648,24 @@ function costsPanels(s){
  panel('Serviços avulsos sem pedido',table(['Acerto','Modelo','Serviço','Valor com ajustes'],r.loose.map(x=>[str(x.id),str(x.model),str(x.service),fmt(x.amountCents)]))+'<p>Total não apropriado: '+fmt(r.totals.looseCost)+'. Não é distribuído automaticamente entre pedidos.</p>',true);
 }
 
+
+let recoveryIntents=[],recoveryPlan=null;
+function recoveryPanels(s){
+ const svc=window.HLGBLabRecoveryV1;if(!svc)return panel('Recuperação segura','<p>Módulo indisponível.</p>',true);
+ let plan;try{plan=svc.simulate(s,api.inspect,window.HLGBLabAuditorV3.analyze);}catch(e){return panel('Recuperação segura','<div class="error">'+str(e.message)+'</div>',true);}
+ recoveryPlan=plan;
+ const repairForm=plan.status==='ready'?form('recovery.repair','Aplicar somente reparo simulado de metadado',[field('before','Prova anterior','text',plan.before),field('expected','Prova derivada da trilha','text',plan.expected),field('revision','Revisão simulada','int',String(plan.revision)),field('reason','Justificativa','text','Conferência de trilha')],'Confirmar reparo'):'';
+ return panel('Recuperação segura · autocorreção limitada','<p>Simulação de metadado de revisão: '+str(plan.status)+'. Nunca altera pedidos, estoque, pagamentos ou valores para resolver um diagnóstico. Sem reenvio automático de comandos.</p>'+table(['Antes','Prova esperada','Revisão'],[[str(plan.before),str(plan.expected),str(plan.revision)]])+plan.blocked.map(x=>'<p>'+str(x)+'</p>').join('')+repairForm+'<div class="actions"><button type="button" class="btn" id="recovery-check">Reler intenções locais</button><button type="button" class="btn" id="recovery-export">Exportar diagnóstico JSON</button></div>',true)+
+ panel('Intenções pendentes de confirmação',table(['Comando','Operação','Revisão esperada','Diagnóstico'],recoveryIntents.map(x=>[str(x.commandId),str(x.type),str(x.expectedRevision),str(svc.classify(s,x,api.inspect).message)]))+'<p>Intenções gravadas antes da operação, sem dados de pagamento ou conteúdo do formulário. Não representam fila de envio; ausência de prova não autoriza repetir.</p>',true)+
+ panel('Histórico de reparos autorizados',table(['Comando','Antes','Prova conferida','Motivo'],(s.repairHistory||[]).map(x=>[str(x.commandId),str(x.before),str(x.expected),str(x.reason)])),true);
+}
+function intentWrite(intent,remove=false){
+ return new Promise((resolve,reject)=>{const tx=db.transaction(STORE,'readwrite'),store=tx.objectStore(STORE),key='intent:'+intent.commandId;if(remove)store.delete(key);else store.put({key,intent});tx.oncomplete=()=>resolve();tx.onabort=()=>reject(tx.error||Error('Registro de intenção não confirmado.'));tx.onerror=()=>reject(tx.error||Error('Falha no registro de intenção.'));});
+}
+function intentRead(){
+ return new Promise((resolve,reject)=>{const tx=db.transaction(STORE,'readonly'),req=tx.objectStore(STORE).getAll();req.onsuccess=()=>resolve(req.result.filter(x=>String(x.key).startsWith('intent:')&&x.intent).map(x=>x.intent));req.onerror=()=>reject(req.error||Error('Falha ao reler intenções.'));});
+}
+
 function moduleHtml(s){
  const o=orderOptions(s),openPlans=(s.cutPlans||[]).filter(p=>p.status==='aberto'),
   planOptions=selector(openPlans,p=>p.id+' · '+p.orderId+' · '+sum(p.grade)+' peças'),
@@ -1157,9 +1175,9 @@ function moduleHtml(s){
  panel('Pedidos × Financeiro',orderTable(s)+financeTable(s),true)+requestReport+returnsReport;
  }
  case 'auditor':{
- const advanced=observationPanels(s,'auditor');if(advanced)return auditV3Panels(s)+advanced;
+ const advanced=observationPanels(s,'auditor');if(advanced)return recoveryPanels(s)+auditV3Panels(s)+advanced;
  const check=api.inspect(s),issues=check.problems;
- return auditV3Panels(s)+panel('Diagnóstico determinístico',
+ return recoveryPanels(s)+auditV3Panels(s)+panel('Diagnóstico determinístico',
  (check.ok?'<div class="success">Sem inconsistências nas regras simuladas.</div>':
  '<div class="error">Inconsistências detectadas: '+escape(issues.join('; '))+'</div>')+
  table(['Verificação','Estado'],[['Quantidade cortada ≤ pedida',check.ok?'Conforme':'Verificar'],
@@ -1279,7 +1297,7 @@ function parseCents(value,signed=false){
  if(!Number.isSafeInteger(val))throw Error('Valor monetário inválido.');
  return val;
 }
-const NUM=['corte','envio','costura','separacao','expedicao','qty','gramsPerUnit','qtyGrams','grams','stock','P','M','G','GG','usefulGrams','scrapGrams'];
+const NUM=['revision','corte','envio','costura','separacao','expedicao','qty','gramsPerUnit','qtyGrams','grams','stock','P','M','G','GG','usefulGrams','scrapGrams'];
 const SIGNED=['deltaGrams'];
 const PRICES=['priceCents','unitCents','travetaCents','priceCentsKg','amountCents','salaryCents','passageCents','extrasCents','discountCents'];
 function parseData(type,form){
@@ -1354,6 +1372,7 @@ async function read(){
 }
 async function submit(form,type){
  if(busy||!doc)return;
+ if(type==='recovery.repair'&&!confirm('Aplicar exclusivamente o reparo de metadado simulado?'))return;
  if(type==='cut.plan.cancel'&&!confirm('Cancelar somente a folha aberta, preservando o histórico?'))return;
  busy=true;
  const button=form.querySelector('button[type=submit]');if(button)button.disabled=true;
@@ -1361,13 +1380,16 @@ async function submit(form,type){
   const expectedRevision=doc.revision;
   const payload=type==='finance.receipt.attach'?await readReceiptPayload(form):parseData(type,form),
    id='OP-DEMO-'+crypto.randomUUID(),actor='Operador fictício';
-  const tx=await transact(previous=>api.apply(previous,{type,payload,commandId:id,actor,expectedRevision,recordedAt:new Date().toISOString()}));
+  const intent={commandId:id,type,expectedRevision,recordedAt:new Date().toISOString()};
+  await intentWrite(intent);
+  let tx;try{tx=await transact(previous=>api.apply(previous,{type,payload,commandId:id,actor,expectedRevision,recordedAt:intent.recordedAt}));}
+  catch(e){try{const latest=await read();if(latest&&latest.revision===expectedRevision&&!latest.log.some(x=>x.commandId===id))await intentWrite(intent,true);}catch(ignore){}throw e;}
   const saved=await read();
   if(!saved||saved.revision!==expectedRevision+1||!saved.log.some(x=>x.commandId===id))
    throw Error('Gravação inconclusiva: não foi encontrada na releitura. Não repetir sem conferir.');
   const integrity=api.inspect(saved);
   if(!integrity.ok)throw Error('Gravação sem integridade comprovada: '+integrity.problems.join('; '));
-  doc=saved;draw();
+  doc=saved;try{await intentWrite(intent,true);}catch(ignore){}draw();
   if(type==='settlement.compensate'&&payload.id){
    const el=document.querySelector('form[data-command="settlement.compensate"] [name="id"]');
    if(el&&[...el.options].some(opt=>opt.value===payload.id))el.value=payload.id;
@@ -1758,6 +1780,8 @@ document.addEventListener('change',event=>{
  }
 });
 document.addEventListener('click',e=>{
+ if(e.target.closest('#recovery-check')){if(busy)return;busy=true;try{recoveryIntents=await intentRead();const latest=await read();if(latest&&api.inspect(latest).ok)doc=latest;draw();status('Intenções locais relidas · '+recoveryIntents.length+' pendentes.');}catch(err){status(err.message,'error');}finally{busy=false;}return;}
+ if(e.target.closest('#recovery-export')){try{download('HLGB-RECUPERACAO-FICTICIO.json',JSON.stringify({plan:recoveryPlan,intents:recoveryIntents.map(x=>({...x,diagnosis:window.HLGBLabRecoveryV1.classify(doc,x,api.inspect)})),history:doc.repairHistory||[]},null,2),'application/json');}catch(err){status(err.message,'error');}return;}
  if(e.target.closest('#cost-export')){try{download('HLGB-CUSTOS-FICTICIO.json',JSON.stringify(costsResult(doc),null,2),'application/json');}catch(err){status(err.message,'error');}return;}
  if(e.target.closest('#assistant-query')){assistantRequested=true;draw();return;}
  if(e.target.closest('#assistant-export')){if(!assistantRequested){status('Faça uma nova consulta antes de exportar.','error');return;}try{download('HLGB-ASSISTENTE-V3-FICTICIO.json',JSON.stringify(assistantAsk(doc),null,2),'application/json');}catch(err){status(err.message,'error');}return;}
