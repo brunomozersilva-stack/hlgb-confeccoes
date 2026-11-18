@@ -1,0 +1,56 @@
+name: HLGB Evolucao - Banco Integral Descartavel
+on:
+  push:
+    branches:
+      - feature/evolucao-laboratorio-isolado-v1-20261114
+    paths:
+      - 'evolucao-lab/banco-integrado/**'
+      - 'evolucao-lab/operacao-integrada-core.js'
+      - 'evolucao-lab/modulos/**'
+      - 'evolucao-lab/tests/banco-integrado-contract.cjs'
+      - '.github/workflows/evolucao-banco-integrado.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  postgres:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_DB: hlgb_integrado_lab
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: somente_ci_ficticio_integrado
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d hlgb_integrado_lab"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      PGHOST: 127.0.0.1
+      PGPORT: '5432'
+      PGDATABASE: hlgb_integrado_lab
+      PGUSER: postgres
+      PGPASSWORD: somente_ci_ficticio_integrado
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Validar sintaxe e isolamento
+        run: |
+          node --check evolucao-lab/banco-integrado/persistencia.cjs
+          test "$PGHOST" = "127.0.0.1"
+          test "$PGDATABASE" = "hlgb_integrado_lab"
+          if ! command -v psql >/dev/null; then sudo apt-get update -qq && sudo apt-get install -y postgresql-client; fi
+          test "$(psql -tAc 'SELECT current_database()')" = "hlgb_integrado_lab"
+      - name: Preparar banco descartavel
+        run: psql -v ON_ERROR_STOP=1 -f evolucao-lab/banco-integrado/01-schema-local.sql
+      - name: Instalar cliente fixado e executar contratos
+        run: |
+          npm install --no-save pg@8.16.3
+          node --test evolucao-lab/tests/banco-integrado-contract.cjs
