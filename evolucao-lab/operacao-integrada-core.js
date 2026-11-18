@@ -346,6 +346,7 @@
   case 'service.profile.set':{if(!services)throw Error('Serviços indisponíveis.');result=services.profile(s,p,uid);break}
   case 'service.rates.set':{if(!services)throw Error('Serviços indisponíveis.');result=services.setRates(s,p,uid);break}
   case 'service.points.set':{if(!services)throw Error('Serviços indisponíveis.');result=services.points(s,p,uid);break}
+  case 'settlement.service.group':{if(!services)throw Error('Serviços indisponíveis.');result=services.createGroup(s,p,{next,uid});break}
   case 'settlement.service.add':{if(!services)throw Error('Serviços indisponíveis.');result=services.create(s,p,{next,uid});break}
   case 'faction.add':{
    const obj={id:next(s,'FAC'),name:name(p.name,'Facção'),unitCents:num('unitCents',1,100000),traveta:p.traveta===true};

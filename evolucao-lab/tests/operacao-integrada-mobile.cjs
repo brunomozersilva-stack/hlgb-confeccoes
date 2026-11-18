@@ -39,7 +39,7 @@ const server=http.createServer((req,res)=>{
  res.end(data);
 });
 function revision(page){return page.locator('#top-revision').innerText().then(t=>Number(t.match(/Revisão local (\d+)/)?.[1]||0))}
-async function module(page,id){await page.locator('[data-module="'+id+'"]').click();await page.waitForFunction(i=>document.querySelector('[data-module="'+i+'"]')?.getAttribute('aria-current')==='page',id)}
+async function module(page,id){await page.locator('[data-module="'+id+'"]').click();await page.waitForFunction(i=>document.querySelector('[data-module="'+i+'"]')?.getAttribute('aria-current')==='page',id);assert.doesNotMatch(await page.locator('#module-content').innerText(),/Não foi possível exibir esta área/,'Falha de renderização em '+id);}
 async function put(page,type,changes={}){
  const form=page.locator('form[data-command="'+type+'"]');
  assert.equal(await form.count(),1,'form '+type);
@@ -67,6 +67,8 @@ async function run(browser,width,url){
   await page.goto(url);
   await page.waitForFunction(()=>document.querySelector('#top-revision')?.textContent.includes('Revisão local 1'));
   assert.equal(await page.locator('[data-module]').count(),19);
+  const all=await page.locator('[data-module]').evaluateAll(nodes=>nodes.map(x=>x.dataset.module));for(const id of all)await module(page,id);
+  if(width<=710){await page.locator('#mobile-module').selectOption('pedidos');assert.equal(await page.locator('[data-module="pedidos"]').getAttribute('aria-current'),'page');}
   await module(page,'auditor');
   assert.match(await page.locator('#module-content').innerText(),/Observabilidade 2.0/);
   await module(page,'bot');

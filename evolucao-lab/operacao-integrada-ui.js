@@ -727,6 +727,26 @@ async function remoteAction(action){
 }
 
 
+
+let serviceGroupDraft=null,serviceGroupResult=null;
+const emptyGroupLine=()=>({productId:doc.products[0]?.id||'manual',manualName:'—',manualCategory:'camisola',qty:10,priceMode:'auto',unit:'0,00'});
+function serviceGroupPanel(s){
+ const staff=selector(s.factions.filter(x=>x.serviceRole),x=>x.name+' · '+x.serviceRole);
+ const draft=serviceGroupDraft||{factionId:staff[0]?.[0]||'',reference:'GRUPO-R'+s.revision,lines:[emptyGroupLine(),emptyGroupLine()]};
+ const productChoices=selector(s.products,x=>x.name+' · '+x.sku).concat([['manual','Modelo avulso (embalagem)']]);
+ const cats=window.HLGBLabServicesV1.categories.map(x=>[x,x]),modes=[['auto','Preço cadastrado'],['manual','Preço manual']];
+ const rows=draft.lines.map((x,i)=>'<div class="panel" data-group-line><h3>Linha '+(i+1)+'</h3><div class="fields">'+field('productId','Modelo','select',x.productId,productChoices)+field('manualName','Modelo avulso','text',x.manualName)+field('manualCategory','Categoria avulsa','select',x.manualCategory,cats)+field('qty','Peças','int',String(x.qty))+field('priceMode','Preço','select',x.priceMode,modes)+field('unit','Preço manual R$','money',x.unit)+'</div>'+(draft.lines.length>2?'<button class="btn danger" type="button" data-group-remove="'+i+'">Retirar linha do rascunho</button>':'')+'</div>').join('');
+ const q=serviceGroupResult?.revision===s.revision?serviceGroupResult:null;
+ return panel('Montar um acerto com várias linhas','<p>Uma pessoa por grupo; atividade e preços seguem o cadastro. Confira a prévia antes de gravar. Nenhuma baixa financeira é feita ao criar o grupo.</p><div class="fields"><div class="field"><label>Prestador<select class="input" id="group-service-faction">'+options(staff,draft.factionId)+'</select></label></div><div class="field"><label>Referência<input class="input" id="group-service-reference" value="'+str(draft.reference)+'"></label></div></div><div id="group-service-lines">'+rows+'</div><div class="actions"><button class="btn" id="group-line-add" type="button" '+(draft.lines.length>=20?'disabled':'')+'>Adicionar linha</button><button class="btn" id="group-service-preview" type="button">Conferir total</button></div>'+
+ (q?table(['Modelo','Atividade','Peças','Bruto/peça','Desconto/peça','Total'],q.rows.map(x=>[str(x.model),str(x.service),str(x.qty),fmt(x.gross),fmt(x.discount),fmt(x.amount)]))+'<p><strong>Total da prévia: '+fmt(q.total)+'</strong></p>'+form('settlement.service.group','Confirmar acerto',[field('reason','Justificativa','text','Grupo de serviços fictício')],'Registrar todas as linhas'):'')+
+ table(['Grupo','Prestador','Referência','Linhas','Total original'],(s.serviceEntryGroups||[]).map(x=>[str(x.id),str(x.factionName),str(x.reference),str(x.items.map(i=>i.settlementId).join(' · ')),fmt(x.totalCents)])),true);
+}
+function captureServiceGroup(){
+ const lines=[...document.querySelectorAll('[data-group-line]')].map(row=>{const val=k=>row.querySelector('[name="'+k+'"]').value;return {productId:val('productId'),manualName:val('manualName'),manualCategory:val('manualCategory'),qty:val('qty'),priceMode:val('priceMode'),unit:val('unit')};});
+ return {factionId:$('group-service-faction').value,reference:$('group-service-reference').value,lines};
+}
+function serviceGroupInput(d){return {...d,lines:d.lines.map(x=>{const {unit,...row}=x;return {...row,qty:Number(row.qty),unitCents:row.priceMode==='manual'?parseCents(unit):0};})};}
+
 function servicePanels(s,area){
  const svc=window.HLGBLabServicesV1;if(!svc)return '';
  const roleOptions=svc.roles.map(x=>[x,x]),categories=svc.categories.map(x=>[x,x]),products=selector(s.products,x=>x.name+' · '+x.sku),factions=selector(s.factions,x=>x.name+' · '+(x.serviceRole||'não classificado')),r=svc.rates(s);
@@ -1174,7 +1194,7 @@ function moduleHtml(s){
  const paid=selector(s.settlements.filter(x=>x.status==='pago'),
   x=>x.id+' · Pago '+fmt(x.amountCents)+' · '+(ref(s.factions,x.factionId)?.name||'—'));
  const compensations=s.settlementCompensations||[];
- return groupedAccountPanel(s)+factionClosingPanel(s)+servicePanels(s,'acertos')+panel('Serviços avulsos e embalagem',
+ return groupedAccountPanel(s)+factionClosingPanel(s)+serviceGroupPanel(s)+servicePanels(s,'acertos')+panel('Serviços avulsos e embalagem',
  form('settlement.add','Novo acerto avulso fictício',[
   field('serviceType','Tipo de serviço','select','',[['costura','Costura avulsa'],['embalagem','Embalagem']]),
   field('factionId','Facção / embaladeira','select','',factions),
@@ -1511,6 +1531,7 @@ const NUM=['actualGrams','points','revision','corte','envio','costura','separaca
 const SIGNED=['deltaGrams'];
 const PRICES=['freightCents','camisola','doll','calcinha','outros','pointCents','priceCents','unitCents','travetaCents','priceCentsKg','amountCents','salaryCents','passageCents','extrasCents','discountCents'];
 function parseData(type,form){
+ if(type==='settlement.service.group'){const p=serviceGroupInput(captureServiceGroup()),q=window.HLGBLabServicesV1.groupPreview(doc,p);if(!serviceGroupResult||serviceGroupResult.revision!==doc.revision||q.signature!==serviceGroupResult.signature)throw Error('Acerto mudou. Confira o total novamente.');return {...p,signature:q.signature,expectedTotalCents:q.total,reason:form.elements.namedItem('reason').value};}
  if(type==='assistant.order.create'){const p=readAssistedDraft();if(!assistedPreview||assistedPreview.revision!==doc.revision||JSON.stringify(p)!==JSON.stringify(assistedDraft))throw Error('Confira nova prévia.');return {...p,signature:assistedPreview.signature,reason:form.elements.namedItem('reason').value};}
  if(type==='purchase.invoice.import'){const p=readInvoiceDraft();if(!invoicePreview||invoicePreview.revision!==doc.revision||JSON.stringify(p)!==JSON.stringify(invoiceDraft))throw Error('Confira nova prévia da nota.');return {...p,declaredCents:parseCents(p.declaredCents),signature:invoicePreview.signature,checkerOne:form.elements.namedItem('checkerOne').value,checkerTwo:form.elements.namedItem('checkerTwo').value,reason:form.elements.namedItem('reason').value};}
  if(type==='order.import.batch'){if(!importResult||importResult.revision!==doc.revision||$('order-import-raw').value!==importDraft)throw Error('CSV mudou. Gere nova prévia.');return {raw:importDraft,signature:importResult.signature,reason:String(form.elements.namedItem('reason').value)};}
@@ -1587,7 +1608,7 @@ async function read(){
 }
 async function submit(form,type){
  if(busy||!doc)return;
- if(['payroll.period.create','order.import.batch','assistant.order.create','purchase.invoice.import','packaging.complete','cut.plan.split'].includes(type)&&!confirm('Confirmar a prévia e criar os registros fictícios?'))return;
+ if(['settlement.service.group','payroll.period.create','order.import.batch','assistant.order.create','purchase.invoice.import','packaging.complete','cut.plan.split'].includes(type)&&!confirm('Confirmar a prévia e criar os registros fictícios?'))return;
  if(type==='finance.faction.close'&&!confirm('Confirmar somente a baixa fictícia de todos os títulos e o total conferido deste prestador?'))return;
  if(type==='recovery.repair'&&!confirm('Aplicar exclusivamente o reparo de metadado simulado?'))return;
  if(type==='cut.plan.cancel'&&!confirm('Cancelar somente a folha aberta, preservando o histórico?'))return;
@@ -1600,7 +1621,7 @@ async function submit(form,type){
    const payload=type==='finance.receipt.attach'?await readReceiptPayload(form):type==='print.photo.attach'?await readPrintPhoto(form):type==='purchase.invoice.pdf'?await readInvoicePdf(form):parseData(type,form);
    const result=await remoteLab.submit(type,payload,expectedRevision);
    if(result.status!=='confirmed'){const banner=document.querySelector('#remote-check');if(banner){banner.closest('section').outerHTML=remotePanel();}throw Error('Servidor: '+result.status+' · '+(result.message||'Revise a intenção sem repetir.'));}
-   doc=result.state;draw();status('Salvo e confirmado no PostgreSQL · '+result.result+' · revisão '+doc.revision+'.');return;
+   doc=result.state;if(type==='settlement.service.group'){serviceGroupDraft=null;serviceGroupResult=null;}draw();status('Salvo e confirmado no PostgreSQL · '+result.result+' · revisão '+doc.revision+'.');return;
   }
   const pending=await intentRead();
   if(pending.length){const current=await read(),svc=window.HLGBLabRecoveryV1;for(const item of pending){const verdict=svc.classify(current,item,api.inspect);if(verdict.status==='confirmed'){await intentWrite(item,true);}else{recoveryIntents=pending;throw Error('Existe intenção anterior sem confirmação. Abra Auditor > Recuperação segura, releia e exporte a evidência antes de repetir.');}}}
@@ -1615,7 +1636,7 @@ async function submit(form,type){
    throw Error('Gravação inconclusiva: não foi encontrada na releitura. Não repetir sem conferir.');
   const integrity=api.inspect(saved);
   if(!integrity.ok)throw Error('Gravação sem integridade comprovada: '+integrity.problems.join('; '));
-  doc=saved;try{await intentWrite(intent,true);recoveryIntents=await intentRead();}catch(ignore){}draw();
+  doc=saved;if(type==='settlement.service.group'){serviceGroupDraft=null;serviceGroupResult=null;}try{await intentWrite(intent,true);recoveryIntents=await intentRead();}catch(ignore){}draw();
   if(type==='settlement.compensate'&&payload.id){
    const el=document.querySelector('form[data-command="settlement.compensate"] [name="id"]');
    if(el&&[...el.options].some(opt=>opt.value===payload.id))el.value=payload.id;
@@ -2028,6 +2049,9 @@ document.addEventListener('click',async e=>{
  if(e.target.closest('#order-import-template')){download('HLGB-MODELO-PEDIDOS-FICTICIO.csv','referencia;cliente_id;sku;P;M;G;GG\nREF-001;CLI-0001;DEMO-MELINA;10;20;0;0','text/csv;charset=utf-8');return;}
  if(e.target.closest('#quote-compare')){quoteQuery={materialId:$('quote-material').value,qtyGrams:Number($('quote-qty').value),asOf:$('quote-date').value};draw();return;}
  if(e.target.closest('#faction-material-export')){const rows=[['Checklist','Envio','Material','Previsto (g)','Conferido (g)','Diferença (g)'],...(doc.factionMaterialChecklists||[]).flatMap(c=>c.materials.map(m=>{const x=(doc.factionMaterialChecks||[]).filter(y=>y.checklistId===c.id&&y.materialId===m.materialId).at(-1);return [c.id,c.assignmentId,m.name,m.grams,x?.actualGrams??'Não conferido',x?.differenceGrams??''];}))];download('HLGB-MATERIAIS-FACCOES-FICTICIO.csv','\uFEFF'+rows.map(r=>r.map(safeCell).join(';')).join('\r\n'),'text/csv;charset=utf-8');return;}
+ const lineRemove=e.target.closest('[data-group-remove]');
+ if(e.target.closest('#group-line-add')||lineRemove){serviceGroupDraft=captureServiceGroup();if(lineRemove&&serviceGroupDraft.lines.length>2)serviceGroupDraft.lines.splice(Number(lineRemove.dataset.groupRemove),1);else if(!lineRemove&&serviceGroupDraft.lines.length<20)serviceGroupDraft.lines.push(emptyGroupLine());serviceGroupResult=null;draw();return;}
+ if(e.target.closest('#group-service-preview')){serviceGroupDraft=captureServiceGroup();try{serviceGroupResult={...window.HLGBLabServicesV1.groupPreview(doc,serviceGroupInput(serviceGroupDraft)),revision:doc.revision};draw();status('Prévia do acerto conferida; nenhum lançamento gravado.');}catch(err){serviceGroupResult=null;status(err.message,'error');}return;}
  if(e.target.closest('#grouped-export')){try{download('HLGB-ACERTOS-CONSOLIDADOS-FICTICIOS.json',JSON.stringify(window.HLGBLabPaymentBatchV1.groupedAccounts(doc),null,2),'application/json');}catch(err){status(err.message,'error');}return;}
  if(e.target.closest('#cost-export')){try{download('HLGB-CUSTOS-FICTICIO.json',JSON.stringify(costsResult(doc),null,2),'application/json');}catch(err){status(err.message,'error');}return;}
  if(e.target.closest('#assistant-query')){assistantRequested=true;draw();return;}

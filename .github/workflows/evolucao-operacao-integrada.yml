@@ -40,6 +40,9 @@ on:
   workflow_dispatch:
 permissions:
   contents: read
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 jobs:
   contracts:
     name: Invariantes de 19 modulos e nenhuma rede
