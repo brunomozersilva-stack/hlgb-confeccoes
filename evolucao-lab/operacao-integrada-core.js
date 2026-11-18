@@ -27,10 +27,11 @@
  const operationsV2=typeof module==='object'&&module.exports?require('./modulos/operacoes-v2.js'):(root&&root.HLGBLabOperationsV2);
  const multiOrders=typeof module==='object'&&module.exports?require('./modulos/pedidos-multimodelo-v1.js'):(root&&root.HLGBLabMultiOrdersV1);
  const multiCuts=typeof module==='object'&&module.exports?require('./modulos/corte-multimodelo-v1.js'):(root&&root.HLGBLabMultiCutsV1);
- const api=factory(batch,routing,factionGrade,planner,bomCut,requests,purchaseReturns,pcp,management,auditor,bot,costs,recovery,services,complements,payrollOrders,operationsV2,multiOrders,multiCuts);
+ const routes=typeof module==='object'&&module.exports?require('./modulos/rotas-utilidades-v1.js'):(root&&root.HLGBLabRoutesV1);
+ const api=factory(batch,routing,factionGrade,planner,bomCut,requests,purchaseReturns,pcp,management,auditor,bot,costs,recovery,services,complements,payrollOrders,operationsV2,multiOrders,multiCuts,routes);
  if(typeof module==='object'&&module.exports)module.exports=api;
  else if(root)root.HLGBOperationalLab=api;
-})(typeof window!=='undefined'?window:null,function(batch,routing,factionGrade,planner,bomCut,requests,purchaseReturns,pcp,management,auditor,bot,costs,recovery,services,complements,payrollOrders,operationsV2,multiOrders,multiCuts){
+})(typeof window!=='undefined'?window:null,function(batch,routing,factionGrade,planner,bomCut,requests,purchaseReturns,pcp,management,auditor,bot,costs,recovery,services,complements,payrollOrders,operationsV2,multiOrders,multiCuts,routes){
  'use strict';
  const clone=x=>JSON.parse(JSON.stringify(x)),sizes=['P','M','G','GG'];
  const makeGrade=()=>({P:0,M:0,G:0,GG:0});
@@ -53,7 +54,7 @@
    employees:[{id:'FUN-0001',name:'Ana Simulada',salaryCents:200000,passageCents:12000,extrasCents:0,discountCents:0},
     {id:'FUN-0002',name:'Bianca Modelo',salaryCents:180000,passageCents:8000,extrasCents:0,discountCents:3000}],
    colorCatalog:planner?planner.seed():[],materialRecipeRules:[],materialPlanLines:[],
-   bomCutRuns:[],orders:[],multiOrders:[],multiCutPlans:[],cutPlans:[],purchaseRequests:[],purchaseOrders:[],purchaseReturns:[],settlements:[],settlementCompensations:[],paymentBatches:[],paymentReceipts:[],finance:[],stockLedger:[],factionTransfers:[],factionAssignments:[],factionPartialTransfers:[],errors:[],
+   bomCutRuns:[],orders:[],multiOrders:[],multiCutPlans:[],routePlans:[],cutPlans:[],purchaseRequests:[],purchaseOrders:[],purchaseReturns:[],settlements:[],settlementCompensations:[],paymentBatches:[],paymentReceipts:[],finance:[],stockLedger:[],factionTransfers:[],factionAssignments:[],factionPartialTransfers:[],errors:[],
    prints:[{id:'IMP-0001',name:'Chaveiro articulado fictício',grams:28,priceCents:490,stock:12}],
    log:[],role:'supervisor',flags:{autoCorrections:false},revisionProof:'seed'};
  }
@@ -74,6 +75,7 @@
   if(pcp)problems.push(...pcp.inspect(s));
   if(multiOrders)problems.push(...multiOrders.inspect(s));
   if(multiCuts)problems.push(...multiCuts.inspect(s));
+  if(routes)problems.push(...routes.inspect(s));
   for(const f of s.finance||[]){
    const seen=new Set();for(const v of f.revisions||[]){
     const e=s.log.find(x=>x.commandId===v.commandId);
@@ -196,7 +198,7 @@
   if(s.materials.some(m=>m.stockGrams<0))problems.push('Estoque de material negativo');
   if(s.finance.some(e=>e.amountCents<=0))problems.push('Lançamento financeiro não positivo');
   if(new Set(s.log.map(e=>e.commandId)).size!==s.log.length)problems.push('Identificador de comando duplicado');
-  const allIds=[...s.orders,...(s.bomCutRuns||[]),...(s.purchaseRequests||[]),...(s.purchaseReturns||[]),...(s.cutPlans||[]),...(s.multiCutPlans||[]),...(s.factionTransfers||[]),...(s.colorCatalog||[]),...(s.materialRecipeRules||[]),...(s.materialPlanLines||[]),...(s.factionAssignments||[]),...(s.factionPartialTransfers||[]),...(s.settlementCompensations||[]),...batches,...s.purchaseOrders,...s.settlements,...s.finance,...s.clients,...s.suppliers,
+  const allIds=[...s.orders,...(s.bomCutRuns||[]),...(s.purchaseRequests||[]),...(s.purchaseReturns||[]),...(s.cutPlans||[]),...(s.multiCutPlans||[]),...(s.routePlans||[]),...(s.factionTransfers||[]),...(s.colorCatalog||[]),...(s.materialRecipeRules||[]),...(s.materialPlanLines||[]),...(s.factionAssignments||[]),...(s.factionPartialTransfers||[]),...(s.settlementCompensations||[]),...batches,...s.purchaseOrders,...s.settlements,...s.finance,...s.clients,...s.suppliers,
    ...s.materials,...s.products,...s.factions,...s.employees,...s.prints].map(x=>x.id);
   if(new Set(allIds).size!==allIds.length)problems.push('IDs de registro duplicados');
   return {ok:!problems.length,problems,orderCount:s.orders.length,unpaid:s.finance.filter(f=>f.status==='aberto').length,
@@ -435,6 +437,9 @@
   case 'multi.cut.complete':{result=multiCuts.complete(s,p,{uid});break}
   case 'multi.cut.weight.record':{result=multiCuts.recordWeight(s,p,{uid});break}
   case 'multi.cut.cancel':{result=multiCuts.cancel(s,p,{uid});break}
+  case 'route.plan':{result=routes.create(s,p,{next,uid});break}
+  case 'route.revise':{result=routes.revise(s,p,{uid});break}
+  case 'route.cancel':{result=routes.cancel(s,p,{uid});break}
   case 'order.add.with.colors':{
    if(!factionGrade)throw Error('Módulo de matriz por cor indisponível. Nenhum pedido criado.');
    const rows=p.colorGrades;
