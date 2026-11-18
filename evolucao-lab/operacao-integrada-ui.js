@@ -912,9 +912,10 @@ function moduleHtml(s){
  panel('Saúde do documento',table(['Regra','Resultado'],Object.entries(api.inspect(s)).filter(([k,v])=>typeof v!=='object').map(([k,v])=>[str(k),str(v)])))+
  panel('Confiabilidade e limites','<p><b>O que funciona aqui:</b> transação local IndexedDB, revisão para evitar sobrescrita por outra aba, confirmação por releitura do comando, auditoria e validações de quantidade.</p>'+
  '<p><b>O que falta:</b> sincronização entre computadores, login real, WAL remoto, RLS empresarial, PDF e pagamentos efetivos. Use o simulador de duas sessões do laboratório para testes de falhas mais amplos.</p>');
- case 'autenticacao':return panel('Papéis de referência — não é login de verdade',
- '<p>Estas são propostas de organização para o futuro controle de permissões. <strong>Não há autenticação neste laboratório</strong>; todas as ações são apenas exercícios locais.</p>'+
- table(['Perfil','Escopo proposto','Validação real'],[['Supervisor','Cadastros, aprovações e relatórios','Pendente'],['Produção','Pedidos, corte, facções e separação','Pendente'],
+ case 'autenticacao':return panel('Permissões — demonstração isolada',
+ (remoteLab?'<p>O laboratório remoto tem três funcionários fictícios com acesso segregado e desativação no PostgreSQL local. Os PINs demonstrativos não são autenticação empresarial. <a href="./acessos-lab.html">Abrir gestão de acessos do laboratório</a></p>':
+ '<p>Os perfis abaixo são apenas referência para o futuro controle de acesso; esta página offline não usa login.</p>')+
+ table(['Perfil','Escopo proposto','Situação empresarial'],[['Supervisor','Cadastros, aprovações e relatórios','Pendente'],['Produção','Pedidos, corte, facções e separação','Pendente'],
  ['Financeiro','Acertos, Hub, compras e comprovantes','Pendente'],['Consulta','Visualização sem alterar','Pendente']]),true);
  case 'pedidos':return importOrdersPanel(s)+panel('Incluir pedido com grade',
  form('order.add','Novo pedido fictício',[
