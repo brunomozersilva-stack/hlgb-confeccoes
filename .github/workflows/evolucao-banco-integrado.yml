@@ -14,6 +14,9 @@ on:
   workflow_dispatch:
 permissions:
   contents: read
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 jobs:
   postgres:
     runs-on: ubuntu-24.04
@@ -51,7 +54,10 @@ jobs:
           if ! command -v psql >/dev/null; then sudo apt-get update -qq && sudo apt-get install -y postgresql-client; fi
           test "$(psql -tAc 'SELECT current_database()')" = "hlgb_integrado_lab"
       - name: Preparar banco descartavel
-        run: psql -v ON_ERROR_STOP=1 -f evolucao-lab/banco-integrado/01-schema-local.sql
+        run: |
+          psql -v ON_ERROR_STOP=1 -f evolucao-lab/banco-integrado/01-schema-local.sql
+          echo 'PGUSER=hlgb_lab_runner' >> "$GITHUB_ENV"
+          echo 'PGPASSWORD=somente_ci_runtime_integrado' >> "$GITHUB_ENV"
       - name: Instalar cliente fixado e executar contratos
         run: |
           npm install --no-save pg@8.16.3
@@ -88,6 +94,7 @@ jobs:
           if ! command -v psql >/dev/null; then sudo apt-get update -qq && sudo apt-get install -y postgresql-client; fi
           test "$(psql -tAc 'SELECT current_database()')" = "hlgb_integrado_lab"
           psql -v ON_ERROR_STOP=1 -f evolucao-lab/banco-integrado/01-schema-local.sql
+          export PGUSER=hlgb_lab_runner PGPASSWORD=somente_ci_runtime_integrado
           npm install --no-save pg@8.16.3 playwright@1.55.0
           npx playwright install --with-deps ${{ matrix.browser }}
           node --check evolucao-lab/banco-integrado/servidor.cjs

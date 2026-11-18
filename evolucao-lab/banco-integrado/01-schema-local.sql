@@ -14,8 +14,8 @@ INSERT INTO hlgb_integrado_lab.environment(marker) VALUES ('HLGB-EVOLUCAO-FICTIC
 CREATE TABLE hlgb_integrado_lab.documents (
  id text PRIMARY KEY CHECK(id='operacao-ficticia'),
  revision bigint NOT NULL CHECK(revision BETWEEN 1 AND 100000000),
- state jsonb NOT NULL CHECK(jsonb_typeof(state)='object' AND state->>'schema'='hlgb-evolucao-operacao-ficticia-v1'),
- CHECK ((state->>'revision')::bigint=revision)
+ state jsonb NOT NULL CHECK((jsonb_typeof(state)='object' AND state->>'schema'='hlgb-evolucao-operacao-ficticia-v1') IS TRUE),
+ CHECK (((state->>'revision')::bigint=revision) IS TRUE)
 );
 CREATE TABLE hlgb_integrado_lab.commands (
  command_id text PRIMARY KEY CHECK(length(command_id) BETWEEN 8 AND 95),
@@ -38,7 +38,7 @@ CREATE TABLE hlgb_integrado_lab.events (
  created_at timestamptz NOT NULL DEFAULT clock_timestamp(),
  FOREIGN KEY(command_id,document_id,revision) REFERENCES hlgb_integrado_lab.commands(command_id,document_id,revision),
  UNIQUE(document_id,revision),
- CHECK(event->>'commandId'=command_id AND (event->>'revision')::bigint=revision)
+ CHECK((event->>'commandId'=command_id AND (event->>'revision')::bigint=revision) IS TRUE)
 );
 CREATE TABLE hlgb_integrado_lab.cancellations (
  command_id text PRIMARY KEY CHECK(length(command_id) BETWEEN 8 AND 95),
@@ -54,5 +54,23 @@ DO $rls$ DECLARE t text; BEGIN
 END $rls$;
 REVOKE ALL ON ALL TABLES IN SCHEMA hlgb_integrado_lab FROM PUBLIC;
 ALTER DEFAULT PRIVILEGES IN SCHEMA hlgb_integrado_lab REVOKE ALL ON TABLES FROM PUBLIC;
--- O serviço local de CI é privilegiado; nenhuma política de acesso empresarial é aprovada aqui.
+-- Exclusivamente credenciais fictícias de CI. O serviço não é dono das tabelas.
+CREATE ROLE hlgb_lab_runtime NOLOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS;
+CREATE ROLE hlgb_lab_runner LOGIN PASSWORD 'somente_ci_runtime_integrado' NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS IN ROLE hlgb_lab_runtime;
+REVOKE CREATE ON SCHEMA public FROM PUBLIC;
+GRANT USAGE ON SCHEMA hlgb_integrado_lab TO hlgb_lab_runtime;
+GRANT SELECT ON ALL TABLES IN SCHEMA hlgb_integrado_lab TO hlgb_lab_runtime;
+GRANT INSERT ON hlgb_integrado_lab.documents,hlgb_integrado_lab.commands,hlgb_integrado_lab.events,hlgb_integrado_lab.cancellations TO hlgb_lab_runtime;
+GRANT UPDATE(revision,state) ON hlgb_integrado_lab.documents TO hlgb_lab_runtime;
+DO $pol$ DECLARE t text; BEGIN
+ FOREACH t IN ARRAY ARRAY['environment','documents','commands','events','cancellations'] LOOP
+  EXECUTE format('CREATE POLICY runtime_read ON hlgb_integrado_lab.%I FOR SELECT TO hlgb_lab_runtime USING (true)',t);
+ END LOOP;
+ FOREACH t IN ARRAY ARRAY['documents','commands','events','cancellations'] LOOP
+  EXECUTE format('CREATE POLICY runtime_insert ON hlgb_integrado_lab.%I FOR INSERT TO hlgb_lab_runtime WITH CHECK (true)',t);
+ END LOOP;
+END $pol$;
+CREATE POLICY runtime_update ON hlgb_integrado_lab.documents FOR UPDATE TO hlgb_lab_runtime USING (id='operacao-ficticia') WITH CHECK (id='operacao-ficticia');
+-- Sem UPDATE/DELETE de comandos, eventos ou cancelamentos; sem privilégios de DDL.
+-- Este papel de serviço de testes não representa autorização por funcionário empresarial.
 COMMIT;

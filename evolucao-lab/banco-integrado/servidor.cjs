@@ -25,7 +25,7 @@ async function start(port=0){
  if(method==='GET'&&route==='/api/session'){send(200,{status:'ok',environment:'HLGB-INTEGRADO-FICTICIO',actor});return;}
  if(method==='GET'&&route==='/api/revision'){send(200,{status:'ok',revision:await db.revision()});return;}
  if(method==='GET'&&route==='/api/state'){send(200,{status:'ok',state:await db.state()});return;}
- if(method==='GET'&&route.startsWith('/api/commands/')){const result=await db.readback(route.slice('/api/commands/'.length));send(200,result);return;}
+ if(method==='POST'&&route==='/api/proof'){const cmd=JSON.parse(await body(req));const result=await db.readback(cmd?.commandId,cmd,actor);send(200,result);return;}
  if(method==='POST'&&route==='/api/cancel'){send(200,await db.cancel(JSON.parse(await body(req)),actor));return;}
  if(method==='POST'&&route==='/api/commands'){
  const cmd=JSON.parse(await body(req)),result=await db.commit(cmd,actor);

@@ -2,7 +2,7 @@
 // Adaptador de persistência integral, exclusivamente localhost/CI. Não é API pública.
 const {Client}=require('pg'),crypto=require('node:crypto'),core=require('../operacao-integrada-core.js');
 const DB='hlgb_integrado_lab',MARK='HLGB-EVOLUCAO-FICTICIO-LOCAL-V1',ID='operacao-ficticia';
-function guard(env=process.env){if(env.PGDATABASE!==DB||env.PGHOST!=='127.0.0.1'||!/^\d+$/.test(env.PGPORT||'')||!env.PGUSER||!env.PGPASSWORD)throw Error('Conexão recusada: somente banco local descartável.');}
+function guard(env=process.env){if(env.PGDATABASE!==DB||env.PGHOST!=='127.0.0.1'||!/^\d+$/.test(env.PGPORT||'')||env.PGUSER!=='hlgb_lab_runner'||!env.PGPASSWORD)throw Error('Conexão recusada: somente banco local descartável.');}
 function canonical(v){if(v===null||typeof v==='string'||typeof v==='boolean'||typeof v==='number'&&Number.isFinite(v))return JSON.stringify(v);
  if(Array.isArray(v))return '['+v.map(canonical).join(',')+']';
  if(v&&typeof v==='object'&&Object.getPrototypeOf(v)===Object.prototype)return '{'+Object.keys(v).sort().map(k=>JSON.stringify(k)+':'+canonical(v[k])).join(',')+'}';
@@ -14,11 +14,21 @@ async function withDb(fn){guard();const c=new Client({host:'127.0.0.1',port:Numb
 async function initialize(){return withDb(async c=>{const seed=core.initial();await c.query('INSERT INTO hlgb_integrado_lab.documents(id,revision,state) VALUES($1,1,$2::jsonb) ON CONFLICT(id) DO NOTHING',[ID,JSON.stringify(seed)]);return state();});}
 function verifyChain(state){if(!state||!Number.isSafeInteger(state.revision)||state.revision<1||!Array.isArray(state.log)||state.log.length!==state.revision-1)return false;const seen=new Set();for(let i=0;i<state.log.length;i++){let e=state.log[i];if(!e||e.revision!==i+2||typeof e.commandId!=='string'||!e.commandId||seen.has(e.commandId)||e.type==='demo.reset'||!['Operador A fictício','Operador B fictício'].includes(e.actor))return false;seen.add(e.commandId);}return state.revisionProof===(state.log.at(-1)?.commandId||'seed');}
 function verifyDocument(row){if(!row||Number(row.revision)!==row.state?.revision||!verifyChain(row.state)||!core.inspect(row.state).ok)throw Error('Snapshot inconsistente; nenhuma alteração autorizada.');return row.state;}
-async function state(){return withDb(async c=>verifyDocument((await c.query('SELECT revision,state FROM hlgb_integrado_lab.documents WHERE id=$1',[ID])).rows[0]));}
+function ledgerMatches(current,rows){
+ if(!Array.isArray(rows)||rows.length!==current.log.length)return false;
+ return rows.every((row,i)=>{const e=current.log[i];return row.command_id===e.commandId&&Number(row.revision)===e.revision&&Number(row.expected_revision)===e.revision-1&&row.actor===e.actor&&row.kind===e.type&&row.result===e.description&&/^[a-f0-9]{64}$/.test(row.fingerprint)&&row.event&&canonical(row.event)===canonical(e);});
+}
+async function verifyLedger(c,current){
+ const rows=(await c.query('SELECT c.command_id,c.revision,c.expected_revision,c.actor,c.kind,c.result,c.fingerprint,e.event FROM hlgb_integrado_lab.commands c LEFT JOIN hlgb_integrado_lab.events e USING(command_id,document_id,revision) WHERE c.document_id=$1 ORDER BY c.revision',[ID])).rows;
+ if(!ledgerMatches(current,rows))throw Error('Trilha de comandos e eventos diverge do documento. Escritas bloqueadas.');
+ return current;
+}
+async function state(){return withDb(async c=>{await c.query('BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY');try{const current=verifyDocument((await c.query('SELECT revision,state FROM hlgb_integrado_lab.documents WHERE id=$1',[ID])).rows[0]);await verifyLedger(c,current);await c.query('COMMIT');return current;}catch(e){await c.query('ROLLBACK').catch(()=>{});throw e;}});}
 async function revision(){return withDb(async c=>{const row=(await c.query('SELECT revision FROM hlgb_integrado_lab.documents WHERE id=$1',[ID])).rows[0],n=Number(row?.revision);if(!Number.isSafeInteger(n)||n<1)throw Error('Revisão indisponível.');return n;});}
 async function commit(cmd,actor){let fingerprint;try{fingerprint=validate(cmd,actor);}catch(e){return {status:'rejected',message:e.message};}
  return withDb(async c=>{await c.query('BEGIN');try{
  const current=verifyDocument((await c.query('SELECT revision,state FROM hlgb_integrado_lab.documents WHERE id=$1 FOR UPDATE',[ID])).rows[0]);
+ await verifyLedger(c,current);
  const old=(await c.query('SELECT fingerprint, revision, result FROM hlgb_integrado_lab.commands WHERE command_id=$1',[cmd.commandId])).rows[0];
  if(old){await c.query('ROLLBACK');return old.fingerprint===fingerprint?{status:'already_committed',commandId:cmd.commandId,revision:Number(old.revision),result:old.result}:{status:'rejected',message:'ID já vinculado a outro conteúdo ou ator.'};}
  const cancelled=(await c.query('SELECT fingerprint FROM hlgb_integrado_lab.cancellations WHERE command_id=$1',[cmd.commandId])).rows[0];
@@ -33,18 +43,21 @@ async function commit(cmd,actor){let fingerprint;try{fingerprint=validate(cmd,ac
  if(update.rowCount!==1)throw Error('Conflito de revisão.');
  await c.query('COMMIT');return {status:'committed',commandId:cmd.commandId,revision,result:next.result};
  }catch(e){await c.query('ROLLBACK').catch(()=>{});throw e;}});}
-async function readback(commandId){if(typeof commandId!=='string'||!/^LAB-[a-zA-Z0-9_-]{4,90}$/.test(commandId))return {status:'rejected'};
+async function readback(commandId,expected=null,actor=null){
+ let fingerprint=null;if(expected!==null){try{if(expected.commandId!==commandId)throw Error('ID divergente');fingerprint=validate(expected,actor);}catch(e){return {status:'rejected'};}}if(typeof commandId!=='string'||!/^LAB-[a-zA-Z0-9_-]{4,90}$/.test(commandId))return {status:'rejected'};
  return withDb(async c=>{await c.query('BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY');try{
- const row=(await c.query('SELECT c.revision,c.kind,c.actor,c.result,e.event FROM hlgb_integrado_lab.commands c JOIN hlgb_integrado_lab.events e USING(command_id,document_id,revision) WHERE c.command_id=$1',[commandId])).rows[0];
+ const row=(await c.query('SELECT c.revision,c.kind,c.actor,c.result,c.fingerprint,e.event FROM hlgb_integrado_lab.commands c JOIN hlgb_integrado_lab.events e USING(command_id,document_id,revision) WHERE c.command_id=$1',[commandId])).rows[0];
  const current=verifyDocument((await c.query('SELECT revision,state FROM hlgb_integrado_lab.documents WHERE id=$1',[ID])).rows[0]);
- if(!row){const cancelled=(await c.query('SELECT 1 FROM hlgb_integrado_lab.cancellations WHERE command_id=$1',[commandId])).rowCount;if(cancelled){await c.query('COMMIT');return {status:'cancelled',commandId,latestRevision:current.revision};}const found=(await c.query('SELECT 1 FROM hlgb_integrado_lab.commands WHERE command_id=$1',[commandId])).rowCount;await c.query('COMMIT');return {status:found?'uncertain':'not_found',latestRevision:current.revision};}
+ await verifyLedger(c,current);
+ if(!row){const cancelled=(await c.query('SELECT actor,fingerprint FROM hlgb_integrado_lab.cancellations WHERE command_id=$1',[commandId])).rows[0];if(cancelled){await c.query('COMMIT');return fingerprint&&(cancelled.fingerprint!==fingerprint||cancelled.actor!==actor)?{status:'rejected'}:{status:'cancelled',commandId,latestRevision:current.revision};}const found=(await c.query('SELECT 1 FROM hlgb_integrado_lab.commands WHERE command_id=$1',[commandId])).rowCount;await c.query('COMMIT');return {status:found?'uncertain':'not_found',latestRevision:current.revision};}
+ if(fingerprint&&(row.fingerprint!==fingerprint||row.actor!==actor)){await c.query('COMMIT');return {status:'rejected'};}
  const ev=current.log.find(x=>x.commandId===commandId);const proof=ev&&canonical(ev)===canonical(row.event)&&ev.revision===Number(row.revision)&&ev.type===row.kind&&ev.actor===row.actor&&ev.description===row.result;
  await c.query('COMMIT');return proof?{status:'readback_confirmed',commandId,revision:Number(row.revision),latestRevision:current.revision,result:row.result}:{status:'uncertain',commandId};
  }catch(e){await c.query('ROLLBACK').catch(()=>{});throw e;}});}
 async function cancel(cmd,actor){
  let fingerprint;try{fingerprint=validate(cmd,actor);}catch(e){return {status:'rejected',message:e.message};}
  return withDb(async c=>{await c.query('BEGIN');try{
- verifyDocument((await c.query('SELECT revision,state FROM hlgb_integrado_lab.documents WHERE id=$1 FOR UPDATE',[ID])).rows[0]);
+ const current=verifyDocument((await c.query('SELECT revision,state FROM hlgb_integrado_lab.documents WHERE id=$1 FOR UPDATE',[ID])).rows[0]);await verifyLedger(c,current);
  const old=(await c.query('SELECT fingerprint FROM hlgb_integrado_lab.commands WHERE command_id=$1',[cmd.commandId])).rows[0];
  if(old){await c.query('ROLLBACK');return old.fingerprint===fingerprint?{status:'committed',commandId:cmd.commandId}:{status:'rejected'};}
  const cancelled=(await c.query('SELECT fingerprint FROM hlgb_integrado_lab.cancellations WHERE command_id=$1',[cmd.commandId])).rows[0];
@@ -52,4 +65,4 @@ async function cancel(cmd,actor){
  await c.query('INSERT INTO hlgb_integrado_lab.cancellations(command_id,actor,fingerprint) VALUES($1,$2,$3)',[cmd.commandId,actor,fingerprint]);
  await c.query('COMMIT');return {status:'cancelled',commandId:cmd.commandId};
  }catch(e){await c.query('ROLLBACK').catch(()=>{});throw e;}});}
-module.exports={guard,canonical,validate,initialize,state,revision,commit,readback,cancel,verifyChain};
+module.exports={guard,canonical,validate,initialize,state,revision,commit,readback,cancel,verifyChain,ledgerMatches};

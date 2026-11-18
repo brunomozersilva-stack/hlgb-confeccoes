@@ -15,3 +15,6 @@ O projeto Supabase atual da HLGB e o projeto da loja não são alvos. Não há d
 Antes de hospedar: criar projeto dedicado autorizado (organização e preço confirmados se necessário), validar referência e ambiente, implementar autenticação e perfis com acesso mínimo, separar dados por escopo/entidade, guardar PDFs em storage privado, adicionar backend validando identidade e comandos, configurar backup/restauração, executar teste de CORS/HTTPS e duas sessões reais, integrar UI ao transporte, homologar todas as funções antigas. Não transportar dados reais até aprovação específica.
 
 Nenhuma chamada a produção. Não mesclar em main. Não copiar dados da confecção para o laboratório.
+
+## Privilégios e prova integral
+A criação do esquema usa o administrador exclusivamente no PostgreSQL descartável. O runtime usa `hlgb_lab_runner` com RLS, sem poderes de administrador, DDL ou exclusão e alteração de eventos/comandos. O servidor recusa outro usuário de conexão. Provas HTTP exigem o comando original e o ator da sessão; o fingerprint é comparado. O snapshot passa por comparação da trilha inteira, não somente do último evento. Credenciais declaradas são exclusivamente de CI, não reutilizar em hospedagem. 

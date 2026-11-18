@@ -13,7 +13,7 @@
  async function state(){const r=await request('/api/state');if(r.status!=='ok'||r.state?.schema!=='hlgb-evolucao-operacao-ficticia-v1'||!window.HLGBOperationalLab.inspect(r.state).ok)throw Error('Estado remoto inválido');return r.state;}
  async function revision(){const v=await request('/api/revision');if(v.status!=='ok'||!Number.isSafeInteger(v.revision)||v.revision<1)throw Error('Revisão remota inválida');return v.revision;}
  async function init(){const s=await request('/api/session');if(s.environment!=='HLGB-INTEGRADO-FICTICIO')throw Error('Ambiente proibido');actor=s.actor;db=await open();pending=await load();return state();}
- async function prove(entry){const r=await request('/api/commands/'+encodeURIComponent(entry.command.commandId));
+ async function prove(entry){const r=await request('/api/proof','POST',entry.command);
  if(r.status==='readback_confirmed'){
  const latest=await state(),ev=latest.log.find(x=>x.commandId===entry.command.commandId);
  if(!ev||r.revision!==entry.command.expectedRevision+1||ev.type!==entry.command.type||ev.actor!==actor||ev.revision!==r.revision||latest.revision<r.revision)throw Error('Prova não corresponde ao comando local');
@@ -34,7 +34,7 @@
  const entry=pending,result=await request('/api/cancel','POST',entry.command);
  if(result.status==='committed')return prove(entry);
  if(result.status!=='cancelled'||result.commandId!==entry.command.commandId)throw Error('Cancelamento não confirmado.');
- const proof=await request('/api/commands/'+encodeURIComponent(entry.command.commandId));
+ const proof=await request('/api/proof','POST',entry.command);
  if(proof.status!=='cancelled')throw Error('Cancelamento sem releitura.');
  await clear(entry);return {status:'discarded',state:await state()};}
  window.HLGBRemoteLab={init,state,revision,submit,reconcile,retry,discard,info:()=>({actor,pending}),load:async()=>{pending=await load();return pending;}};
