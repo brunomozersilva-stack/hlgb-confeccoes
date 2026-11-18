@@ -26,7 +26,7 @@ const modules=[
 ];
 const ids=new Map(modules.map((m,i)=>[m[0],i])),visitedModules=new Set();
 let active=ids.has(window.location.hash.slice(1))?window.location.hash.slice(1):'nucleo',db=null,doc=null,busy=false,journeyOrderId=null,routeDraft=null;
-let labelDraft=[{name:'',model:'',size:'',pieceQty:0,volumes:0,copies:1,date:new Date().toISOString().slice(0,10)}],labelLayout='10';
+let labelDraft=[{name:'',model:'',size:'',pieceQty:0,volumes:0,copies:1,date:new Date().toISOString().slice(0,10)}],labelLayout='10',templateEditId=null,packerEditId=null;
 const settlementFilters={query:'',status:'todos',faction:'todas',service:'todos',compensation:'todos'};
 const escape=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const str=x=>escape(String(x??''));
@@ -339,6 +339,98 @@ function labelBatch(){
  return window.HLGBLabLabelsV1.plan(labelCapture(),$('label-layout').value);
 }
 
+function optionalField(name,label,value='',type='text'){
+ return '<div class="field"><label>'+escape(label)+'<input class="input" type="'+type+'" name="'+escape(name)+
+  '" value="'+escape(value??'')+'" maxlength="500"></label></div>';
+}
+function optionalSelect(name,label,choices,selected=''){
+ return '<div class="field"><label>'+escape(label)+'<select class="input" name="'+escape(name)+'">'+options(choices,selected)+'</select></label></div>';
+}
+function labelTemplatesPanel(s){
+ const service=window.HLGBLabPackersV1;
+ if(!service)return panel('Etiquetas por cliente','Módulo de etiquetas personalizadas não carregado.',true);
+ const templates=s.labelTemplatesLab||[],active=templates.filter(x=>x.active);
+ const edit=templateEditId&&active.find(x=>x.id===templateEditId);
+ const clients=selector(s.clients,x=>x.name),products=[['','Padrão deste cliente — todos os modelos'],...selector(s.products,x=>x.name+' · '+x.sku)];
+ const fields=[
+  ...(edit?[field('id','Modelo de etiqueta','text',edit.id)]:[]),
+  field('clientId','Cliente','select',edit?.clientId||s.clients[0]?.id,clients),
+  optionalSelect('productId','Produto específico (opcional)',products,edit?.productId||''),
+  optionalField('sku','SKU impresso',edit?.sku||''),
+  optionalField('cnpj','CNPJ impresso (opcional)',edit?.cnpj||''),
+  optionalField('productUrl','URL HTTPS (opcional)',edit?.productUrl||''),
+  optionalField('fileName','Referência PDF / imagem (nome, não anexo)',edit?.fileName||''),
+  '<div class="field"><label>Campos variáveis / observações<textarea class="input" name="fieldsNote" rows="2" maxlength="500">'+
+   escape(edit?.fieldsNote||'')+'</textarea></label></div>',
+  ...(edit?[field('reason','Motivo da alteração','text','Correção fictícia de etiqueta')]:[])
+ ];
+ const rows=table(['Código','Cliente','Modelo','SKU','Arquivo referenciado','Versão','Estado','Ações'],
+  templates.map(t=>[str(t.id),str(t.clientName),str(t.productName||'Padrão do cliente'),
+   str(t.sku||'—'),str(t.fileName||'Não enviado'),str(t.version),t.active?'Ativo':'Arquivado',
+   t.active?'<button type="button" class="btn" data-template-edit="'+escape(t.id)+'">Editar</button>':'Histórico preservado']));
+ return panel('Utilidades · Modelos de etiqueta por cliente/produto',
+  '<p>O cliente pode ter uma etiqueta padrão e uma específica por produto. Uma tarefa já enviada guarda a versão aplicada, mesmo após alteração ou arquivamento. <b>Cadastro de referência do arquivo</b>: o envio e a prévia visual de PDF/imagem ainda precisam ser integrados e testados.</p>'+
+  form(edit?'label.template.edit':'label.template.add',edit?'Editar etiqueta '+str(edit.id):'Cadastrar modelo de etiqueta',fields,
+  edit?'Salvar nova versão':'Cadastrar etiqueta fictícia')+
+  (edit?'<button type="button" class="btn" id="template-new">Novo modelo</button>':'')+
+  '<h3>Modelos e versões</h3>'+rows+
+  (active.length?form('label.template.archive','Arquivar sem perder etiquetas já atribuídas',[
+    field('id','Modelo ativo','select','',selector(active,x=>x.clientName+' · '+(x.productName||'Padrão'))),
+    field('reason','Motivo','text','Substituição de referência fictícia')
+   ],'Arquivar modelo'):'<p>Nenhuma etiqueta ativa.</p>'),true);
+}
+function packerAssignmentsPanel(s){
+ const service=window.HLGBLabPackersV1;
+ if(!service)return panel('Embaladeira','Módulo de embaladeira indisponível.',true);
+ const report=service.dashboard(s),rows=s.packerAssignmentsLab||[];
+ const editing=packerEditId&&rows.find(x=>x.id===packerEditId&&['aguardando','parcial'].includes(x.status));
+ const clients=selector(s.clients,x=>x.name),products=selector(s.products,x=>x.name),people=selector(s.employees,x=>x.name);
+ const base=[
+  ...(editing?[field('id','Tarefa em edição','text',editing.id)]:[]),
+  field('packerId','Embaladeira','select',editing?.packerId||s.employees[0]?.id,people),
+  field('clientId','Cliente','select',editing?.clientId||s.clients[0]?.id,clients),
+  field('productId','Modelo','select',editing?.productId||s.products[0]?.id,products),
+  field('size','Tamanho','text',editing?.size||'M'),
+  optionalField('color','Cor',editing?.color||''),
+  '<div class="field"><label>Data<input class="input" type="date" name="date" value="'+escape(editing?.date||new Date().toISOString().slice(0,10))+'" required></label></div>',
+  field('qty','Peças atribuídas','int',editing?.qty??10),
+  field('labelQty','Quantidade de etiquetas','int',editing?.labelQty??10),
+  optionalField('notes','Observações',editing?.notes||''),
+  ...(editing?[field('reason','Justificativa da edição','text','Redistribuição de embalagem fictícia')]:[])
+ ];
+ const active=rows.filter(x=>x.status!=='cancelado');
+ const pending=rows.filter(x=>['aguardando','parcial'].includes(x.status));
+ const rowTable=table(['Tarefa','Embaladeira','Cliente / modelo','Cor / tamanho','Enviadas','Prontas','Restantes','Etiqueta vinculada','Status','Ações'],rows.map(x=>[
+  str(x.id),str(x.packerName),str(x.clientName)+' · '+str(x.productName),
+  str(x.color||'—')+' · '+str(x.size),str(x.qty),str(x.doneQty),
+  str(x.status==='cancelado'?0:x.qty-x.doneQty),
+  x.labelSnapshot?str(x.labelSnapshot.id)+' v'+str(x.labelSnapshot.version)+' · '+str(x.labelSnapshot.fileName||'sem arquivo'):'Sem modelo de etiqueta',
+  str(x.status)+(x.history.length>1?' · '+(x.history.length-1)+' mov.':''),
+  pending.some(y=>y.id===x.id)?'<button type="button" class="btn" data-packer-edit="'+escape(x.id)+'">Editar</button>':'Histórico preservado'
+ ]));
+ const workerRows=table(['Embaladeira','Atribuídas','Prontas','Pendentes'],
+  report.byPacker.map(x=>[str(x.name),str(x.assigned),str(x.ready),str(x.pending)]));
+ return panel('Embalagem individual por funcionária · laboratório',
+  '<p>Controle complementar às embalagens por facção já existentes acima. Atribuições abaixo <b>não retiram peças de pedidos, não criam facção/acerto, não liberam Separação</b>. A integração com o estoque e a liberação por grade ainda depende da homologação.</p>'+
+  '<div class="metrics">'+[['Peças atribuídas',report.total],['Prontas',report.done],['Pendentes',report.pending],
+   ['Sem etiqueta vinculada',report.missingLabel]].map(([k,v])=>'<div class="metric"><span>'+str(k)+'</span><strong>'+str(v)+'</strong></div>').join('')+'</div>'+
+  form(editing?'packer.revise':'packer.assign',editing?'Editar '+str(editing.id):'Atribuir peças à embaladeira',base,
+   editing?'Salvar alteração com histórico':'Registrar tarefa fictícia')+
+  (editing?'<button type="button" class="btn" id="packer-new">Nova tarefa</button>':'')+
+  (active.length?form('packer.progress','Lançar quantidade pronta ou corrigir com histórico',[
+   field('id','Tarefa','select','',selector(active,x=>x.id+' · '+x.doneQty+' de '+x.qty+' prontas')),
+   field('doneQty','Total pronto atualizado','int','0'),
+   field('reason','Motivo / conferência','text','Conferência fictícia'),
+   field('correction','Correção para menos (exige justificativa)','checkbox')
+  ],'Registrar conferência'):'')+
+  (pending.length?form('packer.cancel','Cancelar tarefa sem peças prontas',[
+   field('id','Tarefa sem conclusão','select','',selector(pending.filter(x=>x.doneQty===0),x=>x.id)),
+   field('reason','Motivo','text','Reprogramação fictícia')
+  ],'Cancelar sem apagar histórico'):'')+
+  '<h3>Fila por embaladeira</h3>'+workerRows+
+  '<h3>Itens e histórico</h3>'+rowTable,true);
+}
+
 function routeStopFormHtml(s,stop=null){
  const selected=stop?.type==='faccao'?'faccao:'+stop.locationId:stop?.type==='confeccao'?'confeccao:HLGB-LAB':'';
  const places=[['','Escolha a facção ou confecção — obrigatório'],...s.factions.map(f=>['faccao:'+f.id,'Facção · '+f.name]),
@@ -387,9 +479,9 @@ function routePanel(s){
  ],'Cancelar mantendo histórico'):'<p>Sem rotas abertas para cancelar.</p>';
  return panel('Utilidades · Rotas LEVAR/BUSCAR (homologação isolada)',
  '<p>Rota de teste com várias paradas, itens para levar e buscar, revisão sem perda do histórico e impressão A4 de resumo e checklists. A releitura em outro computador ainda NÃO está comprovada.</p>'+
- editor+'<h3>Histórico de rotas</h3>'+hist+cancel,true)+labelPanel()+
+ editor+'<h3>Histórico de rotas</h3>'+hist+cancel,true)+labelPanel()+labelTemplatesPanel(s)+
  panel('Outras Utilidades · ainda não homologadas',
- '<p><b>Modelos de etiqueta de embalagem, embaladeira e regularização histórica</b> permanecem pendentes. As etiquetas A4 acima são um ensaio visual, ainda sem aprovação da equipe.</p>'+
+ '<p><b>Upload/prévia de PDF/imagem e Regularização histórica</b> permanecem pendentes. A inclusão de etiquetas e embaladeiras é uma simulação sem equivalência de todos os fluxos do programa atual.</p>'+
  '<button type="button" class="btn" data-goto="separacao">Ver Separação fictícia</button>',true);
 }
 function routeInput(form){
@@ -1367,7 +1459,7 @@ function moduleHtml(s){
  str(x.id),str(sum(x.cut)),str(x.allocated),str(x.returned),str(x.allocated-x.returned)])))+
  panel('Próximas operações','<div class="actions"><button class="btn primary" type="button" data-goto="faccoes">Gerenciar facções</button>'+
  '<button class="btn" type="button" data-goto="separacao">Separação</button></div>');
- case 'separacao':return packagingPanel(s)+panel('Baixa de separação / expedição',
+ case 'separacao':return packagingPanel(s)+packerAssignmentsPanel(s)+panel('Baixa de separação / expedição',
  form('order.separate','Separar parcialmente',[field('orderId','Pedido','select','',o),
  field('qty','Quantidade para separar','int','5')],'Confirmar separação')+
  form('order.ship','Expedir peças separadas',[field('orderId','Pedido','select','',o),
@@ -1902,6 +1994,7 @@ const SIGNED=['deltaGrams'];
 const PRICES=['freightCents','camisola','doll','calcinha','outros','pointCents','priceCents','unitCents','travetaCents','priceCentsKg','amountCents','salaryCents','passageCents','extrasCents','discountCents'];
 function parseData(type,form){
  if(type==='route.plan'||type==='route.revise')return routeInput(form);
+ if(type==='packer.progress'){const data=Object.fromEntries(new FormData(form).entries());return {id:data.id,doneQty:Number(data.doneQty),reason:data.reason,correction:data.correction==='true'};}
  if(type==='order.multi.create')return multiOrderInput(form);
  if(type==='multi.cut.plan'||type==='multi.cut.revise'){
   const data=new FormData(form),lines=[];
@@ -2061,7 +2154,7 @@ async function submit(form,type){
    const payload=type==='finance.receipt.attach'?await readReceiptPayload(form):type==='print.photo.attach'?await readPrintPhoto(form):type==='purchase.invoice.pdf'?await readInvoicePdf(form):parseData(type,form);
    const result=await remoteLab.submit(type,payload,expectedRevision);
    if(result.status!=='confirmed'){const banner=document.querySelector('#remote-check');if(banner){banner.closest('section').outerHTML=remotePanel();}throw Error('Servidor: '+result.status+' · '+(result.message||'Revise a intenção sem repetir.'));}
-   doc=result.state;if(type==='settlement.service.group'){serviceGroupDraft=null;serviceGroupResult=null;}if(type.startsWith('route.'))routeDraft=null;draw();status('Salvo e confirmado no PostgreSQL · '+result.result+' · revisão '+doc.revision+'.');return;
+   doc=result.state;if(type==='settlement.service.group'){serviceGroupDraft=null;serviceGroupResult=null;}if(type.startsWith('route.'))routeDraft=null;if(type.startsWith('label.template.'))templateEditId=null;if(type.startsWith('packer.'))packerEditId=null;draw();status('Salvo e confirmado no PostgreSQL · '+result.result+' · revisão '+doc.revision+'.');return;
   }
   const payload=type==='finance.receipt.attach'?await readReceiptPayload(form):type==='print.photo.attach'?await readPrintPhoto(form):type==='purchase.invoice.pdf'?await readInvoicePdf(form):parseData(type,form),
    id='OP-DEMO-'+crypto.randomUUID(),actor='Operador fictício';
@@ -2072,7 +2165,7 @@ async function submit(form,type){
    throw Error('Gravação inconclusiva: não foi encontrada na releitura. Não repetir sem conferir.');
   const integrity=api.inspect(saved);
   if(!integrity.ok)throw Error('Gravação sem integridade comprovada: '+integrity.problems.join('; '));
-  doc=saved;if(type==='settlement.service.group'){serviceGroupDraft=null;serviceGroupResult=null;}if(type.startsWith('route.'))routeDraft=null;try{await archiveIntent(intent.commandId);recoveryIntents=await intentRead();}catch(ignore){}draw();
+  doc=saved;if(type==='settlement.service.group'){serviceGroupDraft=null;serviceGroupResult=null;}if(type.startsWith('route.'))routeDraft=null;if(type.startsWith('label.template.'))templateEditId=null;if(type.startsWith('packer.'))packerEditId=null;try{await archiveIntent(intent.commandId);recoveryIntents=await intentRead();}catch(ignore){}draw();
   if(type==='settlement.compensate'&&payload.id){
    const el=document.querySelector('form[data-command="settlement.compensate"] [name="id"]');
    if(el&&[...el.options].some(opt=>opt.value===payload.id))el.value=payload.id;
@@ -2638,6 +2731,12 @@ document.addEventListener('click',async e=>{
    draw();
   }catch(error){status(error.message,'error')}return;
  }
+ const editTemplate=e.target.closest('[data-template-edit]');
+ if(editTemplate){templateEditId=editTemplate.dataset.templateEdit;draw();return;}
+ if(e.target.closest('#template-new')){templateEditId=null;draw();return;}
+ const editPacker=e.target.closest('[data-packer-edit]');
+ if(editPacker){packerEditId=editPacker.dataset.packerEdit;draw();return;}
+ if(e.target.closest('#packer-new')){packerEditId=null;draw();return;}
  if(e.target.closest('#label-preview')||e.target.closest('#label-print')){
   try{const batch=labelBatch();labelLayout=batch.layout;labelDraft=batch.definitions;
    const summary=batch.total+' etiqueta(s) · '+batch.modelCount+' modelo(s) · '+batch.pages.length+
