@@ -10,9 +10,15 @@ function orderById(id){return arr('orders').find(o=>sid(o?.id)===sid(id))||null}
 function productById(id){return arr('products').find(p=>sid(p?.id)===sid(id))||null}
 function cutterById(id){return arr('cutters').find(c=>sid(c?.id)===sid(id))||null}
 function displayNo(o){try{return typeof displayOrderNumber==='function'?displayOrderNumber(o):(o?.orderNumber||o?.id)}catch(e){return o?.id}}
-function modelGrade(o,pid){return (Array.isArray(o?.grade)?o.grade:[]).filter(g=>sid(g?.productId)===sid(pid)&&q(g?.qty)>0)}
-function modelPieces(o,pid){return modelGrade(o,pid).reduce((s,g)=>s+q(g.qty),0)}
-function modelIds(o){return [...new Set((Array.isArray(o?.grade)?o.grade:[]).map(g=>sid(g?.productId)).filter(Boolean))]}
+// Os cálculos puros vivem em hlgb-modules/corte/grade-modelo-v9602.js.
+// Fallback mantém o comportamento antigo caso o navegador não carregue o arquivo opcional.
+const gradeCore9602=window.HLGB_CUTTER_GRADE_9602||null;
+function modelGrade(o,pid){return gradeCore9602?.modelGrade?
+ gradeCore9602.modelGrade(o,pid):(Array.isArray(o?.grade)?o.grade:[]).filter(g=>sid(g?.productId)===sid(pid)&&q(g?.qty)>0)}
+function modelPieces(o,pid){return gradeCore9602?.modelPieces?
+ gradeCore9602.modelPieces(o,pid):modelGrade(o,pid).reduce((s,g)=>s+q(g.qty),0)}
+function modelIds(o){return gradeCore9602?.modelIds?
+ gradeCore9602.modelIds(o):[...new Set((Array.isArray(o?.grade)?o.grade:[]).map(g=>sid(g?.productId)).filter(Boolean))]}
 function productName(pid){return productById(pid)?.name||'Produto'}
 function modelAlreadyCut(o,pid){
  // A finalização é por modelo, não pelo status geral do pedido.

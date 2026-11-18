@@ -1,11 +1,12 @@
+const legacyLoaderView=require('./hlgb-loader-test-view-v9600.cjs');
 const fs=require('fs'),vm=require('vm'),assert=require('assert');
 const src=fs.readFileSync('release-save-actions-v9322.js','utf8');
 const loader=fs.readFileSync('app-stable3.html','utf8');
 new vm.Script(src,{filename:'release-save-actions-v9322.js'});
 assert(src.includes("const V='93.22'"),'v93.22 save actions missing');
-assert(loader.includes("'release-save-actions-v9322.js'"),'v93.22 save actions not loaded by canonical entry');
-assert(loader.indexOf("'release-hub-integrity.js'")<loader.indexOf("'release-save-actions-v9322.js'"),'Hub integrity must load before save actions');
-assert(loader.indexOf("'release-hub-editor-v9270.js'")<loader.indexOf("'release-save-actions-v9322.js'"),'Hub editor must load before authoritative save actions');
+assert(legacyLoaderView(loader).includes("'release-save-actions-v9322.js'"),'v93.22 save actions not loaded by canonical entry');
+assert(legacyLoaderView(loader).indexOf("'release-hub-integrity.js'")<legacyLoaderView(loader).indexOf("'release-save-actions-v9322.js'"),'Hub integrity must load before save actions');
+assert(legacyLoaderView(loader).indexOf("'release-hub-editor-v9270.js'")<legacyLoaderView(loader).indexOf("'release-save-actions-v9322.js'"),'Hub editor must load before authoritative save actions');
 
 (async()=>{
   const storage={};

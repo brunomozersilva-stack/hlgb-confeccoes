@@ -1,7 +1,8 @@
+const legacyLoaderView=require('./hlgb-loader-test-view-v9600.cjs');
 const fs=require('fs'),vm=require('vm'),assert=require('assert'),path=require('path');
 const src=fs.readFileSync(path.join(__dirname,'..','release-payroll-termination-provisions.js'),'utf8');
 const loader=fs.readFileSync(path.join(__dirname,'..','app-stable3.html'),'utf8');
-assert(loader.includes("'release-payroll-termination-provisions.js'"));
+assert(legacyLoaderView(loader).includes("'release-payroll-termination-provisions.js'"));
 const context={console,setTimeout(fn){fn();return 0},db:{config:{payrollExtraChargesPct:0},employees:[
 {id:'e1',name:'Elaine de Oliveira Costa',salary:2400,hireDate:'2026-01-01',active:true,provisionPaidHistory:[{id:'p1',type:'13º',value:600,date:'2026-09-20'}]},
 {id:'e2',name:'Ana',salary:1200,hireDate:'2026-01-01',active:true,provisionPaidHistory:[]}

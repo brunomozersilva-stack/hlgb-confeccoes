@@ -1,0 +1,30 @@
+name: HLGB Modular Live Boundaries v96.00
+on:
+  pull_request:
+    branches: [main, refactor/live-module-boundaries-v9600, refactor/live-cutter-grade-stacked-v9603]
+    paths: [app-stable3.html, hlgb-modules/**, tests/hlgb-module-boundaries-v9600.cjs, .github/workflows/hlgb-module-boundaries-v9600.yml]
+  push:
+    branches: [main]
+    paths: [app-stable3.html, hlgb-modules/**, tests/hlgb-module-boundaries-v9600.cjs, .github/workflows/hlgb-module-boundaries-v9600.yml]
+permissions: {contents: read}
+jobs:
+  module-contracts:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - name: Verify all 156 legacy scripts plus one approved core and ownership
+        run: |
+          node --test tests/hlgb-module-boundaries-v9600.cjs
+          node --test tests/hlgb-loader-legacy-contract-v9600.cjs
+      - name: Legacy module smoke suite without data writes
+        run: |
+          node tests/audit-cutter-planner-regression.cjs
+          node --test tests/cutter-save-confirm-v9580.cjs
+          node tests/audit-cut-navigation.cjs
+          node --test tests/cutter-sheet-materials-v9523.cjs
+          node tests/audit-auditor-owner-rpc-regression.cjs
+          node tests/audit-boot-authready-render-order.cjs
+          node tests/audit-app-stable3-restored-render-regression.cjs

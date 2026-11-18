@@ -1,7 +1,8 @@
+const legacyLoaderView=require('./hlgb-loader-test-view-v9600.cjs');
 const fs=require('fs'),vm=require('vm'),assert=require('assert'),path=require('path');
 const src=fs.readFileSync(path.join(__dirname,'..','release-faction-manual-payment.js'),'utf8');
 const loader=fs.readFileSync(path.join(__dirname,'..','app-stable3.html'),'utf8');
-assert(loader.includes("'release-faction-manual-payment.js'"));
+assert(legacyLoaderView(loader).includes("'release-faction-manual-payment.js'"));
 const context={console,setTimeout(){return 0},db:{factions:[{id:'f1',name:'Cris'},{id:'f2',name:'Maria'}],productionLocations:[{id:'l1',name:'Cris'}],products:[{id:'p1',name:'Calcinha',factionCost:1.2},{id:'p2',name:'Camisola',factionCost:2.5}]},window:{renderFactionPayments(){return true}},document:{getElementById(){return null}},openModal(){},closeModal(){}};
 vm.createContext(context);vm.runInContext(src,context);
 const api=context.window.hlgbFactionManualPayment;

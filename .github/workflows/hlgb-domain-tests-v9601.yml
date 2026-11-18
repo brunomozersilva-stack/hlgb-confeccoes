@@ -1,0 +1,45 @@
+name: HLGB Domain Smoke Tests v96.01
+on:
+  pull_request:
+    branches: [main, refactor/live-module-boundaries-v9600, refactor/live-cutter-grade-stacked-v9603]
+    paths:
+      - 'release-*.js'
+      - 'app-stable3.html'
+      - 'app9240.html'
+      - 'hlgb-modules/**'
+      - 'tests/**'
+      - '.github/workflows/hlgb-domain-tests-v9601.yml'
+  workflow_dispatch:
+    inputs:
+      module:
+        description: 'Módulo para testes isolados, sem banco comercial'
+        required: true
+        default: 'corte-cortadores'
+        type: choice
+        options: [corte-cortadores, pedidos-projecao, faccoes-acertos, financeiro-hub-notas, folha-pessoal, utilidades-etiquetas, sincronizacao-wal, auditor-monitor]
+permissions: {contents: read}
+jobs:
+  module-smoke:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 18
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - name: Validate ownership, dependency triggers and tests
+        run: node --test tests/module-test-catalog-v9601.cjs
+      - name: Run impacted suites including transitive dependencies on PR
+        if: github.event_name == 'pull_request'
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          git diff --name-only -z "$BASE_SHA" "$HEAD_SHA" | node hlgb-modules/run-module-tests-v9601.cjs --run-changed-stdin
+      - name: Manually selected module and its dependencies
+        if: github.event_name == 'workflow_dispatch'
+        env:
+          TARGET: ${{ inputs.module }}
+        run: node hlgb-modules/run-module-tests-v9601.cjs --with-deps "$TARGET"

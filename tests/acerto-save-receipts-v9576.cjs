@@ -1,8 +1,9 @@
+const legacyLoaderView=require('./hlgb-loader-test-view-v9600.cjs');
 'use strict';
 const assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('node:vm');
 const src=fs.readFileSync('release-note-receipts-v9576.js','utf8'),acerto=fs.readFileSync('release-acerto-returns-v9565.js','utf8');
 const loader=fs.readFileSync('app-stable3.html','utf8');
-assert(loader.includes("'release-note-receipts-v9576.js'"));
+assert(legacyLoaderView(loader).includes("'release-note-receipts-v9576.js'"));
 new vm.Script(src);new vm.Script(acerto);
 const copy=x=>JSON.parse(JSON.stringify(x));
 const note={id:'n1',client:'Quesia',date:'2026-11-11',issueDate:'2026-11-11',dueDate:'2026-11-20',value:1000,paid:100,remaining:900,

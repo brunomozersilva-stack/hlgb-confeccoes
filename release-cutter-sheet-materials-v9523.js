@@ -10,7 +10,9 @@ const fmt=v=>Number(qty(v).toFixed(4)).toLocaleString('pt-BR',{maximumFractionDi
 const arr=k=>{try{return Array.isArray(db&&db[k])?db[k]:[]}catch(_){return []}};
 const byId=(k,id)=>arr(k).find(x=>sid(x&&x.id)===sid(id))||null;
 const orderNo=o=>{try{return typeof displayOrderNumber==='function'?displayOrderNumber(o):o.orderNumber||o.id}catch(_){return o.orderNumber||o.id}};
+const sheetCore9604=window.HLGB_CUTTER_SHEET_CORE_9604||null;
 function gradeOf(o,c){
+ if(sheetCore9604?.gradeOf)return sheetCore9604.gradeOf(o,c);
  const pid=sid(c.productId);
  const chosen=Array.isArray(c.actualCutGrade)&&c.actualCutGrade.length&&
    sid(c.status).toLowerCase()==='finalizado'?c.actualCutGrade:
@@ -19,6 +21,7 @@ function gradeOf(o,c){
  return chosen.filter(g=>g&&(!pid||!g.productId||sid(g.productId)===pid)&&qty(g.qty)>0);
 }
 function planMaterials(p,pieces){
+ if(sheetCore9604?.planMaterials)return sheetCore9604.planMaterials(p,pieces,id=>byId('materials',id));
  if(!p||!Array.isArray(p.materials)||!p.materials.length)return [];
  return p.materials.map(m=>{
    const catalog=byId('materials',m.materialId);

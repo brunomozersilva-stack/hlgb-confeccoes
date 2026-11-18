@@ -1,7 +1,8 @@
+const legacyLoaderView=require('./hlgb-loader-test-view-v9600.cjs');
 const fs=require('fs'),vm=require('vm'),assert=require('assert'),path=require('path');
 const src=fs.readFileSync(path.join(__dirname,'..','release-assistant-order-import.js'),'utf8');
 const loader=fs.readFileSync(path.join(__dirname,'..','app-stable3.html'),'utf8');
-assert(loader.includes("'release-assistant-order-import.js'"));
+assert(legacyLoaderView(loader).includes("'release-assistant-order-import.js'"));
 const context={console,setTimeout(){return 0},db:{sizes:['P','M','G','GG'],colors:['Preto','Branco','Rubi'],clients:[{id:'c1',name:'Bianca'}],products:[{id:'p1',name:'Camisola Liliane'},{id:'p2',name:'Calcinha Ariana'}]},window:{},document:{getElementById(){return null}},hlgbSortedSizes:()=>['P','M','G','GG']};
 vm.createContext(context);vm.runInContext(src,context);
 const api=context.window.hlgbAssistantOrderImport;assert(api);
