@@ -159,7 +159,7 @@ test('interface completa em duas sessões, conflito, WAL e confirmação indepen
  }
  // Ensaio de distribuição múltipla com duas facções e transferência parcial sem alterar acertos anteriores.
  // Iniciar pedido de 5 peças totalmente separado dos pedidos anteriores.
- const originalFinance=progressed.finance.length,originalSettlements=progressed.settlements.length;
+ const originalSettlements=progressed.settlements.length;
  const newOrderForm=operator.locator('form[data-command="order.add"]');
  await newOrderForm.locator('[name=P]').fill('5');
  await newOrderForm.locator('[name=M]').fill('0');
@@ -202,8 +202,9 @@ test('interface completa em duas sessões, conflito, WAL e confirmação indepen
  assert.equal(movedRows.find(x=>x.id===from.id).qtySent,2);
  assert.equal(movedRows.find(x=>x.id===to.id).qtySent,3);
  assert.equal(moved.orders.find(x=>x.id===multiOrder).allocated,5,'Transferência não gera segundo envio');
- assert.equal(moved.finance.length,originalFinance,'Transferência não cria título financeiro');
- assert.equal(moved.settlements.length,originalSettlements,'Transferência não cria acerto');
+ assert.equal(moved.finance.length,beforeTransfer.finance.length,'Transferência não cria título financeiro além daquele gerado pelo pedido');
+ assert.equal(moved.settlements.length,beforeTransfer.settlements.length,'Transferência não cria acerto');
+ assert.equal(moved.settlements.length,originalSettlements,'Pedido, corte e distribuição não criam acerto de facção');
  assert.equal(moved.factionPartialTransfers.at(-1).reason,'Transferência fictícia para balancear produção');
  const returnForm=operator.locator('form[data-command="faction.multi.return"]');
  await returnForm.locator('[name=assignmentId]').selectOption(to.id);
