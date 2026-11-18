@@ -1,7 +1,7 @@
 name: HLGB Modular Live Boundaries v96.00
 on:
   pull_request:
-    branches: [main, refactor/live-module-boundaries-v9600]
+    branches: [main, refactor/live-module-boundaries-v9600, refactor/live-cutter-grade-stacked-v9603]
     paths: [app-stable3.html, hlgb-modules/**, tests/hlgb-module-boundaries-v9600.cjs, .github/workflows/hlgb-module-boundaries-v9600.yml]
   push:
     branches: [main]

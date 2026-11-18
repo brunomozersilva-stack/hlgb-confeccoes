@@ -10,19 +10,20 @@ function extract(){
  return JSON.parse(source.slice(start+anchor.length,end));
 }
 const groups=extract(),files=groups.flatMap(x=>x.files);
-test('carregamento preserva 156 scripts anteriores e o novo core, na ordem exata',()=>{
- assert.equal(files.length,157);assert.equal(groups.length,16);
- const addon='hlgb-modules/corte/grade-modelo-v9602.js',legacy=files.filter(x=>x!==addon);
- assert.equal(manifest.preExtractionScripts.length,156,'contrato legado de 156 scripts preservado');
- assert.deepEqual(legacy,manifest.preExtractionScripts,'nenhum dos 156 arquivos antigos pode sumir ou mudar de ordem');
- assert.deepEqual(manifest.approvedNewScripts,[addon],'apenas um arquivo novo foi autorizado');
- assert.equal(files.filter(x=>x===addon).length,1);
- assert.equal(files.indexOf(addon)+1,files.indexOf('release-cutter-planner.js'),'core deve carregar imediatamente antes do Cortador');
-
- assert.deepEqual(files,manifest.releaseScripts,'nem função removida, nem ordem de carregamento alterada');
- assert.equal(new Set(files).size,files.length,'scripts duplicados não podem entrar no carregador');
+test('156 scripts comerciais e 2 cores puros aprovados preservam ordem exata',()=>{
+ const addons=['hlgb-modules/corte/grade-modelo-v9602.js','hlgb-modules/corte/folha-grade-materiais-v9604.js'];
+ assert.equal(files.length,158);assert.equal(groups.length,16);
+ assert.equal(manifest.preExtractionScripts.length,156,'156 scripts anteriores preservados');
+ assert.deepEqual(manifest.approvedNewScripts,addons,'somente dois scripts novos explicitamente autorizados');
+ const legacy=files.filter(x=>!addons.includes(x));
+ assert.deepEqual(legacy,manifest.preExtractionScripts,'ordem original e todos os 156 arquivos preservados');
+ for(const a of addons)assert.equal(files.filter(x=>x===a).length,1,'sem duplicação: '+a);
+ assert.equal(files.indexOf(addons[0])+1,files.indexOf('release-cutter-planner.js'));
+ assert.equal(files.indexOf(addons[1])+1,files.indexOf('release-cutter-sheet-materials-v9523.js'));
+ assert.deepEqual(files,manifest.releaseScripts,'carregamento corresponde exatamente ao catálogo');
+ assert.equal(new Set(files).size,files.length,'sem duplicados');
  assert.deepEqual(groups.map(x=>x.id),[...new Set(groups.map(x=>x.id))]);
- for(const group of groups){assert.ok(group.id&&group.files.length>=1);}
+ for(const group of groups)assert.ok(group.id&&group.files.length>=1);
 });
 test('responsabilidades explícitas e exclusivas sem eliminar arquivos antigos',()=>{
  const expected=manifest.releaseScripts,owners=manifest.ownership;
@@ -51,16 +52,20 @@ test('módulos críticos permanecem ordenados para evitar alterações de autori
  assert.ok(idx('release-faction-feature-guard-v9598.js')===files.length-1);
 });
 
-test('arquivo legado e dez fontes críticas mantêm o SHA exato da revisão comercial anterior',()=>{
+test('11 fontes críticas: duas mudanças documentadas, todas as demais idênticas',()=>{
  const crypto=require('node:crypto');
  const critical=manifest.criticalFileBlobs||{};
- assert.equal(Object.keys(critical).length,10);
+ assert.equal(Object.keys(critical).length,11);
  const changes=manifest.extractionChanges||{},baseline=manifest.baselineCriticalFileBlobs||{};
- assert.deepEqual(Object.keys(changes),['release-cutter-planner.js']);
- assert.equal(changes['release-cutter-planner.js'].before,baseline['release-cutter-planner.js'],'SHA comercial original não pode sumir');
- assert.equal(changes['release-cutter-planner.js'].after,critical['release-cutter-planner.js'],'mudança explícita deve corresponder ao novo SHA');
+ const changed=['release-cutter-planner.js','release-cutter-sheet-materials-v9523.js'];
+ assert.deepEqual(Object.keys(changes).sort(),changed.sort());
+ assert.deepEqual(Object.keys(baseline).sort(),Object.keys(critical).sort());
+ for(const file of changed){
+  assert.equal(changes[file].before,baseline[file],'SHA anterior deve ser mantido: '+file);
+  assert.equal(changes[file].after,critical[file],'SHA aprovado deve ser atual: '+file);
+ }
  for(const file of Object.keys(baseline)){
-  if(file!=='release-cutter-planner.js')assert.equal(critical[file],baseline[file],'arquivo crítico não aprovado mudou: '+file);
+  if(!changed.includes(file))assert.equal(critical[file],baseline[file],'arquivo crítico não autorizado mudou: '+file);
  }
  for(const [file,sha] of Object.entries(critical)){
   const bytes=fs.readFileSync(path.join(root,file));

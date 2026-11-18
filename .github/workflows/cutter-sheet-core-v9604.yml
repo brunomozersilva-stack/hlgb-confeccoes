@@ -1,0 +1,38 @@
+name: HLGB Cutter Sheet Pure Core v96.04
+on:
+  pull_request:
+    branches: [main, refactor/live-cutter-grade-stacked-v9603]
+    paths:
+      - 'app-stable3.html'
+      - 'release-cutter-sheet-materials-v9523.js'
+      - 'hlgb-modules/corte/folha-grade-materiais-v9604.js'
+      - 'hlgb-modules/ownership-v9600.json'
+      - 'tests/cutter-sheet-core-v9604.cjs'
+      - '.github/workflows/cutter-sheet-core-v9604.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'app-stable3.html'
+      - 'release-cutter-sheet-materials-v9523.js'
+      - 'hlgb-modules/corte/folha-grade-materiais-v9604.js'
+      - 'hlgb-modules/ownership-v9600.json'
+      - 'tests/cutter-sheet-core-v9604.cjs'
+      - '.github/workflows/cutter-sheet-core-v9604.yml'
+permissions: {contents: read}
+jobs:
+  sheet-parity:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - name: Source syntax and parity with fallback
+        run: |
+          node --check hlgb-modules/corte/folha-grade-materiais-v9604.js
+          node --check release-cutter-sheet-materials-v9523.js
+          node --test tests/cutter-sheet-core-v9604.cjs
+          node --test tests/cutter-sheet-materials-v9523.cjs
+          node --test tests/hlgb-module-boundaries-v9600.cjs
+          node --test tests/cutter-stacked-save-proof-v9603.cjs
+          node tests/cut-weight-after-finish-v9579.cjs
