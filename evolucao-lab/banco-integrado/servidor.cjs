@@ -4,20 +4,24 @@ const http=require('node:http'),fs=require('node:fs/promises'),path=require('nod
 const root=path.resolve(__dirname,'..'),pins={A:'demo-integrado-a',B:'demo-integrado-b'},actors={A:'Operador A fictício',B:'Operador B fictício'};
 const allowed=new Set(['operacao-integrada.html','operacao-integrada-core.js','operacao-integrada-ui.js','folha-homologacao.html']);
 const modules=/^modulos\/[a-z0-9-]+\.js$/;
-const login='<!doctype html><html lang="pt-BR"><meta charset="utf-8"><title>HLGB laboratório remoto</title><h1>HLGB Evolução — banco fictício</h1><p>Somente teste local. Sem dados reais.</p><form method="post" action="/login"><label>Perfil <select name="actor"><option>A</option><option>B</option></select></label><label> PIN fictício <input name="pin" type="password" required></label><button>Entrar</button></form></html>';
+const login=csrf=>'<!doctype html><html lang="pt-BR"><meta charset="utf-8"><title>HLGB laboratório remoto</title><h1>HLGB Evolução — banco fictício</h1><p>Somente teste local. Sem dados reais.</p><form method="post" action="/login"><input type="hidden" name="csrf" value="'+csrf+'"><label>Perfil <select name="actor"><option>A</option><option>B</option></select></label><label> PIN fictício <input name="pin" type="password" required></label><button>Entrar</button></form></html>';
 async function body(req){let size=0,chunks=[];for await(const chunk of req){size+=chunk.length;if(size>2*1024*1024)throw Error('Corpo excede limite');chunks.push(chunk);}return Buffer.concat(chunks).toString('utf8');}
 async function start(port=0){
- db.guard();await db.initialize();const sessions=new Map();
+ db.guard();await db.initialize();const sessions=new Map(),loginTokens=new Map();
  const server=http.createServer(async(req,res)=>{
  const base='http://127.0.0.1:'+server.address().port,headers={'cache-control':'no-store','x-content-type-options':'nosniff','referrer-policy':'no-referrer','content-security-policy':"default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self'; img-src 'self' data: blob:; object-src 'none'; frame-ancestors 'none'; form-action 'self'"};
  const send=(code,data,extra={})=>{res.writeHead(code,{...headers,'content-type':'application/json;charset=utf-8',...extra});res.end(JSON.stringify(data));};
  try{
  if(req.headers.host!==base.slice(7)){send(403,{status:'denied'});return;}
  const url=new URL(req.url,base),route=url.pathname,method=req.method;
- if(method==='POST'&&(req.headers.origin!==base||(route!=='/login'&&req.headers['x-hlgb-integrado']!=='1'))){send(403,{status:'denied'});return;}
- if(route==='/login'&&method==='GET'){res.writeHead(200,{...headers,'content-type':'text/html;charset=utf-8'});res.end(login);return;}
+ if(method==='POST'&&route!=='/login'&&(req.headers['x-hlgb-integrado']!=='1'||req.headers.origin&&req.headers.origin!==base||req.headers['content-type']!=='application/json')){send(403,{status:'denied'});return;}
+ if(route==='/login'&&method==='GET'){const csrf=crypto.randomBytes(24).toString('hex');loginTokens.set(csrf,Date.now()+300000);res.writeHead(200,{...headers,'content-type':'text/html;charset=utf-8','set-cookie':'hlgb_login_csrf='+csrf+'; Path=/login; HttpOnly; SameSite=Strict; Max-Age=300'});res.end(login(csrf));return;}
  if(route==='/login'&&method==='POST'){
- const form=new URLSearchParams(await body(req)),key=form.get('actor');if(!Object.hasOwn(pins,key)||pins[key]!==form.get('pin')){send(401,{status:'denied'});return;}
+ const form=new URLSearchParams(await body(req)),key=form.get('actor'),csrf=form.get('csrf'),cookie=String(req.headers.cookie||'').split(';').map(x=>x.trim()).find(x=>x.startsWith('hlgb_login_csrf='))?.slice('hlgb_login_csrf='.length);
+ const ref=req.headers.referer||'',fromSelf=(()=>{try{const u=new URL(ref);return u.origin===base&&u.pathname==='/login';}catch(e){return false;}})();
+ if(!csrf||csrf!==cookie||!loginTokens.has(csrf)||loginTokens.get(csrf)<Date.now()||!fromSelf||req.headers.origin&&req.headers.origin!==base){send(403,{status:'denied'});return;}
+ loginTokens.delete(csrf);
+ if(!Object.hasOwn(pins,key)||pins[key]!==form.get('pin')){send(401,{status:'denied'});return;}
  const token=crypto.randomBytes(32).toString('hex');sessions.set(token,{actor:actors[key],expires:Date.now()+3600000});
  res.writeHead(303,{...headers,location:'/', 'set-cookie':'hlgb_integrado_demo='+token+'; Path=/; HttpOnly; SameSite=Strict; Max-Age=3600'});res.end();return;}
  const token=String(req.headers.cookie||'').split(';').map(x=>x.trim()).find(x=>x.startsWith('hlgb_integrado_demo='))?.slice('hlgb_integrado_demo='.length),session=sessions.get(token),actor=session?.expires>Date.now()?session.actor:null;

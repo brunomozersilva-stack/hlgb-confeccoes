@@ -4,6 +4,7 @@ test('interface completa em duas sessões, conflito, WAL e confirmação indepen
  const server=await start(),url='http://127.0.0.1:'+server.address().port;const browser=await (process.env.HLGB_BROWSER==='webkit'?webkit:chromium).launch();
  try{
  const A=await browser.newContext(),B=await browser.newContext(),a=await A.newPage(),b=await B.newPage();
+ const forged=await A.request.post(url+'/login',{form:{actor:'A',pin:'demo-integrado-a'}});assert.equal(forged.status(),403,'Login sem token CSRF não pode autenticar');
  async function login(page,actor){
  const errors=[],bad=[];page.on('pageerror',e=>errors.push(e.message));page.on('response',r=>{if(r.status()>=400)bad.push(r.status()+' '+r.url());});
  await page.goto(url);await page.locator('[name=actor]').selectOption(actor);
