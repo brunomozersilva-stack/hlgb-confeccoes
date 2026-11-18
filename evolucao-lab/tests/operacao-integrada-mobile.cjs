@@ -1129,6 +1129,8 @@ async function runMultiOrder(browser,url,width){
   await first.locator('[data-multi-color-row]').last().locator('[name=color]').fill('PRETO');
   await first.locator('[data-multi-color-row]').last().locator('[name="size_M"]').fill('2');
   await form.locator('button[type=submit]').click();
+  await page.waitForFunction(()=>document.querySelector('#flash')?.textContent.includes('Cor repetida')&&
+    document.querySelector('#flash')?.classList.contains('error'),null,{timeout:10000});
   assert.equal(await revision(page),2,'Cor repetida não gera outra transação');
   assert.match(await page.locator('#flash').innerText(),/Cor repetida/);
   assert.deepEqual(errors,[],'Sem erros de JavaScript');
