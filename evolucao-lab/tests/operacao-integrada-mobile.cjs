@@ -1232,6 +1232,7 @@ async function runMultiFlow(browser,url,width){
   assert.match(await page.locator('#module-content').innerText(),/Acerto fictício a conferir/);
   await page.locator('#module-content [data-goto="acertos"]').first().click();
   assert.equal(await page.locator('[data-module="acertos"]').getAttribute('aria-current'),'page');
+  assert.equal(await page.locator('[data-mf-record="MFR-0002"]').getAttribute('data-mf-focused'),'true');
   await module(page,'pedidos');
   const exported=page.waitForEvent('download');
   await page.locator('#export-json').click();
