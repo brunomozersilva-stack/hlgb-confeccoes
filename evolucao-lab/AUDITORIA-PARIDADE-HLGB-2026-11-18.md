@@ -209,3 +209,17 @@ A regra formal foi gravada em `CONTRATOS-ACEITE-OPERACIONAL-2026-11-18.md`: cada
 - `ACE-012` e `LEG-013/LEG-014` **permanecem PENDENTES** de equivalência com o legado e aprovação da equipe.
 
 **Próxima prioridade:** regularização histórica com prévia não destrutiva e origem rastreável; depois integração operacional por modelo/cor/tamanho, teste em duas sessões e importação reversível dos dados legados. Nenhum merge na `main`; nenhuma alteração na base comercial.
+
+
+## Sétima evolução isolada — Regularização histórica somente em prévia (18/11/2026)
+
+**Estado: IMPLEMENTAÇÃO PARCIAL / LEG-015 e ACE-013 PENDENTES. Não há importação.**
+
+- Novo componente puro `modulos/regularizacao-historica-preview-v1.js` oferece diagnóstico local de CSV fictício com colunas `cliente;modelo;quantidade;data;referencia;status`.
+- A área **Utilidades** agora permite colar registros fictícios, baixar um modelo CSV, gerar prévia e exportar um relatório JSON, sem criar nenhuma linha no pedido, estoque, facção, nota, folha ou financeiro. O resultado marca `canCommit:false`, `importedCount:0`.
+- Conciliação de cliente/modelo é **somente por ID ou nome exato e único**; referências repetidas na entrada e já presentes em pedidos/importações do laboratório são bloqueadas. Data impossível, quantidade inválida e linha incompleta são destacadas.
+- Testes: `tests/regularizacao-historica-contract.cjs` e fluxo sem alteração de revisão no passeio Chrome/WebKit `tests/operacao-integrada-mobile.cjs`.
+- **Ainda faltam:** leitura fiel de PDF/foto/TXT do legado, resolução assistida de alias e produtos de revenda, conciliação da produção e das facções por lote, identificação de movimentos financeiros já quitados, WAL pendente de outras máquinas, plano reversível de importação, permissões e dupla conferência remota. Nenhum desses itens está sendo substituído pela prévia simplificada.
+- `LEG-015` permanece sem aprovação. A regra dos 17 contratos de aceite por tarefa segue `0/17`, sem prova com usuários nem autorização para produção.
+
+**Próxima etapa sugerida de engenharia:** normalizar identidade e saldo por `pedido + modelo + cor + tamanho` entre Pedido, Corte, Facção, Separação e Acerto, com prova idempotente em duas sessões e comparação com dados anonimizados do HLGB atual. Não publicar em `main` nem migrar dados comerciais antes dessas provas.
