@@ -347,5 +347,17 @@
       "release-ui-actions-v9402.js"
     ]
   },
-  "notes": "Ownership is a routing/maintenance aid. Some scripts cross domains; assignment is primary responsibility, not strict isolation. Runtime order must match the original release list exactly. Monolithic app9240.html and browser WAL are intentionally unchanged."
+  "notes": "Ownership is a routing/maintenance aid. Some scripts cross domains; assignment is primary responsibility, not strict isolation. Runtime order must match the original release list exactly. Monolithic app9240.html and browser WAL are intentionally unchanged.",
+  "criticalFileBlobs": {
+    "app9240.html": "db896b5fbf85392be5711ae1c44b3bf245893be4",
+    "release-cutter-planner.js": "a56f2c79df19ebb1cd86544a13976a97538d6a4e",
+    "release-operations-pack.js": "29bf8a04bf2875a47dacc0445652865510b2d731",
+    "release-save-transport-v9320.js": "6cbbc56e77aa3c42555c64e22fc194968fda4bf6",
+    "release-wal-idb-convergence-v9536.js": "abb6b7166fda7cb4e09986bf4584d3d445d5575f",
+    "release-record-integrity.js": "c763fbf74c2b3425bb15cafc17bb10ec3195c7e7",
+    "release-payroll-save-stability-v9296.js": "9a125f5cd33cab13eafc6a82288417e6d0b77b7c",
+    "release-faction-manual-payment-v9566.js": "2af968249fcf4d06a832b2563f04c251bf259948",
+    "release-pricing.js": "91c44c12915a4d4988f5465d50fc64d35b4c9e06",
+    "release-hub-save-proof-v9567.js": "740628ed76fb377b9d23f70bde3b065cfff997bf"
+  }
 }
