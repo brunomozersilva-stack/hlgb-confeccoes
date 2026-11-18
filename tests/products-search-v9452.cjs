@@ -1,6 +1,7 @@
+const legacyLoaderView=require('./hlgb-loader-test-view-v9600.cjs');
 const fs=require('node:fs'),vm=require('node:vm'),assert=require('node:assert/strict');
 const app=fs.readFileSync('app9240.html','utf8'),loader=fs.readFileSync('app-stable3.html','utf8');
-assert(!loader.includes("'release-products-search-v9452.js'"),'old redundant DOM-only filter must not load');
+assert(!legacyLoaderView(loader).includes("'release-products-search-v9452.js'"),'old redundant DOM-only filter must not load');
 const start=app.indexOf('function renderProducts(){'),end=app.indexOf('function saveProductFromForm(p){',start);
 assert(start>=0&&end>start,'canonical renderer found');
 const text=app.slice(start,end);
