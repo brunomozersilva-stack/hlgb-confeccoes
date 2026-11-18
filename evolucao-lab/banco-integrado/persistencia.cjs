@@ -44,6 +44,16 @@ async function deactivateEmployee(employeeId,actor){
   }catch(e){await c.query('ROLLBACK').catch(()=>{});throw e;}
  });
 }
+async function listLabEmployees(actor){
+ if(permissions.profile(actor)?.id!=='demo-admin')return null;
+ return withDb(async c=>{
+  const principal=permissions.profile(actor);
+  const active=(await c.query('SELECT active FROM hlgb_integrado_lab.lab_accounts WHERE employee_id=$1 AND actor=$2',[principal.employeeId,actor])).rows[0]?.active;
+  if(active!==true)return null;
+  const rows=(await c.query('SELECT employee_id,actor,active FROM hlgb_integrado_lab.lab_accounts ORDER BY employee_id')).rows;
+  return rows.map(row=>({employeeId:row.employee_id,actor:row.actor,active:row.active,label:permissions.profile(row.actor)?.label||'Perfil de teste'}));
+ });
+}
 async function initialize(){return withDb(async c=>{const seed=core.initial();await c.query('INSERT INTO hlgb_integrado_lab.documents(id,revision,state) VALUES($1,1,$2::jsonb) ON CONFLICT(id) DO NOTHING',[ID,JSON.stringify(seed)]);return state();});}
 function verifyChain(state){if(!state||!Number.isSafeInteger(state.revision)||state.revision<1||!Array.isArray(state.log)||state.log.length!==state.revision-1)return false;const seen=new Set();for(let i=0;i<state.log.length;i++){let e=state.log[i];if(!e||e.revision!==i+2||typeof e.commandId!=='string'||!e.commandId||seen.has(e.commandId)||e.type==='demo.reset'||!permissions.profile(e.actor))return false;seen.add(e.commandId);}return state.revisionProof===(state.log.at(-1)?.commandId||'seed');}
 function verifyDocument(row){if(!row||Number(row.revision)!==row.state?.revision||!verifyChain(row.state)||!core.inspect(row.state).ok)throw Error('Snapshot inconsistente; nenhuma alteração autorizada.');return row.state;}
@@ -101,4 +111,4 @@ async function cancel(cmd,actor){
  await c.query('INSERT INTO hlgb_integrado_lab.cancellations(command_id,actor,fingerprint) VALUES($1,$2,$3)',[cmd.commandId,actor,fingerprint]);
  await c.query('COMMIT');return {status:'cancelled',commandId:cmd.commandId};
  }catch(e){await c.query('ROLLBACK').catch(()=>{});throw e;}});}
-module.exports={guard,canonical,validate,initialize,state,revision,commit,readback,cancel,verifyChain,ledgerMatches,activeEmployee,deactivateEmployee};
+module.exports={guard,canonical,validate,initialize,state,revision,commit,readback,cancel,verifyChain,ledgerMatches,activeEmployee,deactivateEmployee,listLabEmployees};
