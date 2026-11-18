@@ -3,7 +3,7 @@ const {test}=require('node:test'),assert=require('node:assert/strict'),{chromium
 test('interface completa em duas sessões, conflito, WAL e confirmação independente',async()=>{
  const server=await start(),url='http://127.0.0.1:'+server.address().port;const browser=await (process.env.HLGB_BROWSER==='webkit'?webkit:chromium).launch();
  try{
- const A=await browser.newContext(),B=await browser.newContext(),a=await A.newPage(),b=await B.newPage();
+ const A=await browser.newContext(),A2=await browser.newContext(),B=await browser.newContext(),a=await A.newPage(),b=await A2.newPage(),operator=await B.newPage();
  const forged=await A.request.post(url+'/login',{form:{actor:'A',pin:'demo-integrado-a'}});assert.equal(forged.status(),403,'Login sem token CSRF não pode autenticar');
  async function login(page,actor){
  const errors=[],bad=[];page.on('pageerror',e=>errors.push(e.message));page.on('response',r=>{if(r.status()>=400)bad.push(r.status()+' '+r.url());});
@@ -12,16 +12,24 @@ test('interface completa em duas sessões, conflito, WAL e confirmação indepen
  try{await page.locator('#remote-check').waitFor({timeout:12000});}
  catch(err){const html=await page.locator('body').innerText().catch(()=>'sem corpo');const session=await page.request.get(url+'/api/session').then(r=>({status:r.status(),body:r.text()})).catch(e=>({error:e.message}));throw Error('Falha login '+actor+'; url='+page.url()+'; tela='+html.slice(0,1600)+'; session='+JSON.stringify(session)+'; JS='+JSON.stringify(errors)+'; HTTP='+JSON.stringify(bad));}
  }
- await login(a,'A');await login(b,'B');
- const sessionB=await b.request.get(url+'/api/session').then(x=>x.json());
+ await login(a,'A');await login(b,'A');await login(operator,'B');
+ const sessionB=await operator.request.get(url+'/api/session').then(x=>x.json());
  assert.equal(sessionB.permissions.id,'demo-production');
  assert.equal(sessionB.permissions.productionApproval,false);
  assert.equal(sessionB.permissions.allowedCommands.includes('finance.pay'),false);
- await b.locator('[data-module=hub]').click();
- const forbiddenForm=b.locator('form[data-command="finance.add"] button[type=submit]');
- assert.equal(await forbiddenForm.isDisabled(),true,'Interface deve desabilitar ação financeira fictícia');
+ assert.equal(sessionB.permissions.readScope,'production_only_ficticio');
+ assert.equal(await operator.request.get(url+'/api/state').then(x=>x.status()),403,'Produção não pode ler snapshot integral');
+ assert.equal(await operator.request.get(url+'/operacao-integrada.html').then(x=>x.status()),403,'Produção não pode abrir interface administrativa');
+ assert.equal(await operator.locator('form[data-command="finance.add"]').count(),0,'Formulários financeiros não são entregues');
+ const projected=await operator.request.get(url+'/api/production-state').then(x=>x.json());
+ assert.equal(projected.status,'ok');
+ assert.equal(projected.state.readScope,'production_only_ficticio');
+ assert.equal(Object.hasOwn(projected.state,'employees'),false);
+ assert.equal(Object.hasOwn(projected.state,'finance'),false);
+ assert.equal(Object.hasOwn(projected.state,'log'),false);
+ assert.equal(Object.hasOwn(projected.state.products[0],'priceCents'),false);
  const beforeDenied=await db.state();
- const denied=await b.evaluate(async r=>{
+ const denied=await operator.evaluate(async r=>{
  const response=await fetch('/api/commands',{method:'POST',credentials:'same-origin',headers:{'content-type':'application/json','x-hlgb-integrado':'1'},body:JSON.stringify({commandId:'LAB-NO-FINANCE-B',type:'finance.add',expectedRevision:r,payload:{kind:'pagar',description:'Não autorizar',amountCents:1000,category:'Aluguel'}})});
  return {code:response.status,payload:await response.json()};
  },beforeDenied.revision);
@@ -45,5 +53,15 @@ test('interface completa em duas sessões, conflito, WAL e confirmação indepen
  await a.waitForFunction(()=>!document.querySelector('#shared-revision-notice').hidden&&document.querySelector('#shared-revision-notice').textContent.includes('revisão 3'),null,{timeout:25000});
  assert.equal(await a.locator('form[data-command="order.add"] [name=P]').inputValue(),'7');
  await a.locator('#remote-check').click();await a.waitForFunction(()=>document.querySelector('#top-revision').textContent.includes('Revisão servidor 3'));
+ // Operador B permanece operacional na visão mínima, mesmo sem ler o documento integral.
+ await operator.locator('#remote-check').click();
+ await operator.waitForFunction(()=>document.querySelector('#top-revision').textContent.includes('teste: 3'));
+ await operator.locator('form[data-command="order.add"] button[type=submit]').click();
+ await operator.waitForFunction(()=>document.querySelector('#top-revision').textContent.includes('teste: 4'));
+ assert.equal((await db.state()).orders.length,3);
+ assert.equal(await operator.request.get(url+'/api/state').then(x=>x.status()),403);
+ const projectedAfter=await operator.request.get(url+'/api/production-state').then(x=>x.json());
+ assert.equal(projectedAfter.state.orders.length,3);
+ assert.equal(Object.hasOwn(projectedAfter.state,'finance'),false);
  }finally{await browser.close();await new Promise(resolve=>server.close(resolve));}
 });
