@@ -140,5 +140,38 @@
     input('reviewer','Conferente','Conferente fictício A')+input('reason','Motivo','Valores e peças conferidos'),
     '','Registrar conferência (não pagamento)'):'<p>Sem acertos fictícios aguardando conferência.</p>'));
  }
- return Object.freeze({balancePanel,factionPanel,separationPanel,acertoPanel,readLines});
+ function queue(s,flow){
+  const queue=[];
+  for(const o of s.multiOrders||[])for(const item of o.items||[]){
+   for(const x of flow.orderBalance(s,o.id,item.id)){
+    if(!x.ordered)continue;
+    const ref=o.id+' / '+item.name+' / '+x.color+' / '+x.size;
+    if(x.toCut>0)queue.push({stage:'Corte pendente',ref,qty:x.toCut,to:'corte'});
+    if(x.toAllocate>0)queue.push({stage:'Corte concluído para enviar à facção',ref,
+     qty:x.toAllocate,to:'faccoes'});
+    if(x.availableToSeparate>0)queue.push({stage:'Retorno disponível para separar',ref,
+     qty:x.availableToSeparate,to:'separacao'});
+    if(x.toShip>0)queue.push({stage:'Separado e disponível para expedir',ref,qty:x.toShip,to:'separacao'});
+   }
+  }
+  for(const group of flow.acertos(s))for(const r of group.items.filter(x=>!x.reviewed))
+   queue.push({stage:'Acerto fictício a conferir',ref:r.id+' / '+group.name,qty:r.qty,to:'acertos'});
+  return queue;
+ }
+ function queuePanel(s,flow){
+  const todo=queue(s,flow),ordered=['Corte pendente','Corte concluído para enviar à facção',
+   'Retorno disponível para separar','Separado e disponível para expedir','Acerto fictício a conferir'];
+  const sorted=todo.slice().sort((a,b)=>ordered.indexOf(a.stage)-ordered.indexOf(b.stage)||a.ref.localeCompare(b.ref,'pt-BR'));
+  const rows=sorted.slice(0,120).map(x=>'<tr><td>'+esc(x.stage)+'</td><td>'+esc(x.ref)+'</td><td>'+
+   x.qty+'</td><td><button type="button" class="btn" data-goto="'+esc(x.to)+'">Abrir '+esc(x.to)+'</button></td></tr>').join('');
+  return panel('Fila de trabalho por setor · multimodelo fictício',
+   '<p>Mostra somente pendências calculadas a partir das grades e comandos deste exercício. Não possui prazo de entrega ou confirmação em outro computador; <b>não é uma fila real de produção</b>.</p>'+
+   '<div class="metrics"><div class="metric"><span>Tarefas com saldo</span><strong>'+todo.length+'</strong></div>'+
+   '<div class="metric"><span>Acertos por conferir</span><strong>'+
+   todo.filter(x=>x.stage==='Acerto fictício a conferir').length+'</strong></div></div>'+
+   (rows?'<div class="table-wrap"><table><thead><tr><th>Próxima etapa</th><th>Registro exato</th><th>Peças</th><th>Abrir módulo</th></tr></thead><tbody>'+
+    rows+'</tbody></table></div>'+(todo.length>120?'<p>Lista parcial de 120 itens. Consulte o módulo para ver o restante.</p>':''):
+    '<p>Sem pendências de operação multimodelo neste laboratório.</p>'));
+ }
+ return Object.freeze({balancePanel,factionPanel,separationPanel,acertoPanel,queue,queuePanel,readLines});
 });
