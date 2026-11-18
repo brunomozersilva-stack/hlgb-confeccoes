@@ -65,7 +65,10 @@ document.addEventListener('input',function(e){
 },true);
 document.addEventListener('click',function(e){
  const b=e.target?.closest?.('button');
- if(!b||(!b.classList.contains('modalSave')&&!norm(b.textContent).includes('confirmar entrega integrada')))return;
+ // .modalSave é compartilhada com ROTAS, corte, acertos e dezenas de telas.
+ // A proteção de preço pertence SOMENTE ao botão de confirmar entrega integrada.
+ // Nunca bloquear "Salvar rota" por vestígios de campos de uma janela anterior.
+ if(!b||!norm(b.textContent).includes('confirmar entrega integrada'))return;
  const m=b.closest('.modalbox'),id=m?.dataset?.hlgbFactionId;
  if(!id||!isFactionDeliveryModal(m))return;
  const mode=m.querySelector('#fdMode940')?.value||'expected',input=priceInput(m);
@@ -79,5 +82,5 @@ document.addEventListener('click',function(e){
  }
 },true);
 window.hlgbFactionPriceFor=priceFor;
-window.HLGB_PRICING_MODULE='exact-faction-v95.106-modal-scope';console.info('[HLGB] preço da entrega preso ao ID exato da facção');
+window.HLGB_PRICING_MODULE='exact-faction-v95.107-delivery-button-only';console.info('[HLGB] preço da entrega preso ao ID exato da facção');
 })();

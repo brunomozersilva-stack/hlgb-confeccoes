@@ -65,3 +65,25 @@ test('alteração de preço em modal não relacionado não escreve identificaç�
  assert.equal(f.modal.dataset.hlgbPriceUserEdited,undefined);
  assert.equal(f.alerts.length,0);
 });
+
+test('urgente: Salvar rota não pode ser barrado por preço da facção mesmo com modal contaminado',()=>{
+ const f=fixture();
+ f.modal.dataset.hlgbFactionId='FAC-1';
+ f.modal.mode.value='expected';
+ f.input.value='0';
+ const original=JSON.stringify(f.db);
+ for(const label of ['Salvar rota','🧭 Salvar rota','Salvar grade','Salvar acerto','Salvar pagamento','Confirmar baixa da travetada','Enviar itens para Montagem de Notas']){
+  const result=f.click(label);
+  assert.deepEqual(result,{prevented:false,stopped:false},label+' não é entrega integrada');
+ }
+ assert.equal(f.alerts.length,0,'Nenhum alerta de Notas em rota ou outra operação');
+ assert.equal(JSON.stringify(f.db),original,'O interceptor não pode alterar os dados');
+});
+test('somente a confirmação de entrega integrada conserva o bloqueio de preço para Notas',()=>{
+ const f=fixture();
+ f.modal.dataset.hlgbFactionId='FAC-1';f.input.value='0';
+ const result=f.click('☁️ Confirmar entrega integrada');
+ assert.deepEqual(result,{prevented:true,stopped:true});
+ assert.equal(f.alerts.length,1);
+ assert.match(f.alerts[0],/entrega para Notas exige preço de venda positivo/);
+});
