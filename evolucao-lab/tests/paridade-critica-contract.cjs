@@ -56,3 +56,11 @@ test('itens da matriz incorporados no HTML são exatamente os do inventário',()
  assert.ok(match,'matriz embutida não encontrada');
  assert.deepEqual(JSON.parse(match[1]),data.scenarios);
 });
+
+test('matriz exibe provas parciais sem permitir aprovar ou gravar dados',()=>{
+ const match=html.match(/const proofIndex=(\{[\s\S]*?\});\nconst label=/);assert.ok(match,'Provas embutidas ausentes');
+ const index=JSON.parse(fs.readFileSync(path.join(root,'paridade-critica-evidencias-v1.json'),'utf8'));
+ const visible=JSON.parse(match[1]),expected=Object.fromEntries(index.scenarios.filter(x=>x.evidence.length).map(x=>[x.id,[...new Set(x.evidence.map(e=>e.test))]]));
+ assert.deepEqual(visible,expected);assert.equal(index.approval,false);assert.equal(index.scenarios.every(x=>x.humanApproval==='pendente'),true);
+ assert.match(html,/id="kpi-proof"/);assert.match(html,/Ainda não homologado/);
+});
