@@ -30,6 +30,34 @@
 | LEG-018 | P0 | Hub, folha, estoque, compras, clientes, relatórios | Vários módulos específicos no legado, inclusive passagem individual e correções do Hub | Na versão nova existem protótipos, mas não foi concluído mapeamento botão a botão, campos e históricos | **Paridade não verificada** |
 | LEG-019 | P0 | Auditor, Bot, sincronização, recuperação de dados | Código legado com WAL IndexedDB, auditor e correções específicas | Laboratório usa testes e banco descartável, não migração/retorno real, nem prova de que preserva todas as funções | **Paridade não verificada** |
 
+## Visão módulo por módulo — 19 áreas do novo + Utilidades do legado
+Esta classificação **não é nota de qualidade** e não diz que os módulos funcionam em produção. *Parcial* significa apenas que há alguma implementação fictícia; **nenhum módulo foi homologado como substituto**.
+
+| Área | Situação encontrada | Próxima verificação obrigatória |
+|---|---|---|
+| Núcleo/sincronização | Prototipada com WAL/revisões de laboratório | Migrar modelo legado sem perder IndexedDB pendente, testar conflito e restauração com snapshot anonimizado |
+| Autenticação | Somente perfis/PINs fictícios, dados isolados | MFA, papéis reais, revogação e RLS por módulo/empresa |
+| Pedidos | **Lacunas P0**: um modelo/pedido e quatro tamanhos; cor/tamanho deslocada a Facções | Recriar pedido multi-modelo e matriz cor/tamanho no próprio cadastro; totals, edição, histórico |
+| Produtos/ficha técnica | SKU, material principal e receita BOM são protótipos | Mapear fichas existentes, unidades, categoria, fórmulas, materiais múltiplos e custos |
+| Corte/cortadores | **Lacunas P0**: folha vertical reduzida, programação por pedido de um modelo | Recuperar impressão A4 completa, grade horizontal, programação independente por modelo, peso histórico |
+| Produção | Comandos de baixa e retorno fictícios | Conferir campos de cada tela antiga, baixa parcial, status por modelo/cor/tamanho e auditoria de salvamento |
+| Separação/expedição | Operações agregadas por pedido | Garantir baixa por modelo/variação e volumes, conferência, rastreio e divergências |
+| Facções | Distribuição múltipla, retornos e transferências simuladas | Conferir preços, alterações após alocação, devolução, rota, acerto pago e histórico por facção |
+| Acertos | Módulos de compensação e pagamento fictícios | Reproduzir individualização, acerto avulso, agrupamento por pessoa, travetada, pago/observação e reconciliação |
+| Hub Financeiro | Títulos, filtros e algumas confirmações fictícias | Comprovar salvar, editar, buscar, pagamentos, anexos, fechamento por período e conciliação do legado |
+| Folha/Provisões | Passagem por pessoa presente em protótipo | Reproduzir edição, ordem, somatórios e integração financeira sem usar encargos fictícios como folha real |
+| Compras/Fornecedores | Cotações, requisição, devolução e dupla conferência simuladas | Verificar nota de entrada, materiais, saldos, prazos, baixas e devoluções completas |
+| Estoque | Controle inicial em gramas | Compatibilizar unidades, variantes/cor, rolos/lotes, movimentação e inventário histórico |
+| Relatórios | Relatórios gerenciais parciais | Listar **todos** os filtros, períodos, dimensões, exportações e reconciliação de números |
+| Auditor | Auditor v3 de exercício | Comparar autoridade WAL, diagnóstico residual, auto reparo auditável e alerta útil sem perda |
+| Bot/Assistente | Bot v3/assistente em demonstração | Comparar funções atuais e limites de execução, contexto real, aprendizado e explicação de decisões |
+| Central/Monitor | Métricas e alertas demonstrativos | Verificar monitor horário, alertas por severidade, histórico e evidência de sincronização |
+| Impressora 3D | Cadastro fictício | Conferir estoque real, upload/fotos, custos e edição preservada; delimitar acesso ao ERP |
+| Cadastros | Clientes, materiais, facções e produtos básicos | Compatibilizar IDs, campos, filtros, preços por cliente e responsabilidades |
+| **Utilidades (legado)** | **AUSENTE da Operação Integrada** | Rotas, Etiquetas A4, templates de embalagem, regularização e integração de embaladeiras |
+
+**Observação:** não basta que cada linha tenha um botão. Cada comportamento existente deve ter cenário antes/depois, prova funcional, valor esperado, histórico preservado e autorização humana.
+
 ## Inventário e testes: o que realmente demonstram?
 - `paridade-funcional.json`: 76 funções **preliminares**. Não é inventário total do programa; cada item marcado `nao_verificada`.
 - `paridade-revisao-v2.json`: 76 equivalências **parciais por inspeção**, **zero aprovadas**, 43 cenários, 266 itens do plano mestre. `gaps:0` ali significa ausência de gaps formalizados naquela revisão, **não** ausência real de funcionalidades faltantes. Este documento atualiza o status e registra lacunas confirmadas.
