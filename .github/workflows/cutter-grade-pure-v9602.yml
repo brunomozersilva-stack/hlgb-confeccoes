@@ -2,7 +2,7 @@ name: HLGB Cutter Grade Pure Module v96.02
 on:
   pull_request:
     branches: [main, refactor/live-module-boundaries-v9600]
-    paths: ['release-cutter-planner.js', 'app-stable3.html', 'hlgb-modules/corte/grade-modelo-v9602.js', 'tests/cutter-grade-pure-v9602.cjs', '.github/workflows/cutter-grade-pure-v9602.yml']
+    paths: ['release-cutter-planner.js', 'app-stable3.html', 'hlgb-modules/corte/grade-modelo-v9602.js', 'tests/cutter-grade-pure-v9602.cjs', 'tests/cutter-stacked-save-proof-v9603.cjs', '.github/workflows/cutter-grade-pure-v9602.yml']
   push:
     branches: [main]
     paths: ['release-cutter-planner.js', 'app-stable3.html', 'hlgb-modules/corte/grade-modelo-v9602.js', 'tests/cutter-grade-pure-v9602.cjs', '.github/workflows/cutter-grade-pure-v9602.yml']
@@ -20,5 +20,6 @@ jobs:
           node --check release-cutter-planner.js
           node --check hlgb-modules/corte/grade-modelo-v9602.js
           node --test tests/cutter-grade-pure-v9602.cjs
+          node --test tests/cutter-stacked-save-proof-v9603.cjs
           node tests/audit-cutter-planner-regression.cjs
           node --test tests/cutter-save-confirm-v9580.cjs
