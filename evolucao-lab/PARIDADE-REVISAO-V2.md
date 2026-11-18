@@ -1,18 +1,6 @@
 # Revisão de paridade HLGB Evolução
 
-Base da análise: `95bc0b1fa6d9770dadfb317db11b68614c5054d3`. 62 funções com equivalente parcial identificado, 14 lacunas explícitas, zero aprovações; 43 cenários críticos ainda por homologar. Os 266 itens do plano mestre continuam sujeitos à validação. Não representa percentual de conclusão.
-
-## Sequência de prioridade
-
-1. Acertos: preço por serviço, pontos de travetada, agrupamento, embalagem avulsa e transferência com material.
-2. Folha: competência, pagamento pelo Hub, ordenação e provisões; preservar salários, passagem e histórico.
-3. Pedido/corte/produção: importação assistida, divisão de lote, embalagem e grade completa, notas e comprovantes.
-4. Compras: importação, comparação e saldo por fornecedor.
-5. Monitoramento: scripts duplicados, verificação periódica, diagnóstico de boot.
-6. Impressora 3D: fotos, catálogo e conferência de persistência.
-7. Segurança empresarial, interface mobile, sincronização e homologação, incluindo os 43 cenários de alto risco.
-
-A revisão não autoriza remoção de função antiga. As áreas parciais também exigem comparação e teste.
+Base da análise: `16285708c08550586966e11d6c5a9edb8bea48e2`. 69 funções com equivalente parcial identificado, 7 lacunas explícitas, zero aprovações; 43 cenários críticos por homologar. Os 266 itens do plano mestre ainda exigem validação. Não é percentual de conclusão.
 
 | Função | Situação estática | Observação |
 |---|---|---|
@@ -25,7 +13,7 @@ A revisão não autoriza remoção de função antiga. As áreas parciais també
 | PAR-007 Visibilidade remota dos pedidos | Parcial | Consulta compartilhada no servidor local |
 | PAR-008 Rastreabilidade de entrega | Parcial | Jornada do pedido e expedição; sem comunicação/entrega real |
 | PAR-009 Inclusão de pedido pelo assistente | Lacuna | Assistente não cria pedido; precisa confirmação e fluxo transacional |
-| PAR-010 Importação assistida de pedidos | Lacuna | Importação de pedidos ainda não integrada |
+| PAR-010 Importação assistida de pedidos | Parcial | Importação CSV com SKU e cliente exatos, prévia, lote atômico; importadores de PDF e outras fontes pendentes. |
 | PAR-011 Busca de produtos na ficha técnica | Parcial | Pesquisa global e consulta de catálogo |
 | PAR-012 Catálogo de produtos para consulta | Parcial | Catálogo e busca dos modelos do laboratório |
 | PAR-013 Rastreabilidade por produto | Parcial | Histórico gerencial e vínculo por modelo |
@@ -46,7 +34,7 @@ A revisão não autoriza remoção de função antiga. As áreas parciais també
 | PAR-028 Separação de acordo com grade cortada | Parcial | Grade de corte e separação quantitativa; falta paridade por cor/tamanho |
 | PAR-029 Controle operacional de facções e transferências | Parcial | Transferência e retorno multi-facção |
 | PAR-030 Proteção contra sumiço do histórico de facções | Parcial | Eventos e histórico de acertos; sem migração homologada |
-| PAR-031 Atualização de material da facção | Lacuna | Atualização de material da facção e comparação da ficha não integradas |
+| PAR-031 Atualização de material da facção | Parcial | Checklist por envio e comparação de ficha; conferência logística em gramas, sem movimentação física de estoque. |
 | PAR-032 Preço por serviço e cadastro de função | Parcial | faction.rate.set / serviceType simplificado |
 | PAR-033 Travetada vinculada à facção | Parcial | faction.traveta.set, desconto unitário |
 | PAR-034 Busca e lista de facções no acerto | Parcial | Seletores e pesquisa global |
@@ -58,20 +46,20 @@ A revisão não autoriza remoção de função antiga. As áreas parciais també
 | PAR-040 Devoluções e observações auditáveis | Parcial | Devolução parcial e motivo |
 | PAR-041 Comprovantes e histórico de acerto | Parcial | Anexo e metadados de acerto |
 | PAR-042 PDF e limpeza segura de comprovante | Parcial | PDF de comprovante local; armazenamento remoto privado pendente |
-| PAR-043 Pontos de travetada | Lacuna | Pontos de travetada por peça ainda não implementados |
+| PAR-043 Pontos de travetada | Parcial | Cálculo por pontos, tarifa por ponto, desconto e snapshot de serviço; homologação pendente. |
 | PAR-044 Ferramentas de acerto visíveis | Parcial | Painéis de acerto, sem paridade visual |
 | PAR-045 Confirmação de salvar no Hub | Parcial | finance.add/pay e readback |
 | PAR-046 Histórico de valores da semana | Parcial | Relatórios por data; comparação semanal incompleta |
 | PAR-047 Consulta e filtros do Hub | Parcial | Hub por período/categoria e pesquisa global |
 | PAR-048 Integridade de registros do Hub | Parcial | Vínculos e reconciliação de títulos |
-| PAR-049 Data de pagamento na folha pelo Hub | Lacuna | Pagamento vinculado à folha por competência/data não integrado |
+| PAR-049 Data de pagamento na folha pelo Hub | Parcial | Folha por competência cria títulos vinculados; baixa no Hub atualiza folha e data. |
 | PAR-050 Preservar visualização da folha | Parcial | Folha individual; protótipo separado |
 | PAR-051 Proteção de salvamento da folha | Parcial | payroll.update com revisão/readback |
 | PAR-052 Integridade da folha | Parcial | Valores individuais e validação |
-| PAR-053 Ordenação e somatórios das provisões | Lacuna | Provisões por competência e ordenação ainda não integradas |
+| PAR-053 Ordenação e somatórios das provisões | Parcial | Ordenação alfabética e provisões ilustrativas no mês; regras contábeis reais e demais ordenações pendentes. |
 | PAR-054 Conferência por duas pessoas | Parcial | Dupla conferência de compras |
 | PAR-055 Importação de nota de compra | Lacuna | Importação de nota de compra não integrada |
-| PAR-056 Comparador de fornecedores | Lacuna | Comparador de fornecedores não integrado |
+| PAR-056 Comparador de fornecedores | Parcial | Comparador por material, quantidade, preço, frete e validade. |
 | PAR-057 Saldos de fornecedores | Parcial | Contas a pagar por compra; saldo fornecedor específico não comprovado |
 | PAR-058 Monitor de material | Parcial | Saldo e aviso de insumo |
 | PAR-059 Ferramentas de materiais | Parcial | Planejamento de materiais, BOM e ajustes |
@@ -89,6 +77,6 @@ A revisão não autoriza remoção de função antiga. As áreas parciais també
 | PAR-071 Persistência dos produtos 3D | Parcial | print.add e persistência |
 | PAR-072 Hidratação segura do catálogo 3D | Parcial | Consulta ao catálogo 3D; hidratação remota não comprovada |
 | PAR-073 Proteção da navegação da área 3D | Parcial | Rota 3D do laboratório; sem teste específico concluído |
-| PAR-074 Fotos de produtos 3D | Lacuna | Fotos de catálogo 3D não integradas |
+| PAR-074 Fotos de produtos 3D | Parcial | Foto de exercício JPEG/PNG com compressão e versão; armazenamento empresarial pendente. |
 | PAR-075 Cadastro de facções e papéis | Parcial | Cadastro facção básico; papéis por serviço incompletos |
 | PAR-076 Cadastros do catálogo | Parcial | Cadastros básicos e cores/insumos |

@@ -1,6 +1,6 @@
 {
   "schema": "hlgb-paridade-revisao-v2",
-  "basedOn": "95bc0b1fa6d9770dadfb317db11b68614c5054d3",
+  "basedOn": "16285708c08550586966e11d6c5a9edb8bea48e2",
   "baseline": {
     "branch": "main",
     "sha": "2440621468d8c4d8260effe32ea47eef478077c4",
@@ -10,8 +10,8 @@
   "warning": "Parcial significa equivalente identificado por inspeção, não prova funcional. Inventário preliminar não garante todas as funções do legado.",
   "productionApproval": false,
   "summary": {
-    "partial": 62,
-    "gaps": 14,
+    "partial": 69,
+    "gaps": 7,
     "approved": 0,
     "scenarios": 43,
     "masterItems": 266
@@ -182,8 +182,8 @@
       "mobile": "nao_homologado",
       "decision": "preservar_e_melhorar",
       "approvedForRemoval": false,
-      "assessment": "lacuna_identificada",
-      "observation": "Importação de pedidos ainda não integrada",
+      "assessment": "equivalente_parcial_identificado",
+      "observation": "Importação CSV com SKU e cliente exatos, prévia, lote atômico; importadores de PDF e outras fontes pendentes.",
       "tested": false,
       "approved": false
     },
@@ -539,8 +539,8 @@
       "mobile": "nao_homologado",
       "decision": "preservar_e_melhorar",
       "approvedForRemoval": false,
-      "assessment": "lacuna_identificada",
-      "observation": "Atualização de material da facção e comparação da ficha não integradas",
+      "assessment": "equivalente_parcial_identificado",
+      "observation": "Checklist por envio e comparação de ficha; conferência logística em gramas, sem movimentação física de estoque.",
       "tested": false,
       "approved": false
     },
@@ -743,8 +743,8 @@
       "mobile": "nao_homologado",
       "decision": "preservar_e_melhorar",
       "approvedForRemoval": false,
-      "assessment": "lacuna_identificada",
-      "observation": "Pontos de travetada por peça ainda não implementados",
+      "assessment": "equivalente_parcial_identificado",
+      "observation": "Cálculo por pontos, tarifa por ponto, desconto e snapshot de serviço; homologação pendente.",
       "tested": false,
       "approved": false
     },
@@ -845,8 +845,8 @@
       "mobile": "nao_homologado",
       "decision": "preservar_e_melhorar",
       "approvedForRemoval": false,
-      "assessment": "lacuna_identificada",
-      "observation": "Pagamento vinculado à folha por competência/data não integrado",
+      "assessment": "equivalente_parcial_identificado",
+      "observation": "Folha por competência cria títulos vinculados; baixa no Hub atualiza folha e data.",
       "tested": false,
       "approved": false
     },
@@ -913,8 +913,8 @@
       "mobile": "nao_homologado",
       "decision": "preservar_e_melhorar",
       "approvedForRemoval": false,
-      "assessment": "lacuna_identificada",
-      "observation": "Provisões por competência e ordenação ainda não integradas",
+      "assessment": "equivalente_parcial_identificado",
+      "observation": "Ordenação alfabética e provisões ilustrativas no mês; regras contábeis reais e demais ordenações pendentes.",
       "tested": false,
       "approved": false
     },
@@ -964,8 +964,8 @@
       "mobile": "nao_homologado",
       "decision": "preservar_e_melhorar",
       "approvedForRemoval": false,
-      "assessment": "lacuna_identificada",
-      "observation": "Comparador de fornecedores não integrado",
+      "assessment": "equivalente_parcial_identificado",
+      "observation": "Comparador por material, quantidade, preço, frete e validade.",
       "tested": false,
       "approved": false
     },
@@ -1270,8 +1270,8 @@
       "mobile": "nao_homologado",
       "decision": "preservar_e_melhorar",
       "approvedForRemoval": false,
-      "assessment": "lacuna_identificada",
-      "observation": "Fotos de catálogo 3D não integradas",
+      "assessment": "equivalente_parcial_identificado",
+      "observation": "Foto de exercício JPEG/PNG com compressão e versão; armazenamento empresarial pendente.",
       "tested": false,
       "approved": false
     },

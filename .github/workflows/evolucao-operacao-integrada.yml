@@ -31,6 +31,7 @@ on:
       - 'evolucao-lab/tests/servicos-faccao-contract.cjs'
       - 'evolucao-lab/tests/complementos-contract.cjs'
       - 'evolucao-lab/tests/folha-pedidos-contract.cjs'
+      - 'evolucao-lab/tests/lote-amplo-mobile.cjs'
       - 'evolucao-lab/tests/devolucoes-compras-contract.cjs'
       - 'evolucao-lab/tests/fechamento-faccao-contract.cjs'
       - '.github/workflows/evolucao-operacao-integrada.yml'
@@ -74,6 +75,7 @@ jobs:
           node evolucao-lab/tests/operacao-integrada-mobile.cjs
           node evolucao-lab/tests/correcao-acerto-mobile.cjs
           node evolucao-lab/tests/comprovantes-mobile.cjs
+          node evolucao-lab/tests/lote-amplo-mobile.cjs
       - name: Guardar captura mobile ficticia
         if: always()
         uses: actions/upload-artifact@v4
