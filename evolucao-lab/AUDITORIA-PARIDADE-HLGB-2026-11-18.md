@@ -247,3 +247,14 @@ A regra formal foi gravada em `CONTRATOS-ACEITE-OPERACIONAL-2026-11-18.md`: cada
 - **Pendente para aceitar LEG/ACE-001 a ACE-005:** vinculação real ao estoque e produção, saldo dos pedidos anteriores, preço de mão de obra com traveta e demais acordos, pagamentos e compensações no Hub, controle de divergências entre sessões Safari/Chrome, baixa efetiva parcial, reimpressão e comparação com o funcionamento atual de todos os botões, aceite por pessoa da equipe e migração reversível.
 
 O **gate de produção permanece bloqueado**. Nenhum merge na `main`, nenhum uso de dados comerciais, nenhuma migração.
+
+
+### Complemento da oitava evolução — fila de trabalho ligada ao registro
+
+- Em **Núcleo**, a fila operacional fictícia lê os saldos por `pedido+modelo+cor+tamanho` e separa: a cortar; corte concluído pronto para facção; retorno disponível para Separação; separado disponível para Expedição; acerto fictício aguardando conferência.
+- Cada item indica o documento exato e abre o módulo correspondente. O botão `data-mf-focus` direciona à identidade `pedido|item` ou ao acerto `MFR-...`, abre a área recolhida e destaca visualmente o alvo. O controle não depende de pesquisas aproximadas.
+- A inspeção de origem também passou a verificar os motivos e snapshots de transferências de facção, alterações de mão de obra e conferência dos acertos; adulteração simulada de um motivo de transferência foi detectada.
+- Testes adicionados à suite `fluxo-multimodelo-contract.cjs` e ao passeio Playwright `operacao-integrada-mobile.cjs`, incluindo o clique na fila que deve focar o acerto `MFR-0002`.
+- **Limites:** não há confirmação de gravação entre computadores, filtro por data de entrega, prazo/vencimento, fila por perfil autorizada nem vinculação ao registro comercial. A fila representa somente o documento fictício local. `ACE-015/016` continuam **PENDENTES** de aceite.
+
+O lançamento do sistema novo permanece **BLOQUEADO**; não houve integração com a base empresarial nem merge na `main`.
