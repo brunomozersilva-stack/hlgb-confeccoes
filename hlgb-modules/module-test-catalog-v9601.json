@@ -10,6 +10,7 @@
       "tests/audit-cut-grade-matrix-v9421.cjs",
       "tests/audit-cut-model-grade-adjust-regression.cjs",
       "tests/cut-weight-after-finish-v9579.cjs",
+      "tests/cutter-weight-ack-core-v9605.cjs",
       "tests/audit-cut-navigation.cjs",
       "tests/wal-cut-split-replay-guard-v9485.cjs",
       "tests/cut-duplicate-repair-v95105.cjs"
