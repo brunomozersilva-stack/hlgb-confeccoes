@@ -32,6 +32,7 @@ const routes={'/':'operacao-integrada.html',
  '/modulos/folha-corte-multimodelo-v1.js':'modulos/folha-corte-multimodelo-v1.js',
  '/modulos/rotas-utilidades-v1.js':'modulos/rotas-utilidades-v1.js',
  '/modulos/etiquetas-a4-v1.js':'modulos/etiquetas-a4-v1.js',
+ '/modulos/embalagem-etiquetas-v1.js':'modulos/embalagem-etiquetas-v1.js',
  '/operacao-integrada-core.js':'operacao-integrada-core.js',
  '/operacao-integrada-ui.js':'operacao-integrada-ui.js','/folha-homologacao.html':'folha-homologacao.html'};
 const server=http.createServer((req,res)=>{
@@ -121,6 +122,35 @@ async function run(browser,width,url){
   await page.locator('#label-layout').selectOption('18');
   await page.locator('#label-preview').click();
   assert.match(await page.locator('#label-batch-preview').innerText(),/18 por folha/);
+
+  // Etiqueta personalizada por cliente/produto + embaladeira individual.
+  const tpl=page.locator('form[data-command="label.template.add"]');
+  await tpl.locator('[name="productId"]').selectOption('PRO-0001');
+  await tpl.locator('[name="sku"]').fill('SKU-CLIENTE-001');
+  await tpl.locator('[name="fileName"]').fill('Etiqueta Cliente.pdf');
+  await put(page,'label.template.add');
+  assert.match(await page.locator('#module-content').innerText(),/ETM-0001/);
+  await page.locator('[data-template-preview="ETM-0001"]').click();
+  assert.match(await page.locator('#module-content').innerText(),/SKU-CLIENTE-001/);
+  await module(page,'separacao');
+  const assign=page.locator('form[data-command="packer.assign"]');
+  await assign.locator('[name="size"]').fill('G2');
+  await assign.locator('[name="color"]').fill('Rubi');
+  await assign.locator('[name="qty"]').fill('50');
+  await assign.locator('[name="labelQty"]').fill('50');
+  await put(page,'packer.assign');
+  assert.match(await page.locator('#module-content').innerText(),/EBA-0001/);
+  await page.locator('[data-packer-preview="EBA-0001"]').click();
+  assert.match(await page.locator('#module-content').innerText(),/SKU-CLIENTE-001/);
+  const progress=page.locator('form[data-command="packer.progress"]');
+  await progress.locator('[name="doneQty"]').fill('20');
+  await put(page,'packer.progress');
+  assert.match(await page.locator('#module-content').innerText(),/30/);
+  await page.locator('[data-packer-edit="EBA-0001"]').click();
+  await page.locator('form[data-command="packer.revise"] [name="qty"]').fill('60');
+  await put(page,'packer.revise');
+  await page.locator('[data-packer-preview="EBA-0001"]').click();
+  assert.match(await page.locator('#module-content').innerText(),/60/);
 
   await module(page,'nucleo');
 
