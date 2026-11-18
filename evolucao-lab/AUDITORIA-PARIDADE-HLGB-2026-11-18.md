@@ -223,3 +223,27 @@ A regra formal foi gravada em `CONTRATOS-ACEITE-OPERACIONAL-2026-11-18.md`: cada
 - `LEG-015` permanece sem aprovação. A regra dos 17 contratos de aceite por tarefa segue `0/17`, sem prova com usuários nem autorização para produção.
 
 **Próxima etapa sugerida de engenharia:** normalizar identidade e saldo por `pedido + modelo + cor + tamanho` entre Pedido, Corte, Facção, Separação e Acerto, com prova idempotente em duas sessões e comparação com dados anonimizados do HLGB atual. Não publicar em `main` nem migrar dados comerciais antes dessas provas.
+
+
+## Oitava evolução isolada — percurso multimodelo por variação (18/11/2026)
+
+**Estado: IMPLEMENTADO NO LABORATÓRIO, AINDA NÃO HOMOLOGADO PARA PRODUÇÃO.**
+
+### Nova ligação entre áreas
+
+- Módulo independente `modulos/fluxo-multimodelo-v1.js` vinculado por `orderId + itemId + color + size + cutId`. Aceita somente `multiCutPlans` concluídos e **não** toca `orders`, `cutPlans`, `stockLedger`, `settlements`, `finance` ou pagamentos existentes.
+- Operações: `multi.flow.allocate` (por cor/tamanho), `multi.flow.transfer` (saldo ainda pendente), `multi.flow.rate` (mão de obra futura), `multi.flow.return` (retorno parcial com preço/facção congelados), `multi.flow.review` (conferência do acerto fictício), `multi.flow.separate` e `multi.flow.ship` (baixas parciais, separadas por célula).
+- Motor de saldos fornece `ordered, cut, cutReserved, allocated, returned, separated, shipped, toCut, toAllocate, inFaction, cutToSeparate, availableToSeparate, toShip`, para cada variação, com conservação `pedido >= corte >= alocado >= retorno >= separado >= expedido`.
+- A transferência preserva cada retorno e respectiva mão de obra/facção histórica, enquanto muda a facção das peças **ainda não devolvidas**. **Limitação:** transfere todo o saldo pendente do lote; a divisão de apenas parte desse saldo entre duas facções não está homologada.
+- Acertos multimodelo são **demonstrativos** e agrupados por facção para conferência. Não registram pagamentos, não criam títulos no Hub, não permitem marcar como pago, e não substituem acertos comerciais.
+- Módulo visual separado `modulos/fluxo-multimodelo-ui-v1.js`, acoplado sem excluir formulários antigos às telas de **Pedidos**, **Facções**, **Separação** e **Acertos**. Facção deve ser selecionada explicitamente.
+- Core verifica IDs, comandos, revisão, origem do lote concluído, preço congelado de cada retorno e invariantes por variação. Repetição de comando e movimentos acima do saldo são recusados antes de gravar.
+
+### Simulação executada e aceitação pendente
+
+- Cenário com dois modelos: primeiro com **120 peças**, segundo com 10; corte concluído de 80 do primeiro, enviado à primeira facção; retorno parcial 30; troca das 50 restantes para segunda facção com nova mão de obra; retorno de 20 da segunda; separação de 50 (30 P + 20 M), expedição de 20; o primeiro modelo encerra com **40 a cortar, 30 cortadas a separar**, e o segundo preserva seus 10 pedidos sem baixa.
+- Retorno origem: 30 × R$ 5,50 = R$ 165,00; retorno destino: 20 × R$ 6,00 = R$ 120,00 — valores **fictícios** separados por facção e congelados em seus registros. `finance.length === 0`, `stockLedger.length === 0`; integridade local aprovada com simulação usando o core e módulos reais multimodelo.
+- Contratos adicionados: `tests/fluxo-multimodelo-contract.cjs` (saldo, alterações, fraude, bloqueios, não duplicação) e fluxo Chrome/WebKit em `tests/operacao-integrada-mobile.cjs` (jornada guiada 120→80→50→20). **CI do GitHub e verificação real da interface ainda precisam ficar verdes.**
+- **Pendente para aceitar LEG/ACE-001 a ACE-005:** vinculação real ao estoque e produção, saldo dos pedidos anteriores, preço de mão de obra com traveta e demais acordos, pagamentos e compensações no Hub, controle de divergências entre sessões Safari/Chrome, baixa efetiva parcial, reimpressão e comparação com o funcionamento atual de todos os botões, aceite por pessoa da equipe e migração reversível.
+
+O **gate de produção permanece bloqueado**. Nenhum merge na `main`, nenhum uso de dados comerciais, nenhuma migração.
