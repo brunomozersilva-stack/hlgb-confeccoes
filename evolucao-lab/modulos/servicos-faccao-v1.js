@@ -11,6 +11,7 @@
  const rates=s=>s.serviceRates||defaults;
  const allows=(f,service)=>!!f&&(!f.serviceRole||f.serviceRole===service);
  function profile(s,p,uid){const f=by(s.factions,p.factionId);if(!f||!roles.includes(p.serviceRole))throw Error('Prestador ou atividade inválida.');
+ if(p.serviceRole!=='embalagem'&&(s.packagingLots||[]).some(x=>x.factionId===f.id&&x.status==='aberto'))throw Error('Prestador possui embalagem pendente. Conclua ou cancele antes de mudar papel.');
  if(p.serviceRole!=='costura'&&(s.factionAssignments||[]).some(x=>x.factionId===f.id&&x.qtySent>x.qtyReturned))throw Error('Prestador possui costura pendente; conclua antes de mudar papel.');
  const reason=text(p.reason,'Motivo');const old=f.serviceRole||'não classificado';f.serviceRole=p.serviceRole;f.serviceProfileCommandId=uid;return f.id+' · '+old+' → '+p.serviceRole+' · '+reason;}
  function setRates(s,p,uid){const next={};for(const k of ['camisola','doll','calcinha','outros','pointCents'])next[k]=n(p[k],0,100000);next.commandId=uid;next.reason=text(p.reason,'Motivo');s.serviceRates=next;return 'Tabela de serviços · '+next.reason;}

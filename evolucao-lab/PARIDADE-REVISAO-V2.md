@@ -1,6 +1,6 @@
 # Revisão de paridade HLGB Evolução
 
-Base da análise: `16285708c08550586966e11d6c5a9edb8bea48e2`. 69 funções com equivalente parcial identificado, 7 lacunas explícitas, zero aprovações; 43 cenários críticos por homologar. Os 266 itens do plano mestre ainda exigem validação. Não é percentual de conclusão.
+Base: `574eeb1543e7cfc293f2a1449c00b56bf0cb10d2` e monitor desta revisão. 76 equivalentes parciais identificados; 0 lacunas sem equivalente; zero aprovações; 43 cenários críticos por homologar. 266 itens do plano mestre continuam sujeitos a validação. Não é percentual de conclusão.
 
 | Função | Situação estática | Observação |
 |---|---|---|
@@ -12,14 +12,14 @@ Base da análise: `16285708c08550586966e11d6c5a9edb8bea48e2`. 69 funções com e
 | PAR-006 Abertura com diagnóstico sem apagar dados | Parcial | Abertura por IndexedDB e servidor de teste; falta diagnóstico completo de boot |
 | PAR-007 Visibilidade remota dos pedidos | Parcial | Consulta compartilhada no servidor local |
 | PAR-008 Rastreabilidade de entrega | Parcial | Jornada do pedido e expedição; sem comunicação/entrega real |
-| PAR-009 Inclusão de pedido pelo assistente | Lacuna | Assistente não cria pedido; precisa confirmação e fluxo transacional |
+| PAR-009 Inclusão de pedido pelo assistente | Parcial | Inclusão guiada pelo Assistente com preview, confirmação e referência única; interpretação livre pendente. |
 | PAR-010 Importação assistida de pedidos | Parcial | Importação CSV com SKU e cliente exatos, prévia, lote atômico; importadores de PDF e outras fontes pendentes. |
 | PAR-011 Busca de produtos na ficha técnica | Parcial | Pesquisa global e consulta de catálogo |
 | PAR-012 Catálogo de produtos para consulta | Parcial | Catálogo e busca dos modelos do laboratório |
 | PAR-013 Rastreabilidade por produto | Parcial | Histórico gerencial e vínculo por modelo |
 | PAR-014 Eventos operacionais de produto | Parcial | Eventos e quantidades datados |
 | PAR-015 Edição da grade de corte | Parcial | order.grade.update e cut.plan.update |
-| PAR-016 Divisão de modelos no corte | Lacuna | Divisão de modelo no corte exige preservar lote e grade |
+| PAR-016 Divisão de modelos no corte | Parcial | Divisão de folhas abertas do mesmo modelo em dois lotes conservando grade e estoque; divisão multivariantes pendente. |
 | PAR-017 Uso de materiais no corte | Parcial | cut.bom.execute / estoque |
 | PAR-018 Peso do corte após finalizar | Parcial | Peso útil/desperdício em folha de corte |
 | PAR-019 Folha do cortador com materiais | Parcial | Folha de corte e BOM |
@@ -27,7 +27,7 @@ Base da análise: `16285708c08550586966e11d6c5a9edb8bea48e2`. 69 funções com e
 | PAR-021 Filas por etapa de corte | Parcial | Filas do PCP, não todos os estados antigos |
 | PAR-022 Baixa operacional | Parcial | Baixa de corte, retorno, separação e expedição |
 | PAR-023 Confirmação e integridade de baixa | Parcial | Readback e validações de quantidade |
-| PAR-024 Atribuição e acompanhamento de embalagem | Lacuna | Atribuição de embalagem por lote ainda não integrada |
+| PAR-024 Atribuição e acompanhamento de embalagem | Parcial | Embalagem por lote retornado, acerto na conclusão e bloqueio de separação; parcial por cor/tamanho pendente. |
 | PAR-025 Reconciliação com corte | Parcial | Comparação corte e produção |
 | PAR-026 Confirmação de salvamento de produção | Parcial | Confirmação local/servidor |
 | PAR-027 Confirmação canônica de separação | Parcial | order.separate e readback |
@@ -58,22 +58,22 @@ Base da análise: `16285708c08550586966e11d6c5a9edb8bea48e2`. 69 funções com e
 | PAR-052 Integridade da folha | Parcial | Valores individuais e validação |
 | PAR-053 Ordenação e somatórios das provisões | Parcial | Ordenação alfabética e provisões ilustrativas no mês; regras contábeis reais e demais ordenações pendentes. |
 | PAR-054 Conferência por duas pessoas | Parcial | Dupla conferência de compras |
-| PAR-055 Importação de nota de compra | Lacuna | Importação de nota de compra não integrada |
+| PAR-055 Importação de nota de compra | Parcial | Importação estruturada de itens de nota por CSV, total exato e recebimento separado; XML/PDF automático pendente. |
 | PAR-056 Comparador de fornecedores | Parcial | Comparador por material, quantidade, preço, frete e validade. |
 | PAR-057 Saldos de fornecedores | Parcial | Contas a pagar por compra; saldo fornecedor específico não comprovado |
 | PAR-058 Monitor de material | Parcial | Saldo e aviso de insumo |
 | PAR-059 Ferramentas de materiais | Parcial | Planejamento de materiais, BOM e ajustes |
 | PAR-060 Estabilidade da tela de relatórios | Parcial | Relatórios gerenciais; teste visual pendente |
 | PAR-061 Consulta de notas e contas a receber | Parcial | Consulta de recebíveis no Hub; notas fiscais não integradas |
-| PAR-062 Comprovantes PDF por nota | Lacuna | Comprovantes por nota não integrados |
+| PAR-062 Comprovantes PDF por nota | Parcial | PDF por nota de compra com versão; comprovantes por nota de venda e storage privado pendentes. |
 | PAR-063 Auditor com diagnóstico residual | Parcial | Auditor 3.0, cobertura residual limitada |
 | PAR-064 Mapa de autoridade do Auditor | Parcial | Auditor verifica trilha e vínculos; falta mapa completo de escritores |
-| PAR-065 Detector de scripts duplicados | Lacuna | Detector de scripts duplicados não integrado |
+| PAR-065 Detector de scripts duplicados | Parcial | Inventário de scripts, ordem, globals e hashes; cobertura de escritores legados pendente. |
 | PAR-066 Aprendizado determinístico do assistente | Parcial | Bot 3.0 com observações e feedback |
 | PAR-067 Memória técnica compartilhada | Parcial | Histórico de observações compartilhado no laboratório, sem memória empresarial |
 | PAR-068 Assistente com análise contextual | Parcial | Assistente de consultas determinísticas |
 | PAR-069 Painel do monitor de saúde | Parcial | Central de erros e auditoria; falta monitor completo |
-| PAR-070 Monitor de verificações horárias | Lacuna | Monitor horário não integrado |
+| PAR-070 Monitor de verificações horárias | Parcial | Monitor horário enquanto sessão aberta, evidências exportáveis; serviço contínuo hospedado pendente. |
 | PAR-071 Persistência dos produtos 3D | Parcial | print.add e persistência |
 | PAR-072 Hidratação segura do catálogo 3D | Parcial | Consulta ao catálogo 3D; hidratação remota não comprovada |
 | PAR-073 Proteção da navegação da área 3D | Parcial | Rota 3D do laboratório; sem teste específico concluído |

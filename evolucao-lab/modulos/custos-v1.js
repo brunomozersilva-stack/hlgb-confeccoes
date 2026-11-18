@@ -33,7 +33,7 @@
  const byProduct=id=>products.get(id)?.name||id;
  for(const o of arr(s,'orders')){
  const pieces=qty(o),p=products.get(o.productId),m=materials.get(p?.materialId),moves=ledger.filter(x=>x.sourceId===o.id&&types.includes(x.type));
- const direct=settlements.filter(x=>x.orderId===o.id),directIds=new Set(direct.map(x=>x.id)),corrections=comps.filter(x=>directIds.has(x.settlementId)),rateios=allocations(s).filter(x=>x.orderId===o.id);let referenceCents=0,unknownGrams=0,wasteGrams=0,unknownWasteGrams=0,materialDetails=[];
+ const direct=settlements.filter(x=>x.orderId===o.id||(s.packagingLots||[]).some(l=>l.orderId===o.id&&l.status==='concluido'&&l.settlementId===x.id)),directIds=new Set(direct.map(x=>x.id)),corrections=comps.filter(x=>directIds.has(x.settlementId)),rateios=allocations(s).filter(x=>x.orderId===o.id);let referenceCents=0,unknownGrams=0,wasteGrams=0,unknownWasteGrams=0,materialDetails=[];
  for(const x of moves){const bom=x.type==='corte-bom'?arr(s,'bomCutRuns').find(b=>b.id===x.bomCutId)?.materials?.find(b=>b.materialId===x.materialId):null;const b=x.costBasis;const cents=b?.cents??bom?.theoreticalCostCents??null,price=b?.priceCentsKg??bom?.priceCentsKg??null;if(cents===null)unknownGrams+=-x.deltaGrams;else referenceCents+=cents;if(Number.isSafeInteger(x.scrapGrams))wasteGrams+=x.scrapGrams;else unknownWasteGrams+=-x.deltaGrams;materialDetails.push({id:x.id,materialId:x.materialId,grams:-x.deltaGrams,priceCentsKg:price,cents,source:b?'referencia_registrada':bom?'BOM_registrado':'sem_preco_historico'});}
  const revenue=pieces*o.priceCents;if(!Number.isSafeInteger(revenue))throw Error('Receita fora do limite');
  const labor=sum(direct,x=>x.amountCents)+sum(corrections,x=>x.deltaCents),overhead=sum(rateios,x=>x.amountCents),knownCost=referenceCents+labor+overhead;
@@ -45,7 +45,7 @@
  for(const [map,id,label] of [[models,o.productId,data.model],[clients,o.clientId,data.client]]){const g=map.get(id)||{id,name:label,orders:0,pieces:0,revenue:0,knownCost:0,unknownGrams:0,complete:0,partialDifference:0};g.orders++;g.pieces+=pieces;g.revenue+=revenue;g.knownCost+=knownCost;g.unknownGrams+=unknownGrams;if(ready){g.complete++;g.partialDifference+=difference;}map.set(id,g);}
  }
  const manual=finance.filter(eligible).map(f=>{const used=sum(allocations(s).filter(x=>x.financeId===f.id),x=>x.amountCents);return {id:f.id,description:f.description,category:f.category,total:f.amountCents,allocated:used,remaining:f.amountCents-used};});
- const loose=settlements.filter(x=>!x.orderId).map(x=>({id:x.id,model:byProduct(x.productId),service:x.serviceType,amountCents:x.amountCents+sum(comps.filter(c=>c.settlementId===x.id),c=>c.deltaCents)}));
+ const loose=settlements.filter(x=>!x.orderId&&!x.packagingLotId).map(x=>({id:x.id,model:byProduct(x.productId),service:x.serviceType,amountCents:x.amountCents+sum(comps.filter(c=>c.settlementId===x.id),c=>c.deltaCents)}));
  return {schema:'hlgb-lab-custos-v1',revision:s.revision,productionApproval:false,rows,models:[...models.values()],clients:[...clients.values()],manual,loose,totals:{orders:rows.length,revenue:sum(rows,x=>x.revenue),knownCost:sum(rows,x=>x.knownCost),unknownGrams:sum(rows,x=>x.unknownGrams),eligibleOrders:rows.filter(x=>x.difference!==null).length,unallocated:sum(manual,x=>x.remaining),looseCost:sum(loose,x=>x.amountCents)}};
  }
  return {capture,allocate,inspect,report,eligible,cost};

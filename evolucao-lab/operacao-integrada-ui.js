@@ -825,6 +825,35 @@ function readAssistedDraft(){return {clientId:$('assisted-client').value,product
 function readInvoiceDraft(){return {supplierId:$('invoice-supplier').value,reference:$('invoice-reference').value,issueDate:$('invoice-date').value,declaredCents:$('invoice-total').value,raw:$('invoice-raw').value};}
 async function readInvoicePdf(f){const file=f.elements.namedItem('invoiceFile').files?.[0],id=f.elements.namedItem('id').value;if(!file||file.size>window.HLGBLabPaymentBatchV1.MAX_PDF||!f.elements.namedItem('fictitious').checked)throw Error('PDF fictício obrigatório.');const bytes=new Uint8Array(await file.arrayBuffer());let text='';for(let i=0;i<bytes.length;i+=8192)text+=String.fromCharCode(...bytes.slice(i,i+8192));return {id,fileName:file.name,contentBase64:btoa(text),previousId:(doc.invoicePdfs||[]).filter(x=>x.invoiceId===id).at(-1)?.id||null,reason:f.elements.namedItem('reason').value,fictitious:true};}
 
+
+const monitorExpected=["modulos/pagamento-lote-v1.js","modulos/faccoes-multidestino-v1.js","modulos/grade-faccoes-v1.js","modulos/planejamento-materiais-v1.js","modulos/corte-bom-v1.js","modulos/requisicoes-compras-v1.js","modulos/devolucoes-compras-v1.js","modulos/pcp-v1.js","modulos/relatorios-gerenciais-v1.js","modulos/auditor-v3.js","modulos/bot-v3.js","modulos/custos-v1.js","modulos/recuperacao-v1.js","modulos/servicos-faccao-v1.js","modulos/complementos-v1.js","modulos/folha-pedidos-v1.js","modulos/operacoes-v2.js","operacao-integrada-core.js","modulos/registro-v1.js","modulos/observabilidade-v2.js","modulos/pesquisa-global-v1.js","modulos/hub-financeiro-v1.js","modulos/assistente-v3.js","modulos/monitor-v1.js","operacao-integrada-ui.js"];
+let monitorRuns=[],monitorRunning=false,monitorClock=null,monitorLastAttempt=null,monitorRound=0;
+const MONITOR_INTERVAL=60*60*1000;
+function monitorScriptReport(){
+ const expected=[...monitorExpected];if(remoteLab)expected.splice(expected.indexOf('operacao-integrada-ui.js'),0,'integrado-remoto.js');
+ const globals={'operacao-integrada-core.js':!!window.HLGBOperationalLab,'modulos/monitor-v1.js':!!window.HLGBLabMonitorV1,'modulos/registro-v1.js':!!window.HLGBLabModules,'modulos/auditor-v3.js':!!window.HLGBLabAuditorV3,'modulos/operacoes-v2.js':!!window.HLGBLabOperationsV2,'modulos/folha-pedidos-v1.js':!!window.HLGBLabPayrollOrdersV1,'modulos/complementos-v1.js':!!window.HLGBLabComplementsV1,'modulos/servicos-faccao-v1.js':!!window.HLGBLabServicesV1,'modulos/pagamento-lote-v1.js':!!window.HLGBLabPaymentBatchV1,'modulos/custos-v1.js':!!window.HLGBLabCostsV1,'modulos/bot-v3.js':!!window.HLGBLabBotV3};
+ return window.HLGBLabMonitorV1.scripts([...document.querySelectorAll('script[src]')].map(x=>x.getAttribute('src')),expected,globals);
+}
+function monitorPanel(){
+ const r=monitorRuns.at(-1);
+ return '<div id="monitor-area">'+panel('Monitor periódico · sessão de homologação',
+ '<p>Verifica releitura do documento, integridade do núcleo, Auditor 3.0 e scripts carregados. A cada hora enquanto a página permanecer aberta; o navegador pode suspender o relógio. Não constitui monitoramento 24 horas nem aprovação do banco empresarial.</p>'+
+ '<div class="metrics">'+[['Última leitura',r?.at||'Ainda não executada'],['Rodadas da sessão',monitorRound],['Resultado',r?.status||'Pendente'],['Revisão lida',r?.revision??'—']].map(([k,v])=>'<div class="metric"><span>'+str(k)+'</span><strong>'+str(v)+'</strong></div>').join('')+'</div>'+
+ '<div class="actions"><button class="btn" type="button" id="monitor-run">Verificar agora</button><button class="btn" type="button" id="monitor-export">Exportar evidência JSON</button></div>'+
+ table(['Regra','Detalhe'],(r?.issues||[]).map(x=>[str(x.code),str(x.detail)]))+
+ table(['Rodada','Horário','Origem','Revisão','Resultado'],monitorRuns.slice().reverse().map(x=>[str(x.round),str(x.at),str(x.source),str(x.revision??'—'),str(x.status)]))+
+ '<p>Histórico desta sessão limitado às últimas 48 verificações, exportável. Nunca altera lançamentos, fecha acertos, reenvia WAL ou esconde falhas.</p>',true)+'</div>';
+}
+async function runMonitor(trigger){
+ if(monitorRunning||busy||!doc)return;
+ monitorRunning=true;monitorLastAttempt=Date.now();const at=new Date().toISOString(),round=++monitorRound;let state=null,integrity=null,audit=null,scriptReport=null,readError='';
+ try{state=await (remoteLab?remoteLab.state():read());if(state){integrity=api.inspect(state);audit=window.HLGBLabAuditorV3?.analyze(state);}}catch(e){readError=String(e.message||e);}
+ try{scriptReport=monitorScriptReport();}catch(e){readError+=(readError?' · ':'')+String(e.message||e);}
+ try{const r=window.HLGBLabMonitorV1.evaluate({state,integrity,audit,scriptReport,source:remoteLab?'postgres_local':'indexeddb',at,round,trigger});if(readError){r.issues.push({code:'ERRO_LEITURA',detail:readError});r.status='investigar';}monitorRuns.push(r);monitorRuns=monitorRuns.slice(-48);}
+ finally{monitorRunning=false;const node=$('monitor-area');if(node)node.outerHTML=monitorPanel();}
+}
+function startMonitor(){if(monitorClock!==null)return;void runMonitor('abertura');monitorClock=setInterval(()=>{void runMonitor('horario');},MONITOR_INTERVAL);document.addEventListener('visibilitychange',()=>{if(!document.hidden&&Date.now()-(monitorLastAttempt||0)>=MONITOR_INTERVAL)void runMonitor('retorno_aba');});}
+
 function moduleHtml(s){
  const o=orderOptions(s),openPlans=(s.cutPlans||[]).filter(p=>p.status==='aberto'),
   planOptions=selector(openPlans,p=>p.id+' · '+p.orderId+' · '+sum(p.grade)+' peças'),
@@ -1334,9 +1363,9 @@ function moduleHtml(s){
  panel('Pedidos × Financeiro',orderTable(s)+financeTable(s),true)+requestReport+returnsReport;
  }
  case 'auditor':{
- const advanced=observationPanels(s,'auditor');if(advanced)return recoveryPanels(s)+auditV3Panels(s)+advanced;
+ const advanced=observationPanels(s,'auditor');if(advanced)return monitorPanel()+recoveryPanels(s)+auditV3Panels(s)+advanced;
  const check=api.inspect(s),issues=check.problems;
- return recoveryPanels(s)+auditV3Panels(s)+panel('Diagnóstico determinístico',
+ return monitorPanel()+recoveryPanels(s)+auditV3Panels(s)+panel('Diagnóstico determinístico',
  (check.ok?'<div class="success">Sem inconsistências nas regras simuladas.</div>':
  '<div class="error">Inconsistências detectadas: '+escape(issues.join('; '))+'</div>')+
  table(['Verificação','Estado'],[['Quantidade cortada ≤ pedida',check.ok?'Conforme':'Verificar'],
@@ -1965,6 +1994,8 @@ document.addEventListener('click',async e=>{
  if(e.target.closest('#remote-discard')){if(confirm('Descartar somente a intenção local revisada, sem excluir registros do servidor?'))await remoteAction(()=>remoteLab.discard());return;}
  if(e.target.closest('#recovery-check')){if(remoteLab){await remoteAction(()=>remoteLab.reconcile());return;}if(busy)return;busy=true;try{recoveryIntents=await intentRead();const latest=await read();if(latest&&api.inspect(latest).ok)doc=latest;draw();status('Intenções locais relidas · '+recoveryIntents.length+' pendentes.');}catch(err){status(err.message,'error');}finally{busy=false;}return;}
  if(e.target.closest('#recovery-export')){try{download('HLGB-RECUPERACAO-FICTICIO.json',JSON.stringify({plan:recoveryPlan,intents:recoveryIntents.map(x=>({...x,diagnosis:window.HLGBLabRecoveryV1.classify(doc,x,api.inspect)})),history:doc.repairHistory||[]},null,2),'application/json');}catch(err){status(err.message,'error');}return;}
+ if(e.target.closest('#monitor-run')){await runMonitor('manual');return;}
+ if(e.target.closest('#monitor-export')){download('HLGB-MONITOR-FICTICIO.json',JSON.stringify({schema:'hlgb-monitor-sessao-v1',runs:monitorRuns,productionApproval:false},null,2),'application/json');return;}
  if(e.target.closest('#assisted-preview')){assistedDraft=readAssistedDraft();try{assistedPreview={...window.HLGBLabOperationsV2.assistantPreview(doc,assistedDraft,window.HLGBLabPayrollOrdersV1),revision:doc.revision};draw();status('Prévia do pedido, nada gravado.');}catch(err){assistedPreview=null;status(err.message,'error');}return;}
  if(e.target.closest('#invoice-preview')){invoiceDraft=readInvoiceDraft();try{invoicePreview={...window.HLGBLabOperationsV2.invoicePreview(doc,{...invoiceDraft,declaredCents:parseCents(invoiceDraft.declaredCents)}),revision:doc.revision};draw();status('Nota conferida, nenhuma entrada registrada.');}catch(err){invoicePreview=null;status(err.message,'error');}return;}
  const invoicePdf=e.target.closest('[data-invoice-pdf]');if(invoicePdf){const x=(doc.invoicePdfs||[]).find(v=>v.id===invoicePdf.dataset.invoicePdf);if(x){try{const f=window.HLGBLabPaymentBatchV1.decodePdf(x.contentBase64);download(x.fileName,f.bytes,'application/pdf');}catch(err){status(err.message,'error');}}return;}
@@ -2078,14 +2109,14 @@ $('refresh').addEventListener('click',reload);
 $('reset').addEventListener('click',reset);
 (async()=>{
  try{
-  if(remoteLab){doc=await remoteLab.init();$('reset').disabled=true;draw();status('Laboratório compartilhado iniciado · banco fictício.','success');return;}
+  if(remoteLab){doc=await remoteLab.init();$('reset').disabled=true;draw();startMonitor();status('Laboratório compartilhado iniciado · banco fictício.','success');return;}
   db=await openDB();
   await transact(()=>null);
   doc=await read();
   if(!doc)throw Error('Não foi possível iniciar a base fictícia.');
   if(!api.inspect(doc).ok)throw Error('Documento inicial inconsistente.');
   recoveryIntents=await intentRead();
-  draw();status('Prévia iniciada. Faça suas operações com dados fictícios e confira as revisões.','success');
+  draw();startMonitor();status('Prévia iniciada. Faça suas operações com dados fictícios e confira as revisões.','success');
  }catch(err){
   status('Não foi possível abrir o armazenamento de teste neste navegador: '+err.message+
    '. Experimente pelo Chrome ou por uma URL HTTPS. Nenhum dado real foi acessado.','error');

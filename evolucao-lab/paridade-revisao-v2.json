@@ -1,6 +1,6 @@
 {
   "schema": "hlgb-paridade-revisao-v2",
-  "basedOn": "16285708c08550586966e11d6c5a9edb8bea48e2",
+  "basedOn": "574eeb1543e7cfc293f2a1449c00b56bf0cb10d2",
   "baseline": {
     "branch": "main",
     "sha": "2440621468d8c4d8260effe32ea47eef478077c4",
@@ -10,8 +10,8 @@
   "warning": "Parcial significa equivalente identificado por inspeção, não prova funcional. Inventário preliminar não garante todas as funções do legado.",
   "productionApproval": false,
   "summary": {
-    "partial": 69,
-    "gaps": 7,
+    "partial": 76,
+    "gaps": 0,
     "approved": 0,
     "scenarios": 43,
     "masterItems": 266
@@ -165,8 +165,8 @@
       "mobile": "nao_homologado",
       "decision": "preservar_e_melhorar",
       "approvedForRemoval": false,
-      "assessment": "lacuna_identificada",
-      "observation": "Assistente não cria pedido; precisa confirmação e fluxo transacional",
+      "assessment": "equivalente_parcial_identificado",
+      "observation": "Inclusão guiada pelo Assistente com preview, confirmação e referência única; interpretação livre pendente.",
       "tested": false,
       "approved": false
     },
@@ -284,8 +284,8 @@
       "mobile": "nao_homologado",
       "decision": "preservar_e_melhorar",
       "approvedForRemoval": false,
-      "assessment": "lacuna_identificada",
-      "observation": "Divisão de modelo no corte exige preservar lote e grade",
+      "assessment": "equivalente_parcial_identificado",
+      "observation": "Divisão de folhas abertas do mesmo modelo em dois lotes conservando grade e estoque; divisão multivariantes pendente.",
       "tested": false,
       "approved": false
     },
@@ -420,8 +420,8 @@
       "mobile": "nao_homologado",
       "decision": "preservar_e_melhorar",
       "approvedForRemoval": false,
-      "assessment": "lacuna_identificada",
-      "observation": "Atribuição de embalagem por lote ainda não integrada",
+      "assessment": "equivalente_parcial_identificado",
+      "observation": "Embalagem por lote retornado, acerto na conclusão e bloqueio de separação; parcial por cor/tamanho pendente.",
       "tested": false,
       "approved": false
     },
@@ -947,8 +947,8 @@
       "mobile": "nao_homologado",
       "decision": "preservar_e_melhorar",
       "approvedForRemoval": false,
-      "assessment": "lacuna_identificada",
-      "observation": "Importação de nota de compra não integrada",
+      "assessment": "equivalente_parcial_identificado",
+      "observation": "Importação estruturada de itens de nota por CSV, total exato e recebimento separado; XML/PDF automático pendente.",
       "tested": false,
       "approved": false
     },
@@ -1066,8 +1066,8 @@
       "mobile": "nao_homologado",
       "decision": "preservar_e_melhorar",
       "approvedForRemoval": false,
-      "assessment": "lacuna_identificada",
-      "observation": "Comprovantes por nota não integrados",
+      "assessment": "equivalente_parcial_identificado",
+      "observation": "PDF por nota de compra com versão; comprovantes por nota de venda e storage privado pendentes.",
       "tested": false,
       "approved": false
     },
@@ -1117,8 +1117,8 @@
       "mobile": "nao_homologado",
       "decision": "preservar_e_melhorar",
       "approvedForRemoval": false,
-      "assessment": "lacuna_identificada",
-      "observation": "Detector de scripts duplicados não integrado",
+      "assessment": "equivalente_parcial_identificado",
+      "observation": "Inventário de scripts, ordem, globals e hashes; cobertura de escritores legados pendente.",
       "tested": false,
       "approved": false
     },
@@ -1202,8 +1202,8 @@
       "mobile": "nao_homologado",
       "decision": "preservar_e_melhorar",
       "approvedForRemoval": false,
-      "assessment": "lacuna_identificada",
-      "observation": "Monitor horário não integrado",
+      "assessment": "equivalente_parcial_identificado",
+      "observation": "Monitor horário enquanto sessão aberta, evidências exportáveis; serviço contínuo hospedado pendente.",
       "tested": false,
       "approved": false
     },
