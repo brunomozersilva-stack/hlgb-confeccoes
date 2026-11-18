@@ -29,6 +29,7 @@ const routes={'/':'operacao-integrada.html',
  '/modulos/monitor-v1.js':'modulos/monitor-v1.js',
  '/modulos/pedidos-multimodelo-v1.js':'modulos/pedidos-multimodelo-v1.js',
   '/modulos/corte-multimodelo-v1.js':'modulos/corte-multimodelo-v1.js',
+ '/modulos/folha-corte-multimodelo-v1.js':'modulos/folha-corte-multimodelo-v1.js',
  '/operacao-integrada-core.js':'operacao-integrada-core.js',
  '/operacao-integrada-ui.js':'operacao-integrada-ui.js','/folha-homologacao.html':'folha-homologacao.html'};
 const server=http.createServer((req,res)=>{
