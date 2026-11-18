@@ -134,3 +134,26 @@ test('visão de corte entrega apenas pedido, modelo e grade, sem clientes nem fa
  if(v.orders.length)assert.deepEqual(Object.keys(v.orders[0]).sort(),['id','productId','grade','cut'].sort());
  for(const key of ['clients','factions','employees','finance','settlements','log'])assert.equal(Object.hasOwn(v,key),false);
 });
+
+test('desativação de funcionário no banco bloqueia gravações e registra trilha imutável',async()=>{
+ const C='Operador C fictício',employeeId='LAB-FUN-003';
+ assert.equal(await db.activeEmployee(employeeId,C),true);
+ assert.equal((await db.deactivateEmployee(employeeId,C)).status,'denied');
+ assert.equal((await db.deactivateEmployee('LAB-FUN-001',A)).status,'denied');
+ const before=await db.state();
+ assert.equal((await db.deactivateEmployee(employeeId,A)).status,'disabled');
+ assert.equal((await db.deactivateEmployee(employeeId,A)).status,'already_disabled');
+ assert.equal(await db.activeEmployee(employeeId,C),false);
+ assert.equal(await db.activeEmployee('LAB-FUN-002',B),true);
+ const forbidden=cmd('after-revoke-cut-0001','cut.record',before.revision,{orderId:before.orders[0].id,size:'P',qty:1});
+ assert.equal((await db.commit(forbidden,C)).status,'rejected');
+ assert.equal((await db.cancel(forbidden,C)).status,'rejected');
+ assert.equal((await db.readback(forbidden.commandId,forbidden,C)).status,'rejected');
+ assert.deepEqual(await db.state(),before);
+ const {Client}=require('pg'),client=new Client();await client.connect();
+ try{
+  const events=(await client.query("SELECT target_employee_id,admin_actor,operation FROM hlgb_integrado_lab.lab_access_events WHERE target_employee_id=$1",[employeeId])).rows;
+  assert.deepEqual(events,[{target_employee_id:employeeId,admin_actor:A,operation:'deactivate'}]);
+  await assert.rejects(()=>client.query('DELETE FROM hlgb_integrado_lab.lab_access_events WHERE false'),/permission denied/);
+ }finally{await client.end();}
+});
