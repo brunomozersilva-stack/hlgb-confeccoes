@@ -100,5 +100,30 @@ test('interface completa em duas sessões, conflito, WAL e confirmação indepen
  await cutter.locator('#logout-demo').click();
  await cutter.waitForURL('**/login');
  assert.equal(await cutter.request.get(url+'/api/session').then(r=>r.status()),401,'Logout invalida cookie e sessão');
+ await login(cutter,'C');
+ const oldSession=await cutter.request.get(url+'/api/session').then(r=>r.json());
+ assert.equal(oldSession.employeeId,'LAB-FUN-003');
+ const refusal=await operator.evaluate(async()=>{
+  const response=await fetch('/api/admin/deactivate',{method:'POST',credentials:'same-origin',headers:{'content-type':'application/json','x-hlgb-integrado':'1'},body:JSON.stringify({employeeId:'LAB-FUN-003'})});
+  return {code:response.status,body:await response.json()};
+ });
+ assert.equal(refusal.code,403,'Produção não pode desativar funcionário');
+ const deactivate=await a.evaluate(async()=>{
+  const response=await fetch('/api/admin/deactivate',{method:'POST',credentials:'same-origin',headers:{'content-type':'application/json','x-hlgb-integrado':'1'},body:JSON.stringify({employeeId:'LAB-FUN-003'})});
+  return {code:response.status,body:await response.json()};
+ });
+ assert.equal(deactivate.code,200);
+ assert.equal(deactivate.body.status,'disabled');
+ assert.equal(await cutter.request.get(url+'/api/session').then(r=>r.status()),401,'Revogação invalida sessão aberta');
+ assert.equal(await operator.request.get(url+'/api/session').then(r=>r.status()),200,'Outro funcionário continua ativo');
+ const stateBefore=await db.state();
+ const rejectedAfterRevoke=await db.commit({commandId:'LAB-CUT-REVOKED',type:'cut.record',expectedRevision:stateBefore.revision,payload:{orderId:stateBefore.orders[0].id,size:'M',qty:1}},'Operador C fictício');
+ assert.equal(rejectedAfterRevoke.status,'rejected','Banco bloqueia escrita de conta desativada');
+ assert.deepEqual(await db.state(),stateBefore);
+ await cutter.goto(url+'/login');
+ await cutter.locator('[name=actor]').selectOption('C');
+ await cutter.locator('[name=pin]').fill('demo-integrado-c');
+ await cutter.locator('button').click();
+ assert.equal(await cutter.request.get(url+'/api/session').then(r=>r.status()),401,'Login não reativa conta desativada');
  }finally{await browser.close();await new Promise(resolve=>server.close(resolve));}
 });
