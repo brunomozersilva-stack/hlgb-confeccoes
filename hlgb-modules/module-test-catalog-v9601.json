@@ -1,0 +1,95 @@
+{
+  "schema": "hlgb-domain-smoke-v9601",
+  "version": "96.01",
+  "purpose": "Rapid domain checks without production data. Full regression and browser synchronization remain mandatory for release.",
+  "packs": {
+    "corte-cortadores": [
+      "tests/audit-cutter-planner-regression.cjs",
+      "tests/cutter-save-confirm-v9580.cjs",
+      "tests/cutter-sheet-materials-v9523.cjs",
+      "tests/audit-cut-grade-matrix-v9421.cjs",
+      "tests/audit-cut-model-grade-adjust-regression.cjs",
+      "tests/cut-weight-after-finish-v9579.cjs",
+      "tests/audit-cut-navigation.cjs",
+      "tests/wal-cut-split-replay-guard-v9485.cjs",
+      "tests/cut-duplicate-repair-v95105.cjs"
+    ],
+    "pedidos-projecao": [
+      "tests/audit-assistant-order-grade-regression.cjs",
+      "tests/orders-cloud-visibility-v9537.cjs",
+      "tests/order-delivery-trace-v9539.cjs",
+      "tests/audit-assistant-order-import-regression.cjs"
+    ],
+    "faccoes-acertos": [
+      "tests/audit-faction-manual-payment-regression.cjs",
+      "tests/faction-preco-acerto-unificado-v95102.cjs",
+      "tests/faction-ledger-preservation-v9597.cjs",
+      "tests/faction-payee-settlement-v95104.cjs",
+      "tests/faction-edit-readback-v95101.cjs",
+      "tests/acerto-save-receipts-v9576.cjs"
+    ],
+    "financeiro-hub-notas": [
+      "tests/hub-save-ack-v9483.cjs",
+      "tests/audit-hub-integrity-regression.cjs",
+      "tests/hub-status-repeat-guard-v9569.cjs",
+      "tests/audit-hub-search-period-regression.cjs",
+      "tests/pricing-cut-grade-modal-scope-v95106.cjs"
+    ],
+    "folha-pessoal": [
+      "tests/payroll-explicit-fare-v9496.cjs",
+      "tests/audit-payroll-provision-sort-total-regression.cjs",
+      "tests/payroll-remote-noop-v9487.cjs",
+      "tests/payroll-save-chain-single-guard-v9493.cjs"
+    ],
+    "utilidades-etiquetas": [
+      "tests/routeplans-recipient-v9453.cjs",
+      "tests/etiquetas-a4-batch-v9454.cjs",
+      "tests/audit-missing-route-regression.cjs"
+    ],
+    "sincronizacao-wal": [
+      "tests/audit-wal-idb-only-regression.cjs",
+      "tests/wal-atomic-payload-v9486.cjs",
+      "tests/wal-replay-idb-confirmation-v9469.cjs",
+      "tests/production-wal-opid-stability-v9484.cjs",
+      "tests/audit-sync-confirmation-v9311.cjs"
+    ],
+    "auditor-monitor": [
+      "tests/audit-auditor-owner-rpc-regression.cjs",
+      "tests/auditor-indexeddb-wal-v9468.cjs",
+      "tests/auditor-wal-readonly-proof-v9482.cjs",
+      "tests/audit-boot-authready-render-order.cjs"
+    ]
+  },
+  "dependencies": {
+    "corte-cortadores": [
+      "sincronizacao-wal"
+    ],
+    "pedidos-projecao": [
+      "corte-cortadores"
+    ],
+    "faccoes-acertos": [
+      "financeiro-hub-notas",
+      "sincronizacao-wal"
+    ],
+    "financeiro-hub-notas": [
+      "sincronizacao-wal"
+    ],
+    "folha-pessoal": [
+      "sincronizacao-wal"
+    ],
+    "utilidades-etiquetas": [
+      "financeiro-hub-notas"
+    ],
+    "auditor-monitor": [
+      "sincronizacao-wal"
+    ],
+    "sincronizacao-wal": []
+  },
+  "highRiskPaths": [
+    "app9240.html",
+    "app-stable3.html",
+    "release-current.js",
+    "release-record-integrity.js",
+    "release-save-transport-v9320.js"
+  ]
+}
