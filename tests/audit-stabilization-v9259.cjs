@@ -1,3 +1,4 @@
+const legacyLoaderView=require('./hlgb-loader-test-view-v9600.cjs');
 const fs=require('fs'),vm=require('vm'),assert=require('assert'),path=require('path');
 function src(name){return fs.readFileSync(path.join(__dirname,'..',name),'utf8')}
 function compile(name){assert.doesNotThrow(()=>new vm.Script(src(name),{filename:name}),name+' deve ter sintaxe válida')}
@@ -8,7 +9,7 @@ files.forEach(compile);
 const loader=src('app-stable3.html');
 files.forEach(f=>assert(loader.includes("'"+f+"'"),f+' deve estar carregado'));
 assert(loader.includes('window.HLGB_HUB_MASTER_9258=true'),'loader deve reservar a autoridade do Hub antes das camadas históricas');
-assert(loader.indexOf("'release-tab-resume-v9262.js'")<loader.indexOf("'release-ui-stability.js'"),'recuperação de aba deve carregar antes do guard visual final');
+assert(legacyLoaderView(loader).indexOf("'release-tab-resume-v9262.js'")<legacyLoaderView(loader).indexOf("'release-ui-stability.js'"),'recuperação de aba deve carregar antes do guard visual final');
 
 const hubSrc=src('release-hub-master-v9258.js');
 assert(hubSrc.includes("const V='93.18'"),'Hub master deve declarar a autoridade atual');

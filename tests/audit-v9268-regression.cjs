@@ -1,13 +1,14 @@
+const legacyLoaderView=require('./hlgb-loader-test-view-v9600.cjs');
 const fs=require('fs'),vm=require('vm'),assert=require('assert'),path=require('path');
 const root=path.join(__dirname,'..'),src=f=>fs.readFileSync(path.join(root,f),'utf8');
 for(const f of ['release-assistant-server-v9266.js','release-assistant-ui-v9269.js','release-assistant-ui-light-v9277.js','release-assistant-draft-v9270.js','release-safety-gate-v9269.js','release-safari-resume-v9266.js'])assert.doesNotThrow(()=>new vm.Script(src(f),{filename:f}),f+' deve compilar');
 const loader=src('app-stable3.html');
-assert(!loader.includes("'release-assistant-server-v9266.js'"),'modo padrão não deve carregar IA paga');
+assert(!legacyLoaderView(loader).includes("'release-assistant-server-v9266.js'"),'modo padrão não deve carregar IA paga');
 assert(loader.includes('window.HLGB_PAID_AI_DISABLED=true'),'loader deve travar IA paga por padrão');
 assert(loader.includes("h.split(\"window.addEventListener('beforeunload'"),'loader deve neutralizar Leave Page legado porque a WAL é durável');
-assert(loader.includes("'release-safety-gate-v9269.js'"));
-assert(loader.includes("'release-safari-resume-v9266.js'"));
-assert(!loader.includes("'release-assistant-studio-v9268.js'"),'Studio pesado não deve ser carregado');
+assert(legacyLoaderView(loader).includes("'release-safety-gate-v9269.js'"));
+assert(legacyLoaderView(loader).includes("'release-safari-resume-v9266.js'"));
+assert(!legacyLoaderView(loader).includes("'release-assistant-studio-v9268.js'"),'Studio pesado não deve ser carregado');
 assert(loader.lastIndexOf("'release-safari-resume-v9266.js'")>loader.lastIndexOf("'release-ui-stability.js'"));
 
 const compat=src('release-assistant-ui-v9269.js');

@@ -1,7 +1,8 @@
+const legacyLoaderView=require('./hlgb-loader-test-view-v9600.cjs');
 const fs=require('fs'),vm=require('vm'),assert=require('assert'),path=require('path');
 const src=fs.readFileSync(path.join(__dirname,'..','release-cut-model-split.js'),'utf8');
 const loader=fs.readFileSync(path.join(__dirname,'..','app-stable3.html'),'utf8');
-assert(loader.includes("'release-cut-model-split.js'"));
+assert(legacyLoaderView(loader).includes("'release-cut-model-split.js'"));
 let saved=[];
 const context={console,setTimeout(){return 0},db:{
  orders:[{id:'o1',orderNumber:122,client:'Click Sophia',status:'Aguardando corte',grade:[

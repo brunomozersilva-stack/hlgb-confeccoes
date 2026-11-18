@@ -1,3 +1,4 @@
+const legacyLoaderView=require('./hlgb-loader-test-view-v9600.cjs');
 const fs=require('fs'),vm=require('vm'),assert=require('assert'),path=require('path');
 const root=path.join(__dirname,'..'),src=f=>fs.readFileSync(path.join(root,f),'utf8');
 for(const f of ['release-assistant-server-v9266.js','release-safari-resume-v9266.js','release-safety-gate-v9269.js'])assert.doesNotThrow(()=>new vm.Script(src(f),{filename:f}),f+' deve compilar');
@@ -11,10 +12,10 @@ const safari=src('release-safari-resume-v9266.js');
 for(const x of ["document.visibilityState==='hidden'","document.querySelectorAll('.hlgb-page-settling')","'pagehide'","'pageshow'",'stale-settle-cleared','visibility:visible!important','ensureWalAuthorityUpgrade9348'])assert(safari.includes(x),'Safari guard ausente: '+x);
 
 const loader=src('app-stable3.html');
-assert(!loader.includes("'release-assistant-server-v9266.js'"),'IA paga opcional não deve carregar no fluxo padrão');
-assert(loader.includes("'release-assistant-brain-v9265.js'"),'cérebro local deve continuar no loader');
-assert(loader.includes("'release-safety-gate-v9269.js'"),'Safety Gate atual deve carregar');
-assert(loader.includes("'release-safari-resume-v9266.js'"),'guarda Safari deve continuar carregado');
+assert(!legacyLoaderView(loader).includes("'release-assistant-server-v9266.js'"),'IA paga opcional não deve carregar no fluxo padrão');
+assert(legacyLoaderView(loader).includes("'release-assistant-brain-v9265.js'"),'cérebro local deve continuar no loader');
+assert(legacyLoaderView(loader).includes("'release-safety-gate-v9269.js'"),'Safety Gate atual deve carregar');
+assert(legacyLoaderView(loader).includes("'release-safari-resume-v9266.js'"),'guarda Safari deve continuar carregado');
 assert(loader.lastIndexOf("'release-safari-resume-v9266.js'")>loader.lastIndexOf("'release-ui-stability.js'"),'guarda Safari deve fechar a cadeia visual principal');
 
 const manifest=JSON.parse(src('release.json'));
