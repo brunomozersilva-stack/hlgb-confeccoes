@@ -1,3 +1,4 @@
+const legacyLoaderView=require('./hlgb-loader-test-view-v9600.cjs');
 'use strict';
 const test=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('node:vm'),path=require('node:path');
 const source=fs.readFileSync(path.join(__dirname,'..','release-cut-duplicate-repair-v95105.js'),'utf8');
@@ -65,7 +66,7 @@ test('falha de nuvem não exclui dados locais nem tenta demais',async()=>{
 });
 test('loader injeta módulo após proteção de integridade de registros',()=>{
  const html=fs.readFileSync(path.join(__dirname,'..','app-stable3.html'),'utf8');
- const a=html.indexOf("'release-record-integrity.js'"),b=html.indexOf("'release-cut-duplicate-repair-v95105.js'");
+ const a=legacyLoaderView(html).indexOf("'release-record-integrity.js'"),b=legacyLoaderView(html).indexOf("'release-cut-duplicate-repair-v95105.js'");
  assert.ok(a>=0&&b>a);
 });
 
