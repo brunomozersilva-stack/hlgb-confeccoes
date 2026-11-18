@@ -666,6 +666,20 @@ function intentRead(){
  return new Promise((resolve,reject)=>{const tx=db.transaction(STORE,'readonly'),req=tx.objectStore(STORE).getAll();req.onsuccess=()=>resolve(req.result.filter(x=>String(x.key).startsWith('intent:')&&x.intent).map(x=>x.intent));req.onerror=()=>reject(req.error||Error('Falha ao reler intenções.'));});
 }
 
+
+const remoteLab=window.HLGBRemoteLab||null;
+function remotePanel(){
+ if(!remoteLab)return '';
+ const v=remoteLab.info(),q=v.pending;
+ return panel('Sincronização integrada · laboratório remoto','<p>'+str(v.actor||'Sessão fictícia')+' · PostgreSQL descartável. Nenhum dado real. '+(q?'Comando pendente: '+str(q.command.commandId)+' · '+str(q.stage):'Sem comando pendente nesta sessão.')+'</p><div class="actions"><button type="button" class="btn" id="remote-check">Conferir servidor / WAL</button><button type="button" class="btn" id="remote-retry" '+(q?.stage==='not_found'?'':'disabled')+'>Reenviar mesmo ID</button><button type="button" class="btn" id="remote-discard" '+(q&&['not_found','conflict','rejected'].includes(q.stage)?'':'disabled')+'>Descartar intenção após revisão</button></div>',true);
+}
+async function remoteAction(action){
+ if(busy||!remoteLab)return;busy=true;
+ try{const r=await action();if(r.state)doc=r.state;draw();status(r.status==='confirmed'?'Salvo e confirmado no PostgreSQL · '+str(r.result):'Sincronização: '+r.status+(r.message?' · '+r.message:''),r.status==='confirmed'?'success':'');}
+ catch(e){status(e.message+' · Confira servidor / WAL antes de repetir.','error');}
+ finally{busy=false;}
+}
+
 function moduleHtml(s){
  const o=orderOptions(s),openPlans=(s.cutPlans||[]).filter(p=>p.status==='aberto'),
   planOptions=selector(openPlans,p=>p.id+' · '+p.orderId+' · '+sum(p.grade)+' peças'),
@@ -1271,12 +1285,12 @@ function drawNav(){
 function draw(){
  if(!doc)return;
  const mod=modules[ids.get(active)];$('module-title').textContent=mod[1];$('module-description').textContent=mod[2];
- $('top-revision').textContent='Revisão local '+doc.revision+' · '+doc.log.length+' evento(s) · Sem banco de produção';
+ $('top-revision').textContent=(remoteLab?'Revisão servidor ':'Revisão local ')+doc.revision+' · '+doc.log.length+' evento(s) · Sem banco de produção';
  const t=api.totals(doc),metrics=[
  ['Pedidos fictícios',String(t.orders)],['Peças pedidas',String(t.pieces)],['Peças cortadas',String(t.cut)],
  ['Títulos a pagar abertos',fmt(t.openPayables)]];
  $('global-metrics').innerHTML=metrics.map(([label,value])=>'<div class="metric"><span>'+escape(label)+'</span><strong>'+escape(value)+'</strong></div>').join('');
- $('module-content').innerHTML=moduleHtml(doc);
+ $('module-content').innerHTML=remotePanel()+moduleHtml(doc);
  if(active==='acertos'){applySettlementFilters();const f=document.querySelector('form[data-command="settlement.revise"]');if(f)fillSettlementRevision(f);}
  if(active==='faccoes'){const f=document.querySelector('form[data-command="faction.assignment.rate.set"]');if(f)fillAssignmentRate(f);}
  if(active==='hub'){const f=document.querySelector('form[data-command="finance.receipt.attach"]');if(f)updateReceiptTarget(f);}
@@ -1378,6 +1392,12 @@ async function submit(form,type){
  const button=form.querySelector('button[type=submit]');if(button)button.disabled=true;
  try{
   const expectedRevision=doc.revision;
+  if(remoteLab){
+   const payload=type==='finance.receipt.attach'?await readReceiptPayload(form):parseData(type,form);
+   const result=await remoteLab.submit(type,payload,expectedRevision);
+   if(result.status!=='confirmed'){const banner=document.querySelector('#remote-check');if(banner){banner.closest('section').outerHTML=remotePanel();}throw Error('Servidor: '+result.status+' · '+(result.message||'Revise a intenção sem repetir.'));}
+   doc=result.state;draw();status('Salvo e confirmado no PostgreSQL · '+result.result+' · revisão '+doc.revision+'.');return;
+  }
   const pending=await intentRead();
   if(pending.length){const current=await read(),svc=window.HLGBLabRecoveryV1;for(const item of pending){const verdict=svc.classify(current,item,api.inspect);if(verdict.status==='confirmed'){await intentWrite(item,true);}else{recoveryIntents=pending;throw Error('Existe intenção anterior sem confirmação. Abra Auditor > Recuperação segura, releia e exporte a evidência antes de repetir.');}}}
   const payload=type==='finance.receipt.attach'?await readReceiptPayload(form):parseData(type,form),
@@ -1398,11 +1418,13 @@ async function submit(form,type){
   }
   status('Salvo e confirmado por releitura local · '+tx.result+' · revisão '+saved.revision+'.');
  }catch(e){
+  if(remoteLab){const banner=document.querySelector('#remote-check');if(banner)banner.closest('section').outerHTML=remotePanel();}
   status(e.message,'error');
   // Não redesenhar o formulário em erro. O rascunho permanece visível.
  }finally{busy=false;if(button&&button.isConnected)button.disabled=false}
 }
 async function reload(){
+ if(remoteLab)return remoteAction(()=>remoteLab.reconcile());
  if(busy)return;busy=true;
  try{
   const latest=await read();if(!latest)throw Error('Documento local não encontrado.');
@@ -1412,6 +1434,7 @@ async function reload(){
  }catch(e){status(e.message,'error')}finally{busy=false}
 }
 async function reset(){
+ if(remoteLab){status('Restauração indisponível no banco remoto compartilhado.','error');return;}
  if(busy||!confirm('Restaurar APENAS os cadastros e lançamentos fictícios deste navegador? Todos os exercícios desta prévia serão reiniciados.'))return;
  busy=true;
  try{
@@ -1783,7 +1806,10 @@ document.addEventListener('change',event=>{
  }
 });
 document.addEventListener('click',async e=>{
- if(e.target.closest('#recovery-check')){if(busy)return;busy=true;try{recoveryIntents=await intentRead();const latest=await read();if(latest&&api.inspect(latest).ok)doc=latest;draw();status('Intenções locais relidas · '+recoveryIntents.length+' pendentes.');}catch(err){status(err.message,'error');}finally{busy=false;}return;}
+ if(e.target.closest('#remote-check')){await remoteAction(()=>remoteLab.reconcile());return;}
+ if(e.target.closest('#remote-retry')){await remoteAction(()=>remoteLab.retry());return;}
+ if(e.target.closest('#remote-discard')){if(confirm('Descartar somente a intenção local revisada, sem excluir registros do servidor?'))await remoteAction(()=>remoteLab.discard());return;}
+ if(e.target.closest('#recovery-check')){if(remoteLab){await remoteAction(()=>remoteLab.reconcile());return;}if(busy)return;busy=true;try{recoveryIntents=await intentRead();const latest=await read();if(latest&&api.inspect(latest).ok)doc=latest;draw();status('Intenções locais relidas · '+recoveryIntents.length+' pendentes.');}catch(err){status(err.message,'error');}finally{busy=false;}return;}
  if(e.target.closest('#recovery-export')){try{download('HLGB-RECUPERACAO-FICTICIO.json',JSON.stringify({plan:recoveryPlan,intents:recoveryIntents.map(x=>({...x,diagnosis:window.HLGBLabRecoveryV1.classify(doc,x,api.inspect)})),history:doc.repairHistory||[]},null,2),'application/json');}catch(err){status(err.message,'error');}return;}
  if(e.target.closest('#cost-export')){try{download('HLGB-CUSTOS-FICTICIO.json',JSON.stringify(costsResult(doc),null,2),'application/json');}catch(err){status(err.message,'error');}return;}
  if(e.target.closest('#assistant-query')){assistantRequested=true;draw();return;}
@@ -1888,6 +1914,7 @@ $('refresh').addEventListener('click',reload);
 $('reset').addEventListener('click',reset);
 (async()=>{
  try{
+  if(remoteLab){doc=await remoteLab.init();$('reset').disabled=true;draw();status('Laboratório compartilhado iniciado · banco fictício.','success');return;}
   db=await openDB();
   await transact(()=>null);
   doc=await read();
