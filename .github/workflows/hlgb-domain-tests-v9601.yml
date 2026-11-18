@@ -1,0 +1,37 @@
+name: HLGB Domain Smoke Tests v96.01
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'hlgb-modules/**'
+      - 'tests/module-test-catalog-v9601.cjs'
+      - 'release-cut-*.js'
+      - 'release-cutter-*.js'
+      - 'release-save-transport-v9320.js'
+      - 'release-record-integrity.js'
+      - '.github/workflows/hlgb-domain-tests-v9601.yml'
+  workflow_dispatch:
+    inputs:
+      module:
+        description: 'Módulo para testes isolados, sem banco comercial'
+        required: true
+        default: 'corte-cortadores'
+        type: choice
+        options: [corte-cortadores, pedidos-projecao, faccoes-acertos, financeiro-hub-notas, folha-pessoal, utilidades-etiquetas, sincronizacao-wal, auditor-monitor]
+permissions: {contents: read}
+jobs:
+  module-smoke:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 18
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - name: Validate ownership, dependency triggers and tests
+        run: node --test tests/module-test-catalog-v9601.cjs
+      - name: Rapid tests for target domain (Corte + WAL on PR)
+        env:
+          TARGET: ${{ github.event.inputs.module || 'corte-cortadores' }}
+        run: |
+          node hlgb-modules/run-module-tests-v9601.cjs "$TARGET"
+          if [ "$TARGET" = "corte-cortadores" ]; then node hlgb-modules/run-module-tests-v9601.cjs sincronizacao-wal; fi
