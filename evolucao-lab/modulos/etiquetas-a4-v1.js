@@ -37,14 +37,13 @@
   const labels=[],definitions=[];
   for(const [idx,row] of rows.entries()){
    if(!row||typeof row!=='object')fail('Modelo de etiqueta inválido.');
-   const name=safe(row.name||'','Nome / local',95),
-    model=safe(row.model||'','Modelo da peça',95),
-    size=safe(row.size||'','Tamanho',50),
+   const name=safe(row.name||'','Nome / local',95),model=safe(row.model||'','Modelo da peça',95);
+   if(!name&&!model)continue; // Uma linha vazia é ignorada, inclusive se sua data foi limpa.
+   const size=safe(row.size||'','Tamanho',50),
     pieceQty=whole(row.pieceQty,'Peças no volume',0,100000),
     volumes=whole(row.volumes,'Volumes',0,999),
     copies=whole(row.copies,'Cópias',1,999),
     printed=date(row.date);
-   if(!name&&!model)continue; // Compatibilidade: o legado permite preencher só nome ou só modelo.
    const number=volumes||copies;
    if(labels.length+number>2000)fail('Lote excede 2000 etiquetas; divida a impressão.');
    const def={name,model,size,pieceQty,volumes,copies,date:printed};
