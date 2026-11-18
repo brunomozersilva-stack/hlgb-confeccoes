@@ -30,8 +30,12 @@ test('fontes antigas permanecem na main como referência e novo não é equivale
  assert.match(ui,/function orderColorGradePanel\(/,'Correção de cores está em Pedidos');
  assert.match(ui,/case 'faccoes':/);
  assert.ok(ui.includes("form('order.color.grade.set'"),'Rotina anterior de cor deve continuar em Facções');
- assert.ok(!ui.includes("case 'utilidades':"),'Utilidades não foi integrada');
- assert.ok(!source.includes("case 'route.create'"),'Rotas não estão no núcleo');
+ assert.match(ui,/case 'utilidades':return routePanel\(s\)/,'Utilidades deve estar visível no laboratório');
+ assert.match(source,/case 'route.plan':/,'Rota LEVAR\/BUSCAR fictícia deve estar integrada sem ser homologada');
+ assert.match(ui,/function labelPanel\(/,'Etiquetas A4 de teste devem aparecer em Utilidades');
+ const gate=fs.readFileSync(path.join(root,'CONTRATOS-ACEITE-OPERACIONAL-2026-11-18.md'),'utf8');
+ assert.match(gate,/BLOQUEADO PARA SUBSTITUIR O HLGB COMERCIAL/);
+ assert.match(gate,/PRESERVADA/);assert.match(gate,/MELHORADA/);assert.match(gate,/PENDENTE/);
  assert.match(fs.readFileSync(path.join(legacy,'release-operations-pack.js'),'utf8'),/function renderUtilities\(/);
  assert.match(fs.readFileSync(path.join(legacy,'release-cutter-sheet-materials-v9523.js'),'utf8'),/function renderOrderSheets\(/);
 });
