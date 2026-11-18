@@ -35,9 +35,18 @@ test('10/18/21 por A4, número exato de folhas e última folha alinhada',()=>{
   assert.equal(batch.spec.cols*batch.spec.rows,Number(size));
  }
 });
+test('Mantém compatibilidade: nome ou modelo basta e linha vazia não cria etiqueta',()=>{
+ const data=[{...row('Melina',2),name:''},{...row('',0,3),name:'Endereço fictício'},
+  {...row('',0),name:''}];
+ const batch=labels.plan(data,'10');
+ assert.equal(batch.total,5);
+ assert.equal(batch.modelCount,2);
+ assert.match(labels.render(batch),/Melina/);
+ assert.match(labels.render(batch),/Endereço fictício/);
+});
 test('Não aceita impressão malformada, data impossível, quantidades inválidas ou HTML injetado',()=>{
  for(const invalid of [
-  [row('',2)], [{...row('Melina',0),pieceQty:-1}],
+  [{...row('',2),name:''}], [{...row('Melina',0),pieceQty:-1}],
   [{...row('Melina',0),volumes:1000}],
   [{...row('Melina',0),copies:0}],
   [{...row('Melina',0),date:'2026-02-30'}],
