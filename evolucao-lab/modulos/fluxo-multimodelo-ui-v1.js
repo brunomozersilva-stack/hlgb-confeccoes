@@ -73,7 +73,7 @@
    const available=p.lines.map(line=>({...line,remaining:line.qty-
     lots.filter(l=>l.cutId===p.id).reduce((n,l)=>n+sum(l.lines.filter(x=>key(x)===key(line)),'qty'),0)}));
    if(!available.some(x=>x.remaining>0))return '';
-   return '<details class="panel"><summary>Corte '+esc(p.id)+' · '+esc(p.orderId)+'/'+esc(p.itemId)+'</summary>'+
+   return '<details class="panel" data-mf-record="'+esc(p.orderId+'|'+p.itemId)+'"><summary>Corte '+esc(p.id)+' · '+esc(p.orderId)+'/'+esc(p.itemId)+'</summary>'+
     command('multi.flow.allocate',hidden('cutId',p.id)+select('factionId','Facção de destino',factions)+
      input('unitCents','Mão de obra por peça (R$)','5,50')+
      input('reason','Justificativa','Envio fictício por cor e tamanho'),
@@ -116,7 +116,7 @@
      input('reason','Conferência',type==='multi.flow.separate'?'Separação fictícia':'Expedição fictícia'),
      grade(rows,available),label));
    }
-   return forms.length?'<details class="panel" open><summary>'+esc(o.id)+' · '+esc(item.name)+'</summary>'+
+   return forms.length?'<details class="panel" data-mf-record="'+esc(o.id+'|'+item.id)+'" open><summary>'+esc(o.id)+' · '+esc(item.name)+'</summary>'+
     forms.join('')+'</details>':'';
   })).join('');
   return panel('Separação multimodelo · baixa parcial na grade',
@@ -135,6 +135,8 @@
    table(['Retorno','Facção','Pedido/modelo','Peças','Valor','Situação'],
     groups.flatMap(g=>g.items.map(r=>[r.id,g.name,r.orderId+'/'+r.itemId,r.qty,money(r.amountCents),
      r.reviewed?'Conferido':'Pendente'])))+
+   pending.map(r=>'<div class="panel" data-mf-record="'+esc(r.id)+'"><b>'+esc(r.id)+'</b> · '+esc(r.orderId)+'/'+esc(r.itemId)+
+    ' · '+money(r.amountCents)+' · aguardando conferência</div>').join('')+
    (pending.length?command('multi.flow.review',
     select('id','Acerto fictício',pending.map(r=>[r.id,r.id+' · '+money(r.amountCents)]))+
     input('reviewer','Conferente','Conferente fictício A')+input('reason','Motivo','Valores e peças conferidos'),
@@ -145,17 +147,17 @@
   for(const o of s.multiOrders||[])for(const item of o.items||[]){
    for(const x of flow.orderBalance(s,o.id,item.id)){
     if(!x.ordered)continue;
-    const ref=o.id+' / '+item.name+' / '+x.color+' / '+x.size;
-    if(x.toCut>0)queue.push({stage:'Corte pendente',ref,qty:x.toCut,to:'corte'});
+    const ref=o.id+' / '+item.name+' / '+x.color+' / '+x.size,focus=o.id+'|'+item.id;
+    if(x.toCut>0)queue.push({stage:'Corte pendente',ref,qty:x.toCut,to:'corte',focus});
     if(x.toAllocate>0)queue.push({stage:'Corte concluído para enviar à facção',ref,
-     qty:x.toAllocate,to:'faccoes'});
+     qty:x.toAllocate,to:'faccoes',focus});
     if(x.availableToSeparate>0)queue.push({stage:'Retorno disponível para separar',ref,
-     qty:x.availableToSeparate,to:'separacao'});
-    if(x.toShip>0)queue.push({stage:'Separado e disponível para expedir',ref,qty:x.toShip,to:'separacao'});
+     qty:x.availableToSeparate,to:'separacao',focus});
+    if(x.toShip>0)queue.push({stage:'Separado e disponível para expedir',ref,qty:x.toShip,to:'separacao',focus});
    }
   }
   for(const group of flow.acertos(s))for(const r of group.items.filter(x=>!x.reviewed))
-   queue.push({stage:'Acerto fictício a conferir',ref:r.id+' / '+group.name,qty:r.qty,to:'acertos'});
+   queue.push({stage:'Acerto fictício a conferir',ref:r.id+' / '+group.name,qty:r.qty,to:'acertos',focus:r.id});
   return queue;
  }
  function queuePanel(s,flow){
@@ -163,7 +165,7 @@
    'Retorno disponível para separar','Separado e disponível para expedir','Acerto fictício a conferir'];
   const sorted=todo.slice().sort((a,b)=>ordered.indexOf(a.stage)-ordered.indexOf(b.stage)||a.ref.localeCompare(b.ref,'pt-BR'));
   const rows=sorted.slice(0,120).map(x=>'<tr><td>'+esc(x.stage)+'</td><td>'+esc(x.ref)+'</td><td>'+
-   x.qty+'</td><td><button type="button" class="btn" data-goto="'+esc(x.to)+'">Abrir '+esc(x.to)+'</button></td></tr>').join('');
+   x.qty+'</td><td><button type="button" class="btn" data-goto="'+esc(x.to)+'" data-mf-focus="'+esc(x.focus)+'">Abrir '+esc(x.to)+'</button></td></tr>').join('');
   return panel('Fila de trabalho por setor · multimodelo fictício',
    '<p>Mostra somente pendências calculadas a partir das grades e comandos deste exercício. Não possui prazo de entrega ou confirmação em outro computador; <b>não é uma fila real de produção</b>.</p>'+
    '<div class="metrics"><div class="metric"><span>Tarefas com saldo</span><strong>'+todo.length+'</strong></div>'+
