@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>HLGB Evolução | Produção fictícia</title>
+<style>
+:root{color-scheme:light;font:15px/1.5 system-ui,sans-serif;background:#f7f5fa;color:#30243d}*{box-sizing:border-box}
+body{margin:0}header{background:#332243;color:white;padding:18px clamp(16px,4vw,44px)}
+header h1{font-size:22px;margin:0}header p{margin:4px 0;color:#e9dced}
+main{max-width:1140px;margin:auto;padding:16px}
+.notice{background:#fff5db;border-left:4px solid #ad7711;padding:13px;border-radius:6px}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,300px),1fr));gap:14px}
+section{background:#fff;border:1px solid #e4dceb;border-radius:12px;padding:16px;margin:14px 0;box-shadow:0 2px 6px #3523460a}
+h2{margin:0 0 10px;font-size:17px}label{display:block;font-size:13px;font-weight:650;margin:10px 0 4px}
+input,select,button{font:inherit;min-height:44px;border-radius:8px}input,select{width:100%;border:1px solid #b7a6c4;padding:8px;background:white}
+button{border:0;padding:9px 16px;cursor:pointer;background:#583273;color:white}button.secondary{background:#f1eaf6;color:#332243;border:1px solid #b7a6c4}
+button:disabled{opacity:.55;cursor:not-allowed}.actions{display:flex;flex-wrap:wrap;gap:9px;margin-top:14px}
+.grade{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}.grade label{margin:0}.grade input{min-width:0}
+.table{width:100%;overflow-x:auto}table{width:100%;border-collapse:collapse;font-size:13px}th,td{padding:10px;border-bottom:1px solid #ece6f0;text-align:left;white-space:nowrap}
+#message{min-height:26px;font-weight:650}#message.error{color:#a0232a}#message.success{color:#246642}
+small{color:#6b6072}@media(max-width:430px){.grade{grid-template-columns:repeat(2,minmax(0,1fr))}}
+</style></head><body>
+<header><h1>HLGB Evolução · Produção</h1><p>Laboratório local com dados exclusivamente fictícios</p></header>
+<main>
+<p class="notice">Esta é a visão operacional restrita. Salários, Folha, contas, pagamentos, preços e histórico financeiro não são disponibilizados a este perfil. Não use dados reais. A autorização ainda é demonstrativa, não empresarial.</p>
+<div id="message" role="status" aria-live="polite"></div>
+<section><h2>Conexão e segurança</h2><p id="top-revision">Conectando...</p><p id="pending-state"></p>
+<div class="actions"><button class="secondary" type="button" id="remote-check">Conferir servidor / WAL</button><button class="secondary" type="button" id="remote-retry" disabled>Reenviar mesmo ID após prova de ausência</button><button class="secondary" type="button" id="remote-discard" disabled>Descartar intenção conferida</button></div>
+</section>
+<div class="grid">
+<section><h2>Novo pedido fictício</h2><form data-command="order.add">
+<label>Cliente<select name="clientId" required></select></label><label>Modelo<select name="productId" required></select></label>
+<label>Quantidades por tamanho</label><div class="grade"><label>P<input name="P" type="number" value="1" min="0" max="30000" required></label><label>M<input name="M" type="number" value="0" min="0" max="30000" required></label><label>G<input name="G" type="number" value="0" min="0" max="30000" required></label><label>GG<input name="GG" type="number" value="0" min="0" max="30000" required></label></div>
+<div class="actions"><button type="submit">Registrar pedido</button></div></form></section>
+<section><h2>Registrar corte</h2><form data-command="cut.record"><label>Pedido<select name="orderId" required></select></label><label>Tamanho<select name="size"><option>P</option><option>M</option><option>G</option><option>GG</option></select></label><label>Quantidade<input name="qty" type="number" min="1" max="10000" value="1" required></label><div class="actions"><button type="submit">Registrar corte</button></div></form></section>
+<section><h2>Enviar para facção</h2><form data-command="faction.allocate"><label>Pedido<select name="orderId" required></select></label><label>Facção<select name="factionId" required></select></label><label>Quantidade<input name="qty" type="number" min="1" max="10000" value="1" required></label><div class="actions"><button type="submit">Registrar envio</button></div></form></section>
+<section><h2>Registrar retorno</h2><form data-command="faction.return"><label>Pedido<select name="orderId" required></select></label><label>Quantidade<input name="qty" type="number" min="1" max="10000" value="1" required></label><div class="actions"><button type="submit">Registrar retorno</button></div></form></section>
+</div>
+<section><h2>Pedidos e etapas operacionais</h2><small>Somente dados de produção; nenhum valor financeiro.</small><div class="table"><table><thead><tr><th>Pedido</th><th>Modelo</th><th>Quantidade</th><th>Cortado</th><th>Enviado</th><th>Retornado</th><th>Separado</th><th>Expedido</th></tr></thead><tbody id="orders"></tbody></table></div></section>
+<p><small>Prévia restrita do laboratório. Outras operações de produção serão incorporadas após os testes de autorização. Nenhum acesso ao HLGB em produção.</small></p>
+</main>
+<script src="./integrado-remoto.js"></script><script src="./integrado-producao.js"></script></body></html>
