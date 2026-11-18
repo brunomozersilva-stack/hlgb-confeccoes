@@ -156,6 +156,8 @@ test('Fila de trabalho apresenta apenas etapas possíveis por variação e abre 
  const html=view.queuePanel(c.s,flow);
  assert.match(html,/data-goto="separacao"/);
  assert.match(html,/data-goto="acertos"/);
+ assert.match(html,/data-mf-focus="MFR-0001"/);
+ assert.match(view.acertoPanel(c.s,flow),/data-mf-record="MFR-0001"/);
  assert.match(html,/MFR-0001/);
  assert.doesNotMatch(html,/Aberto no servidor|Aprovado para produção/);
 });
@@ -171,6 +173,7 @@ test('Interface multimodelo independente mantém formulários antigos e não usa
  assert.match(ui,/multiFlowLabPart\(s,'separacao'\)/);
  assert.match(ui,/multiFlowLabPart\(s,'acerto'\)/);
  assert.match(ui,/multiFlowLabPart\(s,'fila'\)/);
+ assert.match(ui,/target\.dataset\.mfFocused='true'/);
  assert.match(ui,/order\.separate/);
  assert.match(ui,/faction\.return/);
  assert.match(ui,/multi\.flow\.allocate/);
