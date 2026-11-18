@@ -31,6 +31,7 @@ const routes={'/':'operacao-integrada.html',
   '/modulos/corte-multimodelo-v1.js':'modulos/corte-multimodelo-v1.js',
  '/modulos/folha-corte-multimodelo-v1.js':'modulos/folha-corte-multimodelo-v1.js',
  '/modulos/rotas-utilidades-v1.js':'modulos/rotas-utilidades-v1.js',
+ '/modulos/etiquetas-a4-v1.js':'modulos/etiquetas-a4-v1.js',
  '/operacao-integrada-core.js':'operacao-integrada-core.js',
  '/operacao-integrada-ui.js':'operacao-integrada-ui.js','/folha-homologacao.html':'folha-homologacao.html'};
 const server=http.createServer((req,res)=>{
@@ -97,6 +98,30 @@ async function run(browser,width,url){
   assert.equal(await page.locator('#cut-print .mc-route-page').count(),3,'Resumo + um checklist por parada');
   assert.match(await page.locator('#cut-print').innerText(),/LEVAR/);
   assert.match(await page.locator('#cut-print').innerText(),/BUSCAR/);
+  await module(page,'utilidades');
+  const firstLabel=page.locator('[data-label-row]').first();
+  await firstLabel.locator('[data-label="name"]').fill('Cliente fictício');
+  await firstLabel.locator('[data-label="model"]').fill('Modelo Melina');
+  await firstLabel.locator('[data-label="volumes"]').fill('5');
+  await page.locator('#label-add').click();
+  assert.equal(await page.locator('[data-label-row]').count(),2);
+  const secondLabel=page.locator('[data-label-row]').nth(1);
+  await secondLabel.locator('[data-label="name"]').fill('Cliente fictício');
+  await secondLabel.locator('[data-label="model"]').fill('Modelo Tammy');
+  await secondLabel.locator('[data-label="copies"]').fill('7');
+  await page.locator('#label-preview').click();
+  assert.match(await page.locator('#label-batch-preview').innerText(),/12 etiqueta/);
+  await page.evaluate(()=>{window.print=()=>{document.body.dataset.labelsPrinted='yes'};});
+  await page.locator('#label-print').click();
+  assert.equal(await page.locator('body').getAttribute('data-labels-printed'),'yes');
+  assert.equal(await page.locator('#cut-print .mc-label-page').count(),2);
+  assert.equal(await page.locator('#cut-print .mc-label-card').count(),12);
+  assert.equal(await page.locator('#cut-print .mc-label-empty').count(),8);
+  assert.match(await page.locator('#cut-print').innerText(),/5 de 5/);
+  await page.locator('#label-layout').selectOption('18');
+  await page.locator('#label-preview').click();
+  assert.match(await page.locator('#label-batch-preview').innerText(),/18 por folha/);
+
   await module(page,'nucleo');
 
   if(width<=710){await page.locator('#mobile-module').selectOption('pedidos');assert.equal(await page.locator('[data-module="pedidos"]').getAttribute('aria-current'),'page');}
