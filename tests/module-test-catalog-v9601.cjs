@@ -56,10 +56,17 @@ test('Alterações desconhecidas ou no loader não podem pular domínios; stdin 
   const result=JSON.parse(r.stdout);assert.equal(result.highRisk,true,file);assert.equal(result.packs.length,8,file);
  }
  const fromStdin=cp.spawnSync(process.execPath,['hlgb-modules/run-module-tests-v9601.cjs','--impact-stdin'],{
-  cwd:root,encoding:'utf8',input:'release-cutter-planner.js\\0release-faction-manual-payment-v9566.js\\0'
+  cwd:root,encoding:'utf8',input:'release-cutter-planner.js\0release-faction-manual-payment-v9566.js\0'
  });
  assert.equal(fromStdin.status,0,fromStdin.stderr);
  const actual=JSON.parse(fromStdin.stdout);
  for(const area of ['corte-cortadores','faccoes-acertos','financeiro-hub-notas','sincronizacao-wal'])assert.ok(actual.packs.includes(area),area);
  assert.equal(actual.highRisk,false);
+});
+
+test('Seleção manual respeita dependências transitivas',()=>{
+ const r=cp.spawnSync(process.execPath,['hlgb-modules/run-module-tests-v9601.cjs','--dependencies','pedidos-projecao'],{cwd:root,encoding:'utf8'});
+ assert.equal(r.status,0,r.stderr);
+ const actual=JSON.parse(r.stdout).packs;
+ for(const area of ['pedidos-projecao','corte-cortadores','sincronizacao-wal'])assert.ok(actual.includes(area),area);
 });
