@@ -177,3 +177,35 @@ A regra formal foi gravada em `CONTRATOS-ACEITE-OPERACIONAL-2026-11-18.md`: cada
 **Demais Utilidades ainda ausentes:** modelos de etiquetas de embalagem, cadastro individual de embaladeiras e regularização histórica. A frente Pedido → Corte → Facção → Separação → Acerto multimodelo segue sem integração de ponta a ponta.
 
 **GATE FINAL = BLOQUEADO.** Nenhum teste local ou CI, por si só, autoriza substituição do sistema atual.
+
+
+## Sexta evolução isolada — Etiqueta personalizada e fila individual de Embaladeira (18/11/2026)
+
+**Estado: IMPLEMENTAÇÃO LABORATORIAL / ACEITE OPERACIONAL PENDENTE.** A versão de produção permanece **BLOQUEADA**.
+
+### LEG-013 — Modelo de etiqueta por cliente/produto
+
+- Novo motor `modulos/embalagem-etiquetas-v1.js` com versão de modelo, cliente, produto opcional (padrão por cliente), SKU, CNPJ, URL HTTPS, referência de arquivo e campos variáveis.
+- Um cliente pode possuir padrão geral e etiqueta específica de cada modelo. A resolução dá preferência à etiqueta específica; não atribui etiqueta de outro cliente.
+- Criação, edição com motivo e arquivamento sem excluir; não é permitido transferir a identidade de cliente/produto de uma etiqueta entre versões.
+- Novas tarefas de embaladeira guardam **snapshot da versão da etiqueta**. Mudanças posteriores de SKU, CNPJ ou arquivo referenciado não substituem silenciosamente a etiqueta anteriormente atribuída. A inspeção de integridade verifica versões e cadeia de comandos inclusive para etiquetas arquivadas.
+- Tela de Utilidades exibe cadastros, versões, histórico e conferência **textual** do cliente/modelo/SKU/arquivo.
+- **Pendente:** envio e armazenamento efetivo de PDF/imagem de etiqueta, preview visual do arquivo, QR Code, impressão com equipamento real, permissões e versão confirmada remotamente. Registrar apenas o **nome** de um PDF não equivale ao upload; o texto deixa isso explícito.
+
+### LEG-014 — Atribuição individual à embaladeira
+
+- A tela de Separação preserva o `packagingPanel` existente de **lote / acerto**, e acrescenta a fila individual complementar e fictícia.
+- Cadastro de embaladeira (funcionária simulada), cliente, modelo, cor, tamanho, quantidade enviada, quantidade de etiquetas, data e observações.
+- Conferência de peças **parcial e total** com histórico (por exemplo 20/50; 30 pendentes), correção explícita para menos com justificativa e ajuste de quantidade/responsável sem apagar a versão anterior.
+- Proteções: não duplicar tarefa idêntica, não concluir acima de quantidade atribuída, não cancelar se houver peças prontas, não editar cliente/produto/cor/tamanho após conclusão parcial; o Auditor identifica quantidade ou etiqueta modificadas sem o respectivo comando.
+- Indicadores por embaladeira mostram enviadas, prontas e pendentes; alerta para tarefa sem etiqueta.
+- **Não há vínculo de baixa real** com Pedido → Corte → Facção → Separação, nem acerto automático, nota, estoque, pagamento ou reconhecimento remoto. Esta fila é um **exercício à parte** do módulo operacional antigo e não deve aumentar artificialmente os saldos disponíveis em Separação.
+
+### Prova e bloqueio
+
+- Novo contrato `tests/embalagem-etiquetas-contract.cjs` foi integrado ao workflow de Operação Integrada (20 áreas).
+- O teste de navegador `tests/operacao-integrada-mobile.cjs` inclui cadastro e conferência da etiqueta, atribuição 50 peças, baixa fictícia de 20 e revisão para 60, em Chrome e Safari/WebKit (ainda depende de CI verde).
+- Simulação integrada do motor validou histórico e bloqueio de adulteração de etiqueta arquivada: 0 erros antes da modificação simulada; erro detectado depois.
+- `ACE-012` e `LEG-013/LEG-014` **permanecem PENDENTES** de equivalência com o legado e aprovação da equipe.
+
+**Próxima prioridade:** regularização histórica com prévia não destrutiva e origem rastreável; depois integração operacional por modelo/cor/tamanho, teste em duas sessões e importação reversível dos dados legados. Nenhum merge na `main`; nenhuma alteração na base comercial.
