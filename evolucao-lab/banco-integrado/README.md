@@ -26,7 +26,9 @@ O POST do formulário usa nonce CSRF de uso único, cookie HttpOnly SameSite=Str
 - Operador A: todos os comandos inventariados explicitamente (falha fechada para novos comandos desconhecidos).
 - Operador B: operações de pedidos, corte, facções e embalagem; proibidos os comandos financeiros, Folha e ajustes administrativos.
 - A política é conferida no servidor e desabilita botões na interface apenas como auxílio. Burlar a interface não libera comandos.
-- **Limitação crítica:** o endpoint `/api/state` ainda entrega snapshot completo a ambos os perfis fictícios; **NÃO existe segregação de leitura nem autorização empresarial por registro ou funcionário**. Não utilizar dados reais e não hospedar esta implementação como serviço público.
+- A leitura é agora isolada no servidor por perfil de laboratório: `/api/state` só atende Operador A; `/api/production-state` só atende Operador B e retorna campos explicitamente permitidos de pedidos, clientes, produtos, facções e folhas de corte, sem preços, Folha, salários, contas ou trilha financeira.
+- O Operador B abre a página `/producao-integrada.html`, que permite ensaiar criação de pedidos, corte simples, envio e retorno por facção com confirmação via PostgreSQL e WAL. É uma primeira tela operacional restrita; não substitui os 19 módulos da interface administrativa.
+- **Limitação crítica:** as identidades e senhas continuam fictícias, sem autenticação empresarial, regras de acesso por funcionário/empresa, RLS de produção, proteção de dados reais ou garantia de que todos os campos operacionais futuros foram classificados. Projeção segura é defesa de laboratório, não aprovação de produção. Não usar dados reais nem hospedar este servidor publicamente.
 
 ### Inicialização de testes sem dependência de psql no navegador
 A matriz de navegadores prepara o banco de CI com `preparar-ci.cjs` usando Node/pg, eliminando a instalação desnecessária de `postgresql-client`. O preparador exige explicitamente `GITHUB_ACTIONS=true`, `CI=true`, endereço loopback, banco e credenciais fictícias de CI, e valida o marcador SQL. Não iniciar em servidores ou bancos reais.
