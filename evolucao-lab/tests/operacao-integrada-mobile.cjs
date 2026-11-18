@@ -30,6 +30,7 @@ const routes={'/':'operacao-integrada.html',
  '/modulos/pedidos-multimodelo-v1.js':'modulos/pedidos-multimodelo-v1.js',
   '/modulos/corte-multimodelo-v1.js':'modulos/corte-multimodelo-v1.js',
  '/modulos/folha-corte-multimodelo-v1.js':'modulos/folha-corte-multimodelo-v1.js',
+ '/modulos/rotas-utilidades-v1.js':'modulos/rotas-utilidades-v1.js',
  '/operacao-integrada-core.js':'operacao-integrada-core.js',
  '/operacao-integrada-ui.js':'operacao-integrada-ui.js','/folha-homologacao.html':'folha-homologacao.html'};
 const server=http.createServer((req,res)=>{
@@ -69,7 +70,7 @@ async function run(browser,width,url){
  try{
   await page.goto(url);
   await page.waitForFunction(()=>document.querySelector('#top-revision')?.textContent.includes('Revisão local 1'));
-  assert.equal(await page.locator('[data-module]').count(),19);
+  assert.equal(await page.locator('[data-module]').count(),20);
   const all=await page.locator('[data-module]').evaluateAll(nodes=>nodes.map(x=>x.dataset.module));for(const id of all)await module(page,id);
   if(width<=710){await page.locator('#mobile-module').selectOption('pedidos');assert.equal(await page.locator('[data-module="pedidos"]').getAttribute('aria-current'),'page');}
   await module(page,'auditor');
