@@ -39,3 +39,27 @@ test('Runner rejeita módulo desconhecido, sem executar shell ou rede',()=>{
  assert.ok(!runner.includes('child_process.exec('));
  assert.ok(!runner.includes('fetch('));
 });
+
+test('Impacto transitivo: Pedidos inclui Corte e WAL; Etiquetas inclui Financeiro e WAL',()=>{
+ const command=(...args)=>cp.spawnSync(process.execPath,['hlgb-modules/run-module-tests-v9601.cjs',...args],{cwd:root,encoding:'utf8'});
+ const a=command('--impact','release-orders-cloud-visibility-v9537.js');
+ assert.equal(a.status,0);
+ for(const area of ['pedidos-projecao','corte-cortadores','sincronizacao-wal'])assert.ok(JSON.parse(a.stdout).packs.includes(area),area);
+ const b=command('--impact','release-label-typography-v9308.js');
+ assert.equal(b.status,0);
+ for(const area of ['utilidades-etiquetas','financeiro-hub-notas','sincronizacao-wal'])assert.ok(JSON.parse(b.stdout).packs.includes(area),area);
+});
+test('Alterações desconhecidas ou no loader não podem pular domínios; stdin preserva nomes de arquivos',()=>{
+ const command=(...args)=>cp.spawnSync(process.execPath,['hlgb-modules/run-module-tests-v9601.cjs',...args],{cwd:root,encoding:'utf8'});
+ for(const file of ['hlgb-modules/corte/grade-modelo-v9602.js','release-novo-sem-catalogo.js','tests/arquivo-novo.cjs']){
+  const r=command('--impact',file);assert.equal(r.status,0,file);
+  const result=JSON.parse(r.stdout);assert.equal(result.highRisk,true,file);assert.equal(result.packs.length,8,file);
+ }
+ const fromStdin=cp.spawnSync(process.execPath,['hlgb-modules/run-module-tests-v9601.cjs','--impact-stdin'],{
+  cwd:root,encoding:'utf8',input:'release-cutter-planner.js\\0release-faction-manual-payment-v9566.js\\0'
+ });
+ assert.equal(fromStdin.status,0,fromStdin.stderr);
+ const actual=JSON.parse(fromStdin.stdout);
+ for(const area of ['corte-cortadores','faccoes-acertos','financeiro-hub-notas','sincronizacao-wal'])assert.ok(actual.packs.includes(area),area);
+ assert.equal(actual.highRisk,false);
+});
