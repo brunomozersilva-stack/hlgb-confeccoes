@@ -46,8 +46,58 @@ CREATE TABLE hlgb_integrado_lab.cancellations (
  fingerprint text NOT NULL CHECK(fingerprint ~ '^[0-9a-f]{64}$'),
  created_at timestamptz NOT NULL DEFAULT clock_timestamp()
 );
+-- Somente contas INVENTADAS do CI. Não executar em banco comercial.
+CREATE TABLE hlgb_integrado_lab.lab_accounts (
+ employee_id text PRIMARY KEY CHECK(employee_id ~ '^LAB-FUN-[0-9]{3}
+ FOREACH t IN ARRAY ARRAY['environment','documents','commands','events','cancellations','lab_accounts','lab_access_events'] LOOP
+  EXECUTE format('ALTER TABLE hlgb_integrado_lab.%I ENABLE ROW LEVEL SECURITY',t);
+  EXECUTE format('ALTER TABLE hlgb_integrado_lab.%I FORCE ROW LEVEL SECURITY',t);
+ END LOOP;
+END $rls$;
+REVOKE ALL ON ALL TABLES IN SCHEMA hlgb_integrado_lab FROM PUBLIC;
+ALTER DEFAULT PRIVILEGES IN SCHEMA hlgb_integrado_lab REVOKE ALL ON TABLES FROM PUBLIC;
+-- Exclusivamente credenciais fictícias de CI. O serviço não é dono das tabelas.
+CREATE ROLE hlgb_lab_runtime NOLOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS;
+CREATE ROLE hlgb_lab_runner LOGIN PASSWORD 'somente_ci_runtime_integrado' NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS IN ROLE hlgb_lab_runtime;
+REVOKE CREATE ON SCHEMA public FROM PUBLIC;
+GRANT USAGE ON SCHEMA hlgb_integrado_lab TO hlgb_lab_runtime;
+GRANT SELECT ON ALL TABLES IN SCHEMA hlgb_integrado_lab TO hlgb_lab_runtime;
+GRANT INSERT ON hlgb_integrado_lab.documents,hlgb_integrado_lab.commands,hlgb_integrado_lab.events,hlgb_integrado_lab.cancellations TO hlgb_lab_runtime;
+GRANT UPDATE(revision,state) ON hlgb_integrado_lab.documents TO hlgb_lab_runtime;
+GRANT UPDATE(active,updated_at) ON hlgb_integrado_lab.lab_accounts TO hlgb_lab_runtime;
+GRANT INSERT ON hlgb_integrado_lab.lab_access_events TO hlgb_lab_runtime;
+GRANT USAGE ON SEQUENCE hlgb_integrado_lab.lab_access_events_id_seq TO hlgb_lab_runtime;
+DO $pol$ DECLARE t text; BEGIN
+ FOREACH t IN ARRAY ARRAY['environment','documents','commands','events','cancellations','lab_accounts','lab_access_events'] LOOP
+  EXECUTE format('CREATE POLICY runtime_read ON hlgb_integrado_lab.%I FOR SELECT TO hlgb_lab_runtime USING (true)',t);
+ END LOOP;
+ FOREACH t IN ARRAY ARRAY['documents','commands','events','cancellations','lab_access_events'] LOOP
+  EXECUTE format('CREATE POLICY runtime_insert ON hlgb_integrado_lab.%I FOR INSERT TO hlgb_lab_runtime WITH CHECK (true)',t);
+ END LOOP;
+END $pol$;
+CREATE POLICY runtime_update ON hlgb_integrado_lab.documents FOR UPDATE TO hlgb_lab_runtime USING (id='operacao-ficticia') WITH CHECK (id='operacao-ficticia');
+CREATE POLICY runtime_update_account ON hlgb_integrado_lab.lab_accounts FOR UPDATE TO hlgb_lab_runtime USING (employee_id IN ('LAB-FUN-002','LAB-FUN-003')) WITH CHECK (employee_id IN ('LAB-FUN-002','LAB-FUN-003') AND active=false);
+-- Sem UPDATE/DELETE de comandos, eventos ou cancelamentos; sem privilégios de DDL.
+-- Este papel de serviço de testes não representa autorização por funcionário empresarial.
+COMMIT;
+),
+ actor text UNIQUE NOT NULL CHECK(length(actor) BETWEEN 1 AND 95),
+ active boolean NOT NULL DEFAULT true,
+ updated_at timestamptz NOT NULL DEFAULT clock_timestamp()
+);
+INSERT INTO hlgb_integrado_lab.lab_accounts(employee_id,actor,active) VALUES
+ ('LAB-FUN-001','Operador A fictício',true),
+ ('LAB-FUN-002','Operador B fictício',true),
+ ('LAB-FUN-003','Operador C fictício',true);
+CREATE TABLE hlgb_integrado_lab.lab_access_events (
+ id bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+ admin_actor text NOT NULL,
+ target_employee_id text NOT NULL REFERENCES hlgb_integrado_lab.lab_accounts(employee_id),
+ operation text NOT NULL CHECK(operation='deactivate'),
+ created_at timestamptz NOT NULL DEFAULT clock_timestamp()
+);
 DO $rls$ DECLARE t text; BEGIN
- FOREACH t IN ARRAY ARRAY['environment','documents','commands','events','cancellations'] LOOP
+ FOREACH t IN ARRAY ARRAY['environment','documents','commands','events','cancellations','lab_accounts','lab_access_events'] LOOP
   EXECUTE format('ALTER TABLE hlgb_integrado_lab.%I ENABLE ROW LEVEL SECURITY',t);
   EXECUTE format('ALTER TABLE hlgb_integrado_lab.%I FORCE ROW LEVEL SECURITY',t);
  END LOOP;
@@ -63,7 +113,7 @@ GRANT SELECT ON ALL TABLES IN SCHEMA hlgb_integrado_lab TO hlgb_lab_runtime;
 GRANT INSERT ON hlgb_integrado_lab.documents,hlgb_integrado_lab.commands,hlgb_integrado_lab.events,hlgb_integrado_lab.cancellations TO hlgb_lab_runtime;
 GRANT UPDATE(revision,state) ON hlgb_integrado_lab.documents TO hlgb_lab_runtime;
 DO $pol$ DECLARE t text; BEGIN
- FOREACH t IN ARRAY ARRAY['environment','documents','commands','events','cancellations'] LOOP
+ FOREACH t IN ARRAY ARRAY['environment','documents','commands','events','cancellations','lab_accounts','lab_access_events'] LOOP
   EXECUTE format('CREATE POLICY runtime_read ON hlgb_integrado_lab.%I FOR SELECT TO hlgb_lab_runtime USING (true)',t);
  END LOOP;
  FOREACH t IN ARRAY ARRAY['documents','commands','events','cancellations'] LOOP
