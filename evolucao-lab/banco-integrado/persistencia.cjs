@@ -11,6 +11,39 @@ function validate(cmd,actor){if(!cmd||Object.keys(cmd).sort().join(',')!=='comma
  const input=canonical([actor,cmd]);if(Buffer.byteLength(input)>2*1024*1024)throw Error('Comando excede limite.');return crypto.createHash('sha256').update(input).digest('hex');}
 async function withDb(fn){guard();const c=new Client({host:'127.0.0.1',port:Number(process.env.PGPORT),database:DB,user:process.env.PGUSER,password:process.env.PGPASSWORD,ssl:false,connectionTimeoutMillis:4000,statement_timeout:10000});
  await c.connect();try{const res=(await c.query('SELECT current_database() AS db, marker FROM hlgb_integrado_lab.environment WHERE singleton')).rows[0];if(res?.db!==DB||res.marker!==MARK)throw Error('Marcador do ambiente inválido.');return await fn(c);}finally{await c.end();}}
+// Revalidação no banco e trava transacional para evitar escritas após desativação.
+async function lockActive(c,actor){
+ const employeeId=permissions.profile(actor)?.employeeId;
+ if(!employeeId)return false;
+ await c.query('SELECT pg_advisory_xact_lock(92317,hashtext($1))',[employeeId]);
+ const row=(await c.query('SELECT active FROM hlgb_integrado_lab.lab_accounts WHERE employee_id=$1 AND actor=$2',[employeeId,actor])).rows[0];
+ return row?.active===true;
+}
+async function activeEmployee(employeeId,actor){
+ const p=permissions.profile(actor);
+ if(!p||p.employeeId!==employeeId)return false;
+ return withDb(async c=>{
+  const row=(await c.query('SELECT active FROM hlgb_integrado_lab.lab_accounts WHERE employee_id=$1 AND actor=$2',[employeeId,actor])).rows[0];
+  return row?.active===true;
+ });
+}
+async function deactivateEmployee(employeeId,actor){
+ if(permissions.profile(actor)?.id!=='demo-admin'||!['LAB-FUN-002','LAB-FUN-003'].includes(employeeId))return {status:'denied'};
+ return withDb(async c=>{
+  await c.query('BEGIN');
+  try{
+   if(!(await lockActive(c,actor))){await c.query('ROLLBACK');return {status:'denied'};}
+   await c.query('SELECT pg_advisory_xact_lock(92317,hashtext($1))',[employeeId]);
+   const row=(await c.query('SELECT active FROM hlgb_integrado_lab.lab_accounts WHERE employee_id=$1',[employeeId])).rows[0];
+   if(!row){await c.query('ROLLBACK');return {status:'denied'};}
+   if(!row.active){await c.query('ROLLBACK');return {status:'already_disabled',employeeId};}
+   const changed=await c.query('UPDATE hlgb_integrado_lab.lab_accounts SET active=false,updated_at=clock_timestamp() WHERE employee_id=$1 AND active=true RETURNING employee_id',[employeeId]);
+   if(changed.rowCount!==1)throw Error('Revogação concorrente sem confirmação.');
+   await c.query("INSERT INTO hlgb_integrado_lab.lab_access_events(admin_actor,target_employee_id,operation) VALUES($1,$2,'deactivate')",[actor,employeeId]);
+   await c.query('COMMIT');return {status:'disabled',employeeId};
+  }catch(e){await c.query('ROLLBACK').catch(()=>{});throw e;}
+ });
+}
 async function initialize(){return withDb(async c=>{const seed=core.initial();await c.query('INSERT INTO hlgb_integrado_lab.documents(id,revision,state) VALUES($1,1,$2::jsonb) ON CONFLICT(id) DO NOTHING',[ID,JSON.stringify(seed)]);return state();});}
 function verifyChain(state){if(!state||!Number.isSafeInteger(state.revision)||state.revision<1||!Array.isArray(state.log)||state.log.length!==state.revision-1)return false;const seen=new Set();for(let i=0;i<state.log.length;i++){let e=state.log[i];if(!e||e.revision!==i+2||typeof e.commandId!=='string'||!e.commandId||seen.has(e.commandId)||e.type==='demo.reset'||!permissions.profile(e.actor))return false;seen.add(e.commandId);}return state.revisionProof===(state.log.at(-1)?.commandId||'seed');}
 function verifyDocument(row){if(!row||Number(row.revision)!==row.state?.revision||!verifyChain(row.state)||!core.inspect(row.state).ok)throw Error('Snapshot inconsistente; nenhuma alteração autorizada.');return row.state;}
@@ -27,6 +60,7 @@ async function state(){return withDb(async c=>{await c.query('BEGIN ISOLATION LE
 async function revision(){return withDb(async c=>{const row=(await c.query('SELECT revision FROM hlgb_integrado_lab.documents WHERE id=$1',[ID])).rows[0],n=Number(row?.revision);if(!Number.isSafeInteger(n)||n<1)throw Error('Revisão indisponível.');return n;});}
 async function commit(cmd,actor){let fingerprint;try{fingerprint=validate(cmd,actor);if(!permissions.can(actor,cmd.type))throw Error('Comando não permitido para o perfil fictício.');}catch(e){return {status:'rejected',message:e.message};}
  return withDb(async c=>{await c.query('BEGIN');try{
+ if(!(await lockActive(c,actor))){await c.query('ROLLBACK');return {status:'rejected',message:'Conta fictícia desativada.'};}
  const current=verifyDocument((await c.query('SELECT revision,state FROM hlgb_integrado_lab.documents WHERE id=$1 FOR UPDATE',[ID])).rows[0]);
  await verifyLedger(c,current);
  const old=(await c.query('SELECT fingerprint, revision, result FROM hlgb_integrado_lab.commands WHERE command_id=$1',[cmd.commandId])).rows[0];
@@ -47,6 +81,7 @@ async function readback(commandId,expected=null,actor=null){
  let fingerprint=null;if(expected!==null){try{if(expected.commandId!==commandId)throw Error('ID divergente');fingerprint=validate(expected,actor);if(!permissions.can(actor,expected.type))throw Error('Prova não autorizada para este perfil');}catch(e){return {status:'rejected'};}}if(typeof commandId!=='string'||!/^LAB-[a-zA-Z0-9_-]{4,90}$/.test(commandId))return {status:'rejected'};
  return withDb(async c=>{await c.query('BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY');try{
  const row=(await c.query('SELECT c.revision,c.kind,c.actor,c.result,c.fingerprint,e.event FROM hlgb_integrado_lab.commands c JOIN hlgb_integrado_lab.events e USING(command_id,document_id,revision) WHERE c.command_id=$1',[commandId])).rows[0];
+ if(actor!==null&&!(await lockActive(c,actor))){await c.query('ROLLBACK');return {status:'rejected'};}
  const current=verifyDocument((await c.query('SELECT revision,state FROM hlgb_integrado_lab.documents WHERE id=$1',[ID])).rows[0]);
  await verifyLedger(c,current);
  if(!row){const cancelled=(await c.query('SELECT actor,fingerprint FROM hlgb_integrado_lab.cancellations WHERE command_id=$1',[commandId])).rows[0];if(cancelled){await c.query('COMMIT');return fingerprint&&(cancelled.fingerprint!==fingerprint||cancelled.actor!==actor)?{status:'rejected'}:{status:'cancelled',commandId,latestRevision:current.revision};}const found=(await c.query('SELECT 1 FROM hlgb_integrado_lab.commands WHERE command_id=$1',[commandId])).rowCount;await c.query('COMMIT');return {status:found?'uncertain':'not_found',latestRevision:current.revision};}
@@ -57,6 +92,7 @@ async function readback(commandId,expected=null,actor=null){
 async function cancel(cmd,actor){
  let fingerprint;try{fingerprint=validate(cmd,actor);if(!permissions.can(actor,cmd.type))throw Error('Cancelamento não autorizado para este perfil.');}catch(e){return {status:'rejected',message:e.message};}
  return withDb(async c=>{await c.query('BEGIN');try{
+ if(!(await lockActive(c,actor))){await c.query('ROLLBACK');return {status:'rejected',message:'Conta fictícia desativada.'};}
  const current=verifyDocument((await c.query('SELECT revision,state FROM hlgb_integrado_lab.documents WHERE id=$1 FOR UPDATE',[ID])).rows[0]);await verifyLedger(c,current);
  const old=(await c.query('SELECT fingerprint FROM hlgb_integrado_lab.commands WHERE command_id=$1',[cmd.commandId])).rows[0];
  if(old){await c.query('ROLLBACK');return old.fingerprint===fingerprint?{status:'committed',commandId:cmd.commandId}:{status:'rejected'};}
@@ -65,4 +101,4 @@ async function cancel(cmd,actor){
  await c.query('INSERT INTO hlgb_integrado_lab.cancellations(command_id,actor,fingerprint) VALUES($1,$2,$3)',[cmd.commandId,actor,fingerprint]);
  await c.query('COMMIT');return {status:'cancelled',commandId:cmd.commandId};
  }catch(e){await c.query('ROLLBACK').catch(()=>{});throw e;}});}
-module.exports={guard,canonical,validate,initialize,state,revision,commit,readback,cancel,verifyChain,ledgerMatches};
+module.exports={guard,canonical,validate,initialize,state,revision,commit,readback,cancel,verifyChain,ledgerMatches,activeEmployee,deactivateEmployee};
