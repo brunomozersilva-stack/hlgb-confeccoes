@@ -20,6 +20,13 @@ h2{font-size:21px;margin:25px 0 6px}p.sub{font-size:13px;color:var(--muted);line
 .number{display:inline-flex;align-items:center;justify-content:center;background:#f0e8f7;color:#60427e;width:36px;height:36px;border-radius:11px;font-size:14px;font-weight:850}
 .card h3{font-size:17px;line-height:1.3;margin:12px 0 6px;overflow-wrap:anywhere}.card p{font-size:13px;line-height:1.52;color:var(--muted);margin:0 0 14px}
 .card .go{margin-top:auto;color:#583676;font-size:13px;font-weight:750}
+.quick-start{background:#fff;border:2px solid #8b6c9f;border-radius:17px;padding:20px 23px;margin-bottom:24px}
+.quick-start h2{margin:0 0 6px;font-size:22px}.quick-start p{font-size:13px;line-height:1.65;color:var(--muted)}
+.quick-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:11px;margin-top:15px}
+.quick-grid a{display:block;padding:15px;background:#f8f4fb;border:1px solid #e3d5eb;border-radius:12px;text-decoration:none;font-size:13px;line-height:1.55;font-weight:700;color:#463060}
+.quick-grid a:hover,.quick-grid a:focus-visible{border-color:#775394;background:#f0e7f7}
+.quick-grid strong{display:block;color:#332046;font-size:14px;margin-bottom:5px}
+@media(max-width:770px){.quick-grid{grid-template-columns:1fr}.quick-start{padding:16px}}
 .feature{background:#fff;border:1px solid #d5c4e0;border-radius:17px;padding:20px 23px;display:flex;align-items:center;justify-content:space-between;gap:14px;margin-bottom:23px;box-shadow:0 5px 24px #3a24521a}
 .feature h2{font-size:22px;margin:5px 0 7px}.feature p{font-size:13px;color:#645a70;line-height:1.5;max-width:675px;margin:0}
 .feature .flag{font-size:11px;color:#68478b;font-weight:850;text-transform:uppercase;letter-spacing:.1em}
@@ -43,6 +50,16 @@ footer{margin-top:24px;font-size:12px;color:#777080;line-height:1.5}
 </header>
 <main>
 <div class="warning"><strong>Esta não é a versão de produção.</strong> Tudo aqui é demonstrativo. As páginas não acessam seu Supabase, não alteram lançamentos, não salvam pagamentos e não enviam comprovantes. Nunca coloque dados reais da empresa nesta prévia.</div>
+<section class="quick-start" aria-labelledby="quick-title">
+<h2 id="quick-title">Comece por aqui: seus primeiros testes</h2>
+<p>Não precisa esperar a conclusão de todos os módulos. Teste o que já está disponível, identifique ajustes e envie o relatório de avaliação. Estas demonstrações usam dados inventados, guardados apenas neste navegador, e não comprovam a migração do HLGB real.</p>
+<div class="quick-grid">
+<a href="./operacao-integrada.html#corte"><strong>1. Pedidos e Corte</strong>Experimente uma grade, a folha de corte, os pesos, o desperdício e a consulta ao estoque fictício.</a>
+<a href="./operacao-integrada.html#acertos"><strong>2. Facções, Acertos e Hub</strong>Faça um retorno fictício, confira o acerto e verifique o título no Hub sem realizar pagamentos reais.</a>
+<a href="./homologacao-modulos.html"><strong>3. Registre o que melhorar</strong>Marque o resultado de cada função, anote problemas e use “Baixar relatório JSON” para me enviar sua avaliação.</a>
+</div>
+<p><strong>Não está liberado para testar com dados reais:</strong> login de funcionários, sincronização entre computadores, migração do banco, NF e pagamentos empresariais. Esses recursos ainda exigem uma homologação separada e segura.</p>
+</section>
 <section class="feature"><div><div class="flag">Novo · PCP avançado</div><h2>Planejamento de produção — prioridades e prazos</h2><p>Experimente capacidades, previsão conservadora, gargalos, peças por etapa e volumes de facções no mesmo fluxo fictício.</p></div><a href="./operacao-integrada.html#producao">Testar PCP →</a></section>
 <section class="feature"><div><div class="flag">Novo · Financeiro 2.0</div><h2>Hub financeiro — fluxo previsto e realizado</h2><p>Teste vencimentos, relatórios por data e categoria, conferência manual e exportação CSV. O mesmo razão fictício de compras, pedidos e acertos é usado sem repetir títulos.</p></div><a href="./operacao-integrada.html#hub">Testar Hub Financeiro →</a></section>
 <section class="feature">

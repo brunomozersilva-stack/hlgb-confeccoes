@@ -34,6 +34,7 @@ jobs:
       - name: Static contract, source references and mobile structure
         run: |
           node --test evolucao-lab/tests/standalone-contract.cjs
+          node --test evolucao-lab/tests/entrada-primeiros-testes.cjs
           node --test evolucao-lab/tests/fluxos-contract.cjs
           node --test evolucao-lab/tests/preservacao-contract.cjs
           node --test evolucao-lab/tests/baseline-legado.cjs
