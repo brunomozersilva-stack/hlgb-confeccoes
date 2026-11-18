@@ -114,3 +114,18 @@ Antes da liberação, **cada uma das 19 áreas mais Utilidades** será revista n
 
 ### Pedido multimodelo fictício — construção sem risco de misturar saldos
 `order.multi.create` usa `multiOrders` com múltiplos itens e cores, tamanhos configuráveis e totalização no mesmo commit. A coleção não é convertida para `orders` (modelo único) e não gera título financeiro, movimentação de estoque ou envios. Portanto, é preparação de paridade **não aprovada**; mantém LEG-001/002/003 abertas até integrar corte, facções, separação, notas e histórico por item.
+
+
+## Terceira evolução isolada — programação de Corte multimodelo (18/11/2026)
+
+**Implementado na branch de laboratório; não aprovado para o HLGB comercial.**
+
+- Comandos fictícios `multi.cut.plan`, `multi.cut.revise`, `multi.cut.complete` e `multi.cut.cancel`.
+- Identificação explícita por **pedido multimodelo + item (modelo) + cor + tamanho**, com saldo de cada célula protegido de reservas duplicadas e quantidades superiores à encomenda.
+- Programação em datas diferentes para modelos do mesmo pedido, prioridade, dois cortadores e infestador; edição com motivo e histórico preservado; cancelamento sem apagar eventos; conclusão de ensaio com dois conferentes.
+- Persistência transacional no documento fictício, com revisões e confirmação por releitura da própria Operação Integrada; exportação CSV inclui cada linha de corte.
+- Testes específicos adicionados: `tests/corte-multimodelo-contract.cjs`; fluxo incorporado à tela de **Corte** sem substituir o cadastro/corte de um único modelo.
+
+**Limites e bloqueio:** uma conclusão fictícia não debita materiais, não gera ficha BOM, não libera facção, não cria acerto ou título financeiro; os `multiCutPlans` não são `cutPlans` legados e não são migrados automaticamente. O impresso A4 completo, pesos posteriores append-only, assinaturas físicas, operações de produção/embalagem e migração reversível continuam pendentes. Os IDs LEG-001/003/004/005/006/007/008/017/019 **permanecem sem aceite de paridade**. Testes automáticos não substituem a conferência visual da equipe.
+
+**Regra inviolável:** NÃO fazer merge em `main`, NÃO importar dados reais e NÃO declarar paridade global até o inventário e as provas da segunda revisão. O marco de aprovação para produção permanece `false`.
