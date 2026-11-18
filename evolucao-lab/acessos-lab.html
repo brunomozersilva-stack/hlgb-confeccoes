@@ -16,5 +16,7 @@ button:disabled{opacity:.55;cursor:not-allowed}.back{text-decoration:none;backgr
 <div class="actions"><a class="back" href="./operacao-integrada.html">Voltar ao laboratório</a><button type="button" id="refresh">Conferir contas no PostgreSQL</button></div>
 <p id="notice" role="status" aria-live="polite">Conferindo...</p>
 <section class="panel"><h2>Contas fictícias</h2><div class="tablewrap"><table><thead><tr><th>Identificação</th><th>Perfil</th><th>Situação</th><th>Ação</th></tr></thead><tbody id="accounts-body"></tbody></table></div></section>
+<section class="panel"><h2>Auditoria de acessos do laboratório</h2><p><small>Últimas 30 tentativas fictícias, sem guardar PINs ou senhas. Inclui acessos permitidos, recusados e bloqueios de 15 minutos.</small></p>
+<div class="tablewrap"><table><thead><tr><th>Data e hora</th><th>Perfil de teste</th><th>Resultado</th></tr></thead><tbody id="login-events-body"></tbody></table></div></section>
 <p><small>Esta função é exclusiva da sessão de Administração. MFA, provedor de identidade, permissões empresariais e servidor hospedado continuam pendentes.</small></p>
 </main><script src="./admin-acessos.js"></script></body></html>

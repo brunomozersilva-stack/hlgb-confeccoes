@@ -30,10 +30,23 @@
    tr.append(action);body.append(tr);
   }
  }
+ function renderEvents(events){
+  const body=byId('login-events-body');body.replaceChildren();
+  const labels={success:'Autenticado',invalid:'PIN incorreto',locked:'Bloqueado por tentativas',inactive:'Conta desativada'};
+  for(const event of events){
+   const tr=document.createElement('tr');
+   const stamp=new Date(event.at);
+   for(const value of [Number.isNaN(stamp.getTime())?'Data inválida':stamp.toLocaleString('pt-BR'),event.code,event.outcome in labels?labels[event.outcome]:'Não classificado']){
+    const td=document.createElement('td');td.textContent=value;tr.append(td);
+   }
+   body.append(tr);
+  }
+ }
  async function reload(){
-  const result=await request('/api/admin/accounts');
-  if(result.status!=='ok'||!Array.isArray(result.accounts))throw Error('Lista inválida do banco');
-  render(result.accounts);notice('Contas confirmadas no PostgreSQL fictício.');
+  const [result,history]=await Promise.all([request('/api/admin/accounts'),request('/api/admin/login-events')]);
+  if(result.status!=='ok'||!Array.isArray(result.accounts)||history.status!=='ok'||!Array.isArray(history.events))throw Error('Relatório de acesso inválido');
+  render(result.accounts);renderEvents(history.events);
+  notice('Contas e auditoria confirmadas no PostgreSQL fictício.');
  }
  async function deactivate(employeeId){
   if(running)return;

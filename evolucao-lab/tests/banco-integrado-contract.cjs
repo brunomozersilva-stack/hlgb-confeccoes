@@ -185,3 +185,31 @@ test('rate limit persistente e auditoria dos PINs fictícios sem gravar senha',a
   await assert.rejects(()=>c.query('DELETE FROM hlgb_integrado_lab.lab_login_events WHERE false'),/permission denied/);
  }finally{await c.end();}
 });
+
+test('bloqueio de login é compartilhado por dois servidores locais no mesmo Postgres',async()=>{
+ const {start}=require('../banco-integrado/servidor.cjs');
+ const first=await start(),second=await start();
+ const firstUrl='http://127.0.0.1:'+first.address().port,secondUrl='http://127.0.0.1:'+second.address().port;
+ async function loginAttempt(base,code,pin){
+  const page=await fetch(base+'/login',{redirect:'manual'});
+  assert.equal(page.status,200);
+  const cookie=page.headers.get('set-cookie')?.split(';')[0];
+  const html=await page.text(),csrf=html.match(/name="csrf" value="([^"]+)"/)?.[1];
+  assert.equal(typeof csrf,'string');
+  const response=await fetch(base+'/login',{
+   method:'POST',redirect:'manual',headers:{'content-type':'application/x-www-form-urlencoded',cookie},
+   body:new URLSearchParams({actor:code,csrf,pin})
+  });
+  return response.status;
+ }
+ try{
+  for(let i=0;i<5;i++)assert.equal(await loginAttempt(firstUrl,'A','pin-incorreto-'+i),401);
+  assert.equal(await loginAttempt(secondUrl,'A','demo-integrado-a'),429,'O outro servidor deve respeitar o bloqueio persistido');
+  const events=await db.listLoginEvents(A);
+  assert.equal(events.filter(e=>e.code==='A'&&e.outcome==='invalid').length,5);
+  assert.equal(events.some(e=>e.code==='A'&&e.outcome==='locked'),true);
+ }finally{
+  await new Promise(resolve=>first.close(resolve));
+  await new Promise(resolve=>second.close(resolve));
+ }
+});
