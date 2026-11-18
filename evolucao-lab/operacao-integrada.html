@@ -98,6 +98,14 @@ textarea.input{resize:vertical;min-height:110px;font-family:inherit;line-height:
  #cut-print .signature div{border-top:1px solid #111;padding-top:6pt}
  #cut-print .print-note{font-size:10pt;margin-top:24pt}
 }
+.color-grid-scroll{overflow-x:auto;max-width:100%;margin:10px 0}
+.color-matrix-head,.color-matrix-row{display:grid;grid-template-columns:minmax(120px,2fr) repeat(4,minmax(58px,1fr)) minmax(80px,100px);gap:7px;align-items:end;min-width:620px;margin-bottom:8px}
+.color-matrix-head{font-size:11px;font-weight:800;color:#503663;text-align:center;background:#f4ecf8;border-radius:8px;padding:7px}
+.color-matrix-row label{font-size:11px;font-weight:750;display:grid;gap:4px}
+.color-matrix-row input{text-align:center;min-width:0;width:100%;padding:8px 3px}
+.color-matrix-row label:first-child input{text-align:left;padding-left:9px}
+.color-row-action .btn{font-size:11px;padding:8px 5px}
+#order-color-total[data-valid="false"]{color:#9a2525}
 </style></head>
 <body><div class="frame">
 <aside class="side"><div class="logo"><span>HLGB</span>Evolução · Lab</div>
@@ -109,7 +117,7 @@ textarea.input{resize:vertical;min-height:110px;font-family:inherit;line-height:
 <div class="pills"><span class="pill">19 áreas para explorar</span><span class="pill" id="environment-mode">Iniciando armazenamento de teste</span></div></div>
 <main>
 <div class="warning" id="environment-warning"><strong>Prévia funcional, não ERP de produção.</strong> Os cadastros, pedidos, estoque, acertos e contas aqui são exclusivamente inventados. As operações ficam no IndexedDB deste navegador, compartilhadas entre abas do mesmo perfil; não sincronizam entre computadores e não executam pagamentos, notas fiscais ou gravações no Supabase. PDF de comprovante é somente um anexo de exercício local. Não digite informações reais nem carregue documentos bancários reais.</div>
-<div class="warning" id="parity-audit-warning"><strong>ATENÇÃO — Paridade com o HLGB atual ainda NÃO homologada.</strong> Esta prévia é simplificada: Pedidos não monta a matriz completa de vários modelos por cor/tamanho; Utilidades (Rotas, Etiquetas e Regularização) ainda não foi integrada; a folha de cortador impressa não corresponde à versão completa do HLGB. Os testes desta prévia não autorizam substituição do sistema atual. <a href="./AUDITORIA-PARIDADE-HLGB-2026-11-18.md" target="_blank" rel="noopener">Ver relatório do pente-fino</a>.</div><div id="shared-revision-notice" class="warning" role="status" aria-live="polite" hidden></div><div id="flash" role="status" aria-live="polite"></div>
+<div class="warning" id="parity-audit-warning"><strong>ATENÇÃO — Paridade com o HLGB atual ainda NÃO homologada.</strong> Esta prévia já oferece grade por cor/tamanho no módulo Pedidos para UM modelo, mas ainda não permite vários modelos no mesmo pedido nem tamanhos personalizados; Utilidades (Rotas, Etiquetas e Regularização) ainda não foi integrada; a folha de cortador impressa não corresponde à versão completa do HLGB. Os testes desta prévia não autorizam substituição do sistema atual. <a href="./AUDITORIA-PARIDADE-HLGB-2026-11-18.md" target="_blank" rel="noopener">Ver relatório do pente-fino</a>.</div><div id="shared-revision-notice" class="warning" role="status" aria-live="polite" hidden></div><div id="flash" role="status" aria-live="polite"></div>
 <section class="panel global-search" aria-label="Pesquisa global"><h2>Localizar no HLGB</h2><div class="search-controls"><div class="field"><label for="global-search-query">Buscar modelo, SKU, pedido, corte, facção ou pagamento</label><input class="input" id="global-search-query" type="search" maxlength="150" placeholder="Ex.: Melina, corte concluído, PED-0001"></div><div class="field"><label for="global-search-module">Área</label><select class="input" id="global-search-module"><option value="todos">Todas as áreas</option></select></div></div><div id="global-search-results" aria-live="polite"></div><div id="global-search-detail" hidden></div></section>
 <div class="headline"><div><h1 id="module-title">Operação integrada</h1><p id="module-description">Cadastro, pedido, corte, facção, retorno, expedição e financeiro com o mesmo conjunto de dados fictícios.</p></div>
 <div class="actions"><button id="export-json" type="button" class="btn">Exportar evidências JSON</button><button id="export-csv" type="button" class="btn">Exportar resumo CSV</button></div></div>

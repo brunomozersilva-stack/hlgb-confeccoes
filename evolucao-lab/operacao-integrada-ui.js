@@ -59,6 +59,73 @@ const orderOptions=s=>selector(s.orders,o=>o.id+' · '+(ref(s.products,o.product
 const blank='<p>Selecione um pedido ou cadastre um novo na guia Pedidos.</p>';
 function status(msg,style='success'){$('flash').className=style;$('flash').textContent=msg}
 function getGrade(order){return api.sizes.map(sz=>sz+': '+order.grade[sz]+' / cortadas '+order.cut[sz]).join(' · ')}
+function colorMatrixRow(color='',values={P:0,M:0,G:0,GG:0}){
+ return '<div class="color-matrix-row" data-color-row role="group" aria-label="Cor e tamanhos">'+
+  '<label>Cor<input name="color" class="input" maxlength="40" required placeholder="Ex.: Preto" value="'+escape(color)+'"></label>'+
+  api.sizes.map(sz=>'<label>'+escape(sz)+'<input class="input" type="number" name="'+escape(sz)+'" min="0" max="10000" step="1" inputmode="numeric" required value="'+escape(values[sz]||0)+'"></label>').join('')+
+  '<div class="color-row-action"><button type="button" class="btn" data-remove-color-row aria-label="Remover cor">Remover</button></div></div>';
+}
+function colorMatrixCreateForm(s){
+ const clients=selector(s.clients,x=>x.name),products=selector(s.products,x=>x.name+' · '+x.sku);
+ return '<form data-command="order.add.with.colors" id="order-color-matrix-form">'+
+  '<h3>Novo pedido por cor e tamanho — grade horizontal</h3>'+
+  '<p>Uma linha por cor; tamanhos nas colunas. O pedido e a grade inteira são salvos juntos. Por enquanto, um modelo por pedido nesta demonstração.</p>'+
+  '<div class="fields">'+field('clientId','Cliente','select','',clients)+field('productId','Modelo','select','',products)+'</div>'+
+  '<div class="color-grid-scroll"><div class="color-matrix-head" aria-hidden="true"><span>Cor</span>'+api.sizes.map(sz=>'<span>'+sz+'</span>').join('')+'<span>Ação</span></div>'+
+  '<div id="order-color-rows">'+colorMatrixRow('Preto',{P:0,M:10,G:0,GG:0})+'</div></div>'+
+  '<div class="actions"><button type="button" class="btn" data-add-color-row>+ Adicionar outra cor</button></div>'+
+  '<p id="order-color-total" class="caption" role="status" aria-live="polite">Confira a grade antes de cadastrar.</p>'+
+  '<div class="actions"><button type="submit" class="btn primary">Cadastrar pedido com todas as cores</button></div></form>';
+}
+function readColorMatrix(form){
+ const rows=[...form.querySelectorAll('[data-color-row]')];
+ if(rows.length<1||rows.length>30)throw Error('Cadastre de 1 a 30 cores.');
+ const colorGrades=[],seen=new Set(),totals=Object.fromEntries(api.sizes.map(sz=>[sz,0]));
+ for(const row of rows){
+  const color=row.querySelector('[name=color]').value.trim().replace(/\s+/g,' '),
+   key=color.toLocaleLowerCase('pt-BR'),grade={};
+  if(!color||color.length>40||seen.has(key))throw Error('Informe cores diferentes, até 40 caracteres.');
+  seen.add(key);
+  for(const sz of api.sizes){
+   const raw=row.querySelector('[name="'+sz+'"]').value;
+   if(!/^\d+$/.test(raw))throw Error('Informe quantidade inteira para '+color+' / '+sz);
+   const qty=Number(raw);
+   if(!Number.isSafeInteger(qty)||qty>10000)throw Error('Quantidade fora do limite para '+color+' / '+sz);
+   grade[sz]=qty;totals[sz]+=qty;
+  }
+  if(sum(grade)<1)throw Error('Cada cor deve ter ao menos uma peça: '+color);
+  colorGrades.push({color,grade});
+ }
+ if(sum(totals)<1||sum(totals)>30000)throw Error('Total do pedido deve estar entre 1 e 30000 peças.');
+ return {clientId:form.elements.namedItem('clientId').value,productId:form.elements.namedItem('productId').value,colorGrades,totals};
+}
+function updateColorMatrixPreview(){
+ const form=document.getElementById('order-color-matrix-form');if(!form||!doc)return;
+ const line=document.getElementById('order-color-total');if(!line)return;
+ try{
+  const p=readColorMatrix(form),model=ref(doc.products,p.productId);
+  line.textContent='Total: '+sum(p.totals)+' peças · '+p.colorGrades.length+' cor(es) · '+
+   api.sizes.map(sz=>sz+': '+p.totals[sz]).join(' | ')+
+   (model?' · valor fictício '+fmt(sum(p.totals)*model.priceCents):'')+
+   '. Conferência antes de salvar.';
+  line.dataset.valid='true';
+ }catch(err){line.textContent='Confira a matriz: '+err.message;line.dataset.valid='false';}
+}
+function orderColorGradePanel(s){
+ const eligible=s.orders.filter(o=>o.allocated===0&&!s.settlements.some(x=>x.orderId===o.id));
+ const colors=s.colorCatalog||[],rows=s.orders.flatMap(o=>(o.colorGrades||[]).map(g=>[
+  str(o.id+' · '+(ref(s.products,o.productId)?.name||'')),str(g.color),...api.sizes.map(sz=>str(g.grade[sz])),str(sum(g.grade))
+ ]));
+ return panel('Gerenciar cores de pedidos já cadastrados',
+  '<p>Complete ou corrija a cor antes do primeiro envio. Esta edição conserva o pedido, o histórico e os totais.</p>'+
+  form('order.color.grade.set','Incluir, alterar ou remover cor existente',[
+   field('orderId','Pedido ainda sem envio','select','',selector(eligible,x=>x.id+' · '+(ref(s.products,x.productId)?.name||''))),
+   field('color','Nome da cor','text','Preto'),
+   ...api.sizes.map(sz=>field(sz,sz+' — quantidade desta cor','int','0'))
+  ],'Salvar cor na grade')+
+  '<p>Uma cor existente com todas as quantidades zeradas será removida, somente antes de envios. A grade geral do pedido não é alterada.</p>'+
+  table(['Pedido / modelo','Cor',...api.sizes,'Total'],rows),true);
+}
 function orderTable(s){
  return table(['Pedido / modelo','Cliente','Grade e corte','Fluxo','Recebimento'],s.orders.map(o=>{
  const q=api.quantities(o);
@@ -917,7 +984,8 @@ function moduleHtml(s){
  '<p>Os perfis abaixo são apenas referência para o futuro controle de acesso; esta página offline não usa login.</p>')+
  table(['Perfil','Escopo proposto','Situação empresarial'],[['Supervisor','Cadastros, aprovações e relatórios','Pendente'],['Produção','Pedidos, corte, facções e separação','Pendente'],
  ['Financeiro','Acertos, Hub, compras e comprovantes','Pendente'],['Consulta','Visualização sem alterar','Pendente']]),true);
- case 'pedidos':return importOrdersPanel(s)+panel('Incluir pedido com grade',
+ case 'pedidos':return importOrdersPanel(s)+panel('Grade por cor e tamanho no próprio Pedido',colorMatrixCreateForm(s),true)+
+ orderColorGradePanel(s)+panel('Incluir pedido com grade — modo antigo sem cores',
  form('order.add','Novo pedido fictício',[
  field('clientId','Cliente','select','',clients),field('productId','Modelo','select','',products),
  ...api.sizes.map(z=>field(z,'Quantidade '+z,'int',z==='M'?10:0))],'Cadastrar pedido'))+
@@ -1504,7 +1572,7 @@ function draw(){
  ['Pedidos fictícios',String(t.orders)],['Peças pedidas',String(t.pieces)],['Peças cortadas',String(t.cut)],
  ['Títulos a pagar abertos',fmt(t.openPayables)]];
  $('global-metrics').innerHTML=metrics.map(([label,value])=>'<div class="metric"><span>'+escape(label)+'</span><strong>'+escape(value)+'</strong></div>').join('');
- try{$('module-content').innerHTML=remotePanel()+moduleHtml(doc);visitedModules.add(active);}catch(e){$('module-content').innerHTML=remotePanel()+panel('Não foi possível exibir esta área','<div class="error">'+str(e.message)+'</div><p>Os dados não foram modificados. Abra outro módulo, exporte as evidências ou tente recarregar.</p><button type="button" class="btn" data-goto="auditor">Abrir Auditor</button>',true);}
+ try{$('module-content').innerHTML=remotePanel()+moduleHtml(doc);visitedModules.add(active);if(active==='pedidos')updateColorMatrixPreview();}catch(e){$('module-content').innerHTML=remotePanel()+panel('Não foi possível exibir esta área','<div class="error">'+str(e.message)+'</div><p>Os dados não foram modificados. Abra outro módulo, exporte as evidências ou tente recarregar.</p><button type="button" class="btn" data-goto="auditor">Abrir Auditor</button>',true);}
  if(remoteLab){const allowed=new Set(remoteLab.info().permissions?.allowedCommands||[]);
  for(const f of document.querySelectorAll('#module-content form[data-command]')){if(allowed.has(f.dataset.command))continue;for(const button of f.querySelectorAll('button[type="submit"]')){button.disabled=true;button.title='Ação não autorizada para o perfil fictício';}const notice=document.createElement('p');notice.className='caption';notice.textContent='Permissão de escrita restrita a outro perfil. Não use dados reais.';f.append(notice);}}
  if(active==='acertos'){refreshServicePreview();applySettlementFilters();const f=document.querySelector('form[data-command="settlement.revise"]');if(f)fillSettlementRevision(f);}
@@ -1531,6 +1599,10 @@ const NUM=['actualGrams','points','revision','corte','envio','costura','separaca
 const SIGNED=['deltaGrams'];
 const PRICES=['freightCents','camisola','doll','calcinha','outros','pointCents','priceCents','unitCents','travetaCents','priceCentsKg','amountCents','salaryCents','passageCents','extrasCents','discountCents'];
 function parseData(type,form){
+ if(type==='order.add.with.colors'){
+  const p=readColorMatrix(form);
+  return {clientId:p.clientId,productId:p.productId,colorGrades:p.colorGrades};
+ }
  if(type==='settlement.service.group'){const p=serviceGroupInput(captureServiceGroup()),q=window.HLGBLabServicesV1.groupPreview(doc,p);if(!serviceGroupResult||serviceGroupResult.revision!==doc.revision||q.signature!==serviceGroupResult.signature)throw Error('Acerto mudou. Confira o total novamente.');return {...p,signature:q.signature,expectedTotalCents:q.total,reason:form.elements.namedItem('reason').value};}
  if(type==='assistant.order.create'){const p=readAssistedDraft();if(!assistedPreview||assistedPreview.revision!==doc.revision||JSON.stringify(p)!==JSON.stringify(assistedDraft))throw Error('Confira nova prévia.');return {...p,signature:assistedPreview.signature,reason:form.elements.namedItem('reason').value};}
  if(type==='purchase.invoice.import'){const p=readInvoiceDraft();if(!invoicePreview||invoicePreview.revision!==doc.revision||JSON.stringify(p)!==JSON.stringify(invoiceDraft))throw Error('Confira nova prévia da nota.');return {...p,declaredCents:parseCents(p.declaredCents),signature:invoicePreview.signature,checkerOne:form.elements.namedItem('checkerOne').value,checkerTwo:form.elements.namedItem('checkerTwo').value,reason:form.elements.namedItem('reason').value};}
@@ -2060,6 +2132,19 @@ document.addEventListener('change',event=>{
  }
 });
 document.addEventListener('click',async e=>{
+ if(e.target.closest('[data-add-color-row]')){
+  const holder=$('order-color-rows');
+  if(holder?.querySelectorAll('[data-color-row]').length>=30){status('Limite de 30 cores por pedido fictício.','error');return;}
+  holder?.insertAdjacentHTML('beforeend',colorMatrixRow());
+  updateColorMatrixPreview();return;
+ }
+ const removeColor=e.target.closest('[data-remove-color-row]');
+ if(removeColor){
+  const holder=$('order-color-rows');
+  if(holder?.querySelectorAll('[data-color-row]').length>1)removeColor.closest('[data-color-row]').remove();
+  else status('O pedido precisa de ao menos uma cor.','error');
+  updateColorMatrixPreview();return;
+ }
  if(e.target.closest('#remote-check')){await remoteAction(()=>remoteLab.reconcile());return;}
  if(e.target.closest('#remote-retry')){await remoteAction(()=>remoteLab.retry());return;}
  if(e.target.closest('#remote-discard')){if(confirm('Descartar somente a intenção local revisada, sem excluir registros do servidor?'))await remoteAction(()=>remoteLab.discard());return;}
@@ -2169,6 +2254,8 @@ document.addEventListener('click',async e=>{
  const goto=e.target.closest('button[data-goto]');
  if(goto){searchState.selected=null;active=goto.dataset.goto;window.location.hash=active;draw();window.scrollTo(0,0)}
 });
+document.addEventListener('input',e=>{if(e.target.closest('#order-color-matrix-form'))updateColorMatrixPreview();});
+document.addEventListener('change',e=>{if(e.target.closest('#order-color-matrix-form'))updateColorMatrixPreview();});
 document.addEventListener('submit',e=>{
  const form=e.target.closest('form[data-command]');if(!form)return;
  e.preventDefault();submit(form,form.dataset.command);

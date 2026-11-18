@@ -8,7 +8,7 @@ const fields={
  products:['id','sku','name','materialId','gramsPerUnit'],
  materials:['id','name','stockGrams'],
  factions:['id','name'],
- orders:['id','clientId','productId','grade','cut','allocated','returned','separated','shipped','factionId'],
+ orders:['id','clientId','productId','grade','colorGrades','cut','allocated','returned','separated','shipped','factionId'],
  cutPlans:['id','orderId','grade','status','workMode','cutterOne','cutterTwo','spreader','materialId','theoreticalGrams','usefulGrams','scrapGrams'],
  factionAssignments:['id','orderId','factionId','qtySent','qtyReturned']
 };
@@ -30,6 +30,13 @@ function projectRow(row,columns){
  const projected={};
  for(const key of columns){
   if(key==='grade'||key==='cut'){projected[key]=grade(row[key]);if(!projected[key])throw Error('Grade operacional inválida');continue;}
+  if(key==='colorGrades'){
+   projected[key]=(row.colorGrades||[]).map(x=>{
+    if(typeof x.color!=='string'||x.color.length>40)throw Error('Cor operacional inválida');
+    const sizes=grade(x.grade);if(!sizes)throw Error('Grade de cor inválida');
+    return {color:x.color,grade:sizes};
+   });continue;
+  }
   const value=scalar(row[key]);
   if(value===undefined)throw Error('Campo operacional fora do contrato: '+key);
   projected[key]=value;

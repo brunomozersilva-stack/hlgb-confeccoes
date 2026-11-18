@@ -479,3 +479,36 @@ test('documento prévio sem campo de compensações continua funcional e não pe
 test('interface: modo de armazenamento explícito, navegação agrupada, revisão compartilhada sem sobrescrever rascunho',()=>{assert.match(page,/id="mobile-module"/);assert.match(page,/id="environment-mode"/);assert.match(page,/id="shared-revision-notice"/);assert.match(ui,/function checkSharedRevision\(/);assert.match(ui,/saved\.revision<expectedRevision\+1/);assert.match(ui,/x\.revision===expectedRevision\+1&&x\.type===type&&x\.actor===actor/);assert.match(ui,/options\(list\|\|\[\],value===''\?null:String\(value\)\)/);});
 
 test('registro de intenção atômico e restauração protegida',()=>{assert.match(ui,/indexedDB.open\(DB,2\)/);assert.match(ui,/store.add\(\{key:'intent:'\+intent.commandId,intent\}\)/);assert.match(ui,/\{requireClear:true\}/);assert.match(ui,/archiveIntent\(intent.commandId\)/);});
+
+test('Pedidos: criar matriz por cor/tamanho é atômico e não perde o formulário antigo',()=>{
+ const ctx=setup(),startRevision=ctx.state.revision,financeStart=ctx.state.finance.length;
+ const colorGrades=[
+  {color:'Preto',grade:{P:2,M:4,G:1,GG:0}},
+  {color:'Rubi',grade:{P:1,M:3,G:0,GG:2}}
+ ];
+ const id=run(ctx,'order.add.with.colors',{clientId:'CLI-0001',productId:'PRO-0001',colorGrades});
+ const o=ctx.state.orders.find(x=>x.id===id);
+ assert.deepEqual(o.grade,{P:3,M:7,G:1,GG:2});
+ assert.deepEqual(o.colorGrades,colorGrades);
+ assert.equal(ctx.state.revision,startRevision+1,'Criar pedido e duas cores exige uma única revisão');
+ assert.equal(ctx.state.finance.length,financeStart+1,'Pedido de duas cores cria um título apenas');
+ assert.equal(ctx.state.finance.filter(x=>x.sourceId===id).length,1);
+ assert.equal(ctx.state.finance.find(x=>x.sourceId===id).amountCents,13*o.priceCents);
+ assert.equal(ctx.state.log.at(-1).type,'order.add.with.colors');
+ const before=JSON.stringify(ctx.state);
+ for(const bad of [
+  [...colorGrades,{color:'preto',grade:{P:1,M:0,G:0,GG:0}}],
+  [{color:'Azul',grade:{P:0,M:0,G:0,GG:0}}],
+  [{color:'?',grade:{P:1,M:0,G:0,GG:0}}],
+  [{color:'Preto',grade:{P:-1,M:0,G:0,GG:0}}]
+ ]){
+  assert.throws(()=>core.apply(ctx.state,{type:'order.add.with.colors',payload:{clientId:'CLI-0001',productId:'PRO-0001',colorGrades:bad},
+   commandId:'TEST-INVALID-'+bad.length+'-'+(bad[0]?.color||''),actor:'Teste CI fictício',expectedRevision:ctx.state.revision}));
+  assert.equal(JSON.stringify(ctx.state),before,'Erro de cor não pode deixar pedido, conta ou revisão parcial');
+ }
+ const plain=run(ctx,'order.add',{clientId:'CLI-0001',productId:'PRO-0001',grade:{P:1,M:1,G:0,GG:0}});
+ assert.ok(ctx.state.orders.some(x=>x.id===plain),'Modo de pedido anterior continua disponível');
+ assert.match(ui,/case 'pedidos':return importOrdersPanel\(s\)\+panel\('Grade por cor e tamanho no próprio Pedido'/);
+ assert.match(ui,/function colorMatrixCreateForm\(/);
+ assert.match(ui,/function orderColorGradePanel\(/);
+});

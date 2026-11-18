@@ -87,3 +87,7 @@ Não autorizar migração até que **cada função identificada**, inclusive for
 
 ## Escopo do que falta inspecionar
 Este relatório fecha a inspeção estática inicial dos pontos mais urgentes e identifica 14 lacunas confirmadas, 2 funcionalidades parciais e 3 frentes ainda não verificadas; **não equivale a inspeção exaustiva de 1.288 entradas do repositório legado**, todas as ações de `app9240.html`, todas as 19 áreas, nem demonstração em produção. O inventário por tela/campo/botão deve continuar e pode revelar novas lacunas. Por segurança, não remover funções, não importar dados reais, não publicar esta branch e não tratar nenhuma das funções incompletas como homologadas.
+
+## Evolução depois da auditoria — pedido por cor/tamanho
+**Implementação inicial na branch isolada:** novo formulário `order.add.with.colors` dentro de Pedidos, com matriz horizontal editável (cores × P/M/G/GG), linhas de cores adicionáveis/removíveis, conferência de totais e criação atômica de pedido e título financeiro. O modo anterior `order.add` continua acessível e a edição de `order.color.grade.set` foi incorporada à tela Pedidos, sem apagar a rotina já disponível em Facções. A regra de cores foi reutilizada da facção existente, sem criar outra versão independente.
+**Atenção:** isso reduz a lacuna visual do cadastro de cor/tamanho **somente em pedidos de um modelo e quatro tamanhos fixos**. **LEG-001, LEG-002 e LEG-003 continuam NÃO aprovados** até incluir pedidos com modelos múltiplos, tamanhos variáveis, edição e migração do legado. Nenhuma equivalência integral foi declarada.

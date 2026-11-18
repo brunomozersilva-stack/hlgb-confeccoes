@@ -421,6 +421,31 @@
    const old=s.pcpCapacity||pcp.defaults,reason=name(p.reason,'Justificativa');
    s.pcpCapacity=cap;result=pcp.stages.map(k=>k+': '+old[k]+' → '+cap[k]).join(' · ')+' · '+reason;break}
   case 'order.add':{result=createOrder(s,p);break}
+  case 'order.add.with.colors':{
+   if(!factionGrade)throw Error('Módulo de matriz por cor indisponível. Nenhum pedido criado.');
+   const rows=p.colorGrades;
+   if(!Array.isArray(rows)||rows.length<1||rows.length>30)
+    throw Error('Cadastre de 1 a 30 cores na grade horizontal.');
+   const used=new Set(),totals=makeGrade();
+   for(const row of rows){
+    if(!row||typeof row.color!=='string')throw Error('Nome de cor obrigatório.');
+    const color=row.color.trim().replace(/\s+/g,' '),key=color.toLocaleLowerCase('pt-BR');
+    if(!color||color.length>40||used.has(key))throw Error('Cor vazia, duplicada ou com mais de 40 caracteres.');
+    used.add(key);
+    if(!gradeValid(row.grade)||sum(row.grade)<1)throw Error('Cada cor deve conter pelo menos uma peça e P/M/G/GG válidos.');
+    for(const sz of sizes){
+     if(row.grade[sz]>10000)throw Error('Quantidade da cor excede 10000 peças em '+sz);
+     totals[sz]+=row.grade[sz];
+    }
+   }
+   if(sum(totals)>30000)throw Error('Pedido excede limite de 30000 peças.');
+   // Uma transação: se uma cor for inválida, createOrder e o título ficam no clone descartado.
+   const orderId=createOrder(s,{clientId:p.clientId,productId:p.productId,grade:totals});
+   for(const row of rows)factionGrade.setColor(s,{orderId,color:row.color,grade:row.grade},{int,uid});
+   if(!factionGrade.makeSummary(s.orders.find(o=>o.id===orderId)).complete)
+    throw Error('Totais da matriz não conferem. Nenhum pedido salvo.');
+   result=orderId;break;
+  }
   case 'order.import.batch':{if(!payrollOrders)throw Error('Importação indisponível.');result=payrollOrders.importOrders(s,p,{next,uid,createOrder});break}
   case 'order.color.grade.set':{
    if(!factionGrade)throw Error('Módulo de cores indisponível.');
