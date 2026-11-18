@@ -143,3 +143,23 @@ test('módulo isolado sem rede e sem tocar arquivos atuais',()=>{
   /\blocalStorage\b/,/\bindexedDB\b/,/supabase/i,/https?:\/\//])
   assert.equal(bad.test(js),false);
 });
+
+test('extrato único mantém títulos avulsos, créditos e baixas separados, sem duplicar valores',()=>{
+ let s=seed();s=add(s,'FAC-0002',3);
+ const first=s.finance.find(x=>x.sourceId==='ACE-0001');s=exec(s,'finance.pay',{id:first.id});
+ s=exec(s,'settlement.compensate',{id:'ACE-0001',deltaCents:-150,reference:'CREDITO-1',reason:'Diferença a receber'});
+ const before=JSON.stringify(s),a=batch.groupedAccounts(s),g=a.groups.find(x=>x.factionId==='FAC-0001');
+ assert.equal(g.payablesCents,600);assert.equal(g.paidCents,800);assert.equal(g.creditsCents,150);assert.equal(g.ready,false);
+ assert.equal(a.groups.length,2);assert.equal(a.totals.payablesCents,900);assert.equal(JSON.stringify(s),before);
+});
+test('valor alterado e data inválida bloqueiam fechamento; data real do exercício preservada',()=>{
+ const s=seed(),p=input(batch.groups(s)[0]);assert.throws(()=>exec(s,'finance.faction.close',{...p,expectedTotalCents:1399}),/Valor do fechamento mudou/);
+ assert.throws(()=>exec(s,'finance.faction.close',{...p,paidDate:'2026-02-30'}),/Data de pagamento/);
+ const done=exec(s,'finance.faction.close',{...p,expectedTotalCents:1400,paidDate:'2026-11-17'});
+ assert.equal(done.paymentBatches[0].paidDate,'2026-11-17');assert.ok(done.finance.every(x=>x.paidDate==='2026-11-17'));
+ const g=batch.groupedAccounts(done).groups[0];assert.equal(g.payablesCents,0);assert.equal(g.paidCents,1400);assert.ok(g.paid.every(x=>x.batchId===done.paymentBatches[0].id));assert.equal(done.finance.length,s.finance.length);
+});
+test('um único título também aparece e divergência não autoriza quitação',()=>{
+ const s=add(core.initial(),'FAC-0001',5),g=batch.groupedAccounts(s).groups[0];assert.equal(g.payables.length,1);assert.equal(g.payablesCents,500);
+ const bad=structuredClone(s);bad.finance[0].amountCents++;const broken=batch.groupedAccounts(bad).groups[0];assert.equal(broken.complete,false);assert.equal(broken.ready,false);assert.equal(broken.issues.length,1);
+});

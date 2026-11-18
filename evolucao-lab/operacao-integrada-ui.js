@@ -122,8 +122,8 @@ async function readReceiptPayload(form){
  let content='';for(let i=0;i<bytes.length;i+=8192)content+=String.fromCharCode(...bytes.slice(i,i+8192));
  return {targetId,previousId,fileName:file.name,contentBase64:btoa(content),reason,fictitious:true};
 }
-function financialBatchPanel(s){
- const comps=s.settlementCompensations||[],batches=s.paymentBatches||[];
+function factionClosingPanel(s){
+ const comps=s.settlementCompensations||[];
  const groups=window.HLGBLabPaymentBatchV1?.groups?.(s)||[];
  const groupForms=groups.map(g=>
   '<div class="panel"><h3>'+str(g.name)+' · '+str(g.count)+' título(s)'+
@@ -132,6 +132,7 @@ function financialBatchPanel(s){
    '<form data-command="finance.faction.close" class="faction-close-form">'+
    '<input type="hidden" name="factionId" value="'+str(g.factionId)+'">'+
    g.financeIds.map(id=>'<input type="hidden" name="financeIds" value="'+str(id)+'">').join('')+
+   '<input type="hidden" name="expectedTotalCents" value="'+g.totalCents+'">'+
    '<p class="caption">Composição completa da facção, com cada acerto individual preservado.</p>'+
    table(['Título','Acerto / modelo','Serviço','Valor'],g.financeIds.map(id=>{
     const title=s.finance.find(x=>x.id===id),
@@ -139,16 +140,34 @@ function financialBatchPanel(s){
      comp=comps.find(x=>x.id===title?.sourceId),
      original=comp?s.settlements.find(x=>x.id===comp.settlementId):settlement,
      product=ref(s.products,original?.productId||ref(s.orders,original?.orderId)?.productId);
-    return [str(id),str((settlement?.id||comp?.id||'—')+' · '+(product?.name||'Modelo não cadastrado')),
+    return [str(id),str((settlement?.id||comp?.id||'—')+' · '+(original?.serviceQuote?.model||product?.name||'Modelo não cadastrado')),
      str(comp?'Compensação':original?.serviceType||'costura'),fmt(title.amountCents)];
    }))+
    '<div class="fields">'+
-   field('reference','Referência única do fechamento','text','FAC-'+g.factionId+'-001')+
+   field('reference','Referência única do fechamento','text','FAC-'+g.factionId+'-R'+s.revision)+
+   '<div class="field"><label>Data da baixa<input type="date" class="input" name="paidDate" value="2026-11-16" required></label></div>'+
    field('reason','Motivo da conferência','text','Acerto consolidado fictício da facção')+'</div>'+
    '<div class="actions"><button class="btn" type="button" data-preview-faction="true">Validar total sem pagar</button>'+
    '<button class="btn primary" type="submit">Fechar todos os acertos desta pessoa</button></div></form>':
    '<p class="error">'+str(g.error)+'</p>')+'</div>').join('');
 
+ return panel('Fechamento automático por facção · sem misturar pessoas',
+ '<p>Todos os títulos abertos da mesma pessoa (2 a 50) são conferidos e quitados juntos, com uma referência única. Créditos a receber ficam separados. A composição e o total serão revalidados antes da baixa.</p>'+
+ (groupForms||'<div class="empty">Nenhuma facção tem dois ou mais acertos abertos para consolidar.</div>'),true);
+}
+function groupedAccountPanel(s){
+ let report;try{report=window.HLGBLabPaymentBatchV1.groupedAccounts(s);}catch(e){return panel('Extrato consolidado por prestador','<div class="error">'+str(e.message)+'</div>',true);}
+ return panel('Extrato consolidado por prestador','<p>Um resumo por pessoa, identificado pelo cadastro, não pelo nome. Todos os lançamentos permanecem individuais no Hub; a soma não cria outra dívida nem compensa créditos automaticamente.</p>'+
+ '<div class="metrics">'+[['A pagar',report.totals.payablesCents],['Créditos a receber',report.totals.creditsCents],['Já pagos',report.totals.paidCents],['Créditos recebidos',report.totals.receivedCents]].map(([k,v])=>'<div class="metric"><span>'+str(k)+'</span><strong>'+fmt(v)+'</strong></div>').join('')+'</div>'+
+ (report.totals.blocked?'<p class="error">Há prestadores com divergências. Totais acima são parciais e não autorizam quitação.</p>':'')+
+ '<div class="field"><label>Pesquisar prestador<input class="input" type="search" data-filter-for="grouped-accounts" placeholder="Nome ou ID"></label></div>'+
+ '<div id="grouped-accounts">'+table(['Prestador','A pagar / linhas','Créditos em aberto','Pago','Créditos recebidos','Conferência'],report.groups.map(g=>[str(g.name)+' · '+str(g.factionId),fmt(g.payablesCents)+' · '+g.payables.length,fmt(g.creditsCents),fmt(g.paidCents),fmt(g.receivedCents),g.complete?(g.ready?'Pronto para conferir':g.payables.length===1?'Baixa individual':'Sem lote elegível'):str(g.issues.join('; '))]))+'</div>'+
+ report.groups.map(g=>'<details class="panel"><summary><strong>'+str(g.name)+' · '+str(g.factionId)+'</strong> · '+fmt(g.payablesCents)+' a pagar</summary>'+
+ table(['Título / acerto','Modelo / serviço','Peças','Valor','Situação','Fechamento / data'],[...g.payables,...g.credits,...g.paid,...g.received].map(x=>[str(x.financeId)+' · '+str(x.sourceId),str(x.model)+' · '+str(x.service),str(x.qty??'—'),fmt(x.amountCents),str(x.kind)+' · '+str(x.status),str([x.batchId,x.reference,x.paidDate].filter(Boolean).join(' · ')||'—')]))+'</details>').join('')+
+ '<button class="btn" type="button" id="grouped-export">Exportar extrato consolidado JSON</button>',true);
+}
+function financialBatchPanel(s){
+ const comps=s.settlementCompensations||[],batches=s.paymentBatches||[];
  const open=s.finance.filter(t=>t.kind==='pagar'&&t.status==='aberto').map(t=>{
   const settlement=s.settlements.find(x=>x.id===t.sourceId);
   const compensation=comps.find(x=>x.id===t.sourceId);
@@ -161,9 +180,7 @@ function financialBatchPanel(s){
   '<label class="batch-choice"><input type="checkbox" name="financeIds" value="'+str(title.id)+'" data-batch-cents="'+title.amountCents+'">'+
   '<span><strong>'+str(title.id)+'</strong> · '+str(source.id)+' · '+str(faction)+
   ' · '+fmt(title.amountCents)+'</span></label>').join('');
- return panel('Fechamento automático por facção · sem misturar pessoas',
-  '<p>Ao haver pelo menos 2 acertos/diferenças a pagar para a mesma pessoa, o HLGB reúne todos automaticamente. A confirmação gera uma única referência PAG, preservando cada acerto e seu título originais. Se algum item estiver divergente, NADA será pago.</p>'+
-  (groupForms||'<div class="empty">Nenhuma facção tem dois ou mais acertos abertos para consolidar.</div>'),true)+
+ return groupedAccountPanel(s)+factionClosingPanel(s)+
  panel('Fechamento manual de títulos · Facções e Acertos fictícios',
   '<p>Selecione de 2 a 50 títulos a pagar de acertos ou compensações. Antes da baixa, o núcleo confere todos os vínculos e valores. <strong>Se um falhar, o lote inteiro será recusado</strong>, sem pagamento parcial.</p>'+
   '<form data-command="finance.batch.pay" id="finance-batch-form">'+
@@ -1010,7 +1027,7 @@ function moduleHtml(s){
  const paid=selector(s.settlements.filter(x=>x.status==='pago'),
   x=>x.id+' · Pago '+fmt(x.amountCents)+' · '+(ref(s.factions,x.factionId)?.name||'—'));
  const compensations=s.settlementCompensations||[];
- return servicePanels(s,'acertos')+panel('Serviços avulsos e embalagem',
+ return groupedAccountPanel(s)+factionClosingPanel(s)+servicePanels(s,'acertos')+panel('Serviços avulsos e embalagem',
  form('settlement.add','Novo acerto avulso fictício',[
   field('serviceType','Tipo de serviço','select','',[['costura','Costura avulsa'],['embalagem','Embalagem']]),
   field('factionId','Facção / embaladeira','select','',factions),
@@ -1343,6 +1360,7 @@ function parseData(type,form){
  if(type==='finance.faction.close'){
   return {factionId:String(form.querySelector('[name="factionId"]')?.value||''),
    financeIds:[...form.querySelectorAll('input[name="financeIds"]')].map(x=>x.value),
+   paidDate:String(form.elements.namedItem('paidDate')?.value||''),expectedTotalCents:Number(form.elements.namedItem('expectedTotalCents')?.value),
    reference:String(form.querySelector('[name="reference"]')?.value||''),
    reason:String(form.querySelector('[name="reason"]')?.value||'')};
  }
@@ -1411,6 +1429,7 @@ async function read(){
 }
 async function submit(form,type){
  if(busy||!doc)return;
+ if(type==='finance.faction.close'&&!confirm('Confirmar somente a baixa fictícia de todos os títulos e o total conferido deste prestador?'))return;
  if(type==='recovery.repair'&&!confirm('Aplicar exclusivamente o reparo de metadado simulado?'))return;
  if(type==='cut.plan.cancel'&&!confirm('Cancelar somente a folha aberta, preservando o histórico?'))return;
  busy=true;
@@ -1838,6 +1857,7 @@ document.addEventListener('click',async e=>{
  if(e.target.closest('#remote-discard')){if(confirm('Descartar somente a intenção local revisada, sem excluir registros do servidor?'))await remoteAction(()=>remoteLab.discard());return;}
  if(e.target.closest('#recovery-check')){if(remoteLab){await remoteAction(()=>remoteLab.reconcile());return;}if(busy)return;busy=true;try{recoveryIntents=await intentRead();const latest=await read();if(latest&&api.inspect(latest).ok)doc=latest;draw();status('Intenções locais relidas · '+recoveryIntents.length+' pendentes.');}catch(err){status(err.message,'error');}finally{busy=false;}return;}
  if(e.target.closest('#recovery-export')){try{download('HLGB-RECUPERACAO-FICTICIO.json',JSON.stringify({plan:recoveryPlan,intents:recoveryIntents.map(x=>({...x,diagnosis:window.HLGBLabRecoveryV1.classify(doc,x,api.inspect)})),history:doc.repairHistory||[]},null,2),'application/json');}catch(err){status(err.message,'error');}return;}
+ if(e.target.closest('#grouped-export')){try{download('HLGB-ACERTOS-CONSOLIDADOS-FICTICIOS.json',JSON.stringify(window.HLGBLabPaymentBatchV1.groupedAccounts(doc),null,2),'application/json');}catch(err){status(err.message,'error');}return;}
  if(e.target.closest('#cost-export')){try{download('HLGB-CUSTOS-FICTICIO.json',JSON.stringify(costsResult(doc),null,2),'application/json');}catch(err){status(err.message,'error');}return;}
  if(e.target.closest('#assistant-query')){assistantRequested=true;draw();return;}
  if(e.target.closest('#assistant-export')){if(!assistantRequested){status('Faça uma nova consulta antes de exportar.','error');return;}try{download('HLGB-ASSISTENTE-V3-FICTICIO.json',JSON.stringify(assistantAsk(doc),null,2),'application/json');}catch(err){status(err.message,'error');}return;}

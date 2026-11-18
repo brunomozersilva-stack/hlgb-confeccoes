@@ -12,6 +12,29 @@
  'use strict';
  const normalize=x=>String(x??'').trim().toLocaleUpperCase('pt-BR');
  const find=(a,id)=>a.find(x=>x.id===id);
+ function groupedAccounts(s){
+ const sum=rows=>rows.reduce((n,x)=>{const v=n+x.amountCents;if(!Number.isSafeInteger(v))throw Error('Total do prestador fora do limite seguro.');return v;},0);
+ const by=new Map((s.factions||[]).map(f=>[f.id,{factionId:f.id,name:f.name,payables:[],credits:[],paid:[],received:[],issues:[]}]));
+ const sources=new Map(),bills=new Map(),lots=new Map();
+ for(const x of s.settlements||[]) {if(sources.has(x.id))throw Error('Origem de acerto duplicada.');sources.set(x.id,{...x,sourceType:'acerto',kind:'pagar',value:x.amountCents});}
+ for(const x of s.settlementCompensations||[]){if(sources.has(x.id))throw Error('Origem de compensação duplicada.');sources.set(x.id,{...x,sourceType:'compensacao',kind:x.deltaCents>0?'pagar':'receber',value:Math.abs(x.deltaCents)});}
+ for(const f of s.finance||[]){if(!sources.has(f.sourceId))continue;const a=bills.get(f.sourceId)||[];a.push(f);bills.set(f.sourceId,a);}
+ for(const l of s.paymentBatches||[])for(const i of l.items||[]){if(lots.has(i.financeId))throw Error('Título presente em dois fechamentos.');lots.set(i.financeId,l);}
+ for(const src of sources.values()){
+ const g=by.get(src.factionId);if(!g)throw Error('Acerto sem prestador cadastrado: '+src.id);
+ const linked=bills.get(src.id)||[],bill=linked[0];
+ if(linked.length!==1||bill.kind!==src.kind||bill.status!==src.status||!['aberto','pago'].includes(bill.status)||!Number.isSafeInteger(src.value)||src.value<=0||bill.amountCents!==src.value){g.issues.push(src.id+' · origem e título divergentes');continue;}
+ const original=src.sourceType==='compensacao'?sources.get(src.settlementId):src,product=(s.products||[]).find(p=>p.id===original?.productId),lot=lots.get(bill.id);
+ if(lot&&(bill.status!=='pago'||lot.items.filter(i=>i.financeId===bill.id&&i.sourceId===src.id&&i.factionId===src.factionId&&i.amountCents===bill.amountCents).length!==1)){g.issues.push(src.id+' · fechamento divergente');continue;}
+ const row={sourceId:src.id,financeId:bill.id,sourceType:src.sourceType,service:src.sourceType==='compensacao'?'compensacao':src.serviceType||'costura',description:src.description||src.reason||bill.description,model:original?.serviceQuote?.model||product?.name||'Modelo não identificado',qty:src.sourceType==='acerto'?src.qty:null,amountCents:bill.amountCents,status:bill.status,kind:bill.kind,paidDate:bill.paidDate||null,dueDate:bill.dueDate||null,batchId:lot?.id||null,reference:lot?.reference||null};
+ g[bill.status==='aberto'?(bill.kind==='pagar'?'payables':'credits'):(bill.kind==='pagar'?'paid':'received')].push(row);
+ }
+ const all=[...by.values()].filter(g=>g.issues.length||g.payables.length||g.credits.length||g.paid.length||g.received.length);
+ for(const g of all){g.payablesCents=sum(g.payables);g.creditsCents=sum(g.credits);g.paidCents=sum(g.paid);g.receivedCents=sum(g.received);g.ready=!g.issues.length&&g.payables.length>=2&&g.payables.length<=50;g.complete=!g.issues.length;
+ for(const k of ['payables','credits','paid','received'])g[k].sort((a,b)=>a.financeId.localeCompare(b.financeId));}
+ return {schema:'hlgb-acerto-agrupado-v1',revision:s.revision,productionApproval:false,groups:all.sort((a,b)=>a.name.localeCompare(b.name,'pt-BR')||a.factionId.localeCompare(b.factionId)),totals:{payablesCents:all.reduce((n,g)=>n+g.payablesCents,0),creditsCents:all.reduce((n,g)=>n+g.creditsCents,0),paidCents:all.reduce((n,g)=>n+g.paidCents,0),receivedCents:all.reduce((n,g)=>n+g.receivedCents,0),blocked:all.filter(g=>!g.complete).length}};
+}
+ function date(value){const v=value??'2026-11-16';if(typeof v!=='string'||!/^\d{4}-\d{2}-\d{2}$/.test(v)||!Number.isFinite(Date.parse(v+'T00:00:00Z'))||new Date(v+'T00:00:00Z').toISOString().slice(0,10)!==v)throw Error('Data de pagamento inválida.');return v;}
  function validate(s,p){
   if(!s||!Array.isArray(s.finance)||!Array.isArray(s.settlements))
    throw Error('Estado financeiro fictício incompatível.');
@@ -51,7 +74,8 @@
   const total=items.reduce((v,x)=>v+x.amountCents,0);
   if(!Number.isSafeInteger(total)||total<=0)
    throw Error('Valor total do lote inválido.');
-  return {reference,reason,items,totalCents:total};
+  if(p.expectedTotalCents!==undefined&&p.expectedTotalCents!==total)throw Error('Valor do fechamento mudou. Confira novamente.');
+  return {reference,reason,items,totalCents:total,paidDate:date(p.paidDate)};
  }
  function preview(s,p){
   // Rejeitar previamente tudo que a confirmação rejeitaria.
@@ -69,7 +93,7 @@
   if(!Array.isArray(s.paymentBatches))s.paymentBatches=[];
   const id=context.next(s,'PAG');
   const batch={id,reference:r.reference,reason:r.reason,commandId:context.uid,
-   paidDate:'2026-11-16',status:'pago',kind:'pagamento_ficticio_lote',
+   paidDate:r.paidDate,status:'pago',kind:'pagamento_ficticio_lote',
    count:r.items.length,totalCents:r.totalCents,
    items:r.items.map(x=>({...x}))};
   for(const item of r.items){
@@ -127,7 +151,9 @@
      new Set(submitted).size!==ids.length||
      submitted.slice().sort().some((id,i)=>id!==ids[i]))
    throw Error('A lista da facção mudou ou está incompleta. Recarregue antes da baixa.');
-  const checked=validate(s,{financeIds:ids,reference:p.reference,reason:p.reason});
+  const account=groupedAccounts(s).groups.find(g=>g.factionId===factionId);
+  if(!account?.complete)throw Error('Há divergências no extrato do prestador. Confira antes de fechar.');
+  const checked=validate(s,{financeIds:ids,reference:p.reference,reason:p.reason,paidDate:p.paidDate,expectedTotalCents:p.expectedTotalCents});
   if(checked.items.some(i=>i.factionId!==factionId))
    throw Error('Há um acerto de outra facção no fechamento. Não pagar.');
   return {factionId,ids,checked};
@@ -141,7 +167,7 @@
  }
  function executeFaction(s,p,ctx){
   const x=scoped(s,p),name=find(s.factions,x.factionId).name;
-  const result=execute(s,{financeIds:x.ids,reference:p.reference,reason:p.reason},ctx);
+  const result=execute(s,{financeIds:x.ids,reference:p.reference,reason:p.reason,paidDate:p.paidDate,expectedTotalCents:p.expectedTotalCents},ctx);
   const record=s.paymentBatches[s.paymentBatches.length-1];
   record.scope='faccao';record.factionId=x.factionId;record.factionNameSnapshot=name;
   return 'Fechamento da facção '+name+' · '+result;
@@ -247,6 +273,6 @@
   return rows.map(({contentBase64,...r})=>({...r,current:latest.get(r.targetId)===r.id}));
  }
  return Object.freeze({version:'1.1.0',validate,preview,execute,
-  groups,previewFaction,executeFaction,receiptTarget,receiptTargets,
+  groups,groupedAccounts,previewFaction,executeFaction,receiptTarget,receiptTargets,
   attachReceipt,inspectReceipts,receiptMetadata,decodePdf,MAX_PDF});
 });

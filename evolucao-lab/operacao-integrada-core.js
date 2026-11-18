@@ -148,7 +148,7 @@
     const src=item.sourceType==='acerto'?s.settlements.find(x=>x.id===item.sourceId):
      item.sourceType==='compensacao'?comps.find(x=>x.id===item.sourceId):null;
     if(usedTitles.has(item.financeId)||!bill||!src||bill.sourceId!==item.sourceId||
-      bill.kind!=='pagar'||bill.status!=='pago'||src.status!=='pago'||
+      bill.kind!=='pagar'||bill.status!=='pago'||src.status!=='pago'||bill.paidDate!==b.paidDate||
       item.factionId!==src.factionId||bill.amountCents!==item.amountCents||
       (item.sourceType==='acerto'&&src.amountCents!==item.amountCents)||
       (item.sourceType==='compensacao'&&src.deltaCents!==item.amountCents))
