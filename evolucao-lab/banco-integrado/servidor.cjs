@@ -4,7 +4,7 @@ const http=require('node:http'),fs=require('node:fs/promises'),path=require('nod
 const permissions=require('./permissoes-lab.cjs'),productionView=require('./leitura-producao.cjs');
 const identities=require('./identidades-lab.cjs');
 const root=path.resolve(__dirname,'..');
-const allowed=new Set(['operacao-integrada.html','operacao-integrada-core.js','operacao-integrada-ui.js','folha-homologacao.html','producao-integrada.html']);
+const allowed=new Set(['operacao-integrada.html','operacao-integrada-core.js','operacao-integrada-ui.js','folha-homologacao.html','producao-integrada.html','acessos-lab.html']);
 const modules=/^modulos\/[a-z0-9-]+\.js$/;
 const login=csrf=>'<html lang="pt-BR"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>HLGB · acesso fictício</title><h1>HLGB Evolução — laboratório local</h1><p>Apenas perfis e dados inventados. Não use credenciais reais.</p><form method="post" action="/login"><input type="hidden" name="csrf" value="'+csrf+'"><label>Funcionário fictício <select name="actor">'+identities.choices().map(x=>'<option value="'+x.code+'">'+x.label+'</option>').join('')+'</select></label><label> PIN fictício <input name="pin" type="password" required></label><button>Entrar</button></form></html>';
 async function body(req){let size=0,chunks=[];for await(const chunk of req){size+=chunk.length;if(size>2*1024*1024)throw Error('Corpo excede limite');chunks.push(chunk);}return Buffer.concat(chunks).toString('utf8');}
@@ -45,6 +45,12 @@ async function start(port=0){
  sessions.delete(token);
  send(200,{status:'ok'},{'set-cookie':'hlgb_integrado_demo=; Path=/; HttpOnly; SameSite=Strict; Max-Age=0'});return;
  }
+ if(method==='GET'&&route==='/api/admin/accounts'){
+  if(permissions.profile(actor)?.id!=='demo-admin'){send(403,{status:'denied'});return;}
+  const accounts=await db.listLabEmployees(actor);
+  if(!accounts){send(403,{status:'denied'});return;}
+  send(200,{status:'ok',accounts});return;
+ }
  if(method==='POST'&&route==='/api/admin/deactivate'){
   if(permissions.profile(actor)?.id!=='demo-admin'){send(403,{status:'denied'});return;}
   const data=JSON.parse(await body(req)),outcome=await db.deactivateEmployee(data?.employeeId,actor);
@@ -72,6 +78,11 @@ async function start(port=0){
  const productionActor=permissions.profile(actor)?.id==='demo-production';
  const filename=route==='/'?(productionActor?'producao-integrada.html':'operacao-integrada.html'):route.slice(1);
  if(productionActor&&!['producao-integrada.html','integrado-remoto.js','integrado-producao.js'].includes(filename)){send(403,{status:'denied'});return;}
+ if(filename==='admin-acessos.js'){
+  if(permissions.profile(actor)?.id!=='demo-admin'){send(403,{status:'denied'});return;}
+  res.writeHead(200,{...headers,'content-type':'text/javascript;charset=utf-8'});
+  res.end(await fs.readFile(path.join(__dirname,'admin-acessos.js')));return;
+ }
  if(filename==='integrado-remoto.js'||filename==='integrado-producao.js'){
  res.writeHead(200,{...headers,'content-type':'text/javascript;charset=utf-8'});
  res.end(await fs.readFile(path.join(__dirname,filename==='integrado-remoto.js'?'cliente.js':'tela-producao.js')));return;
