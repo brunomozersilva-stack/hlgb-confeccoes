@@ -97,3 +97,12 @@ test('leitura de produção exclui salários, Folha, títulos, preços e trilha 
  assert.throws(()=>productionView.project(source,A),/autorização/);
  assert.throws(()=>productionView.project({...source,orders:null},B),/Lista operacional/);
 });
+
+test('operador de produção não cancela comandos financeiros nem consulta suas provas',async()=>{
+ const before=await db.state();
+ const forbidden=cmd('deny-cancel-fin-0001','finance.add',before.revision,{kind:'pagar',description:'somente laboratório',amountCents:1200,category:'Outros'});
+ assert.equal((await db.cancel(forbidden,B)).status,'rejected');
+ assert.equal((await db.readback(forbidden.commandId,forbidden,B)).status,'rejected');
+ assert.equal((await db.readback(forbidden.commandId,forbidden,A)).status,'not_found');
+ assert.deepEqual(await db.state(),before);
+});
