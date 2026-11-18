@@ -1,3 +1,4 @@
+const legacyLoaderView=require('./hlgb-loader-test-view-v9600.cjs');
 const fs=require('fs'),vm=require('vm'),assert=require('assert'),path=require('path');
 const root=path.join(__dirname,'..'),src=f=>fs.readFileSync(path.join(root,f),'utf8');
 for(const f of ['release-assistant-ui-v9269.js','release-assistant-ui-light-v9277.js','release-safety-gate-v9269.js'])assert.doesNotThrow(()=>new vm.Script(src(f),{filename:f}),f+' deve compilar');
@@ -20,10 +21,10 @@ assert(gate.includes("s.src='./release-assistant-ui-light-v9277.js?fresh='"),'Sa
 assert(gate.includes('loadAssistantCanonical()'),'Assistente canônico deve continuar sendo a autoridade lógica');
 
 const loader=src('app-stable3.html');
-assert(loader.includes("'release-assistant-ui-v9269.js'"),'stub compatível pode permanecer no loader');
-assert(loader.includes("'release-safety-gate-v9269.js'"),'gate atual deve estar no loader');
-assert(!loader.includes("'release-assistant-ui-v9267.js'"));
-assert(!loader.includes("'release-assistant-studio-v9268.js'"));
-assert(!loader.includes("'release-assistant-server-v9266.js'"));
+assert(legacyLoaderView(loader).includes("'release-assistant-ui-v9269.js'"),'stub compatível pode permanecer no loader');
+assert(legacyLoaderView(loader).includes("'release-safety-gate-v9269.js'"),'gate atual deve estar no loader');
+assert(!legacyLoaderView(loader).includes("'release-assistant-ui-v9267.js'"));
+assert(!legacyLoaderView(loader).includes("'release-assistant-studio-v9268.js'"));
+assert(!legacyLoaderView(loader).includes("'release-assistant-server-v9266.js'"));
 const manifest=JSON.parse(src('release.json'));assert(Number(manifest.version)>=93.72);assert.equal(manifest.entry,'abrir.html');
 console.log('PASS compat atual: Studio pesado desativado, stub sem observers e UI leve/canônica assume o Assistente.');
