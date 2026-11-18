@@ -121,6 +121,30 @@
    reason:named(p.reason,'Motivo do cancelamento')});
   return plan.id+' · cancelado sem excluir o histórico';
  }
+ function recordWeight(s,p,{uid}){
+  ensure(s);
+  const plan=s.multiCutPlans.find(x=>x.id===p.id);
+  if(!plan||plan.status!=='concluido')error('Registre peso somente depois de concluir este corte fictício.');
+  const total=p.totalGrams,used=p.usedGrams,waste=p.wasteGrams;
+  for(const [label,n] of [['Total recebido',total],['Peso utilizado',used],['Lixo/retalho',waste]]){
+   if(!Number.isSafeInteger(n)||n<0||n>20000000)error(label+' inválido (informe gramas inteiros).');
+  }
+  if(!total)error('O peso total precisa ser maior que zero.');
+  if(used+waste>total)error('Usado + lixo não podem exceder o total recebido.');
+  if(!used)error('O peso útil precisa ser maior que zero.');
+  const checker=named(p.checker,'Responsável pela pesagem');
+  const reason=named(p.reason,'Justificativa da pesagem');
+  if(!Array.isArray(plan.weightEvents))plan.weightEvents=[];
+  if(plan.weightEvents.length>=200)error('Histórico de pesos atingiu o limite; exporte as evidências.');
+  const last=plan.weightEvents.at(-1);
+  if(last&&last.totalGrams===total&&last.usedGrams===used&&last.wasteGrams===waste)
+   error('Pesagem idêntica à última. Não duplicar lançamento.');
+  const event={commandId:uid,revision:s.revision+1,cutId:plan.id,
+   totalGrams:total,usedGrams:used,wasteGrams:waste,checker,reason};
+  plan.weightEvents.push(event);
+  // Importante: grade, estado e estoque permanecem inalterados.
+  return plan.id+' · peso '+total+' g; útil '+used+' g; lixo '+waste+' g (somente histórico)';
+ }
  function inspect(s){
   if(s.multiCutPlans===undefined)return [];
   if(!Array.isArray(s.multiCutPlans))return ['Coleção de cortes multimodelo ilegível'];
@@ -141,6 +165,20 @@
      seen.add(k);
     }
     if(plan.qty!==sum(plan.lines))error('Total do lote divergente');
+    if(plan.weightEvents!==undefined){
+     if(!Array.isArray(plan.weightEvents)||plan.weightEvents.length>200)error('Histórico de peso inválido');
+     const commands=new Set();
+     for(const w of plan.weightEvents){
+      if(plan.status!=='concluido'||!w.commandId||commands.has(w.commandId)||w.cutId!==plan.id||
+       !Number.isSafeInteger(w.revision)||w.revision<2||w.revision>s.revision||
+       !Number.isSafeInteger(w.totalGrams)||w.totalGrams<1||w.totalGrams>20000000||
+       !Number.isSafeInteger(w.usedGrams)||w.usedGrams<1||
+       !Number.isSafeInteger(w.wasteGrams)||w.wasteGrams<0||
+       w.usedGrams+w.wasteGrams>w.totalGrams||!w.checker||!w.reason)
+       error('Pesagem histórica adulterada ou inválida');
+      commands.add(w.commandId);
+     }
+    }
     if(!Array.isArray(plan.history)||!plan.history.length||
       plan.history[0].commandId!==plan.createdCommandId||
       plan.history[0].type!=='programado')error('Histórico de criação inválido');
@@ -156,5 +194,5 @@
   }
   return failures;
  }
- return Object.freeze({version:'1.0.0-laboratorio',ensure,balance,create,revise,complete,cancel,inspect});
+ return Object.freeze({version:'1.0.0-laboratorio',ensure,balance,create,revise,complete,cancel,recordWeight,inspect});
 });
