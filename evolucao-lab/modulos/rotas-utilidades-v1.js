@@ -84,7 +84,7 @@
   if(!row||row.status==='cancelada')error('Rota inexistente ou cancelada.');
   const validated=payload(s,p);
   if(row.status==='finalizada'&&validated.status!=='finalizada')error('Rota finalizada não pode ser reaberta.');
-  const before=Object.fromEntries(['date','driver','status','notes','stops'].map(k=>[k,clone(row[k])]));
+  const before={date:row.date,driver:row.driver,status:row.status,notes:row.notes,stops:clone(row.stops)};
   if(JSON.stringify(before)===JSON.stringify(validated))error('Nenhuma mudança a salvar na rota.');
   const reason=text(p.reason,'Motivo da edição',300,true);
   Object.assign(row,validated,{lastCommandId:uid});
@@ -128,7 +128,7 @@
     if(route.history.at(-1).commandId!==route.lastCommandId)error('Última edição sem referência');
     if(route.status==='cancelada'&&route.history.at(-1).type!=='cancelada')
      error('Cancelamento sem evento');
-   }catch(e){issues.push(String(route?.id||'Rota'): '+e.message)}
+   }catch(e){issues.push(String(route?.id||'Rota')+': '+e.message)}
   }
   return issues;
  }
