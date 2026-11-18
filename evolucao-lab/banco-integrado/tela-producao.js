@@ -54,6 +54,25 @@
   quantity.max=String(Math.max(1,Math.min(10000,available)));
   if(!Number.isSafeInteger(Number(quantity.value))||Number(quantity.value)>available||Number(quantity.value)<1)quantity.value='1';
  }
+ function stageRemaining(order,type){
+  if(!order)return 0;
+  if(type==='order.separate')return Math.max(0,order.returned-order.separated);
+  if(type==='order.ship')return Math.max(0,order.separated-order.shipped);
+  return 0;
+ }
+ function stageBalances(){
+  for(const type of ['order.separate','order.ship']){
+   const form=document.querySelector('form[data-command="'+type+'"]');
+   if(!form||!view)continue;
+   const order=view.orders.find(o=>o.id===form.elements.namedItem('orderId').value);
+   const remaining=stageRemaining(order,type),field=form.elements.namedItem('qty');
+   field.max=String(Math.max(1,Math.min(10000,remaining)));
+   const label=byId('orders')?.closest('section')?.querySelector('[data-balance="'+type+'"]')||form.parentElement.querySelector('[data-balance="'+type+'"]');
+   if(label)label.textContent=(type==='order.separate'?'Saldo retornado não separado: ':'Saldo separado não expedido: ')+remaining+' peça(s).'+
+    (remaining===0?' Nenhuma peça disponível nesta etapa.':'');
+   // Não sobrescrever o valor digitado: conferência exige rascunho intacto.
+  }
+ }
  function render(next){
   if(next.schema!=='hlgb-evolucao-operacao-producao-ficticia-v1'||next.readScope!==remote.info().permissions?.readScope)throw Error('Projeção não autorizada');
   view=next;
@@ -62,15 +81,16 @@
   const clients=view.clients||[],products=view.products,factions=view.factions||[],orders=view.orders;
   options(document.querySelector('form[data-command="order.add"] [name=clientId]'),clients,x=>x.name);
   options(document.querySelector('form[data-command="order.add"] [name=productId]'),products,x=>x.name+' · '+x.sku);
-  for(const form of document.querySelectorAll('form[data-command="cut.record"],form[data-command="faction.allocate"],form[data-command="faction.return"]')){
+  for(const form of document.querySelectorAll('form[data-command="cut.record"],form[data-command="faction.allocate"],form[data-command="faction.return"],form[data-command="order.separate"],form[data-command="order.ship"]')){
    options(form.elements.namedItem('orderId'),orders,x=>x.id+' · '+(products.find(p=>p.id===x.productId)?.name||'Modelo'));
   }
   options(document.querySelector('form[data-command="faction.allocate"] [name=factionId]'),factions,x=>x.name);
   chooseAvailableCut();
+  stageBalances();
   const tbody=byId('orders');tbody.replaceChildren();
   for(const o of orders){
    const row=document.createElement('tr');
-   const values=[o.id,products.find(x=>x.id===o.productId)?.name||o.productId,sum(o.grade),sum(o.cut),o.allocated??'—',o.returned??'—',o.separated??'—',o.shipped??'—'];
+   const values=[o.id,products.find(x=>x.id===o.productId)?.name||o.productId,sum(o.grade),sum(o.cut),o.allocated??'—',o.returned??'—',Math.max(0,(o.returned||0)-(o.separated||0)),o.separated??'—',Math.max(0,(o.separated||0)-(o.shipped||0)),o.shipped??'—'];
    for(const value of values){const td=document.createElement('td');td.textContent=String(value);row.append(td);}
    tbody.append(row);
   }
@@ -114,6 +134,12 @@
   if(type==='cut.record')return {orderId:values.orderId,size:values.size,qty};
   if(type==='faction.allocate')return {orderId:values.orderId,factionId:values.factionId,qty};
   if(type==='faction.return')return {orderId:values.orderId,qty};
+  if(type==='order.separate'||type==='order.ship'){
+   const order=view?.orders.find(o=>o.id===values.orderId);
+   if(!order)throw Error('Pedido não localizado nesta revisão de teste.');
+   if(qty>stageRemaining(order,type))throw Error('Quantidade excede o saldo disponível nesta etapa. Nenhum comando enviado.');
+   return {orderId:values.orderId,qty};
+  }
   throw Error('Operação não suportada na tela restrita.');
  }
  async function onSubmit(event){
@@ -155,6 +181,8 @@
    for(const f of document.querySelectorAll('form[data-command]'))f.addEventListener('submit',onSubmit);
    const cutForm=document.querySelector('form[data-command="cut.record"]');
    for(const name of ['orderId','size'])cutForm.elements.namedItem(name).addEventListener('change',chooseAvailableCut);
+   for(const type of ['order.separate','order.ship'])
+    document.querySelector('form[data-command="'+type+'"] [name=orderId]').addEventListener('change',stageBalances);
    byId('remote-check').addEventListener('click',()=>void action('check'));
    byId('sync-refresh').addEventListener('click',()=>void refreshShared());
    window.addEventListener('focus',()=>void checkSharedRevision());

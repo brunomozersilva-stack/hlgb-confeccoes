@@ -16,6 +16,7 @@ button:disabled{opacity:.55;cursor:not-allowed}.actions{display:flex;flex-wrap:w
 .grade{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}.grade label{margin:0}.grade input{min-width:0}
 .table{width:100%;overflow-x:auto}table{width:100%;border-collapse:collapse;font-size:13px}th,td{padding:10px;border-bottom:1px solid #ece6f0;text-align:left;white-space:nowrap}
 [hidden]{display:none!important}#shared-revision-notice{font-weight:650}
+.balance{font-weight:650;color:#6d4b83;margin:8px 0 2px}
 #message{min-height:26px;font-weight:650}#message.error{color:#a0232a}#message.success{color:#246642}
 small{color:#6b6072}@media(max-width:430px){.grade{grid-template-columns:repeat(2,minmax(0,1fr))}}
 </style></head><body>
@@ -35,8 +36,10 @@ small{color:#6b6072}@media(max-width:430px){.grade{grid-template-columns:repeat(
 <section><h2>Registrar corte</h2><form data-command="cut.record"><label>Pedido<select name="orderId" required></select></label><label>Tamanho<select name="size"><option>P</option><option>M</option><option>G</option><option>GG</option></select></label><label>Quantidade<input name="qty" type="number" min="1" max="10000" value="1" required></label><div class="actions"><button type="submit">Registrar corte</button></div></form></section>
 <section><h2>Enviar para facção</h2><form data-command="faction.allocate"><label>Pedido<select name="orderId" required></select></label><label>Facção<select name="factionId" required></select></label><label>Quantidade<input name="qty" type="number" min="1" max="10000" value="1" required></label><div class="actions"><button type="submit">Registrar envio</button></div></form></section>
 <section><h2>Registrar retorno</h2><form data-command="faction.return"><label>Pedido<select name="orderId" required></select></label><label>Quantidade<input name="qty" type="number" min="1" max="10000" value="1" required></label><div class="actions"><button type="submit">Registrar retorno</button></div></form></section>
+<section><h2>Separar pedido</h2><form data-command="order.separate"><label>Pedido<select name="orderId" required></select></label><p class="balance" data-balance="order.separate">Saldo retornado não separado: —</p><label>Quantidade para separar<input name="qty" type="number" min="1" max="10000" value="1" required></label><div class="actions"><button type="submit">Confirmar separação</button></div></form></section>
+<section><h2>Expedir pedido</h2><form data-command="order.ship"><label>Pedido<select name="orderId" required></select></label><p class="balance" data-balance="order.ship">Saldo separado não expedido: —</p><label>Quantidade para expedir<input name="qty" type="number" min="1" max="10000" value="1" required></label><div class="actions"><button type="submit">Confirmar expedição</button></div></form></section>
 </div>
-<section><h2>Pedidos e etapas operacionais</h2><small>Somente dados de produção; nenhum valor financeiro.</small><div class="table"><table><thead><tr><th>Pedido</th><th>Modelo</th><th>Quantidade</th><th>Cortado</th><th>Enviado</th><th>Retornado</th><th>Separado</th><th>Expedido</th></tr></thead><tbody id="orders"></tbody></table></div></section>
+<section><h2>Pedidos e etapas operacionais</h2><small>Somente dados de produção; nenhum valor financeiro.</small><div class="table"><table><thead><tr><th>Pedido</th><th>Modelo</th><th>Quantidade</th><th>Cortado</th><th>Enviado</th><th>Retornado</th><th>Pronto para separar</th><th>Separado</th><th>Pronto para expedir</th><th>Expedido</th></tr></thead><tbody id="orders"></tbody></table></div></section>
 <p><small>Prévia restrita do laboratório. Outras operações de produção serão incorporadas após os testes de autorização. Nenhum acesso ao HLGB em produção.</small></p>
 </main>
 <script src="./integrado-remoto.js"></script><script src="./integrado-producao.js"></script></body></html>

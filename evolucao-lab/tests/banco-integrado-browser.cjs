@@ -113,6 +113,46 @@ test('interface completa em duas sessões, conflito, WAL e confirmação indepen
  const afterCut=await db.state();
  assert.equal(afterCut.log.at(-1).actor,'Operador C fictício');
  assert.equal(afterCut.orders[0].cut.M,1);
+ // Etapas reais do módulo restrito: corte confirmado → facção → retorno → separação → expedição.
+ // O pedido da sessão A ganhou 1 peça cortada; B só pode continuar após conferir revisão 5.
+ await operator.evaluate(()=>window.dispatchEvent(new Event('focus')));
+ await operator.waitForFunction(()=>!document.querySelector('#shared-revision-notice').hidden&&document.querySelector('#shared-revision-notice').textContent.includes('revisão 5'));
+ await operator.locator('#sync-refresh').click();
+ await operator.waitForFunction(()=>document.querySelector('#top-revision').textContent.includes('teste: 5')&&document.querySelector('#shared-revision-notice').hidden);
+ const orderId=afterCut.orders[0].id;
+ for(const [command,revision,shouldBalance] of [
+  ['faction.allocate',6,null],['faction.return',7,null],['order.separate',8,1],['order.ship',9,1]
+ ]){
+  const form=operator.locator('form[data-command="'+command+'"]');
+  await form.locator('[name=orderId]').selectOption(orderId);
+  await form.locator('[name=qty]').fill('1');
+  if(shouldBalance!==null){
+   assert.equal(await form.locator('[data-balance="'+command+'"]').innerText().then(x=>x.includes('1 peça(s)')),true,'Saldo exibido para '+command);
+  }
+  await form.locator('button[type=submit]').click();
+  try{await operator.waitForFunction(n=>document.querySelector('#top-revision').textContent.includes('teste: '+n),revision,{timeout:14000});}
+  catch(e){throw Error('Operação '+command+' não confirmada: '+await operator.locator('#message').innerText()+' / revisão '+(await db.state()).revision);}
+ }
+ const progressed=await db.state(),first=progressed.orders.find(o=>o.id===orderId);
+ assert.deepEqual([first.allocated,first.returned,first.separated,first.shipped],[1,1,1,1],
+  'Toda etapa deve preservar os saldos do mesmo pedido');
+ assert.equal(progressed.revision,9);
+ assert.equal(progressed.log.slice(-4).map(x=>x.type).join(','),
+  'faction.allocate,faction.return,order.separate,order.ship');
+ assert.equal(progressed.log.slice(-4).every(x=>x.actor==='Operador B fictício'),true);
+ assert.equal(progressed.settlements.length,1,'Retorno gerou acerto único; separação e expedição não criam outro');
+ assert.equal(progressed.finance.filter(x=>x.sourceId===progressed.settlements[0].id).length,1,'Título único para o acerto');
+ const restrictedAfter=await operator.request.get(url+'/api/production-state').then(r=>r.json());
+ for(const sensitive of ['finance','settlements','employees','log','paymentBatches'])assert.equal(Object.hasOwn(restrictedAfter.state,sensitive),false,sensitive);
+ // Nenhuma separação ou expedição adicional pode ser salva sem retorno/saldo.
+ for(const command of ['order.separate','order.ship']){
+  const form=operator.locator('form[data-command="'+command+'"]');
+  await form.locator('[name=qty]').fill('1');
+  const beforeInvalid=await db.state();
+  await form.locator('button[type=submit]').click();
+  assert.equal((await operator.locator('#message').innerText()).includes('excede o saldo'),true);
+  assert.deepEqual(await db.state(),beforeInvalid,'Nenhuma gravação excedente para '+command);
+ }
  await cutter.locator('#logout-demo').click();
  await cutter.waitForURL('**/login');
  assert.equal(await cutter.request.get(url+'/api/session').then(r=>r.status()),401,'Logout invalida cookie e sessão');
