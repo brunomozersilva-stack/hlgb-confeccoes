@@ -21,10 +21,11 @@
  const bot=typeof module==='object'&&module.exports?require('./modulos/bot-v3.js'):(root&&root.HLGBLabBotV3);
  const costs=typeof module==='object'&&module.exports?require('./modulos/custos-v1.js'):(root&&root.HLGBLabCostsV1);
  const recovery=typeof module==='object'&&module.exports?require('./modulos/recuperacao-v1.js'):(root&&root.HLGBLabRecoveryV1);
- const api=factory(batch,routing,factionGrade,planner,bomCut,requests,purchaseReturns,pcp,management,auditor,bot,costs,recovery);
+ const services=typeof module==='object'&&module.exports?require('./modulos/servicos-faccao-v1.js'):(root&&root.HLGBLabServicesV1);
+ const api=factory(batch,routing,factionGrade,planner,bomCut,requests,purchaseReturns,pcp,management,auditor,bot,costs,recovery,services);
  if(typeof module==='object'&&module.exports)module.exports=api;
  else if(root)root.HLGBOperationalLab=api;
-})(typeof window!=='undefined'?window:null,function(batch,routing,factionGrade,planner,bomCut,requests,purchaseReturns,pcp,management,auditor,bot,costs,recovery){
+})(typeof window!=='undefined'?window:null,function(batch,routing,factionGrade,planner,bomCut,requests,purchaseReturns,pcp,management,auditor,bot,costs,recovery,services){
  'use strict';
  const clone=x=>JSON.parse(JSON.stringify(x)),sizes=['P','M','G','GG'];
  const makeGrade=()=>({P:0,M:0,G:0,GG:0});
@@ -59,6 +60,7 @@
  const totalCost=(q,price)=>Math.ceil(q*price/1000);
  function inspect(s){
   const problems=[];
+  if(services)problems.push(...services.inspect(s));
   if(costs)problems.push(...costs.inspect(s));
   if(bot)problems.push(...bot.inspect(s));
   if(pcp)problems.push(...pcp.inspect(s));
@@ -320,6 +322,10 @@
   switch(kind){
   case 'client.add':{const obj={id:next(s,'CLI'),name:name(p.name,'Nome do cliente')};s.clients.push(obj);result=obj.id;break}
   case 'supplier.add':{const obj={id:next(s,'FOR'),name:name(p.name,'Nome do fornecedor')};s.suppliers.push(obj);result=obj.id;break}
+  case 'service.profile.set':{if(!services)throw Error('Serviços indisponíveis.');result=services.profile(s,p,uid);break}
+  case 'service.rates.set':{if(!services)throw Error('Serviços indisponíveis.');result=services.setRates(s,p,uid);break}
+  case 'service.points.set':{if(!services)throw Error('Serviços indisponíveis.');result=services.points(s,p,uid);break}
+  case 'settlement.service.add':{if(!services)throw Error('Serviços indisponíveis.');result=services.create(s,p,{next,uid});break}
   case 'faction.add':{
    const obj={id:next(s,'FAC'),name:name(p.name,'Facção'),unitCents:num('unitCents',1,100000),traveta:p.traveta===true};
    s.factions.push(obj);result=obj.id;break}
@@ -344,6 +350,7 @@
    if(!routing)throw Error('Módulo de distribuição de facções indisponível.');
    routing.ensure(s,next);
    const order=get(s,'orders',p.orderId,'Pedido'),newFac=get(s,'factions',p.factionId,'Nova facção');
+   if(newFac.serviceRole&&newFac.serviceRole!=='costura')throw Error('Selecione uma facção de costura.');
    if(factionGrade?.hasGrade(order))
     throw Error('Pedido classificado por cor/tamanho: use apenas a distribuição detalhada.');
    const reason=name(p.reason,'Motivo da troca');
@@ -511,6 +518,7 @@
    if(!routing)throw Error('Módulo de distribuição de facções indisponível.');
    routing.ensure(s,next);
    const o=get(s,'orders',p.orderId,'Pedido'),fac=get(s,'factions',p.factionId,'Facção'),qty=num('qty',1,10000);
+   if(fac.serviceRole&&fac.serviceRole!=='costura')throw Error('Selecione uma facção de costura.');
    if(factionGrade?.hasGrade(o))
     throw Error('Pedido com grade de cores: use Envio por cor/tamanho.');
    const q=quantities(o);
@@ -529,7 +537,7 @@
    if(!o.factionId||o.returned+qty>o.allocated)throw Error('Retorno excede o que foi enviado para a facção.');
    o.returned+=qty;
    const fac=get(s,'factions',o.factionId),product=get(s,'products',o.productId);
-   const rate=routing.resolveRate(routing.canLegacyReturn(s,o),fac,product);
+   const rate=routing.resolveRate(routing.canLegacyReturn(s,o),fac,product,s);
    const listUnit=rate.gross,travetaDiscount=rate.traveta,unit=rate.unit;
    if(unit<=0)throw Error('Preço líquido da facção deve ser positivo.');
    const assignmentId=routing.recordLegacyReturn(s,o,qty);
@@ -575,6 +583,7 @@
   case 'settlement.add':{
    const fac=get(s,'factions',p.factionId,'Facção'),product=get(s,'products',p.productId,'Produto');
    if(!['costura','embalagem'].includes(p.serviceType))throw Error('Selecione costura ou embalagem.');
+   if(fac.serviceRole)throw Error('Prestador classificado: use o novo acerto por serviço, com tarifa e pontos conferidos.');
    const qty=num('qty',1,100000),listUnit=num('unitCents',1,100000),
      traveta=num('travetaCents',0,100000),reason=name(p.reason,'Descrição do serviço');
    if(traveta>=listUnit)throw Error('Desconto por travetada não pode zerar ou superar o valor por peça.');

@@ -30,6 +30,7 @@
  function allocation(s,p,ctx){
   const assignments=ensure(s,ctx.next);
   const order=byId(s.orders,p.orderId),fac=byId(s.factions,p.factionId);
+  if(fac?.serviceRole&&fac.serviceRole!=='costura')throw Error('Selecione facção de costura.');
   if(!order)throw Error('Pedido não localizado.');
   if(!fac)throw Error('Facção não localizada.');
   const qty=ctx.int(p.qty,'Peças a enviar',1,10000);
@@ -55,6 +56,7 @@
   if(!from)throw Error('Envio de origem não encontrado. Confira o pedido e a facção.');
   const order=byId(s.orders,from.orderId);
   const target=byId(s.factions,p.toFactionId);
+  if(target?.serviceRole&&target.serviceRole!=='costura')throw Error('Selecione facção de costura.');
   if(!order||!target)throw Error('Pedido ou facção de destino não localizado.');
   if(from.factionId===target.id)throw Error('Selecione uma facção de destino diferente da origem.');
   const qty=ctx.int(p.qty,'Quantidade transferida',1,10000);
@@ -86,7 +88,7 @@
    ' → '+to.factionId+' (sem alterar acertos anteriores)';
  }
  // A tarifa negociada pertence ao envio ALO, não ao cadastro geral.
- function resolveRate(row,fac,product){
+ function resolveRate(row,fac,product,s){
   const agreement=row?.rateAgreementHistory?.at(-1);
   if(agreement?.mode==='negociado'){
    if(agreement.factionId!==fac.id||agreement.productId!==product.id||
@@ -96,8 +98,15 @@
    return {gross:agreement.gross,traveta:agreement.discount,
     unit:agreement.gross-agreement.discount,agreementCommandId:agreement.commandId};
   }
-  const gross=fac.productRates?.[product.id]??fac.unitCents,
-   traveta=fac.traveta?0:Math.min(gross,50);
+  const gross=fac.productRates?.[product.id]??fac.unitCents;
+  if(fac.serviceRole&&fac.serviceRole!=='costura')throw Error('Prestador não classificado para costura.');
+  let traveta=fac.traveta?0:Math.min(gross,50);
+  if(!fac.traveta&&(fac.serviceRole||product.servicePointsCommandId)){
+   const count=product.travetaPoints,tariff=s?.serviceRates?.pointCents;
+   if(!Number.isSafeInteger(count)||count<0||count>100||count>0&&(!Number.isSafeInteger(tariff)||tariff<0))throw Error('Cadastre pontos e tarifa de travetada antes do retorno.');
+   traveta=count*(tariff||0);
+   if(traveta>=gross)throw Error('Desconto de travetada supera o preço de costura.');
+  }
   return {gross,traveta,unit:gross-traveta,agreementCommandId:null};
  }
  function setAssignmentRate(s,p,ctx){
@@ -112,7 +121,7 @@
   if(discount>=gross)throw Error('Preço líquido por peça precisa ser positivo.');
   const reason=String(p.reason??'').trim();
   if(!reason||reason.length>95)throw Error('Justificativa obrigatória (até 95 caracteres).');
-  const before=resolveRate(row,fac,product);
+  const before=resolveRate(row,fac,product,s);
   if(!Array.isArray(row.rateAgreementHistory))row.rateAgreementHistory=[];
   row.rateAgreementHistory.push({mode:'negociado',commandId:ctx.uid,
    factionId:fac.id,productId:product.id,gross,discount,reason,
@@ -166,7 +175,7 @@
    throw Error('Retorno excede o total enviado para o pedido.');
   const product=byId(s.products,order.productId);
   if(!product)throw Error('Produto do pedido não encontrado.');
-  const {gross,traveta,unit,agreementCommandId}=resolveRate(a,fac,product);
+  const {gross,traveta,unit,agreementCommandId}=resolveRate(a,fac,product,s);
   if(!Number.isSafeInteger(unit)||unit<=0)
    throw Error('Preço líquido por peça não pode ser nulo ou negativo.');
   const amount=qty*unit;
@@ -243,6 +252,8 @@
   const oldFaction=byId(s.factions,x.factionId);
   const target=byId(s.factions,p.factionId||x.factionId);
   if(!target||!oldFaction)throw Error('Facção ou embaladeira não localizada.');
+  if(target.id!==x.factionId&&target.serviceRole&&target.serviceRole!==x.serviceType)throw Error('Prestador incompatível com o serviço.');
+  if(x.serviceQuote)throw Error('Acerto por tarifa/pontos: correção de preço exige rotina específica; preserve a base original.');
   if(target.id!==x.factionId&&(x.kind!=='avulso'||x.orderId||x.assignmentId||x.gradeTracked))
    throw Error('Acerto vinculado a retorno físico: use a rotina de transferência, não troque a facção do acerto.');
   const gross=ctx.int(p.unitCents,'Valor bruto por peça',1,100000),

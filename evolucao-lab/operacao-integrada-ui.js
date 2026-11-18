@@ -694,6 +694,17 @@ async function remoteAction(action){
  finally{busy=false;}
 }
 
+
+function servicePanels(s,area){
+ const svc=window.HLGBLabServicesV1;if(!svc)return '';
+ const roleOptions=svc.roles.map(x=>[x,x]),categories=svc.categories.map(x=>[x,x]),products=selector(s.products,x=>x.name+' · '+x.sku),factions=selector(s.factions,x=>x.name+' · '+(x.serviceRole||'não classificado')),r=svc.rates(s);
+ if(area==='produtos')return panel('Ficha técnica · pontos de travetada',form('service.points.set','Definir pontos por peça',[field('productId','Modelo','select','',products),field('category','Categoria de serviço','select','',categories),field('points','Pontos de travetada por peça','int','0'),field('reason','Justificativa','text','Conferência da ficha')],'Salvar ficha')+table(['Modelo','Categoria','Pontos'],s.products.map(x=>[str(x.name),str(svc.cat(x)),str(x.travetaPoints??'Não cadastrado')])),true);
+ if(area==='faccoes')return panel('Cadastro de atividades e tabela de serviços',form('service.profile.set','Classificar prestador',[field('factionId','Prestador','select','',factions),field('serviceRole','Atividade','select','',roleOptions),field('reason','Justificativa','text','Cadastro de atividade')],'Salvar atividade')+form('service.rates.set','Preços em R$ por peça ou por ponto',[...svc.categories.map(k=>field(k,'Embalagem '+k,'money',nr(r[k]||0))),field('pointCents','Travetada por ponto','money',nr(r.pointCents||0)),field('reason','Motivo','text','Tabela fictícia')],'Salvar tabela')+'<p>Preços das camisolas/dolls e calcinhas iniciam como sugestões de laboratório. Revise os valores. Zero não é preço de pagamento, deve ser informado manualmente.</p>'+table(['Prestador','Atividade','Faz travetada'],s.factions.map(x=>[str(x.name),str(x.serviceRole||'Não classificado'),x.traveta?'Sim':'Não'])),true);
+ const formHtml=form('settlement.service.add','Novo serviço com preço e pontos calculados',[field('serviceType','Atividade','select','',roleOptions),field('factionId','Prestador classificado','select','',factions),field('productId','Modelo','select','',products.concat([['manual','Modelo não cadastrado (só embalagem)']])),field('manualName','Nome avulso (quando necessário)','text','—'),field('manualCategory','Categoria avulsa','select','',categories),field('qty','Peças','int','20'),field('priceMode','Preço','select','',[['auto','Tabela / ficha'],['manual','Informar preço manual']]),field('unitCents','Preço manual por peça ou ponto','money','0,00'),field('reason','Justificativa','text','Serviço fictício')],'Gerar acerto');
+ return panel('Acerto por atividade · travetada por pontos',formHtml+'<p id="service-preview" role="status"></p><p>Travetada paga por ponto × pontos por peça × quantidade; costura de quem não traveta desconta os pontos da ficha. Embalagem usa categoria, inclusive modelo avulso. Acerto preserva tabela, quantidade e valores originais; não depende do preço de venda.</p>'+table(['Acerto','Modelo','Atividade','Peças','Pontos/peça','Tarifa/ponto','Total original'],s.settlements.filter(x=>x.serviceQuote).map(x=>{const q=x.serviceQuote;return [str(x.id),str(q.model),str(q.service),str(q.qty),str(q.pointCount??'—'),q.pointRate===null?'—':fmt(q.pointRate),fmt(q.amount)];})),true);
+}
+function refreshServicePreview(){const f=document.querySelector('form[data-command="settlement.service.add"]'),node=$('service-preview');if(!f||!node)return;const type=f.elements.namedItem('serviceType').value,select=f.elements.namedItem('factionId'),valid=doc.factions.filter(x=>x.serviceRole===type);const value=select.value;select.innerHTML=options(valid.map(x=>[x.id,x.name]),value);try{const q=window.HLGBLabServicesV1.quote(doc,parseData('settlement.service.add',f));node.textContent=q.model+' · '+q.qty+' peças · bruto '+fmt(q.gross)+' / peça · desconto '+fmt(q.discount)+' / peça · total '+fmt(q.amount);}catch(e){node.textContent=e.message;}}
+
 function moduleHtml(s){
  const o=orderOptions(s),openPlans=(s.cutPlans||[]).filter(p=>p.status==='aberto'),
   planOptions=selector(openPlans,p=>p.id+' · '+p.orderId+' · '+sum(p.grade)+' peças'),
@@ -731,7 +742,7 @@ function moduleHtml(s){
  panel('Fluxo e integridade',refDocs(s)+
  '<p>O pedido já gera uma conta fictícia a receber. Corte, produção e separação precisam respeitar a grade.</p>')+
  panel('Pedidos e seus saldos',orderTable(s),true);
- case 'produtos':return materialRecipePanels(s)+panel('Ficha técnica básica e SKU',
+ case 'produtos':return servicePanels(s,'produtos')+materialRecipePanels(s)+panel('Ficha técnica básica e SKU',
  form('product.add','Cadastrar modelo',[field('name','Nome do modelo'),field('sku','SKU único'),
  field('materialId','Material principal','select','',materials),
  field('gramsPerUnit','Consumo por unidade (g)','int','80'),
@@ -838,7 +849,7 @@ function moduleHtml(s){
  const transferable=selector(rows.filter(x=>!classified.some(o=>o.id===x.orderId)&&x.qtySent>1&&x.qtySent>x.qtyReturned),
   x=>x.id+' · '+x.orderId+' · '+(ref(s.factions,x.factionId)?.name||'—')+
   ' · '+(x.qtySent-x.qtyReturned)+' peças disponíveis');
- return panel('Preço específico das peças que já estão na facção',
+ return servicePanels(s,'faccoes')+panel('Preço específico das peças que já estão na facção',
    form('faction.assignment.rate.set','Negociar mão de obra por envio pendente',[
     field('assignmentId','Envio / pedido / facção','select','',selector(rows.filter(x=>x.qtySent>x.qtyReturned),x=>
       x.id+' · '+x.orderId+' · '+(ref(s.factions,x.factionId)?.name||'—')+
@@ -999,7 +1010,7 @@ function moduleHtml(s){
  const paid=selector(s.settlements.filter(x=>x.status==='pago'),
   x=>x.id+' · Pago '+fmt(x.amountCents)+' · '+(ref(s.factions,x.factionId)?.name||'—'));
  const compensations=s.settlementCompensations||[];
- return panel('Serviços avulsos e embalagem',
+ return servicePanels(s,'acertos')+panel('Serviços avulsos e embalagem',
  form('settlement.add','Novo acerto avulso fictício',[
   field('serviceType','Tipo de serviço','select','',[['costura','Costura avulsa'],['embalagem','Embalagem']]),
   field('factionId','Facção / embaladeira','select','',factions),
@@ -1305,7 +1316,7 @@ function draw(){
  ['Títulos a pagar abertos',fmt(t.openPayables)]];
  $('global-metrics').innerHTML=metrics.map(([label,value])=>'<div class="metric"><span>'+escape(label)+'</span><strong>'+escape(value)+'</strong></div>').join('');
  $('module-content').innerHTML=remotePanel()+moduleHtml(doc);
- if(active==='acertos'){applySettlementFilters();const f=document.querySelector('form[data-command="settlement.revise"]');if(f)fillSettlementRevision(f);}
+ if(active==='acertos'){refreshServicePreview();applySettlementFilters();const f=document.querySelector('form[data-command="settlement.revise"]');if(f)fillSettlementRevision(f);}
  if(active==='faccoes'){const f=document.querySelector('form[data-command="faction.assignment.rate.set"]');if(f)fillAssignmentRate(f);}
  if(active==='hub'){const f=document.querySelector('form[data-command="finance.receipt.attach"]');if(f)updateReceiptTarget(f);const g=document.querySelector('form[data-command="finance.revise"]');if(g)fillFinanceRevision(g);}
  $('audit-trail').innerHTML=doc.log.length?doc.log.slice().reverse().slice(0,28).map(e=>
@@ -1325,9 +1336,9 @@ function parseCents(value,signed=false){
  if(!Number.isSafeInteger(val))throw Error('Valor monetário inválido.');
  return val;
 }
-const NUM=['revision','corte','envio','costura','separacao','expedicao','qty','gramsPerUnit','qtyGrams','grams','stock','P','M','G','GG','usefulGrams','scrapGrams'];
+const NUM=['points','revision','corte','envio','costura','separacao','expedicao','qty','gramsPerUnit','qtyGrams','grams','stock','P','M','G','GG','usefulGrams','scrapGrams'];
 const SIGNED=['deltaGrams'];
-const PRICES=['priceCents','unitCents','travetaCents','priceCentsKg','amountCents','salaryCents','passageCents','extrasCents','discountCents'];
+const PRICES=['camisola','doll','calcinha','outros','pointCents','priceCents','unitCents','travetaCents','priceCentsKg','amountCents','salaryCents','passageCents','extrasCents','discountCents'];
 function parseData(type,form){
  if(type==='finance.faction.close'){
   return {factionId:String(form.querySelector('[name="factionId"]')?.value||''),
@@ -1649,7 +1660,7 @@ function fillAssignmentRate(form){
  const order=row&&ref(doc.orders,row.orderId),fac=row&&ref(doc.factions,row.factionId),
   product=order&&ref(doc.products,order.productId);
  if(!row||!fac||!product)return;
- const rate=window.HLGBLabFactionRoutingV1.resolveRate(row,fac,product);
+ const rate=window.HLGBLabFactionRoutingV1.resolveRate(row,fac,product,doc);
  form.elements.namedItem('unitCents').value=nr(rate.gross);
  form.elements.namedItem('travetaCents').value=nr(rate.traveta);
  const preview=$('assignment-rate-preview');
@@ -1776,6 +1787,7 @@ function renderCompensationSheet(compId){
  return $('cut-print').textContent;
 }
 document.addEventListener('change',event=>{
+ if(event.target.closest('form[data-command="settlement.service.add"]')){refreshServicePreview();return;}
  const revisionForm=event.target.closest('form[data-command="finance.revise"]');if(revisionForm&&event.target.name==='id'){fillFinanceRevision(revisionForm);return;}
  if(event.target.matches('[data-assistant-filter]')){const k=event.target.dataset.assistantFilter;assistantFilters[k]=k==='stockLimitGrams'?Number(event.target.value):event.target.value;assistantRequested=false;return;}
  if(event.target.id==='audit-v3-filter'){auditFilter=event.target.value;draw();return;}
