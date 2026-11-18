@@ -185,6 +185,18 @@
    for(const value of values){const td=document.createElement('td');td.textContent=String(value);tr.append(td);}
    plansBody.append(tr);
   }
+  const completed=view.cutPlans.filter(p=>p.status==='concluido');
+  const openCount=view.cutPlans.filter(p=>p.status==='aberto').length;
+  const cancelledCount=view.cutPlans.filter(p=>p.status==='cancelado').length;
+  const totals=completed.reduce((a,p)=>({theory:a.theory+p.theoreticalGrams,
+    useful:a.useful+p.usefulGrams,scrap:a.scrap+p.scrapGrams,
+    pieces:a.pieces+sum(p.grade)}),{theory:0,useful:0,scrap:0,pieces:0});
+  const totalWeight=totals.useful+totals.scrap;
+  byId('cut-summary').textContent='Folhas abertas: '+openCount+' · Concluídas: '+completed.length+
+   ' · Canceladas: '+cancelledCount+' · Peças conferidas: '+totals.pieces+
+   ' · Peso teórico: '+totals.theory+' g · Útil: '+totals.useful+' g · Lixo: '+totals.scrap+
+   ' g · Desvio útil: '+(totals.useful-totals.theory)+' g · Aproveitamento de peso ponderado: '+
+   (totalWeight>0?(100*totals.useful/totalWeight).toFixed(1)+'%':'—');
   byId('cut-plans-section').hidden=!remote.info().permissions?.allowedCommands.includes('cut.plan');
   updatePending();
  }

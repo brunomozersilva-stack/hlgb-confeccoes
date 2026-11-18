@@ -290,6 +290,11 @@ test('interface completa em duas sessões, conflito, WAL e confirmação indepen
  assert.equal(finished.finance.length,beforeCompletion.finance.length,'Corte não gera lançamento financeiro');
  assert.equal(finished.settlements.length,beforeCompletion.settlements.length,'Corte não gera acerto de facção');
  assert.equal(finished.log.at(-1).type,'cut.plan.complete');
+ const summary=await operator.locator('#cut-summary').innerText();
+ assert.equal(summary.includes('Concluídas: 1'),true);
+ assert.equal(summary.includes('Canceladas: 1'),true);
+ assert.equal(summary.includes('Lixo: 40 g'),true);
+ assert.equal(summary.includes('Aproveitamento de peso ponderado: '+(100*theoretical/(theoretical+40)).toFixed(1)+'%'),true);
  const projectedCut=await operator.request.get(url+'/api/production-state').then(r=>r.json());
  assert.deepEqual(Object.keys(projectedCut.state.materials[0]).sort(),['id','name','stockGrams'].sort());
  assert.deepEqual(Object.keys(projectedCut.state.products[0]).sort(),['id','sku','name','materialId','gramsPerUnit'].sort());
