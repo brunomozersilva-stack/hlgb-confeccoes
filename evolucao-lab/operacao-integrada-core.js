@@ -22,10 +22,11 @@
  const costs=typeof module==='object'&&module.exports?require('./modulos/custos-v1.js'):(root&&root.HLGBLabCostsV1);
  const recovery=typeof module==='object'&&module.exports?require('./modulos/recuperacao-v1.js'):(root&&root.HLGBLabRecoveryV1);
  const services=typeof module==='object'&&module.exports?require('./modulos/servicos-faccao-v1.js'):(root&&root.HLGBLabServicesV1);
- const api=factory(batch,routing,factionGrade,planner,bomCut,requests,purchaseReturns,pcp,management,auditor,bot,costs,recovery,services);
+ const complements=typeof module==='object'&&module.exports?require('./modulos/complementos-v1.js'):(root&&root.HLGBLabComplementsV1);
+ const api=factory(batch,routing,factionGrade,planner,bomCut,requests,purchaseReturns,pcp,management,auditor,bot,costs,recovery,services,complements);
  if(typeof module==='object'&&module.exports)module.exports=api;
  else if(root)root.HLGBOperationalLab=api;
-})(typeof window!=='undefined'?window:null,function(batch,routing,factionGrade,planner,bomCut,requests,purchaseReturns,pcp,management,auditor,bot,costs,recovery,services){
+})(typeof window!=='undefined'?window:null,function(batch,routing,factionGrade,planner,bomCut,requests,purchaseReturns,pcp,management,auditor,bot,costs,recovery,services,complements){
  'use strict';
  const clone=x=>JSON.parse(JSON.stringify(x)),sizes=['P','M','G','GG'];
  const makeGrade=()=>({P:0,M:0,G:0,GG:0});
@@ -60,6 +61,7 @@
  const totalCost=(q,price)=>Math.ceil(q*price/1000);
  function inspect(s){
   const problems=[];
+  if(complements)problems.push(...complements.inspect(s));
   if(services)problems.push(...services.inspect(s));
   if(costs)problems.push(...costs.inspect(s));
   if(bot)problems.push(...bot.inspect(s));
@@ -322,6 +324,11 @@
   switch(kind){
   case 'client.add':{const obj={id:next(s,'CLI'),name:name(p.name,'Nome do cliente')};s.clients.push(obj);result=obj.id;break}
   case 'supplier.add':{const obj={id:next(s,'FOR'),name:name(p.name,'Nome do fornecedor')};s.suppliers.push(obj);result=obj.id;break}
+  case 'faction.material.scope':{if(!complements)throw Error('Complementos indisponíveis.');result=complements.scope(s,p,{next,uid});break}
+  case 'faction.material.checklist':{if(!complements)throw Error('Complementos indisponíveis.');result=complements.checklist(s,p,{next,uid});break}
+  case 'faction.material.confirm':{if(!complements)throw Error('Complementos indisponíveis.');result=complements.confirmMaterial(s,p,{next,uid});break}
+  case 'supplier.quote.add':{if(!complements)throw Error('Complementos indisponíveis.');result=complements.quote(s,p,{next,uid});break}
+  case 'print.photo.attach':{if(!complements)throw Error('Complementos indisponíveis.');result=complements.photo(s,p,{next,uid});break}
   case 'service.profile.set':{if(!services)throw Error('Serviços indisponíveis.');result=services.profile(s,p,uid);break}
   case 'service.rates.set':{if(!services)throw Error('Serviços indisponíveis.');result=services.setRates(s,p,uid);break}
   case 'service.points.set':{if(!services)throw Error('Serviços indisponíveis.');result=services.points(s,p,uid);break}

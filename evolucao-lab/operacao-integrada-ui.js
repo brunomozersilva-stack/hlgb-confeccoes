@@ -722,6 +722,52 @@ function servicePanels(s,area){
 }
 function refreshServicePreview(){const f=document.querySelector('form[data-command="settlement.service.add"]'),node=$('service-preview');if(!f||!node)return;const type=f.elements.namedItem('serviceType').value,select=f.elements.namedItem('factionId'),valid=doc.factions.filter(x=>x.serviceRole===type);const value=select.value;select.innerHTML=options(valid.map(x=>[x.id,x.name]),value);try{const q=window.HLGBLabServicesV1.quote(doc,parseData('settlement.service.add',f));node.textContent=q.model+' · '+q.qty+' peças · bruto '+fmt(q.gross)+' / peça · desconto '+fmt(q.discount)+' / peça · total '+fmt(q.amount);}catch(e){node.textContent=e.message;}}
 
+
+let quoteQuery={materialId:'MAT-0001',qtyGrams:1000,asOf:'2026-11-17'};
+function factionMaterialsPanel(s,area){
+ const svc=window.HLGBLabComplementsV1;if(!svc)return '';
+ const products=selector(s.products,x=>x.name),materials=selector(s.materials,x=>x.name);
+ if(area==='produtos')return panel('Materiais destinados à facção',form('faction.material.scope','Selecionar aviamento da ficha',[field('productId','Modelo','select','',products),field('materialId','Material','select','',materials),field('action','Ação','select','',[['incluir','Incluir no checklist'],['excluir','Retirar dos próximos checklists']]),field('reason','Motivo','text','Conferência da ficha')],'Salvar escopo')+'<p>Cadastre o consumo na receita de materiais. Não inclua tecido já consumido no corte. O checklist é conferência logística e não nova baixa.</p>'+table(['Modelo','Material','Incluir'],(s.factionMaterialScopes||[]).filter(x=>x.active).map(x=>[str(ref(s.products,x.productId)?.name),str(ref(s.materials,x.materialId)?.name),x.include?'Sim':'Não'])),true);
+ const rows=(s.factionAssignments||[]).filter(x=>x.qtySent>x.qtyReturned);
+ return panel('Materiais das facções — conferir ficha atual',rows.map(a=>{let q;try{q=svc.materialPreview(s,a.id);}catch(e){return '<p>'+str(a.id)+' · '+str(e.message)+'</p>';}
+ const old=(s.factionMaterialChecklists||[]).filter(x=>x.assignmentId===a.id).at(-1),same=old?.signature===q.signature;
+ return '<details class="panel"><summary>'+str(a.id)+' · '+str(ref(s.factions,a.factionId)?.name)+' · '+q.pending+' pendentes</summary>'+
+ table(['Material','Anterior (g)','Ficha atual (g)','Diferença (g)'],[...new Set([...(old?.materials||[]).map(x=>x.materialId),...q.materials.map(x=>x.materialId)])].map(id=>{const before=old?.materials.find(x=>x.materialId===id)?.grams||0,after=q.materials.find(x=>x.materialId===id)?.grams||0;return [str(ref(s.materials,id)?.name),str(before),str(after),str(after-before)];}))+
+ (same?'<p>Checklist atual registrado.</p>':form('faction.material.checklist','Registrar versão conferida',['<input type="hidden" name="assignmentId" value="'+str(a.id)+'"><input type="hidden" name="signature" value="'+str(q.signature)+'">',field('reason','Motivo','text','Conferência do envio')],'Registrar checklist'))+
+ (same?q.materials.map(m=>form('faction.material.confirm','Conferir '+m.name,['<input type="hidden" name="id" value="'+str(old.id)+'"><input type="hidden" name="materialId" value="'+str(m.materialId)+'">',field('actualGrams','Quantidade conferida (g)','int',String(m.grams)),field('reason','Observação','text','Conferência fictícia')],'Registrar quantidade')).join(''):'')+'</details>';}).join('')+
+ '<p>Transferência ou mudança de ficha exige nova conferência. Não altera estoque nem pagamentos.</p>'+table(['Checklist','Envio','Versão anterior','Motivo'],(s.factionMaterialChecklists||[]).map(x=>[str(x.id),str(x.assignmentId),str(x.previousId||'—'),str(x.reason)]))+
+ table(['Checklist','Material','Previsto','Conferido','Diferença','Motivo'],(s.factionMaterialChecks||[]).map(x=>[str(x.checklistId),str(ref(s.materials,x.materialId)?.name),str(x.expectedGrams),str(x.actualGrams),str(x.differenceGrams),str(x.reason)]))+
+ '<button type="button" class="btn" id="faction-material-export">Exportar comparação CSV</button>',true);
+}
+function supplierQuotePanel(s){
+ const svc=window.HLGBLabComplementsV1;if(!svc)return '';
+ const materials=selector(s.materials,x=>x.name),suppliers=selector(s.suppliers,x=>x.name);
+ let out;try{out=svc.compare(s,quoteQuery);}catch(e){out={rows:[],best:null,error:e.message};}
+ return panel('Comprador inteligente · comparar fornecedores',form('supplier.quote.add','Registrar cotação',[field('supplierId','Fornecedor','select','',suppliers),field('materialId','Material','select','',materials),field('qtyGrams','Quantidade (g)','int','1000'),field('priceCentsKg','Preço por kg (R$)','money','28,00'),field('freightCents','Frete total (R$)','money','0,00'),'<div class="field"><label>Data da cotação<input class="input" name="quotedAt" type="date" value="2026-11-17" required></label></div><div class="field"><label>Validade<input class="input" name="validUntil" type="date" value="2026-11-30" required></label></div>',field('reference','Referência','text','COT-TESTE'),field('reason','Observação','text','Cotação fictícia')],'Salvar cotação')+
+ '<div class="fields"><div class="field"><label>Material comparado<select class="input" id="quote-material">'+options(materials,quoteQuery.materialId)+'</select></label></div><div class="field"><label>Quantidade exata (g)<input class="input" type="number" id="quote-qty" value="'+str(quoteQuery.qtyGrams)+'"></label></div><div class="field"><label>Data de referência<input type="date" class="input" id="quote-date" value="'+str(quoteQuery.asOf)+'"></label></div></div><button class="btn" type="button" id="quote-compare">Comparar</button>'+
+ (out.error?'<p class="error">'+str(out.error)+'</p>':'')+table(['Fornecedor','R$/kg','Frete','Total','Validade','Conferência'],out.rows.map(q=>[str(q.supplierName),fmt(q.priceCentsKg),fmt(q.freightCents),fmt(q.totalCents),str(q.validUntil),q.id===out.best?'Menor total válido':q.valid?'Válida':'Vencida']))+
+ '<p>Compara mesma quantidade e material, incluindo frete. Não presume equivalência nem cria compras automaticamente.</p>'+
+ table(['Fornecedor','A pagar aberto','Pago'],s.suppliers.map(f=>{const titles=s.finance.filter(t=>t.kind==='pagar'&&s.purchaseOrders.some(p=>p.supplierId===f.id&&p.id===t.sourceId));return [str(f.name),fmt(titles.filter(t=>t.status==='aberto').reduce((n,t)=>n+t.amountCents,0)),fmt(titles.filter(t=>t.status==='pago').reduce((n,t)=>n+t.amountCents,0))];})),true);
+}
+async function readPrintPhoto(form){
+ const file=form.elements.namedItem('photoFile').files?.[0],id=form.elements.namedItem('productId').value;
+ if(!form.elements.namedItem('fictitious').checked||!file||!['image/jpeg','image/png'].includes(file.type)||file.size>5*1024*1024)throw Error('Selecione JPEG/PNG fictício de até 5 MiB.');
+ const url=URL.createObjectURL(file);try{
+ const img=new Image();await new Promise((resolve,reject)=>{img.onload=resolve;img.onerror=()=>reject(Error('Imagem inválida'));img.src=url;});
+ if(!img.naturalWidth||!img.naturalHeight||img.naturalWidth*img.naturalHeight>25000000)throw Error('Imagem excede limite de dimensões.');
+ const canvas=document.createElement('canvas'),ratio=Math.min(1,600/Math.max(img.naturalWidth,img.naturalHeight));canvas.width=Math.max(1,Math.round(img.naturalWidth*ratio));canvas.height=Math.max(1,Math.round(img.naturalHeight*ratio));const c=canvas.getContext('2d');c.fillStyle='#ffffff';c.fillRect(0,0,canvas.width,canvas.height);c.drawImage(img,0,0,canvas.width,canvas.height);
+ let contentBase64=canvas.toDataURL('image/jpeg',0.72).split(',')[1];if(!window.HLGBLabComplementsV1.imageOK(contentBase64))contentBase64=canvas.toDataURL('image/jpeg',0.45).split(',')[1];
+ if(!window.HLGBLabComplementsV1.imageOK(contentBase64))throw Error('Foto comprimida ultrapassa limite.');
+ return {productId:id,contentBase64,previousId:(doc.printPhotos||[]).filter(x=>x.productId===id).at(-1)?.id||null,reason:form.elements.namedItem('reason').value,fictitious:true};
+ }finally{URL.revokeObjectURL(url);}
+}
+function photoPanel(s){
+ const svc=window.HLGBLabComplementsV1;if(!svc)return '';const choices=selector(s.prints,x=>x.name);
+ return panel('Catálogo 3D · fotos de exercício','<form data-command="print.photo.attach"><h3>Adicionar ou substituir foto</h3><div class="fields">'+field('productId','Produto','select','',choices)+'<div class="field"><label>JPEG ou PNG<input class="input" type="file" name="photoFile" accept="image/jpeg,image/png" required></label></div>'+field('reason','Motivo','text','Foto de teste')+'<label><input type="checkbox" name="fictitious" required> Confirmo imagem fictícia sem dados pessoais.</label></div><button class="btn primary" type="submit">Salvar foto</button></form>'+
+ '<div class="metrics">'+s.prints.map(x=>{const photo=(s.printPhotos||[]).filter(y=>y.productId===x.id).at(-1);return '<div class="metric">'+(photo?'<img alt="'+str(x.name)+'" src="data:image/jpeg;base64,'+str(photo.contentBase64)+'" style="width:100%;max-width:180px;aspect-ratio:1;object-fit:contain;border-radius:8px">':'<p>Sem foto</p>')+'<strong>'+str(x.name)+'</strong><span>'+fmt(x.priceCents)+' · '+x.stock+' peças</span></div>';}).join('')+'</div>'+
+ table(['Foto','Produto','Versão','Motivo'],svc.photoMetadata(s).map(x=>[str(x.id),str(ref(s.prints,x.productId)?.name),x.current?'Atual':'Anterior',str(x.reason)]))+'<p>Fotos de laboratório comprimidas, histórico preservado; imagens reais exigirão armazenamento privado.</p>',true);
+}
+
 function moduleHtml(s){
  const o=orderOptions(s),openPlans=(s.cutPlans||[]).filter(p=>p.status==='aberto'),
   planOptions=selector(openPlans,p=>p.id+' · '+p.orderId+' · '+sum(p.grade)+' peças'),
@@ -759,7 +805,7 @@ function moduleHtml(s){
  panel('Fluxo e integridade',refDocs(s)+
  '<p>O pedido já gera uma conta fictícia a receber. Corte, produção e separação precisam respeitar a grade.</p>')+
  panel('Pedidos e seus saldos',orderTable(s),true);
- case 'produtos':return servicePanels(s,'produtos')+materialRecipePanels(s)+panel('Ficha técnica básica e SKU',
+ case 'produtos':return factionMaterialsPanel(s,'produtos')+servicePanels(s,'produtos')+materialRecipePanels(s)+panel('Ficha técnica básica e SKU',
  form('product.add','Cadastrar modelo',[field('name','Nome do modelo'),field('sku','SKU único'),
  field('materialId','Material principal','select','',materials),
  field('gramsPerUnit','Consumo por unidade (g)','int','80'),
@@ -866,7 +912,7 @@ function moduleHtml(s){
  const transferable=selector(rows.filter(x=>!classified.some(o=>o.id===x.orderId)&&x.qtySent>1&&x.qtySent>x.qtyReturned),
   x=>x.id+' · '+x.orderId+' · '+(ref(s.factions,x.factionId)?.name||'—')+
   ' · '+(x.qtySent-x.qtyReturned)+' peças disponíveis');
- return servicePanels(s,'faccoes')+panel('Preço específico das peças que já estão na facção',
+ return factionMaterialsPanel(s,'faccoes')+servicePanels(s,'faccoes')+panel('Preço específico das peças que já estão na facção',
    form('faction.assignment.rate.set','Negociar mão de obra por envio pendente',[
     field('assignmentId','Envio / pedido / facção','select','',selector(rows.filter(x=>x.qtySent>x.qtyReturned),x=>
       x.id+' · '+x.orderId+' · '+(ref(s.factions,x.factionId)?.name||'—')+
@@ -1156,7 +1202,7 @@ function moduleHtml(s){
   s.purchaseRequests.some(r=>r.id===x.purchaseRequestId&&r.status==='recebida')&&
   s.finance.some(f=>f.sourceId===x.id&&f.kind==='pagar'&&f.status==='aberto')&&
   s.materials.some(m=>m.id===x.materialId&&m.stockGrams>=x.qtyGrams));
- return materialsPlanningPanels(s)+requestPanels(s)+panel('Compra com dupla conferência',
+ return supplierQuotePanel(s)+materialsPlanningPanels(s)+requestPanels(s)+panel('Compra com dupla conferência',
  form('purchase.add','Planejar compra',[field('supplierId','Fornecedor','select','',suppliers),
  field('materialId','Material','select','',materials),
  field('qtyGrams','Quantidade (g)','int','3000'),
@@ -1255,7 +1301,7 @@ function moduleHtml(s){
  panel('Saúde do laboratório','<p>O monitor avalia apenas este estado local. Não consulta GitHub Actions, logs de produção ou integrações externas.</p>')+
  panel('Ocorrências',table(['ID','Descrição','Estado'],s.errors.map(x=>[
  str(x.id),str(x.message),str(x.status)])),true);
- case 'impressora3d':return panel('Catálogo 3D fictício',
+ case 'impressora3d':return photoPanel(s)+panel('Catálogo 3D fictício',
  form('print.add','Novo item de impressão 3D',[field('name','Produto 3D'),
  field('grams','Filamento por unidade (g)','int','35'),field('priceCents','Preço (R$)','money','12,90'),
  field('stock','Estoque de peças','int','3')],'Cadastrar item 3D'))+
@@ -1353,9 +1399,9 @@ function parseCents(value,signed=false){
  if(!Number.isSafeInteger(val))throw Error('Valor monetário inválido.');
  return val;
 }
-const NUM=['points','revision','corte','envio','costura','separacao','expedicao','qty','gramsPerUnit','qtyGrams','grams','stock','P','M','G','GG','usefulGrams','scrapGrams'];
+const NUM=['actualGrams','points','revision','corte','envio','costura','separacao','expedicao','qty','gramsPerUnit','qtyGrams','grams','stock','P','M','G','GG','usefulGrams','scrapGrams'];
 const SIGNED=['deltaGrams'];
-const PRICES=['camisola','doll','calcinha','outros','pointCents','priceCents','unitCents','travetaCents','priceCentsKg','amountCents','salaryCents','passageCents','extrasCents','discountCents'];
+const PRICES=['freightCents','camisola','doll','calcinha','outros','pointCents','priceCents','unitCents','travetaCents','priceCentsKg','amountCents','salaryCents','passageCents','extrasCents','discountCents'];
 function parseData(type,form){
  if(type==='finance.faction.close'){
   return {factionId:String(form.querySelector('[name="factionId"]')?.value||''),
@@ -1437,14 +1483,14 @@ async function submit(form,type){
  try{
   const expectedRevision=doc.revision;
   if(remoteLab){
-   const payload=type==='finance.receipt.attach'?await readReceiptPayload(form):parseData(type,form);
+   const payload=type==='finance.receipt.attach'?await readReceiptPayload(form):type==='print.photo.attach'?await readPrintPhoto(form):parseData(type,form);
    const result=await remoteLab.submit(type,payload,expectedRevision);
    if(result.status!=='confirmed'){const banner=document.querySelector('#remote-check');if(banner){banner.closest('section').outerHTML=remotePanel();}throw Error('Servidor: '+result.status+' · '+(result.message||'Revise a intenção sem repetir.'));}
    doc=result.state;draw();status('Salvo e confirmado no PostgreSQL · '+result.result+' · revisão '+doc.revision+'.');return;
   }
   const pending=await intentRead();
   if(pending.length){const current=await read(),svc=window.HLGBLabRecoveryV1;for(const item of pending){const verdict=svc.classify(current,item,api.inspect);if(verdict.status==='confirmed'){await intentWrite(item,true);}else{recoveryIntents=pending;throw Error('Existe intenção anterior sem confirmação. Abra Auditor > Recuperação segura, releia e exporte a evidência antes de repetir.');}}}
-  const payload=type==='finance.receipt.attach'?await readReceiptPayload(form):parseData(type,form),
+  const payload=type==='finance.receipt.attach'?await readReceiptPayload(form):type==='print.photo.attach'?await readPrintPhoto(form):parseData(type,form),
    id='OP-DEMO-'+crypto.randomUUID(),actor='Operador fictício';
   const intent={commandId:id,type,expectedRevision,recordedAt:new Date().toISOString()};
   await intentWrite(intent);
@@ -1505,7 +1551,7 @@ function exportReport(){
   productionApproval:false,parityApproved:false,modulesVisited:19,exportedAt:new Date().toISOString(),
   journey:api.journey(doc,journeyOrderId),
   observability:observerResult(doc),auditorV3:auditorV3(doc),botV3:botV3(doc),materialPlanning:materialPlannerResult(doc),
-  checks:api.inspect(doc),totals:api.totals(doc),data:{...doc,paymentReceipts:window.HLGBLabPaymentBatchV1.receiptMetadata(doc)},receiptBinaryExported:false};
+  checks:api.inspect(doc),totals:api.totals(doc),data:{...doc,printPhotos:window.HLGBLabComplementsV1.photoMetadata(doc),paymentReceipts:window.HLGBLabPaymentBatchV1.receiptMetadata(doc)},receiptBinaryExported:false};
  download('HLGB-EVOLUCAO-OPERACAO-INTEGRADA-FICTICIA.json',JSON.stringify(report,null,2),'application/json');
 }
 function safeCell(x){let s=String(x??'');if(/^[=+\-@\t\r]/.test(s))s="'"+s;return '"'+s.replace(/"/g,'""')+'"'}
@@ -1857,6 +1903,8 @@ document.addEventListener('click',async e=>{
  if(e.target.closest('#remote-discard')){if(confirm('Descartar somente a intenção local revisada, sem excluir registros do servidor?'))await remoteAction(()=>remoteLab.discard());return;}
  if(e.target.closest('#recovery-check')){if(remoteLab){await remoteAction(()=>remoteLab.reconcile());return;}if(busy)return;busy=true;try{recoveryIntents=await intentRead();const latest=await read();if(latest&&api.inspect(latest).ok)doc=latest;draw();status('Intenções locais relidas · '+recoveryIntents.length+' pendentes.');}catch(err){status(err.message,'error');}finally{busy=false;}return;}
  if(e.target.closest('#recovery-export')){try{download('HLGB-RECUPERACAO-FICTICIO.json',JSON.stringify({plan:recoveryPlan,intents:recoveryIntents.map(x=>({...x,diagnosis:window.HLGBLabRecoveryV1.classify(doc,x,api.inspect)})),history:doc.repairHistory||[]},null,2),'application/json');}catch(err){status(err.message,'error');}return;}
+ if(e.target.closest('#quote-compare')){quoteQuery={materialId:$('quote-material').value,qtyGrams:Number($('quote-qty').value),asOf:$('quote-date').value};draw();return;}
+ if(e.target.closest('#faction-material-export')){const rows=[['Checklist','Envio','Material','Previsto (g)','Conferido (g)','Diferença (g)'],...(doc.factionMaterialChecklists||[]).flatMap(c=>c.materials.map(m=>{const x=(doc.factionMaterialChecks||[]).filter(y=>y.checklistId===c.id&&y.materialId===m.materialId).at(-1);return [c.id,c.assignmentId,m.name,m.grams,x?.actualGrams??'Não conferido',x?.differenceGrams??''];}))];download('HLGB-MATERIAIS-FACCOES-FICTICIO.csv','\uFEFF'+rows.map(r=>r.map(safeCell).join(';')).join('\r\n'),'text/csv;charset=utf-8');return;}
  if(e.target.closest('#grouped-export')){try{download('HLGB-ACERTOS-CONSOLIDADOS-FICTICIOS.json',JSON.stringify(window.HLGBLabPaymentBatchV1.groupedAccounts(doc),null,2),'application/json');}catch(err){status(err.message,'error');}return;}
  if(e.target.closest('#cost-export')){try{download('HLGB-CUSTOS-FICTICIO.json',JSON.stringify(costsResult(doc),null,2),'application/json');}catch(err){status(err.message,'error');}return;}
  if(e.target.closest('#assistant-query')){assistantRequested=true;draw();return;}
