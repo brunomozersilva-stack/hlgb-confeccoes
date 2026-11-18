@@ -228,3 +228,12 @@ test('bloqueio de login é compartilhado por dois servidores locais no mesmo Pos
   await new Promise(resolve=>second.close(resolve));
  }
 });
+
+test('perfis de demonstração: criar pedido com cores é autorizado para A/B, não para Corte C',()=>{
+ const {can,publicProfile}=require('../banco-integrado/permissoes-lab.cjs');
+ for(const actor of ['Operador A fictício','Operador B fictício']){
+  assert.equal(can(actor,'order.add.with.colors'),true);
+  assert.equal(publicProfile(actor).allowedCommands.includes('order.add.with.colors'),true);
+ }
+ assert.equal(can('Operador C fictício','order.add.with.colors'),false);
+});
