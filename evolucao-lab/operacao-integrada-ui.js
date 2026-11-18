@@ -268,7 +268,7 @@ function multiCutPanel(s){
  if(!v)return panel('Corte multimodelo','<p>Motor de laboratório indisponível. Gravações bloqueadas.</p>',true);
  const forms=orders.flatMap(o=>o.items.map(item=>{
   const free=v.balance(s,o.id,item.id).reduce((n,x)=>n+Math.max(0,x.remaining),0);
-  return '<details class="panel"><summary>'+str(o.id)+' · '+str(item.name)+' ('+str(item.id)+') — '+free+' peças disponíveis</summary>'+
+  return '<details class="panel" data-mf-record="'+escape(o.id+'|'+item.id)+'"><summary>'+str(o.id)+' · '+str(item.name)+' ('+str(item.id)+') — '+free+' peças disponíveis</summary>'+
    (free?multiCutEditor(s,o,item):'<p>Saldo totalmente reservado ou concluído. Confira folhas anteriores.</p>')+'</details>';
  })).join('');
  const history=table(['Folha','Modelo','Grade por cor/tamanho','Total','Data','Status','Eventos','Impressão'],plans.map(p=>{
@@ -2838,7 +2838,21 @@ document.addEventListener('click',async e=>{
  const mod=e.target.closest('button[data-module]');
  if(mod){searchState.selected=null;active=mod.dataset.module;window.location.hash=active;draw();window.scrollTo(0,0);return}
  const goto=e.target.closest('button[data-goto]');
- if(goto){searchState.selected=null;active=goto.dataset.goto;window.location.hash=active;draw();window.scrollTo(0,0)}
+ if(goto){
+  searchState.selected=null;active=goto.dataset.goto;window.location.hash=active;draw();
+  const focus=goto.dataset.mfFocus;
+  if(focus){
+   const target=[...document.querySelectorAll('#module-content [data-mf-record]')]
+    .find(el=>el.dataset.mfRecord===focus);
+   if(target){
+    if(target.tagName==='DETAILS')target.open=true;
+    target.dataset.mfFocused='true';
+    target.style.outline='2px solid var(--accent, currentColor)';
+    target.style.outlineOffset='3px';
+    target.scrollIntoView({block:'center'});
+   }else{window.scrollTo(0,0);status('Módulo aberto. O registro mudou de estado; consulte a grade atual antes de agir.');}
+  }else window.scrollTo(0,0);
+ }
 });
 document.addEventListener('input',e=>{if(e.target.id==='historical-raw'){historicalDraft=e.target.value;historicalResult=null;}if(e.target.closest('#order-color-matrix-form'))updateColorMatrixPreview();if(e.target.closest('#multi-order-form'))multiOrderPreview();});
 document.addEventListener('change',e=>{
