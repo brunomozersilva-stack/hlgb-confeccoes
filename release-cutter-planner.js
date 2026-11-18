@@ -1,7 +1,7 @@
 /* HLGB — programação rápida dos cortadores por MODELO */
 (function(){
 'use strict';
-const V='2026.10.01-cutter-planner-v4';
+const V='2026.11.18-cutter-planner-v5';
 const sid=v=>String(v??''),q=v=>Math.max(0,Number(v)||0),today=()=>new Date().toISOString().slice(0,10);
 const escSafe=v=>typeof esc==='function'?esc(v):sid(v).replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
 const norm=v=>sid(v).normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().trim();
@@ -91,7 +91,42 @@ function renderMatches(){
   box.innerHTML=rows.length?rows.map(x=>'<button type="button" class="secondary hlgbCutterPlanChoice" data-key="'+escSafe(x.key)+'" style="text-align:left;width:100%;margin:4px 0;padding:10px 12px"><b>'+escSafe(x.productName)+'</b> · Pedido #'+escSafe(x.orderNo)+' · '+escSafe(x.client)+' · '+x.pieces.toLocaleString('pt-BR')+' pç · '+escSafe(x.priority)+(x.date?' · programado '+escSafe(x.date):'')+'</button>').join(''):'<div class="empty">Nenhum modelo encontrado para essa busca.</div>';
   box.querySelectorAll('.hlgbCutterPlanChoice').forEach(b=>b.onclick=()=>selectModel(b.dataset.key));
 }
-let selectedKey='';
+let selectedKey='',saving=false;
+const uncertainDrafts=new Map();
+const proofState={attempts:0,confirmed:0,uncertain:0,lastId:'',lastError:'',lastAt:''};
+function criticalGrade(grade){
+ return (Array.isArray(grade)?grade:[]).map(g=>JSON.stringify([sid(g.productId),sid(g.color),sid(g.size),Number(g.qty)])).sort().join('|');
+}
+function sameScheduledModel(remote,desired){
+ return !!(remote&&desired&&sid(remote.orderId)===sid(desired.orderId)&&
+  sid(remote.productId)===sid(desired.productId)&&
+  sid(remote.cutterId)===sid(desired.cutterId)&&
+  sid(remote.plannedCutDate)===sid(desired.plannedCutDate)&&
+  Number(remote.pieces)===Number(desired.pieces)&&
+  criticalGrade(remote.originalGrade)===criticalGrade(desired.originalGrade));
+}
+async function fetchRemoteCut(id){
+ if(typeof window.cloudRequest!=='function')throw new Error('Consulta de confirmação na nuvem indisponível. Não reenviar sem verificar.');
+ const query='hlgb_records?select=module,entity_id,data,deleted_at,revision&module=eq.cuts&entity_id=eq.'+
+  encodeURIComponent(sid(id))+'&limit=1';
+ const rows=await window.cloudRequest(query,{method:'GET'});
+ if(!Array.isArray(rows))throw new Error('Servidor não devolveu confirmação legível do corte.');
+ const row=rows.find(r=>sid(r?.module)==='cuts'&&sid(r?.entity_id)===sid(id));
+ if(!row||row.deleted_at)return null;
+ return row.data||null;
+}
+function showSaveFailure(err){
+ const message='⚠️ Sem confirmação remota. A programação foi mantida na tela. '+
+ 'Não cadastre o mesmo modelo novamente antes de conferir o salvamento. '+sid(err?.message||err);
+ const target=document.getElementById('hlgbCutterPlannerFeedback');
+ if(target)target.textContent=message;
+ return message;
+}
+function setSaveBusy(busy){
+ const btn=document.querySelector?.('#hlgbCutterPlanner button[onclick*="hlgbCutterPlannerSave"]');
+ if(btn){btn.disabled=busy;btn.textContent=busy?'Conferindo gravação...':'Salvar este modelo';}
+}
+
 function selected(){return modelRows().find(r=>r.key===selectedKey)||null}
 function selectModel(key){
   selectedKey=sid(key);const x=selected();if(!x)return;
@@ -108,17 +143,36 @@ function newChildId(orderId,productId){
 function productText(x){
   return x.grade.map(g=>q(g.qty)+' '+x.productName+(g.color?' '+g.color:'')+(g.size?' Tam '+g.size:'')).join(' | ');
 }
-async function saveRecord(row){
+async function saveRecord(row,{isNew=false}={}){
   if(typeof hlgbRecordSaveWithRetry!=='function')throw new Error('Gravação oficial indisponível.');
-  const out=await hlgbRecordSaveWithRetry('cuts',sid(row.id),row,false);if(!out?.applied)throw new Error('A nuvem não confirmou a programação do modelo.');
-  db.cuts=Array.isArray(db.cuts)?db.cuts:[];const i=db.cuts.findIndex(c=>sid(c?.id)===sid(row.id));if(i>=0)db.cuts[i]=out.data||row;else db.cuts.push(out.data||row);
-  return out.data||row;
+  // Uma tentativa anterior pode ter sido recebida pelo servidor mesmo com timeout no aparelho.
+  // Não reenviar automaticamente: compare primeiro a identidade e os campos de negócio.
+  if(isNew){
+   const exists=await fetchRemoteCut(row.id);
+   if(exists){
+    if(!sameScheduledModel(exists,row))throw new Error('ID de corte já existe com dados diferentes na nuvem. Não sobrescrever: conferir o registro e o pedido.');
+    db.cuts=Array.isArray(db.cuts)?db.cuts:[];const index=db.cuts.findIndex(c=>sid(c?.id)===sid(row.id));
+    if(index>=0)db.cuts[index]=exists;else db.cuts.push(exists);
+    return exists;
+   }
+  }
+  const out=await hlgbRecordSaveWithRetry('cuts',sid(row.id),row,false);
+  if(!out?.applied)throw new Error('A nuvem não confirmou a programação; o WAL pode estar pendente. Não repetir como novo corte.');
+  const proof=await fetchRemoteCut(row.id);
+  if(!sameScheduledModel(proof,row))
+   throw new Error('A resposta de gravação chegou, mas a releitura não confirmou modelo, grade, data e cortador. Mantenha a tela e confira o servidor antes de repetir.');
+  db.cuts=Array.isArray(db.cuts)?db.cuts:[];const i=db.cuts.findIndex(c=>sid(c?.id)===sid(row.id));if(i>=0)db.cuts[i]=proof;else db.cuts.push(proof);
+  return proof;
 }
 async function save(){
+  if(saving)throw new Error('A gravação deste cortador ainda está em andamento. Não clique novamente.');
+  saving=true;setSaveBusy(true);proofState.attempts++;proofState.lastAt=new Date().toISOString();
+  try{
   const x=selected();if(!x)throw new Error('Selecione um modelo.');
   const date=document.getElementById('hlgbCutterPlannerDate')?.value||'',cutterId=document.getElementById('hlgbCutterPlannerCutter')?.value||'';
   if(!date)throw new Error('Escolha a data do corte.');if(!cutterId)throw new Error('Escolha o cortador.');
-  let target=x.cut;
+  let target=x.cut||uncertainDrafts.get(x.key)||null;
+  const isNew=!x.cut;
   if(!target){
     const source=x.aggregateCut||arr('cuts').find(c=>c&&sid(c.orderId)===sid(x.orderId)&&norm(c.status)!=='finalizado')||{};
     target={
@@ -135,11 +189,16 @@ async function save(){
     modelPlanningSplitV1:true,updatedAt:new Date().toISOString()};
   const dup=arr('cuts').find(c=>sid(c?.id)!==sid(next.id)&&sid(c?.orderId)===sid(x.orderId)&&sid(c?.productId)===sid(x.productId)&&c.modelPlanningSplitV1&&norm(c?.status)!=='finalizado');
   if(dup){next.id=dup.id;next.createdAt=dup.createdAt||next.createdAt;target=dup}
-  await saveRecord(next);
+  // Mantém sempre o MESMO id do modelo após falha incerta, sem criar outro corte.
+  uncertainDrafts.set(x.key,next);proofState.lastId=sid(next.id);
+  await saveRecord(next,{isNew});
+  uncertainDrafts.delete(x.key);proofState.confirmed++;proofState.lastError='';
   try{localSaveOnly?.()}catch(e){}
   try{renderCuts?.();renderCutters?.();renderProjection?.();drawCutterChart?.()}catch(e){}
   const ok=document.getElementById('hlgbCutterPlannerFeedback');if(ok)ok.innerHTML='<span class="badge ok">'+escSafe(x.productName)+' programado para '+escSafe(date)+' · '+escSafe(cutterById(cutterId)?.name||'Cortador')+'</span>';
   selectedKey='';const s=document.getElementById('hlgbCutterPlannerSearch');if(s)s.value='';renderMatches();return true;
+  }catch(e){proofState.uncertain++;proofState.lastError=sid(e?.message||e);showSaveFailure(e);throw e}
+  finally{saving=false;setSaveBusy(false)}
 }
 function ensurePanel(){
   const page=document.getElementById('cortadores');if(!page||document.getElementById('hlgbCutterPlanner'))return;
@@ -147,8 +206,18 @@ function ensurePanel(){
   panel.innerHTML='<h2>✂️ Separar modelos do pedido para cortar</h2><div class="sub">Primeiro procure o pedido. O sistema mostra todos os modelos separados para você escolher qual será cortado e em qual data.</div><div class="field" style="margin-top:10px"><label>Pedido / cliente</label><input id="hlgbCutterOrderSearch" placeholder="Ex.: pedido 101 ou Gisele" oninput="hlgbCutterOrderSearchRender()"></div><div id="hlgbCutterOrderResults" style="max-height:220px;overflow:auto;margin-top:8px"><div class="empty">Digite o pedido ou cliente.</div></div><div id="hlgbCutterOrderModels" style="margin-top:10px"></div><hr style="margin:18px 0;border:0;border-top:1px solid #e5e5e5"><h3>Programar o modelo escolhido</h3><div class="toolbar" style="align-items:flex-end;flex-wrap:wrap;margin-top:10px"><div class="field" style="min-width:260px;flex:1"><label>Ou buscar direto por modelo</label><input id="hlgbCutterPlannerSearch" placeholder="Ex.: Camisola, Gisele ou pedido 87" oninput="hlgbCutterPlannerRender()"></div><div class="field"><label>Data deste modelo</label><input id="hlgbCutterPlannerDate" type="date" value="'+today()+'"></div><div class="field" style="min-width:200px"><label>Cortador</label><select id="hlgbCutterPlannerCutter"><option value="">Selecione</option>'+arr('cutters').filter(c=>c.active!==false).sort((a,b)=>String(a.name||'').localeCompare(String(b.name||''),'pt-BR')).map(c=>'<option value="'+escSafe(c.id)+'">'+escSafe(c.name||'Cortador')+'</option>').join('')+'</select></div><button type="button" class="primary" onclick="hlgbCutterPlannerSave()">Salvar este modelo</button></div><div id="hlgbCutterPlannerSelected" class="sub" style="margin-top:8px">Nenhum modelo selecionado.</div><div id="hlgbCutterPlannerFeedback" style="margin-top:6px"></div><div id="hlgbCutterPlannerResults" style="max-height:320px;overflow:auto;margin-top:10px"><div class="empty">Digite para pesquisar.</div></div>';
   if(first)page.insertBefore(panel,first);else page.appendChild(panel);
 }
-window.hlgbCutterPlannerRender=renderMatches;window.hlgbCutterOrderSearchRender=renderOrderSearch;window.hlgbCutterPlannerSave=async()=>{try{return await save()}catch(e){alert(String(e?.message||e));return false}};
-window.hlgbCutterPlanner={modelRows,matches,orderSearchRows,showOrderModels,selectModel,save,modelGrade,modelPieces,modelIds,modelAlreadyCut,productText};
+window.hlgbCutterPlannerRender=renderMatches;window.hlgbCutterOrderSearchRender=renderOrderSearch;window.hlgbCutterPlannerSave=async()=>{try{return await save()}catch(e){if(!saving)alert(String(e?.message||e));return false}};
+window.hlgbCutterPlanner={modelRows,matches,orderSearchRows,showOrderModels,selectModel,save,modelGrade,modelPieces,modelIds,modelAlreadyCut,productText,
+ diagnostic:()=>({...proofState,pendingDraftCount:uncertainDrafts.size}),
+ verifyPending:async key=>{
+  const pending=uncertainDrafts.get(sid(key));if(!pending)return {status:'none'};
+  const remote=await fetchRemoteCut(pending.id);
+  if(!remote)return {status:'missing',id:sid(pending.id)};
+  if(!sameScheduledModel(remote,pending))return {status:'different',id:sid(pending.id)};
+  db.cuts=Array.isArray(db.cuts)?db.cuts:[];const i=db.cuts.findIndex(c=>sid(c?.id)===sid(pending.id));
+  if(i>=0)db.cuts[i]=remote;else db.cuts.push(remote);
+  uncertainDrafts.delete(sid(key));return {status:'confirmed',id:sid(pending.id)};
+ }};
 const old=window.renderCutters;if(typeof old==='function'&&!old.__hlgbPlannerV3){const w=function(){const r=old.apply(this,arguments);setTimeout(ensurePanel,0);return r};w.__hlgbPlannerV3=true;w.__original=old;window.renderCutters=w}
 function boot(){try{ensurePanel()}catch(e){console.warn('[HLGB cutter planner]',e)}}try{if(typeof hlgbAfterLogin==='function')hlgbAfterLogin(()=>setTimeout(boot,900),0)}catch(e){}setTimeout(boot,1600);
 window.HLGB_CUTTER_PLANNER_GUARD=V;

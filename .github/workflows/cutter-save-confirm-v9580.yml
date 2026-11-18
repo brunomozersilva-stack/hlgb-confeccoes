@@ -1,0 +1,23 @@
+name: HLGB Cutter Save Confirmation v95.80
+on:
+  pull_request:
+    branches: [main]
+    paths: [release-cutter-planner.js, tests/audit-cutter-planner-regression.cjs, tests/cutter-save-confirm-v9580.cjs, .github/workflows/cutter-save-confirm-v9580.yml]
+  push:
+    branches: [main]
+    paths: [release-cutter-planner.js, tests/audit-cutter-planner-regression.cjs, tests/cutter-save-confirm-v9580.cjs, .github/workflows/cutter-save-confirm-v9580.yml]
+permissions: {contents: read}
+jobs:
+  save-cutter:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - name: Syntax check and no-write synthetic cutter tests
+        run: |
+          node --check release-cutter-planner.js
+          node --check tests/cutter-save-confirm-v9580.cjs
+          node tests/audit-cutter-planner-regression.cjs
+          node --test tests/cutter-save-confirm-v9580.cjs

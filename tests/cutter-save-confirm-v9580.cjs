@@ -1,0 +1,67 @@
+'use strict';
+const test=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('node:vm');
+const src=fs.readFileSync('release-cutter-planner.js','utf8');
+function setup(){
+ const records=new Map(),calls=[],messages=[],delays=[];
+ const db={cuts:[],orders:[{id:123,orderNumber:100,client:'Cliente fictício',status:'Aguardando corte',
+  grade:[{productId:55,color:'Preto',size:'P',qty:6},{productId:55,color:'Rubi',size:'M',qty:4}]}],
+  products:[{id:55,name:'Camisola Teste'}],cutters:[{id:9,name:'Cortador Fictício',active:true}]};
+ const fields={hlgbCutterPlannerDate:{value:'2026-11-18'},hlgbCutterPlannerCutter:{value:'9'},
+  hlgbCutterPlannerSelected:{innerHTML:''},hlgbCutterPlannerFeedback:{textContent:'',innerHTML:''},
+  hlgbCutterPlannerSearch:{value:''}};
+ const document={getElementById:id=>fields[id]||null,querySelector:()=>null};
+ const context={db,console,setTimeout:()=>0,document,window:{},
+  displayOrderNumber:o=>o.orderNumber,alert:m=>messages.push(m),encodeURIComponent};
+ context.window.cloudRequest=async(path,options)=>{
+  assert.equal(options.method,'GET');assert.match(path,/module=eq.cuts/);
+  const id=decodeURIComponent(path.match(/entity_id=eq.([^&]+)/)[1]),row=records.get(id);
+  return row?[{module:'cuts',entity_id:id,data:structuredClone(row),deleted_at:null,revision:1}]:[];
+ };
+ context.hlgbRecordSaveWithRetry=async(module,id,row,deleted)=>{
+  calls.push({module,id,row:structuredClone(row),deleted});
+  records.set(id,structuredClone(row));return {applied:true,data:row};
+ };
+ vm.createContext(context);vm.runInContext(src,context);
+ const api=context.window.hlgbCutterPlanner;api.selectModel?.('123|55'); // use selectModel when exposed
+ return {context,api,db,fields,records,calls,messages};
+}
+test('salvar programação exige releitura de grade, data, cortador e modelo',async()=>{
+ const f=setup();const id=await f.api.save();
+ assert.equal(id,true);
+ assert.equal(f.calls.length,1);assert.equal(f.db.cuts.length,1);
+ assert.equal(f.records.size,1);
+ assert.equal(f.api.diagnostic().confirmed,1);
+ assert.equal(f.api.diagnostic().pendingDraftCount,0);
+ assert.match(f.fields.hlgbCutterPlannerFeedback.innerHTML,/programado/);
+});
+test('ACK sem registro remoto não autoriza sucesso e mantém ID estável para recuperar',async()=>{
+ const f=setup(),ids=[];
+ f.context.hlgbRecordSaveWithRetry=async(module,id,row)=>{ids.push(id);return {applied:true,data:row}};
+ await assert.rejects(f.api.save(),/releitura não confirmou/);
+ assert.equal(f.db.cuts.length,0);
+ assert.equal(f.api.diagnostic().pendingDraftCount,1);
+ assert.equal(f.api.diagnostic().uncertain,1);
+ assert.match(f.fields.hlgbCutterPlannerFeedback.textContent,/Sem confirmação remota/);
+ await assert.rejects(f.api.save(),/releitura não confirmou/);
+ assert.deepEqual(ids,[ids[0],ids[0]],'A segunda tentativa deve usar o mesmo ID');
+});
+test('clique simultâneo é bloqueado e não cria duas gravações',async()=>{
+ const f=setup();let release,called=0;
+ f.context.hlgbRecordSaveWithRetry=async(module,id,row)=>{
+  called++;await new Promise(resolve=>{release=resolve});
+  f.records.set(id,structuredClone(row));return {applied:true,data:row};
+ };
+ const first=f.api.save();
+ await new Promise(resolve=>setTimeout(resolve,0));
+ await assert.rejects(f.api.save(),/ainda está em andamento/);
+ assert.equal(called,1);
+ release();assert.equal(await first,true);
+ assert.equal(f.db.cuts.length,1);
+});
+test('ID existente com modelo diferente não pode ser sobrescrito',async()=>{
+ const f=setup(),target=f.api.modelRows()[0],id=410000000000000+Number((String(target.orderId)+String(target.productId)).replace(/\D/g,'').slice(-12));
+ f.records.set(String(id),{id,orderId:999,productId:77,cutterId:9,plannedCutDate:'2026-11-18',pieces:10});
+ await assert.rejects(f.api.save(),/ID de corte já existe/);
+ assert.equal(f.calls.length,0);
+ assert.equal(f.records.get(String(id)).orderId,999);
+});
