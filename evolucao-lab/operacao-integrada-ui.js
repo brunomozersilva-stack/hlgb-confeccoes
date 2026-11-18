@@ -121,10 +121,25 @@ function orderColorGradePanel(s){
   form('order.color.grade.set','Incluir, alterar ou remover cor existente',[
    field('orderId','Pedido ainda sem envio','select','',selector(eligible,x=>x.id+' · '+(ref(s.products,x.productId)?.name||''))),
    field('color','Nome da cor','text','Preto'),
-   ...api.sizes.map(sz=>field(sz,sz+' — quantidade desta cor','int','0'))
+   ...api.sizes.map(sz=>field(sz,sz+' — quantidade desta cor','int','0')),
+   field('removeColor','Remover esta cor existente (confirmação obrigatória)','checkbox')
   ],'Salvar cor na grade')+
-  '<p>Uma cor existente com todas as quantidades zeradas será removida, somente antes de envios. A grade geral do pedido não é alterada.</p>'+
+  '<p id="order-color-edit-hint" role="status">Selecione uma cor para preencher a grade existente.</p>'+
+  '<p>Para remover uma cor, marque explicitamente a opção de remoção. Apenas zerar os campos não exclui a cor. A grade geral do pedido permanece preservada.</p>'+
   table(['Pedido / modelo','Cor',...api.sizes,'Total'],rows),true);
+}
+function fillOrderColorEdit(){
+ if(active!=='pedidos'||!doc)return;
+ const form=document.querySelector('#module-content form[data-command="order.color.grade.set"]');
+ if(!form)return;
+ const order=doc.orders.find(x=>x.id===form.elements.namedItem('orderId').value);
+ const color=String(form.elements.namedItem('color').value||'').trim().toLocaleLowerCase('pt-BR');
+ const row=order?.colorGrades?.find(x=>x.color.trim().toLocaleLowerCase('pt-BR')===color);
+ for(const sz of api.sizes)form.elements.namedItem(sz).value=String(row?.grade?.[sz]||0);
+ const remove=form.elements.namedItem('removeColor');if(remove)remove.checked=false;
+ const hint=document.getElementById('order-color-edit-hint');
+ if(hint)hint.textContent=row?'Cor existente carregada: '+row.color+' · '+sum(row.grade)+' peças. Alterar e salvar mantém o histórico do pedido.':
+  'Cor ainda não cadastrada neste pedido. Informe as quantidades para incluí-la.';
 }
 function orderTable(s){
  return table(['Pedido / modelo','Cliente','Grade e corte','Fluxo','Recebimento'],s.orders.map(o=>{
@@ -1572,7 +1587,7 @@ function draw(){
  ['Pedidos fictícios',String(t.orders)],['Peças pedidas',String(t.pieces)],['Peças cortadas',String(t.cut)],
  ['Títulos a pagar abertos',fmt(t.openPayables)]];
  $('global-metrics').innerHTML=metrics.map(([label,value])=>'<div class="metric"><span>'+escape(label)+'</span><strong>'+escape(value)+'</strong></div>').join('');
- try{$('module-content').innerHTML=remotePanel()+moduleHtml(doc);visitedModules.add(active);if(active==='pedidos')updateColorMatrixPreview();}catch(e){$('module-content').innerHTML=remotePanel()+panel('Não foi possível exibir esta área','<div class="error">'+str(e.message)+'</div><p>Os dados não foram modificados. Abra outro módulo, exporte as evidências ou tente recarregar.</p><button type="button" class="btn" data-goto="auditor">Abrir Auditor</button>',true);}
+ try{$('module-content').innerHTML=remotePanel()+moduleHtml(doc);visitedModules.add(active);if(active==='pedidos'){updateColorMatrixPreview();fillOrderColorEdit();}}catch(e){$('module-content').innerHTML=remotePanel()+panel('Não foi possível exibir esta área','<div class="error">'+str(e.message)+'</div><p>Os dados não foram modificados. Abra outro módulo, exporte as evidências ou tente recarregar.</p><button type="button" class="btn" data-goto="auditor">Abrir Auditor</button>',true);}
  if(remoteLab){const allowed=new Set(remoteLab.info().permissions?.allowedCommands||[]);
  for(const f of document.querySelectorAll('#module-content form[data-command]')){if(allowed.has(f.dataset.command))continue;for(const button of f.querySelectorAll('button[type="submit"]')){button.disabled=true;button.title='Ação não autorizada para o perfil fictício';}const notice=document.createElement('p');notice.className='caption';notice.textContent='Permissão de escrita restrita a outro perfil. Não use dados reais.';f.append(notice);}}
  if(active==='acertos'){refreshServicePreview();applySettlementFilters();const f=document.querySelector('form[data-command="settlement.revise"]');if(f)fillSettlementRevision(f);}
@@ -1603,6 +1618,17 @@ function parseData(type,form){
   const p=readColorMatrix(form);
   return {clientId:p.clientId,productId:p.productId,colorGrades:p.colorGrades};
  }
+ if(type==='order.color.grade.set'&&active==='pedidos'){
+  // Na edição de cor o usuário precisa marcar remoção explicitamente.
+  const removal=form.elements.namedItem('removeColor')?.checked;
+  // A grade é montada pelo bloco genérico abaixo; validação final no retorno.
+  if(removal){
+   const order=doc.orders.find(x=>x.id===form.elements.namedItem('orderId').value);
+   const color=String(form.elements.namedItem('color').value||'').trim().toLocaleLowerCase('pt-BR');
+   if(!order?.colorGrades?.some(x=>x.color.trim().toLocaleLowerCase('pt-BR')===color))
+    throw Error('Só é possível remover uma cor já cadastrada.');
+  }
+ }
  if(type==='settlement.service.group'){const p=serviceGroupInput(captureServiceGroup()),q=window.HLGBLabServicesV1.groupPreview(doc,p);if(!serviceGroupResult||serviceGroupResult.revision!==doc.revision||q.signature!==serviceGroupResult.signature)throw Error('Acerto mudou. Confira o total novamente.');return {...p,signature:q.signature,expectedTotalCents:q.total,reason:form.elements.namedItem('reason').value};}
  if(type==='assistant.order.create'){const p=readAssistedDraft();if(!assistedPreview||assistedPreview.revision!==doc.revision||JSON.stringify(p)!==JSON.stringify(assistedDraft))throw Error('Confira nova prévia.');return {...p,signature:assistedPreview.signature,reason:form.elements.namedItem('reason').value};}
  if(type==='purchase.invoice.import'){const p=readInvoiceDraft();if(!invoicePreview||invoicePreview.revision!==doc.revision||JSON.stringify(p)!==JSON.stringify(invoiceDraft))throw Error('Confira nova prévia da nota.');return {...p,declaredCents:parseCents(p.declaredCents),signature:invoicePreview.signature,checkerOne:form.elements.namedItem('checkerOne').value,checkerTwo:form.elements.namedItem('checkerTwo').value,reason:form.elements.namedItem('reason').value};}
@@ -1628,6 +1654,13 @@ function parseData(type,form){
   else if(k==='adjustmentCents'||k==='deltaCents')p[k]=parseCents(v,true);
   else if(k==='traveta')p[k]=v==='true';
   else p[k]=String(v);
+ }
+ if(type==='order.color.grade.set'&&active==='pedidos'){
+  const removal=form.elements.namedItem('removeColor')?.checked;
+  if(removal)p.grade=Object.fromEntries(api.sizes.map(sz=>[sz,0]));
+  else if(api.sizes.every(sz=>p.grade[sz]===0))
+   throw Error('Grade zerada não remove cor. Marque a opção explícita de remoção.');
+  delete p.removeColor;
  }
  if(type==='cut.bom.execute'){
   p.scrapByMaterial={};
@@ -1715,6 +1748,8 @@ async function submit(form,type){
  if(type==='finance.faction.close'&&!confirm('Confirmar somente a baixa fictícia de todos os títulos e o total conferido deste prestador?'))return;
  if(type==='recovery.repair'&&!confirm('Aplicar exclusivamente o reparo de metadado simulado?'))return;
  if(type==='cut.plan.cancel'&&!confirm('Cancelar somente a folha aberta, preservando o histórico?'))return;
+ if(type==='order.color.grade.set'&&active==='pedidos'&&form.elements.namedItem('removeColor')?.checked&&
+    !confirm('Remover esta cor do pedido? Esta operação registra o histórico e não altera a grade geral.'))return;
  busy=true;
  const button=form.querySelector('button[type=submit]');if(button)button.disabled=true;
  try{
@@ -2255,7 +2290,11 @@ document.addEventListener('click',async e=>{
  if(goto){searchState.selected=null;active=goto.dataset.goto;window.location.hash=active;draw();window.scrollTo(0,0)}
 });
 document.addEventListener('input',e=>{if(e.target.closest('#order-color-matrix-form'))updateColorMatrixPreview();});
-document.addEventListener('change',e=>{if(e.target.closest('#order-color-matrix-form'))updateColorMatrixPreview();});
+document.addEventListener('change',e=>{
+ if(e.target.closest('#order-color-matrix-form'))updateColorMatrixPreview();
+ const editing=e.target.closest('form[data-command="order.color.grade.set"]');
+ if(editing&&active==='pedidos'&&['orderId','color'].includes(e.target.name))fillOrderColorEdit();
+});
 document.addEventListener('submit',e=>{
  const form=e.target.closest('form[data-command]');if(!form)return;
  e.preventDefault();submit(form,form.dataset.command);

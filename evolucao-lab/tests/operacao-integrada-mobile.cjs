@@ -1048,6 +1048,18 @@ async function runColorMatrix(browser,url,width){
   assert.equal(report.data.log.filter(x=>x.type==='order.add.with.colors').length,1);
   assert.equal(await page.locator('form[data-command="order.add"]').count(),1,'Modo antigo preservado');
   assert.equal(await page.locator('form[data-command="order.color.grade.set"]').count(),1,'Edição acessível em Pedidos');
+  const edit=page.locator('form[data-command="order.color.grade.set"]');
+  await edit.locator('[name=orderId]').selectOption(newOrder.id);
+  await edit.locator('[name=color]').fill('Rubi');
+  await edit.locator('[name=color]').dispatchEvent('change');
+  assert.equal(await edit.locator('[name=P]').inputValue(),'1','Edição deve carregar P existente');
+  assert.equal(await edit.locator('[name=M]').inputValue(),'3','Edição deve carregar M existente');
+  assert.equal(await edit.locator('[name=G]').inputValue(),'1','Edição deve carregar G existente');
+  for(const size of ['P','M','G','GG'])await edit.locator('[name="'+size+'"]').fill('0');
+  await edit.locator('button[type=submit]').click();
+  assert.equal(await revision(page),2,'Zerar campos sem marcar remoção nunca apaga uma cor');
+  assert.match(await page.locator('#flash').innerText(),/Grade zerada não remove cor/);
+
   const bad=form.locator('[data-color-row]').first();
   await form.locator('[data-add-color-row]').click();
   await bad.locator('[name=color]').fill('Preto');
