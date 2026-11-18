@@ -690,9 +690,6 @@ function recoveryPanels(s){
  panel('Intenções pendentes de confirmação',table(['Comando','Operação','Revisão esperada','Diagnóstico','Ação'],recoveryIntents.map(x=>[str(x.commandId),str(x.type),str(x.expectedRevision),str(svc.classify(s,x,api.inspect).message),!remoteLab&&svc.review(s,x,api.inspect).allowed?'<button type="button" class="btn" data-intent-review="'+str(x.commandId)+'">Arquivar após revisar</button>':'—']))+'<p>Intenções novas gravadas junto com o documento na mesma transação local; intenções antigas podem exigir revisão. Não contêm dados de pagamento ou conteúdo do formulário. Não representam fila de envio; ausência de prova não autoriza repetir.</p>',true)+
  panel('Histórico de reparos autorizados',table(['Comando','Antes','Prova conferida','Motivo'],(s.repairHistory||[]).map(x=>[str(x.commandId),str(x.before),str(x.expected),str(x.reason)])),true);
 }
-function intentWrite(intent,remove=false){
- return new Promise((resolve,reject)=>{const tx=db.transaction(STORE,'readwrite'),store=tx.objectStore(STORE),key='intent:'+intent.commandId;if(remove)store.delete(key);else store.put({key,intent});tx.oncomplete=()=>resolve();tx.onabort=()=>reject(tx.error||Error('Registro de intenção não confirmado.'));tx.onerror=()=>reject(tx.error||Error('Falha no registro de intenção.'));});
-}
 function intentRead(){
  return new Promise((resolve,reject)=>{const tx=db.transaction(STORE,'readonly'),req=tx.objectStore(STORE).getAll(IDBKeyRange.bound('intent:','intent:\uffff'));req.onsuccess=()=>resolve(req.result.filter(x=>String(x.key).startsWith('intent:')&&x.intent).map(x=>x.intent));req.onerror=()=>reject(req.error||Error('Falha ao reler intenções.'));});
 }

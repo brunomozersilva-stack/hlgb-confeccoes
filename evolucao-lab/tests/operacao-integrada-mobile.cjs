@@ -980,10 +980,40 @@ async function run(browser,width,url){
   console.log('PASS integração '+browserType.name()+' '+width+'px: 19 módulos, transações integradas, 2 abas, relatório e recuperação');
  }finally{await ctx.close()}
 }
+
+async function runRecovery(browser,url){
+ const ctx=await browser.newContext({viewport:{width:390,height:820},acceptDownloads:true}),page=await ctx.newPage();
+ try{
+ await page.goto(url);await page.waitForFunction(()=>document.querySelector('#top-revision')?.textContent.includes('Revisão local 1'));
+ // Fixture de intenção antiga: somente metadados, sem operação comercial.
+ const write=async item=>page.evaluate(item=>new Promise((resolve,reject)=>{
+ const req=indexedDB.open('HLGB_EVOLUCAO_OPERACAO_INTEGRADA_FICTICIA_V1',2);
+ req.onsuccess=()=>{const db=req.result,tx=db.transaction('documentos','readwrite');tx.objectStore('documentos').put(item);tx.oncomplete=()=>{db.close();resolve();};tx.onabort=()=>{db.close();reject(tx.error);};};req.onerror=()=>reject(req.error);
+ }),item);
+ const entries=async()=>page.evaluate(()=>new Promise((resolve,reject)=>{
+ const req=indexedDB.open('HLGB_EVOLUCAO_OPERACAO_INTEGRADA_FICTICIA_V1',2);req.onsuccess=()=>{const db=req.result,tx=db.transaction('documentos','readonly'),q=tx.objectStore('documentos').getAll();q.onsuccess=()=>{resolve(q.result);db.close();};q.onerror=()=>reject(q.error);};req.onerror=()=>reject(req.error);
+ }));
+ await write({key:'intent:LEGACY-RECOVERY-FIXTURE',intent:{commandId:'LEGACY-RECOVERY-FIXTURE',type:'order.add',expectedRevision:1,recordedAt:'2026-11-17T00:00:00.000Z'}});
+ await module(page,'pedidos');await page.locator('form[data-command="order.add"] button[type=submit]').click();
+ await page.waitForFunction(()=>document.querySelector('#flash').textContent.includes('intenção anterior'));assert.equal(await revision(page),1);
+ await module(page,'auditor');await page.locator('#recovery-check').click();
+ page.once('dialog',d=>d.accept());await page.locator('[data-intent-review="LEGACY-RECOVERY-FIXTURE"]').click();
+ await page.waitForFunction(()=>document.querySelector('#flash').textContent.includes('Intenção arquivada'));
+ let rows=await entries();assert.equal(rows.find(x=>x.key==='intent-history:LEGACY-RECOVERY-FIXTURE').resolution,'legacy_absent');assert.equal(rows.some(x=>x.key==='intent:LEGACY-RECOVERY-FIXTURE'),false);
+ await module(page,'pedidos');await put(page,'order.add',{clientId:'CLI-0001',productId:'PRO-0001',P:'10',M:'0',G:'0',GG:'0'});
+ rows=await entries();const doc=rows.find(x=>x.key==='operacao-ficticia').data,e=doc.log.at(-1);assert.equal(doc.orders.length,1);assert.equal(rows.find(x=>x.key==='intent-history:'+e.commandId).resolution,'confirmed');assert.equal(rows.some(x=>x.key.startsWith('intent:')),false);
+ // A transação recusada não deixa intenção órfã.
+ const f=page.locator('form[data-command="order.add"]');for(const name of ['P','M','G','GG'])await f.locator('[name="'+name+'"]').fill('0');
+ await f.locator('button[type=submit]').click();await page.waitForFunction(()=>document.querySelector('#flash').classList.contains('error')||document.querySelector('#flash').textContent.includes('grade'));
+ assert.equal(await revision(page),2);rows=await entries();assert.equal(rows.some(x=>x.key.startsWith('intent:')),false);
+ console.log('PASS recuperação atômica e histórico de intenções '+browserType.name());
+ }finally{await ctx.close();}
+}
+
 (async()=>{
  await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));
  const url='http://127.0.0.1:'+server.address().port+'/';
  const browser=await browserType.launch({headless:true});
- try{for(const width of [320,375,390,768,1280])await run(browser,width,url)}
+ try{await runRecovery(browser,url);for(const width of [320,375,390,768,1280])await run(browser,width,url)}
  finally{await browser.close();await new Promise(resolve=>server.close(resolve))}
 })().catch(e=>{console.error(e);process.exitCode=1});

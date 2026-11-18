@@ -24,7 +24,7 @@
  function classify(s,intent,inspect){if(!s||s.schema!==schema||!intent?.commandId||!Number.isSafeInteger(intent.expectedRevision))return {status:'unknown',message:'Documento ou intenção indisponível.'};
  if(!chain(s)||s.revisionProof!==(s.log.at(-1)?.commandId||'seed')||!inspect(s).ok)return {status:'blocked',message:'Integridade da cópia local não confirmada; não repetir.'};
  const ev=s.log.find(x=>x.commandId===intent.commandId);
- if(ev)return ev.type===intent.type&&ev.revision===intent.expectedRevision+1?{status:'confirmed',revision:ev.revision,message:'Comando encontrado e confirmado na trilha local. Não repetir.'}:{status:'blocked',message:'Comando encontrado com prova divergente.'};
+ if(ev)return ev.type===intent.type&&ev.revision===intent.expectedRevision+1&&(!intent.atomicVersion||typeof intent.actor==='string'&&ev.actor===intent.actor)?{status:'confirmed',revision:ev.revision,message:'Comando encontrado e confirmado na trilha local. Não repetir.'}:{status:'blocked',message:'Comando encontrado com prova divergente.'};
  if(s.revision===intent.expectedRevision)return {status:'not_found_same_revision',message:'Comando não encontrado nesta revisão. Verifique a intenção original; não reenviar automaticamente.'};
  return {status:'unknown',message:'Revisão mudou sem prova do comando; investigar antes de repetir.'};}
  function review(s,intent,inspect){
