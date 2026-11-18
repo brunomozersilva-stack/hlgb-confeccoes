@@ -29,6 +29,8 @@ const routes={'/':'operacao-integrada.html',
  '/modulos/monitor-v1.js':'modulos/monitor-v1.js',
  '/modulos/pedidos-multimodelo-v1.js':'modulos/pedidos-multimodelo-v1.js',
   '/modulos/corte-multimodelo-v1.js':'modulos/corte-multimodelo-v1.js',
+ '/modulos/fluxo-multimodelo-v1.js':'modulos/fluxo-multimodelo-v1.js',
+ '/modulos/fluxo-multimodelo-ui-v1.js':'modulos/fluxo-multimodelo-ui-v1.js',
  '/modulos/folha-corte-multimodelo-v1.js':'modulos/folha-corte-multimodelo-v1.js',
  '/modulos/rotas-utilidades-v1.js':'modulos/rotas-utilidades-v1.js',
  '/modulos/etiquetas-a4-v1.js':'modulos/etiquetas-a4-v1.js',
@@ -1165,6 +1167,87 @@ async function runColorMatrix(browser,url,width){
  }finally{await ctx.close();}
 }
 
+async function runMultiFlow(browser,url,width){
+ const ctx=await browser.newContext({viewport:{width,height:840},acceptDownloads:true});
+ const page=await ctx.newPage(),errors=[];
+ page.on('pageerror',e=>errors.push(e.message));
+ try{
+  await page.goto(url);
+  await page.waitForFunction(()=>document.querySelector('#top-revision')?.textContent.includes('Revisão local 1'));
+  await module(page,'pedidos');
+  const form=page.locator('#multi-order-form');
+  await form.locator('[data-add-multi-model]').click();
+  const first=form.locator('[data-multi-model]').first();
+  const second=form.locator('[data-multi-model]').nth(1);
+  await first.locator('[name="size_P"]').fill('60');
+  await first.locator('[name="size_M"]').fill('60');
+  await second.locator('[name="productId"]').selectOption('PRO-0002');
+  await second.locator('[name="color"]').fill('Branco');
+  await second.locator('[name="size_M"]').fill('0');
+  await second.locator('[name="size_PP"]').fill('10');
+  await put(page,'order.multi.create');
+  await module(page,'corte');
+  const cut=page.locator('form[data-command="multi.cut.plan"]').first();
+  await cut.evaluate(el=>{el.closest('details').open=true;});
+  await cut.locator('[data-mcut-qty][data-mcut-size="P"]').fill('40');
+  await cut.locator('[data-mcut-qty][data-mcut-size="M"]').fill('40');
+  const cutRevision=await revision(page);
+  await cut.locator('button[type=submit]').click();
+  await page.waitForFunction(v=>document.querySelector('#top-revision')?.textContent.includes('Revisão local '+(v+1)),cutRevision);
+  await put(page,'multi.cut.complete',{id:'PCM-0001'});
+  await module(page,'faccoes');
+  const allocate=page.locator('form[data-command="multi.flow.allocate"]');
+  await allocate.evaluate(el=>{el.closest('details').open=true;});
+  await allocate.locator('[name="factionId"]').selectOption('FAC-0001');
+  await allocate.locator('[data-mf-qty][data-mf-size="P"]').fill('40');
+  await allocate.locator('[data-mf-qty][data-mf-size="M"]').fill('40');
+  await put(page,'multi.flow.allocate');
+  const firstReturn=page.locator('form[data-command="multi.flow.return"]');
+  await firstReturn.evaluate(el=>{el.closest('details').open=true;});
+  await firstReturn.locator('[data-mf-qty][data-mf-size="P"]').fill('30');
+  await put(page,'multi.flow.return');
+  const transfer=page.locator('form[data-command="multi.flow.transfer"]');
+  await transfer.evaluate(el=>{el.closest('details').open=true;});
+  await put(page,'multi.flow.transfer',{factionId:'FAC-0002',unitCents:'6,00'});
+  const secondReturn=page.locator('form[data-command="multi.flow.return"]');
+  await secondReturn.evaluate(el=>{el.closest('details').open=true;});
+  await secondReturn.locator('[data-mf-qty][data-mf-size="M"]').fill('20');
+  await put(page,'multi.flow.return');
+  await module(page,'separacao');
+  const separate=page.locator('form[data-command="multi.flow.separate"]');
+  await separate.locator('[data-mf-qty][data-mf-size="P"]').fill('30');
+  await separate.locator('[data-mf-qty][data-mf-size="M"]').fill('20');
+  await put(page,'multi.flow.separate');
+  const ship=page.locator('form[data-command="multi.flow.ship"]');
+  await ship.locator('[data-mf-qty][data-mf-size="P"]').fill('20');
+  await put(page,'multi.flow.ship');
+  await module(page,'acertos');
+  assert.match(await page.locator('#module-content').innerText(),/Acertos multimodelo/);
+  assert.match(await page.locator('#module-content').innerText(),/MFR-0001/);
+  await put(page,'multi.flow.review',{id:'MFR-0001'});
+  await module(page,'pedidos');
+  assert.match(await page.locator('#module-content').innerText(),/Cortadas a separar/);
+  const exported=page.waitForEvent('download');
+  await page.locator('#export-json').click();
+  const data=JSON.parse(fs.readFileSync(await (await exported).path(),'utf8')).data;
+  const api=await page.evaluate(()=>window.HLGBLabMultiFlowV1.version);
+  assert.match(api,/lab/);
+  const item=data.multiOrders[0].items[0];
+  assert.equal(item.qty,120);
+  const cells=data.multiFlowLots[0].lines;
+  assert.equal(cells.reduce((n,x)=>n+x.qty,0),80);
+  assert.equal(data.multiFlowSeparations[0].qty,50);
+  assert.equal(data.multiFlowShipments[0].qty,20);
+  assert.equal(data.multiFlowLots[0].returns[0].factionId,'FAC-0001');
+  assert.equal(data.multiFlowLots[0].returns[1].factionId,'FAC-0002');
+  assert.equal(data.finance.length,0);
+  assert.equal(data.stockLedger.length,0);
+  assert.equal(data.multiOrders[0].items[1].qty,10);
+  assert.deepEqual(errors,[]);
+  console.log('PASS fluxo multimodelo inteiro 120/80/50 em '+width+'px, '+browserType.name());
+ }finally{await ctx.close();}
+}
+
 async function runMultiOrder(browser,url,width){
  const ctx=await browser.newContext({viewport:{width,height:820},acceptDownloads:true});
  const page=await ctx.newPage(),errors=[];
@@ -1234,6 +1317,6 @@ async function runMultiOrder(browser,url,width){
  await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));
  const url='http://127.0.0.1:'+server.address().port+'/';
  const browser=await browserType.launch({headless:true});
- try{await runRecovery(browser,url);for(const width of [390,1280])await runMultiOrder(browser,url,width);for(const width of [390,1280])await runColorMatrix(browser,url,width);for(const width of [320,375,390,768,1280])await run(browser,width,url)}
+ try{await runRecovery(browser,url);for(const width of [390,1280])await runMultiFlow(browser,url,width);for(const width of [390,1280])await runMultiOrder(browser,url,width);for(const width of [390,1280])await runColorMatrix(browser,url,width);for(const width of [320,375,390,768,1280])await run(browser,width,url)}
  finally{await browser.close();await new Promise(resolve=>server.close(resolve))}
 })().catch(e=>{console.error(e);process.exitCode=1});
