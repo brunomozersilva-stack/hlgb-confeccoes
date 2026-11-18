@@ -1750,13 +1750,6 @@ function parseData(type,form){
   else if(k==='traveta')p[k]=v==='true';
   else p[k]=String(v);
  }
- if(type==='order.color.grade.set'&&active==='pedidos'){
-  const removal=form.elements.namedItem('removeColor')?.checked;
-  if(removal)p.grade=Object.fromEntries(api.sizes.map(sz=>[sz,0]));
-  else if(api.sizes.every(sz=>p.grade[sz]===0))
-   throw Error('Grade zerada não remove cor. Marque a opção explícita de remoção.');
-  delete p.removeColor;
- }
  if(type==='cut.bom.execute'){
   p.scrapByMaterial={};
   for(const name of Object.keys(p)){
@@ -1768,6 +1761,13 @@ function parseData(type,form){
  }
  if(['order.add','order.grade.update','cut.plan','cut.plan.update','cut.plan.split','order.color.grade.set','materials.plan.grade.add'].includes(type)){
   p.grade={};for(const sz of api.sizes){p.grade[sz]=p[sz];delete p[sz]}
+ }
+ if(type==='order.color.grade.set'&&active==='pedidos'){
+  const removal=form.elements.namedItem('removeColor')?.checked;
+  if(removal)p.grade=Object.fromEntries(api.sizes.map(sz=>[sz,0]));
+  else if(api.sizes.every(sz=>p.grade[sz]===0))
+   throw Error('Grade zerada não remove cor. Marque a opção explícita de remoção.');
+  delete p.removeColor;
  }
  return p;
 }
