@@ -32,15 +32,24 @@ async function start(port=0){
   failedLogins.set(bucket,count>=5?{count,lockedUntil:now+15*60000}:{count,lockedUntil:0});
   send(401,{status:'denied'});return;
  }
+ if(!(await db.activeEmployee(employee.employeeId,employee.actor))){send(403,{status:'denied',code:'account_inactive'});return;}
  failedLogins.delete(bucket);
  const token=crypto.randomBytes(32).toString('hex');sessions.set(token,{actor:employee.actor,employeeId:employee.employeeId,expires:Date.now()+3600000});
  const landing=permissions.profile(employee.actor)?.id==='demo-admin'?'/':'/producao-integrada.html';
  res.writeHead(303,{...headers,location:landing, 'set-cookie':'hlgb_integrado_demo='+token+'; Path=/; HttpOnly; SameSite=Strict; Max-Age=3600'});res.end();return;}
  const token=String(req.headers.cookie||'').split(';').map(x=>x.trim()).find(x=>x.startsWith('hlgb_integrado_demo='))?.slice('hlgb_integrado_demo='.length),session=sessions.get(token),actor=session?.expires>Date.now()?session.actor:null;
- if(!actor){if(route.startsWith('/api/'))send(401,{status:'denied',message:'Sessão fictícia expirada'});else{res.writeHead(303,{...headers,location:'/login'});res.end();}return;}
+ const authenticated=actor&&await db.activeEmployee(session.employeeId,actor);
+ if(!authenticated&&token)sessions.delete(token);
+ if(!authenticated){if(route.startsWith('/api/'))send(401,{status:'denied',message:'Sessão fictícia expirada'});else{res.writeHead(303,{...headers,location:'/login'});res.end();}return;}
  if(method==='POST'&&route==='/api/logout'){
  sessions.delete(token);
  send(200,{status:'ok'},{'set-cookie':'hlgb_integrado_demo=; Path=/; HttpOnly; SameSite=Strict; Max-Age=0'});return;
+ }
+ if(method==='POST'&&route==='/api/admin/deactivate'){
+  if(permissions.profile(actor)?.id!=='demo-admin'){send(403,{status:'denied'});return;}
+  const data=JSON.parse(await body(req)),outcome=await db.deactivateEmployee(data?.employeeId,actor);
+  if(outcome.status==='disabled')for(const [id,item] of sessions)if(item.employeeId===outcome.employeeId)sessions.delete(id);
+  send(outcome.status==='denied'?403:200,outcome);return;
  }
  if(method==='GET'&&route==='/api/session'){send(200,{status:'ok',environment:'HLGB-INTEGRADO-FICTICIO',actor,employeeId:session.employeeId,permissions:permissions.publicProfile(actor)});return;}
  if(method==='GET'&&route==='/api/revision'){send(200,{status:'ok',revision:await db.revision()});return;}
