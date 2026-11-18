@@ -32,3 +32,7 @@ O POST do formulário usa nonce CSRF de uso único, cookie HttpOnly SameSite=Str
 
 ### Inicialização de testes sem dependência de psql no navegador
 A matriz de navegadores prepara o banco de CI com `preparar-ci.cjs` usando Node/pg, eliminando a instalação desnecessária de `postgresql-client`. O preparador exige explicitamente `GITHUB_ACTIONS=true`, `CI=true`, endereço loopback, banco e credenciais fictícias de CI, e valida o marcador SQL. Não iniciar em servidores ou bancos reais.
+
+### Identidades individuais de ensaio — etapa 2
+Três funcionários **inventados** possuem IDs distintos: LAB-FUN-001 (administração), LAB-FUN-002 (produção) e LAB-FUN-003 (corte). A sessão do servidor escolhe o ator; o navegador não pode enviá-lo para executar operações em nome de outra pessoa. O identificador do ator acompanha o registro de comandos do laboratório. O perfil de corte só grava `cut.record`, não lê clientes, facções, salários nem contas, e pode visualizar apenas pedidos, modelos e grades necessários ao corte.
+O formulário possui PINs **fictícios e publicados no código**, CSRF de uso único, cookie HttpOnly SameSite=Strict, bloqueio local após cinco erros por perfil e encerramento de sessão. O bloqueio não substitui autenticação empresarial, MFA, revogação durável, limitação distribuída, gestão de usuários ou políticas RLS em ambiente hospedado. O servidor continua preso ao loopback, sem dados reais. Não autorizar publicação nem migração.

@@ -3,7 +3,7 @@ const {test}=require('node:test'),assert=require('node:assert/strict'),{chromium
 test('interface completa em duas sessões, conflito, WAL e confirmação independente',async()=>{
  const server=await start(),url='http://127.0.0.1:'+server.address().port;const browser=await (process.env.HLGB_BROWSER==='webkit'?webkit:chromium).launch();
  try{
- const A=await browser.newContext(),A2=await browser.newContext(),B=await browser.newContext(),a=await A.newPage(),b=await A2.newPage(),operator=await B.newPage();
+ const A=await browser.newContext(),A2=await browser.newContext(),B=await browser.newContext(),C=await browser.newContext(),a=await A.newPage(),b=await A2.newPage(),operator=await B.newPage(),cutter=await C.newPage();
  const forged=await A.request.post(url+'/login',{form:{actor:'A',pin:'demo-integrado-a'}});assert.equal(forged.status(),403,'Login sem token CSRF não pode autenticar');
  async function login(page,actor){
  const errors=[],bad=[];page.on('pageerror',e=>errors.push(e.message));page.on('response',r=>{if(r.status()>=400)bad.push(r.status()+' '+r.url());});
@@ -63,5 +63,35 @@ test('interface completa em duas sessões, conflito, WAL e confirmação indepen
  const projectedAfter=await operator.request.get(url+'/api/production-state').then(x=>x.json());
  assert.equal(projectedAfter.state.orders.length,3);
  assert.equal(Object.hasOwn(projectedAfter.state,'finance'),false);
+ // Terceiro funcionário fictício: identidade individual auditável e somente autorização de corte.
+ await login(cutter,'C');
+ const cSession=await cutter.request.get(url+'/api/session').then(r=>r.json());
+ assert.equal(cSession.actor,'Operador C fictício');
+ assert.equal(cSession.employeeId,'LAB-FUN-003');
+ assert.equal(cSession.permissions.readScope,'production_cut_only_ficticio');
+ assert.deepEqual(cSession.permissions.allowedCommands,['cut.record']);
+ assert.equal(await cutter.request.get(url+'/api/state').then(r=>r.status()),403);
+ const cutView=await cutter.request.get(url+'/api/production-state').then(r=>r.json());
+ assert.deepEqual(Object.keys(cutView.state).sort(),['schema','readScope','revision','products','orders','cutPlans'].sort());
+ assert.equal(Object.hasOwn(cutView.state.orders[0],'clientId'),false);
+ assert.equal(await cutter.locator('form[data-command="order.add"]').isHidden(),true);
+ assert.equal(await cutter.locator('form[data-command="faction.allocate"]').isHidden(),true);
+ assert.equal(await cutter.locator('form[data-command="cut.record"]').isVisible(),true);
+ const prior=await db.state();
+ const forbiddenCut=await cutter.evaluate(async revision=>{
+  const response=await fetch('/api/commands',{method:'POST',credentials:'same-origin',headers:{'content-type':'application/json','x-hlgb-integrado':'1'},
+   body:JSON.stringify({commandId:'LAB-CUT-CANT-ORDER',type:'order.add',expectedRevision:revision,payload:{clientId:'CLI-0001',productId:'PRO-0001',grade:{P:1,M:0,G:0,GG:0}}})});
+  return response.json();
+ },prior.revision);
+ assert.equal(forbiddenCut.status,'rejected');
+ assert.deepEqual(await db.state(),prior,'Corte não pode criar pedido mesmo via API');
+ await cutter.locator('form[data-command="cut.record"] button[type=submit]').click();
+ await cutter.waitForFunction(()=>document.querySelector('#top-revision').textContent.includes('teste: 5'));
+ const afterCut=await db.state();
+ assert.equal(afterCut.log.at(-1).actor,'Operador C fictício');
+ assert.equal(afterCut.orders[0].cut.P,1);
+ await cutter.locator('#logout-demo').click();
+ await cutter.waitForURL('**/login');
+ assert.equal(await cutter.request.get(url+'/api/session').then(r=>r.status()),401,'Logout invalida cookie e sessão');
  }finally{await browser.close();await new Promise(resolve=>server.close(resolve));}
 });

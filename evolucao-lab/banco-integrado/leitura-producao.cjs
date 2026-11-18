@@ -34,11 +34,13 @@ function projectRow(row,columns){
  }
  return projected;
 }
+const cutFields={products:fields.products,orders:['id','productId','grade','cut'],cutPlans:fields.cutPlans};
 function project(state,actor){
  if(profile(actor)?.id!=='demo-production')throw Error('Perfil sem autorização para a visão de produção');
  if(!state||state.schema!=='hlgb-evolucao-operacao-ficticia-v1'||!Number.isSafeInteger(state.revision))throw Error('Documento do laboratório inválido');
- const view={schema:'hlgb-evolucao-operacao-producao-ficticia-v1',readScope:'production_only_ficticio',revision:state.revision};
- for(const [key,columns] of Object.entries(fields)){
+ const cutOnly=profile(actor).readScope==='production_cut_only_ficticio';
+ const view={schema:'hlgb-evolucao-operacao-producao-ficticia-v1',readScope:cutOnly?'production_cut_only_ficticio':'production_only_ficticio',revision:state.revision};
+ for(const [key,columns] of Object.entries(cutOnly?cutFields:fields)){
   if(!Array.isArray(state[key]))throw Error('Lista operacional indisponível: '+key);
   view[key]=state[key].map(x=>projectRow(x,columns));
  }

@@ -15,8 +15,11 @@
  if(r.status!=='ok')throw Error('Estado remoto inválido');
  if(production){
   const v=r.state;
-  if(v?.schema!=='hlgb-evolucao-operacao-producao-ficticia-v1'||v.readScope!=='production_only_ficticio'||!Number.isSafeInteger(v.revision)||
-   !['clients','products','factions','orders','cutPlans'].every(k=>Array.isArray(v[k]))||
+  if(v?.schema!=='hlgb-evolucao-operacao-producao-ficticia-v1'||v.readScope!==permissions.readScope||
+   !['production_only_ficticio','production_cut_only_ficticio'].includes(v.readScope)||!Number.isSafeInteger(v.revision)||
+   !['products','orders','cutPlans'].every(k=>Array.isArray(v[k]))||
+   (v.readScope==='production_only_ficticio'&&!['clients','factions'].every(k=>Array.isArray(v[k])))||
+   (v.readScope==='production_cut_only_ficticio'&&['clients','factions'].some(k=>Object.hasOwn(v,k)))||
    ['finance','employees','log','payroll','settlements','paymentBatches','suppliers'].some(k=>Object.hasOwn(v,k)))
     throw Error('Visão de produção fora do contrato de isolamento');
   return v;
@@ -56,5 +59,9 @@
  const proof=await request('/api/proof','POST',entry.command);
  if(proof.status!=='cancelled')throw Error('Cancelamento sem releitura.');
  await clear(entry);return {status:'discarded',state:await state()};}
- window.HLGBRemoteLab={init,state,revision,submit,reconcile,retry,discard,info:()=>({actor,pending,permissions}),load:async()=>{pending=await load();return pending;}};
+ async function logout(){
+ await request('/api/logout','POST',{});
+ actor=null;pending=null;permissions=null;window.location.assign('/login');
+}
+ window.HLGBRemoteLab={init,state,revision,submit,reconcile,retry,discard,logout,info:()=>({actor,pending,permissions}),load:async()=>{pending=await load();return pending;}};
 })();

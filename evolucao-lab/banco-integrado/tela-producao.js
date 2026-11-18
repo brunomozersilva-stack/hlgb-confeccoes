@@ -15,12 +15,18 @@
   byId('pending-state').textContent=pending?'Comando em revisão: '+pending.command.commandId+' ('+pending.stage+'). Não envie outra operação.':'Nenhum comando pendente de confirmação.';
   byId('remote-retry').disabled=busy||pending?.stage!=='not_found';
   byId('remote-discard').disabled=busy||!pending||!['not_found','conflict','rejected'].includes(pending.stage);
-  for(const button of document.querySelectorAll('form[data-command] button[type=submit]'))button.disabled=busy||!!pending;
+  const allowed=remote.info().permissions?.allowedCommands||[];
+  for(const form of document.querySelectorAll('form[data-command]')){
+   const permitted=allowed.includes(form.dataset.command);
+   form.parentElement.hidden=!permitted;
+   form.parentElement.style.display=permitted?'':'none';
+   const button=form.querySelector('button[type=submit]');if(button)button.disabled=busy||!!pending||!permitted;
+  }
  }
  function render(next){
-  if(next.schema!=='hlgb-evolucao-operacao-producao-ficticia-v1'||next.readScope!=='production_only_ficticio')throw Error('Projeção não autorizada');
-  view=next;byId('top-revision').textContent='Revisão do PostgreSQL de teste: '+view.revision+' · Operador B · leitura limitada';
-  const clients=view.clients,products=view.products,factions=view.factions,orders=view.orders;
+  if(next.schema!=='hlgb-evolucao-operacao-producao-ficticia-v1'||next.readScope!==remote.info().permissions?.readScope)throw Error('Projeção não autorizada');
+  view=next;byId('top-revision').textContent='Revisão do PostgreSQL de teste: '+view.revision+' · '+remote.info().permissions.label+' ('+remote.info().permissions.employeeId+') · leitura limitada';
+  const clients=view.clients||[],products=view.products,factions=view.factions||[],orders=view.orders;
   options(document.querySelector('form[data-command="order.add"] [name=clientId]'),clients,x=>x.name);
   options(document.querySelector('form[data-command="order.add"] [name=productId]'),products,x=>x.name+' · '+x.sku);
   for(const form of document.querySelectorAll('form[data-command="cut.record"],form[data-command="faction.allocate"],form[data-command="faction.return"]')){
@@ -30,7 +36,7 @@
   const tbody=byId('orders');tbody.replaceChildren();
   for(const o of orders){
    const row=document.createElement('tr');
-   const values=[o.id,products.find(x=>x.id===o.productId)?.name||o.productId,sum(o.grade),sum(o.cut),o.allocated,o.returned,o.separated,o.shipped];
+   const values=[o.id,products.find(x=>x.id===o.productId)?.name||o.productId,sum(o.grade),sum(o.cut),o.allocated??'—',o.returned??'—',o.separated??'—',o.shipped??'—'];
    for(const value of values){const td=document.createElement('td');td.textContent=String(value);row.append(td);}
    tbody.append(row);
   }
@@ -89,6 +95,7 @@
    byId('remote-check').addEventListener('click',()=>void action('check'));
    byId('remote-retry').addEventListener('click',()=>void action('retry'));
    byId('remote-discard').addEventListener('click',()=>void action('discard'));
+   byId('logout-demo').addEventListener('click',()=>{if(!busy)void remote.logout().catch(e=>message('Não foi possível encerrar a sessão: '+e.message,'error'));});
    render(state);message('Somente cadastros e operações produtivas fictícias estão visíveis.','success');
   }catch(e){message('Acesso de produção indisponível: '+e.message,'error');for(const b of document.querySelectorAll('button'))b.disabled=true;}
  }

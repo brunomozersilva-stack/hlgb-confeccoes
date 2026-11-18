@@ -106,3 +106,31 @@ test('operador de produção não cancela comandos financeiros nem consulta suas
  assert.equal((await db.readback(forbidden.commandId,forbidden,A)).status,'not_found');
  assert.deepEqual(await db.state(),before);
 });
+
+const identities=require('../banco-integrado/identidades-lab.cjs');
+const C='Operador C fictício';
+test('identidades fictícias distinguem funcionário e permissão antes da transação',async()=>{
+ const employee=identities.authenticate('C','demo-integrado-c');
+ assert.equal(employee.actor,C);assert.equal(employee.employeeId,'LAB-FUN-003');
+ assert.equal(identities.authenticate('C','pin-invalido'),null);
+ assert.equal(identities.authenticate('__proto__','demo-integrado-c'),null);
+ assert.equal(identities.authenticate('C','x'.repeat(129)),null);
+ assert.equal(permissions.can(C,'cut.record'),true);
+ for(const type of ['order.add','finance.pay','faction.allocate','payroll.update','client.add','audit.review'])assert.equal(permissions.can(C,type),false,type);
+ assert.equal(permissions.publicProfile(C).readScope,'production_cut_only_ficticio');
+ assert.equal(permissions.publicProfile(C).employeeId,'LAB-FUN-003');
+ assert.equal(db.validate(cmd('cutter-0001','cut.record',4,{orderId:'PED-0001',size:'P',qty:1}),C).length,64);
+ const s=await db.state(),invalid=cmd('denied-cutter-order','order.add',s.revision,{clientId:'CLI-0001',productId:'PRO-0001',grade:{P:1,M:0,G:0,GG:0}});
+ assert.equal((await db.commit(invalid,C)).status,'rejected');
+ assert.equal((await db.cancel(invalid,C)).status,'rejected');
+ assert.equal((await db.readback(invalid.commandId,invalid,C)).status,'rejected');
+ assert.deepEqual(await db.state(),s);
+});
+test('visão de corte entrega apenas pedido, modelo e grade, sem clientes nem facções',async()=>{
+ const before=await db.state();
+ const v=productionView.project(before,C);
+ assert.equal(v.readScope,'production_cut_only_ficticio');
+ assert.deepEqual(Object.keys(v).sort(),['schema','readScope','revision','products','orders','cutPlans'].sort());
+ if(v.orders.length)assert.deepEqual(Object.keys(v.orders[0]).sort(),['id','productId','grade','cut'].sort());
+ for(const key of ['clients','factions','employees','finance','settlements','log'])assert.equal(Object.hasOwn(v,key),false);
+});
