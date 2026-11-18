@@ -20,10 +20,13 @@ function priceFor(f,clientId){
 }
 function modal(){return document.querySelector('#modal .modalbox')||[...document.querySelectorAll('.modalbox')].reverse().find(x=>{try{return getComputedStyle(x).display!=='none'}catch(e){return true}})||null}
 function priceInput(m){return [...(m?.querySelectorAll('.field')||[])].find(x=>norm(x.querySelector('label')?.textContent).includes('valor de venda por peca'))?.querySelector('input')||null}
+// O modal reutiliza .modalbox e pode preservar dataset.hlgbFactionId ao abrir
+// "Ajustar grade do corte". Só validar preço na tela REAL de entrega integrada.
+function isFactionDeliveryModal(m){return !!(m?.querySelector?.('#fdMode940')&&priceInput(m))}
 function apply(id,clientId){
- const f=faction(id),m=modal();if(!f||!m)return false;
+ const f=faction(id),m=modal();if(!f||!isFactionDeliveryModal(m))return false;
+ const input=priceInput(m);
  if(m.dataset.hlgbFactionId!==String(id)){m.dataset.hlgbPriceUserEdited='0';m.dataset.hlgbFactionId=String(id)}
- const input=priceInput(m);if(!input)return false;
  const cid=clientId||m.querySelector('#fdClient940')?.value||orderFor(f)?.clientId||'',p=priceFor(f,cid);
  // O clique em Confirmar NÃO pode sobrescrever o preço que o usuário digitou.
  if(m.dataset.hlgbPriceUserEdited!=='1')input.value=p.toFixed(2);
@@ -53,7 +56,8 @@ if(typeof original==='function')window.registerFactionDelivery935=function(id){
 };
 window.updateFactionSale940=function(){
  const m=modal(),id=m?.dataset?.hlgbFactionId,cid=m?.querySelector('#fdClient940')?.value||'';
- if(m)m.dataset.hlgbPriceUserEdited='0';
+ if(!isFactionDeliveryModal(m))return;
+ m.dataset.hlgbPriceUserEdited='0';
  if(id){apply(id,cid);if(priceFor(faction(id),cid)<=0)checkCloudPrice(id)}
 };
 document.addEventListener('input',function(e){
@@ -62,7 +66,8 @@ document.addEventListener('input',function(e){
 document.addEventListener('click',function(e){
  const b=e.target?.closest?.('button');
  if(!b||(!b.classList.contains('modalSave')&&!norm(b.textContent).includes('confirmar entrega integrada')))return;
- const m=b.closest('.modalbox'),id=m?.dataset?.hlgbFactionId;if(!id)return;
+ const m=b.closest('.modalbox'),id=m?.dataset?.hlgbFactionId;
+ if(!id||!isFactionDeliveryModal(m))return;
  const mode=m.querySelector('#fdMode940')?.value||'expected',input=priceInput(m);
  if(mode==='stock')return;
  // Respeitar valor manual; só sugerir preço se o campo estiver vazio.
@@ -74,5 +79,5 @@ document.addEventListener('click',function(e){
  }
 },true);
 window.hlgbFactionPriceFor=priceFor;
-window.HLGB_PRICING_MODULE='exact-faction-v95.103';console.info('[HLGB] preço da entrega preso ao ID exato da facção');
+window.HLGB_PRICING_MODULE='exact-faction-v95.106-modal-scope';console.info('[HLGB] preço da entrega preso ao ID exato da facção');
 })();
