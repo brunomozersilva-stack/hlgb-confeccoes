@@ -3,12 +3,11 @@ on:
   pull_request:
     branches: [main]
     paths:
+      - 'release-*.js'
+      - 'app-stable3.html'
+      - 'app9240.html'
       - 'hlgb-modules/**'
-      - 'tests/module-test-catalog-v9601.cjs'
-      - 'release-cut-*.js'
-      - 'release-cutter-*.js'
-      - 'release-save-transport-v9320.js'
-      - 'release-record-integrity.js'
+      - 'tests/**'
       - '.github/workflows/hlgb-domain-tests-v9601.yml'
   workflow_dispatch:
     inputs:
@@ -25,13 +24,22 @@ jobs:
     timeout-minutes: 18
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - uses: actions/setup-node@v4
         with: {node-version: '22'}
       - name: Validate ownership, dependency triggers and tests
         run: node --test tests/module-test-catalog-v9601.cjs
-      - name: Rapid tests for target domain (Corte + WAL on PR)
+      - name: Run impacted suites including transitive dependencies on PR
+        if: github.event_name == 'pull_request'
         env:
-          TARGET: ${{ github.event.inputs.module || 'corte-cortadores' }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         run: |
-          node hlgb-modules/run-module-tests-v9601.cjs "$TARGET"
-          if [ "$TARGET" = "corte-cortadores" ]; then node hlgb-modules/run-module-tests-v9601.cjs sincronizacao-wal; fi
+          set -euo pipefail
+          git diff --name-only -z "$BASE_SHA" "$HEAD_SHA" | node hlgb-modules/run-module-tests-v9601.cjs --run-changed-stdin
+      - name: Manually selected module and its dependencies
+        if: github.event_name == 'workflow_dispatch'
+        env:
+          TARGET: ${{ inputs.module }}
+        run: node hlgb-modules/run-module-tests-v9601.cjs "$TARGET"
