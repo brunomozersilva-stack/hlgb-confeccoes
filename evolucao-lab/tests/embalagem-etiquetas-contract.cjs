@@ -96,6 +96,30 @@ test('Reatribuição permite corrigir pessoa, etiqueta e quantidade sem perder o
   payload:{...assignment('FUN-0001'),id:row.id,qty:20,labelQty:20,reason:'Valor incorreto'},
   commandId:'BELOW-DONE',expectedRevision:c.s.revision,actor:'QA'}),/inferior/);
 });
+test('Tarefa parcialmente pronta não troca cliente/modelo/variação nem perde versão da etiqueta',()=>{
+ const c=setup();
+ c.run('label.template.add',template());
+ c.run('packer.assign',assignment());
+ c.run('packer.progress',{id:'EBA-0001',doneQty:20,reason:'Conferência parcial'});
+ c.run('label.template.edit',{...template('PRO-0001','SKU-NOVO'),id:'ETM-0001',reason:'Nova impressão'});
+ const invalid=[{...assignment(),id:'EBA-0001',productId:'PRO-0002',reason:'Mudar produto'},
+  {...assignment(),id:'EBA-0001',clientId:'CLI-0002',reason:'Mudar cliente'},
+  {...assignment(),id:'EBA-0001',size:'P',reason:'Mudar tamanho'},
+  {...assignment(),id:'EBA-0001',color:'Preto',reason:'Mudar cor'}];
+ for(const p of invalid)assert.throws(()=>core.apply(c.s,{type:'packer.revise',payload:p,
+   commandId:'INVALID-MOVE-'+p.reason,expectedRevision:c.s.revision,actor:'QA'}),/Peças já concluídas/);
+ assert.throws(()=>core.apply(c.s,{type:'label.template.edit',payload:{
+   ...template('PRO-0002','SKU-MUDADO'),id:'ETM-0001',reason:'Troca indevida'},
+   commandId:'TEMPLATE-IDENTITY',expectedRevision:c.s.revision,actor:'QA'}),/identidade da etiqueta/);
+ c.run('packer.revise',{...assignment('FUN-0002'),id:'EBA-0001',
+   qty:60,labelQty:60,reason:'Redistribuição de trabalho aberto'});
+ const row=c.s.packerAssignmentsLab[0];
+ assert.equal(row.packerId,'FUN-0002');
+ assert.equal(row.labelSnapshot.version,1,'Revisar quantidade não deve trocar etiqueta');
+ assert.equal(row.labelSnapshot.sku,'SKU-001');
+ assert.equal(row.history.at(-1).labelBefore.version,1);
+ assert.equal(core.inspect(c.s).ok,true);
+});
 test('Auditor rejeita alteração fora de comando, cliente trocado e etiqueta adulterada',()=>{
  const c=setup();c.run('label.template.add',template());c.run('packer.assign',assignment());
  for(const mutate of [
