@@ -148,3 +148,32 @@ Antes da liberação, **cada uma das 19 áreas mais Utilidades** será revista n
 - Nada publicado em `main`, nenhum registro do HLGB comercial migrado, nenhum teste de produção realizado.
 
 **Próxima frente:** comparar a folha A4 e todos os cálculos com amostras anonimizadas da folha v95.23; depois recuperar **Utilidades** e preparar integrações por item, com a mesma proteção contra dupla baixa e perda de histórico.
+
+
+## Quinta evolução isolada — Utilidades: Rotas e Etiquetas A4 (18/11/2026)
+
+**Estado:** `IMPLEMENTADO NO LABORATÓRIO / ACEITE PENDENTE`; nenhuma migração, nenhum merge, nenhuma prova de funcionamento em produção.
+
+### LEG-010 / LEG-011 — Utilidades / Rotas LEVAR/BUSCAR
+
+- Navegação inclui agora **Utilidades como 20ª área**, sem retirar as 19 áreas anteriores.
+- Novo motor `modulos/rotas-utilidades-v1.js`, com `route.plan`, `route.revise` e `route.cancel` sob o comando transacional/revisão do laboratório, datas, responsáveis, vários locais explícitos (facções cadastradas ou local fictício da confecção), listas separadas de LEVAR e BUSCAR, ordem e histórico sem apagar paradas.
+- Selecionar a primeira facção automaticamente é proibido. Adição/remoção visual de paradas e impressão de um resumo A4 com checklist por parada no mesmo lote.
+- Auditor verifica referência dos comandos, ordem das revisões e **encadeamento de fingerprints** de estados de rota, detectando mutação silenciosa posterior.
+- Testes: `rotas-utilidades-contract.cjs` e fluxo Playwright no passeio de `operacao-integrada-mobile.cjs`.
+- **Não concluído:** automação de itens por pedido/produção, cadastro de locais reais da confecção, gravação na nuvem e comprovação Safari → Chrome em computadores distintos, resolução de conflito, comparação visual da folha contra o legado. O laboratório não simula confirmação remota.
+
+### LEG-012 — Etiquetas A4 10/18/21 + volumes e vários modelos
+
+- Novo gerador puro `modulos/etiquetas-a4-v1.js`. Editor em Utilidades aceita vários modelos do lote, nome/local, modelo, tamanho, peças, quantidade de cópias e **volumes**, com data.
+- Três layouts A4: **10 (2×5), 18 (3×6) e 21 (3×7)**; volume 5 produz cinco etiquetas de **1 de 5** a **5 de 5**. Sem volume, usa a quantidade de cópias informada. Todos os modelos são agrupados em uma única sequência de páginas, preservando espaços vazios da última folha para alinhamento.
+- Testes específicos: `etiquetas-a4-contract.cjs` e prova Playwright no passeio geral de dois tamanhos de viewport, Chrome e WebKit.
+- **Não concluído:** impressão física e alinhamento em impressoras reais, vinculação a etiquetas personalizadas por cliente, PDFs enviados, geração baseada em movimentação real, aprovação da equipe e rastreio empresarial.
+
+### Porta de aprovação por tarefa
+
+A regra formal foi gravada em `CONTRATOS-ACEITE-OPERACIONAL-2026-11-18.md`: cada tarefa deve ser **PRESERVADA, MELHORADA ou PENDENTE**, com prova do comportamento antigo, saldo/valor por registro, fonte, releitura remota, operação em Safari e Chrome, comparação com sistema em uso e responsável pelo aceite. Foram cadastrados **17 contratos prioritários**. **Todos permanecem PENDENTES de aceite operacional**, inclusive os aqui implementados em simulação.
+
+**Demais Utilidades ainda ausentes:** modelos de etiquetas de embalagem, cadastro individual de embaladeiras e regularização histórica. A frente Pedido → Corte → Facção → Separação → Acerto multimodelo segue sem integração de ponta a ponta.
+
+**GATE FINAL = BLOQUEADO.** Nenhum teste local ou CI, por si só, autoriza substituição do sistema atual.
