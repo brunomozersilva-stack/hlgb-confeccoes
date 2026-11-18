@@ -56,7 +56,8 @@ test('política de escrita fictícia recusa novos comandos fora da lista e o fin
  for(const t of ['finance.pay','finance.add','finance.revise','payroll.period.create','payroll.update','settlement.service.group','finance.faction.close','unknown.new','demo.reset'])assert.equal(permissions.can(B,t),false,t);
  assert.equal(permissions.can(A,'finance.pay'),true);assert.equal(permissions.can('Inválido','order.add'),false);
  assert.deepEqual(new Set(permissions.publicProfile(B).allowedCommands).size,permissions.publicProfile(B).allowedCommands.length);
- assert.equal(permissions.publicProfile(B).readScope,'snapshot_completo_ficticio_sem_isolamento_de_leitura');
+ assert.equal(permissions.publicProfile(B).readScope,'production_only_ficticio');
+ assert.equal(permissions.publicProfile(A).readScope,'full_snapshot_ficticio');
 });
 test('autorização de servidor impede alteração financeira com revisão válida, sem criar evento nem título',async()=>{
  const before=await db.state(),forbidden=cmd('deny-finance-0001','finance.add',before.revision,{kind:'pagar',description:'NÃO INSERIR',amountCents:10000,category:'Aluguel'});
@@ -72,4 +73,27 @@ test('preparo de banco recusa execução fora de ambiente CI, em Supabase e com 
  for(const change of [{CI:'false'},{PGHOST:'db.example.com'},{PGDATABASE:'postgres'},{PGUSER:'hlgb_lab_runner'},{PGPASSWORD:'wrong'}])assert.throws(()=>localSeed.guard({...fixture,...change}),/proibida/);
  assert.match(localSeed.schema(),/CREATE SCHEMA hlgb_integrado_lab/);
  assert.doesNotMatch(localSeed.schema(),/^\\set /m);
+});
+
+const productionView=require('../banco-integrado/leitura-producao.cjs');
+test('leitura de produção exclui salários, Folha, títulos, preços e trilha integral por lista positiva',async()=>{
+ const full=await db.state();
+ const source=structuredClone(full);
+ // Injetar dados que jamais podem atravessar a fronteira de leitura.
+ source.employees.push({id:'FUN-SECRET',name:'SEGREDO-FOLHA-X9',salaryCents:9999999});
+ source.finance.push({id:'FIN-SECRET',kind:'pagar',description:'SEGREDO-FINANCEIRO-X9',amountCents:9999999});
+ source.products[0].priceCents=9999999;
+ source.factions[0].unitCents=9999999;
+ source.log.push({commandId:'LAB-PRIVATE',description:'SEGREDO-AUDITORIA-X9'});
+ const limited=productionView.project(source,B);
+ assert.equal(limited.schema,'hlgb-evolucao-operacao-producao-ficticia-v1');
+ assert.equal(limited.revision,full.revision);
+ assert.deepEqual(Object.keys(limited).sort(),['schema','readScope','revision','clients','products','factions','orders','cutPlans'].sort());
+ assert.deepEqual(Object.keys(limited.products[0]).sort(),['id','sku','name'].sort());
+ assert.deepEqual(Object.keys(limited.factions[0]).sort(),['id','name'].sort());
+ assert.equal(limited.orders.length,full.orders.length);
+ for(const term of ['SEGREDO-FOLHA-X9','SEGREDO-FINANCEIRO-X9','SEGREDO-AUDITORIA-X9','9999999','salaryCents','amountCents','paymentBatches'])
+  assert.equal(JSON.stringify(limited).includes(term),false,'Não pode vazar '+term);
+ assert.throws(()=>productionView.project(source,A),/autorização/);
+ assert.throws(()=>productionView.project({...source,orders:null},B),/Lista operacional/);
 });
