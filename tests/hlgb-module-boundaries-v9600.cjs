@@ -10,8 +10,15 @@ function extract(){
  return JSON.parse(source.slice(start+anchor.length,end));
 }
 const groups=extract(),files=groups.flatMap(x=>x.files);
-test('carregamento mantém TODOS os 156 scripts, nomes e ordem EXATOS da main antes da divisão',()=>{
- assert.equal(files.length,156);assert.equal(groups.length,16);
+test('carregamento preserva 156 scripts anteriores e o novo core, na ordem exata',()=>{
+ assert.equal(files.length,157);assert.equal(groups.length,16);
+ const addon='hlgb-modules/corte/grade-modelo-v9602.js',legacy=files.filter(x=>x!==addon);
+ assert.equal(manifest.preExtractionScripts.length,156,'contrato legado de 156 scripts preservado');
+ assert.deepEqual(legacy,manifest.preExtractionScripts,'nenhum dos 156 arquivos antigos pode sumir ou mudar de ordem');
+ assert.deepEqual(manifest.approvedNewScripts,[addon],'apenas um arquivo novo foi autorizado');
+ assert.equal(files.filter(x=>x===addon).length,1);
+ assert.equal(files.indexOf(addon)+1,files.indexOf('release-cutter-planner.js'),'core deve carregar imediatamente antes do Cortador');
+
  assert.deepEqual(files,manifest.releaseScripts,'nem função removida, nem ordem de carregamento alterada');
  assert.equal(new Set(files).size,files.length,'scripts duplicados não podem entrar no carregador');
  assert.deepEqual(groups.map(x=>x.id),[...new Set(groups.map(x=>x.id))]);
@@ -48,6 +55,13 @@ test('arquivo legado e dez fontes críticas mantêm o SHA exato da revisão come
  const crypto=require('node:crypto');
  const critical=manifest.criticalFileBlobs||{};
  assert.equal(Object.keys(critical).length,10);
+ const changes=manifest.extractionChanges||{},baseline=manifest.baselineCriticalFileBlobs||{};
+ assert.deepEqual(Object.keys(changes),['release-cutter-planner.js']);
+ assert.equal(changes['release-cutter-planner.js'].before,baseline['release-cutter-planner.js'],'SHA comercial original não pode sumir');
+ assert.equal(changes['release-cutter-planner.js'].after,critical['release-cutter-planner.js'],'mudança explícita deve corresponder ao novo SHA');
+ for(const file of Object.keys(baseline)){
+  if(file!=='release-cutter-planner.js')assert.equal(critical[file],baseline[file],'arquivo crítico não aprovado mudou: '+file);
+ }
  for(const [file,sha] of Object.entries(critical)){
   const bytes=fs.readFileSync(path.join(root,file));
   const calculated=crypto.createHash('sha1').update(Buffer.from('blob '+bytes.length+'\0')).update(bytes).digest('hex');
