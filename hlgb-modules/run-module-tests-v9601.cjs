@@ -8,18 +8,32 @@ const owner=require('./ownership-v9600.json').ownership;
 const packs=catalog.packs,available=Object.keys(packs),args=process.argv.slice(2);
 function impact(changed){
  const affected=new Set();
+ const visit=area=>{
+  if(!packs[area]||affected.has(area))return;
+  affected.add(area);
+  for(const dependency of catalog.dependencies[area]||[])visit(dependency);
+ };
  for(const raw of changed){
   const file=String(raw||'').replace(/^\.\//,'');
-  if(catalog.highRiskPaths.includes(file))return {highRisk:true,packs:available};
+  if(!file)continue;
+  // Loader, contracts, tests and workflow changes invalidate the quick test selection.
+  if(catalog.highRiskPaths.includes(file)||
+     file.startsWith('hlgb-modules/')||file.startsWith('tests/')||
+     file.startsWith('.github/workflows/'))
+   return {highRisk:true,packs:available};
+  let mapped=false;
   for(const [area,files] of Object.entries(owner)){
-   if(files.includes(file)&&packs[area]){
-    affected.add(area);
-    for(const dependency of catalog.dependencies[area]||[])affected.add(dependency);
-   }
+   if(files.includes(file)){mapped=true;visit(area);}
   }
-  for(const [area,files] of Object.entries(packs))if(files.includes(file))affected.add(area);
+  // Unknown code and HTML must fail closed, never silently skip validation.
+  if(!mapped&&/\.(?:js|cjs|mjs|html)$/.test(file))
+   return {highRisk:true,packs:available};
  }
  return {highRisk:false,packs:available.filter(x=>affected.has(x))};
+}
+function changedFromStdin(){
+ // git diff --name-only -z guarantees lossless file boundaries.
+ return fs.readFileSync(0,'utf8').split('\0').filter(Boolean);
 }
 if(args[0]==='--list'){
  for(const area of available)console.log(area+' ('+packs[area].length+' testes)');
@@ -29,7 +43,12 @@ if(args[0]==='--impact'){
  if(args.length<2){console.error('Uso: --impact arquivo1.js [arquivo2.js...]');process.exit(2);}
  console.log(JSON.stringify(impact(args.slice(1)),null,2));process.exit(0);
 }
-const targets=args[0]==='--all'?available:[...new Set(args)];
+if(args[0]==='--impact-stdin'){
+ console.log(JSON.stringify(impact(changedFromStdin()),null,2));process.exit(0);
+}
+const targets=args[0]==='--run-changed-stdin'
+ ?impact(changedFromStdin()).packs
+ :args[0]==='--all'?available:[...new Set(args)];
 if(!targets.length||targets.some(area=>!available.includes(area))){
  console.error('Use --list, --impact, --all ou um módulo: '+available.join(', '));
  process.exit(2);
