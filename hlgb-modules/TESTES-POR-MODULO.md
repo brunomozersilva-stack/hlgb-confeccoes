@@ -30,4 +30,4 @@ Esta etapa permite descobrir **qual área é responsável por um erro** e execut
 4. Não acessar Supabase real, não apagar IndexedDB, não repetir lançamentos incertos e não substituir dados reais por fixtures.
 5. Antes de extrair um trecho do monólito, apresentar o nome dos métodos, dependências globais, testes equivalentes e um plano de rollback. **A extração física ainda está pendente.**
 
-O workflow `HLGB Domain Smoke Tests v96.01` executa Corte e WAL automaticamente nas alterações de infraestrutura e permite disparar um módulo escolhido manualmente. As listas são auditadas em `tests/module-test-catalog-v9601.cjs`.
+O workflow `HLGB Domain Smoke Tests v96.01` detecta os arquivos modificados na PR e executa os pacotes das áreas afetadas **incluindo todas as dependências transitivas**. Alterações no carregador, testes, contratos ou código ainda não catalogado executam os oito pacotes (falha fechada). Para executar uma área isolada manualmente, use `workflow_dispatch`. A regressão geral, os testes reais de navegador e a comprovação de gravação permanecem gates independentes. As listas são auditadas em `tests/module-test-catalog-v9601.cjs`.
