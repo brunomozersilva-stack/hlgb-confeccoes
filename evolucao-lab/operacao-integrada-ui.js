@@ -27,6 +27,7 @@ const modules=[
 const ids=new Map(modules.map((m,i)=>[m[0],i])),visitedModules=new Set();
 let active=ids.has(window.location.hash.slice(1))?window.location.hash.slice(1):'nucleo',db=null,doc=null,busy=false,journeyOrderId=null,routeDraft=null;
 let labelDraft=[{name:'',model:'',size:'',pieceQty:0,volumes:0,copies:1,date:new Date().toISOString().slice(0,10)}],labelLayout='10',templateEditId=null,packerEditId=null,templatePreviewId=null,packerPreviewId=null;
+let historicalDraft='cliente;modelo;quantidade;data;referencia;status\n',historicalResult=null;
 const settlementFilters={query:'',status:'todos',faction:'todas',service:'todos',compensation:'todos'};
 const escape=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const str=x=>escape(String(x??''));
@@ -451,6 +452,26 @@ function packerAssignmentsPanel(s){
   '<h3>Itens e histórico</h3>'+rowTable,true);
 }
 
+function historicalReviewPanel(s){
+ const svc=window.HLGBLabHistoryReviewV1;
+ if(!svc)return panel('Regularização histórica','Prévia indisponível. Nenhuma importação permitida.',true);
+ const r=historicalResult?.revision===s.revision&&historicalResult.raw===historicalDraft?historicalResult.report:null;
+ const counts=r?'<div class="metrics">'+[['Linhas',r.lines],['Conciliáveis',r.ready],['Bloqueadas',r.blocked],
+  ['Peças identificadas',r.readyPieces]].map(([k,v])=>'<div class="metric"><span>'+str(k)+'</span><strong>'+str(v)+'</strong></div>').join('')+'</div>':'';
+ const rows=r?table(['Linha','Referência','Cliente','Modelo','Quantidade','Resultado'],r.rows.map(x=>[
+  str(x.line),str(x.reference||'—'),str(x.client||'—')+' · '+str(x.clientId||'?'),
+  str(x.product||'—')+' · '+str(x.productId||'?'),str(x.qty),
+  str(x.status)+' · '+str(x.issues.join(' · ')||'sem pendências de identificação')
+ ])):'';
+ return panel('Utilidades · Regularização histórica (prévia isolada)',
+  '<p>Somente CSV com dados inventados. Confere correspondência exata de cliente e modelo, referência repetida, quantidade e data. Não vincula nomes parecidos automaticamente.</p>'+
+  '<div class="field"><label>CSV com seis colunas<textarea class="input" id="historical-raw" rows="5">'+escape(historicalDraft)+'</textarea></label></div>'+
+  '<div class="actions"><button type="button" class="btn" id="historical-template">Baixar modelo CSV</button>'+
+  '<button type="button" class="btn primary" id="historical-preview">Conferir sem gravar</button>'+
+  (r?'<button type="button" class="btn" id="historical-export">Exportar diagnóstico</button>':'')+'</div>'+
+  counts+rows+'<p><b>Importação BLOQUEADA:</b> esta prévia não lê PDFs/fotos e não cria pedidos, estoque, financeiro, notas ou acertos. Migração/regularização e verificação em outro computador ainda não foram desenvolvidas.</p>',true);
+}
+
 function routeStopFormHtml(s,stop=null){
  const selected=stop?.type==='faccao'?'faccao:'+stop.locationId:stop?.type==='confeccao'?'confeccao:HLGB-LAB':'';
  const places=[['','Escolha a facção ou confecção — obrigatório'],...s.factions.map(f=>['faccao:'+f.id,'Facção · '+f.name]),
@@ -499,9 +520,9 @@ function routePanel(s){
  ],'Cancelar mantendo histórico'):'<p>Sem rotas abertas para cancelar.</p>';
  return panel('Utilidades · Rotas LEVAR/BUSCAR (homologação isolada)',
  '<p>Rota de teste com várias paradas, itens para levar e buscar, revisão sem perda do histórico e impressão A4 de resumo e checklists. A releitura em outro computador ainda NÃO está comprovada.</p>'+
- editor+'<h3>Histórico de rotas</h3>'+hist+cancel,true)+labelPanel()+labelTemplatesPanel(s)+
+ editor+'<h3>Histórico de rotas</h3>'+hist+cancel,true)+labelPanel()+labelTemplatesPanel(s)+historicalReviewPanel(s)+
  panel('Outras Utilidades · ainda não homologadas',
- '<p><b>Upload/prévia de PDF/imagem e Regularização histórica</b> permanecem pendentes. A inclusão de etiquetas e embaladeiras é uma simulação sem equivalência de todos os fluxos do programa atual.</p>'+
+ '<p><b>Upload e prévia de PDF/imagem, migração real e integração de saldos</b> permanecem pendentes. A regularização acima é apenas uma conferência textual.</p>'+
  '<button type="button" class="btn" data-goto="separacao">Ver Separação fictícia</button>',true);
 }
 function routeInput(form){
@@ -2751,6 +2772,25 @@ document.addEventListener('click',async e=>{
    draw();
   }catch(error){status(error.message,'error')}return;
  }
+ if(e.target.closest('#historical-template')){
+  download('HLGB-MODELO-HISTORICO-FICTICIO.csv',
+   'cliente;modelo;quantidade;data;referencia;status\nCLI-0001;PRO-0001;120;2026-11-15;EXEMPLO-001;A conferir',
+   'text/csv;charset=utf-8');return;
+ }
+ if(e.target.closest('#historical-preview')){
+  try{historicalDraft=$('historical-raw').value;
+   const report=window.HLGBLabHistoryReviewV1.preview(doc,historicalDraft);
+   historicalResult={revision:doc.revision,raw:historicalDraft,report};
+   draw();status('Prévia: '+report.ready+' conciliáveis e '+report.blocked+' bloqueadas. Nada foi importado.');
+  }catch(error){historicalResult=null;status(error.message,'error');}return;
+ }
+ if(e.target.closest('#historical-export')){
+  try{
+   if(!historicalResult||historicalResult.revision!==doc.revision||
+      historicalResult.raw!==$('historical-raw').value)throw Error('Conferência desatualizada. Refazer prévia.');
+   download('HLGB-REGULARIZACAO-HISTORICA-FICTICIA.json',JSON.stringify(historicalResult.report,null,2),'application/json');
+  }catch(error){status(error.message,'error');}return;
+ }
  const previewTemplate=e.target.closest('[data-template-preview]');if(previewTemplate){templatePreviewId=previewTemplate.dataset.templatePreview;draw();return;}
  const previewPacker=e.target.closest('[data-packer-preview]');if(previewPacker){packerPreviewId=previewPacker.dataset.packerPreview;draw();return;}
  const editTemplate=e.target.closest('[data-template-edit]');
@@ -2783,7 +2823,7 @@ document.addEventListener('click',async e=>{
  const goto=e.target.closest('button[data-goto]');
  if(goto){searchState.selected=null;active=goto.dataset.goto;window.location.hash=active;draw();window.scrollTo(0,0)}
 });
-document.addEventListener('input',e=>{if(e.target.closest('#order-color-matrix-form'))updateColorMatrixPreview();if(e.target.closest('#multi-order-form'))multiOrderPreview();});
+document.addEventListener('input',e=>{if(e.target.id==='historical-raw'){historicalDraft=e.target.value;historicalResult=null;}if(e.target.closest('#order-color-matrix-form'))updateColorMatrixPreview();if(e.target.closest('#multi-order-form'))multiOrderPreview();});
 document.addEventListener('change',e=>{
  if(e.target.closest('#order-color-matrix-form'))updateColorMatrixPreview();
  if(e.target.closest('#multi-order-form'))multiOrderPreview();
