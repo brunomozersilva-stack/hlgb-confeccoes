@@ -675,7 +675,7 @@ function remotePanel(){
 }
 async function remoteAction(action){
  if(busy||!remoteLab)return;busy=true;
- try{const r=await action();if(r.state)doc=r.state;draw();status(r.status==='confirmed'?'Salvo e confirmado no PostgreSQL · '+str(r.result):'Sincronização: '+r.status+(r.message?' · '+r.message:''),r.status==='confirmed'?'success':'');}
+ try{const r=await action();if(r.state){doc=r.state;draw();}else{const banner=document.querySelector('#remote-check');if(banner)banner.closest('section').outerHTML=remotePanel();}status(r.status==='confirmed'?'Salvo e confirmado no PostgreSQL · '+str(r.result):'Sincronização: '+r.status+(r.message?' · '+r.message:''),r.status==='confirmed'?'success':'');}
  catch(e){status(e.message+' · Confira servidor / WAL antes de repetir.','error');}
  finally{busy=false;}
 }

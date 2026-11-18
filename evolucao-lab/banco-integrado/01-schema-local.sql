@@ -40,8 +40,14 @@ CREATE TABLE hlgb_integrado_lab.events (
  UNIQUE(document_id,revision),
  CHECK(event->>'commandId'=command_id AND (event->>'revision')::bigint=revision)
 );
+CREATE TABLE hlgb_integrado_lab.cancellations (
+ command_id text PRIMARY KEY CHECK(length(command_id) BETWEEN 8 AND 95),
+ actor text NOT NULL,
+ fingerprint text NOT NULL CHECK(fingerprint ~ '^[0-9a-f]{64}$'),
+ created_at timestamptz NOT NULL DEFAULT clock_timestamp()
+);
 DO $rls$ DECLARE t text; BEGIN
- FOREACH t IN ARRAY ARRAY['environment','documents','commands','events'] LOOP
+ FOREACH t IN ARRAY ARRAY['environment','documents','commands','events','cancellations'] LOOP
   EXECUTE format('ALTER TABLE hlgb_integrado_lab.%I ENABLE ROW LEVEL SECURITY',t);
   EXECUTE format('ALTER TABLE hlgb_integrado_lab.%I FORCE ROW LEVEL SECURITY',t);
  END LOOP;

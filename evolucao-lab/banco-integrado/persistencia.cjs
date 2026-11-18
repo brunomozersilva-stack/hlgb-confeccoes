@@ -19,6 +19,8 @@ async function commit(cmd,actor){let fingerprint;try{fingerprint=validate(cmd,ac
  const current=verifyDocument((await c.query('SELECT revision,state FROM hlgb_integrado_lab.documents WHERE id=$1 FOR UPDATE',[ID])).rows[0]);
  const old=(await c.query('SELECT fingerprint, revision, result FROM hlgb_integrado_lab.commands WHERE command_id=$1',[cmd.commandId])).rows[0];
  if(old){await c.query('ROLLBACK');return old.fingerprint===fingerprint?{status:'already_committed',commandId:cmd.commandId,revision:Number(old.revision),result:old.result}:{status:'rejected',message:'ID já vinculado a outro conteúdo ou ator.'};}
+ const cancelled=(await c.query('SELECT fingerprint FROM hlgb_integrado_lab.cancellations WHERE command_id=$1',[cmd.commandId])).rows[0];
+ if(cancelled){await c.query('ROLLBACK');return {status:'rejected',message:'ID foi cancelado de forma definitiva.'};}
  if(current.revision!==cmd.expectedRevision){await c.query('ROLLBACK');return {status:'conflict',serverRevision:current.revision,commandId:cmd.commandId};}
  let next;try{next=core.apply(current,{...cmd,actor,recordedAt:new Date().toISOString()});}catch(e){await c.query('ROLLBACK');return {status:'rejected',message:e.message};}
  const revision=next.state.revision,event=next.state.log.at(-1);
@@ -33,8 +35,19 @@ async function readback(commandId){if(typeof commandId!=='string'||!/^LAB-[a-zA-
  return withDb(async c=>{await c.query('BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY');try{
  const row=(await c.query('SELECT c.revision,c.kind,c.actor,c.result,e.event FROM hlgb_integrado_lab.commands c JOIN hlgb_integrado_lab.events e USING(command_id,document_id,revision) WHERE c.command_id=$1',[commandId])).rows[0];
  const current=verifyDocument((await c.query('SELECT revision,state FROM hlgb_integrado_lab.documents WHERE id=$1',[ID])).rows[0]);
- if(!row){const found=(await c.query('SELECT 1 FROM hlgb_integrado_lab.commands WHERE command_id=$1',[commandId])).rowCount;await c.query('COMMIT');return {status:found?'uncertain':'not_found',latestRevision:current.revision};}
+ if(!row){const cancelled=(await c.query('SELECT 1 FROM hlgb_integrado_lab.cancellations WHERE command_id=$1',[commandId])).rowCount;if(cancelled){await c.query('COMMIT');return {status:'cancelled',commandId,latestRevision:current.revision};}const found=(await c.query('SELECT 1 FROM hlgb_integrado_lab.commands WHERE command_id=$1',[commandId])).rowCount;await c.query('COMMIT');return {status:found?'uncertain':'not_found',latestRevision:current.revision};}
  const ev=current.log.find(x=>x.commandId===commandId);const proof=ev&&canonical(ev)===canonical(row.event)&&ev.revision===Number(row.revision)&&ev.type===row.kind&&ev.actor===row.actor&&ev.description===row.result;
  await c.query('COMMIT');return proof?{status:'readback_confirmed',commandId,revision:Number(row.revision),latestRevision:current.revision,result:row.result}:{status:'uncertain',commandId};
  }catch(e){await c.query('ROLLBACK').catch(()=>{});throw e;}});}
-module.exports={guard,canonical,validate,initialize,state,commit,readback};
+async function cancel(cmd,actor){
+ let fingerprint;try{fingerprint=validate(cmd,actor);}catch(e){return {status:'rejected',message:e.message};}
+ return withDb(async c=>{await c.query('BEGIN');try{
+ verifyDocument((await c.query('SELECT revision,state FROM hlgb_integrado_lab.documents WHERE id=$1 FOR UPDATE',[ID])).rows[0]);
+ const old=(await c.query('SELECT fingerprint FROM hlgb_integrado_lab.commands WHERE command_id=$1',[cmd.commandId])).rows[0];
+ if(old){await c.query('ROLLBACK');return old.fingerprint===fingerprint?{status:'committed',commandId:cmd.commandId}:{status:'rejected'};}
+ const cancelled=(await c.query('SELECT fingerprint FROM hlgb_integrado_lab.cancellations WHERE command_id=$1',[cmd.commandId])).rows[0];
+ if(cancelled){await c.query('ROLLBACK');return cancelled.fingerprint===fingerprint?{status:'cancelled',commandId:cmd.commandId}:{status:'rejected'};}
+ await c.query('INSERT INTO hlgb_integrado_lab.cancellations(command_id,actor,fingerprint) VALUES($1,$2,$3)',[cmd.commandId,actor,fingerprint]);
+ await c.query('COMMIT');return {status:'cancelled',commandId:cmd.commandId};
+ }catch(e){await c.query('ROLLBACK').catch(()=>{});throw e;}});}
+module.exports={guard,canonical,validate,initialize,state,commit,readback,cancel};

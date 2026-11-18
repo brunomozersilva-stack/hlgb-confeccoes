@@ -17,6 +17,7 @@
  const latest=await state(),ev=latest.log.find(x=>x.commandId===entry.command.commandId);
  if(!ev||r.revision!==entry.command.expectedRevision+1||ev.type!==entry.command.type||ev.actor!==actor||ev.revision!==r.revision||latest.revision<r.revision)throw Error('Prova não corresponde ao comando local');
  await clear(entry);return {status:'confirmed',state:latest,result:r.result};}
+ if(r.status==='cancelled'){await clear(entry);return {status:'discarded',state:await state()};}
  if(r.status==='not_found'){await stage(entry,'not_found');return {status:'not_found'};}
  throw Error('Prova inconclusiva: não repetir');}
  async function send(entry){const answer=await request('/api/commands','POST',entry.command);
@@ -29,9 +30,11 @@
  async function reconcile(){pending=await load();if(!pending)return {status:'empty',state:await state()};return prove(pending);}
  async function retry(){pending=await load();if(!pending||pending.stage!=='not_found')throw Error('Releia antes de reenviar.');return send(pending);}
  async function discard(){pending=await load();if(!pending||!['conflict','rejected','not_found'].includes(pending.stage))throw Error('Não é permitido descartar operação sem conferência.');
- const verdict=await prove(pending);if(verdict.status==='confirmed')return verdict;
- // A ausência de prova não autoriza reenvio com novo ID. Só descartar após a revisão do operador.
- if(verdict.status!=='not_found')throw Error('Não foi possível revisar o comando.');
- await clear(pending);return {status:'discarded',state:await state()};}
+ const entry=pending,result=await request('/api/cancel','POST',entry.command);
+ if(result.status==='committed')return prove(entry);
+ if(result.status!=='cancelled'||result.commandId!==entry.command.commandId)throw Error('Cancelamento não confirmado.');
+ const proof=await request('/api/commands/'+encodeURIComponent(entry.command.commandId));
+ if(proof.status!=='cancelled')throw Error('Cancelamento sem releitura.');
+ await clear(entry);return {status:'discarded',state:await state()};}
  window.HLGBRemoteLab={init,state,submit,reconcile,retry,discard,info:()=>({actor,pending}),load:async()=>{pending=await load();return pending;}};
 })();

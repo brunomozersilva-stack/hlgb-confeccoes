@@ -26,3 +26,5 @@ test('banco integral: pedido, concorrência, corte, acerto, financeiro e releitu
  assert.equal((await db.readback('LAB-never-0001')).status,'not_found');assert.equal((await db.readback(won.commandId)).latestRevision,6);
 });
 test('guardião recusa banco remoto, fingerprint estável e ator não autorizado',()=>{assert.throws(()=>db.guard({PGDATABASE:'postgres',PGHOST:'127.0.0.1'}));const c=cmd('test-0001','order.add',1,{a:1,b:2});assert.equal(db.validate(c,A),db.validate({...c,payload:{b:2,a:1}},A));assert.throws(()=>db.validate(c,'Administrador'));});
+
+test('cancelamento serializado impede commit atrasado com mesmo ID',async()=>{const s=await db.state(),c=cmd('cancel-0001','order.add',s.revision,{clientId:'CLI-0001',productId:'PRO-0001',grade:{P:1,M:0,G:0,GG:0}});assert.equal((await db.cancel(c,A)).status,'cancelled');assert.equal((await db.readback(c.commandId)).status,'cancelled');assert.equal((await db.commit(c,A)).status,'rejected');assert.equal((await db.state()).revision,s.revision);});
