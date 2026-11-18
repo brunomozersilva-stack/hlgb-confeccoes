@@ -62,6 +62,13 @@
   if(costs)problems.push(...costs.inspect(s));
   if(bot)problems.push(...bot.inspect(s));
   if(pcp)problems.push(...pcp.inspect(s));
+  for(const f of s.finance||[]){
+   const seen=new Set();for(const v of f.revisions||[]){
+    const e=s.log.find(x=>x.commandId===v.commandId);
+    if(seen.has(v.commandId)||!v.reason||e?.type!=='finance.revise'||!String(e.description).startsWith(f.id+' · revisão de título manual · ')||!Number.isSafeInteger(v.before?.amountCents)||v.before.amountCents<=0||!Number.isSafeInteger(v.after?.amountCents)||v.after.amountCents<=0)problems.push(f.id+': histórico de edição financeira inválido');
+    seen.add(v.commandId);
+   }
+  }
   for(const o of s.orders){
    const q=quantities(o);
    if(!gradeValid(o.grade)||!gradeValid(o.cut)||sizes.some(sz=>o.cut[sz]>o.grade[sz]))
@@ -683,6 +690,21 @@
    if(p.dueDate)entry.dueDate=financeDate(p.dueDate);
    if(p.category){if(!["Vendas","Facções","Compras","Folha","Aluguel","Impostos","Transporte","Outras despesas","Outras receitas","Compensações","Devoluções"].includes(p.category))throw Error('Categoria inválida.');entry.category=p.category;}
    s.finance.push(entry);result=entry.id;break}
+  case 'finance.revise':{
+   const entry=get(s,'finance',p.id,'Lançamento');
+   if(entry.sourceId||entry.status!=='aberto'||entry.reconciliation)throw Error('Somente título manual aberto e não conciliado pode ser editado. Corrija a origem dos títulos vinculados.');
+   if((s.costAllocations||[]).some(x=>x.financeId===entry.id))throw Error('Título com rateio já registrado: edição bloqueada para preservar custos.');
+   const description=name(p.description,'Descrição'),amountCents=num('amountCents',1,100000000),reason=name(p.reason,'Motivo');
+   if(!['Vendas','Facções','Compras','Folha','Aluguel','Impostos','Transporte','Outras despesas','Outras receitas','Compensações','Devoluções'].includes(p.category))throw Error('Categoria inválida.');
+   const dueDate=p.dueDate?financeDate(p.dueDate):null;
+   const before={description:entry.description,amountCents:entry.amountCents,category:entry.category||null,dueDate:entry.dueDate||null};
+   const after={description,amountCents,category:p.category,dueDate};
+   if(JSON.stringify(before)===JSON.stringify(after))throw Error('Nenhuma alteração informada.');
+   if(!Array.isArray(entry.revisions))entry.revisions=[];
+   entry.revisions.push({commandId:uid,before,after,reason});
+   entry.description=description;entry.amountCents=amountCents;entry.category=p.category;
+   if(dueDate)entry.dueDate=dueDate;else delete entry.dueDate;
+   result=entry.id+' · revisão de título manual · '+before.amountCents+' → '+amountCents+' centavos · '+reason;break}
   case 'finance.schedule':{
    const entry=get(s,'finance',p.id,'Lançamento');
    if(entry.status!=='aberto')throw Error('Somente título aberto pode receber vencimento.');

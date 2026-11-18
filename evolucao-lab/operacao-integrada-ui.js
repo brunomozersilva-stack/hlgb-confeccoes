@@ -541,6 +541,20 @@ function financeAnalytics(s){
  panel('Despesas e receitas por categoria',table(['Categoria','Recebido','Pago','A receber','A pagar'],r.categories.map(x=>[str(x.category),fmt(x.actual.receber),fmt(x.actual.pagar),fmt(x.forecast.receber),fmt(x.forecast.pagar)])),true)+
  panel('Relatório filtrado e conferência',table(['Título / descrição','Categoria','Data','Tipo','Valor','Estado','Conferência'],r.rows.map(x=>[str(x.id)+' · '+str(x.description),str(x.category),str(x.date||'Sem data'),str(x.kind),fmt(x.amountCents),str(x.status),str(x.reconciliation)])),true);
 }
+function financeRevisionPanels(s){
+ const eligible=s.finance.filter(x=>!x.sourceId&&x.status==='aberto'&&!x.reconciliation&&!(s.costAllocations||[]).some(a=>a.financeId===x.id));
+ const first=eligible[0],optionsFor=selector(eligible,x=>x.id+' · '+x.description+' · '+fmt(x.amountCents));
+ const cats=window.HLGBLabFinanceV1.categories.map(x=>[x,x]);
+ return panel('Editar lançamento manual aberto',
+ form('finance.revise','Corrigir sem apagar o original',[field('id','Título','select',first?.id||'',optionsFor),
+ field('description','Descrição','text',first?.description||''),field('amountCents','Valor','money',first?nr(first.amountCents):'0,00'),
+ field('category','Categoria','select',first?window.HLGBLabFinanceV1.classify(first,s):'Outras despesas',cats),
+ '<div class="field"><label>Vencimento (opcional)<input class="input" type="date" name="dueDate" value="'+str(first?.dueDate||'')+'"></label></div>',
+ field('reason','Motivo da alteração','text','')],'Salvar correção')+
+ '<p>Somente título manual aberto sem rateio. Não muda tipo, não reabre pagamento e não apaga registro. Títulos gerados por pedido, compra ou acerto exigem correção na origem.</p>'+
+ table(['Título','Antes','Depois','Justificativa','Comando'],s.finance.flatMap(x=>(x.revisions||[]).map(v=>[str(x.id),str(v.before.description)+' · '+fmt(v.before.amountCents)+' · '+str(v.before.category||'—')+' · '+str(v.before.dueDate||'—'),str(v.after.description)+' · '+fmt(v.after.amountCents)+' · '+str(v.after.category||'—')+' · '+str(v.after.dueDate||'—'),str(v.reason),str(v.commandId)]))),true);
+}
+function fillFinanceRevision(f){const x=doc.finance.find(y=>y.id===f.elements.namedItem('id').value);if(!x)return;for(const [k,v] of Object.entries({description:x.description,amountCents:nr(x.amountCents),category:window.HLGBLabFinanceV1.classify(x,doc),dueDate:x.dueDate||'',reason:''}))f.elements.namedItem(k).value=v;}
 function financeControlPanels(s){
  const dated=(id,label)=>'<div class="field"><label>'+str(label)+'<input class="input" type="date" name="'+id+'" value="2026-11-17" required></label></div>';
  const open=selector(s.finance.filter(x=>x.status==='aberto'),x=>x.id+' · '+x.description+' · '+fmt(x.amountCents));
@@ -1094,7 +1108,7 @@ function moduleHtml(s){
  field('amountCents','Valor em R$','money','100,00'),field('category','Categoria','select','',window.HLGBLabFinanceV1.categories.map(x=>[x,x])), '<div class="field"><label>Vencimento (opcional)<input class="input" type="date" name="dueDate"></label></div>'],'Cadastrar título')+
  form('finance.pay','Confirmar lançamento',[field('id','Título aberto','select','',finance),'<div class="field"><label>Data da baixa<input class="input" type="date" name="paidDate" value="2026-11-16" required></label></div>'],'Marcar como quitado ficticiamente')+
  '<p class="caption">Esta ação não movimenta dinheiro. Confirme apenas valores fictícios.</p>')+
- financeControlPanels(s)+financialBatchPanel(s)+receiptPanel(s)+
+ financeRevisionPanels(s)+financeControlPanels(s)+financialBatchPanel(s)+receiptPanel(s)+
  panel('Conferência financeira','<p>Pedidos geram contas a receber; retornos, acertos a pagar. Compensações de acertos pagos criam títulos separados a pagar ou receber, sem alterar o pagamento original. Nenhuma operação movimenta dinheiro real.</p>')+
  panel('Contas do laboratório',financeTable(s),true);
  case 'folha':return panel('Editar salário e passagem por pessoa',
@@ -1293,7 +1307,7 @@ function draw(){
  $('module-content').innerHTML=remotePanel()+moduleHtml(doc);
  if(active==='acertos'){applySettlementFilters();const f=document.querySelector('form[data-command="settlement.revise"]');if(f)fillSettlementRevision(f);}
  if(active==='faccoes'){const f=document.querySelector('form[data-command="faction.assignment.rate.set"]');if(f)fillAssignmentRate(f);}
- if(active==='hub'){const f=document.querySelector('form[data-command="finance.receipt.attach"]');if(f)updateReceiptTarget(f);}
+ if(active==='hub'){const f=document.querySelector('form[data-command="finance.receipt.attach"]');if(f)updateReceiptTarget(f);const g=document.querySelector('form[data-command="finance.revise"]');if(g)fillFinanceRevision(g);}
  $('audit-trail').innerHTML=doc.log.length?doc.log.slice().reverse().slice(0,28).map(e=>
  '<div class="log-item"><strong>'+escape(e.type)+' · '+escape(e.commandId)+'</strong>'+
  'Revisão '+e.revision+' · '+escape(e.description)+'</div>').join(''):
@@ -1762,6 +1776,7 @@ function renderCompensationSheet(compId){
  return $('cut-print').textContent;
 }
 document.addEventListener('change',event=>{
+ const revisionForm=event.target.closest('form[data-command="finance.revise"]');if(revisionForm&&event.target.name==='id'){fillFinanceRevision(revisionForm);return;}
  if(event.target.matches('[data-assistant-filter]')){const k=event.target.dataset.assistantFilter;assistantFilters[k]=k==='stockLimitGrams'?Number(event.target.value):event.target.value;assistantRequested=false;return;}
  if(event.target.id==='audit-v3-filter'){auditFilter=event.target.value;draw();return;}
  if(event.target.matches('[data-mgmt-filter]')){managementFilters[event.target.dataset.mgmtFilter]=event.target.value;managementFilters.page=1;draw();return;}
