@@ -1227,6 +1227,12 @@ async function runMultiFlow(browser,url,width){
   await put(page,'multi.flow.review',{id:'MFR-0001'});
   await module(page,'pedidos');
   assert.match(await page.locator('#module-content').innerText(),/Cortadas a separar/);
+  await module(page,'nucleo');
+  assert.match(await page.locator('#module-content').innerText(),/Fila de trabalho por setor/);
+  assert.match(await page.locator('#module-content').innerText(),/Acerto fictício a conferir/);
+  await page.locator('#module-content [data-goto="acertos"]').first().click();
+  assert.equal(await page.locator('[data-module="acertos"]').getAttribute('aria-current'),'page');
+  await module(page,'pedidos');
   const exported=page.waitForEvent('download');
   await page.locator('#export-json').click();
   const data=JSON.parse(fs.readFileSync(await (await exported).path(),'utf8')).data;
