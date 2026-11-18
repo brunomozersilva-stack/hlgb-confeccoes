@@ -1387,6 +1387,16 @@ async function runMonitor(trigger){
 }
 function startMonitor(){if(monitorClock!==null)return;void runMonitor('abertura');monitorClock=setInterval(()=>{void runMonitor('horario');},MONITOR_INTERVAL);document.addEventListener('visibilitychange',()=>{if(!document.hidden&&Date.now()-(monitorLastAttempt||0)>=MONITOR_INTERVAL)void runMonitor('retorno_aba');});}
 
+function multiFlowLabPart(s,part){
+ const ui=window.HLGBLabMultiFlowUiV1,model=window.HLGBLabMultiFlowV1;
+ if(!ui||!model)return panel('Fluxo multimodelo indisponível',
+  '<p>Os movimentos não podem ser realizados: módulo ainda não carregado.</p>',true);
+ if(part==='balance')return ui.balancePanel(s,model);
+ if(part==='faction')return ui.factionPanel(s,model);
+ if(part==='separacao')return ui.separationPanel(s,model);
+ if(part==='acerto')return ui.acertoPanel(s,model);
+ return '';
+}
 function moduleHtml(s){
  const o=orderOptions(s),openPlans=(s.cutPlans||[]).filter(p=>p.status==='aberto'),
   planOptions=selector(openPlans,p=>p.id+' · '+p.orderId+' · '+sum(p.grade)+' peças'),
@@ -1419,7 +1429,7 @@ function moduleHtml(s){
  table(['Perfil','Escopo proposto','Situação empresarial'],[['Supervisor','Cadastros, aprovações e relatórios','Pendente'],['Produção','Pedidos, corte, facções e separação','Pendente'],
  ['Financeiro','Acertos, Hub, compras e comprovantes','Pendente'],['Consulta','Visualização sem alterar','Pendente']]),true);
  case 'pedidos':return importOrdersPanel(s)+panel('Grade por cor e tamanho no próprio Pedido',colorMatrixCreateForm(s),true)+
- orderColorGradePanel(s)+multiOrderPanel(s)+panel('Incluir pedido com grade — modo antigo sem cores',
+ orderColorGradePanel(s)+multiOrderPanel(s)+multiFlowLabPart(s,'balance')+panel('Incluir pedido com grade — modo antigo sem cores',
  form('order.add','Novo pedido fictício',[
  field('clientId','Cliente','select','',clients),field('productId','Modelo','select','',products),
  ...api.sizes.map(z=>field(z,'Quantidade '+z,'int',z==='M'?10:0))],'Cadastrar pedido'))+
@@ -1500,7 +1510,7 @@ function moduleHtml(s){
  str(x.id),str(sum(x.cut)),str(x.allocated),str(x.returned),str(x.allocated-x.returned)])))+
  panel('Próximas operações','<div class="actions"><button class="btn primary" type="button" data-goto="faccoes">Gerenciar facções</button>'+
  '<button class="btn" type="button" data-goto="separacao">Separação</button></div>');
- case 'separacao':return packagingPanel(s)+packerAssignmentsPanel(s)+panel('Baixa de separação / expedição',
+ case 'separacao':return multiFlowLabPart(s,'separacao')+packagingPanel(s)+packerAssignmentsPanel(s)+panel('Baixa de separação / expedição',
  form('order.separate','Separar parcialmente',[field('orderId','Pedido','select','',o),
  field('qty','Quantidade para separar','int','5')],'Confirmar separação')+
  form('order.ship','Expedir peças separadas',[field('orderId','Pedido','select','',o),
@@ -1533,7 +1543,7 @@ function moduleHtml(s){
  const transferable=selector(rows.filter(x=>!classified.some(o=>o.id===x.orderId)&&x.qtySent>1&&x.qtySent>x.qtyReturned),
   x=>x.id+' · '+x.orderId+' · '+(ref(s.factions,x.factionId)?.name||'—')+
   ' · '+(x.qtySent-x.qtyReturned)+' peças disponíveis');
- return factionMaterialsPanel(s,'faccoes')+servicePanels(s,'faccoes')+panel('Preço específico das peças que já estão na facção',
+ return multiFlowLabPart(s,'faction')+factionMaterialsPanel(s,'faccoes')+servicePanels(s,'faccoes')+panel('Preço específico das peças que já estão na facção',
    form('faction.assignment.rate.set','Negociar mão de obra por envio pendente',[
     field('assignmentId','Envio / pedido / facção','select','',selector(rows.filter(x=>x.qtySent>x.qtyReturned),x=>
       x.id+' · '+x.orderId+' · '+(ref(s.factions,x.factionId)?.name||'—')+
@@ -1694,7 +1704,7 @@ function moduleHtml(s){
  const paid=selector(s.settlements.filter(x=>x.status==='pago'),
   x=>x.id+' · Pago '+fmt(x.amountCents)+' · '+(ref(s.factions,x.factionId)?.name||'—'));
  const compensations=s.settlementCompensations||[];
- return groupedAccountPanel(s)+factionClosingPanel(s)+serviceGroupPanel(s)+servicePanels(s,'acertos')+panel('Serviços avulsos e embalagem',
+ return multiFlowLabPart(s,'acerto')+groupedAccountPanel(s)+factionClosingPanel(s)+serviceGroupPanel(s)+servicePanels(s,'acertos')+panel('Serviços avulsos e embalagem',
  form('settlement.add','Novo acerto avulso fictício',[
   field('serviceType','Tipo de serviço','select','',[['costura','Costura avulsa'],['embalagem','Embalagem']]),
   field('factionId','Facção / embaladeira','select','',factions),
@@ -2034,6 +2044,12 @@ const NUM=['totalGrams','usedGrams','wasteGrams','actualGrams','points','revisio
 const SIGNED=['deltaGrams'];
 const PRICES=['freightCents','camisola','doll','calcinha','outros','pointCents','priceCents','unitCents','travetaCents','priceCentsKg','amountCents','salaryCents','passageCents','extrasCents','discountCents'];
 function parseData(type,form){
+ if(['multi.flow.allocate','multi.flow.return','multi.flow.separate','multi.flow.ship'].includes(type)){
+  if(!window.HLGBLabMultiFlowUiV1)throw Error('Grade multimodelo indisponível.');
+  const data=Object.fromEntries(new FormData(form).entries());
+  const lines=window.HLGBLabMultiFlowUiV1.readLines(form);
+  return {...data,lines,...(data.unitCents!==undefined?{unitCents:parseCents(data.unitCents)}:{})};
+ }
  if(type==='route.plan'||type==='route.revise')return routeInput(form);
  if(type==='packer.progress'){const data=Object.fromEntries(new FormData(form).entries());return {id:data.id,doneQty:Number(data.doneQty),reason:data.reason,correction:data.correction==='true'};}
  if(type==='order.multi.create')return multiOrderInput(form);
