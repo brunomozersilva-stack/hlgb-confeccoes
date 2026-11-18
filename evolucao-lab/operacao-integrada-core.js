@@ -688,11 +688,13 @@
    const delta=int(p.adjustmentCents,'Ajuste',-1000000,1000000);
    const amount=x.qty*x.unitCents+delta;
    if(amount<=0)throw Error('Acerto não pode ter valor zerado ou negativo.');
+   if(delta===(x.adjustmentCents||0))throw Error('Nenhuma alteração informada: ajuste já está registrado.');
+   const reason=name(p.reason,'Motivo do ajuste');
    const before=x.amountCents;
    x.adjustmentCents=delta;x.amountCents=amount;
    if(!Array.isArray(x.history))x.history=[];
    x.history.push({commandId:uid,beforeCents:before,afterCents:amount,
-    reason:typeof p.reason==='string'&&p.reason.trim()?name(p.reason,'Motivo'):'Ajuste fictício demonstrativo'});
+    reason});
    bill.amountCents=amount;
    result=x.id+' · '+before+' → '+amount+' centavos';break}
   case 'finance.receipt.attach':{

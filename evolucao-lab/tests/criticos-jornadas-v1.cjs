@@ -116,3 +116,49 @@ test('[DET-035 DET-043] Folha quitada não pode ser editada diretamente no Hub',
  assertNoMutation(s,()=>issue(s,'finance.pay',{id:bill.id,paidDate:'2026-12-05'}));
  valid(s);
 });
+
+test('[DET-003 DET-004 DET-007] pontos e tarifas travetada com rejeição de quantidades e histórico imutável',()=>{
+ let s=setup(core.initial(),'travetada');
+ s=issue(s,'service.rates.set',{camisola:25,doll:25,calcinha:15,outros:0,pointCents:5,reason:'Tabela de teste'});
+ s=issue(s,'service.points.set',{productId:'PRO-0001',category:'camisola',points:3,reason:'Ficha técnica'});
+ const item={serviceType:'travetada',factionId:'FAC-0001',productId:'PRO-0001',qty:20,priceMode:'auto',reason:'Trabalho fictício'};
+ const q=services.quote(s,item);assert.equal(q.gross,15);assert.equal(q.pointCount,3);assert.equal(q.pointRate,5);assert.equal(q.amount,300);
+ assertNoMutation(s,()=>issue(s,'settlement.service.add',{...item,qty:0}));
+ s=issue(s,'settlement.service.add',item);assert.equal(s.settlements[0].amountCents,300);
+ const original=JSON.stringify(s.settlements[0]);
+ s=issue(s,'service.rates.set',{camisola:25,doll:25,calcinha:15,outros:0,pointCents:9,reason:'Nova tabela'});
+ assert.equal(JSON.stringify(s.settlements[0]),original);
+ assert.equal(services.quote(s,item).amount,540);
+ valid(s);
+});
+test('[DET-001 DET-005 DET-006] embalagem manual e costura com desconto por pontos têm cálculo distinto',()=>{
+ let s=setup(core.initial(),'embalagem');
+ const qty=100;
+ s=issue(s,'settlement.service.add',{serviceType:'embalagem',factionId:'FAC-0001',productId:'manual',manualName:'Short doll avulso',manualCategory:'doll',qty,priceMode:'auto',reason:'Embalagem'});
+ assert.equal(s.settlements[0].amountCents,2500);assert.equal(s.settlements[0].productId,null);
+ assert.equal(s.products.length,3);
+ assertNoMutation(s,()=>issue(s,'settlement.service.add',{serviceType:'costura',factionId:'FAC-0001',productId:'PRO-0001',qty:10,priceMode:'manual',unitCents:20,reason:'Papel errado'}));
+ s=setup(s,'costura','FAC-0002');
+ s=issue(s,'service.rates.set',{camisola:25,doll:25,calcinha:15,outros:0,pointCents:5,reason:'Tarifas fictícias'});
+ s=issue(s,'service.points.set',{productId:'PRO-0001',category:'camisola',points:3,reason:'Pontos de costura'});
+ const q=services.quote(s,{serviceType:'costura',factionId:'FAC-0002',productId:'PRO-0001',qty:10,priceMode:'auto',unitCents:0});
+ assert.equal(q.discount,15);assert.equal(q.amount,q.qty*(q.gross-15));
+ valid(s);
+});
+test('[DET-013 DET-015 DET-042] ajustes exigem alteração real e motivo, preservando versões do título',()=>{
+ let s=issue(core.initial(),'settlement.add',{serviceType:'costura',factionId:'FAC-0001',productId:'PRO-0001',qty:10,unitCents:100,travetaCents:0,reason:'Serviço de teste'});
+ assertNoMutation(s,()=>issue(s,'settlement.adjust',{id:'ACE-0001',adjustmentCents:0,reason:'Sem diferença'}),/Nenhuma alteração/);
+ assertNoMutation(s,()=>issue(s,'settlement.adjust',{id:'ACE-0001',adjustmentCents:200}),/Motivo/);
+ s=issue(s,'settlement.adjust',{id:'ACE-0001',adjustmentCents:200,reason:'Faltaram 2 peças no demonstrativo'});
+ assert.equal(s.settlements[0].amountCents,1200);
+ assert.equal(s.finance[0].amountCents,1200);
+ assert.equal(s.settlements[0].history.length,1);
+ assert.equal(s.settlements[0].history[0].beforeCents,1000);
+ assert.equal(s.settlements[0].history[0].afterCents,1200);
+ assertNoMutation(s,()=>issue(s,'settlement.adjust',{id:'ACE-0001',adjustmentCents:200,reason:'Duplicado'}),/Nenhuma alteração/);
+ s=issue(s,'settlement.adjust',{id:'ACE-0001',adjustmentCents:-100,reason:'Diferença conferida'});
+ assert.equal(s.settlements[0].history.length,2);
+ assert.equal(s.finance[0].amountCents,900);
+ assert.equal(s.settlements[0].history[1].beforeCents,1200);
+ valid(s);
+});

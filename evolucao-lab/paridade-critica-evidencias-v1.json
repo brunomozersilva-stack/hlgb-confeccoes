@@ -1,6 +1,6 @@
 {
   "schema": "hlgb-evolucao-evidencias-criticas-v1",
-  "base": "eb8bb1eeacfa069b9a7ef7b720099835051155d9",
+  "base": "8ca6cc3b9cb0376106e3c09fa4d3e5cf3055b706",
   "generatedAt": "2026-11-18",
   "environment": "somente CI fictícia e núcleo integrado; nenhuma migração ou conexão produtiva",
   "approval": false,
@@ -17,6 +17,11 @@
           "file": "evolucao-lab/tests/criticos-jornadas-v1.cjs",
           "test": "grupo, fechamento por prestador e saldos íntegros",
           "scope": "invariantes simuladas em processo de laboratório, sem aprovação humana"
+        },
+        {
+          "file": "evolucao-lab/tests/criticos-jornadas-v1.cjs",
+          "test": "embalagem manual e costura com desconto por pontos têm cálculo distinto",
+          "scope": "Invariante parcial em laboratório fictício; não substitui aprovação humana"
         }
       ]
     },
@@ -34,45 +39,75 @@
       "moduleId": "acertos",
       "risk": "P0",
       "acceptance": "Não aceitar datas inválidas, quantidades inadequadas e preços fora do limite.",
-      "automation": "sem_prova_nova_nesta_rodada",
+      "automation": "prova_automatizada_parcial",
       "humanApproval": "pendente",
-      "evidence": []
+      "evidence": [
+        {
+          "file": "evolucao-lab/tests/criticos-jornadas-v1.cjs",
+          "test": "pontos e tarifas travetada com rejeição de quantidades e histórico imutável",
+          "scope": "Invariante parcial em laboratório fictício; não substitui aprovação humana"
+        }
+      ]
     },
     {
       "id": "DET-004",
       "moduleId": "acertos",
       "risk": "P0",
       "acceptance": "Calcular travetadas por peça e exigir confirmação explícita antes de atualizar ficha técnica.",
-      "automation": "sem_prova_nova_nesta_rodada",
+      "automation": "prova_automatizada_parcial",
       "humanApproval": "pendente",
-      "evidence": []
+      "evidence": [
+        {
+          "file": "evolucao-lab/tests/criticos-jornadas-v1.cjs",
+          "test": "pontos e tarifas travetada com rejeição de quantidades e histórico imutável",
+          "scope": "Invariante parcial em laboratório fictício; não substitui aprovação humana"
+        }
+      ]
     },
     {
       "id": "DET-005",
       "moduleId": "acertos",
       "risk": "P0",
       "acceptance": "Evitar desconto maior que a mão de obra e registrar valor bruto, desconto e líquido.",
-      "automation": "sem_prova_nova_nesta_rodada",
+      "automation": "prova_automatizada_parcial",
       "humanApproval": "pendente",
-      "evidence": []
+      "evidence": [
+        {
+          "file": "evolucao-lab/tests/criticos-jornadas-v1.cjs",
+          "test": "embalagem manual e costura com desconto por pontos têm cálculo distinto",
+          "scope": "Invariante parcial em laboratório fictício; não substitui aprovação humana"
+        }
+      ]
     },
     {
       "id": "DET-006",
       "moduleId": "acertos",
       "risk": "P1",
       "acceptance": "Preservar exceção controlada para nome e categoria manual, sem criar modelo automaticamente.",
-      "automation": "sem_prova_nova_nesta_rodada",
+      "automation": "prova_automatizada_parcial",
       "humanApproval": "pendente",
-      "evidence": []
+      "evidence": [
+        {
+          "file": "evolucao-lab/tests/criticos-jornadas-v1.cjs",
+          "test": "embalagem manual e costura com desconto por pontos têm cálculo distinto",
+          "scope": "Invariante parcial em laboratório fictício; não substitui aprovação humana"
+        }
+      ]
     },
     {
       "id": "DET-007",
       "moduleId": "acertos",
       "risk": "P1",
       "acceptance": "Preservar preço por embalagem, categoria e travetada, com histórico futuro de versões.",
-      "automation": "sem_prova_nova_nesta_rodada",
+      "automation": "prova_automatizada_parcial",
       "humanApproval": "pendente",
-      "evidence": []
+      "evidence": [
+        {
+          "file": "evolucao-lab/tests/criticos-jornadas-v1.cjs",
+          "test": "pontos e tarifas travetada com rejeição de quantidades e histórico imutável",
+          "scope": "Invariante parcial em laboratório fictício; não substitui aprovação humana"
+        }
+      ]
     },
     {
       "id": "DET-008",
@@ -159,9 +194,15 @@
       "moduleId": "acertos",
       "risk": "P0",
       "acceptance": "Não gerar nova revisão de linha sem alteração de negócio.",
-      "automation": "sem_prova_nova_nesta_rodada",
+      "automation": "prova_automatizada_parcial",
       "humanApproval": "pendente",
-      "evidence": []
+      "evidence": [
+        {
+          "file": "evolucao-lab/tests/criticos-jornadas-v1.cjs",
+          "test": "ajustes exigem alteração real e motivo, preservando versões do título",
+          "scope": "Invariante parcial em laboratório fictício; não substitui aprovação humana"
+        }
+      ]
     },
     {
       "id": "DET-014",
@@ -177,9 +218,15 @@
       "moduleId": "acertos",
       "risk": "P0",
       "acceptance": "Registrar cada ajuste com valor, motivo e identificador estável; não duplicar.",
-      "automation": "sem_prova_nova_nesta_rodada",
+      "automation": "prova_automatizada_parcial",
       "humanApproval": "pendente",
-      "evidence": []
+      "evidence": [
+        {
+          "file": "evolucao-lab/tests/criticos-jornadas-v1.cjs",
+          "test": "ajustes exigem alteração real e motivo, preservando versões do título",
+          "scope": "Invariante parcial em laboratório fictício; não substitui aprovação humana"
+        }
+      ]
     },
     {
       "id": "DET-016",
@@ -201,15 +248,9 @@
       "moduleId": "acertos",
       "risk": "P0",
       "acceptance": "Permitir aplicação parcial com proteção contra compensação repetida.",
-      "automation": "prova_automatizada_parcial",
+      "automation": "sem_prova_nova_nesta_rodada",
       "humanApproval": "pendente",
-      "evidence": [
-        {
-          "file": "evolucao-lab/tests/criticos-jornadas-v1.cjs",
-          "test": "compensação posterior preserva pagamento e referência original",
-          "scope": "invariantes simuladas em processo de laboratório, sem aprovação humana"
-        }
-      ]
+      "evidence": []
     },
     {
       "id": "DET-018",
@@ -278,15 +319,9 @@
       "moduleId": "faccoes",
       "risk": "P0",
       "acceptance": "Bloquear transferências com operações locais ambíguas; sem apagar fila.",
-      "automation": "prova_automatizada_parcial",
+      "automation": "sem_prova_nova_nesta_rodada",
       "humanApproval": "pendente",
-      "evidence": [
-        {
-          "file": "evolucao-lab/tests/criticos-jornadas-v1.cjs",
-          "test": "transferência parcial preserva saldo e mantém histórico sem duplicar acerto",
-          "scope": "invariantes simuladas em processo de laboratório, sem aprovação humana"
-        }
-      ]
+      "evidence": []
     },
     {
       "id": "DET-024",
@@ -344,15 +379,9 @@
       "moduleId": "faccoes",
       "risk": "P0",
       "acceptance": "Comando único de transferência e concorrência controlada; identificar confirmação real.",
-      "automation": "prova_automatizada_parcial",
+      "automation": "sem_prova_nova_nesta_rodada",
       "humanApproval": "pendente",
-      "evidence": [
-        {
-          "file": "evolucao-lab/tests/criticos-jornadas-v1.cjs",
-          "test": "transferência parcial preserva saldo e mantém histórico sem duplicar acerto",
-          "scope": "invariantes simuladas em processo de laboratório, sem aprovação humana"
-        }
-      ]
+      "evidence": []
     },
     {
       "id": "DET-030",
@@ -395,15 +424,9 @@
       "moduleId": "faccoes",
       "risk": "P0",
       "acceptance": "Não ocultar pagamentos por filtros/sync quando registro confirmado; mostrar divergências.",
-      "automation": "prova_automatizada_parcial",
+      "automation": "sem_prova_nova_nesta_rodada",
       "humanApproval": "pendente",
-      "evidence": [
-        {
-          "file": "evolucao-lab/tests/criticos-jornadas-v1.cjs",
-          "test": "transferência parcial preserva saldo e mantém histórico sem duplicar acerto",
-          "scope": "invariantes simuladas em processo de laboratório, sem aprovação humana"
-        }
-      ]
+      "evidence": []
     },
     {
       "id": "DET-035",
@@ -508,6 +531,11 @@
           "file": "evolucao-lab/tests/criticos-jornadas-v1.cjs",
           "test": "Hub manual mantém histórico e bloqueia sobrescrita de pagamentos",
           "scope": "invariantes simuladas em processo de laboratório, sem aprovação humana"
+        },
+        {
+          "file": "evolucao-lab/tests/criticos-jornadas-v1.cjs",
+          "test": "ajustes exigem alteração real e motivo, preservando versões do título",
+          "scope": "Invariante parcial em laboratório fictício; não substitui aprovação humana"
         }
       ]
     },
