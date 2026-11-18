@@ -433,6 +433,7 @@
   case 'multi.cut.plan':{result=multiCuts.create(s,p,{next,uid});break}
   case 'multi.cut.revise':{result=multiCuts.revise(s,p,{uid});break}
   case 'multi.cut.complete':{result=multiCuts.complete(s,p,{uid});break}
+  case 'multi.cut.weight.record':{result=multiCuts.recordWeight(s,p,{uid});break}
   case 'multi.cut.cancel':{result=multiCuts.cancel(s,p,{uid});break}
   case 'order.add.with.colors':{
    if(!factionGrade)throw Error('Módulo de matriz por cor indisponível. Nenhum pedido criado.');
