@@ -512,3 +512,55 @@ test('Pedidos: criar matriz por cor/tamanho é atômico e não perde o formulár
  assert.match(ui,/function colorMatrixCreateForm\(/);
  assert.match(ui,/function orderColorGradePanel\(/);
 });
+
+test('Pedido multimodelo isolado: dois modelos, quatro cores, tamanhos extras, soma, revisão e proteção do fluxo antigo',()=>{
+ const ctx=setup(),source=JSON.stringify(ctx.state);
+ const payload={clientId:'CLI-0001',sizes:['PP','P','M','G','GG','XG','G1'],items:[
+  {productId:'PRO-0001',colors:[
+   {color:'Preto',grade:{PP:2,P:3,M:4,G:0,GG:0,XG:0,G1:0}},
+   {color:'Rubi',grade:{PP:0,P:1,M:2,G:3,GG:0,XG:0,G1:0}}
+  ]},
+  {productId:'PRO-0002',colors:[
+   {color:'Branco',grade:{PP:0,P:0,M:0,G:0,GG:1,XG:5,G1:0}},
+   {color:'Preto',grade:{PP:0,P:0,M:0,G:0,GG:0,XG:0,G1:7}}
+  ]}
+ ]};
+ const id=run(ctx,'order.multi.create',payload);
+ const draft=ctx.state.multiOrders.find(o=>o.id===id);
+ assert.match(id,/^PDM-\d{4}$/);
+ assert.equal(ctx.state.revision,2);
+ assert.deepEqual(draft.totals,{
+  pieces:28,amountCents:15*3990+13*1590,
+  bySize:{PP:2,P:4,M:6,G:3,GG:1,XG:5,G1:7},
+  models:2,colors:4
+ });
+ assert.deepEqual(draft.items.map(i=>i.id),['ITM-001','ITM-002']);
+ assert.equal(draft.phase,'preparacao_nao_integrada');
+ assert.equal(draft.productionLinked,false);assert.equal(draft.financeLinked,false);
+ assert.equal(ctx.state.orders.length,0,'Pedido multimodelo não entra no saldo do fluxo monomodelo');
+ assert.equal(ctx.state.finance.length,0,'Nenhum título financeiro automático sem integração');
+ assert.equal(ctx.state.stockLedger.length,0);
+ assert.equal(ctx.state.cutPlans.length,0);
+ assert.deepEqual(JSON.parse(source).multiOrders,[]);
+ const snapshot=JSON.stringify(ctx.state);
+ for(const bad of [
+  {...payload,sizes:['P','p'],items:[{productId:'PRO-0001',colors:[{color:'Preto',grade:{P:1,p:0}}]}]},
+  {...payload,items:[{productId:'PRO-0001',colors:[payload.items[0].colors[0],{...payload.items[0].colors[0],color:'PRETO'}]}]},
+  {...payload,items:[{productId:'INVALID',colors:payload.items[0].colors}]},
+  {...payload,items:[{productId:'PRO-0001',colors:[{color:'Preto',grade:{PP:0,P:0,M:0,G:0,GG:0,XG:0,G1:0}}]}]}
+ ]){
+  assert.throws(()=>core.apply(ctx.state,{type:'order.multi.create',payload:bad,
+   commandId:'INVALID-MULTI-'+String(Math.random()),actor:'Teste CI fictício',expectedRevision:ctx.state.revision}));
+  assert.equal(JSON.stringify(ctx.state),snapshot,'Falha não pode gravar parcialmente');
+ }
+ const next=core.apply(ctx.state,{type:'order.multi.create',payload,
+  commandId:'MULTI-UNICO',actor:'Teste CI fictício',expectedRevision:2});
+ assert.throws(()=>core.apply(next.state,{type:'order.multi.create',payload,commandId:'MULTI-UNICO',
+  actor:'Teste CI fictício',expectedRevision:3}),/Comando já registrado/);
+ assert.equal(core.inspect(next.state).ok,true);
+ const normal=core.apply(ctx.state,{type:'order.add',payload:{clientId:'CLI-0001',productId:'PRO-0001',
+  grade:{P:1,M:1,G:0,GG:0}},commandId:'NORMAL-DEPOIS-MULTI',actor:'Teste CI fictício',expectedRevision:2});
+ assert.equal(normal.state.orders.length,1,'Pedido antigo segue funcionando');
+ assert.equal(normal.state.multiOrders.length,1,'Pedido multi não desaparece ao lançar pedido anterior');
+ assert.equal(normal.state.finance.length,1);
+});

@@ -1072,10 +1072,73 @@ async function runColorMatrix(browser,url,width){
  }finally{await ctx.close();}
 }
 
+async function runMultiOrder(browser,url,width){
+ const ctx=await browser.newContext({viewport:{width,height:820},acceptDownloads:true});
+ const page=await ctx.newPage(),errors=[];
+ page.on('pageerror',err=>errors.push(err.message));
+ try{
+  await page.goto(url);
+  await page.waitForFunction(()=>document.querySelector('#top-revision')?.textContent.includes('Revisão local 1'));
+  await module(page,'pedidos');
+  const form=page.locator('form[data-command="order.multi.create"]');
+  assert.equal(await form.count(),1,'Novo cadastro multimodelo deve estar em Pedidos');
+  assert.equal(await form.locator('[data-multi-model]').count(),1);
+  await form.locator('[data-add-multi-model]').click();
+  assert.equal(await form.locator('[data-multi-model]').count(),2);
+  const first=form.locator('[data-multi-model]').nth(0);
+  const second=form.locator('[data-multi-model]').nth(1);
+  await second.locator('[name=productId]').selectOption('PRO-0002');
+  await first.locator('[data-add-multi-color]').click();
+  const firstNewColor=first.locator('[data-multi-color-row]').nth(1);
+  await firstNewColor.locator('[name=color]').fill('Branco');
+  await firstNewColor.locator('[name="size_P"]').fill('1');
+  await form.locator('#multi-new-size').fill('G2');
+  await form.locator('[data-add-multi-size]').click();
+  assert.equal(await first.locator('[name="size_G2"]').count(),2);
+  await first.locator('[data-multi-color-row]').nth(0).locator('[name="size_G2"]').fill('3');
+  await second.locator('[data-multi-color-row]').nth(0).locator('[name="size_PP"]').fill('2');
+  assert.match(await form.locator('#multi-order-preview').innerText(),/2 modelo\(s\) · 3 cores · 21 peças/);
+  assert.match(await form.locator('#multi-order-preview').innerText(),/G2: 3/);
+  await form.locator('button[type=submit]').click();
+  await page.waitForFunction(()=>document.querySelector('#top-revision').textContent.includes('Revisão local 2'));
+  assert.match(await page.locator('#flash').innerText(),/Salvo e confirmado por releitura/);
+  const pending=page.waitForEvent('download');
+  await page.locator('#export-json').click();
+  const data=JSON.parse(fs.readFileSync(await (await pending).path(),'utf8')).data;
+  assert.equal(data.multiOrders.length,1);
+  const draft=data.multiOrders[0];
+  assert.equal(draft.id,'PDM-0001');
+  assert.deepEqual(draft.sizes,['PP','P','M','G','GG','XG','G1','G2']);
+  assert.equal(draft.totals.pieces,21);
+  assert.equal(draft.totals.models,2);
+  assert.equal(draft.totals.colors,3);
+  assert.equal(draft.totals.bySize.M,15);
+  assert.equal(draft.totals.bySize.P,1);
+  assert.equal(draft.totals.bySize.PP,2);
+  assert.equal(draft.totals.bySize.G2,3);
+  assert.equal(draft.totals.amountCents,14*3990+7*1590);
+  assert.deepEqual(draft.items.map(item=>item.id),['ITM-001','ITM-002']);
+  assert.equal(draft.productionLinked,false);
+  assert.equal(data.orders.length,0);
+  assert.equal(data.finance.length,0);
+  assert.equal(data.stockLedger.length,0);
+  assert.equal(data.log.filter(x=>x.type==='order.multi.create').length,1);
+  assert.equal(await page.locator('form[data-command="order.add"]').count(),1,'Cadastro anterior permanece');
+  await form.locator('[data-add-multi-color]').first().click();
+  await first.locator('[data-multi-color-row]').last().locator('[name=color]').fill('PRETO');
+  await first.locator('[data-multi-color-row]').last().locator('[name="size_M"]').fill('2');
+  await form.locator('button[type=submit]').click();
+  assert.equal(await revision(page),2,'Cor repetida não gera outra transação');
+  assert.match(await page.locator('#flash').innerText(),/Cor repetida/);
+  assert.deepEqual(errors,[],'Sem erros de JavaScript');
+  console.log('PASS multimodelo com duas peças, cores e tamanhos customizados '+width+'px '+browserType.name());
+ }finally{await ctx.close();}
+}
+
 (async()=>{
  await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));
  const url='http://127.0.0.1:'+server.address().port+'/';
  const browser=await browserType.launch({headless:true});
- try{await runRecovery(browser,url);for(const width of [390,1280])await runColorMatrix(browser,url,width);for(const width of [320,375,390,768,1280])await run(browser,width,url)}
+ try{await runRecovery(browser,url);for(const width of [390,1280])await runMultiOrder(browser,url,width);for(const width of [390,1280])await runColorMatrix(browser,url,width);for(const width of [320,375,390,768,1280])await run(browser,width,url)}
  finally{await browser.close();await new Promise(resolve=>server.close(resolve))}
 })().catch(e=>{console.error(e);process.exitCode=1});
