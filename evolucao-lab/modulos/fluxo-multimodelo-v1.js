@@ -26,6 +26,10 @@
   const x=(s.log||[]).find(e=>e.commandId===id);
   if(!x||x.revision!==revision||x.type!==type)fail('Evento sem prova global: '+id);
  };
+ function signatureMatches(stored,obj){
+  if(typeof stored!=='string')return false;
+  try{return fingerprint(JSON.parse(stored))===fingerprint(obj)}catch(_e){return false}
+ }
  function ensure(s){
   for(const name of ['multiFlowLots','multiFlowSeparations','multiFlowShipments']){
    if(s[name]===undefined)s[name]=[];
@@ -208,7 +212,7 @@
     const fields={cutId:lot.cutId,orderId:lot.orderId,itemId:lot.itemId,
       productId:lot.productId,lines:lot.lines,qty:lot.qty,
       originalFactionId:lot.originalFactionId,originalUnitCents:lot.originalUnitCents,reason:lot.reason};
-    if(fingerprint(fields)!==lot.immutableFingerprint)fail('Envio alterado fora do histórico');
+    if(!signatureMatches(lot.immutableFingerprint,fields))fail('Envio alterado fora do histórico');
     if(lot.qty!==sum(lot.lines))fail('Total de envio divergente');
     validateLines(lot.lines,lineLimits(cut.lines),'Origem do envio');
     eventProof({commandId:lot.createdCommandId,revision:lot.createdRevision},'multi.flow.allocate');
@@ -231,7 +235,7 @@
       const immutableChange={type:e.type,commandId:e.commandId,revision:e.revision,
        fromFactionId:e.fromFactionId,fromUnitCents:e.fromUnitCents,toFactionId:e.toFactionId,
        toUnitCents:e.toUnitCents,pending:e.pending,lines:e.lines,reason:e.reason};
-      if(e.immutableFingerprint!==fingerprint(immutableChange))
+      if(!signatureMatches(e.immutableFingerprint,immutableChange))
        fail('Histórico da facção/mão de obra foi alterado fora do comando');
       if(e.pending!==expected||expected<1)fail('Histórico de saldo da transferência inválido');
       const remain=[...pending.values()].filter(x=>x.remaining>0)
@@ -243,7 +247,7 @@
       const vals={lotId:lot.id,orderId:lot.orderId,itemId:lot.itemId,productId:lot.productId,
         cutId:lot.cutId,lines:e.lines,qty:e.qty,factionId:e.factionId,
         unitCents:e.unitCents,amountCents:e.amountCents,reason:e.reason};
-      if(fingerprint(vals)!==e.immutableFingerprint||e.factionId!==factionId||
+      if(!signatureMatches(e.immutableFingerprint,vals)||e.factionId!==factionId||
         e.unitCents!==unitCents||e.qty!==sum(e.lines)||
         e.amountCents!==e.qty*e.unitCents)fail('Retorno/acerto modificado ou divergente');
       validateLines(e.lines,lineLimits(lot.lines,done),'Origem do retorno');
@@ -255,7 +259,7 @@
         factionId:e.review.factionId};
        if(e.review.revision<=e.revision||e.review.amountCents!==e.amountCents||
           e.review.factionId!==e.factionId||!e.review.reviewer||!e.review.reason||
-          e.review.immutableFingerprint!==fingerprint(immutableReview))
+          !signatureMatches(e.review.immutableFingerprint,immutableReview))
         fail('Conferência de acerto fictício inconsistente');
       }
      }
@@ -270,7 +274,7 @@
     const fields={orderId:e.orderId,itemId:e.itemId,productId:e.productId,
       lines:e.lines,qty:e.qty,reason:e.reason};
     if(e.productId!==item.productId||e.qty!==sum(e.lines)||
-       fingerprint(fields)!==e.immutableFingerprint)fail('Movimento sem origem ou adulterado');
+       !signatureMatches(e.immutableFingerprint,fields))fail('Movimento sem origem ou adulterado');
     validateLines(e.lines,new Map([...slots(item).values()].map(x=>[cell(x.color,x.size),
       {...x,remaining:x.ordered}])),'Variação separada/expedida');
     eventProof(e,type==='separate'?'multi.flow.separate':'multi.flow.ship');
