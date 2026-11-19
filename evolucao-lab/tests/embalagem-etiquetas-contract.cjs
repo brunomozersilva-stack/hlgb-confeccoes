@@ -163,3 +163,20 @@ test('Etiqueta e embaladeira resistem à reordenação de JSONB e continuam dete
  const tampered=structuredClone(after);tampered.packerAssignmentsLab[0].labelQty+=1;
  assert.equal(core.inspect(tampered).ok,false,'Quantidades alteradas precisam continuar visíveis');
 });
+
+test('Assinaturas anteriores de etiquetas e tarefas permanecem válidas após upgrade',()=>{
+ const c=setup();
+ c.run('label.template.add',template());
+ c.run('packer.assign',assignment());
+ const t=c.s.labelTemplatesLab[0],r=c.s.packerAssignmentsLab[0];
+ const tplKeys=['clientId','clientName','productId','productName','sku','cnpj','productUrl','fileName','fieldsNote'];
+ t.history[0].afterFingerprint=JSON.stringify(Object.fromEntries(tplKeys.map(k=>[k,t[k]])));
+ const keys=['packerId','packerName','clientId','clientName','productId','productName','date','size','color','qty','labelQty','notes'];
+ r.history[0].afterFingerprint=JSON.stringify({fields:Object.fromEntries(keys.map(k=>[k,r[k]])),label:r.labelSnapshot});
+ const normalized=x=>Array.isArray(x)?x.map(normalized):x&&typeof x==='object'?
+  Object.fromEntries(Object.keys(x).sort().map(k=>[k,normalized(x[k])])):x;
+ const old=normalized(JSON.parse(JSON.stringify(c.s)));
+ assert.equal(core.inspect(old).ok,true,'Não descartar histórico legítimo em formato antigo');
+ old.packerAssignmentsLab[0].labelQty++;
+ assert.equal(core.inspect(old).ok,false);
+});
