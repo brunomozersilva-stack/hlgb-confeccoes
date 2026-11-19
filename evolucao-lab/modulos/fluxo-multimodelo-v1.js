@@ -19,7 +19,9 @@
   return x.trim();
  };
  const sum=a=>a.reduce((n,x)=>n+x.qty,0);
- const fingerprint=x=>JSON.stringify(x);
+ // Assinatura lógica do snapshot: JSONB reorganiza chaves, mas não pode alterar valores.
+ const fingerprint=x=>JSON.stringify(x,(_key,v)=>v&&typeof v==='object'&&!Array.isArray(v)?
+  Object.fromEntries(Object.keys(v).sort().map(k=>[k,v[k]])):v);
  const proof=(s,id,revision,type)=>{
   const x=(s.log||[]).find(e=>e.commandId===id);
   if(!x||x.revision!==revision||x.type!==type)fail('Evento sem prova global: '+id);
