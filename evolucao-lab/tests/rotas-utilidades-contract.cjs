@@ -93,3 +93,15 @@ test('Utilidades tem seu próprio módulo, tela, impressão e permanece sem aces
  assert.doesNotMatch(fs.readFileSync(path.join(root,'modulos/rotas-utilidades-v1.js'),'utf8'),
   /\bfetch\s*\(|\bWebSocket\b|\bXMLHttpRequest\b|\bsupabase\b/i);
 });
+
+test('Rota com histórico preserva integridade depois de JSONB e não perde verificação de alterações',()=>{
+ const ctx=fixture(),id=ctx.run('route.plan',plan()).split(' · ')[0];
+ ctx.run('route.revise',{...plan(),id,reason:'Revisão por conferência',
+  stops:[stop('FAC-0002'),stop('FAC-0001')]});
+ const stable=x=>Array.isArray(x)?x.map(stable):x&&typeof x==='object'?
+  Object.fromEntries(Object.keys(x).sort().map(k=>[k,stable(x[k])])):x;
+ const after=stable(JSON.parse(JSON.stringify(ctx.s)));
+ assert.equal(core.inspect(after).ok,true);
+ const tampered=structuredClone(after);tampered.routePlans[0].stops[0].carry.push('Peças adicionadas por fora');
+ assert.equal(core.inspect(tampered).ok,false);
+});
