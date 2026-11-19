@@ -149,3 +149,17 @@ test('UI mostra fila, etiquetas personalizadas, histórico e isolamento dos mód
  for(const forbidden of [/\bfetch\s*\(/,/\bWebSocket\b/,/\bsupabase\.co\b/i,/\bXMLHttpRequest\b/])
   assert.equal(forbidden.test(js),false,'Sem rede na função fictícia');
 });
+
+test('Etiqueta e embaladeira resistem à reordenação de JSONB e continuam detectando adulteração',()=>{
+ const c=setup();
+ c.run('label.template.add',template());
+ c.run('packer.assign',assignment());
+ c.run('packer.progress',{id:'EBA-0001',doneQty:20,reason:'Parcial'});
+ c.run('label.template.edit',{...template('PRO-0001','SKU-ALTERADO'),id:'ETM-0001',reason:'Versão futura'});
+ const normalize=x=>Array.isArray(x)?x.map(normalize):x&&typeof x==='object'?
+  Object.fromEntries(Object.entries(x).sort(([a],[b])=>a.localeCompare(b)).map(([k,v])=>[k,normalize(v)])):x;
+ const after=normalize(JSON.parse(JSON.stringify(c.s)));
+ assert.equal(core.inspect(after).ok,true,'JSONB não deve invalidar registros sem mudança de valores');
+ const tampered=structuredClone(after);tampered.packerAssignmentsLab[0].labelQty+=1;
+ assert.equal(core.inspect(tampered).ok,false,'Quantidades alteradas precisam continuar visíveis');
+});
