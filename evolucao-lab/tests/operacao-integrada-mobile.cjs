@@ -1269,7 +1269,7 @@ async function runMultiFlow(browser,url,width){
   await module(page,'nucleo');
   assert.match(await page.locator('#module-content').innerText(),/Fila de trabalho por setor/);
   assert.match(await page.locator('#module-content').innerText(),/Acerto fictício a conferir/);
-  await page.locator('#module-content [data-goto="acertos"]').first().click();
+  await page.locator('#module-content [data-goto="acertos"][data-mf-focus="MFR-0002"]').click();
   assert.equal(await page.locator('[data-module="acertos"]').getAttribute('aria-current'),'page');
   assert.equal(await page.locator('[data-mf-record="MFR-0002"]').getAttribute('data-mf-focused'),'true');
   await module(page,'pedidos');
