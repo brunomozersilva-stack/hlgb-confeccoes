@@ -572,3 +572,15 @@ test('Pedido multimodelo isolado: dois modelos, quatro cores, tamanhos extras, s
  assert.equal(normal.state.multiOrders.length,1,'Pedido multi não desaparece ao lançar pedido anterior');
  assert.equal(normal.state.finance.length,1);
 });
+
+// Regressão: a central de testes contém atalhos para Acertos, mas a fila deve
+// direcionar para o registro exato. Selecionar o primeiro atalho mascara o erro.
+test('fila integrada abre Acerto pelo identificador, sem depender do primeiro atalho',()=>{
+ const mobile=fs.readFileSync(path.join(dir,'tests/operacao-integrada-mobile.cjs'),'utf8');
+ assert.match(multiFlowUiSource,/data-mf-focus=/,'fila identifica o registro a abrir');
+ assert.match(multiFlowUiSource,/data-mf-record=/,'painel de Acertos expõe o registro');
+ assert.match(ui,/goto\.dataset\.mfFocus/,'navegação lê o identificador do registro');
+ assert.match(ui,/target\.dataset\.mfFocused='true'/,'navegação assinala o registro correspondente');
+ assert.match(mobile,/\[data-goto=\\"acertos\\"\]\[data-mf-focus=\\"MFR-0002\\"\]/,'teste navega para o acerto específico');
+ assert.doesNotMatch(mobile,/\[data-goto=\\"acertos\\"\]'\)\.first\(\)\.click\(\)/,'teste não escolhe um atalho genérico');
+});
