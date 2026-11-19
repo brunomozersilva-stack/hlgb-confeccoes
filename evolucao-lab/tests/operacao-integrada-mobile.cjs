@@ -92,6 +92,27 @@ async function run(browser,width,url){
   assert.equal(wholeReport.productionApproval,false);
   assert.equal(wholeReport.parityApproved,false);
   assert.equal(await revision(page),beforeVisitExport,'Exportar checklist não pode gravar lançamento');
+  assert.equal(wholeReport.userReview.approved,false);
+  assert.equal(wholeReport.userReview.items.length,0);
+  const manual=page.locator('#whole-program-review-form');
+  await manual.locator('[name="area"]').selectOption('corte');
+  await manual.locator('[name="outcome"]').selectOption('precisa_ajuste');
+  await manual.locator('[name="note"]').fill('Ensaio fictício: conferir botão Salvar depois da programação.');
+  await manual.locator('button[type=submit]').click();
+  assert.match(await page.locator('#whole-program-progress').innerText(),/Problemas anotados: 1/);
+  assert.equal(await revision(page),beforeVisitExport,'Avaliação manual não pode criar comando operacional');
+  await page.reload();
+  await page.waitForFunction(()=>document.querySelector('#top-revision')?.textContent.includes('Revisão local 1'));
+  await module(page,'nucleo');
+  assert.match(await page.locator('[data-general-test-module="corte"]').innerText(),/Problema informado/);
+  const manualDownload=page.waitForEvent('download');
+  await page.locator('#whole-program-export').click();
+  const proof=JSON.parse(fs.readFileSync(await (await manualDownload).path(),'utf8'));
+  assert.equal(proof.userReview.items.length,1);
+  assert.deepEqual(proof.userReview.items.map(x=>[x.module,x.outcome]),[['corte','precisa_ajuste']]);
+  assert.match(proof.userReview.items[0].note,/conferir botão Salvar/);
+  assert.equal(proof.userReview.approved,false,'Relatório manual não é aceite de produção');
+  assert.equal(proof.data.log.length,0,'Feedback não grava operações no ERP fictício');
   // Utilidades: fluxo LEVAR/BUSCAR mobile e desktop, sem chamada de rede.
   await module(page,'utilidades');
   const routeForm=page.locator('#route-editor-form');
