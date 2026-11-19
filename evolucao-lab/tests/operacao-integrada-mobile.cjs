@@ -99,7 +99,10 @@ async function run(browser,width,url){
   await manual.locator('[name="outcome"]').selectOption('precisa_ajuste');
   await manual.locator('[name="note"]').fill('Ensaio fictício: conferir botão Salvar depois da programação.');
   await manual.locator('button[type=submit]').click();
-  assert.match(await page.locator('#whole-program-progress').innerText(),/Problemas anotados: 1/);
+  await page.waitForFunction(()=>document.querySelector('#whole-program-progress')?.textContent.includes('Problemas anotados: 1'),
+   null,{timeout:10000});
+  assert.match(await page.locator('#flash').innerText(),/Avaliação guardada apenas neste navegador/,
+   'Avaliação precisa ser confirmada pelo IndexedDB antes de recarregar');
   assert.equal(await revision(page),beforeVisitExport,'Avaliação manual não pode criar comando operacional');
   await page.reload();
   await page.waitForFunction(()=>document.querySelector('#top-revision')?.textContent.includes('Revisão local 1'));
