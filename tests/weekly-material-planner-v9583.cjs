@@ -1,7 +1,8 @@
+const compatibleLoaderView=require('./hlgb-loader-compat-view-v9604b.cjs');
 'use strict';
 const assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('node:vm');
 const src=fs.readFileSync('release-weekly-material-planner-v9583.js','utf8');
-const boot=fs.readFileSync('app-stable3.html','utf8');
+const boot=compatibleLoaderView(fs.readFileSync('app-stable3.html','utf8'));
 assert(boot.includes("'release-weekly-material-planner-v9583.js'"),'plugin must be boot-loaded');
 new vm.Script(src);
 const materials=[

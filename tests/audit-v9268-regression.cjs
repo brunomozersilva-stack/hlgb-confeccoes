@@ -1,8 +1,9 @@
+const compatibleLoaderView=require('./hlgb-loader-compat-view-v9604b.cjs');
 const legacyLoaderView=require('./hlgb-loader-test-view-v9600.cjs');
 const fs=require('fs'),vm=require('vm'),assert=require('assert'),path=require('path');
 const root=path.join(__dirname,'..'),src=f=>fs.readFileSync(path.join(root,f),'utf8');
 for(const f of ['release-assistant-server-v9266.js','release-assistant-ui-v9269.js','release-assistant-ui-light-v9277.js','release-assistant-draft-v9270.js','release-safety-gate-v9269.js','release-safari-resume-v9266.js'])assert.doesNotThrow(()=>new vm.Script(src(f),{filename:f}),f+' deve compilar');
-const loader=src('app-stable3.html');
+const loader=compatibleLoaderView(src('app-stable3.html'));
 assert(!legacyLoaderView(loader).includes("'release-assistant-server-v9266.js'"),'modo padrão não deve carregar IA paga');
 assert(loader.includes('window.HLGB_PAID_AI_DISABLED=true'),'loader deve travar IA paga por padrão');
 assert(loader.includes("h.split(\"window.addEventListener('beforeunload'"),'loader deve neutralizar Leave Page legado porque a WAL é durável');
