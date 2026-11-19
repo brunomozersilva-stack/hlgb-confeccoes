@@ -9,6 +9,7 @@ for(const pat of ['hlgbRecordSaveWithRetry','hlgb955ReliableSave','persistDb','c
 must(!/new\s+MutationObserver\s*\(/.test(src),'Auditor v94.01 não deve adicionar MutationObserver');
 must(!/setInterval\s*\(/.test(src),'Auditor v94.01 não deve adicionar polling permanente');
 must(!/hlgbRecordSaveWithRetry\s*=/.test(src),'Auditor v94.01 não pode assumir autoridade de save');
-must(app.includes("'release-auditor-business-v9401.js'"),'app-stable3 precisa carregar Auditor v94.01');
-const count=(app.match(/release-auditor-business-v9401\.js/g)||[]).length;must(count===1,'Auditor v94.01 deve carregar uma vez; atual='+count);
+const loaded=require('./hlgb-loader-test-view-v9600.cjs').scripts(app);
+must(loaded.includes('release-auditor-business-v9401.js'),'app-stable3 precisa carregar Auditor v94.01');
+const count=loaded.filter(file=>file==='release-auditor-business-v9401.js').length;must(count===1,'Auditor v94.01 deve carregar uma vez; atual='+count);
 console.log('AUDITOR_BUSINESS_V9401_STATIC_OK',JSON.stringify({count,readOnly:true,integrityChecks:9,noObserver:true,noInterval:true,noSaveAuthority:true}));
