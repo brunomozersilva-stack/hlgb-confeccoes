@@ -31,7 +31,7 @@
  // Após CANCELAMENTO CONFIRMADO, mover intenção para arquivo e apagar o WAL na MESMA transação.
  // Nunca arquivar nem limpar o comando se a prova do servidor falhou.
  async function archiveAndClear(entry){
-  if(JSON.stringify(entry.command).length>150000)throw Error('Revisão excede limite de arquivo local. Exporte e verifique antes de cancelar.');
+  if(JSON.stringify(entry.command).length>2050000)throw Error('Revisão excede 2 MB do laboratório. Exporte a intenção antes de cancelar.');
   await new Promise((resolve,reject)=>{
    const t=db.transaction(['wal','wal-review'],'readwrite'),wal=t.objectStore('wal'),
     historyStore=t.objectStore('wal-review');
