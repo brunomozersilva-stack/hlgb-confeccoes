@@ -50,8 +50,8 @@ async function confirmed(page,type,payload,revision){
 test('Duas sessões reais em PostgreSQL descartável: 120→80→50, conflito, ACK perdido, offline e replay único',async()=>{
  const srv=await start(),url='http://127.0.0.1:'+srv.address().port;
  const browser=await browserType.launch({headless:true});
- const A=await browser.newContext({viewport:{width:1280,height:840}}),
-  B=await browser.newContext({viewport:{width:390,height:840}});
+ const A=await browser.newContext({viewport:{width:1280,height:840},acceptDownloads:true}),
+  B=await browser.newContext({viewport:{width:390,height:840},acceptDownloads:true});
  const a=await A.newPage(),b=await B.newPage(),errors=[];
  for(const page of [a,b])page.on('pageerror',e=>errors.push(e.message));
  try{
@@ -68,7 +68,9 @@ test('Duas sessões reais em PostgreSQL descartável: 120→80→50, conflito, A
   await b.locator('[data-module="pedidos"]').click();
   const oldDraft=b.locator('form[data-command="order.add"] [name="M"]');
   await oldDraft.fill('17');
-  const rejected=await serverSubmit(b,'order.multi.create',orderPayload,startRevision);
+  const competingPayload=JSON.parse(JSON.stringify(orderPayload));
+  competingPayload.items[0].colors[0].grade.P=50; // Sessão B tenta 110, A já confirmou 120.
+  const rejected=await serverSubmit(b,'order.multi.create',competingPayload,startRevision);
   assert.equal(rejected.status,'conflict');
   assert.equal(rejected.stage,'conflict');
   assert.ok(rejected.pending,'ID original deve ficar guardado no WAL');
@@ -86,6 +88,26 @@ test('Duas sessões reais em PostgreSQL descartável: 120→80→50, conflito, A
   const discarded=await b.evaluate(async()=>window.HLGBRemoteLab.discard());
   assert.equal(discarded.status,'discarded');
   assert.equal((await b.evaluate(()=>window.HLGBRemoteLab.info())).pending,null);
+  const history=await b.evaluate(()=>window.HLGBRemoteLab.history());
+  const archived=history.find(x=>x.commandId===rejected.pending);
+  assert.ok(archived,'Versão concorrente cancelada deve ficar no histórico local');
+  assert.equal(archived.resolution,'cancelled_after_server_proof');
+  assert.equal(archived.firstFailure,'conflict');
+  assert.equal(archived.conflictRevision,revision);
+  assert.equal(archived.command.expectedRevision,startRevision);
+  assert.equal(archived.command.payload.items[0].colors[0].grade.P,50,
+   'Preservar valor alternativo da sessão B, não sobrescrever a versão de A');
+  assert.equal((await store.state()).multiOrders.at(-1).items[0].qty,120,
+   'A versão confirmada da sessão A permanece no servidor');
+  assert.equal((await store.readback(rejected.pending)).status,'cancelled');
+  const download=b.waitForEvent('download');
+  await b.locator('#remote-history-export').click();
+  const exported=JSON.parse(fs.readFileSync(await (await download).path(),'utf8'));
+  assert.equal(exported.schema,'hlgb-historico-conflitos-wal-v1');
+  assert.ok(exported.archived.some(x=>x.commandId===rejected.pending));
+  await b.reload();await b.locator('#remote-check').waitFor();
+  assert.ok((await b.evaluate(()=>window.HLGBRemoteLab.history()))
+   .some(x=>x.commandId===rejected.pending),'Arquivamento sobrevive ao fechamento da página');
   assert.equal((await state(b)).revision,revision);
 
   revision=await confirmed(b,'multi.cut.plan',{
@@ -211,7 +233,7 @@ test('Duas sessões reais em PostgreSQL descartável: 120→80→50, conflito, A
    schema:'hlgb-multimodelo-2sessoes-ci-v1',environment:'postgres-descartavel',browser:browserType.name(),
    testedAt:new Date().toISOString(),commit:process.env.GITHUB_SHA||'local',
    sessions:{independentBrowserContexts:2,adminOnly:true,productionRoleUnchanged:true},
-   proof:{staleRevisionConflict:true,draftPreservedOnConflict:true,walRecoveredAfterReload:true,
+   proof:{staleRevisionConflict:true,draftPreservedOnConflict:true,conflictingVersionArchivedAndExported:true,walRecoveredAfterReload:true,
     lostAckRecoveredByReadback:true,sameIdReplayNoDuplicate:true,
     offlineNoAutomaticResend:true,offlineSameIdRetryConfirmed:true,
     twoSessionsReadSameServerState:true,ledgerAndInventoryUnchanged:true},
