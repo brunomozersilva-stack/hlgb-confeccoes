@@ -1,0 +1,44 @@
+name: HLGB Comercial - Etiquetas Modulo Compativel v96.02b
+on:
+  pull_request:
+    branches: [main, refactor/live-14-domains-coverage-v9601b]
+    paths:
+      - 'app-stable3.html'
+      - 'hlgb-modules/ownership-v9600.json'
+      - 'hlgb-modules/module-test-catalog-v9601.json'
+      - 'hlgb-modules/utilidades/**'
+      - 'release-label-destination-v9310.js'
+      - 'tests/hlgb-live-label-layout-v9602b.cjs'
+      - 'tests/hlgb-module-boundaries-v9600.cjs'
+      - '.github/workflows/hlgb-live-etiquetas-core-v9602b.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'app-stable3.html'
+      - 'hlgb-modules/utilidades/**'
+      - 'release-label-destination-v9310.js'
+      - 'tests/hlgb-live-label-layout-v9602b.cjs'
+      - '.github/workflows/hlgb-live-etiquetas-core-v9602b.yml'
+permissions: {contents: read}
+jobs:
+  etiqueta-parity:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 14
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - name: Validate pure module and legacy consumer syntax
+        run: |
+          node --check hlgb-modules/utilidades/etiquetas-layout-v9602b.js
+          node --check release-label-destination-v9310.js
+      - name: A4 label preview and print output parity, fallback, security
+        run: |
+          node --test tests/hlgb-live-label-layout-v9602b.cjs
+          node tests/etiquetas-a4-batch-v9454.cjs
+          node tests/audit-missing-route-regression.cjs
+      - name: Protect original 156 scripts and all commercial domains
+        run: |
+          node --test tests/hlgb-module-boundaries-v9600.cjs
+          node --test tests/hlgb-loader-legacy-contract-v9600.cjs
+          node --test tests/module-test-catalog-v9601.cjs

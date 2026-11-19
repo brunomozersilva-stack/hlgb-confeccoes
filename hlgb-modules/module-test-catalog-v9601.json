@@ -44,7 +44,8 @@
     "utilidades-etiquetas": [
       "tests/routeplans-recipient-v9453.cjs",
       "tests/etiquetas-a4-batch-v9454.cjs",
-      "tests/audit-missing-route-regression.cjs"
+      "tests/audit-missing-route-regression.cjs",
+      "tests/hlgb-live-label-layout-v9602b.cjs"
     ],
     "sincronizacao-wal": [
       "tests/audit-wal-idb-only-regression.cjs",
