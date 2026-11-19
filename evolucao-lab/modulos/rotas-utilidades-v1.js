@@ -72,7 +72,9 @@
    status,notes:text(p.notes||'','Observações gerais',800),
    stops:validateStops(s,p.stops)};
  }
- function fingerprint(x){return JSON.stringify({date:x.date,driver:x.driver,status:x.status,notes:x.notes,stops:x.stops});}
+ function stable(x){return JSON.stringify(x,(_key,v)=>v&&typeof v==='object'&&!Array.isArray(v)?
+  Object.fromEntries(Object.keys(v).sort().map(k=>[k,v[k]])):v);}
+ function fingerprint(x){return stable({date:x.date,driver:x.driver,status:x.status,notes:x.notes,stops:x.stops});}
  function create(s,p,{next,uid}){
   ensure(s);const validated=payload(s,p);
   const id=next(s,'ROT');
@@ -86,7 +88,7 @@
   const validated=payload(s,p);
   if(row.status==='finalizada'&&validated.status!=='finalizada')error('Rota finalizada não pode ser reaberta.');
   const before={date:row.date,driver:row.driver,status:row.status,notes:row.notes,stops:clone(row.stops)};
-  if(JSON.stringify(before)===JSON.stringify(validated))error('Nenhuma mudança a salvar na rota.');
+  if(stable(before)===stable(validated))error('Nenhuma mudança a salvar na rota.');
   const reason=text(p.reason,'Motivo da edição',300,true);
   const beforeFingerprint=fingerprint(before);
   Object.assign(row,validated,{lastCommandId:uid});
