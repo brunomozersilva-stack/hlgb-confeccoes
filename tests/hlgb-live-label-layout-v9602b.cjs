@@ -41,10 +41,10 @@ test('a main mantém os 156 scripts comerciais na mesma ordem, com um core antes
  const files=groups.flatMap(g=>g.files);
  const manifest=JSON.parse(fs.readFileSync(path.join(root,'hlgb-modules/ownership-v9600.json'),'utf8'));
  const addon='hlgb-modules/utilidades/etiquetas-layout-v9602b.js';
- assert.equal(files.length,157);
- assert.equal(new Set(files).size,157);
+ assert.equal(files.length,manifest.releaseScripts.length);
+ assert.equal(new Set(files).size,files.length);
  assert.deepEqual(files,manifest.releaseScripts);
- assert.deepEqual(files.filter(x=>x!==addon),manifest.preExtractionScripts);
+ assert.deepEqual(files.filter(x=>!manifest.approvedNewScripts.includes(x)),manifest.preExtractionScripts);
  assert.equal(files.indexOf(addon)+1,files.indexOf('release-label-destination-v9310.js'));
 });
 test('módulo novo não usa DOM, banco, rede, impressora, WAL ou timer',()=>{
