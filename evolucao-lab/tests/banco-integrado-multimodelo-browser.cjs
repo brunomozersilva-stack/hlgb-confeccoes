@@ -3,6 +3,7 @@
 // WAL idempotente e "ACK" perdido. Não acessa Supabase ou HLGB comercial.
 const {test}=require('node:test');
 const assert=require('node:assert/strict');
+const fs=require('node:fs'),path=require('node:path');
 const {chromium,webkit}=require('playwright');
 const {start}=require('../banco-integrado/servidor.cjs');
 const store=require('../banco-integrado/persistencia.cjs');
@@ -206,6 +207,27 @@ test('Duas sessões reais em PostgreSQL descartável: 120→80→50, conflito, A
   assert.deepEqual(finalA.multiFlowLots,finalB.multiFlowLots);
   assert.deepEqual(finalA.multiFlowSeparations,finalB.multiFlowSeparations);
   assert.equal(errors.length,0,'Erros JS nas sessões: '+errors.join(' | '));
+  const evidence={
+   schema:'hlgb-multimodelo-2sessoes-ci-v1',environment:'postgres-descartavel',browser:browserType.name(),
+   testedAt:new Date().toISOString(),commit:process.env.GITHUB_SHA||'local',
+   sessions:{independentBrowserContexts:2,adminOnly:true,productionRoleUnchanged:true},
+   proof:{staleRevisionConflict:true,draftPreservedOnConflict:true,walRecoveredAfterReload:true,
+    lostAckRecoveredByReadback:true,sameIdReplayNoDuplicate:true,
+    offlineNoAutomaticResend:true,offlineSameIdRetryConfirmed:true,
+    twoSessionsReadSameServerState:true,ledgerAndInventoryUnchanged:true},
+   businessFixture:{orderId:order.id,cutId:cut.id,lotId:lot.id,orderedFirstModel:120,
+    orderedSecondModel:10,cut:80,remainingToCut:40,separated:50,
+    cutWaitingSeparation:30,shipped:20,
+    returns:rows.map(x=>({factionId:x.factionId,qty:x.qty,amountCents:x.amountCents})),
+    totalSimulatedAcertoCents:rows.reduce((n,x)=>n+x.amountCents,0)},
+   result:'passed_in_ci_only_if_file_exists',productionApproved:false,
+   notes:'Não usar como prova de dados empresariais nem de dois dispositivos físicos.'
+  };
+  if(process.env.HLGB_EVIDENCE_DIR){
+   fs.mkdirSync(process.env.HLGB_EVIDENCE_DIR,{recursive:true});
+   fs.writeFileSync(path.join(process.env.HLGB_EVIDENCE_DIR,
+    'hlgb-multimodelo-'+browserType.name()+'.json'),JSON.stringify(evidence,null,2)+'\n');
+  }
   console.log('PASS laboratório PostgreSQL '+browserType.name()+': 2 sessões, conflito, ACK, offline, replay, 120/80/50');
  }finally{await browser.close();await new Promise(resolve=>srv.close(resolve));}
 });
