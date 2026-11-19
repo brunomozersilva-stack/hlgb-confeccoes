@@ -105,3 +105,17 @@ test('Rota com histórico preserva integridade depois de JSONB e não perde veri
  const tampered=structuredClone(after);tampered.routePlans[0].stops[0].carry.push('Peças adicionadas por fora');
  assert.equal(core.inspect(tampered).ok,false);
 });
+
+test('Assinatura de rota no formato antigo mantém histórico e bloqueia troca real',()=>{
+ const c=fixture();c.run('route.plan',plan());
+ const r=c.s.routePlans[0];
+ r.history[0].afterFingerprint=JSON.stringify({
+  date:r.date,driver:r.driver,status:r.status,notes:r.notes,stops:r.stops
+ });
+ const sorted=x=>Array.isArray(x)?x.map(sorted):x&&typeof x==='object'?
+  Object.fromEntries(Object.keys(x).sort().map(k=>[k,sorted(x[k])])):x;
+ const legacy=sorted(JSON.parse(JSON.stringify(c.s)));
+ assert.equal(core.inspect(legacy).ok,true,'Rotas antigas não devem ser interpretadas como fraude');
+ legacy.routePlans[0].stops[0].pickup.push('Pacote extra');
+ assert.equal(core.inspect(legacy).ok,false);
+});
