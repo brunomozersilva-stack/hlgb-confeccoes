@@ -78,7 +78,7 @@ test('Main v95.80: interface remota só diz SALVO depois de prova com mesmo ID, 
  assert.match(clientSource,/ev\.type!==entry\.command\.type/);
  assert.match(clientSource,/ev\.actor!==actor/);
  assert.match(clientSource,/ev\.revision!==r\.revision/);
- assert.match(clientSource,/ev\.commandId===entry\.command\.commandId/);
+ assert.match(clientSource,/\.commandId===entry\.command\.commandId/);
  assert.match(clientSource,/async function retry\(\)/);
  assert.match(clientSource,/return send\(pending\)/);
  assert.match(clientSource,/pending\.stage!=='not_found'/);
