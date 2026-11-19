@@ -59,6 +59,24 @@ test('política de escrita fictícia recusa novos comandos fora da lista e o fin
  assert.equal(permissions.publicProfile(B).readScope,'production_only_ficticio');
  assert.equal(permissions.publicProfile(A).readScope,'full_snapshot_ficticio');
 });
+test('Comandos multimodelo só no administrador de laboratório, sem permissão nova à produção',()=>{
+ const commands=[
+  'multi.cut.plan','multi.cut.revise','multi.cut.complete','multi.cut.weight.record','multi.cut.cancel',
+  'multi.flow.allocate','multi.flow.transfer','multi.flow.rate','multi.flow.return','multi.flow.review',
+  'multi.flow.separate','multi.flow.ship'
+ ];
+ for(const type of commands){
+  assert.equal(permissions.can(A,type),true,'Admin fictício precisa testar: '+type);
+  assert.equal(permissions.can(B,type),false,'Produção fictícia não recebe comando novo sem projeção segura: '+type);
+  assert.equal(permissions.can('Operador C fictício',type),false,'Corte restrito não pode consultar/acertar: '+type);
+ }
+ const admin=permissions.publicProfile(A),production=permissions.publicProfile(B);
+ assert.equal(admin.productionApproval,false);
+ assert.equal(production.productionApproval,false);
+ assert.equal(production.readScope,'production_only_ficticio');
+ assert.deepEqual([...new Set(admin.allowedCommands)].sort(),[...admin.allowedCommands].sort(),
+  'Permissões não podem gerar comandos duplicados');
+});
 test('autorização de servidor impede alteração financeira com revisão válida, sem criar evento nem título',async()=>{
  const before=await db.state(),forbidden=cmd('deny-finance-0001','finance.add',before.revision,{kind:'pagar',description:'NÃO INSERIR',amountCents:10000,category:'Aluguel'});
  const response=await db.commit(forbidden,B);assert.equal(response.status,'rejected');assert.match(response.message,/não permitido/);
