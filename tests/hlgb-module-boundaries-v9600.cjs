@@ -10,12 +10,17 @@ function extract(){
  return JSON.parse(source.slice(start+anchor.length,end));
 }
 const groups=extract(),files=groups.flatMap(x=>x.files);
-test('carregamento mantém TODOS os 156 scripts, nomes e ordem EXATOS da main antes da divisão',()=>{
- assert.equal(files.length,156);assert.equal(groups.length,16);
- assert.deepEqual(files,manifest.releaseScripts,'nem função removida, nem ordem de carregamento alterada');
- assert.equal(new Set(files).size,files.length,'scripts duplicados não podem entrar no carregador');
+test('carrega 156 scripts comerciais na mesma ordem e 1 núcleo puro de etiquetas',()=>{
+ assert.equal(files.length,157);assert.equal(groups.length,16);
+ assert.equal(manifest.preExtractionScripts.length,156);
+ const addons=manifest.approvedNewScripts;
+ assert.deepEqual(addons,['hlgb-modules/utilidades/etiquetas-layout-v9602b.js']);
+ assert.deepEqual(files.filter(f=>!addons.includes(f)),manifest.preExtractionScripts,'ordem original da main intocada');
+ assert.equal(files.indexOf(addons[0])+1,files.indexOf('release-label-destination-v9310.js'),'core anterior à função legada');
+ assert.deepEqual(files,manifest.releaseScripts);
+ assert.equal(new Set(files).size,files.length);
  assert.deepEqual(groups.map(x=>x.id),[...new Set(groups.map(x=>x.id))]);
- for(const group of groups){assert.ok(group.id&&group.files.length>=1);}
+ for(const group of groups)assert.ok(group.id&&group.files.length>=1);
 });
 test('responsabilidades explícitas e exclusivas sem eliminar arquivos antigos',()=>{
  const expected=manifest.releaseScripts,owners=manifest.ownership;
@@ -44,13 +49,22 @@ test('módulos críticos permanecem ordenados para evitar alterações de autori
  assert.ok(idx('release-faction-feature-guard-v9598.js')===files.length-1);
 });
 
-test('arquivo legado e dez fontes críticas mantêm o SHA exato da revisão comercial anterior',()=>{
+test('arquivo legado e 10 fontes críticas da main intactos; única extração declarada',()=>{
  const crypto=require('node:crypto');
- const critical=manifest.criticalFileBlobs||{};
- assert.equal(Object.keys(critical).length,10);
+ const critical=manifest.criticalFileBlobs||{},baseline=manifest.baselineCriticalFileBlobs||{};
+ assert.equal(Object.keys(critical).length,11);
+ assert.equal(Object.keys(baseline).length,11);
+ assert.deepEqual(Object.keys(manifest.extractionChanges||{}),['release-label-destination-v9310.js']);
+ for(const file of Object.keys(baseline)){
+  if(file!=='release-label-destination-v9310.js')assert.equal(critical[file],baseline[file],'fonte original NÃO autorizada mudou: '+file);
+  else{
+   assert.equal(manifest.extractionChanges[file].before,baseline[file]);
+   assert.equal(manifest.extractionChanges[file].after,critical[file]);
+  }
+ }
  for(const [file,sha] of Object.entries(critical)){
   const bytes=fs.readFileSync(path.join(root,file));
   const calculated=crypto.createHash('sha1').update(Buffer.from('blob '+bytes.length+'\0')).update(bytes).digest('hex');
-  assert.equal(calculated,sha,'Arquivo alterado durante modularização sem aprovação: '+file);
+  assert.equal(calculated,sha,'Arquivo crítico alterado indevidamente: '+file);
  }
 });
