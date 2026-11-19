@@ -10,13 +10,14 @@ function extract(){
  return JSON.parse(source.slice(start+anchor.length,end));
 }
 const groups=extract(),files=groups.flatMap(x=>x.files);
-test('carrega 156 scripts comerciais na mesma ordem e 1 núcleo puro de etiquetas',()=>{
- assert.equal(files.length,157);assert.equal(groups.length,16);
+test('carrega 156 scripts da main com 2 núcleos puros aprovados',()=>{
+ assert.equal(files.length,158);assert.equal(groups.length,16);
  assert.equal(manifest.preExtractionScripts.length,156);
  const addons=manifest.approvedNewScripts;
- assert.deepEqual(addons,['hlgb-modules/utilidades/etiquetas-layout-v9602b.js']);
+ assert.deepEqual(addons,['hlgb-modules/utilidades/etiquetas-layout-v9602b.js','hlgb-modules/producao/separacao-progresso-v9603b.js']);
  assert.deepEqual(files.filter(f=>!addons.includes(f)),manifest.preExtractionScripts,'ordem original da main intocada');
- assert.equal(files.indexOf(addons[0])+1,files.indexOf('release-label-destination-v9310.js'),'core anterior à função legada');
+ assert.equal(files.indexOf(addons[0])+1,files.indexOf('release-label-destination-v9310.js'),'layout das etiquetas antes da função legada');
+ assert.equal(files.indexOf(addons[1])+1,files.indexOf('release-separation-commit-v9319.js'),'cálculo de separação antes do salvamento legado');
  assert.deepEqual(files,manifest.releaseScripts);
  assert.equal(new Set(files).size,files.length);
  assert.deepEqual(groups.map(x=>x.id),[...new Set(groups.map(x=>x.id))]);
@@ -49,14 +50,15 @@ test('módulos críticos permanecem ordenados para evitar alterações de autori
  assert.ok(idx('release-faction-feature-guard-v9598.js')===files.length-1);
 });
 
-test('arquivo legado e 10 fontes críticas da main intactos; única extração declarada',()=>{
+test('10 fontes críticas originais intactas; 2 alterações explícitas com SHA anterior',()=>{
  const crypto=require('node:crypto');
  const critical=manifest.criticalFileBlobs||{},baseline=manifest.baselineCriticalFileBlobs||{};
- assert.equal(Object.keys(critical).length,11);
- assert.equal(Object.keys(baseline).length,11);
- assert.deepEqual(Object.keys(manifest.extractionChanges||{}),['release-label-destination-v9310.js']);
+ assert.equal(Object.keys(critical).length,12);
+ assert.equal(Object.keys(baseline).length,12);
+ const changed=['release-label-destination-v9310.js','release-separation-commit-v9319.js'];
+ assert.deepEqual(Object.keys(manifest.extractionChanges||{}),changed);
  for(const file of Object.keys(baseline)){
-  if(file!=='release-label-destination-v9310.js')assert.equal(critical[file],baseline[file],'fonte original NÃO autorizada mudou: '+file);
+  if(!changed.includes(file))assert.equal(critical[file],baseline[file],'fonte original NÃO autorizada mudou: '+file);
   else{
    assert.equal(manifest.extractionChanges[file].before,baseline[file]);
    assert.equal(manifest.extractionChanges[file].after,critical[file]);
