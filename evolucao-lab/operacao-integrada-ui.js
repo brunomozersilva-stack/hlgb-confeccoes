@@ -25,17 +25,35 @@ const modules=[
  ['utilidades','Utilidades · Rotas e Etiquetas','Rota LEVAR/BUSCAR no laboratório; etiquetas e regularização dependem de paridade com o legado.']
 ];
 const ids=new Map(modules.map((m,i)=>[m[0],i])),visitedModules=new Set();
-const PROGRAM_REVIEW_KEY='HLGB_EVOLUCAO_AVALIACAO_GERAL_FICTICIA_V1';
+// Avaliações ficam em chaves SEPARADAS no IndexedDB fictício, sem alterar a
+// revisão do documento, o WAL ou o histórico de operação. Nunca em localStorage.
 const programReviews=Object.create(null);
-try{
- const old=JSON.parse(localStorage.getItem(PROGRAM_REVIEW_KEY)||'{}');
- if(old&&typeof old==='object'&&!Array.isArray(old)){
-  for(const [key,value] of Object.entries(old))
-   if(ids.has(key)&&['sem_erro_no_ensaio','precisa_ajuste'].includes(value?.outcome)&&
-    typeof value.note==='string'&&value.note.length<=600)
-    programReviews[key]={outcome:value.outcome,note:value.note,checkedAt:String(value.checkedAt||''),revision:Number(value.revision)||0};
- }
-}catch(_e){/* Exportar evidência ainda funciona se armazenamento de avaliação for bloqueado. */}
+const reviewKey=id=>'program-review:'+id;
+async function reviewLoad(){
+ if(!db)return;
+ const rows=await new Promise((resolve,reject)=>{
+  const t=db.transaction(STORE,'readonly'),
+   q=t.objectStore(STORE).getAll(IDBKeyRange.bound('program-review:','program-review:\uffff'));
+  q.onsuccess=()=>resolve(q.result);
+  q.onerror=()=>reject(q.error||Error('Falha ao ler avaliações locais.'));
+ });
+ for(const x of rows)if(x&&ids.has(x.module)&&
+  ['sem_erro_no_ensaio','precisa_ajuste'].includes(x.outcome)&&
+  typeof x.note==='string'&&x.note.length<=600)
+  programReviews[x.module]={outcome:x.outcome,note:x.note,
+   checkedAt:String(x.checkedAt||''),revision:Number(x.revision)||0};
+}
+async function reviewStore(module,entry){
+ if(!db)return false; // Banco remoto de CI não guarda avaliação local nesta página.
+ await new Promise((resolve,reject)=>{
+  const t=db.transaction(STORE,'readwrite');
+  t.objectStore(STORE).put({key:reviewKey(module),module,...entry});
+  t.oncomplete=resolve;
+  t.onerror=()=>reject(t.error||Error('Não foi possível guardar a avaliação.'));
+  t.onabort=()=>reject(t.error||Error('Avaliação interrompida.'));
+ });
+ return true;
+}
 
 let active=ids.has(window.location.hash.slice(1))?window.location.hash.slice(1):'nucleo',db=null,doc=null,busy=false,journeyOrderId=null,routeDraft=null;
 let labelDraft=[{name:'',model:'',size:'',pieceQty:0,volumes:0,copies:1,date:new Date().toISOString().slice(0,10)}],labelLayout='10',templateEditId=null,packerEditId=null,templatePreviewId=null,packerPreviewId=null;
@@ -2939,7 +2957,7 @@ document.addEventListener('change',e=>{
  const editing=e.target.closest('form[data-command="order.color.grade.set"]');
  if(editing&&active==='pedidos'&&['orderId','color'].includes(e.target.name))fillOrderColorEdit();
 });
-document.addEventListener('submit',e=>{
+document.addEventListener('submit',async e=>{
  if(e.target.id==='whole-program-review-form'){
   e.preventDefault();
   const form=e.target,area=form.elements.namedItem('area')?.value,
@@ -2948,8 +2966,8 @@ document.addEventListener('submit',e=>{
   if(!ids.has(area)||!['sem_erro_no_ensaio','precisa_ajuste'].includes(outcome)||
    !note||note.length>600){status('Avaliação inválida. Escolha a área, o resultado e escreva o teste realizado.','error');return;}
   programReviews[area]={outcome,note,checkedAt:new Date().toISOString(),revision:doc?.revision||0};
-  let stored=true;
-  try{localStorage.setItem(PROGRAM_REVIEW_KEY,JSON.stringify(programReviews));}catch(_e){stored=false;}
+  let stored=false;
+  try{stored=await reviewStore(area,programReviews[area]);}catch(_e){stored=false;}
   draw();
   status(stored?'Avaliação guardada apenas neste navegador. Exporte o relatório para enviar.':
    'Avaliação na memória desta sessão; armazenamento bloqueado. Exporte o JSON antes de sair.',stored?'success':'error');
@@ -2977,6 +2995,7 @@ $('reset').addEventListener('click',reset);
   if(!doc)throw Error('Não foi possível iniciar a base fictícia.');
   if(!api.inspect(doc).ok)throw Error('Documento inicial inconsistente.');
   recoveryIntents=await intentRead();
+  try{await reviewLoad();}catch(_e){/* Uma avaliação ilegível não bloqueia o programa fictício. */}
   draw();startMonitor();status('Prévia iniciada. Faça suas operações com dados fictícios e confira as revisões.','success');
  }catch(err){
   status('Não foi possível abrir o armazenamento de teste neste navegador: '+err.message+
