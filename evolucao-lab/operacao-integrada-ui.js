@@ -1215,7 +1215,7 @@ function startSharedNotice(){if(!remoteLab||syncNoticeTimer!==null)return;syncNo
 function remotePanel(){
  if(!remoteLab)return '';
  const v=remoteLab.info(),q=v.pending;
- return panel('Sincronização integrada · laboratório remoto','<p>'+str(v.actor||'Sessão fictícia')+' · '+str(v.permissions?.label||'Perfil não identificado')+' · PostgreSQL descartável. Nenhum dado real. <strong>Perfil administrativo fictício; visão integral restrita no servidor. Produção recebe somente projeção operacional.</strong> '+(q?'Comando pendente: '+str(q.command.commandId)+' · '+str(q.stage):'Sem comando pendente nesta sessão.')+'</p><div class="actions"><button type="button" class="btn" id="remote-check">Conferir servidor / WAL</button><button type="button" class="btn" id="remote-retry" '+(q?.stage==='not_found'?'':'disabled')+'>Reenviar mesmo ID</button><button type="button" class="btn" id="remote-discard" '+(q&&['not_found','conflict','rejected'].includes(q.stage)?'':'disabled')+'>Cancelar no servidor e arquivar intenção local</button><button type="button" class="btn" id="remote-history-export">Exportar histórico local de conflitos</button></div><p class="caption">Após cancelamento com prova remota, a intenção original fica arquivada neste navegador para conferência. Não foi aceita no servidor. Não use dados reais.</p>',true);
+ return panel('Sincronização integrada · laboratório remoto','<p>'+str(v.actor||'Sessão fictícia')+' · '+str(v.permissions?.label||'Perfil não identificado')+' · PostgreSQL descartável. Nenhum dado real. <strong>Perfil administrativo fictício; visão integral restrita no servidor. Produção recebe somente projeção operacional.</strong> '+(q?'Comando pendente: '+str(q.command.commandId)+' · '+str(q.stage):'Sem comando pendente nesta sessão.')+'</p><div class="actions"><button type="button" class="btn" id="remote-check">Conferir servidor / WAL</button><button type="button" class="btn" id="remote-retry" '+(q?.stage==='not_found'?'':'disabled')+'>Reenviar mesmo ID</button><button type="button" class="btn" id="remote-discard" '+(q&&['not_found','conflict','rejected'].includes(q.stage)?'':'disabled')+'>Cancelar no servidor e arquivar intenção local</button><button type="button" class="btn" id="remote-pending-export" '+(q?'':'disabled')+'>Exportar intenção ainda pendente</button><button type="button" class="btn" id="remote-history-export">Exportar histórico local de conflitos</button></div><p class="caption">Após cancelamento com prova remota, a intenção original fica arquivada neste navegador para conferência. Não foi aceita no servidor. Não use dados reais.</p>',true);
 }
 async function remoteAction(action){
  if(busy||!remoteLab)return;busy=true;
@@ -2680,6 +2680,19 @@ document.addEventListener('click',async e=>{
   if(holder?.querySelectorAll('[data-color-row]').length>1)removeColor.closest('[data-color-row]').remove();
   else status('O pedido precisa de ao menos uma cor.','error');
   updateColorMatrixPreview();return;
+ }
+ if(e.target.closest('#remote-pending-export')){
+  if(!remoteLab)return;
+  try{
+   const pending=await remoteLab.load();
+   if(!pending)throw Error('Não existe intenção pendente neste navegador.');
+   download('HLGB-INTENCAO-WAL-PENDENTE-FICTICIA.json',JSON.stringify({
+    schema:'hlgb-intencao-wal-pendente-ficticia-v1',environment:'postgres-local-fictitious',
+    origin:'somente este navegador',pending,productionApproval:false,committed:false
+   },null,2),'application/json');
+   status('Cópia da intenção pendente exportada. Não foi reenviada nem descartada.');
+  }catch(e){status('Não foi possível exportar a intenção pendente: '+e.message,'error');}
+  return;
  }
  if(e.target.closest('#remote-history-export')){
   if(!remoteLab)return;
