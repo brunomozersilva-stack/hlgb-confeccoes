@@ -1,7 +1,7 @@
 'use strict';
 const assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('node:vm');
 const src=fs.readFileSync('release-learning-cloud-v9573.js','utf8');
-const boot=fs.readFileSync('app-stable3.html','utf8');
+const boot=require('./hlgb-loader-compat-view-v9604b.cjs')(fs.readFileSync('app-stable3.html','utf8'));
 const auditor=fs.readFileSync('release-internal-auditor.js','utf8');
 assert(boot.includes("'release-learning-cloud-v9573.js'"),'bridge must be loaded by real router');
 assert(auditor.includes('&entity_id=not.like.learnv9573-*'),'audit run history must not show technical learning');

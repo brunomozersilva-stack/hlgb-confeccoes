@@ -71,6 +71,6 @@ test('loader conditionally avoids a second payroll guard script',()=>{
  assert.equal(mention.payrollGuardInBase,false,'textual mention is not evidence of a script tag');
 });
 test('both optional 3D modules and recoverer are loaded once in canonical boot list',()=>{
- const list=loader.match(/const files=\[(.*?)\];\/\* A base pode trazer/s)?.[1]||'';
- for(const file of [...urls,'release-printer3d-module-recovery-v9596.js'])assert.equal(list.split("'"+file+"'").length-1,1,file);
+ const list=require('./hlgb-loader-test-view-v9600.cjs').scripts(loader);
+ for(const file of [...urls,'release-printer3d-module-recovery-v9596.js'])assert.equal(list.filter(x=>x===file).length,1,file);
 });
