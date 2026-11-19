@@ -81,3 +81,30 @@ test('prova de alteração acidental falha de forma fechada',()=>{
  assert.throws(()=>proof.restore(changed,moduleCode),/exactly one/);
  assert.equal(proof.sha(proof.restore(html,moduleCode)),'db896b5fbf85392be5711ae1c44b3bf245893be4');
 });
+
+test('boot bloqueia autenticação se o bloco externo de Corte→Produção não carregar',()=>{
+ const loader=fs.readFileSync(path.join(root,'app-stable3.html'),'utf8');
+ const beginning=loader.indexOf('const bootCompleted=');
+ const ending=loader.indexOf(';const i=h.toLowerCase().lastIndexOf(',beginning);
+ assert.ok(beginning>=0&&ending>beginning);
+ const expression=loader.slice(beginning+'const bootCompleted='.length,ending);
+ const html=new Function('return '+expression+';')();
+ const js=html.replace(/^<script>/,'').replace(/<\/script>$/,'');
+ assert.match(js,/hlgbSyncFinalizedCutsToProductionV9240/);
+ assert.match(js,/hlgb-modules\/producao\/corte-producao-quantidade-v9607\.js/);
+ const physicalRecord=require('../hlgb-modules/ownership-v9600.json').monolithPhysicalExtractions[0];
+ assert.equal(proof.sha(loader),physicalRecord.bootLoaderAfterGuard);
+ const simulate=available=>{
+  const w={doLogin(){},hlgbLoginConfirmGate9407:{confirm(){}},
+   hlgbSyncFinalizedCutsToProductionV9240:available?function(){}:undefined,
+   __HLGB_BOOT_FAILED_FILES_9477:[],hlgbBootWarn9477(){this.warnings=(this.warnings||0)+1}};
+  const document={documentElement:{classList:{remove(){}}},getElementById:()=>null};
+  vm.runInNewContext(js,{window:w,document,Date,sessionStorage:{setItem(){}}});
+  return w;
+ };
+ const approved=simulate(true),blocked=simulate(false);
+ assert.equal(approved.__HLGB_BOOT_READY_9477,true);
+ assert.notEqual(blocked.__HLGB_BOOT_READY_9477,true);
+ assert.match(blocked.__HLGB_BOOT_ERROR_9477,/Corte\/Produção/);
+ assert.equal(blocked.warnings,1);
+});

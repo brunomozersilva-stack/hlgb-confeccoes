@@ -579,7 +579,10 @@
       "execution": "classic synchronous <script src> in exactly the previous position; no async/defer",
       "businessLogicChanged": false,
       "cloudSchemaChanged": false,
-      "releaseStatus": "HOMOLOGACAO_DRAFT_NOT_PUBLISHED"
+      "releaseStatus": "HOMOLOGACAO_DRAFT_NOT_PUBLISHED",
+      "bootLoaderFromCandidate271": "2b0f9dac03c86a06b7b2f6ac1c017494d77700be",
+      "bootLoaderAfterGuard": "347b63c8e96ab6a1bbe3fe24128d788822043c20",
+      "failClosedIfMissing": true
     }
   ]
 }
