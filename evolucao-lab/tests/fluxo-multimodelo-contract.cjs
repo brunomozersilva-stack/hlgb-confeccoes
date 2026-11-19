@@ -215,3 +215,23 @@ test('Interface multimodelo independente mantém formulários antigos e não usa
  for(const bad of [/\bfetch\s*\(/,/\bXMLHttpRequest\b/,/\bWebSocket\b/])
   assert.equal(bad.test(lib+view),false,'Sem acesso a rede');
 });
+
+test('Assinaturas antigas de facções e acertos não exigem apagar histórico após JSONB',()=>{
+ const c=fixture(),lotId=finishAndAllocate(c);
+ c.run('multi.flow.return',{id:lotId,lines:lines(['Rubi','P',30]),reason:'Retorno parcial'});
+ const l=c.s.multiFlowLots[0],r=l.returns[0];
+ l.immutableFingerprint=JSON.stringify({
+  cutId:l.cutId,orderId:l.orderId,itemId:l.itemId,productId:l.productId,
+  lines:l.lines,qty:l.qty,originalFactionId:l.originalFactionId,
+  originalUnitCents:l.originalUnitCents,reason:l.reason});
+ r.immutableFingerprint=JSON.stringify({
+  lotId:l.id,orderId:l.orderId,itemId:l.itemId,productId:l.productId,
+  cutId:l.cutId,lines:r.lines,qty:r.qty,factionId:r.factionId,
+  unitCents:r.unitCents,amountCents:r.amountCents,reason:r.reason});
+ const sorted=x=>Array.isArray(x)?x.map(sorted):x&&typeof x==='object'?
+  Object.fromEntries(Object.keys(x).sort().map(k=>[k,sorted(x[k])])):x;
+ const legacy=sorted(JSON.parse(JSON.stringify(c.s)));
+ assert.equal(core.inspect(legacy).ok,true,'Snapshots anteriores ainda significam os mesmos valores');
+ legacy.multiFlowLots[0].returns[0].amountCents++;
+ assert.equal(core.inspect(legacy).ok,false);
+});
