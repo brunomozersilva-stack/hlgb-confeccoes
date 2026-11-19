@@ -118,6 +118,22 @@ test('Auditor detecta adulteração de retorno, facção e grade preservando nú
  assert.equal(c.s.cutPlans.length,0);
  assert.equal(c.s.finance.length,0);
 });
+test('Auditor de fluxo detecta exclusão de registros mantendo o log e não aceita acerto fantasma',()=>{
+ const c=fixture(),lot=finishAndAllocate(c);
+ c.run('multi.flow.return',{id:lot,lines:lines(['Rubi','P',30]),reason:'Retorno para conferência'});
+ c.run('multi.flow.review',{id:'MFR-0001',reviewer:'Fiscal QA',reason:'Valor revisado'});
+ const check=mutate=>{
+  const copy=JSON.parse(JSON.stringify(c.s));mutate(copy);
+  const audit=core.inspect(copy);
+  assert.equal(audit.ok,false,JSON.stringify(audit.problems));
+  assert.match(audit.problems.join(' '),/evento multimodelo sem registro|sem prova|saldo impossível/i);
+ };
+ check(s=>{s.multiFlowLots[0].returns=[]});
+ check(s=>{s.multiFlowLots=[]});
+ check(s=>{s.multiFlowLots[0].returns[0].review=null});
+ assert.equal(core.inspect(c.s).ok,true);
+ assert.equal(c.s.finance.length,0);
+});
 test('Auditoria detecta adulteração de motivo em transferência, preço e conferência',()=>{
  const c=fixture(),lot=finishAndAllocate(c);
  c.run('multi.flow.return',{id:lot,lines:lines(['Rubi','P',20]),reason:'20 peças originais'});
