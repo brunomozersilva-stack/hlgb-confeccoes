@@ -1,5 +1,9 @@
 const fs=require('fs'),vm=require('vm'),assert=require('assert');
-const html=fs.readFileSync('app9240.html','utf8');
+const current=fs.readFileSync('app9240.html','utf8');
+const extraction=require('../hlgb-modules/verify-main-inline-extraction-v9607.cjs');
+const moduleSource=fs.readFileSync(extraction.external,'utf8');
+const html=extraction.restore(current,moduleSource);
+assert.equal(extraction.sha(html),'db896b5fbf85392be5711ae1c44b3bf245893be4','a rotina testada precisa ser exatamente a da main original');
 const start=html.indexOf('<!-- HLGB_V9240_CUT_PRODUCTION_QTY_START -->');
 const end=html.indexOf('<!-- HLGB_V9240_CUT_PRODUCTION_QTY_END -->',start);
 assert(start>=0&&end>start,'final cut→production reconciler block must exist');
