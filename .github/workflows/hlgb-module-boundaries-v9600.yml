@@ -1,7 +1,7 @@
 name: HLGB Modular Live Boundaries v96.00
 on:
   pull_request:
-    branches: [main, refactor/live-module-boundaries-v9600]
+    branches: [main, refactor/live-module-boundaries-v9600, refactor/live-14-domains-coverage-v9601b]
     paths: [app-stable3.html, hlgb-modules/**, tests/hlgb-module-boundaries-v9600.cjs, tests/hlgb-live-monolith-inventory-v9601b.cjs, .github/workflows/hlgb-module-boundaries-v9600.yml]
   push:
     branches: [main]
