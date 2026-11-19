@@ -6,6 +6,17 @@ test('escaneia apenas declarações, sem executar scripts ou escrever arquivos',
  const sample='<main><script>function renderCuts(x){return x}; const printSheet=(x)=>x; window.hlgbAction=printSheet;</script>'+
   '<script src="./aux.js"></script><script>async function saveOne(){return true;} function renderCuts(){}</script></main>';
  const before=sample,found=audit.inventory(sample);
+ const enhanced=audit.inventory(sample.replace('<main>', '<main id="mainPanel" onclick="renderCuts(1)">'));
+ assert.equal(enhanced.domIdCount,1);
+ assert.deepEqual(enhanced.domIds,['mainPanel']);
+ assert.deepEqual(enhanced.inlineEventActionNames,['renderCuts']);
+ assert.deepEqual(enhanced.inlineEventTypes,['click']);
+ const domain=audit.suggestDomains(['renderCuts','saveCloud','employeePayroll','noiseFunction']);
+ assert.ok(domain.candidateDomains['corte-cortadores'].includes('renderCuts'));
+ assert.ok(domain.candidateDomains['sincronizacao-wal'].includes('saveCloud'));
+ assert.ok(domain.candidateDomains['folha-pessoal'].includes('employeePayroll'));
+ assert.deepEqual(domain.unclassified,['noiseFunction']);
+
  assert.equal(sample,before);
  assert.equal(found.scriptBlocks,2);
  assert.deepEqual(found.declarations,['printSheet','renderCuts','saveOne']);
