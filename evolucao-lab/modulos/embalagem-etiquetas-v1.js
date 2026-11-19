@@ -35,6 +35,10 @@
   return JSON.stringify(obj,(_key,v)=>v&&typeof v==='object'&&!Array.isArray(v)?
    Object.fromEntries(Object.keys(v).sort().map(k=>[k,v[k]])):v);
  }
+ function sameSignature(stored,object){
+  if(typeof stored!=='string')return false;
+  try{return fingerprint(JSON.parse(stored))===fingerprint(object)}catch(_e){return false}
+ }
  function templateFields(s,p){
   if(!p||typeof p!=='object')fail('Formulário de etiqueta ausente.');
   const client=by(s.clients,p.clientId);
@@ -219,7 +223,7 @@
       created:'label.template.add',edited:'label.template.edit',archived:'label.template.archive'
      }[e.type]||v.type!=={created:'label.template.add',edited:'label.template.edit',archived:'label.template.archive'}[e.type])
       fail('Evento da etiqueta sem origem ou fora de ordem');
-     if(e.type==='edited'&&(!e.before||fingerprint(e.before)!==priorData))
+     if(e.type==='edited'&&(!e.before||!sameSignature(priorData,e.before)))
       fail('Etiqueta editada sem histórico anterior compatível');
      if(e.type==='archived'&&e.afterFingerprint!=='archived')fail('Evento de arquivo inválido');
      if(e.type!=='archived')priorData=e.afterFingerprint;
@@ -227,7 +231,7 @@
     }
     const actual=Object.fromEntries(['clientId','clientName','productId','productName','sku',
       'cnpj','productUrl','fileName','fieldsNote'].map(k=>[k,t[k]]));
-    if(fingerprint(actual)!==priorData)fail('Etiqueta alterada fora do histórico, inclusive se arquivada');
+    if(!sameSignature(priorData,actual))fail('Etiqueta alterada fora do histórico, inclusive se arquivada');
    }catch(e){issues.push(String(t?.id||'ETM')+': '+e.message)}
   }
   for(const row of s.packerAssignmentsLab){
@@ -256,7 +260,7 @@
       progressed:'packer.progress',corrected:'packer.progress',cancelled:'packer.cancel'}[e.type])
       fail('Tarefa com operação sem prova global');
      if(e.type==='revised'&&(!e.before||
-        fingerprint({fields:e.before,label:e.labelBefore})!==priorFingerprint))
+        !sameSignature(priorFingerprint,{fields:e.before,label:e.labelBefore})))
        fail('Revisão da embalagem não corresponde ao estado anterior');
      if(e.type!=='created'&&e.type!=='cancelled'&&e.doneBefore!==priorDone)
        fail('Progressão/correção sem quantidade anterior coerente');
@@ -265,7 +269,7 @@
      priorDone=e.doneAfter;priorFingerprint=e.afterFingerprint;
      prev=e.revision;
     }
-    if(assignmentFingerprint(row)!==row.history.at(-1).afterFingerprint)
+    if(!sameSignature(row.history.at(-1).afterFingerprint,{fields:assignmentSnapshot(row),label:row.labelSnapshot}))
      fail('Tarefa alterada fora da revisão');
     if(row.history.at(-1).doneAfter!==row.doneQty)fail('Quantidade pronta sem prova');
     const steps=row.history.filter(x=>x.type==='progressed'||x.type==='corrected');
