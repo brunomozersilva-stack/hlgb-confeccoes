@@ -1,0 +1,40 @@
+name: HLGB Comercial - Auditoria do Monolito Main v96.06
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'app9240.html'
+      - 'app-stable3.html'
+      - 'hlgb-modules/**'
+      - 'tests/hlgb-main-inline-boundaries-v9606.cjs'
+      - '.github/workflows/hlgb-main-inline-audit-v9606.yml'
+  workflow_dispatch:
+permissions: {contents: read}
+jobs:
+  main-inventory:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - name: Provar main comercial e todos os blocos sem executar o ERP
+        run: |
+          node --test tests/hlgb-main-inline-boundaries-v9606.cjs
+          node hlgb-modules/main-inline-boundaries-v9606.cjs --verify
+          node hlgb-modules/audit-live-monolith-v9601b.cjs --verify
+      - name: Salvar mapa de scripts, funcoes e dependencias para homologacao
+        run: |
+          node hlgb-modules/main-inline-boundaries-v9606.cjs --verify --json > "$RUNNER_TEMP/hlgb-main-inline-map-v9606.json"
+      - name: Disponibilizar manifesto auditavel sem executar aplicativo
+        uses: actions/upload-artifact@v4
+        with:
+          name: hlgb-main-inline-map-v9606
+          path: ${{ runner.temp }}/hlgb-main-inline-map-v9606.json
+          retention-days: 30
+          if-no-files-found: error
+      - name: Verificar contratos de 156 scripts originais e 3 nucleos opcionais
+        run: |
+          node --test tests/hlgb-module-boundaries-v9600.cjs
+          node --test tests/hlgb-loader-compat-contract-v9604b.cjs
+          node --test tests/module-test-catalog-v9601.cjs
