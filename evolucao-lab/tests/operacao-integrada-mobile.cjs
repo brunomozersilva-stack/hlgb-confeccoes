@@ -77,6 +77,21 @@ async function run(browser,width,url){
   await page.waitForFunction(()=>document.querySelector('#top-revision')?.textContent.includes('Revisão local 1'));
   assert.equal(await page.locator('[data-module]').count(),20);
   const all=await page.locator('[data-module]').evaluateAll(nodes=>nodes.map(x=>x.dataset.module));for(const id of all)await module(page,id);
+  await module(page,'nucleo');
+  assert.equal(await page.locator('#whole-program-areas [data-general-test-module]').count(),20,
+   'Roteiro integrado precisa mostrar TODAS as 20 áreas, não só módulos antigos');
+  assert.match(await page.locator('#whole-program-progress').innerText(),/20 de 20 áreas visitadas/);
+  assert.match(await page.locator('#whole-program-areas').innerText(),/Visitar não aprova|A aprovação funcional requer/,
+   'Abertura de tela não pode ser confundida com aceite real');
+  const beforeVisitExport=await revision(page),visitFile=page.waitForEvent('download');
+  await page.locator('#whole-program-export').click();
+  const wholeReport=JSON.parse(fs.readFileSync(await (await visitFile).path(),'utf8'));
+  assert.equal(wholeReport.modulesAvailable,20);
+  assert.equal(wholeReport.modulesVisited,20);
+  assert.equal(new Set(wholeReport.visitedModuleIds).size,20);
+  assert.equal(wholeReport.productionApproval,false);
+  assert.equal(wholeReport.parityApproved,false);
+  assert.equal(await revision(page),beforeVisitExport,'Exportar checklist não pode gravar lançamento');
   // Utilidades: fluxo LEVAR/BUSCAR mobile e desktop, sem chamada de rede.
   await module(page,'utilidades');
   const routeForm=page.locator('#route-editor-form');
