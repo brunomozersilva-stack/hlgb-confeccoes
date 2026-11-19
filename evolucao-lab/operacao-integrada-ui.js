@@ -26,7 +26,7 @@ const modules=[
 ];
 const ids=new Map(modules.map((m,i)=>[m[0],i])),visitedModules=new Set();
 // Avaliações ficam em chaves SEPARADAS no IndexedDB fictício, sem alterar a
-// revisão do documento, o WAL ou o histórico de operação. Nunca em localStorage.
+// revisão do documento, o WAL ou o histórico de operação.
 const programReviews=Object.create(null);
 const reviewKey=id=>'program-review:'+id;
 async function reviewLoad(){
