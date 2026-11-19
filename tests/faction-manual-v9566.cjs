@@ -2,7 +2,7 @@
 const assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('node:vm'),path=require('node:path');
 const src=fs.readFileSync(path.join(__dirname,'..','release-faction-manual-payment-v9566.js'),'utf8');
 const loader=fs.readFileSync(path.join(__dirname,'..','app-stable3.html'),'utf8');
-assert(loader.includes("'release-faction-manual-payment-v9566.js'"),'plugin must load in app-stable3');
+assert(require('./hlgb-loader-test-view-v9600.cjs').scripts(loader).includes('release-faction-manual-payment-v9566.js'),'plugin must load in app-stable3');
 const db={factionMasters:[
  {id:10,name:'Roseli',active:true},{id:11,name:'Ge',active:true},{id:12,name:'Inativa',active:false}],
  factions:[{id:3,name:'Roseli'},{id:4,name:'Vanessa'}],

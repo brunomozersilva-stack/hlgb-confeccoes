@@ -42,8 +42,8 @@ function fixture(withModule){
  return {doc,page,table,receipts,window,calls};
 }
 test('script is loaded once, after existing edit/receipt/correction implementation',()=>{
- const files=loader.match(/const files=\[(.*?)\];/s)?.[1]||'';
- assert.equal(files.split("'release-faction-feature-guard-v9598.js'").length-1,1);
+ const files=require('./hlgb-loader-test-view-v9600.cjs').scripts(loader);
+ assert.equal(files.filter(file=>file==='release-faction-feature-guard-v9598.js').length,1);
  assert(files.indexOf('release-faction-feature-guard-v9598.js')>files.indexOf('release-faction-manual-payment-v9566.js'));
  assert(files.indexOf('release-faction-feature-guard-v9598.js')>files.indexOf('release-faction-ledger-preservation-v9597.js'));
 });
@@ -59,8 +59,8 @@ test('other recently delivered isolated modules stay in boot (not silently remov
   'release-printer3d-module-recovery-v9596.js',
   'release-faction-ledger-preservation-v9597.js'
  ];
- const list=loader.match(/const files=\[(.*?)\];/s)?.[1]||'';
- for(const mod of modules)assert.equal(list.split("'"+mod+"'").length-1,1,
+ const list=require('./hlgb-loader-test-view-v9600.cjs').scripts(loader);
+ for(const mod of modules)assert.equal(list.filter(file=>file===mod).length,1,
   'recently delivered module was removed or duplicated: '+mod);
 });
 test('yesterday features remain in production module and cannot silently regress',()=>{

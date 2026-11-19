@@ -86,7 +86,9 @@ const fs=require('node:fs');
   const loader=fs.readFileSync('app-stable3.html','utf8');
   assert.match(recovery,/hlgbWalIdbGuard9536\?\.keys/);
   assert.match(recovery,/indexedDbOnly:/);
-  assert.match(loader,/release-save-transport-v9320\.js','release-wal-idb-convergence-v9536\.js','release-pricing/);
+  const scripts=require('./hlgb-loader-test-view-v9600.cjs').scripts(loader);
+  const p=scripts.indexOf('release-save-transport-v9320.js'),q=scripts.indexOf('release-wal-idb-convergence-v9536.js');
+  assert.ok(p>=0&&q===p+1,'WAL guard must follow save transport, including Safari and Chrome');
   assert.match(loader,/critical=\[[^\]]*release-wal-idb-convergence-v9536/);
   console.log('PASS '+kind+' — localStorage zero / IndexedDB two; cloud and realtime guarded; no WAL writes');
  }finally{await browser.close()}

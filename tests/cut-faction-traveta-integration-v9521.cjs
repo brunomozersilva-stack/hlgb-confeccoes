@@ -3,11 +3,12 @@ const test=require('node:test'),assert=require('node:assert/strict'),fs=require(
 const cut=fs.readFileSync('release-cut-model-split.js','utf8');
 const factions=fs.readFileSync('release-faction-operations-v9520.js','utf8');
 const router=fs.readFileSync('app-stable3.html','utf8');
-const iCut=router.indexOf("'release-cut-model-split.js'"),iAdjust=router.indexOf("'release-faction-safe-adjust-v9514.js'"),iOps=router.indexOf("'release-faction-operations-v9520.js'");
+const loaded=require('./hlgb-loader-test-view-v9600.cjs').scripts(router);
+const iCut=loaded.indexOf('release-cut-model-split.js'),iAdjust=loaded.indexOf('release-faction-safe-adjust-v9514.js'),iOps=loaded.indexOf('release-faction-operations-v9520.js');
 test('both PRs load in the canonical router in safe order',()=>{
  assert.ok(iCut>0&&iAdjust>iCut&&iOps>iAdjust,'cut split -> safe faction adjustment -> operations must load in order');
- assert.ok(!router.includes("'release-cut-model-split.js','release-cut-model-split.js'"));
- assert.ok(!router.includes("'release-faction-operations-v9520.js','release-faction-operations-v9520.js'"));
+ assert.equal(loaded.filter(x=>x==='release-cut-model-split.js').length,1);
+ assert.equal(loaded.filter(x=>x==='release-faction-operations-v9520.js').length,1);
 });
 function mock(){
  let saves=0,modal=null,actualGrade=null,openId=null;

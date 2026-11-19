@@ -17,8 +17,10 @@ const melanie={id:1788442854165,name:'Short Doll Melanie',materials:[
  {materialId:1791245626717,name:'Alpinia',unit:'m',qty:1,loss:0,calcMode:'consumption'}
 ]};
 test('new reconciler loaded after faction operations, syntax valid',()=>{
- assert.ok(router.indexOf("'release-faction-material-refresh-v9522.js'")>router.indexOf("'release-faction-checklist-grade-standard.js'"), 'the guard must load after checklist printing overrides');
- assert.ok(router.indexOf("'release-faction-material-refresh-v9522.js'")>router.indexOf("'release-faction-operations-v9520.js'"));
+ const loaded=require('./hlgb-loader-test-view-v9600.cjs').scripts(router);
+ const i=loaded.indexOf('release-faction-material-refresh-v9522.js');
+ assert.ok(i>loaded.indexOf('release-faction-checklist-grade-standard.js'), 'the guard must load after checklist printing overrides');
+ assert.ok(i>loaded.indexOf('release-faction-operations-v9520.js'));
  assert.doesNotThrow(()=>new vm.Script(source));
 });
 function setup({checked=false,pending=false,lostResponse=false}= {}){
