@@ -275,3 +275,23 @@ O lançamento do sistema novo permanece **BLOQUEADO**; não houve integração c
 **Não está pronto para produção:** o arquivo das tentativas canceladas é local ao navegador de laboratório e **não é um repositório seguro de conflitos no servidor**; não há RLS empresarial, retenção e controle de acesso reais para as duas versões. Também não houve teste físico entre Safari no Mac e Chrome em outro computador com os dados atuais, aprovação da equipe ou importação reversível do legado. Resultados CI enfileirados não significam sucesso.
 
 **Status permanece:** **0/17 contratos prioritários aprovados operacionalmente**, `approvedForProduction:false`, nenhum merge na `main` e nenhum acesso à base comercial.
+
+
+## Décima evolução isolada — prova inversa dos registros Pedido → Corte → Facção → Acerto (18/11/2026)
+
+**Estado: LÓGICA IMPLEMENTADA E TESTE DIRETO APROVADO. TESTES CI/NAVEGADOR PENDENTES.**
+
+**Problema identificado:** conferir apenas cada registro ainda existente permite perder a prova de um lançamento apagado: o comando continua na trilha global, mas o registro operacional pode ter desaparecido. Esta falha não deve ser tratada como ausência de problema nem resolvida com limpeza automática do histórico.
+
+**Correções adicionais na branch de laboratório, sem dados empresariais:**
+
+- `modulos/pedidos-multimodelo-v1.js`: todo pedido `PDM` precisa ter exatamente uma criação `order.multi.create` na revisão original. Se o `PDM` foi apagado, mas o comando permanece, o Auditor registra a divergência.
+- `modulos/corte-multimodelo-v1.js`: toda folha `PCM`, revisão de grade/equipe, conclusão, cancelamento e pesagem deve ter comando correspondente e revisão coerente. Comandos de Corte no log sem a ficha/histórico/pesagem associados agora são registrados como falha.
+- `modulos/fluxo-multimodelo-v1.js`: toda alocação, transferência, revisão de preço, devolução, separação, expedição e conferência de acerto no log exige um registro operacional correspondente. A auditoria também conserva a validação de saldos por cor/tamanho, preço congelado e facção de cada devolução.
+- Contratos negativos em `tests/corte-multimodelo-contract.cjs` e `tests/fluxo-multimodelo-contract.cjs` testam exclusões silenciosas de documento, retorno, histórico e conferência.
+
+**Verificação direta executada:** uma sequência fictícia de cinco comandos (pedido, corte, revisão, conclusão e pesagem) foi executada pelo `operacao-integrada-core.js` com os módulos atuais, retornando `inspect.ok = true`. Em quatro cópias adulteradas, remover pedido / corte / revisão / pesagem gerou `inspect.ok = false` e mensagem identificando a origem. Outra sequência fictícia de Pedido → Corte → Facção → Retorno → Conferência também detectou remoção de retorno, lote e revisão de acerto, sem criar registros em `finance` ou `stockLedger`.
+
+**Limitação importante:** a prova se baseia em confronto com o **log global existente no mesmo documento**. Não é uma assinatura criptográfica imutável nem um backup externo: um invasor que substituísse o documento inteiro e sua trilha poderia contornar uma auditoria apenas local. É por isso que a homologação exige, adicionalmente, provas independentes no PostgreSQL de testes, preservação do WAL original, restauração reversível e verificação por sessões distintas.
+
+**Status de liberação:** 17 contratos prioritários continuam sem aceite operacional; `approvedForProduction = false`. A execução CI Chrome/WebKit ainda não foi verificada como concluída com sucesso; não realizar merge na `main` nem publicar na produção.
