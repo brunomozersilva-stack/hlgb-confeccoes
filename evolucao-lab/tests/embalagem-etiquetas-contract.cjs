@@ -72,7 +72,7 @@ test('Correção para menos requer aprovação explícita; duplicidades e valore
  c.run('packer.progress',{id:'EBA-0001',doneQty:30,reason:'Primeira conferência'});
  assert.throws(()=>core.apply(c.s,{type:'packer.progress',
   payload:{id:'EBA-0001',doneQty:20,reason:'Troca de conferência'},
-  commandId:'CORRECTION-BLOCKED',expectedRevision:c.s.revision,actor:'QA'}),/Correção/);
+  commandId:'CORRECTION-BLOCKED',expectedRevision:c.s.revision,actor:'QA'}),/correção/i);
  c.run('packer.progress',{id:'EBA-0001',doneQty:20,reason:'Erro de contagem documentado',correction:true});
  assert.equal(c.s.packerAssignmentsLab[0].doneQty,20);
  assert.equal(c.s.packerAssignmentsLab[0].history.at(-1).type,'corrected');
@@ -139,7 +139,7 @@ test('UI mostra fila, etiquetas personalizadas, histórico e isolamento dos mód
  assert.match(page,/embalagem-etiquetas-v1\.js/);
  assert.match(ui,/function packerAssignmentsPanel/);
  assert.match(ui,/function labelTemplatesPanel/);
- assert.match(ui,/case 'separacao':return packagingPanel\(s\)\+packerAssignmentsPanel\(s\)/);
+ assert.match(ui,/case 'separacao':return multiFlowLabPart\(s,'separacao'\)\+packagingPanel\(s\)\+packerAssignmentsPanel\(s\)/);
  assert.match(ui,/label\.template\.add/);assert.match(ui,/label\.template\.edit/);
  assert.match(ui,/packer\.progress/);
  assert.match(ui,/data-packer-edit/);
