@@ -255,3 +255,39 @@ test('perfis de demonstração: criar pedido com cores é autorizado para A/B, n
  }
  assert.equal(can('Operador C fictício','order.add.with.colors'),false);
 });
+
+test('round-trip real PostgreSQL JSONB de pedido e lote multimodelo conserva prova de origem',async()=>{
+ const before=await db.state(),start=before.revision;
+ const orderPayload={clientId:'CLI-0001',sizes:['P','M'],items:[
+  {productId:'PRO-0001',colors:[{color:'Rubi',grade:{P:60,M:60}}]},
+  {productId:'PRO-0002',colors:[{color:'Branco',grade:{P:0,M:10}}]}
+ ]};
+ const c=cmd('jsonb-multi-pedido-001','order.multi.create',start,orderPayload);
+ assert.equal((await db.commit(c,A)).status,'committed');
+ const afterOrder=await db.state();
+ const order=afterOrder.multiOrders.at(-1);
+ assert.equal(order.totals.pieces,130);
+ assert.equal(order.items[0].qty,120);
+ assert.equal((await db.readback(c.commandId,c,A)).status,'readback_confirmed');
+ const p=cmd('jsonb-multi-corte-001','multi.cut.plan',afterOrder.revision,{
+  orderId:order.id,itemId:'ITM-001',lines:[{color:'Rubi',size:'P',qty:40},{color:'Rubi',size:'M',qty:40}],
+  scheduledDate:'2026-11-22',priority:'normal',cutterOne:'A',cutterTwo:'B',spreader:'C'
+ });
+ assert.equal((await db.commit(p,A)).status,'committed');
+ const state=await db.state();
+ const cut=state.multiCutPlans.at(-1);
+ const finish=cmd('jsonb-multi-finish-001','multi.cut.complete',state.revision,{
+  id:cut.id,checkerOne:'C1',checkerTwo:'C2'});
+ assert.equal((await db.commit(finish,A)).status,'committed');
+ const next=await db.state();
+ const lot=cmd('jsonb-multi-faction-001','multi.flow.allocate',next.revision,{
+  cutId:cut.id,factionId:'FAC-0001',lines:[{color:'Rubi',size:'P',qty:40},{color:'Rubi',size:'M',qty:40}],
+  unitCents:550,reason:'Alocação fictícia no banco descartável'});
+ assert.equal((await db.commit(lot,A)).status,'committed');
+ const after=await db.state();
+ assert.equal(after.multiFlowLots.at(-1).qty,80);
+ assert.equal(after.revision,start+4);
+ assert.equal(after.finance.length,before.finance.length);
+ assert.equal(after.stockLedger.length,before.stockLedger.length);
+ assert.equal((await db.readback(lot.commandId,lot,A)).status,'readback_confirmed');
+});
