@@ -44,8 +44,8 @@ const separations=[
 test('separação original permanece idêntica fora de três linhas de delegação',()=>{
  const changes=[
   "const separationProgressCore9603b=window.HLGB_SEPARATION_PROGRESS_9603B||null;\n",
-  " if(separationProgressCore9603b?.progress)return separationProgressCore9603b.progress(s,pid);\n",
-  " if(separationProgressCore9603b?.totalsForItems)return separationProgressCore9603b.totalsForItems(items,s);\n"
+  "\n if(separationProgressCore9603b?.progress)return separationProgressCore9603b.progress(s,pid);",
+  "\n if(separationProgressCore9603b?.totalsForItems)return separationProgressCore9603b.totalsForItems(items,s);"
  ];
  let original=src;
  for(const line of changes){assert.ok(original.includes(line));original=original.replace(line,'');}
