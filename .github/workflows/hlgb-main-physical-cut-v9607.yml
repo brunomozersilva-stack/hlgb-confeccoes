@@ -1,0 +1,48 @@
+name: HLGB Comercial - Extracao Fisica Corte Producao v96.07
+on:
+  pull_request:
+    branches: [main, release/hlgb-comercial-main-modular-homologacao-20261119]
+    paths:
+      - 'app9240.html'
+      - 'hlgb-modules/**'
+      - 'tests/hlgb-main-inline-cut-production-v9607.cjs'
+      - 'tests/hlgb-main-inline-cut-browser-v9607.cjs'
+      - 'tests/hlgb-main-inline-boundaries-v9606.cjs'
+      - '.github/workflows/hlgb-main-physical-cut-v9607.yml'
+  workflow_dispatch:
+permissions: {contents: read}
+jobs:
+  script-parity:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - name: Sintaxe e integridade
+        run: |
+          node --check hlgb-modules/producao/corte-producao-quantidade-v9607.js
+          node --check hlgb-modules/verify-main-inline-extraction-v9607.cjs
+          node --test tests/hlgb-main-inline-cut-production-v9607.cjs
+          node --test tests/hlgb-main-inline-boundaries-v9606.cjs
+          node --test tests/hlgb-main-156-blob-integrity-v9606.cjs
+          node --test tests/hlgb-module-boundaries-v9600.cjs
+          node hlgb-modules/verify-main-inline-extraction-v9607.cjs --verify
+          node hlgb-modules/main-inline-boundaries-v9606.cjs --verify
+          node hlgb-modules/audit-live-monolith-v9601b.cjs --verify
+  browser-parity:
+    runs-on: ubuntu-24.04
+    container: mcr.microsoft.com/playwright:v1.55.0-noble
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        browser: [chromium, webkit]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install matching Playwright client (browser already in container)
+        run: npm install --no-save playwright@1.55.0
+      - name: Isolated browser no customer data or network connections
+        env:
+          HLGB_BROWSER: ${{ matrix.browser }}
+        run: node tests/hlgb-main-inline-cut-browser-v9607.cjs
