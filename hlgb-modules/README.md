@@ -4,8 +4,15 @@
 >
 > A classificação em 14 domínios e 16 grupos de carregamento **não finaliza os módulos**. O monólito comercial `app9240.html` permanece inteiro. Antes de extraí-lo, inventariar todas as funções reais e preservar seus contratos com os funcionários.
 >
-> Progresso adicional desta branch: todos os 14 domínios agora têm pacotes iniciais de regressão (64 entradas), mas **nenhum foi homologado como módulo fisicamente extraído**. Ver [STATUS-MODULARIZACAO-COMERCIAL-v9601b.md](STATUS-MODULARIZACAO-COMERCIAL-v9601b.md) e [TESTES-POR-MODULO.md](TESTES-POR-MODULO.md).
+> Progresso adicional desta branch: todos os 14 domínios agora têm pacotes iniciais de regressão (66 entradas), mas **nenhum foi homologado como módulo fisicamente extraído**. Ver [STATUS-MODULARIZACAO-COMERCIAL-v9601b.md](STATUS-MODULARIZACAO-COMERCIAL-v9601b.md) e [TESTES-POR-MODULO.md](TESTES-POR-MODULO.md).
 
+
+## Evolução da divisão física — em branches de homologação, NÃO em produção
+
+- A PR #267 extrai somente tamanho e formatação do rótulo de Etiquetas A4, com fallback intacto.
+- A PR dependente seguinte extrai somente os cálculos puros de progresso e totalização da Separação, preservando todo o código anterior de baixa, escrita remota, WAL, status e histórico.
+- A ordem dos **156 scripts originais** continua idêntica; os 2 núcleos opcionais são adicionados antes dos consumidores correspondentes (158 no candidato).
+- **Nenhum dos 14 domínios está concluído**, pois o `app9240.html` comercial ainda precisa de inventário de funções e extrações graduais. Não interpretar a preparação como aprovação para merge.
 
 ## O que foi de fato separado
 - O carregador original tem **156 scripts adicionais**; agora estão agrupados em **16 sequências nomeadas**, em `app-stable3.html`. Uma sequência é um *bloco de inicialização*, não um módulo isolado de negócio.

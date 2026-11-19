@@ -121,6 +121,7 @@
     "release-sync-guard-v9306.js",
     "release-production-cut-reconcile-v9307.js",
     "release-production-render-fix-v9330.js",
+    "hlgb-modules/producao/separacao-progresso-v9603b.js",
     "release-separation-commit-v9319.js",
     "release-separation-cut-target-v9335.js",
     "release-save-actions-v9322.js",
@@ -217,6 +218,7 @@
     ],
     "producao-separacao": [
       "release-production-render-fix-v9330.js",
+      "hlgb-modules/producao/separacao-progresso-v9603b.js",
       "release-separation-commit-v9319.js",
       "release-production-operations-v9378-preview.js",
       "release-production-operations-v9380-preview-patch.js"
@@ -361,7 +363,8 @@
     "release-faction-manual-payment-v9566.js": "2af968249fcf4d06a832b2563f04c251bf259948",
     "release-pricing.js": "91c44c12915a4d4988f5465d50fc64d35b4c9e06",
     "release-hub-save-proof-v9567.js": "740628ed76fb377b9d23f70bde3b065cfff997bf",
-    "release-label-destination-v9310.js": "e793a84494e71173bc1fabd800694012e76ae9cc"
+    "release-label-destination-v9310.js": "e793a84494e71173bc1fabd800694012e76ae9cc",
+    "release-separation-commit-v9319.js": "3117c5a712198249212b3d3893c8fbc04f3d621e"
   },
   "preExtractionScripts": [
     "release-faction-ledger-preservation-v9597.js",
@@ -522,7 +525,8 @@
     "release-faction-feature-guard-v9598.js"
   ],
   "approvedNewScripts": [
-    "hlgb-modules/utilidades/etiquetas-layout-v9602b.js"
+    "hlgb-modules/utilidades/etiquetas-layout-v9602b.js",
+    "hlgb-modules/producao/separacao-progresso-v9603b.js"
   ],
   "baselineCriticalFileBlobs": {
     "app9240.html": "db896b5fbf85392be5711ae1c44b3bf245893be4",
@@ -535,13 +539,19 @@
     "release-faction-manual-payment-v9566.js": "2af968249fcf4d06a832b2563f04c251bf259948",
     "release-pricing.js": "91c44c12915a4d4988f5465d50fc64d35b4c9e06",
     "release-hub-save-proof-v9567.js": "740628ed76fb377b9d23f70bde3b065cfff997bf",
-    "release-label-destination-v9310.js": "722045f0ca2dcc8ec74babc99458bd6c52ad50a6"
+    "release-label-destination-v9310.js": "722045f0ca2dcc8ec74babc99458bd6c52ad50a6",
+    "release-separation-commit-v9319.js": "a018c1a3e358d0726f997b6ff326e8333a6819e3"
   },
   "extractionChanges": {
     "release-label-destination-v9310.js": {
       "before": "722045f0ca2dcc8ec74babc99458bd6c52ad50a6",
       "after": "e793a84494e71173bc1fabd800694012e76ae9cc",
       "reason": "somente cálculo puro de tamanho e HTML da etiqueta; mantém fallback e impressão legada"
+    },
+    "release-separation-commit-v9319.js": {
+      "before": "a018c1a3e358d0726f997b6ff326e8333a6819e3",
+      "after": "3117c5a712198249212b3d3893c8fbc04f3d621e",
+      "reason": "somente funções puras de progresso e totais na Separação; escrita, WAL, IDs e handlers permanecem no código legado"
     }
   }
 }

@@ -70,7 +70,8 @@
       "tests/audit-production-assignment-regression.cjs",
       "tests/audit-separation-commit-v9319.cjs",
       "tests/production-render-v9330-regression.cjs",
-      "tests/production-scan-dirty-v9571.cjs"
+      "tests/production-scan-dirty-v9571.cjs",
+      "tests/hlgb-live-separation-progress-v9603b.cjs"
     ],
     "compras-estoque": [
       "tests/audit-material-tools-regression.cjs",

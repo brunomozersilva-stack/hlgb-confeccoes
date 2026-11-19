@@ -1,7 +1,7 @@
 name: HLGB Comercial - Etiquetas Modulo Compativel v96.02b
 on:
   pull_request:
-    branches: [main, refactor/live-14-domains-coverage-v9601b]
+    branches: [main, refactor/live-14-domains-coverage-v9601b , refactor/live-etiquetas-compat-core-v9602b]
     paths:
       - 'app-stable3.html'
       - 'hlgb-modules/ownership-v9600.json'
