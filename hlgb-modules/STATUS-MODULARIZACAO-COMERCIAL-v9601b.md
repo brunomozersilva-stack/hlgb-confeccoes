@@ -19,7 +19,7 @@
 | Base / infraestrutura | 8 | 4 | Pendente |
 | Sincronização e WAL | 15 | 5 | Pendente — alto risco |
 | Pedidos / Projeção | 9 | 4 | Pendente |
-| Corte / Cortadores | 12 | 9 | Pendente |
+| Corte / Cortadores | 12 | 10 | Parcial — escolha do alvo extraída, gravação intacta |
 | Produção / Separação | 4 | 5 | Parcial — cálculos de progresso extraídos |
 | Facções / Acertos | 18 | 6 | Pendente |
 | Financeiro / Hub / Notas | 23 | 5 | Pendente |
@@ -30,7 +30,7 @@
 | Assistente / IA | 14 | 4 | Pendente |
 | Impressora 3D | 5 | 4 | Pendente |
 | Interface / mobile | 7 | 4 | Pendente |
-| **Total** | **156** | **66** | **Não concluído** |
+| **Total** | **156** | **67** | **Não concluído** |
 
 Os scripts já estão fisicamente em arquivos próprios, mas podem depender de funções e estados globais do monólito. Testes por área representam **cobertura inicial**, não o fechamento do módulo.
 
@@ -64,3 +64,5 @@ O workflow **HLGB Modular Live Boundaries v96.00** ganhou uma etapa que, ao exec
 **Núcleo puro de Etiquetas v96.02b:** a PR dependente separa somente dois cálculos de apresentação do script já existente. Preserva os 156 scripts anteriores e o `app9240.html`; o catálogo de execução passa para 157 scripts. Nenhum módulo completo foi homologado.
 
 **Produção/Separação v96.03b:** extração de cálculos puros de progresso e totais do script comercial já existente, com fallback e gravação autoritativa preservados. O `app9240.html` e os fluxos de salvamento continuam não modularizados. Na branch candidata a carga passa de 157 para 158 scripts (156 antigos + Etiquetas + Separação).
+
+**Corte-alvo v96.05b:** seleciona somente o pedido ativo e produto único após Separação em núcleo de leitura com fallback no script legado; 213 comparações de resultados idênticos, sem gravações. Na branch são 159 scripts (156 originais e 3 núcleos). O `app9240.html` comercial permanece intacto. **Nada publicado e nenhum módulo inteiro aprovado.**

@@ -11,12 +11,12 @@
 ## Não alterado
 - **Gravações:** `saveRecord`, `confirmExisting`, `directApply`, `directMark`, `saveCompletedOrder`, retorno de ACK, atualização local, tratamento de baixa pendente e recuperação.
 - **Dados:** estrutura dos registros, Supabase, ID de separação, WAL/IndexedDB, estoque, reabertura, login, histórico de baixa e sincronização.
-- **Inicialização:** 156 scripts comerciais originais permanecem na sequência exata, com 2 funções auxiliares novas carregadas imediatamente antes de seus consumidores (158 scripts totais no candidato).
+- **Inicialização:** 156 scripts comerciais originais permanecem na sequência exata, com 3 núcleos opcionais carregados antes de seus consumidores (159 scripts totais no candidato).
 - **Arquivo principal:** `app9240.html` não foi modificado ou dividido nesta etapa.
 
 ## Provas
 - `tests/hlgb-live-separation-progress-v9603b.cjs` compara núcleo e fallback em 60 totais e 120 recuperações de progresso por produto; valida os handlers atuais e verifica a reconstrução exata da fonte principal após remover somente as três linhas de delegação.
-- Contrato de loader guarda 156 scripts comerciais originais e o SHA dos arquivos críticos; duas alterações em scripts legados devem permanecer explícitas no manifesto.
+- Contrato de loader guarda 156 scripts comerciais originais e o SHA dos arquivos críticos; três alterações em scripts legados devem permanecer explícitas no manifesto.
 - `HLGB Comercial - Separacao Progresso Puro v96.03b`, testes herdados e regressão geral precisam concluir como `success`.
 
 ## Por que o módulo ainda NÃO está pronto
@@ -25,3 +25,7 @@
 - Antes de qualquer merge na `main`, é indispensável verificar que novos scripts, ordens de carga e fallbacks não eliminam funções dos funcionários e obter aprovação explícita.
 
 **Não publicar ou alterar o banco comercial nesta PR.**
+
+## Extensão v96.05b — alvo de Corte após Separação
+
+A terceira extração, `corte-alvo-v9605b.js`, isola apenas a leitura do **pedido ativo** e a escolha de **um produto único** para o corte. O `release-separation-cut-target-v9335.js` mantém as funções originais como fallback e continua exclusivamente responsável por encontrar o corte, chamar `hlgbRecordSaveWithRetry`, tratar ACK, preservar WAL e acionar recuperação. A fonte anterior é reconstruível byte a byte removendo as três delegações opcionais. **O fluxo de baixa não foi alterado.** São necessários CI e testes reais em Safari/Chrome antes de qualquer merge.

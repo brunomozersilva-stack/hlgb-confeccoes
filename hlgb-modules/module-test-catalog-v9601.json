@@ -12,7 +12,8 @@
       "tests/cut-weight-after-finish-v9579.cjs",
       "tests/audit-cut-navigation.cjs",
       "tests/wal-cut-split-replay-guard-v9485.cjs",
-      "tests/cut-duplicate-repair-v95105.cjs"
+      "tests/cut-duplicate-repair-v95105.cjs",
+      "tests/hlgb-live-separation-cut-target-v9605b.cjs"
     ],
     "pedidos-projecao": [
       "tests/audit-assistant-order-grade-regression.cjs",

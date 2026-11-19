@@ -123,6 +123,7 @@
     "release-production-render-fix-v9330.js",
     "hlgb-modules/producao/separacao-progresso-v9603b.js",
     "release-separation-commit-v9319.js",
+    "hlgb-modules/producao/corte-alvo-v9605b.js",
     "release-separation-cut-target-v9335.js",
     "release-save-actions-v9322.js",
     "release-wal-replay-bridge-v9332.js",
@@ -213,6 +214,7 @@
       "release-cutter-planner.js",
       "release-cutter-history-v9250.js",
       "release-production-cut-reconcile-v9307.js",
+      "hlgb-modules/producao/corte-alvo-v9605b.js",
       "release-separation-cut-target-v9335.js",
       "release-cut-step-queues-v9528.js"
     ],
@@ -364,7 +366,8 @@
     "release-pricing.js": "91c44c12915a4d4988f5465d50fc64d35b4c9e06",
     "release-hub-save-proof-v9567.js": "740628ed76fb377b9d23f70bde3b065cfff997bf",
     "release-label-destination-v9310.js": "e793a84494e71173bc1fabd800694012e76ae9cc",
-    "release-separation-commit-v9319.js": "3117c5a712198249212b3d3893c8fbc04f3d621e"
+    "release-separation-commit-v9319.js": "3117c5a712198249212b3d3893c8fbc04f3d621e",
+    "release-separation-cut-target-v9335.js": "c660417ba3e38e5498c795131232192281ec1182"
   },
   "preExtractionScripts": [
     "release-faction-ledger-preservation-v9597.js",
@@ -526,7 +529,8 @@
   ],
   "approvedNewScripts": [
     "hlgb-modules/utilidades/etiquetas-layout-v9602b.js",
-    "hlgb-modules/producao/separacao-progresso-v9603b.js"
+    "hlgb-modules/producao/separacao-progresso-v9603b.js",
+    "hlgb-modules/producao/corte-alvo-v9605b.js"
   ],
   "baselineCriticalFileBlobs": {
     "app9240.html": "db896b5fbf85392be5711ae1c44b3bf245893be4",
@@ -540,7 +544,8 @@
     "release-pricing.js": "91c44c12915a4d4988f5465d50fc64d35b4c9e06",
     "release-hub-save-proof-v9567.js": "740628ed76fb377b9d23f70bde3b065cfff997bf",
     "release-label-destination-v9310.js": "722045f0ca2dcc8ec74babc99458bd6c52ad50a6",
-    "release-separation-commit-v9319.js": "a018c1a3e358d0726f997b6ff326e8333a6819e3"
+    "release-separation-commit-v9319.js": "a018c1a3e358d0726f997b6ff326e8333a6819e3",
+    "release-separation-cut-target-v9335.js": "a6c0ac62b190eea4e2565b10eb4ba5c03c7e2e02"
   },
   "extractionChanges": {
     "release-label-destination-v9310.js": {
@@ -552,6 +557,11 @@
       "before": "a018c1a3e358d0726f997b6ff326e8333a6819e3",
       "after": "3117c5a712198249212b3d3893c8fbc04f3d621e",
       "reason": "somente funções puras de progresso e totais na Separação; escrita, WAL, IDs e handlers permanecem no código legado"
+    },
+    "release-separation-cut-target-v9335.js": {
+      "before": "a6c0ac62b190eea4e2565b10eb4ba5c03c7e2e02",
+      "after": "c660417ba3e38e5498c795131232192281ec1182",
+      "reason": "seleção de pedido ativo e produto único por função pura; alvo de corte, gravação, WAL, IDs, status e fallback legados mantidos"
     }
   }
 }
