@@ -32,7 +32,8 @@
    fail('Estado de Embalagem ilegível. Não gravar.');
  }
  function fingerprint(obj){
-  return JSON.stringify(obj);
+  return JSON.stringify(obj,(_key,v)=>v&&typeof v==='object'&&!Array.isArray(v)?
+   Object.fromEntries(Object.keys(v).sort().map(k=>[k,v[k]])):v);
  }
  function templateFields(s,p){
   if(!p||typeof p!=='object')fail('Formulário de etiqueta ausente.');
