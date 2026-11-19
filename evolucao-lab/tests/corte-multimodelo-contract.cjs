@@ -84,6 +84,30 @@ test('Auditor bloqueia adulteração, excesso de saldo e comandos repetidos',()=
  const crossed=JSON.parse(JSON.stringify(ctx.state));crossed.multiCutPlans[0].itemId='ITM-002';
  assert.equal(core.inspect(crossed).ok,false);
 });
+test('Auditor revela pedido, folha, revisão e pesagem apagados mas ainda presentes no log',()=>{
+ const ctx=start(),o=ctx.orderId;
+ const id=ctx.run('multi.cut.plan',planning(o,'ITM-001',[{color:'Preto',size:'PP',qty:3}]));
+ ctx.run('multi.cut.revise',{...planning(o,'ITM-001',[{color:'Preto',size:'PP',qty:2}]),
+  id,priority:'urgente',reason:'Adaptação do corte'});
+ ctx.run('multi.cut.complete',{id,checkerOne:'Fiscal A',checkerTwo:'Fiscal B'});
+ ctx.run('multi.cut.weight.record',{id,totalGrams:1500,usedGrams:1200,wasteGrams:300,
+  checker:'Conferente fictício',reason:'Peso aferido'});
+ const cases=[
+  s=>{s.multiOrders=[]},
+  s=>{s.multiCutPlans=[]},
+  s=>{s.multiCutPlans[0].history.splice(1,1)},
+  s=>{s.multiCutPlans[0].weightEvents=[]}
+ ];
+ for(const mutation of cases){
+  const altered=JSON.parse(JSON.stringify(ctx.state));mutation(altered);
+  const r=core.inspect(altered);
+  assert.equal(r.ok,false,'Exclusão clandestina precisa interromper integridade');
+  assert.match(r.problems.join(' '),/sem registro|sem evento|removido|sem comando|saldo|origem/i);
+ }
+ assert.equal(core.inspect(ctx.state).ok,true);
+ assert.equal(ctx.state.stockLedger.length,0);
+ assert.equal(ctx.state.finance.length,0);
+});
 test('A interface carrega o motor e não mistura com corte antigo ou rede real',()=>{
  assert.doesNotThrow(()=>new vm.Script(ui));
  assert.doesNotThrow(()=>new vm.Script(fs.readFileSync(path.join(root,'modulos/corte-multimodelo-v1.js'),'utf8')));
