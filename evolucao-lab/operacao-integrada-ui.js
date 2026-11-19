@@ -740,6 +740,25 @@ function guidedJourney(s){
  '<p class="caption">Depois do teste, atualize a página, confira os mesmos IDs e exporte JSON/CSV. A atualização e a conferência humana não são marcadas automaticamente como concluídas.</p>';
 }
 
+function fullProgramTestPanel(s){
+ // "Visitada" não significa testada/aprovada; nenhuma marca altera dados da operação.
+ const opened=modules.filter(x=>visitedModules.has(x[0])).length;
+ const rows=modules.map(([id,title],index)=>
+  '<div class="journey-step" data-general-test-module="'+escape(id)+'">'+
+  '<div><strong>'+(index+1)+'. '+escape(title)+'</strong>'+
+  '<p class="caption">'+(visitedModules.has(id)?'Tela visitada nesta sessão':'Ainda não aberta nesta sessão')+
+  ' · A aprovação funcional requer gravar, reler e comparar com o HLGB antigo.</p></div>'+
+  '<button class="btn" type="button" data-goto="'+escape(id)+'">Abrir área</button></div>').join('');
+ return panel('Teste do programa completo · '+modules.length+' áreas',
+  '<p><strong>Um único programa de ensaio.</strong> Passe pelas áreas, cadastre apenas dados inventados, execute o percurso Pedido → Corte → Facção → Retorno → Separação → Acerto → Hub e confira cada lançamento depois de atualizar a página.</p>'+
+  '<p id="whole-program-progress" role="status"><strong>'+opened+' de '+modules.length+
+  ' áreas visitadas nesta sessão.</strong> Visitar não aprova uma função; o checklist reinicia ao fechar a sessão, mas os dados fictícios continuam no armazenamento local.</p>'+
+  '<div class="actions"><button class="btn primary" type="button" id="whole-program-export">Exportar relatório completo desta sessão</button>'+
+  '<button class="btn" type="button" data-goto="pedidos">Começar por Pedidos</button></div>'+
+  '<p class="caption">Ao exportar, confira no JSON os campos modulesVisited, checks, data.log e journey. Envie o arquivo de exercício com a descrição de qualquer problema. Não contém aprovação empresarial e não deve receber informações reais.</p>'+
+  '<div class="journey-list" id="whole-program-areas">'+rows+'</div>',true);
+}
+
 /* Painéis observáveis como plug-in independente; erro ou desativação retorna às telas legadas. */
 function observerResult(s){
  try{
@@ -1410,7 +1429,7 @@ function moduleHtml(s){
  finance=selector(s.finance.filter(x=>x.status==='aberto'),x=>x.id+' · '+fmt(x.amountCents)+' · '+x.description),
  employees=selector(s.employees,x=>x.name),incidents=selector(s.errors.filter(x=>x.status==='aberto'),x=>x.id+' · '+x.message);
  switch(active){
- case 'nucleo':return multiFlowLabPart(s,'fila')+panel('Assistente HLGB 3.0','<p>Consulte prioridades, produção, financeiro, estoque e auditoria com evidências.</p><button type="button" class="btn" data-goto="bot">Abrir Assistente</button>')+panel('Módulos opcionais com desativação segura',
+ case 'nucleo':return fullProgramTestPanel(s)+multiFlowLabPart(s,'fila')+panel('Assistente HLGB 3.0','<p>Consulte prioridades, produção, financeiro, estoque e auditoria com evidências.</p><button type="button" class="btn" data-goto="bot">Abrir Assistente</button>')+panel('Módulos opcionais com desativação segura',
  (window.HLGBLabModules?table(['Módulo','Versão','Ativo','Falhas isoladas'],window.HLGBLabModules.list().map(x=>[
  str(x.id),str(x.version),x.enabled?'Sim':'Não',str(x.failures)])):
  '<p>Registro modular indisponível; funções legadas permanecem acessíveis.</p>')+
