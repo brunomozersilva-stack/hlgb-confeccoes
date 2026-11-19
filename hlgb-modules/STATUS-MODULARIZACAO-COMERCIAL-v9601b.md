@@ -6,8 +6,8 @@
 **Objetivo:** tornar mais rápida e segura a correção dos erros que afetam funcionários no sistema atual, sem refazer telas, perder funções ou mexer em lançamentos reais sem autorização.
 
 ## Prova de que ainda NÃO terminamos
-- `app9240.html` comercial atual tem **1.876.542 bytes** e permanece intacto.
-- `app-stable3.html` carrega **156 scripts adicionais**. A primeira camada (#260) só divide o carregamento em 16 grupos e atribui donos a 14 domínios, **sem extrair o código embutido do app9240**.
+- `app9240.html` da `main` tem **1.876.542 bytes** e está intacto em produção; na candidata v96.07 tem **1.870.271 bytes** após uma extração física reversível.
+- `app-stable3.html` carrega **156 scripts adicionais**. A primeira camada (#260) só divide o carregamento em 16 grupos e atribui donos a 14 domínios, **com extração física de um único bloco do app9240 em v96.07**, ainda faltando 91.
 - O novo inventário `audit-live-monolith-v9601b.cjs` examina nomes de funções e atribuições globais do arquivo original sem executar ou gravar nada. A lista precisa ser revisada função por função, sem supor que um nome de função corresponde automaticamente a um módulo.
 - Os 14 pacotes agora incluem **64 entradas de testes existentes**, mas isso não substitui testes de todas as ações dos funcionários, nem validação por Safari/Chrome e duas sessões.
 - Todo módulo continua **pendente de aceitação funcional** até a extração gradual ou delimitação formal de suas responsabilidades, preservando exatamente os fluxos atuais.
@@ -19,7 +19,7 @@
 | Base / infraestrutura | 8 | 4 | Pendente |
 | Sincronização e WAL | 15 | 5 | Pendente — alto risco |
 | Pedidos / Projeção | 9 | 4 | Pendente |
-| Corte / Cortadores | 12 | 10 | Parcial — escolha do alvo extraída, gravação intacta |
+| Corte / Cortadores | 12 | 11 | Parcial — escolha do alvo extraída, gravação intacta |
 | Produção / Separação | 4 | 5 | Parcial — cálculos de progresso extraídos |
 | Facções / Acertos | 18 | 6 | Pendente |
 | Financeiro / Hub / Notas | 23 | 5 | Pendente |
@@ -30,7 +30,7 @@
 | Assistente / IA | 14 | 4 | Pendente |
 | Impressora 3D | 5 | 4 | Pendente |
 | Interface / mobile | 7 | 4 | Pendente |
-| **Total** | **156** | **67** | **Não concluído** |
+| **Total** | **156** | **68** | **Não concluído** |
 
 Os scripts já estão fisicamente em arquivos próprios, mas podem depender de funções e estados globais do monólito. Testes por área representam **cobertura inicial**, não o fechamento do módulo.
 
@@ -66,3 +66,5 @@ O workflow **HLGB Modular Live Boundaries v96.00** ganhou uma etapa que, ao exec
 **Produção/Separação v96.03b:** extração de cálculos puros de progresso e totais do script comercial já existente, com fallback e gravação autoritativa preservados. O `app9240.html` e os fluxos de salvamento continuam não modularizados. Na branch candidata a carga passa de 157 para 158 scripts (156 antigos + Etiquetas + Separação).
 
 **Corte-alvo v96.05b:** seleciona somente o pedido ativo e produto único após Separação em núcleo de leitura com fallback no script legado; 213 comparações de resultados idênticos, sem gravações. Na branch são 159 scripts (156 originais e 3 núcleos). O `app9240.html` comercial permanece intacto. **Nada publicado e nenhum módulo inteiro aprovado.**
+
+**v96.07 — extração física limitada:** o bloco nº 89 do `app9240.html` (`92.40-cut-production-qty`) foi movido, com conteúdo idêntico, para `hlgb-modules/producao/corte-producao-quantidade-v9607.js`. O HTML tem agora **91 scripts inline e 1 script externo**, mantendo 92 posições lógicas; o original é reconstruível byte a byte. O módulo inteiro de Corte/Produção NÃO está concluído, a PR anterior #271 permanece como referência verde, e a `main` não foi modificada.

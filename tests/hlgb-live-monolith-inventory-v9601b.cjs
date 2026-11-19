@@ -24,11 +24,14 @@ test('escaneia apenas declarações, sem executar scripts ou escrever arquivos',
  const src=fs.readFileSync(path.join(root,'hlgb-modules/audit-live-monolith-v9601b.cjs'),'utf8');
  assert.doesNotMatch(src,/\b(?:eval|exec|writeFileSync|unlinkSync|fetch|cloudRequest)\s*\(/);
 });
-test('SHA do monólito original não pode mudar no trabalho de inventário',()=>{
+test('SHA da candidata e reconstrução byte a byte da main devem corresponder ao manifesto',()=>{
  const report=audit.readCurrent();
  assert.equal(report.file,'app9240.html');
  assert.ok(report.bytes>1000000,'fonte comercial precisa ser real, não fixture ou placeholder');
- assert.equal(report.untouched,true,'não extrair sem comparar o arquivo anterior byte a byte');
+ assert.equal(report.untouched,true,'arquivo aprovado precisa bater com manifesto e recuperação exata da main');
+ assert.equal(report.originalMainReconstructed,true,'a fonte anterior deve ser recuperável byte a byte');
+ assert.equal(report.originalLogicalScripts,92);
+ assert.equal(report.physicalInlineScriptCount,91);
  assert.match(report.sha,/^[a-f0-9]{40}$/);
  assert.ok(report.scriptBlocks>=1,'precisa identificar pelo menos um bloco de JS inline');
 });

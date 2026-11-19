@@ -13,7 +13,8 @@
       "tests/audit-cut-navigation.cjs",
       "tests/wal-cut-split-replay-guard-v9485.cjs",
       "tests/cut-duplicate-repair-v95105.cjs",
-      "tests/hlgb-live-separation-cut-target-v9605b.cjs"
+      "tests/hlgb-live-separation-cut-target-v9605b.cjs",
+      "tests/hlgb-main-inline-cut-production-v9607.cjs"
     ],
     "pedidos-projecao": [
       "tests/audit-assistant-order-grade-regression.cjs",

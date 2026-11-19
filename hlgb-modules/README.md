@@ -2,9 +2,9 @@
 
 > **Escopo desta conversa:** exclusivamente o ERP comercial já existente na `main` do repositório `hlgb-confeccoes`. A branch separada da Evolução HLGB não participa desta modularização.
 >
-> A classificação em 14 domínios e 16 grupos de carregamento **não finaliza os módulos**. O monólito comercial `app9240.html` permanece inteiro. Antes de extraí-lo, inventariar todas as funções reais e preservar seus contratos com os funcionários.
+> A classificação em 14 domínios e 16 grupos de carregamento **não finaliza os módulos**. O monólito comercial `app9240.html` já teve **1 dos 92 blocos de script extraído** na branch v96.07; 91 blocos inline permanecem. Antes de extraí-lo, inventariar todas as funções reais e preservar seus contratos com os funcionários.
 >
-> Progresso adicional desta branch: todos os 14 domínios agora têm pacotes iniciais de regressão (67 entradas), mas **nenhum foi homologado como módulo fisicamente extraído**. Ver [STATUS-MODULARIZACAO-COMERCIAL-v9601b.md](STATUS-MODULARIZACAO-COMERCIAL-v9601b.md) e [TESTES-POR-MODULO.md](TESTES-POR-MODULO.md).
+> Progresso adicional desta branch: todos os 14 domínios agora têm pacotes iniciais de regressão (68 entradas), mas **nenhum domínio foi homologado como módulo integralmente extraído**. Ver [STATUS-MODULARIZACAO-COMERCIAL-v9601b.md](STATUS-MODULARIZACAO-COMERCIAL-v9601b.md) e [TESTES-POR-MODULO.md](TESTES-POR-MODULO.md).
 
 
 ## Evolução da divisão física — em branches de homologação, NÃO em produção
@@ -20,7 +20,7 @@
 - O arquivo `hlgb-modules/ownership-v9600.json` identifica o **responsável principal** de cada um dos 156 scripts em **14 domínios**. O índice serve para saber onde corrigir sem misturar assuntos. Há dependências cruzadas: não deve ser usado para descarregar arquivos ou trocar sua ordem.
 - `tests/hlgb-module-boundaries-v9600.cjs` exige **exatamente o mesmo conjunto e ordem** de scripts da versão comercial anterior; nenhum arquivo foi removido, renomeado ou alterado nessa etapa.
 - Um grupo **não é recurso desativável**. Todos continuam a ser carregados como antes. Mantemos acesso, login, operações, histórico, WAL, políticas, imagens, banco e formulários.
-- O arquivo principal `app9240.html`, de quase 1,9 MB, **ainda não foi dividido**. Esta é a primeira camada modular de organização/ownership do carregamento, não a modularização integral do ERP.
+- O arquivo principal `app9240.html`, de quase 1,9 MB, **começou a ser dividido na v96.07** (um bloco físico extraído e 91 inline restantes). Esta é a primeira camada modular de organização/ownership do carregamento, não a modularização integral do ERP.
 
 ## Áreas de responsabilidade
 | Domínio | Primeiro conjunto de funções | Atenção ao corrigir |
@@ -53,3 +53,7 @@ Cada extração deve seguir: catálogo de funções/nomes globais → teste de c
 - `main` só recebe mudanças após regressão verde e verificação de abertura. Não mexer em banco real nesta etapa.
 - Guardar `releaseScripts` como fotografia da lista anterior: qualquer adição ou mudança de ordem deve ser explicitamente revisada e exigir atualização consciente do contrato.
 - Corrigir **uma função por vez** no domínio dono, com teste específico, sem substituir todos os 156 arquivos por novos de uma vez.
+
+### Extração física Corte→Produção v96.07 (em testes)
+
+O script auto-contido `92.40-cut-production-qty` foi movido **sem qualquer edição da lógica** da posição 89 de `app9240.html` para `hlgb-modules/producao/corte-producao-quantidade-v9607.js`, carregado como `<script src>` clássico síncrono na posição original. O HTML anterior é reconstruído byte a byte com SHA Git `db896b5fbf85392be5711ae1c44b3bf245893be4`. O teste compara comportamento de reconciliação do corte efetivo em 9 casos e a carga isolada em Chromium/WebKit. **A rotina ainda modifica produção local como antes**; não foi reescrita para uma nova arquitetura de persistência. A `main` não foi alterada. O módulo completo ainda não está pronto; restam 91 blocos inline.
