@@ -11,7 +11,7 @@
    if(!r.result.objectStoreNames.contains('wal'))r.result.createObjectStore('wal',{keyPath:'actor'});
    if(!r.result.objectStoreNames.contains('wal-review'))r.result.createObjectStore('wal-review',{keyPath:'commandId'});
   };
-  r.onsuccess=()=>{db=r.result;db.onversionchange=()=>db.close();resolve(db)};
+  r.onsuccess=()=>{const connection=r.result;connection.onversionchange=()=>connection.close();resolve(connection)};
   r.onerror=()=>reject(r.error);r.onblocked=()=>reject(Error('Atualização do WAL bloqueada: feche outras abas antigas e tente novamente.'));
  });
  const tx=(mode,fn)=>new Promise((resolve,reject)=>{const t=db.transaction('wal',mode),store=t.objectStore('wal');let val;const set=x=>val=x;try{fn(store,set,t);}catch(e){t.abort();reject(e);}t.oncomplete=()=>resolve(val);t.onabort=()=>reject(t.error||Error('WAL abortado'));t.onerror=()=>reject(t.error||Error('WAL indisponível'));});
