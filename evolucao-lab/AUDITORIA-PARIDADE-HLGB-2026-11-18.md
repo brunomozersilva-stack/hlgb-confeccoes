@@ -258,3 +258,20 @@ O **gate de produção permanece bloqueado**. Nenhum merge na `main`, nenhum uso
 - **Limites:** não há confirmação de gravação entre computadores, filtro por data de entrega, prazo/vencimento, fila por perfil autorizada nem vinculação ao registro comercial. A fila representa somente o documento fictício local. `ACE-015/016` continuam **PENDENTES** de aceite.
 
 O lançamento do sistema novo permanece **BLOQUEADO**; não houve integração com a base empresarial nem merge na `main`.
+
+
+## Nona evolução isolada — duas sessões, conflito e recuperação com origem auditável (18/11/2026)
+
+**Estado: TESTES IMPLEMENTADOS, EXECUÇÃO COMPLETA DO CI AINDA PENDENTE. ACE-009/017 PENDENTES.**
+
+- O novo percurso multimodelo foi submetido a mais um **roteiro automatizado de duas sessões independentes**, no mesmo PostgreSQL **descartável**: `tests/banco-integrado-multimodelo-browser.cjs`, executado pelo workflow `evolucao-banco-integrado.yml` em Chromium e WebKit. Confere conflito entre revisão antiga e nova, `120` peças confirmadas na sessão A versus tentativa de `110` na sessão B, WAL persistido, revisão remota, ACK perdido, replay idempotente e queda/reconexão.
+- Novo `tests/operacao-duas-abas-local-mobile.cjs` comprova **duas abas com IndexedDB compartilhado** versus outro perfil/navegador com armazenamento independente, sem fingir que houve sincronização remota.
+- As permissões de `banco-integrado/permissoes-lab.cjs` liberam comandos `multi.cut.*` e `multi.flow.*` **somente ao administrador fictício**, para teste de transação de servidor. Operadores B/C seguem **sem** esses comandos nem acesso financeiro; nenhuma política comercial ou RLS foi alterada.
+- `banco-integrado/cliente.js` elevou a versão IndexedDB do WAL para 2, criando `wal-review` **sem eliminar a store `wal` existente**. Tentativa cancelada com confirmação do servidor é arquivada **na mesma transação local** que limpa a pendência, preservando comando, payload, revisão esperada, revisão em conflito e motivo de falha.
+- O painel remoto dispõe de **Exportar intenção ainda pendente** e **Exportar histórico local de conflitos**. Exportar **não reenvia**, **não cancela** e **não confirma** o lançamento; o histórico arquivado continua no navegador e pode ser exportado para conferência.
+- `tests/banco-integrado-multimodelo-browser.cjs` inclui conferência da exportação, arquivamento da versão concorrente e teste de upgrade do WAL v1→v2 com pendência antiga preservada. O CI gravará um JSON sintético de evidência **somente após sucesso real**.
+- O roteiro operacional de 12 provas foi formalizado em `ROTEIRO-DUAS-SESSOES-ACE-009.md`. Ele diferencia duas abas locais, dois contextos com PostgreSQL, dois computadores reais Safari/Chrome e teste com cópia anonimizada do HLGB legado.
+
+**Não está pronto para produção:** o arquivo das tentativas canceladas é local ao navegador de laboratório e **não é um repositório seguro de conflitos no servidor**; não há RLS empresarial, retenção e controle de acesso reais para as duas versões. Também não houve teste físico entre Safari no Mac e Chrome em outro computador com os dados atuais, aprovação da equipe ou importação reversível do legado. Resultados CI enfileirados não significam sucesso.
+
+**Status permanece:** **0/17 contratos prioritários aprovados operacionalmente**, `approvedForProduction:false`, nenhum merge na `main` e nenhum acesso à base comercial.
