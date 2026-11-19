@@ -21,6 +21,7 @@ jobs:
       - name: Provar main comercial e todos os blocos sem executar o ERP
         run: |
           node --test tests/hlgb-main-inline-boundaries-v9606.cjs
+          node --test tests/hlgb-main-156-blob-integrity-v9606.cjs
           node hlgb-modules/main-inline-boundaries-v9606.cjs --verify
           node hlgb-modules/audit-live-monolith-v9601b.cjs --verify
       - name: Salvar mapa de scripts, funcoes e dependencias para homologacao

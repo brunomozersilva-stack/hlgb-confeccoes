@@ -36,3 +36,9 @@ A candidata reúne as PRs anteriores da trilha comercial (#260, #266, #267, #268
 ## Próximo passo depois da candidata
 
 Usar o manifesto de 92 blocos para planejar a extração física progressiva de `app9240.html`, primeiro das funções puras com contratos verificáveis, depois das rotinas de estado e persistência com testes de idempotência, sessões concorrentes e ACK remoto. Só marcar um módulo como concluído depois de testar todas as ações reais, sem perder telas, botões, filtros, histórico e impressões.
+
+## Trava adicional dos 156 scripts comerciais
+
+O arquivo `main-156-blob-baseline-v9606.json` registra **o SHA Git e o tamanho exatos de cada um dos 156 scripts JS originais** da `main`, além do `app9240.html`, `index.html` e `abrir.html`. O teste `hlgb-main-156-blob-integrity-v9606.cjs` impede qualquer modificação não declarada: **153 scripts devem ser idênticos byte a byte**, enquanto apenas 3 consumidores com fallback têm alterações explicitamente aprovadas na candidata. O carregador ainda deve manter a sequência original.
+
+Isso evita que a organização em módulos esconda a eliminação de funções; ainda assim **não substitui** a homologação dos funcionários nem transforma o monólito em 14 módulos físicos.
