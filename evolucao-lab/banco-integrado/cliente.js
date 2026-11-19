@@ -4,12 +4,65 @@
  const NAME='HLGB_INTEGRADO_REMOTO_FICTICIO_V1';
  let db,actor,pending=null,permissions=null;
  const request=async(url,method='GET',data)=>{const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),18000);try{const r=await fetch(url,{signal:controller.signal,method,credentials:'same-origin',cache:'no-store',headers:method==='POST'?{'content-type':'application/json','x-hlgb-integrado':'1'}:{},...(method==='POST'?{body:JSON.stringify(data)}:{})});const v=await r.json();if(!r.ok||v.status==='denied'||v.status==='uncertain')throw Error(v.message||'Prova remota inconclusiva');return v;}finally{clearTimeout(timer);}};
- const open=()=>new Promise((resolve,reject)=>{const r=indexedDB.open(NAME,1);r.onupgradeneeded=()=>r.result.createObjectStore('wal',{keyPath:'actor'});r.onsuccess=()=>resolve(r.result);r.onerror=()=>reject(r.error);r.onblocked=()=>reject(Error('WAL bloqueado'));});
+ // v2 preserva a fila WAL antiga, cria arquivo imutável para conflitos revisados.
+ const open=()=>new Promise((resolve,reject)=>{
+  const r=indexedDB.open(NAME,2);
+  r.onupgradeneeded=()=>{
+   if(!r.result.objectStoreNames.contains('wal'))r.result.createObjectStore('wal',{keyPath:'actor'});
+   if(!r.result.objectStoreNames.contains('wal-review'))r.result.createObjectStore('wal-review',{keyPath:'commandId'});
+  };
+  r.onsuccess=()=>{db=r.result;db.onversionchange=()=>db.close();resolve(db)};
+  r.onerror=()=>reject(r.error);r.onblocked=()=>reject(Error('Atualização do WAL bloqueada: feche outras abas antigas e tente novamente.'));
+ });
  const tx=(mode,fn)=>new Promise((resolve,reject)=>{const t=db.transaction('wal',mode),store=t.objectStore('wal');let val;const set=x=>val=x;try{fn(store,set,t);}catch(e){t.abort();reject(e);}t.oncomplete=()=>resolve(val);t.onabort=()=>reject(t.error||Error('WAL abortado'));t.onerror=()=>reject(t.error||Error('WAL indisponível'));});
  const load=()=>tx('readonly',(s,set)=>{const r=s.get(actor);r.onsuccess=()=>set(r.result||null);});
  async function claim(command){const entry={actor,command,stage:'pending'};await tx('readwrite',(s,set,t)=>{const g=s.get(actor);g.onsuccess=()=>{if(g.result){t.abort();return;}s.add(entry);set(entry);};});pending=entry;return entry;}
- async function stage(entry,value){await tx('readwrite',(s,set,t)=>{const g=s.get(actor);g.onsuccess=()=>{if(g.result?.command.commandId!==entry.command.commandId){t.abort();return;}s.put({...entry,stage:value});};});pending={...entry,stage:value};}
+ async function stage(entry,value,serverRevision=null){
+  const updated={...entry,stage:value,
+   firstFailure:entry.firstFailure||(value==='conflict'||value==='rejected'?value:null),
+   ...(Number.isSafeInteger(serverRevision)?{conflictRevision:serverRevision}:{})};
+  await tx('readwrite',(s,set,t)=>{const g=s.get(actor);g.onsuccess=()=>{
+   if(g.result?.command.commandId!==entry.command.commandId){t.abort();return;}
+   s.put(updated);
+  };});
+  pending=updated;
+ }
  async function clear(entry){await tx('readwrite',(s,set,t)=>{const g=s.get(actor);g.onsuccess=()=>{if(g.result?.command.commandId!==entry.command.commandId){t.abort();return;}s.delete(actor);};});pending=null;}
+ // Após CANCELAMENTO CONFIRMADO, mover intenção para arquivo e apagar o WAL na MESMA transação.
+ // Nunca arquivar nem limpar o comando se a prova do servidor falhou.
+ async function archiveAndClear(entry){
+  if(JSON.stringify(entry.command).length>150000)throw Error('Revisão excede limite de arquivo local. Exporte e verifique antes de cancelar.');
+  await new Promise((resolve,reject)=>{
+   const t=db.transaction(['wal','wal-review'],'readwrite'),wal=t.objectStore('wal'),
+    historyStore=t.objectStore('wal-review');
+   let err=null;
+   const request=wal.get(actor);
+   request.onsuccess=()=>{
+    try{
+     if(request.result?.command?.commandId!==entry.command.commandId)
+      throw Error('A intenção original mudou: não arquivar nem limpar.');
+     const review={commandId:entry.command.commandId,actor,command:entry.command,
+      firstFailure:entry.firstFailure||null,conflictRevision:entry.conflictRevision??null,
+      expectedRevision:entry.command.expectedRevision,stageBeforeCancel:entry.stage,
+      resolution:'cancelled_after_server_proof',archivedAt:new Date().toISOString()};
+     historyStore.add(review);wal.delete(actor);
+    }catch(e){err=e;t.abort();}
+   };
+   request.onerror=()=>{err=request.error;t.abort()};
+   t.oncomplete=resolve;
+   t.onabort=()=>reject(err||t.error||Error('Arquivamento WAL abortado; intenção foi preservada.'));
+   t.onerror=()=>{if(!err)err=t.error;};
+  });
+  pending=null;
+ }
+ async function history(){
+  return new Promise((resolve,reject)=>{
+   const t=db.transaction('wal-review','readonly'),q=t.objectStore('wal-review').getAll();
+   q.onsuccess=()=>resolve(q.result.filter(x=>x.actor===actor).sort((a,b)=>
+    a.archivedAt.localeCompare(b.archivedAt)));
+   q.onerror=()=>reject(q.error);
+  });
+ }
  async function state(){
  const production=permissions?.id==='demo-production',r=await request(production?'/api/production-state':'/api/state');
  if(r.status!=='ok')throw Error('Estado remoto inválido');
@@ -41,12 +94,12 @@
  // Para produção, /api/proof comprova no servidor fingerprint + ator + evento,
  // e a visão restrita apenas confirma a revisão; nunca revelar o log completo.
  await clear(entry);return {status:'confirmed',state:latest,result:r.result};}
- if(r.status==='cancelled'){await clear(entry);return {status:'discarded',state:await state()};}
+ if(r.status==='cancelled'){await archiveAndClear(entry);return {status:'discarded',state:await state()};}
  if(r.status==='not_found'){await stage(entry,'not_found');return {status:'not_found'};}
  throw Error('Prova inconclusiva: não repetir');}
  async function send(entry){const answer=await request('/api/commands','POST',entry.command);
  if(['committed','already_committed'].includes(answer.status))return prove(entry);
- if(['rejected','conflict'].includes(answer.status)){await stage(entry,answer.status);return {status:answer.status,message:answer.message,serverRevision:answer.serverRevision};}
+ if(['rejected','conflict'].includes(answer.status)){await stage(entry,answer.status,answer.serverRevision);return {status:answer.status,message:answer.message,serverRevision:answer.serverRevision};}
  throw Error('Resposta inconclusiva');}
  async function submit(type,payload,revision){if(!permissions?.allowedCommands.includes(type))throw Error('O perfil fictício não autoriza este comando. Nenhuma intenção registrada.');pending=await load();if(pending)throw Error('Existe comando pendente. Confira a sincronização antes de novo lançamento.');
  const entry=await claim({commandId:'LAB-'+crypto.randomUUID(),type,payload,expectedRevision:revision});
@@ -59,10 +112,10 @@
  if(result.status!=='cancelled'||result.commandId!==entry.command.commandId)throw Error('Cancelamento não confirmado.');
  const proof=await request('/api/proof','POST',entry.command);
  if(proof.status!=='cancelled')throw Error('Cancelamento sem releitura.');
- await clear(entry);return {status:'discarded',state:await state()};}
+ await archiveAndClear(entry);return {status:'discarded',state:await state()};}
  async function logout(){
  await request('/api/logout','POST',{});
  actor=null;pending=null;permissions=null;window.location.assign('/login');
 }
- window.HLGBRemoteLab={init,state,revision,submit,reconcile,retry,discard,logout,info:()=>({actor,pending,permissions}),load:async()=>{pending=await load();return pending;}};
+ window.HLGBRemoteLab={init,state,revision,submit,reconcile,retry,discard,logout,history,info:()=>({actor,pending,permissions}),load:async()=>{pending=await load();return pending;}};
 })();
