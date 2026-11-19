@@ -295,3 +295,30 @@ O lançamento do sistema novo permanece **BLOQUEADO**; não houve integração c
 **Limitação importante:** a prova se baseia em confronto com o **log global existente no mesmo documento**. Não é uma assinatura criptográfica imutável nem um backup externo: um invasor que substituísse o documento inteiro e sua trilha poderia contornar uma auditoria apenas local. É por isso que a homologação exige, adicionalmente, provas independentes no PostgreSQL de testes, preservação do WAL original, restauração reversível e verificação por sessões distintas.
 
 **Status de liberação:** 17 contratos prioritários continuam sem aceite operacional; `approvedForProduction = false`. A execução CI Chrome/WebKit ainda não foi verificada como concluída com sucesso; não realizar merge na `main` nem publicar na produção.
+
+
+## Décima primeira evolução isolada — inventário anti-regressão + atualização da referência `main` (19/11/2026)
+
+**Referência empresarial verificada:** `main@7c66a37ea04b7bf6b130b28b17cf194941023251`. O inventário original consultava `main@6542a62c27fa08f9c6b3f8223808fa5ccbe68a18`. Há **um commit adicional** com correção da programação de Corte/Cortadores (`release-cutter-planner.js`, `tests/cutter-save-confirm-v9580.cjs` e workflow próprio). Portanto, qualquer teste de paridade com referência apenas ao SHA original ficou **desatualizado nesta função**.
+
+### Bloqueio de perda silenciosa de funções do LAB
+
+- Contrato versionado em `contratos/preservacao-baseline-v1.json` protege a presença dos **111 comandos de negócio**, **20 áreas de navegação** e **34 scripts originais** da interface da Evolução (ordem de inicialização conservada).
+- Teste `tests/preservacao-baseline-contract.cjs` valida a linha de base, seus caminhos e duplicações e contém **testes negativos** que simulam retirar um comando, uma área e um script. Inclusão de funções novas continua permitida.
+- O workflow `evolucao-operacao-integrada.yml` executa o novo teste de preservação junto dos contratos, sem introduzir acesso à nuvem empresarial.
+- **Escopo estrito:** isso congela apenas as funções identificadas **dentro da Evolução** nesta revisão. Não valida que essas 111 ações correspondam a todas as operações da `main`; não representa 111 aceites, nem autoriza merge.
+
+### Regra nova herdada da `main` v95.80: salvar programa de Corte somente com prova
+
+A alteração empresarial recente exige, para o Corte por modelo, uma combinação de quatro garantias que devem ser preservadas na Evolução:
+
+1. **Identidade exata:** `orderId + productId + data + cortador + grade`, sem trocar de modelo ou sobrescrever outra programação.
+2. **Sem sucesso presumido:** resposta de gravação isolada (ACK) **não basta**; conferir a origem no servidor, inclusive grade, data e cortador. `WAL` ou resposta incerta permanecem como pendentes, não como sucesso.
+3. **Reenvio seguro:** clique simultâneo não duplica; nova tentativa usa o **mesmo identificador** após investigação, sem criar outro corte.
+4. **História conservada:** conclusão não pode ocorrer duas vezes; pesagem posterior é aditiva, sem reabrir grade, mudar facção, pagar título ou consumir material comercial.
+
+O teste adicional `tests/paridade-corte-main-v9580-contract.cjs` protege essas propriedades no **motor fictício** `multi.cut.*` e verifica que o cliente do PostgreSQL descartável só declara `confirmed` depois do readback de `commandId`, ator, tipo e revisão. A execução funcional completa em dois computadores reais ainda não está comprovada.
+
+**Cuidado especial:** o novo `main` valida gravação em `cuts` reais via `hlgbRecordSaveWithRetry` e releitura de `hlgb_records`. O laboratório da Evolução ainda grava `multiCutPlans` fictícios. Os mecanismos não são equivalentes por definição; dependem de migração, comparação de histórico e teste de conflitos sobre snapshot anonimizado.
+
+**Situação final desta etapa:** `ACE-002` e `ACE-009/017` continuam **PENDENTES**; os 17 contratos não receberam aceite humano; sem merge, sem migração e sem acesso de escrita ao banco empresarial.
