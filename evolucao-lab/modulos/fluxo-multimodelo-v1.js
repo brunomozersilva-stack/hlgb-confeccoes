@@ -288,6 +288,15 @@
    for(const v of lineLimits(cut.lines,lots.map(l=>l.lines)).values())
     if(v.remaining<0)fail('Corte alocado em excesso');
   }catch(e){issues.push(cut.id+': '+e.message)}
+  // Verificação inversa: todo evento de fluxo no log global precisa existir
+  // exatamente uma vez no registro operacional. Sem isso seria possível
+  // ocultar um retorno ou acerto removendo o objeto e deixando só o log.
+  const recognized=new Set([
+   'multi.flow.allocate','multi.flow.transfer','multi.flow.rate',
+   'multi.flow.return','multi.flow.review','multi.flow.separate','multi.flow.ship'
+  ]);
+  for(const event of s.log||[])if(recognized.has(event.type)&&!seenProof.has(event.commandId))
+   issues.push('Evento multimodelo sem registro operacional correspondente: '+event.commandId+' / '+event.type);
   return issues;
  }
  return Object.freeze({version:'1.0.0-lab',ensure,orderBalance,allocate,
