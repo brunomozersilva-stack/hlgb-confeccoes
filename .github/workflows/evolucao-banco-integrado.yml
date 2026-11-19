@@ -7,6 +7,7 @@ on:
       - 'evolucao-lab/banco-integrado/**'
       - 'evolucao-lab/operacao-integrada-ui.js'
       - 'evolucao-lab/tests/banco-integrado-browser.cjs'
+      - 'evolucao-lab/tests/banco-integrado-multimodelo-browser.cjs'
       - 'evolucao-lab/operacao-integrada-core.js'
       - 'evolucao-lab/modulos/**'
       - 'evolucao-lab/tests/banco-integrado-contract.cjs'
@@ -49,6 +50,7 @@ jobs:
       - name: Validar sintaxe e isolamento
         run: |
           node --check evolucao-lab/banco-integrado/persistencia.cjs
+          node --check evolucao-lab/tests/banco-integrado-multimodelo-browser.cjs
           test "$PGHOST" = "127.0.0.1"
           test "$PGDATABASE" = "hlgb_integrado_lab"
           if ! command -v psql >/dev/null; then sudo apt-get update -qq && sudo apt-get install -y postgresql-client; fi
@@ -99,3 +101,4 @@ jobs:
           node --check evolucao-lab/banco-integrado/servidor.cjs
           node --check evolucao-lab/banco-integrado/cliente.js
           node --test evolucao-lab/tests/banco-integrado-browser.cjs
+          node --test evolucao-lab/tests/banco-integrado-multimodelo-browser.cjs
