@@ -581,6 +581,6 @@ test('fila integrada abre Acerto pelo identificador, sem depender do primeiro at
  assert.match(multiFlowUiSource,/data-mf-record=/,'painel de Acertos expõe o registro');
  assert.match(ui,/goto\.dataset\.mfFocus/,'navegação lê o identificador do registro');
  assert.match(ui,/target\.dataset\.mfFocused='true'/,'navegação assinala o registro correspondente');
- assert.match(mobile,/\[data-goto=\\"acertos\\"\]\[data-mf-focus=\\"MFR-0002\\"\]/,'teste navega para o acerto específico');
- assert.doesNotMatch(mobile,/\[data-goto=\\"acertos\\"\]'\)\.first\(\)\.click\(\)/,'teste não escolhe um atalho genérico');
+ assert.ok(mobile.includes('[data-goto="acertos"][data-mf-focus="MFR-0002"]'),'teste navega para o acerto específico');
+ assert.ok(!mobile.includes('page.locator(\'#module-content [data-goto="acertos"]\').first().click()'),'teste não escolhe atalho genérico');
 });
