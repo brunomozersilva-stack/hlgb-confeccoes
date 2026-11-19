@@ -95,16 +95,16 @@ test('ids simples/legados com prefixo, quantidades negativas e inválidas conser
  }
  assert.equal(n,120);
 });
-test('sem duplicar scripts: ordem comercial e aprovação explícita de apenas dois núcleos',()=>{
+test('sem duplicar scripts: ordem comercial e aprovação explícita de três núcleos',()=>{
  const loader=fs.readFileSync(path.join(root,'app-stable3.html'),'utf8');
  const start=loader.indexOf('const moduleGroups='),end=loader.indexOf(';const files=moduleGroups.flatMap(group=>group.files)',start);
  assert.ok(start>=0&&end>start);
  const files=JSON.parse(loader.slice(start+'const moduleGroups='.length,end)).flatMap(g=>g.files);
  const addons=manifest.approvedNewScripts;
- assert.equal(files.length,158);assert.equal(addons.length,2);
+ assert.equal(files.length,159);assert.equal(addons.length,3);
  assert.deepEqual(files.filter(x=>!addons.includes(x)),manifest.preExtractionScripts);
  assert.equal(manifest.preExtractionScripts.length,156);
  assert.deepEqual(files,manifest.releaseScripts);
- assert.equal(new Set(files).size,158);
+ assert.equal(new Set(files).size,159);
  assert.equal(files.indexOf('hlgb-modules/producao/separacao-progresso-v9603b.js')+1,files.indexOf('release-separation-commit-v9319.js'));
 });

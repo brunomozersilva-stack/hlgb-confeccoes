@@ -3,7 +3,7 @@ const {test}=require('node:test'),assert=require('node:assert/strict'),fs=requir
 const root=path.resolve(__dirname,'..');
 const cat=require('../hlgb-modules/module-test-catalog-v9601.json');
 const owner=require('../hlgb-modules/ownership-v9600.json').ownership;
-test('Catálogo do HLGB ao vivo: 14 áreas, 66 entradas em pacotes de regressão',()=>{
+test('Catálogo do HLGB ao vivo: 14 áreas, 67 entradas em pacotes de regressão',()=>{
  assert.equal(Object.keys(cat.packs).length,14);
  assert.deepEqual(new Set(Object.keys(cat.packs)),new Set(Object.keys(owner)),'nenhuma área da main pode ficar sem testes de domínio');
  let count=0;
@@ -17,7 +17,7 @@ test('Catálogo do HLGB ao vivo: 14 áreas, 66 entradas em pacotes de regressão
    count++;
   }
  }
- assert.equal(count,66);
+ assert.equal(count,67);
 });
 test('Risco: correção em Cortador implica teste de WAL, monólito obriga regressão total',()=>{
  assert.ok(cat.dependencies['corte-cortadores'].includes('sincronizacao-wal'));
