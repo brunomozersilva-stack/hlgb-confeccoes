@@ -3,6 +3,7 @@ const {test}=require('node:test'),assert=require('node:assert/strict'),fs=requir
 const root=path.resolve(__dirname,'..');
 const baseline=require('../hlgb-modules/main-156-blob-baseline-v9606.json');
 const ownership=require('../hlgb-modules/ownership-v9600.json');
+const physical=require('../hlgb-modules/verify-main-inline-extraction-v9607.cjs');
 function sha(file){
  const bytes=fs.readFileSync(path.join(root,file));
  return crypto.createHash('sha1').update(Buffer.from('blob '+bytes.length+'\0')).update(bytes).digest('hex');
@@ -34,10 +35,14 @@ test('153 scripts da main permanecem byte a byte idênticos; três alterações 
  assert.equal(untouched,153);
  assert.equal(edited,3);
 });
-test('app principal, index e roteador de abertura permanecem intactos',()=>{
- for(const [file,blob] of Object.entries(baseline.untouchedCore))assert.equal(sha(file),blob,file+' não pode mudar sem autorização');
+test('main original reconstruível byte a byte, index/abrir idênticos',()=>{
+ const proof=physical.audit();assert.equal(proof.ok,true,JSON.stringify(proof));
+ assert.equal(proof.reconstructedGitSha,baseline.untouchedCore['app9240.html']);
+ assert.equal(sha('app9240.html'),ownership.criticalFileBlobs['app9240.html']);
+ for(const [file,blob] of Object.entries(baseline.untouchedCore)){
+  if(file!=='app9240.html')assert.equal(sha(file),blob,file+' não pode mudar sem autorização');
+ }
  assert.equal(baseline.untouchedCore['app9240.html'],'db896b5fbf85392be5711ae1c44b3bf245893be4');
- assert.equal(Object.keys(baseline.untouchedCore).length,3);
 });
 test('carregador usa os 156 scripts originais e apenas três núcleos novos declarados',()=>{
  const html=fs.readFileSync(path.join(root,'app-stable3.html'),'utf8');

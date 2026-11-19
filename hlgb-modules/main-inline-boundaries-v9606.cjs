@@ -52,8 +52,14 @@ function scan(html){
 function audit(){
  const bytes=fs.readFileSync(path.join(root,'app9240.html'));
  const actual=previous.gitBlobSha(bytes);
- const expected=manifest.baselineCriticalFileBlobs?.['app9240.html']||manifest.criticalFileBlobs?.['app9240.html'];
- return {...scan(bytes.toString('utf8')),fileBytes:bytes.length,gitBlobSha:actual,expectedBlobSha:expected,unchanged:actual===expected};
+ const expected=manifest.criticalFileBlobs?.['app9240.html'];
+ const extracted=manifest.monolithPhysicalExtractions||[];
+ const restored=extracted.length?require('./verify-main-inline-extraction-v9607.cjs').audit():null;
+ return {...scan(bytes.toString('utf8')),fileBytes:bytes.length,gitBlobSha:actual,
+  expectedBlobSha:expected,unchanged:actual===expected&&(!restored||restored.ok),
+  originalMainReconstructionSha:restored?.reconstructedGitSha||actual,
+  logicalScriptBlocks:restored?restored.scriptTags:scan(bytes.toString('utf8')).inlineScriptBlocks,
+  externallyMovedScripts:restored?.physicalExternalScripts||0};
 }
 if(require.main===module){
  const report=audit(),verify=process.argv.includes('--verify'),full=process.argv.includes('--json');

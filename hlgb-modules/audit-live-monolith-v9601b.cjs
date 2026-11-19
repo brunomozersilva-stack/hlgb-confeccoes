@@ -74,11 +74,15 @@ function suggestDomains(names){
 function readCurrent(){
  const bytes=fs.readFileSync(path.join(root,'app9240.html'));
  const manifest=JSON.parse(fs.readFileSync(path.join(root,'hlgb-modules/ownership-v9600.json'),'utf8'));
- const sha=gitBlobSha(bytes),expected=manifest.baselineCriticalFileBlobs?.['app9240.html']||manifest.criticalFileBlobs?.['app9240.html'];
+ const sha=gitBlobSha(bytes),expected=manifest.criticalFileBlobs?.['app9240.html'];
+ const physical=manifest.monolithPhysicalExtractions||[];
+ const parity=physical.length?require('./verify-main-inline-extraction-v9607.cjs').audit():null;
  const result=inventory(bytes.toString('utf8'));
  const suggested=suggestDomains(result.declarations);
  return {
-  file:'app9240.html',bytes:bytes.length,sha,expectedSha:expected,untouched:sha===expected,
+  file:'app9240.html',bytes:bytes.length,sha,expectedSha:expected,
+  untouched:sha===expected&&(!parity||parity.ok),originalMainReconstructed:parity?.ok??true,
+  physicalInlineScriptCount:result.scriptBlocks,originalLogicalScripts:result.scriptBlocks+physical.length,
   ...result,
   ...suggested
  };

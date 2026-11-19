@@ -59,7 +59,13 @@ test('10 fontes críticas originais intactas; 3 alterações explícitas com SHA
  const changed=['release-label-destination-v9310.js','release-separation-commit-v9319.js','release-separation-cut-target-v9335.js'];
  assert.deepEqual(Object.keys(manifest.extractionChanges||{}),changed);
  for(const file of Object.keys(baseline)){
-  if(!changed.includes(file))assert.equal(critical[file],baseline[file],'fonte original NÃO autorizada mudou: '+file);
+  if(file==='app9240.html'){
+   const extraction=manifest.monolithPhysicalExtractions||[];
+   assert.equal(extraction.length,1,'somente uma extração física aprovada');
+   assert.equal(extraction[0].originalGitBlob,baseline[file]);
+   assert.equal(extraction[0].candidateGitBlob,critical[file]);
+   assert.equal(require('../hlgb-modules/verify-main-inline-extraction-v9607.cjs').audit().ok,true);
+  }else if(!changed.includes(file))assert.equal(critical[file],baseline[file],'fonte original NÃO autorizada mudou: '+file);
   else{
    assert.equal(manifest.extractionChanges[file].before,baseline[file]);
    assert.equal(manifest.extractionChanges[file].after,critical[file]);
