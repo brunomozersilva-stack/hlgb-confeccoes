@@ -10,7 +10,7 @@ const samples=[
  {name:'Joana "Teste"',model:'Robe Gabrielle',size:'GG',pieceQty:'120',volume:'2 de 5',date:'',destination:"L'Equipe",includeDate:false,copies:9},
  {name:'',model:'Calcinha',size:'P',pieceQty:'10',volume:'3 de 5',date:'2026-11-19',destination:'',includeDate:false,copies:1}
 ];
-function environment(withCore,rows=samples){
+function environment(withCore,rows=samples,mode='large'){
  let printed='',preview={innerHTML:''};
  const selectors={'.ln':'name','.lm':'model','.ls':'size','.lpq':'pieceQty','.lv':'volume','.ld':'date','.ldest9310':'destination','.lq':'copies'};
  const elements=rows.map(r=>({
@@ -21,7 +21,7 @@ function environment(withCore,rows=samples){
   }
  }));
  const doc={
-  getElementById:id=>id==='opsLabelPreview'?preview:id==='opsLabelSize'?{value:'large'}:null,
+  getElementById:id=>id==='opsLabelPreview'?preview:id==='opsLabelSize'?{value:mode}:null,
   querySelectorAll:selector=>selector==='.ops-label-row'?elements:[],
   createElement(){throw Error('unexpected DOM creation')}
  };
@@ -55,7 +55,7 @@ test('módulo novo não usa DOM, banco, rede, impressora, WAL ou timer',()=>{
 });
 test('pequena/média/grande: prévia HTML e geometria idênticas ao fallback',()=>{
  for(const mode of ['small','medium','large','INVALID',null]){
-  const before=environment(false),after=environment(true);
+  const before=environment(false,samples,mode),after=environment(true,samples,mode);
   assert.deepEqual(JSON.parse(JSON.stringify(after.api.collect())),JSON.parse(JSON.stringify(before.api.collect())));
   assert.equal(after.html(),before.html(),'prévia inicial diferente');
   const a=before.window.HLGB_LABEL_LAYOUT_9602B,b=after.window.HLGB_LABEL_LAYOUT_9602B;
@@ -86,7 +86,7 @@ test('escape HTML, opcional de data e nomes vazios mantêm a mesma saída',()=>{
    const start=legacy.indexOf("function labelBody(x,tag='span'){"),end=legacy.indexOf('function renderPreview(){',start);
    const original=legacy.slice(start,end);
    const esc=v=>String(v??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
-   const expected=new Function('esc','x','tag',original+' return labelBody(x,tag);')(esc,row,tag);
+   const expected=new Function('esc','x','tag','const labelCore9602b=null;\n'+original+' return labelBody(x,tag);')(esc,row,tag);
    assert.equal(pure.labelBody(row,tag),expected);
   }
  }
