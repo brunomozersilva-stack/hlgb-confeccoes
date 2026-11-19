@@ -1,10 +1,11 @@
+const compatibleLoaderView=require('./hlgb-loader-compat-view-v9604b.cjs');
 const fs=require('fs'),assert=require('assert');
 const route=fs.readFileSync('release-operations-pack.js','utf8');
 const note=fs.readFileSync('release-note-integrity.js','utf8');
 const hub=fs.readFileSync('release-hub-search.js','utf8');
 const hubInt=fs.readFileSync('release-hub-integrity.js','utf8');
 const trade=fs.readFileSync('release-trade-settlement-v9422.js','utf8');
-const stable=fs.readFileSync('app-stable3.html','utf8');
+const stable=compatibleLoaderView(fs.readFileSync('app-stable3.html','utf8'));
 assert(route.includes("sent?'pickup':'carry'"),'rota não distingue enviado de ainda não enviado');
 assert(route.includes('routeItemDirection9249'),'rota sem override LEVAR/BUSCAR');
 assert(route.includes('routeItems'),'rota não persiste direção estruturada');
