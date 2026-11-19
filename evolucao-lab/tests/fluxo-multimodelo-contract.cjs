@@ -101,6 +101,25 @@ test('Rejeita retorno, separação e despacho acima do permitido sem mutação',
   payload:{orderId:c.order,itemId:'ITM-001',lines:lines(['Rubi','P',21]),reason:'Excedente'},
   commandId:'EXCESS-SHIP',expectedRevision:c.s.revision,actor:'QA'}),/saldo/i);
 });
+test('Auditoria preserva valores após round-trip JSONB e rejeita alteração real de quantidade',()=>{
+ const c=fixture(),lot=finishAndAllocate(c);
+ c.run('multi.flow.return',{id:lot,lines:lines(['Rubi','P',30]),reason:'Retorno parcial'});
+ c.run('multi.flow.transfer',{id:lot,factionId:'FAC-0002',unitCents:600,reason:'Transferência pendente'});
+ c.run('multi.flow.return',{id:lot,lines:lines(['Rubi','M',20]),reason:'Segundo retorno'});
+ c.run('multi.flow.review',{id:'MFR-0001',reviewer:'Conferente QA',reason:'Valor conferido'});
+ const canonical=x=>Array.isArray(x)?x.map(canonical):
+  x&&typeof x==='object'?Object.fromEntries(Object.entries(x)
+   .sort(([a],[b])=>a.localeCompare(b)).map(([k,v])=>[k,canonical(v)])):x;
+ const roundTrip=canonical(JSON.parse(JSON.stringify(c.s)));
+ assert.equal(core.inspect(roundTrip).ok,true,
+  'JSONB pode reordenar chaves sem alterar os dados; auditor não pode rejeitar');
+ const altered=structuredClone(roundTrip);
+ altered.multiFlowLots[0].returns[0].amountCents+=100;
+ assert.equal(core.inspect(altered).ok,false,
+  'Apenas mudanças de conteúdo ou origem real devem bloquear');
+ assert.equal(roundTrip.finance.length,0);
+ assert.equal(roundTrip.stockLedger.length,0);
+});
 test('Auditor detecta adulteração de retorno, facção e grade preservando núcleo antigo',()=>{
  const c=fixture(),lot=finishAndAllocate(c);
  c.run('multi.flow.return',{id:lot,lines:lines(['Rubi','P',30]),reason:'Retorno inicial'});
