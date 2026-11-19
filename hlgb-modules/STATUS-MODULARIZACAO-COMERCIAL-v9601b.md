@@ -50,3 +50,13 @@ Os scripts já estão fisicamente em arquivos próprios, mas podem depender de f
 - **Esta branch:** amplia testes de 8 para 14 domínios e audita o monólito sem alterar a execução comercial.
 
 **Critério de conclusão:** nenhum módulo marcado como pronto por contagem de arquivos; só considerar pronto após inventário funcional, paridade dos fluxos, testes automáticos e homologação. A `main` permanece intacta até aprovação explícita.
+
+## Inventário disponível como evidência de homologação
+
+O workflow **HLGB Modular Live Boundaries v96.00** ganhou uma etapa que, ao executar no GitHub Actions, publica o artefato `hlgb-main-inventory-v9601b` (JSON). Nele constam SHA/tamanho do monólito, nomes de funções declaradas, nomes expostos em `window`, IDs do HTML, nomes usados em ações inline e possíveis domínios dos identificadores.
+
+**Importante:** isso é uma lista aproximada gerada por análise estática, não uma prova de funcionamento, não um mapeamento completo de chamadas e não a extração física dos módulos. Revisar manualmente cada dependência, formulário e operação antes de separar arquivos. O relatório não contém o código-fonte integral nem consulta registros comerciais.
+
+**Para conferir:** no GitHub, abrir a PR desta etapa, entrar em `Checks` ou `Actions` → `HLGB Modular Live Boundaries v96.00` → execução concluída → `Artifacts` → `hlgb-main-inventory-v9601b`. Se o workflow continuar em `queued`, o relatório não existe ainda.
+
+**Critério para merge:** as PRs #260 e #266 são preparatórias; somente autorizar integração após os checks necessários concluírem com sucesso e após verificação de inicialização em homologação. Não interpretar aprovação dessas PRs como modularização completa do `app9240.html`.
