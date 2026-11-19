@@ -20,7 +20,7 @@ permissions:
   contents: read
 jobs:
   unit:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 9
     steps:
       - uses: actions/checkout@v4
@@ -35,7 +35,7 @@ jobs:
       - name: Full synchronization, WAL, RPC gaps, and race regressions
         run: node --test tests/safari-chrome-sync-v9535.cjs
   browser:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 25
     steps:
       - uses: actions/checkout@v4
