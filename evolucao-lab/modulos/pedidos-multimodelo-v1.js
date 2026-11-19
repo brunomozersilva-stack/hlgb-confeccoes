@@ -84,11 +84,15 @@
     ids.add(entry.id);
     if(entry.phase!=='preparacao_nao_integrada'||entry.financeLinked!==false||entry.stockLinked!==false||entry.productionLinked!==false)fail('Vínculo comercial não autorizado');
     if(!Number.isSafeInteger(entry.createdRevision)||entry.createdRevision<2||entry.createdRevision>s.revision)fail('Revisão inválida');
+    const proof=(s.log||[]).filter(e=>e.type==='order.multi.create'&&e.revision===entry.createdRevision&&e.description===entry.id);
+    if(proof.length!==1)fail('Pedido sem evento de criação correspondente na trilha global');
     const payload={clientId:entry.clientId,sizes:entry.sizes,items:entry.items.map(i=>({productId:i.productId,colors:i.colors.map(c=>({color:c.color,grade:clone(c.grade)}))}))};
     const ref=prepare(s,payload,entry.items);
     if(JSON.stringify(ref.items)!==JSON.stringify(entry.items)||JSON.stringify(ref.totals)!==JSON.stringify(entry.totals)||JSON.stringify(ref.sizes)!==JSON.stringify(entry.sizes))fail('Dados, preços históricos ou totais divergentes');
    }catch(error){failures.push((entry?.id||'Sem ID')+': '+error.message);}
   }
+  for(const event of s.log||[])if(event.type==='order.multi.create'&&!ids.has(event.description))
+   failures.push('Pedido multimodelo removido, porém ainda presente na trilha: '+event.commandId+' / '+event.description);
   return failures;
  }
  return Object.freeze({version:'1.0.0',prepare,ensure,create,inspect,sizesOf});
