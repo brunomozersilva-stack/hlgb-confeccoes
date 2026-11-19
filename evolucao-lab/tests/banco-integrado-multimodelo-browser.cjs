@@ -83,6 +83,13 @@ test('Duas sessões reais em PostgreSQL descartável: 120→80→50, conflito, A
   const recovered=await b.evaluate(()=>window.HLGBRemoteLab.info().pending);
   assert.equal(recovered.command.commandId,rejected.pending);
   assert.equal(recovered.stage,'conflict');
+  const pendingDownload=b.waitForEvent('download');
+  await b.locator('#remote-pending-export').click();
+  const pendingCopy=JSON.parse(fs.readFileSync(await (await pendingDownload).path(),'utf8'));
+  assert.equal(pendingCopy.schema,'hlgb-intencao-wal-pendente-ficticia-v1');
+  assert.equal(pendingCopy.pending.command.commandId,rejected.pending);
+  assert.equal(pendingCopy.pending.command.payload.items[0].colors[0].grade.P,50);
+  assert.equal((await store.state()).revision,revision,'Exportar não pode tentar novamente');
   const proven=await reconcile(b);
   assert.equal(proven.status,'not_found','Falha de concorrência não foi gravada no servidor');
   const discarded=await b.evaluate(async()=>window.HLGBRemoteLab.discard());
@@ -233,7 +240,7 @@ test('Duas sessões reais em PostgreSQL descartável: 120→80→50, conflito, A
    schema:'hlgb-multimodelo-2sessoes-ci-v1',environment:'postgres-descartavel',browser:browserType.name(),
    testedAt:new Date().toISOString(),commit:process.env.GITHUB_SHA||'local',
    sessions:{independentBrowserContexts:2,adminOnly:true,productionRoleUnchanged:true},
-   proof:{staleRevisionConflict:true,draftPreservedOnConflict:true,conflictingVersionArchivedAndExported:true,walRecoveredAfterReload:true,
+   proof:{staleRevisionConflict:true,draftPreservedOnConflict:true,conflictingVersionArchivedAndExported:true,pendingIntentExportedWithoutRetry:true,walRecoveredAfterReload:true,
     lostAckRecoveredByReadback:true,sameIdReplayNoDuplicate:true,
     offlineNoAutomaticResend:true,offlineSameIdRetryConfirmed:true,
     twoSessionsReadSameServerState:true,ledgerAndInventoryUnchanged:true},
