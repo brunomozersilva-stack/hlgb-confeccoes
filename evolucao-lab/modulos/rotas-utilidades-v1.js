@@ -75,6 +75,11 @@
  function stable(x){return JSON.stringify(x,(_key,v)=>v&&typeof v==='object'&&!Array.isArray(v)?
   Object.fromEntries(Object.keys(v).sort().map(k=>[k,v[k]])):v);}
  function fingerprint(x){return stable({date:x.date,driver:x.driver,status:x.status,notes:x.notes,stops:x.stops});}
+ function sameSignature(a,b){
+  if(typeof a!=='string'||typeof b!=='string')return false;
+  try{return stable(JSON.parse(a))===stable(JSON.parse(b))}catch(_e){return false}
+ }
+ function matchesSignature(sig,obj){return typeof sig==='string'&&sameSignature(sig,fingerprint(obj))}
  function create(s,p,{next,uid}){
   ensure(s);const validated=payload(s,p);
   const id=next(s,'ROT');
@@ -128,15 +133,15 @@
      if(historyCommands.has(h.commandId)||!entry||entry.revision!==h.revision||
       h.revision<=revision||!['route.plan','route.revise','route.cancel'].includes(entry.type))
       error('Histórico de rota sem prova na revisão global');
-     if(h.type==='revisada'&&(!h.reason||!h.before||fingerprint(h.before)!==h.beforeFingerprint))error('Revisão sem justificativa ou estado anterior íntegro');
+     if(h.type==='revisada'&&(!h.reason||!h.before||!matchesSignature(h.beforeFingerprint,h.before)))error('Revisão sem justificativa ou estado anterior íntegro');
      if(h.type==='cancelada'&&!h.reason)error('Cancelamento sem justificativa');
      if(typeof h.afterFingerprint!=='string'||!h.afterFingerprint||
-       (priorFingerprint!==null&&h.beforeFingerprint!==priorFingerprint))error('Histórico de rota sem cadeia de estados');
+       (priorFingerprint!==null&&!sameSignature(h.beforeFingerprint,priorFingerprint)))error('Histórico de rota sem cadeia de estados');
      priorFingerprint=h.afterFingerprint;
      revision=h.revision;historyCommands.add(h.commandId);
     }
     if(route.history.at(-1).commandId!==route.lastCommandId)error('Última edição sem referência');
-    if(fingerprint(route)!==priorFingerprint)error('Rota alterada fora de um comando válido');
+    if(!matchesSignature(priorFingerprint,route))error('Rota alterada fora de um comando válido');
     if(route.status==='cancelada'&&route.history.at(-1).type!=='cancelada')
      error('Cancelamento sem evento');
    }catch(e){issues.push(String(route?.id||'Rota')+': '+e.message)}
