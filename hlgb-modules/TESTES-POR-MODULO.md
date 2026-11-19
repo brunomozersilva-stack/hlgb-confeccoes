@@ -7,7 +7,7 @@ Os 156 scripts comerciais anteriores continuam carregados exatamente na mesma or
 ## Como executar no checkout da branch de homologação
 
 - `node hlgb-modules/run-module-tests-v9601.cjs --list`: mostra todos os 14 domínios e seus pacotes de testes.
-- `node hlgb-modules/run-module-tests-v9601.cjs --all`: executa as 65 entradas do catálogo contra dados simulados e testes do repositório, sem banco comercial.
+- `node hlgb-modules/run-module-tests-v9601.cjs --all`: executa as 66 entradas do catálogo contra dados simulados e testes do repositório, sem banco comercial.
 - `node hlgb-modules/run-module-tests-v9601.cjs --impact release-separation-commit-v9319.js`: destaca Produção/Separação e suas dependências, como Pedidos, Corte e WAL.
 - `node hlgb-modules/run-module-tests-v9601.cjs --impact release-current.js`: **alto risco**, exige as 14 áreas por afetar a infraestrutura.
 - `node hlgb-modules/run-module-tests-v9601.cjs --impact app9240.html`: **alto risco**, exige as 14 áreas.
@@ -21,7 +21,7 @@ Os 156 scripts comerciais anteriores continuam carregados exatamente na mesma or
 | Sincronização e WAL | 5 | gravação, replay e consistência |
 | Pedidos e Projeção | 4 | grades, visibilidade e vinculação |
 | Corte e Cortadores | 9 | programação, salvamento, impressão e filas |
-| Produção e Separação | 4 | atribuição, baixa e apresentação |
+| Produção e Separação | 5 | atribuição, baixa e apresentação |
 | Facções e Acertos | 6 | pagamentos, beneficiários e lançamentos |
 | Financeiro, Hub e Notas | 5 | valores, confirmação de gravação e pesquisa |
 | Folha e Pessoal | 4 | passagem, provisões e proteção de salário |
@@ -31,9 +31,9 @@ Os 156 scripts comerciais anteriores continuam carregados exatamente na mesma or
 | Assistente e IA | 4 | consultas e pedidos |
 | Impressora 3D | 4 | acesso, persistência e hidratação |
 | Interface / mobile | 4 | estabilidade visual, Safari e navegação |
-| **Total** | **65** | 14 domínios catalogados |
+| **Total** | **66** | 14 domínios catalogados |
 
-A mesma prova pode fazer parte de uma suíte mais ampla. **65 são entradas de teste nos pacotes**, não 64 funcionalidades homologadas, nem prova de que todas as operações comerciais funcionam.
+A mesma prova pode fazer parte de uma suíte mais ampla. **66 são entradas de teste nos pacotes**, não 64 funcionalidades homologadas, nem prova de que todas as operações comerciais funcionam.
 
 ## Regra para corrigir falhas sem comprometer os funcionários
 
@@ -47,3 +47,5 @@ A mesma prova pode fazer parte de uma suíte mais ampla. **65 são entradas de t
 **Ainda falta:** extração física do `app9240.html`, inventário de cada função/contrato e homologação das áreas com usuários de teste. `Actions queued` não é teste aprovado.
 
 **Núcleo puro de Etiquetas v96.02b:** a PR dependente separa somente dois cálculos de apresentação do script já existente. Preserva os 156 scripts anteriores e o `app9240.html`; o catálogo de execução passa para 157 scripts. Nenhum módulo completo foi homologado.
+
+**Produção/Separação v96.03b:** extração de cálculos puros de progresso e totais do script comercial já existente, com fallback e gravação autoritativa preservados. O `app9240.html` e os fluxos de salvamento continuam não modularizados. Na branch candidata a carga passa de 157 para 158 scripts (156 antigos + Etiquetas + Separação).
