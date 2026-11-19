@@ -1,3 +1,4 @@
+const compatibleLoaderView=require('./hlgb-loader-compat-view-v9604b.cjs');
 const legacyLoaderView=require('./hlgb-loader-test-view-v9600.cjs');
 const fs=require('fs'),vm=require('vm'),assert=require('assert'),path=require('path');
 const root=path.join(__dirname,'..'),src=f=>fs.readFileSync(path.join(root,f),'utf8');
@@ -11,7 +12,7 @@ assert(ai.includes('return base.apply(this,arguments)'),'fallback local deve con
 const safari=src('release-safari-resume-v9266.js');
 for(const x of ["document.visibilityState==='hidden'","document.querySelectorAll('.hlgb-page-settling')","'pagehide'","'pageshow'",'stale-settle-cleared','visibility:visible!important','ensureWalAuthorityUpgrade9348'])assert(safari.includes(x),'Safari guard ausente: '+x);
 
-const loader=src('app-stable3.html');
+const loader=compatibleLoaderView(src('app-stable3.html'));
 assert(!legacyLoaderView(loader).includes("'release-assistant-server-v9266.js'"),'IA paga opcional não deve carregar no fluxo padrão');
 assert(legacyLoaderView(loader).includes("'release-assistant-brain-v9265.js'"),'cérebro local deve continuar no loader');
 assert(legacyLoaderView(loader).includes("'release-safety-gate-v9269.js'"),'Safety Gate atual deve carregar');

@@ -1,7 +1,8 @@
+const compatibleLoaderView=require('./hlgb-loader-compat-view-v9604b.cjs');
 const fs=require('fs'),vm=require('vm'),assert=require('assert'),path=require('path');
 const root=path.join(__dirname,'..');
 const src=fs.readFileSync(path.join(root,'release-assistant-query.js'),'utf8');
-const loader=fs.readFileSync(path.join(root,'app-stable3.html'),'utf8');
+const loader=compatibleLoaderView(fs.readFileSync(path.join(root,'app-stable3.html'),'utf8'));
 assert(loader.includes("'release-assistant-query.js'"),'loader must include assistant');
 
 let openedMissing=null,hubToggled=null,editOpened=null;

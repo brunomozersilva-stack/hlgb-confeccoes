@@ -1,6 +1,7 @@
+const compatibleLoaderView=require('./hlgb-loader-compat-view-v9604b.cjs');
 const fs=require('fs'),assert=require('assert');
 const app=fs.readFileSync('app9240.html','utf8');
-const loader=fs.readFileSync('app-stable3.html','utf8');
+const loader=compatibleLoaderView(fs.readFileSync('app-stable3.html','utf8'));
 const ops=fs.readFileSync('release-operations-pack.js','utf8');
 
 assert(app.includes('"routePlans","labelBatches","labelTemplates","packagingAssignments","historicalImports"'),'custom operational modules must be normalized');

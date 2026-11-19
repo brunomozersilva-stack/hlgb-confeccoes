@@ -1,6 +1,7 @@
+const compatibleLoaderView=require('./hlgb-loader-compat-view-v9604b.cjs');
 const fs=require('fs'),vm=require('vm'),assert=require('assert'),path=require('path');
 const src=fs.readFileSync(path.join(__dirname,'..','release-material-tools.js'),'utf8');
-const loader=fs.readFileSync(path.join(__dirname,'..','app-stable3.html'),'utf8');
+const loader=compatibleLoaderView(fs.readFileSync(path.join(__dirname,'..','app-stable3.html'),'utf8'));
 assert(loader.includes("'release-material-tools.js'"));
 const context={console,setTimeout(){return 0},MutationObserver:function(){this.observe=()=>{}},db:{sizes:[{name:'P'},{name:'M'},{name:'G'},{name:'GG'}],materials:[{id:'m1',name:'Renda cadastrada',unit:'m'}],products:[{id:'p1',name:'Camisola',sizes:['P','M','G','GG'],colors:['Preto','Rubi'],materials:[{name:'Renda',unit:'m',qty:1.5,loss:10,calcMode:'consumption'}]}],orders:[{id:'o1',grade:[{productId:'p1',color:'Preto',size:'P',qty:10},{productId:'p1',color:'Preto',size:'M',qty:20},{productId:'p1',color:'Rubi',size:'P',qty:5}]}]},window:{},document:{getElementById(){return null},querySelectorAll(){return []}},openModal(){},closeModal(){},hlgbSortedSizes:()=>['P','M','G','GG']};
 vm.createContext(context);vm.runInContext(src,context);

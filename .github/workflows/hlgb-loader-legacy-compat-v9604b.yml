@@ -1,0 +1,35 @@
+name: HLGB Comercial - Regressao do Loader Modular v96.04b
+on:
+  pull_request:
+    branches: [main, refactor/live-separation-progress-core-v9603b]
+    paths:
+      - 'app-stable3.html'
+      - 'hlgb-modules/ownership-v9600.json'
+      - 'tests/**'
+      - '.github/workflows/hlgb-loader-legacy-compat-v9604b.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'app-stable3.html'
+      - 'hlgb-modules/ownership-v9600.json'
+      - 'tests/hlgb-loader-compat-view-v9604b.cjs'
+      - 'tests/hlgb-loader-compat-contract-v9604b.cjs'
+permissions: {contents: read}
+jobs:
+  loader-compat-regression:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 18
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - name: Validar a lista real de scripts, falhando se faltar, duplicar ou reordenar
+        run: |
+          node --test tests/hlgb-loader-compat-contract-v9604b.cjs
+          node --test tests/hlgb-module-boundaries-v9600.cjs
+      - name: Executar regressao de todos os 14 dominios do HLGB comercial
+        run: node hlgb-modules/run-module-tests-v9601.cjs --all
+      - name: Regressao historica do programa comercial inteiro
+        run: |
+          node scripts/run-nightly-audit.mjs
+          test "$(cat auditor-nightly/exit-code.txt)" = 0

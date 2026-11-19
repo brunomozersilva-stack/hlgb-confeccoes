@@ -106,11 +106,21 @@ function base(){
  }
  {
   const router=source('app-stable3.html');
+  const manifest=require('../hlgb-modules/ownership-v9600.json');
+  const actualScripts=require('./hlgb-loader-test-view-v9600.cjs').scripts(router);
+  const addons=new Set(manifest.approvedNewScripts||[]);
+  ok(JSON.stringify(actualScripts)===JSON.stringify(manifest.releaseScripts),
+    'Auditor deve conferir a lista REAL do loader modular');
+  ok(JSON.stringify(actualScripts.filter(x=>!addons.has(x)))===
+    JSON.stringify(manifest.preExtractionScripts||manifest.releaseScripts),
+    'os 156 scripts comerciais não podem ser removidos ou reordenados');
   const explicit=['release-auditor-production-v9369.js','release-payroll-month-wal-v9334.js','release-payroll-reliable-save-guard-v9344.js','release-wal-replay-bridge-v9332.js'];
-  const loaderList=router.match(/const files=\[(.*?)\];/s)?.[1]||'';
-  for(const file of explicit){const count=loaderList.split("'"+file+"'").length-1;ok(count===1,'script explícito deve aparecer uma vez na lista do roteador: '+file+' count='+count)}
-  ok(router.includes("'release-wal-confirmed-replay-v9333.js'"),'replay confirmado ausente');
-  ok(router.includes("'release-payroll-wal-race-v9346.js'"),'autoridade final da folha ausente');
+  for(const file of explicit){
+    const count=actualScripts.filter(name=>name===file).length;
+    ok(count===1,'script explícito deve aparecer uma vez na lista do roteador: '+file+' count='+count);
+  }
+  ok(actualScripts.includes('release-wal-confirmed-replay-v9333.js'),'replay confirmado ausente');
+  ok(actualScripts.includes('release-payroll-wal-race-v9346.js'),'autoridade final da folha ausente');
   const payroll=source('release-payroll-month-wal-v9334.js'),safari=source('release-safari-resume-v9266.js');
   ok(!payroll.includes("s.src='./release-wal-single-authority-v9339.js"),'Folha voltou a reinjetar v9339');
   ok(!safari.includes("s.src='./release-wal-single-authority-v9339.js"),'Safari voltou a reinjetar v9339');

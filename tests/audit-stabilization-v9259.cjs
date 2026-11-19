@@ -1,3 +1,4 @@
+const compatibleLoaderView=require('./hlgb-loader-compat-view-v9604b.cjs');
 const legacyLoaderView=require('./hlgb-loader-test-view-v9600.cjs');
 const fs=require('fs'),vm=require('vm'),assert=require('assert'),path=require('path');
 function src(name){return fs.readFileSync(path.join(__dirname,'..',name),'utf8')}
@@ -6,7 +7,7 @@ const files=[
  'release-finance-locations-v9251.js','release-improvements-v9252.js','release-hub-week-v9253.js','release-catalog-recovery-v9254.js','release-critical-ui-v9255.js','release-batch-v9256.js','release-patch-v9257.js','release-hub-master-v9258.js','release-material-health-v9260.js','release-tab-resume-v9262.js','release-faction-manual-payment.js'
 ];
 files.forEach(compile);
-const loader=src('app-stable3.html');
+const loader=compatibleLoaderView(src('app-stable3.html'));
 files.forEach(f=>assert(loader.includes("'"+f+"'"),f+' deve estar carregado'));
 assert(loader.includes('window.HLGB_HUB_MASTER_9258=true'),'loader deve reservar a autoridade do Hub antes das camadas históricas');
 assert(legacyLoaderView(loader).indexOf("'release-tab-resume-v9262.js'")<legacyLoaderView(loader).indexOf("'release-ui-stability.js'"),'recuperação de aba deve carregar antes do guard visual final');

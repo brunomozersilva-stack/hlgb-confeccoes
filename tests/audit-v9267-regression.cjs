@@ -1,3 +1,4 @@
+const compatibleLoaderView=require('./hlgb-loader-compat-view-v9604b.cjs');
 const legacyLoaderView=require('./hlgb-loader-test-view-v9600.cjs');
 const fs=require('fs'),vm=require('vm'),assert=require('assert'),path=require('path');
 const root=path.join(__dirname,'..'),src=f=>fs.readFileSync(path.join(root,f),'utf8');
@@ -19,7 +20,7 @@ const compat=src('release-assistant-ui-v9269.js');
 assert(compat.includes("version:'92.78',disabled:true,replacedBy:'release-assistant-ui-light-v9277.js'"),'UI pesada antiga deve ser somente compatibilidade');
 const light=src('release-assistant-ui-light-v9277.js');assert(light.includes("const V='92.77'"));assert(light.includes('Assistente compacto e leve para Safari'));
 
-const loader=src('app-stable3.html');
+const loader=compatibleLoaderView(src('app-stable3.html'));
 assert(legacyLoaderView(loader).includes("'release-hub-editor-v9267.js','release-hub-editor-v9270.js'"),'guarda deve carregar antes do editor atual');
 assert(legacyLoaderView(loader).includes("'release-assistant-ui-v9269.js'"),'stub de compatibilidade pode permanecer no loader');
 assert(!legacyLoaderView(loader).includes("'release-assistant-server-v9266.js'"),'IA paga opcional não deve carregar');
