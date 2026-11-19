@@ -2649,6 +2649,7 @@ document.addEventListener('change',event=>{
  }
 });
 document.addEventListener('click',async e=>{
+ if(e.target.closest('#whole-program-export')){exportReport();return;}
  const multiForm=e.target.closest('#multi-order-form');
  if(multiForm){
   const addItem=e.target.closest('[data-add-multi-model]');
