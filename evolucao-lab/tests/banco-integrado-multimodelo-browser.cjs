@@ -253,3 +253,57 @@ test('Duas sessões reais em PostgreSQL descartável: 120→80→50, conflito, A
   console.log('PASS laboratório PostgreSQL '+browserType.name()+': 2 sessões, conflito, ACK, offline, replay, 120/80/50');
  }finally{await browser.close();await new Promise(resolve=>srv.close(resolve));}
 });
+
+test('Atualização IndexedDB WAL v1 → v2 conserva intenção antiga e não dispara reenvio',async()=>{
+ const srv=await start(),url='http://127.0.0.1:'+srv.address().port;
+ const browser=await browserType.launch({headless:true});
+ const ctx=await browser.newContext(),page=await ctx.newPage();
+ const command={commandId:'LAB-WAL-MIGRATION-FIXTURE',type:'order.multi.create',
+  expectedRevision:98765,payload:orderPayload};
+ try{
+  await page.goto(url+'/login');
+  const seeded=await page.evaluate(command=>new Promise((resolve,reject)=>{
+   const r=indexedDB.open('HLGB_INTEGRADO_REMOTO_FICTICIO_V1',1);
+   r.onupgradeneeded=()=>r.result.createObjectStore('wal',{keyPath:'actor'});
+   r.onerror=()=>reject(r.error);
+   r.onsuccess=()=>{
+    const db=r.result,tx=db.transaction('wal','readwrite');
+    tx.objectStore('wal').put({actor:'Operador A fictício',command,stage:'pending'});
+    tx.oncomplete=()=>{db.close();resolve(true);};
+    tx.onabort=()=>{db.close();reject(tx.error);};
+   };
+  }),command);
+  assert.equal(seeded,true);
+  const before=await store.state();
+  await page.locator('[name="actor"]').selectOption('A');
+  await page.locator('[name="pin"]').fill('demo-integrado-a');
+  await page.locator('button').click();
+  await page.locator('#remote-check').waitFor({timeout:14000});
+  const migrated=await page.evaluate(async()=>{
+   const pending=window.HLGBRemoteLab.info().pending;
+   return await new Promise((resolve,reject)=>{
+    const r=indexedDB.open('HLGB_INTEGRADO_REMOTO_FICTICIO_V1',2);
+    r.onerror=()=>reject(r.error);
+    r.onsuccess=()=>{
+     const db=r.result,tx=db.transaction(['wal','wal-review'],'readonly'),
+      g=tx.objectStore('wal').get('Operador A fictício');
+     g.onsuccess=()=>resolve({version:db.version,archiveCreated:db.objectStoreNames.contains('wal-review'),
+      current:g.result,activeCommandId:pending?.command?.commandId||null});
+     g.onerror=()=>reject(g.error);
+     tx.oncomplete=()=>db.close();
+    };
+   });
+  });
+  assert.equal(migrated.version,2);
+  assert.equal(migrated.archiveCreated,true);
+  assert.equal(migrated.current.command.commandId,command.commandId);
+  assert.equal(migrated.activeCommandId,command.commandId);
+  assert.deepEqual(migrated.current.command.payload,orderPayload);
+  assert.equal(migrated.current.stage,'pending');
+  assert.equal((await store.state()).revision,before.revision,
+   'Atualizar schema de WAL não deve gravar o comando no servidor');
+  console.log('PASS '+browserType.name()+' migração WAL 1→2 sem perder intenção antiga');
+ }finally{
+  await ctx.close();await browser.close();await new Promise(resolve=>srv.close(resolve));
+ }
+});
