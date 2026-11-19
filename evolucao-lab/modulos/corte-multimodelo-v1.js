@@ -148,7 +148,8 @@
  function inspect(s){
   if(s.multiCutPlans===undefined)return [];
   if(!Array.isArray(s.multiCutPlans))return ['Coleção de cortes multimodelo ilegível'];
-  const failures=[],ids=new Set();
+  const failures=[],ids=new Set(),claimed=new Set();
+  const kindOf={programado:'multi.cut.plan',revisado:'multi.cut.revise',concluido:'multi.cut.complete',cancelado:'multi.cut.cancel'};
   for(const plan of s.multiCutPlans){
    try{
     if(!plan||typeof plan.id!=='string'||ids.has(plan.id))error('ID ausente/duplicado');
@@ -180,12 +181,25 @@
        !Number.isSafeInteger(w.wasteGrams)||w.wasteGrams<0||
        w.usedGrams+w.wasteGrams>w.totalGrams||!w.checker||!w.reason)
        error('Pesagem histórica adulterada ou inválida');
-      commands.add(w.commandId);
+      if(claimed.has(w.commandId))error('Comando de corte repetido na trilha');
+      claimed.add(w.commandId);commands.add(w.commandId);
      }
     }
     if(!Array.isArray(plan.history)||!plan.history.length||
       plan.history[0].commandId!==plan.createdCommandId||
       plan.history[0].type!=='programado')error('Histórico de criação inválido');
+    let priorRevision=0;
+    for(const event of plan.history){
+     const kind=kindOf[event?.type],log=(s.log||[]).find(x=>x.commandId===event?.commandId);
+     if(!kind||!event.commandId||claimed.has(event.commandId)||
+        !Number.isSafeInteger(event.revision)||event.revision<=priorRevision||
+        event.revision>s.revision||!log||log.type!==kind||log.revision!==event.revision||
+        !(log.description===plan.id||log.description.startsWith(plan.id+' · ')))
+      error('Histórico de corte sem comando correspondente, repetido ou fora de ordem');
+     if(event.type==='revisado'&&!event.reason)error('Revisão de corte sem justificativa');
+     if(event.type==='cancelado'&&!event.reason)error('Cancelamento de corte sem justificativa');
+     priorRevision=event.revision;claimed.add(event.commandId);
+    }
     if(plan.status==='concluido'&&(!plan.completedCommandId||!plan.checkerOne||!plan.checkerTwo||
       !plan.history.some(x=>x.type==='concluido'&&x.commandId===plan.completedCommandId)))error('Conferência ausente');
     if(plan.status==='cancelado'&&!plan.history.some(x=>x.type==='cancelado'&&x.reason))error('Cancelamento sem motivo');
@@ -196,6 +210,9 @@
     error('Cortes reservados/concluídos excedem '+row.color+'/'+row.size+' em '+order.id+'/'+item.id);}
    catch(e){failures.push(e.message)}
   }
+  const types=new Set(['multi.cut.plan','multi.cut.revise','multi.cut.complete','multi.cut.cancel','multi.cut.weight.record']);
+  for(const event of s.log||[])if(types.has(event.type)&&!claimed.has(event.commandId))
+   failures.push('Evento de Corte multimodelo sem registro operacional: '+event.commandId+' / '+event.type);
   return failures;
  }
  return Object.freeze({version:'1.0.0-laboratorio',ensure,balance,create,revise,complete,cancel,recordWeight,inspect});
