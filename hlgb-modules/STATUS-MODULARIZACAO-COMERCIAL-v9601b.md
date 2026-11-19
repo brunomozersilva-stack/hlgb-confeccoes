@@ -25,12 +25,12 @@
 | Financeiro / Hub / Notas | 23 | 5 | Pendente |
 | Folha / Pessoal | 11 | 4 | Pendente |
 | Compras / Estoque | 9 | 4 | Pendente |
-| Utilidades / Etiquetas | 3 | 3 | Pendente |
+| Utilidades / Etiquetas | 4 | 4 | Parcial — apenas núcleo puro da etiqueta |
 | Auditor / Monitor | 18 | 4 | Pendente |
 | Assistente / IA | 14 | 4 | Pendente |
 | Impressora 3D | 5 | 4 | Pendente |
 | Interface / mobile | 7 | 4 | Pendente |
-| **Total** | **156** | **64** | **Não concluído** |
+| **Total** | **156** | **65** | **Não concluído** |
 
 Os scripts já estão fisicamente em arquivos próprios, mas podem depender de funções e estados globais do monólito. Testes por área representam **cobertura inicial**, não o fechamento do módulo.
 
@@ -60,3 +60,5 @@ O workflow **HLGB Modular Live Boundaries v96.00** ganhou uma etapa que, ao exec
 **Para conferir:** no GitHub, abrir a PR desta etapa, entrar em `Checks` ou `Actions` → `HLGB Modular Live Boundaries v96.00` → execução concluída → `Artifacts` → `hlgb-main-inventory-v9601b`. Se o workflow continuar em `queued`, o relatório não existe ainda.
 
 **Critério para merge:** as PRs #260 e #266 são preparatórias; somente autorizar integração após os checks necessários concluírem com sucesso e após verificação de inicialização em homologação. Não interpretar aprovação dessas PRs como modularização completa do `app9240.html`.
+
+**Núcleo puro de Etiquetas v96.02b:** a PR dependente separa somente dois cálculos de apresentação do script já existente. Preserva os 156 scripts anteriores e o `app9240.html`; o catálogo de execução passa para 157 scripts. Nenhum módulo completo foi homologado.
