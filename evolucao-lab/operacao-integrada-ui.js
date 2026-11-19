@@ -25,6 +25,18 @@ const modules=[
  ['utilidades','Utilidades · Rotas e Etiquetas','Rota LEVAR/BUSCAR no laboratório; etiquetas e regularização dependem de paridade com o legado.']
 ];
 const ids=new Map(modules.map((m,i)=>[m[0],i])),visitedModules=new Set();
+const PROGRAM_REVIEW_KEY='HLGB_EVOLUCAO_AVALIACAO_GERAL_FICTICIA_V1';
+const programReviews=Object.create(null);
+try{
+ const old=JSON.parse(localStorage.getItem(PROGRAM_REVIEW_KEY)||'{}');
+ if(old&&typeof old==='object'&&!Array.isArray(old)){
+  for(const [key,value] of Object.entries(old))
+   if(ids.has(key)&&['sem_erro_no_ensaio','precisa_ajuste'].includes(value?.outcome)&&
+    typeof value.note==='string'&&value.note.length<=600)
+    programReviews[key]={outcome:value.outcome,note:value.note,checkedAt:String(value.checkedAt||''),revision:Number(value.revision)||0};
+ }
+}catch(_e){/* Exportar evidência ainda funciona se armazenamento de avaliação for bloqueado. */}
+
 let active=ids.has(window.location.hash.slice(1))?window.location.hash.slice(1):'nucleo',db=null,doc=null,busy=false,journeyOrderId=null,routeDraft=null;
 let labelDraft=[{name:'',model:'',size:'',pieceQty:0,volumes:0,copies:1,date:new Date().toISOString().slice(0,10)}],labelLayout='10',templateEditId=null,packerEditId=null,templatePreviewId=null,packerPreviewId=null;
 let historicalDraft='cliente;modelo;quantidade;data;referencia;status\n',historicalResult=null;
@@ -743,19 +755,38 @@ function guidedJourney(s){
 function fullProgramTestPanel(s){
  // "Visitada" não significa testada/aprovada; nenhuma marca altera dados da operação.
  const opened=modules.filter(x=>visitedModules.has(x[0])).length;
+ const reviewed=modules.filter(([id])=>Boolean(programReviews[id])).length;
+ const issues=modules.filter(([id])=>programReviews[id]?.outcome==='precisa_ajuste').length;
  const rows=modules.map(([id,title],index)=>
   '<div class="journey-step" data-general-test-module="'+escape(id)+'">'+
   '<div><strong>'+(index+1)+'. '+escape(title)+'</strong>'+
   '<p class="caption">'+(visitedModules.has(id)?'Tela visitada nesta sessão':'Ainda não aberta nesta sessão')+
+  ' · '+(programReviews[id]?.outcome==='precisa_ajuste'?'Problema informado pela pessoa que testou':
+   programReviews[id]?.outcome==='sem_erro_no_ensaio'?'Sem erro observado no exercício (ainda NÃO aprovado)':
+   'Sem avaliação manual nesta sessão')+
   ' · A aprovação funcional requer gravar, reler e comparar com o HLGB antigo.</p></div>'+
   '<button class="btn" type="button" data-goto="'+escape(id)+'">Abrir área</button></div>').join('');
+ const reviewForm='<form id="whole-program-review-form"><h3>Registrar resultado de uma área</h3>'+
+  '<div class="fields"><div class="field"><label for="program-review-module">Área testada</label>'+
+  '<select class="input" id="program-review-module" name="area" required>'+
+  options(modules.map(([id,name])=>[id,name]))+'</select></div>'+
+  '<div class="field"><label for="program-review-outcome">Resultado do exercício</label>'+
+  '<select class="input" id="program-review-outcome" name="outcome" required>'+
+  options([['sem_erro_no_ensaio','Não encontrei erro neste exercício'],['precisa_ajuste','Encontrei problema / precisa ajustar']])+
+  '</select></div></div>'+
+  '<div class="field"><label for="program-review-note">O que testou e qual resultado obteve (sem informações reais)</label>'+
+  '<textarea class="input" id="program-review-note" name="note" rows="3" maxlength="600" required placeholder="Ex.: salvei 40 peças, atualizei a página e o saldo não mudou."></textarea></div>'+
+  '<div class="actions"><button class="btn primary" type="submit">Guardar avaliação neste navegador</button></div></form>';
  return panel('Teste do programa completo · '+modules.length+' áreas',
   '<p><strong>Um único programa de ensaio.</strong> Passe pelas áreas, cadastre apenas dados inventados, execute o percurso Pedido → Corte → Facção → Retorno → Separação → Acerto → Hub e confira cada lançamento depois de atualizar a página.</p>'+
   '<p id="whole-program-progress" role="status"><strong>'+opened+' de '+modules.length+
-  ' áreas visitadas nesta sessão.</strong> Visitar não aprova uma função; o checklist reinicia ao fechar a sessão, mas os dados fictícios continuam no armazenamento local.</p>'+
+  ' áreas visitadas nesta sessão.</strong> Avaliações manuais: '+reviewed+
+  ' · Problemas anotados: '+issues+
+  '. Visitar não aprova uma função; a lista de visitas reinicia ao fechar a sessão.</p>'+
   '<div class="actions"><button class="btn primary" type="button" id="whole-program-export">Exportar relatório completo desta sessão</button>'+
   '<button class="btn" type="button" data-goto="pedidos">Começar por Pedidos</button></div>'+
-  '<p class="caption">Ao exportar, confira no JSON os campos modulesVisited, checks, data.log e journey. Envie o arquivo de exercício com a descrição de qualquer problema. Não contém aprovação empresarial e não deve receber informações reais.</p>'+
+  '<p class="caption">Ao exportar, confira no JSON os campos modulesVisited, userReview, checks, data.log e journey. Envie o arquivo de exercício com a descrição de qualquer problema. Não contém aprovação empresarial e não deve receber informações reais.</p>'+
+  reviewForm+
   '<div class="journey-list" id="whole-program-areas">'+rows+'</div>',true);
 }
 
@@ -2290,6 +2321,7 @@ function download(name,content,type){
 function exportReport(){
  if(!doc)return;const report={schema:'hlgb-evolucao-operacao-integrada-report-v1',environment:remoteLab?'postgres-local-fictitious':'indexeddb-local-fictitious',
   productionApproval:false,parityApproved:false,modulesAvailable:modules.length,modulesVisited:visitedModules.size,visitedModuleIds:[...visitedModules],exportedAt:new Date().toISOString(),
+  userReview:{schema:'hlgb-avaliacao-manual-ficticia-v1',approved:false,items:modules.filter(([id])=>programReviews[id]).map(([id])=>({module:id,...programReviews[id]}))},
   journey:api.journey(doc,journeyOrderId),
   observability:observerResult(doc),auditorV3:auditorV3(doc),botV3:botV3(doc),materialPlanning:materialPlannerResult(doc),
   checks:api.inspect(doc),totals:api.totals(doc),data:{...doc,invoicePdfs:window.HLGBLabOperationsV2.pdfMetadata(doc),printPhotos:window.HLGBLabComplementsV1.photoMetadata(doc),paymentReceipts:window.HLGBLabPaymentBatchV1.receiptMetadata(doc)},receiptBinaryExported:false};
@@ -2908,6 +2940,21 @@ document.addEventListener('change',e=>{
  if(editing&&active==='pedidos'&&['orderId','color'].includes(e.target.name))fillOrderColorEdit();
 });
 document.addEventListener('submit',e=>{
+ if(e.target.id==='whole-program-review-form'){
+  e.preventDefault();
+  const form=e.target,area=form.elements.namedItem('area')?.value,
+   outcome=form.elements.namedItem('outcome')?.value,
+   note=String(form.elements.namedItem('note')?.value||'').trim();
+  if(!ids.has(area)||!['sem_erro_no_ensaio','precisa_ajuste'].includes(outcome)||
+   !note||note.length>600){status('Avaliação inválida. Escolha a área, o resultado e escreva o teste realizado.','error');return;}
+  programReviews[area]={outcome,note,checkedAt:new Date().toISOString(),revision:doc?.revision||0};
+  let stored=true;
+  try{localStorage.setItem(PROGRAM_REVIEW_KEY,JSON.stringify(programReviews));}catch(_e){stored=false;}
+  draw();
+  status(stored?'Avaliação guardada apenas neste navegador. Exporte o relatório para enviar.':
+   'Avaliação na memória desta sessão; armazenamento bloqueado. Exporte o JSON antes de sair.',stored?'success':'error');
+  return;
+ }
  const form=e.target.closest('form[data-command]');if(!form)return;
  e.preventDefault();submit(form,form.dataset.command);
 });
