@@ -9,6 +9,9 @@
 })(typeof window!=='undefined'?window:null,function(){
  'use strict';
  const clone=x=>JSON.parse(JSON.stringify(x));
+ // PostgreSQL JSONB não preserva a ordem das chaves. Comparar valores, nunca posição das propriedades.
+ const canonical=x=>JSON.stringify(x,(_key,v)=>v&&typeof v==='object'&&!Array.isArray(v)?
+  Object.fromEntries(Object.keys(v).sort().map(k=>[k,v[k]])):v);
  const sum=x=>Object.values(x).reduce((n,v)=>n+v,0);
  function fail(text){throw Error(text);}
  function normalized(raw,max,label){
@@ -88,7 +91,7 @@
     if(proof.length!==1)fail('Pedido sem evento de criação correspondente na trilha global');
     const payload={clientId:entry.clientId,sizes:entry.sizes,items:entry.items.map(i=>({productId:i.productId,colors:i.colors.map(c=>({color:c.color,grade:clone(c.grade)}))}))};
     const ref=prepare(s,payload,entry.items);
-    if(JSON.stringify(ref.items)!==JSON.stringify(entry.items)||JSON.stringify(ref.totals)!==JSON.stringify(entry.totals)||JSON.stringify(ref.sizes)!==JSON.stringify(entry.sizes))fail('Dados, preços históricos ou totais divergentes');
+    if(canonical(ref.items)!==canonical(entry.items)||canonical(ref.totals)!==canonical(entry.totals)||canonical(ref.sizes)!==canonical(entry.sizes))fail('Dados, preços históricos ou totais divergentes');
    }catch(error){failures.push((entry?.id||'Sem ID')+': '+error.message);}
   }
   for(const event of s.log||[])if(event.type==='order.multi.create'&&!ids.has(event.description))
