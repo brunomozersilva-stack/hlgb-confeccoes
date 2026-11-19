@@ -26,6 +26,7 @@ on:
       - 'evolucao-lab/tests/aceite-por-tarefa-gate.cjs'
       - 'evolucao-lab/aceite-por-tarefa-v1.json'
       - 'evolucao-lab/tests/corte-multimodelo-mobile.cjs'
+      - 'evolucao-lab/tests/operacao-duas-abas-local-mobile.cjs'
       - 'evolucao-lab/tests/requisicoes-compras-contract.cjs'
       - 'evolucao-lab/tests/cancelamento-compra-contract.cjs'
       - 'evolucao-lab/tests/correcao-acerto-*.cjs'
@@ -96,6 +97,7 @@ jobs:
         run: |
           node evolucao-lab/tests/operacao-integrada-mobile.cjs
           node evolucao-lab/tests/corte-multimodelo-mobile.cjs
+          node evolucao-lab/tests/operacao-duas-abas-local-mobile.cjs
           node evolucao-lab/tests/correcao-acerto-mobile.cjs
           node evolucao-lab/tests/comprovantes-mobile.cjs
           node evolucao-lab/tests/lote-amplo-mobile.cjs
