@@ -1,7 +1,7 @@
 {
   "schema": "hlgb-domain-smoke-v9601",
   "version": "96.01",
-  "purpose": "Rapid domain checks without production data. Full regression and browser synchronization remain mandatory for release.",
+  "purpose": "Regressão rápida por todos os 14 domínios do HLGB comercial em main. São provas existentes, não indicação de extração física nem de aprovação do programa em produção.",
   "packs": {
     "corte-cortadores": [
       "tests/audit-cutter-planner-regression.cjs",
@@ -58,6 +58,42 @@
       "tests/auditor-indexeddb-wal-v9468.cjs",
       "tests/auditor-wal-readonly-proof-v9482.cjs",
       "tests/audit-boot-authready-render-order.cjs"
+    ],
+    "base-infraestrutura": [
+      "tests/boot-fetch-retry-v9518.cjs",
+      "tests/audit-canonical-routing-v9316.cjs",
+      "tests/audit-boot-authready-render-order.cjs",
+      "tests/audit-safari-date-regression.cjs"
+    ],
+    "producao-separacao": [
+      "tests/audit-production-assignment-regression.cjs",
+      "tests/audit-separation-commit-v9319.cjs",
+      "tests/production-render-v9330-regression.cjs",
+      "tests/production-scan-dirty-v9571.cjs"
+    ],
+    "compras-estoque": [
+      "tests/audit-material-tools-regression.cjs",
+      "tests/audit-purchase-checkers-regression.cjs",
+      "tests/audit-purchase-note-import-regression.cjs",
+      "tests/weekly-material-planner-v9583.cjs"
+    ],
+    "assistente-ia": [
+      "tests/audit-assistant-query-regression.cjs",
+      "tests/audit-assistant-orders-regression.cjs",
+      "tests/audit-assistant-system-wide-regression.cjs",
+      "tests/audit-assistant-fresh-query-regression.cjs"
+    ],
+    "impressora-3d": [
+      "tests/printer3d-entry-v9516.cjs",
+      "tests/printer3d-persistence-v9431.cjs",
+      "tests/printer3d-cloud-hydration-v9517.cjs",
+      "tests/printer3d-photos-v9578.cjs"
+    ],
+    "interface-mobile": [
+      "tests/audit-global-visual-stability.cjs",
+      "tests/audit-night-ui-regression.cjs",
+      "tests/audit-ui-stability-regression.cjs",
+      "tests/audit-page-settle-stability.cjs"
     ]
   },
   "dependencies": {
@@ -83,7 +119,30 @@
     "auditor-monitor": [
       "sincronizacao-wal"
     ],
-    "sincronizacao-wal": []
+    "sincronizacao-wal": [],
+    "base-infraestrutura": [],
+    "producao-separacao": [
+      "pedidos-projecao",
+      "corte-cortadores",
+      "sincronizacao-wal"
+    ],
+    "compras-estoque": [
+      "financeiro-hub-notas",
+      "sincronizacao-wal"
+    ],
+    "assistente-ia": [
+      "pedidos-projecao",
+      "financeiro-hub-notas",
+      "sincronizacao-wal"
+    ],
+    "impressora-3d": [
+      "base-infraestrutura",
+      "sincronizacao-wal"
+    ],
+    "interface-mobile": [
+      "base-infraestrutura",
+      "sincronizacao-wal"
+    ]
   },
   "highRiskPaths": [
     "app9240.html",
@@ -91,5 +150,10 @@
     "release-current.js",
     "release-record-integrity.js",
     "release-save-transport-v9320.js"
+  ],
+  "highRiskOwnerDomains": [
+    "base-infraestrutura",
+    "sincronizacao-wal",
+    "interface-mobile"
   ]
 }

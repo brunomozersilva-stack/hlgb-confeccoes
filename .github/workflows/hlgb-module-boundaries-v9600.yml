@@ -1,11 +1,11 @@
 name: HLGB Modular Live Boundaries v96.00
 on:
   pull_request:
-    branches: [main]
-    paths: [app-stable3.html, hlgb-modules/**, tests/hlgb-module-boundaries-v9600.cjs, .github/workflows/hlgb-module-boundaries-v9600.yml]
+    branches: [main, refactor/live-module-boundaries-v9600]
+    paths: [app-stable3.html, hlgb-modules/**, tests/hlgb-module-boundaries-v9600.cjs, tests/hlgb-live-monolith-inventory-v9601b.cjs, .github/workflows/hlgb-module-boundaries-v9600.yml]
   push:
     branches: [main]
-    paths: [app-stable3.html, hlgb-modules/**, tests/hlgb-module-boundaries-v9600.cjs, .github/workflows/hlgb-module-boundaries-v9600.yml]
+    paths: [app-stable3.html, hlgb-modules/**, tests/hlgb-module-boundaries-v9600.cjs, tests/hlgb-live-monolith-inventory-v9601b.cjs, .github/workflows/hlgb-module-boundaries-v9600.yml]
 permissions: {contents: read}
 jobs:
   module-contracts:
@@ -19,6 +19,20 @@ jobs:
         run: |
           node --test tests/hlgb-module-boundaries-v9600.cjs
           node --test tests/hlgb-loader-legacy-contract-v9600.cjs
+      - name: Inventário do app9240 REAL sem execução nem gravação
+        run: |
+          node --test tests/hlgb-live-monolith-inventory-v9601b.cjs
+          node hlgb-modules/audit-live-monolith-v9601b.cjs --verify
+      - name: Gerar manifesto de funções e botões da main comercial (somente leitura)
+        run: |
+          node hlgb-modules/audit-live-monolith-v9601b.cjs --verify --full-json > "$RUNNER_TEMP/hlgb-main-inventory-v9601b.json"
+      - name: Anexar inventário seguro do programa comercial ao resultado dos testes
+        uses: actions/upload-artifact@v4
+        with:
+          name: hlgb-main-inventory-v9601b
+          path: ${{ runner.temp }}/hlgb-main-inventory-v9601b.json
+          if-no-files-found: error
+          retention-days: 14
       - name: Legacy module smoke suite without data writes
         run: |
           node tests/audit-cutter-planner-regression.cjs

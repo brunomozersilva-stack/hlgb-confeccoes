@@ -23,7 +23,13 @@ function impact(changed){
    return {highRisk:true,packs:available};
   let mapped=false;
   for(const [area,files] of Object.entries(owner)){
-   if(files.includes(file)){mapped=true;visit(area);}
+   if(files.includes(file)){
+    mapped=true;
+    // Infraestrutura, WAL e navegação impactam todas as funções comerciais.
+    if((catalog.highRiskOwnerDomains||[]).includes(area))
+     return {highRisk:true,packs:available};
+    visit(area);
+   }
   }
   // Unknown code and HTML must fail closed, never silently skip validation.
   if(!mapped&&/\.(?:js|cjs|mjs|html)$/.test(file))

@@ -1,5 +1,12 @@
 # HLGB comercial — modularização segura, etapa 1 (v96.00)
 
+> **Escopo desta conversa:** exclusivamente o ERP comercial já existente na `main` do repositório `hlgb-confeccoes`. A branch separada da Evolução HLGB não participa desta modularização.
+>
+> A classificação em 14 domínios e 16 grupos de carregamento **não finaliza os módulos**. O monólito comercial `app9240.html` permanece inteiro. Antes de extraí-lo, inventariar todas as funções reais e preservar seus contratos com os funcionários.
+>
+> Progresso adicional desta branch: todos os 14 domínios agora têm pacotes iniciais de regressão (64 entradas), mas **nenhum foi homologado como módulo fisicamente extraído**. Ver [STATUS-MODULARIZACAO-COMERCIAL-v9601b.md](STATUS-MODULARIZACAO-COMERCIAL-v9601b.md) e [TESTES-POR-MODULO.md](TESTES-POR-MODULO.md).
+
+
 ## O que foi de fato separado
 - O carregador original tem **156 scripts adicionais**; agora estão agrupados em **16 sequências nomeadas**, em `app-stable3.html`. Uma sequência é um *bloco de inicialização*, não um módulo isolado de negócio.
 - O arquivo `hlgb-modules/ownership-v9600.json` identifica o **responsável principal** de cada um dos 156 scripts em **14 domínios**. O índice serve para saber onde corrigir sem misturar assuntos. Há dependências cruzadas: não deve ser usado para descarregar arquivos ou trocar sua ordem.
