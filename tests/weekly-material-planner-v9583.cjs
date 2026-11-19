@@ -1,5 +1,5 @@
-const compatibleLoaderView=require('./hlgb-loader-compat-view-v9604b.cjs');
 'use strict';
+const compatibleLoaderView=require('./hlgb-loader-compat-view-v9604b.cjs');
 const assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('node:vm');
 const src=fs.readFileSync('release-weekly-material-planner-v9583.js','utf8');
 const boot=compatibleLoaderView(fs.readFileSync('app-stable3.html','utf8'));
