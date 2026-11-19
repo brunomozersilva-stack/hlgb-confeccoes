@@ -88,6 +88,7 @@ jobs:
       PGUSER: postgres
       PGPASSWORD: somente_ci_ficticio_integrado
       HLGB_BROWSER: ${{ matrix.browser }}
+      HLGB_EVIDENCE_DIR: /tmp/hlgb-multiflow-evidence
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -102,3 +103,10 @@ jobs:
           node --check evolucao-lab/banco-integrado/cliente.js
           node --test evolucao-lab/tests/banco-integrado-browser.cjs
           node --test evolucao-lab/tests/banco-integrado-multimodelo-browser.cjs
+      - name: Guardar provas de sessões e WAL no PostgreSQL fictício
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: hlgb-multimodelo-servidor-${{ matrix.browser }}
+          path: /tmp/hlgb-multiflow-evidence/*.json
+          if-no-files-found: ignore
