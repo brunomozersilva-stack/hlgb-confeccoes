@@ -46,6 +46,26 @@ async function main(){
   assert.deepEqual(outcome.planned,[80]);
   assert.equal(outcome.saves,1);
   assert.equal(outcome.remoteConnections,0);
+  // Idempotência: abrir/reativar o cálculo não cria outra linha nem um segundo salvamento.
+  const repeated=await page.evaluate(()=>{
+    const changed=window.syncFinalizedCutsToProduction();
+    return {changed,rows:window.db.production.length,planned:window.db.production.map(p=>p.planned),
+      saves:window.__testSaves};
+  });
+  assert.deepEqual(repeated,{changed:false,rows:1,planned:[80],saves:1},
+    'segunda execução sem mudança não pode duplicar produção ou gravação');
+  // Ajuste na grade efetivamente cortada atualiza a MESMA linha livre.
+  const corrected=await page.evaluate(()=>{
+    window.db.cuts[0].actualCutGrade[0].qty=60;
+    const first=window.syncFinalizedCutsToProduction();
+    const second=window.syncFinalizedCutsToProduction();
+    return {first,second,rows:window.db.production.length,planned:window.db.production.map(p=>p.planned),
+      saves:window.__testSaves};
+  });
+  assert.deepEqual(corrected,{first:true,second:false,rows:1,planned:[60],saves:2},
+    'correção de grade deve manter uma única linha e não repetir gravações');
+  assert.equal(sourceRequests,1,'a reconciliação não deve recarregar o módulo');
+  assert.equal(blocked,0,'nenhuma requisição externa pode ocorrer após reconciliação');
   console.log('PASS '+mode+' HLGB cut production external script loaded once; effective quantity 80, no production network');
  }finally{await browser.close()}
 }
