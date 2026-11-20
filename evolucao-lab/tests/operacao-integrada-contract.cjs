@@ -611,3 +611,18 @@ test('pagina autonoma de homologacao preserva 20 areas e executa sem arquivos Ja
  assert.ok(!solo.includes('R</body></html>'),'HTML não pode entrar em JavaScript');
  assert.ok(solo.includes('order.multi.revise'),'edição do pedido presente na página autônoma');
 });
+
+test('pacotes de homologacao incluem todas as fontes atuais na ordem do HTML modular',()=>{
+ const original=fs.readFileSync(path.join(dir,'operacao-integrada.html'),'utf8');
+ const scriptPaths=[...original.matchAll(/<script\s+src="([^"]+)"\s*><\/script>/g)].map(x=>x[1]);
+ assert.equal(scriptPaths.length,34,'esperados 34 scripts na operação integrada');
+ const bundles=[1,2,3,4].map(n=>fs.readFileSync(path.join(dir,'bundle-autonomo-'+n+'.js'),'utf8'));
+ for(const [i,sourcePath] of scriptPaths.entries()){
+  const target=Math.min(Math.floor(i/9),3);
+  const source=fs.readFileSync(path.join(dir,sourcePath),'utf8');
+  assert.ok(bundles[target].includes(source),'pacote desatualizado: '+sourcePath);
+ }
+ const solo=fs.readFileSync(path.join(dir,'operacao-integrada-autonoma.html'),'utf8');
+ assert.ok(solo.includes("Valor do extrato R$"),'preservar textos monetários');
+ assert.equal((solo.match(/<script\s+src=/g)||[]).length,0);
+});
