@@ -24,12 +24,14 @@ async function setup(browser){
    await page.goto(url,{waitUntil:'domcontentloaded',timeout:30000});
    await page.waitForSelector('#loginScreen',{timeout:25000});
    try {
-     await page.waitForFunction(()=>window.__HLGB_BOOT_READY_9477===true,{timeout:15000});
+     await page.waitForFunction(()=>window.__HLGB_BOOT_READY_9477===true,undefined,{timeout:15000});
    } catch (error) {
      const state=await page.evaluate(()=>({
        ready:window.__HLGB_BOOT_READY_9477??null,
        failedFiles:window.__HLGB_BOOT_FAILED_FILES_9477??null,
        warning:window.__HLGB_BOOT_WARNING_9478??null,
+       bootError:window.__HLGB_BOOT_ERROR_9477??null,
+       essential:{login:typeof window.doLogin,gate:typeof window.hlgbLoginConfirmGate9407?.confirm,cutProduction:typeof window.hlgbSyncFinalizedCutsToProductionV9240},
        login:!!document.querySelector('#loginScreen'),
        shell:!!document.querySelector('#appShell'),
        title:document.title,
