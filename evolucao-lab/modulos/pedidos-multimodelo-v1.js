@@ -248,6 +248,13 @@
     }
     const payload={clientId:entry.clientId,sizes:entry.sizes,items:entry.items.map(i=>({productId:i.productId,colors:i.colors.map(c=>({color:c.color,grade:clone(c.grade)}))}))};
     const ref=prepare(s,payload,entry.items);
+    const itemIds=new Set();
+    for(let i=0;i<ref.items.length;i++){
+     const id=entry.items[i].id;
+     if(typeof id!=='string'||!/^ITM-[0-9]+$/.test(id)||itemIds.has(id))fail('ID de item duplicado ou inválido');
+     itemIds.add(id);ref.items[i].id=id;
+     ref.items[i].sku=entry.items[i].sku;ref.items[i].name=entry.items[i].name;
+    }
     if(canonical(ref.items)!==canonical(entry.items)||canonical(ref.totals)!==canonical(entry.totals)||canonical(ref.sizes)!==canonical(entry.sizes))fail('Dados, preços históricos ou totais divergentes');
    }catch(error){failures.push((entry?.id||'Sem ID')+': '+error.message);}
   }
