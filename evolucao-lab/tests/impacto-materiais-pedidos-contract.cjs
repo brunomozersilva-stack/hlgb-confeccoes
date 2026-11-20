@@ -41,3 +41,13 @@ test('previsao de revisao antiga falha sem escrever',()=>{
  assert.throws(()=>impact.impact(s,quote()),/desatualizada/);
  assert.equal(JSON.stringify(s),JSON.stringify({...JSON.parse(before),revision:9}));
 });
+
+test('aditivo novo resolve produto explicitamente sem usar item antigo',()=>{
+ const s=state(),p=quote('G2',0,5);
+ p.changes[0].itemId='ITM-002';
+ p.newItemProductIds={'ITM-002':'PRO-1'};
+ const q=impact.impact(s,p);
+ assert.equal(q.complete,true);
+ assert.equal(q.deltaGrams,600);
+ assert.equal(q.details[0].itemId,'ITM-002');
+});
