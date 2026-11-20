@@ -9,9 +9,9 @@ test('observação ausente nunca vira aprovação nem autoriza reparo',()=>{
 });
 test('sucesso só é aceito com evidência explícita',()=>{
  assert.equal(classify({status:'success'}).state,STATUSES.INCOMPLETE);
- assert.equal(classify({status:'success',payload:{observed:true,errors:0}}).state,STATUSES.SUCCESS);
+ assert.equal(classify({status:'success',payload:{observed:true,errors:0,warnings:0}}).state,STATUSES.SUCCESS);
  assert.equal(classify({status:'success',payload:{observed:false,errors:0}}).state,STATUSES.INCOMPLETE);
- assert.equal(classify({status:'success',payload:{observed:true,errors:2}}).state,STATUSES.FAILURE);
+ assert.equal(classify({status:'success',payload:{observed:true,errors:2,warnings:0}}).state,STATUSES.FAILURE);
 });
 test('falha relatada requer revisão, não auto-correção',()=>{
  for(const status of ['failure','failed','error']){
@@ -29,7 +29,7 @@ test('resumo de triagem é determinístico e não modifica entrada',()=>{
  const data=[
  {diagnostic_type:'nightly_user_rollup',status:'not_observed',payload:{observed:false,errors:0}},
  {diagnostic_type:'legacy',status:null,payload:{}},
- {diagnostic_type:'health',status:'success',payload:{observed:true,errors:0}},
+ {diagnostic_type:'health',status:'success',payload:{observed:true,errors:0,warnings:0}},
  {diagnostic_type:'health',status:'failed',payload:{observed:true,errors:1}}
  ];
  const snapshot=JSON.stringify(data),summary=summarize(data);
@@ -38,7 +38,7 @@ test('resumo de triagem é determinístico e não modifica entrada',()=>{
  assert.throws(()=>summarize({}),TypeError);
 });
 test('nenhum estado permite alteração automática',()=>{
- for(const row of [{status:'success',payload:{observed:true,errors:0}},{status:'failed'}, {status:'not_observed'},{}])
+ for(const row of [{status:'success',payload:{observed:true,errors:0,warnings:0}},{status:'failed'}, {status:'not_observed'},{}])
   assert.equal(classify(row).mayAutofix,false);
 });
 
@@ -66,4 +66,12 @@ test('campos vazios ou nulos não contam como prova zero',()=>{
  const summary={pass:1,fail:null,warn:null,total:1,result:'Aprovado'};
  assert.equal(classifyAuditRun({readOnly:true,summary,checks}).state,STATUSES.INCOMPLETE);
  assert.equal(classifyAuditRun({readOnly:true,summary:{...summary,fail:0,warn:0},checks}).state,STATUSES.SUCCESS);
+});
+
+test('aviso observado ou contagem ausente não pode gerar sucesso falso',()=>{
+ const common={diagnostic_type:'nightly_user_rollup',status:'success'};
+ assert.equal(classify({...common,payload:{observed:true,errors:0,warnings:2}}).state,STATUSES.INCOMPLETE);
+ assert.equal(classify({...common,payload:{observed:true,errors:0}}).state,STATUSES.INCOMPLETE);
+ assert.equal(classify({...common,payload:{observed:true,errors:0,warnings:null}}).state,STATUSES.INCOMPLETE);
+ assert.equal(classify({...common,payload:{observed:true,errors:0,warnings:0}}).state,STATUSES.SUCCESS);
 });
