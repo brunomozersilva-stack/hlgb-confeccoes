@@ -151,6 +151,45 @@
    }
   return result;
  }
+
+ function previewChange(s,type,p){
+  if(!['order.multi.revise','order.multi.amend'].includes(type))
+   fail('Tipo de simulação de pedido não reconhecido.');
+  const source=(s.multiOrders||[]).find(x=>x.id===p?.id);
+  if(!source)fail('Pedido não encontrado para simulação.');
+  // Mesmo validador do comando real, mas aplicado apenas a uma cópia descartável.
+  const draft=clone(s),original=clone(source);
+  if(type==='order.multi.revise')revise(draft,p,{uid:'PREVIEW-ONLY'});
+  else amend(draft,p,{uid:'PREVIEW-ONLY'});
+  const newer=draft.multiOrders.find(x=>x.id===p.id);
+  const earlier=cutImpact(s,p.id),later=cutImpact(draft,p.id);
+  const oldSlots=new Map(earlier.map(row=>[[row.itemId,row.color,row.size].join('\u0000'),row]));
+  const newSlots=new Map(later.map(row=>[[row.itemId,row.color,row.size].join('\u0000'),row]));
+  const keys=new Set([...oldSlots.keys(),...newSlots.keys()]);
+  const changes=[];
+  for(const key of keys){
+   const before=oldSlots.get(key),after=newSlots.get(key);
+   const oldQty=before?.ordered||0,newQty=after?.ordered||0;
+   if(oldQty===newQty)continue;
+   changes.push({itemId:(after||before).itemId,model:(after||before).model,
+    color:(after||before).color,size:(after||before).size,
+    beforeQty:oldQty,afterQty:newQty,deltaQty:newQty-oldQty,
+    protectedQty:before?.protectedQty||0,
+    beforeFree:before?.freeToReduce||0,afterFree:after?.freeToReduce||0,
+    effect:after&&!before?'nova_variante':before&&!after?'variante_retirada':
+     newQty>oldQty?'aumento':'reducao'});
+  }
+  if(!changes.length)fail('Nenhuma quantidade foi modificada.');
+  const valueBefore=original.totals.amountCents,valueAfter=newer.totals.amountCents;
+  return {orderId:p.id,baseRevision:s.revision,type,
+   beforePieces:original.totals.pieces,afterPieces:newer.totals.pieces,
+   deltaPieces:newer.totals.pieces-original.totals.pieces,
+   beforeValueCents:valueBefore,afterValueCents:valueAfter,
+   deltaValueCents:valueAfter-valueBefore,changes,
+   protectedPieces:earlier.reduce((n,r)=>n+r.protectedQty,0),
+   financeEffect:'nenhum_lancamento_ficticio',
+   requiresConfirmation:true};
+ }
  function revise(s,p,{uid}){
   ensure(s);
   const order=s.multiOrders.find(x=>x.id===p.id);
@@ -368,5 +407,5 @@
    failures.push('Pedido multimodelo removido, porém ainda presente na trilha: '+event.commandId+' / '+event.description);
   return failures;
  }
- return Object.freeze({version:'1.2.0-lab',prepare,ensure,create,revise,amend,cutImpact,inspect,sizesOf,resolvePrice,setCustomerPrice});
+ return Object.freeze({version:'1.2.0-lab',prepare,ensure,create,revise,amend,cutImpact,previewChange,inspect,sizesOf,resolvePrice,setCustomerPrice});
 });
