@@ -802,6 +802,17 @@ function settlementHistoryPanel(s){
   '<details open><summary>Resumo por facção</summary>'+groups(byFaction)+'</details>'+
   '<details><summary>Resumo por cliente</summary>'+groups(byClient)+'</details>'+
   '<details><summary>Todos os acertos separados, com histórico</summary>'+individual+'</details>'+
+  '<details><summary>Detalhamento por acerto: ajustes, devoluções e compensações</summary>'+
+  byFaction.entries.map(x=>'<details><summary>'+str(x.id)+' · '+str(x.clientName)+' / '+str(x.factionName)+' · '+fmt(x.amountCents)+'</summary>'+
+   '<p>Modelo: '+str(x.model)+' · Peças: '+str(x.qty)+' · '+str(x.status)+
+    ' · Título: '+str(x.financeId)+' · Data de pagamento: '+str(x.paidDate||'Não informada')+'</p>'+
+   table(['Evento','Motivo','Antes','Depois','Comando'],
+    x.history.map(h=>[str(h.type||'revisão'),str(h.reason||'—'),
+      str(h.beforeCents??h.before?.amountCents??'—'),
+      str(h.afterCents??h.after?.amountCents??'—'),str(h.commandId||'—')]))+
+   table(['Compensação','Valor','Situação','Referência'],
+    x.compensations.map(y=>[str(y.id),fmt(y.deltaCents),str(y.status),str(y.reference||'—')]))+
+   '</details>').join('')+'</details>'+
   '<button class="btn" type="button" id="settlement-history-export">Exportar histórico completo CSV</button>',true);
 }
 function factionClosingPanel(s){
