@@ -197,7 +197,7 @@ textarea.input{resize:vertical;min-height:110px;font-family:inherit;line-height:
 </main></div></div>
 <section id="cut-print" aria-label="Folha de corte fictícia para impressão"></section>
 <script>
-/* Pacote 1 de 4, laboratorio ficticio */
+/* HLGB Evolução, pacote 1 de 4 */
 /* modulos/pagamento-lote-v1.js */
 /* HLGB Evolução · Pagamento em lote V1 — SOMENTE LAB FICTÍCIO.
  * O núcleo é o único escritor: este componente valida e muta exclusivamente
@@ -2030,7 +2030,7 @@ textarea.input{resize:vertical;min-height:110px;font-family:inherit;line-height:
 
 </script>
 <script>
-/* Pacote 2 de 4, laboratorio ficticio */
+/* HLGB Evolução, pacote 2 de 4 */
 /* modulos/auditor-v3.js */
 /* Auditor 3.0: diagnóstico local, evidências e rechecagem, nunca autocorreção financeira. */
 (function(root,factory){const api=factory();if(typeof module==='object'&&module.exports)module.exports=api;if(root)root.HLGBLabAuditorV3=api;})(typeof window!=='undefined'?window:null,function factory(){
@@ -2583,6 +2583,36 @@ textarea.input{resize:vertical;min-height:110px;font-family:inherit;line-height:
   }
   return sizes;
  }
+
+ function resolvePrice(s,clientId,productId){
+  const product=s.products.find(x=>x.id===productId);
+  if(!product)fail('Modelo não encontrado para consulta de preço.');
+  const rule=(s.customerPriceRules||[]).find(x=>x.clientId===clientId&&x.productId===productId);
+  return rule?{priceCents:rule.priceCents,source:'cliente',ruleRevision:rule.revision}:
+   {priceCents:product.priceCents,source:'catalogo',ruleRevision:null};
+ }
+ function setCustomerPrice(s,p,{uid}){
+  if(!s.clients.some(x=>x.id===p?.clientId)||!s.products.some(x=>x.id===p?.productId))
+   fail('Cliente ou modelo inexistente para o preço negociado.');
+  if(!Number.isSafeInteger(p.priceCents)||p.priceCents<1||p.priceCents>100000000)
+   fail('Preço negociado inválido.');
+  if(typeof p.reason!=='string'||!p.reason.trim()||p.reason.trim().length>240)
+   fail('Justificativa obrigatória para atualizar preço negociado.');
+  if(s.customerPriceRules===undefined)s.customerPriceRules=[];
+  if(!Array.isArray(s.customerPriceRules))fail('Tabela de preços por cliente ilegível.');
+  const old=s.customerPriceRules.find(x=>x.clientId===p.clientId&&x.productId===p.productId);
+  if(old?.priceCents===p.priceCents)fail('Preço negociado sem mudança.');
+  const event={clientId:p.clientId,productId:p.productId,beforeCents:old?.priceCents??null,
+   afterCents:p.priceCents,commandId:uid,revision:s.revision+1,reason:p.reason.trim()};
+  event.immutableFingerprint=canonical(event);
+  if(s.customerPriceHistory===undefined)s.customerPriceHistory=[];
+  if(!Array.isArray(s.customerPriceHistory))fail('Histórico de preços ilegível.');
+  s.customerPriceHistory.push(event);
+  if(old){old.priceCents=p.priceCents;old.revision=s.revision+1;}
+  else s.customerPriceRules.push({clientId:p.clientId,productId:p.productId,
+   priceCents:p.priceCents,revision:s.revision+1});
+  return p.clientId+' / '+p.productId+' · preço de venda fictício atualizado';
+ }
  function prepare(s,p,snapshots=null){
   if(!s||!Array.isArray(s.clients)||!Array.isArray(s.products))fail('Catálogo indisponível.');
   if(!s.clients.some(x=>x.id===p?.clientId))fail('Cliente não encontrado.');
@@ -2594,7 +2624,7 @@ textarea.input{resize:vertical;min-height:110px;font-family:inherit;line-height:
    const product=s.products.find(x=>x.id===item?.productId);
    if(!product)fail('Modelo não encontrado: item '+(idx+1));
    if(!Array.isArray(item.colors)||item.colors.length<1||item.colors.length>30)fail('Informe de 1 a 30 cores por modelo.');
-   const snap=snapshots?.[idx],priceCents=snap?snap.priceCents:product.priceCents;
+   const snap=snapshots?.[idx],priceCents=snap?snap.priceCents:resolvePrice(s,p.clientId,product.id).priceCents;
    if(!Number.isSafeInteger(priceCents)||priceCents<0)fail('Preço fictício inválido no item '+(idx+1));
    const colors=[],seen=new Set(),sizesForItem=Object.fromEntries(sizes.map(x=>[x,0]));
    for(const row of item.colors){
@@ -2773,6 +2803,38 @@ textarea.input{resize:vertical;min-height:110px;font-family:inherit;line-height:
   if(s.multiOrders===undefined)return [];
   if(!Array.isArray(s.multiOrders))return ['Coleção multimodelo inválida'];
   const failures=[],ids=new Set();
+
+  if(s.customerPriceRules!==undefined||s.customerPriceHistory!==undefined){
+   if(!Array.isArray(s.customerPriceRules)||!Array.isArray(s.customerPriceHistory))
+    failures.push('Tabela ou histórico de preços por cliente ilegível');
+   else{
+    const seenPrices=new Set(),last=new Map();
+    for(const event of s.customerPriceHistory){
+     const key=event?.clientId+'|'+event?.productId;
+     if(!event||!s.clients.some(c=>c.id===event.clientId)||
+       !s.products.some(p=>p.id===event.productId)||
+       !Number.isSafeInteger(event.afterCents)||event.afterCents<1||
+       typeof event.reason!=='string'||!event.reason.trim()||
+       event.immutableFingerprint!==canonical({clientId:event.clientId,productId:event.productId,
+        beforeCents:event.beforeCents,afterCents:event.afterCents,
+        commandId:event.commandId,revision:event.revision,reason:event.reason})||
+       (s.log||[]).filter(e=>e.type==='price.customer.set'&&
+        e.revision===event.revision&&e.commandId===event.commandId).length!==1||
+       (last.get(key)?.revision??0)>=event.revision||
+       (last.get(key)?.afterCents??null)!==event.beforeCents)
+      failures.push('Regra de preço de cliente com histórico inconsistente: '+key);
+     last.set(key,event);
+    }
+    for(const rule of s.customerPriceRules){
+     const key=rule.clientId+'|'+rule.productId,e=last.get(key);
+     if(seenPrices.has(key)||!e||e.afterCents!==rule.priceCents||e.revision!==rule.revision)
+      failures.push('Preço por cliente adulterado, duplicado ou sem origem: '+key);
+     seenPrices.add(key);
+    }
+    for(const key of last.keys())if(!seenPrices.has(key))
+     failures.push('Histórico de preço sem regra atual: '+key);
+   }
+  }
   for(const entry of s.multiOrders){
    try{
     if(!entry||typeof entry.id!=='string'||ids.has(entry.id))fail('ID duplicado/ausente');
@@ -2815,12 +2877,12 @@ textarea.input{resize:vertical;min-height:110px;font-family:inherit;line-height:
    failures.push('Pedido multimodelo removido, porém ainda presente na trilha: '+event.commandId+' / '+event.description);
   return failures;
  }
- return Object.freeze({version:'1.1.0-lab',prepare,ensure,create,revise,amend,inspect,sizesOf});
+ return Object.freeze({version:'1.2.0-lab',prepare,ensure,create,revise,amend,inspect,sizesOf,resolvePrice,setCustomerPrice});
 });
 
 </script>
 <script>
-/* Pacote 3 de 4, laboratorio ficticio */
+/* HLGB Evolução, pacote 3 de 4 */
 /* modulos/corte-multimodelo-v1.js */
 /* HLGB Evolução · Corte multimodelo em laboratório fictício.
  * Controle por pedido + item + cor + tamanho; sem baixa de estoque, facções ou financeiro.
@@ -4753,6 +4815,7 @@ textarea.input{resize:vertical;min-height:110px;font-family:inherit;line-height:
    const old=s.pcpCapacity||pcp.defaults,reason=name(p.reason,'Justificativa');
    s.pcpCapacity=cap;result=pcp.stages.map(k=>k+': '+old[k]+' → '+cap[k]).join(' · ')+' · '+reason;break}
   case 'order.add':{result=createOrder(s,p);break}
+  case 'price.customer.set':{result=multiOrders.setCustomerPrice(s,p,{uid});break}
   case 'order.multi.create':{result=multiOrders.create(s,p,next);break}
   case 'order.multi.revise':{result=multiOrders.revise(s,p,{uid});break}
   case 'order.multi.amend':{result=multiOrders.amend(s,p,{uid});break}
@@ -5229,7 +5292,7 @@ textarea.input{resize:vertical;min-height:110px;font-family:inherit;line-height:
 
 </script>
 <script>
-/* Pacote 4 de 4, laboratorio ficticio */
+/* HLGB Evolução, pacote 4 de 4 */
 /* modulos/registro-v1.js */
 /* HLGB Evolução: registro de módulos opcionais do LAB. Nenhuma rede, storage ou escrita financeira. */
 (function(root,factory){
@@ -6704,6 +6767,21 @@ function multiOrderRevisionPanel(s){
  return rows?panel('Revisar quantidades de pedidos multimodelo (histórico protegido)',
   '<p>As alterações são registradas com antes/depois, revisão e justificativa; o total e os cortes são reconferidos antes da gravação.</p>'+rows,true):'';
 }
+function customerPricePanel(s){
+ const rows=(s.customerPriceRules||[]).map(rule=>[
+  ref(s.clients,rule.clientId)?.name||rule.clientId,
+  ref(s.products,rule.productId)?.name||rule.productId,
+  fmt(rule.priceCents),'Revisão '+rule.revision]);
+ return panel('Tabela negociada · cliente e modelo (somente laboratório)',
+  '<p>O preço negociado será aplicado apenas a modelos incluídos em pedidos multimodelo fictícios NOVOS. Pedidos anteriores conservam o preço gravado. O valor não altera mão de obra de facção nem financeiro real.</p>'+
+  form('price.customer.set','Definir preço de venda por cliente',[
+   field('clientId','Cliente','select','',selector(s.clients,x=>x.name)),
+   field('productId','Modelo','select','',selector(s.products,x=>x.name+' · '+x.sku)),
+   field('priceCents','Preço negociado R$','money','19,90'),
+   field('reason','Motivo da negociação')],'Guardar preço negociado fictício')+
+  '<h3>Valores negociados</h3>'+table(['Cliente','Modelo','Preço de venda','Última alteração'],rows)+
+  '<p class="caption">Toda alteração exige justificativa e fica no histórico. Se não houver valor negociado, vale o preço do catálogo.</p>',true);
+}
 function multiOrderPanel(s){
  const sizeList=multiBaseSizes,existing=s.multiOrders||[],clients=selector(s.clients,x=>x.name);
  const summaries=table(['Pedido','Cliente','Modelos','Cores','Peças','Valor ilustrativo','Condição'],
@@ -8008,7 +8086,7 @@ function moduleHtml(s){
  table(['Perfil','Escopo proposto','Situação empresarial'],[['Supervisor','Cadastros, aprovações e relatórios','Pendente'],['Produção','Pedidos, corte, facções e separação','Pendente'],
  ['Financeiro','Acertos, Hub, compras e comprovantes','Pendente'],['Consulta','Visualização sem alterar','Pendente']]),true);
  case 'pedidos':return importOrdersPanel(s)+panel('Grade por cor e tamanho no próprio Pedido',colorMatrixCreateForm(s),true)+
- orderColorGradePanel(s)+multiOrderPanel(s)+multiFlowLabPart(s,'balance')+panel('Incluir pedido com grade — modo antigo sem cores',
+ orderColorGradePanel(s)+customerPricePanel(s)+multiOrderPanel(s)+multiFlowLabPart(s,'balance')+panel('Incluir pedido com grade — modo antigo sem cores',
  form('order.add','Novo pedido fictício',[
  field('clientId','Cliente','select','',clients),field('productId','Modelo','select','',products),
  ...api.sizes.map(z=>field(z,'Quantidade '+z,'int',z==='M'?10:0))],'Cadastrar pedido'))+
@@ -8631,6 +8709,11 @@ function parseData(type,form){
  }
  if(type==='route.plan'||type==='route.revise')return routeInput(form);
  if(type==='packer.progress'){const data=Object.fromEntries(new FormData(form).entries());return {id:data.id,doneQty:Number(data.doneQty),reason:data.reason,correction:data.correction==='true'};}
+ if(type==='price.customer.set'){
+  const d=Object.fromEntries(new FormData(form).entries());
+  return {clientId:d.clientId,productId:d.productId,
+   priceCents:parseCents(d.priceCents),reason:d.reason};
+ }
  if(type==='order.multi.create')return multiOrderInput(form);
  if(type==='order.multi.amend'){
   const id=form.elements.namedItem('id').value,order=doc.multiOrders.find(x=>x.id===id);
