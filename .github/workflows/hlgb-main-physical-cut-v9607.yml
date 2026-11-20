@@ -8,6 +8,7 @@ on:
       - 'tests/hlgb-main-inline-cut-production-v9607.cjs'
       - 'tests/hlgb-auditor-evidence-triage-v9608.cjs'
       - 'tests/hlgb-main-inline-cut-browser-v9607.cjs'
+      - 'tests/cutter-save-confirm-v9580.cjs'
       - 'tests/hlgb-main-inline-boundaries-v9606.cjs'
       - '.github/workflows/hlgb-main-physical-cut-v9607.yml'
   workflow_dispatch:
@@ -26,6 +27,7 @@ jobs:
           node --check hlgb-modules/verify-main-inline-extraction-v9607.cjs
           node --test tests/hlgb-main-inline-cut-production-v9607.cjs
           node --test tests/hlgb-auditor-evidence-triage-v9608.cjs
+          node --test tests/cutter-save-confirm-v9580.cjs
           node --test tests/hlgb-main-inline-boundaries-v9606.cjs
           node --test tests/hlgb-main-156-blob-integrity-v9606.cjs
           node --test tests/hlgb-module-boundaries-v9600.cjs
