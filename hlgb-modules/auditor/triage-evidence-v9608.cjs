@@ -26,10 +26,28 @@ function classify(row){
     return {state:STATUSES.FAILURE,reason:'erro_observado_requer_investigacao',mayAutofix:false};
   return {state:STATUSES.INCOMPLETE,reason:diagnosticType?'prova_insuficiente':'tipo_ausente',mayAutofix:false};
 }
+function classifyAuditRun(run){
+  if(!run||typeof run!=='object'||Array.isArray(run))
+    return {state:STATUSES.INCOMPLETE,reason:'auditoria_ausente',mayAutofix:false};
+  const summary=run.summary&&typeof run.summary==='object'?run.summary:{};
+  const total=safeCount(summary.total),pass=safeCount(summary.pass),
+    fail=safeCount(summary.fail),warn=safeCount(summary.warn);
+  if(fail!==null&&fail>0)
+    return {state:STATUSES.FAILURE,reason:'auditoria_contém_falhas',mayAutofix:false};
+  if([total,pass,fail,warn].some(x=>x===null)||pass+fail+warn!==total)
+    return {state:STATUSES.INCOMPLETE,reason:'totais_inconsistentes',mayAutofix:false};
+  if(warn>0)
+    return {state:STATUSES.INCOMPLETE,reason:'auditoria_com_avisos',mayAutofix:false};
+  if(run.readOnly!==true||!Array.isArray(run.checks)||run.checks.length!==total||total===0)
+    return {state:STATUSES.INCOMPLETE,reason:'verificações_sem_prova_completa',mayAutofix:false};
+  if(run.checks.every(c=>c&&c.status==='pass')&&String(summary.result)==='Aprovado')
+    return {state:STATUSES.SUCCESS,reason:'auditoria_integral_aprovada',mayAutofix:false};
+  return {state:STATUSES.INCOMPLETE,reason:'resultado_nao_comprovado',mayAutofix:false};
+}
 function summarize(rows){
   if(!Array.isArray(rows))throw new TypeError('diagnósticos devem ser uma lista');
   const counts=Object.fromEntries(Object.values(STATUSES).map(s=>[s,0]));
   for(const row of rows)counts[classify(row).state]++;
   return {total:rows.length,counts,eligibleForAutomaticRepair:0,requiresHumanReview:rows.length-counts[STATUSES.SUCCESS]};
 }
-module.exports={STATUSES,classify,summarize};
+module.exports={STATUSES,classify,classifyAuditRun,summarize};
