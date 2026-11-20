@@ -20,8 +20,8 @@ function classify(row){
     return {state:STATUSES.UNKNOWN,reason:'atividade_nao_observada',mayAutofix:false};
   if(['error','failed','failure'].includes(rawStatus))
     return {state:STATUSES.FAILURE,reason:'falha_reportada_sem_causa_confirmada',mayAutofix:false};
-  if(['success','ok','passed','completed'].includes(rawStatus)&&observed&&errors===0)
-    return {state:STATUSES.SUCCESS,reason:'evidencia_de_observacao_sem_erro',mayAutofix:false};
+  if(['success','ok','passed','completed'].includes(rawStatus)&&observed&&errors===0&&warnings===0)
+    return {state:STATUSES.SUCCESS,reason:'evidencia_de_observacao_sem_erro_ou_aviso',mayAutofix:false};
   if(errors!==null&&errors>0&&observed)
     return {state:STATUSES.FAILURE,reason:'erro_observado_requer_investigacao',mayAutofix:false};
   return {state:STATUSES.INCOMPLETE,reason:diagnosticType?'prova_insuficiente':'tipo_ausente',mayAutofix:false};
