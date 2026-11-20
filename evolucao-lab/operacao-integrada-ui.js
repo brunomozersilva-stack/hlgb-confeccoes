@@ -780,6 +780,30 @@ async function readReceiptPayload(form){
  let content='';for(let i=0;i<bytes.length;i+=8192)content+=String.fromCharCode(...bytes.slice(i,i+8192));
  return {targetId,previousId,fileName:file.name,contentBase64:btoa(content),reason,fictitious:true};
 }
+function settlementHistoryPanel(s){
+ const svc=window.HLGBLabSettlementHistoryV1;
+ if(!svc)return panel('Historico de acertos por cliente e faccao','Relatorio indisponivel. Nenhum dado modificado.',true);
+ let byFaction,byClient;
+ try{byFaction=svc.report(s,{groupBy:'faccao'});byClient=svc.report(s,{groupBy:'cliente'});}
+ catch(err){return panel('Historico de acertos','Erro de integridade: '+str(err.message),true);}
+ const groups=report=>table(['Nome','Acertos','Peças','Total','Pago','Em aberto','Compensações líquidas'],
+  report.groups.map(g=>[str(g.name),str(g.count),str(g.pieces),fmt(g.totalCents),
+   fmt(g.paidCents),fmt(g.openCents),fmt(g.compensationNetCents)]));
+ const individual=table(['Acerto','Cliente','Facção','Modelo / serviço','Peças','Valor','Situação','Título / pagamento','Compensações','Alterações'],
+  byFaction.entries.map(x=>[str(x.id)+' / '+str(x.orderId||'Avulso'),
+   str(x.clientName),str(x.factionName),str(x.model)+' / '+str(x.service),
+   str(x.qty),fmt(x.amountCents),str(x.status),
+   str(x.financeId)+' / '+str(x.paidDate||'Data não informada')+
+    (x.batchId?' / '+str(x.batchId):''),
+   x.compensations.map(y=>str(y.id)+' '+fmt(y.deltaCents)+' ('+str(y.status)+')').join('; ')||'—',
+   str(x.history.length)+' evento(s)']));
+ return panel('Historico de acertos · cliente e faccao',
+  '<p>Consulta somente leitura: resumo completo por facção ou cliente e cada acerto separado. Valores pagos e em aberto não incluem compensações, exibidas à parte. Acertos avulsos sem pedido aparecem como cliente não vinculado.</p>'+
+  '<details open><summary>Resumo por facção</summary>'+groups(byFaction)+'</details>'+
+  '<details><summary>Resumo por cliente</summary>'+groups(byClient)+'</details>'+
+  '<details><summary>Todos os acertos separados, com histórico</summary>'+individual+'</details>'+
+  '<button class="btn" type="button" id="settlement-history-export">Exportar histórico completo CSV</button>',true);
+}
 function factionClosingPanel(s){
  const comps=s.settlementCompensations||[];
  const groups=window.HLGBLabPaymentBatchV1?.groups?.(s)||[];
@@ -1904,7 +1928,7 @@ function moduleHtml(s){
  const paid=selector(s.settlements.filter(x=>x.status==='pago'),
   x=>x.id+' · Pago '+fmt(x.amountCents)+' · '+(ref(s.factions,x.factionId)?.name||'—'));
  const compensations=s.settlementCompensations||[];
- return multiFlowLabPart(s,'acerto')+groupedAccountPanel(s)+factionClosingPanel(s)+serviceGroupPanel(s)+servicePanels(s,'acertos')+panel('Serviços avulsos e embalagem',
+ return settlementHistoryPanel(s)+multiFlowLabPart(s,'acerto')+groupedAccountPanel(s)+factionClosingPanel(s)+serviceGroupPanel(s)+servicePanels(s,'acertos')+panel('Serviços avulsos e embalagem',
  form('settlement.add','Novo acerto avulso fictício',[
   field('serviceType','Tipo de serviço','select','',[['costura','Costura avulsa'],['embalagem','Embalagem']]),
   field('factionId','Facção / embaladeira','select','',factions),
@@ -3152,6 +3176,23 @@ document.addEventListener('click',async e=>{
    status('Módulo Observabilidade 2.0 '+(!observer.enabled?'ativado':'desativado')+
     ' somente nesta aba. Funções anteriores continuam disponíveis.');}
   else status('Módulo opcional indisponível. Sistema legado preservado.','error');
+  return;
+ }
+ if(e.target.closest('#settlement-history-export')){
+  try{
+   const service=window.HLGBLabSettlementHistoryV1;
+   if(!service)throw Error('Histórico indisponível.');
+   const data=service.report(doc,{groupBy:'faccao',view:'separado'});
+   const rows=[['Acerto','Pedido','Cliente','Facção','Modelo','Serviço','Peças',
+    'Valor centavos','Pago centavos','Aberto centavos','Status','Título',
+    'Data pagamento','Fechamento','Compensações líquidas centavos','Histórico eventos'],
+    ...data.entries.map(x=>[x.id,x.orderId||'',x.clientName,x.factionName,x.model,
+      x.service,x.qty,x.amountCents,x.paidCents,x.openCents,x.status,x.financeId,
+      x.paidDate||'',x.batchId||'',x.compensationNetCents,x.history.length])];
+   download('HLGB-HISTORICO-ACERTOS-FICTICIO.csv',
+    '\\uFEFF'+rows.map(x=>x.map(safeCell).join(';')).join('\\r\\n'),
+    'text/csv;charset=utf-8');
+  }catch(err){status('Exportação de acertos bloqueada: '+err.message,'error');}
   return;
  }
  if(e.target.closest('#settlement-clear-filters')){
