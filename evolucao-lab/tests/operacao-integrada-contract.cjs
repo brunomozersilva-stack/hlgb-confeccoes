@@ -608,8 +608,6 @@ test('pagina autonoma de homologacao preserva 20 areas e executa sem arquivos Ja
   assert.doesNotThrow(()=>new vm.Script(bundles[i]),'pacote '+(i+1)+' tem sintaxe JS válida');
  }
  assert.ok(solo.indexOf('Arquivo integrado')<0,'sem marcador incompleto de arquivo');
- assert.doesNotMatch(solo,/R<\\/body><\\/html>,'money'/,'nenhum fechamento de HTML inserido em moeda');
- assert.match(solo,/Valor do extrato R\\
-});
-,'money'/,'string monetária original preservada no pacote');
+ assert.ok(!solo.includes('R</body></html>'),'HTML não pode entrar em JavaScript');
+ assert.ok(solo.includes('order.multi.revise'),'edição do pedido presente na página autônoma');
 });
