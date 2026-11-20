@@ -2447,6 +2447,20 @@ function orderChangePreviewText(result){
    '), mínimo protegido '+x.protectedQty).join('\n')+
   '\nNão gera financeiro, movimentação nem aprovação de produção.';
 }
+function orderMaterialPreviewText(result){
+ const m=window.HLGBLabOrderMaterialImpactV1;
+ if(!m||typeof m.impact!=='function')return '\nMateriais: modulo nao carregado; previsao indisponivel.';
+ try{
+  const q=m.impact(doc,result);
+  const lines=q.materials.map(x=>x.name+': '+(x.deltaGrams>=0?'+':'')+
+   x.deltaGrams+' g · custo marginal '+fmt(x.deltaCostCents));
+  return '\nMateriais (estimativa por ficha atual; reservas nao reconciliadas):\n'+
+   (lines.join('\n')||'Nenhum consumo confirmado.')+
+   (q.missingRecipes.length?'\nFichas incompletas: '+
+    q.missingRecipes.map(x=>x.itemId+' / '+x.color+' / '+x.size+' ('+x.reason+')').join('; '):'')+
+   '\nEstoque livre e capacidade do Corte: NAO confirmados. Nenhuma compra ou baixa.';
+ }catch(err){return '\nMateriais: previsao indisponivel ('+err.message+'). Nenhuma baixa.';}
+}
 function simulateOrderChange(form,type){
  if(!doc||!window.HLGBLabMultiOrdersV1?.previewChange)
   throw Error('Simulador de pedido indisponível.');
@@ -2462,7 +2476,7 @@ async function submit(form,type){
   let preview;
   try{preview=simulateOrderChange(form,type);}
   catch(error){status('Simulação bloqueou o salvamento: '+error.message,'error');return;}
-  if(!confirm(orderChangePreviewText(preview)+'\n\nConfirmar o registro fictício com histórico?'))return;
+  if(!confirm(orderChangePreviewText(preview)+orderMaterialPreviewText(preview)+'\n\nConfirmar o registro fictício com histórico?'))return;
  }
  if(type==='multi.cut.cancel'&&!confirm('Cancelar somente esta folha de ensaio, mantendo todo o histórico?'))return;
  if(type==='route.cancel'&&!confirm('Cancelar esta rota fictícia mantendo o histórico de todas as paradas?'))return;
@@ -2904,7 +2918,7 @@ document.addEventListener('click',async e=>{
    try{
     const preview=simulateOrderChange(form,form.dataset.command);
     output.style.whiteSpace='pre-wrap';
-    output.textContent=orderChangePreviewText(preview);
+    output.textContent=orderChangePreviewText(preview)+orderMaterialPreviewText(preview);
     output.dataset.valid='true';
    }catch(error){
     output.textContent='Alteração não permitida: '+error.message;
