@@ -5,6 +5,8 @@ on:
       - feature/evolucao-laboratorio-isolado-v1-20261114
     paths:
       - 'evolucao-lab/operacao-integrada.html'
+      - 'evolucao-lab/operacao-integrada-autonoma.html'
+      - 'evolucao-lab/bundle-autonomo-*.js'
       - 'evolucao-lab/operacao-integrada-core.js'
       - 'evolucao-lab/operacao-integrada-ui.js'
       - 'evolucao-lab/modulos/**'
