@@ -23,7 +23,22 @@ async function setup(browser){
    });
    await page.goto(url,{waitUntil:'domcontentloaded',timeout:30000});
    await page.waitForSelector('#loginScreen',{timeout:25000});
-   await page.waitForFunction(()=>window.__HLGB_BOOT_READY_9477===true,{timeout:15000});
+   try {
+     await page.waitForFunction(()=>window.__HLGB_BOOT_READY_9477===true,{timeout:15000});
+   } catch (error) {
+     const state=await page.evaluate(()=>({
+       ready:window.__HLGB_BOOT_READY_9477??null,
+       failedFiles:window.__HLGB_BOOT_FAILED_FILES_9477??null,
+       warning:window.__HLGB_BOOT_WARNING_9478??null,
+       login:!!document.querySelector('#loginScreen'),
+       shell:!!document.querySelector('#appShell'),
+       title:document.title,
+       body:document.body?.innerText?.slice(0,800)??'',
+       scripts:[...document.scripts].slice(-8).map(x=>x.src||'[inline]')
+     })).catch(e=>({inspectionError:String(e)}));
+     console.error('HLGB boot recovery diagnostic',JSON.stringify({browser:engine.name(),tries,errors,state}));
+     throw error;
+   }
    assert.equal(tries,2,'a failed fetch must recover on the second attempt');
    assert.deepEqual(errors,[],'boot must not generate JavaScript page errors');
    await context.close();
