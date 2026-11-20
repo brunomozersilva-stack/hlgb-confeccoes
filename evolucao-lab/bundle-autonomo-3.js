@@ -1932,6 +1932,7 @@
   case 'order.add':{result=createOrder(s,p);break}
   case 'order.multi.create':{result=multiOrders.create(s,p,next);break}
   case 'order.multi.revise':{result=multiOrders.revise(s,p,{uid});break}
+  case 'order.multi.amend':{result=multiOrders.amend(s,p,{uid});break}
   case 'multi.cut.plan':{result=multiCuts.create(s,p,{next,uid});break}
   case 'multi.cut.revise':{result=multiCuts.revise(s,p,{uid});break}
   case 'multi.cut.complete':{result=multiCuts.complete(s,p,{uid});break}
