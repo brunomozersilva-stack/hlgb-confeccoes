@@ -65,3 +65,21 @@ A candidata anterior #271 passou nos 55 workflows automáticos, mas ainda não t
 6. Depois do merge, executar smoke tests no domínio comercial e acompanhar primeiro salvamento/ACK com a equipe antes de encerrar a janela de rollback.
 
 **Não concluído neste documento:** backup, homologação com banco isolado, testes reais entre dois computadores ou autorização de publicação. Não marcar como feitos sem evidência.
+
+
+## Janela sem funcionários — diagnóstico Auditor/Bot (20/11/2026)
+
+Consulta **somente leitura** ao Supabase do HLGB comercial:
+- Não há branches de desenvolvimento de banco listadas; **não há isolamento de base confirmado**.
+- Tabelas operacionais `hlgb_records`, `hlgb_record_history`, `hlgb_sync_diagnostics` e `hlgb_activity_log` acessíveis; nenhuma alteração de dados executada.
+- Nos últimos 14 dias, consulta agrupada de `hlgb_sync_diagnostics`: **46 ocorrências de `nightly_user_rollup / not_observed / warning`**, última ocorrência em 19/11/2026 20:55 UTC. Mais 138 registros sem tipo/status/severidade, último em 19/11/2026 17:36 UTC. Esses números indicam **lacunas de observabilidade**, não perdas confirmadas.
+- Existem tabelas com prefixo `backup`, mas **sua existência não confirma snapshot atual restaurável**. Nenhuma restauração foi testada.
+
+### Procedimento do Auditor e bot
+1. Na auditoria, distinguir `confirmed_success`, `confirmed_failure` e `not_observed`. Nunca classificar `not_observed` como aprovado, nem corrigir automaticamente por ausência de evento.
+2. Para toda falha de salvamento, exigir ID de operação, módulo, origem, momento, erro, identificação da WAL e **ACK remoto consultado**. Preservar a WAL IndexedDB mesmo se `pendingSync=0`.
+3. O bot só pode sugerir correções de dados em ambiente isolado; nada de exclusões, deduplicações, replay ou alterações de salários/pagamentos sem inventário e prova de idempotência.
+4. Antes de publicar: comprovar backup restaurável, teste de Safari↔Chrome com duas sessões e verificar que ações da Folha, Hub, Acertos, Corte/Produção geram confirmação remota.
+5. O Auditor deve apresentar pendências reais e observabilidade ausente separadamente, sem inflar aprovações ou apagar histórico.
+
+**Situação:** análise do banco e classificação das pendências realizadas; **reparo de monitoramento e homologação não concluídos**. Merge permanece bloqueado até todos os checks, prova operacional e aprovação expressa.
