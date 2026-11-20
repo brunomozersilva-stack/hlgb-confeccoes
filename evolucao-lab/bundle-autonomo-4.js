@@ -2388,7 +2388,7 @@ function financeControlPanels(s){
  const paid=selector(s.finance.filter(x=>x.status==='pago'&&!x.reconciliation),x=>x.id+' · '+x.description+' · '+fmt(x.amountCents));
  return panel('Programar vencimento e conciliar manualmente',
  form('finance.schedule','Definir ou corrigir vencimento',[field('id','Título aberto','select','',open),dated('dueDate','Vencimento'),field('reason','Motivo','text','Programação fictícia')],'Salvar vencimento')+
- form('finance.reconcile','Conferir título quitado com extrato fictício',[field('id','Título pago sem conferência','select','',paid),field('reference','Referência única do extrato','text','EXT-TESTE-001'),field('amountCents','Valor do extrato R,'money','100,00'),dated('reconcileDate','Data de conferência')],'Conferir valor')+
+ form('finance.reconcile','Conferir título quitado com extrato fictício',[field('id','Título pago sem conferência','select','',paid),field('reference','Referência única do extrato','text','EXT-TESTE-001'),field('amountCents','Valor do extrato R$','money','100,00'),dated('reconcileDate','Data de conferência')],'Conferir valor')+
  '<p>Conferência manual de valor, não integra banco, não paga novamente e não comprova transferência.</p>');
 }
 
@@ -2542,7 +2542,7 @@ function serviceGroupPanel(s){
  const draft=serviceGroupDraft||{factionId:staff[0]?.[0]||'',reference:'GRUPO-R'+s.revision,lines:[emptyGroupLine(),emptyGroupLine()]};
  const productChoices=selector(s.products,x=>x.name+' · '+x.sku).concat([['manual','Modelo avulso (embalagem)']]);
  const cats=window.HLGBLabServicesV1.categories.map(x=>[x,x]),modes=[['auto','Preço cadastrado'],['manual','Preço manual']];
- const rows=draft.lines.map((x,i)=>'<div class="panel" data-group-line><h3>Linha '+(i+1)+'</h3><div class="fields">'+field('productId','Modelo','select',x.productId,productChoices)+field('manualName','Modelo avulso','text',x.manualName)+field('manualCategory','Categoria avulsa','select',x.manualCategory,cats)+field('qty','Peças','int',String(x.qty))+field('priceMode','Preço','select',x.priceMode,modes)+field('unit','Preço manual R,'money',x.unit)+'</div>'+(draft.lines.length>2?'<button class="btn danger" type="button" data-group-remove="'+i+'">Retirar linha do rascunho</button>':'')+'</div>').join('');
+ const rows=draft.lines.map((x,i)=>'<div class="panel" data-group-line><h3>Linha '+(i+1)+'</h3><div class="fields">'+field('productId','Modelo','select',x.productId,productChoices)+field('manualName','Modelo avulso','text',x.manualName)+field('manualCategory','Categoria avulsa','select',x.manualCategory,cats)+field('qty','Peças','int',String(x.qty))+field('priceMode','Preço','select',x.priceMode,modes)+field('unit','Preço manual R$','money',x.unit)+'</div>'+(draft.lines.length>2?'<button class="btn danger" type="button" data-group-remove="'+i+'">Retirar linha do rascunho</button>':'')+'</div>').join('');
  const q=serviceGroupResult?.revision===s.revision?serviceGroupResult:null;
  return panel('Montar um acerto com várias linhas','<p>Uma pessoa por grupo; atividade e preços seguem o cadastro. Confira a prévia antes de gravar. Nenhuma baixa financeira é feita ao criar o grupo.</p><div class="fields"><div class="field"><label>Prestador<select class="input" id="group-service-faction">'+options(staff,draft.factionId)+'</select></label></div><div class="field"><label>Referência<input class="input" id="group-service-reference" value="'+str(draft.reference)+'"></label></div></div><div id="group-service-lines">'+rows+'</div><div class="actions"><button class="btn" id="group-line-add" type="button" '+(draft.lines.length>=20?'disabled':'')+'>Adicionar linha</button><button class="btn" id="group-service-preview" type="button">Conferir total</button></div>'+
  (q?table(['Modelo','Atividade','Peças','Bruto/peça','Desconto/peça','Total'],q.rows.map(x=>[str(x.model),str(x.service),str(x.qty),fmt(x.gross),fmt(x.discount),fmt(x.amount)]))+'<p><strong>Total da prévia: '+fmt(q.total)+'</strong></p>'+form('settlement.service.group','Confirmar acerto',[field('reason','Justificativa','text','Grupo de serviços fictício')],'Registrar todas as linhas'):'')+
@@ -2750,7 +2750,7 @@ function moduleHtml(s){
  form('product.add','Cadastrar modelo',[field('name','Nome do modelo'),field('sku','SKU único'),
  field('materialId','Material principal','select','',materials),
  field('gramsPerUnit','Consumo por unidade (g)','int','80'),
- field('priceCents','Preço de venda R,'money','39,90')],'Cadastrar modelo'))+
+ field('priceCents','Preço de venda R$','money','39,90')],'Cadastrar modelo'))+
  panel('Referência dos materiais','<p>O corte fictício continua utilizando o consumo principal registrado ao cadastrar o modelo. A nova receita detalhada é usada somente na previsão de materiais, sem alterar baixas antigas.</p>')+
  panel('Modelos cadastrados',table(['SKU','Modelo','Material','Consumo','Preço'],s.products.map(x=>[
  str(x.sku),str(x.name),str(ref(s.materials,x.materialId)?.name),str(x.gramsPerUnit)+'g',fmt(x.priceCents)])),true);
@@ -3120,7 +3120,7 @@ function moduleHtml(s){
  }
  case 'hub':return financeAnalytics(s)+panel('Lançamento do Hub fictício',
  form('finance.add','Novo título',[field('description','Descrição'),field('kind','Tipo','select','',[['pagar','Pagar'],['receber','Receber']]),
- field('amountCents','Valor em R,'money','100,00'),field('category','Categoria','select','',window.HLGBLabFinanceV1.categories.map(x=>[x,x])), '<div class="field"><label>Vencimento (opcional)<input class="input" type="date" name="dueDate"></label></div>'],'Cadastrar título')+
+ field('amountCents','Valor em R$','money','100,00'),field('category','Categoria','select','',window.HLGBLabFinanceV1.categories.map(x=>[x,x])), '<div class="field"><label>Vencimento (opcional)<input class="input" type="date" name="dueDate"></label></div>'],'Cadastrar título')+
  form('finance.pay','Confirmar lançamento',[field('id','Título aberto','select','',finance),'<div class="field"><label>Data da baixa<input class="input" type="date" name="paidDate" value="2026-11-16" required></label></div>'],'Marcar como quitado ficticiamente')+
  '<p class="caption">Esta ação não movimenta dinheiro. Confirme apenas valores fictícios.</p>')+
  financeRevisionPanels(s)+financeControlPanels(s)+financialBatchPanel(s)+receiptPanel(s)+
@@ -3128,10 +3128,10 @@ function moduleHtml(s){
  panel('Contas do laboratório',financeTable(s),true);
  case 'folha':return payrollIntegratedPanel(s)+panel('Editar salário e passagem por pessoa',
  form('payroll.update','Alterar registro da folha',[field('id','Funcionário','select','',employees),
- field('salaryCents','Salário-base R,'money','2000,00'),
- field('passageCents','Passagem R,'money','120,00'),
- field('extrasCents','Extras R,'money','0,00'),
- field('discountCents','Descontos R,'money','0,00')],'Salvar valores individuais'))+
+ field('salaryCents','Salário-base R$','money','2000,00'),
+ field('passageCents','Passagem R$','money','120,00'),
+ field('extrasCents','Extras R$','money','0,00'),
+ field('discountCents','Descontos R$','money','0,00')],'Salvar valores individuais'))+
  panel('Não é cálculo trabalhista','<p>A passagem entra no desembolso separado do salário. Não calcula encargos, FGTS, INSS ou rescisão real. A Folha 2.0 separada possui testes adicionais de ordenação e conflitos.</p>'+
  '<a href="./folha-homologacao.html" class="btn link">Abrir Folha 2.0 detalhada</a>')+
  panel('Saldos da folha fictícia',table(['Funcionário','Base','Passagem','Extras','Descontos','Desembolso'],s.employees.map(e=>[
