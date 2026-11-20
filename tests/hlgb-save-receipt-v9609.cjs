@@ -33,7 +33,11 @@ test('queda depois de enviar vira incerto, sem replay automático',()=>{
  assert.equal(uncertain.safeToRetry,false);
  assert.equal(uncertain.requiresReview,true);
  assert.throws(()=>advance(uncertain,'sent'),/Transição/);
- assert.throws(()=>advance(uncertain,'remote_confirmed',{remoteReadback:true,sameEntity:true}),/Confirmação/);
+ assert.throws(()=>advance(uncertain,'remote_confirmed',{remoteReadback:false,sameEntity:true}),/Confirmação/);
+ assert.throws(()=>advance(uncertain,'remote_confirmed',{remoteReadback:true,sameEntity:false}),/Confirmação/);
+ const recovered=advance(uncertain,'remote_confirmed',{remoteReadback:true,sameEntity:true});
+ assert.equal(status(recovered),'confirmed');
+ assert.equal(recovered.safeToRetry,false);
 });
 test('transições fora de ordem são bloqueadas',()=>{
  const x=createReceipt(id);
@@ -45,4 +49,19 @@ test('recibos são imutáveis e não incluem payload comercial',()=>{
  assert.equal(Object.isFrozen(x),true);
  assert.equal(Object.isFrozen(x.steps),true);
  assert.deepEqual(Object.keys(x).sort(),['entityId','module','operationId','remoteConfirmed','requiresReview','safeToRetry','status','steps'].sort());
+});
+
+test('falha anterior ao envio não pode ser declarada confirmada',()=>{
+ const received=createReceipt(id),uncertain=advance(received,'uncertain');
+ assert.equal(status(uncertain),'needs_remote_check');
+ assert.throws(()=>advance(uncertain,'remote_confirmed',
+  {remoteReadback:true,sameEntity:true}),/Confirmação/);
+});
+test('a prova remota recupera envio incerto uma única vez',()=>{
+ let x=createReceipt(id);x=advance(x,'local_durable');x=advance(x,'sent');
+ x=advance(x,'uncertain');
+ x=advance(x,'remote_confirmed',{remoteReadback:true,sameEntity:true});
+ assert.equal(status(x),'confirmed');
+ assert.equal(x.steps.filter(y=>y==='remote_confirmed').length,1);
+ assert.strictEqual(advance(x,'remote_confirmed',{remoteReadback:true,sameEntity:true}),x);
 });
