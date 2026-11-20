@@ -30,6 +30,36 @@
   }
   return sizes;
  }
+
+ function resolvePrice(s,clientId,productId){
+  const product=s.products.find(x=>x.id===productId);
+  if(!product)fail('Modelo não encontrado para consulta de preço.');
+  const rule=(s.customerPriceRules||[]).find(x=>x.clientId===clientId&&x.productId===productId);
+  return rule?{priceCents:rule.priceCents,source:'cliente',ruleRevision:rule.revision}:
+   {priceCents:product.priceCents,source:'catalogo',ruleRevision:null};
+ }
+ function setCustomerPrice(s,p,{uid}){
+  if(!s.clients.some(x=>x.id===p?.clientId)||!s.products.some(x=>x.id===p?.productId))
+   fail('Cliente ou modelo inexistente para o preço negociado.');
+  if(!Number.isSafeInteger(p.priceCents)||p.priceCents<1||p.priceCents>100000000)
+   fail('Preço negociado inválido.');
+  if(typeof p.reason!=='string'||!p.reason.trim()||p.reason.trim().length>240)
+   fail('Justificativa obrigatória para atualizar preço negociado.');
+  if(s.customerPriceRules===undefined)s.customerPriceRules=[];
+  if(!Array.isArray(s.customerPriceRules))fail('Tabela de preços por cliente ilegível.');
+  const old=s.customerPriceRules.find(x=>x.clientId===p.clientId&&x.productId===p.productId);
+  if(old?.priceCents===p.priceCents)fail('Preço negociado sem mudança.');
+  const event={clientId:p.clientId,productId:p.productId,beforeCents:old?.priceCents??null,
+   afterCents:p.priceCents,commandId:uid,revision:s.revision+1,reason:p.reason.trim()};
+  event.immutableFingerprint=canonical(event);
+  if(s.customerPriceHistory===undefined)s.customerPriceHistory=[];
+  if(!Array.isArray(s.customerPriceHistory))fail('Histórico de preços ilegível.');
+  s.customerPriceHistory.push(event);
+  if(old){old.priceCents=p.priceCents;old.revision=s.revision+1;}
+  else s.customerPriceRules.push({clientId:p.clientId,productId:p.productId,
+   priceCents:p.priceCents,revision:s.revision+1});
+  return p.clientId+' / '+p.productId+' · preço de venda fictício atualizado';
+ }
  function prepare(s,p,snapshots=null){
   if(!s||!Array.isArray(s.clients)||!Array.isArray(s.products))fail('Catálogo indisponível.');
   if(!s.clients.some(x=>x.id===p?.clientId))fail('Cliente não encontrado.');
@@ -41,7 +71,7 @@
    const product=s.products.find(x=>x.id===item?.productId);
    if(!product)fail('Modelo não encontrado: item '+(idx+1));
    if(!Array.isArray(item.colors)||item.colors.length<1||item.colors.length>30)fail('Informe de 1 a 30 cores por modelo.');
-   const snap=snapshots?.[idx],priceCents=snap?snap.priceCents:product.priceCents;
+   const snap=snapshots?.[idx],priceCents=snap?snap.priceCents:resolvePrice(s,p.clientId,product.id).priceCents;
    if(!Number.isSafeInteger(priceCents)||priceCents<0)fail('Preço fictício inválido no item '+(idx+1));
    const colors=[],seen=new Set(),sizesForItem=Object.fromEntries(sizes.map(x=>[x,0]));
    for(const row of item.colors){
@@ -220,6 +250,38 @@
   if(s.multiOrders===undefined)return [];
   if(!Array.isArray(s.multiOrders))return ['Coleção multimodelo inválida'];
   const failures=[],ids=new Set();
+
+  if(s.customerPriceRules!==undefined||s.customerPriceHistory!==undefined){
+   if(!Array.isArray(s.customerPriceRules)||!Array.isArray(s.customerPriceHistory))
+    failures.push('Tabela ou histórico de preços por cliente ilegível');
+   else{
+    const seenPrices=new Set(),last=new Map();
+    for(const event of s.customerPriceHistory){
+     const key=event?.clientId+'|'+event?.productId;
+     if(!event||!s.clients.some(c=>c.id===event.clientId)||
+       !s.products.some(p=>p.id===event.productId)||
+       !Number.isSafeInteger(event.afterCents)||event.afterCents<1||
+       typeof event.reason!=='string'||!event.reason.trim()||
+       event.immutableFingerprint!==canonical({clientId:event.clientId,productId:event.productId,
+        beforeCents:event.beforeCents,afterCents:event.afterCents,
+        commandId:event.commandId,revision:event.revision,reason:event.reason})||
+       (s.log||[]).filter(e=>e.type==='price.customer.set'&&
+        e.revision===event.revision&&e.commandId===event.commandId).length!==1||
+       (last.get(key)?.revision??0)>=event.revision||
+       (last.get(key)?.afterCents??null)!==event.beforeCents)
+      failures.push('Regra de preço de cliente com histórico inconsistente: '+key);
+     last.set(key,event);
+    }
+    for(const rule of s.customerPriceRules){
+     const key=rule.clientId+'|'+rule.productId,e=last.get(key);
+     if(seenPrices.has(key)||!e||e.afterCents!==rule.priceCents||e.revision!==rule.revision)
+      failures.push('Preço por cliente adulterado, duplicado ou sem origem: '+key);
+     seenPrices.add(key);
+    }
+    for(const key of last.keys())if(!seenPrices.has(key))
+     failures.push('Histórico de preço sem regra atual: '+key);
+   }
+  }
   for(const entry of s.multiOrders){
    try{
     if(!entry||typeof entry.id!=='string'||ids.has(entry.id))fail('ID duplicado/ausente');
@@ -262,5 +324,5 @@
    failures.push('Pedido multimodelo removido, porém ainda presente na trilha: '+event.commandId+' / '+event.description);
   return failures;
  }
- return Object.freeze({version:'1.1.0-lab',prepare,ensure,create,revise,amend,inspect,sizesOf});
+ return Object.freeze({version:'1.2.0-lab',prepare,ensure,create,revise,amend,inspect,sizesOf,resolvePrice,setCustomerPrice});
 });
