@@ -19,7 +19,7 @@ function advance(receipt,event,{remoteReadback=false,sameEntity=false}={}){
  if(!STATES.includes(event))throw new TypeError('estado inválido');
  if(receipt.status==='remote_confirmed')
    return receipt;
- if(event==='remote_confirmed'&&!(receipt.status==='sent'&&remoteReadback===true&&sameEntity===true))
+ if(event==='remote_confirmed'&&!((receipt.status==='sent'||(receipt.status==='uncertain'&&receipt.steps.includes('sent')))&&remoteReadback===true&&sameEntity===true))
    throw new Error('Confirmação exige envio e releitura do mesmo registro');
  if(event==='uncertain'){
    return Object.freeze({...receipt,status:'uncertain',steps:Object.freeze([...receipt.steps,'uncertain']),
@@ -29,7 +29,7 @@ function advance(receipt,event,{remoteReadback=false,sameEntity=false}={}){
    received:['local_durable'],
    local_durable:['sent'],
    sent:['remote_confirmed'],
-   uncertain:[]
+   uncertain:['remote_confirmed']
  };
  if(!transitions[receipt.status]?.includes(event))
    throw new Error('Transição de estado não autorizada');
