@@ -235,3 +235,18 @@ test('Assinaturas antigas de facções e acertos não exigem apagar histórico a
  legacy.multiFlowLots[0].returns[0].amountCents++;
  assert.equal(core.inspect(legacy).ok,false);
 });
+
+test('fila multimodelo mostra todas as pendencias, inclusive acima de 120, agrupadas por etapa',()=>{
+ const uiModule=require('../modulos/fluxo-multimodelo-ui-v1.js');
+ const entries=Array.from({length:135},(_,i)=>({id:'MFR-'+String(i+1).padStart(4,'0'),
+  qty:2,reviewed:false,orderId:'PED-TESTE',itemId:'ITM-001'}));
+ const fakeFlow={acertos:()=>[{name:'Facção Fictícia',items:entries}]};
+ const html=uiModule.queuePanel({multiOrders:[]},fakeFlow);
+ assert.match(html,/135 pendência\(s\)/);
+ assert.match(html,/270 peça\(s\)/);
+ assert.match(html,/data-queue-stage="Acerto fictício a conferir"/);
+ assert.match(html,/data-mf-focus="MFR-0135"/,'ultimo registro deve permanecer acessivel');
+ assert.match(html,/data-mf-focus="MFR-0001"/,'primeiro registro permanece acessivel');
+ assert.equal((html.match(/data-mf-focus="MFR-/g)||[]).length,135);
+ assert.doesNotMatch(html,/Lista parcial de 120 itens/);
+});
