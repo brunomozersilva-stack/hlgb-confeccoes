@@ -60,3 +60,10 @@ test('aprovação completa exige todos os checks e totais coerentes',()=>{
  assert.equal(classifyAuditRun({...good,summary:{...good.summary,total:3}}).state,STATUSES.INCOMPLETE);
  assert.equal(classifyAuditRun({...good,summary:{...good.summary,result:'Falhou'}}).state,STATUSES.INCOMPLETE);
 });
+
+test('campos vazios ou nulos não contam como prova zero',()=>{
+ const checks=[{status:'pass'}];
+ const summary={pass:1,fail:null,warn:null,total:1,result:'Aprovado'};
+ assert.equal(classifyAuditRun({readOnly:true,summary,checks}).state,STATUSES.INCOMPLETE);
+ assert.equal(classifyAuditRun({readOnly:true,summary:{...summary,fail:0,warn:0},checks}).state,STATUSES.SUCCESS);
+});
