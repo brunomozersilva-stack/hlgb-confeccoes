@@ -404,6 +404,20 @@ function multiCutEditor(s,order,item,plan=null){
   '<div class="fields">'+matrix+'</div>'+
   '<button type="submit" class="btn primary">'+(plan?'Salvar alteração':'Programar este modelo')+'</button></form>';
 }
+function cutCapacityPanel(s){
+ const svc=window.HLGBLabCutCapacityV1;
+ if(!svc)return panel('Capacidade do Corte','Modulo nao carregado; sem decisao automatica.',true);
+ let report;
+ try{report=svc.evaluate(s);}catch(err){return panel('Capacidade do Corte',str(err.message),true);}
+ return panel('Capacidade da equipe · analise sem gravar',
+  '<p>Informe capacidade diária TOTAL (peças) para este cenário. O sistema aponta sobrecarga por data e pessoas nas duas folhas. Não muda prazos ou folhas.</p>'+
+  '<div class="field"><label>Capacidade total por dia (peças)<input id="cut-capacity-input" class="input" type="number" min="1" max="100000" step="1" placeholder="Informar capacidade confirmada"></label></div>'+
+  '<button type="button" class="btn" id="cut-capacity-run">Analisar programação</button>'+
+  '<div class="caption" id="cut-capacity-output" aria-live="polite" style="white-space:pre-wrap">Informe capacidade para testar excesso. Nada será salvo.</div>'+
+  '<h3>Folhas abertas por dia</h3>'+
+  table(['Data','Peças','Folhas','Capacidade'],report.days.map(x=>
+   [str(x.date),str(x.plannedPieces),str(x.planIds.join(', ')),'Não informada'])),true);
+}
 function multiCutPanel(s){
  const orders=s.multiOrders||[],plans=s.multiCutPlans||[],v=window.HLGBLabMultiCutsV1;
  if(!v)return panel('Corte multimodelo','<p>Motor de laboratório indisponível. Gravações bloqueadas.</p>',true);
@@ -1640,7 +1654,7 @@ function moduleHtml(s){
    '<span class="chip '+(p.status==='aberto'?'wait':'')+'">'+str(p.status)+'</span>',
    '<button type="button" class="btn" data-print-plan="'+str(p.id)+'">Imprimir folha</button>'
   ]);
-  return multiCutPanel(s)+multiOrderCutImpactPanel(s)+cutSplitPanel(s)+bomCutPanels(s)+panel('Grade editável do pedido',
+  return multiCutPanel(s)+cutCapacityPanel(s)+multiOrderCutImpactPanel(s)+cutSplitPanel(s)+bomCutPanels(s)+panel('Grade editável do pedido',
    form('order.grade.update','Ajustar quantidades por tamanho',[
     field('orderId','Pedido','select','',o),...gradeFields(defaultOrder?.grade)
    ],'Salvar grade e conferir valor do pedido')+
@@ -2925,6 +2939,24 @@ document.addEventListener('click',async e=>{
     output.dataset.valid='false';
    }
   }
+  return;
+ }
+ if(e.target.closest('#cut-capacity-run')){
+  try{
+   const input=document.getElementById('cut-capacity-input');
+   const raw=String(input?.value||'').trim();
+   if(!/^[1-9][0-9]*$/.test(raw))throw Error('Informe capacidade diária positiva em peças.');
+   const q=window.HLGBLabCutCapacityV1.evaluate(doc,{dailyCapacityPieces:Number(raw)});
+   const output=document.getElementById('cut-capacity-output');
+   if(output)output.textContent='Revisão '+q.baseRevision+' · '+
+    q.overloadedDays+' dia(s) acima da capacidade · '+q.resourceConflicts.length+
+    ' conflito(s) de pessoas.\\n'+q.days.map(d=>d.date+': '+d.plannedPieces+
+    '/'+d.capacityPieces+' peças; excesso '+d.excessPieces).join('\\n')+
+    '\\n'+q.resourceConflicts.map(d=>'Conflito '+d.date+': '+d.resource+
+    ' em '+d.planIds.join(' / ')).join('\\n')+
+    '\\nNenhuma folha, prazo ou reserva foi alterado.';
+  }catch(error){const output=document.getElementById('cut-capacity-output');
+   if(output)output.textContent='Simulação bloqueada: '+error.message;}
   return;
  }
  if(e.target.closest('#whole-program-export')){exportReport();return;}
