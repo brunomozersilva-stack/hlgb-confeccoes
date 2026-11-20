@@ -77,6 +77,57 @@
    financeLinked:false,stockLinked:false,productionLinked:false,createdRevision:s.revision+1});
   return id;
  }
+ function revise(s,p,{uid}){
+  ensure(s);
+  const order=s.multiOrders.find(x=>x.id===p.id);
+  if(!order)fail('Pedido multimodelo não encontrado.');
+  if(!p.reason||typeof p.reason!=='string'||!p.reason.trim()||p.reason.trim().length>240)
+   fail('Justificativa de alteração obrigatória (até 240 caracteres).');
+  const previous=clone({clientId:order.clientId,sizes:order.sizes,items:order.items,totals:order.totals});
+  const before=canonical(previous);
+  if(!Array.isArray(p.items)||p.items.length!==order.items.length||p.clientId&&p.clientId!==order.clientId)
+   fail('Esta edição preserva cliente e identidade dos modelos existentes.');
+  const payload={clientId:order.clientId,sizes:clone(order.sizes),items:order.items.map((item,index)=>{
+   const proposed=p.items[index];
+   if(!proposed||proposed.id!==item.id||proposed.productId!==item.productId||
+      !Array.isArray(proposed.colors)||proposed.colors.length!==item.colors.length)
+    fail('Modelo/cor não pode ser excluído ou trocado nesta edição de grade.');
+   const colors=item.colors.map((row,i)=>{
+    const candidate=proposed.colors[i];
+    if(!candidate||candidate.color!==row.color)fail('A edição deve preservar a identidade das cores.');
+    return {color:row.color,grade:clone(candidate.grade)};
+   });
+   return {productId:item.productId,colors};
+  })};
+  const next=prepare(s,payload,order.items);
+  for(let i=0;i<next.items.length;i++){
+   next.items[i].id=order.items[i].id;
+   next.items[i].sku=order.items[i].sku;
+   next.items[i].name=order.items[i].name;
+  }
+  if(canonical(next)===before)fail('A grade do pedido não sofreu alteração.');
+  const reserved=new Map();
+  for(const plan of s.multiCutPlans||[]){
+   if(plan.orderId!==order.id||plan.status==='cancelado')continue;
+   for(const line of plan.lines){
+    const key=plan.itemId+'\u0000'+line.color+'\u0000'+line.size;
+    reserved.set(key,(reserved.get(key)||0)+line.qty);
+   }
+  }
+  for(const item of next.items)for(const row of item.colors)
+   for(const [size,qty] of Object.entries(row.grade)){
+    const reservedQty=reserved.get(item.id+'\u0000'+row.color+'\u0000'+size)||0;
+    if(qty<reservedQty)fail('Não é possível reduzir '+item.id+' / '+row.color+' / '+size+
+     ' abaixo de '+reservedQty+' peça(s) já programadas ou cortadas.');
+   }
+  const history={commandId:uid,revision:s.revision+1,reason:p.reason.trim(),
+   before:previous,after:clone(next)};
+  history.immutableFingerprint=canonical(history);
+  order.items=next.items;order.totals=next.totals;
+  if(!Array.isArray(order.revisions))order.revisions=[];
+  order.revisions.push(history);
+  return order.id;
+ }
  function inspect(s){
   if(s.multiOrders===undefined)return [];
   if(!Array.isArray(s.multiOrders))return ['Coleção multimodelo inválida'];
@@ -89,6 +140,24 @@
     if(!Number.isSafeInteger(entry.createdRevision)||entry.createdRevision<2||entry.createdRevision>s.revision)fail('Revisão inválida');
     const proof=(s.log||[]).filter(e=>e.type==='order.multi.create'&&e.revision===entry.createdRevision&&e.description===entry.id);
     if(proof.length!==1)fail('Pedido sem evento de criação correspondente na trilha global');
+    if(entry.revisions!==undefined){
+     if(!Array.isArray(entry.revisions)||entry.revisions.length>200)fail('Histórico de edição do pedido inválido');
+     let latestRevision=entry.createdRevision,previousSnapshot=null;
+     for(const rev of entry.revisions){
+      if(!rev||!Number.isSafeInteger(rev.revision)||rev.revision<=latestRevision||rev.revision>s.revision||
+         typeof rev.commandId!=='string'||typeof rev.reason!=='string'||!rev.reason.trim()||
+         rev.immutableFingerprint!==canonical({commandId:rev.commandId,revision:rev.revision,
+          reason:rev.reason,before:rev.before,after:rev.after}))
+       fail('Histórico de edição adulterado ou fora de ordem');
+      if((s.log||[]).filter(e=>e.type==='order.multi.revise'&&e.revision===rev.revision&&e.commandId===rev.commandId&&e.description===entry.id).length!==1)
+       fail('Edição do pedido sem evento correspondente no log');
+      if(previousSnapshot&&canonical(rev.before)!==canonical(previousSnapshot))
+       fail('Histórico de edição desconexo');
+      previousSnapshot=rev.after;latestRevision=rev.revision;
+     }
+     if(previousSnapshot&&canonical(previousSnapshot)!==canonical({clientId:entry.clientId,sizes:entry.sizes,items:entry.items,totals:entry.totals}))
+      fail('Grade foi alterada fora da edição auditada');
+    }
     const payload={clientId:entry.clientId,sizes:entry.sizes,items:entry.items.map(i=>({productId:i.productId,colors:i.colors.map(c=>({color:c.color,grade:clone(c.grade)}))}))};
     const ref=prepare(s,payload,entry.items);
     if(canonical(ref.items)!==canonical(entry.items)||canonical(ref.totals)!==canonical(entry.totals)||canonical(ref.sizes)!==canonical(entry.sizes))fail('Dados, preços históricos ou totais divergentes');
@@ -98,5 +167,5 @@
    failures.push('Pedido multimodelo removido, porém ainda presente na trilha: '+event.commandId+' / '+event.description);
   return failures;
  }
- return Object.freeze({version:'1.0.0',prepare,ensure,create,inspect,sizesOf});
+ return Object.freeze({version:'1.1.0-lab',prepare,ensure,create,revise,inspect,sizesOf});
 });
