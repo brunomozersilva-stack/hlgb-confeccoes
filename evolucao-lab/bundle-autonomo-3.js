@@ -1930,6 +1930,7 @@
    const old=s.pcpCapacity||pcp.defaults,reason=name(p.reason,'Justificativa');
    s.pcpCapacity=cap;result=pcp.stages.map(k=>k+': '+old[k]+' → '+cap[k]).join(' · ')+' · '+reason;break}
   case 'order.add':{result=createOrder(s,p);break}
+  case 'price.customer.set':{result=multiOrders.setCustomerPrice(s,p,{uid});break}
   case 'order.multi.create':{result=multiOrders.create(s,p,next);break}
   case 'order.multi.revise':{result=multiOrders.revise(s,p,{uid});break}
   case 'order.multi.amend':{result=multiOrders.amend(s,p,{uid});break}
