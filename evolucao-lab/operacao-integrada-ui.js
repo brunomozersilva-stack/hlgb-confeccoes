@@ -281,6 +281,34 @@ function customerPricePanel(s){
   '<h3>Valores negociados</h3>'+table(['Cliente','Modelo','Preço de venda','Última alteração'],rows)+
   '<p class="caption">Toda alteração exige justificativa e fica no histórico. Se não houver valor negociado, vale o preço do catálogo.</p>',true);
 }
+function multiOrderCutImpactPanel(s){
+ const lab=window.HLGBLabMultiOrdersV1;
+ if(!lab?.cutImpact)return '';
+ const sections=(s.multiOrders||[]).map(order=>{
+  let impact;
+  try{impact=lab.cutImpact(s,order.id);}catch(error){
+   return '<div class="error">Conferência do pedido '+escape(order.id)+
+    ' bloqueada por inconsistência: '+escape(error.message)+'</div>';
+  }
+  const totals=(key)=>impact.reduce((a,r)=>a+r[key],0);
+  const rows=impact.filter(r=>r.ordered||r.protectedQty||r.cancelledHistory).map(r=>[
+   r.itemId+' / '+r.model,r.color,r.size,r.ordered,r.planned,r.cut,r.cancelledHistory,
+   r.sent,r.returned,r.separated,r.shipped,r.freeToReduce
+  ]);
+  return '<details class="panel" data-order-cut-impact="'+escape(order.id)+'"><summary>Impacto no Corte · '+
+   escape(order.id)+' · '+totals('ordered')+' peças · '+totals('protectedQty')+
+   ' comprometidas</summary>'+
+   '<p class="caption">Leitura do pedido fictício, sem realizar baixa. Programado + cortado não pode ser reduzido. Cortes cancelados continuam no histórico, mas não reservam saldo.</p>'+
+   '<div class="metrics"><div class="metric"><span>Programadas</span><strong>'+totals('planned')+
+   '</strong></div><div class="metric"><span>Cortadas</span><strong>'+totals('cut')+
+   '</strong></div><div class="metric"><span>Livres para ajustar</span><strong>'+totals('freeToReduce')+
+   '</strong></div></div>'+
+   table(['Modelo','Cor','Tam.','Pedidas','Programadas','Cortadas','Hist. cancelado',
+    'Enviadas','Retornadas','Separadas','Expedidas','Ajustáveis'],rows)+'</details>';
+ }).join('');
+ return sections?panel('Conferência de impacto · Pedidos ⇄ Corte',
+  '<p>Confronta cada célula de modelo/cor/tamanho com programação, corte, facção, retorno, separação e expedição antes de revisar o pedido. Não substitui confirmação remota.</p>'+sections,true):'';
+}
 function multiOrderPanel(s){
  const sizeList=multiBaseSizes,existing=s.multiOrders||[],clients=selector(s.clients,x=>x.name);
  const summaries=table(['Pedido','Cliente','Modelos','Cores','Peças','Valor ilustrativo','Condição'],
@@ -298,7 +326,7 @@ function multiOrderPanel(s){
   '<p class="caption">Todos os modelos compartilham os tamanhos selecionados. Uma cor pode ter zero em alguns tamanhos, mas não pode ficar inteiramente zerada.</p>'+
   '<p class="multi-order-summary" id="multi-order-preview" aria-live="polite">Calculando quantidades...</p>'+
   '<div class="actions"><button type="submit" class="btn primary">Salvar pedido multimodelo fictício</button></div></form>'+
-  multiOrderRevisionPanel(s)+multiOrderAmendmentPanel(s)+'<h3>Pedidos multimodelo em preparação</h3>'+summaries+
+  multiOrderCutImpactPanel(s)+multiOrderRevisionPanel(s)+multiOrderAmendmentPanel(s)+'<h3>Pedidos multimodelo em preparação</h3>'+summaries+
   '<p class="caption">Os IDs e os totais ficam no histórico do laboratório, mas nenhum pedido desta lista pode ser baixado ou enviado para uma facção até a homologação da integração.</p>',true);
 }
 function multiOrderInput(form){
