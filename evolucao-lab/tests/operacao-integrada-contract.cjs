@@ -584,3 +584,12 @@ test('fila integrada abre Acerto pelo identificador, sem depender do primeiro at
  assert.ok(mobile.includes('[data-goto="acertos"][data-mf-focus="MFR-0002"]'),'teste navega para o acerto específico');
  assert.ok(!mobile.includes('page.locator(\'#module-content [data-goto="acertos"]\').first().click()'),'teste não escolhe atalho genérico');
 });
+
+test('avaliações manuais das 20 áreas exibem observação salva sem liberar produção',()=>{
+ assert.match(ui,/data-general-review-note=/,'Núcleo mostra a observação da avaliação');
+ assert.match(ui,/escape\(programReviews\[id\]\.note\)/,'observação é escapada para impedir HTML injetado');
+ assert.match(ui,/programReviews\[id\]\.checkedAt/,'horário da avaliação aparece na área');
+ assert.match(ui,/Sem avaliação registrada neste navegador/,'estado sem avaliação não depende da sessão atual');
+ assert.match(ui,/Registro local, não é aceite de produção/,'registro manual não equivale a aceite');
+ assert.match(ui,/productionApproval:false,parityApproved:false/,'exportação mantém os bloqueios de aprovação');
+});
