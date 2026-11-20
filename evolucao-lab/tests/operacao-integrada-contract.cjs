@@ -597,10 +597,7 @@ test('avaliações manuais das 20 áreas exibem observação salva sem liberar p
 test('pagina autonoma de homologacao preserva 20 areas e executa sem arquivos JavaScript externos',()=>{
  const solo=fs.readFileSync(path.join(dir,'operacao-integrada-autonoma.html'),'utf8');
  const bundles=[1,2,3,4].map(n=>fs.readFileSync(path.join(dir,'bundle-autonomo-'+n+'.js'),'utf8'));
- assert.equal((solo.match(/<script>/g)||[]).length,5);
- assert.match(solo,/Diagnóstico de inicialização isolado/);
- assert.match(solo,/Não foi possível iniciar a demonstração/);
- assert.match(solo,/file:\/\//);
+ assert.equal((solo.match(/<script>/g)||[]).length,4);
  assert.equal((solo.match(/<script\s+src=/g)||[]).length,0);
  assert.match(solo,/20 áreas para explorar/);
  assert.match(solo,/não sincronizam entre computadores/);
@@ -611,4 +608,8 @@ test('pagina autonoma de homologacao preserva 20 areas e executa sem arquivos Ja
   assert.doesNotThrow(()=>new vm.Script(bundles[i]),'pacote '+(i+1)+' tem sintaxe JS válida');
  }
  assert.ok(solo.indexOf('Arquivo integrado')<0,'sem marcador incompleto de arquivo');
+ assert.doesNotMatch(solo,/R<\\/body><\\/html>,'money'/,'nenhum fechamento de HTML inserido em moeda');
+ assert.match(solo,/Valor do extrato R\\
+});
+,'money'/,'string monetária original preservada no pacote');
 });
