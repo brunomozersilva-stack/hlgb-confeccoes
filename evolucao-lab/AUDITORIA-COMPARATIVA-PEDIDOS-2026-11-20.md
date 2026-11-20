@@ -69,3 +69,17 @@ Fontes originais verificadas em `main`: `release-cutter-planner.js`, `release-cu
 **Verificação pontual executada no motor em memória:** inclusão de modelo gerou `ITM-003` após `ITM-001` e `ITM-002`; retirada de item vinculado a corte e redução abaixo de 40 peças reservadas foram recusadas; remoção de item sem vínculos e inclusão posterior gerou `ITM-004`, sem reaproveitar `ITM-002`; `inspect` permaneceu sem ocorrências. Acrescentado `tests/aditivo-pedidos-multimodelo-contract.cjs` ao CI. **Execução integral de CI e homologação em navegadores/servidor não foram confirmadas.**
 
 **Paridade restante / cuidado:** edição de tamanho global do pedido, retirada parcial de cor vinculada, renomeação de modelo com histórico, preço negociado por cliente, importação de dados legados e comprovação de sync entre computadores continuam **PENDENTES**. A inclusão no laboratório não significa que o sistema original foi substituído nem autoriza merge na main.
+
+## Preços por cliente e modelo — incremento de 20/11/2026
+**Comparação com original:** foi confirmado no código comercial `release-cutter-planner.js` o vínculo pedido → modelo → variação, e no editor `release-cut-model-grade-adjust.js` a manutenção da grade por modelo. O rastreio **exaustivo** de preços por cliente, tabela comercial e prioridade de regras no `app9240.html` ainda está pendente. Não presumir que o protótipo substitui a política comercial atual.
+
+**Pesquisa externa verificada:**
+- Odoo 19, *Pricelists*: lista de preços pode ser atribuída a cliente e regras podem variar por produto e condição. https://www.odoo.com/documentation/19.0/applications/sales/sales/products_prices/prices/pricing.html
+- ERPNext, *Item Price* e *Price Lists*: tabela de venda permite preço específico por cliente e vínculo à lista. https://docs.frappe.io/erpnext/item-price e https://docs.frappe.io/erpnext/price-lists
+- ERPNext, *Pricing Rule*: condições por cliente, grupo e quantidade mínima. https://docs.frappe.io/erpnext/pricing-rule
+
+**Implementação laboratorial:** comando `price.customer.set` guarda preço fictício em centavos por par cliente/modelo, motivo, revisão, comando e histórico verificável; a interface em Pedidos oferece cadastro da negociação. `pedidos-multimodelo-v1.js:resolvePrice` aplica a regra somente aos novos itens. Sem preço negociado, mantém o preço de catálogo. Um item já salvo nunca é reprecificado automaticamente: aditivos preservam o preço histórico e novos itens recebem a regra vigente.
+
+**Ensaio do motor em memória:** após preço negociado de 3000 centavos, pedido prévio manteve 3000; após renegociação de 3900, o item novo no aditivo recebeu 3900. Total e integridade consistentes; adulteração da justificativa histórica foi sinalizada. Foram criados `tests/precos-cliente-pedidos-contract.cjs` e gatilho no CI. **Não há aceite de navegador, sincronização entre computadores, faturamento ou migração.**
+
+**Lacunas P0 que permanecem:** mapear preços/contratos reais do HLGB comercial; regras de atacado, vendedor, desconto, exceção, preço por quantidade, validade, precedência, tributos, moeda, arredondamento, autorização por papel, margem, confirmação de cliente e conciliação entre pedido, nota e financeiro. Não integrar a regra fictícia à produção antes desses aceites.
