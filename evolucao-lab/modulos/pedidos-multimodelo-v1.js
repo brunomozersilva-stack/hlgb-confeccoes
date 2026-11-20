@@ -107,6 +107,50 @@
    financeLinked:false,stockLinked:false,productionLinked:false,createdRevision:s.revision+1});
   return id;
  }
+
+ function cutImpact(s,orderId){
+  const order=(s.multiOrders||[]).find(o=>o.id===orderId);
+  if(!order)fail('Pedido multimodelo não encontrado para análise do Corte.');
+  const result=[];
+  for(const item of order.items)for(const color of item.colors)
+   for(const [size,ordered] of Object.entries(color.grade)){
+    const counts={open:0,finished:0,cancelled:0,sent:0,returned:0,separated:0,shipped:0};
+    const matches=line=>line.color===color.color&&line.size===size;
+    for(const plan of s.multiCutPlans||[])if(plan.orderId===orderId&&plan.itemId===item.id)
+     for(const line of plan.lines)if(matches(line)){
+      if(plan.status==='aberto')counts.open+=line.qty;
+      else if(plan.status==='concluido')counts.finished+=line.qty;
+      else if(plan.status==='cancelado')counts.cancelled+=line.qty;
+      else fail('Estado de corte inválido na análise do pedido.');
+     }
+    for(const lot of s.multiFlowLots||[])if(lot.orderId===orderId&&lot.itemId===item.id){
+     for(const line of lot.lines)if(matches(line))counts.sent+=line.qty;
+     for(const event of lot.returns||[])for(const line of event.lines)
+      if(matches(line))counts.returned+=line.qty;
+    }
+    for(const x of s.multiFlowSeparations||[])if(x.orderId===orderId&&x.itemId===item.id)
+     for(const line of x.lines)if(matches(line))counts.separated+=line.qty;
+    for(const x of s.multiFlowShipments||[])if(x.orderId===orderId&&x.itemId===item.id)
+     for(const line of x.lines)if(matches(line))counts.shipped+=line.qty;
+    if(![ordered,...Object.values(counts)].every(x=>Number.isSafeInteger(x)&&x>=0)||
+     counts.finished+counts.open>ordered||counts.sent>counts.finished||
+     counts.returned>counts.sent||counts.separated>counts.returned||
+     counts.shipped>counts.separated)
+     fail('Fluxo inconsistente em '+orderId+' / '+item.id+' / '+color.color+' / '+size+'.');
+    result.push({orderId,itemId:item.id,model:item.name,color:color.color,size,ordered,
+     planned:counts.open,cut:counts.finished,cancelledHistory:counts.cancelled,
+     sent:counts.sent,returned:counts.returned,separated:counts.separated,shipped:counts.shipped,
+     protectedQty:counts.open+counts.finished,
+     freeToReduce:ordered-counts.open-counts.finished,
+     pendingCut:ordered-counts.open-counts.finished,
+     availableToAllocate:counts.finished-counts.sent,
+     inFaction:counts.sent-counts.returned,
+     availableToSeparate:counts.returned-counts.separated,
+     availableToShip:counts.separated-counts.shipped,
+     status:counts.open+counts.finished?'comprometido':'livre'});
+   }
+  return result;
+ }
  function revise(s,p,{uid}){
   ensure(s);
   const order=s.multiOrders.find(x=>x.id===p.id);
@@ -324,5 +368,5 @@
    failures.push('Pedido multimodelo removido, porém ainda presente na trilha: '+event.commandId+' / '+event.description);
   return failures;
  }
- return Object.freeze({version:'1.2.0-lab',prepare,ensure,create,revise,amend,inspect,sizesOf,resolvePrice,setCustomerPrice});
+ return Object.freeze({version:'1.2.0-lab',prepare,ensure,create,revise,amend,cutImpact,inspect,sizesOf,resolvePrice,setCustomerPrice});
 });
