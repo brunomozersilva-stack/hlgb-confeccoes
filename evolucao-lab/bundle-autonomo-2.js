@@ -648,6 +648,94 @@
   order.revisions.push(history);
   return order.id;
  }
+ function amend(s,p,{uid}){
+  ensure(s);
+  const order=s.multiOrders.find(x=>x.id===p?.id);
+  if(!order)fail('Pedido multimodelo não encontrado.');
+  if(typeof p.reason!=='string'||!p.reason.trim()||p.reason.trim().length>240)
+   fail('Justificativa de aditivo obrigatória (até 240 caracteres).');
+  if(!Array.isArray(p.items)||p.items.length<1||p.items.length>20)
+   fail('Informe de 1 a 20 modelos no pedido.');
+  if(p.clientId!==undefined&&p.clientId!==order.clientId)
+   fail('Não é permitido trocar o cliente neste aditivo.');
+  const existing=new Map(order.items.map(x=>[x.id,x]));
+  const active=new Set(),allIds=new Set();
+  for(const item of p.items){
+   if(item.id!==undefined&&item.id!==null&&item.id!==''){
+    if(!existing.has(item.id)||active.has(item.id))fail('Identidade do item incorreta ou duplicada.');
+    active.add(item.id);
+    if(item.productId!==existing.get(item.id).productId)
+     fail('Não é permitido trocar o produto de um item existente.');
+   }else if(!s.products.some(x=>x.id===item.productId))
+    fail('Novo modelo não cadastrado.');
+  }
+  const plans=(s.multiCutPlans||[]).filter(x=>x.orderId===order.id);
+  const lots=(s.multiFlowLots||[]).filter(x=>x.orderId===order.id);
+  const operations=[...(s.multiFlowSeparations||[]),...(s.multiFlowShipments||[])]
+   .filter(x=>x.orderId===order.id);
+  const bound=new Set([...plans,...lots,...operations].map(x=>x.itemId));
+  for(const item of order.items)if(!active.has(item.id)&&bound.has(item.id))
+   fail('Não é possível retirar '+item.id+': existem registros de corte ou movimentação vinculados.');
+  const prepared=p.items.map(x=>({productId:x.productId,colors:x.colors}));
+  const snapshots=p.items.map(x=>existing.get(x.id)||null);
+  const next=prepare(s,{clientId:order.clientId,sizes:clone(order.sizes),items:prepared},snapshots);
+  let seq=0;
+  function countId(value){
+   const m=/^ITM-(\d+)$/.exec(String(value));
+   if(m)seq=Math.max(seq,Number(m[1]));
+  }
+  for(const item of order.items)countId(item.id);
+  for(const rev of order.revisions||[])for(const snapshot of [rev.before,rev.after])
+   for(const item of snapshot?.items||[])countId(item.id);
+  for(let i=0;i<next.items.length;i++){
+   const prior=existing.get(p.items[i].id);
+   if(prior){
+    next.items[i].id=prior.id;
+    next.items[i].sku=prior.sku;
+    next.items[i].name=prior.name;
+   }else{
+    seq++;next.items[i].id='ITM-'+String(seq).padStart(3,'0');
+   }
+   if(allIds.has(next.items[i].id))fail('ID de item duplicado no aditivo.');
+   allIds.add(next.items[i].id);
+  }
+  const nextMap=new Map(next.items.map(x=>[x.id,x]));
+  for(const item of order.items){
+   const updated=nextMap.get(item.id);
+   if(!updated)continue;
+   for(const oldColor of item.colors){
+    const exists=updated.colors.some(x=>x.color===oldColor.color);
+    if(!exists&&plans.some(plan=>plan.itemId===item.id&&
+     plan.lines.some(line=>line.color===oldColor.color)))
+     fail('Não é possível retirar a cor '+oldColor.color+' do item '+item.id+
+      ': existe folha de Corte vinculada.');
+    if(!exists&&lots.some(lot=>lot.itemId===item.id&&
+     lot.lines.some(line=>line.color===oldColor.color)))
+     fail('Não é possível retirar cor com envio à facção.');
+   }
+  }
+  const reserved=new Map();
+  for(const plan of plans)if(plan.status!=='cancelado')for(const line of plan.lines){
+   const k=plan.itemId+'\\u0000'+line.color+'\\u0000'+line.size;
+   reserved.set(k,(reserved.get(k)||0)+line.qty);
+  }
+  for(const [key,qty] of reserved){
+   const [itemId,color,size]=key.split('\\u0000'),item=nextMap.get(itemId);
+   const slot=item?.colors.find(x=>x.color===color)?.grade[size];
+   if(!Number.isSafeInteger(slot)||slot<qty)
+    fail('Não é possível reduzir '+itemId+' / '+color+' / '+size+
+     ' abaixo de '+qty+' peça(s) reservadas no Corte.');
+  }
+  const previous=clone({clientId:order.clientId,sizes:order.sizes,items:order.items,totals:order.totals});
+  if(canonical(previous)===canonical(next))fail('Nenhuma mudança no aditivo do pedido.');
+  const event={commandId:uid,revision:s.revision+1,reason:p.reason.trim(),
+   before:previous,after:clone(next)};
+  event.immutableFingerprint=canonical(event);
+  order.items=next.items;order.totals=next.totals;
+  if(!Array.isArray(order.revisions))order.revisions=[];
+  order.revisions.push(event);
+  return order.id;
+ }
  function inspect(s){
   if(s.multiOrders===undefined)return [];
   if(!Array.isArray(s.multiOrders))return ['Coleção multimodelo inválida'];
@@ -669,7 +757,7 @@
          rev.immutableFingerprint!==canonical({commandId:rev.commandId,revision:rev.revision,
           reason:rev.reason,before:rev.before,after:rev.after}))
        fail('Histórico de edição adulterado ou fora de ordem');
-      if((s.log||[]).filter(e=>e.type==='order.multi.revise'&&e.revision===rev.revision&&e.commandId===rev.commandId&&e.description===entry.id).length!==1)
+      if((s.log||[]).filter(e=>['order.multi.revise','order.multi.amend'].includes(e.type)&&e.revision===rev.revision&&e.commandId===rev.commandId&&e.description===entry.id).length!==1)
        fail('Edição do pedido sem evento correspondente no log');
       if(previousSnapshot&&canonical(rev.before)!==canonical(previousSnapshot))
        fail('Histórico de edição desconexo');
@@ -680,6 +768,13 @@
     }
     const payload={clientId:entry.clientId,sizes:entry.sizes,items:entry.items.map(i=>({productId:i.productId,colors:i.colors.map(c=>({color:c.color,grade:clone(c.grade)}))}))};
     const ref=prepare(s,payload,entry.items);
+    const itemIds=new Set();
+    for(let i=0;i<ref.items.length;i++){
+     const id=entry.items[i].id;
+     if(typeof id!=='string'||!/^ITM-[0-9]+$/.test(id)||itemIds.has(id))fail('ID de item duplicado ou inválido');
+     itemIds.add(id);ref.items[i].id=id;
+     ref.items[i].sku=entry.items[i].sku;ref.items[i].name=entry.items[i].name;
+    }
     if(canonical(ref.items)!==canonical(entry.items)||canonical(ref.totals)!==canonical(entry.totals)||canonical(ref.sizes)!==canonical(entry.sizes))fail('Dados, preços históricos ou totais divergentes');
    }catch(error){failures.push((entry?.id||'Sem ID')+': '+error.message);}
   }
@@ -687,5 +782,5 @@
    failures.push('Pedido multimodelo removido, porém ainda presente na trilha: '+event.commandId+' / '+event.description);
   return failures;
  }
- return Object.freeze({version:'1.1.0-lab',prepare,ensure,create,revise,inspect,sizesOf});
+ return Object.freeze({version:'1.1.0-lab',prepare,ensure,create,revise,amend,inspect,sizesOf});
 });
