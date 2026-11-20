@@ -69,6 +69,7 @@ test('conflito ou corrupção no fluxo impede a prévia de parecer válida',()=>
 test('painel de impacto faz parte da tela Pedidos e mostra restrições',()=>{
  assert.match(ui,/function multiOrderCutImpactPanel\(s\)/);
  assert.match(ui,/multiOrderCutImpactPanel\(s\)\+multiOrderRevisionPanel/);
+ assert.match(ui,/multiCutPanel\(s\)\+multiOrderCutImpactPanel\(s\)/,'painel compartilhado também aparece em Corte');
  assert.match(ui,/data-order-cut-impact=/);
  assert.match(ui,/Livres para ajustar/);
  assert.match(ui,/Hist. cancelado/);
