@@ -13,6 +13,10 @@ on:
       - 'tests/hlgb-main-inline-boundaries-v9606.cjs'
       - '.github/workflows/hlgb-main-physical-cut-v9607.yml'
   workflow_dispatch:
+# Only the latest commit of this PR needs a full run of this workflow.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
 permissions: {contents: read}
 jobs:
   script-parity:
