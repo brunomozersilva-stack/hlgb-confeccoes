@@ -781,8 +781,12 @@ function fullProgramTestPanel(s){
   '<p class="caption">'+(visitedModules.has(id)?'Tela visitada nesta sessão':'Ainda não aberta nesta sessão')+
   ' · '+(programReviews[id]?.outcome==='precisa_ajuste'?'Problema informado pela pessoa que testou':
    programReviews[id]?.outcome==='sem_erro_no_ensaio'?'Sem erro observado no exercício (ainda NÃO aprovado)':
-   'Sem avaliação manual nesta sessão')+
-  ' · A aprovação funcional requer gravar, reler e comparar com o HLGB antigo.</p></div>'+
+   'Sem avaliação registrada neste navegador')+
+  ' · A aprovação funcional requer gravar, reler e comparar com o HLGB antigo.</p>'+
+  (programReviews[id]?'<p class="caption" data-general-review-note="'+escape(id)+'"><strong>Última avaliação registrada:</strong> '+
+   escape(programReviews[id].note)+' · Revisão local '+escape(programReviews[id].revision)+
+   ' · '+escape(programReviews[id].checkedAt||'Data indisponível')+
+   '. Registro local, não é aceite de produção.</p>':'')+'</div>'+
   '<button class="btn" type="button" data-goto="'+escape(id)+'">Abrir área</button></div>').join('');
  const reviewForm='<form id="whole-program-review-form"><h3>Registrar resultado de uma área</h3>'+
   '<div class="fields"><div class="field"><label for="program-review-module">Área testada</label>'+
