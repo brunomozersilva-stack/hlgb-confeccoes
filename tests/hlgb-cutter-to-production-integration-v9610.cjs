@@ -69,9 +69,9 @@ test('programar 100, finalizar 80, sincronizar Produção e consultar segunda se
  assert.equal(first.ctx.syncFinalizedCutsToProduction(),false,'repetir não duplica');
  assert.equal(first.db.production.length,1);
  assert.equal(first.db.production[0].planned,80,'somente a grade efetiva segue à Produção');
- assert.equal(first.metrics.localSaves,1);
+ assert.equal(first.metrics.localSaves,2,'programação e produção atualizam a cópia local');
  assert.equal(first.metrics.pending,1);
- assert.equal(first.metrics.queued,2,'programação do Corte e reconciliação da Produção acionam a fila separadamente');
+ assert.equal(first.metrics.queued,1,'a reconciliação da Produção aciona a fila normalizada');
  server.production.set(String(first.db.production[0].id),clone(first.db.production[0]));
  const second=makeSession(server);
  second.db.cuts=[...server.cuts.values()].map(clone);
