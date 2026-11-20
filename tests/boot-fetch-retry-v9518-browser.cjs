@@ -2,7 +2,7 @@
 const {chromium,webkit}=require('playwright'),assert=require('node:assert/strict');
 const engine=process.env.HLGB_BROWSER==='webkit'?webkit:chromium;
 const url='http://127.0.0.1:4173/app-stable3.html';
-const fixture='<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><script>function doLogin(){};window.hlgbLoginConfirmGate9407={confirm:function(){return true}};<\/script></head><body><div id="loginScreen">Login de teste</div><div id="appShell">Sistema simulado</div></body></html>';
+const fixture='<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><script>function doLogin(){};window.hlgbLoginConfirmGate9407={confirm:function(){return true}};window.hlgbSyncFinalizedCutsToProductionV9240=function(){return false};<\/script></head><body><div id="loginScreen">Login de teste</div><div id="appShell">Sistema simulado</div></body></html>';
 async function setup(browser){
  const context=await browser.newContext({serviceWorkers:'block'});
  const page=await context.newPage();
