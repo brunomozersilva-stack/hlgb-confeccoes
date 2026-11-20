@@ -45,3 +45,19 @@ test('recusa dia e capacidade invalidos',()=>{
  assert.throws(()=>schedule.propose(s(plan('A',20)),{dailyCapacityPieces:0,workingDays:[1]}),/Capacidade/);
  assert.throws(()=>schedule.propose(s(plan('A',20)),{dailyCapacityPieces:100,workingDays:[1,1]}),/Selecione/);
 });
+
+test('interface de Corte carrega proposta, sem funcao de escrita',()=>{
+ const fs=require('node:fs'),path=require('node:path'),vm=require('node:vm');
+ const root=path.resolve(__dirname,'..');
+ const ui=fs.readFileSync(path.join(root,'operacao-integrada-ui.js'),'utf8');
+ const html=fs.readFileSync(path.join(root,'operacao-integrada.html'),'utf8');
+ assert.doesNotThrow(()=>new vm.Script(ui));
+ assert.match(ui,/id="cut-schedule-preview"/);
+ assert.match(ui,/id="cut-working-days"/);
+ assert.match(ui,/HLGBLabCutScheduleProposalV1\.propose|svc\.propose\(doc/);
+ assert.match(html,/modulos\/sugestao-programacao-corte-v1\.js/);
+ const src=fs.readFileSync(path.join(root,'modulos/sugestao-programacao-corte-v1.js'),'utf8');
+ for(const re of [/\bfetch\s*\(/,/\bindexedDB\b/,/\blocalStorage\b/,/\bsupabase\b/i,
+   /\bXMLHttpRequest\b/,/\bWebSocket\b/])
+  assert.equal(re.test(src),false,'Proposta nao pode usar escrita ou rede: '+re);
+});
