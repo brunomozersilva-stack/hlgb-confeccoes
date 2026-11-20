@@ -266,6 +266,21 @@ function multiOrderRevisionPanel(s){
  return rows?panel('Revisar quantidades de pedidos multimodelo (histórico protegido)',
   '<p>As alterações são registradas com antes/depois, revisão e justificativa; o total e os cortes são reconferidos antes da gravação.</p>'+rows,true):'';
 }
+function customerPricePanel(s){
+ const rows=(s.customerPriceRules||[]).map(rule=>[
+  ref(s.clients,rule.clientId)?.name||rule.clientId,
+  ref(s.products,rule.productId)?.name||rule.productId,
+  fmt(rule.priceCents),'Revisão '+rule.revision]);
+ return panel('Tabela negociada · cliente e modelo (somente laboratório)',
+  '<p>O preço negociado será aplicado apenas a modelos incluídos em pedidos multimodelo fictícios NOVOS. Pedidos anteriores conservam o preço gravado. O valor não altera mão de obra de facção nem financeiro real.</p>'+
+  form('price.customer.set','Definir preço de venda por cliente',[
+   field('clientId','Cliente','select','',selector(s.clients,x=>x.name)),
+   field('productId','Modelo','select','',selector(s.products,x=>x.name+' · '+x.sku)),
+   field('priceCents','Preço negociado R$','money','19,90'),
+   field('reason','Motivo da negociação')],'Guardar preço negociado fictício')+
+  '<h3>Valores negociados</h3>'+table(['Cliente','Modelo','Preço de venda','Última alteração'],rows)+
+  '<p class="caption">Toda alteração exige justificativa e fica no histórico. Se não houver valor negociado, vale o preço do catálogo.</p>',true);
+}
 function multiOrderPanel(s){
  const sizeList=multiBaseSizes,existing=s.multiOrders||[],clients=selector(s.clients,x=>x.name);
  const summaries=table(['Pedido','Cliente','Modelos','Cores','Peças','Valor ilustrativo','Condição'],
@@ -1570,7 +1585,7 @@ function moduleHtml(s){
  table(['Perfil','Escopo proposto','Situação empresarial'],[['Supervisor','Cadastros, aprovações e relatórios','Pendente'],['Produção','Pedidos, corte, facções e separação','Pendente'],
  ['Financeiro','Acertos, Hub, compras e comprovantes','Pendente'],['Consulta','Visualização sem alterar','Pendente']]),true);
  case 'pedidos':return importOrdersPanel(s)+panel('Grade por cor e tamanho no próprio Pedido',colorMatrixCreateForm(s),true)+
- orderColorGradePanel(s)+multiOrderPanel(s)+multiFlowLabPart(s,'balance')+panel('Incluir pedido com grade — modo antigo sem cores',
+ orderColorGradePanel(s)+customerPricePanel(s)+multiOrderPanel(s)+multiFlowLabPart(s,'balance')+panel('Incluir pedido com grade — modo antigo sem cores',
  form('order.add','Novo pedido fictício',[
  field('clientId','Cliente','select','',clients),field('productId','Modelo','select','',products),
  ...api.sizes.map(z=>field(z,'Quantidade '+z,'int',z==='M'?10:0))],'Cadastrar pedido'))+
@@ -2193,6 +2208,11 @@ function parseData(type,form){
  }
  if(type==='route.plan'||type==='route.revise')return routeInput(form);
  if(type==='packer.progress'){const data=Object.fromEntries(new FormData(form).entries());return {id:data.id,doneQty:Number(data.doneQty),reason:data.reason,correction:data.correction==='true'};}
+ if(type==='price.customer.set'){
+  const d=Object.fromEntries(new FormData(form).entries());
+  return {clientId:d.clientId,productId:d.productId,
+   priceCents:parseCents(d.priceCents),reason:d.reason};
+ }
  if(type==='order.multi.create')return multiOrderInput(form);
  if(type==='order.multi.amend'){
   const id=form.elements.namedItem('id').value,order=doc.multiOrders.find(x=>x.id===id);
