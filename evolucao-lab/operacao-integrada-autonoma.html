@@ -197,6 +197,42 @@ textarea.input{resize:vertical;min-height:110px;font-family:inherit;line-height:
 </main></div></div>
 <section id="cut-print" aria-label="Folha de corte fictícia para impressão"></section>
 <script>
+/* Diagnóstico de inicialização isolado: nunca acessa a base comercial. */
+(function(){
+ 'use strict';
+ var done=false;
+ function report(message){
+  if(done)return;
+  done=true;
+  var top=document.getElementById('top-revision');
+  var mode=document.getElementById('environment-mode');
+  var area=document.getElementById('module-content');
+  var flash=document.getElementById('flash');
+  var help=location.protocol==='file:'?
+   'Este arquivo foi aberto diretamente do computador (file://). O Safari pode impedir o IndexedDB. Para testar gravação e releitura, é necessário abrir a homologação em um endereço HTTPS.':
+   'Falha de inicialização da homologação. Copie a mensagem exibida e envie para diagnóstico.';
+  if(top)top.textContent='Não foi possível iniciar a demonstração';
+  if(mode)mode.textContent='Início interrompido';
+  if(flash){flash.className='error';flash.textContent=message+' — '+help;}
+  if(area)area.innerHTML='<div class="panel wide"><h2>Homologação não iniciada</h2><p id="lab-startup-error"></p><p id="lab-startup-help"></p><p>Não foram realizados lançamentos no HLGB comercial.</p></div>';
+  var detail=document.getElementById('lab-startup-error'),hint=document.getElementById('lab-startup-help');
+  if(detail)detail.textContent=message;
+  if(hint)hint.textContent=help;
+ }
+ function isReady(){
+  var el=document.getElementById('top-revision');
+  return el && /Revisão (local|servidor) \d+/.test(el.textContent||'');
+ }
+ window.addEventListener('error',function(e){if(!isReady())report('Erro de script na inicialização: '+String(e.message||'Erro desconhecido'));});
+ window.addEventListener('unhandledrejection',function(e){if(!isReady())report('Falha assíncrona: '+String(e.reason&&e.reason.message||e.reason||'Sem detalhes'));});
+ setTimeout(function(){
+  if(isReady())return;
+  var note=location.protocol==='file:'?'O armazenamento local do Safari pode estar bloqueado.':'O sistema excedeu o tempo de inicialização.';
+  report(note);
+ },9000);
+})();
+</script>
+<script>
 /* HLGB EVOLUCAO — pacote integrado 1 de 4; apenas dados ficticios */
 /* modulos/pagamento-lote-v1.js */
 /* HLGB Evolução · Pagamento em lote V1 — SOMENTE LAB FICTÍCIO.
