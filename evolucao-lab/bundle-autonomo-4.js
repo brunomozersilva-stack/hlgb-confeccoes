@@ -1404,6 +1404,43 @@ function multiModelCard(products,sizes,index){
  '<div class="actions"><button type="button" class="btn" data-add-multi-color>+ Nova cor</button>'+
  '<button type="button" class="btn" data-remove-multi-model>Remover modelo</button></div></section>';
 }
+function multiOrderAmendmentPanel(s){
+ const orders=s.multiOrders||[];
+ if(!orders.length)return '';
+ const parts=orders.map(order=>{
+  const editable=order.items.map(item=>{
+   const rows=item.colors.map(color=>
+    '<label style="display:block;margin:6px 0"><input type="checkbox" data-amend-remove-color '+
+    'data-amend-item="'+escape(item.id)+'" data-amend-color="'+escape(color.color)+'"> Retirar cor '+
+    escape(color.color)+' ('+color.pieces+' peças) — apenas sem movimentações vinculadas</label>').join('');
+   return '<fieldset data-amend-existing="'+escape(item.id)+'"><legend>'+escape(item.name)+
+    ' · '+escape(item.id)+'</legend><label><input type="checkbox" data-amend-remove-item '+
+    'data-amend-item="'+escape(item.id)+'"> Retirar modelo inteiro (somente se não tiver Corte ou movimentações)</label>'+
+    rows+'<div class="fields">'+
+    '<label>Adicionar cor a este modelo<input class="input" data-amend-new-color data-amend-item="'+escape(item.id)+
+    '" placeholder="Deixar em branco para não incluir"></label>'+
+    order.sizes.map(size=>'<label>Novo '+escape(size)+'<input class="input" type="number" min="0" max="10000" '+
+     'data-amend-color-qty data-amend-item="'+escape(item.id)+'" data-amend-size="'+escape(size)+'" value="0"></label>').join('')+
+    '</div></fieldset>';
+  }).join('');
+  const productList=options([['','Não adicionar modelo'],...selector(s.products,x=>x.name+' · '+x.sku)]);
+  return '<details class="panel" data-amend-order="'+escape(order.id)+'"><summary>Aditivo de modelos e cores · '+
+   escape(order.id)+'</summary><p class="caption">O aditivo conserva os IDs dos modelos atuais. Não permite remover item ou cor com Corte ou movimentação vinculados. As alterações ficam no histórico.</p>'+
+   '<form data-command="order.multi.amend" data-amend-order-form>'+
+   '<input type="hidden" name="id" value="'+escape(order.id)+'">'+editable+
+   '<fieldset><legend>Acrescentar outro modelo (opcional)</legend><div class="fields">'+
+   '<label>Modelo cadastrado<select class="input" data-amend-new-model>'+productList+'</select></label>'+
+   '<label>Cor inicial<input class="input" data-amend-new-model-color placeholder="Ex.: Preto"></label>'+
+   order.sizes.map(size=>'<label>'+escape(size)+'<input class="input" type="number" '+
+     'data-amend-new-model-qty data-amend-size="'+escape(size)+'" min="0" max="10000" value="0"></label>').join('')+
+   '</div></fieldset>'+
+   '<label>Motivo do aditivo<input class="input" name="reason" maxlength="240" required></label>'+
+   '<div class="actions"><button type="submit" class="btn primary">Revisar e registrar aditivo fictício</button></div>'+
+   '</form></details>';
+ }).join('');
+ return panel('Aditivos auditáveis de modelos e cores',
+  '<p>Inclua ou retire modelos e cores sem apagar a identidade ou o histórico. Um modelo novo recebe um ID que nunca substitui o ID de outro modelo. Nenhum dado comercial será modificado.</p>'+parts,true);
+}
 function multiOrderRevisionPanel(s){
  const rows=(s.multiOrders||[]).map(order=>{
   const planned=(s.multiCutPlans||[]).filter(p=>p.orderId===order.id&&p.status!=='cancelado');
@@ -1452,7 +1489,7 @@ function multiOrderPanel(s){
   '<p class="caption">Todos os modelos compartilham os tamanhos selecionados. Uma cor pode ter zero em alguns tamanhos, mas não pode ficar inteiramente zerada.</p>'+
   '<p class="multi-order-summary" id="multi-order-preview" aria-live="polite">Calculando quantidades...</p>'+
   '<div class="actions"><button type="submit" class="btn primary">Salvar pedido multimodelo fictício</button></div></form>'+
-  multiOrderRevisionPanel(s)+'<h3>Pedidos multimodelo em preparação</h3>'+summaries+
+  multiOrderRevisionPanel(s)+multiOrderAmendmentPanel(s)+'<h3>Pedidos multimodelo em preparação</h3>'+summaries+
   '<p class="caption">Os IDs e os totais ficam no histórico do laboratório, mas nenhum pedido desta lista pode ser baixado ou enviado para uma facção até a homologação da integração.</p>',true);
 }
 function multiOrderInput(form){
@@ -3363,6 +3400,39 @@ function parseData(type,form){
  if(type==='route.plan'||type==='route.revise')return routeInput(form);
  if(type==='packer.progress'){const data=Object.fromEntries(new FormData(form).entries());return {id:data.id,doneQty:Number(data.doneQty),reason:data.reason,correction:data.correction==='true'};}
  if(type==='order.multi.create')return multiOrderInput(form);
+ if(type==='order.multi.amend'){
+  const id=form.elements.namedItem('id').value,order=doc.multiOrders.find(x=>x.id===id);
+  if(!order)throw Error('Pedido multimodelo não encontrado.');
+  const items=[];
+  const gradeOf=inputs=>{
+   const grade={};
+   for(const size of order.sizes){
+    const matching=inputs.filter(x=>x.dataset.amendSize===size);
+    if(matching.length!==1||!/^(0|[1-9]\d*)$/.test(matching[0].value))
+     throw Error('Quantidade inválida no tamanho '+size);
+    grade[size]=Number(matching[0].value);
+   }
+   return grade;
+  };
+  for(const item of order.items){
+   const group=form.querySelector('[data-amend-existing="'+item.id+'"]');
+   if(!group)throw Error('Modelo não encontrado no formulário.');
+   if(group.querySelector('[data-amend-remove-item]')?.checked)continue;
+   const removed=new Set([...group.querySelectorAll('[data-amend-remove-color]:checked')].map(x=>x.dataset.amendColor));
+   const colors=item.colors.filter(x=>!removed.has(x.color)).map(x=>({color:x.color,grade:{...x.grade}}));
+   const field=group.querySelector('[data-amend-new-color]');
+   if(field?.value.trim())colors.push({color:field.value.trim(),
+    grade:gradeOf([...group.querySelectorAll('[data-amend-color-qty]')])});
+   items.push({id:item.id,productId:item.productId,colors});
+  }
+  const newModel=form.querySelector('[data-amend-new-model]').value;
+  if(newModel){
+   const color=form.querySelector('[data-amend-new-model-color]').value.trim();
+   items.push({productId:newModel,colors:[{color,
+    grade:gradeOf([...form.querySelectorAll('[data-amend-new-model-qty]')])}]});
+  }
+  return {id,items,reason:form.elements.namedItem('reason').value};
+ }
  if(type==='order.multi.revise'){
   const id=form.elements.namedItem('id').value,order=doc.multiOrders.find(x=>x.id===id);
   if(!order)throw Error('Pedido multimodelo não encontrado.');
@@ -3526,6 +3596,7 @@ async function submit(form,type){
  if(type==='finance.faction.close'&&!confirm('Confirmar somente a baixa fictícia de todos os títulos e o total conferido deste prestador?'))return;
  if(type==='recovery.repair'&&!confirm('Aplicar exclusivamente o reparo de metadado simulado?'))return;
  if(type==='cut.plan.cancel'&&!confirm('Cancelar somente a folha aberta, preservando o histórico?'))return;
+ if(type==='order.multi.amend'&&!confirm('Confirmar aditivo fictício? Modelos/cores com corte ou movimentações dependentes não poderão ser removidos.'))return;
  if(type==='order.multi.revise'&&!confirm('Confirmar revisão da grade fictícia com histórico antes/depois? O sistema bloqueará alterações inferiores ao corte programado.'))return;
  if(type==='multi.cut.cancel'&&!confirm('Cancelar somente esta folha de ensaio, mantendo todo o histórico?'))return;
  if(type==='route.cancel'&&!confirm('Cancelar esta rota fictícia mantendo o histórico de todas as paradas?'))return;
