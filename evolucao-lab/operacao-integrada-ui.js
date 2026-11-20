@@ -413,6 +413,8 @@ function cutCapacityPanel(s){
   '<p>Informe capacidade diária TOTAL (peças) para este cenário. O sistema aponta sobrecarga por data e pessoas nas duas folhas. Não muda prazos ou folhas.</p>'+
   '<div class="field"><label>Capacidade total por dia (peças)<input id="cut-capacity-input" class="input" type="number" min="1" max="100000" step="1" placeholder="Informar capacidade confirmada"></label></div>'+
   '<button type="button" class="btn" id="cut-capacity-run">Analisar programação</button>'+
+  '<div class="field"><label>Dias de trabalho para o cenário<select class="input" id="cut-working-days"><option value="1,2,3,4,5">Segunda a sexta (hipótese)</option><option value="1,2,3,4,5,6">Segunda a sábado (hipótese)</option><option value="0,1,2,3,4,5,6">Todos os dias (hipótese)</option></select></label></div>'+ 
+  '<button type="button" class="btn" id="cut-schedule-preview">Sugerir redistribuição sem gravar</button>'+
   '<div class="caption" id="cut-capacity-output" aria-live="polite" style="white-space:pre-wrap">Informe capacidade para testar excesso. Nada será salvo.</div>'+
   '<h3>Folhas abertas por dia</h3>'+
   table(['Data','Peças','Folhas','Capacidade'],report.days.map(x=>
@@ -2939,6 +2941,25 @@ document.addEventListener('click',async e=>{
     output.dataset.valid='false';
    }
   }
+  return;
+ }
+ if(e.target.closest('#cut-schedule-preview')){
+  const out=document.getElementById('cut-capacity-output');
+  try{
+   const raw=String(document.getElementById('cut-capacity-input')?.value||'').trim();
+   if(!/^[1-9][0-9]*$/.test(raw))throw Error('Informe capacidade positiva do cenário.');
+   const svc=window.HLGBLabCutScheduleProposalV1;
+   if(!svc?.propose)throw Error('Motor de redistribuição indisponível.');
+   const days=String(document.getElementById('cut-working-days')?.value||'')
+    .split(',').map(Number);
+   const q=svc.propose(doc,{dailyCapacityPieces:Number(raw),workingDays:days,horizonDays:60});
+   if(out)out.textContent='PROPOSTA FICTÍCIA · revisão '+q.baseRevision+
+     ' · '+q.changed+' folha(s) com nova data; '+q.blocked.length+
+     ' sem encaixe.\\n'+q.proposals.map(p=>p.id+' · '+p.qty+' peças: '+
+       p.originalDate+' → '+p.suggestedDate+(p.changed?' (sugerido)':' (mantido)')).join('\\n')+
+     (q.blocked.length?'\\nBloqueios: '+q.blocked.map(p=>p.id+' ('+p.reason+')').join('; '):'')+
+     '\\nNão considera feriados, materiais ou compromissos reais. Nenhuma alteração salva.';
+  }catch(error){if(out)out.textContent='Proposta indisponível: '+error.message;}
   return;
  }
  if(e.target.closest('#cut-capacity-run')){
