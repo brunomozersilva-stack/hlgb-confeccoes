@@ -598,7 +598,7 @@ test('pagina autonoma de homologacao preserva 20 areas e executa sem arquivos Ja
  const solo=fs.readFileSync(path.join(dir,'operacao-integrada-autonoma.html'),'utf8');
  const bundles=[1,2,3,4].map(n=>fs.readFileSync(path.join(dir,'bundle-autonomo-'+n+'.js'),'utf8'));
  assert.equal((solo.match(/<script>/g)||[]).length,4);
- assert.equal((solo.match(/<script\\s+src=/g)||[]).length,0);
+ assert.equal((solo.match(/<script\s+src=/g)||[]).length,0);
  assert.match(solo,/20 áreas para explorar/);
  assert.match(solo,/não sincronizam entre computadores/);
  assert.match(solo,/não executam pagamentos/);
