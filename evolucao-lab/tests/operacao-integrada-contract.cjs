@@ -593,3 +593,19 @@ test('avaliações manuais das 20 áreas exibem observação salva sem liberar p
  assert.match(ui,/Registro local, não é aceite de produção/,'registro manual não equivale a aceite');
  assert.match(ui,/productionApproval:false,parityApproved:false/,'exportação mantém os bloqueios de aprovação');
 });
+
+test('pagina autonoma de homologacao preserva 20 areas e executa sem arquivos JavaScript externos',()=>{
+ const solo=fs.readFileSync(path.join(dir,'operacao-integrada-autonoma.html'),'utf8');
+ const bundles=[1,2,3,4].map(n=>fs.readFileSync(path.join(dir,'bundle-autonomo-'+n+'.js'),'utf8'));
+ assert.equal((solo.match(/<script>/g)||[]).length,4);
+ assert.equal((solo.match(/<script\\s+src=/g)||[]).length,0);
+ assert.match(solo,/20 áreas para explorar/);
+ assert.match(solo,/não sincronizam entre computadores/);
+ assert.match(solo,/não executam pagamentos/);
+ assert.match(solo,/Registro local, não é aceite de produção/);
+ for(let i=0;i<bundles.length;i++){
+  assert.ok(solo.includes(bundles[i]),'pacote '+(i+1)+' incorporado integralmente');
+  assert.doesNotThrow(()=>new vm.Script(bundles[i]),'pacote '+(i+1)+' tem sintaxe JS válida');
+ }
+ assert.ok(solo.indexOf('Arquivo integrado')<0,'sem marcador incompleto de arquivo');
+});
