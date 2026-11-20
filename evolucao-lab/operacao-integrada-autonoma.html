@@ -197,7 +197,7 @@ textarea.input{resize:vertical;min-height:110px;font-family:inherit;line-height:
 </main></div></div>
 <section id="cut-print" aria-label="Folha de corte fictícia para impressão"></section>
 <script>
-/* HLGB Evolução - pacote 1 */
+/* HLGB Evolucao pacote 1 */
 /* modulos/pagamento-lote-v1.js */
 /* HLGB Evolução · Pagamento em lote V1 — SOMENTE LAB FICTÍCIO.
  * O núcleo é o único escritor: este componente valida e muta exclusivamente
@@ -2030,7 +2030,7 @@ textarea.input{resize:vertical;min-height:110px;font-family:inherit;line-height:
 
 </script>
 <script>
-/* HLGB Evolução - pacote 2 */
+/* HLGB Evolucao pacote 2 */
 /* modulos/auditor-v3.js */
 /* Auditor 3.0: diagnóstico local, evidências e rechecagem, nunca autocorreção financeira. */
 (function(root,factory){const api=factory();if(typeof module==='object'&&module.exports)module.exports=api;if(root)root.HLGBLabAuditorV3=api;})(typeof window!=='undefined'?window:null,function factory(){
@@ -2926,7 +2926,7 @@ textarea.input{resize:vertical;min-height:110px;font-family:inherit;line-height:
 
 </script>
 <script>
-/* HLGB Evolução - pacote 3 */
+/* HLGB Evolucao pacote 3 */
 /* modulos/corte-multimodelo-v1.js */
 /* HLGB Evolução · Corte multimodelo em laboratório fictício.
  * Controle por pedido + item + cor + tamanho; sem baixa de estoque, facções ou financeiro.
@@ -5336,7 +5336,7 @@ textarea.input{resize:vertical;min-height:110px;font-family:inherit;line-height:
 
 </script>
 <script>
-/* HLGB Evolução - pacote 4 */
+/* HLGB Evolucao pacote 4 */
 /* modulos/registro-v1.js */
 /* HLGB Evolução: registro de módulos opcionais do LAB. Nenhuma rede, storage ou escrita financeira. */
 (function(root,factory){
@@ -8185,7 +8185,7 @@ function moduleHtml(s){
    '<span class="chip '+(p.status==='aberto'?'wait':'')+'">'+str(p.status)+'</span>',
    '<button type="button" class="btn" data-print-plan="'+str(p.id)+'">Imprimir folha</button>'
   ]);
-  return multiCutPanel(s)+cutSplitPanel(s)+bomCutPanels(s)+panel('Grade editável do pedido',
+  return multiCutPanel(s)+multiOrderCutImpactPanel(s)+cutSplitPanel(s)+bomCutPanels(s)+panel('Grade editável do pedido',
    form('order.grade.update','Ajustar quantidades por tamanho',[
     field('orderId','Pedido','select','',o),...gradeFields(defaultOrder?.grade)
    ],'Salvar grade e conferir valor do pedido')+
