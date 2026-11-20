@@ -703,17 +703,33 @@
  function queuePanel(s,flow){
   const todo=queue(s,flow),ordered=['Corte pendente','Corte concluído para enviar à facção',
    'Retorno disponível para separar','Separado e disponível para expedir','Acerto fictício a conferir'];
-  const sorted=todo.slice().sort((a,b)=>ordered.indexOf(a.stage)-ordered.indexOf(b.stage)||a.ref.localeCompare(b.ref,'pt-BR'));
-  const rows=sorted.slice(0,120).map(x=>'<tr><td>'+esc(x.stage)+'</td><td>'+esc(x.ref)+'</td><td>'+
-   x.qty+'</td><td><button type="button" class="btn" data-goto="'+esc(x.to)+'" data-mf-focus="'+esc(x.focus)+'">Abrir '+esc(x.to)+'</button></td></tr>').join('');
+  const byStage=new Map(ordered.map(stage=>[stage,[]]));
+  for(const task of todo){
+   if(!byStage.has(task.stage))byStage.set(task.stage,[]);
+   byStage.get(task.stage).push(task);
+  }
+  const stageRows=[...byStage].filter(([,items])=>items.length).map(([stage,items])=>[
+   stage,items.length,items.reduce((total,item)=>total+item.qty,0)]);
+  const sections=[...byStage].filter(([,items])=>items.length).map(([stage,items])=>{
+   const sorted=items.slice().sort((a,b)=>a.ref.localeCompare(b.ref,'pt-BR'));
+   const rows=sorted.map(x=>'<tr><td>'+esc(x.ref)+'</td><td>'+x.qty+
+    '</td><td><button type="button" class="btn" data-goto="'+esc(x.to)+
+    '" data-mf-focus="'+esc(x.focus)+'">Abrir '+esc(x.to)+'</button></td></tr>').join('');
+   return '<details class="panel" data-queue-stage="'+esc(stage)+'"><summary><strong>'+
+    esc(stage)+'</strong> · '+items.length+' pendência(s) · '+
+    items.reduce((total,item)=>total+item.qty,0)+' peça(s)</summary>'+
+    '<div class="table-wrap"><table><thead><tr><th>Registro exato</th><th>Peças</th><th>Abrir módulo</th>'+
+    '</tr></thead><tbody>'+rows+'</tbody></table></div></details>';
+  }).join('');
   return panel('Fila de trabalho por setor · multimodelo fictício',
-   '<p>Mostra somente pendências calculadas a partir das grades e comandos deste exercício. Não possui prazo de entrega ou confirmação em outro computador; <b>não é uma fila real de produção</b>.</p>'+
-   '<div class="metrics"><div class="metric"><span>Tarefas com saldo</span><strong>'+todo.length+'</strong></div>'+
-   '<div class="metric"><span>Acertos por conferir</span><strong>'+
-   todo.filter(x=>x.stage==='Acerto fictício a conferir').length+'</strong></div></div>'+
-   (rows?'<div class="table-wrap"><table><thead><tr><th>Próxima etapa</th><th>Registro exato</th><th>Peças</th><th>Abrir módulo</th></tr></thead><tbody>'+
-    rows+'</tbody></table></div>'+(todo.length>120?'<p>Lista parcial de 120 itens. Consulte o módulo para ver o restante.</p>':''):
-    '<p>Sem pendências de operação multimodelo neste laboratório.</p>'));
+   '<p>Mostra somente pendências calculadas a partir das grades e comandos deste exercício. Não possui prazo de entrega nem confirmação em outro computador; <b>não é uma fila real de produção</b>.</p>'+
+   '<div class="metrics"><div class="metric"><span>Tarefas com saldo</span><strong>'+todo.length+
+   '</strong></div><div class="metric"><span>Acertos por conferir</span><strong>'+
+   (byStage.get('Acerto fictício a conferir')||[]).length+
+   '</strong></div></div>'+
+   (todo.length?'<h3>Resumo por etapa</h3>'+table(['Etapa','Pendências','Peças'],stageRows)+
+    '<p class="caption">Abra uma etapa para consultar todos os seus registros e ir diretamente ao lançamento correspondente. Nenhuma pendência é omitida por limite de linhas.</p>'+
+    sections:'<p>Sem pendências de operação multimodelo neste laboratório.</p>'));
  }
  return Object.freeze({balancePanel,factionPanel,separationPanel,acertoPanel,queue,queuePanel,readLines});
 });
