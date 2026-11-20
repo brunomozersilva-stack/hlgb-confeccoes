@@ -6,7 +6,7 @@ const STATUSES=Object.freeze({
   SUCCESS:'confirmed_success', FAILURE:'confirmed_failure',
   UNKNOWN:'not_observed', INCOMPLETE:'incomplete_evidence'
 });
-const safeCount=x=>Number.isSafeInteger(Number(x))&&Number(x)>=0?Number(x):null;
+const safeCount=x=>(typeof x==='number'||(typeof x==='string'&&x.trim()!==''))&&Number.isSafeInteger(Number(x))&&Number(x)>=0?Number(x):null;
 function classify(row){
   if(!row||typeof row!=='object'||Array.isArray(row))
     return {state:STATUSES.INCOMPLETE,reason:'registro_ausente',mayAutofix:false};
