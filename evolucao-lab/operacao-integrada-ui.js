@@ -2202,7 +2202,7 @@ function parseData(type,form){
    const grade={};
    for(const size of order.sizes){
     const matching=inputs.filter(x=>x.dataset.amendSize===size);
-    if(matching.length!==1||!/^(0|[1-9]\\d*)$/.test(matching[0].value))
+    if(matching.length!==1||!/^(0|[1-9]\d*)$/.test(matching[0].value))
      throw Error('Quantidade inválida no tamanho '+size);
     grade[size]=Number(matching[0].value);
    }
