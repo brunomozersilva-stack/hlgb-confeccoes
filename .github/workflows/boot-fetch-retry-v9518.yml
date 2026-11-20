@@ -14,6 +14,10 @@ on:
       - 'diagnostico-abertura.html'
       - 'tests/boot-fetch-retry-v9518*'
       - '.github/workflows/boot-fetch-retry-v9518.yml'
+# Only the latest commit of this PR needs a full run of this workflow.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
 permissions:
   contents: read
 jobs:
