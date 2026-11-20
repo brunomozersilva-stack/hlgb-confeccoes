@@ -65,3 +65,36 @@ test('ID existente com modelo diferente não pode ser sobrescrito',async()=>{
  assert.equal(f.calls.length,0);
  assert.equal(f.records.get(String(id)).orderId,999);
 });
+
+test('resposta de rede perdida após gravação: segunda tentativa apenas relê o mesmo corte',async()=>{
+ const f=setup(),ids=[];let writes=0;
+ f.context.hlgbRecordSaveWithRetry=async(module,id,row)=>{
+   ids.push(id);writes++;f.records.set(id,structuredClone(row));
+   throw new Error('Conexão interrompida após gravação no servidor');
+ };
+ await assert.rejects(f.api.save(),/Conexão interrompida/);
+ assert.equal(f.db.cuts.length,0,'não exibir confirmação local sem releitura');
+ assert.equal(f.api.diagnostic().pendingDraftCount,1);
+ const second=await f.api.save();
+ assert.equal(second,true,'depois de reconectar, reler a gravação existente');
+ assert.equal(writes,1,'não repetir escrita remotamente quando a primeira já chegou');
+ assert.equal(f.records.size,1,'apenas um registro no servidor simulado');
+ assert.equal(f.db.cuts.length,1);
+ assert.equal(f.api.diagnostic().pendingDraftCount,0);
+});
+test('falha antes do envio conserva ID para nova tentativa após reconexão',async()=>{
+ const f=setup(),ids=[];let online=false;
+ f.context.hlgbRecordSaveWithRetry=async(module,id,row)=>{
+   ids.push(id);
+   if(!online)throw new Error('Sem conexão');
+   f.records.set(id,structuredClone(row));return {applied:true,data:row};
+ };
+ await assert.rejects(f.api.save(),/Sem conexão/);
+ assert.equal(f.db.cuts.length,0);
+ assert.equal(f.api.diagnostic().pendingDraftCount,1);
+ online=true;
+ assert.equal(await f.api.save(),true);
+ assert.deepEqual(ids,[ids[0],ids[0]],'ID não muda após falha de rede');
+ assert.equal(f.records.size,1);
+ assert.equal(f.db.cuts.length,1);
+});
