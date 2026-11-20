@@ -49,6 +49,7 @@ test('simula aditivo: novo modelo preserva ID anterior e preço histórico',()=>
  const preview=orders.previewChange(f.state,'order.multi.amend',p);
  assert.equal(preview.beforePieces,150);assert.equal(preview.afterPieces,165);
  assert.equal(preview.changes.filter(x=>x.effect==='nova_variante').length,2);
+ assert.equal(preview.newItemProductIds['ITM-003'],'PRO-0003');
  assert.ok(preview.changes.every(x=>x.protectedQty===0));
  assert.equal(JSON.stringify(f.state),before);
 });
@@ -69,4 +70,11 @@ test('interface exige simulação de impacto antes da confirmação e usa output
  assert.match(ui,/data-order-preview-output/);
  assert.match(ui,/Simulação bloqueou o salvamento/);
  assert.match(ui,/orderChangePreviewText\(preview\)/);
+});
+
+test('UI inclui previsão de materiais e HTML modular carrega o módulo isolado',()=>{
+ const html=fs.readFileSync(path.join(__dirname,'../operacao-integrada.html'),'utf8');
+ assert.match(ui,/function orderMaterialPreviewText\(result\)/);
+ assert.match(ui,/orderChangePreviewText\(preview\)\+orderMaterialPreviewText\(preview\)/);
+ assert.match(html,/modulos\/impacto-materiais-pedidos-v1\.js/);
 });
