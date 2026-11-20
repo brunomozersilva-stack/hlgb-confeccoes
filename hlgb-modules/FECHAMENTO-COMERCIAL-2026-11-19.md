@@ -48,3 +48,20 @@ Isso evita que a organização em módulos esconda a eliminação de funções; 
 A candidata anterior #271 passou nos 55 workflows automáticos, mas ainda não teve aceite manual de produção. O novo trabalho de extração física está separado na branch `refactor/live-main-cut-production-effective-qty-v9607`, mantendo #271 verde. Extrai um bloco autocontido de quantidades Corte→Produção, **sem alterações de regras**, e exige teste de reconstrução exata da fonte, paridade em nove cenários e carregamento em Chromium/WebKit com rede comercial bloqueada. Esta PR NÃO publica, não altera banco, não migra WAL e não converte o programa inteiro em módulos. Depois da CI, ainda é necessária homologação de operação comercial isolada antes do merge.
 
 **Proteção adicional de inicialização v96.07:** o `app-stable3.html` exige a API de reconciliação de Corte/Produção antes de considerar o boot completo. Se o novo arquivo externo não carregar, a abertura do programa é bloqueada com erro explícito, em vez de prosseguir silenciosamente com regras antigas que poderiam alterar quantidades. Essa condição é testada com o próprio script de boot em memória, em cenários de módulo presente/ausente; nenhuma gravação comercial é executada.
+
+
+## Plano objetivo de merge da candidata #272 (20/11/2026)
+
+**Escopo do primeiro merge:** integrar os 16 grupos do carregador, preservação dos 156 scripts comerciais, os três núcleos puros com fallback e a primeira extração física Corte→Produção, **sem esperar extrair todos os 91 blocos inline restantes**. A extração restante é outra fase, com PRs pequenas e independentes.
+
+**Relação entre PRs:** #272 descende de #271 (não criar dois merges para a mesma base). Escolher uma única PR ao final: #272 se passar integralmente, #271 como fallback se a extração física exigir mais trabalho. Não mesclar as duas em sequência.
+
+**Travas finais (Go/No-Go):**
+1. Exigir que o **SHA exato do último commit** da candidata passe TODOS os workflows. Checks antigos, cancelados, ignorados ou enfileirados não contam como aprovação.
+2. O teste legado `boot-fetch-retry-v9518-browser.cjs` precisa usar fixture que inclui o contrato crítico `hlgbSyncFinalizedCutsToProductionV9240`; esse contrato foi acrescentado somente à simulação de sucesso. A proteção real permanece obrigatória: se faltar o módulo de Corte→Produção, não liberar boot.
+3. Homologar a candidata em **ambiente isolado com banco de teste**; uma prévia estática/Playwright não demonstra salvamento remoto. Testar dois navegadores, reabrir após salvar, comprovar ACK no Supabase e reconciliar WAL. Não reutilizar chaves de escrita comercial.
+4. Registrar **evidência de testes reais**: Pedidos → Corte → Produção → Separação; Acertos/Facções; Folha e passagem por funcionário; Hub; etiquetas; Auditor; Safari↔Chrome.
+5. Confirmar backup restaurável e SHA de `main`, plano de rollback sem limpar IndexedDB/WAL, e autorização explícita para publicar.
+6. Depois do merge, executar smoke tests no domínio comercial e acompanhar primeiro salvamento/ACK com a equipe antes de encerrar a janela de rollback.
+
+**Não concluído neste documento:** backup, homologação com banco isolado, testes reais entre dois computadores ou autorização de publicação. Não marcar como feitos sem evidência.
