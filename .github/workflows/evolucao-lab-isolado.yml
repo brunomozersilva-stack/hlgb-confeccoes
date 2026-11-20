@@ -37,6 +37,7 @@ jobs:
           node --test evolucao-lab/tests/auditoria-paridade-gate.cjs
           node --test evolucao-lab/tests/order-grade-legacy-v2-contract.cjs
           node --test evolucao-lab/tests/impacto-materiais-pedidos-contract.cjs
+          node --test evolucao-lab/tests/capacidade-corte-contract.cjs
           # Testes do legado: validar o comportamento que NÃO pode desaparecer.
           node --test tests/audit-cut-grade-matrix-v9421.cjs
           node --test tests/audit-cutter-planner-regression.cjs
