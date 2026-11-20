@@ -40,3 +40,19 @@ Fontes originais verificadas em `main`: `release-cutter-planner.js`, `release-cu
 - Nenhum merge na `main`, publicação comercial ou alteração de dados reais.
 
 **Regra:** `PENDENTE` até todos os comportamentos da main estarem preservados, haver melhoria medida e aceite operacional registrado.
+
+## Implementação incremental de 20/11 — revisão auditável de quantidade (sem aceite)
+- Motor `modulos/pedidos-multimodelo-v1.js:revise` criado: atualização **somente das quantidades** de células de modelos/cores/tamanhos já cadastrados, preservando `orderId`, `itemId` e preço histórico.
+- Bloqueia redução abaixo da soma de grades em `multiCutPlans` não cancelados (abertos e concluídos). Recusa exclusão/troca de item, cor, tamanho ou cliente nessa operação.
+- Salva justificativa, `commandId`, revisão e snapshots anteriores/posteriores com verificação de integridade e vínculo ao log global.
+- Tela de Pedidos contém editor por grade com quantidade mínima reservada por célula e confirmação explícita.
+- `tests/revisao-pedidos-multimodelo-contract.cjs` protege alteração permitida, rejeição abaixo do Corte, histórico, identidade de modelo e preço. Incluído no workflow. **Execução integral de CI não confirmada**.
+- Arquivo integrado refeito dos 34 arquivos de origem por substituição literal segura, conferidos sintaxe dos quatro scripts, ausência de dependências JS externas e preservação de strings monetárias.
+- Verificação de motor em memória sem navegador: alteração de 45 para 46 peças preservou integridade; adulteração posterior foi identificada. Essa verificação não substitui testes de gravação, reabertura ou servidor.
+
+### Pesquisa confirmada nesta etapa
+- [Odoo 19 — Order Grid Entry](https://www.odoo.com/documentation/19.0/applications/sales/sales/sales_quotations/orders_and_variants.html): registrar variantes em grade no pedido.
+- [ERPNext — Amending Sales Order after Submit](https://docs.frappe.io/erpnext/amending-sales-order-after-submit): verificar documentos dependentes antes de corrigir pedidos confirmados.
+- [ERPNext — Sales Order](https://docs.frappe.io/erpnext/sales-order): edição de itens respeita restrições dos vínculos e quantidade atendida.
+
+**Próximas lacunas P0**: acrescentar/remover modelos e cores por aditivo versionado; edição de dados comerciais sem ferir saldos; unificação com as ordens antigas e preços por cliente; prova de gravação servidor, conflito entre sessões, importação/migração reversível e aceite da operação.
