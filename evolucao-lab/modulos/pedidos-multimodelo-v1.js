@@ -161,7 +161,7 @@
   const next=prepare(s,{clientId:order.clientId,sizes:clone(order.sizes),items:prepared},snapshots);
   let seq=0;
   function countId(value){
-   const m=/^ITM-(\\d+)$/.exec(String(value));
+   const m=/^ITM-(\d+)$/.exec(String(value));
    if(m)seq=Math.max(seq,Number(m[1]));
   }
   for(const item of order.items)countId(item.id);
