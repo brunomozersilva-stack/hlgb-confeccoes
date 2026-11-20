@@ -6,6 +6,10 @@ on:
   push:
     branches: [main]
     paths: [release-cutter-planner.js, tests/audit-cutter-planner-regression.cjs, tests/cutter-save-confirm-v9580.cjs, .github/workflows/cutter-save-confirm-v9580.yml]
+# Only the latest commit of this PR needs a full run of this workflow.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
 permissions: {contents: read}
 jobs:
   save-cutter:
