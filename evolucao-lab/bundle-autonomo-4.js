@@ -1404,6 +1404,37 @@ function multiModelCard(products,sizes,index){
  '<div class="actions"><button type="button" class="btn" data-add-multi-color>+ Nova cor</button>'+
  '<button type="button" class="btn" data-remove-multi-model>Remover modelo</button></div></section>';
 }
+function multiOrderRevisionPanel(s){
+ const rows=(s.multiOrders||[]).map(order=>{
+  const planned=(s.multiCutPlans||[]).filter(p=>p.orderId===order.id&&p.status!=='cancelado');
+  const reservations=new Map();
+  for(const plan of planned)for(const line of plan.lines){
+   const key=plan.itemId+'|'+line.color+'|'+line.size;
+   reservations.set(key,(reservations.get(key)||0)+line.qty);
+  }
+  const models=order.items.map(item=>'<fieldset data-revise-item="'+escape(item.id)+'"><legend>'+
+   escape(item.name)+' · '+escape(item.id)+'</legend>'+
+   item.colors.map(color=>'<div class="multi-matrix-scroll"><strong>'+escape(color.color)+'</strong><div class="fields">'+
+    order.sizes.map(size=>{
+     const qty=color.grade[size],minimum=reservations.get(item.id+'|'+color.color+'|'+size)||0;
+     return '<label>'+escape(size)+' · reservado '+minimum+
+      '<input class="input" type="number" min="'+minimum+'" max="10000" step="1" required data-revise-qty'+
+      ' data-item-id="'+escape(item.id)+'" data-color="'+escape(color.color)+'" data-size="'+escape(size)+
+      '" value="'+qty+'"></label>';
+    }).join('')+'</div></div>').join('')+'</fieldset>').join('');
+  return '<details class="panel" data-revise-order="'+escape(order.id)+'"><summary>Editar grade do pedido '+
+   escape(order.id)+' · '+order.totals.pieces+' peças · '+(order.revisions||[]).length+' revisão(ões)</summary>'+
+   '<p class="caption">Altere somente quantidades. Modelos, cores, tamanhos e preços históricos são preservados. Não é permitido reduzir abaixo da quantidade já programada ou cortada.</p>'+
+   '<form data-command="order.multi.revise" data-revise-order-form="'+escape(order.id)+'">'+
+   '<input type="hidden" name="id" value="'+escape(order.id)+'">'+models+
+   '<label>Justificativa obrigatória<input class="input" name="reason" maxlength="240" required placeholder="Motivo da mudança de quantidades"></label>'+
+   '<div class="actions"><button type="submit" class="btn primary">Conferir e salvar revisão fictícia</button></div></form>'+
+   (order.revisions?.length?'<p class="caption">Histórico: '+
+    order.revisions.map(r=>'revisão '+r.revision+' · '+escape(r.reason)).join(' | ')+'</p>':'')+'</details>';
+ }).join('');
+ return rows?panel('Revisar quantidades de pedidos multimodelo (histórico protegido)',
+  '<p>As alterações são registradas com antes/depois, revisão e justificativa; o total e os cortes são reconferidos antes da gravação.</p>'+rows,true):'';
+}
 function multiOrderPanel(s){
  const sizeList=multiBaseSizes,existing=s.multiOrders||[],clients=selector(s.clients,x=>x.name);
  const summaries=table(['Pedido','Cliente','Modelos','Cores','Peças','Valor ilustrativo','Condição'],
@@ -1421,7 +1452,7 @@ function multiOrderPanel(s){
   '<p class="caption">Todos os modelos compartilham os tamanhos selecionados. Uma cor pode ter zero em alguns tamanhos, mas não pode ficar inteiramente zerada.</p>'+
   '<p class="multi-order-summary" id="multi-order-preview" aria-live="polite">Calculando quantidades...</p>'+
   '<div class="actions"><button type="submit" class="btn primary">Salvar pedido multimodelo fictício</button></div></form>'+
-  '<h3>Pedidos multimodelo em preparação</h3>'+summaries+
+  multiOrderRevisionPanel(s)+'<h3>Pedidos multimodelo em preparação</h3>'+summaries+
   '<p class="caption">Os IDs e os totais ficam no histórico do laboratório, mas nenhum pedido desta lista pode ser baixado ou enviado para uma facção até a homologação da integração.</p>',true);
 }
 function multiOrderInput(form){
@@ -2357,7 +2388,7 @@ function financeControlPanels(s){
  const paid=selector(s.finance.filter(x=>x.status==='pago'&&!x.reconciliation),x=>x.id+' · '+x.description+' · '+fmt(x.amountCents));
  return panel('Programar vencimento e conciliar manualmente',
  form('finance.schedule','Definir ou corrigir vencimento',[field('id','Título aberto','select','',open),dated('dueDate','Vencimento'),field('reason','Motivo','text','Programação fictícia')],'Salvar vencimento')+
- form('finance.reconcile','Conferir título quitado com extrato fictício',[field('id','Título pago sem conferência','select','',paid),field('reference','Referência única do extrato','text','EXT-TESTE-001'),field('amountCents','Valor do extrato R$','money','100,00'),dated('reconcileDate','Data de conferência')],'Conferir valor')+
+ form('finance.reconcile','Conferir título quitado com extrato fictício',[field('id','Título pago sem conferência','select','',paid),field('reference','Referência única do extrato','text','EXT-TESTE-001'),field('amountCents','Valor do extrato R,'money','100,00'),dated('reconcileDate','Data de conferência')],'Conferir valor')+
  '<p>Conferência manual de valor, não integra banco, não paga novamente e não comprova transferência.</p>');
 }
 
@@ -2511,7 +2542,7 @@ function serviceGroupPanel(s){
  const draft=serviceGroupDraft||{factionId:staff[0]?.[0]||'',reference:'GRUPO-R'+s.revision,lines:[emptyGroupLine(),emptyGroupLine()]};
  const productChoices=selector(s.products,x=>x.name+' · '+x.sku).concat([['manual','Modelo avulso (embalagem)']]);
  const cats=window.HLGBLabServicesV1.categories.map(x=>[x,x]),modes=[['auto','Preço cadastrado'],['manual','Preço manual']];
- const rows=draft.lines.map((x,i)=>'<div class="panel" data-group-line><h3>Linha '+(i+1)+'</h3><div class="fields">'+field('productId','Modelo','select',x.productId,productChoices)+field('manualName','Modelo avulso','text',x.manualName)+field('manualCategory','Categoria avulsa','select',x.manualCategory,cats)+field('qty','Peças','int',String(x.qty))+field('priceMode','Preço','select',x.priceMode,modes)+field('unit','Preço manual R$','money',x.unit)+'</div>'+(draft.lines.length>2?'<button class="btn danger" type="button" data-group-remove="'+i+'">Retirar linha do rascunho</button>':'')+'</div>').join('');
+ const rows=draft.lines.map((x,i)=>'<div class="panel" data-group-line><h3>Linha '+(i+1)+'</h3><div class="fields">'+field('productId','Modelo','select',x.productId,productChoices)+field('manualName','Modelo avulso','text',x.manualName)+field('manualCategory','Categoria avulsa','select',x.manualCategory,cats)+field('qty','Peças','int',String(x.qty))+field('priceMode','Preço','select',x.priceMode,modes)+field('unit','Preço manual R,'money',x.unit)+'</div>'+(draft.lines.length>2?'<button class="btn danger" type="button" data-group-remove="'+i+'">Retirar linha do rascunho</button>':'')+'</div>').join('');
  const q=serviceGroupResult?.revision===s.revision?serviceGroupResult:null;
  return panel('Montar um acerto com várias linhas','<p>Uma pessoa por grupo; atividade e preços seguem o cadastro. Confira a prévia antes de gravar. Nenhuma baixa financeira é feita ao criar o grupo.</p><div class="fields"><div class="field"><label>Prestador<select class="input" id="group-service-faction">'+options(staff,draft.factionId)+'</select></label></div><div class="field"><label>Referência<input class="input" id="group-service-reference" value="'+str(draft.reference)+'"></label></div></div><div id="group-service-lines">'+rows+'</div><div class="actions"><button class="btn" id="group-line-add" type="button" '+(draft.lines.length>=20?'disabled':'')+'>Adicionar linha</button><button class="btn" id="group-service-preview" type="button">Conferir total</button></div>'+
  (q?table(['Modelo','Atividade','Peças','Bruto/peça','Desconto/peça','Total'],q.rows.map(x=>[str(x.model),str(x.service),str(x.qty),fmt(x.gross),fmt(x.discount),fmt(x.amount)]))+'<p><strong>Total da prévia: '+fmt(q.total)+'</strong></p>'+form('settlement.service.group','Confirmar acerto',[field('reason','Justificativa','text','Grupo de serviços fictício')],'Registrar todas as linhas'):'')+
@@ -2719,7 +2750,7 @@ function moduleHtml(s){
  form('product.add','Cadastrar modelo',[field('name','Nome do modelo'),field('sku','SKU único'),
  field('materialId','Material principal','select','',materials),
  field('gramsPerUnit','Consumo por unidade (g)','int','80'),
- field('priceCents','Preço de venda R$','money','39,90')],'Cadastrar modelo'))+
+ field('priceCents','Preço de venda R,'money','39,90')],'Cadastrar modelo'))+
  panel('Referência dos materiais','<p>O corte fictício continua utilizando o consumo principal registrado ao cadastrar o modelo. A nova receita detalhada é usada somente na previsão de materiais, sem alterar baixas antigas.</p>')+
  panel('Modelos cadastrados',table(['SKU','Modelo','Material','Consumo','Preço'],s.products.map(x=>[
  str(x.sku),str(x.name),str(ref(s.materials,x.materialId)?.name),str(x.gramsPerUnit)+'g',fmt(x.priceCents)])),true);
@@ -3089,7 +3120,7 @@ function moduleHtml(s){
  }
  case 'hub':return financeAnalytics(s)+panel('Lançamento do Hub fictício',
  form('finance.add','Novo título',[field('description','Descrição'),field('kind','Tipo','select','',[['pagar','Pagar'],['receber','Receber']]),
- field('amountCents','Valor em R$','money','100,00'),field('category','Categoria','select','',window.HLGBLabFinanceV1.categories.map(x=>[x,x])), '<div class="field"><label>Vencimento (opcional)<input class="input" type="date" name="dueDate"></label></div>'],'Cadastrar título')+
+ field('amountCents','Valor em R,'money','100,00'),field('category','Categoria','select','',window.HLGBLabFinanceV1.categories.map(x=>[x,x])), '<div class="field"><label>Vencimento (opcional)<input class="input" type="date" name="dueDate"></label></div>'],'Cadastrar título')+
  form('finance.pay','Confirmar lançamento',[field('id','Título aberto','select','',finance),'<div class="field"><label>Data da baixa<input class="input" type="date" name="paidDate" value="2026-11-16" required></label></div>'],'Marcar como quitado ficticiamente')+
  '<p class="caption">Esta ação não movimenta dinheiro. Confirme apenas valores fictícios.</p>')+
  financeRevisionPanels(s)+financeControlPanels(s)+financialBatchPanel(s)+receiptPanel(s)+
@@ -3097,10 +3128,10 @@ function moduleHtml(s){
  panel('Contas do laboratório',financeTable(s),true);
  case 'folha':return payrollIntegratedPanel(s)+panel('Editar salário e passagem por pessoa',
  form('payroll.update','Alterar registro da folha',[field('id','Funcionário','select','',employees),
- field('salaryCents','Salário-base R$','money','2000,00'),
- field('passageCents','Passagem R$','money','120,00'),
- field('extrasCents','Extras R$','money','0,00'),
- field('discountCents','Descontos R$','money','0,00')],'Salvar valores individuais'))+
+ field('salaryCents','Salário-base R,'money','2000,00'),
+ field('passageCents','Passagem R,'money','120,00'),
+ field('extrasCents','Extras R,'money','0,00'),
+ field('discountCents','Descontos R,'money','0,00')],'Salvar valores individuais'))+
  panel('Não é cálculo trabalhista','<p>A passagem entra no desembolso separado do salário. Não calcula encargos, FGTS, INSS ou rescisão real. A Folha 2.0 separada possui testes adicionais de ordenação e conflitos.</p>'+
  '<a href="./folha-homologacao.html" class="btn link">Abrir Folha 2.0 detalhada</a>')+
  panel('Saldos da folha fictícia',table(['Funcionário','Base','Passagem','Extras','Descontos','Desembolso'],s.employees.map(e=>[
@@ -3332,6 +3363,24 @@ function parseData(type,form){
  if(type==='route.plan'||type==='route.revise')return routeInput(form);
  if(type==='packer.progress'){const data=Object.fromEntries(new FormData(form).entries());return {id:data.id,doneQty:Number(data.doneQty),reason:data.reason,correction:data.correction==='true'};}
  if(type==='order.multi.create')return multiOrderInput(form);
+ if(type==='order.multi.revise'){
+  const id=form.elements.namedItem('id').value,order=doc.multiOrders.find(x=>x.id===id);
+  if(!order)throw Error('Pedido multimodelo não encontrado.');
+  const changes=[...form.querySelectorAll('[data-revise-qty]')];
+  const items=order.items.map(item=>({id:item.id,productId:item.productId,colors:item.colors.map(color=>{
+   const grade={};
+   for(const size of order.sizes){
+    const matches=changes.filter(el=>el.dataset.itemId===item.id&&
+      el.dataset.color===color.color&&el.dataset.size===size);
+    if(matches.length!==1||!/^(0|[1-9]\d*)$/.test(matches[0].value))
+     throw Error('Grade inválida em '+item.name+' / '+color.color+' / '+size);
+    grade[size]=Number(matches[0].value);
+   }
+   return {color:color.color,grade};
+  })}));
+  return {id,items,reason:form.elements.namedItem('reason').value};
+ }
+
  if(type==='multi.cut.plan'||type==='multi.cut.revise'){
   const data=new FormData(form),lines=[];
   for(const input of form.querySelectorAll('[data-mcut-qty]')){
@@ -3477,6 +3526,7 @@ async function submit(form,type){
  if(type==='finance.faction.close'&&!confirm('Confirmar somente a baixa fictícia de todos os títulos e o total conferido deste prestador?'))return;
  if(type==='recovery.repair'&&!confirm('Aplicar exclusivamente o reparo de metadado simulado?'))return;
  if(type==='cut.plan.cancel'&&!confirm('Cancelar somente a folha aberta, preservando o histórico?'))return;
+ if(type==='order.multi.revise'&&!confirm('Confirmar revisão da grade fictícia com histórico antes/depois? O sistema bloqueará alterações inferiores ao corte programado.'))return;
  if(type==='multi.cut.cancel'&&!confirm('Cancelar somente esta folha de ensaio, mantendo todo o histórico?'))return;
  if(type==='route.cancel'&&!confirm('Cancelar esta rota fictícia mantendo o histórico de todas as paradas?'))return;
  if(type==='order.color.grade.set'&&active==='pedidos'&&form.elements.namedItem('removeColor')?.checked&&
