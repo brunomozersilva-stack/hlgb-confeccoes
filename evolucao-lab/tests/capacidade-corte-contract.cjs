@@ -46,3 +46,15 @@ test('sem alterar estado em quantidade, dia ou capacidade invalidos',()=>{
  assert.throws(()=>engine.evaluate(badqty),/Quantidade/);
  assert.equal(JSON.stringify(s),before);
 });
+
+test('tela modular carrega motor, mostra capacidade e nao programa sozinha',()=>{
+ const fs=require('node:fs'),path=require('node:path');
+ const base=path.resolve(__dirname,'..');
+ const ui=fs.readFileSync(path.join(base,'operacao-integrada-ui.js'),'utf8');
+ const html=fs.readFileSync(path.join(base,'operacao-integrada.html'),'utf8');
+ assert.doesNotThrow(()=>new (require('node:vm').Script)(ui));
+ assert.match(ui,/function cutCapacityPanel\(s\)/);
+ assert.match(ui,/id="cut-capacity-run"/);
+ assert.match(ui,/return multiCutPanel\(s\)\+cutCapacityPanel\(s\)/);
+ assert.match(html,/modulos\/capacidade-corte-v1\.js/);
+});
