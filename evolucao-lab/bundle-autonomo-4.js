@@ -2846,7 +2846,7 @@ function moduleHtml(s){
    '<span class="chip '+(p.status==='aberto'?'wait':'')+'">'+str(p.status)+'</span>',
    '<button type="button" class="btn" data-print-plan="'+str(p.id)+'">Imprimir folha</button>'
   ]);
-  return multiCutPanel(s)+cutSplitPanel(s)+bomCutPanels(s)+panel('Grade editável do pedido',
+  return multiCutPanel(s)+multiOrderCutImpactPanel(s)+cutSplitPanel(s)+bomCutPanels(s)+panel('Grade editável do pedido',
    form('order.grade.update','Ajustar quantidades por tamanho',[
     field('orderId','Pedido','select','',o),...gradeFields(defaultOrder?.grade)
    ],'Salvar grade e conferir valor do pedido')+
