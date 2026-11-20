@@ -83,3 +83,20 @@ Fontes originais verificadas em `main`: `release-cutter-planner.js`, `release-cu
 **Ensaio do motor em memória:** após preço negociado de 3000 centavos, pedido prévio manteve 3000; após renegociação de 3900, o item novo no aditivo recebeu 3900. Total e integridade consistentes; adulteração da justificativa histórica foi sinalizada. Foram criados `tests/precos-cliente-pedidos-contract.cjs` e gatilho no CI. **Não há aceite de navegador, sincronização entre computadores, faturamento ou migração.**
 
 **Lacunas P0 que permanecem:** mapear preços/contratos reais do HLGB comercial; regras de atacado, vendedor, desconto, exceção, preço por quantidade, validade, precedência, tributos, moeda, arredondamento, autorização por papel, margem, confirmação de cliente e conciliação entre pedido, nota e financeiro. Não integrar a regra fictícia à produção antes desses aceites.
+
+## Pedidos ↔ Corte — quadro de impacto por célula (incremento de 20/11/2026)
+**Código comercial conferido na `main`:**
+- `release-cutter-planner.js:modelRows/orderSearchRows/matches` — pedido com vários modelos, programação e localização por modelo/cliente.
+- `release-cutter-sheet-materials-v9523.js:gradeMatrix/renderSheet` — grade por cor/tamanho, impressão e consumo de materiais.
+- `release-cut-model-grade-adjust.js:buildHorizontalEditor` — editor horizontal do Corte.
+
+**Pesquisa comparativa:**
+- Odoo 19, *Work order dependencies*: operações planejadas respeitam dependências e mostram quantidades, data e responsável. https://www.odoo.com/documentation/19.0/applications/inventory_and_mrp/manufacturing/advanced_configuration/work_order_dependencies.html
+- ERPNext, *Production Plan* e *Work Order*: produção planejada a partir de demanda, com necessidades de materiais e ordens relacionadas. https://docs.frappe.io/erpnext/production-plan e https://docs.frappe.io/erpnext/work-order
+- ERPNext 16, *Stock Reservation for Work Order*: separar reserva e movimentação material, útil como analogia de reserva da quantidade de corte; não é cópia integral da funcionalidade. https://docs.frappe.io/erpnext/stock-reservation-for-work-order
+
+**Melhoria implantada SOMENTE no laboratório:** `pedidos-multimodelo-v1.js:cutImpact` calcula por `orderId + itemId + cor + tamanho` os totais pedidos, programados, concluídos, histórico cancelado, enviados, retornados, separados, expedidos, saldo comprometido e livre para redução; valida os invariantes `programado+concluído ≤ pedido`, `enviado ≤ cortado`, `retornado ≤ enviado`, `separado ≤ retornado`, `expedido ≤ separado`. A análise é **somente leitura**, e lança erro quando há incompatibilidade. `operacao-integrada-ui.js:multiOrderCutImpactPanel` mostra a conferência dentro de Pedidos, sem movimentar estoque ou financeiro. Cancelamentos permanecem rastreáveis e não reservam novamente as peças.
+
+**Verificação pontual executada em memória:** cenário de 60 peças de tamanho P com 20 programadas, 30 cortadas, 10 em histórico cancelado, 25 enviadas, 15 retornadas, 10 separadas e 5 expedidas gerou 50 comprometidas e 10 livres; uma programação adulterada elevando o reservado além do pedido foi recusada; o documento não sofreu mutação durante a consulta. Criado teste `tests/impacto-pedidos-corte-contract.cjs`, incluído no workflow. Pacotes de 34 scripts sincronizados e 4 scripts inline com sintaxe válida.
+
+**Lacunas que impedem aceite:** esta é uma prévia dos saldos **atuais**, não comparação dinâmica dos valores digitados no formulário antes do clique Salvar; ainda falta simulação visual de alteração antes/depois com confirmação, total de materiais/BOM, fila real por responsável e data, histórico remoto e teste Safari/Chrome. Os testes de CI e navegação real ainda exigem confirmação. A existência do painel não valida migração nem permite alterar `main`.
