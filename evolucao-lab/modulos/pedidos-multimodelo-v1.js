@@ -182,6 +182,7 @@
   if(!changes.length)fail('Nenhuma quantidade foi modificada.');
   const valueBefore=original.totals.amountCents,valueAfter=newer.totals.amountCents;
   return {orderId:p.id,baseRevision:s.revision,type,
+   newItemProductIds:Object.fromEntries(newer.items.map(item=>[item.id,item.productId])),
    beforePieces:original.totals.pieces,afterPieces:newer.totals.pieces,
    deltaPieces:newer.totals.pieces-original.totals.pieces,
    beforeValueCents:valueBefore,afterValueCents:valueAfter,
