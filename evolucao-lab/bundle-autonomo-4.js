@@ -1435,7 +1435,7 @@ function multiOrderAmendmentPanel(s){
      'data-amend-new-model-qty data-amend-size="'+escape(size)+'" min="0" max="10000" value="0"></label>').join('')+
    '</div></fieldset>'+
    '<label>Motivo do aditivo<input class="input" name="reason" maxlength="240" required></label>'+
-   '<div class="actions"><button type="submit" class="btn primary">Revisar e registrar aditivo fictício</button></div>'+
+   '<div class="actions"><button type="button" class="btn" data-preview-order-change>Simular impacto</button><button type="submit" class="btn primary">Revisar e registrar aditivo fictício</button></div><div class="caption" data-order-preview-output aria-live="polite"></div>'+
    '</form></details>';
  }).join('');
  return panel('Aditivos auditáveis de modelos e cores',
@@ -1465,7 +1465,7 @@ function multiOrderRevisionPanel(s){
    '<form data-command="order.multi.revise" data-revise-order-form="'+escape(order.id)+'">'+
    '<input type="hidden" name="id" value="'+escape(order.id)+'">'+models+
    '<label>Justificativa obrigatória<input class="input" name="reason" maxlength="240" required placeholder="Motivo da mudança de quantidades"></label>'+
-   '<div class="actions"><button type="submit" class="btn primary">Conferir e salvar revisão fictícia</button></div></form>'+
+   '<div class="actions"><button type="button" class="btn" data-preview-order-change>Simular impacto</button><button type="submit" class="btn primary">Conferir e salvar revisão fictícia</button></div><div class="caption" data-order-preview-output aria-live="polite"></div></form>'+
    (order.revisions?.length?'<p class="caption">Histórico: '+
     order.revisions.map(r=>'revisão '+r.revision+' · '+escape(r.reason)).join(' | ')+'</p>':'')+'</details>';
  }).join('');
@@ -3638,14 +3638,38 @@ async function read(){
   request.onerror=()=>reject(request.error||Error('Falha na releitura.'));
  });
 }
+
+function orderChangePreviewText(result){
+ const pieces=(result.deltaPieces>=0?'+':'')+result.deltaPieces;
+ const money=(result.deltaValueCents>=0?'+':'−')+fmt(Math.abs(result.deltaValueCents));
+ return 'Simulação sem gravação · base revisão '+result.baseRevision+
+  '\nPeças: '+result.beforePieces+' → '+result.afterPieces+' ('+pieces+')'+
+  '\nValor ilustrativo: '+fmt(result.beforeValueCents)+' → '+fmt(result.afterValueCents)+
+  ' ('+money+')'+
+  '\nComprometidas no Corte: '+result.protectedPieces+
+  '\nAlterações por modelo / cor / tamanho:\n'+
+  result.changes.map(x=>x.itemId+' · '+x.model+' / '+x.color+' / '+x.size+
+   ': '+x.beforeQty+' → '+x.afterQty+' ('+(x.deltaQty>=0?'+':'')+x.deltaQty+
+   '), mínimo protegido '+x.protectedQty).join('\n')+
+  '\nNão gera financeiro, movimentação nem aprovação de produção.';
+}
+function simulateOrderChange(form,type){
+ if(!doc||!window.HLGBLabMultiOrdersV1?.previewChange)
+  throw Error('Simulador de pedido indisponível.');
+ return window.HLGBLabMultiOrdersV1.previewChange(doc,type,parseData(type,form));
+}
 async function submit(form,type){
  if(busy||!doc)return;
  if(['settlement.service.group','payroll.period.create','order.import.batch','assistant.order.create','purchase.invoice.import','packaging.complete','cut.plan.split'].includes(type)&&!confirm('Confirmar a prévia e criar os registros fictícios?'))return;
  if(type==='finance.faction.close'&&!confirm('Confirmar somente a baixa fictícia de todos os títulos e o total conferido deste prestador?'))return;
  if(type==='recovery.repair'&&!confirm('Aplicar exclusivamente o reparo de metadado simulado?'))return;
  if(type==='cut.plan.cancel'&&!confirm('Cancelar somente a folha aberta, preservando o histórico?'))return;
- if(type==='order.multi.amend'&&!confirm('Confirmar aditivo fictício? Modelos/cores com corte ou movimentações dependentes não poderão ser removidos.'))return;
- if(type==='order.multi.revise'&&!confirm('Confirmar revisão da grade fictícia com histórico antes/depois? O sistema bloqueará alterações inferiores ao corte programado.'))return;
+ if(['order.multi.amend','order.multi.revise'].includes(type)){
+  let preview;
+  try{preview=simulateOrderChange(form,type);}
+  catch(error){status('Simulação bloqueou o salvamento: '+error.message,'error');return;}
+  if(!confirm(orderChangePreviewText(preview)+'\n\nConfirmar o registro fictício com histórico?'))return;
+ }
  if(type==='multi.cut.cancel'&&!confirm('Cancelar somente esta folha de ensaio, mantendo todo o histórico?'))return;
  if(type==='route.cancel'&&!confirm('Cancelar esta rota fictícia mantendo o histórico de todas as paradas?'))return;
  if(type==='order.color.grade.set'&&active==='pedidos'&&form.elements.namedItem('removeColor')?.checked&&
@@ -4078,6 +4102,23 @@ document.addEventListener('change',event=>{
  }
 });
 document.addEventListener('click',async e=>{
+ const previewButton=e.target.closest('[data-preview-order-change]');
+ if(previewButton){
+  const form=previewButton.closest('form[data-command]');
+  const output=form?.querySelector('[data-order-preview-output]');
+  if(form&&output){
+   try{
+    const preview=simulateOrderChange(form,form.dataset.command);
+    output.style.whiteSpace='pre-wrap';
+    output.textContent=orderChangePreviewText(preview);
+    output.dataset.valid='true';
+   }catch(error){
+    output.textContent='Alteração não permitida: '+error.message;
+    output.dataset.valid='false';
+   }
+  }
+  return;
+ }
  if(e.target.closest('#whole-program-export')){exportReport();return;}
  const multiForm=e.target.closest('#multi-order-form');
  if(multiForm){
