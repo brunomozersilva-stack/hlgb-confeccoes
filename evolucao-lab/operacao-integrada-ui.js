@@ -2166,7 +2166,7 @@ function parseData(type,form){
    for(const size of order.sizes){
     const matches=changes.filter(el=>el.dataset.itemId===item.id&&
       el.dataset.color===color.color&&el.dataset.size===size);
-    if(matches.length!==1||!/^(0|[1-9]\\d*)$/.test(matches[0].value))
+    if(matches.length!==1||!/^(0|[1-9]\d*)$/.test(matches[0].value))
      throw Error('Grade inválida em '+item.name+' / '+color.color+' / '+size);
     grade[size]=Number(matches[0].value);
    }
