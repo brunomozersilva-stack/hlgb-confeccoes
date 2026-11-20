@@ -198,6 +198,37 @@ function multiModelCard(products,sizes,index){
  '<div class="actions"><button type="button" class="btn" data-add-multi-color>+ Nova cor</button>'+
  '<button type="button" class="btn" data-remove-multi-model>Remover modelo</button></div></section>';
 }
+function multiOrderRevisionPanel(s){
+ const rows=(s.multiOrders||[]).map(order=>{
+  const planned=(s.multiCutPlans||[]).filter(p=>p.orderId===order.id&&p.status!=='cancelado');
+  const reservations=new Map();
+  for(const plan of planned)for(const line of plan.lines){
+   const key=plan.itemId+'|'+line.color+'|'+line.size;
+   reservations.set(key,(reservations.get(key)||0)+line.qty);
+  }
+  const models=order.items.map(item=>'<fieldset data-revise-item="'+escape(item.id)+'"><legend>'+
+   escape(item.name)+' · '+escape(item.id)+'</legend>'+
+   item.colors.map(color=>'<div class="multi-matrix-scroll"><strong>'+escape(color.color)+'</strong><div class="fields">'+
+    order.sizes.map(size=>{
+     const qty=color.grade[size],minimum=reservations.get(item.id+'|'+color.color+'|'+size)||0;
+     return '<label>'+escape(size)+' · reservado '+minimum+
+      '<input class="input" type="number" min="'+minimum+'" max="10000" step="1" required data-revise-qty'+
+      ' data-item-id="'+escape(item.id)+'" data-color="'+escape(color.color)+'" data-size="'+escape(size)+
+      '" value="'+qty+'"></label>';
+    }).join('')+'</div></div>').join('')+'</fieldset>').join('');
+  return '<details class="panel" data-revise-order="'+escape(order.id)+'"><summary>Editar grade do pedido '+
+   escape(order.id)+' · '+order.totals.pieces+' peças · '+(order.revisions||[]).length+' revisão(ões)</summary>'+
+   '<p class="caption">Altere somente quantidades. Modelos, cores, tamanhos e preços históricos são preservados. Não é permitido reduzir abaixo da quantidade já programada ou cortada.</p>'+
+   '<form data-command="order.multi.revise" data-revise-order-form="'+escape(order.id)+'">'+
+   '<input type="hidden" name="id" value="'+escape(order.id)+'">'+models+
+   '<label>Justificativa obrigatória<input class="input" name="reason" maxlength="240" required placeholder="Motivo da mudança de quantidades"></label>'+
+   '<div class="actions"><button type="submit" class="btn primary">Conferir e salvar revisão fictícia</button></div></form>'+
+   (order.revisions?.length?'<p class="caption">Histórico: '+
+    order.revisions.map(r=>'revisão '+r.revision+' · '+escape(r.reason)).join(' | ')+'</p>':'')+'</details>';
+ }).join('');
+ return rows?panel('Revisar quantidades de pedidos multimodelo (histórico protegido)',
+  '<p>As alterações são registradas com antes/depois, revisão e justificativa; o total e os cortes são reconferidos antes da gravação.</p>'+rows,true):'';
+}
 function multiOrderPanel(s){
  const sizeList=multiBaseSizes,existing=s.multiOrders||[],clients=selector(s.clients,x=>x.name);
  const summaries=table(['Pedido','Cliente','Modelos','Cores','Peças','Valor ilustrativo','Condição'],
@@ -215,7 +246,7 @@ function multiOrderPanel(s){
   '<p class="caption">Todos os modelos compartilham os tamanhos selecionados. Uma cor pode ter zero em alguns tamanhos, mas não pode ficar inteiramente zerada.</p>'+
   '<p class="multi-order-summary" id="multi-order-preview" aria-live="polite">Calculando quantidades...</p>'+
   '<div class="actions"><button type="submit" class="btn primary">Salvar pedido multimodelo fictício</button></div></form>'+
-  '<h3>Pedidos multimodelo em preparação</h3>'+summaries+
+  multiOrderRevisionPanel(s)+'<h3>Pedidos multimodelo em preparação</h3>'+summaries+
   '<p class="caption">Os IDs e os totais ficam no histórico do laboratório, mas nenhum pedido desta lista pode ser baixado ou enviado para uma facção até a homologação da integração.</p>',true);
 }
 function multiOrderInput(form){
@@ -2126,6 +2157,24 @@ function parseData(type,form){
  if(type==='route.plan'||type==='route.revise')return routeInput(form);
  if(type==='packer.progress'){const data=Object.fromEntries(new FormData(form).entries());return {id:data.id,doneQty:Number(data.doneQty),reason:data.reason,correction:data.correction==='true'};}
  if(type==='order.multi.create')return multiOrderInput(form);
+ if(type==='order.multi.revise'){
+  const id=form.elements.namedItem('id').value,order=doc.multiOrders.find(x=>x.id===id);
+  if(!order)throw Error('Pedido multimodelo não encontrado.');
+  const changes=[...form.querySelectorAll('[data-revise-qty]')];
+  const items=order.items.map(item=>({id:item.id,productId:item.productId,colors:item.colors.map(color=>{
+   const grade={};
+   for(const size of order.sizes){
+    const matches=changes.filter(el=>el.dataset.itemId===item.id&&
+      el.dataset.color===color.color&&el.dataset.size===size);
+    if(matches.length!==1||!/^(0|[1-9]\\d*)$/.test(matches[0].value))
+     throw Error('Grade inválida em '+item.name+' / '+color.color+' / '+size);
+    grade[size]=Number(matches[0].value);
+   }
+   return {color:color.color,grade};
+  })}));
+  return {id,items,reason:form.elements.namedItem('reason').value};
+ }
+
  if(type==='multi.cut.plan'||type==='multi.cut.revise'){
   const data=new FormData(form),lines=[];
   for(const input of form.querySelectorAll('[data-mcut-qty]')){
@@ -2271,6 +2320,7 @@ async function submit(form,type){
  if(type==='finance.faction.close'&&!confirm('Confirmar somente a baixa fictícia de todos os títulos e o total conferido deste prestador?'))return;
  if(type==='recovery.repair'&&!confirm('Aplicar exclusivamente o reparo de metadado simulado?'))return;
  if(type==='cut.plan.cancel'&&!confirm('Cancelar somente a folha aberta, preservando o histórico?'))return;
+ if(type==='order.multi.revise'&&!confirm('Confirmar revisão da grade fictícia com histórico antes/depois? O sistema bloqueará alterações inferiores ao corte programado.'))return;
  if(type==='multi.cut.cancel'&&!confirm('Cancelar somente esta folha de ensaio, mantendo todo o histórico?'))return;
  if(type==='route.cancel'&&!confirm('Cancelar esta rota fictícia mantendo o histórico de todas as paradas?'))return;
  if(type==='order.color.grade.set'&&active==='pedidos'&&form.elements.namedItem('removeColor')?.checked&&
