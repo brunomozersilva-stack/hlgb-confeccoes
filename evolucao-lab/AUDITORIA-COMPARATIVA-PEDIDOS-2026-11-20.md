@@ -56,3 +56,16 @@ Fontes originais verificadas em `main`: `release-cutter-planner.js`, `release-cu
 - [ERPNext — Sales Order](https://docs.frappe.io/erpnext/sales-order): edição de itens respeita restrições dos vínculos e quantidade atendida.
 
 **Próximas lacunas P0**: acrescentar/remover modelos e cores por aditivo versionado; edição de dados comerciais sem ferir saldos; unificação com as ordens antigas e preços por cliente; prova de gravação servidor, conflito entre sessões, importação/migração reversível e aceite da operação.
+
+## Aditivos por modelo e cor — incremento posterior (20/11/2026)
+**Fontes legadas cotejadas:** `release-cutter-planner.js:modelRows`, `release-cut-model-grade-adjust.js:buildHorizontalEditor`, `release-cutter-sheet-materials-v9523.js:gradeMatrix`. Na main, uma mesma ordem tem modelos com quantidades/cortes independentes e grades por cor/tamanho; a Evolução não pode colapsar esses vínculos.
+
+**Benchmark atualizado:**
+- Odoo 19 — *Order Grid Entry* de variantes nos pedidos, como referência para aditivos com seleção explícita de modelos/cores: https://www.odoo.com/documentation/19.0/applications/sales/sales/sales_quotations/orders_and_variants.html
+- ERPNext — *Amending Sales Order after Submit* e *Sales Order*: alteração condicionada ao estado dos documentos dependentes; base para bloquear exclusão de modelo/cor com corte, envio ou separação vinculados: https://docs.frappe.io/erpnext/amending-sales-order-after-submit e https://docs.frappe.io/erpnext/sales-order
+
+**Implementação laboratorial:** novo comando `order.multi.amend` registra aditivo com motivo obrigatório, snapshot anterior/posterior e prova no log. É possível incluir outro modelo e incluir/retirar cores; a retirada de modelo é bloqueada quando há qualquer folha ou movimentação vinculada, inclusive folha cancelada (histórico). A retirada de cor é bloqueada se constar em Corte ou envio. Nenhum ID antigo é reutilizado, mesmo após remoção; preço histórico de item preservado. Não altera preço de venda, dados de produção nem facções reais.
+
+**Verificação pontual executada no motor em memória:** inclusão de modelo gerou `ITM-003` após `ITM-001` e `ITM-002`; retirada de item vinculado a corte e redução abaixo de 40 peças reservadas foram recusadas; remoção de item sem vínculos e inclusão posterior gerou `ITM-004`, sem reaproveitar `ITM-002`; `inspect` permaneceu sem ocorrências. Acrescentado `tests/aditivo-pedidos-multimodelo-contract.cjs` ao CI. **Execução integral de CI e homologação em navegadores/servidor não foram confirmadas.**
+
+**Paridade restante / cuidado:** edição de tamanho global do pedido, retirada parcial de cor vinculada, renomeação de modelo com histórico, preço negociado por cliente, importação de dados legados e comprovação de sync entre computadores continuam **PENDENTES**. A inclusão no laboratório não significa que o sistema original foi substituído nem autoriza merge na main.
