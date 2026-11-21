@@ -53,7 +53,15 @@
    ]))+'<h3>Compensacoes separadas</h3>'+
    table(['ID','Diferenca','Situacao','Referencia','Motivo'],x.compensations.map(c=>[
     c.id,money(c.deltaCents),c.status,c.reference||'—',c.reason||'—'
-   ]))+'</section>').join('');
+   ]))+
+   '<h3>Linha do tempo de auditoria</h3>'+
+   table(['Revisão','Evento','Operador','Data registrada','Comando'],(x.timeline||[]).map(e=>[
+    e.revision??'—',e.type,e.actor||'Não informado',e.recordedAt||'Não informada',e.commandId
+   ]))+
+   ((x.missingEventReferences||[]).length?
+    '<p>Eventos locais sem correspondência na trilha global: '+
+    esc(x.missingEventReferences.join(', '))+'</p>':'')+
+   '</section>').join('');
   return header+'<h2>Resumo por pessoa</h2>'+groups+
    (detail==='resumo'?'':'<h2>Acertos individuais</h2>'+entries)+details+
    '<p class="print-note">DOCUMENTO FICTICIO DE TESTE. Nao substitui comprovante de pagamento, nota fiscal ou conciliacao bancaria. Compensacoes nao foram somadas de novo aos acertos originais.</p>';
