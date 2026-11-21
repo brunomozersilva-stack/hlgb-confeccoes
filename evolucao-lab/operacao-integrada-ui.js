@@ -719,7 +719,7 @@ function renderRouteSheet(id){
 
 // Pedidos: mesa compacta de trabalho, inspirada na pesquisa, filtros e modo
 // operacional do HLGB comercial. Somente leitura; usa as transacoes ja validadas.
-const ordersFastFilters={query:'',status:'todos',priority:'todas',page:1,pageSize:20};
+const ordersFastFilters={query:'',status:'todos',priority:'todas',page:1,pageSize:20,selected:null};
 const orderFastNorm=x=>String(x??'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLocaleLowerCase('pt-BR');
 function orderFastRecords(s){
  const rows=s.orders.map(o=>{
@@ -768,13 +768,54 @@ function ordersFastView(s){
   str(x.qty),str(x.cut),str(x.returned),str(x.shipped),
   '<span class="chip '+(x.status==='Expedido'?'': 'wait')+'">'+str(x.status)+'</span>',
   str(x.priority||'Não definida'),str(x.dueDate||'Não informado'),fmt(x.value),
-  x.kind==='operacional'?'<button type="button" class="btn" data-orders-copy="'+str(x.id)+'">Repetir grade</button>':'<span class="caption">Somente prévia</span>'
+  '<button type="button" class="btn" data-orders-detail="'+str(x.id)+'">Detalhar</button> '+
+  (x.kind==='operacional'?'<button type="button" class="btn" data-orders-copy="'+str(x.id)+'">Repetir grade</button>':'<span class="caption">Somente prévia</span>')
  ]);
  const pagination='<div class="actions" id="orders-fast-pagination">'+
   '<button type="button" class="btn" data-orders-fast-page="prev"'+(ordersFastFilters.page===1?' disabled':'')+'>Anterior</button>'+
   '<span class="caption">Página '+ordersFastFilters.page+' de '+pages+' · até '+ordersFastFilters.pageSize+' por página</span>'+
   '<button type="button" class="btn" data-orders-fast-page="next"'+(ordersFastFilters.page>=pages?' disabled':'')+'>Próxima</button></div>';
- return status+table(['Pedido','Cliente','Modelo / grade','Peças','Cortadas','Retornadas','Enviadas','Etapa','Prioridade','Prazo PCP','Valor','Ação rápida'],rows)+pagination;
+ return status+table(['Pedido','Cliente','Modelo / grade','Peças','Cortadas','Retornadas','Enviadas','Etapa','Prioridade','Prazo PCP','Valor','Ação rápida'],rows)+pagination+
+  '<div id="orders-fast-detail">'+ordersFastDetail(s,ordersFastFilters.selected)+'</div>';
+}
+function ordersFastDetail(s,id){
+ if(!id)return '';
+ const op=s.orders.find(o=>o.id===id),multi=!op?(s.multiOrders||[]).find(o=>o.id===id):null;
+ if(!op&&!multi)return '<p class="caption">Pedido não localizado. Atualize a consulta.</p>';
+ const client=ref(s.clients,(op||multi).clientId)?.name||(op||multi).clientId;
+ const head='<h3>Detalhes do pedido '+str(id)+'</h3><p>Cliente: '+str(client)+
+  ' · Somente consulta. Nenhum saldo ou preço é alterado.</p>';
+ if(multi){
+  const rows=multi.items.flatMap(item=>item.colors.flatMap(color=>
+   multi.sizes.map(size=>[str(item.name),str(color.color),str(size),
+    str(color.grade[size]||0)]))).filter(row=>row[3]!=='0');
+  return panel('Pedido multimodelo em preparação',head+
+   '<p><strong>Somente laboratório:</strong> este tipo de pedido ainda não cria financeiro ou movimentação comercial. Os saldos de Corte/Facção multimodelo são geridos nos módulos próprios.</p>'+
+   table(['Modelo','Cor','Tamanho','Quantidade'],rows)+
+   '<p>Total preparado: '+str(multi.totals.pieces)+' peças · '+
+    fmt(multi.totals.amountCents)+' ilustrativos</p>',true);
+ }
+ const product=ref(s.products,op.productId);
+ const q=api.quantities(op);
+ const colors=op.colorGrades?.length?op.colorGrades:[{color:'Sem cor registrada',grade:op.grade}];
+ const colorRows=colors.flatMap(x=>api.sizes.map(size=>
+  [str(x.color),str(size),str(x.grade[size]||0)]));
+ const finance=s.finance.filter(x=>x.sourceId===id&&x.kind==='receber');
+ const funds=finance.map(x=>[str(x.id),fmt(x.amountCents),str(x.status),
+  str(x.paidDate||'Não informada')]);
+ const events=(s.log||[]).filter(x=>x.description===id||
+  x.description?.startsWith(id+' ')||x.description?.startsWith(id+' ·'));
+ return panel('Detalhes e conferência',head+
+  '<p>Modelo: '+str(product?.name||op.productId)+' · Grade por cor e tamanho</p>'+
+  table(['Cor','Tamanho','Quantidade'],colorRows)+
+  '<h4>Fluxo do pedido</h4>'+
+  table(['Pedidas','Cortadas','Enviadas à facção','Retornadas','Separadas','Expedidas'],
+   [[str(q.ordered),str(q.cut),str(q.allocated),str(q.returned),str(q.separated),str(q.shipped)]])+
+  '<h4>Títulos a receber vinculados</h4>'+table(['Título','Valor','Situação','Data de pagamento'],funds)+
+  '<h4>Eventos identificados pelo pedido</h4>'+
+  table(['Revisão','Tipo','Operador','Comando'],events.map(e=>[
+   str(e.revision),str(e.type),str(e.actor||'Não informado'),str(e.commandId)]))+
+  '<p class="caption">Eventos sem vínculo explícito no registro não são presumidos; consulte a auditoria integral para trilha completa.</p>',true);
 }
 function ordersFastPanel(s){
  const all=orderFastRecords(s),operational=all.filter(x=>x.kind==='operacional');
@@ -3153,6 +3194,13 @@ document.addEventListener('change',event=>{
  }
 });
 document.addEventListener('click',async e=>{
+ const detailButton=e.target.closest('[data-orders-detail]');
+ if(detailButton){
+  ordersFastFilters.selected=detailButton.dataset.ordersDetail;
+  updateOrdersFastView();
+  document.getElementById('orders-fast-detail')?.scrollIntoView({block:'nearest'});
+  return;
+ }
  const copyOrder=e.target.closest('[data-orders-copy]');
  if(copyOrder){
   try{copyOrderToColorMatrix(copyOrder.dataset.ordersCopy);}
