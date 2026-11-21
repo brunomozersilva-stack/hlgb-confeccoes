@@ -254,6 +254,11 @@ async function run(browser,width,url){
   assert.equal(await revision(page),beforeFast+1,'detalhar o pedido não altera financeiro');
   assert.equal(await page.locator('#orders-fast-results tbody tr').count(),1);
   assert.equal(await revision(page),beforeFast+1,'filtros não criam evento financeiro');
+  await page.locator('[data-orders-edit="PED-0001"]').click();
+  assert.equal(await page.locator('#orders-tools').getAttribute('open'),'');
+  assert.equal(await page.locator('form[data-command="order.color.grade.set"] [name="orderId"]').inputValue(),'PED-0001');
+  assert.match(await page.locator('#flash').innerText(),/Nada foi salvo/);
+  assert.equal(await revision(page),beforeFast+1,'abrir edição não altera pedido');
   await page.locator('[data-orders-copy="PED-0001"]').click();
   assert.equal(await page.locator('#order-color-matrix-form [name="clientId"]').inputValue(),'CLI-0001');
   assert.equal(await page.locator('#order-color-matrix-form [name="productId"]').inputValue(),'PRO-0001');
