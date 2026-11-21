@@ -1224,7 +1224,7 @@ async function runRecovery(browser,url){
  page.once('dialog',d=>d.accept());await page.locator('[data-intent-review="LEGACY-RECOVERY-FIXTURE"]').click();
  await page.waitForFunction(()=>document.querySelector('#flash').textContent.includes('Intenção arquivada'));
  let rows=await entries();assert.equal(rows.find(x=>x.key==='intent-history:LEGACY-RECOVERY-FIXTURE').resolution,'legacy_absent');assert.equal(rows.some(x=>x.key==='intent:LEGACY-RECOVERY-FIXTURE'),false);
- await module(page,'pedidos');await put(page,'order.add',{clientId:'CLI-0001',productId:'PRO-0001',P:'10',M:'0',G:'0',GG:'0'});
+ await module(page,'pedidos');await openOrdersAdvanced(page);await put(page,'order.add',{clientId:'CLI-0001',productId:'PRO-0001',P:'10',M:'0',G:'0',GG:'0'});
  rows=await entries();const doc=rows.find(x=>x.key==='operacao-ficticia').data,e=doc.log.at(-1);assert.equal(doc.orders.length,1);assert.equal(rows.find(x=>x.key==='intent-history:'+e.commandId).resolution,'confirmed');assert.equal(rows.some(x=>x.key.startsWith('intent:')),false);
  // A transação recusada não deixa intenção órfã.
  const f=page.locator('form[data-command="order.add"]');for(const name of ['P','M','G','GG'])await f.locator('[name="'+name+'"]').fill('0');
