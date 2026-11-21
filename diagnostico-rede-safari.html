@@ -101,11 +101,17 @@ async function run(){
  let previousBoot=null;
  try{
   const x=JSON.parse(sessionStorage.getItem('hlgb_boot_failure_v9478')||'null');
-  if(x&&typeof x==='object')previousBoot={at:String(x.at||'').slice(0,50),reason:String(x.reason||'').slice(0,200),failedFiles:Array.isArray(x.failedFiles)?x.failedFiles.slice(0,30).map(v=>String(v).replace(/[^a-zA-Z0-9_.-]/g,'').slice(0,100)):[],bootAttempts:Array.isArray(x.attempts)?x.attempts.slice(0,3).map(a=>({attempt:Number(a?.attempt)||0,category:String(a?.category||'').slice(0,40),message:String(a?.message||'').slice(0,130)})):[]};
+  if(x&&typeof x==='object'){
+   // Dados de falhas anteriores podem conter mensagens livres. Nunca exportar motivo, URL ou mensagem bruta.
+   const reason=String(x.reason||'').toLowerCase();
+   const reasonCategory=/essencia|essential|critical/.test(reason)?'essential-files':/opcion|optional/.test(reason)?'optional-files':/network|load failed|fetch|rede/.test(reason)?'network':'unknown';
+   const failedFiles=Array.isArray(x.failedFiles)?x.failedFiles.slice(0,30).filter(v=>typeof v==='string'&&/^(?:[a-zA-Z0-9_-]+\\/)*[a-zA-Z0-9_.-]+\\.(?:js|html|css)$/.test(v)):[];
+   previousBoot={at:/^\\d{4}-\\d\\d-\\d\\dT[\\d:.+-]+Z?$/.test(String(x.at||''))?String(x.at).slice(0,40):'',reasonCategory,failedFiles,attemptCount:Array.isArray(x.attempts)?Math.min(x.attempts.length,999):0};
+  }
  }catch(e){}
  const results=await Promise.all(checks.map(checkFile));
  const authService=await checkAuthService();
- report={name:'HLGB boot diagnostic',version:'96.13',startedAt:start,entry:location.pathname,online:navigator.onLine,platform:navigator.platform||'',userAgent:navigator.userAgent||'',storage,serviceWorker:sw,previousBoot,previousAuthFailure:previousAuthFailure(),authService,results};
+ report={name:'HLGB boot diagnostic',version:'96.13',startedAt:start,entry:location.pathname,online:navigator.onLine,platform:navigator.platform||'',userAgent:clean(navigator.userAgent||'').slice(0,200),storage,serviceWorker:sw,previousBoot,previousAuthFailure:previousAuthFailure(),authService,results};
  items.textContent='';
  for(const result of results)items.appendChild(line(result));
  items.appendChild(line(authService));
