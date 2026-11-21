@@ -717,6 +717,90 @@ function renderRouteSheet(id){
  return $('cut-print').textContent;
 }
 
+// Pedidos: mesa compacta de trabalho, inspirada na pesquisa, filtros e modo
+// operacional do HLGB comercial. Somente leitura; usa as transacoes ja validadas.
+const ordersFastFilters={query:'',status:'todos',page:1,pageSize:20};
+const orderFastNorm=x=>String(x??'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLocaleLowerCase('pt-BR');
+function orderFastRecords(s){
+ const rows=s.orders.map(o=>{
+  const q=api.quantities(o),client=ref(s.clients,o.clientId)?.name||o.clientId,
+   product=ref(s.products,o.productId)?.name||o.productId;
+  const status=q.shipped===q.ordered?'Expedido':
+   q.returned>0?'Em retorno':q.allocated>q.returned?'Na facção':
+   q.cut>0?'Em corte':'A cortar';
+  return {id:o.id,client,model:product,models:1,qty:q.ordered,cut:q.cut,
+   returned:q.returned,shipped:q.shipped,value:q.ordered*o.priceCents,
+   status,kind:'operacional',grade:getGrade(o)};
+ });
+ for(const o of s.multiOrders||[]){
+  rows.push({id:o.id,client:ref(s.clients,o.clientId)?.name||o.clientId,
+   model:o.items.map(x=>x.name).join(', '),models:o.totals.models,
+   qty:o.totals.pieces,cut:0,returned:0,shipped:0,
+   value:o.totals.amountCents,status:'Em preparação',kind:'multimodelo',
+   grade:o.sizes.map(sz=>sz+': '+(o.totals.bySize[sz]||0)).join(' · ')});
+ }
+ return rows;
+}
+function ordersFastView(s){
+ const all=orderFastRecords(s),search=orderFastNorm(ordersFastFilters.query);
+ const filtered=all.filter(x=>{
+  if(ordersFastFilters.status==='operacionais'&&x.kind!=='operacional')return false;
+  if(ordersFastFilters.status==='preparacao'&&x.kind!=='multimodelo')return false;
+  if(ordersFastFilters.status==='pendentes'&&!['A cortar','Em corte','Na facção','Em retorno'].includes(x.status))return false;
+  if(ordersFastFilters.status==='expedidos'&&x.status!=='Expedido')return false;
+  return !search||orderFastNorm([x.id,x.client,x.model,x.status,x.grade].join(' ')).includes(search);
+ });
+ const pages=Math.max(1,Math.ceil(filtered.length/ordersFastFilters.pageSize));
+ ordersFastFilters.page=Math.min(Math.max(1,ordersFastFilters.page),pages);
+ const view=filtered.slice((ordersFastFilters.page-1)*ordersFastFilters.pageSize,
+  ordersFastFilters.page*ordersFastFilters.pageSize);
+ const status='<p class="caption" id="orders-fast-count" aria-live="polite">'+
+  filtered.length+' de '+all.length+' pedidos · '+filtered.reduce((n,x)=>n+x.qty,0)+
+  ' peças na seleção · '+fmt(filtered.reduce((n,x)=>n+x.value,0))+
+  ' · resultados apenas de consulta, sem alterar nenhum pedido</p>';
+ const rows=view.map(x=>[
+  '<strong>'+str(x.id)+'</strong><div class="caption">'+str(x.kind==='multimodelo'?'Vários modelos · prévia':'Pedido operacional')+'</div>',
+  str(x.client),'<strong>'+str(x.model)+'</strong><div class="caption">'+str(x.grade)+'</div>',
+  str(x.qty),str(x.cut),str(x.returned),str(x.shipped),
+  '<span class="chip '+(x.status==='Expedido'?'': 'wait')+'">'+str(x.status)+'</span>',fmt(x.value)
+ ]);
+ const pagination='<div class="actions" id="orders-fast-pagination">'+
+  '<button type="button" class="btn" data-orders-fast-page="prev"'+(ordersFastFilters.page===1?' disabled':'')+'>Anterior</button>'+
+  '<span class="caption">Página '+ordersFastFilters.page+' de '+pages+' · até '+ordersFastFilters.pageSize+' por página</span>'+
+  '<button type="button" class="btn" data-orders-fast-page="next"'+(ordersFastFilters.page>=pages?' disabled':'')+'>Próxima</button></div>';
+ return status+table(['Pedido','Cliente','Modelo / grade','Peças','Cortadas','Retornadas','Enviadas','Etapa','Valor'],rows)+pagination;
+}
+function ordersFastPanel(s){
+ const all=orderFastRecords(s),operational=all.filter(x=>x.kind==='operacional');
+ const waiting=operational.filter(x=>x.status!=='Expedido');
+ return panel('Pedidos · visão prática e rápida',
+  '<p>Um caminho principal para o dia a dia: cadastre por cor e tamanho logo abaixo, consulte o andamento e abra as funções avançadas somente quando precisar. A operação fictícia por cor usa o fluxo com Corte, Facção e financeiro; pedidos multimodelo ainda são uma preparação separada, sem baixa comercial.</p>'+
+  '<div class="metrics">'+[
+   ['Pedidos operacionais',operational.length],
+   ['Acompanhar produção',waiting.length],
+   ['Modelos em preparação',(s.multiOrders||[]).length],
+   ['Peças em pedidos operacionais',operational.reduce((n,x)=>n+x.qty,0)]
+  ].map(([k,v])=>'<div class="metric"><span>'+str(k)+'</span><strong>'+str(v)+'</strong></div>').join('')+'</div>'+
+  '<div class="actions">'+
+  '<button class="btn primary" type="button" data-orders-jump="order-color-matrix-form">+ Novo pedido por grade</button>'+
+  '<button class="btn" type="button" data-orders-jump="multi-order-form">+ Pedido com vários modelos</button>'+
+  '<button class="btn" type="button" data-orders-jump="orders-tools">Outras ferramentas</button>'+
+  '</div>'+
+  '<div class="fields"><div class="field"><label>Buscar pedido, cliente, modelo ou cor'+
+  '<input class="input" id="orders-fast-query" type="search" value="'+str(ordersFastFilters.query)+
+  '" placeholder="Ex.: PED-0001, Melina, preto"></label></div>'+
+  '<div class="field"><label>Filtrar andamento'+
+  '<select class="input" id="orders-fast-status">'+
+  options([['todos','Todos'],['operacionais','Pedidos operacionais'],['pendentes','Em andamento'],
+   ['expedidos','Expedidos'],['preparacao','Multimodelo em preparação']],ordersFastFilters.status)+
+  '</select></label></div></div>'+
+  '<div id="orders-fast-results">'+ordersFastView(s)+'</div>',true);
+}
+function updateOrdersFastView(){
+ if(active!=='pedidos'||!doc)return;
+ const el=document.getElementById('orders-fast-results');
+ if(el)el.innerHTML=ordersFastView(doc);
+}
 function orderTable(s){
  return table(['Pedido / modelo','Cliente','Grade e corte','Fluxo','Recebimento'],s.orders.map(o=>{
  const q=api.quantities(o);
@@ -1737,14 +1821,16 @@ function moduleHtml(s){
  '<p>Os perfis abaixo são apenas referência para o futuro controle de acesso; esta página offline não usa login.</p>')+
  table(['Perfil','Escopo proposto','Situação empresarial'],[['Supervisor','Cadastros, aprovações e relatórios','Pendente'],['Produção','Pedidos, corte, facções e separação','Pendente'],
  ['Financeiro','Acertos, Hub, compras e comprovantes','Pendente'],['Consulta','Visualização sem alterar','Pendente']]),true);
- case 'pedidos':return importOrdersPanel(s)+panel('Grade por cor e tamanho no próprio Pedido',colorMatrixCreateForm(s),true)+
- orderColorGradePanel(s)+customerPricePanel(s)+multiOrderPanel(s)+multiFlowLabPart(s,'balance')+panel('Incluir pedido com grade — modo antigo sem cores',
+ case 'pedidos':return ordersFastPanel(s)+panel('Novo pedido · cor e tamanho',colorMatrixCreateForm(s),true)+
+ panel('Pedidos operacionais e seus saldos',orderTable(s),true)+
+ '<details class="panel wide" id="orders-tools"><summary><strong>Ferramentas avançadas de Pedidos: multimodelo, importar, editar, negociar e aditivos</strong></summary>'+
+ multiOrderPanel(s)+importOrdersPanel(s)+orderColorGradePanel(s)+customerPricePanel(s)+multiFlowLabPart(s,'balance')+panel('Incluir pedido com grade — modo antigo sem cores',
  form('order.add','Novo pedido fictício',[
  field('clientId','Cliente','select','',clients),field('productId','Modelo','select','',products),
  ...api.sizes.map(z=>field(z,'Quantidade '+z,'int',z==='M'?10:0))],'Cadastrar pedido'))+
  panel('Fluxo e integridade',refDocs(s)+
  '<p>O pedido já gera uma conta fictícia a receber. Corte, produção e separação precisam respeitar a grade.</p>')+
- panel('Pedidos e seus saldos',orderTable(s),true);
+ '</details>';
  case 'produtos':return factionMaterialsPanel(s,'produtos')+servicePanels(s,'produtos')+materialRecipePanels(s)+panel('Ficha técnica básica e SKU',
  form('product.add','Cadastrar modelo',[field('name','Nome do modelo'),field('sku','SKU único'),
  field('materialId','Material principal','select','',materials),
@@ -2943,6 +3029,7 @@ function applySettlementFilters(){
   ' (valores fictícios; filtro local, sem alterar lançamentos)';
 }
 document.addEventListener('input',event=>{
+ if(event.target.id==='orders-fast-query'){ordersFastFilters.query=event.target.value;ordersFastFilters.page=1;updateOrdersFastView();return;}
  if(event.target.id==='global-search-query'){searchState.page=1;searchState.selected=null;renderGlobalSearch();renderGlobalDetail();return;}
  if(event.target.id==='settlement-search'){
   settlementFilters.query=event.target.value;applySettlementFilters();return;
@@ -2989,6 +3076,7 @@ function renderCompensationSheet(compId){
  return $('cut-print').textContent;
 }
 document.addEventListener('change',event=>{
+ if(event.target.id==='orders-fast-status'){ordersFastFilters.status=event.target.value;ordersFastFilters.page=1;updateOrdersFastView();return;}
  if(event.target.closest('form[data-command="settlement.service.add"]')){refreshServicePreview();return;}
  const revisionForm=event.target.closest('form[data-command="finance.revise"]');if(revisionForm&&event.target.name==='id'){fillFinanceRevision(revisionForm);return;}
  if(event.target.matches('[data-assistant-filter]')){const k=event.target.dataset.assistantFilter;assistantFilters[k]=k==='stockLimitGrams'?Number(event.target.value):event.target.value;assistantRequested=false;return;}
@@ -3035,6 +3123,20 @@ document.addEventListener('change',event=>{
  }
 });
 document.addEventListener('click',async e=>{
+ const fastPage=e.target.closest('[data-orders-fast-page]');
+ if(fastPage){ordersFastFilters.page+=fastPage.dataset.ordersFastPage==='next'?1:-1;updateOrdersFastView();return;}
+ const fastJump=e.target.closest('[data-orders-jump]');
+ if(fastJump){
+  const id=fastJump.dataset.ordersJump;
+  const tools=document.getElementById('orders-tools');
+  if(id!=='order-color-matrix-form'&&tools)tools.open=true;
+  const target=document.getElementById(id);
+  if(target){
+   target.scrollIntoView({block:'start',behavior:'auto'});
+   const first=target.querySelector('select,input,button');
+   if(first&&typeof first.focus==='function')first.focus({preventScroll:true});
+  }return;
+ }
  const previewButton=e.target.closest('[data-preview-order-change]');
  if(previewButton){
   const form=previewButton.closest('form[data-command]');
