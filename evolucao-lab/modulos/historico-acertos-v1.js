@@ -29,7 +29,7 @@
    const desc=String(e.description||'');
    // Somente primeira referencia separada por delimitador; nao procurar substring
    // que confundiria ACE-1 com ACE-10 ou FIN-2 com FIN-20.
-   const key=desc.split(/\\s*[·]\\s*|\\s+/)[0];
+   const key=desc.split(/\s*[·]\s*|\s+/)[0];
    if(key){
     const list=eventsByDescription.get(key)||[];
     list.push(e);eventsByDescription.set(key,list);
