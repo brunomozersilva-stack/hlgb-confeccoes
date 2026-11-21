@@ -780,6 +780,58 @@ async function readReceiptPayload(form){
  let content='';for(let i=0;i<bytes.length;i+=8192)content+=String.fromCharCode(...bytes.slice(i,i+8192));
  return {targetId,previousId,fileName:file.name,contentBase64:btoa(content),reason,fictitious:true};
 }
+function settlementHistoryFiltersPanel(s){
+ const clients=[['todos','Todos os clientes'],['sem-cliente','Avulsos sem cliente'],
+   ...(s.clients||[]).map(x=>[x.id,x.name])];
+ const factions=[['todos','Todas as facções'],['sem-faccao','Sem facção'],
+   ...(s.factions||[]).map(x=>[x.id,x.name])];
+ const choices=(list)=>list.map(([id,label])=>'<option value="'+escape(id)+'">'+escape(label)+'</option>').join('');
+ const select=(id,label,opts)=>'<div class="field"><label>'+escape(label)+
+  '<select class="input" id="'+id+'">'+choices(opts)+'</select></label></div>';
+ const input=(id,label)=>'<div class="field"><label>'+escape(label)+
+  '<input class="input" id="'+id+'" type="date"></label></div>';
+ return panel('Consultar e imprimir histórico por cliente, facção ou acerto',
+  '<p>Filtre os registros fictícios por pessoa, situação e período. Para filtrar por data, escolha pagamento ou vencimento; data de criação não é presumida. Imprima o resumo, a relação de acertos ou o histórico detalhado de cada acerto.</p>'+
+  '<div class="fields" id="settlement-history-filters">'+
+  select('sett-hist-group','Agrupar por',[['faccao','Facção'],['cliente','Cliente']])+
+  select('sett-hist-client','Cliente',clients)+
+  select('sett-hist-faction','Facção',factions)+
+  select('sett-hist-status','Situação',[['todos','Todas'],['pago','Pagos'],['aberto','Em aberto']])+
+  select('sett-hist-datefield','Data utilizada',[['nenhuma','Sem filtro de data'],['pagamento','Data do pagamento'],['vencimento','Data do vencimento']])+
+  input('sett-hist-from','De')+input('sett-hist-to','Até')+
+  select('sett-hist-undated','Sem data',[['false','Não incluir quando houver filtro de data'],['true','Incluir explicitamente']])+
+  select('sett-hist-individual','Acerto específico',[['todos','Todos os acertos'],
+     ...(s.settlements||[]).map(x=>[x.id,x.id])])+
+  '</div>'+
+  '<div class="actions"><button type="button" class="btn" id="sett-hist-query">Consultar</button>'+
+  '<button type="button" class="btn" data-sett-hist-print="resumo">Imprimir resumo / salvar PDF</button>'+
+  '<button type="button" class="btn" data-sett-hist-print="separado">Imprimir acertos separados</button>'+
+  '<button type="button" class="btn" data-sett-hist-print="detalhado">Imprimir detalhado / salvar PDF</button></div>'+
+  '<div id="sett-hist-filter-result" aria-live="polite"><p>Selecione filtros e clique em Consultar.</p></div>',true);
+}
+function settlementHistorySelection(){
+ const read=id=>document.getElementById(id)?.value||'';
+ return {groupBy:read('sett-hist-group')||'faccao',
+  clientId:read('sett-hist-client')||'todos',factionId:read('sett-hist-faction')||'todos',
+  status:read('sett-hist-status')||'todos',dateField:read('sett-hist-datefield')||'nenhuma',
+  from:read('sett-hist-from'),to:read('sett-hist-to'),
+  includeUndated:read('sett-hist-undated')==='true',
+  settlementId:read('sett-hist-individual')||'todos'};
+}
+function settlementHistoryFilteredResult(r){
+ const summary='<p><b>'+r.totals.count+' acertos · '+r.totals.pieces+
+  ' peças · total '+fmt(r.totals.totalCents)+' · pago '+fmt(r.totals.paidCents)+
+  ' · em aberto '+fmt(r.totals.openCents)+' · compensações líquidas '+
+  fmt(r.totals.compensationNetCents)+'</b></p>'+
+  (r.excludedUndated?'<p class="caption">'+r.excludedUndated+' registro(s) sem a data escolhida, excluídos do período.</p>':'');
+ const groups=table(['Pessoa','Acertos','Peças','Total','Pago','Aberto','Compensações'],
+  r.groups.map(g=>[str(g.name),str(g.count),str(g.pieces),fmt(g.totalCents),
+  fmt(g.paidCents),fmt(g.openCents),fmt(g.compensationNetCents)]));
+ const entries=table(['Acerto','Cliente','Facção','Modelo','Peças','Valor','Status','Pagamento'],
+  r.entries.map(x=>[str(x.id),str(x.clientName),str(x.factionName),str(x.model),
+   str(x.qty),fmt(x.amountCents),str(x.status),str(x.paidDate||'Sem data')]));
+ return summary+groups+'<details><summary>Ver acertos individuais do resultado</summary>'+entries+'</details>';
+}
 function settlementHistoryPanel(s){
  const svc=window.HLGBLabSettlementHistoryV1;
  if(!svc)return panel('Historico de acertos por cliente e faccao','Relatorio indisponivel. Nenhum dado modificado.',true);
@@ -1939,7 +1991,7 @@ function moduleHtml(s){
  const paid=selector(s.settlements.filter(x=>x.status==='pago'),
   x=>x.id+' · Pago '+fmt(x.amountCents)+' · '+(ref(s.factions,x.factionId)?.name||'—'));
  const compensations=s.settlementCompensations||[];
- return settlementHistoryPanel(s)+multiFlowLabPart(s,'acerto')+groupedAccountPanel(s)+factionClosingPanel(s)+serviceGroupPanel(s)+servicePanels(s,'acertos')+panel('Serviços avulsos e embalagem',
+ return settlementHistoryFiltersPanel(s)+settlementHistoryPanel(s)+multiFlowLabPart(s,'acerto')+groupedAccountPanel(s)+factionClosingPanel(s)+serviceGroupPanel(s)+servicePanels(s,'acertos')+panel('Serviços avulsos e embalagem',
  form('settlement.add','Novo acerto avulso fictício',[
   field('serviceType','Tipo de serviço','select','',[['costura','Costura avulsa'],['embalagem','Embalagem']]),
   field('factionId','Facção / embaladeira','select','',factions),
@@ -3187,6 +3239,30 @@ document.addEventListener('click',async e=>{
    status('Módulo Observabilidade 2.0 '+(!observer.enabled?'ativado':'desativado')+
     ' somente nesta aba. Funções anteriores continuam disponíveis.');}
   else status('Módulo opcional indisponível. Sistema legado preservado.','error');
+  return;
+ }
+ if(e.target.closest('#sett-hist-query')||e.target.closest('[data-sett-hist-print]')){
+  try{
+   const service=window.HLGBLabSettlementHistoryFiltersV2;
+   if(!service?.query)throw Error('Consulta histórica não carregada.');
+   const button=e.target.closest('[data-sett-hist-print]');
+   const detail=button?.dataset.settHistPrint||'resumo';
+   const r=service.query(doc,{...settlementHistorySelection(),view:detail});
+   const target=document.getElementById('sett-hist-filter-result');
+   if(target)target.innerHTML=settlementHistoryFilteredResult(r);
+   if(button){
+    if(!r.entries.length)throw Error('Não há acertos selecionados para imprimir.');
+    const printer=window.HLGBLabSettlementPrintV1;
+    if(!printer?.render)throw Error('Preparador do documento indisponível.');
+    const out=document.getElementById('cut-print');
+    if(!out)throw Error('Área de impressão indisponível.');
+    out.innerHTML=printer.render(r,{detail});
+    window.print();
+    status('Relatório fictício preparado para imprimir ou salvar como PDF. Nenhum lançamento alterado.');
+   }
+  }catch(err){const target=document.getElementById('sett-hist-filter-result');
+   if(target)target.textContent='Consulta não concluída: '+err.message;
+   status('Histórico: '+err.message,'error');}
   return;
  }
  if(e.target.closest('#settlement-history-export')){
