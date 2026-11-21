@@ -3255,11 +3255,14 @@ document.addEventListener('click',async e=>{
    const r=service.query(doc,{...settlementHistorySelection(),view:'separado'});
    const rows=[['Acerto','Pedido','Cliente','Facção','Modelo','Serviço','Peças','Total centavos',
     'Pago centavos','Aberto centavos','Situação','Título','Data de pagamento','Vencimento',
-    'Lote','Referência do lote','Compensação líquida centavos','Compensações IDs','Comandos de histórico'],
+    'Lote','Referência do lote','Compensação líquida centavos','Compensações IDs','Comandos de histórico','Eventos de auditoria','Operadores','Datas registradas'],
     ...r.entries.map(x=>[x.id,x.orderId||'',x.clientName,x.factionName,x.model,x.service,
      x.qty,x.amountCents,x.paidCents,x.openCents,x.status,x.financeId,x.paidDate||'',
      x.dueDate||'',x.batchId||'',x.batchReference||'',x.compensationNetCents,
-     x.compensations.map(c=>c.id).join(', '),x.history.map(h=>h.commandId||'').join(', ')])];
+     x.compensations.map(c=>c.id).join(', '),x.history.map(h=>h.commandId||'').join(', '),
+     (x.timeline||[]).map(e=>e.commandId+':'+e.type).join(' | '),
+     (x.timeline||[]).map(e=>e.actor||'Não informado').join(' | '),
+     (x.timeline||[]).map(e=>e.recordedAt||'Não informada').join(' | ')])];
    download('HLGB-ACERTOS-SELECIONADOS-FICTICIOS.csv',
     '\uFEFF'+rows.map(row=>row.map(safeCell).join(';')).join('\r\n'),
     'text/csv;charset=utf-8');
@@ -3298,10 +3301,12 @@ document.addEventListener('click',async e=>{
    const data=service.report(doc,{groupBy:'faccao',view:'separado'});
    const rows=[['Acerto','Pedido','Cliente','Facção','Modelo','Serviço','Peças',
     'Valor centavos','Pago centavos','Aberto centavos','Status','Título',
-    'Data pagamento','Fechamento','Compensações líquidas centavos','Histórico eventos'],
+    'Data pagamento','Fechamento','Compensações líquidas centavos','Histórico eventos','Eventos de auditoria','Operadores'],
     ...data.entries.map(x=>[x.id,x.orderId||'',x.clientName,x.factionName,x.model,
       x.service,x.qty,x.amountCents,x.paidCents,x.openCents,x.status,x.financeId,
-      x.paidDate||'',x.batchId||'',x.compensationNetCents,x.history.length])];
+      x.paidDate||'',x.batchId||'',x.compensationNetCents,x.history.length,
+      (x.timeline||[]).map(e=>e.commandId+':'+e.type).join(' | '),
+      (x.timeline||[]).map(e=>e.actor||'Não informado').join(' | ')])];
    download('HLGB-HISTORICO-ACERTOS-FICTICIO.csv',
     '\uFEFF'+rows.map(x=>x.map(safeCell).join(';')).join('\r\n'),
     'text/csv;charset=utf-8');
