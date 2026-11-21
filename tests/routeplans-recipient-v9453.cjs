@@ -7,7 +7,13 @@ let now=100000,reads=0,redraws=0;
 const database={routePlans:[]},snapshots={routePlans:new Map()};
 let remote=[{module:'routePlans',entity_id:'route-test',revision:1,updated_at:'2026-11-03T18:00:00Z',deleted_at:null,data:{id:'route-test',date:'2026-11-03',stops:[{name:'Roseli'}]}}];
 const store={};
-const ctx={window:{},db:database,cloudAccessToken:'test',cloudRequest:async()=>{reads++;return remote},
+// Ambiente VM representa uma origem web válida sem WAL persistida. Sem mock,
+// a ausência da API IndexedDB daria um falso negativo que não ocorre na página real.
+const indexedDB={open(){const req={};Promise.resolve().then(()=>{
+ req.result={objectStoreNames:{contains:()=>false},close(){}};
+ req.onsuccess?.();
+});return req}};
+const ctx={window:{},indexedDB,setTimeout,clearTimeout,db:database,cloudAccessToken:'test',cloudRequest:async()=>{reads++;return remote},
  hlgbRecordSnapshots:snapshots,localStorage:{getItem:k=>store[k]||null},
  document:{hidden:false,querySelector:s=>s==='#rotas9249.page.active'?{}:null,addEventListener:()=>{}},
  Date,JSON,Number,String,Object,Array,console,
