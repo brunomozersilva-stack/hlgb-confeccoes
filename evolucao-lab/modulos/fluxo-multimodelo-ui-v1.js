@@ -175,7 +175,8 @@
    const rows=sorted.map(x=>'<tr><td>'+esc(x.ref)+'</td><td>'+x.qty+
     '</td><td><button type="button" class="btn" data-goto="'+esc(x.to)+
     '" data-mf-focus="'+esc(x.focus)+'">Abrir '+esc(x.to)+'</button></td></tr>').join('');
-   return '<details class="panel" data-queue-stage="'+esc(stage)+'"><summary><strong>'+
+   return '<details class="panel" data-queue-stage="'+esc(stage)+'"'+
+    (stage==='Acerto fictício a conferir'?' open':'')+'><summary><strong>'+
     esc(stage)+'</strong> · '+items.length+' pendência(s) · '+
     items.reduce((total,item)=>total+item.qty,0)+' peça(s)</summary>'+
     '<div class="table-wrap"><table><thead><tr><th>Registro exato</th><th>Peças</th><th>Abrir módulo</th>'+
