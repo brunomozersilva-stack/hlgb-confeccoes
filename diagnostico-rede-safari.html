@@ -105,8 +105,8 @@ async function run(){
    // Dados de falhas anteriores podem conter mensagens livres. Nunca exportar motivo, URL ou mensagem bruta.
    const reason=String(x.reason||'').toLowerCase();
    const reasonCategory=/essencia|essential|critical/.test(reason)?'essential-files':/opcion|optional/.test(reason)?'optional-files':/network|load failed|fetch|rede/.test(reason)?'network':'unknown';
-   const failedFiles=Array.isArray(x.failedFiles)?x.failedFiles.slice(0,30).filter(v=>typeof v==='string'&&/^(?:[a-zA-Z0-9_-]+\\/)*[a-zA-Z0-9_.-]+\\.(?:js|html|css)$/.test(v)):[];
-   previousBoot={at:/^\\d{4}-\\d\\d-\\d\\dT[\\d:.+-]+Z?$/.test(String(x.at||''))?String(x.at).slice(0,40):'',reasonCategory,failedFiles,attemptCount:Array.isArray(x.attempts)?Math.min(x.attempts.length,999):0};
+   const failedFiles=Array.isArray(x.failedFiles)?x.failedFiles.slice(0,30).filter(v=>typeof v==='string'&&/^[a-zA-Z0-9_./-]+\.(?:js|html|css)$/.test(v)&&!v.includes('..')):[];
+   const at=String(x.at||'');previousBoot={at:/^\d{4}-\d\d-\d\dT/.test(at)?at.slice(0,40):'',reasonCategory,failedFiles,attemptCount:Array.isArray(x.attempts)?Math.min(x.attempts.length,999):0};
   }
  }catch(e){}
  const results=await Promise.all(checks.map(checkFile));
