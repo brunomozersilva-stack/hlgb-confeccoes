@@ -769,7 +769,9 @@ function ordersFastView(s){
   '<span class="chip '+(x.status==='Expedido'?'': 'wait')+'">'+str(x.status)+'</span>',
   str(x.priority||'Não definida'),str(x.dueDate||'Não informado'),fmt(x.value),
   '<button type="button" class="btn" data-orders-detail="'+str(x.id)+'">Detalhar</button> '+
-  (x.kind==='operacional'?'<button type="button" class="btn" data-orders-copy="'+str(x.id)+'">Repetir grade</button>':'<span class="caption">Somente prévia</span>')
+  (x.kind==='operacional'?'<button type="button" class="btn" data-orders-edit="'+str(x.id)+'">Editar grade</button> '+
+   '<button type="button" class="btn" data-orders-copy="'+str(x.id)+'">Repetir grade</button>':
+   '<button type="button" class="btn" data-orders-multi-edit="'+str(x.id)+'">Revisar multimodelo</button>')
  ]);
  const pagination='<div class="actions" id="orders-fast-pagination">'+
   '<button type="button" class="btn" data-orders-fast-page="prev"'+(ordersFastFilters.page===1?' disabled':'')+'>Anterior</button>'+
@@ -3194,6 +3196,38 @@ document.addEventListener('change',event=>{
  }
 });
 document.addEventListener('click',async e=>{
+ const editOrder=e.target.closest('[data-orders-edit]');
+ if(editOrder){
+  const id=editOrder.dataset.ordersEdit;
+  const order=doc?.orders?.find(o=>o.id===id);
+  const tools=document.getElementById('orders-tools');
+  const form=document.querySelector('form[data-command="order.color.grade.set"]');
+  if(!order||!form){status('Pedido não disponível para edição neste laboratório.','error');return;}
+  if(tools)tools.open=true;
+  const picker=form.elements.namedItem('orderId');
+  if(![...picker.options].some(x=>x.value===id)){
+   status('Pedido com movimentação: não é permitido editar cores por esta rotina. Consulte Corte e o histórico.','error');return;
+  }
+  picker.value=id;
+  const color=form.elements.namedItem('color');
+  color.value=order.colorGrades?.[0]?.color||'Preto';
+  fillOrderColorEdit();
+  form.scrollIntoView({block:'start',behavior:'auto'});
+  status('Grade carregada para conferência. Nada foi salvo.','success');
+  return;
+ }
+ const multiEdit=e.target.closest('[data-orders-multi-edit]');
+ if(multiEdit){
+  const id=multiEdit.dataset.ordersMultiEdit;
+  const el=document.querySelector('[data-revise-order="'+id+'"]');
+  if(!el){status('Não foi possível localizar revisão deste pedido.','error');return;}
+  const tools=document.getElementById('orders-tools');
+  if(tools)tools.open=true;
+  el.open=true;
+  el.scrollIntoView({block:'start',behavior:'auto'});
+  status('Revisão multimodelo aberta; nenhuma mudança foi salva.','success');
+  return;
+ }
  const detailButton=e.target.closest('[data-orders-detail]');
  if(detailButton){
   ordersFastFilters.selected=detailButton.dataset.ordersDetail;
