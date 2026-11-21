@@ -17,36 +17,52 @@
      !Array.isArray(s.finance)||!Array.isArray(s.clients)||!Array.isArray(s.factions))
    throw Error('Acertos e cadastros indisponiveis; nao usar totais parciais.');
   const ids=new Set(),lines=[],compensations=s.settlementCompensations||[];
+  const index=(items)=>new Map(items.map(x=>[x.id,x]));
+  const clients=index(s.clients),factions=index(s.factions),
+   products=index(s.products||[]),orders=index(s.orders);
+  const titles=new Map(),compsBySettlement=new Map(),batchesByTitle=new Map();
+  for(const f of s.finance){
+   const group=titles.get(f.sourceId)||[];group.push(f);titles.set(f.sourceId,group);
+  }
+  for(const c of compensations){
+   const group=compsBySettlement.get(c.settlementId)||[];
+   group.push(c);compsBySettlement.set(c.settlementId,group);
+  }
+  for(const batch of s.paymentBatches||[])for(const item of batch.items||[]){
+   if(batchesByTitle.has(item.financeId))
+    throw Error('Pagamento associado a mais de um lote: '+item.financeId);
+   batchesByTitle.set(item.financeId,batch);
+  }
   for(const a of s.settlements){
    if(!a||!a.id||ids.has(a.id)||!integer(a.amountCents)||a.amountCents<0||
       !integer(a.qty)||a.qty<0)throw Error('Acerto invalido ou duplicado.');
    ids.add(a.id);
-   const order=a.orderId?find(s.orders,a.orderId):null;
+   const order=a.orderId?orders.get(a.orderId):null;
    if(a.orderId&&!order)throw Error('Pedido de acerto nao localizado: '+a.id);
    const clientId=order?.clientId||null;
    const factionId=a.factionId||null;
-   const faction=factionId?find(s.factions,factionId):null;
+   const faction=factionId?factions.get(factionId):null;
    if(factionId&&!faction)throw Error('Faccao ausente no historico: '+a.id);
-   const bills=s.finance.filter(x=>x.sourceId===a.id&&x.kind==='pagar');
+   const bills=(titles.get(a.id)||[]).filter(x=>x.kind==='pagar');
    if(bills.length!==1||bills[0].amountCents!==a.amountCents)
     throw Error('Titulo divergente do acerto: '+a.id);
    const bill=bills[0],paid=bill.status==='pago';
    if(!['pago','aberto'].includes(bill.status)||a.status!==bill.status)
     throw Error('Situacao do acerto e titulo divergentes: '+a.id);
-   const comps=compensations.filter(x=>x.settlementId===a.id).map(x=>{
-    const related=s.finance.filter(f=>f.sourceId===x.id);
+   const comps=(compsBySettlement.get(a.id)||[]).map(x=>{
+    const related=titles.get(x.id)||[];
     if(related.length!==1||!integer(x.deltaCents)||related[0].amountCents!==Math.abs(x.deltaCents))
      throw Error('Compensacao sem titulo valido: '+x.id);
     return {id:x.id,deltaCents:x.deltaCents,status:related[0].status,
      reference:x.reference||null,reason:x.reason||'',financeId:related[0].id,
      paidDate:related[0].paidDate||null};
    });
-   const batch=(s.paymentBatches||[]).find(b=>(b.items||[]).some(i=>i.financeId===bill.id));
+   const batch=batchesByTitle.get(bill.id);
    const row={id:a.id,orderId:a.orderId||null,clientId,clientName:clientId?
-      find(s.clients,clientId)?.name||clientId:'Sem cliente vinculado',
+      clients.get(clientId)?.name||clientId:'Sem cliente vinculado',
     factionId,factionName:faction?.name||'Sem faccao',
-    model:find(s.products,a.productId)?.name||
-      find(s.products,order?.productId)?.name||a.serviceQuote?.model||'Modelo nao identificado',
+    model:products.get(a.productId)?.name||
+      products.get(order?.productId)?.name||a.serviceQuote?.model||'Modelo nao identificado',
     service:a.serviceType||'costura',qty:a.qty,amountCents:a.amountCents,
     paidCents:paid?a.amountCents:0,openCents:paid?0:a.amountCents,
     status:a.status,financeId:bill.id,paidDate:bill.paidDate||null,
