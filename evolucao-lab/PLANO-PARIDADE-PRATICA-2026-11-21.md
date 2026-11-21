@@ -70,3 +70,24 @@ situação/prioridade/data, finalização, conferência de nuvem e acompanhament
 - **Limites persistentes:** ainda sem aprovação da paridade das 76 funções, sem banco comercial sincronizado entre computadores, sem migração de dados reais e sem validação funcional de todos os caminhos antigos. Acertos exibem valores fictícios e não pagamentos bancários.
 
 **Próximos critérios de aceite:** CI verde em todas as matrizes, testes Safari/mobile de formulários colapsados, identificação do mesmo saldo após recarregar e testar outra aba, ausência de criação de acerto ao clicar nos atalhos, conciliação por facção/cliente, comparação minuciosa com o HLGB comercial e aceite operacional. Nada autoriza merge em main ou publicação no programa comercial.
+
+
+## Incremento de rastreabilidade transversal e contratos — 21/11/2026
+
+### Implementado somente em laboratório
+1. Visão de rastreabilidade no detalhe do pedido operacional: folhas tradicionais, cortes por ficha BOM, equipe, pesagem, movimentos de materiais com vínculo explícito, envios por facção, grade por cor/tamanho quando vinculada, retornos, acertos, títulos a pagar e transferências integrais/parciais.
+2. Botões de Histórico em Corte e Facções: navegam ao pedido existente para consulta, sem gerar comando, alterar revisão, selecionar outra pessoa ou pressupor que documentos sem vínculo são do mesmo pedido.
+3. Alertas passivos: divergência da quantidade retornada com acertos, soma dos envios identificados, ausência de título e desacordo entre valor/situação do acerto e do título. Nunca efetuar reparo automático ou presumir pagamento bancário.
+4. Testes de quatro cenários independentes de rastreio adicionados na esteira integrada, incluindo confirmação do caminho Pedido -> Corte -> Facção -> Acerto -> título e ausência de escrita pela consulta. Corrigidos também os testes que preenchiam formulários complexos ainda recolhidos.
+
+### Referências externas revisadas
+- [Odoo 19 — Subcontracting](https://www.odoo.com/documentation/19.0/applications/inventory_and_mrp/manufacturing/subcontracting.html) e [Resupply subcontracting](https://www.odoo.com/documentation/19.0/applications/inventory_and_mrp/manufacturing/subcontracting/subcontracting_resupply.html): separação entre fornecedor externo, movimentação de componentes e recebimento, com histórico de localização.
+- [ERPNext — Subcontracting](https://docs.frappe.io/erpnext/subcontracting) e [Reports](https://docs.frappe.io/erpnext/subcontracting/reports): envio, recebimento parcial, matérias em trânsito e relatório de saldo pendente.
+
+### Próxima fronteira de produto (ainda NÃO implementada)
+- Tratar material em posse de cada facção como responsabilidade de estoque com documento de envio e devolução, sem confundir envio de peças cortadas com retirada de tecido, e sem criar baixa retroativa nos dados legados.
+- Tratar sobra/retalho com origem por folha e ficha de reaproveitamento por modelo, depois aceitar referência técnica de Audaces apenas se houver autorização e formato validado; nada de inferir molde automaticamente a partir de imagem.
+- Validar a rastreabilidade para pedidos com múltiplos modelos e grade variada, sem declarar que esses pedidos já movimentam financeiro/estoque comercial. O fluxo multimodelo atual ainda é de preparação independente.
+- Comparar a UX Corte/Facções/Acertos tarefa a tarefa com o comercial, preservar filtros e impressões Safari, aprovar 76 funções e validar consistência real entre computadores/servidor antes de qualquer migração.
+
+**Gatilho:** a nova consulta não autoriza publicação ou merge; aguardar a validação dos contratos e dos navegadores, com prova de que nenhum título ou saldo é gerado ao abrir Histórico.
