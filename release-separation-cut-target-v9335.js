@@ -2,6 +2,7 @@
 (function(){
 'use strict';
 const V='93.35';
+const cutTargetCore9605b=window.HLGB_SEPARATION_CUT_TARGET_CORE_9605B||null;
 if(window.HLGB_SEPARATION_CUT_TARGET_9335)return;
 window.HLGB_SEPARATION_CUT_TARGET_9335=V;
 const sid=v=>String(v??'');
@@ -9,6 +10,11 @@ const clone=v=>{try{return structuredClone(v)}catch(e){try{return JSON.parse(JSO
 let installs=0,runs=0,confirmed=0,pending=0,failed=0,lastOrderId='',lastCutId='',lastError='';
 function data(){try{return typeof db!=='undefined'?db:window.db}catch(e){return window.db}}
 function activeSeparationOrderId(){
+ if(cutTargetCore9605b?.activeSeparationOrderId){
+  let status;
+  try{status=window.hlgbSeparationDirect9321?.status?.()}catch(e){}
+  return cutTargetCore9605b.activeSeparationOrderId(status);
+ }
  try{
   const st=window.hlgbSeparationDirect9321?.status?.();
   const a=Array.isArray(st?.busy)?st.busy:[];
@@ -24,6 +30,11 @@ function activeSeparationOrderId(){
 }
 function orderById(id){return (data()?.orders||[]).find(o=>sid(o?.id)===sid(id))||null}
 function uniqueProductId(order){
+ if(cutTargetCore9605b?.uniqueProductId){
+  let projected=null;
+  try{if(typeof projectionItemsForOrder==='function')projected=projectionItemsForOrder(order)}catch(e){}
+  return cutTargetCore9605b.uniqueProductId(order,projected);
+ }
  const ids=new Set();
  try{
   if(typeof projectionItemsForOrder==='function'){

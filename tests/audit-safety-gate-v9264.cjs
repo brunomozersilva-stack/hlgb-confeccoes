@@ -1,3 +1,4 @@
+const legacyLoaderView=require('./hlgb-loader-test-view-v9600.cjs');
 const fs=require('fs'),vm=require('vm'),assert=require('assert'),path=require('path');
 const root=path.join(__dirname,'..');
 const src=f=>fs.readFileSync(path.join(root,f),'utf8');
@@ -12,9 +13,9 @@ assert.equal(manifest.force_canonical,true);
 
 const loader=src('app-stable3.html');
 assert(loader.includes("navigator.serviceWorker.register('./hlgb-canonical-sw.js'"),'loader deve registrar o service worker canônico sem depender de versão congelada');
-assert(loader.includes("'release-safety-gate-v9269.js'"),'Safety Gate atual deve carregar no loader oficial');
-assert(!loader.includes("'release-safety-gate-v9270.js'"),'Safety Gate histórico não deve disputar a autoridade atual');
-assert(!loader.includes("'release-assistant-server-v9266.js'"),'IA paga opcional não deve carregar no modo padrão');
+assert(legacyLoaderView(loader).includes("'release-safety-gate-v9269.js'"),'Safety Gate atual deve carregar no loader oficial');
+assert(!legacyLoaderView(loader).includes("'release-safety-gate-v9270.js'"),'Safety Gate histórico não deve disputar a autoridade atual');
+assert(!legacyLoaderView(loader).includes("'release-assistant-server-v9266.js'"),'IA paga opcional não deve carregar no modo padrão');
 assert(loader.includes('window.HLGB_PAID_AI_DISABLED=true'),'loader deve manter IA paga desativada por padrão');
 
 const sw=src('hlgb-canonical-sw.js');

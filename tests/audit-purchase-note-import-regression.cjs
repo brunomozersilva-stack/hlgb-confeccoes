@@ -1,6 +1,7 @@
+const compatibleLoaderView=require('./hlgb-loader-compat-view-v9604b.cjs');
 const fs=require('fs'),vm=require('vm'),assert=require('assert'),path=require('path');
 const src=fs.readFileSync(path.join(__dirname,'..','release-purchase-note-import.js'),'utf8');
-const loader=fs.readFileSync(path.join(__dirname,'..','app-stable3.html'),'utf8');
+const loader=compatibleLoaderView(fs.readFileSync(path.join(__dirname,'..','app-stable3.html'),'utf8'));
 assert(loader.includes("'release-purchase-note-import.js'"));
 const context={console,setTimeout(){return 0},setInterval(){return 0},db:{suppliers:[{id:'s1',name:'Fornecedor Teste',products:[]}]},window:{},document:{getElementById(){return null},querySelectorAll(){return []}},hlgbAfterLogin:null};
 vm.createContext(context);vm.runInContext(src,context);

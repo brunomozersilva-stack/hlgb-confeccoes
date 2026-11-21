@@ -1,6 +1,7 @@
+const compatibleLoaderView=require('./hlgb-loader-compat-view-v9604b.cjs');
 const fs=require('fs'),vm=require('vm'),assert=require('assert'),path=require('path');
 const src=fs.readFileSync(path.join(__dirname,'..','release-tab-resume-v9262.js'),'utf8');
-const loader=fs.readFileSync(path.join(__dirname,'..','app-stable3.html'),'utf8');
+const loader=compatibleLoaderView(fs.readFileSync(path.join(__dirname,'..','app-stable3.html'),'utf8'));
 assert.doesNotThrow(()=>new vm.Script(src,{filename:'release-tab-resume-v9262.js'}),'v92.62 deve ter sintaxe válida');
 assert(loader.includes("'release-tab-resume-v9262.js'"),'loader deve carregar recuperação de aba');
 assert(loader.indexOf("'release-tab-resume-v9262.js'")<loader.indexOf("'release-ui-stability.js'"),'guard visual deve continuar por último');

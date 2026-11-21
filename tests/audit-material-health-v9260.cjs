@@ -1,6 +1,7 @@
+const compatibleLoaderView=require('./hlgb-loader-compat-view-v9604b.cjs');
 const fs=require('fs'),vm=require('vm'),assert=require('assert'),path=require('path');
 const src=fs.readFileSync(path.join(__dirname,'..','release-material-health-v9260.js'),'utf8');
-const loader=fs.readFileSync(path.join(__dirname,'..','app-stable3.html'),'utf8');
+const loader=compatibleLoaderView(fs.readFileSync(path.join(__dirname,'..','app-stable3.html'),'utf8'));
 assert(loader.includes("'release-material-health-v9260.js'"),'loader deve carregar a saúde de matéria-prima');
 assert(loader.indexOf("'release-material-health-v9260.js'")<loader.indexOf("'release-ui-stability.js'"),'guard visual deve continuar por último');
 const db={

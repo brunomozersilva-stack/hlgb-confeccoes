@@ -24,5 +24,5 @@ assert(ui.includes('assertNoLocalPending')&&ui.includes('openWalReadOnly')&&ui.i
 assert(ui.includes("rpc/'+RPC")&&ui.includes("method:'POST'"));
 assert(ui.includes("window.cloudEnsureFreshSession"));
 assert(ui.includes('remoteRecord('));
-assert(router.includes("'release-faction-safe-adjust-v9514.js'"),'mobile and desktop router must load the new feature');
+assert(require('./hlgb-loader-test-view-v9600.cjs').scripts(router).includes('release-faction-safe-adjust-v9514.js'),'mobile and desktop router must load the new feature');
 console.log('PASS v95.14 static invariants: SQL atomic transaction, RLS/security, immutable paid rows, WAL fail-close and router');

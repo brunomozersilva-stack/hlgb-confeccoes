@@ -1,8 +1,9 @@
+const legacyLoaderView=require('./hlgb-loader-test-view-v9600.cjs');
 const fs=require('fs'),vm=require('vm'),assert=require('assert'),path=require('path');
 const root=path.join(__dirname,'..');
 const src=fs.readFileSync(path.join(root,'release-internal-auditor.js'),'utf8');
 const loader=fs.readFileSync(path.join(root,'app-stable3.html'),'utf8');
-assert(loader.includes("'release-internal-auditor.js'"),'loader must include internal auditor');
+assert(legacyLoaderView(loader).includes("'release-internal-auditor.js'"),'loader must include internal auditor');
 
 const ids=['appShell','nav','dashboard','pedidos','corte','producao','projecao','faltas','hubFinanceiro','config','printer3dHome9400','printer3dProducts9400','printer3dSales9400','printer3dCatalog9400','printer3dNav9400','p3HomeNav9400','p3ProductsNav9400','p3SalesNav9400','p3CatalogNav9400'];
 const nodes=Object.fromEntries(ids.map(id=>[id,{id}]));

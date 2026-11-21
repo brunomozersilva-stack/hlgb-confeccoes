@@ -1,3 +1,4 @@
+const legacyLoaderView=require('./hlgb-loader-test-view-v9600.cjs');
 'use strict';
 const test=require('node:test'),assert=require('node:assert/strict'),
 fs=require('node:fs'),vm=require('node:vm'),path=require('node:path');
@@ -138,8 +139,8 @@ test('grupo avulso misto ou sem referência não pode contaminar valor da pessoa
 });
 test('carregamento segue após plugin avulso e não acessa APIs externas',()=>{
  const boot=fs.readFileSync(path.join(root,'app-stable3.html'),'utf8');
- const old=boot.indexOf("'release-faction-manual-payment-v9566.js'");
- const next=boot.indexOf("'release-faction-acerto-consolidated-v95102.js'");
+ const old=legacyLoaderView(boot).indexOf("'release-faction-manual-payment-v9566.js'");
+ const next=legacyLoaderView(boot).indexOf("'release-faction-acerto-consolidated-v95102.js'");
  assert.ok(old>=0&&next>old,'novo acerto somente depois da dependência');
  assert.ok(manualSource.includes("kind==='product'||kind==='embalagem'||kind==='travetada'"));
  assert.ok(manualSource.includes("window.hlgbFactionAcertoUnified95102?.render?.()"));

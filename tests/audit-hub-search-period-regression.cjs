@@ -1,9 +1,10 @@
+const legacyLoaderView=require('./hlgb-loader-test-view-v9600.cjs');
 const fs=require('fs'),vm=require('vm'),assert=require('assert'),path=require('path');
 const root=path.join(__dirname,'..');
 const searchSrc=fs.readFileSync(path.join(root,'release-hub-search.js'),'utf8');
 const periodSrc=fs.readFileSync(path.join(root,'release-hub-period-summary.js'),'utf8');
 const loader=fs.readFileSync(path.join(root,'app-stable3.html'),'utf8');
-assert(loader.includes("'release-hub-period-summary.js'"));
+assert(legacyLoaderView(loader).includes("'release-hub-period-summary.js'"));
 const context={console,setTimeout(){return 0},db:{hubFinanceEntries:[
 {id:'1',flow:'Saída',date:'2026-10-05',category:'Matéria-prima',description:'Renda',value:100,status:'Realizado'},
 {id:'2',flow:'Saída',date:'2026-10-20',category:'Funcionários',description:'Folha',value:200,status:'Previsto'},

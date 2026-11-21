@@ -34,7 +34,12 @@ function setup(){
 }
 test('router loads one optional module after cut grade adjustment; syntax valid',()=>{
  assert.equal((router.match(/release-cutter-sheet-materials-v9523\.js/g)||[]).length,1);
- assert.ok(router.indexOf("'release-cutter-sheet-materials-v9523.js'")>router.indexOf("'release-cut-model-grade-adjust.js'"));
+ const anchor='const moduleGroups=',start=router.indexOf(anchor);
+ const end=router.indexOf(';const files=moduleGroups.flatMap(group=>group.files)',start);
+ assert.ok(start>=0&&end>start);
+ const scripts=JSON.parse(router.slice(start+anchor.length,end)).flatMap(g=>g.files);
+ assert.ok(scripts.indexOf('release-cutter-sheet-materials-v9523.js')>scripts.indexOf('release-cut-model-grade-adjust.js'));
+ assert.equal(scripts.filter(s=>s==='release-cutter-sheet-materials-v9523.js').length,1);
  assert.doesNotThrow(()=>new vm.Script(source));
 });
 test('Crystal: updated grade 192 pieces, 32kg Romantic; not 200 pieces from original order',()=>{

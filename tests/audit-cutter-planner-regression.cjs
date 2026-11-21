@@ -1,7 +1,12 @@
 const fs=require('fs'),vm=require('vm'),assert=require('assert'),path=require('path');
 const src=fs.readFileSync(path.join(__dirname,'..','release-cutter-planner.js'),'utf8');
 const loader=fs.readFileSync(path.join(__dirname,'..','app-stable3.html'),'utf8');
-assert(loader.includes("'release-cutter-planner.js'"));
+function releaseScripts(){
+ const anchor='const moduleGroups=',start=loader.indexOf(anchor),end=loader.indexOf(';const files=moduleGroups.flatMap(group=>group.files)',start);
+ assert(start>=0&&end>start,'carregador modular deve expor grupos JSON');
+ return JSON.parse(loader.slice(start+anchor.length,end)).flatMap(g=>g.files);
+}
+assert(releaseScripts().includes('release-cutter-planner.js'));
 const context={console,setTimeout(){return 0},db:{
  cuts:[{id:'agg1',orderId:'o1',productId:null,pieces:150,status:'Planejado',date:'2026-10-02',product:'100 Camisola Romantic | 50 Calcinha Liz'}],
  orders:[{id:'o1',orderNumber:87,client:'Gisele',priority:'Urgente',status:'Aguardando corte',grade:[

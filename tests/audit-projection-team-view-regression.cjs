@@ -1,7 +1,8 @@
+const compatibleLoaderView=require('./hlgb-loader-compat-view-v9604b.cjs');
 const fs=require('fs'),vm=require('vm'),assert=require('assert'),path=require('path');
 const root=path.join(__dirname,'..');
 const src=fs.readFileSync(path.join(root,'release-projection-team-view.js'),'utf8');
-const loader=fs.readFileSync(path.join(root,'app-stable3.html'),'utf8');
+const loader=compatibleLoaderView(fs.readFileSync(path.join(root,'app-stable3.html'),'utf8'));
 assert(loader.includes("'release-projection-team-view.js'"),'loader must include projection team view');
 
 const rows=[

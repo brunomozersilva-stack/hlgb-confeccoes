@@ -61,6 +61,9 @@ jobs:
       - name: Validate stable router render after visible restore
         run: node tests/audit-app-stable3-restored-render-regression.cjs
 
+      - name: Validate all 156 live scripts stay ordered and owned by modules
+        run: node --test tests/hlgb-module-boundaries-v9600.cjs
+
       - name: Validate Auditor structural evidence v94.71
         run: node tests/auditor-structural-evidence-v9471.cjs
 

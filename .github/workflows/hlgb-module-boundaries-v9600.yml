@@ -1,0 +1,44 @@
+name: HLGB Modular Live Boundaries v96.00
+on:
+  pull_request:
+    branches: [main, refactor/live-module-boundaries-v9600, refactor/live-14-domains-coverage-v9601b , refactor/live-etiquetas-compat-core-v9602b]
+    paths: [app-stable3.html, hlgb-modules/**, tests/hlgb-module-boundaries-v9600.cjs, tests/hlgb-live-monolith-inventory-v9601b.cjs, .github/workflows/hlgb-module-boundaries-v9600.yml]
+  push:
+    branches: [main]
+    paths: [app-stable3.html, hlgb-modules/**, tests/hlgb-module-boundaries-v9600.cjs, tests/hlgb-live-monolith-inventory-v9601b.cjs, .github/workflows/hlgb-module-boundaries-v9600.yml]
+permissions: {contents: read}
+jobs:
+  module-contracts:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - name: Verify module order, all 156 scripts and ownership
+        run: |
+          node --test tests/hlgb-module-boundaries-v9600.cjs
+          node --test tests/hlgb-loader-legacy-contract-v9600.cjs
+      - name: Inventário do app9240 REAL sem execução nem gravação
+        run: |
+          node --test tests/hlgb-live-monolith-inventory-v9601b.cjs
+          node hlgb-modules/audit-live-monolith-v9601b.cjs --verify
+      - name: Gerar manifesto de funções e botões da main comercial (somente leitura)
+        run: |
+          node hlgb-modules/audit-live-monolith-v9601b.cjs --verify --full-json > "$RUNNER_TEMP/hlgb-main-inventory-v9601b.json"
+      - name: Anexar inventário seguro do programa comercial ao resultado dos testes
+        uses: actions/upload-artifact@v4
+        with:
+          name: hlgb-main-inventory-v9601b
+          path: ${{ runner.temp }}/hlgb-main-inventory-v9601b.json
+          if-no-files-found: error
+          retention-days: 14
+      - name: Legacy module smoke suite without data writes
+        run: |
+          node tests/audit-cutter-planner-regression.cjs
+          node --test tests/cutter-save-confirm-v9580.cjs
+          node tests/audit-cut-navigation.cjs
+          node --test tests/cutter-sheet-materials-v9523.cjs
+          node tests/audit-auditor-owner-rpc-regression.cjs
+          node tests/audit-boot-authready-render-order.cjs
+          node tests/audit-app-stable3-restored-render-regression.cjs

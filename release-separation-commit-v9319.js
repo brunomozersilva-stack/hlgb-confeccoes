@@ -2,6 +2,7 @@
 (function(){
 'use strict';
 const V='93.27';
+const separationProgressCore9603b=window.HLGB_SEPARATION_PROGRESS_9603B||null;
 const sid=v=>String(v??'');
 const num=v=>Math.max(0,Number(v)||0);
 const clone=v=>{try{return structuredClone(v)}catch(e){try{return JSON.parse(JSON.stringify(v))}catch(_){return v}}};
@@ -16,8 +17,10 @@ function itemFor(o,pid){return itemsFor(o).find(x=>sid(x?.productId||x?.key)===s
 function latestSep(orderId){return (data()?.separations||[]).filter(s=>sid(s?.orderId)===sid(orderId)).slice().sort((a,b)=>sid(b?.updatedAt||b?.at||b?.createdAt||b?.id).localeCompare(sid(a?.updatedAt||a?.at||a?.createdAt||a?.id)))[0]||null}
 function ensureSep(order){let s=latestSep(order.id);if(s)return s;const d=data();d.separations=Array.isArray(d.separations)?d.separations:[];s={id:Date.now()+Math.floor(Math.random()*900000),orderId:order.id,done:false,at:null,partial:true,modelProgress:{},history:[]};d.separations.push(s);return s}
 function recId(module,row){const d=data(),arr=Array.isArray(d?.[module])?d[module]:[],i=arr.indexOf(row);try{if(typeof hlgbRecordId==='function'){const x=hlgbRecordId(module,row,i);if(x!=null&&sid(x))return sid(x)}}catch(e){}return sid(row?.__hlgbId||row?.id||'')}
-function progress(s,pid){const p=s?.modelProgress||{},id=sid(pid);if(Object.prototype.hasOwnProperty.call(p,id))return num(p[id]?.qty);for(const [k,v] of Object.entries(p))if(sid(k).split(':').pop()===id)return num(v?.qty);return 0}
-function totals(o,s){const items=itemsFor(o);let total=0,done=0;for(const it of items){const q=num(it?.qty),d=Math.min(q,progress(s,it?.productId||it?.key));total+=q;done+=d}return {total,done,remaining:Math.max(0,total-done),complete:items.length>0&&done>=total}}
+function progress(s,pid){
+ if(separationProgressCore9603b?.progress)return separationProgressCore9603b.progress(s,pid);const p=s?.modelProgress||{},id=sid(pid);if(Object.prototype.hasOwnProperty.call(p,id))return num(p[id]?.qty);for(const [k,v] of Object.entries(p))if(sid(k).split(':').pop()===id)return num(v?.qty);return 0}
+function totals(o,s){const items=itemsFor(o);
+ if(separationProgressCore9603b?.totalsForItems)return separationProgressCore9603b.totalsForItems(items,s);let total=0,done=0;for(const it of items){const q=num(it?.qty),d=Math.min(q,progress(s,it?.productId||it?.key));total+=q;done+=d}return {total,done,remaining:Math.max(0,total-done),complete:items.length>0&&done>=total}}
 function pendingFor(module,id){try{const w=JSON.parse(localStorage.getItem('hlgb_durable_wal_v1')||'null');if(Object.values(w?.entries||{}).some(x=>sid(x?.module)===sid(module)&&sid(x?.id)===sid(id)))return true}catch(e){}try{const p=JSON.parse(localStorage.getItem('hlgb_records_pending_v91')||'null'),a=p?.modules?.[module];if(Array.isArray(a)&&a.some(x=>sid(x?.id)===sid(id)))return true}catch(e){}return false}
 function statusText(text,type=''){try{if(typeof setCloudStatus==='function')setCloudStatus(text,type);else window.setCloudStatus?.(text,type)}catch(e){}}
 function saveLocal(){try{if(typeof localSaveOnly==='function')localSaveOnly()}catch(e){}}

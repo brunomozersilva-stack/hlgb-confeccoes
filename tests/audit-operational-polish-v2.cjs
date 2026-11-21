@@ -1,6 +1,7 @@
+const compatibleLoaderView=require('./hlgb-loader-compat-view-v9604b.cjs');
 const fs=require('fs'),vm=require('vm'),assert=require('assert'),path=require('path');
 const src=fs.readFileSync(path.join(__dirname,'..','release-operational-polish-v2.js'),'utf8');
-const loader=fs.readFileSync(path.join(__dirname,'..','app-stable3.html'),'utf8');
+const loader=compatibleLoaderView(fs.readFileSync(path.join(__dirname,'..','app-stable3.html'),'utf8'));
 assert(loader.includes("'release-operational-polish-v2.js'"));
 const tomorrow=(()=>{const d=new Date();d.setDate(d.getDate()+1);return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0')})();
 const context={console,setTimeout(){return 0},setInterval(){return 0},

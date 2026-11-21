@@ -3,7 +3,7 @@ const assert=require('node:assert/strict');
 const fs=require('node:fs'),vm=require('node:vm'),path=require('node:path');
 const code=fs.readFileSync(path.resolve(__dirname,'../release-notes-receivables-v9564.js'),'utf8');
 const loader=fs.readFileSync(path.resolve(__dirname,'../app-stable3.html'),'utf8');
-assert(loader.includes("'release-notes-receivables-v9564.js'"),'entry must load the dashboard');
+assert(require('./hlgb-loader-test-view-v9600.cjs').scripts(loader).includes('release-notes-receivables-v9564.js'),'entry must load the dashboard');
 const db={
  projectionInvoices:[
   {id:'a',client:'Cliente A',clientId:1,value:100,paid:100,remaining:0,dueDate:'2026-11-11',status:'Pago'},

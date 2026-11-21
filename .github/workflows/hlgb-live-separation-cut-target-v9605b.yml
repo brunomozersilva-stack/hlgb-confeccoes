@@ -1,0 +1,45 @@
+name: HLGB Comercial - Corte Alvo Puro v96.05b
+on:
+  pull_request:
+    branches: [main, test/live-loader-legacy-regression-fix-v9604b]
+    paths:
+      - 'app-stable3.html'
+      - 'release-separation-cut-target-v9335.js'
+      - 'hlgb-modules/ownership-v9600.json'
+      - 'hlgb-modules/producao/corte-alvo-v9605b.js'
+      - 'hlgb-modules/module-test-catalog-v9601.json'
+      - 'tests/hlgb-live-separation-cut-target-v9605b.cjs'
+      - '.github/workflows/hlgb-live-separation-cut-target-v9605b.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'app-stable3.html'
+      - 'release-separation-cut-target-v9335.js'
+      - 'hlgb-modules/producao/corte-alvo-v9605b.js'
+      - 'tests/hlgb-live-separation-cut-target-v9605b.cjs'
+permissions: {contents: read}
+jobs:
+  safe-target-parity:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 18
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - name: Sintaxe da regra pura e do handler legado
+        run: |
+          node --check hlgb-modules/producao/corte-alvo-v9605b.js
+          node --check release-separation-cut-target-v9335.js
+      - name: Teste das 213 combinacoes, fallbacks e preservacao do registro comercial
+        run: |
+          node --test tests/hlgb-live-separation-cut-target-v9605b.cjs
+          node --test tests/hlgb-module-boundaries-v9600.cjs
+          node --test tests/hlgb-live-separation-progress-v9603b.cjs
+          node --test tests/hlgb-live-label-layout-v9602b.cjs
+          node --test tests/hlgb-loader-compat-contract-v9604b.cjs
+      - name: Regressao de todos os 14 dominios comerciais
+        run: node hlgb-modules/run-module-tests-v9601.cjs --all
+      - name: Biblioteca noturna completa
+        run: |
+          node scripts/run-nightly-audit.mjs
+          test "$(cat auditor-nightly/exit-code.txt)" = 0

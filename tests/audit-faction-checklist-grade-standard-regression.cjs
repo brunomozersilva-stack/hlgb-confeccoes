@@ -1,6 +1,7 @@
+const compatibleLoaderView=require('./hlgb-loader-compat-view-v9604b.cjs');
 const fs=require('fs'),vm=require('vm'),assert=require('assert'),path=require('path');
 const src=fs.readFileSync(path.join(__dirname,'..','release-faction-checklist-grade-standard.js'),'utf8');
-const loader=fs.readFileSync(path.join(__dirname,'..','app-stable3.html'),'utf8');
+const loader=compatibleLoaderView(fs.readFileSync(path.join(__dirname,'..','app-stable3.html'),'utf8'));
 assert(loader.includes("'release-faction-checklist-grade-standard.js'"));
 const context={console,db:{sizes:['P','M','G','GG'],materialChecklists:[{id:'k1',productId:'p1',qty:180,grade:[{productId:'p1',color:'Preto',size:'P',qty:30},{productId:'p1',color:'Preto',size:'M',qty:60},{productId:'p1',color:'Preto',size:'G',qty:60},{productId:'p1',color:'Preto',size:'GG',qty:30}]}],cuts:[],orders:[]},window:{},hlgbSortedSizes:()=>['P','M','G','GG']};
 vm.createContext(context);vm.runInContext(src,context);

@@ -1,3 +1,4 @@
+const legacyLoaderView=require('./hlgb-loader-test-view-v9600.cjs');
 const fs=require('fs'),vm=require('vm'),assert=require('assert');
 const src=fs.readFileSync('release-separation-commit-v9319.js','utf8');
 const loader=fs.readFileSync('app-stable3.html','utf8');
@@ -6,7 +7,7 @@ assert(src.includes("const V='93.27'"),'v93.27 canonical separation controller m
 assert(src.includes('__hlgbCanonicalSeparation'),'canonical separation marker missing');
 assert(src.includes("__hlgbCanonicalVersion=V"),'canonical separation version marker missing');
 assert(src.includes('selectedOrderId'),'Concluir e salvar must resolve selected order from UI');
-assert(loader.includes("'release-separation-commit-v9319.js'"),'canonical loader must include separation controller');
+assert(legacyLoaderView(loader).includes("'release-separation-commit-v9319.js'"),'canonical loader must include separation controller');
 (async()=>{
  const statuses=[];let saveCalls=[];
  const elements={appShell:{style:{display:'block'}},loginScreen:{style:{display:'none'}},sessionLoader:{style:{display:'none'}},separationOrder:{value:'o1'},sepQty938_p1:{value:'10'},sepBtn938_p1:{disabled:false,textContent:'Baixar parcial',dataset:{}}};

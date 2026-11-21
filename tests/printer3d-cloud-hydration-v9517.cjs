@@ -1,7 +1,8 @@
 'use strict';
+const compatibleLoaderView=require('./hlgb-loader-compat-view-v9604b.cjs');
 const fs=require('fs'),vm=require('vm'),assert=require('node:assert/strict'),test=require('node:test');
 const src=fs.readFileSync('release-printer3d-cloud-hydration-v9517.js','utf8');
-const loader=fs.readFileSync('app-stable3.html','utf8');
+const loader=compatibleLoaderView(fs.readFileSync('app-stable3.html','utf8'));
 const auditor=fs.readFileSync('release-internal-auditor.js','utf8');
 assert(loader.includes("'release-printer3d-cloud-hydration-v9517.js'"));
 assert(loader.includes("'release-printer3d-persistence-v9431.js'"));

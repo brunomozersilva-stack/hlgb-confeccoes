@@ -1,7 +1,8 @@
 'use strict';
+const compatibleLoaderView=require('./hlgb-loader-compat-view-v9604b.cjs');
 const assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('node:vm');
 const src=fs.readFileSync('release-product-traceability-v9580.js','utf8');
-const boot=fs.readFileSync('app-stable3.html','utf8');
+const boot=compatibleLoaderView(fs.readFileSync('app-stable3.html','utf8'));
 assert(boot.includes("'release-product-traceability-v9580.js'"),'trace module registered in loader');
 new vm.Script(src);
 const cp=x=>JSON.parse(JSON.stringify(x));

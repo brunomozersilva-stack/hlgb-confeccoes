@@ -1,0 +1,40 @@
+name: HLGB Comercial - Separacao Progresso Puro v96.03b
+on:
+  pull_request:
+    branches: [main, refactor/live-etiquetas-compat-core-v9602b]
+    paths:
+      - 'app-stable3.html'
+      - 'hlgb-modules/ownership-v9600.json'
+      - 'hlgb-modules/module-test-catalog-v9601.json'
+      - 'hlgb-modules/producao/**'
+      - 'release-separation-commit-v9319.js'
+      - 'tests/hlgb-live-separation-progress-v9603b.cjs'
+      - '.github/workflows/hlgb-live-separation-progress-v9603b.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'app-stable3.html'
+      - 'hlgb-modules/producao/**'
+      - 'release-separation-commit-v9319.js'
+      - 'tests/hlgb-live-separation-progress-v9603b.cjs'
+permissions: {contents: read}
+jobs:
+  parity:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 16
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - name: Sintaxe sem executar dados reais
+        run: |
+          node --check hlgb-modules/producao/separacao-progresso-v9603b.js
+          node --check release-separation-commit-v9319.js
+      - name: Comparar progresso/totais, status legados e ausência de gravações
+        run: |
+          node --test tests/hlgb-live-separation-progress-v9603b.cjs
+          node tests/audit-separation-commit-v9319.cjs
+          node tests/audit-production-assignment-regression.cjs
+          node --test tests/hlgb-module-boundaries-v9600.cjs
+          node --test tests/hlgb-live-label-layout-v9602b.cjs
+          node --test tests/module-test-catalog-v9601.cjs

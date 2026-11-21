@@ -3,7 +3,9 @@ const fs=require('node:fs'),vm=require('node:vm'),assert=require('node:assert/st
 const src=fs.readFileSync('release-faction-operations-v9520.js','utf8');
 const app=fs.readFileSync('app-stable3.html','utf8');
 test('new faction operations module loads after validated v95.14 transfer',()=>{
- assert.match(app,/'release-faction-safe-adjust-v9514\.js','release-faction-operations-v9520\.js'/);
+ const loaded=require('./hlgb-loader-test-view-v9600.cjs').scripts(app);
+ assert.equal(loaded.indexOf('release-faction-safe-adjust-v9514.js')+1,
+  loaded.indexOf('release-faction-operations-v9520.js'),'o módulo de Facções precisa carregar depois da transferência validada');
  assert.doesNotThrow(()=>new vm.Script(src));
  assert.ok(src.includes('hlgb_save_record'));
  assert.ok(!src.includes("window.save("),'must never invoke generic full-db save');

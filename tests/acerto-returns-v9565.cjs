@@ -1,7 +1,8 @@
 'use strict';
+const compatibleLoaderView=require('./hlgb-loader-compat-view-v9604b.cjs');
 const assert=require('node:assert/strict'),vm=require('node:vm'),fs=require('node:fs'),path=require('node:path');
 const src=fs.readFileSync(path.join(__dirname,'..','release-acerto-returns-v9565.js'),'utf8');
-const loader=fs.readFileSync(path.join(__dirname,'..','app-stable3.html'),'utf8');
+const loader=compatibleLoaderView(fs.readFileSync(path.join(__dirname,'..','app-stable3.html'),'utf8'));
 assert(loader.includes("'release-acerto-returns-v9565.js'"),'register isolated returns module in boot list');
 const db={projectionInvoices:[{id:'n',client:'Click Sophia',value:1000,paid:200,remaining:800,
  paymentHistory:[{id:1,date:'2026-11-11',method:'PIX',value:200}],status:'Parcial'}],

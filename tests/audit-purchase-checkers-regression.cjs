@@ -1,6 +1,7 @@
+const compatibleLoaderView=require('./hlgb-loader-compat-view-v9604b.cjs');
 const fs=require('fs'),vm=require('vm'),assert=require('assert'),path=require('path');
 const src=fs.readFileSync(path.join(__dirname,'..','release-purchase-checkers.js'),'utf8');
-const loader=fs.readFileSync(path.join(__dirname,'..','app-stable3.html'),'utf8');
+const loader=compatibleLoaderView(fs.readFileSync(path.join(__dirname,'..','app-stable3.html'),'utf8'));
 assert(loader.includes("'release-purchase-checkers.js'"));
 const context={console,setTimeout(){return 0},db:{employees:[{id:1,name:'Ana',active:true},{id:2,name:'Bia',active:true}],users:[{id:3,name:'Ana',active:true}],purchases:[]},window:{purchaseForm:()=>'<div>base</div>',savePurchaseFromForm:p=>{p.base=true;return true},renderPurchases(){}},document:{getElementById(){return null}},hlgbAfterLogin:null};
 vm.createContext(context);vm.runInContext(src,context);

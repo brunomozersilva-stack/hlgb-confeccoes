@@ -1,9 +1,10 @@
+const legacyLoaderView=require('./hlgb-loader-test-view-v9600.cjs');
 const fs=require('fs'),vm=require('vm'),assert=require('assert'),path=require('path');
 const root=path.join(__dirname,'..');
 const imp=fs.readFileSync(path.join(root,'release-assistant-order-import.js'),'utf8');
 const ord=fs.readFileSync(path.join(root,'release-assistant-orders.js'),'utf8');
 const loader=fs.readFileSync(path.join(root,'app-stable3.html'),'utf8');
-assert(loader.includes("'release-assistant-order-import.js'"));
+assert(legacyLoaderView(loader).includes("'release-assistant-order-import.js'"));
 const context={console,setTimeout(fn){if(typeof fn==='function')fn();return 0},
  db:{sizes:['P','M','G','GG'],colors:['Preto','Branco','Rubi'],clients:[{id:'c1',name:'Quesia'}],products:[{id:'p1',name:'Camisola Liliane'}],orders:[]},
  window:{hlgbAssistantAsk(){}},document:{getElementById(){return null},querySelector(){return null}},

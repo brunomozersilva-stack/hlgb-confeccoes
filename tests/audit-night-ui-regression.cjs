@@ -1,7 +1,8 @@
+const compatibleLoaderView=require('./hlgb-loader-compat-view-v9604b.cjs');
 const fs=require('fs'),assert=require('assert'),path=require('path');
 const root=path.join(__dirname,'..');
 const src=fs.readFileSync(path.join(root,'release-night-ui-fixes.js'),'utf8');
-const loader=fs.readFileSync(path.join(root,'app-stable3.html'),'utf8');
+const loader=compatibleLoaderView(fs.readFileSync(path.join(root,'app-stable3.html'),'utf8'));
 assert(loader.includes("'release-night-ui-fixes.js'"));
 assert(src.includes('Selecione um período para consultar os pagamentos'));
 assert(src.includes('Pendentes do período'));

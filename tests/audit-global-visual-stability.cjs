@@ -1,3 +1,4 @@
+const legacyLoaderView=require('./hlgb-loader-test-view-v9600.cjs');
 const fs=require('fs'),assert=require('assert'),path=require('path');
 const root=path.join(__dirname,'..');
 const current=fs.readFileSync(path.join(root,'release-current.js'),'utf8');
@@ -14,7 +15,7 @@ assert(notes.includes('function noteMutationRelevant(records)'),'note integrity 
 assert(notes.includes('if(!noteMutationRelevant(records))return'),'note observer must ignore unrelated DOM mutations');
 
 assert(stability.includes("const V='v8-screen-stability-20261022'"),'UI stability guard v8 must remain active');
-const list=(loader.match(/const files=\[(.*?)\];/s)||[])[1]||'';
+const list=legacyLoaderView(loader);
 assert(list.includes("'release-ui-stability.js','release-safari-resume-v9266.js'"),'Safari resume guard must load immediately after UI stability');
 const stabilityAt=list.indexOf("'release-ui-stability.js'");
 const safariAt=list.indexOf("'release-safari-resume-v9266.js'");
