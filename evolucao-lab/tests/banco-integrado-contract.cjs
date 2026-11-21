@@ -59,7 +59,8 @@ test('PostgreSQL fictício recusa segunda baixa do mesmo acerto com comando dife
  const answer=await db.commit(duplicate,A);
  assert.equal(answer.status,'rejected','segundo comando não pode pagar título quitado');
  assert.deepEqual(await db.state(),state,'negação preserva saldo e trilha');
- assert.equal((await db.readback(duplicate.commandId)).status,'rejected');
+ assert.equal((await db.readback(duplicate.commandId)).status,'not_found',
+  'comando rejeitado não pode ter registro como pagamento confirmado');
 });
 test('guardião recusa banco remoto, fingerprint estável e ator não autorizado',()=>{assert.throws(()=>db.guard({PGDATABASE:'postgres',PGHOST:'127.0.0.1'}));const c=cmd('test-0001','order.add',1,{a:1,b:2});assert.equal(db.validate(c,A),db.validate({...c,payload:{b:2,a:1}},A));assert.throws(()=>db.validate(c,'Administrador'));});
 
