@@ -274,6 +274,11 @@ async function run(browser,width,url){
   await put(page,'pcp.capacity',{corte:'200',envio:'300',costura:'150',separacao:'300',expedicao:'300',reason:'Teste capacidade'});
   assert.match(await page.locator('#module-content').innerText(),/2026-11-30/);
   await module(page,'corte');
+  assert.match(await page.locator('#flow-cut-desk').innerText(),/Peças livres para planejar/);
+  const cutDeskRevision=await revision(page);
+  await page.locator('[data-flow-shortcut="cut.plan"][data-flow-order="PED-0001"]').click();
+  assert.equal(await page.locator('form[data-command="cut.plan"] [name="orderId"]').inputValue(),'PED-0001');
+  assert.equal(await revision(page),cutDeskRevision,'atalho de Corte apenas abre formulario');
   await put(page,'cut.record',{orderId:'PED-0001',size:'P',qty:'6'});
   await put(page,'cut.record',{orderId:'PED-0001',size:'M',qty:'10'});
   let rev=await revision(page);
@@ -298,7 +303,16 @@ async function run(browser,width,url){
   assert.match(await page.locator('#cut-print').innerText(),/Carla Enfestadora/);
   assert.match(await page.locator('#cut-print').innerText(),/35 g/);
   await module(page,'faccoes');
+  assert.match(await page.locator('#flow-faction-desk').innerText(),/Peças cortadas sem envio/);
+  const factionDeskRevision=await revision(page);
+  await page.locator('[data-flow-shortcut="faction.allocate"][data-flow-order="PED-0001"]').click();
+  assert.equal(await page.locator('form[data-command="faction.allocate"] [name="orderId"]').inputValue(),'PED-0001');
+  assert.equal(await revision(page),factionDeskRevision,'atalho de Faccoes nao cria envio');
   await put(page,'faction.allocate',{orderId:'PED-0001',factionId:'FAC-0002',qty:'12'});
+  const returnDeskRevision=await revision(page);
+  await page.locator('[data-flow-shortcut="faction.return"][data-flow-order="PED-0001"]').first().click();
+  assert.equal(await page.locator('form[data-command="faction.return"] [name="orderId"]').inputValue(),'PED-0001');
+  assert.equal(await revision(page),returnDeskRevision,'abrir retorno nao gera acerto nem baixa');
   await put(page,'faction.return',{orderId:'PED-0001',qty:'9'});
   await module(page,'acertos');
   assert.match(await page.locator('#module-content').innerText(),/ACE-0001/);
