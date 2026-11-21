@@ -900,6 +900,7 @@ function orderTracePanel(s,order){
  const settlementIds=new Set(settlements.map(x=>x.id));
  const compensations=(s.settlementCompensations||[]).filter(x=>settlementIds.has(x.settlementId));
  const transfers=(s.factionTransfers||[]).filter(x=>x.orderId===order.id);
+ const partialTransfers=(s.factionPartialTransfers||[]).filter(x=>x.orderId===order.id);
  const ledger=(s.stockLedger||[]).filter(x=>x.sourceId===order.id||
   cuts.some(p=>p.id===x.cutPlanId)||bom.some(p=>p.id===x.bomCutId));
  const title=(id)=>(s.finance||[]).find(x=>x.kind==='pagar'&&x.sourceId===id);
@@ -918,13 +919,14 @@ function orderTracePanel(s,order){
  const assignmentRows=assignments.map(x=>[
   str(x.id),str(ref(s.factions,x.factionId)?.name||x.factionId),
   str(x.qtySent),str(x.qtyReturned),str(x.qtySent-x.qtyReturned),
-  (x.gradeLines||[]).map(g=>str(g.color)+' '+str(g.size)+': '+str(g.qtySent-g.qtyReturned)+' pend.').join(' · ')||'Sem grade vinculada',
+  (x.gradeLines||[]).map(g=>str(g.color)+' '+str(g.size)+': '+str((g.sent||0)-(g.returned||0))+' pend.').join(' · ')||'Sem grade vinculada',
   str(x.origin||'Não informado')
  ]);
  const settlementRows=settlements.map(x=>{
   const f=title(x.id);
   return [str(x.id),str(ref(s.factions,x.factionId)?.name||x.factionId),
-   str(x.qty),amount(x.amountCents),str(x.status),str(f?.id||'Não localizado'),
+   str(x.qty),str(x.assignmentId||'—'),str(x.gradeTracked?[(x.color||'—'),(x.size||'—')].join(' / '):'Não identificada'),
+   amount(x.amountCents),str(x.status),str(f?.id||'Não localizado'),
    str(f?.status||'Não localizado'),str(f?.paidDate||'—')];
  });
  const paidCents=settlements.filter(x=>x.status==='pago').reduce((n,x)=>n+(x.amountCents||0),0);
@@ -938,6 +940,8 @@ function orderTracePanel(s,order){
   warnings.push('A soma dos envios identificados difere da quantidade enviada registrada no pedido.');
  if(settlements.some(x=>!title(x.id)))
   warnings.push('Há acerto sem título a pagar identificado nesta revisão.');
+ if(settlements.some(x=>{const f=title(x.id);return f&&(f.amountCents!==x.amountCents||f.status!==x.status)}))
+  warnings.push('Há divergência de valor ou situação entre acerto e título financeiro.');
  const stockRows=ledger.map(x=>[
   str(x.id),str(ref(s.materials,x.materialId)?.name||x.materialId),
   str(x.type),str(x.deltaGrams)+' g',
@@ -960,7 +964,7 @@ function orderTracePanel(s,order){
   '<h4>Envios e retornos por facção</h4>'+
   table(['Envio','Facção','Enviadas','Retornadas','Pendentes','Grade identificada','Origem'],assignmentRows)+
   '<h4>Acertos, valores e títulos vinculados</h4>'+
-  table(['Acerto','Facção','Peças','Valor','Acerto','Título','Título financeiro','Data da baixa'],settlementRows)+
+  table(['Acerto','Facção','Peças','Envio','Cor / tamanho','Valor','Acerto','Título','Título financeiro','Data da baixa'],settlementRows)+
   '<p class="caption">Compensações separadas: '+str(compensations.length)+
   '. Elas não são somadas de novo ao pagamento original. Consulte Acertos para os detalhes.</p>'+
   '<h4>Movimentações de materiais identificadas</h4>'+
@@ -970,7 +974,11 @@ function orderTracePanel(s,order){
    str(x.id),str(ref(s.factions,x.fromFactionId)?.name||x.fromFactionId),
    str(ref(s.factions,x.toFactionId)?.name||x.toFactionId),
    str(x.qty||'—'),str(x.reason||'Não informado')
-  ]))+
+  ]).concat(partialTransfers.map(x=>[
+   str(x.id)+' · parcial',str(ref(s.factions,x.fromFactionId)?.name||x.fromFactionId),
+   str(ref(s.factions,x.toFactionId)?.name||x.toFactionId),str(x.qty),
+   str(x.reason||'Não informado')
+  ])))+
   '</section>';
 }
 
