@@ -18,7 +18,7 @@ article strong{display:block}pre{white-space:pre-wrap;overflow-wrap:anywhere;fon
 <body>
 <main>
 <h1>HLGB Confecções — diagnóstico de abertura</h1>
-<p>Esta página confere a conexão com os arquivos do sistema e o estado do navegador. <strong>Não apaga dados, não modifica pendências e não tenta acessar informações financeiras.</strong></p>
+<p>Esta página confere os arquivos do sistema, a conexão com o serviço de autenticação e o estado do navegador. <strong>Não apaga dados, não modifica pendências e não tenta acessar informações financeiras.</strong></p>
 <div id="items" role="status" aria-live="polite"><p>Preparando testes de carregamento…</p></div>
 <p><button class="primary" id="copy" type="button" disabled>Copiar diagnóstico para enviar ao suporte</button>
 <button type="button" id="rerun">Verificar novamente</button>
@@ -37,7 +37,7 @@ const checks=[
  {file:'release-sync-recovery-v9301.js',marker:'hlgbSyncRecovery9301'}
 ];
 const items=document.getElementById('items'),raw=document.getElementById('raw'),copy=document.getElementById('copy');
-let report=null;
+let report=null,supabaseUrl='',supabasePublishableKey='';
 const clean=s=>String(s||'').slice(0,200).replace(/https?:\/\/\S+/g,'[endereço]');
 function line(result){
  const el=document.createElement('article'),status=document.createElement('strong'),detail=document.createElement('span');
@@ -51,10 +51,42 @@ async function checkFile(test){
  try{
   const response=await fetch('./'+test.file+'?hlgb_probe='+Date.now(),{cache:'no-store',signal:controller.signal});
   const text=await response.text(),ok=response.ok&&text.includes(test.marker);
+  if(test.file==='app9240.html'){
+    // Extrair a URL/publishable key da versão carregada, jamais expor a chave no relatório.
+    const foundUrl=text.match(/HLGB_SUPABASE_URL\s*=\s*["'](https:\/\/[a-z0-9.-]+\.supabase\.co)["']/i);
+    const foundKey=text.match(/HLGB_SUPABASE_KEY\s*=\s*["'](sb_publishable_[a-zA-Z0-9_-]+)["']/);
+    supabaseUrl=foundUrl?.[1]||'';supabasePublishableKey=foundKey?.[1]||'';
+  }
   return {file:test.file,ok,status:response.status,ms:Math.round(performance.now()-started),bytes:text.length,error:!response.ok?'HTTP '+response.status:!ok?'Arquivo incompleto ou inesperado':''};
  }catch(e){
   return {file:test.file,ok:false,status:'indisponível',ms:Math.round(performance.now()-started),bytes:0,error:clean(e?.name||e?.message||e)};
  }finally{clearTimeout(timer)}
+}
+async function checkAuthService(){
+ const started=performance.now(),controller=new AbortController();
+ const timer=setTimeout(()=>controller.abort(),12000);
+ const base={file:'Supabase Auth (saúde, sem senha)',ok:false,status:'indisponível',ms:0,bytes:0,error:''};
+ try{
+  if(!supabaseUrl){base.error='URL do serviço indisponível no arquivo principal';return base}
+  const response=await fetch(supabaseUrl+'/auth/v1/health?hlgb_diag='+Date.now(),{
+   method:'GET',cache:'no-store',headers:supabasePublishableKey?{apikey:supabasePublishableKey}:{},signal:controller.signal
+  });
+  base.ok=response.ok;base.status=response.status;
+  if(!response.ok)base.error='Serviço respondeu HTTP '+response.status+' (não é teste de senha)';
+  return base;
+ }catch(e){
+  base.error=e?.name==='AbortError'?'A consulta excedeu 12 segundos':'O Safari não conseguiu consultar o serviço de autenticação ('+clean(e?.name)+')';
+  return base;
+ }finally{clearTimeout(timer);base.ms=Math.round(performance.now()-started)}
+}
+function previousAuthFailure(){
+ try{
+  const x=JSON.parse(sessionStorage.getItem('hlgb_auth_network_failure_v9613')||'null');
+  if(!x||typeof x!=='object')return null;
+  return {at:String(x.at||'').slice(0,40),stage:['authentication','authenticated-read'].includes(x.stage)?x.stage:'unknown',
+    kind:['safari-load-failed','network-typeerror','other'].includes(x.kind)?x.kind:'unknown',
+    online:x.online===true,authenticatedBeforeFailure:x.authenticatedBeforeFailure===true};
+ }catch(e){return null}
 }
 async function run(){
  copy.disabled=true;items.textContent='Executando verificações somente leitura…';raw.textContent='';
@@ -72,7 +104,8 @@ async function run(){
   if(x&&typeof x==='object')previousBoot={at:String(x.at||'').slice(0,50),reason:String(x.reason||'').slice(0,200),failedFiles:Array.isArray(x.failedFiles)?x.failedFiles.slice(0,30).map(v=>String(v).replace(/[^a-zA-Z0-9_.-]/g,'').slice(0,100)):[],bootAttempts:Array.isArray(x.attempts)?x.attempts.slice(0,3).map(a=>({attempt:Number(a?.attempt)||0,category:String(a?.category||'').slice(0,40),message:String(a?.message||'').slice(0,130)})):[]};
  }catch(e){}
  const results=await Promise.all(checks.map(checkFile));
- report={name:'HLGB boot diagnostic',version:'95.18',startedAt:start,entry:location.pathname,online:navigator.onLine,platform:navigator.platform||'',userAgent:navigator.userAgent||'',storage,serviceWorker:sw,previousBoot,results};
+ const authService=await checkAuthService();results.push(authService);
+ report={name:'HLGB boot and authentication diagnostic',version:'96.13',startedAt:start,entry:location.pathname,online:navigator.onLine,platform:navigator.platform||'',userAgent:navigator.userAgent||'',storage,serviceWorker:sw,previousBoot,previousAuthFailure:previousAuthFailure(),results};
  items.textContent='';
  for(const result of results)items.appendChild(line(result));
  const passed=results.filter(x=>x.ok).length;

@@ -8,6 +8,8 @@ on:
       - 'tests/login-safari-network-v9613.cjs'
       - 'tests/login-safari-network-v9613-browser.cjs'
       - '.github/workflows/login-safari-network-v9613.yml'
+      - 'diagnostico-abertura.html'
+      - 'tests/diagnostico-login-auth-v9613-browser.cjs'
   workflow_dispatch:
 permissions: {contents: read}
 jobs:
@@ -34,4 +36,6 @@ jobs:
       - name: Synthetic login without live Supabase
         env:
           HLGB_BROWSER: ${{ matrix.browser }}
-        run: node tests/login-safari-network-v9613-browser.cjs
+        run: |
+          node tests/login-safari-network-v9613-browser.cjs
+          node tests/diagnostico-login-auth-v9613-browser.cjs
