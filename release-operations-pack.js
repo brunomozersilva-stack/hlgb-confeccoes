@@ -187,49 +187,6 @@ function routeLocations(){
    Realtime continua como canal rápido; leitura pontual cobre perda de eventos e reconexão.
    Somente este módulo é atualizado, sem renderAll nem gravação remota. */
 const routeSync9453={busy:false,lastCheck:0,lastSuccess:'',lastError:'',reads:0,changed:0};
-/* v96.12: leitura SOMENTE de WAL IndexedDB de Rotas.
- * Falha fechada: nunca substituir rota local por versão remota se a fila não puder ser inspecionada.
- * Esta leitura não faz ACK, remove, migração, store.put ou reenvio. */
-function routeIdbWalPending9612(){
- return new Promise((resolve,reject)=>{
-  if(typeof indexedDB==='undefined'){reject(new Error('IndexedDB indisponível para conferir Rotas'));return}
-  let db=null,settled=false,created=false;
-  const finish=(err,rows)=>{
-   if(settled)return;settled=true;clearTimeout(timer);
-   try{db?.close()}catch(_){}
-   if(err)reject(err);else resolve(rows||[]);
-  };
-  const timer=setTimeout(()=>finish(new Error('Leitura da WAL de Rotas excedeu 3500 ms')),3500);
-  let req;
-  try{req=indexedDB.open('hlgb_durable_wal')}catch(e){finish(new Error('Falha abrindo WAL de Rotas: '+sid(e?.message||e)));return}
-  req.onupgradeneeded=()=>{created=true;try{req.transaction?.abort()}catch(_){}};
-  req.onerror=()=>created?finish(null,[]):finish(new Error('Falha lendo WAL IndexedDB de Rotas'));
-  req.onsuccess=()=>{
-   db=req.result;
-   if(created||!db.objectStoreNames.contains('entries')){finish(null,[]);return}
-   try{
-    const tx=db.transaction('entries','readonly'),get=tx.objectStore('entries').getAll();
-    get.onsuccess=()=>finish(null,(Array.isArray(get.result)?get.result:[]).filter(x=>sid(x?.module)==='routePlans'&&x?.id!=null));
-    get.onerror=()=>finish(new Error('Falha relendo operações de Rotas no IndexedDB'));
-    tx.onabort=()=>finish(new Error('Leitura das operações de Rotas foi interrompida'));
-   }catch(e){finish(new Error('Erro consultando IndexedDB de Rotas: '+sid(e?.message||e)))}
-  };
- });
-}
-async function routeDuplicatePending9612(row){
- const fingerprint=routeFingerprint9534(row),newId=sid(row?.id);
- for(const existing of arr('routePlans')){
-  if(sid(existing?.id)!==newId&&routeFingerprint9534(existing)===fingerprint)
-   return {id:sid(existing.id),source:'local'};
- }
- const idb=await routeIdbWalPending9612();
- for(const existing of idb){
-  if(existing.deleted===true||sid(existing.id)===newId||!existing.data)continue;
-  if(routeFingerprint9534(existing.data)===fingerprint)
-   return {id:sid(existing.id),source:'wal-indexeddb'};
- }
- return null;
-}
 function routePending9453(id){
  try{
   const p=JSON.parse(localStorage.getItem('hlgb_records_pending_v91')||'null');
@@ -249,15 +206,11 @@ async function refreshRoutes9453(force=false){
  try{
   const rows=await cloudRequest('hlgb_records?select=module,entity_id,data,revision,updated_at,deleted_at,updated_by&module=eq.routePlans&order=updated_at.desc&limit=100',{method:'GET'});
   if(!Array.isArray(rows))throw new Error('Resposta de rotas inválida');
-  // Se o Safari tem operação somente no IndexedDB, nunca aplicar um snapshot remoto sobre ela.
-  // A ausência de pendências no localStorage NÃO comprova que a WAL durável esteja vazia.
-  const idbPending=await routeIdbWalPending9612();
-  const idbProtectedIds=new Set(idbPending.map(x=>sid(x.id)));
   const local=arr('routePlans'),snap=typeof hlgbRecordSnapshots!=='undefined'?hlgbRecordSnapshots?.routePlans:null;
   let changes=0;
   for(const row of rows){
    const id=sid(row?.entity_id),revision=Number(row?.revision)||0;
-   if(!id||routePending9453(id)||idbProtectedIds.has(id))continue;
+   if(!id||routePending9453(id))continue;
    const idx=local.findIndex(x=>sid(x?.id)===id);
    const old=snap?.get?.(id);
    if(old&&Number(old.revision||0)>revision)continue;
@@ -361,7 +314,7 @@ function openRouteEditor(r){
  // Repetir clique ou aguardar POST lento NUNCA cria um segundo ID.
  const draftId=sid(r?.id||('route-'+Date.now()+'-'+Math.floor(Math.random()*10000)));
  const createdAt=r?.createdAt||new Date().toISOString();
- let saveBusy=false,lastAttempt=null,duplicateApproved=false;
+ let saveBusy=false,lastAttempt=null;
  const body='<div class="grid"><div class="field"><label>Data</label><input id="opsRouteDate" type="date" value="'+escSafe(r?.date||today())+'"></div><div class="field"><label>Responsável / motorista</label><input id="opsRouteDriver" value="'+escSafe(r?.driver||'')+'"></div><div class="field"><label>Status</label><select id="opsRouteStatus"><option>Planejada</option><option>Em rota</option><option>Concluída</option></select></div></div><div class="field"><label>Anotações gerais</label><textarea id="opsRouteGeneral" rows="3">'+escSafe(r?.notes||'')+'</textarea></div><div id="opsRouteStops">'+(r?.stops||[]).map(routeStopHtml).join('')+'</div><button type="button" class="secondary" onclick="addRouteStop9249()">+ Adicionar parada</button>'+
  '<div class="toolbar" style="margin-top:12px"><button type="button" class="secondary" id="opsRouteVerify9534">🔍 Verificar gravação na nuvem</button><button class="primary modalSave">Salvar rota</button></div>'+
  '<div id="opsRouteCloudStatus9534" role="status" aria-live="polite" class="sub" style="margin-top:10px">A rota só será considerada salva depois da confirmação da nuvem.</div>';
@@ -390,27 +343,11 @@ function openRouteEditor(r){
   let row;
   try{row=routeCollect9534(r,draftId,createdAt)}
   catch(e){routeStatus9534(sid(e.message||e));return}
-  // Bloqueia clique duplo ANTES da leitura assíncrona de WAL e de qualquer POST.
-  saveBusy=true;
+  saveBusy=true;lastAttempt=clone(row);
   const saveButton=document.querySelector('#modal .modalSave');
   if(saveButton)saveButton.disabled=true;
+  routeStatus9534('Salvando a rota '+draftId+' e aguardando confirmação da nuvem…');
   try{
-   if(!r&&!duplicateApproved){
-    let duplicate=null;
-    try{duplicate=await routeDuplicatePending9612(row)}
-    catch(e){
-     routeStatus9534('Não foi possível conferir as pendências locais de Rotas. Nenhuma gravação foi iniciada.');
-     if(!confirm('Não foi possível conferir a WAL durável neste navegador. Uma rota anterior pode estar pendente. Deseja salvar mesmo assim?'))return;
-    }
-    if(duplicate){
-     const warning='Uma rota com o mesmo planejamento já existe ('+duplicate.source+', ID '+duplicate.id+'). Verifique antes de criar outra. Deseja CRIAR OUTRA rota mesmo assim?';
-     routeStatus9534('Rota igual encontrada ('+duplicate.source+', ID '+duplicate.id+'). Nenhuma gravação nova foi iniciada.');
-     if(!confirm(warning))return;
-     duplicateApproved=true; // duplicação intencional: mantém funcionalidade anterior.
-    }
-   }
-   lastAttempt=clone(row);
-   routeStatus9534('Salvando a rota '+draftId+' e aguardando confirmação da nuvem…');
    await saveRow('routePlans',row);
    await finalizeIfConfirmed(row,'post');
   }catch(e){

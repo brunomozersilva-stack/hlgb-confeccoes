@@ -7,13 +7,7 @@ const kind=process.env.HLGB_BROWSER||'chromium';
  try{
   async function fixture(mode='confirmed'){
    const page=await browser.newPage();
-   // Origem HTTP sintética: IndexedDB/localStorage são restritos por origem.
-   // about:blank não representa o site comercial e pode lançar SecurityError.
-   await page.route('http://hlgb.test/',route=>route.fulfill({
-    status:200,contentType:'text/html',
-    body:'<!doctype html><html lang="pt-BR"><body><main id="appShell"></main><div id="modal"><div id="modalContent"></div></div></body></html>'
-   }));
-   await page.goto('http://hlgb.test/');
+   await page.setContent('<!doctype html><html lang="pt-BR"><body><main id="appShell"></main><div id="modal"><div id="modalContent"></div></div></body></html>');
    await page.evaluate(mode=>{
     window.db={
      routePlans:[],

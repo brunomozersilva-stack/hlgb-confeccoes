@@ -16,7 +16,7 @@ permissions:
   contents: read
 jobs:
   syntax:
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-latest
     timeout-minutes: 6
     steps:
       - uses: actions/checkout@v4
@@ -27,8 +27,7 @@ jobs:
           node --check release-operations-pack.js
           node --check tests/route-safe-save-location-v9534-browser.cjs
   browser:
-    runs-on: ubuntu-24.04
-    container: mcr.microsoft.com/playwright:v1.55.0-noble
+    runs-on: ubuntu-latest
     timeout-minutes: 18
     strategy:
       fail-fast: false
@@ -36,8 +35,12 @@ jobs:
         browser: [chromium, webkit]
     steps:
       - uses: actions/checkout@v4
-      - name: Install matching Playwright client
-        run: npm install --no-save playwright@1.55.0
+      - uses: actions/setup-node@v4
+        with: {node-version: '20'}
+      - name: Install Playwright
+        run: |
+          npm install --no-save playwright@1.55.0
+          npx playwright install --with-deps ${{ matrix.browser }}
       - name: Verify route location isolation and timeout cloud proof
         env:
           HLGB_BROWSER: ${{ matrix.browser }}
