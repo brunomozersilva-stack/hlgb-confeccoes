@@ -865,6 +865,12 @@ function settlementHistoryPanel(s){
       str(h.afterCents??h.after?.amountCents??'—'),str(h.commandId||'—')]))+
    table(['Compensação','Valor','Situação','Referência'],
     x.compensations.map(y=>[str(y.id),fmt(y.deltaCents),str(y.status),str(y.reference||'—')]))+
+   '<h4>Linha do tempo auditável</h4>'+
+   table(['Revisão','Tipo','Operador','Data registrada','Comando'],
+    (x.timeline||[]).map(e=>[str(e.revision??'—'),str(e.type),str(e.actor||'Não informado'),
+     str(e.recordedAt||'Não informada'),str(e.commandId)]))+
+   ((x.missingEventReferences||[]).length?
+    '<p>Histórico local sem evento global correspondente: '+str(x.missingEventReferences.join(', '))+'</p>':'')+
    '</details>').join('')+'</details>'+
   '<button class="btn" type="button" id="settlement-history-export">Exportar histórico completo CSV</button>',true);
 }
