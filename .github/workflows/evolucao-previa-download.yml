@@ -13,6 +13,7 @@ on:
       - 'evolucao-lab/operacao-integrada-core.js'
       - 'evolucao-lab/operacao-integrada-ui.js'
       - 'evolucao-lab/modulos/**'
+      - 'evolucao-lab/build-operacao-autonoma.cjs'
       - 'evolucao-lab/guardiao-preservacao.html'
       - 'evolucao-lab/sincronizacao-duas-sessoes.html'
       - 'evolucao-lab/sincronizacao-duas-sessoes-memoria.js'
@@ -43,6 +44,7 @@ jobs:
           cp evolucao-lab/operacao-integrada-core.js pacote/HLGB-Evolucao-Previa/operacao-integrada-core.js
           cp evolucao-lab/operacao-integrada-ui.js pacote/HLGB-Evolucao-Previa/operacao-integrada-ui.js
           cp -R evolucao-lab/modulos pacote/HLGB-Evolucao-Previa/modulos
+          node evolucao-lab/build-operacao-autonoma.cjs pacote/HLGB-Evolucao-Previa/operacao-integrada-autonoma.html
           python3 - <<'PY'
           from pathlib import Path
           root=Path('pacote/HLGB-Evolucao-Previa')
@@ -65,7 +67,9 @@ jobs:
               if 'integracao/' in str(file) or 'api/pay' in source or 'api/upload' in source:
                   raise RuntimeError('Rota operacional não permitida no pacote: '+str(file))
               file.write_text(source)
-          print('PASS: 16 documentos HTML de demonstração e referências locais verificadas')
+          assert (root/'operacao-integrada-autonoma.html').exists()
+          assert '<script src=' not in (root/'operacao-integrada-autonoma.html').read_text()
+          print('PASS: pacote offline e operação autônoma gerada dos módulos atuais')
           PY
           cat > pacote/LEIA-PRIMEIRO.txt <<'TXT'
           HLGB EVOLUCAO - PREVIA EXPERIMENTAL
