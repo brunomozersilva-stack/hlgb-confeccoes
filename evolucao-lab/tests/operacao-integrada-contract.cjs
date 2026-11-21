@@ -611,7 +611,7 @@ test('avaliações manuais das 20 áreas exibem observação salva sem liberar p
 test('pagina autonoma atual gerada preserva 20 areas e executa sem arquivos externos',()=>{
  const {build}=require('../build-operacao-autonoma.cjs');
  const {html:solo,scripts}=build();
- assert.equal((solo.match(/<script\\s+src=/g)||[]).length,0);
+ assert.equal((solo.match(/<script\s+src=/g)||[]).length,0);
  assert.equal((solo.match(/<script>/g)||[]).length,scripts.length);
  assert.match(solo,/20 áreas para explorar/);
  assert.match(solo,/não sincronizam entre computadores/);
@@ -625,7 +625,7 @@ test('pagina autonoma atual gerada preserva 20 areas e executa sem arquivos exte
 test('gerador autonomo preserva todas as fontes atuais, completas e ordenadas',()=>{
  const {build}=require('../build-operacao-autonoma.cjs');
  const original=fs.readFileSync(path.join(dir,'operacao-integrada.html'),'utf8');
- const sourcePaths=[...original.matchAll(/<script\\s+src="\\.\\/([^"]+)"\\s*><\\/script>/g)].map(x=>x[1]);
+ const sourcePaths=[...original.matchAll(/<script\s+src="\.\/([^"]+)"\s*><\/script>/g)].map(x=>x[1]);
  const {html:solo,scripts}=build();
  assert.deepEqual(scripts,sourcePaths);
  assert.equal(new Set(scripts).size,scripts.length);
@@ -637,6 +637,6 @@ test('gerador autonomo preserva todas as fontes atuais, completas e ordenadas',(
   previous=pos;
   assert.ok(solo.includes(source),'conteúdo incompleto: '+sourcePath);
  }
- assert.match(solo,/Valor do extrato R\\$/);
- assert.equal((solo.match(/<script\\s+src=/g)||[]).length,0);
+ assert.match(solo,/Valor do extrato R\$/);
+ assert.equal((solo.match(/<script\s+src=/g)||[]).length,0);
 });
