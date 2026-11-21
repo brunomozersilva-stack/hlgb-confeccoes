@@ -1,0 +1,37 @@
+name: HLGB Auth Safari Load Failed v96.13
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'app-stable3.html'
+      - 'hlgb-modules/autenticacao/rede-segura-v9613.js'
+      - 'tests/login-safari-network-v9613.cjs'
+      - 'tests/login-safari-network-v9613-browser.cjs'
+      - '.github/workflows/login-safari-network-v9613.yml'
+  workflow_dispatch:
+permissions: {contents: read}
+jobs:
+  logic:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - name: Safe auth retry tests and legacy boot
+        run: |
+          node --check hlgb-modules/autenticacao/rede-segura-v9613.js
+          node --test tests/login-safari-network-v9613.cjs
+          node tests/boot-fetch-retry-v9518.cjs
+  browser:
+    runs-on: ubuntu-24.04
+    container: mcr.microsoft.com/playwright:v1.55.0-noble
+    strategy:
+      fail-fast: false
+      matrix: {browser: [chromium, webkit]}
+    steps:
+      - uses: actions/checkout@v4
+      - run: npm install --no-save playwright@1.55.0
+      - name: Synthetic login without live Supabase
+        env:
+          HLGB_BROWSER: ${{ matrix.browser }}
+        run: node tests/login-safari-network-v9613-browser.cjs
