@@ -831,7 +831,22 @@ function settlementHistoryFilteredResult(r){
  const entries=table(['Acerto','Cliente','Facção','Modelo','Peças','Valor','Status','Pagamento'],
   r.entries.slice(0,100).map(x=>[str(x.id),str(x.clientName),str(x.factionName),str(x.model),
    str(x.qty),fmt(x.amountCents),str(x.status),str(x.paidDate||'Sem data')]));
- return summary+groups+'<details><summary>Ver acertos individuais do resultado (até 100 por tela)</summary>'+entries+(r.entries.length>100?'<p class="caption">Mostrando 100 de '+r.entries.length+' acertos; impressão e CSV incluem todos os registros selecionados.</p>':'')+'</details>';
+ const details=r.entries.slice(0,30).map(x=>'<details><summary>'+
+  str(x.id)+' · '+str(x.factionName)+' · '+fmt(x.amountCents)+'</summary>'+
+  '<p>Cliente: '+str(x.clientName)+' · Pedido: '+str(x.orderId||'Avulso')+
+   ' · Modelo: '+str(x.model)+' · '+str(x.qty)+' peças · '+str(x.status)+'</p>'+
+  table(['Revisão','Evento','Operador','Data','Comando'],(x.timeline||[]).map(e=>[
+   str(e.revision??'—'),str(e.type),str(e.actor||'Não informado'),
+   str(e.recordedAt||'Não informada'),str(e.commandId)]))+
+  table(['Compensação','Valor','Situação','Motivo'],x.compensations.map(y=>[
+   str(y.id),fmt(y.deltaCents),str(y.status),str(y.reason||'—')]))+
+  '</details>').join('');
+ return summary+groups+
+  '<details><summary>Ver acertos individuais do resultado (até 100 por tela)</summary>'+
+  entries+(r.entries.length>100?'<p class="caption">Mostrando 100 de '+r.entries.length+' acertos; impressão e CSV incluem todos os registros selecionados.</p>':'')+'</details>'+
+  '<details><summary>Consultar auditoria por acerto (até 30 por tela)</summary>'+details+
+  (r.entries.length>30?'<p class="caption">Mais '+(r.entries.length-30)+' acertos: refine os filtros ou imprima todos os detalhes.</p>':'')+
+  '</details>';
 }
 function settlementHistoryPanel(s){
  const svc=window.HLGBLabSettlementHistoryV1;
