@@ -6,6 +6,8 @@ on:
       - 'app-stable3.html'
       - 'hlgb-modules/autenticacao/rede-segura-v9613.js'
       - 'tests/login-safari-network-v9613.cjs'
+      - 'tests/login-session-preservation-v9613.cjs'
+      - 'app9240.html'
       - 'tests/login-safari-network-v9613-browser.cjs'
       - '.github/workflows/login-safari-network-v9613.yml'
       - 'diagnostico-abertura.html'
@@ -24,6 +26,7 @@ jobs:
         run: |
           node --check hlgb-modules/autenticacao/rede-segura-v9613.js
           node --test tests/login-safari-network-v9613.cjs
+          node --test tests/login-session-preservation-v9613.cjs
           node tests/boot-fetch-retry-v9518.cjs
   browser:
     runs-on: ubuntu-24.04
