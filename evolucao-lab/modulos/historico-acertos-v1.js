@@ -19,7 +19,8 @@
   const ids=new Set(),lines=[],compensations=s.settlementCompensations||[];
   const index=(items)=>new Map(items.map(x=>[x.id,x]));
   const clients=index(s.clients),factions=index(s.factions),
-   products=index(s.products||[]),orders=index(s.orders);
+   products=index(s.products||[]),orders=index(s.orders),
+   compensationById=index(compensations);
   const titles=new Map(),compsBySettlement=new Map(),batchesByTitle=new Map();
   const eventsByCommand=new Map(),eventsByDescription=new Map();
   for(const e of s.log||[]){
@@ -84,8 +85,9 @@
     eventIds.add(e.commandId);timeline.push(eventSummary(e));
    }};
    for(const h of localHistory)if(h.commandId)addEvent(eventsByCommand.get(h.commandId));
-   for(const c of comps)for(const x of s.settlementCompensations||[]){
-    if(x.id===c.id&&x.commandId)addEvent(eventsByCommand.get(x.commandId));
+   for(const comp of comps){
+    const raw=compensationById.get(comp.id);
+    if(raw?.commandId)addEvent(eventsByCommand.get(raw.commandId));
    }
    for(const key of [a.id,bill.id,...comps.map(x=>x.id),...comps.map(x=>x.financeId)]){
     for(const e of eventsByDescription.get(key)||[])addEvent(e);
