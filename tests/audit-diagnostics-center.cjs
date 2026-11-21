@@ -1,11 +1,10 @@
-const legacyLoaderView=require('./hlgb-loader-test-view-v9600.cjs');
 const fs=require('fs'),vm=require('vm'),assert=require('assert'),path=require('path');
 
 const root=path.join(__dirname,'..');
 const src=fs.readFileSync(path.join(root,'release-diagnostics-center.js'),'utf8');
 const loader=fs.readFileSync(path.join(root,'app-stable3.html'),'utf8');
 
-assert(legacyLoaderView(loader).includes("'release-diagnostics-center.js'"),'official loader must include diagnostics center');
+assert(loader.includes("'release-diagnostics-center.js'"),'official loader must include diagnostics center');
 
 const context={
   console,

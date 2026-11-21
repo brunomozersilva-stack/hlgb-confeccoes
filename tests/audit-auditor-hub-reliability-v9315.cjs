@@ -1,4 +1,3 @@
-const legacyLoaderView=require('./hlgb-loader-test-view-v9600.cjs');
 const fs=require('fs'),path=require('path'),assert=require('assert');
 const root=path.join(__dirname,'..');
 const src=fs.readFileSync(path.join(root,'release-auditor-hub-reliability-v9315.js'),'utf8');
@@ -11,7 +10,7 @@ assert(src.includes('alta/crítica prioridade'),'Auditor must surface serious un
 assert(src.includes('cloudTombstone'),'Hub delete must independently verify a cloud tombstone');
 assert(src.includes("hlgbRecordSaveWithRetry('hubFinanceEntries'"),'Hub delete must use record-layer delete');
 assert(src.includes('for(let i=0;i<3&&!confirmed;i++)'),'Hub delete must retry confirmation before declaring failure');
-const list=legacyLoaderView(loader);
+const list=(loader.match(/const files=\[(.*?)\];/s)||[])[1]||'';
 assert(list.includes("'release-auditor-hub-reliability-v9315.js'"),'loader must include v93.15 patch');
 const i15=list.indexOf("'release-auditor-hub-reliability-v9315.js'"),iUI=list.indexOf("'release-ui-stability.js'"),iSafari=list.indexOf("'release-safari-resume-v9266.js'");
 assert(i15>=0&&iUI>i15&&iSafari>iUI,'v93.15 must load before final visual protections, allowing later nonvisual guards');

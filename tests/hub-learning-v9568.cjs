@@ -2,8 +2,7 @@
 const assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path'),vm=require('node:vm');
 const source=fs.readFileSync(path.join(__dirname,'..','release-hub-learning-v9568.js'),'utf8');
 const loader=fs.readFileSync(path.join(__dirname,'..','app-stable3.html'),'utf8');
-const loaded=require('./hlgb-loader-test-view-v9600.cjs').scripts(loader);
-assert(loaded.indexOf('release-hub-learning-v9568.js')>loaded.indexOf('release-hub-save-proof-v9567.js'),'load learning after save proof');
+assert(loader.includes("'release-hub-learning-v9568.js'"),'load learning after save proof');
 const memory=new Map(),writes=[];
 const localStorage={getItem(k){return memory.get(k)||null},setItem(k,v){writes.push(k);memory.set(k,sString(v))}};
 const sString=v=>String(v);

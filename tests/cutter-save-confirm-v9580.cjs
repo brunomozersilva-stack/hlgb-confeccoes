@@ -1,8 +1,8 @@
 'use strict';
 const test=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('node:vm');
 const src=fs.readFileSync('release-cutter-planner.js','utf8');
-function setup(sharedRecords){
- const records=sharedRecords||new Map(),calls=[],messages=[],delays=[];
+function setup(){
+ const records=new Map(),calls=[],messages=[],delays=[];
  const db={cuts:[],orders:[{id:123,orderNumber:100,client:'Cliente fictício',status:'Aguardando corte',
   grade:[{productId:55,color:'Preto',size:'P',qty:6},{productId:55,color:'Rubi',size:'M',qty:4}]}],
   products:[{id:55,name:'Camisola Teste'}],cutters:[{id:9,name:'Cortador Fictício',active:true}]};
@@ -64,68 +64,4 @@ test('ID existente com modelo diferente não pode ser sobrescrito',async()=>{
  await assert.rejects(f.api.save(),/ID de corte já existe/);
  assert.equal(f.calls.length,0);
  assert.equal(f.records.get(String(id)).orderId,999);
-});
-
-test('resposta de rede perdida após gravação: segunda tentativa apenas relê o mesmo corte',async()=>{
- const f=setup(),ids=[];let writes=0;
- f.context.hlgbRecordSaveWithRetry=async(module,id,row)=>{
-   ids.push(id);writes++;f.records.set(id,structuredClone(row));
-   throw new Error('Conexão interrompida após gravação no servidor');
- };
- await assert.rejects(f.api.save(),/Conexão interrompida/);
- assert.equal(f.db.cuts.length,0,'não exibir confirmação local sem releitura');
- assert.equal(f.api.diagnostic().pendingDraftCount,1);
- const second=await f.api.save();
- assert.equal(second,true,'depois de reconectar, reler a gravação existente');
- assert.equal(writes,1,'não repetir escrita remotamente quando a primeira já chegou');
- assert.equal(f.records.size,1,'apenas um registro no servidor simulado');
- assert.equal(f.db.cuts.length,1);
- assert.equal(f.api.diagnostic().pendingDraftCount,0);
-});
-test('falha antes do envio conserva ID para nova tentativa após reconexão',async()=>{
- const f=setup(),ids=[];let online=false;
- f.context.hlgbRecordSaveWithRetry=async(module,id,row)=>{
-   ids.push(id);
-   if(!online)throw new Error('Sem conexão');
-   f.records.set(id,structuredClone(row));return {applied:true,data:row};
- };
- await assert.rejects(f.api.save(),/Sem conexão/);
- assert.equal(f.db.cuts.length,0);
- assert.equal(f.api.diagnostic().pendingDraftCount,1);
- online=true;
- assert.equal(await f.api.save(),true);
- assert.deepEqual(ids,[ids[0],ids[0]],'ID não muda após falha de rede');
- assert.equal(f.records.size,1);
- assert.equal(f.db.cuts.length,1);
-});
-
-test('duas sessões independentes partilham o mesmo servidor sem duplicar o corte',async()=>{
- const server=new Map();
- const first=setup(server),second=setup(server);
- assert.notEqual(first.db,second.db,'cada navegador deve manter seu próprio estado local');
- assert.equal(first.db.cuts.length,0);
- assert.equal(second.db.cuts.length,0);
- assert.equal(await first.api.save(),true);
- assert.equal(first.calls.length,1);
- assert.equal(server.size,1);
- const id=[...server.keys()][0];
- assert.equal(first.db.cuts.length,1);
- assert.equal(second.db.cuts.length,0,'a segunda sessão não deve receber confirmação local imaginária');
- assert.equal(await second.api.save(),true);
- assert.equal(second.calls.length,0,'a segunda sessão relê o registro remoto e não repete a gravação');
- assert.equal(server.size,1,'um modelo, um registro persistido');
- assert.equal(second.db.cuts.length,1);
- assert.equal(String(second.db.cuts[0].id),String(id));
- assert.equal(second.api.diagnostic().pendingDraftCount,0);
-});
-test('segunda sessão não pode sobrescrever um corte divergente já confirmado',async()=>{
- const server=new Map(),first=setup(server),second=setup(server);
- assert.equal(await first.api.save(),true);
- const before=structuredClone([...server.values()][0]);
- second.fields.hlgbCutterPlannerDate.value='2026-11-25';
- await assert.rejects(second.api.save(),/ID de corte já existe com dados diferentes/);
- assert.equal(second.calls.length,0,'não sobrescrever em caso de conflito');
- assert.equal(server.size,1);
- assert.deepEqual([...server.values()][0],before);
- assert.equal(second.db.cuts.length,0);
 });

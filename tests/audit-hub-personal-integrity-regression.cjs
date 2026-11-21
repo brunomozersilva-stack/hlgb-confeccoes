@@ -1,8 +1,7 @@
-const legacyLoaderView=require('./hlgb-loader-test-view-v9600.cjs');
 const fs=require('fs'),vm=require('vm'),assert=require('assert'),path=require('path');
 const src=fs.readFileSync(path.join(__dirname,'..','release-hub-personal-integrity.js'),'utf8');
 const loader=fs.readFileSync(path.join(__dirname,'..','app-stable3.html'),'utf8');
-assert(legacyLoaderView(loader).includes("'release-hub-personal-integrity.js'"),'loader must include Hub personal integrity guard');
+assert(loader.includes("'release-hub-personal-integrity.js'"),'loader must include Hub personal integrity guard');
 
 const context={
  console,setTimeout(fn){fn();return 0},

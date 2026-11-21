@@ -1,4 +1,3 @@
-const legacyLoaderView=require('./hlgb-loader-test-view-v9600.cjs');
 const fs=require('fs'),assert=require('assert');
 const app=fs.readFileSync('app9240.html','utf8');
 const loader=fs.readFileSync('app-stable3.html','utf8');
@@ -20,7 +19,7 @@ for(const m of ['supplierDebts','supplierDebtTransactions','employeePurchases','
  assert(app.includes('"'+m+'"'),m+' must remain a normalized module');
 }
 for(const f of files.filter(f=>f.includes('v9250'))){
- assert(legacyLoaderView(loader).includes("'"+f+"'"),f+' must be loaded by official loader');
+ assert(loader.includes("'"+f+"'"),f+' must be loaded by official loader');
 }
 assert(Number(manifest.version)>=93.72,'current release must not regress below the stabilized line');
 assert(Number(manifest.minimum_version)>=93.11,'minimum supported version must keep the normalized sync baseline');
