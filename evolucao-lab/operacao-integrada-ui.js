@@ -719,6 +719,45 @@ function renderRouteSheet(id){
 
 // Corte e Faccoes: mesa de consulta sem comandos de escrita. Nao substitui
 // os formularios existentes, nao converte reserva em corte e nao faz baixas.
+// Acertos: consolidacao financeira de consulta; compensacoes nao entram duas
+// vezes no total original. Cliente nao e confundido com a faccao prestadora.
+function settlementQuickPanel(s){
+ const records=Array.isArray(s.settlements)?s.settlements:[];
+ const open=records.filter(x=>x.status==='aberto'),paid=records.filter(x=>x.status==='pago');
+ const comp=Array.isArray(s.settlementCompensations)?s.settlementCompensations:[];
+ const moneySum=list=>list.reduce((n,x)=>n+(Number(x.amountCents)||0),0);
+ const group=kind=>{
+  const map=new Map();
+  for(const x of records){
+   const customerId=ref(s.orders,x.orderId)?.clientId;
+   const id=kind==='faccao'?x.factionId:customerId;
+   const label=kind==='faccao'?
+    (ref(s.factions,id)?.name||'Sem facção identificada'):
+    (id?(ref(s.clients,id)?.name||id):'Avulso sem cliente');
+   const key=id||'sem-vinculo';
+   if(!map.has(key))map.set(key,{id,label,open:0,paid:0,openCents:0,paidCents:0});
+   const row=map.get(key);
+   if(x.status==='pago'){row.paid++;row.paidCents+=x.amountCents;}
+   else if(x.status==='aberto'){row.open++;row.openCents+=x.amountCents;}
+  }
+  return [...map.values()].sort((a,b)=>
+   b.openCents-a.openCents||a.label.localeCompare(b.label,'pt-BR')).slice(0,20)
+   .map(x=>[str(x.label),str(x.open),fmt(x.openCents),str(x.paid),fmt(x.paidCents)]);
+ };
+ const metrics=[['Acertos em aberto',open.length],['Valor em aberto',fmt(moneySum(open))],
+  ['Acertos pagos',paid.length],['Total pago em acertos',fmt(moneySum(paid))]];
+ return panel('Acertos · resumo financeiro e histórico',
+  '<div id="flow-settlements-desk"><p>Resumo da revisão local com totais dos <b>acertos originais</b>. Compensações posteriores são documentos independentes: '+str(comp.length)+
+  ' registro(s), consultáveis no histórico abaixo. Não é extrato bancário nem quitação real.</p>'+
+  '<div class="metrics">'+metrics.map(([name,value])=>
+   '<div class="metric"><span>'+str(name)+'</span><strong>'+str(value)+'</strong></div>').join('')+'</div>'+
+  '<h3>Por facção / embaladeira · até 20 com maiores valores em aberto</h3>'+
+  table(['Facção','Acertos abertos','Valor aberto','Acertos pagos','Valor pago'],group('faccao'))+
+  '<h3>Por cliente · até 20 com maiores valores em aberto</h3>'+
+  table(['Cliente','Acertos abertos','Valor aberto','Acertos pagos','Valor pago'],group('cliente'))+
+  '<p class="caption">Para pesquisar um acerto específico, filtrar por período, imprimir resumo ou detalhar cada pagamento, use os filtros completos logo abaixo. Os valores não incluem compensações nem criam movimentação.</p></div>',true);
+}
+
 function flowQuickPanel(s,area){
  const orders=Array.isArray(s.orders)?s.orders:[];
  const recent=list=>list.sort((a,b)=>b.id.localeCompare(a.id,'pt-BR',{numeric:true})).slice(0,20);
@@ -2244,7 +2283,7 @@ function moduleHtml(s){
  const paid=selector(s.settlements.filter(x=>x.status==='pago'),
   x=>x.id+' · Pago '+fmt(x.amountCents)+' · '+(ref(s.factions,x.factionId)?.name||'—'));
  const compensations=s.settlementCompensations||[];
- return settlementHistoryFiltersPanel(s)+settlementHistoryPanel(s)+multiFlowLabPart(s,'acerto')+groupedAccountPanel(s)+factionClosingPanel(s)+serviceGroupPanel(s)+servicePanels(s,'acertos')+panel('Serviços avulsos e embalagem',
+ return settlementQuickPanel(s)+settlementHistoryFiltersPanel(s)+settlementHistoryPanel(s)+multiFlowLabPart(s,'acerto')+groupedAccountPanel(s)+factionClosingPanel(s)+serviceGroupPanel(s)+servicePanels(s,'acertos')+panel('Serviços avulsos e embalagem',
  form('settlement.add','Novo acerto avulso fictício',[
   field('serviceType','Tipo de serviço','select','',[['costura','Costura avulsa'],['embalagem','Embalagem']]),
   field('factionId','Facção / embaladeira','select','',factions),
