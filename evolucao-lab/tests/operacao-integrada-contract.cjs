@@ -640,3 +640,28 @@ test('gerador autonomo preserva todas as fontes atuais, completas e ordenadas',(
  assert.match(solo,/Valor do extrato R\$/);
  assert.equal((solo.match(/<script\s+src=/g)||[]).length,0);
 });
+
+
+test('mesa de Pedidos preserva lançamento por cor, multimodelo, revisão e importação',()=>{
+ const src=fs.readFileSync(path.join(dir,'operacao-integrada-ui.js'),'utf8');
+ assert.match(src,/function ordersFastPanel\(s\)/);
+ assert.match(src,/function ordersFastView\(s\)/);
+ assert.match(src,/orders-fast-query/);
+ assert.match(src,/orders-fast-status/);
+ assert.match(src,/orders-fast-pagination/);
+ assert.match(src,/id="orders-tools"/);
+ assert.match(src,/data-orders-jump="multi-order-form"/);
+ assert.match(src,/function colorMatrixCreateForm\(s\)/);
+ assert.match(src,/function multiOrderPanel\(s\)/);
+ assert.match(src,/function multiOrderRevisionPanel\(s\)/);
+ assert.match(src,/function multiOrderAmendmentPanel\(s\)/);
+ assert.match(src,/function importOrdersPanel\(s\)/);
+ assert.match(src,/data-command="order\.add\.with\.colors"/);
+ assert.match(src,/data-command="order\.multi\.create"/);
+ assert.match(src,/data-command="order\.multi\.revise"/);
+ assert.match(src,/data-command="order\.multi\.amend"/);
+ assert.match(src,/form\('order\.add'/);
+ assert.match(src,/multiOrderPanel\(s\)\+importOrdersPanel\(s\)\+orderColorGradePanel\(s\)/);
+ assert.match(src,/pedidos.*?visão prática e rápida/si);
+ assert.doesNotMatch(src,/ordersFastView\(s\)[\s\S]{0,1200}finance\.pay/);
+});
