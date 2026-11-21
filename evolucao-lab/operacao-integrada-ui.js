@@ -800,8 +800,10 @@ function ordersFastDetail(s,id){
  const product=ref(s.products,op.productId);
  const q=api.quantities(op);
  const colors=op.colorGrades?.length?op.colorGrades:[{color:'Sem cor registrada',grade:op.grade}];
- const colorRows=colors.flatMap(x=>api.sizes.map(size=>
-  [str(x.color),str(size),str(x.grade[size]||0)]));
+ const colorRows=colors.map(x=>[str(x.color),
+  ...api.sizes.map(size=>str(x.grade[size]||0)),str(sum(x.grade))]);
+ const gradeTotals=api.sizes.map(size=>colors.reduce((n,x)=>n+(x.grade[size]||0),0));
+ colorRows.push(['<strong>Total</strong>',...gradeTotals.map(str),'<strong>'+str(sum(op.grade))+'</strong>']);
  const finance=s.finance.filter(x=>x.sourceId===id&&x.kind==='receber');
  const funds=finance.map(x=>[str(x.id),fmt(x.amountCents),str(x.status),
   str(x.paidDate||'Não informada')]);
@@ -809,7 +811,7 @@ function ordersFastDetail(s,id){
   x.description?.startsWith(id+' ')||x.description?.startsWith(id+' ·'));
  return panel('Detalhes e conferência',head+
   '<p>Modelo: '+str(product?.name||op.productId)+' · Grade por cor e tamanho</p>'+
-  table(['Cor','Tamanho','Quantidade'],colorRows)+
+  table(['Cor',...api.sizes,'Total'],colorRows)+
   '<h4>Fluxo do pedido</h4>'+
   table(['Pedidas','Cortadas','Enviadas à facção','Retornadas','Separadas','Expedidas'],
    [[str(q.ordered),str(q.cut),str(q.allocated),str(q.returned),str(q.separated),str(q.shipped)]])+
