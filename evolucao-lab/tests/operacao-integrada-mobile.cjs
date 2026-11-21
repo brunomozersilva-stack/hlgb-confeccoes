@@ -244,6 +244,15 @@ async function run(browser,width,url){
   assert.match(await page.locator('#orders-fast-count').innerText(),/0 de 1 pedidos/);
   await page.locator('#orders-fast-query').fill('');
   assert.equal(await page.locator('#orders-fast-results tbody tr').count(),1);
+  await page.locator('[data-orders-detail="PED-0001"]').click();
+  const detail=page.locator('#orders-fast-detail');
+  assert.match(await detail.innerText(),/Cliente:/);
+  assert.match(await detail.innerText(),/Grade por cor e tamanho/);
+  assert.match(await detail.innerText(),/Títulos a receber vinculados/);
+  assert.match(await detail.innerText(),/Cortadas/);
+  assert.match(await detail.innerText(),/FIN-0001/);
+  assert.equal(await revision(page),beforeFast+1,'detalhar o pedido não altera financeiro');
+  assert.equal(await page.locator('#orders-fast-results tbody tr').count(),1);
   assert.equal(await revision(page),beforeFast+1,'filtros não criam evento financeiro');
   await page.locator('[data-orders-copy="PED-0001"]').click();
   assert.equal(await page.locator('#order-color-matrix-form [name="clientId"]').inputValue(),'CLI-0001');
