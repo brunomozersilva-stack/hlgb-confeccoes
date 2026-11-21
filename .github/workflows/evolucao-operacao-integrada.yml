@@ -11,6 +11,8 @@ on:
       - 'evolucao-lab/operacao-integrada-ui.js'
       - 'evolucao-lab/modulos/**'
       - 'evolucao-lab/tests/operacao-integrada-*.cjs'
+      - 'evolucao-lab/tests/operacao-autonoma-gerada-browser.cjs'
+      - 'evolucao-lab/build-operacao-autonoma.cjs'
       - 'evolucao-lab/tests/observabilidade-v2-contract.cjs'
       - 'evolucao-lab/tests/pagamento-lote-contract.cjs'
       - 'evolucao-lab/tests/faccoes-multidestino-contract.cjs'
@@ -106,6 +108,7 @@ jobs:
           HLGB_BROWSER: ${{ matrix.browser }}
           HLGB_SCREENSHOT_DIR: /tmp/hlgb-operacao
         run: |
+          node evolucao-lab/tests/operacao-autonoma-gerada-browser.cjs
           node evolucao-lab/tests/operacao-integrada-mobile.cjs
           node evolucao-lab/tests/corte-multimodelo-mobile.cjs
           node evolucao-lab/tests/operacao-duas-abas-local-mobile.cjs
