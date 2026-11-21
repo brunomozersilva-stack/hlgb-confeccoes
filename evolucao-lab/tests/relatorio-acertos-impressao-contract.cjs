@@ -99,3 +99,13 @@ test('PDF detalhado mantém operador e evento sem criar data inexistente',()=>{
  assert.match(html,/Não informada/);
  assert.doesNotMatch(html,/Gerente <LAB>/);
 });
+
+test('consulta filtrada mostra auditoria e compensacoes sem truncar relatorio completo',()=>{
+ const fs=require('node:fs'),path=require('node:path'),vm=require('node:vm');
+ const src=fs.readFileSync(path.join(__dirname,'../operacao-integrada-ui.js'),'utf8');
+ assert.doesNotThrow(()=>new vm.Script(src));
+ assert.match(src,/Consultar auditoria por acerto/);
+ assert.match(src,/x\.timeline\|\|\[\]/);
+ assert.match(src,/r\.entries\.slice\(0,30\)/);
+ assert.match(src,/Mais '\+\(r\.entries\.length-30\)/);
+});
