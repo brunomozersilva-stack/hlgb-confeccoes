@@ -14,6 +14,7 @@ on:
       - 'diagnostico-abertura.html'
       - 'tests/diagnostico-login-auth-v9613-browser.cjs'
       - 'tests/login-network-loader-v9613-browser.cjs'
+      - 'tests/login-real-boot-v9614-browser.cjs'
   workflow_dispatch:
 permissions: {contents: read}
 jobs:
@@ -49,3 +50,4 @@ jobs:
           node tests/login-safari-network-v9613-browser.cjs
           node tests/diagnostico-login-auth-v9613-browser.cjs
           node tests/login-network-loader-v9613-browser.cjs
+          node tests/login-real-boot-v9614-browser.cjs
