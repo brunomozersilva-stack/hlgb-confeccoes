@@ -777,7 +777,7 @@ function flowQuickPanel(s,area){
   });
   const rows=recent(pending.filter(x=>x.available>0||x.reserved>0||x.toSend>0)
    .map(x=>({...x,id:x.o.id}))).map(x=>[
-    '<strong>'+str(x.o.id)+'</strong>',
+    '<button class="btn" type="button" data-trace-order="'+str(x.o.id)+'">'+str(x.o.id)+' · Histórico</button>',
     str(ref(s.products,x.o.productId)?.name||x.o.productId),
     str(x.ordered),str(x.cut),str(x.reserved),str(x.available),str(x.toSend),
     x.available>0?shortcut('cut.plan',x.o.id,'Planejar folha'):'<span class="caption">Sem saldo livre</span>'
@@ -797,7 +797,7 @@ function flowQuickPanel(s,area){
    returnPending:Math.max(0,(o.allocated||0)-(o.returned||0))}));
   const pending=assignments.filter(x=>x.qtySent>x.qtyReturned);
   const rows=recent(candidates.filter(x=>x.send>0||x.returnPending>0)).map(x=>[
-   '<strong>'+str(x.o.id)+'</strong>',
+   '<button class="btn" type="button" data-trace-order="'+str(x.o.id)+'">'+str(x.o.id)+' · Histórico</button>',
    str(ref(s.products,x.o.productId)?.name||x.o.productId),
    str(sum(x.o.cut)),str(x.o.allocated),str(x.o.returned),
    str(x.send),str(x.returnPending),
@@ -890,6 +890,90 @@ function ordersFastView(s){
  return status+table(['Pedido','Cliente','Modelo / grade','Peças','Cortadas','Retornadas','Enviadas','Etapa','Prioridade','Prazo PCP','Valor','Ação rápida'],rows)+pagination+
   '<div id="orders-fast-detail">'+ordersFastDetail(s,ordersFastFilters.selected)+'</div>';
 }
+// Consulta transversal de pedido operacional. Exibe somente documentos com
+// vinculos explicitos: nunca supor que uma baixa sem ID pertence a este pedido.
+function orderTracePanel(s,order){
+ const cuts=(s.cutPlans||[]).filter(x=>x.orderId===order.id);
+ const bom=(s.bomCutRuns||[]).filter(x=>x.orderId===order.id);
+ const assignments=(s.factionAssignments||[]).filter(x=>x.orderId===order.id);
+ const settlements=(s.settlements||[]).filter(x=>x.orderId===order.id);
+ const settlementIds=new Set(settlements.map(x=>x.id));
+ const compensations=(s.settlementCompensations||[]).filter(x=>settlementIds.has(x.settlementId));
+ const transfers=(s.factionTransfers||[]).filter(x=>x.orderId===order.id);
+ const ledger=(s.stockLedger||[]).filter(x=>x.sourceId===order.id||
+  cuts.some(p=>p.id===x.cutPlanId)||bom.some(p=>p.id===x.bomCutId));
+ const title=(id)=>(s.finance||[]).find(x=>x.kind==='pagar'&&x.sourceId===id);
+ const amount=x=>Number.isSafeInteger(x)?fmt(x):'Não informado';
+ const cutRows=cuts.map(p=>[
+  str(p.id),str(sum(p.grade)),str(p.status),
+  str([p.cutterOne,p.cutterTwo,p.spreader].filter(Boolean).join(' / ')),
+  p.status==='concluido'?str(p.usefulGrams)+' g útil / '+str(p.scrapGrams)+' g lixo':'Baixa ainda não concluída',
+  str(p.createdCommandId||'Sem comando identificado')
+ ]).concat(bom.map(p=>[
+  str(p.id),str(p.qty),'<strong>Corte por materiais</strong>',
+  str([p.cutterOne,p.cutterTwo,p.spreader].filter(Boolean).join(' / ')),
+  (p.materials||[]).map(m=>str(ref(s.materials,m.materialId)?.name||m.materialId)+
+   ': '+str(m.totalGrams)+' g').join(' · '),str(p.commandId||'Sem comando identificado')
+ ]));
+ const assignmentRows=assignments.map(x=>[
+  str(x.id),str(ref(s.factions,x.factionId)?.name||x.factionId),
+  str(x.qtySent),str(x.qtyReturned),str(x.qtySent-x.qtyReturned),
+  (x.gradeLines||[]).map(g=>str(g.color)+' '+str(g.size)+': '+str(g.qtySent-g.qtyReturned)+' pend.').join(' · ')||'Sem grade vinculada',
+  str(x.origin||'Não informado')
+ ]);
+ const settlementRows=settlements.map(x=>{
+  const f=title(x.id);
+  return [str(x.id),str(ref(s.factions,x.factionId)?.name||x.factionId),
+   str(x.qty),amount(x.amountCents),str(x.status),str(f?.id||'Não localizado'),
+   str(f?.status||'Não localizado'),str(f?.paidDate||'—')];
+ });
+ const paidCents=settlements.filter(x=>x.status==='pago').reduce((n,x)=>n+(x.amountCents||0),0);
+ const openCents=settlements.filter(x=>x.status==='aberto').reduce((n,x)=>n+(x.amountCents||0),0);
+ const q=api.quantities(order);
+ const linkedReturned=settlements.reduce((n,x)=>n+(x.qty||0),0);
+ const warnings=[];
+ if(linkedReturned!==q.returned)
+  warnings.push('A quantidade dos acertos vinculados ('+linkedReturned+') difere do retorno do pedido ('+q.returned+').');
+ if(assignments.length>0&&assignments.reduce((n,x)=>n+x.qtySent,0)!==q.allocated)
+  warnings.push('A soma dos envios identificados difere da quantidade enviada registrada no pedido.');
+ if(settlements.some(x=>!title(x.id)))
+  warnings.push('Há acerto sem título a pagar identificado nesta revisão.');
+ const stockRows=ledger.map(x=>[
+  str(x.id),str(ref(s.materials,x.materialId)?.name||x.materialId),
+  str(x.type),str(x.deltaGrams)+' g',
+  str(x.cutPlanId||x.bomCutId||x.sourceId||'Sem referência'),str(x.commandId||'—')
+ ]);
+ return '<section id="order-trace" data-order-trace="'+str(order.id)+'">'+
+  '<h4>Rastreabilidade do pedido · Corte, Facções e Acertos</h4>'+
+  '<p class="caption">Consulta local da revisão '+str(s.revision)+
+  '. Valor de mão de obra não é preço de venda. Sem documentos externos presumidos; não salva, não baixa nem paga.</p>'+
+  '<div class="metrics">'+[
+   ['Cortes planejados / BOM',cuts.length+bom.length],
+   ['Envios identificados',assignments.length],
+   ['Acertos em aberto',amount(openCents)],
+   ['Acertos pagos (originais)',amount(paidCents)]
+  ].map(([name,value])=>'<div class="metric"><span>'+str(name)+'</span><strong>'+str(value)+'</strong></div>').join('')+'</div>'+
+  (warnings.length?'<p class="error"><strong>Conferir vínculos:</strong> '+
+   warnings.map(str).join(' ' )+'</p>':'')+
+  '<h4>Folhas e responsáveis pelo corte</h4>'+
+  table(['Folha','Peças','Situação','Equipe','Pesagem / materiais','Comando'],cutRows)+
+  '<h4>Envios e retornos por facção</h4>'+
+  table(['Envio','Facção','Enviadas','Retornadas','Pendentes','Grade identificada','Origem'],assignmentRows)+
+  '<h4>Acertos, valores e títulos vinculados</h4>'+
+  table(['Acerto','Facção','Peças','Valor','Acerto','Título','Título financeiro','Data da baixa'],settlementRows)+
+  '<p class="caption">Compensações separadas: '+str(compensations.length)+
+  '. Elas não são somadas de novo ao pagamento original. Consulte Acertos para os detalhes.</p>'+
+  '<h4>Movimentações de materiais identificadas</h4>'+
+  table(['Movimento','Material','Origem','Delta','Vínculo','Comando'],stockRows)+
+  '<h4>Trocas de facção registradas</h4>'+
+  table(['Registro','Da facção','Para facção','Peças','Motivo'],transfers.map(x=>[
+   str(x.id),str(ref(s.factions,x.fromFactionId)?.name||x.fromFactionId),
+   str(ref(s.factions,x.toFactionId)?.name||x.toFactionId),
+   str(x.qty||'—'),str(x.reason||'Não informado')
+  ]))+
+  '</section>';
+}
+
 function ordersFastDetail(s,id){
  if(!id)return '';
  const op=s.orders.find(o=>o.id===id),multi=!op?(s.multiOrders||[]).find(o=>o.id===id):null;
@@ -926,6 +1010,7 @@ function ordersFastDetail(s,id){
   table(['Pedidas','Cortadas','Enviadas à facção','Retornadas','Separadas','Expedidas'],
    [[str(q.ordered),str(q.cut),str(q.allocated),str(q.returned),str(q.separated),str(q.shipped)]])+
   '<h4>Títulos a receber vinculados</h4>'+table(['Título','Valor','Situação','Data de pagamento'],funds)+
+  orderTracePanel(s,op)+
   '<h4>Eventos identificados pelo pedido</h4>'+
   table(['Revisão','Tipo','Operador','Comando'],events.map(e=>[
    str(e.revision),str(e.type),str(e.actor||'Não informado'),str(e.commandId)]))+
@@ -3308,6 +3393,18 @@ document.addEventListener('change',event=>{
  }
 });
 document.addEventListener('click',async e=>{
+ const trace=e.target.closest('[data-trace-order]');
+ if(trace){
+  const id=trace.dataset.traceOrder;
+  if(!doc?.orders?.some(x=>x.id===id)){
+   status('Pedido não encontrado nesta revisão. Nenhuma alteração realizada.','error');return;
+  }
+  ordersFastFilters.selected=id;ordersFastFilters.query='';ordersFastFilters.status='todos';ordersFastFilters.priority='todas';ordersFastFilters.page=1;
+  active='pedidos';window.location.hash=active;draw();
+  document.getElementById('order-trace')?.scrollIntoView({block:'start',behavior:'auto'});
+  status('Rastreabilidade aberta em modo de consulta. Nenhum movimento gravado.','success');
+  return;
+ }
  const flowShortcut=e.target.closest('[data-flow-shortcut]');
  if(flowShortcut){
   const type=flowShortcut.dataset.flowShortcut;
