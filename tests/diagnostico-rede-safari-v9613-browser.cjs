@@ -7,7 +7,10 @@ const diag=fs.readFileSync('diagnostico-rede-safari.html','utf8');
  try{
   const context=await browser.newContext({serviceWorkers:'block'});
   const page=await context.newPage();
-  page.on('pageerror',err=>{throw err});
+  const pageErrors=[],requests=[];
+  page.on('pageerror',err=>pageErrors.push(err.message));
+  page.on('request',req=>requests.push({url:req.url(),method:req.method()}));
+  await page.addInitScript(()=>sessionStorage.setItem('hlgb_boot_failure_v9478',JSON.stringify({at:'2026-11-21T17:00:00.000Z',reason:'falha essencial token=PRIVATE_SECRET_MARKER',failedFiles:['release-current.js','PRIVATE_SECRET_MARKER'],attempts:[{category:'login',message:'password=PRIVATE_SECRET_MARKER'}]})));
   await page.route('**/*',route=>{
    const url=new URL(route.request().url());
    if(url.hostname==='hlgb.test'){
@@ -30,7 +33,21 @@ const diag=fs.readFileSync('diagnostico-rede-safari.html','utf8');
   assert.equal(report.results.length,5);
   assert.equal(report.authService.file,'Supabase Auth (saúde, sem senha)');
   assert.equal(report.authService.ok,true);
-  assert.doesNotMatch(JSON.stringify(report),/sb_publishable_test|access_token|refresh_token|password/);
+  assert.equal(report.previousBoot.reasonCategory,'essential-files');
+  assert.deepEqual(report.previousBoot.failedFiles,['release-current.js']);
+  assert.equal(report.previousBoot.attemptCount,1);
+  assert.deepEqual(pageErrors,[]);
+  assert.ok(requests.length>=7);
+  assert.ok(requests.every(r=>r.method==='GET'),'diagnostic must never POST/PATCH/DELETE');
+  assert.ok(requests.every(r=>!r.url.includes('/rest/v1/')),'diagnostic must never query business records');
+  assert.doesNotMatch(JSON.stringify(report),/sb_publishable_test|access_token|refresh_token|password|PRIVATE_SECRET_MARKER/);
+  await page.route('**/auth/v1/health*',route=>route.fulfill({status:503,headers:{'access-control-allow-origin':'*','access-control-allow-headers':'apikey, content-type'},body:'{}'}));
+  await page.locator('#rerun').click();
+  await page.waitForFunction(()=>{try{return JSON.parse(document.querySelector('#raw').textContent).authService.status===503}catch(e){return false}},undefined,{timeout:30000});
+  const failedReport=JSON.parse(await page.locator('#raw').textContent());
+  assert.equal(failedReport.authService.ok,false);
+  assert.equal(failedReport.results.filter(x=>x.ok).length,5,'auth outage must not erase successful static checks');
+  assert.deepEqual(pageErrors,[]);
   console.log('PASS '+engine.name()+' read-only Auth connectivity and boot diagnostic without exposing keys');
   await context.close();
  }finally{await browser.close()}
