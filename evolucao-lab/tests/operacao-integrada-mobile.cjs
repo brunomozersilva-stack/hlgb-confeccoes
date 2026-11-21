@@ -28,6 +28,11 @@ const server=http.createServer((req,res)=>{
 });
 function revision(page){return page.locator('#top-revision').innerText().then(t=>Number(t.match(/Revisão local (\d+)/)?.[1]||0))}
 async function module(page,id){await page.locator('[data-module="'+id+'"]').click();await page.waitForFunction(i=>document.querySelector('[data-module="'+i+'"]')?.getAttribute('aria-current')==='page',id);assert.doesNotMatch(await page.locator('#module-content').innerText(),/Não foi possível exibir esta área/,'Falha de renderização em '+id);}
+async function openOrdersAdvanced(page){
+ const tools=page.locator('#orders-tools');
+ assert.equal(await tools.count(),1);
+ await tools.evaluate(el=>{el.open=true;});
+}
 async function put(page,type,changes={}){
  const form=page.locator('form[data-command="'+type+'"]');
  assert.equal(await form.count(),1,'form '+type);
@@ -1199,7 +1204,7 @@ async function runRecovery(browser,url){
  const req=indexedDB.open('HLGB_EVOLUCAO_OPERACAO_INTEGRADA_FICTICIA_V1',2);req.onsuccess=()=>{const db=req.result,tx=db.transaction('documentos','readonly'),q=tx.objectStore('documentos').getAll();q.onsuccess=()=>{resolve(q.result);db.close();};q.onerror=()=>reject(q.error);};req.onerror=()=>reject(req.error);
  }));
  await write({key:'intent:LEGACY-RECOVERY-FIXTURE',intent:{commandId:'LEGACY-RECOVERY-FIXTURE',type:'order.add',expectedRevision:1,recordedAt:'2026-11-17T00:00:00.000Z'}});
- await module(page,'pedidos');await page.locator('form[data-command="order.add"] button[type=submit]').click();
+ await module(page,'pedidos');await openOrdersAdvanced(page);await page.locator('form[data-command="order.add"] button[type=submit]').click();
  await page.waitForFunction(()=>document.querySelector('#flash').textContent.includes('intenção anterior'));assert.equal(await revision(page),1);
  await module(page,'auditor');await page.locator('#recovery-check').click();
  page.once('dialog',d=>d.accept());await page.locator('[data-intent-review="LEGACY-RECOVERY-FIXTURE"]').click();
@@ -1253,6 +1258,7 @@ async function runColorMatrix(browser,url,width){
   assert.equal(report.data.log.filter(x=>x.type==='order.add.with.colors').length,1);
   assert.equal(await page.locator('form[data-command="order.add"]').count(),1,'Modo antigo preservado');
   assert.equal(await page.locator('form[data-command="order.color.grade.set"]').count(),1,'Edição acessível em Pedidos');
+  await openOrdersAdvanced(page);
   const edit=page.locator('form[data-command="order.color.grade.set"]');
   await edit.locator('[name=orderId]').selectOption(newOrder.id);
   await edit.locator('[name=color]').fill('Rubi');
@@ -1284,7 +1290,7 @@ async function runMultiFlow(browser,url,width){
  try{
   await page.goto(url);
   await page.waitForFunction(()=>document.querySelector('#top-revision')?.textContent.includes('Revisão local 1'));
-  await module(page,'pedidos');
+  await module(page,'pedidos');await openOrdersAdvanced(page);
   const form=page.locator('#multi-order-form');
   await form.locator('[data-add-multi-model]').click();
   const first=form.locator('[data-multi-model]').first();
@@ -1335,7 +1341,7 @@ async function runMultiFlow(browser,url,width){
   assert.match(await page.locator('#module-content').innerText(),/Acertos multimodelo/);
   assert.match(await page.locator('#module-content').innerText(),/MFR-0001/);
   await put(page,'multi.flow.review',{id:'MFR-0001'});
-  await module(page,'pedidos');
+  await module(page,'pedidos');await openOrdersAdvanced(page);
   assert.match(await page.locator('#module-content').innerText(),/Cortadas a separar/);
   await module(page,'nucleo');
   assert.match(await page.locator('#module-content').innerText(),/Fila de trabalho por setor/);
@@ -1372,7 +1378,7 @@ async function runMultiOrder(browser,url,width){
  try{
   await page.goto(url);
   await page.waitForFunction(()=>document.querySelector('#top-revision')?.textContent.includes('Revisão local 1'));
-  await module(page,'pedidos');
+  await module(page,'pedidos');await openOrdersAdvanced(page);
   const form=page.locator('form[data-command="order.multi.create"]');
   assert.equal(await form.count(),1,'Novo cadastro multimodelo deve estar em Pedidos');
   assert.equal(await form.locator('[data-multi-model]').count(),1);
@@ -1417,6 +1423,7 @@ async function runMultiOrder(browser,url,width){
   assert.equal(data.stockLedger.length,0);
   assert.equal(data.log.filter(x=>x.type==='order.multi.create').length,1);
   assert.equal(await page.locator('form[data-command="order.add"]').count(),1,'Cadastro anterior permanece');
+  await openOrdersAdvanced(page);
   await form.locator('[data-add-multi-color]').first().click();
   await first.locator('[data-multi-color-row]').last().locator('[name=color]').fill('PRETO');
   await first.locator('[data-multi-color-row]').last().locator('[name="size_M"]').fill('2');
