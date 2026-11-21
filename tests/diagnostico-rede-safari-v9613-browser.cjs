@@ -47,7 +47,8 @@ assert.ok(/id=["']loginScreen["']/.test(prodHtml),'Diagnostic login marker must 
   assert.ok(requests.every(r=>['GET','OPTIONS'].includes(r.method)),'diagnostic must never POST/PATCH/DELETE; CORS preflight OPTIONS is allowed');
   assert.ok(requests.every(r=>!r.url.includes('/rest/v1/')),'diagnostic must never query business records');
   assert.doesNotMatch(JSON.stringify(report),/sb_publishable_test|access_token|refresh_token|password|PRIVATE_SECRET_MARKER/);
-  await page.route('**/auth/v1/health*',route=>route.fulfill({status:503,headers:{'access-control-allow-origin':'*','access-control-allow-headers':'apikey, content-type'},body:'{}'}));
+  await page.route('**/auth/v1/health*',route=>route.fulfill({status:route.request().method()==='OPTIONS'?204:503,
+   headers:{'access-control-allow-origin':'*','access-control-allow-headers':'apikey, content-type','access-control-allow-methods':'GET,OPTIONS'},body:''}));
   await page.locator('#rerun').click();
   await page.waitForFunction(()=>{try{return JSON.parse(document.querySelector('#raw').textContent).authService.status===503}catch(e){return false}},undefined,{timeout:30000});
   const failedReport=JSON.parse(await page.locator('#raw').textContent());
