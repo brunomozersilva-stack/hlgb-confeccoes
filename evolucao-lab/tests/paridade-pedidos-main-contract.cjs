@@ -28,7 +28,7 @@ test('HLGB original e Evolução mantêm dois modelos distintos e as mesmas 150 
  const legacy=legacyPlanner();
  const rows=legacy.modelRows();
  assert.equal(rows.length,2,'o original divide um pedido em duas linhas de modelo');
- assert.deepEqual(rows.map(r=>r.pieces).sort((a,b)=>a-b),[50,100]);
+ assert.deepEqual(Array.from(rows,r=>Number(r.pieces)).sort((a,b)=>a-b),[50,100]);
  assert.equal(legacy.matches('cliente fictício').length,2);
  assert.equal(legacy.orderSearchRows('87').length,1);
  const state=core.initial(),preview=laboratory.prepare(state,payload());
