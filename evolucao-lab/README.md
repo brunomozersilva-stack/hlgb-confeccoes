@@ -1,5 +1,29 @@
 # HLGB Evolução — Laboratório independente (Etapa 1)
 
+## Pacote único de homologação offline — gerador atualizado (21/11/2026)
+
+A operação integrada mantém `operacao-integrada.html` como **fonte de verdade da lista
+de módulos**. O comando `node evolucao-lab/build-operacao-autonoma.cjs destino.html`
+gera uma versão independente, com todos os scripts JS embutidos na ordem original,
+sem publicar nada na `main`. A conferência bloqueia script ausente, duplicado,
+sintaxe inválida e caminho fora do laboratório.
+
+O workflow **HLGB Evolucao - Pacote para abrir sem internet** monta o ZIP
+`HLGB-Evolucao-Previa-Offline`, incluindo a página modular e
+`operacao-integrada-autonoma.html` atualizada. Essa página autônoma substitui
+somente a cópia do pacote de download, não o arquivo histórico do repositório.
+
+A entrada de **administração de acessos** exige servidor local e é sinalizada
+como indisponível no ZIP. Nunca incluir `admin-acessos.js` no pacote sem servidor:
+ele depende de autenticação e endpoints da homologação. Isso não modifica nem
+desativa usuários reais.
+
+O teste `operacao-autonoma-gerada-browser.cjs` abre a saída gerada em
+Chromium e WebKit e confere 20 áreas, Acertos, Corte e ausência de chamadas
+externas. O arquivo local não comprova releitura em máquinas diferentes nem
+aprovação para migrar dados reais. O pacote é de demonstração, não sistema de produção.
+
+
 ## Histórico avançado de Acertos — etapa de novembro/2026 (LAB)
 
 A área **Acertos** possui uma consulta somente leitura, por **cliente ou facção**, com
