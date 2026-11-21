@@ -1,5 +1,31 @@
 # HLGB Evolução — Laboratório independente (Etapa 1)
 
+## Histórico avançado de Acertos — etapa de novembro/2026 (LAB)
+
+A área **Acertos** possui uma consulta somente leitura, por **cliente ou facção**, com
+agrupamento consolidado e cada acerto individual. A consulta adicional filtra cliente,
+facção, situação (pago/aberto), um ACE específico e intervalo de **pagamento ou vencimento**.
+Acertos sem essa data são explicitamente excluídos ou incluídos por escolha do operador:
+**não são datados artificialmente**. Acertos avulsos sem pedido são mostrados como
+"Sem cliente vinculado".
+
+É possível gerar relatório A4 **resumido, separado por ACE ou detalhado**, com histórico de
+correções, valores, retornos e compensações. O operador pode escolher **Salvar como PDF**
+na caixa nativa de impressão. CSV completo e CSV da seleção permanecem disponíveis.
+O resumo distingue total de acertos, pago, aberto e saldo de compensações, sem adicionar
+o mesmo pagamento novamente por constar em um lote PAG. A leitura indexada foi testada
+para 1.500 acertos fictícios, sem modificação de banco.
+
+Limites: documento fictício; não comprova transferência bancária, nota ou produção;
+não representa histórico de criação quando a data não existe; não sincroniza com
+outros computadores; PDF é gerado pelo navegador, não pelo servidor. Publicação no HLGB
+comercial e migração de dados reais continuam bloqueadas até validação completa.
+
+Testes: `tests/historico-acertos-contract.cjs`,
+`tests/historico-acertos-filtros-contract.cjs` e
+`tests/relatorio-acertos-impressao-contract.cjs`.
+
+
 ## Nova etapa — Pesquisa global (LAB)
 
 A barra **Localizar no HLGB** pesquisa o documento fictício atual por nome, SKU, IDs, situação e vínculos entre produtos, pedidos, cortes (inclusive concluídos), facções, acertos, títulos, lotes, comprovantes, compras, materiais e históricos. Pesquisa sem diferenciar maiúsculas e acentos, combina termos, prioriza identificadores exatos e apresenta filtro de área e páginas de 15 resultados. O índice não inclui conteúdo binário de PDF.
