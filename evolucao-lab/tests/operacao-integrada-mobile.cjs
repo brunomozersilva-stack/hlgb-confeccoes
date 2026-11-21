@@ -346,6 +346,29 @@ async function run(browser,width,url){
   assert.match(await page.locator('#cut-print').innerText(),/ACE-0001/);
   assert.match(await page.locator('#cut-print').innerText(),/FIN-0002/);
   assert.equal(await revision(page),historyRevision,'impressão não altera acertos');
+  if(width===375){
+   // Segunda aba no MESMO perfil e IndexedDB: leitura sem repetir pagamento.
+   const tab=await ctx.newPage();
+   try{
+    await tab.goto(url);
+    await tab.waitForFunction(rev=>document.querySelector('#top-revision')?.textContent.includes('Revisão local '+rev),historyRevision);
+    await module(tab,'acertos');
+    await tab.locator('#sett-hist-group').selectOption('cliente');
+    await tab.locator('#sett-hist-client').selectOption('CLI-0001');
+    await tab.locator('#sett-hist-faction').selectOption('FAC-0002');
+    await tab.locator('#sett-hist-status').selectOption('pago');
+    await tab.locator('#sett-hist-individual').selectOption('ACE-0001');
+    await tab.locator('#sett-hist-query').click();
+    assert.match(await tab.locator('#sett-hist-filter-result').innerText(),/R\\$ 50,50/);
+    assert.equal(await revision(tab),historyRevision,'segunda aba não cria pagamento');
+    const rows=await tab.evaluate(async()=>new Promise((resolve,reject)=>{
+      const open=indexedDB.open('hlgb-evolucao-operacao-integrada-v1');
+      open.onerror=()=>reject(open.error);
+      open.onsuccess=()=>{const db=open.result;resolve([...db.objectStoreNames]);db.close()};
+    }));
+    assert.ok(Array.isArray(rows),'segunda aba acessou IndexedDB fictício');
+   }finally{await tab.close();}
+  }
   await module(page,'auditor');
   assert.match(await page.locator('#module-content').innerText(),/0 alertas|Sem inconsistências/);
   await module(page,'bot');
