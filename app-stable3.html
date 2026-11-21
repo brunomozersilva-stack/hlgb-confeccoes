@@ -38,6 +38,37 @@ if(!h){
 }
 // Não apague a entrada se o servidor devolver conteúdo vazio, incompleto ou uma página de erro.
 if(!/<\/html\s*>/i.test(h)||!/<[^>]+id=["']loginScreen["']/i.test(h)||!/<[^>]+id=["']appShell["']/i.test(h))throw new Error('O sistema chegou incompleto. Tente novamente.');
+/* HLGB v96.14 — impedir descarte da sessão já renovada se a leitura posterior falhar.
+ * O painel continua bloqueado; não altera IndexedDB, WAL ou registros comerciais. */
+/* BEGIN_HLGB_AUTOAUTH_9614 */
+function hlgbPatchAutoRestore9614(html){
+ const start=html.indexOf('if(cloudRestoreStoredAuth()){');
+ const end=start<0?-1:html.indexOf('setTimeout(()=>document.getElementById("loginUser")?.focus()',start);
+ if(start<0||end<=start){console.warn('[HLGB v96.14] restauração legado não localizada');return html}
+ const original=html.slice(start,end);
+ const refresh=/await cloudRefreshSession\(true\);\s*await cloudLoad\(\);/g;
+ const reset=/cloudAccessToken="";cloudRefreshToken="";cloudTokenExpiresAt=0;cloudUser=null;cloudReady=false;cloudRowId=null;cloudStoreAuth\(\);\s*db\.session=null;localSaveOnly\(\);/g;
+ if((original.match(refresh)||[]).length!==1||(original.match(reset)||[]).length!==1){
+   console.warn('[HLGB v96.14] assinatura de restauração divergente; sem alteração');return html;
+ }
+ const replacementRefresh='await cloudRefreshSession(true);\n   hlgbAutoRefreshSucceededV9614=Boolean(cloudAccessToken&&cloudRefreshToken&&cloudUser);\n   await cloudLoad();';
+ const replacementReset=[
+   'if(hlgbAutoRefreshSucceededV9614&&cloudAccessToken&&cloudRefreshToken&&cloudUser){',
+   '     // Falha pós-Auth: manter credenciais legítimas e não abrir dados parciais.',
+   '     try{cloudStoreAuth()}catch(_e){}',
+   '     try{setCloudStatus("⚠️ Sessão confirmada · leitura indisponível","warn")}catch(_e){}',
+   '     try{const el=document.getElementById("loginError");if(el){el.textContent="Sua sessão foi confirmada, mas os registros não carregaram. Não limpe os dados deste navegador. Tente entrar novamente.";el.style.display="block"}}catch(_e){}',
+   '   }else{',
+   '     // Falha de autenticação ou refresh inválido: manter rejeição antiga.',
+   '     cloudAccessToken="";cloudRefreshToken="";cloudTokenExpiresAt=0;cloudUser=null;cloudReady=false;cloudRowId=null;cloudStoreAuth();',
+   '     db.session=null;localSaveOnly();',
+   '   }'
+ ].join('\n');
+ const changed=original.replace(refresh,replacementRefresh).replace(reset,replacementReset);
+ return html.slice(0,start)+'let hlgbAutoRefreshSucceededV9614=false;\n'+changed+html.slice(end);
+}
+/* END_HLGB_AUTOAUTH_9614 */
+h=hlgbPatchAutoRestore9614(h);
 /* v94.07: o gate entra no head antes de qualquer restauração de sessão. Não depende de localizar texto exato do login. */
 const earlyGuard="<style id=\"hlgbBootGuardStyle9477\">\nhtml.hlgb-boot-loading-9477 #loginScreen button.primary{pointer-events:none!important;opacity:.48!important;cursor:wait!important}\nhtml.hlgb-boot-loading-9477 #loginScreen::after{content:\"Preparando os módulos do sistema…\";position:absolute;bottom:15px;left:10px;right:10px;text-align:center;color:white;font:600 13px Arial,sans-serif}\n</style><script>\n(function(){\n const KEY='hlgb-boot-loading-9477';\n window.__HLGB_BOOT_READY_9477=false;\n window.__HLGB_BOOT_FAILED_FILES_9477=[];\n document.documentElement.classList.add(KEY);\n function warn(){\n  if(window.__HLGB_BOOT_READY_9477||document.getElementById('hlgbBootRescue9477'))return;\n  const wrap=document.createElement('div');wrap.id='hlgbBootRescue9477';\n  wrap.style.cssText='position:fixed;z-index:10040;left:12px;right:12px;bottom:12px;max-width:560px;margin:auto;padding:14px;border-radius:12px;background:#fff;border:2px solid #ad4464;color:#30262c;font:14px Arial,sans-serif;box-shadow:0 10px 24px #0004';\n  const label=document.createElement('strong');label.textContent='O carregamento está demorando ou falhou. ';\n  const link=document.createElement('a');link.href='./diagnostico-abertura.html';link.textContent='Abrir diagnóstico seguro';\n  wrap.append(label,link);document.body?.appendChild(wrap);\n }\n window.hlgbBootWarn9477=warn;\n window.addEventListener('error',e=>{if(e.target?.tagName==='SCRIPT')window.__HLGB_BOOT_FAILED_FILES_9477.push((e.target.src||'').split('?')[0].split('/').pop())},true);\n document.addEventListener('click',e=>{if(!window.__HLGB_BOOT_READY_9477&&e.target?.closest?.('#loginScreen button')){e.preventDefault();e.stopImmediatePropagation()}},true);\n document.addEventListener('keydown',e=>{if(!window.__HLGB_BOOT_READY_9477&&e.key==='Enter'&&e.target?.closest?.('#loginScreen')){e.preventDefault();e.stopImmediatePropagation()}},true);\n setTimeout(warn,35000);\n})();\n<\/script>";const earlyLogin='<script src="./release-login-confirm-gate-v9407.js?fresh='+ts+'"><\/script>';const earlyBrand='<script src="./release-brand-theme-v9402.js?fresh='+ts+'"><\/script>';const earlyBoot='<script src="./release-auditor-boot-timeline-v9379.js?fresh='+ts+'"><\/script>';h=h.replace(/<head([^>]*)>/i,m=>m+earlyGuard+earlyLogin+earlyBrand+earlyBoot);
 /* v92.68: a WAL já é persistida; pendência local não deve disparar aviso Leave Page */h=h.split("window.addEventListener('beforeunload',e=>{if(count955()>0){e.preventDefault();e.returnValue=''}});").join("/* v92.68: saída segura; WAL continua persistida */");
