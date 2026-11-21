@@ -17,6 +17,7 @@ async function open(page,id){await page.locator('[data-module="'+id+'"]').click(
 async function save(page,type,fields){
  const form=page.locator('form[data-command="'+type+'"]'),before=await rev(page);
  assert.equal(await form.count(),1);
+ await form.evaluate(el=>{for(let node=el.closest('details');node;node=node.parentElement?.closest('details'))node.open=true;});
  for(const [name,val] of Object.entries(fields)){
   const field=form.locator('[name="'+name+'"]');
   if(await field.evaluate(el=>el.tagName==='SELECT'))await field.selectOption(String(val));
