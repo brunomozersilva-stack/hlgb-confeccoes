@@ -318,6 +318,8 @@ async function run(browser,width,url){
   assert.equal(await page.locator('body').getAttribute('data-print-proof'),'true');
   assert.match(await page.locator('#cut-print').innerText(),/ACE-0001/);
   assert.match(await page.locator('#cut-print').innerText(),/FIN-0002/);
+  assert.match(await page.locator('#cut-print').innerText(),/Linha do tempo de auditoria/);
+  assert.match(await page.locator('#cut-print').innerText(),/finance.pay/);
   assert.equal(await revision(page),historyRevision,'impressão não altera acertos');
   if(width===375){
    // Segunda aba no MESMO perfil e IndexedDB: leitura sem repetir pagamento.
