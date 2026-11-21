@@ -803,7 +803,8 @@ function settlementHistoryFiltersPanel(s){
   select('sett-hist-individual','Acerto específico',[['todos','Todos os acertos'],
      ...(s.settlements||[]).map(x=>[x.id,x.id])])+
   '</div>'+
-  '<div class="actions"><button type="button" class="btn" id="sett-hist-query">Consultar</button>'+
+  '<div class="actions"><button type="button" class="btn" id="sett-hist-query">Consultar</button>'+ 
+  '<button type="button" class="btn" id="sett-hist-export-filtered">Exportar seleção CSV</button>'+
   '<button type="button" class="btn" data-sett-hist-print="resumo">Imprimir resumo / salvar PDF</button>'+
   '<button type="button" class="btn" data-sett-hist-print="separado">Imprimir acertos separados</button>'+
   '<button type="button" class="btn" data-sett-hist-print="detalhado">Imprimir detalhado / salvar PDF</button></div>'+
@@ -3239,6 +3240,25 @@ document.addEventListener('click',async e=>{
    status('Módulo Observabilidade 2.0 '+(!observer.enabled?'ativado':'desativado')+
     ' somente nesta aba. Funções anteriores continuam disponíveis.');}
   else status('Módulo opcional indisponível. Sistema legado preservado.','error');
+  return;
+ }
+ if(e.target.closest('#sett-hist-export-filtered')){
+  try{
+   const service=window.HLGBLabSettlementHistoryFiltersV2;
+   if(!service?.query)throw Error('Filtro de acertos indisponível.');
+   const r=service.query(doc,{...settlementHistorySelection(),view:'separado'});
+   const rows=[['Acerto','Pedido','Cliente','Facção','Modelo','Serviço','Peças','Total centavos',
+    'Pago centavos','Aberto centavos','Situação','Título','Data de pagamento','Vencimento',
+    'Lote','Referência do lote','Compensação líquida centavos','Compensações IDs','Comandos de histórico'],
+    ...r.entries.map(x=>[x.id,x.orderId||'',x.clientName,x.factionName,x.model,x.service,
+     x.qty,x.amountCents,x.paidCents,x.openCents,x.status,x.financeId,x.paidDate||'',
+     x.dueDate||'',x.batchId||'',x.batchReference||'',x.compensationNetCents,
+     x.compensations.map(c=>c.id).join(', '),x.history.map(h=>h.commandId||'').join(', ')])];
+   download('HLGB-ACERTOS-SELECIONADOS-FICTICIOS.csv',
+    '\\uFEFF'+rows.map(row=>row.map(safeCell).join(';')).join('\\r\\n'),
+    'text/csv;charset=utf-8');
+   status('Exportados '+r.entries.length+' acertos fictícios com os filtros escolhidos. Nenhum registro alterado.');
+  }catch(err){status('Exportação filtrada bloqueada: '+err.message,'error');}
   return;
  }
  if(e.target.closest('#sett-hist-query')||e.target.closest('[data-sett-hist-print]')){
