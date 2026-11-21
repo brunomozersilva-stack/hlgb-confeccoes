@@ -21,6 +21,25 @@
   const clients=index(s.clients),factions=index(s.factions),
    products=index(s.products||[]),orders=index(s.orders);
   const titles=new Map(),compsBySettlement=new Map(),batchesByTitle=new Map();
+  const eventsByCommand=new Map(),eventsByDescription=new Map();
+  for(const e of s.log||[]){
+   if(!e||!e.commandId)continue;
+   if(eventsByCommand.has(e.commandId))throw Error('Evento duplicado no historico: '+e.commandId);
+   eventsByCommand.set(e.commandId,e);
+   const desc=String(e.description||'');
+   // Somente primeira referencia separada por delimitador; nao procurar substring
+   // que confundiria ACE-1 com ACE-10 ou FIN-2 com FIN-20.
+   const key=desc.split(/\\s*[·]\\s*|\\s+/)[0];
+   if(key){
+    const list=eventsByDescription.get(key)||[];
+    list.push(e);eventsByDescription.set(key,list);
+   }
+  }
+  const eventSummary=e=>({
+   commandId:e.commandId,revision:e.revision??null,type:e.type||'evento',
+   actor:e.actor||null,recordedAt:e.recordedAt||null,
+   description:e.description||''
+  });
   for(const f of s.finance){
    const group=titles.get(f.sourceId)||[];group.push(f);titles.set(f.sourceId,group);
   }
@@ -58,6 +77,24 @@
      paidDate:related[0].paidDate||null};
    });
    const batch=batchesByTitle.get(bill.id);
+   const localHistory=[...(a.history||[]),...(a.rateHistory||[]),...(a.returns||[])];
+   const eventIds=new Set();
+   const timeline=[];
+   const addEvent=e=>{if(e&&!eventIds.has(e.commandId)){
+    eventIds.add(e.commandId);timeline.push(eventSummary(e));
+   }};
+   for(const h of localHistory)if(h.commandId)addEvent(eventsByCommand.get(h.commandId));
+   for(const c of comps)for(const x of s.settlementCompensations||[]){
+    if(x.id===c.id&&x.commandId)addEvent(eventsByCommand.get(x.commandId));
+   }
+   for(const key of [a.id,bill.id,...comps.map(x=>x.id),...comps.map(x=>x.financeId)]){
+    for(const e of eventsByDescription.get(key)||[])addEvent(e);
+   }
+   // O comando de pagamento deve ser identificado pelo titulo financeiro completo,
+   // nunca pela situacao atual ou por uma data presumida.
+   timeline.sort((x,y)=>(x.revision??0)-(y.revision??0));
+   const localWithoutEvent=localHistory.filter(x=>x.commandId&&!eventsByCommand.has(x.commandId))
+    .map(x=>x.commandId);
    const row={id:a.id,orderId:a.orderId||null,clientId,clientName:clientId?
       clients.get(clientId)?.name||clientId:'Sem cliente vinculado',
     factionId,factionName:faction?.name||'Sem faccao',
@@ -69,7 +106,7 @@
     dueDate:bill.dueDate||null,batchId:batch?.id||null,
     batchReference:batch?.reference||null,
     compensationNetCents:comps.reduce((n,c)=>n+c.deltaCents,0),
-    compensations:comps,history:[...(a.history||[]),...(a.rateHistory||[]),...(a.returns||[])],
+    compensations:comps,history:localHistory,timeline,missingEventReferences:localWithoutEvent,
     reason:a.reason||null};
    lines.push(row);
   }
