@@ -62,3 +62,25 @@ test('interface modular apresenta as duas visões e histórico individual',()=>{
  assert.match(ui,/settlement-history-export/);
  assert.match(html,/modulos\/historico-acertos-v1\.js/);
 });
+
+test('volume maior: 1500 acertos, clientes e pagamentos sem duplicacao',()=>{
+ const s=fixture();
+ s.settlements=[];s.finance=[];s.settlementCompensations=[];s.paymentBatches=[];
+ for(let i=0;i<1500;i++){
+  const id='VOL-'+i,paid=i%2===0;
+  s.settlements.push({id,orderId:i%3===0?'PED-1':'PED-2',
+   factionId:i%5===0?'FAC-2':'FAC-1',productId:'PRO-1',
+   qty:2,amountCents:200,status:paid?'pago':'aberto'});
+  s.finance.push({id:'FINVOL-'+i,sourceId:id,kind:'pagar',
+   amountCents:200,status:paid?'pago':'aberto'});
+ }
+ const original=JSON.stringify(s),r=history.report(s);
+ assert.equal(r.entries.length,1500);assert.equal(r.totals.pieces,3000);
+ assert.equal(r.totals.totalCents,300000);assert.equal(r.totals.paidCents,150000);
+ assert.equal(r.totals.openCents,150000);assert.equal(JSON.stringify(s),original);
+});
+test('bloqueia um titulo vinculado a dois lotes de pagamento',()=>{
+ const s=fixture();
+ s.paymentBatches.push({id:'LOT-2',items:[{financeId:'FIN-1',sourceId:'ACE-1'}]});
+ assert.throws(()=>history.report(s),/mais de um lote/);
+});
