@@ -22,7 +22,8 @@ test('resumo A4 separa total e compensacoes, escapa nomes de cliente',()=>{
  const html=printer.render(r,{detail:'resumo'});
  assert.match(html,/HISTORICO DE ACERTOS/);assert.match(html,/R\$ 20,00/);
  assert.match(html,/R\$ -?1,00|-R\$ 1,00/);
- assert.match(html,/Cliente &lt;A&gt;/);assert.match(html,/Facção &amp; &quot;B&quot;/);
+ const clientHtml=printer.render(filters.query(doc,{groupBy:'cliente'}),{detail:'resumo'});
+ assert.match(clientHtml,/Cliente &lt;A&gt;/);assert.match(html,/Facção &amp; &quot;B&quot;/);
  assert.doesNotMatch(html,/Cliente <A>/);assert.equal(JSON.stringify(doc),snapshot);
  assert.doesNotMatch(html,/Acertos individuais/);
 });
