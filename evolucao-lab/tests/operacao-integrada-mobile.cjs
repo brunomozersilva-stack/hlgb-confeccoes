@@ -374,6 +374,15 @@ async function run(browser,width,url){
   const expectedRev=report.data.revision;
   await page.reload();
   await page.waitForFunction(rev=>document.querySelector('#top-revision')?.textContent.includes('Revisão local '+rev),expectedRev);
+  await module(page,'acertos');
+  await page.locator('#sett-hist-group').selectOption('cliente');
+  await page.locator('#sett-hist-client').selectOption('CLI-0001');
+  await page.locator('#sett-hist-status').selectOption('pago');
+  await page.locator('#sett-hist-individual').selectOption('ACE-0001');
+  await page.locator('#sett-hist-query').click();
+  assert.match(await page.locator('#sett-hist-filter-result').innerText(),/R\\$ 50,50/,
+   'Histórico deve permanecer consistente após releitura IndexedDB');
+  assert.equal(await revision(page),expectedRev,'consulta após reload não grava');
   await module(page,'pedidos');
   assert.match(await page.locator('#module-content').innerText(),/PED-0001/);
   // Mesmo perfil, duas abas reais, mesmo IndexedDB. O formulário da primeira aba não se perde em conflito.
