@@ -302,7 +302,7 @@ async function run(browser,width,url){
   await page.locator('#sett-hist-query').click();
   const historicalText=await page.locator('#sett-hist-filter-result').innerText();
   assert.match(historicalText,/1 acertos/);
-  assert.match(historicalText,/R\\$ 50,50/);
+  assert.match(historicalText,/R\$ 50,50/);
   assert.equal(await revision(page),historyRevision,'consulta histórica nunca grava');
   const [historyDownload]=await Promise.all([
    page.waitForEvent('download'),page.locator('#sett-hist-export-filtered').click()]);
@@ -332,7 +332,7 @@ async function run(browser,width,url){
     await tab.locator('#sett-hist-status').selectOption('pago');
     await tab.locator('#sett-hist-individual').selectOption('ACE-0001');
     await tab.locator('#sett-hist-query').click();
-    assert.match(await tab.locator('#sett-hist-filter-result').innerText(),/R\\$ 50,50/);
+    assert.match(await tab.locator('#sett-hist-filter-result').innerText(),/R\$ 50,50/);
     assert.equal(await revision(tab),historyRevision,'segunda aba não cria pagamento');
     const [copyDownload]=await Promise.all([
       tab.waitForEvent('download'),tab.locator('#export-json').click()]);
@@ -386,7 +386,7 @@ async function run(browser,width,url){
   await page.locator('#sett-hist-status').selectOption('pago');
   await page.locator('#sett-hist-individual').selectOption('ACE-0001');
   await page.locator('#sett-hist-query').click();
-  assert.match(await page.locator('#sett-hist-filter-result').innerText(),/R\\$ 50,50/,
+  assert.match(await page.locator('#sett-hist-filter-result').innerText(),/R\$ 50,50/,
    'Histórico deve permanecer consistente após releitura IndexedDB');
   assert.equal(await revision(page),expectedRev,'consulta após reload não grava');
   await module(page,'pedidos');
