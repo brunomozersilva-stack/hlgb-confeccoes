@@ -84,3 +84,34 @@ test('bloqueia um titulo vinculado a dois lotes de pagamento',()=>{
  s.paymentBatches.push({id:'LOT-2',items:[{financeId:'FIN-1',sourceId:'ACE-1'}]});
  assert.throws(()=>history.report(s),/mais de um lote/);
 });
+
+test('linha do tempo vincula ajuste e pagamento por comando sem inventar data',()=>{
+ const s=fixture();
+ s.log=[
+  {commandId:'C1',revision:3,type:'settlement.adjust',actor:'Fiscal do LAB',
+   description:'ACE-1 · 900 → 1000 centavos'},
+  {commandId:'C2',revision:4,type:'finance.pay',actor:'Financeiro LAB',
+   description:'FIN-1',recordedAt:'2026-11-20T09:00:00Z'},
+  {commandId:'C3',revision:5,type:'finance.pay',actor:'Outro',
+   description:'FIN-10'},
+  {commandId:'C4',revision:6,type:'settlement.compensate',actor:'Gestora',
+   description:'COMP-1 · receber'}];
+ s.settlementCompensations[0].commandId='C4';
+ const result=history.report(s,{groupBy:'cliente',partyId:'CLI-1'});
+ const events=result.entries[0].timeline;
+ assert.deepEqual(events.map(e=>e.commandId),['C1','C2','C4']);
+ assert.equal(events[0].recordedAt,null);
+ assert.equal(events[1].actor,'Financeiro LAB');
+ assert.equal(events[1].recordedAt,'2026-11-20T09:00:00Z');
+ assert.equal(result.entries[0].missingEventReferences.length,0);
+});
+test('evento de alteração sem trilha global permanece explicitamente sinalizado',()=>{
+ const s=fixture(),r=history.report(s);
+ assert.deepEqual(r.entries[0].missingEventReferences,['C1']);
+ assert.deepEqual(r.entries[0].timeline,[]);
+});
+test('log de eventos duplicado bloqueia historico ambiguo',()=>{
+ const s=fixture(),ev={commandId:'DUP-1',revision:2,type:'finance.pay',description:'FIN-1'};
+ s.log=[ev,{...ev,revision:3}];
+ assert.throws(()=>history.report(s),/Evento duplicado/);
+});
