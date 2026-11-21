@@ -38,7 +38,7 @@ test('interface completa em duas sessões, conflito, WAL e confirmação indepen
  assert.equal(denied.payload.status,'rejected');
  assert.deepEqual(await db.state(),beforeDenied,'Operador B não pode contornar tela por requisição direta');
 
- for(const page of [a,b])await page.locator('[data-module=pedidos]').click();
+ for(const page of [a,b]){await page.locator('[data-module=pedidos]').click();await page.locator('#orders-tools').evaluate(el=>{el.open=true;});}
  const form=page=>page.locator('form[data-command="order.add"]');
  await form(a).locator('button[type=submit]').click();await a.waitForFunction(()=>document.querySelector('#top-revision').textContent.includes('Revisão servidor 2'));
  // Produção detecta alteração externa sem apagar quantidade preenchida ou reexecutar comando.
@@ -59,10 +59,12 @@ test('interface completa em duas sessões, conflito, WAL e confirmação indepen
  await b.locator('#remote-check').click();await b.waitForFunction(()=>document.body.innerText.includes('not_found'));
  b.once('dialog',d=>d.accept());await b.locator('#remote-discard').click();await b.waitForFunction(()=>document.querySelector('#top-revision').textContent.includes('Revisão servidor 2'));
  await b.locator('[data-module=pedidos]').click();
+ await b.locator('#orders-tools').evaluate(el=>{el.open=true;});
  await b.route('**/api/commands',async route=>{if(route.request().method()==='POST'){await route.fetch();await route.abort();}else await route.continue();});
  await form(b).locator('button[type=submit]').click();await b.waitForFunction(()=>document.body.innerText.includes('Comando pendente'));
  await b.unroute('**/api/commands');await b.reload();await b.locator('#remote-check').waitFor();await b.locator('#remote-check').click();await b.waitForFunction(()=>document.querySelector('#top-revision').textContent.includes('Revisão servidor 3'));
  assert.equal((await db.state()).orders.length,2);
+ await a.locator('#orders-tools').evaluate(el=>{el.open=true;});
  await a.locator('form[data-command="order.add"] [name=P]').fill('7');
  await a.waitForFunction(()=>!document.querySelector('#shared-revision-notice').hidden&&document.querySelector('#shared-revision-notice').textContent.includes('revisão 3'),null,{timeout:25000});
  assert.equal(await a.locator('form[data-command="order.add"] [name=P]').inputValue(),'7');
