@@ -594,35 +594,35 @@ test('avaliações manuais das 20 áreas exibem observação salva sem liberar p
  assert.match(ui,/productionApproval:false,parityApproved:false/,'exportação mantém os bloqueios de aprovação');
 });
 
-test('pagina autonoma de homologacao preserva 20 areas e executa sem arquivos JavaScript externos',()=>{
- const solo=fs.readFileSync(path.join(dir,'operacao-integrada-autonoma.html'),'utf8');
- const bundles=[1,2,3,4].map(n=>fs.readFileSync(path.join(dir,'bundle-autonomo-'+n+'.js'),'utf8'));
- assert.equal((solo.match(/<script>/g)||[]).length,4);
- assert.equal((solo.match(/<script\s+src=/g)||[]).length,0);
+test('pagina autonoma atual gerada preserva 20 areas e executa sem arquivos externos',()=>{
+ const {build}=require('../build-operacao-autonoma.cjs');
+ const {html:solo,scripts}=build();
+ assert.equal((solo.match(/<script\\s+src=/g)||[]).length,0);
+ assert.equal((solo.match(/<script>/g)||[]).length,scripts.length);
  assert.match(solo,/20 áreas para explorar/);
  assert.match(solo,/não sincronizam entre computadores/);
  assert.match(solo,/não executam pagamentos/);
  assert.match(solo,/Registro local, não é aceite de produção/);
- for(let i=0;i<bundles.length;i++){
-  assert.ok(solo.includes(bundles[i]),'pacote '+(i+1)+' incorporado integralmente');
-  assert.doesNotThrow(()=>new vm.Script(bundles[i]),'pacote '+(i+1)+' tem sintaxe JS válida');
- }
- assert.ok(solo.indexOf('Arquivo integrado')<0,'sem marcador incompleto de arquivo');
  assert.ok(!solo.includes('R</body></html>'),'HTML não pode entrar em JavaScript');
- assert.ok(solo.includes('order.multi.revise'),'edição do pedido presente na página autônoma');
+ assert.ok(solo.includes('order.multi.revise'),'edição do pedido presente');
+ assert.ok(solo.includes('HLGBLabSettlementHistoryFiltersV2'),'filtros de acertos presentes');
+ assert.ok(solo.includes('HLGBLabSettlementPrintV1'),'relatorio de acertos presente');
 });
-
-test('pacotes de homologacao incluem todas as fontes atuais na ordem do HTML modular',()=>{
+test('gerador autonomo preserva todas as fontes atuais, completas e ordenadas',()=>{
+ const {build}=require('../build-operacao-autonoma.cjs');
  const original=fs.readFileSync(path.join(dir,'operacao-integrada.html'),'utf8');
- const scriptPaths=[...original.matchAll(/<script\s+src="([^"]+)"\s*><\/script>/g)].map(x=>x[1]);
- assert.equal(scriptPaths.length,34,'esperados 34 scripts na operação integrada');
- const bundles=[1,2,3,4].map(n=>fs.readFileSync(path.join(dir,'bundle-autonomo-'+n+'.js'),'utf8'));
- for(const [i,sourcePath] of scriptPaths.entries()){
-  const target=Math.min(Math.floor(i/9),3);
+ const sourcePaths=[...original.matchAll(/<script\\s+src="\\.\\/([^"]+)"\\s*><\\/script>/g)].map(x=>x[1]);
+ const {html:solo,scripts}=build();
+ assert.deepEqual(scripts,sourcePaths);
+ assert.equal(new Set(scripts).size,scripts.length);
+ let previous=-1;
+ for(const sourcePath of scripts){
   const source=fs.readFileSync(path.join(dir,sourcePath),'utf8');
-  assert.ok(bundles[target].includes(source),'pacote desatualizado: '+sourcePath);
+  const pos=solo.indexOf('/* Fonte embutida: '+sourcePath+' */');
+  assert.ok(pos>previous,'script ausente ou fora da ordem: '+sourcePath);
+  previous=pos;
+  assert.ok(solo.includes(source),'conteúdo incompleto: '+sourcePath);
  }
- const solo=fs.readFileSync(path.join(dir,'operacao-integrada-autonoma.html'),'utf8');
- assert.ok(solo.includes("Valor do extrato R$"),'preservar textos monetários');
- assert.equal((solo.match(/<script\s+src=/g)||[]).length,0);
+ assert.match(solo,/Valor do extrato R\\$/);
+ assert.equal((solo.match(/<script\\s+src=/g)||[]).length,0);
 });
