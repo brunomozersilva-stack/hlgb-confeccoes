@@ -240,6 +240,13 @@ async function run(browser,width,url){
   await page.locator('#orders-fast-query').fill('');
   assert.equal(await page.locator('#orders-fast-results tbody tr').count(),1);
   assert.equal(await revision(page),beforeFast+1,'filtros não criam evento financeiro');
+  await page.locator('[data-orders-copy="PED-0001"]').click();
+  assert.equal(await page.locator('#order-color-matrix-form [name="clientId"]').inputValue(),'CLI-0001');
+  assert.equal(await page.locator('#order-color-matrix-form [name="productId"]').inputValue(),'PRO-0001');
+  assert.equal(await page.locator('#order-color-matrix-form [data-color-row]').count(),1);
+  assert.equal(await page.locator('#order-color-matrix-form [name="M"]').first().inputValue(),'12');
+  assert.match(await page.locator('#flash').innerText(),/RASCUNHO/);
+  assert.equal(await revision(page),beforeFast+1,'repetir grade não grava nem gera novo pedido');
   assert.match(await page.locator('#module-content').innerText(),/PED-0001/);
   assert.match(await page.locator('#global-metrics').innerText(),/Peças pedidas\s+20/);
   await module(page,'producao');
