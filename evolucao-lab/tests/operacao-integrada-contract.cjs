@@ -59,7 +59,21 @@ test('20 áreas integradas, scripts locais e isolamento dos dados',()=>{
  assert.equal(core.inspect(core.initial()).ok,true);
  assert.equal(core.initial().schema,'hlgb-evolucao-operacao-ficticia-v1');
  const paths=[...page.matchAll(/<script\s+src="([^"]+)"/g)].map(m=>m[1]);
- assert.deepEqual(paths,['./modulos/pagamento-lote-v1.js','./modulos/faccoes-multidestino-v1.js','./modulos/grade-faccoes-v1.js','./modulos/planejamento-materiais-v1.js','./modulos/corte-bom-v1.js','./modulos/requisicoes-compras-v1.js','./modulos/devolucoes-compras-v1.js','./modulos/pcp-v1.js','./modulos/relatorios-gerenciais-v1.js','./modulos/auditor-v3.js','./modulos/bot-v3.js','./modulos/custos-v1.js','./modulos/recuperacao-v1.js','./modulos/servicos-faccao-v1.js','./modulos/complementos-v1.js','./modulos/folha-pedidos-v1.js','./modulos/operacoes-v2.js','./modulos/pedidos-multimodelo-v1.js','./modulos/corte-multimodelo-v1.js','./modulos/fluxo-multimodelo-v1.js','./modulos/fluxo-multimodelo-ui-v1.js','./modulos/folha-corte-multimodelo-v1.js','./modulos/rotas-utilidades-v1.js','./modulos/etiquetas-a4-v1.js','./modulos/embalagem-etiquetas-v1.js','./modulos/regularizacao-historica-preview-v1.js','./operacao-integrada-core.js','./modulos/registro-v1.js','./modulos/observabilidade-v2.js','./modulos/pesquisa-global-v1.js','./modulos/hub-financeiro-v1.js','./modulos/assistente-v3.js','./modulos/monitor-v1.js','./operacao-integrada-ui.js']);
+ const mandatory=["./modulos/pagamento-lote-v1.js","./modulos/faccoes-multidestino-v1.js","./modulos/grade-faccoes-v1.js","./modulos/planejamento-materiais-v1.js","./modulos/corte-bom-v1.js","./modulos/requisicoes-compras-v1.js","./modulos/devolucoes-compras-v1.js","./modulos/pcp-v1.js","./modulos/relatorios-gerenciais-v1.js","./modulos/auditor-v3.js","./modulos/bot-v3.js","./modulos/custos-v1.js","./modulos/recuperacao-v1.js","./modulos/servicos-faccao-v1.js","./modulos/complementos-v1.js","./modulos/folha-pedidos-v1.js","./modulos/operacoes-v2.js","./modulos/pedidos-multimodelo-v1.js","./modulos/corte-multimodelo-v1.js","./modulos/fluxo-multimodelo-v1.js","./modulos/fluxo-multimodelo-ui-v1.js","./modulos/folha-corte-multimodelo-v1.js","./modulos/rotas-utilidades-v1.js","./modulos/etiquetas-a4-v1.js","./modulos/embalagem-etiquetas-v1.js","./modulos/regularizacao-historica-preview-v1.js","./operacao-integrada-core.js","./modulos/registro-v1.js","./modulos/observabilidade-v2.js","./modulos/pesquisa-global-v1.js","./modulos/hub-financeiro-v1.js","./modulos/assistente-v3.js","./modulos/monitor-v1.js"];
+ assert.equal(paths.length,new Set(paths).size,'nenhum modulo pode ser carregado em duplicidade');
+ assert.equal(paths.at(-1),'./operacao-integrada-ui.js','UI deve carregar por ultimo');
+ let cursor=-1;
+ for(const required of mandatory){
+  const at=paths.indexOf(required);
+  assert.ok(at>cursor,'funcao anterior ausente ou fora da ordem: '+required);
+  cursor=at;
+ }
+ for(const src of paths){
+  assert.ok(src.startsWith('./')&&!src.includes('..'),'script deve ser local: '+src);
+  assert.ok(fs.existsSync(path.join(dir,src)),'script inexistente: '+src);
+  assert.doesNotThrow(()=>new vm.Script(fs.readFileSync(path.join(dir,src),'utf8')),
+   'modulo com sintaxe invalida: '+src);
+ }
  assert.match(page,/20 áreas para explorar/);
  assert.match(page,/não executam pagamentos/);
  assert.match(page,/não sincronizam entre computadores/);
