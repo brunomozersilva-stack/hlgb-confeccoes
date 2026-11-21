@@ -85,5 +85,7 @@ test('tela permite aditivo com seleção explícita e justificativa',()=>{
  assert.match(labUi,/data-amend-remove-color/);
  assert.match(labUi,/data-amend-new-model/);
  assert.match(labUi,/data-amend-new-color/);
- assert.match(labUi,/order\.multi\.amend'&&!confirm/);
+ assert.match(labUi,/\['order\.multi\.amend','order\.multi\.revise'\]\.includes\(type\)/);
+ assert.match(labUi,/preview=simulateOrderChange\(form,type\)/);
+ assert.match(labUi,/confirm\(orderChangePreviewText\(preview\)/);
 });
