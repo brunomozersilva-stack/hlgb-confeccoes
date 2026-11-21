@@ -3,47 +3,20 @@ const assert=require('node:assert/strict'),http=require('node:http'),fs=require(
 const {chromium,webkit}=require('playwright');
 const browserType=process.env.HLGB_BROWSER==='webkit'?webkit:chromium;
 const root=path.resolve(__dirname,'..'),shots=process.env.HLGB_SCREENSHOT_DIR||'/tmp/hlgb-operacao-integrada';
-const routes={'/':'operacao-integrada.html',
- '/modulos/registro-v1.js':'modulos/registro-v1.js',
- '/modulos/pagamento-lote-v1.js':'modulos/pagamento-lote-v1.js',
- '/modulos/faccoes-multidestino-v1.js':'modulos/faccoes-multidestino-v1.js',
- '/modulos/grade-faccoes-v1.js':'modulos/grade-faccoes-v1.js',
- '/modulos/planejamento-materiais-v1.js':'modulos/planejamento-materiais-v1.js',
- '/modulos/corte-bom-v1.js':'modulos/corte-bom-v1.js',
- '/modulos/requisicoes-compras-v1.js':'modulos/requisicoes-compras-v1.js',
- '/modulos/devolucoes-compras-v1.js':'modulos/devolucoes-compras-v1.js',
- '/modulos/observabilidade-v2.js':'modulos/observabilidade-v2.js',
- '/modulos/pesquisa-global-v1.js':'modulos/pesquisa-global-v1.js',
- '/modulos/hub-financeiro-v1.js':'modulos/hub-financeiro-v1.js',
- '/modulos/pcp-v1.js':'modulos/pcp-v1.js',
- '/modulos/relatorios-gerenciais-v1.js':'modulos/relatorios-gerenciais-v1.js',
- '/modulos/auditor-v3.js':'modulos/auditor-v3.js',
- '/modulos/bot-v3.js':'modulos/bot-v3.js',
- '/modulos/assistente-v3.js':'modulos/assistente-v3.js',
- '/modulos/custos-v1.js':'modulos/custos-v1.js',
- '/modulos/recuperacao-v1.js':'modulos/recuperacao-v1.js',
- '/modulos/servicos-faccao-v1.js':'modulos/servicos-faccao-v1.js',
- '/modulos/complementos-v1.js':'modulos/complementos-v1.js',
- '/modulos/folha-pedidos-v1.js':'modulos/folha-pedidos-v1.js',
- '/modulos/operacoes-v2.js':'modulos/operacoes-v2.js',
- '/modulos/monitor-v1.js':'modulos/monitor-v1.js',
- '/modulos/pedidos-multimodelo-v1.js':'modulos/pedidos-multimodelo-v1.js',
-  '/modulos/corte-multimodelo-v1.js':'modulos/corte-multimodelo-v1.js',
- '/modulos/fluxo-multimodelo-v1.js':'modulos/fluxo-multimodelo-v1.js',
- '/modulos/fluxo-multimodelo-ui-v1.js':'modulos/fluxo-multimodelo-ui-v1.js',
- '/modulos/folha-corte-multimodelo-v1.js':'modulos/folha-corte-multimodelo-v1.js',
- '/modulos/rotas-utilidades-v1.js':'modulos/rotas-utilidades-v1.js',
- '/modulos/etiquetas-a4-v1.js':'modulos/etiquetas-a4-v1.js',
- '/modulos/embalagem-etiquetas-v1.js':'modulos/embalagem-etiquetas-v1.js',
- '/modulos/regularizacao-historica-preview-v1.js':'modulos/regularizacao-historica-preview-v1.js',
- '/operacao-integrada-core.js':'operacao-integrada-core.js',
- '/modulos/impacto-materiais-pedidos-v1.js':'modulos/impacto-materiais-pedidos-v1.js',
- '/modulos/capacidade-corte-v1.js':'modulos/capacidade-corte-v1.js',
- '/modulos/sugestao-programacao-corte-v1.js':'modulos/sugestao-programacao-corte-v1.js',
- '/modulos/historico-acertos-v1.js':'modulos/historico-acertos-v1.js',
- '/modulos/historico-acertos-filtros-v2.js':'modulos/historico-acertos-filtros-v2.js',
- '/modulos/relatorio-acertos-impressao-v1.js':'modulos/relatorio-acertos-impressao-v1.js',
- '/operacao-integrada-ui.js':'operacao-integrada-ui.js','/folha-homologacao.html':'folha-homologacao.html'};
+// Os arquivos permitidos são extraídos do HTML integrado, em vez de uma
+// lista fixa que fica desatualizada quando novos módulos são adicionados.
+const routes={'/':'operacao-integrada.html','/folha-homologacao.html':'folha-homologacao.html'};
+const htmlSource=fs.readFileSync(path.join(root,'operacao-integrada.html'),'utf8');
+const scripts=[...htmlSource.matchAll(/<script\s+src="\.\/([^"]+)"\s*><\/script>/g)].map(m=>m[1]);
+if(scripts.length<34||new Set(scripts).size!==scripts.length)
+ throw Error('Scripts da operação integrada ausentes ou duplicados.');
+for(const script of scripts){
+ if(!/^(?:modulos\/[a-z0-9-]+|operacao-integrada-(?:core|ui))\.js$/.test(script))
+  throw Error('Script fora da lista isolada: '+script);
+ if(!fs.statSync(path.join(root,script)).isFile())
+  throw Error('Script referenciado não existe: '+script);
+ routes['/'+script]=script;
+}
 const server=http.createServer((req,res)=>{
  const file=routes[req.url];
  if(!file){res.writeHead(404);res.end();return}
