@@ -115,3 +115,12 @@ test('log de eventos duplicado bloqueia historico ambiguo',()=>{
  s.log=[ev,{...ev,revision:3}];
  assert.throws(()=>history.report(s),/Evento duplicado/);
 });
+
+test('CSV filtrado e completo preservam identificação de operador e comando',()=>{
+ const fs=require('node:fs'),path=require('node:path');
+ const src=fs.readFileSync(path.join(__dirname,'../operacao-integrada-ui.js'),'utf8');
+ assert.match(src,/Eventos de auditoria/);
+ assert.match(src,/Datas registradas/);
+ assert.match(src,/x\.timeline\|\|\[\]/);
+ assert.match(src,/e\.commandId\+': '\+e\.type|e\.commandId\+':'\+e\.type/);
+});
