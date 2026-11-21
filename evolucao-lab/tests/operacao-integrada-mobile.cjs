@@ -1436,6 +1436,14 @@ async function runMultiOrder(browser,url,width){
   assert.equal(data.finance.length,0);
   assert.equal(data.stockLedger.length,0);
   assert.equal(data.log.filter(x=>x.type==='order.multi.create').length,1);
+  await page.locator('[data-orders-detail="PDM-0001"]').click();
+  assert.match(await page.locator('#orders-fast-detail').innerText(),/Pedido multimodelo em preparação/);
+  assert.match(await page.locator('#orders-fast-detail').innerText(),/Branco/);
+  assert.equal(await revision(page),2,'detalhar multimodelo nunca gera financeiro');
+  await page.locator('[data-orders-multi-edit="PDM-0001"]').click();
+  assert.equal(await page.locator('[data-revise-order="PDM-0001"]').getAttribute('open'),'');
+  assert.match(await page.locator('#flash').innerText(),/nenhuma mudança foi salva/);
+  assert.equal(await revision(page),2,'abrir edição multimodelo não salva');
   assert.equal(await page.locator('form[data-command="order.add"]').count(),1,'Cadastro anterior permanece');
   await openOrdersAdvanced(page);
   await form.locator('[data-add-multi-color]').first().click();
