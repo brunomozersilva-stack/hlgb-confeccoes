@@ -117,6 +117,7 @@ test('A interface carrega o motor e não mistura com corte antigo ou rede real',
  assert.match(ui,/multi\.cut\.revise/);
  assert.match(ui,/multi\.cut\.complete/);
  assert.match(ui,/multi\.cut\.cancel/);
- assert.match(ui,/return multiCutPanel\(s\)\+cutSplitPanel\(s\)/);
+ assert.match(ui,/return multiCutPanel\(s\)\+cutCapacityPanel\(s\)\+multiOrderCutImpactPanel\(s\)\+cutSplitPanel\(s\)/);
+ assert.match(ui,/HLGBLabCutCapacityV1/);
  assert.match(page,/ainda NÃO movimenta estoque/);
 });
