@@ -49,6 +49,18 @@ test('PostgreSQL fictício: histórico de acertos pagos permite duas leituras id
  assert.equal(after.revision,revision,'histórico não altera revisão PostgreSQL');
  assert.deepEqual(after,before,'consulta não escreve em banco nem altera saldos');
 });
+test('PostgreSQL fictício recusa segunda baixa do mesmo acerto com comando diferente',async()=>{
+ const state=await db.state();
+ const paid=state.finance.find(f=>f.kind==='pagar'&&f.status==='pago'&&
+   state.settlements.some(s=>s.id===f.sourceId));
+ assert.ok(paid);
+ const duplicate=cmd('duplicated-payment-acerto-001','finance.pay',state.revision,
+   {id:paid.id,paidDate:'2026-11-17'});
+ const answer=await db.commit(duplicate,A);
+ assert.equal(answer.status,'rejected','segundo comando não pode pagar título quitado');
+ assert.deepEqual(await db.state(),state,'negação preserva saldo e trilha');
+ assert.equal((await db.readback(duplicate.commandId)).status,'rejected');
+});
 test('guardião recusa banco remoto, fingerprint estável e ator não autorizado',()=>{assert.throws(()=>db.guard({PGDATABASE:'postgres',PGHOST:'127.0.0.1'}));const c=cmd('test-0001','order.add',1,{a:1,b:2});assert.equal(db.validate(c,A),db.validate({...c,payload:{b:2,a:1}},A));assert.throws(()=>db.validate(c,'Administrador'));});
 
 test('cancelamento serializado impede commit atrasado com mesmo ID',async()=>{const s=await db.state(),c=cmd('cancel-0001','order.add',s.revision,{clientId:'CLI-0001',productId:'PRO-0001',grade:{P:1,M:0,G:0,GG:0}});assert.equal((await db.cancel(c,A)).status,'cancelled');assert.equal((await db.readback(c.commandId)).status,'cancelled');assert.equal((await db.commit(c,A)).status,'rejected');assert.equal((await db.state()).revision,s.revision);});
