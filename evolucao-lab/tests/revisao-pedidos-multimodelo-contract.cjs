@@ -73,5 +73,7 @@ test('interface expõe edição por grade com mínimo reservado e confirmação'
  assert.match(ui,/data-command="order\.multi\.revise"/);
  assert.match(ui,/data-revise-qty/);
  assert.match(ui,/reservado/);
- assert.match(ui,/order\.multi\.revise'&&!confirm/);
+ assert.match(ui,/\['order\.multi\.amend','order\.multi\.revise'\]\.includes\(type\)/);
+ assert.match(ui,/preview=simulateOrderChange\(form,type\)/);
+ assert.match(ui,/confirm\(orderChangePreviewText\(preview\)/);
 });
