@@ -71,3 +71,12 @@ test('monitor de scripts acompanha exatamente o HTML modular atualizado',()=>{
  assert.deepEqual(expected,scripts);
  assert.equal(new Set(scripts).size,scripts.length,'script duplicado bloqueado');
 });
+
+test('consulta em tela limita linhas sem cortar CSV e relatorio completo',()=>{
+ const fs=require('node:fs'),path=require('node:path');
+ const ui=fs.readFileSync(path.join(__dirname,'../operacao-integrada-ui.js'),'utf8');
+ assert.match(ui,/r\.entries\.slice\(0,100\)/);
+ assert.match(ui,/byFaction\.entries\.slice\(0,100\)/);
+ assert.match(ui,/impressão e CSV incluem todos os registros selecionados/);
+ assert.match(ui,/\.\.\.r\.entries\.map\(x=>\[x\.id/);
+});
