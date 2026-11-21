@@ -52,6 +52,8 @@ test('UI carrega filtros e impressao na mesma versao modular',()=>{
  assert.match(ui,/function settlementHistoryFiltersPanel\(s\)/);
  assert.match(ui,/function settlementHistorySelection\(\)/);
  assert.match(ui,/data-sett-hist-print/);
+ assert.match(ui,/sett-hist-export-filtered/);
+ assert.match(ui,/ACERTOS-SELECIONADOS-FICTICIOS/);
  assert.match(ui,/window\.print\(\)/);
  assert.match(html,/historico-acertos-filtros-v2\.js/);
  assert.match(html,/relatorio-acertos-impressao-v1\.js/);
