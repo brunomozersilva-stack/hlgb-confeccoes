@@ -2,6 +2,12 @@
 const assert=require('node:assert/strict'),fs=require('node:fs'),{chromium,webkit}=require('playwright');
 const engine=process.env.HLGB_BROWSER==='webkit'?webkit:chromium;
 const diag=fs.readFileSync('diagnostico-rede-safari.html','utf8');
+const prodHtml=fs.readFileSync('app9240.html','utf8');
+// Contract against the REAL published HTML, not just the Playwright mocked fixture.
+// Do not print the real publishable key or project URL to CI logs.
+assert.ok(/HLGB_SUPABASE_URL\s*=\s*["']https:\/\/[a-z0-9.-]+\.supabase\.co["']/i.test(prodHtml),'Diagnostic URL extractor must match real application');
+assert.ok(/HLGB_SUPABASE_KEY\s*=\s*["']sb_publishable_[A-Za-z0-9_-]+["']/.test(prodHtml),'Diagnostic public key extractor must match real application');
+assert.ok(/id=["']loginScreen["']/.test(prodHtml),'Diagnostic login marker must match real application');
 (async()=>{
  const browser=await engine.launch({headless:true});
  try{
@@ -38,7 +44,7 @@ const diag=fs.readFileSync('diagnostico-rede-safari.html','utf8');
   assert.equal(report.previousBoot.attemptCount,1);
   assert.deepEqual(pageErrors,[]);
   assert.ok(requests.length>=7);
-  assert.ok(requests.every(r=>r.method==='GET'),'diagnostic must never POST/PATCH/DELETE');
+  assert.ok(requests.every(r=>['GET','OPTIONS'].includes(r.method)),'diagnostic must never POST/PATCH/DELETE; CORS preflight OPTIONS is allowed');
   assert.ok(requests.every(r=>!r.url.includes('/rest/v1/')),'diagnostic must never query business records');
   assert.doesNotMatch(JSON.stringify(report),/sb_publishable_test|access_token|refresh_token|password|PRIVATE_SECRET_MARKER/);
   await page.route('**/auth/v1/health*',route=>route.fulfill({status:503,headers:{'access-control-allow-origin':'*','access-control-allow-headers':'apikey, content-type'},body:'{}'}));
