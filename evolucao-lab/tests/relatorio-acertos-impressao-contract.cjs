@@ -59,3 +59,14 @@ test('UI carrega filtros e impressao na mesma versao modular',()=>{
  assert.match(html,/historico-acertos-filtros-v2\.js/);
  assert.match(html,/relatorio-acertos-impressao-v1\.js/);
 });
+
+test('monitor de scripts acompanha exatamente o HTML modular atualizado',()=>{
+ const fs=require('node:fs'),path=require('node:path');
+ const dir=path.resolve(__dirname,'..');
+ const ui=fs.readFileSync(path.join(dir,'operacao-integrada-ui.js'),'utf8');
+ const html=fs.readFileSync(path.join(dir,'operacao-integrada.html'),'utf8');
+ const scripts=[...html.matchAll(/<script src="\.\/([^"]+)"><\/script>/g)].map(x=>x[1]);
+ const expected=JSON.parse(ui.match(/const monitorExpected=(\[[^\n]+\]);/)[1]);
+ assert.deepEqual(expected,scripts);
+ assert.equal(new Set(scripts).size,scripts.length,'script duplicado bloqueado');
+});
