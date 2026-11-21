@@ -1,0 +1,20 @@
+HLGB — Auditor noturno (código)
+Gerado: 2026-11-21T01:51:36.515Z
+Commit: 7c66a37ea04b7bf6b130b28b17cf194941023251
+Resultado: OK
+Testes: 124 | Aprovados: 124 | Falhas: 0
+Duração: 4361 ms
+
+Falhas: nenhuma
+
+Mais lentos:
+- audit-queue-cut-regression.cjs: 70 ms
+- audit-cyrlene-penelope-cut-v9559.cjs: 65 ms
+- audit-launcher-recovery.cjs: 63 ms
+- audit-save-transport-v9320.cjs: 61 ms
+- audit-note-selection-behavior-regression.cjs: 54 ms
+- audit-cut-grade-matrix-v9421.cjs: 52 ms
+- audit-assistant-query-regression.cjs: 51 ms
+- audit-nightly-failure-detail-regression.cjs: 51 ms
+- audit-cut-view-regression.cjs: 48 ms
+- audit-v9270-regression.cjs: 48 ms
