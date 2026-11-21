@@ -80,3 +80,10 @@ test('consulta em tela limita linhas sem cortar CSV e relatorio completo',()=>{
  assert.match(ui,/impressão e CSV incluem todos os registros selecionados/);
  assert.match(ui,/\.\.\.r\.entries\.map\(x=>\[x\.id/);
 });
+
+test('fila de acertos pendentes abre inicialmente para acesso por teclado e clique',()=>{
+ const fs=require('node:fs'),path=require('node:path'),vm=require('node:vm');
+ const src=fs.readFileSync(path.join(__dirname,'../modulos/fluxo-multimodelo-ui-v1.js'),'utf8');
+ assert.doesNotThrow(()=>new vm.Script(src));
+ assert.match(src,/stage==='Acerto fictício a conferir'\?' open':''/);
+});
