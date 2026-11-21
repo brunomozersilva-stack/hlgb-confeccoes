@@ -31,6 +31,8 @@ async function module(page,id){await page.locator('[data-module="'+id+'"]').clic
 async function put(page,type,changes={}){
  const form=page.locator('form[data-command="'+type+'"]');
  assert.equal(await form.count(),1,'form '+type);
+ // Ferramentas avançadas são recolhidas na UI prática, mas continuam funcionais.
+ await form.evaluate(el=>{for(let node=el.closest('details');node;node=node.parentElement?.closest('details'))node.open=true;});
  const before=await revision(page);
  for(const [key,value] of Object.entries(changes)){
   const field=form.locator('[name="'+key+'"]');
@@ -216,7 +218,28 @@ async function run(browser,width,url){
   await module(page,'nucleo');
   assert.match(await page.locator('#module-title').innerText(),/Salvamento/);
   await module(page,'pedidos');
+  assert.equal(await page.locator('#orders-tools').getAttribute('open'),null,
+   'ferramentas complexas devem iniciar recolhidas');
+  assert.equal(await page.locator('#order-color-matrix-form').count(),1,
+   'grade por cor visível deve ser o caminho principal');
+  assert.match(await page.locator('#orders-fast-count').innerText(),/0 de 0 pedidos/);
+  const beforeFast=await revision(page);
+  await page.locator('#orders-fast-query').fill('Melina');
+  assert.match(await page.locator('#orders-fast-count').innerText(),/0 de 0 pedidos/);
+  await page.locator('#orders-fast-query').fill('');
+  await page.locator('[data-orders-jump="multi-order-form"]').click();
+  assert.equal(await page.locator('#orders-tools').getAttribute('open'),'',
+   'atalho abre multimodelo sem exigir localizar painel oculto');
+  assert.equal(await revision(page),beforeFast,'atalhos e filtros não modificam pedido');
   await put(page,'order.add',{clientId:'CLI-0001',productId:'PRO-0001',P:'8',M:'12',G:'0',GG:'0'});
+  assert.match(await page.locator('#orders-fast-count').innerText(),/1 de 1 pedidos/);
+  await page.locator('#orders-fast-status').selectOption('pendentes');
+  assert.match(await page.locator('#orders-fast-count').innerText(),/1 de 1 pedidos/);
+  await page.locator('#orders-fast-query').fill('modelo inexistente');
+  assert.match(await page.locator('#orders-fast-count').innerText(),/0 de 1 pedidos/);
+  await page.locator('#orders-fast-query').fill('');
+  assert.equal(await page.locator('#orders-fast-results tbody tr').count(),1);
+  assert.equal(await revision(page),beforeFast+1,'filtros não criam evento financeiro');
   assert.match(await page.locator('#module-content').innerText(),/PED-0001/);
   assert.match(await page.locator('#global-metrics').innerText(),/Peças pedidas\s+20/);
   await module(page,'producao');
