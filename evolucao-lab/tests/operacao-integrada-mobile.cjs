@@ -315,6 +315,11 @@ async function run(browser,width,url){
   assert.equal(await revision(page),returnDeskRevision,'abrir retorno nao gera acerto nem baixa');
   await put(page,'faction.return',{orderId:'PED-0001',qty:'9'});
   await module(page,'acertos');
+  const acertoDeskRevision=await revision(page);
+  assert.match(await page.locator('#flow-settlements-desk').innerText(),/Acertos em aberto/);
+  assert.match(await page.locator('#flow-settlements-desk').innerText(),/Por facção/);
+  assert.match(await page.locator('#flow-settlements-desk').innerText(),/Por cliente/);
+  assert.equal(await revision(page),acertoDeskRevision,'resumo nao cria acerto nem pagamento');
   assert.match(await page.locator('#module-content').innerText(),/ACE-0001/);
   await put(page,'settlement.adjust',{id:'ACE-0001',adjustmentCents:'1,00'});
   await module(page,'separacao');
