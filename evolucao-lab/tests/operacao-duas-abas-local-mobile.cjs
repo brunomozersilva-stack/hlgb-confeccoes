@@ -46,6 +46,7 @@ const localDoc=page=>page.evaluate(()=>new Promise((resolve,reject)=>{
   await Promise.all([a,b,c].map(p=>p.waitForFunction(()=>
    document.querySelector('#top-revision')?.textContent.includes('Revisão local 1'))));
   await modulePage(a,'pedidos');await modulePage(b,'pedidos');
+  await Promise.all([a,b].map(page=>page.locator('#orders-tools').evaluate(el=>{el.open=true;})));
   await b.locator('form[data-command="order.add"] [name="M"]').fill('8');
   const create=a.locator('form[data-command="order.multi.create"]');
   await create.locator('button[type=submit]').click();
@@ -71,6 +72,7 @@ const localDoc=page=>page.evaluate(()=>new Promise((resolve,reject)=>{
   await b.locator('#refresh').click();
   await b.waitForFunction(()=>document.querySelector('#top-revision')?.textContent.includes('Revisão local 2'));
   assert.match(await b.locator('#module-content').innerText(),/PDM-0001/);
+  await b.locator('#orders-tools').evaluate(el=>{el.open=true;});
   await b.locator('form[data-command="order.add"] [name="M"]').fill('8');
   await b.locator('form[data-command="order.add"] button[type=submit]').click();
   await b.waitForFunction(()=>document.querySelector('#top-revision')?.textContent.includes('Revisão local 3'));
@@ -82,6 +84,7 @@ const localDoc=page=>page.evaluate(()=>new Promise((resolve,reject)=>{
    'Pedido legado criou um título único; multimodelo não duplicou pagamento');
 
   // Aba A ainda em revisão 2 não pode alterar a revisão 3.
+  await a.locator('#orders-tools').evaluate(el=>{el.open=true;});
   await create.locator('button[type=submit]').click();
   await a.waitForFunction(()=>document.querySelector('#flash')?.textContent.includes('CONFLITO'));
   assert.equal(await revision(a),2);
