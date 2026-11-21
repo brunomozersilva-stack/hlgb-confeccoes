@@ -33,6 +33,7 @@ async function run(browser,width,url){
  try{
   await page.goto(url);await page.waitForFunction(()=>document.querySelector('#top-revision')?.textContent.includes('Revisão local 1'));
   await visit(page,'pedidos');
+  await page.locator('#orders-tools').evaluate(el=>{el.open=true;});
   const newOrder=page.locator('#multi-order-form');
   await newOrder.locator('[data-add-multi-model]').click();
   await newOrder.locator('#multi-new-size').fill('G2');
