@@ -3255,7 +3255,7 @@ document.addEventListener('click',async e=>{
      x.dueDate||'',x.batchId||'',x.batchReference||'',x.compensationNetCents,
      x.compensations.map(c=>c.id).join(', '),x.history.map(h=>h.commandId||'').join(', ')])];
    download('HLGB-ACERTOS-SELECIONADOS-FICTICIOS.csv',
-    '\\uFEFF'+rows.map(row=>row.map(safeCell).join(';')).join('\\r\\n'),
+    '\uFEFF'+rows.map(row=>row.map(safeCell).join(';')).join('\r\n'),
     'text/csv;charset=utf-8');
    status('Exportados '+r.entries.length+' acertos fictícios com os filtros escolhidos. Nenhum registro alterado.');
   }catch(err){status('Exportação filtrada bloqueada: '+err.message,'error');}
@@ -3297,7 +3297,7 @@ document.addEventListener('click',async e=>{
       x.service,x.qty,x.amountCents,x.paidCents,x.openCents,x.status,x.financeId,
       x.paidDate||'',x.batchId||'',x.compensationNetCents,x.history.length])];
    download('HLGB-HISTORICO-ACERTOS-FICTICIO.csv',
-    '\\uFEFF'+rows.map(x=>x.map(safeCell).join(';')).join('\\r\\n'),
+    '\uFEFF'+rows.map(x=>x.map(safeCell).join(';')).join('\r\n'),
     'text/csv;charset=utf-8');
   }catch(err){status('Exportação de acertos bloqueada: '+err.message,'error');}
   return;
