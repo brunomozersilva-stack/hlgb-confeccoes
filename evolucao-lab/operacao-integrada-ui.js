@@ -719,7 +719,7 @@ function renderRouteSheet(id){
 
 // Pedidos: mesa compacta de trabalho, inspirada na pesquisa, filtros e modo
 // operacional do HLGB comercial. Somente leitura; usa as transacoes ja validadas.
-const ordersFastFilters={query:'',status:'todos',page:1,pageSize:20};
+const ordersFastFilters={query:'',status:'todos',priority:'todas',page:1,pageSize:20};
 const orderFastNorm=x=>String(x??'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLocaleLowerCase('pt-BR');
 function orderFastRecords(s){
  const rows=s.orders.map(o=>{
@@ -730,16 +730,18 @@ function orderFastRecords(s){
    q.cut>0?'Em corte':'A cortar';
   return {id:o.id,client,model:product,models:1,qty:q.ordered,cut:q.cut,
    returned:q.returned,shipped:q.shipped,value:q.ordered*o.priceCents,
-   status,kind:'operacional',grade:getGrade(o)};
+   status,kind:'operacional',grade:getGrade(o),
+   priority:o.pcp?.priority||null,dueDate:o.pcp?.dueDate||null};
  });
  for(const o of s.multiOrders||[]){
   rows.push({id:o.id,client:ref(s.clients,o.clientId)?.name||o.clientId,
    model:o.items.map(x=>x.name).join(', '),models:o.totals.models,
    qty:o.totals.pieces,cut:0,returned:0,shipped:0,
    value:o.totals.amountCents,status:'Em preparação',kind:'multimodelo',
+   priority:null,dueDate:null,
    grade:o.sizes.map(sz=>sz+': '+(o.totals.bySize[sz]||0)).join(' · ')});
  }
- return rows;
+ return rows.sort((a,b)=>b.id.localeCompare(a.id,'pt-BR',{numeric:true}));
 }
 function ordersFastView(s){
  const all=orderFastRecords(s),search=orderFastNorm(ordersFastFilters.query);
@@ -748,6 +750,8 @@ function ordersFastView(s){
   if(ordersFastFilters.status==='preparacao'&&x.kind!=='multimodelo')return false;
   if(ordersFastFilters.status==='pendentes'&&!['A cortar','Em corte','Na facção','Em retorno'].includes(x.status))return false;
   if(ordersFastFilters.status==='expedidos'&&x.status!=='Expedido')return false;
+  if(ordersFastFilters.priority!=='todas'&&
+     (ordersFastFilters.priority==='sem_prazo'?!!x.dueDate:x.priority!==ordersFastFilters.priority))return false;
   return !search||orderFastNorm([x.id,x.client,x.model,x.status,x.grade].join(' ')).includes(search);
  });
  const pages=Math.max(1,Math.ceil(filtered.length/ordersFastFilters.pageSize));
@@ -762,14 +766,15 @@ function ordersFastView(s){
   '<strong>'+str(x.id)+'</strong><div class="caption">'+str(x.kind==='multimodelo'?'Vários modelos · prévia':'Pedido operacional')+'</div>',
   str(x.client),'<strong>'+str(x.model)+'</strong><div class="caption">'+str(x.grade)+'</div>',
   str(x.qty),str(x.cut),str(x.returned),str(x.shipped),
-  '<span class="chip '+(x.status==='Expedido'?'': 'wait')+'">'+str(x.status)+'</span>',fmt(x.value),
+  '<span class="chip '+(x.status==='Expedido'?'': 'wait')+'">'+str(x.status)+'</span>',
+  str(x.priority||'Não definida'),str(x.dueDate||'Não informado'),fmt(x.value),
   x.kind==='operacional'?'<button type="button" class="btn" data-orders-copy="'+str(x.id)+'">Repetir grade</button>':'<span class="caption">Somente prévia</span>'
  ]);
  const pagination='<div class="actions" id="orders-fast-pagination">'+
   '<button type="button" class="btn" data-orders-fast-page="prev"'+(ordersFastFilters.page===1?' disabled':'')+'>Anterior</button>'+
   '<span class="caption">Página '+ordersFastFilters.page+' de '+pages+' · até '+ordersFastFilters.pageSize+' por página</span>'+
   '<button type="button" class="btn" data-orders-fast-page="next"'+(ordersFastFilters.page>=pages?' disabled':'')+'>Próxima</button></div>';
- return status+table(['Pedido','Cliente','Modelo / grade','Peças','Cortadas','Retornadas','Enviadas','Etapa','Valor','Ação rápida'],rows)+pagination;
+ return status+table(['Pedido','Cliente','Modelo / grade','Peças','Cortadas','Retornadas','Enviadas','Etapa','Prioridade','Prazo PCP','Valor','Ação rápida'],rows)+pagination;
 }
 function ordersFastPanel(s){
  const all=orderFastRecords(s),operational=all.filter(x=>x.kind==='operacional');
@@ -794,6 +799,10 @@ function ordersFastPanel(s){
   '<select class="input" id="orders-fast-status">'+
   options([['todos','Todos'],['operacionais','Pedidos operacionais'],['pendentes','Em andamento'],
    ['expedidos','Expedidos'],['preparacao','Multimodelo em preparação']],ordersFastFilters.status)+
+  '</select></label></div><div class="field"><label>Prioridade (PCP)'+
+  '<select class="input" id="orders-fast-priority">'+
+  options([['todas','Todas'],['urgente','Urgente'],['alta','Alta'],['normal','Normal'],
+   ['baixa','Baixa'],['sem_prazo','Sem prazo definido']],ordersFastFilters.priority)+
   '</select></label></div></div>'+
   '<div id="orders-fast-results">'+ordersFastView(s)+'</div>',true);
 }
@@ -3097,6 +3106,7 @@ function renderCompensationSheet(compId){
 }
 document.addEventListener('change',event=>{
  if(event.target.id==='orders-fast-status'){ordersFastFilters.status=event.target.value;ordersFastFilters.page=1;updateOrdersFastView();return;}
+ if(event.target.id==='orders-fast-priority'){ordersFastFilters.priority=event.target.value;ordersFastFilters.page=1;updateOrdersFastView();return;}
  if(event.target.closest('form[data-command="settlement.service.add"]')){refreshServicePreview();return;}
  const revisionForm=event.target.closest('form[data-command="finance.revise"]');if(revisionForm&&event.target.name==='id'){fillFinanceRevision(revisionForm);return;}
  if(event.target.matches('[data-assistant-filter]')){const k=event.target.dataset.assistantFilter;assistantFilters[k]=k==='stockLimitGrams'?Number(event.target.value):event.target.value;assistantRequested=false;return;}
