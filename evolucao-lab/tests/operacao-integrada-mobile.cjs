@@ -37,6 +37,12 @@ const routes={'/':'operacao-integrada.html',
  '/modulos/embalagem-etiquetas-v1.js':'modulos/embalagem-etiquetas-v1.js',
  '/modulos/regularizacao-historica-preview-v1.js':'modulos/regularizacao-historica-preview-v1.js',
  '/operacao-integrada-core.js':'operacao-integrada-core.js',
+ '/modulos/impacto-materiais-pedidos-v1.js':'modulos/impacto-materiais-pedidos-v1.js',
+ '/modulos/capacidade-corte-v1.js':'modulos/capacidade-corte-v1.js',
+ '/modulos/sugestao-programacao-corte-v1.js':'modulos/sugestao-programacao-corte-v1.js',
+ '/modulos/historico-acertos-v1.js':'modulos/historico-acertos-v1.js',
+ '/modulos/historico-acertos-filtros-v2.js':'modulos/historico-acertos-filtros-v2.js',
+ '/modulos/relatorio-acertos-impressao-v1.js':'modulos/relatorio-acertos-impressao-v1.js',
  '/operacao-integrada-ui.js':'operacao-integrada-ui.js','/folha-homologacao.html':'folha-homologacao.html'};
 const server=http.createServer((req,res)=>{
  const file=routes[req.url];
