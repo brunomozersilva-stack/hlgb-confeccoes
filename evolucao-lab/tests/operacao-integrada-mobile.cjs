@@ -330,6 +330,9 @@ async function run(browser,width,url){
   const historicCsv=fs.readFileSync(await historyDownload.path(),'utf8');
   assert.match(historicCsv,/ACE-0001/);
   assert.match(historicCsv,/FIN-0002/);
+  assert.ok(historicCsv.startsWith('\uFEFF'),'CSV de acertos deve conter BOM UTF-8 real');
+  assert.ok(historicCsv.includes('\r\n'),'CSV deve utilizar quebra CRLF real');
+  assert.ok(!historicCsv.includes('\\\\uFEFF'),'CSV não pode conter sequência de escape literal');
   assert.equal(await revision(page),historyRevision,'CSV não altera saldo');
   await page.locator('[data-sett-hist-print="detalhado"]').click();
   assert.equal(await page.locator('body').getAttribute('data-print-proof'),'true');
