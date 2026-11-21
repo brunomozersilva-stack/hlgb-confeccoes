@@ -762,13 +762,14 @@ function ordersFastView(s){
   '<strong>'+str(x.id)+'</strong><div class="caption">'+str(x.kind==='multimodelo'?'Vários modelos · prévia':'Pedido operacional')+'</div>',
   str(x.client),'<strong>'+str(x.model)+'</strong><div class="caption">'+str(x.grade)+'</div>',
   str(x.qty),str(x.cut),str(x.returned),str(x.shipped),
-  '<span class="chip '+(x.status==='Expedido'?'': 'wait')+'">'+str(x.status)+'</span>',fmt(x.value)
+  '<span class="chip '+(x.status==='Expedido'?'': 'wait')+'">'+str(x.status)+'</span>',fmt(x.value),
+  x.kind==='operacional'?'<button type="button" class="btn" data-orders-copy="'+str(x.id)+'">Repetir grade</button>':'<span class="caption">Somente prévia</span>'
  ]);
  const pagination='<div class="actions" id="orders-fast-pagination">'+
   '<button type="button" class="btn" data-orders-fast-page="prev"'+(ordersFastFilters.page===1?' disabled':'')+'>Anterior</button>'+
   '<span class="caption">Página '+ordersFastFilters.page+' de '+pages+' · até '+ordersFastFilters.pageSize+' por página</span>'+
   '<button type="button" class="btn" data-orders-fast-page="next"'+(ordersFastFilters.page>=pages?' disabled':'')+'>Próxima</button></div>';
- return status+table(['Pedido','Cliente','Modelo / grade','Peças','Cortadas','Retornadas','Enviadas','Etapa','Valor'],rows)+pagination;
+ return status+table(['Pedido','Cliente','Modelo / grade','Peças','Cortadas','Retornadas','Enviadas','Etapa','Valor','Ação rápida'],rows)+pagination;
 }
 function ordersFastPanel(s){
  const all=orderFastRecords(s),operational=all.filter(x=>x.kind==='operacional');
@@ -795,6 +796,25 @@ function ordersFastPanel(s){
    ['expedidos','Expedidos'],['preparacao','Multimodelo em preparação']],ordersFastFilters.status)+
   '</select></label></div></div>'+
   '<div id="orders-fast-results">'+ordersFastView(s)+'</div>',true);
+}
+function copyOrderToColorMatrix(id){
+ const order=doc?.orders?.find(x=>x.id===id),form=document.getElementById('order-color-matrix-form');
+ if(!order||!form)throw Error('Pedido antigo não encontrado; nenhuma informação alterada.');
+ const grades=(order.colorGrades?.length?order.colorGrades:[{color:'Preto',grade:order.grade}]);
+ if(grades.length>30)throw Error('Pedido possui mais de 30 cores; cópia bloqueada.');
+ // Apenas campos do formulário: nunca gerar novo pedido ou título sem confirmação.
+ const client=form.elements.namedItem('clientId'),product=form.elements.namedItem('productId');
+ if(![...client.options].some(x=>x.value===order.clientId)||
+    ![...product.options].some(x=>x.value===order.productId))
+  throw Error('Cliente ou produto não disponível para repetir o pedido.');
+ const rows=grades.map(g=>colorMatrixRow(g.color,g.grade)).join('');
+ client.value=order.clientId;product.value=order.productId;
+ document.getElementById('order-color-rows').innerHTML=rows;
+ updateColorMatrixPreview();
+ form.scrollIntoView({block:'start',behavior:'auto'});
+ const first=form.querySelector('[name="color"]');
+ if(first)first.focus({preventScroll:true});
+ status('Grade de '+id+' copiada para RASCUNHO. Confira cliente, cores e quantidades antes de salvar. Nenhum pedido duplicado.');
 }
 function updateOrdersFastView(){
  if(active!=='pedidos'||!doc)return;
@@ -3123,6 +3143,12 @@ document.addEventListener('change',event=>{
  }
 });
 document.addEventListener('click',async e=>{
+ const copyOrder=e.target.closest('[data-orders-copy]');
+ if(copyOrder){
+  try{copyOrderToColorMatrix(copyOrder.dataset.ordersCopy);}
+  catch(error){status('Não foi possível copiar: '+error.message,'error');}
+  return;
+ }
  const fastPage=e.target.closest('[data-orders-fast-page]');
  if(fastPage){ordersFastFilters.page+=fastPage.dataset.ordersFastPage==='next'?1:-1;updateOrdersFastView();return;}
  const fastJump=e.target.closest('[data-orders-jump]');
