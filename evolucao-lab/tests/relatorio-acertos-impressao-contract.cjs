@@ -87,3 +87,15 @@ test('fila de acertos pendentes abre inicialmente para acesso por teclado e cliq
  assert.doesNotThrow(()=>new vm.Script(src));
  assert.match(src,/stage==='Acerto fictício a conferir'\?' open':''/);
 });
+
+test('PDF detalhado mantém operador e evento sem criar data inexistente',()=>{
+ const s=state();s.log=[
+  {commandId:'AUD-1',revision:3,type:'settlement.adjust',actor:'Gerente <LAB>',
+   description:'ACE-1 · correção'}];
+ const r=filters.query(s,{groupBy:'cliente',view:'detalhado'});
+ const html=printer.render(r,{detail:'detalhado'});
+ assert.match(html,/Linha do tempo de auditoria/);
+ assert.match(html,/Gerente &lt;LAB&gt;/);
+ assert.match(html,/Não informada/);
+ assert.doesNotMatch(html,/Gerente <LAB>/);
+});
