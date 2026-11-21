@@ -829,9 +829,9 @@ function settlementHistoryFilteredResult(r){
   r.groups.map(g=>[str(g.name),str(g.count),str(g.pieces),fmt(g.totalCents),
   fmt(g.paidCents),fmt(g.openCents),fmt(g.compensationNetCents)]));
  const entries=table(['Acerto','Cliente','Facção','Modelo','Peças','Valor','Status','Pagamento'],
-  r.entries.map(x=>[str(x.id),str(x.clientName),str(x.factionName),str(x.model),
+  r.entries.slice(0,100).map(x=>[str(x.id),str(x.clientName),str(x.factionName),str(x.model),
    str(x.qty),fmt(x.amountCents),str(x.status),str(x.paidDate||'Sem data')]));
- return summary+groups+'<details><summary>Ver acertos individuais do resultado</summary>'+entries+'</details>';
+ return summary+groups+'<details><summary>Ver acertos individuais do resultado (até 100 por tela)</summary>'+entries+(r.entries.length>100?'<p class="caption">Mostrando 100 de '+r.entries.length+' acertos; impressão e CSV incluem todos os registros selecionados.</p>':'')+'</details>';
 }
 function settlementHistoryPanel(s){
  const svc=window.HLGBLabSettlementHistoryV1;
@@ -843,7 +843,7 @@ function settlementHistoryPanel(s){
   report.groups.map(g=>[str(g.name),str(g.count),str(g.pieces),fmt(g.totalCents),
    fmt(g.paidCents),fmt(g.openCents),fmt(g.compensationNetCents)]));
  const individual=table(['Acerto','Cliente','Facção','Modelo / serviço','Peças','Valor','Situação','Título / pagamento','Compensações','Alterações'],
-  byFaction.entries.map(x=>[str(x.id)+' / '+str(x.orderId||'Avulso'),
+  byFaction.entries.slice(0,100).map(x=>[str(x.id)+' / '+str(x.orderId||'Avulso'),
    str(x.clientName),str(x.factionName),str(x.model)+' / '+str(x.service),
    str(x.qty),fmt(x.amountCents),str(x.status),
    str(x.financeId)+' / '+str(x.paidDate||'Data não informada')+
@@ -854,9 +854,9 @@ function settlementHistoryPanel(s){
   '<p>Consulta somente leitura: resumo completo por facção ou cliente e cada acerto separado. Valores pagos e em aberto não incluem compensações, exibidas à parte. Acertos avulsos sem pedido aparecem como cliente não vinculado.</p>'+
   '<details open><summary>Resumo por facção</summary>'+groups(byFaction)+'</details>'+
   '<details><summary>Resumo por cliente</summary>'+groups(byClient)+'</details>'+
-  '<details><summary>Todos os acertos separados, com histórico</summary>'+individual+'</details>'+
+  '<details><summary>Acertos separados (primeiros 100)</summary>'+individual+(byFaction.entries.length>100?'<p class="caption">Mostrando 100 de '+byFaction.entries.length+' acertos. Consulte com filtros ou exporte para obter a lista completa.</p>':'')+'</details>'+
   '<details><summary>Detalhamento por acerto: ajustes, devoluções e compensações</summary>'+
-  byFaction.entries.map(x=>'<details><summary>'+str(x.id)+' · '+str(x.clientName)+' / '+str(x.factionName)+' · '+fmt(x.amountCents)+'</summary>'+
+  byFaction.entries.slice(0,100).map(x=>'<details><summary>'+str(x.id)+' · '+str(x.clientName)+' / '+str(x.factionName)+' · '+fmt(x.amountCents)+'</summary>'+
    '<p>Modelo: '+str(x.model)+' · Peças: '+str(x.qty)+' · '+str(x.status)+
     ' · Título: '+str(x.financeId)+' · Data de pagamento: '+str(x.paidDate||'Não informada')+'</p>'+
    table(['Evento','Motivo','Antes','Depois','Comando'],
