@@ -28,6 +28,7 @@ jobs:
           node --check tests/route-safe-save-location-v9534-browser.cjs
   browser:
     runs-on: ubuntu-24.04
+    container: mcr.microsoft.com/playwright:v1.55.0-noble
     timeout-minutes: 18
     strategy:
       fail-fast: false
@@ -35,12 +36,8 @@ jobs:
         browser: [chromium, webkit]
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with: {node-version: '20'}
-      - name: Install Playwright
-        run: |
-          npm install --no-save playwright@1.55.0
-          npx playwright install --with-deps ${{ matrix.browser }}
+      - name: Install matching Playwright client
+        run: npm install --no-save playwright@1.55.0
       - name: Verify route location isolation and timeout cloud proof
         env:
           HLGB_BROWSER: ${{ matrix.browser }}
