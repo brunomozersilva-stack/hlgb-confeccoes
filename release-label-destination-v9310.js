@@ -3,11 +3,13 @@
 'use strict';
 if(window.hlgbLabelDestination9310)return;
 const V='93.10-label-destination';
+const labelCore9602b=window.HLGB_LABEL_LAYOUT_9602B||null;
 const esc=v=>String(v??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
 const q=v=>Math.max(1,Math.floor(Number(v)||1));
 const extras=[];
 
 function labelSize(mode){
+  if(labelCore9602b?.labelSize)return labelCore9602b.labelSize(mode);
   return mode==='large'?{w:92,h:52,cols:2,rows:5,font:18,line:1.42,gap:.8,title:19}
        : mode==='medium'?{w:62,h:40,cols:3,rows:6,font:14,line:1.30,gap:.45,title:15}
        : {w:62,h:34,cols:3,rows:7,font:12,line:1.22,gap:.25,title:13};
@@ -52,6 +54,7 @@ function collect(){
   return out;
 }
 function labelBody(x,tag='span'){
+  if(labelCore9602b?.labelBody)return labelCore9602b.labelBody(x,tag);
   const line=(t,v)=>'<'+tag+'>'+t+': '+esc(v||'-')+'</'+tag+'>';
   let h=(x.name?'<b>'+esc(x.name)+'</b>':'')+line('MODELO',x.model)+line('TAMANHO',x.size)+line('QUANTIDADE',x.pieceQty)+line('VOLUME',x.volume)+line('DESTINO',x.destination);
   if(x.includeDate&&x.date)h+=line('DATA',x.date);

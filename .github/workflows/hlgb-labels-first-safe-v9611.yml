@@ -1,0 +1,50 @@
+name: HLGB Comercial - Primeira Pasta Etiquetas e Login v96.11
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'app-stable3.html'
+      - 'release-label-destination-v9310.js'
+      - 'hlgb-modules/utilidades/etiquetas-layout-v9602b.js'
+      - 'tests/hlgb-live-label-layout-v9602b.cjs'
+      - 'tests/hlgb-labels-boot-browser-v9611.cjs'
+      - '.github/workflows/hlgb-labels-first-safe-v9611.yml'
+  workflow_dispatch:
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+permissions:
+  contents: read
+jobs:
+  labels-parity:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - name: Verificar regras antigas e modulo puro
+        run: |
+          node --check hlgb-modules/utilidades/etiquetas-layout-v9602b.js
+          node --check release-label-destination-v9310.js
+          node --test tests/hlgb-live-label-layout-v9602b.cjs
+          node tests/etiquetas-a4-batch-v9454.cjs
+  browser-login:
+    runs-on: ubuntu-24.04
+    container: mcr.microsoft.com/playwright:v1.55.0-noble
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        browser: [chromium, webkit]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install matching Playwright client
+        run: npm install --no-save playwright@1.55.0
+      - name: Serve isolated synthetic fixtures
+        run: |
+          python3 -m http.server 4173 >/tmp/hlgb-first-9611.log 2>&1 &
+      - name: Test login with module present and missing
+        env:
+          HLGB_BROWSER: ${{ matrix.browser }}
+        run: node tests/hlgb-labels-boot-browser-v9611.cjs
