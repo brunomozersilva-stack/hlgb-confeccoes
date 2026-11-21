@@ -10,6 +10,7 @@ on:
       - '.github/workflows/login-safari-network-v9613.yml'
       - 'diagnostico-abertura.html'
       - 'tests/diagnostico-login-auth-v9613-browser.cjs'
+      - 'tests/login-network-loader-v9613-browser.cjs'
   workflow_dispatch:
 permissions: {contents: read}
 jobs:
@@ -33,9 +34,13 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - run: npm install --no-save playwright@1.55.0
+      - name: Serve original loader with mock-only backend
+        run: |
+          python3 -m http.server 4173 >/tmp/hlgb-auth-9613.log 2>&1 &
       - name: Synthetic login without live Supabase
         env:
           HLGB_BROWSER: ${{ matrix.browser }}
         run: |
           node tests/login-safari-network-v9613-browser.cjs
           node tests/diagnostico-login-auth-v9613-browser.cjs
+          node tests/login-network-loader-v9613-browser.cjs
