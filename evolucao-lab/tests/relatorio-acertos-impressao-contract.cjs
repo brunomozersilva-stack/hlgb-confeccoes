@@ -11,7 +11,8 @@ const state=()=>({
   qty:10,amountCents:2000,status:'pago',
   history:[{commandId:'AUD-1',reason:'Corrigir <valor>',beforeCents:1500,afterCents:2000}]}],
  finance:[{id:'FIN-1',kind:'pagar',sourceId:'ACE-1',amountCents:2000,
-  status:'pago',paidDate:'2026-11-20'}],
+  status:'pago',paidDate:'2026-11-20'},
+ {id:'FIN-CMP-1',kind:'receber',sourceId:'CMP-1',amountCents:100,status:'aberto'}],
  settlementCompensations:[{id:'CMP-1',settlementId:'ACE-1',deltaCents:-100,
   status:'aberto',reference:'REF-1',reason:'Ajuste & revisão'}],
  paymentBatches:[{id:'LOTE-1',reference:'PG-1',items:[{financeId:'FIN-1'}]}]
