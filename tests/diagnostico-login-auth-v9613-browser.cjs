@@ -20,7 +20,7 @@ const diag=fs.readFileSync('diagnostico-abertura.html','utf8');
     return route.fulfill({status:200,contentType:'text/plain',body:files[k]||'not found'});
    }
    if(url.hostname==='test-project.supabase.co'&&url.pathname==='/auth/v1/health')
-    return route.fulfill({status:200,headers:{'access-control-allow-origin':'*'},contentType:'application/json',body:'{"healthy":true}'});
+    return route.fulfill({status:200,headers:{'access-control-allow-origin':'*','access-control-allow-headers':'apikey, content-type','access-control-allow-methods':'GET,OPTIONS'},contentType:'application/json',body:'{"healthy":true}'});
    return route.abort('blockedbyclient');
   });
   await page.goto('http://hlgb.test/diagnostico-abertura.html');
