@@ -19,5 +19,6 @@ jobs:
       - uses: actions/checkout@v4
       - run: npm install --no-save playwright@1.55.0
       - name: Test read-only browser diagnostic (no live credentials)
-        env: {HLGB_BROWSER: ${{ matrix.browser }}}
+        env:
+          HLGB_BROWSER: ${{ matrix.browser }}
         run: node tests/diagnostico-rede-safari-v9613-browser.cjs
