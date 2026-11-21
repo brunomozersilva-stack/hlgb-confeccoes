@@ -24,7 +24,10 @@ test('fontes antigas permanecem na main como referência e novo não é equivale
  assert.match(source,/const clone=x=>JSON\.parse\(JSON\.stringify\(x\)\),sizes=\['P','M','G','GG'\]/);
  assert.match(source,/function createOrder\(s,p\)\{/);
  assert.match(source,/productId:product\.id,grade:clone\(g\)/);
- assert.match(ui,/case 'pedidos':return importOrdersPanel\(s\)\+panel\('Grade por cor e tamanho no próprio Pedido'/);
+ assert.match(ui,/case 'pedidos':return ordersFastPanel\(s\)\+panel\('Novo pedido · cor e tamanho',colorMatrixCreateForm\(s\)/);
+ assert.match(ui,/multiOrderPanel\(s\)\+importOrdersPanel\(s\)\+orderColorGradePanel\(s\)/,
+  'O modo compacto não pode eliminar importação, multimodelo nem correção de cores');
+ assert.match(ui,/id="orders-tools"/,'Ferramentas antigas devem continuar acessíveis');
  assert.match(ui,/form\('order.add','Novo pedido fictício'/,'Modo antigo sem cor deve continuar disponível');
  assert.match(ui,/function colorMatrixCreateForm\(/,'Matriz por cor/tamanho retornou a Pedidos no laboratório');
  assert.match(ui,/function orderColorGradePanel\(/,'Correção de cores está em Pedidos');
