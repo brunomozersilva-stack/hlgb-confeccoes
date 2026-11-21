@@ -66,6 +66,7 @@ test('Duas sessões reais em PostgreSQL descartável: 120→80→50, conflito, A
 
   // B está numa revisão antiga. Nunca misturar rascunho e não reexecutar o pedido.
   await b.locator('[data-module="pedidos"]').click();
+  await b.locator('#orders-tools').evaluate(el=>{el.open=true;});
   const oldDraft=b.locator('form[data-command="order.add"] [name="M"]');
   await oldDraft.fill('17');
   const competingPayload=JSON.parse(JSON.stringify(orderPayload));
