@@ -55,6 +55,7 @@ test('tela modular carrega motor, mostra capacidade e nao programa sozinha',()=>
  assert.doesNotThrow(()=>new (require('node:vm').Script)(ui));
  assert.match(ui,/function cutCapacityPanel\(s\)/);
  assert.match(ui,/id="cut-capacity-run"/);
- assert.match(ui,/return multiCutPanel\(s\)\+cutCapacityPanel\(s\)/);
+ assert.match(ui,/return flowQuickPanel\(s,'corte'\)\+multiCutPanel\(s\)\+cutCapacityPanel\(s\)/);
+ assert.match(ui,/function flowQuickPanel\(s,area\)/);
  assert.match(html,/modulos\/capacidade-corte-v1\.js/);
 });
