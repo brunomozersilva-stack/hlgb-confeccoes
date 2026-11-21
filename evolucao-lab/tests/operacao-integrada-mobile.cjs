@@ -334,6 +334,7 @@ async function run(browser,width,url){
   assert.ok(historicCsv.includes('\r\n'),'CSV deve utilizar quebra CRLF real');
   assert.ok(!historicCsv.includes('\\\\uFEFF'),'CSV não pode conter sequência de escape literal');
   assert.equal(await revision(page),historyRevision,'CSV não altera saldo');
+  await page.evaluate(()=>{document.body.dataset.printProof='false';});
   await page.locator('[data-sett-hist-print="detalhado"]').click();
   assert.equal(await page.locator('body').getAttribute('data-print-proof'),'true');
   assert.match(await page.locator('#cut-print').innerText(),/ACE-0001/);
