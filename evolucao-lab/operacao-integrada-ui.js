@@ -717,6 +717,77 @@ function renderRouteSheet(id){
  return $('cut-print').textContent;
 }
 
+// Corte e Faccoes: mesa de consulta sem comandos de escrita. Nao substitui
+// os formularios existentes, nao converte reserva em corte e nao faz baixas.
+function flowQuickPanel(s,area){
+ const orders=Array.isArray(s.orders)?s.orders:[];
+ const recent=list=>list.sort((a,b)=>b.id.localeCompare(a.id,'pt-BR',{numeric:true})).slice(0,20);
+ const metrics=items=>'<div class="metrics">'+items.map(([name,value])=>
+  '<div class="metric"><span>'+str(name)+'</span><strong>'+str(value)+'</strong></div>').join('')+'</div>';
+ const shortcut=(type,id,label,attr='order')=>
+  '<button class="btn" type="button" data-flow-shortcut="'+str(type)+'" data-flow-'+attr+'="'+str(id)+'">'+str(label)+'</button>';
+ if(area==='corte'){
+  const plans=Array.isArray(s.cutPlans)?s.cutPlans:[];
+  const open=plans.filter(p=>p.status==='aberto');
+  const done=plans.filter(p=>p.status==='concluido');
+  const pending=orders.map(o=>{
+   const ordered=sum(o.grade),cut=sum(o.cut);
+   const reserved=open.filter(p=>p.orderId===o.id).reduce((n,p)=>n+sum(p.grade),0);
+   return {o,ordered,cut,reserved,available:Math.max(0,ordered-cut-reserved),
+    toSend:Math.max(0,cut-(o.allocated||0))};
+  });
+  const rows=recent(pending.filter(x=>x.available>0||x.reserved>0||x.toSend>0)
+   .map(x=>({...x,id:x.o.id}))).map(x=>[
+    '<strong>'+str(x.o.id)+'</strong>',
+    str(ref(s.products,x.o.productId)?.name||x.o.productId),
+    str(x.ordered),str(x.cut),str(x.reserved),str(x.available),str(x.toSend),
+    x.available>0?shortcut('cut.plan',x.o.id,'Planejar folha'):'<span class="caption">Sem saldo livre</span>'
+   ]);
+  return panel('Corte · mesa rápida de trabalho',
+   '<div id="flow-cut-desk"><p>Resumo calculado nesta revisão. Folha aberta <b>reserva</b> grade, mas só folha concluída registra corte e baixa material. Os botões apenas selecionam o pedido no formulário original.</p>'+
+   metrics([['Pedidos com corte pendente',pending.filter(x=>x.available>0).length],
+    ['Peças livres para planejar',pending.reduce((n,x)=>n+x.available,0)],
+    ['Folhas abertas',open.length],['Folhas concluídas',done.length]])+
+   table(['Pedido','Modelo','Pedidas','Cortadas','Reservadas','Livres','Cortadas a enviar','Próxima ação'],rows)+
+   '<p class="caption">Até 20 pedidos recentes com saldo ou reserva. Para editar grade, equipe, peso, assinatura ou imprimir, use os formulários e relatórios completos abaixo.</p></div>',true);
+ }
+ if(area==='faccoes'){
+  const assignments=Array.isArray(s.factionAssignments)?s.factionAssignments:[];
+  const candidates=orders.map(o=>({o,id:o.id,
+   send:Math.max(0,sum(o.cut)-(o.allocated||0)),
+   returnPending:Math.max(0,(o.allocated||0)-(o.returned||0))}));
+  const pending=assignments.filter(x=>x.qtySent>x.qtyReturned);
+  const rows=recent(candidates.filter(x=>x.send>0||x.returnPending>0)).map(x=>[
+   '<strong>'+str(x.o.id)+'</strong>',
+   str(ref(s.products,x.o.productId)?.name||x.o.productId),
+   str(sum(x.o.cut)),str(x.o.allocated),str(x.o.returned),
+   str(x.send),str(x.returnPending),
+   x.send>0?shortcut(x.o.colorGrades?.length?'faction.grade.allocate':'faction.allocate',x.o.id,
+    x.o.colorGrades?.length?'Enviar por cor/tamanho':'Enviar à facção'):'<span class="caption">Sem corte livre</span>'
+  ]);
+  const byFaction=recent(pending.map(x=>({...x,id:x.id}))).map(x=>{
+   const color=Array.isArray(x.gradeLines)&&x.gradeLines.length>0;
+   return [str(x.id),str(x.orderId),
+    str(ref(s.factions,x.factionId)?.name||x.factionId),
+    str(x.qtySent),str(x.qtyReturned),str(x.qtySent-x.qtyReturned),
+    color?shortcut('faction.grade.return',x.id,'Retornar por grade','assignment'):
+     shortcut('faction.return',x.orderId,'Registrar retorno')];
+  });
+  return panel('Facções · mesa rápida de saldos',
+   '<div id="flow-faction-desk"><p>Saldos por pedido e por envio existente, sem agrupamento fictício de facções. O retorno cria acerto <b>somente após confirmar</b> no formulário. Atalhos não registram envio, retorno, acerto ou pagamento.</p>'+
+   metrics([['Peças cortadas sem envio',candidates.reduce((n,x)=>n+x.send,0)],
+    ['Peças aguardando retorno',candidates.reduce((n,x)=>n+x.returnPending,0)],
+    ['Envios com saldo',pending.length],
+    ['Facções com saldo',new Set(pending.map(x=>x.factionId)).size]])+
+   '<h3>Por pedido · até 20 com pendências</h3>'+
+   table(['Pedido','Modelo','Cortadas','Enviadas','Retornadas','A enviar','A retornar','Ação'],rows)+
+   '<h3>Por envio e facção · até 20 pendentes</h3>'+
+   table(['Envio','Pedido','Facção','Enviadas','Retornadas','Saldo','Ação'],byFaction)+
+   '<p class="caption">Troca de facção, tarifas, travetada, retornos parciais e transferências por grade continuam nos formulários detalhados desta página.</p></div>',true);
+ }
+ return '';
+}
+
 // Pedidos: mesa compacta de trabalho, inspirada na pesquisa, filtros e modo
 // operacional do HLGB comercial. Somente leitura; usa as transacoes ja validadas.
 const ordersFastFilters={query:'',status:'todos',priority:'todas',page:1,pageSize:20,selected:null};
@@ -1925,7 +1996,7 @@ function moduleHtml(s){
    '<span class="chip '+(p.status==='aberto'?'wait':'')+'">'+str(p.status)+'</span>',
    '<button type="button" class="btn" data-print-plan="'+str(p.id)+'">Imprimir folha</button>'
   ]);
-  return multiCutPanel(s)+cutCapacityPanel(s)+multiOrderCutImpactPanel(s)+cutSplitPanel(s)+bomCutPanels(s)+panel('Grade editável do pedido',
+  return flowQuickPanel(s,'corte')+multiCutPanel(s)+cutCapacityPanel(s)+multiOrderCutImpactPanel(s)+cutSplitPanel(s)+bomCutPanels(s)+panel('Grade editável do pedido',
    form('order.grade.update','Ajustar quantidades por tamanho',[
     field('orderId','Pedido','select','',o),...gradeFields(defaultOrder?.grade)
    ],'Salvar grade e conferir valor do pedido')+
@@ -2012,7 +2083,7 @@ function moduleHtml(s){
  const transferable=selector(rows.filter(x=>!classified.some(o=>o.id===x.orderId)&&x.qtySent>1&&x.qtySent>x.qtyReturned),
   x=>x.id+' · '+x.orderId+' · '+(ref(s.factions,x.factionId)?.name||'—')+
   ' · '+(x.qtySent-x.qtyReturned)+' peças disponíveis');
- return multiFlowLabPart(s,'faction')+factionMaterialsPanel(s,'faccoes')+servicePanels(s,'faccoes')+panel('Preço específico das peças que já estão na facção',
+ return flowQuickPanel(s,'faccoes')+multiFlowLabPart(s,'faction')+factionMaterialsPanel(s,'faccoes')+servicePanels(s,'faccoes')+panel('Preço específico das peças que já estão na facção',
    form('faction.assignment.rate.set','Negociar mão de obra por envio pendente',[
     field('assignmentId','Envio / pedido / facção','select','',selector(rows.filter(x=>x.qtySent>x.qtyReturned),x=>
       x.id+' · '+x.orderId+' · '+(ref(s.factions,x.factionId)?.name||'—')+
@@ -3198,6 +3269,27 @@ document.addEventListener('change',event=>{
  }
 });
 document.addEventListener('click',async e=>{
+ const flowShortcut=e.target.closest('[data-flow-shortcut]');
+ if(flowShortcut){
+  const type=flowShortcut.dataset.flowShortcut;
+  const allowed=['cut.plan','faction.allocate','faction.grade.allocate','faction.return','faction.grade.return'];
+  if(!allowed.includes(type))return;
+  const form=[...document.querySelectorAll('form[data-command]')].find(f=>f.dataset.command===type);
+  if(!form){status('Formulário não disponível nesta revisão. Nenhuma ação realizada.','error');return;}
+  const targetId=flowShortcut.dataset.flowAssignment||flowShortcut.dataset.flowOrder;
+  const field=form.elements.namedItem(flowShortcut.dataset.flowAssignment?'assignmentId':'orderId');
+  if(targetId&&field&&field.tagName==='SELECT'){
+   if(![...field.options].some(x=>x.value===targetId)){
+    status('Este saldo não está habilitado neste formulário. Consulte a grade e o histórico; nada foi salvo.','error');return;
+   }
+   field.value=targetId;
+  }
+  form.scrollIntoView({block:'start',behavior:'auto'});
+  const focus=field||form.querySelector('input,select,button');
+  if(focus?.focus)focus.focus({preventScroll:true});
+  status('Formulário localizado para conferência. Nenhum envio, corte, retorno ou acerto foi gravado.','success');
+  return;
+ }
  const editOrder=e.target.closest('[data-orders-edit]');
  if(editOrder){
   const id=editOrder.dataset.ordersEdit;
