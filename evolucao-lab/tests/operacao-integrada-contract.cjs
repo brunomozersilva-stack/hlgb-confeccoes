@@ -530,7 +530,9 @@ test('Pedidos: criar matriz por cor/tamanho é atômico e não perde o formulár
  }
  const plain=run(ctx,'order.add',{clientId:'CLI-0001',productId:'PRO-0001',grade:{P:1,M:1,G:0,GG:0}});
  assert.ok(ctx.state.orders.some(x=>x.id===plain),'Modo de pedido anterior continua disponível');
- assert.match(ui,/case 'pedidos':return importOrdersPanel\(s\)\+panel\('Grade por cor e tamanho no próprio Pedido'/);
+ assert.match(ui,/case 'pedidos':return ordersFastPanel\(s\)\+panel\('Novo pedido · cor e tamanho',colorMatrixCreateForm\(s\)/);
+ assert.match(ui,/multiOrderPanel\(s\)\+importOrdersPanel\(s\)\+orderColorGradePanel\(s\)/);
+ assert.match(ui,/id="orders-tools"/);
  assert.match(ui,/function colorMatrixCreateForm\(/);
  assert.match(ui,/function orderColorGradePanel\(/);
 });
