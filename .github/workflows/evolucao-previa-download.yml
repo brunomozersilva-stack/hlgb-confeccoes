@@ -36,7 +36,7 @@ jobs:
           set -euo pipefail
           mkdir -p pacote/HLGB-Evolucao-Previa/permissoes
           cp evolucao-lab/entrada.html pacote/HLGB-Evolucao-Previa/index.html
-          for p in operacao-integrada.html acessos-lab.html folha-homologacao.html sincronizacao-duas-sessoes.html guardiao-preservacao.html homologacao-modulos.html central-operacional-2.html fluxo-producao-integrado.html planejador-materiais.html prototipo.html fluxos-operacionais.html acertos-simulador.html transacoes-simuladas.html preservacao.html paridade-critica.html; do
+          for p in operacao-integrada.html folha-homologacao.html sincronizacao-duas-sessoes.html guardiao-preservacao.html homologacao-modulos.html central-operacional-2.html fluxo-producao-integrado.html planejador-materiais.html prototipo.html fluxos-operacionais.html acertos-simulador.html transacoes-simuladas.html preservacao.html paridade-critica.html; do
             cp "evolucao-lab/$p" "pacote/HLGB-Evolucao-Previa/$p"
           done
           cp evolucao-lab/permissoes/permissoes-mobile.html pacote/HLGB-Evolucao-Previa/permissoes/permissoes-mobile.html
@@ -45,6 +45,20 @@ jobs:
           cp evolucao-lab/operacao-integrada-ui.js pacote/HLGB-Evolucao-Previa/operacao-integrada-ui.js
           cp -R evolucao-lab/modulos pacote/HLGB-Evolucao-Previa/modulos
           node evolucao-lab/build-operacao-autonoma.cjs pacote/HLGB-Evolucao-Previa/operacao-integrada-autonoma.html
+          # A rota administrativa requer API e autenticacao do laboratorio servido.
+          # Em ZIP offline, manter a navegação sem incluir scripts de servidor.
+          cat > pacote/HLGB-Evolucao-Previa/acessos-lab.html <<'OFFLINE'
+          <!doctype html><html lang="pt-BR"><meta charset="utf-8">
+          <meta name="viewport" content="width=device-width,initial-scale=1">
+          <title>HLGB Evolução — acessos apenas com servidor</title>
+          <main style="font:16px/1.6 system-ui;max-width:660px;margin:7vh auto;padding:22px">
+          <h1>Gestão de acessos</h1>
+          <p>Esta função exige o servidor de homologação com autenticação e não está
+          disponível no pacote offline fictício. Nenhuma conta real pode ser criada
+          ou desativada por este arquivo.</p>
+          <p><a href="./operacao-integrada.html">Voltar ao programa de testes</a></p>
+          </main></html>
+          OFFLINE
           python3 - <<'PY'
           from pathlib import Path
           root=Path('pacote/HLGB-Evolucao-Previa')
