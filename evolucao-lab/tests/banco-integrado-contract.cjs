@@ -25,6 +25,30 @@ test('banco integral: pedido, concorrência, corte, acerto, financeiro e releitu
  s=await db.state();assert.equal(s.finance.find(x=>x.id===title.id).status,'pago');assert.equal(s.revision,6);assert.equal(s.log.length,5);
  assert.equal((await db.readback('LAB-never-0001')).status,'not_found');assert.equal((await db.readback(won.commandId)).latestRevision,6);
 });
+test('PostgreSQL fictício: histórico de acertos pagos permite duas leituras idênticas sem nova baixa',async()=>{
+ const history=require('../modulos/historico-acertos-v1.js');
+ const filters=require('../modulos/historico-acertos-filtros-v2.js');
+ const print=require('../modulos/relatorio-acertos-impressao-v1.js');
+ const before=await db.state(),revision=before.revision;
+ const a=filters.query(before,{groupBy:'faccao',status:'pago',view:'detalhado'});
+ assert.equal(a.entries.length,1,'um retorno confirmado gera um único acerto pago');
+ assert.equal(a.entries[0].status,'pago');
+ assert.equal(a.entries[0].paidCents,a.entries[0].amountCents);
+ assert.equal(a.entries[0].openCents,0);
+ assert.equal(a.entries[0].financeId,before.finance.find(f=>f.sourceId===a.entries[0].id).id);
+ const summary=history.report(before,{groupBy:'cliente'});
+ assert.equal(summary.totals.count,1);
+ const html=print.render(a,{detail:'detalhado'});
+ assert.match(html,/HISTORICO DE ACERTOS/);
+ assert.match(html,new RegExp(a.entries[0].id));
+ const after=await db.state();
+ const second=filters.query(after,{groupBy:'faccao',status:'pago',view:'detalhado'});
+ assert.deepEqual(second.totals,a.totals);
+ assert.deepEqual(second.entries.map(x=>[x.id,x.amountCents,x.financeId]),
+  a.entries.map(x=>[x.id,x.amountCents,x.financeId]));
+ assert.equal(after.revision,revision,'histórico não altera revisão PostgreSQL');
+ assert.deepEqual(after,before,'consulta não escreve em banco nem altera saldos');
+});
 test('guardião recusa banco remoto, fingerprint estável e ator não autorizado',()=>{assert.throws(()=>db.guard({PGDATABASE:'postgres',PGHOST:'127.0.0.1'}));const c=cmd('test-0001','order.add',1,{a:1,b:2});assert.equal(db.validate(c,A),db.validate({...c,payload:{b:2,a:1}},A));assert.throws(()=>db.validate(c,'Administrador'));});
 
 test('cancelamento serializado impede commit atrasado com mesmo ID',async()=>{const s=await db.state(),c=cmd('cancel-0001','order.add',s.revision,{clientId:'CLI-0001',productId:'PRO-0001',grade:{P:1,M:0,G:0,GG:0}});assert.equal((await db.cancel(c,A)).status,'cancelled');assert.equal((await db.readback(c.commandId)).status,'cancelled');assert.equal((await db.commit(c,A)).status,'rejected');assert.equal((await db.state()).revision,s.revision);});
