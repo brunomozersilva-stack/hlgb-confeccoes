@@ -57,3 +57,16 @@ situação/prioridade/data, finalização, conferência de nuvem e acompanhament
 | 8 | Auditor/Bot e outras 20 áreas | todas as ações, filtros, impressão e utilidades | diagnóstico sem alterar dados | lista de 76 tarefas e aceite individual |
 
 **Não fazer merge, migração de dados ou substituição do HLGB comercial com base apenas no teste das 20 abas.**
+
+
+## Incremento 21/11 — mesas rápidas de Corte, Facções e Acertos (não homologado)
+
+- **CI anterior diagnosticado:** o ensaio runRecovery navegava de volta a Pedidos e tentava preencher order.add depois que o painel avançado tinha sido fechado pelo redesenho. Foi acrescentada abertura explícita antes do segundo lançamento. Não foi retirada validação histórica, nem habilitada escrita nova.
+- **Corte:** painel inicial com pedidos, quantidade pedida, cortada, reservada por folhas abertas, livre para planejar e cortada ainda não enviada. Folha em aberto não é contada como corte realizado; conclusão e baixa permanecem nos comandos originais. Atalho apenas pré-seleciona pedido para cut.plan.
+- **Facções:** resumo agregado por pedido e visão por **envio individual**, facção, pendências de envio/retorno; não funde lançamentos de facções diferentes. Atalhos abrem os formulários existentes para envio e retorno, simples ou identificado por cor/tamanho, sem executar a operação.
+- **Acertos:** valores em aberto e pagos separados por facção e por cliente (quando o cliente decorre de pedido), incluindo linha explícita para avulsos sem cliente. Compensações são contadas separadamente, sem se somarem indevidamente ao acerto original. Histórico, filtros, PDF, revisões e pagamentos continuam com as rotinas originais.
+- **Testes de não-regressão acrescentados** ao navegador: seleção de pedido no Corte, seleção de envio e retorno em Facções e visibilidade do resumo dos Acertos sem alteração de revisão. Também reabertura do formulário histórico no ensaio de recuperação.
+- **Verificação de sintaxe:** conferência JavaScript dos dois arquivos modificados feita antes de concluir a etapa. Isto não substitui a execução do CI em Chromium/WebKit nem a aceitação por tarefas reais.
+- **Limites persistentes:** ainda sem aprovação da paridade das 76 funções, sem banco comercial sincronizado entre computadores, sem migração de dados reais e sem validação funcional de todos os caminhos antigos. Acertos exibem valores fictícios e não pagamentos bancários.
+
+**Próximos critérios de aceite:** CI verde em todas as matrizes, testes Safari/mobile de formulários colapsados, identificação do mesmo saldo após recarregar e testar outra aba, ausência de criação de acerto ao clicar nos atalhos, conciliação por facção/cliente, comparação minuciosa com o HLGB comercial e aceite operacional. Nada autoriza merge em main ou publicação no programa comercial.
