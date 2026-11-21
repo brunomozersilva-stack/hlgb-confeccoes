@@ -104,10 +104,11 @@ async function run(){
   if(x&&typeof x==='object')previousBoot={at:String(x.at||'').slice(0,50),reason:String(x.reason||'').slice(0,200),failedFiles:Array.isArray(x.failedFiles)?x.failedFiles.slice(0,30).map(v=>String(v).replace(/[^a-zA-Z0-9_.-]/g,'').slice(0,100)):[],bootAttempts:Array.isArray(x.attempts)?x.attempts.slice(0,3).map(a=>({attempt:Number(a?.attempt)||0,category:String(a?.category||'').slice(0,40),message:String(a?.message||'').slice(0,130)})):[]};
  }catch(e){}
  const results=await Promise.all(checks.map(checkFile));
- const authService=await checkAuthService();results.push(authService);
- report={name:'HLGB boot and authentication diagnostic',version:'96.13',startedAt:start,entry:location.pathname,online:navigator.onLine,platform:navigator.platform||'',userAgent:navigator.userAgent||'',storage,serviceWorker:sw,previousBoot,previousAuthFailure:previousAuthFailure(),results};
+ const authService=await checkAuthService();
+ report={name:'HLGB boot diagnostic',version:'96.13',startedAt:start,entry:location.pathname,online:navigator.onLine,platform:navigator.platform||'',userAgent:navigator.userAgent||'',storage,serviceWorker:sw,previousBoot,previousAuthFailure:previousAuthFailure(),authService,results};
  items.textContent='';
  for(const result of results)items.appendChild(line(result));
+ items.appendChild(line(authService));
  const passed=results.filter(x=>x.ok).length;
  const summary=document.createElement('p');summary.className=passed===results.length?'ok':'fail';
  summary.textContent=passed+' de '+results.length+' arquivos essenciais carregados corretamente.';items.prepend(summary);
