@@ -312,6 +312,30 @@ async function run(browser,width,url){
   assert.match(await page.locator('#module-content').innerText(),/Acerto fictício/);
   assert.match(await page.locator('#module-content').innerText(),/Hub Financeiro 2.0/);
   await put(page,'finance.pay',{id:'FIN-0002'});
+  // Historico individual: cliente, faccao, pagamento, PDF e CSV com releitura.
+  await module(page,'acertos');
+  const historyRevision=await revision(page);
+  await page.locator('#sett-hist-group').selectOption('cliente');
+  await page.locator('#sett-hist-client').selectOption('CLI-0001');
+  await page.locator('#sett-hist-faction').selectOption('FAC-0002');
+  await page.locator('#sett-hist-status').selectOption('pago');
+  await page.locator('#sett-hist-individual').selectOption('ACE-0001');
+  await page.locator('#sett-hist-query').click();
+  const historicalText=await page.locator('#sett-hist-filter-result').innerText();
+  assert.match(historicalText,/1 acertos/);
+  assert.match(historicalText,/R\\$ 50,50/);
+  assert.equal(await revision(page),historyRevision,'consulta histórica nunca grava');
+  const [historyDownload]=await Promise.all([
+   page.waitForEvent('download'),page.locator('#sett-hist-export-filtered').click()]);
+  const historicCsv=fs.readFileSync(await historyDownload.path(),'utf8');
+  assert.match(historicCsv,/ACE-0001/);
+  assert.match(historicCsv,/FIN-0002/);
+  assert.equal(await revision(page),historyRevision,'CSV não altera saldo');
+  await page.locator('[data-sett-hist-print="detalhado"]').click();
+  assert.equal(await page.locator('body').getAttribute('data-print-proof'),'true');
+  assert.match(await page.locator('#cut-print').innerText(),/ACE-0001/);
+  assert.match(await page.locator('#cut-print').innerText(),/FIN-0002/);
+  assert.equal(await revision(page),historyRevision,'impressão não altera acertos');
   await module(page,'auditor');
   assert.match(await page.locator('#module-content').innerText(),/0 alertas|Sem inconsistências/);
   await module(page,'bot');
