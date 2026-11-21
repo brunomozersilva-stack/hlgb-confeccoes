@@ -361,12 +361,12 @@ async function run(browser,width,url){
     await tab.locator('#sett-hist-query').click();
     assert.match(await tab.locator('#sett-hist-filter-result').innerText(),/R\\$ 50,50/);
     assert.equal(await revision(tab),historyRevision,'segunda aba não cria pagamento');
-    const rows=await tab.evaluate(async()=>new Promise((resolve,reject)=>{
-      const open=indexedDB.open('hlgb-evolucao-operacao-integrada-v1');
-      open.onerror=()=>reject(open.error);
-      open.onsuccess=()=>{const db=open.result;resolve([...db.objectStoreNames]);db.close()};
-    }));
-    assert.ok(Array.isArray(rows),'segunda aba acessou IndexedDB fictício');
+    const [copyDownload]=await Promise.all([
+      tab.waitForEvent('download'),tab.locator('#export-json').click()]);
+    const copy=JSON.parse(fs.readFileSync(await copyDownload.path(),'utf8')).data;
+    assert.equal(copy.settlements.filter(x=>x.id==='ACE-0001').length,1);
+    assert.equal(copy.finance.filter(x=>x.sourceId==='ACE-0001'&&x.status==='pago').length,1);
+    assert.equal(copy.settlements.find(x=>x.id==='ACE-0001').amountCents,5050);
    }finally{await tab.close();}
   }
   await module(page,'auditor');
