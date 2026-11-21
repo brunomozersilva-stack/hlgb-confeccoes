@@ -1,0 +1,24 @@
+name: HLGB Diagnostico Auth Safari somente leitura v96.13
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'diagnostico-rede-safari.html'
+      - 'tests/diagnostico-rede-safari-v9613-browser.cjs'
+      - '.github/workflows/hlgb-diagnostico-auth-safari-v9613.yml'
+  workflow_dispatch:
+permissions: {contents: read}
+jobs:
+  browser:
+    runs-on: ubuntu-24.04
+    container: mcr.microsoft.com/playwright:v1.55.0-noble
+    strategy:
+      fail-fast: false
+      matrix: {browser: [chromium, webkit]}
+    steps:
+      - uses: actions/checkout@v4
+      - run: npm install --no-save playwright@1.55.0
+      - name: Test read-only browser diagnostic (no live credentials)
+        env:
+          HLGB_BROWSER: ${{ matrix.browser }}
+        run: node tests/diagnostico-rede-safari-v9613-browser.cjs
