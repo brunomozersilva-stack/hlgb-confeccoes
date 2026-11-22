@@ -1999,6 +1999,15 @@ function migrationPreflightSource(){
   return migrationPreflightCustom;
  return migrationPreflightFixture(migrationPreflightExample);
 }
+function migrationPreflightBatchFixture(){
+ const first=migrationPreflightFixture('documentado');
+ const second=JSON.parse(JSON.stringify(first).replaceAll('FICTICIO-087','FICTICIO-088')
+  .replaceAll('EXEMPLO-01','EXEMPLO-02'));
+ // Este cenário serve para demonstrar erro transversal que só aparece quando
+ // duas encomendas são conferidas juntas, sem importar nada para o banco.
+ second.evidence.finance[0].id=first.evidence.finance[0].id;
+ return [first,second];
+}
 function migrationPreflightMarkup(){
  const sampleOptions=migrationPreflightCustom?[...migrationPreflightExamples,['personalizado','Minha prévia fictícia']]:migrationPreflightExamples;
  const options='<div class="actions" role="group" aria-label="Selecionar cenário fictício de pré-migração">'+
@@ -2013,11 +2022,12 @@ function migrationPreflightMarkup(){
  const disclaim='<p><strong>Somente demonstração fictícia:</strong> esta tela não lê o HLGB comercial, não importa cadastro, não modifica o documento da homologação e não aprova migração. Não cole dados de funcionários ou clientes reais.</p>'+
   '<p>Uma grade idêntica não comprova que os movimentos de Corte, os acertos e os títulos estão corretos. Mesmo o cenário íntegro permanece <strong>bloqueado para migração automática</strong>.</p>';
  const engine=window.HLGBLabMigrationPreflightV1;
- if(!engine?.review||!engine?.buildDossier)return options+disclaim+
+ if(!engine?.review||!engine?.buildDossier||!engine?.buildBatch)return options+disclaim+
   '<p class="error">Motor de pré-migração indisponível. Não inferir nenhum resultado.</p>';
  try{
   const {legacy,prepared,evidence}=migrationPreflightSource();
   const dossier=engine.buildDossier(legacy,prepared,evidence),r=dossier.review;
+  const batch=engine.buildBatch(migrationPreflightBatchFixture());
   const items=[['Pedido antigo',legacy.id],['Pedido em preparo',prepared.id],
    ['Quantidade legada',r.grade.source.pieces+' peças'],
    ['Quantidade em preparo',r.grade.target.pieces+' peças'],
@@ -2047,6 +2057,21 @@ function migrationPreflightMarkup(){
    str(x.productId),str(x.targetItemId||'Não localizado'),
    str(x.sourceQty),str(x.targetQty??'Não informado'),
    str(x.delta??'Não comparável'),str(x.status.replaceAll('_',' '))]);
+  const batchRows=batch.orders.map(x=>[str(x.sourceOrderId),str(x.targetOrderId),
+   str(x.sourcePieces),str(x.targetPieces),str(x.documents),
+   str(x.missingReferences),'Migrar bloqueado']);
+  const conflictRows=batch.conflicts.map(x=>[str(x.stage),str(x.documentId),
+   str(x.firstOrderId),str(x.secondOrderId),'Revisar origem, não duplicar']);
+  const batchPreview='<details id="preflight-batch-demo"><summary><strong>8. Conferir dois pedidos juntos — detectar título duplicado entre pedidos</strong></summary>'+
+   '<p class="error"><strong>MIGRAÇÃO BLOQUEADA.</strong> Lote 100% fictício, não equivale a autorização. Pedidos: '+str(batch.totals.orders)+
+   ' · Peças originais: '+str(batch.totals.sourcePieces)+
+   ' · Documentos: '+str(batch.totals.documents)+
+   ' · Identidades duplicadas: '+str(batch.conflicts.length)+'.</p>'+
+   table(['Pedido antigo','Pedido preparado','Peças antigas','Peças preparadas','Documentos','Vínculos sem prova','Situação'],batchRows)+
+   '<h4>Conflitos entre pedidos</h4>'+
+   table(['Setor','Documento repetido','Primeiro pedido','Segundo pedido','Tratamento'],conflictRows)+
+   '<div class="actions"><button type="button" class="btn" data-preflight-export="lote">Baixar conferência de lote fictício (CSV)</button></div>'+
+   '<p class="caption">Nenhuma correspondência é aprovada: registros originais, títulos e pagamentos ficam intocados.</p></details>';
   return options+disclaim+inputTools+exportButton+
    '<div class="metrics">'+items.map(([title,value])=>
     '<div class="metric"><span>'+str(title)+'</span><strong>'+str(value)+'</strong></div>').join('')+'</div>'+
@@ -2076,6 +2101,7 @@ function migrationPreflightMarkup(){
    table(['Responsável / área','Documento','Verificação necessária','Motivo'],reviewRows)+
    (dossier.reviewQueue.length>80?'<p>Exibidas 80 de '+str(dossier.reviewQueue.length)+
     ' pendências. Consulte o CSV fictício para a fila completa.</p>':'')+
+   batchPreview+
    '<p class="caption">Origem dos resultados: motor de comparação e pré-voo validado em contratos. Sem conexão com servidor, folha de pagamento, estoque, banco de dados ou sistema no ar.</p>';
  }catch(error){
   return options+disclaim+'<p id="preflight-conclusion" class="error">Prévia inválida. '+
