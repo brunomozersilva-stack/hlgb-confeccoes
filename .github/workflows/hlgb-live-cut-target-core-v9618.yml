@@ -1,0 +1,54 @@
+name: HLGB Comercial - Corte Alvo Puro v96.18
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'app-stable3.html'
+      - 'release-separation-cut-target-v9335.js'
+      - 'hlgb-modules/ownership-v9600.json'
+      - 'hlgb-modules/producao/**'
+      - 'tests/hlgb-live-separation-cut-target-v9618.cjs'
+      - 'tests/cut-target-live-boot-v9618-browser.cjs'
+      - 'tests/hlgb-live-separation-progress-v9617.cjs'
+      - 'tests/hlgb-live-monolith-inventory-v9601b.cjs'
+      - 'tests/hlgb-live-label-layout-v9602b.cjs'
+      - '.github/workflows/hlgb-live-cut-target-core-v9618.yml'
+  workflow_dispatch:
+permissions: {contents: read}
+jobs:
+  pure-and-legacy-parity:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 18
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - name: Syntax and 213 original selection cases
+        run: |
+          node --check hlgb-modules/producao/corte-alvo-v9618.js
+          node --check release-separation-cut-target-v9335.js
+          node --test tests/hlgb-live-separation-cut-target-v9618.cjs
+      - name: Previous modules and core application still intact
+        run: |
+          node --test tests/hlgb-live-separation-progress-v9617.cjs
+          node --test tests/hlgb-live-monolith-inventory-v9601b.cjs
+          node --test tests/hlgb-live-label-layout-v9602b.cjs
+          node tests/audit-separation-commit-v9319.cjs
+          node tests/production-wal-opid-stability-v9484.cjs
+  real-boot-with-cut-core-present-or-blocked:
+    runs-on: ubuntu-24.04
+    container: mcr.microsoft.com/playwright:v1.55.0-noble
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix: {browser: [chromium, webkit]}
+    steps:
+      - uses: actions/checkout@v4
+      - run: npm install --no-save playwright@1.55.0
+      - name: Serve original commercial HTML (without business credentials)
+        run: python3 -m http.server 4173 >/tmp/hlgb-cut-target-9618.log 2>&1 &
+      - name: Full live boot with new core loaded and deliberately blocked
+        env:
+          HLGB_BROWSER: ${{ matrix.browser }}
+        run: |
+          node tests/cut-target-live-boot-v9618-browser.cjs
