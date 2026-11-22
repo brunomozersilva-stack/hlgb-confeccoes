@@ -55,7 +55,7 @@ test('progresso por modelo e por variante com historico PDM/PCM/MFL/MFR sem titu
  assert.equal(rows.reduce((n,r)=>n+r.shipped,0),1);
  const html=trace(s,p);
  for(const t of ['ITM-001','ITM-002','PCM-A','PCM-B','MFL-A','MFR-A',
-  'Camisola de teste','Calcinha de teste','Reservadas em corte','Somente simulação'])
+  'Camisola de teste','Calcinha de teste','Reservadas em corte','somente simulação'])
   assert.ok(html.includes(t),'Painel precisa conter '+t);
  assert.doesNotMatch(html,/FIN-\d|Baixa confirmada no Hub/);
  assert.equal(JSON.stringify(s),snapshot,'consulta nunca modifica o documento');
