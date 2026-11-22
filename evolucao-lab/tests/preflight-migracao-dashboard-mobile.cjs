@@ -29,6 +29,11 @@ async function run(browser,url,width){
   assert.match(await root.innerText(),/MIGRAÇÃO BLOQUEADA/);
   assert.match(await root.innerText(),/150 peças/);
   assert.match(await root.innerText(),/Cadeia completa fictícia/);
+  assert.match(await root.innerText(),/Dossiê dos documentos originais/);
+  for(const doc of ['COR-EXEMPLO-01','ENV-EXEMPLO-01','RET-EXEMPLO-01',
+   'ACE-EXEMPLO-01','PAG-EXEMPLO-01','REC-EXEMPLO-01'])
+   assert.match(await root.innerText(),new RegExp(doc));
+  assert.match(await root.innerText(),/Fila de conferência antes de qualquer migração/);
   for(const [scenario,text] of [
    ['duplicado','FINANCEIRO DIVERGENTE'],
    ['divergente','GRADE OU CLIENTE DIVERGENTE'],
@@ -48,6 +53,8 @@ async function run(browser,url,width){
   assert.match(report,/MIGRACAO_BLOQUEADA/);
   assert.match(report,/DIFERENCA_GRADE/);
   assert.match(report,/GRADE_OU_CLIENTE_DIVERGENTE/);
+  for(const part of ['DOCUMENTO_ORIGINAL','MAPA_MODELO','PENDENCIA','RET-EXEMPLO-01'])
+   assert.match(report,new RegExp(part));
   assert.equal(await page.locator('#top-revision').innerText(),before,'exportar nao movimenta dados');
   await root.locator('#preflight-json-tools summary').click();
   await root.locator('#preflight-json-input').fill('{"legacy":');
