@@ -1934,6 +1934,7 @@ function exportManagement(json){
 // Pré-migração: protótipo visual SEM ENTRADA DE DADOS REAIS. Os exemplos
 // são criados nesta memória, sem IndexedDB, rede, comandos nem upload.
 let migrationPreflightExample='documentado';
+let migrationPreflightCustom=null;
 const migrationPreflightExamples=[
  ['documentado','Cadeia completa fictícia'],
  ['duplicado','Pagamento duplicado'],
@@ -1993,19 +1994,29 @@ function migrationPreflightFixture(which){
  }
  return {legacy,prepared,evidence};
 }
+function migrationPreflightSource(){
+ if(migrationPreflightExample==='personalizado'&&migrationPreflightCustom)
+  return migrationPreflightCustom;
+ return migrationPreflightFixture(migrationPreflightExample);
+}
 function migrationPreflightMarkup(){
+ const sampleOptions=migrationPreflightCustom?[...migrationPreflightExamples,['personalizado','Minha prévia fictícia']]:migrationPreflightExamples;
  const options='<div class="actions" role="group" aria-label="Selecionar cenário fictício de pré-migração">'+
-  migrationPreflightExamples.map(([id,name])=>
+  sampleOptions.map(([id,name])=>
   '<button type="button" class="btn" data-preflight-example="'+str(id)+'" aria-pressed="'+
   (id===migrationPreflightExample?'true':'false')+'">'+str(name)+'</button>').join('')+'</div>';
  const exportButton='<div class="actions"><button type="button" class="btn" data-preflight-export="csv">Baixar diagnóstico fictício (CSV)</button></div>';
+ const inputTools='<details id="preflight-json-tools"><summary>Testar pacote JSON inventado — sem salvar nem enviar</summary>'+
+  '<p>Somente dados inventados e sem informações pessoais. Formato: um objeto JSON com <code>legacy</code>, <code>prepared</code> e <code>evidence</code>. Limite: 50.000 caracteres. O conteúdo permanece apenas nesta aba e é descartado ao recarregar a página.</p>'+
+  '<div class="field"><label>JSON fictício<textarea id="preflight-json-input" class="input" rows="6" maxlength="50000" placeholder="{&quot;legacy&quot;:{...},&quot;prepared&quot;:{...},&quot;evidence&quot;:{...}}"></textarea></label></div>'+
+  '<div class="actions"><button type="button" class="btn" data-preflight-import="json">Conferir documento fictício</button><button type="button" class="btn" data-preflight-clear="true">Descartar prévia</button></div></details>';
  const disclaim='<p><strong>Somente demonstração fictícia:</strong> esta tela não lê o HLGB comercial, não importa cadastro, não modifica o documento da homologação e não aprova migração. Não cole dados de funcionários ou clientes reais.</p>'+
   '<p>Uma grade idêntica não comprova que os movimentos de Corte, os acertos e os títulos estão corretos. Mesmo o cenário íntegro permanece <strong>bloqueado para migração automática</strong>.</p>';
  const engine=window.HLGBLabMigrationPreflightV1;
  if(!engine?.review)return options+disclaim+
   '<p class="error">Motor de pré-migração indisponível. Não inferir nenhum resultado.</p>';
  try{
-  const {legacy,prepared,evidence}=migrationPreflightFixture(migrationPreflightExample);
+  const {legacy,prepared,evidence}=migrationPreflightSource();
   const r=engine.review(legacy,prepared,evidence);
   const items=[['Pedido antigo',legacy.id],['Pedido em preparo',prepared.id],
    ['Quantidade legada',r.grade.source.pieces+' peças'],
@@ -2024,7 +2035,7 @@ function migrationPreflightMarkup(){
    str(x.planned),str(x.cut),str(x.sent),str(x.returned),str(x.settled)]);
   const diffRows=r.grade.diffs.map(x=>[str(x.productId),str(x.color),str(x.size),
    str(x.legacyQty),str(x.preparedQty),str(x.delta)]);
-  return options+disclaim+exportButton+
+  return options+disclaim+inputTools+exportButton+
    '<div class="metrics">'+items.map(([title,value])=>
     '<div class="metric"><span>'+str(title)+'</span><strong>'+str(value)+'</strong></div>').join('')+'</div>'+
    '<p id="preflight-conclusion" class="error"><strong>Resultado: MIGRAÇÃO BLOQUEADA.</strong> Nenhuma baixa, acerto, pedido ou pagamento foi criado.</p>'+
@@ -2048,7 +2059,7 @@ function migrationPreflightMarkup(){
 function exportMigrationPreflightDemo(){
  const engine=window.HLGBLabMigrationPreflightV1;
  if(!engine?.review)throw Error('Conferidor indisponível; CSV não foi criado.');
- const {legacy,prepared,evidence}=migrationPreflightFixture(migrationPreflightExample);
+ const {legacy,prepared,evidence}=migrationPreflightSource();
  const r=engine.review(legacy,prepared,evidence);
  const safe=x=>{
   const v=String(x??''),guarded=/^\s*[=+\-@]/.test(v)?"'"+v:v;
@@ -3681,6 +3692,37 @@ document.addEventListener('change',event=>{
  }
 });
 document.addEventListener('click',async e=>{
+ const importPreview=e.target.closest('[data-preflight-import]');
+ if(importPreview){
+  try{
+   const raw=document.getElementById('preflight-json-input')?.value||'';
+   if(!raw.trim()||raw.length>50000)
+    throw Error('Informe somente JSON fictício com até 50.000 caracteres.');
+   const parsed=JSON.parse(raw);
+   if(!parsed||Array.isArray(parsed)||typeof parsed!=='object'||
+    !['legacy','prepared','evidence'].every(key=>Object.hasOwn(parsed,key)))
+    throw Error('Pacote incompleto: legacy, prepared e evidence são obrigatórios.');
+   const engine=window.HLGBLabMigrationPreflightV1;
+   if(!engine?.review)throw Error('Conferidor indisponível.');
+   engine.review(parsed.legacy,parsed.prepared,parsed.evidence);
+   migrationPreflightCustom=parsed;
+   migrationPreflightExample='personalizado';
+   const region=document.getElementById('migration-preflight-root');
+   if(region)region.innerHTML=migrationPreflightMarkup();
+   status('JSON fictício conferido somente nesta aba. Nenhum dado foi gravado.');
+  }catch(error){
+   status('Prévia recusada: '+(error?.message||'JSON inválido')+'. Nada foi gravado.','error');
+  }
+  return;
+ }
+ const clearPreview=e.target.closest('[data-preflight-clear]');
+ if(clearPreview){
+  migrationPreflightCustom=null;migrationPreflightExample='documentado';
+  const region=document.getElementById('migration-preflight-root');
+  if(region)region.innerHTML=migrationPreflightMarkup();
+  status('Pacote fictício descartado da memória desta tela.');
+  return;
+ }
  const exportPreview=e.target.closest('[data-preflight-export]');
  if(exportPreview){
   try{
@@ -3692,7 +3734,7 @@ document.addEventListener('click',async e=>{
  const preflightChoice=e.target.closest('[data-preflight-example]');
  if(preflightChoice){
   const selected=preflightChoice.dataset.preflightExample;
-  if(!migrationPreflightExamples.some(([key])=>key===selected))return;
+  if(!migrationPreflightExamples.some(([key])=>key===selected)&&!(selected==='personalizado'&&migrationPreflightCustom))return;
   migrationPreflightExample=selected;
   const region=document.getElementById('migration-preflight-root');
   if(region)region.innerHTML=migrationPreflightMarkup();
