@@ -11,7 +11,19 @@ async function save(p,type,values={},confirm=false){const f=p.locator('form[data
  await p.waitForFunction(r=>Number(document.querySelector('#top-revision')?.textContent.match(/Revisão local (\d+)/)?.[1])===r+1,before,{timeout:10000});assert.match(await p.locator('#flash').innerText(),/Salvo e confirmado/);}
 async function run(browser,url,width){const ctx=await browser.newContext({viewport:{width,height:850}}),page=await ctx.newPage(),errors=[];page.on('pageerror',e=>errors.push(e.message));
  try{await page.goto(url);await page.waitForFunction(()=>document.querySelector('#top-revision')?.textContent.includes('Revisão local 1'));
- await open(page,'pedidos');await page.locator('#orders-tools').evaluate(el=>{el.open=true;});await page.locator('#order-import-raw').fill('referencia;cliente_id;sku;P;M;G;GG\nBATCH1;CLI-0001;DEMO-MELINA;10;0;0;0\nBATCH2;CLI-0002;DEMO-TAMMY;5;0;0;0');await page.locator('#order-import-preview').click();assert.equal(await revision(page),1);await save(page,'order.import.batch',{},true);assert.match(await page.locator('#module-content').innerText(),/BATCH1/);
+ await open(page,'pedidos');await page.locator('#orders-tools').evaluate(el=>{el.open=true;});await page.locator('#order-import-raw').fill('referencia;cliente_id;sku;P;M;G;GG\nBATCH1;CLI-0001;DEMO-MELINA;10;0;0;0\nBATCH2;CLI-0002;DEMO-TAMMY;5;0;0;0');await page.locator('#order-import-preview').click();assert.equal(await revision(page),1);await save(page,'order.import.batch',{},true);
+ assert.match(await page.locator('#orders-fast-results').innerText(),/BATCH1/);
+ assert.match(await page.locator('#orders-fast-results').innerText(),/BATCH2/);
+ await page.locator('#orders-fast-query').fill('BATCH2');
+ await page.waitForFunction(()=>document.querySelector('#orders-fast-count')?.textContent.includes('1 de 2 pedidos'));
+ const filtered=page.locator('#orders-fast-results');
+ assert.match(await filtered.innerText(),/BATCH2/);
+ assert.doesNotMatch(await filtered.innerText(),/BATCH1/);
+ await filtered.locator('[data-orders-detail]').first().click();
+ assert.match(await page.locator('#orders-fast-detail').innerText(),/Origem da importação e referências/);
+ assert.match(await page.locator('#orders-fast-detail').innerText(),/BATCH2/);
+ assert.equal(await revision(page),2,'filtrar e detalhar referência não criam novo pedido');
+ await page.locator('#orders-fast-query').fill('');
  await open(page,'folha');await page.locator('#payroll-preview').click();await save(page,'payroll.period.create',{},true);assert.match(await page.locator('#module-content').innerText(),/FIN-/);await open(page,'hub');assert.match(await page.locator('#module-content').innerText(),/Folha 2026-11/);
  await open(page,'compras');await save(page,'supplier.quote.add',{supplierId:'FOR-0001',materialId:'MAT-0001',qtyGrams:1000,priceCentsKg:'20,00',freightCents:'3,00'});await save(page,'supplier.quote.add',{supplierId:'FOR-0002',materialId:'MAT-0001',qtyGrams:1000,priceCentsKg:'21,00',freightCents:'0,00'});await page.locator('#quote-compare').click();assert.match(await page.locator('#module-content').innerText(),/Menor total válido/);
  await open(page,'impressora3d');const data=await page.evaluate(()=>{const c=document.createElement('canvas');c.width=48;c.height=48;const x=c.getContext('2d');x.fillStyle='#6644bb';x.fillRect(0,0,48,48);return c.toDataURL('image/png').split(',')[1]});const image=page.locator('form[data-command="print.photo.attach"]');await image.locator('[name=photoFile]').setInputFiles({name:'fixture.png',mimeType:'image/png',buffer:Buffer.from(data,'base64')});await image.locator('[name=fictitious]').check();await save(page,'print.photo.attach');assert.equal(await page.locator('img[src^="data:image/jpeg"]').count(),1);const last=await revision(page);await page.reload();await page.waitForFunction(r=>document.querySelector('#top-revision')?.textContent.includes('Revisão local '+r),last);await open(page,'impressora3d');assert.equal(await page.locator('img[src^="data:image/jpeg"]').count(),1);
