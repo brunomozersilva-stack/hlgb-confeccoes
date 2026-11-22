@@ -18,9 +18,9 @@ function sample(){
  const evidence={orderId:'PED-COMERCIAL-87',
   cuts:[{id:'CUT-1',orderId:legacy.id,productId:'PRO-A',qty:60,status:'concluido'},
    {id:'CUT-2',orderId:legacy.id,productId:'PRO-A',qty:20,status:'planejado'}],
-  allocations:[{id:'SEND-1',orderId:legacy.id,productId:'PRO-A',qty:40,status:'enviado'},
-   {id:'RETURN-1',orderId:legacy.id,productId:'PRO-A',qty:20,status:'retornado'}],
-  settlements:[{id:'ACE-1',orderId:legacy.id,productId:'PRO-A',qty:20,amountCents:4000,status:'aberto'}],
+  allocations:[{id:'SEND-1',orderId:legacy.id,productId:'PRO-A',qty:40,status:'enviado',cutId:'CUT-1',factionId:'FAC-1'},
+   {id:'RETURN-1',orderId:legacy.id,productId:'PRO-A',qty:20,status:'retornado',sourceAllocationId:'SEND-1',factionId:'FAC-1'}],
+  settlements:[{id:'ACE-1',orderId:legacy.id,productId:'PRO-A',qty:20,amountCents:4000,status:'aberto',returnId:'RETURN-1'}],
   finance:[{id:'FIN-1',orderId:legacy.id,sourceId:'ACE-1',kind:'pagar',amountCents:4000,status:'aberto'}]};
  return {legacy,prepared,evidence};
 }
@@ -97,6 +97,32 @@ test('parcelamento precisa de análise separada, e tipo financeiro desconhecido 
  assert.ok(r.findings.some(x=>x.code==='RECEBIMENTO_PARCELADO_NAO_CONCILIADO'));
  evidence.finance[0].kind='desconhecido';
  assert.throws(()=>review(legacy,prepared,evidence),/Tipo financeiro desconhecido/);
+});
+test('toda baixa precisa indicar folha, envio e retorno; vínculo ausente não é inventado',()=>{
+ const {legacy,prepared,evidence}=sample();
+ delete evidence.allocations[0].cutId;
+ delete evidence.allocations[1].sourceAllocationId;
+ delete evidence.settlements[0].returnId;
+ const r=review(legacy,prepared,evidence),codes=r.findings.map(x=>x.code);
+ for(const code of ['ENVIO_SEM_FOLHA_ID','RETORNO_SEM_ENVIO_ID','ACERTO_SEM_RETORNO_ID'])
+  assert.ok(codes.includes(code),code);
+ assert.equal(r.canExecute,false);
+});
+test('retornos parciais acima do envio, acerto acima do retorno e facção trocada exigem prova',()=>{
+ const {legacy,prepared,evidence}=sample();
+ evidence.allocations[1].qty=45;
+ evidence.allocations[1].factionId='FAC-2';
+ evidence.settlements[0].qty=48;
+ const r=review(legacy,prepared,evidence),codes=r.findings.map(x=>x.code);
+ for(const code of ['RETORNO_PARCIAL_EXCESSIVO','ACERTO_PARCIAL_EXCESSIVO','FACCAO_TROCADA_SEM_PROVA'])
+  assert.ok(codes.includes(code),code);
+});
+test('vínculo cruzado entre modelos bloqueia liberação mesmo se somatórios agregados não estouram',()=>{
+ const {legacy,prepared,evidence}=sample();
+ evidence.allocations[0].cutId='CUT-2';
+ evidence.cuts[1].productId='PRO-B';
+ const r=review(legacy,prepared,evidence);
+ assert.ok(r.findings.some(x=>x.code==='ENVIO_CORTE_INVALIDO'));
 });
 test('não acessar banco ou APIs, não aceitar tipos financeiros inconsistentes',()=>{
  const src=fs.readFileSync(path.join(__dirname,'../migracao/preflight-vinculos-operacionais.cjs'),'utf8');
