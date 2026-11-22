@@ -51,7 +51,7 @@ test('explicit WAL control checks ALL operations (up to 60) and never mutates st
  assert.equal(exportBtn.disabled,false);
  assert.equal(f.downloads.length,0,'no implicit download');
  assert.equal(typeof f.context.api.downloadWalReview9615,'function');
- assert.doesNotMatch(snippet,/indexedDB|localStorage|cloudRecordSave|hlgbRecordSaveWithRetry|readwrite|\\.prune\\(|fetch\\(/);
+ assert.ok(!['indexedDB','localStorage','cloudRecordSave','hlgbRecordSaveWithRetry','readwrite','.prune(','fetch('].some(x=>snippet.includes(x)),'WAL UI must stay read-only');
 });
 test('invalid local identity is counted and reported without writes',()=>{
  assert.match(file,/row.status='invalid-local-operation';result.unverified\+\+;result.checked\+\+;result.items.push\(row\);progress\(\);continue/);
