@@ -1409,6 +1409,9 @@ async function runMultiFlow(browser,url,width){
   await page.locator('[data-orders-detail="PDM-0001"]').click();
   const trace=page.locator('#multi-order-trace[data-multi-order-trace="PDM-0001"]');
   assert.equal(await trace.count(),1,'rastreabilidade multimodelo esta na consulta de Pedidos');
+  assert.match(await trace.innerText(),/Fila de trabalho por setor/);
+  assert.match(await trace.innerText(),/Aguardar retorno da oficina/);
+  assert.match(await trace.innerText(),/Expedir peças separadas/);
   assert.match(await trace.innerText(),/Resumo individual de cada modelo/);
   assert.match(await trace.innerText(),/ITM-001/);
   assert.match(await trace.innerText(),/ITM-002/);
