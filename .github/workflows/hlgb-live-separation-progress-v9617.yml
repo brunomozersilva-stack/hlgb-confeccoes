@@ -1,0 +1,52 @@
+name: HLGB Comercial - Separacao Core Puro v96.17
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'release-separation-commit-v9319.js'
+      - 'app-stable3.html'
+      - 'hlgb-modules/ownership-v9600.json'
+      - 'hlgb-modules/producao/**'
+      - 'tests/hlgb-live-separation-progress-v9617.cjs'
+      - 'tests/separation-live-boot-v9617-browser.cjs'
+      - 'tests/hlgb-live-monolith-inventory-v9601b.cjs'
+      - '.github/workflows/hlgb-live-separation-progress-v9617.yml'
+  workflow_dispatch:
+permissions: {contents: read}
+jobs:
+  logic-and-parity:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - name: Pure calculator and real legacy controller syntax
+        run: |
+          node --check release-separation-commit-v9319.js
+          node --check hlgb-modules/producao/separacao-progresso-v9617.js
+          node --check tests/hlgb-live-separation-progress-v9617.cjs
+      - name: Original business logic parity, WAL and loader contracts
+        run: |
+          node --test tests/hlgb-live-separation-progress-v9617.cjs
+          node tests/audit-separation-commit-v9319.cjs
+          node --test tests/hlgb-live-monolith-inventory-v9601b.cjs
+          node tests/production-wal-opid-stability-v9484.cjs
+          node tests/production-residual-opid-race-v9484.cjs
+  browser-with-and-without-core:
+    runs-on: ubuntu-24.04
+    container: mcr.microsoft.com/playwright:v1.55.0-noble
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix: {browser: [chromium, webkit]}
+    steps:
+      - uses: actions/checkout@v4
+      - run: npm install --no-save playwright@1.55.0
+      - name: Serve real commercial page without business credentials
+        run: python3 -m http.server 4173 >/tmp/hlgb-separation-v9617.log 2>&1 &
+      - name: Full real boot with optional progress file present and failed
+        env:
+          HLGB_BROWSER: ${{ matrix.browser }}
+        run: |
+          node tests/separation-live-boot-v9617-browser.cjs
