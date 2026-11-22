@@ -123,6 +123,7 @@
     "release-production-render-fix-v9330.js",
     "hlgb-modules/producao/separacao-progresso-v9617.js",
     "release-separation-commit-v9319.js",
+    "hlgb-modules/producao/corte-alvo-v9618.js",
     "release-separation-cut-target-v9335.js",
     "release-save-actions-v9322.js",
     "release-wal-replay-bridge-v9332.js",
@@ -216,7 +217,8 @@
       "release-cutter-history-v9250.js",
       "release-production-cut-reconcile-v9307.js",
       "release-separation-cut-target-v9335.js",
-      "release-cut-step-queues-v9528.js"
+      "release-cut-step-queues-v9528.js",
+      "hlgb-modules/producao/corte-alvo-v9618.js"
     ],
     "producao-separacao": [
       "release-production-render-fix-v9330.js",
@@ -353,7 +355,7 @@
       "release-ui-actions-v9402.js"
     ]
   },
-  "notes": "Checkpoint modular HLGB comercial #284 + um núcleo puro opcional de Separação v96.17. Lista preserva 158 scripts de main e insere somente separacao-progresso antes do seu consumidor. Nenhum grupo reativado, nenhuma escrita no núcleo, WAL inalterada. Os dados e regras de negócio continuam no código original com fallback.",
+  "notes": "HLGB comercial main: 160 scripts após #285. Mantém os 158 scripts da base de inventário #284 na mesma ordem, mais dois núcleos puros opcionais (Separação e seleção de Corte). Não ativa carregamento em grupos. Sem alteração WAL, Supabase, dados ou gravações.",
   "criticalFileBlobs": {
     "app9240.html": "d0a6e49bc7bcd363c853092c350e3cf9a2b030c5",
     "release-cutter-planner.js": "a56f2c79df19ebb1cd86544a13976a97538d6a4e",
@@ -529,7 +531,8 @@
     "hlgb-modules/autenticacao/rede-segura-v9613.js"
   ],
   "approvedNewScripts": [
-    "hlgb-modules/producao/separacao-progresso-v9617.js"
+    "hlgb-modules/producao/separacao-progresso-v9617.js",
+    "hlgb-modules/producao/corte-alvo-v9618.js"
   ],
   "extractionChanges": {
     "release-separation-commit-v9319.js": {
@@ -538,6 +541,13 @@
       "core": "hlgb-modules/producao/separacao-progresso-v9617.js",
       "coreBlob": "5ddc707c94f1d7ad226d2e52e902578123d7ff83",
       "scope": "somente progress e totals, com fallback literal, sem alterar gravações ou IDs"
+    },
+    "release-separation-cut-target-v9335.js": {
+      "before": "a6c0ac62b190eea4e2565b10eb4ba5c03c7e2e02",
+      "after": "739e0c41442b5b5bcb868a8afda8b61637a37f58",
+      "core": "hlgb-modules/producao/corte-alvo-v9618.js",
+      "coreBlob": "2700e81153d95835fbf2254765380f606f536027",
+      "scope": "somente cálculo do pedido ativo e modelo único; confirmado que regras de salvar Corte permanecem inalteradas"
     }
   }
 }

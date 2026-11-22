@@ -24,3 +24,12 @@ A PR deve passar WebKit, Chromium, contratos de loader/inventário e regressão 
 - **#283:** correção de corte sem referência de produto, histórico de projeções arquivadas e duplicidade de script 3D.
 
 **Status: núcleo físico extraído; módulo completo de Produção/Separação ainda não está modularizado ou homologado.** Próxima extração deve ser pequena e de risco controlado.
+
+## Extração adicional v96.18 — somente escolha do alvo do Corte
+
+- O núcleo `corte-alvo-v9618.js` identifica o **pedido em andamento na Separação** e o **ID de produto único** da grade/projeção. Ele não lista, cria, edita, envia nem grava Cortes.
+- O controlador `release-separation-cut-target-v9335.js` mantém o código original de seleção como fallback se o módulo novo estiver ausente ou lançar erro. As três inserções são revertíveis por remoção simples e o SHA original é testado.
+- A regra atual de `targeted()`, a gravação remota `confirmCut()`, o salvamento local, o ACK, a atualização do pedido e as recuperações por WAL permanecem **inalterados**. Este trabalho não tenta corrigir automaticamente o Corte sem `productId` da issue #283: o caso exige revisão humana.
+- Carregador: **160 scripts** (158 do checkpoint #284 mais 2 núcleos puros); a ordem dos 158 originais é idêntica. Mantemos o `app9240.html` integral e a tela de login protegida.
+- Testes: 18 estados de operação, 195 pares de pedido/projeção, ausência e falha do núcleo, prova SHA do controlador e inicialização do HTML comercial real em WebKit e Chromium.
+- Não declarar as etapas completas; a modularização física integral de Corte e Produção continua pendente. Acertos, Corte Conjunto, pontas, Audaces e revisão posterior de telas seguem em #276, #277, #278, #279 e #280. As operações WAL de #152 permanecem intocadas.
