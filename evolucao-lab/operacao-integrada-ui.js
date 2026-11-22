@@ -1037,6 +1037,22 @@ function multiOrderTracePanel(s,order){
    '<strong>'+str(t('pendingCut'))+'</strong>',
    fmt(item.amountCents)];
  });
+ // Uma peça pode ter tarefas simultâneas em setores diferentes.
+ // Nunca reduzir o pedido a um único "status" que esconda saldo pendente.
+ const pendingRows=[];
+ for(const item of order.items){
+  const records=lines.filter(x=>x.itemId===item.id),count=k=>total(k,records);
+  const slots=[
+   ['Corte','Planejar saldo ainda livre',count('pendingCut')],
+   ['Cortadores','Concluir folhas abertas',count('planned')],
+   ['Facções','Enviar peças já cortadas',count('availableToAllocate')],
+   ['Facções','Aguardar retorno da oficina',count('inFaction')],
+   ['Separação','Separar peças retornadas',count('availableToSeparate')],
+   ['Expedição','Expedir peças separadas',count('availableToShip')]
+  ];
+  for(const [area,step,qty] of slots)if(qty>0)
+   pendingRows.push([str(area),str(item.id)+' · '+str(item.name),str(step),'<strong>'+str(qty)+'</strong>']);
+ }
  const active=lines.filter(x=>x.ordered>0||x.planned||x.cut||x.sent||x.returned||x.separated||x.shipped);
  const detailRows=active.slice(0,80).map(x=>[
   str(x.model),str(x.color),str(x.size),str(x.ordered),str(x.planned),
@@ -1068,6 +1084,9 @@ function multiOrderTracePanel(s,order){
    ' movimento(s) de material diretamente vinculados. Conferir: a integração comercial deste pedido ainda não está aprovada.</p>':'')+
   '<div class="metrics">'+metrics.map(([label,value])=>
    '<div class="metric"><span>'+str(label)+'</span><strong>'+str(value)+'</strong></div>').join('')+'</div>'+
+  '<h4>Fila de trabalho por setor — somente sugestão</h4>'+
+  '<p class="caption">Pendências simultâneas calculadas a partir das etapas. Consulte cada módulo para conferir documentos antes de executar ações.</p>'+
+  table(['Setor','Modelo','Situação','Peças'],pendingRows)+
   '<h4>Resumo individual de cada modelo</h4>'+
   table(['Item','Modelo / SKU','Pedidas','Reservadas','Cortadas','Na facção - enviadas','Retornadas','Separadas','Expedidas','Falta planejar','Valor de venda ilustrativo'],perItem)+
   '<h4>Grade completa por variante (primeiras 80 linhas com quantidade ou movimento)</h4>'+
