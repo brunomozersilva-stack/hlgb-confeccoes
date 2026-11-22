@@ -57,6 +57,9 @@ test('progresso por modelo e por variante com historico PDM/PCM/MFL/MFR sem titu
  for(const t of ['ITM-001','ITM-002','PCM-A','PCM-B','MFL-A','MFR-A',
   'Camisola de teste','Calcinha de teste','Reservadas em corte','somente simulação'])
   assert.ok(html.includes(t),'Painel precisa conter '+t);
+ assert.match(html,/Fila de trabalho por setor/);
+ assert.match(html,/Concluir folhas abertas/);
+ assert.match(html,/Aguardar retorno da oficina/);
  assert.doesNotMatch(html,/FIN-\d|Baixa confirmada no Hub/);
  assert.equal(JSON.stringify(s),snapshot,'consulta nunca modifica o documento');
 });
