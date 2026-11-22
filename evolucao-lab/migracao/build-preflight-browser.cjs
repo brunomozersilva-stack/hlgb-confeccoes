@@ -9,6 +9,7 @@ function build(){
  const grade=fs.readFileSync(path.join(root,'comparador-grade-legada.cjs'),'utf8');
  const links=fs.readFileSync(path.join(root,'preflight-vinculos-operacionais.cjs'),'utf8');
  const dossier=fs.readFileSync(path.join(root,'dossie-vinculos-v1.cjs'),'utf8');
+ const lot=fs.readFileSync(path.join(root,'dossie-lote-v1.cjs'),'utf8');
  const script=[
   '/* GERADO DE migracao/*.cjs; NÃO EDITAR: node evolucao-lab/migracao/build-preflight-browser.cjs --write */',
   '(function(root){',
@@ -25,8 +26,12 @@ function build(){
   ' (function(module,require){',
   dossier,
   " })(dossierModule,function(p){if(p!=='./preflight-vinculos-operacionais.cjs')throw Error('Dependência de dossiê inválida');return linksModule.exports;});",
-  " if(typeof gradeModule.exports.compare!=='function'||typeof linksModule.exports.review!=='function'||typeof dossierModule.exports.buildDossier!=='function')throw Error('Motor de migração incompleto');",
-  ' root.HLGBLabMigrationPreflightV1=Object.freeze({compare:gradeModule.exports.compare,review:linksModule.exports.review,buildDossier:dossierModule.exports.buildDossier});',
+  ' const lotModule={exports:{}};',
+  ' (function(module,require){',
+  lot,
+  " })(lotModule,function(p){if(p!=='./dossie-vinculos-v1.cjs')throw Error('Dependência de lote inválida');return dossierModule.exports;});",
+  " if(typeof gradeModule.exports.compare!=='function'||typeof linksModule.exports.review!=='function'||typeof dossierModule.exports.buildDossier!=='function'||typeof lotModule.exports.buildBatch!=='function')throw Error('Motor de migração incompleto');",
+  ' root.HLGBLabMigrationPreflightV1=Object.freeze({compare:gradeModule.exports.compare,review:linksModule.exports.review,buildDossier:dossierModule.exports.buildDossier,buildBatch:lotModule.exports.buildBatch});',
   "})(typeof window!=='undefined'?window:null);",
   ''
  ].join('\n');
