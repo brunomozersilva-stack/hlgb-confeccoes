@@ -34,6 +34,19 @@ async function run(browser,url,width){
    'ACE-EXEMPLO-01','PAG-EXEMPLO-01','REC-EXEMPLO-01'])
    assert.match(await root.innerText(),new RegExp(doc));
   assert.match(await root.innerText(),/Fila de conferência antes de qualquer migração/);
+  await root.locator('#preflight-batch-demo summary').click();
+  assert.match(await root.locator('#preflight-batch-demo').innerText(),/LEGADO-FICTICIO-088/);
+  assert.match(await root.locator('#preflight-batch-demo').innerText(),/PAG-EXEMPLO-01/);
+  assert.match(await root.locator('#preflight-batch-demo').innerText(),/Conflitos entre pedidos/);
+  const batchEvent=page.waitForEvent('download');
+  await root.locator('[data-preflight-export="lote"]').click();
+  const batchCsv=await batchEvent;
+  assert.equal(batchCsv.suggestedFilename(),'HLGB-PRE-MIGRACAO-LOTE-FICTICIO.csv');
+  const batchContent=fs.readFileSync(await batchCsv.path(),'utf8');
+  assert.match(batchContent,/DOCUMENTO_DUPLICADO/);
+  assert.match(batchContent,/MIGRACAO_BLOQUEADA/);
+  assert.match(batchContent,/PAG-EXEMPLO-01/);
+  assert.equal(await page.locator('#top-revision').innerText(),before,'lote e CSV nao gravam');
   for(const [scenario,text] of [
    ['duplicado','FINANCEIRO DIVERGENTE'],
    ['divergente','GRADE OU CLIENTE DIVERGENTE'],
