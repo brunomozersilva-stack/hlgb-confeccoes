@@ -844,10 +844,20 @@ function orderFastRecords(s){
    priority:o.pcp?.priority||null,dueDate:o.pcp?.dueDate||null};
  });
  for(const o of s.multiOrders||[]){
+  let trial=null;
+  try{
+   const engine=window.HLGBLabMultiOrdersV1;
+   if(!engine?.cutImpact)throw Error('Motor multimodelo não carregado');
+   const lines=engine.cutImpact(s,o.id);
+   const count=field=>lines.reduce((n,line)=>n+(line[field]||0),0);
+   trial={cut:count('cut'),returned:count('returned'),shipped:count('shipped')};
+  }catch(error){
+   trial={cut:null,returned:null,shipped:null,warning:String(error?.message||'Saldo indisponível')};
+  }
   rows.push({id:o.id,client:ref(s.clients,o.clientId)?.name||o.clientId,
    model:o.items.map(x=>x.name).join(', '),models:o.totals.models,
-   qty:o.totals.pieces,cut:0,returned:0,shipped:0,
-   value:o.totals.amountCents,status:'Em preparação',kind:'multimodelo',
+   qty:o.totals.pieces,cut:trial.cut,returned:trial.returned,shipped:trial.shipped,
+   value:o.totals.amountCents,status:trial.warning?'Conferir saldos':'Em preparação',kind:'multimodelo',
    priority:null,dueDate:null,
    grade:o.sizes.map(sz=>sz+': '+(o.totals.bySize[sz]||0)).join(' · ')});
  }
@@ -873,9 +883,9 @@ function ordersFastView(s){
   ' peças na seleção · '+fmt(filtered.reduce((n,x)=>n+x.value,0))+
   ' · resultados apenas de consulta, sem alterar nenhum pedido</p>';
  const rows=view.map(x=>[
-  '<strong>'+str(x.id)+'</strong><div class="caption">'+str(x.kind==='multimodelo'?'Vários modelos · prévia':'Pedido operacional')+'</div>',
+  '<strong>'+str(x.id)+'</strong><div class="caption">'+str(x.kind==='multimodelo'?'Vários modelos · ensaio isolado':'Pedido operacional')+'</div>',
   str(x.client),'<strong>'+str(x.model)+'</strong><div class="caption">'+str(x.grade)+'</div>',
-  str(x.qty),str(x.cut),str(x.returned),str(x.shipped),
+  str(x.qty),str(x.cut??'Conferir'),str(x.returned??'Conferir'),str(x.shipped??'Conferir'),
   '<span class="chip '+(x.status==='Expedido'?'': 'wait')+'">'+str(x.status)+'</span>',
   str(x.priority||'Não definida'),str(x.dueDate||'Não informado'),fmt(x.value),
   '<button type="button" class="btn" data-orders-detail="'+str(x.id)+'">Detalhar</button> '+
