@@ -17,7 +17,7 @@ const server=http.createServer((req,res)=>{
  }catch(error){res.writeHead(404);res.end();}
 });
 async function run(browser,url,width){
- const ctx=await browser.newContext({viewport:{width,height:820}}),page=await ctx.newPage(),errors=[];
+ const ctx=await browser.newContext({viewport:{width,height:820},acceptDownloads:true}),page=await ctx.newPage(),errors=[];
  page.on('pageerror',e=>errors.push(e.message));
  try{
   await page.goto(url);
@@ -39,6 +39,16 @@ async function run(browser,url,width){
    assert.match(await root.innerText(),new RegExp(text));
    assert.equal(await page.locator('#top-revision').innerText(),before,'consulta não grava');
   }
+  await root.locator('[data-preflight-example="divergente"]').click();
+  const saved=page.waitForEvent('download');
+  await root.locator('[data-preflight-export="csv"]').click();
+  const csv=await saved;
+  assert.match(csv.suggestedFilename(),/^HLGB-PRE-MIGRACAO-FICTICIA-divergente\.csv$/);
+  const report=fs.readFileSync(await csv.path(),'utf8');
+  assert.match(report,/MIGRACAO_BLOQUEADA/);
+  assert.match(report,/DIFERENCA_GRADE/);
+  assert.match(report,/GRADE_OU_CLIENTE_DIVERGENTE/);
+  assert.equal(await page.locator('#top-revision').innerText(),before,'exportar nao movimenta dados');
   await page.locator('[data-module="pedidos"]').click();
   await page.locator('[data-module="auditor"]').click();
   assert.match(await page.locator('#migration-preflight-root').innerText(),/MIGRAÇÃO BLOQUEADA/);
