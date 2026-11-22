@@ -63,7 +63,7 @@ test('capitalização simples é reconhecida sem misturar cores distintas ou sal
  prepared.items[1].colors[0].color='Rubro';
  const r=compare(legacy,prepared);
  assert.equal(r.gradeEquivalent,false);
- assert.equal(r.diffs.length,4>0?2:0);
+ assert.equal(r.diffs.length,4);
  assert.ok(r.diffs.some(x=>x.reason==='ausente_no_preparo'));
  assert.ok(r.diffs.some(x=>x.reason==='incluido_no_preparo'));
 });
