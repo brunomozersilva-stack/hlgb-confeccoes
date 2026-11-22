@@ -9,8 +9,9 @@ function sample(){
   {productId:'PRO-B',color:'Rubi',size:'P',qty:20},
   {productId:'PRO-B',color:'Rubi',size:'M',qty:30}]};
  const prepared={id:'PDM-0001',clientId:'CLI-0001',sizes:['P','M'],items:[
-  {id:'ITM-001',productId:'PRO-A',colors:[{color:'Preto',grade:{P:40,M:60}}]},
-  {id:'ITM-002',productId:'PRO-B',colors:[{color:'Rubi',grade:{P:20,M:30}}]}]};
+  {id:'ITM-001',productId:'PRO-A',qty:100,priceCents:2500,amountCents:250000,colors:[{color:'Preto',grade:{P:40,M:60}}]},
+  {id:'ITM-002',productId:'PRO-B',qty:50,priceCents:1200,amountCents:60000,colors:[{color:'Rubi',grade:{P:20,M:30}}]}],
+  totals:{pieces:150,amountCents:310000}};
  return {legacy,prepared};
 }
 test('150 peças, 2 modelos, 4 células: equivalência da grade não habilita migração comercial',()=>{
@@ -28,6 +29,8 @@ test('150 peças, 2 modelos, 4 células: equivalência da grade não habilita mi
 test('diferença de 20 peças num tamanho não é compensada por outro modelo',()=>{
  const {legacy,prepared}=sample();
  prepared.items[0].colors[0].grade.M=40;
+ prepared.items[0].qty=80;prepared.items[0].amountCents=200000;
+ prepared.totals.pieces=130;prepared.totals.amountCents=260000;
  const r=compare(legacy,prepared);
  assert.equal(r.source.pieces,150);assert.equal(r.target.pieces,130);
  assert.equal(r.gradeEquivalent,false);assert.equal(r.reviewRequired,true);
@@ -55,6 +58,18 @@ test('duplicidade, modelo repetido e entrada sem produto são bloqueadas',()=>{
  assert.throws(()=>compare(legacy,repeated),/dois itens/);
  const invalid=JSON.parse(JSON.stringify(legacy));invalid.grade[0].productId='';
  assert.throws(()=>compare(invalid,prepared),/ausente\/inválido/);
+});
+test('não confiar em totais, preços ou grades incompletas no pedido preparado',()=>{
+ const {legacy,prepared}=sample();
+ prepared.totals.pieces=149;
+ assert.throws(()=>compare(legacy,prepared),/Totais preparados/);
+ const next=sample();next.prepared.items[0].amountCents+=1;
+ assert.throws(()=>compare(next.legacy,next.prepared),/Subtotal e preço históricos/);
+ const missing=sample();delete missing.prepared.items[0].colors[0].grade.M;
+ assert.throws(()=>compare(missing.legacy,missing.prepared),/Grade preparada incompleta/);
+ const duplicatedZero=sample();
+ duplicatedZero.prepared.items[0].colors.push({color:'PRETO',grade:{P:0,M:0}});
+ assert.throws(()=>compare(duplicatedZero.legacy,duplicatedZero.prepared),/duplicada/);
 });
 test('capitalização simples é reconhecida sem misturar cores distintas ou salvar',()=>{
  const {legacy,prepared}=sample();
