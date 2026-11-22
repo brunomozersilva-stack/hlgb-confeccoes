@@ -982,6 +982,90 @@ function orderTracePanel(s,order){
   '</section>';
 }
 
+// Pedido multimodelo: posição calculada pela mesma regra de paridade usada
+// nas revisões. Consulta sem escrita: produção real, Hub e estoque permanecem
+// desligados até existir uma integração operacional homologada.
+function multiOrderTracePanel(s,order){
+ const engine=window.HLGBLabMultiOrdersV1;
+ if(!engine||typeof engine.cutImpact!=='function')
+  return '<p class="error">Motor de saldos multimodelo indisponível. Não apresentar números presumidos.</p>';
+ let lines;
+ try{lines=engine.cutImpact(s,order.id);}
+ catch(error){return '<p class="error">Saldos divergentes ou ilegíveis. Conferir antes de movimentar: '+
+  str(error?.message||'Falha ao calcular')+'</p>';}
+ const total=(key,rows=lines)=>rows.reduce((n,x)=>n+(x[key]||0),0);
+ const plans=(s.multiCutPlans||[]).filter(x=>x.orderId===order.id);
+ const lots=(s.multiFlowLots||[]).filter(x=>x.orderId===order.id);
+ const returns=lots.flatMap(lot=>(lot.returns||[]).map(x=>({...x,lotId:lot.id})));
+ const separations=(s.multiFlowSeparations||[]).filter(x=>x.orderId===order.id);
+ const shipments=(s.multiFlowShipments||[]).filter(x=>x.orderId===order.id);
+ const moneyForReturns=returns.reduce((n,x)=>n+(x.amountCents||0),0);
+ const checkLinks=(s.finance||[]).filter(x=>x.sourceId===order.id||
+   (returns.some(r=>r.id===x.sourceId)));
+ const stockLinks=(s.stockLedger||[]).filter(x=>x.sourceId===order.id||
+   plans.some(p=>p.id===x.cutPlanId));
+ const metrics=[['Pedidas',total('ordered')],['Reservadas em corte',total('planned')],
+  ['Cortadas no ensaio',total('cut')],['Enviadas à facção',total('sent')],
+  ['Retornadas no ensaio',total('returned')],['Separadas no ensaio',total('separated')],
+  ['Expedidas no ensaio',total('shipped')],['Aguardando retorno',total('inFaction')]];
+ const perItem=order.items.map(item=>{
+  const data=lines.filter(x=>x.itemId===item.id),t=k=>total(k,data);
+  return [str(item.id),str(item.sku||'—')+' · '+str(item.name),
+   str(t('ordered')),str(t('planned')),str(t('cut')),str(t('sent')),
+   str(t('returned')),str(t('separated')),str(t('shipped')),
+   '<strong>'+str(t('pendingCut'))+'</strong>',
+   fmt(item.amountCents)];
+ });
+ const active=lines.filter(x=>x.ordered>0||x.planned||x.cut||x.sent||x.returned||x.separated||x.shipped);
+ const detailRows=active.slice(0,80).map(x=>[
+  str(x.model),str(x.color),str(x.size),str(x.ordered),str(x.planned),
+  str(x.cut),str(x.sent),str(x.returned),str(x.inFaction),
+  str(x.separated),str(x.shipped),str(x.pendingCut)]);
+ const cutRows=plans.map(p=>[
+  str(p.id),str(p.itemId),str(p.status),str(p.qty),
+  str(p.scheduledDate||'Não informada'),str(p.cutterOne||'—')+' / '+
+  str(p.cutterTwo||'—')+' / '+str(p.spreader||'—'),
+  str(p.createdCommandId||'—')]);
+ const lotRows=lots.map(x=>[
+  str(x.id),str(x.itemId),str(ref(s.factions,x.factionId)?.name||x.factionId),
+  str(x.qty),str((x.returns||[]).reduce((n,r)=>n+r.qty,0)),
+  str(x.qty-(x.returns||[]).reduce((n,r)=>n+r.qty,0)),
+  str((x.changes||[]).length)+' revisão(ões)',
+  str(x.createdCommandId||'—')]);
+ const acertoRows=returns.map(x=>[
+  str(x.id),str(x.lotId),str(x.itemId),
+  str(ref(s.factions,x.factionId)?.name||x.factionId),
+  str(x.qty),fmt(x.amountCents),
+  x.review?'Conferido no laboratório':'A conferir no laboratório',
+  str(x.review?.commandId||x.commandId||'—')]);
+ const output='<section id="multi-order-trace" data-multi-order-trace="'+str(order.id)+'">'+
+  '<h4>Andamento por modelo, cor e tamanho — somente simulação</h4>'+
+  '<p class="caption">Saldos calculados da revisão '+str(s.revision)+
+  ' pelo motor de Pedidos multimodelo. Folhas abertas são reserva, não baixa. Retornos conferidos NÃO equivalem a acertos pagos ou títulos no Hub.</p>'+
+  (checkLinks.length||stockLinks.length?
+   '<p class="error">Há '+str(checkLinks.length)+' título(s) e '+str(stockLinks.length)+
+   ' movimento(s) de material diretamente vinculados. Conferir: a integração comercial deste pedido ainda não está aprovada.</p>':'')+
+  '<div class="metrics">'+metrics.map(([label,value])=>
+   '<div class="metric"><span>'+str(label)+'</span><strong>'+str(value)+'</strong></div>').join('')+'</div>'+
+  '<h4>Resumo individual de cada modelo</h4>'+
+  table(['Item','Modelo / SKU','Pedidas','Reservadas','Cortadas','Na facção - enviadas','Retornadas','Separadas','Expedidas','Falta planejar','Valor de venda ilustrativo'],perItem)+
+  '<h4>Grade completa por variante (primeiras 80 linhas com quantidade ou movimento)</h4>'+
+  table(['Modelo','Cor','Tamanho','Pedidas','Reservadas','Cortadas','Enviadas','Retornadas','Em facção','Separadas','Expedidas','Falta corte'],detailRows)+
+  '<p class="caption">Exibindo '+str(detailRows.length)+' de '+str(active.length)+
+  ' linhas com quantidade ou movimento. Consulte os módulos próprios para trabalhar a grade integral.</p>'+
+  '<h4>Folhas de corte multimodelo</h4>'+
+  table(['Folha','Item','Situação','Peças','Data','Cortadores e enfestador','Comando'],cutRows)+
+  '<h4>Envios por facção, com histórico preservado</h4>'+
+  table(['Envio','Item','Facção atual','Enviadas','Retornadas','Pendente','Alterações','Comando'],lotRows)+
+  '<h4>Retornos e acertos fictícios para conferência</h4>'+
+  table(['Retorno','Envio','Item','Facção no retorno','Peças','Mão de obra estimada','Conferência','Comando'],acertoRows)+
+  '<p>Valor ilustrativo dos retornos: <strong>'+fmt(moneyForReturns)+
+  '</strong> · '+str(separations.length)+' registro(s) de separação e '+str(shipments.length)+
+  ' registro(s) de expedição. Nada foi transferido ao Hub financeiro.</p>'+
+  '</section>';
+ return output;
+}
+
 function ordersFastDetail(s,id){
  if(!id)return '';
  const op=s.orders.find(o=>o.id===id),multi=!op?(s.multiOrders||[]).find(o=>o.id===id):null;
@@ -990,14 +1074,11 @@ function ordersFastDetail(s,id){
  const head='<h3>Detalhes do pedido '+str(id)+'</h3><p>Cliente: '+str(client)+
   ' · Somente consulta. Nenhum saldo ou preço é alterado.</p>';
  if(multi){
-  const rows=multi.items.flatMap(item=>item.colors.flatMap(color=>
-   multi.sizes.map(size=>[str(item.name),str(color.color),str(size),
-    str(color.grade[size]||0)]))).filter(row=>row[3]!=='0');
   return panel('Pedido multimodelo em preparação',head+
-   '<p><strong>Somente laboratório:</strong> este tipo de pedido ainda não cria financeiro ou movimentação comercial. Os saldos de Corte/Facção multimodelo são geridos nos módulos próprios.</p>'+
-   table(['Modelo','Cor','Tamanho','Quantidade'],rows)+
+   '<p><strong>Somente laboratório:</strong> este tipo de pedido ainda não cria financeiro ou movimentação comercial. O histórico abaixo é fictício e não implica contas a pagar, baixa de estoque ou produção real.</p>'+
    '<p>Total preparado: '+str(multi.totals.pieces)+' peças · '+
-    fmt(multi.totals.amountCents)+' ilustrativos</p>',true);
+    fmt(multi.totals.amountCents)+' de venda ilustrativos</p>'+
+   multiOrderTracePanel(s,multi),true);
  }
  const product=ref(s.products,op.productId);
  const q=api.quantities(op);
