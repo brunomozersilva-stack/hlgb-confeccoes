@@ -838,7 +838,7 @@ function orderFastRecords(s){
   const status=q.shipped===q.ordered?'Expedido':
    q.returned>0?'Em retorno':q.allocated>q.returned?'Na facção':
    q.cut>0?'Em corte':'A cortar';
-  return {id:o.id,client,model:product,models:1,qty:q.ordered,cut:q.cut,
+  return {id:o.id,client,model:product,models:1,qty:q.ordered,cut:q.cut,allocated:q.allocated,separated:q.separated,
    returned:q.returned,shipped:q.shipped,value:q.ordered*o.priceCents,
    status,kind:'operacional',grade:getGrade(o),
    priority:o.pcp?.priority||null,dueDate:o.pcp?.dueDate||null};
@@ -850,13 +850,16 @@ function orderFastRecords(s){
    if(!engine?.cutImpact)throw Error('Motor multimodelo não carregado');
    const lines=engine.cutImpact(s,o.id);
    const count=field=>lines.reduce((n,line)=>n+(line[field]||0),0);
-   trial={cut:count('cut'),returned:count('returned'),shipped:count('shipped')};
+   trial={cut:count('cut'),allocated:count('sent'),returned:count('returned'),
+    separated:count('separated'),shipped:count('shipped')};
   }catch(error){
-   trial={cut:null,returned:null,shipped:null,warning:String(error?.message||'Saldo indisponível')};
+   trial={cut:null,allocated:null,returned:null,separated:null,shipped:null,
+    warning:String(error?.message||'Saldo indisponível')};
   }
   rows.push({id:o.id,client:ref(s.clients,o.clientId)?.name||o.clientId,
    model:o.items.map(x=>x.name).join(', '),models:o.totals.models,
-   qty:o.totals.pieces,cut:trial.cut,returned:trial.returned,shipped:trial.shipped,
+   qty:o.totals.pieces,cut:trial.cut,allocated:trial.allocated,returned:trial.returned,
+   separated:trial.separated,shipped:trial.shipped,
    value:o.totals.amountCents,status:trial.warning?'Conferir saldos':'Em preparação',kind:'multimodelo',
    priority:null,dueDate:null,
    grade:o.sizes.map(sz=>sz+': '+(o.totals.bySize[sz]||0)).join(' · ')});
@@ -885,7 +888,8 @@ function ordersFastView(s){
  const rows=view.map(x=>[
   '<strong>'+str(x.id)+'</strong><div class="caption">'+str(x.kind==='multimodelo'?'Vários modelos · ensaio isolado':'Pedido operacional')+'</div>',
   str(x.client),'<strong>'+str(x.model)+'</strong><div class="caption">'+str(x.grade)+'</div>',
-  str(x.qty),str(x.cut??'Conferir'),str(x.returned??'Conferir'),str(x.shipped??'Conferir'),
+  str(x.qty),str(x.cut??'Conferir'),str(x.allocated??'Conferir'),str(x.returned??'Conferir'),
+  str(x.separated??'Conferir'),str(x.shipped??'Conferir'),
   '<span class="chip '+(x.status==='Expedido'?'': 'wait')+'">'+str(x.status)+'</span>',
   str(x.priority||'Não definida'),str(x.dueDate||'Não informado'),fmt(x.value),
   '<button type="button" class="btn" data-orders-detail="'+str(x.id)+'">Detalhar</button> '+
@@ -897,7 +901,7 @@ function ordersFastView(s){
   '<button type="button" class="btn" data-orders-fast-page="prev"'+(ordersFastFilters.page===1?' disabled':'')+'>Anterior</button>'+
   '<span class="caption">Página '+ordersFastFilters.page+' de '+pages+' · até '+ordersFastFilters.pageSize+' por página</span>'+
   '<button type="button" class="btn" data-orders-fast-page="next"'+(ordersFastFilters.page>=pages?' disabled':'')+'>Próxima</button></div>';
- return status+table(['Pedido','Cliente','Modelo / grade','Peças','Cortadas','Retornadas','Enviadas','Etapa','Prioridade','Prazo PCP','Valor','Ação rápida'],rows)+pagination+
+ return status+table(['Pedido','Cliente','Modelo / grade','Peças','Cortadas','Enviadas à facção','Retornadas','Separadas','Expedidas','Etapa','Prioridade','Prazo PCP','Valor','Ação rápida'],rows)+pagination+
   '<div id="orders-fast-detail">'+ordersFastDetail(s,ordersFastFilters.selected)+'</div>';
 }
 // Consulta transversal de pedido operacional. Exibe somente documentos com
