@@ -59,3 +59,28 @@ Criado `migracao/comparador-grade-legada.cjs`, função pura `compare(legacy,pre
 
 **Próximo incremento**: a partir do comparador, desenvolver a prévia visual da migração com inspeção de cortes, envios, pagamentos e regras de preço, somente com **cópia autorizada de dados fictícios/anonimizados** e sem comandos de escrita. Depois validar contra o banco de homologação, com rollback e revisão independente.
 
+
+## Incremento 22/11 — proteção de referências importadas e pré-migração de vínculos
+
+### Correção da lista prática de Pedidos
+- O teste integrado em Chromium e WebKit havia alcançado e aprovado 20 áreas, fluxo multimodelo e duas abas, mas falhou na consulta do lote importado: os documentos BATCH1/BATCH2 foram criados e estavam em \`orderImports\`, porém o painel rápido omitia sua referência.
+- Corrigido \`operacao-integrada-ui.js\` para relacionar, por \`orderId\`, referência de importação, ID de lote e comando; mostrar origem na lista e no detalhe e permitir buscar por referência sem precisar abrir ferramentas avançadas.
+- O teste \`lote-amplo-mobile.cjs\` agora exige a presença de BATCH1/BATCH2, filtra BATCH2, abre detalhe, confere origem, verifica revisão inalterada e continua testando folha, cotações e imagens.
+
+### Novo pré-voo de vínculos — exclusivamente consulta
+- \`migracao/preflight-vinculos-operacionais.cjs\` exige um extrato de **dependências normalizadas** de teste. Não sabe ler o banco comercial, não faz importação, não deduz o conteúdo de documentos ausentes e nunca autoriza migração, baixa nem pagamento automático.
+- Reutiliza \`comparador-grade-legada.cjs\` e exige IDs de origem. Confere por modelo: total do pedido, reservas e conclusão de folhas, peças enviadas/retornadas, peças em acerto e títulos relacionados.
+- Verifica cadeia física \`cutId -> envio -> sourceAllocationId -> retorno -> returnId -> acerto -> título\`. Se uma associação não está identificada, não inventa outra nem reconstrói histórico.
+- Detecta transferências de facção sem prova, retorno parcial maior que envio, acertos que ultrapassam retornos, modelo de origem incorreto, títulos em duplicidade e já pagos.
+- Distingue **recebíveis de clientes** de **contas a pagar de facção**; títulos a receber são conferidos separadamente, e parcelamentos exigem revisão. Nunca somar valor de venda a custo de costura.
+- Dados fornecidos como arrays são apenas *presença declarada*, não confirmação de completude. Resposta fixa \`sourceCoverage='extrato_fornecido_sem_prova_de_completude'\`, \`readyForCommercialMigration=false\`, \`canExecute=false\`, \`canPay=false\` e \`canChangeStock=false\`.
+
+### Validação e próximas decisões
+- \`tests/preflight-vinculos-operacionais-contract.cjs\`: 11 testes cobrindo documento fictício 150 peças/2 modelos, ausência de extrato, títulos duplicados, pagamentos, parcelamento, cadeia incompleta, transferência entre facções, divergências de modelos e de quantidades.
+- Os 11 testes novos foram executados localmente em ambiente JavaScript isolado com resultados aprovados; a execução oficial no Node/GitHub segue como fonte de confirmação da esteira.
+- Os testes foram ligados a \`.github/workflows/evolucao-operacao-integrada.yml\` e aos gates anteriores de Pedidos e paridade.
+- **Pendente:** criar adaptador de extração somente de homologação com identidade de cada documento e transferências, validar as 76 funções comerciais, provar integridade do mesmo banco em outros computadores e obter aceite da equipe. Nenhuma dessas etapas foi declarada concluída.
+
+### Regra de implementação
+Não criar um segundo fluxo comercial de Pedidos nem trocar o modelo de dados em \`main\`. O objetivo é aproveitar a entrada de pedidos que a equipe já usa, dando rastreabilidade por modelo/cor/tamanho e proteção do histórico. Até aprovação da reconciliação, as simulações multimodelo não movimentam estoque, acerto ou financeiro comercial.
+
