@@ -26,12 +26,12 @@ function review(legacy,prepared,evidence={}){
  const knownProducts=new Set((legacy.grade||[]).map(x=>norm(x.productId)));
  for(const key of Object.keys(TYPES)){
   if(!Array.isArray(evidence[key])){
-   sources[key]={verified:false,records:0};
+   sources[key]={verified:false,records:0,independentlyVerified:false};
    note('COLECAO_NAO_CONFERIDA','bloqueio','Faltam dados conferidos de '+key+'; ausência de arquivo não comprova saldo zero');
    continue;
   }
   if(evidence[key].length>10000)throw Error('Extrato excede o limite em '+key);
-  sources[key]={verified:true,records:evidence[key].length};
+  sources[key]={verified:true,records:evidence[key].length,independentlyVerified:false};
   for(const doc of evidence[key]){
    const id=validId(doc?.id,key+' / id');
    if(ids.has(key+':'+id))throw Error('Documento repetido em '+key+': '+id);
@@ -71,23 +71,32 @@ function review(legacy,prepared,evidence={}){
  }
  const settlements=new Map((evidence.settlements||[]).map(x=>[x.id,x]));
  const linked=new Map();
+ const clientTitles=[];
  for(const item of evidence.finance||[]){
   const id=validId(item.id,'finance / id');
   const sourceId=validId(item.sourceId,'finance / sourceId');
   cents(item.amountCents,'finance / '+id+' / valor');
   if(item.orderId!==undefined&&item.orderId!==orderId)
    throw Error('Título financeiro pertence a outro pedido: '+id);
-  const source=settlements.get(sourceId);
-  if(source){
-   linked.set(sourceId,(linked.get(sourceId)||0)+1);
-   if(source.amountCents!==item.amountCents||source.status!==item.status)
-    note('FINANCEIRO_DIVERGENTE','bloqueio',sourceId+' e título '+id+' diferem no valor ou na situação');
-  }else{
-   note('TITULO_ORIGEM_NAO_COMPROVADA','bloqueio','Título '+id+' tem origem '+sourceId+' não identificada nos acertos deste extrato');
-  }
+  if(item.kind==='pagar'){
+   const source=settlements.get(sourceId);
+   if(source){
+    linked.set(sourceId,(linked.get(sourceId)||0)+1);
+    if(source.amountCents!==item.amountCents||source.status!==item.status)
+     note('FINANCEIRO_DIVERGENTE','bloqueio',sourceId+' e título '+id+' diferem no valor ou na situação');
+   }else note('TITULO_ORIGEM_NAO_COMPROVADA','bloqueio','Título a pagar '+id+' tem origem '+sourceId+' não identificada');
+  }else if(item.kind==='receber'){
+   clientTitles.push(item);
+   if(sourceId!==orderId)
+    note('TITULO_CLIENTE_ORIGEM_DIVERGENTE','bloqueio','Título a receber '+id+' não aponta para o pedido conferido');
+  }else throw Error('Tipo financeiro desconhecido em '+id+'; exige pagar ou receber');
   if(item.status==='pago')
    note('TITULO_PAGO','bloqueio','Título '+id+' já consta como pago; bloquear repetição de baixa');
  }
+ if(clientTitles.length>1)
+  note('RECEBIMENTO_PARCELADO_NAO_CONCILIADO','bloqueio','Vários títulos a receber: conferir condições e parcelas antes de migrar');
+ if(clientTitles.length)
+  note('RECEBIMENTO_NAO_CONCILIADO','bloqueio','Valores e datas dos títulos do cliente exigem confronto independente com o pedido original');
  for(const x of evidence.settlements||[]){
   if(x.status==='cancelado')continue;
   const n=linked.get(x.id)||0;
@@ -105,7 +114,7 @@ function review(legacy,prepared,evidence={}){
   grade,collections:sources,models:[...models.values()].sort((a,b)=>a.productId.localeCompare(b.productId,'pt-BR')),
   findings,needsReview:findings.length>0,
   readyForCommercialMigration:false,canExecute:false,canPay:false,canChangeStock:false,
-  noWrites:true
+  noWrites:true,sourceCoverage:'extrato_fornecido_sem_prova_de_completude'
  });
 }
 module.exports=Object.freeze({review});
