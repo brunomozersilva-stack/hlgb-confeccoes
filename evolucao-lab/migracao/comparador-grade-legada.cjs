@@ -32,8 +32,13 @@ function rowsFromPrepared(prepared){
  if(!prepared||!Array.isArray(prepared.items)||!prepared.items.length||
   prepared.items.length>100||!Array.isArray(prepared.sizes))
   throw Error('Pedido multimodelo preparado ilegível');
- const rows=new Map(),ids=new Set(),products=new Set();
+ if(prepared.sizes.length<1||prepared.sizes.length>16||
+  new Set(prepared.sizes.map((x,i)=>norm(text(x,'Tamanho do pedido '+i,40)))).size!==prepared.sizes.length)
+  throw Error('Lista de tamanhos do pedido inválida ou duplicada');
+ const rows=new Map(),ids=new Set(),products=new Set(),seenCells=new Set();
+ let grandPieces=0,grandAmount=0;
  for(const item of prepared.items){
+  let itemPieces=0;
   const itemId=text(item?.id,'ID do item'),pid=text(item?.productId,'Modelo preparado');
   if(ids.has(itemId))throw Error('ID de item duplicado: '+itemId);
   ids.add(itemId);
@@ -44,15 +49,28 @@ function rowsFromPrepared(prepared){
    const color=text(colorGrade?.color,'Cor preparada');
    if(!colorGrade.grade||Array.isArray(colorGrade.grade)||typeof colorGrade.grade!=='object')
     throw Error('Grade preparada ilegível: '+pid+' / '+color);
+   if(Object.keys(colorGrade.grade).length!==prepared.sizes.length||
+    prepared.sizes.some(size=>!Object.hasOwn(colorGrade.grade,size)))
+    throw Error('Grade preparada incompleta: '+pid+' / '+color);
    for(const [size,raw] of Object.entries(colorGrade.grade)){
     text(size,'Tamanho preparado',40);
     if(!prepared.sizes.includes(size))throw Error('Tamanho fora da grade do pedido: '+size);
     const value=qty(raw,pid+' / '+color+' / '+size),key=cell(pid,color,size);
-    if(rows.has(key))throw Error('Linha preparada duplicada: '+pid+' / '+color+' / '+size);
+    if(seenCells.has(key))throw Error('Linha preparada duplicada: '+pid+' / '+color+' / '+size);
+    seenCells.add(key);
+    itemPieces+=value;
     if(value>0)rows.set(key,{itemId,productId:pid,color,size,qty:value,key});
    }
   }
+  if(item.qty!==itemPieces)throw Error('Total do modelo não confere: '+pid);
+  if(!Number.isSafeInteger(item.priceCents)||item.priceCents<0||
+   !Number.isSafeInteger(item.amountCents)||item.amountCents!==itemPieces*item.priceCents)
+   throw Error('Subtotal e preço históricos inválidos do modelo: '+pid);
+  grandPieces+=itemPieces;grandAmount+=item.amountCents;
  }
+ if(!Number.isSafeInteger(grandAmount)||prepared.totals?.pieces!==grandPieces||
+  prepared.totals?.amountCents!==grandAmount)
+  throw Error('Totais preparados não conferem com itens e suas grades');
  if(rows.size>10000)throw Error('Grade preparada acima do limite de revisão');
  return rows;
 }
