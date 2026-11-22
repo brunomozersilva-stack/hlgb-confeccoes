@@ -21,7 +21,7 @@ function sample(){
   allocations:[{id:'SEND-1',orderId:legacy.id,productId:'PRO-A',qty:40,status:'enviado'},
    {id:'RETURN-1',orderId:legacy.id,productId:'PRO-A',qty:20,status:'retornado'}],
   settlements:[{id:'ACE-1',orderId:legacy.id,productId:'PRO-A',qty:20,amountCents:4000,status:'aberto'}],
-  finance:[{id:'FIN-1',orderId:legacy.id,sourceId:'ACE-1',amountCents:4000,status:'aberto'}]};
+  finance:[{id:'FIN-1',orderId:legacy.id,sourceId:'ACE-1',kind:'pagar',amountCents:4000,status:'aberto'}]};
  return {legacy,prepared,evidence};
 }
 test('grade equivalente com histórico de corte e facção não permite migração automática',()=>{
@@ -35,6 +35,8 @@ test('grade equivalente com histórico de corte e facção não permite migraç�
  assert.equal(r.models[0].returned,20);
  assert.equal(r.models[0].settled,20);
  assert.equal(r.collections.finance.records,1);
+ assert.equal(r.collections.finance.independentlyVerified,false);
+ assert.equal(r.sourceCoverage,'extrato_fornecido_sem_prova_de_completude');
  assert.equal(r.canExecute,false);
  assert.equal(r.canPay,false);assert.equal(r.canChangeStock,false);
  assert.equal(r.readyForCommercialMigration,false);
@@ -52,7 +54,7 @@ test('dados não fornecidos não equivalem a inexistência de acertos ou título
 });
 test('duplicidade de título do mesmo acerto e baixa antiga são bloqueadas',()=>{
  const {legacy,prepared,evidence}=sample();
- evidence.finance.push({id:'FIN-2',orderId:legacy.id,sourceId:'ACE-1',
+ evidence.finance.push({id:'FIN-2',orderId:legacy.id,sourceId:'ACE-1',kind:'pagar',
   amountCents:4000,status:'pago'});
  const r=review(legacy,prepared,evidence);
  assert.ok(r.findings.some(x=>x.code==='ACERTO_TITULO_INCONSISTENTE'));
@@ -76,6 +78,25 @@ test('recusar documentos de outro pedido e modelo não identificado no extrato',
  evidence.cuts[0].productId='PRO-INEXISTENTE';
  const r=review(legacy,prepared,evidence);
  assert.ok(r.findings.some(x=>x.code==='MODELO_AUSENTE'));
+});
+test('título a receber do cliente não é confundido com acerto de facção',()=>{
+ const {legacy,prepared,evidence}=sample();
+ evidence.finance.push({id:'FIN-CLIENTE',sourceId:legacy.id,kind:'receber',
+  orderId:legacy.id,amountCents:310000,status:'aberto'});
+ const r=review(legacy,prepared,evidence);
+ assert.ok(r.findings.some(x=>x.code==='RECEBIMENTO_NAO_CONCILIADO'));
+ assert.ok(!r.findings.some(x=>x.code==='TITULO_ORIGEM_NAO_COMPROVADA'));
+ assert.equal(r.canPay,false);
+});
+test('parcelamento precisa de análise separada, e tipo financeiro desconhecido é recusado',()=>{
+ const {legacy,prepared,evidence}=sample();
+ evidence.finance.push(
+  {id:'F-RECEBER-1',sourceId:legacy.id,kind:'receber',amountCents:100000,status:'aberto'},
+  {id:'F-RECEBER-2',sourceId:legacy.id,kind:'receber',amountCents:210000,status:'aberto'});
+ const r=review(legacy,prepared,evidence);
+ assert.ok(r.findings.some(x=>x.code==='RECEBIMENTO_PARCELADO_NAO_CONCILIADO'));
+ evidence.finance[0].kind='desconhecido';
+ assert.throws(()=>review(legacy,prepared,evidence),/Tipo financeiro desconhecido/);
 });
 test('não acessar banco ou APIs, não aceitar tipos financeiros inconsistentes',()=>{
  const src=fs.readFileSync(path.join(__dirname,'../migracao/preflight-vinculos-operacionais.cjs'),'utf8');
