@@ -1,0 +1,24 @@
+name: HLGB Auditor WAL Full Review Readonly v96.15
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'release-auditor-autocorrect-v9447.js'
+      - 'tests/auditor-wal-full-review-v9615.cjs'
+      - 'tests/auditor-wal-readonly-proof-v9482.cjs'
+      - '.github/workflows/hlgb-wal-full-review-v9615.yml'
+  workflow_dispatch:
+permissions: {contents: read}
+jobs:
+  wal-readonly:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - name: Verify full WAL review never mutates transactions
+        run: |
+          node --check release-auditor-autocorrect-v9447.js
+          node --test tests/auditor-wal-full-review-v9615.cjs
+          node tests/auditor-wal-readonly-proof-v9482.cjs
