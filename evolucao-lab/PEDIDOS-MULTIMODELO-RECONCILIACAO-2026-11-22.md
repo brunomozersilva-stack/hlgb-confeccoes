@@ -46,4 +46,16 @@ Antes de converter pedidos multimodelo em pedidos operacionais reais:
 4. Executar testes Chrome e Safari, mobile, concorrência entre abas, reabertura, impressão A4, PDFs, filtros, serviços avulsos, compensações, acertos por facção/cliente e 76 funções do comercial.
 5. Aceite por tarefa real dos funcionários e conferência de fechamento; sem isso não fazer merge em main nem publicar a substituição.
 
-**Próximo incremento sugerido**: criar um adaptador de prévia de reconciliação, somente leitura, entre as grades legadas e as novas, protegendo identidade e vínculos; não converter nem dar baixa automaticamente.
+## Incremento adicional implementado — prévia da paridade da grade
+
+Criado `migracao/comparador-grade-legada.cjs`, função pura `compare(legacy,prepared)`, protegida por 7 contratos automatizados em `tests/comparador-grade-legada-contract.cjs` e incluída no CI da operação integrada.
+
+- Leitura de `orders[].grade[]` legada e `multiOrders[].items[].colors[].grade` preparada, com diagnóstico por `productId` / cor / tamanho e delta da quantidade.
+- Detecta tamanho inválido, linha duplicada (inclusive quantidade zero), produto duplicado em dois itens, grade incompleta, discrepância de quantidade por modelo, preço histórico, subtotais e total geral.
+- Verifica identidade do cliente quando existe nos dois lados. Ausência ou divergência exigem revisão.
+- Exemplo de paridade: 100 Camisola + 50 Calcinha = 150 peças, 4 células distintas. Trocar uma cor por outra cria divergência, sem equivalência automática por nome parecido.
+- A resposta **nunca** autoriza importação: `readyForCommercialMigration=false`, `canWrite=false`, `canCreateFinancialTitle=false`, `canCreateStockMovement=false`.
+- Este comparador ainda não está ligado ao banco original nem recebe documentos comerciais reais. Não efetua migração silenciosa, não altera `main` nem gera acertos.
+
+**Próximo incremento**: a partir do comparador, desenvolver a prévia visual da migração com inspeção de cortes, envios, pagamentos e regras de preço, somente com **cópia autorizada de dados fictícios/anonimizados** e sem comandos de escrita. Depois validar contra o banco de homologação, com rollback e revisão independente.
+
