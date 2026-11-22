@@ -11,6 +11,9 @@ assert.match(loader,/cachedFallback\?'default'/);
 assert.match(loader,/await fetchBase9518\(attempt\)/);
 assert.match(loader,/sessionStorage\.setItem\('hlgb_boot_failure_v9478'/);
 assert.match(loader,/diagnostico-abertura\.html/);
-assert.match(diagnostic,/bootAttempts:/);
+// The diagnostic deliberately exports categories and counts, never raw boot error strings.
+assert.match(diagnostic,/reasonCategory/);
+assert.match(diagnostic,/attemptCount/);
+assert.doesNotMatch(diagnostic,/message:String\(a\?\.message|reason:String\(x\.reason/);
 assert(!/localStorage\.clear\(/.test(loader));
 console.log('PASS v95.18: boot loader compiles, retries safely, supports cached main file and includes diagnostics.');

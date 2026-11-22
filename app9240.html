@@ -2872,8 +2872,10 @@ function doLogin(){
  }
  errorEl.textContent="Entrando…";errorEl.style.display="block";
  (async()=>{
+  let authSucceededThisAttempt=false;
   try{
    await cloudSignIn(email,password);
+   authSucceededThisAttempt=true;
    errorEl.textContent="Acesso confirmado. Carregando seus dados da nuvem…";errorEl.style.display="block";
    let state=await hlgbFastBootstrap9182();
    // Garante que o modo por registros esteja realmente ativo também no login manual.
@@ -2938,6 +2940,15 @@ function doLogin(){
      try{setCloudStatus("⚠️ Online · sessão preservada","warn")}catch(_e){}
      errorEl.textContent="";errorEl.style.display="none";
      return;
+   }
+   // Se Auth confirmou este login, um GET com falha NÃO torna a senha inválida.
+   // Preserva tokens/rotina de sincronização e exige que a carga seja concluída antes de abrir o painel.
+   if(authSucceededThisAttempt && authenticated){
+     try{cloudStoreAuth()}catch(_e){}
+     try{setCloudStatus("⚠️ Sessão online confirmada · dados ainda não carregados","warn")}catch(_e){}
+     const reason=String(e?.message||"Falha de leitura dos dados").slice(0,180);
+     errorEl.textContent="Autenticação confirmada, mas não foi possível carregar os dados: "+reason+". A sessão foi preservada. Não limpe os dados do navegador.";
+     errorEl.style.display="block";return;
    }
    cloudAccessToken="";cloudRefreshToken="";cloudTokenExpiresAt=0;cloudUser=null;cloudReady=false;cloudRowId=null;cloudStoreAuth();
    let msg=e.message||"verifique e-mail e senha.";

@@ -20,7 +20,7 @@ permissions:
   contents: read
 jobs:
   unit:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 9
     steps:
       - uses: actions/checkout@v4
@@ -35,16 +35,12 @@ jobs:
       - name: Full synchronization, WAL, RPC gaps, and race regressions
         run: node --test tests/safari-chrome-sync-v9535.cjs
   browser:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
+    container: mcr.microsoft.com/playwright:v1.55.0-noble
     timeout-minutes: 25
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-      - name: Install Chromium and WebKit
-        run: |
-          npm install --no-save playwright@1.55.0
-          npx playwright install --with-deps chromium webkit
+      - name: Use browsers preinstalled in Playwright 1.55
+        run: npm install --no-save playwright@1.55.0
       - name: Safari to Chrome and Chrome to Safari simulated roundtrip
         run: node tests/safari-chrome-roundtrip-v9535-browser.cjs
