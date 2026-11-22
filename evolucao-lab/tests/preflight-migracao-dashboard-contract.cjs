@@ -17,7 +17,7 @@ const esc=x=>String(x??'').replace(/[&<>"']/g,c=>({
 })[c]);
 const make=()=>{
  let downloaded=null;
- const controller=vm.runInNewContext(markup+'\n({run:migrationPreflightMarkup,set:function(x){migrationPreflightExample=x},fixture:migrationPreflightFixture,exportCsv:exportMigrationPreflightDemo})',{
+ const controller=vm.runInNewContext(markup+'\n({run:migrationPreflightMarkup,set:function(x){migrationPreflightExample=x},setCustom:function(x){migrationPreflightCustom=x},fixture:migrationPreflightFixture,exportCsv:exportMigrationPreflightDemo})',{
   window:browser,str:esc,
   table:(headers,rows)=>'<table>'+headers.map(esc).join(' · ')+rows.map(row=>'<tr>'+row.join('|')+'</tr>').join('')+'</table>',
   panel:(title,txt)=>'<section>'+esc(title)+txt+'</section>',
@@ -74,6 +74,26 @@ test('exportação CSV gera apenas evidência fictícia de bloqueio e divergênc
  assert.match(file.content,/GRADE_OU_CLIENTE_DIVERGENTE/);
  assert.doesNotMatch(file.content,/aprovada para produção/i);
  assert.match(pane.run(),/data-preflight-export="csv"/);
+});
+test('prévia JSON fictícia personalizada não exige dados comerciais nem muda registros',()=>{
+ const pane=make(),draft={
+  legacy:{id:'LEG-FICTICIO',clientId:'CLI-FICTICIO',
+   grade:[{productId:'MODELO-TESTE',color:'Preto',size:'P',qty:10}]},
+  prepared:{id:'PDM-FICTICIO',clientId:'CLI-FICTICIO',sizes:['P'],
+   items:[{id:'ITM-001',productId:'MODELO-TESTE',qty:10,
+    priceCents:1000,amountCents:10000,colors:[{color:'Preto',grade:{P:10}}]}],
+   totals:{pieces:10,amountCents:10000}},
+  evidence:{orderId:'LEG-FICTICIO',cuts:[],allocations:[],settlements:[],finance:[]}
+ },before=JSON.stringify(draft);
+ pane.setCustom(draft);pane.set('personalizado');
+ const result=browser.HLGBLabMigrationPreflightV1.review(draft.legacy,draft.prepared,draft.evidence);
+ assert.equal(result.grade.gradeEquivalent,true);
+ assert.match(pane.run(),/Minha prévia fictícia/);
+ assert.match(pane.run(),/10 peças/);
+ const file=pane.exportCsv();
+ assert.match(file,/FICTICIA-personalizado/);
+ assert.equal(result.canExecute,false);
+ assert.equal(JSON.stringify(draft),before);
 });
 test('painel escapa dados e não contém escrita de documento ou rede',()=>{
  assert.doesNotMatch(markup,/\bfetch\s*\(|\bindexedDB\b|\blocalStorage\b|\bXMLHttpRequest\b|\bapi\.apply\s*\(|\bsubmit\s*\(/);
