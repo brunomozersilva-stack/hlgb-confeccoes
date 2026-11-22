@@ -18,7 +18,7 @@ const esc=x=>String(x??'').replace(/[&<>"']/g,c=>({
 const make=()=>{
  let downloaded=null;
  const controller=vm.runInNewContext(markup+'\n({run:migrationPreflightMarkup,set:function(x){migrationPreflightExample=x},setCustom:function(x){migrationPreflightCustom=x},fixture:migrationPreflightFixture,exportCsv:exportMigrationPreflightDemo})',{
-  window:browser,str:esc,
+  window:browser,str:esc,fmt:n=>'R$ '+(Number(n)/100).toFixed(2).replace('.',','),
   table:(headers,rows)=>'<table>'+headers.map(esc).join(' · ')+rows.map(row=>'<tr>'+row.join('|')+'</tr>').join('')+'</table>',
   panel:(title,txt)=>'<section>'+esc(title)+txt+'</section>',
   download:(name,content,type)=>{downloaded={name,content,type};}
