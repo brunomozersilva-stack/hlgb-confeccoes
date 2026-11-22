@@ -112,3 +112,34 @@ Não criar um segundo fluxo comercial de Pedidos nem trocar o modelo de dados em
 - A próxima prioridade técnica depois de estabilizar este gate é a **prévia de impacto de migração real em banco de homologação**, com comparações por registro e geração de relatório para o aceite humano. Qualquer ação que envolva dados comerciais precisa de autorização explícita e de um plano de rollback.
 
 **Sem merge no main; sem comando no financeiro/estoque do programa no ar.**
+
+## Dossiê operacional e conferência de lote entre pedidos
+
+### Dossiê por documento original
+- Criado \`migracao/dossie-vinculos-v1.cjs\`: relatório **exclusivamente de leitura** que reutiliza \`preflight-vinculos-operacionais.cjs\`. Mostra cada ID original de Corte, envio/retorno à facção, acerto e título financeiro, a qual documento de origem aponta, a qual item preparado poderia corresponder e o que ainda falta conferir.
+- Para cada registro são preservados o ID original, estágio, modelo, quantidade, valor em centavos (se existe), estado, tipo de documento pai e qualidade da referência. O dossiê nunca fabrica \`targetId\`, não cria título nem altera pagamento.
+- O resultado distingue \`referencia_identificada_sem_aprovacao\` de \`exige_conferencia\`. Ter um vínculo nominalmente identificado **não** comprova seu conteúdo, sua origem bancária ou sua legitimidade.
+- Uma fila por área aponta divergências de grade, documentos sem relação identificável, pagamentos já efetuados e faltas de prova. Os vínculos ainda devem ser confrontados com o banco único de homologação antes de qualquer importação real.
+- O painel de Auditor mostra o dossiê e a fila; para preservar desempenho, a tabela exibe no máximo 80 itens, enquanto o CSV fictício inclui todas as linhas do cenário analisado.
+
+### Conferência transversal de lote
+- Criado \`migracao/dossie-lote-v1.cjs\`: compara de **1 a 100 pedidos inventados** sem criar nenhum dado. Identifica \`orderId\` de origem/destino repetido (erro de entrada) e o mesmo ID documental reutilizado em dois pedidos diferentes (conflito a investigar).
+- O exemplo recolhível do Auditor usa **dois pedidos inventados** e simula o mesmo título \`PAG-EXEMPLO-01\` aparecendo em ambos. O resultado é **MIGRAÇÃO BLOQUEADA**, nunca proposta automática de fusão de títulos ou quitação.
+- Cada lote guarda origens, destinos candidatos, quantidades, contagem de documentos e um conjunto de pendências. O CSV de lote identifica \`DOCUMENTO_DUPLICADO\`, \`DOCUMENTO_DECLARADO\` e \`PENDENCIA\` com IDs conservados.
+- Não confundir a checagem local de repetição de IDs com uma prova global de unicidade: falta conhecer todas as tabelas do sistema comercial e confirmar o conteúdo de cada tabela no banco de homologação.
+- O motor browser é **gerado a partir dos mesmos arquivos CJS** e conferido por comparação determinística. Não manter validadores de migração duplicados nem enfraquecer testes existentes para publicar.
+
+### Testes novos
+- \`tests/dossie-vinculos-contract.cjs\`: 6 cenários (identidade preservada, pagamento duplicado, documentos sem ID, erro de modelo, falta de item de destino, determinismo sem IO).
+- \`tests/dossie-lote-contract.cjs\`: 6 cenários (dois pedidos, título reutilizado, pedidos duplicados, grade divergente, limites, determinismo sem IO).
+- \`tests/preflight-migracao-dashboard-contract.cjs\`: expandido para validar o dossiê, o lote e seus dois CSVs.
+- \`tests/preflight-migracao-dashboard-mobile.cjs\`: expandido para clicar no resumo do lote e baixar o CSV no Chromium e no WebKit, em 390 e 1280 pixels.
+- O gate da operação integrada inclui esses contratos e a verificação de \`build-preflight-browser.cjs --check\`.
+
+### Próxima etapa de integração com dados reais — NÃO IMPLEMENTADA
+1. Inspecionar esquema/versão do programa no ar e documentar a origem/ID de **todos** os movimentos (inclusive compensação, devolução, estorno e acertos já arquivados) sem consultar informações privadas desnecessárias.
+2. Criar um adaptador de **exportação somente leitura para uma cópia isolada e autorizada**; validar nomes de colunas, versões, referência composta, integridade temporal e registros sem foreign key.
+3. Conferir duas leituras independentes na homologação e bloquear mudanças concorrentes durante a simulação, sem qualquer escrita na base comercial.
+4. Aprovar por tarefa de operador (Pedidos, Corte, Facções, Acertos, Folha, Financeiro) e reversão garantida; somente então avaliar integração efetiva.
+
+**Nenhum merge para \`main\`, nenhuma gravação em estoque, pedidos ou financeiro comercial nesta etapa.**
