@@ -112,8 +112,7 @@ test('159 scripts e ordem preservada: um núcleo opcional imediatamente antes de
  assert.equal(loader.includes('const moduleGroups='),false,'never reactivate risky loading groups');
 });
 test('núcleo ausente e núcleo defeituoso preservam os cálculos legados',()=>{
- const a=setup(false),broken=setup(false);
- broken.context.window.HLGB_SEPARATION_PROGRESS_9617=null;
+ const a=setup(false);
  const c=setup(true);
  for(const order of orders)for(const sep of separations){
   assert.equal(JSON.stringify(a.read.totals(order,sep)),JSON.stringify(c.read.totals(order,sep)));
@@ -123,6 +122,7 @@ test('núcleo ausente e núcleo defeituoso preservam os cálculos legados',()=>{
   'const separationProgressCore9617={progress(){throw Error("unexpected")},totalsForItems(){throw Error("unexpected")}};');
  assert.notEqual(fragileSrc,src);
  const patchedContext={window:{},db:{orders:[],separations:[]},document:{querySelector:()=>null,getElementById:()=>null},
+  projectionItemsForOrder:o=>o?.__projectionItems,
   console:{info(){},warn(){},error(){}},setInterval:()=>1,clearInterval(){},setTimeout:()=>1,
   Date,Math,Number,String,Object,JSON,Set,Map,Promise,structuredClone,localStorage:{getItem:()=>null}};
  vm.createContext(patchedContext);
