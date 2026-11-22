@@ -96,18 +96,18 @@ test('ids simples/legados com prefixo, quantidades negativas e inválidas conser
  }
  assert.equal(n,120);
 });
-test('159 scripts e ordem preservada: um núcleo opcional imediatamente antes de Separação',()=>{
+test('160 scripts e ordem preservada: dois núcleos opcionais antes de consumidores legados',()=>{
  const loader=fs.readFileSync(path.join(root,'app-stable3.html'),'utf8');
  const list=loader.match(/const files=\[([\s\S]*?)\];\/\* A base/);
  assert.ok(list,'must scan the real production loader');
  const files=[...list[1].matchAll(/'([^']+\.js)'/g)].map(x=>x[1]);
  const addon='hlgb-modules/producao/separacao-progresso-v9617.js';
- assert.equal(files.length,159);
+ assert.equal(files.length,160);
  assert.equal(manifest.preExtractionScripts.length,158);
- assert.deepEqual(files.filter(x=>x!==addon),manifest.preExtractionScripts);
- assert.deepEqual(manifest.approvedNewScripts,[addon]);
+ assert.deepEqual(files.filter(x=>!manifest.approvedNewScripts.includes(x)),manifest.preExtractionScripts);
+ assert.deepEqual(manifest.approvedNewScripts,[addon,'hlgb-modules/producao/corte-alvo-v9618.js']);
  assert.deepEqual(files,manifest.releaseScripts);
- assert.equal(new Set(files).size,159);
+ assert.equal(new Set(files).size,160);
  assert.equal(files.indexOf(addon)+1,files.indexOf('release-separation-commit-v9319.js'));
  assert.equal(loader.includes('const moduleGroups='),false,'never reactivate risky loading groups');
 });
