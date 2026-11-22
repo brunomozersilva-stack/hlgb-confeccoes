@@ -69,6 +69,59 @@ function review(legacy,prepared,evidence={}){
   if(sources.settlements.verified&&sources.allocations.verified&&b.settled>b.returned)
    note('ACERTO_SEM_RETORNO','bloqueio',b.productId+': '+b.settled+' peças em acerto e '+b.returned+' retornadas');
  }
+ // O saldo agregado não substitui o vínculo físico entre documentos.
+ // A rotina antiga pode não ter esses IDs; nesse caso exigir conferência
+ // humana e nunca inventar a qual folha/facção pertence cada quantidade.
+ const byCut=new Map((evidence.cuts||[]).map(x=>[x.id,x]));
+ const bySend=new Map((evidence.allocations||[]).filter(x=>x.status==='enviado').map(x=>[x.id,x]));
+ const byReturn=new Map((evidence.allocations||[]).filter(x=>x.status==='retornado').map(x=>[x.id,x]));
+ const bySendReturned=new Map(),byReturnSettled=new Map();
+ for(const a of evidence.allocations||[]){
+  if(a.status==='cancelado')continue;
+  if(a.status==='enviado'){
+   if(!a.cutId)note('ENVIO_SEM_FOLHA_ID','bloqueio',a.id+' não identifica folha de corte; não inferir origem');
+   else {
+    const source=byCut.get(a.cutId);
+    if(!source||source.status!=='concluido'||norm(source.productId)!==norm(a.productId))
+     note('ENVIO_CORTE_INVALIDO','bloqueio',a.id+' aponta para corte indisponível ou de outro modelo: '+a.cutId);
+   }
+  }
+  if(a.status==='retornado'){
+   if(!a.sourceAllocationId)
+    note('RETORNO_SEM_ENVIO_ID','bloqueio',a.id+' não informa envio original; conferir trilha de facção');
+   else {
+    const src=bySend.get(a.sourceAllocationId);
+    if(!src||norm(src.productId)!==norm(a.productId))
+     note('RETORNO_ORIGEM_DIVERGENTE','bloqueio',a.id+' não pertence ao envio '+a.sourceAllocationId);
+    else {
+     bySendReturned.set(src.id,(bySendReturned.get(src.id)||0)+a.qty);
+     if(src.factionId&&a.factionId&&src.factionId!==a.factionId)
+      note('FACCAO_TROCADA_SEM_PROVA','bloqueio',a.id+' retornou por outra facção; exigir registro de transferência');
+    }
+   }
+  }
+ }
+ for(const [sendId,returned] of bySendReturned){
+  const sent=bySend.get(sendId)?.qty||0;
+  if(returned>sent)
+   note('RETORNO_PARCIAL_EXCESSIVO','bloqueio',sendId+': soma dos retornos '+returned+' excede '+sent+' enviados');
+ }
+ for(const a of evidence.settlements||[]){
+  if(a.status==='cancelado')continue;
+  if(!a.returnId)
+   note('ACERTO_SEM_RETORNO_ID','bloqueio',a.id+' não identifica o retorno físico que gerou serviço');
+  else {
+   const source=byReturn.get(a.returnId);
+   if(!source||norm(source.productId)!==norm(a.productId))
+    note('ACERTO_RETORNO_INVALIDO','bloqueio',a.id+' não corresponde ao retorno '+a.returnId);
+   else byReturnSettled.set(source.id,(byReturnSettled.get(source.id)||0)+a.qty);
+  }
+ }
+ for(const [returnId,settled] of byReturnSettled){
+  const returned=byReturn.get(returnId)?.qty||0;
+  if(settled>returned)
+   note('ACERTO_PARCIAL_EXCESSIVO','bloqueio',returnId+': soma dos acertos '+settled+' excede '+returned+' retornadas');
+ }
  const settlements=new Map((evidence.settlements||[]).map(x=>[x.id,x]));
  const linked=new Map();
  const clientTitles=[];
