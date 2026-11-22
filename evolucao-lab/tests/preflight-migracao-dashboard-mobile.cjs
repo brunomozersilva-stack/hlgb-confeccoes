@@ -49,6 +49,28 @@ async function run(browser,url,width){
   assert.match(report,/DIFERENCA_GRADE/);
   assert.match(report,/GRADE_OU_CLIENTE_DIVERGENTE/);
   assert.equal(await page.locator('#top-revision').innerText(),before,'exportar nao movimenta dados');
+  await root.locator('#preflight-json-tools summary').click();
+  await root.locator('#preflight-json-input').fill('{"legacy":');
+  await root.locator('[data-preflight-import="json"]').click();
+  assert.match(await page.locator('#flash').innerText(),/Prévia recusada/);
+  assert.equal(await page.locator('#top-revision').innerText(),before,'JSON inválido não grava');
+  const demo={legacy:{id:'LEG-FICTICIO',clientId:'CLI-TESTE',
+    grade:[{productId:'MODELO-FICTICIO',color:'Preto',size:'P',qty:10}]},
+   prepared:{id:'PDM-FICTICIO',clientId:'CLI-TESTE',sizes:['P'],
+    items:[{id:'ITM-001',productId:'MODELO-FICTICIO',qty:10,priceCents:1000,
+     amountCents:10000,colors:[{color:'Preto',grade:{P:10}}]}],
+    totals:{pieces:10,amountCents:10000}},
+   evidence:{orderId:'LEG-FICTICIO',cuts:[],allocations:[],settlements:[],finance:[]}};
+  await root.locator('#preflight-json-input').fill(JSON.stringify(demo));
+  await root.locator('[data-preflight-import="json"]').click();
+  assert.match(await root.innerText(),/Minha prévia fictícia/);
+  assert.match(await root.innerText(),/10 peças/);
+  assert.equal(await root.locator('[data-preflight-example="personalizado"]').getAttribute('aria-pressed'),'true');
+  assert.equal(await page.locator('#top-revision').innerText(),before,'JSON fictício não altera documento');
+  await root.locator('#preflight-json-tools summary').click();
+  await root.locator('[data-preflight-clear]').click();
+  assert.equal(await root.locator('[data-preflight-example="personalizado"]').count(),0);
+  assert.match(await root.innerText(),/150 peças/);
   await page.locator('[data-module="pedidos"]').click();
   await page.locator('[data-module="auditor"]').click();
   assert.match(await page.locator('#migration-preflight-root').innerText(),/MIGRAÇÃO BLOQUEADA/);
