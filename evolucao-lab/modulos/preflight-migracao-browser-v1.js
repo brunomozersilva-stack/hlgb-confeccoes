@@ -435,7 +435,7 @@ function buildDossier(legacy,prepared,evidence={}){
  ].sort((a,b)=>lex(a.owner,b.owner)||lex(a.sourceId,b.sourceId)||lex(a.code,b.code));
  return Object.freeze({
   schema:'hlgb-dossie-pre-migracao-v1',sourceOrderId:orderId,targetOrderId:preparedOrderId,
-  grade:preflight.grade,coverage:preflight.collections,
+  review:preflight,grade:preflight.grade,coverage:preflight.collections,
   modelMap,records:list,edges,missing,counters,reviewQueue:queue,
   isCommercialMigrationApproved:false,canExecute:false,canWrite:false,canPay:false,
   canChangeStock:false,canCreateTitle:false,preparedChanges:0,
