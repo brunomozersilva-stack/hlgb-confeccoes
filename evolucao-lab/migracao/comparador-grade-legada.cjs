@@ -17,13 +17,14 @@ const cell=(productId,color,size)=>[norm(productId),norm(color),norm(size)].join
 function rowsFromLegacy(legacy){
  if(!legacy||!Array.isArray(legacy.grade))throw Error('Grade comercial ilegível');
  if(legacy.grade.length>10000)throw Error('Grade comercial acima do limite de revisão');
- const rows=new Map();
+ const rows=new Map(),seen=new Set();
  for(const [index,g] of legacy.grade.entries()){
   const productId=text(g?.productId,'Modelo legado '+index),
    color=text(g?.color,'Cor legado '+index),size=text(g?.size,'Tamanho legado '+index,40);
   const value=qty(g?.qty,productId+' / '+color+' / '+size);
   const key=cell(productId,color,size);
-  if(rows.has(key))throw Error('Grade comercial contém linha duplicada: '+productId+' / '+color+' / '+size);
+  if(seen.has(key))throw Error('Grade comercial contém linha duplicada: '+productId+' / '+color+' / '+size);
+  seen.add(key);
   if(value>0)rows.set(key,{productId,color,size,qty:value,key});
  }
  return rows;
