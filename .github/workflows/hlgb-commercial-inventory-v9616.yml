@@ -1,0 +1,34 @@
+name: HLGB Comercial - Inventario e paridade modular v96.16
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'hlgb-modules/ownership-v9600.json'
+      - 'hlgb-modules/audit-live-monolith-v9601b.cjs'
+      - 'hlgb-modules/STATUS-MODULARIZACAO-COMERCIAL-v9616.md'
+      - 'tests/hlgb-live-monolith-inventory-v9601b.cjs'
+      - '.github/workflows/hlgb-commercial-inventory-v9616.yml'
+      - 'app-stable3.html'
+      - 'app9240.html'
+  workflow_dispatch:
+permissions: {contents: read}
+jobs:
+  verify-inventory:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - name: Parse only, never run commercial HTML
+        run: |
+          node --check hlgb-modules/audit-live-monolith-v9601b.cjs
+          node --test tests/hlgb-live-monolith-inventory-v9601b.cjs
+          mkdir -p inventory-artifact
+          node hlgb-modules/audit-live-monolith-v9601b.cjs --verify --full-json > inventory-artifact/hlgb-live-inventory-v9616.json
+      - name: Keep static inventory for modularization audit
+        uses: actions/upload-artifact@v4
+        with:
+          name: hlgb-live-inventory-v9616
+          path: inventory-artifact/hlgb-live-inventory-v9616.json
+          retention-days: 30
