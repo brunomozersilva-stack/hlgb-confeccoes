@@ -1998,6 +1998,7 @@ function migrationPreflightMarkup(){
   migrationPreflightExamples.map(([id,name])=>
   '<button type="button" class="btn" data-preflight-example="'+str(id)+'" aria-pressed="'+
   (id===migrationPreflightExample?'true':'false')+'">'+str(name)+'</button>').join('')+'</div>';
+ const exportButton='<div class="actions"><button type="button" class="btn" data-preflight-export="csv">Baixar diagnóstico fictício (CSV)</button></div>';
  const disclaim='<p><strong>Somente demonstração fictícia:</strong> esta tela não lê o HLGB comercial, não importa cadastro, não modifica o documento da homologação e não aprova migração. Não cole dados de funcionários ou clientes reais.</p>'+
   '<p>Uma grade idêntica não comprova que os movimentos de Corte, os acertos e os títulos estão corretos. Mesmo o cenário íntegro permanece <strong>bloqueado para migração automática</strong>.</p>';
  const engine=window.HLGBLabMigrationPreflightV1;
@@ -2023,7 +2024,7 @@ function migrationPreflightMarkup(){
    str(x.planned),str(x.cut),str(x.sent),str(x.returned),str(x.settled)]);
   const diffRows=r.grade.diffs.map(x=>[str(x.productId),str(x.color),str(x.size),
    str(x.legacyQty),str(x.preparedQty),str(x.delta)]);
-  return options+disclaim+
+  return options+disclaim+exportButton+
    '<div class="metrics">'+items.map(([title,value])=>
     '<div class="metric"><span>'+str(title)+'</span><strong>'+str(value)+'</strong></div>').join('')+'</div>'+
    '<p id="preflight-conclusion" class="error"><strong>Resultado: MIGRAÇÃO BLOQUEADA.</strong> Nenhuma baixa, acerto, pedido ou pagamento foi criado.</p>'+
@@ -2041,6 +2042,32 @@ function migrationPreflightMarkup(){
   return options+disclaim+'<p id="preflight-conclusion" class="error">Prévia inválida. '+
    str(error?.message||'Falha ao comparar documentos')+'. Nenhuma ação realizada.</p>';
  }
+}
+// Exportação exclusiva de cenário inventado. O arquivo comprova bloqueios,
+// não realiza nem autoriza migração; strings de CSV protegidas contra fórmulas.
+function exportMigrationPreflightDemo(){
+ const engine=window.HLGBLabMigrationPreflightV1;
+ if(!engine?.review)throw Error('Conferidor indisponível; CSV não foi criado.');
+ const {legacy,prepared,evidence}=migrationPreflightFixture(migrationPreflightExample);
+ const r=engine.review(legacy,prepared,evidence);
+ const safe=x=>{
+  const v=String(x??''),guarded=/^\s*[=+\-@]/.test(v)?"'"+v:v;
+  return '"'+guarded.replace(/"/g,'""')+'"';
+ };
+ const rows=[['TIPO','CÓDIGO','MODELO','COR','TAMANHO','ORIGINAL','PREPARADO','DETALHE']];
+ rows.push(['STATUS','MIGRACAO_BLOQUEADA','','','','','','Nenhuma escrita, baixa ou pagamento autorizado']);
+ rows.push(['PEDIDO_ORIGINAL',legacy.id,'','','',r.grade.source.pieces,'','']);
+ rows.push(['PEDIDO_PREPARADO',prepared.id,'','','','',r.grade.target.pieces,'']);
+ for(const x of r.grade.diffs)rows.push(['DIFERENCA_GRADE',x.itemId||'',x.productId,
+  x.color,x.size,x.legacyQty,x.preparedQty,'Delta: '+x.delta]);
+ for(const [category,x] of Object.entries(r.collections))
+  rows.push(['COBERTURA',category,'','','',x.records,'',
+   x.verified?'Extrato declarado; completude não comprovada':'Sem extrato']);
+ for(const x of r.findings)rows.push(['BLOQUEIO',x.code,'','','','','',x.detail]);
+ const csv='\uFEFF'+rows.map(r=>r.map(safe).join(';')).join('\r\n');
+ const filename='HLGB-PRE-MIGRACAO-FICTICIA-'+migrationPreflightExample+'.csv';
+ download(filename,csv,'text/csv;charset=utf-8');
+ return filename;
 }
 function migrationPreflightPanel(){
  return panel('Pré-migração · vínculos de Pedidos, Corte, Facções e Acertos',
@@ -3654,6 +3681,14 @@ document.addEventListener('change',event=>{
  }
 });
 document.addEventListener('click',async e=>{
+ const exportPreview=e.target.closest('[data-preflight-export]');
+ if(exportPreview){
+  try{
+   const name=exportMigrationPreflightDemo();
+   status('Relatório fictício gerado: '+name+'. Nenhum dado empresarial foi consultado.');
+  }catch(error){status('Exportação não realizada: '+(error?.message||'falha de conferência'),'error');}
+  return;
+ }
  const preflightChoice=e.target.closest('[data-preflight-example]');
  if(preflightChoice){
   const selected=preflightChoice.dataset.preflightExample;
