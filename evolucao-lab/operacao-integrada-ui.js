@@ -837,13 +837,21 @@ const orderFastNorm=x=>String(x??'').normalize('NFD').replace(/[\u0300-\u036f]/g
 function orderFastRecords(s){
  if(ordersFastCache.document===s&&ordersFastCache.revision===s.revision&&ordersFastCache.rows)
   return ordersFastCache.rows;
+ const importsByOrder=new Map();
+ for(const batch of s.orderImports||[])for(const item of batch.items||[]){
+  if(!item?.orderId)continue;
+  const current=importsByOrder.get(item.orderId)||[];
+  current.push({reference:item.reference,batchId:batch.id,commandId:batch.commandId});
+  importsByOrder.set(item.orderId,current);
+ }
  const rows=s.orders.map(o=>{
   const q=api.quantities(o),client=ref(s.clients,o.clientId)?.name||o.clientId,
    product=ref(s.products,o.productId)?.name||o.productId;
   const status=q.shipped===q.ordered?'Expedido':
    q.returned>0?'Em retorno':q.allocated>q.returned?'Na facção':
    q.cut>0?'Em corte':'A cortar';
-  return {id:o.id,client,model:product,models:1,qty:q.ordered,cut:q.cut,allocated:q.allocated,separated:q.separated,
+  return {id:o.id,client,model:product,importRefs:importsByOrder.get(o.id)||[],
+   models:1,qty:q.ordered,cut:q.cut,allocated:q.allocated,separated:q.separated,
    returned:q.returned,shipped:q.shipped,value:q.ordered*o.priceCents,
    status,kind:'operacional',grade:getGrade(o),
    priority:o.pcp?.priority||null,dueDate:o.pcp?.dueDate||null};
@@ -882,7 +890,8 @@ function ordersFastView(s){
   if(ordersFastFilters.status==='expedidos'&&x.status!=='Expedido')return false;
   if(ordersFastFilters.priority!=='todas'&&
      (ordersFastFilters.priority==='sem_prazo'?!!x.dueDate:x.priority!==ordersFastFilters.priority))return false;
-  return !search||orderFastNorm([x.id,x.client,x.model,x.status,x.grade].join(' ')).includes(search);
+  return !search||orderFastNorm([x.id,x.client,x.model,x.status,x.grade,
+   ...(x.importRefs||[]).flatMap(ref=>[ref.reference,ref.batchId])].join(' ')).includes(search);
  });
  const pages=Math.max(1,Math.ceil(filtered.length/ordersFastFilters.pageSize));
  ordersFastFilters.page=Math.min(Math.max(1,ordersFastFilters.page),pages);
@@ -893,7 +902,8 @@ function ordersFastView(s){
   ' peças na seleção · '+fmt(filtered.reduce((n,x)=>n+x.value,0))+
   ' · resultados apenas de consulta, sem alterar nenhum pedido</p>';
  const rows=view.map(x=>[
-  '<strong>'+str(x.id)+'</strong><div class="caption">'+str(x.kind==='multimodelo'?'Vários modelos · ensaio isolado':'Pedido operacional')+'</div>',
+  '<strong>'+str(x.id)+'</strong><div class="caption">'+str(x.kind==='multimodelo'?'Vários modelos · ensaio isolado':'Pedido operacional')+'</div>'+
+  (x.importRefs?.length?'<div class="caption">Origem: '+x.importRefs.map(y=>str(y.reference)+' · '+str(y.batchId)).join(' | ')+'</div>':''),
   str(x.client),'<strong>'+str(x.model)+'</strong><div class="caption">'+str(x.grade)+'</div>',
   str(x.qty),str(x.cut??'Conferir'),str(x.allocated??'Conferir'),str(x.returned??'Conferir'),
   str(x.separated??'Conferir'),str(x.shipped??'Conferir'),
@@ -1122,6 +1132,12 @@ function ordersFastDetail(s,id){
  }
  const product=ref(s.products,op.productId);
  const q=api.quantities(op);
+ const importOrigins=(s.orderImports||[]).flatMap(batch=>(batch.items||[])
+  .filter(x=>x.orderId===op.id).map(item=>({reference:item.reference,batchId:batch.id,
+   commandId:batch.commandId,reason:batch.reason})));
+ const origin=importOrigins.length?'<h4>Origem da importação e referências</h4>'+table(
+  ['Referência original','Lote','Comando','Justificativa'],importOrigins.map(x=>[
+   str(x.reference),str(x.batchId),str(x.commandId||'—'),str(x.reason||'—')])):'';
  const colors=op.colorGrades?.length?op.colorGrades:[{color:'Sem cor registrada',grade:op.grade}];
  const colorRows=colors.map(x=>[str(x.color),
   ...api.sizes.map(size=>str(x.grade[size]||0)),str(sum(x.grade))]);
@@ -1133,7 +1149,7 @@ function ordersFastDetail(s,id){
  const events=(s.log||[]).filter(x=>x.description===id||
   x.description?.startsWith(id+' ')||x.description?.startsWith(id+' ·'));
  return panel('Detalhes e conferência',head+
-  '<p>Modelo: '+str(product?.name||op.productId)+' · Grade por cor e tamanho</p>'+
+  '<p>Modelo: '+str(product?.name||op.productId)+' · Grade por cor e tamanho</p>'+origin+
   table(['Cor',...api.sizes,'Total'],colorRows)+
   '<h4>Fluxo do pedido</h4>'+
   table(['Pedidas','Cortadas','Enviadas à facção','Retornadas','Separadas','Expedidas'],
