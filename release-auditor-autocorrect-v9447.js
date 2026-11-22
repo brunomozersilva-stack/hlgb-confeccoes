@@ -154,7 +154,7 @@ async function walRemoteReadOnlyProof9482(max=8,notify){
  for(const op of ops){
   const module=sid(op?.module),id=sid(op?.id),opId=sid(op?.opId);
   const row={module,id,opId,status:'unverified'};
-  if(!module||!id||!opId){row.status='invalid-local-operation';result.unverified++;result.items.push(row);continue}
+  if(!module||!id||!opId){row.status='invalid-local-operation';result.unverified++;result.checked++;result.items.push(row);progress();continue}
   try{
    const query='hlgb_records?select=module,entity_id,data,deleted_at,revision,updated_at&module=eq.'+encodeURIComponent(module)+'&entity_id=eq.'+encodeURIComponent(id)+'&limit=1';
    const response=await Promise.race([Promise.resolve(window.cloudRequest(query,{method:'GET'})),new Promise((_,reject)=>setTimeout(()=>reject(new Error('Timeout da prova remota')),12000))]);
@@ -317,9 +317,65 @@ function makeReport(summary,audit,t){
 }
 function downloadReport(report){try{const data=report||state.lastReport;if(!data)return false;const blob=new Blob([JSON.stringify(data,null,2)],{type:'application/json;charset=utf-8'}),url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download='hlgb-auditor-autocorretor-'+sid(data?.run?.runId||Date.now()).replace(/[^a-z0-9_-]/gi,'_')+'.json';document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1200);return true}catch(e){state.lastError=sid(e?.message||e);return false}}
 const esc=v=>sid(v).replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+/* HLGB v96.15 — consulta integral e EXPLICITAMENTE solicitada da WAL do Safari.
+ * Somente IndexedDB readonly e GET autenticado. Não gera ACK, replay, exclusões ou baixas.
+ * O relatório exporta identificação/status/campos diferentes, jamais dados comerciais. */
+let walReviewBusy9615=false,walReviewLast9615=null;
+function safeWalReview9615(result){
+ const sidSafe=(v,max=100)=>sid(v).replace(/[^a-zA-Z0-9_.|\[\]-]/g,'').slice(0,max);
+ const allowed=new Set(['content-match','delete-confirmed','delete-absent','missing','different','error','unverified','invalid-local-operation']);
+ return {kind:'hlgb_wal_review_readonly',version:'96.15',generatedAt:new Date().toISOString(),
+  readOnly:true,noCleanupPerformed:true,status:sidSafe(result?.status,48),total:Number(result?.total)||0,
+  checked:Number(result?.checked)||0,matched:Number(result?.matched)||0,different:Number(result?.different)||0,
+  missing:Number(result?.missing)||0,unverified:Number(result?.unverified)||0,
+  items:(Array.isArray(result?.items)?result.items:[]).slice(0,60).map(x=>({
+   module:sidSafe(x?.module),id:sidSafe(x?.id),opId:sidSafe(x?.opId,80),
+   status:allowed.has(x?.status)?x.status:'unverified',
+   revision:Number(x?.revision)||null,
+   differentFields:(Array.isArray(x?.differentFields)?x.differentFields:[]).slice(0,16).map(v=>sidSafe(v,160))
+  })),
+  remoteReadErrorCount:Array.isArray(result?.errors)?result.errors.length:0};
+}
+function downloadWalReview9615(){
+ if(!walReviewLast9615)return false;
+ try{
+  const blob=new Blob([JSON.stringify(walReviewLast9615,null,2)],{type:'application/json;charset=utf-8'});
+  const url=URL.createObjectURL(blob),a=document.createElement('a');
+  a.href=url;a.download='hlgb-wal-revisao-somente-leitura.json';document.body.appendChild(a);a.click();a.remove();
+  setTimeout(()=>URL.revokeObjectURL(url),2000);return true;
+ }catch(e){return false}
+}
+function renderWalReview9615(card){
+ if(!card||typeof document?.createElement!=='function')return;
+ const wrapper=document.createElement('div'),button=document.createElement('button'),exportBtn=document.createElement('button'),status=document.createElement('p');
+ wrapper.className='sub';wrapper.style.marginTop='12px';
+ button.type='button';button.textContent='Conferir todas as pendências WAL (somente leitura)';
+ exportBtn.type='button';exportBtn.textContent='Baixar relatório WAL';exportBtn.style.marginLeft='8px';
+ exportBtn.disabled=!walReviewLast9615;
+ status.textContent='A auditoria rápida examina até 8 operações. Esta consulta verifica até 60, sem enviar, apagar ou alterar lançamentos.';
+ button.disabled=walReviewBusy9615||!authReady();
+ exportBtn.addEventListener('click',()=>downloadWalReview9615());
+ button.addEventListener('click',async()=>{
+  if(walReviewBusy9615||!authReady())return;
+  walReviewBusy9615=true;button.disabled=true;exportBtn.disabled=true;
+  status.textContent='Lendo pendências sem alterar os registros...';
+  try{
+   const result=await walRemoteReadOnlyProof9482(60,p=>{
+    status.textContent='Verificados '+p.done+' de '+p.total+' registros · diferentes '+p.different+' · ausentes '+p.missing+' · sem prova '+p.unverified;
+   });
+   walReviewLast9615=safeWalReview9615(result);
+   const v=walReviewLast9615;
+   status.textContent='Conclusão: '+v.checked+'/'+v.total+' conferidos · iguais '+v.matched+' · diferentes '+v.different+' · ausentes '+v.missing+' · não verificados '+v.unverified+'. Nenhuma operação foi removida.';
+   exportBtn.disabled=false;
+  }catch(e){
+   status.textContent='Não foi possível concluir a conferência. Nenhuma operação foi apagada ou reenviada.';
+  }finally{walReviewBusy9615=false;button.disabled=!authReady()}
+ });
+ wrapper.append(button,exportBtn,status);card.appendChild(wrapper);
+}
 function render(summary){
  const host=document.getElementById('hlgbAuditorResult');if(!host||!summary)return false;let c=document.getElementById(CARD_ID);if(!c){c=document.createElement('div');c.id=CARD_ID;c.className='panel';host.prepend(c)}
- c.innerHTML='<b>⚡ Auditor v94.47 · convergência rápida</b><div>'+esc(summary.passes||0)+' rodada(s) de reparo · '+esc(summary.stopReason||'')+'</div><div class="sub">Fila técnica viva: '+esc(summary.triage?.signal?.operationalQueue?.unique||0)+' · Precisa de código: '+esc(summary.needsCode?.length||0)+' · Decisão humana: '+esc(summary.businessBlocked?.length||0)+' · Histórico resumido: '+esc(summary.historicalBacklog?.count||0)+'</div>';return true;
+ c.innerHTML='<b>⚡ Auditor v94.47 · convergência rápida</b><div>'+esc(summary.passes||0)+' rodada(s) de reparo · '+esc(summary.stopReason||'')+'</div><div class="sub">Fila técnica viva: '+esc(summary.triage?.signal?.operationalQueue?.unique||0)+' · Precisa de código: '+esc(summary.needsCode?.length||0)+' · Decisão humana: '+esc(summary.businessBlocked?.length||0)+' · Histórico resumido: '+esc(summary.historicalBacklog?.count||0)+'</div>';renderWalReview9615(c);return true;
 }
 /* v95.84: conservar a causa real das dependências antigas, sem acessar dados de negócio. */
 function preparationFailure9584(base){
