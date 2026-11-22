@@ -17,7 +17,7 @@ const esc=x=>String(x??'').replace(/[&<>"']/g,c=>({
 })[c]);
 const make=()=>{
  let downloaded=null;
- const controller=vm.runInNewContext(markup+'\n({run:migrationPreflightMarkup,set:function(x){migrationPreflightExample=x},setCustom:function(x){migrationPreflightCustom=x},fixture:migrationPreflightFixture,exportCsv:exportMigrationPreflightDemo})',{
+ const controller=vm.runInNewContext(markup+'\n({run:migrationPreflightMarkup,set:function(x){migrationPreflightExample=x},setCustom:function(x){migrationPreflightCustom=x},fixture:migrationPreflightFixture,exportCsv:exportMigrationPreflightDemo,exportBatch:exportMigrationBatchDemo})',{
   window:browser,str:esc,fmt:n=>'R$ '+(Number(n)/100).toFixed(2).replace('.',','),
   table:(headers,rows)=>'<table>'+headers.map(esc).join(' · ')+rows.map(row=>'<tr>'+row.join('|')+'</tr>').join('')+'</table>',
   panel:(title,txt)=>'<section>'+esc(title)+txt+'</section>',
@@ -30,6 +30,7 @@ test('arquivo browser é gerado de modo determinístico a partir do motor CJS',(
  assert.equal(typeof browser.HLGBLabMigrationPreflightV1.compare,'function');
  assert.equal(typeof browser.HLGBLabMigrationPreflightV1.review,'function');
  assert.equal(typeof browser.HLGBLabMigrationPreflightV1.buildDossier,'function');
+ assert.equal(typeof browser.HLGBLabMigrationPreflightV1.buildBatch,'function');
  assert.ok(html.includes('<script src="./modulos/preflight-migracao-browser-v1.js"></script>'));
  assert.ok(html.indexOf('preflight-migracao-browser-v1.js')<html.indexOf('operacao-integrada-ui.js'));
 });
@@ -91,6 +92,21 @@ test('dossiê exporta CSV com identidade de documentos, pendências e títulos j
   'PAG-EXEMPLO-02','ACERTO_TITULO_INCONSISTENTE','TITULO_PAGO'])
   assert.match(file.content,new RegExp(marker));
  assert.doesNotMatch(file.content,/Migrac[aã]o aprovada/i);
+});
+test('lote no Auditor identifica documento financeiro repetido entre pedidos',()=>{
+ const pane=make();
+ const h=pane.run();
+ assert.match(h,/Conferir dois pedidos juntos/);
+ assert.match(h,/Conflitos entre pedidos/);
+ assert.match(h,/PAG-EXEMPLO-01/);
+ assert.match(h,/LEGADO-FICTICIO-087/);
+ assert.match(h,/LEGADO-FICTICIO-088/);
+ const name=pane.exportBatch(),csv=pane.getDownload();
+ assert.equal(name,'HLGB-PRE-MIGRACAO-LOTE-FICTICIO.csv');
+ for(const marker of ['DOCUMENTO_DUPLICADO','DOCUMENTO_DECLARADO',
+  'MIGRACAO_BLOQUEADA','PENDENCIA','PAG-EXEMPLO-01'])
+  assert.match(csv.content,new RegExp(marker));
+ assert.match(csv.type,/text\/csv/);
 });
 test('exportação CSV gera apenas evidência fictícia de bloqueio e divergências',()=>{
  const pane=make();
