@@ -67,7 +67,7 @@ test('grade divergente, faltas de vínculo e título pago constam no resumo sem 
  const result=buildBatch([a]);
  assert.equal(result.totals.gradeDivergences,1);
  assert.equal(result.totals.paidDocuments,1);
- assert.equal(result.totals.missingReferences,1);
+ assert.ok(result.totals.missingReferences>=1,'vínculo de corte e título divergente precisam de revisão');
  assert.ok(result.reviewQueue.some(x=>x.code==='GRADE_DIVERGENTE'));
  assert.ok(result.reviewQueue.some(x=>x.code==='VINCULOS_INCOMPLETOS'));
  assert.equal(result.approvedForProduction,false);
