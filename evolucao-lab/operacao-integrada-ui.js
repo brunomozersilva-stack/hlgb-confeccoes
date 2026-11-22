@@ -2144,6 +2144,35 @@ function exportMigrationPreflightDemo(){
  download(filename,csv,'text/csv;charset=utf-8');
  return filename;
 }
+// CSV de lote, só com IDs inventados no próprio código. Detectar documento
+// em dois pedidos não autoriza unificação, pagamento ou migrar a referência.
+function exportMigrationBatchDemo(){
+ const engine=window.HLGBLabMigrationPreflightV1;
+ if(!engine?.buildBatch)throw Error('Conferidor de lote indisponível.');
+ const batch=engine.buildBatch(migrationPreflightBatchFixture());
+ const quoted=x=>{
+  const v=String(x??''),safe=/^\s*[=+\-@]/.test(v)?"'"+v:v;
+  return '"'+safe.replace(/"/g,'""')+'"';
+ };
+ const rows=[['TIPO','PEDIDO_ORIGEM','PEDIDO_DESTINO','ETAPA','DOCUMENTO','QUANTIDADE','DETALHE']];
+ rows.push(['STATUS','TODOS','','','','','MIGRACAO_BLOQUEADA; nenhuma operação executada']);
+ for(const x of batch.orders){
+  rows.push(['PEDIDO',x.sourceOrderId,x.targetOrderId,'', '',x.sourcePieces,
+   'Documentos '+x.documents+'; vínculos a conferir '+x.missingReferences]);
+  for(const ref of x.documentIds)
+   rows.push(['DOCUMENTO_DECLARADO',x.sourceOrderId,x.targetOrderId,ref.stage,ref.id,'',
+    'Original preservado; migração não autorizada']);
+ }
+ for(const x of batch.conflicts)
+  rows.push(['DOCUMENTO_DUPLICADO',x.firstOrderId,x.secondOrderId,x.stage,x.documentId,'',
+   'Não repetir nem fundir títulos automaticamente']);
+ for(const x of batch.reviewQueue)
+  rows.push(['PENDENCIA',x.sourceOrderId,'',x.code,x.documentId,'',x.reason]);
+ const csv='\uFEFF'+rows.map(row=>row.map(quoted).join(';')).join('\r\n');
+ const filename='HLGB-PRE-MIGRACAO-LOTE-FICTICIO.csv';
+ download(filename,csv,'text/csv;charset=utf-8');
+ return filename;
+}
 function migrationPreflightPanel(){
  return panel('Pré-migração · vínculos de Pedidos, Corte, Facções e Acertos',
   '<div id="migration-preflight-root">'+migrationPreflightMarkup()+'</div>',true);
@@ -3790,7 +3819,9 @@ document.addEventListener('click',async e=>{
  const exportPreview=e.target.closest('[data-preflight-export]');
  if(exportPreview){
   try{
-   const name=exportMigrationPreflightDemo();
+   const kind=exportPreview.dataset.preflightExport;
+   if(!['csv','lote'].includes(kind))throw Error('Tipo de relatório inválido.');
+   const name=kind==='lote'?exportMigrationBatchDemo():exportMigrationPreflightDemo();
    status('Relatório fictício gerado: '+name+'. Nenhum dado empresarial foi consultado.');
   }catch(error){status('Exportação não realizada: '+(error?.message||'falha de conferência'),'error');}
   return;
