@@ -84,3 +84,31 @@ Criado `migracao/comparador-grade-legada.cjs`, função pura `compare(legacy,pre
 ### Regra de implementação
 Não criar um segundo fluxo comercial de Pedidos nem trocar o modelo de dados em \`main\`. O objetivo é aproveitar a entrada de pedidos que a equipe já usa, dando rastreabilidade por modelo/cor/tamanho e proteção do histórico. Até aprovação da reconciliação, as simulações multimodelo não movimentam estoque, acerto ou financeiro comercial.
 
+## Etapa ampliada · pré-migração acessível no Auditor da mesma homologação (22/11/2026)
+
+### Tela implementada
+- O **Auditor existente** ganhou o painel \`Pré-migração · vínculos de Pedidos, Corte, Facções e Acertos\`. Não foi criada outra homologação, outro banco nem outra URL.
+- Quatro cenários **100% inventados** podem ser alternados sem salvar: cadeia com vínculos coerentes, dois títulos para o mesmo acerto, alteração de grade/facção e ausência de documentos. Todos mostram **MIGRAÇÃO BLOQUEADA**, mesmo quando a grade coincide.
+- A consulta distingue as quantidades de cada modelo, cada cor/tamanho divergente, os documentos declarados e as inconsistências que exigem revisão humana.
+- A mesma prévia permite baixar um **CSV identificado como FICTÍCIO**, com as diferenças e bloqueios; valores são citados como demonstração, sem quitação nem estoque.
+- Uma ferramenta avançada recolhida aceita um pacote JSON \`{legacy,prepared,evidence}\` **inteiramente inventado**, limitado a 50.000 caracteres. Os campos são validados pelo mesmo conferidor, permanecem somente na memória da aba, podem ser descartados e desaparecem ao recarregar. NÃO inserir clientes, valores ou trabalhadores reais.
+
+### Reutilização de regras, sem segundo validador
+- \`migracao/build-preflight-browser.cjs\` gera \`modulos/preflight-migracao-browser-v1.js\` a partir dos mesmos dois validadores Node: \`comparador-grade-legada.cjs\` e \`preflight-vinculos-operacionais.cjs\`.
+- \`--check\` no CI compara o bundle inteiro ao resultado reproduzível; recusa deploy se os motores divergirem.
+- O HTML modular carrega o motor antes da interface. O gerador de HTML autônomo o incorpora junto aos demais módulos.
+- O manifesto \`monitorExpected\` foi atualizado, preservando o teste de inventário e a prova da lista exata de scripts. Uma falha anterior no inventário de scripts foi corrigida sem desligar a checagem.
+
+### Ensaios adicionados
+- \`tests/preflight-migracao-dashboard-contract.cjs\`: motor idêntico ao CJS, quatro cenários, bloqueio comercial, exportação CSV, JSON inventado e ausência de funções de gravação no painel.
+- \`tests/preflight-migracao-dashboard-mobile.cjs\`: Auditor em 390 e 1280 px, Chromium e WebKit; troca de cenários, download CSV, JSON inválido/aceito, descarte, navegação entre áreas e revisão local inalterada.
+- Foram incluídos no gate \`.github/workflows/evolucao-operacao-integrada.yml\`; testes gerais e navegadores devem receber resultado **oficial de conclusão** antes de homologar a nova tela.
+- A execução anterior de 20 áreas em Chromium e WebKit já havia passado antes desta extensão, e o laboratório isolado dessa revisão também; isso não equivale a aprovação comercial.
+
+### Bloqueios e próximos passos
+- Não existe ainda uma extração **confiável, completa e autorizada** dos registros legados. Não é possível declarar migração pronta apenas com JSON de exemplo ou com o banco local fictício.
+- A identidade de pedido/cliente/modelo e a correspondência de documentos de Corte, envio, retorno, compensação, título e comprovante precisam ser migradas por adaptador auditável e comprovadas em base isolada antes de qualquer escrita real.
+- Preservar as 76 funções do sistema comercial, suas telas e impressões; cada módulo precisa melhorar pelo menos um problema da operação antiga sem perder função.
+- A próxima prioridade técnica depois de estabilizar este gate é a **prévia de impacto de migração real em banco de homologação**, com comparações por registro e geração de relatório para o aceite humano. Qualquer ação que envolva dados comerciais precisa de autorização explícita e de um plano de rollback.
+
+**Sem merge no main; sem comando no financeiro/estoque do programa no ar.**
