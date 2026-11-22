@@ -1399,6 +1399,12 @@ async function runMultiFlow(browser,url,width){
   assert.equal(await page.locator('[data-module="acertos"]').getAttribute('aria-current'),'page');
   assert.equal(await page.locator('[data-mf-record="MFR-0002"]').getAttribute('data-mf-focused'),'true');
   await module(page,'pedidos');
+  const listRow=page.locator('#orders-fast-results > .table-wrap > table > tbody > tr').filter({hasText:'PDM-0001'});
+  assert.equal(await listRow.count(),1);
+  const listCells=listRow.locator('td');
+  for(const [index,qty] of [[3,'130'],[4,'80'],[5,'80'],[6,'50'],[7,'50'],[8,'20']])
+   assert.equal((await listCells.nth(index).innerText()).trim(),qty,'saldo da etapa '+index);
+  assert.match(await listRow.innerText(),/ensaio isolado/);
   const traceBefore=await revision(page);
   await page.locator('[data-orders-detail="PDM-0001"]').click();
   const trace=page.locator('#multi-order-trace[data-multi-order-trace="PDM-0001"]');
