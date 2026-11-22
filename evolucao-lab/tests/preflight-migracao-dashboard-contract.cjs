@@ -15,11 +15,16 @@ const markup=ui.slice(start,end);
 const esc=x=>String(x??'').replace(/[&<>"']/g,c=>({
  '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'
 })[c]);
-const make=()=>vm.runInNewContext(markup+'\n({run:migrationPreflightMarkup,set:function(x){migrationPreflightExample=x},fixture:migrationPreflightFixture})',{
- window:browser,str:esc,
- table:(headers,rows)=>'<table>'+headers.map(esc).join(' · ')+rows.map(row=>'<tr>'+row.join('|')+'</tr>').join('')+'</table>',
- panel:(title,txt)=>'<section>'+esc(title)+txt+'</section>'
-});
+const make=()=>{
+ let downloaded=null;
+ const controller=vm.runInNewContext(markup+'\n({run:migrationPreflightMarkup,set:function(x){migrationPreflightExample=x},fixture:migrationPreflightFixture,exportCsv:exportMigrationPreflightDemo})',{
+  window:browser,str:esc,
+  table:(headers,rows)=>'<table>'+headers.map(esc).join(' · ')+rows.map(row=>'<tr>'+row.join('|')+'</tr>').join('')+'</table>',
+  panel:(title,txt)=>'<section>'+esc(title)+txt+'</section>',
+  download:(name,content,type)=>{downloaded={name,content,type};}
+ });
+ return {...controller,getDownload:()=>downloaded};
+};
 test('arquivo browser é gerado de modo determinístico a partir do motor CJS',()=>{
  assert.equal(bundled,build());
  assert.equal(typeof browser.HLGBLabMigrationPreflightV1.compare,'function');
@@ -56,6 +61,19 @@ test('4 cenários com resultados distintos sem se conectar ao sistema comercial'
   for(const code of codes)assert.ok(r.findings.some(f=>f.code===code),scenario+' precisa de '+code);
   assert.equal(r.canChangeStock,false);
  }
+});
+test('exportação CSV gera apenas evidência fictícia de bloqueio e divergências',()=>{
+ const pane=make();
+ pane.set('divergente');
+ const name=pane.exportCsv(),file=pane.getDownload();
+ assert.match(name,/FICTICIA-divergente\.csv$/);
+ assert.equal(file.name,name);
+ assert.match(file.type,/text\/csv/);
+ assert.match(file.content,/MIGRACAO_BLOQUEADA/);
+ assert.match(file.content,/DIFERENCA_GRADE/);
+ assert.match(file.content,/GRADE_OU_CLIENTE_DIVERGENTE/);
+ assert.doesNotMatch(file.content,/aprovada para produção/i);
+ assert.match(pane.run(),/data-preflight-export="csv"/);
 });
 test('painel escapa dados e não contém escrita de documento ou rede',()=>{
  assert.doesNotMatch(markup,/\bfetch\s*\(|\bindexedDB\b|\blocalStorage\b|\bXMLHttpRequest\b|\bapi\.apply\s*\(|\bsubmit\s*\(/);
