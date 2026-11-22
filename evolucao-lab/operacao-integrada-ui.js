@@ -830,8 +830,13 @@ function flowQuickPanel(s,area){
 // Pedidos: mesa compacta de trabalho, inspirada na pesquisa, filtros e modo
 // operacional do HLGB comercial. Somente leitura; usa as transacoes ja validadas.
 const ordersFastFilters={query:'',status:'todos',priority:'todas',page:1,pageSize:20,selected:null};
+// Um único cálculo por revisão: busca, filtros e paginação não recalculam
+// as grades de todos os pedidos a cada clique. Dados comerciais não são escritos.
+let ordersFastCache={document:null,revision:null,rows:null};
 const orderFastNorm=x=>String(x??'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLocaleLowerCase('pt-BR');
 function orderFastRecords(s){
+ if(ordersFastCache.document===s&&ordersFastCache.revision===s.revision&&ordersFastCache.rows)
+  return ordersFastCache.rows;
  const rows=s.orders.map(o=>{
   const q=api.quantities(o),client=ref(s.clients,o.clientId)?.name||o.clientId,
    product=ref(s.products,o.productId)?.name||o.productId;
@@ -864,7 +869,9 @@ function orderFastRecords(s){
    priority:null,dueDate:null,
    grade:o.sizes.map(sz=>sz+': '+(o.totals.bySize[sz]||0)).join(' · ')});
  }
- return rows.sort((a,b)=>b.id.localeCompare(a.id,'pt-BR',{numeric:true}));
+ const result=rows.sort((a,b)=>b.id.localeCompare(a.id,'pt-BR',{numeric:true}));
+ ordersFastCache={document:s,revision:s.revision,rows:result};
+ return result;
 }
 function ordersFastView(s){
  const all=orderFastRecords(s),search=orderFastNorm(ordersFastFilters.query);
