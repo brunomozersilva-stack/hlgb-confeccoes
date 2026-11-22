@@ -2013,11 +2013,11 @@ function migrationPreflightMarkup(){
  const disclaim='<p><strong>Somente demonstração fictícia:</strong> esta tela não lê o HLGB comercial, não importa cadastro, não modifica o documento da homologação e não aprova migração. Não cole dados de funcionários ou clientes reais.</p>'+
   '<p>Uma grade idêntica não comprova que os movimentos de Corte, os acertos e os títulos estão corretos. Mesmo o cenário íntegro permanece <strong>bloqueado para migração automática</strong>.</p>';
  const engine=window.HLGBLabMigrationPreflightV1;
- if(!engine?.review)return options+disclaim+
+ if(!engine?.review||!engine?.buildDossier)return options+disclaim+
   '<p class="error">Motor de pré-migração indisponível. Não inferir nenhum resultado.</p>';
  try{
   const {legacy,prepared,evidence}=migrationPreflightSource();
-  const r=engine.review(legacy,prepared,evidence);
+  const dossier=engine.buildDossier(legacy,prepared,evidence),r=dossier.review;
   const items=[['Pedido antigo',legacy.id],['Pedido em preparo',prepared.id],
    ['Quantidade legada',r.grade.source.pieces+' peças'],
    ['Quantidade em preparo',r.grade.target.pieces+' peças'],
@@ -2035,6 +2035,18 @@ function migrationPreflightMarkup(){
    str(x.planned),str(x.cut),str(x.sent),str(x.returned),str(x.settled)]);
   const diffRows=r.grade.diffs.map(x=>[str(x.productId),str(x.color),str(x.size),
    str(x.legacyQty),str(x.preparedQty),str(x.delta)]);
+  const docRows=dossier.records.slice(0,80).map(x=>[
+   str(x.stage),str(x.id),str(x.productId||'Pedido / cliente'),
+   str(x.targetItemId||'Sem item identificado'),
+   str(x.parentId||'Sem referência'),str(x.qty??'—'),
+   str(x.amountCents==null?'—':fmt(x.amountCents)),
+   str(x.status),str(x.link.replaceAll('_',' '))]);
+  const reviewRows=dossier.reviewQueue.slice(0,80).map(x=>[
+   str(x.owner),str(x.sourceId),str(x.code.replaceAll('_',' ')),str(x.description)]);
+  const mapRows=dossier.modelMap.map(x=>[
+   str(x.productId),str(x.targetItemId||'Não localizado'),
+   str(x.sourceQty),str(x.targetQty??'Não informado'),
+   str(x.delta??'Não comparável'),str(x.status.replaceAll('_',' '))]);
   return options+disclaim+inputTools+exportButton+
    '<div class="metrics">'+items.map(([title,value])=>
     '<div class="metric"><span>'+str(title)+'</span><strong>'+str(value)+'</strong></div>').join('')+'</div>'+
@@ -2048,6 +2060,22 @@ function migrationPreflightMarkup(){
    table(['Área','Documentos','Presença do extrato','Confirmação de completude'],collections)+
    '<h3>4. Pendências a resolver antes de qualquer conversão</h3>'+
    table(['Nº','Regra','Motivo','Próxima ação'],errors)+
+   '<h3>5. Dossiê dos documentos originais — sem criar cópias</h3>'+
+   '<p>Registros localizados: '+str(dossier.counters.total)+
+   ' · Referências identificadas: '+str(dossier.counters.identified)+
+   ' · Sem comprovação: '+str(dossier.counters.missing)+
+   ' · Já pagos: '+str(dossier.counters.alreadyPaid)+
+   '. Mesmo a referência identificada precisa de homologação.</p>'+
+   table(['Setor','ID original','Modelo','Item candidato','Documento de origem',
+    'Peças','Valor','Estado','Vínculo'],docRows)+
+   (dossier.records.length>80?'<p>Exibidos 80 de '+str(dossier.records.length)+
+    ' registros. O CSV contém todas as linhas do cenário fictício.</p>':'')+
+   '<h3>6. Correspondência de modelos (somente sugestão)</h3>'+
+   table(['Modelo original','Item preparado','Peças antigas','Peças novas','Diferença','Situação'],mapRows)+
+   '<h3>7. Fila de conferência antes de qualquer migração</h3>'+
+   table(['Responsável / área','Documento','Verificação necessária','Motivo'],reviewRows)+
+   (dossier.reviewQueue.length>80?'<p>Exibidas 80 de '+str(dossier.reviewQueue.length)+
+    ' pendências. Consulte o CSV fictício para a fila completa.</p>':'')+
    '<p class="caption">Origem dos resultados: motor de comparação e pré-voo validado em contratos. Sem conexão com servidor, folha de pagamento, estoque, banco de dados ou sistema no ar.</p>';
  }catch(error){
   return options+disclaim+'<p id="preflight-conclusion" class="error">Prévia inválida. '+
@@ -2060,7 +2088,7 @@ function exportMigrationPreflightDemo(){
  const engine=window.HLGBLabMigrationPreflightV1;
  if(!engine?.review)throw Error('Conferidor indisponível; CSV não foi criado.');
  const {legacy,prepared,evidence}=migrationPreflightSource();
- const r=engine.review(legacy,prepared,evidence);
+ const dossier=engine.buildDossier(legacy,prepared,evidence),r=dossier.review;
  const safe=x=>{
   const v=String(x??''),guarded=/^\s*[=+\-@]/.test(v)?"'"+v:v;
   return '"'+guarded.replace(/"/g,'""')+'"';
@@ -2075,6 +2103,16 @@ function exportMigrationPreflightDemo(){
   rows.push(['COBERTURA',category,'','','',x.records,'',
    x.verified?'Extrato declarado; completude não comprovada':'Sem extrato']);
  for(const x of r.findings)rows.push(['BLOQUEIO',x.code,'','','','','',x.detail]);
+ for(const x of dossier.records)
+  rows.push(['DOCUMENTO_ORIGINAL',x.id,x.productId||'',
+   x.stage,'',x.qty??'',x.targetItemId||'',x.link+
+   ' · origem '+(x.parentId||'sem identificação')+
+   ' · situação '+x.status+' · valor '+(x.amountCents??'não informado')]);
+ for(const x of dossier.modelMap)
+  rows.push(['MAPA_MODELO',x.productId,x.targetItemId||'não localizado','',
+   '',x.sourceQty,x.targetQty??'',x.status]);
+ for(const x of dossier.reviewQueue)
+  rows.push(['PENDENCIA',x.code,x.sourceId,x.owner,'','','',x.description]);
  const csv='\uFEFF'+rows.map(r=>r.map(safe).join(';')).join('\r\n');
  const filename='HLGB-PRE-MIGRACAO-FICTICIA-'+migrationPreflightExample+'.csv';
  download(filename,csv,'text/csv;charset=utf-8');
