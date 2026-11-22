@@ -29,6 +29,7 @@ test('arquivo browser é gerado de modo determinístico a partir do motor CJS',(
  assert.equal(bundled,build());
  assert.equal(typeof browser.HLGBLabMigrationPreflightV1.compare,'function');
  assert.equal(typeof browser.HLGBLabMigrationPreflightV1.review,'function');
+ assert.equal(typeof browser.HLGBLabMigrationPreflightV1.buildDossier,'function');
  assert.ok(html.includes('<script src="./modulos/preflight-migracao-browser-v1.js"></script>'));
  assert.ok(html.indexOf('preflight-migracao-browser-v1.js')<html.indexOf('operacao-integrada-ui.js'));
 });
@@ -61,6 +62,35 @@ test('4 cenários com resultados distintos sem se conectar ao sistema comercial'
   for(const code of codes)assert.ok(r.findings.some(f=>f.code===code),scenario+' precisa de '+code);
   assert.equal(r.canChangeStock,false);
  }
+});
+test('dossiê apresenta todos os documentos pelos IDs sem fabricar correspondências',()=>{
+ const pane=make(),d=pane.fixture('documentado'),p=browser.HLGBLabMigrationPreflightV1;
+ const report=p.buildDossier(d.legacy,d.prepared,d.evidence);
+ assert.equal(report.grade.gradeEquivalent,true);
+ assert.equal(report.records.length,6);
+ assert.equal(report.counters.identified,6);
+ assert.equal(report.counters.missing,0);
+ for(const id of ['COR-EXEMPLO-01','ENV-EXEMPLO-01','RET-EXEMPLO-01',
+  'ACE-EXEMPLO-01','PAG-EXEMPLO-01','REC-EXEMPLO-01'])
+  assert.ok(report.records.some(r=>r.id===id),'Preservar documento original '+id);
+ assert.ok(report.modelMap.some(x=>x.targetItemId==='ITM-001'));
+ const page=pane.run();
+ assert.match(page,/Dossiê dos documentos originais/);
+ assert.match(page,/RET-EXEMPLO-01/);
+ assert.match(page,/Fila de conferência/);
+ assert.match(page,/Referências identificadas/);
+ assert.match(page,/MIGRAÇÃO BLOQUEADA/);
+ assert.equal(report.canExecute,false);
+});
+test('dossiê exporta CSV com identidade de documentos, pendências e títulos já pagos',()=>{
+ const pane=make();
+ pane.set('duplicado');
+ const filename=pane.exportCsv(),file=pane.getDownload();
+ assert.match(filename,/FICTICIA-duplicado/);
+ for(const marker of ['DOCUMENTO_ORIGINAL','MAPA_MODELO','PENDENCIA',
+  'PAG-EXEMPLO-02','ACERTO_TITULO_INCONSISTENTE','TITULO_PAGO'])
+  assert.match(file.content,new RegExp(marker));
+ assert.doesNotMatch(file.content,/Migrac[aã]o aprovada/i);
 });
 test('exportação CSV gera apenas evidência fictícia de bloqueio e divergências',()=>{
  const pane=make();
