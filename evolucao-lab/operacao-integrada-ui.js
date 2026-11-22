@@ -1931,6 +1931,122 @@ function exportManagement(json){
 }
 
 
+// Pré-migração: protótipo visual SEM ENTRADA DE DADOS REAIS. Os exemplos
+// são criados nesta memória, sem IndexedDB, rede, comandos nem upload.
+let migrationPreflightExample='documentado';
+const migrationPreflightExamples=[
+ ['documentado','Cadeia completa fictícia'],
+ ['duplicado','Pagamento duplicado'],
+ ['divergente','Grade e retorno divergentes'],
+ ['semprovas','Documentos sem prova']
+];
+function migrationPreflightFixture(which){
+ const legacy={id:'LEGADO-FICTICIO-087',clientId:'CLIENTE-TESTE',grade:[
+  {productId:'MODELO-CAMISOLA-TESTE',color:'Preto',size:'P',qty:40},
+  {productId:'MODELO-CAMISOLA-TESTE',color:'Preto',size:'M',qty:60},
+  {productId:'MODELO-CALCINHA-TESTE',color:'Rubi',size:'P',qty:20},
+  {productId:'MODELO-CALCINHA-TESTE',color:'Rubi',size:'M',qty:30}
+ ]};
+ const prepared={id:'PDM-FICTICIO-087',clientId:'CLIENTE-TESTE',sizes:['P','M'],items:[
+  {id:'ITM-001',productId:'MODELO-CAMISOLA-TESTE',name:'Camisola de exemplo',qty:100,priceCents:2500,amountCents:250000,
+   colors:[{color:'Preto',grade:{P:40,M:60}}]},
+  {id:'ITM-002',productId:'MODELO-CALCINHA-TESTE',name:'Calcinha de exemplo',qty:50,priceCents:1200,amountCents:60000,
+   colors:[{color:'Rubi',grade:{P:20,M:30}}]}
+ ],totals:{pieces:150,amountCents:310000}};
+ const evidence={orderId:legacy.id,
+  cuts:[{id:'COR-EXEMPLO-01',orderId:legacy.id,productId:'MODELO-CAMISOLA-TESTE',
+   qty:70,status:'concluido'}],
+  allocations:[
+   {id:'ENV-EXEMPLO-01',orderId:legacy.id,productId:'MODELO-CAMISOLA-TESTE',qty:40,
+    status:'enviado',cutId:'COR-EXEMPLO-01',factionId:'FAC-TESTE-A'},
+   {id:'RET-EXEMPLO-01',orderId:legacy.id,productId:'MODELO-CAMISOLA-TESTE',qty:30,
+    status:'retornado',sourceAllocationId:'ENV-EXEMPLO-01',factionId:'FAC-TESTE-A'}
+  ],
+  settlements:[{id:'ACE-EXEMPLO-01',orderId:legacy.id,productId:'MODELO-CAMISOLA-TESTE',qty:30,
+   amountCents:6000,status:'aberto',returnId:'RET-EXEMPLO-01'}],
+  finance:[
+   {id:'PAG-EXEMPLO-01',orderId:legacy.id,sourceId:'ACE-EXEMPLO-01',
+    kind:'pagar',amountCents:6000,status:'aberto'},
+   {id:'REC-EXEMPLO-01',orderId:legacy.id,sourceId:legacy.id,
+    kind:'receber',amountCents:310000,status:'aberto'}
+  ]};
+ if(which==='duplicado'){
+  evidence.finance.push({id:'PAG-EXEMPLO-02',orderId:legacy.id,sourceId:'ACE-EXEMPLO-01',
+   kind:'pagar',amountCents:6000,status:'pago'});
+ }
+ if(which==='divergente'){
+  prepared.items[0].colors[0].grade.M=50;
+  prepared.items[0].qty=90;
+  prepared.items[0].amountCents=225000;
+  prepared.totals.pieces=140;
+  prepared.totals.amountCents=285000;
+  evidence.allocations[1].qty=45;
+  evidence.allocations[1].factionId='FAC-TESTE-B';
+  evidence.settlements[0].qty=45;
+ }
+ if(which==='semprovas'){
+  evidence.cuts=undefined;
+  evidence.allocations[0].cutId=undefined;
+  evidence.allocations[1].sourceAllocationId=undefined;
+  evidence.settlements[0].returnId=undefined;
+  evidence.finance=undefined;
+ }
+ return {legacy,prepared,evidence};
+}
+function migrationPreflightMarkup(){
+ const options='<div class="actions" role="group" aria-label="Selecionar cenário fictício de pré-migração">'+
+  migrationPreflightExamples.map(([id,name])=>
+  '<button type="button" class="btn" data-preflight-example="'+str(id)+'" aria-pressed="'+
+  (id===migrationPreflightExample?'true':'false')+'">'+str(name)+'</button>').join('')+'</div>';
+ const disclaim='<p><strong>Somente demonstração fictícia:</strong> esta tela não lê o HLGB comercial, não importa cadastro, não modifica o documento da homologação e não aprova migração. Não cole dados de funcionários ou clientes reais.</p>'+
+  '<p>Uma grade idêntica não comprova que os movimentos de Corte, os acertos e os títulos estão corretos. Mesmo o cenário íntegro permanece <strong>bloqueado para migração automática</strong>.</p>';
+ const engine=window.HLGBLabMigrationPreflightV1;
+ if(!engine?.review)return options+disclaim+
+  '<p class="error">Motor de pré-migração indisponível. Não inferir nenhum resultado.</p>';
+ try{
+  const {legacy,prepared,evidence}=migrationPreflightFixture(migrationPreflightExample);
+  const r=engine.review(legacy,prepared,evidence);
+  const items=[['Pedido antigo',legacy.id],['Pedido em preparo',prepared.id],
+   ['Quantidade legada',r.grade.source.pieces+' peças'],
+   ['Quantidade em preparo',r.grade.target.pieces+' peças'],
+   ['Células divergentes',String(r.grade.diffs.length)],
+   ['Alertas e pendências',String(r.findings.length)]];
+  const keys={cuts:'Corte',allocations:'Envios e retornos',settlements:'Acertos',finance:'Financeiro'};
+  const collections=Object.entries(keys).map(([key,name])=>{
+   const c=r.collections[key];
+   return [str(name),str(c.records),c.verified?'Extrato informado · não auditado':'Falta fornecer extrato',
+    'Completude não comprovada'];
+  });
+  const errors=r.findings.map((x,i)=>[str(i+1),str(x.code.replaceAll('_',' ')),
+   str(x.detail),'Revisão obrigatória']);
+  const modelRows=r.models.map(x=>[str(x.productId),str(x.ordered),
+   str(x.planned),str(x.cut),str(x.sent),str(x.returned),str(x.settled)]);
+  const diffRows=r.grade.diffs.map(x=>[str(x.productId),str(x.color),str(x.size),
+   str(x.legacyQty),str(x.preparedQty),str(x.delta)]);
+  return options+disclaim+
+   '<div class="metrics">'+items.map(([title,value])=>
+    '<div class="metric"><span>'+str(title)+'</span><strong>'+str(value)+'</strong></div>').join('')+'</div>'+
+   '<p id="preflight-conclusion" class="error"><strong>Resultado: MIGRAÇÃO BLOQUEADA.</strong> Nenhuma baixa, acerto, pedido ou pagamento foi criado.</p>'+
+   '<h3>1. Diferenças na grade por modelo, cor e tamanho</h3>'+
+   (diffRows.length?table(['Modelo','Cor','Tamanho','No original','Na prévia','Diferença'],diffRows):
+    '<p class="success">As quantidades da grade coincidem neste exemplo. Isto não libera a migração comercial.</p>')+
+   '<h3>2. Quantidades e vínculos por modelo</h3>'+
+   table(['Modelo','Pedidas','Reservadas','Cortadas','Enviadas','Retornadas','Em acerto'],modelRows)+
+   '<h3>3. Abrangência dos documentos apresentados</h3>'+
+   table(['Área','Documentos','Presença do extrato','Confirmação de completude'],collections)+
+   '<h3>4. Pendências a resolver antes de qualquer conversão</h3>'+
+   table(['Nº','Regra','Motivo','Próxima ação'],errors)+
+   '<p class="caption">Origem dos resultados: motor de comparação e pré-voo validado em contratos. Sem conexão com servidor, folha de pagamento, estoque, banco de dados ou sistema no ar.</p>';
+ }catch(error){
+  return options+disclaim+'<p id="preflight-conclusion" class="error">Prévia inválida. '+
+   str(error?.message||'Falha ao comparar documentos')+'. Nenhuma ação realizada.</p>';
+ }
+}
+function migrationPreflightPanel(){
+ return panel('Pré-migração · vínculos de Pedidos, Corte, Facções e Acertos',
+  '<div id="migration-preflight-root">'+migrationPreflightMarkup()+'</div>',true);
+}
+
 let auditFilter='todos';
 function auditorV3(s){try{return window.HLGBLabAuditorV3?.analyze(s)||null;}catch(e){return null;}}
 function auditV3Panels(s){
@@ -2717,9 +2833,9 @@ function moduleHtml(s){
  panel('Pedidos × Financeiro',orderTable(s)+financeTable(s),true)+requestReport+returnsReport;
  }
  case 'auditor':{
- const advanced=observationPanels(s,'auditor');if(advanced)return monitorPanel()+recoveryPanels(s)+auditV3Panels(s)+advanced;
+ const advanced=observationPanels(s,'auditor');if(advanced)return monitorPanel()+recoveryPanels(s)+auditV3Panels(s)+migrationPreflightPanel()+advanced;
  const check=api.inspect(s),issues=check.problems;
- return monitorPanel()+recoveryPanels(s)+auditV3Panels(s)+panel('Diagnóstico determinístico',
+ return monitorPanel()+recoveryPanels(s)+auditV3Panels(s)+migrationPreflightPanel()+panel('Diagnóstico determinístico',
  (check.ok?'<div class="success">Sem inconsistências nas regras simuladas.</div>':
  '<div class="error">Inconsistências detectadas: '+escape(issues.join('; '))+'</div>')+
  table(['Verificação','Estado'],[['Quantidade cortada ≤ pedida',check.ok?'Conforme':'Verificar'],
@@ -3538,6 +3654,17 @@ document.addEventListener('change',event=>{
  }
 });
 document.addEventListener('click',async e=>{
+ const preflightChoice=e.target.closest('[data-preflight-example]');
+ if(preflightChoice){
+  const selected=preflightChoice.dataset.preflightExample;
+  if(!migrationPreflightExamples.some(([key])=>key===selected))return;
+  migrationPreflightExample=selected;
+  const region=document.getElementById('migration-preflight-root');
+  if(region)region.innerHTML=migrationPreflightMarkup();
+  region?.querySelector('[data-preflight-example="'+selected+'"]')?.focus({preventScroll:true});
+  status('Prévia de documentos FICTÍCIOS atualizada. Nenhum dado foi salvo.');
+  return;
+ }
  const trace=e.target.closest('[data-trace-order]');
  if(trace){
   const id=trace.dataset.traceOrder;
