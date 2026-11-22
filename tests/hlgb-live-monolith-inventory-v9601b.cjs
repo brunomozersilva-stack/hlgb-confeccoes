@@ -40,7 +40,9 @@ test('158 scripts preservados, na mesma ordem, com um domínio responsável cada
  const actual=[...found[1].matchAll(/'([^']+\.js)'/g)].map(x=>x[1]);
  const ownership=require('../hlgb-modules/ownership-v9600.json');
  assert.equal(ownership.groupCount,0,'não reativar grupos em lote que causaram falha de abertura');
- assert.equal(actual.length,158);
+ assert.equal(actual.length,159);
+ assert.equal(ownership.preExtractionScripts.length,158,'o inventário anterior permanece como baseline');
+ assert.deepEqual(actual.filter(x=>x!=='hlgb-modules/producao/separacao-progresso-v9617.js'),ownership.preExtractionScripts);
  assert.equal(new Set(actual).size,actual.length,'nenhum script duplicado no carregador');
  assert.deepEqual(actual,ownership.releaseScripts,'ordem do loader não pode mudar inadvertidamente');
  const owners=ownership.ownership;
@@ -57,6 +59,7 @@ test('158 scripts preservados, na mesma ordem, com um domínio responsável cada
  assert.deepEqual([...assigned.keys()].sort(),[...actual].sort(),'toda função externa precisa de área dona');
  assert.equal(assigned.get('hlgb-modules/autenticacao/rede-segura-v9613.js'),'base-infraestrutura');
  assert.equal(assigned.get('hlgb-modules/utilidades/etiquetas-layout-v9602b.js'),'utilidades-etiquetas');
+ assert.equal(assigned.get('hlgb-modules/producao/separacao-progresso-v9617.js'),'producao-separacao');
  assert.equal(ownership.criticalFileBlobs['app9240.html'],audit.readCurrent().sha);
 });
 test('checkpoint não reescreve monólito, WAL, operações ou módulos existentes',()=>{
