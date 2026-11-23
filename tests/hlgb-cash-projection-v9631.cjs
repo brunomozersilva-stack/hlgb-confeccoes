@@ -1,0 +1,20 @@
+const assert=require('node:assert/strict');const api=require('../hlgb-modules/financeiro/cash-projection-v9631.js');(function tests(api,ok){
+ const e=[{id:'1',origin:'invoice:1',dueDate:'2026-11-24',direction:'in',amountCents:2000000,status:'open',verified:true},{id:'2',origin:'pay:2',dueDate:'2026-11-23',direction:'out',amountCents:1500000,status:'open',verified:true}];
+ const x={startDate:'2026-11-23',openingBalanceCents:1000000,openingVerified:true,coverageVerified:true,entries:e},p=(o={})=>api.project({...x,...o}),before=JSON.stringify(x),a=p();
+ ok(a.base.weeks.length===13&&a.base.days.length===91,'13 weeks');
+ ok(a.base.weeks[0].closingCents===1500000&&a.base.weeks[0].lowestCents===-500000,'intraperiod risk');
+ ok(a.base.firstShortfall==='2026-11-23','first shortfall');
+ ok(a.conservative.weeks[0].closingCents===-500000&&a.conservative.weeks[2].incomingCents===2000000,'delayed receipt');
+ ok(p({openingVerified:false}).base.weeks[0].closingCents===null,'unverified opening');
+ ok(p({coverageVerified:false}).base.firstShortfall===null,'unverified coverage');
+ ok(p({entries:[...e,{...e[0],id:'3'}]}).quality==='incomplete','duplicate origin');
+ ok(p({entries:[...e,e[0]]}).quality==='incomplete','duplicate id');
+ ok(p({entries:[{...e[0],status:'settled'},e[1]]}).base.weeks[0].incomingCents===0,'settled not counted');
+ ok(p({entries:[{...e[0],dueDate:'2026-11-20'},e[1]]}).quality==='incomplete','overdue receipt unknown');
+ ok(p({entries:[e[0],{...e[1],dueDate:'2026-11-20'}]}).base.weeks[0].outgoingCents===1500000,'overdue payment immediate');
+ ok(p({entries:[e[0],{...e[1],dueDate:'2027-03-01'}]}).base.outside.includes('2'),'outside horizon');
+ ok(p({entries:[{...e[0],verified:false},e[1]]}).quality==='incomplete','pending proof');
+ ok(p({entries:[{...e[0],amountCents:1.5},e[1]]}).quality==='incomplete','integer cents');
+ ok(p({entries:[{...e[0],dueDate:'2026-11-31'},e[1]]}).quality==='incomplete','invalid date');
+ ok(JSON.stringify(x)===before,'no mutation');
+})(api,(v,m)=>{assert.ok(v,m);console.log('PASS',m)});

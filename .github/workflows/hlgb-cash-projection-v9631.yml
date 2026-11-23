@@ -1,0 +1,36 @@
+name: HLGB Comercial - Projecao Caixa e Preview Mobile v96.31
+on:
+  pull_request:
+    paths:
+      - 'hlgb-modules/financeiro/*'
+      - 'tests/finance-preview-v9631*'
+      - 'tests/hlgb-cash-projection-v9631.cjs'
+      - '.github/workflows/hlgb-cash-projection-v9631.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  pure:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - run: node tests/hlgb-financial-week-core-v9627.cjs && node tests/hlgb-cash-projection-v9631.cjs
+  browser:
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        browser: [chromium, webkit]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - run: npm install --no-save playwright@1.55.0 && npx playwright install --with-deps ${{ matrix.browser }}
+      - run: |
+          python3 -m http.server 4173 >/tmp/finance-preview.log 2>&1 &
+          sleep 2
+      - env:
+          HLGB_BROWSER: ${{ matrix.browser }}
+        run: node tests/finance-preview-v9631-browser.cjs

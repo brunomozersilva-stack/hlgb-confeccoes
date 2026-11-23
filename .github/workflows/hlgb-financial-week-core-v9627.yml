@@ -1,0 +1,22 @@
+name: HLGB Comercial - Inteligencia Financeira F1-F2 v96.27
+on:
+  pull_request:
+    paths:
+      - 'hlgb-modules/financeiro/weekly-intelligence-core-v9627.cjs'
+      - 'tests/hlgb-financial-week-core-v9627.cjs'
+      - '.github/workflows/hlgb-financial-week-core-v9627.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  pure-core:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: node --check hlgb-modules/financeiro/weekly-intelligence-core-v9627.cjs
+      - run: node tests/hlgb-financial-week-core-v9627.cjs
+      - run: node tests/audit-hub-period-detail-regression.cjs
+      - run: node tests/hub-payroll-paid-date-v9515.cjs
