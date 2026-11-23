@@ -1,0 +1,22 @@
+name: HLGB Comercial - Rota Folha Cortadores v96.20
+on:
+  pull_request:
+    paths:
+      - 'release-cutter-sheet-materials-v9523.js'
+      - 'tests/cutter-sheet-print-route-v9620.cjs'
+      - '.github/workflows/cutter-sheet-print-route-v9620.yml'
+  workflow_dispatch:
+jobs:
+  cutter-sheet-route:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Validar sintaxe e folha nova com regressões originais
+        run: |
+          node --check release-cutter-sheet-materials-v9523.js
+          node --test tests/cutter-sheet-print-route-v9620.cjs tests/cutter-sheet-a4-v9540.cjs tests/cutter-sheet-materials-v9523.cjs
