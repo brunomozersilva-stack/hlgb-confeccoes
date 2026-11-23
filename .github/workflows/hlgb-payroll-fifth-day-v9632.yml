@@ -1,0 +1,19 @@
+name: HLGB Comercial - Previa Folha Quinto Dia Util v96.32
+on:
+  pull_request:
+    paths:
+      - 'hlgb-modules/financeiro/payroll-fifth-day-v9632.cjs'
+      - 'tests/hlgb-payroll-fifth-day-v9632.cjs'
+      - '.github/workflows/hlgb-payroll-fifth-day-v9632.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  pure:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - run: node tests/hlgb-payroll-fifth-day-v9632.cjs
+      - run: node tests/hub-payroll-paid-date-v9515.cjs
