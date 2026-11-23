@@ -36,6 +36,21 @@ function canonical(value){
  throw Error('Tipo de dado não permitido no extrato');
 }
 const sha256=value=>createHash('sha256').update(canonical(value),'utf8').digest('hex');
+// Nunca transformar tombstones legados em itens ativos por conveniência.
+const isTombstone=(doc,label)=>{
+ const deletedFlags=['deleted','isDeleted'];
+ const dates=['deletedAt','deleted_at'];
+ for(const key of deletedFlags){
+  if(doc[key]!==undefined&&doc[key]!==null&&typeof doc[key]!=='boolean')
+   throw Error(label+' / '+key+': marcador de exclusão inválido');
+ }
+ for(const key of dates){
+  if(doc[key]!==undefined&&doc[key]!==null&&typeof doc[key]!=='string')
+   throw Error(label+' / '+key+': data de exclusão inválida');
+ }
+ return deletedFlags.some(key=>doc[key]===true)||
+  dates.some(key=>typeof doc[key]==='string'&&doc[key].trim()!=='');
+};
 const emptyReport={importable:false,approvedForProduction:false,canWrite:false,
  canPay:false,canChangeStock:false,preparedChanges:0};
 function inspectExtract(payload){
@@ -98,9 +113,22 @@ function inspectExtract(payload){
  }
  if(entries.legacyOrders.length>100||entries.preparedOrders.length>100)
   throw Error('Máximo 100 pedidos de cada tipo por lote de revisão');
- const legacyIds=new Map(entries.legacyOrders.map(o=>[KEY(o.id),o]));
+ // A extração ainda contém os documentos excluídos para auditoria, porém
+ // a prévia jamais os transforma em registros operacionais ativos.
+ const tombstones=[],active={};
+ for(const name of COLLECTIONS){
+  active[name]=entries[name].filter(doc=>{
+   if(!isTombstone(doc,name+' / '+doc.id))return true;
+   tombstones.push({collection:name,recordId:doc.id,
+    sourceOrderId:typeof doc.sourceOrderId==='string'?doc.sourceOrderId:null,
+    orderId:typeof doc.orderId==='string'?doc.orderId:null,
+    restoredAsActive:false,needsManualReview:true});
+   return false;
+  });
+ }
+ const legacyIds=new Map(active.legacyOrders.map(o=>[KEY(o.id),o]));
  const prepared=new Map(),unmapped=[],findings=[],candidates=[];
- for(const o of entries.preparedOrders){
+ for(const o of active.preparedOrders){
   const id=validId(o.sourceOrderId,'preparedOrders.sourceOrderId'),
    k=KEY(id);
   if(prepared.has(k))throw Error('Dois pedidos preparados apontam para '+id);
@@ -114,7 +142,7 @@ function inspectExtract(payload){
  }]));
  const unattached=[];
  for(const kind of evidenceTypes){
-  for(const record of entries[kind]){
+  for(const record of active[kind]){
    if(typeof record.orderId!=='string'||!record.orderId.trim()){
     unattached.push({kind,recordId:record.id,reason:'DOCUMENTO_SEM_PEDIDO_EXPLICITO'});
     continue;
@@ -125,7 +153,7 @@ function inspectExtract(payload){
    target[kind].push(record);
   }
  }
- for(const old of entries.legacyOrders){
+ for(const old of active.legacyOrders){
   const k=KEY(old.id),next=prepared.get(k);
   if(!next){
    unmapped.push({kind:'PEDIDO_SEM_PREPARO',recordId:old.id,sourceOrderId:old.id});
@@ -141,6 +169,8 @@ function inspectExtract(payload){
    findings.push({code:'PREVIEW_RECUSED',detail:String(err?.message||'Falha de conciliação')});
   }
  }
+ if(tombstones.length)findings.push({code:'TOMBSTONES_PRESERVADOS_SEM_REATIVACAO',
+  detail:tombstones.length+' registros excluídos retidos apenas para conferência histórica'});
  if(unattached.length)findings.push({code:'DOCUMENTOS_SEM_REFERENCIA_COMPROVADA',
   detail:unattached.length+' documentos sem pedido de origem comprovado'});
  if(unmapped.length)findings.push({code:'PEDIDOS_SEM_PAR_EXPLICITO',
@@ -158,7 +188,8 @@ function inspectExtract(payload){
   digest,completeAgainstDeclaredManifest:true,
   pagesChecked:receipts.length,sourceCounts:{...Object.fromEntries(
    COLLECTIONS.map(c=>[c,entries[c].length]))},
-  mappedOrders:candidates.length,unmapped,unattached,findings,
+  mappedOrders:candidates.length,unmapped,unattached,tombstones,
+  historicalRecordsReactivated:0,findings,
   batch,
   checksumsVerified:true,independentlyVerified:false,realDatabaseCoverageProven:false,
   ...emptyReport
