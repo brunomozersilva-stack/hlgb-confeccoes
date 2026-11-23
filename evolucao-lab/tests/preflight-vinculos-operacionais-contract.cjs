@@ -124,6 +124,40 @@ test('vínculo cruzado entre modelos bloqueia liberação mesmo se somatórios a
  const r=review(legacy,prepared,evidence);
  assert.ok(r.findings.some(x=>x.code==='ENVIO_CORTE_INVALIDO'));
 });
+test('duas remessas não podem consumir a mesma folha além da quantidade cortada',()=>{
+ const {legacy,prepared,evidence}=sample();
+ // Há 100 peças cortadas em duas folhas; total remetido = 80 e portanto
+ // o somatório geral parece suficiente. Só a folha CUT-1 tem 60 peças.
+ evidence.cuts[1].status='concluido';
+ evidence.cuts[1].qty=40;
+ evidence.allocations[0].qty=40;
+ evidence.allocations.push({id:'SEND-2',orderId:legacy.id,productId:'PRO-A',
+  qty:40,status:'enviado',cutId:'CUT-1',factionId:'FAC-2'});
+ const r=review(legacy,prepared,evidence);
+ assert.equal(r.models[0].cut,100);
+ assert.equal(r.models[0].sent,80);
+ assert.ok(!r.findings.some(x=>x.code==='ENVIO_EXCEDE_CORTE'));
+ assert.ok(r.findings.some(x=>x.code==='FOLHA_CORTE_EXCEDIDA_POR_ENVIOS'));
+ assert.equal(r.canPay,false);assert.equal(r.canChangeStock,false);
+});
+test('remessas distribuídas corretamente entre duas folhas não recebem falso bloqueio por folha',()=>{
+ const {legacy,prepared,evidence}=sample();
+ evidence.cuts[1].status='concluido';
+ evidence.cuts[1].qty=40;
+ evidence.allocations.push({id:'SEND-2',orderId:legacy.id,productId:'PRO-A',
+  qty:40,status:'enviado',cutId:'CUT-2',factionId:'FAC-2'});
+ const r=review(legacy,prepared,evidence);
+ assert.equal(r.models[0].sent,80);
+ assert.ok(!r.findings.some(x=>x.code==='FOLHA_CORTE_EXCEDIDA_POR_ENVIOS'));
+ assert.equal(r.readyForCommercialMigration,false);
+});
+test('folha cancelada ou planejada não serve de origem para envio concluído',()=>{
+ const {legacy,prepared,evidence}=sample();
+ evidence.allocations[0].cutId='CUT-2';
+ const r=review(legacy,prepared,evidence);
+ assert.ok(r.findings.some(x=>x.code==='ENVIO_CORTE_INVALIDO'));
+ assert.equal(r.canExecute,false);
+});
 test('não acessar banco ou APIs, não aceitar tipos financeiros inconsistentes',()=>{
  const src=fs.readFileSync(path.join(__dirname,'../migracao/preflight-vinculos-operacionais.cjs'),'utf8');
  assert.doesNotMatch(src,/\bfetch\s*\(|\bindexedDB\b|\blocalStorage\b|\bXMLHttpRequest\b|\bWebSocket\b|\.apply\s*\(/);
