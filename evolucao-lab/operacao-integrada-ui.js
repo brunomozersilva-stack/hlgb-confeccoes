@@ -1939,6 +1939,7 @@ const migrationPreflightExamples=[
  ['documentado','Cadeia completa fictícia'],
  ['duplicado','Pagamento duplicado'],
  ['divergente','Grade e retorno divergentes'],
+ ['folharepetida','Folha consumida por dois envios'],
  ['semprovas','Documentos sem prova']
 ];
 function migrationPreflightFixture(which){
@@ -1984,6 +1985,15 @@ function migrationPreflightFixture(which){
   evidence.allocations[1].qty=45;
   evidence.allocations[1].factionId='FAC-TESTE-B';
   evidence.settlements[0].qty=45;
+ }
+ if(which==='folharepetida'){
+  // Total cortado 100 >= total remetido 80: o problema só aparece
+  // na folha COR-EXEMPLO-01, usada em duas remessas de 40 = 80 > 70.
+  evidence.cuts.push({id:'COR-EXEMPLO-02',orderId:legacy.id,
+   productId:'MODELO-CAMISOLA-TESTE',qty:30,status:'concluido'});
+  evidence.allocations.push({id:'ENV-EXEMPLO-02',orderId:legacy.id,
+   productId:'MODELO-CAMISOLA-TESTE',qty:40,status:'enviado',
+   cutId:'COR-EXEMPLO-01',factionId:'FAC-TESTE-B'});
  }
  if(which==='semprovas'){
   evidence.cuts=undefined;
