@@ -11,8 +11,8 @@ module.exports=(function buildCore(){
  function compare(rows,options={}){
   const {targetDate,asOf,historyWeeks=8,verifiedWeeks=[],targetVerified=false,uncertainIds=[],snapshotVerified=false}=options;
   const target=monday(targetDate),current=monday(asOf);
-  if(!target||!current||!date(asOf)&&date(asOf)!==0||![8,12,26].includes(historyWeeks)||target<current||!Array.isArray(rows)||!Array.isArray(verifiedWeeks)||!Array.isArray(uncertainIds)||rows.length>100000)throw new Error('invalid-input');
-  const history=Array.from({length:historyWeeks},(_,i)=>iso(date(target)-(historyWeeks-i)*7*day));
+  if(!target||!current||![8,12,26].includes(historyWeeks)||target<current||!Array.isArray(rows)||!Array.isArray(verifiedWeeks)||!Array.isArray(uncertainIds)||rows.length>100000)throw new Error('invalid-input');
+  const history=Array.from({length:historyWeeks},(_,i)=>iso(date(current)-(historyWeeks-i)*7*day));
   const covered=new Set(verifiedWeeks.filter(w=>monday(w)===w&&w<current));
   const scope=new Set([...history,target]), issues=[], normalized=[], ids=new Map(), origins=new Map(), uncertain=new Set(uncertainIds.map(id)), cats=new Set();
   const mark=(row,reason,week)=>issues.push({id:id(row?.id)||null,reason,week:week||null});

@@ -21,7 +21,8 @@ const core=require('../hlgb-modules/financeiro/weekly-intelligence-core-v9627.cj
  check(compare([...rows,{id:100,flow:'Saída',status:'Previsto',date:target,value:1,category:'__proto__'}],opt).categories.some(x=>x.category==='__proto__'),'safe category key');
  check(monday('2027-01-01')==='2026-12-28'&&monday('2026-02-30')===null,'calendar');
  const zero=compare([{id:999,flow:'Saída',status:'Previsto',date:target,category:'Novo',value:0.1}],opt).categories[0];check(zero.medianCents===0&&zero.percentChange===null&&zero.targetTotalCents===10,'zero baseline');
- check(compare(rows,{...opt,targetDate:'2026-11-30'}).quality==='incomplete','future week not history');
+ const nextRows=rows.map(x=>x.id===99?{...x,date:'2026-11-30'}:x);
+ check(compare(nextRows,{...opt,targetDate:'2026-11-30'}).categories[0].differenceCents===1600000,'next week uses last closed historical weeks');
  check(compare([...rows,{id:100,flow:'Saída',status:'Realizado',date:target,realizedAt:'2026-11-24',value:10,category:'X'}],opt).quality==='incomplete','future actual');
  check(compare(rows.map(x=>({...x,kind:'hub_settings_test'})),opt).categories.length===0,'settings excluded');
 })(core,(ok,msg)=>{assert.ok(ok,msg);console.log('PASS',msg)});
