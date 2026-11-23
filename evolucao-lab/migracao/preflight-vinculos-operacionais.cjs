@@ -75,7 +75,7 @@ function review(legacy,prepared,evidence={}){
  const byCut=new Map((evidence.cuts||[]).map(x=>[x.id,x]));
  const bySend=new Map((evidence.allocations||[]).filter(x=>x.status==='enviado').map(x=>[x.id,x]));
  const byReturn=new Map((evidence.allocations||[]).filter(x=>x.status==='retornado').map(x=>[x.id,x]));
- const bySendReturned=new Map(),byReturnSettled=new Map();
+ const byCutSent=new Map(),bySendReturned=new Map(),byReturnSettled=new Map();
  for(const a of evidence.allocations||[]){
   if(a.status==='cancelado')continue;
   if(a.status==='enviado'){
@@ -84,6 +84,7 @@ function review(legacy,prepared,evidence={}){
     const source=byCut.get(a.cutId);
     if(!source||source.status!=='concluido'||norm(source.productId)!==norm(a.productId))
      note('ENVIO_CORTE_INVALIDO','bloqueio',a.id+' aponta para corte indisponível ou de outro modelo: '+a.cutId);
+    else byCutSent.set(source.id,(byCutSent.get(source.id)||0)+a.qty);
    }
   }
   if(a.status==='retornado'){
@@ -100,6 +101,14 @@ function review(legacy,prepared,evidence={}){
     }
    }
   }
+ }
+ // Comparar remessas contra a folha REAL de origem, e não apenas contra
+ // a soma das folhas do modelo: uma única folha não pode pagar vários envios.
+ for(const [cutId,sendQty] of byCutSent){
+  const cut=byCut.get(cutId);
+  if(sendQty>cut.qty)
+   note('FOLHA_CORTE_EXCEDIDA_POR_ENVIOS','bloqueio',cutId+': soma dos envios '+sendQty+
+    ' ultrapassa '+cut.qty+' peças desta folha; revisar remessas vinculadas');
  }
  for(const [sendId,returned] of bySendReturned){
   const sent=bySend.get(sendId)?.qty||0;
