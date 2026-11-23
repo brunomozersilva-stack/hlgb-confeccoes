@@ -9,7 +9,10 @@
 const V='94.50',PATCH='94.42-safe-proof',FIX='94.50-production-proof',PENDING_KEY='hlgb_records_pending_v91',WAL_KEY='hlgb_durable_wal_v1',DB_NAME='hlgb_durable_wal',STORE='entries',PROOF_KEY='hlgb_production_save_proofs_v9439';
 if(window.HLGB_PRODUCTION_RECONCILE_9439===V&&window.hlgbProductionReconcile9439?.fix===FIX){try{window.hlgbProductionReconcile9439?.activate?.('reload')}catch(e){}return}
 window.HLGB_PRODUCTION_RECONCILE_9439=V;
-const state={version:V,patch:PATCH,fix:FIX,active:false,busy:false,runs:0,checked:0,confirmed:0,prunedNormalized:0,prunedWal:0,prunedIdb:0,skippedNewer:0,verificationErrors:0,lastAt:'',lastError:'',lastResult:null};
+const state={version:V,patch:PATCH,fix:FIX,active:false,busy:false,runs:0,checked:0,confirmed:0,prunedNormalized:0,prunedWal:0,prunedIdb:0,skippedNewer:0,verificationErrors:0,opIdChangeBlocks:0,lastAt:'',lastError:'',lastResult:null};
+// A confirmação semântica de uma operação NÃO autoriza limpar outro opId
+// do mesmo registro nesta sessão, pois pode representar uma edição nova.
+const confirmedOpIdByRecord=new Map();
 const sid=v=>String(v??'');
 const clone=v=>{try{return structuredClone(v)}catch(e){try{return JSON.parse(JSON.stringify(v))}catch(_){return v}}};
 const META=new Set(['updatedAt','updated_at','revision','__hlgb_pending_at','createdAt','lastAttemptAt','lastError','state','clientVersion','baseUpdatedAt','opId','operationId','key']);
@@ -91,10 +94,21 @@ function updateSnapshot(server){try{const all=window.hlgbRecordSnapshots||(typeo
 function normalizeLocal(c,server,desired,base,deleted=false){try{const d=window.db||(typeof db!=='undefined'?db:null),a=Array.isArray(d?.production)?d.production:[],i=a.findIndex(x=>sid(x?.id)===sid(c.id));if(deleted===true){if(i<0)return true;const local=a[i];if(productionEquivalent(local,desired)||productionEquivalent(local,base)){a.splice(i,1);try{if(typeof localSaveOnly==='function')localSaveOnly();else window.localSaveOnly?.()}catch(_){}return true}state.skippedNewer++;return false}if(i<0)return true;const local=a[i];if(productionEquivalent(local,desired)||productionEquivalent(local,base)){a[i]=clone(server.data);try{if(typeof localSaveOnly==='function')localSaveOnly();else window.localSaveOnly?.()}catch(_){}return true}if(productionEquivalent(local,server.data))return true;state.skippedNewer++;return false}catch(e){return false}}
 function saveProof(row){try{let a=readJson(PROOF_KEY,[]);if(!Array.isArray(a))a=[];a.push(row);writeJson(PROOF_KEY,a.slice(-160))}catch(e){}}
 async function reconcileOne(c,reason){
+ const pending=[...c.walLocal,...c.walIdb,...c.normalized];
+ const opIds=[...new Set(pending.map(e=>sid(e?.opId||e?.operationId)).filter(Boolean))];
+ const prior=confirmedOpIdByRecord.get(sid(c.id));
+ if(opIds.length>1||(prior&&(opIds.length!==1||opIds[0]!==prior))){
+  state.opIdChangeBlocks++;state.verificationErrors++;
+  // Bloquear a reconciliação ANTES de qualquer leitura/escrita remota ou poda.
+  return {id:c.id,ok:false,reason:opIds.length>1?'multiple-operation-ids':'new-operation-after-confirmation',
+   operationIds:opIds,previousOperationId:prior||null,requiresManualReview:true};
+ }
  const op=chooseOperation(c);if(!op)return {id:c.id,ok:false,reason:'sem-operacao'};const server=await cloudRow(c.id);state.checked++;
  const proof=staleOperationSatisfied(server,op.data,op.baseData,op.baseUpdatedAt,c.id,op.deleted===true);const row={kind:'production-reconcile-proof',version:V,patch:PATCH,fix:FIX,at:new Date().toISOString(),id:c.id,reason,confirmed:proof.ok,proofReason:proof.reason,businessDiff:proof.diff||[],serverRevision:+server?.revision||0,serverUpdatedAt:server?.updated_at||'',walLocal:c.walLocal.length,walIdb:c.walIdb.length,normalized:c.normalized.length};saveProof(row);if(!proof.ok){state.verificationErrors++;return {id:c.id,ok:false,reason:proof.reason,businessDiff:proof.diff||[]}}
  const localSafe=normalizeLocal(c,server,op.data,op.baseData,op.deleted===true);if(!localSafe){state.verificationErrors++;return {id:c.id,ok:false,reason:'local-newer-preserved',serverRevision:+server.revision||0}}
- if(op.deleted!==true)updateSnapshot(server);const n=removeNormalizedConfirmed(c.id,server),w=await removeWalConfirmed(c,server);try{if(typeof hlgbRecordPendingStore==='function')hlgbRecordPendingStore();else window.hlgbRecordPendingStore?.()}catch(_){}state.confirmed++;
+ if(op.deleted!==true)updateSnapshot(server);const n=removeNormalizedConfirmed(c.id,server),w=await removeWalConfirmed(c,server);
+  if(n+w>0&&opIds.length===1)confirmedOpIdByRecord.set(sid(c.id),opIds[0]);
+  try{if(typeof hlgbRecordPendingStore==='function')hlgbRecordPendingStore();else window.hlgbRecordPendingStore?.()}catch(_){}state.confirmed++;
  const all=[...c.walLocal,...c.walIdb,...c.normalized],operationIds=[...new Set(all.filter(e=>staleOperationSatisfied(server,e.data,e.baseData,e.baseUpdatedAt,c.id,e.deleted===true).ok).map(e=>sid(e.opId||e.operationId)).filter(Boolean))];
  return {id:c.id,ok:true,proof:proof.reason,normalizedRemoved:n,walRemoved:w,serverRevision:+server.revision||0,operationIds,patch:PATCH,fix:FIX};
 }
@@ -106,7 +120,7 @@ async function reconcile(reason='manual'){
 }
 function stamp(){try{const cur=parseFloat(String(window.HLGB_RELEASE_VERSION||'0'))||0;if(cur<94.50){window.HLGB_RELEASE_VERSION=V;const el=document.querySelector('#appShell .logo small');if(el)el.textContent='v'+V}}catch(e){}}
 function activate(reason='authenticated'){if(!authReady())return false;state.active=true;stamp();[0,120,500,1600].forEach(ms=>setTimeout(()=>reconcile(reason).catch(()=>{}),ms));return true}
-window.hlgbProductionReconcile9439={version:V,patch:PATCH,fix:FIX,state,activate,reconcile,candidates,productionEquivalent,staleOperationSatisfied,serverProof,businessDiff,_test:{canonicalProduction,isTechnicalKey,staleLocationReplaySatisfied,businessDiff,idbDeleteExact},status:()=>({...state,authReady:authReady()})};
+window.hlgbProductionReconcile9439={version:V,patch:PATCH,fix:FIX,state,activate,reconcile,candidates,productionEquivalent,staleOperationSatisfied,serverProof,businessDiff,_test:{canonicalProduction,isTechnicalKey,staleLocationReplaySatisfied,businessDiff,idbDeleteExact,reconcileOne},status:()=>({...state,authReady:authReady()})};
 window.addEventListener('hlgb:authenticated',()=>activate('authenticated-event'));
 window.addEventListener('online',()=>{if(authReady())setTimeout(()=>reconcile('online').catch(()=>{}),80)});
 window.addEventListener('focus',()=>{if(authReady())setTimeout(()=>reconcile('focus').catch(()=>{}),150)});
