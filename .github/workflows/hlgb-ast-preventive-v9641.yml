@@ -1,0 +1,27 @@
+name: HLGB Comercial - Analise AST e carregamentos v96.41
+on:
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  ast:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - run: npm install --prefix "$RUNNER_TEMP/hlgb-parser" --no-save --ignore-scripts --package-lock=false acorn@8.15.0
+      - name: Parse JavaScript without executing it
+        run: |
+          export NODE_PATH="$RUNNER_TEMP/hlgb-parser/node_modules"
+          mkdir -p ast-artifact
+          node tests/hlgb-ast-preventive-v9641.cjs
+          node hlgb-modules/engenharia/ast-cli-v9641.cjs > ast-artifact/report.json
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: hlgb-ast-preventive-v9641
+          path: ast-artifact/
