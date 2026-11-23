@@ -33,3 +33,15 @@ A PR deve passar WebKit, Chromium, contratos de loader/inventário e regressão 
 - Carregador: **160 scripts** (158 do checkpoint #284 mais 2 núcleos puros); a ordem dos 158 originais é idêntica. Mantemos o `app9240.html` integral e a tela de login protegida.
 - Testes: 18 estados de operação, 195 pares de pedido/projeção, ausência e falha do núcleo, prova SHA do controlador e inicialização do HTML comercial real em WebKit e Chromium.
 - Não declarar as etapas completas; a modularização física integral de Corte e Produção continua pendente. Acertos, Corte Conjunto, pontas, Audaces e revisão posterior de telas seguem em #276, #277, #278, #279 e #280. As operações WAL de #152 permanecem intocadas.
+
+## Checkpoint v96.24 — Corte/Cortadores continua em extrações seguras
+
+**Os totais de 158/160 scripts nas seções anteriores são registros HISTÓRICOS**, não a quantidade de hoje. A referência vigente é `ownership-v9600.json`: 158 scripts históricos preservados mais núcleos puros aprovados; o inventário valida a ordem, unicidade, responsáveis e arquivos críticos sem depender de uma contagem fixa.
+
+- **v96.22**: `cortadores-grade-core-v9622.js` isola IDs, grade, quantidades e finalização por modelo no planejamento. O controlador `release-cutter-planner.js` conserva o fallback, filtros e gravação original. Merge PR #291 confirmado no `main`.
+- **v96.23**: `corte-pesagem-core-v9623.js` isola somente validação de peso e indicadores informativos. `release-cut-weight-v9579.js` mantém a gravação, histórico, ACK e bloqueio WAL com fallback literal. Merge PR #292 concluído; confirmar publicação GitHub Pages separadamente.
+- **v96.24, PR #293**: `corte-consumo-core-v9624.js` separa cálculos puros de kg/g, peças por quilo, custo por peça e lucro estimado de aproveitamento; controlador `release-cut-material-usage.js` mantém cadastro, ficha medida, pagamento, banco e salvamento atuais. Carregamento extra de um script opcional imediatamente antes do controlador. Não representa geometria de encaixe nem integração Audaces.
+
+**Limites operacionais:** nenhuma dessas extrações encerra a modularização do setor. A baixa de estoque, o corte planejado/finalizado, os registros reais de materiais, a folha A4 e a WAL continuam com os responsáveis legados. Para considerar uma área concluída exigir prova de gravação, ACK remoto, releitura em outra máquina e WebKit/Chromium. Não fazer merge de mutações do monólito em lote.
+
+**Pendências rastreadas sem exclusão:** #276 (Acertos), #277 (Corte Conjunto), #278 (pontas/sobras), #279 (Audaces), #283 (produto ausente, projeções arquivadas, injetor 3D) e #152 (reconciliação WAL).

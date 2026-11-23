@@ -33,7 +33,7 @@ function environment(withCore,rows=samples,mode='large'){
  return {window,html:()=>preview.innerHTML,printed:()=>printed,
   api:window.hlgbLabelDestination9310,rows:copy(rows)};
 }
-test('carregador preserva 158 scripts originais e quatro cores opcionais',()=>{
+test('carregador preserva os scripts originais e os núcleos opcionais por manifesto',()=>{
  const anchor='const files=',start=loader.indexOf(anchor),end=loader.indexOf(';/* A base pode trazer',start);
  assert.ok(start>=0&&end>start);
  assert.ok(!loader.includes('const moduleGroups='),'proibido ativar os 16 grupos que coincidiram com a falha de login');
@@ -43,15 +43,19 @@ test('carregador preserva 158 scripts originais e quatro cores opcionais',()=>{
  const authAddon='hlgb-modules/autenticacao/rede-segura-v9613.js';
  const separationAddon='hlgb-modules/producao/separacao-progresso-v9617.js';
  const cutAddon='hlgb-modules/producao/corte-alvo-v9618.js';
+ const materialAddon='hlgb-modules/producao/corte-consumo-core-v9624.js';
+ const manifest=require('../hlgb-modules/ownership-v9600.json');
  const plannerAddon='hlgb-modules/producao/cortadores-grade-core-v9622.js';
  const weightAddon='hlgb-modules/producao/corte-pesagem-core-v9623.js';
- assert.equal(files.length,162);assert.equal(new Set(files).size,162);
- assert.deepEqual(files.filter(f=>f!==addon&&f!==authAddon&&f!==separationAddon&&f!==cutAddon&&f!==plannerAddon&&f!==weightAddon),original);
+ assert.equal(files.length,manifest.releaseScripts.length);assert.equal(new Set(files).size,files.length);
+ assert.deepEqual(files,manifest.releaseScripts);
+ assert.deepEqual(files.filter(f=>f!==addon&&f!==authAddon&&f!==separationAddon&&f!==cutAddon&&f!==plannerAddon&&f!==weightAddon&&f!==materialAddon),original);
  assert.equal(files[files.length-1],authAddon,'Auth opcional continua por último');
  assert.equal(files.indexOf(separationAddon)+1,files.indexOf('release-separation-commit-v9319.js'),'Cálculo novo deve carregar antes do controlador legado');
  assert.equal(files.indexOf(cutAddon)+1,files.indexOf('release-separation-cut-target-v9335.js'),'Corte alvo deve carregar antes do controlador legado');
  assert.equal(files.indexOf(plannerAddon)+1,files.indexOf('release-cutter-planner.js'));
  assert.equal(files.indexOf(weightAddon)+1,files.indexOf('release-cut-weight-v9579.js'));
+ assert.equal(files.indexOf(materialAddon)+1,files.indexOf('release-cut-material-usage.js'));
  assert.equal(files.indexOf(addon)+1,files.indexOf('release-label-destination-v9310.js'));
  assert.match(loader,/__HLGB_BOOT_READY_9477=true/);
  assert.ok(!loader.includes('hlgbSyncFinalizedCutsToProductionV9240'));

@@ -1,0 +1,33 @@
+name: HLGB Comercial - Consumo de Corte Modular v96.24
+on:
+  pull_request:
+    paths:
+      - 'hlgb-modules/producao/corte-consumo-core-v9624.js'
+      - 'release-cut-material-usage.js'
+      - 'app-stable3.html'
+      - 'hlgb-modules/ownership-v9600.json'
+      - 'tests/hlgb-live-cut-material-math-v9624.cjs'
+      - 'tests/hlgb-live-monolith-inventory-v9601b.cjs'
+      - 'tests/hlgb-live-separation-cut-target-v9618.cjs'
+      - 'tests/hlgb-live-separation-progress-v9617.cjs'
+      - 'tests/hlgb-live-label-layout-v9602b.cjs'
+      - '.github/workflows/hlgb-cut-material-math-v9624.yml'
+  workflow_dispatch:
+jobs:
+  cut-consumption:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Sintaxe e comparacao matematica com o codigo original
+        run: |
+          node --check hlgb-modules/producao/corte-consumo-core-v9624.js
+          node --check release-cut-material-usage.js
+          node --test tests/hlgb-live-cut-material-math-v9624.cjs tests/hlgb-live-monolith-inventory-v9601b.cjs tests/hlgb-live-separation-cut-target-v9618.cjs tests/hlgb-live-separation-progress-v9617.cjs tests/hlgb-live-label-layout-v9602b.cjs tests/hlgb-live-cut-weight-core-v9623.cjs
+          node tests/audit-cut-material-usage-regression.cjs
+          node tests/cut-weight-after-finish-v9579.cjs
+          node tests/audit-cutter-planner-regression.cjs

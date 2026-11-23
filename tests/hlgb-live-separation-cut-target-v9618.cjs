@@ -90,15 +90,16 @@ test('195 combinações de pedido e projeção preservam seleção única de mod
  }
  assert.equal(tested,195);
 });
-test('162 scripts, 158 originais e quatro núcleos puros; todos na ordem anterior',()=>{
+test('scripts originais e núcleos puros preservados na ordem do manifesto',()=>{
  const html=fs.readFileSync(path.join(root,'app-stable3.html'),'utf8');
  const found=html.match(/const files=\[([\s\S]*?)\];\/\* A base/);
  assert.ok(found);
  const files=[...found[1].matchAll(/'([^']+\.js)'/g)].map(x=>x[1]);
  const addon='hlgb-modules/producao/corte-alvo-v9618.js';
- assert.equal(files.length,162);
+ assert.equal(files.length,manifest.releaseScripts.length);
  assert.equal(manifest.preExtractionScripts.length,158);
- assert.equal(manifest.approvedNewScripts.length,4);
+ assert.equal(manifest.approvedNewScripts.length,manifest.releaseScripts.length-manifest.preExtractionScripts.length);
+ assert.equal(files.indexOf('hlgb-modules/producao/corte-consumo-core-v9624.js')+1,files.indexOf('release-cut-material-usage.js'));
  assert.equal(files.indexOf('hlgb-modules/producao/corte-pesagem-core-v9623.js')+1,files.indexOf('release-cut-weight-v9579.js'));
  assert.equal(files.indexOf('hlgb-modules/producao/cortadores-grade-core-v9622.js')+1,files.indexOf('release-cutter-planner.js'));
  assert.deepEqual(files.filter(x=>!manifest.approvedNewScripts.includes(x)),manifest.preExtractionScripts);

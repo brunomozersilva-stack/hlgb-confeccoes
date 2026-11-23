@@ -33,14 +33,15 @@ test('SHA do monólito original não pode mudar no trabalho de inventário',()=>
  assert.ok(report.scriptBlocks>=1,'precisa identificar pelo menos um bloco de JS inline');
 });
 
-test('162 scripts preservados, na mesma ordem, com um domínio responsável cada',()=>{
+test('scripts do manifesto preservados, na mesma ordem, com um domínio responsável cada',()=>{
  const loader=fs.readFileSync(path.join(root,'app-stable3.html'),'utf8');
  const found=loader.match(/const files=\[([\s\S]*?)\];\/\* A base/);
  assert.ok(found,'é obrigatório localizar a lista do carregador realmente usado');
  const actual=[...found[1].matchAll(/'([^']+\.js)'/g)].map(x=>x[1]);
  const ownership=require('../hlgb-modules/ownership-v9600.json');
  assert.equal(ownership.groupCount,0,'não reativar grupos em lote que causaram falha de abertura');
- assert.equal(actual.length,162);
+ assert.equal(actual.length,ownership.releaseScripts.length);
+ assert.equal(ownership.releaseScripts.length,ownership.preExtractionScripts.length+ownership.approvedNewScripts.length);
  assert.equal(ownership.preExtractionScripts.length,158,'o inventário anterior permanece como baseline');
  assert.deepEqual(actual.filter(x=>!ownership.approvedNewScripts.includes(x)),ownership.preExtractionScripts);
  assert.equal(new Set(actual).size,actual.length,'nenhum script duplicado no carregador');
@@ -63,6 +64,7 @@ test('162 scripts preservados, na mesma ordem, com um domínio responsável cada
  assert.equal(assigned.get('hlgb-modules/producao/corte-alvo-v9618.js'),'corte-cortadores');
  assert.equal(assigned.get('hlgb-modules/producao/cortadores-grade-core-v9622.js'),'corte-cortadores');
  assert.equal(assigned.get('hlgb-modules/producao/corte-pesagem-core-v9623.js'),'corte-cortadores');
+ assert.equal(assigned.get('hlgb-modules/producao/corte-consumo-core-v9624.js'),'corte-cortadores');
  assert.equal(ownership.criticalFileBlobs['app9240.html'],audit.readCurrent().sha);
 });
 test('checkpoint não reescreve monólito, WAL, operações ou módulos existentes',()=>{
