@@ -50,6 +50,7 @@ async function run(browser,url,width){
   for(const [scenario,text] of [
    ['duplicado','FINANCEIRO DIVERGENTE'],
    ['divergente','GRADE OU CLIENTE DIVERGENTE'],
+   ['folharepetida','FOLHA CORTE EXCEDIDA POR ENVIOS'],
    ['semprovas','COLECAO NAO CONFERIDA'],
    ['documentado','MIGRAÇÃO BLOQUEADA']]){
    await root.locator('[data-preflight-example="'+scenario+'"]').click();
