@@ -9,12 +9,29 @@ function arr(n){try{return Array.isArray(db?.[n])?db[n]:[]}catch(e){return []}}
 function cut(id){return arr('cuts').find(c=>sid(c?.id)===sid(id))||null}
 function product(id){return arr('products').find(p=>sid(p?.id)===sid(id))||null}
 function material(id){return arr('materials').find(m=>sid(m?.id)===sid(id))||null}
-function grams(weight,unit){const w=q(weight),u=norm(unit);return u==='kg'?w*1000:u==='g'||u==='grama'||u==='gramas'?w:0}
-function kg(weight,unit){return grams(weight,unit)/1000}
-function usageStats(pieces,u){
- const pcs=q(pieces),k=kg(u?.weight,u?.unit),m=material(u?.materialId),price=q(u?.price||m?.price);
+// Núcleo matemático opcional. A versão de produção permanece como fallback
+// e retém 100% dos salvamentos, vínculos e mutações de cadastro no controlador.
+const materialMathCore=window.HLGB_CUT_MATERIAL_MATH_CORE_9624||null;
+function gramsLegacy(weight,unit){const w=q(weight),u=norm(unit);return u==='kg'?w*1000:u==='g'||u==='grama'||u==='gramas'?w:0}
+function kgLegacy(weight,unit){return gramsLegacy(weight,unit)/1000}
+function grams(weight,unit){
+ if(typeof materialMathCore?.grams==='function')try{return materialMathCore.grams(weight,unit)}catch(_){}
+ return gramsLegacy(weight,unit);
+}
+function kg(weight,unit){
+ if(typeof materialMathCore?.kg==='function')try{return materialMathCore.kg(weight,unit)}catch(_){}
+ return kgLegacy(weight,unit);
+}
+function usageStatsLegacy(pieces,u){
+ const pcs=q(pieces),k=kgLegacy(u?.weight,u?.unit),m=material(u?.materialId),price=q(u?.price||m?.price);
  const piecesPerKg=k>0?pcs/k:0,gramsPerPiece=pcs>0?(k*1000)/pcs:0,totalCost=k*price,costPerPiece=pcs>0?totalCost/pcs:0;
  return {piecesPerKg,gramsPerPiece,totalCost,costPerPiece,pricePerKg:price};
+}
+function usageStats(pieces,u){
+ if(typeof materialMathCore?.usageStats==='function')try{
+  return materialMathCore.usageStats(pieces,u,material(u?.materialId)?.price);
+ }catch(_){}
+ return usageStatsLegacy(pieces,u);
 }
 function materialKey(x){return sid(x?.materialId)||'name:'+norm(x?.name)}
 function syncMissingMaterialsIntoProduct(p,cutRow){
@@ -40,9 +57,13 @@ function syncMissingMaterialsIntoProduct(p,cutRow){
  }
  return p;
 }
-function extraProfit(e){
+function extraProfitLegacy(e){
  const qty=q(e?.qty),sale=q(e?.saleUnitPrice),cost=q(e?.costUnitPrice);
  return {qty,revenue:qty*sale,cost:qty*cost,profit:qty*(sale-cost),marginPerPiece:sale-cost};
+}
+function extraProfit(e){
+ if(typeof materialMathCore?.extraProfit==='function')try{return materialMathCore.extraProfit(e)}catch(_){}
+ return extraProfitLegacy(e);
 }
 function extraHistory(productId){
  const rows=arr('cuts').filter(c=>sid(c?.productId)===sid(productId)&&c?.cutExtraYield&&q(c.cutExtraYield.qty)>0).map(c=>{
