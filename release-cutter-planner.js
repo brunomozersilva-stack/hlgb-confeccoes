@@ -10,12 +10,25 @@ function orderById(id){return arr('orders').find(o=>sid(o?.id)===sid(id))||null}
 function productById(id){return arr('products').find(p=>sid(p?.id)===sid(id))||null}
 function cutterById(id){return arr('cutters').find(c=>sid(c?.id)===sid(id))||null}
 function displayNo(o){try{return typeof displayOrderNumber==='function'?displayOrderNumber(o):(o?.orderNumber||o?.id)}catch(e){return o?.id}}
-function modelGrade(o,pid){return (Array.isArray(o?.grade)?o.grade:[]).filter(g=>sid(g?.productId)===sid(pid)&&q(g?.qty)>0)}
-function modelPieces(o,pid){return modelGrade(o,pid).reduce((s,g)=>s+q(g.qty),0)}
-function modelIds(o){return [...new Set((Array.isArray(o?.grade)?o.grade:[]).map(g=>sid(g?.productId)).filter(Boolean))]}
+// A extração opcional não depende de estado compartilhado: se o módulo novo
+// falhar ou não carregar, os cálculos originais continuam disponíveis.
+const plannerCore=window.HLGB_CUTTER_PLANNER_CORE_9622;
+function modelGrade(o,pid){
+ if(typeof plannerCore?.modelGrade==='function')try{return plannerCore.modelGrade(o,pid)}catch(e){console.warn('[HLGB Cortadores] fallback grade',e)}
+ return (Array.isArray(o?.grade)?o.grade:[]).filter(g=>sid(g?.productId)===sid(pid)&&q(g?.qty)>0);
+}
+function modelPieces(o,pid){
+ if(typeof plannerCore?.modelPieces==='function')try{return plannerCore.modelPieces(o,pid)}catch(e){console.warn('[HLGB Cortadores] fallback quantidades',e)}
+ return modelGrade(o,pid).reduce((s,g)=>s+q(g.qty),0);
+}
+function modelIds(o){
+ if(typeof plannerCore?.modelIds==='function')try{return plannerCore.modelIds(o)}catch(e){console.warn('[HLGB Cortadores] fallback modelos',e)}
+ return [...new Set((Array.isArray(o?.grade)?o.grade:[]).map(g=>sid(g?.productId)).filter(Boolean))];
+}
 function productName(pid){return productById(pid)?.name||'Produto'}
 function modelAlreadyCut(o,pid){
  // A finalização é por modelo, não pelo status geral do pedido.
+ if(typeof plannerCore?.modelAlreadyCut==='function')try{return plannerCore.modelAlreadyCut(o,pid,arr('cuts'))}catch(e){console.warn('[HLGB Cortadores] fallback finalização',e)}
  const ids=modelIds(o);
  return arr('cuts').some(c=>c&&sid(c.orderId)===sid(o.id)&&norm(c.status)==='finalizado'&&
    (sid(c.productId)===sid(pid)||(!c.productId&&ids.length===1)));
