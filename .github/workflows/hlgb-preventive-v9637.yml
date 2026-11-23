@@ -1,0 +1,30 @@
+name: HLGB Comercial - Engenharia Preventiva v96.37
+on:
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  preventive:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+        with: {fetch-depth: 0}
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - run: node --test tests/hlgb-preventive-v9637.cjs
+      - name: Map impact without executing commercial code
+        env:
+          BASE: ${{ github.event.pull_request.base.sha || github.sha }}
+          HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          mkdir -p preventive-artifact
+          node hlgb-modules/engenharia/preventive-cli-v9637.cjs "$BASE" "$HEAD" > preventive-artifact/report.json
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: hlgb-preventive-v9637
+          path: preventive-artifact/report.json
+          retention-days: 30
