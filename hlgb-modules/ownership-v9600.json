@@ -13,6 +13,7 @@
     "release-pricing.js",
     "release-limits.js",
     "release-cut-organization.js",
+    "hlgb-modules/producao/corte-consumo-core-v9624.js",
     "release-cut-material-usage.js",
     "hlgb-modules/producao/corte-pesagem-core-v9623.js",
     "release-cut-weight-v9579.js",
@@ -209,6 +210,7 @@
     ],
     "corte-cortadores": [
       "release-cut-organization.js",
+      "hlgb-modules/producao/corte-consumo-core-v9624.js",
       "release-cut-material-usage.js",
       "hlgb-modules/producao/corte-pesagem-core-v9623.js",
       "release-cut-weight-v9579.js",
@@ -359,7 +361,7 @@
       "release-ui-actions-v9402.js"
     ]
   },
-  "notes": "HLGB Comercial: 162 scripts: 158 da base + 4 núcleos opcionais. Loader preserva ordem antiga. Nova extração pura da validação de pesagem conserva função salvar e histórico e não acessa WAL/Supabase.",
+  "notes": "HLGB Comercial: 163 scripts = 158 baseline originais e 5 cores puros opcionais. Ordem antiga preservada; nenhum carregamento por grupos. Pesagem, consumo, corte, separação com fallback.",
   "criticalFileBlobs": {
     "app9240.html": "d0a6e49bc7bcd363c853092c350e3cf9a2b030c5",
     "release-cutter-planner.js": "a56f2c79df19ebb1cd86544a13976a97538d6a4e",
@@ -538,7 +540,8 @@
     "hlgb-modules/producao/separacao-progresso-v9617.js",
     "hlgb-modules/producao/corte-alvo-v9618.js",
     "hlgb-modules/producao/cortadores-grade-core-v9622.js",
-    "hlgb-modules/producao/corte-pesagem-core-v9623.js"
+    "hlgb-modules/producao/corte-pesagem-core-v9623.js",
+    "hlgb-modules/producao/corte-consumo-core-v9624.js"
   ],
   "extractionChanges": {
     "release-separation-commit-v9319.js": {
@@ -568,6 +571,13 @@
       "core": "hlgb-modules/producao/corte-pesagem-core-v9623.js",
       "coreBlob": "8145198f244260a4e8dbb45c590119f8b00b21b0",
       "scope": "Somente validação pura de peso e métricas read-only: sem mudanças em salvar, ACK, WAL, grade ou histórico; fallback literal"
+    },
+    "release-cut-material-usage.js": {
+      "before": "ebd007c7474b66807258d7096eb749d2e3390ee4",
+      "after": "ffe0ba7aadc0a3bc7aed4e108d5d7a4d8f202ca2",
+      "core": "hlgb-modules/producao/corte-consumo-core-v9624.js",
+      "coreBlob": "0fb6fd9f5932a1ea7b62d0f281559b131c7c5e05",
+      "scope": "Somente gramagem, conversão, peças/kg, custo/peça e lucro extra com fallback literal; não modifica registros ou persistência"
     }
   }
 }
