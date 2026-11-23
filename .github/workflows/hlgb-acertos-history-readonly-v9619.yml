@@ -1,0 +1,29 @@
+name: HLGB Comercial - Acertos Historico Read-only v96.19
+on:
+  pull_request:
+    paths:
+      - 'hlgb-modules/financeiro/**'
+      - 'tests/hlgb-live-acertos-history-readonly-v9619.cjs'
+      - '.github/workflows/hlgb-acertos-history-readonly-v9619.yml'
+  workflow_dispatch:
+jobs:
+  acertos-readonly:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Testar histórico financeiro puro e conservador
+        run: node --test tests/hlgb-live-acertos-history-readonly-v9619.cjs
+      - name: Verificar ausência de integração prematura ao runtime
+        shell: bash
+        run: |
+          set -euo pipefail
+          if grep -q 'acertos-history-readonly-v9619' app-stable3.html app9240.html; then
+            echo 'Módulo de Acertos não pode ser carregado em produção nesta PR'
+            exit 1
+          fi
+          node --check hlgb-modules/financeiro/acertos-history-readonly-v9619.cjs
