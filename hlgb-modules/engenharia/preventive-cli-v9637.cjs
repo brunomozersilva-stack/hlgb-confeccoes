@@ -8,6 +8,10 @@ const base=process.argv[2],head=process.argv[3];if(!/^[a-f0-9]{40}$/.test(base||
 const changed=cp.execFileSync('git',['diff','--name-status','-z','--no-renames',base,head,'--'],{cwd:root,encoding:'utf8'}).split('\0');const changes=[];
 for(let i=0;i<changed.length-1;i+=2){const status={A:'added',M:'modified',D:'deleted',T:'modified'}[changed[i]];if(!status)throw Error('unsupported diff status');changes.push({status,path:changed[i+1]})}
 const risk=api.impact(graph,changes);
+const plan=require('./test-priority-v9638.cjs');
+const testMatrix=JSON.parse(read('hlgb-modules/engenharia/test-matrix-v9638.json'));
+const available=[...new Set(Object.values(testMatrix).flat())].filter(p=>/^tests\/[A-Za-z0-9_./-]+\.(?:cjs|js)$/.test(p)&&!p.split('/').includes('..')&&fs.existsSync(path.join(root,p)));
+const priority=plan(testMatrix,risk,available);
 const learned=api.learning(JSON.parse(read('hlgb-modules/engenharia/incident-cases-v9637.json')));
-process.stdout.write(JSON.stringify({schema:'hlgb-preventive-v9637',base,head,graph,risk,learned},null,2)+'\n');
-if(graph.findings.length)process.exitCode=1;
+process.stdout.write(JSON.stringify({schema:'hlgb-preventive-v9637',base,head,graph,risk,priority,learned},null,2)+'\n');
+if(graph.findings.length||priority.missing.length)process.exitCode=1;
