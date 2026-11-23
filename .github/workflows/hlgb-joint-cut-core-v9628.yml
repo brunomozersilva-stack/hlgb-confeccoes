@@ -1,0 +1,23 @@
+name: HLGB Comercial - Corte Conjunto Core v96.28
+on:
+  pull_request:
+    paths:
+      - 'hlgb-modules/producao/joint-cut-core-v9628.cjs'
+      - 'tests/hlgb-joint-cut-core-v9628.cjs'
+      - '.github/workflows/hlgb-joint-cut-core-v9628.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  pure-core:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: node --check hlgb-modules/producao/joint-cut-core-v9628.cjs
+      - run: node tests/hlgb-joint-cut-core-v9628.cjs
+      - run: node tests/weekly-material-planner-v9583.cjs
+      - run: node tests/audit-cutter-planner-regression.cjs
+      - run: node tests/audit-cut-material-usage-regression.cjs
