@@ -1,0 +1,32 @@
+name: HLGB Comercial - Layout real mobile v96.40
+on:
+  pull_request:
+    paths:
+      - 'release-mobile-friendly-v9512.js'
+      - 'app9240.html'
+      - 'tests/mobile-real-pages-v9640.cjs'
+      - '.github/workflows/mobile-real-pages-v9640.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  layout:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        browser: [chromium, webkit]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - run: npm install --no-save playwright@1.55.0 && npx playwright install --with-deps ${{ matrix.browser }}
+      - env:
+          HLGB_BROWSER: ${{ matrix.browser }}
+        run: node tests/mobile-real-pages-v9640.cjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: mobile-layout-${{ matrix.browser }}
+          path: mobile-audit-artifact/
