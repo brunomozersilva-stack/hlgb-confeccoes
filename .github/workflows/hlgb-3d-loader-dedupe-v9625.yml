@@ -1,0 +1,24 @@
+name: HLGB Comercial - Script 3D Sem Duplicidade v96.25
+on:
+  pull_request:
+    paths:
+      - 'app-stable3.html'
+      - 'tests/hlgb-3d-loader-dedupe-v9625.cjs'
+      - '.github/workflows/hlgb-3d-loader-dedupe-v9625.yml'
+  workflow_dispatch:
+jobs:
+  script-3d-dedupe:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Verificar deduplicação condicional sem perda de módulos
+        run: |
+          node --test tests/hlgb-3d-loader-dedupe-v9625.cjs tests/hlgb-live-monolith-inventory-v9601b.cjs
+          node tests/auditor-script-multiplicity-v9594.cjs
+          node tests/printer3d-persistence-v9431.cjs
+          node tests/boot-printer3d-recover-payroll-dedupe-v9596.cjs
