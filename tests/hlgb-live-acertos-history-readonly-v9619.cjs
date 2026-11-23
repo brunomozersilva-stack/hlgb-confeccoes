@@ -47,3 +47,43 @@ test('não produz efeito colateral nem depende do browser',()=>{
  assert.equal(typeof global.localStorage,'undefined');
  assert.equal(summarize([]).groups.length,0);
 });
+
+test('não aceita datas inexistentes nem períodos invertidos',()=>{
+ const invalid=summarize([{...source[0],date:'2026-02-30'}]);
+ assert.equal(invalid.complete,false);
+ assert.equal(invalid.details.length,0);
+ assert.throws(()=>summarize(source,{from:'2026-02-30'}),/Data do filtro inválida/);
+ assert.throws(()=>summarize(source,{from:'2026-11-22',to:'2026-11-20'}),/Período invertido/);
+ assert.throws(()=>summarize(source,{kind:'desconhecido'}),/Tipo de vínculo inválido/);
+});
+test('não aceita pagamentos acima do valor nem centavos inseguros',()=>{
+ const invalid=summarize([
+  {...source[0],entryId:'overpay',paidCents:10001,creditCents:0},
+  {...source[0],entryId:'unsafe',totalCents:Number.MAX_SAFE_INTEGER+1}
+ ]);
+ assert.equal(invalid.details.length,0);
+ assert.equal(invalid.errors.length,2);
+});
+test('interrompe soma de grupo que ultrapasse inteiro seguro',()=>{
+ const near=Number.MAX_SAFE_INTEGER-10;
+ const result=summarize([
+  {...source[0],entryId:'max',totalCents:near,paidCents:0,creditCents:0},
+  {...source[0],entryId:'overflow',totalCents:100,paidCents:0,creditCents:0},
+  {...source[0],kind:'cliente',ownerId:'A',entryId:'overflow',totalCents:100,paidCents:0,creditCents:0}
+ ]);
+ assert.equal(result.complete,false);
+ assert.equal(result.details.length,2);
+ assert.equal(result.groups.find(x=>x.kind==='faccao').totalCents,near);
+ assert.equal(result.groups.find(x=>x.kind==='cliente').totalCents,100);
+});
+test('10000 acertos sintéticos agrupam sem arredondamento',()=>{
+ const large=Array.from({length:10000},(_,i)=>({
+  ...source[0],entryId:'big-'+i,date:'2026-11-20',totalCents:101,paidCents:1,creditCents:0
+ }));
+ const r=summarize(large);
+ assert.equal(r.complete,true);
+ assert.equal(r.groups.length,1);
+ assert.equal(r.groups[0].count,10000);
+ assert.equal(r.groups[0].totalCents,1010000);
+ assert.equal(r.groups[0].balanceCents,1000000);
+});
