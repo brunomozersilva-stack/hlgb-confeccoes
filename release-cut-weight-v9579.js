@@ -9,7 +9,10 @@ const sid=x=>String(x??''),num=x=>Number(sid(x).replace(',','.')),money=x=>Numbe
 const esc=x=>sid(x).replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;','\'':'&#39;'}[m]));
 const dbRef=()=>{try{return typeof db!=='undefined'?db:window.db}catch(_){return window.db||{}}};
 const cut=id=>(dbRef()?.cuts||[]).find(x=>sid(x?.id)===sid(id))||null;
-function validate(input){
+// A gravação, confirmação remota, histórico e proteção WAL ficam neste arquivo
+// comercial. Só a validação pura pode usar o módulo independente, com fallback.
+const weightCore=window.HLGB_CUT_WEIGHT_CORE_9623||null;
+function validateLegacy(input){
  const total=num(input?.totalKg),used=num(input?.usedKg||0),waste=num(input?.wasteKg||0),note=sid(input?.note).trim();
  if(!Number.isFinite(total)||total<=0||total>20000)throw Error('Informe o peso total do corte em kg (maior que zero).');
  for(const [name,value] of [['usado',used],['refugo',waste]])if(!Number.isFinite(value)||value<0||value>20000)throw Error('Peso '+name+' inválido.');
@@ -17,6 +20,13 @@ function validate(input){
  if(note.length>300)throw Error('Observação com até 300 caracteres.');
  return {totalKg:+total.toFixed(3),usedKg:+used.toFixed(3),wasteKg:+waste.toFixed(3),note};
 }
+function validate(input){
+ if(typeof weightCore?.validate==='function'){
+  try{return weightCore.validate(input)}catch(_){return validateLegacy(input)}
+ }
+ return validateLegacy(input);
+}
+
 async function safe(id){
  if(window.__HLGB_AUTH_READY!==true)throw Error('Entre no HLGB para salvar o peso.');
  const g=window.hlgbWalIdbGuard9536;
