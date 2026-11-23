@@ -1,0 +1,27 @@
+'use strict';
+const assert=require('node:assert/strict');
+const api=require('../hlgb-modules/producao/joint-cut-core-v9628.cjs');
+(function cases(api,ok){
+ const b={materialId:10,cat:'Tecido',unit:'kg',qty:10,calcMode:'yield',loss:0};
+ const d={orders:[{id:1,status:'Aberto',grade:[{productId:11,color:'Preto',size:'P',qty:100}]},{id:2,status:'Aberto',grade:[{productId:12,color:'Preto',size:'M',qty:80}]}],products:[{id:11,name:'Camisola',materials:[b]},{id:12,name:'Short Doll',materials:[b]}],materials:[{id:10,name:'Malha',cat:'Tecido',unit:'kg'}],cuts:[],production:[]};
+ const lines=d.orders.map(o=>({orderId:o.id,...o.grade[0],materialId:10,fabricColor:'Preto',lotId:'L1',widthMm:1600,unit:'kg',composition:'C',stretch:'biaxial',grain:'longitudinal',cutConstraint:'same-lay',verified:true,compatibilityVerified:true,reference:'fixture-'+o.id,cutQty:0,reservedQty:0}));
+ const e={snapshotVerified:true,writeoffsVerified:true,lines},before=JSON.stringify([d,e]),p=(data=d,proof=e)=>api.plan(data,proof),g=p().suggestions[0];
+ ok(g.pieces===180&&g.baselineNeed===18,'two models');
+ ok(g.combinedGrade[0].qty===100&&g.allocations[1].orderId==='2','traceability');
+ ok(g.savings===null&&g.optimizedNeed===null,'no fabricated savings');ok(before===JSON.stringify([d,e]),'immutable');
+ ok(!p(d,{...e,snapshotVerified:false}).suggestions.length,'snapshot');
+ ok(!p(d,{...e,writeoffsVerified:false}).suggestions.length,'writeoffs');
+ ok(p(d,{...e,lines:[]}).discovery.length===1,'discovery separate');
+ for(const f of ['lotId','fabricColor','widthMm','composition','stretch','grain','cutConstraint','unit'])ok(!p(d,{...e,lines:lines.map((x,i)=>i?{...x,[f]:f==='widthMm'?1700:'other'}:x)}).suggestions.length,'separate '+f);
+ ok(p(d,{...e,lines:lines.map((x,i)=>i?{...x,cutQty:20,reservedQty:10}:x)}).suggestions[0].pieces===150,'partial and reserved');
+ ok(!p({...d,cuts:[{orderId:2}]},{...e,lines:lines.map(x=>({...x,activityReconciled:true}))}).suggestions.length,'ambiguous aggregate');
+ ok(!p({...d,cuts:[{orderId:2,productId:12}]}).suggestions.length,'existing cut');
+ ok(!p({...d,production:[{orderId:2,productId:12}]}).suggestions.length,'existing production');
+ ok(!p(d,{...e,blockedPairs:[{orderId:2,productId:12}]}).suggestions.length,'blocked');
+ ok(!p(d,{...e,lines:[...lines,lines[0]]}).suggestions.length,'duplicate evidence');
+ ok(!p({...d,orders:[{...d.orders[0],grade:[...d.orders[0].grade,...d.orders[0].grade]},d.orders[1]]}).suggestions.length,'duplicate grade');
+ ok(!p({...d,orders:[d.orders[0],{...d.orders[1],status:'Entregue'}]}).suggestions.length,'delivered');
+ ok(!p(d,{...e,lines:lines.map((x,i)=>i?{...x,cutQty:90}:x)}).suggestions.length,'overcut');
+ ok(!p({...d,materials:[{...d.materials[0],id:99}]}).suggestions.length,'no name matching');
+ ok(p({...d,products:[d.products[0],{...d.products[1],materials:[{...b,qty:0}]}]}).suggestions[0].baselineNeed===null,'missing consumption');
+})(api,(v,m)=>{assert.ok(v,m);console.log('PASS',m)});

@@ -1,0 +1,28 @@
+'use strict';
+const assert=require('node:assert/strict');
+const core=require('../hlgb-modules/financeiro/weekly-intelligence-core-v9627.cjs');
+(function runCases(core,check){
+ const {compare,monday}=core;
+ const target='2026-11-23',asOf='2026-11-23';
+ const weeks=['2026-09-28','2026-10-05','2026-10-12','2026-10-19','2026-10-26','2026-11-02','2026-11-09','2026-11-16'];
+ const rows=weeks.map((d,i)=>({id:i+1,flow:'Saída',status:'Realizado',date:d,realizedAt:d,category:'Matéria-prima',value:14000}));rows.push({id:99,flow:'Saída',status:'Previsto',date:target,category:'Matéria-prima',value:30000});
+ const opt={targetDate:target,asOf,verifiedWeeks:weeks,targetVerified:true,snapshotVerified:true};
+ const before=JSON.stringify(rows);
+ let out=compare(rows,opt),c=out.categories[0];
+ check(out.quality==='verified-input'&&c.medianCents===1400000&&c.targetTotalCents===3000000&&c.differenceCents===1600000&&c.signal==='above-observed-range','comparison 14k vs 30k');
+ check(JSON.stringify(rows)===before,'no mutation');
+ check(compare(rows,{...opt,snapshotVerified:false}).categories[0].medianCents===null,'unverified snapshot');
+ check(compare(rows,{...opt,verifiedWeeks:weeks.slice(1)}).categories[0].medianCents===null,'missing week');
+ check(compare(rows,{...opt,uncertainIds:[99]}).quality==='incomplete','uncertain WAL id');
+ check(compare([...rows,{...rows[0]}],opt).issues.filter(x=>x.reason==='duplicate-id-or-origin').length===2,'duplicate id excludes both');
+ check(compare([...rows,{...rows[0],id:200,sourceType:'invoice',sourceId:1},{...rows[0],id:201,sourceType:'invoice',sourceId:1}],opt).issues.filter(x=>x.reason==='duplicate-id-or-origin').length===2,'duplicate origin');
+ check(compare([...rows,{id:100,flow:'Saída',status:'Realizado',date:target,value:10,category:'X'}],opt).quality==='incomplete','missing actual date');
+ check(compare([...rows,{id:100,flow:'Saída',status:'Previsto',date:target,value:'0.005',category:'X'}],opt).quality==='incomplete','invalid fraction');
+ check(compare([...rows,{id:100,flow:'Saída',status:'Previsto',date:target,value:1,category:'__proto__'}],opt).categories.some(x=>x.category==='__proto__'),'safe category key');
+ check(monday('2027-01-01')==='2026-12-28'&&monday('2026-02-30')===null,'calendar');
+ const zero=compare([{id:999,flow:'Saída',status:'Previsto',date:target,category:'Novo',value:0.1}],opt).categories[0];check(zero.medianCents===0&&zero.percentChange===null&&zero.targetTotalCents===10,'zero baseline');
+ const nextRows=rows.map(x=>x.id===99?{...x,date:'2026-11-30'}:x);
+ check(compare(nextRows,{...opt,targetDate:'2026-11-30'}).categories[0].differenceCents===1600000,'next week uses last closed historical weeks');
+ check(compare([...rows,{id:100,flow:'Saída',status:'Realizado',date:target,realizedAt:'2026-11-24',value:10,category:'X'}],opt).quality==='incomplete','future actual');
+ check(compare(rows.map(x=>({...x,kind:'hub_settings_test'})),opt).categories.length===0,'settings excluded');
+})(core,(ok,msg)=>{assert.ok(ok,msg);console.log('PASS',msg)});
