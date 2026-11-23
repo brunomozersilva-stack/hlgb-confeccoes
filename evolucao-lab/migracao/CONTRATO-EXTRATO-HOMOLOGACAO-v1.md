@@ -58,3 +58,10 @@ O comando `--json` imprime **apenas** dados inventados pelo próprio código; o 
 O protocolo de leitura não é uma conexão à homologação. Um adaptador autorizado para banco único deve ser implementado separadamente, com autenticação e leitura mínima, snapshot consistente em transação, mapeamento comprovado dos dados atuais e autorização expressa antes de consultar dados empresariais.
 
 Antes da migração, verificar também: histórico de alterações e compensações, estornos e devoluções, peças em facções diferentes, títulos pagos, acertos arquivados, folha dos cortadores, peso de materiais, permissões e 76 funções legadas; realizar backup, prova de restauração, testes entre computadores, controle de concorrência e aceite humano por tarefa. **Nenhum passo dessa lista foi aprovado por este adaptador.**
+
+## Controle de tombstones e folhas reutilizadas — incremento 23/11
+
+- O adaptador preserva a presença no manifesto dos registros com marcadores de exclusão `deleted`, `isDeleted`, `deletedAt` e `deleted_at`. Seus IDs são devolvidos em `tombstones[]`, enquanto os registros correspondentes são excluídos do fluxo operacional ativo. É **proibido** reativá-los por inferência durante uma eventual migração.
+- A saída inclui `historicalRecordsReactivated:0`. O resumo offline mostra as contagens de registros históricos excluídos e reativações (zero). O esquema comercial poderá ter outros marcadores; será necessário inventariá-los antes de usar uma extração real.
+- No pré-voo da cadeia Corte → envio → retorno → acerto → financeiro, cada folha concluída é conferida contra a soma de seus próprios envios (regra `FOLHA_CORTE_EXCEDIDA_POR_ENVIOS`). O total por modelo, isoladamente, não comprova disponibilidade de uma folha.
+- Esses controles não alteram o estado comercial nem tornam o protocolo apto a importar dados reais.
