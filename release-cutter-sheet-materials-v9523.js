@@ -429,7 +429,6 @@ wrapped.__hlgbCutterSheetV9523=true;
 function ensurePrintRoute9523(){
  if(window.printCuttingSheet===wrapped)return true;
  if(window.printCuttingSheet?.__hlgbCutterSheetV9523)return true;
- if(typeof window.printCuttingSheet!=='function')return false;
  window.printCuttingSheet=wrapped;
  return true;
 }
