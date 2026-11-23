@@ -1,0 +1,21 @@
+name: HLGB Comercial - Adaptador Hub Inteligente v96.33
+on:
+  pull_request:
+    paths:
+      - 'hlgb-modules/financeiro/*'
+      - 'tests/hlgb-hub-intelligence-*-v9633.cjs'
+      - '.github/workflows/hlgb-hub-intelligence-adapter-v9633.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  pure:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - run: node tests/hlgb-hub-intelligence-adapter-v9633.cjs
+      - run: node tests/hlgb-hub-intelligence-legacy-v9633.cjs
+      - run: node tests/audit-hub-period-detail-regression.cjs
+      - run: node tests/hub-payroll-paid-date-v9515.cjs

@@ -1,0 +1,20 @@
+const assert=require('node:assert/strict');const api=require('../hlgb-modules/financeiro/hub-intelligence-adapter-v9633.js');(function tests(api,ok){
+ const rows=[{id:1,flow:'Saída',status:'Previsto',date:'2026-11-30',category:'Matéria-prima',value:30000},{id:2,flow:'Entrada',status:'Previsto',date:'2026-11-30',category:'Vendas',value:12000},{id:3,flow:'Saída',status:'Realizado',date:'2026-11-10',realizedAt:'2026-11-23',category:'Funcionários',value:1000,sourceType:'payroll_paid_date_view',sourceId:'2026-10'}];
+ const ctx={authenticated:true,financeAllowed:true,payrollAggregateAllowed:true,db:{hubFinanceEntries:rows,payroll:[]},paidDateApi:{rows:a=>a}},o={asOf:'2026-11-23',targetDate:'2026-11-30',historyWeeks:8},before=JSON.stringify(ctx.db),p=(x={},opt=o)=>api.inspect({...ctx,...x},opt);
+ ok(p().observations.find(x=>x.category==='Matéria-prima').plannedCents===3000000,'real hub fields');
+ ok(p().observations.find(x=>x.category==='Vendas').plannedCents===1200000,'income');
+ ok(p().state==='local-observation-only'&&p().comparison.categories.every(x=>x.medianCents===null),'never promote local');
+ ok(p().cash.base.every(x=>x.closingCents===null&&x.shortfall===null),'no invented balance');
+ ok(p({authenticated:false}).state==='unavailable','auth');
+ ok(p({financeAllowed:false}).state==='unavailable','finance permission');
+ ok(p({payrollAggregateAllowed:false}).state==='unavailable','payroll permission');
+ ok(p({paidDateApi:null}).state==='unavailable','missing source');
+ ok(p({paidDateApi:{rows(){throw Error('x')}}}).state==='unavailable','source error');
+ ok(p({paidDateApi:{rows(a){a[0].value=999;return a}}}).state==='local-observation-only'&&JSON.stringify(ctx.db)===before,'source receives copy');
+ ok(p({db:{...ctx.db,hubFinanceEntries:[...rows,rows[0]]}}).omitted===2,'duplicate excluded');
+ ok(p({db:{...ctx.db,hubFinanceEntries:[...rows,{...rows[0],id:4,pendingSync:true}]}}).omitted===1,'pending row');
+ ok(p({db:{...ctx.db,hubFinanceEntries:[...rows,{...rows[2],id:4,sourceType:'payroll_month'}]}}).omitted===1,'legacy payroll excluded');
+ ok(p({}, {...o,targetDate:'2026-11-23'}).observations.find(x=>x.category==='Funcionários').paidCents===100000,'paid date not due');
+ ok(!JSON.stringify(p()).includes('payroll_paid_date_view'),'no individual payroll data');
+ ok(JSON.stringify(ctx.db)===before,'immutable');
+})(api,(v,m)=>{assert.ok(v,m);console.log('PASS',m)});
