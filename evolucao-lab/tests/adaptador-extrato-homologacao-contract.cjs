@@ -140,6 +140,8 @@ test('não há consultas ou mutações de banco, e o adaptador é determinístic
  assert.equal(a.digest,b.digest);
  assert.deepEqual(a.batch,b.batch);
  const code=fs.readFileSync(path.join(__dirname,'../migracao/adaptador-extrato-homologacao-v1.cjs'),'utf8');
- assert.doesNotMatch(code,/\bfetch\s*\(|\bindexedDB\b|\blocalStorage\b|\bXMLHttpRequest\b|\bWebSocket\b|supabase\.from|\.insert\s*\(|\.update\s*\(/);
+ assert.doesNotMatch(code,/\bfetch\s*\(|\bindexedDB\b|\blocalStorage\b|\bXMLHttpRequest\b|\bWebSocket\b|supabase\.from|\.insert\s*\(/);
+ // crypto.createHash().update() é necessário ao SHA-256; não é escrita em banco.
+ assert.doesNotMatch(code,/(?:supabase|db|repository|database|client)\.(?:update|insert|upsert|delete)\s*\(/);
  assert.match(code,/canWrite:false/);
 });
