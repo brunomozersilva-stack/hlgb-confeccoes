@@ -1,0 +1,20 @@
+name: HLGB Comercial - Sobras e Pontas Core v96.30
+on:
+  pull_request:
+    paths:
+      - 'hlgb-modules/producao/fabric-remnant-policy-v9630.cjs'
+      - 'tests/hlgb-fabric-remnant-policy-v9630.cjs'
+      - '.github/workflows/hlgb-fabric-remnant-policy-v9630.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  pure:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - run: node tests/hlgb-fabric-remnant-policy-v9630.cjs
+      - run: node tests/product-traceability-v9580.cjs
+      - run: node tests/cut-weight-after-finish-v9579.cjs

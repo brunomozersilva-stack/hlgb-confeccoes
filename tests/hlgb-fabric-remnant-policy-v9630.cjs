@@ -1,0 +1,20 @@
+const assert=require('node:assert/strict');const api=require('../hlgb-modules/producao/fabric-remnant-policy-v9630.cjs');(function cases(api,ok){
+ const products=[{id:1,name:'Camisola',notes:'preserve',materials:[{materialId:10}]},{id:2,name:'Calcinha',materials:[{materialId:10}]},{id:3,name:'Outro',materials:[{materialId:99}]},{id:4,name:'Modelo',materials:[{materialId:10}]}];
+ const x={state:'yes',eligible:[{productId:2,materialId:10,minWidthMm:120,minLengthMm:150,notes:'medir ponta'}]},before=JSON.stringify(products);
+ const rejects=(fn,msg)=>{let fail=false;try{fn()}catch(_){fail=true}ok(fail,msg)};
+ ok(api.state(products[0])==='unknown','legacy unknown');
+ const p=api.preview(1,x,products);ok(p.policy.eligible[0].productId==='2'&&p.physicalFit===null&&!p.inventoryChange,'validated hint only');
+ ok(JSON.stringify(products)===before,'preserves product');
+ ok(api.preview(1,{state:'no',eligible:[]},products).policy.state==='no','explicit no');
+ rejects(()=>api.preview(1,{...x,state:'no'},products),'no cannot have links');
+ rejects(()=>api.preview(1,{...x,eligible:[{productId:1,materialId:10}]},products),'self');
+ rejects(()=>api.preview(1,{...x,eligible:[...x.eligible,...x.eligible]},products),'duplicate');
+ rejects(()=>api.preview(1,{...x,eligible:[{productId:3,materialId:10}]},products),'different material');
+ rejects(()=>api.preview(1,x,[products[0],{...products[1],deleted:true}]),'deleted target');
+ rejects(()=>api.preview(1,x,[...products,{...products[1]}]),'ambiguous target');
+ rejects(()=>api.preview(1,{...x,eligible:[{...x.eligible[0],minWidthMm:-1}]},products),'negative width');
+ rejects(()=>api.preview(1,x,[products[0],{...products[1],fabricRemnantPolicyV9630:{state:'yes',eligible:[{productId:4}]}},products[2],{...products[3],fabricRemnantPolicyV9630:{state:'yes',eligible:[{productId:1}]}}]),'cycle');
+ ok(api.inspectWeight({totalKg:10,usedKg:7,wasteKg:1}).unclassifiedKg===2&&api.inspectWeight({totalKg:10,usedKg:7,wasteKg:1}).reusableKg===null,'residue not proven reusable');
+ ok(api.inspectWeight({totalKg:10,usedKg:9,wasteKg:2}).state==='inconsistent','inconsistent weight');
+ ok(api.inspectWeight({totalKg:10,usedKg:9}).state==='incomplete','missing weight');
+})(api,(v,m)=>{assert.ok(v,m);console.log('PASS',m)});
