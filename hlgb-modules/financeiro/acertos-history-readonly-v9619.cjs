@@ -51,7 +51,7 @@ function summarize(input,filters={}){
    count:0,totalCents:0,paidCents:0,creditCents:0,balanceCents:0};
   const keys=['totalCents','paidCents','creditCents','balanceCents'];
   if(!Number.isSafeInteger(g.count+1)||keys.some(field=>!Number.isSafeInteger(g[field]+r[field]))){
-   errors.push({entryId:r.entryId,reason:'total-do-grupo-excede-limite-seguro'});
+   errors.push({entryId:r.entryId,kind:r.kind,reason:'total-do-grupo-excede-limite-seguro'});
    continue;
   }
   g.count++;
@@ -60,8 +60,8 @@ function summarize(input,filters={}){
  }
  const compare=(a,b)=>a.date.localeCompare(b.date)||a.kind.localeCompare(b.kind)||
   a.ownerId.localeCompare(b.ownerId)||sid(a.entryId).localeCompare(sid(b.entryId));
- const excluded=new Set(errors.filter(x=>x.reason==='total-do-grupo-excede-limite-seguro').map(x=>x.entryId));
- return {details:rows.filter(x=>!excluded.has(x.entryId)).sort(compare),
+ const excluded=new Set(errors.filter(x=>x.reason==='total-do-grupo-excede-limite-seguro').map(x=>x.kind+':'+x.entryId));
+ return {details:rows.filter(x=>!excluded.has(x.kind+':'+x.entryId)).sort(compare),
   groups:[...groupMap.values()].sort(compare),
   errors,complete:errors.length===0};
 }
