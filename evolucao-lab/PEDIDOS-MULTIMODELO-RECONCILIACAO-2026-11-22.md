@@ -161,3 +161,21 @@ Não criar um segundo fluxo comercial de Pedidos nem trocar o modelo de dados em
 ### Bloqueios intocados
 
 Nenhum vínculo foi estabelecido com banco de produção, homologação remota, Supabase ou sistema no ar. A implementação **não é** a extração comercial propriamente dita e **não está pronta para migração real**. Ainda precisa verificar o esquema atual e todas as funções comerciais, os IDs de pagamentos/compensações/arquivos históricos, versão da base e concorrência, a origem dos dados de servidor, restauração de backup, autorização de acesso somente leitura, prova em duas sessões e aceite por operador. Não foi realizado merge em `main`.
+
+## Etapa de estabilização 23/11 — corte por folha e preservação de excluídos
+
+### Corrigido: mesma folha consumida em dois envios
+- O conferidor `migracao/preflight-vinculos-operacionais.cjs` agora soma separadamente as quantidades enviadas **por ID de folha de corte**. Mesmo que a soma total de cortes do modelo cubra a soma dos envios, cada folha concluída deve suportar **apenas suas remessas vinculadas**.
+- Se o total enviado de uma mesma folha exceder seu corte, o motor retorna `FOLHA_CORTE_EXCEDIDA_POR_ENVIOS`. O valor não é corrigido automaticamente: a origem física precisa ser verificada, principalmente quando o mesmo tecido atende diferentes facções.
+- Incluído o cenário `Folha consumida por dois envios` no Auditor da homologação, com quinto exemplo inventado, além da evidência no CSV. Chromium, WebKit, mobile e contrato do painel receberam asserções específicas.
+- Três contratos adicionais testam folha compartilhada excessivamente, envio distribuído corretamente entre folhas e uso indevido de corte planejado/cancelado. **14 testes isolados do pré-voo passaram na verificação local de lógica**; o resultado Node oficial depende da esteira.
+
+### Preservação de tombstones (excluídos, sem ressuscitar)
+- O adaptador `adaptador-extrato-homologacao-v1.cjs` separa registros com `deleted:true`, `isDeleted:true`, `deletedAt` ou `deleted_at` em `tombstones[]`. Eles permanecem na contagem de origem e em inventário histórico resumido, mas **não entram como pedidos, acertos, documentos nem pagamentos ativos** no dossiê.
+- `historicalRecordsReactivated:0` é uma garantia explícita da **prévia fictícia**, não prova de preservação da base comercial real.
+- O comando de conferência offline passa a expor `historicalTombstones` e `reactivatedTombstones` no resumo. Indicadores de exclusão com tipos incoerentes provocam erro em vez de interpretação otimista.
+- Três novos contratos verificam pedido excluído, acerto e título excluídos, e tipo inválido. **11 testes isolados do adaptador passaram na verificação da lógica**; SHA-256 real e navegadores permanecem sob execução oficial de CI.
+
+### Limitações inalteradas
+- Não há conexão à base original ou homologação empresarial. É necessária autorização e mapeamento de colunas das tabelas reais, além de trilha histórica de compensações, estornos, devoluções, comprovantes, alterações e todas as 76 funções comerciais.
+- Nenhum relatório aprova migração, movimento de estoque ou pagamento. **Sem merge em main.**
