@@ -37,6 +37,7 @@
     "release-payroll-termination-provisions.js",
     "release-checklist-integrity.js",
     "release-capacity-integrity.js",
+    "hlgb-modules/producao/cortadores-grade-core-v9622.js",
     "release-cutter-planner.js",
     "release-hub-tombstone-online.js",
     "release-hub-personal-integrity.js",
@@ -213,6 +214,7 @@
       "release-cut-model-grade-adjust.js",
       "release-cutter-sheet-materials-v9523.js",
       "release-cut-duplicate-repair-v95105.js",
+      "hlgb-modules/producao/cortadores-grade-core-v9622.js",
       "release-cutter-planner.js",
       "release-cutter-history-v9250.js",
       "release-production-cut-reconcile-v9307.js",
@@ -355,7 +357,7 @@
       "release-ui-actions-v9402.js"
     ]
   },
-  "notes": "HLGB comercial main: 160 scripts após #285. Mantém os 158 scripts da base de inventário #284 na mesma ordem, mais dois núcleos puros opcionais (Separação e seleção de Corte). Não ativa carregamento em grupos. Sem alteração WAL, Supabase, dados ou gravações.",
+  "notes": "HLGB Comercial: 161 scripts após #291; 158 originais + 3 núcleos puros opcionais, na ordem histórica. Cortadores mantém lógica antiga como fallback. Sem intervenção na WAL, pagamentos, Supabase ou registros.",
   "criticalFileBlobs": {
     "app9240.html": "d0a6e49bc7bcd363c853092c350e3cf9a2b030c5",
     "release-cutter-planner.js": "a56f2c79df19ebb1cd86544a13976a97538d6a4e",
@@ -532,7 +534,8 @@
   ],
   "approvedNewScripts": [
     "hlgb-modules/producao/separacao-progresso-v9617.js",
-    "hlgb-modules/producao/corte-alvo-v9618.js"
+    "hlgb-modules/producao/corte-alvo-v9618.js",
+    "hlgb-modules/producao/cortadores-grade-core-v9622.js"
   ],
   "extractionChanges": {
     "release-separation-commit-v9319.js": {
@@ -548,6 +551,13 @@
       "core": "hlgb-modules/producao/corte-alvo-v9618.js",
       "coreBlob": "2700e81153d95835fbf2254765380f606f536027",
       "scope": "somente cálculo do pedido ativo e modelo único; confirmado que regras de salvar Corte permanecem inalteradas"
+    },
+    "release-cutter-planner.js": {
+      "before": "a56f2c79df19ebb1cd86544a13976a97538d6a4e",
+      "after": "5a53955220fb827838e822cae09dec92fac5b854",
+      "core": "hlgb-modules/producao/cortadores-grade-core-v9622.js",
+      "coreBlob": "6ef7cabd24246a12d52c962fa5087b1ea3e28cd7",
+      "scope": "somente IDs, grade, totais e verificação de finalização por modelo; fallback literal mantém salvamento e impressão"
     }
   }
 }

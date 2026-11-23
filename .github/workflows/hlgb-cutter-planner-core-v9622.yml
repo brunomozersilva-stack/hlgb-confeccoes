@@ -1,0 +1,26 @@
+name: HLGB Comercial - Cortadores Grade Modular v96.22
+on:
+  pull_request:
+    paths:
+      - 'hlgb-modules/producao/cortadores-grade-core-v9622.js'
+      - 'release-cutter-planner.js'
+      - 'app-stable3.html'
+      - 'tests/hlgb-live-cutter-planner-core-v9622.cjs'
+      - '.github/workflows/hlgb-cutter-planner-core-v9622.yml'
+  workflow_dispatch:
+jobs:
+  cutter-grade-core:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Sintaxe e paridade da grade com o legado
+        run: |
+          node --check hlgb-modules/producao/cortadores-grade-core-v9622.js
+          node --check release-cutter-planner.js
+          node --test tests/hlgb-live-cutter-planner-core-v9622.cjs tests/cutter-save-confirm-v9580.cjs tests/cutter-sheet-print-route-v9620.cjs tests/cutter-sheet-a4-v9540.cjs tests/cutter-sheet-materials-v9523.cjs
+          node tests/audit-cutter-planner-regression.cjs
