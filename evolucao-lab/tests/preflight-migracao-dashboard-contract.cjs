@@ -47,11 +47,12 @@ test('mesmo motor de backend: conclusão bloqueada e nenhum comando ou pagamento
  assert.match(h,/COR-EXEMPLO-01|MODELO-CAMISOLA-TESTE/);
  assert.equal(JSON.stringify(pane.fixture('documentado')),before);
 });
-test('4 cenários com resultados distintos sem se conectar ao sistema comercial',()=>{
+test('5 cenários com resultados distintos sem se conectar ao sistema comercial',()=>{
  const pane=make(),checks=[
   ['documentado',['HISTORICO_OPERACIONAL_EXISTENTE']],
   ['duplicado',['FINANCEIRO_DIVERGENTE','ACERTO_TITULO_INCONSISTENTE','TITULO_PAGO']],
   ['divergente',['GRADE_OU_CLIENTE_DIVERGENTE','FACCAO_TROCADA_SEM_PROVA','RETORNO_PARCIAL_EXCESSIVO']],
+  ['folharepetida',['FOLHA_CORTE_EXCEDIDA_POR_ENVIOS','HISTORICO_OPERACIONAL_EXISTENTE']],
   ['semprovas',['COLECAO_NAO_CONFERIDA','ENVIO_SEM_FOLHA_ID','RETORNO_SEM_ENVIO_ID']]
  ];
  for(const [scenario,codes] of checks){
@@ -82,6 +83,19 @@ test('dossiê apresenta todos os documentos pelos IDs sem fabricar correspondên
  assert.match(page,/Referências identificadas/);
  assert.match(page,/MIGRAÇÃO BLOQUEADA/);
  assert.equal(report.canExecute,false);
+});
+test('Auditor exibe bloqueio por folha de corte compartilhada e inclui no CSV',()=>{
+ const pane=make();pane.set('folharepetida');
+ const draft=pane.fixture('folharepetida');
+ const r=browser.HLGBLabMigrationPreflightV1.review(draft.legacy,draft.prepared,draft.evidence);
+ assert.equal(r.models.find(x=>x.productId==='MODELO-CAMISOLA-TESTE').cut,100);
+ assert.equal(r.models.find(x=>x.productId==='MODELO-CAMISOLA-TESTE').sent,80);
+ assert.ok(!r.findings.some(x=>x.code==='ENVIO_EXCEDE_CORTE'));
+ assert.ok(r.findings.some(x=>x.code==='FOLHA_CORTE_EXCEDIDA_POR_ENVIOS'));
+ assert.match(pane.run(),/FOLHA CORTE EXCEDIDA POR ENVIOS/);
+ pane.exportCsv();
+ assert.match(pane.getDownload().content,/FOLHA_CORTE_EXCEDIDA_POR_ENVIOS/);
+ assert.equal(r.canExecute,false);
 });
 test('dossiê exporta CSV com identidade de documentos, pendências e títulos já pagos',()=>{
  const pane=make();
