@@ -1,0 +1,28 @@
+name: HLGB Comercial - Integridade Read-only v96.21
+on:
+  pull_request:
+    paths:
+      - 'hlgb-modules/integridade/**'
+      - 'tests/hlgb-live-record-integrity-readonly-v9621.cjs'
+      - '.github/workflows/hlgb-live-integrity-readonly-v9621.yml'
+  workflow_dispatch:
+jobs:
+  integrity:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Testes de triagem sem efeitos colaterais
+        run: |
+          node --check hlgb-modules/integridade/triagem-conservadora-v9621.cjs
+          node --test tests/hlgb-live-record-integrity-readonly-v9621.cjs
+      - name: Garantir que triagem ainda não é carregada em produção
+        run: |
+          if grep -q 'triagem-conservadora-v9621' app-stable3.html; then
+            echo 'Triagem sem adaptadores não pode entrar no runtime'
+            exit 1
+          fi
