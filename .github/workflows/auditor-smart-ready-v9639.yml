@@ -1,0 +1,35 @@
+name: HLGB Auditor - Smart readiness v96.39
+on:
+  pull_request:
+    paths:
+      - 'release-auditor-smart-v9360.js'
+      - 'tests/auditor-smart-ready-v9639*'
+      - '.github/workflows/auditor-smart-ready-v9639.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  pure:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - run: node tests/auditor-smart-ready-v9639.cjs
+  browser:
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        browser: [chromium, webkit]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - run: npm install --no-save playwright@1.55.0 && npx playwright install --with-deps ${{ matrix.browser }}
+      - run: |
+          python3 -m http.server 4173 >/tmp/auditor-ready.log 2>&1 &
+          sleep 2
+      - env:
+          HLGB_BROWSER: ${{ matrix.browser }}
+        run: node tests/auditor-smart-ready-v9639-browser.cjs

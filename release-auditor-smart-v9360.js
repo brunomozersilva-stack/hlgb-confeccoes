@@ -153,8 +153,8 @@ function historyHtml(){const a=hist().slice(0,20);if(!a.length)return '<div clas
 function toggleHistory(){const b=document.getElementById('hlgbSmartHistory');if(!b)return;b.style.display=b.style.display==='none'?'block':'none';b.innerHTML=historyHtml();enforceSimpleUi()}
 function openSmart(){const body='<div class="sub">Auditoria automática e somente de leitura. Menos botões, mais diagnóstico por trás.</div><div class="panel" id="hlgbSmartStatus" style="margin-top:12px">'+status()+'</div><div class="hlgb-auditor-actions" style="display:flex;gap:8px;flex-wrap:wrap;margin:12px 0"><button id="hlgbSmartTest" class="primary" type="button" onclick="hlgbAuditorSmartRun()">🧪 Testar sistema</button><button id="hlgbSmartProblem" class="secondary" type="button" onclick="hlgbAuditorSmartProblem()">🛠️ Registrar problema</button><button id="hlgbSmartHistoryBtn" class="secondary" type="button" onclick="hlgbAuditorSmartHistory()">🕘 Histórico</button></div><div id="hlgbAuditorResult"></div><div id="hlgbSmartHistory" style="display:none"></div><button type="button" class="secondary modalSave">Fechar</button>';if(typeof openModal==='function'){openModal('Auditor HLGB',body,()=>closeModal());enforceSimpleUi();queueMicrotask(enforceSimpleUi);setTimeout(enforceSimpleUi,50);setTimeout(enforceSimpleUi,300)}}
 async function daily(){try{const k=DAILY+user().toLowerCase(),d=today();if(localStorage.getItem(k)===d)return;push('daily-scheduled');await new Promise(r=>setTimeout(r,1800));const row=await run('first-access-daily');if(row)localStorage.setItem(k,d)}catch(e){push('daily-error',{message:String(e?.message||e)})}}
+// Publish the API synchronously; dependent scripts execute during parsing.
 function boot(){
- installPassiveObservers();
  window.addEventListener('error',e=>push('js-error',{message:e?.message||'Erro JavaScript'}),true);
  window.addEventListener('unhandledrejection',e=>push('promise-error',{message:e?.reason?.message||String(e?.reason||'Promise rejeitada')}),true);
  document.addEventListener('click',e=>{const t=e.target?.closest?.('button,a,[role="button"]');if(t)push('ui-action',{text:String(t.textContent||'').trim().replace(/\s+/g,' ').slice(0,100),id:t.id||''})},true);
@@ -162,8 +162,12 @@ function boot(){
  window.hlgbAuditorSmartRun=async()=>{const out=document.getElementById('hlgbAuditorResult');if(out)out.innerHTML='<div class="panel"><b>Executando auditoria completa…</b><div class="sub">Nenhum dado operacional será alterado.</div></div>';try{const row=await run('manual');if(out)out.innerHTML='<div class="panel">'+status()+'</div>';const s=document.getElementById('hlgbSmartStatus');if(s)s.innerHTML=status();enforceSimpleUi();return row}catch(e){if(out)out.innerHTML='<div class="panel"><b>Falha no teste.</b><div class="sub">'+esc(e?.message||e)+'</div></div>'}};
  window.hlgbAuditorSmartProblem=problem;window.hlgbAuditorSmartHistory=toggleHistory;
  window.hlgbAuditorSmart={version:V,run,runBackgroundAudit,problem,hist,push,currentMetrics,regression,intervalProfile,classifyProblem,enforceSimpleUi,domStats,longTasks};
+}
+function startObserversAndDaily(){
+ installPassiveObservers();
  try{if(typeof hlgbAfterLogin==='function')hlgbAfterLogin(()=>setTimeout(()=>{installPassiveObservers();daily()},1400),0);else setTimeout(daily,3000)}catch(e){setTimeout(daily,3000)}
  console.info('[HLGB] Auditor simplificado v'+V+' ativo');
 }
-if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',boot,{once:true});else boot();
+boot();
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',startObserversAndDaily,{once:true});else startObserversAndDaily();
 })();
