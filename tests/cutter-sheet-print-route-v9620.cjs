@@ -42,11 +42,13 @@ test('guarda não sobrescreve implementação completa já instalada',()=>{
  assert.equal(api.ensurePrintRoute9523(),true);
  assert.equal(x.ctx.printCuttingSheet,replacement);
 });
-test('não cria função de impressão se rota estiver ausente',()=>{
+test('instala função da folha completa mesmo quando a rota antiga estiver ausente',()=>{
  const x=setup(),api=x.ctx.hlgbCutterSheetV9523;
  x.ctx.printCuttingSheet=null;
- assert.equal(api.ensurePrintRoute9523(),false);
- assert.equal(x.ctx.printCuttingSheet,null);
+ assert.equal(api.ensurePrintRoute9523(),true);
+ assert.equal(typeof x.ctx.printCuttingSheet,'function');
+ assert.equal(x.ctx.printCuttingSheet(7,8),true);
+ assert.match(x.html,/FOLHA DE GRADE DO CORTADOR/);
 });
 test('revisão agendada acontece após carregamento e login',()=>{
  const x=setup();const ms=x.scheduled.map(x=>x.ms);
