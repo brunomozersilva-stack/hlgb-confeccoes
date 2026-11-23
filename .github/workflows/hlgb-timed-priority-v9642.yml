@@ -1,0 +1,30 @@
+name: HLGB Comercial - Medicao dos testes prioritarios v96.42
+on:
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  measure:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+        with: {fetch-depth: 0}
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - name: Compute impact and measure allowlisted regression tests
+        env:
+          BASE: ${{ github.event.pull_request.base.sha || github.sha }}
+          HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          mkdir -p timing-artifact
+          node hlgb-modules/engenharia/preventive-cli-v9637.cjs "$BASE" "$HEAD" > timing-artifact/impact.json
+          node hlgb-modules/engenharia/timed-priority-v9642.cjs timing-artifact/impact.json baseline > timing-artifact/baseline.json
+          node hlgb-modules/engenharia/timed-priority-v9642.cjs timing-artifact/impact.json priority > timing-artifact/priority.json
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: hlgb-test-timings-v9642
+          path: timing-artifact/
