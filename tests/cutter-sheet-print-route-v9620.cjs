@@ -44,9 +44,9 @@ test('guarda não sobrescreve implementação completa já instalada',()=>{
 });
 test('não cria função de impressão se rota estiver ausente',()=>{
  const x=setup(),api=x.ctx.hlgbCutterSheetV9523;
- delete x.ctx.printCuttingSheet;
+ x.ctx.printCuttingSheet=null;
  assert.equal(api.ensurePrintRoute9523(),false);
- assert.equal(x.ctx.printCuttingSheet,undefined);
+ assert.equal(x.ctx.printCuttingSheet,null);
 });
 test('revisão agendada acontece após carregamento e login',()=>{
  const x=setup();const ms=x.scheduled.map(x=>x.ms);
