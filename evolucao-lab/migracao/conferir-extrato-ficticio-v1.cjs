@@ -71,6 +71,7 @@ function summary(result){
   requestedCollections:result.documentCollections,
   counts:result.sourceCounts,pairedOrders:result.mappedOrders,
   unpairedOrders:result.unmapped.length,orphanDocuments:result.unattached.length,
+  historicalTombstones:result.tombstones.length,reactivatedTombstones:result.historicalRecordsReactivated,
   repeatedDocumentIds:result.batch?.conflicts.length??null,
   sourcePieces:result.batch?.totals.sourcePieces??null,
   targetPieces:result.batch?.totals.targetPieces??null,
