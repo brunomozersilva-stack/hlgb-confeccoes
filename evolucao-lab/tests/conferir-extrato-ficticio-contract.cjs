@@ -21,6 +21,8 @@ test('exemplo determinístico tem dois pedidos, sete páginas e não acessa banc
  assert.equal(report.realDatabaseCoverageProven,false);
  assert.equal(report.reconciliação,'BLOQUEADA');
  assert.equal(report.canPay,false);
+ assert.equal(report.historicalTombstones,0);
+ assert.equal(report.reactivatedTombstones,0);
  assert.deepEqual(compareReads(first,second).sameContents,true);
 });
 test('CLI --summary só apresenta contagens e bloqueios, sem dados comerciais',()=>{
@@ -31,6 +33,8 @@ test('CLI --summary só apresenta contagens e bloqueios, sem dados comerciais',(
  assert.equal(parsed.pairedOrders,2);
  assert.equal(parsed.reconciliação,'BLOQUEADA');
  assert.equal(parsed.canWrite,false);
+ assert.equal(parsed.historicalTombstones,0);
+ assert.equal(parsed.reactivatedTombstones,0);
  assert.doesNotMatch(result.stdout,/pessoa|cpf|senha|telefone/i);
 });
 test('CLI --json publica apenas massa inventada e reproduz o mesmo checksum',()=>{
