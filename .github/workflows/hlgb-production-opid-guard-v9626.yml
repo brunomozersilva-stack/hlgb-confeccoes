@@ -1,0 +1,27 @@
+name: HLGB Comercial - Producao OpId Guard v96.26
+on:
+  pull_request:
+    paths:
+      - 'release-production-reconcile-v9439.js'
+      - 'tests/hlgb-production-opid-after-confirm-v9626.cjs'
+      - '.github/workflows/hlgb-production-opid-guard-v9626.yml'
+  workflow_dispatch:
+jobs:
+  production-opid:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Confirmar que segundo opId nunca herda prova da primeira operação
+        run: |
+          node --check release-production-reconcile-v9439.js
+          node --test tests/hlgb-production-opid-after-confirm-v9626.cjs
+          node tests/production-reconcile-v9450-runtime.js
+          node tests/production-wal-opid-stability-v9484.cjs
+          node tests/production-residual-opid-race-v9484.cjs
+          node tests/audit-production-reconcile-regression.cjs
+          node tests/production-reconcile-cold-login-v9459.cjs
