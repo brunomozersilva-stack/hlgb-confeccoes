@@ -423,7 +423,19 @@ function wrapped(orderId,cutId){
  }catch(e){console.warn('[HLGB '+V+']',e);alert(sid(e.message||e));return false}
 }
 wrapped.__hlgbCutterSheetV9523=true;
-if(!legacy?.__hlgbCutterSheetV9523)window.printCuttingSheet=wrapped;
-window.hlgbCutterSheetV9523={gradeOf,planMaterials,gradeMatrix,renderSheet,printSheet,sheetsForOrder,renderOrderSheets,printOrderSheets,previewOnPage9523,original:legacy,version:V};
+// O monólito e extensões carregam em etapas. Se um script posterior repuser
+// a impressão antiga, recolocar apenas o roteamento da folha completa.
+// Esta guarda não altera pedidos, corte, impressão em si nem a WAL.
+function ensurePrintRoute9523(){
+ if(window.printCuttingSheet===wrapped)return true;
+ if(window.printCuttingSheet?.__hlgbCutterSheetV9523)return true;
+ window.printCuttingSheet=wrapped;
+ return true;
+}
+ensurePrintRoute9523();
+try{if(typeof hlgbAfterLogin==='function')hlgbAfterLogin(()=>ensurePrintRoute9523(),0)}catch(_){}
+setTimeout(ensurePrintRoute9523,2500);
+setTimeout(ensurePrintRoute9523,6500);
+window.hlgbCutterSheetV9523={gradeOf,planMaterials,gradeMatrix,renderSheet,printSheet,sheetsForOrder,renderOrderSheets,printOrderSheets,previewOnPage9523,ensurePrintRoute9523,original:legacy,version:V};
 console.info('[HLGB] '+V+' folha com ficha técnica e preenchimento manual ativa');
 })();
