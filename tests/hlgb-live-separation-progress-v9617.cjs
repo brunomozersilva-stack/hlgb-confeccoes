@@ -96,18 +96,19 @@ test('ids simples/legados com prefixo, quantidades negativas e inválidas conser
  }
  assert.equal(n,120);
 });
-test('161 scripts e ordem preservada: três núcleos opcionais antes de consumidores legados',()=>{
+test('162 scripts e ordem preservada: quatro núcleos opcionais antes de consumidores legados',()=>{
  const loader=fs.readFileSync(path.join(root,'app-stable3.html'),'utf8');
  const list=loader.match(/const files=\[([\s\S]*?)\];\/\* A base/);
  assert.ok(list,'must scan the real production loader');
  const files=[...list[1].matchAll(/'([^']+\.js)'/g)].map(x=>x[1]);
  const addon='hlgb-modules/producao/separacao-progresso-v9617.js';
- assert.equal(files.length,161);
+ assert.equal(files.length,162);
  assert.equal(manifest.preExtractionScripts.length,158);
  assert.deepEqual(files.filter(x=>!manifest.approvedNewScripts.includes(x)),manifest.preExtractionScripts);
- assert.deepEqual(manifest.approvedNewScripts,[addon,'hlgb-modules/producao/corte-alvo-v9618.js','hlgb-modules/producao/cortadores-grade-core-v9622.js']);
+ assert.deepEqual(manifest.approvedNewScripts,[addon,'hlgb-modules/producao/corte-alvo-v9618.js','hlgb-modules/producao/cortadores-grade-core-v9622.js','hlgb-modules/producao/corte-pesagem-core-v9623.js']);
+ assert.equal(files.indexOf('hlgb-modules/producao/corte-pesagem-core-v9623.js')+1,files.indexOf('release-cut-weight-v9579.js'));
  assert.deepEqual(files,manifest.releaseScripts);
- assert.equal(new Set(files).size,161);
+ assert.equal(new Set(files).size,162);
  assert.equal(files.indexOf('hlgb-modules/producao/cortadores-grade-core-v9622.js')+1,files.indexOf('release-cutter-planner.js'));
  assert.equal(files.indexOf(addon)+1,files.indexOf('release-separation-commit-v9319.js'));
  assert.equal(loader.includes('const moduleGroups='),false,'never reactivate risky loading groups');
