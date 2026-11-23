@@ -133,6 +133,42 @@ test('duas leituras do mesmo snapshot só comprovam igualdade do conteúdo receb
  assert.equal(different.sameContents,false);
  assert.equal(different.canWrite,false);
 });
+test('pedido antigo excluído não é reativado na prévia nem some da auditoria',()=>{
+ const s=sample(),p=page(s,'legacyOrders',2);
+ p.records[0].deletedAt='2026-10-01T10:00:00Z';resign(p);
+ const r=inspectExtract(s);
+ assert.equal(r.sourceCounts.legacyOrders,2,'contagem documental preservada');
+ assert.equal(r.mappedOrders,1,'apenas pedido não excluído em operação');
+ assert.equal(r.tombstones.length,1);
+ assert.equal(r.tombstones[0].collection,'legacyOrders');
+ assert.equal(r.tombstones[0].recordId,'LEG-002');
+ assert.equal(r.tombstones[0].restoredAsActive,false);
+ assert.equal(r.historicalRecordsReactivated,0);
+ assert.equal(r.unmapped[0].kind,'PREPARADO_SEM_ORIGEM');
+ assert.ok(r.findings.some(x=>x.code==='TOMBSTONES_PRESERVADOS_SEM_REATIVACAO'));
+ assert.equal(r.canWrite,false);
+});
+test('acerto e pagamento excluídos ficam apenas no inventário histórico',()=>{
+ const s=sample(),sett=page(s,'settlements'),fin=page(s,'finance');
+ sett.records[0].isDeleted=true;fin.records[0].deleted=true;
+ resign(sett);resign(fin);
+ const r=inspectExtract(s);
+ assert.equal(r.tombstones.length,2);
+ assert.equal(r.sourceCounts.settlements,2);
+ assert.equal(r.sourceCounts.finance,2);
+ assert.equal(r.batch.totals.documents,8,'documentos excluídos não entram em operações ativas');
+ assert.deepEqual(r.tombstones.map(x=>x.collection),['settlements','finance']);
+ assert.equal(r.historicalRecordsReactivated,0);
+ assert.equal(r.canPay,false);
+});
+test('marcadores de exclusão com tipo inesperado são rejeitados sem presumir ativo',()=>{
+ const s=sample(),p=page(s,'legacyOrders',1);
+ p.records[0].deletedAt=123456;resign(p);
+ assert.throws(()=>inspectExtract(s),/data de exclusão inválida/);
+ const t=sample(),q=page(t,'finance');
+ q.records[0].isDeleted='false';resign(q);
+ assert.throws(()=>inspectExtract(t),/marcador de exclusão inválido/);
+});
 test('não há consultas ou mutações de banco, e o adaptador é determinístico',()=>{
  const s=sample(),a=inspectExtract(s);
  const reverse=structuredClone(s);reverse.pages.reverse();
