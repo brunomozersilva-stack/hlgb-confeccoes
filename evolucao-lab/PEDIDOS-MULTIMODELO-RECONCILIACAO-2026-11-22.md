@@ -143,3 +143,21 @@ Não criar um segundo fluxo comercial de Pedidos nem trocar o modelo de dados em
 4. Aprovar por tarefa de operador (Pedidos, Corte, Facções, Acertos, Folha, Financeiro) e reversão garantida; somente então avaliar integração efetiva.
 
 **Nenhum merge para \`main\`, nenhuma gravação em estoque, pedidos ou financeiro comercial nesta etapa.**
+
+## Etapa 23/11 — adaptador paginado de homologação fictícia
+
+**Implementado somente na branch de laboratório, sem leitura de banco empresarial.**
+
+- `migracao/adaptador-extrato-homologacao-v1.cjs`: recebe extrato paginado normalizado fornecido em memória/JSON. Exige seis coleções (`legacyOrders`, `preparedOrders`, `cuts`, `allocations`, `settlements`, `finance`), manifesto com número de páginas/registros, ID de snapshot, revisão única e checksum SHA-256 para cada página.
+- A leitura **rejeita** páginas ausentes, repetidas ou alteradas, revisões misturadas, IDs duplicados, versões desconhecidas e tentativas de identificar pedidos preparados sem `sourceOrderId` explícito.
+- Documentos sem `orderId` ou com pedido não encontrado são registrados em `unattached`, sem descarte. Pedidos sem correspondente são registrados em `unmapped`. O dossiê por pedido só é calculado para pares explicitamente localizados; problemas estruturais falham de modo fechado.
+- `compareReads(a,b)` compara digests de dois extratos da mesma revisão e aponta deriva de dados. **Não** prova que a leitura veio de dois computadores reais nem que a base comercial foi integralmente exportada.
+- `migracao/conferir-extrato-ficticio-v1.cjs`: comando offline reproduzível que gera massa inventada (dois pedidos), imprime resumo, confere arquivo local fictício ou compara dois arquivos. Não faz upload, conexão remota, importação nem escrita no ERP.
+- `migracao/CONTRATO-EXTRATO-HOMOLOGACAO-v1.md`: esquema de páginas e manifesto, limites, instruções de ensaio e pré-requisitos para uma futura conexão real.
+- `tests/adaptador-extrato-homologacao-contract.cjs`: 8 testes de verificação de conteúdo, páginas, revisões, pares, documentos órfãos e estabilidade de duas leituras. `tests/conferir-extrato-ficticio-contract.cjs`: 5 testes adicionais do comando, do exemplo e dos bloqueios.
+- Os arquivos e testes foram adicionados à esteira `evolucao-operacao-integrada.yml`. A validação isolada em JavaScript passou os 8 cenários do adaptador; **não substituir o resultado oficial de Node/CI** por essa verificação.
+- Todas as saídas permanecem `canWrite:false`, `canPay:false`, `canChangeStock:false`, `importable:false` e `realDatabaseCoverageProven:false`.
+
+### Bloqueios intocados
+
+Nenhum vínculo foi estabelecido com banco de produção, homologação remota, Supabase ou sistema no ar. A implementação **não é** a extração comercial propriamente dita e **não está pronta para migração real**. Ainda precisa verificar o esquema atual e todas as funções comerciais, os IDs de pagamentos/compensações/arquivos históricos, versão da base e concorrência, a origem dos dados de servidor, restauração de backup, autorização de acesso somente leitura, prova em duas sessões e aceite por operador. Não foi realizado merge em `main`.
