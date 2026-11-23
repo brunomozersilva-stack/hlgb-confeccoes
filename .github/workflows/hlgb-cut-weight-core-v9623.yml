@@ -1,0 +1,29 @@
+name: HLGB Comercial - Corte Pesagem Core v96.23
+on:
+  pull_request:
+    paths:
+      - 'hlgb-modules/producao/corte-pesagem-core-v9623.js'
+      - 'release-cut-weight-v9579.js'
+      - 'app-stable3.html'
+      - 'hlgb-modules/ownership-v9600.json'
+      - 'tests/hlgb-live-cut-weight-core-v9623.cjs'
+      - 'tests/hlgb-live-*'
+      - '.github/workflows/hlgb-cut-weight-core-v9623.yml'
+  workflow_dispatch:
+jobs:
+  weight-core:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Validar core e integração legada sem mutar registros
+        run: |
+          node --check hlgb-modules/producao/corte-pesagem-core-v9623.js
+          node --check release-cut-weight-v9579.js
+          node --test tests/hlgb-live-cut-weight-core-v9623.cjs tests/hlgb-live-monolith-inventory-v9601b.cjs tests/hlgb-live-separation-cut-target-v9618.cjs tests/hlgb-live-separation-progress-v9617.cjs tests/hlgb-live-label-layout-v9602b.cjs
+          node tests/cut-weight-after-finish-v9579.cjs
+          node tests/audit-cutter-planner-regression.cjs
