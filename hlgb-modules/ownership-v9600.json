@@ -14,6 +14,7 @@
     "release-limits.js",
     "release-cut-organization.js",
     "release-cut-material-usage.js",
+    "hlgb-modules/producao/corte-pesagem-core-v9623.js",
     "release-cut-weight-v9579.js",
     "release-cut-model-split.js",
     "release-cut-model-grade-adjust.js",
@@ -209,6 +210,7 @@
     "corte-cortadores": [
       "release-cut-organization.js",
       "release-cut-material-usage.js",
+      "hlgb-modules/producao/corte-pesagem-core-v9623.js",
       "release-cut-weight-v9579.js",
       "release-cut-model-split.js",
       "release-cut-model-grade-adjust.js",
@@ -357,7 +359,7 @@
       "release-ui-actions-v9402.js"
     ]
   },
-  "notes": "HLGB Comercial: 161 scripts após #291; 158 originais + 3 núcleos puros opcionais, na ordem histórica. Cortadores mantém lógica antiga como fallback. Sem intervenção na WAL, pagamentos, Supabase ou registros.",
+  "notes": "HLGB Comercial: 162 scripts: 158 da base + 4 núcleos opcionais. Loader preserva ordem antiga. Nova extração pura da validação de pesagem conserva função salvar e histórico e não acessa WAL/Supabase.",
   "criticalFileBlobs": {
     "app9240.html": "d0a6e49bc7bcd363c853092c350e3cf9a2b030c5",
     "release-cutter-planner.js": "a56f2c79df19ebb1cd86544a13976a97538d6a4e",
@@ -535,7 +537,8 @@
   "approvedNewScripts": [
     "hlgb-modules/producao/separacao-progresso-v9617.js",
     "hlgb-modules/producao/corte-alvo-v9618.js",
-    "hlgb-modules/producao/cortadores-grade-core-v9622.js"
+    "hlgb-modules/producao/cortadores-grade-core-v9622.js",
+    "hlgb-modules/producao/corte-pesagem-core-v9623.js"
   ],
   "extractionChanges": {
     "release-separation-commit-v9319.js": {
@@ -558,6 +561,13 @@
       "core": "hlgb-modules/producao/cortadores-grade-core-v9622.js",
       "coreBlob": "6ef7cabd24246a12d52c962fa5087b1ea3e28cd7",
       "scope": "somente IDs, grade, totais e verificação de finalização por modelo; fallback literal mantém salvamento e impressão"
+    },
+    "release-cut-weight-v9579.js": {
+      "before": "091be2c3f15f8ccbe5175c284c90189b6c45513f",
+      "after": "ff107850c5d47e7c8fc416bc16c2514a07455328",
+      "core": "hlgb-modules/producao/corte-pesagem-core-v9623.js",
+      "coreBlob": "8145198f244260a4e8dbb45c590119f8b00b21b0",
+      "scope": "Somente validação pura de peso e métricas read-only: sem mudanças em salvar, ACK, WAL, grade ou histórico; fallback literal"
     }
   }
 }
