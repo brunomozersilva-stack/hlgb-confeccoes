@@ -94,6 +94,20 @@
   button('Exportar rascunho da política (JSON)',host,()=>{try{const x=preview();if(!active())return;const url=URL.createObjectURL(new Blob([JSON.stringify({...x,format:'hlgb-remnant-policy-draft-v1',uploaded:false},null,2)],{type:'application/json'}));const a=document.createElement('a');a.href=url;a.download='politica-sobra-'+source.value.replace(/[^a-z0-9_-]/gi,'_')+'.json';document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),15000);result.replaceChildren();el('p','Arquivo local gerado. Não foi salvo no cadastro.',result)}catch(_){result.replaceChildren();el('p','Não foi possível exportar. Confira o rascunho.',result)}});
   sourceOptions();
  }
- function refresh(){mountCut();mountRemnants()}
+ function mountCutShortcut(){
+  const area=document.getElementById('corte'),id='hlgbJointCutShortcut9673',actor=user();let bar=document.getElementById(id);
+  if(!actor||!can('corte')||!area?.classList.contains('active')){bar?.remove();return}
+  if(bar&&bar.dataset.planningActor!==actor){bar.remove();bar=null}
+  if(!bar){
+   bar=el('div','',area);bar.id=id;bar.className='panel';bar.dataset.planning9661='1';bar.dataset.planningActor=actor;
+   const top=document.getElementById('cutSummaryCards');if(top?.parentNode===area)area.insertBefore(bar,top);else if(area.firstChild!==bar)area.insertBefore(bar,area.firstChild);
+   button('Corte Conjunto',bar,()=>{if(!bar.isConnected||!area.classList.contains('active')||user()!==actor||!cutAllowed())return;mountCut();const target=document.getElementById('hlgbJointCut9661');if(!target||target.dataset.planningActor!==actor)return;target.setAttribute('tabindex','-1');target.focus?.({preventScroll:true});target.scrollIntoView?.({block:'start',behavior:'auto'})});
+   el('p','',bar);
+  }
+  const allowed=cutAllowed(),target=document.getElementById('hlgbJointCut9661'),ready=allowed&&!!target&&target.dataset.planningActor===actor;
+  const note=allowed?(ready?'Selecione pedidos e modelos que compartilham matéria-prima.':'Planejamento ainda indisponível. Confira o carregamento dos módulos.'):'O planejamento requer acesso a Corte, Pedidos, Produtos, Materiais e Produção.';
+  bar.children[0].disabled=!ready;if(bar.children[1].textContent!==note)bar.children[1].textContent=note;
+ }
+ function refresh(){mountCut();mountRemnants();mountCutShortcut()}
  document.addEventListener('click',()=>setTimeout(refresh,0),true);document.addEventListener('visibilitychange',()=>{clear();if(!document.hidden)refresh()});root.addEventListener?.('hlgb:logout',clear);root.addEventListener?.('hlgb:authenticated',()=>{clear();refresh()});setTimeout(refresh,1000);
 })(typeof window!=='undefined'?window:null);

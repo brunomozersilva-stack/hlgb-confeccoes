@@ -7,6 +7,10 @@ function fixture(){
   get textContent(){return this._text+this.children.map(x=>x.textContent).join('')}
   get isConnected(){return this===body||!!this.parentNode?.isConnected}
   appendChild(x){x.parentNode=this;this.children.push(x);return x}
+  get firstChild(){return this.children[0]||null}
+  insertBefore(x,ref){if(x.parentNode)x.remove();const i=ref?this.children.indexOf(ref):this.children.length;if(i<0)throw Error('invalid reference');x.parentNode=this;this.children.splice(i,0,x);return x}
+  focus(){this.focused=true}
+  scrollIntoView(){this.scrolled=true}
   replaceChildren(...items){for(const x of this.children)x.parentNode=null;this.children=[];this._text='';for(const x of items)this.appendChild(x)}
   remove(){if(this.parentNode){const p=this.parentNode;p.children=p.children.filter(x=>x!==this);this.parentNode=null}}
   setAttribute(k,v){this.attributes[k]=String(v)}
@@ -25,10 +29,10 @@ function fixture(){
  const ctx={window:win,document,db:data,canOpenPage:p=>permission[p]===true,currentUser:()=>({id:userId}),setTimeout:f=>{f();return 0},confirm:()=>confirmAnswer,page:p=>{nav=p},console};
  vm.runInNewContext(fs.readFileSync('hlgb-modules/producao/production-planning-view-v9661.js','utf8'),ctx);
  const host=()=>byId('hlgbJointCut9661'),find=(r,t)=>walk(r).filter(x=>x.tagName==='button'&&x.textContent===t),click=(r,t,i=0)=>{const e=find(r,t)[i];assert.ok(e,t);e.fire('click')},search=v=>{const e=walk(host()).find(x=>x.tagName==='input'&&x.type==='search');e.value=v;e.fire('input')};
- return {host,data,permission,win,find,click,search,counts:()=>({writes,selected,nav}),confirm:v=>{confirmAnswer=v},user:v=>{userId=v},fire:(events,k)=>{for(const f of events[k]||[])f()},docEvents,winEvents};
+ return {host,cut,shortcut:()=>byId('hlgbJointCutShortcut9673'),data,permission,win,find,click,search,counts:()=>({writes,selected,nav}),confirm:v=>{confirmAnswer=v},user:v=>{userId=v},fire:(events,k)=>{for(const f of events[k]||[])f()},docEvents,winEvents};
 }
 const f=fixture(),before=JSON.stringify(f.data);
-assert.ok(f.host());assert.equal(f.find(f.host(),'Selecionar todos deste grupo').length,2);
+assert.ok(f.host());assert.equal(f.cut.children[0],f.shortcut());f.click(f.shortcut(),'Corte Conjunto');assert.equal(f.host().focused,true);assert.equal(f.host().scrolled,true);f.permission.materiais=false;f.fire(f.docEvents,'click');assert.equal(f.host(),null);assert.equal(f.find(f.shortcut(),'Corte Conjunto')[0].disabled,true);assert.match(f.shortcut().textContent,/requer acesso/);f.permission.materiais=true;f.fire(f.docEvents,'click');assert.ok(f.host());assert.equal(f.find(f.shortcut(),'Corte Conjunto')[0].disabled,false);assert.equal(f.find(f.host(),'Selecionar todos deste grupo').length,2);
 f.click(f.host(),'Selecionar todos deste grupo',0);assert.match(f.host().textContent,/70 peças únicas na cesta · 2 modelos/);
 f.click(f.host(),'Selecionar todos deste grupo',1);assert.match(f.host().textContent,/70 peças únicas na cesta · 2 modelos/);assert.match(f.host().textContent,/Malha · cor da ficha não informada · 18 kg/);assert.match(f.host().textContent,/Renda · cor da ficha não informada · 11 m/);
 f.search('sem correspondência');assert.match(f.host().textContent,/70 peças únicas na cesta · 2 modelos/);assert.equal(f.find(f.host(),'Selecionar todos deste grupo').length,0);
@@ -39,5 +43,5 @@ f.permission.compras=false;f.click(f.host(),transfer);assert.equal(f.counts().wr
 f.permission.compras=true;f.search('');f.confirm(true);f.click(f.host(),transfer);assert.equal(f.counts().writes,1);assert.deepEqual(f.counts().selected.map(x=>[x.productId,x.pieces]).sort(),[['10',30],['11',40]]);assert.equal(f.counts().nav,'compras');assert.equal(JSON.stringify(f.data),before);
 f.data.orders[0].grade[0].qty=31;f.search('');assert.match(f.host().textContent,/seleção alterada ou ambígua/);assert.equal(f.find(f.host(),transfer).length,0);
 f.click(f.host(),'Limpar toda a cesta');assert.match(f.host().textContent,/0 combinações pedido\/modelo/);f.click(f.host(),'Selecionar todos deste grupo');assert.match(f.host().textContent,/71 peças únicas/);
-f.user('other');f.fire(f.docEvents,'click');assert.match(f.host().textContent,/0 combinações pedido\/modelo/);f.permission.corte=false;f.fire(f.docEvents,'click');assert.equal(f.host(),null);
+f.user('other');f.fire(f.docEvents,'click');assert.match(f.host().textContent,/0 combinações pedido\/modelo/);f.permission.corte=false;f.fire(f.docEvents,'click');assert.equal(f.host(),null);assert.equal(f.shortcut(),null);
 console.log('PASS unique basket, filter, material totals, explicit purchase handoff, permission, stale selection and session');
