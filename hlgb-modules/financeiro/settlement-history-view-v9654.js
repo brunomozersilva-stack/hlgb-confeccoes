@@ -2,12 +2,13 @@
 (function(root,api){if(typeof module==='object'&&module.exports){module.exports=api;return}if(!root||root.HLGBSettlementHistoryView9654)return;root.HLGBSettlementHistoryView9654=api;
 const can=p=>{try{return typeof canOpenPage==='function'&&canOpenPage(p)===true}catch(_){return false}};
 const auth=()=>root.__HLGB_AUTH_READY===true;
-const deps={auth,can,rows:k=>{try{const d=typeof db!=='undefined'?db:root.db;return Array.isArray(d?.[k])?d[k]:null}catch(_){return null}},manualGroups:()=>root.hlgbFactionManual9566?.receiptGroups?.()??null,notes:()=>root.hlgbNotesReceivables9564?.allNotes?.()??null,inspect:(ctx,filter)=>root.HLGBSettlementHistory9653.inspect(ctx,filter)};
+const deps={auth,can,rows:k=>{try{const d=typeof db!=='undefined'?db:root.db;return Array.isArray(d?.[k])?d[k]:null}catch(_){return null}},manualGroups:()=>root.hlgbFactionManual9566?.receiptGroups?.()??null,notes:()=>root.hlgbNotesReceivables9564?.allNotes?.()??null,noteSources:()=>{if(!scopeOK('cliente')||typeof root.hlgbCanonicalProjectionInvoices!=='function')return null;const projections=root.hlgbCanonicalProjectionInvoices();if(!scopeOK('cliente')||!Array.isArray(projections))return null;const orders=typeof db!=='undefined'?db?.orders:root.db?.orders;if(!scopeOK('cliente')||!Array.isArray(orders))return null;return [...projections.filter(x=>x&&x.id!=null).map(record=>({key:'projection:'+String(record.id),record})),...orders.filter(x=>x&&x.id!=null).map(record=>({key:'order:'+String(record.id),record}))]},inspect:(ctx,filter)=>root.HLGBSettlementHistory9653.inspect(ctx,filter),inspectEvents:(ctx,filter)=>root.HLGBSettlementHistory9653.noteEvents(ctx,filter)};
 const areas={faccao:'pagamentosFaccoes',cliente:'notas',funcionario:'folhaPagamento'};
 const money=c=>c==null?'Não confirmado':(c/100).toLocaleString('pt-BR',{style:'currency',currency:'BRL'});
 const el=(tag,t,parent)=>{const e=document.createElement(tag);e.textContent=t;parent.appendChild(e);return e};
 const prefix='hlgb-settlement-history-9654-';
 const actor=()=>{try{return String(typeof cloudUser!=='undefined'?cloudUser?.id||'':typeof currentUser==='function'?currentUser()?.id||'':'')}catch(_){return ''}};
+const eventLabels={'payment-recorded':'Recebimento registrado','material-offset':'Abatimento de matéria-prima','return-active':'Devolução ativa','return-reversed':'Devolução estornada (valor de referência)'};
 const dateLabels={payment:'Pagamento registrado',scheduled:'Programação',service:'Serviço',record:'Registro',issue:'Emissão (não recebimento)',mixed:'Datas de naturezas diferentes'};
 const scopeOK=kind=>auth()&&!!actor()&&api.scopes[kind].every(can);
 function clear(){for(const e of document.querySelectorAll('[data-hlgb-history-view9654]'))e.remove()}
@@ -23,18 +24,19 @@ function install(){
   const controls=el('div','',host);controls.className='toolbar';controls.style.cssText='display:flex;flex-wrap:wrap;gap:8px;min-width:0';
   const field=(label,tag,type)=>{const wrap=el('label',label,controls);wrap.style.cssText='display:flex;flex-direction:column;min-width:0;max-width:100%';const e=el(tag,'',wrap);if(type)e.type=type;e.style.cssText='min-width:0;max-width:100%;box-sizing:border-box';return e};
   const q=field('Pessoa, modelo ou identificação','input','search'),from=field('De','input','date'),to=field('Até','input','date');
-  const owner=field('Pessoa cadastrada','select'),status=field('Situação do acerto','select'),mode=field('Visualização do histórico','select');
+  const owner=field('Pessoa cadastrada','select'),status=field('Situação do acerto','select'),mode=field('Visualização do histórico','select'),eventType=kind==='cliente'?field('Tipo de evento','select'):null;
   const options=(input,rows)=>{const prior=input.value;input.replaceChildren();for(const [v,t] of rows){const o=el('option',t,input);o.value=v}input.value=rows.some(r=>r[0]===prior)?prior:rows[0][0]};
   options(owner,[['','Todas']]);options(status,[['all','Todos'],['open','Em aberto'],['paid','Liquidados sem crédito'],['compensated','Liquidados com crédito'],['review','A revisar']]);
-  options(mode,[['groups','Resumo por pessoa e data'],['owners','Total por pessoa no período'],['rows','Acerto individual']]);
+  options(mode,[['groups','Resumo por pessoa e data'],['owners','Total por pessoa no período'],['rows','Acerto individual'],...(kind==='cliente'?[['events','Recebimentos e devoluções por data']]:[])]);if(eventType){options(eventType,[['all','Todos os eventos'],...Object.entries(eventLabels)]);eventType.disabled=true;}
   const button=(label,parent,fn)=>{const b=el('button',label,parent);b.type='button';b.className='secondary';b.style.cssText='max-width:100%;white-space:normal';b.onclick=fn;return b};
   const output=el('div','',host);output.dataset.historyOutput='1';output.setAttribute('aria-live','polite');let offset=0;
-  const filter=()=>({query:q.value,ownerId:owner.value,from:from.value,to:to.value,status:status.value,limit:30,offset});
+  const filter=()=>({query:q.value,ownerId:owner.value,from:from.value,to:to.value,status:status.value,eventMode:kind==='cliente'&&mode.value==='events',eventType:eventType?.value||'all',limit:30,offset});
   const read=extra=>api.read(deps,kind,{...filter(),...extra});
   const format=r=>'Lançado/observado: '+money(r.totalCents)+' · Pago informado: '+money(r.paidCents)+' · Crédito: '+money(r.creditCents)+' · Saldo: '+money(r.balanceCents);
   function draw(){
    output.replaceChildren();if(!active())return;
-   const x=read();if(!active())return;if(x.state!=='local-observation'){el('p',x.state==='invalid-filter'?'Confira o período e os filtros.':'Histórico indisponível para esta sessão.',output);return}
+   const events=kind==='cliente'&&mode.value==='events';status.disabled=events;if(eventType)eventType.disabled=!events;
+   const x=read();if(!active())return;if(events&&x.state==='local-events'){drawEvents(x);return}if(x.state!=='local-observation'){el('p',x.state==='invalid-filter'?'Confira o período e os filtros.':'Histórico indisponível para esta sessão.',output);return}
    const known=[['','Todas'],...(x.owners||[]).map(r=>[r.ownerId,(r.name||'Sem nome')+' · ID '+r.ownerId])];if(owner.value&&!known.some(r=>r[0]===owner.value))known.push([owner.value,'ID '+owner.value+' (sem registro)']);options(owner,known);
    const key=mode.value,rows=key==='groups'?x.groups:key==='owners'?x.ownerGroups:x.rows,total=key==='groups'?x.groupTotal:key==='owners'?x.ownerTotal:x.total;
    if(offset>=total&&offset>0){offset=Math.max(0,Math.floor((total-1)/30)*30);return draw()}
@@ -53,11 +55,22 @@ function install(){
    if(offset)button('Anterior',output,()=>{offset=Math.max(0,offset-30);draw()});
    if(offset+30<total)button('Próximo',output,()=>{offset+=30;draw()});
   }
+  function drawEvents(x){
+   const known=[['','Todas'],...(x.owners||[]).map(r=>[r.ownerId,(r.name||'Sem nome')+' · ID '+r.ownerId])];if(owner.value&&!known.some(r=>r[0]===owner.value))known.push([owner.value,'ID '+owner.value+' (sem registro)']);options(owner,known);
+   if(offset>=x.eventTotal&&offset>0){offset=Math.max(0,Math.floor((x.eventTotal-1)/30)*30);return draw()}
+   el('h4','Eventos por data registrada — '+x.eventTotal+' encontrados',output);
+   el('p','Recebimentos registrados '+money(x.totals.paymentRecordedCents)+' · Abatimentos de matéria-prima '+money(x.totals.materialOffsetCents),output);
+   el('p','Devoluções ainda ativas '+money(x.totals.activeReturnCents)+' · Devoluções estornadas (referência) '+money(x.totals.reversedReturnReferenceCents),output);
+   el('p','Valores separados: abatimentos não são entrada de caixa; devolução estornada não reduz o saldo atual. O histórico exclui notas cuja soma não confere.',output);
+   for(const r of x.events){const item=el('article','',output);item.className='panel';el('h4',r.name+' · '+r.date+' · Nota '+r.noteNumber,item);el('p',eventLabels[r.type]+' · '+money(r.amountCents),item);if(r.method)el('p','Forma registrada: '+r.method,item);if(r.description)el('p',r.description,item);if(r.reversedAt)el('p','Estorno registrado em '+r.reversedAt+' (a data do filtro é a devolução original)',item);el('p','Referência '+r.noteKey+' · '+r.id,item)}
+   if(x.issues.length)el('p',x.issues.length+' nota(s) ou ocorrências a revisar na origem; o histórico é parcial.',output);
+   if(offset)button('Anterior',output,()=>{offset=Math.max(0,offset-30);draw()});if(offset+30<x.eventTotal)button('Próximo',output,()=>{offset+=30;draw()});
+  }
   button('Consultar histórico',controls,()=>{offset=0;draw()});
-  for(const input of [owner,status,mode,from,to])input.onchange=()=>{offset=0;draw()};q.addEventListener('change',()=>{offset=0;draw()});
+  for(const input of [owner,status,mode,from,to,eventType].filter(Boolean))input.onchange=()=>{offset=0;draw()};q.addEventListener('change',()=>{offset=0;draw()});
   button('Exportar histórico filtrado (CSV)',controls,()=>{
    if(!active())return;const x=read({export:true,offset:0});if(!active())return;
-   try{const csv=api.csv(x,kind);if(!active())return;const url=URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8;'}));const a=document.createElement('a');a.href=url;a.download='HLGB-historico-'+kind+'.csv';document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),15000)}
+   try{const csv=kind==='cliente'&&mode.value==='events'?api.eventCsv(x):api.csv(x,kind);if(!active())return;const url=URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8;'}));const a=document.createElement('a');a.href=url;a.download='HLGB-historico-'+kind+'.csv';document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),15000)}
    catch(_){output.replaceChildren();el('p',x.state==='export-limit'?'Limite de 5.000 registros por exportação. Reduza o período.':'Não foi possível exportar uma consulta completa. Confira filtros e permissões.',output)}
   });
   draw()
@@ -72,10 +85,10 @@ if(typeof document!=='undefined'){document.addEventListener('click',()=>setTimeo
   const ctx={authenticated:true,factionsAllowed:kind==='faccao',clientsAllowed:kind==='cliente',employeesAllowed:kind==='funcionario'};
   try{
    if(kind==='faccao'){ctx.payments=deps.rows('factionPayments');if(deps.auth()!==true||!scopes[kind].every(p=>deps.can(p)===true))return {state:'forbidden',rows:[],groups:[],issues:[]};ctx.manualGroups=deps.manualGroups()}
-   if(kind==='cliente')ctx.notes=deps.notes();
+   if(kind==='cliente'){ctx.notes=deps.notes();if(filters.eventMode===true){if(deps.auth()!==true||!scopes[kind].every(p=>deps.can(p)===true))return {state:'forbidden',rows:[],groups:[],issues:[]};if(typeof deps.noteSources!=='function'||typeof deps.inspectEvents!=='function')return {state:'unavailable',rows:[],groups:[],issues:[]};ctx.noteSources=deps.noteSources()}}
    if(kind==='funcionario')ctx.payroll=deps.rows('payroll');
    if(deps.auth()!==true||!scopes[kind].every(p=>deps.can(p)===true))return {state:'forbidden',rows:[],groups:[],issues:[]};
-   const out=deps.inspect(ctx,{...filters,kind});
+   const out=kind==='cliente'&&filters.eventMode===true?deps.inspectEvents(ctx,{...filters,kind}):deps.inspect(ctx,{...filters,kind,eventMode:false});
    if(deps.auth()!==true||!scopes[kind].every(p=>deps.can(p)===true))return {state:'forbidden',rows:[],groups:[],issues:[]};
    return out;
   }catch(_){return {state:'unavailable',rows:[],groups:[],issues:['consulta-indisponivel']}}
@@ -89,5 +102,14 @@ if(typeof document!=='undefined'){document.addEventListener('click',()=>setTimeo
   if(result.totals)lines.push(['TOTAL OBSERVADO','','','','','','',cash(result.totals.totalCents),cash(result.totals.paidCents),cash(result.totals.creditCents),cash(result.totals.balanceCents)]);
   lines.push(['Lacunas ou inconsistências sinalizadas',result.issues?.length??0]);return '\uFEFF'+lines.map(r=>r.map(cell).join(';')).join('\r\n');
  }
- return {read,scopes,csv};
+ function eventCsv(result){
+  if(result?.state!=='local-events'||!Array.isArray(result.events)||result.eventTotal!==result.events.length||result.events.length>5000||result.events.some(x=>x.kind!=='cliente'))throw Error('incomplete-export');
+  const cell=v=>{let s=String(v??'');if(/^[\s]*[=+@-]/.test(s)||/^[\t\r\n]/.test(s))s="'"+s;return '"'+s.replace(/"/g,'""')+'"'};
+  const cash=n=>Number.isSafeInteger(n)?(n/100).toFixed(2).replace('.',','):'Não confirmado';
+  const lines=[['HLGB — eventos locais de notas, não extrato bancário'],['Cliente','ID','Nota','Data do evento original','Tipo','Valor R$','Data de estorno','Método','Referência']];
+  for(const e of result.events)lines.push([e.name,e.ownerId,e.noteNumber,e.date,e.type,cash(e.amountCents),e.reversedAt,e.method,e.id]);
+  for(const [k,value] of Object.entries(result.totals||{}))lines.push([k,cash(value)]);
+  lines.push(['Lacunas ou inconsistências',result.issues?.length??0]);return '\uFEFF'+lines.map(r=>r.map(cell).join(';')).join('\r\n');
+ }
+ return {read,scopes,csv,eventCsv};
 })());
