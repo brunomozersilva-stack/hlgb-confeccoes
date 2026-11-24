@@ -34,6 +34,13 @@ const assert=require('node:assert/strict'),crypto=require('node:crypto'),plan=re
  ok(api.materialHistory(measuredDb,false).state==='forbidden'&&api.materialEstimate(v.groups[0],mh,false).state==='forbidden','measured permissions');
  ok(api.materialEstimate(v.groups[0],api.materialHistory(db,true),true).estimatedKg===null,'no sample no estimate');
  ok(JSON.stringify(measuredDb)===measuredSnap,'measured immutable');
+ const policyInput={state:'yes',notes:'regra teste',eligible:[{productId:11,materialId:1,size:'P'}]},source=db.products[0],remote={module:'products',entity_id:'10',data:JSON.parse(JSON.stringify(source)),revision:4,deleted_at:null},snapshot={data:JSON.parse(JSON.stringify(source)),revision:4,deleted_at:null};
+ const args={productId:10,input:policyInput,products:db.products,materials:db.materials,remote,snapshot,pending:false,allowed:true};
+ const saveBefore=JSON.stringify(args),prep=api.prepareRemnantChange(args);
+ ok(prep.state==='prepared-only'&&prep.expectedRevision===4&&prep.changed&&!prep.canWrite&&!prep.remoteTargetsVerified,'prepare only');
+ const {fabricRemnantPolicyV9630:policy,...untouched}=prep.next;ok(JSON.stringify(untouched)===JSON.stringify(source)&&policy.state==='yes'&&policy.eligible[0].productId==='11'&&!('mode' in policy),'only policy field changed');
+ for(const [patch,reason] of [[{allowed:false},'permission'],[{pending:true},'pending-or-unverified'],[{pending:undefined},'pending-or-unverified'],[{remote:{...remote,deleted_at:'deleted'}},'remote-missing'],[{snapshot:{...snapshot,revision:3}},'revision-changed'],[{remote:{...remote,data:{...source,price:99}}},'record-changed'],[{products:[...db.products,source]},'missing-source'],[{input:{...policyInput,eligible:[{productId:11,materialId:99}]}},'material-or-target'],[{input:{...policyInput,state:'no'}},'invalid-policy']])ok(api.prepareRemnantChange({...args,...patch}).reason===reason,'blocked '+reason);
+ ok(JSON.stringify(args)===saveBefore,'preparation immutable');
  ok(api.planSelection(v,[]).orderedPieces===0,'empty explicit selection');ok(JSON.stringify(db)===before,'basket immutable');
 })(plan,(v,m)=>assert.ok(v,m));(async function dossierChecks(api,checklist,digest,ok){
  const row={orderId:'1',orderNumber:'7',productId:'10',productName:'Camisola',ordered:30,grade:[{color:'Rubi',size:'P',qty:30}],materials:[{name:'Malha',unit:'kg',amount:10}],separatedObserved:0,cutId:'3',issues:[]};
