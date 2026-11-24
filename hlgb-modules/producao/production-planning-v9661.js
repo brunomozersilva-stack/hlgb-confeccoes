@@ -165,6 +165,20 @@
   return {...empty('local-estimate'),rows,coveredPieces,uncoveredPieces,estimatedKg};
  }
 
+ // Portable planning snapshot. Local clock and file do not establish a trusted audit timestamp.
+ function forecastDraft(group,db,history,createdAt,allowed){
+  const fail=reason=>({state:'blocked',reason,canWrite:false});
+  if(allowed!==true)return fail('permission');
+  if(typeof createdAt!=='string'||!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/.test(createdAt)||!Number.isFinite(Date.parse(createdAt))||new Date(createdAt).toISOString()!==createdAt)return fail('date');
+  if(!Array.isArray(group?.models)||!group.models.length||group.models.length>1000||!id(group.materialId)||!Array.isArray(db?.materials)||!fabrics(db.materials).has(id(group.materialId)))return fail('group');
+  const selection=planSelection({state:'discovery-only',groups:[group]},group.models.map(m=>({key:m.key,signature:modelSignature(m)})));
+  if(selection.state!=='local-preview'||selection.rows.length!==group.models.length)return fail('selection');
+  const estimate=materialEstimate(group,history,true);if(estimate.state!=='local-estimate'||estimate.estimatedKg===null)return fail('history');
+  const entries=selection.rows.map(m=>{const h=estimate.rows.find(x=>x.productId===m.productId);return {orderId:m.orderId,orderNumber:m.orderNumber,productId:m.productId,productName:m.productName,pieces:m.pieces,grade:m.grade.map(g=>({color:g.color,size:g.size,qty:g.qty})),sampleCuts:h?.cuts||0,gramsPerPiece:h?.gramsPerPiece??null,estimatedKg:h?.gramsPerPiece==null?null:h.gramsPerPiece*m.pieces/1000}});
+  if(entries.some(e=>e.estimatedKg!==null&&(!Number.isFinite(e.estimatedKg)||e.estimatedKg<=0)))return fail('estimate');
+  return {state:'local-draft',format:'hlgb-cut-forecast-v1',createdAt,materialId:id(group.materialId),materialName:id(group.materialName),entries,coveredPieces:estimate.coveredPieces,uncoveredPieces:estimate.uncoveredPieces,estimatedKg:estimate.estimatedKg,clockVerified:false,remoteSaved:false,geometryVerified:false,canWrite:false,savings:null};
+ }
+
  // Retrospective holdout: estimate the newest uniquely dated measurement using
  // ONLY earlier recorded measurements. Not a saved prediction or proof of savings.
  function materialBacktest(group,history,allowed){
@@ -274,5 +288,5 @@
   if(rows.some(x=>!Number.isFinite(x.needed)))return empty('unavailable');
   return {state:'local-estimate',rows,models,issues,partial:issues.length>0,stockVerified:false,canWrite:false};
  }
- return {discover,combine,gradeSuggestions,catalogGroups,candidates,weights,cutEvidence,groupEvidence,materialHistory,materialEstimate,materialBacktest,materialCostEstimate,prepareRemnantChange,modelSignature,planSelection,materialDemand,preview:(source,input,products,catalog)=>{const valid=fabrics(catalog);if(input?.eligible?.some(x=>!valid.has(id(x.materialId))))throw Error('fabric-not-confirmed');return remnant.preview(source,input,products)}};
+ return {discover,combine,gradeSuggestions,catalogGroups,candidates,weights,cutEvidence,groupEvidence,materialHistory,materialEstimate,forecastDraft,materialBacktest,materialCostEstimate,prepareRemnantChange,modelSignature,planSelection,materialDemand,preview:(source,input,products,catalog)=>{const valid=fabrics(catalog);if(input?.eligible?.some(x=>!valid.has(id(x.materialId))))throw Error('fabric-not-confirmed');return remnant.preview(source,input,products)}};
 });
