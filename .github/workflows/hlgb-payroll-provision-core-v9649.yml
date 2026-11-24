@@ -1,0 +1,26 @@
+name: HLGB Comercial - Provisoes modulares v96.49
+on:
+  pull_request:
+    paths:
+      - 'release-payroll-integrity.js'
+      - 'hlgb-modules/financeiro/payroll-provision-core-v9649.js'
+      - 'app-stable3.html'
+      - 'tests/audit-payroll-integrity-regression.cjs'
+      - 'tests/hlgb-payroll-provision-core-v9649.cjs'
+      - '.github/workflows/hlgb-payroll-provision-core-v9649.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  parity:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - run: node --check release-payroll-integrity.js
+      - run: node tests/hlgb-payroll-provision-core-v9649.cjs
+      - run: node tests/audit-payroll-integrity-regression.cjs
+      - run: HLGB_PROVISION_CORE=1 node tests/audit-payroll-integrity-regression.cjs
+      - run: node tests/audit-payroll-provision-sort-total-regression.cjs
+      - run: node --test tests/hlgb-live-monolith-inventory-v9601b.cjs

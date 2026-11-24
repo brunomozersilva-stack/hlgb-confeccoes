@@ -1,0 +1,21 @@
+name: HLGB Comercial - Integracao unica v96.51
+on:
+  pull_request:
+    paths:
+      - 'hlgb-modules/homologacao/integration-manifest-v9651.json'
+      - 'tests/hlgb-integration-v9651.cjs'
+      - 'app-stable3.html'
+      - 'hlgb-modules/ownership-v9600.json'
+      - '.github/workflows/hlgb-integration-v9651.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  integration:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - run: node tests/hlgb-integration-v9651.cjs
+      - run: node --test tests/hlgb-live-monolith-inventory-v9601b.cjs

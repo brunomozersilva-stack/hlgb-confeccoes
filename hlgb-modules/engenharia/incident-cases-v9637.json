@@ -1,0 +1,20 @@
+[
+  {
+    "id": "auditor-webkit-boot-287",
+    "status": "reproduced-awaiting-validation",
+    "issue": 287,
+    "beforeCommit": "17ccdbd43203afc282c0778b0df17396d07663bf",
+    "candidateCommit": "9f6f0ee0422ec59e5b2cc21aac384bfd494de66d",
+    "failureRun": 45282479588,
+    "failedJob": 138070241561,
+    "candidateRun": 45292139752,
+    "regressionTest": "tests/auditor-smart-ready-v9639.cjs",
+    "observed": "Smart API unavailable while document loading; reproduced with original scripts",
+    "reviewed": false
+  },
+  {
+    "id": "wal-pending-152",
+    "status": "hypothesis",
+    "issue": 152
+  }
+]
