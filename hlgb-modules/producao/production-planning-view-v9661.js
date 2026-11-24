@@ -73,11 +73,13 @@
    }
    el('p','Grade sugerida apenas por divisão das quantidades pedidas. Conferir saldo, lotes, largura, direção, limites do enfesto e moldes Audaces. Não comprova encaixe, consumo ou economia.',details);
   }
-  function drawEvidence(g,card,history){
+  function drawEvidence(g,card,history,materialHistory){
    const d=api.groupEvidence(g,data(),history,active());if(d.state!=='local-observation')return;
    const box=el('details','',card);el('summary','Histórico de pesagens e oportunidades de sobra',box);
    el('p','Pesagens locais do corte inteiro por modelo, sem atribuição ao tecido deste grupo. Descarte registrado não equivale à economia possível; saldo não classificado não é sobra reutilizável.',box);
    for(const m of d.models){const item=el('div','',box);el('strong',m.productName,item);el('p',m.valid?m.valid+' cortes com pesagem válida · '+fmt(m.totalKg)+' kg pesados · '+fmt(m.wasteKg)+' kg de descarte · '+fmt(m.wastePct)+'% descarte registrado · '+fmt(m.unclassifiedKg)+' kg não classificados':'Sem pesagem finalizada válida para análise.',item);if(m.review)el('p',m.review+' registros a conferir (não incluídos nos totais).',item)}
+   const measured=api.materialEstimate(g,materialHistory,active());
+   if(measured.state==='local-estimate'){el('h4','Consumo histórico desta matéria-prima',box);el('p','Média ponderada por peças de cortes finalizados; mistura histórica de tamanhos e cores, sem prova de economia ou saldo.',box);for(const m of measured.rows)el('p',m.productName+' · '+(m.estimatedKg===null?'Sem medição válida':fmt(m.gramsPerPiece)+' g/peça · '+m.cuts+' cortes · estimativa '+fmt(m.estimatedKg)+' kg para '+fmt(m.pieces)+' peças')+(m.review?' · '+m.review+' registros a conferir':''),box);el('p',measured.estimatedKg===null?'Sem previsão medida disponível.':(measured.uncoveredPieces?'Estimativa parcial: ':'Estimativa histórica: ')+fmt(measured.estimatedKg)+' kg · '+fmt(measured.coveredPieces)+' peças cobertas · '+fmt(measured.uncoveredPieces)+' sem medição.',box)}
    el('h4','Sugestões cadastradas de aproveitamento',box);if(!d.hints.length)el('p','Nenhuma regra válida de sobra cadastrada para este grupo.',box);
    for(const h of d.hints){el('p',h.sourceName+' → '+h.targetName+' · '+(h.requested?fmt(h.requested)+' peças pedidas nas condições cadastradas':'Sem demanda compatível neste grupo')+' · '+(h.size||'tamanho não limitado')+' · '+(h.color||'cor não limitada')+' · mínimo '+fmt(h.minWidthMm)+' × '+fmt(h.minLengthMm)+' mm · encaixe não confirmado.',box)}
   }
@@ -87,10 +89,10 @@
    const q=norm(search.value),groups=x.groups.filter(g=>!q||norm([g.materialName,...g.models.flatMap(m=>[m.orderNumber,m.productName])].join(' ')).includes(q));el('p',groups.length+' grupos de matéria-prima observados. Quantidades podem aparecer em mais de uma matéria-prima; a cesta elimina a duplicidade.',out);
    el('p',(x.plannedRows||0)+' registros planejados reconhecidos · '+(x.blockedActivityPairs||0)+' vínculos com atividade/estado a conferir.',out);
    if(x.unlinkedActivity)el('p','Há atividade sem pedido vinculado; disponibilidade exige revisão.',out);
-   const history=api.cutEvidence(data(),active());
+   const history=api.cutEvidence(data(),active()),materialHistory=api.materialHistory(data(),active());
    for(const g of groups.slice(offset,offset+15)){
     const card=el('article','',out);card.className='panel';el('h3',g.materialName+' · ID '+g.materialId,card);el('p',fmt(g.orderedPieces)+' peças pedidas em '+g.models.length+' modelos/pedidos candidatos.',card);
-    drawGradeSuggestions(g,card);drawEvidence(g,card,history);const controls=el('div','',card),boxes=new Map();let shown=0;const result=el('div','',card);
+    drawGradeSuggestions(g,card);drawEvidence(g,card,history,materialHistory);const controls=el('div','',card),boxes=new Map();let shown=0;const result=el('div','',card);
     const update=(currentDiscovery)=>{result.replaceChildren();if(!active())return;for(const [key,c] of boxes)c.checked=selected.has(key);const current=currentDiscovery.groups?.find(z=>z.materialId===g.materialId);if(!current||JSON.stringify(current.models)!==JSON.stringify(g.models)){el('p','Pedidos ou baixas mudaram. Atualize a consulta antes de combinar.',result);return}
      const keys=g.models.filter(m=>selected.has(m.key)).map(m=>m.key),v=api.combine(current,keys);el('h4',fmt(v.orderedPieces)+' peças selecionadas · '+v.models.length+' modelos/pedidos',result);for(const l of v.combinedGrade)el('p',l.color+' · '+l.size+' · '+l.qty,result);el('p',v.isCombined?'Grupo candidato: conferir lote, largura, elasticidade, sentido, encaixe e grade antes de cortar.':'Selecione ao menos dois modelos/pedidos.',result)};
     function append(){for(const m of g.models.slice(shown,shown+50)){const label=el('label','',controls);label.style.cssText='display:block;overflow-wrap:anywhere';const c=el('input','',label);c.type='checkbox';c.checked=selected.has(m.key);boxes.set(m.key,c);el('span',' Pedido #'+m.orderNumber+' · '+m.productName+' · '+fmt(m.pieces)+' peças',label);c.onchange=()=>{if(!active())return;if(c.checked){if(selected.size>=1000&&!selected.has(m.key)){c.checked=false;return}if(!selected.has(m.key))selected.set(m.key,{key:m.key,signature:api.modelSignature(m)})}else selected.delete(m.key);sync()}}shown+=50;more.hidden=shown>=g.models.length}
