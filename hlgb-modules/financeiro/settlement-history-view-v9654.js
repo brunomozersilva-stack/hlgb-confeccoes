@@ -42,11 +42,13 @@ if(typeof document!=='undefined'){document.addEventListener('click',()=>setTimeo
   if(!Object.hasOwn(scopes,kind)||deps.auth()!==true||!scopes[kind].every(p=>deps.can(p)===true))return {state:'forbidden',rows:[],groups:[],issues:[]};
   const ctx={authenticated:true,factionsAllowed:kind==='faccao',clientsAllowed:kind==='cliente',employeesAllowed:kind==='funcionario'};
   try{
-   if(kind==='faccao'){ctx.payments=deps.rows('factionPayments');ctx.manualGroups=deps.manualGroups()}
+   if(kind==='faccao'){ctx.payments=deps.rows('factionPayments');if(deps.auth()!==true||!scopes[kind].every(p=>deps.can(p)===true))return {state:'forbidden',rows:[],groups:[],issues:[]};ctx.manualGroups=deps.manualGroups()}
    if(kind==='cliente')ctx.notes=deps.notes();
    if(kind==='funcionario')ctx.payroll=deps.rows('payroll');
    if(deps.auth()!==true||!scopes[kind].every(p=>deps.can(p)===true))return {state:'forbidden',rows:[],groups:[],issues:[]};
-   return deps.inspect(ctx,{...filters,kind});
+   const out=deps.inspect(ctx,{...filters,kind});
+   if(deps.auth()!==true||!scopes[kind].every(p=>deps.can(p)===true))return {state:'forbidden',rows:[],groups:[],issues:[]};
+   return out;
   }catch(_){return {state:'unavailable',rows:[],groups:[],issues:['consulta-indisponivel']}}
  }
  return {read,scopes};
