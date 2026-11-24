@@ -5,6 +5,8 @@ on:
       - 'hlgb-modules/producao/product-history-search-v9652.js'
       - 'release-product-traceability-v9580.js'
       - 'tests/hlgb-product-history-search-v9652.cjs'
+      - 'hlgb-modules/assistente/evidence-query-v9655.js'
+      - 'tests/hlgb-assistant-evidence-v9655.cjs'
       - 'app-stable3.html'
   workflow_dispatch:
 permissions:
@@ -18,4 +20,5 @@ jobs:
         with: {node-version: '22'}
       - run: node --check release-product-traceability-v9580.js
       - run: node tests/hlgb-product-history-search-v9652.cjs
+      - run: node tests/hlgb-assistant-evidence-v9655.cjs
       - run: node tests/hlgb-integration-v9651.cjs
