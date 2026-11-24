@@ -9,21 +9,23 @@ const deps={auth,can,read,today,get productApi(){return root.HLGBProductHistory9
  finance:opt=>root.HLGBLivePersonnelFinance9656?.finance({auth,can,read,financeApi:()=>root.HLGBHubIntelligenceAdapter9633,paidDateApi:()=>root.hlgbHubPayrollPaidDate9515},opt),
  weeklySummary:x=>root.HLGBLivePersonnelFinance9656?.weeklySummary(x)
 };
+const boundInputs=new WeakSet();
+const scopeStamp=()=>['pedidos','corte','producao','produtos','materiais','faccoes','pagamentosFaccoes','notas','financeiro','folhaPagamento','hubFinanceiro'].map(p=>can(p)?'1':'0').join('');
 function clear(){document.getElementById('hlgbEvidenceQuery9655')?.remove()}
 function mount(){
  const input=document.getElementById('hlgbAssistantInput'),existing=document.getElementById('hlgbEvidenceQuery9655');
  if(!input||!auth()){clear();return}
- if(existing&&existing.dataset.actor===actor())return;clear();
- const host=document.createElement('section');host.id='hlgbEvidenceQuery9655';host.className='panel';host.dataset.actor=actor();host.style.cssText='max-width:100%;min-width:0;overflow-wrap:anywhere';
- const active=()=>host.isConnected&&input.isConnected&&auth()&&actor()===host.dataset.actor;
- const b=document.createElement('button');b.type='button';b.className='secondary';b.textContent='Consulta com evidências';const out=document.createElement('div');out.setAttribute('aria-live','polite');
+ if(existing&&existing.dataset.actor===actor()&&existing.dataset.scope===scopeStamp())return;clear();
+ const host=document.createElement('section');host.id='hlgbEvidenceQuery9655';host.className='panel';host.dataset.actor=actor();host.dataset.scope=scopeStamp();host.style.cssText='max-width:100%;min-width:0;overflow-wrap:anywhere';
+ const active=()=>host.isConnected&&input.isConnected&&auth()&&actor()===host.dataset.actor&&scopeStamp()===host.dataset.scope;
+ const b=document.createElement('button');b.type='button';b.className='secondary';b.textContent='Consulta com evidências';const out=document.createElement('div');out.setAttribute('aria-live','polite');out.dataset.evidenceOutput='1';
  const help=document.createElement('details'),summary=document.createElement('summary');summary.textContent='Exemplos de consultas';help.appendChild(summary);
  for(const [label,query] of [['Andamento de pedido','pedido 125'],['Histórico de modelo','histórico produto Camisola'],['Matéria-prima','material malha'],['Acertos de facção','acertos facção Roseli'],['Notas de cliente','acertos cliente NOME'],['Folha paga','acertos funcionário NOME'],['Previsão semanal','financeiro semana']]){
   const btn=document.createElement('button');btn.type='button';btn.className='secondary';btn.style.cssText='max-width:100%;white-space:normal';btn.textContent=label;btn.onclick=()=>{if(active()){input.value=query;out.replaceChildren();input.focus()}};help.appendChild(btn)
  }
  host.append(b,help,out);input.closest('.hlgb-assistant-input')?.insertAdjacentElement('afterend',host);if(!host.isConnected)input.insertAdjacentElement('afterend',host);
  b.onclick=()=>{out.replaceChildren();if(!active())return;const x=api.ask(input.value,deps);if(!active())return;const p=document.createElement('p');p.textContent=x.message;out.appendChild(p);for(const row of x.rows){const item=document.createElement('p');item.textContent=row.label+' · '+row.detail+' · Origem: '+row.source+' / '+row.id;out.appendChild(item)}};
- input.addEventListener('input',()=>out.replaceChildren(),{passive:true});
+ if(!boundInputs.has(input)){boundInputs.add(input);input.addEventListener('input',()=>document.getElementById('hlgbEvidenceQuery9655')?.querySelector('[data-evidence-output]')?.replaceChildren(),{passive:true})}
 }
 if(typeof document!=='undefined'){document.addEventListener('click',()=>setTimeout(mount,0),true);document.addEventListener('focusin',mount);root.addEventListener?.('hlgb:logout',clear);root.addEventListener?.('hlgb:authenticated',()=>{clear();mount()});document.addEventListener('visibilitychange',()=>{clear();if(!document.hidden)mount()});}
 })(typeof window!=='undefined'?window:null,(function engine(){
