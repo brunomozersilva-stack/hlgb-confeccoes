@@ -1,0 +1,22 @@
+name: HLGB Comercial - Corte e Separacao v96.43
+on:
+  pull_request:
+    paths:
+      - 'release-cut-organization.js'
+      - 'tests/cut-separation-workspace-v9643.cjs'
+      - '.github/workflows/cut-separation-workspace-v9643.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  contracts:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - run: node --check release-cut-organization.js
+      - run: node tests/cut-separation-workspace-v9643.cjs
+      - run: node tests/audit-cut-organization-regression.cjs
+      - run: node tests/audit-separation-commit-v9319.cjs
+      - run: node tests/cutter-sheet-print-route-v9620.cjs
