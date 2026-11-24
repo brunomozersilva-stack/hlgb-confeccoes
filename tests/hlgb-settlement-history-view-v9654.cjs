@@ -24,4 +24,12 @@ const assert=require('node:assert/strict'),api=require('../hlgb-modules/financei
  const er={state:'local-events',eventTotal:1,events:[{kind:'cliente',name:'=unsafe',ownerId:'C1',noteNumber:'1',date:'2026-11-23',type:'material-offset',amountCents:2000,id:'event1'}],totals:{materialOffsetCents:2000},issues:[]};
  ok(api.eventCsv(er).includes("'=unsafe")&&api.eventCsv(er).includes('20,00'),'event CSV safe');
  let badEvent=false;try{api.eventCsv({...er,eventTotal:2})}catch(_){badEvent=true}ok(badEvent,'incomplete events export');
+
+ const original={...row,id:'note:projection:1',details:[],status:'Em aberto'},origDeps={...d,inspect:()=>({state:'local-observation',rows:[original]})};let actionCalls=[];
+ const acts={noteView:id=>actionCalls.push(id),factionPdf:id=>actionCalls.push(id)};
+ ok(api.originalAction(origDeps,'cliente',original,'noteView',acts,()=>true).opened&&actionCalls.join(',')==='1','original note navigation');
+ ok(!api.originalAction(origDeps,'cliente',{...original,totalCents:123},'noteView',acts,()=>true).opened&&actionCalls.length===1,'stale row blocked');
+ ok(!api.originalAction(origDeps,'cliente',original,'factionPdf',acts,()=>true).opened&&actionCalls.length===1,'wrong scope blocked');
+ ok(!api.originalAction({...origDeps,can:p=>p!=='financeiro'},'cliente',original,'noteView',acts,()=>true).opened&&actionCalls.length===1,'permission revoked');
+ ok(!api.originalAction(origDeps,'cliente',original,'noteView',acts,()=>false).opened&&actionCalls.length===1,'session inactive');
 })(api,(v,m)=>assert.ok(v,m));console.log('PASS scope isolation and adapter failure handling');
