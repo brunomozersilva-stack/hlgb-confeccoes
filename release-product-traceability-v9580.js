@@ -257,8 +257,8 @@ function detail(d){
 /* v96.52 — independent read-only search of the loaded catalog and records. */
 function historySearchPermissions9652(){
  const can=p=>{try{return auth()&&typeof canOpenPage==='function'&&canOpenPage(p)===true}catch(_){return false}};
- const modules=[];if(can('pedidos'))modules.push('orders');if(can('corte'))modules.push('cuts');if(can('producao'))modules.push('production');if(can('faccoes'))modules.push('factions','materialChecklists');if(can('pagamentosFaccoes')&&can('financeiro'))modules.push('factionPayments');
- return {allowed:can('produtos'),ordersAllowed:modules.includes('orders'),factionsAllowed:modules.includes('factions'),modules};
+ const modules=[];if(can('pedidos'))modules.push('orders');if(can('corte'))modules.push('cuts');if(can('producao'))modules.push('production');if(can('faccoes'))modules.push('factions','materialChecklists');const financialAllowed=can('pagamentosFaccoes')&&can('financeiro');if(financialAllowed)modules.push('factionPayments');
+ return {allowed:can('produtos'),ordersAllowed:modules.includes('orders'),factionsAllowed:modules.includes('factions'),financialAllowed,modules};
 }
 function mountHistorySearch9652(host){
  const api=window.HLGBProductHistory9652;if(!api)return;
@@ -278,7 +278,9 @@ function renderHistory(){
  if(!state.historyProduct)state.historyProduct=sid(arr('products').find(p=>p?.id!=null)?.id||'');
  const permission=historySearchPermissions9652();
  if(!permission.allowed){host.textContent='Acesso ao histórico indisponível.';return false}
- const events=timeline(state.historyProduct).filter(e=>e.source==='products'||permission.modules.includes(e.source));
+ const scope=window.HLGBProductHistory9652?.scopeLegacy;
+ if(typeof scope!=='function'){host.textContent='Histórico em atualização. Reabra o programa para carregar a consulta segura.';return false}
+ const events=scope(timeline(state.historyProduct),permission);
  const name=one('products',state.historyProduct)?.name||'';
  host.innerHTML='<div class="panel"><h2 style="margin-top:0">📚 Histórico completo de produtos</h2>'+
  '<p class="sub">Eventos reunidos por ID de produto das etapas de pedido, corte, produção, facção, pagamentos e checklists. Valor previsto é separado de valor efetivamente pago.</p>'+
@@ -401,6 +403,8 @@ window.hlgbProductTraceability9580={version:V,STEPS,WORK_STAGES,timeline,roundSt
  remoteProduct,renderHistory,renderChecklist,install,status:()=>({...state})};
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',install,{once:true});else install();
 [500,1600,3300].forEach(ms=>setTimeout(install,ms));
-window.addEventListener?.('hlgb:authenticated',()=>setTimeout(install,500));
+function clearHistory9657(){const host=document.getElementById(PAGES.history+'Host');host?.replaceChildren();state.historyProduct=''}
+window.addEventListener?.('hlgb:logout',clearHistory9657);
+window.addEventListener?.('hlgb:authenticated',()=>{clearHistory9657();setTimeout(()=>{install();if(document.getElementById(PAGES.history)?.classList.contains('active'))renderHistory()},500)});
 console.info('[HLGB] v'+V+' timeline de produção e checklist universal com eventos imutáveis');
 })();

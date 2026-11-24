@@ -295,5 +295,13 @@
       "hlgb-modules/financeiro/hub-personnel-forecast-reconcile-v9650.js",
       "hlgb-modules/financeiro/live-personnel-finance-view-v9656.js"
     ]
+  },
+  "followupSecurity": {
+    "version": "96.57",
+    "changed": [
+      "release-product-traceability-v9580.js",
+      "hlgb-modules/producao/product-history-search-v9652.js"
+    ],
+    "test": "tests/hlgb-live-finance-integrated-v9657.cjs"
   }
 }

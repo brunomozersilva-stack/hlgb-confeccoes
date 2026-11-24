@@ -4,6 +4,7 @@ on:
     paths:
       - 'hlgb-modules/financeiro/live-personnel-finance-view-v9656.js'
       - 'tests/hlgb-live-personnel-finance-v9656.cjs'
+      - 'tests/hlgb-live-finance-integrated-v9657.cjs'
       - 'app-stable3.html'
   workflow_dispatch:
 permissions:
@@ -16,4 +17,5 @@ jobs:
       - uses: actions/setup-node@v4
         with: {node-version: '22'}
       - run: node tests/hlgb-live-personnel-finance-v9656.cjs
+      - run: node tests/hlgb-live-finance-integrated-v9657.cjs
       - run: node tests/hlgb-integration-v9651.cjs

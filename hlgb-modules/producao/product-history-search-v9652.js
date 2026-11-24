@@ -57,5 +57,16 @@
   const offset=Number.isSafeInteger(opts.offset)&&opts.offset>=0?opts.offset:0,limit=Number.isSafeInteger(opts.limit)?Math.max(1,Math.min(200,opts.limit)):50;
   return {state:'local-observation',rows:filtered.slice(offset,offset+limit),total:filtered.length,offset,limit,issues:unique(issues),completeCloud:false};
  }
- return {search,timeline};
+
+ function scopeLegacy(events,permissions){
+ if(permissions?.allowed!==true||!Array.isArray(events))return [];
+ const sources=new Set(Array.isArray(permissions.modules)?permissions.modules:[]);
+ const cost=new Set(['pricePerPiece','grossPricePerPiece','estimatedCost','amountIsEstimate','travetaDiscountUnit','amountBilled','amountPaid','unitPrice','travetaDiscount','paymentDate','receiptPdfAttached']);
+ return events.filter(e=>e&&(e.source==='products'||sources.has(e.source))&&(e.source!=='factionPayments'||permissions.financialAllowed===true)).map(e=>{
+  if(permissions.financialAllowed===true)return {...e,details:{...e.details}};
+  const details=Object.fromEntries(Object.entries(e.details||{}).filter(([k])=>!cost.has(k)));
+  return {...e,details};
+ });
+}
+ return {search,timeline,scopeLegacy};
 })());
