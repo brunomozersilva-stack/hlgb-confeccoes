@@ -91,6 +91,43 @@
   return rows.filter(x=>id(x.id)&&counts.get(id(x.id))===1).map(x=>({cutId:id(x.id),orderId:id(x.orderId),...remnant.inspectWeight(x.cutWeightV9579)}));
  }
 
+ // Historical observations are whole-cut weight records, NOT material-level marker efficiency.
+ function cutEvidence(db,allowed){
+  const empty=state=>({state,byProduct:new Map(),canWrite:false});
+  if(allowed!==true)return empty('forbidden');
+  if(!Array.isArray(db?.cuts)||!Array.isArray(db?.products))return empty('unavailable');
+  const counts=new Map(),products=new Map(),byProduct=new Map();
+  for(const p of db.products.filter(live)){const k=id(p.id);if(k)products.set(k,products.has(k)?null:p)}
+  for(const c of db.cuts.filter(live)){const k=id(c.id);if(k)counts.set(k,(counts.get(k)||0)+1)}
+  for(const c of db.cuts.filter(live)){
+   const pid=id(c.productId),p=products.get(pid);if(!p||p.active===false||c.hiddenByModelSplitV1||c.modelSplitParentV1||!c.cutWeightV9579)continue;
+   const h=byProduct.get(pid)||{productId:pid,valid:0,review:0,totalG:0,usedG:0,wasteG:0,unclassifiedG:0};byProduct.set(pid,h);
+   const w=c.cutWeightV9579,inspection=remnant.inspectWeight(w);
+   if(!id(c.id)||counts.get(id(c.id))!==1||!['finalizado','cortado','concluido'].includes(norm(c.status))||inspection.state!=='arithmetic-only'||w.totalKg<=0||Math.round(w.totalKg*1000)<=0){h.review++;continue}
+   h.valid++;h.totalG+=Math.round(w.totalKg*1000);h.usedG+=Math.round(w.usedKg*1000);h.wasteG+=Math.round(w.wasteKg*1000);h.unclassifiedG+=Math.round(inspection.unclassifiedKg*1000);
+  }
+  for(const [pid,h] of byProduct){if(![h.totalG,h.usedG,h.wasteG,h.unclassifiedG].every(Number.isSafeInteger)){byProduct.delete(pid);continue}
+   h.totalKg=h.totalG/1000;h.usedKg=h.usedG/1000;h.wasteKg=h.wasteG/1000;h.unclassifiedKg=h.unclassifiedG/1000;h.wastePct=h.totalG>0?100*h.wasteG/h.totalG:null;h.reusableKg=null;h.savings=null}
+  return {state:'local-observation',byProduct,canWrite:false};
+ }
+ function groupEvidence(group,db,history,allowed){
+  const empty=state=>({state,models:[],hints:[],canWrite:false,geometryVerified:false,savings:null});
+  if(allowed!==true)return empty('forbidden');
+  if(!Array.isArray(group?.models)||!Array.isArray(db?.products)||!Array.isArray(db?.materials)||history?.state!=='local-observation'||!(history.byProduct instanceof Map)||!fabrics(db.materials).has(id(group.materialId)))return empty('unavailable');
+  const products=new Map();for(const p of db.products.filter(live)){const k=id(p.id);if(k)products.set(k,products.has(k)?null:p)}
+  const ids=[...new Set(group.models.map(m=>id(m.productId)))],hints=[],models=[];
+  for(const pid of ids){const p=products.get(pid);if(!p||p.active===false)continue;const h=history.byProduct.get(pid);
+   models.push({productId:pid,productName:id(p.name)||pid,valid:h?.valid||0,review:h?.review||0,totalKg:h?.totalKg??null,wasteKg:h?.valid?h.wasteKg:null,wastePct:h?.wastePct??null,unclassifiedKg:h?.valid?h.unclassifiedKg:null});
+   if(remnant.state(p)!=='yes')continue;
+   let policy;try{policy=remnant.preview(pid,p.fabricRemnantPolicyV9630,db.products).policy}catch(_){continue}
+   for(const x of policy.eligible){const target=products.get(x.productId);if(x.materialId!==id(group.materialId)||!target||target.active===false)continue;
+    const candidates=group.models.filter(m=>id(m.productId)===x.productId),requested=candidates.reduce((sum,m)=>sum+m.grade.filter(g=>(!x.color||norm(g.color)===norm(x.color))&&(!x.size||norm(g.size)===norm(x.size))).reduce((n,g)=>n+g.qty,0),0);
+    hints.push({sourceId:pid,sourceName:id(p.name)||pid,targetId:x.productId,targetName:id(target.name)||x.productId,requested,minWidthMm:x.minWidthMm,minLengthMm:x.minLengthMm,color:x.color,size:x.size,physicalFit:null,reusableKg:null});
+   }
+  }
+  return {...empty('local-observation'),models:models.sort((a,b)=>b.valid-a.valid||a.productName.localeCompare(b.productName,'pt-BR')),hints:hints.sort((a,b)=>Number(b.requested>0)-Number(a.requested>0)||b.requested-a.requested||a.targetName.localeCompare(b.targetName,'pt-BR'))};
+ }
+
  // A model/order may appear under several materials. Build one selection by canonical pair.
  function modelSignature(m){return JSON.stringify([m.key,m.orderId,m.orderNumber,m.productId,m.productName,m.pieces,[...m.grade].map(x=>[x.color,x.size,x.qty]).sort((a,b)=>JSON.stringify(a).localeCompare(JSON.stringify(b)))])}
  function planSelection(discovery,selected){
@@ -135,5 +172,5 @@
   if(rows.some(x=>!Number.isFinite(x.needed)))return empty('unavailable');
   return {state:'local-estimate',rows,models,issues,partial:issues.length>0,stockVerified:false,canWrite:false};
  }
- return {discover,combine,gradeSuggestions,catalogGroups,candidates,weights,modelSignature,planSelection,materialDemand,preview:(source,input,products,catalog)=>{const valid=fabrics(catalog);if(input?.eligible?.some(x=>!valid.has(id(x.materialId))))throw Error('fabric-not-confirmed');return remnant.preview(source,input,products)}};
+ return {discover,combine,gradeSuggestions,catalogGroups,candidates,weights,cutEvidence,groupEvidence,modelSignature,planSelection,materialDemand,preview:(source,input,products,catalog)=>{const valid=fabrics(catalog);if(input?.eligible?.some(x=>!valid.has(id(x.materialId))))throw Error('fabric-not-confirmed');return remnant.preview(source,input,products)}};
 });
