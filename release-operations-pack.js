@@ -52,15 +52,23 @@ function routeCollect9534(base,draftId,createdAt){
   const sel=sid(el.querySelector('.ops-route-loc')?.value);
   const loc=sel===''?null:locs[Number(sel)];
   if(!loc)throw new Error('Escolha a facção ou confecção da parada '+(i+1)+'.');
+  if(el.dataset.routeLocationKey9534!==sid(loc.type)+'|'+sid(loc.id))throw new Error('A lista de locais mudou. Confira novamente a parada '+(i+1)+'.');
   const items=[...el.querySelectorAll('[data-route-item9249]')].map(x=>({
     key:x.dataset.key||'',line:x.dataset.line||'',
     direction:x.dataset.direction==='pickup'?'pickup':'carry',source:x.dataset.source||'',
     productionId:x.dataset.productionId||'',orderId:x.dataset.orderId||'',
     productId:x.dataset.productId||''}));
-  stops.push({order:i+1,type:loc.type,locationId:loc.id,name:loc.name,
-    address:loc.address,phone:loc.phone,
-    carry:routeLines9249(el.querySelector('.ops-route-carry')?.value),
-    pickup:routeLines9249(el.querySelector('.ops-route-pickup')?.value),
+  const carry=routeLines9249(el.querySelector('.ops-route-carry')?.value),pickup=routeLines9249(el.querySelector('.ops-route-pickup')?.value);
+  const saved=el.__routeSaved9683,sameSaved=saved&&sid(saved.locationId)===sid(loc.id)&&sid(saved.type)===sid(loc.type);
+  // Preserve saved item identities even if the current browser no longer has
+  // those production rows. Text remains the authority for the printed route.
+  if(sameSaved&&Array.isArray(saved.routeItems)){
+   const keys=new Set(items.map(x=>sid(x.key)));
+   for(const old of saved.routeItems)if(old?.key&&!keys.has(sid(old.key))){items.push(clone(old));keys.add(sid(old.key))}
+  }
+  for(const item of items){const inCarry=carry.includes(item.line),inPickup=pickup.includes(item.line);if(inCarry&&inPickup)throw new Error('O mesmo item está em LEVAR e BUSCAR na parada '+(i+1)+'. Confira a direção.');if(inCarry)item.direction='carry';else if(inPickup)item.direction='pickup'}
+  stops.push({...(sameSaved?clone(saved):{}),order:i+1,type:loc.type,locationId:loc.id,name:loc.name,
+    address:loc.address,phone:loc.phone,carry,pickup,
     routeItems:items,notes:el.querySelector('.ops-route-note')?.value?.trim()||''});
  }
  return {...(base||{}),id:draftId,
@@ -359,6 +367,7 @@ window.routeLocationChanged9249=function(select){
 };
 
 function openRouteEditor(r){
+ r=r?clone(r):null;
  window.__opsRouteStops9249=clone(r?.stops||[]);
  // Uma única identidade para a rota durante a vida deste editor.
  // Repetir clique ou aguardar POST lento NUNCA cria um segundo ID.
@@ -393,21 +402,27 @@ function openRouteEditor(r){
   let row;
   try{row=routeCollect9534(r,draftId,createdAt)}
   catch(e){routeStatus9534(sid(e.message||e));return}
-  saveBusy=true;lastAttempt=clone(row);
+  saveBusy=true;let writeStarted=false;
   const saveButton=document.querySelector('#modal .modalSave');
   if(saveButton)saveButton.disabled=true;
   routeStatus9534('Salvando a rota '+draftId+' e aguardando confirmação da nuvem…');
   try{
+   if(r){
+    const proof=await routeRemoteProof9534(r);
+    if(proof.status!=='confirmed'){routeStatus9534('A rota na nuvem mudou ou está indisponível. Edição preservada; nenhuma gravação enviada. Confira a versão atual antes de salvar.');return}
+    if(!document.getElementById('opsRouteStops')||!saveButton?.isConnected||routeFingerprint9534(routeCollect9534(r,draftId,createdAt))!==routeFingerprint9534(row)){routeStatus9534('O formulário mudou durante a conferência. Confira e salve novamente.');return}
+   }
+   lastAttempt=clone(row);writeStarted=true;
    await saveRow('routePlans',row);
    await finalizeIfConfirmed(row,'post');
   }catch(e){
    const timeout=e?.code==='HLGB_CLOUD_TIMEOUT'||/timeout|abort|demorou demais/i.test(sid(e?.message||e));
-   if(timeout){
+   if(timeout&&writeStarted){
     // O POST pode ter sido aplicado mesmo quando o Safari recebeu timeout.
     const confirmed=await finalizeIfConfirmed(row,'timeout');
     if(!confirmed)console.warn('[HLGB rota 95.34] POST sem prova final; preservar editor e WAL',e);
    }else{
-    routeStatus9534('Erro ao salvar rota: '+sid(e?.message||e)+'. A edição está preservada. Verifique o servidor antes de tentar novamente.');
+    routeStatus9534((writeStarted?'Erro ao salvar rota: ':'Não foi possível conferir a rota antes de gravar: ')+sid(e?.message||e)+'. A edição está preservada. Verifique o servidor antes de tentar novamente.');
    }
   }finally{
    saveBusy=false;
