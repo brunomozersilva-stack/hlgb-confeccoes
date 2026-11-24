@@ -242,7 +242,7 @@ function renderRoutes(){
  const h=document.getElementById('rotas9249Host');if(!h)return;
  // A abertura também força uma leitura de routePlans; nova chamada não gera loop devido ao cooldown.
  refreshRoutes9453(false);const a=arr('routePlans').slice().sort((x,y)=>sid(y.date).localeCompare(sid(x.date)));
- const rows=a.map(r=>'<tr><td>'+escSafe(r.date||'')+'</td><td><b>'+escSafe(r.driver||'-')+'</b></td><td>'+((r.stops||[]).length)+'</td><td>'+escSafe(r.status||'Planejada')+'</td><td><button class="primary" onclick="editRoute9249(\''+escSafe(r.id)+'\')">Abrir</button> <button class="secondary" onclick="printRoute9249(\''+escSafe(r.id)+'\')">🖨️ Imprimir</button> <button class="danger" onclick="deleteRoute9249(\''+escSafe(r.id)+'\')">Excluir</button></td></tr>').join('');
+ const rows=a.map(r=>'<tr><td>'+escSafe(r.date||'')+'</td><td><b>'+escSafe(r.driver||'-')+'</b></td><td>'+((r.stops||[]).length)+'</td><td>'+escSafe(r.status||'Planejada')+'</td><td><button class="primary" onclick="editRoute9249(\''+escSafe(r.id)+'\')">Editar rota</button> <button class="secondary" onclick="printRoute9249(\''+escSafe(r.id)+'\')">🖨️ Imprimir</button> <button class="danger" onclick="deleteRoute9249(\''+escSafe(r.id)+'\')">Excluir</button></td></tr>').join('');
  h.innerHTML='<div class="toolbar"><button class="primary" onclick="newRoute9249()">+ Nova rota</button></div><div class="ops-table">'+(rows?'<table><thead><tr><th>Data</th><th>Responsável</th><th>Paradas</th><th>Status</th><th>Ações</th></tr></thead><tbody>'+rows+'</tbody></table>':'<div class="empty">Nenhuma rota criada.</div>')+'</div>';
 }
 function routeStopHtml(stop,i){
@@ -251,20 +251,20 @@ function routeStopHtml(stop,i){
  // nem outro primeiro registro, antes de a pessoa escolher a facção.
  const opts='<option value="" disabled '+(!selected?'selected':'')+'>Selecione a facção ou confecção</option>'+
   locs.map((x,j)=>'<option value="'+j+'" '+(selected&&sid(stop?.locationId)===sid(x.id)&&sid(stop?.type)===sid(x.type)?'selected':'')+'>'+escSafe(x.type+' — '+x.name)+'</option>').join('');
- return '<div class="ops-route-stop" data-i="'+i+'"><div class="grid"><div class="field"><label>Local</label><select class="ops-route-loc" onchange="routeLocationChanged9249(this)">'+opts+'</select></div><div class="field"><label>Observações</label><input class="ops-route-note" value="'+escSafe(stop?.notes||'')+'"></div></div><div class="ops-route-assigned" style="margin:8px 0"></div><div class="grid"><div class="field"><label>LEVAR — um item por linha</label><textarea class="ops-route-carry" rows="5">'+escSafe((stop?.carry||[]).join('\n'))+'</textarea></div><div class="field"><label>BUSCAR — um item por linha</label><textarea class="ops-route-pickup" rows="5">'+escSafe((stop?.pickup||[]).join('\n'))+'</textarea></div></div><button type="button" class="danger" onclick="this.closest(\'.ops-route-stop\').remove()">Remover parada</button></div>';
+ return '<div class="ops-route-stop" data-i="'+i+'"><div class="grid"><div class="field"><label>Local</label><select class="ops-route-loc" onchange="routeLocationChanged9249(this)">'+opts+'</select></div><div class="field"><label>Observações</label><input class="ops-route-note" value="'+escSafe(stop?.notes||'')+'"></div></div><div style="display:flex;gap:6px;flex-wrap:wrap;margin:8px 0"><button type="button" class="secondary" onclick="routeMoveStop9683(this,-1)">↑ Subir parada</button><button type="button" class="secondary" onclick="routeMoveStop9683(this,1)">↓ Descer parada</button><button type="button" class="secondary" onclick="routeRefreshAssigned9683(this)">Atualizar modelos da nuvem</button></div><div class="ops-route-refresh-status" role="status" aria-live="polite"></div><div class="ops-route-assigned" style="margin:8px 0"></div><div class="grid"><div class="field"><label>LEVAR — um item por linha</label><textarea class="ops-route-carry" rows="5">'+escSafe((stop?.carry||[]).join('\n'))+'</textarea></div><div class="field"><label>BUSCAR — um item por linha</label><textarea class="ops-route-pickup" rows="5">'+escSafe((stop?.pickup||[]).join('\n'))+'</textarea></div></div><button type="button" class="danger" onclick="this.closest(\'.ops-route-stop\').remove()">Remover parada</button></div>';
 }
 
-function routeOrderNo9249(o){try{return typeof displayOrderNumber==='function'?displayOrderNumber(o):o?.id}catch(e){return o?.id}}
+function routeOrderNo9249(o){try{return typeof displayOrderNumber==='function'?displayOrderNumber(o):(o?.orderNumber||o?.id)}catch(e){return o?.orderNumber||o?.id}}
 function routeProductName9249(p){
  const prod=arr('products').find(x=>sid(x.id)===sid(p?.productId));
  return prod?.name||p?.product||'Produto';
 }
-function routeAssignedProducts9249(loc){
+function routeAssignedProducts9249(loc,productionRows=null){
  if(!loc)return {active:[],planned:[]};
  const active=[],planned=[],seen=new Set();
- const prods=arr('production').filter(p=>loc.type==='Facção'?sid(p.factionId)===sid(loc.id):(!p.factionId&&sid(p.productionLocationId)===sid(loc.id)));
+ const prods=(Array.isArray(productionRows)?productionRows:arr('production')).filter(p=>p&&!p.deleted_at&&!p.deletedAt&&(loc.type==='Facção'?sid(p.factionId)===sid(loc.id):(!p.factionId&&sid(p.productionLocationId)===sid(loc.id))));
  for(const p of prods){
-   const qty=Math.max(0,q(p.planned)-q(p.done));if(qty<=0)continue;
+   const qty=Math.max(0,q(p.planned)-q(p.done));if(qty<=0||/^(pronto|finalizado|conclu[ií]do|cancelado)$/i.test(sid(p.stage).trim()))continue;
    const o=arr('orders').find(x=>sid(x.id)===sid(p.orderId)),pid=sid(p.productId),prod=arr('products').find(x=>sid(x.id)===pid),name=p.product||prod?.name||'Produto';
    const key='production:'+sid(p.id??p.__hlgbId??(sid(p.orderId)+'-'+pid));seen.add(sid(p.orderId)+'|'+pid);
    const sent=!!(p.sentToFactionAt||p.sentAt||p.sentToProductionAt||p.sentToLocationAt||p.factionSentAt||p.productionSentAt);
@@ -279,17 +279,54 @@ function routeAssignedProducts9249(loc){
  return {active,planned};
 }
 function routeAssignedLine9249(x){return (x.orderNo?'Pedido #'+x.orderNo+' — ':'')+(x.product||'Produto')+' — '+q(x.qty).toLocaleString('pt-BR')+' pç'}
-function routeItemHtml9249(x){const line=routeAssignedLine9249(x),dir=x.direction==='pickup'?'pickup':'carry';return '<div class="ops-route-item9422" data-route-item9249="1" data-key="'+escSafe(x.key||line)+'" data-line="'+escSafe(line)+'" data-direction="'+dir+'" data-source="'+escSafe(x.source||'')+'" data-production-id="'+escSafe(x.productionId||'')+'" data-order-id="'+escSafe(x.orderId||'')+'" data-product-id="'+escSafe(x.productId||'')+'" style="display:flex;justify-content:space-between;gap:10px;align-items:center;padding:8px 0;border-bottom:1px solid #eee"><div><b>'+escSafe(line)+'</b><div class="sub">'+escSafe(x.stage||'')+(x.sent?' · já enviado ao local':' · ainda não enviado')+'</div></div><div style="display:flex;gap:6px;flex-wrap:wrap"><button type="button" class="'+(dir==='carry'?'primary':'secondary')+'" data-dir="carry" onclick="routeItemDirection9249(this,\'carry\')">➜ LEVAR</button><button type="button" class="'+(dir==='pickup'?'primary':'secondary')+'" data-dir="pickup" onclick="routeItemDirection9249(this,\'pickup\')">⬅ BUSCAR</button></div></div>'}
+function routeItemHtml9249(x){const line=routeAssignedLine9249(x),dir=x.direction==='pickup'?'pickup':'carry';return '<div class="ops-route-item9422" data-route-item9249="1" data-key="'+escSafe(x.key||line)+'" data-line="'+escSafe(line)+'" data-direction="'+dir+'" data-source="'+escSafe(x.source||'')+'" data-production-id="'+escSafe(x.productionId||'')+'" data-order-id="'+escSafe(x.orderId||'')+'" data-product-id="'+escSafe(x.productId||'')+'" style="display:flex;justify-content:space-between;gap:10px;align-items:center;padding:8px 0;border-bottom:1px solid #eee"><div><b>'+escSafe(line)+'</b><div class="sub">'+escSafe(x.stage||'')+(x.sent?' · já enviado ao local':' · ainda não enviado')+'</div></div><div style="display:flex;gap:6px;flex-wrap:wrap"><button type="button" class="'+(dir==='carry'?'primary':'secondary')+'" data-dir="carry" onclick="routeItemDirection9249(this,\'carry\')">➜ LEVAR</button><button type="button" class="'+(dir==='pickup'?'primary':'secondary')+'" data-dir="pickup" onclick="routeItemDirection9249(this,\'pickup\')">⬅ BUSCAR</button><button type="button" class="secondary" onclick="routeRemoveItem9683(this)">Retirar da rota</button></div></div>'}
 function routeLines9249(v){return sid(v).split(/\n+/).map(x=>x.trim()).filter(Boolean)}
 function routeSyncDirections9249(stop){if(!stop)return;const carry=stop.querySelector('.ops-route-carry'),pickup=stop.querySelector('.ops-route-pickup'),items=[...stop.querySelectorAll('[data-route-item9249]')],known=new Set(items.map(x=>sid(x.dataset.line)));let c=routeLines9249(carry?.value).filter(x=>!known.has(x)),b=routeLines9249(pickup?.value).filter(x=>!known.has(x));for(const it of items){const line=sid(it.dataset.line);if(!line)continue;(it.dataset.direction==='pickup'?b:c).push(line)}if(carry)carry.value=[...new Set(c)].join('\n');if(pickup)pickup.value=[...new Set(b)].join('\n')}
-window.routeItemDirection9249=function(btn,dir){const item=btn?.closest?.('[data-route-item9249]'),stop=btn?.closest?.('.ops-route-stop');if(!item||!stop)return;item.dataset.direction=dir==='pickup'?'pickup':'carry';item.querySelectorAll('button[data-dir]').forEach(b=>b.className=b.dataset.dir===item.dataset.direction?'primary':'secondary');routeSyncDirections9249(stop)};
+// Only the selected item is edited; do not resurrect other omitted suggestions.
+function routeEditLine9683(stop,line,direction){
+ const carry=stop.querySelector('.ops-route-carry'),pickup=stop.querySelector('.ops-route-pickup');
+ if(!line||!carry||!pickup)return;
+ const c=routeLines9249(carry.value).filter(x=>x!==line),p=routeLines9249(pickup.value).filter(x=>x!==line);
+ if(direction==='carry')c.push(line);if(direction==='pickup')p.push(line);
+ carry.value=[...new Set(c)].join('\n');pickup.value=[...new Set(p)].join('\n');
+}
+window.routeItemDirection9249=function(btn,dir){const item=btn?.closest?.('[data-route-item9249]'),stop=btn?.closest?.('.ops-route-stop');if(!item||!stop)return;item.dataset.direction=dir==='pickup'?'pickup':'carry';item.querySelectorAll('button[data-dir]').forEach(b=>b.className=b.dataset.dir===item.dataset.direction?'primary':'secondary');routeEditLine9683(stop,sid(item.dataset.line),item.dataset.direction)};
+window.routeRemoveItem9683=function(btn){const item=btn?.closest?.('[data-route-item9249]'),stop=btn?.closest?.('.ops-route-stop');if(!item||!stop)return;routeEditLine9683(stop,sid(item.dataset.line),null);item.querySelectorAll('button[data-dir]').forEach(b=>b.className='secondary')};
+window.routeMoveStop9683=function(btn,delta){const stop=btn?.closest?.('.ops-route-stop'),parent=stop?.parentElement;if(!parent||parent.id!=='opsRouteStops')return;if(delta===-1&&stop.previousElementSibling)parent.insertBefore(stop,stop.previousElementSibling);if(delta===1&&stop.nextElementSibling)parent.insertBefore(stop.nextElementSibling,stop)};
+window.routeRefreshAssigned9683=async function(btn){
+ const stop=btn?.closest?.('.ops-route-stop'),select=stop?.querySelector('.ops-route-loc'),box=stop?.querySelector('.ops-route-assigned'),notice=stop?.querySelector('.ops-route-refresh-status');
+ const loc=select?.value===''?null:routeLocations()[Number(select?.value)];
+ if(!stop||!box||!notice||!loc||loc.type!=='Facção'){if(notice)notice.textContent='Escolha uma facção para consultar os modelos.';return}
+ const token=typeof cloudAccessToken!=='undefined'?cloudAccessToken:null;
+ if(!token||typeof cloudRequest!=='function'){notice.textContent='Consulta à nuvem indisponível. Não foi feita nenhuma alteração.';return}
+ const generation=(stop.__routeRefresh9683||0)+1;stop.__routeRefresh9683=generation;
+ const valid=()=>stop.isConnected&&stop.__routeRefresh9683===generation&&stop.dataset.routeLocationKey9534===sid(loc.type)+'|'+sid(loc.id)&&typeof cloudAccessToken!=='undefined'&&cloudAccessToken===token;
+ btn.disabled=true;notice.textContent='Consultando produção atual desta facção…';
+ try{
+  const rows=await cloudRequest('hlgb_records?select=entity_id,data,deleted_at&module=eq.production&deleted_at=is.null&'+encodeURIComponent('data->>factionId')+'=eq.'+encodeURIComponent(sid(loc.id))+'&limit=501',{method:'GET'});
+  if(!valid())return;
+  if(!Array.isArray(rows)||rows.length>=501||rows.some(x=>!x?.data||x.deleted_at||sid(x.entity_id)!==sid(x.data.id)||sid(x.data.factionId)!==sid(loc.id))||new Set(rows.map(x=>sid(x.entity_id))).size!==rows.length)throw Error('Resposta incompleta ou inconsistente');
+  const candidates=routeAssignedProducts9249(loc,rows.map(x=>x.data)).active,existing=new Map([...box.querySelectorAll('[data-route-item9249]')].map(x=>[sid(x.dataset.key),x]));
+  let added=0,changed=0;
+  for(const item of candidates){
+   const line=routeAssignedLine9249(item),prior=existing.get(item.key);
+   if(prior){if(sid(prior.dataset.line)!==line)changed++;continue}
+   box.insertAdjacentHTML('beforeend',routeItemHtml9249(item));existing.set(item.key,true);added++;
+   // Add only missing candidates, respecting existing manual lines and direction.
+   const c=routeLines9249(stop.querySelector('.ops-route-carry').value),p=routeLines9249(stop.querySelector('.ops-route-pickup').value);
+   if(!c.includes(line)&&!p.includes(line))routeEditLine9683(stop,line,item.direction);
+  }
+  notice.textContent=added+' modelo(s) novo(s) incluído(s) no rascunho. '+(changed?changed+' modelo(s) com quantidade ou descrição diferente; confira antes de salvar. ':'')+'Confira LEVAR/BUSCAR e salve a rota. Nenhuma produção foi alterada.';
+ }catch(e){if(valid())notice.textContent='Não foi possível atualizar os modelos da nuvem. Rascunho preservado.'}
+ finally{if(btn.isConnected)btn.disabled=false}
+};
 window.routeLocationChanged9249=function(select){
  const stop=select?.closest?.('.ops-route-stop'),selectedIndex=sid(select?.value);
  const loc=selectedIndex===''?null:routeLocations()[Number(selectedIndex)];
  const box=stop?.querySelector('.ops-route-assigned'),carry=stop?.querySelector('.ops-route-carry'),pickup=stop?.querySelector('.ops-route-pickup');
  if(!stop||!box)return;
  if(!loc){box.innerHTML='<div class="sub">Escolha a facção ou confecção para ver seus produtos.</div>';return}
- const locationKey=sid(loc.type)+'|'+sid(loc.id),previous=stop.dataset.routeLocationKey9534||'';
+ const locationKey=sid(loc.type)+'|'+sid(loc.id),previous=stop.dataset.routeLocationKey9534||'';stop.__routeRefresh9683=(stop.__routeRefresh9683||0)+1;
  // Ao mudar de Roseli para Luana, retirar somente as linhas AUTOGERADAS
  // pela parada anterior. Os itens manuais permanecem.
  if(previous&&previous!==locationKey){
@@ -298,14 +335,15 @@ window.routeLocationChanged9249=function(select){
   if(pickup)pickup.value=routeLines9249(pickup.value).filter(x=>!oldLines.has(x)).join('\n');
  }
  stop.dataset.routeLocationKey9534=locationKey;
- const data=routeAssignedProducts9249(loc),items=[...data.active,...data.planned],idx=+stop.dataset.i||0,saved=window.__opsRouteStops9249?.[idx];
+ const data=routeAssignedProducts9249(loc),items=[...data.active,...data.planned],saved=stop.__routeSaved9683;
  // Não reutilizar direções da facção do índice anterior se paradas mudaram.
  const sameSaved=!!saved&&sid(saved.locationId)===sid(loc.id)&&sid(saved.type)===sid(loc.type);
  const savedItems=sameSaved&&Array.isArray(saved.routeItems)?saved.routeItems:[];
  const carryExisting=new Set(routeLines9249(carry?.value)),pickupExisting=new Set(routeLines9249(pickup?.value));
- for(const x of items){const line=routeAssignedLine9249(x),sv=savedItems.find(y=>sid(y.key)===sid(x.key)||sid(y.line)===line);if(sv?.direction)x.direction=sv.direction;else if(pickupExisting.has(line))x.direction='pickup';else if(carryExisting.has(line))x.direction='carry'}
+ for(const x of items){const line=routeAssignedLine9249(x),sv=savedItems.find(y=>sid(y.key)===sid(x.key)||sid(y.line)===line);if(pickupExisting.has(line))x.direction='pickup';else if(carryExisting.has(line))x.direction='carry';else if(sv?.direction)x.direction=sv.direction}
  box.innerHTML=items.length?'<div class="panel" style="padding:10px;background:#fff"><b>📦 O que fazer neste local</b><div class="sub">O sistema sugere <b>LEVAR</b> quando o produto foi atribuído mas ainda não foi enviado e <b>BUSCAR</b> quando já existe envio registrado. Você pode trocar pelo botão.</div>'+items.map(routeItemHtml9249).join('')+'</div>':'<div class="sub">Nenhum produto atribuído a este local agora. Use os campos abaixo para itens manuais.</div>';
- routeSyncDirections9249(stop);
+ if(!sameSaved||previous&&previous!==locationKey)routeSyncDirections9249(stop);
+ else for(const item of box.querySelectorAll('[data-route-item9249]'))if(!carryExisting.has(sid(item.dataset.line))&&!pickupExisting.has(sid(item.dataset.line)))item.querySelectorAll('button[data-dir]').forEach(b=>b.className='secondary');
 };
 
 function openRouteEditor(r){
@@ -373,7 +411,7 @@ function openRouteEditor(r){
   try{await finalizeIfConfirmed(lastAttempt,'timeout')}
   finally{saveBusy=false;if(verifyButton.isConnected)verifyButton.disabled=false}
  };
- setTimeout(()=>{document.querySelectorAll('#opsRouteStops .ops-route-loc').forEach(sel=>window.routeLocationChanged9249?.(sel))},40);
+ document.querySelectorAll('#opsRouteStops .ops-route-stop').forEach((stop,i)=>{stop.__routeSaved9683=clone(r?.stops?.[i]||null);window.routeLocationChanged9249?.(stop.querySelector('.ops-route-loc'))});
 }
 window.newRoute9249=()=>openRouteEditor(null);
 window.editRoute9249=id=>{const r=arr('routePlans').find(x=>sid(x.id)===sid(id));if(r)openRouteEditor(r)};
