@@ -122,6 +122,25 @@
   function preview(){if(!active()||!source.value)throw Error('source');const rows=products(),s=rows.filter(x=>String(x.id)===source.value&&!x.deletedAt&&!x.deleted_at&&!x.deleted&&!x._deleted);if(s.length!==1||JSON.stringify([s[0].id,s[0].materials,s[0].fabricRemnantPolicyV9630])!==signature)throw Error('stale');
    const dimension=v=>v==null||v===''?null:Number(String(v).replace(',','.'));return api.preview(source.value,{state:decision.value,notes:note.value,eligible:[...selected.values()].map(v=>({productId:v.productId,materialId:v.materialId,minWidthMm:dimension(v.minWidthMm),minLengthMm:dimension(v.minLengthMm),size:v.size||'',color:v.color||'',notes:v.notes||''}))},rows,data()?.materials)}
   button('Conferir política de sobra',host,()=>{result.replaceChildren();try{const x=preview();el('p','Rascunho validado · '+x.policy.eligible.length+' destinos. Encaixe físico e saldo ainda não confirmados.',result);if(can('corte')){const w=api.weights(data()?.cuts,source.value);el('h4','Pesagens registradas (resíduo não classificado)',result);for(const r of w.slice(-30))el('p','Corte '+r.cutId+' · '+fmt(r.unclassifiedKg)+' kg sem classificação · reutilizável não confirmado',result)}}catch(_){el('p','Confira o modelo, material compartilhado, dimensões, possíveis ciclos e alterações do cadastro.',result)}});
+  let checking=false;
+  const checkSave=button('Conferir segurança para salvar (sem gravar)',host,async()=>{
+   if(checking||!active())return;checking=true;checkSave.disabled=true;result.replaceChildren();
+   const pid=source.value,actor=user(),sameContext=()=>active()&&source.value===pid&&user()===actor;
+   try{
+    const draft=preview(),draftSignature=JSON.stringify(draft.policy),guard=root.hlgbWalIdbGuard9536,identity=root.hlgbRecordPendingIdentitySet9535;
+    if(typeof guard?.probe!=='function'||typeof guard?.ids!=='function'||typeof guard?.status!=='function'||typeof identity!=='function'||typeof root.cloudRequest!=='function')throw Error('guard');
+    const pending=()=>{const all=new Set([...guard.ids(),...identity()].map(String));return guard.status().readFailed!==false||all.has('products::'+pid)||all.has('products|'+pid)};
+    await guard.probe();if(!sameContext())return;if(pending()){el('p','Há pendência de sincronização ou a fila não pôde ser confirmada. Nenhuma gravação feita.',result);return}
+    const remote=await root.cloudRequest('hlgb_records?select=module,entity_id,data,revision,deleted_at&module=eq.products&entity_id=eq.'+encodeURIComponent(pid)+'&limit=2',{method:'GET'});
+    if(!sameContext())return;await guard.probe();if(!sameContext())return;
+    if(JSON.stringify(preview().policy)!==draftSignature)throw Error('changed');
+    const snapshots=typeof hlgbRecordSnapshots!=='undefined'?hlgbRecordSnapshots:root.hlgbRecordSnapshots;
+    const prepared=api.prepareRemnantChange({productId:pid,input:draft.policy,products:products(),materials:data()?.materials,remote:Array.isArray(remote)&&remote.length===1?remote[0]:null,snapshot:snapshots?.products?.get(pid),pending:pending(),allowed:active()});
+    const messages={'permission':'Acesso indisponível.','pending-or-unverified':'Fila de sincronização pendente ou não verificada.','missing-source':'Cadastro local indisponível.','remote-missing':'Produto remoto ausente, duplicado ou excluído.','revision-changed':'Revisão da nuvem não coincide com a local. Atualize antes de editar.','record-changed':'Cadastro foi alterado ou a cópia local está diferente da nuvem.','policy-limit':'Política acima do limite de destinos; não truncar.','material-or-target':'Material ou destino precisa de revisão.','invalid-policy':'Revise a política e os vínculos.'};
+    result.replaceChildren();el('p',prepared.state==='prepared-only'?'Pré-conferência aprovada · revisão '+prepared.expectedRevision+' · '+(prepared.changed?'alteração preparada':'nenhuma mudança')+'. Nenhuma gravação feita. Permissão de escrita, destinos remotos e confirmação entre sessões ainda exigem validação.':(messages[prepared.reason]||'Pré-conferência indisponível.')+' Nenhuma gravação feita.',result);
+   }catch(_){if(sameContext()){result.replaceChildren();el('p','Não foi possível conferir a segurança da alteração. Revise a conexão e o cadastro. Nenhuma gravação feita.',result)}}
+   finally{checking=false;if(active())checkSave.disabled=false}
+  });
   button('Exportar rascunho da política (JSON)',host,()=>{try{const x=preview();if(!active())return;const url=URL.createObjectURL(new Blob([JSON.stringify({...x,format:'hlgb-remnant-policy-draft-v1',uploaded:false},null,2)],{type:'application/json'}));const a=document.createElement('a');a.href=url;a.download='politica-sobra-'+source.value.replace(/[^a-z0-9_-]/gi,'_')+'.json';document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),15000);result.replaceChildren();el('p','Arquivo local gerado. Não foi salvo no cadastro.',result)}catch(_){result.replaceChildren();el('p','Não foi possível exportar. Confira o rascunho.',result)}});
   sourceOptions();
  }
