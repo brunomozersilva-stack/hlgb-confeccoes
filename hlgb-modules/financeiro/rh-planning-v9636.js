@@ -48,5 +48,75 @@
   const sum=kind=>items.filter(x=>x.kind===kind&&x.status==='open').reduce((a,x)=>a+x.amountCents,0);
   return {mode:'simulation-only',type,noticeMode:mode,completedYears:years,referenceDays,projectedEnd,referenceIndemnityCents,items,issues,observedCreditsCents:sum('credit'),observedDiscountsCents:sum('discount'),observedEmployerChargesCents:sum('employer-charge'),officialNetCents:null,canPublish:false,requiresReview:true};
  }
- return {vacations,provisions,notice};
+
+ // Live roster: only fields needed for planning; never infer entitlement from admission or paid history.
+ const employeeId=v=>(typeof v==='string'&&/^[A-Za-z0-9_-]{1,100}$/.test(v)||Number.isSafeInteger(v)&&v>0)?String(v):'';
+ const text=(v,n)=>typeof v==='string'?v.trim().slice(0,n):'';
+ const toCents=v=>{if(typeof v!=='number'&&!(typeof v==='string'&&/^\d+(\.\d{1,2})?$/.test(v)))return null;const n=Number(v),c=Math.round(n*100);return money(c)&&Math.abs(n*100-c)<.00001?c:null};
+ const permit=d=>{try{return d.auth()===true&&d.can('folhaPagamento')===true&&d.can('funcionarios')===true}catch(_){return false}};
+ const norm=s=>String(s??'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').trim().toLowerCase();
+ const absent=state=>({state,rows:[],issues:[],canPublish:false});
+ function roster(deps){
+  if(!permit(deps))return absent('forbidden');
+  try{
+   const raw=deps.read('employees');if(!permit(deps))return absent('forbidden');
+   if(!Array.isArray(raw)||raw.length>10000)return absent('unavailable');
+   const map=new Map(),issues=[];
+   for(const e of raw){if(!e||e.deletedAt||e.deleted_at||e.deleted===true||e._deleted===true)continue;const k=employeeId(e.id);if(!k){issues.push('invalid-employee-id');continue}map.set(k,map.has(k)?null:e)}
+   const rows=[];
+   for(const [k,e] of map){if(!e){issues.push('duplicate-employee-id');continue}if(e.active===false||e.terminationDate)continue;
+    const name=text(e.name,160);if(!name){issues.push('employee-name-missing');continue}
+    const r={id:k,name,company:text(e.companyName,160),hireDate:date(e.hireDate)===null?null:e.hireDate,baseCents:toCents(e.salary)};
+    rows.push({...r,signature:JSON.stringify(r)});
+   }
+   if(!permit(deps))return absent('forbidden');
+   rows.sort((a,b)=>a.name.localeCompare(b.name,'pt-BR')||a.id.localeCompare(b.id));
+   return {state:'local-roster',rows,issues:[...new Set(issues)],canPublish:false};
+  }catch(_){return absent('unavailable')}
+ }
+ function selectRoster(source,query='',company=''){
+  if(source?.state!=='local-roster'||!Array.isArray(source.rows))return [];
+  return source.rows.filter(x=>(!company||x.company===company)&&norm([x.name,x.id,x.company].join(' ')).includes(norm(query)));
+ }
+ function reviewedVacations(source,input){
+  if(source?.state!=='local-roster'||!Array.isArray(input?.reviews)||input.reviews.length<1||input.reviews.length>200)throw Error('invalid-review');
+  const current=new Map(source.rows.map(x=>[x.id,x])),seen=new Set(),valid=[],issues=[];
+  for(const r of input.reviews){
+   const k=employeeId(r?.employeeId),e=current.get(k);
+   if(!k||seen.has(k))throw Error('duplicate-review');seen.add(k);
+   if(!e||r.signature!==e.signature){issues.push({employeeId:k,reason:'roster-changed'});continue}
+   if(r.reviewed!==true||!money(r.baseCents)||!days(r.availableDays)||!['acquired','proportional'].includes(r.entitlement)){issues.push({employeeId:k,reason:'entitlement-review-required'});continue}
+   valid.push({id:k,baseCents:r.baseCents,availableDays:r.availableDays,entitlement:r.entitlement,entitlementVerified:true,paidLeaveApproved:r.paidLeaveApproved===true});
+  }
+  const result=vacations({periods:input.periods,employees:valid,priorPeriodsByYear:input.priorPeriodsByYear||{},calendarVerified:false,closedDays:[]});
+  const partial=result.people.some(x=>x.periods.some(p=>p.status==='review'));
+  return {...result,selectedCount:input.reviews.length,reviewedCount:valid.length,reviewIssues:issues,observedGrossCents:valid.length?result.observedGrossCents:null,coverage:!issues.length&&!partial?'reviewed-local-input':'partial-review',canPublish:false};
+ }
+ // Multiple acquisition cycles per person. Overlapping cycles and duplicate identifiers are not counted.
+ function provisionCycles(source,rows,asOf,filter='all'){
+  if(source?.state!=='local-roster'||!Array.isArray(rows)||rows.length>1000||date(asOf)===null||!['all','acquired','overdue','proportional','used','unknown'].includes(filter))throw Error('invalid-input');
+  const people=new Map(source.rows.map(x=>[x.id,x])),byPerson=new Map(),counts=new Map(),invalid=new Set(),records=[];
+  for(const [i,r] of rows.entries()){
+   const employee=people.get(employeeId(r?.employeeId)),k=id(r?.cycleId),a=date(r?.acquisitionStart),b=date(r?.acquisitionEnd),c=date(r?.concessionEnd);
+   const row={i,cycleId:k,employeeId:employeeId(r?.employeeId),name:employee?.name||'Cadastro não localizado',acquisitionStart:r?.acquisitionStart,acquisitionEnd:r?.acquisitionEnd,concessionEnd:r?.concessionEnd,remainingDays:r?.remainingDays,provisionCents:r?.provisionCents,a,b,c};
+   records.push(row);if(k)counts.set(k,(counts.get(k)||0)+1);
+   if(!k||!employee||r.signature!==employee.signature||r.reviewed!==true||a===null||b===null||c===null||a>=b||b>=c||a>date(asOf)||!days(r.remainingDays)||!money(r.provisionCents))invalid.add(i);
+   if(employee&&a!==null&&b!==null&&a<b){const list=byPerson.get(row.employeeId)||[];list.push(row);byPerson.set(row.employeeId,list)}
+  }
+  for(const r of records)if(counts.get(r.cycleId)!==1)invalid.add(r.i);
+  for(const list of byPerson.values()){list.sort((a,b)=>a.a-b.a||a.b-b.b);for(let i=0;i<list.length;i++)for(let j=i+1;j<list.length&&list[j].a<=list[i].b;j++){invalid.add(list[i].i);invalid.add(list[j].i)}}
+  const groups={acquired:[],overdue:[],proportional:[],used:[],unknown:[]};
+  for(const r of records){const status=invalid.has(r.i)?'unknown':r.remainingDays===0?'used':date(asOf)>r.c?'overdue':date(asOf)>=r.b?'acquired':'proportional';const {i,a,b,c,...safe}=r;groups[status].push({...safe,provisionCents:status==='unknown'?null:r.provisionCents,status})}
+  const known=Object.values(groups).flat().filter(x=>x.status!=='unknown'),sum=a=>a.length?a.reduce((s,x)=>s+x.provisionCents,0):null;
+  const filtered=filter==='all'?Object.values(groups).flat():groups[filter];
+  return {state:'local-review',groups,rows:filtered,totals:Object.fromEntries(Object.entries(groups).map(([k,v])=>[k,k==='unknown'?null:sum(v)])),observedTotalCents:sum(known),filteredTotalCents:sum(filtered.filter(x=>x.status!=='unknown')),unknownCount:groups.unknown.length,reviewedCount:known.length,employeeCount:new Set(known.map(x=>x.employeeId)).size,officialTotalCents:null,canPublish:false};
+ }
+ function reviewedNotice(source,input){
+  if(source?.state!=='local-roster')throw Error('roster-unavailable');
+  const e=source.rows.find(x=>x.id===employeeId(input?.employeeId));
+  if(!e||input.signature!==e.signature||input.reviewed!==true||date(input.hireDate)===null)throw Error('employee-review-required');
+  const result=notice({hireDate:input.hireDate,noticeDate:input.noticeDate,type:input.type,mode:input.mode,salaryCents:input.salaryCents,approvedItems:input.approvedItems||[]});
+  return {...result,employeeId:e.id,name:e.name,observedItemsDifferenceCents:result.items.some(x=>x.status==='open'&&['credit','discount'].includes(x.kind))?result.observedCreditsCents-result.observedDiscountsCents:null,canPublish:false};
+ }
+ return {vacations,provisions,notice,roster,selectRoster,reviewedVacations,provisionCycles,reviewedNotice};
 })());
