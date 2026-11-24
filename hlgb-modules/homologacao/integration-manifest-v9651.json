@@ -205,11 +205,6 @@
       "origin": 318
     },
     {
-      "path": "release-cut-organization.js",
-      "sha": "a5d5545495003bb87dbe3f870ec5b04de3366f6a",
-      "origin": 318
-    },
-    {
       "path": "tests/cut-evidence-archive-contract-v9646.cjs",
       "sha": "628fb4a6ba2baf288b906a0a2867233ae4141de4",
       "origin": 318
@@ -265,7 +260,7 @@
     "hlgb-modules/ownership-v9600.json"
   ],
   "originalScripts": 163,
-  "integratedScripts": 181,
+  "integratedScripts": 187,
   "mode": "candidate-not-production",
   "followup": {
     "version": "96.52",
@@ -318,5 +313,25 @@
       "hlgb-modules/financeiro/worker-registry-view-v9659.js"
     ],
     "schemaDraft": "hlgb-modules/financeiro/db-draft-worker-registry-v9659.sql"
+  },
+  "supersededFiles": [
+    {
+      "path": "release-cut-organization.js",
+      "sha": "a5d5545495003bb87dbe3f870ec5b04de3366f6a",
+      "origin": 318,
+      "reason": "v96.61 local dossier export action added; existing checklist, selection, separation and print retained"
+    }
+  ],
+  "followupProduction": {
+    "version": "96.61",
+    "added": [
+      "hlgb-modules/producao/cut-dossier-export-v9661.js",
+      "hlgb-modules/producao/joint-cut-core-v9628.js",
+      "hlgb-modules/producao/joint-cut-discovery-v9629.js",
+      "hlgb-modules/producao/fabric-remnant-policy-v9630.js",
+      "hlgb-modules/producao/production-planning-v9661.js",
+      "hlgb-modules/producao/production-planning-view-v9661.js"
+    ],
+    "controllerChanged": "release-cut-organization.js"
   }
 }

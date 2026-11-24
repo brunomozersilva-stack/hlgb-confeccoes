@@ -12,8 +12,14 @@
     "release-wal-idb-convergence-v9536.js",
     "release-pricing.js",
     "release-limits.js",
+    "hlgb-modules/producao/cut-dossier-export-v9661.js",
     "hlgb-modules/producao/cut-separation-core-v9647.js",
     "release-cut-organization.js",
+    "hlgb-modules/producao/joint-cut-core-v9628.js",
+    "hlgb-modules/producao/joint-cut-discovery-v9629.js",
+    "hlgb-modules/producao/fabric-remnant-policy-v9630.js",
+    "hlgb-modules/producao/production-planning-v9661.js",
+    "hlgb-modules/producao/production-planning-view-v9661.js",
     "hlgb-modules/producao/corte-consumo-core-v9624.js",
     "release-cut-material-usage.js",
     "hlgb-modules/producao/corte-pesagem-core-v9623.js",
@@ -228,8 +234,14 @@
       "release-order-delivery-trace-v9539.js"
     ],
     "corte-cortadores": [
+      "hlgb-modules/producao/cut-dossier-export-v9661.js",
       "hlgb-modules/producao/cut-separation-core-v9647.js",
       "release-cut-organization.js",
+      "hlgb-modules/producao/joint-cut-core-v9628.js",
+      "hlgb-modules/producao/joint-cut-discovery-v9629.js",
+      "hlgb-modules/producao/fabric-remnant-policy-v9630.js",
+      "hlgb-modules/producao/production-planning-v9661.js",
+      "hlgb-modules/producao/production-planning-view-v9661.js",
       "hlgb-modules/producao/corte-consumo-core-v9624.js",
       "release-cut-material-usage.js",
       "hlgb-modules/producao/corte-pesagem-core-v9623.js",
@@ -397,7 +409,7 @@
       "release-ui-actions-v9402.js"
     ]
   },
-  "notes": "HLGB Comercial: 181 scripts únicos, 158 baseline + 23 novos; ordem preservada.",
+  "notes": "HLGB Comercial: 187 scripts únicos, 158 baseline + 29 novos; ordem preservada.",
   "criticalFileBlobs": {
     "app9240.html": "d0a6e49bc7bcd363c853092c350e3cf9a2b030c5",
     "release-cutter-planner.js": "a56f2c79df19ebb1cd86544a13976a97538d6a4e",
@@ -595,7 +607,13 @@
     "hlgb-modules/financeiro/attendance-transport-preview-v9658.js",
     "hlgb-modules/financeiro/attendance-transport-view-v9658.js",
     "hlgb-modules/financeiro/worker-registry-v9659.js",
-    "hlgb-modules/financeiro/worker-registry-view-v9659.js"
+    "hlgb-modules/financeiro/worker-registry-view-v9659.js",
+    "hlgb-modules/producao/cut-dossier-export-v9661.js",
+    "hlgb-modules/producao/joint-cut-core-v9628.js",
+    "hlgb-modules/producao/joint-cut-discovery-v9629.js",
+    "hlgb-modules/producao/fabric-remnant-policy-v9630.js",
+    "hlgb-modules/producao/production-planning-v9661.js",
+    "hlgb-modules/producao/production-planning-view-v9661.js"
   ],
   "extractionChanges": {
     "release-separation-commit-v9319.js": {
