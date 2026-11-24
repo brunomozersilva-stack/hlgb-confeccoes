@@ -481,5 +481,34 @@
     ],
     "dependsOn": 322,
     "status": "validação antecipada; não publicar antes da etapa 03"
+  },
+  "followupProductionBasket": {
+    "version": "96.68",
+    "changed": [
+      "hlgb-modules/producao/production-planning-v9661.js",
+      "hlgb-modules/producao/production-planning-view-v9661.js"
+    ],
+    "tests": [
+      "tests/hlgb-production-planning-v9661.cjs",
+      "tests/hlgb-production-planning-v9661-selection-view.cjs",
+      "tests/hlgb-production-planning-v9661-browser.cjs"
+    ],
+    "mode": "local-draft-only"
+  },
+  "incrementalStage05": {
+    "base": "d23357178d3132cef6251e9b2423403fab0e123b",
+    "source": "eddd25b995ac98c21147f1423b3c89dbafc35444",
+    "sourceWorkflows": 82,
+    "scope": "cesta única Corte Conjunto, necessidade de materiais por modelo, envio autorizado ao planejador Compras; sem corte físico, compra ou estoque automático",
+    "exactFiles": [
+      "hlgb-modules/producao/production-planning-v9661.js",
+      "hlgb-modules/producao/production-planning-view-v9661.js",
+      "hlgb-modules/producao/README-production-planning-v9661.md",
+      "tests/hlgb-production-planning-v9661.cjs",
+      "tests/hlgb-production-planning-v9661-selection-view.cjs",
+      "tests/hlgb-production-planning-v9661-browser.cjs"
+    ],
+    "status": "branch preparada; CI específica após etapa 04",
+    "dependsOn": 323
   }
 }

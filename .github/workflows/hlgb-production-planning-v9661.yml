@@ -23,6 +23,7 @@ jobs:
       - run: node --check hlgb-modules/producao/production-planning-view-v9661.js
       - run: node --check release-cut-organization.js
       - run: node tests/hlgb-production-planning-v9661.cjs
+      - run: node tests/hlgb-production-planning-v9661-selection-view.cjs
       - run: node tests/hlgb-integration-v9651.cjs
   browser:
     runs-on: ubuntu-24.04

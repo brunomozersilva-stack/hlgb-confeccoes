@@ -38,5 +38,50 @@
   const rows=cuts.filter(x=>live(x)&&id(x.productId)===id(productId)&&!x.hiddenByModelSplitV1&&x.cutWeightV9579),counts=new Map();for(const x of rows)counts.set(id(x.id),(counts.get(id(x.id))||0)+1);
   return rows.filter(x=>id(x.id)&&counts.get(id(x.id))===1).map(x=>({cutId:id(x.id),orderId:id(x.orderId),...remnant.inspectWeight(x.cutWeightV9579)}));
  }
- return {discover,combine,candidates,weights,preview:(source,input,products,catalog)=>{const valid=fabrics(catalog);if(input?.eligible?.some(x=>!valid.has(id(x.materialId))))throw Error('fabric-not-confirmed');return remnant.preview(source,input,products)}};
+
+ // A model/order may appear under several materials. Build one selection by canonical pair.
+ function modelSignature(m){return JSON.stringify([m.key,m.orderId,m.orderNumber,m.productId,m.productName,m.pieces,[...m.grade].map(x=>[x.color,x.size,x.qty]).sort((a,b)=>JSON.stringify(a).localeCompare(JSON.stringify(b)))])}
+ function planSelection(discovery,selected){
+  const empty=(state,issues=[])=>({state,issues,rows:[],byProduct:[],orderedPieces:null,canWrite:false});
+  if(discovery?.state!=='discovery-only'||!Array.isArray(discovery.groups)||!Array.isArray(selected)||selected.length>1000)return empty('unavailable');
+  try{
+   const index=new Map(),seen=new Set();
+   for(const g of discovery.groups)for(const m of g.models){const k=m.key;if(!k||!m.productId||!m.orderId||!Number.isSafeInteger(m.pieces)||m.pieces<=0||!Array.isArray(m.grade)||m.grade.some(x=>!x.color||!x.size||!Number.isSafeInteger(x.qty)||x.qty<=0)||m.grade.reduce((a,x)=>a+x.qty,0)!==m.pieces)continue;
+    const sig=modelSignature(m),old=index.get(k);if(!index.has(k))index.set(k,{m,sig});else if(!old||old.sig!==sig)index.set(k,null);
+   }
+   const rows=[],issues=[];
+   for(const x of selected){if(!x?.key||seen.has(x.key))return empty('invalid-selection',['duplicate-or-invalid-pair']);seen.add(x.key);const found=index.get(x.key);if(!found||found.sig!==x.signature){issues.push('changed-or-ambiguous-model');continue}rows.push(found.m)}
+   if(issues.length)return empty('stale',issues);
+   const products=new Map();let orderedPieces=0;
+   for(const m of rows){orderedPieces+=m.pieces;const x=products.get(m.productId)||{productId:m.productId,productName:m.productName,pieces:0,orderCount:0};x.pieces+=m.pieces;x.orderCount++;products.set(m.productId,x)}
+   if(!Number.isSafeInteger(orderedPieces)||[...products.values()].some(x=>!Number.isSafeInteger(x.pieces)||x.pieces>10000000))return empty('invalid-selection',['quantity-limit']);
+   return {state:'local-preview',rows,byProduct:[...products.values()].sort((a,b)=>a.productName.localeCompare(b.productName,'pt-BR')),orderedPieces,issues:[],canWrite:false};
+  }catch(_){return empty('unavailable')}
+ }
+ function materialDemand(selection,data,allowed){
+  const empty=state=>({state,rows:[],models:[],issues:[],canWrite:false});
+  if(allowed!==true)return empty('forbidden');
+  if(selection?.state!=='local-preview'||!Array.isArray(selection.byProduct)||!Array.isArray(data?.products)||!Array.isArray(data?.materials))return empty('unavailable');
+  const index=rows=>{const m=new Map();for(const x of rows.filter(live)){const k=id(x.id);if(k)m.set(k,m.has(k)?null:x)}return m};
+  const products=index(data.products),materials=index(data.materials),totals=new Map(),issues=[],models=[];
+  const number=v=>typeof v==='number'||typeof v==='string'&&/^\d+(?:\.\d+)?$/.test(v)?Number(v):NaN;
+  for(const item of selection.byProduct){
+   const p=products.get(id(item.productId)),model={productId:item.productId,productName:item.productName,pieces:item.pieces,materials:[],issues:[]};
+   if(!p||p.active===false||!Array.isArray(p.materials)||!p.materials.length){model.issues.push('missing-or-ambiguous-bom');issues.push(...model.issues);models.push(model);continue}
+   const components=new Map(),counts=new Map();
+   for(const b of p.materials){const mid=id(b?.materialId),m=materials.get(mid),unit=id(b?.unit||m?.unit),color=id(b?.color),key=JSON.stringify([mid,norm(unit),norm(color)]);counts.set(key,(counts.get(key)||0)+1);if(!components.has(key))components.set(key,{b,m,mid,unit,color,key})}
+   for(const x of components.values()){
+    const {b,m,mid,unit,color,key}=x,rate=number(b?.qty),loss=number(b?.loss??0),mode=b?.calcMode||'consumption';
+    if(counts.get(key)!==1||!m||!mid||!unit||!id(m.name)||m.unit&&norm(m.unit)!==norm(unit)||!Number.isFinite(rate)||rate<=0||!Number.isFinite(loss)||loss<0||!['yield','consumption'].includes(mode)){model.issues.push('material-review:'+mid);continue}
+    const need=(mode==='yield'?item.pieces/rate:item.pieces*rate)*(1+loss/100);if(!Number.isFinite(need)||need<=0){model.issues.push('quantity-review:'+mid);continue}
+    const row={materialId:mid,materialName:id(m.name),unit,color,needed:need,mode,rate,loss};model.materials.push(row);
+    const g=totals.get(key)||{materialId:mid,materialName:id(m.name),unit,color,needed:0,models:[]};g.needed+=need;g.models.push({productId:item.productId,productName:item.productName,needed:need,pieces:item.pieces});totals.set(key,g)
+   }
+   issues.push(...model.issues);models.push(model);
+  }
+  const rows=[...totals.values()].sort((a,b)=>a.materialName.localeCompare(b.materialName,'pt-BR')||a.unit.localeCompare(b.unit)||a.color.localeCompare(b.color));
+  if(rows.some(x=>!Number.isFinite(x.needed)))return empty('unavailable');
+  return {state:'local-estimate',rows,models,issues,partial:issues.length>0,stockVerified:false,canWrite:false};
+ }
+ return {discover,combine,candidates,weights,modelSignature,planSelection,materialDemand,preview:(source,input,products,catalog)=>{const valid=fabrics(catalog);if(input?.eligible?.some(x=>!valid.has(id(x.materialId))))throw Error('fabric-not-confirmed');return remnant.preview(source,input,products)}};
 });
