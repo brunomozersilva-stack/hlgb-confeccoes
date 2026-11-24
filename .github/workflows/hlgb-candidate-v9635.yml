@@ -16,7 +16,7 @@ jobs:
       - uses: actions/setup-node@v4
         with: {node-version: '22'}
       - run: |
-          for f in tests/hlgb-financial-week-core-v9627.cjs tests/hlgb-cash-projection-v9631.cjs tests/hlgb-hub-intelligence-adapter-v9633.cjs tests/hlgb-hub-intelligence-legacy-v9633.cjs tests/hlgb-payroll-fifth-day-v9632.cjs tests/hlgb-payroll-preview-adapter-v9634.cjs tests/hlgb-joint-cut-core-v9628.cjs tests/hlgb-joint-cut-discovery-v9629.cjs tests/hlgb-fabric-remnant-policy-v9630.cjs tests/hlgb-candidate-v9635.cjs tests/hlgb-rh-planning-v9636.cjs tests/hlgb-payroll-planning-v9645.cjs tests/hlgb-candidate-single-source-v9648.cjs; do node "$f" || exit 1; done
+          for f in tests/hlgb-financial-week-core-v9627.cjs tests/hlgb-cash-projection-v9631.cjs tests/hlgb-hub-intelligence-adapter-v9633.cjs tests/hlgb-hub-intelligence-legacy-v9633.cjs tests/hlgb-payroll-fifth-day-v9632.cjs tests/hlgb-payroll-preview-adapter-v9634.cjs tests/hlgb-joint-cut-core-v9628.cjs tests/hlgb-joint-cut-discovery-v9629.cjs tests/hlgb-fabric-remnant-policy-v9630.cjs tests/hlgb-candidate-v9635.cjs tests/hlgb-rh-planning-v9636.cjs tests/hlgb-payroll-planning-v9645.cjs tests/hlgb-candidate-single-source-v9648.cjs tests/hlgb-hub-personnel-forecast-v9650.cjs; do node "$f" || exit 1; done
   browser:
     runs-on: ubuntu-24.04
     strategy:
