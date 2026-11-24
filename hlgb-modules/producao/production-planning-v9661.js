@@ -146,6 +146,9 @@
     const nextGrams=h.totalGrams+grams,nextPieces=h.pieces+c.pieces;
     if(!Number.isFinite(nextGrams)||!Number.isSafeInteger(nextPieces)){h.review++;continue}
     h.cuts++;h.totalGrams=nextGrams;h.pieces=nextPieces;
+    // Only explicit, offset-aware timestamps of measured records support chronology.
+    const timestamp=c.materialUsageRecordedAt,ms=typeof timestamp==='string'&&/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$/.test(timestamp)?Date.parse(timestamp):NaN;
+    if(Number.isFinite(ms)){(h.samples||(h.samples=[])).push({cutId:id(c.id),ms,grams,pieces:c.pieces})}
    }
   }
   return {state:'local-observation',byPair,canWrite:false};
@@ -160,6 +163,25 @@
   const coveredPieces=rows.reduce((n,r)=>n+(r.estimatedKg===null?0:r.pieces),0),uncoveredPieces=rows.reduce((n,r)=>n+(r.estimatedKg===null?r.pieces:0),0),estimatedKg=coveredPieces?rows.reduce((n,r)=>n+(r.estimatedKg??0),0):null;
   if(!Number.isSafeInteger(coveredPieces)||!Number.isSafeInteger(uncoveredPieces)||estimatedKg!==null&&!Number.isFinite(estimatedKg))return empty('unavailable');
   return {...empty('local-estimate'),rows,coveredPieces,uncoveredPieces,estimatedKg};
+ }
+
+ // Retrospective holdout: estimate the newest uniquely dated measurement using
+ // ONLY earlier recorded measurements. Not a saved prediction or proof of savings.
+ function materialBacktest(group,history,allowed){
+  if(allowed!==true)return {state:'forbidden',rows:[],canWrite:false};
+  if(!Array.isArray(group?.models)||history?.state!=='local-observation'||!(history.byPair instanceof Map))return {state:'unavailable',rows:[],canWrite:false};
+  const rows=[],seen=new Set();
+  for(const m of group.models){
+   const pid=id(m.productId);if(!pid||seen.has(pid))continue;seen.add(pid);
+   const h=history.byPair.get(pair(pid,group.materialId)),samples=Array.isArray(h?.samples)?h.samples.slice().sort((a,b)=>b.ms-a.ms):[],base={productId:pid,productName:m.productName,datedSamples:samples.length,undatedSamples:(h?.cuts||0)-samples.length};
+   if(samples.length<4||samples[0].ms===samples[1].ms){rows.push({...base,state:'insufficient'});continue}
+   const latest=samples[0],prior=samples.slice(1).filter(x=>x.ms<latest.ms),grams=prior.reduce((n,x)=>n+x.grams,0),pieces=prior.reduce((n,x)=>n+x.pieces,0);
+   if(prior.length<3||!Number.isSafeInteger(pieces)||pieces<=0||!Number.isFinite(grams)||grams<=0){rows.push({...base,state:'insufficient'});continue}
+   const expectedKg=grams/pieces*latest.pieces/1000,actualKg=latest.grams/1000,deltaKg=actualKg-expectedKg,deltaPct=100*deltaKg/expectedKg;
+   if(![expectedKg,actualKg,deltaKg,deltaPct].every(Number.isFinite)){rows.push({...base,state:'insufficient'});continue}
+   rows.push({...base,state:'retrospective',cutId:latest.cutId,recordedAt:new Date(latest.ms).toISOString(),priorCuts:prior.length,pieces:latest.pieces,expectedKg,actualKg,deltaKg,deltaPct,savings:null});
+  }
+  return {state:'local-observation',rows,canWrite:false};
  }
 
  // Current local catalogue reference price, not paid cost or purchasing requirement.
@@ -252,5 +274,5 @@
   if(rows.some(x=>!Number.isFinite(x.needed)))return empty('unavailable');
   return {state:'local-estimate',rows,models,issues,partial:issues.length>0,stockVerified:false,canWrite:false};
  }
- return {discover,combine,gradeSuggestions,catalogGroups,candidates,weights,cutEvidence,groupEvidence,materialHistory,materialEstimate,materialCostEstimate,prepareRemnantChange,modelSignature,planSelection,materialDemand,preview:(source,input,products,catalog)=>{const valid=fabrics(catalog);if(input?.eligible?.some(x=>!valid.has(id(x.materialId))))throw Error('fabric-not-confirmed');return remnant.preview(source,input,products)}};
+ return {discover,combine,gradeSuggestions,catalogGroups,candidates,weights,cutEvidence,groupEvidence,materialHistory,materialEstimate,materialBacktest,materialCostEstimate,prepareRemnantChange,modelSignature,planSelection,materialDemand,preview:(source,input,products,catalog)=>{const valid=fabrics(catalog);if(input?.eligible?.some(x=>!valid.has(id(x.materialId))))throw Error('fabric-not-confirmed');return remnant.preview(source,input,products)}};
 });
