@@ -7,7 +7,7 @@
  const same=(a,b)=>JSON.stringify(a)===JSON.stringify(b);
  const no=reason=>({state:reason,confirmed:false,canPublish:false});
  function profile(p){
-  if(!uuid(p.worker_id)||!uuid(p.operation_id)||!integer(p.revision,1,2147483647)||!txt(p.name,160)||!txt(p.role_name,120)||!txt(p.sector,120)||!date(p.start_date)||typeof p.active!=='boolean'||!integer(p.planned_days,0,7)||!Array.isArray(p.benefits))throw Error('invalid-profile');
+  if(!uuid(p.worker_id)||!uuid(p.operation_id)||!integer(p.revision,1,2147483647)||!txt(p.name,160)||!txt(p.role_name,120)||!txt(p.sector,120)||!date(p.start_date)||typeof p.active!=='boolean'||p.planned_days!==null&&!integer(p.planned_days,0,7)||!Array.isArray(p.benefits))throw Error('invalid-profile');
   // Registered employees must remain in canonical payroll; this supplemental registry must not create another payment.
   const x=planning.worker({id:p.worker_id,mode:p.mode,relationship:p.relationship,rateCents:p.rate_cents,transportEnabled:p.transport_enabled,transportCents:p.transport_cents,benefits:p.benefits});
   if(x.relationship==='registered')throw Error('use-canonical-payroll');
@@ -54,5 +54,24 @@
   const r=reconcile.inspect({authenticated:ctx?.authenticated===true,payrollAllowed:ctx?.payrollAllowed===true,financeAllowed:ctx?.financeAllowed===true,rows:ctx?.rows,pendingOrigins:[],snapshotVerified:false,coverageVerified:false,pendingVerified:false},{kind:'worker-week',personId:x.worker_id,friday:input.friday,dueDate:v.scheduledCandidate,amountCents:v.actualCents??v.plannedCents,sourceVerified:false,calendarVerified:false});
   return {...amounts,reconciliation:r.state,canPublish:false};
  }
- return {profile,review,draft,save,forecast};
+
+ function monthly(profileRow,input,ctx){
+  const x=profile(profileRow);
+  if(!x.active||x.mode!=='monthly'||typeof input?.competence!=='string'||!/^\d{4}-(0[1-9]|1[0-2])$/.test(input.competence)||input.competence<x.start_date.slice(0,7)||!date(input.asOf)||!date(input.contractDate))throw Error('invalid-month');
+  if(input.competence===x.start_date.slice(0,7)&&!x.start_date.endsWith('-01'))throw Error('partial-first-month-review');
+  const v=planning.monthly({id:x.worker_id,mode:x.mode,relationship:x.relationship,rateCents:x.rate_cents,transportEnabled:x.transport_enabled,transportCents:x.transport_cents,benefits:x.benefits},input);
+  const r=reconcile.inspect({authenticated:ctx?.authenticated===true,payrollAllowed:ctx?.payrollAllowed===true,financeAllowed:ctx?.financeAllowed===true,rows:ctx?.rows,pendingOrigins:[],snapshotVerified:false,coverageVerified:false,pendingVerified:false},{kind:'worker-month',personId:x.worker_id,competence:input.competence,dueDate:input.contractDate,amountCents:v.observedGrossCents,sourceVerified:false,calendarVerified:false});
+  return {...v,reconciliation:r.state,canPublish:false};
+ }
+ function reviewedWeek(p,old,friday){
+  const x=profile(p);if(!date(friday)||new Date(friday+'T00:00:00Z').getUTCDay()!==5)throw Error('invalid-friday');
+  if(old&&(old.worker_id!==x.worker_id||old.week_friday!==friday||!integer(old.revision,1,2147483647)))throw Error('invalid-week-record');
+  return {worker_id:x.worker_id,worker_revision:x.revision,friday,expectedRevision:old?.revision||0};
+ }
+ function nextWeek(p,reviewed,v){
+  const x=profile(p);
+  if(!reviewed||reviewed.worker_id!==x.worker_id||reviewed.worker_revision!==x.revision||reviewed.friday!==v.friday||!integer(reviewed.expectedRevision,0,2147483646))throw Error('review-required');
+  return draft(x,{...v,revision:reviewed.expectedRevision+1});
+ }
+ return {profile,review,draft,save,forecast,monthly,reviewedWeek,nextWeek};
 });

@@ -6,11 +6,11 @@ create table public.hlgb_worker_profile_versions_v1 (
  name text not null check(length(trim(name)) between 1 and 160),
  role_name text not null check(length(trim(role_name)) between 1 and 120),
  sector text not null check(length(trim(sector)) between 1 and 120),
- start_date date not null, active boolean not null, planned_days integer not null check(planned_days between 0 and 7),
+ start_date date not null, active boolean not null, planned_days integer check(planned_days is null or planned_days between 0 and 7),
  mode text not null check(mode in ('daily','monthly')), relationship text not null check(relationship in ('independent-reviewed','review-required')),
  rate_cents integer not null check(rate_cents between 0 and 1000000000),
  transport_enabled boolean not null, transport_cents integer not null check(transport_cents between 0 and 1000000000 and (transport_enabled or transport_cents=0)),
- benefits text[] not null check(benefits <@ array['13th','vacation','vacation-third','other']::text[] and (relationship<>'review-required' or benefits @> array['13th','vacation','vacation-third']::text[])),
+ benefits text[] not null check(array_position(benefits,null) is null and benefits <@ array['13th','vacation','vacation-third','other']::text[] and (relationship<>'review-required' or benefits @> array['13th','vacation','vacation-third']::text[])),
  created_by uuid not null default auth.uid(), created_at timestamptz not null default now(),
  primary key(worker_id,revision)
 );
@@ -55,5 +55,11 @@ end $$;
 revoke all on function public.hlgb_worker_revision_guard_v1() from public,anon,authenticated;
 create trigger worker_profile_revision before insert on public.hlgb_worker_profile_versions_v1 for each row execute function public.hlgb_worker_revision_guard_v1();
 create trigger worker_week_revision before insert on public.hlgb_worker_week_versions_v1 for each row execute function public.hlgb_worker_revision_guard_v1();
+-- Latest profile per stable ID; never expose a definer view.
+create view public.hlgb_worker_current_v1 with (security_invoker=true) as
+ select distinct on (worker_id) worker_id,revision,operation_id,name,role_name,sector,start_date,active,planned_days,mode,relationship,rate_cents,transport_enabled,transport_cents,benefits,created_by,created_at
+ from public.hlgb_worker_profile_versions_v1 order by worker_id,revision desc;
+revoke all on public.hlgb_worker_current_v1 from public,anon,authenticated;
+grant select on public.hlgb_worker_current_v1 to authenticated;
 commit;
 -- No grants for UPDATE/DELETE; no payment, no payroll or Hub mutation. Policies must be tested in the isolated project.
