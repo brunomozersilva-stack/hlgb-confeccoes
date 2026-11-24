@@ -9,4 +9,7 @@ const assert=require('node:assert/strict'),api=require('../hlgb-modules/financei
  ok(api.read({...d,manualGroups:()=>{throw Error('fail')}},'faccao').state==='unavailable','failure');
  let n=0;ok(api.read({...d,auth:()=>++n===1},'cliente').state==='forbidden','revoked while reading');
  ok(api.read(d,'faccao',{kind:'funcionario'}).f.kind==='faccao','forced scope');
+
+ let authorized=true;calls.length=0;const first=api.read({...d,auth:()=>authorized,rows:k=>{calls.push(k);authorized=false;return []}},'faccao');ok(first.state==='forbidden'&&calls.join(',')==='factionPayments','no group read after revocation');
+ for(const kind of ['faccao','cliente','funcionario']){authorized=true;const r=api.read({...d,auth:()=>authorized,inspect:()=>{authorized=false;return {state:'local-observation',rows:[{sensitive:true}]}}},kind);ok(r.state==='forbidden'&&r.rows.length===0,'discard inspected data after revocation '+kind)}
 })(api,(v,m)=>assert.ok(v,m));console.log('PASS scope isolation and adapter failure handling');
