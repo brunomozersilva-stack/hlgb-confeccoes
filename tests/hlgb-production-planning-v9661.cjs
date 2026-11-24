@@ -34,6 +34,13 @@ const assert=require('node:assert/strict'),crypto=require('node:crypto'),plan=re
  ok(api.materialHistory(measuredDb,false).state==='forbidden'&&api.materialEstimate(v.groups[0],mh,false).state==='forbidden','measured permissions');
  ok(api.materialEstimate(v.groups[0],api.materialHistory(db,true),true).estimatedKg===null,'no sample no estimate');
  ok(JSON.stringify(measuredDb)===measuredSnap,'measured immutable');
+ const priced=[{...db.materials[0],price:25}],cost=api.materialCostEstimate(v.groups[0],me,priced,true);
+ ok(cost.estimatedCents===3000&&cost.referencePricePerKg===25&&cost.coveredPieces===30&&cost.uncoveredPieces===40&&cost.rows.find(r=>r.productId==='11').estimatedCents===null&&!cost.canWrite&&cost.savings===null,'partial reference cost, not savings');
+ ok(api.materialCostEstimate(v.groups[0],me,[{...priced[0],unit:'g',price:.025}],true).estimatedCents===3000,'price per gram');
+ for(const bad of [[{...priced[0],unit:'m'}],[{...priced[0],price:0}],[{...priced[0],price:null}],[...priced,...priced]])ok(api.materialCostEstimate(v.groups[0],me,bad,true).estimatedCents===null,'invalid or ambiguous price');
+ ok(api.materialCostEstimate(v.groups[0],me,priced,false).state==='forbidden','financial permission');
+ ok(api.materialCostEstimate(v.groups[0],api.materialEstimate(v.groups[0],api.materialHistory(db,true),true),priced,true).estimatedCents===null,'no history no cost');
+
  const policyInput={state:'yes',notes:'regra teste',eligible:[{productId:11,materialId:1,size:'P'}]},source=db.products[0],remote={module:'products',entity_id:'10',data:JSON.parse(JSON.stringify(source)),revision:4,deleted_at:null},snapshot={data:JSON.parse(JSON.stringify(source)),revision:4,deleted_at:null};
  const args={productId:10,input:policyInput,products:db.products,materials:db.materials,remote,snapshot,pending:false,allowed:true};
  const saveBefore=JSON.stringify(args),prep=api.prepareRemnantChange(args);
