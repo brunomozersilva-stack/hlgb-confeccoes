@@ -13,15 +13,15 @@
   if(ctx.factionsAllowed===true){
    if(!Array.isArray(ctx.payments)||!Array.isArray(ctx.manualGroups))issues.push('faccoes-fonte-incompleta');
    else{
-    const counts=new Map(),groupCounts=new Map(),manual=new Set();
-    for(const p of ctx.payments.filter(live)){const k=sid(p.id);counts.set(k,(counts.get(k)||0)+1);if(p.manual)manual.add(sid(p.manualGroupId))}
+    const counts=new Map(),groupCounts=new Map(),manual=new Set(),manualRows=new Map();
+    for(const p of ctx.payments.filter(live)){const k=sid(p.id);counts.set(k,(counts.get(k)||0)+1);if(p.manual){const gid=sid(p.manualGroupId);manual.add(gid);const list=manualRows.get(gid)||[];list.push(p);manualRows.set(gid,list)}}
     for(const g of ctx.manualGroups){const k=sid(g?.id);groupCounts.set(k,(groupCounts.get(k)||0)+1)}
     for(const g of ctx.manualGroups){
      const gid=sid(g?.id);if(!gid||groupCounts.get(gid)!==1){issues.push('grupo-duplicado-ou-sem-id');continue}
-     const items=Array.isArray(g.rows)?g.rows.filter(live):[],current=ctx.payments.filter(p=>live(p)&&p.manual&&sid(p.manualGroupId)===gid);
+     const items=Array.isArray(g.rows)?g.rows.filter(live):[],current=manualRows.get(gid)||[];
      if(!items.length){if(current.length)issues.push('grupo-sem-linhas:'+gid);continue}
-     const ids=items.map(x=>sid(x.id)),owners=new Set(items.map(x=>sid(x.factionMasterId)));
-     if(ids.some(k=>!k||counts.get(k)!==1)||new Set(ids).size!==ids.length||current.length!==items.length||current.some(p=>!ids.includes(sid(p.id)))||items.some(x=>sid(x.manualGroupId)!==gid||!x.manual||!current.some(p=>proofLine(p)===proofLine(x)))||owners.size!==1||owners.has('')){issues.push('grupo-sem-prova:'+gid);continue}
+     const ids=items.map(x=>sid(x.id)),idSet=new Set(ids),proofs=new Set(current.map(proofLine)),owners=new Set(items.map(x=>sid(x.factionMasterId)));
+     if(ids.some(k=>!k||counts.get(k)!==1)||idSet.size!==ids.length||current.length!==items.length||current.some(p=>!idSet.has(sid(p.id)))||items.some(x=>sid(x.manualGroupId)!==gid||!x.manual||!proofs.has(proofLine(x)))||owners.size!==1||owners.has('')){issues.push('grupo-sem-prova:'+gid);continue}
      const amounts=items.map(x=>cents(x.paidAmount)),total=cents(g.total),paid=amounts.every(valid)?amounts.reduce((s,x)=>s+x,0):null;
      const status=norm(g.status),dates=new Set(items.map(x=>day(x.paymentDate)));
      if(!valid(total)||!valid(paid)||!['pago','pendente'].includes(status)||status==='pago'&&(paid!==total||dates.size!==1||dates.has(null))||status==='pendente'&&paid!==0){issues.push('grupo-requer-conferencia:'+gid);continue}
