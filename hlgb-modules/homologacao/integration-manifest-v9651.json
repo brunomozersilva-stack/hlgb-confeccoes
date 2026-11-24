@@ -120,28 +120,13 @@
       "origin": 315
     },
     {
-      "path": ".github/workflows/auditor-smart-ready-v9639.yml",
-      "sha": "75aed3ec2afaa2696082484a0cf7bd933b1d8316",
-      "origin": 316
-    },
-    {
       "path": "hlgb-modules/engenharia/README-auditor-smart-readiness-v9639.md",
       "sha": "227dbec3b071eac1eea1cdb3296aae86a0615492",
       "origin": 316
     },
     {
-      "path": "release-auditor-smart-v9360.js",
-      "sha": "9b72a87e43eb4271a28604f918554f40948696a1",
-      "origin": 316
-    },
-    {
       "path": "tests/auditor-smart-ready-v9639-browser.cjs",
       "sha": "994b9c66d61590e880be7bd449966bd22a8b25c1",
-      "origin": 316
-    },
-    {
-      "path": "tests/auditor-smart-ready-v9639.cjs",
-      "sha": "7bb92fc2be8fd971742430549f6fbf2a9ed0d8b8",
       "origin": 316
     },
     {
@@ -322,6 +307,24 @@
       "sha": "628fb4a6ba2baf288b906a0a2867233ae4141de4",
       "origin": 318,
       "reason": "v96.63: revalidar autorização do arquivo após cada operação assíncrona; regressão de revogação e retry"
+    },
+    {
+      "path": ".github/workflows/auditor-smart-ready-v9639.yml",
+      "sha": "75aed3ec2afaa2696082484a0cf7bd933b1d8316",
+      "origin": 316,
+      "reason": "v96.70: evolução explícita de diagnóstico, menu e cobertura de testes; interfaces anteriores preservadas; revalidar browser e CI"
+    },
+    {
+      "path": "release-auditor-smart-v9360.js",
+      "sha": "9b72a87e43eb4271a28604f918554f40948696a1",
+      "origin": 316,
+      "reason": "v96.70: evolução explícita de diagnóstico, menu e cobertura de testes; interfaces anteriores preservadas; revalidar browser e CI"
+    },
+    {
+      "path": "tests/auditor-smart-ready-v9639.cjs",
+      "sha": "7bb92fc2be8fd971742430549f6fbf2a9ed0d8b8",
+      "origin": 316,
+      "reason": "v96.70: evolução explícita de diagnóstico, menu e cobertura de testes; interfaces anteriores preservadas; revalidar browser e CI"
     }
   ],
   "followupProduction": {
@@ -510,5 +513,27 @@
     ],
     "status": "branch preparada; CI específica após etapa 04",
     "dependsOn": 323
+  },
+  "incrementalStage06": {
+    "base": "b492726bf9a5f3be39e06298d6bfa2a0eb93ceaf",
+    "source": "eddd25b995ac98c21147f1423b3c89dbafc35444",
+    "sourceWorkflows": 82,
+    "scope": "Assistente, Bot, Auditor; consultas e triagem somente leitura; matriz preventiva e mobile na etapa 07",
+    "exactFiles": [
+      ".github/workflows/auditor-smart-ready-v9639.yml",
+      ".github/workflows/hlgb-product-history-search-v9652.yml",
+      "hlgb-modules/assistente/evidence-query-v9655.js",
+      "release-auditor-smart-v9360.js",
+      "release-health-monitor-panel-v9541.js",
+      "tests/auditor-autocorrect-v9447-fast.js",
+      "tests/auditor-autocorrect-v9447-runtime.js",
+      "tests/auditor-smart-ready-v9639.cjs",
+      "tests/auditor-triage-inventory-assert.cjs",
+      "tests/hlgb-assistant-evidence-v9655.cjs",
+      "tests/hlgb-assistant-integrated-v9670.cjs",
+      "tests/hlgb-health-monitor-coverage-v9670.cjs"
+    ],
+    "status": "branch preparada",
+    "dependsOn": 324
   }
 }

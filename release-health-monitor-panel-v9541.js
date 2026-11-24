@@ -48,11 +48,16 @@ function parse(head,all,scheduled){
  const hourly=merged.filter(x=>x.name===WORKFLOW&&x.id&&(!seen.has(x.id)&&seen.add(x.id)))
   .sort((a,b)=>sid(b.created_at).localeCompare(sid(a.created_at))).slice(0,12);
  const monitor=hourly[0]||null;
- const current=runs.filter(x=>x.head_sha===sha);
- const completed=current.filter(x=>x.status==='completed');
- const failures=completed.filter(x=>x.conclusion==='failure'&&x.name!==WORKFLOW)
-  .map(x=>({id:Number(x.id),name:sid(x.name).slice(0,120),url:runUrl(x)})).slice(0,18);
- const pending=current.filter(x=>x.status!=='completed');
+ const currentById=new Map();
+ for(const x of merged.filter(x=>x.head_sha===sha&&Number.isSafeInteger(Number(x.id))&&Number(x.id)>0)){
+  const old=currentById.get(Number(x.id));if(!old||Number(x.run_attempt||1)>Number(old.run_attempt||1)||Number(x.run_attempt||1)===Number(old.run_attempt||1)&&sid(x.updated_at)>sid(old.updated_at))currentById.set(Number(x.id),x)
+ }
+ const current=[...currentById.values()],completed=current.filter(x=>x.status==='completed'),pending=current.filter(x=>x.status!=='completed');
+ const approved=completed.filter(x=>x.conclusion==='success'),failed=completed.filter(x=>x.conclusion==='failure'),inconclusive=completed.filter(x=>!['success','failure'].includes(x.conclusion));
+ const failures=failed.map(x=>({id:Number(x.id),name:sid(x.name).slice(0,120),url:runUrl(x)}));
+ const canceled=inconclusive.filter(x=>x.conclusion==='cancelled').length;
+ const other=inconclusive.length-canceled;
+ const listCount=Array.isArray(all?.workflow_runs)?all.workflow_runs.length:0,totalCount=Number.isSafeInteger(all?.total_count)?all.total_count:null;
  const deploy=merged.filter(x=>x.name==='pages build and deployment'&&x.conclusion==='success')
   .sort((a,b)=>sid(b.created_at).localeCompare(sid(a.created_at)))[0]||null;
  return {
@@ -66,8 +71,8 @@ function parse(head,all,scheduled){
   }:null,
   history:hourly.map(x=>({id:Number(x.id),createdAt:sid(x.created_at),
    status:sid(x.status),conclusion:sid(x.conclusion),commit:sid(x.head_sha),link:runUrl(x)})),
-  ci:{completed:completed.length,pending:pending.length,failed:failures.length,
-   failingWorkflows:failures,scope:'Somente execuções encontradas para o commit atual'},
+  ci:{completed:completed.length,pending:pending.length,failed:failed.length,approved:approved.length,cancelled:canceled,inconclusive:other,observedRuns:current.length,windowTruncated:totalCount===null||totalCount>listCount,allRequiredChecksVerified:false,
+   failingWorkflows:failures.slice(0,18),scope:'Somente execuções encontradas para o commit atual; não é prova de todos os checks obrigatórios'},
   publication:{
    checked:!!deploy,commit:sid(deploy?.head_sha),current:!!deploy&&deploy.head_sha===sha,
    link:deploy?runUrl(deploy):null,updatedAt:sid(deploy?.updated_at)
@@ -289,6 +294,7 @@ function paint(){
  const metrics=E('div','hlgb-health-metrics');
  metrics.append(
   divLine('Testes do commit atual com falha',String(ci.failed)+(ci.pending?' ('+ci.pending+' em andamento)':'')),
+  divLine('Aprovados / cancelados / inconclusivos',ci.approved+' / '+ci.cancelled+' / '+ci.inconclusive),
   divLine('Publicação no GitHub Pages',!pub.checked?'Não comprovada':pub.current?'Commit atual publicado':'Commit diferente / publicação pendente'),
   divLine('Sincronização Safari ↔ Chrome','Sem prova em duas sessões reais')
  );
@@ -303,7 +309,9 @@ function paint(){
   result.append(list);
  }else if(ci.completed===0){
   result.append(E('div','sub','Os testes do commit atual ainda não foram concluídos ou não foram encontrados.'));
- }else result.append(E('div','sub','Sem falhas entre '+ci.completed+' execuções concluídas e consultadas para o commit atual.'));
+ }else result.append(E('div','sub','Sem falhas nas execuções consultadas; canceladas, inconclusivas e não localizadas não são aprovações.'));
+ if(ci.windowTruncated)result.append(E('div','hlgb-health-warn','A janela consultada pode omitir outras execuções. Confira todos os checks antes de publicar.'));
+ if(ci.cancelled||ci.inconclusive||ci.pending)result.append(E('div','hlgb-health-warn','Há execuções sem aprovação. Revisar ou reexecutar no commit correto.'));
  if(latest.history.length){
   const hist=E('details','hlgb-health-history');
   hist.append(E('summary','','Histórico recente do monitor ('+latest.history.length+' execuções)'));
@@ -324,13 +332,15 @@ function humanSummary(data){
   'Bot horário: '+statusOf(l).label+(l?' · '+date(l.createdAt):''),
   l&&!l.currentCommit?'Atenção: o último bot não verificou o commit atual.':'',
   'Testes do commit atual: '+ci.completed+' concluídos, '+ci.failed+' com falha, '+ci.pending+' em andamento',
+  'Aprovados: '+ci.approved+'; cancelados: '+ci.cancelled+'; inconclusivos: '+ci.inconclusive,
+  'Cobertura de todos os checks obrigatórios: NÃO COMPROVADA'+(ci.windowTruncated?' (janela parcial)':''),
   'Publicação: '+(!p.checked?'não comprovada':p.current?'mesmo commit do main':'não corresponde ao main'),
   'Safari ↔ Chrome reais: NÃO COMPROVADO'];
  for(const f of ci.failingWorkflows)lines.push('FALHA — '+f.name+' — '+f.url);
  if(l)lines.push('Execução do monitor: '+l.link);
  return lines.filter(Boolean).join('\n');
 }
-function report(){return latest?JSON.parse(JSON.stringify(latest)):null}
+function report(){return latest?{...JSON.parse(JSON.stringify(latest)),refreshError:error||null,stale:!!error||Date.now()-fetchedAt>=MAX_AGE}:null}
 function downloadLocalFile(filename,content,type){
  // Sempre usa um blob local com atributo download; nunca navega a uma URL do GitHub.
  const blob=new Blob([content],{type});
@@ -415,7 +425,7 @@ function openStandalone(){
  return onOpen();
 }
 window.hlgbHourlyHealthPanel9541={
- version:V,onOpen,openStandalone,refresh:refreshNow,collect,report,download:saveJSON,downloadTXT:saveTXT,copySummary,humanSummary,visibleDownloads:prepareVisibleDownloads9545,
+ version:V,onOpen,openStandalone,refresh:refreshNow,collect,report,parse,download:saveJSON,downloadTXT:saveTXT,copySummary,humanSummary,visibleDownloads:prepareVisibleDownloads9545,
  status:()=>({busy:!!busy,lastFetchedAt:fetchedAt,error,latest:report()})
 };
 })();

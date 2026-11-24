@@ -18,7 +18,7 @@ function hist(){try{const x=JSON.parse(localStorage.getItem(HISTORY)||'[]');retu
 function saveHist(x){try{const a=hist();a.unshift(x);localStorage.setItem(HISTORY,JSON.stringify(a.slice(0,60)))}catch(e){}}
 function readBaseline(){try{return JSON.parse(localStorage.getItem(BASELINE)||'null')}catch(e){return null}}
 function writeBaseline(v){try{localStorage.setItem(BASELINE,JSON.stringify(v))}catch(e){}}
-function status(){const h=hist().find(x=>x.type==='audit');if(!h)return '<b>Status:</b> ainda sem teste nesta versão.';const f=+h.fail||0,w=+h.warn||0,s=f?'Falha':w?'Atenção':'Tudo certo';return '<b>Status do sistema: '+esc(s)+'</b><div class="sub">Último teste: '+esc(String(h.at||'').replace('T',' ').slice(0,16))+' · '+(+h.pass||0)+' aprovados · '+w+' atenções · '+f+' falhas</div>'}
+function status(){const version=String(window.HLGB_RELEASE_VERSION||''),h=hist().find(x=>x.type==='audit'&&version&&x.version===version);if(!h)return '<b>Status:</b> ainda sem teste comprovado nesta versão.';const f=+h.fail||0,w=+h.warn||0,s=f?'Falha':w?'Atenção':h.coverageConfirmed!==true?'Cobertura não confirmada':'Sem falhas nos testes executados';return '<b>Status do sistema: '+esc(s)+'</b><div class="sub">Último teste: '+esc(String(h.at||'').replace('T',' ').slice(0,16))+' · '+(+h.pass||0)+' aprovados · '+w+' atenções · '+f+' falhas</div>'}
 function runtime(){
  const o={};
  for(const [k,v] of Object.entries({payrollRace:window.hlgbPayrollWalRace9346,payrollReliable:window.hlgbPayrollReliableSaveGuard9344,walAuthority:window.hlgbWalSingleAuthority9339,replay:window.hlgbConfirmedReplay9333,syncGuard:window.hlgbSyncGuard9306})){
@@ -97,8 +97,9 @@ async function run(source='manual'){
   else if(typeof window.hlgbInternalAuditor?.runVisualSweep==='function')row=await window.hlgbInternalAuditor.runVisualSweep(true);
   else row=await runBackgroundAudit();
   const metrics=currentMetrics(),reg=regression(metrics),op=row?.operational?.summary||null;
+  const coverageConfirmed=!!row?.summary&&['pass','warn','fail'].every(k=>Number.isSafeInteger(row.summary[k])&&row.summary[k]>=0)&&row.summary.pass+row.summary.warn+row.summary.fail>0;
   const basePass=+row?.summary?.pass||0,baseWarn=+row?.summary?.warn||0,baseFail=+row?.summary?.fail||0;
-  const h={type:'audit',source,at:row?.completedAt||now(),result:(baseFail+(+op?.fail||0))?'Falhou':(baseWarn+(+op?.warn||0))?'Atenção':row?.summary?.result||'Concluído',pass:basePass+(+op?.pass||0),warn:baseWarn+(+op?.warn||0),fail:baseFail+(+op?.fail||0),version:String(window.HLGB_RELEASE_VERSION||''),metrics,regressions:reg.findings.length,background:source==='first-access-daily'};
+  const h={type:'audit',source,at:row?.completedAt||now(),result:(baseFail+(+op?.fail||0))?'Falhou':(baseWarn+(+op?.warn||0))?'Atenção':row?.summary?.result||'Concluído',pass:basePass+(+op?.pass||0),warn:baseWarn+(+op?.warn||0),fail:baseFail+(+op?.fail||0),version:String(window.HLGB_RELEASE_VERSION||''),metrics,regressions:reg.findings.length,background:source==='first-access-daily',coverageConfirmed};
   saveHist(h);writeBaseline(metrics);push('audit-finish',h);return row;
  }catch(e){push('audit-error',{source,message:String(e?.message||e)});throw e}finally{busy=false}
 }
@@ -140,7 +141,22 @@ function classifyProblem(sync,reg,ip,support){
  if(/nuvem demorou demais.*patch|patch.*demorou demais|patch.*timeout|timeout.*patch/.test(txt)){add(observed,'patch-confirmation-timeout','Uma gravação PATCH demorou demais para confirmar.');add(probableCauses,'cloud-save-timeout','A alteração pode ter ficado aguardando confirmação/reenvio na sincronização.')}
  if(!observed.length)add(observed,'no-obvious-symptom','Nenhum sintoma técnico forte foi identificado no instante da captura.');
  if(!probableCauses.length)add(probableCauses,'cause-undetermined','A causa técnica ainda não pôde ser determinada automaticamente.');
- return {observed,probableCauses};
+ return {observed,probableCauses,triage:triage(observed,probableCauses,sync,support)};
+}
+
+function triage(observed,causes,sync,support){
+ const codes=new Set([...observed,...causes].map(x=>x.code)),items=[],add=(priority,code,area,instruction)=>items.push({priority,code,area,instruction});
+ const pending= codes.has('sync-pending'),unread=sync==null||!!sync.error||sync.summary==null;
+ if(pending||codes.has('sync-conflict')||codes.has('retry-loop')||codes.has('patch-confirmation-timeout')||unread){
+  add('critical','preserve-wal','Salvamento e sincronização','Preservar fila e registros locais; conferir leitura do WAL, identidade do registro, ACK e releitura remota antes de repetir ou corrigir.');
+ }
+ if(codes.has('storage-pressure')||codes.has('local-cache-full'))add('high','storage-review','Armazenamento','Conferir capacidade e leitura IndexedDB. Não limpar armazenamento nem apagar pendências.');
+ if(codes.has('multiple-auth-clients')||codes.has('duplicate-supabase-client'))add('high','auth-singleton','Autenticação','Verificar instâncias do cliente, sessão e renovação de credenciais; não repetir login ou gravação automaticamente.');
+ if(codes.has('supabase-query-timeout')||codes.has('supabase-http-500'))add('high','query-review','Nuvem','Identificar consulta, tempo e retorno; revisar paginação e índices com evidência, sem executar escrita no banco.');
+ if(codes.has('wrapper-chain-deep')||codes.has('wrapper-growth')||codes.has('timer-loop')||codes.has('duplicate-timers')||codes.has('render-loop')||codes.has('performance'))add('high','runtime-review','Desempenho','Conferir repetição de wrappers, timers e renderizações na página atual; reproduzir em WebKit e Chromium.');
+ if(codes.has('javascript-errors')||codes.has('runtime-errors'))add('high','runtime-errors','JavaScript','Capturar erro e versão exata; criar regressão que falhe antes e passe depois da correção.');
+ if(!items.length)add('review','reproduce','Diagnóstico','Registrar passos, página, versão e sintoma. Nenhuma causa comprovada pela captura.');
+ return {state:'diagnostic-only',priority:items[0].priority,items,coverage:{syncReadable:!unread,supportAvailable:!!support&&!support.error,remoteWriteVerified:false},automaticRepair:false,learningRequiresBeforeAfter:true};
 }
 async function problem(){
  push('problem-capture');let sync=null;try{sync=await window.hlgbInternalAuditor?.buildSyncDiagnostic?.()}catch(e){sync={error:String(e?.message||e)}}
