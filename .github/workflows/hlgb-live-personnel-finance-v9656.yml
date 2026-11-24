@@ -5,6 +5,11 @@ on:
       - 'hlgb-modules/financeiro/live-personnel-finance-view-v9656.js'
       - 'tests/hlgb-live-personnel-finance-v9656.cjs'
       - 'tests/hlgb-live-finance-integrated-v9657.cjs'
+      - 'hlgb-modules/financeiro/rh-*'
+      - 'hlgb-modules/financeiro/attendance-transport-*'
+      - 'tests/hlgb-rh-*.cjs'
+      - 'tests/hlgb-attendance-stage-view.cjs'
+      - '.github/workflows/hlgb-live-personnel-finance-v9656.yml'
       - 'app-stable3.html'
   workflow_dispatch:
 permissions:
@@ -22,3 +27,21 @@ jobs:
       - run: node tests/hlgb-live-personnel-finance-v9656.cjs
       - run: node tests/hlgb-live-finance-integrated-v9657.cjs
       - run: node tests/hlgb-integration-v9651.cjs
+      - run: node tests/hlgb-rh-planning-v9636.cjs
+      - run: node tests/hlgb-rh-live-view-v9667.cjs
+      - run: node tests/hlgb-attendance-stage-view.cjs
+
+  browser-rh:
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        browser: [chromium, webkit]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - run: npm install --no-save playwright@1.55.0 && npx playwright install --with-deps ${{ matrix.browser }}
+      - env:
+          HLGB_BROWSER: ${{ matrix.browser }}
+        run: node tests/hlgb-rh-stage-browser.cjs

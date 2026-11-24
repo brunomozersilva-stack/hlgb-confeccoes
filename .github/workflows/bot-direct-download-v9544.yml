@@ -31,7 +31,8 @@ jobs:
       - run: node --test tests/auditor-hourly-health-panel-v9541.cjs
       - run: node --test tests/monitor-bot-access-v9543.cjs
   browser:
-    runs-on: ubuntu-latest
+    # Playwright 1.55: keep the supported OS rather than a moving ubuntu-latest image.
+    runs-on: ubuntu-24.04
     timeout-minutes: 20
     strategy:
       fail-fast: false
