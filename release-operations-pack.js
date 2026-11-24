@@ -264,7 +264,7 @@ function routeAssignedProducts9249(loc,productionRows=null){
  const active=[],planned=[],seen=new Set();
  const prods=(Array.isArray(productionRows)?productionRows:arr('production')).filter(p=>p&&!p.deleted_at&&!p.deletedAt&&(loc.type==='Facção'?sid(p.factionId)===sid(loc.id):(!p.factionId&&sid(p.productionLocationId)===sid(loc.id))));
  for(const p of prods){
-   const qty=Math.max(0,q(p.planned)-q(p.done));if(qty<=0||/^(pronto|finalizado|conclu[ií]do|cancelado)$/i.test(sid(p.stage).trim()))continue;
+   const qty=Math.max(0,q(p.planned)-q(p.done));if(qty<=0)continue;
    const o=arr('orders').find(x=>sid(x.id)===sid(p.orderId)),pid=sid(p.productId),prod=arr('products').find(x=>sid(x.id)===pid),name=p.product||prod?.name||'Produto';
    const key='production:'+sid(p.id??p.__hlgbId??(sid(p.orderId)+'-'+pid));seen.add(sid(p.orderId)+'|'+pid);
    const sent=!!(p.sentToFactionAt||p.sentAt||p.sentToProductionAt||p.sentToLocationAt||p.factionSentAt||p.productionSentAt);
@@ -290,8 +290,8 @@ function routeEditLine9683(stop,line,direction){
  if(direction==='carry')c.push(line);if(direction==='pickup')p.push(line);
  carry.value=[...new Set(c)].join('\n');pickup.value=[...new Set(p)].join('\n');
 }
-window.routeItemDirection9249=function(btn,dir){const item=btn?.closest?.('[data-route-item9249]'),stop=btn?.closest?.('.ops-route-stop');if(!item||!stop)return;item.dataset.direction=dir==='pickup'?'pickup':'carry';item.querySelectorAll('button[data-dir]').forEach(b=>b.className=b.dataset.dir===item.dataset.direction?'primary':'secondary');routeEditLine9683(stop,sid(item.dataset.line),item.dataset.direction)};
-window.routeRemoveItem9683=function(btn){const item=btn?.closest?.('[data-route-item9249]'),stop=btn?.closest?.('.ops-route-stop');if(!item||!stop)return;routeEditLine9683(stop,sid(item.dataset.line),null);item.querySelectorAll('button[data-dir]').forEach(b=>b.className='secondary')};
+window.routeItemDirection9249=function(btn,dir){const item=btn?.closest?.('[data-route-item9249]'),stop=btn?.closest?.('.ops-route-stop');if(!item||!stop)return;item.dataset.direction=dir==='pickup'?'pickup':'carry';delete item.dataset.routeNewCandidate9683;item.querySelectorAll('button[data-dir]').forEach(b=>b.className=b.dataset.dir===item.dataset.direction?'primary':'secondary');routeEditLine9683(stop,sid(item.dataset.line),item.dataset.direction)};
+window.routeRemoveItem9683=function(btn){const item=btn?.closest?.('[data-route-item9249]'),stop=btn?.closest?.('.ops-route-stop');if(!item||!stop)return;delete item.dataset.routeNewCandidate9683;routeEditLine9683(stop,sid(item.dataset.line),null);item.querySelectorAll('button[data-dir]').forEach(b=>b.className='secondary')};
 window.routeMoveStop9683=function(btn,delta){const stop=btn?.closest?.('.ops-route-stop'),parent=stop?.parentElement;if(!parent||parent.id!=='opsRouteStops')return;if(delta===-1&&stop.previousElementSibling)parent.insertBefore(stop,stop.previousElementSibling);if(delta===1&&stop.nextElementSibling)parent.insertBefore(stop.nextElementSibling,stop)};
 window.routeRefreshAssigned9683=async function(btn){
  const stop=btn?.closest?.('.ops-route-stop'),select=stop?.querySelector('.ops-route-loc'),box=stop?.querySelector('.ops-route-assigned'),notice=stop?.querySelector('.ops-route-refresh-status');
@@ -308,13 +308,25 @@ window.routeRefreshAssigned9683=async function(btn){
   if(!Array.isArray(rows)||rows.length>=501||rows.some(x=>!x?.data||x.deleted_at||sid(x.entity_id)!==sid(x.data.id)||sid(x.data.factionId)!==sid(loc.id))||new Set(rows.map(x=>sid(x.entity_id))).size!==rows.length)throw Error('Resposta incompleta ou inconsistente');
   const candidates=routeAssignedProducts9249(loc,rows.map(x=>x.data)).active,existing=new Map([...box.querySelectorAll('[data-route-item9249]')].map(x=>[sid(x.dataset.key),x]));
   let added=0,changed=0;
+  const saved=stop.__routeSaved9683,sameSaved=saved&&sid(saved.locationId)===sid(loc.id)&&sid(saved.type)===sid(loc.type);
+  const savedItems=sameSaved&&Array.isArray(saved.routeItems)?saved.routeItems:[];
   for(const item of candidates){
    const line=routeAssignedLine9249(item),prior=existing.get(item.key);
-   if(prior){if(sid(prior.dataset.line)!==line)changed++;continue}
-   box.insertAdjacentHTML('beforeend',routeItemHtml9249(item));existing.set(item.key,true);added++;
-   // Add only missing candidates, respecting existing manual lines and direction.
    const c=routeLines9249(stop.querySelector('.ops-route-carry').value),p=routeLines9249(stop.querySelector('.ops-route-pickup').value);
-   if(!c.includes(line)&&!p.includes(line))routeEditLine9683(stop,line,item.direction);
+   if(prior){
+    if(sid(prior.dataset.line)!==line){changed++;continue}
+    if(prior.dataset.routeNewCandidate9683==='1'){
+     delete prior.dataset.routeNewCandidate9683;
+     if(!c.includes(line)&&!p.includes(line)){routeEditLine9683(stop,line,item.direction);prior.dataset.direction=item.direction;prior.querySelectorAll('button[data-dir]').forEach(b=>b.className=b.dataset.dir===item.direction?'primary':'secondary');added++}
+    }
+    continue;
+   }
+   const savedItem=savedItems.find(x=>sid(x.key)===item.key);
+   if(savedItem&&sid(savedItem.line)!==line){changed++;continue}
+   box.insertAdjacentHTML('beforeend',routeItemHtml9249(item));const node=box.lastElementChild;existing.set(item.key,node);
+   // Saved exclusions are intentional, even when the old local snapshot lacked the item.
+   if(savedItem&&!c.includes(line)&&!p.includes(line)){node.querySelectorAll('button[data-dir]').forEach(b=>b.className='secondary');continue}
+   if(!c.includes(line)&&!p.includes(line)){routeEditLine9683(stop,line,item.direction);added++}
   }
   notice.textContent=added+' modelo(s) novo(s) incluído(s) no rascunho. '+(changed?changed+' modelo(s) com quantidade ou descrição diferente; confira antes de salvar. ':'')+'Confira LEVAR/BUSCAR e salve a rota. Nenhuma produção foi alterada.';
  }catch(e){if(valid())notice.textContent='Não foi possível atualizar os modelos da nuvem. Rascunho preservado.'}
@@ -343,7 +355,7 @@ window.routeLocationChanged9249=function(select){
  for(const x of items){const line=routeAssignedLine9249(x),sv=savedItems.find(y=>sid(y.key)===sid(x.key)||sid(y.line)===line);if(pickupExisting.has(line))x.direction='pickup';else if(carryExisting.has(line))x.direction='carry';else if(sv?.direction)x.direction=sv.direction}
  box.innerHTML=items.length?'<div class="panel" style="padding:10px;background:#fff"><b>📦 O que fazer neste local</b><div class="sub">O sistema sugere <b>LEVAR</b> quando o produto foi atribuído mas ainda não foi enviado e <b>BUSCAR</b> quando já existe envio registrado. Você pode trocar pelo botão.</div>'+items.map(routeItemHtml9249).join('')+'</div>':'<div class="sub">Nenhum produto atribuído a este local agora. Use os campos abaixo para itens manuais.</div>';
  if(!sameSaved||previous&&previous!==locationKey)routeSyncDirections9249(stop);
- else for(const item of box.querySelectorAll('[data-route-item9249]'))if(!carryExisting.has(sid(item.dataset.line))&&!pickupExisting.has(sid(item.dataset.line)))item.querySelectorAll('button[data-dir]').forEach(b=>b.className='secondary');
+ else for(const item of box.querySelectorAll('[data-route-item9249]'))if(!carryExisting.has(sid(item.dataset.line))&&!pickupExisting.has(sid(item.dataset.line))){item.querySelectorAll('button[data-dir]').forEach(b=>b.className='secondary');if(!savedItems.some(x=>sid(x.key)===sid(item.dataset.key)||sid(x.line)===sid(item.dataset.line)))item.dataset.routeNewCandidate9683='1'}
 };
 
 function openRouteEditor(r){
