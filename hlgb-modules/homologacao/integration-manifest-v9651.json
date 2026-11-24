@@ -30,11 +30,6 @@
       "origin": 315
     },
     {
-      "path": ".github/workflows/hlgb-preventive-v9637.yml",
-      "sha": "00b6c95209ea09c361b9272f2421b15f971c3b1f",
-      "origin": 315
-    },
-    {
       "path": ".github/workflows/hlgb-timed-priority-v9642.yml",
       "sha": "24e63d856aa7b716fdf286b99f87efdde9906917",
       "origin": 315
@@ -42,11 +37,6 @@
     {
       "path": "hlgb-modules/engenharia/README-ast-v9641.md",
       "sha": "d875909b2c56cb2b3f47cf07be99a5d9d1f03ad4",
-      "origin": 315
-    },
-    {
-      "path": "hlgb-modules/engenharia/README-test-priority-v9638.md",
-      "sha": "848274f325b235753572b19704e5c986527fc317",
       "origin": 315
     },
     {
@@ -75,23 +65,8 @@
       "origin": 315
     },
     {
-      "path": "hlgb-modules/engenharia/preventive-cli-v9637.cjs",
-      "sha": "1b12d5a258754933cbb3ab285d839cb754e2faf6",
-      "origin": 315
-    },
-    {
       "path": "hlgb-modules/engenharia/preventive-core-v9637.cjs",
       "sha": "c8495a86d3cf12eb3310016067e8afccc5302a7f",
-      "origin": 315
-    },
-    {
-      "path": "hlgb-modules/engenharia/test-matrix-v9638.json",
-      "sha": "264a482a4e796020d479dde557ee39d0fdb1684b",
-      "origin": 315
-    },
-    {
-      "path": "hlgb-modules/engenharia/test-priority-v9638.cjs",
-      "sha": "6a6ec81b19e10fce9a784b32d8ef58e18a9551fb",
       "origin": 315
     },
     {
@@ -110,28 +85,13 @@
       "origin": 315
     },
     {
-      "path": "tests/hlgb-preventive-test-priority-v9638.cjs",
-      "sha": "cc77430808c1b30feb5b24a529df4718bd75ba66",
-      "origin": 315
-    },
-    {
       "path": "tests/hlgb-preventive-v9637.cjs",
       "sha": "a271457de8e93baee3976b18181e3506ae4026c8",
       "origin": 315
     },
     {
-      "path": ".github/workflows/auditor-smart-ready-v9639.yml",
-      "sha": "75aed3ec2afaa2696082484a0cf7bd933b1d8316",
-      "origin": 316
-    },
-    {
       "path": "hlgb-modules/engenharia/README-auditor-smart-readiness-v9639.md",
       "sha": "227dbec3b071eac1eea1cdb3296aae86a0615492",
-      "origin": 316
-    },
-    {
-      "path": "release-auditor-smart-v9360.js",
-      "sha": "9b72a87e43eb4271a28604f918554f40948696a1",
       "origin": 316
     },
     {
@@ -140,28 +100,13 @@
       "origin": 316
     },
     {
-      "path": "tests/auditor-smart-ready-v9639.cjs",
-      "sha": "7bb92fc2be8fd971742430549f6fbf2a9ed0d8b8",
-      "origin": 316
-    },
-    {
       "path": "tests/auditor-smart-ready-v9639.html",
       "sha": "0264dbbefbbce3a61539d4cf77a51017e3a49dfd",
       "origin": 316
     },
     {
-      "path": ".github/workflows/mobile-real-pages-v9640.yml",
-      "sha": "0428e96d6f5d7f290dd4f36dd51edac4d6cfe542",
-      "origin": 317
-    },
-    {
       "path": "hlgb-modules/engenharia/README-mobile-real-pages-v9640.md",
       "sha": "4d7309fc67136006ed3a47409d531ebd2a3ae40c",
-      "origin": 317
-    },
-    {
-      "path": "release-mobile-friendly-v9512.js",
-      "sha": "25232d716614bd0f052a07c32d172cac9705a1de",
       "origin": 317
     },
     {
@@ -250,7 +195,7 @@
     "hlgb-modules/ownership-v9600.json"
   ],
   "originalScripts": 163,
-  "integratedScripts": 187,
+  "integratedScripts": 189,
   "mode": "candidate-not-production",
   "followup": {
     "version": "96.52",
@@ -322,6 +267,72 @@
       "sha": "628fb4a6ba2baf288b906a0a2867233ae4141de4",
       "origin": 318,
       "reason": "v96.63: revalidar autorização do arquivo após cada operação assíncrona; regressão de revogação e retry"
+    },
+    {
+      "path": "release-auditor-smart-v9360.js",
+      "sha": "9b72a87e43eb4271a28604f918554f40948696a1",
+      "origin": 316,
+      "reason": "v96.70: evolução explícita de diagnóstico, menu e cobertura de testes; interfaces anteriores preservadas; revalidar browser e CI"
+    },
+    {
+      "path": "tests/auditor-smart-ready-v9639.cjs",
+      "sha": "7bb92fc2be8fd971742430549f6fbf2a9ed0d8b8",
+      "origin": 316,
+      "reason": "v96.70: evolução explícita de diagnóstico, menu e cobertura de testes; interfaces anteriores preservadas; revalidar browser e CI"
+    },
+    {
+      "path": "release-mobile-friendly-v9512.js",
+      "sha": "25232d716614bd0f052a07c32d172cac9705a1de",
+      "origin": 317,
+      "reason": "v96.70: evolução explícita de diagnóstico, menu e cobertura de testes; interfaces anteriores preservadas; revalidar browser e CI"
+    },
+    {
+      "path": ".github/workflows/mobile-real-pages-v9640.yml",
+      "sha": "0428e96d6f5d7f290dd4f36dd51edac4d6cfe542",
+      "origin": 317,
+      "reason": "v96.70: evolução explícita de diagnóstico, menu e cobertura de testes; interfaces anteriores preservadas; revalidar browser e CI"
+    },
+    {
+      "path": ".github/workflows/auditor-smart-ready-v9639.yml",
+      "sha": "75aed3ec2afaa2696082484a0cf7bd933b1d8316",
+      "origin": 316,
+      "reason": "v96.70: evolução explícita de diagnóstico, menu e cobertura de testes; interfaces anteriores preservadas; revalidar browser e CI"
+    },
+    {
+      "path": "hlgb-modules/engenharia/test-matrix-v9638.json",
+      "sha": "264a482a4e796020d479dde557ee39d0fdb1684b",
+      "origin": 315,
+      "reason": "v96.71: acrescentar testes de regressão atuais e evidência pareada, manter matriz anterior e gate de suíte completa"
+    },
+    {
+      "path": "hlgb-modules/engenharia/test-priority-v9638.cjs",
+      "sha": "6a6ec81b19e10fce9a784b32d8ef58e18a9551fb",
+      "origin": 315,
+      "reason": "v96.71: acrescentar testes de regressão atuais e evidência pareada, manter matriz anterior e gate de suíte completa"
+    },
+    {
+      "path": "tests/hlgb-preventive-test-priority-v9638.cjs",
+      "sha": "cc77430808c1b30feb5b24a529df4718bd75ba66",
+      "origin": 315,
+      "reason": "v96.71: acrescentar testes de regressão atuais e evidência pareada, manter matriz anterior e gate de suíte completa"
+    },
+    {
+      "path": "hlgb-modules/engenharia/preventive-cli-v9637.cjs",
+      "sha": "1b12d5a258754933cbb3ab285d839cb754e2faf6",
+      "origin": 315,
+      "reason": "v96.71: acrescentar testes de regressão atuais e evidência pareada, manter matriz anterior e gate de suíte completa"
+    },
+    {
+      "path": ".github/workflows/hlgb-preventive-v9637.yml",
+      "sha": "00b6c95209ea09c361b9272f2421b15f971c3b1f",
+      "origin": 315,
+      "reason": "v96.71: acrescentar testes de regressão atuais e evidência pareada, manter matriz anterior e gate de suíte completa"
+    },
+    {
+      "path": "hlgb-modules/engenharia/README-test-priority-v9638.md",
+      "sha": "848274f325b235753572b19704e5c986527fc317",
+      "origin": 315,
+      "reason": "v96.71: acrescentar testes de regressão atuais e evidência pareada, manter matriz anterior e gate de suíte completa"
     }
   ],
   "followupProduction": {
@@ -350,5 +361,187 @@
     ],
     "mode": "isolated-no-production",
     "tests": "34 archive + 22 finance + 13 settlement controlled assertions; browser/CI pending"
+  },
+  "followupRH": {
+    "version": "96.67",
+    "added": [
+      "hlgb-modules/financeiro/rh-planning-v9636.js",
+      "hlgb-modules/financeiro/rh-live-view-v9667.js"
+    ],
+    "mode": "local-review-no-write",
+    "tests": [
+      "tests/hlgb-rh-planning-v9636.cjs",
+      "tests/hlgb-rh-live-view-v9667.cjs",
+      "tests/hlgb-rh-finance-v9667-browser.cjs"
+    ]
+  },
+  "followupOperationalFinance": {
+    "version": "96.66",
+    "changed": [
+      "hlgb-modules/financeiro/live-personnel-finance-view-v9656.js",
+      "tests/hlgb-live-personnel-finance-v9656.cjs",
+      "tests/hlgb-live-finance-integrated-v9657.cjs"
+    ],
+    "history": "recorded-only, no official baseline",
+    "receiptDelayDays": [
+      0,
+      7,
+      14,
+      21,
+      28
+    ],
+    "tests": [
+      "tests/hlgb-hub-intelligence-adapter-v9633.cjs",
+      "tests/hlgb-live-personnel-finance-v9656.cjs",
+      "tests/hlgb-live-finance-integrated-v9657.cjs"
+    ]
+  },
+  "followupProductionBasket": {
+    "version": "96.68",
+    "changed": [
+      "hlgb-modules/producao/production-planning-v9661.js",
+      "hlgb-modules/producao/production-planning-view-v9661.js"
+    ],
+    "tests": [
+      "tests/hlgb-production-planning-v9661.cjs",
+      "tests/hlgb-production-planning-v9661-selection-view.cjs",
+      "tests/hlgb-production-planning-v9661-browser.cjs"
+    ],
+    "mode": "local-draft-only"
+  },
+  "followupBatch": {
+    "base": "4fdc40ffb07678a2f12bbddec7590b1f3bbaaf7f",
+    "validatedCodeHead": "9c1222534c346f19ae6794701780b5b0fd1b154f",
+    "controlledAssertions": 274,
+    "details": "43 RH core + 65 RH DOM + 33 finance adapter + 37 finance view + 33 finance integrated + 34 planning core + 29 selection DOM; no native browser or remote database",
+    "loaderScripts": 189,
+    "baselineScripts": 158,
+    "mode": "next functional batch; no production"
+  },
+  "followupOperations": {
+    "version": "96.69",
+    "validatedCodeHead": "b88db49169f93d28df0ebdc24c9927af6d4cc2fa",
+    "controlledAssertions": 165,
+    "tests": [
+      "tests/hlgb-settlement-history-v9653.cjs",
+      "tests/hlgb-settlement-history-view-v9654.cjs",
+      "tests/hlgb-attendance-transport-v9658.cjs",
+      "tests/hlgb-operations-history-attendance-v9669.cjs"
+    ],
+    "workflow": ".github/workflows/hlgb-attendance-transport-v9658.yml",
+    "settlement": {
+      "scopedOwnerAndDate": true,
+      "totalsBeforePagination": true,
+      "originalGroupPdf": true,
+      "sourceNoteActions": true,
+      "clientEvents": "recorded-date and matched canonical source, receipt vs material offset vs active/reversed return; no invented dated history",
+      "export": "CSV max 5000 rows, formula escaping, scope revalidation"
+    },
+    "attendance": {
+      "batch": "up to 200, individual reviewed fare and coverage",
+      "companyFifth": "candidate only",
+      "oldPayrollEdit": "preserved",
+      "persistence": "disabled"
+    },
+    "nativeBrowser": false,
+    "remotePersistence": false
+  },
+  "followupIntelligence": {
+    "version": "96.70",
+    "codeHead": "92d633783a50c4cdf17d972c237f4446fedff3a7",
+    "assistant": "consultas determinísticas de pedidos, materiais, acertos por pessoa e Hub semanal, autorização e sessão, sem modelo externo",
+    "auditor": "triagem somente leitura, WAL e ACK antes de qualquer repetição, versões e cobertura",
+    "bot": "status distinto por execução, tentativas deduplicadas, cobertura parcial e consulta desatualizada",
+    "mobile": "busca sem acentos, autorização de origem revalidada, foco, logout, formulários",
+    "ciCorrection": {
+      "before": "4fdc40ffb07678a2f12bbddec7590b1f3bbaaf7f",
+      "afterCandidate": "664a15e1090b8a79d0f782a921639525bd6c0c33",
+      "beforeRun": 45304497656,
+      "afterRun": 45359414421,
+      "status": "native-success",
+      "test": "tests/hlgb-production-planning-v9661-browser.cjs",
+      "cause": "ambiguous accessible label in fixture, exact:true",
+      "learned": true,
+      "learnedScope": "test-locator only; original logs and matching test steps reviewed"
+    },
+    "controlledAssertions": 93,
+    "tests": "30 assistant + 21 integrated assistant + 22 auditor + 15 monitor + 5 mobile search; native browser on functional batch not run",
+    "canPublish": false
+  },
+  "followupPreventive": {
+    "version": "96.71",
+    "validatedCodeHead": "911135a89c5adda6bc2e7a11ccabecb47ace2684",
+    "controlledAssertions": 47,
+    "confirmedBrowserPair": {
+      "before": 45304497656,
+      "after": 45359414421,
+      "category": "test-locator",
+      "requiredJobs": [
+        "chromium",
+        "webkit"
+      ],
+      "regressionTest": "tests/hlgb-production-planning-v9661-browser.cjs"
+    },
+    "workerLabel": {
+      "before": 45359414185,
+      "candidate": "e3e438d1ab7500df2ad1ddddfcb78fab03f22cb3",
+      "isolatedChromium": "old selector count 0; explicit aria-label count 1; select yes passed",
+      "nativeWorkflow": "success",
+      "confirmedRun": 45361271637,
+      "confirmedJobs": [
+        138331647801,
+        138331647911
+      ]
+    },
+    "matrix": {
+      "areas": 14,
+      "oldUnique": 29,
+      "newUnique": 55,
+      "preserveOld": true
+    },
+    "ciEvidence": "offline consistency only; independent verification of original source necessary",
+    "automaticRepair": false,
+    "fullSuiteRequired": true,
+    "canPublish": false
+  },
+  "followupFinalValidation": {
+    "candidate": "e3e438d1ab7500df2ad1ddddfcb78fab03f22cb3",
+    "observedWorkflows": 77,
+    "success": 77,
+    "pending": 0,
+    "failure": 0,
+    "mode": "CI confirmed for stabilization SHA only; functional branch not validated",
+    "workerViewChanges": "explicit labels on RH, attendance, settlement; worker session and pending reopen guard; added browser retry/session cases",
+    "ciEvidenceAssertions": 20,
+    "productionWrite": false
+  },
+  "followupOperationalValidation": {
+    "version": "96.72",
+    "previousFunctionalHead": "41ef5af595c3ff0e2fdba5f4313654fc8420443b",
+    "stabilizationHead": "e3e438d1ab7500df2ad1ddddfcb78fab03f22cb3",
+    "stabilizationWorkflows": "77/77 success",
+    "browserInfrastructure": {
+      "failedRuns": [
+        45366807089,
+        45366807277,
+        45366805159
+      ],
+      "reason": "ubuntu-latest resolved to 26.04; Playwright 1.55 install failed before tests",
+      "fixedRunner": "ubuntu-24.04",
+      "noTestsRemoved": true
+    },
+    "auditor": {
+      "failedRun": 45366804467,
+      "observed": "3 code tasks, 2 business, 3 unverified, 116 history; extra task identity not present in log",
+      "test": "exact original IDs plus only independently reported IndexedDB inventory evidence; no unknown extra allowed; no production code changed"
+    },
+    "worker": {
+      "mockConcurrencyAssertions": 36,
+      "mode": "shared in-memory mock constraint, not real database",
+      "crossPending": "block profile save during pending weekly revision, block weekly save/load during pending profile",
+      "nativeBrowser": "pending"
+    },
+    "realHomologation": "no isolated HLGB Supabase project found; no production data or DDL",
+    "canPublish": false
   }
 }

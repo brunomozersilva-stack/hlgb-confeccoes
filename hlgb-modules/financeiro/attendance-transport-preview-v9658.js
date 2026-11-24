@@ -46,5 +46,52 @@
   const t=transport.transport({employeeId:pid,start,end,asOf:opt.asOf,paidThrough:opt.paidThrough,eligible,rateCents:opt.rateCents,workDates:rows.filter(x=>x.scheduled||x.commute==='sim'||x.advanceCents!==null).map(x=>x.date),paidDays:rows.filter(x=>x.advanceCents!==null).map(x=>({date:x.date,amountCents:x.advanceCents,verified:true})),attendance:rows.filter(x=>x.date<=opt.asOf).map(x=>({date:x.date,status:x.commute==='sim'?'worked-commuted':x.commute==='nao'?'no-commute':'unknown',verified:true})),previousAdjustments:rows.filter(x=>x.adjusted!=='nao').map(x=>x.date),calendarVerified:false,attendanceVerified:false,coverageVerified:false,adjustmentPolicyVerified:false});
   return {state:'local-preview',rows,counts,missingDays,transport:{...t,officialPayrollCents:null,canPublish:false},canWrite:false};
  }
- return {header,parse,inspect,preview};
+
+ function roster(batch,employees,allowed){
+  const empty=state=>({state,rows:[],issues:[],canWrite:false});
+  if(allowed!==true)return empty('forbidden');
+  if(batch?.state!=='local-preview'||!Array.isArray(batch.rows)||!Array.isArray(employees)||employees.length>10000)return empty('unavailable');
+  const index=new Map(),issues=[],imported=new Set(batch.rows.map(x=>x.employeeId));
+  for(const e of employees){if(!e||e.deletedAt||e.deleted_at||e.deleted===true||e._deleted===true)continue;const k=id(e.id);if(k)index.set(k,index.has(k)?null:e)}
+  const rows=[];
+  for(const [k,e] of index){if(!e){issues.push('duplicate-employee:'+k);continue}if(e.active===false&&!imported.has(k))continue;
+   const person={id:k,name:typeof e.name==='string'?e.name.trim().slice(0,160):k,company:typeof e.companyName==='string'?e.companyName.trim().slice(0,160):'',eligible:typeof e.hasTransport==='boolean'?e.hasTransport:null,imported:imported.has(k)};
+   rows.push({...person,signature:JSON.stringify([person.id,person.name,person.company,person.eligible,e.active!==false,e.terminationDate||''])});
+  }
+  for(const k of imported)if(!index.get(k))issues.push('imported-employee-unavailable:'+k);
+  return {state:'local-roster',rows:rows.sort((a,b)=>a.name.localeCompare(b.name,'pt-BR')||a.id.localeCompare(b.id)),issues,canWrite:false};
+ }
+ function coverageCandidate(month,asOf,options,planning){
+  if(!/^\d{4}-(0[1-9]|1[0-2])$/.test(month)||!dates(asOf)||typeof planning?.salaryDate!=='function')return {state:'unavailable',candidate:null,confirmed:null};
+  try{const [y,m]=month.split('-').map(Number),prior=new Date(Date.UTC(y,m-2,1)).toISOString().slice(0,7),cal=planning.salaryDate({competence:prior,asOf,holidays:options?.holidays||[],companyClosed:options?.companyClosed||[],bankClosed:options?.bankClosed||[]});
+   if(!dates(cal.companyFifthCandidate)||!cal.companyFifthCandidate.startsWith(month+'-'))return {state:'unavailable',candidate:null,confirmed:null};
+   return {state:'calendar-candidate',candidate:cal.companyFifthCandidate,salaryLimitCandidate:cal.fifthDay,scheduledSalaryCandidate:cal.scheduledCandidate,confirmed:null,requiresConfirmation:true,canWrite:false}
+  }catch(_){return {state:'unavailable',candidate:null,confirmed:null}}
+ }
+ function batchPreview(batch,employees,settings,asOf,planning,allowed){
+  const empty=state=>({state,rows:[],issues:[],observedForecastCents:null,observedCreditCents:null,reviewedCount:0,canWrite:false});
+  if(allowed!==true)return empty('forbidden');
+  if(!Array.isArray(settings)||settings.length<1||settings.length>200||!dates(asOf))return empty('invalid-input');
+  const source=roster(batch,employees,true);if(source.state!=='local-roster')return empty(source.state);
+  const current=new Map(source.rows.map(x=>[x.id,x])),seen=new Set(),rows=[],issues=[...source.issues],total={forecast:null,credit:null};let reviewedCount=0;
+  for(const r of settings){
+   const k=id(r?.employeeId),e=current.get(k);if(!k||seen.has(k))return empty('invalid-input');seen.add(k);
+   const row={employeeId:k,name:e?.name||k,company:e?.company||'',state:'review',reason:null,forecastCents:null,possibleCreditCents:null,firstUncoveredDate:null,counts:null,missingDays:null};
+   if(!e||e.signature!==r.signature){row.reason='roster-changed';rows.push(row);continue}
+   if(!e.imported){row.reason='attendance-missing';rows.push(row);continue}
+   if(e.eligible===null){row.reason='eligibility-unknown';rows.push(row);continue}
+   if(r.reviewed!==true||!dates(r.paidThrough)||!Number.isSafeInteger(r.rateCents)||r.rateCents<0||r.rateCents>1000000000){row.reason='parameters-unreviewed';rows.push(row);continue}
+   if(r.paidThrough>asOf){row.reason='coverage-in-future';rows.push(row);continue}
+   try{const x=preview(batch,{id:k,hasTransport:e.eligible},{asOf,paidThrough:r.paidThrough,rateCents:r.rateCents},planning);
+    if(x.state!=='local-preview'||!x.transport){row.reason='preview-unavailable';rows.push(row);continue}
+    const z=x.transport;row.counts=x.counts;row.missingDays=x.missingDays;row.firstUncoveredDate=z.firstUncoveredDate;row.forecastCents=z.forecastCents;row.possibleCreditCents=z.possibleCreditCents;row.state='observed';row.issues=z.issues;reviewedCount++;
+    total.forecast=(total.forecast??0)+z.forecastCents;total.credit=(total.credit??0)+z.possibleCreditCents;
+   }catch(_){row.reason='preview-unavailable'}
+   rows.push(row)
+  }
+  if([total.forecast,total.credit].some(n=>n!==null&&!Number.isSafeInteger(n)))return empty('invalid-input');
+  const totalsPartial=reviewedCount!==settings.length||batch.issues.length>0||rows.some(r=>r.missingDays>0||r.issues?.length||r.counts?.pending>0);
+  return {state:'local-batch-preview',rows,issues,selectedCount:settings.length,reviewedCount,observedForecastCents:total.forecast,observedCreditCents:total.credit,totalsPartial,officialNetCents:null,canWrite:false};
+ }
+ return {header,parse,inspect,preview,roster,coverageCandidate,batchPreview};
 })());

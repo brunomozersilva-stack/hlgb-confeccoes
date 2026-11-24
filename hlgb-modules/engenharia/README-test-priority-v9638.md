@@ -1,3 +1,9 @@
 # Matriz de prioridade — #311
 
 31 associações área/teste (algumas compartilhadas) verificadas por caminho no main, 14 áreas. Recomenda primeira rodada rápida, não dispara testes automaticamente, não substitui workflows globais e não prova cobertura integral. Se arquivo não existir, sinaliza lacuna e falha CI de inventário. Arestas lexicais não são suficientes para excluir testes. Medir duração real antes/depois quando a seleção for executada em CI. Testes browser exigem servidor e Playwright conforme workflow oficial.
+
+## v96.71 — aprendizagem por evidência e prioridade ampliada
+
+Matriz de 14 áreas: 29 arquivos anteriores mantidos, 55 arquivos únicos no total (26 adicionais). Prioridade inclui as novas suítes de RH, acertos, Corte Conjunto/Compras, Assistente, Bot e mobile. Mudança em boot/monólito direciona primeiro infraestrutura, WAL, interface e Auditor; nenhum teste obrigatório dispensado. 29 asserções controladas de matriz e prioridade.
+
+Registro de evidência pareada exige SHA e runs distintos, mesmo workflow, mesmo passo de teste, jobs Chromium/WebKit completos, falha antes/sucesso depois, revisão de log e categoria. 18 asserções controladas, incluindo rejeição de cancelamento, passo omitido e falha de instalação não relacionada. Caso real: seletor de sobras, run 45304497656 falhou em ambos os browsers; run 45359414421 passou nos mesmos passos. Categoria test-locator, não falha de negócio. Caso Passagem de diaristas: run 45359414185 falhou no select, correção de aria-label em e3e438d1; reprodução isolada Chromium antes 0/depois 1 correspondência, seleção yes passou. Só será aprendido após aprovação de todo o workflow nativo. O registro offline verifica consistência, não autentica a origem; manter conferência dos logs. Sem reparo automático, sem gravação de dados ou bypass de CI.

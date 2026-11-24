@@ -5,6 +5,7 @@ on:
       - 'release-mobile-friendly-v9512.js'
       - 'app9240.html'
       - 'tests/mobile-real-pages-v9640.cjs'
+      - 'tests/hlgb-mobile-menu-v9670.cjs'
       - '.github/workflows/mobile-real-pages-v9640.yml'
   workflow_dispatch:
 permissions:
@@ -24,7 +25,9 @@ jobs:
       - run: npm install --no-save playwright@1.55.0 && npx playwright install --with-deps ${{ matrix.browser }}
       - env:
           HLGB_BROWSER: ${{ matrix.browser }}
-        run: node tests/mobile-real-pages-v9640.cjs
+        run: |
+          node tests/mobile-real-pages-v9640.cjs
+          node tests/hlgb-mobile-menu-v9670.cjs
       - uses: actions/upload-artifact@v4
         if: always()
         with:

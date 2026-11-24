@@ -17,4 +17,24 @@ const assert=require('node:assert/strict');const api=require('../hlgb-modules/fi
  ok(p({}, {...o,targetDate:'2026-11-23'}).observations.find(x=>x.category==='Funcionários').paidCents===100000,'paid date not due');
  ok(!JSON.stringify(p()).includes('payroll_paid_date_view'),'no individual payroll data');
  ok(JSON.stringify(ctx.db)===before,'immutable');
+
+ const histRows=[...rows,{id:10,flow:'Saída',status:'Realizado',date:'2026-10-01',realizedAt:'2026-11-16',category:'Matéria-prima',value:10000},{id:11,flow:'Saída',status:'Realizado',date:'2026-11-02',realizedAt:'2026-11-09',category:'Matéria-prima',value:5000},{id:12,flow:'Saída',status:'Previsto',date:'2026-11-16',category:'Matéria-prima',value:2000},{id:13,flow:'Entrada',status:'Previsto',date:'2026-11-20',category:'Vendas',value:3000},{id:14,flow:'Saída',status:'Realizado',date:'2026-11-16',realizedAt:'2026-11-16',category:'Frete',value:0},{id:15,flow:'Entrada',status:'Realizado',date:'2026-11-02',realizedAt:'2026-11-09',category:'Vendas',value:6000}];
+ const h=p({db:{...ctx.db,hubFinanceEntries:histRows}}),mh=h.recordedHistory.categories.find(x=>x.category==='Matéria-prima');
+ ok(h.recordedHistory.state==='observed-incomplete'&&h.recordedHistory.officialBaseline===null,'history no official diagnosis');
+ ok(h.recordedHistory.weeks.length===8&&h.recordedHistory.observedWeeks===2,'8 closed weeks local coverage');
+ ok(mh.history.find(x=>x.week==='2026-11-16').paidCents===1000000&&mh.history.find(x=>x.week==='2026-11-09').paidCents===500000,'paid-date history');
+ ok(mh.history.find(x=>x.week==='2026-11-16').plannedCents===200000,'old planned separate');
+ ok(mh.history.find(x=>x.week==='2026-11-02').paidCents===null,'missing week not zero');
+ ok(h.recordedHistory.categories.find(x=>x.category==='Frete').history.find(x=>x.week==='2026-11-16').paidCents===0,'explicit zero observed');
+ ok(mh.targetPlannedCents===3000000&&mh.targetPaidCents===null&&mh.recordedWeeks===2,'target vs recorded weeks');
+ ok(h.recordedHistory.weeks.find(x=>x.week==='2026-11-09').paidInCents===600000,'history income separately');
+ ok(h.recordedHistory.overdue.in.amountCents===300000&&h.recordedHistory.overdue.out.amountCents===200000,'past planned obligations');
+ ok(h.recordedHistory.actions.some(x=>x.code==='review-history-gaps'&&x.count===6),'history gap review');
+ ok(h.recordedHistory.actions.some(x=>x.code==='review-overdue-receipts'),'overdue action');
+ ok(h.cash.conservative.length===13&&h.cash.receiptDelayDays===14&&h.cash.conservative.every(x=>x.closingCents===null),'delayed scenario no balance');
+ ok(h.cash.base[1].incomingCents===1200000&&h.cash.conservative[3].incomingCents===1200000,'receipts shift');
+ ok(p({}, {...o,receiptDelayDays:7}).cash.conservative[2].incomingCents===1200000,'seven day scenario');
+ ok(p({}, {...o,receiptDelayDays:99}).state==='unavailable','invalid delay');
+ ok(!JSON.stringify(h.recordedHistory).includes('sourceId'),'aggregate no raw origin');
+ ok(h.comparison.categories.every(x=>x.medianCents===null),'old official gate preserved');
 })(api,(v,m)=>{assert.ok(v,m);console.log('PASS',m)});
